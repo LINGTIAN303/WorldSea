@@ -140,62 +140,81 @@ function customProxyPlugin(): Plugin {
   }
 }
 
+const aliases = {
+  '@': path.resolve(__dirname, 'src'),
+  '@agent': path.resolve(__dirname, 'worldsmith-agent/src'),
+  '@worldsmith/entity-core$': path.resolve(__dirname, 'packages/entity-core/src'),
+  '@worldsmith/entity-core/stores': path.resolve(__dirname, 'packages/entity-core/src/stores'),
+  '@worldsmith/entity-core/core': path.resolve(__dirname, 'packages/entity-core/src/core'),
+  '@worldsmith/entity-core/types': path.resolve(__dirname, 'packages/entity-core/src/types'),
+  '@worldsmith/entity-core/composables': path.resolve(__dirname, 'packages/entity-core/src/composables'),
+  '@worldsmith/entity-core/traits': path.resolve(__dirname, 'packages/entity-core/src/traits'),
+  '@worldsmith/entity-core/facets': path.resolve(__dirname, 'packages/entity-core/src/facets'),
+  '@worldsmith/entity-core/relations': path.resolve(__dirname, 'packages/entity-core/src/relations'),
+  '@worldsmith/plugin-sdk$': path.resolve(__dirname, 'packages/plugin-sdk/src'),
+  '@worldsmith/plugin-sdk/components': path.resolve(__dirname, 'packages/plugin-sdk/src/components'),
+  '@worldsmith/plugin-sdk/composables': path.resolve(__dirname, 'packages/plugin-sdk/src/composables'),
+  '@worldsmith/ui-kit$': path.resolve(__dirname, 'packages/ui-kit/src'),
+  '@worldsmith/canvas-engine$': path.resolve(__dirname, 'packages/canvas-engine/src'),
+  '@worldsmith/canvas-engine/core': path.resolve(__dirname, 'packages/canvas-engine/src/core'),
+  '@worldsmith/canvas-engine/tree': path.resolve(__dirname, 'packages/canvas-engine/src/tree'),
+  '@worldsmith/canvas-engine/graph': path.resolve(__dirname, 'packages/canvas-engine/src/graph'),
+  '@worldsmith/canvas-engine/algorithms': path.resolve(__dirname, 'packages/canvas-engine/src/algorithms'),
+  '@worldsmith/canvas-engine/geometry': path.resolve(__dirname, 'packages/canvas-engine/src/geometry'),
+  '@worldsmith/motion-kit$': path.resolve(__dirname, 'packages/motion-kit/src'),
+  '@worldsmith/font-kit$': path.resolve(__dirname, 'packages/font-kit/src'),
+  '@worldsmith/font-kit/loader': path.resolve(__dirname, 'packages/font-kit/src/FontLoader'),
+  '@worldsmith/font-kit/registry': path.resolve(__dirname, 'packages/font-kit/src/FontRegistry'),
+  '@worldsmith/font-kit/wsfont': path.resolve(__dirname, 'packages/font-kit/src/WsFontPack'),
+  '@worldsmith/font-kit/tokens': path.resolve(__dirname, 'packages/font-kit/src/tokens'),
+  '@worldsmith/font-kit/renderer': path.resolve(__dirname, 'packages/font-kit/src/FontRenderer'),
+  '@worldsmith/font-kit/animated': path.resolve(__dirname, 'packages/font-kit/src/AnimatedTextRenderer'),
+  '@worldsmith/font-kit/tauri': path.resolve(__dirname, 'packages/font-kit/src/TauriFontBridge'),
+  '@worldsmith/font-kit/composables': path.resolve(__dirname, 'packages/font-kit/src/composables'),
+  '@worldsmith/agent-core$': path.resolve(__dirname, 'packages/agent-core/src'),
+  '@worldsmith/agent-core/types': path.resolve(__dirname, 'packages/agent-core/src/types'),
+  '@worldsmith/agent-core/guard': path.resolve(__dirname, 'packages/agent-core/src/guard'),
+  '@worldsmith/agent-core/registry': path.resolve(__dirname, 'packages/agent-core/src/registry'),
+  '@worldsmith/agent-core/bus': path.resolve(__dirname, 'packages/agent-core/src/bus'),
+  '@worldsmith/agent-core/execution': path.resolve(__dirname, 'packages/agent-core/src/execution'),
+  '@worldsmith/agent-core/factory': path.resolve(__dirname, 'packages/agent-core/src/factory'),
+  '@worldsmith/core$': fs.existsSync(path.resolve(__dirname, 'worldsmith-core/pkg/worldsmith_core.js'))
+    ? path.resolve(__dirname, 'worldsmith-core/pkg/worldsmith_core.js')
+    : path.resolve(__dirname, 'src/core/stubs/worldsmithCoreStub.ts'),
+  '@worldsmith/tactical-engine$': fs.existsSync(path.resolve(__dirname, 'tactical-engine/pkg/tactical_engine.js'))
+    ? path.resolve(__dirname, 'tactical-engine/pkg/tactical_engine.js')
+    : path.resolve(__dirname, 'src/core/stubs/tacticalEngineStub.ts'),
+  '@worldsmith/perf-kit$': path.resolve(__dirname, 'packages/perf-kit/src'),
+  '@worldsmith/perf-kit/reactive': path.resolve(__dirname, 'packages/perf-kit/src/reactive'),
+  '@worldsmith/perf-kit/io': path.resolve(__dirname, 'packages/perf-kit/src/io'),
+  '@worldsmith/perf-kit/render': path.resolve(__dirname, 'packages/perf-kit/src/render'),
+  '@worldsmith/theme-kit': path.resolve(__dirname, 'packages/theme-kit/src'),
+  '@worldsmith/memory-archive$': path.resolve(__dirname, 'packages/memory-archive/src'),
+  '@worldsmith/memory-archive/types': path.resolve(__dirname, 'packages/memory-archive/src/types'),
+  '@worldsmith/memory-archive/core': path.resolve(__dirname, 'packages/memory-archive/src/core'),
+  '@worldsmith/memory-archive/adapters': path.resolve(__dirname, 'packages/memory-archive/src/adapters'),
+  '@worldsmith/memory-archive/storage': path.resolve(__dirname, 'packages/memory-archive/src/storage'),
+  '@worldsmith/memory-archive/embedding': path.resolve(__dirname, 'packages/memory-archive/src/embedding'),
+  '@worldsmith/memory-archive/utils': path.resolve(__dirname, 'packages/memory-archive/src/utils'),
+}
+
+// 转换为数组形式（Vite 8 中对象形式的 $ 后缀 alias 不生效，需用数组形式）
+const aliasArray = Object.entries(aliases).map(([key, value]) => {
+  if (key.endsWith('$')) {
+    // 精确匹配：使用正则 ^...$
+    const escaped = key.slice(0, -1).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    return { find: new RegExp(`^${escaped}$`), replacement: value as string }
+  }
+  return { find: key, replacement: value as string }
+})
+
 export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
   },
   plugins: [vue(), wasm(), worldsmithServerLauncher(), localFilePlugin(), customProxyPlugin()],
   resolve: {
-    alias: {
-      '@': path.resolve(__dirname, 'src'),
-      '@agent': path.resolve(__dirname, 'worldsmith-agent/src'),
-      '@worldsmith/entity-core$': path.resolve(__dirname, 'packages/entity-core/src'),
-      '@worldsmith/entity-core/stores': path.resolve(__dirname, 'packages/entity-core/src/stores'),
-      '@worldsmith/entity-core/core': path.resolve(__dirname, 'packages/entity-core/src/core'),
-      '@worldsmith/entity-core/types': path.resolve(__dirname, 'packages/entity-core/src/types'),
-      '@worldsmith/entity-core/composables': path.resolve(__dirname, 'packages/entity-core/src/composables'),
-      '@worldsmith/entity-core/traits': path.resolve(__dirname, 'packages/entity-core/src/traits'),
-      '@worldsmith/entity-core/facets': path.resolve(__dirname, 'packages/entity-core/src/facets'),
-      '@worldsmith/entity-core/relations': path.resolve(__dirname, 'packages/entity-core/src/relations'),
-      '@worldsmith/plugin-sdk$': path.resolve(__dirname, 'packages/plugin-sdk/src'),
-      '@worldsmith/plugin-sdk/components': path.resolve(__dirname, 'packages/plugin-sdk/src/components'),
-      '@worldsmith/plugin-sdk/composables': path.resolve(__dirname, 'packages/plugin-sdk/src/composables'),
-      '@worldsmith/ui-kit$': path.resolve(__dirname, 'packages/ui-kit/src'),
-      '@worldsmith/canvas-engine$': path.resolve(__dirname, 'packages/canvas-engine/src'),
-      '@worldsmith/canvas-engine/core': path.resolve(__dirname, 'packages/canvas-engine/src/core'),
-      '@worldsmith/canvas-engine/tree': path.resolve(__dirname, 'packages/canvas-engine/src/tree'),
-      '@worldsmith/canvas-engine/graph': path.resolve(__dirname, 'packages/canvas-engine/src/graph'),
-      '@worldsmith/canvas-engine/algorithms': path.resolve(__dirname, 'packages/canvas-engine/src/algorithms'),
-      '@worldsmith/canvas-engine/geometry': path.resolve(__dirname, 'packages/canvas-engine/src/geometry'),
-      '@worldsmith/motion-kit$': path.resolve(__dirname, 'packages/motion-kit/src'),
-      '@worldsmith/font-kit$': path.resolve(__dirname, 'packages/font-kit/src'),
-      '@worldsmith/font-kit/loader': path.resolve(__dirname, 'packages/font-kit/src/FontLoader'),
-      '@worldsmith/font-kit/registry': path.resolve(__dirname, 'packages/font-kit/src/FontRegistry'),
-      '@worldsmith/font-kit/wsfont': path.resolve(__dirname, 'packages/font-kit/src/WsFontPack'),
-      '@worldsmith/font-kit/tokens': path.resolve(__dirname, 'packages/font-kit/src/tokens'),
-      '@worldsmith/font-kit/renderer': path.resolve(__dirname, 'packages/font-kit/src/FontRenderer'),
-      '@worldsmith/font-kit/animated': path.resolve(__dirname, 'packages/font-kit/src/AnimatedTextRenderer'),
-      '@worldsmith/font-kit/tauri': path.resolve(__dirname, 'packages/font-kit/src/TauriFontBridge'),
-      '@worldsmith/font-kit/composables': path.resolve(__dirname, 'packages/font-kit/src/composables'),
-      '@worldsmith/agent-core$': path.resolve(__dirname, 'packages/agent-core/src'),
-      '@worldsmith/agent-core/types': path.resolve(__dirname, 'packages/agent-core/src/types'),
-      '@worldsmith/agent-core/guard': path.resolve(__dirname, 'packages/agent-core/src/guard'),
-      '@worldsmith/agent-core/registry': path.resolve(__dirname, 'packages/agent-core/src/registry'),
-      '@worldsmith/agent-core/bus': path.resolve(__dirname, 'packages/agent-core/src/bus'),
-      '@worldsmith/agent-core/execution': path.resolve(__dirname, 'packages/agent-core/src/execution'),
-      '@worldsmith/agent-core/factory': path.resolve(__dirname, 'packages/agent-core/src/factory'),
-      '@worldsmith/core$': fs.existsSync(path.resolve(__dirname, 'worldsmith-core/pkg/worldsmith_core.js'))
-        ? path.resolve(__dirname, 'worldsmith-core/pkg/index.js')
-        : path.resolve(__dirname, 'src/core/stubs/worldsmithCoreStub.ts'),
-      '@worldsmith/tactical-engine$': fs.existsSync(path.resolve(__dirname, 'tactical-engine/pkg/tactical_engine.js'))
-        ? path.resolve(__dirname, 'tactical-engine/pkg/index.js')
-        : path.resolve(__dirname, 'src/core/stubs/tacticalEngineStub.ts'),
-      '@worldsmith/perf-kit$': path.resolve(__dirname, 'packages/perf-kit/src'),
-      '@worldsmith/perf-kit/reactive': path.resolve(__dirname, 'packages/perf-kit/src/reactive'),
-      '@worldsmith/perf-kit/io': path.resolve(__dirname, 'packages/perf-kit/src/io'),
-      '@worldsmith/perf-kit/render': path.resolve(__dirname, 'packages/perf-kit/src/render'),
-      '@worldsmith/theme-kit': path.resolve(__dirname, 'packages/theme-kit/src'),
-    },
+    alias: aliasArray,
   },
   optimizeDeps: {
     include: ['docx', 'turndown'],
@@ -286,6 +305,11 @@ export default defineConfig({
         target: 'https://api.mistral.ai',
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/api\/mistral/, ''),
+      },
+      '/api/stepfun': {
+        target: 'https://api.stepfun.com',
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/api\/stepfun/, ''),
       },
       '/api/bytedance': {
         target: 'https://visual.volcengineapi.com',

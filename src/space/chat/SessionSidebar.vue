@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="session-sidebar">
     <div class="sidebar-header">
       <h3 class="sidebar-title">会话 <span class="title-count">{{ sessionCount }}</span></h3>
@@ -205,6 +205,13 @@ async function onUnpin() {
 
 async function onDelete() {
   const id = contextMenu.value.sessionId
+  // H6.2: 删除会话前归档该会话（避免数据丢失）
+  try {
+    const { useMemoryArchive } = await import('@/memory-archive/useMemoryArchive')
+    await useMemoryArchive().archiveSession(id)
+  } catch (err) {
+    console.warn('[SessionSidebar] 删除前归档失败（不影响删除）:', err)
+  }
   if (id === currentSessionId.value) {
     await newSession()
   }

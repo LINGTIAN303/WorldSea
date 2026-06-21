@@ -423,15 +423,19 @@ onBeforeUnmount(() => {
 
 /* 展开面板 */
 .sidebar-panel {
-  width: 260px;
   flex-shrink: 0;
   border-right: 1px solid var(--color-border);
   overflow: hidden;
+  contain: layout paint style;
 }
 
-.sidebar-expand-enter-active { transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease; }
-.sidebar-expand-leave-active { transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.15s ease; }
-.sidebar-expand-enter-from, .sidebar-expand-leave-to { width: 0; opacity: 0; }
+.sidebar-panel > * {
+  width: 260px;
+}
+
+.sidebar-expand-enter-active { transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
+.sidebar-expand-leave-active { transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+.sidebar-expand-enter-from, .sidebar-expand-leave-to { width: 0; }
 
 .group-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 

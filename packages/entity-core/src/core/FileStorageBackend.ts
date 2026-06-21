@@ -366,7 +366,7 @@ export class FileStorageBackend implements StorageBackend {
     })
     this._entityCache.set(entity.id, entity)
     // 文件写入异步化（不阻塞调用方）
-    const content = JSON.stringify(entity, null, 2)
+    const content = JSON.stringify(entity)
     writeTextFile(filePath, content, true).catch(err =>
       console.warn('[FileStorageBackend] 文件写入失败:', err),
     )
@@ -388,7 +388,7 @@ export class FileStorageBackend implements StorageBackend {
     })
     this._entityCache.set(id, updated)
     // 文件写入异步化
-    const content = JSON.stringify(updated, null, 2)
+    const content = JSON.stringify(updated)
     writeTextFile(newPath, content, true).then(async () => {
       // 如果路径变了，删除旧文件
       if (oldPath && oldPath !== newPath) {
@@ -550,20 +550,29 @@ export class FileStorageBackend implements StorageBackend {
   /** 将关系持久化到文件 */
   private async flushRelations(): Promise<void> {
     if (!this._projectDir) return
-    const content = JSON.stringify(this._relations, null, 2)
+    const content = JSON.stringify(this._relations)
     await writeTextFile(`${this._projectDir}/relations/_index.json`, content, true)
   }
 
-  /** 异步将关系持久化到文件（防抖合并，不阻塞调用方） */
-  private _flushRelationsTimer: ReturnType<typeof setTimeout> | null = null
+  /** 异步将关系持久化到文件（requestIdleCallback 防抖，避免在主线程上做大 JSON 序列化抢占动画帧） */
+  private _flushRelationsIdle: number | ReturnType<typeof setTimeout> | null = null
   private flushRelationsAsync(): void {
-    if (this._flushRelationsTimer) clearTimeout(this._flushRelationsTimer)
-    this._flushRelationsTimer = setTimeout(() => {
-      this._flushRelationsTimer = null
+    if (this._flushRelationsIdle != null) {
+      if (typeof cancelIdleCallback === 'function') cancelIdleCallback(this._flushRelationsIdle as number)
+      else clearTimeout(this._flushRelationsIdle)
+      this._flushRelationsIdle = null
+    }
+    const run = () => {
+      this._flushRelationsIdle = null
       this.flushRelations().catch(err =>
         console.warn('[FileStorageBackend] 关系文件写入失败:', err),
       )
-    }, 100)
+    }
+    if (typeof requestIdleCallback === 'function') {
+      this._flushRelationsIdle = requestIdleCallback(run, { timeout: 500 }) as unknown as number
+    } else {
+      this._flushRelationsIdle = setTimeout(run, 150)
+    }
   }
 
   /** 从文件加载关系 */
@@ -621,19 +630,28 @@ export class FileStorageBackend implements StorageBackend {
   private async flushKv(): Promise<void> {
     if (!this._projectDir) return
     const pairs = Array.from(this._kvCache.entries())
-    await writeTextFile(`${this._projectDir}/.worldsmith/kv_store.json`, JSON.stringify(pairs, null, 2), true)
+    await writeTextFile(`${this._projectDir}/.worldsmith/kv_store.json`, JSON.stringify(pairs), true)
   }
 
-  /** 异步将 KV 存储持久化到文件（防抖合并，不阻塞调用方） */
-  private _flushKvTimer: ReturnType<typeof setTimeout> | null = null
+  /** 异步将 KV 存储持久化到文件（requestIdleCallback 防抖，避免主线程阻塞） */
+  private _flushKvIdle: number | ReturnType<typeof setTimeout> | null = null
   private flushKvAsync(): void {
-    if (this._flushKvTimer) clearTimeout(this._flushKvTimer)
-    this._flushKvTimer = setTimeout(() => {
-      this._flushKvTimer = null
+    if (this._flushKvIdle != null) {
+      if (typeof cancelIdleCallback === 'function') cancelIdleCallback(this._flushKvIdle as number)
+      else clearTimeout(this._flushKvIdle)
+      this._flushKvIdle = null
+    }
+    const run = () => {
+      this._flushKvIdle = null
       this.flushKv().catch(err =>
         console.warn('[FileStorageBackend] KV 文件写入失败:', err),
       )
-    }, 100)
+    }
+    if (typeof requestIdleCallback === 'function') {
+      this._flushKvIdle = requestIdleCallback(run, { timeout: 500 }) as unknown as number
+    } else {
+      this._flushKvIdle = setTimeout(run, 150)
+    }
   }
 
   private async loadKv(): Promise<void> {
@@ -694,7 +712,7 @@ export class FileStorageBackend implements StorageBackend {
     // 写文件内容（异步化，不阻塞调用方）
     writeTextFile(
       `${this._projectDir}/.worldsmith/files_content/${file.id}.json`,
-      JSON.stringify(content, null, 2),
+      JSON.stringify(content),
       true,
     ).catch(err =>
       console.warn('[FileStorageBackend] 文件内容写入失败:', err),
@@ -752,21 +770,30 @@ export class FileStorageBackend implements StorageBackend {
     if (!this._projectDir) return
     await writeTextFile(
       `${this._projectDir}/.worldsmith/files_meta.json`,
-      JSON.stringify(this._filesMeta, null, 2),
+      JSON.stringify(this._filesMeta),
       true,
     )
   }
 
-  /** 异步将文件元数据持久化到文件（防抖合并，不阻塞调用方） */
-  private _flushFilesMetaTimer: ReturnType<typeof setTimeout> | null = null
+  /** 异步将文件元数据持久化到文件（requestIdleCallback 防抖，避免主线程阻塞） */
+  private _flushFilesMetaIdle: number | ReturnType<typeof setTimeout> | null = null
   private flushFilesMetaAsync(): void {
-    if (this._flushFilesMetaTimer) clearTimeout(this._flushFilesMetaTimer)
-    this._flushFilesMetaTimer = setTimeout(() => {
-      this._flushFilesMetaTimer = null
+    if (this._flushFilesMetaIdle != null) {
+      if (typeof cancelIdleCallback === 'function') cancelIdleCallback(this._flushFilesMetaIdle as number)
+      else clearTimeout(this._flushFilesMetaIdle)
+      this._flushFilesMetaIdle = null
+    }
+    const run = () => {
+      this._flushFilesMetaIdle = null
       this.flushFilesMeta().catch(err =>
         console.warn('[FileStorageBackend] 文件元数据写入失败:', err),
       )
-    }, 100)
+    }
+    if (typeof requestIdleCallback === 'function') {
+      this._flushFilesMetaIdle = requestIdleCallback(run, { timeout: 500 }) as unknown as number
+    } else {
+      this._flushFilesMetaIdle = setTimeout(run, 150)
+    }
   }
 
   private async loadFilesMeta(): Promise<void> {

@@ -13,6 +13,7 @@ export default defineConfig({
       'src/**/__tests__/**/*.spec.ts',
       'worldsmith-agent/**/__tests__/**/*.spec.ts',
       'worldsmith-server/**/__tests__/**/*.spec.ts',
+      'packages/memory-archive/**/__tests__/**/*.spec.ts',
     ],
     coverage: {
       provider: 'v8',
@@ -69,6 +70,13 @@ export default defineConfig({
       '@worldsmith/agent-core/execution': path.resolve(__dirname, 'packages/agent-core/src/execution'),
       '@worldsmith/agent-core/factory': path.resolve(__dirname, 'packages/agent-core/src/factory'),
       '@worldsmith/theme-kit': path.resolve(__dirname, 'packages/theme-kit/src'),
+      '@worldsmith/memory-archive$': path.resolve(__dirname, 'packages/memory-archive/src'),
+      '@worldsmith/memory-archive/types': path.resolve(__dirname, 'packages/memory-archive/src/types'),
+      '@worldsmith/memory-archive/core': path.resolve(__dirname, 'packages/memory-archive/src/core'),
+      '@worldsmith/memory-archive/adapters': path.resolve(__dirname, 'packages/memory-archive/src/adapters'),
+      '@worldsmith/memory-archive/storage': path.resolve(__dirname, 'packages/memory-archive/src/storage'),
+      '@worldsmith/memory-archive/embedding': path.resolve(__dirname, 'packages/memory-archive/src/embedding'),
+      '@worldsmith/memory-archive/utils': path.resolve(__dirname, 'packages/memory-archive/src/utils'),
     },
   },
 })

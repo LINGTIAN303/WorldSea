@@ -250,7 +250,7 @@ function onDocumentClick(event: MouseEvent): void {
 </script>
 
 <style scoped>
-.group-chat-list { display: flex; flex-direction: column; height: 100%; }
+.group-chat-list { display: flex; flex-direction: column; height: 100%; contain: layout paint style; }
 .list-header { padding: 8px; display: flex; gap: 6px; }
 .search-input { flex: 1; padding: 6px 10px; border: 1px solid var(--color-border); border-radius: 8px; font-size: 12px; background: var(--color-surface); outline: none; color: var(--color-text); }
 .search-input:focus { border-color: var(--color-primary); }
@@ -262,7 +262,7 @@ function onDocumentClick(event: MouseEvent): void {
 .mode-tab { flex: 1; padding: 4px; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-surface); cursor: pointer; font-size: 11px; text-align: center; transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s; color: var(--color-text-secondary); }
 .mode-tab.active { background: rgba(108,92,231,0.1); border-color: var(--color-primary); font-weight: 600; color: var(--color-text); }
 
-.list-body { flex: 1; overflow-y: auto; min-height: 0; }
+.list-body { flex: 1; overflow-y: auto; min-height: 0; contain: layout paint style; }
 .group-item {
   display: flex;
   align-items: center;

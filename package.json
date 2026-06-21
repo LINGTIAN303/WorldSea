@@ -102,5 +102,21 @@
     "overrides": {
       "vis-data": "8.0.3"
     }
-  }
+  },
+  "description": "AI-powered worldbuilding platform — build rich, interconnected fictional worlds with intelligent assistance.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LINGTIAN303/OpenWorld.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/LINGTIAN303/OpenWorld/issues"
+  },
+  "homepage": "https://github.com/LINGTIAN303/OpenWorld#readme"
 }

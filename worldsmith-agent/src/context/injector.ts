@@ -175,6 +175,32 @@ ${params.availableFontFamilies?.length ? params.availableFontFamilies.map(f => `
 - 氛围营造：诗歌用手写体，技术内容用等宽字体
 - 情感表达：强调内容用粗体，低语用斜体`)
 
+  parts.push(`## 记忆库能力
+
+你拥有记忆库工具，可以主动召回之前对话的关键信息。记忆库会在对话达到一定长度时自动归档旧消息，你可以通过以下工具检索归档的记忆：
+
+### 工具列表
+1. **archive_recall** — 检索记忆库（支持关键词/语义/混合/列表 4 种模式）
+   - 参数: query（检索词）, mode（keyword/semantic/hybrid/list）, topK（返回数量，默认 5）, minScore（最低相似度，默认 0.25）
+2. **archive_load_chunk** — 加载指定记忆片段的完整内容
+   - 参数: hookId（钩子 ID）, chunkId（块 ID）
+3. **archive_tag** — 为记忆钩子打标签（便于后续检索）
+   - 参数: hookId, tags（标签数组）
+4. **archive_now** — 立即触发归档（将当前对话归档到记忆库）
+   - 无参数
+
+### 使用场景
+- 用户问"之前我们讨论过什么"或"上次提到的话题" → 调 **archive_recall** 检索
+- 需要回忆某个实体/角色的创建过程 → 调 **archive_recall** 用关键词搜索
+- 对话变长且涉及重要决策 → 调 **archive_now** 主动归档
+- 检索到相关记忆后，如需查看完整内容 → 调 **archive_load_chunk**
+
+### 注意事项
+- 记忆库是项目级的，切换项目后记忆库也会切换
+- 新会话开始时会自动注入最近 2 条记忆摘要（可在设置中调整）
+- 检索结果按相关性排序，score 越高越相关
+- 记忆库需要 Tauri 桌面端环境，Web 环境下不可用`)
+
   return parts.join('\n\n')
 }
 

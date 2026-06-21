@@ -178,7 +178,7 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.friend-list { display: flex; flex-direction: column; height: 100%; }
+.friend-list { display: flex; flex-direction: column; height: 100%; contain: layout paint style; }
 
 .list-header { padding: 8px; display: flex; gap: 6px; }
 .search-input { flex: 1; padding: 6px 10px; border: 1px solid var(--color-border); border-radius: 8px; font-size: 12px; background: var(--color-surface); outline: none; color: var(--color-text); }
@@ -186,7 +186,7 @@ onBeforeUnmount(() => {
 .close-btn { width: 24px; height: 24px; border: none; background: transparent; border-radius: 4px; cursor: pointer; font-size: 12px; color: var(--color-text-tertiary); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .close-btn:hover { background: var(--color-surface-elevated); color: var(--color-text); }
 
-.friend-body { flex: 1; overflow-y: auto; min-height: 0; }
+.friend-body { flex: 1; overflow-y: auto; min-height: 0; contain: layout paint style; }
 
 .friend-item {
   display: flex;

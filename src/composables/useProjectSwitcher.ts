@@ -100,6 +100,20 @@ export function useProjectSwitcher() {
     try {
       console.log(`[ProjectSwitcher] 开始切换项目: ${targetProjectId}`)
 
+      // H6.1: 项目切换前归档当前会话（避免数据丢失）
+      // 必须在 pm.switchProject() 之前执行，此时 useAgent().messages 仍是旧项目消息
+      // 使用动态 import 避免与 useMemoryArchive → useProjectSwitcher 的循环依赖
+      try {
+        const { useMemoryArchive } = await import('@/memory-archive/useMemoryArchive')
+        const memoryArchive = useMemoryArchive()
+        if (memoryArchive.isInitialized.value) {
+          console.log('[ProjectSwitcher] 切换前归档当前会话...')
+          await memoryArchive.archive({ source: 'session_end' })
+        }
+      } catch (err) {
+        console.warn('[ProjectSwitcher] 切换前归档失败（不影响切换）:', err)
+      }
+
       // 1. 切换 ProjectManager 的当前项目
       const switched = await pm.switchProject(targetProjectId)
       if (!switched) {

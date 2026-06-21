@@ -350,6 +350,25 @@ const mistral: ProviderManifest = {
   responseParserType: 'openai',
 }
 
+const stepfun: ProviderManifest = {
+  id: 'stepfun',
+  label: 'StepFun',
+  apiType: 'openai-completions',
+  isDomestic: true,
+  proxyPath: '/api/stepfun/v1',
+  directBaseUrl: 'https://api.stepfun.com',
+  chatCompletionsPath: '/v1/chat/completions',
+  modelsPath: '/models',
+  defaultModelId: 'step-3.7-flash',
+  visionDetector: (id) => id === 'step-3.7-flash' || id === 'step-1o-turbo-vision',
+  thinkingDetector: (id) => id === 'step-3.7-flash' || id === 'step-3.5-flash' || id === 'step-3.5-flash-2603',
+  thinkingFormat: 'reasoning_content',
+  compat: { maxTokensField: 'max_tokens', supportsStrictMode: false, supportsUsageInStreaming: true },
+  supportsModelListing: true,
+  bodyBuilderType: 'openai',
+  responseParserType: 'openai',
+}
+
 // ─── 注册表 ───
 
 /** 所有内置供应商 Manifest 列表 */
@@ -369,6 +388,7 @@ const ALL_MANIFESTS: ProviderManifest[] = [
   doubao,
   xai,
   mistral,
+  stepfun,
 ]
 
 /** 按 ID 索引的注册表 */

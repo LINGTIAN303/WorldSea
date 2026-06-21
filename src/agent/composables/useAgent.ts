@@ -157,6 +157,8 @@ import { useSpaceStore } from '../../space/stores/space-store'
 import { setFontTool, executeSetFont, type SetFontResult } from '../setFontTool'
 import { useFontLibraryStore } from '../../stores/fontLibraryStore'
 import { getWebCliAgentConnection } from './cliAgentConnection'
+import { getArchiveTools } from '../../memory-archive'
+import { useArchiveStore } from '../../stores/archiveStore'
 // 创作编排面板不再需要旧的工作流运行时桥接
 
 /** 工具名中文映射 */
@@ -1200,7 +1202,7 @@ export function useAgent() {
           const result = await executeSetFont(args as any)
           return JSON.stringify(result)
         },
-      } as any]
+      } as any, ...getArchiveTools()]
       const agent = await createWorldSmithAgent({
         providerConfig,
         toolContext,
@@ -1258,6 +1260,13 @@ export function useAgent() {
 
       backend.value = agent
       isInitialized.value = true
+
+      // P12 决策：agent 初始化成功后恢复归档边界（从 sessionStorage）
+      try {
+        useArchiveStore().restoreBoundary()
+      } catch (err) {
+        console.warn('[Agent] ensureInitialized: 恢复归档边界失败:', err)
+      }
 
       // 创作编排面板通过 Agent Skill 执行步骤，不再需要旧的运行时桥接
 
@@ -1910,6 +1919,12 @@ export function useAgent() {
     if (finalOutput.value && finalOutput.value.status === 'streaming') {
       finalOutput.value = { ...finalOutput.value, status: 'complete' }
     }
+    // P12 决策：abort 后恢复归档边界（agent 内部可能已重建，需从 sessionStorage 恢复）
+    try {
+      useArchiveStore().restoreBoundary()
+    } catch (err) {
+      console.warn('[Agent] abort: 恢复归档边界失败:', err)
+    }
   }
 
   async function steer(text: string): Promise<void> {
@@ -2042,6 +2057,12 @@ export function useAgent() {
       cacheReadTokens: 0,
       cacheWriteTokens: 0,
     }
+    // P12 决策：新会话重置归档边界
+    try {
+      useArchiveStore().resetBoundary()
+    } catch (err) {
+      console.warn('[Agent] newSession: 重置归档边界失败:', err)
+    }
     try {
       const providerConfig = await buildProviderConfig()
       const session = await createSession(providerConfig.mode, providerConfig.modelId)
@@ -2113,6 +2134,12 @@ export function useAgent() {
     hasToolCallsInCurrentTurn = false
     currentSessionId.value = null
     sessionChatMode.value = null
+    // P12 决策：销毁时重置归档边界
+    try {
+      useArchiveStore().resetBoundary()
+    } catch (err) {
+      console.warn('[Agent] dispose: 重置归档边界失败:', err)
+    }
     killPty()
   }
 
@@ -2212,6 +2239,17 @@ export function useAgent() {
     steer,
     sendBlockAction,
     abort,
+    /**
+     * H1.2 新增：清理 PI Agent 内部上下文消息
+     *
+     * 供记忆库 AgentBridgeImpl.advanceBoundary 调用，
+     * 只清理 Agent 内部 state.messages，不影响前端 messages 显示。
+     */
+    trimContext: (upToIndex: number) => {
+      if (backend.value && typeof (backend.value as any).trimContext === 'function') {
+        (backend.value as any).trimContext(upToIndex)
+      }
+    },
     newSession,
     switchSession,
     clearInitError,

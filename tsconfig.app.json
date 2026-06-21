@@ -4,6 +4,7 @@
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
     "types": ["vite/client"],
     "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
     "paths": {
       "@/*": ["src/*"],
       "@agent/*": ["worldsmith-agent/src/*"],
@@ -20,7 +21,11 @@
       "@worldsmith/font-kit": ["packages/font-kit/src/index.ts"],
       "@worldsmith/font-kit/*": ["packages/font-kit/src/*"],
       "@worldsmith/theme-kit": ["packages/theme-kit/src/index.ts"],
-      "@worldsmith/theme-kit/*": ["packages/theme-kit/src/*"]
+      "@worldsmith/theme-kit/*": ["packages/theme-kit/src/*"],
+      "@worldsmith/memory-archive": ["packages/memory-archive/src/index.ts"],
+      "@worldsmith/memory-archive/*": ["packages/memory-archive/src/*"],
+      "@worldsmith/agent-core": ["packages/agent-core/src/index.ts"],
+      "@worldsmith/agent-core/*": ["packages/agent-core/src/*"]
     },
 
     /* Linting */
@@ -29,5 +34,5 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue", "worldsmith-agent/src/**/*.ts", "packages/ui-kit/src/**/*.ts", "packages/entity-core/src/**/*.ts", "packages/plugin-sdk/src/**/*.ts", "packages/canvas-engine/src/**/*.ts", "packages/motion-kit/src/**/*.ts", "packages/font-kit/src/**/*.ts", "packages/agent-core/src/**/*.ts"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue", "worldsmith-agent/src/**/*.ts", "packages/ui-kit/src/**/*.ts", "packages/entity-core/src/**/*.ts", "packages/plugin-sdk/src/**/*.ts", "packages/canvas-engine/src/**/*.ts", "packages/motion-kit/src/**/*.ts", "packages/font-kit/src/**/*.ts", "packages/agent-core/src/**/*.ts", "packages/memory-archive/src/**/*.ts"]
 }

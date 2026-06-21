@@ -15,9 +15,8 @@
           :key="item.realIndex"
           class="sidebar-btn"
           :class="{ active: item.view.id === settledViewId, 'sidebar-draggable': isCustomView }"
-          :style="getItemStyle(item.offset)"
-          :title="item.view.label"
           :data-offset="item.offset"
+          :title="item.view.label"
           :data-view-id="item.view.id"
           :draggable="isCustomView && item.view.id !== 'custom'"
           @dragstart="onSidebarDragStart(item.view, $event)"
@@ -33,7 +32,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onBeforeUnmount, watch } from 'vue'
+import { computed, ref, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useUIStore } from '../../stores/uiStore'
 import { usePluginStore } from '@worldsmith/entity-core'
 import { useSettingsStore } from '../../stores/settingsStore'
@@ -145,10 +144,7 @@ const sortedViews = computed(() => {
     })
 })
 
-const centerIdx = computed(() => {
-  void renderTick.value
-  return Math.round(pos)
-})
+const centerIdx = computed(() => Math.round(pos))
 
 const settledViewId = computed(() => {
   const views = sortedViews.value
@@ -166,7 +162,6 @@ interface CarouselItem {
 }
 
 const carouselItems = computed<CarouselItem[]>(() => {
-  void renderTick.value
   const views = sortedViews.value
   const counts = pluginEntityCounts.value
   const n = views.length
@@ -193,20 +188,32 @@ const carouselItems = computed<CarouselItem[]>(() => {
   return items
 })
 
-function getItemStyle(offset: number) {
-  void renderTick.value
+/**
+ * 命令式更新轮播按钮的位置样式（transform/opacity/zIndex）。
+ * 绕过 Vue 响应式系统，避免每帧触发整个 v-for 的 reconcile。
+ * 在物理循环、拖拽、以及 sortedViews/currentView 变更后的 nextTick 中调用。
+ */
+function syncDomStyles() {
+  const container = carouselRef.value
+  if (!container) return
+  const buttons = container.querySelectorAll<HTMLElement>('.sidebar-btn')
+  if (buttons.length === 0) return
+
   const center = Math.round(pos)
   const fractional = pos - center
-  const displayOffset = offset - fractional
-  const absOffset = Math.abs(displayOffset)
-  const opacity = Math.max(0, 1 - absOffset * 0.13)
-  const scale = Math.max(0.6, 1 - absOffset * 0.04)
 
-  return {
-    opacity,
-    transform: `scale(${scale})`,
-    zIndex: 20 - Math.floor(absOffset),
-  }
+  buttons.forEach((el) => {
+    const rawOffset = el.getAttribute('data-offset')
+    if (rawOffset === null) return
+    const offset = parseInt(rawOffset, 10)
+    const displayOffset = offset - fractional
+    const absOffset = Math.abs(displayOffset)
+    const opacity = Math.max(0, 1 - absOffset * 0.13)
+    const scale = Math.max(0.6, 1 - absOffset * 0.04)
+    el.style.opacity = String(opacity)
+    el.style.transform = `scale(${scale})`
+    el.style.zIndex = String(20 - Math.floor(absOffset))
+  })
 }
 
 let physicsRaf: number | null = null
@@ -233,6 +240,7 @@ function tick() {
       physicsRaf = null
       renderTick.value++
       checkViewSwitch()
+      syncDomStyles()
       return
     }
   } else {
@@ -250,6 +258,7 @@ function tick() {
         physicsRaf = null
         renderTick.value++
         checkViewSwitch()
+        syncDomStyles()
         return
       }
     } else {
@@ -257,7 +266,7 @@ function tick() {
     }
   }
 
-  renderTick.value++
+  syncDomStyles()
   checkViewSwitch()
   physicsRaf = requestAnimationFrame(tick)
 }
@@ -343,7 +352,7 @@ function onPointerMove(e: PointerEvent) {
   dragLastY = e.clientY
   dragLastTime = now
 
-  renderTick.value++
+  syncDomStyles()
   checkViewSwitch()
 }
 
@@ -390,49 +399,48 @@ function onPointerUp(e: PointerEvent) {
   startPhysics()
 }
 
-onMounted(() => {
-  const views = sortedViews.value
-  const currentId = uiStore.currentView
-  const idx = views.findIndex(v => v.id === currentId)
-  if (idx !== -1) {
-    pos = idx
-    lastSettledIdx = idx
-  } else if (views.length > 0) {
-    pos = 0
-    lastSettledIdx = 0
-    const view = views[0]
-    uiStore.setView(view.id)
-    uiStore.viewComponent = view.component
-  }
-  renderTick.value++
-})
-
-watch(() => sortedViews.value.length, (newLen, oldLen) => {
-  if (newLen !== oldLen) {
-    const views = sortedViews.value
-    if (views.length === 0) return
+watch(
+  () => sortedViews.value,
+  (views) => {
+    if (views.length === 0) {
+      uiStore.setView('')
+      uiStore.viewComponent = null
+      return
+    }
     const currentId = uiStore.currentView
     const idx = views.findIndex(v => v.id === currentId)
     if (idx !== -1) {
       pos = idx
       lastSettledIdx = idx
+    } else {
+      pos = 0
+      lastSettledIdx = 0
+      const view = views[0]
+      uiStore.setView(view.id)
+      uiStore.viewComponent = view.component
     }
     renderTick.value++
-  }
-})
+    nextTick(() => syncDomStyles())
+  },
+  { immediate: true, flush: 'post' },
+)
 
-watch(() => uiStore.currentView, (newId) => {
-  if (!newId) return
-  const views = sortedViews.value
-  const idx = views.findIndex(v => v.id === newId)
-  if (idx !== -1 && idx !== lastSettledIdx) {
-    pos = idx
-    lastSettledIdx = idx
-    vel = 0
-    springTarget = null
-    renderTick.value++
-  }
-})
+watch(
+  () => uiStore.currentView,
+  (newId) => {
+    if (!newId) return
+    const views = sortedViews.value
+    const idx = views.findIndex(v => v.id === newId)
+    if (idx !== -1 && idx !== lastSettledIdx) {
+      pos = idx
+      lastSettledIdx = idx
+      vel = 0
+      springTarget = null
+      nextTick(() => syncDomStyles())
+    }
+  },
+  { flush: 'post' },
+)
 
 onBeforeUnmount(() => {
   isRunning = false
@@ -450,7 +458,7 @@ onBeforeUnmount(() => {
   background: transparent;
   overflow: hidden;
   position: relative;
-  contain: layout style;
+  contain: layout style paint;
   /* 初始宽度由 :not(.collapsed) 或 .collapsed 决定，避免从 0 过渡 */
   flex-shrink: 0;
   will-change: width;
@@ -477,6 +485,7 @@ onBeforeUnmount(() => {
   height: 100%;
   position: relative;
   overflow: hidden;
+  contain: layout paint style;
 }
 .sidebar-carousel {
   display: flex;

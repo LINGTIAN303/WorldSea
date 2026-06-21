@@ -7,11 +7,22 @@
   >
     <div class="chat-header" @mousedown.left="onDragStart">
       <span class="header-title" :style="{ fontFamily: agentFontFamily || undefined }" @click.stop="sessionDrawerOpen = !sessionDrawerOpen"><WsIcon name="profile" size="sm" /> AI 助手</span>
-      <div class="context-bar" :title="`上下文窗口: ${contextUsage.used.toLocaleString()} / ${contextUsage.total.toLocaleString()} tokens (${Math.round(contextUsage.pct)}%)`">
+      <div
+        class="context-bar"
+        :title="contextBarTitle"
+      >
         <div class="context-bar-fill" :style="{ width: contextUsage.pct + '%', background: profile.accentColor }" :class="{ warn: contextUsage.pct > 70, danger: contextUsage.pct > 90 }"></div>
+        <!-- H3.3: 归档阈值标记 -->
+        <div
+          v-if="archiveThresholdPct > 0 && archiveThresholdPct <= 100"
+          class="context-bar-marker"
+          :style="{ left: archiveThresholdPct + '%' }"
+          :title="`归档阈值: ${archiveThreshold.toLocaleString()} tokens`"
+        ></div>
         <span class="context-bar-text">{{ Math.round(contextUsage.pct) }}%</span>
       </div>
       <div class="header-actions">
+        <button class="header-btn" @click.stop="toggleArchivePanel" title="记忆库"><WsIcon name="notebook" size="xs" /></button>
         <button class="header-btn" :class="{ active: isPinned }" @click.stop="togglePin" :title="isPinned ? '聚焦模式' : '穿透模式'"><WsIcon :name="isPinned ? 'pin' : 'unlock'" size="xs" /></button>
         <button class="header-btn" @click.stop="toggleMinimize" title="最小化"><WsIcon :name="isMinimized ? 'arrow-up' : 'chevron-down'" size="xs" /></button>
         <button class="header-btn" @click.stop="hide" title="关闭"><WsIcon name="close" size="xs" /></button>
@@ -43,6 +54,7 @@
         @retry="retryMessage"
         @block-action="onBlockAction"
         @manuscript-local-action="onManuscriptLocalAction"
+        @open-archive-panel="toggleArchivePanel"
       />
 
       <ManuscriptShelf :messages="messages" />
@@ -144,6 +156,27 @@
   />
 
   <FontInstallConfirm ref="fontInstallConfirm" />
+
+  <!-- 记忆库管理面板（P3-3-4 新增） -->
+  <ArchivePanel
+    :visible="archivePanelOpen"
+    :position="archivePanelPos"
+    :dragged="archivePanelDragged"
+    @close="archivePanelOpen = false"
+    @dragstart="onArchiveDragStart"
+    @open-chunk="onOpenChunk"
+  />
+
+  <!-- 记忆片段查看器（P3-3-4 新增） -->
+  <ChunkViewer
+    :visible="chunkViewerOpen"
+    :hook-id="chunkViewerHookId"
+    :chunk-id="chunkViewerChunkId"
+    :position="chunkViewerPos"
+    :dragged="chunkViewerDragged"
+    @close="chunkViewerOpen = false"
+    @dragstart="onChunkViewerDragStart"
+  />
 </template>
 
 <script setup lang="ts">
@@ -164,6 +197,8 @@ import { storeImages as storeImagesToBackend } from '@agent/index'
 import AgentMessageList from './AgentMessageList.vue'
 import AgentInputBar from './AgentInputBar.vue'
 import AgentSettingsPanel from './AgentSettingsPanel.vue'
+import ArchivePanel from './ArchivePanel.vue'
+import ChunkViewer from './ChunkViewer.vue'
 import AgentSessionDrawer from './AgentSessionDrawer.vue'
 import TerminalPanel from './TerminalPanel.vue'
 import SubAgentPanel from './SubAgentPanel.vue'
@@ -175,6 +210,7 @@ import { useOrchestrator } from './composables/useOrchestrator'
 import { usePersonaFont } from '../space/composables/usePersonaFont'
 import { useFontStore } from '../stores/fontStore'
 import { createDebouncedStorage } from '@worldsmith/perf-kit/io'
+import { useMemoryArchive } from '@/memory-archive/useMemoryArchive'
 
 const agentStorage = createDebouncedStorage({ debounce: 100 })
 
@@ -246,6 +282,30 @@ const { onDragStart: onSettingsDragStart } = usePanelDrag({
   y: computed({ get: () => settingsPos.value.y, set: v => settingsPos.value = { ...settingsPos.value, y: v } }),
   onDragEnd: () => { settingsDragged.value = true },
   excludeSelector: '.settings-body,.menu-close-btn'
+})
+
+/* ── 记忆库面板状态（P3-3-4 新增）── */
+const archivePanelOpen = ref(false)
+const archivePanelPos = ref({ x: 0, y: 0 })
+const archivePanelDragged = ref(false)
+const { onDragStart: onArchiveDragStart } = usePanelDrag({
+  x: computed({ get: () => archivePanelPos.value.x, set: v => archivePanelPos.value = { ...archivePanelPos.value, x: v } }),
+  y: computed({ get: () => archivePanelPos.value.y, set: v => archivePanelPos.value = { ...archivePanelPos.value, y: v } }),
+  onDragEnd: () => { archivePanelDragged.value = true },
+  excludeSelector: '.ap-body,.ap-close-btn,.ap-back-btn'
+})
+
+/* ── 记忆片段查看器状态（P3-3-4 新增）── */
+const chunkViewerOpen = ref(false)
+const chunkViewerHookId = ref('')
+const chunkViewerChunkId = ref('')
+const chunkViewerPos = ref({ x: 0, y: 0 })
+const chunkViewerDragged = ref(false)
+const { onDragStart: onChunkViewerDragStart } = usePanelDrag({
+  x: computed({ get: () => chunkViewerPos.value.x, set: v => chunkViewerPos.value = { ...chunkViewerPos.value, x: v } }),
+  y: computed({ get: () => chunkViewerPos.value.y, set: v => chunkViewerPos.value = { ...chunkViewerPos.value, y: v } }),
+  onDragEnd: () => { chunkViewerDragged.value = true },
+  excludeSelector: '.cv-body,.cv-close-btn'
 })
 
 const temperature = ref(70)
@@ -331,6 +391,39 @@ const contextUsage = computed(() => {
   const used = lastRequestUsage.value.inputTokens + lastRequestUsage.value.cacheReadTokens + lastRequestUsage.value.cacheWriteTokens
   const pct = total > 0 ? Math.min(100, (used / total) * 100) : 0
   return { used, total, pct }
+})
+
+// H3.3: 归档阈值在进度条上的位置
+const archiveThreshold = computed(() => {
+  try {
+    const memoryArchive = useMemoryArchive()
+    if (!memoryArchive.isInitialized.value) return 0
+    const config = memoryArchive.getConfig()
+    return config.archiveThreshold ?? 0
+  } catch {
+    return 0
+  }
+})
+
+const archiveThresholdPct = computed(() => {
+  const total = contextLength.value
+  if (total <= 0 || archiveThreshold.value <= 0) return 0
+  return Math.min(100, (archiveThreshold.value / total) * 100)
+})
+
+// H3.3: 增强的 tooltip（含归档阈值提示）
+const contextBarTitle = computed(() => {
+  const used = contextUsage.value.used.toLocaleString()
+  const total = contextUsage.value.total.toLocaleString()
+  const pct = Math.round(contextUsage.value.pct)
+  let title = `上下文窗口: ${used} / ${total} tokens (${pct}%)`
+  if (archiveThreshold.value > 0) {
+    title += `\n归档阈值: ${archiveThreshold.value.toLocaleString()} tokens`
+    if (contextUsage.value.used >= archiveThreshold.value) {
+      title += '\n⚠ 已超过归档阈值，即将触发自动归档'
+    }
+  }
+  return title
 })
 
 function onA2UIAction(surfaceId: string, action: { name: string; data?: any }): void {
@@ -796,6 +889,44 @@ function onToggleSettings(): void {
   }
 }
 
+/* ── 记忆库面板事件处理（P3-3-4 新增）── */
+
+function updateArchivePanelPosition(): void {
+  // 定位到面板右侧偏上位置
+  const panelEl = document.querySelector('.agent-chat') as HTMLElement | null
+  if (panelEl) {
+    const rect = panelEl.getBoundingClientRect()
+    archivePanelPos.value = {
+      x: rect.right + 8,
+      y: Math.max(8, rect.top),
+    }
+  } else {
+    archivePanelPos.value = { x: window.innerWidth - 440, y: 80 }
+  }
+  archivePanelDragged.value = false
+}
+
+function toggleArchivePanel(): void {
+  if (archivePanelOpen.value) {
+    archivePanelOpen.value = false
+  } else {
+    archivePanelOpen.value = true
+    nextTick(updateArchivePanelPosition)
+  }
+}
+
+function onOpenChunk(hookId: string, chunkId: string): void {
+  chunkViewerHookId.value = hookId
+  chunkViewerChunkId.value = chunkId
+  // 片段查看器定位在记忆库面板右侧
+  chunkViewerPos.value = {
+    x: archivePanelPos.value.x + 440,
+    y: archivePanelPos.value.y,
+  }
+  chunkViewerDragged.value = false
+  chunkViewerOpen.value = true
+}
+
 async function loadDrawerSessions(): Promise<void> {
   try {
     sessions.value = await listSessions()
@@ -809,6 +940,13 @@ async function onDrawerSelect(sessionId: string): Promise<void> {
 
 async function onDrawerDelete(sessionId: string): Promise<void> {
   try {
+    // H6.2: 删除会话前归档该会话（避免数据丢失）
+    try {
+      const { useMemoryArchive } = await import('@/memory-archive/useMemoryArchive')
+      await useMemoryArchive().archiveSession(sessionId)
+    } catch (err) {
+      console.warn('[AgentChat] 删除前归档失败（不影响删除）:', err)
+    }
     const isCurrent = sessionId === currentSessionId.value
     await deleteSession(sessionId)
     // 级联删除：移除所有从该会话复制的文境副本
@@ -1051,6 +1189,18 @@ onUnmounted(() => {
   font-size: var(--text-micro-font-size);
   color: var(--agent-text-tertiary);
   line-height: 1;
+}
+
+/* H3.3: 归档阈值标记 */
+.context-bar-marker {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  background: var(--agent-warning, #f39c12);
+  opacity: 0.7;
+  pointer-events: none;
+  z-index: 1;
 }
 
 .sub-agent-section {

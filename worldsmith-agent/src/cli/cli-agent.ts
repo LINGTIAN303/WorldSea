@@ -34,6 +34,8 @@ import { webSearchTools } from '../tools/web-search'
 import { webFetchTools } from '../tools/web-fetch'
 import { orchestratorTools } from '../tools/orchestrator-tools'
 import { InternalChainRegistry } from '../toolbus/internal-registry'
+import { bootAgentGovernor } from '../governor'
+import { cliAgentModules } from '../governor-modules'
 
 // CLI 可用工具集（排除依赖 Vue 的 a2ui/webCli/terminalLauncher 等）
 const CLI_TOOLS: ToolDefinition[] = [
@@ -95,6 +97,11 @@ export type CreateCliAgentOptions = CreateAgentOptions
  * 与 createWorldSmithAgent 共享接口，但跳过 Vue 依赖
  */
 export async function createCliAgent(options: CreateCliAgentOptions): Promise<IAgentBackend> {
+  // ── Governor 编排：确保 CLI 端模块已激活 ──
+  // CLI 端使用 cliAgentModules（排除 ui-render 相关模块）
+  // 幂等：多次调用 createCliAgent 不会重复 boot
+  await bootAgentGovernor({ modules: cliAgentModules })
+
   const systemPrompt = options.systemPromptOverride ?? buildSystemPrompt({
     projectName: options.projectName || 'WorldSmith-CLI',
     entityTypes: options.toolContext.projectInfo.entityTypes,

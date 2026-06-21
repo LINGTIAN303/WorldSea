@@ -154,6 +154,7 @@ function formatTokens(n: number): string {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border-left: 1px solid var(--color-border);
+  contain: layout paint style;
 }
 
 .panel-header {
@@ -202,6 +203,7 @@ function formatTokens(n: number): string {
   flex: 1;
   overflow-y: auto;
   min-height: 0;
+  contain: layout paint style;
 }
 
 .panel-bottom {

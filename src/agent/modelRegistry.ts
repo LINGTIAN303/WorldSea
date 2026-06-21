@@ -1,4 +1,4 @@
-﻿import { DEFAULT_CLOUD_CONFIGS } from '@agent/index'
+import { DEFAULT_CLOUD_CONFIGS } from '@agent/index'
 import { getProviderLabelMap, getProviderManifest, detectVisionSupport } from '@agent/providers/provider-registry'
 import { getCachedModels, getModelsWithBackgroundRefresh, type FetchedModelEntry } from '@agent/providers/model-fetcher'
 
@@ -81,6 +81,11 @@ export const MODEL_REGISTRY: ModelInfo[] = [
   { id: 'mistral-small-latest', name: 'Mistral Small', provider: 'mistral', contextLength: 131072, maxOutputTokens: 16384, supportsThinking: false, supportsVision: false, inputPricePerMillion: 0.2, outputPricePerMillion: 0.6, cacheReadPricePerMillion: 0.05, cacheWritePricePerMillion: 0.2, currency: 'USD' },
   { id: 'codestral-latest', name: 'Codestral', provider: 'mistral', contextLength: 262144, maxOutputTokens: 65536, supportsThinking: false, supportsVision: false, inputPricePerMillion: 0.3, outputPricePerMillion: 0.9, cacheReadPricePerMillion: 0.075, cacheWritePricePerMillion: 0.3, currency: 'USD' },
   { id: 'pixtral-large-latest', name: 'Pixtral Large', provider: 'mistral', contextLength: 131072, maxOutputTokens: 16384, supportsThinking: false, supportsVision: true, inputPricePerMillion: 2, outputPricePerMillion: 6, cacheReadPricePerMillion: 0.5, cacheWritePricePerMillion: 2, currency: 'USD' },
+  // ── StepFun ──
+  { id: 'step-3.7-flash', name: 'Step 3.7 Flash', provider: 'stepfun', contextLength: 262144, maxOutputTokens: 128000, supportsThinking: true, supportsVision: true, thinkingModes: ['low', 'medium', 'high'], inputPricePerMillion: 1.35, outputPricePerMillion: 8.1, cacheReadPricePerMillion: 0.27, cacheWritePricePerMillion: 1.35, currency: 'CNY' },
+  { id: 'step-3.5-flash', name: 'Step 3.5 Flash', provider: 'stepfun', contextLength: 262144, maxOutputTokens: 128000, supportsThinking: true, supportsVision: false, thinkingModes: ['low', 'medium', 'high'], inputPricePerMillion: 0.7, outputPricePerMillion: 2.1, cacheReadPricePerMillion: 0.14, cacheWritePricePerMillion: 0.7, currency: 'CNY' },
+  { id: 'step-3.5-flash-2603', name: 'Step 3.5 Flash 2603', provider: 'stepfun', contextLength: 262144, maxOutputTokens: 128000, supportsThinking: true, supportsVision: false, thinkingModes: ['low', 'high'], inputPricePerMillion: 0.7, outputPricePerMillion: 2.1, cacheReadPricePerMillion: 0.14, cacheWritePricePerMillion: 0.7, currency: 'CNY' },
+  { id: 'step-1o-turbo-vision', name: 'Step 1o Turbo Vision', provider: 'stepfun', contextLength: 32768, maxOutputTokens: 8192, supportsThinking: false, supportsVision: true, inputPricePerMillion: 2.5, outputPricePerMillion: 8, cacheReadPricePerMillion: 0.5, cacheWritePricePerMillion: 2.5, currency: 'CNY' },
 ]
 
 export function getModelInfo(modelId: string): ModelInfo | undefined {

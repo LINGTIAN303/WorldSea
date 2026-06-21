@@ -100,6 +100,13 @@ function cancelDelete(): void {
 
 async function onConfirmDelete(id: string): Promise<void> {
   confirmingDeleteId.value = null
+  // H6.2: 删除会话前归档该会话（避免数据丢失）
+  try {
+    const { useMemoryArchive } = await import('@/memory-archive/useMemoryArchive')
+    await useMemoryArchive().archiveSession(id)
+  } catch (err) {
+    console.warn('[AgentSessionPanel] 删除前归档失败（不影响删除）:', err)
+  }
   const isCurrent = id === props.currentSessionId
   await deleteSession(id)
   await loadSessions()

@@ -67,14 +67,16 @@
             right: spaceStore.planPanelOpen ? spaceStore.planPanelWidth + 'px' : '0px',
           }"
         >
-          <div
-            class="resize-handle resize-handle-left"
-            @mousedown="onRightResizeStart"
-          ></div>
-          <MemoryShelf v-if="spaceStore.rightPanel === 'memory' && spaceStore.mode === 'chat'" @close="spaceStore.rightPanel = null" />
-          <PersonaMirror v-else-if="spaceStore.rightPanel === 'persona'" @close="spaceStore.rightPanel = null" />
-          <SpaceAgentSettingsPanel v-else-if="spaceStore.rightPanel === 'agent-settings' && spaceStore.mode === 'chat'" @close="spaceStore.rightPanel = null" />
-          <ActivityLog v-else-if="spaceStore.rightPanel === 'activity'" @close="spaceStore.rightPanel = null" />
+          <div class="right-panel-content">
+            <div
+              class="resize-handle resize-handle-left"
+              @mousedown="onRightResizeStart"
+            ></div>
+            <MemoryShelf v-if="spaceStore.rightPanel === 'memory' && spaceStore.mode === 'chat'" @close="spaceStore.rightPanel = null" />
+            <PersonaMirror v-else-if="spaceStore.rightPanel === 'persona'" @close="spaceStore.rightPanel = null" />
+            <SpaceAgentSettingsPanel v-else-if="spaceStore.rightPanel === 'agent-settings' && spaceStore.mode === 'chat'" @close="spaceStore.rightPanel = null" />
+            <ActivityLog v-else-if="spaceStore.rightPanel === 'activity'" @close="spaceStore.rightPanel = null" />
+          </div>
         </div>
       </Transition>
 
@@ -84,11 +86,13 @@
           class="space-panel plan-panel-layer"
           :style="{ width: spaceStore.planPanelWidth + 'px' }"
         >
-          <div
-            class="resize-handle resize-handle-left"
-            @mousedown="onPlanResizeStart"
-          ></div>
-          <PlanPanel @close="spaceStore.planPanelOpen = false" />
+          <div class="plan-panel-content">
+            <div
+              class="resize-handle resize-handle-left"
+              @mousedown="onPlanResizeStart"
+            ></div>
+            <PlanPanel @close="spaceStore.planPanelOpen = false" />
+          </div>
         </div>
       </Transition>
     </div>
@@ -298,11 +302,23 @@ function startResize(
   e.preventDefault()
   const startX = e.clientX
 
+  let rafId: number | null = null
+  let latestEv: MouseEvent | null = null
+
   function onMove(ev: MouseEvent) {
-    setter(startWidth + calcDelta(ev))
+    latestEv = ev
+    if (rafId !== null) return
+    rafId = requestAnimationFrame(() => {
+      rafId = null
+      if (latestEv) setter(startWidth + calcDelta(latestEv))
+    })
   }
 
   function onUp() {
+    if (rafId !== null) {
+      cancelAnimationFrame(rafId)
+      rafId = null
+    }
     document.removeEventListener('mousemove', onMove)
     document.removeEventListener('mouseup', onUp)
     document.body.style.cursor = ''
@@ -388,11 +404,25 @@ function onPlanResizeStart(e: MouseEvent) {
   right: 0;
   box-shadow: -4px 0 12px -2px rgba(0, 0, 0, 0.15);
   transition: right 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  contain: layout paint style;
+}
+
+.right-panel-content {
+  width: 100%;
+  height: 100%;
+  contain: layout paint style;
 }
 
 .plan-panel-layer {
   right: 0;
   box-shadow: -4px 0 12px -2px rgba(0, 0, 0, 0.15);
+  contain: layout paint style;
+}
+
+.plan-panel-content {
+  width: 100%;
+  height: 100%;
+  contain: layout paint style;
 }
 
 .resize-handle {
@@ -458,14 +488,12 @@ function onPlanResizeStart(e: MouseEvent) {
 
 .panel-slide-right-enter-active,
 .panel-slide-right-leave-active {
-  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease;
+  transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .panel-slide-right-enter-from {
-  transform: translateX(20px);
-  opacity: 0;
+  width: 0;
 }
 .panel-slide-right-leave-to {
-  transform: translateX(20px);
-  opacity: 0;
+  width: 0;
 }
 </style>

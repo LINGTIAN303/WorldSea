@@ -738,6 +738,30 @@ export class CoreBackend implements IAgentBackend {
     }
   }
 
+  /**
+   * H1.2 新增：清理 PI Agent 内部上下文消息
+   *
+   * 归档后调用，只清理 Agent 内部 state.messages（释放上下文窗口），
+   * 不影响前端 useAgent().messages（用户仍可见完整历史）。
+   *
+   * @param upToIndex 要移除的消息数（从开头计）
+   */
+  trimContext(upToIndex: number): void {
+    if (!this.agent) {
+      console.warn('[Agent] trimContext: agent not initialized')
+      return
+    }
+    if (upToIndex <= 0) return
+    const msgs = this.agent.state?.messages
+    if (!msgs) return
+    if (upToIndex >= msgs.length) {
+      this.agent.state.messages = []
+    } else {
+      this.agent.state.messages = msgs.slice(upToIndex)
+    }
+    console.log(`[Agent] trimContext: 移除前 ${upToIndex} 条内部消息，剩余 ${this.agent.state.messages.length} 条`)
+  }
+
   async updateModel(provider: string, modelId: string, baseUrl?: string, apiKey?: string, contextWindow?: number, maxTokens?: number, temperature?: number): Promise<void> {
     if (typeof provider !== 'string' || !provider) {
       console.error('[Agent] updateModel: provider is invalid:', typeof provider, provider)

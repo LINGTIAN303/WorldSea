@@ -277,6 +277,16 @@ export interface IAgentBackend {
   dispose(): void
   readonly state: AgentStateSnapshot
   readonly isStreaming: boolean
+  /**
+   * H1.2 新增：清理 PI Agent 内部上下文消息（不影响前端显示）
+   *
+   * 归档后调用，释放 Agent 内部 state.messages 的上下文窗口空间。
+   * 与 clearHistory 的区别：clearHistory 清空全部并重置，
+   * trimContext 只移除前 upToIndex 条，保留后续消息。
+   *
+   * @param upToIndex 要移除的消息数（从开头计）
+   */
+  trimContext?(upToIndex: number): void
 }
 
 export interface AgentConfig {

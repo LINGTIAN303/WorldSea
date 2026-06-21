@@ -105,3 +105,17 @@ export type { SpeakingDesireContext, SpeakingDesireResult, LuckState } from './g
 export { runModerator } from './group-chat/moderator'
 export { listAgentProfiles, getAgentProfile, saveAgentProfile, deleteAgentProfile } from './session/manager'
 export { listGroupSessions, getGroupSession, saveGroupSession, deleteGroupSession } from './session/manager'
+
+/* ─── Governor（Agent 包调控器） ─── */
+export {
+  createAgentGovernor,
+  createWebAgentGovernor,
+  createCliAgentGovernor,
+  bootAgentGovernor,
+  initAgentGovernor,
+  getAgentGovernor,
+  detectAgentEnvironment,
+  detectAgentOrWebEnvironment,
+} from './governor'
+export type { AgentGovernor } from './governor'
+export { agentModules, cliAgentModules, webAgentModules } from './governor-modules'

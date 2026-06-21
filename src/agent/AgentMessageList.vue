@@ -1,10 +1,29 @@
 <template>
   <div class="chat-messages" ref="messagesContainer">
     <div class="messages-scroll">
-    <div v-if="messages.length === 0" class="chat-empty">
+    <div v-if="messages.length === 0 && archivedBoundaryIndex === 0" class="chat-empty">
       <div class="empty-icon"><WsIcon name="profile" size="lg" /></div>
       <div class="empty-title">WorldSmith 助手</div>
       <div class="empty-hint">我可以帮你管理世界观实体和关系。试试输入 / 查看可用命令</div>
+    </div>
+    <!-- P12 决策：已归档消息折叠提示（设计文档 5.5 节） -->
+    <div v-if="archivedBoundaryIndex > 0" class="archived-section" :class="{ expanded: showArchived }">
+      <div class="archived-divider" @click="showArchived = !showArchived">
+        <span class="archived-divider-icon"><WsIcon name="manuscript" size="s" /></span>
+        <span class="archived-divider-text">
+          {{ showArchived ? '收起' : '展开' }}已归档记忆（{{ archivedBoundaryIndex }} 条消息已归档）
+        </span>
+        <span class="archived-divider-chevron" :class="{ expanded: showArchived }">▸</span>
+      </div>
+      <Transition name="archived-expand">
+        <div v-if="showArchived" class="archived-summary-body">
+          <div v-if="archiveSummaryText" class="archived-summary-content" v-html="renderArchiveSummary(archiveSummaryText)"></div>
+          <div v-else class="archived-summary-empty">归档摘要不可用，请打开记忆库面板查看详情</div>
+          <button class="archived-view-panel-btn" @click.stop="emit('open-archive-panel')">
+            打开记忆库面板
+          </button>
+        </div>
+      </Transition>
     </div>
     <A2UIRenderer
       v-if="hasA2UISurfaces"
@@ -165,9 +184,11 @@ import BlockAccordion from './blocks/BlockAccordion.vue'
 import BlockManuscript from './blocks/BlockManuscript.vue'
 import { usePersonaFont } from '../space/composables/usePersonaFont'
 import { useAgent } from './composables/useAgent'
+import { useArchiveStore } from '../stores/archiveStore'
 import { watchDebounced } from '@worldsmith/perf-kit/render'
 const { enterAnimation } = usePersonaFont()
 const { deepSegments, finalOutput, isStreaming: agentIsStreaming, resolveToolConfirmation } = useAgent()
+const archiveStore = useArchiveStore()
 
 type AgentMessage = import('@agent/index').AgentMessage
 
@@ -188,6 +209,7 @@ const emit = defineEmits<{
   'a2ui-action': [surfaceId: string, action: { name: string; data?: any }]
   'block-action': [event: { blockId: string; action: string; data?: Record<string, unknown> }]
   'manuscript-local-action': [event: { blockId: string; action: string; data?: Record<string, unknown> }]
+  'open-archive-panel': []
   copy: [msg: any]
   retry: [msg: any]
 }>()
@@ -197,6 +219,39 @@ const dotText = ref('')
 const messagesContainer = ref<HTMLDivElement>()
 const hoveredDot = ref('')
 const visibleMsgIds = ref<Set<string>>(new Set())
+
+/** P12 决策：已归档消息折叠状态 */
+const showArchived = ref(false)
+
+/** 从 archiveStore 读取归档边界索引（响应式） */
+const archivedBoundaryIndex = computed(() => archiveStore.archivedBoundaryIndex)
+
+/**
+ * 从 messages 中提取归档摘要文本
+ *
+ * injectHookSummary 在 messages 开头插入了 source='memory-archive' 的系统消息，
+ * 这里提取该消息的 content 作为归档摘要展示。
+ */
+const archiveSummaryText = computed(() => {
+  if (archivedBoundaryIndex.value === 0) return ''
+  const summaryMsg = props.messages.find(
+    m => m.role === 'system' && (m as any).metadata?.source === 'memory-archive'
+  )
+  return summaryMsg?.content || ''
+})
+
+/** 渲染归档摘要文本（简易 markdown） */
+function renderArchiveSummary(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\n\n/g, '</p><p>')
+    .replace(/\n/g, '<br>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/### (.*?)(<br>|$)/g, '<h4>$1</h4>')
+    .replace(/`(.*?)`/g, '<code>$1</code>')
+}
 
 const isDeepMode = computed(() => props.chatMode === 'deep' && props.useDeepLayout)
 
@@ -513,6 +568,146 @@ defineExpose({
 
 .messages-scroll::-webkit-scrollbar {
   display: none;
+}
+
+/* P12 决策：已归档消息折叠区域（设计文档 5.5 节） */
+.archived-section {
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--agent-primary, #3b82f6) 12%, transparent);
+  background: color-mix(in srgb, var(--agent-primary, #3b82f6) 3%, transparent);
+  overflow: hidden;
+  animation: seg-in 0.3s ease-out;
+  transition: border-color 0.3s, background 0.3s;
+}
+
+.archived-section.expanded {
+  border-color: color-mix(in srgb, var(--agent-primary, #3b82f6) 20%, transparent);
+  background: color-mix(in srgb, var(--agent-primary, #3b82f6) 5%, transparent);
+}
+
+.archived-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
+}
+
+.archived-divider:hover {
+  background: color-mix(in srgb, var(--agent-primary, #3b82f6) 8%, transparent);
+}
+
+.archived-divider-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  background: color-mix(in srgb, var(--agent-primary, #3b82f6) 12%, transparent);
+  color: var(--agent-primary, #3b82f6);
+}
+
+.archived-divider-text {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--agent-text);
+  flex: 1;
+  font-family: var(--agent-font);
+}
+
+.archived-divider-chevron {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--agent-text-tertiary);
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+
+.archived-divider-chevron.expanded {
+  transform: rotate(90deg);
+}
+
+.archived-summary-body {
+  border-top: 1px solid color-mix(in srgb, var(--agent-primary, #3b82f6) 10%, transparent);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.archived-summary-content {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--agent-text);
+  font-family: var(--agent-font);
+  max-height: 300px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.archived-summary-content :deep(h4) {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--agent-primary, #3b82f6);
+  margin: 8px 0 4px 0;
+}
+
+.archived-summary-content :deep(h4:first-child) {
+  margin-top: 0;
+}
+
+.archived-summary-content :deep(code) {
+  background: rgba(255, 255, 255, 0.06);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+.archived-summary-content :deep(strong) {
+  color: var(--agent-text);
+  font-weight: 600;
+}
+
+.archived-summary-empty {
+  font-size: 12px;
+  color: var(--agent-text-tertiary);
+  font-style: italic;
+  font-family: var(--agent-font);
+}
+
+.archived-view-panel-btn {
+  align-self: flex-start;
+  padding: 4px 12px;
+  font-size: 12px;
+  color: var(--agent-primary, #3b82f6);
+  background: color-mix(in srgb, var(--agent-primary, #3b82f6) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--agent-primary, #3b82f6) 20%, transparent);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+  font-family: var(--agent-font);
+}
+
+.archived-view-panel-btn:hover {
+  background: color-mix(in srgb, var(--agent-primary, #3b82f6) 18%, transparent);
+}
+
+/* 归档摘要展开/收缩动画 */
+.archived-expand-enter-active,
+.archived-expand-leave-active {
+  transition: max-height 0.3s ease, opacity 0.2s ease;
+  max-height: 400px;
+  overflow: hidden;
+}
+
+.archived-expand-enter-from,
+.archived-expand-leave-to {
+  max-height: 0;
+  opacity: 0;
 }
 
 .chat-empty {

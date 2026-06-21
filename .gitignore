@@ -86,6 +86,18 @@ package-lock.json
 
 # ── Test/debug artifacts ────────────────────────────────────────────────
 test-deep-mode-fix.png
+.test-screenshots/
+splash-preview/
+
+# ── Python cache ────────────────────────────────────────────────────────
+**/__pycache__/
+*.pyc
+
+# ── pnpm store (local cache) ────────────────────────────────────────────
+.pnpm-store/
+
+# ── Editor temp dirs ────────────────────────────────────────────────────
+.qoder-tmp/
 
 # ── Brainstorming skill runtime state ──────────────────────────────────
 # (kept for compatibility if .superpowers is ever re-created)

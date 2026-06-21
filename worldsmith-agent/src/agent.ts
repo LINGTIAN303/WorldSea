@@ -8,6 +8,7 @@ import { buildSystemPrompt } from './context/injector'
 import { findSkillById, resolveToolNames } from './skills/registry'
 import { SKILL_META_TOOLS } from './skills/meta-tools'
 import { initToolMetaRegistry } from './tools/tool-meta-registry'
+import { bootAgentGovernor } from './governor'
 import { entityCrudTools } from './tools/entity-crud'
 import { relationManageTools } from './tools/relation-manage'
 import { contentSearchTools } from './tools/content-search'
@@ -258,6 +259,11 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
 ]
 
 export async function createWorldSmithAgent(options: CreateAgentOptions): Promise<IAgentBackend> {
+  // ── Governor 编排：确保 toolbus/skills/tools 等模块已激活 ──
+  // Web 端使用默认策略：detectAgentOrWebEnvironment() + agentModules（含 UI 模块）
+  // 幂等：多次调用 createWorldSmithAgent 不会重复 boot
+  await bootAgentGovernor()
+
   const systemPrompt = options.systemPromptOverride ?? buildSystemPrompt({
     projectName: options.projectName || 'WorldSmith',
     entityTypes: options.toolContext.projectInfo.entityTypes,

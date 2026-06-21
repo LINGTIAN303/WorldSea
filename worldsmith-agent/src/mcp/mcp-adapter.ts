@@ -57,6 +57,18 @@ function extractTextResult(result: unknown): string {
   return JSON.stringify(result)
 }
 
+const FIRECRAWL_GUIDANCE =
+  '（Firecrawl 免 Key 服务：优先用于网页搜索、整站爬取、站点地图扫描；' +
+  '单页静态内容兜底请用 web_fetch，JS 渲染/反检测/批量单页请用 web_crawl。）'
+
+function buildMcpDescription(toolInfo: MCPToolInfo, serverId: string): string {
+  const base = `[MCP:${serverId}] ${toolInfo.description}`
+  if (serverId === 'firecrawl-keyless') {
+    return `${base} ${FIRECRAWL_GUIDANCE}`
+  }
+  return base
+}
+
 export class MCPToolAdapter {
   adapt(
     toolInfo: MCPToolInfo,
@@ -66,7 +78,7 @@ export class MCPToolAdapter {
     const mcpPrefixedName = `mcp_${serverId}_${toolInfo.name}`
     return {
       name: mcpPrefixedName,
-      description: `[MCP:${serverId}] ${toolInfo.description}`,
+      description: buildMcpDescription(toolInfo, serverId),
       parameters: convertMCPParamsToToolParams(toolInfo.inputSchema),
       execute: async (args: Record<string, unknown>, _ctx: IToolContext) => {
         const result = await callTool(toolInfo.name, args)

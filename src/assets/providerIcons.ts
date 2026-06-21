@@ -23,6 +23,7 @@ import sensenovaIcon from './provider-icons/sensenova-color.svg'
 import doubaoIcon from './provider-icons/doubao-color.svg'
 import xaiIcon from './provider-icons/xai-color.svg'
 import mistralIcon from './provider-icons/mistral-color.svg'
+import stepfunIcon from './provider-icons/stepfun-color.svg'
 
 /** 供应商 key → 本地 SVG URL 映射 */
 const LOCAL_ICONS: Record<string, string> = {
@@ -41,6 +42,7 @@ const LOCAL_ICONS: Record<string, string> = {
   doubao: doubaoIcon,
   xai: xaiIcon,
   mistral: mistralIcon,
+  stepfun: stepfunIcon,
 }
 
 /** CDN 降级 URL 基础路径 */

@@ -149,6 +149,7 @@ function formatDuration(task: { startedAt: number; endedAt?: number }): string {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border-left: 1px solid var(--color-border);
+  contain: layout paint style;
 }
 
 .panel-header {
@@ -208,6 +209,7 @@ function formatDuration(task: { startedAt: number; endedAt?: number }): string {
   flex: 1;
   overflow-y: auto;
   padding: 8px 14px;
+  contain: layout paint style;
 }
 
 .panel-empty {

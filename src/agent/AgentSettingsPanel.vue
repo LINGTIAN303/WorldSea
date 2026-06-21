@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <Transition :name="embedded ? '' : 'ws-menu'">
     <div
       v-if="embedded || visible"
@@ -1079,6 +1079,7 @@ const imageGenProviders = computed(() => {
     { value: 'openai', label: 'OpenAI (DALL-E)' },
     { value: 'openrouter', label: 'OpenRouter' },
     { value: 'agnes', label: 'Agnes AI' },
+    { value: 'stepfun', label: 'StepFun' },
   ]
   const custom = settingsStore.customProviders.map(cp => ({
     value: `custom:${cp.id}`,
@@ -1109,6 +1110,13 @@ const imageGenModelOptions = computed(() => {
       { value: 'agnes-image-2.0-flash', label: 'Agnes Image 2.0 Flash' },
     ]
   }
+  if (provider === 'stepfun') {
+    return [
+      { value: 'step-image-edit-2', label: 'Step Image Edit 2' },
+      { value: 'step-2x-large', label: 'Step 2X Large' },
+      { value: 'step-1x-medium', label: 'Step 1X Medium' },
+    ]
+  }
   return []
 })
 
@@ -1129,7 +1137,7 @@ function onImageGenProviderChange(e: Event): void {
     imageGenBaseUrl.value = ''
     if (value === 'openai') {
       imageGenModel.value = 'dall-e-3'
-    } else if (value === 'openrouter') {
+    } else if (value === 'openrouter' || value === 'stepfun') {
       const models = imageGenModelOptions.value
       imageGenModel.value = models.length > 0 ? models[0].value : ''
     } else {
@@ -1239,6 +1247,7 @@ const mcpForm = ref({
 })
 
 const MCP_PRESETS = [
+  { id: 'firecrawl-keyless', name: 'Firecrawl Keyless', transport: 'streamable-http' as const, url: 'https://mcp.firecrawl.dev/v2/mcp', argsStr: '', desc: '免 Key 网页搜索/抓取/爬取（每月 1000 credits）' },
   { name: 'Filesystem', transport: 'stdio' as const, command: 'npx', argsStr: '-y @modelcontextprotocol/server-filesystem C:\\Users', desc: '安全文件操作' },
   { name: 'Git', transport: 'stdio' as const, command: 'uvx', argsStr: 'mcp-server-git', desc: 'Git 仓库操作' },
   { name: 'Fetch', transport: 'stdio' as const, command: 'npx', argsStr: '-y @modelcontextprotocol/server-fetch', desc: '网页内容抓取' },
@@ -1251,18 +1260,24 @@ const MCP_PRESETS = [
 ]
 
 const mcpPresetAdded = computed(() => {
+  const ids = new Set(props.mcpConnections.map(c => c.config.id))
   const names = new Set(props.mcpConnections.map(c => c.config.name))
-  return MCP_PRESETS.map(p => names.has(p.name))
+  return MCP_PRESETS.map(p => (p.id ? ids.has(p.id) : names.has(p.name)))
 })
 
 function addPreset(preset: typeof MCP_PRESETS[number]): void {
-  const config = {
-    id: `mcp-preset-${preset.name.toLowerCase().replace(/\s+/g, '-')}`,
+  const id = preset.id || `mcp-preset-${preset.name.toLowerCase().replace(/\s+/g, '-')}`
+  const config: MCPConnectionConfig = {
+    id,
     name: preset.name,
     transport: preset.transport,
-    command: preset.command,
-    args: preset.argsStr.split(/\s+/).filter(Boolean),
     enabled: true,
+  }
+  if (preset.transport === 'stdio') {
+    config.command = preset.command
+    config.args = preset.argsStr.split(/\s+/).filter(Boolean)
+  } else {
+    config.url = preset.url
   }
   emit('add-mcp', config)
 }

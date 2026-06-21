@@ -152,6 +152,38 @@ function onTyping() {
   typingTimer = setTimeout(() => { isTyping.value = false }, 200)
 }
 
+let scrollAncestors: Array<HTMLElement | typeof window> = []
+
+function attachScrollListeners() {
+  detachScrollListeners()
+  if (!currentInput) return
+  let el: HTMLElement | null = currentInput.parentElement
+  while (el) {
+    const style = getComputedStyle(el)
+    const overflowY = style.overflowY
+    const overflowX = style.overflowX
+    if (
+      overflowY === 'auto' || overflowY === 'scroll' ||
+      overflowX === 'auto' || overflowX === 'scroll'
+    ) {
+      el.addEventListener('scroll', onScroll)
+      scrollAncestors.push(el)
+    }
+    el = el.parentElement
+  }
+  currentInput.addEventListener('scroll', onScroll)
+  scrollAncestors.push(currentInput)
+  window.addEventListener('scroll', onScroll)
+  scrollAncestors.push(window)
+}
+
+function detachScrollListeners() {
+  for (const target of scrollAncestors) {
+    target.removeEventListener('scroll', onScroll)
+  }
+  scrollAncestors = []
+}
+
 function onSelectionChange() {
   const el = document.activeElement
   if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
@@ -160,6 +192,7 @@ function onSelectionChange() {
       currentInput = el
       el.classList.add('smooth-caret-active')
       visible.value = true
+      attachScrollListeners()
     }
     requestAnimationFrame(() => updateCaret())
   } else {
@@ -187,9 +220,12 @@ function onFocus(e: Event) {
     if (currentInput && currentInput !== el) {
       currentInput.classList.remove('smooth-caret-active')
     }
-    currentInput = el
-    el.classList.add('smooth-caret-active')
-    visible.value = true
+    if (currentInput !== el) {
+      currentInput = el
+      el.classList.add('smooth-caret-active')
+      visible.value = true
+      attachScrollListeners()
+    }
     requestAnimationFrame(() => updateCaret())
   }
 }
@@ -209,12 +245,20 @@ function hideCaret() {
   isTyping.value = false
   if (currentInput) {
     currentInput.classList.remove('smooth-caret-active')
+    detachScrollListeners()
     currentInput = null
   }
 }
 
+let scrollRafScheduled = false
+
 function onScroll() {
-  if (currentInput) requestAnimationFrame(() => updateCaret())
+  if (!currentInput || scrollRafScheduled) return
+  scrollRafScheduled = true
+  requestAnimationFrame(() => {
+    scrollRafScheduled = false
+    updateCaret()
+  })
 }
 
 onMounted(() => {
@@ -226,17 +270,16 @@ onMounted(() => {
   document.addEventListener('keydown', onKeyDown)
   document.addEventListener('focus', onFocus, true)
   document.addEventListener('blur', onBlur, true)
-  document.addEventListener('scroll', onScroll, true)
 })
 
 onBeforeUnmount(() => {
   removeTransparentCaret()
+  detachScrollListeners()
   document.removeEventListener('selectionchange', onSelectionChange)
   document.removeEventListener('input', onInput as EventListener)
   document.removeEventListener('keydown', onKeyDown)
   document.removeEventListener('focus', onFocus, true)
   document.removeEventListener('blur', onBlur, true)
-  document.removeEventListener('scroll', onScroll, true)
   if (typingTimer) clearTimeout(typingTimer)
 })
 
