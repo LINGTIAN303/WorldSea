@@ -44,6 +44,7 @@
     "@worldsmith/core": "file:./worldsmith-core/pkg",
     "@worldsmith/entity-core": "file:./packages/entity-core",
     "@worldsmith/font-kit": "file:./packages/font-kit",
+    "@worldsmith/governor-core": "file:./packages/governor-core",
     "@worldsmith/motion-kit": "file:./packages/motion-kit",
     "@worldsmith/perf-kit": "workspace:*",
     "@worldsmith/plugin-sdk": "file:./packages/plugin-sdk",

@@ -34,6 +34,7 @@ import { webSearchTools } from '../tools/web-search'
 import { webFetchTools } from '../tools/web-fetch'
 import { orchestratorTools } from '../tools/orchestrator-tools'
 import { InternalChainRegistry } from '../toolbus/internal-registry'
+import { initToolMetaRegistry } from '../tools/tool-meta-registry'
 import { bootAgentGovernor } from '../governor'
 import { cliAgentModules } from '../governor-modules'
 
@@ -86,6 +87,9 @@ function registerCliTools(): void {
 }
 
 registerCliTools()
+
+// 初始化工具元数据注册中心（CLI 端使用 CLI_TOOLS）
+initToolMetaRegistry(CLI_TOOLS)
 
 // CLI 不需要 Web 端的描述符注册
 const cliRegistry = new InternalChainRegistry()

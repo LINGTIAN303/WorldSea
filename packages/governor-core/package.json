@@ -1,0 +1,15 @@
+{
+  "name": "@worldsmith/governor-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts",
+    "./registry": "./src/registry.ts",
+    "./environment": "./src/environment.ts",
+    "./governor": "./src/governor.ts"
+  }
+}

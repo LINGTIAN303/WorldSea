@@ -4,18 +4,14 @@
  * 为 Agent 包（Web 端 + CLI 端）提供基于 governor 的模块编排。
  *
  * 与 src/governor 的关系：
- * - 复用 src/governor/types 的类型定义（通过类型导入，无运行时依赖）
- * - 复用 src/governor/registry 的 ModuleRegistry + checkEnvironmentMatch + resolveDependencies
- * - 复用 src/governor/environment 的 detectEnvironment（Web 端）或自定义检测（CLI 端）
- * - 不依赖 Vue/Pinia（terminal 环境无 UI）
+ * - 核心逻辑复用 @worldsmith/governor-core（createGovernor/ModuleRegistry/...）
+ * - 主应用通过 src/governor/governor.ts 包装 governor-core 并注入 createGovernorAPI
+ * - Agent 包直接使用 governor-core 的 createGovernor（默认空 apiFactory，无 UI 依赖）
+ * - 由此消除 src/governor 与 worldsmith-agent/src/governor 的重复实现
  *
  * 使用方式：
- *   import { createAgentGovernor } from 'worldsmith-agent/governor'
- *   const governor = createAgentGovernor()
- *   const report = await governor.boot()
- *   if (report.hasCriticalFailure) {
- *     throw new Error('Agent 启动失败: ' + report.failed.map(f => f.id).join(', '))
- *   }
+ *   import { bootAgentGovernor } from 'worldsmith-agent/governor'
+ *   const governor = await bootAgentGovernor()
  */
 import type {
   Environment,
@@ -24,13 +20,12 @@ import type {
   ModulePriority,
   BootReport,
   ActivationResult,
-} from '../../src/governor/types'
+  Governor,
+} from '@worldsmith/governor-core/types'
 import {
-  ModuleRegistry,
-  checkEnvironmentMatch,
-  resolveDependencies,
-} from '../../src/governor/registry'
-import { detectEnvironment as detectWebEnvironment } from '../../src/governor/environment'
+  createGovernor as createGovernorCore,
+} from '@worldsmith/governor-core/governor'
+import { detectEnvironment as detectWebEnvironment } from '@worldsmith/governor-core/environment'
 import { agentModules, cliAgentModules, webAgentModules } from './governor-modules'
 
 /* ════════════════════════════════════════
@@ -42,14 +37,6 @@ import { agentModules, cliAgentModules, webAgentModules } from './governor-modul
  *
  * Agent CLI 运行在 Node.js 环境（terminal 宿主），
  * 能力后端为 js-fallback（无 WASM/Tauri）。
- *
- * 与 src/governor/environment.detectEnvironment 的区别：
- * - src/governor/environment 通过 typeof window === 'undefined' 检测 terminal
- * - Agent CLI 进程中 window 未定义，会被正确识别为 terminal
- * - 但 Agent CLI 可能在某些场景下被 Web 端通过 HybridBackend 调用，
- *   此时需要显式标记 __WORLDSMITH_AGENT__
- *
- * 此函数仅在 Agent CLI 进程中调用，Web 端 Agent 使用 detectWebEnvironment()。
  */
 export function detectAgentEnvironment(): Environment {
   const phase = (typeof process !== 'undefined' && process.env?.NODE_ENV) || 'production'
@@ -78,12 +65,7 @@ export function detectAgentEnvironment(): Environment {
  * 根据运行上下文选择环境检测策略。
  *
  * - 在 Node.js CLI 进程中（typeof window === 'undefined'）：使用 detectAgentEnvironment()
- * - 在浏览器/Tauri 中：使用 src/governor/environment.detectEnvironment()
- *
- * 这样可以正确处理：
- * 1. CLI 模式：worldsmith-agent chat
- * 2. Web 端 Agent：通过 createWorldSmithAgent 创建
- * 3. HybridBackend：Web 端通过 WS 调用 CLI Agent
+ * - 在浏览器/Tauri 中：使用 governor-core 的 detectEnvironment()
  */
 export function detectAgentOrWebEnvironment(): Environment {
   // 检测是否在 Node.js CLI 进程中
@@ -100,6 +82,9 @@ export function detectAgentOrWebEnvironment(): Environment {
 
 /**
  * Agent 调控器接口（轻量版，不含 UI 相关方法）。
+ *
+ * 这是 Governor 的子集——governor-core 返回完整 Governor，
+ * 此接口仅暴露 Agent 包需要的方法。
  */
 export interface AgentGovernor {
   getEnvironment(): Environment
@@ -117,6 +102,9 @@ export interface AgentGovernor {
 /**
  * 创建 Agent 调控器实例。
  *
+ * 内部使用 governor-core 的 createGovernor（默认空 apiFactory），
+ * Agent 模块的 activate 函数应自包含，不依赖 GovernorAPI 的注册方法。
+ *
  * @param options 可选配置
  * @returns AgentGovernor 实例
  */
@@ -127,158 +115,23 @@ export function createAgentGovernor(options: {
 } = {}): AgentGovernor {
   const env = options.environment ?? detectAgentOrWebEnvironment()
   const verbose = options.verbose ?? (env.phase === 'development')
-  const registry = new ModuleRegistry()
-  const activeModules = new Set<string>()
-  const failures: Array<{ id: string; error: string; priority: ModulePriority }> = []
-  const skipped: Array<{ id: string; reason: string }> = []
 
   // 注册初始模块
   const initialModules = options.modules ?? agentModules
-  registry.registerAll(initialModules)
 
-  function log(...args: unknown[]) {
-    if (verbose) console.log('[AgentGovernor]', ...args)
-  }
+  // 使用 governor-core 的 createGovernor（默认空 apiFactory）
+  // Agent 模块不依赖 GovernorAPI，activate 函数自包含
+  const governor: Governor = createGovernorCore({
+    environment: env,
+    verbose,
+    // 不传 apiFactory，使用 governor-core 默认空 API
+  })
 
-  function getEnvironment() {
-    return env
-  }
+  // 注册初始模块
+  governor.registerAll(initialModules)
 
-  function hasCapability(tag: CapabilityTag) {
-    return env.capabilities.has(tag)
-  }
-
-  function register(descriptor: ModuleDescriptor) {
-    registry.register(descriptor)
-    log(`已注册: ${descriptor.id}`)
-  }
-
-  function registerAll(descriptors: ModuleDescriptor[]) {
-    for (const d of descriptors) register(d)
-  }
-
-  async function activate(id: string): Promise<ActivationResult> {
-    const descriptor = registry.get(id)
-    if (!descriptor) {
-      return {
-        success: false,
-        module: { id, name: id, version: '', priority: 'normal', activate: async () => {} },
-        error: `模块 "${id}" 未注册`,
-      }
-    }
-
-    if (activeModules.has(id)) {
-      return { success: true, module: descriptor }
-    }
-
-    // 环境匹配检查
-    const match = checkEnvironmentMatch(descriptor, env)
-    if (!match.matched) {
-      skipped.push({ id, reason: match.reason })
-      return {
-        success: false,
-        module: descriptor,
-        skipped: true,
-        reason: match.reason,
-      }
-    }
-
-    try {
-      // Agent 环境无 pluginAPI，activate 函数应自包含
-      // 传入空对象作为 api（Agent 模块不依赖 GovernorAPI）
-      await descriptor.activate({} as any)
-      activeModules.add(id)
-      log(`已激活: ${id}`)
-      return { success: true, module: descriptor }
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : String(err)
-      failures.push({ id, error: errorMsg, priority: descriptor.priority })
-      console.warn(`[AgentGovernor] 激活失败: ${id} - ${errorMsg}`)
-      return { success: false, module: descriptor, error: errorMsg }
-    }
-  }
-
-  function isActive(id: string) {
-    return activeModules.has(id)
-  }
-
-  async function boot(): Promise<BootReport> {
-    const startTime = Date.now()
-    const activated: string[] = []
-    const failed: Array<{ id: string; error: string; priority: ModulePriority }> = []
-    const bootSkipped: Array<{ id: string; reason: string }> = []
-    let hasCriticalFailure = false
-
-    const priorities: ModulePriority[] = ['critical', 'normal', 'lazy']
-
-    for (const priority of priorities) {
-      if (hasCriticalFailure) {
-        log(`critical 失败，跳过 ${priority} 批次`)
-        break
-      }
-
-      const batchModules = registry.getByPriority(priority)
-      if (batchModules.length === 0) continue
-
-      const { sorted } = resolveDependencies(batchModules)
-      const orderedIds = [...sorted, ...batchModules.map(m => m.id).filter(id => !sorted.includes(id))]
-
-      for (const id of orderedIds) {
-        const result = await activate(id)
-        if (result.success) {
-          activated.push(id)
-        } else if (result.skipped) {
-          bootSkipped.push({ id, reason: result.reason || '环境不匹配' })
-        } else {
-          failed.push({ id, error: result.error || '未知错误', priority })
-          if (priority === 'critical') {
-            hasCriticalFailure = true
-            console.error(`[AgentGovernor] critical 模块 "${id}" 失败，中止后续启动`)
-            break
-          }
-        }
-      }
-    }
-
-    const duration = Date.now() - startTime
-    log(`启动完成: ${activated.length} 激活, ${failed.length} 失败, ${bootSkipped.length} 跳过, 耗时 ${duration}ms`)
-
-    return {
-      activated,
-      failed,
-      skipped: bootSkipped,
-      duration,
-      hasCriticalFailure,
-    }
-  }
-
-  function getActiveModules() {
-    return registry
-      .getAll()
-      .filter(m => activeModules.has(m.id))
-      .map(m => ({ id: m.id, name: m.name, priority: m.priority }))
-  }
-
-  function getFailedModules() {
-    return [...failures]
-  }
-
-  function getSkippedModules() {
-    return [...skipped]
-  }
-
-  return {
-    getEnvironment,
-    hasCapability,
-    register,
-    registerAll,
-    activate,
-    isActive,
-    boot,
-    getActiveModules,
-    getFailedModules,
-    getSkippedModules,
-  }
+  // AgentGovernor 是 Governor 的子集，直接返回
+  return governor as unknown as AgentGovernor
 }
 
 /* ════════════════════════════════════════
@@ -325,9 +178,6 @@ let globalAgentGovernorBooted = false
  *
  * 应在 createWorldSmithAgent / createCliAgent 中调用一次。
  * 重复调用会覆盖已有实例。
- *
- * @param options 选项
- * @returns AgentGovernor 实例
  */
 export function initAgentGovernor(options: {
   environment?: Environment

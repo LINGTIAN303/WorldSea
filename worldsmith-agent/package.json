@@ -16,6 +16,7 @@
     "@earendil-works/pi-agent-core": "latest",
     "@earendil-works/pi-ai": "latest",
     "@worldsmith/agent-core": "workspace:*",
+    "@worldsmith/governor-core": "workspace:*",
     "commander": "^14.0.3",
     "dexie": "^4.4.2",
     "ws": "^8.18.0"

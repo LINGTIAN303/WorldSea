@@ -17,7 +17,7 @@
  * - 工具注册保持静态 import（governor 只编排初始化顺序与环境验证）
  * - Web 端和 CLI 端共用同一套模块描述符，通过 requires/hosts 过滤
  */
-import type { ModuleDescriptor } from '../../src/governor/types'
+import type { ModuleDescriptor } from '@worldsmith/governor-core/types'
 
 /* ════════════════════════════════════════
    critical 模块：基础设施
@@ -56,6 +56,9 @@ const toolbusModule: ModuleDescriptor = {
  * 注册 entity-core/plugin-sdk/canvas-engine 的能力描述符到 InternalChainRegistry。
  * ui-kit 延迟注册以避免循环依赖。
  *
+ * 注册实际在 agent.ts（Web 端）模块加载时完成，此处仅验证。
+ * CLI 端使用空的 cliRegistry，跳过验证。
+ *
  * 依赖 toolbus 模块完成。
  */
 const internalRegistryModule: ModuleDescriptor = {
@@ -68,23 +71,14 @@ const internalRegistryModule: ModuleDescriptor = {
   dependencies: [{ moduleId: 'agent.toolbus', optional: false }],
 
   activate: async () => {
-    const { internalRegistry } = await import('./agent')
-    const { entityCoreDescriptor } = await import('@worldsmith/entity-core')
-    const { pluginSdkDescriptor } = await import('@worldsmith/plugin-sdk')
-    const { canvasEngineDescriptor } = await import('@worldsmith/canvas-engine')
-
-    internalRegistry.register(entityCoreDescriptor)
-    internalRegistry.register(pluginSdkDescriptor)
-    internalRegistry.register(canvasEngineDescriptor)
-
-    // ui-kit 延迟注册，避免 @worldsmith/ui-kit → @agent 循环依赖
-    import('@worldsmith/ui-kit')
-      .then(mod => {
-        internalRegistry.register(mod.uiKitDescriptor)
-      })
-      .catch(() => {
-        // ui-kit 可选，加载失败不阻止
-      })
+    // 注册已在 agent.ts（Web 端）模块加载时完成
+    // CLI 端使用空的 cliRegistry，无需验证
+    if (typeof window !== 'undefined') {
+      const { internalRegistry } = await import('./agent')
+      if (internalRegistry.getRegisteredLibraryIds().length === 0) {
+        throw new Error('internalRegistry 未正确注册能力描述符')
+      }
+    }
   },
 }
 
@@ -92,6 +86,9 @@ const internalRegistryModule: ModuleDescriptor = {
  * 工具元数据注册中心。
  *
  * 初始化 tool-meta-registry，为所有工具（含旧工具名）提供元数据查询。
+ *
+ * 注册实际在 agent.ts（Web 端）或 cli-agent.ts（CLI 端）模块加载时完成，
+ * 此处仅验证工具元数据可查询。
  *
  * 依赖 internal-registry 完成（工具列表需要先组装）。
  */
@@ -105,11 +102,13 @@ const toolMetaModule: ModuleDescriptor = {
   dependencies: [{ moduleId: 'agent.internal-registry', optional: false }],
 
   activate: async () => {
-    const { initToolMetaRegistry } = await import('./tools/tool-meta-registry')
-    // 工具列表由 agent.ts 的 ALL_TOOLS 或 cli-agent.ts 的 CLI_TOOLS 提供
-    // 此处通过动态 import 获取，避免循环依赖
-    const { ALL_TOOLS } = await import('./agent')
-    initToolMetaRegistry(ALL_TOOLS)
+    // 注册已在 agent.ts（Web 端）或 cli-agent.ts（CLI 端）模块加载时完成
+    // 此处仅验证工具元数据可查询
+    const { getToolMeta } = await import('./tools/tool-meta-registry')
+    const meta = getToolMeta('entity_crud')
+    if (!meta) {
+      throw new Error('工具元数据注册中心未正确初始化')
+    }
   },
 }
 

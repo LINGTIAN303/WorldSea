@@ -196,6 +196,11 @@ const aliases = {
   '@worldsmith/memory-archive/storage': path.resolve(__dirname, 'packages/memory-archive/src/storage'),
   '@worldsmith/memory-archive/embedding': path.resolve(__dirname, 'packages/memory-archive/src/embedding'),
   '@worldsmith/memory-archive/utils': path.resolve(__dirname, 'packages/memory-archive/src/utils'),
+  '@worldsmith/governor-core$': path.resolve(__dirname, 'packages/governor-core/src'),
+  '@worldsmith/governor-core/types': path.resolve(__dirname, 'packages/governor-core/src/types'),
+  '@worldsmith/governor-core/registry': path.resolve(__dirname, 'packages/governor-core/src/registry'),
+  '@worldsmith/governor-core/environment': path.resolve(__dirname, 'packages/governor-core/src/environment'),
+  '@worldsmith/governor-core/governor': path.resolve(__dirname, 'packages/governor-core/src/governor'),
 }
 
 // 转换为数组形式（Vite 8 中对象形式的 $ 后缀 alias 不生效，需用数组形式）

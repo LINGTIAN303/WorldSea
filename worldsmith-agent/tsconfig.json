@@ -34,8 +34,10 @@
       "@worldsmith/font-kit": ["../packages/font-kit/src/index.ts"],
       "@worldsmith/font-kit/*": ["../packages/font-kit/src/*"],
       "@worldsmith/agent-core": ["../packages/agent-core/src/index.ts"],
-      "@worldsmith/agent-core/*": ["../packages/agent-core/src/*"]
+      "@worldsmith/agent-core/*": ["../packages/agent-core/src/*"],
+      "@worldsmith/governor-core": ["../packages/governor-core/src/index.ts"],
+      "@worldsmith/governor-core/*": ["../packages/governor-core/src/*"]
     }
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts", "../packages/governor-core/src/**/*.ts"]
 }
