@@ -83,6 +83,34 @@ export const useUIStore = defineStore('ui', () => {
     sidebarOrder.value = order
   }
 
+  /* ── 启动状态（Splash Screen 生命周期）── */
+  const bootState = ref<'booting' | 'ready' | 'error'>('booting')
+  /** 启动失败时的错误信息（仅 bootState === 'error' 时有值） */
+  const bootError = ref<{ failedModules: Array<{ id: string; name: string; error: string }>; skippedModules: Array<{ id: string; reason: string }> } | null>(null)
+
+  function markReady() {
+    bootState.value = 'ready'
+  }
+
+  /**
+   * 标记启动失败，进入错误页状态。
+   * @param failedModules 失败的 critical 模块列表
+   * @param skippedModules 被跳过的模块列表（可选，用于展示）
+   */
+  function markBootError(
+    failedModules: Array<{ id: string; name: string; error: string }>,
+    skippedModules: Array<{ id: string; reason: string }> = [],
+  ) {
+    bootError.value = { failedModules, skippedModules }
+    bootState.value = 'error'
+  }
+
+  /** 从错误状态恢复到就绪（用户点击"继续"或"重试"后调用） */
+  function recoverFromError() {
+    bootError.value = null
+    bootState.value = 'ready'
+  }
+
   return {
     currentView,
     selectedEntityId,
@@ -100,5 +128,10 @@ export const useUIStore = defineStore('ui', () => {
     toggleMenu,
     ensureViewInOrder,
     moveSidebarItemById,
+    bootState,
+    bootError,
+    markReady,
+    markBootError,
+    recoverFromError,
   }
 })

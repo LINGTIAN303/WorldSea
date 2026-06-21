@@ -1,7 +1,8 @@
 <template>
   <n-config-provider :theme-overrides="naiveThemeOverrides" abstract>
-    <SplashScreen v-if="showSplash" />
-    <n-dialog-provider>
+    <BootErrorScreen v-if="uiStore.bootState === 'error'" />
+    <SplashScreen v-else-if="showSplash" />
+    <n-dialog-provider v-if="uiStore.bootState !== 'error'">
       <n-message-provider>
         <AppMessageHandler>
           <AgentSpace v-if="uiStore.currentShell === 'space'" />
@@ -20,6 +21,7 @@ import { ref, onMounted, watch, provide } from 'vue'
 import { NConfigProvider, NDialogProvider, NMessageProvider, type GlobalThemeOverrides } from 'naive-ui'
 import Shell from './ui/layout/Shell.vue'
 import SplashScreen from './ui/boot/SplashScreen.vue'
+import BootErrorScreen from './ui/boot/BootErrorScreen.vue'
 import AgentSpace from './space/AgentSpace.vue'
 import GlobalCaretIndicator from './ui/layout/GlobalCaretIndicator.vue'
 import AppMessageHandler from './ui/companion/AppMessageHandler.vue'
@@ -89,11 +91,18 @@ onMounted(async () => {
 
   if (report.hasCriticalFailure) {
     console.error('[App] 关键模块启动失败:', report.failed)
-    // critical 失败仍释放 splash，避免卡死，但显示错误提示
-    const failedNames = report.failed
-      .map(f => governor.getModule(f.id)?.name || f.id)
-      .join(', ')
-    console.error(`[App] 失败模块: ${failedNames}`)
+    // critical 失败：进入错误页，不继续启动
+    const failedModules = report.failed.map(f => ({
+      id: f.id,
+      name: governor.getModule(f.id)?.name || f.id,
+      error: f.error,
+    }))
+    const skippedModules = report.skipped.map(s => ({
+      id: s.id,
+      reason: s.reason,
+    }))
+    uiStore.markBootError(failedModules, skippedModules)
+    return  // 不执行后续的 archiveTriggers.start() 和 markReady()
   }
 
   if (report.failed.length > 0) {

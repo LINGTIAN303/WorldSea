@@ -27,15 +27,43 @@ import type { ModuleManifest } from '../modules/types'
 /**
  * 需要特定能力的插件映射表。
  *
- * 根据插件的实际功能推断：
- * - drawing/tactical-board：使用 Canvas 渲染，需 'canvas' 能力
- * - 其他插件：默认无特殊能力要求
+ * 根据插件实际代码分析推断：
+ * - Canvas 2D：drawing/mindmap/tactical-board/timeline/inspiration + 8 个 useTreeCanvas 插件
+ * - GPU/WebGL：graph/module-builder（Sigma.js）
+ * - Web Worker：graph（布局计算）
+ * - WASM：tactical-board（战术引擎，有 JS 回退）
+ * - Tauri 原生算法：mindmap（Dijkstra/PageRank/社区检测/布局）
+ * - LLM Provider：manuscript/mindmap/workflow（AI 续写/建议/编排）
+ * - 网络：inspiration（从 URL 提取颜色）
+ * - heavy-cpu：tactical-board（寻路/态势感知）
  *
- * 后续可逐步补充更精细的能力声明。
+ * 注意：tactical-board 和 mindmap 都有完整的 JS 降级实现，
+ * WASM/Tauri 不可用时自动降级，因此不声明 'wasm'/'tauri'/'native-algo' 为必需能力。
+ * 'heavy-cpu' 仅为标识，不阻止激活（所有环境都有此能力）。
  */
 const PLUGIN_CAPABILITY_MAP: Record<string, import('./types').CapabilityTag[]> = {
+  // ── Canvas 2D 绘图 ──
   'official.drawing': ['canvas', 'ui-render'],
-  'official.tactical-board': ['canvas', 'ui-render'],
+  'official.mindmap': ['canvas', 'ui-render', 'llm-provider'],
+  'official.tactical-board': ['canvas', 'ui-render', 'heavy-cpu'],
+  'official.timeline': ['canvas', 'ui-render'],
+  'official.inspiration': ['canvas', 'ui-render', 'network'],
+  'official.buildings': ['canvas', 'ui-render'],
+  'official.combat_stats': ['canvas', 'ui-render'],
+  'official.culture': ['canvas', 'ui-render'],
+  'official.languages': ['canvas', 'ui-render'],
+  'official.magic': ['canvas', 'ui-render'],
+  'official.plants': ['canvas', 'ui-render'],
+  'official.species': ['canvas', 'ui-render'],
+  'official.weapons': ['canvas', 'ui-render'],
+
+  // ── GPU/WebGL（Sigma.js）──
+  'official.graph': ['gpu', 'ui-render', 'worker', 'canvas'],
+  'official.module-builder': ['gpu', 'ui-render'],
+
+  // ── LLM Provider（AI 功能）──
+  'official.manuscript': ['llm-provider', 'ui-render'],
+  'official.workflow': ['llm-provider', 'ui-render'],
 }
 
 /**
@@ -51,6 +79,11 @@ const PLUGIN_HOSTS_MAP: Partial<Record<string, import('./types').RuntimeHost[]>>
  *
  * @param entry 官方插件清单条目
  * @returns 模块描述符
+ *
+ * 注意：version 设为 '0.0.0' 占位符。真实版本在插件 manifest 中，
+ * 但 descriptor 在动态 import 前创建，无法同步获取。
+ * 官方插件无相互依赖，版本号不参与依赖检查，不影响功能。
+ * TODO: 后续可在 activate 内部读取 manifest.version 并通过 registry 更新。
  */
 export function officialPluginToDescriptor(entry: OfficialPluginEntry): ModuleDescriptor {
   const requires = PLUGIN_CAPABILITY_MAP[entry.id] || ['ui-render']
@@ -59,7 +92,7 @@ export function officialPluginToDescriptor(entry: OfficialPluginEntry): ModuleDe
   return {
     id: entry.id,
     name: entry.name || entry.id,
-    version: '2.0.0', // 官方插件统一版本，实际版本由插件 manifest 提供
+    version: '0.0.0', // 占位符，真实版本在插件 manifest 中
     requires,
     hosts,
     priority: 'normal',
