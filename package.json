@@ -111,13 +111,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/LINGTIAN303/OpenWorld.git"
+    "url": "git+https://github.com/LINGTIAN303/WorldSmith.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/LINGTIAN303/OpenWorld/issues"
+    "url": "https://github.com/LINGTIAN303/WorldSmith/issues"
   },
-  "homepage": "https://github.com/LINGTIAN303/OpenWorld#readme"
+  "homepage": "https://github.com/LINGTIAN303/WorldSmith#readme"
 }

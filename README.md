@@ -1,4 +1,4 @@
-# OpenWorld
+# WorldSmith
 
 AI-powered worldbuilding platform — build rich, interconnected fictional worlds with intelligent assistance.
 
@@ -97,8 +97,8 @@ packages/
 
 ```bash
 # Clone the repository
-git clone https://github.com/LINGTIAN303/OpenWorld.git
-cd OpenWorld
+git clone https://github.com/LINGTIAN303/WorldSmith.git
+cd WorldSmith
 
 # Install dependencies
 pnpm install
@@ -137,7 +137,7 @@ pnpm test:coverage
 ## Project Structure
 
 ```
-OpenWorld/
+WorldSmith/
   src/                    — Vue 3 frontend
     agent/                — AI agent UI (chat, deep mode, persona)
     composables/          — Vue composables
