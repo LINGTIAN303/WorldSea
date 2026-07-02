@@ -1,6 +1,8 @@
 /**
- * Tauri IPC 批量写入工具，替代逐个 await writeTextFile()。
- * 收集写入请求到缓冲区，调用 flush() 时一次性发送给后端。
+ * Tauri IPC 写入缓冲器。
+ * 收集写入请求到缓冲区，调用 flush() 时并发发送给后端
+ * （逐个 invoke cmd_fs_write，通过 Promise.all 并发执行）。
+ * 适用于短时间内有大量文件写入的场景（如项目导出）。
  */
 
 interface PendingWrite {
@@ -49,8 +51,8 @@ export function createBatchIpc(options?: {
       console.warn('[batchIpc] Tauri 环境不可用，跳过批量写入')
       return
     }
-    // 逐批发送（后端 cmd_fs_write_batch 接受文件数组）
-    // 如果后端没有 batch 命令，退化为并发写入
+    // 并发写入：逐个 invoke cmd_fs_write，通过 Promise.all 并发执行
+    // 后端无 batch 命令，使用并发调用替代串行 await 以提升吞吐
     const writes = items.map(item =>
       invoke('cmd_fs_write', { path: item.path, content: item.content, createDirs: true })
         .catch((e: any) => console.warn(`[batchIpc] 写入失败: ${item.path}`, e))

@@ -4,7 +4,10 @@
  * 当项目有关联目录时，启动 Tauri 后端文件监听，
  * 接收 `fs:change` 事件并同步到前端 Store。
  *
- * 模块级单例：所有组件共享同一个监听实例。
+ * 模块级单例 + 引用计数：所有组件共享同一个监听实例。
+ * 多次 startWatching 同一目录仅增加引用计数；
+ * stopWatching 仅在引用计数归零时才真正停止后端监听。
+ * 目录变更时自动重启后端监听。
  */
 
 import { getFileStorageBackend, isTauri } from '@worldsmith/entity-core/core'
@@ -18,10 +21,16 @@ let _watchId: string | null = null
 let _unlisten: (() => void) | null = null
 let _debounceTimer: ReturnType<typeof setTimeout> | null = null
 let _pendingChanges = new Set<string>()
+/** 引用计数：跟踪当前有多少消费者需要监听 */
+let _refCount = 0
+/** 当前正在监听的目录（用于检测目录变更） */
+let _watchedDir: string | null = null
 
 export function useFsWatcher() {
   /**
-   * 启动项目目录监听
+   * 启动项目目录监听。
+   * 引用计数：多次调用同一目录仅增加计数；
+   * 若目录变更则重启后端监听。
    */
   async function startWatching(): Promise<void> {
     if (!isTauri()) return
@@ -29,70 +38,112 @@ export function useFsWatcher() {
     const fsb = getFileStorageBackend()
     if (!fsb?.isReady || !fsb.projectDir) return
 
-    // 先停止之前的监听
-    await stopWatching()
+    _refCount++
 
-    try {
-      const { invoke } = await import('@tauri-apps/api/core')
-      const { listen } = await import('@tauri-apps/api/event')
-
-      // 启动 Rust 端监听
-      const id = `project-${Date.now()}`
-      _watchId = await invoke('cmd_fs_watch_start', {
-        path: fsb.projectDir,
-        watchId: id,
-      }) as string
-
-      // 监听前端事件
-      _unlisten = await listen<{ watchId: string; kind: string; paths: string[] }>(
-        'fs:change',
-        (event) => {
-          if (event.payload.watchId !== _watchId) return
-          for (const path of event.payload.paths) {
-            _pendingChanges.add(path)
-          }
-          // 防抖：合并短时间内的多次变更
-          if (_debounceTimer) clearTimeout(_debounceTimer)
-          _debounceTimer = setTimeout(() => {
-            processChanges()
-          }, DEBOUNCE_MS)
-        },
-      )
-
-      console.log(`[FsWatcher] 开始监听: ${fsb.projectDir} (watchId=${_watchId})`)
-    } catch (err) {
-      console.warn('[FsWatcher] 启动监听失败:', err)
+    // 已在监听同一目录 → 仅增加引用计数，无需重启
+    if (_watchId && _watchedDir === fsb.projectDir) {
+      console.log(`[FsWatcher] 已在监听 ${fsb.projectDir}，引用计数=${_refCount}`)
+      return
     }
+
+    // 目录变更或首次启动 → 停止旧监听 + 启动新监听
+    await stopBackendWatcher()
+    await startBackendWatcher(fsb.projectDir)
   }
 
   /**
-   * 停止监听
+   * 停止监听。
+   * 引用计数：仅当最后一个消费者退出时才真正停止后端监听。
    */
   async function stopWatching(): Promise<void> {
-    if (_debounceTimer) {
-      clearTimeout(_debounceTimer)
-      _debounceTimer = null
-    }
-    if (_unlisten) {
-      _unlisten()
-      _unlisten = null
-    }
-    if (_watchId) {
-      try {
-        const { invoke } = await import('@tauri-apps/api/core')
-        await invoke('cmd_fs_watch_stop', { watchId: _watchId })
-      } catch {
-        // 忽略
+    _refCount = Math.max(0, _refCount - 1)
+    if (_refCount > 0) {
+      console.log(`[FsWatcher] 引用计数减少至 ${_refCount}，保留监听`)
+      // 仍需清理防抖状态，避免残留的 processChanges 在无人监听时触发
+      if (_debounceTimer) {
+        clearTimeout(_debounceTimer)
+        _debounceTimer = null
       }
-      _watchId = null
+      return
     }
-    _pendingChanges.clear()
+    // 引用计数归零 → 真正停止后端监听
+    await stopBackendWatcher()
   }
 
   return {
     startWatching,
     stopWatching,
   }
+}
+
+/* ─── 内部实现 ─── */
+
+/** 真正启动 Rust 端监听 + 前端事件监听 */
+async function startBackendWatcher(dir: string): Promise<void> {
+  try {
+    const { invoke } = await import('@tauri-apps/api/core')
+    const { listen } = await import('@tauri-apps/api/event')
+
+    // 启动 Rust 端监听
+    const id = `project-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    _watchId = await invoke('cmd_fs_watch_start', {
+      path: dir,
+      watchId: id,
+    }) as string
+    _watchedDir = dir
+
+    // 监听前端事件
+    _unlisten = await listen<{ watchId: string; kind: string; paths: string[] }>(
+      'fs:change',
+      (event) => {
+        if (event.payload.watchId !== _watchId) return
+        for (const path of event.payload.paths) {
+          _pendingChanges.add(path)
+        }
+        // 防抖：合并短时间内的多次变更
+        if (_debounceTimer) clearTimeout(_debounceTimer)
+        _debounceTimer = setTimeout(() => {
+          processChanges()
+        }, DEBOUNCE_MS)
+      },
+    )
+
+    console.log(`[FsWatcher] 开始监听: ${dir} (watchId=${_watchId}, ref=${_refCount})`)
+  } catch (err) {
+    console.warn('[FsWatcher] 启动监听失败:', err)
+    // 启动失败时回滚状态，避免 _watchId 残留
+    _watchId = null
+    _watchedDir = null
+  }
+}
+
+/** 真正停止 Rust 端监听 + 前端事件监听 */
+async function stopBackendWatcher(): Promise<void> {
+  if (_debounceTimer) {
+    clearTimeout(_debounceTimer)
+    _debounceTimer = null
+  }
+  if (_unlisten) {
+    _unlisten()
+    _unlisten = null
+  }
+  if (_watchId) {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core')
+      await invoke('cmd_fs_watch_stop', { watchId: _watchId })
+    } catch (err) {
+      const msg = String((err as Error)?.message ?? err)
+      // "not found" 表示后端已无此 watcher（可能已被清理），属正常情况
+      if (msg.includes('not found') || msg.includes('not Found')) {
+        console.log(`[FsWatcher] watcher ${_watchId} 已不在后端（正常）`)
+      } else {
+        console.warn(`[FsWatcher] 停止监听失败 (watchId=${_watchId}):`, err)
+      }
+    }
+    _watchId = null
+    _watchedDir = null
+  }
+  _pendingChanges.clear()
 }
 
 /**
