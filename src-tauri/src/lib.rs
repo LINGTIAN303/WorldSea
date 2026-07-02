@@ -1910,7 +1910,18 @@ fn cmd_fs_watch_start(app: tauri::AppHandle, path: String, watch_id: String) -> 
     let mut watcher: RecommendedWatcher = notify::Watcher::new(
         move |res: Result<Event, notify::Error>| {
             if let Ok(event) = res {
-                let _ = tx.send(event);
+                // 过滤高频自身写入的内部元数据单文件，减少 IPC 噪音
+                // kv_store.json / files_meta.json 由 app 频繁写入，
+                // 前端有自身写入静默期保护，外部修改无意义。
+                // files_content/ 保留转发，支持外部编辑触发 reload。
+                let has_relevant = event.paths.iter().any(|p| {
+                    let s = p.to_string_lossy().replace('\\', "/");
+                    !s.ends_with("/.worldsmith/kv_store.json")
+                        && !s.ends_with("/.worldsmith/files_meta.json")
+                });
+                if has_relevant {
+                    let _ = tx.send(event);
+                }
             }
         },
         WatcherConfig::default(),

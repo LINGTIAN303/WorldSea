@@ -11,7 +11,7 @@
  */
 
 import { getFileStorageBackend, isTauri } from '@worldsmith/entity-core/core'
-import { useEntityStore, useRelationStore } from '@worldsmith/entity-core/stores'
+import { useEntityStore, useRelationStore, useFileStore } from '@worldsmith/entity-core/stores'
 
 /** 防抖间隔（ms） */
 const DEBOUNCE_MS = 1000
@@ -168,21 +168,26 @@ function processChanges() {
   const dir = fsb.projectDir.replace(/\\/g, '/')
   let entitiesChanged = false
   let relationsChanged = false
+  let filesChanged = false
   const entityPaths: string[] = []
 
   for (const path of changes) {
     const normalizedPath = path.replace(/\\/g, '/')
-    // 忽略 .worldsmith 内部文件（元数据变更不触发 UI 刷新）
-    if (normalizedPath.includes('/.worldsmith/')) continue
+    // kv_store.json / files_meta.json 由 Rust 端过滤，此处兜底跳过
+    if (normalizedPath.endsWith('/.worldsmith/kv_store.json')) continue
+    if (normalizedPath.endsWith('/.worldsmith/files_meta.json')) continue
     if (normalizedPath.startsWith(`${dir}/entities/`)) {
       entitiesChanged = true
       entityPaths.push(path)
     } else if (normalizedPath.startsWith(`${dir}/relations/`)) {
       relationsChanged = true
+    } else if (normalizedPath.startsWith(`${dir}/.worldsmith/files_content/`)) {
+      // 监听文件内容变更，支持外部编辑触发 fileStore reload
+      filesChanged = true
     }
   }
 
-  console.log(`[FsWatcher] 处理变更: entities=${entitiesChanged}, relations=${relationsChanged}, paths=${changes.size}`)
+  console.log(`[FsWatcher] 处理变更: entities=${entitiesChanged}, relations=${relationsChanged}, files=${filesChanged}, paths=${changes.size}`)
 
   // 增量更新受影响的 Store
   if (entitiesChanged) {
@@ -202,6 +207,15 @@ function processChanges() {
       console.log('[FsWatcher] 关系已同步')
     }).catch(err => {
       console.warn('[FsWatcher] 关系同步失败:', err)
+    })
+  }
+
+  if (filesChanged) {
+    const fileStore = useFileStore()
+    fileStore.loadAll().then(() => {
+      console.log('[FsWatcher] 文件已同步')
+    }).catch(err => {
+      console.warn('[FsWatcher] 文件同步失败:', err)
     })
   }
 }
