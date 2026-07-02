@@ -177,6 +177,23 @@
     @close="chunkViewerOpen = false"
     @dragstart="onChunkViewerDragStart"
   />
+
+  <!-- 实体卡片小窗：从 BlockEntityCard 详情按钮或消息 mention 触发 -->
+  <FloatingPanel
+    :visible="miniPanel.visible.value"
+    :trigger-rect="miniPanel.triggerRect.value"
+    :title="miniPanel.currentState.value?.name || '实体详情'"
+    :width="340"
+    :height="420"
+    panel-id="entity-mini-panel"
+    @update:visible="(v: boolean) => !v && miniPanel.close()"
+    @close="miniPanel.close()"
+  >
+    <EntityMiniPanel
+      v-if="miniPanel.currentState.value"
+      :entity-id="miniPanel.currentState.value.entityId"
+    />
+  </FloatingPanel>
 </template>
 
 <script setup lang="ts">
@@ -203,6 +220,9 @@ import AgentSessionDrawer from './AgentSessionDrawer.vue'
 import TerminalPanel from './TerminalPanel.vue'
 import SubAgentPanel from './SubAgentPanel.vue'
 import ManuscriptShelf from './blocks/ManuscriptShelf.vue'
+import EntityMiniPanel from './EntityMiniPanel.vue'
+import FloatingPanel from '../ui/layout/FloatingPanel.vue'
+import { useEntityMiniPanel } from './composables/useEntityMiniPanel'
 import FontInstallConfirm from '../ui/font/FontInstallConfirm.vue'
 import { setFontInstallConfirm } from './setFontTool'
 import { listSessions, deleteSession } from '@agent/index'
@@ -230,6 +250,7 @@ const settingsStore = useSettingsStore()
 const { connections: mcpConnections, addConnection, removeConnection, toggleConnection, ensureLoaded: ensureMcpLoaded } = useMcpConnections()
 const { commands, settingsOpen, closeSettings, openSettings } = useAgentCommands()
 const { subAgents, toggleSubAgentVisible: toggleSubAgentVisible, removeSubAgent: removeSubAgent, registerExecutor } = useOrchestrator()
+const miniPanel = useEntityMiniPanel()
 
 const subAgentList = computed(() => Array.from(subAgents.values()))
 const activeSubAgentCount = computed(() => subAgentList.value.filter(a => a.status === 'running').length)
@@ -435,6 +456,15 @@ function onA2UIAction(surfaceId: string, action: { name: string; data?: any }): 
 }
 
 function onBlockAction(event: { blockId: string; action: string; data?: Record<string, unknown> }): void {
+  // 实体卡片"详情"按钮：打开实体小窗浮窗（UI 动作，不发送到 Agent）
+  if (event.action === 'open-detail' && event.data) {
+    const d = event.data as { entityId?: string; entityType?: string; name?: string; triggerRect?: DOMRect }
+    if (d.entityId && d.triggerRect) {
+      miniPanel.open(d.entityId, d.triggerRect, { entityType: d.entityType, name: d.name })
+      return // 不走默认的 sendBlockAction，避免把 UI 动作当成 steer 发回 Agent
+    }
+  }
+
   const dataStr = event.data ? JSON.stringify(event.data) : ''
   const steerText = dataStr
     ? `[Block Action] block=${event.blockId} action=${event.action} data=${dataStr}`

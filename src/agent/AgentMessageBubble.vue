@@ -13,6 +13,7 @@
     :data-msg-id="msg.id"
     @mouseenter="emit('hover', msg.id)"
     @mouseleave="emit('leave')"
+    @click="onMentionClick"
   >
     <!-- 深度模式：段标签 -->
     <div class="deep-segment-label" :class="deepSegmentType">
@@ -130,6 +131,7 @@
     :data-msg-id="msg.id"
     @mouseenter="emit('hover', msg.id)"
     @mouseleave="emit('leave')"
+    @click="onMentionClick"
   >
     <span class="msg-icon"><WsIcon :name="msg.role === 'user' ? 'character' : 'profile'" size="xs" /></span>
     <div class="msg-body" :style="msg.role === 'assistant' ? agentFontStyle : undefined">
@@ -242,9 +244,13 @@ import { useFontStore } from '../stores/fontStore'
 import { renderText, toBlob, renderAnimatedText } from '@worldsmith/font-kit'
 import { encodeGif } from '@worldsmith/motion-kit'
 import { useStreamingRenderer } from '@worldsmith/perf-kit/render'
+import { useEntityMentionIndex } from './composables/useEntityMentionIndex'
+import { useEntityMiniPanel } from './composables/useEntityMiniPanel'
 const { fontFamily, enterAnimation, profile } = usePersonaFont()
 const { logs: activityLogs } = useActivityLog()
 const fontStore = useFontStore()
+const { matchInText } = useEntityMentionIndex()
+const miniPanel = useEntityMiniPanel()
 const agentFontFamily = computed(() => fontStore.prefs.agent.family || fontFamily.value || '')
 const agentFontStyle = computed(() => {
   const style: Record<string, string> = {}
@@ -833,9 +839,116 @@ if (!purifyHookRegistered) {
   purifyHookRegistered = true
 }
 
+/**
+ * 实体名高亮注入缓存：按原始文本缓存注入结果，避免流式输出时重复匹配
+ * WeakMap 允许 GC 回收已销毁消息的文本
+ */
+const mentionInjectCache = new WeakMap<string, string>()
+
+/**
+ * 在 marked 渲染后的 HTML 中注入实体名高亮
+ * 策略：用 DOMParser 解析 HTML，遍历纯文本节点（跳过 code/pre/a 等已格式化元素），
+ * 匹配实体名并包裹 <span data-ws-entity-id="..." class="ws-entity-mention">
+ */
+function injectMentions(html: string): string {
+  if (!html) return ''
+  // 缓存命中：避免流式输出时同一段文本反复匹配
+  const cached = mentionInjectCache.get(html)
+  if (cached !== undefined) return cached
+
+  try {
+    const doc = new DOMParser().parseFromString(`<div id="__root">${html}</div>`, 'text/html')
+    const root = doc.getElementById('__root')
+    if (!root) return html
+
+    let hasMatch = false
+    const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        // 跳过 code/pre/a 标签内的文本（这些不需要实体高亮）
+        const parent = node.parentElement
+        if (!parent) return NodeFilter.FILTER_REJECT
+        const tag = parent.tagName.toLowerCase()
+        if (tag === 'code' || tag === 'pre' || tag === 'a' || tag === 'script' || tag === 'style') {
+          return NodeFilter.FILTER_REJECT
+        }
+        // 跳过已是 mention span 内的文本
+        if (parent.classList?.contains('ws-entity-mention')) {
+          return NodeFilter.FILTER_REJECT
+        }
+        return node.nodeValue && node.nodeValue.trim().length >= 2
+          ? NodeFilter.FILTER_ACCEPT
+          : NodeFilter.FILTER_REJECT
+      },
+    })
+
+    const textNodes: Text[] = []
+    let current: Node | null
+    while ((current = walker.nextNode())) {
+      textNodes.push(current as Text)
+    }
+
+    for (const textNode of textNodes) {
+      const text = textNode.nodeValue || ''
+      const matches = matchInText(text)
+      if (matches.length === 0) continue
+
+      // 将文本节点替换为：普通文本 + mention span 的混合序列
+      const fragment = doc.createDocumentFragment()
+      let lastEnd = 0
+      for (const m of matches) {
+        if (m.start > lastEnd) {
+          fragment.appendChild(doc.createTextNode(text.slice(lastEnd, m.start)))
+        }
+        const span = doc.createElement('span')
+        span.className = 'ws-entity-mention'
+        span.setAttribute('data-ws-entity-id', m.entityIds[0])
+        span.setAttribute('data-ws-entity-type', m.entityType)
+        span.setAttribute('data-ws-entity-name', m.name)
+        span.textContent = m.name
+        span.title = `${m.entityType}: ${m.name}（点击查看详情）`
+        fragment.appendChild(span)
+        lastEnd = m.end
+      }
+      if (lastEnd < text.length) {
+        fragment.appendChild(doc.createTextNode(text.slice(lastEnd)))
+      }
+      textNode.parentNode?.replaceChild(fragment, textNode)
+      hasMatch = true
+    }
+
+    const result = hasMatch ? root.innerHTML : html
+    mentionInjectCache.set(html, result)
+    return result
+  } catch {
+    // DOMParser 不可用或解析失败时降级为原始 HTML
+    return html
+  }
+}
+
 function renderMd(text: string): string {
   if (!text) return ''
-  return DOMPurify.sanitize(marked.parse(text) as string)
+  const raw = DOMPurify.sanitize(marked.parse(text) as string)
+  return injectMentions(raw)
+}
+
+/**
+ * 事件委托：点击消息内实体名 mention 时打开实体小窗浮窗
+ * 通过 closest('.ws-entity-mention') 判断点击目标是否为 mention
+ */
+function onMentionClick(e: MouseEvent) {
+  const target = e.target as HTMLElement
+  if (!target) return
+  const mention = target.closest('.ws-entity-mention') as HTMLElement | null
+  if (!mention) return
+
+  const entityId = mention.getAttribute('data-ws-entity-id')
+  const entityType = mention.getAttribute('data-ws-entity-type') || ''
+  const name = mention.getAttribute('data-ws-entity-name') || ''
+  if (!entityId) return
+
+  const triggerRect = mention.getBoundingClientRect()
+  miniPanel.open(entityId, triggerRect, { entityType, name })
+  e.stopPropagation()
 }
 
 /** 扫描 [data-ws-font] 元素并应用内联字体样式 */
@@ -1631,5 +1744,22 @@ async function onExportGif() {
   min-width: 280px;
   max-width: 60%;
   margin-left: auto;
+}
+
+/* 实体名 mention 高亮：用 :deep() 穿透 v-html 渲染的 DOM */
+:deep(.ws-entity-mention) {
+  color: var(--agent-accent, #b388ff);
+  background: rgba(108, 92, 231, 0.1);
+  border-radius: 3px;
+  padding: 0 3px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  font-weight: 500;
+  border-bottom: 1px dashed var(--agent-accent, #b388ff);
+}
+:deep(.ws-entity-mention:hover) {
+  background: rgba(108, 92, 231, 0.25);
+  color: var(--agent-text, #e0e0e0);
+  border-bottom-style: solid;
 }
 </style>
