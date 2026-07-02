@@ -20,6 +20,7 @@ import { createCliAgent, CLI_TOOLS } from './cli-agent'
 import { createCliToolContext } from './cli-context'
 import { createCLISafetyGuard } from './cli-safety-guard'
 import { initToolMetaRegistry } from '../tools/tool-meta-registry'
+import { createExecutionAdapter } from '../execution'
 import type { ProviderConfig } from '../providers/config'
 import type { ToolDefinition } from '../bridge-types'
 import * as crypto from 'crypto'
@@ -49,7 +50,9 @@ interface ToolCallRequest {
 
 interface WsMessage {
   type: 'tool_call' | 'ping' | 'subscribe' | 'unsubscribe'
+    | 'exec' | 'pty_spawn' | 'pty_write' | 'pty_resize' | 'pty_kill'
   payload: unknown
+  id?: string // exec/pty 消息携带的请求 ID
 }
 
 /* ════════════════════════════════════════
@@ -134,14 +137,13 @@ function sendSSE(res: ServerResponse, data: unknown): void {
 
 export async function startServer(opts: ServeOptions): Promise<Server> {
   const apiKey = opts.apiKey || loadApiKeyFromEnv(opts.provider)
-  if (!apiKey) {
-    console.error('Error: API key required. Use -k flag, WORLDSMITH_API_KEY env, or .worldsmith-keys.json')
-    process.exit(1)
-  }
+  // API key 可选：Web 前端聊天直接在浏览器调 LLM，后端只提供工具执行能力
+  // 仅当用户通过 /api/prompt 端点使用后端聊天时才需要 key
+  const hasApiKey = !!apiKey
 
   const config: ProviderConfig = opts.baseUrl
-    ? { mode: 'custom', baseUrl: opts.baseUrl, apiType: 'openai-compatible', modelId: opts.model, apiKey }
-    : { mode: 'cloud', provider: opts.provider, modelId: opts.model, apiKey }
+    ? { mode: 'custom', baseUrl: opts.baseUrl, apiType: 'openai-compatible', modelId: opts.model, apiKey: apiKey || '' }
+    : { mode: 'cloud', provider: opts.provider, modelId: opts.model, apiKey: apiKey || '' }
 
   const dataPath = path.resolve(opts.data)
   if (!fs.existsSync(dataPath)) fs.mkdirSync(dataPath, { recursive: true })
@@ -151,13 +153,28 @@ export async function startServer(opts: ServeOptions): Promise<Server> {
   // 初始化工具元数据注册中心
   initToolMetaRegistry(CLI_TOOLS)
 
-  // 创建 Agent 实例（serve 模式下 Agent 主要用于工具执行上下文）
-  const agent = await createCliAgent({
-    providerConfig: config,
-    toolContext,
-    projectName: 'WorldSmith-Server',
-    beforeToolCall: opts.guard ? createCLISafetyGuard(toolContext.stores.ui) : undefined,
-  })
+  // 安全守卫（独立于 agent，工具执行时使用，无 key 时也能工作）
+  // serve 模式为非交互（HTTP 服务器无法通过 stdin 确认），守卫自动通过并记录日志
+  // 安全责任转移给前端（前端可在调用前做 UI 确认）
+  const beforeToolCall = opts.guard ? createCLISafetyGuard(toolContext.stores.ui, false) : undefined
+
+  // 创建 Agent 实例（仅在配置了 API key 时创建，用于 /api/prompt 聊天能力）
+  // Web 前端聊天直接在浏览器调 LLM，不需要后端 agent；后端主要提供工具执行能力
+  let agent: Awaited<ReturnType<typeof createCliAgent>> | null = null
+  if (hasApiKey) {
+    try {
+      agent = await createCliAgent({
+        providerConfig: config,
+        toolContext,
+        projectName: 'WorldSmith-Server',
+        beforeToolCall,
+      })
+    } catch (err) {
+      console.warn(`[Agent] 创建 Agent 实例失败（工具执行仍可用）: ${err instanceof Error ? err.message : err}`)
+    }
+  } else {
+    console.warn('[Agent] 未配置 API key，/api/prompt 聊天不可用（工具执行正常）')
+  }
 
   // WebSocket 客户端管理
   const wsClients = new Set<WsSocket>()
@@ -236,9 +253,9 @@ export async function startServer(opts: ServeOptions): Promise<Server> {
       broadcast({ type: 'tool_execution_start', toolName, args, requestId })
 
       try {
-        // 安全守卫检查
-        if (opts.guard && agent) {
-          const guardResult = await (agent as any).config?.beforeToolCall?.({ toolCall: { name: toolName, args } })
+        // 安全守卫检查（独立于 agent，无 key 时也能工作）
+        if (beforeToolCall) {
+          const guardResult = await beforeToolCall({ toolCall: { name: toolName, args } })
           if (guardResult?.block) {
             broadcast({ type: 'tool_execution_end', requestId, success: false, result: guardResult.reason })
             sendJson(res, 403, { ok: false, error: `Blocked by safety guard: ${guardResult.reason}`, requestId })
@@ -284,6 +301,12 @@ export async function startServer(opts: ServeOptions): Promise<Server> {
         return
       }
 
+      // 无 agent 实例时拒绝（未配置 API key）
+      if (!agent) {
+        sendJson(res, 503, { ok: false, error: '后端未配置 API key，/api/prompt 聊天不可用。请在 Web 前端使用聊天功能，或通过 WORLDSMITH_API_KEY 环境变量配置 key 后重启服务' })
+        return
+      }
+
       // SSE 响应头
       res.writeHead(200, {
         'Content-Type': 'text/event-stream',
@@ -321,6 +344,10 @@ export async function startServer(opts: ServeOptions): Promise<Server> {
   wss.on('connection', (ws: WsSocket) => {
     wsClients.add(ws)
     console.log(`[WS] Client connected (total: ${wsClients.size})`)
+
+    // 每个连接维护自己的 PTY 会话回调（断开时清理）
+    const ptyUnsubscribers: Map<string, () => void> = new Map()
+    const adapter = createExecutionAdapter()
 
     // 发送欢迎消息
     ws.send(JSON.stringify({
@@ -361,6 +388,106 @@ export async function startServer(opts: ServeOptions): Promise<Server> {
           break
         }
 
+        // ── 一次性命令执行（前端 WebSocketExecutionAdapter 协议） ──
+        case 'exec': {
+          const { id, payload } = msg as { id: string; payload: { cmd: string; cwd?: string; env?: Record<string, string>; timeout?: number } }
+          if (!id) {
+            ws.send(JSON.stringify({ type: 'error', error: 'exec 消息缺少 id' }))
+            break
+          }
+          try {
+            const result = await adapter.executeCommand(payload.cmd, {
+              cwd: payload.cwd,
+              env: payload.env,
+              timeout: payload.timeout,
+            })
+            ws.send(JSON.stringify({ type: 'exec_result', id, payload: result }))
+          } catch (err) {
+            ws.send(JSON.stringify({
+              type: 'error',
+              id,
+              payload: { message: err instanceof Error ? err.message : String(err) },
+            }))
+          }
+          break
+        }
+
+        // ── PTY 会话管理（前端终端协议） ──────────────────────────
+        case 'pty_spawn': {
+          const { id, payload } = msg as {
+            id: string
+            payload: { shell?: string; cwd?: string; cols?: number; rows?: number }
+          }
+          if (!id) {
+            ws.send(JSON.stringify({ type: 'error', error: 'pty_spawn 消息缺少 id' }))
+            break
+          }
+          try {
+            // 创建会话（复用 adapter 的会话管理）
+            await adapter.createSession(id, {
+              shell: payload.shell,
+              cwd: payload.cwd,
+              cols: payload.cols,
+              rows: payload.rows,
+            })
+            // 注册 output 回调，持续推送给前端
+            const unsub = await adapter.onPtyOutput(id, (data: string) => {
+              if (ws.readyState === 1) {
+                ws.send(JSON.stringify({ type: 'pty_output', id, payload: { data } }))
+              }
+            })
+            ptyUnsubscribers.set(id, unsub)
+          } catch (err) {
+            ws.send(JSON.stringify({
+              type: 'error',
+              id,
+              payload: { message: err instanceof Error ? err.message : String(err) },
+            }))
+          }
+          break
+        }
+
+        case 'pty_write': {
+          const { id, payload } = msg as { id: string; payload: { data: string } }
+          if (id) {
+            try {
+              await adapter.writePty(id, payload.data)
+            } catch (err) {
+              ws.send(JSON.stringify({
+                type: 'error',
+                id,
+                payload: { message: err instanceof Error ? err.message : String(err) },
+              }))
+            }
+          }
+          break
+        }
+
+        case 'pty_resize': {
+          const { id, payload } = msg as { id: string; payload: { cols: number; rows: number } }
+          if (id) {
+            try {
+              await adapter.resizePty(id, payload.cols, payload.rows)
+            } catch {}
+          }
+          break
+        }
+
+        case 'pty_kill': {
+          const { id } = msg as { id: string }
+          if (id) {
+            const unsub = ptyUnsubscribers.get(id)
+            if (unsub) {
+              unsub()
+              ptyUnsubscribers.delete(id)
+            }
+            try {
+              await adapter.killPty(id)
+            } catch {}
+          }
+          break
+        }
+
         default:
           ws.send(JSON.stringify({ type: 'error', error: `Unknown message type: ${(msg as any).type}` }))
       }
@@ -368,6 +495,14 @@ export async function startServer(opts: ServeOptions): Promise<Server> {
 
     ws.on('close', () => {
       wsClients.delete(ws)
+      // 清理该连接的所有 PTY 会话
+      for (const [id, unsub] of ptyUnsubscribers) {
+        unsub()
+        try {
+          adapter.killPty(id)
+        } catch {}
+      }
+      ptyUnsubscribers.clear()
       console.log(`[WS] Client disconnected (total: ${wsClients.size})`)
     })
   })
@@ -381,6 +516,7 @@ export async function startServer(opts: ServeOptions): Promise<Server> {
       console.log(`  Tools: ${toolMap.size} available`)
       console.log(`  Model: ${opts.provider}/${opts.model}`)
       console.log(`  Guard: ${opts.guard ? 'ON' : 'OFF'}`)
+      console.log(`  Agent: ${agent ? 'ready' : 'disabled (no API key, /api/prompt unavailable)'}`)
       console.log(`  Data:  ${dataPath}`)
       console.log('')
       console.log('Endpoints:')

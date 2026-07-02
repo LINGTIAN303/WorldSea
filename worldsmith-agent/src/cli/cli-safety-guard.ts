@@ -9,7 +9,7 @@ import { PermissionGuard } from '@worldsmith/agent-core'
 import type { IUIStore } from '../toolbus/types'
 import { getToolMeta } from '../tools/tool-meta-registry'
 
-export function createCLISafetyGuard(uiStore: IUIStore) {
+export function createCLISafetyGuard(uiStore: IUIStore, interactive = true) {
   const guard = new PermissionGuard(getToolMeta, {
     confirmModerate: true,
     confirmDangerous: true,
@@ -28,6 +28,13 @@ export function createCLISafetyGuard(uiStore: IUIStore) {
 
     const levelLabel = result.level === 'dangerous' ? '⚠️ 危险操作' : '操作确认'
     const reasonText = result.reason ? `\n原因：${result.reason}` : ''
+
+    // 非交互模式（serve HTTP 服务器）：无法通过 stdin 确认，自动通过并记录警告
+    // 安全责任转移给前端（前端可在调用前做 UI 确认）
+    if (!interactive) {
+      console.warn(`[Guard] 非交互模式自动通过: ${displayName} (${argSummary || '无参数'})`)
+      return undefined
+    }
 
     const approved = await uiStore.confirm(
       levelLabel,
