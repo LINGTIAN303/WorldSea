@@ -122,18 +122,42 @@ export class FileStorageBackend implements StorageBackend {
    */
   private _selfWriteUntil = 0
 
+  /**
+   * 正在进行的异步写入 Promise 集合。
+   * isInSelfWriteWindow 会覆盖所有 pending 写入，确保大文件/批量写入期间
+   * 文件监听不会触发 reload 读到半成品 JSON。
+   */
+  private _pendingWrites = new Set<Promise<unknown>>()
+
   constructor(fallback: StorageBackend) {
     this._fallback = fallback
   }
 
   /** 是否处于自身写入静默期（文件监听应跳过 reload） */
   get isInSelfWriteWindow(): boolean {
-    return Date.now() < this._selfWriteUntil
+    return Date.now() < this._selfWriteUntil || this._pendingWrites.size > 0
   }
 
-  /** 标记自身写入开始，设置静默期（2秒） */
-  private markSelfWrite(): void {
-    this._selfWriteUntil = Date.now() + 2000
+  /**
+   * 标记自身写入开始，设置静默期。
+   * 使用 Math.max 避免后续短窗口缩短已有长窗口。
+   */
+  private markSelfWrite(duration = 2000): void {
+    this._selfWriteUntil = Math.max(this._selfWriteUntil, Date.now() + duration)
+  }
+
+  /**
+   * 跟踪一个异步写操作：加入 pending 集合，完成后移除并延长静默期。
+   * - 写入期间 isInSelfWriteWindow 返回 true（覆盖大文件/批量写入）
+   * - 写入完成后延长 500ms 静默期，吸收 notify → 前端事件的传播延迟
+   */
+  private trackWrite<T>(p: Promise<T>): Promise<T> {
+    this._pendingWrites.add(p)
+    p.finally(() => {
+      this._pendingWrites.delete(p)
+      this.markSelfWrite(500)
+    })
+    return p
   }
 
   /** 当前是否已绑定项目目录 */
@@ -194,29 +218,52 @@ export class FileStorageBackend implements StorageBackend {
       if (!normalizedPath.startsWith(entitiesPrefix)) continue
       if (!normalizedPath.endsWith('.json')) continue
 
+      // 读取层：区分"文件不存在"与"读取错误"
+      let content: string
       try {
-        const content = await readTextFile(rawPath)
-        const entity: Entity = JSON.parse(content)
-        // 从路径提取 type: entities/{type}/{name_id}.json
-        const relPath = normalizedPath.slice(entitiesPrefix.length)
-        const type = relPath.split('/')[0]
-        this._entityIndex.set(entity.id, {
-          type,
-          name: entity.name,
-          path: rawPath,
-        })
-        this._entityCache.set(entity.id, entity)
-      } catch {
-        // 文件可能已被删除，尝试从缓存中移除
-        // 通过路径反查 index 中的条目
-        for (const [id, entry] of this._entityIndex) {
-          if (entry.path.replace(/\\/g, '/') === normalizedPath) {
-            this._entityIndex.delete(id)
-            this._entityCache.delete(id)
-            break
+        content = await readTextFile(rawPath)
+      } catch (readErr) {
+        const msg = String((readErr as Error)?.message ?? readErr)
+        const isNotFound =
+          msg.includes('not found') ||
+          msg.includes('No such file') ||
+          msg.includes('不存在') ||
+          msg.includes('系统找不到') ||
+          msg.includes('cannot find')
+        if (isNotFound) {
+          // 文件确实被删除，移除索引
+          for (const [id, entry] of this._entityIndex) {
+            if (entry.path.replace(/\\/g, '/') === normalizedPath) {
+              this._entityIndex.delete(id)
+              this._entityCache.delete(id)
+              break
+            }
           }
+        } else {
+          // 其他读取错误（权限/IO），保留索引避免误删
+          console.warn('[FileStorageBackend] 实体文件读取失败，保留索引:', rawPath, readErr)
         }
+        continue
       }
+
+      // 解析层：JSON 损坏不删除索引，避免数据丢失
+      let entity: Entity
+      try {
+        entity = JSON.parse(content)
+      } catch (parseErr) {
+        console.warn('[FileStorageBackend] 实体文件 JSON 损坏，保留索引:', rawPath, parseErr)
+        continue
+      }
+
+      // 从路径提取 type: entities/{type}/{name_id}.json
+      const relPath = normalizedPath.slice(entitiesPrefix.length)
+      const type = relPath.split('/')[0]
+      this._entityIndex.set(entity.id, {
+        type,
+        name: entity.name,
+        path: rawPath,
+      })
+      this._entityCache.set(entity.id, entity)
     }
 
     // 标记关系需要重新加载
@@ -359,16 +406,25 @@ export class FileStorageBackend implements StorageBackend {
     this.markSelfWrite()
     // 先更新内存索引和缓存（同步，零延迟）
     const filePath = this.entityFilePath(entity)
+    // 保存旧值用于写盘失败时回滚
+    const oldEntry = this._entityIndex.get(entity.id)
+    const oldEntity = this._entityCache.get(entity.id)
     this._entityIndex.set(entity.id, {
       type: entity.type,
       name: entity.name,
       path: filePath,
     })
     this._entityCache.set(entity.id, entity)
-    // 文件写入异步化（不阻塞调用方）
+    // 文件写入异步化（不阻塞调用方），失败时回滚内存保证一致性
     const content = JSON.stringify(entity)
-    writeTextFile(filePath, content, true).catch(err =>
-      console.warn('[FileStorageBackend] 文件写入失败:', err),
+    this.trackWrite(
+      writeTextFile(filePath, content, true).catch(err => {
+        console.error('[FileStorageBackend] putEntity 写入失败，回滚内存:', entity.id, err)
+        if (oldEntry) this._entityIndex.set(entity.id, oldEntry)
+        else this._entityIndex.delete(entity.id)
+        if (oldEntity) this._entityCache.set(entity.id, oldEntity)
+        else this._entityCache.delete(entity.id)
+      }),
     )
   }
 
@@ -378,37 +434,52 @@ export class FileStorageBackend implements StorageBackend {
     const existing = await this.getEntity(id)
     if (!existing) throw new Error(`实体 ${id} 不存在`)
     const updated = { ...existing, ...changes }
-    // 先更新内存索引和缓存
+    // 保存旧值用于写盘失败时回滚
     const oldPath = this.entityFilePathById(id)
     const newPath = this.entityFilePath(updated)
+    const oldEntry = this._entityIndex.get(id)
+    // 先更新内存索引和缓存
     this._entityIndex.set(id, {
       type: updated.type,
       name: updated.name,
       path: newPath,
     })
     this._entityCache.set(id, updated)
-    // 文件写入异步化
+    // 文件写入异步化，失败时回滚内存
     const content = JSON.stringify(updated)
-    writeTextFile(newPath, content, true).then(async () => {
-      // 如果路径变了，删除旧文件
-      if (oldPath && oldPath !== newPath) {
-        try { await deleteFile(oldPath) } catch { /* 忽略 */ }
-      }
-    }).catch(err =>
-      console.warn('[FileStorageBackend] 文件写入失败:', err),
+    this.trackWrite(
+      writeTextFile(newPath, content, true).then(async () => {
+        // 写入成功后删除旧路径文件
+        if (oldPath && oldPath !== newPath) {
+          try { await deleteFile(oldPath) } catch { /* 旧文件删除失败可忽略 */ }
+        }
+      }).catch(err => {
+        console.error('[FileStorageBackend] updateEntity 写入失败，回滚内存:', id, err)
+        if (oldEntry) this._entityIndex.set(id, oldEntry)
+        this._entityCache.set(id, existing)
+      }),
     )
   }
 
   async deleteEntity(id: string): Promise<void> {
     if (!this.isReady) return this._fallback!.deleteEntity(id)
     this.markSelfWrite()
-    // 先更新内存索引和缓存
+    // 保存旧值用于删除失败时回滚
     const path = this.entityFilePathById(id)
+    const oldEntry = this._entityIndex.get(id)
+    const oldEntity = this._entityCache.get(id)
+    // 先更新内存索引和缓存
     this._entityIndex.delete(id)
     this._entityCache.delete(id)
-    // 文件删除异步化
+    // 文件删除异步化，失败时回滚内存
     if (path) {
-      deleteFile(path).catch(() => { /* 忽略 */ })
+      this.trackWrite(
+        deleteFile(path).catch(err => {
+          console.error('[FileStorageBackend] deleteEntity 删除失败，回滚内存:', id, err)
+          if (oldEntry) this._entityIndex.set(id, oldEntry)
+          if (oldEntity) this._entityCache.set(id, oldEntity)
+        }),
+      )
     }
   }
 
@@ -564,8 +635,11 @@ export class FileStorageBackend implements StorageBackend {
     }
     const run = () => {
       this._flushRelationsIdle = null
-      this.flushRelations().catch(err =>
-        console.warn('[FileStorageBackend] 关系文件写入失败:', err),
+      this.trackWrite(
+        this.flushRelations().catch(err => {
+          console.error('[FileStorageBackend] 关系文件写入失败，标记需重载:', err)
+          this._relationsLoaded = false
+        }),
       )
     }
     if (typeof requestIdleCallback === 'function') {
@@ -643,8 +717,11 @@ export class FileStorageBackend implements StorageBackend {
     }
     const run = () => {
       this._flushKvIdle = null
-      this.flushKv().catch(err =>
-        console.warn('[FileStorageBackend] KV 文件写入失败:', err),
+      this.trackWrite(
+        this.flushKv().catch(err => {
+          console.error('[FileStorageBackend] KV 文件写入失败，标记需重载:', err)
+          this._kvLoaded = false
+        }),
       )
     }
     if (typeof requestIdleCallback === 'function') {
@@ -709,21 +786,31 @@ export class FileStorageBackend implements StorageBackend {
       await this.loadFilesMeta()
     }
     this.markSelfWrite()
-    // 写文件内容（异步化，不阻塞调用方）
-    writeTextFile(
-      `${this._projectDir}/.worldsmith/files_content/${file.id}.json`,
-      JSON.stringify(content),
-      true,
-    ).catch(err =>
-      console.warn('[FileStorageBackend] 文件内容写入失败:', err),
-    )
-    // 更新元数据（内存同步）
+    // 保存旧元数据用于回滚
     const idx = this._filesMeta.findIndex(f => f.id === file.id)
+    const oldFile = idx >= 0 ? this._filesMeta[idx] : null
+    // 更新元数据（内存同步）
     if (idx >= 0) {
       this._filesMeta[idx] = file
     } else {
       this._filesMeta.push(file)
     }
+    // 写文件内容（异步化），失败时回滚元数据
+    this.trackWrite(
+      writeTextFile(
+        `${this._projectDir}/.worldsmith/files_content/${file.id}.json`,
+        JSON.stringify(content),
+        true,
+      ).catch(err => {
+        console.error('[FileStorageBackend] putFile 内容写入失败，回滚元数据:', file.id, err)
+        if (oldFile) {
+          const i = this._filesMeta.findIndex(f => f.id === file.id)
+          if (i >= 0) this._filesMeta[i] = oldFile
+        } else {
+          this._filesMeta = this._filesMeta.filter(f => f.id !== file.id)
+        }
+      }),
+    )
     // 防抖异步持久化元数据
     this.flushFilesMetaAsync()
   }
@@ -748,8 +835,17 @@ export class FileStorageBackend implements StorageBackend {
       await this.loadFilesMeta()
     }
     this.markSelfWrite()
-    // 删除内容文件（异步化）
-    deleteFile(`${this._projectDir}/.worldsmith/files_content/${id}.json`).catch(() => { /* 忽略 */ })
+    // 保存被删除的元数据用于回滚
+    const deletedFile = this._filesMeta.find(f => f.id === id) ?? null
+    // 删除内容文件（异步化），失败时回滚元数据
+    this.trackWrite(
+      deleteFile(`${this._projectDir}/.worldsmith/files_content/${id}.json`).catch(err => {
+        console.error('[FileStorageBackend] deleteFile 内容删除失败，回滚元数据:', id, err)
+        if (deletedFile && !this._filesMeta.some(f => f.id === id)) {
+          this._filesMeta.push(deletedFile)
+        }
+      }),
+    )
     // 更新元数据（内存同步）
     this._filesMeta = this._filesMeta.filter(f => f.id !== id)
     // 防抖异步持久化元数据
@@ -785,8 +881,11 @@ export class FileStorageBackend implements StorageBackend {
     }
     const run = () => {
       this._flushFilesMetaIdle = null
-      this.flushFilesMeta().catch(err =>
-        console.warn('[FileStorageBackend] 文件元数据写入失败:', err),
+      this.trackWrite(
+        this.flushFilesMeta().catch(err => {
+          console.error('[FileStorageBackend] 文件元数据写入失败，标记需重载:', err)
+          this._filesMetaLoaded = false
+        }),
       )
     }
     if (typeof requestIdleCallback === 'function') {
