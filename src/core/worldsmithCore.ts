@@ -152,6 +152,34 @@ let coreModule: { WorldSmithCore: new (...args: any[]) => Record<string, any> } 
 let coreLoadAttempted = false
 let coreInstance: WorldSmithCoreAPI | null = null
 
+/**
+ * camelCase → snake_case 转换
+ * Rust wasm-bindgen 默认导出 snake_case 方法名（如 validate_entity），
+ * 前端接口约定 camelCase（如 validateEntity），用 Proxy 自动转发。
+ */
+function camelToSnake(name: string): string {
+  // 已含下划线或特殊方法，直接返回
+  if (name.includes('_') || name === 'constructor' || name === 'free') return name
+  // camelCase → snake_case：大写字母前加下划线并转小写
+  return name.replace(/[A-Z]/g, m => '_' + m.toLowerCase())
+}
+
+/**
+ * 包装 WASM 实例：camelCase 调用自动转发到 snake_case 实际方法
+ */
+function wrapWasmInstance<T extends object>(raw: T): T {
+  return new Proxy(raw, {
+    get(target, prop, receiver) {
+      // Symbol 属性（如 Symbol.dispose）直接透传，不转换
+      if (typeof prop !== 'string') return Reflect.get(target, prop, receiver)
+      const snakeName = camelToSnake(prop)
+      const val = Reflect.get(target, snakeName, target)
+      // 方法需绑定 this 到原始实例，避免丢失内部状态
+      return typeof val === 'function' ? val.bind(target) : val
+    },
+  })
+}
+
 /** WASM 可用性响应式状态，UI 层可绑定 */
 export const wasmAvailable = ref<boolean | null>(null) // null = 尚未检测
 
@@ -189,8 +217,9 @@ async function tryLoadCore(): Promise<WorldSmithCoreAPI | null> {
       notifyWasmFailure(msg)
       return null
     }
-    // WASM wasm-pack 生成的 .d.ts 仅含基础方法，完整 API 在运行时可用
-    coreInstance = new coreModule.WorldSmithCore() as unknown as WorldSmithCoreAPI
+    // WASM 实例 + Proxy 包装：camelCase 调用自动转发到 snake_case 方法
+    const rawInstance = new coreModule.WorldSmithCore()
+    coreInstance = wrapWasmInstance(rawInstance) as unknown as WorldSmithCoreAPI
     if (typeof coreInstance.validateEntity !== 'function') {
       const msg = 'WASM 核心库版本不匹配，缺少 validateEntity 方法'
       console.warn('[WorldSmithCore]', msg)

@@ -31,6 +31,12 @@ interface WasmModule {
 let wasmModule: WasmModule | null = null
 let wasmInstance: { [method: string]: (...args: any[]) => any } | null = null
 
+/** camelCase → snake_case（Rust wasm-bindgen 默认导出 snake_case 方法名） */
+function camelToSnake(name: string): string {
+  if (name.includes('_') || name === 'constructor' || name === 'free') return name
+  return name.replace(/[A-Z]/g, m => '_' + m.toLowerCase())
+}
+
 async function ensureWasm(): Promise<{ [method: string]: (...args: any[]) => any }> {
   if (wasmInstance) return wasmInstance
 
@@ -40,7 +46,16 @@ async function ensureWasm(): Promise<{ [method: string]: (...args: any[]) => any
     if (!wasmModule?.WorldSmithCore) {
       throw new Error('WASM 模块缺少 WorldSmithCore 导出')
     }
-    wasmInstance = new wasmModule.WorldSmithCore()
+    // Proxy 包装：camelCase 调用自动转发到 snake_case 实际方法
+    const raw = new wasmModule.WorldSmithCore()
+    wasmInstance = new Proxy(raw, {
+      get(target, prop, receiver) {
+        if (typeof prop !== 'string') return Reflect.get(target, prop, receiver)
+        const snakeName = camelToSnake(prop)
+        const val = Reflect.get(target, snakeName, target)
+        return typeof val === 'function' ? val.bind(target) : val
+      },
+    })
     if (typeof wasmInstance.validateEntity !== 'function') {
       throw new Error('WASM 核心库版本不匹配，缺少 validateEntity 方法')
     }
