@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="global-search-overlay" v-if="show" @click.self="close">
     <div class="global-search-panel" role="search" :style="{ width: modalResizable.width.value + 'px' }">
       <div class="gs-header">
@@ -36,11 +36,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
 import { useRelationStore } from '@worldsmith/entity-core'
 import { useResizable } from '@worldsmith/ui-kit'
 import { entitySchemaRegistry } from '@worldsmith/entity-core'
 import { storage } from '@worldsmith/entity-core'
+import { watchDebounced } from '@worldsmith/perf-kit'
 import WsIcon from '../WsIcon.vue'
 import type { Entity } from '@worldsmith/entity-core'
 
@@ -50,39 +51,69 @@ const emit = defineEmits<{ close: [] }>()
 const relationStore = useRelationStore()
 const modalResizable = useResizable({ panelId: 'modal-global-search', defaultWidth: 620, minWidth: 360 })
 const searchInput = ref<HTMLInputElement>()
+// 原始输入(每次按键立即变化,仅用于绑定 v-model)
 const query = ref('')
 const typeFilter = ref('')
 const tagFilter = ref('')
 const showRelations = ref(false)
-const allEntities = ref<Entity[]>([])
+
+// ===== 性能优化1:debounce 150ms =====
+// query / tagFilter 防抖后再驱动 computed,避免每次按键全量 filter
+const debouncedQuery = ref('')
+const debouncedTagFilter = ref('')
+const stopDebounceQuery = watchDebounced(() => query.value, () => { debouncedQuery.value = query.value }, { debounce: 150 })
+const stopDebounceTag = watchDebounced(() => tagFilter.value, () => { debouncedTagFilter.value = tagFilter.value }, { debounce: 150 })
+
+// ===== 性能优化2:预生成小写字段 =====
+// 加载实体时一次性 map 出 _nameLow / _descLow / _tagsLow,filter 时直接用,避免每次按键重复 toLowerCase
+interface SearchableEntity extends Entity {
+  _nameLow: string
+  _descLow: string
+  _tagsLow: string[]
+}
+const allEntities = ref<SearchableEntity[]>([])
 
 watch(() => props.show, async (v) => {
   if (v) {
-    allEntities.value = await storage.getAllEntities()
+    const raw = await storage.getAllEntities()
+    allEntities.value = raw.map(e => ({
+      ...e,
+      _nameLow: (e.name || '').toLowerCase(),
+      _descLow: (e.description || '').toLowerCase(),
+      _tagsLow: (e.tags || []).map(t => t.toLowerCase()),
+    }))
     nextTick(() => searchInput.value?.focus())
   }
 })
 
 const allTypes = computed(() => entitySchemaRegistry.getAll())
-const hasQuery = computed(() => query.value.length > 0 || tagFilter.value.length > 0)
+const hasQuery = computed(() => debouncedQuery.value.length > 0 || debouncedTagFilter.value.length > 0)
+
+// ===== 性能优化3:tagFilter 拆词缓存(防抖后变化时才拆,不在 computed 内重复拆) =====
+const loweredTags = ref<string[]>([])
+watch(() => debouncedTagFilter.value, (v) => {
+  loweredTags.value = v.toLowerCase().split(/[,，\s]+/).filter(Boolean)
+})
 
 const filteredEntities = computed(() => {
-  let items = allEntities.value
+  let items: SearchableEntity[] = allEntities.value
   if (typeFilter.value) items = items.filter(e => e.type === typeFilter.value)
-  if (query.value) {
-    const q = query.value.toLowerCase()
-    items = items.filter(e => e.name.toLowerCase().includes(q) || (e.description || '').toLowerCase().includes(q))
+  if (debouncedQuery.value) {
+    const q = debouncedQuery.value.toLowerCase()
+    // 直接用预生成的小写字段,避免每次按键重复 toLowerCase
+    items = items.filter(e => e._nameLow.includes(q) || e._descLow.includes(q))
   }
-  if (tagFilter.value) {
-    const tags = tagFilter.value.toLowerCase().split(/[,，\s]+/).filter(Boolean)
-    if (tags.length) items = items.filter(e => e.tags?.some(t => tags.some(tag => t.toLowerCase().includes(tag))))
+  const tags = loweredTags.value
+  if (tags.length) {
+    // 内层 some 提前 break(ES2023 some 命中即返回),双层 some 已是最优结构
+    items = items.filter(e => e._tagsLow.some(t => tags.some(tag => t.includes(tag))))
   }
   return items
 })
 
 const filteredRelations = computed(() => {
-  if (!showRelations.value || !query.value) return []
-  const q = query.value.toLowerCase()
+  if (!showRelations.value || !debouncedQuery.value) return []
+  const q = debouncedQuery.value.toLowerCase()
   return relationStore.relations.filter(r => (r.label || '').toLowerCase().includes(q) || r.type.toLowerCase().includes(q))
 })
 
@@ -106,7 +137,12 @@ function goToRelation(_r: { id: string }) {
 }
 
 function search() { /* search handler - already reactive */ }
-function close() { query.value = ''; tagFilter.value = ''; emit('close') }
+function close() { query.value = ''; tagFilter.value = ''; debouncedQuery.value = ''; debouncedTagFilter.value = ''; loweredTags.value = []; emit('close') }
+
+onBeforeUnmount(() => {
+  stopDebounceQuery()
+  stopDebounceTag()
+})
 </script>
 
 <style scoped>
