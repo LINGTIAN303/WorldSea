@@ -104,6 +104,10 @@ node_modules_bak_*
 
 # ── Editor temp dirs ────────────────────────────────────────────────────
 .qoder-tmp/
+# Qoder IDE 配置文件（无代码引用，仅 IDE 自身使用）
+.qoderignore
+# 清理脚本遗留的空占位目录
+_empty_for_clean/
 
 # ── Brainstorming skill runtime state ──────────────────────────────────
 # (kept for compatibility if .superpowers is ever re-created)
