@@ -25,6 +25,35 @@ let currentInput: HTMLInputElement | HTMLTextAreaElement | null = null
 let typingTimer: ReturnType<typeof setTimeout> | null = null
 let styleEl: HTMLStyleElement | null = null
 
+// ===== 性能优化:mirror DOM 单例化,避免每次按键 createElement + appendChild + remove =====
+// 全局复用一个 mirror 元素(首次测量时创建,组件卸载时清理),消除每次按键的 DOM 写入开销
+let mirrorEl: HTMLDivElement | null = null
+let mirrorMarker: HTMLSpanElement | null = null
+let mirrorReady = false
+
+// getComputedStyle 缓存:同一输入框切焦前复用样式信息,避免每次按键重复读取
+interface ComputedStyleCache {
+  rect: DOMRect
+  pl: number
+  pt: number
+  pr: number
+  bl: number
+  bt: number
+  lh: number
+  contentW: number
+  font: string
+  letterSpacing: string
+  textTransform: string
+  wordSpacing: string
+  paddingLeft: string
+  paddingRight: string
+  isInput: boolean
+}
+const styleCache = new WeakMap<HTMLInputElement | HTMLTextAreaElement, ComputedStyleCache>()
+
+// rAF 合并按键:同一帧内多次按键只测量一次(配合下面 updateCaretRaf 使用)
+let updateRafId: number | null = null
+
 const variantClass = computed(() => `smooth-caret--${settingsStore.smoothCaretVariant}`)
 
 const caretStyle = computed(() => ({
@@ -59,61 +88,101 @@ function removeTransparentCaret() {
   })
 }
 
-function measureCaretPos(el: HTMLInputElement | HTMLTextAreaElement): { x: number; y: number; h: number } {
+// 初始化单例 mirror 元素(首次测量时懒创建)
+function ensureMirror() {
+  if (mirrorReady && mirrorEl && mirrorMarker) return
+  mirrorEl = document.createElement('div')
+  mirrorEl.setAttribute('data-smooth-caret-mirror', '')
+  // 初始定位在屏幕外,不参与可见布局
+  mirrorEl.style.cssText = 'position:absolute;top:-9999px;left:-9999px;visibility:hidden;box-sizing:border-box;'
+  mirrorMarker = document.createElement('span')
+  mirrorMarker.textContent = '\u200b'
+  mirrorEl.appendChild(mirrorMarker)
+  document.body.appendChild(mirrorEl)
+  mirrorReady = true
+}
+
+function destroyMirror() {
+  if (mirrorEl) {
+    mirrorEl.remove()
+    mirrorEl = null
+    mirrorMarker = null
+    mirrorReady = false
+  }
+}
+
+// 读取并缓存输入框的样式信息(focus 切换或首次测量时调用)
+function refreshStyleCache(el: HTMLInputElement | HTMLTextAreaElement): ComputedStyleCache {
   const rect = el.getBoundingClientRect()
   const style = getComputedStyle(el)
+  const cache: ComputedStyleCache = {
+    rect,
+    pl: parseFloat(style.paddingLeft) || 0,
+    pt: parseFloat(style.paddingTop) || 0,
+    pr: parseFloat(style.paddingRight) || 0,
+    bl: parseFloat(style.borderLeftWidth) || 0,
+    bt: parseFloat(style.borderTopWidth) || 0,
+    lh: parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.4,
+    contentW: 0,
+    font: style.font,
+    letterSpacing: style.letterSpacing,
+    textTransform: style.textTransform,
+    wordSpacing: style.wordSpacing,
+    paddingLeft: style.paddingLeft,
+    paddingRight: style.paddingRight,
+    isInput: el instanceof HTMLInputElement,
+  }
+  cache.contentW = el.clientWidth - cache.pl - cache.pr
+  styleCache.set(el, cache)
+  return cache
+}
+
+function measureCaretPos(el: HTMLInputElement | HTMLTextAreaElement): { x: number; y: number; h: number } {
+  // 复用缓存样式;缓存命中时跳过 getComputedStyle + getBoundingClientRect + clientWidth 读取
+  let cache = styleCache.get(el)
+  // rect 会随滚动变化,每次都需刷新;但样式属性(font/padding/lineHeight)只在 focus 切换时变,可长期复用
+  // 这里折中:每次测量都刷新 rect,但其他样式属性从缓存读
+  const rect = el.getBoundingClientRect()
+  if (!cache) {
+    cache = refreshStyleCache(el)
+  }
+  // 用最新 rect 覆盖缓存中的 rect(滚动场景下 rect 会变)
+  const c: ComputedStyleCache = { ...cache, rect }
+
   const pos = el.selectionStart ?? 0
+  const { pl, pt, bl, bt, lh, contentW, font, letterSpacing, textTransform, wordSpacing, paddingLeft, paddingRight, isInput } = c
 
-  const pl = parseFloat(style.paddingLeft) || 0
-  const pt = parseFloat(style.paddingTop) || 0
-  const pr = parseFloat(style.paddingRight) || 0
-  const bl = parseFloat(style.borderLeftWidth) || 0
-  const bt = parseFloat(style.borderTopWidth) || 0
-  const lh = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.4
-  const isInput = el instanceof HTMLInputElement
+  ensureMirror()
+  if (!mirrorEl || !mirrorMarker) return { x: 0, y: 0, h: lh }
 
-  const contentW = el.clientWidth - pl - pr
-
-  const mirror = document.createElement('div')
-  const baseCSS = `
-    position:absolute;top:-9999px;left:-9999px;visibility:hidden;
-    font:${style.font};letter-spacing:${style.letterSpacing};
-    text-transform:${style.textTransform};word-spacing:${style.wordSpacing};
-    box-sizing:border-box;
-  `
+  // 复用 mirror 元素,只更新 cssText(写一次)+ textContent(写一次),不再 appendChild/remove
+  const baseCSS = `position:absolute;top:-9999px;left:-9999px;visibility:hidden;font:${font};letter-spacing:${letterSpacing};text-transform:${textTransform};word-spacing:${wordSpacing};box-sizing:border-box;`
 
   if (isInput) {
-    mirror.style.cssText = baseCSS + `white-space:nowrap;`
+    mirrorEl.style.cssText = baseCSS + 'white-space:nowrap;'
   } else {
-    mirror.style.cssText = baseCSS + `
-      white-space:pre-wrap;word-wrap:break-word;overflow-wrap:break-word;
-      width:${contentW}px;line-height:${lh}px;
-      padding-left:${style.paddingLeft};padding-right:${style.paddingRight};
-    `
+    mirrorEl.style.cssText = baseCSS + `white-space:pre-wrap;word-wrap:break-word;overflow-wrap:break-word;width:${contentW}px;line-height:${lh}px;padding-left:${paddingLeft};padding-right:${paddingRight};`
   }
 
   const textBefore = el.value.substring(0, pos)
   const textAfter = el.value.substring(pos)
 
-  mirror.appendChild(document.createTextNode(textBefore))
-
-  const marker = document.createElement('span')
-  marker.textContent = '\u200b'
-  mirror.appendChild(marker)
-
+  // 重建 mirror 的子节点:文本 + marker + (textarea 时)文本 + br
+  // textContent 比 appendChild(childNodes) 更快,且 mirror 只有一个 marker,结构简单
+  mirrorEl.textContent = ''
+  mirrorEl.appendChild(document.createTextNode(textBefore))
+  mirrorEl.appendChild(mirrorMarker)
   if (!isInput) {
-    mirror.appendChild(document.createTextNode(textAfter))
-    const trail = document.createElement('br')
-    mirror.appendChild(trail)
+    mirrorEl.appendChild(document.createTextNode(textAfter))
+    mirrorEl.appendChild(document.createElement('br'))
   }
 
-  document.body.appendChild(mirror)
-
-  const markerTop = marker.offsetTop
-  const markerLeft = marker.offsetLeft
-  const markerH = marker.offsetHeight || lh
-
-  mirror.remove()
+  // 关键:mirror 已经在 DOM 中(首次 ensureMirror 时 appendChild 一次),这里不再 appendChild/remove
+  // 只触发一次同步布局读取(offsetTop/offsetLeft/offsetHeight)
+  const markerTop = mirrorMarker.offsetTop
+  const markerLeft = mirrorMarker.offsetLeft
+  // markerH 仅用于 fallback,这里读取主要是为了触发同步布局(与原实现保持一致)
+  void mirrorMarker.offsetHeight
 
   let x: number
   let y: number
@@ -131,6 +200,16 @@ function measureCaretPos(el: HTMLInputElement | HTMLTextAreaElement): { x: numbe
   }
 
   return { x, y, h }
+}
+
+// rAF 合并版 updateCaret:同一帧内多次调用只执行一次测量
+// 切焦瞬间走同步路径(见 onSelectionChange/onFocus),按键走 rAF 合并路径
+function scheduleUpdateCaret() {
+  if (updateRafId !== null) return
+  updateRafId = requestAnimationFrame(() => {
+    updateRafId = null
+    updateCaret()
+  })
 }
 
 function updateCaret() {
@@ -193,8 +272,13 @@ function onSelectionChange() {
       el.classList.add('smooth-caret-active')
       visible.value = true
       attachScrollListeners()
+      // 切焦时同步测量一次(不走 rAF,避免首帧延迟),并刷新样式缓存
+      refreshStyleCache(el)
+      updateCaret()
+    } else {
+      // 同一输入框内光标移动(方向键、点击移动),走 rAF 合并
+      scheduleUpdateCaret()
     }
-    requestAnimationFrame(() => updateCaret())
   } else {
     hideCaret()
   }
@@ -203,7 +287,8 @@ function onSelectionChange() {
 function onInput() {
   if (!currentInput) return
   onTyping()
-  requestAnimationFrame(() => updateCaret())
+  // 按键走 rAF 合并:同一帧内多次按键只测量一次,消除 layout thrashing
+  scheduleUpdateCaret()
 }
 
 function onKeyDown(e: KeyboardEvent) {
@@ -211,7 +296,7 @@ function onKeyDown(e: KeyboardEvent) {
   const tag = (e.target as HTMLElement)?.tagName
   if (tag !== 'INPUT' && tag !== 'TEXTAREA') return
   onTyping()
-  requestAnimationFrame(() => updateCaret())
+  scheduleUpdateCaret()
 }
 
 function onFocus(e: Event) {
@@ -225,8 +310,12 @@ function onFocus(e: Event) {
       el.classList.add('smooth-caret-active')
       visible.value = true
       attachScrollListeners()
+      // 切焦时同步测量 + 刷新样式缓存(新输入框的样式属性首次读取并缓存)
+      refreshStyleCache(el)
+      updateCaret()
+    } else {
+      scheduleUpdateCaret()
     }
-    requestAnimationFrame(() => updateCaret())
   }
 }
 
@@ -244,6 +333,8 @@ function hideCaret() {
   visible.value = false
   isTyping.value = false
   if (currentInput) {
+    // 清理该输入框的样式缓存(下次 focus 时重新读取)
+    styleCache.delete(currentInput)
     currentInput.classList.remove('smooth-caret-active')
     detachScrollListeners()
     currentInput = null
@@ -281,6 +372,12 @@ onBeforeUnmount(() => {
   document.removeEventListener('focus', onFocus, true)
   document.removeEventListener('blur', onBlur, true)
   if (typingTimer) clearTimeout(typingTimer)
+  // 清理 rAF 与单例 mirror
+  if (updateRafId !== null) {
+    cancelAnimationFrame(updateRafId)
+    updateRafId = null
+  }
+  destroyMirror()
 })
 
 watch(() => settingsStore.smoothCaretEnabled, (enabled) => {
