@@ -15,6 +15,11 @@ use crate::validate::relation::validate_relation;
 #[wasm_bindgen]
 pub struct WorldSmithCore;
 
+thread_local! {
+  static RETROFIT_ENGINE: std::cell::RefCell<crate::retrofit::RetrofitEngine> =
+    std::cell::RefCell::new(crate::retrofit::RetrofitEngine::new());
+}
+
 #[wasm_bindgen]
 impl WorldSmithCore {
   /// 创建 WorldSmithCore 实例
@@ -202,11 +207,6 @@ impl WorldSmithCore {
     serde_wasm_bindgen::to_value(&report).map_err(|e| JsValue::from_str(&e.to_string()))
   }
 
-  thread_local! {
-    static RETROFIT_ENGINE: std::cell::RefCell<crate::retrofit::RetrofitEngine> =
-      std::cell::RefCell::new(crate::retrofit::RetrofitEngine::new());
-  }
-
   pub fn retrofit_begin_session(
     &self,
     session_id: &str,
@@ -216,18 +216,18 @@ impl WorldSmithCore {
       .as_deref()
       .and_then(|s| serde_json::from_str::<crate::retrofit::catalog::CapabilityCatalog>(s).ok())
       .unwrap_or_else(crate::retrofit::catalog::CapabilityCatalog::permissive);
-    Self::RETROFIT_ENGINE.with(|e| {
+    RETROFIT_ENGINE.with(|e| {
       e.borrow_mut()
         .begin_session(session_id, catalog)
-        .map_err(|err| JsValue::from_str(&err.to_string()))?;
-    });
+        .map_err(|err| JsValue::from_str(&err.to_string()))
+    })?;
     Ok(())
   }
 
   pub fn retrofit_submit_intent(&self, intent_json: &str) -> Result<JsValue, JsValue> {
     let intent: crate::retrofit::intent::RetrofitIntent = serde_json::from_str(intent_json)
       .map_err(|e| JsValue::from_str(&format!("意图解析失败: {e}")))?;
-    Self::RETROFIT_ENGINE.with(|e| {
+    RETROFIT_ENGINE.with(|e| {
       let report =
         e.borrow_mut().submit_intent(intent).map_err(|err| JsValue::from_str(&err.to_string()))?;
       serde_wasm_bindgen::to_value(&report).map_err(|err| JsValue::from_str(&err.to_string()))
@@ -235,7 +235,7 @@ impl WorldSmithCore {
   }
 
   pub fn retrofit_confirm_and_stage(&self) -> Result<JsValue, JsValue> {
-    Self::RETROFIT_ENGINE.with(|e| {
+    RETROFIT_ENGINE.with(|e| {
       let intents =
         e.borrow_mut().confirm_and_stage().map_err(|err| JsValue::from_str(&err.to_string()))?;
       serde_wasm_bindgen::to_value(&intents).map_err(|err| JsValue::from_str(&err.to_string()))
@@ -251,7 +251,7 @@ impl WorldSmithCore {
       .map_err(|e| JsValue::from_str(&format!("before 解析失败: {e}")))?;
     let after: serde_json::Value = serde_json::from_str(after_json)
       .map_err(|e| JsValue::from_str(&format!("after 解析失败: {e}")))?;
-    Self::RETROFIT_ENGINE.with(|e| {
+    RETROFIT_ENGINE.with(|e| {
       let result = e
         .borrow_mut()
         .apply_next(before, after)
@@ -265,7 +265,7 @@ impl WorldSmithCore {
     entity_count: usize,
     relation_count: usize,
   ) -> Result<JsValue, JsValue> {
-    Self::RETROFIT_ENGINE.with(|e| {
+    RETROFIT_ENGINE.with(|e| {
       let result = e
         .borrow_mut()
         .verify_and_accept(entity_count, relation_count)
@@ -275,18 +275,18 @@ impl WorldSmithCore {
   }
 
   pub fn retrofit_request_repair(&self, message: &str) -> Result<(), JsValue> {
-    Self::RETROFIT_ENGINE.with(|e| {
+    RETROFIT_ENGINE.with(|e| {
       e.borrow_mut().request_repair(message).map_err(|err| JsValue::from_str(&err.to_string()))
     })
   }
 
   pub fn retrofit_redirect(&self, message: &str) -> Result<(), JsValue> {
-    Self::RETROFIT_ENGINE
+    RETROFIT_ENGINE
       .with(|e| e.borrow_mut().redirect(message).map_err(|err| JsValue::from_str(&err.to_string())))
   }
 
   pub fn retrofit_rollback_last(&self) -> Result<JsValue, JsValue> {
-    Self::RETROFIT_ENGINE.with(|e| {
+    RETROFIT_ENGINE.with(|e| {
       let result =
         e.borrow_mut().rollback_last().map_err(|err| JsValue::from_str(&err.to_string()))?;
       serde_wasm_bindgen::to_value(&result).map_err(|err| JsValue::from_str(&err.to_string()))
@@ -294,28 +294,28 @@ impl WorldSmithCore {
   }
 
   pub fn retrofit_abort(&self) -> Result<JsValue, JsValue> {
-    Self::RETROFIT_ENGINE.with(|e| {
+    RETROFIT_ENGINE.with(|e| {
       let rolled = e.borrow_mut().abort().map_err(|err| JsValue::from_str(&err.to_string()))?;
       serde_wasm_bindgen::to_value(&rolled).map_err(|err| JsValue::from_str(&err.to_string()))
     })
   }
 
   pub fn retrofit_session_phase(&self) -> Result<JsValue, JsValue> {
-    Self::RETROFIT_ENGINE.with(|e| {
+    RETROFIT_ENGINE.with(|e| {
       let phase = e.borrow().session().map(|s| s.phase);
       serde_wasm_bindgen::to_value(&phase).map_err(|err| JsValue::from_str(&err.to_string()))
     })
   }
 
   pub fn retrofit_detect_conflicts(&self) -> Result<JsValue, JsValue> {
-    Self::RETROFIT_ENGINE.with(|e| {
+    RETROFIT_ENGINE.with(|e| {
       let report = e.borrow().detect_conflicts();
       serde_wasm_bindgen::to_value(&report).map_err(|err| JsValue::from_str(&err.to_string()))
     })
   }
 
   pub fn retrofit_end_session(&self) -> Result<bool, JsValue> {
-    Self::RETROFIT_ENGINE.with(|e| {
+    RETROFIT_ENGINE.with(|e| {
       Ok(e.borrow_mut().end_session().is_some())
     })
   }

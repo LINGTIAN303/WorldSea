@@ -74,9 +74,7 @@ package-lock.json
 # ── Rust / cargo / wasm (added at git init) ─────────────────────────────
 **/target/
 **/Cargo.lock.bak
-# wasm-pack 输出 — package.json 用 file: 引用,但实际产物按需重建
-**/pkg/
-**/pkg/.gitignore
+# wasm-pack 输出已入库 (含 .wasm 二进制), 改动 WASM 后需重新 pnpm build:wasm-all
 
 # ── Third-party AI tool directories ────────────────────────────────────
 .codebuddy/

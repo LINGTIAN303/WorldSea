@@ -178,12 +178,8 @@ const aliases = {
   '@worldsmith/agent-core/bus': path.resolve(__dirname, 'packages/agent-core/src/bus'),
   '@worldsmith/agent-core/execution': path.resolve(__dirname, 'packages/agent-core/src/execution'),
   '@worldsmith/agent-core/factory': path.resolve(__dirname, 'packages/agent-core/src/factory'),
-  '@worldsmith/core$': fs.existsSync(path.resolve(__dirname, 'worldsmith-core/pkg/worldsmith_core.js'))
-    ? path.resolve(__dirname, 'worldsmith-core/pkg/worldsmith_core.js')
-    : path.resolve(__dirname, 'src/core/stubs/worldsmithCoreStub.ts'),
-  '@worldsmith/tactical-engine$': fs.existsSync(path.resolve(__dirname, 'tactical-engine/pkg/tactical_engine.js'))
-    ? path.resolve(__dirname, 'tactical-engine/pkg/tactical_engine.js')
-    : path.resolve(__dirname, 'src/core/stubs/tacticalEngineStub.ts'),
+  '@worldsmith/core$': path.resolve(__dirname, 'worldsmith-core/pkg/index.js'),
+  '@worldsmith/tactical-engine$': path.resolve(__dirname, 'tactical-engine/pkg/index.js'),
   '@worldsmith/perf-kit$': path.resolve(__dirname, 'packages/perf-kit/src'),
   '@worldsmith/perf-kit/reactive': path.resolve(__dirname, 'packages/perf-kit/src/reactive'),
   '@worldsmith/perf-kit/io': path.resolve(__dirname, 'packages/perf-kit/src/io'),
