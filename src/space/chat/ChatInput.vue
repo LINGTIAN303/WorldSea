@@ -8,18 +8,17 @@
           @dragleave.prevent="isDragOver = false"
           @drop.prevent="onDrop"
         >
-          <Transition name="attach-fade">
-            <button
-              v-if="isExpanded"
-              class="attach-btn"
-              type="button"
-              :disabled="isStreaming"
-              title="添加文件（图片 / Word / PDF / 文本）"
-              @click="triggerFileInput"
-            >
-              <WsIcon name="paperclip" size="sm" />
-            </button>
-          </Transition>
+          <!-- 性能优化:按钮始终渲染,用 opacity + transform 控制可见性 -->
+          <!-- 替代原 v-if mount/unmount,避免 flex 子元素数量变化触发重排 -->
+          <button
+            class="attach-btn"
+            type="button"
+            :disabled="isStreaming"
+            title="添加文件（图片 / Word / PDF / 文本）"
+            @click="triggerFileInput"
+          >
+            <WsIcon name="paperclip" size="sm" />
+          </button>
           <div class="input-stack">
             <div v-if="kbChips.length" class="kb-chips-area">
               <div
@@ -65,18 +64,15 @@
             multiple
             @change="onFileInputChange"
           />
-          <Transition name="send-fade">
-            <button
-              v-if="isExpanded"
-              class="send-btn"
-              :class="{ 'stop-btn': isStreaming }"
-              :disabled="!isStreaming && (!inputText.trim() && !attachments.length && !kbChips.length)"
-              @click="isStreaming ? onStop() : onSend()"
-            >
-              <WsIcon v-if="isStreaming" name="square" size="sm" />
-              <WsIcon v-else name="send" size="sm" />
-            </button>
-          </Transition>
+          <button
+            class="send-btn"
+            :class="{ 'stop-btn': isStreaming }"
+            :disabled="!isStreaming && (!inputText.trim() && !attachments.length && !kbChips.length)"
+            @click="isStreaming ? onStop() : onSend()"
+          >
+            <WsIcon v-if="isStreaming" name="square" size="sm" />
+            <WsIcon v-else name="send" size="sm" />
+          </button>
         </div>
         <ModelSwitcher :is-expanded="isExpanded" @change="onModelChange" />
       </div>
@@ -464,12 +460,16 @@ watch(() => spaceStore.inputInjection, (injection) => {
   border: 1px solid var(--color-border);
   border-radius: 24px;
   padding: 6px 8px;
-  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-              max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+  /* 性能优化:只动画 width(0.2s),padding/border-radius 不动画直接快跳,避免 layout 抖动 */
+  transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+              max-width 0.2s cubic-bezier(0.4, 0, 0.2, 1),
               border-color 0.15s,
               box-shadow 0.15s,
               background 0.15s;
   overflow: hidden;
+  /* 性能优化:隔离内部重排,避免扩散到父级 flex 容器(input-row) */
+  contain: layout paint style;
+  will-change: width;
 }
 
 .capsule-input.expanded {
@@ -638,8 +638,16 @@ watch(() => spaceStore.inputInjection, (injection) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.15s, color 0.15s;
+  /* 性能优化:opacity + transform 控制可见性(合成层),替代 v-if mount/unmount */
+  transition: background 0.15s, color 0.15s, opacity 0.2s, transform 0.2s;
   margin-right: 4px;
+}
+
+/* 性能优化:未展开时按钮不可见(但仍渲染,避免 mount/unmount 触发 flex 重排) */
+.capsule-input:not(.expanded) .attach-btn {
+  opacity: 0;
+  transform: scale(0.8);
+  pointer-events: none;
 }
 
 .attach-btn:hover:not(:disabled) {
@@ -692,8 +700,16 @@ watch(() => spaceStore.inputInjection, (injection) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.15s, opacity 0.15s;
+  /* 性能优化:opacity + transform 控制可见性(合成层),替代 v-if mount/unmount */
+  transition: background 0.15s, opacity 0.2s, transform 0.2s;
   margin-left: 8px;
+}
+
+/* 性能优化:未展开时按钮不可见(但仍渲染,避免 mount/unmount 触发 flex 重排) */
+.capsule-input:not(.expanded) .send-btn {
+  opacity: 0;
+  transform: scale(0.8);
+  pointer-events: none;
 }
 
 .send-btn:disabled {
@@ -713,25 +729,6 @@ watch(() => spaceStore.inputInjection, (injection) => {
 @keyframes stop-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.7; }
-}
-
-.send-fade-enter-active,
-.attach-fade-enter-active {
-  transition: opacity 0.2s ease, transform 0.2s ease;
-}
-.send-fade-leave-active,
-.attach-fade-leave-active {
-  transition: opacity 0.1s ease, transform 0.1s ease;
-}
-.send-fade-enter-from,
-.attach-fade-enter-from {
-  opacity: 0;
-  transform: scale(0.8);
-}
-.send-fade-leave-to,
-.attach-fade-leave-to {
-  opacity: 0;
-  transform: scale(0.8);
 }
 
 .vision-warning {
