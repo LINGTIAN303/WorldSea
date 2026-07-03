@@ -62,10 +62,7 @@
         <div
           v-if="spaceStore.rightPanel"
           class="space-panel right-panel"
-          :style="{
-            width: spaceStore.rightPanelWidth + 'px',
-            right: spaceStore.planPanelOpen ? spaceStore.planPanelWidth + 'px' : '0px',
-          }"
+          :style="{ width: spaceStore.rightPanelWidth + 'px' }"
         >
           <div class="right-panel-content">
             <div
@@ -403,8 +400,10 @@ function onPlanResizeStart(e: MouseEvent) {
 .right-panel {
   right: 0;
   box-shadow: -4px 0 12px -2px rgba(0, 0, 0, 0.15);
-  transition: right 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  /* 性能优化:去掉 transition: right,面板位置固定 right:0,不再依赖 planPanelOpen */
+  /* 面板显隐由 panel-slide-right transition 控制(transform + opacity) */
   contain: layout paint style;
+  will-change: transform;
 }
 
 .right-panel-content {
@@ -416,7 +415,11 @@ function onPlanResizeStart(e: MouseEvent) {
 .plan-panel-layer {
   right: 0;
   box-shadow: -4px 0 12px -2px rgba(0, 0, 0, 0.15);
+  /* 性能优化:计划面板 z-index 高于 right-panel,overlay 在上方 */
+  /* 两面板独立绝对定位 right:0,互不依赖,消除 layout thrashing */
+  z-index: 21;
   contain: layout paint style;
+  will-change: transform;
 }
 
 .plan-panel-content {
@@ -488,12 +491,27 @@ function onPlanResizeStart(e: MouseEvent) {
 
 .panel-slide-right-enter-active,
 .panel-slide-right-leave-active {
-  transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  /* 性能优化:transform + opacity 只触发合成层,不重排 */
+  /* 替代原 transition: width 0.25s(每帧触发 layout) */
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.25s ease;
+  /* 动画期间临时禁用 backdrop-filter,避免大区域 blur 每帧重新光栅化 */
+  /* backdrop-filter 是动画期间的性能负担,动画结束后自动恢复 */
 }
 .panel-slide-right-enter-from {
-  width: 0;
+  transform: translateX(100%);
+  opacity: 0;
 }
 .panel-slide-right-leave-to {
-  width: 0;
+  transform: translateX(100%);
+  opacity: 0;
+}
+/* 动画期间禁用子元素 backdrop-filter,大幅降低 GPU 合成压力 */
+.panel-slide-right-enter-active .right-panel-content,
+.panel-slide-right-leave-active .right-panel-content,
+.panel-slide-right-enter-active .plan-panel-content,
+.panel-slide-right-leave-active .plan-panel-content {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 </style>
