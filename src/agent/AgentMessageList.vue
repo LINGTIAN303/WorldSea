@@ -91,9 +91,17 @@
     </template>
     <!-- 非深度模式 或 深度模式无段落时：渲染消息气泡 -->
     <template v-if="!isDeepMode || deepSegments.length === 0">
+      <!-- 性能优化:渲染窗口化,远离视口的消息用占位 div 替代,避免长对话 DOM 节点爆炸 -->
+      <!-- 顶部占位:窗口以上所有 item 的估算高度总和 -->
+      <div
+        v-if="windowedDisplayItems.topPlaceholderHeight > 0"
+        class="window-placeholder"
+        :style="{ height: windowedDisplayItems.topPlaceholderHeight + 'px' }"
+        aria-hidden="true"
+      ></div>
       <AgentMessageBubble
-        v-for="item in displayItems"
-        :key="item.type === 'divider' ? 'div-' + item.dividerText : item.msg!.id"
+        v-for="item in windowedDisplayItems.items"
+        :key="item.type === 'divider' ? 'div-' + item._windowIndex : item.msg!.id"
         :is-divider="item.type === 'divider'"
         :divider-text="item.dividerText"
         :msg="item.msg"
@@ -107,6 +115,13 @@
         @block-action="emit('block-action', $event)"
         @manuscript-local-action="emit('manuscript-local-action', $event)"
       />
+      <!-- 底部占位:窗口以下所有 item 的估算高度总和 -->
+      <div
+        v-if="windowedDisplayItems.bottomPlaceholderHeight > 0"
+        class="window-placeholder"
+        :style="{ height: windowedDisplayItems.bottomPlaceholderHeight + 'px' }"
+        aria-hidden="true"
+      ></div>
     </template>
     <div v-if="isStreaming && !lastAssistantHasContent && !lastAssistantHasThinking" class="chat-msg msg-assistant">
       <span class="msg-icon"><WsIcon name="profile" size="xs" /></span>
@@ -159,6 +174,19 @@
         </Transition>
       </div>
     </div>
+    <!-- 性能优化:滚动锚定 - 用户向上滚动浏览历史时,新消息不再强制拉回底部 -->
+    <!-- 改为显示"回到底部"按钮,点击后恢复跟随 -->
+    <Transition name="ws-fade">
+      <button
+        v-if="showScrollToBottomBtn"
+        class="scroll-to-bottom-btn"
+        @click="jumpToBottom"
+        aria-label="回到底部"
+      >
+        <WsIcon name="chevron-down" size="sm" />
+        <span v-if="newMsgCountWhileAway > 0" class="new-msg-badge">{{ newMsgCountWhileAway > 99 ? '99+' : newMsgCountWhileAway }}</span>
+      </button>
+    </Transition>
   </div>
 </template>
 
@@ -388,54 +416,172 @@ function scrollToMessage(id: string): void {
   if (!container) return
   // 深度模式下，用户消息不在 DOM 中，跳转到对应的助手回复
   const targetId = isDeepMode.value ? (findAssistantAfterUserMsg(id) || id) : id
+  // 窗口化改造:目标消息可能不在当前窗口内(占位状态),需先扩展窗口再滚动
+  // 找到目标消息在 fullDisplayItems 中的索引
+  const all = fullDisplayItems.value
+  const targetIndex = all.findIndex(item => item.type === 'message' && item.msg?.id === targetId)
+  if (targetIndex >= 0 && (targetIndex < visibleStart.value || targetIndex >= visibleEnd.value)) {
+    // 目标在窗口外,扩展窗口覆盖目标附近
+    visibleStart.value = Math.max(0, targetIndex - WINDOW_BUFFER)
+    visibleEnd.value = Math.min(all.length, targetIndex + WINDOW_BUFFER * 2)
+    // 等待 DOM 更新后再滚动
+    nextTick(() => {
+      const el = container.querySelector(`[data-msg-id="${targetId}"]`) as HTMLElement | null
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    })
+    return
+  }
   const el = container.querySelector(`[data-msg-id="${targetId}"]`) as HTMLElement | null
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
 }
 
 let scrollObserver: IntersectionObserver | null = null
+let mutationObserver: MutationObserver | null = null
+
+// 已观察过的消息节点集合,避免 MutationObserver 重复 observe
+const observedMsgEls = new WeakSet<Element>()
+
+/**
+ * 增量化 observe:只对新出现的 [data-msg-id] 节点调用 observe
+ * 性能优化:替代原"每次 messages.length 变化都 querySelectorAll 全量重 observe"的实现
+ */
+function observeMsgEls(root: Element): void {
+  if (!scrollObserver) return
+  for (const el of root.querySelectorAll('[data-msg-id]')) {
+    if (!observedMsgEls.has(el)) {
+      scrollObserver.observe(el)
+      observedMsgEls.add(el)
+    }
+  }
+}
 
 function setupScrollObserver(): void {
-  if (scrollObserver) scrollObserver.disconnect()
+  // 清理旧 observer(仅在组件卸载或容器变更时调用)
+  if (scrollObserver) { scrollObserver.disconnect(); scrollObserver = null }
+  if (mutationObserver) { mutationObserver.disconnect(); mutationObserver = null }
+
   const container = messagesContainer.value
   if (!container) return
   const scrollRoot = container.querySelector('.messages-scroll') as HTMLElement || container
+
   scrollObserver = new IntersectionObserver(
     (entries) => {
+      // 增量更新 visibleMsgIds,避免每次都 new Set(...) 复制整个集合
+      let changed = false
       const next = new Set(visibleMsgIds.value)
       for (const entry of entries) {
         const msgId = (entry.target as HTMLElement).dataset?.msgId
         if (msgId) {
-          if (entry.isIntersecting) next.add(msgId)
-          else next.delete(msgId)
+          if (entry.isIntersecting) {
+            if (!next.has(msgId)) { next.add(msgId); changed = true }
+          } else {
+            if (next.has(msgId)) { next.delete(msgId); changed = true }
+          }
         }
       }
-      visibleMsgIds.value = next
+      if (changed) visibleMsgIds.value = next
     },
     { root: scrollRoot, threshold: 0.5 }
   )
-  for (const el of scrollRoot.querySelectorAll('[data-msg-id]')) {
-    scrollObserver.observe(el)
-  }
+
+  // 初始全量 observe(仅首次或重连时一次)
+  observeMsgEls(scrollRoot)
+
+  // 用 MutationObserver 监听子节点新增,增量化 observe 新消息节点
+  // 替代原 watch(messages.length) + nextTick(setupScrollObserver) 的全量重做
+  mutationObserver = new MutationObserver((mutations) => {
+    if (!scrollObserver) return
+    for (const m of mutations) {
+      for (const node of m.addedNodes) {
+        if (node.nodeType !== Node.ELEMENT_NODE) continue
+        const el = node as Element
+        // 新增节点本身可能是消息,也可能是包含多个消息的容器
+        if (el.hasAttribute && el.hasAttribute('data-msg-id')) {
+          if (!observedMsgEls.has(el)) {
+            scrollObserver.observe(el)
+            observedMsgEls.add(el)
+            // 同时 observe 高度变化,用于窗口化高度缓存
+            if (resizeObserver) resizeObserver.observe(el)
+          }
+        }
+        // 也观察后代中的消息节点
+        if (el.querySelectorAll) {
+          for (const child of el.querySelectorAll('[data-msg-id]')) {
+            if (!observedMsgEls.has(child)) {
+              scrollObserver.observe(child)
+              observedMsgEls.add(child)
+              if (resizeObserver) resizeObserver.observe(child)
+            }
+          }
+        }
+      }
+    }
+  })
+  mutationObserver.observe(scrollRoot, { childList: true, subtree: true })
 }
 
-watch(() => props.messages.length, () => {
-  nextTick(() => {
-    setupScrollObserver()
-  })
+// 保留原 watch 用于首次挂载或消息从 0→N 时的初始化(此时 MutationObserver 可能还未挂上)
+// 但不再每次 length 变化都 disconnect + 全量 querySelectorAll
+watch(() => props.messages.length, (newLen, oldLen) => {
+  // 仅在 observer 尚未初始化,或消息从 0→N(首条消息)时重新 setup
+  if (!scrollObserver || (oldLen === 0 && newLen > 0)) {
+    nextTick(() => setupScrollObserver())
+  }
+  // 其他情况由 MutationObserver 增量处理,无需手动干预
 })
 
 onMounted(() => {
-  nextTick(setupScrollObserver)
+  nextTick(() => {
+    setupScrollObserver()
+    // 绑定 scroll 监听用于窗口化 + 滚动锚定
+    const container = messagesContainer.value
+    if (container) {
+      const scroll = container.querySelector('.messages-scroll') as HTMLElement | null
+      if (scroll) {
+        scroll.addEventListener('scroll', onScroll, { passive: true })
+        // 初始化 ResizeObserver:测量已渲染 item 的真实高度,缓存到 measuredHeights
+        // 用于提升窗口化滚动估算的准确性,减少跳屏
+        resizeObserver = new ResizeObserver((entries) => {
+          for (const entry of entries) {
+            const el = entry.target as HTMLElement
+            const msgId = el.dataset?.msgId
+            if (msgId) {
+              // 找到该消息在 fullDisplayItems 中的索引,缓存真实高度
+              const idx = fullDisplayItems.value.findIndex(item => item.type === 'message' && item.msg?.id === msgId)
+              if (idx >= 0) {
+                measuredHeights.set(idx, entry.contentRect.height)
+              }
+            }
+          }
+        })
+        // 对当前已渲染的消息节点 observe(后续新节点由 MutationObserver 增量 observe)
+        for (const el of scroll.querySelectorAll('[data-msg-id]')) {
+          resizeObserver.observe(el)
+        }
+      }
+    }
+  })
 })
 
 onBeforeUnmount(() => {
-  if (scrollObserver) scrollObserver.disconnect()
+  if (scrollObserver) { scrollObserver.disconnect(); scrollObserver = null }
+  if (mutationObserver) { mutationObserver.disconnect(); mutationObserver = null }
+  if (resizeObserver) { resizeObserver.disconnect(); resizeObserver = null }
+  if (scrollRafId !== null) { cancelAnimationFrame(scrollRafId); scrollRafId = null }
+  if (scrollTimer) { clearTimeout(scrollTimer); scrollTimer = null }
+  // 移除 scroll 监听
+  const container = messagesContainer.value
+  if (container) {
+    const scroll = container.querySelector('.messages-scroll') as HTMLElement | null
+    if (scroll) scroll.removeEventListener('scroll', onScroll)
+  }
 })
 
 interface DisplayItem {
   type: 'message' | 'divider'
   msg?: any
   dividerText?: string
+  _windowIndex?: number  // 窗口化用:在完整 displayItems 中的索引,用作 divider 的稳定 key
 }
 
 function formatDividerTime(ts: number): string {
@@ -452,18 +598,16 @@ function formatDividerTime(ts: number): string {
   return `${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${time}`
 }
 
-const displayItems = computed(() => {
+// 完整 displayItems(不含窗口化切片),作为窗口化的数据源
+const fullDisplayItems = computed<DisplayItem[]>(() => {
   const items: DisplayItem[] = []
   const source = filteredMessages.value
   const THIRTY_MIN = 30 * 60 * 1000
   for (let i = 0; i < source.length; i++) {
     const msg = source[i]
-    // 时间分隔线
     if (i === 0 || msg.timestamp - source[i - 1].timestamp > THIRTY_MIN) {
       items.push({ type: 'divider', dividerText: formatDividerTime(msg.timestamp) })
     }
-    // 深度模式：助手消息前面如果紧跟另一条助手消息（不同轮次），插入轮次分隔线
-    // 判断依据：两条助手消息之间时间差超过10秒，说明是不同轮次
     if (isDeepMode.value && msg.role === 'assistant' && i > 0 && source[i - 1].role === 'assistant') {
       const gap = msg.timestamp - source[i - 1].timestamp
       if (gap > 10_000) {
@@ -475,6 +619,132 @@ const displayItems = computed(() => {
   return items
 })
 
+// ===== 性能优化:渲染窗口化 =====
+// 只渲染 [visibleStart, visibleEnd] 区间内的 item,区间外用占位 div 替代
+// 避免长对话(100+条)全量渲染导致 DOM 节点爆炸、滚动卡顿
+const WINDOW_BUFFER = 20  // 视口上下各保留 20 条缓冲,减少滚动时频繁切换
+const INITIAL_RENDER_COUNT = 50  // 初始渲染最近 50 条(覆盖大多数对话首屏)
+const ESTIMATED_ITEM_HEIGHT = 80  // 未测量过的 item 估算高度(px)
+
+const visibleStart = ref(0)
+const visibleEnd = ref(INITIAL_RENDER_COUNT)
+// 已测量的 item 高度缓存(Map<index, height>),首次渲染后由 ResizeObserver 填充
+const measuredHeights = new Map<number, number>()
+let resizeObserver: ResizeObserver | null = null
+let scrollRafId: number | null = null
+
+// 滚动锚定:用户是否在底部(用于决定新消息是否自动跟随)
+const isAtBottom = ref(true)
+const showScrollToBottomBtn = ref(false)
+const newMsgCountWhileAway = ref(0)
+const lastSeenLength = ref(0)
+
+interface WindowedItems {
+  items: DisplayItem[]
+  topPlaceholderHeight: number
+  bottomPlaceholderHeight: number
+}
+
+const windowedDisplayItems = computed<WindowedItems>(() => {
+  const all = fullDisplayItems.value
+  const total = all.length
+  // 流式输出期间,最后一条消息(正在生成)必须始终在窗口内,确保用户可见
+  // 此处通过 visibleEnd 至少覆盖到 total-1 实现
+  let end = Math.min(visibleEnd.value, total)
+  // 若在底部跟随状态,强制 end 覆盖到最后一条
+  if (isAtBottom.value && end < total) end = total
+  const start = Math.min(visibleStart.value, end)
+  const items: DisplayItem[] = []
+  for (let i = start; i < end; i++) {
+    items.push({ ...all[i], _windowIndex: i })
+  }
+  // 估算占位高度:用已测量高度优先,否则用估算值
+  let topPlaceholderHeight = 0
+  for (let i = 0; i < start; i++) {
+    topPlaceholderHeight += measuredHeights.get(i) ?? ESTIMATED_ITEM_HEIGHT
+  }
+  let bottomPlaceholderHeight = 0
+  for (let i = end; i < total; i++) {
+    bottomPlaceholderHeight += measuredHeights.get(i) ?? ESTIMATED_ITEM_HEIGHT
+  }
+  return { items, topPlaceholderHeight, bottomPlaceholderHeight }
+})
+
+/**
+ * 根据滚动位置更新可见窗口
+ * 性能:rAF 节流,同一帧内多次 scroll 只计算一次
+ */
+function updateVisibleRange(): void {
+  const container = messagesContainer.value
+  if (!container) return
+  const scroll = container.querySelector('.messages-scroll') as HTMLElement | null
+  if (!scroll) return
+  const scrollTop = scroll.scrollTop
+  const viewportH = scroll.clientHeight
+  const all = fullDisplayItems.value
+  const total = all.length
+  if (total === 0) return
+
+  // 通过累计高度估算当前 scrollTop 对应的 item 索引
+  // 优先用已测量高度,未测量用估算值
+  let cumHeight = 0
+  let estimatedStart = 0
+  for (let i = 0; i < total; i++) {
+    const h = measuredHeights.get(i) ?? ESTIMATED_ITEM_HEIGHT
+    if (cumHeight + h > scrollTop) {
+      estimatedStart = i
+      break
+    }
+    cumHeight += h
+    estimatedStart = i
+  }
+  // 估算可见区间结束(视口高度 / 估算高度 + 缓冲)
+  const estimatedVisibleCount = Math.ceil(viewportH / ESTIMATED_ITEM_HEIGHT) + WINDOW_BUFFER * 2
+  let newStart = Math.max(0, estimatedStart - WINDOW_BUFFER)
+  let newEnd = Math.min(total, estimatedStart + estimatedVisibleCount + WINDOW_BUFFER)
+  // 流式跟随状态:确保窗口覆盖到底部
+  if (isAtBottom.value) newEnd = total
+  if (newStart !== visibleStart.value || newEnd !== visibleEnd.value) {
+    visibleStart.value = newStart
+    visibleEnd.value = newEnd
+  }
+}
+
+function onScroll(): void {
+  const container = messagesContainer.value
+  if (!container) return
+  const scroll = container.querySelector('.messages-scroll') as HTMLElement | null
+  if (!scroll) return
+  // 更新 isAtBottom(距底部 < 60px 视为在底部)
+  const distanceToBottom = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight
+  const wasAtBottom = isAtBottom.value
+  isAtBottom.value = distanceToBottom < 60
+  // 从底部离开时,重置新消息计数
+  if (wasAtBottom && !isAtBottom.value) {
+    showScrollToBottomBtn.value = true
+  }
+  // 回到底部时,清除按钮和计数
+  if (!wasAtBottom && isAtBottom.value) {
+    showScrollToBottomBtn.value = false
+    newMsgCountWhileAway.value = 0
+  }
+  // rAF 节流更新窗口
+  if (scrollRafId !== null) return
+  scrollRafId = requestAnimationFrame(() => {
+    scrollRafId = null
+    updateVisibleRange()
+  })
+}
+
+function jumpToBottom(): void {
+  scrollToBottom()
+  isAtBottom.value = true
+  showScrollToBottomBtn.value = false
+  newMsgCountWhileAway.value = 0
+  // 跳到底部时扩展窗口覆盖到底部
+  visibleEnd.value = fullDisplayItems.value.length
+}
+
 const hasA2UISurfaces = computed(() => Object.keys(props.a2uiSurfaces).length > 0)
 
 function scrollToBottom(): void {
@@ -485,25 +755,53 @@ function scrollToBottom(): void {
   }
 }
 
-let dotTimer: ReturnType<typeof setInterval> | null = null
+// 性能优化:思考动画用 RAF + 时间戳替代 setInterval,与浏览器刷新率同步,避免抖动
+let dotRafId: number | null = null
+let dotStartTime = 0
+let dotCount = 0
+const DOT_INTERVAL_MS = 400
+
+function dotLoop(ts: number): void {
+  if (dotRafId === null) return
+  if (ts - dotStartTime >= DOT_INTERVAL_MS) {
+    dotCount = (dotCount + 1) % 4
+    dotText.value = '.'.repeat(dotCount)
+    dotStartTime = ts
+  }
+  dotRafId = requestAnimationFrame(dotLoop)
+}
 
 function startDotAnimation(): void {
   stopDotAnimation()
-  let count = 0
-  dotTimer = setInterval(() => {
-    count = (count + 1) % 4
-    dotText.value = '.'.repeat(count)
-  }, 400)
+  dotCount = 0
+  dotStartTime = 0
+  dotRafId = requestAnimationFrame(dotLoop)
 }
 
 function stopDotAnimation(): void {
-  if (dotTimer) { clearInterval(dotTimer); dotTimer = null }
+  if (dotRafId !== null) {
+    cancelAnimationFrame(dotRafId)
+    dotRafId = null
+  }
   dotText.value = ''
 }
 
 let scrollTimer: ReturnType<typeof setTimeout> | null = null
 
+/**
+ * 性能优化:滚动锚定
+ * 仅当用户在底部跟随状态时才自动滚到底部
+ * 用户向上滚动浏览历史时,新消息不会强制拉回视图,改为显示"回到底部"按钮 + 新消息计数
+ */
 function scheduleScrollToBottom() {
+  // 用户不在底部时,不自动跟随,只累加新消息计数
+  if (!isAtBottom.value) {
+    const newCount = props.messages.length - lastSeenLength.value
+    if (newCount > 0) newMsgCountWhileAway.value += newCount
+    lastSeenLength.value = props.messages.length
+    return
+  }
+  lastSeenLength.value = props.messages.length
   if (scrollTimer) clearTimeout(scrollTimer)
   scrollTimer = setTimeout(() => nextTick(scrollToBottom), 50)
 }
@@ -1146,4 +1444,72 @@ defineExpose({
 @keyframes badge-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
-}</style>
+}
+
+/* 性能优化:窗口化占位符 - 不参与可见布局,仅撑开滚动条高度 */
+.window-placeholder {
+  width: 100%;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+/* 回到底部按钮 - 用户向上滚动浏览历史时显示 */
+.scroll-to-bottom-btn {
+  position: absolute;
+  right: 24px;
+  bottom: 24px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--agent-border, rgba(255, 255, 255, 0.1));
+  background: var(--agent-bg, rgba(30, 30, 30, 0.9));
+  color: var(--agent-text, #fff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  transition: background 0.15s, transform 0.15s;
+  z-index: 20;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.scroll-to-bottom-btn:hover {
+  background: color-mix(in srgb, var(--agent-primary, #3b82f6) 15%, var(--agent-bg, rgba(30, 30, 30, 0.9)));
+  transform: translateY(-2px);
+}
+
+.scroll-to-bottom-btn:active {
+  transform: translateY(0);
+}
+
+.new-msg-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--agent-primary, #3b82f6);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 2px var(--agent-bg, rgba(30, 30, 30, 0.9));
+}
+
+/* 回到底部按钮淡入淡出 */
+.ws-fade-enter-active,
+.ws-fade-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.ws-fade-enter-from,
+.ws-fade-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
+}
+</style>
