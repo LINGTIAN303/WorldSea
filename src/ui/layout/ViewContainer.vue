@@ -1,6 +1,7 @@
 <template>
   <div
     class="view-container"
+    :class="{ 'sidebar-collapsed': uiStore.sidebarCollapsed, 'sidebar-right': settingsStore.sidebarPosition === 'right' }"
     @contextmenu.prevent="onViewContext"
   >
     <div v-if="!hasView" class="view-empty">
@@ -26,10 +27,12 @@
 <script setup lang="ts">
 import { computed, provide, toRef, reactive, onBeforeUnmount, watch } from 'vue'
 import { useUIStore } from '../../stores/uiStore'
+import { useSettingsStore } from '../../stores/settingsStore'
 import { usePluginStore } from '@worldsmith/entity-core'
 import WsIcon from '../WsIcon.vue'
 
 const uiStore = useUIStore()
+const settingsStore = useSettingsStore()
 const pluginStore = usePluginStore()
 provide('moduleViewId', toRef(uiStore, 'currentView'))
 
@@ -92,6 +95,20 @@ onBeforeUnmount(() => {
   contain: layout style;
   /* 固定最小高度防止空状态→内容切换时的布局偏移 */
   min-height: 0;
+  /* 性能优化:Sidebar 脱离 flex 文档流后,用 margin-left 占位 */
+  /* margin-left 瞬变(无 transition),仅 1 次 layout(Sidebar width 瞬变独立,不触发 flex 重排) */
+  margin-left: var(--layout-sidebar-width);
+}
+.view-container.sidebar-collapsed {
+  margin-left: var(--layout-sidebar-collapsed-width);
+}
+/* sidebar-right 模式:用 margin-right 占位 */
+.view-container.sidebar-right {
+  margin-left: 0;
+  margin-right: var(--layout-sidebar-width);
+}
+.view-container.sidebar-right.sidebar-collapsed {
+  margin-right: var(--layout-sidebar-collapsed-width);
 }
 .view-empty {
   display: flex;

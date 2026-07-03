@@ -273,11 +273,9 @@ async function onRedoFromHistory(indices: number[]) {
   display: flex;
   flex: 1;
   overflow: hidden;
+  /* 性能优化:为 Sidebar position:absolute 提供定位上下文 */
+  position: relative;
 }
-.shell-body.sidebar-right .sidebar {
-  order: 2;
-}
-.shell-body.sidebar-right .view-container {
-  order: 1;
-}
+/* sidebar-right 模式:Sidebar 用 right:0 定位,ViewContainer 用 margin-right 占位 */
+/* order 规则已移除:Sidebar 脱离 flex 文档流后,ViewContainer 是唯一 flex 子元素,order 无意义 */
 </style>

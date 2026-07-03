@@ -1,7 +1,7 @@
 <template>
   <div
     class="sidebar"
-    :class="{ collapsed: uiStore.sidebarCollapsed, dragging: isDragging, 'sidebar-drag-mode': isCustomView }"
+    :class="{ collapsed: uiStore.sidebarCollapsed, dragging: isDragging, 'sidebar-drag-mode': isCustomView, 'sidebar-right': settingsStore.sidebarPosition === 'right' }"
     role="navigation"
     aria-label="视图导航"
     ref="sidebarRef"
@@ -279,8 +279,13 @@ function checkViewSwitch() {
     if (views.length === 0) return
     const idx = ((current % views.length) + views.length) % views.length
     const view = views[idx]
-    uiStore.setView(view.id)
-    uiStore.viewComponent = view.component
+    // 性能优化:延迟 setView 到下一轮事件循环,避免在物理 RAF 帧内同步挂载/卸载插件视图组件
+    // 原实现 setView + viewComponent 赋值在 tick() 中同步执行,与 width 动画叠加导致掉帧
+    // 用 microtask 推迟,既保证响应性又避免阻塞动画帧
+    Promise.resolve().then(() => {
+      uiStore.setView(view.id)
+      uiStore.viewComponent = view.component
+    })
   }
 }
 
@@ -457,11 +462,16 @@ onBeforeUnmount(() => {
   flex-direction: column;
   background: transparent;
   overflow: hidden;
-  position: relative;
-  contain: layout style paint;
-  /* 初始宽度由 :not(.collapsed) 或 .collapsed 决定，避免从 0 过渡 */
+  /* 性能优化:脱离 flex 文档流,避免 width 变化触发 shell-body flex 重排 */
+  /* Sidebar width 瞬变只影响自身,ViewContainer 用 margin-left 独立响应 */
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 10;
+  /* contain: strict 严格隔离 sidebar 内部重排 */
+  contain: strict;
   flex-shrink: 0;
-  will-change: width;
 }
 .sidebar:not(.collapsed) {
   width: var(--layout-sidebar-width);
@@ -469,8 +479,15 @@ onBeforeUnmount(() => {
 .sidebar.collapsed {
   width: var(--layout-sidebar-collapsed-width);
 }
+/* sidebar-right 模式:定位到右侧 */
+.sidebar.sidebar-right {
+  left: auto;
+  right: 0;
+}
 .sidebar:not(.dragging) {
-  transition: width 0.2s ease;
+  /* 性能优化:width 瞬变(无 transition),仅 1 次 layout */
+  /* 视觉平滑动画由 .sidebar-inner 的 transform + opacity 过渡,合成层 0 layout */
+  transition: none;
 }
 .sidebar.dragging {
   cursor: grabbing;
@@ -486,6 +503,20 @@ onBeforeUnmount(() => {
   position: relative;
   overflow: hidden;
   contain: layout paint style;
+  /* 性能优化:内层用 transform 平滑滑出,合成层不重排 */
+  /* collapsed 时内层向左滑出 + 淡出,视觉强化收缩效果 */
+  will-change: transform, opacity;
+  transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.15s ease;
+}
+/* collapsed 时内层向左滑出,因为外层 overflow:hidden 会裁剪掉滑出部分 */
+.sidebar.collapsed .sidebar-inner {
+  transform: translateX(-100%);
+  opacity: 0;
+}
+/* sidebar-right 模式:collapsed 时内层向右滑出 */
+.sidebar.sidebar-right.collapsed .sidebar-inner {
+  transform: translateX(100%);
 }
 .sidebar-carousel {
   display: flex;
