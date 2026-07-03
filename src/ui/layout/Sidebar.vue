@@ -353,12 +353,17 @@ function onPointerMove(e: PointerEvent) {
   const totalDy = e.clientY - dragStartY
   if (Math.abs(totalDy) > 25) dragMoved = true
 
-  pos = dragStartPos - dy * DRAG_SENSITIVITY
+  // 修复:阈值超过后才更新 pos,避免点击时 pos 被微小移动污染(原问题2/3)
+  // 同时用 totalDy 计算绝对位置,修复原代码用 dy 增量导致 pos 每帧振荡的隐藏 BUG
+  // 原代码 pos = dragStartPos - dy * SENSITIVITY,dy 是单帧增量,会让 pos 在 dragStartPos 附近振荡而非持续跟随
+  if (dragMoved) {
+    pos = dragStartPos - totalDy * DRAG_SENSITIVITY
+    syncDomStyles()
+    checkViewSwitch()
+  }
+
   dragLastY = e.clientY
   dragLastTime = now
-
-  syncDomStyles()
-  checkViewSwitch()
 }
 
 function onPointerUp(e: PointerEvent) {
@@ -374,8 +379,17 @@ function onPointerUp(e: PointerEvent) {
     const btn = (pointerTarget as HTMLElement)?.closest('.sidebar-btn') as HTMLElement | null
     if (btn) {
       const offset = parseInt(btn.dataset.offset || '0', 10)
-      if (offset !== 0) {
-        springTarget = Math.round(pos) + offset
+      if (offset === 0) {
+        // 修复:点击当前居中按钮给予视觉反馈(轻微弹性 pulse)
+        // 原代码 offset===0 时整个 if 块被跳过,用户点击当前选中按钮无任何响应
+        btn.classList.remove('pulse')
+        void btn.offsetWidth  // 强制重排,重新触发 CSS animation
+        btn.classList.add('pulse')
+        setTimeout(() => btn.classList.remove('pulse'), 300)
+      } else {
+        // 修复:用 dragStartPos 计算跳转目标,避免 pos 被微小移动污染
+        // 原代码用 Math.round(pos),pos 可能在 onPointerMove 中已被污染(现已修复,但双重保险)
+        springTarget = Math.round(dragStartPos) + offset
         startPhysics()
       }
     }
@@ -559,6 +573,16 @@ onBeforeUnmount(() => {
 }
 .sidebar-btn.sidebar-draggable:active {
   cursor: grabbing;
+}
+/* 修复:点击当前居中按钮(offset=0)的视觉反馈动画 */
+/* CSS animation 优先级高于 syncDomStyles 的 inline transform,播放期间不会被覆盖 */
+@keyframes sidebar-btn-pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+.sidebar-btn.pulse {
+  animation: sidebar-btn-pulse 0.3s ease;
 }
 .sidebar-drag-mode .sidebar-btn.sidebar-draggable:hover {
   background: var(--hover-bg);
