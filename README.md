@@ -59,10 +59,10 @@ Built with **Tauri 2** + **Vue 3** + **TypeScript** + **Rust (WASM)**.
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | Vue 3, TypeScript, Vite, Pinia |
+| Frontend | Vue 3, TypeScript 6, Vite 8, Pinia |
 | Desktop | Tauri 2 (Rust backend) |
 | WASM Core | Rust (worldsmith-core, tactical-engine) |
-| Agent | Custom PI framework with tool bus |
+| Agent | [pi-ai](https://github.com/earendil-works/pi-ai) framework + custom tool bus |
 | Charts | ECharts, Sigma.js, D3 |
 | Editor | TipTap |
 | Graph | Graphology |
@@ -73,22 +73,25 @@ Built with **Tauri 2** + **Vue 3** + **TypeScript** + **Rust (WASM)**.
 
 ```
 packages/
-  agent-core/      — Agent framework core
-  canvas-engine/   — Shared canvas rendering engine
-  entity-core/     — Entity CRUD, relations, facets, traits
-  font-kit/        — Font management & rendering
-  motion-kit/      — Animation & motion utilities
-  plugin-sdk/      — Plugin development SDK
-  theme-kit/       — Theme manifest system & texture engine
-  ui-kit/          — Shared UI components
+  agent-core/       — Agent framework core (registry, bus, execution, guard)
+  canvas-engine/    — Shared canvas rendering engine (graph, tree, geometry)
+  entity-core/      — Entity CRUD, relations, facets, traits
+  font-kit/         — Font management & rendering
+  governor-core/    — Governor core (environment, registry)
+  memory-archive/   — Memory archive system (recall, scheduler, embedding)
+  motion-kit/       — Animation & motion utilities
+  perf-kit/         — Performance utilities (IO batching, reactive, render)
+  plugin-sdk/       — Plugin development SDK (components, composables)
+  theme-kit/        — Theme manifest system & texture engine
+  ui-kit/           — Shared UI components
 ```
 
 ## Getting Started
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) >= 18
-- [pnpm](https://pnpm.io/) >= 8
+- [Node.js](https://nodejs.org/) >= 20
+- [pnpm](https://pnpm.io/) >= 9 (or npm >= 10, see install fallback below)
 - [Rust](https://www.rust-lang.org/tools/install) (for WASM & Tauri)
 - [wasm-pack](https://rustwasm.github.io/wasm-pack/installer/)
 - [Tauri CLI](https://v2.tauri.app/start/prerequisites/)
@@ -100,12 +103,23 @@ packages/
 git clone https://github.com/LINGTIAN303/WorldSmith.git
 cd WorldSmith
 
-# Install dependencies
+# Install dependencies (recommended)
 pnpm install
 
 # Build WASM modules
 pnpm build:wasm-all
 ```
+
+> **Windows / Sandbox note**: If `pnpm install` fails with `ERR_SQLITE_ERROR`
+> or `EPERM` on `importPackage`, use the npm fallback:
+>
+> ```bash
+> npm run install:fallback
+> # 等价于 npm install --no-package-lock --legacy-peer-deps --no-audit --no-fund
+> ```
+>
+> See [`.npmrc`](.npmrc) for the full rationale (TRAE Sandbox 阻止 .pnpm-store
+> 的 SQLite shm/wal 访问；Windows hoisted 模式仍可能 EPERM)。
 
 ### Development
 
@@ -150,7 +164,8 @@ WorldSmith/
   worldsmith-core/        — Rust WASM core (storage, validation, graph layout)
   worldsmith-server/      — Node.js server (crawl, convert, vector search)
   tactical-engine/        — Rust WASM tactical engine (pathfinding)
-  packages/               — Shared monorepo packages
+  packages/               — Shared monorepo packages (11 sub-packages, see above)
+  docs/                   — Roadmap, design specs, plans
   scripts/                — Build & utility scripts
 ```
 
