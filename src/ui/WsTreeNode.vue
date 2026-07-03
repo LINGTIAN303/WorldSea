@@ -25,7 +25,7 @@
       :label-field="labelField"
       :children-field="childrenField"
       :level="level + 1"
-      :selected-keys="selectedKeys"
+      :selected-set="selectedSet"
       :expanded-keys="expandedKeys"
       @toggle="(key: string) => $emit('toggle', key)"
       @select="(node: TreeNode) => $emit('select', node)"
@@ -45,14 +45,14 @@ const props = withDefaults(defineProps<{
   labelField?: string
   childrenField?: string
   level?: number
-  selectedKeys?: string[]
+  selectedSet?: Set<string>
   expandedKeys?: Set<string>
 }>(), {
   keyField: 'key',
   labelField: 'label',
   childrenField: 'children',
   level: 0,
-  selectedKeys: () => [],
+  selectedSet: () => new Set(),
 })
 
 defineSlots<{
@@ -70,7 +70,8 @@ const hasChildren = computed(() => {
 })
 
 const isExpanded = computed(() => props.expandedKeys?.has(props.node[props.keyField]) ?? false)
-const isSelected = computed(() => props.selectedKeys?.includes(props.node[props.keyField]) ?? false)
+// 性能优化:用 Set.has O(1) 查找替代数组 includes O(n)
+const isSelected = computed(() => props.selectedSet?.has(props.node[props.keyField]) ?? false)
 
 function onToggle() {
   emit('toggle', props.node[props.keyField])
