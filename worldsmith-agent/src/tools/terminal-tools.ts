@@ -13,7 +13,7 @@ const executeCommandTool: ToolDefinition = {
     env: { type: 'object', description: '环境变量（可选，如 {"PATH": "/usr/bin", "HOME": "/home/user"}）' },
   },
   execute: async (args: Record<string, unknown>, _ctx: IToolContext): Promise<string> => {
-    const adapter = createExecutionAdapter()
+    const adapter = await createExecutionAdapter()
     if (!adapter.isAvailable()) {
       const connected = await adapter.tryConnect()
       if (!connected) {
@@ -46,7 +46,7 @@ const detectShellsTool: ToolDefinition = {
   description: '检测系统中可用的 Shell 类型。返回可用 Shell 列表（CMD、PowerShell、Bash、Zsh 等），包含路径和默认标识。在创建持久化 Shell 会话前，建议先调用此工具确认可用 Shell。',
   parameters: {},
   execute: async (_args: Record<string, unknown>, _ctx: IToolContext): Promise<string> => {
-    const adapter = createExecutionAdapter()
+    const adapter = await createExecutionAdapter()
     try {
       const shells = await adapter.detectShells()
       if (shells.length === 0) {
@@ -78,7 +78,7 @@ const shellSessionCreateTool: ToolDefinition = {
     env: { type: 'object', description: '环境变量（可选，如 {"NODE_ENV": "development", "PATH": "/usr/local/bin:$PATH"}）' },
   },
   execute: async (args: Record<string, unknown>, _ctx: IToolContext): Promise<string> => {
-    const adapter = createExecutionAdapter()
+    const adapter = await createExecutionAdapter()
     if (!adapter.isAvailable()) {
       const connected = await adapter.tryConnect()
       if (!connected) {
@@ -116,7 +116,7 @@ const shellSessionExecTool: ToolDefinition = {
     timeout_ms: { type: 'number', description: '超时时间（毫秒，默认 30000）' },
   },
   execute: async (args: Record<string, unknown>, _ctx: IToolContext): Promise<string> => {
-    const adapter = createExecutionAdapter()
+    const adapter = await createExecutionAdapter()
     const sessionId = String(args.session_id)
     const command = String(args.command)
     const timeoutMs = args.timeout_ms ? Number(args.timeout_ms) : undefined
@@ -150,7 +150,7 @@ const shellSessionInputTool: ToolDefinition = {
     data: { type: 'string', description: '要发送的输入内容', required: true },
   },
   execute: async (args: Record<string, unknown>, _ctx: IToolContext): Promise<string> => {
-    const adapter = createExecutionAdapter()
+    const adapter = await createExecutionAdapter()
     const sessionId = String(args.session_id)
     const data = String(args.data)
 
@@ -170,7 +170,7 @@ const shellSessionDestroyTool: ToolDefinition = {
     session_id: { type: 'string', description: '要销毁的会话 ID', required: true },
   },
   execute: async (args: Record<string, unknown>, _ctx: IToolContext): Promise<string> => {
-    const adapter = createExecutionAdapter()
+    const adapter = await createExecutionAdapter()
     const sessionId = String(args.session_id)
 
     try {
@@ -187,7 +187,7 @@ const shellSessionListTool: ToolDefinition = {
   description: '列出当前活跃的持久化 Shell 会话。',
   parameters: {},
   execute: async (_args: Record<string, unknown>, _ctx: IToolContext): Promise<string> => {
-    const adapter = createExecutionAdapter()
+    const adapter = await createExecutionAdapter()
     try {
       const sessions = await adapter.listSessions()
       return JSON.stringify({

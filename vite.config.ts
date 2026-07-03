@@ -324,6 +324,11 @@ export default defineConfig({
       },
     },
   },
+  // Worker 格式：WASM top-level await 需要 ES 格式（iife 不支持）
+  // 修复 vite 8 + rolldown worker 默认 iife 导致的 build 失败
+  worker: {
+    format: 'es',
+  },
   build: {
     emptyOutDir: true,
     rollupOptions: {

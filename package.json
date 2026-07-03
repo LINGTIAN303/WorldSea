@@ -15,6 +15,7 @@
     "clean": "node scripts/clean.js light",
     "clean:deep": "node scripts/clean.js deep",
     "clean:full": "node scripts/clean.js full",
+    "install:fallback": "npm install --no-package-lock --legacy-peer-deps --no-audit --no-fund",
     "build:wasm": "wasm-pack build ./tactical-engine --target bundler --out-dir pkg --scope worldsmith --out-name index",
     "build:core": "wasm-pack build ./worldsmith-core --target bundler --out-dir pkg --scope worldsmith --out-name index -- --features wasm",
     "build:wasm-all": "npm run build:wasm && npm run build:core",
@@ -102,11 +103,6 @@
     "vite-plugin-wasm": "^3.6.0",
     "vitest": "^3.2.6",
     "vue-tsc": "^3.2.7"
-  },
-  "pnpm": {
-    "overrides": {
-      "vis-data": "8.0.3"
-    }
   },
   "description": "AI-powered worldbuilding platform — build rich, interconnected fictional worlds with intelligent assistance.",
   "main": "index.js",

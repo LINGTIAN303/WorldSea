@@ -40,7 +40,7 @@ async function getTauriInvoke() {
 
 /** 通用 Shell 命令执行器（Web 模式降级路径） */
 async function runCommand(command: string, cwd?: string, timeout = 15000): Promise<string> {
-  const adapter = createExecutionAdapter()
+  const adapter = await createExecutionAdapter()
   if (!adapter.isAvailable()) return JSON.stringify({ ok: false, error: 'CLI 工具当前不可用。' })
   try {
     const result = await adapter.executeCommand(command, { cwd, timeout })
@@ -369,7 +369,7 @@ const executeCommandTool: ToolDefinition = {
     displayName: '执行命令',
   } satisfies ToolMeta,
   execute: async (args: Record<string, unknown>, _ctx: IToolContext): Promise<string> => {
-    const adapter = createExecutionAdapter()
+    const adapter = await createExecutionAdapter()
     if (!adapter.isAvailable()) {
       const connected = await adapter.tryConnect()
       if (!connected) {
@@ -439,7 +439,7 @@ const shellSessionTool: ToolDefinition = {
   } satisfies ToolMeta,
   execute: async (args: Record<string, unknown>, _ctx: IToolContext): Promise<string> => {
     const action = String(args.action || '')
-    const adapter = createExecutionAdapter()
+    const adapter = await createExecutionAdapter()
 
     switch (action) {
       case 'detect': {

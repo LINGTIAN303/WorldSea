@@ -27,7 +27,7 @@ async function getTauriInvoke() {
 
 /** 通用 Shell 命令执行器（Web 模式降级路径） */
 async function runCommand(command: string, cwd?: string, timeout = 15000): Promise<string> {
-  const adapter = createExecutionAdapter()
+  const adapter = await createExecutionAdapter()
   if (!adapter.isAvailable()) return JSON.stringify({ ok: false, error: 'CLI 工具当前不可用。Tauri 桌面模式请确认环境正常，Web 模式请启动 worldsmith-server 服务。' })
   try {
     const result = await adapter.executeCommand(command, { cwd, timeout })

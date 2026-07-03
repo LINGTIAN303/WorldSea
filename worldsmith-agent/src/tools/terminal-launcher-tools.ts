@@ -68,7 +68,7 @@ const detectTerminalModeTool: ToolDefinition = {
   parameters: {},
   execute: async (_args: Record<string, unknown>, _ctx: IToolContext): Promise<string> => {
     const tauriMode = isTauri()
-    const adapter = createExecutionAdapter()
+    const adapter = await createExecutionAdapter()
     const wsUrl = getWsUrl()
     const serverHealthy = tauriMode ? true : await checkServerHealth(wsUrl)
 
@@ -116,7 +116,7 @@ const startServerTool: ToolDefinition = {
 
     if (await checkServerHealth(wsUrl)) {
       resetExecutionAdapter()
-      const adapter = createExecutionAdapter()
+      const adapter = await createExecutionAdapter()
       const connected = adapter.isAvailable()
       if (!connected) {
         const tried = await adapter.tryConnect()
@@ -147,7 +147,7 @@ const startServerTool: ToolDefinition = {
 
       if (spawned && await checkServerHealth(wsUrl)) {
         resetExecutionAdapter()
-        const adapter = createExecutionAdapter()
+        const adapter = await createExecutionAdapter()
         return JSON.stringify({
           ok: true,
           mode: 'tauri',
@@ -195,7 +195,7 @@ const startServerTool: ToolDefinition = {
 
         await new Promise(r => setTimeout(r, 1000))
         resetExecutionAdapter()
-        const adapter = createExecutionAdapter()
+        const adapter = await createExecutionAdapter()
         const connected = await adapter.tryConnect()
 
         return JSON.stringify({
@@ -287,7 +287,7 @@ const launchTerminalTool: ToolDefinition = {
       })
     }
 
-    const adapter = createExecutionAdapter()
+    const adapter = await createExecutionAdapter()
     if (!adapter.isAvailable()) {
       const connected = await adapter.tryConnect()
       if (!connected) {
@@ -365,7 +365,7 @@ const launchTerminalScriptTool: ToolDefinition = {
       })
     }
 
-    const adapter = createExecutionAdapter()
+    const adapter = await createExecutionAdapter()
     if (!adapter.isAvailable()) {
       const connected = await adapter.tryConnect()
       if (!connected) {

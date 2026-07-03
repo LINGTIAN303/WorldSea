@@ -12,7 +12,7 @@ import { retryWithBackoff } from './group-chat/flow-control'
 import { kbSearchKeyword, kbList } from './kb/kb-store'
 import { semanticSearchKB, isEmbeddingReady as isKBEmbeddingReady } from './kb/kb-indexer'
 import { extractFromConversation, extractShortMemory } from './kb/kb-extractor'
-import { streamSimple } from '@earendil-works/pi-ai'
+import { streamSimple } from '@earendil-works/pi-ai/compat'
 import {
   getProviderManifest,
   detectVisionSupport,
@@ -126,7 +126,7 @@ export class CoreBackend implements IAgentBackend {
   }
 
   private async buildModel(): Promise<any> {
-    const { getModel } = await import('@earendil-works/pi-ai')
+    const { getModel } = await import('@earendil-works/pi-ai/compat')
     const cfg = this.config.providerConfig as any
     const manifest = getProviderManifest(cfg.provider)
     const isDomestic = manifest?.isDomestic ?? false
@@ -777,7 +777,7 @@ export class CoreBackend implements IAgentBackend {
     const isCustomApi = ['openai-compatible', 'anthropic-compatible'].includes(provider)
     if (!isDomestic && !isCustomApi && !baseUrl) {
       try {
-        const { getModel } = await import('@earendil-works/pi-ai')
+        const { getModel } = await import('@earendil-works/pi-ai/compat')
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         model = getModel(provider as any, modelId)
         if (model) {

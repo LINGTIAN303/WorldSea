@@ -36,5 +36,6 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue", "worldsmith-agent/src/**/*.ts", "packages/ui-kit/src/**/*.ts", "packages/entity-core/src/**/*.ts", "packages/plugin-sdk/src/**/*.ts", "packages/canvas-engine/src/**/*.ts", "packages/motion-kit/src/**/*.ts", "packages/font-kit/src/**/*.ts", "packages/agent-core/src/**/*.ts", "packages/memory-archive/src/**/*.ts", "packages/governor-core/src/**/*.ts"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue", "worldsmith-agent/src/**/*.ts", "packages/ui-kit/src/**/*.ts", "packages/entity-core/src/**/*.ts", "packages/plugin-sdk/src/**/*.ts", "packages/canvas-engine/src/**/*.ts", "packages/motion-kit/src/**/*.ts", "packages/font-kit/src/**/*.ts", "packages/agent-core/src/**/*.ts", "packages/memory-archive/src/**/*.ts", "packages/governor-core/src/**/*.ts"],
+  "exclude": ["worldsmith-agent/src/cli/**"]
 }

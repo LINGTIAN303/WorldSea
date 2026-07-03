@@ -2,7 +2,7 @@ import type { ToolDefinition } from '../bridge-types'
 import { createExecutionAdapter } from '../execution'
 
 async function runCommand(command: string, timeout = 15000): Promise<string> {
-  const adapter = createExecutionAdapter()
+  const adapter = await createExecutionAdapter()
   if (!adapter.isAvailable()) return JSON.stringify({ ok: false, error: 'CLI 工具当前不可用。Tauri 桌面模式请确认环境正常，Web 模式请启动 worldsmith-server 服务。' })
   try {
     const result = await adapter.executeCommand(command, { timeout })
