@@ -32,14 +32,9 @@ interface ShellSession {
   buffer: string[] // 待读取的输出
 }
 
-/** 检测当前是否在 Node.js 环境中（非浏览器） */
-export function isNodeEnv(): boolean {
-  return (
-    typeof process !== 'undefined' &&
-    !!process.versions?.node &&
-    typeof (globalThis as any).window === 'undefined'
-  )
-}
+/** 检测当前是否在 Node.js 环境中（非浏览器） — 从 env.ts 引入并 re-export 保持向后兼容 */
+import { isNodeEnv } from './env'
+export { isNodeEnv }
 
 /** 获取默认 shell */
 export function getDefaultShell(): string {

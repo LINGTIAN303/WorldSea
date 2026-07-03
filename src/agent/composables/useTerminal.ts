@@ -1,4 +1,4 @@
-﻿import { ref } from 'vue'
+import { ref } from 'vue'
 import { createExecutionAdapter, resetExecutionAdapter } from '@agent/execution'
 import type { ExecutionAdapter } from '@agent/execution/adapter'
 
@@ -9,15 +9,15 @@ export function useTerminal() {
 
   let adapter: ExecutionAdapter | null = null
 
-  function getAdapter(): ExecutionAdapter {
+  async function getAdapter(): Promise<ExecutionAdapter> {
     if (!adapter) {
-      adapter = createExecutionAdapter()
+      adapter = await createExecutionAdapter()
     }
     return adapter
   }
 
   async function ensureAdapter(): Promise<ExecutionAdapter | null> {
-    const a = getAdapter()
+    const a = await getAdapter()
     if (!a.isAvailable()) {
       const connected = await a.tryConnect()
       if (!connected) return null
@@ -26,7 +26,7 @@ export function useTerminal() {
   }
 
   async function spawnPty(shell?: string, cwd?: string): Promise<string> {
-    const a = getAdapter()
+    const a = await getAdapter()
     if (!a.isAvailable()) {
       const connected = await a.tryConnect()
       if (!connected) {
@@ -56,7 +56,7 @@ export function useTerminal() {
 
   async function killPty(): Promise<void> {
     if (!ptyId.value) return
-    const a = getAdapter()
+    const a = await getAdapter()
     try {
       await a.killPty(ptyId.value)
     } catch {}
@@ -71,7 +71,7 @@ export function useTerminal() {
 
   async function onPtyOutput(callback: (data: string) => void): Promise<(() => void) | null> {
     if (!ptyId.value) return null
-    const a = getAdapter()
+    const a = await getAdapter()
     return a.onPtyOutput(ptyId.value, callback)
   }
 

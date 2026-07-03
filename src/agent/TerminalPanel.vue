@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <Transition name="ws-slide-up">
     <div v-if="visible" class="terminal-panel">
       <div class="terminal-toolbar">
@@ -142,7 +142,7 @@ async function listenPtyOutput(): Promise<void> {
     } catch {}
   } else {
     try {
-      const adapter = createExecutionAdapter()
+      const adapter = await createExecutionAdapter()
       if (!adapter.isAvailable()) {
         await adapter.tryConnect()
       }

@@ -723,7 +723,7 @@ function onCliUrlChange(e: Event) {
 }
 
 async function checkTerminalConnection(): Promise<boolean> {
-  const adapter = createExecutionAdapter()
+  const adapter = await createExecutionAdapter()
   if (adapter.isAvailable()) return true
   terminalConnecting.value = true
   terminalConnectError.value = ''

@@ -341,13 +341,13 @@ export async function startServer(opts: ServeOptions): Promise<Server> {
   // ── WebSocket 服务器 ──
   const wss = new WebSocketServer({ server, path: '/ws' })
 
-  wss.on('connection', (ws: WsSocket) => {
+  wss.on('connection', async (ws: WsSocket) => {
     wsClients.add(ws)
     console.log(`[WS] Client connected (total: ${wsClients.size})`)
 
     // 每个连接维护自己的 PTY 会话回调（断开时清理）
     const ptyUnsubscribers: Map<string, () => void> = new Map()
-    const adapter = createExecutionAdapter()
+    const adapter = await createExecutionAdapter()
 
     // 发送欢迎消息
     ws.send(JSON.stringify({
