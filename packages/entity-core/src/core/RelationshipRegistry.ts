@@ -249,6 +249,11 @@ export function syncToLegacyRegistry(): void {
  * 自动校验 inverseType 的一致性。
  */
 export function defineRelation(schema: RelationTypeSchemaV2): RelationTypeSchemaV2 {
+  // 幂等：已存在则直接返回（避免 HMR 或重复导入触发 warn + 覆盖）
+  if (relationshipRegistry.has(schema.type)) {
+    return relationshipRegistry.get(schema.type)!
+  }
+
   // 校验：对称关系的 inverseType 必须指向自身
   if (schema.symmetric && schema.inverseType !== schema.type) {
     console.warn(

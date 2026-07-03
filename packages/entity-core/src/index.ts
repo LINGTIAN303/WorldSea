@@ -67,6 +67,11 @@ export {
   inferDirectTargetFromKey,
   userFieldMappingStore,
 } from './core'
+
+// 触发 13 个原子 Trait 注册（副作用导入，必须在 core 导出之后）
+// 不触发此导入会导致 traitRegistry 为空，插件 registerEntityV2 时全部 warn
+import './traits'
+
 export type {
   ModuleInstance,
   ProjectSetting,

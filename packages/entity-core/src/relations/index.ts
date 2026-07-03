@@ -18,7 +18,7 @@ import { defineRelation } from '../core/RelationshipRegistry'
 // ─────────────────────────────────────────────
 
 defineRelation({
-  type: 'knows', label: '认识', inverseType: 'known_by', inverseLabel: '被认识',
+  type: 'knows', label: '认识', inverseType: 'knows', inverseLabel: '认识',
   sourceTypes: ['character'], targetTypes: ['character'], symmetric: true, domain: 'person',
 })
 

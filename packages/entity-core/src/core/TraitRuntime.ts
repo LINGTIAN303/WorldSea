@@ -55,9 +55,8 @@ class FacetRegistryClass {
   private facets = new Map<string, FacetDefinition>()
 
   register(facet: FacetDefinition): void {
-    if (this.facets.has(facet.id)) {
-      console.warn(`[FacetRegistry] Facet "${facet.id}" 已注册，将被覆盖`)
-    }
+    // 幂等：已存在则静默跳过（Facet 定义是静态的，重复注册无副作用）
+    if (this.facets.has(facet.id)) return
     this.facets.set(facet.id, facet)
   }
 
