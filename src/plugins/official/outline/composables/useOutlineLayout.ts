@@ -1,4 +1,4 @@
-import { ref, watch } from 'vue'
+import { ref, shallowRef, triggerRef, watch } from 'vue'
 
 const STORAGE_KEY = 'ws-outline-layout'
 
@@ -8,7 +8,9 @@ interface OutlineLayout {
 }
 
 export function useOutlineLayout() {
-  const expandedIds = ref<Set<string>>(new Set())
+  // 性能优化:用 shallowRef 替代 ref,避免 Vue 对 Set 做深层响应式包装
+  // toggleExpanded 时直接 mutate Set + triggerRef,不再 new Set(...) 复制整个集合
+  const expandedIds = shallowRef<Set<string>>(new Set())
   const selectedNodeId = ref<string | null>(null)
 
   function saveLayout() {
@@ -29,23 +31,27 @@ export function useOutlineLayout() {
     } catch {}
   }
 
+  // 性能优化:直接 mutate Set + triggerRef,零复制(同 WsTree 优化)
+  // 原实现每次 toggle 都 new Set(...) 复制整个集合,大树频繁展开/收起有 GC 压力
   function toggleExpanded(id: string) {
-    const next = new Set(expandedIds.value)
-    if (next.has(id)) {
-      next.delete(id)
+    const set = expandedIds.value
+    if (set.has(id)) {
+      set.delete(id)
     } else {
-      next.add(id)
+      set.add(id)
     }
-    expandedIds.value = next
+    triggerRef(expandedIds)
   }
 
   function isExpanded(id: string): boolean {
     return expandedIds.value.has(id)
   }
 
+  // 去掉 deep:true:shallowRef + triggerRef 已能正确触发,
+  // selectedNodeId 是 string 不需要 deep,避免 deep watch 对 Set 全量遍历
   watch([expandedIds, selectedNodeId], () => {
     saveLayout()
-  }, { deep: true })
+  })
 
   return {
     expandedIds,
