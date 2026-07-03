@@ -20,6 +20,6 @@
     "typecheck": "tsc -p tsconfig.build.json --noEmit"
   },
   "dependencies": {
-    "@worldsmith/perf-kit": "workspace:*"
+    "@worldsmith/perf-kit": "file:../perf-kit"
   }
 }

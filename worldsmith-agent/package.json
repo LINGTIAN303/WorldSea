@@ -15,8 +15,8 @@
   "dependencies": {
     "@earendil-works/pi-agent-core": "latest",
     "@earendil-works/pi-ai": "latest",
-    "@worldsmith/agent-core": "workspace:*",
-    "@worldsmith/governor-core": "workspace:*",
+    "@worldsmith/agent-core": "file:../packages/agent-core",
+    "@worldsmith/governor-core": "file:../packages/governor-core",
     "commander": "^14.0.3",
     "dexie": "^4.4.2",
     "ws": "^8.18.0"
