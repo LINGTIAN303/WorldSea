@@ -191,7 +191,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount, shallowRef } from 'vue'
 import WsIcon from '../ui/WsIcon.vue'
 import AgentMessageBubble from './AgentMessageBubble.vue'
 import A2UIRenderer from './a2ui/A2UIRenderer.vue'
@@ -553,6 +553,8 @@ onMounted(() => {
               }
             }
           }
+          // 测量到新高度后,重建前缀和(rAF 合并,避免过度重建)
+          scheduleRebuildPrefixSums()
         })
         // 对当前已渲染的消息节点 observe(后续新节点由 MutationObserver 增量 observe)
         for (const el of scroll.querySelectorAll('[data-msg-id]')) {
@@ -568,6 +570,7 @@ onBeforeUnmount(() => {
   if (mutationObserver) { mutationObserver.disconnect(); mutationObserver = null }
   if (resizeObserver) { resizeObserver.disconnect(); resizeObserver = null }
   if (scrollRafId !== null) { cancelAnimationFrame(scrollRafId); scrollRafId = null }
+  if (rebuildRafId !== null) { cancelAnimationFrame(rebuildRafId); rebuildRafId = null }
   if (scrollTimer) { clearTimeout(scrollTimer); scrollTimer = null }
   // 移除 scroll 监听
   const container = messagesContainer.value
@@ -633,6 +636,14 @@ const measuredHeights = new Map<number, number>()
 let resizeObserver: ResizeObserver | null = null
 let scrollRafId: number | null = null
 
+// 前缀和数组 + 动态平均高度:O(log n) 二分查找 + O(1) 占位高度计算
+// 替代原 O(n) 遍历,1000+ 条消息滚动性能显著提升
+// prefixSums[i] = 前 i 个 item 的累计高度;item i 的顶部位置 = prefixSums[i]
+const prefixSums = shallowRef<Float64Array | null>(null)
+// 已测量 item 的平均高度(非响应式,仅 rebuildPrefixSums 内部使用)
+let avgMeasuredHeight = ESTIMATED_ITEM_HEIGHT
+let rebuildRafId: number | null = null
+
 // 滚动锚定:用户是否在底部(用于决定新消息是否自动跟随)
 const isAtBottom = ref(true)
 const showScrollToBottomBtn = ref(false)
@@ -643,6 +654,66 @@ interface WindowedItems {
   items: DisplayItem[]
   topPlaceholderHeight: number
   bottomPlaceholderHeight: number
+}
+
+/**
+ * 重建前缀和数组 + 计算已测量 item 平均高度
+ * 调用时机:ResizeObserver 测量到新高度后、fullDisplayItems 长度变化后
+ * 复杂度 O(n),但 Float64Array 数组运算极快(1000 项 < 0.1ms)
+ */
+function rebuildPrefixSums(): void {
+  rebuildRafId = null
+  const total = fullDisplayItems.value.length
+  if (total === 0) {
+    prefixSums.value = null
+    avgMeasuredHeight = ESTIMATED_ITEM_HEIGHT
+    return
+  }
+  // 计算已测量 item 的平均高度,作为未测量 item 的估算值(比固定 80px 更精准)
+  let measuredTotal = 0
+  let measuredCount = 0
+  measuredHeights.forEach((h) => {
+    measuredTotal += h
+    measuredCount++
+  })
+  avgMeasuredHeight = measuredCount > 0
+    ? measuredTotal / measuredCount
+    : ESTIMATED_ITEM_HEIGHT
+
+  // 构建前缀和:prefixSums[i] = sum of height(item[0..i-1])
+  const sums = new Float64Array(total + 1)
+  sums[0] = 0
+  const avg = avgMeasuredHeight
+  for (let i = 0; i < total; i++) {
+    sums[i + 1] = sums[i] + (measuredHeights.get(i) ?? avg)
+  }
+  prefixSums.value = sums
+}
+
+/**
+ * rAF 合并重建:同一帧内多次测量变化只重建一次前缀和
+ */
+function scheduleRebuildPrefixSums(): void {
+  if (rebuildRafId !== null) return
+  rebuildRafId = requestAnimationFrame(rebuildPrefixSums)
+}
+
+/**
+ * 二分查找:定位 scrollTop 对应的 item 索引
+ * 找到最大的 i 使得 prefixSums[i] <= scrollTop
+ * 复杂度 O(log n),替代原 O(n) 遍历
+ */
+function findIndexAtScroll(scrollTop: number): number {
+  const sums = prefixSums.value
+  if (!sums || sums.length <= 1) return 0
+  let lo = 0
+  let hi = sums.length - 1
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1
+    if (sums[mid] <= scrollTop) lo = mid
+    else hi = mid - 1
+  }
+  return lo
 }
 
 const windowedDisplayItems = computed<WindowedItems>(() => {
@@ -658,21 +729,16 @@ const windowedDisplayItems = computed<WindowedItems>(() => {
   for (let i = start; i < end; i++) {
     items.push({ ...all[i], _windowIndex: i })
   }
-  // 估算占位高度:用已测量高度优先,否则用估算值
-  let topPlaceholderHeight = 0
-  for (let i = 0; i < start; i++) {
-    topPlaceholderHeight += measuredHeights.get(i) ?? ESTIMATED_ITEM_HEIGHT
-  }
-  let bottomPlaceholderHeight = 0
-  for (let i = end; i < total; i++) {
-    bottomPlaceholderHeight += measuredHeights.get(i) ?? ESTIMATED_ITEM_HEIGHT
-  }
+  // O(1) 占位高度:前缀和直接取值,替代原 O(n) 遍历累加
+  const sums = prefixSums.value
+  const topPlaceholderHeight = sums ? sums[start] : 0
+  const bottomPlaceholderHeight = sums ? sums[total] - sums[end] : 0
   return { items, topPlaceholderHeight, bottomPlaceholderHeight }
 })
 
 /**
  * 根据滚动位置更新可见窗口
- * 性能:rAF 节流,同一帧内多次 scroll 只计算一次
+ * 性能:rAF 节流 + 二分查找 O(log n),同一帧内多次 scroll 只计算一次
  */
 function updateVisibleRange(): void {
   const container = messagesContainer.value
@@ -685,23 +751,15 @@ function updateVisibleRange(): void {
   const total = all.length
   if (total === 0) return
 
-  // 通过累计高度估算当前 scrollTop 对应的 item 索引
-  // 优先用已测量高度,未测量用估算值
-  let cumHeight = 0
-  let estimatedStart = 0
-  for (let i = 0; i < total; i++) {
-    const h = measuredHeights.get(i) ?? ESTIMATED_ITEM_HEIGHT
-    if (cumHeight + h > scrollTop) {
-      estimatedStart = i
-      break
-    }
-    cumHeight += h
-    estimatedStart = i
-  }
-  // 估算可见区间结束(视口高度 / 估算高度 + 缓冲)
-  const estimatedVisibleCount = Math.ceil(viewportH / ESTIMATED_ITEM_HEIGHT) + WINDOW_BUFFER * 2
-  let newStart = Math.max(0, estimatedStart - WINDOW_BUFFER)
-  let newEnd = Math.min(total, estimatedStart + estimatedVisibleCount + WINDOW_BUFFER)
+  const sums = prefixSums.value
+  if (!sums) return
+
+  // 二分查找 O(log n) 定位 scrollTop 和视口底部对应的 item 索引
+  const estimatedStart = findIndexAtScroll(scrollTop)
+  const estimatedEnd = findIndexAtScroll(scrollTop + viewportH)
+
+  const newStart = Math.max(0, estimatedStart - WINDOW_BUFFER)
+  let newEnd = Math.min(total, estimatedEnd + WINDOW_BUFFER)
   // 流式跟随状态:确保窗口覆盖到底部
   if (isAtBottom.value) newEnd = total
   if (newStart !== visibleStart.value || newEnd !== visibleEnd.value) {
@@ -811,6 +869,12 @@ watchDebounced(() => props.messages.length, () => scheduleScrollToBottom(), { de
 watchDebounced(() => Object.keys(props.a2uiSurfaces).length, () => scheduleScrollToBottom(), { debounce: 50 })
 watchDebounced(() => deepSegments.value.length, () => scheduleScrollToBottom(), { debounce: 50 })
 watch(() => finalOutput.value, () => scheduleScrollToBottom())
+
+// 消息列表长度变化时(新消息到来/筛选切换),重建前缀和
+// immediate: true 保证组件初始化时就构建一次前缀和
+watch(() => fullDisplayItems.value.length, () => {
+  scheduleRebuildPrefixSums()
+}, { immediate: true })
 
 watch(() => props.isStreaming, (val) => {
   if (val) startDotAnimation()
