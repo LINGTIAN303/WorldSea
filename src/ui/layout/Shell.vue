@@ -46,7 +46,7 @@
 <script setup lang="ts">
 import { ref, defineAsyncComponent, onMounted, onUnmounted, watch } from 'vue'
 import MenuBar from './MenuBar.vue'
-import Sidebar from './Sidebar.vue'
+import Sidebar from './sidebar/SidebarV2.vue'
 import ViewContainer from './ViewContainer.vue'
 import Toast from '../feedback/Toast.vue'
 import DialogContainer from './DialogContainer.vue'
