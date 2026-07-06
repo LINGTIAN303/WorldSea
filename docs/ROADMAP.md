@@ -22,10 +22,10 @@
 
 ### 4. Agent 的长任务能力
 - **简述**：支持 Agent 长任务（最长 6 小时），无强制中断机制，优化在应用层
-- **涉及模块**：`src/agent/composables/useAgent.ts`、`src/agent/composables/useLongTask.ts`、`src/agent/composables/longTaskStore.ts`、`src/agent/AgentChat.vue`、`src/agent/AgentOverlay.vue`、`worldsmith-agent/src/bridge.ts`、`worldsmith-agent/src/bridge-types.ts`、`src/space/group-chat/`
-- **状态**：🚧 进行中
+- **涉及模块**：`src/agent/composables/useAgent.ts`、`src/agent/composables/useLongTask.ts`、`src/agent/composables/longTaskStore.ts`、`src/agent/composables/useOrchestrator.ts`、`src/agent/AgentChat.vue`、`src/agent/AgentOverlay.vue`、`worldsmith-agent/src/bridge.ts`、`worldsmith-agent/src/bridge-types.ts`、`src/space/group-chat/`
+- **状态**：✅ 已完成
 - **优先级**：—
-- **备注**：用户画像明确要求"无强制中断机制，支持长任务最长 6 小时"。已完成 P1 核心管理器（状态机+心跳+checkpoint+协作式取消）+ P2 断点恢复（detectAndOfferResume+横幅UI+setRuntimeMessages）+ P3 进度反馈 UI（输入框上方细长进度条：心跳脉冲+时长+轮次+当前tool+停止）。待办 P4 子 Agent 接入（dispatchSubAgent 去超时+checkpoint+心跳+恢复）
+- **备注**：用户画像明确要求"无强制中断机制，支持长任务最长 6 小时"。P1 核心管理器（状态机+心跳5s+checkpoint+协作式取消）+ P2 断点恢复（detectAndOfferResume+横幅UI+setRuntimeMessages）+ P3 进度反馈 UI（输入框上方进度条：心跳脉冲+时长+轮次+当前tool+停止）+ P4 子 Agent 接入（去超时+checkpoint+心跳+多任务Map，复用 longTaskStore）。风险点修复：beforeToolCall id 类型、abort+waitForIdle 不重建。不做子 Agent 恢复（后台任务刷新后重跑即可）
 
 ### 19. Agent 与用户的头像信息卡
 - **简述**：Agent 和用户的头像悬停/点击展示信息卡（Persona 资料、模型、状态等）

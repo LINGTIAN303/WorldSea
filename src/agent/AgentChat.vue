@@ -280,7 +280,7 @@ const {
 const settingsStore = useSettingsStore()
 const { connections: mcpConnections, addConnection, removeConnection, toggleConnection, ensureLoaded: ensureMcpLoaded } = useMcpConnections()
 const { commands, settingsOpen, closeSettings, openSettings } = useAgentCommands()
-const { subAgents, toggleSubAgentVisible: toggleSubAgentVisible, removeSubAgent: removeSubAgent, registerExecutor } = useOrchestrator()
+const { subAgents, toggleSubAgentVisible: toggleSubAgentVisible, removeSubAgent: removeSubAgent, registerExecutor, trackSubAgentLongTask, untrackSubAgentLongTask } = useOrchestrator()
 const miniPanel = useEntityMiniPanel()
 
 const subAgentList = computed(() => Array.from(subAgents.values()))
@@ -1135,6 +1135,9 @@ onMounted(async () => {
 
       const subBackend = await createSubBackend(task.skillIds, visionProviderConfig)
 
+      // 任务 4 P4：子 Agent 长任务跟踪（checkpoint + 心跳，复用 longTaskStore 持久层）
+      trackSubAgentLongTask(task.id, subBackend, task.prompt, task.type)
+
       const startTime = Date.now()
       const promptOptions: any = {}
       if (task.images && task.images.length > 0) {
@@ -1143,6 +1146,7 @@ onMounted(async () => {
       const result = await subBackend.prompt(task.prompt, promptOptions)
       const duration = Date.now() - startTime
 
+      await untrackSubAgentLongTask(task.id, 'completed')
       subBackend.dispose()
 
       return {
@@ -1151,6 +1155,8 @@ onMounted(async () => {
         duration,
       }
     } catch (err) {
+      // 任务 4 P4：失败时标记子 Agent 长任务为 failed（track 未调用时 updateTask 静默 warn，无副作用）
+      await untrackSubAgentLongTask(task.id, 'failed').catch(() => {})
       return {
         success: false,
         output: err instanceof Error ? err.message : String(err),

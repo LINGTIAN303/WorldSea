@@ -363,7 +363,7 @@ export class CoreBackend implements IAgentBackend {
       },
       beforeToolCall: async (ctx: any) => {
         if (this.config.beforeToolCall) {
-          const result = await this.config.beforeToolCall({ toolCall: { id: ctx.toolCallId || ctx.toolCall?.id, name: ctx.toolCall?.name, args: ctx.args } })
+          const result = await this.config.beforeToolCall({ toolCall: { name: ctx.toolCall?.name, args: ctx.args } })
           if (result?.block) return { block: true, reason: result.reason }
         }
         return undefined
@@ -719,21 +719,31 @@ export class CoreBackend implements IAgentBackend {
 
   async abort(): Promise<void> {
     if (this.agent) {
-      // 保存当前对话历史，abort 后 agent 内部锁可能未释放
-      const savedMessages = [...(this.agent.state?.messages || [])]
+      // 任务 4 风险点3 优化：abort+waitForIdle 替代"销毁重建"
+      //
+      // 原方案：abort 后销毁 agent（unsub + agent=null）再 ensureAgent 重建，恢复 messages。
+      // 问题：重建有开销；且 abort 不触发 agent_end，长任务需在 useAgent.abort() 兜底 cancelTask。
+      //
+      // 新方案：pi-agent-core 的 Agent.abort() 中断当前 run，waitForIdle() 等 agent_end listener
+      // settle 后释放 activeRun 锁。agent.state.messages 保留（abort 不清 state），下次 prompt
+      // 直接复用。abort 后 agent_end 正常触发，useAgent 的 agent_end 处理中长任务自然终结
+      // （longTaskCancel/longTaskComplete），无需 useAgent.abort() 兜底（兜底幂等，保留无妨）。
       this.agent.abort()
-      // 销毁 agent 以释放内部锁，下次 ensureAgent 会重建
-      if (this.unsub) this.unsub()
-      this.agent = null
-      this.agentInitPromise = null
-      // 重建 agent 后恢复对话历史
       try {
-        const newAgent = await this.ensureAgent()
-        if (savedMessages.length > 0) {
-          newAgent.state.messages = savedMessages
-        }
+        await this.agent.waitForIdle()
       } catch (err) {
-        console.warn('[Agent] abort: failed to rebuild agent:', err)
+        console.warn('[Agent] abort: waitForIdle failed:', err)
+        // fallback：若 waitForIdle 异常，销毁重建以确保锁释放
+        const savedMessages = [...(this.agent.state?.messages || [])]
+        if (this.unsub) this.unsub()
+        this.agent = null
+        this.agentInitPromise = null
+        try {
+          const newAgent = await this.ensureAgent()
+          if (savedMessages.length > 0) newAgent.state.messages = savedMessages
+        } catch (rebuildErr) {
+          console.warn('[Agent] abort: fallback rebuild failed:', rebuildErr)
+        }
       }
     }
   }

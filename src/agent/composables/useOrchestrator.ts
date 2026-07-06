@@ -1,6 +1,9 @@
-﻿import { reactive, ref, onMounted, onBeforeUnmount } from 'vue'
+﻿﻿import { reactive, ref, onMounted, onBeforeUnmount } from 'vue'
 import type { AgentInfo, AgentType, SubAgentTask } from '@agent/orchestrator/types'
 import { AGENT_TYPE_CONFIG } from '@agent/orchestrator/types'
+import type { IAgentBackend } from '@agent/index'
+import { saveTask, updateTask } from './longTaskStore'
+import type { LongTaskRecord } from './longTaskStore'
 
 interface PipelineContext {
   pipelineId: string
@@ -29,7 +32,8 @@ type ExecuteFn = (task: {
   type: AgentType
   prompt: string
   skillIds: string[]
-  timeout: number
+  /** 任务 4 P4：已废弃，子 Agent 不再设超时（长任务无中断） */
+  timeout?: number
   images?: { data: string; mimeType: string }[]
 }) => Promise<{ success: boolean; output: string; duration: number }>
 
@@ -38,6 +42,92 @@ const maxConcurrency = ref(3)
 let executeFn: ExecuteFn | null = null
 let listenersAttached = false
 let activeExecutions: Map<string, AbortController> = new Map()
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 任务 4 P4：子 Agent 长任务跟踪（checkpoint + 心跳，复用 longTaskStore 持久层）
+//
+// 设计：子 Agent 独立于 useLongTask（主 Agent），直接复用 longTaskStore 持久化。
+// - trackSubAgentLongTask：saveTask 初始记录 + subBackend.subscribe 事件 checkpoint + 心跳
+// - untrackSubAgentLongTask：终态 updateTask + 清理
+// - 心跳：模块级统一定时器（5s），遍历活跃子 Agent 任务
+// - 多任务：activeLongTasks Map 支持多子 Agent 并发
+// 不做恢复（子 Agent 后台任务，刷新后重跑即可）。
+// ─────────────────────────────────────────────────────────────────────────────
+interface ActiveSubLongTask {
+  unsub: () => void
+  turnCount: number
+}
+const activeLongTasks = new Map<string, ActiveSubLongTask>()
+let subHeartbeatTimer: ReturnType<typeof setInterval> | null = null
+const SUB_HEARTBEAT_INTERVAL_MS = 5_000
+
+function ensureSubHeartbeat(): void {
+  if (subHeartbeatTimer) return
+  subHeartbeatTimer = setInterval(async () => {
+    for (const taskId of activeLongTasks.keys()) {
+      await updateTask(taskId, { lastHeartbeatAt: Date.now() })
+    }
+  }, SUB_HEARTBEAT_INTERVAL_MS)
+}
+
+function stopSubHeartbeatIfEmpty(): void {
+  if (activeLongTasks.size === 0 && subHeartbeatTimer) {
+    clearInterval(subHeartbeatTimer)
+    subHeartbeatTimer = null
+  }
+}
+
+/** 跟踪子 Agent 长任务：持久化 + 事件 checkpoint + 心跳 */
+function trackSubAgentLongTask(taskId: string, subBackend: IAgentBackend, prompt: string, agentType: string): void {
+  // 持久化初始记录
+  const record: LongTaskRecord = {
+    taskId,
+    type: 'sub-agent',
+    status: 'running',
+    startedAt: Date.now(),
+    lastHeartbeatAt: Date.now(),
+    turnCount: 0,
+    checkpoint: { agentMessages: [], lastUserText: prompt },
+    meta: { prompt, agentType },
+  }
+  saveTask(record)
+
+  // 订阅事件 checkpoint（turn_end 递增轮次 + 快照 messages；tool_execution_start 记录当前 tool）
+  let turnCount = 0
+  const unsub = subBackend.subscribe((event: any) => {
+    if (!activeLongTasks.has(taskId)) return
+    if (event.type === 'turn_end') {
+      turnCount++
+      const messages = subBackend.getRuntimeMessages?.() ?? []
+      updateTask(taskId, {
+        turnCount,
+        checkpoint: { agentMessages: messages, lastUserText: prompt },
+      })
+    } else if (event.type === 'tool_execution_start' && event.toolCall?.name) {
+      updateTask(taskId, { currentTool: event.toolCall.name })
+    }
+  })
+
+  activeLongTasks.set(taskId, { unsub, turnCount: 0 })
+  ensureSubHeartbeat()
+  console.log(`[SubAgentLongTask] 跟踪子 Agent 长任务 ${taskId}（类型: ${agentType}）`)
+}
+
+/** 终止跟踪子 Agent 长任务：终态持久化 + 清理订阅/心跳 */
+async function untrackSubAgentLongTask(
+  taskId: string,
+  status: 'completed' | 'failed' | 'cancelled',
+): Promise<void> {
+  const task = activeLongTasks.get(taskId)
+  if (task) {
+    task.unsub()
+    activeLongTasks.delete(taskId)
+  }
+  // updateTask 对不存在的记录会静默 warn（createSubBackend 失败时 track 未调用），无副作用
+  await updateTask(taskId, { status, endedAt: Date.now() })
+  stopSubHeartbeatIfEmpty()
+  console.log(`[SubAgentLongTask] 子 Agent 长任务 ${taskId} 终态: ${status}`)
+}
 
 function syncToWindow(): void {
   try {
@@ -92,7 +182,7 @@ async function autoUpdatePipelineStep(
         ...p,
         steps: JSON.stringify(steps),
         status: newStatus,
-        ...(allCompleted || anyFailed ? { currentStepId: null } : {}),
+        ...(allTerminal ? { currentStepId: null } : {}),
       },
     }, 'agent')
   } catch (err) {
@@ -195,7 +285,7 @@ export function useOrchestrator() {
     const detail = (e as CustomEvent).detail
     if (!detail) return
 
-    const { taskId, type, prompt, timeout, skillIds } = detail
+    const { taskId, type, prompt, skillIds } = detail
     const pipelineContext: PipelineContext | undefined = detail.pipelineContext
 
     if (subAgents.has(taskId)) return
@@ -205,7 +295,6 @@ export function useOrchestrator() {
       type,
       prompt,
       skillIds,
-      timeout,
       pipelineContext,
     })
     updateSubAgentStatus(taskId, 'running')
@@ -219,7 +308,7 @@ export function useOrchestrator() {
     activeExecutions.set(taskId, controller)
 
     try {
-      const result = await executeFn({ id: taskId, type, prompt, skillIds: skillIds || [], timeout: timeout || 120000, images: detail.images })
+      const result = await executeFn({ id: taskId, type, prompt, skillIds: skillIds || [], images: detail.images })
       if (controller.signal.aborted) return
       updateSubAgentStatus(taskId, result.success ? 'completed' : 'failed')
       setSubAgentResult(taskId, result.output)
@@ -259,9 +348,11 @@ export function useOrchestrator() {
       activeExecutions.delete(taskId)
     }
     updateSubAgentStatus(taskId, 'cancelled')
+    // 任务 4 P4：取消时标记子 Agent 长任务为 cancelled（fire-and-forget）
+    untrackSubAgentLongTask(taskId, 'cancelled').catch(() => {})
   }
 
-  function handleGetStatusEvent(e: Event): void {
+  function handleGetStatusEvent(_e: Event): void {
     syncToWindow()
   }
 
@@ -314,5 +405,8 @@ export function useOrchestrator() {
     registerExecutor,
     attachListeners,
     detachListeners,
+    // 任务 4 P4：子 Agent 长任务跟踪
+    trackSubAgentLongTask,
+    untrackSubAgentLongTask,
   }
 }
