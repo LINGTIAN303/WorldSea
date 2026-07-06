@@ -333,6 +333,47 @@ export const SKILL_REGISTRY: SkillMeta[] = [
     ],
   },
   {
+    id: 'task-execution',
+    name: '任务执行',
+    icon: 'play',
+    description: '自主任务执行模式。用户给出高层目标，Agent 自主规划、连续执行、验证、重试，直到任务完成。区别于深度思考的分析推理，本模式专注于动手把事做完。自动激活于任务执行聊天模式。不可手动激活。',
+    category: 'action',
+    enabled: true,
+    visibility: 'hidden' as SkillVisibility,
+    version: '1.0.0',
+    promptFile: 'task-execution/SKILL.md',
+    baseTools: ['plan_create', 'plan_update', 'read_file', 'search_files', 'list_directory', 'entity_list', 'entity_get', 'content_search', 'kb_search', 'kb_read', 'memory_recall'],
+    allowedTools: [
+      // 规划工具
+      'plan_create', 'plan_update',
+      // 文件与代码
+      'read_file', 'write_file', 'edit_file', 'search_files', 'list_directory', 'execute_command',
+      // 实体与关系
+      'entity_create', 'entity_update', 'entity_delete',
+      'relation_create', 'relation_delete',
+      'entity_suggest_field', 'entity_smart_fill', 'entity_get_context',
+      // 知识与记忆
+      'kb_write', 'kb_delete', 'kb_init', 'kb_extract',
+      'memory_store', 'memory_delete',
+      // 输出
+      'output_alert', 'output_list', 'output_code',
+      // 外部信息
+      'web_search', 'web_fetch',
+      // 其他
+      'load_skill',
+      'project_export', 'project_import',
+    ],
+    examples: ['(任务执行模式自动激活)'],
+    triggers: [],
+    tags: ['任务执行', '自主', '规划', '验证', '重试', 'agentic'],
+    priority: 0,
+    autoActivate: false,
+    outputPreferences: [
+      { channel: 'a2ui', component: 'Alert', condition: '任务完成总结' },
+      { channel: 'a2ui', component: 'List', condition: '执行结果清单' },
+    ],
+  },
+  {
     id: 'knowledge-explorer',
     name: '知识探索',
     icon: 'compass',

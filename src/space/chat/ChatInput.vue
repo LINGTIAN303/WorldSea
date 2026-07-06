@@ -145,6 +145,7 @@ const placeholder = computed(() => {
       case 'normal': return '快问快答'
       case 'deep': return '深度思考'
       case 'explore': return '知识探索'
+      case 'task': return '任务执行'
       default: return '消息'
     }
   })()

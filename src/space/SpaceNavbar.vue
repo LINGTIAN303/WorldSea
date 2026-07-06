@@ -254,6 +254,7 @@ const chatModes = computed(() => {
     { value: 'normal' as const, icon: 'chat', label: '快问快答', desc: '不思考，不调用工具，直接回答' },
     { value: 'deep' as const, icon: 'brain', label: '深度思考', desc: '深度推理 + 工具验证 + 结构化推理链' },
     { value: 'explore' as const, icon: 'search', label: '知识探索', desc: '知识库 → 联网搜索 → 项目数据 → 模型知识' },
+    { value: 'task' as const, icon: 'play', label: '任务执行', desc: '自主规划 + 连续执行 + 验证重试，动手把事做完' },
   ]
 })
 

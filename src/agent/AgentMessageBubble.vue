@@ -519,7 +519,7 @@ const props = withDefaults(defineProps<{
     metadata?: Record<string, unknown>
   }
   isHovered: boolean
-  chatMode?: 'normal' | 'deep' | 'explore' | 'group-chat'
+  chatMode?: 'normal' | 'deep' | 'explore' | 'task' | 'group-chat'
   useDeepLayout?: boolean
 }>(), {
   useDeepLayout: true,

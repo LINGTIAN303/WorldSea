@@ -1428,7 +1428,7 @@ export function useAgent() {
         contentBase = ''
         hasAssistantInCurrentRun = false
         if (event.chatMode && lockedChatMode.value === null) activeChatMode.value = event.chatMode
-        addLog('info', `开始响应（模式: ${{ normal: '快问快答', deep: '深度思考', explore: '知识探索' }[event.chatMode] || event.chatMode}）`)
+        addLog('info', `开始响应（模式: ${{ normal: '快问快答', deep: '深度思考', explore: '知识探索', task: '任务执行' }[event.chatMode as string] || event.chatMode}）`)
         // 深度模式：重置段落状态
         if (activeChatMode.value === 'deep') {
           deepSegments.value = []
@@ -2139,7 +2139,7 @@ export function useAgent() {
     session.metadata.totalTokens = totalUsage.value.inputTokens + totalUsage.value.cacheReadTokens + totalUsage.value.cacheWriteTokens + totalUsage.value.outputTokens
     session.metadata.totalCost = totalUsage.value.totalCost
     session.metadata.toolCallCount = totalUsage.value.requestCount
-    if (sessionChatMode.value) session.chatMode = sessionChatMode.value
+    if (sessionChatMode.value && sessionChatMode.value !== 'group-chat') session.chatMode = sessionChatMode.value
     // 持久化深度模式虚拟段落
     if (deepSegments.value.length > 0) {
       session.deepSegments = JSON.parse(JSON.stringify(deepSegments.value))

@@ -560,6 +560,7 @@ export class CoreBackend implements IAgentBackend {
       normal: 'off',
       deep: 'high',
       explore: 'medium',
+      task: 'high',
       'group-chat': 'medium',
     }
     this.updateThinkingLevel(thinkingLevelMap[chatMode])
@@ -567,6 +568,7 @@ export class CoreBackend implements IAgentBackend {
     const modeSkillMap: Record<string, string> = {
       deep: 'deep-thinking',
       explore: 'knowledge-explorer',
+      task: 'task-execution',
     }
     const modeSkillId = modeSkillMap[chatMode]
     if (modeSkillId) {
