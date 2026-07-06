@@ -490,6 +490,10 @@ let hasToolCallsInCurrentTurn = false
 // 任务 4 P1：长任务管理（心跳 + checkpoint + 协作式取消）
 // ─────────────────────────────────────────────────────────────────────────────
 const {
+  // 任务 4 P3：进度反馈 UI 读取的响应式状态
+  activeTask: longTaskActive,
+  heartbeatStatus: longTaskHeartbeatStatus,
+  hasActiveTask: longTaskHasActiveTask,
   startTask: longTaskStart,
   resumeActiveTask: longTaskResume,
   checkpoint: longTaskCheckpoint,
@@ -2418,6 +2422,10 @@ export function useAgent() {
     resumeTask,
     discardTask,
     detectAndOfferResume,
+    // 任务 4 P3：长任务进度反馈（UI 读取活跃任务状态 + 心跳 + 是否有活跃任务）
+    activeTask: longTaskActive,
+    heartbeatStatus: longTaskHeartbeatStatus,
+    hasActiveTask: longTaskHasActiveTask,
     /**
      * H1.2 新增：清理 PI Agent 内部上下文消息
      *

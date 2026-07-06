@@ -96,6 +96,19 @@
 
       <div class="resize-handle" @mousedown.left="onResizeStart"></div>
     </template>
+    <!-- 任务 4 P3：长任务进度条（面板底部，仅活跃任务时显示） -->
+    <div v-if="hasActiveTask && activeTask" class="long-task-progress">
+      <span class="ltp-heartbeat" :class="`ltp-hb-${heartbeatStatus}`" :title="heartbeatTitle"></span>
+      <span class="ltp-label">运行中</span>
+      <span class="ltp-duration">{{ formatElapsed(elapsedSec) }}</span>
+      <span class="ltp-sep">·</span>
+      <span class="ltp-turns">第 {{ activeTask.turnCount }} 轮</span>
+      <template v-if="activeTask.currentTool">
+        <span class="ltp-sep">·</span>
+        <span class="ltp-tool" :title="`正在执行: ${activeTask.currentTool}`">{{ activeTask.currentTool }}</span>
+      </template>
+      <button class="ltp-cancel" @click="onAbort" title="停止任务">停止</button>
+    </div>
   </div>
 
   <AgentInputBar
@@ -262,6 +275,7 @@ const {
   ensureInitialized, createSubBackend,
   activeChatMode, lockedChatMode, setChatMode,
   resumableTasks, resumeTask, discardTask,
+  activeTask, heartbeatStatus, hasActiveTask,
 } = useAgent()
 const settingsStore = useSettingsStore()
 const { connections: mcpConnections, addConnection, removeConnection, toggleConnection, ensureLoaded: ensureMcpLoaded } = useMcpConnections()
@@ -272,6 +286,43 @@ const miniPanel = useEntityMiniPanel()
 const subAgentList = computed(() => Array.from(subAgents.values()))
 const activeSubAgentCount = computed(() => subAgentList.value.filter(a => a.status === 'running').length)
 const subAgentExpanded = ref(true)
+
+// 任务 4 P3：长任务进度反馈 — 时长计时器（每秒更新，仅活跃任务时运行）
+const longTaskNow = ref(Date.now())
+let longTaskTimer: ReturnType<typeof setInterval> | null = null
+const elapsedSec = computed(() =>
+  activeTask.value ? Math.floor((longTaskNow.value - activeTask.value.startedAt) / 1000) : 0,
+)
+const heartbeatTitle = computed(() => {
+  switch (heartbeatStatus.value) {
+    case 'alive': return '心跳正常'
+    case 'stale': return '心跳失联（>30s），可能卡顿'
+    case 'dead': return '心跳停止（>5min），疑似崩溃'
+    default: return '心跳状态'
+  }
+})
+function formatElapsed(sec: number): string {
+  const h = Math.floor(sec / 3600)
+  const m = Math.floor((sec % 3600) / 60)
+  const s = sec % 60
+  if (h > 0) return `${h}h${m}m`
+  if (m > 0) return `${m}m${s}s`
+  return `${s}s`
+}
+watch(hasActiveTask, (active) => {
+  if (active) {
+    longTaskNow.value = Date.now()
+    if (!longTaskTimer) {
+      longTaskTimer = setInterval(() => { longTaskNow.value = Date.now() }, 1000)
+    }
+  } else if (longTaskTimer) {
+    clearInterval(longTaskTimer)
+    longTaskTimer = null
+  }
+}, { immediate: true })
+onUnmounted(() => {
+  if (longTaskTimer) { clearInterval(longTaskTimer); longTaskTimer = null }
+})
 
 const messageListRef = ref<InstanceType<typeof AgentMessageList>>()
 const inputBarRef = ref<InstanceType<typeof AgentInputBar>>()
@@ -1191,6 +1242,68 @@ onUnmounted(() => {
 }
 .resume-btn-secondary:hover {
   background: rgba(199, 210, 254, 0.1);
+}
+
+/* 任务 4 P3：长任务进度条（面板底部，输入框上方） */
+.long-task-progress {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 24px 5px 12px; /* 右侧留白避开 resize-handle 角标 */
+  background: rgba(16, 185, 129, 0.08);
+  border-top: 1px solid rgba(16, 185, 129, 0.2);
+  font-size: 11px;
+  color: rgba(209, 250, 229, 0.85);
+  flex-shrink: 0;
+}
+.ltp-heartbeat {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.ltp-hb-alive {
+  background: rgb(52, 211, 153);
+  animation: ltp-blink 1.5s ease-in-out infinite;
+}
+.ltp-hb-stale {
+  background: rgb(251, 191, 36);
+  animation: ltp-blink 2.5s ease-in-out infinite;
+}
+.ltp-hb-dead {
+  background: rgb(248, 113, 113);
+}
+@keyframes ltp-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+.ltp-label {
+  font-weight: 600;
+  color: rgb(167, 243, 208);
+}
+.ltp-duration { font-variant-numeric: tabular-nums; }
+.ltp-sep { color: rgba(209, 250, 229, 0.35); }
+.ltp-tool {
+  color: rgba(209, 250, 229, 0.65);
+  max-width: 140px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ltp-cancel {
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 2px 10px;
+  font-size: 11px;
+  border-radius: 4px;
+  border: 1px solid rgba(248, 113, 113, 0.4);
+  background: transparent;
+  color: rgb(252, 165, 165);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.ltp-cancel:hover {
+  background: rgba(248, 113, 113, 0.15);
 }
 
 .chat-header {
