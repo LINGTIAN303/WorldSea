@@ -13,13 +13,6 @@
 
 ## 一、Agent 系统增强
 
-### 1. Agent 窗口中的实体卡片小窗口
-- **简述**：在 Agent 对话窗口内嵌入实体卡片小窗，用户可在不离开对话的情况下查看/编辑实体详情
-- **涉及模块**：`src/agent/AgentChat.vue`、`src/agent/AgentOverlay.vue`、`src/ui/entity/InfoPanel.vue`、`@worldsmith/entity-core`
-- **状态**：📋 待启动
-- **优先级**：—
-- **备注**：需考虑与 AgentMessageList 的布局协调，以及从对话中点选实体名→打开卡片的交互
-
 ### 3. Agent 的技能工具更新
 - **简述**：更新 Agent 的技能（Skills）工具体系，与 governor-modules.ts 的 toolMeta 模块对接
 - **涉及模块**：`worldsmith-agent/src/agent.ts`、`src/agent/`、`@worldsmith/agent-core`、`@worldsmith/governor-core`
@@ -241,10 +234,16 @@
 
 ## 已完成任务
 
-（暂无）
+### 1. Agent 窗口中的实体卡片小窗口
+- **简述**：在 Agent 对话窗口内嵌入实体卡片小窗，用户可在不离开对话的情况下查看/编辑实体详情
+- **涉及模块**：`src/agent/AgentChat.vue`、`src/agent/EntityMiniPanel.vue`、`src/agent/composables/useEntityMiniPanel.ts`、`src/agent/blocks/BlockEntityCard.vue`
+- **状态**：✅ 已完成
+- **完成日期**：2026-07-06
+- **备注**：经验证已完整实现。EntityMiniPanel（加载/不存在/详情三态，描述+属性可编辑，关联+标签只读，openInMainPanel 跳主面板）；两个触发入口：① BlockEntityCard"详情"按钮（emit open-detail → AgentChat onBlockAction → miniPanel.open）② 消息 mention 点击（AgentMessageBubble onMentionClick 事件委托 .ws-entity-mention → miniPanel.open）；FloatingPanel 浮窗定位不挤占消息列表
 
 ---
 
 ## 变更记录
 
 - **2026-07-02**：创建文档，录入 28 条任务方向，按 8 大类别分组，标注涉及模块与备注
+- **2026-07-06**：任务 1（实体卡片小窗）经验证已完整实现，状态更新为已完成

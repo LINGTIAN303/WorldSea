@@ -287,6 +287,20 @@ export interface IAgentBackend {
    * @param upToIndex 要移除的消息数（从开头计）
    */
   trimContext?(upToIndex: number): void
+  /**
+   * 任务 4 P1 新增：获取 pi-ai agent 内部 messages（含完整 tool call/result）
+   *
+   * 用于长任务 checkpoint 持久化，区别于 state.messages（WorldSmith UI 快照）。
+   * 恢复时将此 messages 写回新 agent.state.messages，即可从断点续跑。
+   */
+  getRuntimeMessages?(): unknown[]
+  /**
+   * 任务 4 P2 新增：写回 pi-ai agent 内部 messages（断点恢复用）
+   *
+   * 恢复时将 checkpoint 持久化的 messages 写回新 agent.state.messages，
+   * agent 即可基于历史 messages 继续对话。
+   */
+  setRuntimeMessages?(messages: unknown[]): void
 }
 
 export interface AgentConfig {

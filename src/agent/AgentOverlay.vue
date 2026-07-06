@@ -35,7 +35,7 @@ import AgentChat from './AgentChat.vue'
 import AgentPreview from './AgentPreview.vue'
 import AgentSessionPanel from './AgentSessionPanel.vue'
 
-const { isVisible, show, hide, currentSessionId, switchSession, initError, clearInitError, isPinned } = useAgent()
+const { isVisible, show, hide, currentSessionId, switchSession, initError, clearInitError, isPinned, detectAndOfferResume } = useAgent()
 const { sessionsOpen, closeSessions } = useAgentCommands()
 const { register, unregister } = useShortcuts()
 
@@ -68,6 +68,8 @@ function onPluginAction(): void {
 }
 
 onMounted(() => {
+  // 任务 4 P2：应用启动时检测可恢复的未完成任务（刷新/崩溃后）
+  detectAndOfferResume()
   register({
     id: 'agent.toggle',
     keys: ['f1'],

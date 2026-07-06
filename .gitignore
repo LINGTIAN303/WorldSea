@@ -114,3 +114,6 @@ _empty_for_clean/
 .superpowers/brainstorm/*/state/
 .superpowers/brainstorm/*/*.pid
 .superpowers/brainstorm/*/server-*
+
+# ── CatPaw rules (contains sensitive credentials, never commit) ────────
+.catpaw/

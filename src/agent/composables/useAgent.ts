@@ -1,5 +1,8 @@
 import { ref, readonly, computed } from 'vue'
 import type { IAgentBackend, AgentEvent, AgentMessage, ImageAttachment, FileAttachment, UsageData, ThinkingLevel, ChatMode, A2UIMessage, SessionUsage } from '@agent/index'
+import { useLongTask } from './useLongTask'
+import { getTask, deleteTask } from './longTaskStore'
+import type { LongTaskCheckpoint, LongTaskRecord } from './longTaskStore'
 import { getProjectManager, getFileStorageBackend } from '@worldsmith/entity-core/core'
 export type { ChatMode }
 
@@ -482,6 +485,45 @@ let currentPhaseLabel: string | null = null
 let phaseCounter = 0
 /** 追踪是否已有工具调用（用于区分中间输出和最终输出） */
 let hasToolCallsInCurrentTurn = false
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 任务 4 P1：长任务管理（心跳 + checkpoint + 协作式取消）
+// ─────────────────────────────────────────────────────────────────────────────
+const {
+  startTask: longTaskStart,
+  resumeActiveTask: longTaskResume,
+  checkpoint: longTaskCheckpoint,
+  completeTask: longTaskComplete,
+  cancelTask: longTaskCancel,
+  requestCancel: longTaskRequestCancel,
+  isCancelRequested: longTaskIsCancelRequested,
+  detectResumableTasks: longTaskDetectResumable,
+} = useLongTask()
+/** 当前活跃长任务 ID（running 时非空，终态时置 null） */
+let currentLongTaskId: string | null = null
+/** 长任务轮次计数器（turn_end 递增） */
+let longTaskTurnCounter = 0
+/** checkpoint 用：最近一条用户消息文本 */
+let lastUserTextForCheckpoint = ''
+/** checkpoint 用：当前技能名列表 */
+let currentSkillNamesForCheckpoint: string[] | undefined = undefined
+
+/**
+ * 构造长任务 checkpoint 快照（读取 pi-ai agent 内部 messages）
+ * 在 turn_end / tool_execution_end 事件触发时调用，持久化到 IndexedDB。
+ */
+function buildLongTaskCheckpoint(): LongTaskCheckpoint {
+  return {
+    agentMessages: backend.value?.getRuntimeMessages?.() ?? [],
+    lastUserText: lastUserTextForCheckpoint,
+    skillNames: currentSkillNamesForCheckpoint,
+    chatMode: activeChatMode.value,
+    lockedChatMode: lockedChatMode.value ?? undefined,
+  }
+}
+
+/** 可恢复的未完成任务列表（应用启动/初始化后检测，UI 显示横幅） */
+const resumableTasks = ref<LongTaskRecord[]>([])
 const toolCallNameMap = new Map<string, string>()
 /** 深度模式内联确认：等待用户确认的工具 Promise 解析器 */
 const pendingConfirmations = new Map<string, { resolve: (approved: boolean) => void; _resolved?: boolean; _approved?: boolean }>()
@@ -1210,6 +1252,10 @@ export function useAgent() {
         projectName: 'WorldSmith',
         availableFontFamilies: fontLibrary.entries.map(e => e.family),
         beforeToolCall: async ({ toolCall }) => {
+          // 任务 4 P1：协作式取消检查（等当前 tool call 完成后，block 下一个）
+          if (currentLongTaskId && longTaskIsCancelRequested(currentLongTaskId)) {
+            return { block: true, reason: '用户取消' }
+          }
           const toolName = toolCall.name
           const result = createPermissionGuard().check(toolName, toolCall.args)
 
@@ -1271,6 +1317,8 @@ export function useAgent() {
       // 创作编排面板通过 Agent Skill 执行步骤，不再需要旧的运行时桥接
 
       registerDefaultCommands()
+      // 任务 4 P2：初始化后检测可恢复的未完成任务（刷新/崩溃后）
+      detectAndOfferResume()
       return true
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
@@ -1432,6 +1480,16 @@ export function useAgent() {
         generateTitleIfNeeded()
         autoSaveSession()
         // Smart Fill 回复路由：如果当前会话由 Smart Fill 触发，将最终回复转发给小窗
+        // 任务 4 P1：长任务终结（正常完成 or 协作式取消）
+        if (currentLongTaskId) {
+          const tid = currentLongTaskId
+          currentLongTaskId = null
+          if (longTaskIsCancelRequested(tid)) {
+            longTaskCancel(tid).catch((e) => console.warn('[LongTask] cancel error:', e))
+          } else {
+            longTaskComplete(tid).catch((e) => console.warn('[LongTask] complete error:', e))
+          }
+        }
         break
       case 'turn_end':
         if (event.message && event.message.role !== 'user') {
@@ -1446,6 +1504,11 @@ export function useAgent() {
             messages.value.push(event.message)
             hasAssistantInCurrentRun = true
           }
+        }
+        // 任务 4 P1：checkpoint（每轮 assistant 回复结束，快照 pi-ai messages）
+        if (currentLongTaskId) {
+          longTaskTurnCounter++
+          longTaskCheckpoint(currentLongTaskId, { turnCount: longTaskTurnCounter })
         }
         break
       case 'message_start':
@@ -1584,6 +1647,10 @@ export function useAgent() {
         }
         addLog('tool', `调用工具: ${toolNameZh(event.toolCall.name)}`, JSON.stringify(event.toolCall.args))
         toolCallNameMap.set(event.toolCall.id, event.toolCall.name)
+        // 任务 4 P1：checkpoint（记录当前 tool 开始执行，更新 pi-ai messages 快照）
+        if (currentLongTaskId) {
+          longTaskCheckpoint(currentLongTaskId, { currentTool: event.toolCall.name })
+        }
         // 深度模式：将工具调用内嵌到阶段容器
         if (activeChatMode.value === 'deep') {
           hasToolCallsInCurrentTurn = true
@@ -1645,6 +1712,10 @@ export function useAgent() {
         }
         break
       case 'tool_execution_end':
+        // 任务 4 P1：checkpoint（tool 执行完成，pi-ai messages 已含 tool result）
+        if (currentLongTaskId) {
+          longTaskCheckpoint(currentLongTaskId)
+        }
         const tcEndTarget = findLastAssistant()
         if (tcEndTarget?.toolCalls) {
           const idx = tcEndTarget.toolCalls.findIndex(t => t.id === event.toolCallId)
@@ -1879,10 +1950,33 @@ export function useAgent() {
       const raw = localStorage.getItem('agent_settings')
       if (raw) { const s = JSON.parse(raw); if (s.personaPreset) personaPreset = s.personaPreset }
     } catch { }
+    // 任务 4 P1/P2：启动长任务（心跳 + checkpoint + 协作式取消）
+    // P2：若存在恢复的任务（currentLongTaskId 非空），复用 taskId 不启动新任务
+    lastUserTextForCheckpoint = text
+    currentSkillNamesForCheckpoint = skillNames
+    if (!currentLongTaskId) {
+      longTaskTurnCounter = 0
+      currentLongTaskId = longTaskStart({
+        type: 'main-agent',
+        prompt: text,
+        lastUserText: text,
+        skillNames,
+        chatMode: effectiveMode,
+        lockedChatMode: lockedChatMode.value ?? undefined,
+        getCheckpointData: buildLongTaskCheckpoint,
+      })
+    }
+
     await backend.value.prompt(text, { contextOverride: contextInjection, images, files, skillNames, personaPreset, chatMode: lockedChatMode.value })
   }
 
   async function abort(): Promise<void> {
+    // 任务 4 P1：协作式取消 — 设 flag（beforeToolCall 检查，等当前 tool call 完成）
+    const taskIdToCancel = currentLongTaskId
+    if (taskIdToCancel) {
+      longTaskRequestCancel(taskIdToCancel)
+    }
+
     // 清理所有等待中的内联确认（拒绝）
     for (const [id, pending] of pendingConfirmations) {
       pending.resolve(false)
@@ -1924,6 +2018,74 @@ export function useAgent() {
       useArchiveStore().restoreBoundary()
     } catch (err) {
       console.warn('[Agent] abort: 恢复归档边界失败:', err)
+    }
+
+    // 任务 4 P1：标记长任务已取消（backend.abort 不触发 agent_end，此处兜底）
+    if (taskIdToCancel) {
+      currentLongTaskId = null
+      longTaskCancel(taskIdToCancel).catch((e) => console.warn('[LongTask] cancel error:', e))
+    }
+  }
+
+  // 任务 4 P2：断点恢复 — 检测可恢复任务（刷新/崩溃后未终结的 running 任务）
+  async function detectAndOfferResume(): Promise<void> {
+    try {
+      const tasks = await longTaskDetectResumable()
+      resumableTasks.value = tasks
+      if (tasks.length > 0) {
+        console.log(`[LongTask] 检测到 ${tasks.length} 个可恢复任务`)
+      }
+    } catch (err) {
+      console.warn('[LongTask] detectAndOfferResume 失败:', err)
+    }
+  }
+
+  // 任务 4 P2：断点恢复 — 恢复指定任务（重建 agent + 写回 messages + 接管长任务）
+  async function resumeTask(taskId: string): Promise<void> {
+    try {
+      const task = await getTask(taskId)
+      if (!task) {
+        console.warn('[LongTask] resumeTask: 未找到任务', taskId)
+        resumableTasks.value = resumableTasks.value.filter(t => t.taskId !== taskId)
+        return
+      }
+      const ok = await ensureInitialized()
+      if (!ok || !backend.value) {
+        console.warn('[LongTask] resumeTask: agent 未初始化')
+        return
+      }
+      // 写回 pi-ai 内部 messages（断点恢复核心）
+      backend.value.setRuntimeMessages?.(task.checkpoint.agentMessages)
+      // 恢复 UI 上下文
+      lastUserTextForCheckpoint = task.checkpoint.lastUserText
+      currentSkillNamesForCheckpoint = task.checkpoint.skillNames
+      // 接管长任务（重启心跳 + 恢复 activeTask）
+      currentLongTaskId = task.taskId
+      longTaskResume(task, buildLongTaskCheckpoint)
+      // 从可恢复列表移除
+      resumableTasks.value = resumableTasks.value.filter(t => t.taskId !== taskId)
+      // UI 提示
+      messages.value.push({
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: `已恢复中断的任务（第 ${task.turnCount} 轮，已运行 ${Math.round((Date.now() - task.startedAt) / 1000)}s）。Agent 已加载历史上下文，请发送消息继续。`,
+        timestamp: Date.now(),
+      })
+      console.log(`[LongTask] 任务已恢复 ${taskId}`)
+    } catch (err) {
+      console.warn('[LongTask] resumeTask 失败:', err)
+    }
+  }
+
+  // 任务 4 P2：断点恢复 — 放弃指定任务（标记 cancelled + 清理 record）
+  async function discardTask(taskId: string): Promise<void> {
+    try {
+      await longTaskCancel(taskId)
+      await deleteTask(taskId)
+      resumableTasks.value = resumableTasks.value.filter(t => t.taskId !== taskId)
+      console.log(`[LongTask] 任务已放弃 ${taskId}`)
+    } catch (err) {
+      console.warn('[LongTask] discardTask 失败:', err)
     }
   }
 
@@ -2029,6 +2191,12 @@ export function useAgent() {
 
   async function newSession(): Promise<void> {
     await autoSaveSession()
+    // 任务 4 P1：清理未完成的长任务（会话切换导致中断）
+    if (currentLongTaskId) {
+      const tid = currentLongTaskId
+      currentLongTaskId = null
+      longTaskCancel(tid).catch((e) => console.warn('[LongTask] cancel error:', e))
+    }
     // 清理所有等待中的内联确认
     for (const [, pending] of pendingConfirmations) {
       pending.resolve(false)
@@ -2077,6 +2245,12 @@ export function useAgent() {
   async function switchSession(sessionId: string): Promise<void> {
     if (sessionId === currentSessionId.value) return
     await autoSaveSession()
+    // 任务 4 P1：清理未完成的长任务（会话切换导致中断）
+    if (currentLongTaskId) {
+      const tid = currentLongTaskId
+      currentLongTaskId = null
+      longTaskCancel(tid).catch((e) => console.warn('[LongTask] cancel error:', e))
+    }
     const session = await getSession(sessionId)
     if (!session) return
     if (backend.value) {
@@ -2239,6 +2413,11 @@ export function useAgent() {
     steer,
     sendBlockAction,
     abort,
+    // 任务 4 P2：断点恢复
+    resumableTasks,
+    resumeTask,
+    discardTask,
+    detectAndOfferResume,
     /**
      * H1.2 新增：清理 PI Agent 内部上下文消息
      *

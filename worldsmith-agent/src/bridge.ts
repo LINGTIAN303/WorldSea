@@ -762,6 +762,33 @@ export class CoreBackend implements IAgentBackend {
     console.log(`[Agent] trimContext: 移除前 ${upToIndex} 条内部消息，剩余 ${this.agent.state.messages.length} 条`)
   }
 
+  /**
+   * 任务 4 P1：获取 pi-ai agent 内部 messages（长任务 checkpoint 用）
+   *
+   * 返回 this.agent.state.messages（pi-ai 格式，含完整 tool call/result），
+   * 区别于 get state() 返回的 _state.messages（WorldSmith UI 快照）。
+   * 恢复时写回 newAgent.state.messages 即可从断点续跑 agent loop。
+   */
+  getRuntimeMessages(): unknown[] {
+    if (!this.agent?.state?.messages) return []
+    // 浅拷贝数组（messages 内部对象由 pi-ai 管理，checkpoint 序列化时深拷贝）
+    return [...this.agent.state.messages]
+  }
+
+  /**
+   * 任务 4 P2：写回 pi-ai agent 内部 messages（断点恢复用）
+   *
+   * 恢复时将 checkpoint 持久化的 messages 写回 agent.state.messages，
+   * agent 即可基于历史 messages 继续对话。
+   */
+  setRuntimeMessages(messages: unknown[]): void {
+    if (!this.agent) {
+      console.warn('[Agent] setRuntimeMessages: agent not initialized')
+      return
+    }
+    this.agent.state.messages = messages
+  }
+
   async updateModel(provider: string, modelId: string, baseUrl?: string, apiKey?: string, contextWindow?: number, maxTokens?: number, temperature?: number): Promise<void> {
     if (typeof provider !== 'string' || !provider) {
       console.error('[Agent] updateModel: provider is invalid:', typeof provider, provider)
