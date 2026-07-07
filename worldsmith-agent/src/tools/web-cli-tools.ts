@@ -1,4 +1,5 @@
 import type { ToolDefinition } from '../bridge-types'
+import type { ToolMeta } from '@worldsmith/agent-core'
 import { createExecutionAdapter } from '../execution'
 
 async function runCommand(command: string, timeout = 15000): Promise<string> {
@@ -19,6 +20,11 @@ function stripAnsi(text: string): string {
 const webSearchCliTool: ToolDefinition = {
   name: 'web_search_cli',
   description: '通过 CLI 执行 DuckDuckGo 搜索，无需 API Key。使用 ddgs（Python 库）或 ddgr 作为后端。适用于无法配置搜索 API Key 时获取互联网信息。',
+  meta: {
+    permission: 'moderate',
+    category: 'dev',
+    displayName: 'CLI 搜索',
+  } satisfies ToolMeta,
   parameters: {
     query: { type: 'string', description: '搜索关键词', required: true },
     max_results: { type: 'number', description: '返回结果数量，默认5，最大10' },
@@ -82,6 +88,11 @@ const webSearchCliTool: ToolDefinition = {
 const webFetchCliTool: ToolDefinition = {
   name: 'web_fetch_cli',
   description: '通过 curl 抓取网页内容，无需 API Key。支持 HTML/JSON/纯文本。返回网页原文内容。',
+  meta: {
+    permission: 'moderate',
+    category: 'dev',
+    displayName: 'CLI 网页抓取',
+  } satisfies ToolMeta,
   parameters: {
     url: { type: 'string', description: '要抓取的网页 URL', required: true },
     max_length: { type: 'number', description: '返回内容最大字符数，默认8000' },
@@ -128,6 +139,11 @@ const webFetchCliTool: ToolDefinition = {
 const webQaCliTool: ToolDefinition = {
   name: 'web_qa_cli',
   description: '通过 howdoi 从 Stack Overflow 等社区获取编程答案，无需 API Key。适用于快速查找代码片段、编程问题解决方案。',
+  meta: {
+    permission: 'moderate',
+    category: 'dev',
+    displayName: 'CLI 问答',
+  } satisfies ToolMeta,
   parameters: {
     question: { type: 'string', description: '编程问题，如 "how to read file in python"', required: true },
     num_answers: { type: 'number', description: '返回答案数量，默认1，最大3' },
@@ -163,6 +179,12 @@ const webQaCliTool: ToolDefinition = {
 const webDnsCliTool: ToolDefinition = {
   name: 'web_dns_cli',
   description: '通过 nslookup/dig 查询 DNS 记录，无需 API Key。用于域名解析、IP 查询。',
+  meta: {
+    permission: 'safe',
+    category: 'dev',
+    alwaysAvailable: true,
+    displayName: 'DNS 查询',
+  } satisfies ToolMeta,
   parameters: {
     domain: { type: 'string', description: '要查询的域名', required: true },
     record_type: { type: 'string', description: 'DNS 记录类型：A/AAAA/MX/CNAME/TXT/NS，默认 A' },
@@ -192,6 +214,12 @@ const webDnsCliTool: ToolDefinition = {
 const webPingCliTool: ToolDefinition = {
   name: 'web_ping_cli',
   description: '通过 ping 检测网络连通性和延迟，无需 API Key。',
+  meta: {
+    permission: 'safe',
+    category: 'dev',
+    alwaysAvailable: true,
+    displayName: 'Ping 检测',
+  } satisfies ToolMeta,
   parameters: {
     host: { type: 'string', description: '目标主机名或 IP 地址', required: true },
     count: { type: 'number', description: 'ping 次数，默认4，最大10' },

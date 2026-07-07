@@ -8,6 +8,7 @@
  */
 
 import type { ToolDefinition } from '../bridge-types'
+import type { ToolMeta } from '@worldsmith/agent-core'
 import { createExecutionAdapter } from '../execution'
 
 /** 通用命令执行器：创建终端适配器 → 执行命令 → 返回 stdout 或错误 */
@@ -29,6 +30,12 @@ const gitStatusTool: ToolDefinition = {
   parameters: {
     path: { type: 'string', description: '仓库路径，默认当前目录' },
   },
+  meta: {
+    permission: 'safe',
+    category: 'dev',
+    alwaysAvailable: true,
+    displayName: '查看状态',
+  } satisfies ToolMeta,
   execute: async (args, _ctx) => runCommand('git status', String(args.path || '.')),
 }
 
@@ -42,6 +49,12 @@ const gitLogTool: ToolDefinition = {
     author: { type: 'string', description: '按作者筛选' },
     branch: { type: 'string', description: '按分支筛选' },
   },
+  meta: {
+    permission: 'safe',
+    category: 'dev',
+    alwaysAvailable: true,
+    displayName: '查看日志',
+  } satisfies ToolMeta,
   execute: async (args, _ctx) => {
     const n = Number(args.count || 10)
     const author = args.author ? ` --author="${String(args.author).replace(/"/g, '\\"')}"` : ''
@@ -59,6 +72,12 @@ const gitDiffTool: ToolDefinition = {
     staged: { type: 'boolean', description: '查看暂存区差异（--staged）' },
     file: { type: 'string', description: '指定文件路径' },
   },
+  meta: {
+    permission: 'safe',
+    category: 'dev',
+    alwaysAvailable: true,
+    displayName: '查看差异',
+  } satisfies ToolMeta,
   execute: async (args, _ctx) => {
     const staged = args.staged ? ' --staged' : ''
     const file = args.file ? ` -- "${String(args.file).replace(/"/g, '\\"')}"` : ''
@@ -75,6 +94,11 @@ const gitCommitTool: ToolDefinition = {
     path: { type: 'string', description: '仓库路径' },
     addAll: { type: 'boolean', description: '是否添加所有变更（git add -A）' },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'dev',
+    displayName: 'Git 提交',
+  } satisfies ToolMeta,
   execute: async (args, _ctx) => {
     const msg = String(args.message).replace(/"/g, '\\"')
     const addCmd = args.addAll ? 'git add -A; ' : ''
@@ -91,6 +115,11 @@ const gitBranchTool: ToolDefinition = {
     name: { type: 'string', description: '分支名称（create/switch/merge 时必填）' },
     path: { type: 'string', description: '仓库路径' },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'dev',
+    displayName: 'Git 分支',
+  } satisfies ToolMeta,
   execute: async (args, _ctx) => {
     const action = String(args.action)
     const name = args.name ? String(args.name).replace(/"/g, '\\"') : ''

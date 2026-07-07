@@ -1,4 +1,5 @@
 import type { ToolDefinition } from '../bridge-types'
+import type { ToolMeta } from '@worldsmith/agent-core'
 import type { IToolContext } from '../toolbus/types'
 import { isTauri, createExecutionAdapter, getWsUrl, resetExecutionAdapter } from '../execution'
 
@@ -66,6 +67,12 @@ const detectTerminalModeTool: ToolDefinition = {
   name: 'detect_terminal_mode',
   description: '检测当前终端运行模式。返回当前是 Tauri 桌面模式还是 Web 应用模式，以及终端是否可用。在调用 launch_terminal 之前，建议先调用此工具确认模式和环境可用性。',
   parameters: {},
+  meta: {
+    permission: 'safe',
+    category: 'dev',
+    alwaysAvailable: true,
+    displayName: '检测终端模式',
+  } satisfies ToolMeta,
   execute: async (_args: Record<string, unknown>, _ctx: IToolContext): Promise<string> => {
     const tauriMode = isTauri()
     const adapter = await createExecutionAdapter()
@@ -111,6 +118,11 @@ const startServerTool: ToolDefinition = {
       description: '项目根目录路径（worldsmith-server 所在目录的父目录），用于定位 server 启动脚本',
     },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'dev',
+    displayName: '启动服务',
+  } satisfies ToolMeta,
   execute: async (args: Record<string, unknown>, _ctx: IToolContext): Promise<string> => {
     const wsUrl = getWsUrl()
 
@@ -251,6 +263,11 @@ const startServerTool: ToolDefinition = {
 const launchTerminalTool: ToolDefinition = {
   name: 'launch_terminal',
   description: '启动一个终端会话并执行命令。自动识别当前运行模式：Tauri 桌面模式使用本地 PTY，Web 应用模式通过 WebSocket 连接远程 PTY。支持指定 Shell 类型和注入环境变量。返回命令执行结果。',
+  meta: {
+    permission: 'moderate',
+    category: 'dev',
+    displayName: '启动终端',
+  } satisfies ToolMeta,
   parameters: {
     command: {
       type: 'string',
@@ -329,6 +346,11 @@ const launchTerminalTool: ToolDefinition = {
 const launchTerminalScriptTool: ToolDefinition = {
   name: 'launch_terminal_script',
   description: '通过脚本方式启动终端会话，执行多行脚本内容。自动识别当前运行模式：Tauri 桌面模式使用本地 PTY，Web 应用模式通过 WebSocket 连接远程 PTY。适用于需要执行多行脚本或复杂命令序列的场景。',
+  meta: {
+    permission: 'moderate',
+    category: 'dev',
+    displayName: '终端脚本',
+  } satisfies ToolMeta,
   parameters: {
     script: {
       type: 'string',

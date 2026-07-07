@@ -11,6 +11,7 @@
  */
 
 import type { ToolDefinition } from '../bridge-types'
+import type { ToolMeta } from '@worldsmith/agent-core'
 import { fetchWithJina, normalizeFormat } from './web-fetch'
 import { smartFetch } from '../utils/smart-fetch'
 
@@ -383,6 +384,11 @@ export const crawlTool: ToolDefinition = {
       required: false,
     },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'search',
+    displayName: '网页爬虫',
+  } satisfies ToolMeta,
   execute: async (args, _ctx) => {
     const urls = normalizeUrls(args)
     if (urls.length === 0) {

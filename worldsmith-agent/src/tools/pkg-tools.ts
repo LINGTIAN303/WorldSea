@@ -8,6 +8,7 @@
  */
 
 import type { ToolDefinition } from '../bridge-types'
+import type { ToolMeta } from '@worldsmith/agent-core'
 import { createExecutionAdapter } from '../execution'
 
 /** 通用命令执行器 */
@@ -42,6 +43,11 @@ const pkgInstallTool: ToolDefinition = {
     dev: { type: 'boolean', description: '是否作为开发依赖安装（npm/pip）' },
     manager: { type: 'string', description: '包管理器：npm/pip/cargo，默认自动检测' },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'dev',
+    displayName: '安装包',
+  } satisfies ToolMeta,
   execute: async (args, _ctx) => {
     const pkgs = String(args.packages).replace(/"/g, '\\"')
     const mgr = detectManager('.', String(args.manager || ''))
@@ -64,6 +70,11 @@ const pkgRunTool: ToolDefinition = {
     script: { type: 'string', description: '要运行的脚本名或命令', required: true },
     manager: { type: 'string', description: '包管理器：npm/cargo/pip，默认自动检测' },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'dev',
+    displayName: '运行脚本',
+  } satisfies ToolMeta,
   execute: async (args, _ctx) => {
     const script = String(args.script).replace(/"/g, '\\"')
     const mgr = detectManager('.', String(args.manager || ''))
@@ -85,6 +96,12 @@ const pkgInfoTool: ToolDefinition = {
     package: { type: 'string', description: '包名', required: true },
     manager: { type: 'string', description: '包管理器：npm/pip/cargo，默认自动检测' },
   },
+  meta: {
+    permission: 'safe',
+    category: 'dev',
+    alwaysAvailable: true,
+    displayName: '包信息',
+  } satisfies ToolMeta,
   execute: async (args, _ctx) => {
     const pkg = String(args.package).replace(/"/g, '\\"')
     const mgr = detectManager('.', String(args.manager || ''))

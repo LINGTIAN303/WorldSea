@@ -8,6 +8,7 @@
  */
 
 import type { ToolDefinition } from '../bridge-types'
+import type { ToolMeta } from '@worldsmith/agent-core'
 import { createExecutionAdapter } from '../execution'
 
 /** 通用命令执行器 */
@@ -29,6 +30,12 @@ const sysInfoTool: ToolDefinition = {
   parameters: {
     category: { type: 'string', description: '信息类别：os/env/runtime，默认 os' },
   },
+  meta: {
+    permission: 'safe',
+    category: 'dev',
+    alwaysAvailable: true,
+    displayName: '系统信息',
+  } satisfies ToolMeta,
   execute: async (args, _ctx) => {
     const cat = String(args.category || 'os')
     switch (cat) {
@@ -46,6 +53,12 @@ const sysProcessesTool: ToolDefinition = {
   parameters: {
     filter: { type: 'string', description: '进程名筛选关键词' },
   },
+  meta: {
+    permission: 'safe',
+    category: 'dev',
+    alwaysAvailable: true,
+    displayName: '进程列表',
+  } satisfies ToolMeta,
   execute: async (args, _ctx) => {
     const filter = args.filter ? ` | Where-Object { $_.ProcessName -like "*${String(args.filter).replace(/"/g, '')}*" }` : ''
     return runCommand(`Get-Process${filter} | Select-Object -First 30 Id, ProcessName, CPU, WorkingSet64, StartTime | Format-Table -AutoSize`)
@@ -59,6 +72,12 @@ const sysDiskTool: ToolDefinition = {
   parameters: {
     path: { type: 'string', description: '指定路径的磁盘，默认所有磁盘' },
   },
+  meta: {
+    permission: 'safe',
+    category: 'dev',
+    alwaysAvailable: true,
+    displayName: '磁盘信息',
+  } satisfies ToolMeta,
   execute: async (args, _ctx) => {
     if (args.path) {
       const p = String(args.path).replace(/"/g, '\\"')
