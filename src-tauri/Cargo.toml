@@ -38,3 +38,7 @@ notify = { version = "6", features = ["macos_kqueue"] }
 reqwest = { version = "0.12", features = ["blocking", "rustls-tls"], default-features = false }
 zip = "2"
 sha2 = "0.10"
+
+[dev-dependencies]
+# 仅用于 skills_store 单元测试的临时目录（不进入生产二进制）
+tempfile = "3"

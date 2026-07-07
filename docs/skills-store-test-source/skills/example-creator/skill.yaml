@@ -1,0 +1,22 @@
+id: example-creator
+name: 角色创建助手
+icon: person-add
+description: 辅助快速创建角色实体，提供命名灵感、背景生成与属性平衡建议。适合需要批量生成 NPC 或主角的场景。
+category: domain
+version: 1.0.0
+enabled: true
+priority: 6
+autoActivate: false
+baseTools:
+  - entity_list
+  - entity_get
+allowedTools:
+  - entity_create
+  - entity_update
+triggers:
+  - 创建角色
+  - 生成NPC
+  - 命名
+tags:
+  - 角色
+  - 创作

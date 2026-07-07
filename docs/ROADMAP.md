@@ -188,10 +188,10 @@
 
 ### 24. Skills 商城
 - **简述**：实现 Skills 商城（Agent 技能的分发/安装）
-- **涉及模块**：`@worldsmith/agent-core`、`worldsmith-agent/`、`src/agent/`、`src-tauri/src/lib.rs`、待定的商城后端
-- **状态**：🚧 进行中（阶段1 动态加载基础设施完成，2026-07-07）
+- **涉及模块**：`@worldsmith/agent-core`、`worldsmith-agent/`、`src/agent/`、`src-tauri/src/lib.rs`、`src-tauri/src/skills_store.rs`、`docs/skills-store-spec.md`、待定的商城后端
+- **状态**：🚧 进行中（阶段1 动态加载 + 阶段2 安装机制完成，2026-07-07）
 - **优先级**：—
-- **备注**：依赖任务 3（Agent 技能工具更新）的 Skills 体系完善。阶段1（动态加载基础设施）已完成：lib.rs 新增 cmd_skills_get_dir（获取 app_data_dir/skills 路径，复用现有 cmd_fs_read/cmd_fs_list）；新增 manifest.ts（扫描已安装技能 + 极简 YAML/frontmatter 解析 → SkillMeta，emoji 图标清洗）；registry.ts 新增 _installedSkills + initSkillRegistry()（合并内置+已安装，内置优先去重），查询函数统一切到 getAllRegisteredSkills() 合并视图，SKILL_REGISTRY 保持 const 不动；loader.ts 扩展 loadSkillPrompt/loadSkillReference/loadSkillAsset 支持 fs 加载分支（保留 import.meta.glob 处理内置）；agent.ts createWorldSmithAgent 前 await initSkillRegistry()。非 Tauri 环境安全降级（零回归）。待后续：阶段2 Skills Store UI（浏览/安装/卸载）+ Git 仓库源 + 精选审核市场
+- **备注**：依赖任务 3（Agent 技能工具更新）的 Skills 体系完善。阶段1（动态加载基础设施）已完成：lib.rs cmd_skills_get_dir；manifest.ts 扫描+解析；registry.ts initSkillRegistry 合并视图；loader.ts fs 加载分支；agent.ts 接入。阶段2（安装机制）已完成：Rust skills_store.rs 实现 cmd_skills_download_manifest/cmd_skills_install（reqwest下载+sha256校验+zip解压+zip slip防护）/cmd_skills_uninstall/cmd_skills_get_installed_versions；Cargo.toml 新增 reqwest(blocking+rustls)+zip+sha2；前端 skills-store.ts 封装 invoke + installSkillAndReload/uninstallSkillAndReload（安装后自动重扫）+ checkUpdates；规范文档 skills-store-spec.md 定义 manifest schema/安装流程/安全模型。待后续：阶段3 前端商城 UI（浏览/搜索/安装/卸载/更新）+ 技能源仓库搭建（skills-manifest.json + 精选技能）+ 多源配置 + 阶段4 多平台互通
 
 ### 25. MCP 商城
 - **简述**：实现 MCP 商城（MCP server 的分发/安装）

@@ -1,0 +1,18 @@
+{
+  "name": "WorldSmith 测试技能集",
+  "version": "1.0.0",
+  "updated": "2026-07-07",
+  "skills": [
+    {
+      "id": "example-creator",
+      "name": "角色创建助手",
+      "description": "辅助快速创建角色实体，提供命名灵感、背景生成与属性平衡建议。适合需要批量生成 NPC 或主角的场景。",
+      "version": "1.0.0",
+      "author": "WorldSmith",
+      "homepage": "https://github.com/LINGTIAN303/WorldSmith",
+      "downloadUrl": "https://example.com/example-creator.zip",
+      "pathInArchive": "example-creator",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ]
+}

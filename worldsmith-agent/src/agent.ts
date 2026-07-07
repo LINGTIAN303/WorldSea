@@ -255,7 +255,7 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
   { id: 'plugin', label: '插件系统', tools: [...pluginTools, ...moduleBuilderTools, ...PLUGIN_BACKEND_TOOLS] },
   { id: 'orchestrator', label: '编排与流水线', tools: [...orchestratorTools, ...pipelineTools] },
   { id: 'vision', label: '视觉与生成', tools: [...visionTools, ...imageGenTools, ...videoGenTools] },
-  { id: 'plan', label: '规划与知识', tools: [...planTools, ...kbTools] },
+  { id: 'plan', label: '规划与知识', tools: [...planTools, ...kbTools, ...taskTools] },
   { id: 'persona', label: '人格与任务', tools: [...personaTools, ...dailyTaskTools] },
   { id: 'session', label: '会话管理', tools: [...sessionTools, manuscriptClone] },
   { id: 'coding-agent', label: '编码 Agent', tools: [...codingAgentTools] },
