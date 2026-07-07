@@ -31,7 +31,12 @@
       <template v-else>
         <div class="user-identity" ref="userIdentityRef">
           <div class="user-avatar" @click.stop="toggleUserProfilePopover">
-            <span class="user-avatar-letter">{{ userProfileStore.profile.nickname.charAt(0) }}</span>
+            <AvatarBadge
+              :avatar="userProfileStore.profile.avatar"
+              :name="userProfileStore.profile.nickname"
+              color="linear-gradient(135deg, #10b981, #34d399)"
+              :size="32"
+            />
             <span class="user-status-dot" :style="{ background: userProfileStore.statusColor }"></span>
           </div>
           <div class="user-info">
