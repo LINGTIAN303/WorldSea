@@ -1,0 +1,433 @@
+<template>
+  <div class="skills-store">
+    <!-- 非 Tauri 环境提示 -->
+    <div v-if="!store.isTauri" class="store-hint">
+      <WsIcon name="globe" size="xs" /> 商城功能仅在桌面端可用（需 Tauri 运行时）
+    </div>
+
+    <template v-else>
+      <!-- 技能源配置区 -->
+      <div class="store-section">
+        <button class="store-section-toggle" @click="sourcePanelOpen = !sourcePanelOpen">
+          <WsIcon :name="sourcePanelOpen ? 'grip' : 'star'" size="xs" />
+          技能源配置
+          <span class="store-section-count">{{ store.skillSources.value.length }}</span>
+        </button>
+        <Transition name="ws-slide-up">
+          <div v-if="sourcePanelOpen" class="store-source-list">
+            <div v-for="(src, idx) in store.skillSources.value" :key="idx" class="store-source-item" :class="{ disabled: !src.enabled }">
+              <button class="source-toggle" @click="store.toggleSource(idx)" :title="src.enabled ? '点击禁用' : '点击启用'">
+                <WsIcon :name="src.enabled ? 'check' : 'close'" size="xs" />
+              </button>
+              <div class="source-info">
+                <span class="source-name">{{ src.name }}</span>
+                <span class="source-url">{{ src.manifestUrl }}</span>
+              </div>
+              <button class="source-delete-btn" @click="store.removeSource(idx)" title="删除"><WsIcon name="delete" size="xs" /></button>
+            </div>
+            <div v-if="sourceAdding" class="store-source-form">
+              <div class="settings-row">
+                <span class="sp-row-label">名称</span>
+                <input type="text" class="settings-input" v-model="sourceForm.name" placeholder="官方精选技能集" aria-label="技能源名称" />
+              </div>
+              <div class="settings-row">
+                <span class="sp-row-label">URL</span>
+                <input type="text" class="settings-input" v-model="sourceForm.url" placeholder="https://raw.githubusercontent.com/.../skills-manifest.json" aria-label="技能源 manifest URL" />
+              </div>
+              <div class="store-source-actions">
+                <button class="sub-panel-btn" @click="confirmAddSource">确认</button>
+                <button class="sub-panel-btn" @click="sourceAdding = false">取消</button>
+              </div>
+            </div>
+            <button v-else class="sub-panel-btn" @click="sourceAdding = true" style="width:100%">+ 添加技能源</button>
+          </div>
+        </Transition>
+      </div>
+
+      <!-- 商城浏览区 -->
+      <div class="store-section">
+        <div class="store-browse-header">
+          <button class="store-section-toggle" @click="refreshStore" :disabled="store.loading.value">
+            <WsIcon name="search" size="xs" />
+            {{ store.loading.value ? '加载中...' : '刷新商城' }}
+          </button>
+          <input
+            v-model="searchQuery"
+            type="text"
+            class="settings-input store-search"
+            placeholder="搜索技能..."
+            aria-label="搜索技能"
+          />
+        </div>
+
+        <div v-if="store.error.value" class="store-error">{{ store.error.value }}</div>
+
+        <div v-if="filteredSkills.length === 0 && !store.loading.value" class="store-empty">
+          <template v-if="store.remoteSkills.value.length === 0">
+            暂无可用技能，请添加技能源并刷新
+          </template>
+          <template v-else>
+            未找到匹配的技能
+          </template>
+        </div>
+
+        <div class="store-skill-grid">
+          <div v-for="skill in filteredSkills" :key="skill.id" class="store-skill-card">
+            <div class="store-skill-header">
+              <span class="store-skill-name">{{ skill.name }}</span>
+              <span class="store-skill-version">v{{ skill.version }}</span>
+            </div>
+            <div class="store-skill-desc">{{ skill.description || '暂无描述' }}</div>
+            <div class="store-skill-meta">
+              <span v-if="skill.author" class="store-skill-author"><WsIcon name="star" size="xs" /> {{ skill.author }}</span>
+              <span v-if="store.isInstalled(skill.id)" class="store-skill-installed-tag">
+                已安装 v{{ store.installedVersionMap.value.get(skill.id) }}
+              </span>
+            </div>
+            <div class="store-skill-actions">
+              <!-- 未安装：安装按钮 -->
+              <button
+                v-if="!store.isInstalled(skill.id)"
+                class="sub-panel-btn store-action-btn"
+                :disabled="store.installing.value === skill.id"
+                @click="onInstall(skill)"
+              >
+                <WsIcon name="check" size="xs" />
+                {{ store.installing.value === skill.id ? '安装中...' : '安装' }}
+              </button>
+              <!-- 已安装但有更新：更新按钮 -->
+              <button
+                v-else-if="store.hasUpdate(skill)"
+                class="sub-panel-btn store-action-btn store-update-btn"
+                :disabled="store.installing.value === skill.id"
+                @click="onInstall(skill)"
+              >
+                <WsIcon name="timeline" size="xs" />
+                {{ store.installing.value === skill.id ? '更新中...' : '更新' }}
+              </button>
+              <!-- 已安装最新：卸载按钮 -->
+              <button
+                v-else
+                class="sub-panel-btn store-action-btn store-uninstall-btn"
+                :disabled="store.installing.value === skill.id"
+                @click="onUninstall(skill.id)"
+              >
+                <WsIcon name="delete" size="xs" />
+                {{ store.installing.value === skill.id ? '卸载中...' : '卸载' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </template>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, onMounted } from 'vue'
+import { useSkillsStore } from '../composables/useSkillsStore'
+import type { RemoteSkillEntry } from '@agent/index'
+
+const emit = defineEmits<{ 'skills-changed': [] }>()
+
+const store = useSkillsStore()
+
+const sourcePanelOpen = ref(false)
+const sourceAdding = ref(false)
+const sourceForm = ref({ name: '', url: '' })
+const searchQuery = ref('')
+
+/** 搜索过滤后的远程技能列表 */
+const filteredSkills = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return store.remoteSkills.value
+  return store.remoteSkills.value.filter(s =>
+    s.name.toLowerCase().includes(q) ||
+    s.id.toLowerCase().includes(q) ||
+    (s.description || '').toLowerCase().includes(q),
+  )
+})
+
+/** 确认添加技能源 */
+function confirmAddSource(): void {
+  if (sourceForm.value.name.trim() && sourceForm.value.url.trim()) {
+    store.addSource(sourceForm.value.name, sourceForm.value.url)
+    sourceForm.value = { name: '', url: '' }
+    sourceAdding.value = false
+  }
+}
+
+/** 刷新商城（远程 + 已安装） */
+async function refreshStore(): Promise<void> {
+  await Promise.all([store.refreshRemote(), store.refreshInstalled()])
+}
+
+/** 安装/更新技能，完成后通知父组件刷新技能列表 */
+async function onInstall(skill: RemoteSkillEntry): Promise<void> {
+  const ok = await store.installSkill(skill)
+  if (ok) emit('skills-changed')
+}
+
+/** 卸载技能，完成后通知父组件刷新技能列表 */
+async function onUninstall(skillId: string): Promise<void> {
+  const ok = await store.uninstallSkill(skillId)
+  if (ok) emit('skills-changed')
+}
+
+onMounted(() => {
+  // 桌面端自动加载已安装版本（不自动刷新远程，避免无源时无效请求）
+  if (store.isTauri) {
+    store.refreshInstalled()
+  }
+})
+</script>
+
+<style scoped>
+.skills-store {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+}
+
+.store-hint {
+  padding: 10px 12px;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
+  background: var(--color-surface);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.store-section {
+  margin-bottom: 14px;
+}
+
+.store-section-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+}
+.store-section-toggle:hover {
+  background: var(--color-surface-hover);
+}
+.store-section-toggle:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.store-section-count {
+  margin-left: auto;
+  padding: 1px 8px;
+  background: var(--color-primary);
+  color: #fff;
+  border-radius: 10px;
+  font-size: var(--font-size-xs);
+}
+
+.store-source-list {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.store-source-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-bg);
+}
+.store-source-item.disabled {
+  opacity: 0.5;
+}
+
+.source-toggle {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-secondary);
+}
+.source-toggle:hover {
+  background: var(--color-surface);
+}
+
+.source-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.source-name {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+}
+.source-url {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.source-delete-btn {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-tertiary);
+}
+.source-delete-btn:hover {
+  background: var(--color-surface);
+  color: var(--color-error);
+}
+
+.store-source-form {
+  padding: 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+}
+
+.store-source-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.store-browse-header {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.store-browse-header .store-section-toggle {
+  width: auto;
+  flex-shrink: 0;
+}
+.store-search {
+  flex: 1;
+  min-width: 0;
+}
+
+.store-error {
+  padding: 8px 10px;
+  font-size: var(--font-size-sm);
+  color: var(--color-error);
+  background: var(--color-surface);
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+.store-empty {
+  padding: 16px;
+  text-align: center;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
+}
+
+.store-skill-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.store-skill-card {
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-bg);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.store-skill-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.store-skill-name {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+.store-skill-version {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+  padding: 1px 6px;
+  background: var(--color-surface);
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.store-skill-desc {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+.store-skill-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+}
+.store-skill-meta span {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.store-skill-installed-tag {
+  color: var(--color-success);
+}
+
+.store-skill-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 2px;
+}
+.store-action-btn {
+  flex: 1;
+  justify-content: center;
+}
+.store-update-btn {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+}
+.store-uninstall-btn {
+  color: var(--color-text-tertiary);
+}
+.store-uninstall-btn:hover {
+  color: var(--color-error);
+  border-color: var(--color-error);
+}
+</style>

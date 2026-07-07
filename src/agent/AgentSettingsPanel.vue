@@ -515,6 +515,7 @@
                 </button>
               </div>
             </div>
+            <SkillsStorePanel @skills-changed="emit('skills-changed')" />
           </div>
           <div v-else-if="settingsSubPanel === 'mcp'" key="mcp" class="sub-panel">
             <div class="mcp-list">
@@ -691,6 +692,7 @@ import { isTauri as detectTauri, getWsUrl, resetExecutionAdapter, createExecutio
 import { getProviderIconUrl } from '../assets/providerIcons'
 import { getAllProviderManifests, getProviderLabelMap } from '@agent/providers/provider-registry'
 import { useCliAgent } from './composables/useCliAgent'
+import SkillsStorePanel from './SkillsStorePanel.vue'
 
 const settingsStore = useSettingsStore()
 
@@ -979,6 +981,7 @@ const emit = defineEmits<{
   'search-engine-change': [engine: string]
   'search-apikey-change': [key: string]
   'toggle-skill': [skillId: string]
+  'skills-changed': []
   'toggle-mcp': [serverId: string]
   'add-mcp': [config: any]
   'remove-mcp': [serverId: string]

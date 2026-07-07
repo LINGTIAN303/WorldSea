@@ -248,6 +248,11 @@ function onToggleSkill(skillId: string): void {
   skills.value = getAllSkills()
 }
 
+/** 技能商城安装/卸载后刷新技能列表 */
+function onSkillsChanged(): void {
+  skills.value = getAllSkills()
+}
+
 async function onAddMcp(config: MCPConnectionConfig): Promise<void> {
   try {
     await addConnection(config)

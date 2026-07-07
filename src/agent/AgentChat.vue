@@ -176,6 +176,7 @@
     @search-engine-change="onSearchEngineChange"
     @search-apikey-change="onSearchApiKeyChange"
     @toggle-skill="onToggleSkill"
+    @skills-changed="onSkillsChanged"
     @toggle-mcp="onToggleMcp"
     @add-mcp="onAddMcp"
     @remove-mcp="onRemoveMcp"
@@ -853,6 +854,11 @@ async function onProviderChange(provider: string, modelId: string): Promise<void
 
 function onToggleSkill(skillId: string): void {
   toggleSkill(skillId)
+  skills.value = getAllSkills()
+}
+
+/** 技能商城安装/卸载后刷新技能列表 */
+function onSkillsChanged(): void {
   skills.value = getAllSkills()
 }
 
