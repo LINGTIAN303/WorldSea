@@ -18,7 +18,7 @@ export function useMoodboardInteraction(
   hitTest: (wx: number, wy: number) => CardData | null,
   getCamera: () => MoodboardCamera,
   setCamera: (c: MoodboardCamera) => void,
-  markDirty: () => void,
+  _markDirty: () => void,
 ) {
   let isPanning = false
   let isDragging = false

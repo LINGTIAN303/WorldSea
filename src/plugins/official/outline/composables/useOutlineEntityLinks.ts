@@ -1,6 +1,6 @@
 import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'
 import { getNodeTypeInfo } from '@worldsmith/entity-core'
-import type { Entity, Relation } from '@worldsmith/entity-core'
+import type { Relation } from '@worldsmith/entity-core'
 
 export interface EntityLinkBadge {
   type: string

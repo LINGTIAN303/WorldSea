@@ -1,7 +1,6 @@
 import { ref } from 'vue'
 import { useEntityStore } from '../stores/entityStore'
 import { useRelationStore } from '../stores/relationStore'
-import { storage } from '../core/StorageBackend'
 import type { EntityTemplate, WorldTemplate } from '../types/template'
 import type { Entity } from '../types/entity'
 import type { Relation } from '../types/relation'

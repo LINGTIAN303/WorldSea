@@ -1,4 +1,4 @@
-import { ref, readonly, onScopeDispose, getCurrentScope } from 'vue'
+import { ref, readonly } from 'vue'
 import {
   captureFromCanvas,
   type CaptureFrame,
@@ -39,21 +39,13 @@ export function useAnimationCapture(): UseAnimationCaptureReturn {
   const capturing = ref(false)
   const progress = ref(0)
   const frameCount = ref(0)
-  let _cancelled = false
   let _lastResult: CaptureResult | null = null
-
-  if (getCurrentScope()) {
-    onScopeDispose(() => {
-      _cancelled = true
-    })
-  }
 
   function capture(
     source: HTMLCanvasElement,
     renderFrame: (ctx: CanvasRenderingContext2D, progress: number, frameIndex: number) => void,
     options?: CaptureOptions,
   ): CaptureResult {
-    _cancelled = false
     capturing.value = true
     progress.value = 0
     frameCount.value = 0
@@ -94,7 +86,6 @@ export function useAnimationCapture(): UseAnimationCaptureReturn {
   }
 
   function stop() {
-    _cancelled = true
     capturing.value = false
   }
 

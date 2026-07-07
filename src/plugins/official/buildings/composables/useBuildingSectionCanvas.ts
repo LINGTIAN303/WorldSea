@@ -120,7 +120,7 @@ function drawMiniBuilding(
 function drawExpandedBuilding(
   ctx: CanvasRenderingContext2D,
   node: BuildingNode,
-  isHovered: boolean,
+  _isHovered: boolean,
 ): void {
   const floors = parseFloors(node.interior, node.floors)
   const totalH = Math.max(floors.length * FLOOR_H + 40, 120)

@@ -1,5 +1,4 @@
 import type { FormFieldDef } from '@worldsmith/ui-kit'
-import { getRelationLabel } from '@worldsmith/entity-core'
 
 export const regionFields: FormFieldDef[] = [
   { key: 'name', label: '名称', type: 'text', required: true, placeholder: '区域名称' },

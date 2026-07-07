@@ -1,6 +1,6 @@
 import { computed, ref, type ComputedRef } from 'vue'
 import type { Entity } from '@worldsmith/entity-core'
-import { parseDate, compareDates, parseDateRange, type ParsedDate } from './useDateParser'
+import { compareDates, parseDateRange, type ParsedDate } from './useDateParser'
 
 export type SortMode = 'tree' | 'chrono'
 

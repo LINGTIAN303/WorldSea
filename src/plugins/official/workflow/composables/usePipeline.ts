@@ -7,8 +7,6 @@ import type {
   StepConnection,
   PipelineStatus,
   PipelineSummary,
-  StepType,
-  StepConfig,
 } from '../types'
 
 const PIPELINE_TYPE = 'pipeline'

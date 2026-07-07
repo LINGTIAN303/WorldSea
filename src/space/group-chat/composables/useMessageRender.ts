@@ -1,4 +1,4 @@
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import { Marked } from 'marked'
 import DOMPurify from 'dompurify'
 

@@ -9,8 +9,7 @@
  * - 插件激活/停用只影响数据可见性，不影响关系定义
  */
 
-import type { FieldSchema } from '../types'
-import type { RelationTypeSchema, RelationTypeSchemaV2 } from '../types/relation'
+import type { RelationTypeSchemaV2 } from '../types/relation'
 import { relationSchemaRegistry } from './RelationSchema'
 
 // ─────────────────────────────────────────────

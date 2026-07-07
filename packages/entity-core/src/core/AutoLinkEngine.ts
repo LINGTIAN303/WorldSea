@@ -535,8 +535,8 @@ async function resolveUnmappedFields(
  */
 export async function refreshLinksForTarget(
   targetEntityId: string,
-  targetEntityType: string,
-  targetProperties: Record<string, unknown>,
+  _targetEntityType: string,
+  _targetProperties: Record<string, unknown>,
 ): Promise<void> {
   // 收集所有引用该目标实体的未解决链接
   const staleLinks = potentialLinkIndex.getAll()

@@ -17,8 +17,6 @@ export interface GifEncodeOptions {
   transparentIndex?: number
 }
 
-const EMPTY = new Uint8Array(0) // reserved for future sub-block optimization
-
 class ByteWriter {
   private buf: number[] = []
   writeByte(b: number) { this.buf.push(b & 0xff) }
@@ -32,7 +30,6 @@ class LzwEncoder {
   private buf: number[] = []
   private remaining = 0
   private curByte = 0
-  private bits = 0
   private codeSize = 0
   private nextCode = 0
   private maxCode = 0
@@ -41,7 +38,6 @@ class LzwEncoder {
   encode(pixels: Uint8ClampedArray, colorDepth: number): Uint8Array {
     const minCodeSize = Math.max(2, colorDepth)
     this.buf = []
-    this.bits = 0
     this.curByte = 0
     this.remaining = 0
     this.codeSize = minCodeSize + 1

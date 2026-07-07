@@ -37,10 +37,13 @@ export class DefaultToolBus implements ToolBus {
   private mcp = new Map<string, Map<string, ToolDefinition>>()
   private metaTools: ToolDefinition[] = []
 
-  constructor(
-    private toolRegistry: ToolRegistry,
-    private skillRegistry: SkillRegistry,
-  ) {}
+  private toolRegistry: ToolRegistry
+  private skillRegistry: SkillRegistry
+
+  constructor(toolRegistry: ToolRegistry, skillRegistry: SkillRegistry) {
+    this.toolRegistry = toolRegistry
+    this.skillRegistry = skillRegistry
+  }
 
   register(tool: ToolDefinition): void {
     this.toolRegistry.register(tool)

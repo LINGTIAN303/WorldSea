@@ -6,7 +6,7 @@ import { entitySchemaRegistry } from './EntitySchema'
 import { relationSchemaRegistry } from './RelationSchema'
 import { fieldRegistry } from './FieldRegistry'
 import { storage } from './StorageBackend'
-import { traitRegistry, facetRegistry, entitySchemaRegistryV2, compileEntitySchema } from './TraitRuntime'
+import { facetRegistry, entitySchemaRegistryV2, compileEntitySchema } from './TraitRuntime'
 import { relationshipRegistry } from './RelationshipRegistry'
 
 export interface NodeTypeDefinition {

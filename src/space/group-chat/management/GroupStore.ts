@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { GroupInfo, GroupMember, GroupChatMode } from '../types'
+import type { GroupChatMode } from '../types'
 
 export interface GroupListItem {
   id: string

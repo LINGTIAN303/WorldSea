@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import type { MCPConnectionConfig, MCPConnectionState } from '@agent/index'
+import type { MCPConnectionConfig } from '@agent/index'
 import { useAgent } from './useAgent'
 
 const STORAGE_KEY = 'agent_mcp_connections'

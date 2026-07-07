@@ -27,8 +27,7 @@
  */
 
 import { getProjectManager } from '@worldsmith/entity-core/core'
-import { useEntityStore, useRelationStore, useFileStore } from '@worldsmith/entity-core/stores'
-import { usePluginStore } from '@worldsmith/entity-core/stores'
+import { useEntityStore, useRelationStore } from '@worldsmith/entity-core/stores'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { moduleStore } from '@/modules/store'
 import { createBatchIpc } from '@worldsmith/perf-kit/io'

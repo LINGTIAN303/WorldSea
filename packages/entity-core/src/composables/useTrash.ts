@@ -1,4 +1,4 @@
-import { useTrashStore, type TrashItem } from '../stores/trashStore'
+import { useTrashStore } from '../stores/trashStore'
 import { useEntityStore } from '../stores/entityStore'
 import { useRelationStore } from '../stores/relationStore'
 import { storage } from '../core/StorageBackend'

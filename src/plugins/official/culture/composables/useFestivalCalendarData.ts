@@ -99,7 +99,6 @@ export function monthToAngle(month: number): number {
 
 export function useFestivalCalendarData() {
   const es = useEntityStore()
-  const rs = useRelationStore()
 
   const cultureEntities = computed(() =>
     (es.entities ?? []).filter(e => e.type === 'culture')

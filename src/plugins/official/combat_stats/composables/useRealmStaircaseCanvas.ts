@@ -5,7 +5,6 @@ import {
   hexToRgba,
   type TreeEdgeBase,
   type NodeState,
-  type TreeNodeBase,
 } from '@worldsmith/canvas-engine/tree'
 import type { RealmStep } from './useRealmStaircaseData'
 import { getRadarValues, RADAR_DIMS } from './useRealmStaircaseData'

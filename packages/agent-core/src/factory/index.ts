@@ -11,11 +11,6 @@ import type {
   ToolDefinition,
   IToolContext,
   ProviderConfig,
-  PromptOptions,
-  ThinkingLevel,
-  AgentEvent,
-  AgentEventListener,
-  ChatMode,
 } from '../types'
 import type { ToolBus } from '../bus'
 import type { PermissionGuard } from '../guard'
@@ -48,7 +43,7 @@ export interface CreateAgentOptions {
  * 实际的 pi-agent-core 集成由消费方（worldsmith-agent）的 CoreBackend 实现，
  * 此处仅定义契约和辅助逻辑。
  */
-export async function createAgent(options: CreateAgentOptions): Promise<IAgentBackend> {
+export async function createAgent(_options: CreateAgentOptions): Promise<IAgentBackend> {
   // Agent 实例的实际创建由消费方完成（需要 pi-agent-core 依赖）
   // 此处抛出错误提示消费方使用自己的工厂函数
   throw new Error(

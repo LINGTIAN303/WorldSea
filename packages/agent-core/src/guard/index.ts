@@ -10,7 +10,7 @@
  *   // → 'dangerous'
  */
 
-import type { PermissionLevel, ToolMeta, ToolDefinition } from '../types'
+import type { PermissionLevel, ToolMeta } from '../types'
 
 export interface PermissionGuardConfig {
   /** 是否开启安全确认模式（MODERATE 级别需确认） */
@@ -60,11 +60,13 @@ const DEFAULT_DANGEROUS_PATTERNS: RegExp[] = [
 
 export class PermissionGuard {
   private config: PermissionGuardConfig
+  private getToolMeta: (toolName: string) => ToolMeta | undefined
 
   constructor(
-    private getToolMeta: (toolName: string) => ToolMeta | undefined,
+    getToolMeta: (toolName: string) => ToolMeta | undefined,
     config?: Partial<PermissionGuardConfig>,
   ) {
+    this.getToolMeta = getToolMeta
     this.config = {
       confirmModerate: config?.confirmModerate ?? true,
       confirmDangerous: config?.confirmDangerous ?? true,
@@ -149,7 +151,7 @@ export class PermissionGuard {
    *
    * 替代 useAgent.ts 中的 SAFE_TOOLS / MODERATE_TOOLS / DANGEROUS_TOOLS 硬编码列表。
    */
-  getToolsByPermission(level: PermissionLevel): string[] {
+  getToolsByPermission(_level: PermissionLevel): string[] {
     // 此方法需要 ToolRegistry 配合，这里仅声明接口
     // 实际实现由 ToolRegistry.getToolsByPermission 提供
     return []

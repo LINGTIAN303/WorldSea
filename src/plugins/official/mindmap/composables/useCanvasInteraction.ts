@@ -1,4 +1,4 @@
-import { ref, onMounted, onBeforeUnmount, type Ref } from 'vue'
+import { ref, onBeforeUnmount, type Ref } from 'vue'
 import type { CanvasNode, CanvasEdge, CameraState } from './canvasTypes'
 
 export interface CanvasInteractionCallbacks {

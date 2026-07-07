@@ -1,6 +1,6 @@
 import { DEFAULT_CLOUD_CONFIGS } from '@agent/index'
-import { getProviderLabelMap, getProviderManifest, detectVisionSupport } from '@agent/providers/provider-registry'
-import { getCachedModels, getModelsWithBackgroundRefresh, type FetchedModelEntry } from '@agent/providers/model-fetcher'
+import { getProviderLabelMap } from '@agent/providers/provider-registry'
+import { getCachedModels, getModelsWithBackgroundRefresh } from '@agent/providers/model-fetcher'
 
 export interface ModelInfo {
   id: string

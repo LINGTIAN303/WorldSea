@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { QuantizedVectorRecord, packRecords, unpackRecords } from '../embedding/quantizer.worker'
+import { type QuantizedVectorRecord, packRecords, unpackRecords } from '../embedding/quantizer.worker'
 
 describe('quantizer-worker helpers', () => {
   it('packRecords 应将记录序列化为可传输格式', () => {

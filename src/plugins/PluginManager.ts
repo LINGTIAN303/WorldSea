@@ -1,7 +1,6 @@
-import type { PluginInstance, PluginManifest } from '@worldsmith/entity-core/types'
-import { pluginAPI, usePluginStore, entitySchemaRegistry, relationSchemaRegistry, entitySchemaRegistryV2 } from '@worldsmith/entity-core'
+import type { PluginInstance } from '@worldsmith/entity-core/types'
+import { pluginAPI, usePluginStore, entitySchemaRegistry, relationSchemaRegistry } from '@worldsmith/entity-core'
 import { PluginSandbox } from './PluginSandbox'
-import { OFFICIAL_PLUGINS } from './plugin-manifest'
 
 interface PluginRegistration {
   entityTypes: string[]

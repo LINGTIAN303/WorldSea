@@ -1,8 +1,7 @@
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
 import type {
   CreationPipeline,
   PipelineStep,
-  StepConfig,
   AgentTaskConfig,
   AgentStepPrompt,
 } from '../types'

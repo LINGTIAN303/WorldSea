@@ -1,6 +1,5 @@
 import { computed } from 'vue'
 import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'
-import { getNodeTypeInfo } from '@worldsmith/entity-core'
 
 export interface EvoNode {
   id: string

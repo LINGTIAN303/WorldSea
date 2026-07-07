@@ -12,7 +12,6 @@
 import { ref, reactive, readonly, type DeepReadonly, type Ref } from 'vue'
 import type { IAgentBackend, AgentEvent } from '@agent/index'
 import { CoreBackend } from '@agent/index'
-import type { ProviderConfig } from '@agent/index'
 import { invalidateContextCache } from '@agent/context/builder'
 import { useEntityStore, useRelationStore, useFileStore } from '@worldsmith/entity-core'
 import { useAgentProfileStore } from '../../stores/agentProfileStore'
@@ -25,7 +24,7 @@ import type {
 } from '@agent/group-chat/types'
 import { ProviderPool } from '@agent/group-chat/provider-pool'
 import { FlowController } from '@agent/group-chat/flow-control'
-import { GroupChatMessageBus, type GroupChatEvent } from '@agent/group-chat/message-bus'
+import { GroupChatMessageBus } from '@agent/group-chat/message-bus'
 import { TurnEngine } from '@agent/group-chat/turn-engine'
 import { createLuckState, updateLuck, type LuckState } from '@agent/group-chat/speaking-desire'
 import {

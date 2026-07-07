@@ -254,7 +254,7 @@ function notifyWasmFailure(reason: string): void {
   setTimeout(async () => {
     try {
       // 尝试使用 Naive UI 的 message 通知
-      const { useMessage } = await import('naive-ui')
+      await import('naive-ui')
       // Naive UI message 需要在 setup 上下文中使用，此处降级为 window 通知
       if (typeof window !== 'undefined' && (window as any).__worldsmith_notify_wasm_failure__) {
         ;(window as any).__worldsmith_notify_wasm_failure__(reason)

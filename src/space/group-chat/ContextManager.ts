@@ -1,5 +1,5 @@
 import type { AgentMessage } from '@agent/index'
-import type { ContextPressureLevel, ContextStrategy } from './types'
+import type { ContextStrategy } from './types'
 import { getModelInfo } from '../../agent/modelRegistry'
 
 export class ContextManagerImpl {

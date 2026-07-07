@@ -9,7 +9,7 @@
  * 将迁移至此描述符中。
  */
 
-import type { ToolCategoryId, ToolCategoryMeta } from './types'
+import type { ToolCategoryMeta } from './types'
 
 /** 工具分类元数据表 */
 export const TOOL_CATEGORIES: ToolCategoryMeta[] = [

@@ -549,10 +549,6 @@ function isSmartFillField(field: FormFieldDef): boolean {
   return SMART_FILL_TYPES.has(field.type)
 }
 
-function isFieldFocused(key: string): boolean {
-  return focusedFieldKey.value === key
-}
-
 function onFieldMouseEnter(key: string) {
   hoveredFieldKey.value = key
 }

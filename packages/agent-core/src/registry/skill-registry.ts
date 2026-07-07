@@ -11,9 +11,7 @@
 
 import type {
   SkillDeclaration,
-  SkillVisibility,
   SkillCategory,
-  ToolCategoryId,
 } from '../types'
 import type { ToolRegistry } from './tool-registry'
 

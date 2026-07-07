@@ -15,7 +15,7 @@ export interface ToolCallView {
   progress: number
 }
 
-const { items: toolCallsArr, setAll: setToolCalls, push: pushToolCall, updateById: updateToolCall, trigger: triggerToolCalls } = useShallowArray<ToolCallView>('id')
+const { items: toolCallsArr, setAll: setToolCalls, push: pushToolCall, updateById: updateToolCall } = useShallowArray<ToolCallView>('id')
 const toolCalls = toolCallsArr
 const isProcessing = ref(false)
 const currentThinking = ref('')

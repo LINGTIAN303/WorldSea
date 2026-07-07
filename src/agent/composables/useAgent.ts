@@ -106,8 +106,6 @@ const DEEP_PHASES = [
   ] },
 ]
 
-const ALL_PHASE_TOOLS = new Set(DEEP_PHASES.flatMap(p => p.tools))
-
 /** 选择型工具：需要用户点击选项 */
 const CHOICE_TOOLS = new Set(['output_choice'])
 
@@ -2079,7 +2077,7 @@ export function useAgent() {
     }
 
     // 清理所有等待中的内联确认（拒绝）
-    for (const [id, pending] of pendingConfirmations) {
+    for (const [, pending] of pendingConfirmations) {
       pending.resolve(false)
     }
     pendingConfirmations.clear()

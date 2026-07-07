@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, watch } from 'vue'
+import { ref } from 'vue'
 import { watchDebounced } from '@worldsmith/perf-kit/render'
 
 export type FontLayer = 'chrome' | 'editorUi' | 'content' | 'preview' | 'canvas' | 'agent'

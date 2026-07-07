@@ -54,7 +54,6 @@ export { RADAR_DIMS }
 
 export function useRealmStaircaseData() {
   const es = useEntityStore()
-  const rs = useRelationStore()
 
   const combatEntities = computed(() =>
     (es.entities ?? []).filter(e => e.type === 'combat_stat')
