@@ -30,3 +30,11 @@ rusqlite = { version = "0.34", features = ["bundled"] }
 keyring = "3"
 walkdir = "2"
 notify = { version = "6", features = ["macos_kqueue"] }
+
+# ── Skills Store（Task 24 阶段2）──
+# reqwest: 下载技能包 zip archive（blocking 模式配合 tauri 同步命令；rustls-tls 避免 OpenSSL 依赖）
+# zip: 解压技能包
+# sha2: 技能包 hash 校验（安全安装）
+reqwest = { version = "0.12", features = ["blocking", "rustls-tls"], default-features = false }
+zip = "2"
+sha2 = "0.10"

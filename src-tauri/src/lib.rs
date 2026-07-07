@@ -105,6 +105,7 @@ fn cmd_secure_exists(key: String) -> Result<bool, String> {
 }
 
 pub mod workflow;
+mod skills_store;
 
 pub struct AppState {
     db: Mutex<SqliteStore>,
@@ -4469,6 +4470,11 @@ pub fn run() {
             cmd_font_scan_system,
             cmd_font_read_file,
             cmd_skills_get_dir,
+            // ─── Skills Store（Task 24 阶段2）─────────────────────────
+            skills_store::cmd_skills_download_manifest,
+            skills_store::cmd_skills_install,
+            skills_store::cmd_skills_uninstall,
+            skills_store::cmd_skills_get_installed_versions,
             cmd_fs_read,
             cmd_fs_read_binary,
             cmd_fs_write,
