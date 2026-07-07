@@ -6646,11 +6646,11 @@ dependencies = [
  "tauri-plugin-http",
  "tauri-plugin-notification",
  "tauri-plugin-opener",
- "tempfile",
  "thiserror 2.0.18",
  "tokio",
  "walkdir",
  "worldsmith-core",
+ "worldsmith-skills-store",
  "zip",
 ]
 
@@ -6667,6 +6667,16 @@ dependencies = [
  "serde_yaml",
  "thiserror 2.0.18",
  "uuid",
+]
+
+[[package]]
+name = "worldsmith-skills-store"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "sha2",
+ "worldsmith-core",
+ "zip",
 ]
 
 [[package]]

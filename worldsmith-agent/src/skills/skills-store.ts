@@ -197,3 +197,52 @@ export async function checkUpdates(manifest: RemoteManifest): Promise<RemoteSkil
     return localVersion !== remote.version // 版本不同则可更新
   })
 }
+
+/** 本地导入参数（Task 24 阶段4：多平台互通） */
+export interface ImportLocalOptions {
+  /** 技能 id（作为目录名） */
+  skillId: string
+  /** skill.yaml manifest 文本 */
+  skillYaml: string
+  /** SKILL.md 提示词文本（可选，空则不写） */
+  skillMd?: string
+}
+
+/**
+ * 本地导入技能：写入 skill.yaml + SKILL.md 到 app_data_dir/skills/<skillId>/
+ *
+ * 用于多平台互通：前端用 platform-adapters 解析 Claude Code/Cursor/WorldSmith 格式，
+ * 生成标准 skill.yaml + SKILL.md 文本后调用本函数写入。已存在同名技能则覆盖。
+ *
+ * 注意：此函数不触发重新扫描。导入后需调用 initSkillRegistry() 才能使技能生效。
+ * 通常用 importLocalSkillAndReload 一步完成导入+重扫。
+ *
+ * @returns 安装结果；非 Tauri 环境返回 null
+ */
+export async function importLocalSkill(opts: ImportLocalOptions): Promise<InstallResult | null> {
+  const invoke = await getTauriInvoke()
+  if (!invoke) return null
+  try {
+    return (await invoke('cmd_skills_import_local', {
+      skillId: opts.skillId,
+      skillYaml: opts.skillYaml,
+      skillMd: opts.skillMd ?? null,
+    })) as InstallResult
+  } catch {
+    return null
+  }
+}
+
+/**
+ * 本地导入技能并重新扫描注册表（推荐入口）
+ *
+ * 流程：importLocalSkill → initSkillRegistry() → 返回导入结果
+ * 导入成功后新技能立即可用。
+ */
+export async function importLocalSkillAndReload(opts: ImportLocalOptions): Promise<InstallResult | null> {
+  const result = await importLocalSkill(opts)
+  if (result) {
+    await initSkillRegistry()
+  }
+  return result
+}

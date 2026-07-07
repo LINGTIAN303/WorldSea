@@ -14,6 +14,9 @@ import {
   installSkillAndReload,
   uninstallSkillAndReload,
   getInstalledVersions,
+  importLocalSkillAndReload,
+  autoImportSkill,
+  exportToSkillYaml,
   type RemoteSkillEntry,
   type InstalledMeta,
 } from '@agent/index'
@@ -183,6 +186,42 @@ export function useSkillsStore() {
     return !!local && local !== skill.version
   }
 
+  /**
+   * 本地导入技能（Task 24 阶段4：多平台互通）
+   *
+   * 自动检测外部格式（Claude Code SKILL.md / Cursor .mdc / WorldSmith skill.yaml），
+   * 解析为 SkillMeta + body，生成标准 skill.yaml + SKILL.md，写入 skills 目录。
+   *
+   * @param raw 文件文本
+   * @param fallbackId 当文件无 id/name 时的兜底 id（通常用文件名）
+   * @returns 导入是否成功；非 Tauri 环境返回 false
+   */
+  async function importLocal(raw: string, fallbackId: string): Promise<{ success: boolean; warnings: string[]; platform: string }> {
+    if (!isTauri) {
+      return { success: false, warnings: ['商城功能仅在桌面端可用'], platform: 'unknown' }
+    }
+    error.value = null
+    try {
+      const parsed = autoImportSkill(raw, fallbackId)
+      const skillYaml = exportToSkillYaml(parsed.meta)
+      const skillMd = parsed.body || undefined
+      const result = await importLocalSkillAndReload({
+        skillId: parsed.meta.id,
+        skillYaml,
+        skillMd,
+      })
+      if (result) {
+        await refreshInstalled()
+        return { success: true, warnings: parsed.warnings, platform: parsed.platform }
+      }
+      error.value = '导入失败：写入技能文件失败'
+      return { success: false, warnings: parsed.warnings, platform: parsed.platform }
+    } catch (e: any) {
+      error.value = `导入失败: ${e?.message || e}`
+      return { success: false, warnings: [], platform: 'unknown' }
+    }
+  }
+
   return {
     isTauri,
     skillSources,
@@ -202,5 +241,6 @@ export function useSkillsStore() {
     uninstallSkill,
     isInstalled,
     hasUpdate,
+    importLocal,
   }
 }

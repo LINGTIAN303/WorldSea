@@ -44,6 +44,39 @@
         </Transition>
       </div>
 
+      <!-- 本地导入区（Task 24 阶段4：多平台互通） -->
+      <div class="store-section">
+        <button class="store-section-toggle" @click="importPanelOpen = !importPanelOpen">
+          <WsIcon name="add" size="xs" />
+          本地导入（Claude Code / Cursor / WorldSmith）
+        </button>
+        <Transition name="ws-slide-up">
+          <div v-if="importPanelOpen" class="store-import-area">
+            <p class="store-import-hint">
+              选择外部技能文件（SKILL.md / .mdc / skill.yaml），自动识别格式并导入为 WorldSmith 技能。已存在同名技能会覆盖。
+            </p>
+            <input
+              ref="fileInputRef"
+              type="file"
+              accept=".md,.mdc,.yaml,.yml"
+              style="display:none"
+              @change="onFileSelected"
+            />
+            <button class="sub-panel-btn" @click="fileInputRef?.click()" :disabled="importing">
+              <WsIcon name="add" size="xs" />
+              {{ importing ? '导入中...' : '选择文件导入' }}
+            </button>
+            <div v-if="importResult" class="store-import-result" :class="{ success: importResult.success }">
+              <WsIcon :name="importResult.success ? 'check' : 'close'" size="xs" />
+              <span>{{ importResult.success ? `导入成功（${importResult.platform} 格式）` : '导入失败' }}</span>
+              <span v-if="importResult.warnings.length" class="store-import-warnings">
+                {{ importResult.warnings.join('；') }}
+              </span>
+            </div>
+          </div>
+        </Transition>
+      </div>
+
       <!-- 商城浏览区 -->
       <div class="store-section">
         <div class="store-browse-header">
@@ -137,6 +170,12 @@ const sourceAdding = ref(false)
 const sourceForm = ref({ name: '', url: '' })
 const searchQuery = ref('')
 
+// 本地导入状态（Task 24 阶段4）
+const importPanelOpen = ref(false)
+const importing = ref(false)
+const importResult = ref<{ success: boolean; warnings: string[]; platform: string } | null>(null)
+const fileInputRef = ref<HTMLInputElement | null>(null)
+
 /** 搜索过滤后的远程技能列表 */
 const filteredSkills = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
@@ -172,6 +211,28 @@ async function onInstall(skill: RemoteSkillEntry): Promise<void> {
 async function onUninstall(skillId: string): Promise<void> {
   const ok = await store.uninstallSkill(skillId)
   if (ok) emit('skills-changed')
+}
+
+/** 本地导入技能：读取文件 → autoImportSkill 解析 → 写入 skills 目录 */
+async function onFileSelected(e: Event): Promise<void> {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  importing.value = true
+  importResult.value = null
+  try {
+    const text = await file.text()
+    // 用文件名（去扩展名）作为 fallbackId，清洗非法字符
+    const fallbackId = file.name.replace(/\.(md|mdc|ya?ml)$/i, '').replace(/[^a-zA-Z0-9_-]/g, '-').replace(/-+/g, '-')
+    const result = await store.importLocal(text, fallbackId)
+    importResult.value = result
+    if (result.success) emit('skills-changed')
+  } catch (err: any) {
+    importResult.value = { success: false, warnings: [err?.message || '读取文件失败'], platform: 'unknown' }
+  } finally {
+    importing.value = false
+    input.value = '' // 重置，允许重复选择同一文件
+  }
 }
 
 onMounted(() => {
@@ -429,5 +490,37 @@ onMounted(() => {
 .store-uninstall-btn:hover {
   color: var(--color-error);
   border-color: var(--color-error);
+}
+
+.store-import-area {
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-bg);
+}
+.store-import-hint {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+  margin: 0 0 8px 0;
+  line-height: 1.5;
+}
+.store-import-result {
+  margin-top: 8px;
+  padding: 6px 10px;
+  font-size: var(--font-size-xs);
+  color: var(--color-error);
+  background: var(--color-surface);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.store-import-result.success {
+  color: var(--color-success);
+}
+.store-import-warnings {
+  color: var(--color-text-tertiary);
 }
 </style>

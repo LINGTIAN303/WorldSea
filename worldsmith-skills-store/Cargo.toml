@@ -1,0 +1,20 @@
+[package]
+name = "worldsmith-skills-store"
+version = "0.1.0"
+edition = "2021"
+description = "WorldSmith Skills Store 纯逻辑库 — 技能包校验、解压、本地导入（无 Tauri 依赖，可独立单元测试）"
+license = "MIT OR Apache-2.0"
+keywords = ["worldbuilding", "skills", "zip", "sha256"]
+categories = ["data-structures"]
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+zip = { version = "2", default-features = false, features = ["deflate"] }
+sha2 = "0.10"
+worldsmith-core = { path = "../worldsmith-core" }
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+tempfile = "3"

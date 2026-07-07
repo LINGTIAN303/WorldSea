@@ -31,14 +31,10 @@ keyring = "3"
 walkdir = "2"
 notify = { version = "6", features = ["macos_kqueue"] }
 
-# ── Skills Store（Task 24 阶段2）──
+# ── Skills Store（Task 24 阶段2/4）──
 # reqwest: 下载技能包 zip archive（blocking 模式配合 tauri 同步命令；rustls-tls 避免 OpenSSL 依赖）
-# zip: 解压技能包
-# sha2: 技能包 hash 校验（安全安装）
+# worldsmith-skills-store: 技能包校验/解压/本地导入的纯逻辑（无 Tauri 依赖，可独立单元测试）
 reqwest = { version = "0.12", features = ["blocking", "rustls-tls"], default-features = false }
 zip = "2"
 sha2 = "0.10"
-
-[dev-dependencies]
-# 仅用于 skills_store 单元测试的临时目录（不进入生产二进制）
-tempfile = "3"
+worldsmith-skills-store = { path = "../worldsmith-skills-store" }

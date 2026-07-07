@@ -58,9 +58,12 @@ export { logger, setLogLevel } from './utils/logger'
 export { checkRateLimit, recordRequest, recordUsage, getUsageSummary } from './utils/rate-limit'
 export { SKILL_REGISTRY, getEnabledSkills, getAllSkills, toggleSkill, resolveToolNames, ALWAYS_AVAILABLE_TOOLS } from './skills/registry'
 export type { SkillMeta } from './skills/registry'
-// Skills Store（Task 24 阶段2/3）：远程技能源下载/安装/卸载/更新
-export { downloadRemoteManifest, installSkill, installSkillAndReload, uninstallSkill, uninstallSkillAndReload, getInstalledVersions, checkUpdates } from './skills/skills-store'
-export type { InstallResult, InstalledMeta, RemoteSkillEntry, RemoteManifest, InstallSkillOptions } from './skills/skills-store'
+// Skills Store（Task 24 阶段2/3/4）：远程技能源下载/安装/卸载/更新 + 本地导入
+export { downloadRemoteManifest, installSkill, installSkillAndReload, uninstallSkill, uninstallSkillAndReload, getInstalledVersions, checkUpdates, importLocalSkill, importLocalSkillAndReload } from './skills/skills-store'
+export type { InstallResult, InstalledMeta, RemoteSkillEntry, RemoteManifest, InstallSkillOptions, ImportLocalOptions } from './skills/skills-store'
+// 多平台互通（Task 24 阶段4）：Claude Code / Cursor / WorldSmith 格式双向转换
+export { detectPlatform, importClaudeCodeSkill, importCursorRule, importWorldSmithYaml, autoImportSkill, exportToClaudeCodeSkill, exportToCursorRule, exportToSkillYaml } from './skills/platform-adapters'
+export type { SkillPlatform, ImportResult } from './skills/platform-adapters'
 export { resolvePluginToolNames, buildPluginCapabilityPrompt, registerPluginCapability, getPluginCapability, getAllPluginCapabilities, resolveRelatedPlugins } from './skills/plugin-bridge'
 export type { PluginCapability } from './skills/plugin-bridge'
 export { outputTools, outputTable, outputChoice, outputCode, outputEntityCard, outputAlert, outputStat, outputList, outputProgress, outputComparison, outputTimeline, outputImage, outputAccordion, outputManuscript } from './tools/output-tools'
