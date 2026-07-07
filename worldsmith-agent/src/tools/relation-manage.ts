@@ -6,6 +6,7 @@
  */
 
 import type { ToolDefinition } from '../bridge-types'
+import type { ToolMeta } from '@worldsmith/agent-core'
 import { unwrap } from './types'
 
 /** relation_list — 列出与指定实体相关的所有关系 */
@@ -15,6 +16,12 @@ export const relationListTool: ToolDefinition = {
   parameters: {
     entityId: { type: 'string', description: '实体 ID', required: true },
   },
+  meta: {
+    permission: 'safe',
+    category: 'relation',
+    alwaysAvailable: true,
+    displayName: '列出关系',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     const entityId = String(args.entityId)
     const relations = (await ctx.stores.relation.getAllRelations()).filter(
@@ -45,6 +52,11 @@ export const relationCreateTool: ToolDefinition = {
     label: { type: 'string', description: '关系标签（可选）', required: false },
     properties: { type: 'object', description: '关系属性（可选）', required: false },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'relation',
+    displayName: '创建关系',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     const sourceId = String(args.sourceId)
     const targetId = String(args.targetId)
@@ -90,6 +102,11 @@ export const relationDeleteTool: ToolDefinition = {
   parameters: {
     id: { type: 'string', description: '关系 ID', required: true },
   },
+  meta: {
+    permission: 'dangerous',
+    category: 'relation',
+    displayName: '删除关系',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     await ctx.stores.relation.remove(String(args.id), 'agent')
     return JSON.stringify({ success: true, id: args.id })
@@ -108,6 +125,11 @@ export const relationManageTools: ToolDefinition[] = [
       label: { type: 'string', description: '新标签（可选）', required: false },
       properties: { type: 'object', description: '要更新的属性键值对（合并，不覆盖未提及的键）', required: false },
     },
+    meta: {
+      permission: 'moderate',
+      category: 'relation',
+      displayName: '更新关系',
+    } satisfies ToolMeta,
     execute: async (args, ctx) => {
       const id = String(args.id)
       let unwrapped: any = null

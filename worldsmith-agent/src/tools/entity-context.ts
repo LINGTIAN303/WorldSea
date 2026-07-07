@@ -14,6 +14,7 @@
  */
 
 import type { ToolDefinition } from '../bridge-types'
+import type { ToolMeta } from '@worldsmith/agent-core'
 import { semanticSearchEntities, isEmbeddingReady } from '../embedding/index'
 
 /** 关系遍历深度上限 */
@@ -263,6 +264,12 @@ export const entityGetContextTool: ToolDefinition = {
       required: false,
     },
   },
+  meta: {
+    permission: 'safe',
+    category: 'entity',
+    alwaysAvailable: true,
+    displayName: '获取实体上下文',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     const scope = String(args.scope || 'full') as EntityContextScope
     const depth = Math.min(Math.max(Number(args.depth) || 1, 1), MAX_DEPTH)

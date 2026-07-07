@@ -14,6 +14,7 @@
  */
 
 import type { ToolDefinition } from '../bridge-types'
+import type { ToolMeta } from '@worldsmith/agent-core'
 import { emitEntityCard, emitEntityList } from './a2ui-helpers'
 import { indexEntity, removeEntityIndex } from '../embedding/index'
 
@@ -26,6 +27,12 @@ export const entityListTool: ToolDefinition = {
     keyword: { type: 'string', description: '名称/描述关键词筛选（可选）', required: false },
     limit: { type: 'number', description: '返回数量上限，默认20', required: false },
   },
+  meta: {
+    permission: 'safe',
+    category: 'entity',
+    alwaysAvailable: true,
+    displayName: '列出实体',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     let entities = await ctx.stores.entity.getAllEntities()
     if (args.type) entities = entities.filter(e => e.type === args.type)
@@ -57,6 +64,12 @@ export const entityGetTool: ToolDefinition = {
   parameters: {
     id: { type: 'string', description: '实体 ID', required: true },
   },
+  meta: {
+    permission: 'safe',
+    category: 'entity',
+    alwaysAvailable: true,
+    displayName: '获取实体',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     const entity = await ctx.stores.entity.getById(String(args.id))
     if (!entity) return JSON.stringify({ error: '实体未找到' })
@@ -79,6 +92,11 @@ export const entityCreateTool: ToolDefinition = {
     description: { type: 'string', description: '实体描述', required: false },
     properties: { type: 'object', description: '实体属性（键值对）', required: false },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'entity',
+    displayName: '创建实体',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     const entityType = String(args.type)
     const entityName = String(args.name)
@@ -121,6 +139,11 @@ export const entityUpdateTool: ToolDefinition = {
     description: { type: 'string', description: '新描述（可选）', required: false },
     properties: { type: 'object', description: '要更新的属性键值对（合并，不覆盖未提及的键）', required: false },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'entity',
+    displayName: '更新实体',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     const entityId = String(args.id)
     const existing = await ctx.stores.entity.getById(entityId)
@@ -151,6 +174,11 @@ export const entityDeleteTool: ToolDefinition = {
   parameters: {
     id: { type: 'string', description: '实体 ID', required: true },
   },
+  meta: {
+    permission: 'dangerous',
+    category: 'entity',
+    displayName: '删除实体',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     const entityId = String(args.id)
     const entity = await ctx.stores.entity.getById(entityId)
@@ -204,6 +232,12 @@ export const entitySuggestFieldTool: ToolDefinition = {
     },
     entityId: { type: 'string', description: '实体ID（编辑已有实体时提供）', required: false },
   },
+  meta: {
+    permission: 'safe',
+    category: 'entity',
+    alwaysAvailable: true,
+    displayName: '建议字段',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     const entityType = String(args.entityType)
     const fieldKey = String(args.fieldKey)
@@ -288,6 +322,12 @@ export const entitySmartFillTool: ToolDefinition = {
       required: false,
     },
   },
+  meta: {
+    permission: 'safe',
+    category: 'entity',
+    alwaysAvailable: true,
+    displayName: '智能填充',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     const entityType = String(args.entityType)
     const entityId = args.entityId ? String(args.entityId) : undefined

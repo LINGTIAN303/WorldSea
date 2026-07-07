@@ -10,6 +10,7 @@
  */
 
 import type { ToolDefinition } from '../bridge-types'
+import type { ToolMeta } from '@worldsmith/agent-core'
 import { semanticSearchEntities, isEmbeddingReady } from '../embedding/index'
 import type { SearchResultV2 } from '../embedding/vector-store-v2'
 
@@ -167,6 +168,12 @@ export const contentSearchTool: ToolDefinition = {
     limit: { type: 'number', description: '返回数量上限，默认20', required: false },
     mode: { type: 'string', description: '搜索模式: hybrid(语义+关键词混合)/keyword(纯关键词)/semantic(纯语义)，默认 hybrid', required: false, enum: ['hybrid', 'keyword', 'semantic'] },
   },
+  meta: {
+    permission: 'safe',
+    category: 'search',
+    alwaysAvailable: true,
+    displayName: '内容搜索',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     const kw = String(args.keyword).toLowerCase()
     const scope = String(args.scope || 'all')
