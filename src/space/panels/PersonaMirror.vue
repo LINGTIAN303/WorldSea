@@ -156,7 +156,7 @@ function onFontSelected(family: string) {
     weightDefault: 'medium',
     letterSpacing: 'normal',
     animationStyle: { messageEnter: 'fadeIn', panelTransition: 'smooth', notificationStyle: 'pulse' },
-    accentColor: profile.accentColor,
+    accentColor: profile.value.accentColor,
     fontSource: { type: 'system' },
   })
   fontStore.setActiveProfile(`custom-${family}`)
@@ -202,7 +202,7 @@ function onWindFontsSelected(font: WindFontsItem) {
     weightDefault: 'medium',
     letterSpacing: 'normal',
     animationStyle: { messageEnter: 'fadeIn', panelTransition: 'smooth', notificationStyle: 'pulse' },
-    accentColor: profile.accentColor,
+    accentColor: profile.value.accentColor,
     fontSource: { type: 'windfonts', weight },
   })
   fontStore.setActiveProfile(`wf-${font.fontFamily}`)
@@ -250,7 +250,7 @@ async function installWsfont() {
           weightDefault: 'medium',
           letterSpacing: 'normal',
           animationStyle: { messageEnter: 'fadeIn', panelTransition: 'smooth', notificationStyle: 'pulse' },
-          accentColor: profile.accentColor,
+          accentColor: profile.value.accentColor,
           fontSource: { type: 'wsfont', path: `wsfont:${entry.id}` },
         })
         fontStore.setActiveProfile(profileId)
