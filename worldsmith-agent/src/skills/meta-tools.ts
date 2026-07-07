@@ -3,6 +3,7 @@
  * 从 agent.ts 抽取，避免 toolbus → agent → plugin-sdk/entity-core 的 Vue 依赖链
  */
 import type { ToolDefinition } from '../bridge-types'
+import type { ToolMeta } from '@worldsmith/agent-core'
 import type { IToolContext } from '../toolbus/types'
 import { findSkillById, getEnabledSkills, CAPABILITY_TO_TOOL } from './registry'
 import { loadSkillPrompt, loadSkillReference, loadSkillAsset } from './loader'
@@ -19,6 +20,12 @@ const loadSkillTool: ToolDefinition = {
   parameters: {
     skill_id: { type: 'string', description: 'The skill id to activate (e.g. "worldbuilding", "content-craft", "analysis-engine", "retrofit-architect", "web-scout", "roleplay")', required: true },
   },
+  meta: {
+    permission: 'safe',
+    category: 'orchestrator',
+    alwaysAvailable: true,
+    displayName: '加载技能',
+  } satisfies ToolMeta,
   execute: async (args: Record<string, unknown>, _ctx: IToolContext) => {
     const skillId = String(args.skill_id)
     const skill = findSkillById(skillId)
@@ -80,6 +87,12 @@ const loadReferenceTool: ToolDefinition = {
     skill_id: { type: 'string', description: 'The skill id that contains the reference', required: true },
     ref_path: { type: 'string', description: 'The reference file name (e.g. "references/algo-catalog.md")', required: true },
   },
+  meta: {
+    permission: 'safe',
+    category: 'orchestrator',
+    alwaysAvailable: true,
+    displayName: '加载技能参考',
+  } satisfies ToolMeta,
   execute: async (args: Record<string, unknown>, _ctx: IToolContext) => {
     const skillId = String(args.skill_id)
     const refPath = String(args.ref_path)
@@ -102,6 +115,12 @@ const loadAssetTool: ToolDefinition = {
     skill_id: { type: 'string', description: 'The skill id that contains the asset', required: true },
     asset_path: { type: 'string', description: 'The asset file name (e.g. "entity-templates.yaml")', required: true },
   },
+  meta: {
+    permission: 'safe',
+    category: 'orchestrator',
+    alwaysAvailable: true,
+    displayName: '加载技能资源',
+  } satisfies ToolMeta,
   execute: async (args: Record<string, unknown>, _ctx: IToolContext) => {
     const skillId = String(args.skill_id)
     const assetPath = String(args.asset_path)

@@ -1,4 +1,5 @@
 import type { ToolDefinition } from '../bridge-types'
+import type { ToolMeta } from '@worldsmith/agent-core'
 import { kbWrite, kbRead } from '../kb/kb-store'
 
 const PERSONA_UPDATE_TOOL_DESC = `更新你的自我认知信息（名字和头像）。
@@ -17,6 +18,11 @@ export const personaUpdateTool: ToolDefinition = {
     name: { type: 'string', description: '你的新名字或昵称，如"小星"、"WorldSmith"等', required: false },
     avatar: { type: 'string', description: '你的新头像，单个 emoji 或字符，如"🌟"、"✨"、"W"等', required: false },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'persona',
+    displayName: '更新人格',
+  } satisfies ToolMeta,
   execute: async (args) => {
     const name = args.name ? String(args.name).trim() : undefined
     const avatar = args.avatar ? String(args.avatar).trim().slice(0, 2) : undefined

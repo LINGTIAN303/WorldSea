@@ -13,6 +13,7 @@
  */
 
 import type { ToolDefinition } from '../bridge-types'
+import type { ToolMeta } from '@worldsmith/agent-core'
 
 /** 所有支持的插件目标列表 */
 const SUPPORTED_PLUGIN_TARGETS = [
@@ -42,6 +43,11 @@ export const pluginWriteTool: ToolDefinition = {
     data: { type: 'object', description: '写入数据，结构因插件而异', required: true },
     entityId: { type: 'string', description: '更新/追加时的目标实体ID', required: false },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'plugin',
+    displayName: '写入插件',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     const pluginId = String(args.pluginId)
     const action = String(args.action)
@@ -112,6 +118,11 @@ export const notebookCreateTool: ToolDefinition = {
     folderId: { type: 'string', description: '所属文件夹ID', required: false },
     codeLanguage: { type: 'string', description: '代码语言（noteType=code时）', required: false },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'plugin',
+    displayName: '创建笔记',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     const content = String(args.content)
     const noteType = String(args.noteType || 'markdown')
@@ -156,6 +167,11 @@ export const notebookUpdateTool: ToolDefinition = {
     tags: { type: 'object', description: '新标签数组', required: false },
     linkedEntities: { type: 'object', description: '关联实体ID数组', required: false },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'plugin',
+    displayName: '更新笔记',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     const noteId = String(args.noteId)
     const entity = await ctx.stores.entity.getById(noteId)
@@ -188,6 +204,11 @@ export const notebookLinkTool: ToolDefinition = {
     sourceId: { type: 'string', description: '源笔记ID', required: true },
     targetId: { type: 'string', description: '目标笔记ID', required: true },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'plugin',
+    displayName: '链接笔记',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     const sourceId = String(args.sourceId)
     const targetId = String(args.targetId)
@@ -220,6 +241,11 @@ export const codeExecuteTool: ToolDefinition = {
     noteId: { type: 'string', description: '关联笔记ID', required: true },
     timeout: { type: 'number', description: '超时毫秒数，默认5000', required: false },
   },
+  meta: {
+    permission: 'dangerous',
+    category: 'dev',
+    displayName: '执行代码',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     const code = String(args.code)
     const noteId = String(args.noteId)

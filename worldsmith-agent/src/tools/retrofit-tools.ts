@@ -1,4 +1,5 @@
 import type { ToolDefinition } from '../bridge-types'
+import type { ToolMeta } from '@worldsmith/agent-core'
 
 /**
  * 安全改造工具集 (Retrofit)
@@ -99,6 +100,11 @@ export const retrofitBeginSession: ToolDefinition = {
     sessionId: { type: 'string', description: '会话唯一标识，如 "retrofit-2024-001"', required: true },
     catalogJson: { type: 'string', description: '能力目录 JSON（可选），定义允许的改造范围。不传则使用宽松模式', required: false },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'retrofit',
+    displayName: '开启改造会话',
+  } satisfies ToolMeta,
   execute: async (args) => {
     await invokeTauri('cmd_retrofit_begin_session', {
       sessionId: String(args.sessionId),
@@ -137,6 +143,11 @@ export const retrofitSubmitIntent: ToolDefinition = {
   parameters: {
     intentJson: { type: 'string', description: '改造意图 JSON，格式如 {"AddField":{"entityType":"character","field":{...}}} 或 {"SetTheme":{"theme":{"id":"dark",...}}}', required: true },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'retrofit',
+    displayName: '提交改造意图',
+  } satisfies ToolMeta,
   execute: async (args) => {
     const report = await invokeTauri('cmd_retrofit_submit_intent', {
       intentJson: String(args.intentJson),
@@ -165,6 +176,11 @@ export const retrofitConfirmAndStage: ToolDefinition = {
   name: 'retrofit_confirm_and_stage',
   description: '确认所有已提交的意图并进入暂存阶段。返回确认数量和冲突检测报告。若存在冲突，AI 应先解决冲突再继续。',
   parameters: {},
+  meta: {
+    permission: 'moderate',
+    category: 'retrofit',
+    displayName: '确认并暂存',
+  } satisfies ToolMeta,
   execute: async () => {
     const result = await invokeTauri('cmd_retrofit_confirm_and_stage') as ConfirmResult
     const conflictInfo = result.conflicts.hasConflicts
@@ -187,6 +203,11 @@ export const retrofitApplyNext: ToolDefinition = {
     beforeJson: { type: 'string', description: '变更前状态快照 JSON', required: true },
     afterJson: { type: 'string', description: '变更后状态快照 JSON', required: true },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'retrofit',
+    displayName: '应用下一意图',
+  } satisfies ToolMeta,
   execute: async (args) => {
     const result = await invokeTauri('cmd_retrofit_apply_next', {
       beforeJson: String(args.beforeJson),
@@ -211,6 +232,11 @@ export const retrofitVerifyAndAccept: ToolDefinition = {
     entityCount: { type: 'number', description: '当前实体总数', required: true },
     relationCount: { type: 'number', description: '当前关系总数', required: true },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'retrofit',
+    displayName: '验收改造',
+  } satisfies ToolMeta,
   execute: async (args) => {
     const result = await invokeTauri('cmd_retrofit_verify_and_accept', {
       entityCount: Number(args.entityCount),
@@ -235,6 +261,11 @@ export const retrofitRequestRepair: ToolDefinition = {
   parameters: {
     message: { type: 'string', description: '问题描述，如 "字段显示位置不对"', required: true },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'retrofit',
+    displayName: '请求修复',
+  } satisfies ToolMeta,
   execute: async (args) => {
     await invokeTauri('cmd_retrofit_request_repair', { message: String(args.message) })
     return JSON.stringify({ ok: true, message: '已进入 Repair 阶段，可继续提交修复意图' })
@@ -247,6 +278,11 @@ export const retrofitRedirect: ToolDefinition = {
   parameters: {
     message: { type: 'string', description: '转向原因，如 "我改主意了，不想删这个字段"', required: true },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'retrofit',
+    displayName: '中途转向',
+  } satisfies ToolMeta,
   execute: async (args) => {
     await invokeTauri('cmd_retrofit_redirect', { message: String(args.message) })
     return JSON.stringify({ ok: true, message: '已回到 Negotiate 阶段，可重新提交意图' })
@@ -257,6 +293,11 @@ export const retrofitRollbackLast: ToolDefinition = {
   name: 'retrofit_rollback_last',
   description: '回滚最近一次变更。撤销上一个应用的改造意图。',
   parameters: {},
+  meta: {
+    permission: 'moderate',
+    category: 'retrofit',
+    displayName: '回滚最近变更',
+  } satisfies ToolMeta,
   execute: async () => {
     const rolledBackId = await invokeTauri('cmd_retrofit_rollback_last') as string | null
     if (rolledBackId) {
@@ -270,6 +311,11 @@ export const retrofitAbort: ToolDefinition = {
   name: 'retrofit_abort',
   description: '终止当前改造会话。所有已应用的变更将被回滚，会话进入 Aborted 状态。',
   parameters: {},
+  meta: {
+    permission: 'moderate',
+    category: 'retrofit',
+    displayName: '终止会话',
+  } satisfies ToolMeta,
   execute: async () => {
     const rolled = await invokeTauri('cmd_retrofit_abort') as string[]
     return JSON.stringify({
@@ -285,6 +331,12 @@ export const retrofitSessionPhase: ToolDefinition = {
   name: 'retrofit_session_phase',
   description: '查询当前改造会话的阶段。阶段: negotiate(协商) → staging(暂存) → applying(应用中) → verifying(验收) → completed(完成) | repair(修复) | aborted(已终止)',
   parameters: {},
+  meta: {
+    permission: 'safe',
+    category: 'retrofit',
+    alwaysAvailable: true,
+    displayName: '查询会话阶段',
+  } satisfies ToolMeta,
   execute: async () => {
     const phase = await invokeTauri('cmd_retrofit_session_phase') as string | null
     if (!phase) {
@@ -301,6 +353,12 @@ export const retrofitPatchDiff: ToolDefinition = {
     beforeJson: { type: 'string', description: '变更前 JSON', required: true },
     afterJson: { type: 'string', description: '变更后 JSON', required: true },
   },
+  meta: {
+    permission: 'safe',
+    category: 'retrofit',
+    alwaysAvailable: true,
+    displayName: '计算Patch差异',
+  } satisfies ToolMeta,
   execute: async (args) => {
     const result = await invokeTauri('cmd_retrofit_patch_diff', {
       beforeJson: String(args.beforeJson),
@@ -323,6 +381,11 @@ export const retrofitPatchApply: ToolDefinition = {
     docJson: { type: 'string', description: '目标文档 JSON', required: true },
     patchJson: { type: 'string', description: 'JSON Patch 操作列表，格式如 [{"op":"replace","path":"/name","value":"new"}]', required: true },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'retrofit',
+    displayName: '应用Patch',
+  } satisfies ToolMeta,
   execute: async (args) => {
     const result = await invokeTauri('cmd_retrofit_patch_apply', {
       docJson: String(args.docJson),
@@ -340,6 +403,12 @@ export const retrofitDetectConflicts: ToolDefinition = {
   name: 'retrofit_detect_conflicts',
   description: '检测当前改造会话中待确认意图之间的冲突。返回冲突报告，包含冲突类型和描述。AI 应在确认前调用此工具检查冲突。',
   parameters: {},
+  meta: {
+    permission: 'safe',
+    category: 'retrofit',
+    alwaysAvailable: true,
+    displayName: '检测冲突',
+  } satisfies ToolMeta,
   execute: async () => {
     const result = await invokeTauri('cmd_retrofit_detect_conflicts') as ConflictReport | null
     if (!result) {
@@ -360,6 +429,11 @@ export const retrofitEndSession: ToolDefinition = {
   name: 'retrofit_end_session',
   description: '结束当前改造会话并释放资源。在改造完成（completed）或终止（aborted）后调用，用于清理会话状态。',
   parameters: {},
+  meta: {
+    permission: 'moderate',
+    category: 'retrofit',
+    displayName: '结束会话',
+  } satisfies ToolMeta,
   execute: async () => {
     const ended = await invokeTauri('cmd_retrofit_end_session') as boolean
     return JSON.stringify({
@@ -376,6 +450,11 @@ export const retrofitApply: ToolDefinition = {
   parameters: {
     intentJson: { type: 'string', description: '改造意图 JSON，格式如 {"AddField":{"entityType":"character","field":{...}}}', required: true },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'retrofit',
+    displayName: '提交修改意图',
+  } satisfies ToolMeta,
   execute: async (args) => {
     const report = await invokeTauri('cmd_retrofit_submit_intent', {
       intentJson: String(args.intentJson),
@@ -404,6 +483,11 @@ export const retrofitUndo: ToolDefinition = {
   name: 'retrofit_undo',
   description: '回滚最近一次 Retrofit 修改。使用场景：修改结果不符合预期时撤销。底层使用 Rust 核心库的 Retrofit 引擎，支持逐步回滚。',
   parameters: {},
+  meta: {
+    permission: 'moderate',
+    category: 'retrofit',
+    displayName: '撤销修改',
+  } satisfies ToolMeta,
   execute: async () => {
     const rolledBackId = await invokeTauri('cmd_retrofit_rollback_last') as string | null
     if (rolledBackId) {

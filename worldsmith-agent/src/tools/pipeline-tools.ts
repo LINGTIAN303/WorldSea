@@ -14,6 +14,7 @@
  */
 
 import type { ToolDefinition } from '../bridge-types'
+import type { ToolMeta } from '@worldsmith/agent-core'
 import type { IToolContext } from '../toolbus/types'
 import type { IEntityStore } from '../toolbus/types'
 import type { AgentType } from '../orchestrator/types'
@@ -230,6 +231,12 @@ const pipelineListTool: ToolDefinition = {
   name: 'pipeline_list',
   description: '列出所有创作 Pipeline（创作计划）。返回名称、状态、步骤数量等摘要信息。',
   parameters: {},
+  meta: {
+    permission: 'safe',
+    category: 'orchestrator',
+    alwaysAvailable: true,
+    displayName: '列出Pipeline',
+  } satisfies ToolMeta,
   execute: async (_args: Record<string, unknown>, ctx: IToolContext): Promise<string> => {
     const store = getEntityStore(ctx)
     const entities = await store.getAllEntities()
@@ -258,6 +265,12 @@ const pipelineGetTool: ToolDefinition = {
   parameters: {
     pipeline_id: { type: 'string', description: 'Pipeline ID', required: true },
   },
+  meta: {
+    permission: 'safe',
+    category: 'orchestrator',
+    alwaysAvailable: true,
+    displayName: '获取Pipeline',
+  } satisfies ToolMeta,
   execute: async (args: Record<string, unknown>, ctx: IToolContext): Promise<string> => {
     const store = getEntityStore(ctx)
     const id = String(args.pipeline_id)
@@ -292,6 +305,11 @@ const pipelineCreateTool: ToolDefinition = {
     connections: { type: 'object', description: '连接数组 (JSON)' },
     tags: { type: 'object', description: '标签数组' },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'orchestrator',
+    displayName: '创建Pipeline',
+  } satisfies ToolMeta,
   execute: async (args: Record<string, unknown>, ctx: IToolContext): Promise<string> => {
     const store = getEntityStore(ctx)
     const id = `pipeline-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
@@ -321,6 +339,11 @@ const pipelineUpdateTool: ToolDefinition = {
     connections: { type: 'object', description: '新连接数组 (JSON)' },
     status: { type: 'string', description: '新状态: draft | ready | running | completed | failed' },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'orchestrator',
+    displayName: '更新Pipeline',
+  } satisfies ToolMeta,
   execute: async (args: Record<string, unknown>, ctx: IToolContext): Promise<string> => {
     const store = getEntityStore(ctx)
     const id = String(args.pipeline_id)
@@ -349,6 +372,11 @@ const pipelineDeleteTool: ToolDefinition = {
   parameters: {
     pipeline_id: { type: 'string', description: 'Pipeline ID', required: true },
   },
+  meta: {
+    permission: 'dangerous',
+    category: 'orchestrator',
+    displayName: '删除Pipeline',
+  } satisfies ToolMeta,
   execute: async (args: Record<string, unknown>, ctx: IToolContext): Promise<string> => {
     const store = getEntityStore(ctx)
     const id = String(args.pipeline_id)
@@ -366,6 +394,11 @@ const pipelineRunStepTool: ToolDefinition = {
     pipeline_id: { type: 'string', description: 'Pipeline ID', required: true },
     step_id: { type: 'string', description: '步骤 ID', required: true },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'orchestrator',
+    displayName: '运行流水线步骤',
+  } satisfies ToolMeta,
   execute: async (args: Record<string, unknown>, ctx: IToolContext): Promise<string> => {
     const store = getEntityStore(ctx)
     const pipelineId = String(args.pipeline_id)
@@ -467,6 +500,12 @@ const pipelineProposeTool: ToolDefinition = {
   parameters: {
     goal: { type: 'string', description: '创作目标描述，如「从零设计一个中世纪王国」', required: true },
   },
+  meta: {
+    permission: 'safe',
+    category: 'orchestrator',
+    alwaysAvailable: true,
+    displayName: '提议Pipeline',
+  } satisfies ToolMeta,
   execute: async (args: Record<string, unknown>, _ctx: IToolContext): Promise<string> => {
     const goal = String(args.goal)
 
@@ -523,6 +562,12 @@ const pipelineTemplateListTool: ToolDefinition = {
   name: 'pipeline_template_list',
   description: '列出所有可用的创作模板。',
   parameters: {},
+  meta: {
+    permission: 'safe',
+    category: 'orchestrator',
+    alwaysAvailable: true,
+    displayName: '列出模板',
+  } satisfies ToolMeta,
   execute: async (_args: Record<string, unknown>, _ctx: IToolContext): Promise<string> => {
     const templates = Object.entries(TEMPLATE_STEPS).map(([id, t]) => ({
       id,
@@ -543,6 +588,11 @@ const pipelineTemplateApplyTool: ToolDefinition = {
     template_id: { type: 'string', description: '模板 ID', required: true },
     name: { type: 'string', description: '自定义名称（可选）' },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'orchestrator',
+    displayName: '应用模板',
+  } satisfies ToolMeta,
   execute: async (args: Record<string, unknown>, ctx: IToolContext): Promise<string> => {
     const store = getEntityStore(ctx)
     const templateId = String(args.template_id)

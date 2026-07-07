@@ -12,6 +12,7 @@
 
 import type { A2UIMessage, A2UIComponent } from '../bridge-types'
 import type { ToolDefinition } from '../bridge-types'
+import type { ToolMeta } from '@worldsmith/agent-core'
 import type { WorldSmithToolContext } from './types'
 
 /** WorldSmith 应用组件目录 URL */
@@ -320,6 +321,12 @@ export const a2uiShowEntity: ToolDefinition = {
   parameters: {
     entityId: { type: 'string', description: '要展示的实体 ID', required: true },
   },
+  meta: {
+    permission: 'safe',
+    category: 'a2ui',
+    alwaysAvailable: true,
+    displayName: '展示实体',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     const entityId = String(args.entityId)
     const entity = await ctx.stores.entity.getById(entityId)
@@ -338,6 +345,12 @@ export const a2uiShowRelation: ToolDefinition = {
   parameters: {
     relationId: { type: 'string', description: '要展示的关系 ID', required: true },
   },
+  meta: {
+    permission: 'safe',
+    category: 'a2ui',
+    alwaysAvailable: true,
+    displayName: '展示关系',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     const relationId = String(args.relationId)
     const relations = await ctx.stores.relation.getAllRelations()

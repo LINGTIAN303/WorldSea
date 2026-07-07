@@ -14,6 +14,7 @@
  */
 
 import type { ToolDefinition } from '../bridge-types'
+import type { ToolMeta } from '@worldsmith/agent-core'
 import type { IToolContext } from '../toolbus/types'
 import type { AgentType } from '../orchestrator/types'
 import { AGENT_TYPE_CONFIG } from '../orchestrator/types'
@@ -36,6 +37,12 @@ const listSubAgentTypesTool: ToolDefinition = {
   name: 'list_sub_agent_types',
   description: '列出所有可用的子 Agent 类型及其能力描述。在调度子 Agent 之前，先调用此工具了解可用的子 Agent 类型。',
   parameters: {},
+  meta: {
+    permission: 'safe',
+    category: 'orchestrator',
+    alwaysAvailable: true,
+    displayName: '列出子Agent类型',
+  } satisfies ToolMeta,
   execute: async (_args: Record<string, unknown>, _ctx: IToolContext): Promise<string> => {
     const types = Object.entries(AGENT_TYPE_CONFIG).map(([type, config]) => ({
       type,
@@ -85,6 +92,11 @@ const dispatchSubAgentTool: ToolDefinition = {
       description: '超时时间（毫秒，默认 120000）',
     },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'orchestrator',
+    displayName: '调度子Agent',
+  } satisfies ToolMeta,
   execute: async (args: Record<string, unknown>, _ctx: IToolContext): Promise<string> => {
     const agentType = String(args.type) as AgentType
     const prompt = String(args.prompt)
@@ -152,6 +164,12 @@ const getSubAgentStatusTool: ToolDefinition = {
       required: true,
     },
   },
+  meta: {
+    permission: 'safe',
+    category: 'orchestrator',
+    alwaysAvailable: true,
+    displayName: '查询子Agent状态',
+  } satisfies ToolMeta,
   execute: async (args: Record<string, unknown>, _ctx: IToolContext): Promise<string> => {
     const taskId = String(args.task_id)
 
@@ -204,6 +222,11 @@ const cancelSubAgentTool: ToolDefinition = {
       required: true,
     },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'orchestrator',
+    displayName: '取消子Agent',
+  } satisfies ToolMeta,
   execute: async (args: Record<string, unknown>, _ctx: IToolContext): Promise<string> => {
     const taskId = String(args.task_id)
 

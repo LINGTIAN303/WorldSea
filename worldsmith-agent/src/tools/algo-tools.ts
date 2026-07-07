@@ -1,4 +1,5 @@
 import type { ToolDefinition } from '../bridge-types'
+import type { ToolMeta } from '@worldsmith/agent-core'
 
 /**
  * 算法工具集
@@ -1215,6 +1216,11 @@ export const algoRun: ToolDefinition = {
     algorithm: { type: 'string', description: '算法名称，如 "dijkstra_path"、"convex_hull"、"terrain_noise"', required: true },
     paramsJson: { type: 'string', description: '算法参数 JSON，格式因算法而异', required: true },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'algo',
+    displayName: '执行算法',
+  } satisfies ToolMeta,
   execute: async (args) => {
     try {
       const result = await invokeTauri('cmd_algo_run', {
@@ -1232,6 +1238,12 @@ export const algoList: ToolDefinition = {
   name: 'algo_list',
   description: '列出所有可用的算法名称、参数格式和返回格式。使用场景：在使用 algo_run 之前查看可用算法和参数要求。',
   parameters: {},
+  meta: {
+    permission: 'safe',
+    category: 'algo',
+    alwaysAvailable: true,
+    displayName: '列出算法',
+  } satisfies ToolMeta,
   execute: async () => {
     try {
       const result = await invokeTauri('cmd_algo_list')

@@ -7,6 +7,7 @@
  */
 
 import type { ToolDefinition } from '../bridge-types'
+import type { ToolMeta } from '@worldsmith/agent-core'
 
 /** daily_report — 生成项目每日统计报告 */
 export const dailyReportTool: ToolDefinition = {
@@ -15,6 +16,12 @@ export const dailyReportTool: ToolDefinition = {
   parameters: {
     date: { type: 'string', description: '报告日期（YYYY-MM-DD），默认今天', required: false },
   },
+  meta: {
+    permission: 'safe',
+    category: 'persona',
+    alwaysAvailable: true,
+    displayName: '日报',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     const entities = await ctx.stores.entity.getAllEntities()
     const relations = await ctx.stores.relation.getAllRelations()
@@ -51,6 +58,12 @@ export const consistencyCheckTool: ToolDefinition = {
   name: 'consistency_check',
   description: '检查项目数据一致性，识别：孤立关系（引用了不存在的实体）、缺失必要属性的实体、同类型下的重复实体名称。使用场景：在大量创建/删除操作后检查数据完整性、定期维护。底层使用 Rust 核心库的验证和引用完整性检查。',
   parameters: {},
+  meta: {
+    permission: 'safe',
+    category: 'persona',
+    alwaysAvailable: true,
+    displayName: '一致性检查',
+  } satisfies ToolMeta,
   execute: async (_args, ctx) => {
     const entities = await ctx.stores.entity.getAllEntities()
     const relations = await ctx.stores.relation.getAllRelations()

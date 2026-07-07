@@ -9,6 +9,7 @@
  */
 
 import type { ToolDefinition } from '../bridge-types'
+import type { ToolMeta } from '@worldsmith/agent-core'
 
 /**
  * module_builder_add_component — 向模块添加组件
@@ -24,6 +25,11 @@ export const moduleBuilderAddComponentTool: ToolDefinition = {
     zoneIndex: { type: 'number', description: '目标区域索引（默认0）', required: false },
     config: { type: 'object', description: '组件配置（如 {entityType: "character", showDescription: true}）', required: false },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'plugin',
+    displayName: '添加组件',
+  } satisfies ToolMeta,
   execute: async (args, _ctx) => {
     const moduleId = String(args.moduleId)
     const slotId = String(args.slotId)
@@ -60,6 +66,11 @@ export const moduleBuilderRemoveComponentTool: ToolDefinition = {
     moduleId: { type: 'string', description: '目标自定义模块ID', required: true },
     componentId: { type: 'string', description: '要移除的组件ID', required: true },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'plugin',
+    displayName: '移除组件',
+  } satisfies ToolMeta,
   execute: async (args, _ctx) => {
     const moduleId = String(args.moduleId)
     const componentId = String(args.componentId)
@@ -82,6 +93,11 @@ export const moduleBuilderUpdateConfigTool: ToolDefinition = {
     componentId: { type: 'string', description: '组件ID', required: true },
     config: { type: 'object', description: '新的配置（合并更新）', required: true },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'plugin',
+    displayName: '更新配置',
+  } satisfies ToolMeta,
   execute: async (args, _ctx) => {
     const moduleId = String(args.moduleId)
     const componentId = String(args.componentId)
@@ -104,6 +120,11 @@ export const moduleBuilderSuggestLayoutTool: ToolDefinition = {
     moduleId: { type: 'string', description: '目标自定义模块ID', required: true },
     description: { type: 'string', description: '用户对模块功能的描述（如"角色管理，带搜索和详情面板"）', required: true },
   },
+  meta: {
+    permission: 'safe',
+    category: 'plugin',
+    displayName: '建议布局',
+  } satisfies ToolMeta,
   execute: async (args, _ctx) => {
     const moduleId = String(args.moduleId)
     const description = String(args.description)

@@ -1,4 +1,5 @@
 import type { ToolDefinition } from '../bridge-types'
+import type { ToolMeta } from '@worldsmith/agent-core'
 import type { IToolContext } from '../toolbus/types'
 
 const planCreateTool: ToolDefinition = {
@@ -20,6 +21,12 @@ const planCreateTool: ToolDefinition = {
       },
     },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'plan',
+    alwaysAvailable: true,
+    displayName: '创建计划',
+  } satisfies ToolMeta,
   execute: async (args: Record<string, unknown>, _ctx: IToolContext): Promise<string> => {
     const rawItems = args.items
     if (!Array.isArray(rawItems) || rawItems.length === 0) {
@@ -64,6 +71,12 @@ const planUpdateTool: ToolDefinition = {
       enum: ['pending', 'in_progress', 'completed', 'skipped'],
     },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'plan',
+    alwaysAvailable: true,
+    displayName: '更新计划',
+  } satisfies ToolMeta,
   execute: async (args: Record<string, unknown>, _ctx: IToolContext): Promise<string> => {
     const itemId = String(args.item_id || '').trim()
     const status = String(args.status || '').trim()

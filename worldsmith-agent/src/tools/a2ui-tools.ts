@@ -1,4 +1,5 @@
 import type { ToolDefinition } from '../bridge-types'
+import type { ToolMeta } from '@worldsmith/agent-core'
 import type { A2UIMessage, A2UIComponent } from '../bridge-types'
 
 const WORLD_SMITH_CATALOG = 'https://worldsmith.app/catalog/v1'
@@ -10,6 +11,11 @@ export const a2uiCreateSurface: ToolDefinition = {
     surfaceId: { type: 'string', description: '画布唯一标识，如 "entity-card-1"、"search-results"', required: true },
     catalogId: { type: 'string', description: '组件目录 ID，默认使用 WorldSmith 目录', required: false },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'a2ui',
+    displayName: '创建 UI 面',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     const surfaceId = String(args.surfaceId)
     const catalogId = String(args.catalogId || WORLD_SMITH_CATALOG)
@@ -34,6 +40,11 @@ export const a2uiUpdateComponents: ToolDefinition = {
       items: { type: 'object', description: '{ id: string, component: string, ...属性 }' },
     },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'a2ui',
+    displayName: '更新 UI 组件',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     const surfaceId = String(args.surfaceId)
     const components = (args.components as A2UIComponent[]) || []
@@ -54,6 +65,11 @@ export const a2uiUpdateData: ToolDefinition = {
     path: { type: 'string', description: '数据路径，如 /entity、/form、/stats', required: true },
     value: { type: 'object', description: '要设置的数据值', required: true },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'a2ui',
+    displayName: '更新 UI 数据',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     const surfaceId = String(args.surfaceId)
     const path = String(args.path)
@@ -73,6 +89,11 @@ export const a2uiDeleteSurface: ToolDefinition = {
   parameters: {
     surfaceId: { type: 'string', description: '要删除的画布 ID', required: true },
   },
+  meta: {
+    permission: 'dangerous',
+    category: 'a2ui',
+    displayName: '删除 UI 面',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     const surfaceId = String(args.surfaceId)
     const msg: A2UIMessage = {
