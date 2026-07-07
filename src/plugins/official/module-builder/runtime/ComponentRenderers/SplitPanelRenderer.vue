@@ -19,7 +19,7 @@ const splitRatio = ref(50)
 const direction = computed(() => (props.config.direction as string) || 'horizontal')
 
 const splitStyle = computed(() => ({
-  flexDirection: direction.value === 'horizontal' ? 'row' : 'column',
+  flexDirection: (direction.value === 'horizontal' ? 'row' : 'column') as 'row' | 'column',
 }))
 
 function paneStyle(side: 'left' | 'right') {

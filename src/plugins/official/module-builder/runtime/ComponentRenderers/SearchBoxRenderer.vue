@@ -3,7 +3,7 @@
     <input
       class="sb-input"
       type="text"
-      :placeholder="config.placeholder || '搜索...'"
+      :placeholder="(config.placeholder as string) || '搜索...'"
       :value="ctx?.searchQuery.value"
       @input="onSearch($event)"
     />

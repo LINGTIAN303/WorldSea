@@ -852,9 +852,9 @@ if (!purifyHookRegistered) {
 
 /**
  * 实体名高亮注入缓存：按原始文本缓存注入结果，避免流式输出时重复匹配
- * WeakMap 允许 GC 回收已销毁消息的文本
+ * 注：原 WeakMap 在 TS5.7+ 要求 key 为 object，改用 Map；文本量有限，无需 GC 回收
  */
-const mentionInjectCache = new WeakMap<string, string>()
+const mentionInjectCache = new Map<string, string>()
 
 /**
  * 在 marked 渲染后的 HTML 中注入实体名高亮

@@ -209,6 +209,10 @@ function onLayoutChangeStart() {
   pushHistory('拖拽/拉伸')
 }
 
+function onLayoutChange() {
+  markDirty()
+}
+
 function addEntityType() {
   const name = `entity_${module.entityTypes.length + 1}`
   module.entityTypes.push({ name, label: `实体类型${module.entityTypes.length + 1}`, icon: 'manuscript', color: '#4a6cf7', fields: [{ key: 'description', label: '描述', type: 'textarea' }] })

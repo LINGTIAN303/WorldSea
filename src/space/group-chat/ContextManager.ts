@@ -1,6 +1,14 @@
-import type { AgentMessage } from '@agent/index'
 import type { ContextStrategy } from './types'
 import { getModelInfo } from '../../agent/modelRegistry'
+
+/** 上下文管理所依赖的最小消息结构（AgentMessage 与 GroupChatMessage 均满足） */
+export interface ContextMessage {
+  id: string
+  role: string
+  content: string
+  thinking?: string
+  timestamp: number
+}
 
 export class ContextManagerImpl {
   private contextWindow: number
@@ -27,7 +35,7 @@ export class ContextManagerImpl {
     return Math.min(...windows)
   }
 
-  getStrategy(messages: AgentMessage[], systemPromptTokens: number, worldContextTokens: number, options?: { summaryEnabled?: boolean }): ContextStrategy {
+  getStrategy<T extends ContextMessage>(messages: T[], systemPromptTokens: number, worldContextTokens: number, options?: { summaryEnabled?: boolean }): ContextStrategy {
     const forceSummaryDisabled = options?.summaryEnabled === false
     const messagesTokens = this.estimateMessagesTokens(messages)
     const totalTokens = systemPromptTokens + worldContextTokens + messagesTokens
@@ -52,7 +60,7 @@ export class ContextManagerImpl {
     return { level: 'critical', maxMessages: 0, preserveFirstN: 0, summaryEnabled: false, keyInfoExtraction: false }
   }
 
-  applyStrategy(messages: AgentMessage[], strategy: ContextStrategy): AgentMessage[] {
+  applyStrategy<T extends ContextMessage>(messages: T[], strategy: ContextStrategy): T[] {
     if (strategy.level === 'none' || strategy.level === 'critical') return messages
 
     if (messages.length <= strategy.maxMessages) return messages
@@ -67,7 +75,7 @@ export class ContextManagerImpl {
           role: 'system' as const,
           content: '[早期讨论已压缩，以下为最近发言]',
           timestamp: recent[0]?.timestamp ?? Date.now(),
-        },
+        } as T,
         ...recent,
       ])
       return compressed
@@ -76,7 +84,7 @@ export class ContextManagerImpl {
     return [...first, ...recent]
   }
 
-  isOverflow(messages: AgentMessage[], systemPromptTokens: number, worldContextTokens: number): boolean {
+  isOverflow<T extends ContextMessage>(messages: T[], systemPromptTokens: number, worldContextTokens: number): boolean {
     const messagesTokens = this.estimateMessagesTokens(messages)
     const totalTokens = systemPromptTokens + worldContextTokens + messagesTokens
     const effectiveWindow = this.getMinContextWindow()
@@ -87,7 +95,7 @@ export class ContextManagerImpl {
     this.agentContextWindows = {}
   }
 
-  estimateMessagesTokens(messages: AgentMessage[]): number {
+  estimateMessagesTokens<T extends ContextMessage>(messages: T[]): number {
     let total = 0
     for (const msg of messages) {
       total += Math.ceil((msg.content?.length ?? 0) * 0.3)

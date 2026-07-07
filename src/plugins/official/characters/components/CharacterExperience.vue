@@ -5,7 +5,7 @@
       <div v-for="(item, idx) in timelineItems" :key="item.key" class="ce-item">
         <div class="ce-line" v-if="idx < timelineItems.length - 1"></div>
         <ExperienceNode
-          :node="item"
+          :node="item as any"
           @view-entity="onViewEntity"
           @update="onUpdateEvent"
           @delete="onDeleteEvent"

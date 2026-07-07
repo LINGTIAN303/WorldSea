@@ -61,7 +61,7 @@ const { createBidirectional, deleteWithConfirm } = useBidirectional()
 const containerRef = ref<HTMLDivElement>()
 const loading = ref(true)
 
-const graph = useSmallCanvasGraph(containerRef, {
+const graph = useSmallCanvasGraph(containerRef as any, {
   onNodeClick(node, sx, sy) {
     if (node.id === props.characterId) return
     cardCharId.value = node.id
@@ -265,11 +265,14 @@ async function onAddConfirm(payload: { entityId: string; isNew: boolean; name?: 
 
   if (payload.isNew) {
     const newId = await entityStore.add({
+      id: crypto.randomUUID(),
       type: 'character',
       name: payload.name || '未命名',
       description: '',
       tags: [],
       properties: { gender: payload.gender || '' },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     })
     targetEntityId = newId
   }

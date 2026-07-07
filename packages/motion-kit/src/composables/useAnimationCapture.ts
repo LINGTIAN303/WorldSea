@@ -82,7 +82,7 @@ export function useAnimationCapture(): UseAnimationCaptureReturn {
     })
 
     const data = encodeGif({ width, height, frames: gifFrames, loop })
-    return new Blob([data], { type: 'image/gif' })
+    return new Blob([data as unknown as BlobPart], { type: 'image/gif' })
   }
 
   function stop() {

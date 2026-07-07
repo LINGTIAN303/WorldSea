@@ -140,7 +140,6 @@ export function identifySceneFromViewSwitch(viewName: string): TriggerContext {
   return {
     sceneId: 'view_switch',
     entityId: '',
-    changeView: viewName,
     changeType: 'view_switch',
     currentView: viewName,
   }

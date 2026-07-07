@@ -3,13 +3,13 @@
   <div v-if="interactiveType === 'choice'" class="itc-choice" :class="tc.status">
     <div class="itc-choice-header">
       <span class="itc-choice-icon"><WsIcon name="target" size="s" /></span>
-      <span class="itc-choice-title">{{ block?.title || getToolLabel(tc.name) }}</span>
+      <span class="itc-choice-title">{{ choiceBlock?.title || getToolLabel(tc.name) }}</span>
       <span v-if="tc.status === 'running'" class="itc-choice-badge">生成中</span>
       <span v-else-if="choiceSelected" class="itc-choice-badge done">已选择</span>
     </div>
-    <div v-if="block && tc.status !== 'running'" class="itc-choice-options">
+    <div v-if="choiceBlock && tc.status !== 'running'" class="itc-choice-options">
       <button
-        v-for="opt in block.options"
+        v-for="opt in choiceBlock.options"
         :key="opt.value"
         class="itc-choice-btn"
         :class="{ active: choiceSelected === opt.value, disabled: !!choiceSelected }"
@@ -147,6 +147,7 @@ import BlockImage from './BlockImage.vue'
 import BlockAccordion from './BlockAccordion.vue'
 import BlockManuscript from './BlockManuscript.vue'
 import type { ToolCallView } from '../composables/useAgent'
+import type { ChoiceBlock } from '@agent/index'
 import type { BlockActionEvent } from './index'
 import { getBlockSummary } from './index'
 
@@ -205,6 +206,12 @@ const isExpanded = ref(
 )
 const choiceSelected = ref<string | null>(null)
 const block = computed(() => props.tc.block)
+
+/** 选择型工具的 ChoiceBlock（类型收窄，模板中安全访问 title/options） */
+const choiceBlock = computed<ChoiceBlock | null>(() => {
+  if (block.value?.type === 'choice') return block.value as ChoiceBlock
+  return null
+})
 
 // confirm 类型工具在 running 状态时自动展开，完成后自动折叠
 watch(() => props.tc.status, (status) => {

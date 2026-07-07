@@ -133,7 +133,7 @@ import { useSpaceStore } from '../../stores/space-store'
 import { useAgent } from '../../../agent/composables/useAgent'
 import { GroupChatEngine } from '../engine/GroupChatEngine'
 import { CasualStrategy } from '../engine/CasualStrategy'
-import type { GroupChatMessage, GroupMember, GroupChatMode, ToolCallInfo } from '../types'
+import type { GroupChatMessage, GroupMember, GroupChatMode, ToolCallInfo, ToolSource, BaseLayerMode } from '../types'
 import { assignAgentColor, isWorldChangeTool, getToolLabel } from '../types'
 import type { CreateGroupData } from './CreateGroupDialog.vue'
 import { saveCasualGroupSession, getCasualGroupSession, deleteCasualGroupSession } from '../GroupSessionManager'
@@ -354,14 +354,9 @@ async function promptAgent(
       // 同步模式：不订阅事件流，等待完成后直接读取结果
       await agent.prompt(promptText, { contextOverride: dynamicContext, chatMode: 'group-chat' })
       const state = agent.state
-      currentContent = state.lastMessage?.content || ''
-      currentThinking = state.lastMessage?.thinking || ''
-      if (state.lastMessage?.usage) {
-        eng.recordUsage(member.id, state.lastMessage.usage)
-        store.updateCostTracker(eng.getCostSnapshot())
-        traceInputTokens += state.lastMessage.usage.inputTokens || 0
-        traceOutputTokens += state.lastMessage.usage.outputTokens || 0
-      }
+      const lastMsg = state.messages[state.messages.length - 1]
+      currentContent = lastMsg?.content || ''
+      currentThinking = lastMsg?.thinking || ''
     } else {
       // 流式模式：订阅事件流，实时更新 UI
       unsub = agent.subscribe((event: any) => {
@@ -908,9 +903,9 @@ async function onCreateGroup(data: CreateGroupData): Promise<void> {
     lastSpokeAt: 0,
     enabledTools: m.enabledTools || [],
     enabledSkills: m.enabledSkills || [],
-    baseLayerMode: m.baseLayerMode || 'empty',
+    baseLayerMode: (m.baseLayerMode || 'empty') as BaseLayerMode,
     customBaseLayer: m.customBaseLayer,
-    toolSource: m.toolSource || 'derived',
+    toolSource: (m.toolSource || 'derived') as ToolSource,
   }))
 
   const groupInfo = {

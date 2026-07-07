@@ -10,6 +10,12 @@ import { TitleComponent, TooltipComponent, GridComponent } from 'echarts/compone
 import { CanvasRenderer } from 'echarts/renderers'
 import type { ModuleRuntimeContext } from '../ModuleRuntimeContext'
 
+function cssVar(name: string, fallback: string): string {
+  if (typeof document === 'undefined') return fallback
+  const val = getComputedStyle(document.documentElement).getPropertyValue(name.replace(/^var\(--/, '').replace(/\)$/, '')).trim()
+  return val || fallback
+}
+
 echarts.use([LineChart, TitleComponent, TooltipComponent, GridComponent, CanvasRenderer])
 
 const props = defineProps<{ config: Record<string, unknown>; componentId: string }>()

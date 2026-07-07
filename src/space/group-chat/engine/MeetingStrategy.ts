@@ -1,6 +1,6 @@
-import type { GroupMember, GroupChatMessage, SpeakingDesire, GroupChatConfig } from '../types'
+import type { GroupMember, GroupChatMessage, SpeakingDesire, GroupChatConfig, TerminationCheckResult } from '../types'
 import { DEFAULT_GROUP_CHAT_CONFIG } from '../types'
-import type { IChatStrategy, StrategyContext, StrategyTrigger, TerminationCheckResult, EngineState, MeetingConfig } from './IChatStrategy'
+import type { IChatStrategy, StrategyContext, StrategyTrigger, EngineState, MeetingConfig } from './IChatStrategy'
 
 export class MeetingStrategy implements IChatStrategy {
   private config: MeetingConfig
@@ -69,6 +69,31 @@ export class MeetingStrategy implements IChatStrategy {
     return this.config
   }
 
+  buildSystemPrompt(member: GroupMember, context: StrategyContext): string {
+    const parts: string[] = []
+    if (member.systemPrompt) {
+      parts.push(member.systemPrompt)
+    } else {
+      parts.push(`你是群聊成员「${member.name}」，角色是「${member.role}」。`)
+    }
+    parts.push(`会议话题：${context.topic || '未命名话题'}。`)
+    parts.push('请围绕话题展开讨论，表达清晰的观点。')
+    if (context.mentionedAgentIds.includes(member.id)) {
+      parts.push('你被 @提及了，请务必回应。')
+    }
+    return parts.join('\n\n')
+  }
+
+  buildDynamicContext(member: GroupMember, context: StrategyContext): string {
+    const parts: string[] = []
+    parts.push(`会议话题：${context.topic || '未命名话题'}。`)
+    parts.push('请围绕话题展开讨论，表达清晰的观点。')
+    if (context.mentionedAgentIds.includes(member.id)) {
+      parts.push('你被 @提及了，请务必回应。')
+    }
+    return parts.join('\n\n')
+  }
+
   private selectRoundRobin(members: GroupMember[]): GroupMember {
     const idx = this.roundIndex % members.length
     this.roundIndex++
@@ -86,7 +111,10 @@ export class MeetingStrategy implements IChatStrategy {
 
   private calculateScore(member: GroupMember, messages: GroupChatMessage[]): number {
     let score = 0.5
-    const lastIdx = messages.findLastIndex((m: GroupChatMessage) => m.speakerId === member.id)
+    let lastIdx = -1
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].speakerId === member.id) { lastIdx = i; break }
+    }
     const messagesSinceLastSpoke = lastIdx === -1 ? messages.length : messages.length - 1 - lastIdx
     score += Math.min(messagesSinceLastSpoke / 10, 0.3)
     const recentMessages = messages.slice(-5)

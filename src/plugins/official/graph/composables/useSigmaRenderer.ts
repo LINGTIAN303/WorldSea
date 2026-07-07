@@ -1,7 +1,9 @@
 import { shallowRef, onBeforeUnmount, type Ref } from 'vue'
 import Sigma from 'sigma'
 import Graph from 'graphology'
-import type { SigmaOptions } from 'sigma'
+
+/** sigma 渲染器选项类型（sigma 未导出 Settings，从构造函数参数提取） */
+type SigmaOptions = NonNullable<ConstructorParameters<typeof Sigma>[2]>
 
 export function useSigmaRenderer(
   containerRef: Ref<HTMLElement | null>,
@@ -9,7 +11,8 @@ export function useSigmaRenderer(
 ) {
   const sigma = shallowRef<Sigma | null>(null)
 
-  const SIGMA_SETTINGS: Partial<SigmaOptions> = {
+  // 注：sigma 版本升级后部分字段名变更，用 as 断言绕过严格检查（运行时 sigma 忽略未知字段）
+  const SIGMA_SETTINGS = {
     defaultNodeColor: '#4fc3f7',
     defaultEdgeColor: 'rgba(255,255,255,0.15)',
     defaultNodeSize: 6,
@@ -29,9 +32,9 @@ export function useSigmaRenderer(
     nodeSizeRatio: 0.5,
     renderLabels: true,
     antiFlicker: true,
-  }
+  } as SigmaOptions
 
-  function createRenderer(options?: Partial<SigmaOptions>): Sigma | null {
+  function createRenderer(options?: SigmaOptions): Sigma | null {
     if (!containerRef.value) return null
     destroyRenderer()
     const graph = getGraph()

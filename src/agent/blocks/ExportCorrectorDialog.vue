@@ -164,6 +164,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onBeforeUnmount } from 'vue'
 import { renderText, toBlob, renderAnimatedText, drawImageCover, drawImageContain } from '@worldsmith/font-kit'
+import type { TextAnimationEffect } from '@worldsmith/font-kit'
 import { encodeGif } from '@worldsmith/motion-kit'
 import WsIcon from '../../ui/WsIcon.vue'
 import type { ManuscriptBlock, ExportCorrectorConfig } from '@agent/index'
@@ -482,7 +483,7 @@ async function exportPng() {
 }
 
 async function exportGif() {
-  const effectMap: Record<string, string> = {
+  const effectMap: Record<string, TextAnimationEffect> = {
     'ink-drop': 'bounce',
     'brush-stroke': 'slideIn',
     'fade-in': 'fadeIn',
@@ -538,7 +539,7 @@ async function exportGif() {
 function playGifPreview() {
   if (currentGifUrl) URL.revokeObjectURL(currentGifUrl)
   currentGifUrl = null
-  const effectMap: Record<string, string> = {
+  const effectMap: Record<string, TextAnimationEffect> = {
     'ink-drop': 'bounce',
     'brush-stroke': 'slideIn',
     'fade-in': 'fadeIn',
@@ -546,7 +547,7 @@ function playGifPreview() {
   }
   const includeBg = !isFixedMode.value
   const baseOpts = buildRenderOptions(includeBg)
-  renderAnimatedText({
+  const result = renderAnimatedText({
     text: props.block.content.slice(0, 100),
     effect: effectMap[props.block.animation] || 'typewriter',
     renderOptions: {
@@ -555,7 +556,8 @@ function playGifPreview() {
     },
     duration: 2000,
     fps: 10,
-  }).then((result: { frames: any[] }) => {
+  })
+  {
     const gifFrames = result.frames.map((frame: any) => {
       let canvas = document.createElement('canvas')
       canvas.width = frame.width
@@ -580,7 +582,7 @@ function playGifPreview() {
     const blob = new Blob([Uint8Array.from(gifData)], { type: 'image/gif' })
     currentGifUrl = URL.createObjectURL(blob)
     window.open(currentGifUrl, '_blank')
-  })
+  }
 }
 
 watch(() => props.show, (v) => {

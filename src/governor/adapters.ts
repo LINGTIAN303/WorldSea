@@ -215,7 +215,12 @@ export function customModuleToDescriptor(
      */
     deactivate: async () => {
       const { moduleRegistry } = await import('../modules/registry')
-      await moduleRegistry.deactivateModule(manifest.id)
+      const { moduleStore } = await import('../modules/store')
+      const allInstances = await moduleStore.getAll()
+      const instance = allInstances.find(i => i.id === manifest.id)
+      if (instance) {
+        await moduleRegistry.deactivateModule(instance)
+      }
     },
   }
 }

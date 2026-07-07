@@ -90,7 +90,7 @@ function loadOverrides(): Record<string, string[]> {
   } catch {
     cachedOverrides = {}
   }
-  return cachedOverrides
+  return cachedOverrides ?? {}
 }
 
 function isValidKeys(keys: unknown): keys is string[] {

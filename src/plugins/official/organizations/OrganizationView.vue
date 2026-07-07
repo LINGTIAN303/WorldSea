@@ -20,7 +20,7 @@
           :key="node.entity.id"
           :node="node"
           :depth="0"
-          :selected-id="selectedOrgId"
+          :selected-id="selectedOrgId ?? undefined"
           :selected-ids="batchIds"
           @select="gevSelect"
           @toggle-select="batchToggle"

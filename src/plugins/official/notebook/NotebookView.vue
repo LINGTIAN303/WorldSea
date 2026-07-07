@@ -15,7 +15,7 @@
         </button>
       </div>
       <div class="nb-toolbar-right">
-        <button class="nb-action-btn" @click="createNote">+ 笔记</button>
+        <button class="nb-action-btn" @click="createNote()">+ 笔记</button>
         <button class="nb-action-btn nb-folder-btn" @click="createFolder">+ 文件夹</button>
       </div>
     </div>

@@ -335,7 +335,7 @@ export const useSettingsStore = defineStore('settings', () => {
 
   function loadSceneProbs(): Record<string, number> {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY_VIDEO_MODE_SCENE_PROBS)
+      const raw = localStorage.getItem(STORAGE_KEY_COMPANION_MODE_SCENE_PROBS)
       return raw ? { ...DEFAULT_SCENE_PROBS, ...JSON.parse(raw) } : { ...DEFAULT_SCENE_PROBS }
     } catch {
       return { ...DEFAULT_SCENE_PROBS }

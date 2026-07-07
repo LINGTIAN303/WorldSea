@@ -46,7 +46,7 @@
             <DeepSegmentCard
               v-for="seg in deepSegments"
               :key="seg.id"
-              :segment="seg"
+              :segment="seg as DeepSegment"
               @block-action="emit('block-action', $event)"
               @tool-confirm="onToolConfirm"
             />
@@ -212,6 +212,7 @@ import BlockAccordion from './blocks/BlockAccordion.vue'
 import BlockManuscript from './blocks/BlockManuscript.vue'
 import { usePersonaFont } from '../space/composables/usePersonaFont'
 import { useAgent } from './composables/useAgent'
+import type { DeepSegment, ToolCallView } from './composables/useAgent'
 import { useArchiveStore } from '../stores/archiveStore'
 import { watchDebounced } from '@worldsmith/perf-kit/render'
 const { enterAnimation } = usePersonaFont()
@@ -314,11 +315,11 @@ const manuscriptBlocks = computed(() => finalOutputBlocks.value.filter(b => b.ty
 /** 深度模式：从所有阶段中提取选择型工具（独立于折叠容器渲染） */
 const choiceToolCalls = computed(() => {
   if (!isDeepMode.value) return []
-  const result: import('./composables/useAgent').ToolCallView[] = []
+  const result: ToolCallView[] = []
   for (const seg of deepSegments.value) {
     if (seg.type === 'phase' && seg.tools) {
       for (const tc of seg.tools) {
-        if (tc.interactiveType === 'choice') result.push(tc)
+        if (tc.interactiveType === 'choice') result.push(tc as ToolCallView)
       }
     }
   }

@@ -16,7 +16,6 @@ export class SpeakerSelectorImpl {
     if (this.participants.length === 0) {
       throw new Error('SpeakerSelector: 没有参与者')
     }
-    this.totalRounds = currentRound
     this.mode = this.determineMode(currentRound)
 
     switch (this.mode) {
@@ -34,7 +33,6 @@ export class SpeakerSelectorImpl {
     const effectiveCount = Math.min(count, this.participants.length)
     if (effectiveCount <= 1) return [this.selectNext(messages, currentRound)]
 
-    this.totalRounds = currentRound
     this.mode = this.determineMode(currentRound)
 
     const savedRoundIndex = this.roundIndex

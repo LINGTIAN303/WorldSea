@@ -1,4 +1,4 @@
-import type { IAgentBackend, AgentEvent, AgentMessage, ProviderConfig, IToolContext, CloudProvider } from '@agent/index'
+import type { IAgentBackend, AgentEvent, AgentMessage, ProviderConfig, IToolContext, CloudProvider, ProviderSlot } from '@agent/index'
 import { createWorldSmithAgent, loadApiKey, ALL_TOOLS, getToolsForSkills, buildSharedBaseLayer } from '@agent/index'
 import { useFontLibraryStore } from '../../../stores/fontLibraryStore'
 import type { GroupMember, GroupChatMessage, GroupChatCostTracker, StreamingAgentState, ContextStrategy, RequestRecord, RequestTrackerSnapshot } from '../types'
@@ -353,7 +353,7 @@ export class GroupChatEngine implements IGroupChatEngine {
   getPreparedMessages(_agentId: string): AgentMessage[] {
     const systemPromptTokens = 800
     const strategy = this.contextManager.getStrategy(this.messages, systemPromptTokens, 0)
-    return this.contextManager.applyStrategy(this.messages, strategy)
+    return this.contextManager.applyStrategy(this.messages, strategy) as unknown as AgentMessage[]
   }
 
   getPreparedCasualMessages(_agentId: string): GroupChatMessage[] {
@@ -362,7 +362,7 @@ export class GroupChatEngine implements IGroupChatEngine {
       this.messages, systemPromptTokens, 0, { summaryEnabled: false },
     )
     const prepared = this.contextManager.applyStrategy(this.messages, strategy)
-    return prepared.map(m => this.agentMessageToCasual(m))
+    return prepared.map(m => this.agentMessageToCasual(m as unknown as AgentMessage))
   }
 
   private agentMessageToCasual(m: AgentMessage): GroupChatMessage {

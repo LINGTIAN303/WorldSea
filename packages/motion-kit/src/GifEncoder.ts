@@ -221,7 +221,7 @@ export function encodeGif(opts: GifEncodeOptions): Uint8Array {
     w.writeShort(frame.height)
     w.writeByte(0)
 
-    const indexed = new Uint8Array(frame.width * frame.height)
+    const indexed = new Uint8ClampedArray(frame.width * frame.height)
     for (let i = 0; i < indexed.length; i++) {
       const si = i * 4
       indexed[i] = quantize(

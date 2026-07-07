@@ -24,7 +24,7 @@ function createMember(overrides: Partial<GroupMember> = {}): GroupMember {
     lastActiveAt: 1700000000000,
     enabledTools: [],
     enabledSkills: [],
-    baseLayerMode: 'auto',
+    baseLayerMode: 'empty',
     ...overrides,
   }
 }
@@ -142,7 +142,7 @@ describe('TypeBridge', () => {
 
       for (const [role, expected] of roles) {
         const member = createMember({ role })
-        expect(memberToProfile(member).personality.speakingStyle).toBe(expected)
+        expect(memberToProfile(member)!.personality!.speakingStyle).toBe(expected)
       }
     })
 

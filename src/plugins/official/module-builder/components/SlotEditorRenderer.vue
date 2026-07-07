@@ -49,6 +49,7 @@ const emit = defineEmits<{
   'add-component': [zoneId: string, typeId: ComponentTypeId]
   'remove-component': [id: string]
   'layout-change': []
+  'layout-change-start': []
 }>()
 
 function zoneStyle(child: LayoutSlotChild) {

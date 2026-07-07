@@ -107,7 +107,7 @@ export async function packWsFont(input: WsFontPackInput): Promise<Blob> {
 
 function toArrayBuffer(source: Blob | ArrayBuffer | Uint8Array): Blob | ArrayBuffer {
   if (source instanceof Uint8Array) {
-    return source.buffer.slice(source.byteOffset, source.byteOffset + source.byteLength)
+    return source.buffer.slice(source.byteOffset, source.byteOffset + source.byteLength) as ArrayBuffer
   }
   return source
 }

@@ -64,9 +64,9 @@
             :entity-id="entity?.id"
             :cover-position="entity?.coverPosition"
             :cover-zoom="entity?.coverZoom"
-            @update:value="formData[field.key] = $event"
-            @update:cover-position="formData._coverPosition = $event"
-            @update:cover-zoom="formData._coverZoom = $event"
+          @update:value="formData[field.key] = String($event)"
+          @update:cover-position="formData._coverPosition = $event"
+          @update:cover-zoom="formData._coverZoom = String($event)"
           />
         </div>
         <div class="efm-add-field">

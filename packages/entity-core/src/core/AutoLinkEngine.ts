@@ -377,6 +377,10 @@ class PotentialLinkIndexClass {
     }
   }
 
+  getAll(): PotentialLink[] {
+    return Array.from(this.links.values())
+  }
+
   /** 清除指定实体的所有未解决链接（实体删除时调用） */
   clearBySource(entityId: string): void {
     const links = this.bySource.get(entityId)
@@ -580,7 +584,7 @@ async function matchAndIndex(
 
         // 在候选实体的匹配字段中查找
         for (const fieldKey of strategy.matchFields) {
-          const targetValue = String(candidate.properties?.[fieldKey] ?? candidate.title ?? '')
+          const targetValue = String(candidate.properties?.[fieldKey] ?? candidate.name ?? '')
           if (!targetValue) continue
 
           let score = 0
@@ -632,7 +636,7 @@ async function matchAndIndexDirect(
 
       // 优先搜索指定字段，否则搜索 title
       const fieldName = searchField ?? 'title'
-      const targetValue = String(candidate.properties?.[fieldName] ?? candidate.title ?? '')
+      const targetValue = String(candidate.properties?.[fieldName] ?? candidate.name ?? '')
       if (!targetValue) continue
 
       const score = computeFuzzyScore(sourceText, targetValue)
@@ -682,7 +686,7 @@ async function blindMatchAllEntities(
         for (const candidate of candidates) {
           if (candidate.id === sourceEntityId) continue
 
-          const targetTitle = candidate.title ?? ''
+          const targetTitle = candidate.name ?? ''
           if (!targetTitle) continue
 
           const score = computeFuzzyScore(value, targetTitle)

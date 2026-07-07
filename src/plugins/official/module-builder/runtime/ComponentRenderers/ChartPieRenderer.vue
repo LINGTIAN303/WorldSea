@@ -10,6 +10,12 @@ import { TitleComponent, TooltipComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import type { ModuleRuntimeContext } from '../ModuleRuntimeContext'
 
+function cssVar(name: string, fallback: string): string {
+  if (typeof document === 'undefined') return fallback
+  const val = getComputedStyle(document.documentElement).getPropertyValue(name.replace(/^var\(--/, '').replace(/\)$/, '')).trim()
+  return val || fallback
+}
+
 echarts.use([PieChart, TitleComponent, TooltipComponent, CanvasRenderer])
 
 const props = defineProps<{ config: Record<string, unknown>; componentId: string }>()

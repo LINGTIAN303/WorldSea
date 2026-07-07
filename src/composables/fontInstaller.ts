@@ -300,7 +300,7 @@ export function extractFontUrlsFromCss(cssText: string): CssFontFaceInfo[] {
 export async function installFromWsfont(
   buffer: ArrayBuffer,
 ): Promise<{ entry: FontLibraryEntry; manifest: WsFontManifest }> {
-  const { manifest, files } = unpackWsFont(buffer)
+  const { manifest, files } = await unpackWsFont(buffer)
 
   const variants: FontVariantEntry[] = []
   let totalSize = 0

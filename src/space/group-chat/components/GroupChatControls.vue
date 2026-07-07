@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="chat-controls">
     <template v-if="isActive">
       <div class="controls-left">
@@ -30,7 +30,7 @@
             rows="2"
             @keydown.enter.exact="onInject"
           ></textarea>
-          <button class="ctrl-btn send-btn" :disabled="!injectText.trim()" @click="onInject">发送</button>
+          <button class="ctrl-btn send-btn" :disabled="!injectText.trim()" @click="onInject()">发送</button>
           <button class="ctrl-btn cancel-btn" @click="showInject = false; injectText = ''">取消</button>
         </div>
       </Transition>

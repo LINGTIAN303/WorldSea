@@ -12,7 +12,7 @@
  * - 索引按 name 长度降序排列，优先匹配长名（避免"剑圣"被"剑"截断）
  * - 模块级单例：全局共享同一份索引
  */
-import { computed } from 'vue'
+import { computed, type ComputedRef } from 'vue'
 import { useEntityStore } from '@worldsmith/entity-core'
 
 export interface MentionMatch {
@@ -33,9 +33,9 @@ const MIN_NAME_LENGTH = 2
 
 // ===== 模块级单例状态（懒加载，避免模块加载时 Pinia 未初始化） =====
 let _entityStore: ReturnType<typeof useEntityStore> | null = null
-let _mentionIndex: ReturnType<typeof computed<Map<string, string[]>>> | null = null
-let _sortedNames: ReturnType<typeof computed<string[]>> | null = null
-let _entityTypeMap: ReturnType<typeof computed<Map<string, string>>> | null = null
+let _mentionIndex: ComputedRef<Map<string, string[]>> | null = null
+let _sortedNames: ComputedRef<string[]> | null = null
+let _entityTypeMap: ComputedRef<Map<string, string>> | null = null
 
 function getStore() {
   if (!_entityStore) _entityStore = useEntityStore()
@@ -60,7 +60,7 @@ function getMentionIndex() {
       return map
     })
   }
-  return _mentionIndex
+  return _mentionIndex!
 }
 
 function getSortedNames() {
@@ -71,7 +71,7 @@ function getSortedNames() {
       return names
     })
   }
-  return _sortedNames
+  return _sortedNames!
 }
 
 function getEntityTypeMap() {
@@ -85,7 +85,7 @@ function getEntityTypeMap() {
       return map
     })
   }
-  return _entityTypeMap
+  return _entityTypeMap!
 }
 
 /**

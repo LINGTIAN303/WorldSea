@@ -30,7 +30,7 @@ const emit = defineEmits<{
 const graphRef = ref<HTMLDivElement>()
 const expanded = ref(false)
 
-const graph = useSmallCanvasGraph(graphRef, {
+const graph = useSmallCanvasGraph(graphRef as any, {
   onNodeClick(node) {
     if (node.id) emit('navigateToEvent', node.id)
   },

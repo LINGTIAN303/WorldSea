@@ -8,19 +8,19 @@
           v-if="isSimpleInput(f.type)"
           class="ef-input"
           :type="inputType(f.type)"
-          :value="formData[f.key]"
+          :value="fieldValue(f.key)"
           @input="onFieldInput(f.key, ($event.target as HTMLInputElement).value)"
         />
         <textarea
           v-else-if="f.type === 'textarea' || f.type === 'rich-text' || f.type === 'markdown'"
           class="ef-textarea"
-          :value="formData[f.key]"
+          :value="fieldValue(f.key)"
           @input="onFieldInput(f.key, ($event.target as HTMLTextAreaElement).value)"
         />
         <select
           v-else-if="f.type === 'select'"
           class="ef-select"
-          :value="formData[f.key]"
+          :value="fieldValue(f.key)"
           @change="onFieldInput(f.key, ($event.target as HTMLSelectElement).value)"
         >
           <option v-for="opt in (f.options || [])" :key="opt" :value="opt">{{ opt }}</option>
@@ -58,6 +58,12 @@ const formFields = computed(() => {
 })
 
 const formData = reactive<Record<string, unknown>>({})
+
+/** 将 formData 中的 unknown 值转为 input/textarea 可接受的 string */
+function fieldValue(key: string): string {
+  const v = formData[key]
+  return v == null ? '' : String(v)
+}
 
 function isSimpleInput(type: string) {
   return ['text', 'number', 'date', 'time', 'datetime', 'url', 'email', 'color', 'rating', 'slider'].includes(type)

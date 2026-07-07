@@ -9,7 +9,7 @@
         v-model="filters[fd.key]"
         :options="fd.options || dynamicFilterOptions(fd.key, fd.label)"
       />
-      <CustomDropdown v-if="sortOptions.length > 0" v-model="sortBy" :options="[{ value: '', label: '默认排序' }, ...sortOptions]" />
+      <CustomDropdown v-if="sortOptions.length > 0" v-model="sortBy" :options="[{ value: '', label: '默认排序' }, ...sortOptions.map(o => ({ value: o.key, label: o.label }))]" />
       <slot name="toolbar-extra" />
       <CreateButton v-if="!hideCreateButton" :label="`新建${entityLabel}`" @click="openNewForm" />
       <button v-if="selectedIds.size > 0" class="btn-danger btn-sm" @click="onBatchDel">删除 ({{ selectedIds.size }})</button>
@@ -108,7 +108,7 @@
       :entity="selectedEntity"
       :icon="selectedEntity ? resolvedIconFn(selectedEntity) : ''"
       :title="selectedEntity?.name || ''"
-      :subtitle="selectedEntity?.properties[typeFieldKey] || entityLabel"
+      :subtitle="String(selectedEntity?.properties[typeFieldKey] ?? entityLabel)"
       :tabs="resolvedTabs"
       :show-edit="true"
       :editing="isEditing"
@@ -343,10 +343,10 @@ const relationTabs = computed(() => props.detailTabs || [])
 const resolvedTabs = computed(() => {
   const tabs = [{ id: 'info', label: '信息', icon: 'outline' }]
   for (const ct of props.customTabs || []) {
-    tabs.push({ id: ct.id, label: ct.label, icon: ct.icon })
+    tabs.push({ id: ct.id, label: ct.label, icon: ct.icon || '' })
   }
   for (const rt of relationTabs.value) {
-    tabs.push({ id: rt.id, label: rt.label, icon: rt.icon })
+    tabs.push({ id: rt.id, label: rt.label, icon: rt.icon || '' })
   }
   tabs.push({ id: 'relations', label: '关联', icon: 'link' })
   return tabs
@@ -471,7 +471,7 @@ async function onFormSave(data: { name: string; description: string; properties:
     if (data._coverPosition) entityData.coverPosition = data._coverPosition
     if (data._coverZoom) entityData.coverZoom = data._coverZoom
     if (props.facetOnCreate) entityData.facets = { [props.facetOnCreate]: {} }
-    await entityStore.add(entityData as Entity)
+    await entityStore.add(entityData as unknown as Entity)
     savedEntityId = id
     toastSuccess('已创建')
   }

@@ -215,7 +215,6 @@ async function onCreateNewEntity() {
     entityType: typeFilter.value || props.entityType || 'custom',
     relationType: selectedType.value || undefined,
     sourceId: props.reverseDirection ? undefined : props.entityId,
-    targetId: props.reverseDirection ? props.entityId : undefined,
   })
   if (entity) {
     pickerVisible.value = false

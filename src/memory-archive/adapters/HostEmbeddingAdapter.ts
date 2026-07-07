@@ -11,7 +11,7 @@
  */
 
 import type { EmbeddingAdapter } from '@worldsmith/memory-archive/adapters'
-import { getEmbeddingConfig, generateEmbedding, generateEmbeddings } from '@agent'
+import { getEmbeddingConfig, generateEmbedding, generateEmbeddings } from '@agent/index'
 
 /**
  * 创建宿主 Embedding 适配器

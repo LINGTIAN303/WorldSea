@@ -39,7 +39,7 @@ export function activate(api: PluginAPIType) {
       { key: 'era', label: '纪元', type: 'text' },
       { key: 'importance', label: '重要程度', type: 'select', options: ['关键', '重要', '普通', '细微'] },
       { key: 'status', label: '状态', type: 'select', options: ['正史', '废案', '备选'] },
-      { key: 'parentId', label: '父级事件', type: 'entity-ref' },
+      { key: 'parentId', label: '父级事件', type: 'entityRef' },
       { key: 'location', label: '发生地点', type: 'text' },
     ],
   })

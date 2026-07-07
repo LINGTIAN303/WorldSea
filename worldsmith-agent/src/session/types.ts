@@ -44,6 +44,12 @@ export interface AgentMessage {
   speakerName?: string
   speakerAvatar?: string
   speakerColor?: string
+  /** Agent 输出字体 family（群聊场景） */
+  speakerFontFamily?: string
+  /** Agent 输出字体 weight */
+  speakerFontWeight?: number
+  /** Agent 输出字体 style */
+  speakerFontStyle?: string
   /** 扩展元数据 */
   metadata?: Record<string, unknown>
 }

@@ -1,17 +1,17 @@
 <template>
   <div class="en-node" :class="[`en-${nodeType}`, { 'en-editing': isEditing }]" @click="onClick">
     <div class="en-left">
-      <span v-if="nodeType === 'custom'" class="en-icon"><WsIcon :name="categoryIcon" size="xs" /></span>
+      <span v-if="node.type === 'custom'" class="en-icon"><WsIcon :name="categoryIcon" size="xs" /></span>
       <span v-else class="en-icon en-icon-rel">{{ relLabel }}</span>
       <div class="en-dot"></div>
     </div>
     <div class="en-body">
       <span class="en-date">{{ displayDate }}</span>
-      <template v-if="nodeType === 'custom' && !isEditing">
-        <span class="en-title">{{ node.title }}</span>
-        <p v-if="node.description" class="en-desc">{{ node.description }}</p>
+      <template v-if="node.type === 'custom' && !isEditing">
+        <span class="en-title">{{ node.event.title }}</span>
+        <p v-if="node.event.description" class="en-desc">{{ node.event.description }}</p>
       </template>
-      <template v-else-if="nodeType === 'custom' && isEditing">
+      <template v-else-if="node.type === 'custom' && isEditing">
         <input v-model="editData.title" class="en-input" placeholder="标题" />
         <textarea v-model="editData.description" class="en-textarea" placeholder="描述" rows="2"></textarea>
         <div class="en-edit-row">
@@ -30,7 +30,7 @@
           <button class="en-btn-sm en-btn-danger" @click.stop="$emit('delete', node.id)">删除</button>
         </div>
       </template>
-      <template v-else>
+      <template v-else-if="node.type === 'relation'">
         <span class="en-title">{{ entityName }}</span>
         <p v-if="entityDesc" class="en-desc">{{ entityDesc }}</p>
         <button class="en-link" @click.stop="$emit('viewEntity', node.entityId)">查看</button>
@@ -83,7 +83,7 @@ const emit = defineEmits<{
 
 const entityStore = useEntityStore()
 const isEditing = ref(false)
-const editData = ref({ title: '', description: '', date: '', category: 'other' as const })
+const editData = ref({ title: '', description: '', date: '', category: 'other' as CustomLifeEvent['category'] })
 
 const nodeType = computed(() => props.node.type)
 

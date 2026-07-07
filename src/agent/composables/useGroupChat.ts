@@ -553,7 +553,7 @@ export function useGroupChat() {
         tools: [],
         toolContext,
       })
-      await moderatorBackend.initialize()
+      await (moderatorBackend as CoreBackend).initialize()
     }
   }
 

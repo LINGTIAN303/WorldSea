@@ -158,7 +158,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useSkillsStore } from '../composables/useSkillsStore'
+import { useSkillsStore } from './composables/useSkillsStore'
 import type { RemoteSkillEntry } from '@agent/index'
 
 const emit = defineEmits<{ 'skills-changed': [] }>()

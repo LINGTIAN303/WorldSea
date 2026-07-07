@@ -74,7 +74,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { NAlert } from 'naive-ui'
 import Graph from 'graphology'
-import { useEntityStore, useRelationStore, entitySchemaRegistry } from '@worldsmith/entity-core'
+import { useEntityStore, useRelationStore, entitySchemaRegistry, getNodeTypeInfo } from '@worldsmith/entity-core'
 import { useGraphData, type GraphNode, useTypeMapping, useGraphFilter, useGraphAlgorithms } from '@worldsmith/ui-kit'
 import { useSigmaRenderer } from './composables/useSigmaRenderer'
 import { useGraphLayout, type LayoutType } from './composables/useGraphLayout'
@@ -138,17 +138,23 @@ const allTypes = computed(() => {
 })
 
 const toolbarTypes = computed(() =>
-  allTypes.value.map(t => ({
-    type: t.type,
-    label: t.label,
-    icon: t.icon || '◻',
-    color: getColor(t.type, 'cool'),
-  }))
+  allTypes.value.map(t => {
+    const info = getNodeTypeInfo(t.type)
+    return {
+      type: t.type,
+      label: t.label,
+      icon: t.icon || '◻',
+      shape: info.shape,
+      coolColor: info.coolColor,
+      warmColor: info.warmColor,
+      color: getColor(t.type, 'cool'),
+    }
+  })
 )
 
 const selectedNode = computed<GraphNode | null>(() => {
   const id = interaction.selectedNodeId.value
-  return id ? getNode(id) : null
+  return id ? (getNode(id) ?? null) : null
 })
 
 function buildGraphology(): void {

@@ -137,7 +137,7 @@ onMounted(async () => {
 
 function statusLabel(s: PipelineStatus): string {
   const map: Record<PipelineStatus, string> = {
-    draft: '草稿', ready: '就绪', running: '执行中', completed: '已完成', failed: '失败',
+    draft: '草稿', ready: '就绪', running: '执行中', paused: '已暂停', completed: '已完成', failed: '失败',
   }
   return map[s] || s
 }

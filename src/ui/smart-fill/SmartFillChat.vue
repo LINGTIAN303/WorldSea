@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <Teleport to="body">
     <div v-if="visible" class="sf-chat-window" :style="windowStyle" @mousedown.stop>
       <div class="sf-chat-header" @mousedown="onDragStart">
@@ -62,7 +62,7 @@ const props = defineProps<{
   visible: boolean
   context: SmartFillChatContext
   loading: boolean
-  messages: SmartFillChatMessage[]
+  messages: readonly SmartFillChatMessage[]
 }>()
 
 const emit = defineEmits<{

@@ -78,6 +78,7 @@ const emit = defineEmits<{
   'update:coverPosition': [val: string]
   'update:coverZoom': [val: number]
   'open-lightbox': [url: string]
+  'request-edit': []
 }>()
 
 const fileStore = useFileStore()

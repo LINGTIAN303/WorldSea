@@ -198,7 +198,7 @@ export interface CreationTemplate {
   /** 预定义的步骤列表 */
   steps: Omit<PipelineStep, 'id' | 'status' | 'output'>[]
   /** 预定义的连接（fromIndex/toIndex 指向 steps 数组索引） */
-  connections: Omit<StepConnection, 'from' | 'to'> & { fromIndex: number; toIndex: number }[]
+  connections: (Omit<StepConnection, 'from' | 'to'> & { fromIndex: number; toIndex: number })[]
 }
 
 // ─── Agent 通信 ──────────────────────────────────────────────────────────

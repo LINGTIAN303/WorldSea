@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="slot-editor-overlay" @click.self="$emit('close')">
     <div class="slot-editor">
       <div class="editor-header">
@@ -69,7 +69,7 @@
               <template v-if="ensureEntry(slot.id).mode === 'cloud'">
                 <div class="model-picker" :id="`picker-anchor-${slot.id}`">
                   <div class="picker-trigger" @click="togglePicker(slot.id)" :id="`picker-trigger-${slot.id}`">
-                    <img v-if="ensureEntry(slot.id).provider && getProviderIconUrl(ensureEntry(slot.id).provider)" class="picker-icon" :src="getProviderIconUrl(ensureEntry(slot.id).provider)" alt="" />
+                    <img v-if="ensureEntry(slot.id).provider && getProviderIconUrl(ensureEntry(slot.id).provider || '')" class="picker-icon" :src="getProviderIconUrl(ensureEntry(slot.id).provider || '')" alt="" />
                     <span class="picker-value" v-if="ensureEntry(slot.id).modelId">{{ getModelName(ensureEntry(slot.id).modelId) }}</span>
                     <span class="picker-placeholder" v-else>选择模型</span>
                     <WsIcon name="chevron-down" size="xs" />

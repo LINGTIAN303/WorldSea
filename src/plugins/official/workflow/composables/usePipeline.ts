@@ -96,8 +96,8 @@ export function usePipeline() {
         status: 'draft' satisfies PipelineStatus,
       },
       tags: params.tags ?? [],
-      createdAt: now,
-      updatedAt: now,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     }
 
     await entityStore.add(entity)

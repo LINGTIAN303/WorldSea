@@ -53,7 +53,6 @@ export function usePipelineTemplates() {
 
     for (const tpl of lsTemplates) {
       if (!storeIds.has(tpl.id)) {
-        const now = Date.now()
         await entityStore.add({
           id: tpl.id,
           type: TEMPLATE_ENTITY_TYPE,
@@ -65,8 +64,8 @@ export function usePipelineTemplates() {
             connections: JSON.stringify(tpl.connections),
           },
           tags: tpl.tags,
-          createdAt: now,
-          updatedAt: now,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         })
       }
     }
@@ -144,7 +143,7 @@ export function usePipelineTemplates() {
     description?: string
     icon?: string
     tags?: string[]
-    steps: Omit<PipelineStep, 'id' | 'status' | 'output'>[]
+    steps: PipelineStep[]
     connections: StepConnection[]
   }): Promise<CreationTemplate> {
     // 将连接转换为 index-based 格式
@@ -186,8 +185,8 @@ export function usePipelineTemplates() {
         connections: JSON.stringify(template.connections),
       },
       tags: template.tags,
-      createdAt: now,
-      updatedAt: now,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     })
 
     userTemplates.value = [...userTemplates.value, template]

@@ -11,6 +11,7 @@ import { resolveEndpoint, extractTitle, buildLLMBody } from '../agent/composable
 import {
   type TriggerContext,
   type PopupPosition,
+  type TriggerMethod,
   getSceneConfig,
   getScenePosition,
   identifySceneFromEntityCreate,
@@ -24,7 +25,6 @@ import {
   identifySceneFromBatchEdit,
 } from './companionModeScene'
 import {
-  type TriggerMethod,
   type LuckState,
   selectTriggerMethod,
   calculateProbability,
@@ -263,7 +263,7 @@ function buildCompanionModeContext(entityId: string, ctx: TriggerContext): Compa
   const luckLabel = settingsStore.companionModeLuckEnabled ? getLuckLabel(luckState.value.coefficient) : undefined
 
   return {
-    currentView: ctx.currentView || uiStore.currentView,
+    currentView: (ctx.currentView || uiStore.currentView) ?? undefined,
     editDurationSeconds: editDuration,
     editCount: editCount > 0 ? editCount + 1 : undefined,
     projectStats: {

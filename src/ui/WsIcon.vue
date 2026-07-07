@@ -4,7 +4,7 @@
     :class="['ws-icon', `ws-icon--${resolvedSize}`, { 'ws-icon--fill': iconDef.fill }]"
     :width="resolvedPixelSize"
     :height="resolvedPixelSize"
-    :viewBox="iconDef.viewBox || '0 0 24 24'"
+    :viewBox="resolvedViewBox"
     :fill="iconDef.fill ? 'currentColor' : 'none'"
     :stroke="iconDef.fill ? 'none' : 'currentColor'"
     :stroke-width="iconDef.fill ? 0 : resolvedStrokeWidth"
@@ -60,6 +60,8 @@ const iconDef = computed(() => {
   return getIcon(props.name)
 })
 
+const resolvedViewBox = computed(() => (iconDef.value as { viewBox?: string } | null)?.viewBox || '0 0 24 24')
+
 const lucideIcon = computed<Component | null>(() => {
   if (iconDef.value) return null
   return resolveLucideIcon(props.name)
@@ -87,12 +89,12 @@ const resolvedStrokeWidth = computed(() => {
 /** 从 CSS 变量读取笔触风格 */
 const iconStrokeLinecap = computed(() => {
   if (typeof document === 'undefined') return 'round'
-  return getComputedStyle(document.documentElement).getPropertyValue('--icon-stroke-linecap').trim() || 'round'
+  return (getComputedStyle(document.documentElement).getPropertyValue('--icon-stroke-linecap').trim() || 'round') as 'inherit' | 'round' | 'square' | 'butt'
 })
 
 const iconStrokeLinejoin = computed(() => {
   if (typeof document === 'undefined') return 'round'
-  return getComputedStyle(document.documentElement).getPropertyValue('--icon-stroke-linejoin').trim() || 'round'
+  return (getComputedStyle(document.documentElement).getPropertyValue('--icon-stroke-linejoin').trim() || 'round') as 'inherit' | 'round' | 'miter' | 'bevel'
 })
 </script>
 

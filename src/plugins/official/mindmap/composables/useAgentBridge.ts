@@ -6,7 +6,7 @@
  * - 接收 Agent 的 plugin-query 事件：getStructure
  *
  * Action 协议：
- *  - event.action === 'auto_layout': { algorithm: 'force'|'radial'|'tree'|'compact' }
+ *  - event.action === 'auto_layout': { algorithm: LayoutAlgorithmType }
  *  - event.action === 'find_isolated': {}           → 高亮孤立节点
  *  - event.action === 'find_cycles': {}             → 高亮环上的节点
  *  - event.action === 'highlight_path': { sourceId, targetId } → 高亮路径
@@ -18,9 +18,10 @@
 import { onMounted, onBeforeUnmount } from 'vue'
 import type { Ref } from 'vue'
 import { useMindmapStore } from '../mindmapStore'
+import type { LayoutAlgorithmType } from '../mindmapStore'
 
 export interface AgentBridgeCallbacks {
-  autoLayout: (algorithm: 'force' | 'radial' | 'tree' | 'compact') => void
+  autoLayout: (algorithm: LayoutAlgorithmType) => void
   findIsolated: () => void
   findCycles: () => void
   highlightPath: (sourceId: string, targetId: string) => void

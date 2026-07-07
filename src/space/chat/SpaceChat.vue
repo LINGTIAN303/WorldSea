@@ -37,10 +37,21 @@ const spaceStore = useSpaceStore()
 const {
   messages, isStreaming, sendMessage, sendBlockAction,
   lastAssistantHasContent, lastAssistantHasThinking,
-  a2uiSurfaces, resolveDataBinding, copyMessage, retryMessage,
+  a2uiSurfaces, resolveDataBinding,
 } = useAgent()
 
 const messageListRef = ref<InstanceType<typeof AgentMessageList>>()
+
+function copyMessage(msg: { content?: string }): void {
+  navigator.clipboard.writeText(msg.content || '').catch(() => {})
+}
+
+async function retryMessage(msg: { content?: string }): Promise<void> {
+  if (isStreaming.value) return
+  await sendMessage(msg.content || '')
+  await nextTick()
+  messageListRef.value?.scrollToBottom()
+}
 
 function onA2UIAction(surfaceId: string, action: { name: string; data?: any }): void {
   const dataStr = action.data ? JSON.stringify(action.data) : ''

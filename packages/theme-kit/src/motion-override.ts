@@ -36,7 +36,7 @@ export function applyMotionOverrides(config: MotionStyleConfig): void {
   if (config.easingOverrides) {
     for (const [key, value] of Object.entries(config.easingOverrides)) {
       const cssVar = key.startsWith('--') ? key : `--${key}`
-      root.style.setProperty(cssVar, value)
+      root.style.setProperty(cssVar, value ?? null)
     }
   }
 
@@ -44,7 +44,7 @@ export function applyMotionOverrides(config: MotionStyleConfig): void {
   if (config.durationOverrides) {
     for (const [key, value] of Object.entries(config.durationOverrides)) {
       const cssVar = key.startsWith('--') ? key : `--${key}`
-      root.style.setProperty(cssVar, value)
+      root.style.setProperty(cssVar, value ?? null)
     }
   }
 

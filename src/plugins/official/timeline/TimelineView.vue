@@ -35,14 +35,15 @@
       :sort-mode="sortMode"
       :tree="tree"
       :drag="dragState"
-      :relations="computedRelations"
-      :entity-map="computedEntityMap"
+      :relations="{ value: computedRelations }"
+      :entity-map="{ value: computedEntityMap }"
       :group-mode="groupModeValue"
       @select-event="selectEvent"
       @toggle-select="toggleSelect"
     />
 
     <EventDetailPanel
+      v-if="selectedEvent"
       :event="selectedEvent"
       :all-events="eventList"
       :all-relations="relationStore.relations"
@@ -146,7 +147,7 @@ const { conflicts, hasConflicts } = useConflictDetection(
 const drag = useTimelineDrag({
   enabled: computed(() => (settingsStore as any).timelineDragEnabled ?? false),
   entityStore,
-  confirm,
+  confirm: confirm as any,
   pixelsPerYear: computed(() => 30),
   timeToTimeValue: (pd) => pd.era * 10000 + pd.year,
 })

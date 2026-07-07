@@ -37,10 +37,10 @@ const SlashCommandExtension = Extension.create({
           editor.chain().focus().deleteRange(range).run()
         },
         render: () => ({
-          onStart: () => {},
-          onUpdate: () => {},
+          onStart: (_props: any) => {},
+          onUpdate: (_props: any) => {},
           onExit: () => {},
-          onKeyDown: () => false,
+          onKeyDown: (): boolean => false,
         }),
       },
     }

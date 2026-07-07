@@ -74,7 +74,7 @@ import { ref, computed } from 'vue'
 import { useGroupChatStore } from '../GroupChatStore'
 import { saveCasualGroupSession } from '../GroupSessionManager'
 import { useAgentRegistryStore } from '../management/AgentRegistryStore'
-import type { GroupMember } from '../types'
+import type { GroupMember, BaseLayerMode, ToolSource } from '../types'
 import { assignAgentColor } from '../types'
 import MemberList from './MemberList.vue'
 import RequestMonitorPanel from './RequestMonitorPanel.vue'
@@ -93,7 +93,7 @@ const groupName = ref(store.groupInfo?.name || '')
 const announcement = ref(store.groupInfo?.announcement || '')
 const showInviteDialog = ref(false)
 const inviteSearch = ref('')
-const inviteSelected = ref<Array<{ id: string; name: string; role: string; color: string; avatar: string; systemPrompt: string; modelId?: string; enabledTools: string[]; enabledSkills: string[]; baseLayerMode: string; customBaseLayer?: string; toolSource?: string; providerSlotId?: string }>>([])
+const inviteSelected = ref<Array<{ id: string; name: string; role: string; color: string; avatar: string; systemPrompt: string; modelId?: string; enabledTools: string[]; enabledSkills: string[]; baseLayerMode?: string; customBaseLayer?: string; toolSource?: string; providerSlotId?: string }>>([])
 
 const allAgents = computed(() => {
   return agentRegistry.agents.map(a => ({
@@ -155,9 +155,9 @@ async function onInviteConfirm(): Promise<void> {
     lastSpokeAt: 0,
     enabledTools: a.enabledTools || [],
     enabledSkills: a.enabledSkills || [],
-    baseLayerMode: a.baseLayerMode || 'empty',
+    baseLayerMode: (a.baseLayerMode || 'empty') as BaseLayerMode,
     customBaseLayer: a.customBaseLayer,
-    toolSource: a.toolSource || 'derived',
+    toolSource: (a.toolSource || 'derived') as ToolSource,
     providerSlotId: a.providerSlotId,
   }))
 

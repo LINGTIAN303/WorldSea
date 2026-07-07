@@ -177,7 +177,7 @@ function applyComponentOverrides(overrides: ComponentOverrides): void {
     if (preset.cssVars) {
       _componentOverrideVars.set(component, preset.cssVars)
       for (const [key, value] of Object.entries(preset.cssVars)) {
-        root.style.setProperty(key, value)
+        root.style.setProperty(key, value as string)
       }
     }
   }

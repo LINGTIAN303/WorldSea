@@ -10,7 +10,7 @@
       :free-draw-mode="freeDrawing.isFreeDrawMode.value"
       :zoom-level="zoomLevel"
       :can-go-back="!!mindmapStore.currentRootId"
-      :detail-panel-visible="mindmapStore.detailPanelVisible"
+      :detail-panel-visible="mindmapStore.ui.detailPanelVisible"
       :minimap-visible="mindmapStore.ui.minimapVisible"
       :can-undo="canUndo"
       :can-redo="canRedo"
@@ -18,7 +18,7 @@
       @update:search-query="searchQuery = $event; onSearchInput()"
       @search-next="searchNext"
       @search-prev="searchPrev"
-      @update:layout="layoutName = $event; applyLayout()"
+      @update:layout="onLayoutChange"
       @toggle-type="toggleType"
       @update:enabled-types="visibleTypes = $event; rebuildGraph()"
       @toggle-edit-mode="toggleEditMode"
@@ -66,7 +66,7 @@
       </div>
 
       <MindmapDetailPanel
-        :visible="mindmapStore.detailPanelVisible"
+        :visible="mindmapStore.ui.detailPanelVisible"
         :node-id="selectedNodeId"
         :node-name="selectedNodeName"
         :node-type="selectedNodeType"
@@ -361,8 +361,8 @@ const interactionCallbacks: CanvasInteractionCallbacks = {
       const tgtType = node.type
       const guessed = guessRelType(srcType, tgtType)
       const rels = relationSchemaRegistry.getAll().filter(rt => {
-        return (rt.sourceType === srcType || rt.sourceType === '*') &&
-               (rt.targetType === tgtType || rt.targetType === '*')
+        return (rt.sourceTypes.includes(srcType) || rt.sourceTypes.includes('*')) &&
+               (rt.targetTypes.includes(tgtType) || rt.targetTypes.includes('*'))
       })
       if (rels.length > 0) {
         _relTypId = rels[0].type
@@ -450,7 +450,7 @@ const interactionCallbacks: CanvasInteractionCallbacks = {
     node.fy = node.y
   },
   onZoom: (k) => {
-    zoomLevel.value = Math.round(k * 100)
+    mindmapStore.setCamera({ ...mindmapStore.camera, k })
     renderer.markDirty()
   },
   onPan: () => {
@@ -663,12 +663,10 @@ function exitNested() {
   rebuildGraph()
 }
 
-function jumpTo(idx: number) {
-  const item = mindmapStore.breadcrumb[idx]
-  if (item) {
-    mindmapStore.jumpToBreadcrumb(item.id)
-    rebuildGraph()
-  }
+function jumpTo(id: string | null) {
+  if (id === null) return
+  mindmapStore.jumpToBreadcrumb(id)
+  rebuildGraph()
 }
 
 function handleKeySequence(seq: string) {
@@ -829,7 +827,7 @@ function buildCanvasData(): void {
   const collapsed = mindmapStore.collapsedNodeIds
   const focusedId = mindmapStore.focusedNodeId
   const searchMatchIds = mindmapStore.searchMatches
-  const vTypes = visibleTypes.value
+  const vTypes = visibleTypes
 
   if (rootId === null) {
     const centerId = mindmapStore.centerNodeId
@@ -982,6 +980,11 @@ function mapToGraphData() {
   return { gNodes, gEdges }
 }
 
+function onLayoutChange(v: string) {
+  layoutName.value = v as LayoutAlgorithmType
+  applyLayout()
+}
+
 async function applyLayout() {
   const algo = layoutName.value as LayoutAlgorithmType
   const { gNodes, gEdges } = mapToGraphData()
@@ -1003,9 +1006,7 @@ async function applyLayout() {
         radiusStep: 140,
       })
     } else {
-      // compact 降级为 force
-      const layoutType = algo === 'compact' ? 'force' : algo
-      positions = await rustLayout.applyLayout(layoutType, gNodes, gEdges, {})
+      positions = await rustLayout.applyLayout(algo, gNodes, gEdges, {})
     }
 
     // 构建动画目标（跳过被手动固定的节点）
@@ -1058,7 +1059,7 @@ let searchTimer: ReturnType<typeof setTimeout> | null = null
 function onSearchInput() {
   if (searchTimer) clearTimeout(searchTimer)
   searchTimer = setTimeout(() => {
-    searchMatches.value = []
+    searchMatches.length = 0
     if (!searchQuery.value) {
       canvasNodes.value.forEach(n => n.searchHighlight = false)
       return
@@ -1066,7 +1067,7 @@ function onSearchInput() {
     const q = searchQuery.value.toLowerCase()
     canvasNodes.value.forEach(n => {
       n.searchHighlight = n.name.toLowerCase().includes(q)
-      if (n.searchHighlight) searchMatches.value.push(n.id)
+      if (n.searchHighlight) searchMatches.push(n.id)
     })
     renderer.markDirty()
   }, 300)
@@ -1075,8 +1076,6 @@ function onSearchInput() {
 function createRelationEdge(srcId: string, tgtId: string, relType: string) {
   const edgeId = `rel-${Date.now()}`
   const rt = relationSchemaRegistry.getAll().find(r => r.type === relType)
-  const srcNode = canvasNodes.value.find(n => n.id === srcId)
-  const tgtNode = canvasNodes.value.find(n => n.id === tgtId)
   canvasEdges.value.push({
     id: edgeId, source: srcId, target: tgtId,
     sourceId: srcId, targetId: tgtId,
@@ -1088,10 +1087,12 @@ function createRelationEdge(srcId: string, tgtId: string, relType: string) {
     dashed: false, noArrow: false, hidden: false, selected: false,
   })
   const newRel: Relation = {
-    id: edgeId, type: relType, name: rt?.label || relType,
+    id: edgeId, type: relType,
+    label: rt?.label || relType,
     sourceId: srcId, targetId: tgtId,
-    sourceType: srcNode?.type || '', targetType: tgtNode?.type || '',
+    properties: {},
     createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   }
   relationStore.add(newRel)
 }
@@ -1244,7 +1245,7 @@ function deleteEdge() {
 function setEdgeStyle(style: string) {
   ctxMenu.show = false
   if (!ctxMenu.edgeId) return
-  mindmapStore.setEdgeStyleOverride(ctxMenu.edgeId, { lineStyle: style as any })
+  mindmapStore.setEdgeStyle(ctxMenu.edgeId, { lineStyle: style as any })
   const edge = canvasEdges.value.find(e => e.id === ctxMenu.edgeId)
   if (edge) edge.curveStyle = style as any
 }
@@ -1382,17 +1383,17 @@ function onMinimapJump(wx: number, wy: number): void {
 
 // ===== 搜索导航 =====
 function searchNext(): void {
-  if (searchMatches.value.length === 0) return
-  searchMatchIndex.value = (searchMatchIndex.value + 1) % searchMatches.value.length
+  if (searchMatches.length === 0) return
+  searchMatchIndex.value = (searchMatchIndex.value + 1) % searchMatches.length
   focusSearchMatch()
 }
 function searchPrev(): void {
-  if (searchMatches.value.length === 0) return
-  searchMatchIndex.value = (searchMatchIndex.value - 1 + searchMatches.value.length) % searchMatches.value.length
+  if (searchMatches.length === 0) return
+  searchMatchIndex.value = (searchMatchIndex.value - 1 + searchMatches.length) % searchMatches.length
   focusSearchMatch()
 }
 function focusSearchMatch(): void {
-  const id = searchMatches.value[searchMatchIndex.value]
+  const id = searchMatches[searchMatchIndex.value]
   const node = canvasNodes.value.find(n => n.id === id)
   if (!node) return
   renderer.camera.value = { x: node.x, y: node.y, k: Math.max(renderer.camera.value.k, 1) }
@@ -1542,10 +1543,12 @@ async function createMindmapEntity(parentId: string | null, relationType?: strin
     const relType = relationType || 'associated_with'
     const relId = `rel-${Date.now()}`
     await relationStore.add({
-      id: relId, type: relType, name: '关联',
+      id: relId, type: relType,
+      label: '关联',
       sourceId: parentId, targetId: id,
-      sourceType: 'concept', targetType: 'concept',
+      properties: {},
       createdAt: now,
+      updatedAt: now,
     })
   }
   await nextTick()
@@ -1574,7 +1577,7 @@ function addSiblingNode() {
 }
 
 function toggleType(type: string): void {
-  const v = visibleTypes.value
+  const v = visibleTypes
   if (!(v instanceof Set)) return
   if (v.has(type)) v.delete(type)
   else v.add(type)

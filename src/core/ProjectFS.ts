@@ -314,7 +314,7 @@ export async function importProjectFromDir(
       const content = await readTextFile(file.path)
       allEntities.push(JSON.parse(content))
       entityCount++
-      onProgress?.('entities_read', entityCount, entityTotal)
+      onProgress?.('entities', entityCount, entityTotal)
     }
   }
 
@@ -360,7 +360,7 @@ export async function importProjectFromDir(
     const settingsStore = useSettingsStore()
     for (const p of pluginsConfig) {
       if (p.active) {
-        settingsStore.togglePlugin(p.id, true)
+        settingsStore.togglePlugin(p.id)
       }
     }
   } catch {

@@ -1,9 +1,9 @@
 import { ref } from 'vue'
-import type { MCPConnectionConfig } from '@agent/index'
+import type { MCPConnectionConfig, MCPConnectionState } from '@agent/index'
 import { useAgent } from './useAgent'
 
 const STORAGE_KEY = 'agent_mcp_connections'
-const connections = ref<MCPConnectionConfig[]>([])
+const connections = ref<MCPConnectionState[]>([])
 const loaded = ref(false)
 
 /** 内置默认 MCP 连接：开箱即用，用户可禁用/删除 */

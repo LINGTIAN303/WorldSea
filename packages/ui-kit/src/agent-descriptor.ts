@@ -1,12 +1,11 @@
-import type { LibraryDescriptor, CapabilityDeclaration } from '@agent/toolbus/capability-types'
-import type { IToolContext } from '@agent/toolbus/types'
+import type { LibraryDescriptor, CapabilityDeclaration, AvailabilitySpec } from '@agent/toolbus/capability-types'
 import type { ToolParameter } from '@agent/bridge-types'
 import { a2uiCreateSurface, a2uiUpdateComponents, a2uiUpdateData, a2uiDeleteSurface } from '@agent/tools/a2ui-tools'
 import { a2uiShowEntity, a2uiShowRelation } from '@agent/tools/a2ui-helpers'
 
-const A2UI_AVAILABILITY = {
-  platforms: ['web', 'tauri'] as const,
-  chain: ['internal'] as const,
+const A2UI_AVAILABILITY: AvailabilitySpec = {
+  platforms: ['web', 'tauri'],
+  chain: ['internal'],
   requiresUI: true,
 }
 

@@ -60,7 +60,7 @@ const allItems = computed<MentionItem[]>(() => {
     name: e.name,
     type: e.type,
     typeLabel: entitySchemaRegistry.getLabel(e.type),
-    icon: entitySchemaRegistry.getIcon(e.type) || 'outline',
+    icon: entitySchemaRegistry.getIconName(e.type) || 'outline',
   }))
 })
 

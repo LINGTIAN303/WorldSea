@@ -1,9 +1,9 @@
-import type { LibraryDescriptor, CapabilityDeclaration } from '@agent/toolbus/capability-types'
+import type { LibraryDescriptor, CapabilityDeclaration, AvailabilitySpec } from '@agent/toolbus/capability-types'
 import type { ToolParameter } from '@agent/bridge-types'
 
-const MOTION_AVAILABILITY = {
-  platforms: ['web', 'tauri'] as const,
-  chain: ['internal'] as const,
+const MOTION_AVAILABILITY: AvailabilitySpec = {
+  platforms: ['web', 'tauri'],
+  chain: ['internal'],
   requiresUI: true,
 }
 

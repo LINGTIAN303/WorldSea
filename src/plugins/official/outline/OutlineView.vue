@@ -18,7 +18,7 @@
     </template>
 
     <!-- 自定义列表：树状视图 / 情节线索 / 进度总览 -->
-    <template #list="{ selectEntity }">
+    <template #list="{ select: selectEntity }">
       <div v-if="activeTab === 'tree'" class="outline-tree-area">
         <div class="tree-container">
           <WsEmpty v-if="treeData.length === 0" preset="no-data" title="空大纲" description="点击上方按钮创建第一个章节" />
@@ -27,7 +27,7 @@
             :key="node.entity.id"
             :node="node"
             :depth="0"
-            :selected-id="selectedNodeId"
+            :selected-id="selectedNodeId ?? undefined"
             :expanded-ids="expandedIds"
             @select="(e: Entity) => { onTreeSelect(e); selectEntity(e); }"
             @add-child="addChildNode"

@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="review-checkpoint">
     <div class="review-header">
       <span class="review-icon"><WsIcon name="clipboard-list" size="xs" /></span>
@@ -23,7 +23,7 @@
         @keydown.enter.exact="onConfirmDirection"
       ></textarea>
       <div class="direction-actions">
-        <button class="review-btn confirm-dir-btn" :disabled="!directionText.trim()" @click="onConfirmDirection">确认方向</button>
+        <button class="review-btn confirm-dir-btn" :disabled="!directionText.trim()" @click="onConfirmDirection()">确认方向</button>
         <button class="review-btn cancel-dir-btn" @click="showDirectionInput = false; directionText = ''">取消</button>
       </div>
     </div>

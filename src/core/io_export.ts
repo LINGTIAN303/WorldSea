@@ -118,9 +118,9 @@ export async function importToDb(
   initSerializers()
 
   if (entityStore.clear) await entityStore.clear()
-  for (const e of data.entities) await entityStore.add(e, 'import')
+  for (const e of data.entities) await entityStore.add(e)
   if (relationStore.clear) await relationStore.clear()
-  for (const r of data.relations) await relationStore.add(r, 'import')
+  for (const r of data.relations) await relationStore.add(r)
   await entityStore.loadAll()
   await relationStore.loadAll()
 }

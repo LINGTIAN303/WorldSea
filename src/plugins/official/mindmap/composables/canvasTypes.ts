@@ -37,9 +37,9 @@ export interface CanvasEdge {
   source: string
   target: string
   /** useTreeCanvas 兼容 — source 的别名 */
-  sourceId?: string
+  sourceId: string
   /** useTreeCanvas 兼容 — target 的别名 */
-  targetId?: string
+  targetId: string
   /** 边标签（useTreeCanvas 的 label 字段） */
   label?: string
   /** 是否有箭头（useTreeCanvas 兼容） */

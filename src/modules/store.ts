@@ -16,15 +16,15 @@ function getModulesTable() {
 }
 
 async function getAll(): Promise<ModuleInstance[]> {
-  return getModulesTable().toArray()
+  return getModulesTable().toArray() as unknown as Promise<ModuleInstance[]>
 }
 
 async function get(id: string): Promise<ModuleInstance | undefined> {
-  return getModulesTable().get(id)
+  return getModulesTable().get(id) as unknown as Promise<ModuleInstance | undefined>
 }
 
 async function getActive(): Promise<ModuleInstance[]> {
-  return getModulesTable().where('active').equals(1).toArray()
+  return getModulesTable().where('active').equals(1).toArray() as unknown as Promise<ModuleInstance[]>
 }
 
 async function install(instance: ModuleInstance): Promise<void> {

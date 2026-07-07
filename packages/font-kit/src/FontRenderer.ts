@@ -75,7 +75,7 @@ export function drawImageCover(ctx: CanvasRenderingContext2D, img: CanvasImageSo
     ? [img.videoWidth, img.videoHeight]
     : img instanceof HTMLImageElement
       ? [img.naturalWidth, img.naturalHeight]
-      : [img.width as number, img.height as number]
+      : [(img as HTMLCanvasElement).width, (img as HTMLCanvasElement).height]
   if (!srcW || !srcH) { ctx.drawImage(img, 0, 0, dstW, dstH); return }
   const scale = Math.max(dstW / srcW, dstH / srcH)
   const sw = srcW * scale, sh = srcH * scale
@@ -89,7 +89,7 @@ export function drawImageContain(ctx: CanvasRenderingContext2D, img: CanvasImage
     ? [img.videoWidth, img.videoHeight]
     : img instanceof HTMLImageElement
       ? [img.naturalWidth, img.naturalHeight]
-      : [img.width as number, img.height as number]
+      : [(img as HTMLCanvasElement).width, (img as HTMLCanvasElement).height]
   if (!srcW || !srcH) { ctx.drawImage(img, 0, 0, dstW, dstH); return }
   const scale = Math.min(dstW / srcW, dstH / srcH)
   const sw = srcW * scale, sh = srcH * scale

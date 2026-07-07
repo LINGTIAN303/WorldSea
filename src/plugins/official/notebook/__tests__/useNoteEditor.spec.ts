@@ -50,7 +50,7 @@ vi.mock('@worldsmith/entity-core', () => ({
 }))
 
 function makeEntity(id: string, content = ''): Entity {
-  return { id, name: id, type: 'notebook', properties: { content }, relations: [] }
+  return { id, name: id, type: 'notebook', description: '', properties: { content }, tags: [], createdAt: '', updatedAt: '' }
 }
 
 import { useNoteEditor } from '../composables/useNoteEditor'

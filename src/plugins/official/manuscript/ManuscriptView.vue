@@ -35,7 +35,7 @@
           </div>
         </div>
         <ChapterEditor
-          :editor="editor"
+          :editor="editor ?? null"
           :save-status="saveStatus"
           :word-count="wordCount"
           :set-mention-popover="setMentionPopover"
@@ -230,7 +230,7 @@ async function saveSnapshot() {
 async function restoreSnap(idx: number) {
   const content = await restoreSnapshot(idx)
   if (content && editor.value) {
-    editor.value.commands.setContent(content, false)
+    editor.value.commands.setContent(content, { emitUpdate: false })
   }
 }
 

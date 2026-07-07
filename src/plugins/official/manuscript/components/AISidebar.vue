@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="ai-sidebar" :class="{ open: visible }">
     <div class="ai-header">
       <span class="ai-title"><WsIcon name="profile" size="sm" /> AI 辅助</span>
@@ -113,8 +113,11 @@ async function runAI(mode: string) {
   result.value = ''
   try {
     const prompt = buildPrompt(mode)
-    const response = await agent.sendMessage(prompt)
-    result.value = response || 'AI 未返回结果'
+    await agent.sendMessage(prompt)
+    // sendMessage 返回 void，结果通过 messages 流式更新，取最后一条 assistant 消息
+    const msgs = agent.messages.value
+    const lastAssistant = [...msgs].reverse().find(m => m.role === 'assistant')
+    result.value = lastAssistant?.content || 'AI 未返回结果'
   } catch (err) {
     result.value = `AI 请求失败：${err instanceof Error ? err.message : String(err)}`
   } finally {

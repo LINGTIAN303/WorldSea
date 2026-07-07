@@ -2266,7 +2266,7 @@ export function useAgent() {
         providerMode: providerConfig.mode as any,
         modelId: providerConfig.modelId,
         messages: JSON.parse(JSON.stringify(messages.value)),
-        metadata: { totalTokens: totalUsage.value.totalTokens || 0, totalCost: totalUsage.value.totalCost || 0, toolCallCount: totalUsage.value.requestCount || 0 },
+        metadata: { totalTokens: (totalUsage.value.inputTokens + totalUsage.value.outputTokens) || 0, totalCost: totalUsage.value.totalCost || 0, toolCallCount: totalUsage.value.requestCount || 0 },
       }
     }
     if (!session) return

@@ -118,6 +118,12 @@ const defaultExportConfig: ExportCorrectorConfig = {
   lineHeightOverride: null,
   textShadow: null,
   watermark: '',
+  borderRadius: 0,
+  outputFormat: 'png',
+  outputQuality: 0.92,
+  outputScale: 1,
+  textAlign: 'center',
+  letterSpacingOverride: null,
 }
 const localExportConfig = ref<ExportCorrectorConfig>({ ...defaultExportConfig })
 

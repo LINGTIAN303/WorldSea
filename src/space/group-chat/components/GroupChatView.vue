@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="group-chat-layout">
     <SidebarStrip :active-panel="activePanel" @toggle="onStripToggle" />
     <Transition name="sidebar-expand">
@@ -108,8 +108,8 @@
           :current-round="store.currentRound"
           :max-rounds="store.config.maxRounds"
           :current-speaker-name="currentSpeakerName"
-          @pause="coordinator?.pause()"
-          @resume="coordinator?.resume()"
+          @pause="pauseChat"
+          @resume="resumeChat"
           @terminate="onTerminate"
           @inject="onInject"
         />
@@ -133,7 +133,7 @@ import { createGroupSession, saveGroupSession, getGroupSession, saveCasualGroupS
 import { useAgent } from '../../../agent/composables/useAgent'
 import { useSettingsStore } from '../../../stores/settingsStore'
 import { useMessageTime } from '../composables/useMessageTime'
-import type { GroupMember, GroupChatMode, ToolCallInfo } from '../types'
+import type { GroupMember, GroupChatMode, ToolCallInfo, BaseLayerMode, ToolSource } from '../types'
 import { assignAgentColor, getToolLabel } from '../types'
 import GroupChatSetup from './GroupChatSetup.vue'
 import GroupMessageBubble from './GroupMessageBubble.vue'
@@ -228,9 +228,9 @@ async function onCreateGroup(data: CreateGroupData): Promise<void> {
     lastSpokeAt: 0,
     enabledTools: m.enabledTools || [],
     enabledSkills: m.enabledSkills || [],
-    baseLayerMode: m.baseLayerMode || 'empty',
+    baseLayerMode: (m.baseLayerMode || 'empty') as BaseLayerMode,
     customBaseLayer: m.customBaseLayer,
-    toolSource: m.toolSource || 'derived',
+    toolSource: (m.toolSource || 'derived') as ToolSource,
   }))
 
   const groupInfo = {
@@ -346,6 +346,9 @@ async function onStart(config: {
     toolContext,
   )
 }
+
+function pauseChat(): void { coordinator?.pause() }
+function resumeChat(): void { coordinator?.resume() }
 
 function onTerminate(): void {
   coordinator?.terminate()

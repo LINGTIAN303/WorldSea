@@ -681,7 +681,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, nextTick, reactive } from 'vue'
 import WsIcon from '../ui/WsIcon.vue'
 import { usePanelDrag } from './composables/usePanelDrag'
 import { useSettingsStore } from '../stores/settingsStore'
@@ -702,7 +702,7 @@ const terminalConnecting = ref(false)
 const terminalConnectError = ref('')
 
 // CLI Agent 连接
-const cliAgent = useCliAgent()
+const cliAgent = reactive(useCliAgent())
 
 function getCategoryLabel(category: string): string {
   const labels: Record<string, string> = {
@@ -740,7 +740,7 @@ async function checkTerminalConnection(): Promise<boolean> {
         if (data.ok) {
           await new Promise(r => setTimeout(r, 1000))
           resetExecutionAdapter()
-          const newAdapter = createExecutionAdapter()
+          const newAdapter = await createExecutionAdapter()
           const reconnected = await newAdapter.tryConnect()
           if (reconnected) return true
         }

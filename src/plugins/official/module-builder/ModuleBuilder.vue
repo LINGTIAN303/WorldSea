@@ -84,7 +84,7 @@ function onPublish(id: string) {
     const viewId = `custom.${mod.id}.main`
     const existingViewIdx = pluginStore.views.findIndex(pv => pv.id === viewId)
     if (existingViewIdx >= 0) pluginStore.views.splice(existingViewIdx, 1)
-    setModuleViewData(viewId, { module: { ...mod } as any, viewConfig: null })
+    setModuleViewData(viewId, { module: { ...mod } as any, viewConfig: null as any })
     pluginAPI.registerView({ id: viewId, label: mod.name || '自定义模块', icon: mod.icon || 'settings', component: ModuleRuntimeRenderer })
   } else {
     const views = generateViews(mod)

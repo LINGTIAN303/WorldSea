@@ -1,6 +1,6 @@
-import type { GroupMember, GroupChatMessage, DesireConfig } from '../types'
+import type { GroupMember, GroupChatMessage, DesireConfig, TerminationCheckResult } from '../types'
 import { DEFAULT_DESIRE_CONFIG } from '../types'
-import type { IChatStrategy, StrategyContext, TerminationCheckResult, EngineState, CasualConfig, ThoughtItem } from './IChatStrategy'
+import type { IChatStrategy, StrategyContext, EngineState, CasualConfig, ThoughtItem } from './IChatStrategy'
 import { DesireCalculator } from './DesireCalculator'
 
 export class CasualStrategy implements IChatStrategy {

@@ -85,7 +85,7 @@ export function useNoteEditor(currentNote: Ref<Entity | null>, onContentChange?:
               name: e.name,
               type: e.type,
               typeLabel: entitySchemaRegistry.getLabel(e.type),
-              icon: entitySchemaRegistry.getIcon(e.type) || 'clipboard-list',
+              icon: entitySchemaRegistry.getIconName(e.type) || 'clipboard-list',
             }))
             if (!query) return all.slice(0, 20)
             const q = query.toLowerCase()
@@ -97,7 +97,7 @@ export function useNoteEditor(currentNote: Ref<Entity | null>, onContentChange?:
             return {
               onStart: (props: SuggestionProps<MentionItem>) => {
                 mentionCommand = props.command
-                mentionPopoverRef?.open(props.clientRect)
+                mentionPopoverRef?.open(props.clientRect ?? null)
               },
               onUpdate: (props: SuggestionProps<MentionItem>) => {
                 mentionCommand = props.command
@@ -135,11 +135,11 @@ export function useNoteEditor(currentNote: Ref<Entity | null>, onContentChange?:
           command: ({ editor, range }: { editor: any; range: any }) => {
             editor.chain().focus().deleteRange(range).run()
           },
-          render: () => {
+          render: (): any => {
             return {
               onStart: (props: SuggestionProps<SlashCommandItem>) => {
                 slashCommandRef = props.command
-                slashCommandPopoverRef?.open(props.clientRect, props.items)
+                slashCommandPopoverRef?.open(props.clientRect ?? null, props.items)
               },
               onUpdate: (props: SuggestionProps<SlashCommandItem>) => {
                 slashCommandRef = props.command
@@ -214,10 +214,10 @@ export function useNoteEditor(currentNote: Ref<Entity | null>, onContentChange?:
     }
     if (entity && editor.value) {
       const content = (entity.properties.content as string) || ''
-      editor.value.commands.setContent(content, false)
+      editor.value.commands.setContent(content, { emitUpdate: false })
       wordCount.value = editor.value.getText().length
     } else if (editor.value) {
-      editor.value.commands.setContent('', false)
+      editor.value.commands.setContent('', { emitUpdate: false })
       wordCount.value = 0
     }
     saveStatus.value = 'saved'

@@ -3,7 +3,7 @@ import WsSegmentedControl from '../WsSegmentedControl.vue'
 
 const meta: Meta<typeof WsSegmentedControl> = {
   title: 'Primitives/WsSegmentedControl',
-  component: WsSegmentedControl,
+  component: WsSegmentedControl as any,
   tags: ['autodocs'],
   argTypes: {
     size: { control: { type: 'inline-radio' }, options: ['sm', 'md'] },
