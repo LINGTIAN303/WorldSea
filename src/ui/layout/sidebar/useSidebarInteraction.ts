@@ -126,7 +126,7 @@ export function useSidebarInteraction(callbacks: InteractionCallbacks) {
   }
 
   /** pointerup 处理(内部) */
-  function onPointerUp(e: PointerEvent) {
+  function onPointerUp(_e: PointerEvent) {
     const el = activeElement
     if (el && activePointerId !== null) {
       el.releasePointerCapture(activePointerId)

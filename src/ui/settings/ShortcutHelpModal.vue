@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div v-if="show" class="shortcut-overlay" @click.self="$emit('close')">
     <div class="shortcut-modal" :style="{ width: modalResizable.width.value + 'px' }">
       <div class="sh-header">
@@ -26,7 +26,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount } from 'vue'
-import { useShortcuts, formatKeyForDisplay, formatKeysForDisplay, useResizable } from '@worldsmith/ui-kit'
+import { useShortcuts, formatKeyForDisplay, useResizable } from '@worldsmith/ui-kit'
 import WsIcon from '../WsIcon.vue'
 
 defineProps<{ show: boolean }>()

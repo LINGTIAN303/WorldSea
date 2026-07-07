@@ -37,7 +37,7 @@ export interface SwimlaneLayoutOptions {
 }
 
 export function useSwimlaneLayout(options: SwimlaneLayoutOptions) {
-  const { events, relations, entityMap, pixelsPerYear, timeToPixel, timeToTimeValue } = options
+  const { events, relations, entityMap, timeToPixel, timeToTimeValue } = options
 
   const groupMode = ref<GroupMode>('none')
   const collapsedLanes = ref<Set<string>>(new Set())

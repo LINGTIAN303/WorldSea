@@ -297,7 +297,7 @@ function drawEdge(
   edge: CanvasEdge,
   nodes: CanvasNode[],
   hoveredNodeId: string | null,
-  selectedNodeId: string | null,
+  _selectedNodeId: string | null,
 ): void {
   const src = nodes.find(n => n.id === edge.source)
   const tgt = nodes.find(n => n.id === edge.target)
@@ -400,7 +400,6 @@ function drawEdgeLabel(
   ctx.font = '10px sans-serif'
   const tw = ctx.measureText(label).width
   const padX = 6
-  const padY = 3
   const w = tw + padX * 2
   const h = 16
   // 徽标底
@@ -735,7 +734,7 @@ function drawAISuggestionHints(
   ctx: CanvasRenderingContext2D,
   hints: Array<{ sourceId: string; targetId: string; relType: string }>,
   nodes: CanvasNode[],
-  theme: ThemeColors,
+  _theme: ThemeColors,
 ): void {
   const aiColor = '#06b6d4'  // cyan
   ctx.save()

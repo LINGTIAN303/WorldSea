@@ -81,14 +81,14 @@ describe('TypeBridge', () => {
       const member = createMember({ muted: true })
       const profile = memberToProfile(member)
 
-      expect(profile.speakingDesire.talkativeness).toBe(0)
+      expect(profile.speakingDesire!.talkativeness).toBe(0)
     })
 
     it('with enabledSkills uses them as expertise', () => {
       const member = createMember({ enabledSkills: ['writing', 'poetry'] })
       const profile = memberToProfile(member)
 
-      expect(profile.personality.expertise).toEqual(['writing', 'poetry'])
+      expect(profile.personality!.expertise).toEqual(['writing', 'poetry'])
     })
 
     it('without enabledSkills extracts keywords from systemPrompt', () => {
@@ -99,8 +99,8 @@ describe('TypeBridge', () => {
       const profile = memberToProfile(member)
 
       // extractKeywords splits by commas/spaces, filters words > 1 char, takes up to 10
-      expect(profile.personality.expertise.length).toBeGreaterThan(0)
-      for (const kw of profile.personality.expertise) {
+      expect(profile.personality!.expertise!.length).toBeGreaterThan(0)
+      for (const kw of profile.personality!.expertise!) {
         expect(kw.length).toBeGreaterThan(1)
       }
     })
@@ -109,14 +109,14 @@ describe('TypeBridge', () => {
       const member = createMember({ enabledSkills: [], systemPrompt: '' })
       const profile = memberToProfile(member)
 
-      expect(profile.personality.expertise).toEqual([])
+      expect(profile.personality!.expertise).toEqual([])
     })
 
     it('builds topicAffinities from enabledSkills', () => {
       const member = createMember({ enabledSkills: ['coding', 'debugging'] })
       const profile = memberToProfile(member)
 
-      expect(profile.speakingDesire.topicAffinities).toEqual({
+      expect(profile.speakingDesire!.topicAffinities).toEqual({
         coding: 1.2,
         debugging: 1.2,
       })
@@ -126,7 +126,7 @@ describe('TypeBridge', () => {
       const member = createMember({ enabledSkills: [] })
       const profile = memberToProfile(member)
 
-      expect(profile.speakingDesire.topicAffinities).toEqual({})
+      expect(profile.speakingDesire!.topicAffinities).toEqual({})
     })
 
     it('infers speaking style from role', () => {
@@ -150,7 +150,7 @@ describe('TypeBridge', () => {
       const member = createMember({ role: '未知角色' })
       const profile = memberToProfile(member)
 
-      expect(profile.personality.speakingStyle).toBe('自然随性')
+      expect(profile.personality!.speakingStyle).toBe('自然随性')
     })
 
     it('sets providerSlotId to empty string', () => {
@@ -174,14 +174,14 @@ describe('TypeBridge', () => {
       const member = createMember()
       const profile = memberToProfile(member)
 
-      expect(profile.speakingDesire.baseProbability).toBe(0.3)
+      expect(profile.speakingDesire!.baseProbability).toBe(0.3)
     })
 
     it('with unmuted member sets talkativeness to 1.0', () => {
       const member = createMember({ muted: false })
       const profile = memberToProfile(member)
 
-      expect(profile.speakingDesire.talkativeness).toBe(1.0)
+      expect(profile.speakingDesire!.talkativeness).toBe(1.0)
     })
   })
 

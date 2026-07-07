@@ -241,7 +241,6 @@ import BlockImage from './blocks/BlockImage.vue'
 import BlockVideo from './blocks/BlockVideo.vue'
 import BlockAccordion from './blocks/BlockAccordion.vue'
 import BlockManuscript from './blocks/BlockManuscript.vue'
-import StepChain from './blocks/StepChain.vue'
 import InlineToolCall from './blocks/InlineToolCall.vue'
 import type { ToolCallView } from './blocks/InlineToolCall.vue'
 import PhaseHeader from './blocks/PhaseHeader.vue'
@@ -843,7 +842,7 @@ const deepActivityLogs = computed(() => {
 
 let purifyHookRegistered = false
 if (!purifyHookRegistered) {
-  DOMPurify.addHook('uponSanitizeAttribute', (node, data) => {
+  DOMPurify.addHook('uponSanitizeAttribute', (_node, data) => {
     if (data.attrName?.startsWith('data-ws-')) {
       data.forceKeepAttr = true
     }

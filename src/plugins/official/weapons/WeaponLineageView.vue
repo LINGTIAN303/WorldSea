@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="wl-view">
     <div class="wl-toolbar">
       <button class="wl-btn" @click="$emit('back')" title="返回列表">
@@ -82,7 +82,7 @@ const filterType = ref('')
 const showHolders = ref(true)
 const showRelations = ref(true)
 
-const { weaponEntities, nodes, holderLinks, weaponEdges, weaponTypes } = useWeaponLineageData()
+const { nodes, holderLinks, weaponEdges, weaponTypes } = useWeaponLineageData()
 const { applyLayout } = useWeaponLineageLayout()
 
 const canvas = useWeaponLineageCanvas(containerRef)

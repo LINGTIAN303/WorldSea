@@ -113,7 +113,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { useSpaceStore } from './stores/space-store'
 import { useUIStore } from '../stores/uiStore'
 import SpaceNavbar from './SpaceNavbar.vue'
@@ -282,10 +282,6 @@ watch(() => spaceStore.mode, (mode) => {
   }
 })
 
-function onNewGroupChat() {
-  groupChatStore.reset()
-}
-
 function onSelectKnowledge(entry: KBEntry) {
   addLog('knowledge', `查看知识: ${entry.path}`)
 }
@@ -297,7 +293,6 @@ function startResize(
   setter: (w: number) => void,
 ) {
   e.preventDefault()
-  const startX = e.clientX
 
   let rafId: number | null = null
   let latestEv: MouseEvent | null = null

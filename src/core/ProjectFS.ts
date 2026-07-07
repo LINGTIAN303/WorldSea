@@ -90,13 +90,6 @@ async function getInvoke() {
   }
 }
 
-/** 写入文本文件，自动创建父目录 */
-async function writeTextFile(path: string, content: string): Promise<void> {
-  const invoke = await getInvoke()
-  if (!invoke) throw new Error('Tauri 环境不可用，无法写入文件')
-  await invoke('cmd_fs_write', { path, content, createDirs: true })
-}
-
 /** 读取文本文件 */
 async function readTextFile(path: string): Promise<string> {
   const invoke = await getInvoke()

@@ -5,7 +5,6 @@ export class SpeakerSelectorImpl {
   private participants: GroupParticipant[]
   private roundIndex: number = 0
   private mode: SpeakerSelectionMode = 'round-robin'
-  private totalRounds: number = 0
   private maxRounds: number
 
   constructor(participants: GroupParticipant[], maxRounds: number) {

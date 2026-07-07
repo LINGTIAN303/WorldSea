@@ -249,7 +249,7 @@ function onTreeSelect(e: Entity) {
   selectedNodeId.value = e.id
 }
 
-function onToggleExpand(nodeId: string, expanded: boolean) {
+function onToggleExpand(nodeId: string, _expanded: boolean) {
   toggleExpanded(nodeId)
 }
 
@@ -333,7 +333,6 @@ useAgentPluginBridge('outline', async (event) => {
   switch (action) {
     case 'add_node': {
       const parentId = (payload.parentId as string) || null
-      const name = (payload.name as string) || 'AI 创建的节点'
       if (parentId) {
         const parent = (es.entities ?? []).find(e => e.id === parentId)
         if (parent) addChildNode(parent)

@@ -134,8 +134,8 @@
 <script setup lang="ts">
 import { ref, computed, reactive } from 'vue'
 import { GenericEntityView, type FormFieldDef, type FilterDef, type CardFieldDef, type CustomTabDef, type RelationTabDef } from '@worldsmith/plugin-sdk'
-import { useEntityStore, useRelationStore, storage } from '@worldsmith/entity-core'
-import { RegionMap, CustomDropdown, EntityRelationSelector, WsIcon, WsEmpty } from '@worldsmith/ui-kit'
+import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'
+import { RegionMap, EntityRelationSelector, WsIcon, WsEmpty } from '@worldsmith/ui-kit'
 import { typeIconMap } from './regionConfig'
 
 const entityStore = useEntityStore()

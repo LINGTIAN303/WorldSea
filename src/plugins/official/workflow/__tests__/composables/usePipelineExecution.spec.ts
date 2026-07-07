@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { ref } from 'vue'
 import { usePipelineExecution } from '../../composables/usePipelineExecution'
-import type { CreationPipeline, PipelineStep } from '../../types'
+import type { CreationPipeline } from '../../types'
 
 // Mock usePipeline with reactive selectedPipeline
 const mockUpdateStepStatus = vi.fn()

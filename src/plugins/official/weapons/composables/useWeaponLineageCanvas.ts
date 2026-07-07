@@ -170,7 +170,6 @@ function drawHolderChain(
 
 export function useWeaponLineageCanvas(containerRef: Ref<HTMLElement | null>) {
   let _showHolders = true
-  let _showRelations = true
   let _holderLinks: HolderLink[] = []
   let _nodes: WeaponNode[] = []
 
@@ -192,8 +191,7 @@ export function useWeaponLineageCanvas(containerRef: Ref<HTMLElement | null>) {
     treeCanvas.markDirty()
   }
 
-  function setShowRelations(v: boolean): void {
-    _showRelations = v
+  function setShowRelations(_v: boolean): void {
     treeCanvas.markDirty()
   }
 
@@ -207,7 +205,6 @@ export function useWeaponLineageCanvas(containerRef: Ref<HTMLElement | null>) {
     _nodes = nodes
     _holderLinks = holderLinks
     _showHolders = showHolders
-    _showRelations = showRelations
 
     const treeEdges: WeaponTreeEdge[] = showRelations
       ? edges.map(e => ({

@@ -15,7 +15,7 @@ class GroupChatDB extends Dexie {
     this.version(2).stores({
       sessions: 'id, name, updatedAt, state',
       casualSessions: 'id',
-    }).upgrade(tx => {
+    }).upgrade(_tx => {
       // v2 adds casualSessions table
     })
     this.version(3).stores({

@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <Transition name="ws-slide-up">
     <div v-if="visible" class="gg-timeline">
       <div class="gg-timeline-header">
@@ -24,7 +24,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, watch } from 'vue'
 
 const props = defineProps<{
   visible: boolean

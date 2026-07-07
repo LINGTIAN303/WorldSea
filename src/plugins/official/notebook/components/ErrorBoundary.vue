@@ -16,8 +16,6 @@ defineProps<{ message?: string }>()
 const hasError = ref(false)
 const errorMessage = ref('组件异常，请刷新后重试')
 
-const retryKey = ref(0)
-
 onErrorCaptured((err) => {
   hasError.value = true
   errorMessage.value = '组件异常：' + (err.message || String(err))

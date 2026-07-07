@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="memory-shelf">
     <div class="panel-header">
       <h3 class="panel-title" :style="{ fontFamily: fontFamily }">记忆架</h3>
@@ -45,7 +45,6 @@
 import { ref, onMounted } from 'vue'
 import { loadMemory, type MemoryEntry } from '@agent/tools/memory-internal'
 import { kbList } from '@agent/kb/kb-store'
-import type { KBEntry } from '@agent/kb/kb-store'
 import { usePersonaFont } from '../composables/usePersonaFont'
 
 const emit = defineEmits<{ close: [] }>()

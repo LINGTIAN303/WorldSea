@@ -2269,6 +2269,7 @@ export function useAgent() {
         metadata: { totalTokens: totalUsage.value.totalTokens || 0, totalCost: totalUsage.value.totalCost || 0, toolCallCount: totalUsage.value.requestCount || 0 },
       }
     }
+    if (!session) return
     if (session.name !== '' && session.name !== '新会话') return
     const userMsgs = messages.value.filter(m => m.role === 'user')
     const assistantMsgs = messages.value.filter(m => m.role === 'assistant')

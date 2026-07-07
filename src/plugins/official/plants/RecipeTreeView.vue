@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="rt-view">
     <div class="rt-toolbar">
       <button class="rt-btn" @click="$emit('back')" title="返回列表">
@@ -87,7 +87,7 @@ const layoutMode = ref<RecipeLayoutMode>('bottom-up')
 const filterNodeType = ref('')
 const showMagic = ref(true)
 
-const { plantEntities, nodes, edges } = useRecipeTreeData()
+const { nodes, edges } = useRecipeTreeData()
 const { applyLayout } = useRecipeTreeLayout()
 
 const canvas = useRecipeTreeCanvas(containerRef)

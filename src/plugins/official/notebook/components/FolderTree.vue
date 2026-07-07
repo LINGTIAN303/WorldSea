@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="folder-tree" @contextmenu.prevent="openContextMenu($event, 'empty')">
     <template v-if="searchMode">
       <div
@@ -124,7 +124,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, reactive, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, watch, reactive, nextTick, onMounted, onUnmounted } from 'vue'
 import draggable from 'vuedraggable'
 import { useEntityStore } from '@worldsmith/entity-core'
 import WsIcon from '../../../../ui/WsIcon.vue'

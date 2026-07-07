@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <Teleport to="body">
     <Transition name="corrector">
       <div v-if="show" class="corrector-overlay" @click.self="onOverlayClick">
@@ -162,7 +162,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch, onBeforeUnmount, onMounted } from 'vue'
+import { ref, reactive, computed, watch, onBeforeUnmount } from 'vue'
 import { renderText, toBlob, renderAnimatedText, drawImageCover, drawImageContain } from '@worldsmith/font-kit'
 import { encodeGif } from '@worldsmith/motion-kit'
 import WsIcon from '../../ui/WsIcon.vue'
@@ -225,7 +225,6 @@ const aspectRatios = [
 
 const localConfig = reactive<ExportCorrectorConfig>({ ...defaultConfig })
 const previewCanvasRef = ref<HTMLCanvasElement | null>(null)
-const previewWrapRef = ref<HTMLDivElement | null>(null)
 const isRendering = ref(false)
 const loadedBgImage = ref<HTMLImageElement | null>(null)
 const devicePixelRatio = ref(typeof window !== 'undefined' ? window.devicePixelRatio : 1)
@@ -556,7 +555,7 @@ function playGifPreview() {
     },
     duration: 2000,
     fps: 10,
-  }).then(result => {
+  }).then((result: { frames: any[] }) => {
     const gifFrames = result.frames.map((frame: any) => {
       let canvas = document.createElement('canvas')
       canvas.width = frame.width

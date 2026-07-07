@@ -1,5 +1,3 @@
-import { shallowRef, triggerRef, type ShallowRef } from 'vue'
-
 /**
  * localStorage 防抖写入。同一 key 在防抖窗口内多次写入只执行最后一次。
  * 读取时优先返回内存中最新值。

@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="set-overlay" v-if="show" @click.self="close">
     <div class="set-shell">
       <div class="set-topbar">
@@ -628,7 +628,7 @@ const { currentThemeId, setTheme: setThemeFromEngine } = useTheme()
 const pluginStore = usePluginStore()
 const fieldOrderStore = useFieldOrderStore()
 const fontStore = useFontStore()
-const { contentPresets, uiPresets, getPresetByFamily, isInstalled, markInstalled } = useFontPresets()
+const { getPresetByFamily, markInstalled } = useFontPresets()
 const libraryStore = useFontLibraryStore()
 const fontLibraryEntries = computed(() => libraryStore.getAllEntries())
 
@@ -709,8 +709,6 @@ const FONT_LAYERS: { key: FontLayer; label: string; hint: string }[] = [
   { key: 'canvas', label: '画布字体', hint: 'FontRenderer 图片渲染' },
   { key: 'agent', label: 'Agent', hint: '对话输出' },
 ]
-
-const allPresets = computed(() => [...contentPresets.value, ...uiPresets.value])
 
 function onFontLayerChange(layer: FontLayer, family: string) {
   fontStore.setLayerFont(layer, family)

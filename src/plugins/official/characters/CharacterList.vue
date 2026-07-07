@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="character-view">
     <GenericEntityView
       ref="gevRef"
@@ -204,7 +204,7 @@ const compareFields = computed(() => {
   return Array.from(allKeys)
 })
 
-function isDiff(key: string, char: Entity, all: Entity[]) {
+function isDiff(key: string, _char: Entity, all: Entity[]) {
   if (all.length < 2) return false
   const vals = all.map(c => String(c.properties?.[key] ?? ''))
   return new Set(vals).size > 1

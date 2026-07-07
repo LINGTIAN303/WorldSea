@@ -84,8 +84,6 @@ const props = withDefaults(defineProps<{
   disabled: false,
 })
 
-const meta = computed(() => null)
-
 const group = computed<ChipGroup>(() => TYPE_TO_GROUP[props.type] ?? 'neutral')
 
 const iconGlyph = computed(() => {

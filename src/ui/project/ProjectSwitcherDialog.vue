@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <WsModal :show="show" title="项目管理" size="md" @close="$emit('close')">
     <div class="project-manager">
       <!-- 新建项目 -->
@@ -100,7 +100,6 @@ const {
   currentProject,
   projectList,
   switchProject,
-  createAndSwitch,
   deleteProject,
   renameProject,
   refreshProjectList,

@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <Transition name="ws-panel-backdrop">
     <div v-if="entity" class="info-panel-backdrop"></div>
   </Transition>
@@ -159,7 +159,7 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useEntityStore, useRelationStore, entitySchemaRegistry } from '@worldsmith/entity-core'
 import { fieldRegistry, useFieldOrderStore, type RegisteredField } from '@worldsmith/entity-core'
 import { toastSuccess, toastWarn, toastWithUndo } from '../../composables/useToast'
-import { useSelection, useUndoRedo, useDialog, useResizable } from '@worldsmith/ui-kit'
+import { useSelection, useDialog, useResizable } from '@worldsmith/ui-kit'
 import { useSettingsStore } from '../../stores/settingsStore'
 import WsIcon from '../WsIcon.vue'
 import WsEmpty from '../WsEmpty.vue'
@@ -180,7 +180,6 @@ const entityStore = useEntityStore()
 const relationStore = useRelationStore()
 const fieldOrderStore = useFieldOrderStore()
 const dialog = useDialog()
-const { record } = useUndoRedo()
 
 const editDesc = ref('')
 const editProps = ref<Record<string, unknown>>({})

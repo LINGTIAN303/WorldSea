@@ -52,7 +52,6 @@ const emit = defineEmits<{
 }>()
 
 const inputText = ref('')
-const inputRef = ref<HTMLTextAreaElement | null>(null)
 
 const placeholder = computed(() => {
   if (!props.pipeline) return '描述你的创作目标...'

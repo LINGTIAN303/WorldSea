@@ -147,7 +147,7 @@ watch(() => props.step.config, (newCfg) => {
 /** 查找当前步骤对应的子 Agent */
 const runningAgent = computed(() => {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _ = subAgentTick.value // 触发重算依赖
+  void subAgentTick.value // 触发重算依赖
   if (props.step.status !== 'running') return null
   return getSubAgentsFromWindow().find(a =>
     a.id.includes(props.step.id) &&

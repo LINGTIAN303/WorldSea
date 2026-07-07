@@ -101,7 +101,7 @@ describe('usePipeline', () => {
   })
 
   it('createPipeline 应创建新的 pipeline 实体', async () => {
-    const { createPipeline, pipelineList } = usePipeline()
+    const { createPipeline } = usePipeline()
 
     // 模拟 add 后实体出现在 entityMap 中
     mockAdd.mockImplementation(async (entity: Entity) => {

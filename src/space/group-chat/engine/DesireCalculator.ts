@@ -80,7 +80,7 @@ export class DesireCalculator {
 
   private generateReason(
     score: number,
-    member: GroupMember,
+    _member: GroupMember,
     wasMentioned: boolean,
     roleRelevance: number,
     recentCount: number,

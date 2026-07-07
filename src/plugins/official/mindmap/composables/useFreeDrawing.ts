@@ -117,7 +117,7 @@ export function useFreeDrawing() {
 
   function drawFreehandStrokes(
     ctx: CanvasRenderingContext2D,
-    camera: CameraState,
+    _camera: CameraState,
     parentId: string | null,
   ): void {
     const visible = parentId === null

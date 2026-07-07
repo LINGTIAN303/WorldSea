@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="st-view">
     <div class="st-toolbar">
       <button class="st-btn" @click="$emit('back')" title="返回列表">
@@ -81,7 +81,7 @@ const filterLevel = ref('')
 const showCounters = ref(true)
 const showClusters = ref(true)
 
-const { magicEntities, nodes, edges, treeData } = useSkillTreeData()
+const { magicEntities, nodes, edges } = useSkillTreeData()
 const { applyLayout } = useSkillTreeLayout()
 
 const canvas = useSkillTreeCanvas(containerRef)

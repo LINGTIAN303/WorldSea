@@ -119,7 +119,6 @@ function drawLangEdge(
 export function useLangFamilyTreeCanvas(containerRef: Ref<HTMLElement | null>) {
   let _nodes: LangNode[] = []
   let _showClusters = true
-  let _showRelated = true
   let _layoutMode: 'top-down' | 'radial' = 'top-down'
 
   const treeCanvas = useTreeCanvas<LangNode, LangTreeEdge>({
@@ -171,8 +170,8 @@ export function useLangFamilyTreeCanvas(containerRef: Ref<HTMLElement | null>) {
     treeCanvas.markDirty()
   }
 
-  function setShowRelated(v: boolean): void {
-    _showRelated = v
+  function setShowRelated(_v: boolean): void {
+    // _showRelated 已移除（原为 dead write，从不读取）
   }
 
   function setLayoutMode(mode: 'top-down' | 'radial'): void {

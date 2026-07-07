@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="setup-panel">
     <div class="setup-scroll">
       <h2 class="setup-title">发起群聊讨论</h2>
@@ -258,7 +258,7 @@ function applyTemplate(id: string): void {
   if (!activeTemplate.value) return
   const tpl = templates.find(t => t.id === id)
   if (!tpl) return
-  participants.value = tpl.participants.map((p, i) => ({
+  participants.value = tpl.participants.map((p) => ({
     ...p,
     modelId: defaultModelId.value,
   }))

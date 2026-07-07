@@ -28,7 +28,7 @@ export class MeetingStrategy implements IChatStrategy {
     return [this.selectAuto(messages, members)]
   }
 
-  shouldRespond(trigger: StrategyTrigger, members: GroupMember[]): SpeakingDesire[] {
+  shouldRespond(_trigger: StrategyTrigger, members: GroupMember[]): SpeakingDesire[] {
     return members.map(m => ({
       agentId: m.id,
       desireScore: 1,
@@ -86,7 +86,7 @@ export class MeetingStrategy implements IChatStrategy {
 
   private calculateScore(member: GroupMember, messages: GroupChatMessage[]): number {
     let score = 0.5
-    const lastIdx = messages.findLastIndex(m => m.speakerId === member.id)
+    const lastIdx = messages.findLastIndex((m: GroupChatMessage) => m.speakerId === member.id)
     const messagesSinceLastSpoke = lastIdx === -1 ? messages.length : messages.length - 1 - lastIdx
     score += Math.min(messagesSinceLastSpoke / 10, 0.3)
     const recentMessages = messages.slice(-5)

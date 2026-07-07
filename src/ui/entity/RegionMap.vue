@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="region-map" ref="mapRoot">
     <div class="rm-toolbar">
       <button class="rm-btn" :class="{ on: mode === 'pan' }" @click="mode = 'pan'" title="浏览"><WsIcon name="image" size="xs" /></button>
@@ -71,16 +71,10 @@ import {
   bridgeChaikinSmooth,
   bridgeSimplifyPoints,
   bridgeComputeMergedPolygon,
-  bridgeFindLinePolygonIntersections,
   bridgePolygonSplit,
   bridgePolygonAugment,
   bridgeMergePolygons,
-  bridgeFindSharedEdges,
   bridgePointInPolygon,
-  localPointInPolygon,
-  localSegmentsIntersect,
-  localLineSegmentIntersection,
-  localPerpendicularDist,
   crossProduct,
 } from '@worldsmith/canvas-engine/geometry'
 

@@ -37,10 +37,11 @@ const graph = useSmallCanvasGraph(graphRef, {
 })
 
 const chainCount = computed(() => {
-  if (!props.event) return 0
+  const event = props.event
+  if (!event) return 0
   return props.relations.filter(r =>
     (r.type === 'causes' || r.type === 'caused_by' || r.type === 'parallel_to') &&
-    (r.sourceId === props.event.id || r.targetId === props.event.id)
+    (r.sourceId === event.id || r.targetId === event.id)
   ).length
 })
 

@@ -59,7 +59,7 @@
 import { ref, computed, watch } from 'vue'
 import WsIcon from '../../ui/WsIcon.vue'
 import InteractiveToolCall from './InteractiveToolCall.vue'
-import type { DeepSegment, ToolCallView } from '../composables/useAgent'
+import type { DeepSegment } from '../composables/useAgent'
 import type { BlockActionEvent } from './index'
 
 const props = defineProps<{

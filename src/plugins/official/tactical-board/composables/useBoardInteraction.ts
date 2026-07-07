@@ -14,7 +14,7 @@ export function useBoardInteraction(
   screenToCell: (sx: number, sy: number) => { x: number; y: number } | null,
   getCamera: () => BoardCamera,
   setCamera: (c: BoardCamera) => void,
-  markDirty: () => void,
+  _markDirty: () => void,
 ) {
   let isPanning = false
   let panStartX = 0

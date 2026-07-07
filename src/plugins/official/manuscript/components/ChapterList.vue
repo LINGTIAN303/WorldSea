@@ -90,7 +90,7 @@ import { ref, computed, reactive, onBeforeUnmount } from 'vue'
 import draggable from 'vuedraggable'
 import WsIcon from '../../../../ui/WsIcon.vue'
 import WsEmpty from '../../../../ui/WsEmpty.vue'
-import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'
+import { useEntityStore } from '@worldsmith/entity-core'
 import type { Entity } from '@worldsmith/entity-core'
 
 const props = defineProps<{
@@ -105,7 +105,6 @@ const emit = defineEmits<{
 }>()
 
 const es = useEntityStore()
-const rs = useRelationStore()
 
 const collapsedGroups = reactive(new Set<string>())
 

@@ -25,7 +25,6 @@ const props = withDefaults(defineProps<{
   minHeight: 120,
 })
 
-const wrapRef = ref<HTMLDivElement>()
 const canvasRef = ref<HTMLCanvasElement>()
 const result = ref<RenderResult | null>(null)
 const dpr = ref(typeof window !== 'undefined' ? window.devicePixelRatio : 1)

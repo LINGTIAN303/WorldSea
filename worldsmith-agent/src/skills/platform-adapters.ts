@@ -35,23 +35,6 @@ export interface ImportResult {
   warnings: string[]
 }
 
-/** 默认 SkillMeta 字段（外部格式无对应时兜底） */
-function defaultSkillMeta(fallbackId: string): SkillMeta {
-  return {
-    id: fallbackId,
-    name: fallbackId,
-    icon: 'module-builder',
-    description: '',
-    category: 'action',
-    enabled: true,
-    visibility: 'always',
-    version: '1.0.0',
-    promptFile: 'SKILL.md',
-    allowedTools: [],
-    baseTools: [],
-  }
-}
-
 /**
  * 检测文本的平台格式
  *

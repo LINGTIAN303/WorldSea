@@ -15,10 +15,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useTreeCanvas, type TreeCanvasCallbacks } from '@worldsmith/canvas-engine'
 import type { CanvasNode, CanvasEdge } from './composables/canvasTypes'
-import { getThemeColors, invalidateThemeCache, drawGraph } from './composables/canvasDraw'
+import { invalidateThemeCache, drawGraph } from './composables/canvasDraw'
 
 const containerRef = ref<HTMLDivElement | null>(null)
 
@@ -38,16 +38,16 @@ const treeCanvas = useTreeCanvas<CanvasNode, CanvasEdge>({
   containerRef,
   nodeWidth: 160,
   nodeHeight: 60,
-  drawNode: (ctx, node, state, _nw, _nh) => {
+  drawNode: (_ctx, _node, _state, _nw, _nh) => {
     // 委托给现有的 drawGraph（以 _nodes/_edges 数组重绘）
     // drawGraph 内部自己做了遍历和选择逻辑，这里不重复。
     // useTreeCanvas 的 render() 会按顺序调 drawEdge → drawNode。
   },
-  drawEdge: (ctx, edge, source, target) => {
+  drawEdge: (_ctx, _edge, _source, _target) => {
     // useTreeCanvas 自动 resolve source/target via edge.sourceId
     // 但我们的 drawEdge 需要完整的 CanvasEdge
   },
-  onBeforeDraw(_ctx, w, h, camera) {
+  onBeforeDraw(_ctx, _w, _h, _camera) {
     // 背景 + 网格 + AI 虚线
   },
   onAfterDraw(_ctx, _w, _h, _camera) {

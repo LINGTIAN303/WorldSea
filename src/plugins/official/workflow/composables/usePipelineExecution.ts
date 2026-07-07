@@ -153,7 +153,7 @@ export function usePipelineExecution() {
   }
 
   /** 自动继续执行下一个步骤（由 Agent 回调触发） */
-  async function continueToNextStep(pipelineId: string, completedStepId: string): Promise<void> {
+  async function continueToNextStep(pipelineId: string, _completedStepId: string): Promise<void> {
     const pipeline = selectedPipeline.value
     if (!pipeline || pipeline.id !== pipelineId) return
 

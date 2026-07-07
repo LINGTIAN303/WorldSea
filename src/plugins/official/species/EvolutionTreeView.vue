@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="evo-view">
     <div class="evo-toolbar">
       <button class="evo-btn" @click="$emit('back')" title="返回列表">
@@ -93,7 +93,7 @@ const showSymbiosis = ref(true)
 const showRivals = ref(true)
 const showClusters = ref(true)
 
-const { speciesEntities, nodes, edges, treeData } = useEvolutionTreeData()
+const { speciesEntities, nodes, edges } = useEvolutionTreeData()
 const { applyLayout } = useEvolutionTreeLayout()
 
 const canvas = useEvolutionTreeCanvas(containerRef)

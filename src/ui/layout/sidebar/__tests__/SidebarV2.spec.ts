@@ -38,7 +38,7 @@ beforeEach(() => {
     })
     return id
   })
-  vi.stubGlobal('cancelAnimationFrame', (id: number) => {
+  vi.stubGlobal('cancelAnimationFrame', (_id: number) => {
     // 简化:不真正取消(测试中物理循环会自然收敛)
   })
 })

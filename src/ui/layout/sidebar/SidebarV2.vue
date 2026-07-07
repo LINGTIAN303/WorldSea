@@ -56,7 +56,6 @@ const settingsStore = useSettingsStore()
 const pluginStore = usePluginStore()
 const entityStore = useEntityStore()
 
-const sidebarRef = ref<HTMLElement | null>(null)
 const carouselRef = ref<HTMLElement | null>(null)
 
 const isCustomView = computed(() => uiStore.currentView === 'custom')

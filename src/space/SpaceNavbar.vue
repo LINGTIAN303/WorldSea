@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="space-navbar">
     <div class="navbar-left">
       <!-- 单聊模式：PanelToggle + Agent身份 -->
@@ -196,7 +196,7 @@ import AgentManagerPanel from './group-chat/components/AgentManagerPanel.vue'
 
 const { fontFamily, profile } = usePersonaFont()
 const fontStore = useFontStore()
-const { lockedChatMode, sessionChatMode, setChatMode: setAgentChatMode, currentSessionId } = useAgent()
+const { sessionChatMode, setChatMode: setAgentChatMode, currentSessionId } = useAgent()
 
 const props = defineProps<{
   panelRotation: 'session' | 'knowledge'

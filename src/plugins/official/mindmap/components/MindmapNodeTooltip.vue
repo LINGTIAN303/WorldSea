@@ -1,6 +1,6 @@
 <template>
   <div
-    v-if="visible"
+    v-if="visible && node"
     class="mm-node-tooltip"
     :style="positionStyle"
   >

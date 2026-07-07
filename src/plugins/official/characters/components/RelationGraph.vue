@@ -9,15 +9,13 @@
 import { ref, onMounted, nextTick, computed, watch } from 'vue'
 import WsEmpty from '../../../../ui/WsEmpty.vue'
 import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'
-import { useAutoCreateEntity, deduplicateEdges, useSmallCanvasGraph, type SGNode, type SGEdge } from '@worldsmith/ui-kit'
+import { deduplicateEdges, useSmallCanvasGraph, type SGNode, type SGEdge } from '@worldsmith/ui-kit'
 
 const props = defineProps<{ characterId: string }>()
 const emit = defineEmits<{ navigate: [id: string] }>()
 
 const entityStore = useEntityStore()
 const relationStore = useRelationStore()
-const { promptAndCreate } = useAutoCreateEntity()
-
 const containerRef = ref<HTMLDivElement | null>(null)
 
 const CHARACTER_REL_TYPES = ['parent_of', 'knows', 'ally_of', 'rival_of']
@@ -112,29 +110,6 @@ function buildGraph(): void {
   }
 
   graph.setData(Array.from(nodeMap.values()), sgEdges, 'radial')
-}
-
-async function createRelationWithAutoEntity(params: {
-  sourceId: string
-  targetName: string
-  relationType: string
-}) {
-  const { sourceId, targetName, relationType } = params
-  const existing = allCharacters.value.find(c => c.name === targetName)
-  if (existing) {
-    const now = new Date().toISOString()
-    await relationStore.add({ id: `rel-${Date.now()}`, type: relationType, sourceId, targetId: existing.id, properties: {}, createdAt: now, updatedAt: now })
-    nextTick(() => buildGraph())
-    return
-  }
-  const created = await promptAndCreate({
-    name: targetName,
-    entityType: 'character',
-    relationType,
-    sourceId,
-    onCreated: () => nextTick(() => buildGraph()),
-  })
-  if (created) nextTick(() => buildGraph())
 }
 </script>
 

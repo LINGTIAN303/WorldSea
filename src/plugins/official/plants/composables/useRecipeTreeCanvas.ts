@@ -137,7 +137,6 @@ function drawRecipeEdge(
 }
 
 export function useRecipeTreeCanvas(containerRef: Ref<HTMLElement | null>) {
-  let _showMagic = true
 
   const treeCanvas = useTreeCanvas<RecipeNode, RecipeTreeEdge>({
     containerRef,
@@ -147,8 +146,7 @@ export function useRecipeTreeCanvas(containerRef: Ref<HTMLElement | null>) {
     nodeHeight: NODE_H,
   })
 
-  function setShowMagic(v: boolean): void {
-    _showMagic = v
+  function setShowMagic(_v: boolean): void {
     treeCanvas.markDirty()
   }
 
@@ -157,8 +155,6 @@ export function useRecipeTreeCanvas(containerRef: Ref<HTMLElement | null>) {
     edges: RecipeEdge[],
     showMagic: boolean,
   ): void {
-    _showMagic = showMagic
-
     const treeEdges: RecipeTreeEdge[] = edges
       .filter(e => showMagic || e.edgeType !== 'magic_material')
       .map(e => ({

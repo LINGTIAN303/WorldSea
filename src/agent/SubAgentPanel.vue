@@ -50,7 +50,6 @@ const emit = defineEmits<{
 }>()
 
 const panelHeight = ref(200)
-const bodyRef = ref<HTMLElement | null>(null)
 let resizing = false
 let startY = 0
 let startHeight = 0

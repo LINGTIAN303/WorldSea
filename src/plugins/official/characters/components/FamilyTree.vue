@@ -58,7 +58,6 @@ const entityStore = useEntityStore()
 const relationStore = useRelationStore()
 const { createBidirectional, deleteWithConfirm } = useBidirectional()
 
-const treeContainer = ref<HTMLDivElement>()
 const containerRef = ref<HTMLDivElement>()
 const loading = ref(true)
 

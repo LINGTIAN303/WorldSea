@@ -253,7 +253,7 @@ export const useMindmapStore = defineStore('mindmap', () => {
   // ========================================================================
   // 导航 actions
   // ========================================================================
-  function enterNode(entityId: string, entityName?: string) {
+  function enterNode(entityId: string, _entityName?: string) {
     navigationStack.value.push(entityId)
     currentRootId.value = entityId
   }

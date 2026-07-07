@@ -79,7 +79,7 @@ export function useFileSystemProject() {
 
       // 如果 FileStorageBackend 已就绪，重新加载数据
       const fsb = getFileStorageBackend()
-      if (fsb.isReady) {
+      if (fsb?.isReady) {
         const entityStore = useEntityStore()
         const relationStore = useRelationStore()
         await entityStore.loadAll()

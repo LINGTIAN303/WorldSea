@@ -72,7 +72,7 @@ import { useSpaceStore } from '../stores/space-store'
 const emit = defineEmits<{ close: [] }>()
 
 const { logs, clearLogs } = useActivityLog()
-const { tasks: genTasks, activeTasks, hasActive } = useGenerationProgress()
+const { tasks: genTasks, activeTasks } = useGenerationProgress()
 
 /** 包含活跃任务和最近失败的任务（5 分钟内） */
 const visibleGenTasks = computed(() => {

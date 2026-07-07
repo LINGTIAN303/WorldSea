@@ -1,4 +1,4 @@
-﻿﻿<template>
+<template>
   <div
     class="casual-msg"
     :class="{
@@ -180,7 +180,7 @@ function onAvatarClick(): void {
   }
 }
 
-function onDocumentClick(e: MouseEvent): void {
+function onDocumentClick(_e: MouseEvent): void {
   if (thinkingExpanded.value) {
     thinkingExpanded.value = false
   }

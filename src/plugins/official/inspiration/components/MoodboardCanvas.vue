@@ -6,7 +6,7 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useMoodboardRenderer } from '../composables/useMoodboardRenderer'
 import { useMoodboardInteraction } from '../composables/useMoodboardInteraction'
-import type { CardData, MoodboardCamera } from '../composables/moodboardDraw'
+import type { CardData } from '../composables/moodboardDraw'
 
 const props = defineProps<{
   cards: CardData[]

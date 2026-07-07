@@ -49,10 +49,6 @@ describe('GroupChatEngine request tracking', () => {
   it('endRequestTrace marks record as success with latency and tokens', () => {
     const id = engine.startRequestTrace('agent-1', 'Alice')
 
-    // Simulate some passage of time
-    const snapshotBefore = engine.getRequestSnapshot()
-    const recordBefore = snapshotBefore.records.find(r => r.id === id)!
-    const fakeStartTime = recordBefore.startTime - 150 // pretend it started 150ms ago
     // We can't directly set startTime, so we just call endRequestTrace and verify structure
     engine.endRequestTrace(id, 100, 200)
 
@@ -158,7 +154,7 @@ describe('GroupChatEngine request tracking', () => {
     const id2 = engine.startRequestTrace('agent-2', 'Bob')
     engine.failRequestTrace(id2, 'error')
 
-    const id3 = engine.startRequestTrace('agent-3', 'Charlie')
+    engine.startRequestTrace('agent-3', 'Charlie')
     // leave as pending
 
     const snapshot = engine.getRequestSnapshot()

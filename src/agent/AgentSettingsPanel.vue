@@ -1349,10 +1349,6 @@ function onPersonaChange(e: Event): void {
   emit('update:personaPreset', (e.target as HTMLSelectElement).value)
 }
 
-function onThinkingLevelChange(e: Event): void {
-  emit('thinking-level-change', (e.target as HTMLSelectElement).value)
-}
-
 function onChatModeClick(mode: string): void {
   emit('chat-mode-change', mode)
 }

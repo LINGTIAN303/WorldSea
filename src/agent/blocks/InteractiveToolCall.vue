@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <!-- 选择型：浮出卡片，独立于折叠容器 -->
   <div v-if="interactiveType === 'choice'" class="itc-choice" :class="tc.status">
     <div class="itc-choice-header">
@@ -146,7 +146,7 @@ import BlockTimeline from './BlockTimeline.vue'
 import BlockImage from './BlockImage.vue'
 import BlockAccordion from './BlockAccordion.vue'
 import BlockManuscript from './BlockManuscript.vue'
-import type { ToolCallView, InteractiveToolType } from '../composables/useAgent'
+import type { ToolCallView } from '../composables/useAgent'
 import type { BlockActionEvent } from './index'
 import { getBlockSummary } from './index'
 

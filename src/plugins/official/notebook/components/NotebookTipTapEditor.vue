@@ -49,13 +49,11 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
-import type { Editor } from '@tiptap/vue-3'
 import { EditorContent } from '@tiptap/vue-3'
 import { marked } from 'marked'
 import MentionPopover from '../../manuscript/components/MentionPopover.vue'
 import SlashCommandMenu from '../../manuscript/components/SlashCommandMenu.vue'
 import { useNoteEditor } from '../composables/useNoteEditor'
-import type { MentionItem } from '../composables/useNoteEditor'
 import type { SlashCommandItem } from '../composables/slashCommandExtension'
 import type { Entity } from '@worldsmith/entity-core'
 

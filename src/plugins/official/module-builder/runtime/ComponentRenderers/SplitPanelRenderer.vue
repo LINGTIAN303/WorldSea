@@ -35,6 +35,7 @@ function startResize(e: MouseEvent) {
 
     if (!container) return
     function onMove(ev: MouseEvent) {
+    if (!container) return
     const containerSize = isHorizontal ? container.clientWidth : container.clientHeight
     const containerRect = container.getBoundingClientRect()
     const offset = ev.clientX !== undefined

@@ -74,8 +74,6 @@ const ALIAS_MAP: Record<string, string> = {
  * ALIAS_MAP / meta.aliases / LEGACY_ALGO_MAP / LEGACY_PLUGIN_MAP 解析到标准工具。
  * 此对象保留为空作历史标记，buildMetaCache 不再从中收集。
  */
-const LEGACY_TOOL_META: Record<string, ToolMeta> = {}
-
 /** 工具名→元数据的缓存 */
 let _metaCache: Map<string, ToolMeta> | null = null
 

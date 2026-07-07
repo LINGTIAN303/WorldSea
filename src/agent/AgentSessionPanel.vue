@@ -42,7 +42,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import WsIcon from '../ui/WsIcon.vue'
-import { listSessions, deleteSession, pinSession, unpinSession } from '@agent/index'
+import { listSessions, deleteSession, pinSession } from '@agent/index'
 import type { AgentSession } from '@agent/index'
 import { useAgent } from './composables/useAgent'
 import { useSessionCleanup } from '@worldsmith/entity-core/composables'
@@ -55,14 +55,12 @@ const confirmingDeleteId = ref<string | null>(null)
 const { newSession } = useAgent()
 
 const {
-  state: sessionState,
   showRemind,
   remindMessage,
   checkAndRemind,
   enforceLimit,
   requestUnpin,
   dismissRemind,
-  SESSION_LIMIT,
 } = useSessionCleanup()
 
 const panelX = ref(window.innerWidth - 340)

@@ -118,11 +118,10 @@ import WsIcon from '../../../ui/WsIcon.vue'
 import WsEmpty from '../../../ui/WsEmpty.vue'
 import { usePluginStore } from '@worldsmith/entity-core'
 import { useUIStore } from '../../../stores/uiStore'
-import { CustomDropdown, CreateButton, useDialog, toastWarn } from '@worldsmith/ui-kit'
+import { CustomDropdown, CreateButton, toastWarn } from '@worldsmith/ui-kit'
 import { useSettingsStore } from '../../../stores/settingsStore'
 import type { Component } from 'vue'
 
-const { confirm } = useDialog()
 const pluginStore = usePluginStore()
 const settingsStore = useSettingsStore()
 const uiStore = useUIStore()

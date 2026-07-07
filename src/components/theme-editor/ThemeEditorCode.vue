@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="theme-code">
     <div class="theme-code__toolbar">
       <span class="theme-code__hint">JSON 格式编辑主题令牌</span>
@@ -46,7 +46,7 @@ import { ref, onMounted } from 'vue'
 import { useTheme } from '../../composables/useTheme'
 import type { ThemeDefinition } from '../../composables/useTheme'
 
-const { userOverrides, setUserOverrides, addCustomTheme, exportTheme, allThemes, currentThemeId } = useTheme()
+const { userOverrides, setUserOverrides, exportTheme, allThemes, currentThemeId } = useTheme()
 
 const jsonText = ref('')
 const cssText = ref('')

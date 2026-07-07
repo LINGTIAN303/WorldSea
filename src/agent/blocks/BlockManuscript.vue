@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div
     class="manuscript-canvas"
     :class="canvasClasses"
@@ -557,16 +557,6 @@ function onResizeStart(e: MouseEvent) {
 function resolveFontSize() {
   const scale = profile.value?.sizeScale ?? 1
   return fontSizeMap[props.block.fontSize || 'md'] * scale
-}
-
-function loadImageElement(src: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new Image()
-    img.onload = () => resolve(img)
-    img.onerror = reject
-    img.crossOrigin = 'anonymous'
-    img.src = src
-  })
 }
 
 function openCorrector(isGif: boolean) {

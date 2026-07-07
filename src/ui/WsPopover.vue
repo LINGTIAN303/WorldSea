@@ -39,7 +39,6 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{ 'update:show': [value: boolean] }>()
 
-const wrapperRef = ref<HTMLElement | null>(null)
 const triggerRef = ref<HTMLElement | null>(null)
 const popoverRef = ref<HTMLElement | null>(null)
 const visible = ref(false)

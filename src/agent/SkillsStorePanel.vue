@@ -180,7 +180,7 @@ const fileInputRef = ref<HTMLInputElement | null>(null)
 const filteredSkills = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
   if (!q) return store.remoteSkills.value
-  return store.remoteSkills.value.filter(s =>
+  return store.remoteSkills.value.filter((s: { name: string; id: string; description?: string }) =>
     s.name.toLowerCase().includes(q) ||
     s.id.toLowerCase().includes(q) ||
     (s.description || '').toLowerCase().includes(q),

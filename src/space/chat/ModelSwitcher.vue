@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="model-switcher" :class="{ expanded: isExpanded }" ref="switcherRef">
     <button class="model-pill" @mousedown.prevent @click.stop="open = !open; if (open) updateDropdownPosition()">
       <img v-if="providerIconUrl" :src="providerIconUrl" class="model-pill-icon" alt="" />
@@ -38,7 +38,7 @@ import { getModelInfo, getModelPresets } from '../../agent/modelRegistry'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useAgent } from '../../agent/composables/useAgent'
 import { loadApiKey, hasApiKey } from '@agent/index'
-import { getProviderIconUrl, hasProviderIcon } from '../../assets/providerIcons'
+import { getProviderIconUrl } from '../../assets/providerIcons'
 
 const props = withDefaults(defineProps<{
   isExpanded?: boolean

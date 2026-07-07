@@ -94,8 +94,8 @@ import { useAgentPluginBridge } from '../../../composables/useAgentPluginBridge'
 const entityStore = useEntityStore()
 const relationStore = useRelationStore()
 const { nodes: graphNodes, edges: graphEdges, getNode } = useGraphData()
-const { getColor, getIcon, getLabel } = useTypeMapping()
-const graphFilter = useGraphFilter(() => graphNodes.value, () => graphEdges.value)
+const { getColor } = useTypeMapping()
+void useGraphFilter(() => graphNodes.value, () => graphEdges.value)
 
 const containerRef = ref<HTMLElement | null>(null)
 const graph = new Graph({ multi: false })

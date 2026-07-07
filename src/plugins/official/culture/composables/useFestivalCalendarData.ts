@@ -1,5 +1,5 @@
 import { computed } from 'vue'
-import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'
+import { useEntityStore } from '@worldsmith/entity-core'
 
 export interface FestivalNode {
   id: string

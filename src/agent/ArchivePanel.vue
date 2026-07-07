@@ -711,7 +711,7 @@ async function loadMergeGroups(): Promise<void> {
 }
 
 /** 确认单组合并 */
-async function confirmOneMerge(mainHookId: string): Promise<void> {
+async function confirmOneMerge(_mainHookId: string): Promise<void> {
   mergeLoading.value = true
   try {
     // 由于 confirmMerge 会合并所有 pending_merge，这里先记录当前组数

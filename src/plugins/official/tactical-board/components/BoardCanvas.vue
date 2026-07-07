@@ -6,7 +6,7 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useBoardRenderer, type AnimationProvider } from '../composables/useBoardRenderer'
 import { useBoardInteraction } from '../composables/useBoardInteraction'
-import type { BoardCamera, UnitRenderData, HighlightCell, AwarenessCell, AnimOverride } from '../composables/boardDraw'
+import type { UnitRenderData, HighlightCell, AwarenessCell } from '../composables/boardDraw'
 
 const props = defineProps<{
   gridType: 'square' | 'hex'

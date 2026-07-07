@@ -96,13 +96,17 @@ function matchInText(text: string): MentionMatch[] {
   const sortedNames = getSortedNames()
   const mentionIndex = getMentionIndex()
   const entityTypeMap = getEntityTypeMap()
-  if (!text || sortedNames.value.length === 0) return []
+  if (!sortedNames || !mentionIndex || !entityTypeMap) return []
+  const sorted = sortedNames.value
+  const idxMap = mentionIndex.value
+  const typeMap = entityTypeMap.value
+  if (!text || !sorted || !idxMap || !typeMap || sorted.length === 0) return []
 
   const matches: MentionMatch[] = []
   /** 已匹配的字符位置区间（避免重叠） */
   const occupied: Array<[number, number]> = []
 
-  for (const name of sortedNames.value) {
+  for (const name of sorted) {
     if (name.length < MIN_NAME_LENGTH) continue
     let searchStart = 0
     while (searchStart <= text.length - name.length) {
@@ -113,13 +117,13 @@ function matchInText(text: string): MentionMatch[] {
       const end = idx + name.length
       const overlaps = occupied.some(([s, e]) => idx < e && end > s)
       if (!overlaps) {
-        const entityIds = mentionIndex.value.get(name) || []
+        const entityIds = idxMap.get(name) || []
         matches.push({
           name,
           start: idx,
           end,
           entityIds,
-          entityType: entityTypeMap.value.get(entityIds[0]) || '',
+          entityType: typeMap.get(entityIds[0]) || '',
         })
         occupied.push([idx, end])
       }

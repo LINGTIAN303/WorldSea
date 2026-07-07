@@ -146,7 +146,6 @@ export function useTimelineScale(options: TimelineScaleOptions) {
 
   function zoomIn() {
     if (zoomLevel.value < 2) {
-      const oldPxPerYear = pixelsPerYear.value
       const centerTime = viewportStart.value + (viewportEnd.value - viewportStart.value) / 2
       zoomLevel.value = (zoomLevel.value + 1) as ZoomLevel
       const newPxPerYear = pixelsPerYear.value

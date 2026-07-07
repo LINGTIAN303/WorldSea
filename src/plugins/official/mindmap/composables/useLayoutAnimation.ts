@@ -28,7 +28,7 @@ export function useLayoutAnimation() {
     targets: TweenTarget[],
     onTick: () => void,
     duration = DEFAULT_DURATION,
-    easing = DEFAULT_EASING,
+    _easing = DEFAULT_EASING,
   ): void {
     if (targets.length === 0) return
 

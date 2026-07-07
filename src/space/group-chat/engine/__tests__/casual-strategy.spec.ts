@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { CasualStrategy } from '../CasualStrategy'
 import type { GroupMember, GroupChatMessage } from '../../types'
 import type { StrategyContext, EngineState, ThoughtItem } from '../IChatStrategy'

@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="mindmap-view">
     <MindmapToolbar
       :search-query="searchQuery"
@@ -271,7 +271,7 @@ import type { Entity, Relation } from '@worldsmith/entity-core'
 import { EmptyState, EntityFormModal, type FormFieldDef, deduplicateEdges, useShortcuts, useUndoRedo, useGraphData, useTypeMapping } from '@worldsmith/ui-kit'
 import MindmapToolbar from './components/MindmapToolbar.vue'
 import MindmapNodeTooltip from './components/MindmapNodeTooltip.vue'
-import { nodeSize, guessRelType, getViewIdForEntity, resolveIcon } from './mindmapConfig'
+import { nodeSize, guessRelType, resolveIcon } from './mindmapConfig'
 import { relationSchemaRegistry } from '@worldsmith/entity-core'
 import { useMindmapStore } from './mindmapStore'
 import { useSection } from './composables/useSection'
@@ -607,7 +607,6 @@ const connectSourceId = computed({
   set: (v) => { mindmapStore.connectSourceId = v },
 })
 const collapsedNodes = mindmapStore.collapsedNodeIds
-const nodeCustomColors = mindmapStore.nodeCustomColors
 const searchMatches = mindmapStore.searchMatches
 
 // 右键菜单使用 Store
@@ -803,7 +802,7 @@ const activeTypes = computed(() => {
     }, [] as { type: string; label: string; icon: string }[])
 })
 
-function getFormFields(type: string): FormFieldDef[] {
+function getFormFields(_type: string): FormFieldDef[] {
   return [
     { key: 'name', label: '名称', type: 'text', required: true, placeholder: '名称' },
     { key: 'description', label: '描述', type: 'textarea' },
@@ -830,7 +829,6 @@ function buildCanvasData(): void {
   const collapsed = mindmapStore.collapsedNodeIds
   const focusedId = mindmapStore.focusedNodeId
   const searchMatchIds = mindmapStore.searchMatches
-  const searchQueryLower = mindmapStore.searchQuery.toLowerCase()
   const vTypes = visibleTypes.value
 
   if (rootId === null) {
@@ -1143,7 +1141,6 @@ function ctxEditName() {
   inlineEditText.value = node.name
   const rect = containerRef.value?.getBoundingClientRect()
   if (rect) {
-    const world = renderer.screenToWorld(node.x - rect.width / 2, node.y - rect.height / 2)
     inlineEditStyle.value = { left: (node.x * renderer.camera.value.k + rect.width / 2 - renderer.camera.value.x * renderer.camera.value.k) + 'px', top: (node.y * renderer.camera.value.k + rect.height / 2 - renderer.camera.value.y * renderer.camera.value.k) + 'px' }
   }
   showInlineEdit.value = true
@@ -1584,18 +1581,12 @@ function toggleType(type: string): void {
   rebuildGraph()
 }
 
-const POSITION_STORAGE_KEY = 'worldsmith-mindmap-positions'
-
 function savePositions() {
   const positions: Record<string, { x: number; y: number }> = {}
   for (const n of canvasNodes.value) {
     positions[n.id] = { x: n.x, y: n.y }
   }
   mindmapStore.nodePositions = positions
-}
-
-function loadPositions(): Record<string, { x: number; y: number }> {
-  return mindmapStore.nodePositions
 }
 
 onMounted(async () => {

@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="notebook-view">
     <div class="nb-toolbar">
       <div class="nb-toolbar-left">
@@ -264,7 +264,7 @@ async function deleteNote(noteId: string): Promise<void> {
   if (selectedNoteId.value === noteId) selectedNoteId.value = null
 }
 
-function reorderNotes(folderId: string, noteIds: string[]): void {
+function reorderNotes(_folderId: string, noteIds: string[]): void {
   for (let i = 0; i < noteIds.length; i++) {
     const note = notebookNotes.value.find((n) => n.id === noteIds[i])
     if (!note) continue
@@ -424,8 +424,7 @@ useAgentPluginBridge('notebook', async (event) => {
         const note = notebookNotes.value.find((n) => n.id === noteId)
         if (note) {
           try {
-            const logs: string[] = []
-            const iframe = document.createElement('iframe')
+        const iframe = document.createElement('iframe')
             iframe.style.display = 'none'
             iframe.sandbox.add('allow-scripts')
             const escapedCode = code.replace(/<\/script>/gi, '<\\/script>')

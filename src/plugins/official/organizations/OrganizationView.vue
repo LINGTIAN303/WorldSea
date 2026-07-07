@@ -82,7 +82,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { GenericEntityView, EntityRelationSelector, type FormFieldDef, type FilterDef, type CardFieldDef, type CustomTabDef, type RelationTabDef } from '@worldsmith/plugin-sdk'
+import { GenericEntityView, EntityRelationSelector, type FilterDef, type CardFieldDef, type CustomTabDef, type RelationTabDef } from '@worldsmith/plugin-sdk'
 import WsIcon from '../../../ui/WsIcon.vue'
 import WsEmpty from '../../../ui/WsEmpty.vue'
 import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'

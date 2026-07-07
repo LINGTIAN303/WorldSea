@@ -77,7 +77,7 @@
 
 <script setup lang="ts">
 import { reactive, watch, ref, computed, onMounted } from 'vue'
-import type { StepType, StepConfig, AgentTaskConfig, UserReviewConfig, BatchCreateConfig, TemplateApplyConfig, ConsistencyCheckConfig, TransformConfig } from '../types'
+import type { StepType, StepConfig, AgentTaskConfig, TemplateApplyConfig } from '../types'
 import { usePipelineTemplates } from '../composables/usePipelineTemplates'
 
 const props = defineProps<{

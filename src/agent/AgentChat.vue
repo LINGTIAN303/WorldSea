@@ -237,7 +237,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, watch, onMounted, onUnmounted, onBeforeUnmount } from 'vue'
+import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue'
 import { useAgent } from './composables/useAgent'
 import { usePlanStore } from './composables/usePlanStore'
 import type { ChatMode } from './composables/useAgent'
@@ -248,7 +248,7 @@ import type { ImageAttachment, FileAttachment, SkillMeta, ThinkingLevel, MCPConn
 import WsIcon from '../ui/WsIcon.vue'
 import { useFileStore } from '@worldsmith/entity-core'
 import { useSettingsStore } from '../stores/settingsStore'
-import { getAllSkills, toggleSkill, storeApiKey, loadApiKey, removeApiKey, hasApiKey } from '@agent/index'
+import { getAllSkills, toggleSkill, storeApiKey, loadApiKey, removeApiKey } from '@agent/index'
 import { useMcpConnections } from './composables/useMcpConnections'
 import { getModelInfo, calculateCost, getThinkingLevels, modelSupportsVision, getVisionModels } from './modelRegistry'
 import { storeImages as storeImagesToBackend } from '@agent/index'
@@ -280,7 +280,7 @@ const fontStore = useFontStore()
 const agentFontFamily = computed(() => fontStore.prefs.agent.family || fontFamily.value || '')
 
 const {
-  messages, isStreaming, sendMessage, steer, sendBlockAction, abort, hide, newSession,
+  messages, isStreaming, sendMessage, sendBlockAction, abort, hide, newSession,
   isPinned, totalUsage, lastRequestUsage, cumulativeUsage, cacheHitRate, updateThinkingLevel, updateModel, refreshSearchConfig,
   a2uiSurfaces, resolveDataBinding, switchSession, currentSessionId, isInitialized,
   terminalVisible, ptyId, logBridge, openTerminal, closeTerminal, writePtyInput, resizePty,

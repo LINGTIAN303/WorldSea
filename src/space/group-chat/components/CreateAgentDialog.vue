@@ -1,4 +1,4 @@
-﻿﻿<template>
+<template>
   <Teleport to="body">
     <div class="dialog-backdrop" @click.self="$emit('close')"></div>
     <div class="dialog-wrapper" :style="wrapperStyle">
@@ -228,7 +228,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
 import { useEntityStore, type Entity } from '@worldsmith/entity-core'
-import { MODEL_REGISTRY, getModelPresets, getModelInfo } from '../../../agent/modelRegistry'
+import { getModelPresets, getModelInfo } from '../../../agent/modelRegistry'
 import { getProviderIconUrl } from '../../../assets/providerIcons'
 import { AGENT_COLORS, type BaseLayerMode, type ToolSource } from '../types'
 import type { ChatAgent } from '../types'

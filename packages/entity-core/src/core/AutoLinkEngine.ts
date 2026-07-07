@@ -540,7 +540,7 @@ export async function refreshLinksForTarget(
 ): Promise<void> {
   // 收集所有引用该目标实体的未解决链接
   const staleLinks = potentialLinkIndex.getAll()
-    .filter(l => !l.resolved && l.targetEntityId === targetEntityId)
+    .filter((l: PotentialLink) => !l.resolved && l.targetEntityId === targetEntityId)
 
   if (staleLinks.length === 0) return
 
@@ -550,7 +550,7 @@ export async function refreshLinksForTarget(
   }
 
   // 重新索引引用该目标的源实体
-  const sourceIds = new Set(staleLinks.map(l => l.sourceEntityId))
+  const sourceIds = new Set(staleLinks.map((l: PotentialLink) => l.sourceEntityId))
   for (const sourceId of sourceIds) {
     try {
       const sourceEntity = await storage.getEntity(sourceId)

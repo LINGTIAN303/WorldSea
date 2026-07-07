@@ -135,7 +135,7 @@ const eventFields: FormFieldDef[] = [
 const eventList = computed(() => entityStore.entities.filter(e => e.type === 'event'))
 
 const tree = useEventTree(eventList)
-const { depthMap, flatOrder, visibleFlatOrder, roots, collapsedSet, toggleCollapse, expandAll, collapseAll, expandTo, getChildCount } = tree
+const { depthMap, flatOrder, expandTo } = tree
 const { sortMode, sortedEvents, parsedDates, toggleSortMode } = useTimelineSort(eventList, flatOrder)
 const { conflicts, hasConflicts } = useConflictDetection(
   eventList,

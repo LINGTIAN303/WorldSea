@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
-import { ref, shallowRef } from 'vue'
+import { ref } from 'vue'
 import type { Entity } from '@worldsmith/entity-core'
 
 const createMockEditor = () => ({

@@ -350,13 +350,13 @@ export class GroupChatEngine implements IGroupChatEngine {
     return this.costTracker.getSnapshot()
   }
 
-  getPreparedMessages(agentId: string): AgentMessage[] {
+  getPreparedMessages(_agentId: string): AgentMessage[] {
     const systemPromptTokens = 800
     const strategy = this.contextManager.getStrategy(this.messages, systemPromptTokens, 0)
     return this.contextManager.applyStrategy(this.messages, strategy)
   }
 
-  getPreparedCasualMessages(agentId: string): GroupChatMessage[] {
+  getPreparedCasualMessages(_agentId: string): GroupChatMessage[] {
     const systemPromptTokens = 800
     const strategy = this.contextManager.getStrategy(
       this.messages, systemPromptTokens, 0, { summaryEnabled: false },

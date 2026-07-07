@@ -68,10 +68,6 @@ function onRemoveComponent(componentId: string) {
   emit('remove-component', componentId)
 }
 
-function onLayoutChangeStart() {
-  emit('layout-change-start')
-}
-
 function onLayoutChange() {
   emit('layout-change')
 }

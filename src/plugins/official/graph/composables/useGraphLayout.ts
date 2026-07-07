@@ -224,7 +224,7 @@ export function useGraphLayout() {
     if (graph.order === 0) return
 
     let hasValid = false
-    graph.forEachNode((node) => {
+    graph.forEachNode((node: string) => {
       const x = graph.getNodeAttribute(node, 'x')
       const y = graph.getNodeAttribute(node, 'y')
       if (isFinite(x) && isFinite(y)) hasValid = true

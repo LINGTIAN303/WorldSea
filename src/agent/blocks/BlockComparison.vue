@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="block-comparison">
     <div class="block-toggle" @click="expanded = !expanded">
       <span class="block-icon">🔀</span>
@@ -25,7 +25,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import type { ComparisonBlock } from '@agent/index'
-import WsIcon from '../../ui/WsIcon.vue'
 
 const props = defineProps<{ block: ComparisonBlock }>()
 const expanded = ref(false)

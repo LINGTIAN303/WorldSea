@@ -102,7 +102,7 @@ export function useOutlineTree() {
     await es.loadByType('outline_node')
   }
 
-  async function reorderSiblings(parentId: string, orderedIds: string[]) {
+  async function reorderSiblings(_parentId: string, orderedIds: string[]) {
     for (let i = 0; i < orderedIds.length; i++) {
       await es.update(orderedIds[i], {
         properties: { order: i + 1 },

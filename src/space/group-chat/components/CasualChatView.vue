@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="casual-chat-view">
     <!-- 左侧：双区域窄条 + 展开面板 -->
     <SidebarStrip :active-panel="activePanel" @toggle="onStripToggle" />
@@ -136,7 +136,6 @@ import { CasualStrategy } from '../engine/CasualStrategy'
 import type { GroupChatMessage, GroupMember, GroupChatMode, ToolCallInfo } from '../types'
 import { assignAgentColor, isWorldChangeTool, getToolLabel } from '../types'
 import type { CreateGroupData } from './CreateGroupDialog.vue'
-import type { TurnResult } from '@agent/group-chat/turn-engine'
 import { saveCasualGroupSession, getCasualGroupSession, deleteCasualGroupSession } from '../GroupSessionManager'
 import { useGroupStore } from '../management/GroupStore'
 import { useMessageTime } from '../composables/useMessageTime'

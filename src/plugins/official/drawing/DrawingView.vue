@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="drawing-view">
     <!-- 画板列表视图 -->
     <div v-if="!selectedDrawingId" class="dv-board">
@@ -168,7 +168,6 @@ const {
   getCtx,
   getDrawPos,
   resizeCanvas,
-  fillCanvas,
   saveState: canvasSaveState,
   restoreState,
   panX,
@@ -197,7 +196,6 @@ const {
   createDrawing,
   selectDrawing,
   scheduleSave,
-  saveDrawing,
   deleteDrawing,
 } = useDrawingPersistence()
 
@@ -213,7 +211,6 @@ const {
   setLayerOpacity,
   renameLayer,
   compositeToMain,
-  saveActiveLayerData,
   saveAllLayerData,
   restoreLayers,
   getActiveCtx,
@@ -692,7 +689,7 @@ onMounted(async () => {
   await loadDrawings()
   loading.value = false
 
-  const removeKb = setupKeyboard()
+  setupKeyboard()
   const settingsStore = useSettingsStore()
   register({ id: 'drawing.undo', keys: settingsStore.getShortcut('drawing.undo') || ['ctrl', 'z'], scope: 'view', description: '画板：撤销', handler: () => undo() })
   register({ id: 'drawing.redo', keys: settingsStore.getShortcut('drawing.redo') || ['ctrl', 'shift', 'z'], scope: 'view', description: '画板：重做', handler: () => redo() })

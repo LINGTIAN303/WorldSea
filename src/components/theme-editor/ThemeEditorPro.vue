@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="theme-pro">
     <div class="theme-pro__toolbar">
       <span class="theme-pro__hint">编辑语义令牌，实时预览效果</span>
@@ -59,7 +59,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { reactive, computed, onMounted } from 'vue'
 import { useTheme } from '../../composables/useTheme'
 
 const { userOverrides, setUserOverrides } = useTheme()

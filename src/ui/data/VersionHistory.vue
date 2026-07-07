@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="vh-overlay" v-if="show" @click.self="close">
     <div class="vh-modal" :style="{ width: modalResizable.width.value + 'px' }">
       <div class="vh-header">
@@ -30,7 +30,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useEntityStore } from '@worldsmith/entity-core'
-import { useResizable, useDialog } from '@worldsmith/ui-kit'
+import { useResizable } from '@worldsmith/ui-kit'
 import { entitySchemaRegistry } from '@worldsmith/entity-core'
 import WsIcon from '../WsIcon.vue'
 import type { Entity } from '@worldsmith/entity-core'

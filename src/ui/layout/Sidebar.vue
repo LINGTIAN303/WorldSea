@@ -46,7 +46,6 @@ const pluginStore = usePluginStore()
 const settingsStore = useSettingsStore()
 const entityStore = useEntityStore()
 
-const sidebarRef = ref<HTMLElement | null>(null)
 const carouselRef = ref<HTMLElement | null>(null)
 
 let pos = 0
