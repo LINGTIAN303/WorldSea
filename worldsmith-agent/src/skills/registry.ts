@@ -342,10 +342,10 @@ export const SKILL_REGISTRY: SkillMeta[] = [
     visibility: 'hidden' as SkillVisibility,
     version: '1.0.0',
     promptFile: 'task-execution/SKILL.md',
-    baseTools: ['plan_create', 'plan_update', 'read_file', 'search_files', 'list_directory', 'entity_list', 'entity_get', 'content_search', 'kb_search', 'kb_read', 'memory_recall'],
+    baseTools: ['plan_create', 'plan_update', 'task_complete', 'read_file', 'search_files', 'list_directory', 'entity_list', 'entity_get', 'content_search', 'kb_search', 'kb_read', 'memory_recall'],
     allowedTools: [
-      // 规划工具
-      'plan_create', 'plan_update',
+      // 规划与控制工具
+      'plan_create', 'plan_update', 'task_complete',
       // 文件与代码
       'read_file', 'write_file', 'edit_file', 'search_files', 'list_directory', 'execute_command',
       // 实体与关系

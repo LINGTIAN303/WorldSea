@@ -499,6 +499,7 @@ const {
   checkpoint: longTaskCheckpoint,
   completeTask: longTaskComplete,
   cancelTask: longTaskCancel,
+  failTask: longTaskFail,
   requestCancel: longTaskRequestCancel,
   isCancelRequested: longTaskIsCancelRequested,
   detectResumableTasks: longTaskDetectResumable,
@@ -511,6 +512,18 @@ let longTaskTurnCounter = 0
 let lastUserTextForCheckpoint = ''
 /** checkpoint 用：当前技能名列表 */
 let currentSkillNamesForCheckpoint: string[] | undefined = undefined
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 任务 4 方向 B：task 模式 agent_end 自动继续（自主执行循环）
+// ─────────────────────────────────────────────────────────────────────────────
+/** 自主继续最大轮次（防死循环硬上限） */
+const MAX_AUTO_TURNS = 200
+/** 自主继续轮次计数（每次 autoContinueTask 递增；新任务/abort 时重置） */
+let autoContinueCount = 0
+/** 本轮 agent loop 是否调用过 task_complete（显式完成信号） */
+let taskCompletedFlag = false
+/** 本轮 agent loop 是否有任何 tool call（纯文本轮视为交还控制权，兜底停止） */
+let taskHadToolCalls = false
 
 /**
  * 构造长任务 checkpoint 快照（读取 pi-ai agent 内部 messages）
@@ -1427,6 +1440,9 @@ export function useAgent() {
         isStreaming.value = true
         contentBase = ''
         hasAssistantInCurrentRun = false
+        // 任务 4 方向 B：重置本轮 task 模式跟踪状态
+        taskHadToolCalls = false
+        taskCompletedFlag = false
         if (event.chatMode && lockedChatMode.value === null) activeChatMode.value = event.chatMode
         addLog('info', `开始响应（模式: ${{ normal: '快问快答', deep: '深度思考', explore: '知识探索', task: '任务执行' }[event.chatMode as string] || event.chatMode}）`)
         // 深度模式：重置段落状态
@@ -1439,8 +1455,12 @@ export function useAgent() {
           hasToolCallsInCurrentTurn = false
         }
         break
-      case 'agent_end':
-        isStreaming.value = false
+      case 'agent_end': {
+        // 任务 4 方向 B：判断 task 模式是否自动继续（自主执行循环）
+        const shouldAutoContinue = checkShouldAutoContinue()
+        if (!shouldAutoContinue) {
+          isStreaming.value = false
+        }
         // 闭合最后一个未闭合的字体标记
         const lastAssistant = findLastAssistant()
         if (lastAssistant?.content) {
@@ -1451,7 +1471,9 @@ export function useAgent() {
           }
         }
         hasAssistantInCurrentRun = false
-        lockedChatMode.value = null
+        if (!shouldAutoContinue) {
+          lockedChatMode.value = null
+        }
         // 深度模式：标记所有段落为完成
         if (activeChatMode.value === 'deep') {
           deepSegments.value = deepSegments.value.map(s => {
@@ -1486,15 +1508,29 @@ export function useAgent() {
         // Smart Fill 回复路由：如果当前会话由 Smart Fill 触发，将最终回复转发给小窗
         // 任务 4 P1：长任务终结（正常完成 or 协作式取消）
         if (currentLongTaskId) {
-          const tid = currentLongTaskId
-          currentLongTaskId = null
-          if (longTaskIsCancelRequested(tid)) {
-            longTaskCancel(tid).catch((e) => console.warn('[LongTask] cancel error:', e))
+          if (shouldAutoContinue) {
+            // 任务 4 方向 B：task 模式自主继续 — 不终结长任务，触发下一轮
+            autoContinueTask().catch((err) => {
+              console.warn('[AutoContinue] 自动继续失败:', err)
+              isStreaming.value = false
+              const tid = currentLongTaskId
+              if (tid) {
+                currentLongTaskId = null
+                longTaskFail(tid, '自动继续失败: ' + String(err)).catch(() => {})
+              }
+            })
           } else {
-            longTaskComplete(tid).catch((e) => console.warn('[LongTask] complete error:', e))
+            const tid = currentLongTaskId
+            currentLongTaskId = null
+            if (longTaskIsCancelRequested(tid)) {
+              longTaskCancel(tid).catch((e) => console.warn('[LongTask] cancel error:', e))
+            } else {
+              longTaskComplete(tid).catch((e) => console.warn('[LongTask] complete error:', e))
+            }
           }
         }
         break
+      }
       case 'turn_end':
         if (event.message && event.message.role !== 'user') {
           if (!event.message.metadata) event.message.metadata = {}
@@ -1651,6 +1687,8 @@ export function useAgent() {
         }
         addLog('tool', `调用工具: ${toolNameZh(event.toolCall.name)}`, JSON.stringify(event.toolCall.args))
         toolCallNameMap.set(event.toolCall.id, event.toolCall.name)
+        // 任务 4 方向 B：标记本轮有 tool call（自动继续的判断依据）
+        taskHadToolCalls = true
         // 任务 4 P1：checkpoint（记录当前 tool 开始执行，更新 pi-ai messages 快照）
         if (currentLongTaskId) {
           longTaskCheckpoint(currentLongTaskId, { currentTool: event.toolCall.name })
@@ -1719,6 +1757,10 @@ export function useAgent() {
         // 任务 4 P1：checkpoint（tool 执行完成，pi-ai messages 已含 tool result）
         if (currentLongTaskId) {
           longTaskCheckpoint(currentLongTaskId)
+        }
+        // 任务 4 方向 B：检测 task_complete 工具调用（显式完成信号）
+        if (event.success && toolCallNameMap.get(event.toolCallId) === 'task_complete') {
+          taskCompletedFlag = true
         }
         const tcEndTarget = findLastAssistant()
         if (tcEndTarget?.toolCalls) {
@@ -1914,6 +1956,59 @@ export function useAgent() {
     await sendMessageInternal(displayText, skillNames)
   }
 
+  /**
+   * 任务 4 方向 B：判断 task 模式是否应该自动继续（自主执行循环）
+   *
+   * 继续条件（全部满足）：
+   *   1. chatMode === 'task'
+   *   2. 本轮未调用 task_complete（未显式完成）
+   *   3. 本轮有 tool call（纯文本轮视为交还控制权，兼底停止）
+   *   4. 未达最大自主轮次 MAX_AUTO_TURNS
+   *   5. 用户未请求取消，backend 可用
+   */
+  function checkShouldAutoContinue(): boolean {
+    if (activeChatMode.value !== 'task') return false
+    if (taskCompletedFlag) return false
+    if (!taskHadToolCalls) return false
+    if (autoContinueCount >= MAX_AUTO_TURNS) return false
+    if (!currentLongTaskId) return false
+    if (longTaskIsCancelRequested(currentLongTaskId)) return false
+    if (!backend.value) return false
+    return true
+  }
+
+  /**
+   * 任务 4 方向 B：自动继续 task 模式 — 发起下一轮 agent loop
+   *
+   * 复用 currentLongTaskId（不启动新长任务），递增 autoContinueCount，
+   * 向 agent 发送“继续”指令。agent_end → autoContinueTask → backend.prompt → agent_start 形成循环。
+   */
+  async function autoContinueTask(): Promise<void> {
+    if (!backend.value) {
+      isStreaming.value = false
+      return
+    }
+    autoContinueCount++
+    // continuePrompt 极简化：task-execution skill 已在 system prompt 引导完整工作流，
+    // 此处只需给 agent 一个"继续"信号。避免 200 轮重复长指令污染上下文（每轮省 ~44 token）。
+    // 保留 task_complete 提醒，防止 agent 完成后忘记显式停止。
+    const continuePrompt = '继续执行。若任务已完成，调用 task_complete。'
+    // 方向 C 改进点 2：不再 push user message（避免 200 轮刷屏淹没真正的 assistant 内容）。
+    // 透明性改由进度条保证：activeTask.turnCount 实时显示轮次，叠加 plan 进度/当前步骤标题。
+    // agent 收到的是 continuePrompt（不进 UI 消息列表），agent_end 只同步 assistant 消息。
+    // checkpoint：记录自主继续轮次（持久化，供断点恢复与历史查看）
+    if (currentLongTaskId) {
+      longTaskCheckpoint(currentLongTaskId, { currentPhase: `自主继续第 ${autoContinueCount} 轮` })
+    }
+    try {
+      await backend.value.prompt(continuePrompt, { chatMode: lockedChatMode.value ?? 'task' })
+    } catch (err) {
+      console.warn('[AutoContinue] prompt 失败:', err)
+      isStreaming.value = false
+      throw err
+    }
+  }
+
   async function sendMessageInternal(text: string, skillNames?: string[], images?: ImageAttachment[], files?: FileAttachment[], chatMode?: ChatMode): Promise<void> {
     const ok = await ensureInitialized()
     if (!ok || !backend.value) {
@@ -1960,6 +2055,8 @@ export function useAgent() {
     currentSkillNamesForCheckpoint = skillNames
     if (!currentLongTaskId) {
       longTaskTurnCounter = 0
+      // 任务 4 方向 B：重置自主继续计数（新任务）
+      autoContinueCount = 0
       currentLongTaskId = longTaskStart({
         type: 'main-agent',
         prompt: text,
@@ -1999,6 +2096,10 @@ export function useAgent() {
     hasAssistantInCurrentRun = false
     lockedChatMode.value = null
     contentBase = ''
+    // 任务 4 方向 B：清理自主继续状态
+    autoContinueCount = 0
+    taskHadToolCalls = false
+    taskCompletedFlag = false
     // 深度模式：标记所有 streaming 段为 complete
     deepSegments.value = deepSegments.value.map(s => {
       if (s.type === 'thinking' && s.status === 'streaming') return { ...s, status: 'complete' as const }

@@ -43,6 +43,7 @@ import { visionTools } from './tools/vision-tools'
 import { imageGenTools } from './tools/image-gen-tools'
 import { videoGenTools } from './tools/video-gen-tools'
 import { planTools } from './tools/plan-tools'
+import { taskTools } from './tools/task-tools'
 import { kbTools } from './tools/kb-tools'
 import { personaTools } from './tools/persona'
 import { sessionTools } from './tools/session-tools'
@@ -95,6 +96,7 @@ function registerAllTools(): void {
     ...imageGenTools,
     ...videoGenTools,
     ...planTools,
+    ...taskTools,
     ...kbTools,
     ...personaTools,
     ...sessionTools,
@@ -215,6 +217,7 @@ export const ALL_TOOLS = [
   ...imageGenTools,
   ...videoGenTools,
   ...planTools,
+  ...taskTools,
   ...kbTools,
   ...personaTools,
   ...sessionTools,

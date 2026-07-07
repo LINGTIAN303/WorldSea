@@ -101,9 +101,19 @@
       <span class="ltp-heartbeat" :class="`ltp-hb-${heartbeatStatus}`" :title="heartbeatTitle"></span>
       <span class="ltp-label">运行中</span>
       <span class="ltp-duration">{{ formatElapsed(elapsedSec) }}</span>
+      <!-- 方向 C 改进点 1：plan 进度（有 plan 时显示完成/总步数，让用户看到整体推进） -->
+      <template v-if="planProgress.total > 0">
+        <span class="ltp-sep">·</span>
+        <span class="ltp-plan" :title="`任务进度 ${planProgress.completed}/${planProgress.total} 步（${planProgress.pct}%）`">{{ planProgress.completed }}/{{ planProgress.total }} 步</span>
+      </template>
       <span class="ltp-sep">·</span>
       <span class="ltp-turns">第 {{ activeTask.turnCount }} 轮</span>
-      <template v-if="activeTask.currentTool">
+      <!-- 方向 C 改进点 3：当前 plan 步骤优先显示；无 in_progress 步骤时回退到当前 tool 名 -->
+      <template v-if="currentPlanStep">
+        <span class="ltp-sep">·</span>
+        <span class="ltp-step" :title="`当前步骤: ${currentPlanStep}`">{{ currentPlanStep }}</span>
+      </template>
+      <template v-else-if="activeTask.currentTool">
         <span class="ltp-sep">·</span>
         <span class="ltp-tool" :title="`正在执行: ${activeTask.currentTool}`">{{ activeTask.currentTool }}</span>
       </template>
@@ -228,6 +238,7 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, watch, onMounted, onUnmounted, onBeforeUnmount } from 'vue'
 import { useAgent } from './composables/useAgent'
+import { usePlanStore } from './composables/usePlanStore'
 import type { ChatMode } from './composables/useAgent'
 import { useAgentCommands } from './composables/useAgentCommands'
 import { usePanelDrag, usePanelResize } from './composables/usePanelDrag'
@@ -277,6 +288,13 @@ const {
   resumableTasks, resumeTask, discardTask,
   activeTask, heartbeatStatus, hasActiveTask,
 } = useAgent()
+// 方向 C：plan 进度可见性（进度条叠加 plan 完成数 + 当前 in_progress 步骤标题）
+const planStore = usePlanStore()
+const planProgress = planStore.progress
+const currentPlanStep = computed(() => {
+  const step = planStore.items.value.find(i => i.status === 'in_progress')
+  return step?.title || ''
+})
 const settingsStore = useSettingsStore()
 const { connections: mcpConnections, addConnection, removeConnection, toggleConnection, ensureLoaded: ensureMcpLoaded } = useMcpConnections()
 const { commands, settingsOpen, closeSettings, openSettings } = useAgentCommands()
@@ -1293,6 +1311,20 @@ onUnmounted(() => {
 .ltp-tool {
   color: rgba(209, 250, 229, 0.65);
   max-width: 140px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* 方向 C：plan 进度数 + 当前步骤标题 */
+.ltp-plan {
+  font-variant-numeric: tabular-nums;
+  color: rgb(167, 243, 208);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.ltp-step {
+  color: rgba(209, 250, 229, 0.85);
+  max-width: 160px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

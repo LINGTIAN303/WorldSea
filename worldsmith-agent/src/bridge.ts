@@ -556,8 +556,8 @@ export class CoreBackend implements IAgentBackend {
     const chatMode = options?.chatMode || 'normal'
     this._currentChatMode = chatMode
 
-    const thinkingLevelMap: Record<ChatMode, ThinkingLevel> = {
-      normal: 'off',
+const thinkingLevelMap: Record<ChatMode, ThinkingLevel> = {
+normal: 'low',
       deep: 'high',
       explore: 'medium',
       task: 'high',
@@ -578,7 +578,7 @@ export class CoreBackend implements IAgentBackend {
     let prompt = this.originalSystemPrompt
 
     if (chatMode === 'normal') {
-      prompt += '\n\n[模式指令] 你处于快问快答模式。直接回答用户问题，不要调用任何工具，不要进行深度分析。简洁、直接地给出答案。如果用户的问题需要深度分析或工具调用，简要提示用户可切换到深度思考或知识探索模式。'
+      prompt += '\n\n[模式指令] 你处于快问快答模式。简洁、直接地回答用户问题。需要时可以调用工具查询信息（如读取实体、搜索内容、读写文件），但不要进行长流程的多步骤任务执行。如果用户需要深度分析或自主多步骤任务，简要提示用户可切换到深度思考或任务执行模式。'
       if (options?.contextOverride) {
         prompt += `\n\n[上下文] ${options.contextOverride}`
       }
