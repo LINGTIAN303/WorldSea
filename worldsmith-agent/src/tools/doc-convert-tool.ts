@@ -8,6 +8,7 @@
  */
 
 import type { ToolDefinition } from '../bridge-types'
+import type { ToolMeta } from '@worldsmith/agent-core'
 
 /** 后端 MarkItDown 服务地址 */
 const BACKEND_CONVERT_URL = 'http://localhost:3100/api/convert'
@@ -54,6 +55,12 @@ export const docConvertTool: ToolDefinition = {
     filename: { type: 'string', description: '文件名含扩展名', required: true },
     content_base64: { type: 'string', description: '文件内容的 Base64 编码', required: true },
   },
+  meta: {
+    permission: 'safe',
+    category: 'file',
+    alwaysAvailable: true,
+    displayName: '文档转换',
+  } satisfies ToolMeta,
   execute: async (args, _ctx) => {
     const filename = String(args.filename ?? '')
     const contentBase64 = String(args.content_base64 ?? '')

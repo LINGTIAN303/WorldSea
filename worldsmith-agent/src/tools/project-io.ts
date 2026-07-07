@@ -7,6 +7,7 @@
  */
 
 import type { ToolDefinition } from '../bridge-types'
+import type { ToolMeta } from '@worldsmith/agent-core'
 
 /**
  * project_export — 导出项目数据
@@ -18,6 +19,12 @@ export const projectExportTool: ToolDefinition = {
   parameters: {
     format: { type: 'string', description: '导出格式，目前仅支持 json', required: false },
   },
+  meta: {
+    permission: 'safe',
+    category: 'project',
+    alwaysAvailable: true,
+    displayName: '导出项目',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     const format = String(args.format || 'json')
     const entityStore = ctx.stores.entity as any
@@ -82,6 +89,12 @@ export const projectImportTool: ToolDefinition = {
     data: { type: 'string', description: '要导入的 JSON 数据字符串', required: true },
     mode: { type: 'string', description: '导入模式: merge(合并,跳过重复) 或 overwrite(覆盖,先清空)', required: false },
   },
+  meta: {
+    permission: 'safe',
+    category: 'project',
+    alwaysAvailable: true,
+    displayName: '导入项目',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     const dataStr = String(args.data)
     const mode = String(args.mode || 'merge')

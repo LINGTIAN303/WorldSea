@@ -12,6 +12,7 @@
  */
 
 import type { ToolDefinition } from '../bridge-types'
+import type { ToolMeta } from '@worldsmith/agent-core'
 
 /** 封装 Tauri invoke 调用，动态导入避免 Web 模式报错 */
 async function invokeTauri(command: string, args?: Record<string, unknown>): Promise<unknown> {
@@ -32,6 +33,11 @@ export const schemaRegisterEntityType: ToolDefinition = {
     idPrefix: { type: 'string', description: '实体 ID 前缀（可选，如 "chr"）', required: false },
     iconMapJson: { type: 'string', description: '图标映射 JSON（可选，按字段值映射不同图标）', required: false },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'schema',
+    displayName: '注册实体类型',
+  } satisfies ToolMeta,
   execute: async (args) => {
     try {
       const schema: Record<string, unknown> = {
@@ -58,6 +64,11 @@ export const schemaUnregisterEntityType: ToolDefinition = {
   parameters: {
     typeKey: { type: 'string', description: '要注销的实体类型键名', required: true },
   },
+  meta: {
+    permission: 'dangerous',
+    category: 'schema',
+    displayName: '注销实体类型',
+  } satisfies ToolMeta,
   execute: async (args) => {
     try {
       const result = await invokeTauri('cmd_schema_unregister_entity_type', { typeKey: String(args.typeKey) })
@@ -75,6 +86,11 @@ export const schemaGetEntityType: ToolDefinition = {
   parameters: {
     typeKey: { type: 'string', description: '实体类型键名', required: true },
   },
+  meta: {
+    permission: 'safe',
+    category: 'schema',
+    displayName: '获取实体类型',
+  } satisfies ToolMeta,
   execute: async (args) => {
     try {
       const result = await invokeTauri('cmd_schema_get_entity_type', { typeKey: String(args.typeKey) })
@@ -90,6 +106,12 @@ export const schemaListEntityTypes: ToolDefinition = {
   name: 'schema_list_entity_types',
   description: '列出所有已注册的实体类型 Schema。返回每个类型的键名、显示名称和图标等摘要信息。',
   parameters: {},
+  meta: {
+    permission: 'safe',
+    category: 'schema',
+    alwaysAvailable: true,
+    displayName: '列出实体类型',
+  } satisfies ToolMeta,
   execute: async () => {
     try {
       const result = await invokeTauri('cmd_schema_list_entity_types')
@@ -108,6 +130,11 @@ export const schemaUpdateEntityType: ToolDefinition = {
     typeKey: { type: 'string', description: '实体类型键名', required: true },
     updatesJson: { type: 'string', description: '要更新的字段 JSON 对象（如 {"label":"新名称","icon":"new-icon"}）', required: true },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'schema',
+    displayName: '更新实体类型',
+  } satisfies ToolMeta,
   execute: async (args) => {
     try {
       const result = await invokeTauri('cmd_schema_update_entity_type', {
@@ -129,6 +156,11 @@ export const schemaRegisterValidation: ToolDefinition = {
     typeKey: { type: 'string', description: '实体类型键名', required: true },
     ruleJson: { type: 'string', description: '验证规则 JSON 定义', required: true },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'schema',
+    displayName: '注册验证',
+  } satisfies ToolMeta,
   execute: async (args) => {
     try {
       const result = await invokeTauri('cmd_schema_register_validation', {
@@ -150,6 +182,11 @@ export const schemaRegisterView: ToolDefinition = {
     typeKey: { type: 'string', description: '实体类型键名', required: true },
     viewJson: { type: 'string', description: '视图声明 JSON 定义', required: true },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'schema',
+    displayName: '注册视图',
+  } satisfies ToolMeta,
   execute: async (args) => {
     try {
       const result = await invokeTauri('cmd_schema_register_view', {
@@ -171,6 +208,12 @@ export const schemaValidate: ToolDefinition = {
     typeKey: { type: 'string', description: '实体类型键名', required: true },
     dataJson: { type: 'string', description: '要验证的实体或关系数据 JSON', required: true },
   },
+  meta: {
+    permission: 'safe',
+    category: 'schema',
+    alwaysAvailable: true,
+    displayName: '验证 Schema',
+  } satisfies ToolMeta,
   execute: async (args) => {
     try {
       const result = await invokeTauri('cmd_schema_validate', {
@@ -191,6 +234,12 @@ export const schemaExport: ToolDefinition = {
   parameters: {
     typeKey: { type: 'string', description: '实体类型键名（可选，不传则导出所有类型）', required: false },
   },
+  meta: {
+    permission: 'safe',
+    category: 'schema',
+    alwaysAvailable: true,
+    displayName: '导出模式',
+  } satisfies ToolMeta,
   execute: async (args) => {
     try {
       if (args.typeKey) {

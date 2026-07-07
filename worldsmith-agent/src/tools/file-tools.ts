@@ -11,6 +11,7 @@
  */
 
 import type { ToolDefinition } from '../bridge-types'
+import type { ToolMeta } from '@worldsmith/agent-core'
 
 /** file_list — 列出文件，支持路径前缀和实体关联两种筛选方式 */
 export const fileListTool: ToolDefinition = {
@@ -20,6 +21,12 @@ export const fileListTool: ToolDefinition = {
     pathPrefix: { type: 'string', description: '路径前缀筛选，如 "/docs/" 或 "/characters/"' },
     entityId: { type: 'string', description: '按关联实体 ID 筛选文件' },
   },
+  meta: {
+    permission: 'safe',
+    category: 'file',
+    alwaysAvailable: true,
+    displayName: '列出文件',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     let files = await ctx.stores.file.getAllFiles()
     if (args.pathPrefix) {
@@ -52,6 +59,12 @@ export const fileReadTool: ToolDefinition = {
     id: { type: 'string', description: '文件 ID' },
     path: { type: 'string', description: '文件路径（与 id 二选一）' },
   },
+  meta: {
+    permission: 'safe',
+    category: 'file',
+    alwaysAvailable: true,
+    displayName: '读取文件',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     let fileId = args.id ? String(args.id) : undefined
     if (!fileId && args.path) {
@@ -89,6 +102,11 @@ export const fileWriteTool: ToolDefinition = {
     mimeType: { type: 'string', description: 'MIME 类型，默认 text/plain' },
     overwrite: { type: 'boolean', description: '是否覆盖已存在的文件，默认 false' },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'file',
+    displayName: '写入文件',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     const path = String(args.path)
     if (!path.startsWith('/')) return JSON.stringify({ error: '路径必须以 / 开头' })
@@ -120,6 +138,11 @@ export const fileDeleteTool: ToolDefinition = {
     id: { type: 'string', description: '文件 ID' },
     path: { type: 'string', description: '文件路径（与 id 二选一）' },
   },
+  meta: {
+    permission: 'dangerous',
+    category: 'file',
+    displayName: '删除文件',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     let fileId = args.id ? String(args.id) : undefined
     if (!fileId && args.path) {
@@ -143,6 +166,11 @@ export const fileAssociateTool: ToolDefinition = {
     fileId: { type: 'string', description: '文件 ID', required: true },
     entityId: { type: 'string', description: '实体 ID。设为空字符串则取消关联' },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'file',
+    displayName: '关联文件',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     const fileId = String(args.fileId)
     const entityId = args.entityId !== undefined ? String(args.entityId) : undefined
@@ -174,6 +202,12 @@ export const fileAnalyzeTool: ToolDefinition = {
     id: { type: 'string', description: '文件 ID', required: true },
     analysisDepth: { type: 'string', description: 'basic(类型+摘要)/deep(结构+语义+路由建议)', required: false },
   },
+  meta: {
+    permission: 'safe',
+    category: 'file',
+    alwaysAvailable: true,
+    displayName: '分析文件',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     const fileId = String(args.id)
     const depth = String(args.analysisDepth || 'deep')
