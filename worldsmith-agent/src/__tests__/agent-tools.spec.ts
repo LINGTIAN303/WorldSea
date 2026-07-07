@@ -130,3 +130,15 @@ describe('getToolsForSkills', () => {
     expect(uniqueNames.size).toBe(names.length)
   })
 })
+
+describe('声明式 meta 覆盖（LEGACY_TOOL_META 淘汰前提）', () => {
+  it('所有 ALL_TOOLS 工具都声明了 meta（permission + category）', () => {
+    // 任务3 后续：补全声明式 meta 后，LEGACY_TOOL_META 不再必要。
+    // 本测试验证淘汰前提：每个活跃工具都有 meta，ToolRegistry 即可覆盖所有旧工具名。
+    for (const tool of ALL_TOOLS) {
+      expect(tool.meta, `工具 ${tool.name} 缺少声明式 meta`).toBeDefined()
+      expect(tool.meta!.permission, `工具 ${tool.name} 缺少 permission`).toBeDefined()
+      expect(tool.meta!.category, `工具 ${tool.name} 缺少 category`).toBeDefined()
+    }
+  })
+})

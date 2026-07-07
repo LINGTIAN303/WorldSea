@@ -16,9 +16,9 @@
 ### 3. Agent 的技能工具更新
 - **简述**：更新 Agent 的技能（Skills）工具体系，与 governor-modules.ts 的 toolMeta 模块对接
 - **涉及模块**：`worldsmith-agent/src/agent.ts`、`src/agent/`、`@worldsmith/agent-core`、`@worldsmith/governor-core`
-- **状态**：📋 待启动
+- **状态**：🚧 进行中（P1-P3 接线 + P4 补 meta 淘汰 LEGACY_TOOL_META 完成，2026-07-07）
 - **优先级**：—
-- **备注**：当前 toolMeta 是验证-only，需实现真实技能注册与动态加载
+- **备注**：当前 toolMeta 是验证-only，需实现真实技能注册与动态加载。P1-P3 已让 agent-core 的 ToolRegistry/SkillRegistry 从死代码变为运行时可用（commit 88735cd）：P1 tool-meta-registry 接 ToolRegistry；P2 skills/registry 自动注册 SkillRegistry；P3 toolbus resolveLegacyNames 委托 SkillRegistry。P4 补全所有静态工具声明式 meta（Batch 1-7 + skills/meta-tools），淘汰 LEGACY_TOOL_META（清空为空对象，buildMetaCache 不再收集）。待后续：切换 resolveToolNames 到 SkillRegistry、任务24 Skills 商城依赖本任务
 
 ### 4. Agent 的长任务能力
 - **简述**：支持 Agent 长任务（最长 6 小时），无强制中断机制，优化在应用层

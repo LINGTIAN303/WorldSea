@@ -328,5 +328,36 @@ agent_end → checkShouldAutoContinue=true → autoContinueTask → backend.prom
 - thinkingLevel low 可能改变回答风格，需实测确认符合"快答"定位
 - normal 与 explore 边界稍模糊（但 explore 有专门 skill+多源搜索+更高 thinkingLevel，定位仍不同）
 
-**推进顺序**：任务 1 ✅ → 任务 4 P1-P4 ✅ → task 模式方向 A ✅ → B ✅ → C ✅ → D ✅ → 任务 19 / 任务 3
+**推进顺序**：任务 1 ✅ → 任务 4 P1-P4 ✅ → task 模式方向 A ✅ → B ✅ → C ✅ → D ✅ → 任务 19 ✅ → 任务 3 P1-P3 ✅
+
+
+### 任务 3：Agent 技能工具更新 — P1-P3 声明式 registry 接线完成（2026-07-07）
+
+**状态**：P1-P3 接线完成（commit 88735cd，未 push）
+
+**核心决策**（用户确认）：
+- scope = 仅接线（让 agent-core 的 ToolRegistry/SkillRegistry 从死代码变为运行时可用，淘汰硬编码留待后续）
+- compat = 保留 InternalChainRegistry（capabilities 逻辑不变）
+- rollback = main 直接累积不 push
+
+**关键架构发现**：
+- bridge.ts 只用 `toolBus.register` + `toolBus.getAll`，**从不调用 `resolve`** → resolve 路径是死代码，P3 改造零运行时风险
+- 新 agent-core registry 此前是死代码：`getGlobalToolRegistry`/`getGlobalSkillRegistry`/新 `DefaultToolBus` 从未被消费方调用
+- LEGACY_TOOL_META 已淘汰（P4 完成）：所有静态工具补全声明式 meta（Batch 1-7 + skills/meta-tools），注册到 ToolRegistry；旧工具名通过 ALIAS_MAP/meta.aliases/LEGACY_ALGO_MAP/LEGACY_PLUGIN_MAP 解析。LEGACY_TOOL_META 清空为 {}，buildMetaCache 不再从中收集
+
+**接线点（3 处）**：
+1. P1 `tool-meta-registry.ts`：`initToolMetaRegistry` 同步注册工具到全局 ToolRegistry；`buildMetaCache` 从 ToolRegistry 收集；移除 `_toolsSource` 变量
+2. P2 `skills/registry.ts`：模块加载时自动 `registerSkillsToGlobalRegistry()`；SkillMeta→SkillDeclaration 声明式子集转换
+3. P3 `toolbus/toolbus.ts`：`resolveLegacyNames` 优先用 `SkillRegistry.resolveToolNames` 声明式解析
+
+**验证**：lints 零错误；vue-tsc 改动 3 文件零新增错误；agent-tools 测试 12 通过 1 预存失败（git stash 确认与本次无关）
+
+**P4 完成（补 meta 淘汰 LEGACY_TOOL_META）**：
+- ✅ 给所有静态工具补 `meta` 字段（Batch 1-7：entity/relation/search/output/memory/kb/file/project/schema/git/pkg/sys/terminal/web-cli/crawl/native/vision/session/image-gen/video-gen/a2ui/plan/persona/daily-task/orchestrator/pipeline/algo/plugin/retrofit/module-builder + skills/meta-tools）
+- ✅ 淘汰 LEGACY_TOOL_META（清空为 {}，buildMetaCache 删除 step 3，getToolMeta 仅依赖 ToolRegistry + 别名映射 + 兜底）
+- ✅ agent-tools.spec.ts 加测试"所有 ALL_TOOLS 声明 meta"
+
+**未完成（待后续）**：
+- 切换 `resolveToolNames` 到 SkillRegistry（需先补 `alwaysAvailable` meta）
+- 任务24 Skills 商城依赖本任务完成
 <!-- HIPPOCAMPUS:SECTION:decisions END -->
