@@ -1,4 +1,5 @@
 import type { ToolDefinition } from '../bridge-types'
+import type { ToolMeta } from '@worldsmith/agent-core'
 import type { ManuscriptBlock } from '../bridge-types'
 
 let _idCounter = 0
@@ -16,6 +17,12 @@ export const manuscriptClone: ToolDefinition = {
       required: true,
     },
   },
+  meta: {
+    permission: 'safe',
+    category: 'output',
+    alwaysAvailable: true,
+    displayName: '克隆文境',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     const sourceId = args.sourceSessionId
     if (!sourceId || typeof sourceId !== 'string') {

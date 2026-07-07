@@ -24,6 +24,7 @@
  */
 
 import type { ToolDefinition } from '../bridge-types'
+import type { ToolMeta } from '@worldsmith/agent-core'
 import type { TableBlock, ChoiceBlock, CodeBlockData, EntityCardBlock, AlertBlock, StatBlock, ListBlock, ProgressBlock, ComparisonBlock, TimelineBlock, ImageBlock, AccordionBlock, ManuscriptBlock } from '../bridge-types'
 
 /** 全局 Block ID 计数器，确保每个 block 的 ID 全局唯一 */
@@ -47,6 +48,12 @@ export const outputTable: ToolDefinition = {
     columns: { type: 'string', description: '列定义的 JSON 数组字符串。每项包含 key(字段名)、label(显示名)、align(对齐方式，可选 left/center/right)。示例: [{"key":"name","label":"名称"},{"key":"value","label":"数值","align":"right"}]', required: true },
     rows: { type: 'string', description: '行数据的 JSON 数组字符串。每项是一个对象，key 与 columns 的 key 对应。示例: [{"name":"攻击力","value":85},{"name":"防御力","value":60}]', required: true },
   },
+  meta: {
+    permission: 'safe',
+    category: 'output',
+    alwaysAvailable: true,
+    displayName: '输出表格',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     let columns: TableBlock['columns']
     let rows: TableBlock['rows']
@@ -85,6 +92,12 @@ export const outputChoice: ToolDefinition = {
     mode: { type: 'string', description: 'single(单选) 或 multi(多选)', required: false, enum: ['single', 'multi'] },
     options: { type: 'string', description: '选项的 JSON 数组字符串。每项包含 value(选项值)、label(显示文本)、description(描述，可选)。示例: [{"value":"attack","label":"攻击","description":"对目标造成伤害"},{"value":"defend","label":"防御","description":"减少受到的伤害"}]', required: true },
   },
+  meta: {
+    permission: 'safe',
+    category: 'output',
+    alwaysAvailable: true,
+    displayName: '输出选择',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     let options: ChoiceBlock['options']
     try {
@@ -114,6 +127,12 @@ export const outputCode: ToolDefinition = {
     code: { type: 'string', description: '代码内容', required: true },
     runnable: { type: 'boolean', description: '是否显示运行按钮（默认 false）', required: false },
   },
+  meta: {
+    permission: 'safe',
+    category: 'output',
+    alwaysAvailable: true,
+    displayName: '输出代码',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     const blockId = nextId('code')
     const block: CodeBlockData = {
@@ -135,6 +154,12 @@ export const outputEntityCard: ToolDefinition = {
   parameters: {
     entityId: { type: 'string', description: '实体 ID', required: true },
   },
+  meta: {
+    permission: 'safe',
+    category: 'output',
+    alwaysAvailable: true,
+    displayName: '输出实体卡片',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     const entityId = String(args.entityId)
     const entity = await ctx.stores.entity.getById(entityId)
@@ -160,6 +185,12 @@ export const outputAlert: ToolDefinition = {
     title: { type: 'string', description: '提示标题', required: false },
     message: { type: 'string', description: '提示内容', required: true },
   },
+  meta: {
+    permission: 'safe',
+    category: 'output',
+    alwaysAvailable: true,
+    displayName: '输出提示',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     const levels = ['info', 'success', 'warning', 'error']
     const level = levels.includes(args.level as string) ? args.level as AlertBlock['level'] : 'info'
@@ -182,6 +213,12 @@ export const outputStat: ToolDefinition = {
     title: { type: 'string', description: '统计标题', required: false },
     items: { type: 'string', description: '统计项的 JSON 数组字符串。每项包含 label(标签)、value(数值)、icon(图标，可选)、trend(趋势 up/down/flat，可选)。示例: [{"label":"角色","value":23,"icon":"👤","trend":"up"},{"label":"地区","value":8}]', required: true },
   },
+  meta: {
+    permission: 'safe',
+    category: 'output',
+    alwaysAvailable: true,
+    displayName: '输出统计',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     let items: StatBlock['items']
     try {
@@ -207,6 +244,12 @@ export const outputList: ToolDefinition = {
     title: { type: 'string', description: '列表标题', required: false },
     items: { type: 'string', description: '列表项的 JSON 数组字符串。每项包含 icon(图标，可选)、label(标题)、description(描述，可选)、value(附加值，可选)。示例: [{"icon":"👤","label":"战士","description":"近战输出","value":"Lv.5"}]', required: true },
   },
+  meta: {
+    permission: 'safe',
+    category: 'output',
+    alwaysAvailable: true,
+    displayName: '输出列表',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     let items: ListBlock['items']
     try {
@@ -233,6 +276,12 @@ export const outputProgress: ToolDefinition = {
     progress: { type: 'number', description: '进度百分比 0-100', required: true },
     status: { type: 'string', description: '状态: running(进行中)、completed(已完成)、failed(失败)', required: true, enum: ['running', 'completed', 'failed'] },
   },
+  meta: {
+    permission: 'safe',
+    category: 'output',
+    alwaysAvailable: true,
+    displayName: '输出进度',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     const progress = Math.max(0, Math.min(100, Number(args.progress) || 0))
     const statuses = ['running', 'completed', 'failed']
@@ -257,6 +306,12 @@ export const outputComparison: ToolDefinition = {
     left: { type: 'string', description: '左侧实体的 JSON 对象。包含 label(名称) 和 items(属性键值对)。示例: {"label":"战士","items":{"攻击力":"85","防御力":"60"}}', required: true },
     right: { type: 'string', description: '右侧实体的 JSON 对象。格式同 left。示例: {"label":"法师","items":{"攻击力":"40","防御力":"30"}}', required: true },
   },
+  meta: {
+    permission: 'safe',
+    category: 'output',
+    alwaysAvailable: true,
+    displayName: '输出对比',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     let left: ComparisonBlock['left']
     let right: ComparisonBlock['right']
@@ -282,6 +337,12 @@ export const outputTimeline: ToolDefinition = {
     title: { type: 'string', description: '时间线标题', required: false },
     events: { type: 'string', description: '事件的 JSON 数组字符串。每项包含 time(时间点)、label(事件名)、description(描述，可选)。示例: [{"time":"1000年","label":"建国","description":"阿尔王国建立"},{"time":"1050年","label":"战争","description":"与邻国爆发冲突"}]', required: true },
   },
+  meta: {
+    permission: 'safe',
+    category: 'output',
+    alwaysAvailable: true,
+    displayName: '输出时间线',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     let events: TimelineBlock['events']
     try { events = typeof args.events === 'string' ? JSON.parse(args.events) : args.events as TimelineBlock['events'] } catch { return '错误：events 参数必须是有效的 JSON 数组' }
@@ -306,6 +367,12 @@ export const outputImage: ToolDefinition = {
     alt: { type: 'string', description: '图片替代文本', required: false },
     caption: { type: 'string', description: '图片说明', required: false },
   },
+  meta: {
+    permission: 'safe',
+    category: 'output',
+    alwaysAvailable: true,
+    displayName: '输出图片',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     if (!args.src || !String(args.src).trim()) return '错误：src 参数不能为空'
     const blockId = nextId('img')
@@ -329,6 +396,12 @@ export const outputAccordion: ToolDefinition = {
     title: { type: 'string', description: '折叠区标题', required: false },
     sections: { type: 'string', description: '内容段的 JSON 数组字符串。每项包含 title(段标题) 和 content(段内容)。示例: [{"title":"背景","content":"这是一个古老的王国..."},{"title":"现状","content":"王国正处于内战..."}]', required: true },
   },
+  meta: {
+    permission: 'safe',
+    category: 'output',
+    alwaysAvailable: true,
+    displayName: '输出折叠面板',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     let sections: AccordionBlock['sections']
     try {
@@ -373,6 +446,12 @@ export const outputManuscript: ToolDefinition = {
     width: { type: 'number', description: '容器初始宽度(px)。不填则自适应内容。例: 480, 600。', required: false },
     height: { type: 'number', description: '容器初始高度(px)。不填则自适应内容。例: 320, 400。', required: false },
   },
+  meta: {
+    permission: 'safe',
+    category: 'output',
+    alwaysAvailable: true,
+    displayName: '输出文境',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     if (!args.content || typeof args.content !== 'string') {
       return '错误：content 参数不能为空'

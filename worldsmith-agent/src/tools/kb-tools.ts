@@ -13,6 +13,7 @@
  */
 
 import type { ToolDefinition } from '../bridge-types'
+import type { ToolMeta } from '@worldsmith/agent-core'
 import {
   kbWrite, kbRead, kbReadById, kbList, kbDelete, kbDeleteById,
   kbSearchKeyword, kbLinkEntity, kbUnlinkEntity,
@@ -41,6 +42,12 @@ const kbWriteTool: ToolDefinition = {
     entityId: { type: 'string', description: '关联实体 ID（可选，将知识条目链接到特定实体）', required: false },
     summary: { type: 'string', description: '内容摘要（可选，用于快速预览和检索）', required: false },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'plan',
+    alwaysAvailable: true,
+    displayName: '写入知识库',
+  } satisfies ToolMeta,
   execute: async (args) => {
     const path = String(args.path).trim()
     const content = String(args.content)
@@ -80,6 +87,12 @@ const kbReadTool: ToolDefinition = {
     id: { type: 'string', description: '知识条目 ID（与 path 二选一）' },
     scope: { type: 'string', description: '作用域（使用 path 时需要指定）: global / project', required: false, enum: ['global', 'project'] },
   },
+  meta: {
+    permission: 'safe',
+    category: 'plan',
+    alwaysAvailable: true,
+    displayName: '读取知识库',
+  } satisfies ToolMeta,
   execute: async (args) => {
     if (args.id) {
       const result = await kbReadById(String(args.id))
@@ -125,6 +138,12 @@ const kbListTool: ToolDefinition = {
     pathPrefix: { type: 'string', description: '路径前缀筛选，如 "profile/" 或 "entities/"', required: false },
     tree: { type: 'boolean', description: '是否以目录树形式展示', required: false },
   },
+  meta: {
+    permission: 'safe',
+    category: 'plan',
+    alwaysAvailable: true,
+    displayName: '列出知识库',
+  } satisfies ToolMeta,
   execute: async (args) => {
     const scope = args.scope ? (String(args.scope)) as KBScope : undefined
     const pathPrefix = args.pathPrefix ? String(args.pathPrefix) : undefined
@@ -176,6 +195,12 @@ const kbSearchTool: ToolDefinition = {
     mode: { type: 'string', description: '搜索模式: hybrid(混合)/keyword(关键词)/semantic(语义)，默认 hybrid', required: false, enum: ['hybrid', 'keyword', 'semantic'] },
     limit: { type: 'number', description: '返回数量上限，默认10', required: false },
   },
+  meta: {
+    permission: 'safe',
+    category: 'plan',
+    alwaysAvailable: true,
+    displayName: '搜索知识库',
+  } satisfies ToolMeta,
   execute: async (args) => {
     const query = String(args.query).trim()
     const scope = args.scope ? (String(args.scope)) as KBScope : undefined
@@ -252,6 +277,11 @@ const kbDeleteTool: ToolDefinition = {
     id: { type: 'string', description: '知识条目 ID（与 path 二选一）' },
     scope: { type: 'string', description: '作用域（使用 path 时需要指定）: global / project', required: false, enum: ['global', 'project'] },
   },
+  meta: {
+    permission: 'dangerous',
+    category: 'plan',
+    displayName: '删除知识库',
+  } satisfies ToolMeta,
   execute: async (args) => {
     if (args.id) {
       const id = String(args.id)
@@ -283,6 +313,12 @@ const kbExtractTool: ToolDefinition = {
     entityId: { type: 'string', description: '关联实体 ID（如果知识涉及特定实体）', required: false },
     tags: { type: 'string', description: '标签，逗号分隔', required: false },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'plan',
+    alwaysAvailable: true,
+    displayName: '提取知识',
+  } satisfies ToolMeta,
   execute: async (args) => {
     const category = String(args.category)
     const title = String(args.title).trim()
@@ -332,6 +368,12 @@ const kbReflectTool: ToolDefinition = {
     scope: { type: 'string', description: '作用域: global / project / 不填则全部', required: false, enum: ['global', 'project'] },
     pathPrefix: { type: 'string', description: '路径前缀筛选', required: false },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'plan',
+    alwaysAvailable: true,
+    displayName: '反思知识',
+  } satisfies ToolMeta,
   execute: async (args) => {
     const action = String(args.action)
     const scope = args.scope ? (String(args.scope)) as KBScope : undefined
@@ -411,6 +453,12 @@ const kbLinkTool: ToolDefinition = {
     scope: { type: 'string', description: '作用域: global / project，默认 project', required: false, enum: ['global', 'project'] },
     entityId: { type: 'string', description: '实体 ID（link 时必填）', required: false },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'plan',
+    alwaysAvailable: true,
+    displayName: '链接知识',
+  } satisfies ToolMeta,
   execute: async (args) => {
     const action = String(args.action)
     const path = String(args.path).trim()
@@ -440,6 +488,12 @@ const kbInitTool: ToolDefinition = {
   parameters: {
     scope: { type: 'string', description: '作用域: global / project，默认 project', required: false, enum: ['global', 'project'] },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'plan',
+    alwaysAvailable: true,
+    displayName: '初始化知识库',
+  } satisfies ToolMeta,
   execute: async (args) => {
     const scope = (String(args.scope || 'project')) as KBScope
     await kbEnsureStructure(scope)

@@ -19,6 +19,7 @@
  */
 
 import type { ToolDefinition } from '../bridge-types'
+import type { ToolMeta } from '@worldsmith/agent-core'
 import { semanticSearchMemory, indexMemoryEntry, removeMemoryIndex, isEmbeddingReady } from '../embedding/index'
 import { loadMemory, saveMemory, evictIfNeeded, type MemoryEntry } from './memory-internal'
 
@@ -124,6 +125,12 @@ export const memoryStoreTool: ToolDefinition = {
     value: { type: 'string', description: '要保存的信息内容', required: true },
     tags: { type: 'string', description: '标签，逗号分隔，用于分类检索，如 "设定,规则,魔法"', required: false },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'memory',
+    alwaysAvailable: true,
+    displayName: '存储记忆',
+  } satisfies ToolMeta,
   execute: async (args) => {
     const key = String(args.key).trim()
     let value = String(args.value).trim()
@@ -185,6 +192,12 @@ export const memoryRecallTool: ToolDefinition = {
     limit: { type: 'number', description: '返回数量上限，默认10', required: false },
     mode: { type: 'string', description: '搜索模式: hybrid(语义+关键词混合)/keyword(纯关键词)/semantic(纯语义)，默认 hybrid', required: false, enum: ['hybrid', 'keyword', 'semantic'] },
   },
+  meta: {
+    permission: 'safe',
+    category: 'memory',
+    alwaysAvailable: true,
+    displayName: '回忆记忆',
+  } satisfies ToolMeta,
   execute: async (args) => {
     const query = String(args.query || '').trim()
     const tags = String(args.tags || '').split(',').map(t => t.trim().toLowerCase()).filter(Boolean)
@@ -299,6 +312,11 @@ export const memoryDeleteTool: ToolDefinition = {
   parameters: {
     key: { type: 'string', description: '要删除的记忆条目键名', required: true },
   },
+  meta: {
+    permission: 'dangerous',
+    category: 'memory',
+    displayName: '删除记忆',
+  } satisfies ToolMeta,
   execute: async (args) => {
     const key = String(args.key).trim()
     const entries = loadMemory()
