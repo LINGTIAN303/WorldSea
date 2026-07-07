@@ -1,6 +1,6 @@
 <template>
   <div class="avatar-badge" :class="[`shape-${shape}`]" :style="badgeStyle">
-    <img v-if="src" :src="src" class="avatar-img" alt="" />
+    <img v-if="displaySrc" :src="displaySrc" class="avatar-img" alt="" />
     <span v-else class="avatar-text" :style="textStyle">{{ text }}</span>
   </div>
 </template>
@@ -8,6 +8,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { getAvatarText, getAvatarColor } from './avatar'
+import { useAvatarImage } from '../composables/useAvatarImage'
 
 /**
  * 统一头像组件
@@ -16,16 +17,17 @@ import { getAvatarText, getAvatarColor } from './avatar'
  * CreateAgentDialog avatar-circle / GroupMessageBubble speaker-avatar / AgentMessageBubble msg-icon）。
  *
  * 渲染规则：
- * - 提供 src（图片 URL/base64）→ 显示 <img>
- * - 否则 → 显示文字（avatar 文字 或 name 首字 或 '?'）+ 背景色
+ * - avatar 为图片源（URL/base64/`avatar://` 引用）→ 内部 useAvatarImage 解析为可显示 src → 显示 <img>
+ * - avatar 为文字/空 → 显示文字（avatar 文字 或 name 首字 或 '?'）+ 背景色
+ * - 外部 src prop（若有）优先级最高，覆盖内部解析（用于外部已解析的直接图片）
  *
- * 存储引用（avatar://xxx）的异步解析由调用方通过 useAvatarImage composable 完成，
- * 解析后传入 src；本组件只负责展示。
+ * `avatar://xxx` 存储引用由内部 useAvatarImage 异步解析为 object URL（含生命周期管理），
+ * 调用方只需传 avatar 原值，无需自行解析。
  */
 const props = withDefaults(defineProps<{
-  /** 图片源（URL / base64）；提供则显示图片，否则显示文字 */
+  /** 图片源（URL / base64 / object URL）；外部已解析时传入，优先级高于 avatar 内部解析 */
   src?: string | null
-  /** avatar 字段（图片/文字/引用）；src 未提供时用于推导文字 */
+  /** avatar 字段原值（图片 URL/base64/`avatar://` 引用/文字）；内部自动解析 */
   avatar?: string | null
   /** 名称（文字首字 fallback） */
   name?: string | null
@@ -45,13 +47,18 @@ const props = withDefaults(defineProps<{
   role: 'agent',
 })
 
+// 内部解析 avatar 原值（支持 avatar:// 引用异步解析为 object URL）
+const resolvedSrc = useAvatarImage(() => props.avatar)
+// 外部 src 优先，否则用内部解析结果
+const displaySrc = computed(() => props.src || resolvedSrc.value)
+
 const text = computed(() => getAvatarText(props.avatar, props.name))
 const bgColor = computed(() => getAvatarColor(props.color, props.role))
 
 const badgeStyle = computed(() => ({
   width: props.size + 'px',
   height: props.size + 'px',
-  background: props.src ? 'transparent' : bgColor.value,
+  background: displaySrc.value ? 'transparent' : bgColor.value,
 }))
 
 const textStyle = computed(() => ({

@@ -13,7 +13,6 @@
         <div class="agent-identity" ref="identityRef">
           <AvatarBadge
             class="agent-avatar"
-            :src="avatarSrc"
             :avatar="spaceStore.persona.avatar"
             :name="agentName"
             :color="profile.accentColor"
@@ -186,7 +185,6 @@ import PersonaMirror from './panels/PersonaMirror.vue'
 import UserProfilePopover from './panels/UserProfilePopover.vue'
 import WsIcon from '../ui/WsIcon.vue'
 import AvatarBadge from '../ui/AvatarBadge.vue'
-import { isImageAvatar } from '../ui/avatar'
 import PanelToggle from './PanelToggle.vue'
 import ProviderSlotEditor from './group-chat/components/ProviderSlotEditor.vue'
 import AgentManagerPanel from './group-chat/components/AgentManagerPanel.vue'
@@ -213,7 +211,7 @@ const emit = defineEmits<{
 const spaceStore = useSpaceStore()
 const userProfileStore = useUserProfileStore()
 const { agentName, moodIcon, moodLabel } = useAgentPersona()
-const avatarSrc = computed(() => isImageAvatar(spaceStore.persona.avatar) ? spaceStore.persona.avatar : null)
+
 
 const personaPopoverOpen = ref(false)
 const userProfilePopoverOpen = ref(false)

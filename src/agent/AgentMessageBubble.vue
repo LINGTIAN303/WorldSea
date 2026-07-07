@@ -135,7 +135,6 @@
   >
     <AvatarBadge
       class="msg-avatar"
-      :src="speaker.src"
       :avatar="speaker.avatar"
       :name="speaker.name"
       :color="speaker.color"

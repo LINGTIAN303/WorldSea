@@ -10,7 +10,6 @@
         <div class="persona-avatar-wrap">
           <AvatarBadge
             v-if="isImageAvatar(persona.avatar)"
-            :src="avatarSrc"
             :avatar="persona.avatar"
             :name="persona.name"
             :color="profile.accentColor"
@@ -99,7 +98,6 @@ import { ref, onMounted } from 'vue'
 import { useAgentPersona } from '../composables/useAgentPersona'
 import { usePersonaFont } from '../composables/usePersonaFont'
 import { useSpaceStore } from '../stores/space-store'
-import { useAvatarImage } from '../../composables/useAvatarImage'
 import { uploadAvatarFromFile, deleteAvatar } from '../../composables/avatarStore'
 import { isImageAvatar, isAvatarRef, getAvatarRefId } from '../../ui/avatar'
 import AvatarBadge from '../../ui/AvatarBadge.vue'
@@ -117,7 +115,6 @@ const emit = defineEmits<{ close: [] }>()
 const { persona, moodIcon, moodLabel } = useAgentPersona()
 const { fontFamily, profile } = usePersonaFont()
 const spaceStore = useSpaceStore()
-const avatarSrc = useAvatarImage(() => persona.value.avatar)
 const avatarInputRef = ref<HTMLInputElement>()
 const fontStore = usePersonaFontStore()
 

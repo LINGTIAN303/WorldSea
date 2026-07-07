@@ -3,7 +3,6 @@
     <div class="popover-header">
       <div class="profile-avatar">
         <AvatarBadge
-          :src="userAvatarSrc"
           :avatar="userProfileStore.profile.avatar"
           :name="userProfileStore.profile.nickname"
           color="linear-gradient(135deg, #10b981, #34d399)"
@@ -72,13 +71,11 @@ import { useUserProfileStore, STATUS_CONFIG, type UserStatus } from '../stores/u
 import WsIcon from '../../ui/WsIcon.vue'
 import AvatarBadge from '../../ui/AvatarBadge.vue'
 import { isImageAvatar, isAvatarRef, getAvatarRefId } from '../../ui/avatar'
-import { useAvatarImage } from '../../composables/useAvatarImage'
 import { uploadAvatarFromFile, deleteAvatar } from '../../composables/avatarStore'
 
 const emit = defineEmits<{ close: [] }>()
 
 const userProfileStore = useUserProfileStore()
-const userAvatarSrc = useAvatarImage(() => userProfileStore.profile.avatar)
 const avatarInputRef = ref<HTMLInputElement>()
 const statusConfig = STATUS_CONFIG
 
