@@ -7,8 +7,8 @@
  * 已安装技能目录结构：
  *   <app_data_dir>/skills/
  *     my-skill/
- *       skill.yaml          # 完整 manifest（优先）
- *       SKILL.md            # 提示词（frontmatter 作为 manifest 降级源）
+ *       skill.yaml          # 完整 manifest（优先，WorldSmith 原生格式）
+ *       SKILL.md            # 提示词（Claude Code 标准格式，frontmatter 作为 manifest 降级源）
  *       references/         # 参考文档
  *       assets/             # 资源文件
  *       instructions.md     # 备选提示词
@@ -16,12 +16,15 @@
  * 设计要点：
  * - 仅在 Tauri 环境工作；非 Tauri（如 vitest）返回空数组，零回归。
  * - 不依赖 loader.ts / registry.ts，避免循环依赖。
- * - 不依赖 js-yaml：内置极简 YAML 解析器（标量 + 列表），覆盖 skill.yaml 用例。
+ * - 复用 parser.ts 的 parseFrontmatter（支持 capabilities/schemaContext 嵌套），
+ *   skill.yaml 包装成 frontmatter 格式后统一解析，两种格式能力等价。
  * - 禁止 emoji 图标：检测到 emoji 时替换为默认图标（项目规范）。
  */
 
 import { isTauri } from '../execution'
 import type { SkillMeta } from './registry'
+import { parseFrontmatter } from './parser'
+import type { ParsedSkillMd } from './parser'
 
 /** Tauri invoke 函数类型 */
 type TauriInvoke = (cmd: string, args?: Record<string, unknown>) => Promise<unknown>
@@ -93,139 +96,42 @@ function sanitizeIcon(icon: unknown): string {
   return s
 }
 
-/**
- * 极简 YAML 解析器（标量 + 列表）
- *
- * 支持格式：
- *   key: value
- *   key: "quoted value"
- *   key:
- *     - item1
- *     - item2
- *
- * 不支持嵌套对象、多行字符串、锚点等复杂特性。
- * 仅用于 skill.yaml（格式简单、可控），非通用 YAML 解析器。
- */
-function parseSimpleYaml(content: string): Record<string, unknown> {
-  const result: Record<string, unknown> = {}
-  const lines = content.split('\n')
-  let currentList: unknown[] | null = null
-
-  for (const rawLine of lines) {
-    const line = rawLine.replace(/\r$/, '')
-    const trimmed = line.trim()
-    if (!trimmed || trimmed.startsWith('#')) continue
-
-    // 列表项（必须在某个 key 的列表上下文中）
-    if (trimmed.startsWith('- ') && currentList !== null) {
-      currentList.push(parseScalar(trimmed.slice(2).trim()))
-      continue
-    }
-
-    // key: value
-    const colonIdx = trimmed.indexOf(':')
-    if (colonIdx < 0) continue
-    const key = trimmed.slice(0, colonIdx).trim()
-    let val = trimmed.slice(colonIdx + 1).trim()
-
-    // 移除行内注释（# 后，但不在引号内——简易处理）
-    const hashIdx = val.indexOf('#')
-    if (hashIdx >= 0 && !val.startsWith('"') && !val.startsWith("'")) {
-      val = val.slice(0, hashIdx).trim()
-    }
-
-    if (val === '') {
-      // 列表头：key:\n  - item
-      currentList = []
-      result[key] = currentList
-    } else {
-      result[key] = parseScalar(val)
-      currentList = null
-    }
-  }
-  return result
-}
-
-/** 解析标量值：去引号、转布尔/数字/字符串 */
-function parseScalar(val: string): unknown {
-  if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
-    return val.slice(1, -1)
-  }
-  if (val === 'true') return true
-  if (val === 'false') return false
-  if (val === 'null' || val === '~') return null
-  if (/^-?\d+$/.test(val)) return parseInt(val, 10)
-  if (/^-?\d+\.\d+$/.test(val)) return parseFloat(val)
-  return val
-}
-
-/** 从 SKILL.md 提取 frontmatter 基本标量字段（降级路径） */
-function extractFrontmatterFields(mdContent: string): Record<string, string> {
-  const match = mdContent.match(/^---\s*\n([\s\S]*?)\n---/)
-  if (!match) return {}
-  const yaml = match[1]
-  const fields: Record<string, string> = {}
-  for (const line of yaml.split('\n')) {
-    const trimmed = line.trim()
-    if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('-')) continue
-    const colonIdx = trimmed.indexOf(':')
-    if (colonIdx < 0) continue
-    const key = trimmed.slice(0, colonIdx).trim()
-    const val = trimmed.slice(colonIdx + 1).trim()
-    // 降级路径仅提取标量字段；capabilities 等列表字段由 skill.yaml 主路径处理
-    if (['id', 'name', 'description', 'icon', 'category', 'priority', 'auto-activate'].includes(key)) {
-      fields[key] = val
-    }
-  }
-  return fields
-}
-
 /** 校验 category 合法性 */
 function normalizeCategory(raw: unknown): SkillMeta['category'] {
   const s = String(raw)
   return s === 'domain' || s === 'action' || s === 'persona' ? s : 'action'
 }
 
-/** YAML 对象 → SkillMeta */
-function yamlToSkillMeta(yaml: Record<string, unknown>, installDir: string): SkillMeta {
-  const meta: SkillMeta = {
-    id: String(yaml.id || installDir),
-    name: String(yaml.name || yaml.id || installDir),
-    icon: sanitizeIcon(yaml.icon),
-    description: String(yaml.description || ''),
-    category: normalizeCategory(yaml.category),
-    enabled: true,
-    visibility: 'always',
-    version: String(yaml.version || '1.0.0'),
-    promptFile: String(yaml.promptFile || 'SKILL.md'),
-    baseTools: Array.isArray(yaml.baseTools) ? yaml.baseTools.map(String) : [],
-    allowedTools: Array.isArray(yaml.allowedTools) ? yaml.allowedTools.map(String) : [],
-    triggers: Array.isArray(yaml.triggers) ? yaml.triggers.map(String) : undefined,
-    tags: Array.isArray(yaml.tags) ? yaml.tags.map(String) : undefined,
-    examples: Array.isArray(yaml.examples) ? yaml.examples.map(String) : undefined,
-    priority: typeof yaml.priority === 'number' ? yaml.priority : 5,
-    autoActivate: typeof yaml.autoActivate === 'boolean' ? yaml.autoActivate : undefined,
-  }
-  return meta
-}
-
-/** SKILL.md frontmatter → SkillMeta（降级路径，字段有限） */
-function mdToSkillMeta(mdContent: string, installDir: string): SkillMeta {
-  const fm = extractFrontmatterFields(mdContent)
+/**
+ * 把解析后的 frontmatter 转为 SkillMeta
+ *
+ * @param fm parseFrontmatter 返回的 frontmatter
+ * @param installDir skills/ 下的子目录名（作为 id 兜底）
+ * @param promptFile 实际提示词文件名（SKILL.md 或 instructions.md）
+ */
+export function frontmatterToSkillMeta(
+  fm: ParsedSkillMd['frontmatter'],
+  installDir: string,
+  promptFile: string,
+): SkillMeta {
   return {
     id: fm.id || installDir,
     name: fm.name || fm.id || installDir,
     icon: sanitizeIcon(fm.icon),
     description: fm.description || '',
     category: normalizeCategory(fm.category),
-    enabled: true,
+    enabled: fm.enabled !== false, // 默认 true，除非显式 enabled: false
     visibility: 'always',
-    version: '1.0.0',
-    promptFile: 'SKILL.md',
-    baseTools: [],
-    allowedTools: [],
-    priority: fm.priority ? Number(fm.priority) || 5 : 5,
-    autoActivate: fm['auto-activate'] === 'true' || undefined,
+    version: fm.version || '1.0.0',
+    promptFile,
+    baseTools: fm.baseTools,
+    allowedTools: fm.allowedTools,
+    capabilities: fm.capabilities,
+    schemaContext: fm.schemaContext,
+    triggers: fm.triggers,
+    tags: fm.tags,
+    priority: fm.priority ?? 5,
+    autoActivate: fm.autoActivate,
   }
 }
 
@@ -248,8 +154,9 @@ export async function readInstalledSkillFile(installDir: string, relativePath: s
  * 流程：
  * 1. 获取 skills 根目录（cmd_skills_get_dir）
  * 2. 列举子目录（cmd_fs_list）
- * 3. 每个子目录优先读 skill.yaml，降级读 SKILL.md frontmatter
- * 4. 解析为 SkillMeta
+ * 3. 每个子目录优先读 skill.yaml（包装成 frontmatter 解析），降级读 SKILL.md frontmatter
+ * 4. 检测提示词文件（SKILL.md → instructions.md），设 promptFile
+ * 5. frontmatterToSkillMeta 转换为 SkillMeta
  *
  * 非 Tauri 环境或目录为空时返回空数组（零回归）。
  */
@@ -273,27 +180,52 @@ export async function scanInstalledSkills(): Promise<InstalledSkillEntry[]> {
     if (!entry.is_dir) continue
     const installDir = entry.name
 
-    // 优先 skill.yaml（完整 manifest）
-    let meta: SkillMeta | null = null
+    // 检测提示词文件：SKILL.md 优先，降级 instructions.md
+    const skillMdContent = await readFileText(joinPath(skillsDir, installDir, 'SKILL.md'))
+    const instructionsContent = skillMdContent == null
+      ? await readFileText(joinPath(skillsDir, installDir, 'instructions.md'))
+      : null
+    if (skillMdContent == null && instructionsContent == null) continue // 无提示词文件，跳过
+
+    const promptFile = skillMdContent != null ? 'SKILL.md' : 'instructions.md'
+
+    let fm: ParsedSkillMd['frontmatter'] | null = null
+
+    // 优先 skill.yaml（包装成 frontmatter 格式用 parseFrontmatter 解析）
     const yamlContent = await readFileText(joinPath(skillsDir, installDir, 'skill.yaml'))
     if (yamlContent) {
-      try {
-        meta = yamlToSkillMeta(parseSimpleYaml(yamlContent), installDir)
-      } catch {
-        meta = null
+      const wrapped = `---\n${yamlContent}\n---\n`
+      const parsed = parseFrontmatter(wrapped)
+      // skill.yaml 必须有 id 或 name 才视为有效 manifest
+      if (parsed.frontmatter.id || parsed.frontmatter.name) {
+        fm = parsed.frontmatter
       }
     }
 
-    // 降级到 SKILL.md frontmatter
-    if (!meta) {
-      const mdContent = await readFileText(joinPath(skillsDir, installDir, 'SKILL.md'))
-      if (mdContent) {
-        meta = mdToSkillMeta(mdContent, installDir)
+    // 降级到 SKILL.md frontmatter（Claude Code 标准格式）
+    if (!fm && skillMdContent != null) {
+      const parsed = parseFrontmatter(skillMdContent)
+      if (parsed.frontmatter.id || parsed.frontmatter.name) {
+        fm = parsed.frontmatter
       }
     }
 
-    if (meta) {
-      result.push({ meta, installDir })
+    // instructions.md 无 frontmatter，用 installDir 构造最小 manifest
+    if (!fm && instructionsContent != null) {
+      fm = {
+        name: '',
+        description: '',
+        allowedTools: [],
+        baseTools: [],
+        id: installDir,
+      }
+    }
+
+    if (fm) {
+      result.push({
+        meta: frontmatterToSkillMeta(fm, installDir, promptFile),
+        installDir,
+      })
     }
   }
   return result

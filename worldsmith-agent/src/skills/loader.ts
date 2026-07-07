@@ -11,29 +11,12 @@
 import { findSkillById, getEnabledSkills, isInstalledSkill, getInstalledSkillDir } from './registry'
 import type { SkillMeta } from './registry'
 import { readInstalledSkillFile } from './manifest'
-import type { SkillCapabilityBinding, SkillSchemaContext } from '../toolbus/capability-types'
+import { parseFrontmatter } from './parser'
+import type { ParsedSkillMd } from './parser'
 
-/** 解析后的 SKILL.md 数据结构 */
-interface ParsedSkillMd {
-  frontmatter: {
-    name: string
-    description: string
-    allowedTools: string[]
-    capabilities?: SkillCapabilityBinding
-    schemaContext?: SkillSchemaContext
-    triggers?: string[]
-    tags?: string[]
-    priority?: number
-    autoActivate?: boolean
-    category?: 'domain' | 'action' | 'persona'
-    icon?: string
-    id?: string
-    license?: string
-    compatibility?: string
-    metadata?: Record<string, string>
-  }
-  body: string
-}
+// 向后兼容：re-export parseFrontmatter / ParsedSkillMd（原内联于本模块，Task 24 阶段1 提取到 parser.ts 共用）
+export { parseFrontmatter }
+export type { ParsedSkillMd }
 
 /** 内存缓存：已加载的 Skill 提示词 */
 const skillCache = new Map<string, string>()
@@ -41,134 +24,6 @@ const skillCache = new Map<string, string>()
 const referenceCache = new Map<string, string>()
 /** 内存缓存：已加载的资源文件 */
 const assetCache = new Map<string, string>()
-
-/**
- * 解析 YAML frontmatter
- *
- * 支持格式：
- *   ---
- *   name: xxx
- *   description: xxx
- *   allowed-tools:
- *     - tool_a
- *     - tool_b
- *   ---
- *   (body)
- *
- * 注意：这是一个简化的行级解析器，不是完整的 YAML 解析器。
- * 只支持嵌套一层列表（capabilities 下的 internal/cli/mcp）。
- */
-export function parseFrontmatter(raw: string): ParsedSkillMd {
-  const match = raw.match(/^---\s*\n([\s\S]*?)\n---\s*\n([\s\S]*)$/)
-  if (!match) {
-    return {
-      frontmatter: { name: '', description: '', allowedTools: [] },
-      body: raw,
-    }
-  }
-
-  const yaml = match[1]
-  const body = match[2]
-  const fm: ParsedSkillMd['frontmatter'] = { name: '', description: '', allowedTools: [] }
-
-  let inAllowedTools = false
-  let inCapabilitiesInternal = false
-  let inCapabilitiesCli = false
-  let inCapabilitiesMcp = false
-  let inSchemaContextEntityTypes = false
-  let inTriggers = false
-  let inTags = false
-  let inCapabilities = false
-
-  const internalArr: string[] = []
-  const cliArr: string[] = []
-  const mcpArr: string[] = []
-  const entityTypesArr: string[] = []
-  const triggersArr: string[] = []
-  const tagsArr: string[] = []
-
-  for (const line of yaml.split('\n')) {
-    const trimmed = line.trim()
-    if (!trimmed || trimmed.startsWith('#')) continue
-
-    if (inAllowedTools) {
-      if (trimmed.startsWith('- ')) {
-        fm.allowedTools.push(trimmed.slice(2).trim())
-        continue
-      }
-      inAllowedTools = false
-    }
-
-    if (inCapabilitiesInternal) {
-      if (trimmed.startsWith('- ')) { internalArr.push(trimmed.slice(2).trim()); continue }
-      inCapabilitiesInternal = false
-    }
-
-    if (inCapabilitiesCli) {
-      if (trimmed.startsWith('- ')) { cliArr.push(trimmed.slice(2).trim()); continue }
-      inCapabilitiesCli = false
-    }
-
-    if (inCapabilitiesMcp) {
-      if (trimmed.startsWith('- ')) { mcpArr.push(trimmed.slice(2).trim()); continue }
-      inCapabilitiesMcp = false
-    }
-
-    if (inSchemaContextEntityTypes) {
-      if (trimmed.startsWith('- ')) { entityTypesArr.push(trimmed.slice(2).trim()); continue }
-      inSchemaContextEntityTypes = false
-    }
-
-    if (inTriggers) {
-      if (trimmed.startsWith('- ')) { triggersArr.push(trimmed.slice(2).trim()); continue }
-      inTriggers = false
-    }
-
-    if (inTags) {
-      if (trimmed.startsWith('- ')) { tagsArr.push(trimmed.slice(2).trim()); continue }
-      inTags = false
-    }
-
-    const colonIdx = trimmed.indexOf(':')
-    if (colonIdx < 0) continue
-    const key = trimmed.slice(0, colonIdx).trim()
-    const val = trimmed.slice(colonIdx + 1).trim()
-
-    if (key === 'name') fm.name = val
-    else if (key === 'description') fm.description = val
-    else if (key === 'allowed-tools') inAllowedTools = true
-    else if (key === 'license') fm.license = val
-    else if (key === 'compatibility') fm.compatibility = val
-    else if (key === 'id') fm.id = val
-    else if (key === 'icon') fm.icon = val
-    else if (key === 'category' && ['domain', 'action', 'persona'].includes(val)) fm.category = val as any
-    else if (key === 'priority') fm.priority = Number(val) || undefined
-    else if (key === 'auto-activate') fm.autoActivate = val === 'true'
-    else if (key === 'capabilities') inCapabilities = true
-    else if (inCapabilities && key === 'internal') inCapabilitiesInternal = true
-    else if (inCapabilities && key === 'cli') inCapabilitiesCli = true
-    else if (inCapabilities && key === 'mcp') inCapabilitiesMcp = true
-    else if (key === 'schema-context' || key === 'schemaContext') { /* enter schema context */ }
-    else if ((key === 'entity-types' || key === 'entityTypes') && (val === '' || val.startsWith('[') === false)) inSchemaContextEntityTypes = true
-    else if (key === 'triggers') inTriggers = true
-    else if (key === 'tags' && (val === '' || val === '[]')) inTags = true
-  }
-
-  if (internalArr.length > 0 || cliArr.length > 0 || mcpArr.length > 0) {
-    fm.capabilities = { internal: internalArr, cli: cliArr, mcp: mcpArr }
-  }
-  if (entityTypesArr.length > 0) {
-    fm.schemaContext = { entityTypes: entityTypesArr, fieldPolicy: 'prefer-defined' }
-  }
-  if (triggersArr.length > 0) fm.triggers = triggersArr
-  if (tagsArr.length > 0) fm.tags = tagsArr
-
-  if (!fm.capabilities && fm.allowedTools.length > 0) {
-    fm.capabilities = { internal: fm.allowedTools, cli: [], mcp: [] }
-  }
-
-  return { frontmatter: fm, body }
-}
 
 /**
  * 加载 Skill 的提示词内容
