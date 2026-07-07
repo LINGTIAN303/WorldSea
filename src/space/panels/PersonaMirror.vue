@@ -1,4 +1,4 @@
-﻿<template>
+﻿﻿<template>
   <div class="persona-mirror">
     <div class="panel-header">
       <h3 class="panel-title" :style="{ fontFamily: fontFamily }">人格镜</h3>
@@ -7,12 +7,29 @@
     <div class="panel-body">
       <div class="section-label">Agent 自我认知</div>
       <div class="persona-card">
-        <PersonaAvatarCanvas
-          :character="persona.avatar || persona.name.charAt(0)"
-          :font-family="fontFamily"
-          :accent-color="profile.accentColor"
-          :size="48"
-        />
+        <div class="persona-avatar-wrap">
+          <AvatarBadge
+            v-if="isImageAvatar(persona.avatar)"
+            :src="avatarSrc"
+            :avatar="persona.avatar"
+            :name="persona.name"
+            :color="profile.accentColor"
+            :font-family="fontFamily"
+            :size="48"
+          />
+          <PersonaAvatarCanvas
+            v-else
+            :character="persona.avatar || persona.name.charAt(0)"
+            :font-family="fontFamily"
+            :accent-color="profile.accentColor"
+            :size="48"
+          />
+          <div class="avatar-actions">
+            <button class="avatar-action-btn" @click="avatarInputRef?.click()" title="上传头像"><WsIcon name="image" size="xs" /></button>
+            <button v-if="isImageAvatar(persona.avatar)" class="avatar-action-btn" @click="onClearAvatar" title="清除头像"><WsIcon name="x" size="xs" /></button>
+          </div>
+          <input ref="avatarInputRef" type="file" accept="image/*" class="avatar-file-input" @change="onAvatarFileChange" />
+        </div>
         <div class="persona-details">
           <div class="detail-row"><span class="detail-key">名字</span><span class="detail-val" :style="{ fontFamily: fontFamily }">{{ persona.name }}</span></div>
           <div class="detail-row"><span class="detail-key">状态</span><span class="detail-val"><WsIcon :name="moodIcon" size="xs" /> {{ moodLabel }}</span></div>
@@ -81,6 +98,11 @@
 import { ref, onMounted } from 'vue'
 import { useAgentPersona } from '../composables/useAgentPersona'
 import { usePersonaFont } from '../composables/usePersonaFont'
+import { useSpaceStore } from '../stores/space-store'
+import { useAvatarImage } from '../../composables/useAvatarImage'
+import { uploadAvatarFromFile, deleteAvatar } from '../../composables/avatarStore'
+import { isImageAvatar, isAvatarRef, getAvatarRefId } from '../../ui/avatar'
+import AvatarBadge from '../../ui/AvatarBadge.vue'
 import PersonaAvatarCanvas from '../components/PersonaAvatarCanvas.vue'
 import FontSelectorDropdown from '../components/FontSelectorDropdown.vue'
 import { usePersonaFontStore } from '../stores/persona-font-store'
@@ -94,7 +116,32 @@ const emit = defineEmits<{ close: [] }>()
 
 const { persona, moodIcon, moodLabel } = useAgentPersona()
 const { fontFamily, profile } = usePersonaFont()
+const spaceStore = useSpaceStore()
+const avatarSrc = useAvatarImage(() => persona.value.avatar)
+const avatarInputRef = ref<HTMLInputElement>()
 const fontStore = usePersonaFontStore()
+
+async function onAvatarFileChange(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  try {
+    const newAvatar = await uploadAvatarFromFile(file, persona.value.avatar)
+    spaceStore.updatePersona({ avatar: newAvatar })
+  } catch (err) {
+    console.warn('[PersonaMirror] 头像上传失败:', err)
+  }
+  input.value = ''
+}
+
+function onClearAvatar() {
+  const old = persona.value.avatar
+  if (isAvatarRef(old)) {
+    const id = getAvatarRefId(old)
+    if (id) deleteAvatar(id)
+  }
+  spaceStore.updatePersona({ avatar: '' })
+}
 const { allProfiles, activeProfileId, setActiveProfile } = fontStore
 const showFontSelector = ref(false)
 
@@ -346,6 +393,39 @@ onMounted(async () => {
   font-weight: 700;
   flex-shrink: 0;
 }
+
+.persona-avatar-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.avatar-actions {
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  display: flex;
+  gap: 2px;
+}
+
+.avatar-action-btn {
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  background: var(--color-surface-elevated);
+  color: var(--color-text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.avatar-action-btn:hover {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.avatar-file-input { display: none; }
 
 .persona-details {
   display: flex;

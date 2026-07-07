@@ -2,8 +2,19 @@
   <div class="user-profile-popover">
     <div class="popover-header">
       <div class="profile-avatar">
-        <span class="avatar-letter">{{ userProfileStore.profile.nickname.charAt(0) }}</span>
+        <AvatarBadge
+          :src="userAvatarSrc"
+          :avatar="userProfileStore.profile.avatar"
+          :name="userProfileStore.profile.nickname"
+          color="linear-gradient(135deg, #10b981, #34d399)"
+          :size="48"
+        />
         <span class="status-dot" :style="{ background: userProfileStore.statusColor }"></span>
+        <div class="avatar-actions">
+          <button class="avatar-action-btn" @click="avatarInputRef?.click()" title="上传头像"><WsIcon name="image" size="xs" /></button>
+          <button v-if="isImageAvatar(userProfileStore.profile.avatar)" class="avatar-action-btn" @click="onClearAvatar" title="清除头像"><WsIcon name="x" size="xs" /></button>
+        </div>
+        <input ref="avatarInputRef" type="file" accept="image/*" class="avatar-file-input" @change="onAvatarFileChange" />
       </div>
       <div class="profile-info">
         <div v-if="!editingNickname" class="nickname-row" @dblclick="startEditNickname">
@@ -59,11 +70,39 @@
 import { ref, nextTick } from 'vue'
 import { useUserProfileStore, STATUS_CONFIG, type UserStatus } from '../stores/user-profile-store'
 import WsIcon from '../../ui/WsIcon.vue'
+import AvatarBadge from '../../ui/AvatarBadge.vue'
+import { isImageAvatar, isAvatarRef, getAvatarRefId } from '../../ui/avatar'
+import { useAvatarImage } from '../../composables/useAvatarImage'
+import { uploadAvatarFromFile, deleteAvatar } from '../../composables/avatarStore'
 
 const emit = defineEmits<{ close: [] }>()
 
 const userProfileStore = useUserProfileStore()
+const userAvatarSrc = useAvatarImage(() => userProfileStore.profile.avatar)
+const avatarInputRef = ref<HTMLInputElement>()
 const statusConfig = STATUS_CONFIG
+
+async function onAvatarFileChange(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  try {
+    const newAvatar = await uploadAvatarFromFile(file, userProfileStore.profile.avatar)
+    userProfileStore.updateProfile({ avatar: newAvatar })
+  } catch (err) {
+    console.warn('[UserProfilePopover] 头像上传失败:', err)
+  }
+  input.value = ''
+}
+
+function onClearAvatar() {
+  const old = userProfileStore.profile.avatar
+  if (isAvatarRef(old)) {
+    const id = getAvatarRefId(old)
+    if (id) deleteAvatar(id)
+  }
+  userProfileStore.updateProfile({ avatar: '' })
+}
 
 const editingNickname = ref(false)
 const editNickname = ref('')
@@ -127,21 +166,36 @@ function onClearCustomStatus() {
 
 .profile-avatar {
   position: relative;
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #10b981, #34d399);
-  display: flex;
-  align-items: center;
-  justify-content: center;
   flex-shrink: 0;
 }
 
-.avatar-letter {
-  color: white;
-  font-weight: 700;
-  font-size: 20px;
+.avatar-actions {
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  display: flex;
+  gap: 2px;
 }
+
+.avatar-action-btn {
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  background: var(--color-surface-elevated);
+  color: var(--color-text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.avatar-action-btn:hover {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.avatar-file-input { display: none; }
 
 .status-dot {
   position: absolute;

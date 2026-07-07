@@ -133,7 +133,16 @@
     @mouseleave="emit('leave')"
     @click="onMentionClick"
   >
-    <span class="msg-icon"><WsIcon :name="msg.role === 'user' ? 'character' : 'profile'" size="xs" /></span>
+    <AvatarBadge
+      class="msg-avatar"
+      :src="speaker.src"
+      :avatar="speaker.avatar"
+      :name="speaker.name"
+      :color="speaker.color"
+      :font-family="speaker.fontFamily"
+      :size="24"
+      :shape="msg.role === 'user' ? 'rounded' : 'circle'"
+    />
     <div class="msg-body" :style="msg.role === 'assistant' ? agentFontStyle : undefined">
       <div v-if="msg.thinking" class="msg-thinking" :class="{ 'thinking-deep': chatMode === 'deep' }">
         <details :open="isThinkingOpen" @toggle="(e: Event) => thinkingOpen = (e.target as HTMLDetailsElement).open">
@@ -216,6 +225,7 @@
 <script setup lang="ts">
 import { computed, ref, nextTick, watch } from 'vue'
 import WsIcon from '../ui/WsIcon.vue'
+import AvatarBadge from '../ui/AvatarBadge.vue'
 import { Marked } from 'marked'
 import DOMPurify from 'dompurify'
 import BlockTable from './blocks/BlockTable.vue'
@@ -239,6 +249,7 @@ import PhaseHeader from './blocks/PhaseHeader.vue'
 import SearchPath from './blocks/SearchPath.vue'
 import { usePersonaFont } from '../space/composables/usePersonaFont'
 import { useActivityLog } from '../space/composables/useActivityLog'
+import { useMessageSpeaker } from './composables/useMessageSpeaker'
 import { replaceFontSpans } from '../composables/fontSpanParser'
 import { useFontStore } from '../stores/fontStore'
 import { renderText, toBlob, renderAnimatedText } from '@worldsmith/font-kit'
@@ -533,6 +544,8 @@ const emit = defineEmits<{
   (e: 'blockAction', event: { blockId: string; action: string; data?: Record<string, unknown> }): void
   (e: 'manuscriptLocalAction', event: { blockId: string; action: string; data?: Record<string, unknown> }): void
 }>()
+
+const speaker = useMessageSpeaker(() => props.msg)
 
 const marked = new Marked({ gfm: true, breaks: true })
 
@@ -1434,24 +1447,12 @@ async function onExportGif() {
 
 .msg-user { margin-left: auto; flex-direction: row-reverse }
 
-.msg-icon {
+.msg-avatar {
   flex-shrink: 0;
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: var(--font-size-sm);
-  border-radius: 50%;
-  background: var(--agent-hover-bg);
 }
 
-.msg-assistant .msg-icon {
+.msg-assistant .msg-avatar {
   box-shadow: 0 0 6px color-mix(in srgb, var(--agent-primary) 30%, transparent);
-}
-
-.msg-user .msg-icon {
-  border-radius: 6px;
 }
 
 .msg-body {

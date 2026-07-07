@@ -11,7 +11,16 @@
           @longpress="emit('togglePanelLongPress')"
         />
         <div class="agent-identity" ref="identityRef">
-          <div class="agent-avatar" :style="{ background: profile.accentColor }" @click.stop="togglePersonaPopover">{{ avatarDisplay }}</div>
+          <AvatarBadge
+            class="agent-avatar"
+            :src="avatarSrc"
+            :avatar="spaceStore.persona.avatar"
+            :name="agentName"
+            :color="profile.accentColor"
+            :font-family="fontFamily"
+            :size="32"
+            @click.stop="togglePersonaPopover"
+          />
           <div class="agent-info">
             <span class="agent-name" :style="{ fontFamily: fontStore.prefs.agent.family || fontFamily || undefined }">{{ agentName }}</span>
             <span class="agent-status"><WsIcon v-if="moodIcon" :name="moodIcon" size="xs" /> {{ moodLabel }}</span>
@@ -176,6 +185,8 @@ import { getSession } from '@agent/session/manager'
 import PersonaMirror from './panels/PersonaMirror.vue'
 import UserProfilePopover from './panels/UserProfilePopover.vue'
 import WsIcon from '../ui/WsIcon.vue'
+import AvatarBadge from '../ui/AvatarBadge.vue'
+import { isImageAvatar } from '../ui/avatar'
 import PanelToggle from './PanelToggle.vue'
 import ProviderSlotEditor from './group-chat/components/ProviderSlotEditor.vue'
 import AgentManagerPanel from './group-chat/components/AgentManagerPanel.vue'
@@ -202,7 +213,7 @@ const emit = defineEmits<{
 const spaceStore = useSpaceStore()
 const userProfileStore = useUserProfileStore()
 const { agentName, moodIcon, moodLabel } = useAgentPersona()
-const avatarDisplay = computed(() => spaceStore.persona.avatar || agentName.value.charAt(0))
+const avatarSrc = computed(() => isImageAvatar(spaceStore.persona.avatar) ? spaceStore.persona.avatar : null)
 
 const personaPopoverOpen = ref(false)
 const userProfilePopoverOpen = ref(false)
@@ -540,16 +551,6 @@ onBeforeUnmount(() => {
 }
 
 .agent-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: var(--color-primary);
-  color: var(--color-text-inverse);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: var(--font-size-base);
-  font-weight: 600;
   cursor: pointer;
   transition: transform 0.15s, box-shadow 0.15s;
 }

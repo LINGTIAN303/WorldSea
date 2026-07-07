@@ -1,4 +1,4 @@
-﻿<template>
+﻿﻿<template>
   <Teleport to="body">
     <div class="dialog-backdrop" @click.self="$emit('close')"></div>
     <div class="dialog-wrapper" :style="wrapperStyle">
@@ -6,7 +6,7 @@
       <div class="dialog-title">{{ isEdit ? '编辑 Agent' : '创建 Agent' }}</div>
 
       <div class="avatar-section">
-        <div class="avatar-circle" :style="{ background: selectedColor }">{{ agentName[0] || '?' }}</div>
+        <AvatarBadge class="avatar-circle" :name="agentName" :color="selectedColor" :size="48" />
         <div class="avatar-fields">
           <input class="name-input" v-model="agentName" placeholder="Agent 名字" />
           <input class="role-input" v-model="agentRole" placeholder="角色标签（如：剑客、军师）" />
@@ -227,6 +227,7 @@ import { AGENT_COLORS, type BaseLayerMode, type ToolSource } from '../types'
 import type { ChatAgent } from '../types'
 import { getEnabledSkills, resolveToolNames, ALWAYS_AVAILABLE_TOOLS } from '@agent/index'
 import WsIcon from '../../../ui/WsIcon.vue'
+import AvatarBadge from '../../../ui/AvatarBadge.vue'
 import { useAgentProfileStore } from '../../../stores/agentProfileStore'
 import { useFontLibraryStore } from '../../../stores/fontLibraryStore'
 import AgentCapabilityDrawer from './AgentCapabilityDrawer.vue'
@@ -617,7 +618,7 @@ function onCreate(): void {
 .dialog-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; text-align: center; }
 
 .avatar-section { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
-.avatar-circle { width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 18px; flex-shrink: 0; }
+.avatar-circle { flex-shrink: 0; }
 .avatar-fields { flex: 1; display: flex; flex-direction: column; gap: 6px; }
 .name-input { border: none; border-bottom: 1px solid var(--color-border); font-size: 16px; font-weight: 600; background: transparent; outline: none; }
 .role-input { border: none; border-bottom: 1px solid var(--color-border); font-size: 12px; background: transparent; outline: none; color: var(--color-text-secondary); }
