@@ -1614,3 +1614,63 @@ export function validateRegistryConsistency(): string[] {
 
   return warnings
 }
+
+/* ════════════════════════════════════════
+ * 任务3 接线：注册到全局 SkillRegistry
+ *
+ * 将本地 SKILL_REGISTRY 同步到 @worldsmith/agent-core 的全局 SkillRegistry，
+ * 使其成为技能查询的统一入口（供未来消费方使用）。
+ *
+ * 设计说明：
+ * - SkillDeclaration（agent-core）是 SkillMeta 的声明式子集，
+ *   capabilities/schemaContext/pluginTools 等扩展字段仅保留在 SkillMeta，
+ *   SkillRegistry 只承载声明式字段（id/name/icon/.../baseTools/allowedTools/visibility）。
+ * - 幂等：重复调用会清空后重新注册。
+ * - 运行时 resolveToolNames 等函数仍用本地逻辑（依赖 ALWAYS_AVAILABLE_TOOLS），
+ *   待工具 meta 补全 alwaysAvailable 后再切换到 SkillRegistry.resolveToolNames。
+ * ════════════════════════════════════════ */
+import { getGlobalSkillRegistry } from '@worldsmith/agent-core'
+import type { SkillDeclaration } from '@worldsmith/agent-core'
+
+let _skillsRegistered = false
+
+/** 将 SKILL_REGISTRY 同步到全局 SkillRegistry（幂等） */
+export function registerSkillsToGlobalRegistry(): void {
+  const registry = getGlobalSkillRegistry()
+  // 幂等：先清空已注册技能
+  for (const s of registry.getAll()) {
+    registry.unregister(s.id)
+  }
+  // 转换 SkillMeta → SkillDeclaration 并注册
+  const declarations: SkillDeclaration[] = SKILL_REGISTRY.map(s => ({
+    id: s.id,
+    name: s.name,
+    icon: s.icon,
+    description: s.description,
+    category: s.category,
+    enabled: s.enabled,
+    visibility: s.visibility,
+    version: s.version,
+    allowedTools: s.allowedTools,
+    baseTools: s.baseTools,
+    promptFile: s.promptFile,
+    references: s.references,
+    triggers: s.triggers,
+    outputPreferences: s.outputPreferences,
+    relatedPlugins: s.relatedPlugins,
+    tags: s.tags,
+    priority: s.priority,
+    autoActivate: s.autoActivate,
+    examples: s.examples,
+  }))
+  registry.registerAll(declarations)
+  _skillsRegistered = true
+}
+
+/** 是否已注册到全局 SkillRegistry */
+export function isSkillsRegisteredToGlobal(): boolean {
+  return _skillsRegistered
+}
+
+// 模块加载时自动注册（确保全局 SkillRegistry 始终有数据）
+registerSkillsToGlobalRegistry()

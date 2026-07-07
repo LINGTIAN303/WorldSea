@@ -2,8 +2,12 @@
  * 工具元数据注册中心
  *
  * 为所有工具（含旧工具名）提供统一的元数据查询接口。
- * 编码 Agent 标准工具的 meta 直接内嵌在 ToolDefinition 中，
- * 旧工具名通过此注册中心提供兼容的元数据映射。
+ *
+ * 数据源优先级（任务3 接线后）：
+ * 1. 全局 ToolRegistry（@worldsmith/agent-core）—— 声明式首选源
+ * 2. LEGACY_TOOL_META —— 旧工具/能力链工具的兜底元数据
+ * 3. ALIAS_MAP / LEGACY_ALGO_MAP / LEGACY_PLUGIN_MAP —— 旧工具名别名解析
+ * 4. 兜底：moderate 权限
  *
  * 用法：
  *   const meta = getToolMeta('fs_read')   // → read_file 的 meta
@@ -11,17 +15,33 @@
  */
 
 import type { ToolMeta } from '@worldsmith/agent-core'
+import { getGlobalToolRegistry } from '@worldsmith/agent-core'
 import type { ToolDefinition } from '../bridge-types'
 import { LEGACY_ALGO_MAP } from './algo-tools'
 import { LEGACY_PLUGIN_MAP } from './plugin-backend-tools'
 
 /** 工具列表注入点（默认从 agent.ts 注入，CLI 从 cli-agent.ts 注入） */
-let _toolsSource: ToolDefinition[] | null = null
+// 任务3 接线后：工具直接注册到全局 ToolRegistry，不再需要本地 _toolsSource 变量。
+// 保留 initToolMetaRegistry 作为注入入口语义，内部委托 ToolRegistry。
 
-/** 注入工具列表（必须在首次 getToolMeta 前调用） */
+/**
+ * 注入工具列表（必须在首次 getToolMeta 前调用）
+ *
+ * 将工具注册到全局 ToolRegistry，使其成为元数据首选源。
+ * 幂等：同名工具覆盖（ToolRegistry.register 用 Map.set）。
+ */
 export function initToolMetaRegistry(tools: ToolDefinition[]): void {
-  _toolsSource = tools
   _metaCache = null
+
+  // 任务3 接线：注册到全局 ToolRegistry（声明式首选源）
+  // ToolRegistry.register 用 Map.set，同名工具覆盖（幂等）；
+  // initToolMetaRegistry 通常仅在启动时调用一次。
+  const registry = getGlobalToolRegistry()
+  for (const tool of tools) {
+    if (tool.meta) {
+      registry.register(tool as import('@worldsmith/agent-core').ToolDefinition)
+    }
+  }
 }
 
 /** 旧工具名→标准工具名的别名映射 */
@@ -224,10 +244,10 @@ let _metaCache: Map<string, ToolMeta> | null = null
 /**
  * 获取工具元数据
  *
- * 查找优先级：
- * 1. ToolDefinition.meta（标准工具自带）
- * 2. 别名解析→标准工具的 meta
- * 3. LEGACY_TOOL_META（旧工具独立元数据）
+ * 查找优先级（任务3 接线后）：
+ * 1. 全局 ToolRegistry（声明式首选源，含别名解析）
+ * 2. LEGACY_TOOL_META（旧工具/能力链工具兜底）
+ * 3. ALIAS_MAP / LEGACY_ALGO_MAP / LEGACY_PLUGIN_MAP（旧工具名别名）
  * 4. 兜底：moderate 权限
  */
 export function getToolMeta(toolName: string): ToolMeta {
@@ -245,12 +265,12 @@ export function resetToolMetaCache(): void {
 function buildMetaCache(): Map<string, ToolMeta> {
   const cache = new Map<string, ToolMeta>()
 
-  // 1. 从注入的工具列表的 meta 字段收集
-  const tools = _toolsSource || []
-  for (const tool of tools) {
+  // 1. 从全局 ToolRegistry 收集（任务3 接线：声明式首选源，含别名）
+  //    ToolRegistry.register 时已自动注册 meta.aliases，此处一次性导出
+  const registry = getGlobalToolRegistry()
+  for (const tool of registry.getAll()) {
     if (tool.meta) {
       cache.set(tool.name, tool.meta)
-      // 注册别名
       if (tool.meta.aliases) {
         for (const alias of tool.meta.aliases) {
           cache.set(alias, tool.meta)
@@ -258,6 +278,8 @@ function buildMetaCache(): Map<string, ToolMeta> {
       }
     }
   }
+
+  // 1.5. 无 meta 的工具不进 ToolRegistry，由 LEGACY_TOOL_META 兜底覆盖，无需此处处理
 
   // 2. 从 ALIAS_MAP 补充别名映射
   for (const [alias, canonical] of Object.entries(ALIAS_MAP)) {
