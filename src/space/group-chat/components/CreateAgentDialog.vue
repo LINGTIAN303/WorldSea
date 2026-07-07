@@ -6,7 +6,14 @@
       <div class="dialog-title">{{ isEdit ? '编辑 Agent' : '创建 Agent' }}</div>
 
       <div class="avatar-section">
-        <AvatarBadge class="avatar-circle" :name="agentName" :color="selectedColor" :size="48" />
+        <div class="avatar-wrap">
+          <AvatarBadge class="avatar-circle" :avatar="agentAvatar" :name="agentName" :color="selectedColor" :size="48" />
+          <div class="avatar-actions">
+            <button class="avatar-action-btn" @click="avatarInputRef?.click()" title="上传头像"><WsIcon name="image" size="xs" /></button>
+            <button v-if="isImageAvatar(agentAvatar)" class="avatar-action-btn" @click="onClearAvatar" title="清除头像"><WsIcon name="x" size="xs" /></button>
+          </div>
+          <input ref="avatarInputRef" type="file" accept="image/*" class="avatar-file-input" @change="onAvatarFileChange" />
+        </div>
         <div class="avatar-fields">
           <input class="name-input" v-model="agentName" placeholder="Agent 名字" />
           <input class="role-input" v-model="agentRole" placeholder="角色标签（如：剑客、军师）" />
@@ -228,6 +235,8 @@ import type { ChatAgent } from '../types'
 import { getEnabledSkills, resolveToolNames, ALWAYS_AVAILABLE_TOOLS } from '@agent/index'
 import WsIcon from '../../../ui/WsIcon.vue'
 import AvatarBadge from '../../../ui/AvatarBadge.vue'
+import { uploadAvatarFromFile, deleteAvatar } from '../../../composables/avatarStore'
+import { isImageAvatar, isAvatarRef, getAvatarRefId } from '../../../ui/avatar'
 import { useAgentProfileStore } from '../../../stores/agentProfileStore'
 import { useFontLibraryStore } from '../../../stores/fontLibraryStore'
 import AgentCapabilityDrawer from './AgentCapabilityDrawer.vue'
@@ -281,6 +290,8 @@ function onAgentFontFamilyChange() {
 const isEdit = computed(() => !!props.agent)
 
 const agentName = ref(props.agent?.name || '')
+const agentAvatar = ref(props.agent?.avatar || '')
+const avatarInputRef = ref<HTMLInputElement | null>(null)
 const agentRole = ref(props.agent?.role || '')
 const selectedColor = ref(props.agent?.color || AGENT_COLORS[0])
 const sourceType = ref<'entity' | 'custom'>(props.agent?.sourceType || 'custom')
@@ -538,6 +549,33 @@ function onSelectEntity(entity: Entity): void {
   systemPrompt.value = buildEntityPrompt(entity)
 }
 
+async function onAvatarFileChange(e: Event): Promise<void> {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  try {
+    const newAvatar = await uploadAvatarFromFile(file, agentAvatar.value)
+    agentAvatar.value = newAvatar
+  } catch (err) {
+    console.warn('[CreateAgentDialog] 头像上传失败:', err)
+  }
+  input.value = ''
+}
+
+function onClearAvatar(): void {
+  const old = agentAvatar.value
+  if (isAvatarRef(old)) {
+    const id = getAvatarRefId(old)
+    if (id) deleteAvatar(id)
+  }
+  agentAvatar.value = ''
+}
+
+// 头像优先级：上传的图片引用 > 名字首字 > '?'
+function resolveAvatar(): string {
+  return agentAvatar.value || agentName.value.trim()[0] || '?'
+}
+
 function onCreate(): void {
   if (!canCreate.value) return
 
@@ -552,6 +590,7 @@ function onCreate(): void {
       ...props.agent,
       name: agentName.value.trim(),
       role: agentRole.value.trim(),
+      avatar: resolveAvatar(),
       color: selectedColor.value,
       systemPrompt: systemPrompt.value.trim(),
       modelId: modelId.value || undefined,
@@ -574,7 +613,7 @@ function onCreate(): void {
     const agent: ChatAgent = {
       id: crypto.randomUUID(),
       name: agentName.value.trim(),
-      avatar: agentName.value.trim()[0] || '?',
+      avatar: resolveAvatar(),
       color: selectedColor.value,
       role: agentRole.value.trim(),
       systemPrompt: systemPrompt.value.trim(),
@@ -618,7 +657,12 @@ function onCreate(): void {
 .dialog-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; text-align: center; }
 
 .avatar-section { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.avatar-wrap { position: relative; flex-shrink: 0; }
 .avatar-circle { flex-shrink: 0; }
+.avatar-actions { position: absolute; bottom: -4px; right: -4px; display: flex; gap: 2px; }
+.avatar-action-btn { width: 20px; height: 20px; border: 1px solid var(--color-border); border-radius: 50%; background: var(--color-surface-elevated); color: var(--color-text-secondary); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.15s, color 0.15s; }
+.avatar-action-btn:hover { background: var(--color-primary); color: #fff; }
+.avatar-file-input { display: none; }
 .avatar-fields { flex: 1; display: flex; flex-direction: column; gap: 6px; }
 .name-input { border: none; border-bottom: 1px solid var(--color-border); font-size: 16px; font-weight: 600; background: transparent; outline: none; }
 .role-input { border: none; border-bottom: 1px solid var(--color-border); font-size: 12px; background: transparent; outline: none; color: var(--color-text-secondary); }

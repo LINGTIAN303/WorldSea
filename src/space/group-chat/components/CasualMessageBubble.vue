@@ -1,4 +1,4 @@
-﻿<template>
+﻿﻿<template>
   <div
     class="casual-msg"
     :class="{
@@ -47,15 +47,16 @@
     <template v-else>
       <div class="agent-row">
         <div class="avatar-col">
-          <div
+          <AvatarBadge
             v-if="!isGrouped"
             class="msg-avatar"
             :class="{ 'has-thinking': !!msg.thinking }"
-            :style="{ background: msg.speakerColor || '#888' }"
+            :avatar="msg.speakerAvatar"
+            :name="msg.speakerName"
+            :color="msg.speakerColor || '#888'"
+            :size="28"
             @click.stop="onAvatarClick"
-          >
-            <span class="avatar-letter">{{ (msg.speakerName || '?')[0] }}</span>
-          </div>
+          />
           <div v-else class="avatar-placeholder"></div>
         </div>
         <div class="agent-bubble-wrap">
@@ -122,6 +123,7 @@ import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import type { GroupChatMessage } from '../types'
 import { getToolLabel, getToolIcon, getToolImportance } from '../types'
 import WsIcon from '../../../ui/WsIcon.vue'
+import AvatarBadge from '../../../ui/AvatarBadge.vue'
 
 const props = defineProps<{
   msg: GroupChatMessage

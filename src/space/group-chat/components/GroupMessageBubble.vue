@@ -1,13 +1,16 @@
-﻿<template>
+﻿﻿<template>
   <div v-if="msg.role === 'system'" class="group-msg system-msg">
     <span class="system-text">{{ msg.content }}</span>
   </div>
   <div v-else class="group-msg" :class="[`msg-${msg.role}`]" style="animation: msg-slide-in 0.25s cubic-bezier(0.16, 1, 0.3, 1);">
     <div v-if="msg.role === 'assistant'" class="msg-speaker" :style="{ '--speaker-color': msg.speakerColor || '#888' }">
-      <div class="speaker-avatar" :style="{ background: msg.speakerColor || '#888' }">
-        <span v-if="msg.speakerAvatar">{{ msg.speakerAvatar }}</span>
-        <span v-else class="avatar-letter">{{ (msg.speakerName || '?')[0] }}</span>
-      </div>
+      <AvatarBadge
+        class="speaker-avatar"
+        :avatar="msg.speakerAvatar"
+        :name="msg.speakerName"
+        :color="msg.speakerColor || '#888'"
+        :size="28"
+      />
       <span class="speaker-name">{{ msg.speakerName || 'Agent' }}</span>
     </div>
     <div class="msg-body" :style="msgBodyStyle">
@@ -72,6 +75,7 @@ import { useMessageRender } from '../composables/useMessageRender'
 import { useMessageTime } from '../composables/useMessageTime'
 import { getToolLabel, getToolIcon, getToolImportance } from '../types'
 import WsIcon from '../../../ui/WsIcon.vue'
+import AvatarBadge from '../../../ui/AvatarBadge.vue'
 
 const props = defineProps<{ msg: AgentMessage }>()
 
