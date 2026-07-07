@@ -1,9 +1,15 @@
 import type { ToolDefinition } from '../bridge-types'
+import type { ToolMeta } from '@worldsmith/agent-core'
 
 export const sessionInfo: ToolDefinition = {
   name: 'session_info',
   description: '获取当前会话的详细信息（ID、名称、创建时间、消息数、固定状态）。',
   parameters: {},
+  meta: {
+    permission: 'safe',
+    category: 'session',
+    displayName: '会话信息',
+  } satisfies ToolMeta,
   execute: async (_args, ctx) => {
     if (!ctx.currentSessionId) {
       return '当前上下文未关联会话'
@@ -28,6 +34,11 @@ export const sessionList: ToolDefinition = {
       required: false,
     },
   },
+  meta: {
+    permission: 'safe',
+    category: 'session',
+    displayName: '会话列表',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     if (!ctx.listSessions) {
       return '当前环境不支持列出会话'
@@ -51,6 +62,11 @@ export const sessionRead: ToolDefinition = {
       required: true,
     },
   },
+  meta: {
+    permission: 'safe',
+    category: 'session',
+    displayName: '读取会话',
+  } satisfies ToolMeta,
   execute: async (args, ctx) => {
     const sessionId = args.sessionId
     if (!sessionId || typeof sessionId !== 'string') {

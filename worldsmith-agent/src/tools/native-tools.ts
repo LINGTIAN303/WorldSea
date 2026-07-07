@@ -16,6 +16,7 @@
  */
 
 import type { ToolDefinition } from '../bridge-types'
+import type { ToolMeta } from '@worldsmith/agent-core'
 import { isTauri } from '../execution'
 
 async function getTauriInvoke() {
@@ -39,6 +40,11 @@ const dialogOpenTool: ToolDefinition = {
     directory: { type: 'boolean', description: '是否选择目录而非文件' },
     filters: { type: 'string', description: '文件过滤器，JSON 格式如 [{"name":"Images","extensions":["png","jpg"]}]' },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'native',
+    displayName: '打开文件对话框',
+  } satisfies ToolMeta,
   execute: async (args, _ctx) => {
     const invoke = await getTauriInvoke()
     if (!invoke) return JSON.stringify({ ok: false, error: '文件对话框仅在 Tauri 桌面模式下可用' })
@@ -68,6 +74,11 @@ const dialogSaveTool: ToolDefinition = {
     defaultPath: { type: 'string', description: '默认文件路径' },
     filters: { type: 'string', description: '文件过滤器，JSON 格式如 [{"name":"Text","extensions":["txt"]}]' },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'native',
+    displayName: '保存文件对话框',
+  } satisfies ToolMeta,
   execute: async (args, _ctx) => {
     const invoke = await getTauriInvoke()
     if (!invoke) return JSON.stringify({ ok: false, error: '保存对话框仅在 Tauri 桌面模式下可用' })
@@ -96,6 +107,12 @@ const dialogMessageTool: ToolDefinition = {
     message: { type: 'string', description: '消息内容', required: true },
     kind: { type: 'string', description: '消息类型：info / warning / error' },
   },
+  meta: {
+    permission: 'safe',
+    category: 'native',
+    alwaysAvailable: true,
+    displayName: '消息对话框',
+  } satisfies ToolMeta,
   execute: async (args, _ctx) => {
     const invoke = await getTauriInvoke()
     if (!invoke) return JSON.stringify({ ok: false, error: '消息对话框仅在 Tauri 桌面模式下可用' })
@@ -123,6 +140,12 @@ const dialogAskTool: ToolDefinition = {
     message: { type: 'string', description: '询问内容', required: true },
     kind: { type: 'string', description: '消息类型：info / warning / error' },
   },
+  meta: {
+    permission: 'safe',
+    category: 'native',
+    alwaysAvailable: true,
+    displayName: '询问对话框',
+  } satisfies ToolMeta,
   execute: async (args, _ctx) => {
     const invoke = await getTauriInvoke()
     if (!invoke) return JSON.stringify({ ok: false, error: '询问对话框仅在 Tauri 桌面模式下可用' })
@@ -146,6 +169,12 @@ const clipboardReadTool: ToolDefinition = {
   name: 'clipboard_read',
   description: '读取系统剪贴板的文本内容。',
   parameters: {},
+  meta: {
+    permission: 'safe',
+    category: 'native',
+    alwaysAvailable: true,
+    displayName: '读取剪贴板',
+  } satisfies ToolMeta,
   execute: async (_args, _ctx) => {
     const invoke = await getTauriInvoke()
     if (!invoke) return JSON.stringify({ ok: false, error: '剪贴板读取仅在 Tauri 桌面模式下可用' })
@@ -167,6 +196,12 @@ const clipboardWriteTool: ToolDefinition = {
   parameters: {
     text: { type: 'string', description: '要写入剪贴板的文本', required: true },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'native',
+    alwaysAvailable: true,
+    displayName: '写入剪贴板',
+  } satisfies ToolMeta,
   execute: async (args, _ctx) => {
     const invoke = await getTauriInvoke()
     if (!invoke) return JSON.stringify({ ok: false, error: '剪贴板写入仅在 Tauri 桌面模式下可用' })
@@ -188,6 +223,11 @@ const openUrlTool: ToolDefinition = {
   parameters: {
     url: { type: 'string', description: '要打开的 URL 或本地文件路径', required: true },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'native',
+    displayName: '打开 URL',
+  } satisfies ToolMeta,
   execute: async (args, _ctx) => {
     const invoke = await getTauriInvoke()
     if (!invoke) return JSON.stringify({ ok: false, error: '打开 URL 仅在 Tauri 桌面模式下可用' })
@@ -210,6 +250,12 @@ const notifyTool: ToolDefinition = {
     title: { type: 'string', description: '通知标题', required: true },
     body: { type: 'string', description: '通知内容', required: true },
   },
+  meta: {
+    permission: 'safe',
+    category: 'native',
+    alwaysAvailable: true,
+    displayName: '通知',
+  } satisfies ToolMeta,
   execute: async (args, _ctx) => {
     const invoke = await getTauriInvoke()
     if (!invoke) return JSON.stringify({ ok: false, error: '系统通知仅在 Tauri 桌面模式下可用' })
@@ -238,6 +284,11 @@ const nativeFetchTool: ToolDefinition = {
     body: { type: 'string', description: '请求体（POST/PUT 时使用）' },
     timeout: { type: 'number', description: '超时时间（秒），默认 30' },
   },
+  meta: {
+    permission: 'moderate',
+    category: 'native',
+    displayName: '原生HTTP请求',
+  } satisfies ToolMeta,
   execute: async (args, _ctx) => {
     const invoke = await getTauriInvoke()
     if (!invoke) return JSON.stringify({ ok: false, error: '原生 HTTP 请求仅在 Tauri 桌面模式下可用' })

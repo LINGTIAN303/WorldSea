@@ -1,4 +1,5 @@
 import type { ToolDefinition } from '../bridge-types'
+import type { ToolMeta } from '@worldsmith/agent-core'
 import type { IToolContext } from '../toolbus/types'
 import { loadApiKey } from '../providers/key-store'
 import { persistVideo, getAllVideos, getVideo, getVideosByPathPrefix, urlToBlob } from '../stores/video-persistence'
@@ -229,6 +230,12 @@ const videoGenerateTool: ToolDefinition = {
       required: false,
     },
   },
+  meta: {
+    permission: 'safe',
+    category: 'vision',
+    alwaysAvailable: true,
+    displayName: '生成视频',
+  } satisfies ToolMeta,
   execute: async (args: Record<string, unknown>, ctx: IToolContext): Promise<string> => {
     const prompt = String(args.prompt)
     if (!prompt.trim()) {
@@ -464,6 +471,12 @@ const videoStatusTool: ToolDefinition = {
       required: true,
     },
   },
+  meta: {
+    permission: 'safe',
+    category: 'vision',
+    alwaysAvailable: true,
+    displayName: '视频状态',
+  } satisfies ToolMeta,
   execute: async (args: Record<string, unknown>, ctx: IToolContext): Promise<string> => {
     const videoId = String(args.video_id).trim()
     if (!videoId) {
@@ -521,6 +534,12 @@ const videoListTool: ToolDefinition = {
       required: false,
     },
   },
+  meta: {
+    permission: 'safe',
+    category: 'vision',
+    alwaysAvailable: true,
+    displayName: '列出视频',
+  } satisfies ToolMeta,
   execute: async (args: Record<string, unknown>, _ctx: IToolContext): Promise<string> => {
     const pathPrefix = String(args.path_prefix || '').trim()
     const limit = Math.max(1, Math.min(100, Number(args.limit) || 20))
@@ -570,6 +589,12 @@ const videoShowTool: ToolDefinition = {
       required: true,
     },
   },
+  meta: {
+    permission: 'safe',
+    category: 'vision',
+    alwaysAvailable: true,
+    displayName: '展示视频',
+  } satisfies ToolMeta,
   execute: async (args: Record<string, unknown>, ctx: IToolContext): Promise<string> => {
     const videoId = String(args.video_id).trim()
     if (!videoId) {
@@ -616,6 +641,12 @@ const videoGenConfigTool: ToolDefinition = {
   name: 'video_gen_config',
   description: '查看当前视频生成配置信息。当需要确认视频生成是否已配置时使用此工具。',
   parameters: {},
+  meta: {
+    permission: 'safe',
+    category: 'vision',
+    alwaysAvailable: true,
+    displayName: '视频生成配置',
+  } satisfies ToolMeta,
   execute: async (_args: Record<string, unknown>, _ctx: IToolContext): Promise<string> => {
     const config = getVideoGenConfig()
     if (!config) {

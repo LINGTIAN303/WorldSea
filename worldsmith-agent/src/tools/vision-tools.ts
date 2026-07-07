@@ -13,6 +13,7 @@
  */
 
 import type { ToolDefinition } from '../bridge-types'
+import type { ToolMeta } from '@worldsmith/agent-core'
 import type { IToolContext } from '../toolbus/types'
 import { storeImages, getImages, removeImages, type StoredImage } from '../stores/image-store'
 import { loadApiKey } from '../providers/key-store'
@@ -277,6 +278,12 @@ const visionAnalyzeTool: ToolDefinition = {
       required: true,
     },
   },
+  meta: {
+    permission: 'safe',
+    category: 'vision',
+    alwaysAvailable: true,
+    displayName: '视觉分析',
+  } satisfies ToolMeta,
   execute: async (args: Record<string, unknown>, _ctx: IToolContext): Promise<string> => {
     const imageId = String(args.image_id)
     const prompt = String(args.prompt)
@@ -342,6 +349,12 @@ const listVisionImagesTool: ToolDefinition = {
   name: 'list_vision_images',
   description: '查看当前可用的图片批次列表。当不确定有哪些图片可用时使用此工具。',
   parameters: {},
+  meta: {
+    permission: 'safe',
+    category: 'vision',
+    alwaysAvailable: true,
+    displayName: '列出视觉图片',
+  } satisfies ToolMeta,
   execute: async (_args: Record<string, unknown>, _ctx: IToolContext): Promise<string> => {
     return JSON.stringify({
       ok: true,

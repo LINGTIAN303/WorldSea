@@ -1,4 +1,5 @@
 import type { ToolDefinition } from '../bridge-types'
+import type { ToolMeta } from '@worldsmith/agent-core'
 import type { IToolContext } from '../toolbus/types'
 import { loadApiKey } from '../providers/key-store'
 import { persistImage, srcToBlob, getAllImages, getImage, blobToDataUrl, getImagesByPathPrefix } from '../stores/image-persistence'
@@ -165,6 +166,12 @@ const imageGenerateTool: ToolDefinition = {
       required: false,
     },
   },
+  meta: {
+    permission: 'safe',
+    category: 'vision',
+    alwaysAvailable: true,
+    displayName: '生成图片',
+  } satisfies ToolMeta,
   execute: async (args: Record<string, unknown>, ctx: IToolContext): Promise<string> => {
     const prompt = String(args.prompt)
     if (!prompt.trim()) {
@@ -374,6 +381,12 @@ const imageGenConfigTool: ToolDefinition = {
   name: 'image_gen_config',
   description: '查看当前图像生成配置信息和图片存储目录。当需要确认图像生成是否已配置或查看图片存储位置时使用此工具。',
   parameters: {},
+  meta: {
+    permission: 'safe',
+    category: 'vision',
+    alwaysAvailable: true,
+    displayName: '图片生成配置',
+  } satisfies ToolMeta,
   execute: async (_args: Record<string, unknown>, _ctx: IToolContext): Promise<string> => {
     const config = getImageGenConfig()
     if (!config) {
@@ -422,6 +435,12 @@ const imageListTool: ToolDefinition = {
       required: false,
     },
   },
+  meta: {
+    permission: 'safe',
+    category: 'vision',
+    alwaysAvailable: true,
+    displayName: '列出图片',
+  } satisfies ToolMeta,
   execute: async (args: Record<string, unknown>, _ctx: IToolContext): Promise<string> => {
     const pathPrefix = String(args.path_prefix || '').trim()
     const limit = Math.max(1, Math.min(100, Number(args.limit) || 20))
@@ -494,6 +513,12 @@ const imageShowTool: ToolDefinition = {
       required: true,
     },
   },
+  meta: {
+    permission: 'safe',
+    category: 'vision',
+    alwaysAvailable: true,
+    displayName: '展示图片',
+  } satisfies ToolMeta,
   execute: async (args: Record<string, unknown>, ctx: IToolContext): Promise<string> => {
     const imageId = String(args.image_id).trim()
     if (!imageId) {
