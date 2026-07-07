@@ -1699,6 +1699,19 @@ struct FsStat {
     readonly: bool,
 }
 
+/// 获取已安装 Skills 的根目录路径（app_data_dir/skills），并确保目录存在。
+/// 供 Skills Store 动态加载已安装技能使用。前端通过此路径 + cmd_fs_list/cmd_fs_read
+/// 扫描并加载已安装技能的 manifest 与提示词文件。
+#[tauri::command]
+fn cmd_skills_get_dir(app: tauri::AppHandle) -> Result<String, CoreError> {
+    let data_dir = app.path().app_data_dir()
+        .map_err(|e| CoreError::storage(format!("获取 app data 目录失败: {e}")))?;
+    let skills_dir = data_dir.join("skills");
+    std::fs::create_dir_all(&skills_dir)
+        .map_err(|e| CoreError::storage(format!("创建 skills 目录失败: {e}")))?;
+    Ok(skills_dir.to_string_lossy().to_string())
+}
+
 #[tauri::command]
 fn cmd_fs_read(path: String, encoding: Option<String>) -> Result<String, CoreError> {
     let enc = encoding.unwrap_or_else(|| "utf-8".to_string());
@@ -4455,6 +4468,7 @@ pub fn run() {
             cmd_mcp_list,
             cmd_font_scan_system,
             cmd_font_read_file,
+            cmd_skills_get_dir,
             cmd_fs_read,
             cmd_fs_read_binary,
             cmd_fs_write,

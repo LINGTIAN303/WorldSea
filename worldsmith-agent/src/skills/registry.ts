@@ -1358,12 +1358,12 @@ export function getAlwaysAvailableTools(): string[] {
 
 export function getEnabledSkills(): SkillMeta[] {
   const disabled = loadDisabledSkills()
-  return SKILL_REGISTRY.filter(s => !disabled.includes(s.id))
+  return getAllRegisteredSkills().filter(s => !disabled.includes(s.id))
 }
 
 export function getAllSkills(): SkillMeta[] {
   const disabled = loadDisabledSkills()
-  return SKILL_REGISTRY.map(s => ({
+  return getAllRegisteredSkills().map(s => ({
     ...s,
     enabled: !disabled.includes(s.id),
   }))
@@ -1395,11 +1395,11 @@ function saveDisabledSkills(ids: string[]): void {
 }
 
 export function findSkillById(id: string): SkillMeta | undefined {
-  return SKILL_REGISTRY.find(s => s.id === id)
+  return getAllRegisteredSkills().find(s => s.id === id)
 }
 
 export function findSkillByToolName(toolName: string): SkillMeta | undefined {
-  return SKILL_REGISTRY.find(s => s.allowedTools.includes(toolName))
+  return getAllRegisteredSkills().find(s => s.allowedTools.includes(toolName))
 }
 
 export const CAPABILITY_TO_TOOL: Record<string, string> = {
@@ -1434,7 +1434,7 @@ export const CAPABILITY_TO_TOOL: Record<string, string> = {
 export function resolveToolNames(activeSkillIds: string[]): string[] {
   const tools = new Set(ALWAYS_AVAILABLE_TOOLS)
   for (const id of activeSkillIds) {
-    const skill = SKILL_REGISTRY.find(s => s.id === id)
+    const skill = getAllRegisteredSkills().find(s => s.id === id)
     if (!skill) continue
     for (const t of skill.baseTools) tools.add(t)
     if (skill.capabilities) {
@@ -1575,7 +1575,7 @@ export function buildOutputGuidePrompt(activeSkillIds: string[]): string {
 export function validateRegistryConsistency(): string[] {
   const warnings: string[] = []
 
-  for (const skill of SKILL_REGISTRY) {
+  for (const skill of getAllRegisteredSkills()) {
     const missingFields = SKILL_META_REQUIRED_FIELDS.filter(f => {
       const v = skill[f]
       if (typeof v === 'string') return !v
@@ -1606,7 +1606,7 @@ export function validateRegistryConsistency(): string[] {
     }
   }
 
-  const ids = SKILL_REGISTRY.map(s => s.id)
+  const ids = getAllRegisteredSkills().map(s => s.id)
   const dupes = ids.filter((id, i) => ids.indexOf(id) !== i)
   if (dupes.length > 0) {
     warnings.push(`Duplicate skill IDs: ${[...new Set(dupes)].join(', ')}`)
@@ -1631,8 +1631,32 @@ export function validateRegistryConsistency(): string[] {
  * ════════════════════════════════════════ */
 import { getGlobalSkillRegistry } from '@worldsmith/agent-core'
 import type { SkillDeclaration } from '@worldsmith/agent-core'
+import { scanInstalledSkills } from './manifest'
 
 let _skillsRegistered = false
+
+// ── 已安装技能（Task 24 阶段1：Skills Store 动态加载） ──
+/** 已安装技能列表（运行时从 app_data_dir/skills 扫描，初始为空） */
+let _installedSkills: SkillMeta[] = []
+/** 已安装技能 id → installDir 映射（loader 据此走 fs 加载分支） */
+const _installedSkillDirs = new Map<string, string>()
+/** initSkillRegistry 是否已完成（幂等守卫） */
+let _skillRegistryInited = false
+
+/** 返回内置 + 已安装的全部技能（合并视图） */
+function getAllRegisteredSkills(): SkillMeta[] {
+  return [...SKILL_REGISTRY, ..._installedSkills]
+}
+
+/** 判断技能是否为已安装技能（来自 Skills Store，需走 fs 加载） */
+export function isInstalledSkill(skillId: string): boolean {
+  return _installedSkillDirs.has(skillId)
+}
+
+/** 获取已安装技能的 installDir；非已安装技能返回 undefined */
+export function getInstalledSkillDir(skillId: string): string | undefined {
+  return _installedSkillDirs.get(skillId)
+}
 
 /** 将 SKILL_REGISTRY 同步到全局 SkillRegistry（幂等） */
 export function registerSkillsToGlobalRegistry(): void {
@@ -1642,7 +1666,7 @@ export function registerSkillsToGlobalRegistry(): void {
     registry.unregister(s.id)
   }
   // 转换 SkillMeta → SkillDeclaration 并注册
-  const declarations: SkillDeclaration[] = SKILL_REGISTRY.map(s => ({
+  const declarations: SkillDeclaration[] = getAllRegisteredSkills().map(s => ({
     id: s.id,
     name: s.name,
     icon: s.icon,
@@ -1670,6 +1694,42 @@ export function registerSkillsToGlobalRegistry(): void {
 /** 是否已注册到全局 SkillRegistry */
 export function isSkillsRegisteredToGlobal(): boolean {
   return _skillsRegistered
+}
+
+/**
+ * 初始化技能注册表：扫描已安装技能并合并（Task 24 阶段1）
+ *
+ * 流程：
+ * 1. 扫描 app_data_dir/skills/ 目录（非 Tauri 环境返回空，零回归）
+ * 2. 去重：已安装技能 id 若与内置技能冲突，跳过（内置优先）
+ * 3. 填充 _installedSkills 和 _installedSkillDirs
+ * 4. 重新注册到全局 SkillRegistry（含已安装技能）
+ *
+ * 幂等：重复调用会清空已安装技能后重新扫描填充。
+ * 应在 createWorldSmithAgent 前 await 调用一次。
+ */
+export async function initSkillRegistry(): Promise<void> {
+  const entries = await scanInstalledSkills()
+  const builtinIds = new Set(SKILL_REGISTRY.map(s => s.id))
+
+  _installedSkills = []
+  _installedSkillDirs.clear()
+
+  for (const { meta, installDir } of entries) {
+    if (builtinIds.has(meta.id)) continue // 内置优先，跳过 id 冲突
+    if (_installedSkillDirs.has(meta.id)) continue // 防同 id 重复
+    _installedSkills.push(meta)
+    _installedSkillDirs.set(meta.id, installDir)
+  }
+
+  // 重新注册到全局 SkillRegistry（包含已安装技能）
+  registerSkillsToGlobalRegistry()
+  _skillRegistryInited = true
+}
+
+/** initSkillRegistry 是否已完成 */
+export function isSkillRegistryInited(): boolean {
+  return _skillRegistryInited
 }
 
 // 模块加载时自动注册（确保全局 SkillRegistry 始终有数据）

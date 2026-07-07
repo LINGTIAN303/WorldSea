@@ -5,7 +5,7 @@ import type { AgentConfig, CreateAgentOptions } from './bridge-types'
 import type { CliAgentConnection } from './hybrid-backend'
 
 import { buildSystemPrompt } from './context/injector'
-import { findSkillById, resolveToolNames } from './skills/registry'
+import { findSkillById, resolveToolNames, initSkillRegistry } from './skills/registry'
 import { SKILL_META_TOOLS } from './skills/meta-tools'
 import { initToolMetaRegistry } from './tools/tool-meta-registry'
 import { bootAgentGovernor } from './governor'
@@ -266,6 +266,10 @@ export async function createWorldSmithAgent(options: CreateAgentOptions): Promis
   // Web 端使用默认策略：detectAgentOrWebEnvironment() + agentModules（含 UI 模块）
   // 幂等：多次调用 createWorldSmithAgent 不会重复 boot
   await bootAgentGovernor()
+
+  // ── 技能注册表初始化：扫描已安装技能（Skills Store），合并到全局 SkillRegistry ──
+  // 非 Tauri 环境下安全降级（返回空），不影响内置技能
+  await initSkillRegistry()
 
   const systemPrompt = options.systemPromptOverride ?? buildSystemPrompt({
     projectName: options.projectName || 'WorldSmith',

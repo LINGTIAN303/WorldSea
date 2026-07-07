@@ -8,8 +8,9 @@
  * 本模块包含一个内联的 YAML frontmatter 解析器（parseFrontmatter）。
  */
 
-import { findSkillById, getEnabledSkills } from './registry'
+import { findSkillById, getEnabledSkills, isInstalledSkill, getInstalledSkillDir } from './registry'
 import type { SkillMeta } from './registry'
+import { readInstalledSkillFile } from './manifest'
 import type { SkillCapabilityBinding, SkillSchemaContext } from '../toolbus/capability-types'
 
 /** 解析后的 SKILL.md 数据结构 */
@@ -183,6 +184,20 @@ export async function loadSkillPrompt(skill: SkillMeta): Promise<string | null> 
   if (!skill.promptFile) return null
 
   try {
+    // 已安装技能（Skills Store）：从文件系统读取提示词
+    if (isInstalledSkill(skill.id)) {
+      const installDir = getInstalledSkillDir(skill.id)!
+      const content = await readInstalledSkillFile(installDir, skill.promptFile)
+      if (content == null) return null
+      // SKILL.md 含 frontmatter，解析取 body；其他文件（如 instructions.md）直接用全文
+      const result = skill.promptFile.toLowerCase().includes('skill.md')
+        ? parseFrontmatter(content).body.trim()
+        : content.trim()
+      skillCache.set(skill.id, result)
+      return result
+    }
+
+    // 内置技能：import.meta.glob（编译时打包）
     const dirName = skill.promptFile.split('/')[0]
 
     const skillMdModules = import.meta.glob('../skills/*/SKILL.md', { query: '?raw', import: 'default', eager: false })
@@ -218,6 +233,17 @@ export async function loadSkillReference(skill: SkillMeta, refPath: string): Pro
   if (referenceCache.has(cacheKey)) return referenceCache.get(cacheKey)!
 
   try {
+    // 已安装技能：从文件系统读取 references/<refPath>
+    if (isInstalledSkill(skill.id)) {
+      const installDir = getInstalledSkillDir(skill.id)!
+      const relPath = refPath.startsWith('references/') ? refPath : `references/${refPath}`
+      const content = await readInstalledSkillFile(installDir, relPath)
+      if (content == null) return null
+      referenceCache.set(cacheKey, content)
+      return content
+    }
+
+    // 内置技能
     const modules = import.meta.glob('../skills/*/references/*.md', { query: '?raw', import: 'default', eager: false })
     const dirName = skill.promptFile?.split('/')[0]
     if (!dirName) return null
@@ -238,6 +264,17 @@ export async function loadSkillAsset(skill: SkillMeta, assetPath: string): Promi
   if (assetCache.has(cacheKey)) return assetCache.get(cacheKey)!
 
   try {
+    // 已安装技能：从文件系统读取 assets/<assetPath>
+    if (isInstalledSkill(skill.id)) {
+      const installDir = getInstalledSkillDir(skill.id)!
+      const relPath = assetPath.startsWith('assets/') ? assetPath : `assets/${assetPath}`
+      const content = await readInstalledSkillFile(installDir, relPath)
+      if (content == null) return null
+      assetCache.set(cacheKey, content)
+      return content
+    }
+
+    // 内置技能
     const mdModules = import.meta.glob('../skills/*/assets/*.md', { query: '?raw', import: 'default', eager: false })
     const yamlModules = import.meta.glob('../skills/*/assets/*.yaml', { query: '?raw', import: 'default', eager: false })
     const allModules = { ...mdModules, ...yamlModules }
