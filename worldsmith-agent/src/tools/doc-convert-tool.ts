@@ -58,7 +58,6 @@ export const docConvertTool: ToolDefinition = {
   meta: {
     permission: 'safe',
     category: 'file',
-    alwaysAvailable: true,
     displayName: '文档转换',
   } satisfies ToolMeta,
   execute: async (args, _ctx) => {

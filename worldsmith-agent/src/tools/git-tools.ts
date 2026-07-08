@@ -33,7 +33,6 @@ const gitStatusTool: ToolDefinition = {
   meta: {
     permission: 'safe',
     category: 'dev',
-    alwaysAvailable: true,
     displayName: '查看状态',
   } satisfies ToolMeta,
   execute: async (args, _ctx) => runCommand('git status', String(args.path || '.')),
@@ -52,7 +51,6 @@ const gitLogTool: ToolDefinition = {
   meta: {
     permission: 'safe',
     category: 'dev',
-    alwaysAvailable: true,
     displayName: '查看日志',
   } satisfies ToolMeta,
   execute: async (args, _ctx) => {
@@ -75,7 +73,6 @@ const gitDiffTool: ToolDefinition = {
   meta: {
     permission: 'safe',
     category: 'dev',
-    alwaysAvailable: true,
     displayName: '查看差异',
   } satisfies ToolMeta,
   execute: async (args, _ctx) => {

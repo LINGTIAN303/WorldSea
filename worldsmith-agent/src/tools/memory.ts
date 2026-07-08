@@ -315,6 +315,7 @@ export const memoryDeleteTool: ToolDefinition = {
   meta: {
     permission: 'dangerous',
     category: 'memory',
+    alwaysAvailable: true,
     displayName: '删除记忆',
   } satisfies ToolMeta,
   execute: async (args) => {

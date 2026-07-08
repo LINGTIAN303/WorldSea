@@ -33,7 +33,6 @@ const sysInfoTool: ToolDefinition = {
   meta: {
     permission: 'safe',
     category: 'dev',
-    alwaysAvailable: true,
     displayName: '系统信息',
   } satisfies ToolMeta,
   execute: async (args, _ctx) => {
@@ -56,7 +55,6 @@ const sysProcessesTool: ToolDefinition = {
   meta: {
     permission: 'safe',
     category: 'dev',
-    alwaysAvailable: true,
     displayName: '进程列表',
   } satisfies ToolMeta,
   execute: async (args, _ctx) => {
@@ -75,7 +73,6 @@ const sysDiskTool: ToolDefinition = {
   meta: {
     permission: 'safe',
     category: 'dev',
-    alwaysAvailable: true,
     displayName: '磁盘信息',
   } satisfies ToolMeta,
   execute: async (args, _ctx) => {

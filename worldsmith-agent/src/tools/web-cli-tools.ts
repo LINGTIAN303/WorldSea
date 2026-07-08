@@ -182,7 +182,6 @@ const webDnsCliTool: ToolDefinition = {
   meta: {
     permission: 'safe',
     category: 'dev',
-    alwaysAvailable: true,
     displayName: 'DNS 查询',
   } satisfies ToolMeta,
   parameters: {
@@ -217,7 +216,6 @@ const webPingCliTool: ToolDefinition = {
   meta: {
     permission: 'safe',
     category: 'dev',
-    alwaysAvailable: true,
     displayName: 'Ping 检测',
   } satisfies ToolMeta,
   parameters: {

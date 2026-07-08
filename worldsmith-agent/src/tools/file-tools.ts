@@ -24,7 +24,6 @@ export const fileListTool: ToolDefinition = {
   meta: {
     permission: 'safe',
     category: 'file',
-    alwaysAvailable: true,
     displayName: '列出文件',
   } satisfies ToolMeta,
   execute: async (args, ctx) => {
@@ -62,7 +61,6 @@ export const fileReadTool: ToolDefinition = {
   meta: {
     permission: 'safe',
     category: 'file',
-    alwaysAvailable: true,
     displayName: '读取文件',
   } satisfies ToolMeta,
   execute: async (args, ctx) => {
@@ -205,7 +203,6 @@ export const fileAnalyzeTool: ToolDefinition = {
   meta: {
     permission: 'safe',
     category: 'file',
-    alwaysAvailable: true,
     displayName: '分析文件',
   } satisfies ToolMeta,
   execute: async (args, ctx) => {

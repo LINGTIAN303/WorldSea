@@ -124,15 +124,16 @@ export class DefaultToolBus implements ToolBus {
   }
 
   private resolveLegacyNames(skillIds: string[]): string[] {
-    // 任务3 接线：优先用全局 SkillRegistry 的声明式解析，回退到本地 legacy 逻辑
+    // 任务3 收尾：声明式 SkillRegistry.resolveToolNames 已等价旧 resolveToolNames
+    // （alwaysAvailable meta 对齐后，getAlwaysAvailable() == ALWAYS_AVAILABLE_TOOLS），
+    // 移除旧 resolveToolNames 冗余并集；保留 resolvePluginToolNames（插件工具，SkillRegistry 不含）
     const skillRegistry = getGlobalSkillRegistry()
     const toolRegistry = getGlobalToolRegistry()
     const declarativeNames = skillRegistry.size > 0
       ? skillRegistry.resolveToolNames(skillIds, toolRegistry)
-      : []
-    const internalNames = resolveToolNames(skillIds)
+      : resolveToolNames(skillIds) // fallback：SkillRegistry 未注册时（模块加载时已注册，理论上不触发）
     const pluginNames = resolvePluginToolNames(skillIds)
-    return [...new Set([...declarativeNames, ...internalNames, ...pluginNames])]
+    return [...new Set([...declarativeNames, ...pluginNames])]
   }
 
   private resolveLegacy(skillIds: string[]): ToolDefinition[] {

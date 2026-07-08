@@ -109,7 +109,6 @@ export const schemaListEntityTypes: ToolDefinition = {
   meta: {
     permission: 'safe',
     category: 'schema',
-    alwaysAvailable: true,
     displayName: '列出实体类型',
   } satisfies ToolMeta,
   execute: async () => {
@@ -211,7 +210,6 @@ export const schemaValidate: ToolDefinition = {
   meta: {
     permission: 'safe',
     category: 'schema',
-    alwaysAvailable: true,
     displayName: '验证 Schema',
   } satisfies ToolMeta,
   execute: async (args) => {
@@ -237,7 +235,6 @@ export const schemaExport: ToolDefinition = {
   meta: {
     permission: 'safe',
     category: 'schema',
-    alwaysAvailable: true,
     displayName: '导出模式',
   } satisfies ToolMeta,
   execute: async (args) => {

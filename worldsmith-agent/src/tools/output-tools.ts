@@ -449,7 +449,6 @@ export const outputManuscript: ToolDefinition = {
   meta: {
     permission: 'safe',
     category: 'output',
-    alwaysAvailable: true,
     displayName: '输出文境',
   } satisfies ToolMeta,
   execute: async (args, ctx) => {

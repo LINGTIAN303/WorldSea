@@ -3,7 +3,7 @@
 
 > 本文档由主要执行 Agent 维护，记录项目概况、架构、任务状态与关键决策。
 > 任务路线独立维护于 docs/ROADMAP.md，防止本文档反复更新导致任务丢失。
-> 最后更新：2026-07-07
+> 最后更新：2026-07-08
 
 ## 一、项目概况
 
@@ -328,7 +328,7 @@ agent_end → checkShouldAutoContinue=true → autoContinueTask → backend.prom
 - thinkingLevel low 可能改变回答风格，需实测确认符合"快答"定位
 - normal 与 explore 边界稍模糊（但 explore 有专门 skill+多源搜索+更高 thinkingLevel，定位仍不同）
 
-**推进顺序**：任务 1 ✅ → 任务 4 P1-P4 ✅ → task 模式方向 A ✅ → B ✅ → C ✅ → D ✅ → 任务 19 ✅ → 任务 3 P1-P3 ✅
+**推进顺序**：任务 1 ✅ → 任务 4 P1-P4 ✅ → task 模式方向 A ✅ → B ✅ → C ✅ → D ✅ → 任务 3 P1-P4 + 收尾 ✅（任务 19 待启动，经核查未实现，之前误标 ✅ 已纠正）
 
 
 ### 任务 3：Agent 技能工具更新 — P1-P3 声明式 registry 接线完成（2026-07-07）

@@ -110,7 +110,6 @@ const dialogMessageTool: ToolDefinition = {
   meta: {
     permission: 'safe',
     category: 'native',
-    alwaysAvailable: true,
     displayName: '消息对话框',
   } satisfies ToolMeta,
   execute: async (args, _ctx) => {
@@ -143,7 +142,6 @@ const dialogAskTool: ToolDefinition = {
   meta: {
     permission: 'safe',
     category: 'native',
-    alwaysAvailable: true,
     displayName: '询问对话框',
   } satisfies ToolMeta,
   execute: async (args, _ctx) => {

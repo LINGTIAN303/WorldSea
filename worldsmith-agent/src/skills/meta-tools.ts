@@ -90,7 +90,6 @@ const loadReferenceTool: ToolDefinition = {
   meta: {
     permission: 'safe',
     category: 'orchestrator',
-    alwaysAvailable: true,
     displayName: '加载技能参考',
   } satisfies ToolMeta,
   execute: async (args: Record<string, unknown>, _ctx: IToolContext) => {
@@ -118,7 +117,6 @@ const loadAssetTool: ToolDefinition = {
   meta: {
     permission: 'safe',
     category: 'orchestrator',
-    alwaysAvailable: true,
     displayName: '加载技能资源',
   } satisfies ToolMeta,
   execute: async (args: Record<string, unknown>, _ctx: IToolContext) => {

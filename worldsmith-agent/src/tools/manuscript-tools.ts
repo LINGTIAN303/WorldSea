@@ -20,7 +20,6 @@ export const manuscriptClone: ToolDefinition = {
   meta: {
     permission: 'safe',
     category: 'output',
-    alwaysAvailable: true,
     displayName: '克隆文境',
   } satisfies ToolMeta,
   execute: async (args, ctx) => {

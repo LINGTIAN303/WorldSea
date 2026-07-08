@@ -234,7 +234,6 @@ const pipelineListTool: ToolDefinition = {
   meta: {
     permission: 'safe',
     category: 'orchestrator',
-    alwaysAvailable: true,
     displayName: '列出Pipeline',
   } satisfies ToolMeta,
   execute: async (_args: Record<string, unknown>, ctx: IToolContext): Promise<string> => {
@@ -268,7 +267,6 @@ const pipelineGetTool: ToolDefinition = {
   meta: {
     permission: 'safe',
     category: 'orchestrator',
-    alwaysAvailable: true,
     displayName: '获取Pipeline',
   } satisfies ToolMeta,
   execute: async (args: Record<string, unknown>, ctx: IToolContext): Promise<string> => {
@@ -503,7 +501,6 @@ const pipelineProposeTool: ToolDefinition = {
   meta: {
     permission: 'safe',
     category: 'orchestrator',
-    alwaysAvailable: true,
     displayName: '提议Pipeline',
   } satisfies ToolMeta,
   execute: async (args: Record<string, unknown>, _ctx: IToolContext): Promise<string> => {
@@ -565,7 +562,6 @@ const pipelineTemplateListTool: ToolDefinition = {
   meta: {
     permission: 'safe',
     category: 'orchestrator',
-    alwaysAvailable: true,
     displayName: '列出模板',
   } satisfies ToolMeta,
   execute: async (_args: Record<string, unknown>, _ctx: IToolContext): Promise<string> => {

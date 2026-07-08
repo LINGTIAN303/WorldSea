@@ -334,7 +334,6 @@ export const retrofitSessionPhase: ToolDefinition = {
   meta: {
     permission: 'safe',
     category: 'retrofit',
-    alwaysAvailable: true,
     displayName: '查询会话阶段',
   } satisfies ToolMeta,
   execute: async () => {
@@ -356,7 +355,6 @@ export const retrofitPatchDiff: ToolDefinition = {
   meta: {
     permission: 'safe',
     category: 'retrofit',
-    alwaysAvailable: true,
     displayName: '计算Patch差异',
   } satisfies ToolMeta,
   execute: async (args) => {
@@ -406,7 +404,6 @@ export const retrofitDetectConflicts: ToolDefinition = {
   meta: {
     permission: 'safe',
     category: 'retrofit',
-    alwaysAvailable: true,
     displayName: '检测冲突',
   } satisfies ToolMeta,
   execute: async () => {

@@ -1241,7 +1241,6 @@ export const algoList: ToolDefinition = {
   meta: {
     permission: 'safe',
     category: 'algo',
-    alwaysAvailable: true,
     displayName: '列出算法',
   } satisfies ToolMeta,
   execute: async () => {

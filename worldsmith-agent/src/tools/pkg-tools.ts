@@ -99,7 +99,6 @@ const pkgInfoTool: ToolDefinition = {
   meta: {
     permission: 'safe',
     category: 'dev',
-    alwaysAvailable: true,
     displayName: '包信息',
   } satisfies ToolMeta,
   execute: async (args, _ctx) => {

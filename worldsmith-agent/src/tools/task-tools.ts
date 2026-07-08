@@ -31,7 +31,6 @@ const taskCompleteTool: ToolDefinition = {
   meta: {
     permission: 'safe',
     category: 'plan',
-    alwaysAvailable: true,
     displayName: '完成任务',
   } satisfies ToolMeta,
   execute: async (args: Record<string, unknown>, _ctx: IToolContext): Promise<string> => {

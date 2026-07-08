@@ -280,6 +280,7 @@ const kbDeleteTool: ToolDefinition = {
   meta: {
     permission: 'dangerous',
     category: 'plan',
+    alwaysAvailable: true,
     displayName: '删除知识库',
   } satisfies ToolMeta,
   execute: async (args) => {

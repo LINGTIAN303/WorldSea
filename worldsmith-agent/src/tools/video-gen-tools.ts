@@ -233,7 +233,6 @@ const videoGenerateTool: ToolDefinition = {
   meta: {
     permission: 'safe',
     category: 'vision',
-    alwaysAvailable: true,
     displayName: '生成视频',
   } satisfies ToolMeta,
   execute: async (args: Record<string, unknown>, ctx: IToolContext): Promise<string> => {
@@ -474,7 +473,6 @@ const videoStatusTool: ToolDefinition = {
   meta: {
     permission: 'safe',
     category: 'vision',
-    alwaysAvailable: true,
     displayName: '视频状态',
   } satisfies ToolMeta,
   execute: async (args: Record<string, unknown>, ctx: IToolContext): Promise<string> => {
@@ -537,7 +535,6 @@ const videoListTool: ToolDefinition = {
   meta: {
     permission: 'safe',
     category: 'vision',
-    alwaysAvailable: true,
     displayName: '列出视频',
   } satisfies ToolMeta,
   execute: async (args: Record<string, unknown>, _ctx: IToolContext): Promise<string> => {
@@ -592,7 +589,6 @@ const videoShowTool: ToolDefinition = {
   meta: {
     permission: 'safe',
     category: 'vision',
-    alwaysAvailable: true,
     displayName: '展示视频',
   } satisfies ToolMeta,
   execute: async (args: Record<string, unknown>, ctx: IToolContext): Promise<string> => {
@@ -644,7 +640,6 @@ const videoGenConfigTool: ToolDefinition = {
   meta: {
     permission: 'safe',
     category: 'vision',
-    alwaysAvailable: true,
     displayName: '视频生成配置',
   } satisfies ToolMeta,
   execute: async (_args: Record<string, unknown>, _ctx: IToolContext): Promise<string> => {

@@ -5,9 +5,10 @@ import type { AgentConfig, CreateAgentOptions } from './bridge-types'
 import type { CliAgentConnection } from './hybrid-backend'
 
 import { buildSystemPrompt } from './context/injector'
-import { findSkillById, resolveToolNames, initSkillRegistry } from './skills/registry'
+import { findSkillById, initSkillRegistry } from './skills/registry'
 import { SKILL_META_TOOLS } from './skills/meta-tools'
 import { initToolMetaRegistry } from './tools/tool-meta-registry'
+import { getGlobalSkillRegistry, getGlobalToolRegistry } from '@worldsmith/agent-core'
 import { bootAgentGovernor } from './governor'
 import { entityCrudTools } from './tools/entity-crud'
 import { relationManageTools } from './tools/relation-manage'
@@ -151,7 +152,8 @@ import('@worldsmith/ui-kit').then(mod => {
 }).catch(() => {})
 
 export function getToolsForSkills(activeSkillIds: string[]): typeof entityCrudTools[0][] {
-  const toolNames = resolveToolNames(activeSkillIds)
+  // 任务3 收尾：切换到声明式 SkillRegistry.resolveToolNames（基础集 = ToolRegistry.getAlwaysAvailable，等价于旧 ALWAYS_AVAILABLE_TOOLS）
+  const toolNames = getGlobalSkillRegistry().resolveToolNames(activeSkillIds, getGlobalToolRegistry())
   const tools: typeof entityCrudTools[0][] = []
   const seen = new Set<string>()
 

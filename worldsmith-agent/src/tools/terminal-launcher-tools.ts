@@ -70,7 +70,6 @@ const detectTerminalModeTool: ToolDefinition = {
   meta: {
     permission: 'safe',
     category: 'dev',
-    alwaysAvailable: true,
     displayName: '检测终端模式',
   } satisfies ToolMeta,
   execute: async (_args: Record<string, unknown>, _ctx: IToolContext): Promise<string> => {

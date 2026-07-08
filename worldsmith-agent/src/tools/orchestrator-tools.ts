@@ -40,7 +40,6 @@ const listSubAgentTypesTool: ToolDefinition = {
   meta: {
     permission: 'safe',
     category: 'orchestrator',
-    alwaysAvailable: true,
     displayName: '列出子Agent类型',
   } satisfies ToolMeta,
   execute: async (_args: Record<string, unknown>, _ctx: IToolContext): Promise<string> => {
@@ -167,7 +166,6 @@ const getSubAgentStatusTool: ToolDefinition = {
   meta: {
     permission: 'safe',
     category: 'orchestrator',
-    alwaysAvailable: true,
     displayName: '查询子Agent状态',
   } satisfies ToolMeta,
   execute: async (args: Record<string, unknown>, _ctx: IToolContext): Promise<string> => {

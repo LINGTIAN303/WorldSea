@@ -24,7 +24,6 @@ const planCreateTool: ToolDefinition = {
   meta: {
     permission: 'moderate',
     category: 'plan',
-    alwaysAvailable: true,
     displayName: '创建计划',
   } satisfies ToolMeta,
   execute: async (args: Record<string, unknown>, _ctx: IToolContext): Promise<string> => {
@@ -74,7 +73,6 @@ const planUpdateTool: ToolDefinition = {
   meta: {
     permission: 'moderate',
     category: 'plan',
-    alwaysAvailable: true,
     displayName: '更新计划',
   } satisfies ToolMeta,
   execute: async (args: Record<string, unknown>, _ctx: IToolContext): Promise<string> => {

@@ -324,7 +324,6 @@ export const a2uiShowEntity: ToolDefinition = {
   meta: {
     permission: 'safe',
     category: 'a2ui',
-    alwaysAvailable: true,
     displayName: '展示实体',
   } satisfies ToolMeta,
   execute: async (args, ctx) => {
@@ -348,7 +347,6 @@ export const a2uiShowRelation: ToolDefinition = {
   meta: {
     permission: 'safe',
     category: 'a2ui',
-    alwaysAvailable: true,
     displayName: '展示关系',
   } satisfies ToolMeta,
   execute: async (args, ctx) => {
