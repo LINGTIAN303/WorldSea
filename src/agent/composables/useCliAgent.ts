@@ -128,9 +128,10 @@ export function useCliAgent() {
       const ws = new WebSocket(wsUrl)
 
       await new Promise<void>((resolve, reject) => {
-        ws.onopen = () => resolve()
-        ws.onerror = () => reject(new Error('WebSocket 连接失败'))
-        setTimeout(() => reject(new Error('WebSocket 连接超时')), 5000)
+        // 超时定时器必须在 resolve/reject 时清理，避免 5s 后触发 unhandled rejection
+        const timer = setTimeout(() => reject(new Error('WebSocket 连接超时')), 5000)
+        ws.onopen = () => { clearTimeout(timer); resolve() }
+        ws.onerror = () => { clearTimeout(timer); reject(new Error('WebSocket 连接失败')) }
       })
 
       // 清理旧连接

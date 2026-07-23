@@ -1404,7 +1404,7 @@ fn cmd_schema_register_entity_type(state: State<AppState>, schema_json: String) 
         .map_err(|e| CoreError::SchemaError(format!("Invalid schema JSON: {}", e)))?;
     let mut reg = state.schema.lock().map_err(|e| CoreError::SchemaError(e.to_string()))?;
     reg.register(schema.clone()).map_err(CoreError::SchemaError)?;
-    Ok(serde_json::to_string(&schema).unwrap())
+    serde_json::to_string(&schema).map_err(|e| CoreError::serialize(e.to_string()))
 }
 
 #[tauri::command]
@@ -1419,14 +1419,14 @@ fn cmd_schema_get_entity_type(state: State<AppState>, type_key: String) -> Resul
     let reg = state.schema.lock().map_err(|e| CoreError::SchemaError(e.to_string()))?;
     let schema = reg.get(&type_key)
         .ok_or_else(|| CoreError::SchemaError(format!("Entity type '{}' not found", type_key)))?;
-    Ok(serde_json::to_string(schema).unwrap())
+    serde_json::to_string(schema).map_err(|e| CoreError::serialize(e.to_string()))
 }
 
 #[tauri::command]
 fn cmd_schema_list_entity_types(state: State<AppState>) -> Result<String, CoreError> {
     let reg = state.schema.lock().map_err(|e| CoreError::SchemaError(e.to_string()))?;
     let list = reg.list_all();
-    Ok(serde_json::to_string(&list).unwrap())
+    serde_json::to_string(&list).map_err(|e| CoreError::serialize(e.to_string()))
 }
 
 #[tauri::command]
@@ -1436,7 +1436,7 @@ fn cmd_schema_update_entity_type(state: State<AppState>, type_key: String, updat
     let mut reg = state.schema.lock().map_err(|e| CoreError::SchemaError(e.to_string()))?;
     reg.unregister(&type_key);
     reg.register(updates.clone()).map_err(CoreError::SchemaError)?;
-    Ok(serde_json::to_string(&updates).unwrap())
+    serde_json::to_string(&updates).map_err(|e| CoreError::serialize(e.to_string()))
 }
 
 #[tauri::command]
@@ -1946,7 +1946,7 @@ fn cmd_fs_watch_start(app: tauri::AppHandle, path: String, watch_id: String) -> 
 
     // 将 watcher 存入 app state
     let state = app.state::<FsWatcherState>();
-    let mut watchers = state.watchers.lock().unwrap();
+    let mut watchers = state.watchers.lock().map_err(|e| CoreError::storage(format!("Watcher state lock poisoned: {}", e)))?;
     watchers.insert(watch_id.clone(), watcher);
 
     // 在后台线程中转发事件到前端
@@ -1979,7 +1979,7 @@ fn cmd_fs_watch_start(app: tauri::AppHandle, path: String, watch_id: String) -> 
 #[tauri::command]
 fn cmd_fs_watch_stop(app: tauri::AppHandle, watch_id: String) -> Result<(), CoreError> {
     let state = app.state::<FsWatcherState>();
-    let mut watchers = state.watchers.lock().unwrap();
+    let mut watchers = state.watchers.lock().map_err(|e| CoreError::storage(format!("Watcher state lock poisoned: {}", e)))?;
     if watchers.remove(&watch_id).is_some() {
         Ok(())
     } else {

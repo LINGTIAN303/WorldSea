@@ -360,4 +360,37 @@ agent_end → checkShouldAutoContinue=true → autoContinueTask → backend.prom
 **未完成（待后续）**：
 - 切换 `resolveToolNames` 到 SkillRegistry（需先补 `alwaysAvailable` meta）
 - 任务24 Skills 商城依赖本任务完成
+### 全项目体检与整改决策（2026-07-13）
+
+**背景**：放弃 OpenWorld Rust 重构路线，回到 worldsmith 本项目整改。先做全项目体检。
+
+**5 维度评分**：架构 C+ / 性能 C / Bug B+ / 代码质量 C- / 后端覆盖度 D+
+
+**42 条问题聚类为 14 主题**：
+- P0（5 项）：后端 40-45% 僵尸（Workflow 28 命令/CRDT 15 函数/server 7 端点/MCP-PTY-KV 25+ 命令零调用）、lib.rs 165 命令巨型文件、Tauri unwrap panic 风险、ui-kit↔plugin-sdk 循环依赖、WS/长任务生命周期
+- P1（6 项）：首屏 bundle 膨胀、无 ESLint/Hook、151 处 as any、11 个 Vue > 800 行、WsTable/WsTree 无虚拟化、PluginManager 双源清单
+- P2（7 项）：插件模板重复 / 命名不一致 / 测试覆盖不均 / composables 越层 / CustomEvent 绕过 EventBus / WASM critical 下载 / 字体串行 restore
+
+**切入点**：用户确认从严重 BUG 开始修
+- 本轮修复：P0-3（Tauri unwrap）+ P0-5a（WS 超时定时器）+ P0-5c（longTaskTimer 复查）
+- 列为风险点交用户决定：P0-5b（WS 重连机制，属新功能非 bug 修复）
+- 后续推进：P0-1/P0-2/P0-4 按主题分批
 <!-- HIPPOCAMPUS:SECTION:decisions END -->
+
+<!-- MemoryCenter:SECTION:task_state START -->
+## 当前任务
+全项目体检后严重 BUG 修复（P0-3 + P0-5a + P0-5c 复查）
+
+## 已完成步骤
+- [x] 全项目体检（5 维度并行调研，42 条问题聚类为 14 主题）
+- [x] 体检决策记录到本文件 decisions 章节
+
+## 进行中步骤
+- [ ] P0-3 修 Tauri Rust unwrap panic（lib.rs 4 处 serde_json + 2 处 lock）
+- [ ] P0-5a 修 WebSocket 超时定时器未清理（useCliAgent.ts）
+- [ ] P0-5c 复查 AgentChat longTaskTimer 生命周期错位（疑为伪问题）
+
+## 下一步
+- 7点自检后交付本轮修复
+- 后续按主题推进：P0-1 唤醒僵尸后端 / P0-2 拆分 lib.rs / P0-4 解循环依赖
+<!-- MemoryCenter:SECTION:task_state END -->
