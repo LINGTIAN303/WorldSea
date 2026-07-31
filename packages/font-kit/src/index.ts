@@ -83,6 +83,9 @@ export {
   useFontRenderer,
   useFontPack,
   useSystemFonts,
+  useFontPresets,
+  useFontBootstrap,
+  FONT_PRESETS,
 } from './composables'
 
 export type {
@@ -93,6 +96,7 @@ export type {
   UseFontPackReturn,
   SystemFontInfo,
   UseSystemFontsReturn,
+  FontPresetEntry,
 } from './composables'
 
 export {
@@ -114,3 +118,24 @@ export {
 } from './WsFontPack'
 
 export { fontKitDescriptor } from './agent-descriptor'
+
+// Phase 8b: 字体安装器（从根 src/composables/fontInstaller.ts 下沉）
+export {
+  MAX_FONT_STORAGE,
+  resolveFontFamily,
+  extractFontUrlsFromCss,
+  installFromWsfont,
+  installFromRawFont,
+  installFromWindfonts,
+  installFromZip,
+  restoreFromDB,
+  removeFontData,
+} from './fontInstaller'
+export type {
+  FontVariantEntry,
+  FontLibraryEntry,
+  CssFontFaceInfo,
+} from './fontInstaller'
+
+// Phase 8b: 字体库 store（从根 src/stores/fontLibraryStore.ts 下沉）
+export { useFontLibraryStore } from './stores'

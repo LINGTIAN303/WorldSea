@@ -11,7 +11,6 @@ export default defineConfig({
     setupFiles: ['src/test-setup.ts'],
     include: [
       'src/**/__tests__/**/*.spec.ts',
-      'worldsmith-agent/**/__tests__/**/*.spec.ts',
       'worldsmith-server/**/__tests__/**/*.spec.ts',
       'packages/memory-archive/**/__tests__/**/*.spec.ts',
     ],
@@ -31,7 +30,9 @@ export default defineConfig({
     },
   },
   resolve: {
-    alias: {
+    // 转为数组形式（Vite 8 中对象形式的 $ 后缀 alias 不生效，需用数组形式）
+    // 与 vite.config.ts 保持一致，避免测试与开发环境行为分叉
+    alias: Object.entries({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
       '@agent': path.resolve(__dirname, 'worldsmith-agent/src'),
       '@worldsmith/entity-core$': path.resolve(__dirname, 'packages/entity-core/src'),
@@ -77,6 +78,13 @@ export default defineConfig({
       '@worldsmith/memory-archive/storage': path.resolve(__dirname, 'packages/memory-archive/src/storage'),
       '@worldsmith/memory-archive/embedding': path.resolve(__dirname, 'packages/memory-archive/src/embedding'),
       '@worldsmith/memory-archive/utils': path.resolve(__dirname, 'packages/memory-archive/src/utils'),
-    },
+    }).map(([key, value]) => {
+      // 精确匹配（$ 后缀）转为正则 ^...$；前缀匹配保持字符串
+      if (key.endsWith('$')) {
+        const escaped = key.slice(0, -1).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        return { find: new RegExp(`^${escaped}$`), replacement: value as string }
+      }
+      return { find: key, replacement: value as string }
+    }),
   },
 })

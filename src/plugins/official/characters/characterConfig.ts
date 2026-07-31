@@ -1,4 +1,4 @@
-import type { FormFieldDef } from '@worldsmith/ui-kit'
+import type { FormFieldDef } from '@worldsmith/plugin-sdk'
 
 export const characterFields: FormFieldDef[] = [
   { key: 'name', label: '名称', type: 'text', required: true, placeholder: '角色名称' },

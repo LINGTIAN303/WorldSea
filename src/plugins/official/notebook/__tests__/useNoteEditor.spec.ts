@@ -70,14 +70,14 @@ describe('useNoteEditor', () => {
       const note = ref<Entity | null>(makeEntity('n1', '<p>content</p>'))
       const { loadNote } = useNoteEditor(note)
       loadNote(note.value)
-      expect(mockEditorRef.value.commands.setContent).toHaveBeenCalledWith('<p>content</p>', false)
+      expect(mockEditorRef.value.commands.setContent).toHaveBeenCalledWith('<p>content</p>', { emitUpdate: false })
     })
 
     it('entity 为 null 时清空编辑器', () => {
       const note = ref<Entity | null>(null)
       const { loadNote } = useNoteEditor(note)
       loadNote(null)
-      expect(mockEditorRef.value.commands.setContent).toHaveBeenCalledWith('', false)
+      expect(mockEditorRef.value.commands.setContent).toHaveBeenCalledWith('', { emitUpdate: false })
     })
 
     it('加载后将 saveStatus 重置为 saved', () => {

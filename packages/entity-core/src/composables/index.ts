@@ -1,3 +1,13 @@
+// 主题管理（Phase 4 从根 src/composables/useTheme.ts 下沉到 entity-core）
+export { useTheme } from './useTheme'
+export type { ThemeDefinition } from './useTheme'
+
+// 文件系统监听（Phase 5a 从根 src/composables/useFsWatcher.ts 下沉到 entity-core）
+export { useFsWatcher } from './useFsWatcher'
+
+// 文件系统项目绑定与导出（Phase 5a 从根 src/composables/useFileSystemProject.ts 下沉到 entity-core）
+export { useFileSystemProject } from './useFileSystemProject'
+
 export { useAutoCreateEntity } from './useAutoCreateEntity'
 export { useSmartFieldLink } from './useSmartFieldLink'
 export { useTypeMapping } from './useTypeMapping'
@@ -18,3 +28,6 @@ export { useEntityTemplates } from './useEntityTemplates'
 export { useAdvancedSearch, type SearchFilter } from './useAdvancedSearch'
 export { useVersionSnapshot, type Snapshot } from './useVersionSnapshot'
 export { useConsistencyChecker, type ConsistencyIssue } from './useConsistencyChecker'
+
+// Phase 8a: 自动备份（从根 src/composables/useAutoBackup.ts 下沉）
+export { useAutoBackup } from './useAutoBackup'

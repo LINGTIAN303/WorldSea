@@ -1,3 +1,15 @@
+/**
+ * ⚠️ 此文件已废弃（DEPRECATED）— Phase 4 端分离
+ *
+ * 本服务的能力已迁移到 @worldsmith/cli 的 serve 命令：
+ *   worldsmith serve --port 3100 --host 127.0.0.1
+ *
+ * 迁移说明：docs/端分离/11-backend-consolidation.md
+ *
+ * 此文件保留仅供历史参考，不再维护。新代码请勿引用。
+ * 计划在 Phase 6 端到端验收后删除整个 worldsmith-server/ 目录。
+ */
+
 import express, { Router } from 'express'
 import { createServer } from 'http'
 import { WebSocketServer, WebSocket } from 'ws'
@@ -7,6 +19,21 @@ import { PythonBridge, parseServiceConfig } from './python-bridge.js'
 import { registerCrawlRoutes } from './routes/crawl.js'
 import { registerConvertRoutes } from './routes/convert.js'
 import { registerVectorSearchRoutes } from './routes/vector-search.js'
+
+// ── 废弃警告（Phase 4: 能力已迁移至 @worldsmith/cli）──
+console.warn('┌─────────────────────────────────────────────────────────────────┐')
+console.warn('│  ⚠️  worldsmith-server 已废弃（Phase 4 端分离）                    │')
+console.warn('│                                                                 │')
+console.warn('│  能力已迁移至 @worldsmith/cli：                                    │')
+console.warn('│    worldsmith serve  （替代 worldsmith-server）                   │')
+console.warn('│                                                                 │')
+console.warn('│  迁移指南：                                                       │')
+console.warn('│    1. cd apps/cli && pnpm install                                │')
+console.warn('│    2. pnpm start serve --port 3100                               │')
+console.warn('│    3. Web 端设置 VITE_CLI_SERVE_URL=ws://localhost:3100          │')
+console.warn('│                                                                 │')
+console.warn('│  本包将在 Phase 6 删除。                                          │')
+console.warn('└─────────────────────────────────────────────────────────────────┘')
 
 const PORT = parseInt(process.env.PORT || '3100', 10)
 const AUTH_TOKEN = process.env.AUTH_TOKEN || 'dev'

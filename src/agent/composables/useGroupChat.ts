@@ -2,20 +2,23 @@
  * 群聊 Composable
  *
  * 管理多 Agent 群聊的完整生命周期：
- * - 为每个 AgentProfile 创建独立的 CoreBackend 实例
+ * - 为每个 AgentProfile 创建独立的 Agent Backend 实例
  * - 通过 MessageBus 广播群聊事件
  * - 通过 TurnEngine 决策发言顺序
  * - 通过 FlowController 控制请求并发
  * - 与 useAgent 并行运行，共享 toolContext
+ *
+ * 阶段 2.0 批次3：CoreBackend 已移除（依赖 pi-ai），群聊功能暂不可用。
+ * Agent 循环已由 Rust 端接管，多 Agent 实例管理待后续在 Rust 端实现。
+ * 以下函数调用时会抛错：createAgentBackend / setModeratorAgent / sendGroupMessage / sendPrivateMessage / promptSync
  */
 
 import { ref, reactive, readonly, type DeepReadonly, type Ref } from 'vue'
 import type { IAgentBackend, AgentEvent } from '@agent/index'
-import { CoreBackend } from '@agent/index'
 import { invalidateContextCache } from '@agent/context/builder'
 import { useEntityStore, useRelationStore, useFileStore } from '@worldsmith/entity-core'
 import { useAgentProfileStore } from '../../stores/agentProfileStore'
-import { useConfirm } from '@worldsmith/ui-kit'
+import { useConfirm } from '@worldsmith/plugin-sdk'
 import type {
   AgentProfile,
   GroupChatMessage,
@@ -113,28 +116,12 @@ export function useGroupChat() {
   /* ─── Agent Backend Lifecycle ─── */
 
   async function createAgentBackend(profile: AgentProfile): Promise<IAgentBackend> {
-    ensureInfrastructure()
-    buildToolContext()
-
-    if (backends.has(profile.id)) {
-      return backends.get(profile.id)!
-    }
-
-    const providerConfig = await providerPool!.resolve(profile.providerSlotId)
-    const backend = new CoreBackend({
-      providerConfig,
-      systemPrompt: profile.systemPrompt,
-      tools: [],
-      toolContext,
-    })
-    await backend.initialize()
-
-    const unsub = backend.subscribe((event: AgentEvent) => {
-      handleAgentEvent(event, profile)
-    })
-    unsubscribers.set(profile.id, unsub)
-    backends.set(profile.id, backend)
-    return backend
+    // 阶段 2.0 批次3：CoreBackend 已移除（依赖 pi-ai），群聊功能暂不可用
+    // Agent 循环已由 Rust 端接管，多 Agent 实例管理待后续在 Rust 端实现
+    throw new Error(
+      '[useGroupChat] 群聊功能暂不可用（批次3 移除 pi-ai 依赖）。\n' +
+      `Agent "${profile.name}" 创建失败：CoreBackend 已废弃，请等待 Rust 后端多 Agent 实例支持。`
+    )
   }
 
   function destroyAgentBackend(agentId: string): void {
@@ -145,80 +132,6 @@ export function useGroupChat() {
       unsubscribers.delete(agentId)
       backend.dispose()
       backends.delete(agentId)
-    }
-  }
-
-  /* ─── Event Routing ─── */
-
-  function handleAgentEvent(event: AgentEvent, profile: AgentProfile): void {
-    if (!messageBus) return
-
-    switch (event.type) {
-      case 'agent_start':
-        streaming.value.add(profile.id)
-        streamingContent.set(profile.id, '')
-        messageBus.emit({ type: 'agent_start', agentId: profile.id })
-        break
-
-      case 'message_update':
-        streamingContent.set(profile.id, event.content ?? '')
-        messageBus.emit({
-          type: 'agent_streaming',
-          agentId: profile.id,
-          delta: event.content ?? '',
-          thinking: event.thinking,
-        })
-        break
-
-      case 'agent_end': {
-        streaming.value.delete(profile.id)
-        const finalContent = streamingContent.get(profile.id) ?? ''
-        streamingContent.delete(profile.id)
-        const assistantMsgs = event.messages?.filter(m => m.role === 'assistant') ?? []
-        const lastMsg = assistantMsgs[assistantMsgs.length - 1]
-        if (lastMsg) {
-          const groupMsg: GroupChatMessage = {
-            id: crypto.randomUUID(),
-            role: 'assistant',
-            agentId: profile.id,
-            agentName: profile.name,
-            agentAvatar: profile.avatar,
-            agentColor: profile.color,
-            content: lastMsg.content,
-            thinking: lastMsg.thinking,
-            timestamp: Date.now(),
-          }
-          messages.value.push(groupMsg)
-          messageBus.appendMessage(groupMsg)
-          messageBus.emit({ type: 'agent_message', agentId: profile.id, content: lastMsg.content })
-        } else if (finalContent) {
-          const groupMsg: GroupChatMessage = {
-            id: crypto.randomUUID(),
-            role: 'assistant',
-            agentId: profile.id,
-            agentName: profile.name,
-            agentAvatar: profile.avatar,
-            agentColor: profile.color,
-            content: finalContent,
-            timestamp: Date.now(),
-          }
-          messages.value.push(groupMsg)
-          messageBus.appendMessage(groupMsg)
-          messageBus.emit({ type: 'agent_message', agentId: profile.id, content: finalContent })
-        }
-        messageBus.emit({ type: 'agent_end', agentId: profile.id })
-        break
-      }
-
-      case 'error':
-        streaming.value.delete(profile.id)
-        streamingContent.delete(profile.id)
-        messageBus.emit({
-          type: 'error',
-          agentId: profile.id,
-          error: event.error instanceof Error ? event.error.message : String(event.error ?? '未知错误'),
-        })
-        break
     }
   }
 
@@ -536,25 +449,17 @@ export function useGroupChat() {
     turnEngine?.setStrategy(strategy)
   }
 
-  async function setModeratorAgent(agentId: string | null): Promise<void> {
+  async function setModeratorAgent(_agentId: string | null): Promise<void> {
+    // 阶段 2.0 批次3：CoreBackend 已移除，Moderator Agent 创建不可用
     if (moderatorBackend) {
       moderatorBackend.dispose()
       moderatorBackend = null
     }
-    if (!agentId) return
-    const profile = profileStore.profiles.find(p => p.id === agentId)
-    if (profile) {
-      ensureInfrastructure()
-      buildToolContext()
-      const providerConfig = await providerPool!.resolve(profile.providerSlotId)
-      moderatorBackend = new CoreBackend({
-        providerConfig,
-        systemPrompt: profile.systemPrompt,
-        tools: [],
-        toolContext,
-      })
-      await (moderatorBackend as CoreBackend).initialize()
-    }
+    if (!_agentId) return
+    throw new Error(
+      '[useGroupChat] Moderator Agent 暂不可用（批次3 移除 pi-ai 依赖）。\n' +
+      '请等待 Rust 后端多 Agent 实例支持。'
+    )
   }
 
   return {

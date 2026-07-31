@@ -98,7 +98,7 @@ import WsIcon from '../../ui/WsIcon.vue'
 import { useEntityStore, entitySchemaRegistry } from '@worldsmith/entity-core'
 import type { Entity } from '@worldsmith/entity-core'
 import type { ModuleViewConfig } from '../types'
-import { DetailField, useEntityEdit } from '@worldsmith/ui-kit'
+import { DetailField, useEntityEdit } from '@worldsmith/plugin-sdk'
 
 const props = defineProps<{
   viewConfig: ModuleViewConfig

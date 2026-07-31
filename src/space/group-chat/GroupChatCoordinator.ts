@@ -11,7 +11,7 @@ import { TopicTrackerImpl } from './TopicTracker'
 import { buildParticipantSystemPrompt } from './HallucinationGuard'
 import { FallbackChainImpl } from './FallbackChain'
 import { ModelHealthChecker } from './ModelHealthChecker'
-import { getModelInfo } from '../../agent/modelRegistry'
+import { getModelInfo } from '@worldsmith/agent-runtime'
 import { useGroupChatStore } from './GroupChatStore'
 
 const PROVIDER_PROXY_PATHS: Record<string, string> = {

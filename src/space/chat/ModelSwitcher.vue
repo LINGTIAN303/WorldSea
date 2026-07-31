@@ -34,7 +34,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { getModelInfo, getModelPresets } from '../../agent/modelRegistry'
+import { getModelInfo, getModelPresets } from '@worldsmith/agent-runtime'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useAgent } from '../../agent/composables/useAgent'
 import { loadApiKey, hasApiKey } from '@agent/index'

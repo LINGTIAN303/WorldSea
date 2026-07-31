@@ -1,8 +1,2 @@
 // Global test setup — polyfill browser APIs missing in jsdom
-
-// ResizeObserver is required by @vue-flow/core but not provided by jsdom
-global.ResizeObserver = class ResizeObserver {
-  observe() {}
-  unobserve() {}
-  disconnect() {}
-}
+// (当前无 polyfill 需要；@vue-flow/core 已移除，ResizeObserver polyfill 随之清理)

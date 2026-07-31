@@ -400,7 +400,7 @@ useAgentPluginBridge('notebook', async (event) => {
         )
       }
       const summary = results.map((n) => ({ id: n.id, name: n.name, type: n.properties?.noteType }))
-      ;(window as any).__worldsmith_notebook_list__ = summary
+      ;window.__worldsmith_notebook_list__ = summary
       break
     }
 
@@ -413,7 +413,7 @@ useAgentPluginBridge('notebook', async (event) => {
         (n.properties?.content || '').toLowerCase().includes(q)
       )
       const summary = results.map((n) => ({ id: n.id, name: n.name, preview: (n.properties?.content || '').slice(0, 100) }))
-      ;(window as any).__worldsmith_notebook_search__ = summary
+      ;window.__worldsmith_notebook_search__ = summary
       break
     }
 

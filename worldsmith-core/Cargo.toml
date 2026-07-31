@@ -14,7 +14,7 @@ crate-type = ["cdylib", "rlib"]
 
 [features]
 default = []
-wasm = ["wasm-bindgen", "js-sys", "web-sys", "serde-wasm-bindgen"]
+wasm = ["wasm-bindgen", "serde-wasm-bindgen"]
 sqlite = ["rusqlite"]
 
 [dependencies]
@@ -28,14 +28,8 @@ geo = "0.33"
 uuid = { version = "1", features = ["v4", "js"] }
 
 wasm-bindgen = { version = "0.2", optional = true }
-js-sys = { version = "0.3", optional = true }
 serde-wasm-bindgen = { version = "0.6", optional = true }
 rusqlite = { version = "0.34", features = ["bundled"], optional = true }
-
-[dependencies.web-sys]
-version = "0.3"
-features = ["console"]
-optional = true
 
 [[test]]
 name = "workflow_store_test"

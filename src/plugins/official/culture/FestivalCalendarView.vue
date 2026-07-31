@@ -61,7 +61,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'
-import { CustomDropdown } from '@worldsmith/ui-kit'
+import { CustomDropdown } from '@worldsmith/plugin-sdk'
 import { useFestivalCalendarData, type FestivalNode } from './composables/useFestivalCalendarData'
 import { useFestivalCalendarCanvas } from './composables/useFestivalCalendarCanvas'
 

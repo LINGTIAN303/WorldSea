@@ -21,7 +21,7 @@ import type {
   ShellInfo,
   ShellSessionInfo,
   ShellExecResult,
-} from './adapter'
+} from '@worldsmith/agent-runtime'
 
 interface ShellSession {
   process: ChildProcess
@@ -32,8 +32,8 @@ interface ShellSession {
   buffer: string[] // 待读取的输出
 }
 
-/** 检测当前是否在 Node.js 环境中（非浏览器） — 从 env.ts 引入并 re-export 保持向后兼容 */
-import { isNodeEnv } from './env'
+/** 检测当前是否在 Node.js 环境中（非浏览器） — 从 agent-runtime 引入并 re-export 保持向后兼容 */
+import { isNodeEnv } from '@worldsmith/agent-runtime'
 export { isNodeEnv }
 
 /** 获取默认 shell */

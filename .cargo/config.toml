@@ -1,0 +1,21 @@
+# Cargo 镜像配置（workspace 级覆盖）
+# USTC 镜像在本机被劫持到 127.0.0.1:8080，改用字节 RsProxy
+# 对整个 worldsmith workspace 生效（含 src-tauri 与 crates/*）
+[source.crates-io]
+replace-with = "rsproxy-sparse"
+
+[source.rsproxy-sparse]
+registry = "sparse+https://rsproxy.cn/index/"
+
+[net]
+git-fetch-with-cli = true
+
+# 阶段 2.1 临时：强制不走代理
+# 原因：.gitconfig 全局 http.proxy=http://127.0.0.1:8080，但 8080 端口无人监听
+# libcurl（cargo sparse registry 底层）读到了该代理配置导致连接失败
+# 设成空字符串强制直连，rsproxy.cn 直连可达（curl 测试 HTTP 200）
+[http]
+proxy = ""
+
+[https]
+proxy = ""

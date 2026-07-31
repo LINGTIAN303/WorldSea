@@ -26,7 +26,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount } from 'vue'
-import { useShortcuts, formatKeyForDisplay, useResizable } from '@worldsmith/ui-kit'
+import { useShortcuts, formatKeyForDisplay, useResizable } from '@worldsmith/plugin-sdk'
 import WsIcon from '../WsIcon.vue'
 
 defineProps<{ show: boolean }>()

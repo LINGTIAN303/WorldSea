@@ -8,7 +8,7 @@ import { CostTrackerImpl } from '../CostTracker'
 import { ContextManagerImpl } from '../ContextManager'
 import { FallbackChainImpl } from '../FallbackChain'
 import { ModelHealthChecker } from '../ModelHealthChecker'
-import { getModelInfo } from '../../../agent/modelRegistry'
+import { getModelInfo } from '@worldsmith/agent-runtime'
 
 // 后端模块导入
 import { FlowController } from '@agent/group-chat/flow-control'

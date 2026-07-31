@@ -22,7 +22,7 @@ let detectedBackend: BackendType | null = null
 function detectBackend(): BackendType {
   if (detectedBackend) return detectedBackend
   try {
-    if (typeof window !== 'undefined' && ((window as any).__TAURI_INTERNALS__ || (window as any).__TAURI__)) {
+    if (typeof window !== 'undefined' && (window.__TAURI_INTERNALS__ || window.__TAURI__)) {
       detectedBackend = 'tauri'
       return 'tauri'
     }

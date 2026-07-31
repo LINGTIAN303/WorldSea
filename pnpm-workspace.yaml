@@ -1,6 +1,6 @@
 packages:
   - 'packages/*'
-  - 'worldsmith-agent'
+  - 'apps/*'
 allowBuilds:
   '@google/genai': true
   esbuild: true

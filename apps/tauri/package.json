@@ -1,0 +1,32 @@
+{
+  "name": "@worldsmith/tauri",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "vue-tsc --noEmit",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.11.0",
+    "@tauri-apps/plugin-dialog": "^2.7.1",
+    "@tauri-apps/plugin-opener": "^2.5.4",
+    "@worldsmith/agent-runtime": "file:../../packages/agent-runtime",
+    "naive-ui": "^2.44.1",
+    "vue": "^3.5.32"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.2",
+    "@vitejs/plugin-vue": "^6.0.6",
+    "rollup-plugin-visualizer": "^7.0.1",
+    "typescript": "~6.0.2",
+    "vite": "^8.0.10",
+    "vite-plugin-compression2": "^2.5.3",
+    "vite-plugin-wasm": "^3.6.0",
+    "vue-tsc": "^3.2.7"
+  }
+}

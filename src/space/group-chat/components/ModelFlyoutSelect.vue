@@ -51,7 +51,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { getModelPresets, getModelInfo } from '../../../agent/modelRegistry'
+import { getModelPresets, getModelInfo } from '@worldsmith/agent-runtime'
 
 const props = defineProps<{ modelId: string }>()
 const emit = defineEmits<{ 'update:modelId': [value: string] }>()

@@ -107,10 +107,10 @@
 
 ### 15. 全局图谱的视觉与交互迭代优化
 - **简述**：迭代 `graph` 插件（全局图谱）的视觉与交互
-- **涉及模块**：`src/plugins/official/graph/GlobalGraph.vue`、`sigma`、`graphology`、`d3-force`、`d3-zoom`
+- **涉及模块**：`src/plugins/official/graph/GlobalGraph.vue`、`sigma`、`graphology`、`d3-force`
 - **状态**：📋 待启动
 - **优先级**：—
-- **备注**：已用 sigma + graphology + graphology-communities-louvain + graphology-layout-forceatlas2，技术栈完整
+- **备注**：已用 sigma + graphology + graphology-layout-forceatlas2，技术栈完整（2026-07-24 依赖大调整：移除 d3-zoom、graphology-communities-louvain 等未使用包）
 
 ### 18. 区域图谱的 map 视图迭代优化
 - **简述**：迭代 `regions` 插件的地图视图

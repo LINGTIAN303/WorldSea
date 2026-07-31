@@ -44,6 +44,14 @@ export {
   getDialogApi,
   registerSettingsApi,
   getSettingsApi,
+  // Phase 5a: ProjectFS 依赖注入服务接口
+  registerModuleStoreApi,
+  getModuleStoreApi,
+  registerProjectSwitcherApi,
+  getProjectSwitcherApi,
+  // Phase 5a: 项目文件系统导出/导入
+  exportProjectToDir,
+  importProjectFromDir,
   // Trait System V2
   traitRegistry,
   facetRegistry,
@@ -66,6 +74,34 @@ export {
   inferSemanticHintFromKey,
   inferDirectTargetFromKey,
   userFieldMappingStore,
+  // Phase 8a: 事件总线
+  eventBus,
+  // Phase 8a: io 模块
+  serializerRegistry,
+  SerializerRegistry,
+  PACK_VERSION,
+  PackageBuilder,
+  ExportController,
+  defaultFormatEncoder,
+  ImportController,
+  importController,
+  getExportController,
+  getImportController,
+  exportData,
+  parseImportData,
+  importToDb,
+  registerDownloader,
+  getDownloader,
+  registerPackValidator,
+  getPackValidator,
+  registerAppVersionProvider,
+  getAppVersionProvider,
+  // Phase 3: 公式引擎
+  evaluateFormula,
+  extractFieldRefs,
+  registerFormulaAutoRecalc,
+  unregisterFormulaAutoRecalc,
+  getComputedFormulas,
 } from './core'
 
 // 触发 13 个原子 Trait 注册（副作用导入，必须在 core 导出之后）
@@ -94,6 +130,40 @@ export type {
   ConfirmApi,
   DialogApi,
   SettingsApi,
+  // Phase 5a: ProjectFS 依赖注入服务接口
+  ModuleStoreApi,
+  ProjectSwitcherApi,
+  // Phase 5a: 项目文件系统导出/导入
+  ProjectManifest,
+  ProjectCache,
+  ExportProgressCallback,
+  ImportProgressCallback,
+  // Phase 8a: 事件总线类型
+  EntityCreateEvent,
+  EntityUpdateEvent,
+  EntityDeleteEvent,
+  FieldChangeEvent,
+  RelationCreateEvent,
+  RelationDeleteEvent,
+  NameInputEvent,
+  TextInputEvent,
+  BatchEditEvent,
+  EventMap,
+  EventName,
+  EventHandler,
+  Unsubscribe,
+  // Phase 8a: io 模块类型
+  WorldSmithManifest,
+  WorldSmithPack,
+  ImportReport,
+  PackageManifest,
+  FormatEncoder,
+  HtmlExportOptions,
+  ExportData,
+  Downloader,
+  PackValidator,
+  ValidationReport,
+  AppVersionProvider,
 } from './core'
 export type {
   PotentialLink,

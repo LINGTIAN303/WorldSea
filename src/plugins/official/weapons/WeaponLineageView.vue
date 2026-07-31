@@ -67,7 +67,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'
-import { CustomDropdown } from '@worldsmith/ui-kit'
+import { CustomDropdown } from '@worldsmith/plugin-sdk'
 import { useWeaponLineageData, type WeaponNode } from './composables/useWeaponLineageData'
 import { useWeaponLineageLayout, type WeaponLayoutMode } from './composables/useWeaponLineageLayout'
 import { useWeaponLineageCanvas } from './composables/useWeaponLineageCanvas'

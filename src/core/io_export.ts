@@ -87,15 +87,15 @@ export async function exportData(
       relations: { relations, total: relations.length, version: 1 },
     },
   }
-  return defaultFormatEncoder.encode(pack, format)
+  return await defaultFormatEncoder.encode(pack, format)
 }
 
 /**
  * 兼容旧接口：parseImportData(text)
  * 新版建议改用 importController.parseImportData()
  */
-export function parseImportData(text: string): ExportData {
-  const pack = _importController.parseImportData(text)
+export async function parseImportData(text: string): Promise<ExportData> {
+  const pack = await _importController.parseImportData(text)
   const entityData = pack.serializers['entities'] as any
   const relationData = pack.serializers['relations'] as any
   return {

@@ -65,7 +65,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'
-import { CustomDropdown } from '@worldsmith/ui-kit'
+import { CustomDropdown } from '@worldsmith/plugin-sdk'
 import { useSkillTreeData, type SkillNode } from './composables/useSkillTreeData'
 import { useSkillTreeLayout, type LayoutMode } from './composables/useSkillTreeLayout'
 import { useSkillTreeCanvas } from './composables/useSkillTreeCanvas'

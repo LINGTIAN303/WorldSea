@@ -152,7 +152,8 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
-import { useShortcuts, useCanvas } from '@worldsmith/ui-kit'
+import { useShortcuts } from '@worldsmith/plugin-sdk'
+import { useCanvas } from '@worldsmith/ui-kit'
 import { useSettingsStore } from '../../../stores/settingsStore'
 import WsIcon from '../../../ui/WsIcon.vue'
 import WsSpinner from '../../../ui/WsSpinner.vue'

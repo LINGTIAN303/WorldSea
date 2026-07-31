@@ -424,7 +424,7 @@ async function initialize(): Promise<void> {
   })
 
   // 注册 formula 自动重算
-  import('../modules/runtime/formula-auto').then(mod => {
+  import('@worldsmith/entity-core').then(mod => {
     mod.registerFormulaAutoRecalc()
   })
 

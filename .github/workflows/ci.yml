@@ -8,10 +8,14 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  PNPM_VERSION: 9
 
 jobs:
-  check:
-    name: Check
+  # ════════════════════════════════════════════════════════════════
+  # Rust 核心库检查（worldsmith-core）
+  # ════════════════════════════════════════════════════════════════
+  rust-check:
+    name: Rust Check (worldsmith-core)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,8 +23,8 @@ jobs:
       - run: cargo check --all-features
         working-directory: worldsmith-core
 
-  test:
-    name: Test
+  rust-test:
+    name: Rust Test (worldsmith-core)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -30,8 +34,8 @@ jobs:
       - run: cargo test --features sqlite
         working-directory: worldsmith-core
 
-  fmt:
-    name: Formatting
+  rust-fmt:
+    name: Rust Formatting
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -41,8 +45,8 @@ jobs:
       - run: cargo fmt --all -- --check
         working-directory: worldsmith-core
 
-  clippy:
-    name: Clippy
+  rust-clippy:
+    name: Rust Clippy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -52,11 +56,151 @@ jobs:
       - run: cargo clippy --all-features -- -D warnings
         working-directory: worldsmith-core
 
-  doc:
-    name: Documentation
+  rust-doc:
+    name: Rust Documentation
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo doc --all-features --no-deps
         working-directory: worldsmith-core
+
+  # ════════════════════════════════════════════════════════════════
+  # 前端三端构建（Phase 5 独立构建）
+  # ════════════════════════════════════════════════════════════════
+  # 注：Phase 3 完成前，三端 src/ 仅为骨架，构建验证仅检查配置正确性
+  # Phase 3 完成后，将启用完整构建验证
+
+  frontend-setup:
+    name: Frontend Setup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+  web-build:
+    name: Web Build
+    needs: frontend-setup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+      - name: Typecheck Web
+        run: pnpm --filter @worldsmith/web typecheck
+        continue-on-error: true # Phase 3 完成前可能有类型错误
+      - name: Build Web
+        run: pnpm --filter @worldsmith/web build
+        continue-on-error: true # Phase 3 完成前 src/ 是骨架
+
+  tauri-build:
+    name: Tauri Build (Frontend)
+    needs: frontend-setup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+      - name: Install Tauri system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
+      - name: Typecheck Tauri
+        run: pnpm --filter @worldsmith/tauri typecheck
+        continue-on-error: true # Phase 3 完成前可能有类型错误
+      - name: Build Tauri (Frontend only)
+        run: pnpm --filter @worldsmith/tauri build
+        continue-on-error: true # Phase 3 完成前 src/ 是骨架
+      # 注：完整 Tauri app 构建（tauri build）在 release workflow 中执行
+
+  cli-build:
+    name: CLI Build
+    needs: frontend-setup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+      - name: Typecheck CLI
+        run: pnpm --filter @worldsmith/cli typecheck
+        continue-on-error: true # Phase 3 完成前可能有类型错误
+      - name: Build CLI
+        run: pnpm --filter @worldsmith/cli build
+
+  # ════════════════════════════════════════════════════════════════
+  # Tauri Rust 检查（apps/tauri/src-tauri）
+  # ════════════════════════════════════════════════════════════════
+  tauri-rust-check:
+    name: Tauri Rust Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Tauri system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
+      - name: Cargo check
+        run: cargo check
+        working-directory: apps/tauri/src-tauri
+        continue-on-error: true # Phase 3 完成前 Rust 骨架可能不完整
+
+  # ════════════════════════════════════════════════════════════════
+  # 共享包类型检查（packages/*）
+  # ════════════════════════════════════════════════════════════════
+  shared-packages-typecheck:
+    name: Shared Packages Typecheck
+    needs: frontend-setup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+      - name: Typecheck agent-runtime
+        run: |
+          if [ -f packages/agent-runtime/tsconfig.json ]; then
+            cd packages/agent-runtime && npx tsc --noEmit
+          fi
+        continue-on-error: true
+      - name: Typecheck shared-composables
+        run: |
+          if [ -f packages/shared-composables/tsconfig.json ]; then
+            cd packages/shared-composables && npx tsc --noEmit
+          fi
+        continue-on-error: true

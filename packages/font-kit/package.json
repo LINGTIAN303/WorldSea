@@ -14,10 +14,18 @@
     "./animated": "./src/AnimatedTextRenderer.ts",
     "./wsfont": "./src/WsFontPack.ts",
     "./tauri": "./src/TauriFontBridge.ts",
-    "./composables": "./src/composables/index.ts"
+    "./composables": "./src/composables/index.ts",
+    "./stores": "./src/stores/index.ts",
+    "./fontInstaller": "./src/fontInstaller.ts"
   },
   "scripts": {
     "build": "vite build",
     "typecheck": "tsc -p tsconfig.build.json --noEmit"
+  },
+  "dependencies": {
+    "@worldsmith/entity-core": "file:../entity-core",
+    "jszip": "^3.10.1",
+    "pinia": "^3.0.4",
+    "vue": "^3.5.32"
   }
 }

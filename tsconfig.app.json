@@ -6,6 +6,19 @@
     "paths": {
       "@/*": ["./src/*"],
       "@agent/*": ["./worldsmith-agent/src/*"],
+      "@agent/bridge-types": ["./packages/agent-runtime/src/bridge-types.ts"],
+      "@agent/toolbus/*": ["./packages/agent-runtime/src/toolbus/*"],
+      "@agent/tools/*": ["./packages/agent-runtime/src/tools/*"],
+      "@agent/stores/*": ["./packages/agent-runtime/src/stores/*"],
+      "@agent/kb/*": ["./packages/agent-runtime/src/kb/*"],
+      "@agent/orchestrator/*": ["./packages/agent-runtime/src/orchestrator/*"],
+      "@agent/providers/*": ["./packages/agent-runtime/src/providers/*"],
+      "@agent/skills/*": ["./packages/agent-runtime/src/skills/*"],
+      "@agent/types": ["./packages/agent-runtime/src/types.ts"],
+      "@agent/context/*": ["./packages/agent-runtime/src/context/*"],
+      "@agent/group-chat/*": ["./packages/agent-runtime/src/group-chat/*"],
+      "@agent/session/*": ["./packages/agent-runtime/src/session/*"],
+      "@agent/execution/*": ["./packages/agent-runtime/src/execution/*"],
       "@worldsmith/entity-core": ["./packages/entity-core/src/index.ts"],
       "@worldsmith/entity-core/*": ["./packages/entity-core/src/*"],
       "@worldsmith/plugin-sdk": ["./packages/plugin-sdk/src/index.ts"],
@@ -24,8 +37,16 @@
       "@worldsmith/memory-archive/*": ["./packages/memory-archive/src/*"],
       "@worldsmith/agent-core": ["./packages/agent-core/src/index.ts"],
       "@worldsmith/agent-core/*": ["./packages/agent-core/src/*"],
+      "@worldsmith/agent-runtime": ["./packages/agent-runtime/src/index.ts"],
+      "@worldsmith/agent-runtime/*": ["./packages/agent-runtime/src/*"],
       "@worldsmith/governor-core": ["./packages/governor-core/src/index.ts"],
-      "@worldsmith/governor-core/*": ["./packages/governor-core/src/*"]
+      "@worldsmith/governor-core/*": ["./packages/governor-core/src/*"],
+      "@worldsmith/shared-composables": ["./packages/shared-composables/src/index.ts"],
+      "@worldsmith/shared-composables/*": ["./packages/shared-composables/src/*"],
+      "@worldsmith/shared-composables/agent/*": ["./packages/shared-composables/src/agent/*"],
+      "@worldsmith/shared-composables/long-task/*": ["./packages/shared-composables/src/agent/long-task/*"],
+      "@worldsmith/shared-composables/entity/*": ["./packages/shared-composables/src/entity/*"],
+      "@worldsmith/shared-composables/ui/*": ["./packages/shared-composables/src/ui/*"]
     },
 
     /* Linting */
@@ -34,6 +55,5 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue", "worldsmith-agent/src/**/*.ts", "packages/ui-kit/src/**/*.ts", "packages/entity-core/src/**/*.ts", "packages/plugin-sdk/src/**/*.ts", "packages/canvas-engine/src/**/*.ts", "packages/motion-kit/src/**/*.ts", "packages/font-kit/src/**/*.ts", "packages/agent-core/src/**/*.ts", "packages/memory-archive/src/**/*.ts", "packages/governor-core/src/**/*.ts"],
-  "exclude": ["worldsmith-agent/src/cli/**"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue", "worldsmith-agent/src/**/*.ts", "packages/ui-kit/src/**/*.ts", "packages/ui-kit/src/**/*.vue", "packages/entity-core/src/**/*.ts", "packages/plugin-sdk/src/**/*.ts", "packages/canvas-engine/src/**/*.ts", "packages/motion-kit/src/**/*.ts", "packages/font-kit/src/**/*.ts", "packages/agent-core/src/**/*.ts", "packages/agent-runtime/src/**/*.ts", "packages/memory-archive/src/**/*.ts", "packages/governor-core/src/**/*.ts", "packages/shared-composables/src/**/*.ts", "packages/shared-composables/src/**/*.vue"]
 }

@@ -3,7 +3,7 @@
 
 > 本文档由主要执行 Agent 维护，记录项目概况、架构、任务状态与关键决策。
 > 任务路线独立维护于 docs/ROADMAP.md，防止本文档反复更新导致任务丢失。
-> 最后更新：2026-07-08
+> 最后更新：2026-07-29
 
 ## 一、项目概况
 
@@ -41,7 +41,7 @@
 
 ## 四、Monorepo 子包（packages/）
 
-agent-core / canvas-engine / entity-core / font-kit / governor-core / memory-archive / motion-kit / perf-kit / plugin-sdk / theme-kit / ui-kit（共 11 个）
+agent-core / agent-runtime（端分离 Phase 1 新增）/ canvas-engine / entity-core / font-kit / governor-core / memory-archive / motion-kit / perf-kit / plugin-sdk / theme-kit / ui-kit（共 12 个）
 
 ## 五、当前任务状态
 
@@ -375,22 +375,214 @@ agent_end → checkShouldAutoContinue=true → autoContinueTask → backend.prom
 - 本轮修复：P0-3（Tauri unwrap）+ P0-5a（WS 超时定时器）+ P0-5c（longTaskTimer 复查）
 - 列为风险点交用户决定：P0-5b（WS 重连机制，属新功能非 bug 修复）
 - 后续推进：P0-1/P0-2/P0-4 按主题分批
+
+
+### 阶段 1.5 Tauri 集成完成（2026-07-25）
+
+**背景**：将 `crates/agent-runtime` 接入 Tauri 应用，实现前端与 Rust Agent 的 IPC 通信通道。这是阶段 2（前端 UI 集成）的前置条件。
+
+**实现内容**：
+
+1. **Tauri 命令层**（[src-tauri/src/commands/agent.rs](../src-tauri/src/commands/agent.rs)）：
+   - 创建 14 个 agent 命令对应 `IAgentBackend` 接口：`agent_prompt` / `agent_steer` / `agent_follow_up` / `agent_abort` / `agent_update_model` / `agent_update_thinking_level` / `agent_clear_history` / `agent_subscribe` / `agent_dispose` / `agent_state` / `agent_is_streaming` / `agent_trim_context` / `agent_get_runtime_messages` / `agent_set_runtime_messages`
+   - `TauriEventListener`：实现 `agent_runtime::EventListener` trait，把 `OrchestratorEvent` 转为 `AgentEventPayload` 并通过 `app.emit` 推送到前端
+
+2. **Payload 类型**（[src-tauri/src/agent_bridge/payload.rs](../src-tauri/src/agent_bridge/payload.rs)）：
+   - 定义 `AgentEventPayload` 结构（type/sessionId/chatMode/具体事件字段）
+   - 实现 `OrchestratorEvent → AgentEventPayload` 转换逻辑
+
+3. **多实例管理**：`AgentRegistry`（`tokio::sync::RwLock<HashMap<String, Arc<AgentLoop>>>`）支持会话级 Agent 实例的注册、查询、中断、销毁，支持多会话并发
+
+4. **集成接入**：
+   - [src-tauri/src/lib.rs](../src-tauri/src/lib.rs)：声明 `agent_bridge` 模块，注册 `agent_registry` 到 `AppState`，14 个 agent 命令注册到 `invoke_handler`
+   - [src-tauri/src/state.rs](../src-tauri/src/state.rs)：添加 `agent_registry` 字段
+   - [src-tauri/src/commands/mod.rs](../src-tauri/src/commands/mod.rs)：声明 `agent` 子模块
+   - [src-tauri/Cargo.toml](../src-tauri/Cargo.toml)：添加 `tracing` 依赖
+
+5. **前端通信层**（[src/agent/composables/useAgentRust.ts](../src/agent/composables/useAgentRust.ts)）：
+   - `RustAgentBackend` 类封装 Tauri `invoke` + 事件监听
+   - 流式事件订阅：监听 `agent_event` 事件，按 type 路由 `stream_start` / `stream_delta` / `stream_end` / `tool_call_start` / `tool_call_end` / `agent_start` / `agent_end`
+   - 状态同步：从 `backend.state` 同步 `model` / `messages` / `isStreaming` 等到 ref
+
+**验证**：`cargo check` 通过 ✅，0 errors / 0 warnings
+
+**关键决策**：
+- **多实例而非单例**：用 `AgentRegistry` 按 sessionId 管理，支持多会话并发，对齐前端 `useAgent` 多 session 设计
+- **事件桥接而非轮询**：通过 `EventListener` trait + Tauri `app.emit` 实现事件推送，避免前端轮询
+- **Payload 类型独立**：不复用 agent-runtime 原始事件类型，单独定义 `AgentEventPayload` 保证序列化稳定，解耦前后端
+
+**风险点**：
+- 端到端验收推迟到阶段 2.0 前端 UI 集成完成（需在浏览器实际跑通 Rust Agent 流式响应）
+- `TauriEventListener` 在锁竞争时丢弃事件（用 `try_read`），高并发场景可能丢失事件，待实测验证
+
+
+### 阶段 2.0 前端 UI 集成完成（2026-07-25）
+
+**背景**：阶段 1.5 完成 Tauri 命令层后，前端需要接入 `useAgentRust`，让用户能在 TS / Rust 两种 Agent 后端之间切换。这是端到端验收 Rust Agent 的前置条件。
+
+**方案选择**：用户确认采用 **方案 B（开关切换）** 而非方案 A（彻底替换）
+- 理由：Rust 后端尚未实现深度模式 / 长任务 / A2UI / 终端 / 子 Agent 等高级能力，直接替换会丢失功能；开关切换让用户按需试用 Rust 后端，TS 后端作为兜底
+- 验证范围：SpaceChat 轻量验证 + AgentChat 完整验证 + Provider 三模式验证 + 工具调用验证
+
+**实现内容**：
+
+1. **设置层**（[src/stores/settingsStore.ts](../src/stores/settingsStore.ts)）：
+   - 新增 `STORAGE_KEY_AGENT_BACKEND = 'worldsmith_agent_backend'`
+   - 新增 `agentBackend` 字段（`persistedRef` 类型，默认 `'ts'`，可选 `'ts' | 'rust'`）
+   - 在 return 中导出
+
+2. **Rust 后端适配层**（[src/agent/composables/useAgentRust.ts](../src/agent/composables/useAgentRust.ts)）：
+   - 新增 `useAgentRustAdapter()` 函数，补齐与 `useAgent.ts` 完全一致的返回字段
+   - 占位策略：Rust 未实现的能力用空 ref + no-op 方法占位（如 `a2uiSurfaces` / `resumableTasks` / `activeTask` / `terminalVisible` 等返回空 ref，`createSubBackend` / `resumeTask` / `discardTask` 等返回 no-op）
+   - 类型修复：
+     - `_pendingToolCalls` 类型改为 `NonNullable<AgentMessage['toolCalls']>` 解决索引访问 possibly undefined
+     - `event.model` 不存在，改为从 `backend.state.model` 同步（`agent_start` 事件未携带 model 字段）
+     - `PromptOptions` 类型加 `| undefined` 解决可选参数类型不匹配
+     - 移除未使用的 `ComputedRef` / `Ref` 类型导入
+     - 移除 `messages` 的 `readonly` 包装，避免与 `useAgentTs` 返回类型不兼容
+
+3. **路由层**（[src/agent/composables/useAgent.ts](../src/agent/composables/useAgent.ts)）：
+   - 原 `useAgent` 重命名为 `useAgentTs`（保留原实现不变）
+   - 新增 `useAgent` 路由函数：根据 `settingsStore.agentBackend` 字段条件返回 TS 或 Rust 实现
+   - 类型兼容：Rust 适配层与 TS 实现存在 `deepSegments` / `finalOutput` 等字段类型差异，使用双重断言 `as unknown as ReturnType<typeof useAgentTs>` 解决
+
+4. **UI 入口**（[src/agent/panels/ProviderPanel.vue](../src/agent/panels/ProviderPanel.vue)）：
+   - 供应商配置下方新增「Agent 后端」select（TS 默认 / Rust 实验性）
+   - 切换到 Rust 时显示提示信息：「实验性 Rust Agent：仅支持核心对话与工具调用，深度模式/长任务/A2UI/终端等高级功能暂不可用」
+
+5. **UI 适配**：
+   - [src/space/chat/SpaceChat.vue](../src/space/chat/SpaceChat.vue)：添加 `isRustBackend` 计算属性，聊天消息区上方显示「Rust 实验模式」横幅
+   - [src/agent/AgentChat.vue](../src/agent/AgentChat.vue)：添加 `isRustBackend` 计算属性，ChatHeader 下方显示横幅，提示深度模式/长任务/A2UI/终端/子 Agent 等暂不可用
+
+**类型错误修复过程**（共 31 个错误，全部修复）：
+
+| 错误 | 修复方式 |
+|------|----------|
+| `useSettingsStore` 未导入 | 在 `useAgentRust.ts` 顶部添加 import |
+| `_pendingToolCalls` 索引访问 possibly undefined | 类型改为 `NonNullable<AgentMessage['toolCalls']>` + 非空断言 |
+| `event.model` 不存在 | 从 `backend.state.model` 同步 |
+| `PromptOptions` 类型不匹配 | 改为 `PromptOptions \| undefined` |
+| `ComputedRef` / `Ref` 未使用 | 从 import 中移除 |
+| `messages` readonly 导致类型不兼容 | 移除 readonly 包装，返回 mutable ref |
+| `useAgentRustAdapter` 返回类型不兼容 | 双重断言 `as unknown as ReturnType<typeof useAgentTs>` |
+| `AgentChat.vue` CHAT_MODES readonly 不匹配 | const 数组改为 let 数组 |
+| `AgentMessageList.vue` AgentMessage 类型冲突 | 统一 `role` 字段为 `"user" \| "assistant"` |
+
+**验证**：
+- 基线对比：`git stash` 创建干净工作区，确认 main 分支 typecheck 无错误，定位所有 31 个错误均为本次阶段 2.0 引入
+- 修复后 `npx vue-tsc -b` 通过 ✅，仅剩 `src/ui/entity/RegionMap.vue` 中 `confirmOffset` 未使用警告（与阶段 2.0 核心工作无关，预存在）
+- `cargo check` 通过 ✅（阶段 1.5 已通过）
+
+**关键决策**：
+- **方案 B 开关切换**：保留 TS 后端为默认，Rust 作为实验性选项，避免功能回退
+- **空 ref 占位 + no-op 方法**：Rust 未实现的能力用空值占位而非抛错，UI 用 `v-if` 隐藏未实现功能入口，保证用户能切换且不报错
+- **双重断言而非补字段**：Rust 适配层不强行补齐所有 TS 字段（如 `deepSegments` / `finalOutput`），用 `as unknown as` 断言绕过，避免占位代码膨胀
+- **横幅提示而非禁用切换**：切换到 Rust 时显示能力限制横幅，不禁用切换按钮，让用户明确知道限制
+
+**风险点**（已列出不自动修复）：
+- Rust 后端尚未实测端到端流程（需在浏览器实际切换到 Rust 后端并发消息验证流式响应），阶段 2.0 完成的是 UI 通道，端到端验收推迟到下一阶段
+- `useAgentRustAdapter` 双重断言掩盖了真实类型差异，未来 Rust 后端补齐能力后需移除断言改回正确类型
+- Rust 后端的事件订阅基于 Tauri `listen`，如果 Tauri 事件系统在高频流式 delta 时丢事件，UI 可能出现内容截断，待实测验证
+- `RegionMap.vue` 的 `confirmOffset` 未使用警告为预存在问题，与阶段 2.0 无关
+
+**推进顺序**：阶段 0 ✅ → 阶段 1.1-1.4 ✅ → 阶段 1.5 Tauri 集成 ✅ → 阶段 2.0 前端 UI 集成 ✅ → 阶段 2.1+ Rust 后端能力补齐 / 端到端实测（待办）
+
+## 三端分离工作启动 — Phase 0 文档库搭建完成（2026-07-29）
+
+### 背景
+项目需要将 Web 端、CLI 端、Tauri 端彻底分离，三端前端也需移除关联入口。因会话上下文限制，先搭建 plan 文档库保障持续迁移。
+
+### 关键决策
+1. **分离策略**：物理目录彻底分离 — 创建 `apps/web`、`apps/cli`、`apps/tauri` 三个独立子项目
+2. **共享代码层**：`worldsmith-agent/src/` 端无关逻辑抽离到 `packages/agent-runtime`；端无关 composables 抽离到 `packages/shared-composables`；共享 UI 到 `packages/shared-ui`
+3. **后端能力重叠处理**：CLI `serve` 模式替代 `worldsmith-server`；Tauri 保留 Rust 命令；Web 通过 HTTP/WS 连 CLI serve
+4. **前端入口清理**（基于代码扫描实际结果）：
+   - 18 文件 import `@tauri-apps/api`（8 个 Rust composables + coreBackend + ProjectFS + 终端 + 插件等）
+   - 4 文件检测 `__TAURI__`（coreBackend、mindmap×2、global.d.ts）
+   - `coreBackend.ts` 移除 `detectBackend()` 运行时检测，改为端编译期硬编码
+   - `useAgent.ts` 移除 TS/Rust 后端路由层，改为 `IAgentBackend` 接口注入
+5. **迁移路线**：6 个 Phase（共享层抽离 → 目录骨架 → 前端清理 → 后端整合 → 构建独立 → 验收清理）
+
+### 产出
+- `docs/端分离/` 文档库（11 份文档：README + 00-10）
+  - 00-overview：总览与目标
+  - 01-current-state：三端现状分析（技术债清单 TD-01~TD-10）
+  - 02-target-architecture：目标目录结构
+  - 03-shared-code-layer：共享代码层规划
+  - 04/05/06：Web/CLI/Tauri 端分离计划
+  - 07-frontend-entry-cleanup：前端关联入口移除计划（含 12 步清理顺序）
+  - 08-migration-phases：分阶段迁移路线（6 Phase + 任务拆解 + 里程碑）
+  - 09-risk-mitigation：风险与回滚策略（R-01~R-11）
+  - 10-verification-checklist：验证清单（含快速验证脚本）
+
+### Phase 1 完成记录（2026-07-29）
+
+**完成内容**：
+- `packages/agent-runtime` 包创建完成，包含 Agent 核心、工具（46+ tools）、技能、会话、上下文、Provider、ToolBus 等端无关逻辑
+- `ExecutionAdapter` 工厂注册模式：`registerExecutionAdapterFactory()` + `createExecutionAdapter()`，三端适配器（Node/Tauri/WebSocket）在 `worldsmith-agent/src/execution/index.ts` 自动注册
+- `IAgentBackend` 接口定义：`packages/agent-runtime/src/bridge.ts`
+- 向后兼容层：`worldsmith-agent/src/index.ts` 重导出 `@worldsmith/agent-runtime` 全部 API，现有调用方零修改
+- 配置更新：vite.config.ts alias + 3 个 tsconfig（root.app / worldsmith-agent / worldsmith-agent.cli）的 paths 映射
+
+**关键文件**：
+- `packages/agent-runtime/src/index.ts` — 端无关 API 公共出口
+- `packages/agent-runtime/src/execution/{adapter,index,env}.ts` — ExecutionAdapter 接口 + 工厂注册
+- `worldsmith-agent/src/execution/index.ts` — 向后兼容层（re-export + 自动注册三端适配器）
+- `worldsmith-agent/src/index.ts` — 薄包装层（re-export agent-runtime + 端特定实现）
+
+**验证结果**：
+- `agent-runtime/src/` 自身无类型错误
+- `worldsmith-agent/src/` 的 Phase 1 重构错误已全部修复
+- 预存问题（非本次引入）：`@types/ws` 未安装（网络超时）、canvas-engine/plugin-sdk/ui-kit 预存类型错误
+
+**下一步**：Phase 2 — 三端目录骨架建立（`apps/web`、`apps/cli`、`apps/tauri`）
+
+### Phase 2 完成记录（2026-07-29）
+
+**完成内容**：
+- 创建 `apps/web/` 骨架：package.json + vite.config.ts（端口 5174）+ tsconfig.json + index.html + src/{main.ts, App.vue, env.d.ts}
+- 创建 `apps/cli/` 骨架：package.json + tsconfig.json + bin/cli.mjs（tsx loader）+ src/index.ts（commander --help/chat/serve 占位）
+- 创建 `apps/tauri/` 骨架：package.json + tauri.conf.json（端口 5175）+ vite.config.ts + src/{main.ts, App.vue} + src-tauri/{Cargo.toml, build.rs, src/{main.rs, lib.rs}, capabilities/default.json}
+- 更新 `pnpm-workspace.yaml`：添加 `apps/*`
+- 更新根 `package.json`：添加 `dev:web`、`dev:cli`、`dev:tauri` 分端脚本
+- 三端 vite.config.ts 和 tsconfig.json 配置 `@worldsmith/agent-runtime` alias
+
+**关键设计决策**：
+- 端口分离：Web 5174，Tauri 5175（避免与主项目 5173 冲突）
+- 三端通过 `file:../../packages/agent-runtime` 依赖共享层
+- Tauri Rust 骨架最小化（仅 main.rs + lib.rs + Cargo.toml），实际命令层在 Phase 3 迁入
+- 此阶段 src/ 仅为骨架，不迁移业务代码；原 `src/` 目录保持不变
+
+**验证结果**：
+- ✅ pnpm workspace 正确识别三端包（`@worldsmith/web`、`@worldsmith/cli`、`@worldsmith/tauri`）
+- ✅ 所有 JSON 配置文件语法正确
+- ✅ CLI 端 `--help` 正常运行（通过 tsx）
+- ⚠️ Web/Tauri 端 Vite 启动受阻（`@rolldown/binding-win32-x64-msvc` 下载超时，网络问题）
+
+**下一步**：Phase 3 — 前端入口分离与清理（共享 composables 抽离 + Tauri/Web 专用文件迁移 + coreBackend/useAgent/main.ts 改造）
 <!-- HIPPOCAMPUS:SECTION:decisions END -->
 
 <!-- MemoryCenter:SECTION:task_state START -->
 ## 当前任务
-全项目体检后严重 BUG 修复（P0-3 + P0-5a + P0-5c 复查）
+Phase 2: Loop Engineering 批次5-6 已完成，Rust 长任务持久化 + Tauri 命令层就绪
 
 ## 已完成步骤
-- [x] 全项目体检（5 维度并行调研，42 条问题聚类为 14 主题）
-- [x] 体检决策记录到本文件 decisions 章节
+- [x] 阶段 1.5 Tauri 集成：14 个 agent 命令 + 事件桥接 + 多实例管理 + 前端通信层
+- [x] 阶段 2.0 前端 UI 集成（方案 B 开关切换）：useAgentRustAdapter + 路由层 + UI 横幅 + 31 个类型错误修复
+- [x] 阶段 2.5 会话持久化（批次1-4）：commands/session.rs（6 个 Tauri 命令）+ persistence.rs + useAgentRust.ts 对接
+- [x] Phase 2 Loop Engineering 批次1：后端基础设施 — crates/agent-runtime/src/long_task.rs（LongTaskManager + CheckpointProvider trait + 心跳定时器 + 协作式取消原子标志）
+- [x] Phase 2 Loop Engineering 批次2：SQLite 持久化层 — long_task_persistence.rs（LongTaskRepository + save/load/list_running/update_heartbeat/update_status/delete）
+- [x] Phase 2 Loop Engineering 批次3：通用循环控制 — AgentLoopConfig 新增 llm_max_retries/llm_retry_base_delay/llm_timeout/tool_max_retries/tool_retry_base_delay/tool_timeout/min_interval_between_calls 字段 + 指数退避重试 + 超时 + 限流
+- [x] Phase 2 Loop Engineering 批次4：AgentLoop 集成 LongTaskManager — start_task/checkpoint/complete_task/fail_task/cancel_task + 心跳定时器 flush 脏 checkpoint + before_tool_call 检查 cancel_flag
+- [x] Phase 2 Loop Engineering 批次5：Tauri 命令暴露 — commands/long_task.rs（7 个 Tauri 命令：save/load/list_running/list_all/update_heartbeat/update_status/delete）+ mod.rs 模块注册 + lib.rs invoke_handler 注册
+- [x] Phase 2 Loop Engineering 批次6：验证 — cargo check 通过（修复 commands/agent.rs:223 AgentLoopConfig 初始化用 ..Default::default() 填充新字段）+ vue-tsc 14 个预存错误（均与本次 Rust 侧改动无关）
 
 ## 进行中步骤
-- [ ] P0-3 修 Tauri Rust unwrap panic（lib.rs 4 处 serde_json + 2 处 lock）
-- [ ] P0-5a 修 WebSocket 超时定时器未清理（useCliAgent.ts）
-- [ ] P0-5c 复查 AgentChat longTaskTimer 生命周期错位（疑为伪问题）
+- 无（Phase 2 批次5-6 已完成）
 
 ## 下一步
-- 7点自检后交付本轮修复
-- 后续按主题推进：P0-1 唤醒僵尸后端 / P0-2 拆分 lib.rs / P0-4 解循环依赖
+- 前端 useLongTaskRust 对接：实现 useLongTask.ts 的 Rust 后端版本，通过 Tauri 命令调用 LongTaskRepository（当前 useLongTask.ts 仍走 TS IndexedDB）
+- 长任务 UI 集成：AgentChat.vue 进度条切换到 Rust 后端数据源
+- 端到端实测：浏览器切换到 Rust 后端，触发长任务（如 task 模式），验证心跳/checkpoint/取消/恢复全链路
+- 如实测通过：Phase 2 收尾，进入下一阶段（深度模式 / A2UI / 终端 / 子 Agent）
 <!-- MemoryCenter:SECTION:task_state END -->

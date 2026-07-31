@@ -73,7 +73,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import WsIcon from '../../../ui/WsIcon.vue'
 import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'
-import { CustomDropdown } from '@worldsmith/ui-kit'
+import { CustomDropdown } from '@worldsmith/plugin-sdk'
 import { useRecipeTreeData, type RecipeNode } from './composables/useRecipeTreeData'
 import { useRecipeTreeLayout, type RecipeLayoutMode } from './composables/useRecipeTreeLayout'
 import { useRecipeTreeCanvas } from './composables/useRecipeTreeCanvas'

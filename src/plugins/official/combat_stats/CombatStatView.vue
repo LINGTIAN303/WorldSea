@@ -20,7 +20,7 @@
 </template>
 <script setup lang="ts">
 import { ref } from 'vue'
-import { SchemaRenderer } from '@worldsmith/ui-kit'
+import { SchemaRenderer } from '@worldsmith/plugin-sdk'
 import RealmStaircaseView from './RealmStaircaseView.vue'
 
 const viewMode = ref<'list' | 'staircase'>('list')

@@ -18,8 +18,6 @@
     "paths": {
       "@worldsmith/entity-core": ["../entity-core/src/index.ts"],
       "@worldsmith/entity-core/*": ["../entity-core/src/*"],
-      "@worldsmith/plugin-sdk": ["../plugin-sdk/src/index.ts"],
-      "@worldsmith/plugin-sdk/*": ["../plugin-sdk/src/*"],
       "@worldsmith/canvas-engine": ["../canvas-engine/src/index.ts"],
       "@worldsmith/canvas-engine/*": ["../canvas-engine/src/*"],
       "@worldsmith/font-kit": ["../font-kit/src/index.ts"],

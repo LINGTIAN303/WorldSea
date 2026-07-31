@@ -11,7 +11,7 @@ const messageApi = useMessage()
 const dialogApi = useDialog()
 
 // 注册全局通知回调，供 worldsmithCore.ts 延迟调用
-;(window as any).__worldsmith_notify_wasm_failure__ = (reason: string) => {
+;window.__worldsmith_notify_wasm_failure__ = (reason: string) => {
   if (wasmAvailable.value === false) {
     dialogApi.warning({
       title: 'WASM 核心库不可用',
@@ -30,6 +30,6 @@ const stopWasmWatch = watch(wasmAvailable, (available) => {
 
 onBeforeUnmount(() => {
   stopWasmWatch()
-  delete (window as any).__worldsmith_notify_wasm_failure__
+  delete window.__worldsmith_notify_wasm_failure__
 })
 </script>

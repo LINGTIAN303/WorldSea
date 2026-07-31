@@ -75,7 +75,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'
 import type { Entity } from '@worldsmith/entity-core'
-import { CustomDropdown, EntityFormModal, CreateButton, type FormFieldDef, useDuplicateNameCheck, toastSuccess, toastWithUndo, useShortcuts, useUndoRedo, useBatchDelete, useConfirm } from '@worldsmith/ui-kit'
+import { CustomDropdown, EntityFormModal, CreateButton, type FormFieldDef, useDuplicateNameCheck, useShortcuts, useBatchDelete, useConfirm } from '@worldsmith/plugin-sdk'
+import { toastSuccess, toastWithUndo, useUndoRedo } from '@worldsmith/ui-kit'
 import { useSettingsStore } from '../../../stores/settingsStore'
 import WsIcon from '../../../ui/WsIcon.vue'
 

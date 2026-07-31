@@ -228,7 +228,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
 import { useEntityStore, type Entity } from '@worldsmith/entity-core'
-import { getModelPresets, getModelInfo } from '../../../agent/modelRegistry'
+import { getModelPresets, getModelInfo } from '@worldsmith/agent-runtime'
 import { getProviderIconUrl } from '../../../assets/providerIcons'
 import { AGENT_COLORS, type BaseLayerMode, type ToolSource } from '../types'
 import type { ChatAgent } from '../types'

@@ -97,3 +97,26 @@ export type {
   AgentConfig,
   CreateAgentOptions,
 } from './factory'
+
+// ─── Orchestrator（Agent 编排框架，阶段 0） ─────────────
+// 详见 docs/agent-orchestration-roadmap.md
+export type {
+  OrchestratorState,
+  OrchestratorMessage,
+  PlanItem,
+  ReflectionResult,
+  NodeContext,
+  NodeBackendAccessor,
+  PromptCallOptions,
+  NodeResult,
+  OrchestratorNode,
+  NodeType,
+  OrchestratorEdge,
+  Orchestrator,
+  OrchestratorRunOptions,
+  OrchestratorResult,
+  OrchestratorEvent,
+} from './orchestrator'
+export {
+  DefaultOrchestrator,
+} from './orchestrator'

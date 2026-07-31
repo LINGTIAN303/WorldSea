@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="plan-panel">
     <div class="panel-header">
       <h3 class="panel-title">任务计划</h3>
@@ -96,7 +96,7 @@ import { ref, computed } from 'vue'
 import { usePlanStore } from '../../agent/composables/usePlanStore'
 import { useSpaceStore } from '../stores/space-store'
 import { useAgent } from '../../agent/composables/useAgent'
-import { calculateCost } from '../../agent/modelRegistry'
+import { calculateCost } from '@worldsmith/agent-runtime'
 import WsIcon from '../../ui/WsIcon.vue'
 
 const planStore = usePlanStore()

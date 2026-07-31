@@ -81,6 +81,7 @@ package-lock.json
 .qoder/
 .workbuddy/
 .superpowers/
+.opencode/
 
 # ── Test/debug artifacts ────────────────────────────────────────────────
 test-deep-mode-fix.png

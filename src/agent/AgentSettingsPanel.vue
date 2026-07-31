@@ -35,304 +35,52 @@
           </template>
         </div>
         <Transition name="ws-slide-up" mode="out-in">
-          <div v-if="settingsSubPanel === 'model'" key="model" class="sub-panel">
-            <template v-if="embedded">
-              <div class="settings-row">
-                <span class="sp-row-label">供应商模式</span>
-                <select v-model="settingsStore.aiProviderMode" class="settings-select" aria-label="供应商模式">
-                  <option value="cloud">云端 API</option>
-                  <option value="local">本地模型</option>
-                  <option value="custom">自定义</option>
-                </select>
-              </div>
-              <template v-if="settingsStore.aiProviderMode === 'cloud'">
-                <div class="settings-row">
-                  <span class="sp-row-label">供应商</span>
-                  <div class="provider-list">
-                    <button v-for="p in cloudProviderOptions" :key="p.value"
-                      class="provider-list-item" :class="{ active: settingsStore.aiCloudProvider === p.value }"
-                      @click="onCloudProviderChange({ target: { value: p.value } } as any)"
-                      :title="p.label"
-                    >
-                      <img :src="p.iconUrl" class="provider-list-icon" alt="" />
-                      <span class="provider-list-label">{{ p.label }}</span>
-                    </button>
-                  </div>
-                </div>
-                <div class="settings-row">
-                  <span class="sp-row-label">模型</span>
-                  <template v-if="currentProviderModels.length > 0">
-                    <select :value="settingsStore.aiCloudModel" @change="onCloudModelChange" class="settings-select">
-                      <option v-for="m in currentProviderModels" :key="m.id" :value="m.id">{{ m.name }}{{ getModelInfo(m.id)?.supportsVision ? ' (视觉)' : '' }}</option>
-                    </select>
-                  </template>
-                  <template v-else>
-                    <input type="text" class="settings-input" v-model="settingsStore.aiCloudModel" placeholder="模型 ID" />
-                  </template>
-                </div>
-                <div class="settings-row">
-                  <span class="sp-row-label">API Key</span>
-                  <input type="password" class="settings-input" v-model="cloudApiKey" placeholder="sk-..." />
-                </div>
-              </template>
-              <template v-if="settingsStore.aiProviderMode === 'local'">
-                <div class="settings-row">
-                  <span class="sp-row-label">端点 URL</span>
-                  <input type="text" class="settings-input" v-model="settingsStore.aiLocalEndpoint" placeholder="http://localhost:11434" />
-                </div>
-                <div class="settings-row">
-                  <span class="sp-row-label">API 类型</span>
-                  <select v-model="settingsStore.aiLocalType" class="settings-select" aria-label="API 类型">
-                    <option value="ollama">Ollama</option>
-                    <option value="lm-studio">LM Studio</option>
-                    <option value="vllm">vLLM</option>
-                    <option value="llama-cpp">llama.cpp</option>
-                  </select>
-                </div>
-                <div class="settings-row">
-                  <span class="sp-row-label">模型 ID</span>
-                  <input type="text" class="settings-input" v-model="settingsStore.aiLocalModel" placeholder="llama3" />
-                </div>
-              </template>
-              <template v-if="settingsStore.aiProviderMode === 'custom'">
-                <div v-if="settingsStore.customProviders.length > 0" class="settings-section">
-                  <div class="sp-section-label">已配置的自定义供应商</div>
-                  <div
-                    v-for="cp in settingsStore.customProviders"
-                    :key="cp.id"
-                    class="cp-item"
-                    :class="{ active: isCustomProviderActive(cp) }"
-                    @click="onSelectCustomProvider(cp)"
-                  >
-                    <span class="cp-name">{{ cp.name || cp.baseUrl }}</span>
-                    <span class="cp-model">{{ cp.modelId }}</span>
-                    <button class="cp-delete" @click.stop="onDeleteCustomProvider(cp.id)" title="删除"><WsIcon name="delete" size="xs" /></button>
-                  </div>
-                </div>
-                <div class="settings-row">
-                  <span class="sp-row-label">Base URL</span>
-                  <input type="text" class="settings-input" v-model="settingsStore.aiCustomBaseUrl" placeholder="https://api.example.com/v1" />
-                </div>
-                <div class="settings-row">
-                  <span class="sp-row-label">API 类型</span>
-                  <select v-model="settingsStore.aiCustomType" class="settings-select" aria-label="API 类型">
-                    <option value="openai-compatible">OpenAI 兼容</option>
-                    <option value="anthropic-compatible">Anthropic 兼容</option>
-                  </select>
-                </div>
-                <div class="settings-row">
-                  <span class="sp-row-label">模型 ID</span>
-                  <div class="cp-model-field">
-                    <select v-if="fetchedModels.length > 0" v-model="settingsStore.aiCustomModel" class="settings-select">
-                      <option value="" disabled>选择模型</option>
-                      <option v-for="m in fetchedModels" :key="m" :value="m">{{ m }}</option>
-                    </select>
-                    <input v-else type="text" class="settings-input" v-model="settingsStore.aiCustomModel" placeholder="模型 ID" />
-                    <button class="cp-fetch-btn" @click="onFetchModels" :disabled="!canFetchModels || fetchingModels" :title="fetchError || '拉取模型列表'">
-                      <WsIcon :name="fetchingModels ? 'loading' : 'refresh'" size="xs" />
-                    </button>
-                  </div>
-                </div>
-                <div v-if="fetchError" class="cp-fetch-error">{{ fetchError }}</div>
-                <div class="settings-row">
-                  <span class="sp-row-label">API Key</span>
-                  <input type="password" class="settings-input" v-model="customApiKey" placeholder="sk-..." />
-                </div>
-                <button class="cp-save-btn" @click="onSaveCustomProvider" :disabled="!settingsStore.aiCustomBaseUrl">保存当前配置</button>
-              </template>
-              <div class="settings-hint">供应商配置影响 AI 助手的后端连接，切换后下次对话生效</div>
-              <div style="border-top:1px solid var(--agent-border);margin:8px 0"></div>
-            </template>
-            <div v-if="!embedded" class="settings-section">
-              <div class="settings-label">模型切换</div>
-              <template v-if="settingsStore.aiProviderMode === 'cloud'">
-                <div class="settings-row">
-                  <template v-if="currentProviderModels.length > 0">
-                    <select :value="currentModelId" @change="onModelSelectChange" class="settings-select" aria-label="模型切换">
-                      <option v-for="m in currentProviderModels" :key="m.id" :value="m.id">{{ m.name }}{{ getModelInfo(m.id)?.supportsVision ? ' (视觉)' : '' }}</option>
-                    </select>
-                  </template>
-                  <template v-else>
-                    <input type="text" class="settings-input" :value="currentModelId" @change="onModelSelectChange" placeholder="模型 ID" />
-                  </template>
-                </div>
-                <div class="settings-hint">当前供应商: {{ currentProviderLabel }}，切换供应商请前往供应商面板</div>
-              </template>
-              <template v-else-if="settingsStore.aiProviderMode === 'local'">
-                <div class="settings-row">
-                  <input type="text" class="settings-input" v-model="settingsStore.aiLocalModel" placeholder="llama3" />
-                </div>
-                <div class="settings-hint">本地模型通过供应商面板配置端点，此处填写模型 ID</div>
-              </template>
-              <template v-else>
-                <div class="settings-row">
-                  <input type="text" class="settings-input" v-model="settingsStore.aiCustomModel" placeholder="模型 ID" />
-                </div>
-                <div class="settings-hint">自定义模型通过供应商面板配置 Base URL，此处填写模型 ID</div>
-              </template>
-            </div>
-            <div class="settings-section">
-              <div class="settings-label">温度 (Temperature)</div>
-              <div class="settings-row">
-                <input type="range" min="0" :max="maxTemperature" :value="temperature" @input="onTemperatureChange" class="settings-slider" />
-                <span class="settings-value">{{ (temperature / 100).toFixed(2) }}</span>
-              </div>
-            </div>
-            <div class="settings-section">
-              <div class="settings-label">最大输出 (Max Tokens)</div>
-              <div class="settings-row">
-                <input type="range" min="1024" :max="maxOutputTokens" step="1024" :value="maxTokens" @input="onMaxTokensChange" class="settings-slider" />
-                <span class="settings-value">{{ maxTokens }}</span>
-              </div>
-            </div>
-            <div class="settings-section">
-              <div class="settings-label">上下文长度</div>
-              <div class="settings-row">
-                <input type="range" min="4096" :max="maxContextLength" step="1024" :value="contextLength" @input="onContextLengthChange" class="settings-slider" />
-                <span class="settings-value">{{ formatTokens(contextLength) }}</span>
-              </div>
-              <div class="settings-hint">最大 {{ formatTokens(maxContextLength) }}</div>
-            </div>
-            <div class="settings-section">
-              <div class="settings-label">AI 人格预设</div>
-              <div class="settings-row">
-                <select :value="personaPreset" @change="onPersonaChange" class="settings-select">
-                  <option value="default">默认助手</option>
-                  <option value="creative">创意写手</option>
-                  <option value="analyst">严谨分析师</option>
-                  <option value="storyteller">故事叙述者</option>
-                </select>
-              </div>
-            </div>
-            <div v-if="!embedded" class="settings-section">
-              <div class="settings-label">回答模式</div>
-              <div class="chat-mode-grid">
-                <button
-                  v-for="m in chatModes"
-                  :key="m.value"
-                  type="button"
-                  class="chat-mode-card"
-                  :class="{ active: chatMode === m.value, locked: lockedChatMode !== null }"
-                  :disabled="lockedChatMode !== null"
-                  @click="onChatModeClick(m.value)"
-                >
-                  <span class="chat-mode-icon"><WsIcon :name="m.icon" size="sm" /></span>
-                  <span class="chat-mode-text">
-                    <span class="chat-mode-label">{{ m.label }}</span>
-                    <span class="chat-mode-desc">{{ m.desc }}</span>
-                  </span>
-                </button>
-              </div>
-              <div v-if="lockedChatMode !== null" class="settings-hint"><WsIcon name="lock" size="xs" /> 当前会话已锁定为「{{ chatModes?.find(m => m.value === lockedChatMode)?.label || lockedChatMode }}」模式，新建会话后可切换</div>
-              <div v-else class="settings-hint">每次发送消息时使用的回答模式，与顶栏下拉框一致</div>
-            </div>
-          </div>
-          <div v-else-if="!embedded && settingsSubPanel === 'provider'" key="provider" class="sub-panel">
-            <div class="settings-row">
-              <span class="sp-row-label">供应商模式</span>
-              <select v-model="settingsStore.aiProviderMode" class="settings-select" aria-label="供应商模式">
-                <option value="cloud">云端 API</option>
-                <option value="local">本地模型</option>
-                <option value="custom">自定义</option>
-              </select>
-            </div>
-            <template v-if="settingsStore.aiProviderMode === 'cloud'">
-              <div class="settings-row">
-                <span class="sp-row-label">供应商</span>
-                <div class="provider-list">
-                  <button v-for="p in cloudProviderOptions" :key="p.value"
-                    class="provider-list-item" :class="{ active: settingsStore.aiCloudProvider === p.value }"
-                    @click="onCloudProviderChange({ target: { value: p.value } } as any)"
-                    :title="p.label"
-                  >
-                    <img :src="p.iconUrl" class="provider-list-icon" alt="" />
-                    <span class="provider-list-label">{{ p.label }}</span>
-                  </button>
-                </div>
-              </div>
-              <div class="settings-row">
-                <span class="sp-row-label">模型</span>
-                <template v-if="currentProviderModels.length > 0">
-                  <select :value="settingsStore.aiCloudModel" @change="onCloudModelChange" class="settings-select">
-                    <option v-for="m in currentProviderModels" :key="m.id" :value="m.id">{{ m.name }}{{ getModelInfo(m.id)?.supportsVision ? ' (视觉)' : '' }}</option>
-                  </select>
-                </template>
-                <template v-else>
-                  <input type="text" class="settings-input" v-model="settingsStore.aiCloudModel" placeholder="模型 ID" />
-                </template>
-              </div>
-              <div class="settings-row">
-                <span class="sp-row-label">API Key</span>
-                <input type="password" class="settings-input" v-model="cloudApiKey" placeholder="sk-..." />
-              </div>
-            </template>
-            <template v-if="settingsStore.aiProviderMode === 'local'">
-              <div class="settings-row">
-                <span class="sp-row-label">端点 URL</span>
-                <input type="text" class="settings-input" v-model="settingsStore.aiLocalEndpoint" placeholder="http://localhost:11434" />
-              </div>
-              <div class="settings-row">
-                <span class="sp-row-label">API 类型</span>
-                <select v-model="settingsStore.aiLocalType" class="settings-select" aria-label="API 类型">
-                  <option value="ollama">Ollama</option>
-                  <option value="lm-studio">LM Studio</option>
-                  <option value="vllm">vLLM</option>
-                  <option value="llama-cpp">llama.cpp</option>
-                </select>
-              </div>
-              <div class="settings-row">
-                <span class="sp-row-label">模型 ID</span>
-                <input type="text" class="settings-input" v-model="settingsStore.aiLocalModel" placeholder="llama3" />
-              </div>
-            </template>
-            <template v-if="settingsStore.aiProviderMode === 'custom'">
-              <div v-if="settingsStore.customProviders.length > 0" class="settings-section">
-                <div class="sp-section-label">已配置的自定义供应商</div>
-                <div
-                  v-for="cp in settingsStore.customProviders"
-                  :key="cp.id"
-                  class="cp-item"
-                  :class="{ active: isCustomProviderActive(cp) }"
-                  @click="onSelectCustomProvider(cp)"
-                >
-                  <span class="cp-name">{{ cp.name || cp.baseUrl }}</span>
-                  <span class="cp-model">{{ cp.modelId }}</span>
-                  <button class="cp-delete" @click.stop="onDeleteCustomProvider(cp.id)" title="删除"><WsIcon name="delete" size="xs" /></button>
-                </div>
-              </div>
-              <div class="settings-row">
-                <span class="sp-row-label">Base URL</span>
-                <input type="text" class="settings-input" v-model="settingsStore.aiCustomBaseUrl" placeholder="https://api.example.com/v1" />
-              </div>
-              <div class="settings-row">
-                <span class="sp-row-label">API 类型</span>
-                <select v-model="settingsStore.aiCustomType" class="settings-select" aria-label="API 类型">
-                  <option value="openai-compatible">OpenAI 兼容</option>
-                  <option value="anthropic-compatible">Anthropic 兼容</option>
-                </select>
-              </div>
-              <div class="settings-row">
-                <span class="sp-row-label">模型 ID</span>
-                <div class="cp-model-field">
-                  <select v-if="fetchedModels.length > 0" v-model="settingsStore.aiCustomModel" class="settings-select">
-                    <option value="" disabled>选择模型</option>
-                    <option v-for="m in fetchedModels" :key="m" :value="m">{{ m }}</option>
-                  </select>
-                  <input v-else type="text" class="settings-input" v-model="settingsStore.aiCustomModel" placeholder="模型 ID" />
-                  <button class="cp-fetch-btn" @click="onFetchModels" :disabled="!canFetchModels || fetchingModels" :title="fetchError || '拉取模型列表'">
-                    <WsIcon :name="fetchingModels ? 'loading' : 'refresh'" size="xs" />
-                  </button>
-                </div>
-              </div>
-              <div v-if="fetchError" class="cp-fetch-error">{{ fetchError }}</div>
-              <div class="settings-row">
-                <span class="sp-row-label">API Key</span>
-                <input type="password" class="settings-input" v-model="customApiKey" placeholder="sk-..." />
-              </div>
-              <button class="cp-save-btn" @click="onSaveCustomProvider" :disabled="!settingsStore.aiCustomBaseUrl">保存当前配置</button>
-            </template>
-            <div class="settings-hint">供应商配置影响 AI 助手的后端连接，切换后下次对话生效</div>
-          </div>
+          <!-- 模型/核心面板（两种模式共用 ModelPanel，内部按 embedded 切换显示） -->
+          <ModelPanel v-if="settingsSubPanel === 'model'" key="model"
+            :embedded="embedded"
+            :current-model-id="currentModelId"
+            :temperature="temperature"
+            :max-tokens="maxTokens"
+            :context-length="contextLength"
+            :max-context-length="maxContextLength"
+            :max-output-tokens="maxOutputTokens"
+            :max-temperature="maxTemperature"
+            :persona-preset="personaPreset"
+            :chat-mode="chatMode"
+            :chat-modes="chatModes"
+            :locked-chat-mode="lockedChatMode"
+            :cloud-api-key="cloudApiKey"
+            :custom-api-key="customApiKey"
+            :fetched-models="fetchedModels"
+            :fetching-models="fetchingModels"
+            :fetch-error="fetchError"
+            :can-fetch-models="canFetchModels"
+            @update:temperature="emit('update:temperature', $event)"
+            @update:max-tokens="emit('update:maxTokens', $event)"
+            @update:context-length="emit('update:contextLength', $event)"
+            @update:persona-preset="emit('update:personaPreset', $event)"
+            @update:cloud-api-key="cloudApiKey = $event"
+            @update:custom-api-key="customApiKey = $event"
+            @model-change="(provider, modelId) => emit('model-change', provider, modelId)"
+            @chat-mode-change="(mode) => emit('chat-mode-change', mode)"
+            @provider-change="(provider, modelId) => emit('provider-change', provider, modelId)"
+            @fetch-models="onFetchModels"
+          />
+          <!-- 供应商面板（仅非 embedded） -->
+          <ProviderPanel v-else-if="!embedded && settingsSubPanel === 'provider'" key="provider"
+            :cloud-api-key="cloudApiKey"
+            :custom-api-key="customApiKey"
+            :fetched-models="fetchedModels"
+            :fetching-models="fetchingModels"
+            :fetch-error="fetchError"
+            :can-fetch-models="canFetchModels"
+            @update:cloud-api-key="cloudApiKey = $event"
+            @update:custom-api-key="customApiKey = $event"
+            @model-change="(provider, modelId) => emit('model-change', provider, modelId)"
+            @provider-change="(provider, modelId) => emit('provider-change', provider, modelId)"
+            @fetch-models="onFetchModels"
+          />
+          <!-- 安全面板（短子面板，内联） -->
           <div v-else-if="settingsSubPanel === 'safety'" key="safety" class="sub-panel">
             <div class="settings-section">
               <div class="settings-row">
@@ -342,62 +90,14 @@
               <div class="settings-hint">开启后 AI 删除实体/关系时需用户确认</div>
             </div>
           </div>
-          <div v-else-if="settingsSubPanel === 'usage'" key="usage" class="sub-panel">
-            <div class="usage-section-title">当前会话</div>
-            <div class="usage-grid">
-              <div class="usage-item">
-                <span class="usage-value">{{ totalUsage.requestCount }}</span>
-                <span class="usage-label">请求数</span>
-              </div>
-              <div class="usage-item">
-                <span class="usage-value">{{ formatTokens(totalUsage.inputTokens + totalUsage.cacheReadTokens + totalUsage.cacheWriteTokens) }}</span>
-                <span class="usage-label">输入 Token</span>
-              </div>
-              <div class="usage-item">
-                <span class="usage-value">{{ formatTokens(totalUsage.outputTokens) }}</span>
-                <span class="usage-label">输出 Token</span>
-              </div>
-              <div class="usage-item" :class="{ 'usage-cache-hit': cacheHitRate > 0 }">
-                <span class="usage-value">{{ formatTokens(totalUsage.cacheReadTokens) }}</span>
-                <span class="usage-label">缓存命中 ({{ cacheHitRate }}%)</span>
-              </div>
-              <div class="usage-item">
-                <span class="usage-value">{{ formatTokens(totalUsage.cacheWriteTokens) }}</span>
-                <span class="usage-label">缓存写入</span>
-              </div>
-              <div class="usage-item">
-                <span class="usage-value">${{ calculatedCost.total.toFixed(4) }}</span>
-                <span class="usage-label">总费用</span>
-              </div>
-              <div v-if="calculatedCost.savedByCache > 0" class="usage-item usage-saved">
-                <span class="usage-value">-${{ calculatedCost.savedByCache.toFixed(4) }}</span>
-                <span class="usage-label">缓存节省</span>
-              </div>
-            </div>
-            <div class="usage-section-title">累计 (所有会话)</div>
-            <div class="usage-grid">
-              <div class="usage-item">
-                <span class="usage-value">{{ cumulativeUsage.requestCount }}</span>
-                <span class="usage-label">请求数</span>
-              </div>
-              <div class="usage-item">
-                <span class="usage-value">{{ formatTokens(cumulativeUsage.inputTokens + cumulativeUsage.cacheReadTokens + cumulativeUsage.cacheWriteTokens) }}</span>
-                <span class="usage-label">输入 Token</span>
-              </div>
-              <div class="usage-item">
-                <span class="usage-value">{{ formatTokens(cumulativeUsage.outputTokens) }}</span>
-                <span class="usage-label">输出 Token</span>
-              </div>
-              <div class="usage-item">
-                <span class="usage-value">${{ cumulativeUsage.totalCost.toFixed(4) }}</span>
-                <span class="usage-label">总费用</span>
-              </div>
-              <div v-if="cumulativeUsage.savedByCache > 0" class="usage-item usage-saved">
-                <span class="usage-value">-${{ cumulativeUsage.savedByCache.toFixed(4) }}</span>
-                <span class="usage-label">缓存节省</span>
-              </div>
-            </div>
-          </div>
+          <!-- 用量面板 -->
+          <UsagePanel v-else-if="settingsSubPanel === 'usage'" key="usage"
+            :total-usage="totalUsage"
+            :calculated-cost="calculatedCost"
+            :cumulative-usage="cumulativeUsage"
+            :cache-hit-rate="cacheHitRate"
+          />
+          <!-- 搜索面板（短子面板，内联） -->
           <div v-else-if="settingsSubPanel === 'search'" key="search" class="sub-panel">
             <div class="settings-row">
               <select :value="searchEngine" @change="onSearchEngineChange" class="settings-select">
@@ -417,91 +117,9 @@
             </div>
             <div class="settings-hint">web_search 需配置 Key；web_fetch（阅读网页）无需 Key，直接可用</div>
           </div>
-          <div v-else-if="settingsSubPanel === 'vision'" key="vision" class="sub-panel">
-            <div class="settings-section">
-              <div class="settings-label">视觉分析</div>
-              <div class="settings-hint">当主模型不支持图片理解时，Agent 会自动调用 vision_analyze 工具，通过视觉模型分析图片并将结果传回主模型</div>
-              <div class="settings-row">
-                <span class="settings-key">供应商</span>
-                <select :value="settingsStore.visionSubAgentProvider" @change="onVisionProviderChange" class="settings-select">
-                  <option value="">自动选择</option>
-                  <option v-for="p in visionProviders" :key="p" :value="p">{{ visionProviderLabels[p] || p }}</option>
-                </select>
-              </div>
-              <div class="settings-row">
-                <span class="settings-key">视觉模型</span>
-                <template v-if="visionSubAgentModels.length > 0">
-                  <select :value="settingsStore.visionSubAgentModel" @change="onVisionModelChange" class="settings-select">
-                    <option v-for="m in visionSubAgentModels" :key="m.id" :value="m.id">{{ m.name }}</option>
-                  </select>
-                </template>
-                <template v-else>
-                  <input type="text" class="settings-input" v-model="settingsStore.visionSubAgentModel" placeholder="视觉模型 ID" />
-                </template>
-              </div>
-              <div class="settings-hint" v-if="!currentModelSupportsVision">当前主模型不支持视觉，发送图片时 Agent 将通过 vision_analyze 工具调用视觉模型分析</div>
-              <div class="settings-hint" v-else>当前主模型已支持视觉，可直接识图；也可通过 vision_analyze 工具获取更详细的分析</div>
-            </div>
-            <div style="border-top:1px solid var(--agent-border);margin:8px 0"></div>
-            <div class="settings-section">
-              <div class="settings-label">图像生成</div>
-              <div class="settings-hint">Agent 可通过 image_generate 工具生成图片</div>
-              <div class="settings-row">
-                <span class="settings-key">供应商</span>
-                <select :value="imageGenProvider" @change="onImageGenProviderChange" class="settings-select">
-                  <option value="">未配置</option>
-                  <option v-for="p in imageGenProviders" :key="p.value" :value="p.value">{{ p.label }}</option>
-                </select>
-              </div>
-              <div class="settings-row">
-                <span class="settings-key">模型 ID</span>
-                <template v-if="imageGenModelOptions.length > 0">
-                  <select :value="imageGenModel" @change="onImageGenModelChange" class="settings-select">
-                    <option v-for="m in imageGenModelOptions" :key="m.value" :value="m.value">{{ m.label }}</option>
-                  </select>
-                </template>
-                <template v-else>
-                  <input type="text" class="settings-input" v-model="imageGenModel" placeholder="如 dall-e-3" />
-                </template>
-              </div>
-              <div class="settings-row" v-if="imageGenProvider === 'custom'">
-                <span class="settings-key">供应商</span>
-                <select :value="imageGenCustomProviderId" @change="onImageGenCustomProviderChange" class="settings-select">
-                  <option value="">选择自定义供应商</option>
-                  <option v-for="cp in settingsStore.customProviders" :key="cp.id" :value="cp.id">{{ cp.name || cp.baseUrl }}</option>
-                </select>
-              </div>
-              <div class="settings-hint" v-if="imageGenProvider">API Key 自动复用上方已配置的密钥</div>
-              <div class="settings-hint" v-if="imageGenProvider">已配置 {{ imageGenProviders.find(p => p.value === (imageGenProvider === 'custom' ? `custom:${imageGenCustomProviderId}` : imageGenProvider))?.label || imageGenProvider }} 图像生成</div>
-              <div class="settings-hint" v-else>未配置图像生成，image_generate 工具将不可用</div>
-            </div>
-            <div style="border-top:1px solid var(--agent-border);margin:8px 0"></div>
-            <div class="settings-section">
-              <div class="settings-label">视频生成</div>
-              <div class="settings-hint">Agent 可通过 video_generate 工具生成视频（异步模式）</div>
-              <div class="settings-row">
-                <span class="settings-key">供应商</span>
-                <select :value="videoGenProvider" @change="onVideoGenProviderChange" class="settings-select">
-                  <option value="">未配置</option>
-                  <option v-for="p in videoGenProviders" :key="p.value" :value="p.value">{{ p.label }}</option>
-                </select>
-              </div>
-              <div class="settings-row">
-                <span class="settings-key">模型 ID</span>
-                <template v-if="videoGenModelOptions.length > 0">
-                  <select :value="videoGenModel" @change="onVideoGenModelChange" class="settings-select">
-                    <option v-for="m in videoGenModelOptions" :key="m.value" :value="m.value">{{ m.label }}</option>
-                  </select>
-                </template>
-                <template v-else>
-                  <input type="text" class="settings-input" v-model="videoGenModel" placeholder="如 agnes-video-v2.0" />
-                </template>
-              </div>
-              <div class="settings-hint" v-if="videoGenProvider">API Key 自动复用上方已配置的密钥</div>
-              <div class="settings-hint" v-if="videoGenProvider">已配置 {{ videoGenProviders.find(p => p.value === videoGenProvider)?.label }} 视频生成</div>
-              <div class="settings-hint" v-else>未配置视频生成，video_generate 工具将不可用</div>
-            </div>
-          </div>
+          <!-- 多模态面板 -->
+          <VisionPanel v-else-if="settingsSubPanel === 'vision'" key="vision" />
+          <!-- Skills 面板（短子面板，内联） -->
           <div v-else-if="settingsSubPanel === 'skills'" key="skills" class="sub-panel">
             <div class="skills-list">
               <div v-for="skill in skills" :key="skill.id" class="skill-item" :class="{ disabled: !skill.enabled }">
@@ -517,163 +135,17 @@
             </div>
             <SkillsStorePanel @skills-changed="emit('skills-changed')" />
           </div>
-          <div v-else-if="settingsSubPanel === 'mcp'" key="mcp" class="sub-panel">
-            <div class="mcp-list">
-              <div v-for="conn in mcpConnections" :key="conn.id" class="mcp-item" :class="{ disabled: !conn.config.enabled }">
-                <span class="mcp-status"><WsIcon :name="conn.status === 'connected' ? 'check' : conn.status === 'connecting' ? 'timeline' : conn.status === 'error' ? 'close' : 'grip'" size="xs" /></span>
-                <div class="mcp-info">
-                  <span class="mcp-name">{{ conn.config.name }}</span>
-                  <span class="mcp-desc">{{ conn.config.transport === 'stdio' ? conn.config.command : conn.config.url }}</span>
-                </div>
-                <button class="mcp-delete-btn" @click="emit('remove-mcp', conn.id)" title="删除"><WsIcon name="delete" size="xs" /></button>
-                <button class="skill-toggle" @click="emit('toggle-mcp', conn.id)" :title="conn.config.enabled ? '点击禁用' : '点击启用'">
-                  <WsIcon :name="conn.config.enabled ? 'check' : 'close'" size="xs" />
-                </button>
-              </div>
-            </div>
-            <div v-if="mcpAdding" class="mcp-add-form">
-              <div class="settings-row">
-                <span class="sp-row-label">名称</span>
-                <input type="text" class="settings-input" v-model="mcpForm.name" placeholder="My MCP Server" aria-label="名称" />
-              </div>
-              <div class="settings-row">
-                <span class="sp-row-label">传输</span>
-                <select class="settings-select" v-model="mcpForm.transport">
-                  <option value="streamable-http">HTTP/SSE</option>
-                  <option value="stdio">stdio</option>
-                </select>
-              </div>
-              <div v-if="mcpForm.transport !== 'stdio'" class="settings-row">
-                <span class="sp-row-label">URL</span>
-                <input type="text" class="settings-input" v-model="mcpForm.url" placeholder="http://localhost:3000/mcp" />
-              </div>
-              <template v-else>
-                <div class="settings-row">
-                  <span class="sp-row-label">Command</span>
-                  <input type="text" class="settings-input" v-model="mcpForm.command" placeholder="npx" />
-                </div>
-                <div class="settings-row">
-                  <span class="sp-row-label">Args</span>
-                  <input type="text" class="settings-input" v-model="mcpForm.argsStr" placeholder="-y @mcp/server-filesystem /tmp" />
-                </div>
-              </template>
-              <div class="mcp-add-actions">
-                <button class="sub-panel-btn" @click="emit('add-mcp', mcpFormData)">确认</button>
-                <button class="sub-panel-btn" @click="mcpAdding = false">取消</button>
-              </div>
-            </div>
-            <button v-else class="sub-panel-btn" @click="mcpAdding = true" style="width:100%">+ 手动添加</button>
-            <div class="mcp-presets">
-              <div class="mcp-presets-title">官方预设</div>
-              <div class="mcp-presets-grid">
-                <button v-for="(preset, idx) in MCP_PRESETS" :key="preset.name"
-                  class="preset-btn" :class="{ added: mcpPresetAdded[idx] }"
-                  @click="addPreset(preset)" :disabled="mcpPresetAdded[idx]">
-                  <span class="preset-name">{{ preset.name }}</span>
-                  <span class="preset-desc">{{ preset.desc }}</span>
-                </button>
-              </div>
-            </div>
-            <div class="settings-hint">MCP 服务扩展 AI 助手的外部工具能力</div>
-          </div>
-
-          <div v-else-if="settingsSubPanel === 'terminal'" key="terminal" class="sub-panel">
-            <!-- CLI Agent 连接配置 -->
-            <div class="settings-section">
-              <div class="settings-label">CLI Agent 连接</div>
-              <div class="settings-row terminal-mode-display">
-                <span class="mode-indicator" :class="cliAgent.connected ? 'mode-tauri' : 'mode-web'">
-                  <WsIcon :name="cliAgent.connected ? 'check-circle' : 'circle'" size="sm" />
-                  {{ cliAgent.connected ? '已连接' : '未连接' }}
-                </span>
-                <span v-if="cliAgent.connected && cliAgent.capabilities" class="settings-hint" style="margin-left: 8px">
-                  {{ cliAgent.capabilities.toolCount }} 工具可用
-                </span>
-              </div>
-              <div class="settings-hint">
-                {{ cliAgent.connected
-                  ? `已连接到 CLI Agent (${cliAgent.status.url})，本地能力已激活`
-                  : '连接 CLI Agent 以启用本地能力（Shell、Git、文件操作、Lint/Test/Build 等）'
-                }}
-              </div>
-            </div>
-
-            <div class="settings-section">
-              <div class="settings-label">服务地址</div>
-              <div class="settings-row">
-                <input
-                  type="text"
-                  class="settings-input"
-                  :value="cliAgent.cliUrl"
-                  @change="onCliUrlChange"
-                  placeholder="http://localhost:3100"
-                  aria-label="CLI Agent 服务地址"
-                />
-              </div>
-              <div class="settings-hint">CLI Agent Server 地址（worldsmith serve 启动）</div>
-            </div>
-
-            <div class="settings-section">
-              <div class="settings-row" style="gap: 8px">
-                <button class="settings-btn" :disabled="cliAgent.connecting" @click="onCliAgentConnect">
-                  {{ cliAgent.connecting ? '连接中...' : (cliAgent.connected ? '重新连接' : '连接') }}
-                </button>
-                <button v-if="cliAgent.connected" class="settings-btn settings-btn-secondary" @click="cliAgent.disconnect()">
-                  断开
-                </button>
-              </div>
-              <div v-if="cliAgent.error" class="settings-hint" style="color: #e74c3c">{{ cliAgent.error }}</div>
-            </div>
-
-            <!-- 连接成功后显示能力分类 -->
-            <div v-if="cliAgent.connected && cliAgent.capabilities" class="settings-section">
-              <div class="settings-label">可用能力</div>
-              <div class="cli-capabilities-grid">
-                <div v-for="(tools, category) in cliAgent.capabilities.categories" :key="category" class="cli-cap-category">
-                  <div class="cli-cap-category-name">{{ getCategoryLabel(category as string) }}</div>
-                  <div class="cli-cap-tool-count">{{ (tools as string[]).length }} 工具</div>
-                </div>
-              </div>
-            </div>
-
-            <!-- 原有终端配置（兼容） -->
-            <div class="settings-section">
-              <div class="settings-label">运行模式</div>
-              <div class="settings-row terminal-mode-display">
-                <span class="mode-indicator" :class="isTauriMode ? 'mode-tauri' : 'mode-web'">
-                  <WsIcon :name="isTauriMode ? 'keyboard' : 'globe'" size="sm" /> {{ isTauriMode ? 'Tauri 桌面模式' : 'Web 应用模式' }}
-                </span>
-              </div>
-              <div class="settings-hint">
-                {{ isTauriMode
-                  ? '当前通过 Tauri 原生 PTY 调用本地终端，无需额外服务'
-                  : '当前通过 WebSocket 连接 worldsmith-server 调用终端，需启动后端服务'
-                }}
-              </div>
-            </div>
-            <div v-if="!isTauriMode" class="settings-section">
-              <div class="settings-label">WebSocket 服务地址</div>
-              <div class="settings-row">
-                <input
-                  type="text"
-                  class="settings-input"
-                  :value="wsServerUrl"
-                  @change="onWsUrlChange"
-                  placeholder="ws://localhost:3100"
-                  aria-label="WebSocket 服务地址"
-                />
-              </div>
-              <div class="settings-hint">修改后需重新打开终端生效</div>
-            </div>
-            <div class="settings-section">
-              <div class="settings-row">
-                <button class="settings-btn" :disabled="terminalConnecting" @click="onOpenTerminal">
-                  {{ terminalConnecting ? '连接中...' : (isTauriMode ? '打开本地终端' : '打开远程终端') }}
-                </button>
-              </div>
-              <div v-if="terminalConnectError" class="settings-hint" style="color: #e74c3c">{{ terminalConnectError }}</div>
-            </div>
-          </div>
+          <!-- MCP 面板 -->
+          <McpPanel v-else-if="settingsSubPanel === 'mcp'" key="mcp"
+            :mcp-connections="mcpConnections"
+            @toggle-mcp="(serverId) => emit('toggle-mcp', serverId)"
+            @add-mcp="(config) => emit('add-mcp', config)"
+            @remove-mcp="(serverId) => emit('remove-mcp', serverId)"
+          />
+          <!-- 终端面板 -->
+          <TerminalPanel v-else-if="settingsSubPanel === 'terminal'" key="terminal"
+            @open-terminal="emit('open-terminal')"
+          />
         </Transition>
       </div>
     </div>
@@ -681,100 +153,29 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, nextTick, reactive } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import WsIcon from '../ui/WsIcon.vue'
 import { usePanelDrag } from './composables/usePanelDrag'
 import { useSettingsStore } from '../stores/settingsStore'
 import { loadApiKey, storeApiKey, removeApiKey } from '@agent/index'
-import type { MCPConnectionConfig } from '@agent/index'
-import { getModelsByProvider, getDefaultModelId, getModelInfo, modelSupportsVision, getVisionModels } from './modelRegistry'
-import { isTauri as detectTauri, getWsUrl, resetExecutionAdapter, createExecutionAdapter } from '@agent/execution'
-import { getProviderIconUrl } from '../assets/providerIcons'
-import { getAllProviderManifests, getProviderLabelMap } from '@agent/providers/provider-registry'
-import { useCliAgent } from './composables/useCliAgent'
+import { isTauri as detectTauri } from '@agent/execution'
 import SkillsStorePanel from './SkillsStorePanel.vue'
+// 拆分出的子面板
+import ModelPanel from './panels/ModelPanel.vue'
+import ProviderPanel from './panels/ProviderPanel.vue'
+import UsagePanel from './panels/UsagePanel.vue'
+import VisionPanel from './panels/VisionPanel.vue'
+import McpPanel from './panels/McpPanel.vue'
+import TerminalPanel from './panels/TerminalPanel.vue'
 
 const settingsStore = useSettingsStore()
 
+// 运行模式（按钮栏 mode-badge 用）
 const isTauriMode = computed(() => detectTauri())
-const wsServerUrl = ref(getWsUrl())
-const terminalConnecting = ref(false)
-const terminalConnectError = ref('')
 
-// CLI Agent 连接
-const cliAgent = reactive(useCliAgent())
-
-function getCategoryLabel(category: string): string {
-  const labels: Record<string, string> = {
-    shell: 'Shell 终端',
-    git: 'Git 版本控制',
-    file: '文件操作',
-    project: '项目命令',
-    system: '系统信息',
-  }
-  return labels[category] || category
-}
-
-async function onCliAgentConnect() {
-  await cliAgent.connect()
-}
-
-function onCliUrlChange(e: Event) {
-  const input = e.target as HTMLInputElement
-  cliAgent.updateUrl(input.value)
-}
-
-async function checkTerminalConnection(): Promise<boolean> {
-  const adapter = await createExecutionAdapter()
-  if (adapter.isAvailable()) return true
-  terminalConnecting.value = true
-  terminalConnectError.value = ''
-  try {
-    const connected = await adapter.tryConnect()
-    if (connected) return true
-
-    if (!detectTauri()) {
-      try {
-        const resp = await fetch('/api/launch-server', { method: 'POST' })
-        const data = await resp.json()
-        if (data.ok) {
-          await new Promise(r => setTimeout(r, 1000))
-          resetExecutionAdapter()
-          const newAdapter = await createExecutionAdapter()
-          const reconnected = await newAdapter.tryConnect()
-          if (reconnected) return true
-        }
-      } catch {}
-    }
-
-    terminalConnectError.value = '连接失败，请确认 worldsmith-server 已启动'
-    return false
-  } catch (err) {
-    terminalConnectError.value = err instanceof Error ? err.message : '连接出错'
-    return false
-  } finally {
-    terminalConnecting.value = false
-  }
-}
-
-async function onOpenTerminal(): Promise<void> {
-  const connected = await checkTerminalConnection()
-  if (connected) {
-    emit('open-terminal')
-  }
-}
-
-function onWsUrlChange(e: Event): void {
-  const input = e.target as HTMLInputElement
-  const url = input.value.trim()
-  wsServerUrl.value = url
-  try {
-    localStorage.setItem('ws_server_url', url)
-  } catch {}
-  resetExecutionAdapter()
-  terminalConnectError.value = ''
-}
-
+// ── cloudApiKey / customApiKey 共享状态 ──
+// 保留在父组件，因为 onMounted/watch 中有 storeApiKey/removeApiKey 副作用，
+// 通过 v-model 传递给 ModelPanel 和 ProviderPanel
 const cloudApiKey = ref('')
 const customApiKey = ref('')
 let skipCustomKeyEmit = false
@@ -797,6 +198,7 @@ watch(cloudApiKey, async (v) => {
   }
   emit('api-key-change', settingsStore.aiCloudProvider, v)
 })
+
 watch(customApiKey, async (v) => {
   if (v) {
     await storeApiKey(customKeyStoreId.value, v)
@@ -822,51 +224,7 @@ watch(customKeyStoreId, async (newId, oldId) => {
   skipCustomKeyEmit = false
 })
 
-function isCustomProviderActive(cp: { baseUrl: string; apiType: string; modelId: string }): boolean {
-  return cp.baseUrl === settingsStore.aiCustomBaseUrl
-    && cp.apiType === settingsStore.aiCustomType
-    && cp.modelId === settingsStore.aiCustomModel
-}
-
-async function onSelectCustomProvider(cp: { baseUrl: string; apiType: string; modelId: string }): Promise<void> {
-  settingsStore.aiCustomBaseUrl = cp.baseUrl
-  settingsStore.aiCustomType = cp.apiType
-  settingsStore.aiCustomModel = cp.modelId
-  emit('provider-change', cp.apiType, cp.modelId)
-}
-
-function onDeleteCustomProvider(id: string): void {
-  settingsStore.removeCustomProvider(id)
-}
-
-async function onSaveCustomProvider(): Promise<void> {
-  const baseUrl = settingsStore.aiCustomBaseUrl
-  if (!baseUrl) return
-  const existing = settingsStore.customProviders.find(
-    cp => cp.baseUrl === baseUrl && cp.apiType === settingsStore.aiCustomType
-  )
-  if (existing) {
-    existing.modelId = settingsStore.aiCustomModel
-    existing.name = deriveCustomProviderName(baseUrl)
-  } else {
-    settingsStore.addCustomProvider({
-      name: deriveCustomProviderName(baseUrl),
-      baseUrl,
-      apiType: settingsStore.aiCustomType,
-      modelId: settingsStore.aiCustomModel,
-    })
-  }
-}
-
-function deriveCustomProviderName(baseUrl: string): string {
-  try {
-    const url = new URL(baseUrl)
-    return url.hostname.replace(/^(api\.|www\.)/, '')
-  } catch {
-    return baseUrl
-  }
-}
-
+// ── 自定义供应商模型拉取（网络请求保留在父组件） ──
 const fetchedModels = ref<string[]>([])
 const fetchingModels = ref(false)
 const fetchError = ref('')
@@ -952,7 +310,7 @@ const props = withDefaults(defineProps<{
   thinkingLevel: string
   thinkingLevels: Array<{ value: string; label: string; desc: string }>
   chatMode: string
-  chatModes: Array<{ value: string; icon: string; label: string; desc: string }>
+  chatModes: ReadonlyArray<{ value: string; icon: string; label: string; desc: string }>
   lockedChatMode: string | null
   totalUsage: { requestCount: number; inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number; totalCost: number; savedByCache: number }
   calculatedCost: { inputCost: number; outputCost: number; cacheReadCost: number; cacheWriteCost: number; total: number; savedByCache: number }
@@ -991,310 +349,10 @@ const emit = defineEmits<{
   'provider-change': [provider: string, modelId: string]
 }>()
 
+// 当前展开的子面板
 const settingsSubPanel = ref('')
 
-const currentProviderModels = computed(() => getModelsByProvider(settingsStore.aiCloudProvider))
-
-const cloudProviderOptions = computed(() =>
-  getAllProviderManifests().map(m => ({
-    value: m.id,
-    label: m.label,
-    iconUrl: getProviderIconUrl(m.id),
-  }))
-)
-
-function onCloudProviderChange(e: Event): void {
-  const provider = (e.target as HTMLSelectElement).value
-  settingsStore.aiCloudProvider = provider
-  const defaultModelId = getDefaultModelId(provider)
-  if (defaultModelId) {
-    settingsStore.aiCloudModel = defaultModelId
-    emit('provider-change', provider, defaultModelId)
-  }
-}
-
-function onCloudModelChange(e: Event): void {
-  const modelId = (e.target as HTMLSelectElement).value
-  settingsStore.aiCloudModel = modelId
-  emit('model-change', settingsStore.aiCloudProvider, modelId)
-}
-
-const visionProviders = computed(() => {
-  const providers = new Set<string>()
-  for (const m of getVisionModels()) {
-    providers.add(m.provider)
-  }
-  return Array.from(providers)
-})
-
-const visionProviderLabels: Record<string, string> = getProviderLabelMap()
-
-const visionSubAgentModels = computed(() => {
-  const provider = settingsStore.visionSubAgentProvider
-  if (!provider) return getVisionModels().map(m => ({ id: m.id, name: m.name }))
-  return getModelsByProvider(provider).filter(m => {
-    const info = getModelInfo(m.id)
-    return info?.supportsVision ?? false
-  })
-})
-
-const currentModelSupportsVision = computed(() => modelSupportsVision(settingsStore.aiCloudModel))
-
-function onVisionProviderChange(e: Event): void {
-  const provider = (e.target as HTMLSelectElement).value
-  settingsStore.visionSubAgentProvider = provider
-  if (provider) {
-    const visionModels = getModelsByProvider(provider).filter(m => {
-      const info = getModelInfo(m.id)
-      return info?.supportsVision ?? false
-    })
-    if (visionModels.length > 0) {
-      settingsStore.visionSubAgentModel = visionModels[0].id
-    }
-  } else {
-    const allVision = getVisionModels()
-    settingsStore.visionSubAgentModel = allVision.length > 0 ? allVision[0].id : ''
-  }
-}
-
-function onVisionModelChange(e: Event): void {
-  const modelId = (e.target as HTMLSelectElement).value
-  settingsStore.visionSubAgentModel = modelId
-}
-
-const imageGenProvider = ref(localStorage.getItem('worldsmith_image_gen_provider') || '')
-const imageGenModel = ref(localStorage.getItem('worldsmith_image_gen_model') || '')
-const imageGenBaseUrl = ref(localStorage.getItem('worldsmith_image_gen_base_url') || '')
-const imageGenCustomProviderId = ref('')
-
-// 初始化：如果 provider 是 custom，尝试从 baseUrl 匹配自定义供应商 ID
-if (imageGenProvider.value === 'custom' && imageGenBaseUrl.value) {
-  const matched = settingsStore.customProviders.find(cp => cp.baseUrl === imageGenBaseUrl.value)
-  if (matched) imageGenCustomProviderId.value = matched.id
-}
-
-watch(imageGenProvider, v => localStorage.setItem('worldsmith_image_gen_provider', v))
-watch(imageGenModel, v => localStorage.setItem('worldsmith_image_gen_model', v))
-watch(imageGenBaseUrl, v => localStorage.setItem('worldsmith_image_gen_base_url', v))
-
-const imageGenProviders = computed(() => {
-  const builtIn = [
-    { value: 'openai', label: 'OpenAI (DALL-E)' },
-    { value: 'openrouter', label: 'OpenRouter' },
-    { value: 'agnes', label: 'Agnes AI' },
-    { value: 'stepfun', label: 'StepFun' },
-  ]
-  const custom = settingsStore.customProviders.map(cp => ({
-    value: `custom:${cp.id}`,
-    label: `自定义: ${cp.name || cp.baseUrl}`,
-  }))
-  return [...builtIn, ...custom]
-})
-
-const imageGenModelOptions = computed(() => {
-  const provider = imageGenProvider.value
-  if (provider === 'openai') {
-    return [
-      { value: 'dall-e-3', label: 'DALL-E 3' },
-      { value: 'gpt-image-1', label: 'GPT Image 1' },
-    ]
-  }
-  if (provider === 'openrouter') {
-    return getModelsByProvider('openrouter')
-      .filter(m => {
-        const id = m.id.toLowerCase()
-        return id.includes('dall-e') || id.includes('image') || id.includes('flux') || id.includes('stable-diffusion') || id.includes('sdxl')
-      })
-      .map(m => ({ value: m.id, label: m.name }))
-  }
-  if (provider === 'agnes') {
-    return [
-      { value: 'agnes-image-2.1-flash', label: 'Agnes Image 2.1 Flash' },
-      { value: 'agnes-image-2.0-flash', label: 'Agnes Image 2.0 Flash' },
-    ]
-  }
-  if (provider === 'stepfun') {
-    return [
-      { value: 'step-image-edit-2', label: 'Step Image Edit 2' },
-      { value: 'step-2x-large', label: 'Step 2X Large' },
-      { value: 'step-1x-medium', label: 'Step 1X Medium' },
-    ]
-  }
-  return []
-})
-
-function onImageGenProviderChange(e: Event): void {
-  const value = (e.target as HTMLSelectElement).value
-  if (value.startsWith('custom:')) {
-    imageGenProvider.value = 'custom'
-    const cpId = value.slice(7)
-    imageGenCustomProviderId.value = cpId
-    const cp = settingsStore.customProviders.find(p => p.id === cpId)
-    if (cp) {
-      imageGenBaseUrl.value = cp.baseUrl
-      imageGenModel.value = cp.modelId
-    }
-  } else {
-    imageGenProvider.value = value
-    imageGenCustomProviderId.value = ''
-    imageGenBaseUrl.value = ''
-    if (value === 'openai') {
-      imageGenModel.value = 'dall-e-3'
-    } else if (value === 'openrouter' || value === 'stepfun') {
-      const models = imageGenModelOptions.value
-      imageGenModel.value = models.length > 0 ? models[0].value : ''
-    } else {
-      imageGenModel.value = ''
-    }
-  }
-}
-
-function onImageGenCustomProviderChange(e: Event): void {
-  const cpId = (e.target as HTMLSelectElement).value
-  imageGenCustomProviderId.value = cpId
-  const cp = settingsStore.customProviders.find(p => p.id === cpId)
-  if (cp) {
-    imageGenBaseUrl.value = cp.baseUrl
-    imageGenModel.value = cp.modelId
-  }
-}
-
-function onImageGenModelChange(e: Event): void {
-  imageGenModel.value = (e.target as HTMLSelectElement).value
-}
-
-// ── 视频生成配置 ──
-const videoGenProvider = ref(localStorage.getItem('worldsmith_video_gen_provider') || '')
-const videoGenModel = ref(localStorage.getItem('worldsmith_video_gen_model') || '')
-
-watch(videoGenProvider, v => localStorage.setItem('worldsmith_video_gen_provider', v))
-watch(videoGenModel, v => localStorage.setItem('worldsmith_video_gen_model', v))
-
-const videoGenProviders = [
-  { value: 'agnes', label: 'Agnes AI' },
-  { value: 'minimax', label: 'MiniMax (海螺)' },
-  { value: 'zhipu', label: '智谱 (CogVideoX)' },
-  { value: 'qwen', label: '阿里 (Wan)' },
-  { value: 'bytedance', label: '字节 (Seedance)' },
-  { value: 'kling', label: '快手 (可灵)' },
-]
-
-const videoGenModelOptions = computed(() => {
-  const provider = videoGenProvider.value
-  if (provider === 'agnes') {
-    return [
-      { value: 'agnes-video-v2.0', label: 'Agnes Video V2.0' },
-    ]
-  }
-  if (provider === 'minimax') {
-    return [
-      { value: 'MiniMax-Hailuo-02', label: 'Hailuo 02' },
-      { value: 'T2V-01-Director', label: 'T2V-01 导演版' },
-      { value: 'I2V-01-Director', label: 'I2V-01 导演版' },
-      { value: 'T2V-01', label: 'T2V-01' },
-      { value: 'I2V-01', label: 'I2V-01' },
-    ]
-  }
-  if (provider === 'zhipu') {
-    return [
-      { value: 'cogvideox-2', label: 'CogVideoX-2' },
-      { value: 'cogvideox', label: 'CogVideoX' },
-    ]
-  }
-  if (provider === 'qwen') {
-    return [
-      { value: 'wan2.7-t2v-2026-04-25', label: 'Wan2.7 文生视频' },
-      { value: 'wan2.7-i2v', label: 'Wan2.7 图生视频' },
-      { value: 'wan2.2-i2v-flash', label: 'Wan2.2 Flash' },
-    ]
-  }
-  if (provider === 'bytedance') {
-    return [
-      { value: 'doubao-seedance-2.0', label: 'Seedance 2.0' },
-    ]
-  }
-  if (provider === 'kling') {
-    return [
-      { value: 'kling-v3', label: 'Kling V3' },
-      { value: 'kling-v2.6', label: 'Kling V2.6' },
-    ]
-  }
-  return []
-})
-
-function onVideoGenProviderChange(e: Event): void {
-  const provider = (e.target as HTMLSelectElement).value
-  videoGenProvider.value = provider
-  const defaults: Record<string, string> = {
-    agnes: 'agnes-video-v2.0',
-    minimax: 'MiniMax-Hailuo-02',
-    zhipu: 'cogvideox-2',
-    qwen: 'wan2.7-t2v-2026-04-25',
-    bytedance: 'doubao-seedance-2.0',
-    kling: 'kling-v3',
-  }
-  videoGenModel.value = defaults[provider] || ''
-}
-
-function onVideoGenModelChange(e: Event): void {
-  videoGenModel.value = (e.target as HTMLSelectElement).value
-}
-
-const mcpAdding = ref(false)
-const mcpForm = ref({
-  name: '',
-  transport: 'streamable-http' as 'streamable-http' | 'stdio',
-  url: '',
-  command: '',
-  argsStr: '',
-})
-
-const MCP_PRESETS = [
-  { id: 'firecrawl-keyless', name: 'Firecrawl Keyless', transport: 'streamable-http' as const, url: 'https://mcp.firecrawl.dev/v2/mcp', argsStr: '', desc: '免 Key 网页搜索/抓取/爬取（每月 1000 credits）' },
-  { name: 'Filesystem', transport: 'stdio' as const, command: 'npx', argsStr: '-y @modelcontextprotocol/server-filesystem C:\\Users', desc: '安全文件操作' },
-  { name: 'Git', transport: 'stdio' as const, command: 'uvx', argsStr: 'mcp-server-git', desc: 'Git 仓库操作' },
-  { name: 'Fetch', transport: 'stdio' as const, command: 'npx', argsStr: '-y @modelcontextprotocol/server-fetch', desc: '网页内容抓取' },
-  { name: 'Memory', transport: 'stdio' as const, command: 'npx', argsStr: '-y @modelcontextprotocol/server-memory', desc: '知识图谱持久记忆' },
-  { name: 'Sequential Thinking', transport: 'stdio' as const, command: 'npx', argsStr: '-y @modelcontextprotocol/server-sequentialthinking', desc: '动态反思推理' },
-  { name: 'Time', transport: 'stdio' as const, command: 'npx', argsStr: '-y @modelcontextprotocol/server-time', desc: '时间与时区转换' },
-  { name: 'Brave Search', transport: 'stdio' as const, command: 'npx', argsStr: '-y @brave/brave-search-mcp-server', desc: 'Brave 搜索引擎' },
-  { name: 'SQLite', transport: 'stdio' as const, command: 'uvx', argsStr: 'mcp-server-sqlite', desc: 'SQLite 数据库' },
-  { name: 'Puppeteer', transport: 'stdio' as const, command: 'npx', argsStr: '-y @modelcontextprotocol/server-puppeteer', desc: '浏览器自动化' },
-]
-
-const mcpPresetAdded = computed(() => {
-  const ids = new Set(props.mcpConnections.map(c => c.config.id))
-  const names = new Set(props.mcpConnections.map(c => c.config.name))
-  return MCP_PRESETS.map(p => (p.id ? ids.has(p.id) : names.has(p.name)))
-})
-
-function addPreset(preset: typeof MCP_PRESETS[number]): void {
-  const id = preset.id || `mcp-preset-${preset.name.toLowerCase().replace(/\s+/g, '-')}`
-  const config: MCPConnectionConfig = {
-    id,
-    name: preset.name,
-    transport: preset.transport,
-    enabled: true,
-  }
-  if (preset.transport === 'stdio') {
-    config.command = preset.command
-    config.args = preset.argsStr.split(/\s+/).filter(Boolean)
-  } else {
-    config.url = preset.url
-  }
-  emit('add-mcp', config)
-}
-
-const mcpFormData = computed(() => ({
-  id: `mcp-${Date.now()}`,
-  name: mcpForm.value.name,
-  transport: mcpForm.value.transport,
-  url: mcpForm.value.transport !== 'stdio' ? mcpForm.value.url : undefined,
-  command: mcpForm.value.transport === 'stdio' ? mcpForm.value.command : undefined,
-  args: mcpForm.value.transport === 'stdio' ? mcpForm.value.argsStr.split(/\s+/).filter(Boolean) : undefined,
-  enabled: true,
-}))
-
+// ── 面板拖拽（仅非 embedded 模式） ──
 const posX = computed({
   get: () => props.position.x,
   set: () => {},
@@ -1317,42 +375,7 @@ const panelStyle = computed(() => {
   return { left: `${props.position.x}px`, bottom: `${props.position.y}px` }
 })
 
-function formatTokens(n: number): string {
-  if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M'
-  if (n >= 1000) return (n / 1000).toFixed(1) + 'K'
-  return String(n)
-}
-
-const currentProviderLabel = computed(() => {
-  const labels = getProviderLabelMap()
-  return labels[settingsStore.aiCloudProvider] || settingsStore.aiCloudProvider
-})
-
-function onModelSelectChange(e: Event): void {
-  const modelId = (e.target as HTMLSelectElement).value
-  emit('model-change', settingsStore.aiCloudProvider, modelId)
-}
-
-function onTemperatureChange(e: Event): void {
-  emit('update:temperature', Number((e.target as HTMLInputElement).value))
-}
-
-function onMaxTokensChange(e: Event): void {
-  emit('update:maxTokens', Number((e.target as HTMLInputElement).value))
-}
-
-function onContextLengthChange(e: Event): void {
-  emit('update:contextLength', Number((e.target as HTMLInputElement).value))
-}
-
-function onPersonaChange(e: Event): void {
-  emit('update:personaPreset', (e.target as HTMLSelectElement).value)
-}
-
-function onChatModeClick(mode: string): void {
-  emit('chat-mode-change', mode)
-}
-
+// ── 搜索面板事件转发（短子面板内联） ──
 function onSearchEngineChange(e: Event): void {
   emit('search-engine-change', (e.target as HTMLSelectElement).value)
 }
@@ -1362,7 +385,7 @@ function onSearchApiKeyChange(e: Event): void {
 }
 </script>
 
-<style scoped>
+<style>
 .agent-settings {
   position: fixed;
   width: 280px;
@@ -1593,6 +616,14 @@ function onSearchApiKeyChange(e: Event): void {
   font-size: var(--font-size-xs);
   color: var(--agent-text-tertiary);
   margin-top: 4px;
+  font-family: var(--agent-font);
+}
+
+.settings-key {
+  font-size: var(--font-size-xs);
+  color: var(--agent-text-secondary);
+  min-width: 52px;
+  flex-shrink: 0;
   font-family: var(--agent-font);
 }
 

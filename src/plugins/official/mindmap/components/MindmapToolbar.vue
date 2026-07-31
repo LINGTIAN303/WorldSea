@@ -64,7 +64,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { CustomDropdown } from '@worldsmith/ui-kit'
+import { CustomDropdown } from '@worldsmith/plugin-sdk'
 import { LAYOUT_OPTIONS } from '../mindmapConfig'
 import WsIcon from '../../../../ui/WsIcon.vue'
 

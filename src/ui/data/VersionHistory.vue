@@ -30,7 +30,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useEntityStore } from '@worldsmith/entity-core'
-import { useResizable } from '@worldsmith/ui-kit'
+import { useResizable } from '@worldsmith/plugin-sdk'
 import { entitySchemaRegistry } from '@worldsmith/entity-core'
 import WsIcon from '../WsIcon.vue'
 import type { Entity } from '@worldsmith/entity-core'

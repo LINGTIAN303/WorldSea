@@ -37,6 +37,14 @@
         >
           🤖 交给 Agent 执行
         </button>
+        <button
+          class="pt-btn pt-btn--engine"
+          :disabled="pipeline.status === 'running'"
+          :title="'绕过 Agent 编排，直接调用 Rust Workflow 引擎执行（兜底通道）'"
+          @click="$emit('run-direct')"
+        >
+          ⚡ 直接执行
+        </button>
         <button class="pt-btn" @click="$emit('save-template')">💾 存为模板</button>
         <button class="pt-btn pt-btn--danger" @click="$emit('delete')">🗑</button>
         <button
@@ -65,6 +73,7 @@ defineProps<{
 const emit = defineEmits<{
   back: []
   'run-agent': []
+  'run-direct': []
   'save-template': []
   delete: []
   'toggle-sidebar': []
@@ -117,6 +126,13 @@ function onStatusChange(e: Event) {
 .pt-btn--primary { background: var(--primary, #58a6ff); color: var(--text-on-primary, #fff); border-color: transparent; }
 .pt-btn--primary:hover { opacity: 0.9; }
 .pt-btn--primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.pt-btn--engine {
+  background: color-mix(in srgb, var(--success, #3fb950) 18%, var(--bg-secondary, #161b22));
+  color: var(--success, #3fb950);
+  border-color: color-mix(in srgb, var(--success, #3fb950) 40%, transparent);
+}
+.pt-btn--engine:hover { background: color-mix(in srgb, var(--success, #3fb950) 28%, var(--bg-secondary, #161b22)); }
+.pt-btn--engine:disabled { opacity: 0.5; cursor: not-allowed; }
 .pt-btn--danger { color: var(--danger, #f85149); }
 .pt-btn--icon { min-width: 28px; display: flex; align-items: center; justify-content: center; }
 </style>

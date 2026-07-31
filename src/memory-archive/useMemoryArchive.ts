@@ -319,7 +319,8 @@ async function injectRecentSummaries(): Promise<string> {
   // 检查是否已存在归档摘要消息（避免重复注入）
   const agent = useAgent()
   const hasArchiveSummary = agent.messages.value.some(
-    msg => msg.role === 'system' && msg.metadata?.source === 'memory-archive'
+    (msg: { role: string; metadata?: { source?: string } }) =>
+      msg.role === 'system' && msg.metadata?.source === 'memory-archive'
   )
   if (hasArchiveSummary) {
     console.log('[useMemoryArchive] 已存在归档摘要，跳过自动注入')

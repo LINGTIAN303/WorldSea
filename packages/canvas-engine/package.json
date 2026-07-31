@@ -16,5 +16,8 @@
   "scripts": {
     "build": "vite build",
     "typecheck": "tsc -p tsconfig.build.json --noEmit"
+  },
+  "dependencies": {
+    "@worldsmith/entity-core": "file:../entity-core"
   }
 }

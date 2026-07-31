@@ -69,7 +69,7 @@
 import { ref, computed, watch } from 'vue'
 import WsIcon from '../../../ui/WsIcon.vue'
 import WsEmpty from '../../../ui/WsEmpty.vue'
-import { DynamicFieldsAdder } from '@worldsmith/ui-kit'
+import { DynamicFieldsAdder } from '@worldsmith/plugin-sdk'
 import type { FieldSchema } from '@worldsmith/entity-core'
 import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'
 import { typeLabel, iconForType } from './mindmapConfig'

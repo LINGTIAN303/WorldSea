@@ -20,7 +20,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
-import { useConfirm } from '@worldsmith/ui-kit'
+import { useConfirm } from '@worldsmith/plugin-sdk'
 import { useFocusTrap } from '../composables/useFocusTrap'
 import WsIcon from './WsIcon.vue'
 

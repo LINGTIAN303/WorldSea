@@ -47,44 +47,44 @@
 import { ref, defineAsyncComponent, onMounted, onUnmounted, watch } from 'vue'
 import MenuBar from './MenuBar.vue'
 import Sidebar from './sidebar/SidebarV2.vue'
-import ViewContainer from './ViewContainer.vue'
-import Toast from '../feedback/Toast.vue'
-import DialogContainer from './DialogContainer.vue'
+import { Toast, DialogContainer, ViewContainer } from '@worldsmith/ui-kit'
 import WsConfirmDialog from '../WsConfirmDialog.vue'
 
-const WelcomeOverlay = defineAsyncComponent(() => import('./WelcomeOverlay.vue'))
-const GlobalSearch = defineAsyncComponent(() => import('../search/GlobalSearch.vue'))
+const WelcomeOverlay = defineAsyncComponent(() => import('@worldsmith/ui-kit').then(m => m.WelcomeOverlay))
+const GlobalSearch = defineAsyncComponent(() => import('@worldsmith/ui-kit').then(m => m.GlobalSearch))
 const ImportExportModal = defineAsyncComponent(() => import('../data/ImportExportModal.vue'))
-import { BatchEditModal } from '@worldsmith/ui-kit'
-const TemplateManager = defineAsyncComponent(() => import('../entity/TemplateManager.vue'))
-const VersionHistory = defineAsyncComponent(() => import('../data/VersionHistory.vue'))
+import { BatchEditModal } from '@worldsmith/plugin-sdk'
+const TemplateManager = defineAsyncComponent(() => import('@worldsmith/ui-kit').then(m => m.TemplateManager))
+const VersionHistory = defineAsyncComponent(() => import('@worldsmith/ui-kit').then(m => m.VersionHistory))
 const TrashPanel = defineAsyncComponent(() => import('../data/TrashPanel.vue'))
 const ConsistencyReportPanel = defineAsyncComponent(() => import('../data/ConsistencyReportPanel.vue'))
 const DocExport = defineAsyncComponent(() => import('../data/DocExport.vue'))
 const SettingsDialog = defineAsyncComponent(() => import('../settings/SettingsDialog.vue'))
 const ThemeEditor = defineAsyncComponent(() => import('../../components/theme-editor/ThemeEditor.vue'))
-const LayoutManager = defineAsyncComponent(() => import('./LayoutManager.vue'))
+const LayoutManager = defineAsyncComponent(() => import('@worldsmith/ui-kit').then(m => m.LayoutManager))
 const ShortcutHelpModal = defineAsyncComponent(() => import('../settings/ShortcutHelpModal.vue'))
-const UndoHistoryPanel = defineAsyncComponent(() => import('../data/UndoHistoryPanel.vue'))
+const UndoHistoryPanel = defineAsyncComponent(() => import('@worldsmith/ui-kit').then(m => m.UndoHistoryPanel))
 const CustomRelationTypeDialog = defineAsyncComponent(() => import('../entity/CustomRelationTypeDialog.vue'))
 const EntityTemplateDialog = defineAsyncComponent(() => import('../entity/EntityTemplateDialog.vue'))
 const ProjectSwitcherDialog = defineAsyncComponent(() => import('../project/ProjectSwitcherDialog.vue'))
-const InfoPanel = defineAsyncComponent(() => import('../entity/InfoPanel.vue'))
+const InfoPanel = defineAsyncComponent(() => import('@worldsmith/ui-kit').then(m => m.InfoPanel))
 const AgentOverlay = defineAsyncComponent(() => import('../../agent/AgentOverlay.vue'))
 const SmartFillChat = defineAsyncComponent(() => import('../smart-fill/SmartFillChat.vue'))
 const SmartFillChatTrigger = defineAsyncComponent(() => import('../smart-fill/SmartFillChatTrigger.vue'))
 const SmartFillContextMenu = defineAsyncComponent(() => import('../smart-fill/SmartFillContextMenu.vue'))
-import { useShortcuts, useUndoRedo } from '@worldsmith/ui-kit'
-import { usePluginStore, useDirtyTracker } from '@worldsmith/entity-core'
-import { useUIStore } from '../../stores/uiStore'
-import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'
-import { useSettingsStore } from '../../stores/settingsStore'
-import { entitySchemaRegistry, relationshipRegistry } from '@worldsmith/entity-core'
-import { useFileSystemProject } from '../../composables/useFileSystemProject'
-import { useGlobalEvents } from '../../composables/useGlobalEvents'
-import { useTextSelection } from '../../composables/useTextSelection'
+import { useShortcuts, useUndoRedo, useGlobalEvents, useTextSelection, useSmartFillContextMenu } from '@worldsmith/ui-kit'
+import {
+  usePluginStore,
+  useDirtyTracker,
+  useEntityStore,
+  useRelationStore,
+  entitySchemaRegistry,
+  relationshipRegistry,
+  useUIStore,
+  useSettingsStore,
+} from '@worldsmith/entity-core'
+import { useFileSystemProject } from '@worldsmith/entity-core/composables'
 import { useSmartFillChat } from '../../composables/useSmartFillChat'
-import { useSmartFillContextMenu } from '../../composables/useSmartFillContextMenu'
 import CompanionNotification from '../companion/CompanionNotification.vue'
 import { useCompanionMode } from '../../composables/useCompanionMode'
 

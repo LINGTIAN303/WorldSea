@@ -1,0 +1,137 @@
+import { defineStore } from 'pinia'
+import { ref, shallowRef, watch } from 'vue'
+import type { Component } from 'vue'
+import { watchDebounced } from '@worldsmith/perf-kit/render'
+
+const STORAGE_KEY = 'worldsmith_sidebar_order'
+
+function loadOrder(): string[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch {
+    return []
+  }
+}
+
+function saveOrder(order: string[]) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(order))
+  } catch { /* quota exceeded, 静默 */ }
+}
+
+export const useUIStore = defineStore('ui', () => {
+  const currentView = ref<string | null>(null)
+  const selectedEntityId = ref<string | null>(null)
+  const sidebarCollapsed = ref(false)
+  const menuOpen = ref(false)
+  const viewComponent = shallowRef<Component | null>(null)
+  const viewRefreshKey = ref(0)
+  const _jumpBackViewId = ref<string | null>(null)
+
+  const currentShell = ref<'space' | 'workbench'>(
+    (localStorage.getItem('worldsmith_shell') as 'space' | 'workbench') || 'space'
+  )
+
+  watch(currentShell, (val) => {
+    try { localStorage.setItem('worldsmith_shell', val) } catch {}
+  })
+
+  const sidebarOrder = ref<string[]>(loadOrder())
+
+  // 自动持久化（防抖替代 deep watch）
+  watchDebounced(() => sidebarOrder.value, () => saveOrder(sidebarOrder.value), { debounce: 100, deep: true })
+
+  function setView(viewId: string) {
+    currentView.value = viewId
+    selectedEntityId.value = null
+  }
+
+  function selectEntity(id: string | null) {
+    selectedEntityId.value = id
+  }
+
+  function toggleSidebar() {
+    sidebarCollapsed.value = !sidebarCollapsed.value
+  }
+
+  function toggleMenu() {
+    menuOpen.value = !menuOpen.value
+  }
+
+  /**
+   * 将新视图 ID 加入排序末尾（如果尚未存在）
+   */
+  function ensureViewInOrder(viewId: string) {
+    if (!sidebarOrder.value.includes(viewId)) {
+      sidebarOrder.value.push(viewId)
+    }
+  }
+
+  /**
+   * 拖拽移动：将 fromIndex 位置的项移到 toIndex
+   */
+  function moveSidebarItemById(fromId: string, toId: string) {
+    const order = [...sidebarOrder.value]
+    // 确保两个 ID 都在 order 中
+    if (!order.includes(fromId)) order.push(fromId)
+    const fromIdx = order.indexOf(fromId)
+    const toIdx = order.indexOf(toId)
+    if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return
+    const [moved] = order.splice(fromIdx, 1)
+    order.splice(toIdx, 0, moved)
+    sidebarOrder.value = order
+  }
+
+  /* ── 启动状态（Splash Screen 生命周期）── */
+  const bootState = ref<'booting' | 'ready' | 'error'>('booting')
+  /** 启动失败时的错误信息（仅 bootState === 'error' 时有值） */
+  const bootError = ref<{ failedModules: Array<{ id: string; name: string; error: string }>; skippedModules: Array<{ id: string; reason: string }> } | null>(null)
+
+  function markReady() {
+    bootState.value = 'ready'
+  }
+
+  /**
+   * 标记启动失败，进入错误页状态。
+   * @param failedModules 失败的 critical 模块列表
+   * @param skippedModules 被跳过的模块列表（可选，用于展示）
+   */
+  function markBootError(
+    failedModules: Array<{ id: string; name: string; error: string }>,
+    skippedModules: Array<{ id: string; reason: string }> = [],
+  ) {
+    bootError.value = { failedModules, skippedModules }
+    bootState.value = 'error'
+  }
+
+  /** 从错误状态恢复到就绪（用户点击"继续"或"重试"后调用） */
+  function recoverFromError() {
+    bootError.value = null
+    bootState.value = 'ready'
+  }
+
+  return {
+    currentView,
+    selectedEntityId,
+    sidebarCollapsed,
+    menuOpen,
+    viewComponent,
+    viewRefreshKey,
+    _jumpBackViewId,
+    currentShell,
+    setShell(shell: 'space' | 'workbench') { currentShell.value = shell },
+    sidebarOrder,
+    setView,
+    selectEntity,
+    toggleSidebar,
+    toggleMenu,
+    ensureViewInOrder,
+    moveSidebarItemById,
+    bootState,
+    bootError,
+    markReady,
+    markBootError,
+    recoverFromError,
+  }
+})

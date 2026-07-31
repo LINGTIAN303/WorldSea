@@ -1,6 +1,8 @@
 import { defineConfig, type Plugin } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import wasm from 'vite-plugin-wasm'
+import { compression } from 'vite-plugin-compression2'
+import { visualizer } from 'rollup-plugin-visualizer'
 import path from 'path'
 import fs from 'fs'
 import http from 'http'
@@ -142,6 +144,18 @@ function customProxyPlugin(): Plugin {
 
 const aliases = {
   '@': path.resolve(__dirname, 'src'),
+  '@agent/bridge-types': path.resolve(__dirname, 'packages/agent-runtime/src/bridge-types'),
+  '@agent/toolbus': path.resolve(__dirname, 'packages/agent-runtime/src/toolbus'),
+  '@agent/tools': path.resolve(__dirname, 'packages/agent-runtime/src/tools'),
+  '@agent/stores': path.resolve(__dirname, 'packages/agent-runtime/src/stores'),
+  '@agent/kb': path.resolve(__dirname, 'packages/agent-runtime/src/kb'),
+  '@agent/orchestrator': path.resolve(__dirname, 'packages/agent-runtime/src/orchestrator'),
+  '@agent/providers': path.resolve(__dirname, 'packages/agent-runtime/src/providers'),
+  '@agent/skills': path.resolve(__dirname, 'packages/agent-runtime/src/skills'),
+  '@agent/context': path.resolve(__dirname, 'packages/agent-runtime/src/context'),
+  '@agent/group-chat': path.resolve(__dirname, 'packages/agent-runtime/src/group-chat'),
+  '@agent/session': path.resolve(__dirname, 'packages/agent-runtime/src/session'),
+  '@agent/execution': path.resolve(__dirname, 'packages/agent-runtime/src/execution'),
   '@agent': path.resolve(__dirname, 'worldsmith-agent/src'),
   '@worldsmith/entity-core$': path.resolve(__dirname, 'packages/entity-core/src'),
   '@worldsmith/entity-core/stores': path.resolve(__dirname, 'packages/entity-core/src/stores'),
@@ -178,6 +192,10 @@ const aliases = {
   '@worldsmith/agent-core/bus': path.resolve(__dirname, 'packages/agent-core/src/bus'),
   '@worldsmith/agent-core/execution': path.resolve(__dirname, 'packages/agent-core/src/execution'),
   '@worldsmith/agent-core/factory': path.resolve(__dirname, 'packages/agent-core/src/factory'),
+  '@worldsmith/agent-runtime$': path.resolve(__dirname, 'packages/agent-runtime/src'),
+  '@worldsmith/agent-runtime/execution': path.resolve(__dirname, 'packages/agent-runtime/src/execution'),
+  '@worldsmith/agent-runtime/execution/adapter': path.resolve(__dirname, 'packages/agent-runtime/src/execution/adapter'),
+  '@worldsmith/agent-runtime/bridge-types': path.resolve(__dirname, 'packages/agent-runtime/src/bridge-types'),
   '@worldsmith/core$': path.resolve(__dirname, 'worldsmith-core/pkg/index.js'),
   '@worldsmith/tactical-engine$': path.resolve(__dirname, 'tactical-engine/pkg/index.js'),
   '@worldsmith/perf-kit$': path.resolve(__dirname, 'packages/perf-kit/src'),
@@ -213,7 +231,26 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
   },
-  plugins: [vue(), wasm(), worldsmithServerLauncher(), localFilePlugin(), customProxyPlugin()],
+  plugins: [
+    vue(),
+    wasm(),
+    worldsmithServerLauncher(),
+    localFilePlugin(),
+    customProxyPlugin(),
+    // gzip + brotli 压缩（10KB 以上才压缩，保留原文件）
+    compression({
+      algorithms: ['gzip', 'brotliCompress'],
+      threshold: 10240,
+      deleteOriginalAssets: false,
+    }),
+    // chunk 可视化分析报告（build 后生成 dist-stats.html）
+    visualizer({
+      filename: 'dist-stats.html',
+      open: false,
+      gzipSize: true,
+      brotliSize: true,
+    }),
+  ],
   resolve: {
     alias: aliasArray,
   },
@@ -335,16 +372,30 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
+            // 文档处理类（按需加载，非首屏）
             if (id.includes('pdfjs-dist')) return 'vendor-pdf'
-            if (id.includes('naive-ui')) return 'vendor-naive'
-            if (id.includes('sigma') || id.includes('graphology')) return 'vendor-graph'
-            if (id.includes('d3-')) return 'vendor-d3'
-            if (id.includes('vis-timeline')) return 'vendor-timeline'
             if (id.includes('docx')) return 'vendor-docx'
             if (id.includes('mammoth')) return 'vendor-mammoth'
-            if (id.includes('marked')) return 'vendor-marked'
             if (id.includes('jszip')) return 'vendor-jszip'
+            if (id.includes('js-yaml')) return 'vendor-yaml'
+            if (id.includes('marked')) return 'vendor-marked'
+            // UI 框架与图标
+            if (id.includes('naive-ui')) return 'vendor-naive'
+            if (id.includes('lucide-vue-next')) return 'vendor-lucide'
+            // 可视化与图形（非首屏）
+            if (id.includes('sigma') || id.includes('graphology')) return 'vendor-graph'
+            if (id.includes('d3-force')) return 'vendor-d3'
+            if (id.includes('echarts')) return 'vendor-echarts'
+            // 编辑器与终端（非首屏）
             if (id.includes('tiptap')) return 'vendor-tiptap'
+            if (id.includes('@xterm')) return 'vendor-xterm'
+            // 数据与工具
+            if (id.includes('dexie')) return 'vendor-dexie'
+            if (id.includes('gpt-tokenizer')) return 'vendor-tokenizer'
+            if (id.includes('dompurify')) return 'vendor-dompurify'
+            if (id.includes('turndown')) return 'vendor-turndown'
+            if (id.includes('segmentit')) return 'vendor-segmentit'
+            if (id.includes('vuedraggable')) return 'vendor-draggable'
           }
         },
       },

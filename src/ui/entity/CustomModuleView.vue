@@ -5,7 +5,7 @@
 
 <script setup lang="ts">
 import { computed, inject, ref, type Ref } from 'vue'
-import { DynamicEntityView } from '@worldsmith/ui-kit'
+import { DynamicEntityView } from '@worldsmith/plugin-sdk'
 import { getModuleViewData } from '../../core/ModuleViewRegistry'
 
 const viewIdRef = inject<Ref<string | null>>('moduleViewId', ref(null))

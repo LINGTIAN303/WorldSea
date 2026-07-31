@@ -1,60 +1,30 @@
-﻿<template>
+<template>
   <div class="tb-view">
-    <div class="tb-toolbar">
-      <div class="tb-toolbar-group">
-        <span class="tb-toolbar-label">网格</span>
-        <CustomDropdown v-model="gridType" :options="gridTypeOptions" @update:modelValue="rebuildBoard" />
-      </div>
-      <div class="tb-toolbar-group">
-        <span class="tb-toolbar-label">规格</span>
-        <CustomDropdown v-model="gridSize" :options="gridSizeOptions" @update:modelValue="rebuildBoard" />
-      </div>
-      <div class="tb-toolbar-sep"></div>
-      <template v-if="battlePhase === 'deployment'">
-        <div class="tb-toolbar-group">
-          <span class="tb-toolbar-label">地形笔</span>
-          <CustomDropdown v-model="terrainBrush" :options="terrainOptions" />
-        </div>
-        <div class="tb-toolbar-group">
-          <span class="tb-toolbar-label">阵营</span>
-          <CustomDropdown v-model="deployTeam" :options="teamOptions" />
-        </div>
-        <div class="tb-toolbar-sep"></div>
-        <button class="tb-btn tb-btn-start" @click="onStartBattle" :disabled="units.length === 0">
-          <WsIcon name="sword" size="xs" /> 开始战斗
-        </button>
-      </template>
-      <template v-else-if="battlePhase === 'battle'">
-        <span class="tb-current-info" v-if="currentUnit">
-          <span class="tb-current-dot" :class="'tb-team-bg-' + currentUnit.team"></span>
-          {{ currentUnit.name }} 的回合
-          <span v-if="aiUnitActive" class="tb-ai-badge">AI</span>
-        </span>
-        <span class="tb-action-hint" v-if="actionState">
-          {{ actionHint }}
-        </span>
-        <button class="tb-btn" @click="cancelAction" v-if="actionState">取消</button>
-        <button class="tb-btn tb-btn-end" @click="endTurn">结束回合</button>
-      </template>
-      <template v-else>
-        <span class="tb-victory-text"><WsIcon name="star" size="xs" /> {{ victoryLabel }} 获胜！</span>
-        <button class="tb-btn" @click="resetBattle">重新部署</button>
-      </template>
-      <div class="tb-toolbar-spacer"></div>
-      <button class="tb-btn" :class="{ active: awareness.mode.value === 'influence' }"
-        @click="onToggleAwareness('influence')" title="势力范围">
-        <WsIcon name="target" size="xs" /> 势力
-      </button>
-      <button class="tb-btn" :class="{ active: awareness.mode.value === 'threat' }"
-        @click="onToggleAwareness('threat')" title="威胁区域">
-        <WsIcon name="warning" size="xs" /> 威胁
-      </button>
-      <button class="tb-btn" :class="{ active: awareness.mode.value === 'supply' }"
-        @click="onToggleAwareness('supply')" title="补给线">
-        <WsIcon name="arrow-left-right" size="xs" /> 补给
-      </button>
-      <span class="tb-phase" :class="'tb-phase-' + battlePhase">{{ phaseLabel }}</span>
-    </div>
+    <Toolbar
+      v-model:gridType="gridType"
+      v-model:gridSize="gridSize"
+      v-model:terrainBrush="terrainBrush"
+      v-model:deployTeam="deployTeam"
+      :gridTypeOptions="gridTypeOptions"
+      :gridSizeOptions="gridSizeOptions"
+      :terrainOptions="terrainOptions"
+      :teamOptions="teamOptions"
+      :battlePhase="battlePhase"
+      :currentUnit="currentUnit"
+      :aiUnitActive="aiUnitActive"
+      :actionState="actionState"
+      :actionHint="actionHint"
+      :victoryLabel="victoryLabel"
+      :phaseLabel="phaseLabel"
+      :awarenessMode="awareness.mode.value"
+      :unitsCount="units.length"
+      @rebuildBoard="rebuildBoard"
+      @startBattle="onStartBattle"
+      @cancelAction="cancelAction"
+      @endTurn="endTurn"
+      @resetBattle="resetBattle"
+      @toggleAwareness="onToggleAwareness"
+    />
 
     <div class="tb-main">
       <div class="tb-canvas-area">
@@ -170,11 +140,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useEntityStore } from '@worldsmith/entity-core'
 import WsEmpty from '../../../ui/WsEmpty.vue'
-import WsIcon from '../../../ui/WsIcon.vue'
-import { CustomDropdown } from '@worldsmith/ui-kit'
 import BoardCanvas from './components/BoardCanvas.vue'
 import UnitPanel from './components/UnitPanel.vue'
 import BattleLog from './components/BattleLog.vue'
@@ -182,14 +150,16 @@ import AIControl from './components/AIControl.vue'
 import AwarenessPanel from './components/AwarenessPanel.vue'
 import DeployPanel from './components/DeployPanel.vue'
 import TacticalStatusBar from './components/TacticalStatusBar.vue'
+import Toolbar from './components/Toolbar.vue'
 import { useTacticalEngine, type WasmBattleUnit } from './composables/useTacticalEngine'
 import { useBattleManager } from './composables/useBattleManager'
 import { useAIController } from './composables/useAIController'
 import { useAwareness, type AwarenessMode } from './composables/useAwareness'
 import { useBoardPersistence } from './composables/useBoardPersistence'
 import type { UnitRenderData, HighlightCell } from './composables/boardDraw'
-import { useAgentPluginBridge } from '../../../composables/useAgentPluginBridge'
 import { useBoardAnimation } from './composables/useBoardAnimation'
+import { useTacticalAgentBridge } from './composables/useTacticalAgentBridge'
+import { useKeyboardShortcuts } from './composables/useKeyboardShortcuts'
 
 const es = useEntityStore()
 const { engine, loading, error: engineError, createEngine } = useTacticalEngine()
@@ -607,82 +577,44 @@ async function onLoadBoard() {
 }
 
 // --- Keyboard shortcuts ---
-function onKeyDown(e: KeyboardEvent) {
-  // Ignore if focus is in an input/textarea
-  const tag = (e.target as HTMLElement)?.tagName
-  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+useKeyboardShortcuts({
+  battlePhase,
+  endTurn,
+  beginMoveAction,
+  beginAttackAction,
+  waitAction,
+  cancelAction,
+  toggleAwareness: onToggleAwareness,
+})
 
-  if (battlePhase.value === 'battle') {
-    if (e.code === 'Space') { e.preventDefault(); endTurn() }
-    else if (e.key === 'm' || e.key === 'M') { beginMoveAction() }
-    else if (e.key === 'a' || e.key === 'A') { beginAttackAction() }
-    else if (e.key === 'w' || e.key === 'W') { waitAction() }
-    else if (e.key === 'Escape') { cancelAction() }
-  }
-  if (e.key === '1') { onToggleAwareness('influence') }
-  else if (e.key === '2') { onToggleAwareness('threat') }
-  else if (e.key === '3') { onToggleAwareness('supply') }
-}
+// --- Agent plugin bridge ---
+useTacticalAgentBridge({
+  onDeployEntity,
+  onMoveUnit: (x, y) => {
+    selectedCell.value = { x, y }
+    if (battlePhase.value === 'battle' && !actionState.value) {
+      beginMoveAction()
+    }
+  },
+  onSimulateTurn: (full) => {
+    if (battlePhase.value === 'battle') {
+      if (full) onToggleAutoAI()
+      else ai.runAISingleStep()
+    }
+  },
+  getBattleState: () => ({
+    phase: battlePhase.value,
+    turn: currentTurn.value,
+    units: units.value.map(u => ({ id: u.id, name: u.name, team: u.team, hp: u.hp, x: u.x, y: u.y, acted: u.acted })),
+    gridType: gridType.value,
+    gridSize: Number(gridSize.value),
+    combatStats: combatStatsSummary.value,
+  }),
+})
 
 onMounted(async () => {
   es.loadAll()
   await rebuildBoard()
-  window.addEventListener('keydown', onKeyDown)
-})
-
-onUnmounted(() => {
-  window.removeEventListener('keydown', onKeyDown)
-})
-
-// --- Agent plugin bridge ---
-useAgentPluginBridge('tactical-board', (event) => {
-  const { action, payload } = event
-  switch (action) {
-    case 'deploy_unit': {
-      const team = (payload.team as string) || 'ally'
-      const stats = payload.stats as { hp: number; attack: number; defense: number; speed: number; moveRange: number; attackRange: number } | undefined
-      const entity = payload.entity as { id: string; name: string; type?: string } | undefined
-      if (entity && stats) {
-        onDeployEntity(entity, team, stats)
-      }
-      break
-    }
-    case 'move_unit': {
-      const { x, y } = payload as { x: number; y: number }
-      if (typeof x === 'number' && typeof y === 'number') {
-        selectedCell.value = { x, y }
-        if (battlePhase.value === 'battle' && !actionState.value) {
-          beginMoveAction()
-        }
-      }
-      break
-    }
-    case 'get_battle_state': {
-      const state = {
-        phase: battlePhase.value,
-        turn: currentTurn.value,
-        units: units.value.map(u => ({ id: u.id, name: u.name, team: u.team, hp: u.hp, x: u.x, y: u.y, acted: u.acted })),
-        gridType: gridType.value,
-        gridSize: Number(gridSize.value),
-        combatStats: combatStatsSummary.value,
-      }
-      console.log('[TacticalBoard] battle state:', JSON.stringify(state))
-      break
-    }
-    case 'simulate_turn': {
-      if (battlePhase.value === 'battle') {
-        const fullTurn = payload?.full === true
-        if (fullTurn) {
-          onToggleAutoAI()
-        } else {
-          ai.runAISingleStep()
-        }
-      }
-      break
-    }
-    default:
-      console.log(`[Agent→tactical-board] unknown action: ${action}`, payload)
-  }
 })
 </script>
 
@@ -694,139 +626,6 @@ useAgentPluginBridge('tactical-board', (event) => {
   background: var(--color-bg-base);
   color: var(--color-text-primary);
   font-size: var(--font-size-sm);
-}
-
-.tb-toolbar {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  padding: 8px 16px;
-  background: var(--color-bg-surface);
-  border-bottom: 1px solid var(--color-border);
-  flex-shrink: 0;
-  flex-wrap: wrap;
-}
-
-.tb-toolbar-group {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.tb-toolbar-label {
-  font-size: var(--font-size-xs);
-  color: var(--color-text-secondary);
-  white-space: nowrap;
-}
-
-.tb-toolbar-sep {
-  width: 1px;
-  height: 20px;
-  background: var(--color-border);
-  margin: 0 4px;
-}
-
-.tb-toolbar-spacer {
-  flex: 1;
-}
-
-.tb-phase {
-  font-size: var(--font-size-xs);
-  padding: 2px 8px;
-  border-radius: 10px;
-  white-space: nowrap;
-}
-
-.tb-phase-deployment {
-  color: var(--color-text-secondary);
-  background: color-mix(in srgb, var(--color-text-secondary) 10%, transparent);
-}
-
-.tb-phase-battle {
-  color: var(--color-warning);
-  background: color-mix(in srgb, var(--color-warning) 10%, transparent);
-}
-
-.tb-phase-victory {
-  color: var(--color-success);
-  background: color-mix(in srgb, var(--color-success) 10%, transparent);
-}
-
-.tb-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 3px 8px;
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  background: var(--color-bg-elevated);
-  color: var(--color-text-primary);
-  font-size: var(--font-size-sm);
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s;
-  white-space: nowrap;
-}
-
-.tb-btn:hover:not(:disabled) { background: var(--color-bg-hover); border-color: var(--color-text-secondary); }
-.tb-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
-.tb-btn-start {
-  border-color: var(--color-success);
-  color: var(--color-success);
-}
-
-.tb-btn-start:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--color-success) 15%, transparent);
-}
-
-.tb-btn-end {
-  border-color: var(--color-warning);
-  color: var(--color-warning);
-}
-
-.tb-btn-end:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--color-warning) 15%, transparent);
-}
-
-.tb-current-info {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: var(--font-size-sm);
-  color: var(--color-text-primary);
-}
-
-.tb-current-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-
-.tb-team-bg-ally { background: var(--color-primary); }
-.tb-team-bg-enemy { background: var(--color-danger); }
-.tb-team-bg-neutral { background: var(--color-text-secondary); }
-
-.tb-action-hint {
-  font-size: var(--font-size-xs);
-  color: var(--color-warning);
-}
-
-.tb-ai-badge {
-  font-size: var(--text-micro-font-size);
-  font-weight: var(--font-weight-bold);
-  color: var(--color-primary-hover);
-  background: color-mix(in srgb, var(--color-primary-hover) 15%, transparent);
-  border: 1px solid color-mix(in srgb, var(--color-primary-hover) 30%, transparent);
-  border-radius: 3px;
-  padding: 0 4px;
-  margin-left: 2px;
-  vertical-align: middle;
-}
-
-.tb-victory-text {
-  font-size: var(--font-size-base);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-success);
 }
 
 .tb-main {
@@ -862,8 +661,6 @@ useAgentPluginBridge('tactical-board', (event) => {
   animation: ws-spin 0.8s linear infinite;
 }
 
-
-
 .tb-sidebar {
   width: 240px;
   flex-shrink: 0;
@@ -898,6 +695,26 @@ useAgentPluginBridge('tactical-board', (event) => {
 
 .tb-label { color: var(--color-text-secondary); }
 
+.tb-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s;
+  white-space: nowrap;
+}
+
+.tb-btn:hover:not(:disabled) { background: var(--color-bg-hover); border-color: var(--color-text-secondary); }
+.tb-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.tb-btn-sm { font-size: var(--font-size-xs); padding: 2px 6px; }
+
 .tb-unit-list {
   display: flex;
   flex-direction: column;
@@ -931,6 +748,10 @@ useAgentPluginBridge('tactical-board', (event) => {
   flex-shrink: 0;
 }
 
+.tb-team-bg-ally { background: var(--color-primary); }
+.tb-team-bg-enemy { background: var(--color-danger); }
+.tb-team-bg-neutral { background: var(--color-text-secondary); }
+
 .tb-unit-name {
   flex: 1;
   overflow: hidden;
@@ -959,5 +780,4 @@ useAgentPluginBridge('tactical-board', (event) => {
   border-top: 1px solid var(--color-border);
   overflow: hidden;
 }
-
 </style>

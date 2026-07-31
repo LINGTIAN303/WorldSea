@@ -1,7 +1,6 @@
 import { ref } from 'vue'
 import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'
-import { useConfirm } from './useConfirm'
-import { toastSuccess, toastError, toastWarn } from '@worldsmith/ui-kit'
+import { useConfirm, toastSuccess, toastError, toastWarn } from '@worldsmith/ui-kit'
 import type { Entity } from '@worldsmith/entity-core'
 
 export function useBatchDelete() {

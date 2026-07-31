@@ -89,7 +89,7 @@ import { exportProjectToDir, importProjectFromDir } from '../../core/ProjectFS'
 import { getProjectManager, setStorageProjectDir } from '@worldsmith/entity-core/core'
 import type { ProjectInfo } from '@worldsmith/entity-core/core'
 import { useFsWatcher } from '../../composables/useFsWatcher'
-import { useConfirm } from '@worldsmith/ui-kit'
+import { useConfirm } from '@worldsmith/plugin-sdk'
 import { toastSuccess, toastError } from '../../composables/useToast'
 
 const props = defineProps<{ show: boolean }>()

@@ -1,0 +1,26 @@
+{
+  "name": "@worldsmith/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "vue-tsc --noEmit"
+  },
+  "dependencies": {
+    "@worldsmith/agent-runtime": "file:../../packages/agent-runtime",
+    "naive-ui": "^2.44.1",
+    "vue": "^3.5.32"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.6",
+    "rollup-plugin-visualizer": "^7.0.1",
+    "typescript": "~6.0.2",
+    "vite": "^8.0.10",
+    "vite-plugin-compression2": "^2.5.3",
+    "vite-plugin-wasm": "^3.6.0",
+    "vue-tsc": "^3.2.7"
+  }
+}

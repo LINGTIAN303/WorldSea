@@ -20,7 +20,7 @@
 </template>
 <script setup lang="ts">
 import { ref } from 'vue'
-import { SchemaRenderer, type RelationTabDef } from '@worldsmith/ui-kit'
+import { SchemaRenderer, type RelationTabDef } from '@worldsmith/plugin-sdk'
 import BuildingSectionView from './BuildingSectionView.vue'
 
 const viewMode = ref<'list' | 'section'>('list')

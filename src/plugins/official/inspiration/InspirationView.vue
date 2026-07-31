@@ -28,7 +28,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { GenericEntityView, type FormFieldDef } from '@worldsmith/ui-kit'
+import { GenericEntityView, type FormFieldDef } from '@worldsmith/plugin-sdk'
 import MoodboardView from './MoodboardView.vue'
 import type { Entity } from '@worldsmith/entity-core'
 

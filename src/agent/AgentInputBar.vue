@@ -58,7 +58,8 @@
 <script setup lang="ts">
 import { ref, computed, onBeforeUnmount } from 'vue'
 import WsIcon from '../ui/WsIcon.vue'
-import { modelSupportsVision } from './modelRegistry'
+import { modelSupportsVision } from '@worldsmith/agent-runtime'
+import { extractDocumentText } from '../composables/useFileExtract'
 
 const props = defineProps<{
   isStreaming: boolean
@@ -90,9 +91,6 @@ interface FileAttachment {
 }
 
 const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
-const TEXT_EXTENSIONS = ['.txt', '.md', '.json', '.csv', '.xml', '.yaml', '.yml', '.toml', '.ini', '.log', '.html', '.css', '.js', '.ts', '.vue', '.py', '.rs', '.go', '.java', '.c', '.cpp', '.h', '.sh', '.sql']
-const DOC_EXTENSIONS = ['.docx']
-const PDF_EXTENSIONS = ['.pdf']
 const MAX_IMAGE_SIZE = 20 * 1024 * 1024
 const MAX_IMAGE_COUNT = 10
 const MAX_IMAGE_DIMENSION = 2048
@@ -123,7 +121,7 @@ const slashStyle = computed(() => {
   }
 })
 
-function processFile(file: File): void {
+async function processFile(file: File): Promise<void> {
   if (IMAGE_TYPES.includes(file.type)) {
     if (!visionSupported.value) {
       visionWarning.value = `当前模型不支持图片理解，请切换到支持视觉的模型或在设置中配置视觉 SubAgent`
@@ -158,83 +156,16 @@ function processFile(file: File): void {
     return
   }
 
-  const ext = '.' + file.name.split('.').pop()!.toLowerCase()
-
-  if (DOC_EXTENSIONS.includes(ext)) {
-    const reader = new FileReader()
-    reader.onload = async () => {
-      try {
-        const mammoth = await import('mammoth')
-        const result = await mammoth.extractRawText({ arrayBuffer: reader.result as ArrayBuffer })
-        attachments.value.push({
-          type: 'file',
-          name: file.name,
-          mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-          data: '',
-          textContent: result.value || '[Word 文件内容为空]',
-        })
-      } catch (err) {
-        attachments.value.push({
-          type: 'file',
-          name: file.name,
-          mimeType: file.type,
-          data: '',
-          textContent: `[Word 文件解析失败: ${(err as Error).message}]`,
-        })
-      }
-    }
-    reader.readAsArrayBuffer(file)
-    return
-  }
-
-  if (PDF_EXTENSIONS.includes(ext)) {
-    const reader = new FileReader()
-    reader.onload = async () => {
-      try {
-        const pdfjsLib = await import('pdfjs-dist')
-        pdfjsLib.GlobalWorkerOptions.workerSrc = ''
-        const pdf = await pdfjsLib.getDocument({ data: reader.result as ArrayBuffer }).promise
-        const pages: string[] = []
-        for (let i = 1; i <= Math.min(pdf.numPages, 50); i++) {
-          const page = await pdf.getPage(i)
-          const content = await page.getTextContent()
-          const text = content.items.map((item: any) => item.str).join(' ')
-          if (text.trim()) pages.push(text)
-        }
-        attachments.value.push({
-          type: 'file',
-          name: file.name,
-          mimeType: 'application/pdf',
-          data: '',
-          textContent: pages.join('\n\n---\n\n') || '[PDF 文件内容为空或为扫描件]',
-        })
-      } catch (err) {
-        attachments.value.push({
-          type: 'file',
-          name: file.name,
-          mimeType: file.type,
-          data: '',
-          textContent: `[PDF 文件解析失败: ${(err as Error).message}]`,
-        })
-      }
-    }
-    reader.readAsArrayBuffer(file)
-    return
-  }
-
-  if (TEXT_EXTENSIONS.includes(ext)) {
-    const reader = new FileReader()
-    reader.onload = () => {
-      const text = reader.result as string
-      attachments.value.push({
-        type: 'file',
-        name: file.name,
-        mimeType: file.type || 'text/plain',
-        data: '',
-        textContent: text,
-      })
-    }
-    reader.readAsText(file)
+  // docx / pdf / text 统一走 useFileExtract（含 pdfjs Web Worker 配置）
+  const extracted = await extractDocumentText(file)
+  if (extracted) {
+    attachments.value.push({
+      type: 'file',
+      name: extracted.name,
+      mimeType: extracted.mimeType,
+      data: '',
+      textContent: extracted.textContent,
+    })
     return
   }
 
@@ -381,7 +312,23 @@ async function compressImage(dataUrl: string, mimeType: string): Promise<{ base6
   })
 }
 
-defineExpose({ inputRef, menuBtnRef })
+/**
+ * 获取输入框当前文本（供 /tot 等需要读取输入框文本的命令使用）
+ * 批次4 UI 集成新增：ToT 命令需要从输入框解析 `/tot <task>` 格式
+ */
+function getInputText(): string {
+  return inputText.value
+}
+
+/**
+ * 设置输入框文本（同步 emit update:inputText，保持 v-model 一致性）
+ */
+function setInputText(text: string): void {
+  inputText.value = text
+  emit('update:inputText', text)
+}
+
+defineExpose({ inputRef, menuBtnRef, getInputText, setInputText })
 </script>
 
 <style scoped>

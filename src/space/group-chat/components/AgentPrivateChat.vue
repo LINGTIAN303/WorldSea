@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="private-chat">
     <div class="private-header">
       <button class="btn-back" @click="$emit('close')"><WsIcon name="arrow-left" size="xs" /> 返回群聊</button>
@@ -119,7 +119,7 @@ import { useAgent } from '../../../agent/composables/useAgent'
 import type { AgentEvent, IAgentBackend } from '@agent/index'
 import { createWorldSmithAgent, buildSharedBaseLayer, getToolsForSkills, ALL_TOOLS } from '@agent/index'
 import { useFontLibraryStore } from '../../../stores/fontLibraryStore'
-import { getModelInfo } from '../../../agent/modelRegistry'
+import { getModelInfo } from '@worldsmith/agent-runtime'
 import WsIcon from '../../../ui/WsIcon.vue'
 
 interface ToolCallInfo {

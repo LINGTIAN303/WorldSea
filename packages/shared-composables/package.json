@@ -1,0 +1,60 @@
+{
+  "name": "@worldsmith/shared-composables",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./agent": "./src/agent/index.ts",
+    "./agent/useAgentCommands": "./src/agent/useAgentCommands.ts",
+    "./agent/usePlanStore": "./src/agent/usePlanStore.ts",
+    "./agent/useGenerationProgress": "./src/agent/useGenerationProgress.ts",
+    "./agent/useCliAgent": "./src/agent/useCliAgent.ts",
+    "./agent/useAgent": "./src/agent/useAgent.ts",
+    "./agent/useOrchestrator": "./src/agent/useOrchestrator.ts",
+    "./agent/useTitleGen": "./src/agent/useTitleGen.ts",
+    "./agent/useSkillsStore": "./src/agent/useSkillsStore.ts",
+    "./agent/useMcpConnections": "./src/agent/useMcpConnections.ts",
+    "./agent/useAgentEvents": "./src/agent/useAgentEvents.ts",
+    "./agent/useManuscriptAnimation": "./src/agent/useManuscriptAnimation.ts",
+    "./agent/useEntityMentionIndex": "./src/agent/useEntityMentionIndex.ts",
+    "./agent/useMessageSpeaker": "./src/agent/useMessageSpeaker.ts",
+    "./long-task": "./src/agent/long-task/index.ts",
+    "./long-task/longTaskStore": "./src/agent/long-task/longTaskStore.ts",
+    "./long-task/useLongTask": "./src/agent/long-task/useLongTask.ts",
+    "./entity": "./src/entity/index.ts",
+    "./entity/useEntityMiniPanel": "./src/entity/useEntityMiniPanel.ts",
+    "./ui": "./src/ui/index.ts",
+    "./ui/usePanelDrag": "./src/ui/usePanelDrag.ts",
+    "./companion": "./src/companion/index.ts",
+    "./companion/scene": "./src/companion/scene.ts",
+    "./companion/trigger": "./src/companion/trigger.ts",
+    "./companion/personaPrompt": "./src/companion/personaPrompt.ts",
+    "./companion/useCompanionMode": "./src/companion/useCompanionMode.ts",
+    "./agent/useSmartFillChat": "./src/agent/useSmartFillChat.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@worldsmith/agent-core": "file:../agent-core",
+    "@worldsmith/agent-runtime": "file:../agent-runtime",
+    "@worldsmith/entity-core": "file:../entity-core",
+    "@worldsmith/motion-kit": "file:../motion-kit",
+    "@worldsmith/perf-kit": "file:../perf-kit",
+    "@worldsmith/plugin-sdk": "file:../plugin-sdk",
+    "@worldsmith/ui-kit": "file:../ui-kit",
+    "dexie": "^4.4.2"
+  },
+  "peerDependencies": {
+    "pinia": "^3.0.0",
+    "vue": "^3.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "~6.0.2"
+  }
+}

@@ -80,7 +80,7 @@ export function useAgentBridge(
     if (detail.query === 'get_structure') {
       const store = useMindmapStore()
       // 把当前结构塞回 window 供 agent 读取（简单实现，不阻塞）
-      ;(window as any).__worldsmith_mindmap_structure__ = {
+      ;window.__worldsmith_mindmap_structure__ = {
         sections: store.sections,
         customNodes: store.customNodes,
       }

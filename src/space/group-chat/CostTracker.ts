@@ -1,5 +1,5 @@
 import type { GroupChatBudget, GroupChatCostTracker, GroupChatCostEntry } from './types'
-import { calculateCost } from '../../agent/modelRegistry'
+import { calculateCost } from '@worldsmith/agent-runtime'
 
 export class CostTrackerImpl {
   private tracker: GroupChatCostTracker

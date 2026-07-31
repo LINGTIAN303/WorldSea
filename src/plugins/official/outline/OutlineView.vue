@@ -179,7 +179,8 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { GenericEntityView, DetailField, CustomDropdown, DynamicFieldsAdder, UniversalRelationPanel, GenericTreeView, CreateButton } from '@worldsmith/ui-kit'
+import { GenericEntityView, DetailField, CustomDropdown, DynamicFieldsAdder, UniversalRelationPanel, CreateButton } from '@worldsmith/plugin-sdk'
+import { GenericTreeView } from '@worldsmith/ui-kit'
 import type { FormFieldDef, FilterDef, CustomTabDef, RelationTabDef } from '@worldsmith/plugin-sdk'
 import WsEmpty from '../../../ui/WsEmpty.vue'
 import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'

@@ -1,4 +1,4 @@
-import type { ExecutionAdapter, ExecOptions, ExecResult, PtyOptions, ShellInfo, ShellSessionInfo, ShellExecResult } from './adapter'
+import type { ExecutionAdapter, ExecOptions, ExecResult, PtyOptions, ShellInfo, ShellSessionInfo, ShellExecResult } from '@worldsmith/agent-runtime'
 
 function isTauri(): boolean {
   return typeof window !== 'undefined' && (!!(window as any).__TAURI_INTERNALS__ || !!(window as any).__TAURI__)

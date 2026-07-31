@@ -62,7 +62,7 @@ import { useSettingsStore } from '../../stores/settingsStore'
 import { useSpaceStore } from '../stores/space-store'
 import { useMcpConnections } from '../../agent/composables/useMcpConnections'
 import { getAllSkills, toggleSkill, storeApiKey, loadApiKey, removeApiKey } from '@agent/index'
-import { getModelInfo, calculateCost, getThinkingLevels } from '../../agent/modelRegistry'
+import { getModelInfo, calculateCost, getThinkingLevels } from '@worldsmith/agent-runtime'
 import AgentSettingsPanel from '../../agent/AgentSettingsPanel.vue'
 import type { ThinkingLevel, MCPConnectionConfig, SkillMeta } from '@agent/index'
 

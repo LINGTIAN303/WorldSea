@@ -29,7 +29,7 @@
 
 <script setup lang="ts">
 import { watch, nextTick, ref } from 'vue'
-import { useDialog } from '@worldsmith/ui-kit'
+import { useDialog } from '@worldsmith/plugin-sdk'
 
 const { state, doResolve } = useDialog()
 const inputRef = ref<HTMLInputElement>()

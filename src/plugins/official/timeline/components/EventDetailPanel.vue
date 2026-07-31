@@ -71,7 +71,7 @@
 import { computed, ref } from 'vue'
 import WsIcon from '../../../../ui/WsIcon.vue'
 import type { Entity, Relation } from '@worldsmith/entity-core'
-import { DetailField, DynamicFieldsAdder, UniversalRelationPanel, EntityRelationSelector, useEntityEdit, useResizable } from '@worldsmith/ui-kit'
+import { DetailField, DynamicFieldsAdder, UniversalRelationPanel, EntityRelationSelector, useEntityEdit, useResizable } from '@worldsmith/plugin-sdk'
 import CausalGraph from './CausalGraph.vue'
 import { entitySchemaRegistry } from '@worldsmith/entity-core'
 import { useSettingsStore } from '../../../../stores/settingsStore'

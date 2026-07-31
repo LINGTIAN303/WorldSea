@@ -67,7 +67,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'
-import { CustomDropdown } from '@worldsmith/ui-kit'
+import { CustomDropdown } from '@worldsmith/plugin-sdk'
 import { useBuildingSectionData, parseFloors, type BuildingNode, type FloorInfo } from './composables/useBuildingSectionData'
 import { useBuildingSectionCanvas } from './composables/useBuildingSectionCanvas'
 

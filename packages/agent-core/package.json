@@ -12,7 +12,8 @@
     "./guard": "./src/guard/index.ts",
     "./bus": "./src/bus/index.ts",
     "./execution": "./src/execution/index.ts",
-    "./factory": "./src/factory/index.ts"
+    "./factory": "./src/factory/index.ts",
+    "./orchestrator": "./src/orchestrator/index.ts"
   },
   "scripts": {
     "build": "vite build",

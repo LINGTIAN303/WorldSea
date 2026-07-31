@@ -87,7 +87,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'
-import { useDuplicateNameCheck, CustomDropdown, CreateButton } from '@worldsmith/ui-kit'
+import { useDuplicateNameCheck, CustomDropdown, CreateButton } from '@worldsmith/plugin-sdk'
 import WsIcon from '../../../ui/WsIcon.vue'
 import WsEmpty from '../../../ui/WsEmpty.vue'
 import ChapterEditor from './components/ChapterEditor.vue'

@@ -143,8 +143,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import { useAgentProfileStore } from '../../../stores/agentProfileStore'
-import { storeApiKey } from '@agent/providers/key-store'
-import { getModelPresets, getModelInfo } from '../../../agent/modelRegistry'
+import { storeApiKey, getModelPresets, getModelInfo } from '@worldsmith/agent-runtime'
 import { getProviderIconUrl } from '../../../assets/providerIcons'
 import type { LoadBalanceStrategy } from '@agent/group-chat/types'
 import WsIcon from '../../../ui/WsIcon.vue'

@@ -74,6 +74,24 @@ export type {
   SettingsApi,
 } from './serviceProvider'
 
+// Phase 5: 依赖注入服务接口（ProjectFS 解耦所需）
+export { registerModuleStoreApi, getModuleStoreApi } from './ModuleStoreApi'
+export type { ModuleStoreApi } from './ModuleStoreApi'
+export { registerProjectSwitcherApi, getProjectSwitcherApi } from './ProjectSwitcherApi'
+export type { ProjectSwitcherApi } from './ProjectSwitcherApi'
+
+// Phase 5: 项目文件系统导出/导入（从根 src/core/ProjectFS.ts 迁移）
+export {
+  exportProjectToDir,
+  importProjectFromDir,
+} from './ProjectFS'
+export type {
+  ProjectManifest,
+  ProjectCache,
+  ExportProgressCallback,
+  ImportProgressCallback,
+} from './ProjectFS'
+
 export {
   traitRegistry,
   facetRegistry,
@@ -83,6 +101,60 @@ export {
   defineEntity,
   compileEntitySchema,
 } from './TraitRuntime'
+
+// Phase 8a: 事件总线（从根 src/modules/runtime/events.ts 下沉）
+export { eventBus } from './events'
+export type {
+  EntityCreateEvent,
+  EntityUpdateEvent,
+  EntityDeleteEvent,
+  FieldChangeEvent,
+  RelationCreateEvent,
+  RelationDeleteEvent,
+  NameInputEvent,
+  TextInputEvent,
+  BatchEditEvent,
+  EventMap,
+  EventName,
+  EventHandler,
+  Unsubscribe,
+} from './events'
+
+// Phase 8a: io 模块（从根 src/core/ 下沉）
+export {
+  serializerRegistry,
+  SerializerRegistry,
+  PACK_VERSION,
+  PackageBuilder,
+  ExportController,
+  defaultFormatEncoder,
+  ImportController,
+  importController,
+  getExportController,
+  getImportController,
+  exportData,
+  parseImportData,
+  importToDb,
+  registerDownloader,
+  getDownloader,
+  registerPackValidator,
+  getPackValidator,
+  registerAppVersionProvider,
+  getAppVersionProvider,
+} from './io'
+export type {
+  WorldSmithManifest,
+  WorldSmithPack,
+  ImportReport,
+  PackageManifest,
+  FormatEncoder,
+  HtmlExportOptions,
+  ExportData,
+  Downloader,
+  PackValidator,
+  ValidationReport,
+  AppVersionProvider,
+} from './io'
 
 export {
   relationshipRegistry,
@@ -102,3 +174,11 @@ export {
   userFieldMappingStore,
 } from './AutoLinkEngine'
 export type { UserFieldMapping } from './AutoLinkEngine'
+
+// Phase 3: 公式引擎（从 src/modules/runtime/ 下沉）
+export { evaluateFormula, extractFieldRefs } from './formula'
+export {
+  registerFormulaAutoRecalc,
+  unregisterFormulaAutoRecalc,
+  getComputedFormulas,
+} from './formula-auto'

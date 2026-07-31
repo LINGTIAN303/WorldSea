@@ -112,7 +112,7 @@ const emit = defineEmits<{
 
 /** 从全局 window 读取子 Agent 列表（避免 useOrchestrator 的 onBeforeUnmount 副作用） */
 function getSubAgentsFromWindow(): any[] {
-  const map = (window as any).__worldsmith_sub_agents as Map<string, any> | undefined
+  const map = window.__worldsmith_sub_agents as Map<string, any> | undefined
   return map ? Array.from(map.values()) : []
 }
 

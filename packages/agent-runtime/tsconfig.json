@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.tsbuildinfo",
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "erasableSyntaxOnly": true,
+    "noFallthroughCasesInSwitch": true,
+    "types": ["node"],
+    "paths": {
+      "@agent": ["./src/index.ts"],
+      "@agent/*": ["./src/*"],
+      "@worldsmith/agent-core": ["../agent-core/src/index.ts"],
+      "@worldsmith/agent-core/*": ["../agent-core/src/*"],
+      "@worldsmith/governor-core": ["../governor-core/src/index.ts"],
+      "@worldsmith/governor-core/*": ["../governor-core/src/*"]
+    }
+  },
+  "include": ["src/**/*.ts"]
+}

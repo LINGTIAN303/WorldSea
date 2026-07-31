@@ -9,3 +9,10 @@ export type { WsFontPackInput, WsFontManifest, UseFontPackReturn } from './useFo
 
 export { useSystemFonts } from './useSystemFonts'
 export type { SystemFontInfo, UseSystemFontsReturn } from './useSystemFonts'
+
+// Phase 8b: 字体预设管理（从根 src/composables/useFontPresets.ts 下沉）
+export { useFontPresets, FONT_PRESETS } from './useFontPresets'
+export type { FontPresetEntry } from './useFontPresets'
+
+// Phase 8b: 字体引导（从根 src/composables/useFontBootstrap.ts 下沉）
+export { useFontBootstrap } from './useFontBootstrap'

@@ -86,8 +86,9 @@ import { ref, computed, nextTick, watch } from 'vue'
 import WsIcon from '../../ui/WsIcon.vue'
 import { useSpaceStore, type InputInjectionChip } from '../stores/space-store'
 import { useAgent } from '../../agent/composables/useAgent'
-import { modelSupportsVision } from '../../agent/modelRegistry'
+import { modelSupportsVision } from '@worldsmith/agent-runtime'
 import { useSettingsStore } from '../../stores/settingsStore'
+import { extractDocumentText } from '../../composables/useFileExtract'
 import ModelSwitcher from './ModelSwitcher.vue'
 
 interface FileAttachment {
@@ -100,13 +101,9 @@ interface FileAttachment {
 }
 
 const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
-const TEXT_EXTENSIONS = ['.txt', '.md', '.json', '.csv', '.xml', '.yaml', '.yml', '.toml', '.ini', '.log', '.html', '.css', '.js', '.ts', '.vue', '.py', '.rs', '.go', '.java', '.c', '.cpp', '.h', '.sh', '.sql']
-const DOC_EXTENSIONS = ['.docx']
-const PDF_EXTENSIONS = ['.pdf']
 const MAX_IMAGE_SIZE = 20 * 1024 * 1024
 const MAX_IMAGE_COUNT = 10
 const MAX_IMAGE_DIMENSION = 2048
-const MAX_TEXT_FILE_SIZE = 5 * 1024 * 1024
 
 const emit = defineEmits<{
   send: [text: string, attachments: FileAttachment[]]
@@ -250,97 +247,27 @@ function processFile(file: File): void {
     return
   }
 
-  const dotIdx = file.name.lastIndexOf('.')
-  const ext = dotIdx >= 0 ? '.' + file.name.slice(dotIdx + 1).toLowerCase() : ''
-
-  if (DOC_EXTENSIONS.includes(ext)) {
-    const reader = new FileReader()
-    reader.onload = async () => {
-      try {
-        const mammoth = await import('mammoth')
-        const result = await mammoth.extractRawText({ arrayBuffer: reader.result as ArrayBuffer })
-        attachments.value.push({
-          type: 'file',
-          name: file.name,
-          mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-          data: '',
-          textContent: result.value || '[Word 文件内容为空]',
-        })
-      } catch (err) {
-        attachments.value.push({
-          type: 'file',
-          name: file.name,
-          mimeType: file.type,
-          data: '',
-          textContent: `[Word 文件解析失败: ${(err as Error).message}]`,
-        })
-      }
-    }
-    reader.readAsArrayBuffer(file)
-    return
-  }
-
-  if (PDF_EXTENSIONS.includes(ext)) {
-    const reader = new FileReader()
-    reader.onload = async () => {
-      try {
-        const pdfjsLib = await import('pdfjs-dist')
-        pdfjsLib.GlobalWorkerOptions.workerSrc = ''
-        const pdf = await pdfjsLib.getDocument({ data: reader.result as ArrayBuffer }).promise
-        const pages: string[] = []
-        for (let i = 1; i <= Math.min(pdf.numPages, 50); i++) {
-          const page = await pdf.getPage(i)
-          const content = await page.getTextContent()
-          const text = content.items.map((item: any) => item.str).join(' ')
-          if (text.trim()) pages.push(text)
-        }
-        attachments.value.push({
-          type: 'file',
-          name: file.name,
-          mimeType: 'application/pdf',
-          data: '',
-          textContent: pages.join('\n\n---\n\n') || '[PDF 文件内容为空或为扫描件]',
-        })
-      } catch (err) {
-        attachments.value.push({
-          type: 'file',
-          name: file.name,
-          mimeType: file.type,
-          data: '',
-          textContent: `[PDF 文件解析失败: ${(err as Error).message}]`,
-        })
-      }
-    }
-    reader.readAsArrayBuffer(file)
-    return
-  }
-
-  if (TEXT_EXTENSIONS.includes(ext)) {
-    if (file.size > MAX_TEXT_FILE_SIZE) {
-      showVisionWarning(`文本文件大小不能超过 ${MAX_TEXT_FILE_SIZE / 1024 / 1024}MB`)
-      return
-    }
-    const reader = new FileReader()
-    reader.onload = () => {
-      const text = reader.result as string
+  // docx / pdf / text 统一走 useFileExtract（含 pdfjs Web Worker 配置）
+  // fire-and-forget：保持与原 reader.onload 异步语义一致
+  extractDocumentText(file).then(extracted => {
+    if (extracted) {
       attachments.value.push({
         type: 'file',
-        name: file.name,
-        mimeType: file.type || 'text/plain',
+        name: extracted.name,
+        mimeType: extracted.mimeType,
         data: '',
-        textContent: text,
+        textContent: extracted.textContent,
       })
+      return
     }
-    reader.readAsText(file)
-    return
-  }
-
-  attachments.value.push({
-    type: 'file',
-    name: file.name,
-    mimeType: file.type || 'application/octet-stream',
-    data: '',
-    textContent: `[不支持的文件类型: ${file.type || ext || '未知'}，已作为附件记录]`,
+    // 不支持的文件类型
+    attachments.value.push({
+      type: 'file',
+      name: file.name,
+      mimeType: file.type || 'application/octet-stream',
+      data: '',
+      textContent: `[不支持的文件类型: ${file.type || '未知'}，已作为附件记录]`,
+    })
   })
 }
 

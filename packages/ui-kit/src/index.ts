@@ -11,8 +11,40 @@
 // Currently re-exported from src/ui/; will eventually move into
 // packages/ui-kit/src/components/
 // ----------------------------------------------------------------------------
-export { default as WsIcon } from '../../../src/ui/WsIcon.vue'
-export { default as WsEmpty } from '../../../src/ui/WsEmpty.vue'
+export { default as WsIcon } from './components/WsIcon.vue'
+export { default as WsEmpty } from './components/WsEmpty.vue'
+
+// Phase 8c: 图标注册表（从根 src/assets/iconRegistry.ts 下沉）
+export {
+  getIcon,
+  hasIcon,
+  getAllIconNames,
+  getIconsByCategory,
+} from './assets/iconRegistry'
+export type {
+  IconDef,
+  IconName,
+  IconCategory,
+} from './assets/iconRegistry'
+
+// Phase 8d: settings 模块共用工具与类型（从根 src/ui/settings/utils.ts 下沉）
+export {
+  matchKeywords,
+  DEFAULT_SHORTCUTS,
+  SCOPE_ORDER,
+  scopeLabel,
+  FONT_LAYERS,
+  weightLabel,
+  sourceLabel,
+  formatSize,
+  SCENE_PROB_ITEMS,
+} from './components/settings/utils'
+export type {
+  ShortcutItem,
+  FontLayerConfig,
+  SceneProbItem,
+  CompanionProviderEntry,
+} from './components/settings/utils'
 
 // ----------------------------------------------------------------------------
 // App-Level UI Components — native to ui-kit
@@ -20,94 +52,34 @@ export { default as WsEmpty } from '../../../src/ui/WsEmpty.vue'
 // Currently re-exported from src/ui/; will eventually move into
 // packages/ui-kit/src/components/
 // ----------------------------------------------------------------------------
-export { default as RichTextEditor } from '../../../src/ui/editor/RichTextEditor.vue'
-export { default as FloatingPanel } from '../../../src/ui/layout/FloatingPanel.vue'
-export { default as ColorPickerDialog } from '../../../src/ui/editor/ColorPickerDialog.vue'
-export { default as InfoPanel } from '../../../src/ui/entity/InfoPanel.vue'
-export { default as DialogContainer } from '../../../src/ui/layout/DialogContainer.vue'
-export { default as Toast } from '../../../src/ui/feedback/Toast.vue'
-export { default as Shell } from '../../../src/ui/layout/Shell.vue'
-export { default as Sidebar } from '../../../src/ui/layout/Sidebar.vue'
-export { default as MenuBar } from '../../../src/ui/layout/MenuBar.vue'
-export { default as LayoutManager } from '../../../src/ui/layout/LayoutManager.vue'
-export { default as ViewContainer } from '../../../src/ui/layout/ViewContainer.vue'
-export { default as GlobalSearch } from '../../../src/ui/search/GlobalSearch.vue'
+export { default as RichTextEditor } from './components/editor/RichTextEditor.vue'
+export { default as FloatingPanel } from './components/layout/FloatingPanel.vue'
+export { default as ColorPickerDialog } from './components/editor/ColorPickerDialog.vue'
+export { default as InfoPanel } from './components/entity/InfoPanel.vue'
+export { default as DialogContainer } from './components/layout/DialogContainer.vue'
+export { default as Toast } from './components/feedback/Toast.vue'
+export { default as Sidebar } from './components/layout/Sidebar.vue'
+export { default as LayoutManager } from './components/layout/LayoutManager.vue'
+export { default as ViewContainer } from './components/layout/ViewContainer.vue'
+export { default as GlobalSearch } from './components/search/GlobalSearch.vue'
 export { default as SettingsDialog } from '../../../src/ui/settings/SettingsDialog.vue'
-export { default as WelcomeOverlay } from '../../../src/ui/layout/WelcomeOverlay.vue'
-export { default as ShortcutHelpModal } from '../../../src/ui/settings/ShortcutHelpModal.vue'
-export { default as VersionHistory } from '../../../src/ui/data/VersionHistory.vue'
-export { default as UndoHistoryPanel } from '../../../src/ui/data/UndoHistoryPanel.vue'
-export { default as DocExport } from '../../../src/ui/data/DocExport.vue'
-export { default as ExportImportDialog } from '../../../src/ui/data/ExportImportDialog.vue'
-export { default as ImportExportModal } from '../../../src/ui/data/ImportExportModal.vue'
-export { default as RegionMap } from '../../../src/ui/entity/RegionMap.vue'
-export { default as TemplateManager } from '../../../src/ui/entity/TemplateManager.vue'
+export { default as WelcomeOverlay } from './components/layout/WelcomeOverlay.vue'
+export { default as ShortcutHelpModal } from './components/settings/ShortcutHelpModal.vue'
+export { default as VersionHistory } from './components/data/VersionHistory.vue'
+export { default as UndoHistoryPanel } from './components/data/UndoHistoryPanel.vue'
+export { default as DocExport } from './components/data/DocExport.vue'
+export { default as ExportImportDialog } from './components/data/ExportImportDialog.vue'
+export { default as ImportExportModal } from './components/data/ImportExportModal.vue'
+export { default as RegionMap } from './components/entity/RegionMap.vue'
+export { default as TemplateManager } from './components/entity/TemplateManager.vue'
 export { default as CustomModuleView } from '../../../src/ui/entity/CustomModuleView.vue'
-export { default as GlobalCaretIndicator } from '../../../src/ui/layout/GlobalCaretIndicator.vue'
-export { default as GenericTreeView } from '../../../src/ui/entity/GenericTreeView.vue'
-export type { TreeNodeData } from '../../../src/ui/entity/GenericTreeView.vue'
-export { default as FontSelector } from '../../../src/ui/font/FontSelector.vue'
-export { default as TextRenderPreview } from '../../../src/ui/font/TextRenderPreview.vue'
-export { default as FontPreviewPanel } from '../../../src/ui/font/FontPreviewPanel.vue'
-export { default as AnimatedFontExportPanel } from '../../../src/ui/font/AnimatedFontExportPanel.vue'
-
-// ----------------------------------------------------------------------------
-// Business Components — delegated to @worldsmith/plugin-sdk
-// Entity forms, detail fields, relation panels, etc.
-// ----------------------------------------------------------------------------
-export {
-  SchemaRenderer,
-  GenericEntityView,
-  EntityDetailPanel,
-  EntityFormModal,
-  DetailField,
-  CreateButton,
-  CustomDropdown,
-  DynamicFieldsAdder,
-  UniversalRelationPanel,
-  BatchEditModal,
-  EntityRelationSelector,
-  DynamicEntityView,
-  EmptyState,
-  LoadingSkeleton,
-  ImageField,
-  ImageLightbox,
-  EntityCardCover,
-  EntityCardBack,
-} from '@worldsmith/plugin-sdk/components'
-export type { FormFieldDef, RelationTabDef, DetailTab } from '@worldsmith/plugin-sdk/components'
-
-// ----------------------------------------------------------------------------
-// Entity Composables — delegated to @worldsmith/plugin-sdk
-// Entity editing, batch operations, dialog, shortcuts, undo/redo, etc.
-// ----------------------------------------------------------------------------
-export {
-  useEntityEdit,
-  type EditFormValues,
-  useBatchDelete,
-  useDuplicateNameCheck,
-  useDialog,
-  useConfirm,
-  type ConfirmType,
-  useResizable,
-  getAllPanelWidths,
-  resetPanelWidth,
-  resetAllPanelWidths,
-  PANEL_LABELS,
-  type ResizableOptions,
-  useHighlight,
-  type HighlightOptions,
-  useShortcuts,
-  formatKeyForDisplay,
-  formatKeysForDisplay,
-  type ShortcutScope,
-  type ShortcutDef,
-  type ShortcutConflict,
-  useSelection,
-  SelectionKey,
-  provideGlobalSelection,
-  type SelectionState,
-} from '@worldsmith/plugin-sdk/composables'
+export { default as GlobalCaretIndicator } from './components/layout/GlobalCaretIndicator.vue'
+export { default as GenericTreeView } from './components/entity/GenericTreeView.vue'
+export type { TreeNodeData } from './components/entity/GenericTreeView.vue'
+export { default as FontSelector } from './components/font/FontSelector.vue'
+export { default as TextRenderPreview } from './components/font/TextRenderPreview.vue'
+export { default as FontPreviewPanel } from './components/font/FontPreviewPanel.vue'
+export { default as AnimatedFontExportPanel } from './components/font/AnimatedFontExportPanel.vue'
 
 // ----------------------------------------------------------------------------
 // Data Composables — delegated to @worldsmith/entity-core
@@ -157,10 +129,13 @@ export {
 // ----------------------------------------------------------------------------
 // App Composables — native to ui-kit
 // Toast notifications, floating panels, file system project management
-// Currently re-exported from src/composables/; will eventually move into
-// packages/ui-kit/src/composables/
+// - useToast / useFloatingPanel: 已迁移至本地 ./composables/
+// - useFileSystemProject: Phase 5a 已下沉到 @worldsmith/entity-core/composables
 // ----------------------------------------------------------------------------
 export {
+  toasts,
+  dismiss,
+  toast,
   useToast,
   toastSuccess,
   toastError,
@@ -168,14 +143,44 @@ export {
   toastWarn,
   toastWithUndo,
   type ToastType,
-} from '../../../src/composables/useToast'
+} from './composables/useToast'
 export {
   useFloatingPanel,
   Z_INDEX,
   type AnchorCorner,
   type FloatingPanelOptions,
-} from '../../../src/composables/useFloatingPanel'
-export { useFileSystemProject } from '../../../src/composables/useFileSystemProject'
+} from './composables/useFloatingPanel'
+export {
+  useResizable,
+  getAllPanelWidths,
+  resetPanelWidth,
+  resetAllPanelWidths,
+  PANEL_LABELS,
+  type ResizableOptions,
+} from './composables/useResizable'
+export { useDialog } from './composables/useDialog'
+export { useConfirm, type ConfirmType } from './composables/useConfirm'
+export { useSelection, SelectionKey, provideGlobalSelection, type SelectionState } from './composables/useSelection'
+export {
+  useShortcuts,
+  formatKeysForDisplay,
+  formatKeyForDisplay,
+  type ShortcutScope,
+  type ShortcutDef,
+  type ShortcutConflict,
+} from './composables/useShortcuts'
+export { useFileSystemProject } from '@worldsmith/entity-core/composables'
+
+// ----------------------------------------------------------------------------
+// Phase 7 下沉的纯工具 composables（从 src/composables/ 迁入）
+// 全局事件注册、文本选择监听、右键菜单状态管理
+// ----------------------------------------------------------------------------
+export { useGlobalEvents } from './composables/useGlobalEvents'
+export {
+  useTextSelection,
+  type TextSelectionInfo,
+} from './composables/useTextSelection'
+export { useSmartFillContextMenu } from './composables/useSmartFillContextMenu'
 
 // ----------------------------------------------------------------------------
 // Motion Composables — delegated to @worldsmith/motion-kit

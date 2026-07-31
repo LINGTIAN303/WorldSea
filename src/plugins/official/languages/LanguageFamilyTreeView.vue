@@ -83,7 +83,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'
-import { CustomDropdown } from '@worldsmith/ui-kit'
+import { CustomDropdown } from '@worldsmith/plugin-sdk'
 import { useLangFamilyTreeData, type LangNode, type LangRelation } from './composables/useLangFamilyTreeData'
 import { useLangFamilyTreeLayout, type LangLayoutMode } from './composables/useLangFamilyTreeLayout'
 import { useLangFamilyTreeCanvas } from './composables/useLangFamilyTreeCanvas'

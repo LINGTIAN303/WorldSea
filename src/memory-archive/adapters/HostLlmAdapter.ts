@@ -15,9 +15,8 @@
  */
 
 import type { LlmAdapter } from '@worldsmith/memory-archive/adapters'
-import type { ProviderConfig } from '@agent/providers/config'
-import { resolveModel } from '@agent/providers/resolve'
-import { buildDirectEndpoint } from '@agent/providers/provider-registry'
+import type { ProviderConfig } from '@worldsmith/agent-runtime'
+import { resolveModel, buildDirectEndpoint } from '@worldsmith/agent-runtime'
 import { useAgent } from '@/agent/composables/useAgent'
 
 /** 简化的消息格式（LlmAdapter 接口要求） */

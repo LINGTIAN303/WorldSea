@@ -19,7 +19,7 @@
 </template>
 <script setup lang="ts">
 import { ref } from 'vue'
-import { SchemaRenderer, CustomDropdown, type RelationTabDef } from '@worldsmith/ui-kit'
+import { SchemaRenderer, CustomDropdown, type RelationTabDef } from '@worldsmith/plugin-sdk'
 import SkillTreeView from './SkillTreeView.vue'
 import type { Entity } from '@worldsmith/entity-core'
 import { useAgentPluginBridge } from '../../../composables/useAgentPluginBridge'

@@ -1,4 +1,5 @@
-import type { ExecutionAdapter, ExecOptions, ExecResult, PtyOptions, ShellInfo, ShellSessionInfo, ShellExecResult } from './adapter'
+import type { ExecutionAdapter, ExecOptions, ExecResult, PtyOptions, ShellInfo, ShellSessionInfo, ShellExecResult } from '@worldsmith/agent-runtime'
+import { getWsToken } from '@worldsmith/agent-runtime/execution'
 
 interface WsAdapterConfig {
   url: string
@@ -77,9 +78,8 @@ export class WebSocketExecutionAdapter implements ExecutionAdapter {
     return new Promise((resolve, reject) => {
       if (this.disposed) { reject(new Error('Adapter disposed')); return }
 
-      const token = typeof localStorage !== 'undefined'
-        ? localStorage.getItem('ws_server_token') || 'dev'
-        : 'dev'
+      // 优先使用 getWsToken（支持环境变量 + localStorage 双重配置）
+      const token = getWsToken()
       const url = `${this.config.url}?token=${token}`
 
       this.ws = new WebSocket(url)

@@ -1,127 +1,30 @@
 /**
- * worldsmith-agent 包入口
+ * # worldsmith-agent 包入口（Phase 4 清理后）
  *
- * 统一导出所有公开 API，包括：
- * - Agent 创建和配置
- * - 工具定义和类型
- * - 会话管理
- * - 上下文构建和注入
- * - Skill 注册管理
- * - Provider 配置和 Key 存储
- * - Embedding（向量嵌入）服务
- * - 图像生成和持久化
- * - 日志和限流
+ * 本包是 `@worldsmith/agent-runtime` 的薄包装：
+ * - 重新导出 agent-runtime 的所有端无关 API（Agent 核心、工具、会话、上下文、技能等）
+ * - 额外提供端特定 ExecutionAdapter 实现（Node/Tauri/WebSocket）
+ * - 自动注册三个端适配器到 ExecutionAdapter 工厂（副作用导入）
+ *
+ * ## 已清理（2026-07-31）
+ * - CLI 代码已迁移到 apps/cli/src/cli/
+ * - worldsmith-agent/src/cli/ 目录已删除
+ * - worldsmith-agent/bin/cli.mjs 已删除
+ *
+ * ## 后续清理（Phase 6）
+ * - root src 迁移到直接使用 @worldsmith/agent-runtime 后，本文件可删除
  */
 
-export { createWorldSmithAgent, getToolsForSkills, ALL_TOOLS, TOOL_CATEGORIES, internalRegistry, setActiveCliAgentConnection, getActiveCliAgentConnection } from './agent'
-export type { CreateAgentOptions } from './bridge-types'
-export { CoreBackend } from './bridge'
-export { HybridBackend, createHybridBackend } from './hybrid-backend'
-export type { CliAgentConnection, HybridBackendConfig } from './hybrid-backend'
-export type { IAgentBackend } from './bridge'
-export type { AgentEvent, AgentEventListener, AgentConfig, ToolDefinition, ToolParameter, PromptOptions, ImageAttachment, UsageData, ThinkingLevel, ChatMode, A2UIMessage, A2UIComponent, MessageBlock, TableBlock, ChoiceBlock, CodeBlockData, EntityCardBlock, AlertBlock, StatBlock, ListBlock, ProgressBlock, ComparisonBlock, TimelineBlock, ImageBlock, VideoBlock, AccordionBlock, ManuscriptBlock, ExportCorrectorConfig } from './bridge-types'
-export type { WorldSmithToolContext, EntityLike, RelationLike } from './tools/types'
-export { DefaultToolBus } from './toolbus/toolbus'
-export type { ToolBus } from './toolbus/toolbus'
-export type { IToolContext, IToolStores, IEntityStore, IRelationStore, IFileStore, ISettingsStore, IUIStore, SessionSummary } from './toolbus/types'
-export { MCPManager } from './mcp/mcp-manager'
-export { MCPToolAdapter } from './mcp/mcp-adapter'
-export type { MCPConnectionConfig, MCPTransportType, MCPToolInfo, MCPConnectionState } from './mcp/types'
-export type { AgentSession, AgentMessage, AgentStateSnapshot, ToolCallRecord, ProviderMode, ModelInfo, ImageAttachment as SessionImageAttachment, FileAttachment, SessionUsage } from './session/types'
-export type { ProviderConfig, CloudProviderConfig, LocalProviderConfig, CustomProviderConfig, CloudProvider, LocalApiType, CustomApiType } from './providers/config'
-export { DEFAULT_CLOUD_CONFIGS } from './providers/config'
-export {
-  getProviderManifest,
-  getAllProviderManifests,
-  getDomesticProviderIds,
-  getProxyPathMap,
-  getDefaultModelMap,
-  getProviderLabelMap,
-  getProviderIds,
-  detectVisionSupport,
-  detectThinkingSupport,
-  resolveModelId,
-  buildDirectEndpoint,
-  buildModelsEndpoint,
-  buildProxyEndpoint,
-  registerProviderManifest,
-} from './providers/provider-registry'
-export type { ProviderManifest, ProviderCompatConfig, ApiType, ThinkingFormat, ThinkingLevelMap, VisionDetector, ThinkingDetector, EndpointConfig } from './providers/provider-registry'
-export { fetchModelsFromProvider, getCachedModels, refreshModels, getModelsWithBackgroundRefresh, clearModelCache, clearAllModelCache } from './providers/model-fetcher'
-export type { FetchedModelEntry } from './providers/model-fetcher'
-export { storeApiKey, loadApiKey, removeApiKey, hasApiKey } from './providers/key-store'
-export { listSessions, getSession, saveSession, deleteSession, createSession, pinSession, unpinSession, renameSession, countSessions, setAgentCurrentProjectId, releaseAgentDb } from './session/manager'
-export { buildContextInjection, invalidateContextCache } from './context/builder'
-export { buildSystemPrompt, buildSharedBaseLayer } from './context/injector'
-export { buildProjectSummary, formatSummaryForPrompt, truncateMessages } from './context/summary'
-export { logger, setLogLevel } from './utils/logger'
-export { checkRateLimit, recordRequest, recordUsage, getUsageSummary } from './utils/rate-limit'
-export { SKILL_REGISTRY, getEnabledSkills, getAllSkills, toggleSkill, resolveToolNames, ALWAYS_AVAILABLE_TOOLS } from './skills/registry'
-export type { SkillMeta } from './skills/registry'
-// Skills Store（Task 24 阶段2/3/4）：远程技能源下载/安装/卸载/更新 + 本地导入
-export { downloadRemoteManifest, installSkill, installSkillAndReload, uninstallSkill, uninstallSkillAndReload, getInstalledVersions, checkUpdates, importLocalSkill, importLocalSkillAndReload } from './skills/skills-store'
-export type { InstallResult, InstalledMeta, RemoteSkillEntry, RemoteManifest, InstallSkillOptions, ImportLocalOptions } from './skills/skills-store'
-// 多平台互通（Task 24 阶段4）：Claude Code / Cursor / WorldSmith 格式双向转换
-export { detectPlatform, importClaudeCodeSkill, importCursorRule, importWorldSmithYaml, autoImportSkill, exportToClaudeCodeSkill, exportToCursorRule, exportToSkillYaml } from './skills/platform-adapters'
-export type { SkillPlatform, ImportResult } from './skills/platform-adapters'
-export { resolvePluginToolNames, buildPluginCapabilityPrompt, registerPluginCapability, getPluginCapability, getAllPluginCapabilities, resolveRelatedPlugins } from './skills/plugin-bridge'
-export type { PluginCapability } from './skills/plugin-bridge'
-export { outputTools, outputTable, outputChoice, outputCode, outputEntityCard, outputAlert, outputStat, outputList, outputProgress, outputComparison, outputTimeline, outputImage, outputAccordion, outputManuscript } from './tools/output-tools'
-export { manuscriptClone } from './tools/manuscript-tools'
-export { sessionTools, sessionInfo, sessionList, sessionRead } from './tools/session-tools'
-export { recallMemory, formatMemoryForPrompt } from './tools/memory'
-export { generateEmbedding, generateEmbeddings, cosineSimilarity, clearEmbeddingCache, getEmbeddingConfig, saveEmbeddingConfig } from './embedding/service'
-export type { EmbeddingConfig } from './embedding/service'
-export { putVector, putVectors, getVector, deleteVector, getCollection, searchSimilar, deleteCollection, getCollectionSize } from './embedding/vector-store'
-export type { VectorRecord, SearchResult as VectorSearchResult } from './embedding/vector-store'
-export { indexEntity, indexEntities, removeEntityIndex, indexMemoryEntry, removeMemoryIndex, syncEntityIndex, semanticSearch, semanticSearchEntities, semanticSearchMemory, isEmbeddingReady, getEmbeddingStats } from './embedding/index'
-export type { SemanticSearchResult } from './embedding/index'
-export { EMBEDDING_PRESETS } from './embedding/service'
-export { storeImages, getImages, removeImages, type StoredImage } from './tools/vision-tools'
-export { imageGenTools } from './tools/image-gen-tools'
-export { persistImage, getImage, getByPath, getImagesByPathPrefix, getAllImages, deleteImage, deleteImagesByPrefix, getImageCount, srcToBlob, downloadBlob, blobToDataUrl, onImagePersisted } from './stores/image-persistence'
-export type { PersistedImage, ImagePersistedEvent } from './stores/image-persistence'
-export { videoGenTools } from './tools/video-gen-tools'
-export { planTools } from './tools/plan-tools'
-export { nativeTools } from './tools/native-tools'
-export { persistVideo, getVideo, getVideosByPathPrefix, getAllVideos, deleteVideo, getVideoCount, urlToBlob, blobToDataUrl as videoBlobToDataUrl } from './stores/video-persistence'
-export type { PersistedVideo } from './stores/video-persistence'
+// ═══ 重新导出 agent-runtime 的端无关 API ═══
+export * from '@worldsmith/agent-runtime'
 
-/* ─── Group Chat ─── */
-export type {
-  AgentProfile,
-  AgentPersonality,
-  SpeakingDesireConfig,
-  ProviderSlot,
-  ProviderSlotEntry,
-  LoadBalanceStrategy,
-  TurnStrategy,
-  GroupChatMessage,
-  GroupChatSession,
-  RateLimitConfig,
-} from './group-chat/types'
-export { ProviderPool } from './group-chat/provider-pool'
-export { FlowController } from './group-chat/flow-control'
-export { GroupChatMessageBus } from './group-chat/message-bus'
-export type { GroupChatEvent, GroupChatEventListener } from './group-chat/message-bus'
-export { TurnEngine } from './group-chat/turn-engine'
-export type { TurnResult } from './group-chat/turn-engine'
-export { evaluateSpeakingDesire, computeTopicRelevance, createLuckState, updateLuck } from './group-chat/speaking-desire'
-export type { SpeakingDesireContext, SpeakingDesireResult, LuckState } from './group-chat/speaking-desire'
-export { runModerator } from './group-chat/moderator'
-export { listAgentProfiles, getAgentProfile, saveAgentProfile, deleteAgentProfile } from './session/manager'
-export { listGroupSessions, getGroupSession, saveGroupSession, deleteGroupSession } from './session/manager'
+// ═══ 端特定 ExecutionAdapter 实现 ═══
+// 这三个适配器是端特定的，不放在 agent-runtime 中
+export { NodeExecutionAdapter, getDefaultShell } from './execution/node-adapter'
+export { TauriExecutionAdapter } from './execution/tauri-adapter'
+export { WebSocketExecutionAdapter } from './execution/ws-adapter'
 
-/* ─── Governor（Agent 包调控器） ─── */
-export {
-  createAgentGovernor,
-  createWebAgentGovernor,
-  createCliAgentGovernor,
-  bootAgentGovernor,
-  initAgentGovernor,
-  getAgentGovernor,
-  detectAgentEnvironment,
-  detectAgentOrWebEnvironment,
-} from './governor'
-export type { AgentGovernor } from './governor'
-export { agentModules, cliAgentModules, webAgentModules } from './governor-modules'
+// ═══ 自动注册端适配器（副作用导入） ═══
+// 导入即注册：Node/Tauri/WebSocket 三个适配器自动注册到 ExecutionAdapterFactory
+// 现有调用方无需修改即可继续工作（向后兼容）
+import './execution'

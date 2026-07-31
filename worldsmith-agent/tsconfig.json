@@ -35,6 +35,8 @@
       "@worldsmith/font-kit/*": ["../packages/font-kit/src/*"],
       "@worldsmith/agent-core": ["../packages/agent-core/src/index.ts"],
       "@worldsmith/agent-core/*": ["../packages/agent-core/src/*"],
+      "@worldsmith/agent-runtime": ["../packages/agent-runtime/src/index.ts"],
+      "@worldsmith/agent-runtime/*": ["../packages/agent-runtime/src/*"],
       "@worldsmith/governor-core": ["../packages/governor-core/src/index.ts"],
       "@worldsmith/governor-core/*": ["../packages/governor-core/src/*"]
     }

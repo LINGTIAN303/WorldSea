@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <Teleport to="body">
     <div v-for="pos in positions" :key="pos" :class="['cn-zone', `cn-zone-${pos}`]">
       <TransitionGroup name="ws-list" tag="div" class="cn-stack">
@@ -39,7 +39,7 @@
 
 <script setup lang="ts">
 import type { CompanionNotificationData } from '../../composables/useCompanionMode'
-import type { PopupPosition } from '../../composables/companionModeScene'
+import type { PopupPosition } from '@worldsmith/shared-composables/companion/scene'
 import WsIcon from '../WsIcon.vue'
 
 const props = defineProps<{

@@ -53,7 +53,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useEntityStore, useTemplateStore, entitySchemaRegistry } from '@worldsmith/entity-core'
-import { useDialog, useConfirm, useResizable } from '@worldsmith/ui-kit'
+import { useDialog, useConfirm, useResizable } from '@worldsmith/plugin-sdk'
 import WsIcon from '../WsIcon.vue'
 
 defineProps<{ show: boolean }>()

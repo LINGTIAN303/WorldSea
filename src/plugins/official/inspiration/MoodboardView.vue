@@ -68,7 +68,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import { useEntityStore } from '@worldsmith/entity-core'
-import { CustomDropdown } from '@worldsmith/ui-kit'
+import { CustomDropdown } from '@worldsmith/plugin-sdk'
 import MoodboardCanvas from './components/MoodboardCanvas.vue'
 import type { CardData } from './composables/moodboardDraw'
 import { extractColorsFromUrl } from './composables/useColorExtractor'
