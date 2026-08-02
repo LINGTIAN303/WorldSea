@@ -625,6 +625,21 @@ agent_end → checkShouldAutoContinue=true → autoContinueTask → backend.prom
 - GitHub 仓库：https://github.com/LINGTIAN303/WorldSmith（私有，gh repo create 创建，原 origin URL 仓库不存在）
 
 **待办**：长任务全链路实测（心跳/checkpoint/取消/恢复/失败 5 项）；端分离业务 UI 迁移启动
+
+### 风险点处理（2026-08-03）
+
+**风险点 1（终端/子 Agent 未实测）→ 已实测通过 ✅**
+- 终端：CDP 直测 invoke 链路（等价 openTerminal/writePtyInput 代码路径）——cmd_pty_spawn 启动 cmd.exe → 终端控制序列输出推送（pty-output-{id} 事件）→ echo 命令回显成功 → cmd_pty_kill 关闭。验证脚本 scripts/cdp-pty-diag.mjs
+- 子 Agent：动态 import 直测 createRustAgent（等价 createSubBackend 核心逻辑）——独立会话创建 → prompt → agent_end → 返回末条 assistant 内容。验证脚本 scripts/cdp-subagent-diag.mjs
+- 注意：裸 PTY 链路需手动回复 DSR 光标位置（\x1b[6n），xterm.js 前端会自动处理，真实 UI 无此问题
+
+**风险点 2（A2UI Rust 端空壳）→ 已决策维持 TS 桥 ✅**
+- A2UI 走 TS 工具桥路径（emitA2UI → a2uiSurfaces → A2UIRenderer）已验证可用；Rust 端 A2UIEvent 通道作预留不开发
+
+**风险点 3（循环控制双轨）→ 决策保持现状 + 记录为已知限制**
+- 主聊天自实现重试/限流（call_llm_with_retry/execute_tool_with_retry/last_llm_call_time）已工作正常，不产生 LoopEng 事件
+- LoopEng 状态栏（LoopControlStatusBar）在独立 pattern 会话（cmd_loop_control_*）正常工作
+- 完整接入 LoopController 需：主聊天创建控制器实例 + LoopEng 事件通道（loop_control:event:{taskId}）+ 前端 taskId 关联，工作量中-大且改动主聊天核心循环，风险高；当前主聊天限流/重试行为正确，**不做过度工程**，后续如需主聊天展示限流/超时状态再评估
 <!-- HIPPOCAMPUS:SECTION:decisions END -->
 
 <!-- MemoryCenter:SECTION:task_state START -->
