@@ -640,6 +640,23 @@ agent_end → checkShouldAutoContinue=true → autoContinueTask → backend.prom
 - 主聊天自实现重试/限流（call_llm_with_retry/execute_tool_with_retry/last_llm_call_time）已工作正常，不产生 LoopEng 事件
 - LoopEng 状态栏（LoopControlStatusBar）在独立 pattern 会话（cmd_loop_control_*）正常工作
 - 完整接入 LoopController 需：主聊天创建控制器实例 + LoopEng 事件通道（loop_control:event:{taskId}）+ 前端 taskId 关联，工作量中-大且改动主聊天核心循环，风险高；当前主聊天限流/重试行为正确，**不做过度工程**，后续如需主聊天展示限流/超时状态再评估
+
+### 长任务全链路实测通过（2026-08-03）
+
+**5 项全链路实测（CDP 脚本：cdp-lt-real / cdp-lt-state）全部 PASS**：
+- 心跳：5s 推进（Δ~4994ms）+ SQLite lastHeartbeatAt 落库 ✅
+- checkpoint：turnCount/currentTool 生效并持久化 ✅
+- 取消：requestCancel 协作式 flag → cancelTask → SQLite status=cancelled ✅
+- 失败：failTask → SQLite status=failed ✅
+- 恢复：running 记录 detectResumableTasks → resumeActiveTask 接管（turn 保留、心跳重启）→ completeTask 清理 ✅
+
+**实测发现并修复竞态 bug**：
+- `useLongTaskRust.startTask` 初始 `saveTask` 是 fire-and-forget（不 await），紧接的 cancelTask/failTask 的 `cmd_long_task_update_status` 可能先落库，初始 running 记录（upsert 整条）后到**覆盖终态为 running**（实测 T2 取消后 SQLite 仍 running）
+- 修复：startTask 改 async + `await saveTask`；useAgentRust.ts 调用处加 await（仅 1 处）
+
+**清理**：4 个历史遗留无主 running 任务（刷新/中断未终结的僵尸记录）已标记 cancelled 清理
+
+**Phase 2 收尾完成**：Rust 长任务工作线（消息渲染/深度模式/终端/子 Agent/长任务 5 项）全部实测通过，可启动端分离业务 UI 迁移
 <!-- HIPPOCAMPUS:SECTION:decisions END -->
 
 <!-- MemoryCenter:SECTION:task_state START -->
@@ -661,11 +678,11 @@ agent_end → checkShouldAutoContinue=true → autoContinueTask → backend.prom
 - [x] 前端高级能力补齐 4 批（2026-08-03，c0d2cff）：深度模式主聊天开启 + finalOutput 回填 + 终端接 cmd_pty_* + 子 Agent 独立 Rust 会话 + 三处横幅文案统一
 
 ## 进行中步骤
-- 长任务全链路实测（心跳/checkpoint/取消/恢复/失败 5 项）
+- 端分离业务 UI 迁移（渐进式分模块策略）
 
 ## 下一步
-- 长任务全链路实测：浏览器切 Rust 后端触发长任务，验证心跳/checkpoint/取消/恢复/失败
-- 实测通过后：启动端分离业务 UI 迁移（渐进式分模块策略）
+- 启动端分离业务 UI 迁移：按 08-migration-phases.md 渐进式分模块策略，先迁 UI 骨架 → 业务模块逐个迁移
+- 迁移过程中保持 Rust 后端实测链路可回归（cdp-lt-* 脚本复用）
 
 ## 本次进展（2026-08-01）
 - 检查点提交 5c32c78 + 端分离状态复核 + ui-kit 死导出清理（见 decisions 段）

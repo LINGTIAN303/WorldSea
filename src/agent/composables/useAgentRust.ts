@@ -2063,7 +2063,7 @@ export function useAgentRustAdapter() {
       // 已有活跃任务（如断点恢复后首条消息）→ 复用 taskId，不新建（避免 startTask 抢占）
       currentTaskId.value = existingTaskId
     } else {
-      const taskId = longTask.startTask({
+      const taskId = await longTask.startTask({
         type: 'main-agent',
         prompt: text,
         lastUserText: text,

@@ -301,8 +301,12 @@ function updateHeartbeatStatus(): void {
  * 启动长任务
  * @param params 任务参数（含 getCheckpointData 回调，用于读取 AgentLoop 内部 messages）
  * @returns taskId
+ *
+ * 注意：async 并 await 初始 saveTask——否则快速 cancelTask/failTask 的
+ * cmd_long_task_update_status 可能与初始 cmd_long_task_save（upsert running）
+ * 竞态，初始 save 晚到会覆盖终态为 running（2026-08-03 实测发现并修复）。
  */
-function startTask(params: {
+async function startTask(params: {
   type: LongTaskType
   prompt: string
   lastUserText: string
@@ -312,7 +316,7 @@ function startTask(params: {
   agentType?: string
   pipelineContext?: { pipelineId: string; stepId: string }
   getCheckpointData: () => LongTaskCheckpoint
-}): string {
+}): Promise<string> {
   // 防御：若已有活跃任务，先标记 failed（正常不应出现）
   if (activeTask.value && activeTask.value.status === 'running') {
     console.warn('[LongTaskRust] startTask: 已有活跃任务在跑，先标记 failed:', activeTask.value.taskId)
@@ -350,8 +354,8 @@ function startTask(params: {
   checkpointDirty = false
   heartbeatStatus.value = 'alive'
 
-  // 持久化初始记录
-  saveTask(activeTask.value)
+  // 持久化初始记录（await：避免与快速 cancelTask/failTask 的 update_status 竞态，2026-08-03 修复）
+  await saveTask(activeTask.value)
   // 启动心跳
   startHeartbeat(taskId)
 
