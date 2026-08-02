@@ -595,6 +595,36 @@ agent_end → checkShouldAutoContinue=true → autoContinueTask → backend.prom
 3. **启动节奏**：**先收尾主应用 Rust 后端工作线**（failTask 终态实测、深度模式/A2UI/终端/子 Agent 补齐），再启动迁移，不双线并行
 
 **结论**：迁移启动条件已具备，但**暂不启动**；待主应用 Rust 后端收尾后，按渐进式分模块策略启动。
+
+### Rust 端到端实测通过 + 前端高级能力补齐（2026-08-03）
+
+**背景**：端到端实测"消息发送无反应"排查 + 深度模式/A2UI/终端/子 Agent 补齐评估（commit 5fd166e、c0d2cff）。
+
+**消息不渲染排查结论（4 层根因叠加）**：
+1. `readonly(backend)` 深代理 → 适配器 subscribe/subscribeDeepPhase 的 Set 变只读，注册失败
+2. payload 序列化 snake_case（message_id/full_text）vs 前端 camelCase（messageId/fullText）→ 字段全 undefined（payload.rs 加 `rename_all_fields = "camelCase"`）
+3. agent.rs 会话级 + genai_backend 每 LLM 级双广播 StreamStart/End → 同 message_id 重复消息（删除会话级广播）
+4. **最终根因**：消息原地修改（target.content=...）不改变对象引用 → AgentMessageBubble.hasVisibleContent computed 依赖 props.msg 不失效 → 缓存 false 永不重算 → 气泡渲染为空（新增 updateMessage 不可变更新替换全部 6 处原地修改点）
+
+**补齐评估结论**（三路代码核查）：
+- Rust 端：深度模式 DeepPhaseChanged 主聊天必经广播 ✅；ToT/GoT/Multi-Agent/Supervisor/Router/Loop 引擎完成（独立 cmd_*_run 命令可达）✅；长任务 SQLite 状态机完整 ✅；**A2UI Rust 端空壳**（无工具实现/无事件广播，实际链路走 TS 工具桥 emitA2UI）；**PlanCreated/PlanStepUpdate 无广播点**；agent-runtime 无 PTY（Tauri 命令层 cmd_pty_* 完整）
+- 前端：6 编排状态栏（Loop/ToT/GoT/MA/Supervisor/Router）订阅与 Rust 广播一一对应已接通；缺口集中在 4 点（深度模式主聊天被 use-deep-layout=false 切断 / finalOutput 无赋值 / 终端 stub / createSubBackend 抛错）
+
+**实施（4 批，c0d2cff）**：
+- 批次1：AgentChat `use-deep-layout` 按 `activeChatMode==='deep'` 动态传；agent_end 从消息列表回填 finalOutput 结论；resolveToolConfirmation 降级（Rust 无挂起-恢复机制，记录日志）
+- 批次2：终端 4 个 stub 替换为真实实现（openTerminal/writePtyInput/resizePty/closeTerminal → cmd_pty_spawn/write/resize/kill；TerminalPanel 已支持 pty-output-{id} 渲染）
+- 批次3：子 Agent 方案 A——createSubBackend 创建独立 Rust 会话（createRustAgent），prompt 包装层先注册监听再触发，等 agent_end/error 后返回末条 assistant 内容
+- 批次4：三处过时横幅文案统一（AgentChat/SpaceChat/ProviderPanel）+ 契约注释清理（useAgent.ts/useAgentRust.ts）
+- **明确不做**：thinking 段（Rust 无 thinking 事件流，thinkingLevel=off）、plan 进度（Rust 端 PlanCreated 无广播点）——无数据源不造死代码
+
+**验证**：vue-tsc 改动文件 0 错误（存量错误与本次无关）；CDP 端到端实测消息链路完整（assistant 完整回复渲染 + 新横幅文案生效）
+
+**关键决策**：
+- 子 Agent 走方案 A（独立 Rust 会话）而非方案 B（事件桥接展示）
+- A2UI 维持 TS 工具桥路径（已验证可用），Rust 端事件通道作预留不开发
+- GitHub 仓库：https://github.com/LINGTIAN303/WorldSmith（私有，gh repo create 创建，原 origin URL 仓库不存在）
+
+**待办**：长任务全链路实测（心跳/checkpoint/取消/恢复/失败 5 项）；端分离业务 UI 迁移启动
 <!-- HIPPOCAMPUS:SECTION:decisions END -->
 
 <!-- MemoryCenter:SECTION:task_state START -->
@@ -612,13 +642,15 @@ agent_end → checkShouldAutoContinue=true → autoContinueTask → backend.prom
 - [x] AgentChat.vue 40 个 TypeScript 错误修复（2026-07-31）
 - [x] 工作区收敛（2026-08-02，c3856de）：@agent 统一到 packages/agent-runtime 单轨；worldsmith-agent 冻结为端适配器宿主；vite build 两次通过
 - [x] 文档全量同步（2026-08-02）：README/project_memory/ROADMAP/agent-orchestration-roadmap/perf-kit-plan/rust-backend-completion-plan/skills-store-spec/端分离文档库（README、01、02、07、08、10）全部按实际状况更新
+- [x] Rust 端到端实测通过（2026-08-03，5fd166e）：消息渲染 4 层根因修复（readonly 深代理 / payload camelCase / 双广播去重 / updateMessage 不可变更新）
+- [x] 前端高级能力补齐 4 批（2026-08-03，c0d2cff）：深度模式主聊天开启 + finalOutput 回填 + 终端接 cmd_pty_* + 子 Agent 独立 Rust 会话 + 三处横幅文案统一
 
 ## 进行中步骤
-- Rust 长任务前端对接（useLongTaskRust）——生命周期接入已完成，待端到端实测
+- 长任务全链路实测（心跳/checkpoint/取消/恢复/失败 5 项）
 
 ## 下一步
-- 端到端实测：浏览器切换到 Rust 后端，触发长任务（如 task 模式），验证心跳/checkpoint/取消/恢复全链路
-- 如实测通过：Phase 2 收尾，进入下一阶段（深度模式 / A2UI / 终端 / 子 Agent）
+- 长任务全链路实测：浏览器切 Rust 后端触发长任务，验证心跳/checkpoint/取消/恢复/失败
+- 实测通过后：启动端分离业务 UI 迁移（渐进式分模块策略）
 
 ## 本次进展（2026-08-01）
 - 检查点提交 5c32c78 + 端分离状态复核 + ui-kit 死导出清理（见 decisions 段）
