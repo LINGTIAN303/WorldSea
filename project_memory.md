@@ -610,4 +610,19 @@ agent_end → checkShouldAutoContinue=true → autoContinueTask → backend.prom
   - newSession/dispose 清理 currentTaskId
   - resumeTask 的 getCheckpointData 统一用 lastRuntimeMessages
   - 验证：vue-tsc useAgentRust.ts 零错误；全项目 122 条错误均为预存（graph/StatusBar/entity-core 迁移遗留）
+
+## 本次进展（2026-08-02）— 工作区收敛 + 环境修复 + 端到端实测
+- **检查点提交 20a3933**：WORLDSMITH_DATA_DIR、custom-protocol feature、vite noDiscovery、nodejieba 间接 require、shared-composables 依赖声明恢复、cdp-helper 脚本
+- **环境修复**（TRAE 沙箱 + dev 链路）：
+  - cookie 沙箱拦截（AppData\Local\com.worldsmith.app\.cookies 致 exe 退出）→ tauri.conf.json `dataDirectory: "../.webview2-data"` 重定向
+  - ui-kit exports 通配符 bug（`*/index.vue` → `*`）
+  - CJS interop：noDiscovery 下显式 include dexie/jszip/events/vuedraggable/等 9 个包
+  - worldsmith-agent/index.ts 静态 re-export child_process → 移除（浏览器链加载失败）
+- **工作区收敛（路线 A，消除双轨）**：
+  - `@agent/*` 统一指向 `packages/agent-runtime/src`（vite/tsconfig/vitest 三处配置；alias 12 条子路径精简为 1 条裸 @agent 前缀匹配）
+  - ui-kit agent-descriptor.ts 4 处 `@agent/` → `@worldsmith/agent-runtime/`（agent-runtime exports 补全 toolbus/tools 等 12 个通配子路径）
+  - 主应用 main.ts 显式 registerExecutionAdapterFactory（替代 worldsmith-agent/index.ts 的 import './execution' 副作用）
+  - worldsmith-agent 冻结为"端适配器宿主"（仅 tauri/ws/node adapter 被显式引用）
+  - 验证：vite build 两次通过（33.6s / 31.0s），依赖图单轨
+- **端到端实测状态**：startTask/心跳/checkpoint/SQLite 持久化已验证 ✅；failTask 终态未闭环（待收敛后干净环境重测）
 <!-- MemoryCenter:SECTION:task_state END -->

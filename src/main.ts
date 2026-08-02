@@ -31,6 +31,17 @@ import { toastSuccess, toastError, toastWarn, toastInfo } from './composables/us
 import { registerAllManifests } from '@worldsmith/theme-kit'
 import { moduleStore } from './modules/store'
 import { useProjectSwitcher } from './composables/useProjectSwitcher'
+import { registerExecutionAdapterFactory } from '@agent/execution'
+// 端适配器宿主：worldsmith-agent/src/execution（收敛后仅保留适配器实现，不再作为 @agent 入口）
+import { TauriExecutionAdapter } from '../worldsmith-agent/src/execution/tauri-adapter'
+import { WebSocketExecutionAdapter } from '../worldsmith-agent/src/execution/ws-adapter'
+
+// 收敛中间态：@agent 入口已统一到 packages/agent-runtime（无副作用注册），
+// 端适配器改为主应用显式注册（替代 worldsmith-agent/index.ts 的 import './execution' 副作用）
+registerExecutionAdapterFactory({
+  createTauriAdapter: () => new TauriExecutionAdapter(),
+  createWsAdapter: (config) => new WebSocketExecutionAdapter(config),
+})
 
 registerBackend({
   getBackendType: coreBackend.getBackendType,

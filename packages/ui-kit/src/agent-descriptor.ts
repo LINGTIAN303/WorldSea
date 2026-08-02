@@ -1,7 +1,7 @@
-import type { LibraryDescriptor, CapabilityDeclaration, AvailabilitySpec } from '@agent/toolbus/capability-types'
-import type { ToolParameter } from '@agent/bridge-types'
-import { a2uiCreateSurface, a2uiUpdateComponents, a2uiUpdateData, a2uiDeleteSurface } from '@agent/tools/a2ui-tools'
-import { a2uiShowEntity, a2uiShowRelation } from '@agent/tools/a2ui-helpers'
+import type { LibraryDescriptor, CapabilityDeclaration, AvailabilitySpec } from '@worldsmith/agent-runtime/toolbus/capability-types'
+import type { ToolParameter } from '@worldsmith/agent-runtime/bridge-types'
+import { a2uiCreateSurface, a2uiUpdateComponents, a2uiUpdateData, a2uiDeleteSurface } from '@worldsmith/agent-runtime/tools/a2ui-tools'
+import { a2uiShowEntity, a2uiShowRelation } from '@worldsmith/agent-runtime/tools/a2ui-helpers'
 
 const A2UI_AVAILABILITY: AvailabilitySpec = {
   platforms: ['web', 'tauri'],

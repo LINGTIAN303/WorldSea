@@ -34,7 +34,7 @@ export default defineConfig({
     // 与 vite.config.ts 保持一致，避免测试与开发环境行为分叉
     alias: Object.entries({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
-      '@agent': path.resolve(__dirname, 'worldsmith-agent/src'),
+      '@agent': path.resolve(__dirname, 'packages/agent-runtime/src'),
       '@worldsmith/entity-core$': path.resolve(__dirname, 'packages/entity-core/src'),
       '@worldsmith/entity-core/stores': path.resolve(__dirname, 'packages/entity-core/src/stores'),
       '@worldsmith/entity-core/core': path.resolve(__dirname, 'packages/entity-core/src/core'),

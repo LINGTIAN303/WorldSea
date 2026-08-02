@@ -5,7 +5,7 @@
     "types": ["vite/client"],
     "paths": {
       "@/*": ["./src/*"],
-      "@agent/*": ["./worldsmith-agent/src/*"],
+      "@agent/*": ["./packages/agent-runtime/src/*"],
       "@agent/bridge-types": ["./packages/agent-runtime/src/bridge-types.ts"],
       "@agent/toolbus/*": ["./packages/agent-runtime/src/toolbus/*"],
       "@agent/tools/*": ["./packages/agent-runtime/src/tools/*"],

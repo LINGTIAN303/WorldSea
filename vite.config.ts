@@ -144,19 +144,9 @@ function customProxyPlugin(): Plugin {
 
 const aliases = {
   '@': path.resolve(__dirname, 'src'),
-  '@agent/bridge-types': path.resolve(__dirname, 'packages/agent-runtime/src/bridge-types'),
-  '@agent/toolbus': path.resolve(__dirname, 'packages/agent-runtime/src/toolbus'),
-  '@agent/tools': path.resolve(__dirname, 'packages/agent-runtime/src/tools'),
-  '@agent/stores': path.resolve(__dirname, 'packages/agent-runtime/src/stores'),
-  '@agent/kb': path.resolve(__dirname, 'packages/agent-runtime/src/kb'),
-  '@agent/orchestrator': path.resolve(__dirname, 'packages/agent-runtime/src/orchestrator'),
-  '@agent/providers': path.resolve(__dirname, 'packages/agent-runtime/src/providers'),
-  '@agent/skills': path.resolve(__dirname, 'packages/agent-runtime/src/skills'),
-  '@agent/context': path.resolve(__dirname, 'packages/agent-runtime/src/context'),
-  '@agent/group-chat': path.resolve(__dirname, 'packages/agent-runtime/src/group-chat'),
-  '@agent/session': path.resolve(__dirname, 'packages/agent-runtime/src/session'),
-  '@agent/execution': path.resolve(__dirname, 'packages/agent-runtime/src/execution'),
-  '@agent': path.resolve(__dirname, 'worldsmith-agent/src'),
+  // @agent 统一指向 packages/agent-runtime（收敛中间态：消除 worldsmith-agent 旧轨）。
+  // 子路径（@agent/toolbus 等）由前缀匹配兜底，无需单独声明。
+  '@agent': path.resolve(__dirname, 'packages/agent-runtime/src'),
   '@worldsmith/entity-core$': path.resolve(__dirname, 'packages/entity-core/src'),
   '@worldsmith/entity-core/stores': path.resolve(__dirname, 'packages/entity-core/src/stores'),
   '@worldsmith/entity-core/core': path.resolve(__dirname, 'packages/entity-core/src/core'),
@@ -255,7 +245,21 @@ export default defineConfig({
     alias: aliasArray,
   },
   optimizeDeps: {
-    include: ['docx', 'turndown'],
+    // noDiscovery 关闭自动扫描后，所有 CJS 依赖（无 ESM 产物/需 default 导入）必须显式 include，
+    // 否则 dev 下 `import X from 'cjs'` 报 "does not provide an export named 'default'"
+    include: [
+      'docx',
+      'turndown',
+      'dexie',
+      'jszip',
+      'mammoth',
+      'js-yaml',
+      'gpt-tokenizer',
+      'segmentit',
+      'dompurify',
+      'events',
+      'vuedraggable',
+    ],
     exclude: ['@worldsmith/tactical-engine', '@worldsmith/core'],
     // 跳过自动依赖扫描（扫描器对损坏的 node_modules/.pnpm 结构挂起，导致 dev 请求全部超时）
     noDiscovery: true,

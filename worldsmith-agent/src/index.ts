@@ -13,6 +13,11 @@
  *
  * ## 后续清理（Phase 6）
  * - root src 迁移到直接使用 @worldsmith/agent-runtime 后，本文件可删除
+ *
+ * ## 收敛状态（2026-08-02）
+ * - 主应用 `@agent/*` 已统一指向 `packages/agent-runtime/src`（不再经本文件）
+ * - 本包冻结：仅保留 src/execution/{tauri,ws,node}-adapter.ts 供主应用显式引用（端适配器宿主）
+ * - 副作用注册（import './execution'）已由主应用 main.ts 显式 registerExecutionAdapterFactory 替代
  */
 
 // ═══ 重新导出 agent-runtime 的端无关 API ═══
@@ -20,7 +25,9 @@ export * from '@worldsmith/agent-runtime'
 
 // ═══ 端特定 ExecutionAdapter 实现 ═══
 // 这三个适配器是端特定的，不放在 agent-runtime 中
-export { NodeExecutionAdapter, getDefaultShell } from './execution/node-adapter'
+// 注意：NodeExecutionAdapter 不在此静态导出——它依赖 child_process（Node-only），
+// 静态导出会导致浏览器链（@agent/index → node-adapter → child_process）加载失败。
+// Node 端通过 execution/index.ts 的动态 import 获取（apps/cli 有独立实现）。
 export { TauriExecutionAdapter } from './execution/tauri-adapter'
 export { WebSocketExecutionAdapter } from './execution/ws-adapter'
 

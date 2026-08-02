@@ -9,7 +9,20 @@
     ".": "./src/index.ts",
     "./execution": "./src/execution/index.ts",
     "./execution/adapter": "./src/execution/adapter.ts",
-    "./bridge-types": "./src/bridge-types.ts"
+    "./bridge-types": "./src/bridge-types.ts",
+    "./toolbus/*": "./src/toolbus/*",
+    "./tools/*": "./src/tools/*",
+    "./context/*": "./src/context/*",
+    "./session/*": "./src/session/*",
+    "./group-chat/*": "./src/group-chat/*",
+    "./stores/*": "./src/stores/*",
+    "./kb/*": "./src/kb/*",
+    "./providers/*": "./src/providers/*",
+    "./skills/*": "./src/skills/*",
+    "./embedding/*": "./src/embedding/*",
+    "./mcp/*": "./src/mcp/*",
+    "./utils/*": "./src/utils/*",
+    "./orchestrator/*": "./src/orchestrator/*"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
