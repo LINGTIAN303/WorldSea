@@ -77,7 +77,13 @@ pub fn run() {
             let app_state = app.state::<AppState>();
             match app.path().app_data_dir() {
                 Ok(dir) => {
-                    let db_path = dir.join("agent_sessions.db");
+                    // WORLDSMITH_DATA_DIR 环境变量优先：数据目录可配置
+                    // （测试沙箱隔离 / 多实例 / 自定义位置），未设置则回退系统 app_data_dir。
+                    // db 文件仍为 agent_sessions.db，Session 与 LongTask 共用同库。
+                    let base_dir = std::env::var("WORLDSMITH_DATA_DIR")
+                        .map(std::path::PathBuf::from)
+                        .unwrap_or_else(|_| dir.clone());
+                    let db_path = base_dir.join("agent_sessions.db");
                     tracing::info!(
                         "初始化 SessionRepository: db_path={}",
                         db_path.display()

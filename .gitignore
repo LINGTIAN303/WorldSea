@@ -98,6 +98,7 @@ splash-preview/
 # ── 旧 node_modules 备份/清理临时目录（清理脚本或手动重命名遗留）────────
 # 这些目录不应入库，体积巨大且会触发 EPERM/长路径问题
 node_modules_old/
+node_modules_old.disabled/
 node_modules_trash_*
 node_modules_bak_*
 # 清理脚本遗留的空目录占位符

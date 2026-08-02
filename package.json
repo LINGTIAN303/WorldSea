@@ -57,6 +57,7 @@
     "@worldsmith/motion-kit": "file:./packages/motion-kit",
     "@worldsmith/perf-kit": "file:./packages/perf-kit",
     "@worldsmith/plugin-sdk": "file:./packages/plugin-sdk",
+    "@worldsmith/shared-composables": "file:./packages/shared-composables",
     "@worldsmith/tactical-engine": "file:./tactical-engine/pkg",
     "@worldsmith/theme-kit": "file:./packages/theme-kit",
     "@worldsmith/ui-kit": "file:./packages/ui-kit",

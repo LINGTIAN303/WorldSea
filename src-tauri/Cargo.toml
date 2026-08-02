@@ -9,6 +9,12 @@ edition = "2021"
 name = "worldsmith_app_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+# custom-protocol：release 构建启用 tauri/custom-protocol，使 tauri 进入
+# 生产模式（dev=false）→ 加载 frontendDist 而非 devUrl。
+# 纯 cargo build（不带 --features custom-protocol）保持 dev 模式（devUrl）。
+[features]
+custom-protocol = ["tauri/custom-protocol"]
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 

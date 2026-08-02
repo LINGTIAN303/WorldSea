@@ -37,30 +37,40 @@ export class ChineseTokenizerAdapter implements TokenizerAdapter {
    */
   private tryLoadSegmenter(): void {
     // 尝试加载 nodejieba（原生模块，性能最佳）
-    try {
-      const nodejieba = require('nodejieba')
+    const nodejieba = this.tryRequire('nodejieba') as { cut: (t: string) => string[] } | null
+    if (nodejieba && typeof nodejieba.cut === 'function') {
       this.segmenter = { cut: (text: string) => nodejieba.cut(text) }
       this.initialized = true
       console.log('[ChineseTokenizerAdapter] 使用 nodejieba 分词器')
       return
-    } catch {
-      // nodejieba 不可用，继续尝试其他库
     }
 
     // 尝试加载 segmentit（纯 JS 实现，无需原生编译）
-    try {
-      const { Segment, useDefault } = require('segmentit')
+    const segMod = this.tryRequire('segmentit') as { Segment: new () => any; useDefault: any } | null
+    if (segMod && typeof segMod.Segment === 'function') {
+      const { Segment, useDefault } = segMod
       const segment = new Segment()
       segment.use(useDefault)
       this.segmenter = { cut: (text: string) => segment.doSegment(text).map((item: { w: string }) => item.w) }
       this.initialized = true
       console.log('[ChineseTokenizerAdapter] 使用 segmentit 分词器')
       return
-    } catch {
-      // segmentit 不可用
     }
 
     console.log('[ChineseTokenizerAdapter] 未安装中文分词库，将降级到 SimpleTokenizerAdapter')
+  }
+
+  /**
+   * 间接 require：避免 vite/esbuild 依赖扫描器将可选分词库（nodejieba 等）
+   * 误判为硬依赖导致预构建失败。参数化包名后扫描器不会解析该模块。
+   */
+  private tryRequire(name: string): unknown {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      return require(name)
+    } catch {
+      return null
+    }
   }
 
   isReady(): boolean {
@@ -77,13 +87,9 @@ export class ChineseTokenizerAdapter implements TokenizerAdapter {
   extractKeywords(text: string, maxCount: number = 10): string[] {
     if (!this.segmenter) return []
     // 尝试使用 nodejieba 的 extract 方法（TF-IDF）
-    try {
-      const nodejieba = require('nodejieba')
-      if (typeof nodejieba.extract === 'function') {
-        return nodejieba.extract(text, maxCount).map((item: { word: string }) => item.word)
-      }
-    } catch {
-      // 降级到词频统计
+    const nodejieba = this.tryRequire('nodejieba') as { extract: (t: string, n: number) => { word: string }[] } | null
+    if (nodejieba && typeof nodejieba.extract === 'function') {
+      return nodejieba.extract(text, maxCount).map((item: { word: string }) => item.word)
     }
     // 降级：分词 + 词频统计
     const tokens = this.tokenize(text)

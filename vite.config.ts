@@ -257,6 +257,8 @@ export default defineConfig({
   optimizeDeps: {
     include: ['docx', 'turndown'],
     exclude: ['@worldsmith/tactical-engine', '@worldsmith/core'],
+    // 跳过自动依赖扫描（扫描器对损坏的 node_modules/.pnpm 结构挂起，导致 dev 请求全部超时）
+    noDiscovery: true,
   },
   server: {
     watch: {
