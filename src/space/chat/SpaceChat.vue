@@ -2,7 +2,7 @@
   <div class="space-chat agent-panel">
     <template v-if="spaceStore.mode === 'chat'">
       <div v-if="isRustBackend" class="rust-mode-banner">
-        Rust 实验模式：仅支持核心对话，深度模式/A2UI/工具调用结果展示等高级功能暂不可用
+        Rust 模式：深度模式/长任务/A2UI/编排状态栏/终端/子 Agent 均已支持
       </div>
       <div class="chat-messages">
         <AgentMessageList

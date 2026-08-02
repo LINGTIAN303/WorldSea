@@ -1360,11 +1360,13 @@ function resolveA2UIBinding(binding: unknown, dataModel: Record<string, unknown>
  *
  * ## 与 useAgent 的契约差异
  * - Rust 版无持久化层：switchSession 实际是重置新会话
- * - Rust 版无工具系统：createSubBackend 抛错
- * - Rust 版无 A2UI：a2uiSurfaces 永远为空数组
- * - Rust 版无深度模式：deepSegments 永远为空数组
- * - Rust 版无终端：terminalVisible / ptyId / ptyReady 为空，openTerminal 为 no-op
- * - Rust 版长任务通过 useLongTaskRust 接入（SQLite 持久化 + 心跳 + 断点恢复）
+ * - Rust 版 MCP 连接管理：getMCPManager 返回 null（未桥接）
+ * - 终端（批次2 已接通）：openTerminal/writePtyInput/resizePty 对接 cmd_pty_*
+ * - 子 Agent（批次3 已接通）：createSubBackend 创建独立 Rust 会话
+ * - A2UI 已接通：a2uiSurfaces 由 TS 工具桥 emitA2UI 构建
+ * - 深度模式已接通：deepSegments 由 deep_phase_changed + tool 事件构建（仅 phase 段；
+ *   Rust 端无 thinking 事件流，thinking 段不构建）
+ * - 长任务通过 useLongTaskRust 接入（SQLite 持久化 + 心跳 + 断点恢复）
  */
 export function useAgentRustAdapter() {
   // 延迟导入避免循环依赖（settingsStore 间接依赖 agent store）
@@ -1501,6 +1503,111 @@ export function useAgentRustAdapter() {
     writeMcpLog: (_message: string) => {},
     onLog: () => {},
     dispose: () => {},
+  }
+
+  // ── 批次2：终端（PTY）真实实现，对接 Tauri cmd_pty_* 命令 ──
+  // Rust 端 agent-runtime 无 PTY 能力，但 src-tauri/src/commands/pty.rs 命令层完整。
+  // TerminalPanel.vue 已支持 listen(`pty-output-{id}`) 渲染输出，此处只需接上命令。
+  async function openTerminalImpl(): Promise<void> {
+    if (ptyId.value) return
+    const id = `pty-${Date.now()}`
+    try {
+      await invoke('cmd_pty_spawn', {
+        id,
+        shell: null,
+        cwd: null,
+        cols: 80,
+        rows: 24,
+      })
+      ptyId.value = id
+      ptyReady.value = true
+      terminalVisible.value = true
+    } catch (err) {
+      console.error('[useAgentRust] 终端启动失败:', err)
+    }
+  }
+
+  function closeTerminalImpl(): void {
+    const id = ptyId.value
+    if (id) {
+      void invoke('cmd_pty_kill', { id }).catch((err) => {
+        console.error('[useAgentRust] 终端关闭失败:', err)
+      })
+    }
+    ptyId.value = null
+    ptyReady.value = false
+    terminalVisible.value = false
+  }
+
+  function writePtyInputImpl(data: string): void {
+    const id = ptyId.value
+    if (!id) return
+    void invoke('cmd_pty_write', { id, data }).catch((err) => {
+      console.error('[useAgentRust] 终端写入失败:', err)
+    })
+  }
+
+  function resizePtyImpl(cols: number, rows: number): void {
+    const id = ptyId.value
+    if (!id) return
+    void invoke('cmd_pty_resize', { id, cols, rows }).catch((err) => {
+      console.error('[useAgentRust] 终端 resize 失败:', err)
+    })
+  }
+
+  // ── 批次3：子 Agent（方案 A）——独立 Rust 会话 ──
+  // 子 Agent 复用 createRustAgent（cmd_agent_create + RustAgentBackend），
+  // 与主会话隔离；prompt 为 fire-and-forget，包装层监听 agent_end/error 等待完成。
+  // skillIds 当前不参与 Rust 会话创建（Rust 端无技能加载概念），预留参数。
+  async function createSubBackendImpl(
+    _skillIds: string[],
+    visionProviderConfig?: {
+      mode: string
+      provider: string
+      modelId: string
+      apiKey: string
+      supportsVision: boolean
+      contextWindow?: number
+      maxTokens: number
+    },
+  ): Promise<{
+    prompt: (text: string, options?: PromptOptions) => Promise<unknown>
+    dispose: () => void
+  }> {
+    // 视觉子 Agent 用传入配置（cloud），否则复用主会话 providerConfig
+    const providerConfig: RustProviderConfig = visionProviderConfig
+      ? {
+          mode: 'cloud',
+          provider: visionProviderConfig.provider,
+          model_id: visionProviderConfig.modelId,
+          api_key: visionProviderConfig.apiKey,
+        }
+      : (cachedProviderConfig ?? (await buildRustProviderConfig()))
+    const sessionId = `rust_sub_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+    const subBackend = await createRustAgent(sessionId, providerConfig, { thinkingLevel: 'off' })
+    return {
+      prompt: async (text, options) => {
+        // 先注册完成监听，再触发 prompt（避免错过 agent_end）
+        const done = new Promise<void>((resolve) => {
+          const unsub = subBackend.subscribe((e) => {
+            if (e.type === 'agent_end' || e.type === 'error') {
+              unsub()
+              resolve()
+            }
+          })
+        })
+        await subBackend.prompt(text, options)
+        await done
+        // RustAgentBackend.prompt 返回 void，取最后一条 assistant 内容作为子 Agent 输出
+        const msgs = subBackend.getRuntimeMessages() as AgentMessage[]
+        const last = [...msgs].reverse().find((m) => m.role === 'assistant')
+        return last?.content ?? ''
+      },
+      dispose: () => {
+        // RustAgentBackend.dispose 为同步方法（内部 fire-and-forget cmd_agent_destroy）
+        subBackend.dispose()
+      },
+    }
   }
 
   // ── P2 A2UI：事件处理（维护 a2uiSurfaces 状态） ──
@@ -1859,6 +1966,22 @@ export function useAgentRustAdapter() {
               }
             }
             if (changed) deepSegments.value = [...segs]
+
+            // ── P2 结论输出：agent_end 时用最后一条助手消息填充 finalOutput ──
+            // DeepProcessPanel 的"结论"卡片依赖此状态；Rust 端 agent_end 不携带
+            // 结果文本，故从消息列表取最后一条 assistant 消息回填（2026-08-03 批次1）。
+            const lastAssistant = [...(backend.getRuntimeMessages() as AgentMessage[])]
+              .reverse()
+              .find((m) => m.role === 'assistant')
+            if (lastAssistant) {
+              finalOutput.value = {
+                content: lastAssistant.content ?? '',
+                blocks: (lastAssistant as { blocks?: unknown[] }).blocks ?? [],
+                images: (lastAssistant as { images?: unknown[] }).images ?? [],
+                files: (lastAssistant as { files?: unknown[] }).files ?? [],
+                status: 'complete',
+              }
+            }
           }
 
           // ── P2 A2UI：处理 A2UI 事件 ──
@@ -1954,9 +2077,6 @@ export function useAgentRustAdapter() {
   }
 
   // ── no-op 工具（仅用于真正缺失的能力） ──
-  function noop(..._args: unknown[]): void {
-    /* no-op */
-  }
   function noopAsync(..._args: unknown[]): Promise<void> {
     return Promise.resolve()
   }
@@ -2613,16 +2733,21 @@ export function useAgentRustAdapter() {
     ptyId,
     ptyReady,
     logBridge,
-    openTerminal: noopAsync,
-    closeTerminal: noop,
-    writePtyInput: noop,
-    resizePty: noop,
-    createSubBackend: async () => {
-      throw new Error('[Rust] createSubBackend 未实现')
-    },
+    openTerminal: openTerminalImpl,
+    closeTerminal: closeTerminalImpl,
+    writePtyInput: writePtyInputImpl,
+    resizePty: resizePtyImpl,
+    createSubBackend: createSubBackendImpl,
     getProviderConfig,
     getToolContext: () => null,
-    resolveToolConfirmation: noop,
+    resolveToolConfirmation: (toolId: string, approved: boolean) => {
+      // Rust 后端工具执行为自动放行（无挂起-恢复机制），人工确认不可用。
+      // 降级：仅记录日志，避免 UI 静默无响应（2026-08-03 批次1；真实确认需 Rust 端
+      // 支持工具挂起-恢复，列为后续风险项）。
+      console.warn(
+        `[useAgentRust] resolveToolConfirmation 降级：Rust 后端工具自动执行，忽略确认 toolId=${toolId} approved=${approved}`,
+      )
+    },
     // P1-2/P1-3：会话列表与置顶/删除
     sessionList: readonly(sessionList),
     loadSessionList,

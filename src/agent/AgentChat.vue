@@ -51,7 +51,7 @@
         :a2ui-surfaces="a2uiSurfaces"
         :resolve-data-binding="resolveDataBinding"
         :chat-mode="activeChatMode"
-        :use-deep-layout="false"
+        :use-deep-layout="activeChatMode === 'deep'"
         @a2ui-action="onA2UIAction"
         @copy="copyMessage"
         @retry="retryMessage"

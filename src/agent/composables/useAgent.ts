@@ -17,13 +17,13 @@
  * - 阶段 2.0 批次2：移除 TS 后端，始终返回 Rust 后端
  * - 端分离批次2：类型迁移到 shared-composables，本文件保留 Tauri 端实现
  *
- * ## 功能退化说明
- * 以下功能在 Rust 后端中为 no-op 或不可用（详见 useAgentRust.ts）：
- * - MCP 连接管理（getMCPManager 返回 null）
- * - 终端 PTY 集成（openTerminal 为 no-op）
- * - 子后端创建（createSubBackend 抛出错误）
- * - A2UI 数据绑定（resolveDataBinding 为 no-op）
- * - 深度模式段（deepSegments 始终为空数组）
+ * ## 功能说明（Rust 后端）
+ * 以下功能已在 Rust 后端接通（详见 useAgentRust.ts）：
+ * - 终端 PTY（openTerminal → cmd_pty_spawn，批次2）
+ * - 子后端创建（createSubBackend → 独立 Rust 会话，批次3）
+ * - A2UI 数据绑定（resolveDataBinding 已实现）
+ * - 深度模式段（deepSegments 由 deep_phase_changed 事件构建）
+ * 仍为 null/no-op 的：MCP 连接管理（getMCPManager 返回 null）
  */
 
 // re-export 共享类型（21+ 文件依赖这些类型）

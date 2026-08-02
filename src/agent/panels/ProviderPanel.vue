@@ -114,7 +114,7 @@
       </select>
     </div>
     <div v-if="settingsStore.agentBackend === 'rust'" class="settings-hint rust-hint">
-      实验性 Rust Agent：仅支持核心对话与工具调用，深度模式/长任务/A2UI/终端等高级功能暂不可用
+      Rust 模式：深度模式/长任务/A2UI/编排状态栏/终端/子 Agent 均已支持
     </div>
   </div>
 </template>
