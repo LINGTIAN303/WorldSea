@@ -560,29 +560,54 @@ agent_end → checkShouldAutoContinue=true → autoContinueTask → backend.prom
 - ⚠️ Web/Tauri 端 Vite 启动受阻（`@rolldown/binding-win32-x64-msvc` 下载超时，网络问题）
 
 **下一步**：Phase 3 — 前端入口分离与清理（共享 composables 抽离 + Tauri/Web 专用文件迁移 + coreBackend/useAgent/main.ts 改造）
+
+### 端分离真实状态复核 + 检查点提交（2026-07-31）
+
+**检查点提交**：`5c32c78`（825 文件，+121k/-38k）——自 2dfa0f8（2026-07-13）以来所有未提交工作入库，建立回滚点。
+
+**真实状态复核**（修正此前文档误标）：
+- Phase 1/2/4/5 完成 ✅（共享层抽离、三端骨架、后端整合、CI 独立）
+- Phase 3 **部分完成**：P3-T1~T9 ✅（共享 composables 下沉 + Tauri/Web 专用文件迁移 + coreBackend/useAgent/main.ts 硬编码后端）；**P3-T10 未完成——业务 UI（根 src/ 数百文件）未迁入三端**
+- 根 `src/` 仍是主应用（根 `vite` dev 入口 + 全部业务 UI），`apps/web`/`apps/tauri` App.vue 仍为占位骨架
+- 证据：[apps/web/src/main.ts](../apps/web/src/main.ts) 注释"Phase 3 阶段：业务 UI 仍在 src/，本入口仅做端初始化"
+
+**安全清理**：移除 ui-kit 死导出 SettingsDialog/CustomModuleView（全库 grep 无消费方，消除 ui-kit 对根 src/ 的最后 2 处引用）
+
+**决策（2026-07-31）**：暂停端分离业务 UI 大迁移（数十万行工程），**回到主应用开发（根 src/）**。端分离按 ROADMAP 单独排期，三端骨架保留。
+
+**当前主应用任务线**：Rust Agent 长任务前端对接（useLongTaskRust 对接 + 长任务 UI 集成 + 端到端实测）→ 深度模式/A2UI/终端/子 Agent 补齐
 <!-- HIPPOCAMPUS:SECTION:decisions END -->
 
 <!-- MemoryCenter:SECTION:task_state START -->
 ## 当前任务
-Phase 2: Loop Engineering 批次5-6 已完成，Rust 长任务持久化 + Tauri 命令层就绪
+端分离检查点已提交（5c32c78），Phase 3 业务 UI 迁移暂停；回到主应用开发 — Rust 长任务前端对接
 
 ## 已完成步骤
 - [x] 阶段 1.5 Tauri 集成：14 个 agent 命令 + 事件桥接 + 多实例管理 + 前端通信层
 - [x] 阶段 2.0 前端 UI 集成（方案 B 开关切换）：useAgentRustAdapter + 路由层 + UI 横幅 + 31 个类型错误修复
 - [x] 阶段 2.5 会话持久化（批次1-4）：commands/session.rs（6 个 Tauri 命令）+ persistence.rs + useAgentRust.ts 对接
-- [x] Phase 2 Loop Engineering 批次1：后端基础设施 — crates/agent-runtime/src/long_task.rs（LongTaskManager + CheckpointProvider trait + 心跳定时器 + 协作式取消原子标志）
-- [x] Phase 2 Loop Engineering 批次2：SQLite 持久化层 — long_task_persistence.rs（LongTaskRepository + save/load/list_running/update_heartbeat/update_status/delete）
-- [x] Phase 2 Loop Engineering 批次3：通用循环控制 — AgentLoopConfig 新增 llm_max_retries/llm_retry_base_delay/llm_timeout/tool_max_retries/tool_retry_base_delay/tool_timeout/min_interval_between_calls 字段 + 指数退避重试 + 超时 + 限流
-- [x] Phase 2 Loop Engineering 批次4：AgentLoop 集成 LongTaskManager — start_task/checkpoint/complete_task/fail_task/cancel_task + 心跳定时器 flush 脏 checkpoint + before_tool_call 检查 cancel_flag
-- [x] Phase 2 Loop Engineering 批次5：Tauri 命令暴露 — commands/long_task.rs（7 个 Tauri 命令：save/load/list_running/list_all/update_heartbeat/update_status/delete）+ mod.rs 模块注册 + lib.rs invoke_handler 注册
-- [x] Phase 2 Loop Engineering 批次6：验证 — cargo check 通过（修复 commands/agent.rs:223 AgentLoopConfig 初始化用 ..Default::default() 填充新字段）+ vue-tsc 14 个预存错误（均与本次 Rust 侧改动无关）
+- [x] Phase 2 Loop Engineering 批次1-6：Rust 长任务持久化（LongTaskManager + SQLite LongTaskRepository）+ 循环控制 + Tauri 命令层（7 个命令）全部完成
+- [x] 端分离检查点提交（5c32c78）：825 文件入库，回滚点建立
+- [x] 端分离真实状态复核：Phase 3 部分完成，根 src/ 仍是主应用，P3-T10 未做
+- [x] 安全清理：ui-kit 死导出 SettingsDialog/CustomModuleView 移除（消除 ui-kit→根 src/ 最后 2 处引用）
+- [x] AgentChat.vue 40 个 TypeScript 错误修复（2026-07-31）
 
 ## 进行中步骤
-- 无（Phase 2 批次5-6 已完成）
+- Rust 长任务前端对接（useLongTaskRust）——生命周期接入已完成，待端到端实测
 
 ## 下一步
-- 前端 useLongTaskRust 对接：实现 useLongTask.ts 的 Rust 后端版本，通过 Tauri 命令调用 LongTaskRepository（当前 useLongTask.ts 仍走 TS IndexedDB）
-- 长任务 UI 集成：AgentChat.vue 进度条切换到 Rust 后端数据源
 - 端到端实测：浏览器切换到 Rust 后端，触发长任务（如 task 模式），验证心跳/checkpoint/取消/恢复全链路
 - 如实测通过：Phase 2 收尾，进入下一阶段（深度模式 / A2UI / 终端 / 子 Agent）
+
+## 本次进展（2026-08-01）
+- 检查点提交 5c32c78 + 端分离状态复核 + ui-kit 死导出清理（见 decisions 段）
+- **Rust 长任务生命周期接入完成**（src/agent/composables/useAgentRust.ts）：
+  - 缺口确认：cmd_agent_prompt 未接线 Rust 端 LongTaskManager（内部空转），长任务需前端驱动
+  - sendMessage → longTask.startTask（type=main-agent）+ 断点恢复后复用 taskId（防抢占）
+  - tool_execution_start → checkpoint(currentTool)；异步 refreshRuntimeMessages（Rust OrchestratorMessage 真实结构）
+  - agent_end → isCancelRequested ? cancelTask : completeTask；error → failTask
+  - abort 包装：requestCancel 协作式 + cmd_agent_abort
+  - newSession/dispose 清理 currentTaskId
+  - resumeTask 的 getCheckpointData 统一用 lastRuntimeMessages
+  - 验证：vue-tsc useAgentRust.ts 零错误；全项目 122 条错误均为预存（graph/StatusBar/entity-core 迁移遗留）
 <!-- MemoryCenter:SECTION:task_state END -->

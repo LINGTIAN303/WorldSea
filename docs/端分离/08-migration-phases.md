@@ -11,7 +11,7 @@ Phase 0: 调研与文档库搭建 ───────────────�
   │
   Phase 2: 三端目录骨架建立 ────────────── 已完成（2026-07-29）
   │
-  Phase 3: 前端入口分离与清理 ──────────── 工作量最大
+  Phase 3: 前端入口分离与清理 ──────────── 部分完成（共享层+专用文件已迁，业务 UI 未迁入三端）
   │
   Phase 4: 后端能力整合 ────────────────── 已完成（2026-07-29）
   │
@@ -136,6 +136,26 @@ Phase 0 ─→ Phase 1 ─→ Phase 2 ─→ Phase 3 ─→ Phase 4 ─→ Phase
 | **前置依赖** | Phase 2 |
 | **后置依赖** | Phase 5 |
 | **参考文档** | [07-frontend-entry-cleanup.md](./07-frontend-entry-cleanup.md) |
+| **状态** | ⚠️ **部分完成（2026-07-31 复核）**：共享 composables 下沉 + Tauri/Web 专用文件迁移 + coreBackend/useAgent/main.ts 改造已完成；**业务 UI（根 src/ 数百个文件）尚未迁入三端**，根 `src/` 仍是主应用代码源，`apps/web`/`apps/tauri` 的 App.vue 仍为骨架占位页 |
+
+### 3.0 真实状态复核（2026-07-31）
+
+> 此前文档将 Phase 3 标记为"已完成"不准确。实际完成范围如下：
+
+| 任务 ID | 对应 Step | 任务 | 实际状态 |
+|---------|-----------|------|----------|
+| P3-T1 | Step 1-2 | 共享 composables 迁入 `packages/shared-composables` | ✅ 完成（agent/companion/entity/ui 四类；useSmartFillChat/useCompanionMode 已下沉，根 src/composables 保留 re-export） |
+| P3-T2 | Step 3 | Tauri 专用文件迁入 `apps/tauri/src/` | ✅ 完成（8 个 Rust composables + coreBackend + ProjectFS 等） |
+| P3-T3 | Step 4 | Web 专用文件迁入 `apps/web/src/`（coreBackend WASM + worldsmithCore 等） | ✅ 完成 |
+| P3-T4 | Step 5 | 改造 `coreBackend.ts`（三端各保留单路径版本） | ✅ 完成 |
+| P3-T5 | Step 6 | 改造 `useAgent.ts`（接收 backend 注入） | ✅ 完成（TS/Rust 路由层保留在 src/，三端入口硬编码后端） |
+| P3-T6 | Step 7 | 改造 `main.ts`（端入口硬编码后端） | ✅ 完成（apps/web|tauri/src/main.ts 已硬编码 WASM/Rust 后端） |
+| P3-T7 | Step 8 | 清理 `__TAURI__` 检测与 global.d.ts | ✅ 完成 |
+| P3-T8 | Step 9 | 清理插件层（mindmap/workflow Rust 调用） | ✅ 完成 |
+| P3-T9 | Step 10 | 清理 worldsmith-server 引用 | ✅ 完成（CLI serve 替代） |
+| P3-T10 | Step 11-12 | 更新构建配置，删除原 `src/` | ⏳ **未完成**（业务 UI 仍在根 src/，删除会摧毁应用；`apps/web`/`apps/tauri` 的 App.vue 仍为占位骨架） |
+
+**关键结论**：根 `src/` 目前仍是主应用（根 `vite` dev 入口 + 全部业务 UI）。三端骨架仅完成"端初始化 + 后端硬编码"。**端分离剩余核心工作 = 把根 src/ 业务 UI 迁入 apps/web + packages/shared-ui（数十万行级工程）**，2026-07-31 决策：暂停该大迁移，回到主应用开发（根 src/），后续按 ROADMAP 单独排期。
 
 ### 3.1 任务拆解（对应 07 文档 Step 1-12）
 

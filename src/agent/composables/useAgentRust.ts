@@ -70,7 +70,7 @@ import type {
 import { ALL_TOOLS_MAP } from '@agent/index'
 import type { IToolContext } from '@agent/index'
 import { useSettingsStore } from '../../stores/settingsStore'
-import type { LongTaskRecord } from './longTaskStore'
+import type { LongTaskCheckpoint, LongTaskRecord } from './longTaskStore'
 import { generateTitle } from './useTitleGen'
 import { useLongTaskRust } from './useLongTaskRust'
 // 阶段 3.2 集成：在 useAgentRustAdapter 中暴露 Supervisor 入口
@@ -1414,6 +1414,39 @@ export function useAgentRustAdapter() {
   // 长任务：可恢复任务列表（detectAndOfferResume 填充，resumeTask/discardTask 移除）
   // 类型对齐 ResumeBanner.vue 期望的 LongTaskRecord[]
   const resumableTasks = ref<LongTaskRecord[]>([])
+
+  // ── 长任务：前端驱动生命周期状态（阶段 2.2 补齐） ──
+  // 对齐 TS 版 useAgent 的 12 处接入：sendMessage 启动 / 事件流 checkpoint / agent_end 终态
+  // Rust 端 cmd_agent_prompt 未接线 LongTaskManager，故由前端 useLongTaskRust 驱动（写 SQLite）。
+  /** 当前长任务 ID（sendMessage 启动，agent_end/error 终结） */
+  const currentTaskId = ref<string | null>(null)
+  /** Rust 端真实 messages 缓存（fetchRuntimeMessages 异步拉取，checkpoint 同步回调取此缓存） */
+  let lastRuntimeMessages: unknown[] = []
+
+  /**
+   * 异步刷新 Rust 端内部 messages 缓存
+   *
+   * 用于 checkpoint：Rust 端 messages 是 OrchestratorMessage 结构，
+   * 与前端 AgentMessage 不同，恢复时需原样写回 cmd_agent_set_runtime_messages。
+   * 故在工具事件后 fire-and-forget 拉取，checkpoint 同步回调读取缓存。
+   */
+  async function refreshRuntimeMessages(): Promise<void> {
+    const b = inner.backend.value
+    if (!b) return
+    try {
+      lastRuntimeMessages = await b.fetchRuntimeMessages()
+    } catch (err) {
+      console.warn('[useAgentRustAdapter] refreshRuntimeMessages 失败:', err)
+    }
+  }
+
+  /** 构建 checkpoint（供 startTask / resumeActiveTask 的 getCheckpointData 回调） */
+  function buildCheckpoint(lastUserText: string): LongTaskCheckpoint {
+    return {
+      agentMessages: lastRuntimeMessages,
+      lastUserText,
+    }
+  }
   // 长任务：activeTask / heartbeatStatus / hasActiveTask
   // 通过 watch 从 useLongTaskRust 同步（其导出为 readonly，无法直接传给组件解构）
   // AgentChat.vue 解构后期望 mutable Ref，故本地维护 ref 镜像
@@ -1731,6 +1764,14 @@ export function useAgentRustAdapter() {
           }
 
           if (event.type === 'tool_execution_start') {
+            // ── 长任务：更新当前工具进度（对齐 TS 版 tool_execution_start checkpoint） ──
+            if (currentTaskId.value) {
+              longTask.checkpoint(currentTaskId.value, {
+                currentTool: event.toolCall.name,
+              })
+            }
+            // 异步刷新 checkpoint messages（工具调用已进入 Rust AgentLoop 历史）
+            void refreshRuntimeMessages()
             const segs = deepSegments.value
             // 找到最后一个 active 的 phase 段，挂载工具
             for (let i = segs.length - 1; i >= 0; i--) {
@@ -1773,6 +1814,18 @@ export function useAgentRustAdapter() {
           // P1-1: 同时尝试生成会话标题（首轮对话后）
           // P2: 同时标记所有 active phase 段为 done
           if (event.type === 'agent_end') {
+            // ── 长任务：终结（对齐 TS 版 agent_end 终态处理） ──
+            // 若用户请求过取消（abort 协作式）→ cancelTask；否则正常 completeTask。
+            // Rust 端 abort 中断后同样会 emit agent_end，走同一分支。
+            if (currentTaskId.value) {
+              const tid = currentTaskId.value
+              currentTaskId.value = null
+              if (longTask.isCancelRequested(tid)) {
+                void longTask.cancelTask(tid)
+              } else {
+                void longTask.completeTask(tid)
+              }
+            }
             scheduleAutoSave()
             void generateTitleIfNeeded()
             const segs = deepSegments.value
@@ -1791,6 +1844,16 @@ export function useAgentRustAdapter() {
           // 4 种变体：createSurface / updateComponents / updateDataModel / deleteSurface
           if (event.type === 'a2ui') {
             handleA2UIEvent(event.surfaceId, event.message)
+          }
+
+          // ── 长任务：错误终结（对齐 TS 版 error → failTask） ──
+          // Rust 端 LLM 调用失败 / 超迭代 / 中断时 emit error 事件。
+          // 注意：abort 中断也可能触发 error，此时标记 failed 而非 cancelled——
+          // 若 agent_end 随后到达会因 currentTaskId 已清空而跳过，以 error 语义为准。
+          if (event.type === 'error' && currentTaskId.value) {
+            const tid = currentTaskId.value
+            currentTaskId.value = null
+            void longTask.failTask(tid, event.error?.message ?? 'Agent 错误')
           }
         })
 
@@ -1828,7 +1891,7 @@ export function useAgentRustAdapter() {
     }
   }
 
-  // ── sendMessage（包一层 ensureInitialized） ──
+  // ── sendMessage（包一层 ensureInitialized + 启动长任务） ──
   async function sendMessage(
     text: string,
     images?: unknown[],
@@ -1839,6 +1902,24 @@ export function useAgentRustAdapter() {
       const ok = await ensureInitialized()
       if (!ok) return
     }
+    // ── 长任务：启动任务（对齐 TS 版 useAgent sendMessageInternal） ──
+    // 每条用户消息视为一次主 Agent 长任务；agent_end/error 时终结。
+    // getCheckpointData 返回 Rust 端真实 messages 缓存（OrchestratorMessage 结构，可原样写回）。
+    const existingTaskId = longTask.getActiveTaskId()
+    if (existingTaskId) {
+      // 已有活跃任务（如断点恢复后首条消息）→ 复用 taskId，不新建（避免 startTask 抢占）
+      currentTaskId.value = existingTaskId
+    } else {
+      const taskId = longTask.startTask({
+        type: 'main-agent',
+        prompt: text,
+        lastUserText: text,
+        getCheckpointData: () => buildCheckpoint(text),
+      })
+      currentTaskId.value = taskId
+    }
+    // 启动后立即异步拉取首帧 checkpoint（Rust 端 AgentLoop 已含历史 messages）
+    void refreshRuntimeMessages()
     await inner.sendMessage(text, images as ImageAttachment[] | undefined)
   }
 
@@ -2016,11 +2097,15 @@ export function useAgentRustAdapter() {
         )
       }
 
+      // 恢复后异步拉取真实 messages（Rust OrchestratorMessage 结构，更新 checkpoint 缓存）
+      void refreshRuntimeMessages()
+
       // 恢复 useLongTaskRust 内存状态（启动心跳、设 activeTask、注册 checkpointProvider）
       longTask.resumeActiveTask(record, () => {
         // getCheckpointData 回调：返回当前 AgentLoop messages 快照
+        // 统一用 lastRuntimeMessages（Rust 真实结构，可原样写回），与 buildCheckpoint 一致
         return {
-          agentMessages: inner.backend.value?.getRuntimeMessages() ?? [],
+          agentMessages: lastRuntimeMessages,
           lastUserText: record.checkpoint?.lastUserText ?? '',
           skillNames: record.checkpoint?.skillNames,
           chatMode: record.checkpoint?.chatMode,
@@ -2063,6 +2148,32 @@ export function useAgentRustAdapter() {
       console.log(`[useAgentRustAdapter] 已放弃任务 ${taskId}`)
     } catch (err) {
       console.error('[useAgentRustAdapter] discardTask 失败:', err)
+    }
+  }
+
+  /**
+   * abortAgent — 中断当前 Agent 运行（对齐 TS 版 abort 协作式取消）
+   *
+   * 流程：
+   * 1. 若有活跃长任务：requestCancel 设协作式取消标记
+   * 2. 调 Rust 端 cmd_agent_abort 中断 ReAct 循环
+   * 3. Rust 端中断后 emit agent_end → 事件回调里检查 isCancelRequested → cancelTask
+   *
+   * 兜底：若 Rust 端中断后未 emit agent_end（事件丢失），任务会保持 running，
+   * 由心跳检测标 stale/dead 提醒（软监控，不强制终止）。
+   */
+  async function abortAgent(): Promise<void> {
+    const tid = currentTaskId.value
+    if (tid) {
+      // 协作式取消标记（agent_end 分支据此走 cancelTask 而非 completeTask）
+      longTask.requestCancel(tid)
+    }
+    if (inner.backend.value) {
+      try {
+        await inner.abort()
+      } catch (err) {
+        console.error('[useAgentRustAdapter] abort 失败:', err)
+      }
     }
   }
 
@@ -2267,6 +2378,9 @@ export function useAgentRustAdapter() {
     if (inner.backend.value) {
       inner.dispose()
     }
+    // 清理长任务状态（避免泄漏到新会话）
+    currentTaskId.value = null
+    lastRuntimeMessages = []
     isInitialized.value = false
     currentSessionId.value = ''
     cachedProviderConfig = null
@@ -2393,6 +2507,9 @@ export function useAgentRustAdapter() {
       autoSaveTimer = null
     }
     inner.dispose()
+    // 清理长任务状态
+    currentTaskId.value = null
+    lastRuntimeMessages = []
     isInitialized.value = false
     currentSessionId.value = ''
     cachedProviderConfig = null
@@ -2435,7 +2552,7 @@ export function useAgentRustAdapter() {
     sendMessage,
     steer,
     sendBlockAction,
-    abort: inner.abort,
+    abort: abortAgent,
     resumableTasks: readonly(resumableTasks),
     resumeTask,
     discardTask,
