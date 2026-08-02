@@ -43,7 +43,7 @@
 
 use std::sync::Arc;
 
-use agent_runtime::event::{EventListener, OrchestratorEvent};
+use agent_runtime::event::{AgentEvent, EventListener, OrchestratorEvent};
 use agent_runtime::loop_control::{
     LoopControlCheck, LoopControlConfig, LoopController, RateLimitExceeded, SoftTimeoutLevel,
     WatchdogAlert,

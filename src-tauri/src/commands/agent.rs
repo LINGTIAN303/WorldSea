@@ -118,7 +118,10 @@ impl EventListener for TauriEventListener {
         let event_name = session_event_name(&self.session_id);
         match self.app.emit(&event_name, payload) {
             Ok(()) => {
-                debug!("agent event emitted: session={} event={}", self.session_id, event_name);
+                debug!(
+                    "agent event emitted: session={} event={}",
+                    self.session_id, event_name
+                );
             }
             Err(e) => {
                 warn!(

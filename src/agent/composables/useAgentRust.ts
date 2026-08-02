@@ -534,14 +534,22 @@ export class RustAgentBackend implements IAgentBackend {
       case 'stream_start': {
         this.currentMessageId = payload.messageId
         this.currentMessageContent = ''
-        const message: AgentMessage = {
-          id: payload.messageId,
-          role: 'assistant',
-          content: '',
-          thinking: '',
-          timestamp: Date.now(),
+        // 防御：Rust 侧同一 message_id 可能重复广播 StreamStart（多级广播层），
+        // 复用已有消息而非重复 push，避免 v-for 重复 key 破坏渲染（2026-08-03 修复）
+        let message = this.findMessage(payload.messageId)
+        if (message) {
+          message.content = ''
+          message.thinking = ''
+        } else {
+          message = {
+            id: payload.messageId,
+            role: 'assistant',
+            content: '',
+            thinking: '',
+            timestamp: Date.now(),
+          }
+          this._messages.push(message)
         }
-        this._messages.push(message)
         if (payload.model) {
           this._model = {
             provider: '',
@@ -556,9 +564,8 @@ export class RustAgentBackend implements IAgentBackend {
 
       case 'stream_delta': {
         this.currentMessageContent += payload.delta
-        // 同步更新 messages 中对应消息
-        const target = this.findMessage(payload.messageId)
-        if (target) target.content = this.currentMessageContent
+        // 不可变更新（替换对象引用，触发 hasVisibleContent 等依赖 props.msg 的 computed 重算）
+        this.updateMessage(payload.messageId, (m) => ({ ...m, content: this.currentMessageContent }))
         const event: AgentEvent = {
           type: 'message_update',
           messageId: payload.messageId,
@@ -570,10 +577,7 @@ export class RustAgentBackend implements IAgentBackend {
       }
 
       case 'stream_end': {
-        const target = this.findMessage(payload.messageId)
-        if (target) {
-          target.content = payload.fullText
-        }
+        this.updateMessage(payload.messageId, (m) => ({ ...m, content: payload.fullText }))
         const usage = payload.usage ? this.convertUsage(payload.usage) : undefined
         const event: AgentEvent = {
           type: 'message_end',
@@ -598,13 +602,12 @@ export class RustAgentBackend implements IAgentBackend {
           startedAt: Date.now(),
         }
         this._pendingToolCalls.push(toolCallRecord)
-        // 关联到当前 assistant 消息（如有）
+        // 关联到当前 assistant 消息（如有）：不可变更新
         if (this.currentMessageId) {
-          const target = this.findMessage(this.currentMessageId)
-          if (target) {
-            if (!target.toolCalls) target.toolCalls = []
-            target.toolCalls.push(toolCallRecord)
-          }
+          this.updateMessage(this.currentMessageId, (m) => ({
+            ...m,
+            toolCalls: [...(m.toolCalls || []), toolCallRecord],
+          }))
         }
         const event: AgentEvent = {
           type: 'tool_execution_start',
@@ -628,19 +631,21 @@ export class RustAgentBackend implements IAgentBackend {
           }
           this._pendingToolCalls.splice(pendingIdx, 1)
         }
-        // 同步更新当前消息中的 toolCalls
+        // 同步更新当前消息中的 toolCalls（不可变更新）
         if (this.currentMessageId) {
-          const target = this.findMessage(this.currentMessageId)
-          if (target?.toolCalls) {
-            const tcInMsg = target.toolCalls.find(
-              (tc) => tc.id === payload.toolCallId,
-            )
-            if (tcInMsg) {
-              tcInMsg.status = payload.success ? 'completed' : 'failed'
-              tcInMsg.endedAt = Date.now()
-              tcInMsg.result = this.stringifyResult(payload.result)
-            }
-          }
+          this.updateMessage(this.currentMessageId, (m) => ({
+            ...m,
+            toolCalls: (m.toolCalls || []).map((tc) =>
+              tc.id === payload.toolCallId
+                ? {
+                    ...tc,
+                    status: payload.success ? ('completed' as const) : ('failed' as const),
+                    endedAt: Date.now(),
+                    result: this.stringifyResult(payload.result),
+                  }
+                : tc,
+            ),
+          }))
         }
         const event: AgentEvent = {
           type: 'tool_execution_end',
@@ -726,6 +731,21 @@ export class RustAgentBackend implements IAgentBackend {
     return undefined
   }
 
+  /**
+   * 不可变更新消息对象（2026-08-03 修复）。
+   * 原地修改 content 不会改变消息对象引用 → props.msg 引用不变 →
+   * AgentMessageBubble 的 hasVisibleContent computed 依赖 props.msg 不会失效，
+   * 导致 content 已非空但气泡仍按初始空内容缓存 false 而永不渲染。
+   * 替换为新对象可强制 props.msg 变化 → computed 重算 → 气泡正常渲染。
+   */
+  private updateMessage(messageId: string | null, updater: (m: AgentMessage) => AgentMessage): void {
+    if (!messageId) return
+    const idx = this._messages.findIndex((m) => m.id === messageId)
+    if (idx >= 0) {
+      this._messages[idx] = updater(this._messages[idx])
+    }
+  }
+
   /** 工具结果序列化（Rust 返回 unknown，TS 期望 string） */
   private stringifyResult(result: unknown): string {
     if (typeof result === 'string') return result
@@ -792,7 +812,8 @@ export class RustAgentBackend implements IAgentBackend {
           .reverse()
           .find((m) => m.role === 'assistant')
         if (lastAssistant && !lastAssistant.content && finalText) {
-          lastAssistant.content = finalText
+          // 不可变更新（触发 hasVisibleContent computed 重算）
+          this.updateMessage(lastAssistant.id, (m) => ({ ...m, content: finalText }))
           this.dispatch({
             type: 'message_end',
             messageId: lastAssistant.id,
@@ -1175,8 +1196,9 @@ export function useAgentRust() {
   }
 
   return {
-    /** backend 实例（shallowRef，避免深度代理影响性能） */
-    backend: readonly(backend),
+    /** backend 实例（shallowRef；不用 readonly 包裹——Vue readonly 深代理实例会使
+     *  内部 Set 只读，导致适配器 backend.subscribe / subscribeDeepPhase 注册失败（2026-08-03 修复）） */
+    backend,
     /** 消息列表（响应式，与 useAgent 对齐保留 mutable 以兼容返回类型） */
     messages,
     /** 是否正在流式输出 */
@@ -1848,8 +1870,10 @@ export function useAgentRustAdapter() {
 
           // ── 长任务：错误终结（对齐 TS 版 error → failTask） ──
           // Rust 端 LLM 调用失败 / 超迭代 / 中断时 emit error 事件。
-          // 关键：Rust 端 abort 中断不广播 AgentEnd（run 返回 Err(Aborted) 提前退出），
-          // 前端只会收到 error 事件。故此处检查取消标记：
+          // agent.rs run()（2026-08-02 修复）：错误路径先广播 Error 再广播 AgentEnd，
+          // 前端先在此分支 failTask/cancelTask 并清空 currentTaskId，
+          // 随后 agent_end 分支因 currentTaskId 已清空不会重复终结（仅清理 UI 状态）。
+          // 取消标记检查：
           //   - 用户主动 abort（requestCancel 已设 flag）→ cancelTask（语义：已取消）
           //   - 真实错误 → failTask
           if (event.type === 'error' && currentTaskId.value) {

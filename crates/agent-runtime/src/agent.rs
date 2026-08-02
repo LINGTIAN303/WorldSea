@@ -492,20 +492,30 @@ impl AgentLoop {
         }))
         .await;
 
-        // 广播 StreamStart（首次 LLM 调用前）
-        self.broadcast(OrchestratorEvent::Agent(AgentEvent::StreamStart {
-            model: current_model,
-        }))
-        .await;
-
         // 执行 ReAct 循环
         let result = self.run_react_loop().await;
 
         // 标记 is_streaming = false
         self.is_streaming.store(false, Ordering::SeqCst);
 
-        // 广播 AgentEnd
-        self.broadcast(OrchestratorEvent::Agent(AgentEvent::AgentEnd)).await;
+        // 广播终态事件（failTask 终态闭环修复，2026-08-02）：
+        // - 成功 → AgentEnd（前端 agent_end 分支 → completeTask）
+        // - 失败（LLM 错误/超迭代/中止）→ 先 Error 再 AgentEnd：
+        //     * Error → 前端 error 分支 failTask（真实错误）/ cancelTask（用户 abort）
+        //     * AgentEnd → 前端清理 _isStreaming / deepSegments / autoSave
+        //   修复前错误路径只广播 AgentEnd，前端误把失败任务标为 completed，failTask 永不触发。
+        match &result {
+            Ok(_) => {
+                self.broadcast(OrchestratorEvent::Agent(AgentEvent::AgentEnd)).await;
+            }
+            Err(e) => {
+                self.broadcast(OrchestratorEvent::Agent(AgentEvent::Error {
+                    message: e.to_string(),
+                }))
+                .await;
+                self.broadcast(OrchestratorEvent::Agent(AgentEvent::AgentEnd)).await;
+            }
+        }
 
         result
     }
@@ -605,12 +615,8 @@ impl AgentLoop {
                     });
                 }
 
-                // 广播 StreamEnd
-                self.broadcast(OrchestratorEvent::Agent(AgentEvent::StreamEnd {
-                    full_text: final_text.clone(),
-                }))
-                .await;
-
+                // 广播 StreamEnd 由 genai_backend 在每次 LLM 流完成时发出（携带完整文本），
+                // 此处不再重复广播，避免前端同一 message_id 产生重复消息（2026-08-03 修复）
                 info!(
                     "AgentLoop 完成，迭代次数: {}，最终文本长度: {}",
                     self.state.lock().await.current_iteration,
@@ -1633,6 +1639,109 @@ mod tests {
 
         let result = agent.run("测试中断".into()).await;
         assert!(matches!(result, Err(AgentError::Aborted)));
+    }
+
+    // ── failTask 终态闭环测试（2026-08-02 修复） ──
+    // 修复前：run() 错误路径只广播 AgentEnd，前端误把失败任务标为 completed，failTask 永不触发。
+    // 修复后：错误路径先广播 Error（前端 failTask）再广播 AgentEnd（前端清理 UI 状态）。
+
+    /// 测试用：收集终态事件的监听器（Error / AgentEnd / StreamEnd）
+    struct TerminalEventListener {
+        events: std::sync::Mutex<Vec<String>>,
+    }
+
+    impl EventListener for TerminalEventListener {
+        fn on_event(&self, event: &OrchestratorEvent) {
+            let label = match event {
+                OrchestratorEvent::Agent(AgentEvent::Error { message }) => {
+                    format!("error:{message}")
+                }
+                OrchestratorEvent::Agent(AgentEvent::AgentEnd) => "agent_end".into(),
+                OrchestratorEvent::Agent(AgentEvent::StreamEnd { .. }) => "stream_end".into(),
+                _ => return,
+            };
+            if let Ok(mut v) = self.events.lock() {
+                v.push(label);
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn run_error_broadcasts_error_then_agent_end() {
+        // 每轮都返回工具调用，永不结束 → 超迭代错误
+        let infinite_tool_call = PromptResponse {
+            text: "继续".into(),
+            tool_calls: vec![ToolCall {
+                id: "call_loop".into(),
+                name: "echo".into(),
+                args: serde_json::json!({}),
+            }],
+            input_tokens: None,
+            output_tokens: None,
+            stop_reason: Some("tool_calls".into()),
+        };
+        let backend = Arc::new(MockBackend::new(vec![infinite_tool_call; 100]));
+        let tool_bus = Arc::new(SimpleToolBus::new());
+        tool_bus.register(Arc::new(EchoTool)).await;
+
+        let agent = AgentLoop::new(backend, tool_bus).with_config(AgentLoopConfig {
+            max_iterations: 3,
+            ..Default::default()
+        });
+
+        let listener = Arc::new(TerminalEventListener {
+            events: std::sync::Mutex::new(Vec::new()),
+        });
+        agent.subscribe(listener.clone()).await;
+
+        let result = agent.run("无限循环".into()).await;
+        assert!(result.is_err());
+
+        // 断言事件序列：Error 先于 AgentEnd（前端 failTask 依赖此顺序）
+        let collected = listener.events.lock().unwrap().clone();
+        assert!(
+            collected.iter().any(|e| e.starts_with("error:")),
+            "错误路径应广播 Error 事件，实际: {collected:?}"
+        );
+        assert!(
+            collected.iter().any(|e| e == "agent_end"),
+            "错误路径应广播 AgentEnd 事件（前端清理 UI 状态），实际: {collected:?}"
+        );
+        let error_pos = collected
+            .iter()
+            .position(|e| e.starts_with("error:"))
+            .unwrap();
+        let end_pos = collected.iter().position(|e| e == "agent_end").unwrap();
+        assert!(
+            error_pos < end_pos,
+            "Error 应先于 AgentEnd，实际顺序: {collected:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn run_success_broadcasts_agent_end_without_error() {
+        let backend = Arc::new(MockBackend::new(vec![PromptResponse::text_only("好的")]));
+        let tool_bus = Arc::new(SimpleToolBus::new());
+
+        let agent = AgentLoop::new(backend, tool_bus);
+
+        let listener = Arc::new(TerminalEventListener {
+            events: std::sync::Mutex::new(Vec::new()),
+        });
+        agent.subscribe(listener.clone()).await;
+
+        let result = agent.run("你好".into()).await;
+        assert!(result.is_ok());
+
+        let collected = listener.events.lock().unwrap().clone();
+        assert!(
+            collected.iter().any(|e| e == "agent_end"),
+            "成功路径应广播 AgentEnd，实际: {collected:?}"
+        );
+        assert!(
+            !collected.iter().any(|e| e.starts_with("error:")),
+            "成功路径不应广播 Error，实际: {collected:?}"
+        );
     }
 
     #[tokio::test]

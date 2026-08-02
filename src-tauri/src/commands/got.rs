@@ -51,7 +51,7 @@ use agent_runtime::graph_of_thoughts::{
 };
 use agent_runtime::llm::config::ProviderConfig;
 use agent_runtime::llm::GenaiBackend;
-use agent_runtime::node::{NodeContext, NodeResult, NodeStatus, OrchestratorNode};
+use agent_runtime::node::{NodeContext, NodeResult, NodeStatus, NodeType, OrchestratorNode};
 use agent_runtime::tree_of_thoughts::{
     BeamSearchStrategy, ExplorationPromptTemplate, ExplorationStrategy, GoalCheckPromptTemplate,
     GoalCheckStrategy, LlmGoalCheckStrategy, LlmScoringStrategy, ScoringPromptTemplate,
@@ -1012,6 +1012,7 @@ mod tests {
             status: NodeStatus::Done,
             summary: Some("GoT: 已找到最优思维".into()),
             error: None,
+            next_node_id: None,
         };
         let result = GoTRunResult::from(r);
         assert_eq!(result.status, "done");

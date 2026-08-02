@@ -21,9 +21,11 @@ async function main() {
   const param = args[1] ?? ''
 
   // 获取 page target 的 ws 地址
+  // 注：跳过 devtools:// 页面（它们也是 type=page，但属于 DevTools 调试面板自身），
+  // 只连接真实应用页面（http/https）
   const listRes = await fetch(`http://localhost:${CDP_PORT}/json`)
   const targets = await listRes.json()
-  const page = targets.find((t) => t.type === 'page')
+  const page = targets.find((t) => t.type === 'page' && /^https?:/.test(t.url))
   if (!page) {
     console.error('NO_PAGE_TARGET')
     process.exit(1)

@@ -70,7 +70,7 @@ pub struct UsageInfo {
 /// // => {"type":"stream_delta","messageId":"msg_1","delta":"你好"}
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type", rename_all = "snake_case", rename_all_fields = "camelCase")]
 pub enum AgentEventPayload {
     /// Agent 启动（对应前端 `agent_start`）
     AgentStart {
