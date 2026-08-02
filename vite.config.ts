@@ -223,7 +223,7 @@ export default defineConfig({
   },
   plugins: [
     vue(),
-    wasm(),
+    // wasm(),
     worldsmithServerLauncher(),
     localFilePlugin(),
     customProxyPlugin(),
@@ -245,9 +245,11 @@ export default defineConfig({
     alias: aliasArray,
   },
   optimizeDeps: {
-    // noDiscovery 关闭自动扫描后，所有 CJS 依赖（无 ESM 产物/需 default 导入）必须显式 include，
-    // 否则 dev 下 `import X from 'cjs'` 报 "does not provide an export named 'default'"
+    // noDiscovery 关闭自动扫描后，所有 node_modules 裸依赖必须显式 include 才会预构建。
+    // 缺失的依赖会走运行时实时转换（首次访问大依赖树如 naive-ui 需 20s+，且反复触发
+    // re-optimize 导致 dev 请求全部超时、UI 无法挂载）。因此这里补全主应用核心运行时依赖。
     include: [
+      // 文档处理类（CJS，需 default 导入）
       'docx',
       'turndown',
       'dexie',
@@ -259,12 +261,44 @@ export default defineConfig({
       'dompurify',
       'events',
       'vuedraggable',
+      // 核心运行时依赖（UI 框架 / 状态 / 图标）
+      'vue',
+      'pinia',
+      'naive-ui',
+      'lucide-vue-next',
+      'marked',
+      // 编辑器（tiptap）
+      '@tiptap/core',
+      '@tiptap/extension-mention',
+      '@tiptap/starter-kit',
+      '@tiptap/suggestion',
+      '@tiptap/vue-3',
+      // 可视化与图形
+      'echarts',
+      'd3-force',
+      'graphology',
+      'graphology-layout',
+      'graphology-layout-forceatlas2',
+      'sigma',
+      // 终端
+      '@xterm/xterm',
+      '@xterm/addon-fit',
+      // Tauri API
+      '@tauri-apps/api',
+      '@tauri-apps/plugin-dialog',
+      '@tauri-apps/plugin-opener',
+      // 其他
+      '@chenglou/pretext',
     ],
     exclude: ['@worldsmith/tactical-engine', '@worldsmith/core'],
-    // 跳过自动依赖扫描（扫描器对损坏的 node_modules/.pnpm 结构挂起，导致 dev 请求全部超时）
-    noDiscovery: true,
+    // 注：不再使用 noDiscovery——实测发现 noDiscovery 模式下 vite 8 运行一段时间后
+    // 所有模块请求挂起（reload 后页面无法挂载）。恢复默认自动扫描（vite 默认最稳），
+    // 上述 include 列表作为显式预构建清单（加速 + 兜底 CJS 依赖）。
   },
   server: {
+    // 临时禁用 HMR：vite 8 rolldown 对带 ?t= 时间戳的模块请求处理挂起（reload 后页面无法挂载），
+    // 关闭 HMR 后 index.html 不再注入时间戳，模块走正常缓存路径。开发需手动刷新页面。
+    hmr: false,
     watch: {
       ignored: [
         '**/target/**',
