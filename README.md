@@ -38,6 +38,10 @@ Built with **Tauri 2** + **Vue 3** + **TypeScript** + **Rust (WASM)**.
 - Deep thinking mode with phased output
 - Group chat with multiple AI personas
 - Smart fill — context-aware field completion
+- **Dual backend**: TypeScript agent-runtime (pi-ai) + Rust agent-runtime (genai + tokio)，Tauri 桌面端默认走 Rust 后端
+- **Orchestration patterns** (Rust): Tree of Thoughts、Graph of Thoughts、Multi-Agent、Supervisor、Router、Loop Engineering，均带 Tauri 命令 + 前端 composable
+- **Long-running tasks**: 心跳/checkpoint/断点恢复/协作式取消（TS + Rust 双实现）
+- **Skills Store**: 技能源仓库 manifest 规范、安装/更新/卸载、多平台互通（Claude Code / Cursor / WorldSmith）
 
 ### Workflow Engine
 - Visual pipeline builder with step cards
@@ -62,7 +66,9 @@ Built with **Tauri 2** + **Vue 3** + **TypeScript** + **Rust (WASM)**.
 | Frontend | Vue 3, TypeScript 6, Vite 8, Pinia |
 | Desktop | Tauri 2 (Rust backend) |
 | WASM Core | Rust (worldsmith-core, tactical-engine) |
-| Agent | [pi-ai](https://github.com/earendil-works/pi-ai) framework + custom tool bus |
+| Agent (TS) | [pi-ai](https://github.com/earendil-works/pi-ai) framework + custom tool bus（`packages/agent-runtime`） |
+| Agent (Rust) | `crates/agent-runtime`（genai LLM 层 + tokio 编排，Tauri 命令桥接，主应用默认后端） |
+| Orchestration | ToT / GoT / Multi-Agent / Supervisor / Router / Loop Engineering（Rust 编排节点） |
 | Charts | ECharts, Sigma.js, D3 |
 | Editor | TipTap |
 | Graph | Graphology |
@@ -74,14 +80,16 @@ Built with **Tauri 2** + **Vue 3** + **TypeScript** + **Rust (WASM)**.
 ```
 packages/
   agent-core/       — Agent framework core (registry, bus, execution, guard)
+  agent-runtime/    — 端无关 Agent 运行时（Agent 核心、工具、技能、会话、ExecutionAdapter）
   canvas-engine/    — Shared canvas rendering engine (graph, tree, geometry)
   entity-core/      — Entity CRUD, relations, facets, traits
   font-kit/         — Font management & rendering
   governor-core/    — Governor core (environment, registry)
   memory-archive/   — Memory archive system (recall, scheduler, embedding)
   motion-kit/       — Animation & motion utilities
-  perf-kit/         — Performance utilities (IO batching, reactive, render)
+  perf-kit/         — Performance utilities (reactive, IO batching, render throttle)
   plugin-sdk/       — Plugin development SDK (components, composables)
+  shared-composables — 三端共享 Vue composables（agent/companion/entity/ui）
   theme-kit/        — Theme manifest system & texture engine
   ui-kit/           — Shared UI components
 ```
@@ -152,20 +160,27 @@ pnpm test:coverage
 
 ```
 WorldSmith/
-  src/                    — Vue 3 frontend
+  apps/                   — 三端独立骨架（端分离，业务 UI 尚未迁入）
+    web/                  — Web 端（端口 5174，Vite + WASM + CLI serve 代理）
+    cli/                  — CLI 端（commander：chat / serve，HTTP+WS 服务）
+    tauri/                — Tauri 桌面端（端口 5175，Rust 命令层）
+  crates/
+    agent-runtime/        — Rust Agent 后端（genai LLM + tokio 编排：ToT/GoT/Multi-Agent/Supervisor/Router/Loop）
+  packages/               — 共享 monorepo 子包（13 个，见上）
+  src/                    — 主应用 Vue 3 前端（当前活跃开发目录）
     agent/                — AI agent UI (chat, deep mode, persona)
     composables/          — Vue composables
     core/                 — Core backend (storage, modules, migration)
     plugins/official/     — Built-in worldbuilding plugins
     space/                — Agent space (chat, panels, group chat)
     ui/                   — Shared UI components (layout, editor, entity, etc.)
-  src-tauri/              — Tauri 2 Rust backend
-  worldsmith-agent/       — Agent engine (skills, tools, providers, embedding)
+  src-tauri/              — Tauri 2 Rust backend（150+ 命令 + agent_bridge + workflow 引擎）
+  worldsmith-agent/       — 端适配器宿主（仅 execution adapter 被显式引用，核心已下沉 agent-runtime）
   worldsmith-core/        — Rust WASM core (storage, validation, graph layout)
-  worldsmith-server/      — Node.js server (crawl, convert, vector search)
+  worldsmith-server/      — Node.js server（已标记废弃，能力迁移至 CLI serve）
+  worldsmith-skills-store — Rust Skills Store crate（独立 cargo test，无 Tauri 依赖）
   tactical-engine/        — Rust WASM tactical engine (pathfinding)
-  packages/               — Shared monorepo packages (11 sub-packages, see above)
-  docs/                   — Roadmap, design specs, plans
+  docs/                   — Roadmap, design specs, plans（含 端分离/ 文档库）
   scripts/                — Build & utility scripts
 ```
 

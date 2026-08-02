@@ -17,8 +17,11 @@ Phase 0: 调研与文档库搭建 ───────────────�
   │
   Phase 5: 构建配置与 CI 独立 ──────────── 已完成（2026-07-29）
   │
-  Phase 6: 端到端验收与清理 ────────────── 收尾，删除旧目录
+  Phase 6: 端到端验收与清理 ────────────── ⏸️ 暂停（2026-07-31 决策：业务 UI 大迁移暂停，按 ROADMAP 排期）
 ```
+
+> **2026-08-02 状态更新**：Phase 3/6 剩余工作 = 把根 `src/` 业务 UI 迁入 apps/web + packages/shared-ui（数十万行级工程），**已决策暂停**。
+> 三端骨架保留。2026-08-02 工作区收敛完成：`@agent/*` 统一指向 `packages/agent-runtime/src`（vite/tsconfig/vitest 三处配置），`worldsmith-agent` 冻结为端适配器宿主（仅 execution adapter），主应用 main.ts 显式 registerExecutionAdapterFactory，vite build 两次通过（依赖图单轨）。
 
 ### 阶段依赖关系
 
@@ -155,7 +158,19 @@ Phase 0 ─→ Phase 1 ─→ Phase 2 ─→ Phase 3 ─→ Phase 4 ─→ Phase
 | P3-T9 | Step 10 | 清理 worldsmith-server 引用 | ✅ 完成（CLI serve 替代） |
 | P3-T10 | Step 11-12 | 更新构建配置，删除原 `src/` | ⏳ **未完成**（业务 UI 仍在根 src/，删除会摧毁应用；`apps/web`/`apps/tauri` 的 App.vue 仍为占位骨架） |
 
-**关键结论**：根 `src/` 目前仍是主应用（根 `vite` dev 入口 + 全部业务 UI）。三端骨架仅完成"端初始化 + 后端硬编码"。**端分离剩余核心工作 = 把根 src/ 业务 UI 迁入 apps/web + packages/shared-ui（数十万行级工程）**，2026-07-31 决策：暂停该大迁移，回到主应用开发（根 src/），后续按 ROADMAP 单独排期。
+**关键结论**：根 `src/` 目前仍是主应用（根 `vite` dev 入口 + 全部业务 UI）。三端骨架仅完成"端初始化 + 后端硬编码"。**端分离剩余核心工作 = 把根 src/ 业务 UI 迁入 apps/web（数十万行级工程）**，2026-07-31 决策：暂停该大迁移，回到主应用开发（根 src/），后续按 ROADMAP 单独排期。
+
+### 3.5 迁移启动条件复核 + 决策（2026-08-02）
+
+**前置条件复核**（grep/构建验证）：
+- ✅ ui-kit / shared-composables / worldsmith-agent 与根 `src/` 完全解耦（0 引用，08 文档 5.4.2 记录的"ui-kit 30+ 个 `../../../src/` 导入"遗留已解决）
+- ✅ `@agent` 单轨收敛（c3856de）；三端独立构建通过（Phase 5）
+- ⚠️ 根 `src/` 733 文件（378 .vue + 355 .ts）待迁移；`shared-ui` 包不存在
+
+**三个启动决策（2026-08-02 用户确认）**：
+1. **共享 UI 方案**：不新建 `packages/shared-ui`，继续用 `ui-kit`（已解耦、已承担 30+ Ws* 组件），迁移时根 src/ 新增共享组件直接下沉 ui-kit
+2. **迁移策略**：渐进式分模块迁移（先骨架+路由+核心页面，再逐插件/面板），每模块独立验证可回滚，不做一次性全量迁移
+3. **启动节奏**：**先收尾主应用 Rust 后端工作线**（failTask 终态实测、深度模式/A2UI/终端/子 Agent 补齐），再启动迁移，不双线并行
 
 ### 3.1 任务拆解（对应 07 文档 Step 1-12）
 

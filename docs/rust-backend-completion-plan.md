@@ -6,6 +6,11 @@
 > - 工具系统：保持混合桥接（Rust 原生 IO 工具 + FrontendToolBridge 反向调用 TS 业务工具）
 > - 深度模式/长任务：前端复用 TS 渲染逻辑，Rust 后端只推送 tool_call 事件
 
+> **2026-08-02 执行完成标注**：
+> - ✅ **P0 会话持久化已完成**（阶段 2.5，批次 1-4）：`commands/session.rs` 6 个命令注册 + `persistence.rs` SessionRepository（save/load/list/delete/update_title/toggle_pin + total_usage 持久化）+ `useAgentRust.ts` 对接（switchSession/newSession/dispose/autoSave 防抖）
+> - ✅ **P1-5 已实现且更彻底**：`useAgent.ts` 不再通过 `settingsStore.agentBackend` 开关，直接返回 `useAgentRustAdapter()`（Rust 后端成为主应用唯一 Agent 后端，TS 后端经 `provideAgentBackend` 注入保留）
+> - ⏳ **待补**：端到端实测（浏览器会话切换/重启持久化验证）、Rust 长任务 failTask 终态闭环（2026-08-02 收敛后干净环境重测）
+
 ---
 
 ## 现状速查（已完成的基础设施）

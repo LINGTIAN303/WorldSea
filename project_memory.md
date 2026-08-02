@@ -3,7 +3,7 @@
 
 > 本文档由主要执行 Agent 维护，记录项目概况、架构、任务状态与关键决策。
 > 任务路线独立维护于 docs/ROADMAP.md，防止本文档反复更新导致任务丢失。
-> 最后更新：2026-07-29
+> 最后更新：2026-08-02
 
 ## 一、项目概况
 
@@ -22,31 +22,39 @@
 | 前端 | Vue 3 + TypeScript 6 + Vite 8 + Pinia + Naive UI |
 | 桌面 | Tauri 2（Rust 后端）|
 | WASM 核心 | Rust（worldsmith-core、tactical-engine）|
-| Agent | @earendil-works/pi-ai 框架 + 自定义 ToolBus（工具总线）|
+| Agent (TS) | @earendil-works/pi-ai 框架 + 自定义 ToolBus（工具总线），核心在 `packages/agent-runtime` |
+| Agent (Rust) | `crates/agent-runtime`（genai LLM 层 + tokio 编排），Tauri 命令桥接，主应用默认后端 |
+| 编排模式 | Rust：ToT / GoT / Multi-Agent / Supervisor / Router / Loop Engineering |
 | 图表 | ECharts、Sigma.js、D3、Graphology |
 | 编辑器 | TipTap 3 |
 | 数据库 | IndexedDB（Dexie）/ SQLite（Tauri）|
-| 构建 | pnpm monorepo（packages/ 下 11 个子包）|
+| 构建 | pnpm monorepo（packages/ 下 13 个子包 + apps/ 三端骨架）|
 
-## 三、四层后端架构
+## 三、后端架构（2026-08-02 更新）
 
-> 2026-07-05 调研结论（hippocampus 记忆 305b700e / 847beb6f）
+> 2026-07-05 调研结论（hippocampus 记忆 305b700e / 847beb6f），2026-08-02 补充新增后端
 
 1. **worldsmith-core**（Rust → WASM）：约 70 个导出方法 — 存储、校验、图布局、迁移
 2. **tactical-engine**（Rust → WASM）：18 个导出方法 — 寻路、战斗 AI
-3. **worldsmith-server**（Node.js）：7 个 HTTP 端点 — crawl/convert/vector-search（含 3 个 Python 微服务，前端零调用）
-4. **src-tauri**（Rust）：约 150 个 Tauri 命令 — 工作流引擎、文件系统、命令注册
+3. **crates/agent-runtime**（Rust，2026-07-25 起新增）：Rust Agent 后端 — AgentLoop/GenaiBackend/ToolBus/ToT/GoT/Multi-Agent/Supervisor/Router/Loop-Engineering/LongTask，经 Tauri 命令层暴露
+4. **src-tauri**（Rust）：150+ Tauri 命令 — 工作流引擎、文件系统、agent_bridge（14 agent 命令 + session 6 命令 + long_task/loop_control 等）
+5. **worldsmith-skills-store**（Rust，2026-07-07 起新增）：Skills Store 独立 crate（19+ 单测，无 Tauri 依赖）
+6. **worldsmith-server**（Node.js）：7 个 HTTP 端点 — crawl/convert/vector-search（含 3 个 Python 微服务，**已标记废弃**，能力迁移至 CLI serve）
+7. **worldsmith-agent**（TS）：端适配器宿主 — 核心已下沉 packages/agent-runtime，仅保留 execution adapter
 
-**覆盖度结论**：约 40-45% 后端功能尚未触达前端 UI；CRDT 协同算法全套（15 个函数）未接入前端。
+**覆盖度结论**：约 40-45% 后端功能尚未触达前端 UI；CRDT 协同算法全套（15 个函数）未接入前端。Rust Agent 编排模式（ToT/GoT/Multi-Agent/Supervisor/Router/Loop）已有前端 composable，但 UI 端到端实测待补。
 
 ## 四、Monorepo 子包（packages/）
 
-agent-core / agent-runtime（端分离 Phase 1 新增）/ canvas-engine / entity-core / font-kit / governor-core / memory-archive / motion-kit / perf-kit / plugin-sdk / theme-kit / ui-kit（共 12 个）
+agent-core / agent-runtime / canvas-engine / entity-core / font-kit / governor-core / memory-archive / motion-kit / perf-kit / plugin-sdk / shared-composables / theme-kit / ui-kit（共 13 个）
 
 ## 五、当前任务状态
 
-- **ROADMAP**：28 条任务方向，分 8 大类别（详见 docs/ROADMAP.md；任务 1 已完成，任务 4 P1-P4 + task 模式方向 A/B 已完成，其余待启动）
-- **实际文档**：docs/ROADMAP.md（任务路线）、docs/perf-kit-plan.md（性能规划）、docs/superpowers/specs/（记忆归档设计 3 篇）
+- **ROADMAP**：28 条任务方向，分 8 大类别（详见 docs/ROADMAP.md；任务 1 ✅、任务 3 ✅、任务 4 ✅（P1-P4 + task 模式方向 A-D）、任务 24 进行中（阶段 1-4 完成，待桌面端 UI 实测），其余待启动）
+- **Rust Agent 后端**：阶段 1.1-1.5 ✅、阶段 2.0（UI 集成）✅、阶段 2.5（会话持久化）✅、Phase 2 Loop Engineering（long_task/loop_control）✅；待办：failTask 终态闭环重测、深度模式/A2UI/终端/子 Agent 补齐
+- **端分离**：Phase 1/2/4/5 ✅、Phase 3 部分完成（业务 UI 未迁入三端）；**2026-07-31 决策暂停业务 UI 大迁移**，按 ROADMAP 单独排期
+- **工作区收敛**：@agent 统一到 packages/agent-runtime 单轨（c3856de），worldsmith-agent 冻结为端适配器宿主
+- **实际文档**：docs/ROADMAP.md（任务路线）、docs/端分离/（迁移文档库 11 份）、docs/agent-orchestration-roadmap.md（Rust 编排路线，阶段 1/2 完成）、docs/perf-kit-plan.md、docs/rust-backend-completion-plan.md、docs/skills-store-spec.md
 - **注意**：docs/replication-wiki/ 目录当前不存在（会话初读到的 README 为工具缓存旧内容）；项目结构以源码与 README.md 为准
 - **任务类别**：Agent 系统增强 / 编辑器与内容创作 / 插件系统与实体详情 / AutoLink 与关系系统 / 图谱与可视化 / UI 视觉字体 / 商城与外部集成 / 系统功能
 
@@ -576,6 +584,17 @@ agent_end → checkShouldAutoContinue=true → autoContinueTask → backend.prom
 **决策（2026-07-31）**：暂停端分离业务 UI 大迁移（数十万行工程），**回到主应用开发（根 src/）**。端分离按 ROADMAP 单独排期，三端骨架保留。
 
 **当前主应用任务线**：Rust Agent 长任务前端对接（useLongTaskRust 对接 + 长任务 UI 集成 + 端到端实测）→ 深度模式/A2UI/终端/子 Agent 补齐
+
+### 端分离业务 UI 迁移启动决策（2026-08-02）
+
+**背景**：复核迁移前置条件（grep/构建验证）：ui-kit / shared-composables / worldsmith-agent 与根 src/ 已完全解耦（0 引用）；@agent 单轨收敛；三端独立构建通过。根 src/ 733 文件（378 .vue + 355 .ts）待迁移；shared-ui 包不存在。
+
+**三个决策（用户确认）**：
+1. **共享 UI 方案**：不新建 packages/shared-ui，继续用 ui-kit（已解耦、已承担 30+ Ws* 组件），迁移时根 src/ 新增共享组件直接下沉 ui-kit
+2. **迁移策略**：渐进式分模块迁移（先骨架+路由+核心页面，再逐插件/面板），每模块独立验证可回滚，不做一次性全量迁移
+3. **启动节奏**：**先收尾主应用 Rust 后端工作线**（failTask 终态实测、深度模式/A2UI/终端/子 Agent 补齐），再启动迁移，不双线并行
+
+**结论**：迁移启动条件已具备，但**暂不启动**；待主应用 Rust 后端收尾后，按渐进式分模块策略启动。
 <!-- HIPPOCAMPUS:SECTION:decisions END -->
 
 <!-- MemoryCenter:SECTION:task_state START -->
@@ -591,6 +610,8 @@ agent_end → checkShouldAutoContinue=true → autoContinueTask → backend.prom
 - [x] 端分离真实状态复核：Phase 3 部分完成，根 src/ 仍是主应用，P3-T10 未做
 - [x] 安全清理：ui-kit 死导出 SettingsDialog/CustomModuleView 移除（消除 ui-kit→根 src/ 最后 2 处引用）
 - [x] AgentChat.vue 40 个 TypeScript 错误修复（2026-07-31）
+- [x] 工作区收敛（2026-08-02，c3856de）：@agent 统一到 packages/agent-runtime 单轨；worldsmith-agent 冻结为端适配器宿主；vite build 两次通过
+- [x] 文档全量同步（2026-08-02）：README/project_memory/ROADMAP/agent-orchestration-roadmap/perf-kit-plan/rust-backend-completion-plan/skills-store-spec/端分离文档库（README、01、02、07、08、10）全部按实际状况更新
 
 ## 进行中步骤
 - Rust 长任务前端对接（useLongTaskRust）——生命周期接入已完成，待端到端实测
@@ -625,4 +646,5 @@ agent_end → checkShouldAutoContinue=true → autoContinueTask → backend.prom
   - worldsmith-agent 冻结为"端适配器宿主"（仅 tauri/ws/node adapter 被显式引用）
   - 验证：vite build 两次通过（33.6s / 31.0s），依赖图单轨
 - **端到端实测状态**：startTask/心跳/checkpoint/SQLite 持久化已验证 ✅；failTask 终态未闭环（待收敛后干净环境重测）
+- **文档同步**：README（技术栈双后端/13 子包/Project Structure/编排模式）、project_memory（日期/后端架构 7 项/子包 13/任务状态）、ROADMAP（任务19 前置完成+变更记录补全 07-07~08-02）、agent-orchestration-roadmap（状态改为阶段1/2完成+里程碑 M0-M2 更新+待办清单）、perf-kit-plan（包已建成/store 改造未落地）、rust-backend-completion-plan（P0 完成+P1-5 更彻底实现）、skills-store-spec（Task 24 状态）、端分离文档库（README 进度表/01 快照标注/02 已实施/07 执行状态/08 最新进展/10 状态说明）
 <!-- MemoryCenter:SECTION:task_state END -->

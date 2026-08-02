@@ -1,7 +1,12 @@
 # perf-kit 实施方案
 
 > 创建时间：2026-06-16
-> 状态：待实施（Phase 1）
+> 状态：**包已建成，核心工具已实现；store 改造未落地**（2026-08-02 复核）
+
+> **2026-08-02 实际状态**：
+> - ✅ `packages/perf-kit` 包已创建，已实现并导出：`useShallowRefMap` / `useShallowArray` / `createDebouncedStorage` / `createBatchIpc` / `watchDebounced` / `rafThrottle` / `useStreamingRenderer`
+> - ⚠️ 与计划差异：IO 层实现为 `batchIpc`（未做 `bulkDb`/`paginatedQuery`）；`batchedUpdates`/`idleRaf` 未实现
+> - ❌ **store 改造未落地**：`src/` 下无 `useShallowArray`/`useShallowRefMap`/`createBatchIpc` 引用（grep 验证），entityStore/fileStore/trashStore 等改造待排期
 
 ## 一、背景与目标
 

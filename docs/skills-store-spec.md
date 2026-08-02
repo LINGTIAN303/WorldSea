@@ -4,6 +4,8 @@
 >
 > 定义 WorldSmith Skills Store 的技能源仓库格式、manifest schema、安装流程与安全模型。
 > 阶段3 前端商城 UI 基于本规范实现浏览/安装/卸载/更新。
+>
+> **当前状态（2026-08-02）**：Task 24 阶段 1-4 + 方向 2/3 已完成（动态加载 / 安装机制 / 商城 UI / 多平台互通 / 独立 Rust crate worldsmith-skills-store / 真实技能源上线）。本规范定义的 manifest schema 与安装安全模型仍为现行标准。待办：桌面端 UI 端到端实测。
 
 ---
 

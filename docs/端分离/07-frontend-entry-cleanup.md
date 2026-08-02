@@ -1,6 +1,8 @@
 # 07 - 前端关联入口移除计划
 
 > Phase 3 核心文档：详细规划 `src/` 目录拆分与三端关联入口清理。
+>
+> **执行状态（2026-08-02）**：Step 1-10 已完成（共享 composables 下沉 + Tauri/Web 专用文件迁移 + coreBackend/useAgent/main.ts 硬编码后端 + `__TAURI__` 清理 + worldsmith-server 引用清理）；Step 11-12（业务 UI 迁入三端 + 删除原 src/）**暂停**，根 `src/` 仍是主应用。详见 [08-migration-phases.md](./08-migration-phases.md) Phase 3 复核表。
 
 ## 1. 清理目标与原则
 

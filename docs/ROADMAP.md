@@ -32,7 +32,7 @@
 - **涉及模块**：`src/agent/AgentMessageBubble.vue`、`src/space/panels/PersonaMirror.vue`、`src/space/panels/UserProfilePopover.vue`、`src/stores/agentProfileStore.ts`、`src/stores/personaStore.ts`
 - **状态**：📋 待启动
 - **优先级**：—
-- **备注**：群聊模式下已有 UserProfilePopover / PersonaMirror，可复用并下沉到 Agent 主面板
+- **备注**：群聊模式下已有 UserProfilePopover / PersonaMirror，可复用并下沉到 Agent 主面板。**部分前置已完成**（2026-07-31）：头像/名称逻辑迭代 + 图片头像支持（avatar:// 引用全链路，AvatarBadge/群聊气泡/顶栏均支持，commit 54ae31d/b035462/fb8e7d3）。信息卡（悬停/点击展示资料）仍未实现
 
 ## 二、编辑器与内容创作
 
@@ -247,3 +247,13 @@
 
 - **2026-07-02**：创建文档，录入 28 条任务方向，按 8 大类别分组，标注涉及模块与备注
 - **2026-07-06**：任务 1（实体卡片小窗）经验证已完整实现，状态更新为已完成
+- **2026-07-07**：任务 4（长任务能力）P1-P4 + task 模式方向 A/B/C/D 全部完成；任务 3（技能工具更新）P1-P4 + 收尾完成
+- **2026-07-08**：任务 3 收尾（alwaysAvailable meta 对齐 + resolveToolNames 切换 SkillRegistry）；任务 24（Skills 商城）阶段 1-4 + 方向 2/3 完成
+- **2026-07-24**：新增 Rust Agent 编排路线图（docs/agent-orchestration-roadmap.md）——非 28 条任务体系，独立工作线
+- **2026-07-25**：Rust Agent 阶段 1.5（Tauri 集成）+ 阶段 2.0（前端 UI 集成，开关切换）；新增 docs/rust-backend-completion-plan.md（P0+P1 会话持久化计划）
+- **2026-07-28**：Rust 编排阶段 2 完成（ToT/GoT/Multi-Agent/Supervisor/Router/Loop Engineering，cargo test 127/127）
+- **2026-07-29**：端分离 Phase 0-2/4/5 完成，搭建 docs/端分离/ 文档库（11 份）
+- **2026-07-30**：端分离 Phase 5 三端独立构建验证通过
+- **2026-07-31**：端分离检查点 5c32c78（825 文件入库）；Phase 3 真实状态复核（部分完成，业务 UI 未迁入三端）；**决策：暂停业务 UI 大迁移，回到主应用开发**；任务 19 前置（图片头像）完成
+- **2026-08-01**：Rust 长任务前端生命周期接入（useAgentRust.ts，startTask/checkpoint/断点恢复复用 taskId）
+- **2026-08-02**：工作区收敛（@agent 统一到 packages/agent-runtime 单轨 c3856de，worldsmith-agent 冻结为适配器宿主）；Tauri 端到端链路打通（20a3933）；Rust 长任务 startTask/心跳/checkpoint/SQLite 持久化实测通过，failTask 终态待重测
