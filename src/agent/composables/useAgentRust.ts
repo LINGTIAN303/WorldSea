@@ -1848,12 +1848,18 @@ export function useAgentRustAdapter() {
 
           // ── 长任务：错误终结（对齐 TS 版 error → failTask） ──
           // Rust 端 LLM 调用失败 / 超迭代 / 中断时 emit error 事件。
-          // 注意：abort 中断也可能触发 error，此时标记 failed 而非 cancelled——
-          // 若 agent_end 随后到达会因 currentTaskId 已清空而跳过，以 error 语义为准。
+          // 关键：Rust 端 abort 中断不广播 AgentEnd（run 返回 Err(Aborted) 提前退出），
+          // 前端只会收到 error 事件。故此处检查取消标记：
+          //   - 用户主动 abort（requestCancel 已设 flag）→ cancelTask（语义：已取消）
+          //   - 真实错误 → failTask
           if (event.type === 'error' && currentTaskId.value) {
             const tid = currentTaskId.value
             currentTaskId.value = null
-            void longTask.failTask(tid, event.error?.message ?? 'Agent 错误')
+            if (longTask.isCancelRequested(tid)) {
+              void longTask.cancelTask(tid)
+            } else {
+              void longTask.failTask(tid, event.error?.message ?? 'Agent 错误')
+            }
           }
         })
 
