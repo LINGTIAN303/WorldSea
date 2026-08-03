@@ -45,7 +45,11 @@ pub struct SessionInfo {
 }
 
 /// 发送消息参数
+///
+/// `rename_all = "camelCase"`：Tauri v2 只对顶层命令参数做 camelCase 转换，
+/// 嵌套结构体需在 serde 层声明，前端才可用 `sessionId` / `mimeType` 等字段名。
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SendMessageParams {
     pub session_id: String,
     pub text: String,
@@ -59,6 +63,7 @@ pub struct SendMessageParams {
 
 /// 图片附件参数
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ImageAttachmentParam {
     pub data: String,
     pub mime_type: String,

@@ -133,6 +133,8 @@ function rustMsgToTsMsg(r: RustMessage, index: number): AgentMessage {
       id: tc.id || `tc-${index}-${i}`,
       name: tc.name,
       args: tc.args as Record<string, unknown>,
+      status: 'completed',
+      startedAt: Date.now(),
     })),
     metadata: r.meta,
   }
@@ -282,27 +284,27 @@ async function prompt(text: string, options?: PromptOptions): Promise<void> {
 
     // 助手回复
     const replyId = `assistant-${Date.now()}`
-    emit({ type: 'message_start', messageId: replyId })
     const assistantMsg: AgentMessage = {
       id: replyId,
       role: 'assistant',
       content: result.reply,
       timestamp: Date.now(),
     }
+    emit({ type: 'message_start', message: assistantMsg })
     messages.value.push(assistantMsg)
     sessionMessagesCache.get(sessionId)?.push(assistantMsg)
     emit({ type: 'message_end', messageId: replyId, content: result.reply, thinking: '' })
-    emit({ type: 'turn_end' })
+    emit({ type: 'turn_end', message: assistantMsg })
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err))
     emit({ type: 'error', error })
-    emit({ type: 'agent_end', sessionId })
+    emit({ type: 'agent_end', sessionId, messages: messages.value })
     throw error
   } finally {
     isStreaming.value = false
   }
 
-  emit({ type: 'agent_end', sessionId })
+  emit({ type: 'agent_end', sessionId, messages: messages.value })
 }
 
 /** 中途引导（对应 Rust `steer`，实现 IAgentBackend.steer） */
