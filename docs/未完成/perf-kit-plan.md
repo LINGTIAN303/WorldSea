@@ -1,7 +1,7 @@
 # perf-kit 实施方案
 
 > 创建时间：2026-06-16
-> 状态：**包已建成，Phase 1 核心 store 改造、Phase 2 渲染节流、Phase 3 全部落地（含 loadByPage 的 DB 分页）；Phase 4 全局优化待排期**（2026-08-04 复核）
+> 状态：**包已建成，Phase 1 核心 store 改造、Phase 2 渲染节流、Phase 3 全部落地（含 loadByPage 的 DB 分页）；Phase 4 已落地 KanbanView 虚拟滚动（PERF-10），其余待排期**（2026-08-04 复核）
 
 > **2026-08-04 复核（实际状态）**：
 > - ✅ `packages/perf-kit` 包已创建，已实现并导出：`useShallowRefMap` / `useShallowArray` / `createDebouncedStorage` / `createBatchIpc` / `watchDebounced` / `rafThrottle` / `useStreamingRenderer`
@@ -9,8 +9,9 @@
 > - ✅ **Phase 2 渲染节流已落地**：`watchDebounced` / `rafThrottle` / `useStreamingRenderer` 均已实现；`AgentMessageList` 用 `watchDebounced` + 窗口化（useMessageWindowing）；`useAgentEvents` 用 `useShallowArray`；`AgentMessageBubble` 经拆分后的 `NormalMessageBubble` / `DeepMessageArea` 均走 `useMarkdownRender` 的 `useStreamingRenderer` 做 rAF 节流
 > - ✅ **Phase 3 全部落地**：`createBatchIpc`（批量并发写，替代串行 await）；`ProjectFS` 导出已用 `createBatchIpc` 批量写入；`database.ts` v5 已加 `updatedAt` 索引 + 回填 upgrade；`entityStore.importBatch` 已用 Dexie `bulkPut`；`AgentChat`（useChatPanel/useChatSettings）已用 `createDebouncedStorage`
 > - ✅ **Phase 3.6 `entityStore.loadByPage` DB 分页已落地（PERF-09，2026-08-04）**：`StorageBackend` 新增 `loadEntitiesPage` + 共享 `paginateEntitiesInMemory`；Web 端无 type 筛选 + `updatedAt`/`name` 排序走 Dexie 索引分页（`table.orderBy` + `reverse` + `offset/limit`），避免全量加载；带 type 筛选或 `createdAt` 排序（无索引）回退全量+JS 排序；Tauri/File 端回退全量+JS 排序
+> - ✅ **Phase 4.6 KanbanView 虚拟滚动已落地（PERF-10，2026-08-04）**：`perf-kit` 新增 `useVirtualList`（估算高度 + 前缀和 + 二分查找 + 测量修正 + rAF 合并）；`KanbanView` 拆出 `KanbanColumn` 子组件，列内卡片改用 `useVirtualList` 渲染，保留拖拽/触屏/内联新建；已修复异步加载后列表空白、scroll 重复绑定、新建广播无监听、columns 过滤恒真等风险点
 > - ⚠️ 与计划差异：IO 层实现为 `batchIpc`（未做独立的 `bulkDb`/`paginatedQuery` 工具，`bulkPut` 已内联在生产中）；`batchedUpdates`/`idleRaf` 未实现
-> - ❌ **剩余待办**：Phase 4 全局优化（deep watch 替换 / search 索引 / 虚拟滚动 / 脏矩形 / WASM Transferable / batchedUpdates / idleRaf）
+> - ❌ **剩余待办**：Phase 4 其余项（deep watch 替换 / search 索引 / 脏矩形 / WASM Transferable / batchedUpdates / idleRaf）
 
 ## 一、背景与目标
 
