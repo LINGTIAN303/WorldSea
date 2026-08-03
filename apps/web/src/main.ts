@@ -1,22 +1,24 @@
 /**
- * Web 端入口（Phase 3 — 端入口硬编码后端）
+ * Web 端入口（Phase 3 — 端分离业务 UI 迁入 · 第一批：骨架启动链路）
  *
  * 端分离策略：
  * - 硬编码 WASM 后端（移除 getBackendType 运行时检测）
  * - 通过 /api/* 代理连接 CLI serve（LLM、文件、Python 微服务）
  * - WASM 算法降级（当 CLI serve 不可用时）
  *
- * Phase 3 阶段：业务 UI 仍在 src/，本入口仅做端初始化
- * Phase 4 阶段：业务 UI 迁入 packages/shared-ui 后，本入口成为完整应用入口
+ * 迁移批次标注：
+ * - P3-W1 ✅ 设计令牌 + boot 组件（Splash/BootError）+ 轻量共享壳
+ * - P3-W2 ✅ Shell 布局（MenuBar/SidebarV2/WsConfirmDialog/Companion/AppMessageHandler + modules/store + useProjectSwitcher）
+ * - P3-W3 ⏳ 核心页面（AgentSpace/实体视图/插件面板）+ governor + 官方插件 + 业务弹窗
  */
+import './design-tokens/primitive.css'
+import './design-tokens/semantic.css'
+import './design-tokens/component.css'
+import './design-tokens/interaction-modes.css'
+import './assets/themes.css'
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'
-
-// Web 端 coreBackend（WASM only 版本）
-import * as coreBackend from './core/coreBackend'
-
-// 共享层：注册 entity-core / canvas-engine 等运行时
 import {
   fieldRegistry,
   setUndoHistoryProvider,
@@ -26,66 +28,109 @@ import {
   registerConfirmApi,
   registerDialogApi,
   registerSettingsApi,
+  registerModuleStoreApi,
+  registerProjectSwitcherApi,
+  registerDownloader,
+  registerPackValidator,
+  registerAppVersionProvider,
 } from '@worldsmith/entity-core'
 import { registerBackend } from '@worldsmith/canvas-engine/core'
-import { useConfirm, useDialog } from '@worldsmith/ui-kit'
-import { injectAllKeyframes } from '@worldsmith/motion-kit'
+import * as coreBackend from './core/coreBackend'
+import { useSettingsStore } from './stores/settingsStore'
+import { eventBus } from './modules/runtime/events'
+import { moduleStore } from './modules/store'
+import { useProjectSwitcher } from './composables/useProjectSwitcher'
+import { useConfirm, useDialog } from '@worldsmith/plugin-sdk'
+import { injectAllKeyframes } from '@worldsmith/ui-kit'
+import { toastSuccess, toastError, toastWarn, toastInfo } from './composables/useToast'
 import { registerAllManifests } from '@worldsmith/theme-kit'
+import { registerExecutionAdapterFactory } from '@agent/execution'
+// 端适配器宿主：Web 端仅使用 WebSocket 执行适配器（Tauri 端使用 TauriExecutionAdapter）
+// ws-adapter 自 worldsmith-agent/src/execution 迁移至本端（Phase 6 清理）
+import { WebSocketExecutionAdapter } from '@/execution/ws-adapter'
 
-/**
- * Web 端后端初始化
- *
- * 显式激活 WASM 后端（绕过 detectBackend 的测试键检测）
- * — Phase 3 端分离后，Web 端不再依赖 window.__worldsmith_core_wasm_test__ 检测
- */
-async function initializeBackend() {
-  // 显式标记 WASM 可用（coreBackend.setWasmAvailable）
-  coreBackend.setWasmAvailable(true)
+// 收敛中间态：@agent 入口已统一到 packages/agent-runtime（无副作用注册），
+// 端适配器改为主应用显式注册（替代 worldsmith-agent/index.ts 的 import './execution' 副作用）
+registerExecutionAdapterFactory({
+  createWsAdapter: (config) => new WebSocketExecutionAdapter(config),
+})
 
-  // 注册 canvas-engine 后端（算法降级）
-  registerBackend({
-    getBackendType: coreBackend.getBackendType,
-    validateEntity: coreBackend.validateEntity,
-    validateEntities: coreBackend.validateEntities,
-    validatePack: coreBackend.validatePack,
-    checkReferences: coreBackend.checkReferences,
-    migrate: coreBackend.migrate,
-    runDiagnostics: coreBackend.runDiagnostics,
-    algoDijkstraPath: coreBackend.algoDijkstraPath,
-    algoAstar: coreBackend.algoAstar,
-    algoTopologicalSort: coreBackend.algoTopologicalSort,
-    algoConnectedComponents: coreBackend.algoConnectedComponents,
-    algoTarjanScc: coreBackend.algoTarjanScc,
-    algoForceLayout: coreBackend.algoForceLayout,
-  })
-
-  // 注册 entity-core 验证 API
-  registerValidationApi({
-    validateEntity: coreBackend.validateEntity,
-    validateEntities: coreBackend.validateEntities,
-    validatePack: coreBackend.validatePack,
-    checkReferences: coreBackend.checkReferences,
-    migrate: coreBackend.migrate,
-    runDiagnostics: coreBackend.runDiagnostics,
-    getBackendType: coreBackend.getBackendType,
-  })
-
-  // 注册主题清单
-  registerAllManifests()
-
-  // 注入所有 keyframes 动画
-  injectAllKeyframes()
-}
+registerBackend({
+  getBackendType: coreBackend.getBackendType,
+  algoPointInPolygon: coreBackend.algoPointInPolygon,
+  algoSegmentIntersect: coreBackend.algoSegmentIntersect,
+  algoConvexHull: coreBackend.algoConvexHull,
+  algoPolygonSimplify: coreBackend.algoPolygonSimplify,
+  algoPolygonBoolean: coreBackend.algoPolygonBoolean,
+  algoChaikinSmooth: coreBackend.algoChaikinSmooth,
+  algoFindSharedEdges: coreBackend.algoFindSharedEdges,
+  algoFindLinePolygonIntersections: coreBackend.algoFindLinePolygonIntersections,
+  algoPolygonSplit: coreBackend.algoPolygonSplit,
+  algoPolygonAugment: coreBackend.algoPolygonAugment,
+  algoDijkstraPath: coreBackend.algoDijkstraPath,
+  algoCommunityDetection: coreBackend.algoCommunityDetection,
+})
 
 const app = createApp(App)
-const pinia = createPinia()
-app.use(pinia)
+app.use(createPinia())
 
-// 注册 entity-core 的 Pinia store provider
-// 注：useConfirm / useDialog 需要在 app 上下文内调用
-app.mount('#app')
+registerEventBus(eventBus)
 
-// 在 mount 后初始化后端（避免阻塞首屏渲染）
-initializeBackend().catch((err) => {
-  console.error('[Web 端入口] 后端初始化失败:', err)
+registerValidationApi({
+  validateEntity: coreBackend.validateEntity,
+  checkReferences: coreBackend.checkReferences,
+  getBackendType: coreBackend.getBackendType,
 })
+
+registerToastApi({
+  success: toastSuccess,
+  error: toastError,
+  warn: toastWarn,
+  info: toastInfo,
+})
+
+registerConfirmApi(useConfirm())
+
+registerDialogApi(useDialog())
+
+registerSettingsApi(useSettingsStore())
+
+// P3-W2：modules/store + useProjectSwitcher 已迁入 Web 端，替换 P3-W1 占位实现
+// 注：entity-core 的 ModuleStoreApi.install 参数为精简版 ModuleInstance（id/active/source），
+// 运行时实际传入的是完整模块实例（含 manifest），与根 src/main.ts 行为一致，此处断言桥接。
+registerModuleStoreApi({
+  getAll: () => moduleStore.getAll(),
+  install: (mod) => moduleStore.install(mod as Parameters<typeof moduleStore.install>[0]),
+})
+registerProjectSwitcherApi({
+  switchProject: (targetProjectId) => useProjectSwitcher().switchProject(targetProjectId),
+})
+
+// Phase 8d: io 模块依赖注入（浏览器下载 + 包校验 + 应用版本）
+registerDownloader({
+  download(filename: string, blob: Blob): void {
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    a.click()
+    URL.revokeObjectURL(url)
+  },
+})
+registerPackValidator({
+  async validatePack(packJson: string) {
+    return coreBackend.validatePack(packJson)
+  },
+})
+registerAppVersionProvider({
+  getAppVersion() {
+    return typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0'
+  },
+})
+
+document.documentElement.setAttribute('data-theme', localStorage.getItem('worldsmith-theme') || 'aurora-abyss')
+injectAllKeyframes()
+registerAllManifests()
+setUndoHistoryProvider(() => useSettingsStore().undoHistoryLimit || 20)
+fieldRegistry.loadPersisted()
+app.mount('#app')

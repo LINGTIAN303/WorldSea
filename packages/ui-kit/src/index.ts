@@ -13,6 +13,7 @@
 // ----------------------------------------------------------------------------
 export { default as WsIcon } from './components/WsIcon.vue'
 export { default as WsEmpty } from './components/WsEmpty.vue'
+export { default as WsSpinner } from './components/WsSpinner.vue'
 
 // Phase 8c: 图标注册表（从根 src/assets/iconRegistry.ts 下沉）
 export {

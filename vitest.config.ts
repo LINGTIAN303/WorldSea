@@ -8,10 +8,9 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
-    setupFiles: ['src/test-setup.ts'],
+    setupFiles: ['apps/web/src/test-setup.ts'],
     include: [
-      'src/**/__tests__/**/*.spec.ts',
-      'worldsmith-server/**/__tests__/**/*.spec.ts',
+      'apps/web/src/**/__tests__/**/*.spec.ts',
       'packages/memory-archive/**/__tests__/**/*.spec.ts',
     ],
     coverage: {

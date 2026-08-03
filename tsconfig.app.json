@@ -55,5 +55,5 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue", "worldsmith-agent/src/**/*.ts", "packages/ui-kit/src/**/*.ts", "packages/ui-kit/src/**/*.vue", "packages/entity-core/src/**/*.ts", "packages/plugin-sdk/src/**/*.ts", "packages/canvas-engine/src/**/*.ts", "packages/motion-kit/src/**/*.ts", "packages/font-kit/src/**/*.ts", "packages/agent-core/src/**/*.ts", "packages/agent-runtime/src/**/*.ts", "packages/memory-archive/src/**/*.ts", "packages/governor-core/src/**/*.ts", "packages/shared-composables/src/**/*.ts", "packages/shared-composables/src/**/*.vue"]
+  "include": ["packages/ui-kit/src/**/*.ts", "packages/ui-kit/src/**/*.vue", "packages/entity-core/src/**/*.ts", "packages/plugin-sdk/src/**/*.ts", "packages/canvas-engine/src/**/*.ts", "packages/motion-kit/src/**/*.ts", "packages/font-kit/src/**/*.ts", "packages/agent-core/src/**/*.ts", "packages/agent-runtime/src/**/*.ts", "packages/memory-archive/src/**/*.ts", "packages/governor-core/src/**/*.ts", "packages/shared-composables/src/**/*.ts", "packages/shared-composables/src/**/*.vue"]
 }

@@ -1,0 +1,96 @@
+/* ═══════════════════════════════════════════
+   交互模式 CSS
+   由 ThemeManifest.motionStyle.interactionMode 驱动
+   通过 [data-interaction-mode] 属性选择器激活
+   ═══════════════════════════════════════════ */
+
+/* ─── Modern（默认） ─── */
+[data-interaction-mode="modern"] .btn:active:not(:disabled),
+[data-interaction-mode="modern"] .ws-interactive:active:not(:disabled) {
+  transform: scale(var(--state-pressed-scale, 0.97));
+  transition: transform var(--state-pressed-duration, 80ms) var(--state-pressed-easing, ease);
+}
+
+/* ─── Ink Spread（水墨扩散） ─── */
+[data-interaction-mode="ink-spread"] .btn,
+[data-interaction-mode="ink-spread"] .ws-interactive {
+  position: relative;
+  overflow: hidden;
+}
+
+[data-interaction-mode="ink-spread"] .btn::after,
+[data-interaction-mode="ink-spread"] .ws-interactive::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at var(--ripple-x, 50%) var(--ripple-y, 50%), 
+    var(--color-primary-subtle, rgba(42, 32, 24, 0.08)) 0%, 
+    transparent 70%);
+  opacity: 0;
+  transform: scale(0);
+  transition: opacity 0.4s ease-out, transform 0.6s ease-out;
+  pointer-events: none;
+}
+
+[data-interaction-mode="ink-spread"] .btn:active:not(:disabled)::after,
+[data-interaction-mode="ink-spread"] .ws-interactive:active:not(:disabled)::after {
+  opacity: 1;
+  transform: scale(2.5);
+  transition: opacity 0.1s ease-out, transform 0.5s ease-out;
+}
+
+[data-interaction-mode="ink-spread"] .card {
+  transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+[data-interaction-mode="ink-spread"] .card:hover {
+  transform: translateY(-2px);
+}
+
+/* ─── Crystal Refract（水晶折射） ─── */
+[data-interaction-mode="crystal-refract"] .btn,
+[data-interaction-mode="crystal-refract"] .ws-interactive {
+  transition: background 0.15s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), color 0.15s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1), transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.15s cubic-bezier(0.4, 0, 0.2, 1), filter 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+[data-interaction-mode="crystal-refract"] .btn:hover:not(:disabled),
+[data-interaction-mode="crystal-refract"] .ws-interactive:hover:not(:disabled) {
+  filter: brightness(1.1) saturate(1.1);
+  box-shadow: 0 0 12px rgba(100, 180, 255, 0.2);
+}
+
+[data-interaction-mode="crystal-refract"] .btn:active:not(:disabled),
+[data-interaction-mode="crystal-refract"] .ws-interactive:active:not(:disabled) {
+  transform: scale(0.96);
+  filter: brightness(0.95);
+  transition: background 0.08s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.08s cubic-bezier(0.4, 0, 0.2, 1), color 0.08s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.08s cubic-bezier(0.4, 0, 0.2, 1), transform 0.08s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.08s cubic-bezier(0.4, 0, 0.2, 1), filter 0.08s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+[data-interaction-mode="crystal-refract"] .card {
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+[data-interaction-mode="crystal-refract"] .card:hover {
+  filter: brightness(1.05);
+}
+
+/* ─── Minimal（极简） ─── */
+[data-interaction-mode="minimal"] .btn:active:not(:disabled),
+[data-interaction-mode="minimal"] .ws-interactive:active:not(:disabled) {
+  opacity: 0.7;
+  transition: opacity 0.1s ease;
+}
+
+[data-interaction-mode="minimal"] .btn:hover:not(:disabled),
+[data-interaction-mode="minimal"] .ws-interactive:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+[data-interaction-mode="minimal"] .card:hover {
+  border-color: var(--color-border-strong);
+}
+
+/* ─── 全局过渡平滑 ─── */
+/* 注：原 [data-interaction-mode] * 通配符规则已移除
+   原因：通配符选择器强制浏览器为所有元素跟踪 filter/box-shadow/transform
+   等昂贵属性变化，导致面板展开/收缩时样式计算开销激增。
+   各交互模式的精确过渡规则已在上方各模式块中定义。 */

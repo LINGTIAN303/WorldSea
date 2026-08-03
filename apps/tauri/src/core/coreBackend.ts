@@ -95,9 +95,9 @@ async function getTauriInvoke(): Promise<InvokeFn> {
 async function backendCall<T>(
   tauriCmd: string,
   tauriArgs: Record<string, unknown>,
-  wasmMethod: string, // 保留参数名（已不使用，但保持签名）
-  wasmArgs: unknown[],
-  fallback: T,
+  _wasmMethod: string, // 保留参数名（已不使用，但保持签名）
+  _wasmArgs: unknown[],
+  _fallback: T,
 ): Promise<T> {
   // Tauri 端仅走 invoke 路径
   const invoke = await getTauriInvoke()
@@ -107,7 +107,7 @@ async function backendCall<T>(
 /**
  * Tauri-only 调用辅助 — 无 WASM 回退的场景（如空间索引）
  */
-async function tauriCall<T>(cmd: string, args: Record<string, unknown> = {}, fallback?: T): Promise<T> {
+async function tauriCall<T>(cmd: string, args: Record<string, unknown> = {}, _fallback?: T): Promise<T> {
   const invoke = await getTauriInvoke()
   return invoke(cmd, args) as Promise<T>
 }
@@ -120,11 +120,11 @@ async function tauriCall<T>(cmd: string, args: Record<string, unknown> = {}, fal
 async function algoCall<T>(
   tauriCmd: string,
   tauriArgs: Record<string, unknown>,
-  wasmFn: (core: any) => any, // 已不使用，但保持签名
-  fallback: T,
+  _wasmFn: (core: any) => any, // 已不使用，但保持签名
+  _fallback: T,
   parseJson = false,
-  wasmMethodName?: string, // 已不使用
-  wasmMethodArgs?: unknown[], // 已不使用
+  _wasmMethodName?: string, // 已不使用
+  _wasmMethodArgs?: unknown[], // 已不使用
 ): Promise<T> {
   const invoke = await getTauriInvoke()
   const result = await invoke(tauriCmd, tauriArgs)

@@ -47,7 +47,6 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'
 import { useConfirm, useShortcuts } from '@worldsmith/ui-kit'
-import { useUndoRedo } from '@worldsmith/entity-core'
 import { useSettingsStore } from '@worldsmith/entity-core'
 import MapToolbar from './map/MapToolbar.vue'
 import MapTooltip from './map/MapTooltip.vue'
@@ -69,7 +68,6 @@ const relationStore = useRelationStore()
 const { confirm } = useConfirm()
 const settingsStore = useSettingsStore()
 const { register: registerShortcut, unregister: unregisterShortcut } = useShortcuts()
-const { beginTransaction, commitTransaction } = useUndoRedo()
 
 const mapRoot = ref<HTMLDivElement>()
 const canvasRef = ref<HTMLCanvasElement>()
@@ -165,7 +163,7 @@ const {
   eraseMode, eraseBorderVertices, eraseBorderFixedIndices, eraseDraggingIdx,
   eraseRedrawPath, eraseCtxMenu,
   openEraseCtxMenu, closeEraseCtx, eraseMerge, eraseMoveLine,
-  confirmOffset, finishRedraw, handleEraseKeyDown,
+  finishRedraw, handleEraseKeyDown,
 } = borderErase
 const {
   adjoinSelectMode, adjoinSourceRegion, adjoinSelectedIds,

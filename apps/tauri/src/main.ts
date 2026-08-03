@@ -17,18 +17,8 @@ import App from './App.vue'
 import * as coreBackend from './core/coreBackend'
 
 // 共享层：注册 entity-core / canvas-engine 等运行时
-import {
-  fieldRegistry,
-  setUndoHistoryProvider,
-  registerEventBus,
-  registerValidationApi,
-  registerToastApi,
-  registerConfirmApi,
-  registerDialogApi,
-  registerSettingsApi,
-} from '@worldsmith/entity-core'
+import { registerValidationApi } from '@worldsmith/entity-core'
 import { registerBackend } from '@worldsmith/canvas-engine/core'
-import { useConfirm, useDialog } from '@worldsmith/ui-kit'
 import { injectAllKeyframes } from '@worldsmith/motion-kit'
 import { registerAllManifests } from '@worldsmith/theme-kit'
 
@@ -39,31 +29,16 @@ import { registerAllManifests } from '@worldsmith/theme-kit'
  * Tauri 运行时会自动注入 window.__TAURI_INTERNALS__，getTauriInvoke() 可正常工作
  */
 async function initializeBackend() {
-  // 注册 canvas-engine 后端（Tauri invoke 路径）
+  // 注册 canvas-engine 后端（Tauri invoke 路径，契约 = BackendAlgoApi）
   registerBackend({
     getBackendType: coreBackend.getBackendType,
-    validateEntity: coreBackend.validateEntity,
-    validateEntities: coreBackend.validateEntities,
-    validatePack: coreBackend.validatePack,
-    checkReferences: coreBackend.checkReferences,
-    migrate: coreBackend.migrate,
-    runDiagnostics: coreBackend.runDiagnostics,
     algoDijkstraPath: coreBackend.algoDijkstraPath,
-    algoAstar: coreBackend.algoAstar,
-    algoTopologicalSort: coreBackend.algoTopologicalSort,
-    algoConnectedComponents: coreBackend.algoConnectedComponents,
-    algoTarjanScc: coreBackend.algoTarjanScc,
-    algoForceLayout: coreBackend.algoForceLayout,
   })
 
-  // 注册 entity-core 验证 API
+  // 注册 entity-core 验证 API（契约 = ValidationApi）
   registerValidationApi({
     validateEntity: coreBackend.validateEntity,
-    validateEntities: coreBackend.validateEntities,
-    validatePack: coreBackend.validatePack,
     checkReferences: coreBackend.checkReferences,
-    migrate: coreBackend.migrate,
-    runDiagnostics: coreBackend.runDiagnostics,
     getBackendType: coreBackend.getBackendType,
   })
 

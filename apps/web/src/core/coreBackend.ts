@@ -75,7 +75,7 @@ async function getCoreCached(): Promise<{ [key: string]: (...args: any[]) => any
 
 async function backendCall<T>(
   tauriCmd: string,  // 保留参数名（用于日志）
-  tauriArgs: Record<string, unknown>,
+  _tauriArgs: Record<string, unknown>,
   wasmMethod: string,
   wasmArgs: unknown[],
   fallback: T,
@@ -117,7 +117,7 @@ let _algoDegradedNotified = false
  */
 async function algoCall<T>(
   tauriCmd: string,
-  tauriArgs: Record<string, unknown>,
+  _tauriArgs: Record<string, unknown>,
   wasmFn: (core: NonNullable<Awaited<ReturnType<typeof getCoreCached>>>) => any,
   fallback: T,
   parseJson = false,
@@ -290,15 +290,15 @@ export async function checkStorageHealth(): Promise<StorageHealthReport | null> 
 }
 
 export async function validatePluginManifest(
-  manifestJson: string,
+  _manifestJson: string,
 ): Promise<ManifestValidationResult | null> {
   // Web 端无 Tauri 后端，返回 null
   return null
 }
 
 export async function checkPluginHealth(
-  manifestsJson: string,
-  activeIdsJson: string,
+  _manifestsJson: string,
+  _activeIdsJson: string,
 ): Promise<PluginHealthReport | null> {
   // Web 端无 Tauri 后端，返回 null
   return null
@@ -870,14 +870,14 @@ export async function retrofitPatchApply(
 
 // ── 空间索引 API（Web 端无 WASM 实现，返回降级值） ──
 
-export async function spatialInsertRect(item: SpatialItem): Promise<void> { /* no-op */ }
-export async function spatialInsertPoint(item: PointItem): Promise<void> { /* no-op */ }
-export async function spatialQueryRange(min: [number, number], max: [number, number]): Promise<SpatialItem[]> { return [] }
-export async function spatialQueryAtPoint(point: [number, number]): Promise<SpatialItem[]> { return [] }
-export async function spatialNearestPoint(query: [number, number]): Promise<PointItem | null> { return null }
-export async function spatialKNearest(query: [number, number], k: number): Promise<PointItem[]> { return [] }
-export async function spatialQueryByCategory(category: string): Promise<SpatialItem[]> { return [] }
-export async function spatialRemoveRect(item: SpatialItem): Promise<boolean> { return false }
+export async function spatialInsertRect(_item: SpatialItem): Promise<void> { /* no-op */ }
+export async function spatialInsertPoint(_item: PointItem): Promise<void> { /* no-op */ }
+export async function spatialQueryRange(_min: [number, number], _max: [number, number]): Promise<SpatialItem[]> { return [] }
+export async function spatialQueryAtPoint(_point: [number, number]): Promise<SpatialItem[]> { return [] }
+export async function spatialNearestPoint(_query: [number, number]): Promise<PointItem | null> { return null }
+export async function spatialKNearest(_query: [number, number], _k: number): Promise<PointItem[]> { return [] }
+export async function spatialQueryByCategory(_category: string): Promise<SpatialItem[]> { return [] }
+export async function spatialRemoveRect(_item: SpatialItem): Promise<boolean> { return false }
 export async function spatialClear(): Promise<void> { /* no-op */ }
 export async function spatialCounts(): Promise<{ rectCount: number; pointCount: number }> { return { rectCount: 0, pointCount: 0 } }
 

@@ -55,11 +55,35 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { schemaGetEntityType } from '../../../../src/core/coreBackend'
-import type { EntityTypeSchema } from '../../../../src/core/coreBackend'
 import { entitySchemaRegistry } from '@worldsmith/entity-core'
 import GenericEntityView from './GenericEntityView.vue'
 import type { FormFieldDef, RelationTabDef, CardFieldDef, CustomTabDef, FilterDef } from './types'
+
+// ── 本地类型定义（与后端 coreBackend.EntityTypeSchema 结构兼容）
+// 端分离后 plugin-sdk 不再直接引用业务层，schema 加载能力由调用方通过 schemaLoader prop 注入 ──
+export interface SchemaFieldOption { value: string; label: string }
+export interface SchemaField {
+  key: string
+  label: string
+  fieldType: string
+  required?: boolean
+  options?: SchemaFieldOption[]
+  placeholder?: string
+  refType?: string
+  autoLink?: { targetType: string; relationType: string; searchField?: string; createIfMissing?: boolean }
+}
+export interface EntityTypeSchema {
+  typeKey: string
+  label: string
+  icon: string
+  fields: SchemaField[]
+  relations: unknown[]
+  validations: unknown[]
+  views: unknown[]
+  iconMap: Record<string, string>
+  idPrefix: string
+  pluginId?: string
+}
 
 const props = withDefaults(defineProps<{
   typeKey: string
@@ -72,6 +96,8 @@ const props = withDefaults(defineProps<{
   sortOptions?: { key: string; label: string }[]
   hideCreateButton?: boolean
   facetOnCreate?: string
+  /** 实体类型 schema 加载器（端分离后由宿主注入；未提供时降级到 entitySchemaRegistry） */
+  schemaLoader?: (typeKey: string) => Promise<EntityTypeSchema | null>
 }>(), {
   detailTabs: () => [],
   customTabs: () => [],
@@ -91,17 +117,17 @@ async function loadSchema() {
   loading.value = true
   error.value = ''
   try {
-    const result = await schemaGetEntityType(props.typeKey)
-    if (result) {
-      schema.value = result
-    } else {
+    let result: EntityTypeSchema | null = null
+    if (props.schemaLoader) {
+      result = await props.schemaLoader(props.typeKey)
+    }
+    if (!result) {
       const fallback = entitySchemaRegistry.get(props.typeKey)
       if (fallback) {
-        schema.value = { ...fallback, typeKey: fallback.type, fields: fallback.fields || [], iconMap: (fallback as any).iconMap || {}, relations: [], validations: [], views: [], idPrefix: '' } as unknown as EntityTypeSchema
-      } else {
-        schema.value = null
+        result = { ...fallback, typeKey: fallback.type, fields: fallback.fields || [], iconMap: (fallback as any).iconMap || {}, relations: [], validations: [], views: [], idPrefix: '' } as unknown as EntityTypeSchema
       }
     }
+    schema.value = result
   } catch (e: any) {
     const fallback = entitySchemaRegistry.get(props.typeKey)
     if (fallback) {
