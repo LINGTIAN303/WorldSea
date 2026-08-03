@@ -1,7 +1,7 @@
 # WorldSmith 架构总览
 
 > 本文档描述**当前实际代码状态**（2026-08-04 复核），供新接手者快速定位代码。
-> 与 `docs/端分离/` 文档库区分：后者是端分离迁移的历史记录与目标架构设计。
+> 与 `docs/已完成/端分离/` 文档库区分：后者是端分离迁移的历史记录与目标架构设计。
 
 ## 1. 项目定位
 
@@ -26,7 +26,7 @@ worldsmith/
 ├── worldsmith-core/       # Rust WASM 核心（storage/validation/graph layout）
 ├── tactical-engine/       # Rust WASM 战术引擎（pathfinding）
 ├── worldsmith-skills-store/ # Rust Skills Store 纯逻辑库（可独立 cargo test）
-├── docs/                  # 文档（架构、路线图、设计计划、端分离记录）
+├── docs/                  # 文档（架构、路线图、按状态分类：已完成/执行中/未完成）
 └── scripts/               # 构建与工具脚本
 ```
 

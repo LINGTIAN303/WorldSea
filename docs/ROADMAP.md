@@ -188,7 +188,7 @@
 
 ### 24. Skills 商城
 - **简述**：实现 Skills 商城（Agent 技能的分发/安装）
-- **涉及模块**：`@worldsmith/agent-core`、`worldsmith-agent/`、`src/agent/`、`src-tauri/src/lib.rs`、`src-tauri/src/skills_store.rs`、`worldsmith-skills-store/`、`docs/skills-store-spec.md`、待定的商城后端
+- **涉及模块**：`@worldsmith/agent-core`、`worldsmith-agent/`、`src/agent/`、`src-tauri/src/lib.rs`、`src-tauri/src/skills_store.rs`、`worldsmith-skills-store/`、`docs/执行中/skills-store-spec.md`、待定的商城后端
 - **状态**：🚧 进行中（阶段1 动态加载 + 阶段2 安装机制 + 阶段3 商城 UI + 阶段4 多平台互通 完成，2026-07-07）
 - **优先级**：—
 - **备注**：依赖任务 3（Agent 技能工具更新）的 Skills 体系完善。阶段1（动态加载基础设施）已完成：lib.rs cmd_skills_get_dir；manifest.ts 扫描+解析；registry.ts initSkillRegistry 合并视图；loader.ts fs 加载分支；agent.ts 接入。阶段2（安装机制）已完成：Rust skills_store.rs 实现 cmd_skills_download_manifest/cmd_skills_install（reqwest下载+sha256校验+zip解压+zip slip防护）/cmd_skills_uninstall/cmd_skills_get_installed_versions；Cargo.toml 新增 reqwest(blocking+rustls)+zip+sha2；前端 skills-store.ts 封装 invoke + installSkillAndReload/uninstallSkillAndReload（安装后自动重扫）+ checkUpdates；规范文档 skills-store-spec.md 定义 manifest schema/安装流程/安全模型。阶段3（商城 UI）已完成：index.ts 导出 skills-store API；useSkillsStore composable（全局共享状态+localStorage 持久化多源配置+非Tauri降级）；SkillsStorePanel.vue（技能源配置增删启禁+商城浏览搜索+安装/更新/卸载卡片）；AgentSettingsPanel skills 子面板嵌入+skills-changed emit；SpaceAgentSettingsPanel/AgentChat 监听刷新。阶段4（多平台互通）已完成：platform-adapters.ts 多平台格式双向转换（Claude Code SKILL.md / Cursor .mdc / WorldSmith skill.yaml），detectPlatform 自动识别 + autoImportSkill 导入 + exportToXxx 导出，18 单元测试覆盖（含往返一致性）；skills_store.rs 新增 cmd_skills_import_local 命令（写入 skill.yaml+SKILL.md，支持覆盖更新）；skills-store.ts 封装 importLocalSkill/importLocalSkillAndReload；useSkillsStore importLocal 方法；SkillsStorePanel.vue 本地导入 UI（文件选择+格式识别+警告提示）。方向3（Rust 测试迁移独立 crate）已完成：新建 worldsmith-skills-store crate（无 Tauri 依赖），迁移纯函数 verify_sha256/extract_skill_zip/read_skill_version/extract_field/dest_clean/sha256_hex + 新增 write_skill_files/validate_skill_id，19 单元测试可独立 cargo test 运行（解决 Tauri lib DLL 限制），并暴露修复 3 个隐藏 bug（extract_field 去引号顺序错误、dest_clean 接收完整路径导致 base 组件重复追加、测试用例 Windows 路径分隔符）；src-tauri 改为依赖新 crate，Tauri 命令仅做 AppHandle→Path 转换。方向2（真实技能源上线）已完成：生成标准 zip（正斜杠分隔符，规避 PS Compress-Archive 反斜杠坑）+ 真实 sha256，manifest.json 指向 GitHub raw URL，README 更新生成命令+多平台互通说明。风险点1（端到端实测）：已通过 Rust 19 测试 + 前端 231 测试覆盖，桌面端 UI 端到端验证待用户运行。风险点3（测试失败）：taskTools 未归类导致 TOOL_CATEGORIES 测试失败，归入 plan 分类修复（14/14）。待后续：桌面端 UI 端到端实测 + Task 3 跟进（resolveToolNames 切换用 SkillRegistry）
@@ -249,10 +249,10 @@
 - **2026-07-06**：任务 1（实体卡片小窗）经验证已完整实现，状态更新为已完成
 - **2026-07-07**：任务 4（长任务能力）P1-P4 + task 模式方向 A/B/C/D 全部完成；任务 3（技能工具更新）P1-P4 + 收尾完成
 - **2026-07-08**：任务 3 收尾（alwaysAvailable meta 对齐 + resolveToolNames 切换 SkillRegistry）；任务 24（Skills 商城）阶段 1-4 + 方向 2/3 完成
-- **2026-07-24**：新增 Rust Agent 编排路线图（docs/agent-orchestration-roadmap.md）——非 28 条任务体系，独立工作线
-- **2026-07-25**：Rust Agent 阶段 1.5（Tauri 集成）+ 阶段 2.0（前端 UI 集成，开关切换）；新增 docs/rust-backend-completion-plan.md（P0+P1 会话持久化计划）
+- **2026-07-24**：新增 Rust Agent 编排路线图（docs/执行中/agent-orchestration-roadmap.md）——非 28 条任务体系，独立工作线
+- **2026-07-25**：Rust Agent 阶段 1.5（Tauri 集成）+ 阶段 2.0（前端 UI 集成，开关切换）；新增 docs/已完成/rust-backend-completion-plan.md（P0+P1 会话持久化计划）
 - **2026-07-28**：Rust 编排阶段 2 完成（ToT/GoT/Multi-Agent/Supervisor/Router/Loop Engineering，cargo test 127/127）
-- **2026-07-29**：端分离 Phase 0-2/4/5 完成，搭建 docs/端分离/ 文档库（11 份）
+- **2026-07-29**：端分离 Phase 0-2/4/5 完成，搭建 docs/已完成/端分离/ 文档库（11 份）
 - **2026-07-30**：端分离 Phase 5 三端独立构建验证通过
 - **2026-07-31**：端分离检查点 5c32c78（825 文件入库）；Phase 3 真实状态复核（部分完成，业务 UI 未迁入三端）；**决策：暂停业务 UI 大迁移，回到主应用开发**；任务 19 前置（图片头像）完成
 - **2026-08-01**：Rust 长任务前端生命周期接入（useAgentRust.ts，startTask/checkpoint/断点恢复复用 taskId）
