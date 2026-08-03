@@ -1,6 +1,6 @@
-import type { LibraryDescriptor, CapabilityDeclaration } from '@agent/toolbus/capability-types'
-import type { IToolContext } from '@agent/toolbus/types'
-import type { ToolParameter } from '@agent/bridge-types'
+import type { LibraryDescriptor, CapabilityDeclaration } from '@worldsmith/agent-runtime/toolbus/capability-types'
+import type { IToolContext } from '@worldsmith/agent-runtime/toolbus/types'
+import type { ToolParameter } from '@worldsmith/agent-runtime/bridge-types'
 import {
   algoList,
   algoRun,
@@ -40,7 +40,7 @@ import {
   algoFindLinePolygonIntersections,
   algoPolygonSplit,
   algoPolygonAugment,
-} from '@agent/tools/algo-tools'
+} from '@worldsmith/agent-runtime/tools/algo-tools'
 
 const WASM_AVAILABILITY: { platforms: ('web' | 'tauri')[]; chain: ('internal')[]; requiresWasm: boolean } = {
   platforms: ['web', 'tauri'],

@@ -7,17 +7,12 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "outDir": "dist",
-    "rootDir": "src",
-    "composite": true,
-    "tsBuildInfoFile": "./dist/.tsbuildinfo",
     "types": [],
     "paths": {
       "@worldsmith/entity-core": ["../entity-core/src/index.ts"],
-      "@worldsmith/entity-core/*": ["../entity-core/src/*"]
+      "@worldsmith/entity-core/*": ["../entity-core/src/*"],
+      "@worldsmith/agent-runtime": ["../agent-runtime/src/index.ts"],
+      "@worldsmith/agent-runtime/*": ["../agent-runtime/src/*"]
     }
   },
   "include": ["src/**/*.ts"],
