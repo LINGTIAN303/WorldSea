@@ -28,6 +28,11 @@ export interface WorkerResponse {
   error?: string
 }
 
+/// Worker 全局 postMessage（DOM lib 下 `self` 会被解析为 Window，此处显式收窄为 worker 签名）
+const workerPost = (self as unknown as {
+  postMessage(message: unknown, transfer?: Transferable[]): void
+}).postMessage.bind(self)
+
 /// WASM 模块类型声明（运行时动态导入，类型宽松处理）
 interface WasmModule {
   WorldSmithCore: new () => {
@@ -86,17 +91,17 @@ self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
     const response: WorkerResponse = { id, result }
     // 若结果是 ArrayBuffer/TypedArray，以 Transferable 形式转移其底层 buffer，避免结构化克隆复制
     if (result instanceof ArrayBuffer) {
-      self.postMessage(response, [result])
+      workerPost(response, [result])
     } else if (ArrayBuffer.isView(result)) {
-      self.postMessage(response, [result.buffer])
+      workerPost(response, [result.buffer])
     } else {
-      self.postMessage(response)
+      workerPost(response)
     }
   } catch (err: any) {
     const response: WorkerResponse = {
       id,
       error: err?.message || String(err),
     }
-    self.postMessage(response)
+    workerPost(response)
   }
 }

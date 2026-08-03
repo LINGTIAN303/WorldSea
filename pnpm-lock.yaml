@@ -74,6 +74,9 @@ importers:
       '@worldsmith/shared-composables':
         specifier: file:./packages/shared-composables
         version: link:packages/shared-composables
+      '@worldsmith/shared-ui':
+        specifier: file:./packages/shared-ui
+        version: file:packages/shared-ui(pinia@3.0.4(typescript@6.0.3)(vue@3.5.40(typescript@6.0.3)))(vue@3.5.40(typescript@6.0.3))
       '@worldsmith/tactical-engine':
         specifier: link:./tactical-engine/pkg
         version: link:tactical-engine/pkg
@@ -554,6 +557,52 @@ importers:
       typescript:
         specifier: ~6.0.2
         version: 6.0.3
+
+  packages/shared-ui:
+    dependencies:
+      '@worldsmith/agent-runtime':
+        specifier: link:../agent-runtime
+        version: link:../agent-runtime
+      '@worldsmith/entity-core':
+        specifier: link:../entity-core
+        version: link:../entity-core
+      '@worldsmith/font-kit':
+        specifier: link:../font-kit
+        version: link:../font-kit
+      '@worldsmith/motion-kit':
+        specifier: link:../motion-kit
+        version: link:../motion-kit
+      '@worldsmith/perf-kit':
+        specifier: link:../perf-kit
+        version: link:../perf-kit
+      '@worldsmith/shared-composables':
+        specifier: link:../shared-composables
+        version: link:../shared-composables
+      '@worldsmith/ui-kit':
+        specifier: link:../ui-kit
+        version: link:../ui-kit
+      dompurify:
+        specifier: ^3.4.3
+        version: 3.4.12
+      marked:
+        specifier: ^18.0.3
+        version: 18.0.7
+      pinia:
+        specifier: ^3.0.0
+        version: 3.0.4(typescript@6.0.3)(vue@3.5.40(typescript@6.0.3))
+      vue:
+        specifier: ^3.5.0
+        version: 3.5.40(typescript@6.0.3)
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.1
+      typescript:
+        specifier: ~6.0.2
+        version: 6.0.3
+      vue-tsc:
+        specifier: ^3.2.7
+        version: 3.3.8(typescript@6.0.3)
 
   packages/theme-kit:
     dependencies:
@@ -1790,6 +1839,12 @@ packages:
     peerDependencies:
       dexie: ^4.0
       vue: ^3.4
+
+  '@worldsmith/shared-ui@file:packages/shared-ui':
+    resolution: {directory: packages/shared-ui, type: directory}
+    peerDependencies:
+      pinia: ^3.0.0
+      vue: ^3.5.0
 
   '@worldsmith/theme-kit@file:packages/theme-kit':
     resolution: {directory: packages/theme-kit, type: directory}
@@ -4321,6 +4376,20 @@ snapshots:
   '@worldsmith/perf-kit@file:packages/perf-kit(dexie@4.4.4)(vue@3.5.40(typescript@6.0.3))':
     dependencies:
       dexie: 4.4.4
+      vue: 3.5.40(typescript@6.0.3)
+
+  '@worldsmith/shared-ui@file:packages/shared-ui(pinia@3.0.4(typescript@6.0.3)(vue@3.5.40(typescript@6.0.3)))(vue@3.5.40(typescript@6.0.3))':
+    dependencies:
+      '@worldsmith/agent-runtime': link:../agent-runtime
+      '@worldsmith/entity-core': link:../entity-core
+      '@worldsmith/font-kit': link:../font-kit
+      '@worldsmith/motion-kit': link:../motion-kit
+      '@worldsmith/perf-kit': link:../perf-kit
+      '@worldsmith/shared-composables': link:../shared-composables
+      '@worldsmith/ui-kit': link:../ui-kit
+      dompurify: 3.4.12
+      marked: 18.0.7
+      pinia: 3.0.4(typescript@6.0.3)(vue@3.5.40(typescript@6.0.3))
       vue: 3.5.40(typescript@6.0.3)
 
   '@worldsmith/theme-kit@file:packages/theme-kit(vue@3.5.40(typescript@6.0.3))':

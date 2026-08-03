@@ -21,7 +21,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch, provide } from 'vue'
+import { ref, computed, onMounted, watch, provide } from 'vue'
 import { NConfigProvider, NDialogProvider, NMessageProvider, type GlobalThemeOverrides } from 'naive-ui'
 import SplashScreen from './ui/boot/SplashScreen.vue'
 import BootErrorScreen from './ui/boot/BootErrorScreen.vue'
@@ -31,6 +31,12 @@ import { useUIStore } from './stores/uiStore'
 import { useSettingsStore } from './stores/settingsStore'
 import { useTheme } from './composables/useTheme'
 import { provideGlobalSelection, SelectionKey } from '@worldsmith/plugin-sdk'
+import { provideAgentUiDeps } from '@worldsmith/shared-composables/agent/deps'
+import { usePersonaFont } from './space/composables/usePersonaFont'
+import { useActivityLog } from './space/composables/useActivityLog'
+import { replaceFontSpans } from './composables/fontSpanParser'
+import { useFontStore } from './stores/fontStore'
+import AvatarBadge from './ui/AvatarBadge.vue'
 import { initGovernor } from './governor'
 import { coreModules } from './governor/bootstrap'
 
@@ -62,6 +68,20 @@ watch(() => settingsStore.detailPanelPosition, (pos) => {
 /* ── 全局选中状态（provide/inject）── */
 const globalSelection = provideGlobalSelection()
 provide(SelectionKey, globalSelection)
+
+/* ── Agent UI 依赖注入（P5-5.3：共享组件 bubbles 解耦 Web 端资源）── */
+const personaFont = usePersonaFont()
+const activityLog = useActivityLog()
+const fontStore = useFontStore()
+provideAgentUiDeps({
+  fontFamily: personaFont.fontFamily,
+  enterAnimation: personaFont.enterAnimation,
+  fontPrefs: computed(() => fontStore.prefs.agent),
+  persona: personaFont.profile,
+  activityLogs: computed(() => activityLog.logs.value),
+  replaceFontSpans,
+  AvatarBadge,
+})
 
 /* ── 调控器初始化（P3-W3：接管启动编排）── */
 // 在 setup 顶层创建 governor 单例，注册所有核心模块

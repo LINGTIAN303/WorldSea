@@ -8,6 +8,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./agent": "./src/agent/index.ts",
+    "./agent/deps": "./src/agent/deps.ts",
     "./agent/useAgentCommands": "./src/agent/useAgentCommands.ts",
     "./agent/usePlanStore": "./src/agent/usePlanStore.ts",
     "./agent/useGenerationProgress": "./src/agent/useGenerationProgress.ts",

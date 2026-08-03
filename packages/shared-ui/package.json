@@ -1,0 +1,36 @@
+{
+  "name": "@worldsmith/shared-ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./agent/*": "./src/agent/*"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.build.json --noEmit",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@worldsmith/agent-runtime": "link:../agent-runtime",
+    "@worldsmith/entity-core": "link:../entity-core",
+    "@worldsmith/font-kit": "link:../font-kit",
+    "@worldsmith/motion-kit": "link:../motion-kit",
+    "@worldsmith/perf-kit": "link:../perf-kit",
+    "@worldsmith/shared-composables": "link:../shared-composables",
+    "@worldsmith/ui-kit": "link:../ui-kit",
+    "dompurify": "^3.4.3",
+    "marked": "^18.0.3"
+  },
+  "peerDependencies": {
+    "pinia": "^3.0.0",
+    "vue": "^3.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "~6.0.2",
+    "vue-tsc": "^3.2.7"
+  }
+}

@@ -15,6 +15,7 @@ export * from './useManuscriptAnimation'
 export * from './useEntityMentionIndex'
 export * from './useMessageSpeaker'
 export * from './useSmartFillChat'
+export * from './deps'
 
 // 长任务子模块
 export * from './long-task/index'
