@@ -1,7 +1,7 @@
 # Agent 端到端闭环计划（Phase 5）
 
 > 创建日期：2026-08-04
-> 状态：**执行中（5.1 命令层已完成，5.2 Tauri 前端链路进行中）**
+> 状态：**执行中（5.1 命令层已完成，5.2 Tauri 前端链路已完成，5.3 Agent UI 迁移进行中）**
 > 关联：【`[agent-orchestration-roadmap.md](agent-orchestration-roadmap.md)`】（阶段 1+2 已完成，Rust 编排框架就绪）、【`[组件文档]`】
 
 ## 一、目标
@@ -53,6 +53,14 @@
 
 **验收**：桌面端能发起 Agent 会话并收到 Rust 端返回的响应（先 mock 验证链路通，再接入真实 LLM 后端）。
 
+> ✅ **已完成（2026-08-04）**
+> - 新建 `apps/tauri/src/agent/composables/useAgentRust.ts`，实现 `IAgentBackend` 契约，封装 Tauri `invoke` 调用 14 个主链路命令。
+> - 在 `App.vue` 的 setup 中 `provideAgentBackend(useAgentRust())` 注入，并搭建最小聊天界面（会话列表 + 消息流 + 输入框）验证链路。
+> - 修复 `SendMessageParams` / `ImageAttachmentParam` 的 serde `rename_all = "camelCase"` 契约（Tauri v2 仅对顶层命令参数做 camelCase 转换，嵌套结构体需在 serde 层声明）。
+> - 修复 `AgentEvent` 字段契约（`message_start`/`turn_end` 需 `message` 字段，`agent_end` 需 `messages` 字段）与 `toolCalls` 类型（补 `status`/`startedAt`）。
+> - 验证：`vue-tsc` typecheck 通过、`cargo check` 通过、`agent-commands` 单元测试 3/3 通过、`vite build` 成功。
+> - 待办：真实 LLM 后端接入（替换 `MockBackend`）在 5.4 阶段进行。
+
 ### 5.3 Agent UI 迁移（抽共享层）
 
 **目标**：将 AgentChat / AgentSpace 等核心 UI 组件抽取到共享层，实现三端复用。
@@ -85,7 +93,7 @@
 | 里程碑 | 预期内容 | 状态 |
 |--------|----------|------|
 | M5-1 | 命令层 crate 就绪，Tauri 可 invoke Rust 命令 | ✅ 已完成 |
-| M5-2 | Tauri 前端链路打通，桌面端可发起 Agent 会话 | ⏳ 待启动 |
+| M5-2 | Tauri 前端链路打通，桌面端可发起 Agent 会话 | ✅ 已完成 |
 | M5-3 | Agent UI 抽共享层完成，三端复用 | ⏳ 待启动 |
 | M5-4 | 桌面端端到端实测通过，高级能力补齐 | ⏳ 待启动 |
 | M5-5 | pi-ai 移除，技术栈收敛 | ⏳ 待启动 |
