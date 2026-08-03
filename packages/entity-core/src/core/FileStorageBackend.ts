@@ -22,8 +22,8 @@
 import type { Entity } from '../types'
 import type { Relation } from '../types'
 import type { ProjectFile, ProjectFileContent } from '../types'
-import type { StorageBackend, EntityPageQuery, EntityPageResult } from './StorageBackend'
-import { paginateEntitiesInMemory } from './StorageBackend'
+import type { StorageBackend, EntityPageQuery, EntityPageResult, EntitySearchFilter } from './StorageBackend'
+import { paginateEntitiesInMemory, filterEntitiesInMemory } from './StorageBackend'
 
 /* ════════════════════════════════════════
    Tauri 文件系统操作封装
@@ -402,6 +402,14 @@ export class FileStorageBackend implements StorageBackend {
       ? await this.getEntitiesByType(query.type)
       : await this.getAllEntities()
     return paginateEntitiesInMemory(raw, query)
+  }
+
+  async searchEntities(filter: EntitySearchFilter): Promise<Entity[]> {
+    if (!this.isReady) return this._fallback!.searchEntities(filter)
+    const raw = filter.type
+      ? await this.getEntitiesByType(filter.type)
+      : await this.getAllEntities()
+    return filterEntitiesInMemory(raw, filter)
   }
 
   async getEntitiesByFacet(type: string, facetName: string): Promise<Entity[]> {

@@ -80,6 +80,17 @@ export interface EntityPageResult {
 }
 
 /**
+ * 实体搜索的 DB 可下推过滤条件。
+ * 仅包含能被 Dexie 索引处理的字段（type / updatedAt 范围）；
+ * 子串 / tags / properties / createdAt 等无法下推的条件由调用方在 JS 层过滤。
+ */
+export interface EntitySearchFilter {
+  type?: string
+  updatedAfter?: string
+  updatedBefore?: string
+}
+
+/**
  * 内存分页 + 排序的通用实现。
  * 用于 Tauri / File 后端（无 DB 索引），以及 Web 端 createdAt 等无索引字段的回退。
  */
@@ -100,6 +111,20 @@ export function paginateEntitiesInMemory(
   }
 }
 
+/**
+ * 内存版搜索过滤，用于 Tauri / File 后端（无 DB 索引）。
+ * 与 Web 端 Dexie 索引下推保持一致的过滤语义。
+ */
+export function filterEntitiesInMemory(raw: Entity[], filter: EntitySearchFilter): Entity[] {
+  return raw.filter((e): e is Entity => {
+    if (e == null || typeof e.id !== 'string') return false
+    if (filter.type && e.type !== filter.type) return false
+    if (filter.updatedAfter && (e.updatedAt ?? '') < filter.updatedAfter) return false
+    if (filter.updatedBefore && (e.updatedAt ?? '') > filter.updatedBefore) return false
+    return true
+  })
+}
+
 export interface StorageBackend {
   getAllEntities(): Promise<Entity[]>
   getEntity(id: string): Promise<Entity | undefined>
@@ -109,6 +134,12 @@ export interface StorageBackend {
    * Web 端利用 updatedAt/name 索引做 DB 层分页；Tauri/File 端回退为全量读取 + JS 排序。
    */
   loadEntitiesPage(query: EntityPageQuery): Promise<EntityPageResult>
+  /**
+   * 按 DB 可索引条件（type / updatedAt 范围）缩小候选实体集。
+   * 子串 / tags / properties / createdAt 等无法下推的条件由调用方在 JS 层过滤。
+   * Web 端走 Dexie 索引；Tauri/File 端回退全量读取 + JS 过滤。
+   */
+  searchEntities(filter: EntitySearchFilter): Promise<Entity[]>
   /** 按 facet 名称过滤实体（仅返回包含指定 facet 的实体） */
   getEntitiesByFacet(type: string, facetName: string): Promise<Entity[]>
   putEntity(entity: Entity): Promise<void>
@@ -174,6 +205,13 @@ class TauriStorageBackend implements StorageBackend {
       ? await this.getEntitiesByType(query.type)
       : await this.getAllEntities()
     return paginateEntitiesInMemory(raw, query)
+  }
+
+  async searchEntities(filter: EntitySearchFilter): Promise<Entity[]> {
+    const raw = filter.type
+      ? await this.getEntitiesByType(filter.type)
+      : await this.getAllEntities()
+    return filterEntitiesInMemory(raw, filter)
   }
 
   async getEntitiesByFacet(type: string, facetName: string): Promise<Entity[]> {
@@ -345,6 +383,29 @@ class WebStorageBackend implements StorageBackend {
     // createdAt 无索引，回退全量读取 + JS 排序
     const raw = type ? await this.getEntitiesByType(type) : await this.getAllEntities()
     return paginateEntitiesInMemory(raw, query)
+  }
+
+  async searchEntities(filter: EntitySearchFilter): Promise<Entity[]> {
+    const table = this.db.entities
+    const { type, updatedAfter, updatedBefore } = filter
+    const hasUpdatedRange = !!(updatedAfter || updatedBefore)
+
+    // type + updatedAt 范围：走复合索引 [type+updatedAt] 范围查询
+    if (type && hasUpdatedRange) {
+      const lo: [string, string] = [type, updatedAfter ?? '']
+      const hi: [string, string] = [type, updatedBefore ?? '\uffff']
+      return table.where('[type+updatedAt]').between(lo, hi, true, true).toArray()
+    }
+    // 仅 type：走 type 索引
+    if (type) return table.where('type').equals(type).toArray()
+    // 仅 updatedAt 范围：走 updatedAt 索引
+    if (hasUpdatedRange) {
+      const lo = updatedAfter ?? ''
+      const hi = updatedBefore ?? '\uffff'
+      return table.where('updatedAt').between(lo, hi, true, true).toArray()
+    }
+    // 无条件：全量
+    return table.toArray()
   }
 
   async getEntitiesByFacet(type: string, facetName: string): Promise<Entity[]> {

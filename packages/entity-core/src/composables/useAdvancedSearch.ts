@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import type { Entity } from '../types/entity'
-import { storage } from '../core/StorageBackend'
+import { storage, type EntitySearchFilter } from '../core/StorageBackend'
 import { useRelationStore } from '../stores/relationStore'
 
 export interface SearchFilter {
@@ -40,9 +40,14 @@ export function useAdvancedSearch() {
   async function search(filter: SearchFilter): Promise<Entity[]> {
     loading.value = true
     try {
-      let items = await storage.getAllEntities()
+      // 可下推条件（type / updatedAt 范围）交给 DB 索引过滤，减少 JS 层处理量
+      const dbFilter: EntitySearchFilter = {
+        type: filter.type,
+        updatedAfter: filter.updatedAfter,
+        updatedBefore: filter.updatedBefore,
+      }
+      let items = await storage.searchEntities(dbFilter)
 
-      if (filter.type) items = items.filter(e => e.type === filter.type)
       if (filter.query) {
         const q = filter.query.toLowerCase()
         items = items.filter(e => e.name.toLowerCase().includes(q) || (e.description || '').toLowerCase().includes(q))
@@ -69,8 +74,6 @@ export function useAdvancedSearch() {
       }
       if (filter.createdAfter) items = items.filter(e => e.createdAt >= filter.createdAfter!)
       if (filter.createdBefore) items = items.filter(e => e.createdAt <= filter.createdBefore!)
-      if (filter.updatedAfter) items = items.filter(e => e.updatedAt >= filter.updatedAfter!)
-      if (filter.updatedBefore) items = items.filter(e => e.updatedAt <= filter.updatedBefore!)
 
       if (filter.relationFilter) {
         const relationStore = useRelationStore()

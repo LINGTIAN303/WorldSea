@@ -14,7 +14,8 @@
 > - ⚠️ 与计划差异：IO 层实现为 `batchIpc`（未做独立的 `bulkDb`/`paginatedQuery` 工具，`bulkPut` 已内联在生产中）
 > - ✅ **风险点处理（2026-08-04）**：删除 `entityStore.search` 死代码（无调用点，且 `description`/`tags` 缺失时会抛错）；实际搜索入口为 `useAdvancedSearch` 与 `GlobalSearch.vue`，二者均经 `storage.getAllEntities()` 全量加载后 JS 过滤
 > - ⚠️ **PERF-08 可行性评估（2026-08-04）**：Dexie 索引仅支持 exact/`startsWith`/范围匹配，**不支持 `includes` 子串搜索**，故 name/description 子串查询无法完整下推 DB。可下推部分仅 type/时间范围（有索引）；子串匹配需保留 JS 层。属"部分优化"而非"全量 DB 索引查询"
-> - ❌ **剩余待办**：Phase 4 其余项（deep watch 替换 / search 索引 / 脏矩形 / WASM Transferable）
+> - ✅ **PERF-08 部分 DB 下推已落地（2026-08-04）**：`StorageBackend` 新增 `searchEntities` + `EntitySearchFilter`（type/updatedAfter/updatedBefore）+ `filterEntitiesInMemory`；Web 端走 Dexie 索引（`[type+updatedAt]` 复合索引 / `type` 索引 / `updatedAt` 索引范围查询），Tauri/File 端回退全量读取 + JS 过滤；`useAdvancedSearch` 已改为 `searchEntities` 下推可索引条件，仅把子串/tags/properties/createdAt 等不可下推条件保留在 JS 层过滤
+> - ❌ **剩余待办**：Phase 4 其余项（deep watch 替换 / Canvas 脏矩形 / WASM Transferable）
 
 ## 一、背景与目标
 
