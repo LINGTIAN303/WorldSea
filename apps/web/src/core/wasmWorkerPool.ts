@@ -65,6 +65,8 @@ function initPool(): void {
 interface PendingTask {
   method: string
   args: unknown[]
+  /** 可转移入参索引：指向 args 中需要走 Transferable 的对象（ArrayBuffer/TypedArray 等） */
+  transferable?: number[]
   resolve: (value: unknown) => void
   reject: (reason: any) => void
 }
@@ -106,7 +108,21 @@ function dispatchToWorker(entry: WorkerEntry, task: PendingTask): void {
   entry.worker.addEventListener('message', handleMessage)
 
   const request: WorkerRequest = { id: taskId, method: task.method, args: task.args }
-  entry.worker.postMessage(request)
+
+  // 提取 Transferable 入参（ArrayBuffer/TypedArray 等），随消息一并转移，避免结构化克隆复制
+  const transferables: Transferable[] = []
+  if (task.transferable) {
+    for (const index of task.transferable) {
+      const arg = task.args[index]
+      if (arg instanceof ArrayBuffer) {
+        transferables.push(arg)
+      } else if (ArrayBuffer.isView(arg)) {
+        transferables.push(arg.buffer)
+      }
+    }
+  }
+
+  entry.worker.postMessage(request, transferables)
 }
 
 // ─── 重计算方法集合 ───
@@ -155,6 +171,7 @@ export async function callViaWorker(
   method: string,
   args: unknown[],
   fallbackFn?: () => any,
+  transferable?: number[],
 ): Promise<unknown> {
   // 非浏览器环境或 Worker 不可用 → 回退
   if (!canUseWorker()) {
@@ -171,7 +188,7 @@ export async function callViaWorker(
   }
 
   return new Promise<unknown>((resolve, reject) => {
-    taskQueue.push({ method, args, resolve, reject })
+    taskQueue.push({ method, args, transferable, resolve, reject })
     drainQueue()
   })
 }

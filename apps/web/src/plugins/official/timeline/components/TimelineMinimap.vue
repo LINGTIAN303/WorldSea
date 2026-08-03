@@ -70,7 +70,8 @@ function onMouseDown(e: MouseEvent) {
   emit('panTo', Math.max(0, Math.min(props.totalWidth - props.viewportWidth, targetScroll)))
 }
 
-watch(() => [props.width, props.totalWidth, props.scrollOffset, props.viewportWidth, props.eventPositions], draw, { deep: true })
+// getter 每次返回新数组引用，浅监听即可捕获变化，deep 冗余
+watch(() => [props.width, props.totalWidth, props.scrollOffset, props.viewportWidth, props.eventPositions], draw)
 onMounted(draw)
 </script>
 

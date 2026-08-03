@@ -65,7 +65,8 @@ onBeforeUnmount(() => {
   graph = null
 })
 
-watch(displayList, buildGraph, { deep: true })
+// displayList 是 computed，依赖变化返回新数组引用，浅监听即可，deep 冗余
+watch(displayList, buildGraph)
 </script>
 
 <style scoped>

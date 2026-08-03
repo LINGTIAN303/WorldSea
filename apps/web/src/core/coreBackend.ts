@@ -79,6 +79,7 @@ async function backendCall<T>(
   wasmMethod: string,
   wasmArgs: unknown[],
   fallback: T,
+  transferable?: number[],
 ): Promise<T> {
   const core = await getCoreCached()
   if (core && typeof core[wasmMethod] === 'function') {
@@ -87,7 +88,7 @@ async function backendCall<T>(
       try {
         const workerResult = await callViaWorker(wasmMethod, wasmArgs, () => {
           return (core[wasmMethod] as Function)(...wasmArgs)
-        })
+        }, transferable)
         return workerResult as T
       } catch {
         // Worker 失败 → 降级主线程
@@ -123,6 +124,7 @@ async function algoCall<T>(
   parseJson = false,
   wasmMethodName?: string,
   wasmMethodArgs?: unknown[],
+  transferable?: number[],
 ): Promise<T> {
   const core = await getCoreCached()
   if (core) {
@@ -134,7 +136,7 @@ async function algoCall<T>(
             const r = wasmFn(core)
             return parseJson ? JSON.parse(r) : r
           }, fallback)
-        })
+        }, transferable)
         return (parseJson ? JSON.parse(workerResult as string) : workerResult) as T
       } catch {
         // Worker 失败 → 降级主线程

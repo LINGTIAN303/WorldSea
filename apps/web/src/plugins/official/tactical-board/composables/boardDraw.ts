@@ -925,19 +925,17 @@ function adjustBrightness(hex: string, delta: number): string {
   return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
 }
 
-// ── Main draw entry ──
-export function drawBoard(
+// ── Static layer (background / frame / grid / coords) ──
+// 静态层仅依赖：canvas 尺寸、gridType/terrain/width/height、camera、cellSize。
+// 这些在动画期间不变化，可缓存到离屏 canvas，避免每帧重复绘制最昂贵的网格+地形。
+export function drawStaticLayer(
   ctx: CanvasRenderingContext2D,
   canvasW: number,
   canvasH: number,
   data: BoardRenderData,
   camera: BoardCamera,
   cellSize: number,
-  getAnim?: (unitId: string) => AnimOverride | undefined,
-  floats?: FloatingNumber[],
 ): void {
-  ctx.clearRect(0, 0, canvasW, canvasH)
-
   // Background gradient
   const bgGrad = ctx.createRadialGradient(canvasW / 2, canvasH / 2, 0, canvasW / 2, canvasH / 2, Math.max(canvasW, canvasH) * 0.7)
   bgGrad.addColorStop(0, '#141922')
@@ -948,7 +946,6 @@ export function drawBoard(
   const { bw, bh } = getBoardPixelSize(data.gridType, data.width, data.height, cellSize)
 
   ctx.save()
-
   const cx = canvasW / 2
   const cy = canvasH / 2
   ctx.translate(cx, cy)
@@ -969,6 +966,28 @@ export function drawBoard(
   if (cellSize > 20) {
     drawCoordinateLabels(ctx, data, cellSize, bh)
   }
+
+  ctx.restore()
+}
+
+// ── Dynamic layer (highlights / awareness / units / floats / selection / hover) ──
+// 动态层每帧重绘，绘制在静态层之上。
+export function drawDynamicLayer(
+  ctx: CanvasRenderingContext2D,
+  canvasW: number,
+  canvasH: number,
+  data: BoardRenderData,
+  camera: BoardCamera,
+  cellSize: number,
+  getAnim?: (unitId: string) => AnimOverride | undefined,
+  floats?: FloatingNumber[],
+): void {
+  ctx.save()
+  const cx = canvasW / 2
+  const cy = canvasH / 2
+  ctx.translate(cx, cy)
+  ctx.scale(camera.k, camera.k)
+  ctx.translate(-camera.x, -camera.y)
 
   drawHighlights(ctx, data, cellSize)
 
@@ -1004,6 +1023,22 @@ export function drawBoard(
   }
 
   ctx.restore()
+}
+
+// ── Main draw entry (no caching; used by callers that don't need the static cache) ──
+export function drawBoard(
+  ctx: CanvasRenderingContext2D,
+  canvasW: number,
+  canvasH: number,
+  data: BoardRenderData,
+  camera: BoardCamera,
+  cellSize: number,
+  getAnim?: (unitId: string) => AnimOverride | undefined,
+  floats?: FloatingNumber[],
+): void {
+  ctx.clearRect(0, 0, canvasW, canvasH)
+  drawStaticLayer(ctx, canvasW, canvasH, data, camera, cellSize)
+  drawDynamicLayer(ctx, canvasW, canvasH, data, camera, cellSize, getAnim, floats)
 }
 
 // ── Hit testing ──

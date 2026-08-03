@@ -1,6 +1,7 @@
 import { ref, shallowRef, type Ref } from 'vue'
 import {
-  drawBoard,
+  drawStaticLayer,
+  drawDynamicLayer,
   computeCellSize,
   getBoardPixelSize,
   hitTestCell,
@@ -26,6 +27,11 @@ export function useBoardRenderer(
   const camera = ref<BoardCamera>({ x: 0, y: 0, k: 1 })
   const cellSize = ref(40)
 
+  // 离屏静态层缓存：背景/边框/网格/地形/坐标仅在尺寸、网格、相机、cellSize 变化时重绘
+  const staticCanvas = shallowRef<HTMLCanvasElement | null>(null)
+  const staticCtx = shallowRef<CanvasRenderingContext2D | null>(null)
+  let _staticDirty = true
+
   let isRunning = false
   let animFrame = 0
   let _dirty = true
@@ -45,6 +51,12 @@ export function useBoardRenderer(
     const c = el.getContext('2d')
     if (!c) return
     ctx.value = c
+
+    // 初始化离屏静态层 canvas
+    const sc = document.createElement('canvas')
+    staticCanvas.value = sc
+    staticCtx.value = sc.getContext('2d')
+
     resize()
     fitBoard()
     startRenderLoop()
@@ -65,6 +77,8 @@ export function useBoardRenderer(
     }
     canvas.value = null
     ctx.value = null
+    staticCanvas.value = null
+    staticCtx.value = null
   }
 
   function resize(): void {
@@ -76,7 +90,7 @@ export function useBoardRenderer(
     canvas.value.style.width = rect.width + 'px'
     canvas.value.style.height = rect.height + 'px'
     ctx.value?.scale(dpr, dpr)
-    markDirty()
+    markStaticDirty()
   }
 
   function fitBoard(): void {
@@ -91,11 +105,17 @@ export function useBoardRenderer(
       y: bh / 2,
       k: 1,
     }
-    markDirty()
+    markStaticDirty()
   }
 
   function markDirty(): void {
     _dirty = true
+  }
+
+  // 静态层失效：触发整帧重绘，并让渲染循环重建离屏静态缓存
+  function markStaticDirty(): void {
+    _staticDirty = true
+    markDirty()
   }
 
   function startRenderLoop(): void {
@@ -130,7 +150,22 @@ export function useBoardRenderer(
     const w = rect.width
     const h = rect.height
 
+    // 静态层失效时重建离屏缓存（仅在尺寸/网格/相机/cellSize 变化时触发）
+    if (_staticDirty) {
+      if (staticCanvas.value && staticCtx.value) {
+        staticCanvas.value.width = canvas.value.width
+        staticCanvas.value.height = canvas.value.height
+        staticCtx.value.setTransform(dpr, 0, 0, dpr, 0, 0)
+        drawStaticLayer(staticCtx.value, w, h, renderData.value, camera.value, cellSize.value)
+      }
+      _staticDirty = false
+    }
+
+    // 主画布：先绘制静态层缓存，再叠加动态层
     ctx.value.setTransform(dpr, 0, 0, dpr, 0, 0)
+    if (staticCanvas.value) {
+      ctx.value.drawImage(staticCanvas.value, 0, 0, w, h)
+    }
 
     const getAnim = animProvider
       ? (unitId: string) => animProvider.getOverride(unitId)
@@ -139,7 +174,7 @@ export function useBoardRenderer(
       ? animProvider.floatingNumbers.value as FloatingNumber[]
       : undefined
 
-    drawBoard(ctx.value, w, h, renderData.value, camera.value, cellSize.value, getAnim, floats)
+    drawDynamicLayer(ctx.value, w, h, renderData.value, camera.value, cellSize.value, getAnim, floats)
   }
 
   function getCanvasElement(): HTMLCanvasElement | null {
@@ -152,7 +187,7 @@ export function useBoardRenderer(
 
   function setCamera(c: BoardCamera): void {
     camera.value = c
-    markDirty()
+    markStaticDirty()
   }
 
   function screenToCell(sx: number, sy: number): { x: number; y: number } | null {
@@ -192,6 +227,7 @@ export function useBoardRenderer(
     resize,
     fitBoard,
     markDirty,
+    markStaticDirty,
     getCanvasElement,
     getCamera,
     setCamera,

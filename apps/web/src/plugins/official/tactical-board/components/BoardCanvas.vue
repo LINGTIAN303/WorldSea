@@ -79,8 +79,18 @@ interaction.setCallbacks({
   },
 })
 
+// 静态层：网格/地形变化 → 重建离屏静态缓存
 watch(
-  () => [props.gridType, props.gridWidth, props.gridHeight, props.terrain, props.units, props.highlights, props.selectedCell, props.awarenessCells, props.awarenessMode],
+  () => [props.gridType, props.gridWidth, props.gridHeight, props.terrain],
+  () => {
+    renderer.markStaticDirty()
+  },
+  { deep: true },
+)
+
+// 动态层：单位/高亮/选中/视野变化 → 仅重绘动态层
+watch(
+  () => [props.units, props.highlights, props.selectedCell, props.awarenessCells, props.awarenessMode],
   () => {
     renderer.markDirty()
   },

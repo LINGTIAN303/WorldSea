@@ -34,11 +34,12 @@ export function useMessageScroll() {
   })
 
   // 流式内容更新时，若用户在底部则自动滚动
+  // streamingAgents 每次更新都整体替换对象引用（无原地修改），浅监听即可，deep 冗余
   watch(() => store.streamingAgents, () => {
     if (isAtBottom.value) {
       nextTick(scrollToBottom)
     }
-  }, { deep: true })
+  })
 
   return {
     messagesRef,

@@ -63,7 +63,8 @@ onMounted(() => {
   })
 })
 
-watch(() => ctx?.filteredList.value, renderChart, { deep: true })
+// filteredList 是 computed，依赖变化返回新数组引用，浅监听即可，deep 冗余
+watch(() => ctx?.filteredList.value, renderChart)
 </script>
 
 <style scoped>

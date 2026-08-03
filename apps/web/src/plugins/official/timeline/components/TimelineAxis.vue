@@ -76,7 +76,8 @@ function draw() {
   }
 }
 
-watch(() => [props.width, props.majorTicks, props.minorTicks, props.scrollOffset, props.eraColors], draw, { deep: true })
+// 监听源均为基本类型或 computed 新数组引用，浅监听即可捕获变化
+watch(() => [props.width, props.majorTicks, props.minorTicks, props.scrollOffset, props.eraColors], draw)
 onMounted(draw)
 
 let resizeObserver: ResizeObserver | null = null

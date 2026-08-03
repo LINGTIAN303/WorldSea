@@ -1,7 +1,7 @@
 # perf-kit 实施方案
 
 > 创建时间：2026-06-16
-> 状态：**包已建成，Phase 1 核心 store 改造、Phase 2 渲染节流、Phase 3 全部落地（含 loadByPage 的 DB 分页）；Phase 4 已落地 KanbanView 虚拟滚动（PERF-10），其余待排期**（2026-08-04 复核）
+> 状态：**包已建成，Phase 1 核心 store 改造、Phase 2 渲染节流、Phase 3 全部落地（含 loadByPage 的 DB 分页）；Phase 4 已落地 KanbanView 虚拟滚动（PERF-10）与 Canvas 脏矩形优化（PERF-16），其余待排期**（2026-08-04 复核）
 
 > **2026-08-04 复核（实际状态）**：
 > - ✅ `packages/perf-kit` 包已创建，已实现并导出：`useShallowRefMap` / `useShallowArray` / `createDebouncedStorage` / `createBatchIpc` / `watchDebounced` / `rafThrottle` / `useStreamingRenderer`
@@ -15,7 +15,10 @@
 > - ✅ **风险点处理（2026-08-04）**：删除 `entityStore.search` 死代码（无调用点，且 `description`/`tags` 缺失时会抛错）；实际搜索入口为 `useAdvancedSearch` 与 `GlobalSearch.vue`，二者均经 `storage.getAllEntities()` 全量加载后 JS 过滤
 > - ⚠️ **PERF-08 可行性评估（2026-08-04）**：Dexie 索引仅支持 exact/`startsWith`/范围匹配，**不支持 `includes` 子串搜索**，故 name/description 子串查询无法完整下推 DB。可下推部分仅 type/时间范围（有索引）；子串匹配需保留 JS 层。属"部分优化"而非"全量 DB 索引查询"
 > - ✅ **PERF-08 部分 DB 下推已落地（2026-08-04）**：`StorageBackend` 新增 `searchEntities` + `EntitySearchFilter`（type/updatedAfter/updatedBefore）+ `filterEntitiesInMemory`；Web 端走 Dexie 索引（`[type+updatedAt]` 复合索引 / `type` 索引 / `updatedAt` 索引范围查询），Tauri/File 端回退全量读取 + JS 过滤；`useAdvancedSearch` 已改为 `searchEntities` 下推可索引条件，仅把子串/tags/properties/createdAt 等不可下推条件保留在 JS 层过滤
-> - ❌ **剩余待办**：Phase 4 其余项（deep watch 替换 / Canvas 脏矩形 / WASM Transferable）
+> - ✅ **Phase 4.3 可安全简化 deep watch 已落地（PERF-15，2026-08-04）**：对 30+ 处 `deep: true` 逐一分析，移除 7 处冗余 deep（监听 computed 新数组/对象引用或基本类型）：`TimelineAxis`/`TimelineMinimap`（数组字面量）、`ChartBar/Line/Pie Renderer`（`filteredList` 为 computed）、`RelationGraphRenderer`（`displayList` 为 computed）、`useMessageScroll`（`streamingAgents` 每次整体替换引用）。`TextRenderPreview` 的 `props.options` 为外部对象可能被原地修改，保留 deep
+> - ✅ **Phase 4.7 Canvas 脏矩形优化已落地（PERF-16，2026-08-04）**：将 tactical-board 渲染拆分为静态层（背景/边框/网格/地形/坐标，依赖尺寸、网格、相机、cellSize）与动态层（高亮/意识层/单位/浮字/选中/悬停）。`boardDraw.ts` 拆出 `drawStaticLayer`/`drawDynamicLayer`，`drawBoard` 保留为无缓存包装；`useBoardRenderer` 新增离屏静态 canvas 缓存，仅当尺寸/网格/相机/cellSize 变化（`markStaticDirty`）时重建，动画期间每帧只重绘动态层；`BoardCanvas.vue` 将 watch 拆为静态/动态两组。`drawBoard` 无其他调用者，已确认安全
+> - ✅ **Phase 4.8 WASM Worker Transferable 基础设施已落地（PERF-17，2026-08-04）**：`WorkerRequest` 新增 `transferable?: number[]` 标记可转移入参索引；`wasmWorkerPool` 的 `dispatchToWorker` 在 `postMessage` 时把 ArrayBuffer/TypedArray 入参的底层 buffer 加入 Transferable 转移列表；`wasm.worker` 在结果返回时若 result 为 ArrayBuffer/TypedArray 则自动转移其 buffer；`callViaWorker`/`algoCall`/`backendCall` 均新增可选 `transferable` 透传参数。**说明**：当前 WASM 接口层全部走 JSON 字符串传输（入参如 `JSON.stringify` 字符串、出参如 heightmap 的 JSON string），无 ArrayBuffer/TypedArray 大对象热点，故本项仅落地基础设施，供后续引入二进制接口时直接复用，暂未在具体方法上激活 Transferable（避免重写响应契约）
+> - ❌ **剩余待办**：Phase 4 其余项 + 其余 deep watch 中需逐一确认的项
 
 ## 一、背景与目标
 

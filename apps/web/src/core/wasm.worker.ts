@@ -18,6 +18,8 @@ export interface WorkerRequest {
   id: number
   method: string
   args: unknown[]
+  /** 可转移入参索引：主线程据此将对应 args 以 Transferable 形式转移（避免结构化克隆复制） */
+  transferable?: number[]
 }
 
 export interface WorkerResponse {
@@ -82,7 +84,14 @@ self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
     }
     const result = core[method](...args)
     const response: WorkerResponse = { id, result }
-    self.postMessage(response)
+    // 若结果是 ArrayBuffer/TypedArray，以 Transferable 形式转移其底层 buffer，避免结构化克隆复制
+    if (result instanceof ArrayBuffer) {
+      self.postMessage(response, [result])
+    } else if (ArrayBuffer.isView(result)) {
+      self.postMessage(response, [result.buffer])
+    } else {
+      self.postMessage(response)
+    }
   } catch (err: any) {
     const response: WorkerResponse = {
       id,
