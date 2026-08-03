@@ -2,7 +2,7 @@
 
 > 创建日期：2026-07-24
 > 状态：**阶段 1（Rust Agent loop）+ 阶段 2（编排框架）已完成**（2026-07-28，cargo test 127/127）；阶段 0（TS 编排验证）未做完整，被 Rust 直接实现替代；阶段 3（自研 pi-ai）可选待定
-> 关联：替换 WorldSmith 的 TS pi-ai（详见 [project_memory.md](../project_memory.md)）
+> 关联：替换 WorldSmith 的 TS pi-ai（详见 【`[project_memory.md](../../project_memory.md)`】）
 
 ## 一、目标
 
@@ -52,14 +52,14 @@
 
 | 模式 | 现状 | 文件 |
 |------|------|------|
-| 1. Single Agent | ✅ 已有 | [bridge.ts](../worldsmith-agent/src/bridge.ts) CoreBackend |
+| 1. Single Agent | ✅ 已有 | 【`[bridge.ts](../../packages/agent-runtime/src/bridge.ts)`】 CoreBackend |
 | 2. ReAct | ⚠️ 隐式存在 | pi-agent-core 的 Agent 类内置 tool_call 循环 |
-| 3. Plan-and-Execute | 🟡 雏形 | [usePlanStore.ts](../src/agent/composables/usePlanStore.ts) 有 PlanItem 状态机 |
-| 8. Multi-Agent | 🟡 雏形 | [useOrchestrator.ts](../src/agent/composables/useOrchestrator.ts) 子 Agent 调度 |
+| 3. Plan-and-Execute | 🟡 雏形 | 【`[usePlanStore.ts](../../apps/web/src/agent/composables/usePlanStore.ts)`】 有 PlanItem 状态机 |
+| 8. Multi-Agent | 🟡 雏形 | 【`[useOrchestrator.ts](../../apps/web/src/agent/composables/useOrchestrator.ts)`】 子 Agent 调度 |
 | 9. Supervisor | 🟡 雏形 | useOrchestrator 的 dispatch + maxConcurrency 控制即 Supervisor 雏形 |
-| 11. Tool Use | ✅ 已有 | [packages/agent-core/src/bus/](../packages/agent-core/src/bus) ToolBus 完整实现 |
-| 12. Memory | 🟡 部分 | [memory-archive](../packages/memory-archive) 已有，但未与 Agent loop 深度集成 |
-| 13. Loop Engineering | 🟡 部分 | [longTaskStore.ts](../src/agent/composables/longTaskStore.ts) 有 checkpoint/心跳 |
+| 11. Tool Use | ✅ 已有 | 【`[packages/agent-core/src/bus/](../../packages/agent-core/src/bus)`】 ToolBus 完整实现 |
+| 12. Memory | 🟡 部分 | 【`[memory-archive](../../packages/memory-archive)`】 已有，但未与 Agent loop 深度集成 |
+| 13. Loop Engineering | 🟡 部分 | 【`[longTaskStore.ts](../../apps/web/src/agent/composables/longTaskStore.ts)`】 有 checkpoint/心跳 |
 | 4. Reflection | ❌ 缺失 | — |
 | 5. Self-Refine | ❌ 缺失 | — |
 | 6. ToT | ❌ 缺失 | — |
@@ -124,17 +124,17 @@
 ##### 0.1 设计统一 Orchestrator 接口
 - [ ] 定义 `Orchestrator` trait/interface（TS 版）
 - [ ] 定义 `Node` / `Edge` / `State` 抽象（参考 LangGraph）
-- [ ] 设计事件流（与现有 [AgentEvent](../worldsmith-agent/src/bridge-types.ts) 兼容）
+- [ ] 设计事件流（与现有 【`[AgentEvent](../../packages/agent-runtime/src/bridge-types.ts)`】 兼容）
 - [ ] 输出：`packages/agent-core/src/orchestrator/` 新模块
 
 ##### 0.2 重构现有 ReAct 循环
 - [ ] 将 pi-agent-core 的 Agent 循环包装为 `ReactNode`
 - [ ] 暴露中断/恢复/重试钩子（替代直接调 `agent.prompt`）
-- [ ] 将 [bridge.ts](../worldsmith-agent/src/bridge.ts) 的 prompt 调用改为经过 Orchestrator
+- [ ] 将 【`[bridge.ts](../../packages/agent-runtime/src/bridge.ts)`】 的 prompt 调用改为经过 Orchestrator
 - [ ] 验收：现有功能不退化，新增可控中断能力
 
 ##### 0.3 实现 Plan-and-Execute 模式
-- [ ] 复用 [usePlanStore.ts](../src/agent/composables/usePlanStore.ts) 的 PlanItem 状态机
+- [ ] 复用 【`[usePlanStore.ts](../../apps/web/src/agent/composables/usePlanStore.ts)`】 的 PlanItem 状态机
 - [ ] 实现 `PlanNode`（生成计划）+ `ExecuteNode`（逐步执行）
 - [ ] 支持 Plan 动态调整（执行中发现新任务可追加）
 - [ ] 验收：可让 Agent 先列计划再执行，UI 展示进度
@@ -154,7 +154,7 @@
 - [x] 设计 `MemoryAccessor` 接口（解耦 memory-archive，可迁移到 Rust trait）
 - [x] 实现 `MemoryNode` 节点（4 种动作：recall/inject/archive/auto）
 - [x] 短期记忆：`ShortTermMemoryHelper` trim 策略（token 估算 + 保留 system/首条user/最近N条）
-- [x] 将 [memory-archive](../packages/memory-archive) 接入 Orchestrator（通过 `NodeContext.memory` 可选字段注入）
+- [x] 将 【`[memory-archive](../../packages/memory-archive)`】 接入 Orchestrator（通过 `NodeContext.memory` 可选字段注入）
 - [ ] 工作记忆：ReAct 循环内的观察缓冲（推迟到阶段 0.7 实现，已在 0.7 完成）
 - [x] 长期记忆：通过 `MemoryAccessor.recall()` 检索跨会话记忆
 - [x] 事件扩展：`memory_recall` / `memory_inject` / `memory_archive` / `memory_trim` 4 类事件
@@ -291,7 +291,7 @@
 ###### 阶段 1.3 P0 修复（与前端 IAgentBackend 接口契约对齐）
 - **背景**：阶段 1.5 Tauri 集成前复查发现，Rust 侧 `AgentLoop` 缺失前端 `IAgentBackend` 接口的多个方法（steer/follow_up/trim_context/set_runtime_messages/is_streaming/state/dispose/update_model），且 backend 事件未桥接到 AgentLoop 广播器。
 - **交付内容**：
-  1. **`AgentStateSnapshot`**（[agent.rs](../crates/agent-runtime/src/agent.rs#L132)）：序列化友好的只读视图，含 current_iteration/aborted/paused/is_streaming/messages/model/thinking_level，对应前端 `IAgentBackend.state`
+  1. **`AgentStateSnapshot`**（【`[agent.rs](../../crates/agent-runtime/src/agent.rs#L132)`】）：序列化友好的只读视图，含 current_iteration/aborted/paused/is_streaming/messages/model/thinking_level，对应前端 `IAgentBackend.state`
   2. **IAgentBackend 接口补全**：
      - `steer(text)` → 委托 backend.steer，进入 steer_buffer，下次 prompt 附加为前置 user 消息
      - `follow_up(text)` → 调用 run（保留历史，开始新一轮循环）
@@ -303,13 +303,13 @@
      - `get_state_snapshot()` → 返回 AgentStateSnapshot
      - `update_model(provider, model_id, base_url, api_key, temperature, max_tokens)` → 调用 backend.update_provider 热切换 + 同步更新 config
      - `dispose()` → 清空状态 + 标记 aborted + 重置 is_streaming
-  3. **BackendEventBridge**（[agent.rs](../crates/agent-runtime/src/agent.rs#L905)）：实现 `EventListener` trait，在 `AgentLoop::new` 时 spawn 注入到 backend.subscribe_events，转发 backend 的 StreamStart/StreamDelta/StreamEnd/ToolCallStart/ToolCallEnd 到 AgentLoop 广播器；使用 `try_read` 避免阻塞，锁竞争时丢弃事件
-  4. **GenaiBackend 扩展**（[genai_backend.rs](../crates/agent-runtime/src/llm/genai_backend.rs#L502)）：
+  3. **BackendEventBridge**（【`[agent.rs](../../crates/agent-runtime/src/agent.rs#L905)`】）：实现 `EventListener` trait，在 `AgentLoop::new` 时 spawn 注入到 backend.subscribe_events，转发 backend 的 StreamStart/StreamDelta/StreamEnd/ToolCallStart/ToolCallEnd 到 AgentLoop 广播器；使用 `try_read` 避免阻塞，锁竞争时丢弃事件
+  4. **GenaiBackend 扩展**（【`[genai_backend.rs](../../crates/agent-runtime/src/llm/genai_backend.rs#L502)`】）：
      - `subscribe_events(listener)` → 注入监听器到 event_broadcaster
      - `current_model()` → 返回 ProviderConfig.model_id
      - `update_provider(provider, model_id, api_key, base_url)` → 热切换 Cloud/Custom 配置，保留 messages/steer_buffer；Local 返回 Unsupported 错误
   5. **AgentLoop::run 改进**：使用 `backend.current_model()` 替代硬编码 "unknown"，正确广播 AgentStart/StreamStart 模型 ID；通过 `is_streaming` AtomicBool 跟踪 run 活跃状态
-  6. **ThinkingLevel 派生 Serialize/Deserialize**（[backend.rs](../crates/agent-runtime/src/backend.rs)）：#[serde(rename_all = "lowercase")]，支持前端 JSON 通信
+  6. **ThinkingLevel 派生 Serialize/Deserialize**（【`[backend.rs](../../crates/agent-runtime/src/backend.rs)`】）：#[serde(rename_all = "lowercase")]，支持前端 JSON 通信
 - **编译修复**：
   - `genai_backend.rs` 缺少 `use crate::event::EventListener` 导入
   - `Custom` 变体字段对齐：实际为 `base_url/api_key/api_type/model_id/context_window/max_tokens`（无 `provider` 字段），保留旧 api_type/context_window/max_tokens
@@ -320,13 +320,13 @@
 - **与前端接口对齐**：Rust 侧 AgentLoop 现已实现 IAgentBackend 全部方法（steer/followUp/abort/updateModel/updateThinkingLevel/clearHistory/subscribe/dispose/state/isStreaming/trimContext/getRuntimeMessages/setRuntimeMessages），可平滑接入 Tauri IPC
 
 ##### 1.4 ToolBus Rust 版（扩展 MCP / 别名 / 并行）
-- [x] ~~迁移 [packages/agent-core/src/bus/](../packages/agent-core/src/bus) 到 Rust~~（阶段 1.3 已完成基础 ToolBus）
+- [x] ~~迁移 【`[packages/agent-core/src/bus/](../../packages/agent-core/src/bus)`】 到 Rust~~（阶段 1.3 已完成基础 ToolBus）
 - [x] ~~用 `dyn Tool` trait object 替代 TS 的 ToolDefinition~~（阶段 1.3 已完成）
-- [x] MCP 服务器工具：`register_mcp_tools` / `unregister_mcp_server`（[mcp.rs](../crates/agent-runtime/src/mcp.rs)）
+- [x] MCP 服务器工具：`register_mcp_tools` / `unregister_mcp_server`（【`[mcp.rs](../../crates/agent-runtime/src/mcp.rs)`】）
 - [x] 别名系统（LEGACY_TO_CODING_MAP / LEGACY_ALGO_MAP / LEGACY_PLUGIN_MAP）用 `HashMap<&'static str, &'static str>` + `OnceLock`（[alias.rs](../crates/agent-runtime/src/alias.rs)）
 - [~] 技能解析（`SkillRegistry`）— **推迟到阶段 2**，阶段 1.5 Tauri 集成不需要
-- [x] 并行工具调用：`config.parallel_tool_calls = true` 时用 `tokio::task::JoinSet` 并发执行（[agent.rs](../crates/agent-runtime/src/agent.rs)）
-- [x] 工具定义传给 LLM：在 `build_chat_request` 中填充 `ChatRequest::with_tools`（[genai_backend.rs](../crates/agent-runtime/src/llm/genai_backend.rs)）
+- [x] 并行工具调用：`config.parallel_tool_calls = true` 时用 `tokio::task::JoinSet` 并发执行（【`[agent.rs](../../crates/agent-runtime/src/agent.rs)`】）
+- [x] 工具定义传给 LLM：在 `build_chat_request` 中填充 `ChatRequest::with_tools`（【`[genai_backend.rs](../../crates/agent-runtime/src/llm/genai_backend.rs)`】）
 - [~] 验收：Rust 侧能注册和调用 MCP 工具，并行执行多个工具调用 — **单元测试跳过**（用户决策），仅 `cargo check --features llm-genai` 通过
 
 ###### 阶段 1.4 完成记录
@@ -393,7 +393,7 @@
 - **配套**：`commands/got.rs`（8 个 Tauri 命令：create/run/abort/destroy/get_state/set_state/list_sessions/get_tree）
 
 ##### 2.3 Multi-Agent 完善
-- [x] 迁移 [useOrchestrator.ts](../src/agent/composables/useOrchestrator.ts) 到 Rust — `crates/agent-runtime/src/multi_agent.rs` 实现 `MultiAgentNode`
+- [x] 迁移 【`[useOrchestrator.ts](../../apps/web/src/agent/composables/useOrchestrator.ts)`】 到 Rust — `crates/agent-runtime/src/multi_agent.rs` 实现 `MultiAgentNode`
 - [x] 用 `tokio::sync::mpsc` 实现 Agent 间通信 — 每 Agent 一个 mpsc receiver，按 topology（mesh/ring/star/pipeline/custom）构建 sender 网络
 - [x] 共享黑板板模式（Shared Blackboard）— `SharedBlackboard`（`Arc<RwLock<...>>`）存储全局上下文 + final_result
 - [x] 验收：cargo test multi_agent:: 全通过；5 种拓扑 + 3 种收敛条件（MaxRounds/GoalReached/AllAgentsIdle）+ AgentRole 语义标签 + 前端 `useMultiAgentRust.ts` composable
@@ -418,7 +418,7 @@
 
 ##### 2.6 Loop Engineering
 - [x] 通用循环控制：中断/恢复/重试/超时/限流 — `crates/agent-runtime/src/loop_control.rs` 实现 `LoopController`（RateLimiter + RetryPolicy + SoftTimeout + Watchdog），协作式软限制（`should_stop()`/`should_retry()` 返回建议）
-- [x] 检查点持久化（迁移 [longTaskStore.ts](../src/agent/composables/longTaskStore.ts)）— `crates/agent-runtime/src/long_task.rs` 实现 `LongTaskManager`（任务生命周期 + checkpoint 保存/加载 + heartbeat），前端 `useLongTaskRust.ts` composable
+- [x] 检查点持久化（迁移 【`[longTaskStore.ts](../../apps/web/src/agent/composables/longTaskStore.ts)`】）— `crates/agent-runtime/src/long_task.rs` 实现 `LongTaskManager`（任务生命周期 + checkpoint 保存/加载 + heartbeat），前端 `useLongTaskRust.ts` composable
 - [x] 心跳与看门狗 — `Watchdog` 配置（默认 5min 无活动触发恢复）+ `update_heartbeat` 命令 + `update_activity` 接口
 - [x] 验收：cargo test loop_control:: + long_task:: 全通过；9 个 loop_control 命令（create/check/record_turn/record_tool_call/record_tokens/update_activity/reset_counters/get_config/get_status/destroy/list_tasks）+ 7 个 long_task 命令（save/load/list_running/list_all/update_heartbeat/update_status/delete）+ 前端 `useLoopControlRust.ts` + `useLongTaskRust.ts` composable
 - **完成时间**：2026-07-28

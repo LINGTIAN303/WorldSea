@@ -4,7 +4,7 @@
 > 数据来源：项目源码 + project_memory.md + package.json + tauri.conf.json
 >
 > ⚠️ **本文档为调研快照（2026-07-29）**，描述的是端分离启动前的耦合现状，作为历史基线保留。
-> 实际迁移进展见 [08-migration-phases.md](./08-migration-phases.md) 与 [README.md](./README.md)。
+> 实际迁移进展见 【`[08-migration-phases.md](./08-migration-phases.md)`】 与 【`[README.md](./README.md)`】。
 > 已变化的事实（截至 2026-08-02）：
 > - `packages/agent-runtime` 已建成并成为唯一运行时数据源（`@agent` 单轨）
 > - `worldsmith-agent/` 已冻结为端适配器宿主（仅 `src/index.ts` + `src/execution/`）

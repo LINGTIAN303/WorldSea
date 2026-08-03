@@ -8,17 +8,17 @@
 
 | 序号 | 文档 | 内容概述 | 适用阶段 |
 |------|------|----------|----------|
-| 00 | [总览与目标](./00-overview.md) | 项目背景、分离目标、决策摘要、整体路线 | 全程 |
-| 01 | [三端现状分析](./01-current-state.md) | 当前架构、耦合点、依赖关系、技术债 | 调研 |
-| 02 | [目标架构](./02-target-architecture.md) | 分离后的目标目录结构、责任边界、数据流 | 设计 |
-| 03 | [共享代码层规划](./03-shared-code-layer.md) | `packages/agent-runtime` 抽离方案、API 契约 | 设计 |
-| 04 | [Web 端分离计划](./04-separation-plan-web.md) | `apps/web` 目录、构建配置、入口清理 | Phase 2 |
-| 05 | [CLI 端分离计划](./05-separation-plan-cli.md) | `apps/cli` 目录、serve 模式、工具注册 | Phase 2 |
-| 06 | [Tauri 端分离计划](./06-separation-plan-tauri.md) | `apps/tauri` 目录、Rust 后端、前端入口 | Phase 2 |
-| 07 | [前端关联入口移除计划](./07-frontend-entry-cleanup.md) | 共用 `src/` 拆分、后端切换逻辑清理 | Phase 3 |
-| 08 | [分阶段迁移路线](./08-migration-phases.md) | 6 个 Phase 的执行顺序、里程碑、回滚点 | 执行 |
-| 09 | [风险与回滚策略](./09-risk-mitigation.md) | 关键风险点、回滚预案、保障机制 | 执行 |
-| 10 | [验证清单](./10-verification-checklist.md) | 每阶段的验收标准、测试要求、回归项 | 验收 |
+| 00 | 【`[总览与目标](./00-overview.md)`】 | 项目背景、分离目标、决策摘要、整体路线 | 全程 |
+| 01 | 【`[三端现状分析](./01-current-state.md)`】 | 当前架构、耦合点、依赖关系、技术债 | 调研 |
+| 02 | 【`[目标架构](./02-target-architecture.md)`】 | 分离后的目标目录结构、责任边界、数据流 | 设计 |
+| 03 | 【`[共享代码层规划](./03-shared-code-layer.md)`】 | `packages/agent-runtime` 抽离方案、API 契约 | 设计 |
+| 04 | 【`[Web 端分离计划](./04-separation-plan-web.md)`】 | `apps/web` 目录、构建配置、入口清理 | Phase 2 |
+| 05 | 【`[CLI 端分离计划](./05-separation-plan-cli.md)`】 | `apps/cli` 目录、serve 模式、工具注册 | Phase 2 |
+| 06 | 【`[Tauri 端分离计划](./06-separation-plan-tauri.md)`】 | `apps/tauri` 目录、Rust 后端、前端入口 | Phase 2 |
+| 07 | 【`[前端关联入口移除计划](./07-frontend-entry-cleanup.md)`】 | 共用 `src/` 拆分、后端切换逻辑清理 | Phase 3 |
+| 08 | 【`[分阶段迁移路线](./08-migration-phases.md)`】 | 6 个 Phase 的执行顺序、里程碑、回滚点 | 执行 |
+| 09 | 【`[风险与回滚策略](./09-risk-mitigation.md)`】 | 关键风险点、回滚预案、保障机制 | 执行 |
+| 10 | 【`[验证清单](./10-verification-checklist.md)`】 | 每阶段的验收标准、测试要求、回归项 | 验收 |
 
 ## 关键决策摘要
 

@@ -6,7 +6,7 @@
 > - Phase 1/2/4/5 已完成（目录结构、包名、依赖链接、构建独立性等结构性项已确认 ✅；curl/dev 启动/产物隔离等运行时项未逐一实测）
 > - Phase 3 部分完成（P3-T1~T9 已完成；P3-T10 业务 UI 迁移暂停）
 > - Phase 6 暂停（2026-07-31 决策，按 ROADMAP 排期）
-> - 具体完成情况以 [08-migration-phases.md](./08-migration-phases.md) 为准
+> - 具体完成情况以 【`[08-migration-phases.md](./08-migration-phases.md)`】 为准
 
 ## 1. 使用说明
 

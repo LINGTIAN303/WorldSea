@@ -137,7 +137,7 @@ Phase 0 ─→ Phase 1 ─→ Phase 2 ─→ Phase 3 ─→ Phase 4 ─→ Phase
 | **目标** | 将 `src/` 拆分到三端，清理后端切换逻辑、Tauri 检测分支 |
 | **前置依赖** | Phase 2 |
 | **后置依赖** | Phase 5 |
-| **参考文档** | [07-frontend-entry-cleanup.md](./07-frontend-entry-cleanup.md) |
+| **参考文档** | 【`[07-frontend-entry-cleanup.md](./07-frontend-entry-cleanup.md)`】 |
 | **状态** | ⚠️ **部分完成（2026-07-31 复核）**：共享 composables 下沉 + Tauri/Web 专用文件迁移 + coreBackend/useAgent/main.ts 改造已完成；**业务 UI（根 src/ 数百个文件）尚未迁入三端**，根 `src/` 仍是主应用代码源，`apps/web`/`apps/tauri` 的 App.vue 仍为骨架占位页 |
 
 ### 3.0 真实状态复核（2026-07-31）
@@ -645,7 +645,7 @@ Phase 0 ─→ Phase 1 ─→ Phase 2 ─→ Phase 3 ─→ Phase 4 ─→ Phase
 | P4-T5 | ✅ | `getWsUrl()` + `getWsToken()` 三级优先级 + `.env.example` |
 | P4-T6 | ✅ | worldsmith-server 标记 deprecated |
 
-详细执行记录见 [11-backend-consolidation.md](./11-backend-consolidation.md)
+详细执行记录见 【`[11-backend-consolidation.md](./11-backend-consolidation.md)`】
 
 ### 4.2 关键决策点
 
@@ -812,7 +812,7 @@ Phase 3 核心迁移完成后，启用三端独立构建验证。结果如下：
 | Phase 5 | 恢复原 vite.config.ts / CI workflow |
 | Phase 6 | 无法回滚（旧目录已删），需从 git 历史恢复 |
 
-> 详细风险与回滚策略见 [09-risk-mitigation.md](./09-risk-mitigation.md)
+> 详细风险与回滚策略见 【`[09-risk-mitigation.md](./09-risk-mitigation.md)`】
 
 ## 11. 里程碑定义
 

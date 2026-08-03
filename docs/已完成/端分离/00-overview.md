@@ -151,7 +151,7 @@ Phase 6: 端到端验收与清理
   └─ 旧目录清理（worldsmith-server/、worldsmith-agent/ 残留）
 ```
 
-详见 [08-migration-phases.md](./08-migration-phases.md)。
+详见 【`[08-migration-phases.md](./08-migration-phases.md)`】。
 
 ## 5. 文档维护规则
 
