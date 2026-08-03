@@ -12,6 +12,8 @@
 > - ✅ **Phase 4.6 KanbanView 虚拟滚动已落地（PERF-10，2026-08-04）**：`perf-kit` 新增 `useVirtualList`（估算高度 + 前缀和 + 二分查找 + 测量修正 + rAF 合并）；`KanbanView` 拆出 `KanbanColumn` 子组件，列内卡片改用 `useVirtualList` 渲染，保留拖拽/触屏/内联新建；已修复异步加载后列表空白、scroll 重复绑定、新建广播无监听、columns 过滤恒真等风险点
 > - ✅ **Phase 4.1/4.2 工具函数补齐已落地（PERF-03/22，2026-08-04）**：`perf-kit` 新增 `createUpdateBatcher`（reactive/batchedUpdates，同 id 变更合并 + nextTick/raf/timeout 三种刷出时机）与 `createIdleRaf`（render/idleRaf，交互驱动 + 空闲超时自动暂停）并导出
 > - ⚠️ 与计划差异：IO 层实现为 `batchIpc`（未做独立的 `bulkDb`/`paginatedQuery` 工具，`bulkPut` 已内联在生产中）
+> - ✅ **风险点处理（2026-08-04）**：删除 `entityStore.search` 死代码（无调用点，且 `description`/`tags` 缺失时会抛错）；实际搜索入口为 `useAdvancedSearch` 与 `GlobalSearch.vue`，二者均经 `storage.getAllEntities()` 全量加载后 JS 过滤
+> - ⚠️ **PERF-08 可行性评估（2026-08-04）**：Dexie 索引仅支持 exact/`startsWith`/范围匹配，**不支持 `includes` 子串搜索**，故 name/description 子串查询无法完整下推 DB。可下推部分仅 type/时间范围（有索引）；子串匹配需保留 JS 层。属"部分优化"而非"全量 DB 索引查询"
 > - ❌ **剩余待办**：Phase 4 其余项（deep watch 替换 / search 索引 / 脏矩形 / WASM Transferable）
 
 ## 一、背景与目标

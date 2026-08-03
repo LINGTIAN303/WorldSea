@@ -237,16 +237,6 @@ export const useEntityStore = defineStore('entity', () => {
     refreshAllTypeCounts()
   }
 
-  function search(query: string): Entity[] {
-    const lower = query.toLowerCase()
-    return entities.value.filter(
-      (e) =>
-        e.name.toLowerCase().includes(lower) ||
-        e.description.toLowerCase().includes(lower) ||
-        e.tags.some((t) => t.toLowerCase().includes(lower))
-    )
-  }
-
   /** @deprecated 使用 loadByPage 代替；图谱等需全量数据的场景仍可使用 */
   async function getAllEntities(): Promise<Entity[]> {
     return storage.getAllEntities()
@@ -307,7 +297,6 @@ export const useEntityStore = defineStore('entity', () => {
     add,
     update,
     remove,
-    search,
     importBatch,
   }
 })
