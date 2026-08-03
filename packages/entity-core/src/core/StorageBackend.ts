@@ -1,6 +1,7 @@
 import type { Entity } from '../types'
 import type { Relation } from '../types'
 import type { ProjectFile, ProjectFileContent } from '../types'
+import Dexie from 'dexie'
 import { type WorldDatabase, db as legacyDb } from './database'
 import { getProjectManager } from './ProjectManager'
 import { FileStorageBackend } from './FileStorageBackend'
@@ -63,10 +64,51 @@ function classifyTauriError(error: unknown, cmd: string): StorageError {
   })
 }
 
+/** 实体分页查询参数（对应 entityStore.loadByPage） */
+export interface EntityPageQuery {
+  type?: string
+  offset: number
+  limit: number
+  sortBy?: 'updatedAt' | 'createdAt' | 'name'
+  sortDir?: 'asc' | 'desc'
+}
+
+/** 实体分页查询结果 */
+export interface EntityPageResult {
+  items: Entity[]
+  total: number
+}
+
+/**
+ * 内存分页 + 排序的通用实现。
+ * 用于 Tauri / File 后端（无 DB 索引），以及 Web 端 createdAt 等无索引字段的回退。
+ */
+export function paginateEntitiesInMemory(
+  raw: Entity[],
+  query: EntityPageQuery,
+): EntityPageResult {
+  const all = raw.filter((e): e is Entity => e != null && typeof e.id === 'string')
+  const sortKey = query.sortBy ?? 'updatedAt'
+  const sorted = [...all].sort((a, b) => {
+    const av = String((a as any)[sortKey] ?? '')
+    const bv = String((b as any)[sortKey] ?? '')
+    return query.sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av)
+  })
+  return {
+    items: sorted.slice(query.offset, query.offset + query.limit),
+    total: sorted.length,
+  }
+}
+
 export interface StorageBackend {
   getAllEntities(): Promise<Entity[]>
   getEntity(id: string): Promise<Entity | undefined>
   getEntitiesByType(type: string): Promise<Entity[]>
+  /**
+   * 分页查询实体（排序 + 分页）。
+   * Web 端利用 updatedAt/name 索引做 DB 层分页；Tauri/File 端回退为全量读取 + JS 排序。
+   */
+  loadEntitiesPage(query: EntityPageQuery): Promise<EntityPageResult>
   /** 按 facet 名称过滤实体（仅返回包含指定 facet 的实体） */
   getEntitiesByFacet(type: string, facetName: string): Promise<Entity[]>
   putEntity(entity: Entity): Promise<void>
@@ -125,6 +167,13 @@ class TauriStorageBackend implements StorageBackend {
 
   async getEntitiesByType(type: string): Promise<Entity[]> {
     return this.invoke<Entity[]>('cmd_get_entities_by_type', { entityType: type })
+  }
+
+  async loadEntitiesPage(query: EntityPageQuery): Promise<EntityPageResult> {
+    const raw = query.type
+      ? await this.getEntitiesByType(query.type)
+      : await this.getAllEntities()
+    return paginateEntitiesInMemory(raw, query)
   }
 
   async getEntitiesByFacet(type: string, facetName: string): Promise<Entity[]> {
@@ -275,6 +324,27 @@ class WebStorageBackend implements StorageBackend {
 
   async getEntitiesByType(type: string): Promise<Entity[]> {
     return this.db.entities.where('type').equals(type).toArray()
+  }
+
+  async loadEntitiesPage(query: EntityPageQuery): Promise<EntityPageResult> {
+    const table = this.db.entities
+    const { type, offset, limit, sortBy = 'updatedAt', sortDir = 'desc' } = query
+
+    // updatedAt / name 有索引：带 type 用复合索引 [type+sortBy]，否则用 table.orderBy，
+    // 均走 DB 层排序 + 分页，避免全量加载
+    if (sortBy === 'updatedAt' || sortBy === 'name') {
+      let collection = type
+        ? table.where(`[type+${sortBy}]`).between([type, Dexie.minKey], [type, Dexie.maxKey])
+        : table.orderBy(sortBy)
+      collection = sortDir === 'desc' ? collection.reverse() : collection
+      const total = await collection.count()
+      const items = await collection.offset(offset).limit(limit).toArray()
+      return { items, total }
+    }
+
+    // createdAt 无索引，回退全量读取 + JS 排序
+    const raw = type ? await this.getEntitiesByType(type) : await this.getAllEntities()
+    return paginateEntitiesInMemory(raw, query)
   }
 
   async getEntitiesByFacet(type: string, facetName: string): Promise<Entity[]> {

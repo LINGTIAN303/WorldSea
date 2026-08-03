@@ -1,13 +1,16 @@
 # perf-kit 实施方案
 
 > 创建时间：2026-06-16
-> 状态：**包已建成，Phase 1 核心 store 改造已落地；渲染节流 / I/O 批量化 / 全局优化待排期**（2026-08-04 复核）
+> 状态：**包已建成，Phase 1 核心 store 改造、Phase 2 渲染节流、Phase 3 全部落地（含 loadByPage 的 DB 分页）；Phase 4 全局优化待排期**（2026-08-04 复核）
 
-> **2026-08-04 实际状态**：
+> **2026-08-04 复核（实际状态）**：
 > - ✅ `packages/perf-kit` 包已创建，已实现并导出：`useShallowRefMap` / `useShallowArray` / `createDebouncedStorage` / `createBatchIpc` / `watchDebounced` / `rafThrottle` / `useStreamingRenderer`
-> - ✅ **store 浅引用改造已落地**：`entityStore` / `fileStore` / `trashStore` / `relationStore` 均已改用 `useShallowArray` / `useShallowRefMap`（其中 relationStore 已于 2026-08-04 补齐，替代旧的深响应式 `ref` + `.filter()` 整体替换）
-> - ⚠️ 与计划差异：IO 层实现为 `batchIpc`（未做 `bulkDb`/`paginatedQuery`）；`batchedUpdates`/`idleRaf` 未实现
-> - ❌ **后续待办**：Phase 2 渲染节流（AgentMessageList/useAgentEvents/AgentMessageBubble）、Phase 3 I/O 批量化（ProjectFS/loadByPage/database 迁移/AgentChat localStorage）、Phase 4 全局优化（deep watch 替换 / search 索引 / 虚拟滚动 / 脏矩形）
+> - ✅ **Phase 1 store 浅引用改造已落地**：`entityStore` / `fileStore` / `trashStore` / `relationStore` 均已改用 `useShallowArray` / `useShallowRefMap`（其中 relationStore 已于 2026-08-04 补齐，替代旧的深响应式 `ref` + `.filter()` 整体替换）
+> - ✅ **Phase 2 渲染节流已落地**：`watchDebounced` / `rafThrottle` / `useStreamingRenderer` 均已实现；`AgentMessageList` 用 `watchDebounced` + 窗口化（useMessageWindowing）；`useAgentEvents` 用 `useShallowArray`；`AgentMessageBubble` 经拆分后的 `NormalMessageBubble` / `DeepMessageArea` 均走 `useMarkdownRender` 的 `useStreamingRenderer` 做 rAF 节流
+> - ✅ **Phase 3 全部落地**：`createBatchIpc`（批量并发写，替代串行 await）；`ProjectFS` 导出已用 `createBatchIpc` 批量写入；`database.ts` v5 已加 `updatedAt` 索引 + 回填 upgrade；`entityStore.importBatch` 已用 Dexie `bulkPut`；`AgentChat`（useChatPanel/useChatSettings）已用 `createDebouncedStorage`
+> - ✅ **Phase 3.6 `entityStore.loadByPage` DB 分页已落地（PERF-09，2026-08-04）**：`StorageBackend` 新增 `loadEntitiesPage` + 共享 `paginateEntitiesInMemory`；Web 端无 type 筛选 + `updatedAt`/`name` 排序走 Dexie 索引分页（`table.orderBy` + `reverse` + `offset/limit`），避免全量加载；带 type 筛选或 `createdAt` 排序（无索引）回退全量+JS 排序；Tauri/File 端回退全量+JS 排序
+> - ⚠️ 与计划差异：IO 层实现为 `batchIpc`（未做独立的 `bulkDb`/`paginatedQuery` 工具，`bulkPut` 已内联在生产中）；`batchedUpdates`/`idleRaf` 未实现
+> - ❌ **剩余待办**：Phase 4 全局优化（deep watch 替换 / search 索引 / 虚拟滚动 / 脏矩形 / WASM Transferable / batchedUpdates / idleRaf）
 
 ## 一、背景与目标
 

@@ -98,6 +98,16 @@ export class WorldDatabase extends Dexie {
       file_contents: 'id',
       project_settings: 'key',
     })
+    // v8: 复合索引 [type+updatedAt] / [type+name]，支持 type 筛选 + 排序的 DB 层分页（PERF-09）
+    this.version(8).stores({
+      entities: 'id, type, name, *tags, updatedAt, [type+updatedAt], [type+name]',
+      relations: 'id, type, sourceId, targetId, pairId, createdAt',
+      modules: 'id, active, source',
+      kv_store: 'key',
+      files: 'id, path, name, entityId, *tags, createdAt',
+      file_contents: 'id',
+      project_settings: 'key',
+    })
   }
 }
 

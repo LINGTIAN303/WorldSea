@@ -254,7 +254,7 @@ export const useEntityStore = defineStore('entity', () => {
 
   /**
    * 分页加载实体，支持排序和类型筛选。
-   * 对大列表场景提供 O(N log N) 排序 + O(1) 切片，替代全量加载。
+   * 委托给存储后端：Web 端走 Dexie 索引分页（PERF-09），Tauri/File 端回退全量 + JS 排序。
    */
   async function loadByPage(opts: {
     type?: string
@@ -266,19 +266,7 @@ export const useEntityStore = defineStore('entity', () => {
     clearError()
     loading.value = true
     try {
-      const t = opts.type
-      const raw = t ? await storage.getEntitiesByType(t) : await storage.getAllEntities()
-      const all = sanitize(raw)
-      const sortKey = opts.sortBy ?? 'updatedAt'
-      const sorted = [...all].sort((a, b) => {
-        const av = String((a as any)[sortKey] ?? '')
-        const bv = String((b as any)[sortKey] ?? '')
-        return opts.sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av)
-      })
-      return {
-        items: sorted.slice(opts.offset, opts.offset + opts.limit),
-        total: sorted.length,
-      }
+      return await storage.loadEntitiesPage(opts)
     } catch (e: any) {
       setError(e?.message ?? '分页加载失败')
       return { items: [], total: 0 }
