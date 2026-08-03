@@ -83,9 +83,6 @@
     "vuedraggable": "^4.1.0"
   },
   "devDependencies": {
-    "@storybook/addon-a11y": "^8.6.18",
-    "@storybook/addon-essentials": "^8.6.14",
-    "@storybook/vue3-vite": "^8.6.18",
     "@tauri-apps/cli": "^2.11.2",
     "@types/d3-force": "^3.0.10",
     "@types/js-yaml": "^4.0.9",
