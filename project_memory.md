@@ -30,17 +30,17 @@
 | 数据库 | IndexedDB（Dexie）/ SQLite（Tauri）|
 | 构建 | pnpm monorepo（packages/ 下 13 个子包 + apps/ 三端骨架）|
 
-## 三、后端架构（2026-08-02 更新）
+## 三、后端架构（2026-08-04 更新，端分离后结构）
 
-> 2026-07-05 调研结论（hippocampus 记忆 305b700e / 847beb6f），2026-08-02 补充新增后端
+> 2026-07-05 调研结论（hippocampus 记忆 305b700e / 847beb6f），2026-08-04 对齐端分离实际结构
 
 1. **worldsmith-core**（Rust → WASM）：约 70 个导出方法 — 存储、校验、图布局、迁移
 2. **tactical-engine**（Rust → WASM）：18 个导出方法 — 寻路、战斗 AI
 3. **crates/agent-runtime**（Rust，2026-07-25 起新增）：Rust Agent 后端 — AgentLoop/GenaiBackend/ToolBus/ToT/GoT/Multi-Agent/Supervisor/Router/Loop-Engineering/LongTask，经 Tauri 命令层暴露
-4. **src-tauri**（Rust）：150+ Tauri 命令 — 工作流引擎、文件系统、agent_bridge（14 agent 命令 + session 6 命令 + long_task/loop_control 等）
+4. **apps/tauri/src-tauri**（Rust）：Tauri 桌面端命令层 — 工作流引擎、文件系统、agent_bridge（14 agent 命令 + session 6 命令 + long_task/loop_control 等）
 5. **worldsmith-skills-store**（Rust，2026-07-07 起新增）：Skills Store 独立 crate（19+ 单测，无 Tauri 依赖）
-6. **worldsmith-server**（Node.js）：7 个 HTTP 端点 — crawl/convert/vector-search（含 3 个 Python 微服务，**已标记废弃**，能力迁移至 CLI serve）
-7. **worldsmith-agent**（TS）：端适配器宿主 — 核心已下沉 packages/agent-runtime，仅保留 execution adapter
+6. **apps/cli**（Node.js）：CLI 端（commander：chat / serve，HTTP+WS 服务），python-services 微服务（crawl/convert/vector-search 能力已从旧 worldsmith-server 迁入）
+7. **packages/agent-runtime**（TS）：端无关 Agent 运行时（Agent 核心、工具、技能、会话、ExecutionAdapter）— 原 worldsmith-agent 核心已下沉至此
 
 **覆盖度结论**：约 40-45% 后端功能尚未触达前端 UI；CRDT 协同算法全套（15 个函数）未接入前端。Rust Agent 编排模式（ToT/GoT/Multi-Agent/Supervisor/Router/Loop）已有前端 composable，但 UI 端到端实测待补。
 
@@ -52,9 +52,9 @@ agent-core / agent-runtime / canvas-engine / entity-core / font-kit / governor-c
 
 - **ROADMAP**：28 条任务方向，分 8 大类别（详见 docs/ROADMAP.md；任务 1 ✅、任务 3 ✅、任务 4 ✅（P1-P4 + task 模式方向 A-D）、任务 24 进行中（阶段 1-4 完成，待桌面端 UI 实测），其余待启动）
 - **Rust Agent 后端**：阶段 1.1-1.5 ✅、阶段 2.0（UI 集成）✅、阶段 2.5（会话持久化）✅、Phase 2 Loop Engineering（long_task/loop_control）✅；待办：failTask 终态闭环重测、深度模式/A2UI/终端/子 Agent 补齐
-- **端分离**：Phase 1/2/4/5 ✅、Phase 3 部分完成（业务 UI 未迁入三端）；**2026-07-31 决策暂停业务 UI 大迁移**，按 ROADMAP 单独排期
+- **端分离**：✅ **全部完成（2026-08-04）**。Phase 1-6 全落地，根级 `src/`、`src-tauri/`、`worldsmith-server/`、`worldsmith-agent/` 已删除，业务 UI 全部迁入 `apps/web`（主应用入口）、`apps/tauri`、`apps/cli`；提交 `980385c`（重构主体）+ `c08c235`（文档同步）。docs/端分离/ 作为历史迁移记录归档
 - **工作区收敛**：@agent 统一到 packages/agent-runtime 单轨（c3856de），worldsmith-agent 冻结为端适配器宿主
-- **实际文档**：docs/ROADMAP.md（任务路线）、docs/端分离/（迁移文档库 11 份）、docs/agent-orchestration-roadmap.md（Rust 编排路线，阶段 1/2 完成）、docs/perf-kit-plan.md、docs/rust-backend-completion-plan.md、docs/skills-store-spec.md
+- **实际文档**：docs/ARCHITECTURE.md（当前架构总览）、docs/ROADMAP.md（任务路线）、docs/端分离/（迁移文档库 11 份，已完成归档）、docs/agent-orchestration-roadmap.md（Rust 编排路线，阶段 1/2 完成）、docs/perf-kit-plan.md、docs/rust-backend-completion-plan.md、docs/skills-store-spec.md
 - **注意**：docs/replication-wiki/ 目录当前不存在（会话初读到的 README 为工具缓存旧内容）；项目结构以源码与 README.md 为准
 - **任务类别**：Agent 系统增强 / 编辑器与内容创作 / 插件系统与实体详情 / AutoLink 与关系系统 / 图谱与可视化 / UI 视觉字体 / 商城与外部集成 / 系统功能
 
