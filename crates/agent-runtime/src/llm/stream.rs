@@ -197,6 +197,9 @@ async fn run_stream(
             ChatStreamEvent::ThoughtSignatureChunk(_) => {
                 // 暂不处理
             }
+            ChatStreamEvent::Heartbeat => {
+                // 握手心跳，忽略即可
+            }
             ChatStreamEvent::ToolCallChunk(tool_chunk) => {
                 // genai 0.7 ToolChunk { tool_call: ToolCall }
                 // ToolCall 含 call_id / fn_name / fn_arguments / thought_signatures

@@ -112,6 +112,43 @@ interface RustProviderConfig {
   base_url: string | null
 }
 
+/** Rust `agent_runtime::llm::config::LocalApiType` 镜像（kebab-case） */
+type RustLocalApiType = 'ollama' | 'lm-studio' | 'vllm' | 'llama-cpp'
+
+/** Rust `agent_runtime::llm::config::CustomApiType` 镜像（kebab-case） */
+type RustCustomApiType = 'openai-compatible' | 'anthropic-compatible'
+
+/**
+ * Rust `agent_runtime::llm::config::ProviderConfig` 镜像（tagged enum，`mode` 区分）
+ *
+ * 三种模式（serde tag = "mode"，lowercase）：
+ * - `cloud`：`{ mode, provider, model_id, api_key }`
+ * - `local`：`{ mode, endpoint, api_type, model_id }`
+ * - `custom`：`{ mode, base_url, api_key, api_type, model_id, context_window, max_tokens }`
+ *
+ * 注意：`api_key` 在 Rust 侧 `skip_serializing`（不回显），但反序列化时
+ * 必需，故前端必须按模式补齐该字段。
+ */
+interface RustProviderConfigFull {
+  mode: 'cloud' | 'local' | 'custom'
+  /** cloud：供应商 ID（如 "deepseek"） */
+  provider?: string
+  /** cloud/custom：模型 ID */
+  model_id?: string
+  /** cloud/custom：API Key（运行时注入，反序列化必需） */
+  api_key?: string
+  /** local：端点 URL（如 "http://localhost:11434"） */
+  endpoint?: string
+  /** local/custom：API 类型 */
+  api_type?: RustLocalApiType | RustCustomApiType
+  /** custom：Base URL */
+  base_url?: string
+  /** custom：上下文窗口大小（默认 1048576） */
+  context_window?: number
+  /** custom：最大输出 token（默认 65536） */
+  max_tokens?: number
+}
+
 /** Rust `agent_runtime::long_task::HeartbeatStatus` 镜像 */
 type RustHeartbeatStatus = 'alive' | 'stale' | 'dead'
 
@@ -175,9 +212,13 @@ function emit(event: AgentEvent): void {
 // ─── 命令封装：会话生命周期 ────────────────────────────────────
 
 /** 新建会话（返回 Rust SessionInfo） */
-async function newSession(systemPrompt?: string): Promise<RustSessionInfo> {
+async function newSession(
+  systemPrompt?: string,
+  providerConfig?: RustProviderConfigFull,
+): Promise<RustSessionInfo> {
   const info = await invoke<RustSessionInfo>('new_session', {
     systemPrompt: systemPrompt ?? null,
+    providerConfig: providerConfig ?? null,
   })
   currentSessionId.value = info.id
   messages.value = []
@@ -377,6 +418,18 @@ async function getProviderConfig(): Promise<RustProviderConfig | null> {
   }
 }
 
+/**
+ * 整体写入 Provider 配置（对应 Rust `set_provider_config`，5.4 真实 LLM 接入）
+ *
+ * 前端从本地存储读取配置 + API Key 后传入，支持 cloud/local/custom 三种
+ * 模式，可跨模式切换，不清空消息历史。
+ */
+async function setProviderConfig(config: RustProviderConfigFull): Promise<void> {
+  const sessionId = currentSessionId.value
+  if (!sessionId) return
+  await invoke('set_provider_config', { sessionId, config })
+}
+
 /** 获取心跳状态（对应 Rust `get_heartbeat`，长任务监控） */
 async function getHeartbeat(): Promise<RustHeartbeatStatus> {
   const sessionId = currentSessionId.value
@@ -473,6 +526,7 @@ export function useAgentRust() {
 
     // ── 状态查询 ──
     getProviderConfig,
+    setProviderConfig,
     getHeartbeat,
     isInitialized,
 

@@ -11,15 +11,25 @@
 
 use agent_commands::{AgentCommandService, SendMessageParams, UpdateModelParams};
 use agent_runtime::backend::ThinkingLevel;
+use agent_runtime::llm::config::ProviderConfig;
 use tauri::State;
 
 /// 新建会话
+///
+/// # 参数
+/// - `system_prompt`：系统提示词
+/// - `provider_config`：Provider 配置（可选，缺省用默认 Cloud 占位，
+///   随后可调用 `set_provider_config` 写入真实配置）
 #[tauri::command]
 pub async fn new_session(
     state: State<'_, AgentCommandService>,
     system_prompt: Option<String>,
+    provider_config: Option<ProviderConfig>,
 ) -> Result<agent_commands::SessionInfo, String> {
-    state.new_session(system_prompt).await.map_err(|e| e.to_string())
+    state
+        .new_session(system_prompt, provider_config)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 /// 会话列表
@@ -133,6 +143,22 @@ pub async fn get_provider_config(
     session_id: String,
 ) -> Result<agent_commands::ProviderConfig, String> {
     state.get_provider_config(&session_id).await.map_err(|e| e.to_string())
+}
+
+/// 整体写入 Provider 配置（5.4：真实 LLM 后端接入）
+///
+/// 前端从本地存储读取配置 + API Key 后传入，支持 cloud/local/custom 三种
+/// 模式，可跨模式切换，不清空消息历史。
+#[tauri::command]
+pub async fn set_provider_config(
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+    config: ProviderConfig,
+) -> Result<(), String> {
+    state
+        .set_provider_config(&session_id, config)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 /// 获取心跳状态（长任务监控）

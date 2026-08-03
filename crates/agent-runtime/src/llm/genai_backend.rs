@@ -329,6 +329,9 @@ impl NodeBackendAccessor for GenaiBackend {
                     ChatStreamEvent::ThoughtSignatureChunk(_) => {
                         // 暂不处理 thought signature
                     }
+                    ChatStreamEvent::Heartbeat => {
+                        // 握手心跳，忽略即可
+                    }
                     ChatStreamEvent::ToolCallChunk(tool_chunk) => {
                         // genai 0.7 ToolChunk { tool_call: ToolCall }
                         // ToolCall 含 call_id / fn_name / fn_arguments / thought_signatures
@@ -608,6 +611,17 @@ impl NodeBackendAccessor for GenaiBackend {
             "GenaiBackend update_provider: 已切换至 provider={}, model={}",
             provider, model_id
         );
+        Ok(())
+    }
+
+    /// 获取当前 Provider 配置快照（供 `get_provider_config` 回显）
+    async fn current_provider_config(&self) -> Option<ProviderConfig> {
+        Some(self.config.read().await.clone())
+    }
+
+    /// 整体替换 Provider 配置（支持跨模式切换，不清空消息历史）
+    async fn set_provider_config(&self, config: ProviderConfig) -> Result<(), BackendError> {
+        *self.config.write().await = config;
         Ok(())
     }
 }

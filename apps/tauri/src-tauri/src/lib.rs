@@ -26,6 +26,7 @@ pub fn run() {
             commands::update_model,
             commands::update_thinking_level,
             commands::get_provider_config,
+            commands::set_provider_config,
             commands::get_heartbeat,
         ])
         // Phase 5.1：Agent 命令服务（内部持有 session_id -> Arc<AgentLoop> 映射）

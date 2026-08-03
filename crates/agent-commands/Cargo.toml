@@ -12,7 +12,8 @@ crate-type = ["rlib"]
 
 [dependencies]
 # ── 本地 crate ──
-agent-runtime = { path = "../agent-runtime" }
+# 启用 llm-genai：使 agent-runtime 的 GenaiBackend 可用（5.4 真实 LLM 接入）
+agent-runtime = { path = "../agent-runtime", features = ["llm-genai"] }
 
 # ── 序列化 ──
 serde = { version = "1", features = ["derive"] }

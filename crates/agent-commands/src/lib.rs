@@ -15,6 +15,11 @@
 //! ## Phase 5.1 说明
 //! 当前使用 [`MockBackend`] 占位 LLM 后端，打通"send_message → run → 响应"链路。
 //! 5.2 接入真实 genai 后端时，仅替换 `new_agent` 中的 backend 构造即可。
+//!
+//! ## Phase 5.4 说明
+//! `new_agent` 已改用 [`GenaiBackend`]（真实 LLM 后端），从注入的
+//! [`RuntimeProviderConfig`] 构造。前端通过 `set_provider_config` 命令写入
+//! Provider 配置（含 API Key），`get_provider_config` 回显真实配置。
 
 mod error;
 mod mock_backend;
@@ -28,6 +33,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use agent_runtime::agent::{AgentLoop, AgentLoopConfig, AgentStateSnapshot};
 use agent_runtime::backend::ThinkingLevel;
+use agent_runtime::llm::config::ProviderConfig as RuntimeProviderConfig;
+use agent_runtime::llm::GenaiBackend;
 use agent_runtime::long_task::HeartbeatStatus;
 use agent_runtime::tool::SimpleToolBus;
 use agent_runtime::types::OrchestratorMessage;
@@ -93,7 +100,11 @@ pub struct UpdateModelParams {
     pub max_tokens: Option<u32>,
 }
 
-/// Provider 配置（5.1 返回占位，5.2 接入真实配置）
+/// Provider 配置（`get_provider_config` 回显的简化视图）
+///
+/// 仅含 provider / model / base_url 三个展示字段；完整配置（含 API Key、
+/// 模式、api_type 等）由 [`RuntimeProviderConfig`] 承载，通过
+/// [`AgentCommandService::set_provider_config`] 写入。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderConfig {
     pub provider: String,
@@ -118,15 +129,37 @@ impl AgentCommandService {
         Self::default()
     }
 
-    /// 构造一个 AgentLoop（当前使用 MockBackend 占位）
-    fn new_agent(system_prompt: Option<String>) -> Arc<AgentLoop> {
-        let backend = Arc::new(MockBackend::new());
+    /// 构造一个 AgentLoop（Phase 5.4：使用 GenaiBackend 真实 LLM 后端）
+    ///
+    /// # 参数
+    /// - `system_prompt`：系统提示词
+    /// - `provider_config`：Provider 配置（cloud/local/custom 三种模式）
+    ///   - `Some`：按注入配置构造 GenaiBackend
+    ///   - `None`：降级为默认 Cloud 占位（空 API Key，需 `set_provider_config` 后可用）
+    fn new_agent(
+        system_prompt: Option<String>,
+        provider_config: Option<RuntimeProviderConfig>,
+    ) -> Arc<AgentLoop> {
+        let config = provider_config.unwrap_or_else(Self::default_provider_config);
+        let backend = Arc::new(GenaiBackend::new(config));
         let tool_bus = Arc::new(SimpleToolBus::new());
-        let config = AgentLoopConfig {
+        let agent_config = AgentLoopConfig {
             system_prompt,
             ..Default::default()
         };
-        Arc::new(AgentLoop::new(backend, tool_bus).with_config(config))
+        Arc::new(AgentLoop::new(backend, tool_bus).with_config(agent_config))
+    }
+
+    /// 默认 Provider 配置（未注入时使用，空 API Key 占位）
+    ///
+    /// 使用 DeepSeek 云端占位，便于 `get_provider_config` 有稳定返回值；
+    /// 实际使用前前端必须调用 `set_provider_config` 写入真实配置。
+    fn default_provider_config() -> RuntimeProviderConfig {
+        RuntimeProviderConfig::Cloud {
+            provider: "deepseek".into(),
+            model_id: "deepseek-v4-flash".into(),
+            api_key: String::new(),
+        }
     }
 
     fn now() -> u64 {
@@ -139,8 +172,17 @@ impl AgentCommandService {
     // ── 会话生命周期 ────────────────────────────────────
 
     /// 新建会话
-    pub async fn new_session(&self, system_prompt: Option<String>) -> Result<SessionInfo, CommandError> {
-        let agent = Self::new_agent(system_prompt);
+    ///
+    /// # 参数
+    /// - `system_prompt`：系统提示词
+    /// - `provider_config`：Provider 配置（可选，缺省用默认 Cloud 占位，
+    ///   随后可调用 [`Self::set_provider_config`] 写入真实配置）
+    pub async fn new_session(
+        &self,
+        system_prompt: Option<String>,
+        provider_config: Option<RuntimeProviderConfig>,
+    ) -> Result<SessionInfo, CommandError> {
+        let agent = Self::new_agent(system_prompt, provider_config);
         let id = uuid::Uuid::new_v4().to_string();
         let info = SessionInfo {
             id: id.clone(),
@@ -272,15 +314,31 @@ impl AgentCommandService {
 
     // ── 配置 / 心跳 ────────────────────────────────────
 
-    /// 获取 Provider 配置（5.1 返回占位）
+    /// 获取 Provider 配置（Phase 5.4：回显真实运行配置）
     pub async fn get_provider_config(&self, session_id: &str) -> Result<ProviderConfig, CommandError> {
         let agent = self.get_agent(session_id).await?;
-        let snapshot = agent.get_state_snapshot().await;
+        let cfg = agent
+            .current_provider_config()
+            .await
+            .unwrap_or_else(Self::default_provider_config);
         Ok(ProviderConfig {
-            provider: "mock".into(),
-            model: snapshot.model,
-            base_url: None,
+            provider: cfg.provider_id().to_string(),
+            model: cfg.model_id().to_string(),
+            base_url: Some(cfg.resolve_base_url()),
         })
+    }
+
+    /// 整体写入 Provider 配置（Phase 5.4：真实 LLM 后端接入）
+    ///
+    /// 接收完整 [`RuntimeProviderConfig`]（cloud/local/custom 三种模式），
+    /// 前端从本地存储读取配置 + API Key 后传入。支持跨模式切换，不清空消息历史。
+    pub async fn set_provider_config(
+        &self,
+        session_id: &str,
+        config: RuntimeProviderConfig,
+    ) -> Result<(), CommandError> {
+        let agent = self.get_agent(session_id).await?;
+        agent.set_provider_config(config).await.map_err(CommandError::from)
     }
 
     /// 获取心跳状态（长任务监控）
@@ -297,11 +355,37 @@ impl AgentCommandService {
 mod tests {
     use super::*;
 
+    fn cloud_config(api_key: &str) -> RuntimeProviderConfig {
+        RuntimeProviderConfig::Cloud {
+            provider: "deepseek".into(),
+            model_id: "deepseek-v4-flash".into(),
+            api_key: api_key.into(),
+        }
+    }
+
     #[tokio::test]
-    async fn new_session_and_send_message_roundtrip() {
+    async fn new_session_and_provider_config_roundtrip() {
         let svc = AgentCommandService::new();
-        let info = svc.new_session(Some("测试助手".into())).await.unwrap();
-        let result = svc
+        let info = svc
+            .new_session(Some("测试助手".into()), Some(cloud_config("sk-test")))
+            .await
+            .unwrap();
+        let cfg = svc.get_provider_config(&info.id).await.unwrap();
+        // 回显真实配置（provider / model），而非 mock 占位
+        assert_eq!(cfg.provider, "deepseek");
+        assert_eq!(cfg.model, "deepseek-v4-flash");
+        assert!(cfg.base_url.is_some());
+    }
+
+    #[tokio::test]
+    async fn send_message_without_api_key_fails() {
+        let svc = AgentCommandService::new();
+        // 空 API Key 的 Cloud 配置 → 发送消息应报 Auth 错误（而非回显 mock）
+        let info = svc
+            .new_session(Some("测试助手".into()), Some(cloud_config("")))
+            .await
+            .unwrap();
+        let err = svc
             .send_message(SendMessageParams {
                 session_id: info.id.clone(),
                 text: "你好".into(),
@@ -309,11 +393,20 @@ mod tests {
                 mode: None,
             })
             .await
-            .unwrap();
-        // MockBackend 以空 prompt 回显（用户消息已推入 state.messages），
-        // 因此 reply 为 "[mock] 收到："，断言其非空且带 mock 标识即可验证链路。
-        assert!(result.reply.contains("[mock]"));
-        assert!(!result.state.messages.is_empty());
+            .unwrap_err();
+        assert!(matches!(err, CommandError::Agent(_)));
+    }
+
+    #[tokio::test]
+    async fn set_provider_config_updates_backend() {
+        let svc = AgentCommandService::new();
+        // 创建会话时不注入配置（用默认占位）
+        let info = svc.new_session(None, None).await.unwrap();
+        // 前端写入真实配置（含 API Key）
+        svc.set_provider_config(&info.id, cloud_config("sk-real")).await.unwrap();
+        let cfg = svc.get_provider_config(&info.id).await.unwrap();
+        assert_eq!(cfg.provider, "deepseek");
+        assert_eq!(cfg.model, "deepseek-v4-flash");
     }
 
     #[tokio::test]
@@ -334,7 +427,7 @@ mod tests {
     #[tokio::test]
     async fn list_and_delete_session() {
         let svc = AgentCommandService::new();
-        let info = svc.new_session(None).await.unwrap();
+        let info = svc.new_session(None, None).await.unwrap();
         let list = svc.list_sessions().await.unwrap();
         assert_eq!(list.len(), 1);
         svc.delete_session(&info.id).await.unwrap();

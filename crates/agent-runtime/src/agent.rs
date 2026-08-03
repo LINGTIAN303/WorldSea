@@ -45,6 +45,7 @@ use tracing::{debug, error, info, warn};
 
 use crate::backend::{BackendError, NodeBackendAccessor, PromptCallOptions, ThinkingLevel};
 use crate::event::{AgentEvent, EventBroadcaster, EventListener, OrchestratorEvent};
+use crate::llm::config::ProviderConfig;
 use crate::long_task::{
     CheckpointProvider, HeartbeatTick, LongTaskCheckpoint, LongTaskManager,
 };
@@ -1313,6 +1314,24 @@ impl AgentLoop {
 
         debug!("update_model: 已切换至 provider={}, model={}", provider, model_id);
         Ok(())
+    }
+
+    /// 获取当前 Provider 配置（供 `get_provider_config` 命令回显）
+    ///
+    /// 由 backend 实现决定是否返回（`GenaiBackend` 返回真实配置）。
+    pub async fn current_provider_config(&self) -> Option<ProviderConfig> {
+        self.backend.current_provider_config().await
+    }
+
+    /// 整体替换 Provider 配置（支持跨模式切换，不清空消息历史）
+    ///
+    /// 对应 `set_provider_config` 命令，接收完整 [`ProviderConfig`]
+    /// （cloud/local/custom 三种模式），由 backend 实现覆盖。
+    pub async fn set_provider_config(&self, config: ProviderConfig) -> Result<(), AgentError> {
+        self.backend
+            .set_provider_config(config)
+            .await
+            .map_err(AgentError::from)
     }
 
     /// 销毁 Agent — 对应前端 `IAgentBackend.dispose()`

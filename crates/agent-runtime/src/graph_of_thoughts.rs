@@ -47,7 +47,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 
-use crate::backend::{NodeBackendAccessor, PromptCallOptions};
+use crate::backend::PromptCallOptions;
 use crate::event::OrchestratorEvent;
 use crate::node::{NodeContext, NodeResult, NodeStatus, NodeType, OrchestratorNode};
 use crate::tree_of_thoughts::{

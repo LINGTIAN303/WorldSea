@@ -36,7 +36,6 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Instant;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -992,6 +991,10 @@ impl MultiAgentNode {
     }
 
     /// 查找 Agent 规格
+    ///
+    /// 当前未被调用（deep 编排子 Agent 检索待 5.4 高级能力补齐时启用），
+    /// 保留供后续多 Agent 编排使用。
+    #[allow(dead_code)]
     fn find_spec(&self, agent_id: &str) -> Option<&AgentSpec> {
         self.specs.iter().find(|s| s.id == agent_id)
     }

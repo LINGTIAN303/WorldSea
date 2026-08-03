@@ -10,6 +10,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 
 use crate::event::EventListener;
+use crate::llm::config::ProviderConfig;
 use crate::types::{ImageAttachment, OrchestratorMessage, ToolCall};
 
 /// LLM 后端访问器 — 节点通过此接口调用 LLM
@@ -91,6 +92,27 @@ pub trait NodeBackendAccessor: Send + Sync {
     ) -> Result<(), BackendError> {
         Err(BackendError::Unsupported(
             "update_provider not supported by this backend".into(),
+        ))
+    }
+
+    /// 获取当前 Provider 配置（后端实现覆盖）
+    ///
+    /// 默认返回 `None`（后端不暴露配置），由支持配置回读的 backend（如
+    /// `GenaiBackend`）覆盖，供 `get_provider_config` 命令回显真实配置。
+    async fn current_provider_config(&self) -> Option<ProviderConfig> {
+        None
+    }
+
+    /// 整体替换 Provider 配置（不清空消息历史）
+    ///
+    /// 与 [`update_provider`] 的区别：接收完整 [`ProviderConfig`]（含
+    /// cloud/local/custom 三种模式与 api_type），可跨模式切换（包括
+    /// 非 Local→Local 等 `update_provider` 无法表达的场景）。
+    ///
+    /// 默认返回 `BackendError::Unsupported`，由支持的目标 backend 覆盖。
+    async fn set_provider_config(&self, _config: ProviderConfig) -> Result<(), BackendError> {
+        Err(BackendError::Unsupported(
+            "set_provider_config not supported by this backend".into(),
         ))
     }
 }

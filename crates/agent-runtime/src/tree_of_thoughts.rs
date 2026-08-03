@@ -974,6 +974,9 @@ impl ToTNode {
     }
 
     /// 评分多个节点（并发）
+    ///
+    /// 当前未被调用（ToT 深度推理待 5.4 高级能力补齐时启用），保留备用。
+    #[allow(dead_code)]
     async fn score_nodes(
         &self,
         node_ids: Vec<String>,
@@ -1096,6 +1099,9 @@ impl ToTNode {
     }
 
     /// 查找目标节点（status=Goal）
+    ///
+    /// 当前未被调用（ToT 深度推理待 5.4 高级能力补齐时启用），保留备用。
+    #[allow(dead_code)]
     async fn find_goal_node(&self) -> Option<(String, u8, String, usize)> {
         let tree = self.tree.read().await;
         tree.values()
@@ -1268,7 +1274,7 @@ impl OrchestratorNode for ToTNode {
                 });
 
                 let summary = match best {
-                    Some((id, s, content, depth)) => {
+                    Some((id, s, _content, depth)) => {
                         let mut best_guard = self.best_node_id.write().await;
                         *best_guard = Some(id.clone());
                         format!(

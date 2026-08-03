@@ -82,10 +82,37 @@
 
 **目标**：在 Tauri 桌面端实测全链路，补齐高级能力。
 
-- 实测：Agent 对话、工具调用、长任务、13 种编排模式。
-- 补齐：深度模式（deep phases）、A2UI、终端、子 Agent 等高级能力。
+**状态**：⏳ 待启动（2026-08-04 规划完成）
 
-**验收**：桌面端全链路可用，无明显功能缺失。
+**决策记录**：
+- **LLM 配置来源**：沿用 Web 端模式 —— 前端配置 + 本地存储（API key 存 localStorage，Tauri 端存 app-data）。`GenaiBackend` 已实现，`agent-commands` 仅替换 `new_agent` 中的 `MockBackend` 为 `GenaiBackend`，命令层参数/返回类型不变。
+- **高级能力补齐优先级**：按顺序全做 —— deep phases → A2UI → 终端 → 子 Agent。
+
+**子任务**：
+1. **真实 LLM 后端接入**
+   - 在 `apps/tauri/src-tauri/Cargo.toml` 为 `agent-commands` 启用 `llm-genai` feature。
+   - `agent-commands` 的 `new_agent` 中 `MockBackend` → `GenaiBackend`，从注入的 ProviderConfig 构造。
+   - 新增 `set_provider_config` 命令（或复用现有 `update_model`/`get_provider_config`），前端把配置 + API key 从本地存储读取后传入。
+   - Temp check：`cargo check` + `agent-commands` 单测。
+
+2. **端到端实测清单**
+   - Agent 对话（主链路 new_session → send_message → 流式回复）。
+   - 工具调用（tool call 完整链路：触发 → 执行 → 结果回填）。
+   - 长任务（long_task + checkpoint，breakpoint/resume）。
+   - 13 种编排模式（supervisor / router / multi_agent / tree_of_thoughts / graph_of_thoughts / loop_control 逐个验证）。
+   - 每项在 Tauri 桌面端实测，记录结果。
+
+3. **高级能力补齐**（按顺序全做）
+   - deep phases（深度模式）：`deep_phases` 模块接入 UI（DeepMessageArea 已共享）。
+   - A2UI：`a2ui` 模块的组件/事件渲染到前端。
+   - 终端能力：terminal 命令接入。
+   - 子 Agent：sub-agent 编排接入。
+
+4. **收尾**
+   - 更新 `CHANGELOG.md`（版本号 + 变更摘要 + 时间）。
+   - 提交，确保工作树干净。
+
+**验收**：桌面端全链路可用，无明显功能缺失；13 种编排模式 + 4 项高级能力实测通过。
 
 ### 5.5 TS→Rust 收敛
 
