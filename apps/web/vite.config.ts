@@ -48,6 +48,9 @@ const aliases: Record<string, string> = {
   '@worldsmith/shared-composables/agent': path.resolve(__dirname, '../../packages/shared-composables/src/agent'),
   '@worldsmith/shared-composables/agent/long-task': path.resolve(__dirname, '../../packages/shared-composables/src/agent/long-task'),
   '@worldsmith/shared-composables/long-task': path.resolve(__dirname, '../../packages/shared-composables/src/agent/long-task'),
+  // 共享 Agent UI 组件层（Phase 5.3 迁入）
+  '@worldsmith/shared-ui$': path.resolve(__dirname, '../../packages/shared-ui/src'),
+  '@worldsmith/shared-ui/': path.resolve(__dirname, '../../packages/shared-ui/src/'),
   // @agent/* alias — 共享包内部引用 agent-runtime 的统一别名
   // 注意：通配指向 packages/agent-runtime/src/*，避免引入 worldsmith-agent/src/*（CLI 端代码）
   // 具体子路径（orchestrator/providers/skills/context/group-chat/session/execution）由通配自动覆盖

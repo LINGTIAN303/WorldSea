@@ -1,7 +1,7 @@
 # Agent 端到端闭环计划（Phase 5）
 
 > 创建日期：2026-08-04
-> 状态：**执行中（5.1 命令层已完成，5.2 Tauri 前端链路已完成，5.3 Agent UI 迁移进行中）**
+> 状态：**执行中（5.1 命令层已完成，5.2 Tauri 前端链路已完成，5.3 Agent UI 迁移已完成，5.4 端到端实测待启动）**
 > 关联：[agent-orchestration-roadmap.md](agent-orchestration-roadmap.md)（阶段 1+2 已完成，Rust 编排框架就绪）、`[组件文档]`
 
 ## 一、目标
@@ -70,6 +70,14 @@
 
 **验收**：Web 与 Tauri 端渲染同一套 Agent UI，无重复实现；三端 typecheck 通过。
 
+> ✅ **已完成（2026-08-04）**
+> - 抽取 `packages/shared-ui/src/agent/`（bubbles / blocks / message-list 系列），统一由根 index 与子目录 index 导出。
+> - 定义注入式解耦契约 `AgentUiDeps`（`packages/shared-composables/src/agent/deps.ts`），注入字体配置、活动日志、头像组件等 Web 端特有依赖，组件不再直接依赖 Web 端实现。
+> - 修复类型问题：`useMessageExport.ts` 类型断言、`DeepMessageArea`/`NormalMessageBubble` 的 `pref.style` 非空判断、`BlockManuscript` 改用 `useAgentUiDeps`、Interactive 系列 `ToolCallView` 导入路径统一到共享层。
+> - Web 端 4 个消费文件（`AgentMessageBubble.vue`/`AgentMessageList.vue`/`AgentChat.vue`/`previewLabels.ts`）切换为 `@worldsmith/shared-ui` 导入，删除本地 `apps/web/src/agent/{bubbles,blocks,message-list}` 副本。
+> - 配置 Web 端 `tsconfig.json` + `vite.config.ts` 的 `@worldsmith/shared-ui` 路径映射，`pnpm typecheck:web` 通过。
+> - 已知项：`shared-ui` 自身 typecheck 因 `tsconfig.build.json` 的 `rootDir` 指向 `shared-ui/src` 而 agent-runtime 外部类型越界，属项目级既有配置问题，留待统一处理。
+
 ### 5.4 端到端实测 + 收尾
 
 **目标**：在 Tauri 桌面端实测全链路，补齐高级能力。
@@ -94,7 +102,7 @@
 |--------|----------|------|
 | M5-1 | 命令层 crate 就绪，Tauri 可 invoke Rust 命令 | ✅ 已完成 |
 | M5-2 | Tauri 前端链路打通，桌面端可发起 Agent 会话 | ✅ 已完成 |
-| M5-3 | Agent UI 抽共享层完成，三端复用 | ⏳ 待启动 |
+| M5-3 | Agent UI 抽共享层完成，三端复用 | ✅ 已完成 |
 | M5-4 | 桌面端端到端实测通过，高级能力补齐 | ⏳ 待启动 |
 | M5-5 | pi-ai 移除，技术栈收敛 | ⏳ 待启动 |
 

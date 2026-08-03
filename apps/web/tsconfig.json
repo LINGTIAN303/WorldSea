@@ -19,6 +19,9 @@
       // 共享 composables（Phase 3 迁入）
       "@worldsmith/shared-composables": ["../../packages/shared-composables/src/index.ts"],
       "@worldsmith/shared-composables/*": ["../../packages/shared-composables/src/*"],
+      // 共享 Agent UI 组件层（Phase 5.3 迁入）
+      "@worldsmith/shared-ui": ["../../packages/shared-ui/src/index.ts"],
+      "@worldsmith/shared-ui/*": ["../../packages/shared-ui/src/*"],
       // 业务无关的共享 UI/工具包
       "@worldsmith/entity-core": ["../../packages/entity-core/src/index.ts"],
       "@worldsmith/entity-core/*": ["../../packages/entity-core/src/*"],

@@ -146,7 +146,7 @@ const agentFontStyle = computed(() => {
   if (agentFontFamily.value) style.fontFamily = agentFontFamily.value
   const pref = fontPrefs.value
   if (pref.family && pref.weight !== 400) style.fontWeight = String(pref.weight)
-  if (pref.family && pref.style !== 'normal') style.fontStyle = pref.style
+  if (pref.family && pref.style && pref.style !== 'normal') style.fontStyle = pref.style
   return style
 })
 

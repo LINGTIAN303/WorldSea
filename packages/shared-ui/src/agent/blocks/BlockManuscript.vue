@@ -74,8 +74,8 @@ import { ref, computed, watch, onUnmounted } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
 import type { ManuscriptBlock } from '@worldsmith/agent-runtime'
 import { useManuscriptAnimation } from '@worldsmith/shared-composables/agent/useManuscriptAnimation'
+import { useAgentUiDeps } from '@worldsmith/shared-composables/agent/deps'
 import { useTheme } from '@worldsmith/entity-core/composables/useTheme'
-import { usePersonaFont } from '../../space/composables/usePersonaFont'
 import { useFileStore, useImageResolver } from '@worldsmith/entity-core'
 import { getImage, getByPath, blobToDataUrl, onImagePersisted } from '@worldsmith/agent-runtime/stores/image-persistence'
 import type { ExportCorrectorConfig } from '@worldsmith/agent-runtime'
@@ -89,7 +89,7 @@ const emit = defineEmits<{
 
 const isHovered = ref(false)
 const { currentThemeId } = useTheme()
-const { profile } = usePersonaFont()
+const { persona } = useAgentUiDeps()
 const fileStore = useFileStore()
 
 const { allChars, visibleCount, isStreaming } = useManuscriptAnimation(props.block)
@@ -561,7 +561,7 @@ function onResizeStart(e: MouseEvent) {
 }
 
 function resolveFontSize() {
-  const scale = profile.value?.sizeScale ?? 1
+  const scale = persona.value.sizeScale
   return fontSizeMap[props.block.fontSize || 'md'] * scale
 }
 

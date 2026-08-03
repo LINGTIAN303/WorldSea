@@ -115,16 +115,19 @@ import type { ToolCallView } from './composables/useAgent'
 import { useArchiveStore } from '../stores/archiveStore'
 import { watchDebounced } from '@worldsmith/perf-kit/render'
 import type { AgentMessage, MessageBlock } from '@agent/index'
-import { formatDividerTime, type DisplayItem } from './message-list/utils'
-import { useDotAnimation } from './message-list/useDotAnimation'
-import { useMessageWindowing } from './message-list/useMessageWindowing'
-import MessageListEmpty from './message-list/MessageListEmpty.vue'
-import ArchivedSection from './message-list/ArchivedSection.vue'
-import StreamingPlaceholder from './message-list/StreamingPlaceholder.vue'
-import ScrollToBottomButton from './message-list/ScrollToBottomButton.vue'
-import DotNav from './message-list/DotNav.vue'
-import DeepUserBar from './message-list/DeepUserBar.vue'
-import DeepProcessPanel from './message-list/DeepProcessPanel.vue'
+import {
+  formatDividerTime,
+  useDotAnimation,
+  useMessageWindowing,
+  MessageListEmpty,
+  ArchivedSection,
+  StreamingPlaceholder,
+  ScrollToBottomButton,
+  DotNav,
+  DeepUserBar,
+  DeepProcessPanel,
+  type DisplayItem,
+} from '@worldsmith/shared-ui/agent/message-list'
 
 const { enterAnimation } = usePersonaFont()
 const { deepSegments, finalOutput, isStreaming: agentIsStreaming, resolveToolConfirmation } = useAgent()

@@ -18,6 +18,7 @@ export { default as BlockTimeline } from './BlockTimeline.vue'
 export { default as BlockImage } from './BlockImage.vue'
 export { default as BlockAccordion } from './BlockAccordion.vue'
 export { default as BlockManuscript } from './BlockManuscript.vue'
+export { default as ManuscriptShelf } from './ManuscriptShelf.vue'
 
 /** Block 交互事件（如表格操作、选择器响应等） */
 export interface BlockActionEvent {

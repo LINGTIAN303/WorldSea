@@ -6,7 +6,7 @@
  * `useAgentUiDeps()` 注入式获取，不再直接依赖 Web 端 usePersonaFont。
  */
 import { useAgentUiDeps } from '@worldsmith/shared-composables/agent/deps'
-import { renderText, toBlob, renderAnimatedText } from '@worldsmith/font-kit'
+import { renderText, toBlob, renderAnimatedText, type FontWeightToken, type TextAnimationEffect } from '@worldsmith/font-kit'
 import { encodeGif } from '@worldsmith/motion-kit'
 import { stripJsonBlocks } from './useMarkdownRender'
 
@@ -30,7 +30,7 @@ export function useMessageExport(getContent: () => string | undefined) {
         text: plainText.slice(0, 500),
         fontFamily: p.fontFamily,
         fontSize: 16 * p.sizeScale,
-        fontWeight: p.weightDefault,
+        fontWeight: p.weightDefault as FontWeightToken | number,
         color: '#e0e0e0',
         backgroundColor: '#1a1a2e',
         maxWidth: 480,
@@ -62,11 +62,11 @@ export function useMessageExport(getContent: () => string | undefined) {
       const p = persona.value
       const result = renderAnimatedText({
         text: plainText.slice(0, 200),
-        effect: enterAnimation.value,
+        effect: enterAnimation.value as TextAnimationEffect,
         renderOptions: {
           fontFamily: p.fontFamily,
           fontSize: 16 * p.sizeScale,
-          fontWeight: p.weightDefault,
+          fontWeight: p.weightDefault as FontWeightToken | number,
           color: '#e0e0e0',
           backgroundColor: '#1a1a2e',
           maxWidth: 480,

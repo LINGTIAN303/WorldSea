@@ -28,7 +28,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
-import type { ToolCallView } from '../../composables/useAgent'
+import type { ToolCallView } from '@worldsmith/shared-composables/agent/useAgent'
 import { getToolLabel } from './utils'
 
 const props = defineProps<{

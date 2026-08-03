@@ -7,7 +7,7 @@
  * 工具名中文标签（getToolLabel / TOOL_LABELS）复用自 ../bubbles/toolLabels，
  * 该模块已包含全量工具名映射且对未知工具名提供更友好的兜底翻译。
  */
-export { getToolLabel, TOOL_LABELS } from '../bubbles/toolLabels'
+export { getToolLabel, TOOL_LABELS } from '@worldsmith/shared-ui/agent/bubbles'
 
 /** 工具名 → WsIcon 图标名 映射（兜底为 'settings'） */
 export const TOOL_ICONS: Record<string, string> = {

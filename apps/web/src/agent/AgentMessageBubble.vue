@@ -56,9 +56,8 @@
  *   - format.ts               formatTime / formatActivityTime
  */
 import { computed } from 'vue'
-import DeepMessageArea from './bubbles/DeepMessageArea.vue'
-import NormalMessageBubble from './bubbles/NormalMessageBubble.vue'
-import type { AgentMessage, ChatMode, BlockActionEvent } from './bubbles/types'
+import { DeepMessageArea, NormalMessageBubble } from '@worldsmith/shared-ui/agent/bubbles'
+import type { AgentMessage, ChatMode, BlockActionEvent } from '@worldsmith/shared-ui/agent/bubbles'
 
 const props = withDefaults(defineProps<{
   isDivider?: boolean

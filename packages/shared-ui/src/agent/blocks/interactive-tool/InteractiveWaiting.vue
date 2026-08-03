@@ -20,7 +20,7 @@
 </template>
 
 <script setup lang="ts">
-import type { ToolCallView } from '../../composables/useAgent'
+import type { ToolCallView } from '@worldsmith/shared-composables/agent/useAgent'
 import { getToolLabel, formatDuration } from './utils'
 
 defineProps<{
