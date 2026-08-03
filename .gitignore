@@ -70,7 +70,8 @@ playwright-report/
 dist-stats.html
 
 # ── Tauri auto-generated ────────────────────────────────────────────────
-src-tauri/gen/
+# 端分离后 src-tauri 移至 apps/tauri/src-tauri，用 ** 前缀匹配任意层级
+**/src-tauri/gen/
 
 # ── pnpm project: npm lock files not needed ─────────────────────────────
 package-lock.json

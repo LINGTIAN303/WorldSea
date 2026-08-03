@@ -1,0 +1,11 @@
+# Cargo 镜像配置（本地覆盖）
+# 与 agent-runtime / agent-commands 保持一致：USTC 镜像被劫持到 127.0.0.1:8080，
+# 改用字节 RsProxy 稀疏镜像，避免依赖下载失败。
+[source.crates-io]
+replace-with = "rsproxy-sparse"
+
+[source.rsproxy-sparse]
+registry = "sparse+https://rsproxy.cn/index/"
+
+[net]
+git-fetch-with-cli = true

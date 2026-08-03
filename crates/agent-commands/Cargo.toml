@@ -1,0 +1,31 @@
+[package]
+name = "agent-commands"
+version = "0.1.0"
+edition = "2021"
+description = "Agent 命令层 — 主链路 14 命令 + 6 种编排模式命令的服务层（纯逻辑，Tauri 绑定在 tauri app 端）"
+license = "MIT OR Apache-2.0"
+keywords = ["agent", "command", "tauri", "ipc"]
+categories = ["asynchronous"]
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+# ── 本地 crate ──
+agent-runtime = { path = "../agent-runtime" }
+
+# ── 序列化 ──
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# ── 异步运行时 ──
+tokio = { version = "1", features = ["sync", "macros", "rt", "time"] }
+async-trait = "0.1"
+
+# ── 工具链 ──
+thiserror = "2"
+uuid = { version = "1", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full", "test-util"] }
