@@ -41,11 +41,11 @@
 | 3 | 前端入口分离与清理 | ⚠️ 部分完成 | 2026-07-31 复核 |
 | 4 | 后端能力整合（CLI serve 替代 server） | ✅ 已完成 | 2026-07-29 |
 | 5 | 构建配置与 CI 独立 | ✅ 已完成 | 2026-07-29 |
-| 6 | 端到端验收与清理 | ⏸️ 暂停 | - |
+| 6 | 端到端验收与清理 | ✅ 已完成 | 2026-08-04 |
 
-> **当前状态（2026-08-02）**：Phase 3 业务 UI（根 src/ 数百文件）未迁入三端，根 `src/` 仍是主应用。
+> **当前状态（2026-08-04）**：端分离已完成。根级 `src/`、`src-tauri/`、`worldsmith-server/`、`worldsmith-agent/` 已全部迁移到 `apps/web`、`apps/tauri`、`apps/cli` 与 `packages/agent-runtime`，主应用入口为 `apps/web`。
 > **2026-07-31 决策**：暂停业务 UI 大迁移（数十万行级工程），回到主应用开发（根 src/），端分离按 ROADMAP 单独排期。
-> 三端骨架保留（apps/web、apps/cli、apps/tauri），后续可按 ROADMAP 恢复 Phase 3/6。
+> **2026-08-04 更新**：端分离迁移已全部落地，PHASE 3–6 完成，根级旧结构已删除，本文档作为历史迁移记录归档。
 > 2026-08-02 工作区收敛：`@agent` 统一到 `packages/agent-runtime` 单轨（commit c3856de），`worldsmith-agent` 冻结为端适配器宿主。
 
 > 进度更新规则：每个 Phase 完成后在 `08-migration-phases.md` 对应章节填写完成日期与产物，并在此表格同步。

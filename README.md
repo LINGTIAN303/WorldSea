@@ -118,16 +118,15 @@ pnpm install
 pnpm build:wasm-all
 ```
 
-> **Windows / Sandbox note**: If `pnpm install` fails with `ERR_SQLITE_ERROR`
-> or `EPERM` on `importPackage`, use the npm fallback:
+> **Windows / Sandbox note**: If `pnpm install` fails with `ERR_SQLITE_ERROR`,
+> see the [`.npmrc`](.npmrc) rationale (TRAE Sandbox 阻止 .pnpm-store 的 SQLite
+> shm/wal 访问)。历史 EPERM 问题已通过 `file:` → `link:` 协议根治
+> （WASM 产物包在 node_modules 中 Junction 直连源目录，不再物理复制）。
 >
 > ```bash
 > npm run install:fallback
 > # 等价于 npm install --no-package-lock --legacy-peer-deps --no-audit --no-fund
 > ```
->
-> See [`.npmrc`](.npmrc) for the full rationale (TRAE Sandbox 阻止 .pnpm-store
-> 的 SQLite shm/wal 访问；Windows hoisted 模式仍可能 EPERM)。
 
 ### Development
 
@@ -158,26 +157,18 @@ pnpm test:coverage
 
 ## Project Structure
 
+> 完整架构说明见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)（描述当前实际代码状态）。
+
 ```
 WorldSmith/
-  apps/                   — 三端独立骨架（端分离，业务 UI 尚未迁入）
-    web/                  — Web 端（端口 5174，Vite + WASM + CLI serve 代理）
-    cli/                  — CLI 端（commander：chat / serve，HTTP+WS 服务）
-    tauri/                — Tauri 桌面端（端口 5175，Rust 命令层）
+  apps/                   — 三端独立应用（端分离完成，主应用入口 = apps/web）
+    web/                  — Web 端（端口 5174，Vite + WASM + CLI serve 代理）—— 主应用
+    cli/                  — CLI 端（commander：chat / serve，HTTP+WS 服务，python-services 微服务）
+    tauri/                — Tauri 桌面端（端口 5175，独立 src-tauri + Rust 命令层）
   crates/
     agent-runtime/        — Rust Agent 后端（genai LLM + tokio 编排：ToT/GoT/Multi-Agent/Supervisor/Router/Loop）
   packages/               — 共享 monorepo 子包（13 个，见上）
-  src/                    — 主应用 Vue 3 前端（当前活跃开发目录）
-    agent/                — AI agent UI (chat, deep mode, persona)
-    composables/          — Vue composables
-    core/                 — Core backend (storage, modules, migration)
-    plugins/official/     — Built-in worldbuilding plugins
-    space/                — Agent space (chat, panels, group chat)
-    ui/                   — Shared UI components (layout, editor, entity, etc.)
-  src-tauri/              — Tauri 2 Rust backend（150+ 命令 + agent_bridge + workflow 引擎）
-  worldsmith-agent/       — 端适配器宿主（仅 execution adapter 被显式引用，核心已下沉 agent-runtime）
   worldsmith-core/        — Rust WASM core (storage, validation, graph layout)
-  worldsmith-server/      — Node.js server（已标记废弃，能力迁移至 CLI serve）
   worldsmith-skills-store — Rust Skills Store crate（独立 cargo test，无 Tauri 依赖）
   tactical-engine/        — Rust WASM tactical engine (pathfinding)
   docs/                   — Roadmap, design specs, plans（含 端分离/ 文档库）
