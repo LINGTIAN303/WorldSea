@@ -52,7 +52,7 @@ importers:
         version: link:worldsmith-core/pkg
       '@worldsmith/entity-core':
         specifier: file:./packages/entity-core
-        version: link:packages/entity-core
+        version: file:packages/entity-core(@tauri-apps/api@2.11.1)(@tauri-apps/plugin-dialog@2.7.2)(dexie@4.4.4)(jszip@3.10.1)(pinia@3.0.4(typescript@6.0.3)(vue@3.5.40(typescript@6.0.3)))(vue@3.5.40(typescript@6.0.3))
       '@worldsmith/font-kit':
         specifier: file:./packages/font-kit
         version: link:packages/font-kit
@@ -316,7 +316,7 @@ importers:
         version: link:../../packages/canvas-engine
       '@worldsmith/entity-core':
         specifier: file:../../packages/entity-core
-        version: link:../../packages/entity-core
+        version: file:packages/entity-core(@tauri-apps/api@2.11.1)(@tauri-apps/plugin-dialog@2.7.2)(dexie@4.4.4)(jszip@3.10.1)(pinia@3.0.4(typescript@6.0.3)(vue@3.5.40(typescript@6.0.3)))(vue@3.5.40(typescript@6.0.3))
       '@worldsmith/font-kit':
         specifier: file:../../packages/font-kit
         version: link:../../packages/font-kit
@@ -440,7 +440,7 @@ importers:
     dependencies:
       '@worldsmith/entity-core':
         specifier: file:../entity-core
-        version: link:../entity-core
+        version: file:packages/entity-core(@tauri-apps/api@2.11.1)(@tauri-apps/plugin-dialog@2.7.2)(dexie@4.4.4)(jszip@3.10.1)(pinia@3.0.4(typescript@6.0.3)(vue@3.5.40(typescript@6.0.3)))(vue@3.5.40(typescript@6.0.3))
 
   packages/entity-core:
     dependencies:
@@ -450,6 +450,9 @@ importers:
       '@tauri-apps/plugin-dialog':
         specifier: ^2.7.1
         version: 2.7.2
+      '@worldsmith/agent-runtime':
+        specifier: link:../agent-runtime
+        version: link:../agent-runtime
       '@worldsmith/perf-kit':
         specifier: file:../perf-kit
         version: link:../perf-kit
@@ -470,7 +473,7 @@ importers:
     dependencies:
       '@worldsmith/entity-core':
         specifier: file:../entity-core
-        version: link:../entity-core
+        version: file:packages/entity-core(@tauri-apps/api@2.11.1)(@tauri-apps/plugin-dialog@2.7.2)(dexie@4.4.4)(jszip@3.10.1)(pinia@3.0.4(typescript@6.0.3)(vue@3.5.40(typescript@6.0.3)))(vue@3.5.40(typescript@6.0.3))
       jszip:
         specifier: ^3.10.1
         version: 3.10.1
@@ -507,7 +510,7 @@ importers:
     dependencies:
       '@worldsmith/entity-core':
         specifier: file:../entity-core
-        version: link:../entity-core
+        version: file:packages/entity-core(@tauri-apps/api@2.11.1)(@tauri-apps/plugin-dialog@2.7.2)(dexie@4.4.4)(jszip@3.10.1)(pinia@3.0.4(typescript@6.0.3)(vue@3.5.40(typescript@6.0.3)))(vue@3.5.40(typescript@6.0.3))
       '@worldsmith/ui-kit':
         specifier: file:../ui-kit
         version: link:../ui-kit
@@ -522,7 +525,7 @@ importers:
         version: link:../agent-runtime
       '@worldsmith/entity-core':
         specifier: file:../entity-core
-        version: link:../entity-core
+        version: file:packages/entity-core(@tauri-apps/api@2.11.1)(@tauri-apps/plugin-dialog@2.7.2)(dexie@4.4.4)(jszip@3.10.1)(pinia@3.0.4(typescript@6.0.3)(vue@3.5.40(typescript@6.0.3)))(vue@3.5.40(typescript@6.0.3))
       '@worldsmith/motion-kit':
         specifier: file:../motion-kit
         version: link:../motion-kit
@@ -568,7 +571,7 @@ importers:
         version: link:../canvas-engine
       '@worldsmith/entity-core':
         specifier: file:../entity-core
-        version: link:../entity-core
+        version: file:packages/entity-core(@tauri-apps/api@2.11.1)(@tauri-apps/plugin-dialog@2.7.2)(dexie@4.4.4)(jszip@3.10.1)(pinia@3.0.4(typescript@6.0.3)(vue@3.5.40(typescript@6.0.3)))(vue@3.5.40(typescript@6.0.3))
       '@worldsmith/font-kit':
         specifier: file:../font-kit
         version: link:../font-kit
@@ -1772,6 +1775,26 @@ packages:
 
   '@windfonts/chinese-fonts@1.0.22':
     resolution: {integrity: sha512-lrvyBmV0R0nUZ4ckPGjmwTXo+/LWgpPc8ET0i3mHzHL1VeG2I87+iXsHR7BrsF21ixJVkbxFpxsO6qtlFvTcKw==}
+
+  '@worldsmith/entity-core@file:packages/entity-core':
+    resolution: {directory: packages/entity-core, type: directory}
+    peerDependencies:
+      '@tauri-apps/api': ^2.11.0
+      '@tauri-apps/plugin-dialog': ^2.7.1
+      jszip: ^3.10.1
+      pinia: ^3.0.4
+      vue: ^3.5.32
+
+  '@worldsmith/perf-kit@file:packages/perf-kit':
+    resolution: {directory: packages/perf-kit, type: directory}
+    peerDependencies:
+      dexie: ^4.0
+      vue: ^3.4
+
+  '@worldsmith/theme-kit@file:packages/theme-kit':
+    resolution: {directory: packages/theme-kit, type: directory}
+    peerDependencies:
+      vue: ^3.5.0
 
   '@xmldom/xmldom@0.8.13':
     resolution: {integrity: sha512-KRYzxepc14G/CEpEGc3Yn+JKaAeT63smlDr+vjB8jRfgTBBI9wRj/nkQEO+ucV8p8I9bfKLWp37uHgFrbntPvw==}
@@ -4281,6 +4304,28 @@ snapshots:
       vue: 3.5.40(typescript@6.0.3)
 
   '@windfonts/chinese-fonts@1.0.22': {}
+
+  '@worldsmith/entity-core@file:packages/entity-core(@tauri-apps/api@2.11.1)(@tauri-apps/plugin-dialog@2.7.2)(dexie@4.4.4)(jszip@3.10.1)(pinia@3.0.4(typescript@6.0.3)(vue@3.5.40(typescript@6.0.3)))(vue@3.5.40(typescript@6.0.3))':
+    dependencies:
+      '@tauri-apps/api': 2.11.1
+      '@tauri-apps/plugin-dialog': 2.7.2
+      '@worldsmith/agent-runtime': link:../agent-runtime
+      '@worldsmith/perf-kit': file:packages/perf-kit(dexie@4.4.4)(vue@3.5.40(typescript@6.0.3))
+      '@worldsmith/theme-kit': file:packages/theme-kit(vue@3.5.40(typescript@6.0.3))
+      jszip: 3.10.1
+      pinia: 3.0.4(typescript@6.0.3)(vue@3.5.40(typescript@6.0.3))
+      vue: 3.5.40(typescript@6.0.3)
+    transitivePeerDependencies:
+      - dexie
+
+  '@worldsmith/perf-kit@file:packages/perf-kit(dexie@4.4.4)(vue@3.5.40(typescript@6.0.3))':
+    dependencies:
+      dexie: 4.4.4
+      vue: 3.5.40(typescript@6.0.3)
+
+  '@worldsmith/theme-kit@file:packages/theme-kit(vue@3.5.40(typescript@6.0.3))':
+    dependencies:
+      vue: 3.5.40(typescript@6.0.3)
 
   '@xmldom/xmldom@0.8.13': {}
 

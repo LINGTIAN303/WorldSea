@@ -19,10 +19,16 @@
     "paths": {
       "@agent": ["./src/index.ts"],
       "@agent/*": ["./src/*"],
+      "@worldsmith/agent-runtime": ["./src/index.ts"],
+      "@worldsmith/agent-runtime/*": ["./src/*"],
       "@worldsmith/agent-core": ["../agent-core/src/index.ts"],
       "@worldsmith/agent-core/*": ["../agent-core/src/*"],
       "@worldsmith/governor-core": ["../governor-core/src/index.ts"],
-      "@worldsmith/governor-core/*": ["../governor-core/src/*"]
+      "@worldsmith/governor-core/*": ["../governor-core/src/*"],
+      "@worldsmith/entity-core": ["../entity-core/src/index.ts"],
+      "@worldsmith/entity-core/*": ["../entity-core/src/*"],
+      "@worldsmith/canvas-engine": ["../canvas-engine/src/index.ts"],
+      "@worldsmith/canvas-engine/*": ["../canvas-engine/src/*"]
     }
   },
   "include": ["src/**/*.ts"]

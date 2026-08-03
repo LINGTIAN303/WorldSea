@@ -7,14 +7,11 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "outDir": "dist",
-    "rootDir": "src",
-    "composite": true,
-    "tsBuildInfoFile": "./dist/.tsbuildinfo",
-    "types": []
+    "types": [],
+    "paths": {
+      "@worldsmith/agent-runtime": ["../agent-runtime/src/index.ts"],
+      "@worldsmith/agent-runtime/*": ["../agent-runtime/src/*"]
+    }
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist", "**/__tests__/**", "**/*.spec.ts"]

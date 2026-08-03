@@ -21,7 +21,7 @@ export function useSessionCleanup() {
   const remindMessage = ref('')
 
   async function refreshCount(): Promise<void> {
-    const { countSessions } = await import('@agent/session/manager')
+    const { countSessions } = await import('@worldsmith/agent-runtime/session/manager')
     const count = await countSessions()
     state.value.sessionCount = count
     state.value.isNearLimit = count >= REMIND_THRESHOLD
@@ -53,7 +53,7 @@ export function useSessionCleanup() {
     await refreshCount()
     if (state.value.sessionCount < SESSION_LIMIT) return
 
-    const { listSessions, deleteSession } = await import('@agent/session/manager')
+    const { listSessions, deleteSession } = await import('@worldsmith/agent-runtime/session/manager')
     const sessions = await listSessions()
     const unpinned = sessions.filter((s: any) => !s.pinned)
     if (unpinned.length === 0) {
@@ -69,7 +69,7 @@ export function useSessionCleanup() {
   }
 
   async function pinSession(id: string): Promise<void> {
-    const { pinSession: dbPin } = await import('@agent/session/manager')
+    const { pinSession: dbPin } = await import('@worldsmith/agent-runtime/session/manager')
     await dbPin(id)
     getToastApi().success('已收藏该会话')
   }
@@ -89,7 +89,7 @@ export function useSessionCleanup() {
     })
     if (!ok) return false
 
-    const { unpinSession: dbUnpin } = await import('@agent/session/manager')
+    const { unpinSession: dbUnpin } = await import('@worldsmith/agent-runtime/session/manager')
     await dbUnpin(id)
     getToastApi().success('已取消收藏')
     return true
