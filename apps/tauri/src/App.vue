@@ -3,6 +3,7 @@
 import { ref, onMounted } from 'vue'
 import { A2UIRenderer } from '@worldsmith/shared-ui'
 import { provideAgentBackend, useAgentRust } from './agent/composables/useAgentRust'
+import TerminalView from './terminal/components/TerminalView.vue'
 
 // 在 setup 上下文注入（useAgent 使用 inject 模式，须在组件内 provide）
 const backend = useAgentRust()
@@ -17,6 +18,9 @@ function onA2UIAction(_surfaceId: string, action: { name: string; data?: any }) 
 const input = ref('')
 const sending = ref(false)
 const error = ref('')
+
+/** 当前视图：chat（对话） / terminal（终端） */
+const view = ref<'chat' | 'terminal'>('chat')
 
 /** 发送消息：走 useAgentRust.prompt → invoke('send_message') → Rust ReAct 循环 */
 async function send() {
@@ -46,6 +50,19 @@ onMounted(async () => {
 
 <template>
   <div class="app">
+    <!-- 顶部视图切换 -->
+    <nav class="tabs">
+      <button :class="{ active: view === 'chat' }" @click="view = 'chat'">对话</button>
+      <button :class="{ active: view === 'terminal' }" @click="view = 'terminal'">终端</button>
+    </nav>
+
+    <!-- 终端视图（全宽） -->
+    <div v-if="view === 'terminal'" class="terminal-holder">
+      <TerminalView />
+    </div>
+
+    <!-- 对话视图 -->
+    <div v-else class="chat-wrap">
     <aside class="sidebar">
       <h2>会话</h2>
       <div v-if="backend.sessionList.length === 0" class="empty">暂无会话</div>
@@ -56,7 +73,7 @@ onMounted(async () => {
           :class="{ active: s.id === backend.currentSessionId }"
           @click="backend.switchSession(s.id)"
         >
-          {{ s.id.slice(0, 8) }}
+          {{ (s.id ?? '').slice(0, 8) }}
           <span class="count">{{ s.message_count }}</span>
         </li>
       </ul>
@@ -107,14 +124,45 @@ onMounted(async () => {
         </button>
       </footer>
     </main>
+    </div>
   </div>
 </template>
 
 <style scoped>
 .app {
   display: flex;
+  flex-direction: column;
   height: 100vh;
   font-family: system-ui, -apple-system, sans-serif;
+}
+.tabs {
+  display: flex;
+  gap: 4px;
+  padding: 8px 16px;
+  border-bottom: 1px solid #e5e5e5;
+  background: #fafafa;
+}
+.tabs button {
+  padding: 5px 16px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 13px;
+  color: #666;
+  cursor: pointer;
+}
+.tabs button.active {
+  background: #1a73e8;
+  color: #fff;
+}
+.terminal-holder {
+  flex: 1;
+  min-height: 0;
+}
+.chat-wrap {
+  flex: 1;
+  display: flex;
+  min-height: 0;
 }
 .sidebar {
   width: 220px;

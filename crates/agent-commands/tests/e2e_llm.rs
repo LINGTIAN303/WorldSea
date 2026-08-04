@@ -22,9 +22,9 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-use agent_commands::{AgentCommandService, SendMessageParams};
+use agent_commands::{AgentCommandService, SendMessageParams, register_terminal_tools};
 use agent_runtime::agent::{AgentError, AgentLoop, AgentLoopConfig};
-use agent_runtime::backend::NodeBackendAccessor;
+use agent_runtime::backend::{NodeBackendAccessor, PromptCallOptions};
 use agent_runtime::event::OrchestratorEvent;
 use agent_runtime::llm::config::ProviderConfig;
 use agent_runtime::llm::GenaiBackend;
@@ -1501,4 +1501,272 @@ async fn e2e_loop_control_integration() {
         "[e2e] LoopControl：综合验证通过 → rate_limit={:?} soft_timeout={:?} watchdog={:?}",
         check_final.rate_limit_exceeded, check_final.soft_timeout_level, check_final.watchdog_alert
     );
+}
+
+// ─── 终端工具全链路 e2e：LLM 真实触发 execute_command ──────────────────────────
+///
+/// 验证"工具注册 → LLM 感知工具 → 触发 execute_command → 命令真实执行 → 结果回填"
+/// 完整链路。注意：此测试走 `AgentLoop + register_terminal_tools`（temperature=0 可控
+/// 性更好），与 `AgentCommandService::new_agent` 内部注册入口等同（同一工具注册函数）。
+#[tokio::test]
+#[ignore = "需要真实 API Key 与网络，按需显式运行"]
+async fn e2e_terminal_tools_full_chain_deepseek() {
+    let Some(api_key) = api_key_from_env() else {
+        eprintln!("[e2e] 未设置 DEEPSEEK_API_KEY，跳过真实 LLM 调用");
+        return;
+    };
+
+    // 1) 构造带终端工具注册的 AgentLoop（复用 AgentCommandService::new_agent 的注册入口）
+    let tool_bus = Arc::new(SimpleToolBus::new());
+    register_terminal_tools(&*tool_bus).await;
+    // 诊断：确认工具已注册到总线（list_all 应返回全部终端工具）
+    {
+        let defs = tool_bus.list_all().await;
+        eprintln!("[e2e] 已注册工具数={}，名称={:?}", defs.len(), defs.iter().map(|d| d.name.clone()).collect::<Vec<_>>());
+        for d in &defs {
+            eprintln!("[e2e]   工具 {}({}) schema={}", d.name, d.description.chars().take(40).collect::<String>(), d.parameters);
+        }
+    }
+    let backend = Arc::new(GenaiBackend::new(deepseek_config(&api_key)));
+    let agent = AgentLoop::new(backend, tool_bus).with_config(AgentLoopConfig {
+        // 参考 e2e_tool_call_chain 经验：deepseek-v4-flash 推理模型需明确指令、
+        // 禁止反问、禁止反复调用工具；temperature=0 保证确定性收敛。
+        system_prompt: Some(
+            "You are a terminal assistant. You MUST call the execute_command tool with \
+             command \"echo terminal-e2e-ok\" to verify the terminal works. After you \
+             receive the tool result, answer the user directly and do NOT call \
+             execute_command again. Never ask for clarification, never fabricate output."
+                .into(),
+        ),
+        temperature: Some(0.0),
+        ..Default::default()
+    });
+
+    // 2) 触发 ReAct 循环：LLM 应调用 execute_command 执行 echo
+    let reply = match agent.run("Please run the terminal check now.".into()).await {
+        Ok(r) => r,
+        Err(e) => {
+            // 诊断：run 失败（可能 MaxIterations）时仍打印历史，便于观察收敛行为
+            let msgs = agent.get_messages().await;
+            eprintln!("[e2e] run 返回错误：{e:?}");
+            eprintln!("[e2e] === 失败前消息历史（共 {} 条）===", msgs.len());
+            for (i, m) in msgs.iter().enumerate() {
+                eprintln!(
+                    "[e2e] [{i}] role={:?} tool_calls={} content={}",
+                    m.role,
+                    m.tool_calls.len(),
+                    m.content.chars().take(200).collect::<String>()
+                );
+                for tc in &m.tool_calls {
+                    eprintln!("[e2e]     tool_call name={} args={}", tc.name, tc.args);
+                }
+            }
+            // 失败即 fail：避免假通过掩盖真实问题（此前 return 会跳过下方全部断言）
+            panic!("run 返回错误，终端工具全链路未通过: {e:?}");
+        }
+    };
+
+    // 3) 诊断：打印消息历史，观察 LLM 是否真实调用 execute_command
+    {
+        let msgs = agent.get_messages().await;
+        eprintln!("[e2e] === 终端工具消息历史（共 {} 条）===", msgs.len());
+        for (i, m) in msgs.iter().enumerate().take(12) {
+            eprintln!(
+                "[e2e] [{i}] role={:?} tool_calls={} content={}",
+                m.role,
+                m.tool_calls.len(),
+                m.content.chars().take(200).collect::<String>()
+            );
+            for tc in &m.tool_calls {
+                eprintln!("[e2e]     tool_call name={} args={}", tc.name, tc.args);
+            }
+        }
+    }
+
+    // 4) 校验链路：
+    //    - 存在调用 execute_command 的工具调用
+    //    - 消息历史含 ToolResult（触发工具结果回填）
+    //    - ToolResult 内容含命令输出 "terminal-e2e-ok"（命令真实执行）
+    let msgs = agent.get_messages().await;
+    let called_command = msgs.iter().any(|m| {
+        m.tool_calls.iter().any(|tc| tc.name == "execute_command")
+    });
+    assert!(
+        called_command,
+        "LLM 应触发 execute_command 工具调用（终端工具感知失败）"
+    );
+
+    let tool_result = msgs.iter().find(|m| m.role == MessageRole::ToolResult);
+    assert!(
+        tool_result.is_some(),
+        "消息历史应含 ToolResult（终端工具结果未回填）"
+    );
+    assert!(
+        tool_result.unwrap().content.contains("terminal-e2e-ok"),
+        "ToolResult 内容应包含命令输出 terminal-e2e-ok（命令未真实执行）"
+    );
+    assert!(!reply.trim().is_empty(), "最终回复不应为空");
+
+    eprintln!("[e2e] 终端工具全链路：execute_command 被真实调用并回填结果");
+    eprintln!("[e2e] 最终回复：{reply}");
+}
+
+// ─── 子 Agent 编排全链路 e2e：主 Agent 委派给子 Agent ────────────────────────
+///
+/// 验证"规格注册 → 主 Agent 感知 list_sub_agents → 调用 delegate_to_sub_agent →
+/// 子 Agent 独立执行 → 结果回填主 Agent"完整链路。走 `AgentCommandService`，
+/// 与真实 Tauri 后端同一入口。
+#[tokio::test]
+#[ignore = "需要真实 API Key 与网络，按需显式运行"]
+async fn e2e_subagent_orchestration_deepseek() {
+    let Some(api_key) = api_key_from_env() else {
+        eprintln!("[e2e] 未设置 DEEPSEEK_API_KEY，跳过真实 LLM 调用");
+        return;
+    };
+
+    let svc = AgentCommandService::new();
+    // 1) 注册一个子 Agent 规格（代码助手）
+    svc.register_subagent_spec(SubAgentSpec {
+        id: "coder".into(),
+        name: "代码助手".into(),
+        description: "精通 Rust 代码编写，处理算法、函数实现任务".into(),
+        system_prompt: "你是一个严谨的 Rust 代码工程师。请直接给出简洁、正确的代码实现，不做多余解释。".into(),
+        tools_whitelist: None,
+        max_iterations: Some(5),
+    })
+    .await;
+    assert_eq!(svc.list_subagent_specs().await.len(), 1);
+
+    // 2) 创建会话（真实 LLM 后端）
+    let info = svc
+        .new_session(
+            Some(
+                "You are an orchestrator. Use the delegate_to_sub_agent tool to delegate \
+                 coding tasks to a specialist sub-agent. First call list_sub_agents to \
+                 discover available sub-agents, then delegate the task to the 'coder' \
+                 sub-agent. After receiving the sub-agent result, summarize it to the \
+                 user. Never fabricate the result, never ask for clarification."
+                    .into(),
+            ),
+            Some(deepseek_config(&api_key)),
+        )
+        .await
+        .expect("会话创建失败");
+
+    // 3) 触发 ReAct：主 Agent 应委派给 coder 子 Agent
+    let reply = match svc
+        .send_message(SendMessageParams {
+            session_id: info.id.clone(),
+            text: "请写一个 Rust 函数 max，返回两个整数的较大值。".into(),
+            images: vec![],
+            mode: None,
+        })
+        .await
+    {
+        Ok(r) => r,
+        Err(e) => {
+            // 诊断：打印消息历史观察收敛行为
+            if let Ok(msgs) = svc.get_messages(&info.id).await {
+                eprintln!("[e2e] === 消息历史（共 {} 条）===", msgs.len());
+                for (i, m) in msgs.iter().enumerate() {
+                    eprintln!(
+                        "[e2e] [{i}] role={:?} tool_calls={} content={}",
+                        m.role,
+                        m.tool_calls.len(),
+                        m.content.chars().take(150).collect::<String>()
+                    );
+                    for tc in &m.tool_calls {
+                        eprintln!("[e2e]     tool_call name={} args={}", tc.name, tc.args);
+                    }
+                }
+            }
+            panic!("send_message 返回错误，子 Agent 编排未通过: {e:?}");
+        }
+    };
+
+    // 4) 校验：主 Agent 应调用过 delegate_to_sub_agent
+    let msgs = svc.get_messages(&info.id).await.unwrap();
+    let delegated = msgs.iter().any(|m| {
+        m.tool_calls
+            .iter()
+            .any(|tc| tc.name == "delegate_to_sub_agent")
+    });
+    assert!(
+        delegated,
+        "主 Agent 应调用 delegate_to_sub_agent（子 Agent 感知/委派失败）"
+    );
+
+    // 校验：存在 ToolResult（子 Agent 结果回填）
+    let tool_result = msgs.iter().find(|m| m.role == MessageRole::ToolResult);
+    assert!(
+        tool_result.is_some(),
+        "消息历史应含 ToolResult（子 Agent 结果未回填）"
+    );
+    assert!(
+        tool_result.unwrap().content.contains("sub_agent_id"),
+        "ToolResult 应包含子 Agent 结果元数据 (sub_agent_id)"
+    );
+    assert!(!reply.reply.trim().is_empty(), "最终回复不应为空");
+
+    eprintln!("[e2e] 子 Agent 编排全链路：主 Agent 成功委派给子 Agent 并回填结果");
+    eprintln!("[e2e] 最终回复：{}", reply.reply);
+}
+
+// ─── 临时诊断：绕过 AgentLoop，直接调 backend.prompt 带工具，确认 genai 层 tools 是否注入 ──
+#[tokio::test]
+#[ignore = "需要真实 API Key 与网络，按需显式运行"]
+async fn e2e_diag_prompt_with_tools_direct() {
+    let Some(api_key) = api_key_from_env() else {
+        eprintln!("[diag] 未设置 DEEPSEEK_API_KEY，跳过真实 LLM 调用");
+        return;
+    };
+
+    // 构造仅含 execute_command 的工具总线
+    let tool_bus = Arc::new(SimpleToolBus::new());
+    register_terminal_tools(&*tool_bus).await;
+    let defs = tool_bus.list_all().await;
+    let exec = defs
+        .iter()
+        .find(|d| d.name == "execute_command")
+        .expect("应存在 execute_command 工具")
+        .clone();
+    eprintln!("[diag] execute_command schema={}", exec.parameters);
+
+    let backend = GenaiBackend::new(deepseek_config(&api_key));
+
+    // 订阅事件，打印 ToolCallStart 的累积过程（诊断 genai 碎片累积）
+    struct ToolCallDiag;
+    impl agent_runtime::event::EventListener for ToolCallDiag {
+        fn on_event(&self, event: &OrchestratorEvent) {
+            if let OrchestratorEvent::Agent(agent_runtime::event::AgentEvent::ToolCallStart {
+                tool_call_id,
+                name,
+                args,
+            }) = event
+            {
+                eprintln!("[diag:event] ToolCallStart id={} name={:?} args={:?}", tool_call_id, name, args);
+            }
+        }
+    }
+    backend.subscribe_events(Arc::new(ToolCallDiag)).await;
+
+    let opts = PromptCallOptions {
+        system_prompt_override: Some(
+            "You are a terminal assistant. You MUST call the execute_command tool with \
+             command \"echo diag-ok\". Do NOT reply with text, only call the tool first."
+                .into(),
+        ),
+        tools: vec![exec],
+        ..Default::default()
+    };
+    let resp = backend
+        .prompt("Run the terminal check now.".into(), Some(opts))
+        .await
+        .expect("prompt 应成功");
+    eprintln!("[diag] text={:?}", resp.text);
+    eprintln!("[diag] tool_calls.len={}", resp.tool_calls.len());
+    for tc in &resp.tool_calls {
+        eprintln!("[diag]   tool_call name={} args={}", tc.name, tc.args);
+    }
+    eprintln!("[diag] stop_reason={:?}", resp.stop_reason);
 }

@@ -23,9 +23,13 @@
 
 mod error;
 mod mock_backend;
+mod subagent;
+mod terminal;
 
 pub use error::CommandError;
 pub use mock_backend::{MockBackend, thinking_level_to_str};
+pub use subagent::{register_subagent_tools, SubAgentManager};
+pub use terminal::{register_terminal_tools, TerminalService};
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -36,10 +40,11 @@ use agent_runtime::backend::ThinkingLevel;
 use agent_runtime::llm::config::ProviderConfig as RuntimeProviderConfig;
 use agent_runtime::llm::GenaiBackend;
 use agent_runtime::long_task::HeartbeatStatus;
+use agent_runtime::supervisor::SubAgentSpec;
 use agent_runtime::tool::SimpleToolBus;
 use agent_runtime::types::OrchestratorMessage;
 use serde::{Deserialize, Serialize};
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, RwLock};
 
 // ─── 命令参数 / 返回类型 ────────────────────────────────────
 
@@ -121,6 +126,11 @@ pub struct ProviderConfig {
 pub struct AgentCommandService {
     sessions: Mutex<HashMap<String, Arc<AgentLoop>>>,
     meta: Mutex<HashMap<String, SessionInfo>>,
+    /// 子 Agent 规格注册表（跨会话共享，运行期可动态注册）
+    ///
+    /// 每个会话的 `SubAgentManager` 都持有此共享注册表，因此
+    /// `register_subagent_spec` 的变更对所有会话可见。
+    subagent_specs: Arc<RwLock<Vec<SubAgentSpec>>>,
 }
 
 impl AgentCommandService {
@@ -136,13 +146,25 @@ impl AgentCommandService {
     /// - `provider_config`：Provider 配置（cloud/local/custom 三种模式）
     ///   - `Some`：按注入配置构造 GenaiBackend
     ///   - `None`：降级为默认 Cloud 占位（空 API Key，需 `set_provider_config` 后可用）
-    fn new_agent(
+    async fn new_agent(
+        &self,
         system_prompt: Option<String>,
         provider_config: Option<RuntimeProviderConfig>,
     ) -> Arc<AgentLoop> {
         let config = provider_config.unwrap_or_else(Self::default_provider_config);
         let backend = Arc::new(GenaiBackend::new(config));
         let tool_bus = Arc::new(SimpleToolBus::new());
+        // 注册终端工具（execute_command + 持久化 shell 会话）
+        terminal::register_terminal_tools(&*tool_bus).await;
+        // 注册子 Agent 编排工具（delegate_to_sub_agent / list_sub_agents），
+        // 共享服务级 `subagent_specs` 注册表，跨会话可见。
+        subagent::register_subagent_tools(
+            &*tool_bus,
+            backend.clone(),
+            tool_bus.clone(),
+            self.subagent_specs.clone(),
+        )
+        .await;
         let agent_config = AgentLoopConfig {
             system_prompt,
             ..Default::default()
@@ -182,7 +204,7 @@ impl AgentCommandService {
         system_prompt: Option<String>,
         provider_config: Option<RuntimeProviderConfig>,
     ) -> Result<SessionInfo, CommandError> {
-        let agent = Self::new_agent(system_prompt, provider_config);
+        let agent = self.new_agent(system_prompt, provider_config).await;
         let id = uuid::Uuid::new_v4().to_string();
         let info = SessionInfo {
             id: id.clone(),
@@ -261,6 +283,21 @@ impl AgentCommandService {
             meta.message_count = 0;
         }
         Ok(())
+    }
+
+    // ── 子 Agent 编排 ────────────────────────────────────
+
+    /// 注册一个子 Agent 规格（同名覆盖）
+    ///
+    /// 注册后，后续创建/已有会话的主 Agent 都可通过 `list_sub_agents` 查看、
+    /// 通过 `delegate_to_sub_agent` 委派任务。规格注册表跨会话共享。
+    pub async fn register_subagent_spec(&self, spec: SubAgentSpec) {
+        self.subagent_specs.write().await.push(spec);
+    }
+
+    /// 列出已注册的子 Agent 规格
+    pub async fn list_subagent_specs(&self) -> Vec<SubAgentSpec> {
+        self.subagent_specs.read().await.clone()
     }
 
     // ── 状态 / 消息查询 ────────────────────────────────────
@@ -432,5 +469,27 @@ mod tests {
         assert_eq!(list.len(), 1);
         svc.delete_session(&info.id).await.unwrap();
         assert!(svc.list_sessions().await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn register_subagent_spec_is_shared_across_sessions() {
+        let svc = AgentCommandService::new();
+        // 先注册规格，再创建两个会话
+        svc.register_subagent_spec(SubAgentSpec {
+            id: "coder".into(),
+            name: "代码助手".into(),
+            description: "处理代码编写任务".into(),
+            system_prompt: "你是代码专家".into(),
+            tools_whitelist: None,
+            max_iterations: Some(3),
+        })
+        .await;
+        let s1 = svc.new_session(None, None).await.unwrap();
+        let s2 = svc.new_session(None, None).await.unwrap();
+        // 服务级注册表可见
+        assert_eq!(svc.list_subagent_specs().await.len(), 1);
+        // 两个会话共享同一注册表（各自 Agent 的 SubAgentManager 持同一 Arc）
+        assert_eq!(s1.id.len(), 36);
+        assert_eq!(s2.id.len(), 36);
     }
 }

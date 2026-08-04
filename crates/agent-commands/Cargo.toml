@@ -20,13 +20,15 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
 # ── 异步运行时 ──
-tokio = { version = "1", features = ["sync", "macros", "rt", "time"] }
+tokio = { version = "1", features = ["process", "sync", "macros", "rt", "time", "io-util"] }
 async-trait = "0.1"
 
 # ── 工具链 ──
 thiserror = "2"
 uuid = { version = "1", features = ["v4"] }
 chrono = { version = "0.4", features = ["serde"] }
+# 终端工具：清理命令输出中的 ANSI 转义码（对齐 TS 端 execute_command 行为）
+regex = "1"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full", "test-util"] }

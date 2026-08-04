@@ -262,10 +262,18 @@ impl GenaiBackend {
             chat_opts = chat_opts.with_tool_choice(ToolChoice::Auto);
         }
         // 启用捕获（用于 StreamEnd 提取完整内容与用量，以及原始请求体诊断）
+        //
+        // 关键：必须开启 capture_tool_calls。否则 genai 的 OpenAI streamer 在
+        // capture_tool_call 开头直接 return（不累积参数），DeepSeek 流式把工具
+        // 参数拆成多片（后续 chunk 的 id 缺失会退化为 "call_{index}"），导致
+        // 下游按 call_id 去重时把碎片当成多个工具调用（args 为空/半截）。
+        // 开启后 genai 会按 index 累积参数到同一 ToolCall，并在 StreamEnd 时
+        // 将累积的字符串解析为完整 JSON，`end.captured_tool_calls()` 返回权威结果。
         chat_opts = chat_opts
             .with_capture_content(true)
             .with_capture_usage(true)
-            .with_capture_raw_body(true);
+            .with_capture_raw_body(true)
+            .with_capture_tool_calls(true);
 
         Ok((req, chat_opts))
     }

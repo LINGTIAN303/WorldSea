@@ -3,7 +3,7 @@
 // Phase 5.1：注册 agent-commands 命令层，manage 一个 AgentCommandService 实例，
 // 供 WebView 前端 invoke 调用（newSession / sendMessage / abort / ... 14 主链路命令）。
 
-use agent_commands::AgentCommandService;
+use agent_commands::{AgentCommandService, TerminalService};
 use tauri::Manager;
 
 mod commands;
@@ -28,9 +28,18 @@ pub fn run() {
             commands::get_provider_config,
             commands::set_provider_config,
             commands::get_heartbeat,
+            commands::terminal_execute_command,
+            commands::terminal_detect_shells,
+            commands::terminal_create_session,
+            commands::terminal_exec_session,
+            commands::terminal_input_session,
+            commands::terminal_destroy_session,
+            commands::terminal_list_sessions,
         ])
         // Phase 5.1：Agent 命令服务（内部持有 session_id -> Arc<AgentLoop> 映射）
         .manage(AgentCommandService::new())
+        // 终端服务（独立持有 ShellSessionManager，供前端直接调用终端命令）
+        .manage(TerminalService::new())
         .setup(|app| {
             #[cfg(debug_assertions)]
             {

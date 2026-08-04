@@ -15,6 +15,7 @@ dependencies = [
  "agent-runtime",
  "async-trait",
  "chrono",
+ "regex",
  "serde",
  "serde_json",
  "thiserror",

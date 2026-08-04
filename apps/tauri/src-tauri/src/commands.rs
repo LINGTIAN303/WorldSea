@@ -12,7 +12,7 @@
 //! P2 新增：Deep Phase 事件转发 — 订阅 AgentLoop 的 DeepPhaseChanged 事件，
 //! 通过 Tauri 事件系统 `agent:event:deep_phase_changed` 发送到前端。
 
-use agent_commands::{AgentCommandService, SendMessageParams, UpdateModelParams};
+use agent_commands::{AgentCommandService, SendMessageParams, TerminalService, UpdateModelParams};
 use agent_runtime::backend::ThinkingLevel;
 use agent_runtime::event::{OrchestratorEvent, EventListener};
 use agent_runtime::llm::config::ProviderConfig;
@@ -263,4 +263,72 @@ fn parse_thinking_level(level: &str) -> Result<ThinkingLevel, String> {
         "xhigh" => Ok(ThinkingLevel::Xhigh),
         other => Err(format!("未知思考级别: {other}")),
     }
+}
+
+// ─── 终端（terminal）命令 ───────────────────────────────────
+//
+// 直接暴露终端工具给前端，与 Agent 工具总线解耦：
+// 前端调用 `terminal_execute_command` / `terminal_*_session` 即可
+// 执行命令、管理持久化 Shell 会话，无需经过 AgentLoop。
+// 参数为 serde_json::Value，键名与工具参数一致（snake_case）。
+
+/// 单次命令执行
+#[tauri::command]
+pub async fn terminal_execute_command(
+    state: State<'_, TerminalService>,
+    args: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    state.execute_command(args).await.map_err(|e| e.to_string())
+}
+
+/// 检测可用 Shell
+#[tauri::command]
+pub async fn terminal_detect_shells(
+    state: State<'_, TerminalService>,
+) -> Result<serde_json::Value, String> {
+    state.detect_shells().await.map_err(|e| e.to_string())
+}
+
+/// 创建持久化 Shell 会话
+#[tauri::command]
+pub async fn terminal_create_session(
+    state: State<'_, TerminalService>,
+    args: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    state.create_session(args).await.map_err(|e| e.to_string())
+}
+
+/// 在持久化会话中执行命令
+#[tauri::command]
+pub async fn terminal_exec_session(
+    state: State<'_, TerminalService>,
+    args: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    state.exec_session(args).await.map_err(|e| e.to_string())
+}
+
+/// 向持久化会话发送交互输入
+#[tauri::command]
+pub async fn terminal_input_session(
+    state: State<'_, TerminalService>,
+    args: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    state.input_session(args).await.map_err(|e| e.to_string())
+}
+
+/// 销毁持久化会话
+#[tauri::command]
+pub async fn terminal_destroy_session(
+    state: State<'_, TerminalService>,
+    args: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    state.destroy_session(args).await.map_err(|e| e.to_string())
+}
+
+/// 列出持久化会话
+#[tauri::command]
+pub async fn terminal_list_sessions(
+    state: State<'_, TerminalService>,
+) -> Result<serde_json::Value, String> {
+    state.list_sessions().await.map_err(|e| e.to_string())
 }
