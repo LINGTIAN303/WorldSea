@@ -141,10 +141,19 @@
    > - 验证：10 项 e2e 实测全部通过（`e2e_llm.rs`，`--ignored`），`cargo test --no-run` 编译无警告。
 
 3. **高级能力补齐**（按顺序全做）
-   - deep phases（深度模式）：`deep_phases` 模块接入 UI（DeepMessageArea 已共享）。
-   - A2UI：`a2ui` 模块的组件/事件渲染到前端。
-   - 终端能力：terminal 命令接入。
-   - 子 Agent：sub-agent 编排接入。
+   - deep phases（深度模式）：`deep_phases` 模块接入 UI（DeepMessageArea 已共享）。✅ 已完成（前端 phase_completed 归属修复见 2026-08-05 session）
+   - A2UI：`a2ui` 模块的组件/事件渲染到前端。✅ 已完成（Tauri 事件转发 `agent:event:a2ui:{session_id}` + a2uiSurfaces 渲染，见 2026-08-05 session）
+   - 终端能力：terminal 命令接入。✅ 已完成（详见下方实测记录）
+   - 子 Agent：sub-agent 编排接入。⏳ 待推进
+
+   > **终端能力实测记录（2026-08-05）**：`e2e_terminal_tools_full_chain_deepseek`
+   > - 范围：7 个工具（`execute_command` + 持久化 shell 会话 `detect_shells`/`shell_session_create`/`shell_session_exec`/`shell_session_input`/`shell_session_destroy`/`shell_session_list`），共享全局 `ShellSessionManager`（Arc<Mutex<HashMap>>）保持跨会话状态。
+   > - 结果：✅ 通过。execute_command 被真实调用并回填结果，消息历史 5 条 system→user→assistant(tool_calls args={"command":"echo terminal-e2e-ok"})→ToolResult({"stdout":"terminal-e2e-ok","exit_code":0})→assistant(最终回复)。
+   > - **风险点修复（genai 流式工具参数解析缺陷）**：
+   >   - 现象：LLM 已触发 execute_command，但参数为空（`args=""`）或半截（`args="}"`）。诊断（`e2e_diag_prompt_with_tools_direct` + 订阅 ToolCallStart）确认 DeepSeek 流式把工具参数拆成多片，后续 chunk 的 id 缺失会退化为 `call_{index}`，导致 genai_backend 按 call_id 去重时把碎片当多个工具调用。
+   >   - 根因：`genai_backend.rs` 的 `build_chat_request` 未开启 `capture_tool_calls`，genai OpenAI streamer 的 `capture_tool_call` 开头直接 `return`（不累积参数）。
+   >   - 修复：在 `chat_opts` 链式调用中加 `.with_capture_tool_calls(true)`。开启后 genai 按 index 累积参数到同一 ToolCall，StreamEnd 时把累积字符串解析为完整 JSON，`end.captured_tool_calls()` 返回权威结果（backend 已优先使用）。
+   >   - 验证：诊断测试 tool_calls.len=1、args 正确解析为 `{"command":"echo diag-ok"}`；全链路测试通过；agent-commands lib 10 + integration 1、agent-runtime lib 154 全部通过，无回归。
 
 4. **收尾**
    - 更新 `CHANGELOG.md`（版本号 + 变更摘要 + 时间）。
