@@ -46,11 +46,7 @@ export type ChatMode = 'normal' | 'deep' | 'explore' | 'task' | 'group-chat'
 /** 深度模式段类型 */
 export type DeepSegmentType = 'thinking' | 'tooling' | 'output'
 
-/** Block 交互事件（与原 emits.blockAction 一致） */
-export interface BlockActionEvent {
-  blockId: string
-  action: string
-  data?: Record<string, unknown>
-}
+/** Block 交互事件（复用 blocks 定义，避免两处重复导出冲突） */
+export type { BlockActionEvent } from '../blocks'
 
 export type { ToolCallView }

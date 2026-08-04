@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Phase 5.2：注入 Tauri 端 Agent Backend（Rust 命令层），验证「前端 → IPC → Rust → 响应」链路
 import { ref, onMounted } from 'vue'
-import { A2UIRenderer } from '@worldsmith/shared-ui/agent/a2ui'
+import { A2UIRenderer } from '@worldsmith/shared-ui'
 import { provideAgentBackend, useAgentRust } from './agent/composables/useAgentRust'
 
 // 在 setup 上下文注入（useAgent 使用 inject 模式，须在组件内 provide）
