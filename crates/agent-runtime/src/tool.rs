@@ -579,6 +579,7 @@ mod tests {
 /// 测试用占位工具 — 用于验证白名单过滤（不被白名单包含时不可见）
 struct PlaceholderTool(&'static str);
 
+#[cfg(test)]
 #[async_trait]
 impl Tool for PlaceholderTool {
     fn name(&self) -> &str {

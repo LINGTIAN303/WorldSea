@@ -1840,6 +1840,127 @@ async fn e2e_subagent_terminal_whitelist_deepseek() {
     eprintln!("[e2e] 最终回复：{}", reply.reply);
 }
 
+// ─── 多子 Agent 编排 e2e：验证主 Agent 能在多个专长子 Agent 间正确择路 ──
+///
+/// 与 `e2e_subagent_orchestration_deepseek`（单子 Agent）不同，本测试注册
+/// 两个专长子 Agent（code 代码助手 / write 写作助手），验证主 Agent 在多个
+/// 子 Agent 中能依据任务类型正确选择目标：给定一个明确的"写代码"任务，
+/// 主 Agent 应调用 `delegate_to_sub_agent` 且 `sub_agent_id == "code"`。
+#[tokio::test]
+#[ignore = "需要真实 API Key 与网络，按需显式运行"]
+async fn e2e_subagent_multi_dispatch_deepseek() {
+    let Some(api_key) = api_key_from_env() else {
+        eprintln!("[e2e] 未设置 DEEPSEEK_API_KEY，跳过真实 LLM 调用");
+        return;
+    };
+
+    let svc = AgentCommandService::new();
+    // 1) 注册两个专长子 Agent（code / write）
+    svc.register_subagent_spec(SubAgentSpec {
+        id: "code".into(),
+        name: "代码助手".into(),
+        description: "精通 Rust 编程，负责编写与实现代码".into(),
+        system_prompt: "你是一个严谨的 Rust 代码工程师。直接给出简洁正确的代码实现，不做多余解释。".into(),
+        tools_whitelist: None,
+        max_iterations: Some(5),
+    })
+    .await;
+    svc.register_subagent_spec(SubAgentSpec {
+        id: "write".into(),
+        name: "写作助手".into(),
+        description: "精通中文写作，负责撰写文案、故事、说明".into(),
+        system_prompt: "你是一个中文写作专家。产出通顺、有文采的文字。".into(),
+        tools_whitelist: None,
+        max_iterations: Some(5),
+    })
+    .await;
+    assert_eq!(svc.list_subagent_specs().await.len(), 2);
+
+    // 2) 创建会话（真实 LLM 后端），系统提示明确两个子 Agent 的择路映射
+    let info = svc
+        .new_session(
+            Some(
+                "You are an orchestrator with two specialists. Use list_sub_agents to \
+                 discover them, then delegate_to_sub_agent with the matching sub_agent_id: \
+                 use sub_agent_id='code' for coding tasks, sub_agent_id='write' for writing \
+                 tasks. After receiving the sub-agent result, summarize it to the user. \
+                 Never fabricate the result."
+                    .into(),
+            ),
+            Some(deepseek_config(&api_key)),
+        )
+        .await
+        .expect("会话创建失败");
+
+    // 3) 触发 ReAct：给定一个明确的"写代码"任务，主 Agent 应择路委派给 code
+    let reply = match svc
+        .send_message(SendMessageParams {
+            session_id: info.id.clone(),
+            text: "请委派给合适的子 Agent：写一个 Rust 函数 add，返回两个整数之和。".into(),
+            images: vec![],
+            mode: None,
+        })
+        .await
+    {
+        Ok(r) => r,
+        Err(e) => {
+            if let Ok(msgs) = svc.get_messages(&info.id).await {
+                eprintln!("[e2e] === 消息历史（共 {} 条）===", msgs.len());
+                for (i, m) in msgs.iter().enumerate() {
+                    eprintln!(
+                        "[e2e] [{i}] role={:?} tool_calls={} content={}",
+                        m.role,
+                        m.tool_calls.len(),
+                        m.content.chars().take(150).collect::<String>()
+                    );
+                    for tc in &m.tool_calls {
+                        eprintln!("[e2e]     tool_call name={} args={}", tc.name, tc.args);
+                    }
+                }
+            }
+            panic!("send_message 返回错误，多子 Agent 编排未通过: {e:?}");
+        }
+    };
+
+    // 4) 校验：主 Agent 应调用过 delegate_to_sub_agent，且委派给 code（择路正确）
+    let msgs = svc.get_messages(&info.id).await.unwrap();
+    let mut delegated_to: Option<String> = None;
+    for m in &msgs {
+        for tc in &m.tool_calls {
+            if tc.name == "delegate_to_sub_agent" {
+                if let Some(id) = tc.args.get("sub_agent_id").and_then(|x| x.as_str()) {
+                    delegated_to = Some(id.to_string());
+                }
+            }
+        }
+    }
+    assert!(
+        delegated_to.is_some(),
+        "主 Agent 应调用 delegate_to_sub_agent（多子 Agent 择路委派失败）"
+    );
+    assert_eq!(
+        delegated_to.as_deref(),
+        Some("code"),
+        "写代码任务应择路委派给 code 子 Agent（实际委派给：{:?}）",
+        delegated_to
+    );
+
+    // 5) 校验：子 Agent 结果回填 + 最终回复非空
+    let tool_result = msgs.iter().find(|m| m.role == MessageRole::ToolResult);
+    assert!(
+        tool_result.is_some(),
+        "消息历史应含 ToolResult（子 Agent 结果未回填）"
+    );
+    assert!(
+        tool_result.unwrap().content.contains("sub_agent_id"),
+        "ToolResult 应包含子 Agent 结果元数据 (sub_agent_id)"
+    );
+    assert!(!reply.reply.trim().is_empty(), "最终回复不应为空");
+
+    eprintln!("[e2e] 多子 Agent 编排：主 Agent 在 code/write 中正确择路委派给 code");
+    eprintln!("[e2e] 最终回复：{}", reply.reply);
+}
+
 // ─── 临时诊断：绕过 AgentLoop，直接调 backend.prompt 带工具，确认 genai 层 tools 是否注入 ──
 #[tokio::test]
 #[ignore = "需要真实 API Key 与网络，按需显式运行"]

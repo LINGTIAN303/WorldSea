@@ -217,3 +217,15 @@
 **代价**：需要真实 API Key + 网络，`#[ignore]` 不参与常规 CI，按需显式运行。
 
 **验证（2026-08-05）**：`cargo test -p agent-commands --test e2e_llm e2e_subagent_terminal_whitelist_deepseek -- --ignored --nocapture` 通过。日志确认：主 Agent 委派给 sandbox → 子 Agent 经 WhitelistToolBus 调用 `execute_command` 成功 → 最终回复回显命令输出 `whitelist-e2e-ok`。子 Agent 工具白名单在真实 LLM 链路下隔离生效。
+
+### 决策点 19：多子 Agent 编排 e2e（真实 LLM 链路）通过
+
+**背景**：既有 `e2e_subagent_orchestration_deepseek` 只覆盖单个子 Agent。本决策点补充**多个专长子 Agent 间的择路委派**实测，验证主 Agent 在多个子 Agent 中能依据任务类型正确选择目标。
+
+**选择**：新增 `e2e_subagent_multi_dispatch_deepseek`（`crates/agent-commands/tests/e2e_llm.rs`，`#[ignore]`），注册两个专长子 Agent（`code` 代码助手 / `write` 写作助手），主 Agent system prompt 明确择路映射（code 任务→code，写作→write）。给定一个明确的写代码任务，断言主 Agent 调用了 `delegate_to_sub_agent` 且 `sub_agent_id == "code"`（从 `ToolCall.args` 的 `serde_json::Value` 直接 `.get("sub_agent_id")` 解析，无需反序列化）。
+
+**理由**：单子 Agent 测试无法证明"择路"能力——多子 Agent 场景下主 Agent 可能滥用任意子 Agent。本测试验证编排层在存在多个候选时仍能正确路由。
+
+**代价**：真实 LLM 择路存在不确定性，依赖 system prompt 明确映射 + `temperature=0` 提高稳定性；`#[ignore]` 不参与常规 CI。
+
+**验证（2026-08-05）**：通过。主 Agent 在 code/write 中正确择路委派给 code，子 Agent 返回 Rust `add(a,b)->a+b` 实现，主 Agent 汇总输出。agent-commands lib 17、agent-runtime lib 157 无回归。**附带修复**：`tool.rs` 的 `PlaceholderTool` 此前仅 struct 加 `#[cfg(test)]`，其 `impl Tool` 块未加，导致 e2e_llm 编译（agent-runtime 作为非测试依赖编译）时报"找不到类型"——给 impl 块补 `#[cfg(test)]` 修复。
