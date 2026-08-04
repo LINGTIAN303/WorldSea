@@ -106,8 +106,17 @@
 
    > **主链路实测记录（2026-08-04）**：`crates/agent-commands/tests/e2e_llm.rs`
    > - 运行：`$env:DEEPSEEK_API_KEY="sk-xxx"; cargo test --test e2e_llm -- --ignored --nocapture`
-   > - 结果：✅ 通过（1.36s）。会话创建成功、Provider 回显正确（deepseek / deepseek-v4-flash / https://api.deepseek.com）、真实回复非空（`好的，我是测试助手…`）、消息数 3。
+   > - 结果：✅ 通过。会话创建成功、Provider 回显正确（deepseek / deepseek-v4-flash / https://api.deepseek.com）、真实回复非空、消息数 3。
    > - 设计：API Key 仅从环境变量 `DEEPSEEK_API_KEY` 读取，禁止硬编码；测试 `#[ignore]` 不参与常规 CI。
+
+   > **工具调用链路实测记录（2026-08-04）**：`e2e_tool_call_chain_deepseek`
+   > - 结果：✅ 通过。ReAct 循环完整走通"LLM 触发 → 工具执行 → 结果回填 → 最终回复"。
+   > - 消息历史 6 条：system → user → assistant(tool_calls) → tool result → assistant(最终回答)。
+   > - **修复的风险点**（2026-08-04 commit 7d538a2）：
+   >   - `agent.rs`：每次 LLM 调用前把 `state.messages` 同步到 backend。此前传空 prompt，真实 user/system 消息从未传给 LLM → 工具调用不触发。
+   >   - `genai_backend.rs`：Assistant 消息含 tool_calls 时合并为 `ContentPart` 多部分消息。此前丢弃 tool_calls → "Messages with role 'tool' must be a response to a preceding message with 'tool_calls'" 被拒。
+   >   - `temperature=0` 保证确定性：推理模型默认温度下会因 "MUST call" 强指令反复调用工具直至撞 `max_iterations`。
+   > - 临时诊断文件（`diag_raw_body.rs` / `req_tool.json` / `req_tool_stream.json`）已删除，相关 genai/futures-util dev-deps 已回退。
 
 3. **高级能力补齐**（按顺序全做）
    - deep phases（深度模式）：`deep_phases` 模块接入 UI（DeepMessageArea 已共享）。
