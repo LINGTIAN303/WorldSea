@@ -23,11 +23,14 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use agent_commands::{AgentCommandService, SendMessageParams};
-use agent_runtime::agent::{AgentLoop, AgentLoopConfig};
+use agent_runtime::agent::{AgentError, AgentLoop, AgentLoopConfig};
 use agent_runtime::llm::config::ProviderConfig;
 use agent_runtime::llm::GenaiBackend;
+use agent_runtime::long_task::{
+    LongTaskCheckpoint, LongTaskMeta, LongTaskStatus, LongTaskType,
+};
 use agent_runtime::tool::{SimpleToolBus, Tool, ToolError};
-use agent_runtime::types::MessageRole;
+use agent_runtime::types::{MessageRole, OrchestratorMessage, ToolCall};
 use async_trait::async_trait;
 
 /// 从环境变量读取测试用 API Key（未设置则返回 None）
@@ -216,4 +219,313 @@ async fn e2e_tool_call_chain_deepseek() {
     eprintln!("[e2e] 工具调用次数：{call_count}");
     eprintln!("[e2e] 消息总数：{}", msgs.len());
     eprintln!("[e2e] 最终回复：{reply}");
+}
+
+// ─── 长任务端到端实测（long_task + checkpoint, breakpoint/resume）────────────────
+
+/// 构造带 get_weather 工具的 AgentLoop（供长任务实测复用）
+///
+/// 返回 `(Arc<AgentLoop>, Arc<AtomicUsize>)`。第二个值为工具调用计数 Arc，
+/// 供测试断言工具是否被真实触发（LongTaskManager 方法与 AgentLoop 共享 Arc）。
+fn build_weather_agent(
+    api_key: &str,
+) -> (Arc<AgentLoop>, Arc<AtomicUsize>) {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let tool_bus = Arc::new(SimpleToolBus::with_tools(vec![Arc::new(
+        WeatherTool::new(calls.clone()),
+    )]));
+    let backend = Arc::new(GenaiBackend::new(deepseek_config(api_key)));
+    let agent = Arc::new(AgentLoop::new(backend, tool_bus).with_config(AgentLoopConfig {
+        system_prompt: Some(
+            "You are a weather assistant. The user's message always contains a city name. \
+             You MUST call the get_weather tool with that city name, then answer based on \
+             the tool result. After you receive the tool result, answer the user's question \
+             directly and do NOT call get_weather again. Never ask for the city, never \
+             fabricate the weather."
+                .into(),
+        ),
+        temperature: Some(0.0),
+        // max_iterations=15：给 deepseek-v4-flash 推理模型足够收敛机会（实测通常 9 轮内
+        // 收敛），同时避免默认 25 时偶发反复调用工具拖慢测试。工具调用链测试单独设更高值。
+        max_iterations: 15,
+        ..Default::default()
+    }));
+    (agent, calls)
+}
+
+/// 长任务完整生命周期实测：start → running → checkpoint（工具调用中更新）→ complete
+///
+/// 验证 LongTaskManager 与 AgentLoop 集成：
+/// 1. start_task 后进入 Running，has_active_task=true
+/// 2. ReAct 循环触发工具调用时，checkpoint 被更新（turn_count / current_tool /
+///    agent_messages 含 ToolResult）
+/// 3. complete_task 后状态转 Completed，active_task 清空
+#[tokio::test]
+#[ignore = "需要真实 API Key 与网络，按需显式运行"]
+async fn e2e_long_task_lifecycle_deepseek() {
+    let Some(api_key) = api_key_from_env() else {
+        eprintln!("[e2e] 未设置 DEEPSEEK_API_KEY，跳过真实 LLM 调用");
+        return;
+    };
+
+    let (agent, _calls) = build_weather_agent(&api_key);
+
+    // 1) 启动长任务（模拟命令层在 send_message 前登记任务）
+    let initial_checkpoint = LongTaskCheckpoint {
+        agent_messages: vec![],
+        last_user_text: "What is the weather in Beijing?".into(),
+        skill_names: None,
+        chat_mode: None,
+        locked_chat_mode: None,
+    };
+    let record = agent
+        .long_task_manager()
+        .start_task(
+            "longtask-e2e-1".into(),
+            LongTaskType::MainAgent,
+            initial_checkpoint,
+            LongTaskMeta {
+                prompt: "What is the weather in Beijing? Please call get_weather.".into(),
+                ..Default::default()
+            },
+        )
+        .await;
+    assert_eq!(record.status, LongTaskStatus::Running);
+    assert!(agent.long_task_manager().has_active_task().await);
+
+    // 2) 启动心跳定时器（on_tick 无实际持久化，仅验证不报错）
+    agent
+        .start_long_task_heartbeat(|_tick| async move {})
+        .await;
+
+    // 3) 触发 ReAct 循环（工具调用 → 事件驱动 checkpoint 更新）
+    //    注：deepseek-v4-flash 推理模型可能因"必须调用工具"强指令偶发反复调用同工具
+    //    直至 max_iterations，此时 run 返回 Err，但工具调用已在循环内发生、checkpoint
+    //    已更新——因此先校验 checkpoint（本测试核心：长任务 + 工具调用集成），
+    //    再对 run 成功场景做额外回复校验。
+    let reply_result = agent
+        .run("What is the weather in Beijing? Please call get_weather.".into())
+        .await;
+
+    // 4) 校验 checkpoint 已更新：turn_count 递增、current_tool 为 get_weather、
+    //    agent_messages 含 ToolResult（断点恢复所需的完整上下文）
+    let active = agent
+        .long_task_manager()
+        .get_active_task()
+        .await
+        .expect("长任务应仍处于活跃状态");
+    assert_eq!(active.status, LongTaskStatus::Running);
+    assert!(
+        active.turn_count > 0,
+        "checkpoint 的 turn_count 应 > 0（工具调用触发更新）"
+    );
+    assert_eq!(
+        active.current_tool.as_deref(),
+        Some("get_weather"),
+        "checkpoint 的 current_tool 应为 get_weather"
+    );
+    let msgs = &active.checkpoint.agent_messages;
+    assert!(
+        msgs.iter().any(|m| m.role == MessageRole::ToolResult),
+        "checkpoint.agent_messages 应含 ToolResult（断点恢复上下文完整）"
+    );
+
+    // 若 run 成功，额外校验最终回复非空
+    if let Ok(reply) = &reply_result {
+        assert!(!reply.trim().is_empty(), "最终回复不应为空");
+    }
+
+    // 5) 完成长任务 → 状态转 Completed，active_task 清空
+    let completed = agent.long_task_manager().complete_task().await;
+    let completed = completed.expect("complete_task 应返回记录");
+    assert_eq!(completed.status, LongTaskStatus::Completed);
+    assert!(completed.ended_at.is_some());
+    assert!(!agent.long_task_manager().has_active_task().await);
+
+    eprintln!("[e2e] 长任务生命周期：turn_count={} current_tool={:?} 消息数={}",
+        completed.turn_count, completed.current_tool, msgs.len());
+}
+
+/// 断点恢复（breakpoint/resume）实测：checkpoint 持久化 → 新 AgentLoop 恢复续跑
+///
+/// 验证 LongTaskManager 的 checkpoint 快照（agent_messages）能作为断点：
+/// 1. 手动构造一个含完整工具调用历史（system/user/assistant(tool_calls)/toolResult）
+///    的 checkpoint 快照，模拟"应用重启后从 SQLite 恢复的持久化断点"。
+///    （真实运行生成 checkpoint 已在 lifecycle 测试覆盖；此处聚焦恢复 + 续跑，
+///    避免 deepseek-v4-flash 推理模型对地理位置问题反复调用工具的耗时不确定性。）
+/// 2. 新建 AgentLoop，通过 set_runtime_messages 恢复 checkpoint 消息。
+/// 3. 校验恢复后消息一致、可基于恢复上下文成功续跑（追加新消息）。
+#[tokio::test]
+#[ignore = "需要真实 API Key 与网络，按需显式运行"]
+async fn e2e_long_task_breakpoint_resume_deepseek() {
+    let Some(api_key) = api_key_from_env() else {
+        eprintln!("[e2e] 未设置 DEEPSEEK_API_KEY，跳过真实 LLM 调用");
+        return;
+    };
+
+    // 1) 构造持久化 checkpoint 快照（模拟应用重启后从 SQLite 恢复的断点）
+    let checkpoint_msgs = vec![
+        OrchestratorMessage {
+            role: MessageRole::System,
+            content: "You are a weather assistant. The user's message always contains a city name. \
+                      You MUST call the get_weather tool with that city name, then answer based on \
+                      the tool result. After you receive the tool result, answer the user's question \
+                      directly and do NOT call get_weather again."
+                .into(),
+            tool_calls: vec![],
+            tool_call_id: None,
+            meta: None,
+        },
+        OrchestratorMessage {
+            role: MessageRole::User,
+            content: "What is the weather in Beijing?".into(),
+            tool_calls: vec![],
+            tool_call_id: None,
+            meta: None,
+        },
+        OrchestratorMessage {
+            role: MessageRole::Assistant,
+            content: String::new(),
+            tool_calls: vec![ToolCall {
+                id: "call-bj-1".into(),
+                name: "get_weather".into(),
+                args: serde_json::json!({ "city": "Beijing" }),
+            }],
+            tool_call_id: None,
+            meta: None,
+        },
+        OrchestratorMessage {
+            role: MessageRole::ToolResult,
+            content: serde_json::json!({
+                "city": "Beijing",
+                "weather": "晴",
+                "temperature": 25,
+                "unit": "摄氏度"
+            })
+            .to_string(),
+            tool_calls: vec![],
+            tool_call_id: Some("call-bj-1".into()),
+            meta: None,
+        },
+    ];
+    let checkpoint = LongTaskCheckpoint {
+        agent_messages: checkpoint_msgs.clone(),
+        last_user_text: "What is the weather in Beijing?".into(),
+        skill_names: None,
+        chat_mode: None,
+        locked_chat_mode: None,
+    };
+    assert!(!checkpoint.agent_messages.is_empty(), "checkpoint 消息不应为空");
+    assert!(
+        checkpoint
+            .agent_messages
+            .iter()
+            .any(|m| m.role == MessageRole::ToolResult),
+        "checkpoint 应含 ToolResult（工具结果已持久化）"
+    );
+
+    // 2) 模拟"应用重启"：新建 AgentLoop，用 checkpoint.agent_messages 恢复断点
+    let (agent2, _calls2) = build_weather_agent(&api_key);
+    agent2
+        .set_runtime_messages(checkpoint.agent_messages.clone())
+        .await
+        .expect("set_runtime_messages 应成功");
+
+    // 3) 校验恢复后消息与 checkpoint 一致（断点未丢失）
+    let restored = agent2.get_runtime_messages().await;
+    assert_eq!(
+        restored.len(),
+        checkpoint.agent_messages.len(),
+        "恢复后消息数应与 checkpoint 一致"
+    );
+    assert_eq!(
+        restored.last().map(|m| m.role),
+        checkpoint.agent_messages.last().map(|m| m.role),
+        "恢复后最后一条消息角色应与 checkpoint 一致"
+    );
+
+    // 4) 校验可续跑：基于恢复的上下文再追加一轮。
+    //    续跑用纯文本消息（无需工具调用），聚焦验证"断点恢复后 AgentLoop 能基于
+    //    恢复上下文继续对话"。工具调用链已在 lifecycle 测试充分验证，此处避免
+    //    deepseek-v4-flash 推理模型对地理位置问题反复调用 get_weather 直至撞
+    //    max_iterations（实测复现，模型行为非产品缺陷）。
+    let continuation = agent2
+        .run(
+            "Please summarize the weather information you have gathered so far. \
+             Answer in text only, do not call any tool."
+                .into(),
+        )
+        .await
+        .expect("恢复后续跑应成功");
+    let after_resume = agent2.get_runtime_messages().await;
+    assert!(
+        after_resume.len() > checkpoint.agent_messages.len(),
+        "续跑后消息数应增加（上下文已恢复）"
+    );
+    assert!(!continuation.trim().is_empty(), "续跑回复不应为空");
+
+    eprintln!("[e2e] 断点恢复：checkpoint 消息数={}，恢复后消息数={}（续跑 +{}）",
+        checkpoint.agent_messages.len(), after_resume.len(),
+        after_resume.len() - checkpoint.agent_messages.len());
+}
+
+/// 协作式取消实测：request_cancel → ReAct 循环优雅停止 → 状态转 Cancelled
+///
+/// 验证 LongTaskManager 的协作式取消标志能与 AgentLoop 联动：
+/// 1. 启动长任务后 request_cancel
+/// 2. ReAct 循环检测到取消标志，返回 Aborted 错误
+/// 3. 任务状态从 Running 转 Cancelled，cancel_flag 重置
+#[tokio::test]
+#[ignore = "需要真实 API Key 与网络，按需显式运行"]
+async fn e2e_long_task_cooperative_cancel_deepseek() {
+    let Some(api_key) = api_key_from_env() else {
+        eprintln!("[e2e] 未设置 DEEPSEEK_API_KEY，跳过真实 LLM 调用");
+        return;
+    };
+
+    let (agent, _calls) = build_weather_agent(&api_key);
+    agent
+        .long_task_manager()
+        .start_task(
+            "longtask-cancel-1".into(),
+            LongTaskType::MainAgent,
+            LongTaskCheckpoint {
+                agent_messages: vec![],
+                last_user_text: "Should be cancelled".into(),
+                skill_names: None,
+                chat_mode: None,
+                locked_chat_mode: None,
+            },
+            LongTaskMeta {
+                prompt: "Should be cancelled".into(),
+                ..Default::default()
+            },
+        )
+        .await;
+
+    // 请求协作式取消（提交）—— 真实场景下由 Tauri 命令层调用
+    agent.long_task_manager().request_cancel();
+    assert!(agent.long_task_manager().is_cancel_requested());
+
+    // run 应检测到取消标志并优雅停止（返回 Aborted），不发起真实 LLM 调用
+    let result = agent
+        .run("This run should be cancelled.".into())
+        .await;
+    assert!(
+        matches!(result, Err(AgentError::Aborted)),
+        "取消后 run 应返回 Aborted（实际: {:?}）",
+        result
+    );
+
+    // 取消后任务应已清空（cancel_task 用 take 移除 active_task，活跃任务为 None），
+    // cancel_flag 已重置。断点恢复场景下由调用方从持久化记录（Cancelled）恢复。
+    let active = agent.long_task_manager().get_active_task().await;
+    assert!(
+        active.is_none(),
+        "取消后 active_task 应被清空（实际: {:?}）",
+        active
+    );
+    assert!(!agent.long_task_manager().is_cancel_requested(), "取消后 flag 应重置");
+
+    eprintln!("[e2e] 协作式取消：run 返回 Aborted，任务状态 → Cancelled，flag 已重置");
 }

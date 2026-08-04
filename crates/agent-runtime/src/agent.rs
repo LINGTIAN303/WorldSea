@@ -614,8 +614,18 @@ impl AgentLoop {
             let response = self.call_llm_with_retry(prompt_input, Some(options)).await?;
 
             // 处理响应
-            if !response.has_tool_calls() {
-                // 无工具调用：推入 assistant 消息，返回最终文本
+            // 过滤空名工具调用（LLM 幻觉，实测复现）：空名工具无法执行，一律剔除，
+            // 避免其产生的"工具不存在"错误消息污染上下文、引发偶发不收敛（撞 max_iterations）。
+            // 剔除后若无有效工具调用，回退为"直接返回文本"分支。
+            let tool_calls: Vec<ToolCall> = response
+                .tool_calls
+                .clone()
+                .into_iter()
+                .filter(|tc| !tc.name.trim().is_empty())
+                .collect();
+
+            if tool_calls.is_empty() {
+                // 无有效工具调用：推入 assistant 消息，返回最终文本
                 let final_text = response.text.clone();
                 {
                     let mut state = self.state.lock().await;
@@ -638,11 +648,11 @@ impl AgentLoop {
                 return Ok(final_text);
             }
 
-            // 有工具调用：执行工具并推入 toolResult 消息
-            let tool_calls = response.tool_calls.clone();
+            // 有有效工具调用：执行工具并推入 toolResult 消息
             let assistant_text = response.text.clone();
-            // 批次3.3：clone 一份 tool_calls 名称列表，用于 checkpoint 更新（原 tool_calls 会被 move 进 execute_tool_calls）
-            let last_tool_name_for_checkpoint = tool_calls.last().map(|tc| tc.name.clone());
+            // 批次3.3：clone 一份工具名，用于 checkpoint 更新（原 tool_calls 会被 move 进 execute_tool_calls）。
+            // 此处 tool_calls 已过滤空名，取第一个（主工具）即可。
+            let tool_name_for_checkpoint = tool_calls.first().map(|tc| tc.name.clone());
 
             // 推入 assistant 消息（含 tool_calls）
             {
@@ -680,7 +690,7 @@ impl AgentLoop {
             // ─── P2 新增：Deep Mode 阶段判定与事件广播 ───
             // 在 checkpoint 前计算 current_phase，使长任务持久化时也带上阶段标签；
             // 同时检测阶段变化并广播 `DeepPhaseChanged` 事件，前端构建 deepSegments。
-            let current_phase_label = last_tool_name_for_checkpoint
+            let current_phase_label = tool_name_for_checkpoint
                 .as_ref()
                 .map(|tool_name| crate::deep_phases::classify_tool(tool_name).0.to_string());
 
@@ -692,7 +702,7 @@ impl AgentLoop {
                     .map(|g| g.clone())
                     .unwrap_or(None);
                 if current_phase_label.as_deref() != prev_phase.as_deref() {
-                    if let Some(tool_name) = &last_tool_name_for_checkpoint {
+                    if let Some(tool_name) = &tool_name_for_checkpoint {
                         let (label, idx) = crate::deep_phases::classify_tool(tool_name);
                         debug!(
                             "Deep Mode 阶段切换：{:?} → {:?}（触发工具: {}）",
@@ -718,7 +728,7 @@ impl AgentLoop {
                 self.long_task_manager
                     .checkpoint(
                         Some(current_turn_count),
-                        last_tool_name_for_checkpoint,
+                        tool_name_for_checkpoint,
                         current_phase_label,
                         new_checkpoint,
                     )
