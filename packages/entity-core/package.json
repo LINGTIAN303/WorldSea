@@ -25,8 +25,8 @@
     "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "@worldsmith/agent-runtime": "link:../agent-runtime",
-    "@worldsmith/perf-kit": "file:../perf-kit",
-    "@worldsmith/theme-kit": "file:../theme-kit",
+    "@worldsmith/perf-kit": "link:../perf-kit",
+    "@worldsmith/theme-kit": "link:../theme-kit",
     "jszip": "^3.10.1",
     "pinia": "^3.0.4",
     "vue": "^3.5.32"

@@ -15,10 +15,10 @@
     "typecheck": "tsc -p tsconfig.build.json --noEmit"
   },
   "dependencies": {
-    "@worldsmith/entity-core": "file:../entity-core",
-    "@worldsmith/canvas-engine": "file:../canvas-engine",
-    "@worldsmith/motion-kit": "file:../motion-kit",
-    "@worldsmith/font-kit": "file:../font-kit",
-    "@worldsmith/agent-runtime": "file:../agent-runtime"
+    "@worldsmith/entity-core": "link:../entity-core",
+    "@worldsmith/canvas-engine": "link:../canvas-engine",
+    "@worldsmith/motion-kit": "link:../motion-kit",
+    "@worldsmith/font-kit": "link:../font-kit",
+    "@worldsmith/agent-runtime": "link:../agent-runtime"
   }
 }

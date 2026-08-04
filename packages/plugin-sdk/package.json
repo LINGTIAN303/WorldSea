@@ -15,7 +15,7 @@
     "typecheck": "tsc -p tsconfig.build.json --noEmit"
   },
   "dependencies": {
-    "@worldsmith/entity-core": "file:../entity-core",
-    "@worldsmith/ui-kit": "file:../ui-kit"
+    "@worldsmith/entity-core": "link:../entity-core",
+    "@worldsmith/ui-kit": "link:../ui-kit"
   }
 }

@@ -41,13 +41,13 @@
     "build": "tsc"
   },
   "dependencies": {
-    "@worldsmith/agent-core": "file:../agent-core",
-    "@worldsmith/agent-runtime": "file:../agent-runtime",
-    "@worldsmith/entity-core": "file:../entity-core",
-    "@worldsmith/motion-kit": "file:../motion-kit",
-    "@worldsmith/perf-kit": "file:../perf-kit",
-    "@worldsmith/plugin-sdk": "file:../plugin-sdk",
-    "@worldsmith/ui-kit": "file:../ui-kit",
+    "@worldsmith/agent-core": "link:../agent-core",
+    "@worldsmith/agent-runtime": "link:../agent-runtime",
+    "@worldsmith/entity-core": "link:../entity-core",
+    "@worldsmith/motion-kit": "link:../motion-kit",
+    "@worldsmith/perf-kit": "link:../perf-kit",
+    "@worldsmith/plugin-sdk": "link:../plugin-sdk",
+    "@worldsmith/ui-kit": "link:../ui-kit",
     "dexie": "^4.4.2"
   },
   "peerDependencies": {

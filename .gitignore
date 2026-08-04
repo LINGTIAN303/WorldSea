@@ -125,3 +125,9 @@ _empty_for_clean/
 
 # ── CatPaw rules (contains sensitive credentials, never commit) ────────
 .catpaw/
+
+# ── Midscene 桌面自动化运行产物（截图/报告，仅本地调试用）──────────────
+midscene_run/
+
+# ── IDE 运行期配置（.arts 为编辑器本地设置，不应入库）──────────────────
+.arts/

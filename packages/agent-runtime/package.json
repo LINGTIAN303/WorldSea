@@ -29,8 +29,8 @@
     "build": "tsc"
   },
   "dependencies": {
-    "@worldsmith/agent-core": "file:../agent-core",
-    "@worldsmith/governor-core": "file:../governor-core",
+    "@worldsmith/agent-core": "link:../agent-core",
+    "@worldsmith/governor-core": "link:../governor-core",
     "dexie": "^4.4.2"
   },
   "peerDependencies": {

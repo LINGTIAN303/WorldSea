@@ -15,7 +15,7 @@
     "serve:dev": "tsx watch src/index.ts serve"
   },
   "dependencies": {
-    "@worldsmith/agent-runtime": "file:../../packages/agent-runtime",
+    "@worldsmith/agent-runtime": "link:../../packages/agent-runtime",
     "commander": "^14.0.3",
     "ws": "^8.18.0"
   },
