@@ -19,6 +19,7 @@ tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+tracing = "0.1"
 
 # ── Phase 5.1：Agent 命令层（纯逻辑，不依赖 tauri）──
 agent-commands = { path = "../../../crates/agent-commands" }

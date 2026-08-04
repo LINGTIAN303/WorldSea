@@ -195,7 +195,7 @@ impl AgentCommandService {
     }
 
     /// 获取会话（不存在则报错）
-    async fn get_agent(&self, session_id: &str) -> Result<Arc<AgentLoop>, CommandError> {
+    pub async fn get_agent(&self, session_id: &str) -> Result<Arc<AgentLoop>, CommandError> {
         self.sessions
             .lock()
             .await

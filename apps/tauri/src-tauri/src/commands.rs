@@ -8,11 +8,61 @@
 //! resumeTask / switchSession / getProviderConfig / updateModel /
 //! updateThinkingLevel / clearHistory / getSessionList / getSessionMessages /
 //! getUsage / getHeartbeat / ...），此处为其中已落地的主链路子集。
+//!
+//! P2 新增：Deep Phase 事件转发 — 订阅 AgentLoop 的 DeepPhaseChanged 事件，
+//! 通过 Tauri 事件系统 `agent:event:deep_phase_changed` 发送到前端。
 
 use agent_commands::{AgentCommandService, SendMessageParams, UpdateModelParams};
 use agent_runtime::backend::ThinkingLevel;
+use agent_runtime::event::{OrchestratorEvent, EventListener};
 use agent_runtime::llm::config::ProviderConfig;
-use tauri::State;
+use std::sync::Arc;
+use tauri::{AppHandle, Emitter, State};
+
+/// 转发 AgentLoop 事件到 Tauri 前端事件系统
+///
+/// 当 AgentLoop 广播 `DeepPhaseChanged` 事件时，通过 Tauri 事件系统
+/// `agent:event:deep_phase_changed` 发送到前端。
+struct TauriAgentEventEmitter {
+    app: AppHandle,
+    session_id: String,
+}
+
+impl EventListener for TauriAgentEventEmitter {
+    fn on_event(&self, event: &OrchestratorEvent) {
+        match event {
+            OrchestratorEvent::DeepPhaseChanged {
+                phase_label,
+                phase_index,
+                trigger_tool,
+                tool_status,
+                phase_completed,
+                ..
+            } => {
+                // 转发到前端：事件名 `agent:event:deep_phase_changed:{session_id}`
+                // payload: { phaseLabel, phaseIndex, triggerTool, toolStatus, phaseCompleted }
+                let event_name = format!("agent:event:deep_phase_changed:{}", self.session_id);
+                if let Err(err) = self.app.emit(
+                    &event_name,
+                    serde_json::json!({
+                        "phaseLabel": phase_label,
+                        "phaseIndex": phase_index,
+                        "triggerTool": trigger_tool,
+                        "toolStatus": tool_status,
+                        "phaseCompleted": phase_completed,
+                    }),
+                ) {
+                    tracing::warn!(
+                        "Failed to emit DeepPhaseChanged event to frontend: {}",
+                        err
+                    );
+                }
+            }
+            // 其他事件目前不需要转发到前端
+            _ => {}
+        }
+    }
+}
 
 /// 新建会话
 ///
@@ -52,9 +102,20 @@ pub async fn delete_session(
 /// 发送消息（ReAct 循环执行）
 #[tauri::command]
 pub async fn send_message(
+    app: AppHandle,
     state: State<'_, AgentCommandService>,
     params: SendMessageParams,
 ) -> Result<agent_commands::SendMessageResult, String> {
+    let agent = state.get_agent(&params.session_id).await.map_err(|e| e.to_string())?;
+    
+    // 注册 Deep Phase 事件转发监听器
+    // 幂等：如果已注册过，Arc 会保留，重复订阅不影响（broadcaster 允许多个监听器）
+    let emitter = Arc::new(TauriAgentEventEmitter {
+        app: app.clone(),
+        session_id: params.session_id.clone(),
+    });
+    agent.subscribe(emitter).await;
+    
     state.send_message(params).await.map_err(|e| e.to_string())
 }
 

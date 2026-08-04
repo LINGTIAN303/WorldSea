@@ -669,6 +669,25 @@ impl AgentLoop {
             // 执行工具
             let tool_results = self.execute_tool_calls(tool_calls).await?;
 
+            // 捕获主工具执行状态（阶段 P2 扩展：DeepPhaseChanged 事件补充 tool_status）
+            // tool_results 顺序与 tool_calls 一致（串行/并行均按原索引），第一个即主工具。
+            // 失败判定（结构化解析）：工具结果 content 是 JSON 字符串，顶层含非 null 的
+            // "error" 键即视为失败（execute_tool_calls_serial/parallel 失败时写入
+            // `{"error": ..., "tool": ...}`）。替代原先的字符串 contains 匹配，避免误判
+            // 成功数据中恰好出现的 "error" 文本。
+            let main_tool_status = tool_results.first().map(|r| {
+                // 注意：闭包内完成布尔计算，避免返回对临时 Value 的引用（借用生命周期问题）
+                let is_failed = serde_json::from_str::<serde_json::Value>(&r.content)
+                    .ok()
+                    .map(|v| v.get("error").map(|e| !e.is_null()).unwrap_or(false))
+                    .unwrap_or(false);
+                if is_failed {
+                    crate::event::ToolStatus::Failed
+                } else {
+                    crate::event::ToolStatus::Completed
+                }
+            });
+
             // 推入 toolResult 消息
             let current_turn_count = {
                 let mut state = self.state.lock().await;
@@ -695,6 +714,12 @@ impl AgentLoop {
                 .map(|tool_name| crate::deep_phases::classify_tool(tool_name).0.to_string());
 
             // 阶段切换检测：当前阶段与缓存不同则广播事件
+            //
+            // 风险点1处理（阶段完成标记精确化）：切换时广播"双事件"——
+            //   1. 若存在旧阶段，先广播"旧阶段完成"事件（phase_completed=true），
+            //      前端据此把对应 phase 段标记为 done；
+            //   2. 再广播"新阶段进入"事件（phase_completed=false），前端据此新建/激活阶段段。
+            // 这样 `phase_completed` 不再是恒 false，而具有真实语义。
             {
                 let prev_phase = self
                     .last_phase_label
@@ -704,15 +729,36 @@ impl AgentLoop {
                 if current_phase_label.as_deref() != prev_phase.as_deref() {
                     if let Some(tool_name) = &tool_name_for_checkpoint {
                         let (label, idx) = crate::deep_phases::classify_tool(tool_name);
+                        let tool_status =
+                            main_tool_status.unwrap_or(crate::event::ToolStatus::Completed);
                         debug!(
                             "Deep Mode 阶段切换：{:?} → {:?}（触发工具: {}）",
                             prev_phase, label, tool_name
                         );
+
+                        // 1. 旧阶段完成事件（若存在旧阶段）
+                        if let Some(prev_label) = &prev_phase {
+                            let prev_idx = crate::deep_phases::phase_index_by_label(prev_label)
+                                .unwrap_or(crate::deep_phases::OTHER_PHASE_INDEX);
+                            self.broadcast(OrchestratorEvent::DeepPhaseChanged {
+                                node_id: String::new(), // 由 Tauri 端按 session 填充
+                                phase_label: prev_label.clone(),
+                                phase_index: prev_idx,
+                                trigger_tool: tool_name.clone(),
+                                tool_status,
+                                phase_completed: true, // 旧阶段已完成
+                            })
+                            .await;
+                        }
+
+                        // 2. 新阶段进入事件
                         self.broadcast(OrchestratorEvent::DeepPhaseChanged {
                             node_id: String::new(), // 由 Tauri 端按 session 填充
                             phase_label: label.to_string(),
                             phase_index: idx,
                             trigger_tool: tool_name.clone(),
+                            tool_status,
+                            phase_completed: false, // 新阶段刚激活，尚未完成
                         })
                         .await;
                     }

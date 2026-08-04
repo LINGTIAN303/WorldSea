@@ -633,6 +633,12 @@ pub enum OrchestratorEvent {
 
     // ── Deep Mode 事件（阶段 P2 新增）──
     //
+    // 工具执行状态（用于 DeepPhaseChanged 事件标注触发工具状态）
+    // 序列化为小写（running/completed/failed），与前端 ToolCallView.status 一致。
+    //
+    // 阶段 P2 扩展：DeepPhaseChanged 新增 `tool_status`（工具完成状态）与
+    // `phase_completed`（阶段完成标记），前端据此更新工具状态与阶段状态。
+    //
     // 这些事件用于跟踪 Deep Mode 的阶段切换过程，
     // 前端可据此构建 `deepSegments`，按"问题拆解→证据收集→推理分析→创作操作→结论输出"
     // 五阶段分组展示工具调用。
@@ -666,6 +672,17 @@ pub enum OrchestratorEvent {
         phase_index: i8,
         /// 触发本次阶段判定的工具名
         trigger_tool: String,
+        /// 触发工具执行状态（running/completed/failed）
+        ///
+        /// 阶段 P2 扩展：工具执行后广播，据此标注触发工具是成功还是失败。
+        /// 前端据此更新 `deepSegments` 内对应 `ToolCallView.status`。
+        tool_status: ToolStatus,
+        /// 阶段完成标记（true=该阶段已完成，false=仍在进行）
+        ///
+        /// 阶段 P2 扩展：当前广播发生在"进入新阶段"时，新阶段刚激活，
+        /// 故此处恒为 `false`；前端收到不同 `phase_index` 时，负责把旧阶段
+        /// 标记为 `done`。保留该字段以便未来支持"阶段内全部工具完成"的精确判定。
+        phase_completed: bool,
     },
 
     // ── A2UI 事件（阶段 P2 新增）──
@@ -699,6 +716,20 @@ pub enum OrchestratorEvent {
         /// A2UI 消息载荷
         message: A2UIMessage,
     },
+}
+
+/// 工具执行状态（DeepPhaseChanged 事件扩展字段）
+///
+/// 序列化为小写（running/completed/failed），与前端 `ToolCallView.status` 一致。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ToolStatus {
+    /// 正在执行
+    Running,
+    /// 执行成功
+    Completed,
+    /// 执行失败
+    Failed,
 }
 
 /// 编排器结束结果（简化版，避免与 `OrchestratorResult` 循环引用）

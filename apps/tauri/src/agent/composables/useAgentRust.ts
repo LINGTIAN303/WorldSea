@@ -58,6 +58,7 @@ export {
 
 import { ref, computed, readonly } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import type {
   AgentMessage,
   AgentEvent,
@@ -68,6 +69,18 @@ import type {
   ChatMode,
   PromptOptions,
 } from '@agent/index'
+import type { DeepSegment } from '@worldsmith/shared-composables/agent/useAgent'
+
+// ─── Rust DeepPhaseChanged 事件 Payload ──────────────────────────────
+interface RustDeepPhaseChangedPayload {
+  phaseLabel: string
+  phaseIndex: number
+  triggerTool: string
+  /** 触发工具执行状态（running/completed/failed），自 Rust ToolStatus 序列化 */
+  toolStatus: 'running' | 'completed' | 'failed'
+  /** 阶段完成标记（true=已完成，false=进行中） */
+  phaseCompleted: boolean
+}
 
 // ─── Rust 端类型镜像（snake_case，与 agent-runtime 序列化一致）──────────────
 
@@ -196,6 +209,12 @@ const listeners = new Set<AgentEventListener>()
 /** 待办：会话消息缓存（按 sessionId），切换会话时恢复 */
 const sessionMessagesCache = new Map<string, AgentMessage[]>()
 
+/** 深度模式段（thinking | phase），由 Rust DeepPhaseChanged 事件驱动构建 */
+const deepSegments = ref<DeepSegment[]>([])
+
+/** 深度阶段事件监听器清理函数（按 sessionId 索引，切换/删除会话时清理） */
+const deepPhaseUnlistenFns = new Map<string, UnlistenFn>()
+
 // ─── 事件分发 ────────────────────────────────────────────
 
 /** 向所有订阅者分发 AgentEvent（单个订阅者异常不影响其他） */
@@ -206,6 +225,100 @@ function emit(event: AgentEvent): void {
     } catch (err) {
       console.warn('[useAgentRust] 事件订阅者异常:', err)
     }
+  }
+}
+
+// ─── 深度阶段事件监听（DeepPhaseChanged）────────────────────────────
+
+/**
+ * 为指定会话设置 DeepPhaseChanged 事件监听
+ *
+ * 监听 `agent:event:deep_phase_changed:{session_id}`，收到 Rust payload 后：
+ * 1. 按 phaseIndex 去重：同一阶段只保留首个 phase 段（避免重复累计）
+ * 2. 将 phase 段追加到 `deepSegments`（保持阶段出现的先后顺序）
+ * 3. 记录 triggerTool 到该阶段 tools（供 DeepProcessPanel 展示触发工具）
+ * 4. 依据 payload.toolStatus 更新工具状态（completed/failed）
+ * 5. 依据 payload.phaseCompleted 更新阶段状态（active/done）
+ *
+ * 幂等：若已存在监听器，直接返回（避免重复监听）。
+ */
+async function setupDeepPhaseListener(sessionId: string): Promise<void> {
+  if (deepPhaseUnlistenFns.has(sessionId)) return
+
+  const eventName = `agent:event:deep_phase_changed:${sessionId}`
+  try {
+    const unlisten = await listen<RustDeepPhaseChangedPayload>(eventName, (e) => {
+      const payload = e.payload
+      // 去重：同一 phaseIndex 已存在则更新其工具/状态，不重复追加
+      const existing = deepSegments.value.find((s) => s.type === 'phase' && s.index === payload.phaseIndex)
+      if (existing && existing.type === 'phase') {
+        // 阶段完成事件（phase_completed=true）：trigger_tool 是"触发本次切换的新工具"
+        // （属于下一阶段），不应加入旧阶段段。仅更新已存在工具的状态并标记完成。
+        if (payload.phaseCompleted) {
+          const toolIdx = existing.tools.findIndex((t) => t.name === payload.triggerTool)
+          if (toolIdx >= 0) {
+            existing.tools[toolIdx].status = payload.toolStatus
+            if (payload.toolStatus !== 'running') existing.tools[toolIdx].endedAt = Date.now()
+          }
+          existing.status = 'done'
+          return
+        }
+        // 同阶段内工具状态更新（phase_completed=false）：更新/新增触发工具
+        const toolIdx = existing.tools.findIndex((t) => t.name === payload.triggerTool)
+        const now = Date.now()
+        if (toolIdx >= 0) {
+          existing.tools[toolIdx].status = payload.toolStatus
+          if (payload.toolStatus !== 'running') existing.tools[toolIdx].endedAt = now
+        } else {
+          existing.tools.push({
+            id: `phase-tool-${now}`,
+            name: payload.triggerTool,
+            args: {},
+            status: payload.toolStatus,
+            startedAt: now,
+            endedAt: payload.toolStatus !== 'running' ? now : undefined,
+          })
+        }
+        return
+      }
+      // 新阶段：先把之前所有 active 阶段标记为 done（阶段切换）
+      for (const seg of deepSegments.value) {
+        if (seg.type === 'phase' && seg.status === 'active') {
+          seg.status = 'done'
+        }
+      }
+      const now = Date.now()
+      const newSegment: DeepSegment = {
+        id: `phase-${payload.phaseIndex}-${now}`,
+        type: 'phase',
+        label: payload.phaseLabel,
+        index: payload.phaseIndex,
+        timestamp: now,
+        tools: [{
+          id: `phase-${payload.phaseIndex}-tool-${now}`,
+          name: payload.triggerTool,
+          args: {},
+          status: payload.toolStatus,
+          startedAt: now,
+          endedAt: payload.toolStatus !== 'running' ? now : undefined,
+        }],
+        outputs: [],
+        status: payload.phaseCompleted ? 'done' : 'active',
+      }
+      deepSegments.value.push(newSegment)
+    })
+    deepPhaseUnlistenFns.set(sessionId, unlisten)
+  } catch (err) {
+    console.error(`[useAgentRust] listen ${eventName} 失败:`, err)
+  }
+}
+
+/** 清理指定会话的深度阶段事件监听 */
+function teardownDeepPhaseListener(sessionId: string): void {
+  const unlisten = deepPhaseUnlistenFns.get(sessionId)
+  if (unlisten) {
+    unlisten()
+    deepPhaseUnlistenFns.delete(sessionId)
   }
 }
 
@@ -222,7 +335,10 @@ async function newSession(
   })
   currentSessionId.value = info.id
   messages.value = []
+  // 新会话：清空深度模式段，并建立事件监听
+  deepSegments.value = []
   sessionMessagesCache.set(info.id, [])
+  await setupDeepPhaseListener(info.id)
   await refreshSessionList()
   return info
 }
@@ -243,16 +359,25 @@ async function refreshSessionList(): Promise<void> {
 async function deleteSession(sessionId: string): Promise<void> {
   await invoke('delete_session', { sessionId })
   sessionMessagesCache.delete(sessionId)
+  teardownDeepPhaseListener(sessionId)
   if (currentSessionId.value === sessionId) {
     currentSessionId.value = null
     messages.value = []
+    deepSegments.value = []
   }
   await refreshSessionList()
 }
 
 /** 切换会话（加载该会话的消息历史） */
 async function switchSession(sessionId: string): Promise<void> {
+  // 清理旧会话的深度阶段监听，切换到新会话
+  const oldSessionId = currentSessionId.value
+  if (oldSessionId && oldSessionId !== sessionId) {
+    teardownDeepPhaseListener(oldSessionId)
+  }
   currentSessionId.value = sessionId
+  deepSegments.value = []
+  await setupDeepPhaseListener(sessionId)
   const cached = sessionMessagesCache.get(sessionId)
   if (cached) {
     messages.value = cached
@@ -294,6 +419,9 @@ async function prompt(text: string, options?: PromptOptions): Promise<void> {
   const sessionId = await ensureSession()
   const textContent = text.trim()
   if (!textContent) return
+
+  // 深度模式：为当前会话建立 DeepPhaseChanged 事件监听（幂等）
+  await setupDeepPhaseListener(sessionId)
 
   // 用户消息
   const userMsg: AgentMessage = {
@@ -454,6 +582,11 @@ function subscribe(listener: AgentEventListener): () => void {
 /** 释放后端资源（实现 IAgentBackend.dispose） */
 function dispose(): void {
   listeners.clear()
+  // 清理所有深度阶段事件监听器
+  for (const unlisten of deepPhaseUnlistenFns.values()) {
+    unlisten()
+  }
+  deepPhaseUnlistenFns.clear()
 }
 
 // ─── 派生状态 ────────────────────────────────────
@@ -523,6 +656,9 @@ export function useAgentRust() {
     sendMessage,
     lastAssistantHasContent,
     lastAssistantHasThinking,
+
+    // ── 深度模式段（DeepProcessPanel 依赖）──
+    deepSegments,
 
     // ── 状态查询 ──
     getProviderConfig,

@@ -135,6 +135,20 @@ pub fn all_phase_labels() -> Vec<&'static str> {
     DEEP_PHASES.iter().map(|(label, _)| *label).collect()
 }
 
+/// 按阶段标签反查索引
+///
+/// 用于 DeepPhaseChanged 广播"旧阶段完成"事件时，由缓存中的阶段标签（String）
+/// 反查其索引。"其他操作"返回 -1；不在五阶段内的标签返回 `None`。
+pub fn phase_index_by_label(label: &str) -> Option<i8> {
+    if label == OTHER_PHASE_LABEL {
+        return Some(OTHER_PHASE_INDEX);
+    }
+    DEEP_PHASES
+        .iter()
+        .position(|(l, _)| *l == label)
+        .map(|i| i as i8)
+}
+
 /// 收集所有已分阶段的工具名（用于 CI 一致性测试）
 ///
 /// 返回扁平化的工具名列表，顺序与 `DEEP_PHASES` 中的定义一致。
