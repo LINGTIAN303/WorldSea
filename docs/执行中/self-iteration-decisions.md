@@ -229,3 +229,15 @@
 **代价**：真实 LLM 择路存在不确定性，依赖 system prompt 明确映射 + `temperature=0` 提高稳定性；`#[ignore]` 不参与常规 CI。
 
 **验证（2026-08-05）**：通过。主 Agent 在 code/write 中正确择路委派给 code，子 Agent 返回 Rust `add(a,b)->a+b` 实现，主 Agent 汇总输出。agent-commands lib 17、agent-runtime lib 157 无回归。**附带修复**：`tool.rs` 的 `PlaceholderTool` 此前仅 struct 加 `#[cfg(test)]`，其 `impl Tool` 块未加，导致 e2e_llm 编译（agent-runtime 作为非测试依赖编译）时报"找不到类型"——给 impl 块补 `#[cfg(test)]` 修复。
+
+### 决策点 20：规格热更新真实链路 e2e（运行期覆盖 system_prompt 后子 Agent 重建）通过
+
+**背景**：单元测试 `get_or_create_agent_reuses_or_rebuilds_by_spec` 已证明"规格变更 → 重建实例"的内存行为，但未走真实 LLM 链路。本决策点验证：运行期 `register_subagent_spec` 覆盖某子 Agent 规格后，主 Agent 再次委派时，子 Agent **确实使用新规格**（而非沿用旧实例的旧 system_prompt）。
+
+**选择**：新增 `e2e_subagent_spec_hot_update_deepseek`（`crates/agent-commands/tests/e2e_llm.rs`，`#[ignore]`）。用**可检测的输出标记**验证规格生效：注册 code 子 Agent v1 规格（system_prompt 要求每条回复以 `[V1]` 开头）→ 委派一次，断言 ToolResult 含 `[V1]`；随后运行期覆盖为 v2 规格（要求 `[V2]` 开头）→ 再次委派，以首次委派后的消息条数为分界点，断言**分界点之后**新产生的 ToolResult 含 `[V2]`。
+
+**理由**：仅靠实例 `Arc` 指针比对（单元测试）无法证明"新实例承载新行为"。用 system_prompt 注入可辨识标记，让真实 llm 输出直接反映实例采用了哪个规格，是最轻量的可观测证明。分界点（按 index 过滤首次委派后的 ToolResult）避免旧消息污染断言。
+
+**代价**：真实 LLM 对"必须带 `[Vx]` 前缀"的服从有不确定性，依赖 system_prompt 强约束 + `temperature=0`；`#[ignore]` 不参与常规 CI，稳定失败后可单独重跑。
+
+**验证（2026-08-05）**：通过（132.06s）。日志输出 `规格热更新：v1 委派含 [V1]，热更新 v2 后二次委派重建实例含 [V2]`，消息数第一次后 7 条、第二次后 15 条。证明运行期规格热更新后，子 Agent 按新 system_prompt 重建实例并生效。agent-commands lib 17、agent-runtime lib 157 无回归。

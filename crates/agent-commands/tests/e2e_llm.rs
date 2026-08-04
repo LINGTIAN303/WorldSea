@@ -1961,6 +1961,126 @@ async fn e2e_subagent_multi_dispatch_deepseek() {
     eprintln!("[e2e] 最终回复：{}", reply.reply);
 }
 
+// ─── 规格热更新真实链路 e2e：验证运行期 register_subagent_spec 覆盖后子 Agent 重建 ──
+///
+/// 与单元测试 `get_or_create_agent_reuses_or_rebuilds_by_spec` 不同，本测试走真实 LLM
+/// 链路：先注册 code 子 Agent（system_prompt 要求回复以 `[V1]` 开头），委派一次校验
+/// ToolResult 含 `[V1]`；随后运行期覆盖 code 规格（system_prompt 要求以 `[V2]` 开头），
+/// 再次委派，校验新产生的 ToolResult 含 `[V2]`，证明子 Agent 已按新规格重建实例。
+#[tokio::test]
+#[ignore = "需要真实 API Key 与网络，按需显式运行"]
+async fn e2e_subagent_spec_hot_update_deepseek() {
+    let Some(api_key) = api_key_from_env() else {
+        eprintln!("[e2e] 未设置 DEEPSEEK_API_KEY，跳过真实 LLM 调用");
+        return;
+    };
+
+    let svc = AgentCommandService::new();
+
+    // 1) 注册 v1 规格：子 Agent 回复必须以 [V1] 开头
+    svc.register_subagent_spec(SubAgentSpec {
+        id: "code".into(),
+        name: "代码助手".into(),
+        description: "精通 Rust 编程，负责编写与实现代码".into(),
+        system_prompt:
+            "你是一个严谨的 Rust 代码工程师。你的每一条回复都必须以 [V1] 开头，然后给出代码实现。"
+                .into(),
+        tools_whitelist: None,
+        max_iterations: Some(5),
+    })
+    .await;
+
+    // 2) 创建会话，主 Agent 明确每次代码任务都须委派给 code，不要直接回答
+    let info = svc
+        .new_session(
+            Some(
+                "You are an orchestrator with one specialist. Every time you receive a coding \
+                 task, you MUST call delegate_to_sub_agent with sub_agent_id='code'. Never answer \
+                 the coding task directly. After receiving the sub-agent result, tell the user 'done'."
+                    .into(),
+            ),
+            Some(deepseek_config(&api_key)),
+        )
+        .await
+        .expect("会话创建失败");
+
+    // 3) 第一次委派（v1 规格），记录消息条数作为分界点
+    let partition = {
+        match svc
+            .send_message(SendMessageParams {
+                session_id: info.id.clone(),
+                text: "委派给 code：写一个 Rust 函数 add，返回两个整数之和。".into(),
+                images: vec![],
+                mode: None,
+            })
+            .await
+        {
+            Ok(_) => {}
+            Err(e) => {
+                eprintln!("[e2e] 第一次委派失败: {e:?}");
+                return;
+            }
+        }
+        svc.get_messages(&info.id).await.unwrap().len()
+    };
+
+    // 4) 校验第一次委派产生了含 [V1] 的 ToolResult
+    let msgs1 = svc.get_messages(&info.id).await.unwrap();
+    let v1_result = msgs1
+        .iter()
+        .filter(|m| m.role == MessageRole::ToolResult)
+        .any(|m| m.content.contains("[V1]"));
+    assert!(
+        v1_result,
+        "v1 规格委派后 ToolResult 应含 [V1] 标记（子 Agent 使用 v1 system_prompt）"
+    );
+
+    // 5) 运行期热更新 code 规格为 v2（system_prompt 改为要求以 [V2] 开头）
+    svc.register_subagent_spec(SubAgentSpec {
+        id: "code".into(),
+        name: "代码助手".into(),
+        description: "精通 Rust 编程，负责编写与实现代码".into(),
+        system_prompt:
+            "你是一个严谨的 Rust 代码工程师。你的每一条回复都必须以 [V2] 开头，然后给出代码实现。"
+                .into(),
+        tools_whitelist: None,
+        max_iterations: Some(5),
+    })
+    .await;
+
+    // 6) 第二次委派（应使用按新规格重建的子 Agent）
+    match svc
+        .send_message(SendMessageParams {
+            session_id: info.id.clone(),
+            text: "再委派给 code：写一个 Rust 函数 multiply，返回两个整数之积。".into(),
+            images: vec![],
+            mode: None,
+        })
+        .await
+    {
+        Ok(_) => {}
+        Err(e) => {
+            eprintln!("[e2e] 第二次委派失败: {e:?}");
+            return;
+        }
+    }
+
+    // 7) 校验分界点之后新产生的 ToolResult 含 [V2]，证明使用了新规格实例
+    let msgs2 = svc.get_messages(&info.id).await.unwrap();
+    let v2_result = msgs2
+        .iter()
+        .enumerate()
+        .filter(|(i, m)| *i >= partition && m.role == MessageRole::ToolResult)
+        .any(|(_, m)| m.content.contains("[V2]"));
+    assert!(
+        v2_result,
+        "热更新后二次委派应使用新规格实例（分界点后 ToolResult 应含 [V2] 标记）"
+    );
+
+    eprintln!("[e2e] 规格热更新：v1 委派含 [V1]，热更新 v2 后二次委派重建实例含 [V2]");
+    eprintln!("[e2e] 消息数：第一次后 {partition} 条，第二次后 {} 条", msgs2.len());
+}
+
 // ─── 临时诊断：绕过 AgentLoop，直接调 backend.prompt 带工具，确认 genai 层 tools 是否注入 ──
 #[tokio::test]
 #[ignore = "需要真实 API Key 与网络，按需显式运行"]
