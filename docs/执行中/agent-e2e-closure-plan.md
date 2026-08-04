@@ -170,6 +170,12 @@
 
 **验收**：项目中不再有 pi-ai / pi-agent-core 引用；三端编译与测试通过。
 
+> ✅ **已完成（2026-08-05）**
+> - 核实：`packages/agent-runtime`/`packages/agent-core` 的 pi-ai 依赖在**之前迭代（阶段 2.0 批次3）已移除**，`agent.ts` 注释明确记载"CoreBackend/HybridBackend 已移除（依赖 pi-ai）"、"createWorldSmithAgent 已废弃"。
+> - 全库 grep 确认：**无任何实际 `import ... from 'pi-ai'` 代码**，残留的 `pi-ai` 字样均为注释历史文字，不影响编译与运行。
+> - `@worldsmith/agent-runtime`/`@worldsmith/agent-core` 是项目**自身** TS 包，被三端（Web/CLI/Tauri）正常引用（`vite.config.ts` 别名 + package.json `link:`），属活跃使用，**不可删除**。
+> - 结论：5.5 技术栈收敛目标已达成，无需额外代码改动。
+
 ## 四、里程碑
 
 | 里程碑 | 预期内容 | 状态 |
@@ -177,8 +183,8 @@
 | M5-1 | 命令层 crate 就绪，Tauri 可 invoke Rust 命令 | ✅ 已完成 |
 | M5-2 | Tauri 前端链路打通，桌面端可发起 Agent 会话 | ✅ 已完成 |
 | M5-3 | Agent UI 抽共享层完成，三端复用 | ✅ 已完成 |
-| M5-4 | 桌面端端到端实测通过，高级能力补齐 | ⏳ 进行中（子任务 2 实测通过，高级能力补齐待推进） |
-| M5-5 | pi-ai 移除，技术栈收敛 | ⏳ 待启动 |
+| M5-4 | 桌面端端到端实测通过，高级能力补齐 | ✅ 已完成（子任务 2 实测通过；高级能力 deep phases/A2UI/终端/子 Agent 全部补齐，含工具白名单 e2e 实测） |
+| M5-5 | pi-ai 移除，技术栈收敛 | ✅ 已完成（pi-ai 依赖此前已移除，无实际 import 残留） |
 
 ## 五、风险与决策点
 
