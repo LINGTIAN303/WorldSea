@@ -99,9 +99,9 @@
 
 2. **端到端实测清单**
    - Agent 对话（主链路 new_session → send_message → 流式回复）。✅ 主链路已实测通过（见下）
-   - 工具调用（tool call 完整链路：触发 → 执行 → 结果回填）。
-   - 长任务（long_task + checkpoint，breakpoint/resume）。
-   - 13 种编排模式（supervisor / router / multi_agent / tree_of_thoughts / graph_of_thoughts / loop_control 逐个验证）。
+   - 工具调用（tool call 完整链路：触发 → 执行 → 结果回填）。✅ 已实测通过（见下）
+   - 长任务（long_task + checkpoint，breakpoint/resume）。✅ 已实测通过（见下）
+   - 13 种编排模式（supervisor / router / multi_agent / tree_of_thoughts / graph_of_thoughts / loop_control 逐个验证）。⏳ 待推进
    - 每项在 Tauri 桌面端实测，记录结果。
 
    > **主链路实测记录（2026-08-04）**：`crates/agent-commands/tests/e2e_llm.rs`
@@ -117,6 +117,14 @@
    >   - `genai_backend.rs`：Assistant 消息含 tool_calls 时合并为 `ContentPart` 多部分消息。此前丢弃 tool_calls → "Messages with role 'tool' must be a response to a preceding message with 'tool_calls'" 被拒。
    >   - `temperature=0` 保证确定性：推理模型默认温度下会因 "MUST call" 强指令反复调用工具直至撞 `max_iterations`。
    > - 临时诊断文件（`diag_raw_body.rs` / `req_tool.json` / `req_tool_stream.json`）已删除，相关 genai/futures-util dev-deps 已回退。
+
+   > **长任务实测记录（2026-08-04）**：`e2e_long_task_lifecycle_deepseek` / `e2e_long_task_breakpoint_resume_deepseek` / `e2e_long_task_cooperative_cancel_deepseek`
+   > - 结果：✅ 3 项全部通过。覆盖生命周期（start → running → checkpoint 更新 → complete）、断点恢复（checkpoint 快照 → 新 AgentLoop 恢复续跑）、协作式取消（request_cancel → ReAct 循环优雅停止 → Cancelled）。
+   > - 断点恢复：checkpoint 消息数 4（system/user/assistant(tool_calls)/toolResult），恢复后消息数 6（续跑 +2），上下文完整。
+   > - **新增风险点修复**（2026-08-04 commit f71bd4c）：
+   >   - `agent.rs`：ReAct 循环过滤空名工具调用（LLM 幻觉，实测复现）。此前空名工具会产生"工具不存在"错误 ToolResult 污染上下文，偶发引发不收敛（撞 `max_iterations`）。剔除后若无有效工具调用回退为直接返回文本。
+   >   - `agent.rs`：checkpoint 的 `current_tool` 由 `tool_calls.last()` 改为首个非空工具名（主工具），避免被空名幻觉工具污染。
+   > - 验证：5 项 e2e 实测 + agent-runtime 153 单测全部通过，工作树干净。
 
 3. **高级能力补齐**（按顺序全做）
    - deep phases（深度模式）：`deep_phases` 模块接入 UI（DeepMessageArea 已共享）。
