@@ -7,3 +7,4 @@
 export * from './agent/blocks/index'
 export * from './agent/bubbles/index'
 export * from './agent/message-list/index'
+export * from './agent/a2ui/index'
