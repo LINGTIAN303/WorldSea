@@ -47,7 +47,9 @@ pub mod backend;
 pub mod deep_phases;
 pub mod event;
 pub mod graph_of_thoughts;
-#[cfg(feature = "llm-genai")]
+// llm 模块整体开放：config/manifest/model/error 为纯数据，供 backend.rs 的
+// NodeBackendAccessor 接口引用（不依赖 genai）；仅 genai_backend / stream
+// 子模块在内部按 feature "llm-genai" 门控。
 pub mod llm;
 pub mod long_task;
 pub mod loop_control;

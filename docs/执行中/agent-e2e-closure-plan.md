@@ -82,25 +82,32 @@
 
 **目标**：在 Tauri 桌面端实测全链路，补齐高级能力。
 
-**状态**：⏳ 待启动（2026-08-04 规划完成）
+**状态**：⏳ 执行中（5.4 子任务 1 已完成，子任务 2 主链路实测通过）
 
 **决策记录**：
 - **LLM 配置来源**：沿用 Web 端模式 —— 前端配置 + 本地存储（API key 存 localStorage，Tauri 端存 app-data）。`GenaiBackend` 已实现，`agent-commands` 仅替换 `new_agent` 中的 `MockBackend` 为 `GenaiBackend`，命令层参数/返回类型不变。
 - **高级能力补齐优先级**：按顺序全做 —— deep phases → A2UI → 终端 → 子 Agent。
+- **实测 Provider**：Agnes 因本机网络 TLS 握手被阻断（`SEC_E_ILLEGAL_MESSAGE`，`api.agnesai.com` 解析到 AWS IP），改用 DeepSeek（国内可直连）完成真实 LLM 实测。
 
 **子任务**：
-1. **真实 LLM 后端接入**
+1. **真实 LLM 后端接入** ✅ 已完成（2026-08-04）
    - 在 `apps/tauri/src-tauri/Cargo.toml` 为 `agent-commands` 启用 `llm-genai` feature。
    - `agent-commands` 的 `new_agent` 中 `MockBackend` → `GenaiBackend`，从注入的 ProviderConfig 构造。
    - 新增 `set_provider_config` 命令（或复用现有 `update_model`/`get_provider_config`），前端把配置 + API key 从本地存储读取后传入。
    - Temp check：`cargo check` + `agent-commands` 单测。
+   - **风险点修复**：`resolve_service_target` 构造 `ServiceTarget` 时确保 base_url 以 `/` 结尾，避免 genai `Url::join` 丢弃末尾路径段（如 `/v1`）。修复前 Agnes 请求落到 `https://api.agnesai.com/chat/completions`（缺 `/v1`），修复后为 `https://api.agnesai.com/v1/chat/completions`。相关单元测试 6/6 通过。
 
 2. **端到端实测清单**
-   - Agent 对话（主链路 new_session → send_message → 流式回复）。
+   - Agent 对话（主链路 new_session → send_message → 流式回复）。✅ 主链路已实测通过（见下）
    - 工具调用（tool call 完整链路：触发 → 执行 → 结果回填）。
    - 长任务（long_task + checkpoint，breakpoint/resume）。
    - 13 种编排模式（supervisor / router / multi_agent / tree_of_thoughts / graph_of_thoughts / loop_control 逐个验证）。
    - 每项在 Tauri 桌面端实测，记录结果。
+
+   > **主链路实测记录（2026-08-04）**：`crates/agent-commands/tests/e2e_llm.rs`
+   > - 运行：`$env:DEEPSEEK_API_KEY="sk-xxx"; cargo test --test e2e_llm -- --ignored --nocapture`
+   > - 结果：✅ 通过（1.36s）。会话创建成功、Provider 回显正确（deepseek / deepseek-v4-flash / https://api.deepseek.com）、真实回复非空（`好的，我是测试助手…`）、消息数 3。
+   > - 设计：API Key 仅从环境变量 `DEEPSEEK_API_KEY` 读取，禁止硬编码；测试 `#[ignore]` 不参与常规 CI。
 
 3. **高级能力补齐**（按顺序全做）
    - deep phases（深度模式）：`deep_phases` 模块接入 UI（DeepMessageArea 已共享）。

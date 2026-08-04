@@ -21,7 +21,9 @@ use genai::chat::{
     ChatMessage, ChatOptions, ChatRequest, ChatStreamEvent, MessageContent, ToolCall, ToolResponse,
 };
 use genai::chat::{Tool as GenaiTool, ToolName};
-use genai::Client;
+use genai::adapter::AdapterKind;
+use genai::resolver::{AuthData, Endpoint};
+use genai::{Client, ModelIden, ServiceTarget};
 use tokio::sync::RwLock;
 use tracing::{debug, warn};
 
@@ -30,6 +32,7 @@ use crate::event::{EventBroadcaster, EventListener, OrchestratorEvent};
 use crate::llm::config::ProviderConfig;
 use crate::llm::error::LlmError;
 use crate::llm::manifest::find_manifest;
+use crate::llm::model::ApiType;
 use crate::types::{MessageRole, OrchestratorMessage};
 
 /// GenaiBackend — 基于 genai crate 的 LLM 后端实现
@@ -94,25 +97,59 @@ impl GenaiBackend {
         self.config.read().await.clone()
     }
 
-    /// 将 ProviderConfig 解析为 genai 的 ServiceTarget 字符串
+    /// 将 ProviderConfig 解析为 genai 的 ServiceTarget
     ///
-    /// genai 格式：`{provider}::{model}`，例如：
-    /// - `deepseek::deepseek-v4-flash`
-    /// - `openai::gpt-5.4`
-    /// - `anthropic::claude-sonnet-4-6`
-    /// - `ollama::llama3`（本地）
-    fn resolve_service_target(config: &ProviderConfig) -> Result<String, LlmError> {
-        let provider = config.provider_id();
-        let model = config.model_id();
-
+    /// 直接构造 [`ServiceTarget`]（endpoint / auth / model），绕过 genai 的
+    /// adapter 推断逻辑。原因：genai 只内置了有限适配器（opneai / anthropic /
+    /// ollama 等），Agnes 等未注册适配器在字符串解析（`{provider}::{model}`）
+    /// 时会 fallback 到 Ollama，导致请求发错地址。
+    ///
+    /// 通过 `ServiceTarget::Target` 传入时，genai 直接使用我们指定的
+    /// endpoint / auth / model，不再做 provider 推断。
+    fn resolve_service_target(config: &ProviderConfig) -> Result<ServiceTarget, LlmError> {
         // 校验 manifest 存在（cloud 模式）
         if matches!(config, ProviderConfig::Cloud { .. }) {
+            let provider = config.provider_id();
             if find_manifest(provider).is_none() {
                 return Err(LlmError::ProviderNotFound(provider.to_string()));
             }
         }
 
-        Ok(format!("{provider}::{model}"))
+        let base_url = config.resolve_base_url();
+        let model_id = config.model_id().to_string();
+        let api_key = config.api_key().to_string();
+
+        // 由 API 协议推断 adapter kind：
+        // - Anthropic Messages 协议 → Anthropic 适配器
+        // - 其余（OpenAI 兼容 / Response / Google / 本地）→ OpenAI 适配器
+        let adapter_kind = match config.infer_api_type() {
+            ApiType::AnthropicMessages => AdapterKind::Anthropic,
+            _ => AdapterKind::OpenAI,
+        };
+
+        // 规范化 base_url 以 `/` 结尾。
+        //
+        // 原因：genai 的 OpenAI 适配器用 `base_url.join("chat/completions")` 拼接 URL，
+        // 而 `reqwest::Url::join` 在 base_url 无尾斜杠时会将末尾路径段当作文件名丢弃。
+        // 例：`https://api.agnesai.com/v1` + `chat/completions` → `https://api.agnesai.com/chat/completions`
+        // （丢失 `/v1`）。保证尾斜杠后拼接结果才正确。
+        let endpoint = Endpoint::from_owned(Self::ensure_trailing_slash(base_url));
+        let auth = AuthData::from_single(api_key);
+        let model = ModelIden::new(adapter_kind, model_id);
+
+        Ok(ServiceTarget { endpoint, auth, model })
+    }
+
+    /// 确保 base_url 以 `/` 结尾
+    ///
+    /// genai 的 OpenAI 适配器用 `Url::join` 拼接 service 路径，无尾斜杠时末尾路径段
+    /// 会被当作文件名丢弃（见 [`Self::resolve_service_target`] 的说明）。
+    fn ensure_trailing_slash(url: String) -> String {
+        if url.ends_with('/') {
+            url
+        } else {
+            format!("{url}/")
+        }
     }
 
     /// 将 OrchestratorMessage 转换为 genai ChatMessage
@@ -286,9 +323,10 @@ impl NodeBackendAccessor for GenaiBackend {
 
             // exec_chat_stream 签名：(&self, model, chat_req, Option<&ChatOptions>)
             // 返回 ChatStreamResponse { stream: ChatStream, model_iden: ModelIden }
+            // 传入 ServiceTarget（ModelSpec::Target），直接绕过 adapter 推断。
             let stream_resp = self
                 .client
-                .exec_chat_stream(&service_target, chat_req, Some(&chat_opts))
+                .exec_chat_stream(service_target, chat_req, Some(&chat_opts))
                 .await
                 .map_err(LlmError::from)?;
 
@@ -330,7 +368,7 @@ impl NodeBackendAccessor for GenaiBackend {
                         // 暂不处理 thought signature
                     }
                     ChatStreamEvent::Heartbeat => {
-                        // 握手心跳，忽略即可
+                        // 握手心跳（genai >= 0.7.0-beta.16），忽略即可
                     }
                     ChatStreamEvent::ToolCallChunk(tool_chunk) => {
                         // genai 0.7 ToolChunk { tool_call: ToolCall }
@@ -643,7 +681,36 @@ mod tests {
             api_key: "sk-test".to_string(),
         };
         let target = GenaiBackend::resolve_service_target(&config).unwrap();
-        assert_eq!(target, "deepseek::deepseek-v4-flash");
+        // ServiceTarget 直接指定 endpoint / auth / model，绕过 adapter 推断
+        assert_eq!(target.endpoint.base_url(), "https://api.deepseek.com/");
+        assert_eq!(target.model.model_name, "deepseek-v4-flash");
+        assert_eq!(target.model.adapter_kind, AdapterKind::OpenAI);
+    }
+
+    #[test]
+    fn resolve_service_target_agnes_uses_openai_adapter() {
+        // Agnes 未注册 genai adapter，此前会 fallback 到 Ollama；
+        // 现在直接构造 ServiceTarget 绕过推断，端点指向 Agnes 的 /v1 base。
+        let config = ProviderConfig::Cloud {
+            provider: "agnes".to_string(),
+            model_id: "agnes-2.0-flash".to_string(),
+            api_key: "sk-agnes-test".to_string(),
+        };
+        let target = GenaiBackend::resolve_service_target(&config).unwrap();
+        assert_eq!(target.endpoint.base_url(), "https://api.agnesai.com/v1/");
+        assert_eq!(target.model.model_name, "agnes-2.0-flash");
+        assert_eq!(target.model.adapter_kind, AdapterKind::OpenAI);
+    }
+
+    #[test]
+    fn resolve_service_target_anthropic_uses_anthropic_adapter() {
+        let config = ProviderConfig::Cloud {
+            provider: "anthropic".to_string(),
+            model_id: "claude-sonnet-4-6".to_string(),
+            api_key: "sk-ant-test".to_string(),
+        };
+        let target = GenaiBackend::resolve_service_target(&config).unwrap();
+        assert_eq!(target.model.adapter_kind, AdapterKind::Anthropic);
     }
 
     #[test]
@@ -669,7 +736,9 @@ mod tests {
             model_id: "llama3".to_string(),
         };
         let target = GenaiBackend::resolve_service_target(&config).unwrap();
-        assert_eq!(target, "ollama::llama3");
+        assert_eq!(target.endpoint.base_url(), "http://localhost:11434/");
+        assert_eq!(target.model.model_name, "llama3");
+        assert_eq!(target.model.adapter_kind, AdapterKind::OpenAI);
     }
 
     #[test]
@@ -683,8 +752,9 @@ mod tests {
             max_tokens: 4_096,
         };
         let target = GenaiBackend::resolve_service_target(&config).unwrap();
-        // custom 模式的 provider_id 返回 "openai-compatible"
-        assert_eq!(target, "openai-compatible::custom-model");
+        assert_eq!(target.endpoint.base_url(), "https://api.example.com/v1/");
+        assert_eq!(target.model.model_name, "custom-model");
+        assert_eq!(target.model.adapter_kind, AdapterKind::OpenAI);
     }
 
     #[test]

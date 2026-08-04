@@ -2,7 +2,7 @@
 //!
 //! ## 背景
 //! Deep Mode 的工具→阶段映射表在 TS 与 Rust 两端各有一份：
-//! - TS 端：`src/agent/bubbles/deepPhases.ts` 的 `DEEP_PHASES` 数组
+//! - TS 端：`packages/shared-ui/src/agent/bubbles/deepPhases.ts` 的 `DEEP_PHASES` 数组
 //! - Rust 端：`crates/agent-runtime/src/deep_phases.rs` 的 `DEEP_PHASES` 常量
 //!
 //! 两份映射表必须保持一致，否则会出现：
@@ -30,8 +30,9 @@ use std::collections::HashSet;
 
 /// TS 端 `deepPhases.ts` 源文件内容（编译期嵌入）
 ///
-/// 路径相对本文件：`tests/deep_phases_parity.rs` → 上一级 → 上一级 → 上一级 → 项目根 → `src/agent/bubbles/deepPhases.ts`
-const TS_SOURCE: &str = include_str!("../../../src/agent/bubbles/deepPhases.ts");
+/// 路径相对本文件：`tests/deep_phases_parity.rs` → 上一级 → 上一级 → 上一级 → 项目根 → `packages/shared-ui/src/agent/bubbles/deepPhases.ts`
+/// （5.3 迁移后 TS 端 bubbles 已从根目录 `src/` 迁至共享层 packages/shared-ui）
+const TS_SOURCE: &str = include_str!("../../../packages/shared-ui/src/agent/bubbles/deepPhases.ts");
 
 /// 从一行文本中提取 `'xxx'` 形式的字符串字面量
 ///

@@ -198,7 +198,7 @@ async fn run_stream(
                 // 暂不处理
             }
             ChatStreamEvent::Heartbeat => {
-                // 握手心跳，忽略即可
+                // 握手心跳（genai >= 0.7.0-beta.16），忽略即可
             }
             ChatStreamEvent::ToolCallChunk(tool_chunk) => {
                 // genai 0.7 ToolChunk { tool_call: ToolCall }

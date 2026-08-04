@@ -38,7 +38,9 @@ chrono = { version = "0.4", features = ["serde"] }
 #   - Windows: schannel（系统自带，无需编译）
 #   - Linux: OpenSSL（系统包管理器安装）
 #   - macOS: SecureTransport（系统自带）
-genai = { version = "0.7.0-beta.14", optional = true, default-features = false, features = ["native-tls"] }
+# 对齐到 0.7.0-beta.16：与 agent-commands / tauri 的 Cargo.lock 保持一致，
+# 避免同一份代码在不同 crate 构建下因枚举变体不一致（Heartbeat）而编译失败
+genai = { version = "0.7.0-beta.16", optional = true, default-features = false, features = ["native-tls"] }
 sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio"], optional = true }
 
 [dev-dependencies]
