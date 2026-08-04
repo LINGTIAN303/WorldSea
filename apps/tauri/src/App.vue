@@ -1,11 +1,18 @@
 <script setup lang="ts">
 // Phase 5.2：注入 Tauri 端 Agent Backend（Rust 命令层），验证「前端 → IPC → Rust → 响应」链路
 import { ref, onMounted } from 'vue'
+import { A2UIRenderer } from '@worldsmith/shared-ui/agent/a2ui'
 import { provideAgentBackend, useAgentRust } from './agent/composables/useAgentRust'
 
 // 在 setup 上下文注入（useAgent 使用 inject 模式，须在组件内 provide）
 const backend = useAgentRust()
 provideAgentBackend(backend)
+
+/** A2UI 动作回调：收到组件 action 时转发到后端 prompt（暂以文本形式透传） */
+function onA2UIAction(_surfaceId: string, action: { name: string; data?: any }) {
+  const text = `[A2UI] ${action.name}${action.data ? ' ' + JSON.stringify(action.data) : ''}`
+  backend.prompt(text)
+}
 
 const input = ref('')
 const sending = ref(false)
@@ -74,6 +81,15 @@ onMounted(async () => {
           <div class="role">{{ m.role === 'user' ? '你' : 'Agent' }}</div>
           <div class="content">{{ m.content }}</div>
         </div>
+      </div>
+
+      <!-- A2UI（Agent-to-UI）渲染区：Agent 下发画布时在此展示 -->
+      <div v-if="Object.keys(backend.a2uiSurfaces).length > 0" class="a2ui-zone">
+        <A2UIRenderer
+          :surfaces="backend.a2uiSurfaces"
+          :resolve-binding="backend.resolveDataBinding"
+          @action="onA2UIAction"
+        />
       </div>
 
       <div v-if="error" class="error">{{ error }}</div>
@@ -185,6 +201,10 @@ onMounted(async () => {
 }
 .msg.user .content {
   background: #e8f0fe;
+}
+.a2ui-zone {
+  padding: 0 20px 16px;
+  border-top: 1px solid #eee;
 }
 .error {
   padding: 8px 20px;
