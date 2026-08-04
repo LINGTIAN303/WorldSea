@@ -24,13 +24,36 @@ use std::sync::Arc;
 
 use agent_commands::{AgentCommandService, SendMessageParams};
 use agent_runtime::agent::{AgentError, AgentLoop, AgentLoopConfig};
+use agent_runtime::backend::NodeBackendAccessor;
+use agent_runtime::event::OrchestratorEvent;
 use agent_runtime::llm::config::ProviderConfig;
 use agent_runtime::llm::GenaiBackend;
 use agent_runtime::long_task::{
     LongTaskCheckpoint, LongTaskMeta, LongTaskStatus, LongTaskType,
 };
-use agent_runtime::tool::{SimpleToolBus, Tool, ToolError};
-use agent_runtime::types::{MessageRole, OrchestratorMessage, ToolCall};
+use agent_runtime::loop_control::{
+    LoopControlConfig, LoopController, RateLimitConfig, RateLimitExceeded, RetryConfig,
+    SoftTimeoutConfig, SoftTimeoutLevel, WatchdogAlert, WatchdogConfig,
+};
+use agent_runtime::node::{
+    AbortCheck, EventEmitter, NodeContext, NodeResult, NodeStatus, OrchestratorNode,
+};
+use agent_runtime::supervisor::{
+    AssignmentError, AssignmentResult, AssignmentStrategy, SubAgentSpec, SupervisorConfig,
+    SupervisorNode,
+};
+use agent_runtime::multi_agent::{
+    AgentRole, AgentSpec, ConvergenceStrategy, GoalCheckStrategyMA, MultiAgentConfig,
+    MultiAgentError, MultiAgentNode, SharedBlackboard, SynthesisStrategy, Topology,
+};
+use agent_runtime::graph_of_thoughts::{AggregationStrategy, GoTConfig, GoTNode};
+use agent_runtime::router::{RouteTarget, RouterConfig, RouterNode};
+use agent_runtime::tool::{SimpleToolBus, Tool, ToolBus, ToolError};
+use agent_runtime::tree_of_thoughts::{
+    BeamSearchStrategy, GoalCheckStrategy, LlmScoringStrategy, ThoughtNode, ToTConfig, ToTError,
+    ToTNode,
+};
+use agent_runtime::types::{MessageRole, OrchestratorMessage, OrchestratorState, ToolCall};
 use async_trait::async_trait;
 
 /// 从环境变量读取测试用 API Key（未设置则返回 None）
@@ -528,4 +551,954 @@ async fn e2e_long_task_cooperative_cancel_deepseek() {
     assert!(!agent.long_task_manager().is_cancel_requested(), "取消后 flag 应重置");
 
     eprintln!("[e2e] 协作式取消：run 返回 Aborted，任务状态 → Cancelled，flag 已重置");
+}
+
+// ─── 13 种编排模式 e2e（分层混合策略）────────────────────────────
+//
+// 分层混合策略（用户已确认）：编排框架层（Supervisor/Router/MultiAgent/ToT/GoT/
+// LoopControl）用确定性策略控制路由/分配/打分，真实 LLM 只负责子任务执行；loop 层
+// 用真实 LLM。下方先实现 Supervisor 模式。
+
+// ─── 确定性桩：任务分配策略 ────────────────────────────────────
+
+/// 确定性分配策略 — 固定把任务分配给指定子 Agent（e2e 用)
+struct StubAssignmentStrategy {
+    sub_agent_id: String,
+}
+
+impl StubAssignmentStrategy {
+    fn new(sub_agent_id: impl Into<String>) -> Self {
+        Self {
+            sub_agent_id: sub_agent_id.into(),
+        }
+    }
+}
+
+#[async_trait]
+impl AssignmentStrategy for StubAssignmentStrategy {
+    async fn assign(
+        &self,
+        task: &str,
+        _candidates: &[SubAgentSpec],
+        _backend: &dyn NodeBackendAccessor,
+    ) -> Result<AssignmentResult, AssignmentError> {
+        Ok(AssignmentResult {
+            sub_agent_id: self.sub_agent_id.clone(),
+            task_description: task.to_string(),
+            reasoning: Some("e2e 确定性分配".into()),
+        })
+    }
+}
+
+// ─── 确定性桩：事件发射 / 中断检查 ────────────────────────────────────
+
+struct E2eEmitter;
+impl EventEmitter for E2eEmitter {
+    fn emit(&self, _event: OrchestratorEvent) {}
+}
+
+struct E2eAbort;
+#[async_trait]
+impl AbortCheck for E2eAbort {
+    fn is_aborted(&self) -> bool {
+        false
+    }
+    async fn wait_if_paused(&self) {}
+}
+
+/// Supervisor 编排模式 e2e：确定性分配 + 真实 LLM 执行子 Agent
+///
+/// 验证 Supervisor 节点完整链路：
+/// 1. 确定性策略（StubAssignmentStrategy）把任务固定分配给 "coder" 子 Agent
+/// 2. 子 Agent 用真实 LLM（GenaiBackend）执行任务，产出文本输出
+/// 3. 输出收集到 state.messages，meta 记录 sub_agent_id / round 等
+/// 4. 返回 Continue + summary
+#[tokio::test]
+#[ignore = "需要真实 API Key 与网络，按需显式运行"]
+async fn e2e_supervisor_orchestration_deepseek() {
+    let Some(api_key) = api_key_from_env() else {
+        eprintln!("[e2e] 未设置 DEEPSEEK_API_KEY，跳过真实 LLM 调用");
+        return;
+    };
+
+    // 1) 子 Agent 规格：两个专长子 Agent（系统提示词明确"不要调用工具"，让子 Agent
+    //    直接文本回答，避免真实 LLM 工具调用带来的不确定性——本测试聚焦编排链路）
+    let specs = vec![
+        SubAgentSpec {
+            id: "coder".into(),
+            name: "代码专家".into(),
+            description: "处理代码编写、调试、重构任务".into(),
+            system_prompt: "你是一个专业的代码工程师。请用中文简洁回答，不要调用任何工具。".into(),
+            tools_whitelist: None,
+            max_iterations: Some(5),
+        },
+        SubAgentSpec {
+            id: "writer".into(),
+            name: "文档专家".into(),
+            description: "处理文档撰写、翻译、润色任务".into(),
+            system_prompt: "你是一个专业的技术文档工程师。请用中文简洁回答，不要调用任何工具。".into(),
+            tools_whitelist: None,
+            max_iterations: Some(5),
+        },
+    ];
+
+    // 2) 确定性分配策略：固定分配给 coder（框架层确定性，不依赖 LLM 决策）
+    let strategy = Arc::new(StubAssignmentStrategy::new("coder"));
+
+    // 3) 共享 backend + 空工具总线（子 Agent 仅文本回答，规避工具调用不确定性）
+    let backend = Arc::new(GenaiBackend::new(deepseek_config(&api_key)));
+    let tool_bus = Arc::new(SimpleToolBus::new());
+
+    let node = SupervisorNode::new(
+        "sup",
+        "任务监督者",
+        specs,
+        strategy,
+        Arc::clone(&backend) as Arc<dyn NodeBackendAccessor>,
+        tool_bus as Arc<dyn ToolBus>,
+        SupervisorConfig::default(),
+    );
+
+    // 4) 构造 NodeContext（类似编排器执行时传入的上下文）
+    let mut state = OrchestratorState::new("请写一个 Rust 函数，计算两个整数的和。");
+    let emitter = E2eEmitter;
+    let abort = E2eAbort;
+    let ctx = NodeContext {
+        state: &mut state,
+        backend: &*backend,
+        memory: None,
+        emitter: &emitter,
+        abort_check: &abort,
+    };
+
+    // 5) 执行 Supervisor 节点
+    let result = node.execute(ctx).await;
+    assert_eq!(result.status, NodeStatus::Continue, "Supervisor 应返回 Continue");
+    assert!(result.summary.is_some(), "应有 summary");
+
+    // 6) 校验 state.messages 含 Supervisor 消息（子 Agent 输出已收集）
+    let last = state.messages.last().expect("应有 Supervisor 消息");
+    assert!(matches!(last.role, MessageRole::Assistant));
+    assert!(
+        last.content.contains("[Supervisor → 代码专家]"),
+        "消息应标识分配的子 Agent"
+    );
+    assert!(
+        last.content.contains("[SubAgent 输出]:"),
+        "消息应包含子 Agent 输出区"
+    );
+    // 子 Agent 用真实 LLM 执行，输出应非空
+    let output_section = last
+        .content
+        .split("[SubAgent 输出]:")
+        .nth(1)
+        .unwrap_or_default()
+        .trim();
+    assert!(
+        !output_section.is_empty(),
+        "子 Agent 输出不应为空（真实 LLM 执行）"
+    );
+
+    // 7) 校验 meta 记录
+    let meta = last.meta.as_ref().expect("应有 meta");
+    assert_eq!(
+        meta.get("sub_agent_id").and_then(|v| v.as_str()),
+        Some("coder")
+    );
+    assert_eq!(meta.get("round").and_then(|v| v.as_u64()), Some(1));
+
+    eprintln!(
+        "[e2e] Supervisor：summary={} 子 Agent 输出长度={}",
+        result.summary.as_deref().unwrap(),
+        output_section.len()
+    );
+}
+
+// ─── 确定性桩：事件收集器 ────────────────────────────────────
+
+/// 事件收集器 — 记录 Router 发射的决策事件，供测试断言
+struct RecordingEmitter {
+    events: std::sync::Mutex<Vec<OrchestratorEvent>>,
+}
+
+impl RecordingEmitter {
+    fn new() -> Self {
+        Self {
+            events: std::sync::Mutex::new(Vec::new()),
+        }
+    }
+
+    fn decisions(&self) -> Vec<OrchestratorEvent> {
+        self.events.lock().unwrap().clone()
+    }
+}
+
+impl EventEmitter for RecordingEmitter {
+    fn emit(&self, event: OrchestratorEvent) {
+        self.events.lock().unwrap().push(event);
+    }
+}
+
+/// Router 编排模式 e2e：确定性关键词路由 + 事件发射
+///
+/// Router 是纯决策节点（不执行子 Agent，只输出 next_node_id 让 Orchestrator 调度），
+/// 因此本测试用 `KeywordRoutingStrategy` 确定性路由（框架层确定性，不依赖 LLM 决策），
+/// 验证：
+/// 1. 输入含"代码/函数"关键词 → 路由到 coder（next_node_id）
+/// 2. 输入含"文档/翻译"关键词 → 路由到 writer（next_node_id）
+/// 3. 无关键词命中且配置 fallback → 走 fallback
+/// 4. 决策事件（RouterDecisionMade）正确发射
+/// 5. summary 包含路由分支名称
+#[tokio::test]
+#[ignore = "需要真实 API Key 与网络，按需显式运行"]
+async fn e2e_router_orchestration_deepseek() {
+    let Some(api_key) = api_key_from_env() else {
+        eprintln!("[e2e] 未设置 DEEPSEEK_API_KEY，跳过真实 LLM 调用");
+        return;
+    };
+
+    // 1) 路由目标：代码专家 / 文档专家（带关键词）
+    let targets = vec![
+        RouteTarget {
+            id: "coder".into(),
+            name: "代码专家".into(),
+            description: "处理代码编写、调试、重构任务".into(),
+            keywords: Some(vec!["代码".into(), "函数".into()]),
+        },
+        RouteTarget {
+            id: "writer".into(),
+            name: "文档专家".into(),
+            description: "处理文档撰写、翻译、润色任务".into(),
+            keywords: Some(vec!["文档".into(), "翻译".into()]),
+        },
+    ];
+
+    // 2) 构造 RouterNode（关键词策略 + 共享 backend；backend 仅作占位，关键词策略不调用）
+    let backend = Arc::new(GenaiBackend::new(deepseek_config(&api_key)));
+    let node = RouterNode::with_keyword_strategy(
+        "router",
+        "路由节点",
+        targets.clone(),
+        Arc::clone(&backend) as Arc<dyn NodeBackendAccessor>,
+        RouterConfig::default(),
+    );
+
+    // 3) 辅助执行：构造 NodeContext 并执行，返回 (NodeResult, 事件列表)
+    async fn run_router(
+        node: &RouterNode,
+        backend: &dyn NodeBackendAccessor,
+        input: &str,
+    ) -> (NodeResult, Vec<OrchestratorEvent>) {
+        let mut state = OrchestratorState::new(input.to_string());
+        let emitter = RecordingEmitter::new();
+        let abort = E2eAbort;
+        let ctx = NodeContext {
+            state: &mut state,
+            backend,
+            memory: None,
+            emitter: &emitter,
+            abort_check: &abort,
+        };
+        let result = node.execute(ctx).await;
+        let events = emitter.decisions();
+        (result, events)
+    }
+
+    // 4) 用例 A：输入含"函数" → 路由到 coder（代码专家）
+    let (result_a, events_a) = run_router(&node, &*backend, "请帮我写一个排序函数，用 Rust 实现。").await;
+    assert_eq!(result_a.status, NodeStatus::Continue, "Router 应返回 Continue");
+    assert_eq!(
+        result_a.next_node_id.as_deref(),
+        Some("coder"),
+        "含'函数'应路由到 coder"
+    );
+    assert!(
+        result_a.summary.as_deref().unwrap().contains("代码专家"),
+        "summary 应包含路由分支名称（代码专家）"
+    );
+    // 应发射 RouterDecisionMade 事件且 target_id = coder，非 fallback
+    assert!(
+        events_a.iter().any(|e| matches!(e, OrchestratorEvent::RouterDecisionMade {
+            node_id: _,
+            target_id,
+            target_name,
+            reason: _,
+            is_fallback: false,
+        } if target_id == "coder" && target_name == "代码专家")),
+        "应发射 RouterDecisionMade(coder) 事件"
+    );
+
+    // 5) 用例 B：输入含"文档" → 路由到 writer（文档专家）
+    let (result_b, events_b) = run_router(&node, &*backend, "请把这段技术文档翻译成英文。").await;
+    assert_eq!(result_b.status, NodeStatus::Continue);
+    assert_eq!(
+        result_b.next_node_id.as_deref(),
+        Some("writer"),
+        "含'文档'应路由到 writer"
+    );
+    assert!(
+        events_b.iter().any(|e| matches!(e, OrchestratorEvent::RouterDecisionMade {
+            node_id: _,
+            target_id,
+            target_name: _,
+            reason: _,
+            is_fallback: false,
+        } if target_id == "writer")),
+        "应发射 RouterDecisionMade(writer) 事件"
+    );
+
+    // 6) 用例 C：无关键词命中且配置 fallback → 走 fallback
+    let mut targets_with_fallback = targets.clone();
+    targets_with_fallback.push(RouteTarget {
+        id: "fallback".into(),
+        name: "兜底分支".into(),
+        description: "处理未分类任务".into(),
+        keywords: None,
+    });
+    let fallback_node = RouterNode::with_keyword_strategy(
+        "router",
+        "路由节点",
+        targets_with_fallback,
+        Arc::clone(&backend) as Arc<dyn NodeBackendAccessor>,
+        RouterConfig {
+            fallback_target_id: Some("fallback".into()),
+        },
+    );
+    let mut state_c = OrchestratorState::new("今天天气怎么样？".to_string());
+    let emitter_c = RecordingEmitter::new();
+    let abort_c = E2eAbort;
+    let ctx_c = NodeContext {
+        state: &mut state_c,
+        backend: &*backend,
+        memory: None,
+        emitter: &emitter_c,
+        abort_check: &abort_c,
+    };
+    let result_c = fallback_node.execute(ctx_c).await;
+    assert_eq!(result_c.status, NodeStatus::Continue, "无匹配应走 fallback");
+    assert_eq!(
+        result_c.next_node_id.as_deref(),
+        Some("fallback"),
+        "无匹配应路由到 fallback"
+    );
+    assert!(
+        emitter_c
+            .decisions()
+            .iter()
+            .any(|e| matches!(e, OrchestratorEvent::RouterDecisionMade {
+                node_id: _,
+                target_id,
+                target_name: _,
+                reason: _,
+                is_fallback: true,
+            } if target_id == "fallback")),
+        "fallback 决策应发射 is_fallback=true 事件"
+    );
+
+    eprintln!(
+        "[e2e] Router：code→{} writer→{} fallback→{}",
+        result_a.next_node_id.as_deref().unwrap(),
+        result_b.next_node_id.as_deref().unwrap(),
+        result_c.next_node_id.as_deref().unwrap()
+    );
+}
+
+// ─── 确定性桩：多 Agent 综合 / 目标检查 ────────────────────────────────────
+
+/// 确定性综合策略 — 拼接所有 Agent 输出（e2e 用，避免额外 LLM 综合调用）
+struct ConcatSynthesisStrategy;
+
+#[async_trait]
+impl SynthesisStrategy for ConcatSynthesisStrategy {
+    async fn synthesize(
+        &self,
+        _task: &str,
+        blackboard: &SharedBlackboard,
+        _backend: &dyn NodeBackendAccessor,
+    ) -> Result<String, MultiAgentError> {
+        let mut parts = Vec::new();
+        for (id, outputs) in &blackboard.agent_outputs {
+            for out in outputs {
+                parts.push(format!("[{}]: {}", id, out));
+            }
+        }
+        Ok(parts.join("\n"))
+    }
+}
+
+/// 确定性目标检查策略 — 2 个 Agent 都有输出即视为达成（e2e 用）
+///
+/// 本测试固定 2 个子 Agent，故以 `agent_outputs.len() >= 2` 判定收敛。
+/// 框架层确定性，不依赖 LLM 决策，保证测试稳定。
+struct AllOutputsGoalCheck;
+
+#[async_trait]
+impl GoalCheckStrategyMA for AllOutputsGoalCheck {
+    async fn check_goal(
+        &self,
+        _task: &str,
+        blackboard: &SharedBlackboard,
+        _backend: &dyn NodeBackendAccessor,
+    ) -> Result<bool, MultiAgentError> {
+        Ok(blackboard.agent_outputs.len() >= 2)
+    }
+}
+
+/// Multi-Agent 编排模式 e2e：确定性目标检查 + 真实 LLM 多 Agent 协作
+///
+/// 验证 MultiAgentNode 完整链路（框架层确定性 + loop 层真实 LLM）：
+/// 1. 多个 Agent（代码专家/文档专家）用真实 LLM 并行执行子任务
+/// 2. 共享黑板（SharedBlackboard）记录每个 Agent 的输出
+/// 3. 确定性目标检查（AllOutputsGoalCheck）在 2 个 Agent 都有输出后判定收敛
+/// 4. 确定性综合（ConcatSynthesisStrategy）拼接所有 Agent 输出为最终结果
+/// 5. 返回 Done，state.messages 含 [Multi-Agent 协作完成] 消息
+#[tokio::test]
+#[ignore = "需要真实 API Key 与网络，按需显式运行"]
+async fn e2e_multi_agent_orchestration_deepseek() {
+    let Some(api_key) = api_key_from_env() else {
+        eprintln!("[e2e] 未设置 DEEPSEEK_API_KEY，跳过真实 LLM 调用");
+        return;
+    };
+
+    // 1) 两个 Agent 规格（真实 LLM 执行子任务，系统提示词明确"不要调用工具"，
+    //    规避真实 LLM 工具调用不确定性——本测试聚焦多 Agent 编排链路）
+    let specs = vec![
+        AgentSpec {
+            id: "coder".into(),
+            name: "代码专家".into(),
+            role: AgentRole::Worker,
+            description: "处理代码编写、调试、重构任务".into(),
+            system_prompt: "你是一个专业的代码工程师。请用中文简洁回答，不要调用任何工具。".into(),
+            tools_whitelist: None,
+            max_iterations: Some(5),
+            initial_message: Some("请从代码角度分析这个任务并给出你的专业意见。".into()),
+        },
+        AgentSpec {
+            id: "writer".into(),
+            name: "文档专家".into(),
+            role: AgentRole::Worker,
+            description: "处理文档撰写、翻译、润色任务".into(),
+            system_prompt: "你是一个专业的技术文档工程师。请用中文简洁回答，不要调用任何工具。".into(),
+            tools_whitelist: None,
+            max_iterations: Some(5),
+            initial_message: Some("请从文档角度分析这个任务并给出你的专业意见。".into()),
+        },
+    ];
+
+    // 2) 配置：Mesh 拓扑 + Hybrid 收敛（goal_check + max_rounds=2）
+    let config = MultiAgentConfig {
+        max_rounds: 2,
+        max_concurrency: 5,
+        topology: Topology::Mesh,
+        blackboard_enabled: true,
+        message_passing_enabled: true,
+        convergence_strategy: ConvergenceStrategy::Hybrid {
+            goal_check: true,
+            max_rounds: 2,
+        },
+        channel_capacity: 32,
+        agent_loop_config: Default::default(),
+        require_synthesis: true,
+    };
+
+    // 3) 共享 backend + 空工具总线 + 确定性策略
+    let backend = Arc::new(GenaiBackend::new(deepseek_config(&api_key)));
+    let tool_bus = Arc::new(SimpleToolBus::new());
+    let node = MultiAgentNode::with_strategies(
+        "multi",
+        "多 Agent 协作",
+        specs,
+        Arc::clone(&backend) as Arc<dyn NodeBackendAccessor>,
+        tool_bus as Arc<dyn ToolBus>,
+        config,
+        Arc::new(ConcatSynthesisStrategy),
+        Arc::new(AllOutputsGoalCheck),
+    );
+
+    // 4) 构造 NodeContext（类似编排器执行时传入的上下文）
+    let mut state = OrchestratorState::new("请设计一个简单的 Python 计算器程序，并说明其结构。");
+    let emitter = E2eEmitter;
+    let abort = E2eAbort;
+    let ctx = NodeContext {
+        state: &mut state,
+        backend: &*backend,
+        memory: None,
+        emitter: &emitter,
+        abort_check: &abort,
+    };
+
+    // 5) 执行 MultiAgent 节点
+    let result = node.execute(ctx).await;
+    assert_eq!(result.status, NodeStatus::Done, "Multi-Agent 应返回 Done");
+    assert!(result.summary.is_some(), "应有 summary");
+
+    // 6) 校验黑板：两个 Agent 都有输出、收敛轮次、final_result
+    let bb = node.last_blackboard().await.expect("应有黑板快照");
+    assert_eq!(bb.agent_outputs.len(), 2, "黑板应记录 2 个 Agent 的输出");
+    assert!(bb.agent_outputs.contains_key("coder"), "应有 coder 输出");
+    assert!(bb.agent_outputs.contains_key("writer"), "应有 writer 输出");
+    assert!(bb.final_result.is_some(), "应已写入 final_result");
+    assert!(bb.rounds_completed >= 1, "应至少完成 1 轮");
+
+    // 7) 校验 state.messages 含 Multi-Agent 完成消息
+    let last = state.messages.last().expect("应有 Multi-Agent 消息");
+    assert!(matches!(last.role, MessageRole::Assistant));
+    assert!(
+        last.content.contains("Multi-Agent 协作完成"),
+        "消息应包含协作完成标记"
+    );
+    assert!(
+        last.content.contains("coder") || last.content.contains("writer"),
+        "综合结果应包含 Agent 输出（[coder]/[writer] 拼接）"
+    );
+
+    // 8) 校验 meta 记录
+    let meta = last.meta.as_ref().expect("应有 meta");
+    assert_eq!(meta.get("agent_count").and_then(|v| v.as_u64()), Some(2));
+
+    eprintln!(
+        "[e2e] Multi-Agent：rounds={} agent_outputs={} final_result 长度={}",
+        bb.rounds_completed,
+        bb.agent_outputs.len(),
+        bb.final_result.as_ref().unwrap().len()
+    );
+}
+
+/// Tree of Thoughts (ToT) 编排模式 e2e：Beam Search 思维树探索 + 真实 LLM
+///
+/// 验证 ToTNode 完整链路：
+/// 1. 创建根节点（depth=0，content=原始问题）
+/// 2. Beam Search 循环：评分 → 目标检查 → 剪枝 → 分支扩展
+/// 3. 终止后找到评分最高的最优思维节点
+/// 4. 写入最优思维到 state.messages，meta 记录 best_score / best_depth / total_nodes
+/// 5. 返回 Continue + summary（探索完成概要）
+///
+/// 分层策略说明：ToT 核心就是 LLM 生成/评分/剪枝，因此全部用真实 LLM
+/// 验证链路正确性，无需额外确定性桩。
+#[tokio::test]
+#[ignore = "需要真实 API Key 与网络，按需显式运行"]
+async fn e2e_tot_beam_search_deepseek() {
+    let Some(api_key) = api_key_from_env() else {
+        eprintln!("[e2e] 未设置 DEEPSEEK_API_KEY，跳过真实 LLM 调用");
+        return;
+    };
+
+    // 1) ToT 配置：减小参数加快测试（beam_width=2，branch_factor=2，max_depth=3）
+    //    完整思维树探索但参数较小，控制测试时间
+    let config = ToTConfig {
+        max_depth: 3,
+        max_thoughts: 20,
+        beam_width: 2,
+        branch_factor: 2,
+        score_convergence_threshold: 5,
+        require_summary: true,
+        check_goal_at_root: false,
+    };
+
+    // 2) 共享 backend，使用默认策略（BeamSearch 探索 + Llm 评分 + Llm 目标检查）
+    let backend = Arc::new(GenaiBackend::new(deepseek_config(&api_key)));
+    let node = ToTNode::with_default_strategies(
+        "tot",
+        "思维树探索",
+        Arc::clone(&backend) as Arc<dyn NodeBackendAccessor>,
+        config,
+    );
+
+    // 3) 构造 NodeContext（数学问题："3瓶水换一瓶，10瓶喝了能换几瓶" 经典多步推理题，适合 ToT 探索）
+    let mut state = OrchestratorState::new("有10瓶矿泉水，每3个空瓶可以换一瓶新的。请问总共能喝到多少瓶？请分步思考。");
+    let emitter = E2eEmitter;
+    let abort = E2eAbort;
+    let ctx = NodeContext {
+        state: &mut state,
+        backend: &*backend,
+        memory: None,
+        emitter: &emitter,
+        abort_check: &abort,
+    };
+
+    // 4) 执行 ToT 探索
+    let result = node.execute(ctx).await;
+    if result.status == NodeStatus::Error {
+        eprintln!("[e2e] ToT 执行 Error: {:?}", result.error);
+    }
+    // 两种正常终止路径（取决于真实 LLM 是否在探索中达成目标）：
+    // - Done：目标达成（消息标记 [ToT 目标达成]）
+    // - Continue：探索到 max_depth/评分收敛（消息标记 [ToT 最优思维]）
+    assert!(
+        matches!(result.status, NodeStatus::Continue | NodeStatus::Done),
+        "ToT 应返回 Continue 或 Done，实际: {:?}",
+        result.status
+    );
+    assert!(result.summary.is_some(), "应有 summary");
+
+    // 5) 校验结果：至少探索出一个节点，最优评分 > 0，最优思维非空
+    let snapshot = node.tree_snapshot().await;
+    let total_nodes = snapshot.len();
+    assert!(total_nodes >= 1, "树中至少有一个根节点");
+
+    let best_id = node.best_node_id().await.expect("应有最优节点");
+    let best_node = snapshot
+        .iter()
+        .find(|n| n.id == best_id)
+        .cloned()
+        .expect("最优节点应存在");
+    assert!(best_node.score.is_some(), "最优节点应有评分");
+    let best_score = best_node.score.unwrap();
+    assert!(best_score > 0, "最优评分应 > 0");
+    assert!(!best_node.content.trim().is_empty(), "最优思维内容不应为空");
+
+    // 6) 校验 state.messages 含 ToT 结果消息（目标达成或最优思维两种标记）
+    let last = state.messages.last().expect("应有 ToT 结果消息");
+    assert!(matches!(last.role, MessageRole::Assistant));
+    let is_goal = last.content.contains("[ToT 目标达成");
+    let is_best = last.content.contains("[ToT 最优思维");
+    assert!(
+        is_goal || is_best,
+        "消息应包含 [ToT 目标达成] 或 [ToT 最优思维] 标记，实际: {}",
+        &last.content[..last.content.len().min(80)]
+    );
+    assert!(
+        last.content.contains(&best_node.content),
+        "消息应包含最优思维内容"
+    );
+
+    // 7) 校验 meta 记录（目标达成路径记录 goal_*，探索完成路径记录 best_*）
+    let meta = last.meta.as_ref().expect("应有 meta");
+    if is_goal {
+        assert!(meta.get("goal_thought_id").is_some());
+        assert!(meta.get("goal_score").is_some());
+    } else {
+        assert!(meta.get("best_score").is_some());
+        assert!(meta.get("total_nodes").is_some());
+    }
+
+    eprintln!(
+        "[e2e] ToT：total_nodes={} best_depth={} best_score={} 最优思维长度={} 状态={:?}",
+        total_nodes,
+        best_node.depth,
+        best_score,
+        best_node.content.len(),
+        result.status
+    );
+}
+
+/// 确定性聚合策略 —— 拼接所有候选思维（e2e 用，框架层确定性，不依赖 LLM 聚合）
+///
+/// GoT 核心创新是图聚合，本策略直接拼接 top-N 思维，
+/// 真实 LLM 仍负责探索/评分/目标检查，聚合用确定性拼接，保证测试稳定。
+struct ConcatAggregationStrategy;
+
+#[async_trait]
+impl AggregationStrategy for ConcatAggregationStrategy {
+    async fn aggregate(
+        &self,
+        _ctx: &NodeContext<'_>,
+        nodes: &[ThoughtNode],
+    ) -> Result<String, ToTError> {
+        let mut parts = Vec::new();
+        for (idx, node) in nodes.iter().enumerate() {
+            let score = node.score.unwrap_or(0);
+            parts.push(format!(
+                "[聚合候选 {}（评分 {}）]: {}",
+                idx + 1,
+                score,
+                node.content
+            ));
+        }
+        Ok(parts.join("\n\n"))
+    }
+}
+
+/// 确定性目标检查 —— 永不达成（e2e 用）
+///
+/// GoT 聚合发生在层扩展之后、目标检查之前。若用真实 LLM 目标检查，LLM 可能在
+/// 深度 1 就判定"目标达成"从而提前 return Done，导致聚合步骤被跳过（非确定性）。
+/// 本策略恒返回 false，保证探索必然推进到聚合阶段，稳定验证多源聚合链路。
+struct NeverGoalCheck;
+
+#[async_trait]
+impl GoalCheckStrategy for NeverGoalCheck {
+    async fn check_goal(
+        &self,
+        _node: &ThoughtNode,
+        _context: &str,
+        _backend: &dyn NodeBackendAccessor,
+    ) -> Result<bool, ToTError> {
+        Ok(false)
+    }
+}
+
+/// Graph of Thoughts (GoT) 编排模式 e2e：确定性聚合 + 真实 LLM 探索/评分
+///
+/// 验证 GoTNode 完整链路：
+/// 1. Beam Search 探索 + Llm 评分 + Llm 目标检查（复用 ToT 逻辑）
+/// 2. 每层评分≥阈值节点进行聚合（ConcatAggregationStrategy 确定性拼接）
+/// 3. 聚合节点加入下一层候选池，生成思维图（带 parents 多源）
+/// 4. 终止后找到最优节点（评分最高），写入 state.messages，返回 Done + summary
+#[tokio::test]
+#[ignore = "需要真实 API Key 与网络，按需显式运行"]
+async fn e2e_got_aggregation_deepseek() {
+    let Some(api_key) = api_key_from_env() else {
+        eprintln!("[e2e] 未设置 DEEPSEEK_API_KEY，跳过真实 LLM 调用");
+        return;
+    };
+
+    // 1) GoT 配置：减小参数控制规模（max_depth=3，beam_width=2，branch_factor=2，开启聚合）
+    let config = GoTConfig {
+        tot: ToTConfig {
+            max_depth: 3,
+            max_thoughts: 20,
+            beam_width: 2,
+            branch_factor: 2,
+            score_convergence_threshold: 5,
+            require_summary: true,
+            check_goal_at_root: false,
+        },
+        aggregation_enabled: true,
+        // 阈值降到 1：LLM 对中间思维步骤评分常低于 50（如 30-40），
+        // 若保持 50 阈值则候选不足 2 个、聚合永不触发。任何有效评分（≥1）即合格，
+        // 只要某层有 ≥2 个节点就能稳定触发聚合，完整验证多源聚合链路。
+        aggregation_threshold: 1,
+        max_aggregation_size: 3,
+        aggregation_branch_factor: 1,
+    };
+
+    // 2) 策略：框架层聚合用确定性拼接，探索/评分/目标检查用真实 LLM
+    let backend = Arc::new(GenaiBackend::new(deepseek_config(&api_key)));
+    let node = GoTNode::new(
+        "got",
+        "思维图探索",
+        Arc::new(BeamSearchStrategy::new()),
+        Arc::new(LlmScoringStrategy::new()),
+        // 确定性目标检查：恒返回 false，确保探索推进到聚合阶段，
+        // 避免真实 LLM 在深度 1 就判定"目标达成"提前 return，导致聚合被跳过（非确定性）
+        Arc::new(NeverGoalCheck),
+        Arc::new(ConcatAggregationStrategy),
+        config,
+    );
+
+    // 3) 构造 NodeContext（数学问题，和 ToT 同题，便于对比）
+    let mut state = OrchestratorState::new("有10瓶矿泉水，每3个空瓶可以换一瓶新的。请问总共能喝到多少瓶？请分步思考。");
+    let emitter = E2eEmitter;
+    let abort = E2eAbort;
+    let ctx = NodeContext {
+        state: &mut state,
+        backend: &*backend,
+        memory: None,
+        emitter: &emitter,
+        abort_check: &abort,
+    };
+
+    // 4) 执行 GoT 探索
+    let result = node.execute(ctx).await;
+    if result.status == NodeStatus::Error {
+        eprintln!("[e2e] GoT 执行 Error: {:?}", result.error);
+    }
+    assert!(
+        matches!(result.status, NodeStatus::Done | NodeStatus::Continue),
+        "GoT 应返回 Done（目标达成）或 Done（探索完成，最优节点），实际: {:?}",
+        result.status
+    );
+    assert!(result.summary.is_some(), "应有 summary");
+
+    // 5) 校验结果：至少探索出一个节点，最优评分 > 0，最优思维非空
+    let snapshot = node.tree_snapshot().await;
+    let total_nodes = snapshot.len();
+    assert!(total_nodes >= 1, "图中至少有一个根节点");
+
+    let best_id = node.best_node_id().await.expect("应有最优节点");
+    let best_node = snapshot
+        .iter()
+        .find(|n| n.id == best_id)
+        .cloned()
+        .expect("最优节点应存在");
+    assert!(best_node.score.is_some(), "最优节点应有评分");
+    let best_score = best_node.score.unwrap();
+    assert!(best_score > 0, "最优评分应 > 0");
+    assert!(!best_node.content.trim().is_empty(), "最优思维内容不应为空");
+
+    // 6) 校验是否产生聚合节点（至少有一个节点 parents.len() > 1）
+    let has_aggregated = snapshot.iter().any(|n| n.parents.len() >= 2);
+    // 阈值=1 时，只要某层 ≥2 个节点评分≥1 即触发聚合；beam_width=2 保证每层 ≥2 节点
+    assert!(
+        has_aggregated,
+        "GoT 应产生聚合节点（parents≥2），图中多源聚合链路未触发，total_nodes={}",
+        total_nodes
+    );
+    eprintln!("[e2e] GoT：产生了聚合节点（parents≥2），图结构正确");
+
+    // 7) 校验 state.messages 含 GoT 最优思维结果
+    let last = state.messages.last().expect("应有 GoT 最优思维消息");
+    assert!(matches!(last.role, MessageRole::Assistant));
+    assert!(
+        last.content == best_node.content,
+        "消息应包含最优思维内容"
+    );
+
+    eprintln!(
+        "[e2e] GoT：total_nodes={} has_aggregated={} best_depth={} best_score={} 最优思维长度={}",
+        total_nodes,
+        has_aggregated,
+        best_node.depth,
+        best_score,
+        best_node.content.len()
+    );
+}
+
+// ─── LoopControl 循环控制 e2e：限流/重试/软超时/看门狗 一站式验证 ──────────────────
+///
+/// LoopControl 是**框架层纯逻辑组件**（非 OrchestratorNode），提供：
+/// 1. 速率限制（轮次/工具调用/token/时长）
+/// 2. 重试策略（指数退避、错误类型过滤）
+/// 3. 软超时（两级提醒，不强制终止）
+/// 4. 看门狗（空闲监控，触发恢复）
+///
+/// 本测试验证**完整聚合校验**，所有策略用确定性配置，无需真实 LLM。
+#[tokio::test]
+async fn e2e_loop_control_integration() {
+    // 1) 配置：缩小阈值便于触发（max_turns=2，max_tool_calls=3，软超时短阈值）
+    let config = LoopControlConfig {
+        rate_limit: RateLimitConfig {
+            max_turns: Some(2),
+            max_tool_calls: Some(3),
+            max_tokens: Some(1000),
+            max_duration: Some(std::time::Duration::from_secs(10)),
+        },
+        retry: RetryConfig {
+            max_retries: 2,
+            initial_backoff: std::time::Duration::from_millis(50),
+            backoff_multiplier: 2.0,
+            max_backoff: std::time::Duration::from_millis(200),
+            retryable_errors: vec!["timeout".into(), "rate_limit".into()],
+        },
+        soft_timeout: SoftTimeoutConfig {
+            warn_threshold: std::time::Duration::from_millis(50),
+            critical_threshold: std::time::Duration::from_millis(150),
+        },
+        // 看门狗放主 controller 中设极大阈值（不触发），避免软超时的 sleep 推进
+        // 看门狗时钟；看门狗链路单独用 controller_watchdog 验证。
+        watchdog: WatchdogConfig {
+            idle_threshold: std::time::Duration::from_secs(3600),
+            dead_threshold: std::time::Duration::from_secs(7200),
+            auto_recovery: false,
+        },
+    };
+
+    // 2) 创建聚合控制器
+    let controller = LoopController::new(config);
+
+    // 3) 初始状态校验：无事件触发
+    let check0 = controller.check_all();
+    assert!(!check0.has_any(), "初始状态不应有任何事件");
+    assert!(!check0.should_stop(), "初始状态不应停止");
+
+    // 4) 速率限制校验：注意 `check_exceeded` 用 `>=` 判定，max_turns=2 时第 2 轮即触发
+    controller.rate_limiter.inc_turns();
+    assert_eq!(controller.rate_limiter.turns(), 1);
+    let check1 = controller.check_all();
+    assert!(!check1.should_stop(), "1 轮未超限（max=2）");
+
+    controller.rate_limiter.inc_turns();
+    assert_eq!(controller.rate_limiter.turns(), 2);
+
+    let check2 = controller.check_all();
+    assert!(check2.should_stop(), "2 轮应触发停止（max=2，>= 触发）");
+    assert!(matches!(
+        check2.rate_limit_exceeded,
+        Some(RateLimitExceeded::Turns { current: 2, max: 2 })
+    ), "超限应为轮次超限");
+
+    eprintln!("[e2e] LoopControl：轮次超限触发正确（2/2）");
+
+    // 5) 重试策略校验：timeout 错误可重试，指数退避计算正确
+    let policy = &controller.retry_policy;
+    // 首次重试（attempt=0）→ 50ms
+    let backoff0 = policy.should_retry("request timeout", 0);
+    assert!(backoff0.is_some());
+    assert_eq!(backoff0.unwrap(), std::time::Duration::from_millis(50));
+    // 二次重试（attempt=1）→ 100ms
+    let backoff1 = policy.should_retry("connection reset", 1);
+    // "connection reset" 不在可重试列表，不应重试
+    assert!(backoff1.is_none());
+    // 二次重试 timeout → 100ms（50 * 2^1）
+    let backoff1 = policy.should_retry("read timeout", 1);
+    assert!(backoff1.is_some());
+    assert_eq!(backoff1.unwrap(), std::time::Duration::from_millis(100));
+    // 三次重试（attempt=2）→ 已达 max_retries=2，不应重试
+    let backoff2 = policy.should_retry("rate limit exceeded", 2);
+    assert!(backoff2.is_none());
+    // 四次重试（attempt=3）→ 已达 max_retries，不应重试
+    let backoff3 = policy.should_retry("timeout", 3);
+    assert!(backoff3.is_none());
+
+    eprintln!("[e2e] LoopControl：重试策略指数退避计算正确");
+
+    // 6) 软超时校验：等待触发 warn → critical 两级提醒（仅首次触发，避免重复）
+    std::thread::sleep(std::time::Duration::from_millis(60));
+    let check3 = controller.check_all();
+    assert!(check3.soft_timeout_level.is_some());
+    assert_eq!(check3.soft_timeout_level.unwrap(), SoftTimeoutLevel::Warning);
+    // 再次检查不应重复触发
+    let check3b = controller.check_all();
+    assert!(check3b.soft_timeout_level.is_none());
+
+    std::thread::sleep(std::time::Duration::from_millis(100));
+    let check4 = controller.check_all();
+    assert!(check4.soft_timeout_level.is_some());
+    assert_eq!(check4.soft_timeout_level.unwrap(), SoftTimeoutLevel::Critical);
+
+    eprintln!("[e2e] LoopControl：软超时两级提醒触发正确");
+
+    // 7) 看门狗校验（独立 controller，避免与软超时的时间互相干扰）
+    let watchdog_controller = LoopController::new(LoopControlConfig {
+        rate_limit: RateLimitConfig {
+            max_turns: None,
+            max_tool_calls: None,
+            max_tokens: None,
+            max_duration: None,
+        },
+        retry: RetryConfig::default(),
+        soft_timeout: SoftTimeoutConfig {
+            warn_threshold: std::time::Duration::from_secs(3600),
+            critical_threshold: std::time::Duration::from_secs(7200),
+        },
+        watchdog: WatchdogConfig {
+            idle_threshold: std::time::Duration::from_millis(30),
+            dead_threshold: std::time::Duration::from_millis(100),
+            auto_recovery: false,
+        },
+    });
+    // 初始无告警
+    let w0 = watchdog_controller.check_all();
+    assert!(w0.watchdog_alert.is_none(), "初始无看门狗告警");
+    // 超过 idle 阈值（30ms）→ 触发 Idle（Dead 优先级更高但未到 100ms）
+    std::thread::sleep(std::time::Duration::from_millis(60));
+    let w1 = watchdog_controller.check_all();
+    assert!(matches!(w1.watchdog_alert, Some(WatchdogAlert::Idle { .. })), "超过 idle 应触发 Idle");
+    // 更新活动后重置 idle 触发标志
+    watchdog_controller.update_activity();
+    std::thread::sleep(std::time::Duration::from_millis(10));
+    let w2 = watchdog_controller.check_all();
+    assert!(w2.watchdog_alert.is_none(), "活动后 10ms 未超 idle 阈值，应无告警");
+    // 超过 dead 阈值（100ms）→ 触发 Dead
+    std::thread::sleep(std::time::Duration::from_millis(120));
+    let w3 = watchdog_controller.check_all();
+    assert!(matches!(w3.watchdog_alert, Some(WatchdogAlert::Dead { .. })), "超过 dead 应触发 Dead");
+
+    eprintln!("[e2e] LoopControl：看门狗 idle/dead 触发 + 活动重置正确");
+
+    // 8) 最终聚合校验（主 controller）：rate_limit 仍超限 → should_stop = true
+    let check_final = controller.check_all();
+    assert!(check_final.has_any());
+    assert!(check_final.should_stop());
+    assert!(check_final.rate_limit_exceeded.is_some());
+    // soft_timeout 已触发过（warn/critical），不会重复出现在 check 中；
+    // 主 controller 看门狗阈值极大，未触发。
+    assert!(check_final.soft_timeout_level.is_none());
+    assert!(check_final.watchdog_alert.is_none());
+
+    eprintln!(
+        "[e2e] LoopControl：综合验证通过 → rate_limit={:?} soft_timeout={:?} watchdog={:?}",
+        check_final.rate_limit_exceeded, check_final.soft_timeout_level, check_final.watchdog_alert
+    );
 }

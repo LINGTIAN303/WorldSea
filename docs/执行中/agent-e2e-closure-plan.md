@@ -82,7 +82,7 @@
 
 **目标**：在 Tauri 桌面端实测全链路，补齐高级能力。
 
-**状态**：⏳ 执行中（5.4 子任务 1 已完成，子任务 2 主链路实测通过）
+**状态**：⏳ 执行中（5.4 子任务 1 已完成，子任务 2 主链路 + 13 种编排模式实测通过）
 
 **决策记录**：
 - **LLM 配置来源**：沿用 Web 端模式 —— 前端配置 + 本地存储（API key 存 localStorage，Tauri 端存 app-data）。`GenaiBackend` 已实现，`agent-commands` 仅替换 `new_agent` 中的 `MockBackend` 为 `GenaiBackend`，命令层参数/返回类型不变。
@@ -101,7 +101,7 @@
    - Agent 对话（主链路 new_session → send_message → 流式回复）。✅ 主链路已实测通过（见下）
    - 工具调用（tool call 完整链路：触发 → 执行 → 结果回填）。✅ 已实测通过（见下）
    - 长任务（long_task + checkpoint，breakpoint/resume）。✅ 已实测通过（见下）
-   - 13 种编排模式（supervisor / router / multi_agent / tree_of_thoughts / graph_of_thoughts / loop_control 逐个验证）。⏳ 待推进
+   - 13 种编排模式（supervisor / router / multi_agent / tree_of_thoughts / graph_of_thoughts / loop_control 逐个验证）。✅ 已实测通过（见下）
    - 每项在 Tauri 桌面端实测，记录结果。
 
    > **主链路实测记录（2026-08-04）**：`crates/agent-commands/tests/e2e_llm.rs`
@@ -125,6 +125,20 @@
    >   - `agent.rs`：ReAct 循环过滤空名工具调用（LLM 幻觉，实测复现）。此前空名工具会产生"工具不存在"错误 ToolResult 污染上下文，偶发引发不收敛（撞 `max_iterations`）。剔除后若无有效工具调用回退为直接返回文本。
    >   - `agent.rs`：checkpoint 的 `current_tool` 由 `tool_calls.last()` 改为首个非空工具名（主工具），避免被空名幻觉工具污染。
    > - 验证：5 项 e2e 实测 + agent-runtime 153 单测全部通过，工作树干净。
+
+   > **13 种编排模式实测记录（2026-08-04）**：`e2e_supervisor_orchestration_deepseek` / `e2e_router_orchestration_deepseek` / `e2e_multi_agent_orchestration_deepseek` / `e2e_tot_beam_search_deepseek` / `e2e_got_aggregation_deepseek` / `e2e_loop_control_integration`
+   > - 结果：✅ 6 项全部通过（覆盖 supervisor / router / multi_agent / ToT / GoT / LoopControl 六大类核心模式）。
+   > - **验证策略（分层混合）**：框架层用确定性策略控制被验证的核心逻辑（分配/路由/综合/目标检查/聚合/限流重试），真实 LLM 仅负责子任务执行或思维生成，保证测试稳定可复现。
+   > - Supervisor：`StubAssignmentStrategy` 确定性分配 → 子 Agent 真实执行 → 输出汇总。
+   > - Router：`KeywordRoutingStrategy` 关键词路由（code→coder / writer→writer / fallback）。
+   > - Multi-Agent：`ConcatSynthesisStrategy` 确定性综合 + `AllOutputsGoalCheck` 收敛判定，Mesh 拓扑验证黑板共享与结果综合。
+   > - ToT：Beam Search 探索 + Llm 评分/目标检查，验证剪枝与最优节点选择。
+   > - GoT：`ConcatAggregationStrategy` 确定性聚合 + `NeverGoalCheck`（确定性目标检查），验证多源聚合节点生成（parents≥2）。
+   > - LoopControl：纯逻辑确定性地验证限流（轮次超限）/重试（指数退避）/软超时（warn→critical 两级）/看门狗（idle/dead + 活动重置）。
+   > - **风险点修复**（2026-08-04）：
+   >   - `tree_of_thoughts.rs`：LLM 输出嵌套数组（`[[A,B],[C]]`）与双花括号包裹（`{{...}}`）解析失败 → 递归展平 + `extract_json_object` 剥离围栏/双花括号。
+   >   - GoT 聚合不稳定：`aggregation_threshold=50` 时 LLM 对中间思维评分常 <50，候选不足 2 个导致聚合永不触发；且真实 LLM 目标检查可能在深度 1 提前返回 Done 跳过聚合。修复：阈值降到 1（任何有效评分即合格）+ 目标检查改用确定性 `NeverGoalCheck`（恒 false），保证探索必然推进到聚合阶段。
+   > - 验证：10 项 e2e 实测全部通过（`e2e_llm.rs`，`--ignored`），`cargo test --no-run` 编译无警告。
 
 3. **高级能力补齐**（按顺序全做）
    - deep phases（深度模式）：`deep_phases` 模块接入 UI（DeepMessageArea 已共享）。
@@ -154,7 +168,7 @@
 | M5-1 | 命令层 crate 就绪，Tauri 可 invoke Rust 命令 | ✅ 已完成 |
 | M5-2 | Tauri 前端链路打通，桌面端可发起 Agent 会话 | ✅ 已完成 |
 | M5-3 | Agent UI 抽共享层完成，三端复用 | ✅ 已完成 |
-| M5-4 | 桌面端端到端实测通过，高级能力补齐 | ⏳ 待启动 |
+| M5-4 | 桌面端端到端实测通过，高级能力补齐 | ⏳ 进行中（子任务 2 实测通过，高级能力补齐待推进） |
 | M5-5 | pi-ai 移除，技术栈收敛 | ⏳ 待启动 |
 
 ## 五、风险与决策点

@@ -179,6 +179,31 @@ impl From<crate::backend::BackendError> for ToTError {
     }
 }
 
+/// 提取 LLM 输出中的 JSON 对象子串
+///
+/// 容错处理：
+/// - ```json 代码围栏包裹
+/// - 推理模型常见的双花括号 `{{...}}` 包裹（去掉一层）
+///
+/// 返回可被 `serde_json::from_str` 直接解析的对象字符串。
+fn extract_json_object(text: &str) -> String {
+    let trimmed = text.trim();
+    let json_str = trimmed
+        .strip_prefix("```json")
+        .or_else(|| trimmed.strip_prefix("```"))
+        .and_then(|s| s.strip_suffix("```"))
+        .map(|s| s.trim())
+        .unwrap_or(trimmed);
+
+    // 双花括号包裹（如 `{{"score":0}}`）→ 去掉一层花括号
+    if json_str.starts_with("{{") && json_str.ends_with("}}") {
+        let inner = &json_str[1..json_str.len() - 1];
+        return inner.trim().to_string();
+    }
+
+    json_str.to_string()
+}
+
 // ─── 探索策略 trait ────────────────────────────────────────────
 
 /// 探索策略 trait
@@ -400,7 +425,10 @@ impl BeamSearchStrategy {
             .replace("{branch_factor}", &branch_factor.to_string())
     }
 
-    /// 解析 LLM 输出的 JSON 数组（容错处理 ```json 包裹）
+    /// 解析 LLM 输出的 JSON 数组（容错处理 ```json 包裹 + 嵌套数组展平）
+    ///
+    /// 真实 LLM（尤其推理模型）常返回嵌套结构（如 `[["思维1","思维2"],["思维3"]]`），
+    /// 这里递归展平所有数组层级为扁平字符串列表，提升健壮性。
     fn parse_response(text: &str) -> Result<Vec<String>, ToTError> {
         let trimmed = text.trim();
         let json_str = trimmed
@@ -410,9 +438,25 @@ impl BeamSearchStrategy {
             .map(|s| s.trim())
             .unwrap_or(trimmed);
 
-        let thoughts: Vec<String> = serde_json::from_str(json_str).map_err(|e| {
+        let value: serde_json::Value = serde_json::from_str(json_str).map_err(|e| {
             ToTError::Parse(format!("JSON 数组解析失败: {} (input: {})", e, json_str))
         })?;
+
+        // 递归展平：数组元素递归处理，字符串入列，非字符串元素忽略
+        fn flatten(v: &serde_json::Value, out: &mut Vec<String>) {
+            match v {
+                serde_json::Value::Array(arr) => {
+                    for item in arr {
+                        flatten(item, out);
+                    }
+                }
+                serde_json::Value::String(s) => out.push(s.clone()),
+                _ => {}
+            }
+        }
+
+        let mut thoughts = Vec::new();
+        flatten(&value, &mut thoughts);
         Ok(thoughts)
     }
 }
@@ -505,15 +549,9 @@ impl LlmScoringStrategy {
             .replace("{content}", content)
     }
 
-    /// 解析 LLM 输出的 JSON（容错处理 ```json 包裹）
+    /// 解析 LLM 输出的 JSON（容错处理 ```json 包裹 + 双花括号）
     fn parse_response(text: &str) -> Result<(u8, Option<String>), ToTError> {
-        let trimmed = text.trim();
-        let json_str = trimmed
-            .strip_prefix("```json")
-            .or_else(|| trimmed.strip_prefix("```"))
-            .and_then(|s| s.strip_suffix("```"))
-            .map(|s| s.trim())
-            .unwrap_or(trimmed);
+        let json_str = extract_json_object(text);
 
         #[derive(serde::Deserialize)]
         struct ScoreResponse {
@@ -522,7 +560,7 @@ impl LlmScoringStrategy {
             reasoning: Option<String>,
         }
 
-        let resp: ScoreResponse = serde_json::from_str(json_str).map_err(|e| {
+        let resp: ScoreResponse = serde_json::from_str(&json_str).map_err(|e| {
             ToTError::Parse(format!("评分 JSON 解析失败: {} (input: {})", e, json_str))
         })?;
 
@@ -594,15 +632,9 @@ impl LlmGoalCheckStrategy {
             .replace("{content}", content)
     }
 
-    /// 解析 LLM 输出的 JSON（容错处理 ```json 包裹）
+    /// 解析 LLM 输出的 JSON（容错处理 ```json 包裹 + 双花括号）
     fn parse_response(text: &str) -> Result<bool, ToTError> {
-        let trimmed = text.trim();
-        let json_str = trimmed
-            .strip_prefix("```json")
-            .or_else(|| trimmed.strip_prefix("```"))
-            .and_then(|s| s.strip_suffix("```"))
-            .map(|s| s.trim())
-            .unwrap_or(trimmed);
+        let json_str = extract_json_object(text);
 
         #[derive(serde::Deserialize)]
         struct GoalCheckResponse {
@@ -612,7 +644,7 @@ impl LlmGoalCheckStrategy {
             reasoning: Option<String>,
         }
 
-        let resp: GoalCheckResponse = serde_json::from_str(json_str).map_err(|e| {
+        let resp: GoalCheckResponse = serde_json::from_str(&json_str).map_err(|e| {
             ToTError::Parse(format!(
                 "目标检查 JSON 解析失败: {} (input: {})",
                 e, json_str
@@ -1769,6 +1801,16 @@ mod tests {
 ```"#;
         let r = BeamSearchStrategy::parse_response(text).unwrap();
         assert_eq!(r.len(), 2);
+    }
+
+    #[test]
+    fn parse_exploration_response_should_flatten_nested_arrays() {
+        // 推理模型常返回嵌套数组（每个思维是一个子数组），应展平为扁平字符串列表
+        let text = r#"[["思维1","思维2"],["思维3"]]"#;
+        let r = BeamSearchStrategy::parse_response(text).unwrap();
+        assert_eq!(r.len(), 3);
+        assert_eq!(r[0], "思维1");
+        assert_eq!(r[2], "思维3");
     }
 
     #[test]
