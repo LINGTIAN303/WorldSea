@@ -256,6 +256,9 @@ importers:
       '@worldsmith/agent-runtime':
         specifier: file:../../packages/agent-runtime
         version: link:../../packages/agent-runtime
+      '@worldsmith/shared-ui':
+        specifier: link:../../packages/shared-ui
+        version: link:../../packages/shared-ui
       naive-ui:
         specifier: ^2.44.1
         version: 2.44.1(vue@3.5.40(typescript@6.0.3))

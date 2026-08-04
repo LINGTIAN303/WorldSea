@@ -84,6 +84,10 @@ const aliases: Record<string, string> = {
   '@worldsmith/perf-kit/reactive': path.resolve(__dirname, '../../packages/perf-kit/src/reactive'),
   '@worldsmith/perf-kit/io': path.resolve(__dirname, '../../packages/perf-kit/src/io'),
   '@worldsmith/perf-kit/render': path.resolve(__dirname, '../../packages/perf-kit/src/render'),
+  // 共享 UI（Phase 5.3 抽取，A2UI 渲染组件）
+  '@worldsmith/shared-ui$': path.resolve(__dirname, '../../packages/shared-ui/src'),
+  '@worldsmith/shared-ui/agent': path.resolve(__dirname, '../../packages/shared-ui/src/agent'),
+  '@worldsmith/shared-ui/agent/a2ui': path.resolve(__dirname, '../../packages/shared-ui/src/agent/a2ui'),
   '@worldsmith/theme-kit': path.resolve(__dirname, '../../packages/theme-kit/src'),
   '@worldsmith/memory-archive$': path.resolve(__dirname, '../../packages/memory-archive/src'),
   '@worldsmith/memory-archive/types': path.resolve(__dirname, '../../packages/memory-archive/src/types'),

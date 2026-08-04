@@ -34,6 +34,9 @@
       "@worldsmith/font-kit/*": ["../../packages/font-kit/src/*"],
       "@worldsmith/perf-kit": ["../../packages/perf-kit/src/index.ts"],
       "@worldsmith/perf-kit/*": ["../../packages/perf-kit/src/*"],
+      // 共享 UI（Phase 5.3 抽取，A2UI 渲染组件）
+      "@worldsmith/shared-ui": ["../../packages/shared-ui/src/index.ts"],
+      "@worldsmith/shared-ui/*": ["../../packages/shared-ui/src/*"],
       "@worldsmith/theme-kit": ["../../packages/theme-kit/src/index.ts"],
       "@worldsmith/theme-kit/*": ["../../packages/theme-kit/src/*"],
       "@worldsmith/memory-archive": ["../../packages/memory-archive/src/index.ts"],

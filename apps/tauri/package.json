@@ -16,6 +16,7 @@
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "@tauri-apps/plugin-opener": "^2.5.4",
     "@worldsmith/agent-runtime": "file:../../packages/agent-runtime",
+    "@worldsmith/shared-ui": "link:../../packages/shared-ui",
     "naive-ui": "^2.44.1",
     "vue": "^3.5.32"
   },

@@ -58,6 +58,27 @@ impl EventListener for TauriAgentEventEmitter {
                     );
                 }
             }
+            OrchestratorEvent::A2UIEvent {
+                surface_id,
+                message,
+                ..
+            } => {
+                // 转发到前端：事件名 `agent:event:a2ui:{session_id}`
+                // payload: { surfaceId, message }（message 序列化为 camelCase，null 变体自动跳过）
+                let event_name = format!("agent:event:a2ui:{}", self.session_id);
+                if let Err(err) = self.app.emit(
+                    &event_name,
+                    serde_json::json!({
+                        "surfaceId": surface_id,
+                        "message": message,
+                    }),
+                ) {
+                    tracing::warn!(
+                        "Failed to emit A2UI event to frontend: {}",
+                        err
+                    );
+                }
+            }
             // 其他事件目前不需要转发到前端
             _ => {}
         }

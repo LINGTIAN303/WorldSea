@@ -68,6 +68,7 @@ import type {
   ThinkingLevel,
   ChatMode,
   PromptOptions,
+  A2UIMessage,
 } from '@agent/index'
 import type { DeepSegment } from '@worldsmith/shared-composables/agent/useAgent'
 
@@ -215,6 +216,23 @@ const deepSegments = ref<DeepSegment[]>([])
 /** 深度阶段事件监听器清理函数（按 sessionId 索引，切换/删除会话时清理） */
 const deepPhaseUnlistenFns = new Map<string, UnlistenFn>()
 
+// ─── A2UI 状态 ────────────────────────────────────────────
+
+/** A2UI 画布（surfaceId → 画布状态），由 Rust A2UIEvent 驱动构建 */
+interface A2UISurface {
+  surfaceId: string
+  catalogId: string
+  theme?: Record<string, unknown>
+  components: Record<string, any>
+  rootIds: string[]
+  dataModel: Record<string, unknown>
+}
+
+const a2uiSurfaces = ref<Record<string, A2UISurface>>({})
+
+/** A2UI 事件监听器清理函数（按 sessionId 索引，切换/删除会话时清理） */
+const a2uiUnlistenFns = new Map<string, UnlistenFn>()
+
 // ─── 事件分发 ────────────────────────────────────────────
 
 /** 向所有订阅者分发 AgentEvent（单个订阅者异常不影响其他） */
@@ -322,6 +340,137 @@ function teardownDeepPhaseListener(sessionId: string): void {
   }
 }
 
+// ─── A2UI 事件监听（A2UIEvent）────────────────────────────
+
+/**
+ * 计算组件树根节点 ID 列表
+ *
+ * 若存在 `root` 组件则直接返回，否则动态计算所有未被任何组件
+ * `children` 引用的组件 ID（即无入边的节点）。
+ */
+function findRootIds(components: Record<string, any>): string[] {
+  if (components['root']) return ['root']
+  const childIds = new Set<string>()
+  for (const comp of Object.values(components)) {
+    const ch = comp.children
+    if (Array.isArray(ch)) {
+      for (const id of ch) childIds.add(id)
+    }
+  }
+  const roots: string[] = []
+  for (const id of Object.keys(components)) {
+    if (!childIds.has(id)) roots.push(id)
+  }
+  return roots
+}
+
+/** 按 `/path/to` 形式写入嵌套值（路径段以 `/` 分隔） */
+function setNestedValue(obj: Record<string, unknown>, path: string, value: unknown): void {
+  const parts = path.split('/').filter(Boolean)
+  if (parts.length === 0) {
+    if (typeof value === 'object' && value !== null) Object.assign(obj, value as Record<string, unknown>)
+    return
+  }
+  let current: any = obj
+  for (let i = 0; i < parts.length - 1; i++) {
+    if (!(parts[i] in current)) current[parts[i]] = {}
+    current = current[parts[i]]
+  }
+  current[parts[parts.length - 1]] = value
+}
+
+/**
+ * 处理一条 A2UI 消息（camelCase 变体，`createSurface` / `updateComponents` /
+ * `updateDataModel` / `deleteSurface`），增量更新 `a2uiSurfaces`。
+ */
+function handleA2UIEvent(surfaceId: string, message: A2UIMessage): void {
+  if ('createSurface' in message) {
+    a2uiSurfaces.value = {
+      ...a2uiSurfaces.value,
+      [surfaceId]: {
+        surfaceId,
+        catalogId: message.createSurface.catalogId,
+        theme: message.createSurface.theme,
+        components: {},
+        rootIds: [],
+        dataModel: {},
+      },
+    }
+  } else if ('updateComponents' in message) {
+    const surface = a2uiSurfaces.value[surfaceId]
+    if (!surface) return
+    const newComponents = { ...surface.components }
+    for (const comp of message.updateComponents.components) {
+      newComponents[comp.id] = { ...comp }
+    }
+    const newRootIds = findRootIds(newComponents)
+    a2uiSurfaces.value = {
+      ...a2uiSurfaces.value,
+      [surfaceId]: { ...surface, components: newComponents, rootIds: newRootIds },
+    }
+  } else if ('updateDataModel' in message) {
+    const surface = a2uiSurfaces.value[surfaceId]
+    if (!surface) return
+    const newDataModel = JSON.parse(JSON.stringify(surface.dataModel))
+    setNestedValue(newDataModel, message.updateDataModel.path, message.updateDataModel.value)
+    a2uiSurfaces.value = {
+      ...a2uiSurfaces.value,
+      [surfaceId]: { ...surface, dataModel: newDataModel },
+    }
+  } else if ('deleteSurface' in message) {
+    const newSurfaces = { ...a2uiSurfaces.value }
+    delete newSurfaces[surfaceId]
+    a2uiSurfaces.value = newSurfaces
+  }
+}
+
+/**
+ * 解析数据绑定表达式（`{ path: '/a/b' }`）为 dataModel 中的实际值
+ *
+ * 供 A2UIRenderer 的 `resolve-binding` prop 使用；非绑定表达式原样返回。
+ */
+function resolveDataBinding(binding: any, dataModel: Record<string, unknown>): any {
+  if (binding && typeof binding === 'object' && 'path' in binding) {
+    const parts = (binding.path as string).split('/').filter(Boolean)
+    let current: any = dataModel
+    for (const part of parts) {
+      if (current == null || typeof current !== 'object') return undefined
+      current = current[part]
+    }
+    return current
+  }
+  return binding
+}
+
+/**
+ * 为指定会话设置 A2UI 事件监听
+ *
+ * 监听 `agent:event:a2ui:{session_id}`，收到 Rust payload 后转发给
+ * `handleA2UIEvent` 增量更新画布状态。幂等：已存在监听器则直接返回。
+ */
+async function setupA2UIListener(sessionId: string): Promise<void> {
+  if (a2uiUnlistenFns.has(sessionId)) return
+
+  const eventName = `agent:event:a2ui:${sessionId}`
+  try {
+    const unlisten = await listen<{ surfaceId: string; message: A2UIMessage }>(eventName, (e) => {
+      handleA2UIEvent(e.payload.surfaceId, e.payload.message)
+    })
+    a2uiUnlistenFns.set(sessionId, unlisten)
+  } catch (err) {
+    console.error(`[useAgentRust] listen ${eventName} 失败:`, err)
+  }
+}
+
+/** 清理指定会话的 A2UI 事件监听 */
+function teardownA2UIListener(sessionId: string): void {
+  const unlisten = a2uiUnlistenFns.get(sessionId)
+  if (unlisten) {
+    unlisten()
+    a2uiUnlistenFns.delete(sessionId)
+  }
+}
+
 // ─── 命令封装：会话生命周期 ────────────────────────────────────
 
 /** 新建会话（返回 Rust SessionInfo） */
@@ -335,10 +484,12 @@ async function newSession(
   })
   currentSessionId.value = info.id
   messages.value = []
-  // 新会话：清空深度模式段，并建立事件监听
+  // 新会话：清空深度模式段与 A2UI 画布，并建立事件监听
   deepSegments.value = []
+  a2uiSurfaces.value = {}
   sessionMessagesCache.set(info.id, [])
   await setupDeepPhaseListener(info.id)
+  await setupA2UIListener(info.id)
   await refreshSessionList()
   return info
 }
@@ -360,24 +511,29 @@ async function deleteSession(sessionId: string): Promise<void> {
   await invoke('delete_session', { sessionId })
   sessionMessagesCache.delete(sessionId)
   teardownDeepPhaseListener(sessionId)
+  teardownA2UIListener(sessionId)
   if (currentSessionId.value === sessionId) {
     currentSessionId.value = null
     messages.value = []
     deepSegments.value = []
+    a2uiSurfaces.value = {}
   }
   await refreshSessionList()
 }
 
 /** 切换会话（加载该会话的消息历史） */
 async function switchSession(sessionId: string): Promise<void> {
-  // 清理旧会话的深度阶段监听，切换到新会话
+  // 清理旧会话的深度阶段与 A2UI 监听，切换到新会话
   const oldSessionId = currentSessionId.value
   if (oldSessionId && oldSessionId !== sessionId) {
     teardownDeepPhaseListener(oldSessionId)
+    teardownA2UIListener(oldSessionId)
   }
   currentSessionId.value = sessionId
   deepSegments.value = []
+  a2uiSurfaces.value = {}
   await setupDeepPhaseListener(sessionId)
+  await setupA2UIListener(sessionId)
   const cached = sessionMessagesCache.get(sessionId)
   if (cached) {
     messages.value = cached
@@ -587,6 +743,11 @@ function dispose(): void {
     unlisten()
   }
   deepPhaseUnlistenFns.clear()
+  // 清理所有 A2UI 事件监听器
+  for (const unlisten of a2uiUnlistenFns.values()) {
+    unlisten()
+  }
+  a2uiUnlistenFns.clear()
 }
 
 // ─── 派生状态 ────────────────────────────────────
@@ -659,6 +820,10 @@ export function useAgentRust() {
 
     // ── 深度模式段（DeepProcessPanel 依赖）──
     deepSegments,
+
+    // ── A2UI（A2UIRenderer 依赖）──
+    a2uiSurfaces,
+    resolveDataBinding,
 
     // ── 状态查询 ──
     getProviderConfig,
