@@ -585,13 +585,25 @@ impl AgentLoop {
             // 构建 PromptCallOptions（含工具定义，阶段 1.4）
             let options = self.build_prompt_options(&config_snapshot).await;
 
-            // 调用 LLM（空 prompt，因为消息已推入 state.messages）
-            // 但 backend.prompt 会把 prompt 作为新 user 消息推入，所以这里传空字符串
-            // 并通过 system_prompt_override 传递系统提示词
+            // ─── 风险点修复：同步 state.messages → backend（2026-08-04）───
             //
-            // 注意：阶段 1.3 的 GenaiBackend::prompt 会把 prompt 参数作为 user 消息追加，
-            // 因此这里传空字符串避免重复。消息历史已通过 state.messages 注入。
-            // 阶段 1.5 重构为 AgentBackend trait 后，将直接传 messages。
+            // 架构问题：AgentLoop 把消息放在 state.messages，但 backend.prompt 只接收
+            // 单个 prompt 字符串，backend 内部自维护自己的 messages（初始为空）。
+            // 此前 AgentLoop 传空字符串 prompt，导致真实用户消息（system/user）从未传给
+            // backend，LLM 收到的只有空 user 消息 → 不触发工具调用（实测复现）。
+            //
+            // 修复：每次 LLM 调用前，把 state.messages 完整同步给 backend。
+            // 注意：backend.prompt 返回后会在 backend.messages 追加 assistant 消息，
+    // 但工具执行产生的 toolResult 消息只在 state.messages，故每轮必须重新同步。
+            {
+                let state = self.state.lock().await;
+                self.backend
+                    .set_messages(state.messages.clone())
+                    .await
+                    .map_err(AgentError::from)?;
+            }
+
+            // 调用 LLM（空 prompt，因为消息已通过上方 set_messages 同步给 backend）
             //
             // ─── Loop Engineering 批次4：通过 `call_llm_with_retry` 包裹 ───
             // - 限流：检查距上次调用间隔，不足 `min_interval_between_calls` 则 sleep

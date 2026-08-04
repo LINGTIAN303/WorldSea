@@ -18,9 +18,10 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use genai::chat::{
-    ChatMessage, ChatOptions, ChatRequest, ChatStreamEvent, MessageContent, ToolCall, ToolResponse,
+    ChatMessage, ChatOptions, ChatRequest, ChatStreamEvent, ContentPart, MessageContent, ToolCall,
+    ToolResponse,
 };
-use genai::chat::{Tool as GenaiTool, ToolName};
+use genai::chat::{Tool as GenaiTool, ToolChoice, ToolName};
 use genai::adapter::AdapterKind;
 use genai::resolver::{AuthData, Endpoint};
 use genai::{Client, ModelIden, ServiceTarget};
@@ -158,16 +159,28 @@ impl GenaiBackend {
             MessageRole::System => Ok(ChatMessage::system(&msg.content)),
             MessageRole::User => Ok(ChatMessage::user(&msg.content)),
             MessageRole::Assistant => {
-                // 如果含工具调用，应转为带 tool_calls 的 Assistant 消息
-                // genai 0.7.0-beta.14 的 ChatMessage::assistant 接受 &str
-                // 工具调用通过 ToolCall<ToolCalling> 处理，此处先简化为纯文本
+                // 若含工具调用，必须将 tool_calls 一并转成 genai 格式随消息发送。
+                // 原因：DeepSeek/OpenAI 校验要求 tool 消息必须紧跟一条带 `tool_calls`
+                // 的 assistant 消息，否则报 "Messages with role 'tool' must be a response
+                // to a preceding message with 'tool_calls'"。此前仅取 content 丢弃了
+                // tool_calls，导致工具结果回填后第二轮请求被拒（实测复现）。
                 if !msg.tool_calls.is_empty() {
-                    debug!(
-                        "assistant 消息含 {} 个工具调用，当前实现仅取 content",
-                        msg.tool_calls.len()
-                    );
+                    let mut parts: Vec<ContentPart> = Vec::new();
+                    if !msg.content.is_empty() {
+                        parts.push(ContentPart::Text(msg.content.clone()));
+                    }
+                    parts.extend(msg.tool_calls.iter().map(|tc| {
+                        ContentPart::ToolCall(ToolCall {
+                            call_id: tc.id.clone(),
+                            fn_name: tc.name.clone(),
+                            fn_arguments: tc.args.clone(),
+                            thought_signatures: None,
+                        })
+                    }));
+                    Ok(ChatMessage::assistant(MessageContent::from_parts(parts)))
+                } else {
+                    Ok(ChatMessage::assistant(&msg.content))
                 }
-                Ok(ChatMessage::assistant(&msg.content))
             }
             MessageRole::ToolResult => {
                 // genai 0.7.0-beta.14 的 Tool 消息构造：
@@ -231,6 +244,8 @@ impl GenaiBackend {
                         .with_schema(td.parameters.clone())
                 })
                 .collect();
+            // 显式设置 tool_choice（存在工具时）：否则部分 provider（如 DeepSeek）
+            // 在未收到 tool_choice 字段时可能不触发工具调用（实测复现）。
             req.with_tools(genai_tools)
         };
 
@@ -242,10 +257,15 @@ impl GenaiBackend {
         if let Some(max_tokens) = options.max_tokens {
             chat_opts = chat_opts.with_max_tokens(max_tokens as u32);
         }
-        // 启用捕获（用于 StreamEnd 提取完整内容与用量）
+        // 存在工具时显式设置 tool_choice = auto（部分 provider 未收到该字段不触发工具调用）
+        if !options.tools.is_empty() {
+            chat_opts = chat_opts.with_tool_choice(ToolChoice::Auto);
+        }
+        // 启用捕获（用于 StreamEnd 提取完整内容与用量，以及原始请求体诊断）
         chat_opts = chat_opts
             .with_capture_content(true)
-            .with_capture_usage(true);
+            .with_capture_usage(true)
+            .with_capture_raw_body(true);
 
         Ok((req, chat_opts))
     }
