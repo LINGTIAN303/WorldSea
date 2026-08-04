@@ -104,7 +104,7 @@ pub use supervisor::{
     AssignmentError, AssignmentPromptTemplate, AssignmentResult, AssignmentStrategy,
     LlmAssignmentStrategy, SubAgentSpec, SupervisorConfig, SupervisorNode,
 };
-pub use tool::{SimpleToolBus, Tool, ToolBus, ToolDefinition, ToolError};
+pub use tool::{SimpleToolBus, Tool, ToolBus, ToolDefinition, ToolError, WhitelistToolBus};
 pub use tree_of_thoughts::{
     BeamSearchStrategy, ExplorationPromptTemplate, ExplorationStrategy, GoalCheckPromptTemplate,
     GoalCheckStrategy, LlmGoalCheckStrategy, LlmScoringStrategy, ScoringPromptTemplate,

@@ -144,7 +144,7 @@
    - deep phases（深度模式）：`deep_phases` 模块接入 UI（DeepMessageArea 已共享）。✅ 已完成（前端 phase_completed 归属修复见 2026-08-05 session）
    - A2UI：`a2ui` 模块的组件/事件渲染到前端。✅ 已完成（Tauri 事件转发 `agent:event:a2ui:{session_id}` + a2uiSurfaces 渲染，见 2026-08-05 session）
    - 终端能力：terminal 命令接入。✅ 已完成（详见下方实测记录）
-   - 子 Agent：sub-agent 编排接入。⏳ 待推进
+   - 子 Agent：sub-agent 编排接入。✅ 已完成（编排 + 工具白名单 + 管理 UI，见 2026-08-05 session）
 
    > **终端能力实测记录（2026-08-05）**：`e2e_terminal_tools_full_chain_deepseek`
    > - 范围：7 个工具（`execute_command` + 持久化 shell 会话 `detect_shells`/`shell_session_create`/`shell_session_exec`/`shell_session_input`/`shell_session_destroy`/`shell_session_list`），共享全局 `ShellSessionManager`（Arc<Mutex<HashMap>>）保持跨会话状态。

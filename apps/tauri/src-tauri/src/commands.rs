@@ -16,6 +16,7 @@ use agent_commands::{AgentCommandService, SendMessageParams, TerminalService, Up
 use agent_runtime::backend::ThinkingLevel;
 use agent_runtime::event::{OrchestratorEvent, EventListener};
 use agent_runtime::llm::config::ProviderConfig;
+use agent_runtime::supervisor::SubAgentSpec;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, State};
 
@@ -331,4 +332,37 @@ pub async fn terminal_list_sessions(
     state: State<'_, TerminalService>,
 ) -> Result<serde_json::Value, String> {
     state.list_sessions().await.map_err(|e| e.to_string())
+}
+
+// ─── 子 Agent（subagent）命令 ───────────────────────────────────
+//
+// 暴露子 Agent 规格管理能力给前端：查看/注册/删除规格，
+// 使主 Agent 的 `delegate_to_sub_agent` 工具可被用户在桌面端配置。
+// `SubAgentSpec` 复用 agent-runtime 类型（已 derive Serialize/Deserialize）。
+
+/// 列出已注册的子 Agent 规格
+#[tauri::command]
+pub async fn subagent_list_specs(
+    state: State<'_, AgentCommandService>,
+) -> Result<Vec<SubAgentSpec>, String> {
+    Ok(state.list_subagent_specs().await)
+}
+
+/// 注册一个子 Agent 规格（同名按 id 覆盖）
+#[tauri::command]
+pub async fn subagent_register_spec(
+    state: State<'_, AgentCommandService>,
+    spec: SubAgentSpec,
+) -> Result<(), String> {
+    state.register_subagent_spec(spec).await;
+    Ok(())
+}
+
+/// 删除一个子 Agent 规格（按 id）
+#[tauri::command]
+pub async fn subagent_remove_spec(
+    state: State<'_, AgentCommandService>,
+    id: String,
+) -> Result<bool, String> {
+    Ok(state.remove_subagent_spec(&id).await)
 }

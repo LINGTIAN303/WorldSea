@@ -21,9 +21,22 @@ use std::sync::Arc;
 use agent_runtime::agent::{AgentLoop, AgentLoopConfig};
 use agent_runtime::backend::NodeBackendAccessor;
 use agent_runtime::supervisor::SubAgentSpec;
-use agent_runtime::tool::{Tool, ToolBus, ToolError};
+use agent_runtime::tool::{Tool, ToolBus, ToolError, WhitelistToolBus};
 use async_trait::async_trait;
 use tokio::sync::RwLock;
+
+/// 缓存子 Agent — 记录实例及其来源规格
+///
+/// 实例池缓存 `Arc<AgentLoop>` 的同时记录创建它所用的 `SubAgentSpec`。委托时若
+/// 当前注册的规格与缓存的来源规格不一致（如运行期 `register_subagent_spec`
+/// 覆盖了 `tools_whitelist` / `system_prompt` / `max_iterations`），则重建实例，
+/// 使规格变更对已缓存实例生效。
+struct CachedSubAgent {
+    /// 创建该实例时使用的规格快照
+    spec: SubAgentSpec,
+    /// 实例本身
+    agent: Arc<AgentLoop>,
+}
 
 /// 子 Agent 编排管理器 — 持有规格注册表 + 实例池
 ///
@@ -35,8 +48,8 @@ pub struct SubAgentManager {
     tool_bus: Arc<dyn ToolBus>,
     /// 子 Agent 规格注册表（跨 session 共享，可动态注册）
     specs: Arc<RwLock<Vec<SubAgentSpec>>>,
-    /// 子 Agent 实例池（按 sub_agent_id 懒加载缓存）
-    agents: Arc<RwLock<HashMap<String, Arc<AgentLoop>>>>,
+    /// 子 Agent 实例池（按 sub_agent_id 懒加载缓存，含来源规格）
+    agents: Arc<RwLock<HashMap<String, CachedSubAgent>>>,
     /// 子 Agent 默认最大迭代次数（spec 未指定时使用）
     default_max_iterations: u32,
 }
@@ -73,18 +86,26 @@ impl SubAgentManager {
     }
 
     /// 获取或创建子 Agent 实例（懒加载 + 池化复用）
+    ///
+    /// 若实例池中已有同 id 实例，且其来源规格与当前规格一致，则直接复用；
+    /// 否则（规格变更，如运行期 `register_spec` 覆盖了 `system_prompt` /
+    /// `tools_whitelist` / `max_iterations`）重建实例，使最新规格生效。
     async fn get_or_create_agent(&self, spec: &SubAgentSpec) -> Arc<AgentLoop> {
         // 读锁快速路径
         {
             let agents = self.agents.read().await;
-            if let Some(agent) = agents.get(&spec.id) {
-                return Arc::clone(agent);
+            if let Some(cached) = agents.get(&spec.id) {
+                if &cached.spec == spec {
+                    return Arc::clone(&cached.agent);
+                }
             }
         }
         // 写锁 + Double-check
         let mut agents = self.agents.write().await;
-        if let Some(agent) = agents.get(&spec.id) {
-            return Arc::clone(agent);
+        if let Some(cached) = agents.get(&spec.id) {
+            if &cached.spec == spec {
+                return Arc::clone(&cached.agent);
+            }
         }
 
         let mut child_config = AgentLoopConfig {
@@ -97,11 +118,25 @@ impl SubAgentManager {
             child_config.max_iterations = self.default_max_iterations;
         }
 
+        // 子 Agent 工具总线：若规格指定了白名单，用 WhitelistToolBus 包装，
+        // 限制子 Agent 只能看到/调用白名单内的工具（工具隔离）。
+        let child_tool_bus: Arc<dyn ToolBus> = match &spec.tools_whitelist {
+            Some(list) if !list.is_empty() => {
+                Arc::new(WhitelistToolBus::new(Arc::clone(&self.tool_bus), list.clone()))
+            }
+            _ => Arc::clone(&self.tool_bus),
+        };
+
         let agent = Arc::new(
-            AgentLoop::new(Arc::clone(&self.backend), Arc::clone(&self.tool_bus))
-                .with_config(child_config),
+            AgentLoop::new(Arc::clone(&self.backend), child_tool_bus).with_config(child_config),
         );
-        agents.insert(spec.id.clone(), Arc::clone(&agent));
+        agents.insert(
+            spec.id.clone(),
+            CachedSubAgent {
+                spec: spec.clone(),
+                agent: Arc::clone(&agent),
+            },
+        );
         agent
     }
 
@@ -290,5 +325,35 @@ mod tests {
         assert_eq!(result["sub_agent_id"], "coder");
         assert_eq!(result["name"], "代码助手");
         assert!(result["result"].as_str().unwrap().contains("收到"));
+    }
+
+    /// 规格未变更时应复用池中实例（同一 Arc），规格变更后应重建实例（不同 Arc）
+    #[tokio::test]
+    async fn get_or_create_agent_reuses_or_rebuilds_by_spec() {
+        let bus = Arc::new(SimpleToolBus::new());
+        let backend: Arc<dyn NodeBackendAccessor> = Arc::new(crate::MockBackend::new());
+        let specs = Arc::new(RwLock::new(Vec::new()));
+        let manager = register_subagent_tools(&*bus, backend, bus.clone(), specs).await;
+
+        let s1 = spec("coder", "代码助手", "你是代码专家");
+        manager.register_spec(s1.clone()).await;
+
+        let a1 = manager.get_or_create_agent(&s1).await;
+        // 相同规格：复用同一实例
+        let a1_again = manager.get_or_create_agent(&s1).await;
+        assert!(Arc::ptr_eq(&a1, &a1_again), "相同规格应复用池中实例");
+
+        // 规格变更（system_prompt 不同）：应重建实例
+        let s2 = SubAgentSpec {
+            system_prompt: "你是资深代码专家（版本2）".into(),
+            ..s1.clone()
+        };
+        manager.register_spec(s2.clone()).await;
+        let a2 = manager.get_or_create_agent(&s2).await;
+        assert!(!Arc::ptr_eq(&a1, &a2), "规格变更后应重建实例");
+
+        // 变更后再次以 s2 委托，应复用新建的 a2，而非回退到 a1
+        let a2_again = manager.get_or_create_agent(&s2).await;
+        assert!(Arc::ptr_eq(&a2, &a2_again), "变更后的规格应持续复用新实例");
     }
 }

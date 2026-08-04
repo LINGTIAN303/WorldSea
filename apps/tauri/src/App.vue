@@ -4,6 +4,7 @@ import { ref, onMounted } from 'vue'
 import { A2UIRenderer } from '@worldsmith/shared-ui'
 import { provideAgentBackend, useAgentRust } from './agent/composables/useAgentRust'
 import TerminalView from './terminal/components/TerminalView.vue'
+import SubAgentView from './subagent/components/SubAgentView.vue'
 
 // 在 setup 上下文注入（useAgent 使用 inject 模式，须在组件内 provide）
 const backend = useAgentRust()
@@ -19,8 +20,8 @@ const input = ref('')
 const sending = ref(false)
 const error = ref('')
 
-/** 当前视图：chat（对话） / terminal（终端） */
-const view = ref<'chat' | 'terminal'>('chat')
+/** 当前视图：chat（对话） / terminal（终端） / subagent（子 Agent 管理） */
+const view = ref<'chat' | 'terminal' | 'subagent'>('chat')
 
 /** 发送消息：走 useAgentRust.prompt → invoke('send_message') → Rust ReAct 循环 */
 async function send() {
@@ -54,11 +55,17 @@ onMounted(async () => {
     <nav class="tabs">
       <button :class="{ active: view === 'chat' }" @click="view = 'chat'">对话</button>
       <button :class="{ active: view === 'terminal' }" @click="view = 'terminal'">终端</button>
+      <button :class="{ active: view === 'subagent' }" @click="view = 'subagent'">子 Agent</button>
     </nav>
 
     <!-- 终端视图（全宽） -->
     <div v-if="view === 'terminal'" class="terminal-holder">
       <TerminalView />
+    </div>
+
+    <!-- 子 Agent 管理视图 -->
+    <div v-else-if="view === 'subagent'" class="subagent-holder">
+      <SubAgentView />
     </div>
 
     <!-- 对话视图 -->
@@ -158,6 +165,11 @@ onMounted(async () => {
 .terminal-holder {
   flex: 1;
   min-height: 0;
+}
+.subagent-holder {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 .chat-wrap {
   flex: 1;

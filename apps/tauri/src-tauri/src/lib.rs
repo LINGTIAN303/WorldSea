@@ -35,6 +35,9 @@ pub fn run() {
             commands::terminal_input_session,
             commands::terminal_destroy_session,
             commands::terminal_list_sessions,
+            commands::subagent_list_specs,
+            commands::subagent_register_spec,
+            commands::subagent_remove_spec,
         ])
         // Phase 5.1：Agent 命令服务（内部持有 session_id -> Arc<AgentLoop> 映射）
         .manage(AgentCommandService::new())

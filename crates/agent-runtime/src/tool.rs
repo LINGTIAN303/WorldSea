@@ -17,7 +17,7 @@
 //! - **错误隔离**：单个工具执行失败不会影响 ToolBus 稳定性
 //! - **向后兼容**：`ToolBus` trait 新增方法均带默认实现，不破坏现有实现者
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -295,6 +295,94 @@ impl ToolBus for SimpleToolBus {
     }
 }
 
+// ─── WhitelistToolBus：按白名单过滤的工具总线包装器 ────────────────
+
+/// 按白名单过滤工具视图的 ToolBus 包装器
+///
+/// 用于子 Agent 编排：当 `SubAgentSpec.tools_whitelist` 指定时，把子 Agent
+/// 看到的工具集限制为白名单内的工具，实现子 Agent 工具隔离（阶段 1.4 扩展点）。
+///
+/// # 行为
+/// - `list_all` / `get_by_name` / `call_tool` / `count` 仅对白名单内工具生效
+/// - `register` / `unregister` / `register_mcp_tools` / `unregister_mcp_server`
+///   透传到内层总线（子 Agent 通常不注册工具，透传保证完整性）
+/// - 白名单为空集合时等价于"无任何工具"
+pub struct WhitelistToolBus {
+    inner: Arc<dyn ToolBus>,
+    allowed: RwLock<HashSet<String>>,
+}
+
+impl WhitelistToolBus {
+    /// 用白名单工具名集合包装内层总线
+    pub fn new(inner: Arc<dyn ToolBus>, whitelist: Vec<String>) -> Self {
+        Self {
+            inner,
+            allowed: RwLock::new(whitelist.into_iter().collect()),
+        }
+    }
+}
+
+#[async_trait]
+impl ToolBus for WhitelistToolBus {
+    async fn register(&self, tool: Arc<dyn Tool>) {
+        self.inner.register(tool).await;
+    }
+
+    async fn unregister(&self, name: &str) {
+        self.inner.unregister(name).await;
+    }
+
+    async fn get_by_name(&self, name: &str) -> Option<ToolDefinition> {
+        let resolved = self.resolve_alias(name);
+        if self.allowed.read().await.contains(&resolved) {
+            self.inner.get_by_name(&resolved).await
+        } else {
+            None
+        }
+    }
+
+    async fn list_all(&self) -> Vec<ToolDefinition> {
+        let allowed = self.allowed.read().await;
+        self.inner
+            .list_all()
+            .await
+            .into_iter()
+            .filter(|def| allowed.contains(&def.name))
+            .collect()
+    }
+
+    async fn call_tool(
+        &self,
+        name: &str,
+        args: serde_json::Value,
+    ) -> Result<serde_json::Value, ToolError> {
+        let resolved = self.resolve_alias(name);
+        if self.allowed.read().await.contains(&resolved) {
+            self.inner.call_tool(&resolved, args).await
+        } else {
+            Err(ToolError::NotFound(name.to_string()))
+        }
+    }
+
+    async fn count(&self) -> usize {
+        let allowed = self.allowed.read().await;
+        self.inner
+            .list_all()
+            .await
+            .into_iter()
+            .filter(|def| allowed.contains(&def.name))
+            .count()
+    }
+
+    async fn register_mcp_tools(&self, server_id: String, tools: Vec<Arc<dyn Tool>>) {
+        self.inner.register_mcp_tools(server_id, tools).await;
+    }
+
+    async fn unregister_mcp_server(&self, server_id: &str) {
+        self.inner.unregister_mcp_server(server_id).await;
+    }
+}
+
 // ─── 工具错误 ────────────────────────────────────────────
 
 /// 工具错误
@@ -440,5 +528,69 @@ mod tests {
         let json = serde_json::to_string(&def).unwrap();
         assert!(json.contains("\"name\":\"echo\""));
         assert!(json.contains("\"description\":\"回显\""));
+    }
+
+    // ─── WhitelistToolBus 单元测试 ────────────────────────────────
+
+    #[tokio::test]
+    async fn whitelist_filters_list_all_and_count() {
+        let inner = SimpleToolBus::new();
+        inner.register(Arc::new(EchoTool)).await;
+        inner.register(Arc::new(EchoTool)).await; // 第二个同名，覆盖，仍 1 个
+        // 再注册一个额外工具占位，验证白名单过滤
+        inner.register(Arc::new(PlaceholderTool("extra"))).await;
+
+        let wl = WhitelistToolBus::new(Arc::new(inner), vec!["echo".to_string()]);
+        let list = wl.list_all().await;
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].name, "echo");
+        assert_eq!(wl.count().await, 1);
+    }
+
+    #[tokio::test]
+    async fn whitelist_blocks_non_whitelisted_tool() {
+        let inner = SimpleToolBus::new();
+        inner.register(Arc::new(EchoTool)).await;
+        inner.register(Arc::new(PlaceholderTool("extra"))).await;
+
+        let wl = WhitelistToolBus::new(Arc::new(inner), vec!["extra".to_string()]);
+        // 白名单内可调用
+        assert!(wl.call_tool("extra", serde_json::json!({})).await.is_ok());
+        // 白名单外 get_by_name 返回 None
+        assert!(wl.get_by_name("echo").await.is_none());
+        // 白名单外 call_tool 返回 NotFound
+        match wl.call_tool("echo", serde_json::json!({})).await {
+            Err(ToolError::NotFound(name)) => assert_eq!(name, "echo"),
+            _ => panic!("应返回 NotFound"),
+        }
+    }
+
+    #[tokio::test]
+    async fn whitelist_empty_means_no_tools() {
+        let inner = SimpleToolBus::new();
+        inner.register(Arc::new(EchoTool)).await;
+        let wl = WhitelistToolBus::new(Arc::new(inner), vec![]);
+        assert_eq!(wl.count().await, 0);
+        assert!(wl.list_all().await.is_empty());
+    }
+}
+
+#[cfg(test)]
+/// 测试用占位工具 — 用于验证白名单过滤（不被白名单包含时不可见）
+struct PlaceholderTool(&'static str);
+
+#[async_trait]
+impl Tool for PlaceholderTool {
+    fn name(&self) -> &str {
+        self.0
+    }
+    fn description(&self) -> &str {
+        "占位工具（测试用）"
+    }
+    fn parameters(&self) -> serde_json::Value {
+        serde_json::json!({ "type": "object", "properties": {} })
+    }
+    async fn execute(&self, args: serde_json::Value) -> Result<serde_json::Value, ToolError> {
+        Ok(args)
     }
 }

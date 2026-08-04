@@ -50,7 +50,7 @@ use crate::types::{MessageRole, OrchestratorMessage};
 /// 子 Agent 规格 — 描述一个可调用的专长子 Agent
 ///
 /// 由用户在创建 SupervisorNode 时提供，定义子 Agent 的能力与配置。
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SubAgentSpec {
     /// 子 Agent 唯一 ID（用于 `AssignmentResult.sub_agent_id` 引用）
     pub id: String,

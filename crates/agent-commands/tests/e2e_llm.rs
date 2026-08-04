@@ -48,7 +48,7 @@ use agent_runtime::multi_agent::{
 };
 use agent_runtime::graph_of_thoughts::{AggregationStrategy, GoTConfig, GoTNode};
 use agent_runtime::router::{RouteTarget, RouterConfig, RouterNode};
-use agent_runtime::tool::{SimpleToolBus, Tool, ToolBus, ToolError};
+use agent_runtime::tool::{SimpleToolBus, Tool, ToolBus, ToolError, WhitelistToolBus};
 use agent_runtime::tree_of_thoughts::{
     BeamSearchStrategy, GoalCheckStrategy, LlmScoringStrategy, ThoughtNode, ToTConfig, ToTError,
     ToTNode,
@@ -1709,6 +1709,134 @@ async fn e2e_subagent_orchestration_deepseek() {
     assert!(!reply.reply.trim().is_empty(), "最终回复不应为空");
 
     eprintln!("[e2e] 子 Agent 编排全链路：主 Agent 成功委派给子 Agent 并回填结果");
+    eprintln!("[e2e] 最终回复：{}", reply.reply);
+}
+
+// ─── 终端能力进子 Agent 白名单 e2e：验证 WhitelistToolBus 工具隔离在真实 LLM 下生效 ──
+///
+/// 验证"子 Agent 工具白名单"在真实 LLM 链路下真正生效：
+/// 1) 前置确定性校验（不依赖 LLM）：WhitelistToolBus 只暴露白名单内工具，白名单外不可见。
+/// 2) 真实链路：主 Agent 委派给带白名单（仅 execute_command）的 sandbox 子 Agent，
+///    子 Agent 经 WhitelistToolBus 调用白名单内的 execute_command 真实执行命令并回填。
+#[tokio::test]
+#[ignore = "需要真实 API Key 与网络，按需显式运行"]
+async fn e2e_subagent_terminal_whitelist_deepseek() {
+    let Some(api_key) = api_key_from_env() else {
+        eprintln!("[e2e] 未设置 DEEPSEEK_API_KEY，跳过真实 LLM 调用");
+        return;
+    };
+
+    // ── 0) 前置确定性校验：WhitelistToolBus 隔离本身正确（不依赖 LLM）──
+    {
+        let inner = Arc::new(SimpleToolBus::new());
+        register_terminal_tools(&*inner).await;
+        let wl = WhitelistToolBus::new(inner, vec!["execute_command".into()]);
+        let defs = wl.list_all().await;
+        assert_eq!(
+            defs.len(),
+            1,
+            "白名单只含 execute_command，list_all 应仅返回该工具（实际：{:?}）",
+            defs.iter().map(|d| d.name.as_str()).collect::<Vec<_>>()
+        );
+        assert_eq!(defs[0].name, "execute_command");
+        // 白名单外工具应不可见/不可取
+        assert!(
+            wl.get_by_name("delegate_to_sub_agent").await.is_none(),
+            "白名单外工具 delegate_to_sub_agent 应不可见"
+        );
+        assert!(
+            wl.get_by_name("shell_session_create").await.is_none(),
+            "白名单外工具 shell_session_create 应不可见"
+        );
+    }
+
+    let svc = AgentCommandService::new();
+    // 1) 注册子 Agent：白名单仅含终端工具 execute_command
+    svc.register_subagent_spec(SubAgentSpec {
+        id: "sandbox".into(),
+        name: "沙箱终端".into(),
+        description: "只能执行 shell 命令的受限子 Agent，通过 execute_command 终端工具运行命令".into(),
+        system_prompt: "你是一个受沙箱约束的终端操作员。你只能使用 execute_command 工具执行用户要求的 shell 命令，并返回命令的真实输出。不要调用其他工具，不要编造输出。".into(),
+        tools_whitelist: Some(vec!["execute_command".into()]),
+        max_iterations: Some(5),
+    })
+    .await;
+    assert_eq!(svc.list_subagent_specs().await.len(), 1);
+
+    // 2) 创建主会话（真实 LLM 后端）
+    let info = svc
+        .new_session(
+            Some(
+                "You are an orchestrator. Use delegate_to_sub_agent to delegate terminal \
+                 tasks to the 'sandbox' sub-agent (call list_sub_agents first to discover). \
+                 After receiving the sub-agent result, tell the user the exact command output."
+                    .into(),
+            ),
+            Some(deepseek_config(&api_key)),
+        )
+        .await
+        .expect("会话创建失败");
+
+    // 3) 触发 ReAct：主 Agent 应委派给 sandbox，sandbox 经白名单调用 execute_command
+    let reply = match svc
+        .send_message(SendMessageParams {
+            session_id: info.id.clone(),
+            text: "请委派给 sandbox 子 Agent，让它用终端工具执行命令：echo whitelist-e2e-ok，然后把输出告诉我。".into(),
+            images: vec![],
+            mode: None,
+        })
+        .await
+    {
+        Ok(r) => r,
+        Err(e) => {
+            if let Ok(msgs) = svc.get_messages(&info.id).await {
+                eprintln!("[e2e] === 消息历史（共 {} 条）===", msgs.len());
+                for (i, m) in msgs.iter().enumerate() {
+                    eprintln!(
+                        "[e2e] [{i}] role={:?} tool_calls={} content={}",
+                        m.role,
+                        m.tool_calls.len(),
+                        m.content.chars().take(120).collect::<String>()
+                    );
+                    for tc in &m.tool_calls {
+                        eprintln!("[e2e]     name={} args={}", tc.name, tc.args);
+                    }
+                }
+            }
+            panic!("send_message 返回错误，终端白名单子 Agent 未通过: {e:?}");
+        }
+    };
+
+    // 4) 校验：主 Agent 委派成功
+    let msgs = svc.get_messages(&info.id).await.unwrap();
+    let delegated = msgs
+        .iter()
+        .any(|m| m.tool_calls.iter().any(|tc| tc.name == "delegate_to_sub_agent"));
+    assert!(delegated, "主 Agent 应调用 delegate_to_sub_agent");
+
+    // 5) 校验：子 Agent 结果回填（delegate_to_sub_agent 的 ToolResult 含 sub_agent_id 元数据）
+    let tool_result = msgs
+        .iter()
+        .find(|m| m.role == MessageRole::ToolResult && m.content.contains("sub_agent_id"));
+    assert!(
+        tool_result.is_some(),
+        "消息历史应含子 Agent 结果回填 (sub_agent_id)"
+    );
+
+    // 6) 校验：子 Agent 经白名单内的 execute_command 真实执行了命令（输出含 echo 内容）
+    let all_content = msgs
+        .iter()
+        .map(|m| m.content.clone())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        all_content.contains("whitelist-e2e-ok"),
+        "子 Agent 应通过 execute_command 执行 echo whitelist-e2e-ok 并回填输出（实际消息头部：{}）",
+        all_content.chars().take(400).collect::<String>()
+    );
+    assert!(!reply.reply.trim().is_empty(), "最终回复不应为空");
+
+    eprintln!("[e2e] 终端白名单子 Agent 全链路：主 Agent 委派 → 子 Agent 经 WhitelistToolBus 调用 execute_command 成功");
     eprintln!("[e2e] 最终回复：{}", reply.reply);
 }
 

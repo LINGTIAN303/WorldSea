@@ -287,12 +287,30 @@ impl AgentCommandService {
 
     // ── 子 Agent 编排 ────────────────────────────────────
 
-    /// 注册一个子 Agent 规格（同名覆盖）
+    /// 注册一个子 Agent 规格（同名按 id 覆盖）
     ///
     /// 注册后，后续创建/已有会话的主 Agent 都可通过 `list_sub_agents` 查看、
     /// 通过 `delegate_to_sub_agent` 委派任务。规格注册表跨会话共享。
+    ///
+    /// 同名（相同 `id`）规格会覆盖旧定义，避免重复 push 导致列表出现重复项。
     pub async fn register_subagent_spec(&self, spec: SubAgentSpec) {
-        self.subagent_specs.write().await.push(spec);
+        let mut specs = self.subagent_specs.write().await;
+        if let Some(existing) = specs.iter_mut().find(|s| s.id == spec.id) {
+            *existing = spec;
+        } else {
+            specs.push(spec);
+        }
+    }
+
+    /// 删除一个子 Agent 规格（按 id）
+    ///
+    /// 返回是否删除成功（id 不存在时返回 `false`）。仅操作共享注册表，
+    /// 不影响子 Agent 实例池——池中实例懒加载，下次委派按最新规格重建。
+    pub async fn remove_subagent_spec(&self, id: &str) -> bool {
+        let mut specs = self.subagent_specs.write().await;
+        let before = specs.len();
+        specs.retain(|s| s.id != id);
+        specs.len() != before
     }
 
     /// 列出已注册的子 Agent 规格
@@ -491,5 +509,46 @@ mod tests {
         // 两个会话共享同一注册表（各自 Agent 的 SubAgentManager 持同一 Arc）
         assert_eq!(s1.id.len(), 36);
         assert_eq!(s2.id.len(), 36);
+    }
+
+    #[tokio::test]
+    async fn register_subagent_spec_overrides_by_id() {
+        let svc = AgentCommandService::new();
+        let mut spec = SubAgentSpec {
+            id: "coder".into(),
+            name: "代码助手".into(),
+            description: "处理代码编写任务".into(),
+            system_prompt: "你是代码专家".into(),
+            tools_whitelist: None,
+            max_iterations: Some(3),
+        };
+        svc.register_subagent_spec(spec.clone()).await;
+        // 同名 id 覆盖，不产生重复项
+        spec.name = "新版代码助手".into();
+        svc.register_subagent_spec(spec).await;
+        let list = svc.list_subagent_specs().await;
+        assert_eq!(list.len(), 1, "同名 id 应覆盖而非追加");
+        assert_eq!(list[0].name, "新版代码助手", "应取最新定义");
+    }
+
+    #[tokio::test]
+    async fn remove_subagent_spec_returns_removed_flag() {
+        let svc = AgentCommandService::new();
+        svc.register_subagent_spec(SubAgentSpec {
+            id: "coder".into(),
+            name: "代码助手".into(),
+            description: "处理代码编写任务".into(),
+            system_prompt: "你是代码专家".into(),
+            tools_whitelist: None,
+            max_iterations: Some(3),
+        })
+        .await;
+        // 删除存在的规格返回 true
+        let removed = svc.remove_subagent_spec("coder").await;
+        assert!(removed, "删除存在的规格应返回 true");
+        assert!(svc.list_subagent_specs().await.is_empty());
+        // 删除不存在的规格返回 false
+        let removed = svc.remove_subagent_spec("nonexistent").await;
+        assert!(!removed, "删除不存在的规格应返回 false");
     }
 }
