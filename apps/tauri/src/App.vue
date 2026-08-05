@@ -79,6 +79,24 @@ async function onThinkingLevelChange(e: Event) {
   }
 }
 
+/** 停止生成：调用 Rust abort（发送按钮在生成中切换为「停止」） */
+async function onStop() {
+  try {
+    await backend.abort()
+  } catch (err) {
+    error.value = `停止失败: ${err}`
+  }
+}
+
+/** 清空当前会话历史：调用 Rust clear_history（会话保留，仅清消息） */
+async function onClear() {
+  try {
+    await backend.clearHistory()
+  } catch (err) {
+    error.value = `清空对话失败: ${err}`
+  }
+}
+
 /** 新建会话：调用 Rust new_session，并设为当前会话 */
 async function onNewSession() {
   try {
@@ -153,6 +171,12 @@ onMounted(async () => {
       <header class="chat-header">
         <h1>WorldSmith Agent</h1>
         <div class="header-actions">
+          <button
+            class="clear"
+            :disabled="backend.messages.length === 0"
+            title="清空对话"
+            @click="onClear"
+          >清空</button>
           <label class="think-field">
             <span class="think-label">思考级别</span>
             <select
@@ -209,9 +233,16 @@ onMounted(async () => {
           :disabled="sending"
           @keydown.enter="send"
         />
-        <button :disabled="sending || !input.trim()" @click="send">
-          {{ sending ? '发送中…' : '发送' }}
-        </button>
+        <button
+          v-if="sending || backend.isStreaming"
+          class="stop"
+          @click="onStop"
+        >停止</button>
+        <button
+          v-else
+          :disabled="!input.trim()"
+          @click="send"
+        >发送</button>
       </footer>
     </main>
     </div>
@@ -380,6 +411,24 @@ onMounted(async () => {
   align-items: center;
   gap: 12px;
 }
+.clear {
+  padding: 4px 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 12px;
+  color: #666;
+  cursor: pointer;
+}
+.clear:hover:not(:disabled) {
+  border-color: #d93025;
+  color: #d93025;
+}
+.clear:disabled {
+  background: #f5f5f5;
+  color: #bbb;
+  cursor: not-allowed;
+}
 .think-field {
   display: flex;
   align-items: center;
@@ -466,5 +515,11 @@ onMounted(async () => {
 .input-bar button:disabled {
   background: #ccc;
   cursor: not-allowed;
+}
+.input-bar button.stop {
+  background: #d93025;
+}
+.input-bar button.stop:hover {
+  background: #c5221f;
 }
 </style>
