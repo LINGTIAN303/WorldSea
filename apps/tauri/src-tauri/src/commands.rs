@@ -80,6 +80,62 @@ impl EventListener for TauriAgentEventEmitter {
                     );
                 }
             }
+            OrchestratorEvent::SubAgentStarted {
+                sub_agent_id,
+                sub_agent_name,
+                task_description,
+                ..
+            } => {
+                // 转发到前端：事件名 `agent:event:subagent:{session_id}`
+                // payload: { type, subAgentId, subAgentName, taskDescription }
+                let event_name = format!("agent:event:subagent:{}", self.session_id);
+                if let Err(err) = self.app.emit(&event_name, serde_json::json!({
+                    "type": "start",
+                    "subAgentId": sub_agent_id,
+                    "subAgentName": sub_agent_name,
+                    "taskDescription": task_description,
+                })) {
+                    tracing::warn!("Failed to emit SubAgentStarted event to frontend: {}", err);
+                }
+            }
+            OrchestratorEvent::SubAgentCompleted {
+                sub_agent_id,
+                sub_agent_name,
+                output_chars,
+                duration_ms,
+                ..
+            } => {
+                // 转发到前端：事件名 `agent:event:subagent:{session_id}`
+                // payload: { type, subAgentId, subAgentName, outputChars, durationMs }
+                let event_name = format!("agent:event:subagent:{}", self.session_id);
+                if let Err(err) = self.app.emit(&event_name, serde_json::json!({
+                    "type": "completed",
+                    "subAgentId": sub_agent_id,
+                    "subAgentName": sub_agent_name,
+                    "outputChars": output_chars,
+                    "durationMs": duration_ms,
+                })) {
+                    tracing::warn!("Failed to emit SubAgentCompleted event to frontend: {}", err);
+                }
+            }
+            OrchestratorEvent::SubAgentError {
+                sub_agent_id,
+                sub_agent_name,
+                error,
+                ..
+            } => {
+                // 转发到前端：事件名 `agent:event:subagent:{session_id}`
+                // payload: { type, subAgentId, subAgentName, error }
+                let event_name = format!("agent:event:subagent:{}", self.session_id);
+                if let Err(err) = self.app.emit(&event_name, serde_json::json!({
+                    "type": "error",
+                    "subAgentId": sub_agent_id,
+                    "subAgentName": sub_agent_name,
+                    "error": error,
+                })) {
+                    tracing::warn!("Failed to emit SubAgentError event to frontend: {}", err);
+                }
+            }
             // 其他事件目前不需要转发到前端
             _ => {}
         }

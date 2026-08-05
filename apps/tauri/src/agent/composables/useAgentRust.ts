@@ -83,6 +83,48 @@ interface RustDeepPhaseChangedPayload {
   phaseCompleted: boolean
 }
 
+// ─── Rust 子 Agent 委派事件 Payload ──────────────────────────────
+//
+// 对应 `crates/agent-commands/src/subagent.rs` 的 `SubAgentManager::delegate`
+// 广播的 OrchestratorEvent，经 Tauri `TauriAgentEventEmitter` 转发到前端
+// `agent:event:subagent:{session_id}` 通道。
+//
+// 事件类型（`type` 字段）：
+// - `start`：委派开始（子 Agent 正在执行）
+// - `completed`：委派完成（携带输出字符数与耗时）
+// - `error`：委派失败 / 超时（携带错误信息）
+
+/** 子 Agent 委派开始事件 */
+interface RustSubAgentStartedPayload {
+  type: 'start'
+  subAgentId: string
+  subAgentName: string
+  taskDescription: string
+}
+
+/** 子 Agent 委派完成事件 */
+interface RustSubAgentCompletedPayload {
+  type: 'completed'
+  subAgentId: string
+  subAgentName: string
+  outputChars: number
+  durationMs: number
+}
+
+/** 子 Agent 委派失败 / 超时事件 */
+interface RustSubAgentErrorPayload {
+  type: 'error'
+  subAgentId: string
+  subAgentName: string
+  error: string
+}
+
+/** 子 Agent 委派事件 payload 联合类型 */
+type RustSubAgentPayload =
+  | RustSubAgentStartedPayload
+  | RustSubAgentCompletedPayload
+  | RustSubAgentErrorPayload
+
 // ─── Rust 端类型镜像（snake_case，与 agent-runtime 序列化一致）──────────────
 
 /** Rust `agent_commands::SessionInfo` 镜像 */
@@ -233,9 +275,37 @@ const a2uiSurfaces = ref<Record<string, A2UISurface>>({})
 /** A2UI 事件监听器清理函数（按 sessionId 索引，切换/删除会话时清理） */
 const a2uiUnlistenFns = new Map<string, UnlistenFn>()
 
-// ─── 事件分发 ────────────────────────────────────────────
+// ─── 子 Agent 委派状态 ────────────────────────────────────────
 
-/** 向所有订阅者分发 AgentEvent（单个订阅者异常不影响其他） */
+/** 单次子 Agent 委派的运行状态（前端由 Rust SubAgent 事件驱动维护） */
+export interface SubAgentState {
+  /** 唯一委派序号（同一子 Agent 可被多次委派，用时间戳区分） */
+  id: string
+  /** 子 Agent ID */
+  subAgentId: string
+  /** 子 Agent 名称（人类可读） */
+  subAgentName: string
+  /** 委派的子任务描述 */
+  taskDescription: string
+  /** 运行状态：running=执行中 / completed=完成 / error=失败或超时 */
+  status: 'running' | 'completed' | 'error'
+  /** 输出字符数（completed 时填充） */
+  outputChars?: number
+  /** 执行耗时（毫秒，completed 时填充） */
+  durationMs?: number
+  /** 错误信息（error 时填充） */
+  error?: string
+  /** 委派开始时间戳 */
+  startedAt: number
+}
+
+/** 子 Agent 委派状态列表（前端由 Rust SubAgent 事件驱动维护） */
+const subAgents = ref<SubAgentState[]>([])
+
+/** 子 Agent 委派事件监听器清理函数（按 sessionId 索引） */
+const subAgentUnlistenFns = new Map<string, UnlistenFn>()
+
+// ─── 事件分发 ────────────────────────────────────────────
 function emit(event: AgentEvent): void {
   for (const listener of listeners) {
     try {
@@ -471,6 +541,80 @@ function teardownA2UIListener(sessionId: string): void {
   }
 }
 
+// ─── 子 Agent 委派事件监听（SubAgentStarted/Completed/Error）────────────────────
+
+/**
+ * 处理一条子 Agent 委派事件，增量更新 `subAgents` 列表
+ *
+ * - `start`：追加一条 `running` 状态的委派记录
+ * - `completed`：把对应 `running` 记录更新为 `completed`，填充输出字符数与耗时
+ * - `error`：把对应 `running` 记录更新为 `error`，填充错误信息
+ *
+ * 匹配策略：按 `subAgentId` 找到该子 Agent 最新一条 `running` 记录更新，
+ * 以应对同一子 Agent 被连续多次委派的场景。
+ */
+function handleSubAgentEvent(payload: RustSubAgentPayload): void {
+  if (payload.type === 'start') {
+    subAgents.value.unshift({
+      id: `sub-${payload.subAgentId}-${Date.now()}`,
+      subAgentId: payload.subAgentId,
+      subAgentName: payload.subAgentName,
+      taskDescription: payload.taskDescription,
+      status: 'running',
+      startedAt: Date.now(),
+    })
+    return
+  }
+
+  // completed / error：在 subAgents 中找该子 Agent 最新一条 running 记录更新
+  const idx = subAgents.value.findIndex(
+    (s) => s.subAgentId === payload.subAgentId && s.status === 'running',
+  )
+  if (idx < 0) {
+    // 没有匹配的 running 记录（如会话切换后事件迟到），忽略防脏数据
+    console.warn(`[useAgentRust] 子 Agent "${payload.subAgentId}" ${payload.type} 无匹配 running 记录，忽略`)
+    return
+  }
+  const target = { ...subAgents.value[idx] }
+  target.status = payload.type === 'completed' ? 'completed' : 'error'
+  if (payload.type === 'completed') {
+    target.outputChars = payload.outputChars
+    target.durationMs = payload.durationMs
+  } else {
+    target.error = payload.error
+  }
+  subAgents.value[idx] = target
+}
+
+/**
+ * 为指定会话设置子 Agent 委派事件监听
+ *
+ * 监听 `agent:event:subagent:{session_id}`，收到 Rust payload 后
+ * 转发给 `handleSubAgentEvent` 增量更新 `subAgents`。幂等：已存在监听器则直接返回。
+ */
+async function setupSubAgentListener(sessionId: string): Promise<void> {
+  if (subAgentUnlistenFns.has(sessionId)) return
+
+  const eventName = `agent:event:subagent:${sessionId}`
+  try {
+    const unlisten = await listen<RustSubAgentPayload>(eventName, (e) => {
+      handleSubAgentEvent(e.payload)
+    })
+    subAgentUnlistenFns.set(sessionId, unlisten)
+  } catch (err) {
+    console.error(`[useAgentRust] listen ${eventName} 失败:`, err)
+  }
+}
+
+/** 清理指定会话的子 Agent 委派事件监听 */
+function teardownSubAgentListener(sessionId: string): void {
+  const unlisten = subAgentUnlistenFns.get(sessionId)
+  if (unlisten) {
+    unlisten()
+    subAgentUnlistenFns.delete(sessionId)
+  }
+}
+
 // ─── 命令封装：会话生命周期 ────────────────────────────────────
 
 /** 新建会话（返回 Rust SessionInfo） */
@@ -487,9 +631,11 @@ async function newSession(
   // 新会话：清空深度模式段与 A2UI 画布，并建立事件监听
   deepSegments.value = []
   a2uiSurfaces.value = {}
+  subAgents.value = []
   sessionMessagesCache.set(info.id, [])
   await setupDeepPhaseListener(info.id)
   await setupA2UIListener(info.id)
+  await setupSubAgentListener(info.id)
   await refreshSessionList()
   return info
 }
@@ -512,11 +658,13 @@ async function deleteSession(sessionId: string): Promise<void> {
   sessionMessagesCache.delete(sessionId)
   teardownDeepPhaseListener(sessionId)
   teardownA2UIListener(sessionId)
+  teardownSubAgentListener(sessionId)
   if (currentSessionId.value === sessionId) {
     currentSessionId.value = null
     messages.value = []
     deepSegments.value = []
     a2uiSurfaces.value = {}
+    subAgents.value = []
   }
   await refreshSessionList()
 }
@@ -528,12 +676,15 @@ async function switchSession(sessionId: string): Promise<void> {
   if (oldSessionId && oldSessionId !== sessionId) {
     teardownDeepPhaseListener(oldSessionId)
     teardownA2UIListener(oldSessionId)
+    teardownSubAgentListener(oldSessionId)
   }
   currentSessionId.value = sessionId
   deepSegments.value = []
   a2uiSurfaces.value = {}
+  subAgents.value = []
   await setupDeepPhaseListener(sessionId)
   await setupA2UIListener(sessionId)
+  await setupSubAgentListener(sessionId)
   const cached = sessionMessagesCache.get(sessionId)
   if (cached) {
     messages.value = cached
@@ -748,6 +899,12 @@ function dispose(): void {
     unlisten()
   }
   a2uiUnlistenFns.clear()
+  // 清理所有子 Agent 委派事件监听器
+  for (const unlisten of subAgentUnlistenFns.values()) {
+    unlisten()
+  }
+  subAgentUnlistenFns.clear()
+  subAgents.value = []
 }
 
 // ─── 派生状态 ────────────────────────────────────
@@ -824,6 +981,9 @@ export function useAgentRust() {
     // ── A2UI（A2UIRenderer 依赖）──
     a2uiSurfaces,
     resolveDataBinding,
+
+    // ── 子 Agent 委派状态（SubAgentSection 依赖）──
+    subAgents,
 
     // ── 状态查询 ──
     getProviderConfig,

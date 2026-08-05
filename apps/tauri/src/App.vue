@@ -5,6 +5,7 @@ import { A2UIRenderer } from '@worldsmith/shared-ui'
 import { provideAgentBackend, useAgentRust } from './agent/composables/useAgentRust'
 import TerminalView from './terminal/components/TerminalView.vue'
 import SubAgentView from './subagent/components/SubAgentView.vue'
+import SubAgentSection from './agent/components/SubAgentSection.vue'
 
 // 在 setup 上下文注入（useAgent 使用 inject 模式，须在组件内 provide）
 const backend = useAgentRust()
@@ -115,6 +116,9 @@ onMounted(async () => {
           @action="onA2UIAction"
         />
       </div>
+
+      <!-- 子 Agent 委派过程展示 -->
+      <SubAgentSection />
 
       <div v-if="error" class="error">{{ error }}</div>
 

@@ -375,6 +375,15 @@ impl AgentLoop {
         self.broadcaster.write().await.subscribe(listener);
     }
 
+    /// 获取内部广播器引用（供外部组件向同一广播器广播事件）
+    ///
+    /// 例如：`SubAgentManager` 在子 Agent 委派时向主 Agent 的广播器广播
+    /// `SubAgentStarted` / `SubAgentCompleted` / `SubAgentError`，使订阅主 Agent
+    /// 事件的监听器（如 Tauri 端）能收到子 Agent 的委派进度。
+    pub fn broadcaster_ref(&self) -> Arc<RwLock<EventBroadcaster>> {
+        Arc::clone(&self.broadcaster)
+    }
+
     /// 广播事件
     async fn broadcast(&self, event: OrchestratorEvent) {
         self.broadcaster.read().await.broadcast(&event);

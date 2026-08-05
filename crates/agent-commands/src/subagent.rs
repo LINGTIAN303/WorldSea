@@ -20,8 +20,10 @@ use std::sync::Arc;
 
 use agent_runtime::agent::{AgentLoop, AgentLoopConfig};
 use agent_runtime::backend::NodeBackendAccessor;
+use agent_runtime::event::{EventBroadcaster, OrchestratorEvent};
 use agent_runtime::supervisor::SubAgentSpec;
 use agent_runtime::tool::{Tool, ToolBus, ToolError, WhitelistToolBus};
+use agent_runtime::types::{MessageRole, OrchestratorMessage};
 use async_trait::async_trait;
 use tokio::sync::RwLock;
 
@@ -52,6 +54,21 @@ pub struct SubAgentManager {
     agents: Arc<RwLock<HashMap<String, CachedSubAgent>>>,
     /// 子 Agent 默认最大迭代次数（spec 未指定时使用）
     default_max_iterations: u32,
+    /// 子 Agent 单次委派超时（防子 Agent 卡死阻塞主循环）
+    delegate_timeout: std::time::Duration,
+    /// 事件广播器（可选，None 时静默；一般指向主 Agent 的广播器）
+    ///
+    /// 委派子 Agent 时通过它广播 `SubAgentStarted` / `SubAgentCompleted` /
+    /// `SubAgentError`，使订阅主 Agent 事件的监听器（如 Tauri 端）能收到子 Agent
+    /// 的委派进度，前端据此展示"子 Agent 正在执行 / 已完成 / 超时"。
+    ///
+    /// 该字段在 `register_subagent_tools` 调用时尚未存在（主 Agent 的
+    /// `AgentLoop` 在其后创建），故由调用方在创建主 Agent 后通过
+    /// [`SubAgentManager::set_broadcaster`] 注入。
+    ///
+    /// 包一层 `std::sync::RwLock` 以支持通过 `&self` 写入（`set_broadcaster`），
+    /// `emit` 读取时用 `read()` 快速拿引用。
+    broadcaster: std::sync::RwLock<Option<Arc<RwLock<EventBroadcaster>>>>,
 }
 
 impl SubAgentManager {
@@ -67,6 +84,31 @@ impl SubAgentManager {
             specs,
             agents: Arc::new(RwLock::new(HashMap::new())),
             default_max_iterations: 25,
+            delegate_timeout: std::time::Duration::from_secs(120),
+            broadcaster: std::sync::RwLock::new(None),
+        }
+    }
+
+    /// 设置子 Agent 单次委派超时（返回 &self 支持链式调用）
+    pub fn with_delegate_timeout(mut self, timeout: std::time::Duration) -> Self {
+        self.delegate_timeout = timeout;
+        self
+    }
+
+    /// 注入事件广播器（一般指向主 Agent 的 `AgentLoop::broadcaster_ref()`）
+    ///
+    /// 在 `register_subagent_tools` 创建管理器后、主 Agent 创建后调用，
+    /// 使委派子 Agent 时广播的事件能到达订阅主 Agent 事件的监听器。
+    pub fn set_broadcaster(&self, broadcaster: Arc<RwLock<EventBroadcaster>>) {
+        *self.broadcaster.write().unwrap() = Some(broadcaster);
+    }
+
+    /// 广播子 Agent 编排事件（无广播器时静默丢弃）
+    async fn emit(&self, event: OrchestratorEvent) {
+        // 先在 std RwLock 读锁内克隆 Arc，避免把非 Send 的读锁守卫跨 await 传递
+        let broadcaster = self.broadcaster.read().unwrap().clone();
+        if let Some(broadcaster) = broadcaster {
+            broadcaster.read().await.broadcast(&event);
         }
     }
 
@@ -90,6 +132,8 @@ impl SubAgentManager {
     /// 若实例池中已有同 id 实例，且其来源规格与当前规格一致，则直接复用；
     /// 否则（规格变更，如运行期 `register_spec` 覆盖了 `system_prompt` /
     /// `tools_whitelist` / `max_iterations`）重建实例，使最新规格生效。
+    /// **上下文迁移**：规格变更重建时，将旧实例的对话上下文（非 system 消息）迁移到新实例，
+    /// 保留子 Agent 已累积的专业对话，只更新 system prompt。
     async fn get_or_create_agent(&self, spec: &SubAgentSpec) -> Arc<AgentLoop> {
         // 读锁快速路径
         {
@@ -130,6 +174,40 @@ impl SubAgentManager {
         let agent = Arc::new(
             AgentLoop::new(Arc::clone(&self.backend), child_tool_bus).with_config(child_config),
         );
+
+        // 上下文迁移：如果已有旧实例，迁移其非 system 消息到新实例
+        // 保留已累积的对话上下文，只替换 system prompt（新规格已自动推入）
+        if let Some(old_cached) = agents.get(&spec.id) {
+            let old_messages = old_cached.agent.get_runtime_messages().await;
+            // 过滤掉旧的 system 消息，只保留 user/assistant/toolResult
+            let non_system_messages: Vec<OrchestratorMessage> = old_messages
+                .into_iter()
+                .filter(|m| m.role != MessageRole::System)
+                .collect();
+
+            if !non_system_messages.is_empty() {
+                // 新实例已由 with_config 自动推入新 system 消息
+                // 在这里追加旧的非 system 消息，完成迁移
+                let migrated_count = non_system_messages.len();
+                let mut new_messages = agent.get_runtime_messages().await;
+                new_messages.extend(non_system_messages);
+                if let Err(e) = agent.set_runtime_messages(new_messages).await {
+                    tracing::warn!(
+                        "子 Agent {} 规格变更上下文迁移失败: {}",
+                        spec.id,
+                        e
+                    );
+                    // 迁移失败不阻塞，使用空上下文继续
+                } else {
+                    tracing::debug!(
+                        "子 Agent {} 规格变更上下文迁移完成: 迁移 {} 条非 system 消息",
+                        spec.id,
+                        migrated_count
+                    );
+                }
+            }
+        }
+
         agents.insert(
             spec.id.clone(),
             CachedSubAgent {
@@ -142,8 +220,11 @@ impl SubAgentManager {
 
     /// 委派任务给指定子 Agent，返回其最终结果
     ///
+    /// 应用单次委派超时（`delegate_timeout`），防止子 Agent 卡死无限阻塞主循环。
+    ///
     /// # 错误
     /// - `ToolError::Other`：规格未注册
+    /// - `ToolError::Timeout`：子 Agent 运行超时
     /// - `ToolError::Execution`：子 Agent 运行失败
     pub async fn delegate(&self, sub_agent_id: &str, task: &str) -> Result<serde_json::Value, ToolError> {
         let spec = self
@@ -155,15 +236,66 @@ impl SubAgentManager {
             .cloned()
             .ok_or_else(|| ToolError::Other(format!("子 Agent 规格未注册: {sub_agent_id}")))?;
 
+        // node_id：直接委派（非 Supervisor 编排）没有节点维度，用 sub_agent_id 作为标识，
+        // 前端通过会话级事件通道路由，node_id 仅用于区分同一会话内多次委派。
+        let node_id = spec.id.clone();
+        let sub_agent_name = spec.name.clone();
+        let task_description = task.to_string();
+
+        // 委派开始：广播 SubAgentStarted，前端据此展示"子 Agent 正在执行..."
+        self.emit(OrchestratorEvent::SubAgentStarted {
+            node_id: node_id.clone(),
+            sub_agent_id: spec.id.clone(),
+            sub_agent_name: sub_agent_name.clone(),
+            task_description: task_description.clone(),
+        })
+        .await;
+
+        let started = std::time::Instant::now();
         let agent = self.get_or_create_agent(&spec).await;
-        let result = agent
-            .run(task.to_string())
-            .await
-            .map_err(|e| ToolError::Execution(format!("子 Agent '{}' 执行失败: {e}", spec.name)))?;
+        let run_fut = agent.run(task.to_string());
+        let result = match tokio::time::timeout(self.delegate_timeout, run_fut).await {
+            Ok(Ok(text)) => text,
+            Ok(Err(e)) => {
+                let err_msg = format!("子 Agent '{}' 执行失败: {e}", spec.name);
+                self.emit(OrchestratorEvent::SubAgentError {
+                    node_id,
+                    sub_agent_id: spec.id.clone(),
+                    sub_agent_name: sub_agent_name.clone(),
+                    error: err_msg.clone(),
+                })
+                .await;
+                return Err(ToolError::Execution(err_msg));
+            }
+            Err(_elapsed) => {
+                // 超时：子 Agent 可能仍在后台运行，但主循环不再阻塞等待
+                let err_msg =
+                    format!("子 Agent '{}' 执行超时（>{:?}）", spec.name, self.delegate_timeout);
+                self.emit(OrchestratorEvent::SubAgentError {
+                    node_id,
+                    sub_agent_id: spec.id.clone(),
+                    sub_agent_name: sub_agent_name.clone(),
+                    error: err_msg,
+                })
+                .await;
+                return Err(ToolError::Timeout);
+            }
+        };
+        let duration_ms = started.elapsed().as_millis() as u64;
+
+        // 委派完成：广播 SubAgentCompleted，前端据此更新"子 Agent 已完成，输出 N 字符"
+        self.emit(OrchestratorEvent::SubAgentCompleted {
+            node_id,
+            sub_agent_id: spec.id.clone(),
+            sub_agent_name: spec.name.clone(),
+            output_chars: result.chars().count(),
+            duration_ms,
+        })
+        .await;
 
         Ok(serde_json::json!({
-            "sub_agent_id": spec.id,
-            "name": spec.name,
+            "sub_agent_id": spec.id.clone(),
+            "name": spec.name.clone(),
             "result": result,
         }))
     }
@@ -278,7 +410,51 @@ pub async fn register_subagent_tools(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use agent_runtime::backend::{BackendError, PromptCallOptions, PromptResponse};
+    use agent_runtime::event::EventListener;
     use agent_runtime::tool::SimpleToolBus;
+
+    /// 会阻塞的 mock backend：prompt 前 sleep，用于触发 delegate 超时
+    struct SlowBackend {
+        delay: std::time::Duration,
+    }
+
+    #[async_trait]
+    impl NodeBackendAccessor for SlowBackend {
+        async fn prompt(
+            &self,
+            prompt: String,
+            _options: Option<PromptCallOptions>,
+        ) -> Result<PromptResponse, BackendError> {
+            tokio::time::sleep(self.delay).await;
+            Ok(PromptResponse::text_only(format!("[slow] {prompt}")))
+        }
+        async fn steer(&self, _text: String) -> Result<(), BackendError> {
+            Ok(())
+        }
+        async fn get_messages(&self) -> Vec<OrchestratorMessage> {
+            Vec::new()
+        }
+        async fn set_messages(&self, _messages: Vec<OrchestratorMessage>) -> Result<(), BackendError> {
+            Ok(())
+        }
+        async fn trim_context(&self, _up_to_index: usize) -> Result<(), BackendError> {
+            Ok(())
+        }
+        async fn subscribe_events(&self, _listener: Arc<dyn EventListener>) {}
+        async fn current_model(&self) -> String {
+            "slow-model".into()
+        }
+        async fn update_provider(
+            &self,
+            _provider: String,
+            _model_id: String,
+            _api_key: Option<String>,
+            _base_url: Option<String>,
+        ) -> Result<(), BackendError> {
+            Ok(())
+        }
+    }
 
     fn spec(id: &str, name: &str, system_prompt: &str) -> SubAgentSpec {
         SubAgentSpec {
@@ -355,5 +531,153 @@ mod tests {
         // 变更后再次以 s2 委托，应复用新建的 a2，而非回退到 a1
         let a2_again = manager.get_or_create_agent(&s2).await;
         assert!(Arc::ptr_eq(&a2, &a2_again), "变更后的规格应持续复用新实例");
+    }
+
+    /// 规格变更重建实例时，应把旧实例的非 system 上下文迁移到新实例
+    #[tokio::test]
+    async fn spec_change_migrates_context_to_new_instance() {
+        let bus = Arc::new(SimpleToolBus::new());
+        let backend: Arc<dyn NodeBackendAccessor> = Arc::new(crate::MockBackend::new());
+        let specs = Arc::new(RwLock::new(Vec::new()));
+        let manager = register_subagent_tools(&*bus, backend, bus.clone(), specs).await;
+
+        let s1 = spec("coder", "代码助手", "你是代码专家");
+        manager.register_spec(s1.clone()).await;
+        let a1 = manager.get_or_create_agent(&s1).await;
+
+        // 给旧实例注入一条 user + assistant 消息（模拟已累积的对话上下文）
+        a1.set_runtime_messages(vec![
+            OrchestratorMessage {
+                role: MessageRole::User,
+                content: "帮我写一个排序算法".into(),
+                tool_calls: vec![],
+                tool_call_id: None,
+                meta: None,
+            },
+            OrchestratorMessage {
+                role: MessageRole::Assistant,
+                content: "这是之前实现的快速排序".into(),
+                tool_calls: vec![],
+                tool_call_id: None,
+                meta: None,
+            },
+        ])
+        .await
+        .expect("注入旧上下文应成功");
+        let old_msgs = a1.get_runtime_messages().await;
+        assert_eq!(old_msgs.len(), 2, "旧实例应有 2 条非 system 消息");
+
+        // 规格变更（system_prompt 不同）：应重建实例并迁移上下文
+        let s2 = SubAgentSpec {
+            system_prompt: "你是资深代码专家（版本2）".into(),
+            ..s1.clone()
+        };
+        manager.register_spec(s2.clone()).await;
+        let a2 = manager.get_or_create_agent(&s2).await;
+        assert!(!Arc::ptr_eq(&a1, &a2), "规格变更后应重建实例");
+
+        // 新实例应保留迁移过来的非 system 上下文
+        let migrated = a2.get_runtime_messages().await;
+        assert!(
+            migrated.iter().any(|m| m.content.contains("排序算法")),
+            "新实例应迁移旧实例的 user 消息上下文"
+        );
+        assert!(
+            migrated.iter().any(|m| m.content.contains("快速排序")),
+            "新实例应迁移旧实例的 assistant 消息上下文"
+        );
+
+        // 迁移后不应残留旧的 system 消息（新 system prompt 应生效）
+        let old_system = migrated
+            .iter()
+            .filter(|m| m.role == MessageRole::System)
+            .any(|m| m.content.contains("你是代码专家"));
+        assert!(
+            !old_system,
+            "新实例不应残留旧 system prompt（应使用新规格的 system prompt）"
+        );
+    }
+
+    /// delegate 应应用超时：子 Agent 阻塞超过 timeout 时返回 ToolError::Timeout，而非无限阻塞
+    #[tokio::test]
+    async fn delegate_applies_timeout() {
+        let bus = Arc::new(SimpleToolBus::new());
+        // 子 Agent 每次 prompt 阻塞 500ms，超时设为 50ms：必然触发超时
+        let backend: Arc<dyn NodeBackendAccessor> = Arc::new(SlowBackend {
+            delay: std::time::Duration::from_millis(500),
+        });
+        let specs = Arc::new(RwLock::new(Vec::new()));
+        let manager = SubAgentManager::new(backend, bus.clone(), specs.clone())
+            .with_delegate_timeout(std::time::Duration::from_millis(50));
+        manager.register_spec(spec("coder", "代码助手", "你是代码专家")).await;
+
+        let result = manager.delegate("coder", "帮我写个 hello world").await;
+        assert!(
+            matches!(result, Err(ToolError::Timeout)),
+            "阻塞超时的 delegate 应返回 ToolError::Timeout，实际: {result:?}"
+        );
+    }
+
+    /// 记录收到的编排事件名（std Mutex，on_event 是同步回调）
+    struct RecordingListener {
+        events: std::sync::Mutex<Vec<String>>,
+    }
+    impl EventListener for RecordingListener {
+        fn on_event(&self, event: &OrchestratorEvent) {
+            let name = match event {
+                OrchestratorEvent::SubAgentStarted { .. } => "start",
+                OrchestratorEvent::SubAgentCompleted { .. } => "completed",
+                OrchestratorEvent::SubAgentError { .. } => "error",
+                _ => return,
+            };
+            self.events.lock().unwrap().push(name.to_string());
+        }
+    }
+
+    /// 注入广播器后，delegate 成功路径应广播 start → completed 事件
+    #[tokio::test]
+    async fn delegate_broadcasts_start_then_completed() {
+        let bus = Arc::new(SimpleToolBus::new());
+        let backend: Arc<dyn NodeBackendAccessor> = Arc::new(crate::MockBackend::new());
+        let specs = Arc::new(RwLock::new(Vec::new()));
+        let manager = SubAgentManager::new(backend, bus.clone(), specs.clone());
+        manager.register_spec(spec("coder", "代码助手", "你是代码专家")).await;
+
+        // 注入广播器 + 订阅记录器
+        let broadcaster = Arc::new(RwLock::new(EventBroadcaster::new()));
+        let rec = Arc::new(RecordingListener {
+            events: std::sync::Mutex::new(Vec::new()),
+        });
+        broadcaster.write().await.subscribe(rec.clone());
+        manager.set_broadcaster(broadcaster.clone());
+
+        manager.delegate("coder", "帮我写个 hello world").await.unwrap();
+        let got = rec.events.lock().unwrap().clone();
+        assert_eq!(got, vec!["start".to_string(), "completed".to_string()]);
+    }
+
+    /// 注入广播器后，delegate 超时路径应广播 start → error 事件
+    #[tokio::test]
+    async fn delegate_broadcasts_start_then_error_on_timeout() {
+        let bus = Arc::new(SimpleToolBus::new());
+        let backend: Arc<dyn NodeBackendAccessor> = Arc::new(SlowBackend {
+            delay: std::time::Duration::from_millis(500),
+        });
+        let specs = Arc::new(RwLock::new(Vec::new()));
+        let manager = SubAgentManager::new(backend, bus.clone(), specs.clone())
+            .with_delegate_timeout(std::time::Duration::from_millis(50));
+        manager.register_spec(spec("coder", "代码助手", "你是代码专家")).await;
+
+        let broadcaster = Arc::new(RwLock::new(EventBroadcaster::new()));
+        let rec = Arc::new(RecordingListener {
+            events: std::sync::Mutex::new(Vec::new()),
+        });
+        broadcaster.write().await.subscribe(rec.clone());
+        manager.set_broadcaster(broadcaster.clone());
+
+        let result = manager.delegate("coder", "帮我写个 hello world").await;
+        assert!(matches!(result, Err(ToolError::Timeout)));
+        let got = rec.events.lock().unwrap().clone();
+        assert_eq!(got, vec!["start".to_string(), "error".to_string()]);
     }
 }

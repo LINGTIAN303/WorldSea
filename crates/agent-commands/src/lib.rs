@@ -158,7 +158,7 @@ impl AgentCommandService {
         terminal::register_terminal_tools(&*tool_bus).await;
         // 注册子 Agent 编排工具（delegate_to_sub_agent / list_sub_agents），
         // 共享服务级 `subagent_specs` 注册表，跨会话可见。
-        subagent::register_subagent_tools(
+        let sub_agent_manager = subagent::register_subagent_tools(
             &*tool_bus,
             backend.clone(),
             tool_bus.clone(),
@@ -169,7 +169,11 @@ impl AgentCommandService {
             system_prompt,
             ..Default::default()
         };
-        Arc::new(AgentLoop::new(backend, tool_bus).with_config(agent_config))
+        let agent = Arc::new(AgentLoop::new(backend, tool_bus).with_config(agent_config));
+        // 将子 Agent 管理器的广播器指向主 Agent 的广播器，
+        // 使子 Agent 委派事件（Started/Completed/Error）能透传到订阅主 Agent 的前端。
+        sub_agent_manager.set_broadcaster(agent.broadcaster_ref());
+        agent
     }
 
     /// 默认 Provider 配置（未注入时使用，空 API Key 占位）

@@ -29,6 +29,8 @@ uuid = { version = "1", features = ["v4"] }
 chrono = { version = "0.4", features = ["serde"] }
 # 终端工具：清理命令输出中的 ANSI 转义码（对齐 TS 端 execute_command 行为）
 regex = "1"
+# 日志（上下文字段 span 等）
+tracing = "0.1"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full", "test-util"] }
