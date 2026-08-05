@@ -1024,6 +1024,17 @@ async function getHeartbeat(): Promise<RustHeartbeatStatus> {
   }
 }
 
+/** 获取状态快照（对应 Rust `get_state`，含 current_iteration 等运行进度） */
+async function getState(): Promise<RustStateSnapshot | null> {
+  const sessionId = currentSessionId.value
+  if (!sessionId) return null
+  try {
+    return await invoke<RustStateSnapshot>('get_state', { sessionId })
+  } catch {
+    return null
+  }
+}
+
 // ─── 事件订阅 / 释放 ────────────────────────────────────
 
 /** 订阅 Agent 事件（实现 IAgentBackend.subscribe） */
@@ -1148,6 +1159,7 @@ export function useAgentRust() {
     getProviderConfig,
     setProviderConfig,
     getHeartbeat,
+    getState,
     isInitialized,
     thinkingLevel,
 

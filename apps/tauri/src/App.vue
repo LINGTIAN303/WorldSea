@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Phase 5.2：注入 Tauri 端 Agent Backend（Rust 命令层），验证「前端 → IPC → Rust → 响应」链路
-import { ref, watch, nextTick, onMounted } from 'vue'
+import { ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { A2UIRenderer } from '@worldsmith/shared-ui'
 import { provideAgentBackend, useAgentRust } from './agent/composables/useAgentRust'
 import TerminalView from './terminal/components/TerminalView.vue'
@@ -108,6 +108,36 @@ async function onSteer() {
     error.value = `引导失败: ${err}`
   }
 }
+
+/** 对话运行轮次：生成中轮询 getState 取 current_iteration（ReAct 循环当前第几轮） */
+const currentIteration = ref(0)
+let iterationTimer: ReturnType<typeof setInterval> | null = null
+function startIterationPolling() {
+  if (iterationTimer) return
+  iterationTimer = setInterval(async () => {
+    const state = await backend.getState()
+    if (state) currentIteration.value = state.current_iteration
+  }, 2000)
+}
+function stopIterationPolling() {
+  if (iterationTimer) {
+    clearInterval(iterationTimer)
+    iterationTimer = null
+    currentIteration.value = 0
+  }
+}
+
+// 生成中（sending / isStreaming）启动轮询，结束停止
+watch([sending, () => backend.isStreaming], ([newSending, newStreaming]) => {
+  if (newSending || newStreaming) {
+    startIterationPolling()
+  } else {
+    stopIterationPolling()
+  }
+})
+
+// 组件卸载时清理轮询计时器
+onBeforeUnmount(stopIterationPolling)
 
 /** 清空当前会话历史：调用 Rust clear_history（会话保留，仅清消息） */
 async function onClear() {
@@ -241,7 +271,7 @@ onMounted(async () => {
               <option value="xhigh">极高</option>
             </select>
           </label>
-          <span class="status">{{ steered || (backend.isStreaming ? '思考中…' : '就绪') }}</span>
+          <span class="status">{{ steered || (backend.isStreaming ? `思考中… 第 ${currentIteration} 轮` : '就绪') }}</span>
         </div>
       </header>
 
