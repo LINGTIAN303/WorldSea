@@ -8,6 +8,7 @@ import TerminalView from './terminal/components/TerminalView.vue'
 import SubAgentView from './subagent/components/SubAgentView.vue'
 import SubAgentSection from './agent/components/SubAgentSection.vue'
 import ModelSettingsDialog from './agent/components/ModelSettingsDialog.vue'
+import LoopControlStatus from './agent/components/LoopControlStatus.vue'
 
 // 在 setup 上下文注入（useAgent 使用 inject 模式，须在组件内 provide）
 const backend = useAgentRust()
@@ -322,6 +323,9 @@ onMounted(async () => {
           <span class="status">{{ steered || trimmed || (backend.isStreaming ? `思考中… 第 ${currentIteration} 轮` : '就绪') }}</span>
         </div>
       </header>
+
+      <!-- Loop Engineering 实时状态条：展示当前会话 loop_control 计数与告警事件 -->
+      <LoopControlStatus />
 
       <div class="messages" ref="messagesEl" @scroll.passive="onMessagesScroll">
         <div v-if="backend.messages.length === 0" class="empty">

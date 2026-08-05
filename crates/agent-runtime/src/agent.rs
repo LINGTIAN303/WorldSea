@@ -2303,6 +2303,64 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn default_lenient_config_does_not_stop_normal_loop() {
+        // 回归保护：默认（宽松）配置下，正常对话任务不应被速率限制误停。
+        // 覆盖待办"桌面端实测宽松配置默认不误停止"的单元级可重复验证——
+        // 以真实默认 LoopControlConfig（100 turns / 200 tools / 100k tokens / 6h）
+        // 运行一个"几轮工具调用后返回文本"的正常流，断言最终返回 Ok 且未广播速率限制事件。
+        let tool_call = |id: &str| PromptResponse {
+            text: "继续".into(),
+            tool_calls: vec![ToolCall {
+                id: id.into(),
+                name: "echo".into(),
+                args: serde_json::json!({}),
+            }],
+            input_tokens: None,
+            output_tokens: None,
+            stop_reason: Some("tool_calls".into()),
+        };
+        // 3 轮工具调用 + 1 轮最终文本 = 正常收敛，远低于默认 100 turns 上限
+        let backend = Arc::new(MockBackend::new(vec![
+            tool_call("call_1"),
+            tool_call("call_2"),
+            tool_call("call_3"),
+            PromptResponse::text_only("任务完成"),
+        ]));
+        let tool_bus = Arc::new(SimpleToolBus::new());
+        tool_bus.register(Arc::new(EchoTool)).await;
+
+        // 不显式 with_loop_control → 使用默认宽松配置（生产默认路径）
+        let agent = AgentLoop::new(backend, tool_bus).with_config(AgentLoopConfig {
+            max_iterations: 100, // 不触发超迭代，验证是正常收敛而非被循环控制停止
+            ..Default::default()
+        });
+
+        let listener = Arc::new(LoopEngEventListener {
+            events: std::sync::Mutex::new(Vec::new()),
+        });
+        agent.subscribe(listener.clone()).await;
+
+        let result = agent.run("正常对话任务".into()).await;
+        assert!(
+            matches!(result.as_deref(), Ok("任务完成")),
+            "正常流应收敛并返回最终文本，实际: {result:?}"
+        );
+
+        // 记录的 turns 应远低于默认上限（100），证明宽松配置未误停
+        let turns = agent.loop_controller().rate_limiter.turns();
+        assert!(
+            turns < 10,
+            "正常流 turns 应远低于默认上限，实际: {turns}"
+        );
+
+        let collected = listener.events.lock().unwrap().clone();
+        assert!(
+            !collected.iter().any(|e| e.starts_with("rate_limit:")),
+            "正常流不应广播速率限制事件，实际: {collected:?}"
+        );
+    }
+
+    #[tokio::test]
     async fn llm_failure_emits_retry_events() {
         // backend 永远报错 → 触发重试 → 重试耗尽
         struct FailingBackend;

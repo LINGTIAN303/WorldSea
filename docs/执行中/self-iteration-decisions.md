@@ -8,9 +8,9 @@
 原文档 920 行、23 个迭代主题、72 个决策点，单文件过长——另一会话的 Agent 每次读取都会触发上下文压缩。已按迭代主题切分为独立分片，存于 [self-iteration/](self-iteration/) 目录。**本文件只是索引，不承载正文**：需要某主题详情时按下表链接**按需读取单个分片**，勿全量读取目录。
 
 - 新增迭代：在 `self-iteration/` 新建 `NN-xxx.md` 续写，并在下表追加一行。
-- 决策点编号全局递增（当前到 83），跨分片不重复。
+- 决策点编号全局递增（当前到 84），跨分片不重复。
 
-## 索引（27 个迭代主题 / 决策点 1-83）
+## 索引（29 个迭代主题 / 决策点 1-86）
 
 | # | 迭代主题 | 决策点 | 摘要 | 分片 |
 |---|---------|--------|------|------|
@@ -41,3 +41,5 @@
 | 25 | Recovered 事件接入内建 emit | 77 | 告警锁存态边沿检测（is_alerted true→false）→ 恢复自动上报 | [25](self-iteration/25-recovered-builtin-emit.md) |
 | 26 | 内建与命令层 LoopController 共享单实例 | 78-81 | 命令层注册表复用 AgentLoop 内建 Arc，消除"自动 vs 手动"双轨状态不一致 | [26](self-iteration/26-shared-loop-controller.md) |
 | 27 | 前端绑定会话创建 loop_control | 82-83 | create 透传 sessionId，App.vue 会话创建后以 lc_{sessionId} 绑定共享控制器 | [27](self-iteration/27-frontend-session-loop-control-binding.md) |
+| 28 | 宽松配置默认不误停 | 84 | 单元回归测试守护默认宽松配置不误停正常收敛流，部分替代桌面实测 | [28](self-iteration/28-lenient-config-no-false-stop.md) |
+| 29 | Loop Control 实时状态展示 UI | 85-86 | 只读状态条展示计数器+事件徽标，纯前端织入既有 composable，零后端改动 | [29](self-iteration/29-loop-control-status-ui.md) |
