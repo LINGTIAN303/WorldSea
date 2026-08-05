@@ -958,6 +958,27 @@ async function clearHistory(): Promise<void> {
   sessionMessagesCache.set(sessionId, [])
 }
 
+/** 从后端重新拉取当前会话消息并更新本地状态与缓存（trim / 外部变更后调用） */
+async function refreshMessages(): Promise<void> {
+  const sessionId = currentSessionId.value
+  if (!sessionId) return
+  try {
+    const rustMsgs = await invoke<RustMessage[]>('get_messages', { sessionId })
+    const tsMsgs = rustMsgs.map(rustMsgToTsMsg)
+    messages.value = tsMsgs
+    sessionMessagesCache.set(sessionId, tsMsgs)
+  } catch (err) {
+    console.warn(`[useAgentRust] refreshMessages 失败:`, err)
+  }
+}
+
+/** 清理上下文窗口（对应 Rust `trim_context`，移除前 upToIndex 条消息） */
+async function trimContext(upToIndex: number): Promise<void> {
+  const sessionId = await ensureSession()
+  await invoke('trim_context', { sessionId, upToIndex })
+  await refreshMessages()
+}
+
 /** 热切换模型（对应 Rust `update_model`） */
 async function updateModel(
   provider: string,
@@ -1160,6 +1181,8 @@ export function useAgentRust() {
     setProviderConfig,
     getHeartbeat,
     getState,
+    refreshMessages,
+    trimContext,
     isInitialized,
     thinkingLevel,
 

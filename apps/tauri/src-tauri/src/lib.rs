@@ -20,6 +20,7 @@ pub fn run() {
             commands::abort,
             commands::steer,
             commands::clear_history,
+            commands::trim_context,
             commands::get_state,
             commands::get_messages,
             commands::is_streaming,

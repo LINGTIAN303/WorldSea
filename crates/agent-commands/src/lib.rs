@@ -365,6 +365,20 @@ impl AgentCommandService {
         Ok(())
     }
 
+    /// 清理上下文窗口（移除前 up_to_index 条消息，同步 backend 与 state）
+    ///
+    /// 对应前端 `trimContext(upToIndex)`。用于长对话压缩上下文窗口，
+    /// 避免超出模型 context window。移除后按剩余消息数刷新会话 message_count。
+    pub async fn trim_context(&self, session_id: &str, up_to_index: usize) -> Result<(), CommandError> {
+        let agent = self.get_agent(session_id).await?;
+        agent.trim_context(up_to_index).await?;
+        let count = agent.get_messages().await.len() as u32;
+        if let Some(meta) = self.meta.lock().await.get_mut(session_id) {
+            meta.message_count = count;
+        }
+        Ok(())
+    }
+
     // ── 子 Agent 编排 ────────────────────────────────────
 
     /// 注册一个子 Agent 规格（同名按 id 覆盖）

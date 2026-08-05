@@ -148,6 +148,27 @@ async function onClear() {
   }
 }
 
+/** 压缩上下文：保留最近 8 条消息，移除更早的历史（同步 backend 与 state） */
+const TRIM_KEEP_COUNT = 8
+const trimmed = ref('')
+let trimmedTimer: ReturnType<typeof setTimeout> | null = null
+async function onTrimContext() {
+  const total = backend.messages.length
+  if (total <= TRIM_KEEP_COUNT) return
+  // trim_context 从头部移除 up_to_index 条；保留最近 KEEP 条
+  const upToIndex = total - TRIM_KEEP_COUNT
+  try {
+    await backend.trimContext(upToIndex)
+    trimmed.value = `上下文已压缩，保留最近 ${TRIM_KEEP_COUNT} 条消息`
+    if (trimmedTimer) clearTimeout(trimmedTimer)
+    trimmedTimer = setTimeout(() => {
+      trimmed.value = ''
+    }, 2500)
+  } catch (err) {
+    error.value = `压缩上下文失败: ${err}`
+  }
+}
+
 /** 模型配置弹窗开关 */
 const showModelSettings = ref(false)
 
@@ -256,6 +277,12 @@ onMounted(async () => {
             title="清空对话"
             @click="onClear"
           >清空</button>
+          <button
+            class="trim"
+            :disabled="backend.messages.length <= TRIM_KEEP_COUNT"
+            title="压缩上下文（保留最近8条消息）"
+            @click="onTrimContext"
+          >压缩</button>
           <label class="think-field">
             <span class="think-label">思考级别</span>
             <select
@@ -271,7 +298,7 @@ onMounted(async () => {
               <option value="xhigh">极高</option>
             </select>
           </label>
-          <span class="status">{{ steered || (backend.isStreaming ? `思考中… 第 ${currentIteration} 轮` : '就绪') }}</span>
+          <span class="status">{{ steered || trimmed || (backend.isStreaming ? `思考中… 第 ${currentIteration} 轮` : '就绪') }}</span>
         </div>
       </header>
 
@@ -533,6 +560,24 @@ onMounted(async () => {
   color: #d93025;
 }
 .clear:disabled {
+  background: #f5f5f5;
+  color: #bbb;
+  cursor: not-allowed;
+}
+.trim {
+  padding: 4px 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 12px;
+  color: #666;
+  cursor: pointer;
+}
+.trim:hover:not(:disabled) {
+  border-color: #1a73e8;
+  color: #1a73e8;
+}
+.trim:disabled {
   background: #f5f5f5;
   color: #bbb;
   cursor: not-allowed;

@@ -277,6 +277,19 @@ pub async fn clear_history(
     state.clear_history(&session_id).await.map_err(|e| e.to_string())
 }
 
+/// 清理上下文窗口（移除前 up_to_index 条消息）
+#[tauri::command]
+pub async fn trim_context(
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+    up_to_index: usize,
+) -> Result<(), String> {
+    state
+        .trim_context(&session_id, up_to_index)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// 状态快照
 #[tauri::command]
 pub async fn get_state(
