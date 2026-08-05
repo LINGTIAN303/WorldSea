@@ -12,7 +12,7 @@
 //! P2 新增：Deep Phase 事件转发 — 订阅 AgentLoop 的 DeepPhaseChanged 事件，
 //! 通过 Tauri 事件系统 `agent:event:deep_phase_changed` 发送到前端。
 
-use agent_commands::{AgentCommandService, SendMessageParams, TerminalService, UpdateModelParams};
+use agent_commands::{AgentCommandService, SendMessageParams, SubAgentInstanceInfo, TerminalService, UpdateModelParams};
 use agent_runtime::backend::ThinkingLevel;
 use agent_runtime::event::{OrchestratorEvent, EventListener, AgentEvent};
 use agent_runtime::llm::config::ProviderConfig;
@@ -495,6 +495,30 @@ pub async fn subagent_import_specs(
 ) -> Result<usize, String> {
     state
         .import_subagent_specs(&json)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 列出指定会话子 Agent 实例池中所有活跃实例（含累积消息数/流式状态）
+#[tauri::command]
+pub async fn subagent_list_instances(
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+) -> Result<Vec<SubAgentInstanceInfo>, String> {
+    state
+        .list_subagent_instances(&session_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 清空指定会话的全部子 Agent 实例（重置累积上下文，返回清空数量）
+#[tauri::command]
+pub async fn subagent_clear_instances(
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+) -> Result<usize, String> {
+    state
+        .clear_subagent_instances(&session_id)
         .await
         .map_err(|e| e.to_string())
 }

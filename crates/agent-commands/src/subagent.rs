@@ -51,6 +51,23 @@ struct CachedSubAgent {
     agent: Arc<AgentLoop>,
 }
 
+/// 子 Agent 实例的对外信息（供前端展示实例状态）
+///
+/// 用于 `list_instances` 返回：前端据此展示每个子 Agent 实例当前累积的
+/// 上下文规模（`message_count`）与是否正在流式执行（`is_streaming`），
+/// 便于用户判断哪些实例需要清空（重置上下文）。
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SubAgentInstanceInfo {
+    /// 子 Agent 实例的 id（与规格 id 一致）
+    pub sub_agent_id: String,
+    /// 子 Agent 名称（来自来源规格）
+    pub name: String,
+    /// 实例当前累积的消息条数（含 system 消息与工具往返）
+    pub message_count: usize,
+    /// 实例是否正在流式执行（判断是否可安全清空）
+    pub is_streaming: bool,
+}
+
 /// 子 Agent 编排管理器 — 持有规格注册表 + 实例池
 ///
 /// 由 `AgentCommandService` 构造并共享给主 Agent 的工具总线。
@@ -147,6 +164,50 @@ impl SubAgentManager {
     /// 列出所有已注册规格（供 `list_sub_agents` 工具返回）
     pub async fn list_specs(&self) -> Vec<SubAgentSpec> {
         self.specs.read().await.clone()
+    }
+
+    /// 列出实例池中所有活跃子 Agent 实例的对外信息
+    ///
+    /// 返回每个实例当前的 `sub_agent_id`、名称、累积消息数与是否流式中。
+    /// 前端据此展示实例状态，帮助用户判断哪些实例需要清空（重置上下文）。
+    pub async fn list_instances(&self) -> Vec<SubAgentInstanceInfo> {
+        // 先收集 (id, name, agent)，释放读锁后再查询消息数/流式状态，
+        // 避免持有读锁期间长时间 await 阻塞 delegate 的写锁。
+        let snapshots: Vec<(String, String, Arc<AgentLoop>)> = {
+            let agents = self.agents.read().await;
+            agents
+                .iter()
+                .map(|(id, cached)| (id.clone(), cached.spec.name.clone(), Arc::clone(&cached.agent)))
+                .collect()
+        };
+        let mut list = Vec::with_capacity(snapshots.len());
+        for (id, name, agent) in snapshots {
+            list.push(SubAgentInstanceInfo {
+                sub_agent_id: id,
+                name,
+                message_count: agent.get_runtime_messages().await.len(),
+                is_streaming: agent.is_streaming(),
+            });
+        }
+        list
+    }
+
+    /// 清空单个子 Agent 实例（重置其累积上下文）
+    ///
+    /// 从实例池移除该实例，下次委派时按当前注册规格懒加载重建（全新上下文）。
+    /// 返回是否成功移除（id 不存在时返回 `false`）。
+    pub async fn clear_instance(&self, sub_agent_id: &str) -> bool {
+        self.agents.write().await.remove(sub_agent_id).is_some()
+    }
+
+    /// 清空全部子 Agent 实例（重置所有累积上下文）
+    ///
+    /// 返回被清空的实例数量。清空后所有子 Agent 下次委派时按最新规格重建。
+    pub async fn clear_instances(&self) -> usize {
+        let mut agents = self.agents.write().await;
+        let count = agents.len();
+        agents.clear();
+        count
     }
 
     /// 获取或创建子 Agent 实例（懒加载 + 池化复用）
@@ -828,5 +889,73 @@ mod tests {
         assert!(matches!(result, Err(ToolError::Timeout)));
         let got = rec.events.lock().unwrap().clone();
         assert_eq!(got, vec!["start".to_string(), "error".to_string()]);
+    }
+
+    /// 委派后应产生一个活跃实例，list_instances 能列出其信息（含消息数/流式状态）
+    #[tokio::test]
+    async fn list_instances_after_delegate() {
+        let bus = Arc::new(SimpleToolBus::new());
+        let backend: Arc<dyn NodeBackendAccessor> = Arc::new(crate::MockBackend::new());
+        let specs = Arc::new(RwLock::new(Vec::new()));
+        let manager = register_subagent_tools(&*bus, backend, bus.clone(), specs).await;
+        manager.register_spec(spec("coder", "代码助手", "你是代码专家")).await;
+
+        // 委派前无实例
+        assert!(manager.list_instances().await.is_empty(), "委派前实例池应为空");
+
+        manager.delegate("coder", "帮我写个 hello world").await.unwrap();
+        let instances = manager.list_instances().await;
+        assert_eq!(instances.len(), 1, "委派后应产生 1 个活跃实例");
+        let inst = &instances[0];
+        assert_eq!(inst.sub_agent_id, "coder");
+        assert_eq!(inst.name, "代码助手");
+        assert!(!inst.is_streaming, "委派完成后不应处于流式状态");
+        // 实例累积了至少 system 消息，message_count 应 > 0
+        assert!(inst.message_count > 0, "实例应累积了上下文消息");
+    }
+
+    /// clear_instance 应移除单个实例；移除后下次委派会重建（全新上下文）
+    #[tokio::test]
+    async fn clear_instance_removes_single() {
+        let bus = Arc::new(SimpleToolBus::new());
+        let backend: Arc<dyn NodeBackendAccessor> = Arc::new(crate::MockBackend::new());
+        let specs = Arc::new(RwLock::new(Vec::new()));
+        let manager = register_subagent_tools(&*bus, backend, bus.clone(), specs).await;
+        manager.register_spec(spec("coder", "代码助手", "你是代码专家")).await;
+
+        manager.delegate("coder", "帮我写个 hello world").await.unwrap();
+        assert_eq!(manager.list_instances().await.len(), 1);
+
+        // 清空不存在的 id 返回 false
+        assert!(!manager.clear_instance("nope").await, "清空不存在的 id 应返回 false");
+        // 清空存在的 id 返回 true，且实例池清空
+        assert!(manager.clear_instance("coder").await, "清空存在的 id 应返回 true");
+        assert!(manager.list_instances().await.is_empty(), "清空后实例池应为空");
+
+        // 再次委派会重建实例（懒加载）
+        manager.delegate("coder", "再来一次").await.unwrap();
+        assert_eq!(manager.list_instances().await.len(), 1, "再次委派应重建实例");
+    }
+
+    /// clear_instances 应清空全部实例并返回清空数量
+    #[tokio::test]
+    async fn clear_instances_removes_all() {
+        let bus = Arc::new(SimpleToolBus::new());
+        let backend: Arc<dyn NodeBackendAccessor> = Arc::new(crate::MockBackend::new());
+        let specs = Arc::new(RwLock::new(Vec::new()));
+        let manager = register_subagent_tools(&*bus, backend, bus.clone(), specs).await;
+        manager.register_spec(spec("coder", "代码助手", "你是代码专家")).await;
+        manager.register_spec(spec("writer", "写作助手", "你是写作专家")).await;
+
+        manager.delegate("coder", "写代码").await.unwrap();
+        manager.delegate("writer", "写文案").await.unwrap();
+        assert_eq!(manager.list_instances().await.len(), 2);
+
+        let cleared = manager.clear_instances().await;
+        assert_eq!(cleared, 2, "应清空 2 个实例");
+        assert!(manager.list_instances().await.is_empty(), "清空后实例池应为空");
+
+        // 无实例时清空返回 0
+        assert_eq!(manager.clear_instances().await, 0, "空池清空应返回 0");
     }
 }

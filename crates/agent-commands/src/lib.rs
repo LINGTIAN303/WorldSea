@@ -29,7 +29,7 @@ mod terminal;
 
 pub use error::CommandError;
 pub use mock_backend::{MockBackend, thinking_level_to_str};
-pub use subagent::{register_subagent_tools, SubAgentManager};
+pub use subagent::{register_subagent_tools, SubAgentInstanceInfo, SubAgentManager};
 pub use subagent_store::{SqliteSubAgentSpecStore, SubAgentSpecStore};
 pub use terminal::{register_terminal_tools, TerminalService};
 
@@ -138,6 +138,12 @@ pub struct AgentCommandService {
     /// `None`：纯内存（默认，单测/无持久化场景）；`Some`：构造时从存储 `load_all`
     /// 装入内存注册表，此后注册/删除**写穿**到存储，应用重启后配置不丢失。
     subagent_store: Option<Arc<dyn SubAgentSpecStore>>,
+    /// 各会话的子 Agent 管理器（按 session_id 跟踪）
+    ///
+    /// `new_session` 创建会话时把该会话的 `SubAgentManager` 存入此映射，
+    /// 供「清空实例 / 查看实例」命令按会话定位管理器。实例池按会话隔离，
+    /// 清空某会话的实例不影响其他会话。
+    subagent_managers: Mutex<HashMap<String, Arc<SubAgentManager>>>,
 }
 
 /// 校验一个子 Agent 规格是否合法
@@ -215,7 +221,7 @@ impl AgentCommandService {
         &self,
         system_prompt: Option<String>,
         provider_config: Option<RuntimeProviderConfig>,
-    ) -> Arc<AgentLoop> {
+    ) -> (Arc<AgentLoop>, Arc<SubAgentManager>) {
         let config = provider_config.unwrap_or_else(Self::default_provider_config);
         let backend = Arc::new(GenaiBackend::new(config));
         let tool_bus = Arc::new(SimpleToolBus::new());
@@ -238,7 +244,7 @@ impl AgentCommandService {
         // 将子 Agent 管理器的广播器指向主 Agent 的广播器，
         // 使子 Agent 委派事件（Started/Completed/Error）能透传到订阅主 Agent 的前端。
         sub_agent_manager.set_broadcaster(agent.broadcaster_ref());
-        agent
+        (agent, sub_agent_manager)
     }
 
     /// 默认 Provider 配置（未注入时使用，空 API Key 占位）
@@ -273,7 +279,7 @@ impl AgentCommandService {
         system_prompt: Option<String>,
         provider_config: Option<RuntimeProviderConfig>,
     ) -> Result<SessionInfo, CommandError> {
-        let agent = self.new_agent(system_prompt, provider_config).await;
+        let (agent, sub_agent_manager) = self.new_agent(system_prompt, provider_config).await;
         let id = uuid::Uuid::new_v4().to_string();
         let info = SessionInfo {
             id: id.clone(),
@@ -281,6 +287,10 @@ impl AgentCommandService {
             message_count: 0,
         };
         self.sessions.lock().await.insert(id.clone(), agent);
+        self.subagent_managers
+            .lock()
+            .await
+            .insert(id.clone(), sub_agent_manager);
         self.meta.lock().await.insert(id.clone(), info.clone());
         Ok(info)
     }
@@ -307,6 +317,7 @@ impl AgentCommandService {
     pub async fn delete_session(&self, session_id: &str) -> Result<(), CommandError> {
         let mut sessions = self.sessions.lock().await;
         let mut meta = self.meta.lock().await;
+        self.subagent_managers.lock().await.remove(session_id);
         sessions.remove(session_id);
         meta.remove(session_id);
         Ok(())
@@ -404,6 +415,40 @@ impl AgentCommandService {
     /// 列出已注册的子 Agent 规格
     pub async fn list_subagent_specs(&self) -> Vec<SubAgentSpec> {
         self.subagent_specs.read().await.clone()
+    }
+
+    /// 列出某会话子 Agent 实例池中所有活跃实例的对外信息
+    ///
+    /// 实例池按会话隔离：返回该 `session_id` 对应 `SubAgentManager` 的实例快照。
+    /// 会话不存在时返回 [`CommandError::session_not_found`]。
+    pub async fn list_subagent_instances(
+        &self,
+        session_id: &str,
+    ) -> Result<Vec<SubAgentInstanceInfo>, CommandError> {
+        let manager = self
+            .subagent_managers
+            .lock()
+            .await
+            .get(session_id)
+            .cloned()
+            .ok_or_else(|| CommandError::session_not_found(session_id))?;
+        Ok(manager.list_instances().await)
+    }
+
+    /// 清空某会话的全部子 Agent 实例（重置累积上下文）
+    ///
+    /// 返回被清空的实例数量。清空后该会话下次委派时按最新注册规格重建实例。
+    /// 单聊会话常用 `clear_agent_pool` 清主 Agent 上下文，子 Agent 实例池此前
+    /// 无对应能力，本方法补齐该缺口。
+    pub async fn clear_subagent_instances(&self, session_id: &str) -> Result<usize, CommandError> {
+        let manager = self
+            .subagent_managers
+            .lock()
+            .await
+            .get(session_id)
+            .cloned()
+            .ok_or_else(|| CommandError::session_not_found(session_id))?;
+        Ok(manager.clear_instances().await)
     }
 
     /// 导出全部子 Agent 规格为 JSON 字符串（pretty 打印，便于人读与 diff）
@@ -895,6 +940,48 @@ mod tests {
         assert!(
             svc.list_subagent_specs().await.is_empty(),
             "整体校验失败时不应写入任何规格（原子性）"
+        );
+    }
+
+    /// 实例管理按会话隔离：会话不存在时 list/clear 应报 session_not_found
+    #[tokio::test]
+    async fn subagent_instances_guard_requires_existing_session() {
+        let svc = AgentCommandService::new();
+        let err_list = svc.list_subagent_instances("nope").await.unwrap_err();
+        assert!(
+            matches!(err_list, CommandError::SessionNotFound(_)),
+            "list 不存在的会话应报 session_not_found，实际: {err_list}"
+        );
+        let err_clear = svc.clear_subagent_instances("nope").await.unwrap_err();
+        assert!(
+            matches!(err_clear, CommandError::SessionNotFound(_)),
+            "clear 不存在的会话应报 session_not_found，实际: {err_clear}"
+        );
+    }
+
+    /// 会话存在时，list 返回当前会话的实例（初始为空），clear 清空返回 0
+    #[tokio::test]
+    async fn subagent_instances_empty_until_delegation() {
+        let svc = AgentCommandService::new();
+        let info = svc.new_session(None, None).await.unwrap();
+        // 未委派任何子 Agent 前，实例池为空
+        let instances = svc.list_subagent_instances(&info.id).await.unwrap();
+        assert!(instances.is_empty(), "未委派前实例池应为空");
+        // 清空空池返回 0
+        let cleared = svc.clear_subagent_instances(&info.id).await.unwrap();
+        assert_eq!(cleared, 0, "空池清空应返回 0");
+    }
+
+    /// 删除会话后，其实例管理器也应随之移除（list 应报 session_not_found）
+    #[tokio::test]
+    async fn delete_session_removes_subagent_manager() {
+        let svc = AgentCommandService::new();
+        let info = svc.new_session(None, None).await.unwrap();
+        svc.delete_session(&info.id).await.unwrap();
+        let err = svc.list_subagent_instances(&info.id).await.unwrap_err();
+        assert!(
+            matches!(err, CommandError::SessionNotFound(_)),
+            "删除会话后 list 实例应报 session_not_found，实际: {err}"
         );
     }
 }

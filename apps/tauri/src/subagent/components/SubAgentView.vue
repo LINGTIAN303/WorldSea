@@ -12,10 +12,14 @@
  */
 import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
 import { useSubagentRust, type SubAgentSpec } from '../composables/useSubagentRust'
+import { useAgentRust } from '../../agent/composables/useAgentRust'
 import { subagentTemplates, type SubAgentTemplate } from '../templates'
 
 const sub = useSubagentRust()
 const { specs, busy: subBusy } = sub
+// 实例管理按会话隔离：接入 useAgentRust 获取当前活动会话 id
+const agent = useAgentRust()
+const { instances, instancesBusy, instanceMsg } = sub
 
 // 表单状态
 const form = reactive<SubAgentSpec>({
@@ -216,7 +220,36 @@ function loadTemplate(t: SubAgentTemplate) {
   tplOpen.value = false
 }
 
-onMounted(sub.refreshSpecs)
+/** 是否有当前活动会话（无则实例管理区提示先创建会话） */
+const hasSession = () => !!agent.currentSessionId?.value
+
+/** 刷新当前会话的子 Agent 实例列表（无会话则清空占位） */
+async function refreshInstancesNow() {
+  const sid = agent.currentSessionId?.value
+  if (!sid) {
+    instances.value = []
+    return
+  }
+  await sub.refreshInstances(sid)
+}
+
+/** 清空当前会话的全部子 Agent 实例（重置累积上下文） */
+async function clearAllInstances() {
+  const sid = agent.currentSessionId?.value
+  if (!sid) return
+  if (!window.confirm('确定清空当前会话的全部子 Agent 实例？\n这会重置它们累积的上下文，下次委派将按最新规格重建。')) return
+  try {
+    const n = await sub.clearInstances(sid)
+    instanceMsg.value = n > 0 ? `已清空 ${n} 个子 Agent 实例` : '当前没有可清空的子 Agent 实例'
+  } catch (err) {
+    instanceMsg.value = err instanceof Error ? err.message : String(err)
+  }
+}
+
+onMounted(async () => {
+  await sub.refreshSpecs()
+  await refreshInstancesNow()
+})
 </script>
 
 <template>
@@ -251,6 +284,33 @@ onMounted(sub.refreshSpecs)
           </div>
         </li>
       </ul>
+
+      <!-- 实例管理：重置子 Agent 累积的上下文 -->
+      <section class="instances">
+        <header class="instances-header">
+          <h3>子 Agent 实例 <span class="instances-count">{{ instances.length }}</span></h3>
+          <button class="ghost inst-clear" :disabled="instancesBusy || !hasSession()" @click="clearAllInstances">
+            清空实例
+          </button>
+        </header>
+        <p v-if="!hasSession()" class="instances-empty">
+          需先在「对话」页创建/切换会话，才能查看并清空该会话的子 Agent 实例。
+        </p>
+        <p v-else-if="instances.length === 0" class="instances-empty">
+          当前会话暂无活跃子 Agent 实例。<br />委派任务给子 Agent 后将在此累积上下文。
+        </p>
+        <ul v-else class="instances-list">
+          <li v-for="inst in instances" :key="inst.sub_agent_id" class="instance-item">
+            <div class="instance-main">
+              <span class="instance-name">{{ inst.name }}</span>
+              <code class="instance-id">{{ inst.sub_agent_id }}</code>
+              <span class="instance-msg" :title="'累积上下文消息数'">{{ inst.message_count }} 条</span>
+            </div>
+            <span v-if="inst.is_streaming" class="streaming">流式中</span>
+          </li>
+        </ul>
+        <p v-if="instanceMsg" class="instances-msg">{{ instanceMsg }}</p>
+      </section>
     </section>
 
     <!-- 右侧：新增 / 编辑表单 -->
@@ -518,6 +578,108 @@ onMounted(sub.refreshSpecs)
   padding: 6px 10px;
   border-radius: 6px;
   margin: 0 0 10px;
+}
+/* 实例管理区 */
+.instances {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #eee;
+}
+.instances-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.instances-header h3 {
+  font-size: 13px;
+  color: #555;
+  margin: 0;
+}
+.instances-count {
+  font-size: 11px;
+  color: #999;
+  background: #f0f0f0;
+  padding: 1px 7px;
+  border-radius: 10px;
+  margin-left: 4px;
+}
+.inst-clear {
+  font-size: 12px;
+  color: #d93025;
+  border-color: #f0c0c0;
+}
+.inst-clear:hover {
+  color: #fff;
+  background: #d93025;
+  border-color: #d93025;
+}
+.inst-clear:disabled {
+  color: #bbb;
+  background: #fff;
+  border-color: #eee;
+  cursor: not-allowed;
+}
+.instances-empty {
+  font-size: 12px;
+  color: #999;
+  line-height: 1.7;
+  margin: 0;
+}
+.instances-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.instance-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  margin-bottom: 6px;
+}
+.instance-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.instance-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: #333;
+}
+.instance-id {
+  font-size: 11px;
+  color: #1a73e8;
+  background: #e8f0fe;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.instance-msg {
+  font-size: 11px;
+  color: #999;
+}
+.streaming {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: #b45309;
+  background: #fef3c7;
+  padding: 1px 6px;
+  border-radius: 4px;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.instances-msg {
+  font-size: 12px;
+  color: #1a73e8;
+  margin: 8px 0 0;
 }
 .form {
   flex: 1;

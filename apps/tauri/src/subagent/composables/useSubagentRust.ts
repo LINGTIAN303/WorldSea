@@ -41,11 +41,27 @@ export interface SubAgentSpec {
   max_iterations?: number | null
 }
 
+/** 子 Agent 实例的对外信息（对应 agent-commands::SubAgentInstanceInfo） */
+export interface SubAgentInstanceInfo {
+  /** 实例 id（与规格 id 一致） */
+  sub_agent_id: string
+  /** 子 Agent 名称（来自来源规格） */
+  name: string
+  /** 实例当前累积的消息条数 */
+  message_count: number
+  /** 实例是否正在流式执行 */
+  is_streaming: boolean
+}
+
 // ─── 单例状态 ───────────────────────────────────────────────
 
 const specs = ref<SubAgentSpec[]>([])
 const busy = ref(false)
 const error = ref('')
+// 实例状态（按当前 activity 会话展示，切换会话时由组件刷新）
+const instances = ref<SubAgentInstanceInfo[]>([])
+const instancesBusy = ref(false)
+const instanceMsg = ref('')
 
 /** 刷新规格列表（幂等，供多处调用） */
 async function refreshSpecs(): Promise<void> {
@@ -119,6 +135,36 @@ async function importSpecs(json: string): Promise<number> {
   }
 }
 
+/** 刷新指定会话的子 Agent 实例列表（展示累积上下文规模） */
+async function refreshInstances(sessionId: string): Promise<void> {
+  instanceMsg.value = ''
+  instancesBusy.value = true
+  try {
+    instances.value = await invoke<SubAgentInstanceInfo[]>('subagent_list_instances', { sessionId })
+  } catch (err) {
+    instances.value = []
+    instanceMsg.value = err instanceof Error ? err.message : String(err)
+  } finally {
+    instancesBusy.value = false
+  }
+}
+
+/** 清空指定会话的全部子 Agent 实例（重置累积上下文），返回清空数量 */
+async function clearInstances(sessionId: string): Promise<number> {
+  instanceMsg.value = ''
+  instancesBusy.value = true
+  try {
+    const n = await invoke<number>('subagent_clear_instances', { sessionId })
+    await refreshInstances(sessionId)
+    return n
+  } catch (err) {
+    instanceMsg.value = err instanceof Error ? err.message : String(err)
+    throw err
+  } finally {
+    instancesBusy.value = false
+  }
+}
+
 // 注：不在模块顶层调用 onMounted（模块导入时无组件实例，会触发
 // "onMounted called when there is no active component instance" 警告）。
 // 首次拉取规格列表由组件（SubAgentView.vue）的 onMounted 触发。
@@ -131,11 +177,16 @@ export function useSubagentRust() {
     specs,
     busy,
     error,
+    instances,
+    instancesBusy,
+    instanceMsg,
     // 方法
     refreshSpecs,
     registerSpec,
     removeSpec,
     exportSpecs,
     importSpecs,
+    refreshInstances,
+    clearInstances,
   }
 }
