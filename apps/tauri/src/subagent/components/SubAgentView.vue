@@ -10,8 +10,9 @@
  * - 左侧：规格列表（ID / 名称 / 描述 / 最大迭代），可删除
  * - 右侧：新增 / 编辑表单（编辑时按 id 覆盖）
  */
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
 import { useSubagentRust, type SubAgentSpec } from '../composables/useSubagentRust'
+import { subagentTemplates, type SubAgentTemplate } from '../templates'
 
 const sub = useSubagentRust()
 const { specs, busy: subBusy } = sub
@@ -164,16 +165,31 @@ function resetForm() {
   formError.value = ''
 }
 
-/** 预填一个常用代码助手模板 */
-function fillCoderTemplate() {
-  editingId.value = 'coder'
-  form.id = 'coder'
-  form.name = '代码助手'
-  form.description = '精通 Rust / TypeScript 代码编写，处理算法、函数实现、重构任务'
-  form.system_prompt =
-    '你是一个严谨的代码工程师。请直接给出简洁、正确的代码实现，关键行附中文注释，不做多余解释。'
-  form.max_iterations = 5
+// 模板下拉状态
+const tplOpen = ref(false)
+const tplWrapRef = ref<HTMLElement | null>(null)
+
+/** 点击下拉外部时关闭菜单 */
+function onDocClick(e: MouseEvent) {
+  if (tplOpen.value && tplWrapRef.value && !tplWrapRef.value.contains(e.target as Node)) {
+    tplOpen.value = false
+  }
+}
+onMounted(() => document.addEventListener('click', onDocClick))
+onBeforeUnmount(() => document.removeEventListener('click', onDocClick))
+
+/** 载入预设模板：把模板规格预填进表单（编辑态也允许，覆盖当前编辑内容） */
+function loadTemplate(t: SubAgentTemplate) {
+  editingId.value = t.spec.id
+  form.id = t.spec.id
+  form.name = t.spec.name
+  form.description = t.spec.description
+  form.system_prompt = t.spec.system_prompt
+  form.tools_whitelist = t.spec.tools_whitelist ?? null
+  form.max_iterations = t.spec.max_iterations ?? null
+  whitelistText.value = whitelistToText(t.spec.tools_whitelist)
   formError.value = ''
+  tplOpen.value = false
 }
 
 onMounted(sub.refreshSpecs)
@@ -217,7 +233,15 @@ onMounted(sub.refreshSpecs)
           <button class="ghost" @click="openImport">导入</button>
           <button class="ghost" @click="openExport">导出</button>
           <button v-if="editingId" class="ghost" @click="resetForm">取消编辑</button>
-          <button class="ghost" @click="fillCoderTemplate">代码助手模板</button>
+          <div class="tpl-wrap" ref="tplWrapRef">
+            <button class="ghost" @click="tplOpen = !tplOpen">模板</button>
+            <ul v-if="tplOpen" class="tpl-menu">
+              <li v-for="t in subagentTemplates" :key="t.spec.id" @click="loadTemplate(t)">
+                <span class="tpl-label">{{ t.label }}</span>
+                <span class="tpl-hint">{{ t.hint }}</span>
+              </li>
+            </ul>
+          </div>
         </div>
       </header>
 
@@ -453,6 +477,47 @@ onMounted(sub.refreshSpecs)
 .form-actions {
   display: flex;
   gap: 8px;
+}
+/* 模板下拉 */
+.tpl-wrap {
+  position: relative;
+}
+.tpl-wrap .ghost {
+  min-width: 52px;
+}
+.tpl-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  z-index: 20;
+  min-width: 200px;
+}
+.tpl-menu li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.tpl-menu li:hover {
+  background: #f5f9ff;
+}
+.tpl-label {
+  font-size: 13px;
+  color: #333;
+  font-weight: 500;
+}
+.tpl-hint {
+  font-size: 11px;
+  color: #999;
 }
 .field {
   margin-bottom: 14px;
