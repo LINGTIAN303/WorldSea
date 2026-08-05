@@ -157,7 +157,7 @@ pnpm test:coverage
 
 ## Project Structure
 
-> 完整架构说明见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)（描述当前实际代码状态）。
+> 完整架构说明见 [docs/details/ARCHITECTURE.md](docs/details/ARCHITECTURE.md)（描述当前实际代码状态）。
 
 ```
 WorldSmith/

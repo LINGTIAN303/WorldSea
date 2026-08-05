@@ -1,5 +1,6 @@
 # perf-kit 实施方案
 
+> status: 执行中
 > 创建时间：2026-06-16
 > 状态：**包已建成，Phase 1 核心 store 改造、Phase 2 渲染节流、Phase 3 全部落地（含 loadByPage 的 DB 分页）；Phase 4 已落地 KanbanView 虚拟滚动（PERF-10）与 Canvas 脏矩形优化（PERF-16），其余待排期**（2026-08-04 复核）
 

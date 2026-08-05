@@ -2,7 +2,7 @@
 # WorldSmith 项目记忆文档
 
 > 本文档由主要执行 Agent 维护，记录项目概况、架构、任务状态与关键决策。
-> 任务路线独立维护于 docs/ROADMAP.md，防止本文档反复更新导致任务丢失。
+> 任务路线独立维护于 docs/plans/ROADMAP.md，防止本文档反复更新导致任务丢失。
 > 最后更新：2026-08-02
 
 ## 一、项目概况
@@ -50,11 +50,11 @@ agent-core / agent-runtime / canvas-engine / entity-core / font-kit / governor-c
 
 ## 五、当前任务状态
 
-- **ROADMAP**：28 条任务方向，分 8 大类别（详见 docs/ROADMAP.md；任务 1 ✅、任务 3 ✅、任务 4 ✅（P1-P4 + task 模式方向 A-D）、任务 24 进行中（阶段 1-4 完成，待桌面端 UI 实测），其余待启动）
+- **ROADMAP**：28 条任务方向，分 8 大类别（详见 docs/plans/ROADMAP.md；任务 1 ✅、任务 3 ✅、任务 4 ✅（P1-P4 + task 模式方向 A-D）、任务 24 进行中（阶段 1-4 完成，待桌面端 UI 实测），其余待启动）
 - **Rust Agent 后端**：阶段 1.1-1.5 ✅、阶段 2.0（UI 集成）✅、阶段 2.5（会话持久化）✅、Phase 2 Loop Engineering（long_task/loop_control）✅；待办：failTask 终态闭环重测、深度模式/A2UI/终端/子 Agent 补齐
-- **端分离**：✅ **全部完成（2026-08-04）**。Phase 1-6 全落地，根级 `src/`、`src-tauri/`、`worldsmith-server/`、`worldsmith-agent/` 已删除，业务 UI 全部迁入 `apps/web`（主应用入口）、`apps/tauri`、`apps/cli`；提交 `980385c`（重构主体）+ `c08c235`（文档同步）。docs/已完成/端分离/ 作为历史迁移记录归档
+- **端分离**：✅ **全部完成（2026-08-04）**。Phase 1-6 全落地，根级 `src/`、`src-tauri/`、`worldsmith-server/`、`worldsmith-agent/` 已删除，业务 UI 全部迁入 `apps/web`（主应用入口）、`apps/tauri`、`apps/cli`；提交 `980385c`（重构主体）+ `c08c235`（文档同步）。docs/details/端分离/ 作为历史迁移记录归档
 - **工作区收敛**：@agent 统一到 packages/agent-runtime 单轨（c3856de），worldsmith-agent 冻结为端适配器宿主
-- **实际文档**：docs/ARCHITECTURE.md（当前架构总览）、docs/ROADMAP.md（任务路线）、docs/已完成/端分离/（迁移文档库 11 份，已完成归档）、docs/已完成/rust-backend-completion-plan.md、docs/已完成/memory-archive/（记忆库设计 3 份，已完成归档）、docs/执行中/agent-orchestration-roadmap.md（Rust 编排路线，阶段 1/2 完成）、docs/执行中/skills-store-spec.md、docs/未完成/perf-kit-plan.md
+- **实际文档**（2026-08-06 四类结构）：docs/index/README.md（文档索引，摘要层）、docs/plans/（计划类：ROADMAP / agent-e2e-closure-plan / agent-orchestration-roadmap / perf-kit-plan / skills-store-spec / rust-backend-completion-plan / phase4-scheduler-plan）、docs/details/（详情类：ARCHITECTURE.md、端分离/ 迁移文档库 11 份、memory-archive/ 设计 3 份）、docs/misc/（其他：self-iteration-decisions、skills-store-test-source）
 - **注意**：docs/replication-wiki/ 目录当前不存在（会话初读到的 README 为工具缓存旧内容）；项目结构以源码与 README.md 为准
 - **任务类别**：Agent 系统增强 / 编辑器与内容创作 / 插件系统与实体详情 / AutoLink 与关系系统 / 图谱与可视化 / UI 视觉字体 / 商城与外部集成 / 系统功能
 
@@ -512,7 +512,7 @@ agent_end → checkShouldAutoContinue=true → autoContinueTask → backend.prom
 5. **迁移路线**：6 个 Phase（共享层抽离 → 目录骨架 → 前端清理 → 后端整合 → 构建独立 → 验收清理）
 
 ### 产出
-- `docs/已完成/端分离/` 文档库（11 份文档：README + 00-10）
+- `docs/details/端分离/` 文档库（11 份文档：README + 00-10）
   - 00-overview：总览与目标
   - 01-current-state：三端现状分析（技术债清单 TD-01~TD-10）
   - 02-target-architecture：目标目录结构

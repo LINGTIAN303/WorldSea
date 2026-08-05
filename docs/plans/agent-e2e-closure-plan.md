@@ -1,5 +1,6 @@
 # Agent 端到端闭环计划（Phase 5）
 
+> status: 执行中
 > 创建日期：2026-08-04
 > 状态：**执行中（5.1 命令层已完成，5.2 Tauri 前端链路已完成，5.3 Agent UI 迁移已完成，5.4 端到端实测待启动）**
 > 关联：[agent-orchestration-roadmap.md](agent-orchestration-roadmap.md)（阶段 1+2 已完成，Rust 编排框架就绪）、`[组件文档]`

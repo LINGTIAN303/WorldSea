@@ -1,5 +1,7 @@
 # Skills Store 技能源仓库规范
 
+> status: 已完成
+>
 > Task 24 阶段2 · 2026-07-07
 >
 > 定义 WorldSmith Skills Store 的技能源仓库格式、manifest schema、安装流程与安全模型。

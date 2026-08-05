@@ -1,5 +1,6 @@
 # Agent 编排框架路线图
 
+> status: 执行中
 > 创建日期：2026-07-24
 > 状态：**阶段 1（Rust Agent loop）+ 阶段 2（编排框架）已完成**（2026-07-28，cargo test 127/127）；阶段 0（TS 编排验证）未做完整，被 Rust 直接实现替代；阶段 3（自研 pi-ai）可选待定
 > 关联：替换 WorldSmith 的 TS pi-ai（详见 [project_memory.md](../../project_memory.md)）
@@ -357,7 +358,7 @@
 - [ ] 验收：浏览器经 Tauri 调用 Rust Agent，流式事件回传（推迟到阶段 2.0 端到端实测）
 
 ###### 阶段 1.5 完成记录
-- 详见 [project_memory.md 阶段 1.5 章节](../project_memory.md#阶段-15-tauri-集成完成2026-07-25)
+- 详见 [project_memory.md 阶段 1.5 章节](../../project_memory.md#阶段-15-tauri-集成完成2026-07-25)
 - **关键决策**：多实例 AgentRegistry（对齐前端多 session）+ 事件桥接（EventListener trait + app.emit）+ 独立 Payload 类型（解耦前后端）
 - **验证**：`cargo check` 通过 ✅ 0 errors / 0 warnings
 
