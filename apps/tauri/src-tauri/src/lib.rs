@@ -3,7 +3,7 @@
 // Phase 5.1：注册 agent-commands 命令层，manage 一个 AgentCommandService 实例，
 // 供 WebView 前端 invoke 调用（newSession / sendMessage / abort / ... 14 主链路命令）。
 
-use agent_commands::{AgentCommandService, TerminalService};
+use agent_commands::{AgentCommandService, SqliteSubAgentSpecStore, TerminalService};
 use tauri::Manager;
 
 mod commands;
@@ -40,7 +40,6 @@ pub fn run() {
             commands::subagent_remove_spec,
         ])
         // Phase 5.1：Agent 命令服务（内部持有 session_id -> Arc<AgentLoop> 映射）
-        .manage(AgentCommandService::new())
         // 终端服务（独立持有 ShellSessionManager，供前端直接调用终端命令）
         .manage(TerminalService::new())
         .setup(|app| {
@@ -49,6 +48,25 @@ pub fn run() {
                 let window = app.get_webview_window("main").unwrap();
                 window.open_devtools();
             }
+
+            // 子 Agent 规格持久化：把 SQLite 数据库放入应用数据目录，使前端配置的
+            // 子 Agent 规格在应用重启后仍能恢复（写穿 + 启动加载）。
+            let app_data = app
+                .path()
+                .app_data_dir()
+                .expect("无法定位应用数据目录");
+            std::fs::create_dir_all(&app_data).ok();
+            let db_path = app_data.join("subagent_specs.db");
+            let svc = tauri::async_runtime::block_on(async {
+                let store = SqliteSubAgentSpecStore::new(db_path.to_str().unwrap())
+                    .await
+                    .expect("初始化子 Agent 规格数据库失败");
+                AgentCommandService::with_subagent_store(store)
+                    .await
+                    .expect("初始化 Agent 命令服务失败")
+            });
+            app.manage(svc);
+
             Ok(())
         })
         .run(tauri::generate_context!())

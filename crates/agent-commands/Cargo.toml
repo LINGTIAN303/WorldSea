@@ -32,5 +32,11 @@ regex = "1"
 # 日志（上下文字段 span 等）
 tracing = "0.1"
 
+# ── 持久化（子 Agent 规格 SQLite 存储）──
+# 与 agent-runtime 的可选 sqlite 特性对齐（sqlx 0.8 + runtime-tokio），
+# 仅用于把子 Agent 规格以 JSON 整条存进 SQLite，应用重启后不丢失。
+sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio"] }
+
 [dev-dependencies]
 tokio = { version = "1", features = ["full", "test-util"] }
+tempfile = "3"

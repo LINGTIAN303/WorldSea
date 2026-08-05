@@ -24,11 +24,13 @@
 mod error;
 mod mock_backend;
 mod subagent;
+mod subagent_store;
 mod terminal;
 
 pub use error::CommandError;
 pub use mock_backend::{MockBackend, thinking_level_to_str};
 pub use subagent::{register_subagent_tools, SubAgentManager};
+pub use subagent_store::{SqliteSubAgentSpecStore, SubAgentSpecStore};
 pub use terminal::{register_terminal_tools, TerminalService};
 
 use std::collections::HashMap;
@@ -131,12 +133,31 @@ pub struct AgentCommandService {
     /// 每个会话的 `SubAgentManager` 都持有此共享注册表，因此
     /// `register_subagent_spec` 的变更对所有会话可见。
     subagent_specs: Arc<RwLock<Vec<SubAgentSpec>>>,
+    /// 子 Agent 规格持久化存储（可选）
+    ///
+    /// `None`：纯内存（默认，单测/无持久化场景）；`Some`：构造时从存储 `load_all`
+    /// 装入内存注册表，此后注册/删除**写穿**到存储，应用重启后配置不丢失。
+    subagent_store: Option<Arc<dyn SubAgentSpecStore>>,
 }
 
 impl AgentCommandService {
     /// 创建空服务
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// 创建带持久化存储的服务（启动时把存储中已保存的规格装入内存注册表）
+    ///
+    /// 用于 Tauri 应用启动：用户在前端「子 Agent」标签页配置的规格会在重启后恢复。
+    /// 存储失败（如数据库损坏）时返回 [`CommandError`]，由调用方决定是否降级为纯内存。
+    pub async fn with_subagent_store(store: Arc<dyn SubAgentSpecStore>) -> Result<Self, CommandError> {
+        let svc = Self {
+            subagent_store: Some(store.clone()),
+            ..Self::default()
+        };
+        let loaded = store.load_all().await?;
+        *svc.subagent_specs.write().await = loaded;
+        Ok(svc)
     }
 
     /// 构造一个 AgentLoop（Phase 5.4：使用 GenaiBackend 真实 LLM 后端）
@@ -297,12 +318,20 @@ impl AgentCommandService {
     /// 通过 `delegate_to_sub_agent` 委派任务。规格注册表跨会话共享。
     ///
     /// 同名（相同 `id`）规格会覆盖旧定义，避免重复 push 导致列表出现重复项。
+    /// 若配置了持久化存储，本方法会**写穿**到存储（异步，失败仅记日志不阻断内存更新）。
     pub async fn register_subagent_spec(&self, spec: SubAgentSpec) {
-        let mut specs = self.subagent_specs.write().await;
-        if let Some(existing) = specs.iter_mut().find(|s| s.id == spec.id) {
-            *existing = spec;
-        } else {
-            specs.push(spec);
+        {
+            let mut specs = self.subagent_specs.write().await;
+            if let Some(existing) = specs.iter_mut().find(|s| s.id == spec.id) {
+                *existing = spec.clone();
+            } else {
+                specs.push(spec.clone());
+            }
+        } // 释放写锁后再写库，避免 DB I/O 期间阻塞其他读
+        if let Some(store) = &self.subagent_store {
+            if let Err(e) = store.upsert(&spec).await {
+                tracing::warn!("持久化子 Agent 规格失败（仅内存生效）: {e}");
+            }
         }
     }
 
@@ -310,11 +339,22 @@ impl AgentCommandService {
     ///
     /// 返回是否删除成功（id 不存在时返回 `false`）。仅操作共享注册表，
     /// 不影响子 Agent 实例池——池中实例懒加载，下次委派按最新规格重建。
+    /// 若配置了持久化存储，删除会**写穿**到存储。
     pub async fn remove_subagent_spec(&self, id: &str) -> bool {
-        let mut specs = self.subagent_specs.write().await;
-        let before = specs.len();
-        specs.retain(|s| s.id != id);
-        specs.len() != before
+        let removed = {
+            let mut specs = self.subagent_specs.write().await;
+            let before = specs.len();
+            specs.retain(|s| s.id != id);
+            specs.len() != before
+        };
+        if removed {
+            if let Some(store) = &self.subagent_store {
+                if let Err(e) = store.remove(id).await {
+                    tracing::warn!("删除持久化子 Agent 规格失败: {e}");
+                }
+            }
+        }
+        removed
     }
 
     /// 列出已注册的子 Agent 规格
@@ -554,5 +594,72 @@ mod tests {
         // 删除不存在的规格返回 false
         let removed = svc.remove_subagent_spec("nonexistent").await;
         assert!(!removed, "删除不存在的规格应返回 false");
+    }
+
+    #[tokio::test]
+    async fn subagent_specs_persist_through_store() {
+        // 用内存 store 模拟持久化层；注册写穿 → 新建服务复用同一 store → 启动加载
+        let store = SqliteSubAgentSpecStore::new_in_memory().await.unwrap();
+        let svc = AgentCommandService::with_subagent_store(store.clone())
+            .await
+            .expect("带存储构造服务应成功");
+        svc.register_subagent_spec(SubAgentSpec {
+            id: "coder".into(),
+            name: "代码助手".into(),
+            description: "处理代码编写任务".into(),
+            system_prompt: "你是代码专家".into(),
+            tools_whitelist: Some(vec!["execute_command".into()]),
+            max_iterations: Some(3),
+        })
+        .await;
+        assert_eq!(svc.list_subagent_specs().await.len(), 1);
+
+        // 模拟"应用重启"：用同一 store 新建服务，应从存储加载回规格
+        let svc2 = AgentCommandService::with_subagent_store(store)
+            .await
+            .expect("二次构造应成功");
+        let restored = svc2.list_subagent_specs().await;
+        assert_eq!(restored.len(), 1, "重启后应恢复已持久化的规格");
+        assert_eq!(restored[0].id, "coder");
+        assert_eq!(
+            restored[0].tools_whitelist,
+            Some(vec!["execute_command".into()]),
+            "写穿应保留完整字段（含白名单）"
+        );
+    }
+
+    #[tokio::test]
+    async fn remove_subagent_spec_persists_through_store() {
+        let store = SqliteSubAgentSpecStore::new_in_memory().await.unwrap();
+        let svc = AgentCommandService::with_subagent_store(store.clone())
+            .await
+            .unwrap();
+        svc.register_subagent_spec(SubAgentSpec {
+            id: "coder".into(),
+            name: "代码助手".into(),
+            description: "处理代码编写任务".into(),
+            system_prompt: "你是代码专家".into(),
+            tools_whitelist: None,
+            max_iterations: Some(3),
+        })
+        .await;
+        svc.register_subagent_spec(SubAgentSpec {
+            id: "writer".into(),
+            name: "写作助手".into(),
+            description: "处理写作任务".into(),
+            system_prompt: "你是写作专家".into(),
+            tools_whitelist: None,
+            max_iterations: Some(3),
+        })
+        .await;
+        assert!(svc.remove_subagent_spec("coder").await);
+
+        // 重启后 coder 不应残留，writer 应保留
+        let svc2 = AgentCommandService::with_subagent_store(store)
+            .await
+            .unwrap();
+        let restored = svc2.list_subagent_specs().await;
+        assert_eq!(restored.len(), 1, "删除应写穿，重启后不残留已删规格");
+        assert_eq!(restored[0].id, "writer");
     }
 }
