@@ -1329,6 +1329,31 @@ impl AgentLoop {
         self.is_streaming.load(Ordering::SeqCst)
     }
 
+    /// 重置实例状态（委派超时后调用）
+    ///
+    /// 当子 Agent 的 `run` future 被 `tokio::time::timeout` 丢弃时：
+    /// 1. `run` 尾部复位 `is_streaming` 的语句不会执行（future 被 drop，剩余代码
+    ///    不运行），导致实例残留 `is_streaming=true`，前端/并发判断误以为仍在流式。
+    /// 2. ReAct 循环可能在中途被丢弃，留下"含 `tool_calls` 但无配对 `toolResult` 的
+    ///    assistant 消息"，污染下次复用的对话上下文。
+    ///
+    /// 本方法复位 `is_streaming` 并裁剪尾部不完整的工具调用消息，保证实例下次可复用。
+    ///
+    /// **注意**：不置位 `state.aborted`——置位会使实例永久不可复用（下次 `run` 立即
+    /// 返回 `Aborted`），与"复用实例累积上下文"的目标冲突。若确需彻底停用实例，应调用
+    /// [`AgentLoop::dispose`]。
+    pub async fn reset_after_timeout(&self) {
+        self.is_streaming.store(false, Ordering::SeqCst);
+        {
+            let mut state = self.state.lock().await;
+            if let Some(last) = state.messages.last() {
+                if last.role == MessageRole::Assistant && !last.tool_calls.is_empty() {
+                    state.messages.pop();
+                }
+            }
+        }
+    }
+
     /// 获取状态快照 — 对应前端 `IAgentBackend.state`
     ///
     /// 返回 `AgentStateSnapshot`，包含序列化友好的只读视图。

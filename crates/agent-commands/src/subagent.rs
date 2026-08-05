@@ -268,7 +268,13 @@ impl SubAgentManager {
                 return Err(ToolError::Execution(err_msg));
             }
             Err(_elapsed) => {
-                // 超时：子 Agent 可能仍在后台运行，但主循环不再阻塞等待
+                // 超时：`run` future 被 `tokio::time::timeout` 丢弃，循环已停止，但实例
+                // 状态需要清理——`run` 尾部复位 `is_streaming` 的语句不会执行（future 被
+                // drop），且循环可能留下无 pairing 的 tool_calls 消息。调用
+                // `reset_after_timeout` 复位流式标记并裁剪不完整消息，保证下次复用实例
+                // 状态正确（注意：不置位 aborted，实例仍可继续复用累积上下文）。
+                agent.reset_after_timeout().await;
+
                 let err_msg =
                     format!("子 Agent '{}' 执行超时（>{:?}）", spec.name, self.delegate_timeout);
                 self.emit(OrchestratorEvent::SubAgentError {
@@ -616,6 +622,34 @@ mod tests {
             matches!(result, Err(ToolError::Timeout)),
             "阻塞超时的 delegate 应返回 ToolError::Timeout，实际: {result:?}"
         );
+    }
+
+    /// 委派超时后，子 Agent 实例状态应被正确清理：is_streaming 复位、aborted 未置位，
+    /// 实例可继续复用（而非永久损坏）。
+    #[tokio::test]
+    async fn timeout_resets_subagent_streaming_state() {
+        let bus = Arc::new(SimpleToolBus::new());
+        // 子 Agent 每次 prompt 阻塞 500ms，超时设为 50ms：必然触发超时
+        let backend: Arc<dyn NodeBackendAccessor> = Arc::new(SlowBackend {
+            delay: std::time::Duration::from_millis(500),
+        });
+        let specs = Arc::new(RwLock::new(Vec::new()));
+        let manager = SubAgentManager::new(backend, bus.clone(), specs.clone())
+            .with_delegate_timeout(std::time::Duration::from_millis(50));
+
+        let s = spec("coder", "代码助手", "你是代码专家");
+        manager.register_spec(s.clone()).await;
+
+        let result = manager.delegate("coder", "帮我写个 hello world").await;
+        assert!(matches!(result, Err(ToolError::Timeout)));
+
+        // 超时后取回同一实例（池中缓存），应已复位：
+        // - is_streaming 必须为 false（否则前端/并发判断误以为仍在流式）
+        // - aborted 必须为 false（否则下次 run 立即返回 Aborted，实例永久损坏）
+        let agent = manager.get_or_create_agent(&s).await;
+        assert!(!agent.is_streaming(), "超时后 is_streaming 应复位为 false");
+        let state = agent.get_state().await;
+        assert!(!state.aborted, "超时后不应置位 aborted（实例应可继续复用）");
     }
 
     /// 记录收到的编排事件名（std Mutex，on_event 是同步回调）
