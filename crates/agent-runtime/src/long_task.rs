@@ -994,4 +994,146 @@ mod tests {
         manager.refresh_heartbeat_status().await;
         assert_eq!(manager.get_heartbeat_status().await, HeartbeatStatus::Dead);
     }
+
+    #[tokio::test]
+    async fn test_fail_task_terminal_transition() {
+        let manager = LongTaskManager::new();
+        manager
+            .start_task(
+                "fail-1".into(),
+                LongTaskType::MainAgent,
+                make_test_checkpoint(),
+                LongTaskMeta::default(),
+            )
+            .await;
+
+        // 先请求取消，验证 fail_task 会重置 cancel flag
+        manager.request_cancel();
+        assert!(manager.is_cancel_requested());
+
+        let failed = manager.fail_task("boom").await;
+        assert!(failed.is_some());
+        let failed = failed.unwrap();
+        assert_eq!(failed.status, LongTaskStatus::Failed);
+        assert!(failed.ended_at.is_some());
+        // 终态：活跃任务被清空
+        assert!(!manager.has_active_task().await);
+        // 取消 flag 被重置、心跳回到 Alive
+        assert!(!manager.is_cancel_requested());
+        manager.refresh_heartbeat_status().await;
+        assert_eq!(manager.get_heartbeat_status().await, HeartbeatStatus::Alive);
+    }
+
+    #[tokio::test]
+    async fn test_fail_task_no_active_returns_none() {
+        let manager = LongTaskManager::new();
+        assert!(manager.fail_task("boom").await.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_retry_task_keeps_running_and_marks_phase() {
+        let manager = LongTaskManager::new();
+        manager
+            .start_task(
+                "retry-1".into(),
+                LongTaskType::MainAgent,
+                make_test_checkpoint(),
+                LongTaskMeta::default(),
+            )
+            .await;
+
+        let retried = manager.retry_task("llm timeout").await;
+        assert!(retried.is_some());
+        let retried = retried.unwrap();
+        // 可重试失败：状态保持 Running，不设 ended_at
+        assert_eq!(retried.status, LongTaskStatus::Running);
+        assert!(retried.ended_at.is_none());
+        // 错误记录到 current_phase（retry: 前缀）
+        assert_eq!(retried.current_phase.as_deref(), Some("retry: llm timeout"));
+        // 标记 dirty 供持久化
+        assert!(manager.is_checkpoint_dirty().await);
+
+        // 活跃任务仍是 Running（未被清除）
+        assert!(manager.has_active_task().await);
+        let active = manager.get_active_task().await.unwrap();
+        assert_eq!(active.status, LongTaskStatus::Running);
+    }
+
+    #[tokio::test]
+    async fn test_retry_task_truncates_long_error() {
+        let manager = LongTaskManager::new();
+        manager
+            .start_task(
+                "retry-2".into(),
+                LongTaskType::MainAgent,
+                make_test_checkpoint(),
+                LongTaskMeta::default(),
+            )
+            .await;
+
+        let long_error = "x".repeat(500);
+        let retried = manager.retry_task(&long_error).await.unwrap();
+        let phase = retried.current_phase.unwrap();
+        // 错误被截断到 100 字符（不含 "retry: " 前缀）
+        assert!(phase.len() <= 100 + "retry: ".len());
+    }
+
+    #[tokio::test]
+    async fn test_retry_task_no_active_returns_none() {
+        let manager = LongTaskManager::new();
+        assert!(manager.retry_task("boom").await.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_clear_retry_marker() {
+        let manager = LongTaskManager::new();
+        manager
+            .start_task(
+                "retry-3".into(),
+                LongTaskType::MainAgent,
+                make_test_checkpoint(),
+                LongTaskMeta::default(),
+            )
+            .await;
+
+        manager.retry_task("llm timeout").await;
+        assert_eq!(
+            manager.get_active_task().await.unwrap().current_phase.as_deref(),
+            Some("retry: llm timeout")
+        );
+
+        manager.clear_retry_marker().await;
+        let active = manager.get_active_task().await.unwrap();
+        assert!(active.current_phase.is_none());
+        // 状态仍为 Running（清除标记不影响状态）
+        assert_eq!(active.status, LongTaskStatus::Running);
+    }
+
+    #[tokio::test]
+    async fn test_clear_retry_marker_ignores_non_retry_phase() {
+        let manager = LongTaskManager::new();
+        manager
+            .start_task(
+                "retry-4".into(),
+                LongTaskType::MainAgent,
+                make_test_checkpoint(),
+                LongTaskMeta::default(),
+            )
+            .await;
+
+        // 非 retry 前缀的 phase 不应被清除
+        manager
+            .checkpoint(
+                Some(1),
+                Some("echo".into()),
+                Some("executing".into()),
+                make_test_checkpoint(),
+            )
+            .await;
+        manager.clear_retry_marker().await;
+        assert_eq!(
+            manager.get_active_task().await.unwrap().current_phase.as_deref(),
+            Some("executing")
+        );
+    }
 }
