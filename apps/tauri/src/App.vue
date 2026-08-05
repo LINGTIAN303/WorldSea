@@ -6,6 +6,7 @@ import { provideAgentBackend, useAgentRust } from './agent/composables/useAgentR
 import TerminalView from './terminal/components/TerminalView.vue'
 import SubAgentView from './subagent/components/SubAgentView.vue'
 import SubAgentSection from './agent/components/SubAgentSection.vue'
+import ModelSettingsDialog from './agent/components/ModelSettingsDialog.vue'
 
 // 在 setup 上下文注入（useAgent 使用 inject 模式，须在组件内 provide）
 const backend = useAgentRust()
@@ -97,6 +98,28 @@ async function onClear() {
   }
 }
 
+/** 模型配置弹窗开关 */
+const showModelSettings = ref(false)
+
+/** 当前模型显示文本（provider/model），打开弹窗时经 getProviderConfig 刷新 */
+const currentModel = ref('')
+
+/** 刷新当前模型显示：调用 Rust get_provider_config 回填 */
+async function refreshCurrentModel() {
+  try {
+    const cfg = await backend.getProviderConfig()
+    currentModel.value = cfg ? `${cfg.provider}/${cfg.model}` : ''
+  } catch {
+    currentModel.value = ''
+  }
+}
+
+/** 保存模型配置：调用 Rust set_provider_config（三模式热切换，不清历史） */
+async function onSaveModelConfig(config: any) {
+  await backend.setProviderConfig(config)
+  await refreshCurrentModel()
+}
+
 /** 新建会话：调用 Rust new_session，并设为当前会话 */
 async function onNewSession() {
   try {
@@ -122,6 +145,7 @@ onMounted(async () => {
   } catch (err) {
     error.value = `会话初始化失败: ${err}`
   }
+  await refreshCurrentModel()
 })
 </script>
 
@@ -171,6 +195,11 @@ onMounted(async () => {
       <header class="chat-header">
         <h1>WorldSmith Agent</h1>
         <div class="header-actions">
+          <button
+            class="model-btn"
+            title="切换模型"
+            @click="showModelSettings = true; refreshCurrentModel()"
+          >模型 {{ currentModel }}</button>
           <button
             class="clear"
             :disabled="backend.messages.length === 0"
@@ -247,6 +276,13 @@ onMounted(async () => {
     </main>
     </div>
   </div>
+
+  <!-- 模型配置弹窗 -->
+  <ModelSettingsDialog
+    :show="showModelSettings"
+    :on-save-config="onSaveModelConfig"
+    @close="showModelSettings = false"
+  />
 </template>
 
 <style scoped>
@@ -410,6 +446,22 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+.model-btn {
+  padding: 4px 10px;
+  border: 1px solid #1a73e8;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 12px;
+  color: #1a73e8;
+  cursor: pointer;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.model-btn:hover {
+  background: #e8f0fe;
 }
 .clear {
   padding: 4px 10px;
