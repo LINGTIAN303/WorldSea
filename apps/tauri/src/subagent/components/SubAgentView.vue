@@ -110,6 +110,14 @@ async function submit() {
     formError.value = 'ID 不能为空'
     return
   }
+  if (!/^[A-Za-z0-9_-]+$/.test(id)) {
+    formError.value = 'ID 仅允许字母、数字、下划线、连字符'
+    return
+  }
+  if (id.length > 64) {
+    formError.value = 'ID 过长（最多 64 个字符）'
+    return
+  }
   if (!form.name.trim()) {
     formError.value = '名称不能为空'
     return
@@ -120,6 +128,10 @@ async function submit() {
   }
   if (!form.system_prompt.trim()) {
     formError.value = '系统提示词不能为空'
+    return
+  }
+  if (form.max_iterations != null && form.max_iterations < 1) {
+    formError.value = '最大迭代次数必须大于 0'
     return
   }
   try {
@@ -296,7 +308,7 @@ onMounted(sub.refreshSpecs)
           type="text"
           placeholder="如 execute_command, shell_session_create（不填则子 Agent 可用全部工具）"
         />
-        <p class="hint">限制子 Agent 只能看到/调用这些工具（工具隔离）。可参考终端工具名：execute_command、shell_session_create、shell_session_exec、shell_session_destroy、shell_session_list。</p>
+        <p class="hint">限制子 Agent 只能看到/调用这些工具（工具隔离）。可参考终端工具名：execute_command、detect_shells、shell_session_create、shell_session_exec、shell_session_input、shell_session_destroy、shell_session_list。</p>
       </div>
 
       <div v-if="formError" class="form-error">{{ formError }}</div>

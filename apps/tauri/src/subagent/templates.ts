@@ -73,8 +73,10 @@ export const subagentTemplates: SubAgentTemplate[] = [
         '你是一个终端执行助手。请使用 execute_command 执行用户要求的命令，返回命令输出与关键结论；命令失败时说明原因。',
       tools_whitelist: [
         'execute_command',
+        'detect_shells',
         'shell_session_create',
         'shell_session_exec',
+        'shell_session_input',
         'shell_session_destroy',
         'shell_session_list',
       ],
