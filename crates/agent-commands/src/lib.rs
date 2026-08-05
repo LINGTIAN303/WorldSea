@@ -22,12 +22,19 @@
 //! Provider 配置（含 API Key），`get_provider_config` 回显真实配置。
 
 mod error;
+mod long_task_store;
+mod loop_control;
 mod mock_backend;
 mod subagent;
 mod subagent_store;
 mod terminal;
 
 pub use error::CommandError;
+pub use long_task_store::LongTaskRepository;
+pub use loop_control::{
+    LoopControlCheckResult, LoopControlEntry, LoopControlRegistry, LoopControlRegistryError,
+    LoopControlStatus,
+};
 pub use mock_backend::{MockBackend, thinking_level_to_str};
 pub use subagent::{register_subagent_tools, SubAgentInstanceInfo, SubAgentManager};
 pub use subagent_store::{SqliteSubAgentSpecStore, SubAgentSpecStore};

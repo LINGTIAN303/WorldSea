@@ -3,7 +3,10 @@
 // Phase 5.1：注册 agent-commands 命令层，manage 一个 AgentCommandService 实例，
 // 供 WebView 前端 invoke 调用（newSession / sendMessage / abort / ... 14 主链路命令）。
 
-use agent_commands::{AgentCommandService, SqliteSubAgentSpecStore, TerminalService};
+use agent_commands::{
+    AgentCommandService, LongTaskRepository, LoopControlRegistry, SqliteSubAgentSpecStore,
+    TerminalService,
+};
 use tauri::Manager;
 
 mod commands;
@@ -44,10 +47,32 @@ pub fn run() {
             commands::subagent_list_instances,
             commands::subagent_clear_instance,
             commands::subagent_clear_instances,
+            // Loop Engineering：Loop Control 11 命令（cmd_loop_control_*）
+            commands::cmd_loop_control_create,
+            commands::cmd_loop_control_check,
+            commands::cmd_loop_control_record_turn,
+            commands::cmd_loop_control_record_tool_call,
+            commands::cmd_loop_control_record_tokens,
+            commands::cmd_loop_control_update_activity,
+            commands::cmd_loop_control_reset_counters,
+            commands::cmd_loop_control_get_config,
+            commands::cmd_loop_control_get_status,
+            commands::cmd_loop_control_destroy,
+            commands::cmd_loop_control_list_tasks,
+            // Loop Engineering：长任务 7 命令（cmd_long_task_*）
+            commands::cmd_long_task_save,
+            commands::cmd_long_task_load,
+            commands::cmd_long_task_list_running,
+            commands::cmd_long_task_list_all,
+            commands::cmd_long_task_update_heartbeat,
+            commands::cmd_long_task_update_status,
+            commands::cmd_long_task_delete,
         ])
         // Phase 5.1：Agent 命令服务（内部持有 session_id -> Arc<AgentLoop> 映射）
         // 终端服务（独立持有 ShellSessionManager，供前端直接调用终端命令）
+        // Loop Engineering：LoopController 实例注册表 + 长任务 SQLite 持久化
         .manage(TerminalService::new())
+        .manage(LoopControlRegistry::new())
         .setup(|app| {
             #[cfg(debug_assertions)]
             {
@@ -72,6 +97,15 @@ pub fn run() {
                     .expect("初始化 Agent 命令服务失败")
             });
             app.manage(svc);
+
+            // 长任务持久化：独立数据库文件（long_tasks.db），供 cmd_long_task_* 命令使用
+            let lt_db_path = app_data.join("long_tasks.db");
+            let long_task_repo = tauri::async_runtime::block_on(async {
+                LongTaskRepository::new(lt_db_path.to_str().unwrap())
+                    .await
+                    .expect("初始化长任务数据库失败")
+            });
+            app.manage(long_task_repo);
 
             Ok(())
         })

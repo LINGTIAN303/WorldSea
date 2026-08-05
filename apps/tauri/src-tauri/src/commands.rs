@@ -12,10 +12,16 @@
 //! P2 新增：Deep Phase 事件转发 — 订阅 AgentLoop 的 DeepPhaseChanged 事件，
 //! 通过 Tauri 事件系统 `agent:event:deep_phase_changed` 发送到前端。
 
-use agent_commands::{AgentCommandService, SendMessageParams, SubAgentInstanceInfo, TerminalService, UpdateModelParams};
+use agent_commands::{
+    AgentCommandService, LongTaskRepository, LoopControlCheckResult, LoopControlEntry,
+    LoopControlRegistry, LoopControlRegistryError, LoopControlStatus, SendMessageParams,
+    SubAgentInstanceInfo, TerminalService, UpdateModelParams,
+};
 use agent_runtime::backend::ThinkingLevel;
 use agent_runtime::event::{OrchestratorEvent, EventListener, AgentEvent};
 use agent_runtime::llm::config::ProviderConfig;
+use agent_runtime::long_task::{LongTaskRecord, LongTaskStatus};
+use agent_runtime::loop_control::LoopControlConfig;
 use agent_runtime::supervisor::SubAgentSpec;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex as StdMutex, OnceLock};
@@ -547,4 +553,379 @@ pub async fn subagent_clear_instances(
         .clear_subagent_instances(&session_id)
         .await
         .map_err(|e| e.to_string())
+}
+
+// ─── Loop Control（loop_control）命令 ───────────────────────────────────
+//
+// 恢复端分离迁移时丢失的命令层（原 src-tauri/src/commands/loop_control.rs）。
+// 注册表与检查逻辑在 agent-commands 的 LoopControlRegistry（纯逻辑层），
+// 此处做薄包装。前端 composable：useLoopControlRust.ts（11 个命令）。
+
+/// 转发 LoopEng* 事件到前端 `loop_control:event:{task_id}` 通道
+///
+/// 每个 LoopController 实例在 `cmd_loop_control_create` 时订阅一个本监听器，
+/// `cmd_loop_control_check` 检查到非空结果时经条目 broadcaster 广播，这里
+/// 转为前端 `RustLoopControlEventPayload`（snake_case 字段）推送到前端。
+struct LoopControlTauriEventListener {
+    app: AppHandle,
+}
+
+impl EventListener for LoopControlTauriEventListener {
+    fn on_event(&self, event: &OrchestratorEvent) {
+        // 只处理 Loop Engineering 事件；字段名与前端 RustLoopControlEventPayload 对齐（snake_case）
+        let (task_id, payload): (String, serde_json::Value) = match event {
+            OrchestratorEvent::LoopEngRateLimitExceeded {
+                task_id,
+                limit_type,
+                current,
+                max,
+            } => (
+                task_id.clone(),
+                serde_json::json!({
+                    "type": "loop_eng_rate_limit_exceeded",
+                    "task_id": task_id,
+                    "limit_type": limit_type,
+                    "current": current,
+                    "max": max,
+                }),
+            ),
+            OrchestratorEvent::LoopEngRetrying {
+                task_id,
+                attempt,
+                max_retries,
+                backoff_ms,
+                error,
+            } => (
+                task_id.clone(),
+                serde_json::json!({
+                    "type": "loop_eng_retrying",
+                    "task_id": task_id,
+                    "attempt": attempt,
+                    "max_retries": max_retries,
+                    "backoff_ms": backoff_ms,
+                    "error": error,
+                }),
+            ),
+            OrchestratorEvent::LoopEngRetryExhausted {
+                task_id,
+                total_attempts,
+                final_error,
+            } => (
+                task_id.clone(),
+                serde_json::json!({
+                    "type": "loop_eng_retry_exhausted",
+                    "task_id": task_id,
+                    "total_attempts": total_attempts,
+                    "final_error": final_error,
+                }),
+            ),
+            OrchestratorEvent::LoopEngSoftTimeoutWarning {
+                task_id,
+                elapsed_secs,
+                threshold_secs,
+            } => (
+                task_id.clone(),
+                serde_json::json!({
+                    "type": "loop_eng_soft_timeout_warning",
+                    "task_id": task_id,
+                    "elapsed_secs": elapsed_secs,
+                    "threshold_secs": threshold_secs,
+                }),
+            ),
+            OrchestratorEvent::LoopEngSoftTimeoutCritical {
+                task_id,
+                elapsed_secs,
+                threshold_secs,
+            } => (
+                task_id.clone(),
+                serde_json::json!({
+                    "type": "loop_eng_soft_timeout_critical",
+                    "task_id": task_id,
+                    "elapsed_secs": elapsed_secs,
+                    "threshold_secs": threshold_secs,
+                }),
+            ),
+            OrchestratorEvent::LoopEngWatchdogIdle {
+                task_id,
+                last_activity,
+                idle_secs,
+            } => (
+                task_id.clone(),
+                serde_json::json!({
+                    "type": "loop_eng_watchdog_idle",
+                    "task_id": task_id,
+                    "last_activity": last_activity,
+                    "idle_secs": idle_secs,
+                }),
+            ),
+            OrchestratorEvent::LoopEngWatchdogDead {
+                task_id,
+                last_activity,
+                idle_secs,
+            } => (
+                task_id.clone(),
+                serde_json::json!({
+                    "type": "loop_eng_watchdog_dead",
+                    "task_id": task_id,
+                    "last_activity": last_activity,
+                    "idle_secs": idle_secs,
+                }),
+            ),
+            OrchestratorEvent::LoopEngRecovered {
+                task_id,
+                turn_count,
+                recovery_method,
+            } => (
+                task_id.clone(),
+                serde_json::json!({
+                    "type": "loop_eng_recovered",
+                    "task_id": task_id,
+                    "turn_count": turn_count,
+                    "recovery_method": recovery_method,
+                }),
+            ),
+            // 其他事件不转发
+            _ => return,
+        };
+
+        let event_name = format!("loop_control:event:{task_id}");
+        if let Err(err) = self.app.emit(&event_name, payload) {
+            tracing::warn!("Failed to emit loop_control event to frontend: {}", err);
+        }
+    }
+}
+
+/// 创建 LoopController 实例并注册到 registry
+///
+/// # 参数
+/// - `task_id`：任务 ID（与 `LongTaskRecord.task_id` 对齐，前端生成，建议前缀 `lc_`）
+/// - `config`：可选 LoopControlConfig（None=使用默认配置）
+///
+/// 创建条目后订阅本文件顶部的 TauriEventListener，`check` 广播的 LoopEng* 事件
+/// 会转发到前端 `loop_control:event:{task_id}`。
+#[tauri::command]
+pub async fn cmd_loop_control_create(
+    app: AppHandle,
+    state: State<'_, LoopControlRegistry>,
+    task_id: String,
+    config: Option<LoopControlConfig>,
+) -> Result<(), LoopControlRegistryError> {
+    let config = config.unwrap_or_default();
+    let controller = Arc::new(agent_runtime::loop_control::LoopController::new(config.clone()));
+    let entry = LoopControlEntry::new(controller, config);
+    state.register(task_id.clone(), entry).await?;
+
+    // 注册成功后取出条目并订阅 TauriEventListener（事件转发到前端）
+    let entry_after = state.get(&task_id).await?;
+    let listener = Arc::new(LoopControlTauriEventListener { app: app.clone() });
+    entry_after.subscribe(listener).await;
+
+    tracing::info!("cmd_loop_control_create: 已创建 task={task_id}");
+    Ok(())
+}
+
+/// 执行一站式检查并 emit 事件
+///
+/// 调用 `LoopControlRegistry::check_and_emit`：检查 rate_limit / soft_timeout /
+/// watchdog，非空结果广播 LoopEng* 事件（经监听器转发前端）。
+#[tauri::command]
+pub async fn cmd_loop_control_check(
+    state: State<'_, LoopControlRegistry>,
+    task_id: String,
+) -> Result<LoopControlCheckResult, LoopControlRegistryError> {
+    state.check_and_emit(&task_id).await
+}
+
+/// 记录一次轮次（inc_turns），同时更新活动时间
+#[tauri::command]
+pub async fn cmd_loop_control_record_turn(
+    state: State<'_, LoopControlRegistry>,
+    task_id: String,
+) -> Result<(), LoopControlRegistryError> {
+    let entry = state.get(&task_id).await?;
+    entry.controller.rate_limiter.inc_turns();
+    entry.update_activity();
+    Ok(())
+}
+
+/// 记录一次工具调用（inc_tool_calls），同时更新活动时间
+#[tauri::command]
+pub async fn cmd_loop_control_record_tool_call(
+    state: State<'_, LoopControlRegistry>,
+    task_id: String,
+) -> Result<(), LoopControlRegistryError> {
+    let entry = state.get(&task_id).await?;
+    entry.controller.rate_limiter.inc_tool_calls();
+    entry.update_activity();
+    Ok(())
+}
+
+/// 记录 token 消耗（add_tokens），同时更新活动时间
+#[tauri::command]
+pub async fn cmd_loop_control_record_tokens(
+    state: State<'_, LoopControlRegistry>,
+    task_id: String,
+    tokens: u64,
+) -> Result<(), LoopControlRegistryError> {
+    let entry = state.get(&task_id).await?;
+    entry.controller.rate_limiter.add_tokens(tokens);
+    entry.update_activity();
+    Ok(())
+}
+
+/// 更新活动时间（心跳，重置 Watchdog 的 last_activity）
+#[tauri::command]
+pub async fn cmd_loop_control_update_activity(
+    state: State<'_, LoopControlRegistry>,
+    task_id: String,
+) -> Result<(), LoopControlRegistryError> {
+    let entry = state.get(&task_id).await?;
+    entry.update_activity();
+    Ok(())
+}
+
+/// 重置计数器（retry 后调用；不重置 started_at）
+#[tauri::command]
+pub async fn cmd_loop_control_reset_counters(
+    state: State<'_, LoopControlRegistry>,
+    task_id: String,
+) -> Result<(), LoopControlRegistryError> {
+    let entry = state.get(&task_id).await?;
+    entry.reset_counters();
+    Ok(())
+}
+
+/// 获取任务配置快照
+#[tauri::command]
+pub async fn cmd_loop_control_get_config(
+    state: State<'_, LoopControlRegistry>,
+    task_id: String,
+) -> Result<LoopControlConfig, LoopControlRegistryError> {
+    let entry = state.get(&task_id).await?;
+    Ok(entry.config.clone())
+}
+
+/// 获取状态快照（计数器 + 触发状态）
+#[tauri::command]
+pub async fn cmd_loop_control_get_status(
+    state: State<'_, LoopControlRegistry>,
+    task_id: String,
+) -> Result<LoopControlStatus, LoopControlRegistryError> {
+    let entry = state.get(&task_id).await?;
+    Ok(LoopControlStatus::from_entry(&task_id, &entry))
+}
+
+/// 销毁 LoopController 实例（从 registry 移除）
+#[tauri::command]
+pub async fn cmd_loop_control_destroy(
+    state: State<'_, LoopControlRegistry>,
+    task_id: String,
+) -> Result<(), LoopControlRegistryError> {
+    state.remove(&task_id).await?;
+    tracing::info!("cmd_loop_control_destroy: 已销毁 task={task_id}");
+    Ok(())
+}
+
+/// 列出所有已注册的 task_id
+#[tauri::command]
+pub async fn cmd_loop_control_list_tasks(
+    state: State<'_, LoopControlRegistry>,
+) -> Result<Vec<String>, LoopControlRegistryError> {
+    Ok(state.list().await)
+}
+
+// ─── 长任务（long_task）命令 ───────────────────────────────────────────
+//
+// 恢复端分离迁移时丢失的命令层（原 src-tauri/src/commands/long_task.rs）。
+// 持久化在 agent-commands 的 LongTaskRepository（SQLite），此处做薄包装。
+// 前端 composable：useLongTaskRust.ts（7 个命令）。
+
+/// 保存或更新长任务（upsert 语义）
+///
+/// # 参数
+/// - `record`: `LongTaskRecord`（含 task_id / status / checkpoint / meta 等完整字段）
+///
+/// # 调用时机
+/// 心跳定时器 CheckpointFlush tick / `start_task` 后首次持久化 /
+/// `complete_task` / `fail_task` / `cancel_task` 后写入终态 record。
+#[tauri::command]
+pub async fn cmd_long_task_save(
+    state: State<'_, LongTaskRepository>,
+    record: LongTaskRecord,
+) -> Result<(), String> {
+    state.save(record).await.map_err(|e| e.to_string())
+}
+
+/// 加载长任务完整数据（断点恢复用）
+///
+/// # 错误
+/// task_id 不存在时返回 `not_found` 错误（前端 `loadTask` catch 后返回 null）。
+#[tauri::command]
+pub async fn cmd_long_task_load(
+    state: State<'_, LongTaskRepository>,
+    task_id: String,
+) -> Result<LongTaskRecord, String> {
+    state.load(&task_id).await.map_err(|e| e.to_string())
+}
+
+/// 列出所有 Running 任务（应用启动恢复用）
+#[tauri::command]
+pub async fn cmd_long_task_list_running(
+    state: State<'_, LongTaskRepository>,
+) -> Result<Vec<LongTaskRecord>, String> {
+    state.list_running().await.map_err(|e| e.to_string())
+}
+
+/// 列出所有长任务（按 started_at DESC 排序，最近的在前）
+#[tauri::command]
+pub async fn cmd_long_task_list_all(
+    state: State<'_, LongTaskRepository>,
+) -> Result<Vec<LongTaskRecord>, String> {
+    state.list_all().await.map_err(|e| e.to_string())
+}
+
+/// 轻量心跳更新（仅写 last_heartbeat_at）
+///
+/// # 返回
+/// - `Ok(true)`: 更新成功
+/// - `Ok(false)`: task_id 不存在（幂等，不报错）
+#[tauri::command]
+pub async fn cmd_long_task_update_heartbeat(
+    state: State<'_, LongTaskRepository>,
+    task_id: String,
+    last_heartbeat_at: chrono::DateTime<chrono::Utc>,
+) -> Result<bool, String> {
+    state
+        .update_heartbeat(&task_id, last_heartbeat_at)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 轻量状态更新（complete/fail/cancel 时调用）
+///
+/// 仅更新 status + ended_at，不触碰 checkpoint/meta。
+#[tauri::command]
+pub async fn cmd_long_task_update_status(
+    state: State<'_, LongTaskRepository>,
+    task_id: String,
+    status: LongTaskStatus,
+    ended_at: chrono::DateTime<chrono::Utc>,
+) -> Result<bool, String> {
+    state
+        .update_status(&task_id, status, ended_at)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 删除长任务记录
+///
+/// # 返回
+/// - `Ok(true)`: 删除成功
+/// - `Ok(false)`: task_id 不存在（幂等，不报错）
+#[tauri::command]
+pub async fn cmd_long_task_delete(
+    state: State<'_, LongTaskRepository>,
+    task_id: String,
+) -> Result<bool, String> {
+    state.delete(&task_id).await.map_err(|e| e.to_string())
 }

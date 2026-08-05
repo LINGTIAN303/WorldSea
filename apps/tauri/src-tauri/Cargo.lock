@@ -5924,6 +5924,7 @@ version = "0.1.0"
 dependencies = [
  "agent-commands",
  "agent-runtime",
+ "chrono",
  "serde",
  "serde_json",
  "tauri",

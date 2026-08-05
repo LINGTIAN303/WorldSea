@@ -17,6 +17,9 @@ pub enum CommandError {
     #[error("参数错误: {0}")]
     InvalidArgument(String),
 
+    #[error("未找到: {0}")]
+    NotFound(String),
+
     #[error("内部错误: {0}")]
     Internal(String),
 }
@@ -61,6 +64,7 @@ impl CommandError {
             CommandError::SessionNotFound(_) => "session_not_found",
             CommandError::Agent(_) => "agent_error",
             CommandError::InvalidArgument(_) => "invalid_argument",
+            CommandError::NotFound(_) => "not_found",
             CommandError::Internal(_) => "internal",
         }
     }
