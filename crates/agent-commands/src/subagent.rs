@@ -16,6 +16,7 @@
 //!   作为工具结果回填主 Agent。
 
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use agent_runtime::agent::{AgentLoop, AgentLoopConfig};
@@ -26,6 +27,16 @@ use agent_runtime::tool::{Tool, ToolBus, ToolError, WhitelistToolBus};
 use agent_runtime::types::{MessageRole, OrchestratorMessage};
 use async_trait::async_trait;
 use tokio::sync::RwLock;
+
+// 当前委派深度（任务本地存储，防递归委派膨胀）
+// 子 Agent 复用主 Agent 的 `tool_bus`，因此也能看到 `delegate_to_sub_agent` 工具，
+// 理论上可递归委派（孙 Agent）。用 `tokio::task_local!` 在**当前任务**的调用栈上记录
+// 委派深度：顶层 `delegate` 未设置时为 0，委派子 Agent 时把子任务放入
+// `DELEGATE_DEPTH.scope(depth + 1, ...)` 执行，子 Agent 内再次委派即可看到递增后的深度。
+// 用 `try_with` 读取（未设置时按 0 处理），避免 `with` 在非 scope 上下文 panic。
+tokio::task_local! {
+    static DELEGATE_DEPTH: AtomicUsize;
+}
 
 /// 缓存子 Agent — 记录实例及其来源规格
 ///
@@ -56,6 +67,8 @@ pub struct SubAgentManager {
     default_max_iterations: u32,
     /// 子 Agent 单次委派超时（防子 Agent 卡死阻塞主循环）
     delegate_timeout: std::time::Duration,
+    /// 最大委派深度（防递归委派无限膨胀，默认 3）
+    max_delegate_depth: usize,
     /// 事件广播器（可选，None 时静默；一般指向主 Agent 的广播器）
     ///
     /// 委派子 Agent 时通过它广播 `SubAgentStarted` / `SubAgentCompleted` /
@@ -85,6 +98,7 @@ impl SubAgentManager {
             agents: Arc::new(RwLock::new(HashMap::new())),
             default_max_iterations: 25,
             delegate_timeout: std::time::Duration::from_secs(120),
+            max_delegate_depth: 3,
             broadcaster: std::sync::RwLock::new(None),
         }
     }
@@ -92,6 +106,14 @@ impl SubAgentManager {
     /// 设置子 Agent 单次委派超时（返回 &self 支持链式调用）
     pub fn with_delegate_timeout(mut self, timeout: std::time::Duration) -> Self {
         self.delegate_timeout = timeout;
+        self
+    }
+
+    /// 设置最大委派深度（返回 &self 支持链式调用）
+    ///
+    /// 超过该深度后，`delegate` 直接返回错误，防止子 Agent 递归委派无限膨胀。
+    pub fn with_max_delegate_depth(mut self, depth: usize) -> Self {
+        self.max_delegate_depth = depth;
         self
     }
 
@@ -223,10 +245,22 @@ impl SubAgentManager {
     /// 应用单次委派超时（`delegate_timeout`），防止子 Agent 卡死无限阻塞主循环。
     ///
     /// # 错误
-    /// - `ToolError::Other`：规格未注册
+    /// - `ToolError::Other`：规格未注册，或委派深度超限（递归委派）
     /// - `ToolError::Timeout`：子 Agent 运行超时
     /// - `ToolError::Execution`：子 Agent 运行失败
     pub async fn delegate(&self, sub_agent_id: &str, task: &str) -> Result<serde_json::Value, ToolError> {
+        // 委派深度检查：读取当前任务本地深度，超限则拒绝委派（防递归委派无限膨胀）。
+        // 顶层委派未设置 DELEGATE_DEPTH，try_with 失败按 0 处理。
+        let current_depth = DELEGATE_DEPTH
+            .try_with(|d| d.load(Ordering::Relaxed))
+            .unwrap_or(0);
+        if current_depth >= self.max_delegate_depth {
+            return Err(ToolError::Other(format!(
+                "子 Agent 委派深度超限（最大 {}，当前 {}），可能存在递归委派",
+                self.max_delegate_depth, current_depth
+            )));
+        }
+
         let spec = self
             .specs
             .read()
@@ -254,7 +288,14 @@ impl SubAgentManager {
         let started = std::time::Instant::now();
         let agent = self.get_or_create_agent(&spec).await;
         let run_fut = agent.run(task.to_string());
-        let result = match tokio::time::timeout(self.delegate_timeout, run_fut).await {
+        // 在 depth+1 的 scope 内运行子 Agent：子 Agent 内再次委派时读到递增后的深度，
+        // 实现递归委派深度跟踪。顶层（depth=0）委派 → 子 Agent depth=1 → 孙 depth=2 ...
+        let result = DELEGATE_DEPTH
+            .scope(AtomicUsize::new(current_depth + 1), async move {
+                tokio::time::timeout(self.delegate_timeout, run_fut).await
+            })
+            .await;
+        let result = match result {
             Ok(Ok(text)) => text,
             Ok(Err(e)) => {
                 let err_msg = format!("子 Agent '{}' 执行失败: {e}", spec.name);
@@ -688,6 +729,80 @@ mod tests {
         manager.delegate("coder", "帮我写个 hello world").await.unwrap();
         let got = rec.events.lock().unwrap().clone();
         assert_eq!(got, vec!["start".to_string(), "completed".to_string()]);
+    }
+
+    /// 委派深度达到上限时应拒绝委派（返回 ToolError::Other），防止递归委派无限膨胀。
+    ///
+    /// 通过 DELEGATE_DEPTH.scope 手动把当前深度设为 max_delegate_depth（默认 3），
+    /// 再调用 delegate，断言直接返回错误（此时不应执行子 Agent）。
+    #[tokio::test]
+    async fn delegate_rejects_when_depth_at_limit() {
+        let bus = Arc::new(SimpleToolBus::new());
+        let backend: Arc<dyn NodeBackendAccessor> = Arc::new(crate::MockBackend::new());
+        let specs = Arc::new(RwLock::new(Vec::new()));
+        let manager = SubAgentManager::new(backend, bus.clone(), specs.clone());
+        manager.register_spec(spec("coder", "代码助手", "你是代码专家")).await;
+
+        // 手动把当前深度设为 3（= max_delegate_depth 默认值），应被拒绝
+        let result = DELEGATE_DEPTH
+            .scope(AtomicUsize::new(3), async {
+                manager.delegate("coder", "帮我写个 hello world").await
+            })
+            .await;
+        let err = result.expect_err("深度达到上限时应返回错误");
+        assert!(
+            matches!(err, ToolError::Other(_)),
+            "深度超限应返回 ToolError::Other，实际: {err:?}"
+        );
+    }
+
+    /// 委派深度未达上限时应正常执行（深度 scope 不误伤合法委派）。
+    ///
+    /// 手动设 depth=2（< max_delegate_depth=3），delegate 应成功运行子 Agent。
+    #[tokio::test]
+    async fn delegate_allows_within_depth_limit() {
+        let bus = Arc::new(SimpleToolBus::new());
+        let backend: Arc<dyn NodeBackendAccessor> = Arc::new(crate::MockBackend::new());
+        let specs = Arc::new(RwLock::new(Vec::new()));
+        let manager = SubAgentManager::new(backend, bus.clone(), specs.clone());
+        manager.register_spec(spec("coder", "代码助手", "你是代码专家")).await;
+
+        let result = DELEGATE_DEPTH
+            .scope(AtomicUsize::new(2), async {
+                manager.delegate("coder", "帮我写个 hello world").await
+            })
+            .await;
+        result.expect("深度未达上限时应正常完成委派");
+    }
+
+    /// 自定义 max_delegate_depth 生效：设上限为 1，则 depth=1 已被拒绝、depth=0 正常执行。
+    #[tokio::test]
+    async fn delegate_respects_custom_max_depth() {
+        let bus = Arc::new(SimpleToolBus::new());
+        let backend: Arc<dyn NodeBackendAccessor> = Arc::new(crate::MockBackend::new());
+        let specs = Arc::new(RwLock::new(Vec::new()));
+        let manager = SubAgentManager::new(backend, bus.clone(), specs.clone())
+            .with_max_delegate_depth(1);
+        manager.register_spec(spec("coder", "代码助手", "你是代码专家")).await;
+
+        // depth=1 已达上限 1，应被拒绝
+        let blocked = DELEGATE_DEPTH
+            .scope(AtomicUsize::new(1), async {
+                manager.delegate("coder", "帮我写个 hello world").await
+            })
+            .await;
+        assert!(
+            matches!(blocked, Err(ToolError::Other(_))),
+            "depth=1 达到自定义上限 1 应被拒绝，实际: {blocked:?}"
+        );
+
+        // depth=0 未达上限，应正常执行
+        let ok = DELEGATE_DEPTH
+            .scope(AtomicUsize::new(0), async {
+                manager.delegate("coder", "帮我写个 hello world").await
+            })
+            .await;
+        ok.expect("depth=0 未达自定义上限应正常完成");
     }
 
     /// 注入广播器后，delegate 超时路径应广播 start → error 事件

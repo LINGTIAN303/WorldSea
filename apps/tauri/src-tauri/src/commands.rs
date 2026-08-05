@@ -14,10 +14,11 @@
 
 use agent_commands::{AgentCommandService, SendMessageParams, TerminalService, UpdateModelParams};
 use agent_runtime::backend::ThinkingLevel;
-use agent_runtime::event::{OrchestratorEvent, EventListener};
+use agent_runtime::event::{OrchestratorEvent, EventListener, AgentEvent};
 use agent_runtime::llm::config::ProviderConfig;
 use agent_runtime::supervisor::SubAgentSpec;
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex as StdMutex, OnceLock};
 use tauri::{AppHandle, Emitter, State};
 
 /// 转发 AgentLoop 事件到 Tauri 前端事件系统
@@ -136,10 +137,50 @@ impl EventListener for TauriAgentEventEmitter {
                     tracing::warn!("Failed to emit SubAgentError event to frontend: {}", err);
                 }
             }
+            // 流式响应事件（打字机效果）
+            //
+            // 转发 `StreamStart` / `StreamDelta` / `StreamEnd` / `Error` / `AgentEnd`
+            // 到前端通道 `agent:event:stream:{session_id}`，前端据此实现打字机效果。
+            // payload: { type, model | delta | fullText | message }
+            OrchestratorEvent::Agent(agent_event) => {
+                let payload = match agent_event {
+                    AgentEvent::StreamStart { model } => {
+                        serde_json::json!({ "type": "start", "model": model })
+                    }
+                    AgentEvent::StreamDelta { delta } => {
+                        serde_json::json!({ "type": "delta", "delta": delta })
+                    }
+                    AgentEvent::StreamEnd { full_text } => {
+                        serde_json::json!({ "type": "end", "fullText": full_text })
+                    }
+                    AgentEvent::Error { message } => {
+                        serde_json::json!({ "type": "error", "message": message })
+                    }
+                    AgentEvent::AgentEnd => serde_json::json!({ "type": "agent_end" }),
+                    // 其他基础 Agent 事件（UserMessage / ToolCall* / A2UI）暂不在此通道转发
+                    _ => return,
+                };
+                let event_name = format!("agent:event:stream:{}", self.session_id);
+                if let Err(err) = self.app.emit(&event_name, payload) {
+                    tracing::warn!("Failed to emit Stream event to frontend: {}", err);
+                }
+            }
             // 其他事件目前不需要转发到前端
             _ => {}
         }
     }
+}
+
+/// 每会话一个 TauriAgentEventEmitter 的注册表
+///
+/// `send_message` 每次调用都会 `agent.subscribe`；若每次都新建 emitter，
+/// 即使 `EventBroadcaster` 已去重（不同实例指针不同），仍会造成事件多播。
+/// 这里按 `session_id` 复用同一个 emitter，保证每个会话只订阅一次。
+static EMITTER_REGISTRY: OnceLock<StdMutex<HashMap<String, Arc<TauriAgentEventEmitter>>>> =
+    OnceLock::new();
+
+fn emitter_registry() -> &'static StdMutex<HashMap<String, Arc<TauriAgentEventEmitter>>> {
+    EMITTER_REGISTRY.get_or_init(|| StdMutex::new(HashMap::new()))
 }
 
 /// 新建会话
@@ -185,15 +226,26 @@ pub async fn send_message(
     params: SendMessageParams,
 ) -> Result<agent_commands::SendMessageResult, String> {
     let agent = state.get_agent(&params.session_id).await.map_err(|e| e.to_string())?;
-    
-    // 注册 Deep Phase 事件转发监听器
-    // 幂等：如果已注册过，Arc 会保留，重复订阅不影响（broadcaster 允许多个监听器）
-    let emitter = Arc::new(TauriAgentEventEmitter {
-        app: app.clone(),
-        session_id: params.session_id.clone(),
-    });
-    agent.subscribe(emitter).await;
-    
+
+    // 注册事件转发监听器（每会话仅一次，复用 emitter 避免事件多播）
+    //
+    // 注意：`emitter_registry` 的 MutexGuard 不能跨 await 持有（否则 future 非 Send），
+    // 故先判断是否需要注册（guard 随即释放），再在 guard 之外 await subscribe，
+    // 最后重新加锁插入。
+    let needs_register = {
+        let registry = emitter_registry().lock().unwrap();
+        !registry.contains_key(&params.session_id)
+    };
+    if needs_register {
+        let emitter = Arc::new(TauriAgentEventEmitter {
+            app: app.clone(),
+            session_id: params.session_id.clone(),
+        });
+        agent.subscribe(emitter.clone()).await;
+        let mut registry = emitter_registry().lock().unwrap();
+        registry.entry(params.session_id.clone()).or_insert(emitter);
+    }
+
     state.send_message(params).await.map_err(|e| e.to_string())
 }
 

@@ -125,6 +125,27 @@ type RustSubAgentPayload =
   | RustSubAgentCompletedPayload
   | RustSubAgentErrorPayload
 
+// ─── Rust 流式响应事件 Payload ──────────────────────────────
+//
+// 对应 `crates/agent-runtime` 的 `AgentEvent::StreamStart/StreamDelta/StreamEnd/
+// Error/AgentEnd`，经 Tauri `TauriAgentEventEmitter` 转发到前端
+// `agent:event:stream:{session_id}` 通道，用于实现打字机效果。
+//
+// 事件类型（`type` 字段）：
+// - `start`：流式开始（携带模型 ID）
+// - `delta`：流式增量（追加到当前助手消息）
+// - `end`：流式结束（携带完整文本，作为最终权威内容）
+// - `error`：流式过程出错
+// - `agent_end`：Agent 循环结束（用于清理流式占位状态）
+
+/** Rust 流式响应事件 payload 联合类型 */
+type RustStreamPayload =
+  | { type: 'start'; model: string }
+  | { type: 'delta'; delta: string }
+  | { type: 'end'; fullText: string }
+  | { type: 'error'; message: string }
+  | { type: 'agent_end' }
+
 // ─── Rust 端类型镜像（snake_case，与 agent-runtime 序列化一致）──────────────
 
 /** Rust `agent_commands::SessionInfo` 镜像 */
@@ -304,6 +325,17 @@ const subAgents = ref<SubAgentState[]>([])
 
 /** 子 Agent 委派事件监听器清理函数（按 sessionId 索引） */
 const subAgentUnlistenFns = new Map<string, UnlistenFn>()
+
+// ─── 流式响应状态 ────────────────────────────────────────
+
+/** 正在流式生成的助手消息（打字机效果：随 delta 增量更新） */
+const streamingAssistant = ref<AgentMessage | null>(null)
+
+/** 最近一次流式创建的助手消息（用于 send_message 返回后与之去重，避免重复追加） */
+const lastStreamedMsg = ref<AgentMessage | null>(null)
+
+/** 流式事件监听器清理函数（按 sessionId 索引） */
+const streamUnlistenFns = new Map<string, UnlistenFn>()
 
 // ─── 事件分发 ────────────────────────────────────────────
 function emit(event: AgentEvent): void {
@@ -615,6 +647,100 @@ function teardownSubAgentListener(sessionId: string): void {
   }
 }
 
+// ─── 流式响应事件监听（StreamStart/StreamDelta/StreamEnd）────────────────────
+
+/**
+ * 按 id 同时更新 `messages` 与 `sessionMessagesCache` 中的消息
+ *
+ * 流式 delta 采用不可变替换触发 Vue 响应式；缓存与消息列表存的是同一对象引用，
+ * 为避免缓存陈旧，需要同步更新两处。
+ */
+function upsertMsgInSession(id: string, updated: AgentMessage, sessionId: string): void {
+  const mi = messages.value.findIndex((m) => m.id === id)
+  if (mi >= 0) messages.value[mi] = updated
+  const cache = sessionMessagesCache.get(sessionId)
+  if (cache) {
+    const ci = cache.findIndex((m) => m.id === id)
+    if (ci >= 0) cache[ci] = updated
+  }
+}
+
+/**
+ * 处理一条流式事件，驱动打字机效果
+ *
+ * - `start`：创建一条空助手消息并推入消息列表，开始累积
+ * - `delta`：把增量追加到当前流式消息
+ * - `end`：以完整文本为权威内容收尾，清空流式占位
+ * - `error` / `agent_end`：清理流式占位
+ */
+function handleStreamEvent(sessionId: string, payload: RustStreamPayload): void {
+  if (payload.type === 'start') {
+    const msg: AgentMessage = {
+      id: `assistant-${Date.now()}`,
+      role: 'assistant',
+      content: '',
+      timestamp: Date.now(),
+    }
+    streamingAssistant.value = msg
+    lastStreamedMsg.value = msg
+    messages.value.push(msg)
+    sessionMessagesCache.get(sessionId)?.push(msg)
+    return
+  }
+
+  if (payload.type === 'delta') {
+    const target = streamingAssistant.value
+    if (!target) return
+    const updated: AgentMessage = { ...target, content: target.content + payload.delta }
+    streamingAssistant.value = updated
+    upsertMsgInSession(target.id, updated, sessionId)
+    return
+  }
+
+  if (payload.type === 'end') {
+    const target = streamingAssistant.value
+    streamingAssistant.value = null
+    if (target) {
+      // 以完整文本为权威内容（与 delta 累积可能存在的截断/差异对齐）
+      const updated: AgentMessage = { ...target, content: payload.fullText }
+      lastStreamedMsg.value = updated
+      upsertMsgInSession(target.id, updated, sessionId)
+    }
+    return
+  }
+
+  // error / agent_end：清理流式占位，保留已累积内容
+  streamingAssistant.value = null
+}
+
+/**
+ * 为指定会话设置流式事件监听
+ *
+ * 监听 `agent:event:stream:{session_id}`。幂等：已存在监听器则直接返回。
+ */
+async function setupStreamListener(sessionId: string): Promise<void> {
+  if (streamUnlistenFns.has(sessionId)) return
+
+  const eventName = `agent:event:stream:${sessionId}`
+  try {
+    const unlisten = await listen<RustStreamPayload>(eventName, (e) => {
+      handleStreamEvent(sessionId, e.payload)
+    })
+    streamUnlistenFns.set(sessionId, unlisten)
+  } catch (err) {
+    console.error(`[useAgentRust] listen ${eventName} 失败:`, err)
+  }
+}
+
+/** 清理指定会话的流式事件监听 */
+function teardownStreamListener(sessionId: string): void {
+  const unlisten = streamUnlistenFns.get(sessionId)
+  if (unlisten) {
+    unlisten()
+    streamUnlistenFns.delete(sessionId)
+  }
+}
+
 // ─── 命令封装：会话生命周期 ────────────────────────────────────
 
 /** 新建会话（返回 Rust SessionInfo） */
@@ -636,6 +762,7 @@ async function newSession(
   await setupDeepPhaseListener(info.id)
   await setupA2UIListener(info.id)
   await setupSubAgentListener(info.id)
+  await setupStreamListener(info.id)
   await refreshSessionList()
   return info
 }
@@ -659,6 +786,7 @@ async function deleteSession(sessionId: string): Promise<void> {
   teardownDeepPhaseListener(sessionId)
   teardownA2UIListener(sessionId)
   teardownSubAgentListener(sessionId)
+  teardownStreamListener(sessionId)
   if (currentSessionId.value === sessionId) {
     currentSessionId.value = null
     messages.value = []
@@ -677,6 +805,7 @@ async function switchSession(sessionId: string): Promise<void> {
     teardownDeepPhaseListener(oldSessionId)
     teardownA2UIListener(oldSessionId)
     teardownSubAgentListener(oldSessionId)
+    teardownStreamListener(oldSessionId)
   }
   currentSessionId.value = sessionId
   deepSegments.value = []
@@ -685,6 +814,7 @@ async function switchSession(sessionId: string): Promise<void> {
   await setupDeepPhaseListener(sessionId)
   await setupA2UIListener(sessionId)
   await setupSubAgentListener(sessionId)
+  await setupStreamListener(sessionId)
   const cached = sessionMessagesCache.get(sessionId)
   if (cached) {
     messages.value = cached
@@ -729,6 +859,8 @@ async function prompt(text: string, options?: PromptOptions): Promise<void> {
 
   // 深度模式：为当前会话建立 DeepPhaseChanged 事件监听（幂等）
   await setupDeepPhaseListener(sessionId)
+  // 流式监听：支持打字机效果（幂等）
+  await setupStreamListener(sessionId)
 
   // 用户消息
   const userMsg: AgentMessage = {
@@ -758,18 +890,30 @@ async function prompt(text: string, options?: PromptOptions): Promise<void> {
       },
     })
 
-    // 助手回复
-    const replyId = `assistant-${Date.now()}`
-    const assistantMsg: AgentMessage = {
-      id: replyId,
-      role: 'assistant',
-      content: result.reply,
-      timestamp: Date.now(),
+    // 助手回复：与流式事件创建的助手消息去重
+    // 若已通过 stream 事件落地（打字机），直接复用该消息并以 reply 为最终权威内容；
+    // 否则（非流式后端）一次性创建助手消息。
+    const streamed = lastStreamedMsg.value
+    lastStreamedMsg.value = null
+    streamingAssistant.value = null
+
+    let assistantMsg: AgentMessage
+    if (streamed) {
+      assistantMsg = { ...streamed, content: result.reply }
+      upsertMsgInSession(streamed.id, assistantMsg, sessionId)
+    } else {
+      assistantMsg = {
+        id: `assistant-${Date.now()}`,
+        role: 'assistant',
+        content: result.reply,
+        timestamp: Date.now(),
+      }
+      messages.value.push(assistantMsg)
+      sessionMessagesCache.get(sessionId)?.push(assistantMsg)
     }
+
     emit({ type: 'message_start', message: assistantMsg })
-    messages.value.push(assistantMsg)
-    sessionMessagesCache.get(sessionId)?.push(assistantMsg)
-    emit({ type: 'message_end', messageId: replyId, content: result.reply, thinking: '' })
+    emit({ type: 'message_end', messageId: assistantMsg.id, content: result.reply, thinking: '' })
     emit({ type: 'turn_end', message: assistantMsg })
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err))
@@ -905,6 +1049,13 @@ function dispose(): void {
   }
   subAgentUnlistenFns.clear()
   subAgents.value = []
+  // 清理所有流式事件监听器
+  for (const unlisten of streamUnlistenFns.values()) {
+    unlisten()
+  }
+  streamUnlistenFns.clear()
+  streamingAssistant.value = null
+  lastStreamedMsg.value = null
 }
 
 // ─── 派生状态 ────────────────────────────────────
@@ -984,6 +1135,10 @@ export function useAgentRust() {
 
     // ── 子 Agent 委派状态（SubAgentSection 依赖）──
     subAgents,
+
+    // ── 流式响应（打字机效果）──
+    streamingAssistant,
+    lastStreamedMsg,
 
     // ── 状态查询 ──
     getProviderConfig,

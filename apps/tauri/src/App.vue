@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Phase 5.2：注入 Tauri 端 Agent Backend（Rust 命令层），验证「前端 → IPC → Rust → 响应」链路
-import { ref, onMounted } from 'vue'
+import { ref, watch, nextTick, onMounted } from 'vue'
 import { A2UIRenderer } from '@worldsmith/shared-ui'
 import { provideAgentBackend, useAgentRust } from './agent/composables/useAgentRust'
 import TerminalView from './terminal/components/TerminalView.vue'
@@ -21,7 +21,36 @@ const input = ref('')
 const sending = ref(false)
 const error = ref('')
 
-/** 当前视图：chat（对话） / terminal（终端） / subagent（子 Agent 管理） */
+/** 消息区容器（用于自动滚动跟随） */
+const messagesEl = ref<HTMLElement | null>(null)
+/** 是否自动跟随底部（用户上翻历史时置 false，避免被打断） */
+const followBottom = ref(true)
+
+/** 用户滚动时更新跟随状态：接近底部则恢复跟随 */
+function onMessagesScroll() {
+  const el = messagesEl.value
+  if (!el) return
+  followBottom.value = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+}
+
+/** 滚动到消息区底部（nextTick 保证 DOM 已更新） */
+function scrollMessagesToBottom() {
+  const el = messagesEl.value
+  if (!el) return
+  nextTick(() => {
+    el.scrollTop = el.scrollHeight
+  })
+}
+
+// 流式输出（打字机）与新消息落地时，若处于跟随状态则自动滚动到底部
+watch(
+  () => backend.messages.value.map((m: { id: string; content: string }) => m.id + m.content.length).join('|'),
+  () => {
+    if (followBottom.value) scrollMessagesToBottom()
+  },
+)
+
+// 当前视图：chat（对话） / terminal（终端） / subagent（子 Agent 管理）
 const view = ref<'chat' | 'terminal' | 'subagent'>('chat')
 
 /** 发送消息：走 useAgentRust.prompt → invoke('send_message') → Rust ReAct 循环 */
@@ -93,7 +122,7 @@ onMounted(async () => {
         <span class="status">{{ backend.isStreaming ? '思考中…' : '就绪' }}</span>
       </header>
 
-      <div class="messages">
+      <div class="messages" ref="messagesEl" @scroll.passive="onMessagesScroll">
         <div v-if="backend.messages.length === 0" class="empty">
           输入消息开始对话（走 Rust 命令层，当前为 Mock 后端）
         </div>

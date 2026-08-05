@@ -770,6 +770,11 @@ impl EventBroadcaster {
     }
 
     pub fn subscribe(&mut self, listener: Arc<dyn EventListener>) {
+        // 去重：同一监听器实例（Arc 强指针相等）不重复订阅，
+        // 避免调用方反复订阅同一监听器导致事件多播（如前端重复 delta）。
+        if self.listeners.iter().any(|l| Arc::ptr_eq(l, &listener)) {
+            return;
+        }
         self.listeners.push(listener);
     }
 
