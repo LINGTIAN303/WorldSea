@@ -79,6 +79,24 @@ async function onThinkingLevelChange(e: Event) {
   }
 }
 
+/** 新建会话：调用 Rust new_session，并设为当前会话 */
+async function onNewSession() {
+  try {
+    await backend.newSession('WorldSmith 桌面端测试助手')
+  } catch (err) {
+    error.value = `新建会话失败: ${err}`
+  }
+}
+
+/** 删除会话：调用 Rust delete_session（若删除当前会话则清空本地状态） */
+async function onDeleteSession(id: string) {
+  try {
+    await backend.deleteSession(id)
+  } catch (err) {
+    error.value = `删除会话失败: ${err}`
+  }
+}
+
 // 启动时自动新建会话（验证 new_session 链路）
 onMounted(async () => {
   try {
@@ -111,17 +129,22 @@ onMounted(async () => {
     <!-- 对话视图 -->
     <div v-else class="chat-wrap">
     <aside class="sidebar">
-      <h2>会话</h2>
+      <div class="sidebar-head">
+        <h2>会话</h2>
+        <button class="new-session" title="新建会话" @click="onNewSession">＋ 新建</button>
+      </div>
       <div v-if="backend.sessionList.length === 0" class="empty">暂无会话</div>
       <ul class="sessions">
         <li
           v-for="s in backend.sessionList"
           :key="s.id"
           :class="{ active: s.id === backend.currentSessionId }"
-          @click="backend.switchSession(s.id)"
         >
-          {{ (s.id ?? '').slice(0, 8) }}
-          <span class="count">{{ s.message_count }}</span>
+          <button class="session-switch" @click="backend.switchSession(s.id)">
+            {{ (s.id ?? '').slice(0, 8) }}
+            <span class="count">{{ s.message_count }}</span>
+          </button>
+          <button class="session-del" title="删除会话" @click="onDeleteSession(s.id)">×</button>
         </li>
       </ul>
     </aside>
@@ -245,7 +268,25 @@ onMounted(async () => {
 .sidebar h2 {
   font-size: 14px;
   color: #666;
-  margin: 0 0 12px;
+  margin: 0;
+}
+.sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.new-session {
+  padding: 3px 10px;
+  border: 1px solid #1a73e8;
+  border-radius: 6px;
+  background: transparent;
+  color: #1a73e8;
+  font-size: 12px;
+  cursor: pointer;
+}
+.new-session:hover {
+  background: #e8f0fe;
 }
 .sessions {
   list-style: none;
@@ -253,12 +294,12 @@ onMounted(async () => {
   margin: 0;
 }
 .sessions li {
-  padding: 8px 10px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 13px;
   display: flex;
-  justify-content: space-between;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  border-radius: 6px;
+  font-size: 13px;
   color: #333;
 }
 .sessions li:hover {
@@ -266,7 +307,43 @@ onMounted(async () => {
 }
 .sessions li.active {
   background: #e8f0fe;
+}
+.session-switch {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 6px;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.sessions li.active .session-switch {
   color: #1a73e8;
+}
+.session-del {
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #999;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.sessions li:hover .session-del {
+  opacity: 1;
+}
+.session-del:hover {
+  background: #fce8e6;
+  color: #d93025;
 }
 .count {
   font-size: 11px;

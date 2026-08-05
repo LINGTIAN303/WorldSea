@@ -273,7 +273,7 @@ const thinkingLevel = ref<ThinkingLevel>('off')
 /** 事件订阅者集合（subscribe 注册，dispose / 触发时分发） */
 const listeners = new Set<AgentEventListener>()
 
-/** 待办：会话消息缓存（按 sessionId），切换会话时恢复 */
+/** 会话消息缓存（按 sessionId），切换会话时优先从缓存恢复，缺失再回源 get_messages */
 const sessionMessagesCache = new Map<string, AgentMessage[]>()
 
 /** 深度模式段（thinking | phase），由 Rust DeepPhaseChanged 事件驱动构建 */
