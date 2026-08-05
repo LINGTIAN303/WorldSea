@@ -28,6 +28,8 @@ const form = reactive<SubAgentSpec>({
 })
 const formError = ref('')
 const editingId = ref('') // 非空表示正在编辑现有规格
+// 列表区瞬态提示（复制/删除结果反馈）
+const listMsg = ref('')
 
 // 导出/导入弹窗状态
 const ioOpen = ref(false)
@@ -141,6 +143,16 @@ function edit(spec: SubAgentSpec) {
   formError.value = ''
 }
 
+/** 复制单个规格的 JSON 到剪贴板（便于分享 / 复用单个子 Agent） */
+async function copySpec(spec: SubAgentSpec) {
+  try {
+    await navigator.clipboard.writeText(JSON.stringify(spec, null, 2))
+    listMsg.value = `已复制「${spec.name}」的规格 JSON`
+  } catch (err) {
+    listMsg.value = err instanceof Error ? err.message : String(err)
+  }
+}
+
 /** 删除规格 */
 async function remove(spec: SubAgentSpec) {
   if (!window.confirm(`确定删除子 Agent「${spec.name}」（${spec.id}）？`)) return
@@ -208,6 +220,7 @@ onMounted(sub.refreshSpecs)
         暂无子 Agent 规格。<br />在右侧新增一个，主 Agent 即可通过
         <code>delegate_to_sub_agent</code> 委派任务给它。
       </div>
+      <p v-if="listMsg" class="list-msg">{{ listMsg }}</p>
 
       <ul class="specs">
         <li v-for="s in specs" :key="s.id" class="spec" :class="{ editing: editingId === s.id }">
@@ -220,7 +233,10 @@ onMounted(sub.refreshSpecs)
             </div>
             <div class="desc">{{ s.description }}</div>
           </div>
-          <button class="remove" title="删除" @click="remove(s)">删除</button>
+          <div class="spec-actions">
+            <button class="copy" title="复制该规格 JSON" @click="copySpec(s)">复制</button>
+            <button class="remove" title="删除" @click="remove(s)">删除</button>
+          </div>
         </li>
       </ul>
     </section>
@@ -451,12 +467,45 @@ onMounted(sub.refreshSpecs)
   opacity: 0;
   transition: opacity 0.15s;
 }
-.spec:hover .remove {
-  opacity: 1;
-}
 .remove:hover {
   background: #d93025;
   color: #fff;
+}
+/* 列表项操作按钮组（复制 + 删除，悬浮显示） */
+.spec-actions {
+  flex-shrink: 0;
+  display: flex;
+  gap: 6px;
+}
+.spec-actions .copy,
+.spec-actions .remove {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.spec:hover .spec-actions .copy,
+.spec:hover .spec-actions .remove {
+  opacity: 1;
+}
+.copy {
+  padding: 4px 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: #fff;
+  color: #1a73e8;
+  font-size: 12px;
+  cursor: pointer;
+}
+.copy:hover {
+  background: #e8f0fe;
+}
+/* 列表区瞬态提示 */
+.list-msg {
+  font-size: 12px;
+  color: #188038;
+  background: #e6f4ea;
+  padding: 6px 10px;
+  border-radius: 6px;
+  margin: 0 0 10px;
 }
 .form {
   flex: 1;

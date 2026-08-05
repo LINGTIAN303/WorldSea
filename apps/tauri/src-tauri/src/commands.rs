@@ -462,6 +462,7 @@ pub async fn subagent_register_spec(
     state: State<'_, AgentCommandService>,
     spec: SubAgentSpec,
 ) -> Result<(), String> {
+    agent_commands::validate_subagent_spec(&spec)?;
     state.register_subagent_spec(spec).await;
     Ok(())
 }

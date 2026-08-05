@@ -140,6 +140,50 @@ pub struct AgentCommandService {
     subagent_store: Option<Arc<dyn SubAgentSpecStore>>,
 }
 
+/// 校验一个子 Agent 规格是否合法
+///
+/// 在命令层（`subagent_register_spec`）与批量导入（`import_subagent_specs`）两个入口
+/// 统一调用，阻止非法规格进入注册表。返回 `Err` 时携带中文说明，可直接透传给前端展示。
+pub fn validate_subagent_spec(spec: &SubAgentSpec) -> Result<(), String> {
+    let id = spec.id.trim();
+    if id.is_empty() {
+        return Err("子 Agent 的 id 不能为空".into());
+    }
+    if id.len() > 64 {
+        return Err("子 Agent 的 id 过长（最多 64 个字符）".into());
+    }
+    if !id
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+    {
+        return Err("子 Agent 的 id 仅允许字母、数字、下划线、连字符".into());
+    }
+
+    if spec.name.trim().is_empty() {
+        return Err(format!("子 Agent [{id}] 的 name 不能为空"));
+    }
+    if spec.description.trim().is_empty() {
+        return Err(format!("子 Agent [{id}] 的 description 不能为空"));
+    }
+    if spec.system_prompt.trim().is_empty() {
+        return Err(format!("子 Agent [{id}] 的 system_prompt 不能为空"));
+    }
+
+    if let Some(n) = spec.max_iterations {
+        if n == 0 {
+            return Err(format!("子 Agent [{id}] 的 max_iterations 必须大于 0"));
+        }
+    }
+
+    if let Some(tools) = &spec.tools_whitelist {
+        if tools.iter().any(|t| t.trim().is_empty()) {
+            return Err(format!("子 Agent [{id}] 的工具白名单不能包含空名称"));
+        }
+    }
+
+    Ok(())
+}
+
 impl AgentCommandService {
     /// 创建空服务
     pub fn new() -> Self {
@@ -375,10 +419,15 @@ impl AgentCommandService {
     /// 从 JSON 字符串导入子 Agent 规格（按 id 覆盖，等同逐条 register）
     ///
     /// 接受 [`Self::export_subagent_specs`] 产生的数组 JSON。返回实际导入条数；
-    /// JSON 结构非法时返回 [`CommandError`]（此时不写入任何规格）。
+    /// JSON 结构非法或任一条规格校验不过时返回 [`CommandError`]（此时不写入任何规格，
+    /// 保持原子性——要么全部导入，要么全部不导入）。
     pub async fn import_subagent_specs(&self, json: &str) -> Result<usize, CommandError> {
         let specs: Vec<SubAgentSpec> = serde_json::from_str(json)
             .map_err(|e| CommandError::Internal(format!("解析子 Agent 规格 JSON 失败: {e}")))?;
+        // 先整体校验，任一非法即整体拒绝，避免部分写入
+        for spec in specs.iter() {
+            validate_subagent_spec(spec).map_err(CommandError::invalid_argument)?;
+        }
         for spec in specs.iter() {
             self.register_subagent_spec(spec.clone()).await;
         }
@@ -757,6 +806,95 @@ mod tests {
         assert!(
             svc.list_subagent_specs().await.is_empty(),
             "非法导入不应写入任何规格"
+        );
+    }
+
+    #[test]
+    fn validate_subagent_spec_accepts_valid() {
+        let spec = SubAgentSpec {
+            id: "coder".into(),
+            name: "代码助手".into(),
+            description: "处理代码编写".into(),
+            system_prompt: "你是代码专家".into(),
+            tools_whitelist: Some(vec!["execute_command".into()]),
+            max_iterations: Some(3),
+        };
+        assert!(validate_subagent_spec(&spec).is_ok());
+        // 白名单与 max_iterations 均可省略
+        let minimal = SubAgentSpec {
+            id: "writer".into(),
+            name: "写作".into(),
+            description: "写作".into(),
+            system_prompt: "写作专家".into(),
+            tools_whitelist: None,
+            max_iterations: None,
+        };
+        assert!(validate_subagent_spec(&minimal).is_ok());
+    }
+
+    #[test]
+    fn validate_subagent_spec_rejects_invalid() {
+        let base = SubAgentSpec {
+            id: "coder".into(),
+            name: "代码助手".into(),
+            description: "处理代码编写".into(),
+            system_prompt: "你是代码专家".into(),
+            tools_whitelist: None,
+            max_iterations: None,
+        };
+        // 空 id
+        assert!(validate_subagent_spec(&SubAgentSpec { id: "".into(), ..base.clone() }).is_err());
+        // 非法字符 id
+        assert!(validate_subagent_spec(&SubAgentSpec { id: "a b".into(), ..base.clone() }).is_err());
+        assert!(validate_subagent_spec(&SubAgentSpec { id: "a/b".into(), ..base.clone() }).is_err());
+        // 超长 id
+        assert!(validate_subagent_spec(&SubAgentSpec {
+            id: "x".repeat(65),
+            ..base.clone()
+        })
+        .is_err());
+        // 空 name / description / system_prompt
+        assert!(validate_subagent_spec(&SubAgentSpec { name: "".into(), ..base.clone() }).is_err());
+        assert!(validate_subagent_spec(&SubAgentSpec {
+            description: "".into(),
+            ..base.clone()
+        })
+        .is_err());
+        assert!(validate_subagent_spec(&SubAgentSpec {
+            system_prompt: "".into(),
+            ..base.clone()
+        })
+        .is_err());
+        // max_iterations = 0 非法
+        assert!(validate_subagent_spec(&SubAgentSpec {
+            max_iterations: Some(0),
+            ..base.clone()
+        })
+        .is_err());
+        // 白名单含空名非法
+        assert!(validate_subagent_spec(&SubAgentSpec {
+            tools_whitelist: Some(vec!["".into()]),
+            ..base.clone()
+        })
+        .is_err());
+    }
+
+    #[tokio::test]
+    async fn import_subagent_specs_rejects_invalid_atomically() {
+        let svc = AgentCommandService::new();
+        // 第一条合法、第二条 id 为空 → 整体应被拒绝，合法那条也不写入
+        let json = r#"[
+            {"id":"ok","name":"合法","description":"描述","system_prompt":"提示词"},
+            {"id":"","name":"非法","description":"描述","system_prompt":"提示词"}
+        ]"#;
+        let err = svc.import_subagent_specs(json).await.unwrap_err();
+        assert!(
+            matches!(err, CommandError::InvalidArgument(_)),
+            "含非法规格应报参数错误，实际: {err}"
+        );
+        assert!(
+            svc.list_subagent_specs().await.is_empty(),
+            "整体校验失败时不应写入任何规格（原子性）"
         );
     }
 }
