@@ -474,3 +474,26 @@ pub async fn subagent_remove_spec(
 ) -> Result<bool, String> {
     Ok(state.remove_subagent_spec(&id).await)
 }
+
+/// 导出全部子 Agent 规格为 JSON 字符串（备份/跨机迁移）
+#[tauri::command]
+pub async fn subagent_export_specs(
+    state: State<'_, AgentCommandService>,
+) -> Result<String, String> {
+    state
+        .export_subagent_specs()
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 从 JSON 字符串导入子 Agent 规格（按 id 覆盖，返回导入条数）
+#[tauri::command]
+pub async fn subagent_import_specs(
+    state: State<'_, AgentCommandService>,
+    json: String,
+) -> Result<usize, String> {
+    state
+        .import_subagent_specs(&json)
+        .await
+        .map_err(|e| e.to_string())
+}

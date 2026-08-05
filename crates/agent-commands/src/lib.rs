@@ -362,6 +362,29 @@ impl AgentCommandService {
         self.subagent_specs.read().await.clone()
     }
 
+    /// 导出全部子 Agent 规格为 JSON 字符串（pretty 打印，便于人读与 diff）
+    ///
+    /// 用作备份或跨机器迁移：前端把返回的 JSON 保存为文件，换机后通过
+    /// [`Self::import_subagent_specs`] 恢复。
+    pub async fn export_subagent_specs(&self) -> Result<String, CommandError> {
+        let specs = self.list_subagent_specs().await;
+        serde_json::to_string_pretty(&specs)
+            .map_err(|e| CommandError::Internal(format!("序列化子 Agent 规格失败: {e}")))
+    }
+
+    /// 从 JSON 字符串导入子 Agent 规格（按 id 覆盖，等同逐条 register）
+    ///
+    /// 接受 [`Self::export_subagent_specs`] 产生的数组 JSON。返回实际导入条数；
+    /// JSON 结构非法时返回 [`CommandError`]（此时不写入任何规格）。
+    pub async fn import_subagent_specs(&self, json: &str) -> Result<usize, CommandError> {
+        let specs: Vec<SubAgentSpec> = serde_json::from_str(json)
+            .map_err(|e| CommandError::Internal(format!("解析子 Agent 规格 JSON 失败: {e}")))?;
+        for spec in specs.iter() {
+            self.register_subagent_spec(spec.clone()).await;
+        }
+        Ok(specs.len())
+    }
+
     // ── 状态 / 消息查询 ────────────────────────────────────
 
     /// 状态快照
@@ -661,5 +684,79 @@ mod tests {
         let restored = svc2.list_subagent_specs().await;
         assert_eq!(restored.len(), 1, "删除应写穿，重启后不残留已删规格");
         assert_eq!(restored[0].id, "writer");
+    }
+
+    #[tokio::test]
+    async fn export_import_subagent_specs_roundtrip() {
+        let svc = AgentCommandService::new();
+        svc.register_subagent_spec(SubAgentSpec {
+            id: "coder".into(),
+            name: "代码助手".into(),
+            description: "处理代码编写任务".into(),
+            system_prompt: "你是代码专家".into(),
+            tools_whitelist: Some(vec!["execute_command".into()]),
+            max_iterations: Some(3),
+        })
+        .await;
+        svc.register_subagent_spec(SubAgentSpec {
+            id: "writer".into(),
+            name: "写作助手".into(),
+            description: "处理写作任务".into(),
+            system_prompt: "你是写作专家".into(),
+            tools_whitelist: None,
+            max_iterations: None,
+        })
+        .await;
+
+        // 导出为 JSON → 导入到全新服务（模拟跨机迁移）
+        let json = svc.export_subagent_specs().await.unwrap();
+        assert!(json.contains("coder"), "导出 JSON 应包含全部规格");
+        assert!(json.contains("writer"), "导出 JSON 应包含全部规格");
+
+        let svc2 = AgentCommandService::new();
+        let n = svc2.import_subagent_specs(&json).await.unwrap();
+        assert_eq!(n, 2, "导入应返回实际条数");
+        let restored = svc2.list_subagent_specs().await;
+        assert_eq!(restored.len(), 2, "导入后应恢复全部规格");
+        let coder = restored.iter().find(|s| s.id == "coder").unwrap();
+        assert_eq!(
+            coder.tools_whitelist,
+            Some(vec!["execute_command".into()]),
+            "导入应保留完整字段（含白名单）"
+        );
+    }
+
+    #[tokio::test]
+    async fn import_subagent_specs_overrides_by_id() {
+        let svc = AgentCommandService::new();
+        svc.register_subagent_spec(SubAgentSpec {
+            id: "coder".into(),
+            name: "旧代码助手".into(),
+            description: "旧描述".into(),
+            system_prompt: "旧提示词".into(),
+            tools_whitelist: None,
+            max_iterations: None,
+        })
+        .await;
+
+        // 导入含同名 id 的新定义 → 应覆盖而非追加
+        let json = r#"[{"id":"coder","name":"新代码助手","description":"新描述","system_prompt":"新提示词","tools_whitelist":["execute_command"],"max_iterations":5}]"#;
+        let n = svc.import_subagent_specs(json).await.unwrap();
+        assert_eq!(n, 1);
+        let list = svc.list_subagent_specs().await;
+        assert_eq!(list.len(), 1, "同名 id 导入应覆盖而非追加");
+        assert_eq!(list[0].name, "新代码助手");
+        assert_eq!(list[0].max_iterations, Some(5));
+    }
+
+    #[tokio::test]
+    async fn import_subagent_specs_invalid_json_rejected() {
+        let svc = AgentCommandService::new();
+        let err = svc.import_subagent_specs("not-json").await.unwrap_err();
+        assert!(matches!(err, CommandError::Internal(_)), "非法 JSON 应报错");
+        assert!(
+            svc.list_subagent_specs().await.is_empty(),
+            "非法导入不应写入任何规格"
+        );
     }
 }

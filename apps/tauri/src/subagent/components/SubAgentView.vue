@@ -28,6 +28,60 @@ const form = reactive<SubAgentSpec>({
 const formError = ref('')
 const editingId = ref('') // 非空表示正在编辑现有规格
 
+// 导出/导入弹窗状态
+const ioOpen = ref(false)
+const ioMode = ref<'export' | 'import'>('export')
+const ioText = ref('')
+const ioMsg = ref('')
+
+/** 打开导出弹窗：拉取 JSON 填入 */
+async function openExport() {
+  ioMsg.value = ''
+  try {
+    ioText.value = await sub.exportSpecs()
+    ioMode.value = 'export'
+    ioOpen.value = true
+  } catch (err) {
+    ioMsg.value = err instanceof Error ? err.message : String(err)
+  }
+}
+
+/** 打开导入弹窗 */
+function openImport() {
+  ioMsg.value = ''
+  ioText.value = ''
+  ioMode.value = 'import'
+  ioOpen.value = true
+}
+
+/** 复制导出的 JSON 到剪贴板 */
+async function copyJson() {
+  try {
+    await navigator.clipboard.writeText(ioText.value)
+    ioMsg.value = '已复制到剪贴板'
+  } catch (err) {
+    ioMsg.value = err instanceof Error ? err.message : String(err)
+  }
+}
+
+/** 执行导入 */
+async function doImport() {
+  ioMsg.value = ''
+  const json = ioText.value.trim()
+  if (!json) {
+    ioMsg.value = '请粘贴要导入的 JSON 内容'
+    return
+  }
+  try {
+    const n = await sub.importSpecs(json)
+    ioMsg.value = `导入成功：${n} 条规格（同名 id 已覆盖）`
+    ioText.value = ''
+    ioOpen.value = false
+  } catch (err) {
+    ioMsg.value = err instanceof Error ? err.message : String(err)
+  }
+}
+
 /** 白名单输入（逗号分隔的工具名，空 = 继承全部工具） */
 const whitelistText = ref('')
 
@@ -160,6 +214,8 @@ onMounted(sub.refreshSpecs)
       <header class="form-header">
         <h2>{{ editingId ? '编辑规格' : '新增规格' }}</h2>
         <div class="form-actions">
+          <button class="ghost" @click="openImport">导入</button>
+          <button class="ghost" @click="openExport">导出</button>
           <button v-if="editingId" class="ghost" @click="resetForm">取消编辑</button>
           <button class="ghost" @click="fillCoderTemplate">代码助手模板</button>
         </div>
@@ -211,6 +267,38 @@ onMounted(sub.refreshSpecs)
         </button>
       </div>
     </section>
+
+    <!-- 导出 / 导入弹窗 -->
+    <div v-if="ioOpen" class="io-mask">
+      <div class="io-modal">
+        <header class="io-header">
+          <h3>{{ ioMode === 'export' ? '导出子 Agent 规格' : '导入子 Agent 规格' }}</h3>
+          <button class="io-close" @click="ioOpen = false" aria-label="关闭">×</button>
+        </header>
+        <p v-if="ioMode === 'export'" class="io-tip">
+          以下是当前全部规格的 JSON。可复制保存，换机后通过「导入」恢复。
+        </p>
+        <p v-else class="io-tip">
+          粘贴从「导出」得到的 JSON 数组（或手写 <code>[{...}]</code>），同名 id 会覆盖现有规格。
+        </p>
+        <textarea
+          class="io-text"
+          :readonly="ioMode === 'export'"
+          v-model="ioText"
+          rows="12"
+          spellcheck="false"
+          :placeholder="ioMode === 'import' ? '例如 [{id, name, description, system_prompt}]' : ''"
+        />
+        <p v-if="ioMsg" class="io-msg">{{ ioMsg }}</p>
+        <footer class="io-footer">
+          <button v-if="ioMode === 'export'" class="ghost" @click="copyJson">复制</button>
+          <button v-if="ioMode === 'import'" class="primary" :disabled="subBusy" @click="doImport">
+            {{ subBusy ? '导入中…' : '导入' }}
+          </button>
+          <button class="ghost" @click="ioOpen = false">关闭</button>
+        </footer>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -442,5 +530,84 @@ onMounted(sub.refreshSpecs)
 .ghost:hover {
   border-color: #1a73e8;
   color: #1a73e8;
+}
+/* 导出/导入弹窗 */
+.io-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+.io-modal {
+  width: 560px;
+  max-width: 90vw;
+  background: #fff;
+  border-radius: 12px;
+  padding: 18px 20px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+}
+.io-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.io-header h3 {
+  font-size: 15px;
+  color: #333;
+  margin: 0;
+}
+.io-close {
+  border: none;
+  background: transparent;
+  font-size: 20px;
+  line-height: 1;
+  color: #999;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+.io-close:hover {
+  color: #333;
+}
+.io-tip {
+  font-size: 12px;
+  color: #666;
+  margin: 0 0 10px;
+  line-height: 1.6;
+}
+.io-tip code {
+  background: #f5f5f5;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+.io-text {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+}
+.io-text:focus {
+  border-color: #1a73e8;
+}
+.io-msg {
+  font-size: 12px;
+  color: #1a73e8;
+  margin: 8px 0 0;
+}
+.io-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
 }
 </style>

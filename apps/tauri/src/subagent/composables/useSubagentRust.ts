@@ -89,6 +89,36 @@ async function removeSpec(id: string): Promise<boolean> {
   }
 }
 
+/** 导出全部规格为 JSON 字符串（备份/跨机迁移） */
+async function exportSpecs(): Promise<string> {
+  busy.value = true
+  error.value = ''
+  try {
+    return await invoke<string>('subagent_export_specs')
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : String(err)
+    throw err
+  } finally {
+    busy.value = false
+  }
+}
+
+/** 从 JSON 字符串导入规格（按 id 覆盖），返回导入条数 */
+async function importSpecs(json: string): Promise<number> {
+  busy.value = true
+  error.value = ''
+  try {
+    const n = await invoke<number>('subagent_import_specs', { json })
+    await refreshSpecs()
+    return n
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : String(err)
+    throw err
+  } finally {
+    busy.value = false
+  }
+}
+
 // 注：不在模块顶层调用 onMounted（模块导入时无组件实例，会触发
 // "onMounted called when there is no active component instance" 警告）。
 // 首次拉取规格列表由组件（SubAgentView.vue）的 onMounted 触发。
@@ -105,5 +135,7 @@ export function useSubagentRust() {
     refreshSpecs,
     registerSpec,
     removeSpec,
+    exportSpecs,
+    importSpecs,
   }
 }

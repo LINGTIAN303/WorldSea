@@ -38,6 +38,8 @@ pub fn run() {
             commands::subagent_list_specs,
             commands::subagent_register_spec,
             commands::subagent_remove_spec,
+            commands::subagent_export_specs,
+            commands::subagent_import_specs,
         ])
         // Phase 5.1：Agent 命令服务（内部持有 session_id -> Arc<AgentLoop> 映射）
         // 终端服务（独立持有 ShellSessionManager，供前端直接调用终端命令）
