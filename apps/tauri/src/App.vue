@@ -89,6 +89,26 @@ async function onStop() {
   }
 }
 
+/** 中途引导：把输入文本写入 steer_buffer（下轮 prompt 时附加为前置 user 消息） */
+const steered = ref('')
+let steeredTimer: ReturnType<typeof setTimeout> | null = null
+async function onSteer() {
+  const text = input.value.trim()
+  if (!text || (!sending.value && !backend.isStreaming)) return
+  input.value = ''
+  try {
+    await backend.steer(text)
+    // 弱提示：引导已记录，本轮结束后生效（steer 为缓冲语义，非即时中断）
+    steered.value = '引导已记录，本轮结束后生效'
+    if (steeredTimer) clearTimeout(steeredTimer)
+    steeredTimer = setTimeout(() => {
+      steered.value = ''
+    }, 2500)
+  } catch (err) {
+    error.value = `引导失败: ${err}`
+  }
+}
+
 /** 清空当前会话历史：调用 Rust clear_history（会话保留，仅清消息） */
 async function onClear() {
   try {
@@ -221,7 +241,7 @@ onMounted(async () => {
               <option value="xhigh">极高</option>
             </select>
           </label>
-          <span class="status">{{ backend.isStreaming ? '思考中…' : '就绪' }}</span>
+          <span class="status">{{ steered || (backend.isStreaming ? '思考中…' : '就绪') }}</span>
         </div>
       </header>
 
@@ -258,15 +278,21 @@ onMounted(async () => {
         <input
           v-model="input"
           type="text"
-          placeholder="输入消息，回车发送"
-          :disabled="sending"
-          @keydown.enter="send"
+          :placeholder="(sending || backend.isStreaming) ? '输入引导词，本轮结束后生效' : '输入消息，回车发送'"
+          @keydown.enter="(sending || backend.isStreaming) ? onSteer() : send()"
         />
-        <button
-          v-if="sending || backend.isStreaming"
-          class="stop"
-          @click="onStop"
-        >停止</button>
+        <template v-if="sending || backend.isStreaming">
+          <button
+            class="steer"
+            :disabled="!input.trim()"
+            title="中途引导：本轮结束后生效"
+            @click="onSteer"
+          >引导</button>
+          <button
+            class="stop"
+            @click="onStop"
+          >停止</button>
+        </template>
         <button
           v-else
           :disabled="!input.trim()"
@@ -573,5 +599,11 @@ onMounted(async () => {
 }
 .input-bar button.stop:hover {
   background: #c5221f;
+}
+.input-bar button.steer {
+  background: #5f6368;
+}
+.input-bar button.steer:hover:not(:disabled) {
+  background: #3c4043;
 }
 </style>
