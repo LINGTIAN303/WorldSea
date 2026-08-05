@@ -699,29 +699,58 @@ impl EventListener for LoopControlTauriEventListener {
 ///
 /// # 参数
 /// - `task_id`：任务 ID（与 `LongTaskRecord.task_id` 对齐，前端生成，建议前缀 `lc_`）
-/// - `config`：可选 LoopControlConfig（None=使用默认配置）
+/// - `config`：可选 LoopControlConfig（None=使用默认配置）。仅无会话绑定时生效。
+/// - `session_id`：可选会话 ID。若提供且会话存在，注册该会话 `AgentLoop` 内建的
+///   `LoopController`（与自动驱动共享同一实例，消除"内建自动 vs 命令层手动"双轨）；
+///   此时 `config` 被忽略（以 AgentLoop 内建配置为准）。
 ///
 /// 创建条目后订阅本文件顶部的 TauriEventListener，`check` 广播的 LoopEng* 事件
 /// 会转发到前端 `loop_control:event:{task_id}`。
 #[tauri::command]
 pub async fn cmd_loop_control_create(
     app: AppHandle,
-    state: State<'_, LoopControlRegistry>,
+    state: State<'_, Arc<LoopControlRegistry>>,
+    service: State<'_, AgentCommandService>,
     task_id: String,
     config: Option<LoopControlConfig>,
+    session_id: Option<String>,
 ) -> Result<(), LoopControlRegistryError> {
+    // 绑定会话：复用该会话 AgentLoop 内建 LoopController（共享单实例）
+    if let Some(sid) = session_id {
+        service
+            .register_session_loop_control(task_id.clone(), &sid)
+            .await
+            .map_err(|e| LoopControlRegistryError::Internal {
+                message: e.to_string(),
+            })?;
+        attach_loop_control_listener(&app, &state, &task_id).await;
+        tracing::info!("cmd_loop_control_create: 已绑定会话 {sid} 复用内建控制器 task={task_id}");
+        return Ok(());
+    }
+
+    // 无会话绑定：独立创建控制器（手动轨）
     let config = config.unwrap_or_default();
-    let controller = Arc::new(agent_runtime::loop_control::LoopController::new(config.clone()));
+    let controller =
+        Arc::new(agent_runtime::loop_control::LoopController::new(config.clone()));
     let entry = LoopControlEntry::new(controller, config);
     state.register(task_id.clone(), entry).await?;
-
-    // 注册成功后取出条目并订阅 TauriEventListener（事件转发到前端）
-    let entry_after = state.get(&task_id).await?;
-    let listener = Arc::new(LoopControlTauriEventListener { app: app.clone() });
-    entry_after.subscribe(listener).await;
-
+    attach_loop_control_listener(&app, &state, &task_id).await;
     tracing::info!("cmd_loop_control_create: 已创建 task={task_id}");
     Ok(())
+}
+
+/// 取出已注册条目并订阅 TauriEventListener（把 LoopEng* 事件转发到前端）
+async fn attach_loop_control_listener(
+    app: &AppHandle,
+    state: &State<'_, Arc<LoopControlRegistry>>,
+    task_id: &str,
+) {
+    let entry = match state.get(task_id).await {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+    let listener = Arc::new(LoopControlTauriEventListener { app: app.clone() });
+    entry.subscribe(listener).await;
 }
 
 /// 执行一站式检查并 emit 事件
@@ -730,7 +759,7 @@ pub async fn cmd_loop_control_create(
 /// watchdog，非空结果广播 LoopEng* 事件（经监听器转发前端）。
 #[tauri::command]
 pub async fn cmd_loop_control_check(
-    state: State<'_, LoopControlRegistry>,
+    state: State<'_, Arc<LoopControlRegistry>>,
     task_id: String,
 ) -> Result<LoopControlCheckResult, LoopControlRegistryError> {
     state.check_and_emit(&task_id).await
@@ -739,7 +768,7 @@ pub async fn cmd_loop_control_check(
 /// 记录一次轮次（inc_turns），同时更新活动时间
 #[tauri::command]
 pub async fn cmd_loop_control_record_turn(
-    state: State<'_, LoopControlRegistry>,
+    state: State<'_, Arc<LoopControlRegistry>>,
     task_id: String,
 ) -> Result<(), LoopControlRegistryError> {
     let entry = state.get(&task_id).await?;
@@ -751,7 +780,7 @@ pub async fn cmd_loop_control_record_turn(
 /// 记录一次工具调用（inc_tool_calls），同时更新活动时间
 #[tauri::command]
 pub async fn cmd_loop_control_record_tool_call(
-    state: State<'_, LoopControlRegistry>,
+    state: State<'_, Arc<LoopControlRegistry>>,
     task_id: String,
 ) -> Result<(), LoopControlRegistryError> {
     let entry = state.get(&task_id).await?;
@@ -763,7 +792,7 @@ pub async fn cmd_loop_control_record_tool_call(
 /// 记录 token 消耗（add_tokens），同时更新活动时间
 #[tauri::command]
 pub async fn cmd_loop_control_record_tokens(
-    state: State<'_, LoopControlRegistry>,
+    state: State<'_, Arc<LoopControlRegistry>>,
     task_id: String,
     tokens: u64,
 ) -> Result<(), LoopControlRegistryError> {
@@ -776,7 +805,7 @@ pub async fn cmd_loop_control_record_tokens(
 /// 更新活动时间（心跳，重置 Watchdog 的 last_activity）
 #[tauri::command]
 pub async fn cmd_loop_control_update_activity(
-    state: State<'_, LoopControlRegistry>,
+    state: State<'_, Arc<LoopControlRegistry>>,
     task_id: String,
 ) -> Result<(), LoopControlRegistryError> {
     let entry = state.get(&task_id).await?;
@@ -787,7 +816,7 @@ pub async fn cmd_loop_control_update_activity(
 /// 重置计数器（retry 后调用；不重置 started_at）
 #[tauri::command]
 pub async fn cmd_loop_control_reset_counters(
-    state: State<'_, LoopControlRegistry>,
+    state: State<'_, Arc<LoopControlRegistry>>,
     task_id: String,
 ) -> Result<(), LoopControlRegistryError> {
     let entry = state.get(&task_id).await?;
@@ -798,7 +827,7 @@ pub async fn cmd_loop_control_reset_counters(
 /// 获取任务配置快照
 #[tauri::command]
 pub async fn cmd_loop_control_get_config(
-    state: State<'_, LoopControlRegistry>,
+    state: State<'_, Arc<LoopControlRegistry>>,
     task_id: String,
 ) -> Result<LoopControlConfig, LoopControlRegistryError> {
     let entry = state.get(&task_id).await?;
@@ -808,7 +837,7 @@ pub async fn cmd_loop_control_get_config(
 /// 获取状态快照（计数器 + 触发状态）
 #[tauri::command]
 pub async fn cmd_loop_control_get_status(
-    state: State<'_, LoopControlRegistry>,
+    state: State<'_, Arc<LoopControlRegistry>>,
     task_id: String,
 ) -> Result<LoopControlStatus, LoopControlRegistryError> {
     let entry = state.get(&task_id).await?;
@@ -818,7 +847,7 @@ pub async fn cmd_loop_control_get_status(
 /// 销毁 LoopController 实例（从 registry 移除）
 #[tauri::command]
 pub async fn cmd_loop_control_destroy(
-    state: State<'_, LoopControlRegistry>,
+    state: State<'_, Arc<LoopControlRegistry>>,
     task_id: String,
 ) -> Result<(), LoopControlRegistryError> {
     state.remove(&task_id).await?;
@@ -829,7 +858,7 @@ pub async fn cmd_loop_control_destroy(
 /// 列出所有已注册的 task_id
 #[tauri::command]
 pub async fn cmd_loop_control_list_tasks(
-    state: State<'_, LoopControlRegistry>,
+    state: State<'_, Arc<LoopControlRegistry>>,
 ) -> Result<Vec<String>, LoopControlRegistryError> {
     Ok(state.list().await)
 }

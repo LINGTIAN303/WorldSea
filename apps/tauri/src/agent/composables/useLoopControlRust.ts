@@ -337,13 +337,14 @@ export interface RustLoopControlStatus {
  * Rust `agent_bridge::loop_control_registry::LoopControlRegistryError` 的前端镜像
  *
  * Rust 端 `#[serde(tag = "kind", rename_all = "snake_case")]` → 内部标签模式。
- * 变体名 snake_case（`not_found` / `already_exists` / `lock_error` / `invalid_config`）。
+ * 变体名 snake_case（`not_found` / `already_exists` / `lock_error` / `invalid_config` / `internal`）。
  */
 export type RustLoopControlRegistryError =
   | { kind: 'not_found'; taskId: string }
   | { kind: 'already_exists'; taskId: string }
   | { kind: 'lock_error'; message: string }
   | { kind: 'invalid_config'; message: string }
+  | { kind: 'internal'; message: string }
 
 // ─── Rust 端事件 Payload 镜像 ────────────────────────────────────────────
 
@@ -755,10 +756,16 @@ function handleTaskEvent(taskId: string, event: LoopControlEvent): void {
  *
  * # 参数
  * - `taskId`：任务 ID（前端生成，建议前缀 `lc_`；与 `LongTaskRecord.task_id` 对齐）
- * - `config`：可选 LoopControlConfig（null=使用默认配置）
+ * - `config`：可选 LoopControlConfig（null=使用默认配置；仅无 sessionId 绑定时生效）
+ * - `sessionId`：可选会话 ID。传入后 Rust 端通过 `register_session_loop_control`
+ *   复用该会话 AgentLoop 内建 LoopController（共享单实例），消除"自动 vs 手动"双轨
+ *   ——手动命令（recordTurn/getStatus/check）与自动驱动读取同一份计数器/状态。
+ *   config 在绑定会话时被忽略（以会话内建控制器配置为准）。
  *
  * # 行为
  * 1. 调用 `cmd_loop_control_create` 在 Rust 端创建 LoopController
+ *    - 有 sessionId：共享会话内建控制器（手动命令读数与自动驱动一致）
+ *    - 无 sessionId：独立创建控制器（手动轨）
  * 2. 创建前端响应式任务状态并加入 `lcTasks`
  * 3. 设置事件监听器
  *
@@ -766,18 +773,21 @@ function handleTaskEvent(taskId: string, event: LoopControlEvent): void {
  * 抛出 Rust 端返回的 `LoopControlRegistryError`（已序列化为 JS 对象）：
  * - `already_exists`：taskId 已存在
  * - `invalid_config`：配置错误
+ * - `internal`：会话不存在或绑定失败
  */
 async function create(
   taskId: string,
   config?: RustLoopControlConfig | null,
+  sessionId?: string | null,
 ): Promise<void> {
   console.log(
-    `[useLoopControlRust] 创建 lc task=${taskId} hasCustomConfig=${!!config}`,
+    `[useLoopControlRust] 创建 lc task=${taskId} hasCustomConfig=${!!config} boundSession=${sessionId ?? 'none'}`,
   )
 
   await invoke('cmd_loop_control_create', {
     taskId,
     config: config ?? null,
+    sessionId: sessionId ?? null,
   })
 
   // 创建前端响应式状态

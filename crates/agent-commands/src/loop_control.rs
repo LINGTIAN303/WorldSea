@@ -59,6 +59,8 @@ pub enum LoopControlRegistryError {
     LockError { message: String },
     /// 配置错误（如所有 rate_limit 维度都为 None）
     InvalidConfig { message: String },
+    /// 内部错误（如绑定会话时会话不存在、注册失败）
+    Internal { message: String },
 }
 
 impl std::fmt::Display for LoopControlRegistryError {
@@ -72,6 +74,7 @@ impl std::fmt::Display for LoopControlRegistryError {
             }
             Self::LockError { message } => write!(f, "Lock error: {message}"),
             Self::InvalidConfig { message } => write!(f, "Invalid config: {message}"),
+            Self::Internal { message } => write!(f, "Internal error: {message}"),
         }
     }
 }

@@ -46,6 +46,10 @@ use tracing::{debug, error, info, warn};
 use crate::backend::{BackendError, NodeBackendAccessor, PromptCallOptions, ThinkingLevel};
 use crate::event::{AgentEvent, EventBroadcaster, EventListener, OrchestratorEvent};
 use crate::llm::config::ProviderConfig;
+use crate::loop_control::{
+    LoopControlCheck, LoopControlConfig, LoopController, RateLimitExceeded, SoftTimeoutLevel,
+    WatchdogAlert,
+};
 use crate::long_task::{
     CheckpointProvider, HeartbeatTick, LongTaskCheckpoint, LongTaskManager,
 };
@@ -103,6 +107,20 @@ pub struct AgentLoopConfig {
     /// 在每次 LLM 调用前检查距上次调用的间隔，不足则 sleep。
     /// 注意：重试时也受限流约束（避免雪崩）。
     pub min_interval_between_calls: Option<Duration>,
+
+    // ─── Loop Engineering 批次5：内建循环控制器 ───
+    /// 内建 LoopController 配置（`None`=禁用内建自动控制，默认启用宽松配置）
+    ///
+    /// 阶段 2.6 的 `LoopController` 聚合 RateLimiter/RetryPolicy/SoftTimeout/Watchdog。
+    /// 默认启用（`LoopControlConfig::default()` 宽松配置：100 turns / 200 tools / 6h），
+    /// 在内层 ReAct 循环自动驱动：
+    /// - rate_limit 超限 → 抛 `AgentError::RateLimitExceeded` 停止循环
+    /// - soft_timeout / watchdog → 广播 `LoopEng*` 事件提醒（不强制停止）
+    /// - 重试路径 → 广播 `LoopEngRetrying` / `LoopEngRetryExhausted`
+    ///
+    /// 若需完全禁用内建自动控制，将其设为 `None`（命令层 `LoopControlRegistry`
+    /// 的手动控制不受影响）。
+    pub loop_control: Option<LoopControlConfig>,
 }
 
 impl Default for AgentLoopConfig {
@@ -122,6 +140,8 @@ impl Default for AgentLoopConfig {
             tool_retry_base_delay: Duration::from_secs(1),
             tool_timeout: None, // 工具默认不限时（可能执行长任务如文件扫描）
             min_interval_between_calls: None,
+            // 批次5：默认启用内建 LoopController（宽松配置）
+            loop_control: Some(LoopControlConfig::default()),
         }
     }
 }
@@ -208,6 +228,9 @@ pub enum AgentError {
 
     #[error("超过最大迭代次数: {0}")]
     MaxIterationsExceeded(u32),
+
+    #[error("Loop Engineering 速率限制超限: {0}")]
+    RateLimitExceeded(String),
 
     #[error("Agent 已被中断")]
     Aborted,
@@ -299,6 +322,22 @@ pub struct AgentLoop {
     /// - 临界区极短（仅读写一个 `Option<String>`），不跨 await
     /// - 读写比例约 1:1，RwLock 略优于 Mutex
     last_phase_label: Arc<StdRwLock<Option<String>>>,
+    /// 内建 LoopController（Loop Engineering 批次5 新增）
+    ///
+    /// 聚合 RateLimiter/RetryPolicy/SoftTimeout/Watchdog，在 ReAct 循环内部自动驱动。
+    /// 与命令层 `LoopControlRegistry`（按 task_id 手动控制）互补：
+    /// - 本字段：AgentLoop 内建自动控制（每轮 check + 事件 + 停止）
+    /// - 命令层：前端手动触发 `check_and_emit` / `record_turn` 等
+    ///
+    /// 无锁设计（RateLimiter 用 Atomic，SoftTimeout/Watchdog 用同步锁），
+    /// 不跨 await 持有，可直接在异步循环中调用。
+    loop_controller: Arc<LoopController>,
+    /// 内建 LoopController 上一轮是否处于告警锁存态（软超时/看门狗已触发）
+    ///
+    /// 用于恢复边沿检测：`loop_controller.is_alerted()` 由 `true → false` 跳变时
+    /// emit `LoopEngRecovered`。基于底层触发标志而非 check 返回级别，避免
+    /// 软超时锁存后"后续 check 返回 None"被误判为恢复。
+    loop_control_warned: Arc<AtomicBool>,
 }
 
 impl AgentLoop {
@@ -315,6 +354,9 @@ impl AgentLoop {
         let last_user_text = Arc::new(StdRwLock::new(String::new()));
         let last_llm_call_time = Arc::new(std::sync::Mutex::new(None));
         let last_phase_label = Arc::new(StdRwLock::new(None));
+        // 默认配置启用内建 LoopController（宽松配置），后续 with_loop_control 可覆盖
+        let loop_controller = Arc::new(LoopController::new(LoopControlConfig::default()));
+        let loop_control_warned = Arc::new(AtomicBool::new(false));
 
         // 注入 backend 事件桥接 listener
         // 将 backend 的事件转发到 AgentLoop 的广播器
@@ -338,7 +380,39 @@ impl AgentLoop {
             last_user_text,
             last_llm_call_time,
             last_phase_label,
+            loop_controller,
+            loop_control_warned,
         }
+    }
+
+    /// 覆盖内建 LoopController 配置（链式，同步）
+    ///
+    /// 重建 `loop_controller` 并同步 `config.loop_control`。
+    /// 传 `Some(config)` 启用自定义配置，传 `None` 禁用内建自动控制。
+    pub fn with_loop_control(mut self, config: Option<LoopControlConfig>) -> Self {
+        if let Ok(mut guard) = self.config.write() {
+            guard.loop_control = config.clone();
+        } else {
+            warn!("with_loop_control: config RwLock poisoned");
+        }
+        // 重建 controller（None → 用默认宽松配置，功能上仍创建但调用方禁用检查）
+        let controller_config = config.unwrap_or_default();
+        self.loop_controller = Arc::new(LoopController::new(controller_config));
+        self
+    }
+
+    /// 获取内建 LoopController 引用
+    ///
+    /// 返回 `&Arc<LoopController>`：调用方既可读取计数器/状态、手动驱动
+    /// （如 `record_turn`），也可 `clone()` 出 `Arc` 与外部（如命令层注册表）
+    /// 共享同一实例，消除"内建自动 vs 命令层手动"双轨不共享问题。
+    pub fn loop_controller(&self) -> &Arc<LoopController> {
+        &self.loop_controller
+    }
+
+    /// 内建 LoopController 是否启用
+    fn loop_control_enabled(&self) -> bool {
+        self.config_snapshot().loop_control.is_some()
     }
 
     /// 链式配置（同步）
@@ -591,6 +665,33 @@ impl AgentLoop {
                 );
             }
 
+            // ─── Loop Engineering 批次5：内建 LoopController 驱动 ───
+            // 每轮迭代开始：
+            // - 更新看门狗活动时间（watchdog.update_activity）
+            // - 记录 turns 计数（rate_limiter.inc_turns）
+            // - check_all() 一站式检查速率限制 / 软超时 / 看门狗
+            // - 软超时 / 看门狗 → 广播 LoopEng* 事件（提醒，不强制停止，符合"无强制中断"需求）
+            // - 速率限制超限 → 广播 LoopEngRateLimitExceeded 并停止循环
+            //
+            // 设计：与命令层 `LoopControlRegistry`（按 task_id 手动 check_and_emit）互补。
+            // 本块是 AgentLoop 内建自动驱动，仅当 `config.loop_control = Some(...)`（默认启用）时生效。
+            if self.loop_control_enabled() {
+                self.loop_controller.update_activity();
+                self.loop_controller.rate_limiter.inc_turns();
+                let check = self.loop_controller.check_all();
+                // 恢复边沿检测：上一轮有告警锁存、本轮已解除 → Recovered（活动恢复=自动恢复）
+                self.emit_loop_recovered_if_needed().await;
+                // 广播软超时 / 看门狗告警（不停止循环，仅提醒）
+                self.emit_loop_control_warnings(&check).await;
+                // 速率限制超限 → 广播并停止
+                if let Some(exceeded) = &check.rate_limit_exceeded {
+                    self.emit_rate_limit_exceeded(exceeded).await;
+                    return Err(AgentError::RateLimitExceeded(
+                        exceeded.as_str().to_string(),
+                    ));
+                }
+            }
+
             // 构建 PromptCallOptions（含工具定义，阶段 1.4）
             let options = self.build_prompt_options(&config_snapshot).await;
 
@@ -798,6 +899,171 @@ impl AgentLoop {
         }
     }
 
+    // ─── Loop Engineering 批次5：内建 LoopController 辅助方法 ─────────
+
+    /// 获取当前任务 ID（用于 LoopEng 事件广播）
+    ///
+    /// 复用长任务管理器当前活跃任务的 task_id；若无活跃长任务则返回空串，
+    /// 由 Tauri 端按 session 填充（对齐 `DeepPhaseChanged.node_id` 的处理方式）。
+    async fn loop_task_id(&self) -> String {
+        self.long_task_manager
+            .get_active_task_id()
+            .await
+            .unwrap_or_default()
+    }
+
+    /// 广播恢复事件（`LoopEngRecovered`）
+    ///
+    /// # 触发
+    /// 内建 LoopController 的告警锁存态（`is_alerted()`）由 `true → false` 跳变时触发。
+    /// 基于底层触发标志（SoftTimeout/Watchdog 的 `*_triggered`）而非 `check_all` 返回级别，
+    /// 避免软超时锁存后"后续 check 返回 None"被误判为恢复。
+    ///
+    /// # 恢复场景
+    /// - 看门狗：活动恢复（`update_activity` 清除 Idle/Dead 触发标志）
+    /// - 软超时：`reset()`（命令层 `reset_counters` / retry 路径）
+    ///
+    /// 符合项目"无强制中断"原则：恢复为协作式自动上报，不干预循环本身。
+    async fn emit_loop_recovered_if_needed(&self) {
+        let alerted_now = self.loop_controller.is_alerted();
+        let was_alerted = self
+            .loop_control_warned
+            .swap(alerted_now, Ordering::SeqCst);
+        if was_alerted && !alerted_now {
+            let task_id = self.loop_task_id().await;
+            let turn_count = self.loop_controller.rate_limiter.turns();
+            self.broadcast(OrchestratorEvent::LoopEngRecovered {
+                task_id,
+                turn_count,
+                recovery_method: "auto".to_string(),
+            })
+            .await;
+        }
+    }
+
+    /// 广播软超时 / 看门狗告警事件（不停止循环，仅提醒用户）
+    ///
+    /// # 设计
+    /// - 软超时：达到 `warn_threshold` → `LoopEngSoftTimeoutWarning`；
+    ///   达到 `critical_threshold` → `LoopEngSoftTimeoutCritical`（建议停止，但不强制）
+    /// - 看门狗：达到 `idle_threshold` → `LoopEngWatchdogIdle`；
+    ///   达到 `dead_threshold` → `LoopEngWatchdogDead`（建议恢复，但不自动恢复）
+    ///
+    /// 符合项目"无强制中断"原则：所有控制均为协作式软限制。
+    async fn emit_loop_control_warnings(&self, check: &LoopControlCheck) {
+        let task_id = self.loop_task_id().await;
+        if let Some(level) = &check.soft_timeout_level {
+            let elapsed_secs = self.loop_controller.soft_timeout.elapsed().as_secs();
+            let cfg = self.loop_controller.soft_timeout.config();
+            match level {
+                SoftTimeoutLevel::Warning => {
+                    self.broadcast(OrchestratorEvent::LoopEngSoftTimeoutWarning {
+                        task_id: task_id.clone(),
+                        elapsed_secs,
+                        threshold_secs: cfg.warn_threshold.as_secs(),
+                    })
+                    .await;
+                }
+                SoftTimeoutLevel::Critical => {
+                    self.broadcast(OrchestratorEvent::LoopEngSoftTimeoutCritical {
+                        task_id: task_id.clone(),
+                        elapsed_secs,
+                        threshold_secs: cfg.critical_threshold.as_secs(),
+                    })
+                    .await;
+                }
+            }
+        }
+        if let Some(alert) = &check.watchdog_alert {
+            match alert {
+                WatchdogAlert::Idle {
+                    last_activity,
+                    elapsed,
+                } => {
+                    self.broadcast(OrchestratorEvent::LoopEngWatchdogIdle {
+                        task_id: task_id.clone(),
+                        last_activity: *last_activity,
+                        idle_secs: elapsed.as_secs(),
+                    })
+                    .await;
+                }
+                WatchdogAlert::Dead {
+                    last_activity,
+                    elapsed,
+                } => {
+                    self.broadcast(OrchestratorEvent::LoopEngWatchdogDead {
+                        task_id: task_id.clone(),
+                        last_activity: *last_activity,
+                        idle_secs: elapsed.as_secs(),
+                    })
+                    .await;
+                }
+            }
+        }
+    }
+
+    /// 广播速率限制超限事件并更新长任务状态
+    ///
+    /// # 触发
+    /// `check_all().rate_limit_exceeded` 非空时调用（turns / tool_calls / tokens / duration 任一超限）。
+    ///
+    /// # 动作
+    /// 1. 广播 `LoopEngRateLimitExceeded`（携带超限类型 + 当前/最大值，前端可展示进度）
+    /// 2. 同步 `LongTaskManager` 的 rate_limit 状态（供 heartbeat tick 携带）
+    async fn emit_rate_limit_exceeded(&self, exceeded: &RateLimitExceeded) {
+        let task_id = self.loop_task_id().await;
+        // 将超限枚举映射为事件字段（limit_type / current / max）
+        let (limit_type, current, max) = match exceeded {
+            RateLimitExceeded::Turns { current, max } => {
+                ("turns", *current as u64, *max as u64)
+            }
+            RateLimitExceeded::ToolCalls { current, max } => {
+                ("tool_calls", *current as u64, *max as u64)
+            }
+            RateLimitExceeded::Tokens { current, max } => ("tokens", *current, *max),
+            RateLimitExceeded::Duration { current, max } => {
+                ("duration", current.as_secs(), max.as_secs())
+            }
+        };
+        info!(
+            "Loop Engineering 速率限制超限: {} ({}/{})",
+            limit_type, current, max
+        );
+        self.broadcast(OrchestratorEvent::LoopEngRateLimitExceeded {
+            task_id,
+            limit_type: limit_type.to_string(),
+            current,
+            max,
+        })
+        .await;
+        // 同步长任务状态（供心跳 tick 携带 + 前端展示）
+        self.long_task_manager.record_rate_limit_status(limit_type).await;
+    }
+
+    /// 广播 `LoopEngRetrying` 事件（重试决策时调用）
+    async fn emit_loop_retrying(&self, attempt: u32, max_retries: u32, backoff_ms: u64, error: &str) {
+        let task_id = self.loop_task_id().await;
+        self.broadcast(OrchestratorEvent::LoopEngRetrying {
+            task_id,
+            attempt,
+            max_retries,
+            backoff_ms,
+            error: error.to_string(),
+        })
+        .await;
+    }
+
+    /// 广播 `LoopEngRetryExhausted` 事件（重试次数用尽时调用）
+    async fn emit_loop_retry_exhausted(&self, total_attempts: u32, final_error: &str) {
+        let task_id = self.loop_task_id().await;
+        self.broadcast(OrchestratorEvent::LoopEngRetryExhausted {
+            task_id,
+            total_attempts,
+            final_error: final_error.to_string(),
+        })
+        .await;
+    }
+
     /// 构建 PromptCallOptions
     ///
     /// 阶段 1.4：从 `tool_bus.list_all()` 拉取工具定义并填入 `tools` 字段，
@@ -932,6 +1198,9 @@ impl AgentLoop {
                             "LLM 调用失败，已达最大重试次数 {}：{}",
                             max_retries, e
                         );
+                        // Loop Engineering 批次5：广播重试耗尽事件
+                        self.emit_loop_retry_exhausted(max_retries, &e.to_string())
+                            .await;
                         return Err(AgentError::from(e));
                     }
                     let delay = base_delay * 2u32.pow(attempt);
@@ -942,6 +1211,14 @@ impl AgentLoop {
                         delay,
                         e
                     );
+                    // Loop Engineering 批次5：广播正在重试事件（attempt 从 1 计）
+                    self.emit_loop_retrying(
+                        attempt + 1,
+                        max_retries,
+                        delay.as_millis() as u64,
+                        &e.to_string(),
+                    )
+                    .await;
                     tokio::time::sleep(delay).await;
                     attempt += 1;
                 }
@@ -1008,6 +1285,9 @@ impl AgentLoop {
                 Ok(v) => return Ok(v),
                 Err(e) => {
                     if attempt >= max_retries {
+                        // Loop Engineering 批次5：广播重试耗尽事件
+                        self.emit_loop_retry_exhausted(max_retries, &e.to_string())
+                            .await;
                         return Err(e);
                     }
                     let delay = base_delay * 2u32.pow(attempt);
@@ -1019,6 +1299,14 @@ impl AgentLoop {
                         delay,
                         e
                     );
+                    // Loop Engineering 批次5：广播正在重试事件（attempt 从 1 计）
+                    self.emit_loop_retrying(
+                        attempt + 1,
+                        max_retries,
+                        delay.as_millis() as u64,
+                        &e.to_string(),
+                    )
+                    .await;
                     tokio::time::sleep(delay).await;
                     attempt += 1;
                 }
@@ -1073,6 +1361,11 @@ impl AgentLoop {
             .await;
 
             debug!("执行工具: {} (call_id={})", tc.name, tc.id);
+
+            // Loop Engineering 批次5：记录工具调用计数（供速率限制 tool_calls 维度）
+            if self.loop_control_enabled() {
+                self.loop_controller.rate_limiter.inc_tool_calls();
+            }
 
             // 调用工具（含重试/超时，批次4）
             let tool_result = self.execute_tool_with_retry(&tc.name, tc.args.clone()).await;
@@ -1154,6 +1447,11 @@ impl AgentLoop {
             let call_id = tc.id.clone();
             let tool_name = tc.name.clone();
             let args = tc.args.clone();
+
+            // Loop Engineering 批次5：记录工具调用计数（供速率限制 tool_calls 维度）
+            if self.loop_control_enabled() {
+                self.loop_controller.rate_limiter.inc_tool_calls();
+            }
 
             join_set.spawn(async move {
                 debug!("并行执行工具: {} (call_id={})", tool_name, call_id);
@@ -1914,5 +2212,215 @@ mod tests {
         assert_eq!(messages.len(), 4);
         assert!(matches!(messages[2].role, MessageRole::ToolResult));
         assert!(messages[2].content.contains("error"));
+    }
+
+    // ── Loop Engineering 批次5：内建 LoopController 驱动测试 ──
+
+    /// 测试用：收集 LoopEng* 事件的监听器
+    struct LoopEngEventListener {
+        events: std::sync::Mutex<Vec<String>>,
+    }
+
+    impl EventListener for LoopEngEventListener {
+        fn on_event(&self, event: &OrchestratorEvent) {
+            let label = match event {
+                OrchestratorEvent::LoopEngRateLimitExceeded {
+                    limit_type,
+                    current,
+                    max,
+                    ..
+                } => format!("rate_limit:{limit_type}:{current}/{max}"),
+                OrchestratorEvent::LoopEngRetrying { attempt, .. } => {
+                    format!("retrying:{attempt}")
+                }
+                OrchestratorEvent::LoopEngRetryExhausted { total_attempts, .. } => {
+                    format!("retry_exhausted:{total_attempts}")
+                }
+                OrchestratorEvent::LoopEngRecovered {
+                    recovery_method,
+                    turn_count,
+                    ..
+                } => format!("recovered:{recovery_method}:{turn_count}"),
+                _ => return,
+            };
+            if let Ok(mut v) = self.events.lock() {
+                v.push(label);
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn run_stops_on_rate_limit_exceeded() {
+        // 每轮都返回工具调用，永不结束；但内建 LoopController 限制 max_turns=2
+        let infinite_tool_call = PromptResponse {
+            text: "继续".into(),
+            tool_calls: vec![ToolCall {
+                id: "call_loop".into(),
+                name: "echo".into(),
+                args: serde_json::json!({}),
+            }],
+            input_tokens: None,
+            output_tokens: None,
+            stop_reason: Some("tool_calls".into()),
+        };
+        let backend = Arc::new(MockBackend::new(vec![infinite_tool_call; 100]));
+        let tool_bus = Arc::new(SimpleToolBus::new());
+        tool_bus.register(Arc::new(EchoTool)).await;
+
+        let loop_config = LoopControlConfig {
+            rate_limit: crate::loop_control::RateLimitConfig {
+                max_turns: Some(2),
+                max_tool_calls: None,
+                max_tokens: None,
+                max_duration: None,
+            },
+            ..LoopControlConfig::default()
+        };
+        // 用 with_loop_control 显式启用严格配置（验证独立于 with_config 的配置开关）
+        let agent = AgentLoop::new(backend, tool_bus)
+            .with_loop_control(Some(loop_config))
+            .with_config(AgentLoopConfig {
+                max_iterations: 100, // 不触发超迭代，验证是速率限制停止而非超迭代
+                ..Default::default()
+            });
+
+        let listener = Arc::new(LoopEngEventListener {
+            events: std::sync::Mutex::new(Vec::new()),
+        });
+        agent.subscribe(listener.clone()).await;
+
+        let result = agent.run("触发速率限制".into()).await;
+        assert!(
+            matches!(result, Err(AgentError::RateLimitExceeded(_))),
+            "应返回 RateLimitExceeded，实际: {result:?}"
+        );
+
+        let collected = listener.events.lock().unwrap().clone();
+        assert!(
+            collected.iter().any(|e| e.starts_with("rate_limit:turns:2/2")),
+            "应广播 LoopEngRateLimitExceeded(turns 2/2)，实际: {collected:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn llm_failure_emits_retry_events() {
+        // backend 永远报错 → 触发重试 → 重试耗尽
+        struct FailingBackend;
+
+        #[async_trait]
+        impl NodeBackendAccessor for FailingBackend {
+            async fn prompt(
+                &self,
+                _prompt: String,
+                _options: Option<PromptCallOptions>,
+            ) -> Result<PromptResponse, BackendError> {
+                Err(BackendError::Other("网络错误".into()))
+            }
+            async fn steer(&self, _text: String) -> Result<(), BackendError> {
+                Ok(())
+            }
+            async fn get_messages(&self) -> Vec<OrchestratorMessage> {
+                Vec::new()
+            }
+            async fn set_messages(
+                &self,
+                _messages: Vec<OrchestratorMessage>,
+            ) -> Result<(), BackendError> {
+                Ok(())
+            }
+            async fn trim_context(&self, _up_to_index: usize) -> Result<(), BackendError> {
+                Ok(())
+            }
+        }
+
+        let backend = Arc::new(FailingBackend);
+        let tool_bus = Arc::new(SimpleToolBus::new());
+
+        let agent = AgentLoop::new(backend, tool_bus).with_config(AgentLoopConfig {
+            llm_max_retries: 1,
+            llm_retry_base_delay: std::time::Duration::from_millis(1),
+            ..Default::default()
+        });
+
+        let listener = Arc::new(LoopEngEventListener {
+            events: std::sync::Mutex::new(Vec::new()),
+        });
+        agent.subscribe(listener.clone()).await;
+
+        let result = agent.run("测试重试".into()).await;
+        assert!(result.is_err());
+
+        let collected = listener.events.lock().unwrap().clone();
+        assert!(
+            collected.iter().any(|e| e == "retrying:1"),
+            "应广播 LoopEngRetrying，实际: {collected:?}"
+        );
+        assert!(
+            collected.iter().any(|e| e == "retry_exhausted:1"),
+            "应广播 LoopEngRetryExhausted，实际: {collected:?}"
+        );
+        let retry_pos = collected.iter().position(|e| e == "retrying:1").unwrap();
+        let exhausted_pos = collected
+            .iter()
+            .position(|e| e == "retry_exhausted:1")
+            .unwrap();
+        assert!(
+            retry_pos < exhausted_pos,
+            "retrying 应先于 retry_exhausted，实际顺序: {collected:?}"
+        );
+    }
+
+    /// 软超时告警锁存后经 `reset()` 恢复 → 内建 emit `LoopEngRecovered`
+    ///
+    /// 验证恢复检测基于底层触发标志边沿（`is_alerted` true→false），
+    /// 且不会在软超时锁存期（后续 check 返回 None）误发 Recovered。
+    #[tokio::test]
+    async fn soft_timeout_reset_emits_recovered() {
+        let backend = Arc::new(MockBackend::new(vec![PromptResponse {
+            text: "完成".into(),
+            tool_calls: vec![],
+            input_tokens: None,
+            output_tokens: None,
+            stop_reason: Some("end_turn".into()),
+        }]));
+        let tool_bus = Arc::new(SimpleToolBus::new());
+
+        // warn_threshold=0 → 首轮 check 即触发软超时 Warning（锁存 warn_triggered）
+        let loop_config = LoopControlConfig {
+            soft_timeout: crate::loop_control::SoftTimeoutConfig {
+                warn_threshold: std::time::Duration::from_millis(0),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let agent = AgentLoop::new(backend, tool_bus).with_loop_control(Some(loop_config));
+
+        // 触发软超时告警并锁存
+        agent.loop_controller().check_all();
+        assert!(agent.loop_controller().is_alerted(), "软超时应处于告警锁存态");
+
+        let listener = Arc::new(LoopEngEventListener {
+            events: std::sync::Mutex::new(Vec::new()),
+        });
+        agent.subscribe(listener.clone()).await;
+
+        // 第一帧：告警锁存期（is_alerted=true），不应 emit Recovered
+        agent.emit_loop_recovered_if_needed().await;
+        assert!(
+            listener.events.lock().unwrap().is_empty(),
+            "告警锁存期不应 emit Recovered"
+        );
+
+        // 模拟命令层 reset_counters / retry 路径：reset 清除软超时触发标志
+        agent.loop_controller().soft_timeout.reset();
+        assert!(!agent.loop_controller().is_alerted(), "reset 后应解除告警");
+
+        // 第二帧：告警解除（true→false 边沿）→ emit Recovered（auto）
+        agent.emit_loop_recovered_if_needed().await;
+        let collected = listener.events.lock().unwrap().clone();
+        assert!(
+            collected.iter().any(|e| e.starts_with("recovered:auto:")),
+            "应对告警解除 emit LoopEngRecovered(auto)，实际: {collected:?}"
+        );
     }
 }

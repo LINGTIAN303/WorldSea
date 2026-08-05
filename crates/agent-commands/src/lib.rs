@@ -151,6 +151,12 @@ pub struct AgentCommandService {
     /// 供「清空实例 / 查看实例」命令按会话定位管理器。实例池按会话隔离，
     /// 清空某会话的实例不影响其他会话。
     subagent_managers: Mutex<HashMap<String, Arc<SubAgentManager>>>,
+    /// Loop Control 注册表（按 task_id 管理 LoopController 实例）
+    ///
+    /// 默认自建独立实例；Tauri 端用 [`Self::with_loop_control_registry`] 注入
+    /// 与命令层共享的同一实例，使「内建自动（AgentLoop 内）与命令层手动」
+    /// 操作同一份控制器状态，消除双轨不共享。
+    loop_control_registry: Arc<LoopControlRegistry>,
 }
 
 /// 校验一个子 Agent 规格是否合法
@@ -215,6 +221,54 @@ impl AgentCommandService {
         let loaded = store.load_all().await?;
         *svc.subagent_specs.write().await = loaded;
         Ok(svc)
+    }
+
+    /// 注入共享的 Loop Control 注册表（链式）
+    ///
+    /// 默认服务自建独立注册表；Tauri 端把命令层 `LoopControlRegistry` 传入，
+    /// 使 `cmd_loop_control_*` 与 [`Self::register_session_loop_control`] 操作同一实例。
+    pub fn with_loop_control_registry(self, registry: Arc<LoopControlRegistry>) -> Self {
+        Self {
+            loop_control_registry: registry,
+            ..self
+        }
+    }
+
+    /// 获取 Loop Control 注册表引用（Arc 克隆）
+    pub fn loop_control_registry(&self) -> Arc<LoopControlRegistry> {
+        self.loop_control_registry.clone()
+    }
+
+    /// 把指定会话的内建 LoopController 注册为 loop_control 任务（共享同一实例）
+    ///
+    /// 解决"内建（自动）与命令层（手动）双轨不共享"：取该会话 `AgentLoop` 内建的
+    /// `Arc<LoopController>` 注册为 `task_id` 对应条目，使手动命令与自动驱动
+    /// 操作同一份速率/超时/看门狗状态。
+    ///
+    /// # 错误
+    /// - 会话不存在：`SessionNotFound`
+    /// - task_id 已存在：注册表 `AlreadyExists`（包装为 `Internal`）
+    pub async fn register_session_loop_control(
+        &self,
+        task_id: impl Into<String>,
+        session_id: &str,
+    ) -> Result<(), CommandError> {
+        let task_id = task_id.into();
+        let agent = {
+            let sessions = self.sessions.lock().await;
+            sessions
+                .get(session_id)
+                .cloned()
+                .ok_or_else(|| CommandError::session_not_found(session_id))?
+        };
+        let controller = agent.loop_controller().clone();
+        let config = controller.config();
+        let entry = LoopControlEntry::new(controller, config);
+        self.loop_control_registry
+            .register(task_id, entry)
+            .await
+            .map_err(|e| CommandError::Internal(e.to_string()))?;
+        Ok(())
     }
 
     /// 构造一个 AgentLoop（Phase 5.4：使用 GenaiBackend 真实 LLM 后端）
@@ -1040,6 +1094,78 @@ mod tests {
         assert!(
             matches!(err, CommandError::SessionNotFound(_)),
             "删除会话后 list 实例应报 session_not_found，实际: {err}"
+        );
+    }
+
+    /// 共享控制器：register_session_loop_control 复用会话内建 Arc<LoopController>
+    ///
+    /// 验证「内建自动 vs 命令层手动」双轨不共享问题的修复——注册条目与内建控制器
+    /// 指向同一实例（Arc::ptr_eq），且命令层驱动后内建控制器状态同步变化。
+    #[tokio::test]
+    async fn register_session_loop_control_shares_builtin_controller() {
+        let svc = AgentCommandService::new();
+        let info = svc.new_session(None, None).await.unwrap();
+
+        // 注册该会话的内建控制器为 task_id = "task-main"
+        svc.register_session_loop_control("task-main", &info.id)
+            .await
+            .expect("绑定会话应成功");
+
+        // 注册表中的条目与内建控制器是同一实例（Arc 指针相等）
+        let agent = svc.get_agent(&info.id).await.unwrap();
+        let builtin = agent.loop_controller().clone();
+        let entry = svc
+            .loop_control_registry()
+            .get("task-main")
+            .await
+            .expect("已注册的 task 应可取");
+        assert!(
+            Arc::ptr_eq(&builtin, &entry.controller),
+            "命令层条目应与内建控制器共享同一 Arc 实例，消除双轨"
+        );
+
+        // 命令层驱动（record_turn）后，内建控制器状态同步可见
+        entry.controller.rate_limiter.inc_turns();
+        assert_eq!(builtin.rate_limiter.turns(), 1, "共享实例的状态应同步");
+
+        // 配置重建：从共享控制器重建的配置应保留默认速率限制（宽松默认 max_turns=100）
+        let config = entry.controller.config();
+        assert_eq!(
+            config.rate_limit.max_turns,
+            Some(100),
+            "默认配置应保留宽松 turns 上限"
+        );
+    }
+
+    /// 共享控制器：会话不存在时注册应报 session_not_found
+    #[tokio::test]
+    async fn register_session_loop_control_requires_existing_session() {
+        let svc = AgentCommandService::new();
+        let err = svc
+            .register_session_loop_control("task-main", "nope")
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(err, CommandError::SessionNotFound(_)),
+            "绑定不存在的会话应报 session_not_found，实际: {err}"
+        );
+    }
+
+    /// 共享控制器：同一 task_id 重复绑定同一会话应报 AlreadyExists
+    #[tokio::test]
+    async fn register_session_loop_control_rejects_duplicate_task() {
+        let svc = AgentCommandService::new();
+        let info = svc.new_session(None, None).await.unwrap();
+        svc.register_session_loop_control("task-main", &info.id)
+            .await
+            .unwrap();
+        let err = svc
+            .register_session_loop_control("task-main", &info.id)
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(err, CommandError::Internal(_)),
+            "重复 task_id 应包装为 Internal 错误，实际: {err}"
         );
     }
 }

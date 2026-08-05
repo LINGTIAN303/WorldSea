@@ -256,6 +256,11 @@ impl RateLimiter {
         self.started_at.elapsed()
     }
 
+    /// 获取速率限制配置
+    pub fn config(&self) -> &RateLimitConfig {
+        &self.config
+    }
+
     /// 是否应该停止（任意一项超限）
     ///
     /// 返回 `Option<RateLimitExceeded>` 描述超限原因，`None` 表示未超限。
@@ -506,6 +511,20 @@ impl SoftTimeout {
         self.critical_triggered.store(false, Ordering::SeqCst);
         // 注意：started_at 不重置，因为 timeout 针对整个任务生命周期
     }
+
+    /// 获取配置引用（对齐 Watchdog::config）
+    pub fn config(&self) -> &SoftTimeoutConfig {
+        &self.config
+    }
+
+    /// 是否处于告警锁存状态（Warning 或 Critical 已触发且未 `reset()`）
+    ///
+    /// 供恢复检测使用：软超时触发后锁存，`reset()` 才清除，因此
+    /// 不会因"后续 check 返回 None"而误判为恢复。
+    pub fn is_alerted(&self) -> bool {
+        self.warn_triggered.load(Ordering::SeqCst)
+            || self.critical_triggered.load(Ordering::SeqCst)
+    }
 }
 
 /// 软超时级别
@@ -608,6 +627,15 @@ impl Watchdog {
     pub fn config(&self) -> &WatchdogConfig {
         &self.config
     }
+
+    /// 是否处于告警锁存状态（Idle 或 Dead 已触发且未随活动恢复清除）
+    ///
+    /// 供恢复检测使用：`update_activity()` 会清除触发标志并刷新 last_activity，
+    /// 因此"活动恢复"与"看门狗告警"之间可据此判定边沿。
+    pub fn is_alerted(&self) -> bool {
+        self.idle_triggered.load(Ordering::SeqCst)
+            || self.dead_triggered.load(Ordering::SeqCst)
+    }
 }
 
 /// 看门狗告警
@@ -678,6 +706,26 @@ impl LoopController {
     /// 是否应该停止（rate_limit 超限或 watchdog 死亡）
     pub fn should_stop(&self) -> Option<RateLimitExceeded> {
         self.rate_limiter.check_exceeded()
+    }
+
+    /// 是否处于告警锁存状态（软超时或看门狗已触发且未恢复）
+    ///
+    /// 基于底层触发标志（非 check 返回级别），供 AgentLoop 做恢复边沿检测：
+    /// `true → false` 的跳变即代表任务从告警态恢复，用于 emit `LoopEngRecovered`。
+    pub fn is_alerted(&self) -> bool {
+        self.soft_timeout.is_alerted() || self.watchdog.is_alerted()
+    }
+
+    /// 重建完整配置（供注册表/前端回显、共享实例时构造条目）
+    ///
+    /// 各子组件都持有自己的配置，这里从它们聚合回一份 [`LoopControlConfig`]。
+    pub fn config(&self) -> LoopControlConfig {
+        LoopControlConfig {
+            rate_limit: self.rate_limiter.config().clone(),
+            retry: self.retry_policy.config().clone(),
+            soft_timeout: self.soft_timeout.config().clone(),
+            watchdog: self.watchdog.config().clone(),
+        }
     }
 }
 

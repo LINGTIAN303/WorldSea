@@ -3,6 +3,8 @@
 // Phase 5.1：注册 agent-commands 命令层，manage 一个 AgentCommandService 实例，
 // 供 WebView 前端 invoke 调用（newSession / sendMessage / abort / ... 14 主链路命令）。
 
+use std::sync::Arc;
+
 use agent_commands::{
     AgentCommandService, LongTaskRepository, LoopControlRegistry, SqliteSubAgentSpecStore,
     TerminalService,
@@ -72,13 +74,18 @@ pub fn run() {
         // 终端服务（独立持有 ShellSessionManager，供前端直接调用终端命令）
         // Loop Engineering：LoopController 实例注册表 + 长任务 SQLite 持久化
         .manage(TerminalService::new())
-        .manage(LoopControlRegistry::new())
         .setup(|app| {
             #[cfg(debug_assertions)]
             {
                 let window = app.get_webview_window("main").unwrap();
                 window.open_devtools();
             }
+
+            // Loop Control 注册表：单独 manage 供 cmd_loop_control_* 命令使用，
+            // 同时注入 AgentCommandService，使"绑定会话的 loop_control"复用
+            // AgentLoop 内建 LoopController（共享单实例，消双轨）。
+            let loop_control_registry = Arc::new(LoopControlRegistry::new());
+            app.manage(loop_control_registry.clone());
 
             // 子 Agent 规格持久化：把 SQLite 数据库放入应用数据目录，使前端配置的
             // 子 Agent 规格在应用重启后仍能恢复（写穿 + 启动加载）。
@@ -95,6 +102,7 @@ pub fn run() {
                 AgentCommandService::with_subagent_store(store)
                     .await
                     .expect("初始化 Agent 命令服务失败")
+                    .with_loop_control_registry(loop_control_registry)
             });
             app.manage(svc);
 

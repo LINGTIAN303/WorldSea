@@ -3,6 +3,7 @@
 import { ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { A2UIRenderer } from '@worldsmith/shared-ui'
 import { provideAgentBackend, useAgentRust } from './agent/composables/useAgentRust'
+import { useLoopControlRust } from './agent/composables/useLoopControlRust'
 import TerminalView from './terminal/components/TerminalView.vue'
 import SubAgentView from './subagent/components/SubAgentView.vue'
 import SubAgentSection from './agent/components/SubAgentSection.vue'
@@ -11,6 +12,24 @@ import ModelSettingsDialog from './agent/components/ModelSettingsDialog.vue'
 // 在 setup 上下文注入（useAgent 使用 inject 模式，须在组件内 provide）
 const backend = useAgentRust()
 provideAgentBackend(backend)
+
+/** Loop Engineering：命令层 composable（模块级单例） */
+const loopControl = useLoopControlRust()
+
+/**
+ * 会话创建后绑定 loop_control：
+ * 复用该会话 AgentLoop 内建 LoopController（共享单实例），
+ * 使手动命令（recordTurn/getStatus/check）与自动驱动读取同一份状态，消除双轨。
+ * taskId 固定为 `lc_{sessionId}`，与会话一一对应。
+ */
+async function bindSessionLoopControl(sessionId: string): Promise<void> {
+  try {
+    await loopControl.create(`lc_${sessionId}`, null, sessionId)
+  } catch (err) {
+    // 弱提示：绑定失败不阻塞会话（已存在等错误可忽略）
+    console.warn(`[App] 绑定会话 loop_control 失败 session=${sessionId}:`, err)
+  }
+}
 
 /** A2UI 动作回调：收到组件 action 时转发到后端 prompt（暂以文本形式透传） */
 function onA2UIAction(_surfaceId: string, action: { name: string; data?: any }) {
@@ -194,7 +213,8 @@ async function onSaveModelConfig(config: any) {
 /** 新建会话：调用 Rust new_session，并设为当前会话 */
 async function onNewSession() {
   try {
-    await backend.newSession('WorldSmith 桌面端测试助手')
+    const info = await backend.newSession('WorldSmith 桌面端测试助手')
+    if (info?.id) await bindSessionLoopControl(info.id)
   } catch (err) {
     error.value = `新建会话失败: ${err}`
   }
@@ -212,7 +232,8 @@ async function onDeleteSession(id: string) {
 // 启动时自动新建会话（验证 new_session 链路）
 onMounted(async () => {
   try {
-    await backend.newSession('WorldSmith 桌面端测试助手')
+    const info = await backend.newSession('WorldSmith 桌面端测试助手')
+    if (info?.id) await bindSessionLoopControl(info.id)
   } catch (err) {
     error.value = `会话初始化失败: ${err}`
   }
