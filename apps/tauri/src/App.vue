@@ -69,6 +69,16 @@ async function send() {
   }
 }
 
+/** 思考级别变化：调用 Rust update_thinking_level（深度模式开关） */
+async function onThinkingLevelChange(e: Event) {
+  const level = (e.target as HTMLSelectElement).value
+  try {
+    await backend.updateThinkingLevel(level as never)
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : String(err)
+  }
+}
+
 // 启动时自动新建会话（验证 new_session 链路）
 onMounted(async () => {
   try {
@@ -119,7 +129,24 @@ onMounted(async () => {
     <main class="chat">
       <header class="chat-header">
         <h1>WorldSmith Agent</h1>
-        <span class="status">{{ backend.isStreaming ? '思考中…' : '就绪' }}</span>
+        <div class="header-actions">
+          <label class="think-field">
+            <span class="think-label">思考级别</span>
+            <select
+              :value="backend.thinkingLevel"
+              :disabled="sending || backend.isStreaming"
+              @change="onThinkingLevelChange"
+            >
+              <option value="off">关闭</option>
+              <option value="minimal">极简</option>
+              <option value="low">低</option>
+              <option value="medium">中</option>
+              <option value="high">高</option>
+              <option value="xhigh">极高</option>
+            </select>
+          </label>
+          <span class="status">{{ backend.isStreaming ? '思考中…' : '就绪' }}</span>
+        </div>
       </header>
 
       <div class="messages" ref="messagesEl" @scroll.passive="onMessagesScroll">
@@ -270,6 +297,35 @@ onMounted(async () => {
 .status {
   font-size: 12px;
   color: #1a73e8;
+}
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.think-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.think-label {
+  font-size: 12px;
+  color: #999;
+}
+.think-field select {
+  padding: 4px 8px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #333;
+  background: #fff;
+  outline: none;
+  cursor: pointer;
+}
+.think-field select:disabled {
+  background: #f5f5f5;
+  color: #bbb;
+  cursor: not-allowed;
 }
 .messages {
   flex: 1;

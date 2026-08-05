@@ -267,6 +267,9 @@ const sessionList = ref<RustSessionInfo[]>([])
 /** 是否已初始化（Tauri 端无需异步初始化，直接置 true） */
 const isInitialized = ref(true)
 
+/** 当前思考级别（深度模式：off/minimal/low/medium/high/xhigh），供对话页头部选择器展示 */
+const thinkingLevel = ref<ThinkingLevel>('off')
+
 /** 事件订阅者集合（subscribe 注册，dispose / 触发时分发） */
 const listeners = new Set<AgentEventListener>()
 
@@ -979,11 +982,12 @@ async function updateModel(
   })
 }
 
-/** 更新思考级别（对应 Rust `update_thinking_level`） */
+/** 更新思考级别（对应 Rust `update_thinking_level`），成功后同步本地状态供选择器展示 */
 async function updateThinkingLevel(level: ThinkingLevel): Promise<void> {
   const sessionId = currentSessionId.value
   if (!sessionId) return
   await invoke('update_thinking_level', { sessionId, level })
+  thinkingLevel.value = level
 }
 
 /** 获取 Provider 配置（对应 Rust `get_provider_config`） */
@@ -1145,6 +1149,7 @@ export function useAgentRust() {
     setProviderConfig,
     getHeartbeat,
     isInitialized,
+    thinkingLevel,
 
     // ── 初始化（Tauri 端同步就绪，返回 true）──
     ensureInitialized: async (): Promise<boolean> => {
