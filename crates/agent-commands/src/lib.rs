@@ -435,6 +435,27 @@ impl AgentCommandService {
         Ok(manager.list_instances().await)
     }
 
+    /// 清空某会话的单个子 Agent 实例（重置其累积上下文）
+    ///
+    /// 返回是否成功移除（该 id 在实例池中不存在时返回 `false`）。
+    /// 清空后该子 Agent 下次委派时按最新注册规格懒加载重建（全新上下文）。
+    /// 与 [`Self::clear_subagent_instances`] 的清空全部互补，用于只重置
+    /// 某个行为异常/上下文膨胀的单个子 Agent，而不影响其他实例。
+    pub async fn clear_subagent_instance(
+        &self,
+        session_id: &str,
+        sub_agent_id: &str,
+    ) -> Result<bool, CommandError> {
+        let manager = self
+            .subagent_managers
+            .lock()
+            .await
+            .get(session_id)
+            .cloned()
+            .ok_or_else(|| CommandError::session_not_found(session_id))?;
+        Ok(manager.clear_instance(sub_agent_id).await)
+    }
+
     /// 清空某会话的全部子 Agent 实例（重置累积上下文）
     ///
     /// 返回被清空的实例数量。清空后该会话下次委派时按最新注册规格重建实例。
@@ -970,6 +991,22 @@ mod tests {
         // 清空空池返回 0
         let cleared = svc.clear_subagent_instances(&info.id).await.unwrap();
         assert_eq!(cleared, 0, "空池清空应返回 0");
+    }
+
+    /// 单个实例清空：会话不存在报 session_not_found；会话存在但实例不存在返回 false
+    #[tokio::test]
+    async fn subagent_clear_instance_guards() {
+        let svc = AgentCommandService::new();
+        // 不存在的会话 → SessionNotFound
+        let err = svc.clear_subagent_instance("nope", "coder").await.unwrap_err();
+        assert!(
+            matches!(err, CommandError::SessionNotFound(_)),
+            "清空不存在的会话应报 session_not_found，实际: {err}"
+        );
+        // 会话存在但实例从未创建 → 返回 false（不报错）
+        let info = svc.new_session(None, None).await.unwrap();
+        let removed = svc.clear_subagent_instance(&info.id, "coder").await.unwrap();
+        assert!(!removed, "实例池中无该实例时清空应返回 false");
     }
 
     /// 删除会话后，其实例管理器也应随之移除（list 应报 session_not_found）

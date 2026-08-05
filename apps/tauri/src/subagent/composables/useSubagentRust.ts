@@ -149,6 +149,22 @@ async function refreshInstances(sessionId: string): Promise<void> {
   }
 }
 
+/** 清空指定会话的单个子 Agent 实例（重置其累积上下文），返回是否成功移除 */
+async function clearInstance(sessionId: string, subAgentId: string): Promise<boolean> {
+  instanceMsg.value = ''
+  instancesBusy.value = true
+  try {
+    const removed = await invoke<boolean>('subagent_clear_instance', { sessionId, subAgentId })
+    await refreshInstances(sessionId)
+    return removed
+  } catch (err) {
+    instanceMsg.value = err instanceof Error ? err.message : String(err)
+    throw err
+  } finally {
+    instancesBusy.value = false
+  }
+}
+
 /** 清空指定会话的全部子 Agent 实例（重置累积上下文），返回清空数量 */
 async function clearInstances(sessionId: string): Promise<number> {
   instanceMsg.value = ''
@@ -187,6 +203,7 @@ export function useSubagentRust() {
     exportSpecs,
     importSpecs,
     refreshInstances,
+    clearInstance,
     clearInstances,
   }
 }

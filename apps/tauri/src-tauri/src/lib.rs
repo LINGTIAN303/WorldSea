@@ -41,6 +41,7 @@ pub fn run() {
             commands::subagent_export_specs,
             commands::subagent_import_specs,
             commands::subagent_list_instances,
+            commands::subagent_clear_instance,
             commands::subagent_clear_instances,
         ])
         // Phase 5.1：Agent 命令服务（内部持有 session_id -> Arc<AgentLoop> 映射）

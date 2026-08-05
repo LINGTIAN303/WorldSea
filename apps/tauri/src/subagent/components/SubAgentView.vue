@@ -233,6 +233,18 @@ async function refreshInstancesNow() {
   await sub.refreshInstances(sid)
 }
 
+/** 清空当前会话的单个子 Agent 实例（重置其累积上下文） */
+async function clearOneInstance(instId: string) {
+  const sid = agent.currentSessionId?.value
+  if (!sid) return
+  try {
+    const removed = await sub.clearInstance(sid, instId)
+    instanceMsg.value = removed ? `已清空子 Agent 实例「${instId}」` : '该实例不存在或已被清空'
+  } catch (err) {
+    instanceMsg.value = err instanceof Error ? err.message : String(err)
+  }
+}
+
 /** 清空当前会话的全部子 Agent 实例（重置累积上下文） */
 async function clearAllInstances() {
   const sid = agent.currentSessionId?.value
@@ -306,7 +318,17 @@ onMounted(async () => {
               <code class="instance-id">{{ inst.sub_agent_id }}</code>
               <span class="instance-msg" :title="'累积上下文消息数'">{{ inst.message_count }} 条</span>
             </div>
-            <span v-if="inst.is_streaming" class="streaming">流式中</span>
+            <div class="instance-side">
+              <span v-if="inst.is_streaming" class="streaming">流式中</span>
+              <button
+                class="ghost inst-clear-one"
+                :disabled="instancesBusy || inst.is_streaming || !hasSession()"
+                :title="'清空该实例的累积上下文'"
+                @click="clearOneInstance(inst.sub_agent_id)"
+              >
+                清空
+              </button>
+            </div>
           </li>
         </ul>
         <p v-if="instanceMsg" class="instances-msg">{{ instanceMsg }}</p>
@@ -662,6 +684,29 @@ onMounted(async () => {
 .instance-msg {
   font-size: 11px;
   color: #999;
+}
+.instance-side {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.inst-clear-one {
+  font-size: 11px;
+  color: #d93025;
+  border-color: #f0c0c0;
+  padding: 1px 8px;
+}
+.inst-clear-one:hover {
+  color: #fff;
+  background: #d93025;
+  border-color: #d93025;
+}
+.inst-clear-one:disabled {
+  color: #bbb;
+  background: #fff;
+  border-color: #eee;
+  cursor: not-allowed;
 }
 .streaming {
   flex-shrink: 0;

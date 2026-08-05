@@ -511,6 +511,19 @@ pub async fn subagent_list_instances(
         .map_err(|e| e.to_string())
 }
 
+/// 清空指定会话的单个子 Agent 实例（重置其累积上下文，返回是否成功移除）
+#[tauri::command]
+pub async fn subagent_clear_instance(
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+    sub_agent_id: String,
+) -> Result<bool, String> {
+    state
+        .clear_subagent_instance(&session_id, &sub_agent_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// 清空指定会话的全部子 Agent 实例（重置累积上下文，返回清空数量）
 #[tauri::command]
 pub async fn subagent_clear_instances(
