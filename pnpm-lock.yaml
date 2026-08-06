@@ -256,6 +256,9 @@ importers:
       '@worldsmith/agent-runtime':
         specifier: link:../../packages/agent-runtime
         version: link:../../packages/agent-runtime
+      '@worldsmith/core-api-types':
+        specifier: link:../../packages/core-api-types
+        version: link:../../packages/core-api-types
       '@worldsmith/shared-ui':
         specifier: link:../../packages/shared-ui
         version: link:../../packages/shared-ui
@@ -320,6 +323,9 @@ importers:
       '@worldsmith/canvas-engine':
         specifier: link:../../packages/canvas-engine
         version: link:../../packages/canvas-engine
+      '@worldsmith/core-api-types':
+        specifier: link:../../packages/core-api-types
+        version: link:../../packages/core-api-types
       '@worldsmith/entity-core':
         specifier: link:../../packages/entity-core
         version: link:../../packages/entity-core
@@ -448,6 +454,8 @@ importers:
         specifier: link:../entity-core
         version: link:../entity-core
 
+  packages/core-api-types: {}
+
   packages/entity-core:
     dependencies:
       '@tauri-apps/api':
@@ -459,6 +467,9 @@ importers:
       '@worldsmith/agent-runtime':
         specifier: link:../agent-runtime
         version: link:../agent-runtime
+      '@worldsmith/core-api-types':
+        specifier: link:../core-api-types
+        version: link:../core-api-types
       '@worldsmith/perf-kit':
         specifier: link:../perf-kit
         version: link:../perf-kit
@@ -514,6 +525,9 @@ importers:
 
   packages/plugin-sdk:
     dependencies:
+      '@worldsmith/core-api-types':
+        specifier: link:../core-api-types
+        version: link:../core-api-types
       '@worldsmith/entity-core':
         specifier: link:../entity-core
         version: link:../entity-core
