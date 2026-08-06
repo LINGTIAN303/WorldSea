@@ -17,6 +17,9 @@
  * 迁移批次标注：
  * - P3-W1 ✅ 设计令牌 + boot 组件（Splash/BootError）+ 轻量共享壳
  * - P3-W2 ✅ Shell 布局（MenuBar/SidebarV2/WsConfirmDialog/Companion/AppMessageHandler + modules/store + useProjectSwitcher）
- * - P3-W3 ⏳ 核心页面（AgentSpace/实体视图/插件面板）+ governor + 官方插件 + 业务弹窗
+ * - P3-W3 ✅ 核心页面（AgentSpace/实体视图/插件面板）+ governor + 官方插件（27 个）+ 业务弹窗
+ *   （initializeBackend 注册 registerValidationApi/registerToastApi/registerConfirmApi/
+ *   registerDialogApi/registerSettingsApi/registerModuleStoreApi/registerProjectSwitcherApi/
+ *   registerDownloader/registerPackValidator/registerAppVersionProvider 等完整链路）
  */
 ```

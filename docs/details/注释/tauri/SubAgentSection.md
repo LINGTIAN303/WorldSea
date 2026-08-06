@@ -9,7 +9,7 @@
 
 订阅 `useAgentRust().subAgents`（由 Rust `agent:event:subagent:{session_id}`
 事件驱动维护），实时展示主 Agent 委派给子 Agent 的任务状态：
-- `running`：委派执行中（蓝色旋转指示 + 实时运行耗时）
+- `running`：委派执行中（蓝色 pulse 闪烁指示 + 实时运行耗时）
 - `completed`：委派完成（绿色，展示输出字符数与耗时）
 - `error`：委派失败 / 超时（红色，错误信息过长时可展开）
 

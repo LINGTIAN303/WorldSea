@@ -1,7 +1,7 @@
 # 02 - 目标架构
 
 > 设计日期：2026-07-29
-> 状态：✅ 已实施（2026-08-02 复核：apps/ 三端骨架、packages/agent-runtime 共享层已按本架构落地；根 src/ 业务 UI 迁移暂停，见 08-migration-phases.md）
+> 状态：✅ 已实施（2026-08-06 复核：apps/ 三端、packages/agent-runtime 共享层已按本架构落地；根 src/ 业务 UI 已于 2026-08-03 全量迁入 apps/web 并删除。小偏差：tauri 端 Rust composables 实际为 3 个（useAgentRust/useLongTaskRust/useLoopControlRust），packages/agent-runtime 无 embedding/ 子目录、shared-composables 为 agent/entity/ui 子目录结构）
 
 ## 1. 目标目录结构
 

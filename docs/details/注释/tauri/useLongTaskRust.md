@@ -33,10 +33,11 @@
 | `saveTask`          | `cmd_long_task_save`               |
 | `loadTask`          | `cmd_long_task_load`               |
 | `listRunningTasks`  | `cmd_long_task_list_running`       |
-| `listAllTasks`      | `cmd_long_task_list_all`           |
 | `updateHeartbeat`   | `cmd_long_task_update_heartbeat`   |
 | `updateStatus`      | `cmd_long_task_update_status`      |
 | `deleteTask`        | `cmd_long_task_delete`             |
+
+> 注：Rust 端另有 `cmd_long_task_list_all`（全量任务列表），前端当前未封装。
 
 ## 设计原则（沿用 workflow 引擎模式）
 

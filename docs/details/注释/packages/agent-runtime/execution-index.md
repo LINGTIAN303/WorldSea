@@ -13,12 +13,12 @@
 
 端注册示例：
 ```typescript
-// CLI 端（apps/cli/src/bootstrap.ts）
+// CLI 端（apps/cli/src/cli/execution.ts）
 registerExecutionAdapterFactory({
   createNodeAdapter: () => new NodeExecutionAdapter(),
 })
 
-// Web 端（apps/web/src/bootstrap.ts）
+// Web 端（apps/web/src/main.ts）
 registerExecutionAdapterFactory({
   createWsAdapter: (config) => new WebSocketExecutionAdapter(config),
 })

@@ -6,7 +6,7 @@
 ## 注释块 1（原文件第 1-40 行）
 
 ```
-PiBackendMemoryAccessor — 将 worldsmith-agent 的 localStorage KV 记忆系统
+PiBackendMemoryAccessor — 将 @worldsmith/agent-runtime 的 localStorage KV 记忆系统
 适配为 MemoryAccessor 接口（阶段 0.7）
 
 核心职责：

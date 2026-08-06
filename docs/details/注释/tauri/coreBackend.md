@@ -24,6 +24,6 @@ Tauri 端 coreBackend — Phase 3 端分离
   - schema.ts：契约校验 validatePack + Schema API（schemaRegisterEntityType 等 7 个）
   - retrofit.ts：retrofit 会话 14 个函数
   - entity.ts：实体校验 5 个（validateEntity / validateEntities / checkReferences / migrate / runDiagnostics）
-  - algo.ts：空间索引 10 个 + 几何/图/CRDT/地形算法 79 个
+  - algo.ts：空间索引 10 个 + 几何/图/CRDT/地形算法 50 个
   - health.ts：checkStorageHealth / validatePluginManifest / checkPluginHealth
 - 对外导出名集合与签名不变，`import * as coreBackend` 调用方零改动

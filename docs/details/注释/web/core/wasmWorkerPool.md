@@ -19,7 +19,7 @@
  * - Heavy: algoForceLayout, algoDijkstraPath, algoAstar, algoTopologicalSort,
  *   algoConnectedComponents, algoTarjanScc, algoPageRank, algoCommunityDetection,
  *   algoBetweennessCentrality, algoTerrainHeightmapGenerate, algoHydraulicErosion,
- *   algoViewshed, algoConstraintSolve, runDiagnostics, validatePack,
+ *   algoViewshed, algoConstraintSolve, runDiagnostics, validatePack, validateEntities,
  *   algoDxfParse, algoPolygonBoolean
  * - Light (主线程): algoSegmentIntersect, algoPointInPolygon, algoPolygonArea, etc.
  */

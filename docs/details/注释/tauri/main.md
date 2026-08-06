@@ -12,5 +12,6 @@ Tauri 端入口（Phase 3 — 端入口硬编码后端）
 - 通过 Tauri invoke 调用 Rust 命令
 - 不需要 /api/* 代理（IPC 直连系统能力）
 
-Phase 3 阶段：业务 UI 仍在 src/，本入口仅做端初始化
-Phase 4 阶段：业务 UI 迁入 packages/shared-ui 后，本入口成为完整应用入口
+当前状态：业务 UI 已在 `apps/tauri/src/`（App.vue），本入口为完整应用入口
+（createApp + initializeBackend 注册 registerBackend/registerValidationApi/
+registerAllManifests/injectAllKeyframes 等），不再区分 Phase 3/4。

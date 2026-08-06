@@ -19,7 +19,7 @@ worldsmith-agent/src/governor-modules.ts — Agent 包模块描述符
 3. lazy（延迟加载）：MCP、群聊系统
    - 空闲时加载，失败静默
 
-与 src/governor/bootstrap.ts 的区别：
+与 apps/web/src/governor/bootstrap.ts 的区别：
 - 不依赖 Vue/Pinia（Agent 包可在 terminal 环境运行）
 - 工具注册保持静态 import（governor 只编排初始化顺序与环境验证）
 - Web 端和 CLI 端共用同一套模块描述符，通过 requires/hosts 过滤

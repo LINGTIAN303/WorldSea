@@ -15,7 +15,7 @@
  * 原则：
  * - 所有关系强制有向 + 强制 inverseType
  * - 对称关系 inverseType 指向自身
- * - 消除命名混乱（located_at/located_in 统一为 located_in + inverse contains_location）
+ * - 消除命名混乱（located_at 收敛为「物品→地点」的 ownership 域语义；located_in 为「地区→地区」的地理域语义，二者并存、不重复）
  * - 消除重复声明（member_of, owned_by 等只声明一次）
  */
 ````

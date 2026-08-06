@@ -16,7 +16,6 @@
 
 // ----------------------------------------------------------------------------
 // Ws* Components (Pure UI Atoms) — native to ui-kit
-// Currently re-exported from src/ui/; will eventually move into
-// packages/ui-kit/src/components/
+// Exported directly from ./components/（端分离迁移已完成，原 src/ui/ 目录已移除）
 // ----------------------------------------------------------------------------
 ````

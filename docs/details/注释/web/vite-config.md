@@ -14,4 +14,4 @@ Web 端 Vite 配置（Phase 5 独立构建）
 4. LLM API 代理由 CLI serve 处理，Web 端不重复配置
 
 端口：5174（避免与主项目 5173、Tauri 端 5175 冲突）
-后端连接：VITE_CLI_SERVE_URL 环境变量（默认 http://localhost:3100）
+后端连接：VITE_CLI_SERVE_PROXY_URL 环境变量（默认 http://localhost:3100）

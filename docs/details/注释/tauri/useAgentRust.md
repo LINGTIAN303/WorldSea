@@ -46,8 +46,9 @@
 
 实现 `IAgentBackend.subscribe(listener)`，在 prompt / abort 等调用时
 通过 `AgentEvent` 分发（agent_start / agent_end / message_start /
-message_end / error）。当前 5.2 为 mock 后端，send_message 一次性返回，
-无流式 message_update，后续接入真实 genai 后端时按需补充。
+message_end / error）。当前已接入真实 genai 后端（RustProviderConfigFull
+三模式），完整流式事件链路经 `agent:event:stream:{session_id}` 透传
+（start/delta/end/error/agent_end，见注释块 3）。
 
 ## 注释块 2（原文件第 47-56 行）
 

@@ -243,7 +243,9 @@ UI 组件通过 `lcTasks.get(taskId)` 读取并渲染。
 # 错误
 
 抛出 Rust 端返回的 `LoopControlRegistryError`（已序列化为 JS 对象）：
+- `not_found`：任务/会话不存在
 - `already_exists`：taskId 已存在
+- `lock_error`：控制器锁冲突
 - `invalid_config`：配置错误
 - `internal`：会话不存在或绑定失败
 

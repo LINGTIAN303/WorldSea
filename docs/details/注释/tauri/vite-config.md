@@ -14,4 +14,4 @@ Tauri 端 Vite 配置（Phase 5 独立构建）
 4. Tauri dev 由 tauri.conf.json 的 beforeDevCommand 触发此 Vite 服务器
 
 端口：5175（避免与 Web 端 5174、主项目 5173 冲突）
-后端连接：Tauri IPC（TauriExecutionAdapter）
+后端连接：Tauri IPC（通过 invoke 调用 Rust 命令层，见 src-tauri/src/lib.rs）

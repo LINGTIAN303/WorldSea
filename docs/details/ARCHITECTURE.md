@@ -1,6 +1,6 @@
 # WorldSmith 架构总览
 
-> 本文档描述**当前实际代码状态**（2026-08-04 复核），供新接手者快速定位代码。
+> 本文档描述**当前实际代码状态**（2026-08-06 复核），供新接手者快速定位代码。
 > 与 `docs/details/端分离/` 文档库区分：后者是端分离迁移的历史记录与目标架构设计。
 
 ## 1. 项目定位
@@ -20,9 +20,12 @@ worldsmith/
 │   ├── web/               # ★ 主应用（完整前端：Agent、插件、Space、UI、core）
 │   ├── cli/               # CLI 端（commander：chat / serve，HTTP+WS 服务）
 │   └── tauri/             # Tauri 桌面端（独立 src-tauri + Rust 命令层）
-├── packages/              # 共享 monorepo 子包（13 个，见 §4）
+├── packages/              # 共享 monorepo 子包（15 个，见 §4）
 ├── crates/                # Rust crates
-│   └── agent-runtime/     # Rust Agent 编排后端（genai LLM + tokio）
+│   ├── agent-runtime/     # Rust Agent 编排后端（genai LLM + tokio）
+│   ├── agent-commands/    # 命令层（LoopControl/LongTask/SubAgent/Terminal 等）
+│   ├── agent-memory/      # Agent 记忆后端（MemoryCenter 适配）
+│   └── vendor/            # 三方 vendor 代码（memory-center-core）
 ├── worldsmith-core/       # Rust WASM 核心（storage/validation/graph layout）
 ├── tactical-engine/       # Rust WASM 战术引擎（pathfinding）
 ├── worldsmith-skills-store/ # Rust Skills Store 纯逻辑库（可独立 cargo test）
@@ -47,6 +50,7 @@ worldsmith/
 | `agent-core` | Agent 框架核心（声明式 ToolRegistry/SkillRegistry、bus、orchestrator、guard） |
 | `agent-runtime` | ★ Agent 核心运行时（端无关：Agent 主循环、工具、技能、会话、toolbus、providers、group-chat、mcp、embedding、kb） |
 | `canvas-engine` | 共享画布渲染引擎（graph / tree / geometry / algorithms） |
+| `core-api-types` | 前端 API 契约类型唯一源（coreBackend 双端收敛后共享） |
 | `entity-core` | 实体 CRUD、关系、facets、traits、stores、composables |
 | `font-kit` | 字体管理与渲染 |
 | `governor-core` | 治理器核心（environment、registry） |
@@ -55,6 +59,7 @@ worldsmith/
 | `perf-kit` | 性能工具（响应式、IO 批处理、渲染节流） |
 | `plugin-sdk` | 插件开发 SDK |
 | `shared-composables` | 三端共享 Vue composables |
+| `shared-ui` | 三端共享 UI 子包（A2UI 组件等，避免根入口重复导出） |
 | `theme-kit` | 主题 manifest 系统与纹理引擎 |
 | `ui-kit` | 共享 UI 组件（Ws* 基础组件） |
 
@@ -63,6 +68,9 @@ worldsmith/
 | crate | 职责 |
 |-------|------|
 | `crates/agent-runtime` | Agent 编排后端（ToT / GoT / Multi-Agent / Supervisor / Router / Loop Engineering） |
+| `crates/agent-commands` | Tauri 命令层薄封装（Agent 主链路 / LoopControl / LongTask / SubAgent / Terminal） |
+| `crates/agent-memory` | Agent 记忆后端（MemoryCenterAccessor，实现 MemoryAccessor trait） |
+| `crates/vendor/memory-center-core` | 三方 vendor（MemoryCenter 核心，保持与上游一致） |
 | `worldsmith-core` | WASM 核心（serde、validation、migration、graph layout、sqlite） |
 | `tactical-engine` | WASM 战术引擎（pathfinding） |
 | `worldsmith-skills-store` | Skills Store 纯逻辑库（zip 解压、sha256 校验、本地导入） |

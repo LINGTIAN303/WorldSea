@@ -12,12 +12,13 @@ Phase 5.1：在 `apps/tauri/src-tauri` 端做薄包装，通过 `manage` 一个
 `#[tauri::command]`，供 WebView 前端 `invoke` 调用。
 
 命令签名与 Web 端 `useAgent` 接口对齐（newSession / sendMessage / abort /
-resumeTask / switchSession / getProviderConfig / updateModel /
-updateThinkingLevel / clearHistory / getSessionList / getSessionMessages /
-getUsage / getHeartbeat / ...），此处为其中已落地的主链路子集。
+steer / clearHistory / trimContext / getState / getMessages / isStreaming /
+updateModel / updateThinkingLevel / getProviderConfig / setProviderConfig /
+getHeartbeat / ...），此处为当前已注册的主链路子集。
 
 P2 新增：Deep Phase 事件转发 — 订阅 AgentLoop 的 DeepPhaseChanged 事件，
-通过 Tauri 事件系统 `agent:event:deep_phase_changed` 发送到前端。
+通过 Tauri 事件系统 `agent:event:deep_phase_changed:{session_id}` 发送到前端
+（事件名带 sessionId 后缀，与前端 useAgentRust 监听一致）。
 
 ## 注释块 2（原文件第 698-708 行）
 

@@ -18,7 +18,7 @@
 
 后端命令取 `serde_json::Value` 参数，键名与工具参数一致（snake_case）：
 - `executeCommand`: `{ command, cwd?, env?, timeout_ms? }`
-- `createSession`:  `{ shell?, cwd?, env? }`
+- `createSession`:  `{ shell?, cwd? }`
 - `execSession`:    `{ session_id, command, timeout_ms? }`
 - `inputSession`:   `{ session_id, data }`
 - `destroySession`: `{ session_id }`

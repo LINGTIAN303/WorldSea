@@ -9,9 +9,9 @@
 /**
  * modules/registry.ts — 模块注册表（Web 端迁移版）
  *
- * P3-W2 从根 src/modules/registry.ts 迁移。实现不变，唯一裁剪：
- * - KanbanView 组件动态加载（根目录 src/modules/runtime/KanbanView.vue 属 P3-W3 核心页面批次，
- *   此处先跳过看板视图扩展注册，P3-W3 恢复）
+ * P3-W2 从根 src/modules/registry.ts 迁移。实现不变：
+ * - KanbanView 组件动态加载（看板视图扩展注册已在 P3-W3 恢复：
+ *   registerViewExtension(kanbanViewExt) + 动态 import('./runtime/KanbanView.vue')）
  *
  * 核心调度器。负责：
  *   - 模块的激活/停用

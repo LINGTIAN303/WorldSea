@@ -10,7 +10,7 @@
  * @worldsmith/governor-core — Barrel Exports
  *
  * 调控器核心包入口：纯逻辑、无 Vue/Pinia 依赖。
- * 主应用（src/governor）与 Agent 包（worldsmith-agent）共享此包。
+ * 主应用（apps/web/src/governor）与 Agent 运行时包（@worldsmith/agent-runtime）共享此包。
  *
  * 子路径导出：
  *   - @worldsmith/governor-core          → 本文件（全部导出）

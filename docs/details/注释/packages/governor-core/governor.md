@@ -17,11 +17,11 @@
  *   3. 模块激活/停用（通过 apiFactory 创建 GovernorAPI 后调用 descriptor.activate）
  *   4. 批量启动 boot()：按 priority 分批 + 依赖拓扑排序 + 分级降级
  *
- * 与 src/governor/governor.ts 的差异：
+ * 与 apps/web/src/governor/governor.ts 的差异：
  *   - 通过 options.apiFactory 注入 GovernorAPI 创建策略
  *   - 主应用传入 createGovernorAPI（依赖 Vue/Pinia）
  *   - Agent 包传入空 API 工厂（无 UI 依赖）
- *   - 由此消除 src/governor 与 worldsmith-agent/src/governor 的重复实现
+ *   - 由此消除主应用 governor 与 Agent 运行时包（@worldsmith/agent-runtime）的重复实现
  *
  * 分级降级策略：
  *   - critical：失败则中止 boot()，hasCriticalFailure=true
