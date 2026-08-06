@@ -4,6 +4,7 @@
 //! 使用 tag + content 结构，前端可据此区分错误类型。
 
 use agent_runtime::agent::AgentError;
+use agent_runtime::memory::MemoryError;
 
 /// 命令层错误
 #[derive(Debug, thiserror::Error)]
@@ -27,6 +28,12 @@ pub enum CommandError {
 impl From<AgentError> for CommandError {
     fn from(err: AgentError) -> Self {
         CommandError::Agent(err.to_string())
+    }
+}
+
+impl From<MemoryError> for CommandError {
+    fn from(err: MemoryError) -> Self {
+        CommandError::Internal(format!("记忆操作失败: {err}"))
     }
 }
 

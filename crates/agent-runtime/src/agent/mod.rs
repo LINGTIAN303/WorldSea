@@ -179,6 +179,14 @@ impl AgentLoop {
         &self.loop_controller
     }
 
+    /// 获取内建记忆访问器引用（克隆 `Arc` 以便命令层共享同一实例）
+    ///
+    /// 返回 `Some(accessor)` 表示该会话已启用记忆后端（`with_memory` 注入），
+    /// 命令层可据此实现 list / recall / archive / load_chunk 等会话级记忆操作。
+    pub fn memory(&self) -> Option<Arc<dyn crate::memory::MemoryAccessor>> {
+        self.memory.clone()
+    }
+
     /// 注入记忆访问器（链式，同步）
     ///
     /// 传 `Some(accessor)` 启用记忆闭环（recall → inject → record_turn → archive），

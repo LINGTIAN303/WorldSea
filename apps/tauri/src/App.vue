@@ -9,10 +9,16 @@ import SubAgentView from './subagent/components/SubAgentView.vue'
 import SubAgentSection from './agent/components/SubAgentSection.vue'
 import ModelSettingsDialog from './agent/components/ModelSettingsDialog.vue'
 import LoopControlStatus from './agent/components/LoopControlStatus.vue'
+import MemoryPanel from './agent/memory/MemoryPanel.vue'
 
 // 在 setup 上下文注入（useAgent 使用 inject 模式，须在组件内 provide）
 const backend = useAgentRust()
 provideAgentBackend(backend)
+
+// 解构出顶层 ref：模板中 `backend.xxx` 是嵌套 ref 不会被解包。
+// 直接传 prop / v-for 会得到 Ref 对象而非原始值（memory_* 命令报 invalid type: map；
+// v-for 得到空对象导致会话侧边栏不渲染）。见 MemoryPanel 接线
+const { currentSessionId, sessionList, switchSession } = backend
 
 /** Loop Engineering：命令层 composable（模块级单例） */
 const loopControl = useLoopControlRust()
@@ -71,8 +77,8 @@ watch(
   },
 )
 
-// 当前视图：chat（对话） / terminal（终端） / subagent（子 Agent 管理）
-const view = ref<'chat' | 'terminal' | 'subagent'>('chat')
+// 当前视图：chat（对话） / terminal（终端） / subagent（子 Agent 管理） / memory（记忆库）
+const view = ref<'chat' | 'terminal' | 'subagent' | 'memory'>('chat')
 
 /** 发送消息：走 useAgentRust.prompt → invoke('send_message') → Rust ReAct 循环 */
 async function send() {
@@ -249,10 +255,16 @@ onMounted(async () => {
       <button :class="{ active: view === 'chat' }" @click="view = 'chat'">对话</button>
       <button :class="{ active: view === 'terminal' }" @click="view = 'terminal'">终端</button>
       <button :class="{ active: view === 'subagent' }" @click="view = 'subagent'">子 Agent</button>
+      <button :class="{ active: view === 'memory' }" @click="view = 'memory'">记忆</button>
     </nav>
 
+    <!-- 记忆库视图（会话级记忆：列表/检索/详情/归档） -->
+    <div v-if="view === 'memory'" class="memory-holder">
+      <MemoryPanel :session-id="currentSessionId" />
+    </div>
+
     <!-- 终端视图（全宽） -->
-    <div v-if="view === 'terminal'" class="terminal-holder">
+    <div v-else-if="view === 'terminal'" class="terminal-holder">
       <TerminalView />
     </div>
 
@@ -268,14 +280,14 @@ onMounted(async () => {
         <h2>会话</h2>
         <button class="new-session" title="新建会话" @click="onNewSession">＋ 新建</button>
       </div>
-      <div v-if="backend.sessionList.length === 0" class="empty">暂无会话</div>
+      <div v-if="sessionList.length === 0" class="empty">暂无会话</div>
       <ul class="sessions">
         <li
-          v-for="s in backend.sessionList"
+          v-for="s in sessionList"
           :key="s.id"
-          :class="{ active: s.id === backend.currentSessionId }"
+          :class="{ active: s.id === currentSessionId }"
         >
-          <button class="session-switch" @click="backend.switchSession(s.id)">
+          <button class="session-switch" @click="switchSession(s.id)">
             {{ (s.id ?? '').slice(0, 8) }}
             <span class="count">{{ s.message_count }}</span>
           </button>
@@ -425,6 +437,11 @@ onMounted(async () => {
   min-height: 0;
 }
 .subagent-holder {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.memory-holder {
   flex: 1;
   min-height: 0;
   overflow-y: auto;

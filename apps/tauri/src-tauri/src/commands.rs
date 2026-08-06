@@ -212,6 +212,72 @@ pub async fn delete_session(
     state.delete_session(&session_id).await.map_err(|e| e.to_string())
 }
 
+/// 记忆列表（空查询=全量，按时间排序；支持可选关键词过滤）
+#[tauri::command]
+pub async fn memory_list(
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+    keyword: Option<String>,
+    limit: Option<u32>,
+) -> Result<Vec<agent_runtime::memory::MemoryRecallResult>, String> {
+    state
+        .memory_list(&session_id, keyword, limit)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 记忆检索（关键词）
+#[tauri::command]
+pub async fn memory_recall(
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+    query: String,
+    top_k: Option<u32>,
+) -> Result<Vec<agent_runtime::memory::MemoryRecallResult>, String> {
+    state
+        .memory_recall(&session_id, query, top_k)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 手动触发归档（消费缓冲轮次）
+#[tauri::command]
+pub async fn memory_archive(
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+) -> Result<Option<agent_runtime::memory::MemoryArchiveResult>, String> {
+    state
+        .memory_archive(&session_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 加载记忆块完整内容
+#[tauri::command]
+pub async fn memory_load_chunk(
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+    hook_id: String,
+    chunk_id: String,
+) -> Result<Option<agent_runtime::memory::MemoryChunkContent>, String> {
+    state
+        .memory_load_chunk(&session_id, hook_id, chunk_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 获取当前归档边界
+#[tauri::command]
+pub async fn memory_boundary(
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+) -> Result<usize, String> {
+    state
+        .memory_boundary(&session_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// 发送消息（ReAct 循环执行）
 #[tauri::command]
 pub async fn send_message(

@@ -1,6 +1,6 @@
 # MemoryCenter 召回集成计划（增强 WorldSmith Agent 记忆系统）
 
-> **状态**：执行中（阶段 3 已完成闭环验证）
+> **状态**：执行中（阶段 4 已完成前端迁移）
 > **创建日期**：2026-08-06
 > **决策人**：用户
 > **关联**：`crates/agent-runtime/src/memory.rs`（MemoryAccessor trait）、`docs/plans/agent-orchestration-roadmap.md`（Memory 横切模式）
@@ -98,7 +98,15 @@ Storage trait（可插拔）
         - 验证：agent-runtime 增 2 集成测（记忆注入 system prompt + 无记忆跳过），170 单测 +
           5 集成测通过；agent-memory 增 record_turn→archive→recall 闭环单测，5 通过；
           agent-commands 59 + 1 通过；tauri cargo check 通过
-阶段 4  前端迁移：ArchivePanel 等 UI 从 TS memory-archive 切到新后端（可最后做）
+阶段 4  前端迁移：ArchivePanel 等 UI 从 TS memory-archive 切到新后端 ✅ 已完成（2026-08-06）
+        - 后端命令：AgentCommandService 增会话级 memory_list/recall/archive/load_chunk/boundary
+          （agent-commands/src/lib.rs）+ CommandError::From<MemoryError>
+        - Tauri 命令：commands.rs 增 memory_* 五个 #[tauri::command]，lib.rs 注册进 generate_handler
+        - 前端：useMemoryCenterRust.ts（invoke memory_* 命令 + 响应式状态，Rust 类型镜像）
+          + MemoryPanel.vue（列表/检索/详情/归档 4 视图 MVP）
+        - 接线：App.vue 增「记忆」tab，挂载 MemoryPanel（传当前会话 sessionId，会话隔离）
+        - 验证：agent-commands / agent-runtime / tauri cargo check 通过；前端 typecheck 通过
+        - 说明：管理功能（标签/置顶/删除/回收站/定时归档/合并）留待后续迭代，MVP 聚焦核心闭环
 阶段 5  清理：确认稳定后归档/移除 TS 版 memory-archive
 ```
 

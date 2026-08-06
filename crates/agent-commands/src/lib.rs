@@ -31,6 +31,10 @@ use agent_runtime::llm::config::ProviderConfig as RuntimeProviderConfig;
 use agent_runtime::llm::GenaiBackend;
 use agent_runtime::long_task::HeartbeatStatus;
 use agent_runtime::memory::MemoryAccessor;
+use agent_runtime::memory::{
+    ArchiveSource, MemoryArchiveResult, MemoryChunkContent, MemoryRecallOptions, MemoryRecallResult,
+    RecallMode,
+};
 use agent_runtime::supervisor::SubAgentSpec;
 use memory_center_core::model::ArchiveConfig;
 use agent_runtime::tool::SimpleToolBus;
@@ -411,6 +415,89 @@ impl AgentCommandService {
         sessions.remove(session_id);
         meta.remove(session_id);
         Ok(())
+    }
+
+    // ── 会话级记忆（阶段 4：前端 ArchivePanel 迁移后端）────────────────
+
+    /// 获取会话记忆访问器（未启用记忆时返回 None）
+    async fn get_memory(&self, session_id: &str) -> Result<Option<Arc<dyn MemoryAccessor>>, CommandError> {
+        let agent = self.get_agent(session_id).await?;
+        Ok(agent.memory())
+    }
+
+    /// 记忆列表（空查询=全量，按时间排序），支持可选关键词过滤
+    pub async fn memory_list(
+        &self,
+        session_id: &str,
+        keyword: Option<String>,
+        limit: Option<u32>,
+    ) -> Result<Vec<MemoryRecallResult>, CommandError> {
+        let memory = self
+            .get_memory(session_id)
+            .await?
+            .ok_or_else(|| CommandError::Internal(format!("会话 {session_id} 未启用记忆后端")))?;
+        let opts = MemoryRecallOptions {
+            mode: RecallMode::List,
+            top_k: limit.unwrap_or(50),
+            ..Default::default()
+        };
+        let results = memory.recall(keyword.unwrap_or_default(), Some(opts)).await?;
+        Ok(results)
+    }
+
+    /// 记忆检索（关键词）
+    pub async fn memory_recall(
+        &self,
+        session_id: &str,
+        query: String,
+        top_k: Option<u32>,
+    ) -> Result<Vec<MemoryRecallResult>, CommandError> {
+        let memory = self
+            .get_memory(session_id)
+            .await?
+            .ok_or_else(|| CommandError::Internal(format!("会话 {session_id} 未启用记忆后端")))?;
+        let opts = MemoryRecallOptions {
+            mode: RecallMode::Hybrid,
+            top_k: top_k.unwrap_or(5),
+            ..Default::default()
+        };
+        let results = memory.recall(query, Some(opts)).await?;
+        Ok(results)
+    }
+
+    /// 手动触发归档（消费缓冲轮次）
+    pub async fn memory_archive(
+        &self,
+        session_id: &str,
+    ) -> Result<Option<MemoryArchiveResult>, CommandError> {
+        let memory = self
+            .get_memory(session_id)
+            .await?
+            .ok_or_else(|| CommandError::Internal(format!("会话 {session_id} 未启用记忆后端")))?;
+        Ok(memory.archive(Some(ArchiveSource::Manual)).await?)
+    }
+
+    /// 加载记忆块完整内容
+    pub async fn memory_load_chunk(
+        &self,
+        session_id: &str,
+        hook_id: String,
+        chunk_id: String,
+    ) -> Result<Option<MemoryChunkContent>, CommandError> {
+        let memory = self
+            .get_memory(session_id)
+            .await?
+            .ok_or_else(|| CommandError::Internal(format!("会话 {session_id} 未启用记忆后端")))?;
+        Ok(memory.load_chunk(hook_id, chunk_id).await?)
+    }
+
+    /// 获取当前归档边界
+    pub async fn memory_boundary(&self, session_id: &str) -> Result<usize, CommandError> {
+        let memory = self
+            .get_memory(session_id)
+            .await?
+            .ok_or_else(|| CommandError::Internal(format!("会话 {session_id} 未启用记忆后端")))?;
+        Ok(memory.get_archive_boundary().await?)
     }
 
     // ── 对话主链路 ────────────────────────────────────

@@ -627,6 +627,9 @@ function handleStreamEvent(sessionId: string, payload: RustStreamPayload): void 
 
   // error / agent_end：清理流式占位，保留已累积内容
   streamingAssistant.value = null
+  // 复位流式状态：即使 send_message 的 invoke promise 因重载/中断被丢弃，
+  // 后端仍会经流事件通道广播 agent_end/error，据此兜底复位，避免「思考中…」卡死
+  isStreaming.value = false
 }
 
 /**
