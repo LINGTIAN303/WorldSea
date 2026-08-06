@@ -25,7 +25,7 @@
     "./orchestrator/*": "./src/orchestrator/*"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit",
+    "typecheck": "vue-tsc --noEmit --declaration false --declarationMap false",
     "build": "tsc"
   },
   "dependencies": {

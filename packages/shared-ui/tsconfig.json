@@ -14,6 +14,7 @@
       "@agent/*": ["../agent-runtime/src/*"],
       "@worldsmith/agent-runtime": ["../agent-runtime/src/index.ts"],
       "@worldsmith/agent-runtime/*": ["../agent-runtime/src/*"],
+      "@worldsmith/core-api-types": ["../core-api-types/src/index.ts"],
       "@worldsmith/entity-core": ["../entity-core/src/index.ts"],
       "@worldsmith/entity-core/*": ["../entity-core/src/*"],
       "@worldsmith/shared-composables": ["../shared-composables/src/index.ts"],

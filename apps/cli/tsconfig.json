@@ -18,6 +18,7 @@
       // 共享运行时层
       "@worldsmith/agent-runtime": ["../../packages/agent-runtime/src/index.ts"],
       "@worldsmith/agent-runtime/*": ["../../packages/agent-runtime/src/*"],
+      "@worldsmith/core-api-types": ["../../packages/core-api-types/src/index.ts"],
       "@worldsmith/agent-core": ["../../packages/agent-core/src/index.ts"],
       "@worldsmith/agent-core/*": ["../../packages/agent-core/src/*"],
       "@worldsmith/governor-core": ["../../packages/governor-core/src/index.ts"],

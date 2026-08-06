@@ -31,17 +31,17 @@ export const manifest = {
 
 export function activate(api: PluginAPIType) {
   api.registerEntityType({
-    type: 'pipeline',
+    typeKey: 'pipeline',
     label: '创作计划',
     icon: 'lightning',
     fields: [
-      { key: 'name', type: 'text', label: '名称', required: true },
-      { key: 'description', type: 'text', label: '描述' },
-      { key: 'steps', type: 'text', label: '步骤 (JSON)', required: true },
-      { key: 'connections', type: 'text', label: '连接 (JSON)' },
-      { key: 'status', type: 'select', label: '状态', options: ['draft', 'ready', 'running', 'paused', 'completed', 'failed'], defaultValue: 'draft' },
-      { key: 'tags', type: 'textarea', label: '标签' },
-      { key: 'currentStepId', type: 'text', label: '当前步骤' },
+      { key: 'name', fieldType: 'text', label: '名称', required: true },
+      { key: 'description', fieldType: 'text', label: '描述' },
+      { key: 'steps', fieldType: 'text', label: '步骤 (JSON)', required: true },
+      { key: 'connections', fieldType: 'text', label: '连接 (JSON)' },
+      { key: 'status', fieldType: 'select', label: '状态', options: ['draft', 'ready', 'running', 'paused', 'completed', 'failed'].map(s => ({ value: s, label: s })), defaultValue: 'draft' },
+      { key: 'tags', fieldType: 'textarea', label: '标签' },
+      { key: 'currentStepId', fieldType: 'text', label: '当前步骤' },
     ],
   })
 

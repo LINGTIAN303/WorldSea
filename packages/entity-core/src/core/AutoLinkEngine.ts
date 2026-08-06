@@ -445,7 +445,7 @@ export async function indexPotentialLinks(
     if (field.autoLink) {
       // autoLink 直接指定了目标类型和关系类型，无需策略匹配
       await matchAndIndexDirect(entityId, field.key, value, field.autoLink.targetType, field.autoLink.relationType, field.autoLink.searchField)
-    } else if (field.type === 'text' || field.type === 'textarea') {
+    } else if (field.fieldType === 'text' || field.fieldType === 'textarea') {
       // 收集无 autoLink 的文本字段
       unmappedFields.push({ key: field.key, value })
     }

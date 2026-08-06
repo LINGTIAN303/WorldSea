@@ -79,7 +79,7 @@ function isKnownViewType(type: string): boolean {
  * 保留尽可能多的类型信息
  */
 function toFieldSchema(f: any): FieldSchema {
-  const typeMap: Record<string, FieldSchema['type']> = {
+  const typeMap: Record<string, FieldSchema['fieldType']> = {
     'text': 'text', 'textarea': 'textarea', 'number': 'text',
     'boolean': 'boolean', 'date': 'date',
     'select': 'select',
@@ -92,10 +92,10 @@ function toFieldSchema(f: any): FieldSchema {
   return {
     key: f.key,
     label: f.label,
-    type: typeMap[f.type] || 'text',
+    fieldType: typeMap[f.type] || 'text',
     required: f.required,
     defaultValue: f.defaultValue,
-    options: f.options,
+    options: f.options?.map((o: string) => ({ value: o, label: o })),
   }
 }
 
@@ -105,7 +105,7 @@ async function activateModule(instance: ModuleInstance): Promise<void> {
   // 1. 注册实体类型到全局 Schema
   for (const et of mod.entityTypes) {
     const schema: EntityTypeSchema = {
-      type: et.name,
+      typeKey: et.name,
       label: et.label,
       icon: et.icon,
       fields: et.fields.map(toFieldSchema),
@@ -117,7 +117,7 @@ async function activateModule(instance: ModuleInstance): Promise<void> {
   // 2. 注册关系类型
   for (const rt of mod.relationTypes) {
     const schema: RelationTypeSchema = {
-      type: rt.name,
+      typeKey: rt.name,
       label: rt.label,
       sourceTypes: rt.sourceTypes,
       targetTypes: rt.targetTypes,

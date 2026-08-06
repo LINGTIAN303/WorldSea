@@ -100,7 +100,7 @@ const pluginEntityTypes = computed(() => {
   for (const schema of entitySchemaRegistry.getAll()) {
     if (schema.pluginId) {
       const list = map.get(schema.pluginId) || []
-      list.push(schema.type)
+      list.push(schema.typeKey)
       map.set(schema.pluginId, list)
     }
   }

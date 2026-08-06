@@ -35,12 +35,12 @@ export function activate(api: PluginAPIType) {
       } },
     ],
     ownFields: [
-      { key: 'conflictType', label: '类型', type: 'select', options: ['全面战争', '局部冲突', '内战', '起义', '侵略', '防御战', '冷冲突', '贸易战', '其他'] },
-      { key: 'scale', label: '规模', type: 'select', options: ['全球', '区域', '国家', '地方', '小规模'] },
-      { key: 'cause', label: '起因', type: 'textarea' },
-      { key: 'result', label: '结果', type: 'textarea' },
-      { key: 'casualties', label: '伤亡', type: 'textarea' },
-      { key: 'treaty', label: '和约/停战协议', type: 'textarea' },
+      { key: 'conflictType', label: '类型', fieldType: 'select', options: ['全面战争', '局部冲突', '内战', '起义', '侵略', '防御战', '冷冲突', '贸易战', '其他'].map(s => ({ value: s, label: s })) },
+      { key: 'scale', label: '规模', fieldType: 'select', options: ['全球', '区域', '国家', '地方', '小规模'].map(s => ({ value: s, label: s })) },
+      { key: 'cause', label: '起因', fieldType: 'textarea' },
+      { key: 'result', label: '结果', fieldType: 'textarea' },
+      { key: 'casualties', label: '伤亡', fieldType: 'textarea' },
+      { key: 'treaty', label: '和约/停战协议', fieldType: 'textarea' },
     ],
   })
 

@@ -86,7 +86,7 @@ export function useAISuggestions() {
           for (const tgtNode of tgtCandidates) {
             if (tgtNode.id === srcNode.id) continue
 
-            const dedupeKey = `${srcNode.id}:${tgtNode.id}:${schema.type}`
+            const dedupeKey = `${srcNode.id}:${tgtNode.id}:${schema.typeKey}`
             if (suggestedSet.has(dedupeKey)) continue
 
             const pairKey = `${srcNode.id}->${tgtNode.id}`
@@ -107,8 +107,8 @@ export function useAISuggestions() {
               sourceName: srcNode.name,
               targetId: tgtNode.id,
               targetName: tgtNode.name,
-              relType: schema.type,
-              relLabel: schema.label || schema.type,
+              relType: schema.typeKey,
+              relLabel: schema.label || schema.typeKey,
               reason: buildReason(srcNode, tgtNode, schema),
               confidence,
             })
@@ -157,7 +157,7 @@ export function useAISuggestions() {
     }).join('\n')
 
     const relSchemas = relationSchemaRegistry.getAll()
-    const relTypes = relSchemas.map(s => `${s.type}(${s.label}): ${s.sourceTypes.join('/')} → ${s.targetTypes.join('/')}`).join('\n')
+    const relTypes = relSchemas.map(s => `${s.typeKey}(${s.label}): ${s.sourceTypes.join('/')} → ${s.targetTypes.join('/')}`).join('\n')
 
     const prompt = `请分析以下世界观实体之间的关系，找出缺失的关系、隐含关系和矛盾。
 
@@ -232,7 +232,7 @@ function computeConfidence(
   tgtNode: CanvasNode,
   srcEntity: { type: string; tags?: string[]; description?: string } | undefined,
   tgtEntity: { type: string; tags?: string[]; description?: string } | undefined,
-  schema: { type: string; sourceTypes: string[]; targetTypes: string[] },
+  schema: { typeKey: string; sourceTypes: string[]; targetTypes: string[] },
 ): number {
   let score = 0
 
@@ -245,7 +245,7 @@ function computeConfidence(
   }
 
   const highValueTypes = ['member_of', 'located_in', 'participated_in', 'occurred_at', 'ally_of', 'enemy_of', 'parent_of', 'child_of']
-  if (highValueTypes.includes(schema.type)) score += 0.1
+  if (highValueTypes.includes(schema.typeKey)) score += 0.1
 
   return Math.min(score, 1)
 }
@@ -253,10 +253,10 @@ function computeConfidence(
 function buildReason(
   srcNode: CanvasNode,
   tgtNode: CanvasNode,
-  schema: { type: string; label: string; sourceTypes: string[]; targetTypes: string[] },
+  schema: { typeKey: string; label: string; sourceTypes: string[]; targetTypes: string[] },
 ): string {
   const srcLabel = srcNode.name
   const tgtLabel = tgtNode.name
-  const relLabel = schema.label || schema.type
+  const relLabel = schema.label || schema.typeKey
   return `"${srcLabel}"(${srcNode.type}) 与 "${tgtLabel}"(${tgtNode.type}) 之间可能存在 "${relLabel}" 关系`
 }

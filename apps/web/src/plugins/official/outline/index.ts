@@ -30,13 +30,13 @@ export function activate(api: PluginAPIType) {
       { traitId: 'visual' },
       { traitId: 'narrative' },
       { traitId: 'deteriorable', fieldOverrides: {
-        condition: { label: '状态', options: ['未写', '草稿', '完成'] },
+        condition: { label: '状态', options: ['未写', '草稿', '完成'].map(s => ({ value: s, label: s })) },
       } },
     ],
     ownFields: [
-      { key: 'parentId', label: '父节点ID', type: 'text' },
-      { key: 'storylines', label: '所属线索', type: 'text' },
-      { key: 'manuscriptId', label: '关联章节ID', type: 'text' },
+      { key: 'parentId', label: '父节点ID', fieldType: 'text' },
+      { key: 'storylines', label: '所属线索', fieldType: 'text' },
+      { key: 'manuscriptId', label: '关联章节ID', fieldType: 'text' },
     ],
   })
 

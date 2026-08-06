@@ -37,12 +37,12 @@ export function activate(api: PluginAPIType) {
       } },
     ],
     ownFields: [
-      { key: 'plantType', label: '类型', type: 'select', options: ['药草', '树木', '菌类', '魔法植物', '花卉', '谷物', '水生植物', '藤本', '其他'] },
-      { key: 'habitat', label: '生长环境', type: 'text' },
-      { key: 'usage', label: '用途', type: 'multi-select', options: ['炼金', '食用', '建材', '仪式', '制毒', '纺织', '观赏'] },
-      { key: 'toxicity', label: '毒性/副作用', type: 'textarea' },
-      { key: 'growthCycle', label: '生长周期', type: 'text' },
-      { key: 'relatedProducts', label: '制成品', type: 'textarea' },
+      { key: 'plantType', label: '类型', fieldType: 'select', options: ['药草', '树木', '菌类', '魔法植物', '花卉', '谷物', '水生植物', '藤本', '其他'].map(s => ({ value: s, label: s })) },
+      { key: 'habitat', label: '生长环境', fieldType: 'text' },
+      { key: 'usage', label: '用途', fieldType: 'multi-select', options: ['炼金', '食用', '建材', '仪式', '制毒', '纺织', '观赏'].map(s => ({ value: s, label: s })) },
+      { key: 'toxicity', label: '毒性/副作用', fieldType: 'textarea' },
+      { key: 'growthCycle', label: '生长周期', fieldType: 'text' },
+      { key: 'relatedProducts', label: '制成品', fieldType: 'textarea' },
     ],
   })
 

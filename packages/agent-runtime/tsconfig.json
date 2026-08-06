@@ -23,6 +23,7 @@
       "@worldsmith/agent-runtime/*": ["./src/*"],
       "@worldsmith/agent-core": ["../agent-core/src/index.ts"],
       "@worldsmith/agent-core/*": ["../agent-core/src/*"],
+      "@worldsmith/core-api-types": ["../core-api-types/src/index.ts"],
       "@worldsmith/governor-core": ["../governor-core/src/index.ts"],
       "@worldsmith/governor-core/*": ["../governor-core/src/*"],
       "@worldsmith/entity-core": ["../entity-core/src/index.ts"],

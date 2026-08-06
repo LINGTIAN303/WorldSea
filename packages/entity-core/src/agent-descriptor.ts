@@ -19,11 +19,11 @@ function resolveFieldsForType(entityType: string): FieldDefinition[] {
     return registered.map(f => ({
       key: f.key,
       label: f.label,
-      type: mapFieldType(f.type),
+      type: mapFieldType(f.fieldType),
       required: f.required ?? false,
       defaultValue: f.defaultValue,
       description: f.placeholder || f.label,
-      enum: f.options,
+      enum: f.options?.map(o => o.value),
     }))
   }
   const schema = entitySchemaRegistry.get(entityType)
@@ -31,11 +31,11 @@ function resolveFieldsForType(entityType: string): FieldDefinition[] {
     return [...schema.fields, ...(schema.customFields || [])].map(f => ({
       key: f.key,
       label: f.label,
-      type: mapFieldType(f.type),
+      type: mapFieldType(f.fieldType),
       required: f.required ?? false,
       defaultValue: f.defaultValue,
       description: f.placeholder || f.label,
-      enum: f.options,
+      enum: f.options?.map(o => o.value),
     }))
   }
   return []
@@ -120,7 +120,7 @@ const entityCreate: CapabilityDeclaration = {
       const types = entitySchemaRegistry.getAll()
       const allFields: FieldDefinition[] = []
       for (const t of types) {
-        allFields.push(...resolveFieldsForType(t.type))
+        allFields.push(...resolveFieldsForType(t.typeKey))
       }
       return allFields
     },
@@ -177,7 +177,7 @@ const entityUpdate: CapabilityDeclaration = {
       const types = entitySchemaRegistry.getAll()
       const allFields: FieldDefinition[] = []
       for (const t of types) {
-        allFields.push(...resolveFieldsForType(t.type))
+        allFields.push(...resolveFieldsForType(t.typeKey))
       }
       return allFields
     },
@@ -242,7 +242,7 @@ const entitySchemaGetFields: CapabilityDeclaration = {
     const entityType = String(args.entityType)
     const fields = resolveFieldsForType(entityType)
     if (fields.length === 0) {
-      return JSON.stringify({ error: `未找到实体类型 "${entityType}" 的字段定义`, availableTypes: entitySchemaRegistry.getAll().map(s => s.type) })
+      return JSON.stringify({ error: `未找到实体类型 "${entityType}" 的字段定义`, availableTypes: entitySchemaRegistry.getAll().map(s => s.typeKey) })
     }
     return JSON.stringify({ entityType, fields })
   },

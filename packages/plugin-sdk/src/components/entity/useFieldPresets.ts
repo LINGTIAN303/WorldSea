@@ -35,11 +35,11 @@ export function useFieldPresets(options: UseFieldPresetsOptions) {
       propertyFields.push({
         key: f.key,
         label: fromProps?.label ?? f.label,
-        type: (['text', 'textarea', 'richtext', 'select', 'tags', 'color', 'number', 'boolean', 'date', 'entityRef'].includes(fromProps?.type ?? f.type) ? (fromProps?.type ?? f.type) : 'text') as FormFieldDef['type'],
+        type: (['text', 'textarea', 'richtext', 'select', 'tags', 'color', 'number', 'boolean', 'date', 'entityRef'].includes(fromProps?.type ?? f.fieldType) ? (fromProps?.type ?? f.fieldType) : 'text') as FormFieldDef['type'],
         required: fromProps?.required ?? f.required,
         placeholder: fromProps?.placeholder ?? f.placeholder,
         options: fromProps?.options ?? f.options?.map(o => typeof o === 'string' ? { value: o, label: o } : o as any),
-        rows: f.type === 'textarea' ? 3 : undefined,
+        rows: f.fieldType === 'textarea' ? 3 : undefined,
         source: f.source,
         refType: (fromProps as any)?.refType ?? (f as any).refType,
         relationType: (fromProps as any)?.relationType ?? (f as any).relationType,
@@ -131,10 +131,10 @@ export function useFieldPresets(options: UseFieldPresetsOptions) {
     const label = newFieldLabel.value.trim() || key
     if (!key) return
     const optionsVal = newFieldType.value === 'select'
-      ? newFieldOptions.value.split(',').map(s => s.trim()).filter(Boolean)
+      ? newFieldOptions.value.split(',').map(s => s.trim()).filter(Boolean).map(s => ({ value: s, label: s }))
       : undefined
     console.log(`[EntityFormModal] addUserField: key=${key}, label=${label}, type=${newFieldType.value}`)
-    const ok = fieldRegistry.addUserField(resolvedEntityType.value, { key, label, type: newFieldType.value, options: optionsVal })
+    const ok = fieldRegistry.addUserField(resolvedEntityType.value, { key, label, fieldType: newFieldType.value, options: optionsVal })
     if (!ok) {
       toastWarn(`字段 "${key}" 已存在`)
       return

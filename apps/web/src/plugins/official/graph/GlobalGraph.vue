@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="graph-view">
     <GraphToolbar
       :layout="layoutName"
@@ -134,20 +134,20 @@ function extractAbsYear(properties: Record<string, unknown>): number | null {
 
 const allTypes = computed(() => {
   const used = new Set(entityStore.entities.map(e => e.type))
-  return entitySchemaRegistry.getAll().filter(s => used.has(s.type))
+  return entitySchemaRegistry.getAll().filter(s => used.has(s.typeKey))
 })
 
 const toolbarTypes = computed(() =>
   allTypes.value.map(t => {
-    const info = getNodeTypeInfo(t.type)
+    const info = getNodeTypeInfo(t.typeKey)
     return {
-      type: t.type,
+      type: t.typeKey,
       label: t.label,
       icon: t.icon || '◻',
       shape: info.shape,
       coolColor: info.coolColor,
       warmColor: info.warmColor,
-      color: getColor(t.type, 'cool'),
+      color: getColor(t.typeKey, 'cool'),
     }
   })
 )
@@ -513,7 +513,7 @@ onMounted(async () => {
   try {
     await entityStore.loadAll()
     await relationStore.loadAll()
-    for (const t of allTypes.value) shownTypes.value.add(t.type)
+    for (const t of allTypes.value) shownTypes.value.add(t.typeKey)
     await nextTick()
     initGraph()
   } catch (err) {

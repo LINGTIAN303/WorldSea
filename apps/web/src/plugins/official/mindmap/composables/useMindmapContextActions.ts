@@ -56,7 +56,7 @@ export function useMindmapContextActions(deps: UseMindmapContextActionsDeps) {
   /** 创建关系边并写入 store */
   function createRelationEdge(srcId: string, tgtId: string, relType: string): void {
     const edgeId = `rel-${Date.now()}`
-    const rt = relationSchemaRegistry.getAll().find(r => r.type === relType)
+    const rt = relationSchemaRegistry.getAll().find(r => r.typeKey === relType)
     canvasEdges.value.push({
       id: edgeId, source: srcId, target: tgtId,
       sourceId: srcId, targetId: tgtId,
@@ -265,7 +265,7 @@ export function useMindmapContextActions(deps: UseMindmapContextActionsDeps) {
     _edgeTgtId = edge.target
     _relTypId = edge.relType
     modals.availableRelationTypes.value = relationSchemaRegistry.getAll().map(r => ({
-      type: r.type, label: r.label || r.type,
+      type: r.typeKey, label: r.label || r.typeKey,
     }))
     modals.showRelationPicker.value = true
   }

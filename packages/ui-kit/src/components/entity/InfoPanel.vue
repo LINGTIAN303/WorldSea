@@ -42,34 +42,34 @@
               <button v-if="editMode && field.source !== 'builtin'" class="ip-prop-del" @click="removeCustomField(field.key)" title="删除此字段">✕</button>
             </div>
             <input
-              v-if="field.type === 'boolean'"
+              v-if="field.fieldType === 'boolean'"
               type="checkbox"
               :checked="!!editProps[field.key]"
               @change="onPropChange(field.key, ($event.target as HTMLInputElement).checked)"
               class="ip-checkbox"
             />
             <input
-              v-else-if="field.type === 'color'"
+              v-else-if="field.fieldType === 'color'"
               type="color"
               :value="String(editProps[field.key] ?? '')"
               @change="onPropChange(field.key, ($event.target as HTMLInputElement).value)"
               class="ip-color-input"
             />
             <textarea
-              v-else-if="field.type === 'textarea'"
+              v-else-if="field.fieldType === 'textarea'"
               :value="stripHtml(String(editProps[field.key] ?? ''))"
               @blur="onPropChange(field.key, ($event.target as HTMLTextAreaElement).value)"
               class="ip-input"
               rows="2"
             ></textarea>
             <select
-              v-else-if="field.type === 'select' && field.options?.length"
+              v-else-if="field.fieldType === 'select' && field.options?.length"
               :value="String(editProps[field.key] ?? '')"
               @change="onPropChange(field.key, ($event.target as HTMLSelectElement).value)"
               class="ip-input"
             >
               <option value="">—</option>
-              <option v-for="opt in field.options" :key="opt" :value="opt">{{ opt }}</option>
+              <option v-for="opt in field.options" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
             </select>
             <input
               v-else
@@ -256,9 +256,9 @@ function confirmAddField() {
   const label = newFieldLabel.value.trim() || key
   if (!key) return
   const options = newFieldType.value === 'select'
-    ? newFieldOptions.value.split(',').map(s => s.trim()).filter(Boolean)
+    ? newFieldOptions.value.split(',').map(s => s.trim()).filter(Boolean).map(s => ({ value: s, label: s }))
     : undefined
-  const ok = fieldRegistry.addUserField(entity.value.type, { key, label, type: newFieldType.value, options })
+  const ok = fieldRegistry.addUserField(entity.value.type, { key, label, fieldType: newFieldType.value, options })
   if (!ok) {
     toastWarn(`字段 "${key}" 已存在`)
     return

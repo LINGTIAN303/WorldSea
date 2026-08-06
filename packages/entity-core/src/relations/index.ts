@@ -2,6 +2,9 @@
 
 import { defineRelation } from '../core/RelationshipRegistry'
 
+/** options 字符串数组转契约 {value,label} 对象数组 */
+const opt = (label: string) => ({ value: label, label })
+
 // ─────────────────────────────────────────────
 // 1. 人物关系域（Person Relations）
 // ─────────────────────────────────────────────
@@ -79,8 +82,8 @@ defineRelation({
   type: 'member_of', label: '成员', inverseType: 'has_member', inverseLabel: '拥有成员',
   sourceTypes: ['character', 'species'], targetTypes: ['organization'], symmetric: false, domain: 'organization',
   properties: [
-    { key: 'role', label: '角色', type: 'select', options: ['首领', '核心成员', '普通成员', '荣誉成员', '叛逃者'] },
-    { key: 'since', label: '加入时间', type: 'text' },
+    { key: 'role', label: '角色', fieldType: 'select', options: ['首领', '核心成员', '普通成员', '荣誉成员', '叛逃者'].map(opt) },
+    { key: 'since', label: '加入时间', fieldType: 'text' },
   ],
 })
 
@@ -137,10 +140,10 @@ defineRelation({
   type: 'route', label: '路线', inverseType: 'reverse_route', inverseLabel: '返程路线',
   sourceTypes: ['region'], targetTypes: ['region'], symmetric: false, domain: 'geography',
   properties: [
-    { key: 'distance', label: '距离', type: 'text' },
-    { key: 'travelTime', label: '旅行时间', type: 'text' },
-    { key: 'dangerLevel', label: '危险等级', type: 'select', options: ['安全', '低危', '中危', '高危', '致命'] },
-    { key: 'transport', label: '交通方式', type: 'select', options: ['步行', '骑乘', '马车', '船只', '飞行', '传送'] },
+    { key: 'distance', label: '距离', fieldType: 'text' },
+    { key: 'travelTime', label: '旅行时间', fieldType: 'text' },
+    { key: 'dangerLevel', label: '危险等级', fieldType: 'select', options: ['安全', '低危', '中危', '高危', '致命'].map(opt) },
+    { key: 'transport', label: '交通方式', fieldType: 'select', options: ['步行', '骑乘', '马车', '船只', '飞行', '传送'].map(opt) },
   ],
 })
 
@@ -187,9 +190,9 @@ defineRelation({
   type: 'possessed_by', label: '持有者', inverseType: 'possesses', inverseLabel: '持有',
   sourceTypes: ['item'], targetTypes: ['character'], symmetric: false, domain: 'ownership',
   properties: [
-    { key: 'since', label: '获得时间', type: 'text' },
-    { key: 'until', label: '失去时间', type: 'text' },
-    { key: 'circumstance', label: '获得方式', type: 'text' },
+    { key: 'since', label: '获得时间', fieldType: 'text' },
+    { key: 'until', label: '失去时间', fieldType: 'text' },
+    { key: 'circumstance', label: '获得方式', fieldType: 'text' },
   ],
 })
 
@@ -201,7 +204,7 @@ defineRelation({
 defineRelation({
   type: 'past_holders', label: '历代持有者', inverseType: 'historically_held', inverseLabel: '曾持有',
   sourceTypes: ['item'], targetTypes: ['character'], symmetric: false, domain: 'ownership',
-  properties: [{ key: 'period', label: '持有时期', type: 'text' }],
+  properties: [{ key: 'period', label: '持有时期', fieldType: 'text' }],
 })
 
 defineRelation({
@@ -285,7 +288,7 @@ defineRelation({
 defineRelation({
   type: 'weapon_relation', label: '武器关联', inverseType: 'weapon_relation', inverseLabel: '武器关联',
   sourceTypes: ['item'], targetTypes: ['item'], symmetric: true, domain: 'item',
-  properties: [{ key: 'relation', label: '关系', type: 'select', options: ['配套', '克制', '进化', '融合'] }],
+  properties: [{ key: 'relation', label: '关系', fieldType: 'select', options: ['配套', '克制', '进化', '融合'].map(opt) }],
 })
 
 defineRelation({
@@ -335,7 +338,7 @@ defineRelation({
 defineRelation({
   type: 'related_species', label: '关联物种', inverseType: 'related_species', inverseLabel: '关联物种',
   sourceTypes: ['species'], targetTypes: ['species'], symmetric: true, domain: 'species',
-  properties: [{ key: 'relation', label: '关系类型', type: 'select', options: ['祖先', '进化', '杂交', '共生', '天敌'] }],
+  properties: [{ key: 'relation', label: '关系类型', fieldType: 'select', options: ['祖先', '进化', '杂交', '共生', '天敌'].map(opt) }],
 })
 
 defineRelation({
@@ -404,7 +407,7 @@ defineRelation({
 defineRelation({
   type: 'contradicts', label: '矛盾', inverseType: 'contradicts', inverseLabel: '矛盾',
   sourceTypes: ['concept'], targetTypes: ['concept'], symmetric: true, domain: 'concept',
-  properties: [{ key: 'explanation', label: '矛盾说明', type: 'textarea' }],
+  properties: [{ key: 'explanation', label: '矛盾说明', fieldType: 'textarea' }],
 })
 
 defineRelation({
@@ -468,7 +471,7 @@ defineRelation({
 defineRelation({
   type: 'related_language', label: '关联语言', inverseType: 'related_language', inverseLabel: '关联语言',
   sourceTypes: ['language'], targetTypes: ['language'], symmetric: true, domain: 'language',
-  properties: [{ key: 'relation', label: '关系', type: 'select', options: ['同源', '借词', '混合', '变体', '祖先语言'] }],
+  properties: [{ key: 'relation', label: '关系', fieldType: 'select', options: ['同源', '借词', '混合', '变体', '祖先语言'].map(opt) }],
 })
 
 defineRelation({

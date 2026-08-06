@@ -13,7 +13,7 @@ export const entityTypeSerializer: Serializer = {
       version: 1,
       total: schemas.length,
       schemas: schemas.map(s => ({
-        type: s.type,
+        typeKey: s.typeKey,
         label: s.label,
         icon: s.icon,
         fields: s.fields,

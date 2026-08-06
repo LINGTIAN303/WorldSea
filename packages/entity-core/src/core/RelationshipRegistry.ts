@@ -217,7 +217,7 @@ export function syncToLegacyRegistry(): void {
   for (const schema of relationshipRegistry.getAll()) {
     if (!relationSchemaRegistry.get(schema.type)) {
       relationSchemaRegistry.register({
-        type: schema.type,
+        typeKey: schema.type,
         label: schema.label,
         sourceTypes: schema.sourceTypes,
         targetTypes: schema.targetTypes,

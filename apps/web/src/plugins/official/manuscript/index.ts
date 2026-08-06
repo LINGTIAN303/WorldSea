@@ -30,14 +30,14 @@ export function activate(api: PluginAPIType) {
       { traitId: 'visual' },
       { traitId: 'narrative' },
       { traitId: 'deteriorable', fieldOverrides: {
-        condition: { label: '状态', options: ['草稿', '修订中', '终稿'] },
+        condition: { label: '状态', options: ['草稿', '修订中', '终稿'].map(s => ({ value: s, label: s })) },
       } },
     ],
     ownFields: [
-      { key: 'outlineNodeId', label: '关联大纲节点ID', type: 'text' },
-      { key: 'volumeName', label: '所属卷名', type: 'text' },
-      { key: 'entityMentions', label: '提及实体ID列表', type: 'text' },
-      { key: 'snapshots', label: '版本快照', type: 'text' },
+      { key: 'outlineNodeId', label: '关联大纲节点ID', fieldType: 'text' },
+      { key: 'volumeName', label: '所属卷名', fieldType: 'text' },
+      { key: 'entityMentions', label: '提及实体ID列表', fieldType: 'text' },
+      { key: 'snapshots', label: '版本快照', fieldType: 'text' },
     ],
   })
 

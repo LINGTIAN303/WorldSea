@@ -9,7 +9,7 @@ import { entitySchemaRegistry, relationSchemaRegistry } from '@worldsmith/entity
  * 将 ModuleField 转为 FieldSchema
  */
 function toFieldSchema(f: ModuleField): FieldSchema {
-  const typeMap: Record<string, FieldSchema['type']> = {
+  const typeMap: Record<string, FieldSchema['fieldType']> = {
     'text': 'text',
     'textarea': 'textarea',
     'number': 'text',
@@ -38,10 +38,10 @@ function toFieldSchema(f: ModuleField): FieldSchema {
   return {
     key: f.key,
     label: f.label,
-    type: typeMap[f.type] || 'text',
+    fieldType: typeMap[f.type] || 'text',
     required: f.required,
     defaultValue: f.defaultValue,
-    options: f.options,
+    options: f.options?.map(o => ({ value: o, label: o })),
   }
 }
 
@@ -52,10 +52,10 @@ export function unregisterModule(modId: string) {
   // 移除该模块注册的所有实体类型和关系类型
   const prefix = `custom.${modId}.`
   for (const et of entitySchemaRegistry.getAll()) {
-    if (et.type.startsWith(prefix)) entitySchemaRegistry.unregister(et.type)
+    if (et.typeKey.startsWith(prefix)) entitySchemaRegistry.unregister(et.typeKey)
   }
   for (const rt of relationSchemaRegistry.getAll()) {
-    if (rt.type.startsWith(prefix)) relationSchemaRegistry.unregister(rt.type)
+    if (rt.typeKey.startsWith(prefix)) relationSchemaRegistry.unregister(rt.typeKey)
   }
 }
 
@@ -63,7 +63,7 @@ export function registerModule(mod: CustomModule) {
   unregisterModule(mod.id)
   for (const et of mod.entityTypes) {
     const schema: EntityTypeSchema = {
-      type: `custom.${mod.id}.${et.name}`,
+      typeKey: `custom.${mod.id}.${et.name}`,
       label: et.label,
       icon: et.icon,
       fields: et.fields.map(toFieldSchema),
@@ -74,7 +74,7 @@ export function registerModule(mod: CustomModule) {
 
   for (const rt of mod.relationTypes) {
     const schema: RelationTypeSchema = {
-      type: `custom.${mod.id}.${rt.name}`,
+      typeKey: `custom.${mod.id}.${rt.name}`,
       label: rt.label,
       sourceTypes: rt.sourceTypes.map(t => `custom.${mod.id}.${t}`),
       targetTypes: rt.targetTypes.map(t => `custom.${mod.id}.${t}`),

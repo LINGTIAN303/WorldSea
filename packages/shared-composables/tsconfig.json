@@ -25,6 +25,7 @@
       "@worldsmith/agent-core/*": ["../agent-core/src/*"],
       "@worldsmith/agent-runtime": ["../agent-runtime/src/index.ts"],
       "@worldsmith/agent-runtime/*": ["../agent-runtime/src/*"],
+      "@worldsmith/core-api-types": ["../core-api-types/src/index.ts"],
       "@worldsmith/entity-core": ["../entity-core/src/index.ts"],
       "@worldsmith/entity-core/*": ["../entity-core/src/*"],
       "@worldsmith/motion-kit": ["../motion-kit/src/index.ts"],

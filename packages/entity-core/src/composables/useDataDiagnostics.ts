@@ -125,7 +125,7 @@ export function useDataDiagnostics() {
 
   function findInconsistentTypes(entities: Array<{ id: string; type: string }>): string[] {
     const inconsistent: string[] = []
-    const knownTypes = new Set(entitySchemaRegistry.getAll().map(s => s.type))
+    const knownTypes = new Set(entitySchemaRegistry.getAll().map(s => s.typeKey))
     for (const e of entities) {
       if (!knownTypes.has(e.type)) {
         inconsistent.push(e.id)

@@ -16,7 +16,7 @@
         <div v-if="tab === 'entity'" class="et-body">
           <select v-model="typeFilter" class="et-select">
             <option value="">全部类型</option>
-            <option v-for="t in allTypes" :key="t.type" :value="t.type">{{ t.label }}</option>
+            <option v-for="t in allTypes" :key="t.typeKey" :value="t.typeKey">{{ t.label }}</option>
           </select>
 
           <div class="et-list" v-if="filteredEntityTemplates.length">
@@ -104,7 +104,7 @@ const typeFilter = ref('')
 const filteredEntityTemplates = computed(() => {
   if (!typeFilter.value) {
     // 聚合所有类型的模板
-    const allEntityTypes = allTypes.value.map(t => t.type)
+    const allEntityTypes = allTypes.value.map(t => t.typeKey)
     const result: EntityTemplate[] = []
     for (const et of allEntityTypes) {
       result.push(...getTemplatesForType(et))

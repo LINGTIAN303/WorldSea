@@ -36,11 +36,11 @@ export function activate(api: PluginAPIType) {
       } },
     ],
     ownFields: [
-      { key: 'era', label: '纪元', type: 'text' },
-      { key: 'importance', label: '重要程度', type: 'select', options: ['关键', '重要', '普通', '细微'] },
-      { key: 'status', label: '状态', type: 'select', options: ['正史', '废案', '备选'] },
-      { key: 'parentId', label: '父级事件', type: 'entityRef' },
-      { key: 'location', label: '发生地点', type: 'text' },
+      { key: 'era', label: '纪元', fieldType: 'text' },
+      { key: 'importance', label: '重要程度', fieldType: 'select', options: ['关键', '重要', '普通', '细微'].map(s => ({ value: s, label: s })) },
+      { key: 'status', label: '状态', fieldType: 'select', options: ['正史', '废案', '备选'].map(s => ({ value: s, label: s })) },
+      { key: 'parentId', label: '父级事件', fieldType: 'entityRef' },
+      { key: 'location', label: '发生地点', fieldType: 'text' },
     ],
   })
 

@@ -410,10 +410,10 @@ const interactionCallbacks: CanvasInteractionCallbacks = {
       })
       let relTypId = ''
       if (rels.length > 0) {
-        relTypId = rels[0].type
-        if (rels.find(r => r.type === guessed)) relTypId = guessed
+        relTypId = rels[0].typeKey
+        if (rels.find(r => r.typeKey === guessed)) relTypId = guessed
       }
-      availableRelationTypes.value = rels.map(r => ({ type: r.type, label: r.label || r.type }))
+      availableRelationTypes.value = rels.map(r => ({ type: r.typeKey, label: r.label || r.typeKey }))
       mindmapStore.cancelEdgeConnect()
       if (relTypId) {
         createRelationEdge(srcId, node.id, relTypId)

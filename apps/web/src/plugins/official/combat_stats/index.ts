@@ -26,13 +26,13 @@ export function activate(api: PluginAPIType) {
       { traitId: 'visual' },
     ],
     ownFields: [
-      { key: 'system', label: '体系', type: 'select', options: ['境界制', '等级制', '数值制'] },
-      { key: 'tier', label: '层级排序', type: 'number' },
-      { key: 'realm', label: '境界/等级', type: 'text' },
-      { key: 'promotion', label: '晋升条件', type: 'textarea' },
-      { key: 'bottleneck', label: '瓶颈/突破难点', type: 'textarea' },
-      { key: 'power', label: '战力表现', type: 'textarea' },
-      { key: 'culture', label: '所属文化圈', type: 'select', options: ['中式', '西式', '混合'] },
+      { key: 'system', label: '体系', fieldType: 'select', options: ['境界制', '等级制', '数值制'].map(s => ({ value: s, label: s })) },
+      { key: 'tier', label: '层级排序', fieldType: 'number' },
+      { key: 'realm', label: '境界/等级', fieldType: 'text' },
+      { key: 'promotion', label: '晋升条件', fieldType: 'textarea' },
+      { key: 'bottleneck', label: '瓶颈/突破难点', fieldType: 'textarea' },
+      { key: 'power', label: '战力表现', fieldType: 'textarea' },
+      { key: 'culture', label: '所属文化圈', fieldType: 'select', options: ['中式', '西式', '混合'].map(s => ({ value: s, label: s })) },
     ],
   })
 

@@ -92,7 +92,7 @@ export function useGroupChat() {
       },
       projectInfo: {
         name: 'WorldSmith',
-        entityTypes: entityStore.types.map(t => t.type),
+        entityTypes: entityStore.types.map(t => t.typeKey),
         relationTypes: [],
         dirPath: null, // 异步获取，在 Agent 运行时通过 getFileStorageBackend 获取
       },

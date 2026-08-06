@@ -31,13 +31,13 @@ export function activate(api: PluginAPIType) {
       { traitId: 'narrative' },
     ],
     ownFields: [
-      { key: 'noteType', label: '笔记类型', type: 'select', options: ['markdown', 'code', 'canvas', 'reference'] },
-      { key: 'backlinks', label: '反向链接', type: 'text' },
-      { key: 'forwardLinks', label: '正向链接', type: 'text' },
-      { key: 'linkedEntities', label: '关联实体', type: 'text' },
-      { key: 'codeLanguage', label: '代码语言', type: 'text' },
-      { key: 'codeOutput', label: '代码输出', type: 'text' },
-      { key: 'folderId', label: '所属文件夹', type: 'text' },
+      { key: 'noteType', label: '笔记类型', fieldType: 'select', options: ['markdown', 'code', 'canvas', 'reference'].map(s => ({ value: s, label: s })) },
+      { key: 'backlinks', label: '反向链接', fieldType: 'text' },
+      { key: 'forwardLinks', label: '正向链接', fieldType: 'text' },
+      { key: 'linkedEntities', label: '关联实体', fieldType: 'text' },
+      { key: 'codeLanguage', label: '代码语言', fieldType: 'text' },
+      { key: 'codeOutput', label: '代码输出', fieldType: 'text' },
+      { key: 'folderId', label: '所属文件夹', fieldType: 'text' },
     ],
   })
 

@@ -78,16 +78,16 @@ export class PluginManager {
       plugin.manifest,
     )
 
-    const beforeEntities = new Set(entitySchemaRegistry.getAll().map(s => s.type))
-    const beforeRelations = new Set(relationSchemaRegistry.getAll().map(s => s.type))
+    const beforeEntities = new Set(entitySchemaRegistry.getAll().map(s => s.typeKey))
+    const beforeRelations = new Set(relationSchemaRegistry.getAll().map(s => s.typeKey))
     const beforeViews = new Set(pluginAPI.getViews().map(v => v.id))
     const beforeNodeTypes = new Set(pluginAPI.getNodeTypeRegistry().map(n => n.type))
     const beforeTemplates = new Set(pluginAPI.getWorkflowTemplates().map(t => t.id))
 
     await plugin.activate(safeAPI)
 
-    const afterEntities = entitySchemaRegistry.getAll().map(s => s.type)
-    const afterRelations = relationSchemaRegistry.getAll().map(s => s.type)
+    const afterEntities = entitySchemaRegistry.getAll().map(s => s.typeKey)
+    const afterRelations = relationSchemaRegistry.getAll().map(s => s.typeKey)
     const afterViews = pluginAPI.getViews().map(v => v.id)
     const afterNodeTypes = pluginAPI.getNodeTypeRegistry().map(n => n.type)
     const afterTemplates = pluginAPI.getWorkflowTemplates().map(t => t.id)

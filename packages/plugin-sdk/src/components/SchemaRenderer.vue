@@ -56,34 +56,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { entitySchemaRegistry } from '@worldsmith/entity-core'
+import type { EntityTypeSchema } from '@worldsmith/core-api-types'
 import GenericEntityView from './GenericEntityView.vue'
 import type { FormFieldDef, RelationTabDef, CardFieldDef, CustomTabDef, FilterDef } from './types'
-
-// ── 本地类型定义（与后端 coreBackend.EntityTypeSchema 结构兼容）
-// 端分离后 plugin-sdk 不再直接引用业务层，schema 加载能力由调用方通过 schemaLoader prop 注入 ──
-export interface SchemaFieldOption { value: string; label: string }
-export interface SchemaField {
-  key: string
-  label: string
-  fieldType: string
-  required?: boolean
-  options?: SchemaFieldOption[]
-  placeholder?: string
-  refType?: string
-  autoLink?: { targetType: string; relationType: string; searchField?: string; createIfMissing?: boolean }
-}
-export interface EntityTypeSchema {
-  typeKey: string
-  label: string
-  icon: string
-  fields: SchemaField[]
-  relations: unknown[]
-  validations: unknown[]
-  views: unknown[]
-  iconMap: Record<string, string>
-  idPrefix: string
-  pluginId?: string
-}
 
 const props = withDefaults(defineProps<{
   typeKey: string
@@ -124,14 +99,30 @@ async function loadSchema() {
     if (!result) {
       const fallback = entitySchemaRegistry.get(props.typeKey)
       if (fallback) {
-        result = { ...fallback, typeKey: fallback.type, fields: fallback.fields || [], iconMap: (fallback as any).iconMap || {}, relations: [], validations: [], views: [], idPrefix: '' } as unknown as EntityTypeSchema
+        // entity-core 注册表 schema 已与契约层同源（typeKey 主键、fieldType 字段），
+        // 仅需补齐契约层必填的扩展字段默认值
+        result = {
+          ...fallback,
+          iconMap: fallback.iconMap || {},
+          relations: fallback.relations || [],
+          validations: fallback.validations || [],
+          views: fallback.views || [],
+          idPrefix: fallback.idPrefix || '',
+        } as unknown as EntityTypeSchema
       }
     }
     schema.value = result
   } catch (e: any) {
     const fallback = entitySchemaRegistry.get(props.typeKey)
     if (fallback) {
-      schema.value = { ...fallback, typeKey: fallback.type, fields: fallback.fields || [], iconMap: (fallback as any).iconMap || {}, relations: [], validations: [], views: [], idPrefix: '' } as unknown as EntityTypeSchema
+      schema.value = {
+        ...fallback,
+        iconMap: fallback.iconMap || {},
+        relations: fallback.relations || [],
+        validations: fallback.validations || [],
+        views: fallback.views || [],
+        idPrefix: fallback.idPrefix || '',
+      } as unknown as EntityTypeSchema
     } else {
       error.value = e?.message || String(e)
     }

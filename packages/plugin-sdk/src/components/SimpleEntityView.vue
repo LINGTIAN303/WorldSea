@@ -119,7 +119,7 @@
               :label="f.label"
               :value="entity.properties[f.key]"
               :editing="editing"
-              :type="(f.type as any)"
+              :type="((f as any).fieldType ?? (f as any).type)"
               :options="(f as any).options"
               :entity-id="entity.id"
               :cover-position="entity.coverPosition"

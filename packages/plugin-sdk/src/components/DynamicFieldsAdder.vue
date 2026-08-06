@@ -10,30 +10,30 @@
     <div v-for="def in fieldDefs" :key="def.key" class="df-row">
       <span class="df-key">{{ def.label }}</span>
       <input
-        v-if="def.type === 'text' || def.type === 'number'"
-        :type="def.type"
+        v-if="def.fieldType === 'text' || def.fieldType === 'number'"
+        :type="def.fieldType"
         :value="getValue(def.key)"
         class="df-input"
         @input="updateValue(def.key, ($event.target as HTMLInputElement).value)"
       />
       <textarea
-        v-else-if="def.type === 'textarea'"
+        v-else-if="def.fieldType === 'textarea'"
         :value="getValue(def.key) as string"
         class="df-input df-textarea"
         rows="2"
         @input="updateValue(def.key, ($event.target as HTMLTextAreaElement).value)"
       ></textarea>
-      <label v-else-if="def.type === 'boolean'" class="df-check-wrap">
+      <label v-else-if="def.fieldType === 'boolean'" class="df-check-wrap">
         <input type="checkbox" :checked="!!getValue(def.key)" @change="updateValue(def.key, ($event.target as HTMLInputElement).checked)" />
       </label>
       <select
-        v-else-if="def.type === 'select'"
+        v-else-if="def.fieldType === 'select'"
         :value="getValue(def.key) as string"
         class="df-input"
         @change="updateValue(def.key, ($event.target as HTMLSelectElement).value)"
       >
         <option value="">--</option>
-        <option v-for="opt in def.options" :key="opt" :value="opt">{{ opt }}</option>
+        <option v-for="opt in def.options" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
       </select>
       <button class="df-remove" @click="removeField(def.key)" title="删除此字段"><WsIcon name="x" size="xs" /></button>
     </div>
@@ -89,8 +89,8 @@ function onSmartAdd(data: {
 
   // 默认值
   let defaultVal: unknown = ''
-  if (fieldDef.type === 'number') defaultVal = 0
-  else if (fieldDef.type === 'boolean') defaultVal = false
+  if (fieldDef.fieldType === 'number') defaultVal = 0
+  else if (fieldDef.fieldType === 'boolean') defaultVal = false
 
   // 如果有关联配置，注入 autoLink 到字段定义
   const defWithLink: FieldSchema = { ...fieldDef }

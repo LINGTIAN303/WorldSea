@@ -36,7 +36,7 @@
       </div>
       <div class="detail-fields">
         <DetailField v-for="f in allFields" :key="f.key" :label="f.label" :value="selectedCard.properties[f.key]"
-          :editing="editing" :type="f.type as any" :options="f.options"
+          :editing="editing" :type="f.fieldType as any" :options="f.options?.map(o => o.value)"
           @update:value="editForm[f.key]=$event" @commit="saveEdit" />
       </div>
       <DetailField label="描述" :value="selectedCard.description" :editing="editing" type="textarea"
@@ -90,7 +90,7 @@ const schema = computed(() => entitySchemaRegistry.get(props.entityType))
 const allFields = computed(() => schema.value?.fields ?? [])
 const groupByOptions = computed(() => {
   const gf = allFields.value.find(f => f.key === groupByField)
-  return gf?.options ?? []
+  return (gf?.options ?? []).map(o => o.value)
 })
 
 /* 展示字段 */

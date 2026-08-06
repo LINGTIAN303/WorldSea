@@ -117,7 +117,7 @@ const emit = defineEmits<{
 const keyInput = ref<HTMLInputElement | null>(null)
 
 const fieldKey = ref('')
-const fieldType = ref<FieldSchema['type']>('text')
+const fieldType = ref<FieldSchema['fieldType']>('text')
 const fieldOptions = ref('')
 const linkTargetType = ref('')
 const linkRelationType = ref('')
@@ -249,9 +249,9 @@ function confirm() {
   const fieldDef: FieldSchema = {
     key,
     label: key,
-    type: fieldType.value,
+    fieldType: fieldType.value,
     options: fieldType.value === 'select'
-      ? fieldOptions.value.split(',').map(s => s.trim()).filter(Boolean)
+      ? fieldOptions.value.split(',').map(s => s.trim()).filter(Boolean).map(s => ({ value: s, label: s }))
       : undefined,
   }
 

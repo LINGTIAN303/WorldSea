@@ -35,12 +35,12 @@ export function activate(api: PluginAPIType) {
       } },
     ],
     ownFields: [
-      { key: 'cultureType', label: '类型', type: 'select', options: ['节日', '仪式', '禁忌', '婚俗', '丧葬', '饮食', '服饰', '艺术', '建筑风格', '其他'] },
-      { key: 'cycle', label: '周期', type: 'text' },
-      { key: 'origin', label: '起源', type: 'textarea' },
-      { key: 'participants', label: '参与者', type: 'textarea' },
-      { key: 'significance', label: '意义/象征', type: 'textarea' },
-      { key: 'practices', label: '具体做法', type: 'textarea' },
+      { key: 'cultureType', label: '类型', fieldType: 'select', options: ['节日', '仪式', '禁忌', '婚俗', '丧葬', '饮食', '服饰', '艺术', '建筑风格', '其他'].map(s => ({ value: s, label: s })) },
+      { key: 'cycle', label: '周期', fieldType: 'text' },
+      { key: 'origin', label: '起源', fieldType: 'textarea' },
+      { key: 'participants', label: '参与者', fieldType: 'textarea' },
+      { key: 'significance', label: '意义/象征', fieldType: 'textarea' },
+      { key: 'practices', label: '具体做法', fieldType: 'textarea' },
     ],
   })
 

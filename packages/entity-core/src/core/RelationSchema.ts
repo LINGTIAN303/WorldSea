@@ -4,7 +4,7 @@ class RelationSchemaRegistry {
   private schemas = new Map<string, RelationTypeSchema>()
 
   register(schema: RelationTypeSchema): void {
-    this.schemas.set(schema.type, schema)
+    this.schemas.set(schema.typeKey, schema)
   }
 
   get(type: string): RelationTypeSchema | undefined {

@@ -3,6 +3,9 @@
 import { defineTrait } from '../core/TraitRuntime'
 import type { TraitDefinition } from '../types/trait'
 
+/** options 字符串数组转契约 {value,label} 对象数组 */
+const opt = (label: string) => ({ value: label, label })
+
 // ─────────────────────────────────────────────
 // 1. Identifiable（强制，所有实体）
 // ─────────────────────────────────────────────
@@ -13,8 +16,8 @@ export const Identifiable: TraitDefinition = defineTrait({
   description: '所有实体必须拥有的基础标识字段',
   required: true,
   fields: [
-    { key: 'title', label: '标题', type: 'text', required: true, placeholder: '实体标题' },
-    { key: 'description', label: '描述', type: 'textarea' },
+    { key: 'title', label: '标题', fieldType: 'text', required: true, placeholder: '实体标题' },
+    { key: 'description', label: '描述', fieldType: 'textarea' },
   ],
 })
 
@@ -27,7 +30,7 @@ export const Taggable: TraitDefinition = defineTrait({
   label: '标签',
   description: '标签分类能力',
   fields: [
-    { key: 'tags', label: '标签', type: 'tags' },
+    { key: 'tags', label: '标签', fieldType: 'tags' },
   ],
 })
 
@@ -40,7 +43,7 @@ export const Visual: TraitDefinition = defineTrait({
   label: '视觉',
   description: '封面图等视觉资源',
   fields: [
-    { key: 'coverImage', label: '封面图', type: 'image' },
+    { key: 'coverImage', label: '封面图', fieldType: 'image' },
   ],
 })
 
@@ -53,8 +56,8 @@ export const Datable: TraitDefinition = defineTrait({
   label: '时间范围',
   description: '具有开始/结束时间的实体',
   fields: [
-    { key: 'date', label: '日期', type: 'text', semanticHint: 'date' },
-    { key: 'dateEnd', label: '结束日期', type: 'text', semanticHint: 'dateEnd' },
+    { key: 'date', label: '日期', fieldType: 'text', semanticHint: 'date' },
+    { key: 'dateEnd', label: '结束日期', fieldType: 'text', semanticHint: 'dateEnd' },
   ],
 })
 
@@ -67,8 +70,8 @@ export const Material: TraitDefinition = defineTrait({
   label: '材质',
   description: '物质构成与颜色',
   fields: [
-    { key: 'material', label: '材质', type: 'text', semanticHint: 'material' },
-    { key: 'color', label: '颜色', type: 'text', semanticHint: 'color' },
+    { key: 'material', label: '材质', fieldType: 'text', semanticHint: 'material' },
+    { key: 'color', label: '颜色', fieldType: 'text', semanticHint: 'color' },
   ],
 })
 
@@ -84,8 +87,8 @@ export const Rateable: TraitDefinition = defineTrait({
     {
       key: 'rarity',
       label: '稀有度',
-      type: 'select',
-      options: ['普通', '珍贵', '稀有', '传说', '唯一'],
+      fieldType: 'select',
+      options: ['普通', '珍贵', '稀有', '传说', '唯一'].map(opt),
     },
   ],
 })
@@ -103,8 +106,8 @@ export const Deteriorable: TraitDefinition = defineTrait({
     {
       key: 'condition',
       label: '状况',
-      type: 'select',
-      options: ['完好', '轻微损坏', '严重损坏', '已修复', '已毁', '遗失'],
+      fieldType: 'select',
+      options: ['完好', '轻微损坏', '严重损坏', '已修复', '已毁', '遗失'].map(opt),
     },
   ],
 })
@@ -118,8 +121,8 @@ export const Originated: TraitDefinition = defineTrait({
   label: '来源',
   description: '产地与制作者',
   fields: [
-    { key: 'origin', label: '产地/来源', type: 'text', semanticHint: 'origin' },
-    { key: 'creator', label: '制作者', type: 'text', semanticHint: 'creator' },
+    { key: 'origin', label: '产地/来源', fieldType: 'text', semanticHint: 'origin' },
+    { key: 'creator', label: '制作者', fieldType: 'text', semanticHint: 'creator' },
   ],
 })
 
@@ -132,9 +135,9 @@ export const Physical: TraitDefinition = defineTrait({
   label: '外貌',
   description: '物理形态与外貌描述',
   fields: [
-    { key: 'appearance', label: '外貌特征', type: 'textarea', semanticHint: 'appearance' },
-    { key: 'avgHeight', label: '平均身高', type: 'text' },
-    { key: 'avgWeight', label: '平均体重', type: 'text' },
+    { key: 'appearance', label: '外貌特征', fieldType: 'textarea', semanticHint: 'appearance' },
+    { key: 'avgHeight', label: '平均身高', fieldType: 'text' },
+    { key: 'avgWeight', label: '平均体重', fieldType: 'text' },
   ],
 })
 
@@ -149,8 +152,8 @@ export const Ageable: TraitDefinition = defineTrait({
   label: '生命时间',
   description: '诞生与消亡时间点',
   fields: [
-    { key: 'birthDate', label: '诞生时间', type: 'text', semanticHint: 'birthDate' },
-    { key: 'deathDate', label: '消亡时间', type: 'text', semanticHint: 'deathDate' },
+    { key: 'birthDate', label: '诞生时间', fieldType: 'text', semanticHint: 'birthDate' },
+    { key: 'deathDate', label: '消亡时间', fieldType: 'text', semanticHint: 'deathDate' },
   ],
 })
 
@@ -163,7 +166,7 @@ export const Ownable: TraitDefinition = defineTrait({
   label: '拥有者',
   description: '当前持有者信息',
   fields: [
-    { key: 'currentOwner', label: '当前持有者', type: 'text', semanticHint: 'owner' },
+    { key: 'currentOwner', label: '当前持有者', fieldType: 'text', semanticHint: 'owner' },
   ],
 })
 
@@ -176,10 +179,10 @@ export const Locatable: TraitDefinition = defineTrait({
   label: '位置',
   description: '地理位置与地图信息',
   fields: [
-    { key: 'location', label: '位置', type: 'text', semanticHint: 'location' },
-    { key: 'mapImage', label: '地图图片', type: 'image' },
-    { key: 'mapX', label: '地图X坐标', type: 'number' },
-    { key: 'mapY', label: '地图Y坐标', type: 'number' },
+    { key: 'location', label: '位置', fieldType: 'text', semanticHint: 'location' },
+    { key: 'mapImage', label: '地图图片', fieldType: 'image' },
+    { key: 'mapX', label: '地图X坐标', fieldType: 'number' },
+    { key: 'mapY', label: '地图Y坐标', fieldType: 'number' },
   ],
 })
 
@@ -192,9 +195,9 @@ export const Narrative: TraitDefinition = defineTrait({
   label: '叙事',
   description: '创作内容与字数统计',
   fields: [
-    { key: 'content', label: '内容', type: 'textarea' },
-    { key: 'wordCount', label: '字数', type: 'text' },
-    { key: 'sortOrder', label: '排序', type: 'text' },
+    { key: 'content', label: '内容', fieldType: 'textarea' },
+    { key: 'wordCount', label: '字数', fieldType: 'text' },
+    { key: 'sortOrder', label: '排序', fieldType: 'text' },
   ],
 })
 

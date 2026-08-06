@@ -26,8 +26,8 @@
               <div class="crt-field crt-field-half">
                 <label>源实体类型 <span class="crt-required">*</span></label>
                 <div class="crt-checkbox-group">
-                  <label v-for="et in entityTypes" :key="et.type" class="crt-checkbox-label">
-                    <input type="checkbox" :value="et.type" v-model="form.sourceTypes" />
+                  <label v-for="et in entityTypes" :key="et.typeKey" class="crt-checkbox-label">
+                    <input type="checkbox" :value="et.typeKey" v-model="form.sourceTypes" />
                     {{ et.label }}
                   </label>
                 </div>
@@ -35,8 +35,8 @@
               <div class="crt-field crt-field-half">
                 <label>目标实体类型 <span class="crt-required">*</span></label>
                 <div class="crt-checkbox-group">
-                  <label v-for="et in entityTypes" :key="et.type" class="crt-checkbox-label">
-                    <input type="checkbox" :value="et.type" v-model="form.targetTypes" />
+                  <label v-for="et in entityTypes" :key="et.typeKey" class="crt-checkbox-label">
+                    <input type="checkbox" :value="et.typeKey" v-model="form.targetTypes" />
                     {{ et.label }}
                   </label>
                 </div>

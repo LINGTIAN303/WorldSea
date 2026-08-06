@@ -13,7 +13,7 @@
       <div class="be-toolbar">
         <select v-model="typeFilter">
           <option value="">全部类型</option>
-          <option v-for="t in allTypes" :key="t.type" :value="t.type"><WsIcon :name="entitySchemaRegistry.getIconName(t.type)" size="xs" /> {{ t.label }}</option>
+          <option v-for="t in allTypes" :key="t.typeKey" :value="t.typeKey"><WsIcon :name="entitySchemaRegistry.getIconName(t.typeKey)" size="xs" /> {{ t.label }}</option>
         </select>
         <input v-model="searchQuery" placeholder="搜索名称..." class="be-search" />
         <label class="be-chk"><input type="checkbox" v-model="selectAll" @change="toggleAll" /> 全选</label>

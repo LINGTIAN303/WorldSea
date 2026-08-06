@@ -101,8 +101,8 @@ const propForm = ref<Record<string, string>>({})
 const allTypes = computed(() => {
   const used = new Set(entityStore.entities.map(e => e.type))
   return entitySchemaRegistry.getAll()
-    .filter(s => used.has(s.type))
-    .map(s => ({ type: s.type, label: s.label, iconName: entitySchemaRegistry.getIconName(s.type) }))
+    .filter(s => used.has(s.typeKey))
+    .map(s => ({ type: s.typeKey, label: s.label, iconName: entitySchemaRegistry.getIconName(s.typeKey) }))
 })
 
 const linkedIds = computed(() => {

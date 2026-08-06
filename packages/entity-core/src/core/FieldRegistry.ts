@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import type { FieldSchema } from '../types'
 
-export type FieldType = FieldSchema['type']
+export type FieldType = FieldSchema['fieldType']
 
 export interface RegisteredField extends FieldSchema {
   source: 'builtin' | 'user' | 'shared'
@@ -30,7 +30,7 @@ class FieldRegistryClass {
     for (const f of fieldDefs) {
       const existing = typeMap.get(f.key)
       if (existing?.source === 'builtin') {
-        typeMap.set(f.key, { ...existing, label: f.label, type: f.type, options: f.options, placeholder: f.placeholder, required: f.required })
+        typeMap.set(f.key, { ...existing, label: f.label, fieldType: f.fieldType, options: f.options, placeholder: f.placeholder, required: f.required })
         continue
       }
       const reg: RegisteredField = {
@@ -86,7 +86,7 @@ class FieldRegistryClass {
     const shared: RegisteredField = {
       key: sourceField.key,
       label: sourceField.label,
-      type: sourceField.type,
+      fieldType: sourceField.fieldType,
       source: 'shared',
       entityType: targetEntityType,
       order: maxOrder + 1,
@@ -274,7 +274,7 @@ class FieldRegistryClass {
           typeMap.set(k, {
             ...f,
             label: sourceField.label,
-            type: sourceField.type,
+            fieldType: sourceField.fieldType,
             options: sourceField.options ? [...sourceField.options] : undefined,
             placeholder: sourceField.placeholder,
           })

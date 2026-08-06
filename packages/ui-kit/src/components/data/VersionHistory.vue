@@ -9,7 +9,7 @@
       <div class="vh-body">
         <select v-model="typeFilter" class="vh-select">
           <option value="">全部类型</option>
-          <option v-for="t in allTypes" :key="t.type" :value="t.type"><WsIcon :name="entitySchemaRegistry.getIconName(t.type)" size="xs" /> {{ t.label }}</option>
+          <option v-for="t in allTypes" :key="t.typeKey" :value="t.typeKey"><WsIcon :name="entitySchemaRegistry.getIconName(t.typeKey)" size="xs" /> {{ t.label }}</option>
         </select>
         <div class="vh-list" v-if="filtered.length">
           <div v-for="e in filtered" :key="e.id" class="vh-item">

@@ -141,8 +141,8 @@
               :label="f.label"
               :value="entity.properties[f.key]"
               :editing="editing"
-              :type="(f.type as any)"
-              :options="f.options"
+              :type="(f.fieldType as any)"
+              :options="f.options?.map(o => o.value)"
               :entity-id="entity.id"
               :cover-position="entity.coverPosition"
               :cover-zoom="entity.coverZoom"
@@ -323,14 +323,14 @@ const typeFieldKey = computed(() => {
 const coverFieldKey = computed(() => {
   const schema = entitySchemaRegistry.get(props.entityType)
   const fields = schema?.fields || []
-  const imageField = fields.find((f: any) => f.type === 'image')
+  const imageField = fields.find((f: any) => f.fieldType === 'image')
   return imageField?.key || 'coverImage'
 })
 
 const hasImageField = computed(() => {
   const schema = entitySchemaRegistry.get(props.entityType)
   const fields = schema?.fields || []
-  return fields.some((f: any) => f.type === 'image')
+  return fields.some((f: any) => f.fieldType === 'image')
 })
 
 const displayFields = computed(() => {

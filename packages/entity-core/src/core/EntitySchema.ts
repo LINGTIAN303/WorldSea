@@ -82,7 +82,7 @@ class EntitySchemaRegistry {
   private schemas = new Map<string, EntityTypeSchema>()
 
   register(schema: EntityTypeSchema): void {
-    this.schemas.set(schema.type, schema)
+    this.schemas.set(schema.typeKey, schema)
   }
 
   get(type: string): EntityTypeSchema | undefined {

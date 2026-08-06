@@ -30,12 +30,12 @@ export function activate(api: PluginAPIType) {
       { traitId: 'visual' },
     ],
     ownFields: [
-      { key: 'materialType', label: '类型', type: 'select', options: ['图片', '视频', '文章', '音乐', '概念', '角色', '场景', '对话', '其他'] },
-      { key: 'source', label: '来源', type: 'text' },
-      { key: 'url', label: 'URL', type: 'text' },
-      { key: 'notes', label: '创作笔记', type: 'textarea' },
-      { key: 'colors', label: '主色调', type: 'color' },
-      { key: 'boardPosition', label: '画布位置', type: 'text' },
+      { key: 'materialType', label: '类型', fieldType: 'select', options: ['图片', '视频', '文章', '音乐', '概念', '角色', '场景', '对话', '其他'].map(s => ({ value: s, label: s })) },
+      { key: 'source', label: '来源', fieldType: 'text' },
+      { key: 'url', label: 'URL', fieldType: 'text' },
+      { key: 'notes', label: '创作笔记', fieldType: 'textarea' },
+      { key: 'colors', label: '主色调', fieldType: 'color' },
+      { key: 'boardPosition', label: '画布位置', fieldType: 'text' },
     ],
   })
 

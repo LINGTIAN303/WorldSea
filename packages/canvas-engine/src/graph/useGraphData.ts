@@ -60,8 +60,8 @@ export function useGraphData(opts?: { threshold?: number }) {
   const nodeInfoMap = computed<Map<string, ReturnType<typeof getNodeTypeInfo>>>(() => {
     const m = new Map()
     for (const schema of entitySchemaRegistry.getAll()) {
-      const info = getNodeTypeInfo(schema.type)
-      if (info) m.set(schema.type, info)
+      const info = getNodeTypeInfo(schema.typeKey)
+      if (info) m.set(schema.typeKey, info)
     }
     return m
   })

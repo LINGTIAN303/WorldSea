@@ -47,34 +47,34 @@
           <div v-for="field in sortedFields" :key="field.key" class="emp-prop">
             <div class="emp-prop-label">{{ field.label }}</div>
             <input
-              v-if="field.type === 'boolean'"
+              v-if="field.fieldType === 'boolean'"
               type="checkbox"
               :checked="!!editProps[field.key]"
               @change="onPropChange(field.key, ($event.target as HTMLInputElement).checked)"
               class="emp-checkbox"
             />
             <input
-              v-else-if="field.type === 'color'"
+              v-else-if="field.fieldType === 'color'"
               type="color"
               :value="String(editProps[field.key] ?? '')"
               @change="onPropChange(field.key, ($event.target as HTMLInputElement).value)"
               class="emp-color-input"
             />
             <textarea
-              v-else-if="field.type === 'textarea'"
+              v-else-if="field.fieldType === 'textarea'"
               :value="stripHtml(String(editProps[field.key] ?? ''))"
               @blur="onPropChange(field.key, ($event.target as HTMLTextAreaElement).value)"
               class="emp-input"
               rows="2"
             ></textarea>
             <select
-              v-else-if="field.type === 'select' && field.options?.length"
+              v-else-if="field.fieldType === 'select' && field.options?.length"
               :value="String(editProps[field.key] ?? '')"
               @change="onPropChange(field.key, ($event.target as HTMLSelectElement).value)"
               class="emp-input"
             >
               <option value="">—</option>
-              <option v-for="opt in field.options" :key="opt" :value="opt">{{ opt }}</option>
+              <option v-for="opt in field.options" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
             </select>
             <input
               v-else

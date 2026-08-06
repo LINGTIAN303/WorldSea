@@ -58,7 +58,7 @@ class PluginAPIImpl {
   registerEntityType(schema: EntityTypeSchema): void {
     // 自动包装为 V2：将旧版 fields 全部作为 ownFields
     this.registerEntityV2({
-      type: schema.type,
+      type: schema.typeKey,
       label: schema.label,
       icon: schema.icon,
       traits: [],
@@ -86,7 +86,7 @@ class PluginAPIImpl {
 
     // 兼容旧版：同时注册到旧版 entitySchemaRegistry 和 fieldRegistry
     entitySchemaRegistry.register({
-      type: schemaV2.type,
+      typeKey: schemaV2.type,
       label: schemaV2.label,
       icon: schemaV2.icon,
       fields: schemaV2._compiledFields,
@@ -119,7 +119,7 @@ class PluginAPIImpl {
 
     // 兼容旧版：同时注册到 relationSchemaRegistry
     relationSchemaRegistry.register({
-      type: schema.type,
+      typeKey: schema.type,
       label: schema.label,
       sourceTypes: schema.sourceTypes,
       targetTypes: schema.targetTypes,

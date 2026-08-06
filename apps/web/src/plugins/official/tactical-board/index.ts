@@ -24,17 +24,17 @@ export const manifest = {
 
 export function activate(api: PluginAPIType) {
   api.registerEntityType({
-    type: 'tactical-board',
+    typeKey: 'tactical-board',
     label: '战术棋盘',
     icon: 'tactical-board',
     fields: [
-      { key: 'gridType', label: '网格类型', type: 'select', options: ['square', 'hex'] },
-      { key: 'gridSize', label: '网格规格', type: 'text' },
-      { key: 'terrain', label: '地形数据', type: 'textarea' },
-      { key: 'units', label: '单位数据', type: 'textarea' },
-      { key: 'combatStats', label: '战斗统计', type: 'textarea' },
-      { key: 'coverImage', label: '封面图', type: 'image' },
-      { key: 'battleState', label: '战斗状态', type: 'textarea' },
+      { key: 'gridType', label: '网格类型', fieldType: 'select', options: ['square', 'hex'].map(s => ({ value: s, label: s })) },
+      { key: 'gridSize', label: '网格规格', fieldType: 'text' },
+      { key: 'terrain', label: '地形数据', fieldType: 'textarea' },
+      { key: 'units', label: '单位数据', fieldType: 'textarea' },
+      { key: 'combatStats', label: '战斗统计', fieldType: 'textarea' },
+      { key: 'coverImage', label: '封面图', fieldType: 'image' },
+      { key: 'battleState', label: '战斗状态', fieldType: 'textarea' },
     ],
   })
 

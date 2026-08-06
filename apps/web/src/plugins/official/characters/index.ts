@@ -36,14 +36,14 @@ export function activate(api: PluginAPIType) {
       { traitId: 'ownable' },
     ],
     ownFields: [
-      { key: 'age', label: '年龄', type: 'text' },
-      { key: 'gender', label: '性别', type: 'text' },
-      { key: 'race', label: '种族', type: 'text', autoLink: { targetType: 'species', relationType: 'belongs_to' } },
-      { key: 'occupation', label: '职业', type: 'text' },
-      { key: 'affiliation', label: '所属势力', type: 'text', autoLink: { targetType: 'organization', relationType: 'belongs_to' } },
-      { key: 'role', label: '角色', type: 'select', options: ['主角', '反派', '配角', '导师', '信使', '其他'] },
-      { key: 'personality', label: '性格', type: 'textarea' },
-      { key: 'background', label: '背景故事', type: 'textarea' },
+      { key: 'age', label: '年龄', fieldType: 'text' },
+      { key: 'gender', label: '性别', fieldType: 'text' },
+      { key: 'race', label: '种族', fieldType: 'text', autoLink: { targetType: 'species', relationType: 'belongs_to' } },
+      { key: 'occupation', label: '职业', fieldType: 'text' },
+      { key: 'affiliation', label: '所属势力', fieldType: 'text', autoLink: { targetType: 'organization', relationType: 'belongs_to' } },
+      { key: 'role', label: '角色', fieldType: 'select', options: ['主角', '反派', '配角', '导师', '信使', '其他'].map(s => ({ value: s, label: s })) },
+      { key: 'personality', label: '性格', fieldType: 'textarea' },
+      { key: 'background', label: '背景故事', fieldType: 'textarea' },
     ],
   })
 

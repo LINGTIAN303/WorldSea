@@ -108,7 +108,7 @@ export function useSmartFillChat() {
       },
       projectInfo: {
         name: 'WorldSmith-SmartFill',
-        entityTypes: entityStore.types.map(t => t.type),
+        entityTypes: entityStore.types.map(t => t.typeKey),
         relationTypes: [],
         dirPath: null,
       },

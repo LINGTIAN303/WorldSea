@@ -14,7 +14,7 @@
       <div v-if="tab === 'browse'" class="tm-body">
         <select v-model="typeFilter" class="tm-select">
           <option value="">全部类型</option>
-          <option v-for="t in allTypes" :key="t.type" :value="t.type"><WsIcon :name="entitySchemaRegistry.getIconName(t.type)" size="xs" /> {{ t.label }}</option>
+          <option v-for="t in allTypes" :key="t.typeKey" :value="t.typeKey"><WsIcon :name="entitySchemaRegistry.getIconName(t.typeKey)" size="xs" /> {{ t.label }}</option>
         </select>
 
         <div class="tm-list" v-if="filtered.length">
@@ -37,7 +37,7 @@
         <p class="tm-hint">选择一个实体，将其结构保存为模板</p>
         <select v-model="createTypeFilter" class="tm-select">
           <option value="">选择类型</option>
-          <option v-for="t in allTypes" :key="t.type" :value="t.type"><WsIcon :name="entitySchemaRegistry.getIconName(t.type)" size="xs" /> {{ t.label }}</option>
+          <option v-for="t in allTypes" :key="t.typeKey" :value="t.typeKey"><WsIcon :name="entitySchemaRegistry.getIconName(t.typeKey)" size="xs" /> {{ t.label }}</option>
         </select>
         <div class="tm-entity-list" v-if="createTypeFilter">
           <button v-for="e in typeEntities" :key="e.id" class="tm-entity-btn" @click="saveAsTemplate(e)">

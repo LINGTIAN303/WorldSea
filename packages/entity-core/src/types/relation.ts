@@ -1,15 +1,15 @@
+import type { RelationTypeSchema as CoreRelationTypeSchema } from '@worldsmith/core-api-types'
 import type { FieldSchema } from './entity'
 
-/** 关系类型的注册表项（V1，兼容保留） */
-export interface RelationTypeSchema {
-  type: string
-  label: string
-  sourceTypes: string[]
-  targetTypes: string[]
-  directed: boolean
+/** 关系类型的注册表项（V1，继承契约层 RelationTypeSchema，扩展运行时字段） */
+export interface RelationTypeSchema extends CoreRelationTypeSchema {
+  /** 逆关系类型 */
   inverseType?: string
+  /** 是否自动创建逆关系 */
   autoCreateInverse?: boolean
+  /** 关系属性字段 */
   properties?: FieldSchema[]
+  /** 所属插件 ID */
   pluginId?: string
 }
 

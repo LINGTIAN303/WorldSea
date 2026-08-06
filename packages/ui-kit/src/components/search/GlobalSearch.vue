@@ -8,7 +8,7 @@
       <div class="gs-filters">
         <select v-model="typeFilter">
           <option value="">所有类型</option>
-          <option v-for="t in allTypes" :key="t.type" :value="t.type"><WsIcon :name="entitySchemaRegistry.getIconName(t.type)" size="xs" /> {{ t.label }}</option>
+          <option v-for="t in allTypes" :key="t.typeKey" :value="t.typeKey"><WsIcon :name="entitySchemaRegistry.getIconName(t.typeKey)" size="xs" /> {{ t.label }}</option>
         </select>
         <input v-model="tagFilter" placeholder="按标签过滤..." class="gs-tag-input" />
         <label class="gs-rel-toggle"><input type="checkbox" v-model="showRelations" /> 关系</label>
