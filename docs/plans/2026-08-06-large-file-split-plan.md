@@ -101,3 +101,19 @@ status: 执行中
 - **AgentChat.vue（1305→762 行，script ~1050→467）**：抽 useChatAttachments(54)/useVisionAgent(109)/useSessionStatusBars(503)；依赖注入 + 返回值串联，无共享可变全局；typecheck 通过；注释文档 useSessionStatusBars.md 承接原 AgentChat.md 状态栏注释块
 - **MindmapView.vue**：调研后判定已拆到位（模板纯编排 + 15+ composable 组合），保持不动——编排层行数为合理组合成本，硬拆增加间接层
 - 编排层拆分经验：模板已全子组件化 + script 已 composable 化的组件，仅抽"仍有明确内联逻辑块"的部分；组合职责本就是组件职责
+
+## 第五轮：coreBackend 双端收敛（方案 B + 新建 core-api-types）
+
+**调研结论**：web/tauri 两个 coreBackend.ts（1158/1165 行）是"同一 API 契约的两个后端适配器"——64 个共享类型 100% 重复、7 个 Core 前缀类型 tauri 独有重复定义、约 30 个函数签名一一对应，仅调用层不同（web wasm/worker，tauri invoke）。`EntityTypeSchema/FieldTypeSchema/RelationTypeSchema` 已存在于 entity-core（三份重复）。
+
+**执行计划**：
+1. 新建 `packages/core-api-types`（纯类型包，link: 协议 + tsconfig paths）：收录 64+7 类型；EntityTypeSchema 等与 entity-core 对齐（一致则 re-export）
+2. web/tauri 双端 coreBackend：删内联类型改 import 共享包 + 按领域拆文件（schema/retrofit/entity/algo/health + index 聚合），导出名不变、调用方零改动
+3. 验证：apps/web + apps/tauri typecheck 全绿；注释文档同步
+
+## 第五轮执行结果（2026-08-06）
+
+- **packages/core-api-types**：新建纯类型包，71 个类型（64 共享 + 7 Core）唯一契约源；EntityTypeSchema 等 3 个与 entity-core 字段不一致 → 已内联 + 记录差异（未改 entity-core，待决策是否统一三份定义）
+- **web coreBackend.ts 1158→6 行**：api/ 目录（runtime 147/schema 63/retrofit 188/entity 76/algo 362/health 35/index），156 导出名与改造前一致，typecheck 通过
+- **tauri coreBackend.ts 1165→4 行**：api/ 目录（runtime 69/schema 47/retrofit 161/entity 74/algo 331/health 45/index），163 导出名 + 90 cmd 命令名与改造前一致，typecheck 通过
+- 双端类型完全同源（core-api-types）；调用方（worldsmithCore/main.ts/插件）零改动

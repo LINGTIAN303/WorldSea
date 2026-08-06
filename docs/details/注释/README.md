@@ -116,12 +116,13 @@
 | src/subagent/templates.ts | [templates.md](tauri/templates.md) | 子 Agent 预设模板：前端预填、后端零默认规格 |
 | src/terminal/composables/useTerminalRust.ts | [useTerminalRust.md](tauri/useTerminalRust.md) | 终端服务适配器：terminal_* 命令参数约定、模块级单例 |
 | src/terminal/components/TerminalView.vue | [TerminalView.md](tauri/TerminalView.md) | 终端界面：单次命令 + 持久化会话 + Shell 检测交互 |
-| src/core/coreBackend.ts | [coreBackend.md](tauri/coreBackend.md) | coreBackend Phase 3 端分离：移除 WASM、纯 invoke 路径、签名兼容 |
+| src/core/coreBackend.ts | [coreBackend.md](tauri/coreBackend.md) | coreBackend Phase 3 端分离：移除 WASM、纯 invoke 路径、签名兼容；2026-08-06 收敛为 api/ 领域拆分聚合（re-export） |
 | src/main.ts | [main.md](tauri/main.md) | Tauri 端入口：端分离策略、Phase 3/4 演进说明 |
 | src/memory-archive/adapters/TauriFsOperations.ts | [TauriFsOperations.md](tauri/TauriFsOperations.md) | FsOperations 的 Tauri 实现：cmd_fs_* 命令映射 |
 | src/plugins/workflow/api/workflowApi.ts | [workflowApi.md](tauri/workflowApi.md) | Workflow 引擎命令调用层：28 个命令镜像、设计要点 |
 | src/plugins/workflow/composables/useWorkflowEngineRun.ts | [useWorkflowEngineRun.md](tauri/useWorkflowEngineRun.md) | 直接 Dispatch 兜底通道运行控制器：工作机制与注意 |
 | src/plugins/mindmap/composables/useRustGraphAnalysis.ts | [useRustGraphAnalysis.md](tauri/useRustGraphAnalysis.md) | Rust 图分析算法桥接：算法清单与 Web 回退策略 |
+| 拆分记录（2026-08-06） | — | coreBackend.ts 按领域拆为 src/core/api/（schema / retrofit / entity / algo / health / runtime + index 聚合），coreBackend.ts 保留 `export * from './api'`，类型统一来自 @worldsmith/core-api-types，公共导出签名不变，原 import 处无需改动；各新文件无 ≥ 10 行连续注释块，未生成新文档 |
 
 ### web（apps/web）
 
@@ -152,7 +153,14 @@
 | src/composables/useAvatarImage.ts | [useAvatarImage.md](web/composables/useAvatarImage.md) | avatar 字段解析为图片 src（object URL 生命周期） |
 | src/composables/useFileExtract.ts | [useFileExtract.md](web/composables/useFileExtract.md) | 文档内容提取（docx/pdf/text，pdfjs 改 Web Worker） |
 | src/composables/useProjectSwitcher.ts | [useProjectSwitcher.md](web/composables/useProjectSwitcher.md) | 项目切换编排器（Web 端迁移版，6 步流程） |
-| src/core/coreBackend.ts | [coreBackend.md](web/core/coreBackend.md) | Web 端 coreBackend（Phase 3 端分离，API 兼容） |
+| src/core/coreBackend.ts | [coreBackend.md](web/core/coreBackend.md) | Web 端 coreBackend 聚合 re-export 层（Phase 3 端分离 + 领域拆分至 core/api/，导出名不变） |
+| src/core/api/index.ts | （无） | coreBackend 领域聚合入口（runtime 仅透传 setWasmAvailable/getBackendType，导出面不变） |
+| src/core/api/runtime.ts | （无） | coreBackend 基础设施层：wasmCall/detectBackend/getCoreCached/backendCall/algoCall（短注释，未生成文档） |
+| src/core/api/schema.ts | （无） | schema 契约领域：validatePack + schemaRegister* 系列（短注释，未生成文档） |
+| src/core/api/retrofit.ts | （无） | retrofit 会话领域：retrofit* 14 个会话/补丁函数（短注释，未生成文档） |
+| src/core/api/entity.ts | （无） | entity 校验领域：validateEntity/validateEntities/checkReferences/migrate/runDiagnostics（短注释，未生成文档） |
+| src/core/api/algo.ts | （无） | algo 算法领域：spatial* + 几何/图/CRDT/地形/约束/DXF 算法（短注释，未生成文档） |
+| src/core/api/health.ts | （无） | health 健康检查领域：checkStorageHealth/validatePluginManifest/checkPluginHealth（短注释，未生成文档） |
 | src/core/FacetMigrator.ts | [FacetMigrator.md](web/core/FacetMigrator.md) | weapon/apparel → item+facet 结构迁移（7 步） |
 | src/core/ProjectFS.ts | [ProjectFS.md](web/core/ProjectFS.md) | 向后兼容 re-export（依赖注入说明） |
 | src/core/wasmWorkerPool.ts | [wasmWorkerPool.md](web/core/wasmWorkerPool.md) | WASM Worker 池（懒初始化/队列/回退/可取消） |

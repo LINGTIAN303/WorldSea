@@ -19,6 +19,7 @@
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "@worldsmith/agent-runtime": "link:../../packages/agent-runtime",
     "@worldsmith/canvas-engine": "link:../../packages/canvas-engine",
+    "@worldsmith/core-api-types": "link:../../packages/core-api-types",
     "@worldsmith/entity-core": "link:../../packages/entity-core",
     "@worldsmith/font-kit": "link:../../packages/font-kit",
     "@worldsmith/memory-archive": "link:../../packages/memory-archive",
