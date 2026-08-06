@@ -327,7 +327,10 @@ pub const ALL_MANIFESTS: &[ProviderManifest] = &[
         api_type: ApiType::OpenaiCompletions,
         is_domestic: true,
         proxy_path: "/api/sensenova/v1",
-        direct_base_url: "https://token.sensenova.cn",
+        // genai OpenAI 适配器用 `base_url.join("chat/completions")` 硬编码拼接端点，
+        // 不消费 chat_completions_path 字段。故 base 必须含 `/v1`，否则拼出
+        // `https://token.sensenova.cn/chat/completions`（404）。见 docs/details/注释/agent-runtime/llm.md
+        direct_base_url: "https://token.sensenova.cn/v1",
         chat_completions_path: "/v1/chat/completions",
         default_model_id: "sensenova-6.7-flash-lite",
         vision_detector: sensenova_vision,
