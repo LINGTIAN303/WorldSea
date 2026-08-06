@@ -95,3 +95,9 @@ status: 执行中
 - **EntityFormModal.vue（1087→790 行，script 650→353）**：抽 useFieldPresets(188)/useDynamicForm(92)/useEntityRefSearch(62)/useEntityFormSave(119)；autoLink 并入 save（仅一行 filter，独立文件属过度拆分）；调用环用 `getFormData` 闭包解 TDZ
 - **AgentSettingsPanel.vue（1125→1015 行，script 232→122）**：抽 useModelApiKeyConfig(71)/useCustomModelFetch(86)；拖拽/搜索转发等高耦合部分保留（符合"抽不动"判断）
 - 验证：apps/web + shared-composables typecheck 全绿；全量注释扫描无残留；新文件无 ≥10 行注释块（无需抽取文档），README 已登记
+
+## 第四轮执行结果（2026-08-06）
+
+- **AgentChat.vue（1305→762 行，script ~1050→467）**：抽 useChatAttachments(54)/useVisionAgent(109)/useSessionStatusBars(503)；依赖注入 + 返回值串联，无共享可变全局；typecheck 通过；注释文档 useSessionStatusBars.md 承接原 AgentChat.md 状态栏注释块
+- **MindmapView.vue**：调研后判定已拆到位（模板纯编排 + 15+ composable 组合），保持不动——编排层行数为合理组合成本，硬拆增加间接层
+- 编排层拆分经验：模板已全子组件化 + script 已 composable 化的组件，仅抽"仍有明确内联逻辑块"的部分；组合职责本就是组件职责

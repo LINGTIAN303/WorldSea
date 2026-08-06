@@ -127,7 +127,7 @@
 
 | 代码文件 | 详细注释文档 | 摘要 |
 |---|---|---|
-| src/agent/AgentChat.vue | [AgentChat.md](web/agent/AgentChat.md) | Rust 批次4 思维引擎（Loop/ToT/GoT/MA/Supervisor/Router）会话生命周期与命令处理 |
+| src/agent/AgentChat.vue | [AgentChat.md](web/agent/AgentChat.md) | Rust 批次4 思维引擎（Router 路由决策）会话生命周期与命令处理；Loop/ToT/GoT/MA/Supervisor 已拆至 useSessionStatusBars |
 | src/agent/AgentMessageBubble.vue | [AgentMessageBubble.md](web/agent/AgentMessageBubble.md) | 消息气泡路由分发器（4 分支 + 子组件目录） |
 | src/agent/archive/MergeView.vue | [MergeView.md](web/agent/archive/MergeView.md) | 待合并钩子管理视图（emit merged 刷新） |
 | src/agent/archive/StatsView.vue | [StatsView.md](web/agent/archive/StatsView.md) | 记忆库统计视图（纯 UI，props 传入） |
@@ -141,6 +141,9 @@
 | src/agent/chat/useLongTaskProgress.ts | [useLongTaskProgress.md](web/agent/chat/useLongTaskProgress.md) | 长任务进度反馈（计时器 + 心跳提示） |
 | src/agent/chat/useManuscriptActions.ts | [useManuscriptActions.md](web/agent/chat/useManuscriptActions.md) | 文境 Block 本地操作（仅内存持久化） |
 | src/agent/chat/useSettingsPanel.ts | [useSettingsPanel.md](web/agent/chat/useSettingsPanel.md) | 设置浮窗位置/拖拽/开关 |
+| src/agent/chat/useChatAttachments.ts | （无） | 聊天附件分类与 vision 提示构建（短注释，未生成文档） |
+| src/agent/chat/useVisionAgent.ts | （无） | vision 子 Agent 初始化与执行（短注释，未生成文档） |
+| src/agent/chat/useSessionStatusBars.ts | [useSessionStatusBars.md](web/agent/chat/useSessionStatusBars.md) | 命令状态栏生命周期管理（Loop/ToT/GoT/MA/Supervisor，自 AgentChat 拆分） |
 | src/agent/composables/useAgent.ts | [useAgent.md](web/agent/composables/useAgent.md) | Web 端 Agent Backend 入口（端分离 P3-W5 功能退化版） |
 | src/agent/composables/useGroupChat.ts | [useGroupChat.md](web/agent/composables/useGroupChat.md) | 群聊生命周期管理（阶段 2.0 后暂不可用） |
 | src/agent/composables/useMessageSpeaker.ts | [useMessageSpeaker.md](web/agent/composables/useMessageSpeaker.md) | 统一消息 speaker 信息（群聊/单聊数据流统一） |
