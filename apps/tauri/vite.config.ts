@@ -78,13 +78,6 @@ const aliases: Record<string, string> = {
   '@worldsmith/shared-ui/agent': path.resolve(__dirname, '../../packages/shared-ui/src/agent'),
   '@worldsmith/shared-ui/agent/a2ui': path.resolve(__dirname, '../../packages/shared-ui/src/agent/a2ui'),
   '@worldsmith/theme-kit': path.resolve(__dirname, '../../packages/theme-kit/src'),
-  '@worldsmith/memory-archive$': path.resolve(__dirname, '../../packages/memory-archive/src'),
-  '@worldsmith/memory-archive/types': path.resolve(__dirname, '../../packages/memory-archive/src/types'),
-  '@worldsmith/memory-archive/core': path.resolve(__dirname, '../../packages/memory-archive/src/core'),
-  '@worldsmith/memory-archive/adapters': path.resolve(__dirname, '../../packages/memory-archive/src/adapters'),
-  '@worldsmith/memory-archive/storage': path.resolve(__dirname, '../../packages/memory-archive/src/storage'),
-  '@worldsmith/memory-archive/embedding': path.resolve(__dirname, '../../packages/memory-archive/src/embedding'),
-  '@worldsmith/memory-archive/utils': path.resolve(__dirname, '../../packages/memory-archive/src/utils'),
   // WASM 包（算法降级用 — Tauri 命令不可用时的回退）
   '@worldsmith/core$': path.resolve(__dirname, '../../worldsmith-core/pkg/index.js'),
   '@worldsmith/tactical-engine$': path.resolve(__dirname, '../../tactical-engine/pkg/index.js'),

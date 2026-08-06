@@ -40,8 +40,6 @@
       "@worldsmith/shared-ui/*": ["../../packages/shared-ui/src/*"],
       "@worldsmith/theme-kit": ["../../packages/theme-kit/src/index.ts"],
       "@worldsmith/theme-kit/*": ["../../packages/theme-kit/src/*"],
-      "@worldsmith/memory-archive": ["../../packages/memory-archive/src/index.ts"],
-      "@worldsmith/memory-archive/*": ["../../packages/memory-archive/src/*"],
       // WASM 包（算法降级用）
       "@worldsmith/core": ["../../worldsmith-core/pkg/index.d.ts"],
       "@worldsmith/tactical-engine": ["../../tactical-engine/pkg/index.d.ts"]
