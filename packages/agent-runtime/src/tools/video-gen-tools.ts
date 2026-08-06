@@ -19,18 +19,7 @@ const POLL_INTERVAL = 5_000
 /** 视频虚拟存储根目录 */
 const VIDEO_DIR = '/videos/generated'
 
-/**
- * 供应商协议配置
- *
- * 每家视频 API 的协议各不相同，这里统一抽象为：
- * - submitPath: 提交任务的 Vite 代理路径
- * - pollPath: 轮询状态的 Vite 代理路径（含 {taskId} 占位符）
- * - extraSubmitHeaders: 提交时额外需要的请求头
- * - buildBody: 根据统一参数构建供应商特定的请求体
- * - extractTaskId: 从提交响应中提取任务 ID
- * - extractStatus: 从轮询响应中提取状态字符串
- * - extractVideoUrl: 从轮询响应中提取视频 URL
- */
+/** 供应商协议配置：统一抽象各家视频 API 的提交/轮询协议，详细见 docs/details/注释/packages/agent-runtime/tools-video-gen-tools.md */
 interface ProviderProtocol {
   submitPath: string
   pollPath: string

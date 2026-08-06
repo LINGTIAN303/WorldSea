@@ -1,13 +1,4 @@
-/**
- * 抹除/移动边境线 composable
- *
- * 负责：
- * - 抹除菜单（融合 / 移线）的状态与业务逻辑
- * - 偏移模式（拖拽节点移动边境线）
- * - 重划模式（重新绘制边境线）
- *
- * 鼠标坐标相关的命中检测仍由主文件处理，本 composable 仅暴露状态与业务方法。
- */
+/** 抹除/移动边境线 composable（融合/移线 + 偏移/重划模式），详细见 docs/details/注释/packages/ui-kit/components/entity/map/useBorderErase.md */
 
 import { ref } from 'vue'
 import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'

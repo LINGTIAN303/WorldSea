@@ -1,14 +1,4 @@
-/**
- * useChatPanel — Agent 聊天面板状态管理（位置 / 大小 / 最小化 / 折叠）
- *
- * 从 AgentChat.vue 拆分而来，负责：
- *   - 面板坐标（panelX/panelY/panelW/panelH）的拖拽与缩放
- *   - 最小化 / 穿透（pin）切换
- *   - 面板状态持久化（agent_panel）
- *   - clampPanelY / clampPanelX / maxPanelH 等边界计算
- *
- * 注意：isPinned 来自 useAgent（全局单例），故作为参数传入而非在此处创建。
- */
+/** useChatPanel：聊天面板状态管理（位置/大小/最小化/折叠，从 AgentChat 拆分），详细见 docs/details/注释/web/agent/chat/useChatPanel.md */
 import { ref, computed, type Ref, type ComputedRef } from 'vue'
 import { usePanelDrag, usePanelResize } from '../composables/usePanelDrag'
 import { createDebouncedStorage } from '@worldsmith/perf-kit/io'

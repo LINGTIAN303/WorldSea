@@ -1,13 +1,4 @@
-/**
- * 模型注册表
- *
- * 包含所有支持的 LLM 模型元数据（上下文窗口、价格、能力等），
- * 以及查询/筛选/成本计算等工具函数。
- *
- * 注：与 session/types.ts 的 RuntimeModelInfo（运行时模型快照）语义不同。
- * - ModelInfo（本文件）：模型注册表条目，静态元数据，字段完整
- * - RuntimeModelInfo：运行时模型快照，从 Rust payload 构造，字段精简
- */
+/** 模型注册表：LLM 模型元数据与查询/筛选/成本计算，详细见 docs/details/注释/packages/agent-runtime/providers-model-registry.md */
 
 import { DEFAULT_CLOUD_CONFIGS } from './config'
 import { getProviderLabelMap } from './provider-registry'

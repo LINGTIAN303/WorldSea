@@ -3,19 +3,7 @@
  * 端分离：Tauri 端专用（依赖 @tauri-apps/api）
  */
 
-/**
- * Rust 图分析算法桥接
- *
- * 将前端图数据序列化后通过 Tauri invoke 调用 worldsmith-core 的图算法：
- * - 最短路径 (Dijkstra)
- * - 连通分量
- * - PageRank
- * - 社区检测 (Louvain)
- * - 介数中心性
- * - 悬空节点检测
- *
- * Web 环境回退到纯 JS 实现。
- */
+/** Rust 图分析算法桥接（Tauri invoke → worldsmith-core，Web 回退 JS），详细见 docs/details/注释/tauri/useRustGraphAnalysis.md */
 import { invoke } from '@tauri-apps/api/core'
 import type { GraphNode, GraphEdge } from '@worldsmith/canvas-engine'
 

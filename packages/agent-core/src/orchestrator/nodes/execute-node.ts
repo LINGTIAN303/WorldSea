@@ -1,29 +1,4 @@
-/**
- * ExecuteNode — Plan-and-Execute 模式的执行节点
- *
- * 设计理念：
- * - 单次 execute = 执行一个 pending PlanItem
- * - 执行完毕后检查是否还有 pending 项：
- *   - 有 → 返回 'continue'（编排图边循环回自身）
- *   - 无 → 返回 'done'
- * - 中断/恢复粒度细：每项之间可暂停
- *
- * 与 PlanNode 的协作：
- * - 编排图：PlanNode → ExecuteNode（无条件边）
- * - ExecuteNode 完成 → 条件边回自身（state.plan 还有 pending）
- * - ExecuteNode 完成 → 结束（无 pending）
- *
- * 动态调整：
- * - 每次执行后检查 LLM 输出是否包含新任务标记
- * - 默认标记格式：<new_tasks>[{"title":"...","description":"..."}]</new_tasks>
- * - 解析出的新任务追加到 state.plan 末尾
- * - 可通过 parseNewTasks 配置自定义解析逻辑
- *
- * 事件流：
- * - plan_step_update(status='in_progress')：步骤开始
- * - plan_step_update(status='completed', output)：步骤完成
- * - plan_step_update(status='failed')：步骤失败
- */
+/** ExecuteNode（Plan-and-Execute 执行节点：协作/动态调整/事件流见文档），详细见 docs/details/注释/packages/agent-core/orchestrator/nodes/execute-node.md */
 
 import type {
   OrchestratorNode,
@@ -67,16 +42,7 @@ export interface ExecuteNodeConfig {
   id: string
   /** 人类可读名称（默认 ExecuteNode:{id}） */
   name?: string
-  /**
-   * prompt 模板，支持占位符：
-   * - {{input}}：用户原始输入
-   * - {{stepTitle}}：当前步骤标题
-   * - {{stepDescription}}：当前步骤描述
-   * - {{completedSteps}}：已完成步骤摘要
-   * - {{remainingSteps}}：剩余步骤摘要
-   * - {{lastMessage}}：上一条消息内容
-   * 省略时用默认模板
-   */
+  /** prompt 模板（占位符说明见文档），详细见 docs/details/注释/packages/agent-core/orchestrator/nodes/execute-node.md */
   promptTemplate?: string
   /** LLM 调用选项 */
   promptOptions?: PromptCallOptions

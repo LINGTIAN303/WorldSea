@@ -10,7 +10,7 @@
     "./agent/*": "./src/agent/*"
   },
   "scripts": {
-    "typecheck": "tsc -p tsconfig.build.json --noEmit",
+    "typecheck": "vue-tsc --noEmit",
     "build": "vite build"
   },
   "dependencies": {

@@ -3,20 +3,7 @@
  * 端分离：Tauri 端专用（依赖 @tauri-apps/api）
  */
 
-/**
- * TauriFsOperations - FsOperations 接口的 Tauri 环境实现
- *
- * 封装项目自定义的 cmd_fs_* Rust 命令，为 memory-archive 框架提供文件系统操作。
- * Web 环境下所有方法抛出错误（memory-archive 需要 Tauri 文件系统支持）。
- *
- * 底层命令映射：
- * - readFile  → cmd_fs_read
- * - writeFile → cmd_fs_write（createDirs=true）
- * - mkdir     → cmd_fs_mkdir（recursive=true）
- * - remove    → cmd_fs_delete（recursive=true）
- * - exists    → cmd_fs_stat（检查 exists 字段）
- * - readDir   → cmd_fs_list（recursive=false，返回 name 列表）
- */
+/** TauriFsOperations：FsOperations 接口的 Tauri 实现（cmd_fs_* 命令映射），详细见 docs/details/注释/tauri/TauriFsOperations.md */
 
 import type { FsOperations } from '@worldsmith/memory-archive/adapters'
 

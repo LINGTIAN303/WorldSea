@@ -1,15 +1,4 @@
-/**
- * @worldsmith/agent-core — 核心类型定义
- *
- * 定义 Agent 运行时的所有核心抽象：
- * - PermissionLevel: 工具权限级别
- * - ToolCategory: 工具分类
- * - ToolMeta: 工具声明式元数据
- * - ToolDefinition: 扩展工具定义（含元数据）
- * - ToolParameter: 工具参数定义
- * - SkillDeclaration: 技能声明
- * - Platform: 运行平台
- */
+/** 核心类型定义（权限/分类/元数据/技能/事件契约），详细见 docs/details/注释/packages/agent-core/types/index.md */
 
 // ─── 平台 ────────────────────────────────────────────────
 

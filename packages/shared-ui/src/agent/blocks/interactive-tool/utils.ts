@@ -1,12 +1,4 @@
-/**
- * InteractiveToolCall 子组件共享工具函数
- *
- * 从原 InteractiveToolCall.vue 提取，仅包含纯函数与常量：
- * - TOOL_LABELS: 工具名→中文标签映射
- * - getToolLabel: 取工具中文标签，缺失时回退为空白分隔名
- * - formatDuration: 毫秒时长格式化
- * - formatJson / formatResult: JSON 序列化与截断
- */
+/** InteractiveToolCall 子组件共享工具函数（标签/时长格式化/JSON 截断），详细见 docs/details/注释/packages/shared-ui/agent/blocks/interactive-tool/utils.md */
 
 /** 工具名→中文标签映射（覆盖实体/关系/知识库/输出/系统等全量工具） */
 export const TOOL_LABELS: Record<string, string> = {

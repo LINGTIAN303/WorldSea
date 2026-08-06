@@ -1,16 +1,4 @@
-/**
- * 视觉分析工具集
- *
- * 提供跨供应商的图片视觉分析能力。当主模型不支持视觉时，
- * 可通过 vision_analyze 工具调用单独的视觉子模型来分析图片。
- *
- * 支持三套 API 格式：
- * 1. OpenAI 兼容格式 (chat/completions + image_url)
- * 2. Anthropic 原生格式 (v1/messages + image source)
- * 3. Google Gemini 格式 (models/{model}:generateContent + inline_data)
- *
- * 图片通过 image-store 内存缓存临时共享，有 30 分钟 TTL。
- */
+/** 视觉分析工具集：跨供应商图片视觉分析（OpenAI/Anthropic/Gemini），详细见 docs/details/注释/packages/agent-runtime/tools-vision-tools.md */
 
 import type { ToolDefinition } from '../bridge-types'
 import type { ToolMeta } from '@worldsmith/agent-core'

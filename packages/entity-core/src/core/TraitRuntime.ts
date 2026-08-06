@@ -152,16 +152,7 @@ export function defineFacet(facet: FacetDefinition): FacetDefinition {
 // compileEntitySchema — 编译器
 // ─────────────────────────────────────────────
 
-/**
- * 编译 EntitySchemaV2：将 traits 的字段 + ownFields 合并为 _compiledFields。
- * 处理 fieldOverrides 覆盖逻辑。
- *
- * 编译顺序：
- * 1. 按 traits 声明顺序，逐个展开 Trait 的字段
- * 2. 对每个 Trait 的字段，应用该 TraitRef 的 fieldOverrides
- * 3. 追加 ownFields
- * 4. 去重：如果 ownFields 的 key 与 Trait 字段冲突，ownFields 优先
- */
+/** 编译 EntitySchemaV2（traits 字段 + ownFields 合并为 _compiledFields，处理 fieldOverrides），详细见 docs/details/注释/packages/entity-core/core/TraitRuntime.md */
 export function compileEntitySchema(params: {
   type: string
   label: string

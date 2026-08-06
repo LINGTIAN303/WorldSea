@@ -1,13 +1,4 @@
-/**
- * 技能注册中心
- *
- * 声明式技能管理，替代 registry.ts 中的硬编码 SKILL_REGISTRY 数组。
- * 核心能力：
- * - 注册技能声明
- * - 按激活技能合并可用工具集
- * - 按可见性过滤
- * - 技能索引提示词生成
- */
+/** 技能注册中心（声明式技能管理，替代硬编码数组），详细见 docs/details/注释/packages/agent-core/registry/skill-registry.md */
 
 import type {
   SkillDeclaration,

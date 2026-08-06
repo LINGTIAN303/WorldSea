@@ -1,43 +1,4 @@
-/**
- * PiBackendMemoryAccessor — 将 worldsmith-agent 的 localStorage KV 记忆系统
- * 适配为 MemoryAccessor 接口（阶段 0.7）
- *
- * 核心职责：
- * 1. 适配 MemoryAccessor 接口（agent-core 定义）
- * 2. 包装现有 memory.ts 的 recallMemory/formatMemoryForPrompt 函数
- * 3. 实现 KV 模型 → MemoryRecallResult 格式转换
- * 4. 归档：localStorage KV 模型没有归档概念，archive 返回 null
- *
- * 三层架构位置：
- *   编排框架层（Orchestrator/Node/Edge）
- *   Agent loop 层（ReAct/Plan/Reflection）
- *   LLM 通信层（pi-agent-core）
- *   记忆系统（memory-archive / localStorage KV）← 本类在此层，适配编排框架的接口
- *
- * 阶段 0.7：实现为对 localStorage KV 记忆的包装
- * 阶段 1：替换为对 Rust memory 模块的 Tauri invoke 包装
- *
- * 使用示例：
- *
- * ```ts
- * import { PiBackendMemoryAccessor } from './pi-backend-memory-accessor'
- *
- * const accessor = new PiBackendMemoryAccessor()
- *
- * // 在 Orchestrator 启动时注入到 NodeContext.memory
- * const ctx: NodeContext = {
- *   state,
- *   emit,
- *   isAborted,
- *   waitIfPaused,
- *   backend,
- *   memory: accessor, // ← 注入
- *   log,
- * }
- *
- * // 之后 MemoryNode 即可通过 ctx.memory.recall() 检索
- * ```
- */
+/** 将 localStorage KV 记忆系统适配为 MemoryAccessor 接口（阶段 0.7），详细见 docs/details/注释/packages/agent-runtime/orchestrator-pi-backend-memory-accessor.md */
 
 import type {
   MemoryAccessor,
@@ -51,18 +12,7 @@ import type {
 import { recallMemory, formatMemoryForPrompt } from '../tools/memory'
 import type { MemoryEntry } from '../tools/memory-internal'
 
-/**
- * KV 模型 → MemoryRecallResult 适配器
- *
- * 字段映射：
- * - key → hookId（KV 模型无 hook 概念，用 key 替代）
- * - value → summary
- * - tags → keywords / tags
- * - accessCount → accessCount
- * - timestamp → createdAt
- * - 无匹配字段 → score（用 accessCount 加权计算）
- * - 无匹配字段 → matchedFields（默认 ['keyword']）
- */
+/** KV 模型 → MemoryRecallResult 字段映射适配器，详细见 docs/details/注释/packages/agent-runtime/orchestrator-pi-backend-memory-accessor.md */
 function entryToRecallResult(entry: MemoryEntry, score?: number): MemoryRecallResult {
   // 估算 score：accessCount 越多越相关（0-1 之间）
   const estimatedScore = score ?? Math.min(1, 0.3 + entry.accessCount * 0.05)

@@ -1,13 +1,4 @@
-/**
- * alwaysAvailable meta 等价性回归测试（任务3 收尾）
- *
- * 守卫 ToolRegistry.getAlwaysAvailable() 与 ALWAYS_AVAILABLE_TOOLS 的双向等价性。
- * 若未来工具 meta 的 alwaysAvailable 标注偏离 ALWAYS_AVAILABLE_TOOLS，本测试会失败，
- * 提醒维护者保持声明式 meta 与旧权限边界一致（或有意变更时同步两侧）。
- *
- * 用独立 ToolRegistry 实例（不依赖全局单例），避免全量测试时其他测试文件
- * reset 全局 ToolRegistry 导致的隔离问题。
- */
+/** alwaysAvailable meta 等价性回归测试（守卫双向等价，用独立实例避免全局污染），详细见 docs/details/注释/packages/agent-runtime/tests-always-available-verify-spec.md */
 import { describe, it, expect } from 'vitest'
 import { ALL_TOOLS } from '../agent'
 import { ToolRegistry } from '@worldsmith/agent-core'

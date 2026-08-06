@@ -1,15 +1,5 @@
 <script setup lang="ts">
-/**
- * # TerminalView — 终端界面
- *
- * 支持单次命令执行 + 持久化 Shell 会话管理 + 可用 Shell 检测展示。
- * 通过 `useTerminalRust` 调用 Rust 命令层（`terminal_*`）。
- *
- * ## 交互
- * - 底部输入框执行命令，↑/↓ 切换历史
- * - 选中某个会话时，输入框的命令改在会话中执行（保持工作目录/上下文）
- * - 右侧面板创建/销毁会话、展示可用 Shell
- */
+/** TerminalView：终端界面（单次命令 + 持久化会话 + Shell 检测），详细见 docs/details/注释/tauri/TerminalView.md */
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { useTerminalRust, type CommandOutput } from '../composables/useTerminalRust'
 

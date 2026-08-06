@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "types": [],
+    "paths": {
+      "@agent": ["../agent-runtime/src/index.ts"],
+      "@agent/*": ["../agent-runtime/src/*"],
+      "@worldsmith/agent-runtime": ["../agent-runtime/src/index.ts"],
+      "@worldsmith/agent-runtime/*": ["../agent-runtime/src/*"],
+      "@worldsmith/entity-core": ["../entity-core/src/index.ts"],
+      "@worldsmith/entity-core/*": ["../entity-core/src/*"],
+      "@worldsmith/canvas-engine": ["../canvas-engine/src/index.ts"],
+      "@worldsmith/canvas-engine/*": ["../canvas-engine/src/*"],
+      "@worldsmith/font-kit": ["../font-kit/src/index.ts"],
+      "@worldsmith/font-kit/*": ["../font-kit/src/*"],
+      "@worldsmith/motion-kit": ["../motion-kit/src/index.ts"],
+      "@worldsmith/motion-kit/*": ["../motion-kit/src/*"],
+      "@worldsmith/theme-kit": ["../theme-kit/src/index.ts"],
+      "@worldsmith/theme-kit/*": ["../theme-kit/src/*"]
+    }
+  },
+  "include": ["src/**/*.ts", "src/**/*.vue", "src/**/*.d.ts"],
+  "exclude": ["node_modules", "dist", "**/__tests__/**", "**/*.spec.ts"]
+}

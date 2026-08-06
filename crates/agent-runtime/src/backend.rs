@@ -73,16 +73,7 @@ pub trait NodeBackendAccessor: Send + Sync {
         "unknown".to_string()
     }
 
-    /// 热切换 Provider 配置（不清空消息历史）
-    ///
-    /// 默认返回 `BackendError::Unsupported`，由支持热切换的 backend 覆盖。
-    /// 对应前端 `IAgentBackend.updateModel` 接口。
-    ///
-    /// # 参数
-    /// - `provider`：Provider ID（如 "deepseek"/"openai"/"anthropic"）
-    /// - `model_id`：模型 ID（如 "deepseek-v4-flash"）
-    /// - `api_key`：API Key（None=保持原值）
-    /// - `base_url`：自定义 base URL（None=使用 Provider 默认）
+    /// 热切换 Provider 配置（不清空消息历史），详细见 docs/details/注释/agent-runtime/backend.md
     async fn update_provider(
         &self,
         _provider: String,

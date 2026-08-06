@@ -1,16 +1,4 @@
-/**
- * # useManuscriptAnimation — 手稿块打字机动画（端无关）
- *
- * ## 职责
- * - 根据 ManuscriptBlock 内容驱动逐字显示动画
- * - 自适应延迟：内容越长，单字延迟越短（避免长文动画过长）
- * - 支持 prefersReducedMotion：无动画直接显示全部
- *
- * ## 端无关说明
- * 仅依赖 Vue + motion-kit（useReducedMotion）+ Agent 类型。
- *
- * 端分离批次3：从 src/agent/composables/useManuscriptAnimation.ts 迁移至 shared-composables。
- */
+/** 手稿块打字机动画（端无关：逐字显示 + 自适应延迟 + 降低动效），详细见 docs/details/注释/packages/shared-composables/agent/useManuscriptAnimation.md */
 
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import type { ManuscriptBlock } from '@agent/index'

@@ -3,23 +3,7 @@
  * 端分离：Web 端专用（WASM 加载与 Worker 池）
  */
 
-/**
- * WASM Worker 池 — 管理多个 Web Worker 执行 WASM 重计算
- *
- * 设计要点：
- * 1. 懒初始化 — 首次调用时创建 Worker
- * 2. 任务队列 — Worker 忙时自动排队，空闲后按序消费
- * 3. 自动回退 — Worker 创建失败或 WASM 加载失败时，回退到主线程同步调用
- * 4. 可取消 — 返回 Promise，支持 AbortController 取消（标记忽略结果）
- *
- * 标记为"重计算"的方法走 Worker，轻量方法仍在主线程：
- * - Heavy: algoForceLayout, algoDijkstraPath, algoAstar, algoTopologicalSort,
- *   algoConnectedComponents, algoTarjanScc, algoPageRank, algoCommunityDetection,
- *   algoBetweennessCentrality, algoTerrainHeightmapGenerate, algoHydraulicErosion,
- *   algoViewshed, algoConstraintSolve, runDiagnostics, validatePack,
- *   algoDxfParse, algoPolygonBoolean
- * - Light (主线程): algoSegmentIntersect, algoPointInPolygon, algoPolygonArea, etc.
- */
+/** WASM Worker 池：懒初始化/任务队列/自动回退/可取消（重计算清单见文档），详细见 docs/details/注释/web/core/wasmWorkerPool.md */
 
 import type { WorkerRequest, WorkerResponse } from './wasm.worker'
 

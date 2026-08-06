@@ -1,16 +1,4 @@
-/**
- * 归档工具注册表
- *
- * 在 useMemoryArchive 和 useAgent 之间传递归档工具。
- *
- * 工作流程：
- * 1. useMemoryArchive 初始化时，ArchiveManager.init() 创建归档工具
- * 2. AgentBridgeImpl.registerTools() 通过 onToolsReady 回调将工具传递给 useMemoryArchive
- * 3. useMemoryArchive 将 ArchiveTool 转换为 ToolDefinition，调用 registerArchiveTools()
- * 4. useAgent.ensureInitialized() 通过 getArchiveTools() 获取工具，加入到 mainTools
- *
- * 如果 useAgent 已初始化（动态注册场景），通过 useAgent 的 registerDynamicTools() 方法注册。
- */
+/** 归档工具注册表：useMemoryArchive 与 useAgent 间传递工具（4 步工作流见文档），详细见 docs/details/注释/web/memory-archive/archiveToolsRegistry.md */
 
 import type { ArchiveTool } from '@worldsmith/memory-archive/types'
 import type { ToolDefinition, ToolParameter } from '@agent/bridge-types'

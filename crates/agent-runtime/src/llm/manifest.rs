@@ -1,13 +1,4 @@
-//! # Provider 静态清单
-//!
-//! 对应 TS 版 `worldsmith-agent/src/providers/provider-registry.ts`。
-//! 16 个内置 Provider 的元数据，用于解析云端 Provider 的 API 类型、BaseURL、
-//! 视觉/思考能力检测等。
-//!
-//! ## 设计说明
-//! TS 版用闭包实现 `visionDetector`/`thinkingDetector`，
-//! Rust 改用函数指针 `fn(&str) -> bool`（`Copy`，可作 `const` 字段）。
-//! 检测逻辑封装为独立 `fn`，便于单元测试。
+//! Provider 静态清单（16 个内置 Provider），详细见 docs/details/注释/agent-runtime/llm.md
 
 use super::model::ApiType;
 

@@ -6,18 +6,7 @@ import { visualizer } from 'rollup-plugin-visualizer'
 import path from 'path'
 import pkg from './package.json'
 
-/**
- * Web 端 Vite 配置（Phase 5 独立构建）
- *
- * 设计原则：
- * 1. 所有后端能力通过 CLI serve 中转（/api/* → CLI serve）
- * 2. 不依赖根目录的自定义插件（worldsmithServerLauncher / localFilePlugin / customProxyPlugin）
- * 3. WASM 后端用于算法降级（当 CLI serve 不可用时）
- * 4. LLM API 代理由 CLI serve 处理，Web 端不重复配置
- *
- * 端口：5174（避免与主项目 5173、Tauri 端 5175 冲突）
- * 后端连接：VITE_CLI_SERVE_URL 环境变量（默认 http://localhost:3100）
- */
+/** Web 端 Vite 配置（设计原则/端口/后端连接），详细见 docs/details/注释/web/vite-config.md */
 
 // ────────────────────────── Alias 配置 ──────────────────────────
 // 共享包 alias（指向源码，便于 HMR 和调试）

@@ -34,18 +34,7 @@ const APPAREL_FIELD_MAP: Record<string, string> = {
   'significance': 'significance', // 保留
 }
 
-/**
- * 将旧版 weapon/apparel 类型实体迁移为 item + facet 结构
- *
- * 迁移逻辑：
- * 1. 查找所有 type='weapon' 和 type='apparel' 的实体
- * 2. 将武器特有字段提取到 facets.weapon，服饰特有字段提取到 facets.apparel
- * 3. 通用字段（material, color, origin, era, condition, tags 等）保留在 properties
- * 4. 设置 itemType 字段区分类型
- * 5. 更新实体 type 为 'item'
- * 6. 更新关联关系中的引用
- * 7. 记录迁移完成标记
- */
+/** 将旧版 weapon/apparel 实体迁移为 item + facet 结构（7 步迁移逻辑见文档），详细见 docs/details/注释/web/core/FacetMigrator.md */
 export async function migrateWeaponApparelToItemFacet(): Promise<FacetMigrationReport> {
   const marker = 'worldsmith_facet_migration_v1'
   const alreadyMigrated = localStorage.getItem(marker)

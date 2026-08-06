@@ -1,20 +1,4 @@
-/**
- * SKILL.md / skill.yaml frontmatter 解析器
- *
- * 从 loader.ts 提取，供 loader.ts 和 manifest.ts 共用，避免循环依赖。
- *
- * 支持格式：
- * - SKILL.md：`---\n<yaml>\n---\n<body>` 标准 frontmatter
- * - skill.yaml：无 --- 分隔的纯 YAML（由调用方包装后传入）
- *
- * 解析能力（覆盖 WorldSmith 原生 skill.yaml + Claude Code SKILL.md 两种格式）：
- * - 标量字段：id/name/description/icon/category/priority/auto-activate/license/compatibility/enabled/version
- * - 列表字段：allowed-tools/allowedTools、baseTools/base-tools、triggers、tags
- * - 嵌套对象：capabilities.internal/cli/mcp、schema-context.entity-types
- *
- * 同时识别连字符（allowed-tools）和驼峰（allowedTools）两种 key 风格，
- * 确保多平台技能格式互通（Task 24 阶段4 多平台适配器基础）。
- */
+/** SKILL.md / skill.yaml frontmatter 解析器（供 loader/manifest 共用），详细见 docs/details/注释/packages/agent-runtime/skills-parser.md */
 
 import type { SkillCapabilityBinding, SkillSchemaContext } from '../toolbus/capability-types'
 
@@ -43,24 +27,7 @@ export interface ParsedSkillMd {
   body: string
 }
 
-/**
- * 解析 YAML frontmatter
- *
- * 支持格式：
- *   ---
- *   name: xxx
- *   description: xxx
- *   allowed-tools:        # 或 allowedTools
- *     - tool_a
- *   capabilities:
- *     internal:
- *       - entity.list
- *   ---
- *   (body)
- *
- * 注意：这是一个简化的行级解析器，不是完整的 YAML 解析器。
- * 支持一层嵌套列表（capabilities 下的 internal/cli/mcp，schema-context 下的 entity-types）。
- */
+/** 解析 YAML frontmatter（行级简化解析器，支持一层嵌套列表），详细见 docs/details/注释/packages/agent-runtime/skills-parser.md */
 export function parseFrontmatter(raw: string): ParsedSkillMd {
   const match = raw.match(/^---\s*\n([\s\S]*?)\n---\s*\n?([\s\S]*)$/)
   if (!match) {

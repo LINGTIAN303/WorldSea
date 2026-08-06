@@ -1,14 +1,4 @@
-/**
- * 动态模型拉取服务
- *
- * 通过各供应商的 /v1/models 端点动态获取可用模型列表。
- * 拉取结果仅返回模型 ID 列表，由消费方与 MODEL_REGISTRY 合并。
- *
- * 特性：
- * - 结果缓存到 localStorage（24 小时过期），避免每次启动都拉取
- * - 支持手动刷新
- * - 未知模型使用合理默认值填充
- */
+/** 动态模型拉取服务：通过 /v1/models 端点获取模型列表并缓存，详细见 docs/details/注释/packages/agent-runtime/providers-model-fetcher.md */
 
 import { buildModelsEndpoint, getProviderManifest } from './provider-registry'
 import { loadApiKey } from './key-store'

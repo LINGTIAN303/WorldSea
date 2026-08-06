@@ -1,15 +1,4 @@
-/**
- * 系统提示词注入器
- *
- * 负责构建发给 LLM 的系统提示词，包括：
- * 1. 项目身份和人格设定
- * 2. 平台能力声明（Web / Tauri / CLI）
- * 3. 项目实体类型和关系类型信息
- * 4. 工具使用策略约束
- * 5. 输出规范（12 个 output 工具的使用规则）
- * 6. 图像生成能力说明
- * 7. Skill 上下文注入
- */
+/** 系统提示词注入器：构建发给 LLM 的系统提示词（身份/平台/实体/工具/输出规范等），详细见 docs/details/注释/packages/agent-runtime/context-injector.md */
 
 import type { Platform } from '../toolbus/capability-types'
 import { findSkillById } from '../skills/registry'
@@ -51,18 +40,7 @@ export type SharedBaseLayerParams = Pick<SystemPromptParams, 'projectName' | 'en
   availableFontFamilies?: string[]
 }
 
-/**
- * 构建共享基础层
- *
- * 包含所有 Agent（单聊/工作台/群聊）都需要共享的知识：
- * - 项目信息（实体类型、关系类型）
- * - 工具使用策略
- * - 输出规范（12 个 output 工具的使用规则）
- * - 图像生成能力说明
- * - 会话管理能力
- *
- * 群聊 Agent 的系统提示词 = 共享基础层 + 独立人格层
- */
+/** 构建共享基础层（所有 Agent 共享的项目知识/工具策略/输出规范），详细见 docs/details/注释/packages/agent-runtime/context-injector.md */
 export function buildSharedBaseLayer(params: SharedBaseLayerParams): string {
   const platform = params.platform || 'web'
   const parts: string[] = []

@@ -1,12 +1,5 @@
 /**
- * @worldsmith/theme-kit - Motion Override Engine
- * 
- * 动画风格覆盖逻辑：
- * - 覆盖缓动函数（--ease-*）
- * - 覆盖时长（--duration-*）
- * - 覆盖 motion-scale
- * - 注入自定义关键帧
- * - 设置交互模式 data-interaction-mode
+ * @worldsmith/theme-kit - Motion Override Engine（动画风格覆盖：缓动/时长/motion-scale/关键帧/交互模式），详细见 docs/details/注释/packages/theme-kit/motion-override.md
  */
 
 import type { MotionStyleConfig } from './types'

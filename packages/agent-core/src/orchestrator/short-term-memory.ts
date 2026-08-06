@@ -1,35 +1,4 @@
-/**
- * ShortTermMemoryHelper — 短期记忆 trim 策略工具（阶段 0.6）
- *
- * 设计理念：
- * - 工具类（非节点）：供 Orchestrator 或其他节点按需调用
- * - 操作短期记忆：state.messages 数组（当前会话的消息历史）
- * - 与 MemoryNode 互补：MemoryNode 操作长期记忆，本类操作短期记忆
- *
- * 三类记忆的关系：
- * - 短期记忆：state.messages（本类管理 trim 策略）
- * - 工作记忆：state.extra.workingMemory（节点自定义，本类不涉及）
- * - 长期记忆：通过 MemoryAccessor 检索/注入（MemoryNode 管理）
- *
- * trim 策略：
- * 1. 估算 state.messages 总 token 数
- * 2. 超过 maxTokens 时，移除最早的非 system 消息
- * 3. 保留策略：
- *    - 保留所有 system 消息（系统提示词等）
- *    - 保留最近 keepRecentCount 条消息（维持上下文连贯）
- *    - 可选保留首条 user 消息（任务原始输入）
- *
- * 使用示例：
- *
- * ```ts
- * // 在 Orchestrator 每轮结束后调用
- * const helper = new ShortTermMemoryHelper({ maxTokens: 100000, keepRecentCount: 20 })
- * const removed = helper.trim(state, ctx)
- * if (removed > 0) {
- *   ctx.log('info', `Trimmed ${removed} messages to free context`)
- * }
- * ```
- */
+/** 短期记忆 trim 策略工具（三类记忆关系/trim 策略/使用示例见文档），详细见 docs/details/注释/packages/agent-core/orchestrator/short-term-memory.md */
 
 import type { OrchestratorState, OrchestratorMessage, NodeContext } from './types'
 

@@ -47,17 +47,7 @@ export class DefaultToolBus implements ToolBus {
     this.mcp.delete(serverId)
   }
 
-  /**
-   * 根据激活技能解析可用工具集
-   *
-   * 任务3 接线后采用三层数据源：
-   * 1. 全局 SkillRegistry.resolveToolNames（声明式，从 ToolRegistry.getAlwaysAvailable 起步）
-   * 2. 旧 resolveToolNames/resolvePluginToolNames（兼容本地 SKILL_REGISTRY 的 capabilities/pluginTools）
-   * 3. InternalChainRegistry.resolve（能力链，entity-core/plugin-sdk/canvas-engine）
-   *
-   * 注意：bridge.ts 当前不调用 resolve（走 getToolsForSkills → config.tools → register），
-   * 此方法供未来 resolveToolsForAgent 及动态技能切换使用。
-   */
+/** 根据激活技能解析可用工具集（三层数据源：注册表/旧 resolve/能力链），详细见 docs/details/注释/packages/agent-runtime/toolbus-toolbus.md */
   resolve(skillIds: string[], platform?: Platform): ToolDefinition[] {
     const p = platform || 'web'
 

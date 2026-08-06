@@ -34,24 +34,7 @@ export interface UseImageResolverReturn {
 
 const DEFAULT_DELAYS = [0, 200, 400, 800, 1500, 3000]
 
-/**
- * 通用"图片解析"重试管理：把 IDB 与 appendBlock 之间的写库时差封装成
- * "事件优先 + 退避兜底"的两段式循环。
- *
- * 用法：
- *   const resolver = useImageResolver({ subscribe: l => onFilePersisted(l) })
- *   watch(src, () => {
- *     resolver.run(async (v) => {
- *       if (v !== resolver.getVersion()) return false
- *       const data = await store.get(...)
- *       if (v !== resolver.getVersion()) return false
- *       if (!data) return false
- *       state.value = data
- *       return true
- *     })
- *   }, { immediate: true })
- *   onUnmounted(() => resolver.cancel())
- */
+/** 图片/文件解析重试管理（事件优先 + 退避兜底两段式循环），详细见 docs/details/注释/packages/entity-core/composables/useImageResolver.md */
 export function useImageResolver(opts: UseImageResolverOptions): UseImageResolverReturn {
   const delays = opts.delays ?? DEFAULT_DELAYS
   let version = 0

@@ -12,7 +12,7 @@
   },
   "scripts": {
     "build": "vite build",
-    "typecheck": "tsc -p tsconfig.build.json --noEmit"
+    "typecheck": "vue-tsc --noEmit"
   },
   "dependencies": {
     "@worldsmith/entity-core": "link:../entity-core",

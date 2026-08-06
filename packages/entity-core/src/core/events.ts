@@ -1,11 +1,4 @@
-/**
- * events — 事件总线 + 生命周期事件
- *
- * 跨模块通信基础设施。实体 CRUD 时发射事件，其他模块（或 formula）
- * 通过 on() 订阅并响应。
- *
- * Phase 8a：从根 src/modules/runtime/events.ts 下沉到 entity-core/core/
- */
+/** 事件总线 + 生命周期事件（实体 CRUD/字段变更等跨模块通信基础设施），详细见 docs/details/注释/packages/entity-core/core/events.md */
 
 /* ════════════════════════════════════════
    事件类型定义

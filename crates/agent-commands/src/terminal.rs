@@ -1,18 +1,4 @@
-//! # 终端工具（terminal tools）
-//!
-//! 注册到 Agent 的工具总线，使 LLM 可在 ReAct 循环中执行 shell 命令。
-//!
-//! 功能对齐 TS 端 `packages/agent-runtime/src/tools/terminal-tools.ts`：
-//! - `execute_command`：单次命令执行（返回 stdout/stderr/exit_code）
-//! - `detect_shells`：检测可用 Shell
-//! - `shell_session_create` / `shell_session_exec` / `shell_session_input` /
-//!   `shell_session_destroy` / `shell_session_list`：持久化 Shell 会话
-//!
-//! ## 设计
-//! - 所有工具共享一个 [`ShellSessionManager`]（全局会话注册表），
-//!   因此持久化会话在多个 Agent 会话间保持有效。
-//! - 会话管理用 `tokio::sync::Mutex` + `HashMap`，进程用 `tokio::process`。
-//! - Windows 默认 `cmd.exe`，Unix 默认 `/bin/sh`。
+//! 终端工具（terminal tools）：execute_command / detect_shells / 持久化 Shell 会话，详细见 docs/details/注释/agent-commands/terminal.md
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -619,69 +605,5 @@ pub async fn register_terminal_tools(bus: &dyn agent_runtime::tool::ToolBus) {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn clean_ansi_removes_escape_sequences() {
-        let input = "\x1b[31mred\x1b[0m normal \x1b]0;title\x07done";
-        let cleaned = clean_ansi(input);
-        assert_eq!(cleaned, "red normal done");
-    }
-
-    #[test]
-    fn clean_ansi_removes_control_chars() {
-        let input = "a\x00b\x1fc";
-        let cleaned = clean_ansi(input);
-        assert_eq!(cleaned, "abc");
-    }
-
-    #[tokio::test]
-    async fn execute_command_returns_output() {
-        let tool = ExecuteCommandTool;
-        let args = serde_json::json!({
-            "command": if cfg!(target_os = "windows") { "echo hello" } else { "echo hello" }
-        });
-        let result = tool.execute(args).await.expect("应执行成功");
-        assert_eq!(result["exit_code"], 0);
-        let stdout = result["stdout"].as_str().unwrap();
-        assert!(stdout.contains("hello"));
-    }
-
-    #[tokio::test]
-    async fn execute_command_missing_args_errors() {
-        let tool = ExecuteCommandTool;
-        let result = tool.execute(serde_json::json!({})).await;
-        assert!(result.is_err());
-    }
-
-    #[tokio::test]
-    async fn session_lifecycle_create_exec_destroy() {
-        let manager = ShellSessionManager::new();
-        let create = ShellSessionCreateTool::new(manager.clone());
-        let exec = ShellSessionExecTool::new(manager.clone());
-        let destroy = ShellSessionDestroyTool::new(manager.clone());
-
-        let created = create
-            .execute(serde_json::json!({}))
-            .await
-            .expect("创建会话应成功");
-        let session_id = created["session_id"].as_str().unwrap().to_string();
-
-        let exec_res = exec
-            .execute(serde_json::json!({
-                "session_id": session_id,
-                "command": if cfg!(target_os = "windows") { "echo hello" } else { "echo hello" },
-                "timeout_ms": 5000
-            }))
-            .await
-            .expect("执行应成功");
-        assert_eq!(exec_res["ok"], true);
-
-        let destroyed = destroy
-            .execute(serde_json::json!({ "session_id": session_id }))
-            .await
-            .expect("销毁应成功");
-        assert_eq!(destroyed["ok"], true);
-    }
-}
+#[path = "terminal_tests.rs"]
+mod tests;

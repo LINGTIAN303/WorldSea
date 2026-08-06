@@ -1,20 +1,4 @@
-/**
- * API Key 加密存储模块
- *
- * 双后端策略：
- * - Tauri 桌面端：优先使用系统 Keyring，写入后回读验证；
- *   若 Keyring 不可靠（Windows Credential Manager 兼容性问题），自动降级到 localStorage 加密存储。
- * - Web / 降级：使用 Web Crypto API (AES-GCM) 加密后存入 localStorage。
- *   加密密钥派生自设备指纹（userAgent + hostname），因此密钥在不同设备/域名下无法解密。
- *
- * 存储格式:
- * - Tauri Keyring: service = "com.worldsmith.app:{provider}", username = "api_keys"
- * - Tauri 降级 / Web: localStorage key = "worldsmith_ak_{provider}", value = Base64(iv || ciphertext)
- *
- * 使用流程:
- *   storeApiKey('openai', 'sk-xxx') → Tauri: Keyring(验证) / 降级: AES-GCM → localStorage
- *   loadApiKey('openai') → Tauri: Keyring / 降级: localStorage → 解密 → 返回明文
- */
+/** API Key 加密存储：Tauri Keyring 优先 + localStorage AES-GCM 降级，详细见 docs/details/注释/packages/agent-runtime/providers-key-store.md */
 
 /** localStorage 键名前缀，用于区分 API Key 和其他存储数据 */
 const STORAGE_PREFIX = 'worldsmith_ak_'

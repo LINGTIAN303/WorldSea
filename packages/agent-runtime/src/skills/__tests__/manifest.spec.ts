@@ -1,15 +1,4 @@
-/**
- * manifest.ts 单元测试
- *
- * 验证 frontmatterToSkillMeta 的转换逻辑：
- * - emoji 图标清洗（项目规范：禁止 emoji 图标）
- * - category 规范化（无效值降级为 action）
- * - capabilities/schemaContext 传递
- * - 默认值兜底（id/name/promptFile/priority/version）
- *
- * scanInstalledSkills 依赖 Tauri 运行时，由端到端测试覆盖；
- * 此处聚焦纯函数 frontmatterToSkillMeta 的逻辑正确性。
- */
+/** manifest.ts 单元测试：验证 frontmatterToSkillMeta 转换逻辑，详细见 docs/details/注释/packages/agent-runtime/skills-tests-manifest-spec.md */
 import { describe, it, expect } from 'vitest'
 import { frontmatterToSkillMeta } from '../manifest'
 import type { ParsedSkillMd } from '../parser'

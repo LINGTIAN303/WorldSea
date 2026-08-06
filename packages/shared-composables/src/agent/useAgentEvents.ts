@@ -1,18 +1,4 @@
-/**
- * # useAgentEvents — Agent 事件处理（端无关）
- *
- * ## 职责
- * - 处理 Agent 事件流（agent_start / message_update / tool_execution_* 等）
- * - 维护 toolCalls 列表（含进度）、isProcessing、currentThinking 状态
- * - 将 image_generate / video_generate 进度同步到 useGenerationProgress
- * - 将 plan_create / plan_update 结果同步到 usePlanStore
- *
- * ## 端无关说明
- * 仅依赖 Vue + 共享 composables（usePlanStore / useGenerationProgress）+ perf-kit。
- * 事件源由各端 Agent Backend 推送，本 composable 不关心事件来源。
- *
- * 端分离批次3：从 src/agent/composables/useAgentEvents.ts 迁移至 shared-composables。
- */
+/** Agent 事件处理（端无关：事件流 → toolCalls/进度/计划状态同步），详细见 docs/details/注释/packages/shared-composables/agent/useAgentEvents.md */
 
 import { ref, readonly } from 'vue'
 import type { AgentEvent } from '@agent/index'

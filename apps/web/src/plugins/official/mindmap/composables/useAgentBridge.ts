@@ -1,20 +1,4 @@
-/**
- * Mindmap ↔ AI Agent 通信桥
- *
- * 通过 window CustomEvent 实现双向通信：
- * - 接收 Agent 的 plugin-action 事件：autoLayout / findIsolated / findCycles / highlightPath / suggestMoveToGroup
- * - 接收 Agent 的 plugin-query 事件：getStructure
- *
- * Action 协议：
- *  - event.action === 'auto_layout': { algorithm: LayoutAlgorithmType }
- *  - event.action === 'find_isolated': {}           → 高亮孤立节点
- *  - event.action === 'find_cycles': {}             → 高亮环上的节点
- *  - event.action === 'highlight_path': { sourceId, targetId } → 高亮路径
- *  - event.action === 'suggest_move_to_group': { nodeId, groupId } → 移动建议
- *  - event.action === 'ai_organize': {}              → 打开 AI 面板 + 触发自动布局
- *  - event.action === 'select_node': { nodeId }
- *  - event.action === 'fit_view': {}
- */
+/** Mindmap ↔ AI Agent 通信桥（CustomEvent 双向通信 + Action 协议见文档），详细见 docs/details/注释/web/plugins/official/mindmap/composables/useAgentBridge.md */
 import { onMounted, onBeforeUnmount } from 'vue'
 import type { Ref } from 'vue'
 import { useMindmapStore } from '../mindmapStore'

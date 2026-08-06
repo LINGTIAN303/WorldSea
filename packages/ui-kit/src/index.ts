@@ -1,16 +1,5 @@
-// ============================================================================
-// @worldsmith/ui-kit — Standalone UI Component Library
-// ============================================================================
-// This package serves as a FACADE that provides convenient access to all
-// UI-related exports, delegating to the appropriate package.
-// It should NOT contain business logic itself.
-// ============================================================================
-
-// ----------------------------------------------------------------------------
-// Ws* Components (Pure UI Atoms) — native to ui-kit
-// Currently re-exported from src/ui/; will eventually move into
-// packages/ui-kit/src/components/
-// ----------------------------------------------------------------------------
+// ui-kit 包说明（FACADE：聚合/委托各包导出，自身不含业务逻辑），详细见 docs/details/注释/packages/ui-kit/index.md
+// Ws* Components（Pure UI Atoms）— 原生于 ui-kit，当前从 src/ui/ re-export，见 docs/details/注释/packages/ui-kit/index.md
 export { default as WsIcon } from './components/WsIcon.vue'
 export { default as WsEmpty } from './components/WsEmpty.vue'
 export { default as WsSpinner } from './components/WsSpinner.vue'

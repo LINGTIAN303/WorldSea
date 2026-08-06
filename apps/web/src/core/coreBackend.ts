@@ -1,15 +1,4 @@
-/**
- * Web 端 coreBackend — Phase 3 端分离
- *
- * 改造自 src/core/coreBackend.ts（1298 行）
- * - 移除 Tauri 检测分支与 @tauri-apps/api 依赖
- * - 移除 tauriCall / getTauriInvoke
- * - 移除 backendCall / algoCall 中的 Tauri 分支
- * - 移除 retrofit 内联 Tauri 分支
- * - 移除 7 个 algo 函数的内联 Tauri 分支
- * - Tauri-only 函数（checkStorageHealth / validatePluginManifest / checkPluginHealth / spatial*）保留签名返回降级值
- * - 对外 API 签名 100% 兼容（main.ts 无需改动）
- */
+/** Web 端 coreBackend：Phase 3 端分离改造（移除 Tauri 分支，API 兼容），详细见 docs/details/注释/web/core/coreBackend.md */
 
 import type {
   CoreValidationReport,

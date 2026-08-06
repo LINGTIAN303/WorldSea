@@ -1,13 +1,4 @@
-/**
- * 绘制模式 composable
- *
- * 负责：
- * - 普通绘制模式（手绘疆域边界 → 创建新区域）
- * - 边境线模式（按 Alt 触发，分割/增补现有区域）
- *
- * 鼠标坐标相关的命中检测由主文件调用 handleDrawMouseDown/Move/Up 完成。
- * 本 composable 内部管理 drawingPath 与 isDrawing 状态。
- */
+/** 绘制模式 composable（手绘疆域边界 + Alt 边境线模式），详细见 docs/details/注释/packages/ui-kit/components/entity/map/useDrawing.md */
 
 import { ref } from 'vue'
 import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'

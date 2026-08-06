@@ -1,15 +1,4 @@
-/**
- * Schema 管理工具集
- *
- * 通过 Tauri 后端管理实体类型的 Schema 定义，包括：
- * - 实体类型注册/注销/查询/更新
- * - 验证规则注册
- * - 视图声明注册
- * - Schema 验证（调用 Rust 核心库的验证引擎）
- * - Schema 导出
- *
- * 注意：这些工具依赖 Tauri invoke API，仅在 Tauri 桌面模式下可用。
- */
+/** Schema 管理工具集：Tauri 后端管理实体类型 Schema 定义，详细见 docs/details/注释/packages/agent-runtime/tools-schema-tools.md */
 
 import type { ToolDefinition } from '../bridge-types'
 import type { ToolMeta } from '@worldsmith/agent-core'

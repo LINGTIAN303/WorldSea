@@ -1,16 +1,4 @@
-/**
- * Trait 类型系统 v1.0
- *
- * 原子 Trait 是字段的最小语义集，不可变、零参数。
- * 预置组合（Preset）是语法糖，不进入数据模型。
- *
- * 设计决策：
- * - Trait 只声明字段和语义标签，不注册关系
- * - Classifiable 等分类字段为 entity-specific，非 Trait
- * - Temporal 拆为 Datable，其余 entity-specific
- * - Conditioned 拆为 Rateable + Deteriorable
- * - Deteriorable 提供默认选项，实体可通过 fieldOverrides 覆盖
- */
+/** Trait 类型系统 v1.0（原子 Trait 字段最小语义集 + 设计决策），详细见 docs/details/注释/packages/entity-core/types/trait.md */
 
 import type { FieldSchema } from './entity'
 

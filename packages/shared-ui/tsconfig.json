@@ -1,8 +1,27 @@
 {
-  "extends": "./tsconfig.build.json",
   "compilerOptions": {
-    "composite": false,
-    "rootDir": "."
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "types": [],
+    "paths": {
+      "@agent": ["../agent-runtime/src/index.ts"],
+      "@agent/*": ["../agent-runtime/src/*"],
+      "@worldsmith/agent-runtime": ["../agent-runtime/src/index.ts"],
+      "@worldsmith/agent-runtime/*": ["../agent-runtime/src/*"],
+      "@worldsmith/entity-core": ["../entity-core/src/index.ts"],
+      "@worldsmith/entity-core/*": ["../entity-core/src/*"],
+      "@worldsmith/shared-composables": ["../shared-composables/src/index.ts"],
+      "@worldsmith/shared-composables/*": ["../shared-composables/src/*"],
+      "@worldsmith/ui-kit": ["../ui-kit/src/index.ts"],
+      "@worldsmith/ui-kit/*": ["../ui-kit/src/*"]
+    }
   },
-  "include": ["src/**/*.ts", "src/**/*.vue", "vite.config.ts"]
+  "include": ["src/**/*.ts", "src/**/*.vue", "src/**/*.d.ts"],
+  "exclude": ["node_modules", "dist", "**/__tests__/**", "**/*.spec.ts"]
 }

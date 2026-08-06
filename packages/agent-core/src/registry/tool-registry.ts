@@ -1,15 +1,4 @@
-/**
- * 工具注册中心
- *
- * 基于声明式元数据的工具注册与查询。
- * 核心能力：
- * - 注册工具（含 ToolMeta 元数据）
- * - 按权限级别查询（替代硬编码 SAFE/MODERATE/DANGEROUS 列表）
- * - 按分类查询
- * - 按平台过滤
- * - 别名解析（旧工具名→新工具名）
- * - 始终可用工具自动聚合
- */
+/** 工具注册中心（元数据注册/查询/别名/平台过滤），详细见 docs/details/注释/packages/agent-core/registry/tool-registry.md */
 
 import type {
   ToolDefinition,

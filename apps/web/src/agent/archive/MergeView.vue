@@ -61,16 +61,7 @@
 </template>
 
 <script setup lang="ts">
-/**
- * MergeView - 待合并钩子管理视图
- *
- * 从 ArchivePanel.vue 拆分。自包含合并状态和逻辑：
- * - 加载待合并组
- * - 确认单组合并
- * - 确认全部合并
- *
- * 通过 emit 'merged' 通知父组件刷新主钩子列表。
- */
+/** MergeView：待合并钩子管理视图（从 ArchivePanel 拆分，emit 'merged' 通知刷新），详细见 docs/details/注释/web/agent/archive/MergeView.md */
 import { ref, onMounted, watch } from 'vue'
 import { useMemoryArchive } from '../../memory-archive'
 import { toastError } from '@/composables/useToast'

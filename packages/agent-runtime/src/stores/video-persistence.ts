@@ -1,13 +1,4 @@
-/**
- * 视频持久化存储模块
- * 基于 IndexedDB 实现，用于存储通过 AI 生成的视频元数据和 Blob
- *
- * 数据库: worldsmith_videos (v1)
- * 对象仓库: videos (keyPath: id)
- * 索引: createdAt, provider, path
- *
- * 虚拟路径格式: /videos/generated/{date}/{caption}-{blockId}.mp4
- */
+/** 视频持久化存储：IndexedDB 存储 AI 生成视频元数据与 Blob，详细见 docs/details/注释/packages/agent-runtime/stores-video-persistence.md */
 
 const DB_NAME = 'worldsmith_videos'
 const DB_VERSION = 1

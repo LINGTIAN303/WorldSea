@@ -1,17 +1,4 @@
-/**
- * 群聊 Composable
- *
- * 管理多 Agent 群聊的完整生命周期：
- * - 为每个 AgentProfile 创建独立的 Agent Backend 实例
- * - 通过 MessageBus 广播群聊事件
- * - 通过 TurnEngine 决策发言顺序
- * - 通过 FlowController 控制请求并发
- * - 与 useAgent 并行运行，共享 toolContext
- *
- * 阶段 2.0 批次3：CoreBackend 已移除（依赖 pi-ai），群聊功能暂不可用。
- * Agent 循环已由 Rust 端接管，多 Agent 实例管理待后续在 Rust 端实现。
- * 以下函数调用时会抛错：createAgentBackend / setModeratorAgent / sendGroupMessage / sendPrivateMessage / promptSync
- */
+/** 群聊 Composable：管理多 Agent 群聊生命周期（阶段 2.0 后暂不可用，详见文档），详细见 docs/details/注释/web/agent/composables/useGroupChat.md */
 
 import { ref, reactive, readonly, type DeepReadonly, type Ref } from 'vue'
 import type { IAgentBackend, AgentEvent } from '@agent/index'

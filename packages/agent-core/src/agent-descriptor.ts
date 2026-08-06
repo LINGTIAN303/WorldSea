@@ -1,13 +1,4 @@
-/**
- * @worldsmith/agent-core 库描述符
- *
- * 遵循项目 LibraryDescriptor 约定，供 InternalChainRegistry 注册。
- * 当前阶段 agent-core 作为纯类型/接口库，不提供 CapabilityDeclaration，
- * 工具能力由 worldsmith-agent 的各工具文件注册。
- *
- * 后续 Phase 2 工具去重后，编码工具集的 CapabilityDeclaration
- * 将迁移至此描述符中。
- */
+/** 库描述符（LibraryDescriptor 约定与 Phase 2 演进），详细见 docs/details/注释/packages/agent-core/agent-descriptor.md */
 
 import type { ToolCategoryMeta } from './types'
 

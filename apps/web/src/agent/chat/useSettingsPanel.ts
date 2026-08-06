@@ -1,15 +1,4 @@
-/**
- * useSettingsPanel — Agent 设置浮窗的位置 / 拖拽 / 开关
- *
- * 从 AgentChat.vue 拆分而来，负责：
- *   - settingsPos / settingsDragged 状态
- *   - usePanelDrag 集成（排除设置浮窗内部交互区域）
- *   - updateSettingsPosition：根据输入栏 menu 按钮位置定位
- *   - onToggleSettings：打开/关闭设置浮窗
- *
- * 依赖外部 inputBarRef（用于读取菜单按钮位置）和 useAgentCommands 的
- * settingsOpen / openSettings / closeSettings。
- */
+/** useSettingsPanel：设置浮窗位置/拖拽/开关（从 AgentChat 拆分），详细见 docs/details/注释/web/agent/chat/useSettingsPanel.md */
 import { ref, computed, nextTick, type Ref } from 'vue'
 import { usePanelDrag } from '../composables/usePanelDrag'
 import type AgentInputBar from '../AgentInputBar.vue'

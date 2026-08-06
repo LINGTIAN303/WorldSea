@@ -1,15 +1,4 @@
-/**
- * ProjectFS — 向后兼容 re-export
- *
- * Phase 5a: 实现已迁移到 @worldsmith/entity-core/core/ProjectFS。
- * 此文件保留以维持现有 import 路径兼容性（P3-W4 续迁入）。
- *
- * 依赖注入说明：
- * - entity-core/core/ProjectFS 通过 ModuleStoreApi 和 ProjectSwitcherApi 接口
- *   访问根项目的 moduleStore 和 useProjectSwitcher。
- * - 应用启动时需调用 registerModuleStoreApi() 和 registerProjectSwitcherApi()
- *   注册实现（apps/web main.ts 已注册）。
- */
+/** ProjectFS：向后兼容 re-export（实现已迁 entity-core，依赖注入说明见文档），详细见 docs/details/注释/web/core/ProjectFS.md */
 export {
   exportProjectToDir,
   importProjectFromDir,

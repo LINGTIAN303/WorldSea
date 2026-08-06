@@ -1,16 +1,4 @@
-/**
- * modules/registry.ts — 模块注册表（Web 端迁移版）
- *
- * P3-W2 从根 src/modules/registry.ts 迁移。实现不变，唯一裁剪：
- * - KanbanView 组件动态加载（根目录 src/modules/runtime/KanbanView.vue 属 P3-W3 核心页面批次，
- *   此处先跳过看板视图扩展注册，P3-W3 恢复）
- *
- * 核心调度器。负责：
- *   - 模块的激活/停用
- *   - 依赖解析（拓扑排序）
- *   - FieldExtension / ViewExtension 注册
- *   - 生命周期管理
- */
+/** modules 注册表：Web 端迁移版核心调度器（激活/依赖解析/扩展注册），详细见 docs/details/注释/web/modules/registry.md */
 
 import { entitySchemaRegistry, relationSchemaRegistry, pluginAPI } from '@worldsmith/entity-core'
 import { moduleStore } from './store'

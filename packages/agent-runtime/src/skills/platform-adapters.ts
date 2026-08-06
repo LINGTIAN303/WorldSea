@@ -1,22 +1,4 @@
-/**
- * 多平台技能格式适配器（Task 24 阶段4）
- *
- * 实现 WorldSmith 技能与 Claude Code / Cursor 格式的双向转换。
- *
- * 支持的平台格式：
- * - Claude Code：SKILL.md（YAML frontmatter: name/description/allowed-tools/license + Markdown body）
- * - Cursor：.mdc（YAML frontmatter: description/globs/alwaysApply + Markdown body）
- * - WorldSmith：skill.yaml（完整 manifest）+ SKILL.md（提示词）
- *
- * 导入：外部格式文本 → WorldSmith SkillMeta（复用 parser.ts 的 parseFrontmatter）
- * 导出：WorldSmith SkillMeta + 提示词 body → 外部格式文本
- *
- * 设计要点：
- * - 导入时字段映射保守：外部格式无的字段用 WorldSmith 默认值兜底
- * - 导出时只输出目标格式支持的字段，WorldSmith 特有字段丢弃
- * - Cursor 的 globs → WorldSmith 无直接对应，存入 tags 保留信息
- * - Claude Code 的 allowed-tools（连字符）↔ WorldSmith allowedTools（驼峰）
- */
+/** 多平台技能格式适配器：WorldSmith ↔ Claude Code/Cursor 双向转换，详细见 docs/details/注释/packages/agent-runtime/skills-platform-adapters.md */
 
 import type { SkillMeta } from './registry'
 import { parseFrontmatter } from './parser'
@@ -134,18 +116,7 @@ export function importClaudeCodeSkill(raw: string, fallbackId: string): ImportRe
   return { meta, body: parsed.body, platform: 'claude-code', warnings }
 }
 
-/**
- * 导入 Cursor .mdc 格式
- *
- * frontmatter: description, globs（文件匹配）, alwaysApply（布尔）
- * body: Markdown 提示词
- *
- * 字段映射：
- * - description → description（同时作为 name 兜底）
- * - globs → tags（保留信息，WorldSmith 无 globs 概念）
- * - alwaysApply → autoActivate（语义近似：总是应用 vs 自动激活）
- * - name 缺失时用 fallbackId
- */
+/** 导入 Cursor .mdc 格式（globs→tags、alwaysApply→autoActivate 映射），详细见 docs/details/注释/packages/agent-runtime/skills-platform-adapters.md */
 export function importCursorRule(raw: string, fallbackId: string): ImportResult {
   const warnings: string[] = []
   const parsed = parseFrontmatter(raw)

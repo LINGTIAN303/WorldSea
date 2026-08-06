@@ -1,17 +1,4 @@
-/**
- * Agent 调度器工具集
- *
- * 通过 window CustomEvent 机制调度子 Agent 执行任务。
- * 支持 9 种子 Agent 类型：
- *   开发型：terminal-worker、review-worker、research-worker、test-worker、doc-worker、git-worker
- *   创作型：creation-worker、consistency-worker、batch-creation-worker
- *
- * 调度流程：
- * 1. list_sub_agent_types: 列出可用子 Agent 类型
- * 2. dispatch_sub_agent: 派发任务（通过 CustomEvent 传递给前端编排器）
- * 3. get_sub_agent_status: 轮询子 Agent 状态和结果
- * 4. cancel_sub_agent: 取消运行中的子 Agent
- */
+/** Agent 调度器工具集：CustomEvent 调度 9 种子 Agent，详细见 docs/details/注释/packages/agent-runtime/tools-orchestrator-tools.md */
 
 import type { ToolDefinition } from '../bridge-types'
 import type { ToolMeta } from '@worldsmith/agent-core'

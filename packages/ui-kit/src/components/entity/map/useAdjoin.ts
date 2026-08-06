@@ -1,14 +1,4 @@
-/**
- * 接壤模式 composable
- *
- * 负责：
- * - 接壤选择模式的状态（多选目标区域）
- * - 接壤关系建立（relation type='borders'）
- * - 接壤方式的合并逻辑（extend / be-extended）
- *
- * 注意：与主上下文菜单的关闭逻辑（closeCtx）存在协作，
- * 通过 onAdjoinDone 回调通知主文件清理菜单状态。
- */
+/** 接壤模式 composable（多选目标区域 + borders 关系 + extend/be-extended 合并），详细见 docs/details/注释/packages/ui-kit/components/entity/map/useAdjoin.md */
 
 import { ref } from 'vue'
 import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'

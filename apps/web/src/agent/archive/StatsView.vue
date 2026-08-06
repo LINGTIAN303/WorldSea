@@ -61,16 +61,7 @@
 </template>
 
 <script setup lang="ts">
-/**
- * StatsView - 记忆库统计视图
- *
- * 从 ArchivePanel.vue 拆分。纯 UI 组件：
- * - 展示钩子总数、Tokens、置顶/活跃/淘汰数、平均重要性/衰减等
- * - 展示总访问次数、主动检索次数、存储占用（H3.5 新增）
- * - 展示孤儿/回收站/待合并钩子数量警告
- *
- * stats 和 metaInfo 由父组件通过 props 传入。
- */
+/** StatsView：记忆库统计视图（从 ArchivePanel 拆分，stats/metaInfo 由父组件传入），详细见 docs/details/注释/web/agent/archive/StatsView.md */
 import { formatBytes } from './utils'
 import type { ArchiveMeta } from '@worldsmith/memory-archive'
 

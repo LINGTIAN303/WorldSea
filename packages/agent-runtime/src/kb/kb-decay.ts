@@ -1,14 +1,4 @@
-/**
- * 记忆衰减与压缩
- *
- * 增强现有 localStorage 记忆系统的淘汰策略：
- * - 时间衰减因子：越久未访问，权重越低
- * - 自动摘要压缩：旧记忆被压缩为摘要而非直接删除
- * - 软淘汰：标记为 deprecated 而非立即删除
- * - 定期整理：合并相似记忆、清理过时条目
- *
- * 同时适用于 KB 知识库的衰减管理
- */
+/** 记忆衰减与压缩：时间衰减/摘要压缩/软淘汰/定期整理，详细见 docs/details/注释/packages/agent-runtime/kb-kb-decay.md */
 
 import { loadMemory, saveMemory, type MemoryEntry } from '../tools/memory-internal'
 import { kbList, kbWrite, kbReadById, type KBEntry, type KBScope } from './kb-store'

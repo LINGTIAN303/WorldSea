@@ -1,13 +1,4 @@
-/**
- * 全局关系注册中心（Relationship Registry）
- *
- * 设计决策：
- * - 所有关系集中声明，消除插件间的重复定义
- * - 基于 RelationTypeSchemaV2：强制有向 + 强制 inverseType
- * - 对称关系 inverseType 指向自身
- * - 按 sourceType/targetType 索引，支持高效查询
- * - 插件激活/停用只影响数据可见性，不影响关系定义
- */
+/** 全局关系注册中心（集中声明、强制有向 + inverseType、按 source/target 索引），详细见 docs/details/注释/packages/entity-core/core/RelationshipRegistry.md */
 
 import type { RelationTypeSchemaV2 } from '../types/relation'
 import { relationSchemaRegistry } from './RelationSchema'

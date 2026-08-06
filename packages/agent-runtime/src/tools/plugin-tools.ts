@@ -1,16 +1,4 @@
-/**
- * 通用插件操作工具集
- *
- * 提供跨插件的统一操作接口：
- * - plugin_write: 向任意支持的插件写入数据
- * - notebook_create/update/link: 笔记本专属操作
- * - code_execute: 在沙箱中执行 JS 代码（笔记本代码单元格）
- *
- * 支持的插件目标: manuscript / notebook / outline / timeline / graph / mindmap /
- *   characters / regions / organizations / species / languages / culture /
- *   items / weapons / apparel / plants / buildings / magic / combat_stats /
- *   tactical-board / concepts / inspiration / drawing / conflict / custom / module-builder
- */
+/** 通用插件操作工具集：跨插件统一操作接口，详细见 docs/details/注释/packages/agent-runtime/tools-plugin-tools.md */
 
 import type { ToolDefinition } from '../bridge-types'
 import type { ToolMeta } from '@worldsmith/agent-core'

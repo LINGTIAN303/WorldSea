@@ -1,13 +1,4 @@
-/**
- * ProjectSwitcherApi — 项目切换服务接口
- *
- * Phase 5 依赖注入：ProjectFS.importProjectFromDir 需要切换到新创建的项目，
- * 但 useProjectSwitcher 实现位于根 src/composables/useProjectSwitcher.ts，
- * 依赖大量根目录模块（moduleRegistry、memoryArchive、agent session 等）。
- *
- * 通过此接口解耦：entity-core 定义接口，根项目启动时注册实现。
- * 遵循 entity-core 已有的服务注册模式（registerEventBus/getEventBus 等）。
- */
+/** 项目切换服务接口（entity-core 定义、根项目注册实现，Phase 5 依赖注入解耦），详细见 docs/details/注释/packages/entity-core/core/ProjectSwitcherApi.md */
 
 /** 项目切换服务接口（ProjectFS 所需的最小子集） */
 export interface ProjectSwitcherApi {

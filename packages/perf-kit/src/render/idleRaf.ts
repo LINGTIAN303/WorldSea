@@ -1,19 +1,4 @@
-/**
- * 空闲 RAF 管理器（idleRaf）。有交互时运行动画循环，空闲超时后自动暂停，
- * 避免后台任务持续占用 CPU。
- *
- * 解决 PERF-22：长任务/动画无空闲暂停机制，常驻占用 CPU。
- *
- * 用法：
- *   const raf = createIdleRaf({ idleTimeout: 3000 })
- *   raf.start((dt) => { dt 为距上次 tick 的毫秒数 })
- *
- *   // 用户交互时调用，重置空闲计时（若已暂停则自动恢复）
- *   window.addEventListener('pointermove', () => raf.notifyActive())
- *
- *   // 组件卸载时调用
- *   onBeforeUnmount(() => raf.stop())
- */
+/** 空闲 RAF 管理器（有交互运行动画、空闲超时自动暂停，解决 PERF-22），详细见 docs/details/注释/packages/perf-kit/render/idleRaf.md */
 export function createIdleRaf(options?: {
   /** 空闲判定阈值（ms），默认 3000 */
   idleTimeout?: number

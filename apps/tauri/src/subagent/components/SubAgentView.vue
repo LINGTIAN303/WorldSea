@@ -1,15 +1,5 @@
 <script setup lang="ts">
-/**
- * # SubAgentView — 子 Agent 规格管理界面
- *
- * 提供子 Agent 规格的查看 / 注册 / 删除能力，使用户能在桌面端配置主 Agent
- * 可委派的子 Agent 专长（`delegate_to_sub_agent` / `list_sub_agents`）。
- * 通过 `useSubagentRust` 调用 Rust 命令层（`subagent_*`）。
- *
- * ## 交互
- * - 左侧：规格列表（ID / 名称 / 描述 / 最大迭代），可删除
- * - 右侧：新增 / 编辑表单（编辑时按 id 覆盖）
- */
+/** SubAgentView：子 Agent 规格管理界面（列表 + 新增/编辑表单），详细见 docs/details/注释/tauri/SubAgentView.md */
 import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
 import { useSubagentRust, type SubAgentSpec } from '../composables/useSubagentRust'
 import { useAgentRust } from '../../agent/composables/useAgentRust'

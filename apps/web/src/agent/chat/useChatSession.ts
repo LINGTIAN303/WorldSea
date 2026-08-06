@@ -1,17 +1,4 @@
-/**
- * useChatSession — 会话 drawer 的会话列表 / 切换 / 删除 / 新建
- *
- * 从 AgentChat.vue 拆分而来，负责：
- *   - loadDrawerSessions：拉取会话列表
- *   - onDrawerSelect / onDrawerNewSession：切换 / 新建会话
- *   - onDrawerDelete：删除会话（含 H6.2 删除前归档 + 级联删除文境副本）
- *   - onSessionTitleUpdated：会话标题更新事件回调
- *
- * 依赖外部注入：
- *   - sessions / sessionDrawerOpen（来自 useChatPanel）
- *   - switchSession / newSession / currentSessionId（来自 useAgent）
- *   - cascadeDeleteManuscriptClones（来自 useManuscriptActions）
- */
+/** useChatSession：会话 drawer 的列表/切换/删除/新建（从 AgentChat 拆分），详细见 docs/details/注释/web/agent/chat/useChatSession.md */
 import { type Ref } from 'vue'
 import { listSessions, deleteSession } from '@agent/index'
 

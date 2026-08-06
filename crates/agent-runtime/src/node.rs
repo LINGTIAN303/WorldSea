@@ -236,16 +236,7 @@ pub enum LogLevel {
 
 // ─── 节点 trait ────────────────────────────────────
 
-/// 节点接口 — 所有编排模式的基础构建块
-///
-/// 实现示例：
-/// - `ReactNode`：包装 ReAct 循环
-/// - `PlanNode`：生成任务计划
-/// - `ExecuteNode`：逐步执行计划项
-/// - `ReflectionNode`：评审输出
-/// - `RefineNode`：基于评审迭代优化
-/// - `RouterNode`：根据输入路由到不同节点
-/// - `SupervisorNode`：分配任务给子 Agent
+/// 节点接口 — 所有编排模式的基础构建块，详细见 docs/details/注释/agent-runtime/node.md
 #[async_trait]
 pub trait OrchestratorNode: Send + Sync {
     /// 节点唯一 ID

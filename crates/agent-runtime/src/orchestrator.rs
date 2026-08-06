@@ -96,17 +96,7 @@ pub struct OrchestratorResult {
 
 // ─── Orchestrator trait ────────────────────────────────────
 
-/// Orchestrator — 编排器，驱动节点图执行
-///
-/// 使用方式：
-/// 1. 创建 Orchestrator 实例
-/// 2. 添加节点和边
-/// 3. 调用 `run(input)` 启动
-/// 4. 通过 `subscribe` 监听事件
-/// 5. 通过 `abort` 中断
-///
-/// 阶段 1.1 实现：简单的线性/条件序列执行器
-/// 阶段 2 实现：完整的图执行器（支持并行/回溯）
+/// Orchestrator — 编排器，驱动节点图执行，详细见 docs/details/注释/agent-runtime/orchestrator.md
 #[async_trait]
 pub trait Orchestrator: Send + Sync {
     /// 添加节点

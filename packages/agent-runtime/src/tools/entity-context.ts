@@ -1,17 +1,4 @@
-/**
- * 实体上下文聚合工具
- *
- * 为 Agent 智能填充提供一站式上下文获取能力。
- * 支持七种 scope 粒度，Agent 可按需选择全量获取或针对某一细节深入查找：
- *
- * - full: 全量上下文（当前实体 + 关联实体 + 同类型实体 + Schema + 语义相关）
- * - relations_only: 仅关联实体与关系
- * - same_type_entities: 仅同类型已有实体
- * - schema_detail: 仅 Schema 字段定义
- * - semantic_related: 仅语义相关实体（需 Embedding 就绪）
- * - field_context: 仅指定字段的上下文（同字段值 + 关联实体中相关片段 + 字段 Schema）
- * - cross_type_relations: 仅与指定目标类型的跨类型关系
- */
+/** 实体上下文聚合工具：七种 scope 粒度一站式上下文获取，详细见 docs/details/注释/packages/agent-runtime/tools-entity-context.md */
 
 import type { ToolDefinition } from '../bridge-types'
 import type { ToolMeta } from '@worldsmith/agent-core'

@@ -1,21 +1,4 @@
-//! # Stream — stream_simple 与 get_model 函数
-//!
-//! 对应 TS 版 `pi-ai` 的核心导出函数：
-//! - `streamSimple(config, messages, options)` → 异步推流 [`StreamEvent`]
-//! - `getModel(config)` → [`ModelInfo`]
-//!
-//! ## 设计差异
-//! TS 版用 `AsyncIterable<StreamEvent>`，Rust 版用 `tokio::sync::mpsc::Receiver<StreamEvent>`。
-//! 调用方通过 `while let Some(event) = receiver.recv().await { ... }` 消费事件。
-//!
-//! ## 事件映射
-//! | genai 事件             | StreamEvent              |
-//! |-----------------------|--------------------------|
-//! | `Start`               | `StreamStart`            |
-//! | `Chunk(text)`         | `Delta`                  |
-//! | `ReasoningChunk(text)`| `ReasoningDelta`         |
-//! | `ToolCallChunk(...)`  | `ToolCallDelta`（聚合）   |
-//! | `End(usage)`          | `Usage` + `StreamEnd`    |
+//! Stream — stream_simple 与 get_model 函数，详细见 docs/details/注释/agent-runtime/llm.md
 
 use std::collections::HashMap;
 
@@ -81,18 +64,7 @@ pub enum StreamEvent {
     Complete,
 }
 
-/// stream_simple — 对应 TS 版 `streamSimple`
-///
-/// # 参数
-/// - `config`：Provider 配置
-/// - `messages`：消息历史
-/// - `options`：调用选项
-///
-/// # 返回
-/// `mpsc::Receiver<StreamEvent>` — 调用方异步消费事件
-///
-/// # 错误处理
-/// 内部错误通过 `StreamEvent::Error` 推送，随后推送 `StreamEvent::Complete` 关闭流。
+/// stream_simple — 对应 TS 版 `streamSimple`，详细见 docs/details/注释/agent-runtime/llm.md
 pub fn stream_simple(
     config: ProviderConfig,
     messages: Vec<OrchestratorMessage>,

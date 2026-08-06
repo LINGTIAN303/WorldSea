@@ -1,16 +1,4 @@
-/**
- * Markdown 渲染 composable（共享层）
- *
- * 从 apps/web/src/agent/bubbles/useMarkdownRender.ts 迁移。
- * 封装：marked 解析 → DOMPurify 消毒 → 实体名 mention 注入，
- * 并用 useStreamingRenderer 对流式输出做 rAF 节流。
- *
- * 端解耦：`replaceFontSpans`（{font:...} 标记替换）通过 `useAgentUiDeps()` 注入式获取，
- * 不再直接依赖 Web 端 fontSpanParser。
- *
- * 模块级共享：marked 实例、DOMPurify hook、mention 注入缓存，
- * 避免每个消息气泡重复创建。
- */
+/** Markdown 渲染 composable（marked 解析 → DOMPurify 消毒 → mention 注入 + rAF 节流），详细见 docs/details/注释/packages/shared-ui/agent/bubbles/useMarkdownRender.md */
 import { computed } from 'vue'
 import { Marked } from 'marked'
 import DOMPurify from 'dompurify'

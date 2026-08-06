@@ -50,14 +50,7 @@ export interface SmartFetchOptions {
 
 // ─── smartFetch ───
 
-/**
- * 统一网络请求函数
- *
- * - Tauri 模式：通过 plugin:http|fetch 发起请求，绕过浏览器 CORS 限制
- * - Web 模式：使用浏览器原生 fetch()
- *
- * 返回与标准 Response 兼容的 SmartResponse 对象。
- */
+/** 统一网络请求函数（Tauri 走 plugin:http 绕过 CORS，Web 用 fetch），详细见 docs/details/注释/packages/agent-runtime/utils-smart-fetch.md */
 export async function smartFetch(url: string, options?: SmartFetchOptions): Promise<SmartResponse> {
   const invoke = await getTauriInvoke()
 

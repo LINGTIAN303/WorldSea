@@ -2,17 +2,7 @@ import { ref, watch, onScopeDispose, toValue, type Ref, type MaybeRefOrGetter } 
 import { isImageAvatar, isAvatarRef, getAvatarRefId } from '../ui/avatar'
 import { getAvatarBlob } from './avatarStore'
 
-/**
- * 将 avatar 字段（图片 URL/base64/`avatar://` 引用/文字）解析为可直接显示的图片 src
- *
- * - 直接图片（URL/base64）→ 原值
- * - 存储引用（avatar://xxx）→ 异步从 avatarStore 读 Blob → object URL
- * - 文字/空 → null（由 AvatarBadge 显示文字首字）
- *
- * object URL 生命周期管理：avatar 变化或 scope 销毁时 revoke，避免内存泄漏。
- *
- * 用法：`const src = useAvatarImage(() => persona.avatar)`，传给 AvatarBadge 的 src prop。
- */
+/** 将 avatar 字段解析为图片 src（object URL 生命周期管理见文档），详细见 docs/details/注释/web/composables/useAvatarImage.md */
 export function useAvatarImage(
   avatar: MaybeRefOrGetter<string | null | undefined>,
 ): Ref<string | null> {

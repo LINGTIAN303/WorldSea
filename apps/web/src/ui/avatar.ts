@@ -1,15 +1,4 @@
-/**
- * 统一头像工具函数
- *
- * 统一多处分散的头像生成规则（SpaceNavbar / 单聊消息气泡 / UserProfilePopover /
- * CreateAgentDialog / 群聊消息），支持：
- * - 图片头像（URL / base64 data URI / blob / 存储引用 avatar://）
- * - 文字首字头像
- * - 统一背景色规则
- *
- * 存储引用（avatar://xxx）需配合 useAvatarImage composable 异步解析为可显示 URL
- * （Phase 4 图片头像入口实现）。
- */
+/** 统一头像工具函数（图片/文字首字/背景色规则，avatar:// 解析见文档），详细见 docs/details/注释/web/ui/avatar.md */
 
 /** 判断 avatar 字段是否为图片源（URL / data URI / blob / 存储引用 / 路径） */
 export function isImageAvatar(avatar?: string | null): boolean {

@@ -1,13 +1,4 @@
-/**
- * useLongTaskProgress — 长任务进度反馈（时长计时器 + 心跳提示）
- *
- * 从 AgentChat.vue 拆分而来，负责：
- *   - 每秒更新 longTaskNow 以驱动 elapsedSec 计算
- *   - 心跳状态文本（heartbeatTitle）
- *   - formatElapsed 工具函数
- *
- * 仅当 hasActiveTask 为 true 时计时器运行，组件卸载时清理。
- */
+/** useLongTaskProgress：长任务进度反馈（时长计时器 + 心跳提示），详细见 docs/details/注释/web/agent/chat/useLongTaskProgress.md */
 import { ref, computed, watch, onUnmounted, type Ref } from 'vue'
 import type { LongTaskRecord } from '../composables/longTaskStore'
 

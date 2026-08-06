@@ -1,15 +1,4 @@
-/**
- * 知识库存储层
- *
- * 基于 IndexedDB 的知识库存储，支持双层作用域：
- * - global: 跨项目持久（用户画像、偏好、模式）
- * - project: 项目级持久（世界观知识、实体洞察、决策记录）
- *
- * 数据模型：
- * - KBEntry: 知识条目（id/path/scope/content/tags/entityId/时间戳/访问统计）
- * - 存储在 IndexedDB 'worldsmith_kb' 数据库中
- * - 按 scope + path 唯一索引
- */
+/** 知识库存储层：IndexedDB 存储，支持 global/project 双层作用域，详细见 docs/details/注释/packages/agent-runtime/kb-kb-store.md */
 
 export type KBScope = 'global' | 'project'
 

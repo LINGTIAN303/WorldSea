@@ -1,16 +1,4 @@
-/**
- * 知识库工具集
- *
- * Agent 操作知识库的工具定义：
- * - kb_write: 写入/更新知识文档
- * - kb_read: 读取知识文档
- * - kb_list: 列出知识目录
- * - kb_search: 搜索知识库（关键词 + 语义混合）
- * - kb_delete: 删除知识条目
- * - kb_extract: 从对话中提取知识并写入
- * - kb_reflect: 反思与整合知识
- * - kb_link: 关联知识条目到实体
- */
+/** 知识库工具集：Agent 操作知识库的工具定义，详细见 docs/details/注释/packages/agent-runtime/tools-kb-tools.md */
 
 import type { ToolDefinition } from '../bridge-types'
 import type { ToolMeta } from '@worldsmith/agent-core'

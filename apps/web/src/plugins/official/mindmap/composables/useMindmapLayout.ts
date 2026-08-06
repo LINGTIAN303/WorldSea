@@ -1,15 +1,4 @@
-/**
- * 思维导图布局相关逻辑
- *
- * 从 MindmapView.vue 拆出，封装：
- * - buildCanvasData: 构建 canvasNodes/canvasEdges
- * - mapToGraphData: 转换为 Rust 布局输入
- * - applyLayout: 调用 rustLayout 并触发动画
- * - rebuildGraph: 重建 + 布局 + fitView
- * - savePositions: 持久化节点位置
- * - onLayoutChange: 切换布局算法
- * - toggleType: 切换类型过滤
- */
+/** 思维导图布局逻辑（buildCanvasData/Rust 布局/持久化等，从 MindmapView 拆出），详细见 docs/details/注释/web/plugins/official/mindmap/composables/useMindmapLayout.md */
 import { nextTick, type Ref, type ComputedRef } from 'vue'
 import { deduplicateEdges } from '@worldsmith/ui-kit'
 import { getEdgeColor, useEntityStore, useRelationStore } from '@worldsmith/entity-core'

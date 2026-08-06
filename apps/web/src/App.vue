@@ -92,18 +92,7 @@ governor.registerAll(coreModules)
 
 onMounted(async () => {
   try {
-  /* ── 调控器启动：按 priority + 依赖拓扑自动激活所有模块 ──
-   *
-   * 替代 P3-W2 骨架阶段的硬编码 markReady：
-   * - critical: 项目空间/WASM 检测/插件预注册
-   * - normal: 关系初始化/自定义模块/导航监听（P3-W3；官方插件 P3-W4 恢复）
-   * - lazy: 自动清理
-   *
-   * 分级降级策略：
-   * - critical 失败 → hasCriticalFailure=true，显示错误页
-   * - normal 失败 → 记录但继续
-   * - lazy 失败 → 静默
-   */
+  /** 调控器启动：按 priority + 依赖拓扑自动激活所有模块（分级降级策略见文档），详细见 docs/details/注释/web/App.md */
   const report = await governor.boot()
 
   if (report.hasCriticalFailure) {

@@ -6,16 +6,7 @@ import {
 import { PackageBuilder } from './PackageBuilder'
 import { getDownloader, getAppVersionProvider } from './ioServices'
 
-/**
- * ExportController — 统一导出调度器
- *
- * 遍历所有已注册的 Serializer，收集数据并组装为 WorldSmithPack。
- * 支持按 serializer id 选择性导出。
- *
- * Phase 8a 下沉改造：
- *   - 浏览器下载副作用剥离为 Downloader 接口（通过 registerDownloader 注入）
- *   - __APP_VERSION__ 全局变量剥离为 AppVersionProvider 接口
- */
+/** 统一导出调度器（遍历注册的 Serializer 组装 WorldSmithPack，支持按 id 选择性导出），详细见 docs/details/注释/packages/entity-core/core/io/ExportController.md */
 export class ExportController {
   private formatEncoder: FormatEncoder
 

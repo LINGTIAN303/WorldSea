@@ -1,22 +1,4 @@
-/**
- * 长期记忆模块
- *
- * 基于 localStorage + Embedding 向量搜索的双层记忆系统：
- * 1. localStorage 存储完整的 MemoryEntry 数组（key/value/tags/timestamp）
- * 2. Embedding 向量索引用于语义搜索（可选）
- *
- * 提供三个工具：memory_store（存储）、memory_recall（检索）、memory_delete（删除）
- *
- * 检索模式：
- * - keyword: 纯关键词匹配
- * - semantic: 纯语义向量搜索（需要 Embedding API）
- * - hybrid: 混合模式——关键词召回 + 语义召回合并排序
- *
- * 容量控制：
- * - 最多 200 条记忆
- * - 单条 value 最多 2000 字符
- * - 超出上限时按 accessCount + lastAccessedAt 加权淘汰
- */
+/** 长期记忆模块：localStorage + Embedding 双层记忆系统，详细见 docs/details/注释/packages/agent-runtime/tools-memory.md */
 
 import type { ToolDefinition } from '../bridge-types'
 import type { ToolMeta } from '@worldsmith/agent-core'
@@ -25,16 +7,7 @@ import { loadMemory, saveMemory, evictIfNeeded, type MemoryEntry } from './memor
 
 const MAX_VALUE_LENGTH = 2000
 
-/**
- * 关键词检索
- *
- * 评分规则：
- * - key 包含关键词: +3
- * - value 包含关键词: +2
- * - tag 精确匹配: +4
- * - tag 包含关键词: +1
- * - accessCount 加权: +0.1 每访问次数
- */
+/** 关键词检索：key/value/tag 评分加权排序，详细见 docs/details/注释/packages/agent-runtime/tools-memory.md */
 function keywordRecall(entries: MemoryEntry[], query: string): { entry: MemoryEntry; score: number }[] {
   const q = query.toLowerCase()
   return entries.map(e => {
@@ -50,18 +23,7 @@ function keywordRecall(entries: MemoryEntry[], query: string): { entry: MemoryEn
   }).filter(s => s.score > 0)
 }
 
-/**
- * 统一的记忆召回函数（混合模式核心）
- *
- * 流程：
- * 1. 执行关键词召回
- * 2. 如果 Embedding 可用，执行语义召回
- * 3. 合并两路结果（取最高分）
- * 4. 更新记忆的 accessCount
- *
- * @param query 搜索关键词
- * @param limit 返回数量上限
- */
+/** 统一的记忆召回函数（混合模式核心：关键词 + 语义合并），详细见 docs/details/注释/packages/agent-runtime/tools-memory.md */
 export async function recallMemory(query: string, limit: number = 5): Promise<MemoryEntry[]> {
   const entries = loadMemory()
   if (!query) return entries.slice(0, limit)

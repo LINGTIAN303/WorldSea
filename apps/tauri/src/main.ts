@@ -1,14 +1,4 @@
-/**
- * Tauri 端入口（Phase 3 — 端入口硬编码后端）
- *
- * 端分离策略：
- * - 硬编码 Tauri IPC 后端（移除 getBackendType 运行时检测）
- * - 通过 Tauri invoke 调用 Rust 命令
- * - 不需要 /api/* 代理（IPC 直连系统能力）
- *
- * Phase 3 阶段：业务 UI 仍在 src/，本入口仅做端初始化
- * Phase 4 阶段：业务 UI 迁入 packages/shared-ui 后，本入口成为完整应用入口
- */
+/** Tauri 端入口（Phase 3 端分离：硬编码 IPC 后端），详细见 docs/details/注释/tauri/main.md */
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'

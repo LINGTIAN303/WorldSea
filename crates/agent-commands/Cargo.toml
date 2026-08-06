@@ -14,6 +14,10 @@ crate-type = ["rlib"]
 # ── 本地 crate ──
 # 启用 llm-genai：使 agent-runtime 的 GenaiBackend 可用（5.4 真实 LLM 接入）
 agent-runtime = { path = "../agent-runtime", features = ["llm-genai"] }
+# MemoryAccessor 适配层（阶段 2：为会话注入 MemoryCenterAccessor）
+agent-memory = { path = "../agent-memory" }
+# MemoryCenter 核心（ArchiveConfig 归档阈值配置）
+memory-center-core = { path = "../vendor/memory-center-core" }
 
 # ── 序列化 ──
 serde = { version = "1", features = ["derive"] }

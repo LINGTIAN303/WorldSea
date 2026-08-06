@@ -1,13 +1,4 @@
-/**
- * 实体-记忆图谱打通
- *
- * 将知识库条目与实体系统联动：
- * - 当记忆/知识涉及某个实体时，自动建立关联
- * - 查询实体时，联动检索相关知识
- * - 实体删除时，清理关联的知识索引
- *
- * 集成到 entity-crud 工具的 after-hook 中
- */
+/** 实体-记忆图谱打通：知识库条目与实体系统联动，详细见 docs/details/注释/packages/agent-runtime/kb-kb-entity-link.md */
 
 import { kbGetByEntity, kbWrite, kbSearchKeyword, kbLinkEntity, type KBScope } from './kb-store'
 import { indexKBEntry } from './kb-indexer'

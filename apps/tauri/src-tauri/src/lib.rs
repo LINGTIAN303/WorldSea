@@ -103,6 +103,9 @@ pub fn run() {
                     .await
                     .expect("初始化 Agent 命令服务失败")
                     .with_loop_control_registry(loop_control_registry)
+                    // 记忆后端：传入应用数据目录子路径，new_session 时为每个会话构造
+                    // MemoryCenterAccessor 并注入 AgentLoop（阶段 2：让桌面生效）
+                    .with_memory_root(Some(app_data.join("worldsmith").join("memory")))
             });
             app.manage(svc);
 

@@ -1,13 +1,4 @@
-/**
- * 群聊控流系统
- *
- * 实现三级限流：全局 → ProviderSlot → Agent。
- * 使用 Token Bucket（请求频率）+ Concurrency Limiter（并发数）组合控制。
- * 请求排队等待而非直接拒绝，保证群聊不会因并发过高导致 API 超载。
- *
- * 附加通用退避重试层（retryWithBackoff），任何供应商返回 429/503/529
- * 时自动指数退避重试，无需逐个适配。
- */
+/** 群聊控流系统：三级限流 + 通用退避重试层，详细见 docs/details/注释/packages/agent-runtime/group-chat-flow-control.md */
 
 import type { RateLimitConfig } from './types'
 
@@ -70,17 +61,7 @@ export function isRetryableError(err: unknown): boolean {
   return false
 }
 
-/**
- * 通用退避重试执行器
- *
- * 包装任意异步操作，遇到 429/503/529 时自动指数退避重试。
- * 适用于所有供应商，无需逐个适配。
- *
- * @param fn 要执行的异步操作
- * @param config 重试配置
- * @returns fn 的返回值
- * @throws 超过最大重试次数后抛出最后一次错误
- */
+/** 通用退避重试执行器：429/503/529 时指数退避自动重试，详细见 docs/details/注释/packages/agent-runtime/group-chat-flow-control.md */
 export async function retryWithBackoff<T>(
   fn: () => Promise<T>,
   config?: Partial<RetryConfig>,

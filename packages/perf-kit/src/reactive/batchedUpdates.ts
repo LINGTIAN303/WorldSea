@@ -1,20 +1,6 @@
 import { nextTick } from 'vue'
 
-/**
- * 批量更新合并器（batchedUpdates）。在同一个微任务/RAF/宏任务周期内
- * 收集对同一 id 的多次 update，合并为一次回调执行，避免逐条触发响应式更新。
- *
- * 解决 PERF-03：高频增删改导致响应式更新风暴。
- *
- * 用法：
- *   const batcher = createUpdateBatcher((batch) => {
- *     for (const { id, changes } of batch) store.updateById(id, changes)
- *   })
- *
- *   batcher.queue('a', { name: 'x' })
- *   batcher.queue('a', { tags: ['t'] })   // 同一周期内合并为 { name, tags }
- *   batcher.queue('b', { name: 'y' })
- */
+/** 批量更新合并器（同周期多次 update 合并为一次回调，解决 PERF-03 响应式更新风暴），详细见 docs/details/注释/packages/perf-kit/reactive/batchedUpdates.md */
 export interface BatchItem<T> {
   id: string
   changes: Partial<T>

@@ -37,7 +37,7 @@
     "./agent/useSmartFillChat": "./src/agent/useSmartFillChat.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit",
+    "typecheck": "vue-tsc --noEmit --declaration false --declarationMap false",
     "build": "tsc"
   },
   "dependencies": {

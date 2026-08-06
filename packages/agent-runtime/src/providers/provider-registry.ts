@@ -1,15 +1,4 @@
-/**
- * 供应商统一注册表 (Provider Manifest Registry)
- *
- * 所有云端供应商的基础信息集中定义在此，
- * 其他模块（bridge、UI、代理、端点解析等）统一从此注册表读取，
- * 新增供应商只需在此添加一条 manifest 即可。
- *
- * 设计原则：
- * - 单一数据源：供应商的 base URL、图标、compat 配置等只定义一次
- * - 声明式：每个供应商是一个纯数据对象，逻辑由消费方统一处理
- * - 可扩展：新供应商只需 push 一条 manifest，无需修改其他文件
- */
+/** 供应商统一注册表：云端供应商基础信息集中定义，新增只需加 manifest，详细见 docs/details/注释/packages/agent-runtime/providers-provider-registry.md */
 
 /** API 协议类型 */
 export type ApiType = 'openai-completions' | 'anthropic-messages' | 'google-generative-ai'

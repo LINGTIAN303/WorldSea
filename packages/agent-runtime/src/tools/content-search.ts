@@ -1,13 +1,4 @@
-/**
- * 内容搜索工具
- *
- * 提供跨实体类型的混合搜索（关键词 + 语义），用于 content_search 工具。
- *
- * 搜索模式：
- * - keyword: 纯关键词匹配（名称、描述、属性）
- * - semantic: 纯 Embedding 向量语义搜索
- * - hybrid: 两路合并——关键词和语义结果去重合并，both 匹配优先排序
- */
+/** 内容搜索工具：跨实体类型关键词 + 语义混合搜索，详细见 docs/details/注释/packages/agent-runtime/tools-content-search.md */
 
 import type { ToolDefinition } from '../bridge-types'
 import type { ToolMeta } from '@worldsmith/agent-core'
@@ -28,17 +19,7 @@ interface HybridResult {
   matchType: 'keyword' | 'semantic' | 'both'
 }
 
-/**
- * 关键词搜索
- *
- * 根据 scope 参数在实体的 name / description / properties 中匹配关键词。
- * 描述长度超过 120 字符时截断预览。
- *
- * @param entities 待搜索的实体列表
- * @param kw 小写的搜索关键词
- * @param scope 搜索范围: name | description | properties | all
- * @param limit 返回数量上限
- */
+/** 关键词搜索：name/description/properties 匹配 + 截断预览，详细见 docs/details/注释/packages/agent-runtime/tools-content-search.md */
 function keywordSearch(
   entities: import('./types').EntityLike[],
   kw: string,
@@ -149,16 +130,7 @@ function mergeResults(
   return sorted.slice(0, limit)
 }
 
-/**
- * content_search 工具
- *
- * 在项目的所有实体中搜索内容。支持三种模式：
- * - hybrid: 关键词 + 语义混合（默认）
- * - keyword: 纯关键词匹配
- * - semantic: 纯语义搜索
- *
- * 语义搜索需要配置 Embedding API；关键词搜索无需额外配置。
- */
+/** content_search 工具：混合/关键词/语义三种搜索模式，详细见 docs/details/注释/packages/agent-runtime/tools-content-search.md */
 export const contentSearchTool: ToolDefinition = {
   name: 'content_search',
   description: '在项目的所有实体中搜索内容。支持语义搜索（理解含义）和关键词搜索（精确匹配）的混合模式。语义搜索能找到意思相近但不包含关键词的内容；关键词搜索能精确匹配文本。使用场景：模糊查找、概念搜索、精确匹配。',

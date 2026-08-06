@@ -1,22 +1,4 @@
-/**
- * # useEntityMentionIndex — 实体名反向索引（端无关）
- *
- * ## 职责
- * - 从 entityStore 构建实体名 → entityId[] 的反向索引
- * - entityStore 变更时自动更新（computed 驱动）
- * - 提供 matchInText(text) 方法，返回文本中所有实体名匹配位置
- *
- * ## 设计说明
- * - name 长度 ≥ 2 才入索引（避免单字歧义）
- * - 同名实体可能多个，匹配时返回全部 entityId
- * - 索引按 name 长度降序排列，优先匹配长名（避免"剑圣"被"剑"截断）
- * - 模块级单例：全局共享同一份索引
- *
- * ## 端无关说明
- * 仅依赖 Vue + entity-core（entityStore）。entityStore 由各端注入 Pinia 实例。
- *
- * 端分离批次3：从 src/agent/composables/useEntityMentionIndex.ts 迁移至 shared-composables。
- */
+/** 实体名反向索引（端无关：实体名 → entityId[]，文本匹配），详细见 docs/details/注释/packages/shared-composables/agent/useEntityMentionIndex.md */
 
 import { computed, type ComputedRef } from 'vue'
 import { useEntityStore } from '@worldsmith/entity-core'

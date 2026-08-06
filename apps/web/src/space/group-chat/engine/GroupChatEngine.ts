@@ -196,16 +196,7 @@ export class GroupChatEngine implements IGroupChatEngine {
     }
   }
 
-  /**
-   * 构建群聊 Agent 的独立系统提示词
-   *
-   * 分层注入：独立人格层 + 基础层（按 baseLayerMode 决定） + 技能/工具声明
-   *
-   * baseLayerMode:
-   * - 'empty': 不注入基础层，不声明工具（纯聊天 NPC）
-   * - 'shared': 注入标准共享基础层（buildSharedBaseLayer，含工具策略/输出规范/项目信息等），声明全部工具
-   * - 'custom': 注入用户自定义基础层内容（member.customBaseLayer），按用户选择声明工具
-   */
+  /** 构建群聊 Agent 独立系统提示词（人格层+基础层 baseLayerMode 分层注入），详细见 docs/details/注释/web/space/group-chat/engine/GroupChatEngine.md */
   private buildGroupAgentSystemPrompt(member: GroupMember, toolContext: IToolContext): string {
     const parts: string[] = []
 
@@ -245,17 +236,7 @@ export class GroupChatEngine implements IGroupChatEngine {
     return parts.join('\n\n')
   }
 
-  /**
-   * 根据 Agent 的 baseLayerMode / toolSource / enabledSkills / enabledTools 解析工具集
-   *
-   * baseLayerMode 决策：
-   * - 'empty': 纯聊天 NPC，不启用任何工具
-   * - 'shared': 共享标准基础层 + 全部工具能力
-   * - 'custom': 根据 toolSource 决定解析策略
-   *   - toolSource='derived': 从 enabledSkills 派生工具
-   *   - toolSource='manual': 使用 enabledTools 列表
-   *   - 无 toolSource（旧数据）: 兼容旧逻辑
-   */
+  /** 按 baseLayerMode/toolSource/enabledSkills/enabledTools 解析工具集（决策规则见文档），详细见 docs/details/注释/web/space/group-chat/engine/GroupChatEngine.md */
   private resolveAgentTools(member: GroupMember): typeof ALL_TOOLS {
     const mode = member.baseLayerMode || 'empty'
 

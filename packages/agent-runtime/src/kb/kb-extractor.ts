@@ -1,15 +1,4 @@
-/**
- * 自动记忆提取器
- *
- * 在对话结束后自动分析对话内容，识别值得持久化的知识，
- * 并写入知识库或 localStorage 记忆。
- *
- * 提取策略：
- * 1. 基于规则的快速提取（关键词匹配、模式识别）
- * 2. 提取结果分类（preference/decision/convention/insight/rule/pattern）
- * 3. 去重检查（避免重复写入已有知识）
- * 4. 写入知识库（长文档）或 localStorage 记忆（短片段）
- */
+/** 自动记忆提取器：对话后分析识别知识并写入知识库/记忆，详细见 docs/details/注释/packages/agent-runtime/kb-kb-extractor.md */
 
 import { kbWrite, kbSearchKeyword, type KBScope } from './kb-store'
 import { indexKBEntry } from './kb-indexer'

@@ -1,17 +1,4 @@
-//! # GenaiBackend — 基于 genai 的 NodeBackendAccessor 实现
-//!
-//! 对应 TS 版 `pi-ai` 的核心调用逻辑（streamSimple + getModel）。
-//! 将 [`ProviderConfig`] 转换为 genai 的 `ServiceTarget`，调用
-//! `Client::exec_chat_stream` 获取流式响应，并通过事件广播器推送流事件。
-//!
-//! ## 关键映射
-//! | TS 侧                | Rust 侧                              |
-//! |----------------------|--------------------------------------|
-//! | `streamSimple`       | `GenaiBackend::prompt`               |
-//! | `getModel`           | [`crate::llm::stream::get_model`]    |
-//! | `ProviderConfig`     | [`super::config::ProviderConfig`]    |
-//! | `messages` 数组      | `Arc<RwLock<Vec<OrchestratorMessage>>>` |
-//! | `StreamEvent` 回调   | `EventEmitter` trait                 |
+//! GenaiBackend — 基于 genai 的 NodeBackendAccessor 实现，详细见 docs/details/注释/agent-runtime/llm.md
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -583,16 +570,7 @@ impl NodeBackendAccessor for GenaiBackend {
         self.config.read().await.model_id().to_string()
     }
 
-    /// 热切换 Provider 配置（不清空消息历史）
-    ///
-    /// 重建 `ProviderConfig` 并替换内部 config，保留 messages 和 steer_buffer。
-    /// 对应前端 `IAgentBackend.updateModel` 接口。
-    ///
-    /// # 模式切换规则
-    /// - `Cloud` → `Cloud`：更新 provider/model_id/api_key
-    /// - `Cloud` → `Custom`：传入 `base_url` 时降级为 Custom（OpenAI 兼容协议）
-    /// - `Custom` → `Custom`：保留旧 `api_type`/`context_window`/`max_tokens`
-    /// - `Local` → 不支持：返回 `Unsupported` 错误（需重建 backend）
+    /// 热切换 Provider 配置（不清空消息历史），详细见 docs/details/注释/agent-runtime/llm.md
     async fn update_provider(
         &self,
         provider: String,

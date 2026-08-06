@@ -26,24 +26,7 @@ function emitPluginQuery(pluginId: string, query: string, params?: unknown): str
   }
 }
 
-/**
- * 插件后端工具集（域级合并版）
- *
- * 通过 window CustomEvent 机制与前端插件通信，提供：
- * - timeline: 时间线事件管理
- * - graph: 关系图谱操作
- * - mindmap: 思维导图操作
- * - manuscript: 稿件章节管理
- * - outline: 大纲结构管理
- * - notebook: 笔记管理
- * - tactical: 战术面板操作
- * - magic: 魔法技能树操作
- * - module_builder: 自定义模块管理
- * - entity_type: 实体类型 CRUD（角色/文化/语言/冲突/建筑/道具/概念/战力/服饰/素材）
- *
- * 所有操作通过 window.dispatchEvent 通知前端插件，
- * 插件处理后通过 UI 状态更新返回结果。
- */
+/** 插件后端工具集（域级合并版）：CustomEvent 与前端插件通信，详细见 docs/details/注释/packages/agent-runtime/tools-plugin-backend-tools.md */
 
 // ============================================================
 // 1. Timeline Tool

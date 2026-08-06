@@ -1,15 +1,4 @@
-/**
- * ProjectMigration — 一次性数据迁移
- *
- * 将旧的全局数据库 WorldSmith / worldsmith-agent 中的数据
- * 迁移到项目级数据库 WorldSmith-Project-${projectId} / worldsmith-agent-${projectId} 中。
- *
- * 迁移策略：
- * - 增量拷贝（不删除旧数据），安全回退
- * - 大数据量分批处理（每批 500 条），避免阻塞主线程
- * - 迁移失败不阻塞应用启动，降级为空项目
- * - 仅在首次运行时执行（通过 WorldSmith-Meta.appState.migrationDone 标记）
- */
+/** 一次性数据迁移（旧全局数据库 → 项目级数据库，增量拷贝/分批/失败降级），详细见 docs/details/注释/packages/entity-core/core/ProjectMigration.md */
 
 import Dexie from 'dexie'
 import { WorldDatabase } from './database'

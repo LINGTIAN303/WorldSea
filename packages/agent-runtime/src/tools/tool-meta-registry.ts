@@ -1,17 +1,4 @@
-/**
- * 工具元数据注册中心
- *
- * 为所有工具（含旧工具名）提供统一的元数据查询接口。
- *
- * 数据源优先级（任务3 后续：LEGACY_TOOL_META 已淘汰）：
- * 1. 全局 ToolRegistry（@worldsmith/agent-core）—— 声明式首选源（含 meta.aliases）
- * 2. ALIAS_MAP / LEGACY_ALGO_MAP / LEGACY_PLUGIN_MAP —— 旧工具名别名解析
- * 3. 兜底：moderate 权限
- *
- * 用法：
- *   const meta = getToolMeta('fs_read')   // → read_file 的 meta
- *   const meta = getToolMeta('entity_delete')  // → 旧工具的 meta
- */
+/** 工具元数据注册中心：统一查询接口（全局注册表 + 别名解析），详细见 docs/details/注释/packages/agent-runtime/tools-tool-meta-registry.md */
 
 import type { ToolMeta } from '@worldsmith/agent-core'
 import { getGlobalToolRegistry } from '@worldsmith/agent-core'
@@ -23,12 +10,7 @@ import { LEGACY_PLUGIN_MAP } from './plugin-backend-tools'
 // 任务3 接线后：工具直接注册到全局 ToolRegistry，不再需要本地 _toolsSource 变量。
 // 保留 initToolMetaRegistry 作为注入入口语义，内部委托 ToolRegistry。
 
-/**
- * 注入工具列表（必须在首次 getToolMeta 前调用）
- *
- * 将工具注册到全局 ToolRegistry，使其成为元数据首选源。
- * 幂等：同名工具覆盖（ToolRegistry.register 用 Map.set）。
- */
+/** 注入工具列表到全局 ToolRegistry（首次 getToolMeta 前调用），详细见 docs/details/注释/packages/agent-runtime/tools-tool-meta-registry.md */
 export function initToolMetaRegistry(tools: ToolDefinition[]): void {
   _metaCache = null
 

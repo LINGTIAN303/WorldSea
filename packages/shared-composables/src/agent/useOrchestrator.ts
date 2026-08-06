@@ -50,16 +50,7 @@ let executeFn: ExecuteFn | null = null
 let listenersAttached = false
 let activeExecutions: Map<string, AbortController> = new Map()
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 任务 4 P4：子 Agent 长任务跟踪（checkpoint + 心跳，复用 longTaskStore 持久层）
-//
-// 设计：子 Agent 独立于 useLongTask（主 Agent），直接复用 longTaskStore 持久化。
-// - trackSubAgentLongTask：saveTask 初始记录 + subBackend.subscribe 事件 checkpoint + 心跳
-// - untrackSubAgentLongTask：终态 updateTask + 清理
-// - 心跳：模块级统一定时器（5s），遍历活跃子 Agent 任务
-// - 多任务：activeLongTasks Map 支持多子 Agent 并发
-// 不做恢复（子 Agent 后台任务，刷新后重跑即可）。
-// ─────────────────────────────────────────────────────────────────────────────
+// 子 Agent 长任务跟踪（checkpoint + 心跳，复用 longTaskStore 持久层），详细见 docs/details/注释/packages/shared-composables/agent/useOrchestrator.md
 interface ActiveSubLongTask {
   unsub: () => void
   turnCount: number

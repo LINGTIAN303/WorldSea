@@ -2,16 +2,7 @@ import { computed } from 'vue'
 import { useGroupChatStore } from '../GroupChatStore'
 import type { ToolCallInfo } from '../types'
 
-/**
- * 流式消息显示 composable
- *
- * 提供流式 Agent 消息渲染所需的状态和辅助函数：
- * - 当前正在流式输出的 Agent ID 列表
- * - 正在输入的 Agent 名称列表
- * - 发言人名称/颜色查询
- * - 流式内容 HTML 转义渲染
- * - 流式工具调用状态查询
- */
+/** 流式消息显示 composable（流式 Agent 列表/发言人/HTML 转义等），详细见 docs/details/注释/web/space/group-chat/composables/useStreamingMessages.md */
 export function useStreamingMessages() {
   const store = useGroupChatStore()
 

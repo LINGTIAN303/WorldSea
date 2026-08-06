@@ -1,14 +1,4 @@
-/**
- * 图像持久化存储模块
- * 基于 IndexedDB 实现，用于存储通过 AI 生成的图片 Blob 数据
- *
- * 数据库: worldsmith_images (v2)
- * 对象仓库: images (keyPath: id)
- * 索引: createdAt, provider, path
- *
- * 虚拟路径格式: /images/generated/{date}/{caption}-{blockId}.png
- * 存储路径让 Agent 知道图片的"目录位置"，便于跨会话查找
- */
+/** 图像持久化存储：IndexedDB 存储 AI 生成图片 Blob，详细见 docs/details/注释/packages/agent-runtime/stores-image-persistence.md */
 
 import { smartFetch } from '../utils/smart-fetch'
 import { isTauri } from '../execution'

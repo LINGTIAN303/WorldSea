@@ -1,16 +1,4 @@
-/**
- * 群聊主持 Agent
- *
- * Moderator 是一个真正的 Agent，拥有完整的工具和对话能力。
- * 它不仅决定谁应该发言，自己也可以作为群聊参与者发言。
- *
- * 职责：
- * 1. 调度：根据用户消息和对话上下文，决定哪些参与者应该发言
- * 2. 参与：在需要时主动发言，引导话题、总结讨论、调解分歧
- *
- * 调度输出 JSON 格式的决策结果：{ nextSpeakers: string[], reason: string }
- * 每次调度后清理调度历史，避免上下文膨胀。
- */
+/** 群聊主持 Agent：调度发言者 + 主动参与群聊，详细见 docs/details/注释/packages/agent-runtime/group-chat-moderator.md */
 
 import type { IAgentBackend } from '../bridge'
 import type { AgentProfile } from './types'

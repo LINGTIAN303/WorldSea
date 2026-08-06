@@ -60,16 +60,7 @@ export function formatSummaryForPrompt(summary: ProjectSummary): string {
   return result
 }
 
-/**
- * 截断消息列表以控制上下文长度
- *
- * 策略：保留所有 system 消息，只截断 user/assistant/tool 消息。
- * 截断时保留最近的 maxCount 条非系统消息，并在中间插入截断提示。
- *
- * @param messages 完整消息列表
- * @param maxCount 保留的最大非系统消息数，默认 40
- * @returns 截断后的消息列表
- */
+/** 截断消息列表控制上下文长度（保留 system，只截 user/assistant/tool），详细见 docs/details/注释/packages/agent-runtime/context-summary.md */
 export function truncateMessages(messages: any[], maxCount: number = 40): any[] {
   if (messages.length <= maxCount) return messages
   const systemMsgs = messages.filter((m: any) => m.role === 'system')

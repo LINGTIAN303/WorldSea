@@ -1,18 +1,4 @@
-/**
- * core/formula.ts — 轻量公式引擎
- *
- * 支持：
- *   - 四则运算: + - * / %
- *   - 比较: == != < > <= >=
- *   - 逻辑: && || !
- *   - 字段引用: {field_name} 或直接用字母标识符
- *   - 聚合: SUM(field), COUNT(field), AVG(field), MIN(field), MAX(field)
- *   - 括号分组
- *
- * 纯函数，无 eval，沙箱安全。
- *
- * Phase 3：从 src/modules/runtime/formula.ts 下沉到 entity-core
- */
+/** 轻量公式引擎（四则/比较/逻辑/字段引用/聚合，纯函数无 eval 沙箱安全），详细见 docs/details/注释/packages/entity-core/core/formula.md */
 
 type FieldValues = Record<string, unknown>
 

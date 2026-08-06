@@ -9,6 +9,7 @@
 | 状态 | 文档 | 摘要（结论） | 链接 |
 |------|------|-------------|------|
 | 执行中 | WorldSmith 任务路线计划 | 全项目任务路线总表（按模块分组），每条含编号/状态/优先级，完成任务移至文末"已完成任务"章节 | [ROADMAP.md](../plans/ROADMAP.md) |
+| 执行中 | 注释分层整改计划 | 落实注释分层约束（代码内一行简要 + 相对路径，why/how 进 docs/details/注释/）。全库 495 长注释块已抽取 374+ 块，剩余均为排除项（crates/vendor 外部代码、packages/memory-archive 待清理）；已同步 docs/details/注释/README.md 索引 | [2026-08-06-comment-hierarchy-plan.md](../plans/2026-08-06-comment-hierarchy-plan.md) |
 | 执行中 | Agent 端到端闭环计划（Phase 5） | 让 Agent 从 Rust 框架就绪到 Tauri 桌面端真正可用。5.1 命令层 + 5.2 Tauri 前端链路 + 5.3 Agent UI 迁移已完成，5.4 端到端实测待启动；目标移除 TS 版 pi-ai 依赖 | [agent-e2e-closure-plan.md](../plans/agent-e2e-closure-plan.md) |
 | 执行中 | Agent 编排框架路线图 | Rust 原生实现 13 种 Agent 模式。阶段 1（Agent loop）+ 阶段 2（编排框架）已完成（cargo test 127/127）；阶段 3（自研 pi-ai）可选待定 | [agent-orchestration-roadmap.md](../plans/agent-orchestration-roadmap.md) |
 | 执行中 | perf-kit 实施方案 | 系统性解决 22 个性能问题（响应式过度/串行 I/O/缺渲染节流）。`@worldsmith/perf-kit` 包已建，Phase 1-3 全落地 + Phase 4 部分落地（虚拟滚动/脏矩形/DB 下推），其余待排期 | [perf-kit-plan.md](../plans/perf-kit-plan.md) |
@@ -23,6 +24,7 @@
 | 现行 | WorldSmith 架构总览 | 当前实际代码状态（2026-08-04 复核）：三端结构（web/cli/tauri）、共享 packages、Rust crates、docs 目录说明，供新接手者定位代码 | [ARCHITECTURE.md](../details/ARCHITECTURE.md) |
 | 已完成 | 三端分离文档库 | Web/CLI/Tauri 三端彻底分离（物理目录+共享代码层+后端能力重叠处理），共 13 个文件含 6 Phase 迁移路线、风险回滚、验证清单 | [端分离/README.md](../details/端分离/README.md) |
 | 已完成 | 记忆归档框架设计 | memory-archive 框架核心设计（归档/检索/调度分层） | [2026-06-17-memory-archive-framework-design.md](../details/memory-archive/2026-06-17-memory-archive-framework-design.md) |
+| 现行 | 详细注释索引 | 注释分层后的详细层（why/how）文档，按模块与代码文件一一对应（agent-runtime/agent-commands/tauri/web/cli/packages），代码内注释附相对路径直达 | [注释/README.md](../details/注释/README.md) |
 | 已完成 | 记忆归档待定问题清单 | P1-P18 待定问题全部处理完毕 | [2026-06-17-memory-archive-pending-issues.md](../details/memory-archive/2026-06-17-memory-archive-pending-issues.md) |
 
 ## 其他（misc/）

@@ -1,25 +1,4 @@
-/**
- * # useMcpConnections — MCP 连接管理（端分离批次2）
- *
- * ## 端分离改造
- * 原 `src/agent/composables/useMcpConnections.ts` 直接依赖 `useAgent()`。
- * 迁移至 shared-composables 后，改为通过 `options.getAgent` 注入 agent 获取函数，
- * 避免对具体端实现的硬依赖。
- *
- * ## 使用方式
- * ```ts
- * // Tauri 端（src/agent/composables/useMcpConnections.ts 包装）
- * import { useMcpConnections } from '@worldsmith/shared-composables/agent/useMcpConnections'
- * import { useAgent } from './useAgent'
- * export function useMcpConnections() {
- *   return useMcpConnectionsShared({ getAgent: () => useAgent() })
- * }
- *
- * // Web/CLI 端（注入各自的 agent 实现）
- * import { useMcpConnections } from '@worldsmith/shared-composables/agent/useMcpConnections'
- * useMcpConnections({ getAgent: () => useWebAgent() })
- * ```
- */
+/** MCP 连接管理（端无关：options.getAgent 注入解耦），详细见 docs/details/注释/packages/shared-composables/agent/useMcpConnections.md */
 
 import { ref } from 'vue'
 import type { MCPConnectionConfig, MCPConnectionState } from '@agent/index'

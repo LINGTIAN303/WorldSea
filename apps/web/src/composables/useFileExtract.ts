@@ -1,14 +1,4 @@
-/**
- * useFileExtract — 文档内容提取 composable
- *
- * 统一 AgentInputBar.vue 与 ChatInput.vue 中的 docx/pdf/text 解析逻辑，
- * 修复 pdfjs-dist workerSrc='' 导致的主线程阻塞问题（改用 Web Worker）。
- *
- * 设计原则：
- *   - 仅负责"纯文档解析"，不处理 image（image 涉及 visionSupported 检查与压缩）
- *   - 返回标准结构，调用方自行 push 到 attachments
- *   - 不识别的类型返回 null，由调用方走 unsupported 分支
- */
+/** useFileExtract：文档内容提取（docx/pdf/text 统一解析，pdfjs 改 Web Worker），详细见 docs/details/注释/web/composables/useFileExtract.md */
 
 /// 支持的文档扩展名
 const DOC_EXTENSIONS = ['.docx']

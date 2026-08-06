@@ -1,13 +1,4 @@
-/**
- * splash-canvas.ts — WorldSmith 启动页 Canvas 动效引擎
- *
- * 双 Canvas 分层：
- *   - constellation 层：脉冲星座网络（固定动效，节点漂移 + 脉动 + 连线流光）
- *   - interaction 层：鼠标交互（光晕跟随 + 虚线引力线 + 涟漪扩散）
- *
- * 配色通过 getComputedStyle 读取项目 CSS 变量（跟随主题），fallback 到 Cyberpunk 默认值。
- * 设计稿来源：Ardot 设计文件 WorldSmith-Splash-Page (Cyberpunk UI 风格指南)
- */
+/** splash-canvas：启动页 Canvas 动效引擎（双 Canvas 分层，主题跟随见文档），详细见 docs/details/注释/web/ui/boot/splash-canvas.md */
 
 // ────────────── 类型 ──────────────
 interface StarNode {

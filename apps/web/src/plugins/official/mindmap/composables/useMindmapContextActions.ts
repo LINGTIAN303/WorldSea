@@ -1,15 +1,4 @@
-/**
- * 思维导图右键菜单操作 / 内联编辑 / 边操作 / 实体表单
- *
- * 从 MindmapView.vue 拆出，封装：
- * - ctx* 系列函数（编辑名称/描述/标签、删除、折叠、设中心等）
- * - 内联编辑（节点名称、边标签行内编辑）
- * - 边操作（创建关系、编辑标签/类型/样式、删除）
- * - 实体表单保存
- * - 颜色选择
- * - 自定义节点添加（textbox/image/note/link/group/center）
- * - 图片文件选择
- */
+/** 思维导图右键菜单操作/内联编辑/边操作/实体表单（从 MindmapView 拆出），详细见 docs/details/注释/web/plugins/official/mindmap/composables/useMindmapContextActions.md */
 import { nextTick, type Ref } from 'vue'
 import { relationSchemaRegistry, getEdgeColor, useEntityStore, useRelationStore } from '@worldsmith/entity-core'
 import type { Entity, Relation } from '@worldsmith/entity-core'

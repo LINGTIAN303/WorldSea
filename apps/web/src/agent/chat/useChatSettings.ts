@@ -1,14 +1,4 @@
-/**
- * useChatSettings — Agent 聊天设置（模型 / 温度 / persona / thinking / search / skills / mcp）
- *
- * 从 AgentChat.vue 拆分而来，负责：
- *   - 设置项 state（temperature/maxTokens/contextLength/personaPreset/thinkingLevel/searchEngine/...）
- *   - 模型相关常量（THINKING_LEVELS / CHAT_MODES / maxOutputTokensForModel / ...）
- *   - 各类 onXxxChange 回调（模型/温度/persona/thinking/search/apikey/provider/skill/mcp）
- *   - 持久化（saveAgentSettings / loadAgentSettings / loadThinkingLevel / loadCurrentModel / saveSearchConfig / loadSearchConfig）
- *
- * 外部依赖通过 options 注入，避免与 useAgent / useMcpConnections 强耦合。
- */
+/** useChatSettings：Agent 聊天设置 state/回调/持久化（从 AgentChat 拆分，依赖注入解耦），详细见 docs/details/注释/web/agent/chat/useChatSettings.md */
 import { ref, computed, type Ref } from 'vue'
 import type { ThinkingLevel, SkillMeta, MCPConnectionConfig, MCPConnectionState } from '@agent/index'
 import type { ChatMode } from '../composables/useAgent'

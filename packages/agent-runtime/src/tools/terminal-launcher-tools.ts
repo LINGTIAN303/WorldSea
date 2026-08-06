@@ -3,20 +3,7 @@ import type { ToolMeta } from '@worldsmith/agent-core'
 import type { IToolContext } from '../toolbus/types'
 import { isTauri, createExecutionAdapter, getWsUrl, resetExecutionAdapter } from '../execution'
 
-/**
- * 终端启动器工具集
- *
- * 智能检测运行模式（Tauri 桌面 / Web 应用），按正确模式调用终端能力。
- * 支持自动启动 worldsmith-server（Web 模式下的命令执行后端）。
- *
- * 工具：
- * - detect_terminal_mode: 检测当前运行模式
- * - start_server: 启动/检测 worldsmith-server 服务
- * - launch_terminal: 启动终端并可选执行命令
- * - launch_terminal_script: 启动终端执行脚本文件
- *
- * Web 模式下的命令执行依赖 worldsmith-server，工具链会自动检测并启动服务。
- */
+/** 终端启动器工具集：检测运行模式 + 自动启动 worldsmith-server，详细见 docs/details/注释/packages/agent-runtime/tools-terminal-launcher-tools.md */
 
 const SERVER_HEALTH_TIMEOUT = 3000
 const SERVER_START_WAIT = 5000

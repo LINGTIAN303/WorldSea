@@ -1,14 +1,4 @@
-/**
- * 统一权限守卫
- *
- * 从工具元数据自动解析权限级别，取代 useAgent.ts / cli-safety-guard.ts
- * 中的硬编码列表。新增工具时只需在 ToolMeta 中声明权限，自动传播到所有消费方。
- *
- * 用法：
- *   const guard = new PermissionGuard(toolRegistry)
- *   const level = guard.resolvePermission('shell_session', { action: 'exec', command: 'rm -rf /' })
- *   // → 'dangerous'
- */
+/** 统一权限守卫（元数据自动解析 + 用法示例），详细见 docs/details/注释/packages/agent-core/guard/index.md */
 
 import type { PermissionLevel, ToolMeta } from '../types'
 
@@ -75,16 +65,7 @@ export class PermissionGuard {
     }
   }
 
-  /**
-   * 解析工具调用的最终权限级别
-   *
-   * 解析优先级：
-   * 1. permissionOverrides（最高优先）
-   * 2. 子命令级别权限覆盖（subCommandPermissions）
-   * 3. 危险命令模式检测（dangerousPatterns + 全局 dangerousCommandPatterns）
-   * 4. 工具声明的默认权限（meta.permission）
-   * 5. 兜底为 moderate
-   */
+  /** 解析工具调用的最终权限级别（5 级优先级见文档），详细见 docs/details/注释/packages/agent-core/guard/index.md */
   resolvePermission(
     toolName: string,
     args?: Record<string, unknown>,

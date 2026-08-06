@@ -1,14 +1,4 @@
-/**
- * 深度网页爬取工具
- *
- * 优先使用本地 Crawl4AI 后端服务（支持 JS 渲染、反检测、结构化提取），
- * 后端不可用时自动降级到 Jina Reader API。
- *
- * 工具分工：
- * - Firecrawl MCP（mcp_firecrawl-keyless_*）：优先用于网页搜索、整站爬取、地图扫描。
- * - web_crawl：用于 JS 渲染页面、反检测、批量单页抓取或本地 Crawl4AI 可用时的深度抓取。
- * - web_fetch：Jina Reader 单页快速兜底，适合静态内容、后端不可用的最后选择。
- */
+/** 深度网页爬取工具：Crawl4AI 优先 + Jina Reader 降级，详细见 docs/details/注释/packages/agent-runtime/tools-crawl-tool.md */
 
 import type { ToolDefinition } from '../bridge-types'
 import type { ToolMeta } from '@worldsmith/agent-core'

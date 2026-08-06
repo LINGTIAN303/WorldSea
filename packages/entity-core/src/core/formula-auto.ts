@@ -1,15 +1,4 @@
-/**
- * core/formula-auto.ts — Formula 自动重算
- *
- * 监听 field:change 事件，找出所有依赖该字段的 formula 字段并自动重算。
- * 在 registry initialize() 中注册。
- *
- * Phase 3：从 src/modules/runtime/formula-auto.ts 下沉到 entity-core
- * 导入路径调整：
- *   - ./events → ./events（包内相对）
- *   - ./formula → ./formula（包内相对）
- *   - @worldsmith/entity-core → ../stores + ./EntitySchema（包内相对）
- */
+/** Formula 自动重算（监听 field:change 找出依赖字段并自动重算），详细见 docs/details/注释/packages/entity-core/core/formula-auto.md */
 
 import { eventBus, type FieldChangeEvent } from './events'
 import { evaluateFormula, extractFieldRefs } from './formula'

@@ -1,17 +1,4 @@
-/**
- * DefaultOrchestrator — 阶段 0 的简单编排器实现
- *
- * 特性：
- * - 线性/条件序列执行（不涉及并行/回溯，那些留给阶段 2）
- * - 支持中断/暂停/恢复
- * - 事件订阅与状态快照
- * - 最大轮次限制（防无限循环）
- *
- * 不包含（阶段 2 再做）：
- * - 并行节点执行（ToT/GoT 需要）
- * - 图的环路检测
- * - 节点超时（单个节点级别）
- */
+/** 阶段 0 简单编排器实现（特性与不含项见文档），详细见 docs/details/注释/packages/agent-core/orchestrator/default-orchestrator.md */
 
 import type { AgentEvent, AgentEventListener } from '../types'
 import type {
@@ -50,19 +37,7 @@ export class DefaultOrchestrator implements IOrchestrator {
     this.backend = backend
   }
 
-  /**
-   * 中继事件 — 将外部事件注入 Orchestrator 的事件流
-   *
-   * 用途：PiBackendAccessor 订阅 CoreBackend 事件后，
-   * 通过此方法将 LLM 事件（message_start/update/end 等）转发给 Orchestrator 的订阅者。
-   *
-   * 使用方式：
-   * ```ts
-   * const orchestrator = new DefaultOrchestrator()
-   * const accessor = new PiBackendAccessor(coreBackend, orchestrator.relayEvent.bind(orchestrator))
-   * orchestrator.setBackend(accessor)
-   * ```
-   */
+  /** 中继事件（将外部 LLM 事件注入编排器事件流），详细见 docs/details/注释/packages/agent-core/orchestrator/default-orchestrator.md */
   relayEvent(event: AgentEvent): void {
     this.emit(event)
   }

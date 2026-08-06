@@ -1,0 +1,36 @@
+[package]
+name = "agent-memory"
+version = "0.1.0"
+edition = "2021"
+description = "MemoryAccessor 适配层 — 以 vendor 的 memory-center-core 实现 Agent 长期记忆（recall/inject/archive）"
+license = "MIT OR Apache-2.0"
+keywords = ["agent", "memory", "accessor"]
+categories = ["asynchronous"]
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+# ── 本地 crate ──
+# MemoryAccessor trait 与数据结构（来自 agent-runtime memory 模块）
+agent-runtime = { path = "../agent-runtime" }
+# MemoryCenter 核心（SQLite/文件树存储 + Retriefer + Archiver）
+memory-center-core = { path = "../vendor/memory-center-core" }
+
+# ── 序列化 ──
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# ── 异步运行时 ──
+tokio = { version = "1", features = ["sync", "macros", "rt", "time"] }
+async-trait = "0.1"
+
+# ── 工具链 ──
+thiserror = "2"
+uuid = { version = "1", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+tracing = "0.1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full", "test-util"] }
+tempfile = "3"

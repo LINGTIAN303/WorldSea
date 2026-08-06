@@ -6,18 +6,7 @@ import { visualizer } from 'rollup-plugin-visualizer'
 import path from 'path'
 import pkg from './package.json'
 
-/**
- * Tauri 端 Vite 配置（Phase 5 独立构建）
- *
- * 设计原则：
- * 1. 通过 Tauri IPC 调用 Rust 命令（不走 HTTP/WS）
- * 2. WASM 后端用于算法降级（当 Tauri 命令不可用时，如开发期 hot reload）
- * 3. 不需要 /api/* 代理（Tauri 端通过 IPC 直接访问系统能力）
- * 4. Tauri dev 由 tauri.conf.json 的 beforeDevCommand 触发此 Vite 服务器
- *
- * 端口：5175（避免与 Web 端 5174、主项目 5173 冲突）
- * 后端连接：Tauri IPC（TauriExecutionAdapter）
- */
+/** Tauri 端 Vite 配置（设计原则/端口/后端连接），详细见 docs/details/注释/tauri/vite-config.md */
 
 // ────────────────────────── Alias 配置 ──────────────────────────
 // 共享包 alias（指向源码，便于 HMR 和调试）

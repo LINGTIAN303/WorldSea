@@ -1,14 +1,4 @@
-/**
- * AgentPreview 工具调用结果的 HTML 渲染器
- *
- * 从 AgentPreview.vue 中提取的纯函数模块。
- * 负责将工具调用的 JSON 字符串结果渲染为带样式的 HTML 字符串，
- * 并通过 DOMPurify 消毒后供 v-html 使用。
- *
- * 注：render* 函数处理的 obj 来自任意工具返回的 JSON，
- * 结构高度动态，故保留 any 类型（必要时例外），
- * 出口统一经 DOMPurify.sanitize 消毒，不存在 XSS 风险。
- */
+/** AgentPreview 工具调用结果 HTML 渲染器（纯函数，DOMPurify 消毒，any 说明见文档），详细见 docs/details/注释/web/agent/preview/resultRenderer.md */
 import DOMPurify from 'dompurify'
 import { getTypeLabel, translateKey, translateValue } from './previewLabels'
 

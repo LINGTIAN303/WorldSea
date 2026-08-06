@@ -34,17 +34,7 @@ pub trait MemoryAccessor: Send + Sync {
         options: Option<MemoryRecallOptions>,
     ) -> Result<Vec<MemoryRecallResult>, MemoryError>;
 
-    /// 注入记忆摘要到 system prompt
-    ///
-    /// 将检索到的记忆摘要拼接到 system prompt 中，供后续 LLM 调用使用。
-    /// 实现层负责维护"已注入"状态，避免重复注入。
-    ///
-    /// # 参数
-    /// - `results`：检索结果（来自 `recall`）
-    /// - `options`：注入选项
-    ///
-    /// # 返回
-    /// 注入到 system prompt 的文本片段（空字符串=无注入）
+    /// 注入记忆摘要到 system prompt，详细见 docs/details/注释/agent-runtime/memory.md
     async fn inject(
         &self,
         results: Vec<MemoryRecallResult>,
@@ -77,6 +67,15 @@ pub trait MemoryAccessor: Send + Sync {
         _chunk_id: String,
     ) -> Result<Option<MemoryChunkContent>, MemoryError> {
         Ok(None)
+    }
+
+    /// 记录一轮对话（供归档前累积），详细见 docs/details/注释/agent-runtime/memory.md
+    async fn record_turn(
+        &self,
+        _user_message: String,
+        _assistant_message: String,
+    ) -> Result<(), MemoryError> {
+        Ok(())
     }
 }
 

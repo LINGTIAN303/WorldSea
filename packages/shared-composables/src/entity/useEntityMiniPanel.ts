@@ -1,18 +1,4 @@
-/**
- * useEntityMiniPanel — 实体卡片小窗状态管理（模块级单例）
- *
- * 职责：
- * - 封装 FloatingPanel 的 visible/triggerRect 状态
- * - 维护当前打开的 entityId
- * - 提供 open(entityId, triggerRect) / close() API
- *
- * 设计说明：
- * - 模块级单例：与 useAgent 一致，全局共享同一份浮窗状态
- * - 单实例：同时只打开一个实体小窗（useFloatingPanel 是单例式 composable）
- * - triggerRect 来自触发元素（BlockEntityCard 按钮 / 消息内 mention），用于浮窗定位
- *
- * 端分离 Phase 3：迁移至 @worldsmith/shared-composables，三端共用。
- */
+/** 实体卡片小窗状态管理（模块级单例：visible/triggerRect/entityId），详细见 docs/details/注释/packages/shared-composables/entity/useEntityMiniPanel.md */
 import { ref } from 'vue'
 
 /** 触发元素的位置信息（兼容 DOMRect 和简化对象） */

@@ -1,27 +1,4 @@
-/**
- * # useAgent — Web 端入口（端分离 P3-W5）
- *
- * ## 架构位置
- * 本文件是 Web 端的 Agent Backend 入口，对应 Tauri 端的 useAgentRustAdapter。
- *
- * ## 端分离策略
- * - 共享层：@worldsmith/shared-composables/agent/useAgent（inject 模式 + 类型定义）
- * - Tauri 端：src/agent/composables/useAgentRust.ts（Rust IPC）
- * - Web 端：本文件（本地状态机 + @agent/execution 终端 + no-op 占位）
- *
- * ## 功能状态（功能退化版）
- * 当前 Agent 循环在 Tauri（Rust IPC）与 CLI Server（@agent/execution WebSocket），
- * Web 端聊天后端尚未接通。本适配器保证 AgentSpace UI 完整渲染与交互不崩：
- * - **可用**：messages（本地） / isStreaming / newSession / abort / clearHistory /
- *   isInitialized / ensureInitialized / 终端（execution adapter）
- * - **空 ref 占位**：a2uiSurfaces / deepSegments / finalOutput / totalUsage /
- *   cumulativeUsage / lastRequestUsage / activeTask / heartbeatStatus
- * - **no-op 方法**：sendBlockAction / setChatMode / updateModel / updateThinkingLevel /
- *   refreshSearchConfig / resolveDataBinding / createSubBackend / switchSession /
- *   resumeTask / discardTask / getProviderConfig
- *
- * 后续接入 Web 聊天后端时，仅需替换 sendMessage 内部实现。
- */
+/** useAgent：Web 端 Agent Backend 入口（端分离 P3-W5，功能退化版可用项见文档），详细见 docs/details/注释/web/agent/composables/useAgent.md */
 
 // re-export 共享类型（21+ 文件依赖这些类型）
 export type {

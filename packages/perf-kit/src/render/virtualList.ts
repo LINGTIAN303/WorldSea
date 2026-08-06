@@ -1,23 +1,6 @@
 import { ref, shallowRef, computed, watch, onBeforeUnmount, onMounted, type Ref } from 'vue'
 
-/**
- * 通用虚拟滚动 hook：只渲染视口附近 [start, end) 区间内的 item，
- * 区间外用占位 div 撑开滚动条高度，避免长列表 DOM 节点爆炸。
- *
- * 高度策略：先按 estimatedHeight 估算，滚动后由 ResizeObserver 测量真实高度，
- * 用前缀和 + 二分查找（O(log n)）定位滚动位置，rAF 合并滚动更新。
- * 适用于看板列等高度不固定的卡片列表。
- *
- * 用法：
- *   const { visibleItems, topPlaceholderHeight, bottomPlaceholderHeight, onScroll, containerRef } =
- *     useVirtualList({ items: cards, estimatedHeight: 96 })
- *
- *   <div ref="containerRef" class="scroll" @scroll.passive="onScroll">
- *     <div :style="{ height: topPlaceholderHeight + 'px' }" />
- *     <div v-for="item in visibleItems" :key="item.id">{{ item.name }}</div>
- *     <div :style="{ height: bottomPlaceholderHeight + 'px' }" />
- *   </div>
- */
+/** 通用虚拟滚动 hook（只渲染视口附近 item，前缀和 + 二分定位 + rAF 合并），详细见 docs/details/注释/packages/perf-kit/render/virtualList.md */
 export function useVirtualList<T extends { id: string }>(options: {
   items: Ref<T[]>
   /** 未测量 item 的估算高度（px），默认 96 */

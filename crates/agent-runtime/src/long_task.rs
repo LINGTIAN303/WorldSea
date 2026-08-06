@@ -1,24 +1,4 @@
-//! # 长任务管理 — Loop Engineering 核心组件
-//!
-//! 对应 TS 版 `longTaskStore.ts` + `useLongTask.ts`，迁移到 Rust 原生实现。
-//!
-//! ## 职责
-//! 1. **状态机**：running → completed/failed/cancelled
-//! 2. **心跳**：定时更新 `last_heartbeat_at`，检测失联（软提醒，不强制终止）
-//! 3. **checkpoint**：事件驱动快照 AgentLoop 内部 messages，支持断点恢复
-//! 4. **协作式取消**：设 `cancel_flag`，ReAct 循环在下一轮检查时优雅停止
-//!
-//! ## 设计原则（复用 workflow 引擎模式）
-//! - 协作式取消 > 强制取消（Temporal/Airflow 经典模式）
-//! - 心跳判活（`DispatchHandle.last_heartbeat_at_ms` 模式）
-//! - checkpoint 持久化（`SqliteStore` 模式）
-//! - 无硬超时（符合"无强制中断"需求）
-//!
-//! ## 与 TS 版的差异
-//! - 持久化层从 IndexedDB 改为 SQLite（与 SessionRepository 同库）
-//! - 心跳定时器从 `setInterval` 改为 `tokio::time::interval`
-//! - 取消标志从模块级 `Map` 改为 `Arc<AtomicBool>`（每任务独立）
-//! - checkpoint 数据提供者从回调改为 `Arc<dyn CheckpointProvider>` trait
+//! 长任务管理 — Loop Engineering 核心组件，详细见 docs/details/注释/agent-runtime/long_task.md
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -187,18 +167,7 @@ pub struct LongTaskRecord {
 
 // ─── CheckpointProvider trait ────────────────────────────────────────────
 
-/// checkpoint 数据提供者 trait
-///
-/// 对应 TS 版 `() => LongTaskCheckpoint` 回调，Rust 改为 trait 注入：
-/// - `AgentLoop` 实现此 trait，提供 `get_checkpoint()` 返回当前 messages 快照
-/// - `LongTaskManager` 通过 `Arc<dyn CheckpointProvider>` 调用，解耦具体实现
-///
-/// # 设计动机
-/// Rust 没有 TS 的闭包捕获灵活性，用 trait + Arc 既能持有状态又线程安全。
-///
-/// # 异步设计
-/// AgentLoop 的 `state` 用 `tokio::sync::Mutex`（AsyncMutex）保护，
-/// 取 messages 必须 `.await`，因此 trait 方法为 `async`。
+/// checkpoint 数据提供者 trait，详细见 docs/details/注释/agent-runtime/long_task.md
 #[async_trait]
 pub trait CheckpointProvider: Send + Sync {
     /// 获取当前 checkpoint 快照（含 AgentLoop 内部 messages）
@@ -209,20 +178,7 @@ pub trait CheckpointProvider: Send + Sync {
 
 // ─── LongTaskManager ────────────────────────────────────────────
 
-/// 长任务管理器
-///
-/// 对应 TS 版 `useLongTask` composable，Rust 版改为可注入的 Manager。
-/// 单例：每个 AgentLoop 持有一个 Manager（P1 范围仅主 Agent 接入）。
-///
-/// # 职责
-/// 1. 持有当前活跃任务（`active_task`）
-/// 2. 启动/停止心跳定时器
-/// 3. 提供 checkpoint 更新接口（脏标记节流）
-/// 4. 协作式取消标志管理
-///
-/// # 不负责
-/// - 持久化：由 `LongTaskRepository`（Tauri 端）负责，Manager 仅持有内存状态
-/// - 事件广播：由 `AgentLoop` 通过 `OrchestratorEvent` 转发
+/// 长任务管理器，详细见 docs/details/注释/agent-runtime/long_task.md
 pub struct LongTaskManager {
     /// 当前活跃任务（None 表示无活跃任务）
     active_task: AsyncMutex<Option<LongTaskRecord>>,
@@ -248,22 +204,7 @@ impl LongTaskManager {
         }
     }
 
-    /// 启动长任务
-    ///
-    /// # 参数
-    /// - `task_id`：调用方生成的任务 ID（格式建议：`longtask-{type}-{ts}-{rand}`）
-    /// - `task_type`：任务类型
-    /// - `initial_checkpoint`：初始 checkpoint（由 `CheckpointProvider` 获取）
-    /// - `meta`：任务元数据（含 `prompt` 字段，作为任务描述）
-    ///
-    /// # 行为
-    /// 1. 若已有活跃任务，警告并保留（不抢占，调用方应先 `complete_task` 或 `fail_task`）
-    /// 2. 创建 `LongTaskRecord`，status=Running，started_at=now
-    /// 3. 清除 cancel_flag，重置 heartbeat_status=Alive
-    /// 4. 启动心跳定时器
-    ///
-    /// # 返回
-    /// 创建的 `LongTaskRecord`（调用方负责持久化）
+    /// 启动长任务，详细见 docs/details/注释/agent-runtime/long_task.md
     pub async fn start_task(
         &self,
         task_id: String,
@@ -318,19 +259,7 @@ impl LongTaskManager {
         record
     }
 
-    /// 更新 checkpoint（事件驱动，由 `turn_end` / `tool_execution_end` 触发）
-    ///
-    /// # 参数
-    /// - `progress_turn_count`：可选的轮次更新
-    /// - `progress_current_tool`：可选的当前工具名更新
-    /// - `progress_current_phase`：可选的当前阶段标签更新
-    /// - `new_checkpoint`：新的 checkpoint 快照（由 `CheckpointProvider` 获取）
-    ///
-    /// # 行为
-    /// 1. 仅当活跃任务存在且 status=Running 时更新
-    /// 2. 更新进度字段
-    /// 3. 替换 checkpoint，标记 dirty=true
-    /// 4. 持久化由心跳定时器节流（5s 一次），避免频繁写入
+    /// 更新 checkpoint（事件驱动），详细见 docs/details/注释/agent-runtime/long_task.md
     pub async fn checkpoint(
         &self,
         progress_turn_count: Option<u32>,
@@ -362,16 +291,7 @@ impl LongTaskManager {
         *self.checkpoint_dirty.lock().await = true;
     }
 
-    /// 标记任务完成
-    ///
-    /// # 行为
-    /// 1. 设置 status=Completed, ended_at=now
-    /// 2. 停止心跳定时器
-    /// 3. 清空内存（record 已持久化由调用方负责）
-    /// 4. 重置标志
-    ///
-    /// # 返回
-    /// 完成后的 `LongTaskRecord`（含 ended_at），供调用方持久化；若无可恢复任务返回 None
+    /// 标记任务完成，详细见 docs/details/注释/agent-runtime/long_task.md
     pub async fn complete_task(&self) -> Option<LongTaskRecord> {
         let mut active = self.active_task.lock().await;
         let Some(mut record) = active.take() else {
@@ -461,26 +381,7 @@ impl LongTaskManager {
         self.cancel_flag.load(Ordering::SeqCst)
     }
 
-    /// 标记任务可重试失败（Loop Engineering 阶段 2.6 新增）
-    ///
-    /// 与 `fail_task` 的区别：
-    /// - `fail_task`：永久失败，设 `ended_at`，状态转 Failed
-    /// - `retry_task`：可重试失败，**不设 `ended_at`**，状态保持 Running，
-    ///   保留 checkpoint 供 AgentLoop 决定是否重试
-    ///
-    /// # 行为
-    /// 1. 仅当活跃任务存在且 status=Running 时更新
-    /// 2. 将错误信息记录到 `current_phase`（前缀 "retry:"）
-    /// 3. 标记 checkpoint dirty 以便持久化最新状态
-    ///
-    /// # 返回
-    /// 当前 `LongTaskRecord` 的克隆（含最新 checkpoint），供调用方决定是否重试。
-    /// 若无可重试任务返回 None。
-    ///
-    /// # 使用场景
-    /// AgentLoop 在 LLM/tool 调用失败时调用此方法，然后查询 `LoopController::retry_policy`
-    /// 决定是否重试。若重试，调用 `clear_retry_marker` 清除标记后继续循环；
-    /// 若不重试，调用 `fail_task` 转为永久失败。
+    /// 标记任务可重试失败（Loop Engineering 阶段 2.6 新增），详细见 docs/details/注释/agent-runtime/long_task.md
     pub async fn retry_task(&self, error: &str) -> Option<LongTaskRecord> {
         {
             let mut active = self.active_task.lock().await;
@@ -527,18 +428,7 @@ impl LongTaskManager {
         }
     }
 
-    /// 记录速率限制状态（Loop Engineering 阶段 2.6 新增）
-    ///
-    /// 由 AgentLoop 在每轮检查 `LoopController::rate_limiter` 后调用，
-    /// 将 rate_limit 状态记录到 `current_phase` 字段，便于持久化与 UI 展示。
-    ///
-    /// # 参数
-    /// - `status`：rate_limit 状态描述（如 "turns: 50/100" / "tokens: 45000/100000"）
-    ///
-    /// # 行为
-    /// 1. 仅当活跃任务存在且 status=Running 时更新
-    /// 2. 更新 `current_phase` 字段（前缀 "rate_limit:"）
-    /// 3. 不标记 dirty（避免频繁持久化，由心跳定时器节流）
+    /// 记录速率限制状态（Loop Engineering 阶段 2.6 新增），详细见 docs/details/注释/agent-runtime/long_task.md
     pub async fn record_rate_limit_status(&self, status: &str) {
         let mut active = self.active_task.lock().await;
         let Some(record) = active.as_mut() else {
@@ -674,29 +564,7 @@ impl LongTaskManager {
         *self.heartbeat_status.write().await = new_status;
     }
 
-    /// 启动心跳定时器
-    ///
-    /// # 参数
-    /// - `manager_arc`：`LongTaskManager` 的 Arc 句柄（让 spawn 闭包能持有 Manager 引用，
-    ///   从而在每次 tick 时读取内存状态决定 tick 类型）
-    /// - `on_tick`：心跳 tick 回调（用于持久化脏 checkpoint / 更新 SQLite 心跳时间）
-    ///
-    /// # 行为
-    /// - 每 `HEARTBEAT_INTERVAL` 触发一次：
-    ///   1. 调用 `update_heartbeat()` 更新内存心跳时间
-    ///   2. 若 `is_checkpoint_dirty()`：构造 `CheckpointFlush` tick（含完整 record）调用 `on_tick`，
-    ///      然后清除 dirty 标记
-    ///   3. 否则：构造 `HeartbeatOnly` tick（仅 task_id + last_heartbeat_at）调用 `on_tick`
-    /// - 任务完成/失败/取消时通过 `stop_heartbeat_internal` 停止
-    ///
-    /// # 设计说明
-    /// - **为何需要 `manager_arc` 参数**：spawn 出来的定时器 task 需要异步访问 Manager 的
-    ///   `is_checkpoint_dirty` / `get_active_task` / `clear_checkpoint_dirty` 等方法，
-    ///   这些方法都是 `&self`，需要持有 Arc 引用才能在 spawn 闭包中调用。
-    ///   调用方（通常是 `AgentLoop::start_long_task_heartbeat`）通过
-    ///   `Arc::clone(&manager)` 传入。
-    /// - **不直接持有 `Arc<dyn LongTaskRepository>`**：避免 agent-runtime crate 依赖
-    ///   rusqlite，保持 crate 解耦。持久化逻辑由 `on_tick` 回调注入。
+    /// 启动心跳定时器，详细见 docs/details/注释/agent-runtime/long_task.md
     pub async fn start_heartbeat<F, Fut>(&self, manager_arc: Arc<Self>, on_tick: F)
     where
         F: Fn(HeartbeatTick) -> Fut + Send + 'static,
@@ -807,333 +675,6 @@ impl HeartbeatTick {
     // 还是 `CheckpointFlush`，无需占位 tick。
 }
 
-// ─── 测试 ────────────────────────────────────────────
-
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::types::MessageRole;
-
-    fn make_test_checkpoint() -> LongTaskCheckpoint {
-        LongTaskCheckpoint {
-            agent_messages: vec![OrchestratorMessage {
-                role: MessageRole::User,
-                content: "test".into(),
-                tool_calls: vec![],
-                tool_call_id: None,
-                meta: None,
-            }],
-            last_user_text: "test prompt".into(),
-            skill_names: None,
-            chat_mode: None,
-            locked_chat_mode: None,
-        }
-    }
-
-    #[tokio::test]
-    async fn test_start_task_creates_running_record() {
-        let manager = LongTaskManager::new();
-        let record = manager
-            .start_task(
-                "test-1".into(),
-                LongTaskType::MainAgent,
-                make_test_checkpoint(),
-                LongTaskMeta {
-                    prompt: "test prompt".into(),
-                    ..Default::default()
-                },
-            )
-            .await;
-
-        assert_eq!(record.task_id, "test-1");
-        assert_eq!(record.task_type, LongTaskType::MainAgent);
-        assert_eq!(record.status, LongTaskStatus::Running);
-        assert!(record.ended_at.is_none());
-        assert!(manager.has_active_task().await);
-    }
-
-    #[tokio::test]
-    async fn test_complete_task_sets_ended_at() {
-        let manager = LongTaskManager::new();
-        manager
-            .start_task(
-                "test-2".into(),
-                LongTaskType::MainAgent,
-                make_test_checkpoint(),
-                LongTaskMeta::default(),
-            )
-            .await;
-
-        let completed = manager.complete_task().await;
-        assert!(completed.is_some());
-        let completed = completed.unwrap();
-        assert_eq!(completed.status, LongTaskStatus::Completed);
-        assert!(completed.ended_at.is_some());
-        assert!(!manager.has_active_task().await);
-    }
-
-    #[tokio::test]
-    async fn test_cancel_flag_cooperative() {
-        let manager = LongTaskManager::new();
-        assert!(!manager.is_cancel_requested());
-
-        manager.request_cancel();
-        assert!(manager.is_cancel_requested());
-
-        // complete_task 后 flag 应被重置
-        manager
-            .start_task(
-                "test-3".into(),
-                LongTaskType::MainAgent,
-                make_test_checkpoint(),
-                LongTaskMeta::default(),
-            )
-            .await;
-        manager.request_cancel();
-        assert!(manager.is_cancel_requested());
-
-        manager.cancel_task().await;
-        assert!(!manager.is_cancel_requested());
-    }
-
-    #[tokio::test]
-    async fn test_checkpoint_updates_progress() {
-        let manager = LongTaskManager::new();
-        manager
-            .start_task(
-                "test-4".into(),
-                LongTaskType::MainAgent,
-                make_test_checkpoint(),
-                LongTaskMeta::default(),
-            )
-            .await;
-
-        let new_checkpoint = LongTaskCheckpoint {
-            agent_messages: vec![],
-            last_user_text: "updated".into(),
-            skill_names: Some(vec!["skill1".into()]),
-            chat_mode: Some("advanced".into()),
-            locked_chat_mode: None,
-        };
-
-        manager
-            .checkpoint(
-                Some(5),
-                Some("echo".into()),
-                Some("executing".into()),
-                new_checkpoint,
-            )
-            .await;
-
-        let active = manager.get_active_task().await.unwrap();
-        assert_eq!(active.turn_count, 5);
-        assert_eq!(active.current_tool.as_deref(), Some("echo"));
-        assert_eq!(active.current_phase.as_deref(), Some("executing"));
-        assert!(manager.is_checkpoint_dirty().await);
-    }
-
-    #[tokio::test]
-    async fn test_resume_task_keeps_task_id() {
-        let manager = LongTaskManager::new();
-        let original_record = LongTaskRecord {
-            task_id: "resumed-1".into(),
-            task_type: LongTaskType::MainAgent,
-            status: LongTaskStatus::Running,
-            started_at: Utc::now() - chrono::Duration::seconds(60),
-            last_heartbeat_at: Utc::now() - chrono::Duration::seconds(30),
-            ended_at: None,
-            turn_count: 10,
-            current_tool: Some("echo".into()),
-            current_phase: None,
-            checkpoint: make_test_checkpoint(),
-            meta: LongTaskMeta::default(),
-        };
-
-        manager.resume_task(original_record.clone()).await;
-
-        let active = manager.get_active_task().await.unwrap();
-        assert_eq!(active.task_id, "resumed-1");
-        assert_eq!(active.turn_count, 10);
-        // last_heartbeat_at 应被更新为 now
-        assert!(active.last_heartbeat_at > original_record.last_heartbeat_at);
-    }
-
-    #[tokio::test]
-    async fn test_heartbeat_status_transitions() {
-        let manager = LongTaskManager::new();
-        manager
-            .start_task(
-                "test-5".into(),
-                LongTaskType::MainAgent,
-                make_test_checkpoint(),
-                LongTaskMeta::default(),
-            )
-            .await;
-
-        // 刚启动应为 Alive
-        manager.refresh_heartbeat_status().await;
-        assert_eq!(manager.get_heartbeat_status().await, HeartbeatStatus::Alive);
-
-        // 模拟长时间未心跳
-        {
-            let mut active = manager.active_task.lock().await;
-            if let Some(record) = active.as_mut() {
-                record.last_heartbeat_at = Utc::now() - chrono::Duration::seconds(60);
-            }
-        }
-        manager.refresh_heartbeat_status().await;
-        assert_eq!(manager.get_heartbeat_status().await, HeartbeatStatus::Stale);
-
-        // 模拟崩溃（超过 5min）
-        {
-            let mut active = manager.active_task.lock().await;
-            if let Some(record) = active.as_mut() {
-                record.last_heartbeat_at = Utc::now() - chrono::Duration::seconds(400);
-            }
-        }
-        manager.refresh_heartbeat_status().await;
-        assert_eq!(manager.get_heartbeat_status().await, HeartbeatStatus::Dead);
-    }
-
-    #[tokio::test]
-    async fn test_fail_task_terminal_transition() {
-        let manager = LongTaskManager::new();
-        manager
-            .start_task(
-                "fail-1".into(),
-                LongTaskType::MainAgent,
-                make_test_checkpoint(),
-                LongTaskMeta::default(),
-            )
-            .await;
-
-        // 先请求取消，验证 fail_task 会重置 cancel flag
-        manager.request_cancel();
-        assert!(manager.is_cancel_requested());
-
-        let failed = manager.fail_task("boom").await;
-        assert!(failed.is_some());
-        let failed = failed.unwrap();
-        assert_eq!(failed.status, LongTaskStatus::Failed);
-        assert!(failed.ended_at.is_some());
-        // 终态：活跃任务被清空
-        assert!(!manager.has_active_task().await);
-        // 取消 flag 被重置、心跳回到 Alive
-        assert!(!manager.is_cancel_requested());
-        manager.refresh_heartbeat_status().await;
-        assert_eq!(manager.get_heartbeat_status().await, HeartbeatStatus::Alive);
-    }
-
-    #[tokio::test]
-    async fn test_fail_task_no_active_returns_none() {
-        let manager = LongTaskManager::new();
-        assert!(manager.fail_task("boom").await.is_none());
-    }
-
-    #[tokio::test]
-    async fn test_retry_task_keeps_running_and_marks_phase() {
-        let manager = LongTaskManager::new();
-        manager
-            .start_task(
-                "retry-1".into(),
-                LongTaskType::MainAgent,
-                make_test_checkpoint(),
-                LongTaskMeta::default(),
-            )
-            .await;
-
-        let retried = manager.retry_task("llm timeout").await;
-        assert!(retried.is_some());
-        let retried = retried.unwrap();
-        // 可重试失败：状态保持 Running，不设 ended_at
-        assert_eq!(retried.status, LongTaskStatus::Running);
-        assert!(retried.ended_at.is_none());
-        // 错误记录到 current_phase（retry: 前缀）
-        assert_eq!(retried.current_phase.as_deref(), Some("retry: llm timeout"));
-        // 标记 dirty 供持久化
-        assert!(manager.is_checkpoint_dirty().await);
-
-        // 活跃任务仍是 Running（未被清除）
-        assert!(manager.has_active_task().await);
-        let active = manager.get_active_task().await.unwrap();
-        assert_eq!(active.status, LongTaskStatus::Running);
-    }
-
-    #[tokio::test]
-    async fn test_retry_task_truncates_long_error() {
-        let manager = LongTaskManager::new();
-        manager
-            .start_task(
-                "retry-2".into(),
-                LongTaskType::MainAgent,
-                make_test_checkpoint(),
-                LongTaskMeta::default(),
-            )
-            .await;
-
-        let long_error = "x".repeat(500);
-        let retried = manager.retry_task(&long_error).await.unwrap();
-        let phase = retried.current_phase.unwrap();
-        // 错误被截断到 100 字符（不含 "retry: " 前缀）
-        assert!(phase.len() <= 100 + "retry: ".len());
-    }
-
-    #[tokio::test]
-    async fn test_retry_task_no_active_returns_none() {
-        let manager = LongTaskManager::new();
-        assert!(manager.retry_task("boom").await.is_none());
-    }
-
-    #[tokio::test]
-    async fn test_clear_retry_marker() {
-        let manager = LongTaskManager::new();
-        manager
-            .start_task(
-                "retry-3".into(),
-                LongTaskType::MainAgent,
-                make_test_checkpoint(),
-                LongTaskMeta::default(),
-            )
-            .await;
-
-        manager.retry_task("llm timeout").await;
-        assert_eq!(
-            manager.get_active_task().await.unwrap().current_phase.as_deref(),
-            Some("retry: llm timeout")
-        );
-
-        manager.clear_retry_marker().await;
-        let active = manager.get_active_task().await.unwrap();
-        assert!(active.current_phase.is_none());
-        // 状态仍为 Running（清除标记不影响状态）
-        assert_eq!(active.status, LongTaskStatus::Running);
-    }
-
-    #[tokio::test]
-    async fn test_clear_retry_marker_ignores_non_retry_phase() {
-        let manager = LongTaskManager::new();
-        manager
-            .start_task(
-                "retry-4".into(),
-                LongTaskType::MainAgent,
-                make_test_checkpoint(),
-                LongTaskMeta::default(),
-            )
-            .await;
-
-        // 非 retry 前缀的 phase 不应被清除
-        manager
-            .checkpoint(
-                Some(1),
-                Some("echo".into()),
-                Some("executing".into()),
-                make_test_checkpoint(),
-            )
-            .await;
-        manager.clear_retry_marker().await;
-        assert_eq!(
-            manager.get_active_task().await.unwrap().current_phase.as_deref(),
-            Some("executing")
-        );
-    }
-}
+#[path = "long_task_tests.rs"]
+mod tests;

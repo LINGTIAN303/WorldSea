@@ -1,13 +1,4 @@
-/**
- * useManuscriptActions — 文境（Manuscript）Block 本地操作
- *
- * 从 AgentChat.vue 拆分而来，负责：
- *   - 文境 block 的本地状态变更（resize / layout / shadow / animation）
- *   - 仅持久化到内存中的 block 数据，不发送到 Agent
- *   - formatBlockActionDisplay：格式化 block 动作的展示文本
- *
- * 与 useAgent.messages 直接交互（修改 block 字段）。
- */
+/** useManuscriptActions：文境 Block 本地操作（仅内存持久化，不发送 Agent），详细见 docs/details/注释/web/agent/chat/useManuscriptActions.md */
 import type { Ref } from 'vue'
 import type { AgentMessage } from '@agent/index'
 

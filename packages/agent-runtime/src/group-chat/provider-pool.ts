@@ -1,14 +1,4 @@
-/**
- * Provider 池管理
- *
- * ProviderSlot 是 AgentProfile 和 ProviderConfig 之间的间接层。
- * 一个 Pool 包含多个 Entry（API 连接配置），通过负载均衡策略选择使用哪个。
- *
- * 典型场景：
- * - 同一厂商多个 API Key 分摊速率限制
- * - 同厂商不同模型供不同 Agent 使用
- * - 多个自定义端点实例
- */
+/** Provider 池管理：ProviderSlot 间接层 + 多 Entry 负载均衡，详细见 docs/details/注释/packages/agent-runtime/group-chat-provider-pool.md */
 
 import type { ProviderConfig } from '../providers/config'
 import { loadApiKey } from '../providers/key-store'

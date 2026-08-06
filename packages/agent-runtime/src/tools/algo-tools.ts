@@ -1,21 +1,7 @@
 import type { ToolDefinition } from '../bridge-types'
 import type { ToolMeta } from '@worldsmith/agent-core'
 
-/**
- * 算法工具集
- *
- * 通过 Tauri 后端调用 Rust 核心库的算法引擎，提供：
- * - 空间索引算法 (R-Tree): 插入/查询/清空
- * - 几何算法: 线段求交、点在多边形内、多边形度量、凸包、碰撞检测
- * - 图算法: 最短路径、拓扑排序、图分析、力导向布局、PageRank、社区发现
- * - CRDT 算法: LWW-Register、OR-Set、RGA、Vector Clock
- * - 地形算法: 噪声生成、高度图、等高线、水力侵蚀、视域分析
- * - 约束求解: 约束求解、DXF 解析/生成/提取约束
- * - 多边形布尔操作: 并/交/差、偏移
- * - 曲线平滑: Chaikin 平滑
- *
- * 所有工具依赖 Tauri invoke API，仅在 Tauri 桌面模式下可用。
- */
+/** 算法工具集：Tauri 调用 Rust 算法引擎（空间/几何/图/CRDT/地形等），详细见 docs/details/注释/packages/agent-runtime/tools-algo-tools.md */
 
 async function invokeTauri(command: string, args?: Record<string, unknown>): Promise<unknown> {
   const { invoke } = await import('@tauri-apps/api/core')

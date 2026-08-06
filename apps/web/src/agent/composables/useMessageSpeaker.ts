@@ -23,18 +23,7 @@ export interface SpeakerInfo {
   fontFamily?: string
 }
 
-/**
- * 统一获取消息的 speaker 信息
- *
- * 数据流统一（迭代点 2）：
- * - 群聊消息：优先用 msg.speaker* 字段（GroupChatCoordinator 填充）
- * - 单聊消息：从 store 读（assistant→spaceStore.persona + accentColor，user→userProfileStore）
- *
- * 配合 AvatarBadge 组件使用：AvatarBadge 内部 useAvatarImage 自动解析 avatar（图片/引用）为 src，
- * 无图片时显示文字（avatar/name 首字）+ 背景色。
- *
- * 直接用 usePersonaFontStore（而非 usePersonaFont composable）避免字体加载副作用。
- */
+/** 统一获取消息 speaker 信息（群聊/单聊数据流统一，配合 AvatarBadge），详细见 docs/details/注释/web/agent/composables/useMessageSpeaker.md */
 export function useMessageSpeaker(
   getter: () => SpeakerMessage | undefined | null,
 ): ComputedRef<SpeakerInfo> {

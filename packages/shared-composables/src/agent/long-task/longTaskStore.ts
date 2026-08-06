@@ -1,19 +1,4 @@
-/**
- * LongTaskStore — 长任务持久化层
- *
- * 任务 4（Agent 长任务能力）P1 核心：
- *   将长任务记录（含 checkpoint 快照）持久化到 IndexedDB（Dexie），
- *   支持页面刷新/崩溃后从断点恢复。
- *
- * 设计参考：
- *   - GroupSessionManager.ts 的 Dexie 单例模式
- *   - src-tauri workflow 引擎的 SqliteStore 持久化模式（状态机 + 进度 + checkpoint）
- *
- * 复用 workflow 引擎的"设计模式"而非存储后端：
- *   前端 Agent 在 Web/Tauri 模式下均无 SqliteStore，故用 IndexedDB。
- *
- * 端分离 Phase 3：迁移至 @worldsmith/shared-composables，三端共用。
- */
+/** 长任务持久化层（Dexie/IndexedDB，checkpoint 快照支持断点恢复），详细见 docs/details/注释/packages/shared-composables/agent/long-task/longTaskStore.md */
 import Dexie, { type Table } from 'dexie'
 
 /** 长任务类型 */

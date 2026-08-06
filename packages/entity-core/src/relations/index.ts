@@ -1,15 +1,4 @@
-/**
- * 全局关系定义 v1.0
- *
- * 从20个插件中提取、去重、合并的所有关系。
- * 按领域分组，使用 defineRelation 注册到 relationshipRegistry。
- *
- * 原则：
- * - 所有关系强制有向 + 强制 inverseType
- * - 对称关系 inverseType 指向自身
- * - 消除命名混乱（located_at/located_in 统一为 located_in + inverse contains_location）
- * - 消除重复声明（member_of, owned_by 等只声明一次）
- */
+/** 全局关系定义 v1.0（从 20 个插件提取/去重/合并，按领域分组注册），详细见 docs/details/注释/packages/entity-core/relations/index.md */
 
 import { defineRelation } from '../core/RelationshipRegistry'
 

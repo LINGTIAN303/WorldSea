@@ -1,14 +1,4 @@
-/**
- * # 子 Agent 预设规格模板
- *
- * 提供常用子 Agent 的一键配置模板，用户在「子 Agent」管理页通过模板菜单
- * 快速预填表单（ID / 名称 / 描述 / 系统提示词 / 白名单 / 最大迭代），
- * 再按需微调后保存。
- *
- * 模板只做**前端预填**，不写死在后端——保持后端零默认规格、纯由用户
- * 注册（决策点 11）。tools_whitelist 为 `undefined` 表示"继承全部工具"，
- * stay consistent with SubAgentView 的 textToWhitelist 语义（空 = 不设白名单）。
- */
+/** 子 Agent 预设规格模板（前端预填，不写死后端），详细见 docs/details/注释/tauri/templates.md */
 import type { SubAgentSpec } from './composables/useSubagentRust'
 
 /** 预设模板：id 作为子 Agent 唯一标识，填入表单时作为默认 id（可改） */

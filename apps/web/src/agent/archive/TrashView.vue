@@ -41,17 +41,7 @@
 </template>
 
 <script setup lang="ts">
-/**
- * TrashView - 回收回站视图
- *
- * 从 ArchivePanel.vue 拆分。自包含回收站状态和逻辑：
- * - 加载回收站列表
- * - 恢复钩子
- * - 永久删除钩子
- * - 清空回收站
- *
- * 通过 emit 'restored' 通知父组件刷新主钩子列表。
- */
+/** TrashView：回收站视图（从 ArchivePanel 拆分，emit 'restored' 通知刷新），详细见 docs/details/注释/web/agent/archive/TrashView.md */
 import { ref, onMounted } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
 import { useMemoryArchive } from '../../memory-archive'

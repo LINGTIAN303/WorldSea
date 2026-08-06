@@ -1,24 +1,4 @@
-/**
- * PackageBuilder — .ws 包构建器
- *
- * 将 WorldSmithPack 打包为 ZIP 归档（.ws 扩展名），内嵌媒体文件。
- * 媒体文件从实体 avatar 和 properties 中扫描引用并嵌入。
- *
- * 包结构：
- *   worldsmith-pack.ws (ZIP)
- *   ├── manifest.json      ← 包元数据 + 文件索引
- *   ├── pack.json          ← WorldSmithPack（完整数据）
- *   └── media/
- *       ├── avatars/       ← entity.avatar 引用的图片
- *       └── attachments/   ← properties 里引用的文件
- *
- * @example
- *   const builder = new PackageBuilder()
- *   const blob = await builder.build(pack, entities)
- *   // 浏览器下载（通过注入的 Downloader 实现）
- *   import { getDownloader } from './ioServices'
- *   getDownloader().download('project.ws', blob)
- */
+/** .ws 包构建器（WorldSmithPack 打包为 ZIP 归档并内嵌媒体文件），详细见 docs/details/注释/packages/entity-core/core/io/PackageBuilder.md */
 
 import JSZip from 'jszip'
 import type { WorldSmithPack } from './WorldSmithPack'

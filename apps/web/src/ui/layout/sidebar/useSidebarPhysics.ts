@@ -25,21 +25,7 @@ export interface PhysicsCallbacks {
   getViewCount: () => number
 }
 
-/**
- * 侧边栏轮播物理引擎 composable
- *
- * 职责:
- *  - 维护 pos / vel / springTarget 状态
- *  - 运行 RAF 物理循环(摩擦 + 弹簧吸附)
- *  - 提供接口:applyImpulse(滚轮) / springTo(点击跳转) / stop
- *
- * 不含:
- *  - DOM 事件处理(由 useSidebarInteraction 负责)
- *  - 视图切换副作用(通过 onSettle 回调通知上层)
- *  - DOM 样式更新(由 SidebarV2 的 syncDomStyles 负责)
- *
- * 这样分离后,物理逻辑可独立单元测试,无需模拟 DOM。
- */
+/** 侧边栏轮播物理引擎（pos/vel/springTarget + RAF 循环，职责分离见文档），详细见 docs/details/注释/web/ui/layout/sidebar/useSidebarPhysics.md */
 export function useSidebarPhysics(callbacks: PhysicsCallbacks) {
   /** 当前浮点位置(视图索引) */
   const pos = ref(0)

@@ -1,14 +1,4 @@
-/**
- * A2UI 辅助渲染函数
- *
- * 提供向 A2UI 画布发射 UI 组件的工具函数，用于创建交互式 UI 界面。
- * A2UI 采用 Surface-Component-DataModel 三层模型：
- * 1. createSurface: 创建画布
- * 2. updateComponents: 声明组件树（Column/Row/List/Card/Chart 等）
- * 3. updateDataModel: 注入数据绑定
- *
- * 包含的工具：a2ui_show_entity / a2ui_show_relation
- */
+/** A2UI 辅助渲染函数：向 A2UI 画布发射 UI 组件，详细见 docs/details/注释/packages/agent-runtime/tools-a2ui-helpers.md */
 
 import type { A2UIMessage, A2UIComponent } from '../bridge-types'
 import type { ToolDefinition } from '../bridge-types'

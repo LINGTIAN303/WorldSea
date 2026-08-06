@@ -1,16 +1,4 @@
-/**
- * 群聊发言欲望系统
- *
- * 复用 companionModeTrigger 的概率引擎，将其适配到群聊场景。
- * 每个 Agent 根据基础概率、话题相关度、近期参与度和全局运气系数决定是否主动发言。
- *
- * 参数映射：
- *   baseProbability × talkativeness → 基础发言意愿
- *   topicRelevance × 60            → 等效编辑时长（sceneFactor）
- *   recentMessageCount              → 亲密度（intimacy）
- *   secondsSinceLastSpoke           → 衰减（decay）
- *   luckState.coefficient           → 全局运气
- */
+/** 群聊发言欲望系统：概率引擎评估每个 Agent 的发言意愿，详细见 docs/details/注释/packages/agent-runtime/group-chat-speaking-desire.md */
 
 import type { AgentProfile } from './types'
 import {

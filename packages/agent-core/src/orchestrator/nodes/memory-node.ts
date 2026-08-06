@@ -1,28 +1,4 @@
-/**
- * MemoryNode — Memory Pattern 横切节点（阶段 0.6）
- *
- * 设计理念：
- * - 横切节点：可插入任何编排图，为其他节点提供记忆能力
- * - 四种动作：recall（检索）/ inject（注入）/ archive（归档）/ auto（检索+注入）
- * - 优雅降级：ctx.memory 未注入时返回 done，不阻塞编排流
- * - 解耦：通过 MemoryAccessor 接口访问记忆系统，不依赖具体实现
- *
- * 典型用法：
- *
- * 1. 会话开始时自动检索相关记忆（与 ReactNode 配合）：
- *    MemoryNode(auto) → ReactNode
- *
- * 2. 上下文接近阈值时触发归档：
- *    ReactNode → 条件边（检查 token 数）→ MemoryNode(archive) → ReactNode
- *
- * 3. 用户主动询问历史时检索：
- *    RouterNode → MemoryNode(recall) → ReactNode（基于检索结果回答）
- *
- * 占位符支持（queryTemplate 中）：
- * - {{input}}：用户原始输入（state.input）
- * - {{lastUserMessage}}：state.messages 中最后一条 role=user 的消息内容
- * - {{lastMessage}}：state.messages 最后一条消息内容
- */
+/** MemoryNode（Memory Pattern 横切节点：动作/典型用法/占位符见文档），详细见 docs/details/注释/packages/agent-core/orchestrator/nodes/memory-node.md */
 
 import type {
   OrchestratorNode,

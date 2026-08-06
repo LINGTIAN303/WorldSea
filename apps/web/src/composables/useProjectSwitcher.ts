@@ -1,21 +1,4 @@
-/**
- * useProjectSwitcher — 项目切换编排器（Web 端迁移版）
- *
- * P3-W2 从根 src/composables/useProjectSwitcher.ts 迁移。
- * P3-W4 续已恢复全部行为级裁剪点：
- * - memory-archive 切换前归档（useMemoryArchive.archive({ source: 'session_end' })）
- * - useFileSystemProject.onProjectSwitched() 目录绑定恢复
- * - Tauri 专属分支（isTauri() 守卫 + cmd_switch_project / cmd_delete_project_db，
- *   Web 端 isTauri() 恒 false 不执行，代码与根版保持一致）
- *
- * 管理项目切换的完整流程：
- * 1. 保存当前项目状态（切换前归档会话）
- * 2. 切换 ProjectManager 的当前项目
- * 3. 重新加载所有 Store
- * 4. 重新初始化模块系统
- * 5. 切换 Agent 会话数据库
- * 6. 发射 project:switched 事件
- */
+/** useProjectSwitcher：项目切换编排器（Web 端迁移版，完整流程见文档），详细见 docs/details/注释/web/composables/useProjectSwitcher.md */
 
 import { ref } from 'vue'
 import { getProjectManager, setStorageProjectDir } from '@worldsmith/entity-core/core'
