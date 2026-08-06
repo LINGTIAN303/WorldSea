@@ -74,3 +74,24 @@ status: 执行中
 - 每个子模块自备 use（从原文件头部 use 分发）
 - **禁止 shell 脚本搬移**，工具级 Read/SearchReplace/Write 逐段操作
 - 注释文档：子模块新 ≥10 行注释块追加文档；README 登记
+
+## 第三轮：前端超长组件拆分（职责单一原则，不设死阈值）
+
+| 文件 | 行数 | 类型 | 拆分方案 |
+|---|---|---|---|
+| packages/plugin-sdk/src/components/EntityFormModal.vue | 1087 | 职责混杂 | script 五类逻辑抽 composable：useEntityRefSearch（实体引用搜索）/ useDynamicForm（表单数据+ghost 防抖）/ useFieldPresets（预设+字段合并）/ useAutoLink（自动链接）；模板 + 编排留组件 |
+| apps/web/src/agent/AgentSettingsPanel.vue | 1125 | 职责混杂 | 先分析结构再按职责抽 composable |
+| apps/web/src/plugins/official/tactical-board/composables/boardDraw.ts | 1102 | 纯逻辑 | 按绘制主题拆：coordinates.ts（坐标计算）/ colors.ts（颜色表）/ terrain.ts（地形装饰）/ units.ts（单位绘制）/ overlay.ts（高亮/网格）；公共导出签名不变 |
+
+约束：
+- 只搬移不改行为；组件渲染与事件流不变
+- 新 composable 文件按注释分层规则（≥10 行注释块抽取到 docs/details/注释/）
+- 工具级操作，禁止 shell 脚本
+- 验证：apps/web / plugin-sdk 相关 typecheck 通过
+
+## 第三轮执行结果（2026-08-06）
+
+- **boardDraw.ts（1102→152 行）**：拆为 boardCoordinates(135)/boardColors(41)/boardTerrain(220)/boardUnits(169)/boardOverlay(424)，boardDraw 保留主接口 + 5 个 `export *` re-export；6 处外部引用零改动
+- **EntityFormModal.vue（1087→790 行，script 650→353）**：抽 useFieldPresets(188)/useDynamicForm(92)/useEntityRefSearch(62)/useEntityFormSave(119)；autoLink 并入 save（仅一行 filter，独立文件属过度拆分）；调用环用 `getFormData` 闭包解 TDZ
+- **AgentSettingsPanel.vue（1125→1015 行，script 232→122）**：抽 useModelApiKeyConfig(71)/useCustomModelFetch(86)；拖拽/搜索转发等高耦合部分保留（符合"抽不动"判断）
+- 验证：apps/web + shared-composables typecheck 全绿；全量注释扫描无残留；新文件无 ≥10 行注释块（无需抽取文档），README 已登记

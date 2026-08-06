@@ -153,11 +153,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { ref, computed } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
 import { usePanelDrag } from './composables/usePanelDrag'
 import { useSettingsStore } from '../stores/settingsStore'
-import { loadApiKey, storeApiKey, removeApiKey } from '@agent/index'
+import { useModelApiKeyConfig } from './composables/useModelApiKeyConfig'
+import { useCustomModelFetch } from './composables/useCustomModelFetch'
 import { isTauri as detectTauri } from '@agent/execution'
 import SkillsStorePanel from './SkillsStorePanel.vue'
 // 拆分出的子面板
@@ -172,127 +173,6 @@ const settingsStore = useSettingsStore()
 
 // 运行模式（按钮栏 mode-badge 用）
 const isTauriMode = computed(() => detectTauri())
-
-// ── cloudApiKey / customApiKey 共享状态 ──
-// 保留在父组件，因为 onMounted/watch 中有 storeApiKey/removeApiKey 副作用，
-// 通过 v-model 传递给 ModelPanel 和 ProviderPanel
-const cloudApiKey = ref('')
-const customApiKey = ref('')
-let skipCustomKeyEmit = false
-
-const customKeyStoreId = computed(() => settingsStore.getCustomKeyStoreId(settingsStore.aiCustomBaseUrl))
-
-onMounted(async () => {
-  cloudApiKey.value = await loadApiKey(settingsStore.aiCloudProvider)
-  skipCustomKeyEmit = true
-  customApiKey.value = await loadApiKey(customKeyStoreId.value)
-  await nextTick()
-  skipCustomKeyEmit = false
-})
-
-watch(cloudApiKey, async (v) => {
-  if (v) {
-    await storeApiKey(settingsStore.aiCloudProvider, v)
-  } else {
-    await removeApiKey(settingsStore.aiCloudProvider)
-  }
-  emit('api-key-change', settingsStore.aiCloudProvider, v)
-})
-
-watch(customApiKey, async (v) => {
-  if (v) {
-    await storeApiKey(customKeyStoreId.value, v)
-  } else {
-    await removeApiKey(customKeyStoreId.value)
-  }
-  if (!skipCustomKeyEmit) {
-    emit('api-key-change', 'custom', v)
-  }
-})
-watch(() => settingsStore.aiCloudProvider, async (provider) => {
-  cloudApiKey.value = await loadApiKey(provider)
-})
-watch(customKeyStoreId, async (newId, oldId) => {
-  if (newId === oldId) return
-  const currentKey = customApiKey.value
-  if (currentKey && oldId) {
-    await storeApiKey(oldId, currentKey)
-  }
-  skipCustomKeyEmit = true
-  customApiKey.value = await loadApiKey(newId)
-  await nextTick()
-  skipCustomKeyEmit = false
-})
-
-// ── 自定义供应商模型拉取（网络请求保留在父组件） ──
-const fetchedModels = ref<string[]>([])
-const fetchingModels = ref(false)
-const fetchError = ref('')
-
-const canFetchModels = computed(() => {
-  return settingsStore.aiCustomBaseUrl.trim() !== ''
-    && settingsStore.aiCustomType === 'openai-compatible'
-    && customApiKey.value.trim() !== ''
-})
-
-async function onFetchModels(): Promise<void> {
-  const baseUrl = settingsStore.aiCustomBaseUrl.replace(/\/+$/, '')
-  const apiKey = customApiKey.value
-  if (!baseUrl || !apiKey) return
-
-  fetchingModels.value = true
-  fetchError.value = ''
-  fetchedModels.value = []
-
-  try {
-    const isRemote = /^https?:\/\//.test(baseUrl)
-    let modelsUrl: string
-    const fetchHeaders: Record<string, string> = { Authorization: `Bearer ${apiKey}` }
-
-    if (isRemote) {
-      try {
-        const url = new URL(baseUrl)
-        fetchHeaders['X-Target-Base-Url'] = `${url.protocol}//${url.host}`
-        let basePath = url.pathname.replace(/\/+$/, '')
-        if (!basePath) basePath = '/v1'
-        modelsUrl = `/api/custom-proxy${basePath}/models`
-      } catch {
-        fetchError.value = '无效的 Base URL'
-        return
-      }
-    } else {
-      modelsUrl = baseUrl.includes('/v1') ? `${baseUrl}/models` : `${baseUrl}/v1/models`
-    }
-
-    const res = await fetch(modelsUrl, {
-      headers: fetchHeaders,
-      signal: AbortSignal.timeout(15000),
-    })
-    if (!res.ok) {
-      fetchError.value = `拉取失败: HTTP ${res.status}`
-      return
-    }
-    const data = await res.json()
-    const models: string[] = (data.data || [])
-      .map((m: any) => m.id)
-      .filter((id: any) => typeof id === 'string')
-      .sort((a: string, b: string) => a.localeCompare(b))
-    if (models.length === 0) {
-      fetchError.value = '未发现可用模型'
-      return
-    }
-    fetchedModels.value = models
-  } catch (e: any) {
-    fetchError.value = e.name === 'TimeoutError' ? '拉取超时' : `拉取失败: ${e.message || e}`
-  } finally {
-    fetchingModels.value = false
-  }
-}
-
-watch(() => [settingsStore.aiCustomBaseUrl, settingsStore.aiCustomType], () => {
-  fetchedModels.value = []
-  fetchError.value = ''
-})
 
 const props = withDefaults(defineProps<{
   visible: boolean
@@ -348,6 +228,16 @@ const emit = defineEmits<{
   'api-key-change': [provider: string, apiKey: string]
   'provider-change': [provider: string, modelId: string]
 }>()
+
+// ── 模型 API Key 加载/持久化（拆分至 useModelApiKeyConfig） ──
+const { cloudApiKey, customApiKey } = useModelApiKeyConfig({
+  onApiKeyChange: (provider, apiKey) => emit('api-key-change', provider, apiKey),
+})
+
+// ── 自定义供应商模型拉取（拆分至 useCustomModelFetch） ──
+const { fetchedModels, fetchingModels, fetchError, canFetchModels, onFetchModels } = useCustomModelFetch({
+  customApiKey,
+})
 
 // 当前展开的子面板
 const settingsSubPanel = ref('')

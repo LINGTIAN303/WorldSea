@@ -1,0 +1,60 @@
+# EntityFormModal 组件拆分说明（plugin-sdk）
+
+> 2026-08-06 重构：`packages/plugin-sdk/src/components/EntityFormModal.vue` 的 `<script setup>` 由混杂五类逻辑（实体引用搜索 / 动态表单 / 字段与预设 / 自动链接 / 保存）拆为「模板 + 编排 + 4 个 composable」。
+> 纯结构性重构：UI 渲染、事件流、props/emits 签名、业务行为均不变。
+
+## 组件职责（EntityFormModal.vue）
+
+- **模板**：128 行，未改动。
+- **编排**：按序调用 4 个 composable 并串联状态；`watch(() => props.modelValue)` 打开弹窗时执行 `initFormData()` + 恢复 `activePreset`；`close()` 清空错误并 emit；`defineExpose({ syncEntityRefAfterCreate })`。
+- **Smart Fill（智能填充）逻辑保留在组件**：本次任务范围外的第六类逻辑，未拆出。仅将其中 10 个基础 ref（`focusedFieldKey`/`hoveredFieldKey`/`ghostText`/`ghostFieldKey`/`ghostVisible`/`focusTriggerVisible`/`focusTriggerRect`/`focusTriggerFieldKey`/`SMART_FILL_TYPES`/`isSmartFillField`）的**声明位置提前**到 composable 调用区之前——因为 `useDynamicForm.onFieldInput` 需要注入 `ghostVisible` 与 `isSmartFillField`，声明顺序决定依赖注入方式。
+
+## Composables 职责边界与依赖
+
+### 1. useFieldPresets.ts（src/components/entity/useFieldPresets.ts）
+
+字段与预设：
+- `SYSTEM_KEYS` + `fieldRegistry` 合并生成 `sortedFields`（`void fieldRegistry.version.value` 保持 registry 版本响应式追踪）
+- `resolvedEntityType`、`activePreset`、`presetOptions`、`isFullWidth`
+- 拖拽排序（`onDragStart/onDragOver/onDragLeave/onDrop` → `fieldRegistry.setOrder`）
+- 预设管理（`saveCurrentPreset/applyCurrentPreset/deleteCurrentPreset`）
+- 添加/删除字段（`confirmAddField/cancelAddField/removeField`）
+
+依赖注入：`fields/entityType/entity` 用 getter 闭包（保持 props 响应式）；`fieldOrderStore`、`dialog` 实例由组件传入。
+
+**关键设计——惰性 getFormData**：`confirmAddField`/`removeField` 需要写 `formData`，而 `useDynamicForm`（产出 `formData`）依赖 `sortedFields`（本 composable 产出），存在调用环。解法：调用顺序 presets → form，`formData` 通过 `getFormData: () => form.formData` 闭包**延迟求值**（仅在用户点击时执行，此时 `form` 已初始化），运行时无 TDZ 问题。
+
+### 2. useDynamicForm.ts（src/components/entity/useDynamicForm.ts）
+
+动态表单：
+- `formData` / `nameError` / `prevFieldValues`
+- `initFormData()`：从 `props.entity` 回填 name/description/tags/properties + `_coverPosition`/`_coverZoom`
+- `onFieldInput()`：name 字段发 `name:input` 事件总线消息；Smart Fill 字段发 ghost 接续预览请求（500ms 防抖，`_ghostDebounceTimer` 为 composable 闭包内私有变量，每实例独立）
+- 深度 watch `formData`：textarea/richtext 字段按增量发 `text:input` 事件总线消息
+
+依赖注入：`entity` getter、`sortedFields`、`resolvedEntityType`、`isSmartFillField` 函数、`ghostVisible` ref（后两者来自组件的 Smart Fill 基础状态）。
+
+### 3. useEntityRefSearch.ts（src/components/entity/useEntityRefSearch.ts）
+
+实体引用搜索：`activeEntityRef` / `entityRefResults` / `openEntityRef` / `onEntityRefSearch` / `searchEntityRef` / `selectEntityRef`。
+依赖：`formData` ref（读/写字段值）、`entityStore` 实例；`entitySchemaRegistry` 模块内 import。
+
+### 4. useEntityFormSave.ts（src/components/entity/useEntityFormSave.ts）
+
+保存：
+- `save()`：name 必填校验（写 `nameError`）→ 收集 properties（排除 name/description/tags）→ tags 逗号解析 → entityRef 字段收集 → 调用 `syncEntityRefRelations` → autoLink 字段收集 → 封面参数 → `emit('save', ...)`
+- `syncEntityRefRelations()`：按 entityRef 字段的 relationType 比对目标实体，增删关系（幂等：已有关系跳过，目标消失则删除）
+- `syncEntityRefAfterCreate()`：创建后补同步关系（组件 `defineExpose` 暴露给外部调用）
+
+**设计决策——autoLink 逻辑合并于此**：任务建议独立 `useAutoLink.ts`，但组件内 autoLink 相关逻辑仅 `save()` 中一行过滤 `sortedFields.filter(f => f.autoLink)`（无独立状态），单独建文件属过度拆分，故并入本 composable（文件头注释已说明）。
+
+## 依赖关系总览
+
+```
+useFieldPresets ──(getFormData 惰性)──┐
+useDynamicForm  ──(formData 注入)─────┤
+useEntityRefSearch ──(formData)────────┤── EntityFormModal 编排
+useEntityFormSave ──(formData/nameError/sortedFields/entity/emit)
+```
+
+所有跨 composable 状态均通过参数/返回值显式传递，无共享可变全局状态（`fieldRegistry`/`entityStore` 等为既有模块级单例，行为与拆分前一致）。

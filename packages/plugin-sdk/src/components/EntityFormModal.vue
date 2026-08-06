@@ -138,14 +138,14 @@ import SmartFillGhostText from './SmartFillGhostText.vue'
 import SmartFillPreview from './SmartFillPreview.vue'
 import EmptyFieldHint from './EmptyFieldHint.vue'
 import FieldFocusTrigger from './FieldFocusTrigger.vue'
-import { useFieldOrderStore } from '@worldsmith/entity-core'
-import { fieldRegistry, entitySchemaRegistry } from '@worldsmith/entity-core'
-import { useEntityStore } from '@worldsmith/entity-core'
-import { storage } from '@worldsmith/entity-core'
-import { getEventBus } from '@worldsmith/entity-core'
+import { useFieldOrderStore, useEntityStore } from '@worldsmith/entity-core'
 import type { Entity } from '@worldsmith/entity-core'
 
 import type { FormFieldDef } from './types'
+import { useFieldPresets } from './entity/useFieldPresets'
+import { useDynamicForm } from './entity/useDynamicForm'
+import { useEntityRefSearch } from './entity/useEntityRefSearch'
+import { useEntityFormSave } from './entity/useEntityFormSave'
 
 const modalResizable = useResizable({ panelId: 'modal-entity-form', defaultWidth: 560, minWidth: 320, side: 'right' })
 
@@ -166,375 +166,8 @@ const fieldOrderStore = useFieldOrderStore()
 const dialog = useDialog()
 const entityStore = useEntityStore()
 
-const activeEntityRef = ref<string | null>(null)
-const entityRefResults = ref<Array<{ id: string; name: string; iconName: string; typeLabel: string; type: string }>>([])
-
-function openEntityRef(field: FormFieldDef) {
-  activeEntityRef.value = field.key
-  searchEntityRef(field, '')
-}
-
-function onEntityRefSearch(field: FormFieldDef) {
-  const query = formData.value[field.key] || ''
-  searchEntityRef(field, query)
-}
-
-function searchEntityRef(field: FormFieldDef, query: string) {
-  const refType = field.refType
-  let entities = entityStore.entities
-  if (refType) {
-    entities = entities.filter(e => e.type === refType)
-  }
-  if (query) {
-    const q = query.toLowerCase()
-    entities = entities.filter(e => e.name.toLowerCase().includes(q))
-  }
-  entityRefResults.value = entities.slice(0, 8).map(e => {
-    return {
-      id: e.id,
-      name: e.name,
-      iconName: entitySchemaRegistry.getIconName(e.type),
-      typeLabel: entitySchemaRegistry.getLabel(e.type),
-      type: e.type,
-    }
-  })
-}
-
-function selectEntityRef(field: FormFieldDef, name: string) {
-  formData.value[field.key] = name
-  activeEntityRef.value = null
-  entityRefResults.value = []
-}
-const formData = ref<Record<string, string>>({})
-const nameError = ref('')
-
-async function syncEntityRefAfterCreate(entityId: string) {
-  const entityRefFields = sortedFields.value.filter(f => f.type === 'entityRef' && f.relationType)
-  if (entityRefFields.length > 0) {
-    await syncEntityRefRelations(entityId, entityRefFields)
-  }
-}
-
-defineExpose({ syncEntityRefAfterCreate })
-const showAddField = ref(false)
-const newFieldKey = ref('')
-const newFieldLabel = ref('')
-const newFieldType = ref<'text' | 'textarea' | 'number' | 'boolean' | 'date' | 'select' | 'color'>('text')
-const newFieldOptions = ref('')
-
-const resolvedEntityType = computed(() => props.entityType || props.entity?.type || '')
-
-const SYSTEM_KEYS = new Set(['name', 'description', 'tags'])
-
-const sortedFields = computed(() => {
-  void fieldRegistry.version.value
-  const systemFields = props.fields.filter(f => SYSTEM_KEYS.has(f.key))
-  const builtinPropKeys = new Set(props.fields.filter(f => !SYSTEM_KEYS.has(f.key)).map(f => f.key))
-  const regFields = fieldRegistry.getFields(resolvedEntityType.value)
-  const seenKeys = new Set<string>()
-  const propertyFields: FormFieldDef[] = []
-  for (const f of regFields) {
-    if (SYSTEM_KEYS.has(f.key)) continue
-    seenKeys.add(f.key)
-    const fromProps = builtinPropKeys.has(f.key) ? props.fields.find(p => p.key === f.key) : undefined
-    propertyFields.push({
-      key: f.key,
-      label: fromProps?.label ?? f.label,
-      type: (['text', 'textarea', 'richtext', 'select', 'tags', 'color', 'number', 'boolean', 'date', 'entityRef'].includes(fromProps?.type ?? f.type) ? (fromProps?.type ?? f.type) : 'text') as FormFieldDef['type'],
-      required: fromProps?.required ?? f.required,
-      placeholder: fromProps?.placeholder ?? f.placeholder,
-      options: fromProps?.options ?? f.options?.map(o => typeof o === 'string' ? { value: o, label: o } : o as any),
-      rows: f.type === 'textarea' ? 3 : undefined,
-      source: f.source,
-      refType: (fromProps as any)?.refType ?? (f as any).refType,
-      relationType: (fromProps as any)?.relationType ?? (f as any).relationType,
-      autoLink: (fromProps as any)?.autoLink ?? (f as any).autoLink,
-    })
-  }
-  for (const f of props.fields) {
-    if (SYSTEM_KEYS.has(f.key) || seenKeys.has(f.key)) continue
-    propertyFields.push({ ...f, source: 'builtin' })
-  }
-  return [...systemFields, ...propertyFields]
-})
-
-const activePreset = ref('默认')
-const presetOptions = computed(() => {
-  const names = fieldOrderStore.getPresetNames(resolvedEntityType.value)
-  if (names.length === 0) return [{ value: '默认', label: '默认' }]
-  return names.map(n => ({ value: n, label: n }))
-})
-
-watch(() => props.modelValue, (v) => {
-  if (v) {
-    initFormData()
-    activePreset.value = fieldOrderStore.getActivePreset(resolvedEntityType.value)
-  }
-}, { immediate: true })
-
-watch(activePreset, (name) => {
-  fieldOrderStore.loadPreset(resolvedEntityType.value, name)
-})
-
-function isFullWidth(type: string): boolean {
-  return type === 'textarea' || type === 'richtext'
-}
-
-function initFormData() {
-  const data: Record<string, string> = {}
-  for (const field of sortedFields.value) {
-    if (field.key === 'name') {
-      data[field.key] = props.entity?.name ?? ''
-    } else if (field.key === 'description') {
-      data[field.key] = props.entity?.description ?? ''
-    } else if (field.key === 'tags') {
-      data[field.key] = (props.entity?.tags ?? []).join(',')
-    } else {
-      data[field.key] = String(props.entity?.properties?.[field.key] ?? '')
-    }
-  }
-  data._coverPosition = props.entity?.coverPosition || '50% 50%'
-  data._coverZoom = String(props.entity?.coverZoom || 1)
-  formData.value = data
-  prevFieldValues.value = { ...data }
-  nameError.value = ''
-}
-
-function close() {
-  nameError.value = ''
-  emit('update:modelValue', false)
-}
-
-let _ghostDebounceTimer: ReturnType<typeof setTimeout> | null = null
-
-function onFieldInput(field: FormFieldDef) {
-  const entityId = props.entity?.id
-  if (field.key === 'name') {
-    const text = formData.value[field.key] || ''
-    getEventBus().emit('name:input', { entityId, text })
-  }
-  // Smart Fill: 字段输入时触发 ghost text 接续预览（500ms 防抖）
-  if (isSmartFillField(field)) {
-    const currentText = String(formData.value[field.key] || '')
-    if (!currentText.trim()) {
-      ghostVisible.value = false
-      if (_ghostDebounceTimer) clearTimeout(_ghostDebounceTimer)
-      return
-    }
-    if (_ghostDebounceTimer) clearTimeout(_ghostDebounceTimer)
-    _ghostDebounceTimer = setTimeout(() => {
-      window.dispatchEvent(new CustomEvent('worldsmith:smart-fill:request', {
-        detail: {
-          type: 'suggest_field',
-          entityType: resolvedEntityType.value,
-          entityId: props.entity?.id,
-          fieldKey: field.key,
-          fieldLabel: field.label,
-          currentText,
-          mode: 'continue',
-          isEditing: !!props.entity?.id,
-        },
-      }))
-    }, 500)
-  }
-}
-
-const prevFieldValues = ref<Record<string, string>>({})
-
-watch(() => formData.value, (newVal) => {
-  const entityId = props.entity?.id
-  if (!entityId) return
-  for (const key of Object.keys(newVal)) {
-    const prev = prevFieldValues.value[key] || ''
-    const curr = newVal[key] || ''
-    if (curr !== prev) {
-      const field = sortedFields.value.find(f => f.key === key)
-      if (field && (field.type === 'textarea' || field.type === 'richtext')) {
-        const delta = curr.length > prev.length ? curr.slice(prev.length) : curr
-        getEventBus().emit('text:input', { entityId, field: key, text: delta })
-      }
-      prevFieldValues.value[key] = curr
-    }
-  }
-}, { deep: true })
-
-function save() {
-  const nameField = sortedFields.value.find(f => f.key === 'name')
-  if (nameField?.required && !formData.value.name?.trim()) {
-    nameError.value = `${nameField.label}不能为空`
-    return
-  }
-  nameError.value = ''
-
-  const properties: Record<string, any> = {}
-  for (const field of sortedFields.value) {
-    if (field.key === 'name' || field.key === 'description' || field.key === 'tags') continue
-    properties[field.key] = formData.value[field.key] ?? ''
-  }
-
-  const tagsStr = formData.value.tags ?? ''
-  const tags = tagsStr.split(',').map(t => t.trim()).filter(Boolean)
-
-  const entityRefFields = sortedFields.value.filter(f => f.type === 'entityRef' && f.relationType)
-
-  if (entityRefFields.length > 0 && props.entity?.id) {
-    syncEntityRefRelations(props.entity.id, entityRefFields)
-  }
-
-  const autoLinkFields = sortedFields.value.filter((f: any) => f.autoLink)
-
-  const coverPosition = formData.value._coverPosition
-  const coverZoom = formData.value._coverZoom ? Number(formData.value._coverZoom) : undefined
-
-  emit('save', {
-    name: formData.value.name ?? '',
-    description: formData.value.description ?? '',
-    properties,
-    tags,
-    _entityRefFields: entityRefFields.length > 0 ? entityRefFields : undefined,
-    _autoLinkFields: autoLinkFields.length > 0 ? autoLinkFields : undefined,
-    ...(coverPosition ? { _coverPosition: coverPosition } : {}),
-    ...(coverZoom !== undefined ? { _coverZoom: coverZoom } : {}),
-  })
-}
-
-async function syncEntityRefRelations(entityId: string, fields: FormFieldDef[]) {
-  const now = new Date().toISOString()
-  for (const field of fields) {
-    const targetName = (formData.value[field.key] || '').trim()
-    const targetEntity = entityStore.entities.find(
-      e => e.name.toLowerCase() === targetName.toLowerCase() && (!field.refType || e.type === field.refType)
-    )
-
-    const existingRels = (await storage.getRelationsByEntity(entityId)).filter(r =>
-      r.type === field.relationType
-    )
-
-    if (!targetEntity && existingRels.length > 0) {
-      for (const rel of existingRels) {
-        await storage.deleteRelation(rel.id)
-      }
-      continue
-    }
-
-    if (!targetEntity) continue
-
-    const hasRel = existingRels.some(r =>
-      r.sourceId === entityId && r.targetId === targetEntity.id ||
-      r.sourceId === targetEntity.id && r.targetId === entityId
-    )
-    if (hasRel) continue
-
-    const rel = {
-      id: `rel-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      type: field.relationType!,
-      sourceId: entityId,
-      targetId: targetEntity.id,
-      properties: {},
-      createdAt: now,
-      updatedAt: now,
-    }
-    await storage.putRelation(rel)
-  }
-}
-
-let dragIdx = -1
-const dragOverIdx = ref(-1)
-
-function onDragStart(idx: number, e: DragEvent) {
-  dragIdx = idx
-  if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'
-}
-
-function onDragOver(idx: number) {
-  dragOverIdx.value = idx
-}
-
-function onDragLeave() {
-  dragOverIdx.value = -1
-}
-
-function onDrop(idx: number) {
-  dragOverIdx.value = -1
-  if (dragIdx === idx || dragIdx < 0) return
-  const fields = [...sortedFields.value]
-  const [moved] = fields.splice(dragIdx, 1)
-  fields.splice(idx, 0, moved)
-  const propertyKeys = fields.filter(f => !SYSTEM_KEYS.has(f.key)).map(f => f.key)
-  fieldRegistry.setOrder(resolvedEntityType.value, propertyKeys)
-  dragIdx = -1
-}
-
-async function saveCurrentPreset() {
-  const name = await dialog.prompt('输入预设名称', '保存预设', '新预设')
-  if (!name) return
-  const keys = sortedFields.value.filter(f => !SYSTEM_KEYS.has(f.key)).map(f => f.key)
-  fieldOrderStore.savePreset(resolvedEntityType.value, name, keys)
-  fieldRegistry.setOrder(resolvedEntityType.value, keys)
-  activePreset.value = name
-  toastSuccess(`已保存预设「${name}」`)
-}
-
-function applyCurrentPreset() {
-  const preset = activePreset.value
-  fieldOrderStore.loadPreset(resolvedEntityType.value, preset)
-  toastSuccess(`已应用预设「${preset}」`)
-}
-
-function deleteCurrentPreset() {
-  if (activePreset.value === '默认') return
-  fieldOrderStore.deletePreset(resolvedEntityType.value, activePreset.value)
-  activePreset.value = fieldOrderStore.getActivePreset(resolvedEntityType.value)
-}
-
-function confirmAddField() {
-  const key = newFieldKey.value.trim()
-  const label = newFieldLabel.value.trim() || key
-  if (!key) return
-  const options = newFieldType.value === 'select'
-    ? newFieldOptions.value.split(',').map(s => s.trim()).filter(Boolean)
-    : undefined
-  console.log(`[EntityFormModal] addUserField: key=${key}, label=${label}, type=${newFieldType.value}`)
-  const ok = fieldRegistry.addUserField(resolvedEntityType.value, { key, label, type: newFieldType.value, options })
-  if (!ok) {
-    toastWarn(`字段 "${key}" 已存在`)
-    return
-  }
-  console.log(`[EntityFormModal] field added, registry fields:`, fieldRegistry.getFields(resolvedEntityType.value).map(f => `${f.key}=${f.label}`))
-  formData.value[key] = ''
-  cancelAddField()
-  toastSuccess(`已添加字段「${label}」`)
-}
-
-function cancelAddField() {
-  showAddField.value = false
-  newFieldKey.value = ''
-  newFieldLabel.value = ''
-  newFieldType.value = 'text'
-  newFieldOptions.value = ''
-}
-
-function removeField(key: string) {
-  fieldRegistry.removeField(resolvedEntityType.value, key)
-  const { [key]: _, ...rest } = formData.value
-  formData.value = rest
-  toastSuccess(`已删除字段「${key}」`)
-}
-
-// ── Smart Fill (智能填充) ──────────────────────────────────────────────
-
-const emptyFieldCount = computed(() => {
-  return sortedFields.value.filter(f => {
-    if (!isSmartFillField(f)) return false
-    const value = formData.value[f.key]
-    return !value || !value.trim()
-  }).length
-})
-
-const showEmptyFieldHint = computed(() => emptyFieldCount.value >= 3)
-
+// ── Smart Fill 基础状态（完整逻辑见下方 Smart Fill 区块；refs 提前声明供 useDynamicForm 依赖注入）──
 const SMART_FILL_TYPES = new Set(['text', 'textarea', 'richtext'])
-
 const focusedFieldKey = ref<string | null>(null)
 const hoveredFieldKey = ref<string | null>(null)
 const ghostText = ref('')
@@ -548,6 +181,76 @@ function isSmartFillField(field: FormFieldDef): boolean {
   if (field.smartFill === false) return false
   return SMART_FILL_TYPES.has(field.type)
 }
+
+// ── 字段与预设 ─────────────────────────────────────────────────────────
+const presets = useFieldPresets({
+  fields: () => props.fields,
+  entityType: () => props.entityType,
+  entity: () => props.entity,
+  fieldOrderStore,
+  dialog,
+  getFormData: () => form.formData,
+})
+const {
+  sortedFields, resolvedEntityType, activePreset, presetOptions, isFullWidth,
+  dragOverIdx, onDragStart, onDragOver, onDragLeave, onDrop,
+  saveCurrentPreset, applyCurrentPreset, deleteCurrentPreset,
+  showAddField, newFieldKey, newFieldLabel, newFieldType, newFieldOptions,
+  confirmAddField, cancelAddField, removeField,
+} = presets
+
+// ── 动态表单 ───────────────────────────────────────────────────────────
+const form = useDynamicForm({
+  entity: () => props.entity,
+  sortedFields,
+  resolvedEntityType,
+  isSmartFillField,
+  ghostVisible,
+})
+const { formData, nameError, initFormData, onFieldInput } = form
+
+// ── 实体引用搜索 ───────────────────────────────────────────────────────
+const { activeEntityRef, entityRefResults, openEntityRef, onEntityRefSearch, selectEntityRef } = useEntityRefSearch({
+  formData,
+  entityStore,
+})
+
+// ── 保存 ────────────────────────────────────────────────────────────────
+const { save, syncEntityRefAfterCreate } = useEntityFormSave({
+  formData,
+  nameError,
+  sortedFields,
+  entityStore,
+  entity: () => props.entity,
+  emit,
+})
+
+// ── 编排：打开弹窗时初始化表单与预设 ───────────────────────────────────
+watch(() => props.modelValue, (v) => {
+  if (v) {
+    initFormData()
+    activePreset.value = fieldOrderStore.getActivePreset(resolvedEntityType.value)
+  }
+}, { immediate: true })
+
+function close() {
+  nameError.value = ''
+  emit('update:modelValue', false)
+}
+
+defineExpose({ syncEntityRefAfterCreate })
+
+// ── Smart Fill（智能填充）──────────────────────────────────────────────
+
+const emptyFieldCount = computed(() => {
+  return sortedFields.value.filter(f => {
+    if (!isSmartFillField(f)) return false
+    const value = formData.value[f.key]
+    return !value || !value.trim()
+  }).length
+})
+
+const showEmptyFieldHint = computed(() => emptyFieldCount.value >= 3)
 
 function onFieldMouseEnter(key: string) {
   hoveredFieldKey.value = key

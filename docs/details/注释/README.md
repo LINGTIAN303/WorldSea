@@ -181,6 +181,7 @@
 | src/ui/settings/panels/CompanionPanel.vue | [CompanionPanel.md](web/ui/settings/panels/CompanionPanel.md) | re-export 兼容层（实现迁移 ui-kit） |
 | src/ui/settings/panels/PluginsPanel.vue | [PluginsPanel.md](web/ui/settings/panels/PluginsPanel.md) | re-export 兼容层（实现迁移 ui-kit） |
 | vite.config.ts | [vite-config.md](web/vite-config.md) | Web 端 Vite 配置：CLI serve 中转设计原则、端口 5174、别名解析与 manualChunks |
+| 拆分记录（2026-08-06） | — | tactical-board 的 boardDraw.ts 按绘制主题拆为 boardCoordinates（坐标/命中测试）/boardColors（颜色表）/boardTerrain（地形）/boardUnits（单位）/boardOverlay（高亮/网格/坐标/awareness），boardDraw.ts 保留 BoardRenderData 与分层绘制入口并 `export *` 聚合，公共导出签名不变，原 import 处无需改动；各文件无 ≥ 10 行连续注释块，未生成文档 |
 
 > 索引随整改批次持续推进，未整改模块完成后再补充登记。
 
@@ -322,4 +323,15 @@
 |---|---|---|
 | src/motion-override.ts | [motion-override.md](packages/theme-kit/motion-override.md) | Motion Override Engine：覆盖缓动/时长/motion-scale、注入关键帧、设置交互模式 |
 
-> packages/canvas-engine、packages/font-kit、packages/motion-kit、packages/plugin-sdk 的 src/ 下无 ≥ 10 行长注释块，未生成文档。
+### packages/plugin-sdk（packages/plugin-sdk）
+
+| 代码文件 | 详细注释文档 | 摘要 |
+|---|---|---|
+| src/components/EntityFormModal.vue（2026-08-06 script 拆分） | [entity-form-modal.md](packages/plugin-sdk/entity-form-modal.md) | 实体表单弹窗：模板 + 编排，五类逻辑拆为 4 个 composable（行为不变） |
+| src/components/entity/useFieldPresets.ts | [entity-form-modal.md](packages/plugin-sdk/entity-form-modal.md) | 字段合并（SYSTEM_KEYS + fieldRegistry）、预设管理、拖拽排序、字段增删 |
+| src/components/entity/useDynamicForm.ts | [entity-form-modal.md](packages/plugin-sdk/entity-form-modal.md) | formData 状态与初始化、输入事件（name/text 事件总线）、ghost 500ms 防抖 |
+| src/components/entity/useEntityRefSearch.ts | [entity-form-modal.md](packages/plugin-sdk/entity-form-modal.md) | entityRef 类型字段的搜索下拉状态与交互 |
+| src/components/entity/useEntityFormSave.ts | [entity-form-modal.md](packages/plugin-sdk/entity-form-modal.md) | save 校验/收集（properties/tags/entityRef/autoLink/封面）、实体引用关系同步 |
+
+> packages/canvas-engine、packages/font-kit、packages/motion-kit 的 src/ 下无 ≥ 10 行长注释块，未生成文档。
+> plugin-sdk 本次拆分：4 个 composable 均为短注释（<10 行连续块），详细说明统一登记于 entity-form-modal.md。
