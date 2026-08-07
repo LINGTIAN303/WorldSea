@@ -582,9 +582,11 @@ defineExpose({ clearOutput })
   flex-shrink: 0;
 }
 .panel-header h3 {
-  font-size: var(--fs-base);
+  /* 侧栏标题档位收敛（批次104）：与 SessionList .panel-title 同档 fs-sm + 字距，消除侧栏标题两档并存 */
+  font-size: var(--fs-sm);
   font-weight: 600;
   color: var(--text-secondary);
+  letter-spacing: 0.4px;
   margin: 0;
 }
 /* 会话计数徽标（与规格列表 count 同款弱化 pill） */
