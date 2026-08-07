@@ -1,0 +1,49 @@
+{
+  "checks": [
+    {
+      "name": "more-btn-exists",
+      "pass": true,
+      "detail": "溢出按钮 .act-more 存在"
+    },
+    {
+      "name": "legacy-removed",
+      "pass": true,
+      "detail": "清空/压缩常显已移除: []"
+    },
+    {
+      "name": "menu-open",
+      "pass": true,
+      "detail": "菜单打开项数: 2"
+    },
+    {
+      "name": "menu-items",
+      "pass": true,
+      "detail": "菜单项: ['清空对话', '压缩上下文']"
+    },
+    {
+      "name": "clear-disabled-empty",
+      "pass": true,
+      "detail": "无消息时清空禁用: [True, True]"
+    },
+    {
+      "name": "close-outside",
+      "pass": true,
+      "detail": "点击外部关闭"
+    },
+    {
+      "name": "close-esc",
+      "pass": true,
+      "detail": "Esc 关闭"
+    },
+    {
+      "name": "console-errors",
+      "pass": true,
+      "detail": "pageerror: 无"
+    },
+    {
+      "name": "screenshots",
+      "pass": true,
+      "detail": "b106-header-more-light/dark.png"
+    }
+  ]
+}

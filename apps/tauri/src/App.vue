@@ -398,6 +398,29 @@ watch([sending, () => isStreaming.value], ([newSending, newStreaming]) => {
 // 组件卸载时清理轮询计时器
 onBeforeUnmount(stopIterationPolling)
 
+// ─── 对话 header 溢出菜单（批次106：清空/压缩破坏性操作降级为 "…" 菜单项，弱化常显打扰与误触） ───
+const moreOpen = ref(false)
+const moreMenuEl = ref<HTMLElement | null>(null)
+
+function toggleMore() {
+  moreOpen.value = !moreOpen.value
+}
+
+/** 点击菜单外关闭（与 TuiSelect 同一交互范式） */
+function onDocClickForMore(e: MouseEvent) {
+  if (moreOpen.value && moreMenuEl.value && !moreMenuEl.value.contains(e.target as Node)) {
+    moreOpen.value = false
+  }
+}
+
+/** 菜单内 Esc 关闭（stopPropagation 避免触发全局 Escape 停止生成逻辑） */
+function onMoreMenuKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape') {
+    e.stopPropagation()
+    moreOpen.value = false
+  }
+}
+
 /** 清空当前会话历史：调用 Rust clear_history（会话保留，仅清消息） */
 async function onClear() {
   try {
@@ -554,10 +577,12 @@ onMounted(async () => {
   }
   await refreshCurrentModel()
   window.addEventListener('keydown', onGlobalKeydown)
+  document.addEventListener('click', onDocClickForMore)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onGlobalKeydown)
+  document.removeEventListener('click', onDocClickForMore)
 })
 
 /**
@@ -572,6 +597,11 @@ function onGlobalKeydown(e: KeyboardEvent) {
   const openDialog = document.querySelector('[aria-modal="true"]')
   if (openDialog) return
   // Esc 停止生成（生成中随时打断，与按钮等价；批次95）
+  // 溢出菜单打开时 Esc 优先关菜单（不触发停止生成）
+  if (e.key === 'Escape' && moreOpen.value) {
+    moreOpen.value = false
+    return
+  }
   if (e.key === 'Escape' && (sending.value || isStreaming.value)) {
     e.preventDefault()
     onStop()
@@ -713,18 +743,39 @@ function onGlobalKeydown(e: KeyboardEvent) {
                   @update:model-value="onThinkingLevelChange"
                 />
               </div>
-              <TuiButton variant="secondary" size="sm" title="清空对话" :disabled="messages.length === 0" @click="onClear">
-                清空
-              </TuiButton>
-              <TuiButton
-                variant="secondary"
-                size="sm"
-                title="压缩上下文（保留最近 8 条消息）"
-                :disabled="messages.length <= TRIM_KEEP_COUNT"
-                @click="onTrimContext"
-              >
-                压缩
-              </TuiButton>
+              <!-- 溢出菜单（批次106）：清空/压缩破坏性操作降级收纳，常显仅保留高频（模型/思考深度） -->
+              <div ref="moreMenuEl" class="header-more">
+                <TuiButton
+                  variant="ghost"
+                  size="sm"
+                  class="act-more"
+                  icon="dots"
+                  title="更多操作"
+                  aria-label="更多操作"
+                  :aria-expanded="moreOpen"
+                  @click="toggleMore"
+                />
+                <div v-if="moreOpen" class="more-menu" role="menu" aria-label="对话操作" @keydown="onMoreMenuKeydown">
+                  <button
+                    role="menuitem"
+                    class="more-item"
+                    :disabled="messages.length === 0"
+                    @click="onClear"
+                  >
+                    <TuiIcon name="trash" :size="13" />
+                    清空对话
+                  </button>
+                  <button
+                    role="menuitem"
+                    class="more-item"
+                    :disabled="messages.length <= TRIM_KEEP_COUNT"
+                    title="保留最近 8 条消息"
+                    @click="onTrimContext"
+                  >
+                    压缩上下文
+                  </button>
+                </div>
+              </div>
             </div>
           </header>
 
@@ -1225,6 +1276,53 @@ function onGlobalKeydown(e: KeyboardEvent) {
 }
 .think-icon {
   color: var(--text-muted);
+}
+
+/* 溢出菜单（批次106）：按钮定位宿主 + 下拉菜单（与 TuiSelect 菜单同视觉语言） */
+.header-more {
+  position: relative;
+  display: inline-flex;
+}
+.more-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  min-width: 168px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  z-index: var(--z-dropdown);
+}
+.more-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--fs-md);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.more-item:hover:not(:disabled) {
+  background: var(--bg-muted);
+  color: var(--text-primary);
+}
+.more-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.more-item:disabled {
+  opacity: var(--disabled-opacity);
+  cursor: default;
 }
 
 /* ── 消息区 ── */
