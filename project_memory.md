@@ -861,4 +861,10 @@ Tauri 端 UI/UX 全维度优化（视觉 + 交互事件 + 键盘可达性 + 性�
 - **语言收敛**：SessionList 旧 'M-D' 连字符风格统一为中文 'M月D日'，与 App 日期语言一致（克制中文时间叙事全端唯一）
 - **验证**：19 项 Playwright 断言全 PASS（纯函数边界：今天/昨天/更早/空时间戳/同一天/跨天）+ 双主题截图归档（b103-main-light/dark.png）+ 页面无 console 错误
 - **注意**：formatRelativeTime "昨天"分支依赖 diff≥24h（凌晨场景昨天中午显示"N 小时前"属正确语义，非 bug）
+
+## 本次进展（2026-08-08）— 批次104 侧栏标题档位收敛（db478ca）
+- **Terminal `.panel-header h3` 字号 fs-base → fs-sm + letter-spacing 0.4px**，与 SessionList `.panel-title` computed 完全一致（12px / 0.4px / text-secondary）
+- 全端侧栏标题唯一档位（grep 确认仅 SessionList .panel-title + Terminal h3 两处，均已收敛），消除两档并存
+- **验证**：6 项 Playwright 断言全 PASS（computed fs/ls 对齐断言）+ 双主题截图归档（b104-terminal-light/dark.png）+ 视图快捷键核对（Ctrl+1 对话 / Ctrl+2 终端 / Ctrl+3 子Agent）
+- **剩余可选 P2**：记忆面板双横条头部合并；子Agent 实例区分栏；对话 header 溢出菜单（清空/压缩收入 "…"）
 <!-- MemoryCenter:SECTION:task_state END -->
