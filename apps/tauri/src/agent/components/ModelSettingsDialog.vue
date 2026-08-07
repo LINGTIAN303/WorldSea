@@ -107,8 +107,11 @@ async function onSave() {
     <TuiSegmented v-model="mode" :options="modeOptions" />
 
     <div class="fields">
-      <!-- 云端模式 -->
-      <template v-if="mode === 'cloud'">
+      <!-- 模式内容区切换：淡入过渡（批次90 8.5，云端/本地/自定义切换不瞬换） -->
+      <Transition name="fade" mode="out-in">
+        <div :key="mode" class="fields-inner">
+          <!-- 云端模式 -->
+          <template v-if="mode === 'cloud'">
         <div class="field">
           <label class="field-label" for="cloud-provider">Provider</label>
           <input id="cloud-provider" v-model="cloud.provider" type="text" list="provider-suggest" placeholder="如 deepseek / openai" />
@@ -194,6 +197,8 @@ async function onSave() {
           </div>
         </div>
       </template>
+        </div>
+      </Transition>
     </div>
 
     <div v-if="error" class="error">{{ error }}</div>
@@ -213,6 +218,12 @@ async function onSave() {
   flex-direction: column;
   gap: 12px;
   margin-top: 14px;
+}
+/* 模式内容区容器（Transition 单根，保持 fields 纵向布局） */
+.fields-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 .field {
   display: flex;
