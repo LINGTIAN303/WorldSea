@@ -867,4 +867,10 @@ Tauri 端 UI/UX 全维度优化（视觉 + 交互事件 + 键盘可达性 + 性�
 - 全端侧栏标题唯一档位（grep 确认仅 SessionList .panel-title + Terminal h3 两处，均已收敛），消除两档并存
 - **验证**：6 项 Playwright 断言全 PASS（computed fs/ls 对齐断言）+ 双主题截图归档（b104-terminal-light/dark.png）+ 视图快捷键核对（Ctrl+1 对话 / Ctrl+2 终端 / Ctrl+3 子Agent）
 - **剩余可选 P2**：记忆面板双横条头部合并；子Agent 实例区分栏；对话 header 溢出菜单（清空/压缩收入 "…"）
+
+## 本次进展（2026-08-08）— 批次105 记忆面板双横条头部合并（1e384fe）
+- **归档边界 + 刷新按钮从列表视图内 `.mp-bar` 第二横条并入常驻 `.mp-head`**（边界弱信息 text-muted + 值 accent 强调内层 span；刷新按钮去 auto margin 与搜索/归档紧凑排列）
+- 删除 `.mp-bar` 块，头部单条下边框（双横线消除）；无 session 时刷新安全返回（refreshList 已有守卫）
+- **验证**：8 项 Playwright 断言全 PASS（旧 bar 移除 / 边界并入 head / 刷新并入 / 单边框）+ 双主题截图归档（b105-memory-light/dark.png）
+- **剩余可选 P2**：子Agent 实例区分栏；对话 header 溢出菜单（清空/压缩收入 "…"）
 <!-- MemoryCenter:SECTION:task_state END -->
