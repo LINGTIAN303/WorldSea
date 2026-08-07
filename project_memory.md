@@ -661,7 +661,7 @@ agent_end → checkShouldAutoContinue=true → autoContinueTask → backend.prom
 
 <!-- MemoryCenter:SECTION:task_state START -->
 ## 当前任务
-端分离检查点已提交（5c32c78），Phase 3 业务 UI 迁移暂停；回到主应用开发 — Rust 长任务前端对接
+Tauri 端 UI/UX 全维度优化（视觉 + 交互事件 + 键盘可达性）——批次 87-90 完成，视觉审查报告 27 项全部闭环
 
 ## 已完成步骤
 - [x] 阶段 1.5 Tauri 集成：14 个 agent 命令 + 事件桥接 + 多实例管理 + 前端通信层
@@ -673,16 +673,21 @@ agent_end → checkShouldAutoContinue=true → autoContinueTask → backend.prom
 - [x] 安全清理：ui-kit 死导出 SettingsDialog/CustomModuleView 移除（消除 ui-kit→根 src/ 最后 2 处引用）
 - [x] AgentChat.vue 40 个 TypeScript 错误修复（2026-07-31）
 - [x] 工作区收敛（2026-08-02，c3856de）：@agent 统一到 packages/agent-runtime 单轨；worldsmith-agent 冻结为端适配器宿主；vite build 两次通过
-- [x] 文档全量同步（2026-08-02）：README/project_memory/ROADMAP/agent-orchestration-roadmap/perf-kit-plan/rust-backend-completion-plan/skills-store-spec/端分离文档库（README、01、02、07、08、10）全部按实际状况更新
-- [x] Rust 端到端实测通过（2026-08-03，5fd166e）：消息渲染 4 层根因修复（readonly 深代理 / payload camelCase / 双广播去重 / updateMessage 不可变更新）
-- [x] 前端高级能力补齐 4 批（2026-08-03，c0d2cff）：深度模式主聊天开启 + finalOutput 回填 + 终端接 cmd_pty_* + 子 Agent 独立 Rust 会话 + 三处横幅文案统一
+- [x] 文档全量同步（2026-08-02）
+- [x] Rust 端到端实测通过（2026-08-03，5fd166e）：消息渲染 4 层根因修复
+- [x] 前端高级能力补齐 4 批（2026-08-03，c0d2cff）
+- [x] **批次 87 视觉审查收尾**（f086759 后）：#14 空态图标浅色对比度（新增 --empty-icon 令牌 #c7cad3/dark rgba(139,135,248,0.4)）；#4 终端会话面板改 flex 布局消除 sticky 遮挡（header/create 固定、列表区独立滚动）；#5 SubAgentView submit-row sticky 吸底（错误条不挤出主按钮）；#18 遮罩 0.38→0.45；#22 io-msg 间距 8→12px；#23 记忆标题 pulse 圆点空态隐藏；#25 表单帮助小字 muted→secondary
+- [x] **批次 88 #15 checkbox 自定义**：TerminalView `.toggle input` 改 appearance:none 自绘（accent 底 + on-accent 对勾），修复 WebView2 accent-color 勾选不可靠
+- [x] **批次 89 交互反馈语言收敛**（60c43f9）：新增 --press-scale:0.96 令牌统一按压反馈（rail-item/msg-copy/input-clear/error-dismiss/chip/scroll-bottom/new/del/destroy/search-clear/mp-search-clear/collapse/modal-close/toast-close/select-trigger/seg-item/tpl-li）；hover 收敛（列表=背景+标题accent、卡片=边框accent）；TuiButton loading 语义修正（is-loading 不降透明度 cursor:progress）；各视图异步按钮改 :loading（TerminalView 执行/MemoryPanel 归档/SubAgentView 提交导入/TuiConfirm）；PhaseSection 折叠过渡修复（TransitionGroup v-show→外层 Transition + v-if）；phase-item 状态切换 transition；App 删除确认 deleting 防双击
+- [x] **批次 90 焦点/语义/键盘增强**（d23d861/0103849/55b1ed9）：TuiModal 弹窗栈（唯一 id + 仅栈顶响应 Esc/Tab 防全关）+ 聚焦首控件 + aria-describedby；全局快捷键检测 aria-modal 弹窗互斥；下拉菜单（TuiSelect/tpl-menu）关闭回焦 trigger；tpl-menu aria-selected 改绑编辑态；四列表（SessionList/MemoryPanel/SubAgentView/TerminalView）方向键导航；TuiSelect Tab 关菜单；错误条 role=alert；展开按钮 aria-expanded/controls；phase-bar aria-controls；rail aria-current=page；表单 label for/id 关联（SubAgentView + ModelSettingsDialog）；记忆 list/detail 视图淡入过渡；加载态 pulse 圆点；启用 --dur-lg 于弹窗/视图切换；msg-stream position:relative；toast move 重排；终端高频输出降级直接滚动；tpl-menu 菜单过渡；TuiSegmented radiogroup 语义；模型配置弹窗模式切换淡入过渡
 
 ## 进行中步骤
-- 端分离业务 UI 迁移（渐进式分模块策略）
+- Tauri 端 UI/UX 持续优化（批次推进模式：审计 → 修复 → Playwright 验证 → 截图归档 → 提交）
 
 ## 下一步
-- 启动端分离业务 UI 迁移：按 08-migration-phases.md 渐进式分模块策略，先迁 UI 骨架 → 业务模块逐个迁移
-- 迁移过程中保持 Rust 后端实测链路可回归（cdp-lt-* 脚本复用）
+- 视觉审查报告（docs/details/visual-review-2026-08-07.md）27 项全部闭环 ✅
+- 交互事件审计 20 项 P2 全部处理 ✅（派 search 子代理全端审计 8 维度产出）
+- 可继续：桌面端窗口级体验（拖拽/托盘）、长对话性能（虚拟滚动）、剩余 P3 打磨
 
 ## 本次进展（2026-08-01）
 - 检查点提交 5c32c78 + 端分离状态复核 + ui-kit 死导出清理（见 decisions 段）
