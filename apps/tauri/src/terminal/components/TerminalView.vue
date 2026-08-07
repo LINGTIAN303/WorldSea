@@ -186,6 +186,14 @@ onMounted(async () => {
     error.value = err instanceof Error ? err.message : String(err)
   }
 })
+
+/** 清空输出区（Ctrl+L 全局快捷键调用，批次95） */
+function clearOutput() {
+  entries.value = []
+  idSeq = 0
+}
+
+defineExpose({ clearOutput })
 </script>
 
 <template>

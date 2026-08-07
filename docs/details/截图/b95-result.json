@@ -1,0 +1,44 @@
+{
+  "checks": [
+    {
+      "name": "drag-overlay",
+      "pass": true,
+      "detail": "dragover 后 .drop-overlay 可见"
+    },
+    {
+      "name": "drop-file-chip",
+      "pass": true,
+      "detail": "拖放 hello.txt → chip: hello.txt"
+    },
+    {
+      "name": "attach-remove",
+      "pass": true,
+      "detail": "点击 .attach-remove 后 chips 清空"
+    },
+    {
+      "name": "paste-image-chip",
+      "pass": true,
+      "detail": "粘贴图片 → chip: shot.png"
+    },
+    {
+      "name": "send-enabled-with-attach",
+      "pass": true,
+      "detail": "仅附件（无文本）时 send-btn disabled=False"
+    },
+    {
+      "name": "theme-system-mode",
+      "pass": true,
+      "detail": "localStorage=system → data-theme=light"
+    },
+    {
+      "name": "ctrl-l-terminal",
+      "pass": true,
+      "detail": "终端视图 Ctrl+L 无错误条"
+    },
+    {
+      "name": "esc-idle",
+      "pass": true,
+      "detail": "空闲态 Esc 前后 error-bar 一致: \"会话初始化失败: TypeError: Cannot read properties of undefined (reading 'invoke')\" → \"会话初始化失败: TypeError: Cannot read properties of undefined (reading 'invoke')\""
+    }
+  ]
+}

@@ -22,6 +22,7 @@ import TuiToast from './components/ui/TuiToast.vue'
 import TuiEmpty from './components/ui/TuiEmpty.vue'
 import { useTuiToast } from './components/ui/useTuiToast'
 import { useTheme } from './components/ui/useTheme'
+import type { ImageAttachment, FileAttachment } from '@agent/index'
 
 // 在 setup 上下文注入（useAgent 使用 inject 模式，须在组件内 provide）
 const backend = useAgentRust()
@@ -76,6 +77,90 @@ function onA2UIAction(_surfaceId: string, action: { name: string; data?: any }) 
 const input = ref('')
 const sending = ref(false)
 const error = ref('')
+
+// ── 附件（拖拽/粘贴上传，批次95）：图片转 base64，其他文件读文本，随消息发送 ──
+interface PendingImage extends ImageAttachment {
+  name: string
+}
+interface PendingFile extends FileAttachment {}
+const pendingImages = ref<PendingImage[]>([])
+const pendingFiles = ref<PendingFile[]>([])
+/** 拖拽悬停反馈：文件进入消息区时显示遮罩层 */
+const dragging = ref(false)
+let dragDepth = 0
+
+/** File → base64 DataURL（图片附件） */
+function fileToDataUrl(f: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader()
+    r.onload = () => resolve(String(r.result))
+    r.onerror = () => reject(r.error)
+    r.readAsDataURL(f)
+  })
+}
+
+/** 摄取拖入/粘贴的文件：图片进 pendingImages，其余读文本进 pendingFiles */
+async function ingestFiles(files: File[]) {
+  if (files.length === 0) return
+  for (const f of files) {
+    if (f.type.startsWith('image/')) {
+      try {
+        const data = await fileToDataUrl(f)
+        pendingImages.value.push({ data, mimeType: f.type || 'image/png', name: f.name || '图片' })
+      } catch {
+        toast.error(`读取图片失败: ${f.name}`)
+      }
+    } else if (f.size > 0) {
+      const content = await f.text().catch(() => '')
+      if (content) pendingFiles.value.push({ name: f.name, content })
+    }
+  }
+  const n = pendingImages.value.length + pendingFiles.value.length
+  if (n > 0) toast.success(`已附加 ${n} 个文件`)
+}
+
+function onDragOver(e: DragEvent) {
+  e.preventDefault()
+  dragging.value = true
+}
+
+function onDragEnter(e: DragEvent) {
+  e.preventDefault()
+  dragDepth++
+  dragging.value = true
+}
+
+function onDragLeave(_e: DragEvent) {
+  dragDepth = Math.max(0, dragDepth - 1)
+  if (dragDepth === 0) dragging.value = false
+}
+
+function onDrop(e: DragEvent) {
+  e.preventDefault()
+  dragDepth = 0
+  dragging.value = false
+  const files = Array.from(e.dataTransfer?.files ?? [])
+  ingestFiles(files)
+}
+
+/** 粘贴图片进输入栏：剪贴板截图直接成为附件（桌面端聊天基本预期） */
+function onPaste(e: ClipboardEvent) {
+  const items = Array.from(e.clipboardData?.items ?? [])
+  const imgs = items.filter((i) => i.type.startsWith('image/'))
+  if (imgs.length === 0) return
+  e.preventDefault()
+  const files = imgs
+    .map((i) => i.getAsFile())
+    .filter((f): f is File => !!f)
+  ingestFiles(files)
+}
+
+function removeImage(i: number) {
+  pendingImages.value.splice(i, 1)
+}
+function removeFile(i: number) {
+  pendingFiles.value.splice(i, 1)
+}
 
 /** 消息区容器（用于自动滚动跟随） */
 const messagesEl = ref<HTMLElement | null>(null)
@@ -232,15 +317,23 @@ function switchView(target: (typeof navItems)[number]['key']) {
 /** 当前流式中的助手消息 id（富渲染据此在流式期间退化为纯文本防未闭合围栏） */
 const streamingId = computed(() => streamingAssistant?.value?.id ?? null)
 
-/** 发送消息：走 useAgentRust.prompt → invoke('send_message') → Rust ReAct 循环 */
+/** 终端视图实例引用（Ctrl+L 清屏用，v-if 条件渲染下可为 null） */
+const terminalRef = ref<InstanceType<typeof TerminalView> | null>(null)
+
+/** 发送消息：走 useAgentRust.prompt → invoke('send_message') → Rust ReAct 循环；携带待发送附件 */
 async function send() {
   const text = input.value.trim()
-  if (!text || sending.value) return
+  const hasAttach = pendingImages.value.length + pendingFiles.value.length > 0
+  if ((!text && !hasAttach) || sending.value) return
+  const images: ImageAttachment[] = pendingImages.value.map(({ data, mimeType }) => ({ data, mimeType }))
+  const files: FileAttachment[] = pendingFiles.value.map(({ name, content }) => ({ name, content }))
   input.value = ''
+  pendingImages.value = []
+  pendingFiles.value = []
   error.value = ''
   sending.value = true
   try {
-    await backend.prompt(text)
+    await backend.prompt(text, { images, files })
   } catch (err) {
     error.value = err instanceof Error ? err.message : String(err)
   } finally {
@@ -492,6 +585,12 @@ function onGlobalKeydown(e: KeyboardEvent) {
   // 弹窗打开时忽略（覆盖模型配置/删除确认/子Agent 导入导出等所有弹窗）
   const openDialog = document.querySelector('[aria-modal="true"]')
   if (openDialog) return
+  // Esc 停止生成（生成中随时打断，与按钮等价；批次95）
+  if (e.key === 'Escape' && (sending.value || isStreaming.value)) {
+    e.preventDefault()
+    onStop()
+    return
+  }
   const mod = e.ctrlKey || e.metaKey
   if (!mod) return
   const k = e.key.toLowerCase()
@@ -510,6 +609,12 @@ function onGlobalKeydown(e: KeyboardEvent) {
   } else if (k === '4') {
     e.preventDefault()
     switchView('memory')
+  } else if (k === 'l') {
+    // Ctrl+L 清屏：终端视图清空输出（桌面端终端惯例）
+    if (view.value === 'terminal') {
+      e.preventDefault()
+      terminalRef.value?.clearOutput()
+    }
   } else if (k === 'k') {
     e.preventDefault()
     inputEl.value?.focus()
@@ -582,7 +687,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
 
         <!-- 终端视图 -->
         <div v-else-if="view === 'terminal'" key="terminal" class="view">
-          <TerminalView />
+          <TerminalView ref="terminalRef" />
         </div>
 
         <!-- 子 Agent 管理视图 -->
@@ -635,8 +740,23 @@ function onGlobalKeydown(e: KeyboardEvent) {
           <!-- Loop Engineering 实时状态条 -->
           <LoopControlStatus />
 
-          <!-- 消息区 -->
-          <div class="messages" ref="messagesEl" @scroll.passive="onMessagesScroll">
+          <!-- 消息区：拖拽文件进入时显示遮罩反馈（批次95 桌面端拖放上传） -->
+          <div
+            class="messages"
+            ref="messagesEl"
+            @scroll.passive="onMessagesScroll"
+            @dragover.prevent="onDragOver"
+            @dragenter.prevent="onDragEnter"
+            @dragleave="onDragLeave"
+            @drop.prevent="onDrop"
+          >
+            <!-- 拖拽悬停遮罩：弱提示虚线框 + accent 图标（视觉一致，批次95） -->
+            <Transition name="fade">
+              <div v-if="dragging" class="drop-overlay" aria-hidden="true">
+                <TuiIcon name="upload" :size="20" />
+                <span>释放以附加文件</span>
+              </div>
+            </Transition>
             <!-- 空状态：建议引导（统一 TuiEmpty 基座 + chips 插槽，批次60 收敛手写副本） -->
             <TuiEmpty
               v-if="messages.length === 0"
@@ -777,6 +897,49 @@ function onGlobalKeydown(e: KeyboardEvent) {
 
           <!-- 输入栏：自适应 textarea + 轮转提示 + 发送/停止 -->
           <footer class="input-bar">
+            <!-- 待发送附件：图片/文件 chip 列表（可移除；发送后清空，批次95） -->
+            <Transition name="fade">
+              <div
+                v-if="pendingImages.length + pendingFiles.length > 0"
+                class="attach-list"
+                aria-label="待发送附件"
+              >
+                <span
+                  v-for="(img, i) in pendingImages"
+                  :key="`img-${i}`"
+                  class="attach-chip"
+                  :title="img.name"
+                >
+                  <TuiIcon name="file" :size="12" />
+                  <span class="attach-name">{{ img.name }}</span>
+                  <button
+                    class="attach-remove"
+                    title="移除附件"
+                    :aria-label="`移除附件 ${img.name}`"
+                    @click="removeImage(i)"
+                  >
+                    <TuiIcon name="close" :size="10" />
+                  </button>
+                </span>
+                <span
+                  v-for="(f, i) in pendingFiles"
+                  :key="`file-${i}`"
+                  class="attach-chip"
+                  :title="f.name"
+                >
+                  <TuiIcon name="file" :size="12" />
+                  <span class="attach-name">{{ f.name }}</span>
+                  <button
+                    class="attach-remove"
+                    title="移除附件"
+                    :aria-label="`移除附件 ${f.name}`"
+                    @click="removeFile(i)"
+                  >
+                    <TuiIcon name="close" :size="10" />
+                  </button>
+                </span>
+              </div>
+            </Transition>
             <div class="input-shell">
               <textarea
                 ref="inputEl"
@@ -787,6 +950,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
                 spellcheck="false"
                 @input="autoResizeInput"
                 @keydown="onInputKeydown"
+                @paste="onPaste"
               />
               <!-- 清空输入：有文本时出现（弱化圆形按钮，右上角） -->
               <Transition name="fade">
@@ -837,7 +1001,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
                   <button
                     v-else
                     class="send-btn"
-                    :disabled="!input.trim()"
+                    :disabled="!input.trim() && pendingImages.length + pendingFiles.length === 0"
                     title="发送"
                     aria-label="发送"
                     @click="send"
@@ -1073,6 +1237,23 @@ function onGlobalKeydown(e: KeyboardEvent) {
   overflow-y: auto;
   padding: 20px var(--chat-gutter) 12px;
   position: relative;
+}
+/* 拖拽悬停遮罩：文件进入消息区时的弱提示反馈（accent 虚线框，批次95） */
+.drop-overlay {
+  position: absolute;
+  inset: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1.5px dashed var(--accent-soft-border);
+  border-radius: var(--radius-md);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: var(--fs-sm);
+  z-index: var(--z-sticky);
+  pointer-events: none;
 }
 /* 回到最新悬浮按钮：上翻时右下角出现 */
 .scroll-bottom {
@@ -1404,6 +1585,51 @@ function onGlobalKeydown(e: KeyboardEvent) {
   padding: 10px var(--chat-gutter) 14px;
   background: var(--bg-surface);
   border-top: 1px solid var(--border);
+}
+/* 待发送附件列表：chips 一行排列，位于输入框上方（批次95） */
+.attach-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-width: 860px;
+  margin: 0 auto 8px;
+}
+.attach-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 220px;
+  padding: 3px 6px 3px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-muted);
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+}
+.attach-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.attach-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+.attach-remove:hover {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+.attach-remove:active {
+  transform: scale(var(--press-scale));
 }
 .input-shell {
   position: relative;

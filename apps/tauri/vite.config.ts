@@ -170,7 +170,6 @@ export default defineConfig({
             if (id.includes('js-yaml')) return 'vendor-yaml'
             if (id.includes('marked')) return 'vendor-marked'
             // UI 框架与图标
-            if (id.includes('naive-ui')) return 'vendor-naive'
             if (id.includes('lucide-vue-next')) return 'vendor-lucide'
             // 可视化与图形（非首屏）
             if (id.includes('sigma') || id.includes('graphology')) return 'vendor-graph'
