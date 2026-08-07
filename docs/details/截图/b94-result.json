@@ -1,0 +1,19 @@
+{
+  "checks": [
+    {
+      "name": "layout-min",
+      "pass": true,
+      "detail": "{\"railW\": 68, \"contentW\": 568, \"chatW\": 568, \"bodyScrollW\": 900, \"clientW\": 900, \"overflowX\": false}"
+    },
+    {
+      "name": "layout-default",
+      "pass": true,
+      "detail": "{\"railW\": 68, \"contentW\": 948, \"chatW\": 948, \"bodyScrollW\": 1280, \"clientW\": 1280, \"overflowX\": false}"
+    },
+    {
+      "name": "layout-large",
+      "pass": true,
+      "detail": "{\"railW\": 68, \"contentW\": 1588, \"chatW\": 1588, \"bodyScrollW\": 1920, \"clientW\": 1920, \"overflowX\": false}"
+    }
+  ]
+}
