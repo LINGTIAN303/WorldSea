@@ -123,6 +123,20 @@ async function onArchive() {
   }
 }
 
+/** 记忆列表方向键导航：↑/↓ 移动焦点到相邻条目（批次90 1.1） */
+function onListKeydown(e: KeyboardEvent, el: HTMLElement) {
+  const items = Array.from(el.querySelectorAll<HTMLElement>('.mp-item'))
+  if (items.length === 0) return
+  const idx = items.indexOf(document.activeElement as HTMLElement)
+  if (e.key === 'ArrowDown') {
+    e.preventDefault()
+    items[Math.min(idx + 1, items.length - 1)]?.focus()
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault()
+    items[Math.max(idx - 1, 0)]?.focus()
+  }
+}
+
 /** 从摘要中提取标题（首行） */
 function titleOf(item: RustMemoryRecallResult): string {
   const line = item.summary.split('\n').find((l) => l.trim())
@@ -205,72 +219,77 @@ onBeforeUnmount(() => {
 
     <TuiEmpty v-if="!sessionId" icon="memory" title="尚未选择会话" hint="请先创建会话，再查看该会话的记忆" fill />
 
-    <template v-else-if="view === 'list'">
-      <div class="mp-bar">
-        <span>归档边界</span>
-        <span class="mp-boundary">{{ archiveBoundary }}</span>
-        <TuiButton class="mp-refresh-btn" variant="ghost" size="sm" @click="refreshList">刷新</TuiButton>
-      </div>
-
-      <TuiEmpty v-if="isListLoading" icon="memory" title="加载中…" fill>
-        <span class="mp-loading-dot" aria-hidden="true" />
-      </TuiEmpty>
-      <TuiEmpty
-        v-else-if="memoryList.length === 0"
-        icon="memory"
-        title="暂无记忆"
-        hint="对话达到归档阈值后自动落库，或点击「归档」手动触发"
-        fill
-      />
-      <ul v-else class="mp-list">
-        <li
-          v-for="item in memoryList"
-          :key="item.hook_id"
-          class="mp-item"
-          role="button"
-          tabindex="0"
-          title="查看记忆详情"
-          @click="openDetail(item)"
-          @keydown.enter="openDetail(item)"
-          @keydown.space.prevent="openDetail(item)"
-        >
-          <div class="mp-item-title">{{ titleOf(item) }}</div>
-          <div class="mp-item-summary">{{ item.summary }}</div>
-          <div class="mp-item-meta">
-            <span>{{ fmtTime(item.created_at) }}</span>
-            <span v-if="item.score > 0" class="mp-tag">相关 {{ item.score.toFixed(2) }}</span>
-            <span v-if="item.pinned" class="mp-tag mp-pin">置顶</span>
-          </div>
-        </li>
-      </ul>
-    </template>
-
-    <template v-else-if="view === 'detail'">
-      <div class="mp-bar">
-        <TuiButton variant="ghost" size="sm" icon="arrowLeft" @click="backToList">返回</TuiButton>
-        <span class="mp-detail-title">{{ activeMemory ? titleOf(activeMemory) : '' }}</span>
-      </div>
-
-      <TuiEmpty v-if="!activeChunk" icon="memory" title="加载详情中…" fill />
-      <div v-else class="mp-detail">
-        <div class="mp-detail-meta">
-          <span>块 ID：{{ activeChunk.chunk_id }}</span>
-          <span>{{ activeChunk.messages.length }} 条消息</span>
-          <span>{{ activeChunk.token_count }} token</span>
+    <!-- 列表/详情视图切换：淡入过渡（批次90 8.5），避免内容区瞬换；单根容器满足 Transition 约束 -->
+    <Transition name="fade" mode="out-in">
+      <div v-if="view === 'list'" key="list" class="mp-view">
+        <div class="mp-bar">
+          <span>归档边界</span>
+          <span class="mp-boundary">{{ archiveBoundary }}</span>
+          <TuiButton class="mp-refresh-btn" variant="ghost" size="sm" @click="refreshList">刷新</TuiButton>
         </div>
-        <div class="mp-chunk">
-          <div
-            v-for="(m, i) in activeChunk.messages"
-            :key="i"
-            class="mp-msg"
-            :class="m.role"
+
+        <TuiEmpty v-if="isListLoading" icon="memory" title="加载中…" fill>
+          <span class="mp-loading-dot" aria-hidden="true" />
+        </TuiEmpty>
+        <TuiEmpty
+          v-else-if="memoryList.length === 0"
+          icon="memory"
+          title="暂无记忆"
+          hint="对话达到归档阈值后自动落库，或点击「归档」手动触发"
+          fill
+        />
+        <ul v-else class="mp-list" @keydown="(e) => onListKeydown(e, e.currentTarget as HTMLElement)">
+          <li
+            v-for="item in memoryList"
+            :key="item.hook_id"
+            class="mp-item"
+            role="button"
+            tabindex="0"
+            title="查看记忆详情"
+            @click="openDetail(item)"
+            @keydown.enter="openDetail(item)"
+            @keydown.space.prevent="openDetail(item)"
           >
-            <div class="mp-msg-role">{{ m.role === 'user' ? '你' : 'Agent' }}</div>
-            <div class="mp-msg-content">{{ m.content }}</div>
+            <div class="mp-item-title">{{ titleOf(item) }}</div>
+            <div class="mp-item-summary">{{ item.summary }}</div>
+            <div class="mp-item-meta">
+              <span>{{ fmtTime(item.created_at) }}</span>
+              <span v-if="item.score > 0" class="mp-tag">相关 {{ item.score.toFixed(2) }}</span>
+              <span v-if="item.pinned" class="mp-tag mp-pin">置顶</span>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </Transition>
+
+    <Transition name="fade" mode="out-in">
+      <div v-if="view === 'detail'" key="detail" class="mp-view">
+        <div class="mp-bar">
+          <TuiButton variant="ghost" size="sm" icon="arrowLeft" @click="backToList">返回</TuiButton>
+          <span class="mp-detail-title">{{ activeMemory ? titleOf(activeMemory) : '' }}</span>
+        </div>
+
+        <TuiEmpty v-if="!activeChunk" icon="memory" title="加载详情中…" fill />
+        <div v-else class="mp-detail">
+          <div class="mp-detail-meta">
+            <span>块 ID：{{ activeChunk.chunk_id }}</span>
+            <span>{{ activeChunk.messages.length }} 条消息</span>
+            <span>{{ activeChunk.token_count }} token</span>
+          </div>
+          <div class="mp-chunk">
+            <div
+              v-for="(m, i) in activeChunk.messages"
+              :key="i"
+              class="mp-msg"
+              :class="m.role"
+            >
+              <div class="mp-msg-role">{{ m.role === 'user' ? '你' : 'Agent' }}</div>
+              <div class="mp-msg-content">{{ m.content }}</div>
+            </div>
           </div>
         </div>
       </div>
-    </template>
+    </Transition>
   </div>
 </template>
 
@@ -387,6 +406,13 @@ onBeforeUnmount(() => {
   border-color: var(--danger-soft);
   color: var(--danger);
   background: var(--danger-soft);
+}
+/* 视图切换容器：撑满面板、纵向布局，保持列表滚动区正确（批次90 8.5 包单根） */
+.mp-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 .mp-bar {
   display: flex;

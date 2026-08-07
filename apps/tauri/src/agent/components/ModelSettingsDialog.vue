@@ -110,8 +110,8 @@ async function onSave() {
       <!-- 云端模式 -->
       <template v-if="mode === 'cloud'">
         <div class="field">
-          <label class="field-label">Provider</label>
-          <input v-model="cloud.provider" type="text" list="provider-suggest" placeholder="如 deepseek / openai" />
+          <label class="field-label" for="cloud-provider">Provider</label>
+          <input id="cloud-provider" v-model="cloud.provider" type="text" list="provider-suggest" placeholder="如 deepseek / openai" />
           <!-- 常用 provider 预置建议（原生 datalist，下拉可选） -->
           <datalist id="provider-suggest">
             <option value="deepseek" />
@@ -124,20 +124,20 @@ async function onSave() {
           </datalist>
         </div>
         <div class="field">
-          <label class="field-label">模型 ID</label>
-          <input v-model="cloud.model_id" type="text" placeholder="如 deepseek-v4-flash" />
+          <label class="field-label" for="cloud-model">模型 ID</label>
+          <input id="cloud-model" v-model="cloud.model_id" type="text" placeholder="如 deepseek-v4-flash" />
         </div>
         <div class="field">
-          <label class="field-label">API Key</label>
-          <input v-model="cloud.api_key" type="password" placeholder="填写的 Key 仅存本地" autocomplete="off" />
+          <label class="field-label" for="cloud-api-key">API Key</label>
+          <input id="cloud-api-key" v-model="cloud.api_key" type="password" placeholder="填写的 Key 仅存本地" autocomplete="off" />
         </div>
       </template>
 
       <!-- 本地模式 -->
       <template v-else-if="mode === 'local'">
         <div class="field">
-          <label class="field-label">端点 URL</label>
-          <input v-model="local.endpoint" type="text" placeholder="如 http://localhost:11434" />
+          <label class="field-label" for="local-endpoint">端点 URL</label>
+          <input id="local-endpoint" v-model="local.endpoint" type="text" placeholder="如 http://localhost:11434" />
         </div>
         <div class="field">
           <label class="field-label">API 类型</label>
@@ -153,16 +153,16 @@ async function onSave() {
           />
         </div>
         <div class="field">
-          <label class="field-label">模型 ID</label>
-          <input v-model="local.model_id" type="text" placeholder="本地模型名" />
+          <label class="field-label" for="local-model">模型 ID</label>
+          <input id="local-model" v-model="local.model_id" type="text" placeholder="本地模型名" />
         </div>
       </template>
 
       <!-- 自定义模式 -->
       <template v-else>
         <div class="field">
-          <label class="field-label">Base URL</label>
-          <input v-model="custom.base_url" type="text" placeholder="如 https://api.example.com/v1" />
+          <label class="field-label" for="custom-base-url">Base URL</label>
+          <input id="custom-base-url" v-model="custom.base_url" type="text" placeholder="如 https://api.example.com/v1" />
         </div>
         <div class="field">
           <label class="field-label">API 类型</label>
@@ -176,21 +176,21 @@ async function onSave() {
           />
         </div>
         <div class="field">
-          <label class="field-label">模型 ID</label>
-          <input v-model="custom.model_id" type="text" placeholder="模型名" />
+          <label class="field-label" for="custom-model">模型 ID</label>
+          <input id="custom-model" v-model="custom.model_id" type="text" placeholder="模型名" />
         </div>
         <div class="field">
-          <label class="field-label">API Key</label>
-          <input v-model="custom.api_key" type="password" placeholder="填写的 Key 仅存本地" autocomplete="off" />
+          <label class="field-label" for="custom-api-key">API Key</label>
+          <input id="custom-api-key" v-model="custom.api_key" type="password" placeholder="填写的 Key 仅存本地" autocomplete="off" />
         </div>
         <div class="field-row">
           <div class="field">
-            <label class="field-label">上下文窗口</label>
-            <input v-model.number="custom.context_window" type="number" placeholder="默认 1048576" />
+            <label class="field-label" for="custom-context-window">上下文窗口</label>
+            <input id="custom-context-window" v-model.number="custom.context_window" type="number" placeholder="默认 1048576" />
           </div>
           <div class="field">
-            <label class="field-label">最大输出 token</label>
-            <input v-model.number="custom.max_tokens" type="number" placeholder="默认 65536" />
+            <label class="field-label" for="custom-max-tokens">最大输出 token</label>
+            <input id="custom-max-tokens" v-model.number="custom.max_tokens" type="number" placeholder="默认 65536" />
           </div>
         </div>
       </template>

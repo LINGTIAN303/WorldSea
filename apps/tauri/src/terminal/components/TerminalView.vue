@@ -47,7 +47,8 @@ let idSeq = 0
 
 const outputEl = ref<HTMLElement | null>(null)
 
-/** 追加一条接口输出到输出区 */
+/** 追加一条接口输出到输出区（高频输出时降级直接滚动，避免 smooth 积压，批次90 6.2） */
+let lastOutputScroll = 0
 function pushOutput(o: Omit<OutputEntry, 'id' | 'ts' | 'scope'> & { scope?: string }) {
   entries.value.push({
     ...o,
@@ -56,7 +57,16 @@ function pushOutput(o: Omit<OutputEntry, 'id' | 'ts' | 'scope'> & { scope?: stri
     ts: Date.now(),
   })
   nextTick(() => {
-    outputEl.value?.scrollTo({ top: outputEl.value.scrollHeight, behavior: 'smooth' })
+    const el = outputEl.value
+    if (!el) return
+    const now = Date.now()
+    // 连续输出（<800ms 间隔）直接赋值跳到底，单次输出用平滑滚动
+    if (now - lastOutputScroll < 800) {
+      el.scrollTop = el.scrollHeight
+    } else {
+      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+    }
+    lastOutputScroll = now
   })
 }
 
@@ -151,6 +161,20 @@ async function destroySession(sessionId: string) {
     if (activeSessionId.value === sessionId) activeSessionId.value = ''
   } catch (err) {
     error.value = err instanceof Error ? err.message : String(err)
+  }
+}
+
+/** 会话列表方向键导航：↑/↓ 移动焦点到相邻会话（批次90 1.1） */
+function onSessionsKeydown(e: KeyboardEvent, el: HTMLElement) {
+  const items = Array.from(el.querySelectorAll<HTMLElement>('.session-select'))
+  if (items.length === 0) return
+  const idx = items.indexOf(document.activeElement as HTMLElement)
+  if (e.key === 'ArrowDown') {
+    e.preventDefault()
+    items[Math.min(idx + 1, items.length - 1)]?.focus()
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault()
+    items[Math.max(idx - 1, 0)]?.focus()
   }
 }
 
@@ -276,7 +300,7 @@ onMounted(async () => {
       <div v-if="sessions.length === 0" class="panel-empty">
         <TuiEmpty icon="chat" title="暂无会话" hint="在上方新建持久化会话" compact />
       </div>
-      <ul v-else class="session-list">
+      <ul v-else class="session-list" @keydown="(e) => onSessionsKeydown(e, e.currentTarget as HTMLElement)">
         <li
           v-for="s in sessions"
           :key="s.session_id"

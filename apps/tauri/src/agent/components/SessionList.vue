@@ -59,6 +59,22 @@ const filtered = computed(() => {
   return props.sessions.filter((s) => title(s.id).toLowerCase().includes(q))
 })
 
+/** 组内方向键导航：↑/↓ 移动焦点到相邻会话项（批次90 1.1 列表键盘效率） */
+function onListKeydown(e: KeyboardEvent, el: HTMLElement) {
+  const items = Array.from(el.querySelectorAll<HTMLElement>('.item'))
+  if (items.length === 0) return
+  const idx = items.indexOf(document.activeElement as HTMLElement)
+  if (e.key === 'ArrowDown') {
+    e.preventDefault()
+    const next = items[Math.min(idx + 1, items.length - 1)]
+    next?.focus()
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault()
+    const next = items[Math.max(idx - 1, 0)]
+    next?.focus()
+  }
+}
+
 /** 分组：今天 / 更早（基于 created_at 零点切分），组内按创建时间倒序 */
 const groups = computed(() => {
   const today = new Date()
@@ -115,7 +131,7 @@ const groups = computed(() => {
 
     <div v-for="g in groups" :key="g.label" class="group">
       <div class="group-label">{{ g.label }}</div>
-      <ul class="list">
+      <ul class="list" @keydown="(e) => onListKeydown(e, e.currentTarget as HTMLElement)">
         <li
           v-for="s in g.items"
           :key="s.id"

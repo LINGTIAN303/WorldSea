@@ -287,6 +287,20 @@ function loadTemplate(t: SubAgentTemplate) {
 /** 是否有当前活动会话（无则实例管理区提示先创建会话） */
 const hasSession = () => !!agent.currentSessionId?.value
 
+/** 规格列表方向键导航：↑/↓ 移动焦点到相邻规格（批次90 1.1） */
+function onSpecsKeydown(e: KeyboardEvent, el: HTMLElement) {
+  const items = Array.from(el.querySelectorAll<HTMLElement>('.spec-main'))
+  if (items.length === 0) return
+  const idx = items.indexOf(document.activeElement as HTMLElement)
+  if (e.key === 'ArrowDown') {
+    e.preventDefault()
+    items[Math.min(idx + 1, items.length - 1)]?.focus()
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault()
+    items[Math.max(idx - 1, 0)]?.focus()
+  }
+}
+
 /** TuiConfirm update:show 回调 */
 function onConfirmShow(v: boolean) {
   confirmState.value.show = v
@@ -363,7 +377,7 @@ onMounted(async () => {
         <p v-if="listMsg" class="list-msg" :class="listMsgType">{{ listMsg }}</p>
       </Transition>
 
-      <ul class="specs">
+      <ul class="specs" @keydown="(e) => onSpecsKeydown(e, e.currentTarget as HTMLElement)">
         <li v-for="s in specs" :key="s.id" class="spec" :class="{ editing: editingId === s.id }">
           <div
             class="spec-main"
@@ -455,56 +469,60 @@ onMounted(async () => {
               模板
               <TuiIcon name="chevronDown" :size="12" :stroke-width="2" />
             </TuiButton>
-            <ul v-if="tplOpen" class="tpl-menu" role="listbox" @keydown="onTplKeydown">
-              <li
-                v-for="(t, i) in subagentTemplates"
-                :key="t.spec.id"
-                :id="`tpl-opt-${i}`"
-                tabindex="-1"
-                role="option"
-                :aria-selected="editingId === t.spec.id"
-                :class="{ 'is-focus': i === tplActive }"
-                @click="loadTemplate(t)"
-                @mouseenter="tplActive = i"
-              >
-                <span class="tpl-label">{{ t.label }}</span>
-                <span class="tpl-hint">{{ t.hint }}</span>
-              </li>
-            </ul>
+            <!-- 过渡与 TuiSelect 菜单同一语言（批次90 4.4） -->
+            <Transition name="tui-select">
+              <ul v-if="tplOpen" class="tpl-menu" role="listbox" @keydown="onTplKeydown">
+                <li
+                  v-for="(t, i) in subagentTemplates"
+                  :key="t.spec.id"
+                  :id="`tpl-opt-${i}`"
+                  tabindex="-1"
+                  role="option"
+                  :aria-selected="editingId === t.spec.id"
+                  :class="{ 'is-focus': i === tplActive }"
+                  @click="loadTemplate(t)"
+                  @mouseenter="tplActive = i"
+                >
+                  <span class="tpl-label">{{ t.label }}</span>
+                  <span class="tpl-hint">{{ t.hint }}</span>
+                </li>
+              </ul>
+            </Transition>
           </div>
         </div>
       </header>
 
       <div class="field">
-        <label>ID（唯一标识，delegate 时引用）</label>
-        <input name="spec-id" v-model="form.id" type="text" placeholder="如 coder / writer / data-analyst" :disabled="!!editingId" />
+        <label for="spec-id">ID（唯一标识，delegate 时引用）</label>
+        <input id="spec-id" name="spec-id" v-model="form.id" type="text" placeholder="如 coder / writer / data-analyst" :disabled="!!editingId" />
       </div>
 
       <div class="field">
-        <label>名称</label>
-        <input name="spec-name" v-model="form.name" type="text" placeholder="如 代码助手" />
+        <label for="spec-name">名称</label>
+        <input id="spec-name" name="spec-name" v-model="form.name" type="text" placeholder="如 代码助手" />
       </div>
 
       <div class="field">
-        <label>能力描述（供主 Agent 的 LLM 选择时参考）</label>
-        <textarea name="spec-description" v-model="form.description" rows="2" placeholder="清晰描述该子 Agent 的专长" />
+        <label for="spec-description">能力描述（供主 Agent 的 LLM 选择时参考）</label>
+        <textarea id="spec-description" name="spec-description" v-model="form.description" rows="2" placeholder="清晰描述该子 Agent 的专长" />
       </div>
 
       <div class="field">
-        <label>系统提示词（定义专长与行为边界）</label>
-        <textarea name="spec-system-prompt" v-model="form.system_prompt" rows="5" placeholder="你是……请直接给出……" />
+        <label for="spec-system-prompt">系统提示词（定义专长与行为边界）</label>
+        <textarea id="spec-system-prompt" name="spec-system-prompt" v-model="form.system_prompt" rows="5" placeholder="你是……请直接给出……" />
       </div>
 
       <div class="field row">
         <div class="subfield">
-          <label>最大迭代次数</label>
-          <input name="spec-max-iterations" v-model.number="form.max_iterations" type="number" min="1" placeholder="可空" />
+          <label for="spec-max-iterations">最大迭代次数</label>
+          <input id="spec-max-iterations" name="spec-max-iterations" v-model.number="form.max_iterations" type="number" min="1" placeholder="可空" />
         </div>
       </div>
 
       <div class="field">
-        <label>工具白名单（逗号分隔，空 = 继承全部工具）</label>
+        <label for="spec-tools-whitelist">工具白名单（逗号分隔，空 = 继承全部工具）</label>
         <input
+          id="spec-tools-whitelist"
           name="spec-tools-whitelist"
           v-model="whitelistText"
           type="text"

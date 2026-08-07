@@ -1,0 +1,19 @@
+{
+  "checks": [
+    {
+      "name": "memory-view-wrap",
+      "pass": true,
+      "detail": "{\"display\": \"flex\", \"flex\": \"1 1 0%\", \"minHeight\": \"0px\"}"
+    },
+    {
+      "name": "form-label-for",
+      "pass": true,
+      "detail": "[{\"for\": \"spec-id\", \"idExists\": true}, {\"for\": \"spec-name\", \"idExists\": true}, {\"for\": \"spec-description\", \"idExists\": true}, {\"for\": \"spec-system-prompt\", \"idExists\": true}, {\"for\": \"spec-max-iterations\", \"idExists\": true}, {\"for\": \"spec-tools-whitelist\", \"idExists\": true}]"
+    },
+    {
+      "name": "list-nav-implemented",
+      "pass": true,
+      "detail": "onListKeydown/onSpecsKeydown/onSessionsKeydown 已实现且 typecheck 通过"
+    }
+  ]
+}
