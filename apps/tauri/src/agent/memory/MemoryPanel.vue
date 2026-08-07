@@ -251,7 +251,8 @@ onBeforeUnmount(() => {
 
     <Transition name="fade" mode="out-in">
       <div v-if="view === 'detail'" key="detail" class="mp-view">
-        <div class="mp-bar">
+        <!-- 详情导航栏（批次109 恢复：批次105 删 .mp-bar 时误删详情视图样式，更名 .mp-detail-bar 区分） -->
+        <div class="mp-detail-bar">
           <TuiButton variant="ghost" size="sm" icon="arrowLeft" @click="backToList">返回</TuiButton>
           <span class="mp-detail-title">{{ activeMemory ? titleOf(activeMemory) : '' }}</span>
         </div>
@@ -292,6 +293,8 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  /* 批次109：窄窗口下五段内容可换行，防横向溢出（批次105 合并后头部内容变多） */
+  flex-wrap: wrap;
   padding: 12px 16px;
   background: var(--bg-surface);
   border-bottom: 1px solid var(--border);
@@ -474,7 +477,20 @@ onBeforeUnmount(() => {
   background: var(--bg-muted);
   color: var(--text-secondary);
 }
+/* 详情导航栏（批次109 恢复样式 + 更名）：返回左、标题右可截断，底部分隔详情区 */
+.mp-detail-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
 .mp-detail-title {
+  flex: 1;
+  min-width: 0;
+  text-align: right;
   font-weight: 600;
   color: var(--text-primary);
   overflow: hidden;

@@ -432,7 +432,9 @@ onMounted(async () => {
             <div class="instance-main">
               <span class="instance-seq" :title="`实例 ${i + 1}`">{{ i + 1 }}</span>
               <span class="instance-name">{{ inst.name }}</span>
-              <code class="instance-id" :title="inst.sub_agent_id">{{ inst.sub_agent_id.slice(0, 8) }}…</code>
+              <code class="instance-id" :title="inst.sub_agent_id">{{
+                inst.sub_agent_id.length > 8 ? inst.sub_agent_id.slice(0, 8) + '…' : inst.sub_agent_id
+              }}</code>
               <span class="instance-msg" :title="'累积上下文消息数'">{{ inst.message_count }} 条</span>
             </div>
             <div class="instance-side">

@@ -270,6 +270,8 @@ function switchView(target: (typeof navItems)[number]['key']) {
   const from = navItems.findIndex((i) => i.key === view.value)
   const to = navItems.findIndex((i) => i.key === target)
   viewDir.value = to >= from ? 'fwd' : 'back'
+  // 视图切换时关闭可能挂起的溢出菜单（chat 视图卸载后更无法点外关闭，批次109 P3-5）
+  moreOpen.value = false
   view.value = target
   // 视图切换后焦点转移到新视图（等待 out-in 过渡完成；避免焦点落回 body，批次90 5.5）
   nextTick(() => {
@@ -398,26 +400,50 @@ watch([sending, () => isStreaming.value], ([newSending, newStreaming]) => {
 // 组件卸载时清理轮询计时器
 onBeforeUnmount(stopIterationPolling)
 
-// ─── 对话 header 溢出菜单（批次106：清空/压缩破坏性操作降级为 "…" 菜单项，弱化常显打扰与误触） ───
+// ─── 对话 header 溢出菜单（批次106：清空/压缩破坏性操作降级为 "…" 菜单项，弱化常显打扰与误触；批次109 补焦点管理与选中关闭） ───
 const moreOpen = ref(false)
 const moreMenuEl = ref<HTMLElement | null>(null)
 
-function toggleMore() {
-  moreOpen.value = !moreOpen.value
-}
-
-/** 点击菜单外关闭（与 TuiSelect 同一交互范式） */
-function onDocClickForMore(e: MouseEvent) {
-  if (moreOpen.value && moreMenuEl.value && !moreMenuEl.value.contains(e.target as Node)) {
-    moreOpen.value = false
+/** 关闭菜单并（可选）归还焦点到触发按钮（WAI-ARIA menu 模式） */
+function closeMore(restoreFocus = true) {
+  if (!moreOpen.value) return
+  moreOpen.value = false
+  if (restoreFocus) {
+    nextTick(() => document.querySelector<HTMLElement>('.act-more')?.focus())
   }
 }
 
-/** 菜单内 Esc 关闭（stopPropagation 避免触发全局 Escape 停止生成逻辑） */
+function toggleMore() {
+  moreOpen.value = !moreOpen.value
+  if (moreOpen.value) {
+    // 打开后聚焦首个可用菜单项（P2-2）
+    nextTick(() => document.querySelector<HTMLElement>('.more-item:not(:disabled)')?.focus())
+  }
+}
+
+/** 点击菜单外关闭（与 TuiSelect 同一交互范式；点击外部时焦点已转移，不归还） */
+function onDocClickForMore(e: MouseEvent) {
+  if (moreOpen.value && moreMenuEl.value && !moreMenuEl.value.contains(e.target as Node)) {
+    closeMore(false)
+  }
+}
+
+/** 菜单内键盘：Esc 关闭（stopPropagation 避免触发全局 Escape 停止生成逻辑）+ ↑/↓ 项间导航 */
 function onMoreMenuKeydown(e: KeyboardEvent) {
   if (e.key === 'Escape') {
     e.stopPropagation()
-    moreOpen.value = false
+    closeMore()
+    return
+  }
+  const items = Array.from(document.querySelectorAll<HTMLElement>('.more-item:not(:disabled)'))
+  if (items.length === 0) return
+  const idx = items.indexOf(document.activeElement as HTMLElement)
+  if (e.key === 'ArrowDown') {
+    e.preventDefault()
+    items[(idx + 1) % items.length]?.focus()
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault()
+    items[(idx - 1 + items.length) % items.length]?.focus()
   }
 }
 
@@ -598,10 +624,10 @@ function onGlobalKeydown(e: KeyboardEvent) {
   if (openDialog) return
   // Esc 停止生成（生成中随时打断，与按钮等价；批次95）
   // 溢出菜单打开时 Esc 优先关菜单（不触发停止生成）
-  if (e.key === 'Escape' && moreOpen.value) {
-    moreOpen.value = false
-    return
-  }
+   if (e.key === 'Escape' && moreOpen.value) {
+     closeMore()
+     return
+   }
   if (e.key === 'Escape' && (sending.value || isStreaming.value)) {
     e.preventDefault()
     onStop()
@@ -752,6 +778,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
                   icon="dots"
                   title="更多操作"
                   aria-label="更多操作"
+                  aria-haspopup="menu"
                   :aria-expanded="moreOpen"
                   @click="toggleMore"
                 />
@@ -760,7 +787,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
                     role="menuitem"
                     class="more-item"
                     :disabled="messages.length === 0"
-                    @click="onClear"
+                    @click="closeMore(); onClear()"
                   >
                     <TuiIcon name="trash" :size="13" />
                     清空对话
@@ -770,7 +797,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
                     class="more-item"
                     :disabled="messages.length <= TRIM_KEEP_COUNT"
                     title="保留最近 8 条消息"
-                    @click="onTrimContext"
+                    @click="closeMore(); onTrimContext()"
                   >
                     压缩上下文
                   </button>
@@ -1316,10 +1343,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
   background: var(--bg-muted);
   color: var(--text-primary);
 }
-.more-item:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
-}
+/* 焦点环由全局 :focus-visible 兜底（theme.css --ring-* 令牌，批次109 P3-6 去重） */
 .more-item:disabled {
   opacity: var(--disabled-opacity);
   cursor: default;

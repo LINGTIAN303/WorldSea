@@ -1,0 +1,74 @@
+{
+  "checks": [
+    {
+      "name": "cross-year-msg",
+      "pass": true,
+      "detail": "跨年消息: 2025年12月31日 10:00"
+    },
+    {
+      "name": "cross-year-rel",
+      "pass": true,
+      "detail": "跨年相对: 2025年12月31日"
+    },
+    {
+      "name": "empty-string",
+      "pass": true,
+      "detail": "空串: ''"
+    },
+    {
+      "name": "epoch-not-empty",
+      "pass": true,
+      "detail": "epoch 0 显示: 1970"
+    },
+    {
+      "name": "dt-null",
+      "pass": true,
+      "detail": "dt null: '-'"
+    },
+    {
+      "name": "aria-haspopup",
+      "pass": true,
+      "detail": "aria-haspopup: menu"
+    },
+    {
+      "name": "focus-first-item",
+      "pass": true,
+      "detail": "聚焦菜单首项: more-item"
+    },
+    {
+      "name": "arrow-down",
+      "pass": true,
+      "detail": "方向键↓到压缩: 压缩上下文"
+    },
+    {
+      "name": "arrow-up-loop",
+      "pass": true,
+      "detail": "方向键↑回环到清空: 清空对话"
+    },
+    {
+      "name": "esc-close-focus-back",
+      "pass": true,
+      "detail": "Esc 关闭+焦点归还: {'menuGone': True, 'focusBack': 'tui-btn is-ghost is-sm act-more'}"
+    },
+    {
+      "name": "select-closes",
+      "pass": true,
+      "detail": "选中项后菜单关闭"
+    },
+    {
+      "name": "detail-bar-style",
+      "pass": true,
+      "detail": ".mp-detail-bar flex 样式规则存在"
+    },
+    {
+      "name": "console-errors",
+      "pass": true,
+      "detail": "pageerror: 无"
+    },
+    {
+      "name": "screenshots",
+      "pass": true,
+      "detail": "b109-header-more-light/dark.png"
+    }
+  ]
+}
