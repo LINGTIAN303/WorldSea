@@ -873,4 +873,11 @@ Tauri 端 UI/UX 全维度优化（视觉 + 交互事件 + 键盘可达性 + 性�
 - 删除 `.mp-bar` 块，头部单条下边框（双横线消除）；无 session 时刷新安全返回（refreshList 已有守卫）
 - **验证**：8 项 Playwright 断言全 PASS（旧 bar 移除 / 边界并入 head / 刷新并入 / 单边框）+ 双主题截图归档（b105-memory-light/dark.png）
 - **剩余可选 P2**：子Agent 实例区分栏；对话 header 溢出菜单（清空/压缩收入 "…"）
+
+## 本次进展（2026-08-08）— 批次106 对话 header 溢出菜单（777a011）
+- **清空/压缩破坏性操作收入 `.act-more`(dots) 溢出菜单**：常显仅保留高频（模型/思考深度），释放 header 空间 + 弱化误触（符合弱提示优于强提示偏好）
+- **交互与 TuiSelect 同语言**：点击外部关闭（document click + contains）/ 菜单内 Esc stopPropagation（不误触停止生成）/ 全局 Escape 优先关菜单；aria-expanded + role=menu/menuitem + focus-visible 兜底；disabled 随 messages.length 绑定（清空 0 条禁用、压缩 ≤8 条禁用）
+- **样式**：--shadow-md 阴影 + --z-dropdown + 与 TuiSelect 菜单同视觉语言
+- **验证**：9 项 Playwright 断言全 PASS（按钮存在/旧按钮移除/菜单开合/Esc/外部关闭/禁用态）+ 双主题截图归档（b106-header-more-light/dark.png）
+- **剩余可选 P2**：子Agent 实例区分栏
 <!-- MemoryCenter:SECTION:task_state END -->
