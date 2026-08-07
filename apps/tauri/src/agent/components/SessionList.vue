@@ -11,6 +11,7 @@ import { ref, computed } from 'vue'
 import { useAgentRust } from '../composables/useAgentRust'
 import TuiIcon from '../../components/ui/TuiIcon.vue'
 import TuiEmpty from '../../components/ui/TuiEmpty.vue'
+import { formatRelativeTime } from '../../components/ui/format'
 
 interface SessionInfo {
   id: string
@@ -38,19 +39,6 @@ function title(id: string): string {
 
 /** 搜索关键词（会话数量较多时才展示搜索框） */
 const keyword = ref('')
-
-/** 相对时间文本（刚刚 / N 分钟前 / N 小时前 / 昨天 / 日期） */
-function relTime(ts: number): string {
-  const diff = Date.now() - ts
-  if (diff < 60_000) return '刚刚'
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)} 分钟前`
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)} 小时前`
-  const d = new Date(ts)
-  const yesterday = new Date()
-  yesterday.setDate(yesterday.getDate() - 1)
-  if (d.toDateString() === yesterday.toDateString()) return '昨天'
-  return `${d.getMonth() + 1}-${d.getDate()}`
-}
 
 /** 过滤后的会话（按标题匹配关键词） */
 const filtered = computed(() => {
@@ -141,7 +129,7 @@ const groups = computed(() => {
             <span class="item-title">{{ title(s.id) }}</span>
             <span class="item-meta">
               <span v-if="s.message_count > 0" class="item-count">{{ s.message_count }}</span>
-              <span class="item-time">{{ relTime(s.created_at) }}</span>
+              <span class="item-time">{{ formatRelativeTime(s.created_at) }}</span>
             </span>
           </button>
           <button class="del" title="删除会话" aria-label="删除会话" @click="emit('remove', s.id)">

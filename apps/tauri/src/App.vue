@@ -22,6 +22,7 @@ import TuiToast from './components/ui/TuiToast.vue'
 import TuiEmpty from './components/ui/TuiEmpty.vue'
 import { useTuiToast } from './components/ui/useTuiToast'
 import { useTheme } from './components/ui/useTheme'
+import { formatMsgTime, isSameDay, formatDateLabel } from './components/ui/format'
 import type { ImageAttachment, FileAttachment } from '@agent/index'
 
 // 在 setup 上下文注入（useAgent 使用 inject 模式，须在组件内 provide）
@@ -210,51 +211,7 @@ async function copyMessage(text: string) {
   }
 }
 
-/**
- * 消息时间格式化：今天仅显示 HH:mm，非今天附月日（弱信息，克制呈现）。
- * 无时间戳（旧数据）返回空串，不显示时间。
- * timestamp 兼容 string | number（AgentMessage 契约类型）。
- */
-function formatMsgTime(ts?: number | string): string {
-  if (!ts) return ''
-  const d = new Date(ts)
-  const now = new Date()
-  const sameDay =
-    d.getFullYear() === now.getFullYear() &&
-    d.getMonth() === now.getMonth() &&
-    d.getDate() === now.getDate()
-  const hh = String(d.getHours()).padStart(2, '0')
-  const mm = String(d.getMinutes()).padStart(2, '0')
-  return sameDay ? `${hh}:${mm}` : `${d.getMonth() + 1}月${d.getDate()}日 ${hh}:${mm}`
-}
-
-/** 两个时间戳是否同一天（用于日期分隔线判断） */
-function sameDay(a?: number | string, b?: number | string): boolean {
-  if (!a || !b) return false
-  const da = new Date(a)
-  const db = new Date(b)
-  return (
-    da.getFullYear() === db.getFullYear() &&
-    da.getMonth() === db.getMonth() &&
-    da.getDate() === db.getDate()
-  )
-}
-
-/** 日期分隔线标签：今天 / 昨天 / 同年 M月D日 / 跨年加年份 */
-function dateLabel(ts: number | string): string {
-  const d = new Date(ts)
-  const now = new Date()
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
-  const startOfDay = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
-  const diffDays = Math.round((startOfToday - startOfDay) / 86400000)
-  if (diffDays === 0) return '今天'
-  if (diffDays === 1) return '昨天'
-  if (d.getFullYear() === now.getFullYear()) return `${d.getMonth() + 1}月${d.getDate()}日`
-  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`
-}
-
-/**
- * 是否在消息 i 处显示日期分隔线：跨天且非首条（首条跟随空状态，不重复标记）。
+/** 是否在消息 i 处显示日期分隔线：跨天且非首条（首条跟随空状态，不重复标记）。
  * i 兼容 number | string（vue-tsc 对 v-for index 的联合推断），内部统一转 number。
  */
 function showDateDivider(m: { timestamp?: number | string }, i: number | string): boolean {
@@ -262,7 +219,7 @@ function showDateDivider(m: { timestamp?: number | string }, i: number | string)
   if (idx === 0 || !m.timestamp) return false
   const prev = messages.value[idx - 1]
   if (!prev || !prev.timestamp) return false
-  return !sameDay(prev.timestamp, m.timestamp)
+  return !isSameDay(prev.timestamp, m.timestamp)
 }
 
 // 流式输出（打字机）与新消息落地时，若处于跟随状态则自动滚动到底部
@@ -811,7 +768,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
             <template v-for="(m, i) in messages" :key="m.id">
             <!-- 日期分隔线：跨天处弱色标记（今天/昨天/月日），与时间戳构成时间叙事 -->
             <div v-if="showDateDivider(m, i)" :key="`d-${m.id}`" class="date-divider">
-              <span>{{ dateLabel(m.timestamp) }}</span>
+              <span>{{ formatDateLabel(m.timestamp) }}</span>
             </div>
             <div
               class="msg"

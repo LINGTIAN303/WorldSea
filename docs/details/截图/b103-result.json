@@ -1,0 +1,99 @@
+{
+  "checks": [
+    {
+      "name": "clock",
+      "pass": true,
+      "detail": "formatClock=09:30"
+    },
+    {
+      "name": "msg-today",
+      "pass": true,
+      "detail": "今天消息=09:30"
+    },
+    {
+      "name": "msg-yesterday",
+      "pass": true,
+      "detail": "昨天消息=8月7日 00:00"
+    },
+    {
+      "name": "msg-older",
+      "pass": true,
+      "detail": "更早消息=8月1日 09:30"
+    },
+    {
+      "name": "msg-empty",
+      "pass": true,
+      "detail": "空时间戳=''"
+    },
+    {
+      "name": "dt-format",
+      "pass": true,
+      "detail": "绝对时间=2026-08-08 01:12"
+    },
+    {
+      "name": "dt-empty",
+      "pass": true,
+      "detail": "空绝对时间='-'"
+    },
+    {
+      "name": "rel-just-now",
+      "pass": true,
+      "detail": "相对时间=刚刚"
+    },
+    {
+      "name": "rel-5m",
+      "pass": true,
+      "detail": "相对时间=5 分钟前"
+    },
+    {
+      "name": "rel-3h",
+      "pass": true,
+      "detail": "相对时间=3 小时前"
+    },
+    {
+      "name": "rel-yesterday",
+      "pass": true,
+      "detail": "相对时间=昨天"
+    },
+    {
+      "name": "rel-older",
+      "pass": true,
+      "detail": "相对时间=8月1日"
+    },
+    {
+      "name": "same-day",
+      "pass": true,
+      "detail": "isSameDay true=True false=False"
+    },
+    {
+      "name": "label-today",
+      "pass": true,
+      "detail": "分隔线=今天"
+    },
+    {
+      "name": "label-yesterday",
+      "pass": true,
+      "detail": "分隔线=昨天"
+    },
+    {
+      "name": "label-older",
+      "pass": true,
+      "detail": "分隔线=8月1日"
+    },
+    {
+      "name": "rail",
+      "pass": true,
+      "detail": "rail-item 数量: 6"
+    },
+    {
+      "name": "console-errors",
+      "pass": true,
+      "detail": "pageerror: 无"
+    },
+    {
+      "name": "screenshots",
+      "pass": true,
+      "detail": "b103-main-light/dark.png"
+    }
+  ]
+}

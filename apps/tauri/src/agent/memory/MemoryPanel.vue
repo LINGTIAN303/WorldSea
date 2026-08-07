@@ -15,6 +15,7 @@ import {
 import TuiButton from '../../components/ui/TuiButton.vue'
 import TuiEmpty from '../../components/ui/TuiEmpty.vue'
 import TuiIcon from '../../components/ui/TuiIcon.vue'
+import { formatDateTime } from '../../components/ui/format'
 
 const props = defineProps<{ sessionId: string | null }>()
 
@@ -143,17 +144,6 @@ function titleOf(item: RustMemoryRecallResult): string {
   return line?.trim() || item.hook_id.slice(0, 8)
 }
 
-/** 时间戳 → 本地时间文本 */
-function fmtTime(ts: number): string {
-  if (!ts) return '-'
-  const d = new Date(ts)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
-    d.getDate(),
-  ).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(
-    d.getMinutes(),
-  ).padStart(2, '0')}`
-}
-
 // 会话切换时刷新清单
 watch(
   () => props.sessionId,
@@ -253,7 +243,7 @@ onBeforeUnmount(() => {
             <div class="mp-item-title">{{ titleOf(item) }}</div>
             <div class="mp-item-summary">{{ item.summary }}</div>
             <div class="mp-item-meta">
-              <span>{{ fmtTime(item.created_at) }}</span>
+              <span>{{ formatDateTime(item.created_at) }}</span>
               <span v-if="item.score > 0" class="mp-tag">相关 {{ item.score.toFixed(2) }}</span>
               <span v-if="item.pinned" class="mp-tag mp-pin">置顶</span>
             </div>

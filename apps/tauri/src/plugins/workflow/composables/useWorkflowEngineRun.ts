@@ -13,6 +13,7 @@ import {
   workflowCancel,
   workflowGetRun,
 } from '../api/workflowApi'
+import { formatClock } from '../../../components/ui/format'
 
 export type EngineRunStatus =
   | 'idle'
@@ -79,8 +80,7 @@ export function useWorkflowEngineRun() {
   let listenersReady = false
 
   function appendLog(msg: string) {
-    const ts = new Date().toLocaleTimeString('zh-CN', { hour12: false })
-    const line = `[${ts}] ${msg}`
+    const line = `[${formatClock(new Date())}] ${msg}`
     const next = [...state.value.log, line]
     if (next.length > MAX_LOG_LINES) next.splice(0, next.length - MAX_LOG_LINES)
     state.value.log = next
