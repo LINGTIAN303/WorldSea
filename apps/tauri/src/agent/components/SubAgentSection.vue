@@ -1,25 +1,14 @@
 <script setup lang="ts">
 /** SubAgentSection：子 Agent 委派过程展示（running/completed/error 三态），详细见 docs/details/注释/tauri/SubAgentSection.md */
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed } from 'vue'
 import { useAgentRust, type SubAgentState } from '../composables/useAgentRust'
 import TuiIcon from '../../components/ui/TuiIcon.vue'
+import RunningDuration from './RunningDuration.vue'
 
 const backend = useAgentRust()
 // 解构出顶层 ref：模板中 `backend.xxx` 是嵌套 ref 不会被解包，
 // v-for / length 会误遍历 Ref 内部属性（幽灵条目）或得到 undefined
 const { subAgents } = backend
-
-// ── 运行耗时实时刷新：每秒触发一次重渲染，驱动 running 条目耗时跳动 ──
-const now = ref(Date.now())
-let timer: ReturnType<typeof setInterval> | null = null
-onMounted(() => {
-  timer = setInterval(() => {
-    now.value = Date.now()
-  }, 1000)
-})
-onBeforeUnmount(() => {
-  if (timer) clearInterval(timer)
-})
 
 // ── 折叠状态：委派记录多时收起列表，仅保留状态栏 ──
 const collapsed = ref(false)
@@ -46,15 +35,6 @@ function durationLabel(ms?: number): string {
   if (typeof ms !== 'number') return '--'
   if (ms < 1000) return `${ms} ms`
   return `${(ms / 1000).toFixed(1)} s`
-}
-
-/** 运行耗时（相对某时刻至今的实时值） */
-function elapsedLabel(startedAt: number): string {
-  const ms = Math.max(0, now.value - startedAt)
-  if (ms < 1000) return '刚刚开始'
-  if (ms < 60000) return `已运行 ${Math.floor(ms / 1000)} 秒`
-  const s = Math.floor(ms / 1000)
-  return `已运行 ${Math.floor(s / 60)} 分 ${s % 60} 秒`
 }
 
 /** 是否展示展开按钮（文本超长时） */
@@ -106,9 +86,9 @@ function isLong(text: string, threshold = 120): boolean {
           </div>
           <div class="task">{{ s.taskDescription }}</div>
 
-          <!-- running：实时运行耗时 -->
+          <!-- running：实时运行耗时（独立组件每秒刷新，不牵连父列表重渲染） -->
           <div v-if="s.status === 'running'" class="meta live">
-            <span>{{ elapsedLabel(s.startedAt) }}</span>
+            <RunningDuration :started-at="s.startedAt" />
           </div>
 
           <!-- completed：输出统计 -->

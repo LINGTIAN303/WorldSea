@@ -81,13 +81,20 @@ try {
 } catch {
   mql = null
 }
+function onSystemThemeChange() {
+  const p = loadPreference()
+  if (p === 'system' || p === null) {
+    apply(detectSystem())
+    preference.value = 'system'
+  }
+}
 if (mql && typeof mql.addEventListener === 'function') {
-  mql.addEventListener('change', () => {
-    const p = loadPreference()
-    if (p === 'system' || p === null) {
-      apply(detectSystem())
-      preference.value = 'system'
-    }
+  mql.addEventListener('change', onSystemThemeChange)
+}
+// Vite HMR：模块热更新时移除旧监听，避免监听器叠加（批次100 P3；生产无热更新，无害）
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    mql?.removeEventListener('change', onSystemThemeChange)
   })
 }
 

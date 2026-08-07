@@ -1,0 +1,54 @@
+{
+  "checks": [
+    {
+      "name": "theme-light",
+      "pass": true,
+      "detail": "data-theme=light"
+    },
+    {
+      "name": "chat-light",
+      "pass": true,
+      "detail": "chat 视图 .chat-header 存在"
+    },
+    {
+      "name": "terminal-light",
+      "pass": true,
+      "detail": "terminal 视图 .bar 存在"
+    },
+    {
+      "name": "subagent-light",
+      "pass": true,
+      "detail": "subagent 视图 .list-header 存在"
+    },
+    {
+      "name": "memory-light",
+      "pass": true,
+      "detail": "memory 视图 .mp-head 存在"
+    },
+    {
+      "name": "theme-dark",
+      "pass": true,
+      "detail": "data-theme=dark"
+    },
+    {
+      "name": "chat-dark",
+      "pass": true,
+      "detail": "chat 视图 .chat-header 存在"
+    },
+    {
+      "name": "terminal-dark",
+      "pass": true,
+      "detail": "terminal 视图 .bar 存在"
+    },
+    {
+      "name": "subagent-dark",
+      "pass": true,
+      "detail": "subagent 视图 .list-header 存在"
+    },
+    {
+      "name": "memory-dark",
+      "pass": true,
+      "detail": "memory 视图 .mp-head 存在"
+    }
+  ]
+}

@@ -1650,7 +1650,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
+  width: 16px; /* 内嵌 chip 内紧凑移除钮（低于 --icon-btn-md 24px 档位的既有紧凑语言，不入档） */
   height: 16px;
   border: none;
   border-radius: 50%;
