@@ -19,6 +19,7 @@ const props = defineProps<{
   streaming?: boolean
 }>()
 
+/* 模块级单例：避免每条消息实例化一个 Marked（长对话性能，批次93） */
 const marked = new Marked({ gfm: true, breaks: true })
 
 /**

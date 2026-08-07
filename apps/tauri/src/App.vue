@@ -170,8 +170,12 @@ function showDateDivider(m: { timestamp?: number | string }, i: number | string)
 }
 
 // 流式输出（打字机）与新消息落地时，若处于跟随状态则自动滚动到底部
+// 信号：最后一条消息 id + 内容长度 + 总条数（O(1) 信号，替代全量 map+join，长对话性能批次93）
 watch(
-  () => messages.value.map((m: { id: string; content: string }) => m.id + m.content.length).join('|'),
+  () =>
+    messages.value.length > 0
+      ? `${messages.value.length}:${messages.value[messages.value.length - 1].id}:${messages.value[messages.value.length - 1].content.length}`
+      : 'empty',
   () => {
     if (followBottom.value) scrollMessagesToBottom()
   },
