@@ -214,6 +214,15 @@ function switchView(target: (typeof navItems)[number]['key']) {
   const to = navItems.findIndex((i) => i.key === target)
   viewDir.value = to >= from ? 'fwd' : 'back'
   view.value = target
+  // 视图切换后焦点转移到新视图（等待 out-in 过渡完成；避免焦点落回 body，批次90 5.5）
+  nextTick(() => {
+    setTimeout(() => {
+      const firstFocusable = document
+        .querySelector('.content .view, .content .chat')
+        ?.querySelector<HTMLElement>('button, input, select, textarea, [tabindex]:not([tabindex="-1"])')
+      firstFocusable?.focus({ preventScroll: true })
+    }, 240) // 略长于 --dur-lg 0.32s 的进入过渡一半，落在过渡完成后
+  })
 }
 
 /** 当前流式中的助手消息 id（富渲染据此在流式期间退化为纯文本防未闭合围栏） */

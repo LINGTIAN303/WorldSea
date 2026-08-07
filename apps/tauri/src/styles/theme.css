@@ -111,6 +111,38 @@
   --md-quote-border: #d9d9de;
   --md-table-head-bg: #f4f4f6;
   --md-table-border: #e4e4e8;
+
+  /* ── A2UI 渲染区（共享组件使用 --agent-* / --color-* / --font-size-* 令牌，
+     此处映射到 Tauri 设计令牌，避免 fallback 硬编码深色（批次91 修复））── */
+  --agent-bg: var(--bg-surface);
+  --agent-bg-tertiary: var(--bg-muted);
+  --agent-border: var(--border);
+  --agent-text: var(--text-primary);
+  --agent-text-secondary: var(--text-secondary);
+  --agent-text-tertiary: var(--text-muted);
+  --agent-accent: var(--accent);
+  --agent-accent-bg: var(--accent-soft);
+  --color-bg-base: var(--bg-app);
+  --color-bg-elevated: var(--bg-muted);
+  --color-border: var(--border);
+  --color-primary: var(--accent);
+  --color-primary-hover: var(--accent-hover);
+  --color-danger: var(--danger);
+  --color-warning: var(--warning);
+  --color-success: var(--success);
+  --color-text-primary: var(--text-primary);
+  --color-text-tertiary: var(--text-muted);
+  --font-size-xs: var(--fs-xs);
+  --font-size-sm: var(--fs-sm);
+  --font-size-base: var(--fs-base);
+  --font-size-lg: var(--fs-lg);
+  --font-size-xl: var(--fs-xl);
+  --font-size-2xl: 22px;
+  --font-size-3xl: 24px;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --text-micro-font-size: var(--fs-xs);
 }
 
 /* ── 全局共享 keyframes（批次64：消除组件内重复定义的呼吸动画，参数统一 opacity 0.35 / 1.2s）── */
