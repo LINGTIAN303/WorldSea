@@ -845,4 +845,13 @@ Tauri 端 UI/UX 全维度优化（视觉 + 交互事件 + 键盘可达性 + 性�
   - P2 托盘单击 → on_tray_icon_event 左键单击显示主窗口（tray::MouseButton）
   - P2 MessageContent 模块级 → marked 实例 + marked.use 配置 + parseCache 移到 `<script>`（模块作用域）跨实例共享（修复批次 93 未达成目标）
   - P3：attach-list role=list；SubAgentView form-header z-index 2 → var(--z-sticky)
+
+## 本次进展（2026-08-07）— 批次100-101（第五轮审计闭环 + P3 收尾）
+- **批次100 P3 收尾 + 回归**（9089180）：SubAgentSection 1Hz 重渲染隔离——新建 RunningDuration.vue 独立计时组件（运行中耗时文本自身每秒刷新，父列表不再整段重渲染）；useTheme 补 import.meta.hot.dispose 移除 matchMedia 监听（HMR 防叠加）；attach-remove 16px 尺寸注释入档；4 视图 × 双主题全视图回归全 PASS
+- **批次101 第五轮审美审计闭环**（2f9d408，search 子代理第五轮审计 2×P1 + 多项 P2/P3）：
+  - P1：MemoryPanel `.mp-loading-dot` 补样式（width/height var(--dot-md) + pulse 呼吸，与 thinking-dot 同语言）；默认会话标题 "WorldSmith 桌面端测试助手" → "新会话"（去半成品感）
+  - P2：index.html `<title>` 对齐 "WorldSmith — 世界观构建工具"（去 "Tauri" 开发痕迹）；新增 `--chat-max-w: 860px` 令牌替换全端 9 处 860px 魔数（App.vue 7 + PhaseSection 1 + SubAgentSection 1）；kbd-hint 条件化（生成中 "Enter 引导 · Shift+Enter 换行"）；流式空态隐藏 chips（首条消息未落地窗口期避免与思考中冲突）；附件图片 chip 用新 image 图标区分
+  - P3：number spinner 全局隐藏（theme.css appearance:textfield）；Terminal 会话列表 hover 标题转 accent（补齐与 SessionList/MemoryPanel 语言一致）；终端输入 placeholder 补 "↑/↓ 历史" 提示
+- **审计亮点确认（沉淀为设计语言）**：桌面快捷键体系完整（Ctrl+N/1-4/K/L + Esc 停止，弹窗自动让位）；全量令牌零硬编码色；hover 语言统一 + hover-reveal 按钮全带 focus-visible 兜底；气泡体系专业（助手白底+顶部 4px 指向 / 用户 accent-soft+右上 4px）；日期分隔 + "今天仅 HH:mm" 克制时间叙事；跟随滚动 + 回到最新 + rAF 节流达 Slack 级；空态统一 TuiEmpty 五处；错误 success/error 双色 box
+- **剩余可选（P2 未做，改动面大或涉 UX 决策）**：时间格式三套统一（App HH:mm / SessionList 相对时间 / MemoryPanel 绝对时间，需抽 util）；侧栏标题两档收敛（Terminal 侧栏对齐 SessionList fs-sm）；记忆面板双横条头部合并；子Agent 实例区分栏；对话 header 溢出菜单（清空/压缩收入 "…"）
 <!-- MemoryCenter:SECTION:task_state END -->
