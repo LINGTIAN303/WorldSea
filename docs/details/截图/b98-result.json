@@ -1,0 +1,19 @@
+{
+  "checks": [
+    {
+      "name": "flicker-dark",
+      "pass": true,
+      "detail": "localStorage=dark → 首帧 data-theme=dark"
+    },
+    {
+      "name": "flicker-system",
+      "pass": true,
+      "detail": "无 localStorage → data-theme=light"
+    },
+    {
+      "name": "page-regression",
+      "pass": true,
+      "detail": "UI 结构正常: {'rail': 6, 'textarea': True, 'sendBtn': True}"
+    }
+  ]
+}
