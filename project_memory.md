@@ -680,6 +680,8 @@ Tauri 端 UI/UX 全维度优化（视觉 + 交互事件 + 键盘可达性）—�
 - [x] **批次 88 #15 checkbox 自定义**：TerminalView `.toggle input` 改 appearance:none 自绘（accent 底 + on-accent 对勾），修复 WebView2 accent-color 勾选不可靠
 - [x] **批次 89 交互反馈语言收敛**（60c43f9）：新增 --press-scale:0.96 令牌统一按压反馈（rail-item/msg-copy/input-clear/error-dismiss/chip/scroll-bottom/new/del/destroy/search-clear/mp-search-clear/collapse/modal-close/toast-close/select-trigger/seg-item/tpl-li）；hover 收敛（列表=背景+标题accent、卡片=边框accent）；TuiButton loading 语义修正（is-loading 不降透明度 cursor:progress）；各视图异步按钮改 :loading（TerminalView 执行/MemoryPanel 归档/SubAgentView 提交导入/TuiConfirm）；PhaseSection 折叠过渡修复（TransitionGroup v-show→外层 Transition + v-if）；phase-item 状态切换 transition；App 删除确认 deleting 防双击
 - [x] **批次 90 焦点/语义/键盘增强**（d23d861/0103849/55b1ed9）：TuiModal 弹窗栈（唯一 id + 仅栈顶响应 Esc/Tab 防全关）+ 聚焦首控件 + aria-describedby；全局快捷键检测 aria-modal 弹窗互斥；下拉菜单（TuiSelect/tpl-menu）关闭回焦 trigger；tpl-menu aria-selected 改绑编辑态；四列表（SessionList/MemoryPanel/SubAgentView/TerminalView）方向键导航；TuiSelect Tab 关菜单；错误条 role=alert；展开按钮 aria-expanded/controls；phase-bar aria-controls；rail aria-current=page；表单 label for/id 关联（SubAgentView + ModelSettingsDialog）；记忆 list/detail 视图淡入过渡；加载态 pulse 圆点；启用 --dur-lg 于弹窗/视图切换；msg-stream position:relative；toast move 重排；终端高频输出降级直接滚动；tpl-menu 菜单过渡；TuiSegmented radiogroup 语义；模型配置弹窗模式切换淡入过渡
+- [x] **批次 91 A2UI 令牌映射**（6b36579）：shared-ui A2UI 组件使用 Web 端令牌（--agent-*/--color-*/--font-size-*），Tauri 端未定义曾全部 fallback 硬编码深色（#1e1e2e）→ theme.css 建立 24 项映射到 Tauri 令牌（双主题实测生效：浅 #ffffff/#1f2328、深 #18181b/#e7e7ea）；5.5 视图切换后焦点转移到新视图首控件
+- [x] **批次 92 浅色全视图回归**（263fa57）：8 视图 × 双主题截图 + 弹窗 + 叠印复检全 PASS（b92-light-regression/ 归档）；空态图标 #c7cad3 浅色对比度达标
 
 ## 进行中步骤
 - Tauri 端 UI/UX 持续优化（批次推进模式：审计 → 修复 → Playwright 验证 → 截图归档 → 提交）
