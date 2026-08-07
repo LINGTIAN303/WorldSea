@@ -491,7 +491,7 @@ async function onSaveModelConfig(config: any) {
 /** 新建会话：调用 Rust new_session，并设为当前会话 */
 async function onNewSession() {
   try {
-    const info = await backend.newSession('WorldSmith 桌面端测试助手')
+    const info = await backend.newSession('新会话')
     if (info?.id) await bindSessionLoopControl(info.id)
   } catch (err) {
     error.value = `新建会话失败: ${err}`
@@ -791,7 +791,8 @@ function onGlobalKeydown(e: KeyboardEvent) {
                 <span>释放以附加文件</span>
               </div>
             </Transition>
-            <!-- 空状态：建议引导（统一 TuiEmpty 基座 + chips 插槽，批次60 收敛手写副本） -->
+            <!-- 空状态：建议引导（统一 TuiEmpty 基座 + chips 插槽，批次60 收敛手写副本）；
+                 流式中（首条用户消息未落地窗口期）隐藏可点 chips，避免与"思考中"语义冲突（批次101 P2） -->
             <TuiEmpty
               v-if="messages.length === 0"
               icon="chat"
@@ -799,7 +800,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
               hint="输入消息，Agent 将调用工具完成任务"
               fill
             >
-              <div class="empty-chips">
+              <div v-if="!sending && !isStreaming" class="empty-chips">
                 <button v-for="s in hintPool.slice(0, 4)" :key="s" class="chip" @click="fillInput(s)">
                   {{ s }}
                 </button>
@@ -945,7 +946,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
                   class="attach-chip"
                   :title="img.name"
                 >
-                  <TuiIcon name="file" :size="12" />
+                  <TuiIcon name="image" :size="12" />
                   <span class="attach-name">{{ img.name }}</span>
                   <button
                     class="attach-remove"
@@ -1012,7 +1013,10 @@ function onGlobalKeydown(e: KeyboardEvent) {
                 </div>
               </Transition>
               <div class="input-actions">
-                <span class="kbd-hint">Enter 发送 · Shift+Enter 换行</span>
+                <!-- 快键提示随状态切换：生成中 Enter=引导、空闲 Enter=发送（批次101 P2 语义对齐） -->
+                <span class="kbd-hint">
+                  {{ sending || isStreaming ? 'Enter 引导 · Shift+Enter 换行' : 'Enter 发送 · Shift+Enter 换行' }}
+                </span>
                 <div class="send-area">
                   <TuiButton
                     v-if="sending || isStreaming"
@@ -1325,7 +1329,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
   align-items: center;
   justify-content: center;
   gap: 12px;
-  max-width: 860px;
+  max-width: var(--chat-max-w);
   margin: 0 auto 20px;
   padding-top: 2px;
   color: var(--text-muted);
@@ -1370,7 +1374,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
   align-items: flex-start;
   gap: 10px;
   margin: 0 auto 16px;
-  max-width: 860px;
+  max-width: var(--chat-max-w);
 }
 .msg.user {
   justify-content: flex-end;
@@ -1516,7 +1520,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
   display: flex;
   align-items: center;
   gap: 8px;
-  max-width: 860px;
+  max-width: var(--chat-max-w);
   margin: 0 auto;
   padding: 4px 2px 8px;
   font-size: var(--fs-sm);
@@ -1560,7 +1564,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
 
 /* A2UI / 子 Agent 区：与消息/输入栏同宽（860px 居中），宽窗下不被拉长 */
 .a2ui-zone {
-  max-width: 860px;
+  max-width: var(--chat-max-w);
   margin: 0 auto;
   padding: 0 var(--chat-gutter) 16px;
   border-top: 1px solid var(--border);
@@ -1570,7 +1574,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
   display: flex;
   align-items: center;
   gap: 8px;
-  max-width: 860px;
+  max-width: var(--chat-max-w);
   margin: 0 auto 10px;
   padding: 8px 12px;
   border-radius: var(--radius-sm);
@@ -1626,7 +1630,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  max-width: 860px;
+  max-width: var(--chat-max-w);
   margin: 0 auto 8px;
 }
 .attach-chip {
@@ -1668,7 +1672,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
 }
 .input-shell {
   position: relative;
-  max-width: 860px;
+  max-width: var(--chat-max-w);
   margin: 0 auto;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-lg);

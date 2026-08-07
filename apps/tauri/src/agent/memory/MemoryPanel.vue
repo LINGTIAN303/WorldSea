@@ -323,6 +323,15 @@ onBeforeUnmount(() => {
   border-radius: 50%;
   background: var(--accent);
 }
+/* 加载态圆点：补全样式（批次101 P1，与 thinking-dot/lcs-dot 同语言：pulse 呼吸） */
+.mp-loading-dot {
+  width: var(--dot-md);
+  height: var(--dot-md);
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pulse var(--dur-pulse) ease-in-out infinite;
+  margin: 0 auto;
+}
 .mp-count {
   font-size: var(--fs-sm);
   font-weight: 400;

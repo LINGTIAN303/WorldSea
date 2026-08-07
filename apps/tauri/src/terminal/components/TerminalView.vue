@@ -279,7 +279,7 @@ defineExpose({ clearOutput })
           v-model="input"
           type="text"
           aria-label="输入命令"
-          placeholder="输入命令，回车执行"
+          placeholder="输入命令，回车执行（↑/↓ 历史）"
           :disabled="running"
           spellcheck="false"
           @keydown.enter="run"
@@ -650,6 +650,10 @@ defineExpose({ clearOutput })
 }
 .session-list li:hover {
   background: var(--bg-muted);
+}
+/* hover 标题转 accent：与 SessionList/MemoryPanel 反馈语言一致（批次101 P3 补齐） */
+.session-list li:hover .s-id {
+  color: var(--accent);
 }
 .session-list li.active:hover {
   background: var(--accent-soft);

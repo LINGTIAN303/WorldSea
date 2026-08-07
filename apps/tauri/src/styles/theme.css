@@ -69,6 +69,7 @@
   --empty-icon: #c7cad3;      /* 空态徽标图标色：浅色下用灰调（bg-muted 上仍可辨，批次87 #14 修复）；深色下覆盖为 accent 弱化 */
   --input-sm-h: 30px;         /* 紧凑输入框高度（搜索/检索/新建会话名三档统一基准）；与按钮 sm 28px 相邻为 2px 输入略高的既定双基准，不强行拉平 */
   --chat-gutter: 24px;        /* 对话主区横轴间距（header/状态条/子代理条/消息/输入栏统一） */
+  --chat-max-w: 860px;        /* 对话主区内容最大宽度（消息气泡/日期分隔/输入框/错误条统一，批次101 令牌化） */
   --disabled-opacity: 0.5;    /* 禁用态统一透明度（按钮/分段器/发送钮） */
 
   /* ── 动效 ── */
@@ -273,6 +274,17 @@ select,
 textarea {
   font-family: inherit;
   color: inherit;
+}
+
+/* 数字输入隐藏原生 spinner（桌面工具惯例，批次101 P3 消除网页感残留） */
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
 }
 
 /* 全局输入控件聚焦兜底：未自定义 :focus 的文本输入统一获得 accent 边框 + 柔和光环，

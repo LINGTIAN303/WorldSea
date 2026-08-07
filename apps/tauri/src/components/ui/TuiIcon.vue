@@ -54,6 +54,8 @@ const PATHS: Record<string, string> = {
   file: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6',
   // 主题三态（批次99）：system 模式显示器图标
   monitor: 'M3 4h18v12H3zM8 20h8M12 16v4',
+  // 附件区分（批次101）：图片附件图标
+  image: 'M3 5h18v14H3zM3 15l5-5 4 4 3-3 6 6M14 8h.01',
 }
 
 const d = computed(() => PATHS[props.name] ?? '')
