@@ -54,7 +54,7 @@ function onKeydown(e: KeyboardEvent) {
 <template>
   <div
     class="tui-seg"
-    role="tablist"
+    role="radiogroup"
     :class="{ 'is-disabled': disabled }"
     @keydown="onKeydown"
   >
@@ -64,8 +64,8 @@ function onKeydown(e: KeyboardEvent) {
       type="button"
       class="tui-seg__item"
       :class="{ 'is-active': opt.value === modelValue }"
-      role="tab"
-      :aria-selected="opt.value === modelValue"
+      role="radio"
+      :aria-checked="opt.value === modelValue"
       :tabindex="opt.value === modelValue ? 0 : -1"
       :disabled="disabled"
       @click="emit('update:modelValue', opt.value)"

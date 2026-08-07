@@ -125,6 +125,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
           role="dialog"
           aria-modal="true"
           :aria-labelledby="title ? instanceLabelId : undefined"
+          aria-describedby="tui-modal-desc"
           tabindex="-1"
         >
           <header v-if="$slots.header || title" class="tui-modal__header">
@@ -136,7 +137,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
             </button>
           </header>
 
-          <div class="tui-modal__body">
+          <div id="tui-modal-desc" class="tui-modal__body">
             <slot />
           </div>
 

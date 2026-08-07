@@ -26,7 +26,7 @@
       "theme": "light",
       "view": "chat",
       "pass": true,
-      "detail": "{\"color\": \"rgb(224, 231, 255)\", \"fill\": \"none\", \"stroke\": \"rgb(224, 231, 255)\", \"opacity\": \"1\", \"cls\": \"tui-empty-mark\"}"
+      "detail": "{\"color\": \"rgb(199, 202, 211)\", \"fill\": \"none\", \"stroke\": \"rgb(199, 202, 211)\", \"opacity\": \"1\", \"cls\": \"tui-empty-mark\"}"
     },
     {
       "name": "textarea-selection-style",
@@ -40,7 +40,7 @@
       "theme": "light",
       "view": "terminal",
       "pass": true,
-      "detail": "{\"hasEmpty\": true, \"metaRows\": 0, \"errBar\": null, \"bodyText\": \"终端 单次命令执行全部输出 刷新会话 等待命令输入命令并回车执行，输出将显示在这里Cannot read properties of undefined (reading 'invoke')执行持久化会话新建会话暂无会话在上方新建持久化会话\"}"
+      "detail": "{\"hasEmpty\": true, \"metaRows\": 0, \"errBar\": null, \"bodyText\": \"终端 单次命令执行全部输出 刷新会话 等待命令输入命令并回车执行，输出将显示在这里Cannot read properties of undefined (reading 'invoke') 执行 持久化会话新建会话暂无会话在上方新建持久化\"}"
     },
     {
       "name": "subagent-state",
@@ -54,7 +54,7 @@
       "theme": "light",
       "view": "memory",
       "pass": true,
-      "detail": "{\"searchH\": 30, \"searchRadius\": \"6px\", \"buttons\": [{\"text\": \"\", \"h\": 0, \"disabled\": false, \"opacity\": \"1\"}, {\"text\": \"归档\", \"h\": 28, \"disabled\": true, \"opacity\": \"0.5\"}]}"
+      "detail": "{\"searchH\": 30, \"searchRadius\": \"6px\", \"buttons\": [{\"text\": \"\", \"h\": 0, \"disabled\": false, \"opacity\": \"1\"}, {\"text\": \"归档\", \"h\": 28, \"disabled\": true, \"opacity\": \"0.5\"}, {\"text\": \"刷新\", \"h\": 28, \"disabled\": false, \"opacity\": \"1\"}]}"
     },
     {
       "name": "composer-hint2-vs-actions-overlap",
@@ -82,7 +82,7 @@
       "theme": "dark",
       "view": "chat",
       "pass": true,
-      "detail": "{\"color\": \"rgba(99, 102, 241, 0.35)\", \"fill\": \"none\", \"stroke\": \"rgba(99, 102, 241, 0.35)\", \"opacity\": \"1\", \"cls\": \"tui-empty-mark\"}"
+      "detail": "{\"color\": \"rgba(139, 135, 248, 0.4)\", \"fill\": \"none\", \"stroke\": \"rgba(139, 135, 248, 0.4)\", \"opacity\": \"1\", \"cls\": \"tui-empty-mark\"}"
     },
     {
       "name": "textarea-selection-style",
@@ -96,7 +96,7 @@
       "theme": "dark",
       "view": "terminal",
       "pass": true,
-      "detail": "{\"hasEmpty\": true, \"metaRows\": 0, \"errBar\": null, \"bodyText\": \"终端 单次命令执行全部输出 刷新会话 等待命令输入命令并回车执行，输出将显示在这里Cannot read properties of undefined (reading 'invoke')执行持久化会话新建会话暂无会话在上方新建持久化会话\"}"
+      "detail": "{\"hasEmpty\": true, \"metaRows\": 0, \"errBar\": null, \"bodyText\": \"终端 单次命令执行全部输出 刷新会话 等待命令输入命令并回车执行，输出将显示在这里Cannot read properties of undefined (reading 'invoke') 执行 持久化会话新建会话暂无会话在上方新建持久化\"}"
     },
     {
       "name": "subagent-state",
@@ -110,7 +110,7 @@
       "theme": "dark",
       "view": "memory",
       "pass": true,
-      "detail": "{\"searchH\": 30, \"searchRadius\": \"6px\", \"buttons\": [{\"text\": \"\", \"h\": 0, \"disabled\": false, \"opacity\": \"1\"}, {\"text\": \"归档\", \"h\": 28, \"disabled\": true, \"opacity\": \"0.5\"}]}"
+      "detail": "{\"searchH\": 30, \"searchRadius\": \"6px\", \"buttons\": [{\"text\": \"\", \"h\": 0, \"disabled\": false, \"opacity\": \"1\"}, {\"text\": \"归档\", \"h\": 28, \"disabled\": true, \"opacity\": \"0.5\"}, {\"text\": \"刷新\", \"h\": 28, \"disabled\": false, \"opacity\": \"1\"}]}"
     }
   ],
   "console_errors": [],
