@@ -423,10 +423,16 @@ onMounted(async () => {
           当前会话暂无活跃子 Agent 实例。<br />委派任务给子 Agent 后将在此累积上下文。
         </p>
         <ul v-else class="instances-list">
-          <li v-for="inst in instances" :key="inst.sub_agent_id" class="instance-item">
+          <li
+            v-for="(inst, i) in instances"
+            :key="inst.sub_agent_id"
+            class="instance-item"
+            :class="{ 'is-streaming': inst.is_streaming }"
+          >
             <div class="instance-main">
+              <span class="instance-seq" :title="`实例 ${i + 1}`">{{ i + 1 }}</span>
               <span class="instance-name">{{ inst.name }}</span>
-              <code class="instance-id">{{ inst.sub_agent_id }}</code>
+              <code class="instance-id" :title="inst.sub_agent_id">{{ inst.sub_agent_id.slice(0, 8) }}…</code>
               <span class="instance-msg" :title="'累积上下文消息数'">{{ inst.message_count }} 条</span>
             </div>
             <div class="instance-side">
@@ -782,6 +788,11 @@ onMounted(async () => {
   margin-bottom: 6px;
   transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
+/* 流式执行中的实例：accent 边框 + 弱底强调（批次107 活跃实例区分） */
+.instance-item.is-streaming {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
 /* 实例卡片 hover 边框 accent 微反馈（与规格卡同一语言） */
 .instance-item:hover {
   border-color: var(--accent);
@@ -791,6 +802,20 @@ onMounted(async () => {
   align-items: center;
   gap: 6px;
   min-width: 0;
+}
+/* 序号徽标：多实例视觉区分锚点（批次107），圆形弱底数字 */
+.instance-seq {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--bg-muted);
+  border-radius: 50%;
 }
 .instance-name {
   font-size: var(--fs-md);
