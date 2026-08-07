@@ -881,3 +881,11 @@ Tauri 端 UI/UX 全维度优化（视觉 + 交互事件 + 键盘可达性 + 性�
 - **验证**：9 项 Playwright 断言全 PASS（按钮存在/旧按钮移除/菜单开合/Esc/外部关闭/禁用态）+ 双主题截图归档（b106-header-more-light/dark.png）
 - **剩余可选 P2**：子Agent 实例区分栏
 <!-- MemoryCenter:SECTION:task_state END -->
+
+## 本次进展（2026-08-08）— 批次107 子 Agent 实例区分栏（21c06f8，剩余 P2 全部清零）
+- **实例卡片加圆形序号徽标**（`实例 ${i+1}`，20px 圆形弱底数字）：多实例视觉区分锚点
+- **sub_agent_id 截断 8 字符 + …**（title 保留完整 id）：与 SessionList/Terminal 短 id 语言一致，消除超长 id 占位
+- **is_streaming 实例 accent 边框 + accent-soft 弱底**：活跃实例一眼可辨（hover accent 边框与流式态同色不冲突）
+- **验证**：6 项 Playwright 断言全 PASS（实例区/空态双场景/样式规则/无 console 错误）+ 双主题截图归档（b107-subagent-light/dark.png）
+- **P2 清单状态**：批次103 时间格式统一 ✅ / 批次104 侧栏标题收敛 ✅ / 批次105 记忆面板头部合并 ✅ / 批次106 对话 header 溢出菜单 ✅ / 批次107 子Agent 实例区分栏 ✅ —— 全部闭环
+- **暂缓决策不变**：自定义标题栏（需真实 Tauri 窗口验证）、消息虚拟滚动（现有优化已覆盖常见消息量）
