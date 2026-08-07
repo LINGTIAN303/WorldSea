@@ -831,4 +831,18 @@ Tauri 端 UI/UX 全维度优化（视觉 + 交互事件 + 键盘可达性 + 性�
 - **批次92 浅色全视图回归**：8 视图 × 双主题截图 + 弹窗 + 叠印复检全 PASS
 - **批次93 性能优化**：MessageContent Marked 提为模块级单例；消息自动滚动信号从 O(n) map+join 改 O(1) 末条信号
 - **批次94 窗口 resize 验证**（a1a7253）：900/1280/1920 三视口无横向溢出、rail 68px 固定、content 自适应、零 console 错误
+
+## 本次进展（2026-08-07）— 批次95-99 桌面成熟度（第四轮审计闭环）
+- **批次95 桌面系统集成**（89a4f7c）：拖拽/粘贴上传（图片 base64 + 文件读文本，附件 chips 可移除，发送时随消息携带，`--press-scale` 按压反馈）；useTheme 三态模型（'light'|'dark'|'system' 持久化，初始跟随系统）；快捷键 Esc 停止生成 + Ctrl+L 终端清屏（TerminalView defineExpose clearOutput）；移除 naive-ui 死依赖（package.json + vite chunk）
+- **批次96 长回复性能**（920229e）：MessageContent 渲染缓存（S/N 流式标记键 + 200 上限 LRU）+ 流式超长（>4000 字符）纯文本降级；App.vue 滚动 rAF 节流（合并高频 delta 滚动）
+- **批次97 窗口层**（b444ffb）：tauri-plugin-window-state（位置/大小持久化，tauri.conf.json plugins 配置）+ tauri tray-icon feature + 托盘菜单（显示主窗口/退出）+ CloseRequested 隐藏到托盘（TrayActive state 判断，托盘构建失败回退直接退出）；project_memory 补记批次 87-94
+- **批次98 启动防闪烁**（f063541）：index.html 内联脚本按 localStorage/system 预置 data-theme；移除 dialog 死依赖
+- **批次99 第四轮审计闭环**（c3d7fe0，search 子代理审计 3×P1 + 多项 P2/P3）：
+  - P1-A 仅附件发送静默失败 → PromptOptions 加 `hiddenText`（显示/发送文本分离），App.vue send() 把图片占位 `[图片附件: name]` + 文件内容（截断 4000 字符）注入 hiddenText，prompt() 守卫改基于有效文本
+  - P1-B 文件附件未传后端 → 同上 hiddenText 注入方案（无 Rust 改动），发送失败附件恢复（backupImages/backupFiles）
+  - P1 主题三态不可达 → useTheme 暴露 `preference` ref + toggle 改三态循环（light→dark→system→light）+ matchMedia 监听条件含 null（未设置视为 system）；App.vue 主题按钮三态图标（sun/moon/monitor，新增 monitor 图标）+ 动态 tooltip
+  - P2 drop 兜底 → .app 根级 @dragover.prevent/@drop.prevent（拖到非消息区不导航替换 UI）
+  - P2 托盘单击 → on_tray_icon_event 左键单击显示主窗口（tray::MouseButton）
+  - P2 MessageContent 模块级 → marked 实例 + marked.use 配置 + parseCache 移到 `<script>`（模块作用域）跨实例共享（修复批次 93 未达成目标）
+  - P3：attach-list role=list；SubAgentView form-header z-index 2 → var(--z-sticky)
 <!-- MemoryCenter:SECTION:task_state END -->
