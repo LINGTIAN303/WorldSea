@@ -853,5 +853,12 @@ Tauri 端 UI/UX 全维度优化（视觉 + 交互事件 + 键盘可达性 + 性�
   - P2：index.html `<title>` 对齐 "WorldSmith — 世界观构建工具"（去 "Tauri" 开发痕迹）；新增 `--chat-max-w: 860px` 令牌替换全端 9 处 860px 魔数（App.vue 7 + PhaseSection 1 + SubAgentSection 1）；kbd-hint 条件化（生成中 "Enter 引导 · Shift+Enter 换行"）；流式空态隐藏 chips（首条消息未落地窗口期避免与思考中冲突）；附件图片 chip 用新 image 图标区分
   - P3：number spinner 全局隐藏（theme.css appearance:textfield）；Terminal 会话列表 hover 标题转 accent（补齐与 SessionList/MemoryPanel 语言一致）；终端输入 placeholder 补 "↑/↓ 历史" 提示
 - **审计亮点确认（沉淀为设计语言）**：桌面快捷键体系完整（Ctrl+N/1-4/K/L + Esc 停止，弹窗自动让位）；全量令牌零硬编码色；hover 语言统一 + hover-reveal 按钮全带 focus-visible 兜底；气泡体系专业（助手白底+顶部 4px 指向 / 用户 accent-soft+右上 4px）；日期分隔 + "今天仅 HH:mm" 克制时间叙事；跟随滚动 + 回到最新 + rAF 节流达 Slack 级；空态统一 TuiEmpty 五处；错误 success/error 双色 box
-- **剩余可选（P2 未做，改动面大或涉 UX 决策）**：时间格式三套统一（App HH:mm / SessionList 相对时间 / MemoryPanel 绝对时间，需抽 util）；侧栏标题两档收敛（Terminal 侧栏对齐 SessionList fs-sm）；记忆面板双横条头部合并；子Agent 实例区分栏；对话 header 溢出菜单（清空/压缩收入 "…"）
+- **剩余可选（P2 未做，改动面大或涉 UX 决策）**：侧栏标题两档收敛（Terminal 侧栏对齐 SessionList fs-sm）；记忆面板双横条头部合并；子Agent 实例区分栏；对话 header 溢出菜单（清空/压缩收入 "…"）
+
+## 本次进展（2026-08-08）— 批次103 时间格式化三套统一（7f0e1ba）
+- **抽共享 util `apps/tauri/src/components/ui/format.ts`**：formatClock（HH:mm 日志行首）/ formatMsgTime（今天 HH:mm，非今天 M月D日 HH:mm）/ formatDateTime（YYYY-MM-DD HH:mm 记忆面板，空返回 '-'）/ formatRelativeTime（刚刚/N 分钟前/N 小时前/昨天/M月D日 会话列表）/ isSameDay / formatDateLabel（今天/昨天/M月D日/跨年加年份）六函数收敛
+- **四处替换**：App.vue 消息气泡时间 + 日期分隔线（formatMsgTime/isSameDay/formatDateLabel）、SessionList.vue 相对时间（formatRelativeTime）、MemoryPanel.vue 绝对时间（formatDateTime）、useWorkflowEngineRun.ts 日志行首（formatClock 替代 toLocaleTimeString）
+- **语言收敛**：SessionList 旧 'M-D' 连字符风格统一为中文 'M月D日'，与 App 日期语言一致（克制中文时间叙事全端唯一）
+- **验证**：19 项 Playwright 断言全 PASS（纯函数边界：今天/昨天/更早/空时间戳/同一天/跨天）+ 双主题截图归档（b103-main-light/dark.png）+ 页面无 console 错误
+- **注意**：formatRelativeTime "昨天"分支依赖 diff≥24h（凌晨场景昨天中午显示"N 小时前"属正确语义，非 bug）
 <!-- MemoryCenter:SECTION:task_state END -->
