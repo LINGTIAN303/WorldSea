@@ -14,6 +14,9 @@ export interface PromptOptions {
   contextOverride?: string
   images?: ImageAttachment[]
   files?: FileAttachment[]
+  /** 附加到发送文本但不显示在用户消息气泡（附件内容注入，批次99）：
+      显示文本与发送文本分离，避免附件全文刷屏 */
+  hiddenText?: string
   personaPreset?: string
   chatMode?: ChatMode
 }

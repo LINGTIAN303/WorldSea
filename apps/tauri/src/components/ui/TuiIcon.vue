@@ -52,6 +52,8 @@ const PATHS: Record<string, string> = {
   // 附件（拖拽/粘贴上传，批次95）
   upload: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12',
   file: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6',
+  // 主题三态（批次99）：system 模式显示器图标
+  monitor: 'M3 4h18v12H3zM8 20h8M12 16v4',
 }
 
 const d = computed(() => PATHS[props.name] ?? '')

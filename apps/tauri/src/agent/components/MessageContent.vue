@@ -1,4 +1,4 @@
-<script setup lang="ts">
+<script lang="ts">
 /**
  * MessageContent：消息富渲染组件（Markdown→HTML）
  *
@@ -7,19 +7,14 @@
  * 若存在未闭合代码围栏（``` 数量为奇数），退化为纯文本渲染，
  * 避免打字机过程中把后续内容吞进代码块；完成后自动转 Markdown。
  * 详细why请见 docs/details/注释/tauri/MessageContent.md
+ *
+ * ⚠️ 模块作用域：marked 实例 + marked.use 配置 + 渲染缓存为跨组件实例单例
+ * （批次99 修复批次93 未达成的目标——script setup 每实例执行会重建它们）。
  */
-import { computed } from 'vue'
 import { Marked } from 'marked'
 import DOMPurify from 'dompurify'
 
-const props = defineProps<{
-  /** 消息原文（Markdown 或纯文本）；历史数据可能缺失，缺省按空字符串处理 */
-  content?: string
-  /** 是否处于流式输出中（打字机） */
-  streaming?: boolean
-}>()
-
-/* 模块级单例：避免每条消息实例化一个 Marked（长对话性能，批次93） */
+/** 模块级单例 Marked（GFM） */
 const marked = new Marked({ gfm: true, breaks: true })
 
 /**
@@ -52,15 +47,25 @@ marked.use({
   },
 })
 
+/** HTML 转义（纯文本回退 / 代码块内嵌用） */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
 /** 是否含未闭合代码围栏（``` 数量为奇数） */
 function hasUnclosedFence(text: string): boolean {
   const fences = text.split('```').length - 1
   return fences % 2 === 1
 }
 
-/* ── 渲染缓存（批次96 性能）：历史消息 content 不变时零重算 ──
+/* ── 渲染缓存（批次96/99）：跨组件实例共享 ──
    流式 delta 每帧触发一次 computed 重算，长回复为 O(n²) 反复 parse。
-   缓存按「流式标记 + 原文」键存储解析结果，切会话/重挂载命中即免 parse。 */
+   缓存按「流式标记 + 原文」键存储解析结果，同文本再渲染（切会话回来/重复渲染）命中免 parse；
+   流式超长（>STREAM_PLAIN_THRESHOLD）降级纯文本，才是真正防 O(n²) 的兜底。 */
 const parseCache = new Map<string, string>()
 const CACHE_MAX = 200
 /** 流式超长阈值：超过后降级纯文本渲染（避免大文本反复 parse，end 后富渲染） */
@@ -88,18 +93,20 @@ function computeHtml(text: string, streaming: boolean): string {
   parseCache.set(key, out)
   return out
 }
+</script>
+
+<script setup lang="ts">
+import { computed } from 'vue'
+
+const props = defineProps<{
+  /** 消息原文（Markdown 或纯文本）；历史数据可能缺失，缺省按空字符串处理 */
+  content?: string
+  /** 是否处于流式输出中（打字机） */
+  streaming?: boolean
+}>()
 
 /** 渲染后的安全 HTML */
 const html = computed(() => computeHtml(props.content ?? '', !!props.streaming))
-
-/** HTML 转义（纯文本回退 / 代码块内嵌用） */
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-}
 
 /**
  * 复制按钮事件委托：v-html 内的按钮无法直接绑定，捕获根元素 click，

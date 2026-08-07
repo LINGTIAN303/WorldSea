@@ -37,6 +37,8 @@ function detectSystem(): ThemeMode {
 }
 
 const theme = ref<ThemeMode>(loadPreference() === 'system' || !loadPreference() ? detectSystem() : (loadPreference() as ThemeMode))
+/** 当前偏好（三态）：'light' | 'dark' | 'system'（未设置视为 system，批次99 修复"跟随系统不可达"） */
+const preference = ref<ThemePreference>(loadPreference() ?? 'system')
 
 /** 应用主题到 <html data-theme> */
 function apply(t: ThemeMode) {
@@ -53,20 +55,26 @@ function persist(p: ThemePreference) {
   }
 }
 
-/** 切换浅色/深色：退出跟随系统，锁定为另一显式值 */
+/** 应用偏好：更新 preference + 持久化 + 应用实际主题（system 时按系统检测） */
+function applyPreference(p: ThemePreference) {
+  preference.value = p
+  persist(p)
+  apply(p === 'system' ? detectSystem() : p)
+}
+
+/** 主题按钮三态循环：浅色 → 深色 → 跟随系统 → 浅色（批次99，使 system 态可达） */
 function toggle() {
-  const next: ThemeMode = theme.value === 'light' ? 'dark' : 'light'
-  persist(next)
-  apply(next)
+  const order: ThemePreference[] = ['light', 'dark', 'system']
+  const idx = order.indexOf(preference.value)
+  applyPreference(order[(idx + 1) % order.length])
 }
 
 /** 跟随系统：清除显式选择，实时响应系统变化 */
 function followSystem() {
-  persist('system')
-  apply(detectSystem())
+  applyPreference('system')
 }
 
-// 模块初始化：监听系统深浅色变化，仅处于 system 偏好时联动（桌面端成熟体验）
+// 模块初始化：监听系统深浅色变化，处于 system 偏好（含未设置）时联动（桌面端成熟体验）
 let mql: MediaQueryList | null = null
 try {
   mql = window.matchMedia('(prefers-color-scheme: dark)')
@@ -75,13 +83,18 @@ try {
 }
 if (mql && typeof mql.addEventListener === 'function') {
   mql.addEventListener('change', () => {
-    if (loadPreference() === 'system') apply(detectSystem())
+    const p = loadPreference()
+    if (p === 'system' || p === null) {
+      apply(detectSystem())
+      preference.value = 'system'
+    }
   })
 }
 
 export function useTheme() {
   return {
     theme,
+    preference,
     toggle,
     apply,
     followSystem,

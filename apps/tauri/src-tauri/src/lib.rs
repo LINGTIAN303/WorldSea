@@ -190,6 +190,21 @@ fn build_tray<R: tauri::Runtime>(
         .tooltip("WorldSmith — 世界观构建工具")
         .menu(&menu)
         .show_menu_on_left_click(false)
+        .on_tray_icon_event(|tray, event| {
+            // 左键单击托盘图标 → 显示主窗口（批次99 P2：单击/双击均有反应，避免"托盘失效"错觉）
+            if let tauri::tray::TrayIconEvent::Click {
+                button: tauri::tray::MouseButton::Left,
+                button_state: tauri::tray::MouseButtonState::Up,
+                ..
+            } = event
+            {
+                if let Some(w) = tray.app_handle().get_webview_window("main") {
+                    w.show().ok();
+                    w.unminimize().ok();
+                    w.set_focus().ok();
+                }
+            }
+        })
         .on_menu_event(|app, event| match event.id.as_ref() {
             "show" => {
                 if let Some(w) = app.get_webview_window("main") {

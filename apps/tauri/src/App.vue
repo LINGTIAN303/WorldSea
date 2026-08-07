@@ -50,8 +50,14 @@ const loopControl = useLoopControlRust()
 /** 全局 toast（弱提示） */
 const toast = useTuiToast()
 
-/** 主题管理（浅色/深色）：解构为顶层 ref 使模板自动解包 */
-const { theme: themeMode, toggle: toggleTheme, apply: applyTheme } = useTheme()
+/** 主题管理（浅色/深色/跟随系统三态）：解构为顶层 ref 使模板自动解包 */
+const { theme: themeMode, preference: themePref, toggle: toggleTheme, apply: applyTheme } = useTheme()
+
+/** 主题按钮 tooltip：按当前偏好动态提示（三态循环，批次99） */
+const themeTitle = computed(() => {
+  if (themePref.value === 'system') return '跟随系统 · 点击切换浅色'
+  return themePref.value === 'dark' ? '切换浅色模式' : '切换深色模式'
+})
 
 /**
  * 会话创建后绑定 loop_control：
@@ -332,19 +338,37 @@ async function send() {
   if ((!text && !hasAttach) || sending.value) return
   const images: ImageAttachment[] = pendingImages.value.map(({ data, mimeType }) => ({ data, mimeType }))
   const files: FileAttachment[] = pendingFiles.value.map(({ name, content }) => ({ name, content }))
+  // 附件注入发送文本（hiddenText 分离显示/发送）：图片以占位说明、文件以内容注入（截断防上下文撑爆）
+  const hiddenParts: string[] = []
+  for (const img of pendingImages.value) hiddenParts.push(`[图片附件: ${img.name}]`)
+  for (const f of pendingFiles.value) {
+    const body = f.content.length > MAX_FILE_CHARS ? f.content.slice(0, MAX_FILE_CHARS) + '\n…（内容截断）' : f.content
+    hiddenParts.push(`[文件附件: ${f.name}]\n${body}`)
+  }
+  const hiddenText = hiddenParts.join('\n\n')
+  // 备份附件（发送失败时恢复，保留 name）
+  const backupImages = [...pendingImages.value]
+  const backupFiles = [...pendingFiles.value]
   input.value = ''
   pendingImages.value = []
   pendingFiles.value = []
   error.value = ''
   sending.value = true
   try {
-    await backend.prompt(text, { images, files })
+    await backend.prompt(text, { images, files, hiddenText })
   } catch (err) {
     error.value = err instanceof Error ? err.message : String(err)
+    // 发送失败：恢复附件（避免用户拖入的文件随失败消失，批次99）
+    if (pendingImages.value.length + pendingFiles.value.length === 0) {
+      pendingImages.value = backupImages
+      pendingFiles.value = backupFiles
+    }
   } finally {
     sending.value = false
   }
 }
+/** 文件附件注入发送文本的单文件长度上限（超出截断，防止撑爆 Agent 上下文） */
+const MAX_FILE_CHARS = 4000
 
 /** 思考级别选项（与 useAgentRust ThinkingLevel 对齐） */
 const thinkingOptions = [
@@ -628,7 +652,8 @@ function onGlobalKeydown(e: KeyboardEvent) {
 </script>
 
 <template>
-  <div class="app">
+  <!-- 根级 dragover/drop 兜底：拖文件到非消息区也阻止 WebView 默认导航替换 UI（批次99 P2） -->
+  <div class="app" @dragover.prevent @drop.prevent>
     <!-- 左侧全局导航轨道 -->
     <nav class="rail">
       <div class="rail-logo" title="WorldSmith Agent">
@@ -651,13 +676,17 @@ function onGlobalKeydown(e: KeyboardEvent) {
       <div class="rail-foot">
         <button
           class="rail-item rail-setting"
-          :title="themeMode === 'dark' ? '切换浅色模式' : '切换深色模式'"
-          :aria-label="themeMode === 'dark' ? '切换浅色模式' : '切换深色模式'"
+          :title="themeTitle"
+          :aria-label="themeTitle"
           @click="toggleTheme()"
         >
-          <!-- 图标随主题切换旋转淡入（视觉事件反馈：模式切换时刻被感知） -->
+          <!-- 图标随偏好切换旋转淡入（三态：sun / moon / monitor，视觉事件反馈） -->
           <Transition name="theme-icon" mode="out-in">
-            <TuiIcon :key="themeMode" :name="themeMode === 'dark' ? 'sun' : 'moon'" :size="19" />
+            <TuiIcon
+              :key="themePref"
+              :name="themePref === 'dark' ? 'moon' : themePref === 'light' ? 'sun' : 'monitor'"
+              :size="19"
+            />
           </Transition>
         </button>
         <button
@@ -907,6 +936,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
               <div
                 v-if="pendingImages.length + pendingFiles.length > 0"
                 class="attach-list"
+                role="list"
                 aria-label="待发送附件"
               >
                 <span

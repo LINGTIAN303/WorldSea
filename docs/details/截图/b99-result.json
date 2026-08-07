@@ -1,0 +1,34 @@
+{
+  "checks": [
+    {
+      "name": "theme-cycle",
+      "pass": true,
+      "detail": "三态循环 localStorage（system→light→dark→system）: ['light', 'dark', 'system']"
+    },
+    {
+      "name": "theme-system-icon",
+      "pass": true,
+      "detail": "system 态图标与 light/dark 不同: ['M12 17a5 5', 'M21 12.8A9', 'M3 4h18v12']"
+    },
+    {
+      "name": "attach-added",
+      "pass": true,
+      "detail": "拖入 note.txt → chip: note.txt"
+    },
+    {
+      "name": "send-enabled-no-text",
+      "pass": true,
+      "detail": "仅附件（无文本）时 send-btn 可用"
+    },
+    {
+      "name": "attach-fail-recover",
+      "pass": true,
+      "detail": "发送失败后附件恢复 + error-bar: {'chips': 1, 'err': \"Cannot read properties of undefined (reading 'invoke')\"}"
+    },
+    {
+      "name": "drop-anywhere-guard",
+      "pass": true,
+      "detail": "拖拽到非消息区不导航替换 UI"
+    }
+  ]
+}

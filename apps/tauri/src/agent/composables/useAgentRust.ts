@@ -796,14 +796,16 @@ async function ensureSession(): Promise<string> {
 async function prompt(text: string, options?: PromptOptions): Promise<void> {
   const sessionId = await ensureSession()
   const textContent = text.trim()
-  if (!textContent) return
+  // 发送文本 = 用户输入 + 附件注入内容（hiddenText，如"仅附件"消息、图片占位、文件全文）
+  const effective = options?.hiddenText ? `${textContent}\n\n${options.hiddenText}` : textContent
+  if (!effective.trim()) return
 
   // 深度模式：为当前会话建立 DeepPhaseChanged 事件监听（幂等）
   await setupDeepPhaseListener(sessionId)
   // 流式监听：支持打字机效果（幂等）
   await setupStreamListener(sessionId)
 
-  // 用户消息
+  // 用户消息（气泡只显示用户输入文本，附件注入内容不进显示）
   const userMsg: AgentMessage = {
     id: `user-${Date.now()}`,
     role: 'user',
@@ -822,7 +824,7 @@ async function prompt(text: string, options?: PromptOptions): Promise<void> {
     const result = await invoke<RustSendMessageResult>('send_message', {
       params: {
         sessionId,
-        text: textContent,
+        text: effective,
         images: (options?.images ?? []).map((img) => ({
           data: img.data,
           mimeType: img.mimeType,
