@@ -174,11 +174,16 @@ function onMessagesScroll() {
   followBottom.value = el.scrollHeight - el.scrollTop - el.clientHeight < 80
 }
 
-/** 滚动到消息区底部（nextTick 保证 DOM 已更新） */
+/* 滚动节流：rAF 合并高频 delta 的多次滚动赋值为一帧一次（批次96 P2-3，
+   流式打字机每 delta 触发 watch，直接 scrollTop 会与布局频繁交织） */
+let scrollRaf = 0
+/** 滚动到消息区底部（rAF 保证 DOM 已提交后执行） */
 function scrollMessagesToBottom() {
-  const el = messagesEl.value
-  if (!el) return
-  nextTick(() => {
+  if (scrollRaf) return // 本帧已有待执行滚动，合并后续请求
+  scrollRaf = requestAnimationFrame(() => {
+    scrollRaf = 0
+    const el = messagesEl.value
+    if (!el) return
     el.scrollTop = el.scrollHeight
   })
 }

@@ -1,0 +1,19 @@
+{
+  "checks": [
+    {
+      "name": "module-load",
+      "pass": true,
+      "detail": "MessageContent.vue 模块编译加载成功"
+    },
+    {
+      "name": "page-regression",
+      "pass": true,
+      "detail": "页面正常：rail-item（4 导航 + 2 设置）渲染"
+    },
+    {
+      "name": "deps-ready",
+      "pass": true,
+      "detail": "MessageContent 依赖（vue/marked/dompurify）解析就绪"
+    }
+  ]
+}

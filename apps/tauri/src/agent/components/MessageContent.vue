@@ -58,16 +58,39 @@ function hasUnclosedFence(text: string): boolean {
   return fences % 2 === 1
 }
 
-/** 渲染后的安全 HTML */
-const html = computed(() => {
-  const text = props.content ?? ''
+/* ── 渲染缓存（批次96 性能）：历史消息 content 不变时零重算 ──
+   流式 delta 每帧触发一次 computed 重算，长回复为 O(n²) 反复 parse。
+   缓存按「流式标记 + 原文」键存储解析结果，切会话/重挂载命中即免 parse。 */
+const parseCache = new Map<string, string>()
+const CACHE_MAX = 200
+/** 流式超长阈值：超过后降级纯文本渲染（避免大文本反复 parse，end 后富渲染） */
+const STREAM_PLAIN_THRESHOLD = 4000
+
+/** 渲染 HTML：命中缓存返回，未命中 parse + sanitize 后入缓存 */
+function computeHtml(text: string, streaming: boolean): string {
   if (!text) return ''
   // 流式中代码围栏未闭合 → 纯文本（换行转 <br>），避免误吞噬后续内容
-  if (props.streaming && hasUnclosedFence(text)) {
+  if (streaming && hasUnclosedFence(text)) {
     return escapeHtml(text)
   }
-  return DOMPurify.sanitize(marked.parse(text) as string)
-})
+  // 流式中超长文本 → 纯文本降级（打字机不再细粒度渲染，内容完整呈现）
+  if (streaming && text.length > STREAM_PLAIN_THRESHOLD) {
+    return escapeHtml(text).replace(/\n/g, '<br>')
+  }
+  const key = `${streaming ? 'S' : 'N'}:${text}`
+  const hit = parseCache.get(key)
+  if (hit !== undefined) return hit
+  const out = DOMPurify.sanitize(marked.parse(text) as string)
+  if (parseCache.size >= CACHE_MAX) {
+    const oldest = parseCache.keys().next().value
+    if (oldest !== undefined) parseCache.delete(oldest)
+  }
+  parseCache.set(key, out)
+  return out
+}
+
+/** 渲染后的安全 HTML */
+const html = computed(() => computeHtml(props.content ?? '', !!props.streaming))
 
 /** HTML 转义（纯文本回退 / 代码块内嵌用） */
 function escapeHtml(text: string): string {
