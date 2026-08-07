@@ -1,0 +1,24 @@
+{
+  "checks": [
+    {
+      "name": "console-errors",
+      "pass": true,
+      "detail": "pageerror: 无"
+    },
+    {
+      "name": "screenshots",
+      "pass": true,
+      "detail": "8 张截图: 8"
+    }
+  ],
+  "screenshots": [
+    "b108-final-chat-light.png",
+    "b108-final-terminal-light.png",
+    "b108-final-subagent-light.png",
+    "b108-final-memory-light.png",
+    "b108-final-chat-dark.png",
+    "b108-final-terminal-dark.png",
+    "b108-final-subagent-dark.png",
+    "b108-final-memory-dark.png"
+  ]
+}
