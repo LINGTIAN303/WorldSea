@@ -2,6 +2,8 @@
 //
 // Phase 5.1：注册 agent-commands 命令层，manage 一个 AgentCommandService 实例，
 // 供 WebView 前端 invoke 调用（newSession / sendMessage / abort / ... 14 主链路命令）。
+// 批次97：窗口层体验——窗口状态记忆（位置/大小持久化）+ 系统托盘（后台长任务不中断）
+// + 关闭即最小化到托盘（托盘菜单「退出」才是真正退出）。
 
 use std::sync::Arc;
 
@@ -9,13 +11,19 @@ use agent_commands::{
     AgentCommandService, LongTaskRepository, LoopControlRegistry, SqliteSessionRepository,
     SqliteSubAgentSpecStore, TerminalService,
 };
-use tauri::Manager;
+use tauri::{
+    menu::{Menu, MenuItem},
+    tray::TrayIconBuilder,
+    Manager,
+};
 
 mod commands;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // 窗口状态记忆：恢复上次窗口位置/大小（桌面应用基础体验，批次97 P1-1）
+        .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             commands::new_session,
@@ -135,8 +143,63 @@ pub fn run() {
             });
             app.manage(long_task_repo);
 
+            // 系统托盘（批次97 P1-3）：托盘菜单「显示主窗口 / 退出」。
+            // 构建失败（如无图标）不阻塞启动，仅记录——关闭行为将回退为直接退出。
+            let tray_active = match build_tray(app.handle()) {
+                Ok(_tray) => true,
+                Err(e) => {
+                    tracing::warn!("托盘初始化失败（关闭窗口将直接退出）: {e}");
+                    false
+                }
+            };
+            app.manage(TrayActive(tray_active));
+
             Ok(())
+        })
+        // 关闭行为（批次97 P1-4）：托盘激活时关闭窗口仅隐藏到托盘，进程与 Agent 长任务
+        // 继续运行；托盘菜单「退出」才是真正退出。托盘未激活时保持默认（关闭即退出）。
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                let active = window.state::<TrayActive>();
+                if active.0 {
+                    window.hide().ok();
+                    api.prevent_close();
+                }
+            }
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+/** 托盘是否激活：决定关闭窗口是「最小化到托盘」还是「直接退出」 */
+struct TrayActive(bool);
+
+/** 构建系统托盘（显示主窗口 / 退出两项菜单） */
+fn build_tray<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> tauri::Result<tauri::tray::TrayIcon<R>> {
+    let show = MenuItem::with_id(app, "show", "显示主窗口", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "退出 WorldSmith", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&show, &quit])?;
+    let icon = app
+        .default_window_icon()
+        .cloned()
+        .expect("窗口默认图标缺失");
+    TrayIconBuilder::new()
+        .icon(icon)
+        .tooltip("WorldSmith — 世界观构建工具")
+        .menu(&menu)
+        .show_menu_on_left_click(false)
+        .on_menu_event(|app, event| match event.id.as_ref() {
+            "show" => {
+                if let Some(w) = app.get_webview_window("main") {
+                    w.show().ok();
+                    w.unminimize().ok();
+                    w.set_focus().ok();
+                }
+            }
+            "quit" => app.exit(0),
+            _ => {}
+        })
+        .build(app)
 }

@@ -661,7 +661,7 @@ agent_end → checkShouldAutoContinue=true → autoContinueTask → backend.prom
 
 <!-- MemoryCenter:SECTION:task_state START -->
 ## 当前任务
-Tauri 端 UI/UX 全维度优化（视觉 + 交互事件 + 键盘可达性）——批次 87-90 完成，视觉审查报告 27 项全部闭环
+Tauri 端 UI/UX 全维度优化（视觉 + 交互事件 + 键盘可达性 + 性能 + 桌面成熟度）——批次 87-94 完成，视觉审查 27 项 + 交互审计 20 项 P2 + 二/三轮审计全部闭环
 
 ## 已完成步骤
 - [x] 阶段 1.5 Tauri 集成：14 个 agent 命令 + 事件桥接 + 多实例管理 + 前端通信层
@@ -820,4 +820,15 @@ Tauri 端 UI/UX 全维度优化（视觉 + 交互事件 + 键盘可达性）—�
 - **P1-2 主输入栏叠字**：App.vue textarea 空闲态 placeholder（「输入消息，Enter 发送」）置空——.rotating-hints 绝对定位与原生 placeholder 起点完全重合，同为 text-muted 14px 叠字；轮转提示独占引导层，发送/流式时仍显示「输入引导词」
 - **验证**：typecheck 通过；Playwright 实测 dark --on-accent=#17171b + primary 按钮 bg rgb(139,135,248)/文字 rgb(23,23,27)；空闲态 placeholder="" + rotating-hints 可见；截图 b71-input-hint-no-overlap / b71-dark-on-accent 归档
 - **排期**：批次72 P2 字重布局类 → 批次73 反馈一致性 → 批次74 P2-10+P3
+
+## 本次进展（2026-08-07）— 批次72-86 检查点入库（f086759）+ 批次87-94
+- **批次72-86 检查点**（f086759）：设计令牌/可访问性/动效统一大检查点；visual-review-2026-08-07.md 视觉审查报告（27 项发现）建立
+- **批次87 视觉审查收尾**：新增 `--empty-icon` 令牌（浅色 #c7cad3 / dark rgba(139,135,248,0.4)）修复 #14 空态图标浅色近隐形；#4 终端会话面板改 flex（header/create 固定、列表独立滚动）；#5 SubAgentView submit-row sticky 吸底；#18 遮罩 0.38→0.45；#22/#23/#25 间距与弱色
+- **批次88 #15 checkbox 自绘**：TerminalView `.toggle input` appearance:none 自绘（accent 底 + on-accent 对勾），修复 WebView2 accent-color 不可靠
+- **批次89 交互反馈语言收敛**：新增 `--press-scale: 0.96` 统一按压反馈；hover 语言收敛（列表=背景+标题 accent、卡片=边框 accent）；TuiButton loading 语义（is-loading 不降透明度 cursor:progress）；各视图异步按钮改 `:loading`
+- **批次90 焦点/语义/键盘增强**：TuiModal 弹窗栈（唯一 id + 仅栈顶 Esc/Tab）+ 聚焦首控件 + aria-describedby；全局快捷键 aria-modal 互斥；下拉回焦 trigger；四列表方向键导航；错误条 role=alert；表单 label for/id 关联；TuiSegmented radiogroup 语义
+- **批次91 A2UI 令牌映射**：shared-ui A2UI 用 Web 端令牌（--agent-*/--color-*），Tauri 未定义曾 fallback 硬编码深色 → theme.css 建 24 项映射到 Tauri 令牌（双主题实测生效）
+- **批次92 浅色全视图回归**：8 视图 × 双主题截图 + 弹窗 + 叠印复检全 PASS
+- **批次93 性能优化**：MessageContent Marked 提为模块级单例；消息自动滚动信号从 O(n) map+join 改 O(1) 末条信号
+- **批次94 窗口 resize 验证**（a1a7253）：900/1280/1920 三视口无横向溢出、rail 68px 固定、content 自适应、零 console 错误
 <!-- MemoryCenter:SECTION:task_state END -->
