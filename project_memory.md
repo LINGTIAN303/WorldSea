@@ -889,3 +889,14 @@ Tauri 端 UI/UX 全维度优化（视觉 + 交互事件 + 键盘可达性 + 性�
 - **验证**：6 项 Playwright 断言全 PASS（实例区/空态双场景/样式规则/无 console 错误）+ 双主题截图归档（b107-subagent-light/dark.png）
 - **P2 清单状态**：批次103 时间格式统一 ✅ / 批次104 侧栏标题收敛 ✅ / 批次105 记忆面板头部合并 ✅ / 批次106 对话 header 溢出菜单 ✅ / 批次107 子Agent 实例区分栏 ✅ —— 全部闭环
 - **暂缓决策不变**：自定义标题栏（需真实 Tauri 窗口验证）、消息虚拟滚动（现有优化已覆盖常见消息量）
+
+## 本次进展（2026-08-08）— 批次108-109（最终回归 + 第七轮审计闭环）
+- **批次108**（cb7bbd0）：生产构建成功（6.76s，5138 模块，仅既有 entity-core 无效动态导入警告）+ 批次103-107 后 4 视图×双主题 8 张最终截图无 console 错误
+- **批次109**（2bee192，第七轮 search 子代理审计 1×P1 + 4×P2 + 11×P3）：
+  - P1-1：MemoryPanel 详情视图 `.mp-bar` 样式被批次105 误删（详情栏返回+标题退化）→ 更名 `.mp-detail-bar` 恢复（返回左/标题右截断/底部分隔）
+  - P2：`.act-more` 补 aria-haspopup="menu"；菜单打开聚焦首项 + Esc/点外/选中关闭均归还焦点（closeMore 统一入口）；选中项即关闭（closeMore 先行）；format.ts 跨年补年份（formatMsgTime/formatRelativeTime 与 formatDateLabel 对齐，消除三种表现）
+  - P3：id 截断加长度守卫（>8 才省略号）；switchView 重置 moreOpen（视图切换不留挂起菜单）；删自定义 .more-item focus-visible（全局 ring 令牌兜底）；.mp-head 加 flex-wrap 防窄窗口溢出；format 边界（ts=0 不再误判缺失，空串返回空）
+  - 方向键 ↑/↓ 项间循环导航（WAI-ARIA menu 模式补全）
+- **验证**：14 项 Playwright 断言全 PASS（跨年/边界/aria/聚焦/方向键回环/Esc 焦点归还/选中关闭/详情栏样式）+ 双主题截图归档（b109-header-more-light/dark.png）
+- **MemoryCenter 归档**：hook a5d8d23c（批次 103-108，321 轮，阈值 90%）
+- **第七轮审计其余 P3 未做**（低收益或需业务确认）：P3-1 formatMsgTime 模板双调用、P3-2 SessionList 相对时间 60s tick、P3-8 useWorkflowEngineRun 无消费方（死代码待确认）、P3-10 SubAgentView instances-header 字号档位（视为合理层级差异）
