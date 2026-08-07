@@ -122,7 +122,7 @@ function isLong(text: string, threshold = 120): boolean {
 
 <style scoped>
 .subagent-section {
-  max-width: 860px;
+  max-width: var(--chat-max-w);
   margin: 0 auto;
   border-top: 1px solid var(--border);
   padding: 10px var(--chat-gutter);

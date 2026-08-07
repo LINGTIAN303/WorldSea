@@ -80,7 +80,7 @@ function toolState(status?: string): string {
 
 <style scoped>
 .phase-section {
-  max-width: 860px;
+  max-width: var(--chat-max-w);
   margin: 0 auto 8px;
   padding: 0 var(--chat-gutter);
   border-radius: var(--radius-md);

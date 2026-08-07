@@ -1,0 +1,14 @@
+{
+  "checks": [
+    {
+      "name": "theme-light",
+      "pass": true,
+      "detail": "data-theme=light"
+    },
+    {
+      "name": "theme-dark",
+      "pass": true,
+      "detail": "data-theme=dark"
+    }
+  ]
+}
