@@ -13,7 +13,7 @@ use agent_runtime::memory::{
     SummaryMethod,
 };
 use memory_center_core::archive::Archiver;
-use memory_center_core::model::{ArchiveConfig, MessageContent, MessageTurn, Tag};
+use memory_center_core::model::{ArchiveConfig, ArchivePeriod, MessageContent, MessageTurn, Tag};
 use memory_center_core::retrieve::{Retriever, SummaryView};
 use memory_center_core::sqlite::SqliteStorage;
 use memory_center_core::storage::Storage;
@@ -30,6 +30,10 @@ pub struct MemoryCenterAccessor {
     boundary: AtomicUsize,
     /// 已注入的 hook_id 集合（避免重复注入，`force` 时跳过检查）
     injected_hooks: Arc<Mutex<HashSet<String>>>,
+    /// 存储后端引用（按会话删除记忆用，与 retriever/archiver 共享）
+    storage: Arc<dyn Storage>,
+    /// 项目 ID（按会话删除记忆时按项目定位记忆文件）
+    project_id: Option<String>,
 }
 
 impl MemoryCenterAccessor {
@@ -59,11 +63,13 @@ impl MemoryCenterAccessor {
     ) -> Self {
         let session_id = session_id.into();
         let retriever = Retriever::new(storage.clone(), session_id.clone(), project_id.clone());
-        let archiver = Archiver::new(archive_config, storage.clone(), session_id.clone(), project_id);
+        let archiver = Archiver::new(archive_config, storage.clone(), session_id.clone(), project_id.clone());
         Self {
             retriever,
             archiver: Arc::new(tokio::sync::Mutex::new(archiver)),
             session_id,
+            storage,
+            project_id,
             boundary: AtomicUsize::new(0),
             injected_hooks: Arc::new(Mutex::new(HashSet::new())),
         }
@@ -213,6 +219,37 @@ impl MemoryAccessor for MemoryCenterAccessor {
 
     async fn get_archive_boundary(&self) -> std::result::Result<usize, MemoryError> {
         Ok(self.boundary.load(Ordering::SeqCst))
+    }
+
+    async fn delete_by_session_id(
+        &self,
+        session_id: &str,
+    ) -> std::result::Result<(), MemoryError> {
+        // 删除该会话全部记忆内容并清理索引钩子：枚举三个存档周期层级，
+        // 先删记忆文件（memories），再删索引钩子（hooks），避免留下悬空指针
+        // 导致删除后 recall 仍命中幽灵摘要。
+        for period in [
+            ArchivePeriod::Daily,
+            ArchivePeriod::Weekly,
+            ArchivePeriod::Monthly,
+        ] {
+            let memory_ids = self
+                .storage
+                .list_memories(session_id, self.project_id.as_deref(), period)
+                .await
+                .map_err(|e| MemoryError::RecallFailed(e.to_string()))?;
+            for memory_id in memory_ids {
+                self.storage
+                    .delete_memory(&memory_id)
+                    .await
+                    .map_err(|e| MemoryError::Other(e.to_string()))?;
+            }
+            self.storage
+                .delete_index(session_id, self.project_id.as_deref(), period)
+                .await
+                .map_err(|e| MemoryError::Other(e.to_string()))?;
+        }
+        Ok(())
     }
 
     async fn record_turn(
@@ -588,5 +625,37 @@ mod tests {
 
         // 归档边界已推进
         assert!(accessor.get_archive_boundary().await.unwrap() > 0);
+    }
+
+    /// 孤儿记忆清理：先归档产生记忆，再按会话删除，确认检索命中为空。
+    #[tokio::test]
+    async fn test_delete_by_session_id_removes_memories() {
+        let accessor = make_accessor();
+
+        // 归档多轮产生记忆
+        for i in 0..8 {
+            accessor
+                .record_turn(
+                    format!("待清理主题 {i} 的 Rust 细节"),
+                    format!("主题 {i} 的回复"),
+                )
+                .await
+                .unwrap();
+        }
+        assert!(accessor.archive(None).await.unwrap().is_some());
+
+        // 删除前可检索命中
+        let before = accessor.recall("Rust".to_string(), None).await.unwrap();
+        assert!(!before.is_empty(), "删除前应能检索到记忆");
+
+        // 按会话删除
+        accessor
+            .delete_by_session_id(&accessor.session_id)
+            .await
+            .unwrap();
+
+        // 删除后检索应命中为空
+        let after = accessor.recall("Rust".to_string(), None).await.unwrap();
+        assert!(after.is_empty(), "删除后应检索不到记忆");
     }
 }

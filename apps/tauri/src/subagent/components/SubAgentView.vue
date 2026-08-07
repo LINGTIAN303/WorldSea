@@ -1,17 +1,34 @@
 <script setup lang="ts">
 /** SubAgentView：子 Agent 规格管理界面（列表 + 新增/编辑表单），详细见 docs/details/注释/tauri/SubAgentView.md */
-import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useSubagentRust, type SubAgentSpec } from '../composables/useSubagentRust'
 import { useAgentRust } from '../../agent/composables/useAgentRust'
 import { subagentTemplates, type SubAgentTemplate } from '../templates'
+import TuiModal from '../../components/ui/TuiModal.vue'
+import TuiConfirm from '../../components/ui/TuiConfirm.vue'
+import TuiButton from '../../components/ui/TuiButton.vue'
+import TuiIcon from '../../components/ui/TuiIcon.vue'
+import TuiEmpty from '../../components/ui/TuiEmpty.vue'
+import { useTuiToast } from '../../components/ui/useTuiToast'
 
 const sub = useSubagentRust()
 const { specs, busy: subBusy } = sub
 // 实例管理按会话隔离：接入 useAgentRust 获取当前活动会话 id
 const agent = useAgentRust()
 const { instances, instancesBusy, instanceMsg } = sub
+const toast = useTuiToast()
 
-// 表单状态
+/** 确认框状态：{ 目标类型, 相关数据 }，用于删除规格 / 清空全部实例 */
+const confirmState = ref<{
+  show: boolean
+  title: string
+  message: string
+  danger: boolean
+  confirmText: string
+  onConfirm: () => void
+}>({ show: false, title: '', message: '', danger: false, confirmText: '确认', onConfirm: () => {} })
+
+/** 表单状态 */
 const form = reactive<SubAgentSpec>({
   id: '',
   name: '',
@@ -24,12 +41,18 @@ const formError = ref('')
 const editingId = ref('') // 非空表示正在编辑现有规格
 // 列表区瞬态提示（复制/删除结果反馈）
 const listMsg = ref('')
+/** 列表区提示类型：error → danger 语义（批次59：失败不再以 success 渲染） */
+const listMsgType = ref<'success' | 'error'>('success')
+/** 实例区提示类型（instanceMsg 来自 composable，类型由组件层控制） */
+const instanceMsgType = ref<'success' | 'error'>('success')
 
 // 导出/导入弹窗状态
 const ioOpen = ref(false)
 const ioMode = ref<'export' | 'import'>('export')
 const ioText = ref('')
 const ioMsg = ref('')
+/** 弹窗内提示类型：error → danger 语义（批次59） */
+const ioMsgType = ref<'success' | 'error'>('success')
 
 /** 打开导出弹窗：拉取 JSON 填入 */
 async function openExport() {
@@ -40,6 +63,7 @@ async function openExport() {
     ioOpen.value = true
   } catch (err) {
     ioMsg.value = err instanceof Error ? err.message : String(err)
+    ioMsgType.value = 'error'
   }
 }
 
@@ -56,8 +80,10 @@ async function copyJson() {
   try {
     await navigator.clipboard.writeText(ioText.value)
     ioMsg.value = '已复制到剪贴板'
+    ioMsgType.value = 'success'
   } catch (err) {
     ioMsg.value = err instanceof Error ? err.message : String(err)
+    ioMsgType.value = 'error'
   }
 }
 
@@ -67,15 +93,18 @@ async function doImport() {
   const json = ioText.value.trim()
   if (!json) {
     ioMsg.value = '请粘贴要导入的 JSON 内容'
+    ioMsgType.value = 'error'
     return
   }
   try {
     const n = await sub.importSpecs(json)
     ioMsg.value = `导入成功：${n} 条规格（同名 id 已覆盖）`
+    ioMsgType.value = 'success'
     ioText.value = ''
     ioOpen.value = false
   } catch (err) {
     ioMsg.value = err instanceof Error ? err.message : String(err)
+    ioMsgType.value = 'error'
   }
 }
 
@@ -154,19 +183,32 @@ async function copySpec(spec: SubAgentSpec) {
   try {
     await navigator.clipboard.writeText(JSON.stringify(spec, null, 2))
     listMsg.value = `已复制「${spec.name}」的规格 JSON`
+    listMsgType.value = 'success'
   } catch (err) {
     listMsg.value = err instanceof Error ? err.message : String(err)
+    listMsgType.value = 'error'
   }
 }
 
-/** 删除规格 */
-async function remove(spec: SubAgentSpec) {
-  if (!window.confirm(`确定删除子 Agent「${spec.name}」（${spec.id}）？`)) return
-  try {
-    await sub.removeSpec(spec.id)
-    if (editingId.value === spec.id) resetForm()
-  } catch (err) {
-    formError.value = err instanceof Error ? err.message : String(err)
+/** 删除规格：弹出确认框（替代原生 confirm） */
+function remove(spec: SubAgentSpec) {
+  confirmState.value = {
+    show: true,
+    title: '删除子 Agent',
+    message: `确定删除「${spec.name}」（${spec.id}）？\n已委派的实例将按最新规格重建。`,
+    danger: true,
+    confirmText: '删除',
+    onConfirm: async () => {
+      try {
+        await sub.removeSpec(spec.id)
+        if (editingId.value === spec.id) resetForm()
+        toast.info(`已删除「${spec.name}」`)
+      } catch (err) {
+        formError.value = err instanceof Error ? err.message : String(err)
+      } finally {
+        confirmState.value.show = false
+      }
+    },
   }
 }
 
@@ -186,15 +228,45 @@ function resetForm() {
 // 模板下拉状态
 const tplOpen = ref(false)
 const tplWrapRef = ref<HTMLElement | null>(null)
+/** 模板菜单键盘高亮索引（-1 未高亮），与 TuiSelect 键盘导航同一语言 */
+const tplActive = ref(-1)
 
 /** 点击下拉外部时关闭菜单 */
 function onDocClick(e: MouseEvent) {
   if (tplOpen.value && tplWrapRef.value && !tplWrapRef.value.contains(e.target as Node)) {
     tplOpen.value = false
+    tplActive.value = -1
   }
 }
 onMounted(() => document.addEventListener('click', onDocClick))
 onBeforeUnmount(() => document.removeEventListener('click', onDocClick))
+
+/** 打开模板菜单：聚焦首项，键盘可直达 */
+function openTplMenu() {
+  tplOpen.value = true
+  tplActive.value = 0
+  nextTick(() => {
+    tplWrapRef.value?.querySelector<HTMLElement>('.tpl-menu li')?.focus()
+  })
+}
+
+/** 模板菜单键盘导航：↑↓ 循环移动、Enter 选中、Esc 关闭 */
+function onTplKeydown(e: KeyboardEvent) {
+  const n = subagentTemplates.length
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault()
+    const dir = e.key === 'ArrowDown' ? 1 : -1
+    tplActive.value = tplActive.value === -1 ? (dir === 1 ? 0 : n - 1) : (tplActive.value + dir + n) % n
+    tplWrapRef.value?.querySelectorAll<HTMLElement>('.tpl-menu li')[tplActive.value]?.focus()
+  } else if (e.key === 'Enter' && tplActive.value >= 0) {
+    e.preventDefault()
+    loadTemplate(subagentTemplates[tplActive.value])
+  } else if (e.key === 'Escape') {
+    e.preventDefault()
+    tplOpen.value = false
+    tplActive.value = -1
+  }
+}
 
 /** 载入预设模板：把模板规格预填进表单（编辑态也允许，覆盖当前编辑内容） */
 function loadTemplate(t: SubAgentTemplate) {
@@ -213,6 +285,11 @@ function loadTemplate(t: SubAgentTemplate) {
 /** 是否有当前活动会话（无则实例管理区提示先创建会话） */
 const hasSession = () => !!agent.currentSessionId?.value
 
+/** TuiConfirm update:show 回调 */
+function onConfirmShow(v: boolean) {
+  confirmState.value.show = v
+}
+
 /** 刷新当前会话的子 Agent 实例列表（无会话则清空占位） */
 async function refreshInstancesNow() {
   const sid = agent.currentSessionId?.value
@@ -230,21 +307,35 @@ async function clearOneInstance(instId: string) {
   try {
     const removed = await sub.clearInstance(sid, instId)
     instanceMsg.value = removed ? `已清空子 Agent 实例「${instId}」` : '该实例不存在或已被清空'
+    instanceMsgType.value = 'success'
   } catch (err) {
     instanceMsg.value = err instanceof Error ? err.message : String(err)
+    instanceMsgType.value = 'error'
   }
 }
 
-/** 清空当前会话的全部子 Agent 实例（重置累积上下文） */
-async function clearAllInstances() {
+/** 清空当前会话的全部子 Agent 实例（重置累积上下文）：弹出确认框 */
+function clearAllInstances() {
   const sid = agent.currentSessionId?.value
   if (!sid) return
-  if (!window.confirm('确定清空当前会话的全部子 Agent 实例？\n这会重置它们累积的上下文，下次委派将按最新规格重建。')) return
-  try {
-    const n = await sub.clearInstances(sid)
-    instanceMsg.value = n > 0 ? `已清空 ${n} 个子 Agent 实例` : '当前没有可清空的子 Agent 实例'
-  } catch (err) {
-    instanceMsg.value = err instanceof Error ? err.message : String(err)
+  confirmState.value = {
+    show: true,
+    title: '清空全部实例',
+    message: '确定清空当前会话的全部子 Agent 实例？\n这会重置它们累积的上下文，下次委派将按最新规格重建。',
+    danger: true,
+    confirmText: '清空',
+    onConfirm: async () => {
+      try {
+        const n = await sub.clearInstances(sid)
+        instanceMsg.value = n > 0 ? `已清空 ${n} 个子 Agent 实例` : '当前没有可清空的子 Agent 实例'
+        instanceMsgType.value = 'success'
+      } catch (err) {
+        instanceMsg.value = err instanceof Error ? err.message : String(err)
+        instanceMsgType.value = 'error'
+      } finally {
+        confirmState.value.show = false
+      }
+    },
   }
 }
 
@@ -263,15 +354,24 @@ onMounted(async () => {
         <span class="count">{{ specs.length }}</span>
       </header>
 
-      <div v-if="specs.length === 0" class="empty">
-        暂无子 Agent 规格。<br />在右侧新增一个，主 Agent 即可通过
-        <code>delegate_to_sub_agent</code> 委派任务给它。
-      </div>
-      <p v-if="listMsg" class="list-msg">{{ listMsg }}</p>
+      <TuiEmpty v-if="specs.length === 0" icon="subagent" title="暂无子 Agent 规格">
+        <p class="empty-hint">在右侧新增一个，主 Agent 即可通过 <code>delegate_to_sub_agent</code> 委派任务给它。</p>
+      </TuiEmpty>
+      <Transition name="fade">
+        <p v-if="listMsg" class="list-msg" :class="listMsgType">{{ listMsg }}</p>
+      </Transition>
 
       <ul class="specs">
         <li v-for="s in specs" :key="s.id" class="spec" :class="{ editing: editingId === s.id }">
-          <div class="spec-main" @click="edit(s)">
+          <div
+            class="spec-main"
+            role="button"
+            tabindex="0"
+            title="点击编辑该规格"
+            @click="edit(s)"
+            @keydown.enter="edit(s)"
+            @keydown.space.prevent="edit(s)"
+          >
             <div class="spec-title">
               <span class="name">{{ s.name }}</span>
               <code class="id">{{ s.id }}</code>
@@ -281,8 +381,8 @@ onMounted(async () => {
             <div class="desc">{{ s.description }}</div>
           </div>
           <div class="spec-actions">
-            <button class="copy" title="复制该规格 JSON" @click="copySpec(s)">复制</button>
-            <button class="remove" title="删除" @click="remove(s)">删除</button>
+            <TuiButton variant="ghost" size="sm" title="复制该规格 JSON" @click="copySpec(s)">复制</TuiButton>
+            <TuiButton variant="danger-ghost" size="sm" title="删除" @click="remove(s)">删除</TuiButton>
           </div>
         </li>
       </ul>
@@ -291,9 +391,14 @@ onMounted(async () => {
       <section class="instances">
         <header class="instances-header">
           <h3>子 Agent 实例 <span class="instances-count">{{ instances.length }}</span></h3>
-          <button class="ghost inst-clear" :disabled="instancesBusy || !hasSession()" @click="clearAllInstances">
+          <TuiButton
+            variant="danger-ghost"
+            size="sm"
+            :disabled="instancesBusy || !hasSession() || instances.length === 0"
+            @click="clearAllInstances"
+          >
             清空实例
-          </button>
+          </TuiButton>
         </header>
         <p v-if="!hasSession()" class="instances-empty">
           需先在「对话」页创建/切换会话，才能查看并清空该会话的子 Agent 实例。
@@ -310,18 +415,21 @@ onMounted(async () => {
             </div>
             <div class="instance-side">
               <span v-if="inst.is_streaming" class="streaming">流式中</span>
-              <button
-                class="ghost inst-clear-one"
+              <TuiButton
+                variant="danger-ghost"
+                size="sm"
                 :disabled="instancesBusy || inst.is_streaming || !hasSession()"
                 :title="'清空该实例的累积上下文'"
                 @click="clearOneInstance(inst.sub_agent_id)"
               >
                 清空
-              </button>
+              </TuiButton>
             </div>
           </li>
         </ul>
-        <p v-if="instanceMsg" class="instances-msg">{{ instanceMsg }}</p>
+        <Transition name="fade">
+          <p v-if="instanceMsg" class="instances-msg" :class="instanceMsgType">{{ instanceMsg }}</p>
+        </Transition>
       </section>
     </section>
 
@@ -330,13 +438,33 @@ onMounted(async () => {
       <header class="form-header">
         <h2>{{ editingId ? '编辑规格' : '新增规格' }}</h2>
         <div class="form-actions">
-          <button class="ghost" @click="openImport">导入</button>
-          <button class="ghost" @click="openExport">导出</button>
-          <button v-if="editingId" class="ghost" @click="resetForm">取消编辑</button>
+          <TuiButton variant="ghost" size="sm" @click="openImport">导入</TuiButton>
+          <TuiButton variant="ghost" size="sm" @click="openExport">导出</TuiButton>
+          <TuiButton v-if="editingId" variant="ghost" size="sm" @click="resetForm">取消编辑</TuiButton>
           <div class="tpl-wrap" ref="tplWrapRef">
-            <button class="ghost" @click="tplOpen = !tplOpen">模板</button>
-            <ul v-if="tplOpen" class="tpl-menu">
-              <li v-for="t in subagentTemplates" :key="t.spec.id" @click="loadTemplate(t)">
+            <TuiButton
+              variant="ghost"
+              size="sm"
+              aria-haspopup="listbox"
+              :aria-expanded="tplOpen"
+              :aria-activedescendant="tplOpen && tplActive >= 0 ? `tpl-opt-${tplActive}` : undefined"
+              @click="openTplMenu()"
+            >
+              模板
+              <TuiIcon name="chevronDown" :size="12" :stroke-width="2" />
+            </TuiButton>
+            <ul v-if="tplOpen" class="tpl-menu" role="listbox" @keydown="onTplKeydown">
+              <li
+                v-for="(t, i) in subagentTemplates"
+                :key="t.spec.id"
+                :id="`tpl-opt-${i}`"
+                tabindex="-1"
+                role="option"
+                :aria-selected="i === tplActive"
+                :class="{ 'is-focus': i === tplActive }"
+                @click="loadTemplate(t)"
+                @mouseenter="tplActive = i"
+              >
                 <span class="tpl-label">{{ t.label }}</span>
                 <span class="tpl-hint">{{ t.hint }}</span>
               </li>
@@ -383,46 +511,55 @@ onMounted(async () => {
         <p class="hint">限制子 Agent 只能看到/调用这些工具（工具隔离）。可参考终端工具名：execute_command、detect_shells、shell_session_create、shell_session_exec、shell_session_input、shell_session_destroy、shell_session_list。</p>
       </div>
 
-      <div v-if="formError" class="form-error">{{ formError }}</div>
+      <Transition name="fade">
+        <div v-if="formError" class="form-error">{{ formError }}</div>
+      </Transition>
 
       <div class="submit-row">
-        <button class="primary" :disabled="subBusy" @click="submit">
+        <TuiButton variant="primary" :disabled="subBusy" @click="submit">
           {{ subBusy ? '提交中…' : editingId ? '保存修改' : '新增规格' }}
-        </button>
+        </TuiButton>
       </div>
     </section>
 
-    <!-- 导出 / 导入弹窗 -->
-    <div v-if="ioOpen" class="io-mask">
-      <div class="io-modal">
-        <header class="io-header">
-          <h3>{{ ioMode === 'export' ? '导出子 Agent 规格' : '导入子 Agent 规格' }}</h3>
-          <button class="io-close" @click="ioOpen = false" aria-label="关闭">×</button>
-        </header>
-        <p v-if="ioMode === 'export'" class="io-tip">
-          以下是当前全部规格的 JSON。可复制保存，换机后通过「导入」恢复。
-        </p>
-        <p v-else class="io-tip">
-          粘贴从「导出」得到的 JSON 数组（或手写 <code>[{...}]</code>），同名 id 会覆盖现有规格。
-        </p>
-        <textarea
-          class="io-text"
-          :readonly="ioMode === 'export'"
-          v-model="ioText"
-          rows="12"
-          spellcheck="false"
-          :placeholder="ioMode === 'import' ? '例如 [{id, name, description, system_prompt}]' : ''"
-        />
-        <p v-if="ioMsg" class="io-msg">{{ ioMsg }}</p>
-        <footer class="io-footer">
-          <button v-if="ioMode === 'export'" class="ghost" @click="copyJson">复制</button>
-          <button v-if="ioMode === 'import'" class="primary" :disabled="subBusy" @click="doImport">
-            {{ subBusy ? '导入中…' : '导入' }}
-          </button>
-          <button class="ghost" @click="ioOpen = false">关闭</button>
-        </footer>
-      </div>
-    </div>
+    <!-- 导出 / 导入弹窗（统一 TuiModal 基座） -->
+    <TuiModal :show="ioOpen" :title="ioMode === 'export' ? '导出子 Agent 规格' : '导入子 Agent 规格'" size="lg" @close="ioOpen = false">
+      <p v-if="ioMode === 'export'" class="io-tip">
+        以下是当前全部规格的 JSON。可复制保存，换机后通过「导入」恢复。
+      </p>
+      <p v-else class="io-tip">
+        粘贴从「导出」得到的 JSON 数组（或手写 <code>[{...}]</code>），同名 id 会覆盖现有规格。
+      </p>
+      <textarea
+        class="io-text"
+        :readonly="ioMode === 'export'"
+        v-model="ioText"
+        rows="12"
+        spellcheck="false"
+        :placeholder="ioMode === 'import' ? '例如 [{id, name, description, system_prompt}]' : ''"
+      />
+      <p v-if="ioMsg" class="io-msg" :class="ioMsgType">{{ ioMsg }}</p>
+
+      <template #footer>
+        <TuiButton v-if="ioMode === 'export'" variant="secondary" @click="copyJson">复制</TuiButton>
+        <TuiButton v-if="ioMode === 'import'" variant="primary" :disabled="subBusy" @click="doImport">
+          {{ subBusy ? '导入中…' : '导入' }}
+        </TuiButton>
+        <TuiButton variant="ghost" @click="ioOpen = false">关闭</TuiButton>
+      </template>
+    </TuiModal>
+
+    <!-- 删除 / 清空确认框 -->
+    <TuiConfirm
+      :show="confirmState.show"
+      :title="confirmState.title"
+      :message="confirmState.message"
+      :danger="confirmState.danger"
+      :confirm-text="confirmState.confirmText"
+      @confirm="confirmState.onConfirm"
+      @cancel="confirmState.show = false"
+      @update:show="onConfirmShow"
+    />
   </div>
 </template>
 
@@ -430,46 +567,55 @@ onMounted(async () => {
 .subagent {
   display: flex;
   height: 100%;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-sans);
 }
 .list {
   width: 340px;
-  border-right: 1px solid #e5e5e5;
-  padding: 16px;
+  border-right: 1px solid var(--border);
+  padding: 0 16px 16px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
 }
+/* 面板 header：吸顶横条，与对话/终端/记忆视图 header 同一视觉语言（surface 底 + 12px 垂直内边距 + 下边框） */
 .list-header {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
+  padding: 12px 16px;
+  margin: 0 -16px 12px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
 }
 .list-header h2 {
-  font-size: 14px;
-  color: #666;
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  color: var(--text-primary);
   margin: 0;
 }
 .count {
-  font-size: 12px;
-  color: #999;
-  background: #f0f0f0;
-  padding: 2px 8px;
-  border-radius: 10px;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  background: var(--bg-muted);
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
 }
-.empty {
-  color: #999;
-  font-size: 13px;
-  text-align: center;
-  padding: 24px 8px;
-  line-height: 1.8;
+.empty-hint {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  margin: 0;
+  line-height: var(--lh-base);
+  max-width: 320px;
 }
-.empty code {
-  background: #f5f5f5;
+.empty-hint code {
+  background: var(--bg-muted);
   padding: 1px 5px;
-  border-radius: 4px;
-  font-size: 12px;
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-sm);
 }
 .specs {
   list-style: none;
@@ -482,21 +628,23 @@ onMounted(async () => {
   justify-content: space-between;
   gap: 8px;
   padding: 10px 12px;
-  border: 1px solid #eee;
-  border-radius: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   margin-bottom: 8px;
-  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
 .spec:hover {
-  border-color: #1a73e8;
+  border-color: var(--accent);
 }
 .spec.editing {
-  border-color: #1a73e8;
-  background: #f5f9ff;
+  border-color: var(--accent);
+  background: var(--accent-soft);
 }
+/* 光标仅提示可点热区（.spec-main 可点，右侧操作按钮独立），与键盘热区一致 */
 .spec-main {
   flex: 1;
   min-width: 0;
+  cursor: pointer;
 }
 .spec-title {
   display: flex;
@@ -505,97 +653,72 @@ onMounted(async () => {
   flex-wrap: wrap;
 }
 .name {
-  font-size: 14px;
+  font-size: var(--fs-base);
   font-weight: 600;
-  color: #333;
+  color: var(--text-primary);
 }
 .id {
-  font-size: 11px;
-  color: #1a73e8;
-  background: #e8f0fe;
+  font-size: var(--fs-xs);
+  color: var(--accent);
+  background: var(--accent-soft);
   padding: 1px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 .iter {
-  font-size: 11px;
-  color: #999;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
 }
 .wl {
-  font-size: 11px;
-  color: #b45309;
-  background: #fef3c7;
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
+  background: var(--bg-muted);
   padding: 1px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 .hint {
-  font-size: 11px;
-  color: #999;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
   margin-top: 6px;
-  line-height: 1.6;
+  line-height: var(--lh-base);
 }
 .desc {
-  font-size: 12px;
-  color: #666;
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
   margin-top: 4px;
-  line-height: 1.5;
+  line-height: var(--lh-md);
 }
-.remove {
-  flex-shrink: 0;
-  padding: 4px 10px;
-  border: 1px solid #f0c0c0;
-  border-radius: 6px;
-  background: #fff;
-  color: #d93025;
-  font-size: 12px;
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.15s;
-}
-.remove:hover {
-  background: #d93025;
-  color: #fff;
-}
-/* 列表项操作按钮组（复制 + 删除，悬浮显示） */
+/* 列表项操作按钮组（复制 + 删除 → TuiButton，悬浮显示；键盘聚焦也显形） */
 .spec-actions {
   flex-shrink: 0;
   display: flex;
   gap: 6px;
-}
-.spec-actions .copy,
-.spec-actions .remove {
   opacity: 0;
-  transition: opacity 0.15s;
+  transition: opacity var(--dur-fast) var(--ease);
 }
-.spec:hover .spec-actions .copy,
-.spec:hover .spec-actions .remove {
+.spec:hover .spec-actions,
+.spec-actions:focus-within {
   opacity: 1;
 }
-.copy {
-  padding: 4px 10px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  background: #fff;
-  color: #1a73e8;
-  font-size: 12px;
-  cursor: pointer;
-}
-.copy:hover {
-  background: #e8f0fe;
-}
-/* 列表区瞬态提示 */
+/* 列表区瞬态提示：统一 box 形态（success 默认 / error 走 danger，批次59） */
 .list-msg {
-  font-size: 12px;
-  color: #188038;
-  background: #e6f4ea;
-  padding: 6px 10px;
-  border-radius: 6px;
+  font-size: var(--fs-sm);
+  color: var(--success);
+  background: var(--success-soft);
+  border: 1px solid var(--success-soft);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
   margin: 0 0 10px;
+}
+.list-msg.error {
+  border-color: var(--danger-soft);
+  color: var(--danger);
+  background: var(--danger-soft);
 }
 /* 实例管理区 */
 .instances {
   margin-top: 20px;
   padding-top: 16px;
-  border-top: 1px solid #eee;
+  border-top: 1px solid var(--border);
 }
 .instances-header {
   display: flex;
@@ -604,38 +727,23 @@ onMounted(async () => {
   margin-bottom: 10px;
 }
 .instances-header h3 {
-  font-size: 13px;
-  color: #555;
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--text-secondary);
   margin: 0;
 }
 .instances-count {
-  font-size: 11px;
-  color: #999;
-  background: #f0f0f0;
-  padding: 1px 7px;
-  border-radius: 10px;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  background: var(--bg-muted);
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
   margin-left: 4px;
 }
-.inst-clear {
-  font-size: 12px;
-  color: #d93025;
-  border-color: #f0c0c0;
-}
-.inst-clear:hover {
-  color: #fff;
-  background: #d93025;
-  border-color: #d93025;
-}
-.inst-clear:disabled {
-  color: #bbb;
-  background: #fff;
-  border-color: #eee;
-  cursor: not-allowed;
-}
 .instances-empty {
-  font-size: 12px;
-  color: #999;
-  line-height: 1.7;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  line-height: var(--lh-base);
   margin: 0;
 }
 .instances-list {
@@ -649,9 +757,14 @@ onMounted(async () => {
   justify-content: space-between;
   gap: 8px;
   padding: 8px 10px;
-  border: 1px solid #f0f0f0;
-  border-radius: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   margin-bottom: 6px;
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+/* 实例卡片 hover 边框 accent 微反馈（与规格卡同一语言） */
+.instance-item:hover {
+  border-color: var(--accent);
 }
 .instance-main {
   display: flex;
@@ -660,20 +773,23 @@ onMounted(async () => {
   min-width: 0;
 }
 .instance-name {
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 500;
-  color: #333;
+  color: var(--text-primary);
 }
 .instance-id {
-  font-size: 11px;
-  color: #1a73e8;
-  background: #e8f0fe;
-  padding: 1px 5px;
-  border-radius: 4px;
+  font-size: var(--fs-xs);
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
 }
 .instance-msg {
-  font-size: 11px;
-  color: #999;
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
+  background: var(--bg-muted);
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
 }
 .instance-side {
   display: flex;
@@ -681,55 +797,53 @@ onMounted(async () => {
   gap: 6px;
   flex-shrink: 0;
 }
-.inst-clear-one {
-  font-size: 11px;
-  color: #d93025;
-  border-color: #f0c0c0;
-  padding: 1px 8px;
-}
-.inst-clear-one:hover {
-  color: #fff;
-  background: #d93025;
-  border-color: #d93025;
-}
-.inst-clear-one:disabled {
-  color: #bbb;
-  background: #fff;
-  border-color: #eee;
-  cursor: not-allowed;
-}
 .streaming {
   flex-shrink: 0;
-  font-size: 11px;
-  color: #b45309;
-  background: #fef3c7;
+  font-size: var(--fs-xs);
+  color: var(--accent);
+  background: var(--accent-soft);
   padding: 1px 6px;
-  border-radius: 4px;
-  animation: pulse 1.2s ease-in-out infinite;
+  border-radius: var(--radius-sm);
+  animation: pulse var(--dur-pulse) ease-in-out infinite;
 }
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
+/* 实例区提示：统一 box 形态（与 list-msg 同构，批次59 收敛三分叉） */
 .instances-msg {
-  font-size: 12px;
-  color: #1a73e8;
+  font-size: var(--fs-sm);
+  color: var(--success);
+  background: var(--success-soft);
+  border: 1px solid var(--success-soft);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
   margin: 8px 0 0;
+}
+.instances-msg.error {
+  border-color: var(--danger-soft);
+  color: var(--danger);
+  background: var(--danger-soft);
 }
 .form {
   flex: 1;
-  padding: 16px 20px;
+  padding: 0 20px 16px;
   overflow-y: auto;
 }
+/* 表单 header：与左侧面板 header 同构（吸顶横条 + 统一视觉语言） */
 .form-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
+  padding: 12px 20px;
+  margin: 0 -20px 16px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
 }
 .form-header h2 {
-  font-size: 15px;
-  color: #333;
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  color: var(--text-primary);
   margin: 0;
 }
 .form-actions {
@@ -740,9 +854,6 @@ onMounted(async () => {
 .tpl-wrap {
   position: relative;
 }
-.tpl-wrap .ghost {
-  min-width: 52px;
-}
 .tpl-menu {
   position: absolute;
   top: calc(100% + 6px);
@@ -750,11 +861,11 @@ onMounted(async () => {
   list-style: none;
   margin: 0;
   padding: 6px;
-  background: #fff;
-  border: 1px solid #e5e5e5;
-  border-radius: 8px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
-  z-index: 20;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  z-index: var(--z-dropdown);
   min-width: 200px;
 }
 .tpl-menu li {
@@ -762,52 +873,61 @@ onMounted(async () => {
   flex-direction: column;
   gap: 2px;
   padding: 8px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
 }
 .tpl-menu li:hover {
-  background: #f5f9ff;
+  background: var(--accent-soft);
+}
+/* 键盘导航高亮：与 TuiSelect is-focus 同一语言（bg-active 底 + 主文字色） */
+.tpl-menu li.is-focus {
+  background: var(--bg-active);
+  outline: none;
 }
 .tpl-label {
-  font-size: 13px;
-  color: #333;
+  font-size: var(--fs-md);
+  color: var(--text-primary);
   font-weight: 500;
 }
 .tpl-hint {
-  font-size: 11px;
-  color: #999;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
 }
 .field {
   margin-bottom: 14px;
 }
 .field label {
   display: block;
-  font-size: 12px;
-  color: #666;
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
   margin-bottom: 6px;
 }
 .field input,
 .field textarea {
   width: 100%;
-  padding: 10px 12px;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  font-size: 13px;
+  padding: 8px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-md);
   font-family: inherit;
   outline: none;
   box-sizing: border-box;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
 .field textarea {
   resize: vertical;
-  line-height: 1.5;
+  line-height: var(--lh-md);
 }
 .field input:focus,
 .field textarea:focus {
-  border-color: #1a73e8;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 .field input:disabled {
-  background: #f5f5f5;
-  color: #999;
+  background: var(--bg-muted);
+  color: var(--text-muted);
 }
 .field.row {
   display: flex;
@@ -816,11 +936,12 @@ onMounted(async () => {
   flex: 1;
 }
 .form-error {
-  color: #d93025;
-  font-size: 13px;
-  background: #fce8e6;
+  color: var(--danger);
+  font-size: var(--fs-md);
+  background: var(--danger-soft);
+  border: 1px solid var(--danger-soft);
   padding: 8px 12px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   margin-bottom: 12px;
 }
 .submit-row {
@@ -828,109 +949,49 @@ onMounted(async () => {
   justify-content: flex-end;
   margin-top: 8px;
 }
-.primary {
-  padding: 10px 24px;
-  border: none;
-  border-radius: 8px;
-  background: #1a73e8;
-  color: #fff;
-  font-size: 14px;
-  cursor: pointer;
-}
-.primary:disabled {
-  background: #ccc;
-  cursor: not-allowed;
-}
-.ghost {
-  padding: 6px 14px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  background: #fff;
-  color: #666;
-  font-size: 12px;
-  cursor: pointer;
-}
-.ghost:hover {
-  border-color: #1a73e8;
-  color: #1a73e8;
-}
-/* 导出/导入弹窗 */
-.io-mask {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.35);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 50;
-}
-.io-modal {
-  width: 560px;
-  max-width: 90vw;
-  background: #fff;
-  border-radius: 12px;
-  padding: 18px 20px;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
-}
-.io-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 10px;
-}
-.io-header h3 {
-  font-size: 15px;
-  color: #333;
-  margin: 0;
-}
-.io-close {
-  border: none;
-  background: transparent;
-  font-size: 20px;
-  line-height: 1;
-  color: #999;
-  cursor: pointer;
-  padding: 2px 6px;
-}
-.io-close:hover {
-  color: #333;
-}
+/* 导入导出弹窗内容（弹窗基座由 TuiModal 提供） */
 .io-tip {
-  font-size: 12px;
-  color: #666;
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
   margin: 0 0 10px;
-  line-height: 1.6;
+  line-height: var(--lh-base);
 }
 .io-tip code {
-  background: #f5f5f5;
+  background: var(--bg-muted);
   padding: 1px 5px;
-  border-radius: 4px;
-  font-size: 11px;
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-xs);
 }
 .io-text {
   width: 100%;
   box-sizing: border-box;
   padding: 10px 12px;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: 12px;
-  line-height: 1.5;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-md);
   resize: vertical;
   outline: none;
+  background: var(--bg-surface);
+  color: var(--text-primary);
 }
 .io-text:focus {
-  border-color: #1a73e8;
+  border-color: var(--accent);
 }
+/* 弹窗内提示：统一 box 形态（与 list-msg 同构，批次59） */
 .io-msg {
-  font-size: 12px;
-  color: #1a73e8;
+  font-size: var(--fs-sm);
+  color: var(--success);
+  background: var(--success-soft);
+  border: 1px solid var(--success-soft);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
   margin: 8px 0 0;
 }
-.io-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 14px;
+.io-msg.error {
+  border-color: var(--danger-soft);
+  color: var(--danger);
+  background: var(--danger-soft);
 }
 </style>

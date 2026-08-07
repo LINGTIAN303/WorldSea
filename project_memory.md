@@ -711,4 +711,106 @@ agent_end → checkShouldAutoContinue=true → autoContinueTask → backend.prom
   - 验证：vite build 两次通过（33.6s / 31.0s），依赖图单轨
 - **端到端实测状态**：startTask/心跳/checkpoint/SQLite 持久化已验证 ✅；failTask 终态未闭环（待收敛后干净环境重测）
 - **文档同步**：README（技术栈双后端/13 子包/Project Structure/编排模式）、project_memory（日期/后端架构 7 项/子包 13/任务状态）、ROADMAP（任务19 前置完成+变更记录补全 07-07~08-02）、agent-orchestration-roadmap（状态改为阶段1/2完成+里程碑 M0-M2 更新+待办清单）、perf-kit-plan（包已建成/store 改造未落地）、rust-backend-completion-plan（P0 完成+P1-5 更彻底实现）、skills-store-spec（Task 24 状态）、端分离文档库（README 进度表/01 快照标注/02 已实施/07 执行状态/08 最新进展/10 状态说明）
+
+## 本次进展（2026-08-07）— Tauri 端 UI 审计批次 52/54/55（未提交工作区）
+- **批次52**：TerminalView `.entry-cmd` 补复制命令行为（`copyCommand` → `navigator.clipboard.writeText` + toast 反馈），消除"hover 暗示可复制但无行为"的误导性 affordance
+- **批次54**：死设计令牌清理（grep 验证零引用后删除，主题完好）
+- **批次55**：三个清空按钮统一为同一视觉语言——对话输入清空 `.input-clear` / 记忆检索清空 `.mp-search-clear` / 会话搜索清空 `.search-clear`（20×20 弱化圆形、`bg-active` 弱底、`text-muted` 弱色、hover 渐显）
+- **验证**：vue-tsc typecheck 通过；Playwright 冒烟验证（输入清空 + 记忆检索清空运行时样式一致，会话搜索清空 CSS 静态确认）；截图归档 `docs/details/截图/`（b52-terminal-view / b55-input-clear-button / b55-memory-search-clear）
+
+## 本次进展（2026-08-07）— 批次56 表单输入控件统一 + 错误提示形态统一
+- **表单输入控件统一**（基准：8px 12px / radius-sm / focus ring）：SubAgentView `.field` 从 radius-md + 10px 12px + 无 ring 对齐；ModelSettingsDialog 输入 padding 8px 10px→12px
+- **错误提示形态统一**（基准：8px 12px / radius-sm / danger-soft 弱底 + 边框）：TerminalView `.error`（无圆角 6px 16px）与 ModelSettingsDialog `.error` / SubAgentView `.form-error` 三处对齐
+- **验证**：typecheck 通过；Playwright 运行时验证表单输入 ring 生效 + 表单错误提示弱底边框；截图 b56-subagent-form-inputs / b56-form-error-unified 归档
+
+## 本次进展（2026-08-07）— 批次57 列表语言统一
+- **来源**：派 search 子代理全端视觉审计（8 项发现），选选中态分叉 + 缺 hover 两项
+- **选中态统一**（accent-soft 底 + 主文字 accent，无指示条）：TerminalView `.session-list li.active` 移除 inset 3px accent 左色条；SessionList `.list li` 圆角 radius-md→sm
+- **补 hover**：SubAgentSection `.entry` 补 border-color 加深（卡片语言）；`.entry.running:hover` 保持强调边框
+- **验证**：typecheck 通过；Playwright 编译验证选中态无色条 + hover 规则生效；截图 b57-list-language-unified 归档
+
+## 本次进展（2026-08-07）— 批次58 主视图头部标题字号统一
+- **统一基准** `--fs-lg`（16px）+ 600：MemoryPanel `.mp-title` 15px 硬编码→fs-lg（消除非令牌值）；TerminalView `.bar .title` fs-base→fs-lg；SubAgentView `.list-header h2` fs-base→fs-lg（保留 secondary 弱化色区分主次）
+- **验证**：typecheck 通过；Playwright 运行时五处标题均 16px（对话/记忆/终端/子Agent左右栏）；截图 b58-heading-fontsize-unified 归档
+
+## 本次进展（2026-08-07）— 批次59 提示/反馈形态统一（审计#4+#5）
+- **审计#4 语义修复**：MemoryPanel `.mp-notice` 同时承载错误/成功，此前错误以 accent 蓝渲染（与全身 danger 冲突）。`flash(msg, type='success'|'error')` 类型化 + `noticeType`，4 处错误调用标 error；`.mp-notice` 由全宽 accent bar → 统一 box（margin 8px 16px 0），`.mp-notice.error` 走 danger
+- **审计#5 三形态收敛**：SubAgentView 成功/资讯提示由三形态（`.list-msg` success box / `.instances-msg` 纯文本 accent / `.io-msg` 纯文本 accent）收敛为统一 success box（8px 12px / radius-sm / border success-soft）；`listMsgType`/`instanceMsgType`/`ioMsgType` 类型化，错误（复制/导入/清空实例失败）走 `.error` danger 变体
+- **统一基准**（与批次56 form-error / TerminalView .error 同构）：错误 danger-soft 弱底+边框；成功 success-soft 弱底+边框
+- **验证**：typecheck 通过；Playwright 触发导入空 JSON → `.io-msg.error` 计算样式 color #f87171 / bg+border danger-soft / radius 6px / padding 8px 12px；scoped CSS `.io-msg.error`/`.mp-notice.error` 规则编译注入确认；截图 b59-subagent-io-error / b59-memory-panel-view 归档
+
+## 本次进展（2026-08-07）— 批次60 头部内边距统一 + 对话空状态收敛（审计#8）
+- **审计#8a**：SessionList `.panel-head` padding-top 18px → 12px（对齐各面板 head 12px 垂直基准）
+- **审计#8b 副本收敛**：App.vue 对话空状态手写 `.empty`（64px 徽标 / fs-lg 18px 标题）→ 统一 TuiEmpty（icon=chat / fill / 56px 徽标 / fs-md 标题）+ chips 走插槽（`.empty-chips` 保留并补 margin-top 18px）；删除 `.empty`/`.empty-mark`/`.empty-title`/`.empty-hint` 4 个手写 CSS 块；新增 TuiEmpty import
+- **关键决策**：对话空状态标题从 18px 收敛到 fs-md 13px（TuiEmpty 既定语言），不特殊化对话区——统一性 > 局部大小，符合弱提示克制风格
+- **验证**：typecheck 通过；Playwright 运行时 `.messages .tui-empty` fill 徽标 56×56 / radius 16px / title fs-md / chips 4 个在插槽 / chips margin-top 18px；`.panel-head` padding-top 12px；截图 b60-chat-empty-tuiempty / b60-sessionlist-head-12px 归档
+
+## 本次进展（2026-08-07）— 批次61 icon-only 按钮尺寸令牌化（审计#6）
+- **令牌新增**：theme.css 布局尺寸段加 `--icon-btn-lg: 28px`（头部主操作：新建/弹窗关闭）/ `--icon-btn-md: 24px`（标准操作：复制/删除/折叠）；20px 内嵌清空为批次55 既定弱化语言不入档；30px scroll-bottom 特殊悬浮保留
+- **22px 收敛 24px**：SubAgentSection `.collapse`、TuiToast `.tui-toast__close` 改用 `--icon-btn-md`
+- **7 处引用令牌**：SessionList `.new`→lg / `.del`→md；TuiModal `.tui-modal__close`→lg；App `.msg-copy`→md；TerminalView `.destroy`→md；全端 `width: 22/24/28px` 硬编码清零（grep 确认）
+- **hover 语义色保留**（danger 删除 / accent 主操作 / primary 中性，语义色合理非分叉）
+- **验证**：typecheck 通过；Playwright 运行时 `.new` 28×28（lg 令牌生效）、令牌值正确、7 处按钮 scoped CSS 引用 `var(--icon-btn-*)` 编译注入；截图 b61-icon-btn-tokens 归档
+
+## 本次进展（2026-08-07）— 批次62 新一轮全端审计 + 候选队列排期
+- **方式**：派 search 子代理全端审计（8 维度），产出 **13 项发现（5×P2 + 8×P3，无 P1）**
+- **P2**：#1 App `.error-bar` radius-md+fs-md 偏离全端错误 box 基准（radius-sm+fs-sm）；#2 标签族圆角 pill vs radius-sm 分叉；#3 呼吸动画 6 处重复 keyframe 参数不一致（opacity 0.35/0.4/0.5、1.2s/1.4s）；#4 渐变 `#7c3aed` 硬编码 ×2 深色不同步；#5 SubAgentView 自研 .copy/.remove 与 TuiButton danger-ghost 重复
+- **P3**：#6 `#fff` 硬编码 10 处；#7 非令牌圆角（头像 8px、TuiEmpty 16/12px）；#8 紧凑输入框内边距三档；#9 对话横轴 20/24px 双档；#10 disabled 透明度 0.4/0.5/0.55；#11 aria-label 覆盖不一；#12 键盘可达性两处（entry-cmd 无键盘、phase-bar 缺 space）；#13 状态圆点 6/7/8px 三档
+- **排期**：批次63 可访问性补强（#12+#11）→ 64 动效统一（#3+#13）→ 65 标签族分工（#2+#7）→ 66 颜色令牌收尾（#4+#6）→ 67 尺寸间距收尾（#8+#9+#10）→ 68 SubAgentView 按钮替换（#5）
+- **验证**：审计为纯研究（无代码改动），候选队列已持久化到 MemoryCenter standalone（28d65ccb）
+
+## 本次进展（2026-08-07）— 批次63 可访问性补强（审计#12 键盘可达性 + 审计#11 aria-label）
+- **#12a 键盘可达**：TerminalView `.entry-cmd`（可点击 div）补 `role="button"` / `tabindex="0"` / `aria-label="复制命令"` + `@keydown.enter.prevent` / `@keydown.space.prevent` → copyCommand——键盘用户可复制命令，消除误导性 affordance
+- **#12b**：PhaseSection `.phase-bar` 补 `@keydown.space.prevent`（对齐 MemoryPanel `.mp-item` / SubAgentView `.spec-main` 的 Enter+Space 双键模式）
+- **#11 aria-label 补齐 8 处**：SessionList `.new`/`.del`；App `.msg-copy`×2 / `.scroll-bottom` / `.stop-btn` / `.send-btn`；SubAgentSection `.collapse`（动态展开/收起文案）；TerminalView `.destroy`——统一与 title 文案一致
+- **统一规则**：icon-only 按钮统一 `aria-label`（与 title 同文案）；`role="button"` 可交互元素键盘模式统一 Enter+Space 双键
+- **验证**：typecheck 通过；Playwright 运行时 `.new`/`.send-btn` aria-label 渲染正确；`.collapse` 因 `v-if="subAgents.length>0"` 无数据不渲染（预期）；数据依赖元素由源码+typecheck 保障；截图 b63-a11y-aria-keyboard 归档
+
+## 本次进展（2026-08-07）— 批次64 动效统一（审计#3 pulse 共享 + 审计#13 圆点令牌）
+- **theme.css**：新增全局 `@keyframes pulse`（opacity 1 → 0.35，纯 opacity 呼吸无 scale，弱提示风格）+ `--dur-pulse: 1.2s` + `--dot-sm: 6px`（行内紧凑）/ `--dot-md: 8px`（独立强调）
+- **6 处本地 keyframe 删除统一引用**：App `think-pulse`（1.2s/0.4/scale 0.8，取消 scale）、LoopControlStatus `lcs-pulse`（1.4s→1.2s）、SubAgentSection `chip-pulse`+`pulse`、PhaseSection `phase-pulse`、SubAgentView `pulse`（0.5→0.35）→ 全部 `animation: pulse var(--dur-pulse) ease-in-out infinite`
+- **7 处状态圆点收敛两档**：6px sm（chip-dot/live-dot/phase-dot）+ 8px md（thinking-dot 7→8/lcs-dot 7→8/status-dot/mp-dot）
+- **验证**：typecheck 通过；运行时令牌值正确（--dot-sm 6px/--dot-md 8px/--dur-pulse 1.2s）、`@keyframes pulse` 全局唯一（无 scoped data-v）、mp-dot 8×8px 生效；grep 确认组件内 keyframes 副本清零；截图 b64-pulse-dot-tokens 归档
+
+## 本次进展（2026-08-07）— 批次65 标签族分工 + 非令牌圆角收敛（审计#2+#7）
+- **分工规则确立**：状态/计数徽标 → pill（lcs-badge / chip / panel-count / item-count / .count）；代码标识/元信息签 → radius-sm（mp-tag / wl / id / instance-id / session-tag）
+- **内边距统一**：pill 档 `1px 8px`（panel-count 7→8、item-count 0 6px→1px 8px、.count 2→1px）；sm 档 `1px 6px`（instance-id 5→6、session-tag 0→1px）
+- **非令牌圆角收敛**（零新增令牌）：App `.avatar` 8px→`--radius-sm`；TuiEmpty 56px 徽标 16px→`--radius-lg`（14px）、40px compact 徽标 12px→`--radius-md`（10px）——圆角/尺寸比例统一 25%
+- **验证**：typecheck 通过；运行时对话区 56px 徽标 radius 14px、SessionList compact 40px 徽标 radius 10px（令牌生效）；数据依赖标签由源码+typecheck 保障；截图 b65-tag-radius-tokens 归档
+
+## 本次进展（2026-08-07）— 批次67 尺寸间距收尾（审计#8 紧凑输入框 + #9 对话横轴 + #10 disabled 透明度）
+- **#8 紧凑输入框三档统一**（新增令牌 `--input-sm-h: 30px`）：SessionList `.search input` / MemoryPanel `.mp-search` / TerminalView `.create input` 高度统一 30px（mp-search 6px 垂直 padding→height、create input 6px→height）；水平 padding 保留 icon 占位需求（search 28/30、mp 26/10、create 8）
+- **#9 对话横轴 24px 统一**（新增令牌 `--chat-gutter: 24px`）：20px 侧收敛——App `.chat-header`（12px 20px）、LoopControlStatus `.lcs`（6px 20px）、SubAgentSection `.subagent-section`（10px 20px）→ var(--chat-gutter)；24px 侧（`.messages`/`.a2ui-zone`/`.input-bar`）改 var() 引用——附属条对齐主内容区，滚动不错位
+- **#10 disabled 透明度统一**（新增令牌 `--disabled-opacity: 0.5`）：App `.send-btn:disabled` 0.4、TuiButton `.tui-btn:disabled` 0.5、TuiSegmented `.tui-seg__item:disabled` 0.55 三处魔数收敛；TuiSelect 用 bg/color 弱化语言（非 opacity）不改
+- **范围界定**：node_modules 第三方库 disabled opacity（0.4/0.45/0.55）与 `.create-btn:disabled 0.45` 均非自研代码，不动
+- **验证**：typecheck 通过；Playwright 运行时 chat-header/messages/input-bar 均 24px、send-btn disabled opacity 0.5、TerminalView/MemoryPanel 输入框实测 30px；`.search input[data-v-943eccf0]` 等编译规则确认引用令牌；截图 b67-chat-gutter-24px / b67-memory-mp-search-30px / b67-terminal-create-input-30px 归档
+
+## 本次进展（2026-08-07）— 批次68 SubAgentView 自研按钮替换 TuiButton（审计#5 收尾）
+- **模板**：规格列表 `<button class="copy">` → `<TuiButton variant="ghost" size="sm" title="复制该规格 JSON">`；`<button class="remove">` → `<TuiButton variant="danger-ghost" size="sm" title="删除">`
+- **样式**：删除自研 `.copy`（border-strong/accent 字）与 `.remove`（danger-soft 边框/danger 字）全套规则；opacity 渐显从按钮级移到容器级 `.spec-actions`（opacity 0 → `.spec:hover` / `:focus-within` → 1，键盘 Tab 聚焦整组显形，等价替代按钮级 `:focus-visible`）
+- **决策**：`danger-ghost` 与自研 `.remove` 语义完全同构直接替换；`.copy` 属弱操作 → `ghost`
+- **验证**：typecheck 通过；编译 CSS 确认 `.spec-actions[data-v-8d6ee633]` opacity/flex/gap 正确、`.copy`/`.remove` 选择器零残留；spec 列表无数据不渲染（预期）；截图 b68-subagent-tuibutton-actions 归档
+- **里程碑**：批次 62 审计 13 项发现（#1-#13）至此全部闭环（批次 56-68）
+
+## 本次进展（2026-08-07）— 批次69 第二轮审计批次 A+B（可访问性补强 + 视觉一致性微调）
+- **来源**：批次68 完成后派 search 子代理第二轮全端审计，产出 **4×P1 + 4×P2 + 13×P3**；本轮执行批次 A（P1 全部）+ 批次 B（P2 全部 + P3 选择性 8 项）
+- **P1 可访问性**：rail 两按钮补 aria-label（主题切换动态文案/模型配置）；5 处仅 placeholder 输入补 aria-label——聊天 textarea「输入消息」/终端命令「输入命令」+ Shell 路径 + 工作目录 / 会话搜索「搜索会话」/ 记忆检索「检索记忆」
+- **P2**：App `.error-bar` 圆角 radius-md→sm；TuiModal dialog 补 `aria-labelledby`（标题 h2 加 id）；SubAgentView `.list-header h2` 补 font-weight 600 + 颜色 text-primary（对齐 form-header）；TuiSelect 触发钮补 `aria-haspopup="listbox"` + `aria-activedescendant`（option 加 `tui-select-opt-{i}` id）、SubAgentView tpl-menu 补 listbox/option 语义
+- **P3 选择性 8 项**：计数徽标 padding 统一 8px（TerminalView/SubAgentView 7→8）；SubAgentSection `.status-dot` 补 ease-in-out；两处折叠补 `aria-expanded`（collapse/phase-bar）；tpl-menu z-index 20→`--z-dropdown`；App `.a2ui-zone`/`.error-bar`/PhaseSection 24px→`--chat-gutter`（顺带修复批次67未落地的 a2ui-zone）；`.session-list li` 移除冗余 cursor；`.chip:hover` 弱化（去 bg 只留 border+color）
+- **决策（未做项）**：P3-1 输入 30px/按钮 28px 双基准接受现状（--input-sm-h 显式化）；P3-2 act-model 手写按钮与 TuiButton 重复但含截断差异留待；P3-3 tool-chip 带状态属徽标语义 pill 合理；P3-6 cursor-blink 组件专属不归档；P3-10 text-muted 对比度 2.8:1 属弱提示设计张力知会不改；P3-12 TuiEmpty 图标色刻意弱化保持
+- **验证**：typecheck 通过；Playwright 实测 rail aria-label / textarea「输入消息」/ TuiSelect activeDesc 链路（ArrowDown→tui-select-opt-1 与 is-focus 一致）/ TuiModal labelledby→「模型配置」全通；截图 b69-a11y-aria-select-modal 归档
+
+## 本次进展（2026-08-07）— 批次70 第二轮审计批次 C（P3 可选打磨收尾）
+- **P3-2 act-model 替换 TuiButton（唯一代码消除项）**：App.vue 手写 `<button class="act-model">`（自研 28px secondary 形态 + icon + model-text 截断）→ `<TuiButton variant="secondary" size="sm" icon="bulb" class="act-model">`；样式仅保留 `max-width: 200px` + `:deep(.tui-btn__label)` 截断覆盖（min-width 0/ellipsis），删除全套自研规则与无引用的 .model-text——消除与 TuiButton 重复实现
+- **P3-1/3/6/12 注释固化**：theme.css `--input-sm-h` 补「与按钮 sm 28px 为 2px 既定双基准」；PhaseSection `.tool-chip` 补「带状态属徽标语义 → pill」；MessageContent `cursor-blink` 补「组件专属不移入注册表」；TuiEmpty 图标色补「刻意用 accent-soft-border 保持 accent 系弱化」
+- **P3-10 知会不改**：text-muted 对比度 2.8:1 属弱提示设计张力，需整体评估不做单点改动
+- **验证**：typecheck 通过；Playwright 运行时 `.act-model` = BUTTON.tui-btn.is-secondary.is-sm（28px）+ max-width 200px + label ellipsis + bulb icon ✓；截图 b70-p3-polish-act-model 归档
+- **里程碑**：第二轮审计（4×P1 + 4×P2 + 13×P3）全部闭环
+
+## 本次进展（2026-08-07）— 批次71 第三轮审计 P1（深色对比度 + placeholder 叠字）
+- **来源**：批次70 完成后派 search 子代理第三轮全端审计，产出 **2×P1 + 10×P2 + 14×P3**（重点转向布局/排版/反馈一致性/性能维度）
+- **P1-1 深色 --on-accent 白字对比度**：theme.css dark 块补 `--on-accent: #17171b` 覆盖（原 :root #ffffff 未在 dark 覆盖）；dark 下 accent #8b87f8/danger #f87171 提亮为浅色，白字仅 2.8-3.0:1 低于 AA 4.5:1，换深字后 >7:1；TuiButton primary/danger、rail-logo、avatar、send-btn、shell-chip 全部经 var() 自动切换
+- **P1-2 主输入栏叠字**：App.vue textarea 空闲态 placeholder（「输入消息，Enter 发送」）置空——.rotating-hints 绝对定位与原生 placeholder 起点完全重合，同为 text-muted 14px 叠字；轮转提示独占引导层，发送/流式时仍显示「输入引导词」
+- **验证**：typecheck 通过；Playwright 实测 dark --on-accent=#17171b + primary 按钮 bg rgb(139,135,248)/文字 rgb(23,23,27)；空闲态 placeholder="" + rotating-hints 可见；截图 b71-input-hint-no-overlap / b71-dark-on-accent 归档
+- **排期**：批次72 P2 字重布局类 → 批次73 反馈一致性 → 批次74 P2-10+P3
 <!-- MemoryCenter:SECTION:task_state END -->

@@ -1,0 +1,274 @@
+/**
+ * theme.css：Tauri 端全局设计令牌（精致极简 · 浅色）
+ *
+ * 集中定义颜色 / 排版 / 圆角 / 阴影 / 动效令牌，供 App.vue 与各子组件
+ * 通过 `var(--token)` 引用，避免硬编码色值、保证视觉语言一致。
+ * 详细why请见 docs/details/注释/tauri/theme.md
+ */
+:root {
+  /* ── 色板（暖灰中性底 + 克制靛蓝强调）── */
+  --bg-app: #fafaf9;          /* 应用最底层背景 */
+  --bg-surface: #ffffff;      /* 面板 / 卡片 / 输入区 */
+  --bg-muted: #f4f4f5;        /* 弱背景（消息底、选中、hover） */
+  --bg-active: #e9e9ea;
+
+  --border: #ececec;          /* 基础细边框 */
+  --border-strong: #d9d9de;   /* 强调边框 / hover */
+
+  --text-primary: #1f2328;    /* 主文字 */
+  --text-secondary: #6b7280;  /* 次级文字 */
+  --text-muted: #9ca3af;      /* 弱文字 / 占位 */
+
+  --accent: #4f46e5;          /* 强调色（靛蓝，克制） */
+  --accent-hover: #4338ca;
+  --accent-soft: #eef2ff;     /* 强调色弱底 */
+  --accent-soft-border: #e0e7ff;
+  --accent-grad-to: #7c3aed;  /* accent 渐变末端（rail-logo / 助手头像），dark 下提亮覆盖 */
+  --on-accent: #ffffff;       /* 强调面文字（accent/danger 底上的白字） */
+
+  --success: #16a34a;
+  --success-soft: #e8f5ee;
+  --warning: #d97706;
+  --warning-soft: #fdf3e3;
+  --danger: #dc2626;
+  --danger-hover: #b91c1c;
+  --danger-soft: #fdecec;
+  --info: #2563eb;
+
+  /* ── 排版 ── */
+  --font-sans: 'Inter', system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-md: 13px;
+  --fs-base: 14px;
+  --fs-lg: 16px;
+  --fs-xl: 20px;
+  --lh-base: 1.6;
+  --lh-tight: 1.35;
+  --lh-md: 1.5;           /* 紧凑多行文本（描述/摘要/多行输入） */
+
+  /* ── 圆角 ── */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+
+  /* ── 阴影 ── */
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --shadow-md: 0 4px 16px rgba(16, 24, 40, 0.07);
+  --shadow-lg: 0 12px 32px rgba(16, 24, 40, 0.12);
+
+  /* ── 布局尺寸 ── */
+  --rail-w: 68px;             /* 左侧导航轨道宽度 */
+  --panel-w: 264px;           /* 会话列表面板宽度 */
+  --icon-btn-lg: 28px;        /* icon-only 按钮：头部主操作（新建会话/弹窗关闭） */
+  --icon-btn-md: 24px;        /* icon-only 按钮：标准操作（复制/删除/折叠等）；输入框内清空为 20px 既定弱化语言（不入档） */
+  --dot-sm: 6px;              /* 状态圆点：行内紧凑（标签/阶段行内） */
+  --dot-md: 8px;              /* 状态圆点：独立/强调（思考中/状态条/标题装饰） */
+  --input-sm-h: 30px;         /* 紧凑输入框高度（搜索/检索/新建会话名三档统一基准）；与按钮 sm 28px 相邻为 2px 输入略高的既定双基准，不强行拉平 */
+  --chat-gutter: 24px;        /* 对话主区横轴间距（header/状态条/子代理条/消息/输入栏统一） */
+  --disabled-opacity: 0.5;    /* 禁用态统一透明度（按钮/分段器/发送钮） */
+
+  /* ── 动效 ── */
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);  /* 弹性质感（按钮按压回弹等） */
+  --dur-fast: 0.15s;
+  --dur-base: 0.22s;
+  --dur-lg: 0.32s;            /* 弹窗 / 视图切换等大动效 */
+  --dur-pulse: 1.2s;          /* 呼吸动画周期（pulse 共享 keyframe） */
+
+  /* ── 焦点可见性（键盘可达性）── */
+  --ring-color: rgba(79, 70, 229, 0.35);
+  --ring-width: 3px;
+
+  /* ── 层级（z-index 统一规划，避免魔数）── */
+  --z-sticky: 2;          /* 吸顶 header（视图面板/列表 header） */
+  --z-dropdown: 100;
+  --z-modal: 1000;
+  --z-toast: 2000;
+
+  /* ── 遮罩 / 玻璃 ── */
+  --overlay: rgba(15, 23, 42, 0.38);
+  --overlay-blur: 4px;        /* 弹窗遮罩背景模糊（营造纵深） */
+  --glass-bg: rgba(255, 255, 255, 0.82);
+
+  /* ── 滚动条 ── */
+  --scrollbar-thumb: #d4d4d8;
+
+  /* ── Markdown 内容区（消息富渲染）── */
+  --md-text: var(--text-primary);
+  --md-heading: var(--text-primary);
+  --md-code-bg: #f4f4f6;
+  --md-code-border: #e9e9ec;
+  --md-block-bg: #f8f8f9;
+  --md-block-border: #e9e9ec;
+  --md-link: var(--accent);
+  --md-quote-bg: #f7f7f8;
+  --md-quote-border: #d9d9de;
+  --md-table-head-bg: #f4f4f6;
+  --md-table-border: #e4e4e8;
+}
+
+/* ── 全局共享 keyframes（批次64：消除组件内重复定义的呼吸动画，参数统一 opacity 0.35 / 1.2s）── */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+/* ── 深色主题（html[data-theme="dark"]）──
+   保持与浅色相同的令牌语义，仅覆盖色值与阴影；
+   所有组件用 var() 引用，切换即全端生效。 */
+[data-theme='dark'] {
+  /* 色板（深中性底 + 提亮靛蓝强调，保证对比度） */
+  --bg-app: #111113;
+  --bg-surface: #18181b;
+  --bg-muted: #202024;
+  --bg-active: #2e2e34;
+
+  --border: #27272c;
+  --border-strong: #38383f;
+
+  --text-primary: #e7e7ea;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+
+  --accent: #8b87f8;
+  --accent-hover: #a09bfa;
+  --accent-soft: rgba(99, 102, 241, 0.18);
+  --accent-soft-border: rgba(99, 102, 241, 0.35);
+  --accent-grad-to: #a78bfa;  /* 深色下渐变末端提亮（随 accent 提亮原则） */
+  --on-accent: #17171b;       /* 深色下 accent/danger 提亮为浅色，白字对比度不足（约3:1）→ 换深字（对比度>7:1） */
+
+  --success: #34d399;
+  --success-soft: rgba(16, 185, 129, 0.15);
+  --warning: #fbbf24;
+  --warning-soft: rgba(217, 119, 6, 0.16);
+  --danger: #f87171;
+  --danger-hover: #ef4444;
+  --danger-soft: rgba(239, 68, 68, 0.14);
+  --info: #60a5fa;
+
+  /* 阴影（深底加深，保持浮起层次） */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55);
+
+  /* 焦点环 / 遮罩 / 玻璃 */
+  --ring-color: rgba(139, 135, 248, 0.45);
+  --overlay: rgba(0, 0, 0, 0.55);
+  --glass-bg: rgba(24, 24, 27, 0.82);
+
+  /* Markdown 内容区 */
+  --md-code-bg: #232327;
+  --md-code-border: #2e2e34;
+  --md-block-bg: #1b1b1f;
+  --md-block-border: #2e2e34;
+  --md-quote-bg: #1d1d21;
+  --md-quote-border: #3a3a42;
+  --md-table-head-bg: #232327;
+  --md-table-border: #2e2e34;
+
+  /* 滚动条 */
+  --scrollbar-thumb: #4a4a52;
+}
+
+/* ── 全局基础样式 ── */
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: var(--fs-base);
+  line-height: var(--lh-base);
+  color: var(--text-primary);
+  background: var(--bg-app);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* 统一键盘焦点环：仅键盘导航时显示，鼠标点击不产生蓝框 */
+:focus-visible {
+  outline: 2px solid var(--ring-color);
+  outline-offset: 1px;
+  border-radius: 2px;
+}
+
+/* 文本选择色与强调色呼应 */
+::selection {
+  background: var(--accent-soft);
+  color: var(--text-primary);
+}
+
+/* 精致极简滚动条：细、透明底、hover 渐显 */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: var(--radius-pill);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* 按钮 / 输入基础重置 */
+button {
+  font-family: inherit;
+}
+input,
+select,
+textarea {
+  font-family: inherit;
+  color: inherit;
+}
+
+/* 全局输入控件聚焦兜底：未自定义 :focus 的文本输入统一获得 accent 边框 + 柔和光环，
+   组件级局部规则（如 .field input:focus）特异性更高可覆盖；checkbox/radio/range 排除（无边框控件），
+   容器级 focus（聊天输入栏 input-shell）由局部 :focus-within 接管，textarea 局部豁免 */
+input:not([type='checkbox']):not([type='radio']):not([type='range']):focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* 全局淡入淡出过渡：通用瞬态提示/区块出现收起（供各组件 <Transition name="fade"> 复用） */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity var(--dur-base) var(--ease);
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+/* 尊重系统减弱动效偏好：所有动画/过渡瞬移完成，不打断操作 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

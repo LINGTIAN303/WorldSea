@@ -262,6 +262,12 @@ importers:
       '@worldsmith/shared-ui':
         specifier: link:../../packages/shared-ui
         version: link:../../packages/shared-ui
+      dompurify:
+        specifier: ^3.4.12
+        version: 3.4.12
+      marked:
+        specifier: ^18.0.7
+        version: 18.0.7
       naive-ui:
         specifier: ^2.44.1
         version: 2.44.1(vue@3.5.40(typescript@6.0.3))

@@ -77,6 +77,13 @@ pub trait MemoryAccessor: Send + Sync {
     ) -> Result<(), MemoryError> {
         Ok(())
     }
+
+    /// 删除指定会话的全部记忆记录（删除会话时级联清理孤儿记忆）
+    ///
+    /// 默认实现不做任何事（不支持的访问器视为无孤儿可清理）。
+    async fn delete_by_session_id(&self, _session_id: &str) -> Result<(), MemoryError> {
+        Ok(())
+    }
 }
 
 // ─── 检索选项与结果 ────────────────────────────────────

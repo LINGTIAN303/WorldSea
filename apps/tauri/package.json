@@ -18,6 +18,8 @@
     "@worldsmith/agent-runtime": "link:../../packages/agent-runtime",
     "@worldsmith/core-api-types": "link:../../packages/core-api-types",
     "@worldsmith/shared-ui": "link:../../packages/shared-ui",
+    "dompurify": "^3.4.12",
+    "marked": "^18.0.7",
     "naive-ui": "^2.44.1",
     "vue": "^3.5.32"
   },

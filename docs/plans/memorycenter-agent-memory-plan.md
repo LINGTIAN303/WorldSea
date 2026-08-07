@@ -1,7 +1,8 @@
 # MemoryCenter 召回集成计划（增强 WorldSmith Agent 记忆系统）
 
-> **状态**：执行中（阶段 4 已完成前端迁移）
+> **状态**：执行中（阶段 0-4 完成，阶段 5 Tauri 端清理完成，Web 端保留；历史积压清理 ① 命令层缺口审计已记录）
 > **创建日期**：2026-08-06
+> **最近更新**：2026-08-06 新增「八、历史积压清理」与「九、转方向说明」两节，编号重排为 1-11 连续
 > **决策人**：用户
 > **关联**：`crates/agent-runtime/src/memory.rs`（MemoryAccessor trait）、`docs/plans/agent-orchestration-roadmap.md`（Memory 横切模式）
 
@@ -116,7 +117,79 @@ Storage trait（可插拔）
           Rust 后端后再迁移清理
 ```
 
-## 六、风险与权衡
+---
+
+## 八、历史积压清理（优先级 1，转入 Agent 完整性迭代前的收尾）
+
+> 触发背景：用户方向调整为「**清理历史积压 → 全新主题 → UI/后端体验优化 → Agent 完整性迭代(Harness 工程化)**」。
+> 本节记录每一项积压的审计结论与处置结论（7 点清单通过后再处置）。
+
+### ① Tauri 命令层缺口审计 ✅ 已完成（2026-08-06，仅记录，未处置）
+
+**结论：Rust 注册 54 条命令，TS 侧 invoke 了 102 条不同命令，共 50 条缺口**——缺口命令完全未在 Rust 端定义（crates/agent-commands/src 也无对应模块）。
+
+| 分类 | 数量 | 明细 |
+|------|------|------|
+| cmd_algo_*（算法/布局/图分析） | 18 | segment_intersect / find_all_intersections / point_in_polygon / polygon_area / convex_hull / aabb_intersects / obb_intersects / force_layout / grid_layout / layout_unified / radial_layout / tree_layout / dijkstra_path / connected_components / pagerank / community_detection / (共18项) |
+| cmd_check_* + validate_plugin（健康检查） | 3 | cmd_check_storage_health / cmd_check_plugin_health / cmd_validate_plugin_manifest |
+| cmd_retrofit_*（修复/重构会话） | 3 | cmd_retrofit_begin_session / cmd_retrofit_redirect / cmd_retrofit_request_repair |
+| workflow_*（工作流引擎） | 26 | list / get / create / update / delete / export / import / dry_run / run / run_sync / pause / resume / cancel / skip_to / status / list_runs / get_run / node_result / node_chunk / node_heartbeat / node_cancel_ack / list_node_types / get_node_schema / register_node_type / unregister_node_type / get_setting / set_setting / purge_runs_now（共26项，TS侧workflowApi.ts定义了完整 CRUD + 执行控制） |
+
+另外还有 **2 条 Rust 注册但 TS 未使用的冗余命令**：
+- `is_streaming` — Tauri 用前端流式事件维护 `isStreaming`，不走轮询 invoke
+- `cmd_long_task_list_all` — 前端仅用到 list_running，list_all 未接线
+
+**处置建议（非阻塞，需决策）**：
+- 缺口 50 条：**短期不补齐**。对应 UI 面板（workflow 设计器/插件健康页/改造工具/图分析）要么未挂载要么 roadmap 规划中；Agent 主链路与记忆闭环不依赖。
+- 冗余 2 条：**短期保留**，删除需全 workspace grep 确认无 dead_code 告警风险。
+- 长期：在 workflow / plugin / retrofit 功能进入 MVP 开发阶段时，按 「新增 Rust 命令 → 注册 generate_handler → TS invoke 接回」顺序补入，**禁止 TS 侧先行新增未注册命令到主分支**。
+
+### ② 会话数据持久化 ✅ 已完成（2026-08-06，核查 + 处置落地）
+
+**核心结论：核查发现桌面端会话/消息不持久化、删除会话不清理孤儿记忆；本轮已全部落地。**
+
+> 下述「核查明细」为处置前的事实记录（保留作背景）；「处置落地」为本轮实现。
+
+**核查明细（处置前）**：
+- **桌面端会话/消息（重构后丢失）**：`AgentCommandService` 的 `sessions`/`meta` 纯内存，无 SQLite 落盘；旧结构 `SessionRepository` 随重构删除，全 `crates/` 零命中。
+- **删除会话不清理记忆（孤儿数据隐患）**：`delete_session` 只移除内存，不删记忆 SQLite 行。
+- **Web 端（正常）**：Dexie/IndexedDB，删除会话级联清理图片。
+
+**处置落地**：
+- **会话持久化存储层**：新增 [`session_store.rs`](d:\本地化AI\DeepSeek_Home\worldsmith\crates\agent-commands\src\session_store.rs) — `SessionRepository` trait + `SqliteSessionRepository`（`sessions` 表 + `messages` 表，WAL 模式，消息级联删除）。4 个单测通过（save/load 往返、消息替换、级联删除、跨重启持久化）。
+- **服务层写穿**：`AgentCommandService` 增 `session_store` 字段 + `with_session_store`；`new_session`/`send_message`/`clear_history`/`trim_context`/`delete_session` 各操作写穿（弱提示，失败仅记日志）。
+- **启动恢复**：`restore_sessions` 从存储加载全部会话经 `AgentLoop::restore_state` 重建（system 去重），Tauri `lib.rs` 启动时创建 `sessions.db` + 注入 + 调用恢复。
+- **孤儿记忆清理**：`MemoryAccessor` 增 `delete_by_session_id`，`MemoryCenterAccessor` 实现为枚举 Daily/Weekly/Monthly 三档，先删记忆文件再删索引钩子（防幽灵摘要）。含单测。
+- **前端**：`useAgentRust` 已通过 `list_sessions`/`get_messages` 透明消费恢复结果，**无需改动**。
+- **TL 缺口**：沿用写穿 + 启动恢复，**不注册 `cmd_session_save`**（无独立保存入口语义，避免与写穿重复）。
+
+### ③ Web 端 memory-archive 清理 ✅ 已完成（2026-08-06，评估结论：保留，不清理）
+
+**核心结论：Web 端 memory-archive 是活代码，不可删。**
+
+核查明细：
+- import 图谱命中 **25 个文件**，其中核心 UI 被主界面真实挂载：
+  - `agent/AgentChat.vue` → `ArchivePanel.vue` + `ChunkViewer.vue`（Web 聊天主界面的记忆面板）
+  - `agent/AgentOverlay.vue` → `AgentSessionPanel.vue`
+  - `ArchivePanel.vue` 内部再挂 `archive/{HookList,Search,Stats,Trash,Merge}View.vue` + `ArchiveConfigPanel.vue`
+  - 核心库 `memory-archive/`（index/useMemoryArchive/useArchiveTriggers/archiveToolsRegistry/adapters/*）被 `useChatMetrics`/`useChatSession`/`useProjectSwitcher`/`SessionSidebar` 等引用
+- **Web 聊天后端未接通 Rust**（`AgentChat.vue` 仍走 TS 后端），Web 端唯一记忆实现就是这套 TS memory-archive，**删除即破坏 Web 聊天记忆功能**。
+- 与阶段 5 结论一致：**待 Web 聊天接入 Rust 后端后再迁移清理**，本次不删。
+
+### ④ 桌面冒烟验证 🔲 待执行（依赖 LLM 配置）
+
+验证用例：
+1. 宽松配置 + 心跳正常（new_session 不报错，get_heartbeat 非 null）
+2. LoopControlStatus 面板（若存在）刷新正常
+3. 记忆跨轮次 recall：首轮发送 `记住 X` 后 user 归档 → 次轮聊 Y → 用「记忆」tab 检索 X 能命中
+
+## 九、转方向说明
+
+> 本节由 2026-08-06 用户决策创建：**记录完成后转方向**，新方向见用户后续输入。
+>
+> 上方 ②③④ 项积压若转方向后不属于当前主题，可挂起留待后续清理阶段集中处理。
+
+## 十、风险与权衡
 
 | 风险 | 说明 | 缓解 |
 |------|------|------|
@@ -125,7 +198,7 @@ Storage trait（可插拔）
 | 存储后端未定 | SQLite 与文件树二选一未决 | Storage trait 可插拔，先实现 SQLite 全链路，文件树作为备用切换 |
 | 前端旧 UI 残留 | TS memory-archive 组件短期并存 | 阶段 4/5 逐步迁移与清理 |
 
-## 七、验证标准
+## 十一、验证标准
 
 - `cargo check`（agent-memory / agent-runtime / tauri）0 errors
 - 单测：MemoryCenterAccessor 的 recall/inject/archive/get_archive_boundary 映射正确

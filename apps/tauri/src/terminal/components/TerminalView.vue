@@ -2,8 +2,13 @@
 /** TerminalView：终端界面（单次命令 + 持久化会话 + Shell 检测），详细见 docs/details/注释/tauri/TerminalView.md */
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { useTerminalRust, type CommandOutput } from '../composables/useTerminalRust'
+import TuiButton from '../../components/ui/TuiButton.vue'
+import TuiIcon from '../../components/ui/TuiIcon.vue'
+import TuiEmpty from '../../components/ui/TuiEmpty.vue'
+import { useTuiToast } from '../../components/ui/useTuiToast'
 
 const term = useTerminalRust()
+const toast = useTuiToast()
 
 // 解构 ref 使其成为顶层 setup 绑定，模板中自动解包
 const { shells, sessions, busy: termBusy } = term
@@ -111,6 +116,16 @@ function onHistory(dir: -1 | 1) {
   input.value = historyIndex.value >= 0 ? history.value[history.value.length - 1 - historyIndex.value] : ''
 }
 
+/** 复制命令到剪贴板（hover 高亮暗示可复制，补真实行为避免误导性 affordance） */
+async function copyCommand(cmd: string) {
+  try {
+    await navigator.clipboard.writeText(cmd)
+    toast.success('已复制命令')
+  } catch {
+    toast.error('复制失败')
+  }
+}
+
 /** 创建持久化会话 */
 async function createSession() {
   error.value = ''
@@ -153,15 +168,20 @@ onMounted(async () => {
   <div class="terminal">
     <div class="terminal-main">
       <header class="bar">
-        <span class="title">终端</span>
-        <span class="hint">
+        <span class="title">
+          <TuiIcon name="terminal" :size="15" />
+          终端
+        </span>
+        <span class="hint" :title="activeSessionId || undefined">
           {{ activeSessionId ? `会话内执行：${activeSessionId.slice(0, 8)}…` : '单次命令执行' }}
         </span>
         <label class="toggle" :title="showAll ? '显示全部输出' : '仅显示当前会话 / 单次命令输出'">
           <input v-model="showAll" type="checkbox" />
           <span>全部输出</span>
         </label>
-        <button class="link" :disabled="running" @click="term.refreshSessions()">刷新会话</button>
+        <TuiButton variant="ghost" size="sm" :disabled="running" @click="term.refreshSessions()">
+          刷新会话
+        </TuiButton>
       </header>
 
       <!-- 可用 Shell 展示 -->
@@ -179,30 +199,54 @@ onMounted(async () => {
 
       <!-- 输出区 -->
       <div ref="outputEl" class="output">
-        <div v-if="displayEntries.length === 0" class="empty">
-          {{ showAll || !activeSessionId ? '输入命令并回车执行，输出将显示在这里' : '该会话暂无输出，输入命令回车执行' }}
-        </div>
+        <TuiEmpty
+          v-if="displayEntries.length === 0"
+          icon="terminal"
+          title="等待命令"
+          :hint="showAll || !activeSessionId ? '输入命令并回车执行，输出将显示在这里' : '该会话暂无输出，输入命令回车执行'"
+          fill
+        />
         <div v-for="e in displayEntries" :key="e.id" class="entry">
-          <div class="entry-cmd">
+          <div
+            class="entry-cmd"
+            role="button"
+            tabindex="0"
+            title="复制命令"
+            aria-label="复制命令"
+            @click="copyCommand(e.command)"
+            @keydown.enter.prevent="copyCommand(e.command)"
+            @keydown.space.prevent="copyCommand(e.command)"
+          >
             <span class="prompt">❯</span>
             <span class="cmd-text">{{ e.command }}</span>
-            <span v-if="e.sessionId" class="session-tag">{{ e.sessionId.slice(0, 8) }}…</span>
+            <span v-if="e.sessionId" class="session-tag" :title="e.sessionId">{{ e.sessionId.slice(0, 8) }}…</span>
           </div>
           <div v-if="e.stdout" class="entry-out stdout pre">{{ e.stdout }}</div>
           <div v-if="e.stderr" class="entry-out stderr pre">{{ e.stderr }}</div>
-          <div class="entry-exit" :class="e.exitCode === 0 ? 'ok' : 'err'">
-            退出码 {{ e.exitCode ?? '-' }}
+          <!-- 退出码：有结果才显示（执行中/无结果不打扰），成功 check / 失败 warning 弱提示 -->
+          <div v-if="e.exitCode !== null" class="entry-exit" :class="e.exitCode === 0 ? 'ok' : 'err'">
+            <TuiIcon :name="e.exitCode === 0 ? 'check' : 'warning'" :size="11" />
+            退出码 {{ e.exitCode }}
           </div>
         </div>
       </div>
 
-      <div v-if="error" class="error">{{ error }}</div>
+      <Transition name="fade">
+        <div v-if="error" class="error">
+          <TuiIcon name="warning" :size="14" />
+          <span>{{ error }}</span>
+          <button class="error-dismiss" title="关闭" aria-label="关闭" @click="error = ''">
+            <TuiIcon name="close" :size="12" />
+          </button>
+        </div>
+      </Transition>
 
       <!-- 输入栏 -->
       <footer class="input-bar">
         <input
           v-model="input"
           type="text"
+          aria-label="输入命令"
           placeholder="输入命令，回车执行"
           :disabled="running"
           spellcheck="false"
@@ -210,23 +254,28 @@ onMounted(async () => {
           @keydown.up.prevent="onHistory(1)"
           @keydown.down.prevent="onHistory(-1)"
         />
-        <button :disabled="running || !input.trim()" @click="run">
+        <TuiButton variant="primary" :disabled="running || !input.trim()" @click="run">
           {{ running ? '执行中…' : '执行' }}
-        </button>
+        </TuiButton>
       </footer>
     </div>
 
     <!-- 会话面板 -->
     <aside class="session-panel">
-      <h3>持久化会话</h3>
+      <header class="panel-header">
+        <h3>持久化会话</h3>
+        <span v-if="sessions.length" class="panel-count">{{ sessions.length }}</span>
+      </header>
 
       <div class="create">
-        <input v-model="newShell" type="text" placeholder="Shell 路径（可选）" spellcheck="false" />
-        <input v-model="newCwd" type="text" placeholder="工作目录（可选）" spellcheck="false" />
-        <button :disabled="termBusy" @click="createSession">新建会话</button>
+        <input v-model="newShell" name="term-shell" type="text" aria-label="Shell 路径" placeholder="Shell 路径（可选）" spellcheck="false" />
+        <input v-model="newCwd" name="term-cwd" type="text" aria-label="工作目录" placeholder="工作目录（可选）" spellcheck="false" />
+        <TuiButton variant="primary" class="create-btn" :disabled="termBusy" @click="createSession">新建会话</TuiButton>
       </div>
 
-      <div v-if="sessions.length === 0" class="panel-empty">暂无会话</div>
+      <div v-if="sessions.length === 0" class="panel-empty">
+        <TuiEmpty icon="chat" title="暂无会话" hint="在上方新建持久化会话" compact />
+      </div>
       <ul v-else class="session-list">
         <li
           v-for="s in sessions"
@@ -234,10 +283,12 @@ onMounted(async () => {
           :class="{ active: s.session_id === activeSessionId }"
         >
           <button class="session-select" @click="activeSessionId = s.session_id">
-            <span class="s-id">{{ s.session_id.slice(0, 8) }}</span>
-            <span class="s-meta">{{ s.shell }} · {{ s.cwd }}</span>
+            <span class="s-id" :title="s.session_id">{{ s.session_id.slice(0, 8) }}</span>
+            <span class="s-meta" :title="s.shell + ' · ' + s.cwd">{{ s.shell }} · {{ s.cwd }}</span>
           </button>
-          <button class="destroy" title="销毁会话" @click="destroySession(s.session_id)">×</button>
+          <button class="destroy" title="销毁会话" aria-label="销毁会话" @click="destroySession(s.session_id)">
+            <TuiIcon name="trash" :size="13" />
+          </button>
         </li>
       </ul>
     </aside>
@@ -248,8 +299,8 @@ onMounted(async () => {
 .terminal {
   display: flex;
   height: 100%;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 13px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-md);
 }
 .terminal-main {
   flex: 1;
@@ -261,67 +312,65 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 16px;
-  border-bottom: 1px solid #e5e5e5;
+  padding: 12px 16px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
 }
 .bar .title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-weight: 600;
-  font-size: 14px;
+  font-size: var(--fs-lg);
+  color: var(--text-primary);
 }
 .bar .hint {
-  color: #888;
-  font-size: 12px;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
 }
-.bar .link {
+.bar .toggle {
   margin-left: auto;
-  border: none;
-  background: none;
-  color: #1a73e8;
-  cursor: pointer;
-  font-size: 12px;
-  font-family: inherit;
 }
 .toggle {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 12px;
-  color: #666;
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
   cursor: pointer;
   user-select: none;
 }
 .toggle input {
   margin: 0;
   cursor: pointer;
+  accent-color: var(--accent);
+  width: 14px;
+  height: 14px;
 }
 .shells {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   padding: 8px 16px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
 }
 .shell-chip {
   padding: 2px 10px;
-  border-radius: 999px;
-  background: #f0f4ff;
-  color: #1a73e8;
-  font-size: 12px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: var(--fs-sm);
 }
 .shell-chip.default {
-  background: #1a73e8;
-  color: #fff;
+  background: var(--accent);
+  color: var(--on-accent);
 }
 .output {
   flex: 1;
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
   padding: 12px 16px;
-}
-.empty {
-  color: #999;
-  text-align: center;
-  padding: 40px 0;
-  font-family: system-ui, sans-serif;
 }
 .entry {
   margin-bottom: 14px;
@@ -330,132 +379,185 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  /* 命令行 hover 反馈：文本缓变 accent，暗示条目可定位/可复制 */
+  transition: background var(--dur-fast) var(--ease);
+}
+.entry-cmd:hover {
+  background: var(--bg-muted);
 }
 .prompt {
-  color: #1a73e8;
-  font-weight: 700;
+  color: var(--accent);
+  font-weight: 600;
 }
 .cmd-text {
   font-weight: 600;
-  color: #222;
+  color: var(--text-primary);
+  transition: color var(--dur-fast) var(--ease);
+}
+.entry-cmd:hover .cmd-text {
+  color: var(--accent);
 }
 .session-tag {
-  font-size: 11px;
-  color: #7b5cff;
-  background: #f0ecff;
-  padding: 0 6px;
-  border-radius: 4px;
+  font-size: var(--fs-xs);
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
 }
 .entry-out {
   margin: 6px 0 0 18px;
   padding: 8px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   white-space: pre-wrap;
   word-break: break-all;
 }
 .entry-out.stdout {
-  background: #f6f8fa;
-  color: #333;
+  background: var(--bg-muted);
+  color: var(--text-primary);
 }
 .entry-out.stderr {
-  background: #fdecea;
-  color: #b3261e;
+  background: var(--danger-soft);
+  color: var(--danger);
 }
 .entry-exit {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   margin: 4px 0 0 18px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 .entry-exit.ok {
-  color: #188038;
+  color: var(--success);
 }
 .entry-exit.err {
-  color: #b3261e;
+  color: var(--danger);
 }
 .error {
-  padding: 6px 16px;
-  color: #b3261e;
-  font-size: 12px;
-  background: #fdecea;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 16px 8px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--danger-soft);
+  color: var(--danger);
+  font-size: var(--fs-sm);
+  background: var(--danger-soft);
+}
+.error .error-dismiss {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-btn-md);
+  height: var(--icon-btn-md);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--danger);
+  cursor: pointer;
+  opacity: 0.6;
+}
+.error .error-dismiss:hover {
+  opacity: 1;
+  background: var(--danger-soft);
 }
 .input-bar {
   display: flex;
   gap: 8px;
   padding: 10px 16px;
-  border-top: 1px solid #e5e5e5;
+  border-top: 1px solid var(--border);
 }
 .input-bar input {
   flex: 1;
   padding: 8px 12px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--fs-md);
   outline: none;
+  background: var(--bg-surface);
+  color: var(--text-primary);
 }
 .input-bar input:focus {
-  border-color: #1a73e8;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
-.input-bar button {
-  padding: 8px 18px;
-  border: none;
-  border-radius: 6px;
-  background: #1a73e8;
-  color: #fff;
-  cursor: pointer;
-  font-family: inherit;
-}
-.input-bar button:disabled {
-  background: #ccc;
+/* 执行中禁用输入：与全局 disabled 语言一致（--disabled-opacity + 弱底弱字） */
+.input-bar input:disabled {
+  opacity: var(--disabled-opacity);
+  background: var(--bg-muted);
+  color: var(--text-muted);
   cursor: not-allowed;
 }
 .pre {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
 }
 
 /* 会话面板 */
 .session-panel {
   width: 280px;
-  border-left: 1px solid #e5e5e5;
-  padding: 12px;
+  border-left: 1px solid var(--border);
+  padding: 0 12px 12px;
   overflow-y: auto;
-  font-family: system-ui, sans-serif;
+  font-family: var(--font-sans);
 }
-.session-panel h3 {
-  font-size: 13px;
-  color: #666;
-  margin: 0 0 10px;
+/* 面板 header：吸顶横条，与左侧 .bar / 其他面板 header 同一视觉语言（surface 底 + 12px + 下边框） */
+.panel-header {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  margin: 0 -12px 10px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+}
+.panel-header h3 {
+  font-size: var(--fs-base);
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 0;
+}
+/* 会话计数徽标（与规格列表 count 同款弱化 pill） */
+.panel-count {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  background: var(--bg-muted);
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
 }
 .create {
   display: flex;
   flex-direction: column;
   gap: 6px;
   margin-bottom: 12px;
+  align-items: stretch;
 }
 .create input {
-  padding: 6px 8px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  font-size: 12px;
+  height: var(--input-sm-h);
+  padding: 0 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-sm);
   outline: none;
+  background: var(--bg-surface);
+  color: var(--text-primary);
 }
 .create input:focus {
-  border-color: #1a73e8;
+  border-color: var(--accent);
 }
-.create button {
-  padding: 6px;
-  border: none;
-  border-radius: 6px;
-  background: #1a73e8;
-  color: #fff;
-  cursor: pointer;
-  font-size: 12px;
-}
-.create button:disabled {
-  background: #ccc;
+/* 新建会话按钮靠右对齐，避免占满窄面板整行 */
+.create .create-btn {
+  align-self: flex-end;
 }
 .panel-empty {
-  color: #999;
-  font-size: 12px;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
   text-align: center;
   padding: 16px 0;
 }
@@ -469,20 +571,26 @@ onMounted(async () => {
   align-items: center;
   gap: 6px;
   padding: 6px 8px;
-  border-radius: 6px;
-  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: background var(--dur-fast) var(--ease);
 }
 .session-list li.active {
-  background: #e8f0fe;
+  background: var(--accent-soft);
 }
 .session-list li:hover {
-  background: #f5f5f5;
+  background: var(--bg-muted);
 }
 .session-list li.active:hover {
-  background: #e8f0fe;
+  background: var(--accent-soft);
+}
+.session-list li.active .s-id {
+  color: var(--accent);
 }
 .session-select {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
   text-align: left;
   border: none;
   background: none;
@@ -491,25 +599,46 @@ onMounted(async () => {
   font-family: inherit;
 }
 .s-id {
+  flex-shrink: 0;
   font-weight: 600;
-  font-size: 12px;
-  color: #333;
+  font-size: var(--fs-sm);
+  color: var(--text-primary);
   margin-right: 6px;
 }
+/* 会话元信息（shell · cwd）：单行省略，完整内容靠 title 呈现（cwd 多为长路径，break-all 会生硬断行） */
 .s-meta {
-  font-size: 11px;
-  color: #888;
-  word-break: break-all;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
 }
 .destroy {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-btn-md);
+  height: var(--icon-btn-md);
   border: none;
-  background: none;
-  color: #999;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
   cursor: pointer;
-  font-size: 16px;
-  line-height: 1;
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+.session-list li:hover .destroy {
+  opacity: 1;
+}
+/* 键盘聚焦时也显形：Tab 可聚焦到 opacity:0 按钮，焦点环需可见 */
+.destroy:focus-visible {
+  opacity: 1;
 }
 .destroy:hover {
-  color: #b3261e;
+  color: var(--danger);
+  background: var(--danger-soft);
 }
 </style>

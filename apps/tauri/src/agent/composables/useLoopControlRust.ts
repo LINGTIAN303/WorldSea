@@ -9,6 +9,12 @@ import { reactive, readonly, computed, shallowReactive } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 
+/** 生命周期调试日志开关：仅开发环境输出（生产构建剔除，P3-9） */
+const DEV_LOG = import.meta.env.DEV
+const log = (...args: Parameters<typeof console.log>) => {
+  if (DEV_LOG) console.log(...args)
+}
+
 // ─── Rust Duration 镜像 ────────────────────────────────────────────
 
 /**
@@ -573,7 +579,7 @@ async function create(
   config?: RustLoopControlConfig | null,
   sessionId?: string | null,
 ): Promise<void> {
-  console.log(
+  log(
     `[useLoopControlRust] 创建 lc task=${taskId} hasCustomConfig=${!!config} boundSession=${sessionId ?? 'none'}`,
   )
 
@@ -660,7 +666,7 @@ async function updateActivity(taskId: string): Promise<void> {
  */
 async function resetCounters(taskId: string): Promise<void> {
   await invoke('cmd_loop_control_reset_counters', { taskId })
-  console.log(`[useLoopControlRust] 重置计数器 task=${taskId}`)
+  log(`[useLoopControlRust] 重置计数器 task=${taskId}`)
 }
 
 /**
@@ -718,7 +724,7 @@ async function destroy(taskId: string): Promise<void> {
   lcTasks.delete(taskId)
   taskCreatedAt.delete(taskId)
   taskListeners.delete(taskId)
-  console.log(`[useLoopControlRust] 销毁 lc task=${taskId}`)
+  log(`[useLoopControlRust] 销毁 lc task=${taskId}`)
 }
 
 /**

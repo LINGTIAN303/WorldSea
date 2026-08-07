@@ -6,8 +6,8 @@
 use std::sync::Arc;
 
 use agent_commands::{
-    AgentCommandService, LongTaskRepository, LoopControlRegistry, SqliteSubAgentSpecStore,
-    TerminalService,
+    AgentCommandService, LongTaskRepository, LoopControlRegistry, SqliteSessionRepository,
+    SqliteSubAgentSpecStore, TerminalService,
 };
 use tauri::Manager;
 
@@ -100,10 +100,14 @@ pub fn run() {
                 .expect("无法定位应用数据目录");
             std::fs::create_dir_all(&app_data).ok();
             let db_path = app_data.join("subagent_specs.db");
+            let session_db_path = app_data.join("sessions.db");
             let svc = tauri::async_runtime::block_on(async {
                 let store = SqliteSubAgentSpecStore::new(db_path.to_str().unwrap())
                     .await
                     .expect("初始化子 Agent 规格数据库失败");
+                let session_store = SqliteSessionRepository::new(session_db_path.to_str().unwrap())
+                    .await
+                    .expect("初始化会话数据库失败");
                 AgentCommandService::with_subagent_store(store)
                     .await
                     .expect("初始化 Agent 命令服务失败")
@@ -111,7 +115,15 @@ pub fn run() {
                     // 记忆后端：传入应用数据目录子路径，new_session 时为每个会话构造
                     // MemoryCenterAccessor 并注入 AgentLoop（阶段 2：让桌面生效）
                     .with_memory_root(Some(app_data.join("worldsmith").join("memory")))
+                    // 会话持久化：注入 SQLite 会话存储，会话变更写穿 + 启动恢复
+                    .with_session_store(session_store)
             });
+            // 启动加载：从会话库恢复全部历史会话（重建 AgentLoop + 消息历史），
+            // 失败仅告警弱提示，不阻塞应用启动（无历史则按空会话启动）。
+            let restored = tauri::async_runtime::block_on(async { svc.restore_sessions().await });
+            if let Err(e) = restored {
+                tracing::warn!("恢复持久化会话失败（按空会话启动）: {e}");
+            }
             app.manage(svc);
 
             // 长任务持久化：独立数据库文件（long_tasks.db），供 cmd_long_task_* 命令使用

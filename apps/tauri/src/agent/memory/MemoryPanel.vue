@@ -6,12 +6,15 @@
  * 数据源：Rust 记忆后端（MemoryCenterAccessor），经 useMemoryCenterRust 调 memory_* 命令。
  * 会话隔离：依赖父级传入的当前会话 ID（prop sessionId），无会话时提示先创建会话。
  */
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import {
   useMemoryCenterRust,
   type RustMemoryRecallResult,
   type RustMemoryChunkContent,
 } from './useMemoryCenterRust'
+import TuiButton from '../../components/ui/TuiButton.vue'
+import TuiEmpty from '../../components/ui/TuiEmpty.vue'
+import TuiIcon from '../../components/ui/TuiIcon.vue'
 
 const props = defineProps<{ sessionId: string | null }>()
 
@@ -37,13 +40,16 @@ const activeMemory = ref<RustMemoryRecallResult | null>(null)
 const activeChunk = ref<RustMemoryChunkContent | null>(null)
 /** 检索关键词 */
 const keyword = ref('')
-/** 错误/提示信息 */
+/** 提示信息（成功/错误，弱提示几秒后自动消失） */
 const notice = ref('')
+/** 提示类型：error → danger 语义，默认 success（批次59：修复错误以 accent 渲染的语义冲突） */
+const noticeType = ref<'success' | 'error'>('success')
 let noticeTimer: ReturnType<typeof setTimeout> | null = null
 
-/** 展示临时提示（几秒后自动消失） */
-function flash(msg: string) {
+/** 展示临时提示（几秒后自动消失）；type 缺省 success，错误信息传入 'error' 走 danger 语义 */
+function flash(msg: string, type: 'success' | 'error' = 'success') {
   notice.value = msg
+  noticeType.value = type
   if (noticeTimer) clearTimeout(noticeTimer)
   noticeTimer = setTimeout(() => {
     notice.value = ''
@@ -61,7 +67,7 @@ async function refreshList() {
   try {
     await listMemory(props.sessionId!, keyword.value.trim() || undefined)
   } catch (err) {
-    flash(`加载记忆失败: ${err}`)
+    flash(`加载记忆失败: ${err}`, 'error')
   }
 }
 
@@ -76,7 +82,7 @@ async function onSearch() {
   try {
     await recallMemory(props.sessionId!, q)
   } catch (err) {
-    flash(`检索失败: ${err}`)
+    flash(`检索失败: ${err}`, 'error')
   }
 }
 
@@ -90,7 +96,7 @@ async function openDetail(item: RustMemoryRecallResult) {
     const chunk = await loadChunk(props.sessionId!, item.hook_id, item.hook_id)
     activeChunk.value = chunk
   } catch (err) {
-    flash(`加载详情失败: ${err}`)
+    flash(`加载详情失败: ${err}`, 'error')
   }
 }
 
@@ -113,7 +119,7 @@ async function onArchive() {
       flash('暂无达到阈值的待归档内容')
     }
   } catch (err) {
-    flash(`归档失败: ${err}`)
+    flash(`归档失败: ${err}`, 'error')
   }
 }
 
@@ -153,6 +159,9 @@ onMounted(async () => {
     }
   }
 })
+onBeforeUnmount(() => {
+  if (noticeTimer) clearTimeout(noticeTimer)
+})
 </script>
 
 <template>
@@ -164,43 +173,63 @@ onMounted(async () => {
         <span v-if="memoryList.length" class="mp-count">{{ memoryList.length }}</span>
       </div>
       <div class="mp-actions">
-        <input
-          v-model="keyword"
-          class="mp-search"
-          placeholder="检索记忆…"
-          @keydown.enter="onSearch"
-        />
-        <button
-          class="mp-archive"
-          :disabled="!sessionId || isArchiving"
-          title="手动归档（消费缓冲轮次）"
-          @click="onArchive"
-        >{{ isArchiving ? '归档中…' : '归档' }}</button>
+        <div class="mp-search-wrap">
+          <TuiIcon name="search" :size="13" class="mp-search-icon" />
+          <input
+            v-model="keyword"
+            class="mp-search"
+            aria-label="检索记忆"
+            placeholder="检索记忆…"
+            @keydown.enter="onSearch"
+          />
+          <button
+            v-show="keyword"
+            class="mp-search-clear"
+            title="清空检索"
+            aria-label="清空检索"
+            @click="keyword = ''"
+          >
+            <TuiIcon name="close" :size="11" />
+          </button>
+        </div>
+        <TuiButton variant="primary" size="sm" :disabled="!sessionId || isArchiving" title="手动归档（消费缓冲轮次）" @click="onArchive">
+          {{ isArchiving ? '归档中…' : '归档' }}
+        </TuiButton>
       </div>
     </header>
 
-    <div v-if="notice" class="mp-notice">{{ notice }}</div>
+    <Transition name="fade">
+      <div v-if="notice" class="mp-notice" :class="noticeType">{{ notice }}</div>
+    </Transition>
 
-    <div v-if="!sessionId" class="mp-empty">请先创建会话，再查看该会话的记忆</div>
+    <TuiEmpty v-if="!sessionId" icon="memory" title="尚未选择会话" hint="请先创建会话，再查看该会话的记忆" fill />
 
     <template v-else-if="view === 'list'">
       <div class="mp-bar">
         <span>归档边界</span>
         <span class="mp-boundary">{{ archiveBoundary }}</span>
-        <button class="mp-refresh" @click="refreshList">刷新</button>
+        <TuiButton class="mp-refresh-btn" variant="ghost" size="sm" @click="refreshList">刷新</TuiButton>
       </div>
 
-      <div v-if="isListLoading" class="mp-empty">加载中…</div>
-      <div v-else-if="memoryList.length === 0" class="mp-empty">
-        <p>暂无记忆</p>
-        <p class="mp-hint">对话达到归档阈值后自动落库，或点击「归档」手动触发</p>
-      </div>
+      <TuiEmpty v-if="isListLoading" icon="memory" title="加载中…" fill />
+      <TuiEmpty
+        v-else-if="memoryList.length === 0"
+        icon="memory"
+        title="暂无记忆"
+        hint="对话达到归档阈值后自动落库，或点击「归档」手动触发"
+        fill
+      />
       <ul v-else class="mp-list">
         <li
           v-for="item in memoryList"
           :key="item.hook_id"
           class="mp-item"
+          role="button"
+          tabindex="0"
+          title="查看记忆详情"
           @click="openDetail(item)"
+          @keydown.enter="openDetail(item)"
+          @keydown.space.prevent="openDetail(item)"
         >
           <div class="mp-item-title">{{ titleOf(item) }}</div>
           <div class="mp-item-summary">{{ item.summary }}</div>
@@ -215,11 +244,11 @@ onMounted(async () => {
 
     <template v-else-if="view === 'detail'">
       <div class="mp-bar">
-        <button class="mp-back" @click="backToList">← 返回</button>
+        <TuiButton variant="ghost" size="sm" icon="arrowLeft" @click="backToList">返回</TuiButton>
         <span class="mp-detail-title">{{ activeMemory ? titleOf(activeMemory) : '' }}</span>
       </div>
 
-      <div v-if="!activeChunk" class="mp-empty">加载详情中…</div>
+      <TuiEmpty v-if="!activeChunk" icon="memory" title="加载详情中…" fill />
       <div v-else class="mp-detail">
         <div class="mp-detail-meta">
           <span>块 ID：{{ activeChunk.chunk_id }}</span>
@@ -247,7 +276,7 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-sans);
 }
 .mp-head {
   display: flex;
@@ -255,28 +284,29 @@ onMounted(async () => {
   justify-content: space-between;
   gap: 12px;
   padding: 12px 16px;
-  border-bottom: 1px solid #e5e5e5;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
 }
 .mp-title {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 15px;
+  font-size: var(--fs-lg);
   font-weight: 600;
-  color: #333;
+  color: var(--text-primary);
 }
 .mp-dot {
-  width: 8px;
-  height: 8px;
+  width: var(--dot-md);
+  height: var(--dot-md);
   border-radius: 50%;
-  background: #1a73e8;
+  background: var(--accent);
 }
 .mp-count {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 400;
-  color: #999;
-  background: #f0f0f0;
-  border-radius: 10px;
+  color: var(--text-muted);
+  background: var(--bg-muted);
+  border-radius: var(--radius-pill);
   padding: 1px 8px;
 }
 .mp-actions {
@@ -284,80 +314,88 @@ onMounted(async () => {
   align-items: center;
   gap: 8px;
 }
+.mp-search-wrap {
+  position: relative;
+}
+.mp-search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-58%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
 .mp-search {
-  padding: 6px 10px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  font-size: 13px;
+  height: var(--input-sm-h);
+  padding: 0 26px 0 28px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-md);
   outline: none;
-  width: 180px;
+  width: 170px;
+  background: var(--bg-muted);
+  color: var(--text-primary);
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+.mp-search::placeholder {
+  color: var(--text-muted);
 }
 .mp-search:focus {
-  border-color: #1a73e8;
+  border-color: var(--accent);
+  background: var(--bg-surface);
 }
-.mp-archive {
-  padding: 6px 12px;
-  border: none;
-  border-radius: 6px;
-  background: #1a73e8;
-  color: #fff;
-  font-size: 13px;
-  cursor: pointer;
-}
-.mp-archive:disabled {
-  background: #ccc;
-  cursor: not-allowed;
-}
-.mp-archive:hover:not(:disabled) {
-  background: #1765cc;
-}
-.mp-notice {
-  padding: 6px 16px;
-  font-size: 12px;
-  color: #1a73e8;
-  background: #e8f0fe;
-}
-.mp-empty {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
+/* 检索清空按钮：有输入才显示，弱化圆形（与 SessionList 搜索清空同一语言） */
+.mp-search-clear {
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  color: #999;
-  font-size: 13px;
-  padding: 24px;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 50%;
+  background: var(--bg-active);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
-.mp-hint {
-  font-size: 12px;
-  color: #bbb;
+.mp-search-clear:hover {
+  color: var(--text-primary);
+  background: var(--border-strong);
+}
+/* 提示条：统一 box 形态（radius-sm + border），success 默认 / error 走 danger 语义（批次59） */
+.mp-notice {
+  margin: 8px 16px 0;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--success-soft);
+  color: var(--success);
+  font-size: var(--fs-sm);
+  background: var(--success-soft);
+}
+.mp-notice.error {
+  border-color: var(--danger-soft);
+  color: var(--danger);
+  background: var(--danger-soft);
 }
 .mp-bar {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  border-bottom: 1px solid #f0f0f0;
-  font-size: 12px;
-  color: #666;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
 }
 .mp-boundary {
   font-weight: 600;
-  color: #1a73e8;
+  color: var(--accent);
 }
-.mp-refresh {
+.mp-refresh-btn {
   margin-left: auto;
-  padding: 2px 10px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  background: transparent;
-  font-size: 12px;
-  color: #666;
-  cursor: pointer;
-}
-.mp-refresh:hover {
-  border-color: #1a73e8;
-  color: #1a73e8;
 }
 .mp-list {
   list-style: none;
@@ -368,23 +406,28 @@ onMounted(async () => {
 }
 .mp-item {
   padding: 10px 16px;
-  border-bottom: 1px solid #f5f5f5;
+  border-bottom: 1px solid var(--border);
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background var(--dur-fast) var(--ease);
 }
 .mp-item:hover {
-  background: #f5f5f5;
+  background: var(--bg-muted);
+}
+/* hover 时标题强调色变化：明确的点击反馈（弱化视觉，不打断浏览） */
+.mp-item:hover .mp-item-title {
+  color: var(--accent);
 }
 .mp-item-title {
-  font-size: 14px;
+  font-size: var(--fs-base);
   font-weight: 600;
-  color: #333;
+  color: var(--text-primary);
   margin-bottom: 4px;
+  transition: color var(--dur-fast) var(--ease);
 }
 .mp-item-summary {
-  font-size: 12px;
-  color: #666;
-  line-height: 1.5;
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+  line-height: var(--lh-md);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -395,35 +438,22 @@ onMounted(async () => {
   align-items: center;
   gap: 8px;
   margin-top: 4px;
-  font-size: 11px;
-  color: #999;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
 }
 .mp-tag {
   padding: 1px 6px;
-  border-radius: 4px;
-  background: #f0f0f0;
-  color: #666;
+  border-radius: var(--radius-sm);
+  background: var(--bg-muted);
+  color: var(--text-secondary);
 }
 .mp-pin {
-  background: #fef7e0;
-  color: #b06000;
-}
-.mp-back {
-  padding: 2px 10px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  background: transparent;
-  font-size: 12px;
-  color: #666;
-  cursor: pointer;
-}
-.mp-back:hover {
-  border-color: #1a73e8;
-  color: #1a73e8;
+  background: var(--bg-muted);
+  color: var(--text-secondary);
 }
 .mp-detail-title {
   font-weight: 600;
-  color: #333;
+  color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -436,8 +466,8 @@ onMounted(async () => {
 .mp-detail-meta {
   display: flex;
   gap: 12px;
-  font-size: 12px;
-  color: #999;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
   margin-bottom: 12px;
 }
 .mp-chunk {
@@ -450,19 +480,28 @@ onMounted(async () => {
   flex-direction: column;
   gap: 4px;
 }
+/* 消息块左缘色条：Agent accent / 用户弱色，快速辨识角色归属 */
+.mp-msg.agent {
+  border-left: 3px solid var(--accent);
+  padding-left: 10px;
+}
+.mp-msg.user {
+  border-left: 3px solid var(--border-strong);
+  padding-left: 10px;
+}
 .mp-msg-role {
-  font-size: 11px;
-  color: #999;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
 }
 .mp-msg-content {
-  background: #f5f5f5;
+  background: var(--bg-muted);
   padding: 8px 12px;
-  border-radius: 8px;
-  font-size: 13px;
-  line-height: 1.6;
+  border-radius: var(--radius-md);
+  font-size: var(--fs-md);
+  line-height: var(--lh-base);
   white-space: pre-wrap;
 }
 .mp-msg.user .mp-msg-content {
-  background: #e8f0fe;
+  background: var(--accent-soft);
 }
 </style>

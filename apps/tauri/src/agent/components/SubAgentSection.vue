@@ -2,8 +2,12 @@
 /** SubAgentSection：子 Agent 委派过程展示（running/completed/error 三态），详细见 docs/details/注释/tauri/SubAgentSection.md */
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useAgentRust, type SubAgentState } from '../composables/useAgentRust'
+import TuiIcon from '../../components/ui/TuiIcon.vue'
 
 const backend = useAgentRust()
+// 解构出顶层 ref：模板中 `backend.xxx` 是嵌套 ref 不会被解包，
+// v-for / length 会误遍历 Ref 内部属性（幽灵条目）或得到 undefined
+const { subAgents } = backend
 
 // ── 运行耗时实时刷新：每秒触发一次重渲染，驱动 running 条目耗时跳动 ──
 const now = ref(Date.now())
@@ -17,10 +21,13 @@ onBeforeUnmount(() => {
   if (timer) clearInterval(timer)
 })
 
+// ── 折叠状态：委派记录多时收起列表，仅保留状态栏 ──
+const collapsed = ref(false)
+
 // ── 分组统计（顶部状态栏） ──
-const runningCount = computed(() => backend.subAgents.value.filter((s: SubAgentState) => s.status === 'running').length)
-const completedCount = computed(() => backend.subAgents.value.filter((s: SubAgentState) => s.status === 'completed').length)
-const errorCount = computed(() => backend.subAgents.value.filter((s: SubAgentState) => s.status === 'error').length)
+const runningCount = computed(() => subAgents.value.filter((s: SubAgentState) => s.status === 'running').length)
+const completedCount = computed(() => subAgents.value.filter((s: SubAgentState) => s.status === 'completed').length)
+const errorCount = computed(() => subAgents.value.filter((s: SubAgentState) => s.status === 'error').length)
 
 // ── 长错误信息展开/收起状态（按委派 id 记录） ──
 const expanded = ref<Record<string, boolean>>({})
@@ -57,22 +64,34 @@ function isLong(text: string, threshold = 120): boolean {
 </script>
 
 <template>
-  <div class="subagent-section">
-    <!-- 顶部状态栏：无委派时不展示 -->
-    <div v-if="backend.subAgents.length > 0" class="bar">
-      <span class="bar-title">子 Agent 委派</span>
-      <span v-if="runningCount" class="chip running">运行中 {{ runningCount }}</span>
+  <!-- 无委派记录时不渲染整块，避免空会话占用底部空间 -->
+  <div v-if="subAgents.length > 0" class="subagent-section">
+    <!-- 顶部状态栏 -->
+    <div class="bar">
+      <span class="bar-title">
+        <TuiIcon name="subagent" :size="13" />
+        子 Agent 委派
+      </span>
+      <span v-if="runningCount" class="chip running">
+        <span class="chip-dot" />运行中 {{ runningCount }}
+      </span>
       <span v-if="completedCount" class="chip completed">完成 {{ completedCount }}</span>
       <span v-if="errorCount" class="chip error">失败 {{ errorCount }}</span>
+      <button
+        class="collapse"
+        :title="collapsed ? '展开委派记录' : '收起委派记录'"
+        :aria-label="collapsed ? '展开委派记录' : '收起委派记录'"
+        :aria-expanded="!collapsed"
+        @click="collapsed = !collapsed"
+      >
+        <TuiIcon :name="collapsed ? 'chevronRight' : 'chevronDown'" :size="14" />
+      </button>
     </div>
 
-    <div v-if="backend.subAgents.length === 0" class="empty">
-      暂未发生子 Agent 委派
-    </div>
-
-    <ul v-else class="subagent-list">
+    <Transition name="subagent">
+      <ul v-show="!collapsed" class="subagent-list">
       <li
-        v-for="s in backend.subAgents"
+        v-for="s in subAgents"
         :key="s.id"
         class="entry"
         :class="s.status"
@@ -111,51 +130,79 @@ function isLong(text: string, threshold = 120): boolean {
           </div>
         </div>
       </li>
-    </ul>
+      </ul>
+    </Transition>
   </div>
 </template>
 
 <style scoped>
 .subagent-section {
-  border-top: 1px solid #eee;
-  padding: 10px 20px;
+  max-width: 860px;
+  margin: 0 auto;
+  border-top: 1px solid var(--border);
+  padding: 10px var(--chat-gutter);
   max-height: 220px;
   overflow-y: auto;
-  background: #fcfcfc;
-}
-.empty {
-  color: #999;
-  font-size: 12px;
-  text-align: center;
-  padding: 8px 0;
+  background: var(--bg-surface);
 }
 .bar {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-bottom: 8px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
+}
+.collapse {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-btn-md);
+  height: var(--icon-btn-md);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+.collapse:hover {
+  color: var(--text-primary);
+  background: var(--bg-muted);
 }
 .bar-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-weight: 600;
-  color: #444;
+  color: var(--text-primary);
 }
 .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   padding: 1px 8px;
-  border-radius: 10px;
-  font-size: 11px;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-xs);
+}
+.chip-dot {
+  width: var(--dot-sm);
+  height: var(--dot-sm);
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pulse var(--dur-pulse) ease-in-out infinite;
 }
 .chip.running {
-  background: #e8f0fe;
-  color: #1a73e8;
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 .chip.completed {
-  background: #e6f4ea;
-  color: #188038;
+  background: var(--success-soft);
+  color: var(--success);
 }
 .chip.error {
-  background: #fce8e6;
-  color: #d93025;
+  background: var(--danger-soft);
+  color: var(--danger);
 }
 .subagent-list {
   list-style: none;
@@ -163,33 +210,63 @@ function isLong(text: string, threshold = 120): boolean {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
+}
+/* 折叠过渡：展开淡入下滑、收起淡出上移（与 PhaseSection 折叠同一运动语言） */
+.subagent-enter-active {
+  transition: opacity var(--dur-base) var(--ease-out), transform var(--dur-base) var(--ease-out);
+}
+.subagent-leave-active {
+  transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+}
+.subagent-enter-from {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+.subagent-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
 }
 .entry {
   display: flex;
   gap: 10px;
   align-items: flex-start;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+.entry:hover {
+  border-color: var(--border-strong);
+}
+.entry.running {
+  border-color: var(--accent-soft-border);
+  background: var(--accent-soft);
+}
+.entry.running:hover {
+  border-color: var(--accent-soft-border);
+}
+.entry.error {
+  border-color: var(--danger-soft);
 }
 .status-dot {
-  width: 10px;
-  height: 10px;
+  width: var(--dot-md);
+  height: var(--dot-md);
   border-radius: 50%;
-  margin-top: 5px;
+  margin-top: 6px;
   flex-shrink: 0;
 }
 .entry.running .status-dot {
-  background: #1a73e8;
-  animation: pulse 1.2s infinite;
+  background: var(--accent);
+  animation: pulse var(--dur-pulse) ease-in-out infinite;
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 .entry.completed .status-dot {
-  background: #188038;
+  background: var(--success);
 }
 .entry.error .status-dot {
-  background: #d93025;
-}
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.35; }
+  background: var(--danger);
 }
 .body {
   flex: 1;
@@ -201,51 +278,51 @@ function isLong(text: string, threshold = 120): boolean {
   gap: 8px;
 }
 .name {
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 600;
-  color: #333;
+  color: var(--text-primary);
 }
 .tag {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   padding: 1px 8px;
-  border-radius: 10px;
-  background: #f0f0f0;
-  color: #666;
+  border-radius: var(--radius-pill);
+  background: var(--bg-muted);
+  color: var(--text-secondary);
 }
 .entry.running .tag {
-  background: #e8f0fe;
-  color: #1a73e8;
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 .entry.completed .tag {
-  background: #e6f4ea;
-  color: #188038;
+  background: var(--success-soft);
+  color: var(--success);
 }
 .entry.error .tag {
-  background: #fce8e6;
-  color: #d93025;
+  background: var(--danger-soft);
+  color: var(--danger);
 }
 .task {
-  font-size: 12px;
-  color: #555;
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
   margin-top: 2px;
   word-break: break-word;
 }
 .meta {
   display: flex;
   gap: 12px;
-  font-size: 11px;
-  color: #999;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
   margin-top: 4px;
 }
 .meta.live {
-  color: #1a73e8;
+  color: var(--accent);
 }
 .error-text {
   display: flex;
   align-items: flex-start;
   gap: 6px;
-  font-size: 11px;
-  color: #d93025;
+  font-size: var(--fs-xs);
+  color: var(--danger);
   margin-top: 4px;
   word-break: break-word;
 }
@@ -259,8 +336,8 @@ function isLong(text: string, threshold = 120): boolean {
   flex-shrink: 0;
   border: none;
   background: transparent;
-  color: #d93025;
-  font-size: 11px;
+  color: var(--danger);
+  font-size: var(--fs-xs);
   cursor: pointer;
   padding: 0;
   text-decoration: underline;

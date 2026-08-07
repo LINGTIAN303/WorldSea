@@ -2,6 +2,7 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'
+import './styles/theme.css'
 
 // Tauri 端 coreBackend（Tauri invoke only 版本）
 import * as coreBackend from './core/coreBackend'

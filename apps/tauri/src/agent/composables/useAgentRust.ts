@@ -590,6 +590,8 @@ function upsertMsgInSession(id: string, updated: AgentMessage, sessionId: string
  * - `error` / `agent_end`：清理流式占位
  */
 function handleStreamEvent(sessionId: string, payload: RustStreamPayload): void {
+  // 会话守卫：仅处理当前会话的流式事件，避免旧会话残留事件污染全局消息区
+  if (sessionId !== currentSessionId.value) return
   if (payload.type === 'start') {
     const msg: AgentMessage = {
       id: `assistant-${Date.now()}`,
@@ -671,8 +673,20 @@ async function newSession(
     systemPrompt: systemPrompt ?? null,
     providerConfig: providerConfig ?? null,
   })
+  // 先清理当前会话的旧监听器（避免旧会话残留事件污染全局状态）
+  const oldSessionId = currentSessionId.value
+  if (oldSessionId && oldSessionId !== info.id) {
+    teardownDeepPhaseListener(oldSessionId)
+    teardownA2UIListener(oldSessionId)
+    teardownSubAgentListener(oldSessionId)
+    teardownStreamListener(oldSessionId)
+  }
   currentSessionId.value = info.id
   messages.value = []
+  // 新会话：重置流式/生成状态（旧会话失败遗留的 isStreaming 需归零）
+  isStreaming.value = false
+  streamingAssistant.value = null
+  lastStreamedMsg.value = null
   // 新会话：清空深度模式段与 A2UI 画布，并建立事件监听
   deepSegments.value = []
   a2uiSurfaces.value = {}
@@ -684,6 +698,23 @@ async function newSession(
   await setupStreamListener(info.id)
   await refreshSessionList()
   return info
+}
+
+/**
+ * 会话显示标题：从消息缓存取首条用户消息截断；无数据回退短 id。
+ * 供会话列表展示更友好的标题（Rust 端 SessionInfo 无 title 字段）。
+ */
+function sessionTitle(sessionId?: string | null): string {
+  if (!sessionId) return '新会话'
+  const cached = sessionMessagesCache.get(sessionId)
+  if (cached) {
+    const firstUser = cached.find((m) => m.role === 'user')
+    if (firstUser && firstUser.content.trim()) {
+      const t = firstUser.content.trim()
+      return t.length > 24 ? t.slice(0, 24) + '…' : t
+    }
+  }
+  return `会话 · ${sessionId.slice(0, 8)}`
 }
 
 /** 会话列表 */
@@ -1051,6 +1082,7 @@ export function useAgentRust() {
     listSessions,
     deleteSession,
     switchSession,
+    sessionTitle,
     currentSessionId,
     sessionList,
 

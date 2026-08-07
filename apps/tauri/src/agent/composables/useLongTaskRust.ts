@@ -6,6 +6,12 @@
 /** 长任务管理器（Rust SQLite 后端版：状态机/心跳/checkpoint/协作式取消），详细见 docs/details/注释/tauri/useLongTaskRust.md */
 import { ref, readonly, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+
+/** 生命周期调试日志开关：仅开发环境输出（生产构建剔除，P3-9） */
+const DEV_LOG = import.meta.env.DEV
+const log = (...args: Parameters<typeof console.log>) => {
+  if (DEV_LOG) console.log(...args)
+}
 // 复用 TS 版类型定义（LongTaskRecord / LongTaskCheckpoint / LongTaskType / LongTaskStatus）
 // 保持与 useLongTaskProgress.ts / ResumeBanner.vue 的类型兼容
 // Phase 3 迁移：原 `./longTaskStore` 改为共享 composables 别名
@@ -312,7 +318,7 @@ async function startTask(params: {
   // 启动心跳
   startHeartbeat(taskId)
 
-  console.log(
+  log(
     `[LongTaskRust] 启动长任务 ${taskId}（类型: ${params.type}, prompt: ${params.prompt.slice(0, 50)}...）`,
   )
   return taskId
@@ -344,7 +350,7 @@ function resumeActiveTask(
   heartbeatStatus.value = 'alive'
 
   startHeartbeat(record.taskId)
-  console.log(
+  log(
     `[LongTaskRust] 恢复长任务 ${record.taskId}（轮次: ${record.turnCount}, 已运行: ${Math.round((Date.now() - record.startedAt) / 1000)}s）`,
   )
 }
@@ -394,7 +400,7 @@ function checkpoint(
  */
 function requestCancel(taskId: string): void {
   cancelFlags.set(taskId, true)
-  console.log(`[LongTaskRust] 请求取消任务 ${taskId}（协作式：等当前 tool call 完成）`)
+  log(`[LongTaskRust] 请求取消任务 ${taskId}（协作式：等当前 tool call 完成）`)
 }
 
 /**
@@ -416,7 +422,7 @@ async function completeTask(taskId: string): Promise<void> {
   stopHeartbeat()
   // 轻量状态更新（仅写 status + ended_at，不触碰 checkpoint/meta）
   await updateStatus(taskId, 'completed', activeTask.value.endedAt)
-  console.log(
+  log(
     `[LongTaskRust] 任务完成 ${taskId}（轮次: ${activeTask.value.turnCount}, 耗时: ${Math.round((activeTask.value.endedAt - activeTask.value.startedAt) / 1000)}s）`,
   )
   // 清理内存（record 已持久化，供历史查看）
@@ -454,7 +460,7 @@ async function cancelTask(taskId: string): Promise<void> {
   activeTask.value.endedAt = Date.now()
   stopHeartbeat()
   await updateStatus(taskId, 'cancelled', activeTask.value.endedAt)
-  console.log(`[LongTaskRust] 任务已取消 ${taskId}（轮次: ${activeTask.value.turnCount}）`)
+  log(`[LongTaskRust] 任务已取消 ${taskId}（轮次: ${activeTask.value.turnCount}）`)
   checkpointDataProviders.delete(taskId)
   cancelFlags.delete(taskId)
   activeTask.value = null

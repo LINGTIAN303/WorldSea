@@ -105,18 +105,33 @@ const hasAttention = computed(() => recentEvents.value.some((e) => e.type !== 'l
 </script>
 
 <template>
+  <!--
+    仅在有真实活动或异常时显示：
+    - status 计数 > 0（曾运行/正在运行）
+    - 存在事件（限流/重试/软超时/看门狗/恢复）
+    - 存在命令错误
+    空闲任务（active 创建即 true 不反映运行态）不常驻，避免空会话占用空间
+  -->
   <div
-    v-if="taskState"
+    v-if="
+      taskState &&
+      (taskState.events.length > 0 ||
+        taskState.lastError ||
+        (taskState.status !== null &&
+          (taskState.status.turns > 0 || taskState.status.toolCalls > 0 || taskState.status.tokens > 0)))
+    "
     class="lcs"
     :class="{ hasAttention: hasAttention || !!taskState.lastError }"
     v-bind="{ title: `Loop Controller: ${taskState.taskId}` }"
   >
+    <span class="lcs-dot" :class="{ active: hasAttention || !!taskState.lastError }" title="运行状态" />
     <span class="lcs-label" title="Loop Engineering 运行状态">Loop</span>
 
     <span v-for="c in counters" :key="c.label" class="lcs-counter">
       {{ c.label }} <b>{{ c.value }}</b>
     </span>
 
+    <span class="lcs-sep" />
     <span class="lcs-counter lcs-elapsed" title="已运行时长">
       耗时 <b>{{ elapsedSecs }}s</b>
     </span>
@@ -127,7 +142,7 @@ const hasAttention = computed(() => recentEvents.value.some((e) => e.type !== 'l
 
     <span
       v-for="(e, i) in recentEvents"
-      :key="i"
+      :key="`${e.type}-${i}`"
       class="lcs-badge"
       :class="eventBadge(e)?.cls"
       :title="eventBadge(e)?.text"
@@ -142,48 +157,65 @@ const hasAttention = computed(() => recentEvents.value.some((e) => e.type !== 'l
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 6px 20px;
-  font-size: 12px;
-  color: #666;
-  background: #fafafa;
-  border-bottom: 1px solid #e5e5e5;
+  padding: 6px var(--chat-gutter);
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+  background: var(--bg-muted);
+  border-bottom: 1px solid var(--border);
   flex-wrap: wrap;
+}
+.lcs-dot {
+  width: var(--dot-md);
+  height: var(--dot-md);
+  border-radius: 50%;
+  background: var(--border-strong);
+  flex-shrink: 0;
+  transition: background var(--dur-fast) var(--ease);
+}
+.lcs-dot.active {
+  background: var(--accent);
+  animation: pulse var(--dur-pulse) ease-in-out infinite;
 }
 .lcs-label {
   font-weight: 600;
-  color: #1a73e8;
+  color: var(--accent);
   letter-spacing: 0.5px;
 }
 .lcs-counter b {
-  color: #333;
+  color: var(--text-primary);
   font-weight: 600;
 }
 .lcs-elapsed {
-  color: #999;
+  color: var(--text-muted);
+}
+.lcs-sep {
+  width: 1px;
+  height: 12px;
+  background: var(--border-strong);
 }
 .lcs-badge {
   padding: 1px 8px;
-  border-radius: 10px;
-  font-size: 11px;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-xs);
   white-space: nowrap;
 }
 .lcs-badge.rate {
-  background: #fce8e6;
-  color: #d93025;
+  background: var(--danger-soft);
+  color: var(--danger);
 }
 .lcs-badge.retry {
-  background: #fef7e0;
-  color: #b06000;
+  background: var(--warning-soft);
+  color: var(--warning);
 }
 .lcs-badge.timeout {
-  background: #fef7e0;
-  color: #e37400;
+  background: var(--warning-soft);
+  color: var(--warning);
 }
 .lcs-badge.recovered {
-  background: #e6f4ea;
-  color: #188038;
+  background: var(--success-soft);
+  color: var(--success);
 }
 .lcs.hasAttention {
-  background: #fffdf5;
+  background: var(--warning-soft);
 }
 </style>

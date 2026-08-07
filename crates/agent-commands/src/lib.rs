@@ -4,6 +4,7 @@ mod error;
 mod long_task_store;
 mod loop_control;
 mod mock_backend;
+mod session_store;
 mod subagent;
 mod subagent_store;
 mod terminal;
@@ -15,6 +16,7 @@ pub use loop_control::{
     LoopControlStatus,
 };
 pub use mock_backend::{MockBackend, thinking_level_to_str};
+pub use session_store::{SessionRecord, SessionRepository, SqliteSessionRepository};
 pub use subagent::{register_subagent_tools, SubAgentInstanceInfo, SubAgentManager};
 pub use subagent_store::{SqliteSubAgentSpecStore, SubAgentSpecStore};
 pub use terminal::{register_terminal_tools, TerminalService};
@@ -25,7 +27,7 @@ use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use agent_memory::MemoryCenterAccessor;
-use agent_runtime::agent::{AgentLoop, AgentLoopConfig, AgentStateSnapshot};
+use agent_runtime::agent::{AgentLoop, AgentLoopConfig, AgentState, AgentStateSnapshot};
 use agent_runtime::backend::ThinkingLevel;
 use agent_runtime::llm::config::ProviderConfig as RuntimeProviderConfig;
 use agent_runtime::llm::GenaiBackend;
@@ -149,6 +151,12 @@ pub struct AgentCommandService {
     /// `None`：不启用长期记忆（默认）；`Some`：`new_session` 时为每个会话构造
     /// `MemoryCenterAccessor` 并注入 `AgentLoop`（通过 `with_memory`）。
     memory_root: Option<PathBuf>,
+    /// 会话持久化存储（可选）
+    ///
+    /// `None`：纯内存（默认，单测/无持久化场景）；`Some`：`new_session`/`send_message`/
+    /// `clear_history`/`trim_context`/`delete_session` 各操作**写穿**到存储；启动时经
+    /// [`Self::restore_sessions`] 加载全部会话重建 AgentLoop，应用重启后历史不丢失。
+    session_store: Option<Arc<dyn SessionRepository>>,
 }
 
 /// 校验一个子 Agent 规格是否合法
@@ -237,6 +245,15 @@ impl AgentCommandService {
     /// `new_session` 会为每个会话构造 `MemoryCenterAccessor` 并注入 AgentLoop。
     pub fn with_memory_root(mut self, root: Option<PathBuf>) -> Self {
         self.memory_root = root;
+        self
+    }
+
+    /// 注入会话持久化存储（链式）
+    ///
+    /// 传入后 `new_session` 等会话变更操作会**写穿**到存储；启动时调用
+    /// [`Self::restore_sessions`] 从存储加载全部会话重建 AgentLoop。
+    pub fn with_session_store(mut self, store: Arc<dyn SessionRepository>) -> Self {
+        self.session_store = Some(store);
         self
     }
 
@@ -374,6 +391,8 @@ impl AgentCommandService {
     ) -> Result<SessionInfo, CommandError> {
         // 先生成会话 ID，作为记忆隔离依据传入 new_agent（构造 MemoryCenterAccessor）
         let id = uuid::Uuid::new_v4().to_string();
+        // new_agent 会 move system_prompt，先克隆一份供后续持久化使用
+        let persisted_prompt = system_prompt.clone();
         let (agent, sub_agent_manager) = self.new_agent(&id, system_prompt, provider_config).await;
         let info = SessionInfo {
             id: id.clone(),
@@ -386,6 +405,19 @@ impl AgentCommandService {
             .await
             .insert(id.clone(), sub_agent_manager);
         self.meta.lock().await.insert(id.clone(), info.clone());
+        // 写穿会话头到持久化存储（不阻塞内存结果；失败仅记日志弱提示）
+        if let Some(store) = &self.session_store {
+            let record = SessionRecord {
+                id: id.clone(),
+                system_prompt: persisted_prompt.unwrap_or_default(),
+                created_at: info.created_at,
+                message_count: 0,
+                updated_at: info.created_at,
+            };
+            if let Err(e) = store.save_session(&record).await {
+                tracing::warn!("持久化新会话失败（仅内存生效）: {e}");
+            }
+        }
         Ok(info)
     }
 
@@ -407,14 +439,86 @@ impl AgentCommandService {
         Ok(list)
     }
 
+    /// 从持久化存储加载全部会话并重建 AgentLoop（应用启动时调用）
+    ///
+    /// 未注入持久化存储时返回空列表（调用方按无历史处理）。重建时复用
+    /// [`Self::new_agent`]（注入记忆/子 Agent 工具），并以其持久化的消息历史
+    /// 恢复 AgentLoop 状态——`run()` 对已含 system 消息的状态去重，不会重复注入。
+    pub async fn restore_sessions(&self) -> Result<Vec<SessionInfo>, CommandError> {
+        let store = match &self.session_store {
+            Some(s) => s.clone(),
+            None => return Ok(Vec::new()),
+        };
+        let records = store.load_sessions().await?;
+        let mut restored = Vec::with_capacity(records.len());
+        for record in records {
+            // 重建 AgentLoop（provider 用默认占位，前端按需 set_provider_config）
+            let (agent, sub_agent_manager) =
+                self.new_agent(&record.id, Some(record.system_prompt), None).await;
+            // 恢复消息历史（含 system 首条）
+            let messages = store.load_messages(&record.id).await?;
+            agent
+                .restore_state(AgentState {
+                    messages,
+                    current_iteration: 0,
+                    aborted: false,
+                    paused: false,
+                })
+                .await;
+            // 注册回服务
+            self.sessions.lock().await.insert(record.id.clone(), agent);
+            self.subagent_managers
+                .lock()
+                .await
+                .insert(record.id.clone(), sub_agent_manager);
+            let info = SessionInfo {
+                id: record.id.clone(),
+                created_at: record.created_at,
+                message_count: record.message_count,
+            };
+            self.meta.lock().await.insert(record.id.clone(), info.clone());
+            restored.push(info);
+        }
+        restored.sort_by_key(|s| s.created_at);
+        Ok(restored)
+    }
+
     /// 删除会话
+    ///
+    /// 同时从持久化存储删除（消息级联清除），并清理该会话的孤儿记忆。
     pub async fn delete_session(&self, session_id: &str) -> Result<(), CommandError> {
         let mut sessions = self.sessions.lock().await;
         let mut meta = self.meta.lock().await;
         self.subagent_managers.lock().await.remove(session_id);
         sessions.remove(session_id);
         meta.remove(session_id);
+        drop(sessions);
+        drop(meta);
+        // 持久化删除（消息级联）
+        if let Some(store) = &self.session_store {
+            if let Err(e) = store.delete_session(session_id).await {
+                tracing::warn!("删除持久化会话失败: {e}");
+            }
+        }
+        // 孤儿记忆清理：删除会话同时删除该会话在记忆库中的记录
+        if let Ok(Some(memory)) = self.get_memory_before_drop(session_id).await {
+            if let Err(e) = memory.delete_by_session_id(session_id).await {
+                tracing::warn!("清理会话 {session_id} 孤儿记忆失败: {e}");
+            }
+        }
         Ok(())
+    }
+
+    /// 删除会话前的记忆访问器获取（会话仍存在时取到，供级联清理）
+    ///
+    /// 与 [`Self::get_memory`] 的区别：`get_memory` 走 `get_agent`（会话必须存在），
+    /// 而 `delete_session` 内部已移除内存会话，故需在移除前独立取一次访问器。
+    async fn get_memory_before_drop(&self, session_id: &str) -> Result<Option<Arc<dyn MemoryAccessor>>, CommandError> {
+        let agent = {
+            let sessions = self.sessions.lock().await;
+            sessions.get(session_id).cloned()
+        };
+        Ok(agent.map(|a| a.memory()).flatten())
     }
 
     // ── 会话级记忆（阶段 4：前端 ArchivePanel 迁移后端）────────────────
@@ -512,6 +616,8 @@ impl AgentCommandService {
         if let Some(meta) = self.meta.lock().await.get_mut(&params.session_id) {
             meta.message_count = count;
         }
+        // 写穿消息快照到持久化存储
+        self.persist_messages(&params.session_id).await;
         Ok(SendMessageResult {
             session_id: params.session_id,
             reply,
@@ -539,6 +645,8 @@ impl AgentCommandService {
         if let Some(meta) = self.meta.lock().await.get_mut(session_id) {
             meta.message_count = 0;
         }
+        // 写穿清空后的空消息快照
+        self.persist_messages(session_id).await;
         Ok(())
     }
 
@@ -553,7 +661,24 @@ impl AgentCommandService {
         if let Some(meta) = self.meta.lock().await.get_mut(session_id) {
             meta.message_count = count;
         }
+        // 写穿压缩后的消息快照
+        self.persist_messages(session_id).await;
         Ok(())
+    }
+
+    /// 写穿某会话当前消息快照到持久化存储（弱提示：失败仅记日志不阻断）
+    async fn persist_messages(&self, session_id: &str) {
+        let Some(store) = &self.session_store else {
+            return;
+        };
+        let agent = match self.sessions.lock().await.get(session_id).cloned() {
+            Some(a) => a,
+            None => return,
+        };
+        let messages = agent.get_messages().await;
+        if let Err(e) = store.replace_messages(session_id, &messages).await {
+            tracing::warn!("持久化会话 {session_id} 消息失败: {e}");
+        }
     }
 
     // ── 子 Agent 编排 ────────────────────────────────────
