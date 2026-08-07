@@ -1,0 +1,44 @@
+{
+  "checks": [
+    {
+      "name": "head-exists",
+      "pass": true,
+      "detail": "mp-head 存在"
+    },
+    {
+      "name": "old-bar-removed",
+      "pass": true,
+      "detail": "旧 .mp-bar 已移除: False"
+    },
+    {
+      "name": "boundary-in-head",
+      "pass": true,
+      "detail": "边界并入头部: 边界 0"
+    },
+    {
+      "name": "boundary-val",
+      "pass": true,
+      "detail": "边界值 accent 强调: 0"
+    },
+    {
+      "name": "refresh-in-head",
+      "pass": true,
+      "detail": "刷新按钮并入头部"
+    },
+    {
+      "name": "single-header-line",
+      "pass": true,
+      "detail": "头部仅一条下边框: 1px"
+    },
+    {
+      "name": "console-errors",
+      "pass": true,
+      "detail": "pageerror: 无"
+    },
+    {
+      "name": "screenshots",
+      "pass": true,
+      "detail": "b105-memory-light/dark.png"
+    }
+  ]
+}

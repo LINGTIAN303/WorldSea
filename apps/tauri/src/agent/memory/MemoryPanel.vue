@@ -178,6 +178,8 @@ onBeforeUnmount(() => {
         <span v-if="memoryList.length" class="mp-count">{{ memoryList.length }}</span>
       </div>
       <div class="mp-actions">
+        <!-- 归档边界并入头部（批次105 双横条合并）：弱信息，值以 accent 强调 -->
+        <span class="mp-boundary" title="归档边界索引（缓冲轮次阈值）">边界 <span class="mp-boundary-val">{{ archiveBoundary }}</span></span>
         <div class="mp-search-wrap">
           <TuiIcon name="search" :size="13" class="mp-search-icon" />
           <input
@@ -197,6 +199,7 @@ onBeforeUnmount(() => {
             <TuiIcon name="close" :size="11" />
           </button>
         </div>
+        <TuiButton class="mp-refresh-btn" variant="ghost" size="sm" @click="refreshList">刷新</TuiButton>
         <TuiButton variant="primary" size="sm" :loading="isArchiving" :disabled="!sessionId" title="手动归档（消费缓冲轮次）" @click="onArchive">
           归档
         </TuiButton>
@@ -212,12 +215,6 @@ onBeforeUnmount(() => {
     <!-- 列表/详情视图切换：淡入过渡（批次90 8.5），避免内容区瞬换；单根容器满足 Transition 约束 -->
     <Transition name="fade" mode="out-in">
       <div v-if="view === 'list'" key="list" class="mp-view">
-        <div class="mp-bar">
-          <span>归档边界</span>
-          <span class="mp-boundary">{{ archiveBoundary }}</span>
-          <TuiButton class="mp-refresh-btn" variant="ghost" size="sm" @click="refreshList">刷新</TuiButton>
-        </div>
-
         <TuiEmpty v-if="isListLoading" icon="memory" title="加载中…" fill>
           <span class="mp-loading-dot" aria-hidden="true" />
         </TuiEmpty>
@@ -413,21 +410,15 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
 }
-.mp-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  border-bottom: 1px solid var(--border);
-  font-size: var(--fs-sm);
-  color: var(--text-secondary);
-}
+/* 归档边界（并入头部，批次105 双横条合并）：标签弱信息 + 值 accent 强调 */
 .mp-boundary {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.mp-boundary-val {
   font-weight: 600;
   color: var(--accent);
-}
-.mp-refresh-btn {
-  margin-left: auto;
 }
 .mp-list {
   list-style: none;
