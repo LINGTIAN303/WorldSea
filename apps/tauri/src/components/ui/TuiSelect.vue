@@ -60,6 +60,8 @@ function pick(opt: TuiSelectOption) {
   emit('update:modelValue', opt.value)
   open.value = false
   activeIdx.value = -1
+  // 回焦触发按钮：鼠标点击选中的 li 会随 v-if 移除导致焦点落入 body（批次90 5.4）
+  ;(rootEl.value?.querySelector('.tui-select__trigger') as HTMLElement)?.focus()
 }
 
 function onDocClick(e: MouseEvent) {
@@ -70,6 +72,12 @@ function onDocClick(e: MouseEvent) {
 
 function onKeydown(e: KeyboardEvent) {
   if (!open.value) return
+  // Tab：关闭菜单并放行默认 Tab（焦点离开下拉，避免残留菜单）（批次90 1.2）
+  if (e.key === 'Tab') {
+    open.value = false
+    activeIdx.value = -1
+    return
+  }
   // Esc：关闭并回焦触发按钮（键盘可达）
   if (e.key === 'Escape') {
     open.value = false
@@ -171,6 +179,10 @@ watch(
 }
 .tui-select__trigger:hover:not(:disabled) {
   border-color: var(--accent);
+}
+/* 按压反馈：触发钮微沉（批次89） */
+.tui-select__trigger:active:not(:disabled) {
+  transform: scale(var(--press-scale));
 }
 .tui-select.is-open .tui-select__trigger {
   border-color: var(--accent);

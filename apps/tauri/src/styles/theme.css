@@ -66,6 +66,7 @@
   --icon-btn-md: 24px;        /* icon-only 按钮：标准操作（复制/删除/折叠等）；输入框内清空为 20px 既定弱化语言（不入档） */
   --dot-sm: 6px;              /* 状态圆点：行内紧凑（标签/阶段行内） */
   --dot-md: 8px;              /* 状态圆点：独立/强调（思考中/状态条/标题装饰） */
+  --empty-icon: #c7cad3;      /* 空态徽标图标色：浅色下用灰调（bg-muted 上仍可辨，批次87 #14 修复）；深色下覆盖为 accent 弱化 */
   --input-sm-h: 30px;         /* 紧凑输入框高度（搜索/检索/新建会话名三档统一基准）；与按钮 sm 28px 相邻为 2px 输入略高的既定双基准，不强行拉平 */
   --chat-gutter: 24px;        /* 对话主区横轴间距（header/状态条/子代理条/消息/输入栏统一） */
   --disabled-opacity: 0.5;    /* 禁用态统一透明度（按钮/分段器/发送钮） */
@@ -78,6 +79,7 @@
   --dur-base: 0.22s;
   --dur-lg: 0.32s;            /* 弹窗 / 视图切换等大动效 */
   --dur-pulse: 1.2s;          /* 呼吸动画周期（pulse 共享 keyframe） */
+  --press-scale: 0.96;        /* 按压反馈统一缩放（TuiButton/send-btn/icon-only 按钮） */
 
   /* ── 焦点可见性（键盘可达性）── */
   --ring-color: rgba(79, 70, 229, 0.35);
@@ -90,7 +92,7 @@
   --z-toast: 2000;
 
   /* ── 遮罩 / 玻璃 ── */
-  --overlay: rgba(15, 23, 42, 0.38);
+  --overlay: rgba(15, 23, 42, 0.45);
   --overlay-blur: 4px;        /* 弹窗遮罩背景模糊（营造纵深） */
   --glass-bg: rgba(255, 255, 255, 0.82);
 
@@ -140,6 +142,7 @@
   --accent-soft-border: rgba(99, 102, 241, 0.35);
   --accent-grad-to: #a78bfa;  /* 深色下渐变末端提亮（随 accent 提亮原则） */
   --on-accent: #17171b;       /* 深色下 accent/danger 提亮为浅色，白字对比度不足（约3:1）→ 换深字（对比度>7:1） */
+  --empty-icon: rgba(139, 135, 248, 0.4); /* 空态徽标图标色：深色下维持 accent 弱化观感（随 accent 提亮原则） */
 
   --success: #34d399;
   --success-soft: rgba(16, 185, 129, 0.15);

@@ -36,6 +36,7 @@ function toolState(status?: string): string {
       tabindex="0"
       title="执行过程（Agent 阶段轨迹）"
       :aria-expanded="!collapsed"
+      aria-controls="phase-list"
       @click="collapsed = !collapsed"
       @keydown.enter="collapsed = !collapsed"
       @keydown.space.prevent="collapsed = !collapsed"
@@ -51,26 +52,29 @@ function toolState(status?: string): string {
         <TuiIcon :name="collapsed ? 'chevronRight' : 'chevronDown'" :size="13" />
       </span>
     </div>
-    <!-- 阶段列表：TransitionGroup 提供阶段增删/状态切换时的平滑过渡 -->
-    <TransitionGroup v-show="!collapsed" name="phase" tag="div" class="phase-list">
-      <div
-        v-for="seg in phases"
-        :key="seg.id"
-        class="phase-item"
-        :class="{ active: seg.status === 'active', done: seg.status === 'done' }"
-      >
-        <span class="phase-dot" :class="{ live: seg.status === 'active' }" />
-        <span class="phase-label">{{ seg.label }}</span>
-        <span class="phase-tools">
-          <span v-for="t in seg.tools" :key="t.id" class="tool-chip" :class="toolState(t.status)">
-            <TuiIcon name="wrench" :size="10" />
-            {{ t.name }}
+    <!-- 阶段列表：外层 Transition 负责折叠过渡（v-show 在 TransitionGroup 上不生效，批次89 4.1 修复），
+         内层 TransitionGroup 负责阶段增删/状态切换平滑过渡 -->
+    <Transition name="phase-wrap">
+      <TransitionGroup v-if="!collapsed" name="phase" tag="div" id="phase-list" class="phase-list">
+        <div
+          v-for="seg in phases"
+          :key="seg.id"
+          class="phase-item"
+          :class="{ active: seg.status === 'active', done: seg.status === 'done' }"
+        >
+          <span class="phase-dot" :class="{ live: seg.status === 'active' }" />
+          <span class="phase-label">{{ seg.label }}</span>
+          <span class="phase-tools">
+            <span v-for="t in seg.tools" :key="t.id" class="tool-chip" :class="toolState(t.status)">
+              <TuiIcon name="wrench" :size="10" />
+              {{ t.name }}
+            </span>
           </span>
-        </span>
-        <span v-if="seg.status === 'active'" class="phase-tag">进行中</span>
-        <span v-else class="phase-tag done">完成</span>
-      </div>
-    </TransitionGroup>
+          <span v-if="seg.status === 'active'" class="phase-tag">进行中</span>
+          <span v-else class="phase-tag done">完成</span>
+        </div>
+      </TransitionGroup>
+    </Transition>
   </div>
 </template>
 
@@ -138,6 +142,9 @@ function toolState(status?: string): string {
   border-radius: var(--radius-sm);
   background: var(--bg-muted);
   border: 1px solid transparent;
+  /* 状态切换（active→done）平滑过渡（批次89 8.4） */
+  transition: opacity var(--dur-base) var(--ease), background var(--dur-base) var(--ease),
+    border-color var(--dur-base) var(--ease);
 }
 /* 已完成阶段整体弱化：让进行中阶段成为视觉焦点（弱提示原则） */
 .phase-item.done {
@@ -199,6 +206,20 @@ function toolState(status?: string): string {
 }
 .phase-tag.done {
   color: var(--text-muted);
+}
+
+/* 折叠过渡：与 SubAgentSection 折叠同一运动语言（批次89 4.1） */
+.phase-wrap-enter-active,
+.phase-wrap-leave-active {
+  transition: opacity var(--dur-base) var(--ease-out), transform var(--dur-base) var(--ease-out);
+}
+.phase-wrap-enter-from {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+.phase-wrap-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
 }
 
 /* 阶段列表过渡：新阶段淡入上滑、移除/重排平滑 */

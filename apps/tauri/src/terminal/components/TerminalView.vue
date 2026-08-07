@@ -232,7 +232,7 @@ onMounted(async () => {
       </div>
 
       <Transition name="fade">
-        <div v-if="error" class="error">
+        <div v-if="error" class="error" role="alert">
           <TuiIcon name="warning" :size="14" />
           <span>{{ error }}</span>
           <button class="error-dismiss" title="关闭" aria-label="关闭" @click="error = ''">
@@ -254,8 +254,8 @@ onMounted(async () => {
           @keydown.up.prevent="onHistory(1)"
           @keydown.down.prevent="onHistory(-1)"
         />
-        <TuiButton variant="primary" :disabled="running || !input.trim()" @click="run">
-          {{ running ? '执行中…' : '执行' }}
+        <TuiButton variant="primary" :loading="running" :disabled="!input.trim()" @click="run">
+          执行
         </TuiButton>
       </footer>
     </div>
@@ -341,11 +341,41 @@ onMounted(async () => {
   user-select: none;
 }
 .toggle input {
+  /* 自定义 checkbox：appearance:none 自绘，保证 WebView2 下勾选态稳定可见（批次88 #15 修复原生 accent-color 对勾渲染不可靠） */
+  appearance: none;
+  -webkit-appearance: none;
   margin: 0;
   cursor: pointer;
-  accent-color: var(--accent);
   width: 14px;
   height: 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+  flex-shrink: 0;
+}
+.toggle input:hover {
+  border-color: var(--accent);
+}
+.toggle input:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+/* 按压反馈：checkbox 按下微沉（批次89） */
+.toggle input:active:not(:checked) {
+  border-color: var(--accent);
+}
+/* 对勾：用遮罩构造（无字体依赖），与 --on-accent 呼应 */
+.toggle input:checked::after {
+  content: '';
+  width: 8px;
+  height: 4px;
+  border-left: 2px solid var(--on-accent);
+  border-bottom: 2px solid var(--on-accent);
+  transform: rotate(-45deg) translate(0.5px, -0.5px);
 }
 .shells {
   display: flex;
@@ -496,19 +526,20 @@ onMounted(async () => {
   font-family: var(--font-mono);
 }
 
-/* 会话面板 */
+/* 会话面板：flex 纵向布局——header/create 固定（flex-shrink:0），仅列表区独立滚动，
+   消除 sticky header 覆盖滚动首行的问题（批次87 #4） */
 .session-panel {
   width: 280px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   border-left: 1px solid var(--border);
   padding: 0 12px 12px;
-  overflow-y: auto;
+  overflow: hidden;
   font-family: var(--font-sans);
 }
-/* 面板 header：吸顶横条，与左侧 .bar / 其他面板 header 同一视觉语言（surface 底 + 12px + 下边框） */
+/* 面板 header：固定横条（不再 sticky，面板已 flex 分区），与左侧 .bar / 其他面板 header 同一视觉语言 */
 .panel-header {
-  position: sticky;
-  top: 0;
-  z-index: var(--z-sticky);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -516,6 +547,7 @@ onMounted(async () => {
   margin: 0 -12px 10px;
   background: var(--bg-surface);
   border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
 }
 .panel-header h3 {
   font-size: var(--fs-base);
@@ -537,6 +569,7 @@ onMounted(async () => {
   gap: 6px;
   margin-bottom: 12px;
   align-items: stretch;
+  flex-shrink: 0;
 }
 .create input {
   height: var(--input-sm-h);
@@ -556,12 +589,18 @@ onMounted(async () => {
   align-self: flex-end;
 }
 .panel-empty {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   color: var(--text-muted);
   font-size: var(--fs-sm);
   text-align: center;
   padding: 16px 0;
 }
 .session-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   list-style: none;
   padding: 0;
   margin: 0;
@@ -640,5 +679,9 @@ onMounted(async () => {
 .destroy:hover {
   color: var(--danger);
   background: var(--danger-soft);
+}
+/* 按压反馈（批次89） */
+.destroy:active {
+  transform: scale(var(--press-scale));
 }
 </style>

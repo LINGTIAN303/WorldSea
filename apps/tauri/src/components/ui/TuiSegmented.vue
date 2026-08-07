@@ -109,6 +109,10 @@ function onKeydown(e: KeyboardEvent) {
 .tui-seg__item:hover:not(:disabled):not(.is-active) {
   color: var(--text-primary);
 }
+/* 按压反馈：非选中项按下微沉（批次89） */
+.tui-seg__item:active:not(:disabled):not(.is-active) {
+  transform: scale(var(--press-scale));
+}
 .tui-seg__item.is-active {
   background: var(--bg-surface);
   color: var(--text-primary);

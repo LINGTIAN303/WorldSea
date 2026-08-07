@@ -1,0 +1,118 @@
+{
+  "checks": [
+    {
+      "name": "composer-hint2-vs-actions-overlap",
+      "theme": "light",
+      "view": "chat",
+      "pass": true,
+      "detail": "hintCount=2 overlapArea=0px² hint2Bottom=731.8 actionsTop=737"
+    },
+    {
+      "name": "header-buttons-probe",
+      "theme": "light",
+      "view": "chat",
+      "pass": true,
+      "detail": "[{\"text\": \"模型\", \"disabled\": false, \"ariaDisabled\": null, \"color\": \"rgb(107, 114, 128)\", \"bg\": \"rgb(255, 255, 255)\", \"border\": \"1px solid\", \"opacity\": \"1\", \"cls\": \"tui-btn is-secondary is-sm act-model\"}, {\"text\": \"关闭\", \"disabled\": false, \"ariaDisabled\": null, \"color\": \"rgb(31, 35, 40)\", \"bg\": \"rgb(255, 255, 255)\", \"border\": \"1px solid\", \"opacity\": \"1\", \"cls\": \"tui-select__trigger\"}, {\"text\": \"清空\", \"disabled\": true, \"ariaDisabled\": null, \"color\": \"rgb(107, 114, 128)\", \"bg\": \"rgb(255, 255, 255)\", \"border\": \"1px solid\", \"opacity\": \"0.5\", \"cls\": \"tui-btn is-secondary is-sm\"}, {\"text\": \"压缩\", \"disabled\": true, \"ariaDisabled\": null, \"color\": \"rgb(107, 114, 128)\", \"bg\": \"rgb(255, 255, 255)\", \"border\": \"1px solid\", \"opacity\": \"0.5\", \"cls\": \"tui-btn is-secondary is-sm\"}]"
+    },
+    {
+      "name": "rail-label-no-wrap",
+      "theme": "light",
+      "view": "chat",
+      "pass": true,
+      "detail": "[{\"text\": \"对话\", \"h\": 11, \"lh\": 11}, {\"text\": \"终端\", \"h\": 11, \"lh\": 11}, {\"text\": \"子Agent\", \"h\": 11, \"lh\": 11}, {\"text\": \"记忆\", \"h\": 11, \"lh\": 11}]"
+    },
+    {
+      "name": "empty-icon-color",
+      "theme": "light",
+      "view": "chat",
+      "pass": true,
+      "detail": "{\"color\": \"rgb(224, 231, 255)\", \"fill\": \"none\", \"stroke\": \"rgb(224, 231, 255)\", \"opacity\": \"1\", \"cls\": \"tui-empty-mark\"}"
+    },
+    {
+      "name": "textarea-selection-style",
+      "theme": "light",
+      "view": "chat",
+      "pass": true,
+      "detail": "{\"selectionBg\": \"rgb(238, 242, 255)\", \"selectionColor\": \"rgb(31, 35, 40)\"}"
+    },
+    {
+      "name": "terminal-state",
+      "theme": "light",
+      "view": "terminal",
+      "pass": true,
+      "detail": "{\"hasEmpty\": true, \"metaRows\": 0, \"errBar\": null, \"bodyText\": \"终端 单次命令执行全部输出 刷新会话 等待命令输入命令并回车执行，输出将显示在这里Cannot read properties of undefined (reading 'invoke')执行持久化会话新建会话暂无会话在上方新建持久化会话\"}"
+    },
+    {
+      "name": "subagent-state",
+      "theme": "light",
+      "view": "subagent",
+      "pass": true,
+      "detail": "{\"clearBtn\": {\"disabled\": true, \"color\": \"rgb(220, 38, 38)\", \"opacity\": \"0.5\", \"cls\": \"tui-btn is-danger-ghost is-sm\"}, \"tagCount\": 0, \"tagStyles\": []}"
+    },
+    {
+      "name": "memory-state",
+      "theme": "light",
+      "view": "memory",
+      "pass": true,
+      "detail": "{\"searchH\": 30, \"searchRadius\": \"6px\", \"buttons\": [{\"text\": \"\", \"h\": 0, \"disabled\": false, \"opacity\": \"1\"}, {\"text\": \"归档\", \"h\": 28, \"disabled\": true, \"opacity\": \"0.5\"}]}"
+    },
+    {
+      "name": "composer-hint2-vs-actions-overlap",
+      "theme": "dark",
+      "view": "chat",
+      "pass": true,
+      "detail": "hintCount=2 overlapArea=0px² hint2Bottom=731.8 actionsTop=737"
+    },
+    {
+      "name": "header-buttons-probe",
+      "theme": "dark",
+      "view": "chat",
+      "pass": true,
+      "detail": "[{\"text\": \"模型\", \"disabled\": false, \"ariaDisabled\": null, \"color\": \"rgb(161, 161, 170)\", \"bg\": \"rgb(24, 24, 27)\", \"border\": \"1px solid\", \"opacity\": \"1\", \"cls\": \"tui-btn is-secondary is-sm act-model\"}, {\"text\": \"关闭\", \"disabled\": false, \"ariaDisabled\": null, \"color\": \"rgb(231, 231, 234)\", \"bg\": \"rgb(24, 24, 27)\", \"border\": \"1px solid\", \"opacity\": \"1\", \"cls\": \"tui-select__trigger\"}, {\"text\": \"清空\", \"disabled\": true, \"ariaDisabled\": null, \"color\": \"rgb(161, 161, 170)\", \"bg\": \"rgb(24, 24, 27)\", \"border\": \"1px solid\", \"opacity\": \"0.5\", \"cls\": \"tui-btn is-secondary is-sm\"}, {\"text\": \"压缩\", \"disabled\": true, \"ariaDisabled\": null, \"color\": \"rgb(161, 161, 170)\", \"bg\": \"rgb(24, 24, 27)\", \"border\": \"1px solid\", \"opacity\": \"0.5\", \"cls\": \"tui-btn is-secondary is-sm\"}]"
+    },
+    {
+      "name": "rail-label-no-wrap",
+      "theme": "dark",
+      "view": "chat",
+      "pass": true,
+      "detail": "[{\"text\": \"对话\", \"h\": 11, \"lh\": 11}, {\"text\": \"终端\", \"h\": 11, \"lh\": 11}, {\"text\": \"子Agent\", \"h\": 11, \"lh\": 11}, {\"text\": \"记忆\", \"h\": 11, \"lh\": 11}]"
+    },
+    {
+      "name": "empty-icon-color",
+      "theme": "dark",
+      "view": "chat",
+      "pass": true,
+      "detail": "{\"color\": \"rgba(99, 102, 241, 0.35)\", \"fill\": \"none\", \"stroke\": \"rgba(99, 102, 241, 0.35)\", \"opacity\": \"1\", \"cls\": \"tui-empty-mark\"}"
+    },
+    {
+      "name": "textarea-selection-style",
+      "theme": "dark",
+      "view": "chat",
+      "pass": true,
+      "detail": "{\"selectionBg\": \"rgba(99, 102, 241, 0.18)\", \"selectionColor\": \"rgb(231, 231, 234)\"}"
+    },
+    {
+      "name": "terminal-state",
+      "theme": "dark",
+      "view": "terminal",
+      "pass": true,
+      "detail": "{\"hasEmpty\": true, \"metaRows\": 0, \"errBar\": null, \"bodyText\": \"终端 单次命令执行全部输出 刷新会话 等待命令输入命令并回车执行，输出将显示在这里Cannot read properties of undefined (reading 'invoke')执行持久化会话新建会话暂无会话在上方新建持久化会话\"}"
+    },
+    {
+      "name": "subagent-state",
+      "theme": "dark",
+      "view": "subagent",
+      "pass": true,
+      "detail": "{\"clearBtn\": {\"disabled\": true, \"color\": \"rgb(248, 113, 113)\", \"opacity\": \"0.5\", \"cls\": \"tui-btn is-danger-ghost is-sm\"}, \"tagCount\": 0, \"tagStyles\": []}"
+    },
+    {
+      "name": "memory-state",
+      "theme": "dark",
+      "view": "memory",
+      "pass": true,
+      "detail": "{\"searchH\": 30, \"searchRadius\": \"6px\", \"buttons\": [{\"text\": \"\", \"h\": 0, \"disabled\": false, \"opacity\": \"1\"}, {\"text\": \"归档\", \"h\": 28, \"disabled\": true, \"opacity\": \"0.5\"}]}"
+    }
+  ],
+  "console_errors": [],
+  "notes": []
+}

@@ -26,7 +26,7 @@ const emit = defineEmits<{
   (e: 'click', ev: MouseEvent): void
 }>()
 
-const cls = computed(() => [`is-${props.variant}`, `is-${props.size}`])
+const cls = computed(() => [`is-${props.variant}`, `is-${props.size}`, { 'is-loading': props.loading }])
 </script>
 
 <template>
@@ -68,11 +68,16 @@ const cls = computed(() => [`is-${props.variant}`, `is-${props.size}`])
   padding: 0 14px;
 }
 .tui-btn:active:not(:disabled) {
-  transform: scale(0.97);
+  transform: scale(var(--press-scale));
 }
 .tui-btn:disabled {
   opacity: var(--disabled-opacity);
   cursor: not-allowed;
+}
+/* loading 态：忙碌而非禁用——不降透明度、progress 光标，spinner 已传达进行中（批次89 8.3 语义修正） */
+.tui-btn.is-loading:disabled {
+  opacity: 1;
+  cursor: progress;
 }
 .tui-btn__spin {
   animation: tui-btn-spin 1s linear infinite;

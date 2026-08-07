@@ -1,0 +1,52 @@
+{
+  "checks": [
+    {
+      "name": "empty-icon-color",
+      "theme": "light",
+      "pass": true,
+      "detail": "{\"color\": \"rgb(199, 202, 211)\", \"stroke\": \"rgb(199, 202, 211)\", \"bg\": \"rgb(244, 244, 245)\", \"cls\": \"tui-empty-mark\"}"
+    },
+    {
+      "name": "terminal-panel-flex",
+      "theme": "light",
+      "pass": true,
+      "detail": "{\"panel\": {\"pos\": \"static\", \"overflowY\": \"hidden\", \"flex\": \"0 1 auto\", \"top\": \"auto\"}, \"head\": {\"pos\": \"static\", \"overflowY\": \"visible\", \"flex\": \"0 0 auto\", \"top\": \"auto\"}, \"create\": {\"pos\": \"static\", \"overflowY\": \"visible\", \"flex\": \"0 0 auto\", \"top\": \"auto\"}, \"list\": {\"pos\": \"static\", \"overflowY\": \"auto\", \"flex\": \"1 1 0%\", \"top\": \"auto\"}}"
+    },
+    {
+      "name": "submit-row-sticky",
+      "theme": "light",
+      "pass": true,
+      "detail": "{\"pos\": \"sticky\", \"bottom\": \"-16px\", \"bg\": \"rgb(250, 250, 249)\", \"border\": \"1px\"}"
+    },
+    {
+      "name": "overlay-token",
+      "theme": "light",
+      "pass": true,
+      "detail": "--overlay=rgba(15, 23, 42, 0.45)"
+    },
+    {
+      "name": "empty-icon-color",
+      "theme": "dark",
+      "pass": true,
+      "detail": "{\"color\": \"rgba(139, 135, 248, 0.4)\", \"stroke\": \"rgba(139, 135, 248, 0.4)\", \"bg\": \"rgb(32, 32, 36)\", \"cls\": \"tui-empty-mark\"}"
+    },
+    {
+      "name": "terminal-panel-flex",
+      "theme": "dark",
+      "pass": true,
+      "detail": "{\"panel\": {\"pos\": \"static\", \"overflowY\": \"hidden\", \"flex\": \"0 1 auto\", \"top\": \"auto\"}, \"head\": {\"pos\": \"static\", \"overflowY\": \"visible\", \"flex\": \"0 0 auto\", \"top\": \"auto\"}, \"create\": {\"pos\": \"static\", \"overflowY\": \"visible\", \"flex\": \"0 0 auto\", \"top\": \"auto\"}, \"list\": {\"pos\": \"static\", \"overflowY\": \"auto\", \"flex\": \"1 1 0%\", \"top\": \"auto\"}}"
+    },
+    {
+      "name": "submit-row-sticky",
+      "theme": "dark",
+      "pass": true,
+      "detail": "{\"pos\": \"sticky\", \"bottom\": \"-16px\", \"bg\": \"rgb(17, 17, 19)\", \"border\": \"1px\"}"
+    },
+    {
+      "name": "overlay-token",
+      "theme": "dark",
+      "pass": true,
+      "detail": "--overlay=rgba(0, 0, 0, 0.55)"
+    }
+  ]
+}

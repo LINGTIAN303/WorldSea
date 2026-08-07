@@ -280,6 +280,8 @@ function loadTemplate(t: SubAgentTemplate) {
   whitelistText.value = whitelistToText(t.spec.tools_whitelist)
   formError.value = ''
   tplOpen.value = false
+  // 回焦触发按钮：菜单项 v-if 移除后焦点落入 body（批次90 5.3）
+  tplWrapRef.value?.querySelector<HTMLElement>('.tui-btn')?.focus()
 }
 
 /** 是否有当前活动会话（无则实例管理区提示先创建会话） */
@@ -460,7 +462,7 @@ onMounted(async () => {
                 :id="`tpl-opt-${i}`"
                 tabindex="-1"
                 role="option"
-                :aria-selected="i === tplActive"
+                :aria-selected="editingId === t.spec.id"
                 :class="{ 'is-focus': i === tplActive }"
                 @click="loadTemplate(t)"
                 @mouseenter="tplActive = i"
@@ -516,8 +518,8 @@ onMounted(async () => {
       </Transition>
 
       <div class="submit-row">
-        <TuiButton variant="primary" :disabled="subBusy" @click="submit">
-          {{ subBusy ? '提交中…' : editingId ? '保存修改' : '新增规格' }}
+        <TuiButton variant="primary" :loading="subBusy" @click="submit">
+          {{ editingId ? '保存修改' : '新增规格' }}
         </TuiButton>
       </div>
     </section>
@@ -542,8 +544,8 @@ onMounted(async () => {
 
       <template #footer>
         <TuiButton v-if="ioMode === 'export'" variant="secondary" @click="copyJson">复制</TuiButton>
-        <TuiButton v-if="ioMode === 'import'" variant="primary" :disabled="subBusy" @click="doImport">
-          {{ subBusy ? '导入中…' : '导入' }}
+        <TuiButton v-if="ioMode === 'import'" variant="primary" :loading="subBusy" @click="doImport">
+          导入
         </TuiButton>
         <TuiButton variant="ghost" @click="ioOpen = false">关闭</TuiButton>
       </template>
@@ -677,7 +679,7 @@ onMounted(async () => {
 }
 .hint {
   font-size: var(--fs-xs);
-  color: var(--text-muted);
+  color: var(--text-secondary); /* 批次87 #25：帮助小字升 secondary 提升对比度 */
   margin-top: 6px;
   line-height: var(--lh-base);
 }
@@ -879,6 +881,10 @@ onMounted(async () => {
 .tpl-menu li:hover {
   background: var(--accent-soft);
 }
+/* 按压反馈（批次89） */
+.tpl-menu li:active {
+  transform: scale(var(--press-scale));
+}
 /* 键盘导航高亮：与 TuiSelect is-focus 同一语言（bg-active 底 + 主文字色） */
 .tpl-menu li.is-focus {
   background: var(--bg-active);
@@ -944,10 +950,17 @@ onMounted(async () => {
   border-radius: var(--radius-sm);
   margin-bottom: 12px;
 }
+/* 底部操作行：sticky 吸底——表单内容多或错误条出现导致滚动时，主按钮始终可见（批次87 #5） */
 .submit-row {
+  position: sticky;
+  bottom: -16px; /* 抵消 .form 底部 padding，让按钮行贴底 */
   display: flex;
   justify-content: flex-end;
-  margin-top: 8px;
+  margin: 8px -20px -16px;
+  padding: 10px 20px 16px;
+  background: var(--bg-app);
+  border-top: 1px solid var(--border);
+  z-index: var(--z-sticky);
 }
 /* 导入导出弹窗内容（弹窗基座由 TuiModal 提供） */
 .io-tip {
@@ -979,7 +992,7 @@ onMounted(async () => {
 .io-text:focus {
   border-color: var(--accent);
 }
-/* 弹窗内提示：统一 box 形态（与 list-msg 同构，批次59） */
+/* 弹窗内提示：统一 box 形态（与 list-msg 同构，批次59）；距 textarea 12px 垂直节奏（批次87 #22） */
 .io-msg {
   font-size: var(--fs-sm);
   color: var(--success);
@@ -987,7 +1000,7 @@ onMounted(async () => {
   border: 1px solid var(--success-soft);
   padding: 8px 12px;
   border-radius: var(--radius-sm);
-  margin: 8px 0 0;
+  margin: 12px 0 0;
 }
 .io-msg.error {
   border-color: var(--danger-soft);

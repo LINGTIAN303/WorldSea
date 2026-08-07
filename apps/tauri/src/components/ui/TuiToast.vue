@@ -113,11 +113,19 @@ const ICONS: Record<string, string> = {
   background: var(--bg-muted);
   color: var(--text-primary);
 }
+/* 按压反馈（批次89） */
+.tui-toast__close:active {
+  transform: scale(var(--press-scale));
+}
 
 /* 过渡：淡入 + 轻微上移 */
 .tui-toast-enter-active,
 .tui-toast-leave-active {
   transition: opacity var(--dur-base) var(--ease), transform var(--dur-base) var(--ease);
+}
+/* 移除/新增时其余 toast 平滑重排（批次90 4.5） */
+.tui-toast-move {
+  transition: transform var(--dur-base) var(--ease);
 }
 .tui-toast-enter-from,
 .tui-toast-leave-to {

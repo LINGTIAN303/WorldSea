@@ -55,8 +55,8 @@ withDefaults(
   height: 56px;
   border-radius: var(--radius-lg);
   background: var(--bg-muted);
-  /* 图标弱化色：刻意用 accent-soft-border（非 text-muted），保持徽标块内 accent 系弱化观感 */
-  color: var(--accent-soft-border);
+  /* 图标弱化色：浅色灰调可辨（--empty-icon #c7cad3），深色 accent 弱化（批次87 #14：修复浅色近隐形） */
+  color: var(--empty-icon);
   margin-bottom: 14px;
 }
 .tui-empty.compact {

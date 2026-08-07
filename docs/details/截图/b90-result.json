@@ -1,0 +1,39 @@
+{
+  "checks": [
+    {
+      "name": "press-feedback-rules",
+      "pass": true,
+      "detail": "[{\"sel\": \".tui-btn[data-v-ca0b1488]:active:not(:disabled)\", \"css\": \"transform: scale(var(--press-scale));\"}, {\"sel\": \".rail-item[data-v-7a7a37b1]:active:not(:disabled)\", \"css\": \"transform: scale(var(--press-scale));\"}, {\"sel\": \".send-btn[data-v-7a7a37b1]:active:not(:disabled), .stop-btn[data-v-7a7a37b1]:active\", \"css\": \"transform: scale(var(--press-scale));\"}]"
+    },
+    {
+      "name": "tui-btn-loading-style",
+      "pass": true,
+      "detail": "{\"sel\": \".tui-btn.is-loading[data-v-ca0b1488]:disabled\", \"css\": \"opacity: 1; cursor: progress;\"}"
+    },
+    {
+      "name": "modal-unique-id-focus",
+      "pass": true,
+      "detail": "{\"labelledby\": \"tui-modal-title-1\", \"titleId\": \"tui-modal-title-1\", \"focused\": \"BUTTON\"}"
+    },
+    {
+      "name": "hotkey-blocked-when-modal",
+      "pass": true,
+      "detail": "{\"active\": \"\\u5bf9\\u8bdd\\uff08Ctrl+1\\uff09\", \"dialogStillOpen\": true}"
+    },
+    {
+      "name": "select-focus-return",
+      "pass": true,
+      "detail": "activeElement=tui-select__trigger"
+    },
+    {
+      "name": "memory-loading-pulse",
+      "pass": false,
+      "detail": "null"
+    },
+    {
+      "name": "rail-aria-current",
+      "pass": true,
+      "detail": "aria-current=page"
+    }
+  ]
+}

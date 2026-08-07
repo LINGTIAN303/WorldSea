@@ -35,14 +35,26 @@ const panelEl = ref<HTMLElement | null>(null)
 /** 打开弹窗前的焦点元素：关闭后还原，保证键盘/鼠标操作位置不丢失 */
 let returnFocusEl: HTMLElement | null = null
 
+/* ── 多弹窗并发管理（批次90 5.1）──
+   模块级计数器 + 打开栈：每个实例唯一 id；仅栈顶弹窗响应 Esc/Tab，
+   避免一次 Esc 关闭全部弹窗、多个弹窗 aria-labelledby 指向同一标题。 */
+let modalSeq = 0
+const openStack: number[] = []
+const instanceId = ++modalSeq
+const instanceLabelId = `tui-modal-title-${instanceId}`
+
+/** 当前实例是否栈顶（最后打开的弹窗） */
+const isTop = () => openStack[openStack.length - 1] === instanceId
+
 function onKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape' && props.show) {
+  if (!props.show || !isTop()) return
+  if (e.key === 'Escape') {
     e.stopPropagation()
     emit('close')
     return
   }
   // 焦点陷阱：Tab 在弹窗内可聚焦元素间循环，避免焦点逃逸到背景页面
-  if (e.key === 'Tab' && props.show) {
+  if (e.key === 'Tab') {
     const panel = panelEl.value
     if (!panel) return
     const focusables = panel.querySelectorAll<HTMLElement>(
@@ -75,10 +87,22 @@ watch(
       // 记录打开前的焦点元素（若焦点在弹窗内则向上找最近非弹窗元素）
       const ae = document.activeElement
       if (ae && !panelEl.value?.contains(ae)) returnFocusEl = ae as HTMLElement | null
+      // 入栈：本实例成为栈顶
+      if (!openStack.includes(instanceId)) openStack.push(instanceId)
       window.addEventListener('keydown', onKeydown)
-      nextTick(() => panelEl.value?.focus({ preventScroll: true }))
+      // 聚焦首个可交互控件（input/select/button）；无则聚焦面板（批次90 1.3）
+      nextTick(() => {
+        const first =
+          panelEl.value?.querySelector<HTMLElement>(
+            'input, select, textarea, button, [href], [tabindex]:not([tabindex="-1"])',
+          ) ?? panelEl.value
+        first?.focus({ preventScroll: true })
+      })
     } else {
       window.removeEventListener('keydown', onKeydown)
+      // 出栈
+      const i = openStack.indexOf(instanceId)
+      if (i >= 0) openStack.splice(i, 1)
       // 关闭后还原焦点到打开前位置（Esc/遮罩/取消按钮等关闭路径统一还原）
       returnFocusEl?.focus?.({ preventScroll: true })
       returnFocusEl = null
@@ -100,12 +124,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
           :class="`tui-modal--${size}`"
           role="dialog"
           aria-modal="true"
-          :aria-labelledby="title ? 'tui-modal-title' : undefined"
+          :aria-labelledby="title ? instanceLabelId : undefined"
           tabindex="-1"
         >
           <header v-if="$slots.header || title" class="tui-modal__header">
             <slot name="header">
-              <h2 id="tui-modal-title" class="tui-modal__title">{{ title }}</h2>
+              <h2 :id="instanceLabelId" class="tui-modal__title">{{ title }}</h2>
             </slot>
             <button v-if="closable" class="tui-modal__close" aria-label="关闭" @click="emit('close')">
               <TuiIcon name="close" :size="14" />
@@ -190,6 +214,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   background: var(--bg-muted);
   color: var(--text-primary);
 }
+/* 按压反馈（批次89） */
+.tui-modal__close:active {
+  transform: scale(var(--press-scale));
+}
 
 .tui-modal__body {
   padding: 16px 20px;
@@ -208,14 +236,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   flex-shrink: 0;
 }
 
-/* 过渡：遮罩淡入 + 面板轻微上浮缩放 */
+/* 过渡：遮罩淡入 + 面板轻微上浮缩放（大动效用 --dur-lg，批次90 4.2 启用层级令牌） */
 .tui-modal-enter-active,
 .tui-modal-leave-active {
-  transition: opacity var(--dur-base) var(--ease);
+  transition: opacity var(--dur-lg) var(--ease);
 }
 .tui-modal-enter-active .tui-modal,
 .tui-modal-leave-active .tui-modal {
-  transition: transform var(--dur-base) var(--ease-out), opacity var(--dur-base) var(--ease);
+  transition: transform var(--dur-lg) var(--ease-out), opacity var(--dur-lg) var(--ease);
 }
 .tui-modal-enter-from,
 .tui-modal-leave-to {

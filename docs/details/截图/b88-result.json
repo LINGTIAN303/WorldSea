@@ -1,0 +1,28 @@
+{
+  "checks": [
+    {
+      "name": "terminal-checkbox",
+      "theme": "light",
+      "pass": true,
+      "detail": "{\"checked\": true, \"accentColor\": \"rgb(79, 70, 229)\", \"appearance\": \"auto\"}"
+    },
+    {
+      "name": "instance-id-tag",
+      "theme": "light",
+      "pass": true,
+      "detail": "NO_INSTANCE_DATA"
+    },
+    {
+      "name": "terminal-checkbox",
+      "theme": "dark",
+      "pass": true,
+      "detail": "{\"checked\": true, \"accentColor\": \"rgb(139, 135, 248)\", \"appearance\": \"auto\"}"
+    },
+    {
+      "name": "instance-id-tag",
+      "theme": "dark",
+      "pass": true,
+      "detail": "NO_INSTANCE_DATA"
+    }
+  ]
+}

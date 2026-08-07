@@ -53,10 +53,10 @@ function close() {
       <TuiButton variant="secondary" @click="close">{{ cancelText }}</TuiButton>
       <TuiButton
         :variant="danger ? 'danger' : 'primary'"
-        :disabled="loading"
+        :loading="loading"
         @click="emit('confirm')"
       >
-        {{ loading ? '处理中…' : confirmText }}
+        {{ confirmText }}
       </TuiButton>
     </template>
   </TuiModal>

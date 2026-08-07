@@ -365,6 +365,8 @@ async function onNewSession() {
 
 /** 删除会话确认框状态（替代原生 confirm，弱化危险提示） */
 const deleteConfirm = ref<{ show: boolean; id: string | null }>({ show: false, id: null })
+/** 删除进行中：防快速双击重复触发（批次89 8.6） */
+const deleting = ref(false)
 
 /** TuiConfirm update:show 回调（模板内联箭头函数不允许 TS 注解，收敛为方法） */
 function onDeleteConfirmShow(v: boolean) {
@@ -379,7 +381,8 @@ function requestDeleteSession(id: string) {
 /** 确认删除会话：调用 Rust delete_session（若删除当前会话则清空本地状态） */
 async function onDeleteSession() {
   const id = deleteConfirm.value.id
-  if (!id) return
+  if (!id || deleting.value) return
+  deleting.value = true
   try {
     await backend.deleteSession(id)
     toast.info('会话已删除')
@@ -387,6 +390,7 @@ async function onDeleteSession() {
     error.value = `删除会话失败: ${err}`
   } finally {
     deleteConfirm.value = { show: false, id: null }
+    deleting.value = false
   }
 }
 
@@ -469,10 +473,12 @@ onBeforeUnmount(() => {
  * - Ctrl/Cmd+N 新建会话
  * - Ctrl/Cmd+1..4 切换视图
  * - Ctrl/Cmd+K 聚焦输入框
- * 弹窗打开时忽略（避免穿透切换视图）。
+ * 任何弹窗打开时忽略（检测 body 上 open 的 aria-modal dialog，覆盖所有视图内弹窗，批次90 5.2）。
  */
 function onGlobalKeydown(e: KeyboardEvent) {
-  if (showModelSettings.value || deleteConfirm.value.show) return
+  // 弹窗打开时忽略（覆盖模型配置/删除确认/子Agent 导入导出等所有弹窗）
+  const openDialog = document.querySelector('[aria-modal="true"]')
+  if (openDialog) return
   const mod = e.ctrlKey || e.metaKey
   if (!mod) return
   const k = e.key.toLowerCase()
@@ -512,6 +518,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
           class="rail-item"
           :class="{ active: view === item.key }"
           :title="`${item.label}（Ctrl+${i + 1}）`"
+          :aria-current="view === item.key ? 'page' : undefined"
           @click="switchView(item.key)"
         >
           <TuiIcon :name="item.icon" :size="20" />
@@ -744,9 +751,9 @@ function onGlobalKeydown(e: KeyboardEvent) {
           <!-- 子 Agent 委派过程展示 -->
           <SubAgentSection />
 
-          <!-- 错误提示：淡入轻微下滑，关闭时淡出（弱提示不打断） -->
+          <!-- 错误提示：淡入轻微下滑，关闭时淡出（弱提示不打断）；role=alert 播报键盘触发的失败（批次90 7.2） -->
           <Transition name="err-bar">
-            <div v-if="error" class="error-bar">
+            <div v-if="error" class="error-bar" role="alert">
               <TuiIcon name="warning" :size="14" />
               <span>{{ error }}</span>
               <button class="error-dismiss" title="关闭" aria-label="关闭" @click="error = ''">
@@ -847,6 +854,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
     message="删除后该会话的消息与记忆记录将一并清除，确定继续？"
     :danger="true"
     confirm-text="删除"
+    :loading="deleting"
     @confirm="onDeleteSession"
     @cancel="deleteConfirm.show = false"
     @update:show="onDeleteConfirmShow"
@@ -916,6 +924,10 @@ function onGlobalKeydown(e: KeyboardEvent) {
   background: var(--bg-muted);
   color: var(--text-primary);
 }
+/* 按压反馈：icon-only 导航统一下沉（批次89 反馈语言收敛） */
+.rail-item:active:not(:disabled) {
+  transform: scale(var(--press-scale));
+}
 .rail-item.active {
   background: var(--accent-soft);
   color: var(--accent);
@@ -965,10 +977,10 @@ function onGlobalKeydown(e: KeyboardEvent) {
   overflow-y: auto;
 }
 
-/* 视图切换过渡（前进方向）：新视图从右滑入，旧视图向左滑出——沿导航轨道向右的位移感 */
+/* 视图切换过渡（前进方向）：新视图从右滑入，旧视图向左滑出——沿导航轨道向右的位移感（大动效用 --dur-lg，批次90 4.2） */
 .view-fwd-enter-active,
 .view-fwd-leave-active {
-  transition: opacity var(--dur-base) var(--ease), transform var(--dur-base) var(--ease-out);
+  transition: opacity var(--dur-lg) var(--ease), transform var(--dur-lg) var(--ease-out);
 }
 .view-fwd-enter-from {
   opacity: 0;
@@ -979,10 +991,10 @@ function onGlobalKeydown(e: KeyboardEvent) {
   transform: translateX(-10px);
 }
 
-/* 视图切换过渡（后退方向）：新视图从左滑入，旧视图向右滑出——沿导航轨道向左的位移感 */
+/* 视图切换过渡（后退方向）：新视图从左滑入，旧视图向右滑出——沿导航轨道向左的位移感（大动效用 --dur-lg，批次90 4.2） */
 .view-back-enter-active,
 .view-back-leave-active {
-  transition: opacity var(--dur-base) var(--ease), transform var(--dur-base) var(--ease-out);
+  transition: opacity var(--dur-lg) var(--ease), transform var(--dur-lg) var(--ease-out);
 }
 .view-back-enter-from {
   opacity: 0;
@@ -1074,6 +1086,10 @@ function onGlobalKeydown(e: KeyboardEvent) {
   color: var(--accent);
   transform: translateX(-50%) translateY(-1px);
 }
+/* 按压反馈：保留水平居中位移，仅纵向回弹（批次89） */
+.scroll-bottom:active {
+  transform: translateX(-50%) translateY(0px) scale(var(--press-scale));
+}
 /* 日期分隔线：跨天处弱色标记，两侧细线（克制的时间叙事分隔） */
 .date-divider {
   display: flex;
@@ -1096,8 +1112,9 @@ function onGlobalKeydown(e: KeyboardEvent) {
   height: 1px;
   background: var(--border);
 }
-/* 消息流容器（TransitionGroup 渲染容器，占满滚动区宽度） */
+/* 消息流容器（TransitionGroup 渲染容器，占满滚动区宽度；position:relative 使 leave 定位元素按消息流宽度，批次90 6.1） */
 .msg-stream {
+  position: relative;
   display: flex;
   flex-direction: column;
 }
@@ -1223,6 +1240,10 @@ function onGlobalKeydown(e: KeyboardEvent) {
 .msg-copy:hover {
   color: var(--accent);
 }
+/* 按压反馈：与 TuiButton 同一 scale（批次89） */
+.msg-copy:active:not(:disabled) {
+  transform: scale(var(--press-scale));
+}
 .bubble.user {
   position: relative;
   background: var(--accent-soft);
@@ -1303,6 +1324,10 @@ function onGlobalKeydown(e: KeyboardEvent) {
   border-color: var(--accent);
   color: var(--accent);
 }
+/* 按压反馈：chips 微缩（批次89） */
+.chip:active {
+  transform: scale(var(--press-scale));
+}
 
 /* A2UI / 子 Agent 区：与消息/输入栏同宽（860px 居中），宽窗下不被拉长 */
 .a2ui-zone {
@@ -1355,6 +1380,10 @@ function onGlobalKeydown(e: KeyboardEvent) {
 .error-bar .error-dismiss:hover {
   opacity: 1;
   background: var(--danger-soft);
+}
+/* 按压反馈（批次89） */
+.error-bar .error-dismiss:active {
+  transform: scale(var(--press-scale));
 }
 
 /* ── 输入栏（自适应 textarea + 轮转提示）── */
@@ -1416,6 +1445,10 @@ function onGlobalKeydown(e: KeyboardEvent) {
 .input-clear:hover {
   background: var(--border-strong);
   color: var(--text-primary);
+}
+/* 按压反馈（批次89） */
+.input-clear:active {
+  transform: scale(var(--press-scale));
 }
 .input-shell textarea::placeholder {
   color: var(--text-muted);
@@ -1493,7 +1526,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
 }
 .send-btn:active:not(:disabled),
 .stop-btn:active {
-  transform: scale(0.94);
+  transform: scale(var(--press-scale));
 }
 .stop-btn {
   background: var(--bg-muted);

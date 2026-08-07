@@ -119,10 +119,15 @@ function isLong(text: string, threshold = 120): boolean {
 
           <!-- error：错误信息（过长可展开） -->
           <div v-else-if="s.status === 'error'" class="error-text">
-            <span :class="{ clamped: !expanded[s.id] && isLong(s.error || '') }">{{ s.error }}</span>
+            <span
+              :id="`sa-err-${s.id}`"
+              :class="{ clamped: !expanded[s.id] && isLong(s.error || '') }"
+            >{{ s.error }}</span>
             <button
               v-if="isLong(s.error || '')"
               class="toggle"
+              :aria-expanded="!!expanded[s.id]"
+              :aria-controls="`sa-err-${s.id}`"
               @click="toggleExpanded(s.id)"
             >
               {{ expanded[s.id] ? '收起' : '展开' }}
@@ -169,6 +174,10 @@ function isLong(text: string, threshold = 120): boolean {
 .collapse:hover {
   color: var(--text-primary);
   background: var(--bg-muted);
+}
+/* 按压反馈（批次89） */
+.collapse:active {
+  transform: scale(var(--press-scale));
 }
 .bar-title {
   display: inline-flex;
@@ -238,7 +247,7 @@ function isLong(text: string, threshold = 120): boolean {
   transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
 .entry:hover {
-  border-color: var(--border-strong);
+  border-color: var(--accent);
 }
 .entry.running {
   border-color: var(--accent-soft-border);

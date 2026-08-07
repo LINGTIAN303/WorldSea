@@ -188,6 +188,10 @@ const groups = computed(() => {
   background: var(--bg-muted);
   color: var(--accent);
 }
+/* 按压反馈（批次89） */
+.new:active {
+  transform: scale(var(--press-scale));
+}
 
 /* 搜索框 */
 .search {
@@ -243,6 +247,10 @@ const groups = computed(() => {
   color: var(--text-primary);
   background: var(--border-strong);
 }
+/* 按压反馈（批次89） */
+.search-clear:active {
+  transform: scale(var(--press-scale));
+}
 
 .group {
   flex-shrink: 0;
@@ -272,6 +280,10 @@ const groups = computed(() => {
 }
 .list li:hover {
   background: var(--bg-muted);
+}
+/* hover 标题强调：与记忆/终端列表同一反馈语言（背景 + 标题 accent，批次89 2.1 收敛） */
+.list li:hover .item-title {
+  color: var(--accent);
 }
 .list li.active {
   background: var(--accent-soft);
@@ -349,5 +361,9 @@ const groups = computed(() => {
 .del:hover {
   color: var(--danger);
   background: var(--danger-soft);
+}
+/* 按压反馈（批次89） */
+.del:active {
+  transform: scale(var(--press-scale));
 }
 </style>

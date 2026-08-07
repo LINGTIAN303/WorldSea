@@ -168,7 +168,8 @@ onBeforeUnmount(() => {
   <div class="memory-panel">
     <header class="mp-head">
       <div class="mp-title">
-        <span class="mp-dot" />
+        <!-- 圆点仅在加载/有记忆时显示：空态下无状态含义（批次87 #23） -->
+        <span v-if="sessionId && (isListLoading || memoryList.length)" class="mp-dot" />
         <span>记忆库</span>
         <span v-if="memoryList.length" class="mp-count">{{ memoryList.length }}</span>
       </div>
@@ -192,8 +193,8 @@ onBeforeUnmount(() => {
             <TuiIcon name="close" :size="11" />
           </button>
         </div>
-        <TuiButton variant="primary" size="sm" :disabled="!sessionId || isArchiving" title="手动归档（消费缓冲轮次）" @click="onArchive">
-          {{ isArchiving ? '归档中…' : '归档' }}
+        <TuiButton variant="primary" size="sm" :loading="isArchiving" :disabled="!sessionId" title="手动归档（消费缓冲轮次）" @click="onArchive">
+          归档
         </TuiButton>
       </div>
     </header>
@@ -211,7 +212,9 @@ onBeforeUnmount(() => {
         <TuiButton class="mp-refresh-btn" variant="ghost" size="sm" @click="refreshList">刷新</TuiButton>
       </div>
 
-      <TuiEmpty v-if="isListLoading" icon="memory" title="加载中…" fill />
+      <TuiEmpty v-if="isListLoading" icon="memory" title="加载中…" fill>
+        <span class="mp-loading-dot" aria-hidden="true" />
+      </TuiEmpty>
       <TuiEmpty
         v-else-if="memoryList.length === 0"
         icon="memory"
@@ -365,6 +368,10 @@ onBeforeUnmount(() => {
 .mp-search-clear:hover {
   color: var(--text-primary);
   background: var(--border-strong);
+}
+/* 按压反馈（批次89） */
+.mp-search-clear:active {
+  transform: scale(var(--press-scale));
 }
 /* 提示条：统一 box 形态（radius-sm + border），success 默认 / error 走 danger 语义（批次59） */
 .mp-notice {
