@@ -14,12 +14,23 @@
   "dependencies": {
     "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/plugin-opener": "^2.5.4",
+    "@tiptap/core": "^3.29.1",
+    "@tiptap/extension-mention": "^3.29.1",
+    "@tiptap/starter-kit": "^3.29.1",
+    "@tiptap/suggestion": "^3.29.1",
+    "@tiptap/vue-3": "^3.29.1",
     "@worldsmith/agent-runtime": "link:../../packages/agent-runtime",
     "@worldsmith/core-api-types": "link:../../packages/core-api-types",
     "@worldsmith/shared-ui": "link:../../packages/shared-ui",
     "dompurify": "^3.4.12",
+    "echarts": "^6.1.0",
+    "graphology": "^0.26.0",
+    "graphology-layout": "^0.6.1",
+    "graphology-layout-forceatlas2": "^0.10.1",
     "marked": "^18.0.7",
-    "vue": "^3.5.32"
+    "sigma": "^3.0.3",
+    "vue": "^3.5.32",
+    "vuedraggable": "^4.1.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.2",

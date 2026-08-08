@@ -29,3 +29,4 @@ agent-commands = { path = "../../../crates/agent-commands" }
 # 命令签名中引用 agent-runtime 类型（AgentStateSnapshot / OrchestratorMessage / HeartbeatStatus）
 # 启用 llm-genai：使 llm 模块（ProviderConfig）可被命令层引用（5.4 真实 LLM 接入）
 agent-runtime = { path = "../../../crates/agent-runtime", features = ["llm-genai"] }
+notify = "8.2.0"

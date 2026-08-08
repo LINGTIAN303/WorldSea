@@ -1,25 +1,65 @@
-// coreBackend retrofit 会话领域（原 coreBackend.ts 拆分），详细见 docs/details/注释/tauri/coreBackend.md
+/** Phase A 迁移：coreBackend retrofit 领域对齐 web 端 WASM 版本（复用 WASM 核心），详细见 docs/details/注释/tauri/coreBackend.md */
+
+import { backendCall, getCoreCached } from './runtime'
 import type {
-  CapabilityCatalog,
   SafetyReport,
+  ConflictEntry,
   ConflictReport,
   ConfirmResult,
+  ExecutionResult,
   ApplyResult,
+  HealthCheckResult,
   RetrofitResult,
   SessionPhase,
+  CapabilityCatalog,
+  PatchOperation,
   PatchDiffResult,
 } from '@worldsmith/core-api-types'
-import { getTauriInvoke, backendCall } from './runtime'
+export type {
+  SafetyReport,
+  ConflictEntry,
+  ConflictReport,
+  ConfirmResult,
+  ExecutionResult,
+  ApplyResult,
+  HealthCheckResult,
+  RetrofitResult,
+  SessionPhase,
+  CapabilityCatalog,
+  PatchOperation,
+  PatchDiffResult,
+}
+
+export async function retrofitDetectConflicts(): Promise<ConflictReport | null> {
+  return backendCall(
+    'cmd_retrofit_detect_conflicts',
+    {},
+    'retrofitDetectConflicts',
+    [],
+    null,
+  )
+}
+
+export async function retrofitEndSession(): Promise<boolean> {
+  return backendCall(
+    'cmd_retrofit_end_session',
+    {},
+    'retrofitEndSession',
+    [],
+    false,
+  )
+}
 
 export async function retrofitBeginSession(
   sessionId: string,
   catalog?: CapabilityCatalog,
 ): Promise<void> {
-  const invoke = await getTauriInvoke()
-  return invoke('cmd_retrofit_begin_session', {
-    sessionId,
-    catalogJson: catalog ? JSON.stringify(catalog) : null,
-  }) as Promise<void>
+  const core = await getCoreCached()
+  if (core && typeof core.retrofitBeginSession === 'function') {
+    const catalogStr = catalog ? JSON.stringify(catalog) : undefined
+    core.retrofitBeginSession(sessionId, catalogStr)
+    return
+  }
 }
 
 export async function retrofitSubmitIntent(
@@ -34,16 +74,6 @@ export async function retrofitSubmitIntent(
   )
 }
 
-export async function retrofitDetectConflicts(): Promise<ConflictReport | null> {
-  return backendCall(
-    'cmd_retrofit_detect_conflicts',
-    {},
-    'retrofitDetectConflicts',
-    [],
-    null,
-  )
-}
-
 export async function retrofitConfirmAndStage(): Promise<ConfirmResult | null> {
   return backendCall(
     'cmd_retrofit_confirm_and_stage',
@@ -51,16 +81,6 @@ export async function retrofitConfirmAndStage(): Promise<ConfirmResult | null> {
     'retrofitConfirmAndStage',
     [],
     null,
-  )
-}
-
-export async function retrofitEndSession(): Promise<boolean> {
-  return backendCall(
-    'cmd_retrofit_end_session',
-    {},
-    'retrofitEndSession',
-    [],
-    false,
   )
 }
 
@@ -93,15 +113,21 @@ export async function retrofitVerifyAndAccept(
 export async function retrofitRequestRepair(
   message: string,
 ): Promise<void> {
-  const invoke = await getTauriInvoke()
-  return invoke('cmd_retrofit_request_repair', { message }) as Promise<void>
+  const core = await getCoreCached()
+  if (core && typeof core.retrofitRequestRepair === 'function') {
+    core.retrofitRequestRepair(message)
+    return
+  }
 }
 
 export async function retrofitRedirect(
   message: string,
 ): Promise<void> {
-  const invoke = await getTauriInvoke()
-  return invoke('cmd_retrofit_redirect', { message }) as Promise<void>
+  const core = await getCoreCached()
+  if (core && typeof core.retrofitRedirect === 'function') {
+    core.retrofitRedirect(message)
+    return
+  }
 }
 
 export async function retrofitRollbackLast(): Promise<string | null> {

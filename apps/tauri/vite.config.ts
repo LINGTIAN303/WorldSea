@@ -18,6 +18,8 @@ const aliases: Record<string, string> = {
   '@worldsmith/agent-runtime/execution': path.resolve(__dirname, '../../packages/agent-runtime/src/execution'),
   '@worldsmith/agent-runtime/execution/adapter': path.resolve(__dirname, '../../packages/agent-runtime/src/execution/adapter'),
   '@worldsmith/agent-runtime/bridge-types': path.resolve(__dirname, '../../packages/agent-runtime/src/bridge-types'),
+  '@worldsmith/agent-runtime/toolbus': path.resolve(__dirname, '../../packages/agent-runtime/src/toolbus'),
+  '@worldsmith/agent-runtime/tools': path.resolve(__dirname, '../../packages/agent-runtime/src/tools'),
   '@worldsmith/agent-core$': path.resolve(__dirname, '../../packages/agent-core/src'),
   '@worldsmith/agent-core/types': path.resolve(__dirname, '../../packages/agent-core/src/types'),
   '@worldsmith/agent-core/guard': path.resolve(__dirname, '../../packages/agent-core/src/guard'),

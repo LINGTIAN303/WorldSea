@@ -26,13 +26,6 @@
       "csp": null
     }
   },
-  "plugins": {
-    "window-state": {
-      "defaultWidth": 1280,
-      "defaultHeight": 800,
-      "restore": true
-    }
-  },
   "bundle": {
     "active": true,
     "targets": "all",

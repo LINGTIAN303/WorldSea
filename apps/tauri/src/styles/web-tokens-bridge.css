@@ -1,0 +1,349 @@
+/**
+ * web-tokens-bridge.css：Web 端变量名 → Tauri 设计令牌桥接层
+ *
+ * apps/web 迁入 Tauri 的 Shell.vue / MenuBar.vue / SidebarV2.vue 等组件，
+ * 其样式引用 web 端变量名（--color-* / --glass-* / --hover-bg / --font-size-* 等），
+ * 这些名字在 Tauri 端未定义，组件会渲染成无样式/默认值。
+ * 本文件把所有 web 变量名 alias 到 theme.css 的 Tauri 令牌：
+ * 全部用 var(--tauri令牌) 引用（除注释标明的 spacing 尺寸 / gradient /
+ * overlay / shadow-focus-ring / 字号档位硬编码），因此浅色/深色切换
+ * 自动跟随 theme.css 的 [data-theme='dark'] 覆盖。
+ *
+ * 约束：必须在 theme.css 之后 import（main.ts 已保证）。其中与 theme.css
+ * A2UI 区重复定义的变量（如 --color-bg-elevated / --font-size-2xl 等）
+ * 以后定义者（本文件）为准。
+ */
+:root {
+  /* ── 色板：颜色语义 ── */
+  --color-primary: var(--accent);
+  --color-primary-hover: var(--accent-hover);
+  --color-primary-active: var(--accent-hover);
+  --color-accent: var(--accent);
+  --color-bg-base: var(--bg-app);
+  --color-bg-surface: var(--bg-surface);
+  --color-bg-elevated: var(--bg-surface);
+  --color-bg-hover: var(--bg-muted);
+  --color-bg-active: var(--bg-active);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-muted);
+  --color-text-inverse: var(--on-accent);
+  --color-border: var(--border);
+  --color-border-subtle: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-success: var(--success);
+  --color-danger: var(--danger);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --color-overlay: rgba(15, 15, 35, 0.45);
+
+  /* MenuBar / SidebarV2 直接引用的 web 短名 */
+  --primary: var(--accent);
+  --text-color: var(--text-primary);
+  --text-tertiary: var(--text-muted);
+  --border-color: var(--border);
+  --bg: var(--bg-surface);
+
+  /* ── 组件层：button / card / modal / input / 玻璃 ── */
+  --button-bg: var(--color-primary);
+  --button-bg-hover: var(--color-primary-hover);
+  --button-bg-active: var(--color-primary-active);
+  --button-color: var(--color-text-inverse);
+  --button-radius: var(--radius-btn);
+  --button-padding: var(--spacing-btn);
+  --button-padding-sm: var(--spacing-btn-sm);
+  --button-font-size: var(--font-size-base);
+  --button-font-weight: var(--font-weight-medium);
+  --button-secondary-bg: var(--color-bg-elevated);
+  --button-secondary-color: var(--color-text-primary);
+  --button-secondary-border: var(--color-border);
+  --button-ghost-color: var(--color-text-secondary);
+  --button-ghost-border: var(--color-border);
+  --button-danger-bg: var(--color-danger);
+  --button-danger-color: var(--color-text-inverse);
+  --card-bg: var(--color-bg-surface);
+  --card-border: var(--color-border-subtle);
+  --card-radius: var(--radius-card);
+  --card-padding: var(--spacing-card);
+  --card-shadow: var(--shadow-card);
+  --modal-bg: var(--color-bg-surface);
+  --modal-border: var(--color-border-subtle);
+  --modal-radius: var(--radius-modal);
+  --modal-shadow: var(--shadow-modal);
+  --modal-overlay: var(--color-overlay);
+  --input-bg: var(--color-bg-elevated);
+  --input-color: var(--color-text-primary);
+  --input-border: var(--color-border);
+  --input-border-focus: var(--color-primary);
+  --input-radius: var(--radius-input);
+  --input-padding: var(--spacing-input);
+  --input-font-size: var(--font-size-base);
+  --input-placeholder: var(--color-text-tertiary);
+  --input-focus-ring: var(--shadow-focus-ring);
+  --hover-bg: var(--bg-muted);
+  --active-bg: var(--bg-active);
+  --bg-tertiary: var(--bg-muted);
+  --gradient-accent: linear-gradient(135deg, var(--accent), var(--accent-grad-to));
+  --gradient-subtle: var(--bg-muted);
+  --glass-bg: var(--bg-surface);
+  --glass-border: var(--border);
+  --glass-blur: 12px;
+
+  /* ── 排版 ── */
+  --font-size-xs: var(--fs-xs);
+  --font-size-sm: var(--fs-sm);
+  --font-size-md: var(--fs-md);
+  --font-size-base: var(--fs-base);
+  --font-size-lg: var(--fs-lg);
+  --font-size-xl: var(--fs-xl);
+  --font-size-2xl: 24px;
+  --font-size-3xl: 30px;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --line-height-tight: var(--lh-tight);
+  --line-height-normal: var(--lh-base);
+  --font-family-base: var(--font-sans);
+  --font-family-mono: var(--font-mono);
+
+  /* ── 圆角 ── */
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: 18px;
+  --radius-full: var(--radius-pill);
+  --radius-btn: var(--radius-md);
+  --radius-card: var(--radius-md);
+  --radius-input: var(--radius-md);
+  --radius-modal: var(--radius-lg);
+
+  /* ── 间距（web 端语义，参考 web semantic.css 的 space 刻度）── */
+  --spacing-page: 24px;
+  --spacing-section: 24px;
+  --spacing-card: 16px;
+  --spacing-card-lg: 24px;
+  --spacing-input: 8px 12px;
+  --spacing-btn: 8px 16px;
+  --spacing-btn-sm: 4px 12px;
+  --spacing-list: 8px;
+  --spacing-gap: 12px;
+  --spacing-gap-sm: 8px;
+  --spacing-gap-lg: 16px;
+
+  /* ── 阴影 ── */
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-xl: var(--shadow-lg);
+  --shadow-card: var(--shadow-sm);
+  --shadow-modal: var(--shadow-lg);
+  --shadow-focus-ring: 0 0 0 2px var(--accent-soft-border);
+
+  /* ── 动效 ── */
+  --transition-fast: var(--dur-fast) var(--ease);
+  --transition-base: var(--dur-base) var(--ease);
+  --transition-normal: 0.3s var(--ease);
+
+  /* ── 布局 ── */
+  --layout-sidebar-width: 260px;
+  --layout-sidebar-collapsed-width: 56px;
+
+  /* ── Phase E1 补齐：迁移组件仍引用的 web 变量（theme-editor 等），
+     与上面语义块同规：值全部引用 Tauri 令牌，深色自动跟随）── */
+  /* 间距刻度（space 系，4px 基数） */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  /* 动效别名 */
+  --duration-fast: var(--dur-fast);
+  --duration-slow: 0.4s;
+  --ease-default: var(--ease);
+  --transition: var(--transition-base);
+  --state-pressed-scale: var(--press-scale);
+  /* 颜色别名 */
+  --color-primary-subtle: var(--accent-soft);
+  --color-primary-foreground: var(--on-accent);
+  --primary-hover: var(--accent-hover);
+  --primary-light: var(--accent-soft);
+  --secondary: var(--text-secondary);
+  --danger-light: var(--danger-soft);
+  --success-light: var(--success-soft);
+  --warning-light: var(--warning-soft);
+  --bg-hover: var(--bg-muted);
+  --bg-primary: var(--color-primary);
+  --bg-secondary: var(--bg-muted);
+  --bg-subtle: var(--bg-muted);
+  --border-light: var(--border);
+  --badge-color: var(--accent);
+  --panel-bg: var(--bg-surface);
+  --content-bg: var(--bg-app);
+  --canvas-bg: var(--bg-app);
+  --menubar-bg: var(--glass-bg, var(--bg-surface));
+  --text: var(--text-primary);
+  --text-on-accent: var(--on-accent);
+  --text-on-primary: var(--on-accent);
+  --ws-bg-base: var(--bg-app);
+  --ws-text-primary: var(--text-primary);
+  --ws-text-secondary: var(--text-secondary);
+  --ws-text-tertiary: var(--text-muted);
+  --ws-font-mono: var(--font-mono);
+  /* 字体/字号语义 */
+  --font-family-content: var(--font-sans);
+  --font-family-display: var(--font-sans);
+  --font-family-editor-ui: var(--font-sans);
+  --text-heading-font-size: var(--font-size-lg);
+  --text-subheading-font-size: var(--font-size-base);
+  --text-caption-font-size: var(--font-size-xs);
+  --text-body-sm-font-size: var(--font-size-sm);
+  --line-height-relaxed: var(--lh-base);
+  --letter-spacing-wide: 0.02em;
+  --para-spacing: 0.5em;
+  /* 尺寸/阴影/层级 */
+  --radius-xs: var(--radius-sm);
+  --button-border: var(--color-border);
+  --icon-xl: 24px;
+  --icon-2xl: 32px;
+  --card-shadow-hover: var(--shadow-md);
+  --shadow-dropdown: var(--shadow-md);
+  --layout-menubar-height: 30px;
+  --z-detail: var(--z-sticky);
+  --z-detail-backdrop: var(--z-modal);
+  --z-drawer: var(--z-modal);
+  --z-drawer-panel: var(--z-modal);
+  --z-overlay: var(--z-modal);
+}
+
+/* ── 深色覆盖 ──
+   web 变量名重复映射：值引用 Tauri dark 令牌（var(--xxx) 自动跟随
+   theme.css 的 [data-theme='dark'] 覆盖），仅硬编码值与浅色不同的
+   --color-overlay 需单独指定。 */
+[data-theme='dark'] {
+  /* 色板：颜色语义 */
+  --color-primary: var(--accent);
+  --color-primary-hover: var(--accent-hover);
+  --color-primary-active: var(--accent-hover);
+  --color-accent: var(--accent);
+  --color-bg-base: var(--bg-app);
+  --color-bg-surface: var(--bg-surface);
+  --color-bg-elevated: var(--bg-surface);
+  --color-bg-hover: var(--bg-muted);
+  --color-bg-active: var(--bg-active);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-muted);
+  --color-text-inverse: var(--on-accent);
+  --color-border: var(--border);
+  --color-border-subtle: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-success: var(--success);
+  --color-danger: var(--danger);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --color-overlay: rgba(0, 0, 0, 0.5);
+
+  /* MenuBar / SidebarV2 直接引用的 web 短名 */
+  --primary: var(--accent);
+  --text-color: var(--text-primary);
+  --text-tertiary: var(--text-muted);
+  --border-color: var(--border);
+  --bg: var(--bg-surface);
+
+  /* 组件层 */
+  --button-bg: var(--color-primary);
+  --button-bg-hover: var(--color-primary-hover);
+  --button-bg-active: var(--color-primary-active);
+  --button-color: var(--color-text-inverse);
+  --button-radius: var(--radius-btn);
+  --button-padding: var(--spacing-btn);
+  --button-padding-sm: var(--spacing-btn-sm);
+  --button-font-size: var(--font-size-base);
+  --button-font-weight: var(--font-weight-medium);
+  --button-secondary-bg: var(--color-bg-elevated);
+  --button-secondary-color: var(--color-text-primary);
+  --button-secondary-border: var(--color-border);
+  --button-ghost-color: var(--color-text-secondary);
+  --button-ghost-border: var(--color-border);
+  --button-danger-bg: var(--color-danger);
+  --button-danger-color: var(--color-text-inverse);
+  --card-bg: var(--color-bg-surface);
+  --card-border: var(--color-border-subtle);
+  --card-radius: var(--radius-card);
+  --card-padding: var(--spacing-card);
+  --card-shadow: var(--shadow-card);
+  --modal-bg: var(--color-bg-surface);
+  --modal-border: var(--color-border-subtle);
+  --modal-radius: var(--radius-modal);
+  --modal-shadow: var(--shadow-modal);
+  --modal-overlay: var(--color-overlay);
+  --input-bg: var(--color-bg-elevated);
+  --input-color: var(--color-text-primary);
+  --input-border: var(--color-border);
+  --input-border-focus: var(--color-primary);
+  --input-radius: var(--radius-input);
+  --input-padding: var(--spacing-input);
+  --input-font-size: var(--font-size-base);
+  --input-placeholder: var(--color-text-tertiary);
+  --input-focus-ring: var(--shadow-focus-ring);
+  --hover-bg: var(--bg-muted);
+  --active-bg: var(--bg-active);
+  --bg-tertiary: var(--bg-muted);
+  --gradient-accent: linear-gradient(135deg, var(--accent), var(--accent-grad-to));
+  --gradient-subtle: var(--bg-muted);
+  --glass-bg: var(--bg-surface);
+  --glass-border: var(--border);
+  --glass-blur: 12px;
+
+  /* 排版（深色同值，随底层令牌） */
+  --font-size-xs: var(--fs-xs);
+  --font-size-sm: var(--fs-sm);
+  --font-size-md: var(--fs-md);
+  --font-size-base: var(--fs-base);
+  --font-size-lg: var(--fs-lg);
+  --font-size-xl: var(--fs-xl);
+  --font-size-2xl: 24px;
+  --font-size-3xl: 30px;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --line-height-tight: var(--lh-tight);
+  --line-height-normal: var(--lh-base);
+  --font-family-base: var(--font-sans);
+  --font-family-mono: var(--font-mono);
+
+  /* 圆角 / 间距 / 阴影 / 动效 / 布局（尺寸类同浅色） */
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: 18px;
+  --radius-full: var(--radius-pill);
+  --radius-btn: var(--radius-md);
+  --radius-card: var(--radius-md);
+  --radius-input: var(--radius-md);
+  --radius-modal: var(--radius-lg);
+  --spacing-page: 24px;
+  --spacing-section: 24px;
+  --spacing-card: 16px;
+  --spacing-card-lg: 24px;
+  --spacing-input: 8px 12px;
+  --spacing-btn: 8px 16px;
+  --spacing-btn-sm: 4px 12px;
+  --spacing-list: 8px;
+  --spacing-gap: 12px;
+  --spacing-gap-sm: 8px;
+  --spacing-gap-lg: 16px;
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-xl: var(--shadow-lg);
+  --shadow-card: var(--shadow-sm);
+  --shadow-modal: var(--shadow-lg);
+  --shadow-focus-ring: 0 0 0 2px var(--accent-soft-border);
+  --transition-fast: var(--dur-fast) var(--ease);
+  --transition-base: var(--dur-base) var(--ease);
+  --transition-normal: 0.3s var(--ease);
+  --layout-sidebar-width: 260px;
+  --layout-sidebar-collapsed-width: 56px;
+}

@@ -18,6 +18,12 @@ use tauri::{
 };
 
 mod commands;
+// Phase A 迁移：内容插件数据落盘（FileStorageBackend 依赖的 fs 命令）
+mod fs_commands;
+// Phase C 收尾：文件系统监听（useFsWatcher 依赖的 cmd_fs_watch_*）
+mod fs_watch_commands;
+// Phase A 迁移：项目切换命令（前端 useProjectSwitcher Tauri 分支）
+mod project_commands;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -82,11 +88,27 @@ pub fn run() {
             commands::cmd_long_task_update_heartbeat,
             commands::cmd_long_task_update_status,
             commands::cmd_long_task_delete,
+            // Phase A 迁移：文件系统命令（FileStorageBackend 数据落盘）
+            fs_commands::cmd_fs_write,
+            fs_commands::cmd_fs_read,
+            fs_commands::cmd_fs_list,
+            fs_commands::cmd_fs_delete,
+            // Phase A 迁移：项目切换（useProjectSwitcher Tauri 分支）
+            project_commands::cmd_switch_project,
+            // Phase B 迁移：获取应用数据目录（自动绑定项目存储目录）
+            project_commands::cmd_get_app_data_dir,
+            // Phase B 迁移：删除项目数据目录（deleteProject Tauri 分支）
+            project_commands::cmd_delete_project_db,
+            // Phase C 收尾：文件系统监听（useFsWatcher）
+            fs_watch_commands::cmd_fs_watch_start,
+            fs_watch_commands::cmd_fs_watch_stop,
         ])
         // Phase 5.1：Agent 命令服务（内部持有 session_id -> Arc<AgentLoop> 映射）
         // 终端服务（独立持有 ShellSessionManager，供前端直接调用终端命令）
         // Loop Engineering：LoopController 实例注册表 + 长任务 SQLite 持久化
         .manage(TerminalService::new())
+        // Phase C 收尾：文件监听器注册表（cmd_fs_watch_start/stop 共享）
+        .manage(fs_watch_commands::FsWatchRegistry(Default::default()))
         .setup(|app| {
             #[cfg(debug_assertions)]
             {

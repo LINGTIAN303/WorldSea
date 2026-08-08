@@ -1,31 +1,45 @@
-// coreBackend 算法领域：空间索引 + 几何/图/CRDT/地形算法（原 coreBackend.ts 拆分），详细见 docs/details/注释/tauri/coreBackend.md
+/** Phase A 迁移：coreBackend 算法领域对齐 web 端 WASM 版本（算法/校验复用 WASM 核心），详细见 docs/details/注释/tauri/coreBackend.md */
+
+import { algoCall, wasmCall, getCoreCached } from './runtime'
 import type {
+  Point2D,
+  Segment2D,
   SpatialItem,
   PointItem,
-  Segment2D,
-  Point2D,
+  GraphEdge,
   WeightedGraph,
   PathResult,
   TopologicalSortResult,
   ConnectedComponentsResult,
   StronglyConnectedResult,
   ForceLayoutConfig,
+  LayoutNode,
   ForceLayoutResult,
   LWWRegister,
   ORSet,
-  RGA,
   RGAInsertResult,
+  RGA,
+  RGANode,
+  VectorClock,
   VectorClockCompareResult,
   NoiseConfig,
   HeightMap,
   SlopeResult,
+  ContourPoint,
   ContourLine,
-  ConstraintSolveOutput,
-  DxfImportResult,
-  DxfEntity,
+  ConstraintPoint,
+  ConstraintLine,
   Constraint,
+  ConstraintTypeValue,
+  ConstraintSystem,
+  SolveResult,
+  ConstraintSolveOutput,
+  DxfEntity,
+  DxfEntityData,
+  DxfImportResult,
   Polygon2DResult,
   PageRankResult,
+  Community,
   CommunityDetectionResult,
   BetweennessResult,
   ErosionConfig,
@@ -33,85 +47,101 @@ import type {
   SharedEdge,
   LinePolygonIntersection,
 } from '@worldsmith/core-api-types'
-import { tauriCall, algoCall, getTauriInvoke } from './runtime'
-
-// ── 空间索引 API ──
-
-export async function spatialInsertRect(item: SpatialItem): Promise<void> {
-  return tauriCall('cmd_spatial_insert_rect', { itemJson: JSON.stringify(item) })
+export type {
+  Point2D,
+  Segment2D,
+  SpatialItem,
+  PointItem,
+  GraphEdge,
+  WeightedGraph,
+  PathResult,
+  TopologicalSortResult,
+  ConnectedComponentsResult,
+  StronglyConnectedResult,
+  ForceLayoutConfig,
+  LayoutNode,
+  ForceLayoutResult,
+  LWWRegister,
+  ORSet,
+  RGAInsertResult,
+  RGA,
+  RGANode,
+  VectorClock,
+  VectorClockCompareResult,
+  NoiseConfig,
+  HeightMap,
+  SlopeResult,
+  ContourPoint,
+  ContourLine,
+  ConstraintPoint,
+  ConstraintLine,
+  Constraint,
+  ConstraintTypeValue,
+  ConstraintSystem,
+  SolveResult,
+  ConstraintSolveOutput,
+  DxfEntity,
+  DxfEntityData,
+  DxfImportResult,
+  Polygon2DResult,
+  PageRankResult,
+  Community,
+  CommunityDetectionResult,
+  BetweennessResult,
+  ErosionConfig,
+  ViewshedResult,
+  SharedEdge,
+  LinePolygonIntersection,
 }
 
-export async function spatialInsertPoint(item: PointItem): Promise<void> {
-  return tauriCall('cmd_spatial_insert_point', { itemJson: JSON.stringify(item) })
-}
+// ── 空间索引 API（复用 WASM 决策：Tauri 端无 Rust 命令，返回降级值，与 web 端一致） ──
 
-export async function spatialQueryRange(min: [number, number], max: [number, number]): Promise<SpatialItem[]> {
-  return tauriCall('cmd_spatial_query_range', { minJson: JSON.stringify(min), maxJson: JSON.stringify(max) }, [] as SpatialItem[])
-}
-
-export async function spatialQueryAtPoint(point: [number, number]): Promise<SpatialItem[]> {
-  return tauriCall('cmd_spatial_query_at_point', { pointJson: JSON.stringify(point) }, [] as SpatialItem[])
-}
-
-export async function spatialNearestPoint(query: [number, number]): Promise<PointItem | null> {
-  return tauriCall('cmd_spatial_nearest_point', { queryJson: JSON.stringify(query) }, null)
-}
-
-export async function spatialKNearest(query: [number, number], k: number): Promise<PointItem[]> {
-  return tauriCall('cmd_spatial_k_nearest', { queryJson: JSON.stringify(query), k }, [] as PointItem[])
-}
-
-export async function spatialQueryByCategory(category: string): Promise<SpatialItem[]> {
-  return tauriCall('cmd_spatial_query_by_category', { category }, [] as SpatialItem[])
-}
-
-export async function spatialRemoveRect(item: SpatialItem): Promise<boolean> {
-  return tauriCall('cmd_spatial_remove_rect', { itemJson: JSON.stringify(item) }, false)
-}
-
-export async function spatialClear(): Promise<void> {
-  return tauriCall('cmd_spatial_clear')
-}
-
-export async function spatialCounts(): Promise<{ rectCount: number; pointCount: number }> {
-  return tauriCall('cmd_spatial_counts', {}, { rectCount: 0, pointCount: 0 })
-}
+export async function spatialInsertRect(_item: SpatialItem): Promise<void> { /* no-op */ }
+export async function spatialInsertPoint(_item: PointItem): Promise<void> { /* no-op */ }
+export async function spatialQueryRange(_min: [number, number], _max: [number, number]): Promise<SpatialItem[]> { return [] }
+export async function spatialQueryAtPoint(_point: [number, number]): Promise<SpatialItem[]> { return [] }
+export async function spatialNearestPoint(_query: [number, number]): Promise<PointItem | null> { return null }
+export async function spatialKNearest(_query: [number, number], _k: number): Promise<PointItem[]> { return [] }
+export async function spatialQueryByCategory(_category: string): Promise<SpatialItem[]> { return [] }
+export async function spatialRemoveRect(_item: SpatialItem): Promise<boolean> { return false }
+export async function spatialClear(): Promise<void> { /* no-op */ }
+export async function spatialCounts(): Promise<{ rectCount: number; pointCount: number }> { return { rectCount: 0, pointCount: 0 } }
 
 // ── 几何算法 API ──
 
 export async function algoSegmentIntersect(seg1: Segment2D, seg2: Segment2D): Promise<boolean> {
-  const invoke = await getTauriInvoke()
-  return invoke('cmd_algo_segment_intersect', { seg1Json: JSON.stringify(seg1), seg2Json: JSON.stringify(seg2) }) as Promise<boolean>
+  const core = await getCoreCached()
+  return wasmCall(() => core!.algoSegmentIntersect(seg1, seg2), false)
 }
 
 export async function algoFindAllIntersections(segments: Segment2D[]): Promise<string> {
-  const invoke = await getTauriInvoke()
-  return invoke('cmd_algo_find_all_intersections', { segmentsJson: JSON.stringify(segments) }) as Promise<string>
+  const core = await getCoreCached()
+  return wasmCall(() => core!.algoFindAllIntersections(segments), '[]')
 }
 
 export async function algoPointInPolygon(point: Point2D, vertices: Point2D[]): Promise<boolean> {
-  const invoke = await getTauriInvoke()
-  return invoke('cmd_algo_point_in_polygon', { pointJson: JSON.stringify(point), verticesJson: JSON.stringify(vertices) }) as Promise<boolean>
+  const core = await getCoreCached()
+  return wasmCall(() => core!.algoPointInPolygon(point, vertices), false)
 }
 
 export async function algoPolygonArea(vertices: Point2D[]): Promise<number> {
-  const invoke = await getTauriInvoke()
-  return invoke('cmd_algo_polygon_area', { verticesJson: JSON.stringify(vertices) }) as Promise<number>
+  const core = await getCoreCached()
+  return wasmCall(() => core!.algoPolygonArea(vertices), 0)
 }
 
 export async function algoConvexHull(points: Point2D[]): Promise<Point2D[]> {
-  const invoke = await getTauriInvoke()
-  return invoke('cmd_algo_convex_hull', { pointsJson: JSON.stringify(points) }) as Promise<Point2D[]>
+  const core = await getCoreCached()
+  return wasmCall(() => JSON.parse(core!.algoConvexHull(points)), [] as Point2D[])
 }
 
 export async function algoAabbIntersects(a: { min: Point2D; max: Point2D }, b: { min: Point2D; max: Point2D }): Promise<boolean> {
-  const invoke = await getTauriInvoke()
-  return invoke('cmd_algo_aabb_intersects', { aJson: JSON.stringify(a), bJson: JSON.stringify(b) }) as Promise<boolean>
+  const core = await getCoreCached()
+  return wasmCall(() => core!.algoAabbIntersects(a, b), false)
 }
 
 export async function algoObbIntersects(a: { center: Point2D; halfExtents: [number, number]; rotation: number }, b: { center: Point2D; halfExtents: [number, number]; rotation: number }): Promise<boolean> {
-  const invoke = await getTauriInvoke()
-  return invoke('cmd_algo_obb_intersects', { aJson: JSON.stringify(a), bJson: JSON.stringify(b) }) as Promise<boolean>
+  const core = await getCoreCached()
+  return wasmCall(() => core!.algoObbIntersects(a, b), false)
 }
 
 // ── 图算法 API ──
