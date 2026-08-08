@@ -1,5 +1,0 @@
-crawl4ai>=0.8.0
-markitdown[all]>=0.1.0
-turbovec>=0.7.0
-fastapi>=0.115.0
-uvicorn>=0.34.0

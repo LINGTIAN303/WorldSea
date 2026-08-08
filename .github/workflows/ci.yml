@@ -66,9 +66,9 @@ jobs:
         working-directory: worldsmith-core
 
   # ════════════════════════════════════════════════════════════════
-  # 前端三端构建（Phase 5 独立构建）
+  # 前端构建（Tauri 唯一 GUI，apps/web 已于 Phase G 删除）
   # ════════════════════════════════════════════════════════════════
-  # 注：Phase 3 完成前，三端 src/ 仅为骨架，构建验证仅检查配置正确性
+  # 注：Phase 3 完成前，Tauri src/ 仅为骨架，构建验证仅检查配置正确性
   # Phase 3 完成后，将启用完整构建验证
 
   frontend-setup:
@@ -85,28 +85,6 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
-
-  web-build:
-    name: Web Build
-    needs: frontend-setup
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-      - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
-      - name: Typecheck Web
-        run: pnpm --filter @worldsmith/web typecheck
-        continue-on-error: true # Phase 3 完成前可能有类型错误
-      - name: Build Web
-        run: pnpm --filter @worldsmith/web build
-        continue-on-error: true # Phase 3 完成前 src/ 是骨架
 
   tauri-build:
     name: Tauri Build (Frontend)
@@ -136,25 +114,16 @@ jobs:
       # 注：完整 Tauri app 构建（tauri build）在 release workflow 中执行
 
   cli-build:
-    name: CLI Build
-    needs: frontend-setup
+    name: CLI Build (Rust)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-      - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
-      - name: Typecheck CLI
-        run: pnpm --filter @worldsmith/cli typecheck
-        continue-on-error: true # Phase 3 完成前可能有类型错误
-      - name: Build CLI
-        run: pnpm --filter @worldsmith/cli build
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install native-tls system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config
+      - name: Cargo check (worldsmith-cli)
+        run: cargo check
+        working-directory: crates/cli
 
   # ════════════════════════════════════════════════════════════════
   # Tauri Rust 检查（apps/tauri/src-tauri）

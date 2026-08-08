@@ -4,9 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "pnpm --filter @worldsmith/web dev",
-    "dev:web": "pnpm --filter @worldsmith/web dev",
-    "dev:cli": "pnpm --filter @worldsmith/cli start",
+    "dev": "pnpm --filter @worldsmith/tauri tauri:dev",
     "dev:tauri": "pnpm --filter @worldsmith/tauri tauri:dev",
     "test": "vitest",
     "test:run": "vitest run",
@@ -18,19 +16,14 @@
     "build:wasm": "wasm-pack build ./tactical-engine --target bundler --out-dir pkg --scope worldsmith --out-name index",
     "build:core": "wasm-pack build ./worldsmith-core --target bundler --out-dir pkg --scope worldsmith --out-name index -- --features wasm",
     "build:wasm-all": "npm run build:wasm && npm run build:core",
-    "build:web": "pnpm --filter @worldsmith/web build",
-    "build": "pnpm --filter @worldsmith/web build",
+    "build": "pnpm --filter @worldsmith/tauri tauri:build",
     "tauri:dev": "pnpm --filter @worldsmith/tauri tauri:dev",
     "tauri:build": "pnpm --filter @worldsmith/tauri tauri:build",
-    "preview": "pnpm --filter @worldsmith/web preview",
-    "build:web:standalone": "pnpm --filter @worldsmith/web build",
     "build:tauri:standalone": "pnpm --filter @worldsmith/tauri build",
     "build:tauri:app": "pnpm --filter @worldsmith/tauri tauri:build",
-    "build:cli": "pnpm --filter @worldsmith/cli build",
-    "typecheck:web": "pnpm --filter @worldsmith/web typecheck",
+    "chat": "cargo run --manifest-path crates/cli/Cargo.toml -- chat",
     "typecheck:tauri": "pnpm --filter @worldsmith/tauri typecheck",
-    "typecheck:cli": "pnpm --filter @worldsmith/cli typecheck",
-    "typecheck:all": "pnpm --filter @worldsmith/web typecheck && pnpm --filter @worldsmith/tauri typecheck && pnpm --filter @worldsmith/cli typecheck"
+    "typecheck:all": "pnpm --filter @worldsmith/tauri typecheck"
   },
   "dependencies": {
     "@chenglou/pretext": "^0.0.7",

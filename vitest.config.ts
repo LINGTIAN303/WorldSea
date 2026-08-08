@@ -8,22 +8,18 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
-    setupFiles: ['apps/web/src/test-setup.ts'],
     include: [
-      'apps/web/src/**/__tests__/**/*.spec.ts',
       'packages/memory-archive/**/__tests__/**/*.spec.ts',
     ],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
       include: [
-        'src/ui/Ws*.vue',
-        'src/ui/__tests__/primitives/**',
-        'src/plugins/official/workflow/composables/use*.ts',
+        'packages/agent-runtime/**',
+        'packages/memory-archive/**',
       ],
       exclude: [
-        'src/ui/__tests__/**',
-        'src/ui/__stories__/**',
+        '**/__tests__/**',
         '**/*.spec.ts',
       ],
     },
