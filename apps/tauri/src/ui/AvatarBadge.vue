@@ -10,7 +10,7 @@ import { computed } from 'vue'
 import { getAvatarText, getAvatarColor } from './avatar'
 import { useAvatarImage } from '../composables/useAvatarImage'
 
-/** 统一头像组件（渲染规则与 avatar:// 解析见文档），详细见 docs/details/注释/web/ui/AvatarBadge.md */
+/** 统一头像组件（渲染规则与 avatar:// 解析见 ui/avatar.ts） */
 const props = withDefaults(defineProps<{
   /** 图片源（URL / base64 / object URL）；外部已解析时传入，优先级高于 avatar 内部解析 */
   src?: string | null

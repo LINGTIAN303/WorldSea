@@ -2,7 +2,7 @@ import { ref, watch, onScopeDispose, toValue, type Ref, type MaybeRefOrGetter } 
 import { isImageAvatar, isAvatarRef, getAvatarRefId } from '../ui/avatar'
 import { getAvatarBlob } from './avatarStore'
 
-/** 将 avatar 字段解析为图片 src（object URL 生命周期管理见文档），详细见 docs/details/注释/web/composables/useAvatarImage.md */
+/** 将 avatar 字段解析为图片 src（object URL 生命周期由调用方负责，详见 AvatarBadge 用法） */
 export function useAvatarImage(
   avatar: MaybeRefOrGetter<string | null | undefined>,
 ): Ref<string | null> {

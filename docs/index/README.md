@@ -34,5 +34,5 @@
 
 | 状态 | 文档 | 摘要（结论） | 链接 |
 |------|------|-------------|------|
-| 执行中 | 自迭代决策记录 | 用户放开自迭代权限后"拍板"决策的备查记录（如子 Agent 编排接入主循环的方案选择与理由），持续追加中 | [self-iteration-decisions.md](../misc/self-iteration-decisions.md) |
+| 执行中 | 自迭代决策记录 | 用户放开自迭代权限后"拍板"决策的备查记录（如子 Agent 编排接入主循环的方案选择与理由），按主题分片存于 self-iteration/，持续追加中 | [self-iteration-decisions.md](../执行中/self-iteration-decisions.md) |
 | — | 技能源测试数据 | Skills Store 商城联调用的示例技能源（example-creator，含 SKILL.md/skill.yaml/manifest） | [skills-store-test-source/](../misc/skills-store-test-source/) |
