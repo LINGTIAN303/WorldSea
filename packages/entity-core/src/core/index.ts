@@ -7,7 +7,7 @@ export type { ProjectInfo, ProjectManagerClass } from './ProjectManager'
 export { migrateIfNeeded } from './ProjectMigration'
 
 export type { StorageBackend } from './StorageBackend'
-export { isTauri, getStorageBackend, storage, StorageError, setStorageProjectDir, getFileStorageBackend } from './StorageBackend'
+export { isTauri, hasTauriInvoke, getStorageBackend, storage, StorageError, setStorageProjectDir, getFileStorageBackend } from './StorageBackend'
 export { FileStorageBackend } from './FileStorageBackend'
 
 export { entitySchemaRegistry } from './EntitySchema'

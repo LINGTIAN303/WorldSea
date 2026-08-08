@@ -24,6 +24,8 @@ mod fs_commands;
 mod fs_watch_commands;
 // Phase A 迁移：项目切换命令（前端 useProjectSwitcher Tauri 分支）
 mod project_commands;
+// 实体/关系/KV/文件命令（TauriStorageBackend fallback 用，SQLite 全局库）
+mod entity_commands;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -102,6 +104,36 @@ pub fn run() {
             // Phase C 收尾：文件系统监听（useFsWatcher）
             fs_watch_commands::cmd_fs_watch_start,
             fs_watch_commands::cmd_fs_watch_stop,
+            // 实体/关系/KV/文件命令（TauriStorageBackend fallback）
+            entity_commands::cmd_get_all_entities,
+            entity_commands::cmd_get_entity,
+            entity_commands::cmd_get_entities_by_type,
+            entity_commands::cmd_put_entity,
+            entity_commands::cmd_update_entity,
+            entity_commands::cmd_delete_entity,
+            entity_commands::cmd_count_entities_by_type,
+            entity_commands::cmd_clear_entities,
+            entity_commands::cmd_import_entities,
+            entity_commands::cmd_get_all_relations,
+            entity_commands::cmd_get_relations_by_entity,
+            entity_commands::cmd_put_relation,
+            entity_commands::cmd_update_relation,
+            entity_commands::cmd_delete_relation,
+            entity_commands::cmd_delete_relations_by_entity,
+            entity_commands::cmd_clear_relations,
+            entity_commands::cmd_import_relations,
+            entity_commands::cmd_kv_get,
+            entity_commands::cmd_kv_set,
+            entity_commands::cmd_kv_delete,
+            entity_commands::cmd_kv_get_all,
+            entity_commands::cmd_get_all_files,
+            entity_commands::cmd_get_file,
+            entity_commands::cmd_get_file_by_path,
+            entity_commands::cmd_get_files_by_entity,
+            entity_commands::cmd_put_file,
+            entity_commands::cmd_update_file,
+            entity_commands::cmd_delete_file,
+            entity_commands::cmd_get_file_content,
         ])
         // Phase 5.1：Agent 命令服务（内部持有 session_id -> Arc<AgentLoop> 映射）
         // 终端服务（独立持有 ShellSessionManager，供前端直接调用终端命令）
@@ -164,6 +196,16 @@ pub fn run() {
                     .expect("初始化长任务数据库失败")
             });
             app.manage(long_task_repo);
+
+            // 实体/关系/KV/文件全局库（entities.db）：TauriStorageBackend fallback 用，
+            // projectDir 未绑定（启动早期/无项目）时实体数据兜底存储。
+            let entity_db_path = app_data.join("entities.db");
+            let entity_db = tauri::async_runtime::block_on(async {
+                entity_commands::EntityDb::new(entity_db_path.to_str().unwrap())
+                    .await
+                    .expect("初始化实体数据库失败")
+            });
+            app.manage(entity_db);
 
             // 系统托盘（批次97 P1-3）：托盘菜单「显示主窗口 / 退出」。
             // 构建失败（如无图标）不阻塞启动，仅记录——关闭行为将回退为直接退出。

@@ -6,16 +6,26 @@ import { usePluginStore } from '@worldsmith/entity-core'
 import { useUIStore } from './stores/uiStore'
 import { useTheme } from './components/ui/useTheme'
 import { bootstrapPlugins } from './plugins/bootstrap'
+import { useProjectSwitcher } from './composables/useProjectSwitcher'
 
 // 主题初始化：Shell 与 AgentWorkspace 共用（三态）
 const { theme: themeMode, apply: applyTheme } = useTheme()
 
 const pluginStore = usePluginStore()
 const uiStore = useUIStore()
+const projectSwitcher = useProjectSwitcher()
 
 onMounted(async () => {
   // 应用初始主题（html data-theme 由此建立；apply 为同步函数，需传入当前主题模式）
   applyTheme(themeMode.value)
+  // 项目系统初始化 + projectDir 绑定（必须在 bootstrapPlugins 之前：
+  // 插件初始化 / Store loadAll 依赖 FileStorageBackend 已就绪，否则 isReady=false
+  // 会降级到不可用的 TauriStorageBackend，导致 cmd_get_all_entities 等 IPC 失败）
+  try {
+    await projectSwitcher.initialize()
+  } catch (err) {
+    console.error('[App] 项目系统初始化失败:', err)
+  }
   // 注册 Agent 工作台视图到 Shell 侧栏（首项，默认选中）
   pluginStore.registerView({
     id: 'agent',

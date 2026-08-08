@@ -178,8 +178,28 @@ export function isTauri(): boolean {
   return typeof window !== 'undefined' && (!!(window as any).__TAURI_INTERNALS__ || !!(window as any).__TAURI__)
 }
 
+/**
+ * Tauri IPC 桥是否真正可用（invoke 函数存在）。
+ * isTauri() 只检测环境标志（预览器/占位可能注入标志但无完整桥），
+ * 调用 invoke 前必须用本函数确认，否则会触发 undefined.invoke 崩溃。
+ */
+export function hasTauriInvoke(): boolean {
+  if (typeof window === 'undefined') return false
+  const bridge = (window as any).__TAURI_INTERNALS__
+  return typeof bridge?.invoke === 'function'
+}
+
 class TauriStorageBackend implements StorageBackend {
   private async invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+    // 桥守卫：环境声称是 Tauri 但 invoke 不可用（预览器/浏览器打开 devUrl）时，
+    // 抛清晰分类错误，避免 @tauri-apps/api 内部访问 undefined.invoke 崩溃
+    if (!hasTauriInvoke()) {
+      throw new StorageError({
+        message: `Tauri IPC 桥不可用（window.__TAURI_INTERNALS__.invoke 缺失）：${cmd} 无法执行，请在 Tauri 窗口内运行`,
+        category: 'unknown',
+        command: cmd,
+      })
+    }
     try {
       const { invoke } = await import('@tauri-apps/api/core')
       return await invoke<T>(cmd, args)
@@ -556,12 +576,16 @@ let _fileBackend: FileStorageBackend | null = null
 
 export function getStorageBackend(): StorageBackend {
   if (_backend) return _backend
-  if (isTauri()) {
+  if (isTauri() && hasTauriInvoke()) {
     // Tauri 模式：FileStorageBackend（有目录时用文件系统，否则降级到 TauriStorageBackend）
     const fallback = new TauriStorageBackend()
     _fileBackend = new FileStorageBackend(fallback)
     _backend = _fileBackend
   } else {
+    // 非 Tauri 或 Tauri 桥不可用（浏览器/预览器打开 devUrl）→ Web 存储兜底（IndexedDB/Dexie）
+    if (isTauri() && !hasTauriInvoke()) {
+      console.warn('[Storage] 检测到 Tauri 标志但 IPC 桥不可用，降级到 Web 存储（IndexedDB）。浏览器预览仅支持 UI 调试。')
+    }
     _backend = new WebStorageBackend()
   }
   return _backend

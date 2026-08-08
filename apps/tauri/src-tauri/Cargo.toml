@@ -29,4 +29,6 @@ agent-commands = { path = "../../../crates/agent-commands" }
 # 命令签名中引用 agent-runtime 类型（AgentStateSnapshot / OrchestratorMessage / HeartbeatStatus）
 # 启用 llm-genai：使 llm 模块（ProviderConfig）可被命令层引用（5.4 真实 LLM 接入）
 agent-runtime = { path = "../../../crates/agent-runtime", features = ["llm-genai"] }
+# 实体存储命令（TauriStorageBackend fallback）：sqlx 0.8 + sqlite，与 agent-commands 对齐
+sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio"] }
 notify = "8.2.0"
