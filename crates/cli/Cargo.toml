@@ -1,0 +1,24 @@
+[package]
+name = "worldsmith-cli"
+version = "0.1.0"
+edition = "2021"
+description = "WorldSmith CLI — 本地自动化与交互式对话（Rust 版，Phase F 迁移）"
+license = "MIT OR Apache-2.0"
+
+[[bin]]
+name = "worldsmith"
+path = "src/main.rs"
+
+[dependencies]
+# 复用 Rust Agent 编排框架（AgentLoop + GenaiBackend），需启用 llm-genai feature
+agent-runtime = { path = "../agent-runtime", features = ["llm-genai"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "io-std", "io-util", "sync", "time"] }
+serde_json = "1"
+async-trait = "0.1"
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[profile.release]
+opt-level = "s"
+lto = true
