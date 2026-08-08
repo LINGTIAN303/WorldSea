@@ -94,7 +94,7 @@
 
 ### cli（apps/cli，已删除 2026-08-08）
 
-> TS 版 `apps/cli` 已随 web-to-tauri 迁移删除，由 `crates/cli`（Rust binary `worldsmith`）接管；原注释文档（serve / node-adapter / python-routes）已同步删除，git 历史可找回。
+> TS 版 `apps/cli` 已随 web-to-tauri 迁移删除，由 `crates/cli`（Rust binary `worldsmith`）接管；**`crates/cli` 亦于 2026-08-08 移除**（chat / 文件读写 / 命令执行能力由 Tauri 端 `agent-commands` 覆盖）；原注释文档（serve / node-adapter / python-routes）已同步删除，git 历史可找回。
 
 ### tauri（apps/tauri）
 

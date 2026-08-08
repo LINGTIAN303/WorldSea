@@ -4,7 +4,7 @@
 > 创建日期：2026-07-29
 > 维护策略：每个迁移阶段完成后同步更新对应文档，并在 `08-migration-phases.md` 中标记进度。
 
-> **最终结局（2026-08-08）**：web-to-tauri 迁移完成后，`apps/web` 与 TS 版 `apps/cli` 均已删除，应用层收敛为 **Tauri 唯一 GUI + `crates/cli`（Rust binary）** 双端架构。本文档库记录的是三端分离的历史决策与迁移过程，作为历史归档保留，不再维护。
+> **最终结局（2026-08-08）**：web-to-tauri 迁移完成后，`apps/web` 与 TS 版 `apps/cli` 均已删除；随后 Rust CLI（`crates/cli`）亦于同日移除（chat / 文件读写 / 命令执行能力由 Tauri 端 `agent-commands` 工具集覆盖）。应用层收敛为 **Tauri 唯一 GUI + 共享 crates**。本文档库记录的是三端分离的历史决策与迁移过程，作为历史归档保留，不再维护。
 > 当前架构请以【`[ARCHITECTURE.md](../ARCHITECTURE.md)`】为准。
 
 ## 文档导航

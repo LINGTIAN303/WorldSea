@@ -134,9 +134,6 @@ pnpm build:wasm-all
 # Desktop mode (Tauri，唯一 GUI)
 pnpm dev
 # 或 pnpm tauri:dev
-
-# CLI 交互对话（Rust binary，需 WORLDSMITH_API_KEY 或 --api-key）
-pnpm chat
 ```
 
 ### Build
@@ -144,9 +141,6 @@ pnpm chat
 ```bash
 # Desktop build (produces installer)
 pnpm tauri:build
-
-# CLI（crates/cli）
-cargo build --release --manifest-path crates/cli/Cargo.toml
 ```
 
 ### Test
@@ -166,7 +160,7 @@ WorldSmith/
     tauri/                — 唯一 GUI（Tauri 桌面端，端口 5175，独立 src-tauri + Rust 命令层；apps/web 已于迁移后删除）
   crates/
     agent-runtime/        — Rust Agent 后端（genai LLM + tokio 编排：ToT/GoT/Multi-Agent/Supervisor/Router/Loop）
-    cli/                  — CLI（Rust binary `worldsmith`：chat 交互对话，复用 agent-runtime；原 TS apps/cli 已删除）
+    agent-commands/       — Rust 命令层（LoopControl/LongTask/SubAgent/Terminal 等）
   packages/               — 共享 monorepo 子包（13 个，见上）
   worldsmith-core/        — Rust WASM core (storage, validation, graph layout)
   worldsmith-skills-store — Rust Skills Store crate（独立 cargo test，无 Tauri 依赖）

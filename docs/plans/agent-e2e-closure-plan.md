@@ -2,7 +2,7 @@
 
 > status: 已完成
 > 创建日期：2026-08-04
-> 状态：**✅ 已完成（2026-08-08 复核：5.1–5.5 全部完成；web-to-tauri 迁移后，Agent 链路由 Tauri 桌面端 + `crates/cli` 双端承载）**
+> 状态：**✅ 已完成（2026-08-08 复核：5.1–5.5 全部完成；web-to-tauri 迁移后，Agent 链路主要由 Tauri 桌面端承载；`crates/cli` 已于 2026-08-08 移除，其能力由 Tauri 端 `agent-commands` 覆盖）**
 > 关联：[agent-orchestration-roadmap.md](agent-orchestration-roadmap.md)（阶段 1+2 已完成，Rust 编排框架就绪）、`[组件文档]`
 
 ## 一、目标

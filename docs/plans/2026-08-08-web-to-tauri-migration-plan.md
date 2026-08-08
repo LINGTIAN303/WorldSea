@@ -5,6 +5,8 @@
 > 创建于 2026-08-08。目标：移除 Web 端（apps/web），全部功能迁入 Tauri 端（apps/tauri），CLI 端收敛为本地自动化（移除 serve）。
 > 依据用户决策（2026-08-08 三问）：全部迁入 / 复用组件+适配主题 / CLI 仅本地自动化；群聊与主题编辑器首期暂缓，其余逐步迁移。
 >
+> **后续结局（2026-08-08 同日）**：迁移完成后，Rust CLI（`crates/cli`，Phase F 产物）亦已移除——其 chat / 文件读写 / 命令执行能力由 Tauri 端 `crates/agent-commands` 工具集覆盖，应用层收敛为 **Tauri 唯一 GUI + 共享 crates**。根 package.json 的 `pnpm chat` 脚本、ci.yml 的 cli-build job、`crates/cli` 目录均已删除；历史记录见下方 Phase F 完成记录。
+>
 > 维护规则：
 > - 每个 Phase 完成后更新状态与"完成记录"章节
 > - 任务状态枚举：待启动 / 执行中 / 已完成
