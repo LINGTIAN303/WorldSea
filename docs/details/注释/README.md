@@ -92,15 +92,9 @@
 
 > src/environment.ts、src/registry.ts、src/types.ts 无 ≥ 10 行长注释块，未生成文档。
 
-### cli（apps/cli）
+### cli（apps/cli，已删除 2026-08-08）
 
-| 代码文件 | 详细注释文档 | 摘要 |
-|---|---|---|
-| src/commands/serve.ts | [serve.md](cli/serve.md) | CLI Agent Server 模式：HTTP API 清单 + WebSocket 事件 + Python 微服务桥接、鉴权 |
-| src/cli/node-adapter.ts | [node-adapter.md](cli/node-adapter.md) | Node.js 原生执行适配器：child_process 直连避免 WS 自连、shell 会话、简化 PTY |
-| src/serve/python-routes.ts | [python-routes.md](cli/python-routes.md) | Python 微服务路由：express → 原生 http 迁移、7 个端点清单 |
-
-> src/index.ts、src/env.d.ts、src/cli/*、src/cli/stores/*、src/python/bridge.ts 无 ≥ 10 行长注释块，未生成文档。
+> TS 版 `apps/cli` 已随 web-to-tauri 迁移删除，由 `crates/cli`（Rust binary `worldsmith`）接管；原注释文档（serve / node-adapter / python-routes）已同步删除，git 历史可找回。
 
 ### tauri（apps/tauri）
 
@@ -126,75 +120,9 @@
 | src/plugins/mindmap/composables/useRustGraphAnalysis.ts | [useRustGraphAnalysis.md](tauri/useRustGraphAnalysis.md) | Rust 图分析算法桥接：算法清单与 Web 回退策略 |
 | 拆分记录（2026-08-06） | — | coreBackend.ts 按领域拆为 src/core/api/（schema / retrofit / entity / algo / health / runtime + index 聚合），coreBackend.ts 保留 `export * from './api'`，类型统一来自 @worldsmith/core-api-types，公共导出签名不变，原 import 处无需改动；各新文件无 ≥ 10 行连续注释块，未生成新文档 |
 
-### web（apps/web）
+### web（apps/web，已删除 2026-08-08）
 
-| 代码文件 | 详细注释文档 | 摘要 |
-|---|---|---|
-| src/agent/AgentChat.vue | [AgentChat.md](web/agent/AgentChat.md) | Rust 批次4 思维引擎（Router 路由决策）会话生命周期与命令处理；Loop/ToT/GoT/MA/Supervisor 已拆至 useSessionStatusBars |
-| src/agent/AgentMessageBubble.vue | [AgentMessageBubble.md](web/agent/AgentMessageBubble.md) | 消息气泡路由分发器（4 分支 + 子组件目录） |
-| src/agent/archive/MergeView.vue | [MergeView.md](web/agent/archive/MergeView.md) | 待合并钩子管理视图（emit merged 刷新） |
-| src/agent/archive/StatsView.vue | [StatsView.md](web/agent/archive/StatsView.md) | 记忆库统计视图（纯 UI，props 传入） |
-| src/agent/archive/TrashView.vue | [TrashView.md](web/agent/archive/TrashView.md) | 回收站视图（自包含逻辑） |
-| src/agent/ArchiveConfigPanel.vue | [ArchiveConfigPanel.md](web/agent/ArchiveConfigPanel.md) | 归档参数配置面板（8 组配置项 + localStorage 持久化） |
-| src/agent/ArchivePanel.vue | [ArchivePanel.md](web/agent/ArchivePanel.md) | 记忆库管理面板（7 子视图拆分，父组件职责） |
-| src/agent/chat/useChatMetrics.ts | [useChatMetrics.md](web/agent/chat/useChatMetrics.md) | 聊天上下文用量/成本/归档阈值计算 |
-| src/agent/chat/useChatPanel.ts | [useChatPanel.md](web/agent/chat/useChatPanel.md) | 聊天面板状态管理（位置/大小/最小化/折叠） |
-| src/agent/chat/useChatSession.ts | [useChatSession.md](web/agent/chat/useChatSession.md) | 会话 drawer 列表/切换/删除/新建（依赖注入） |
-| src/agent/chat/useChatSettings.ts | [useChatSettings.md](web/agent/chat/useChatSettings.md) | 聊天设置 state/回调/持久化（options 注入解耦） |
-| src/agent/chat/useLongTaskProgress.ts | [useLongTaskProgress.md](web/agent/chat/useLongTaskProgress.md) | 长任务进度反馈（计时器 + 心跳提示） |
-| src/agent/chat/useManuscriptActions.ts | [useManuscriptActions.md](web/agent/chat/useManuscriptActions.md) | 文境 Block 本地操作（仅内存持久化） |
-| src/agent/chat/useSettingsPanel.ts | [useSettingsPanel.md](web/agent/chat/useSettingsPanel.md) | 设置浮窗位置/拖拽/开关 |
-| src/agent/chat/useChatAttachments.ts | （无） | 聊天附件分类与 vision 提示构建（短注释，未生成文档） |
-| src/agent/chat/useVisionAgent.ts | （无） | vision 子 Agent 初始化与执行（短注释，未生成文档） |
-| src/agent/chat/useSessionStatusBars.ts | [useSessionStatusBars.md](web/agent/chat/useSessionStatusBars.md) | 命令状态栏生命周期管理（Loop/ToT/GoT/MA/Supervisor，自 AgentChat 拆分） |
-| src/agent/composables/useAgent.ts | [useAgent.md](web/agent/composables/useAgent.md) | Web 端 Agent Backend 入口（端分离 P3-W5 功能退化版） |
-| src/agent/composables/useGroupChat.ts | [useGroupChat.md](web/agent/composables/useGroupChat.md) | 群聊生命周期管理（阶段 2.0 后暂不可用） |
-| src/agent/composables/useMessageSpeaker.ts | [useMessageSpeaker.md](web/agent/composables/useMessageSpeaker.md) | 统一消息 speaker 信息（群聊/单聊数据流统一） |
-| src/agent/preview/resultRenderer.ts | [resultRenderer.md](web/agent/preview/resultRenderer.md) | AgentPreview 工具结果 HTML 渲染器（DOMPurify 消毒） |
-| src/App.vue | [App.md](web/App.md) | 调控器启动（priority + 依赖拓扑，分级降级策略） |
-| src/composables/useAvatarImage.ts | [useAvatarImage.md](web/composables/useAvatarImage.md) | avatar 字段解析为图片 src（object URL 生命周期） |
-| src/composables/useFileExtract.ts | [useFileExtract.md](web/composables/useFileExtract.md) | 文档内容提取（docx/pdf/text，pdfjs 改 Web Worker） |
-| src/composables/useProjectSwitcher.ts | [useProjectSwitcher.md](web/composables/useProjectSwitcher.md) | 项目切换编排器（Web 端迁移版，6 步流程） |
-| src/core/coreBackend.ts | [coreBackend.md](web/core/coreBackend.md) | Web 端 coreBackend 聚合 re-export 层（Phase 3 端分离 + 领域拆分至 core/api/，导出名不变） |
-| src/core/api/index.ts | （无） | coreBackend 领域聚合入口（runtime 仅透传 setWasmAvailable/getBackendType，导出面不变） |
-| src/core/api/runtime.ts | （无） | coreBackend 基础设施层：wasmCall/detectBackend/getCoreCached/backendCall/algoCall（短注释，未生成文档） |
-| src/core/api/schema.ts | （无） | schema 契约领域：validatePack + schemaRegister* 系列（短注释，未生成文档） |
-| src/core/api/retrofit.ts | （无） | retrofit 会话领域：retrofit* 14 个会话/补丁函数（短注释，未生成文档） |
-| src/core/api/entity.ts | （无） | entity 校验领域：validateEntity/validateEntities/checkReferences/migrate/runDiagnostics（短注释，未生成文档） |
-| src/core/api/algo.ts | （无） | algo 算法领域：spatial* + 几何/图/CRDT/地形/约束/DXF 算法（短注释，未生成文档） |
-| src/core/api/health.ts | （无） | health 健康检查领域：checkStorageHealth/validatePluginManifest/checkPluginHealth（短注释，未生成文档） |
-| src/core/FacetMigrator.ts | [FacetMigrator.md](web/core/FacetMigrator.md) | weapon/apparel → item+facet 结构迁移（7 步） |
-| src/core/ProjectFS.ts | [ProjectFS.md](web/core/ProjectFS.md) | 向后兼容 re-export（依赖注入说明） |
-| src/core/wasmWorkerPool.ts | [wasmWorkerPool.md](web/core/wasmWorkerPool.md) | WASM Worker 池（懒初始化/队列/回退/可取消） |
-| src/governor/adapters.ts | [adapters.md](web/governor/adapters.md) | 官方插件/自定义模块 → ModuleDescriptor 适配 |
-| src/governor/api.ts | [api.md](web/governor/api.md) | GovernorAPI 实现（包装 pluginAPI + 环境上下文） |
-| src/governor/bootstrap.ts | [bootstrap.md](web/governor/bootstrap.md) | 调控器启动配置（critical/normal/lazy 三级分层） |
-| src/governor/governor.ts | [governor.md](web/governor/governor.md) | 主应用调控器入口（包装 governor-core） |
-| src/main.ts | [main.md](web/main.md) | Web 端入口（WASM 硬编码 + CLI serve 代理） |
-| src/memory-archive/adapters/AgentBridgeImpl.ts | [AgentBridgeImpl.md](web/memory-archive/adapters/AgentBridgeImpl.md) | AgentBridge 宿主实现（6 项关键设计） |
-| src/memory-archive/adapters/ChineseTokenizerAdapter.ts | [ChineseTokenizerAdapter.md](web/memory-archive/adapters/ChineseTokenizerAdapter.md) | 中文分词器宿主实现（H2.2，未装库自动降级） |
-| src/memory-archive/adapters/HostEmbeddingAdapter.ts | [HostEmbeddingAdapter.md](web/memory-archive/adapters/HostEmbeddingAdapter.md) | EmbeddingAdapter 宿主实现（复用 embedding service） |
-| src/memory-archive/adapters/HostLlmAdapter.ts | [HostLlmAdapter.md](web/memory-archive/adapters/HostLlmAdapter.md) | LlmAdapter 宿主实现（OpenAI 兼容，失败自动降级） |
-| src/memory-archive/archiveToolsRegistry.ts | [archiveToolsRegistry.md](web/memory-archive/archiveToolsRegistry.md) | 归档工具注册表（useMemoryArchive ↔ useAgent 传递） |
-| src/memory-archive/useArchiveTriggers.ts | [useArchiveTriggers.md](web/memory-archive/useArchiveTriggers.md) | 5 种归档触发机制（观察者模式，最小侵入） |
-| src/memory-archive/useMemoryArchive.ts | [useMemoryArchive.md](web/memory-archive/useMemoryArchive.md) | 记忆库集成 composable（生命周期管理） |
-| src/modules/registry.ts | [registry.md](web/modules/registry.md) | 模块注册表（Web 端迁移版核心调度器） |
-| src/plugins/official/mindmap/composables/useAgentBridge.ts | [useAgentBridge.md](web/plugins/official/mindmap/composables/useAgentBridge.md) | Mindmap ↔ Agent 通信桥（CustomEvent + Action 协议） |
-| src/plugins/official/mindmap/composables/useMindmapContextActions.ts | [useMindmapContextActions.md](web/plugins/official/mindmap/composables/useMindmapContextActions.md) | 右键菜单/内联编辑/边操作/实体表单 |
-| src/plugins/official/mindmap/composables/useMindmapLayout.ts | [useMindmapLayout.md](web/plugins/official/mindmap/composables/useMindmapLayout.md) | 思维导图布局逻辑（Rust 布局/持久化） |
-| src/space/group-chat/composables/useStreamingMessages.ts | [useStreamingMessages.md](web/space/group-chat/composables/useStreamingMessages.md) | 流式消息显示 composable |
-| src/space/group-chat/engine/GroupChatEngine.ts | [GroupChatEngine.md](web/space/group-chat/engine/GroupChatEngine.md) | 群聊引擎（提示词分层注入 + 工具集解析） |
-| src/stores/archiveStore.ts | [archiveStore.md](web/stores/archiveStore.md) | 归档边界状态管理（Pinia + sessionStorage，P13） |
-| src/ui/avatar.ts | [avatar.md](web/ui/avatar.md) | 统一头像工具函数（图片/文字/背景色规则） |
-| src/ui/AvatarBadge.vue | [AvatarBadge.md](web/ui/AvatarBadge.md) | 统一头像组件（渲染规则 + avatar:// 解析） |
-| src/ui/boot/splash-canvas.ts | [splash-canvas.md](web/ui/boot/splash-canvas.md) | 启动页 Canvas 动效引擎（双 Canvas 分层） |
-| src/ui/layout/sidebar/useSidebarDragHandler.ts | [useSidebarDragHandler.md](web/ui/layout/sidebar/useSidebarDragHandler.md) | 侧边栏拖拽处理（拖视图到看板） |
-| src/ui/layout/sidebar/useSidebarInteraction.ts | [useSidebarInteraction.md](web/ui/layout/sidebar/useSidebarInteraction.md) | 侧边栏交互处理（点击 vs 拖拽判定修复） |
-| src/ui/layout/sidebar/useSidebarPhysics.ts | [useSidebarPhysics.md](web/ui/layout/sidebar/useSidebarPhysics.md) | 侧边栏轮播物理引擎（RAF + 弹簧吸附） |
-| src/ui/settings/panels/CompanionPanel.vue | [CompanionPanel.md](web/ui/settings/panels/CompanionPanel.md) | re-export 兼容层（实现迁移 ui-kit） |
-| src/ui/settings/panels/PluginsPanel.vue | [PluginsPanel.md](web/ui/settings/panels/PluginsPanel.md) | re-export 兼容层（实现迁移 ui-kit） |
-| vite.config.ts | [vite-config.md](web/vite-config.md) | Web 端 Vite 配置：CLI serve 中转设计原则、端口 5174、别名解析与 manualChunks |
-| 拆分记录（2026-08-06） | — | tactical-board 的 boardDraw.ts 按绘制主题拆为 boardCoordinates（坐标/命中测试）/boardColors（颜色表）/boardTerrain（地形）/boardUnits（单位）/boardOverlay（高亮/网格/坐标/awareness），boardDraw.ts 保留 BoardRenderData 与分层绘制入口并 `export *` 聚合，公共导出签名不变，原 import 处无需改动；各文件无 ≥ 10 行连续注释块，未生成文档 |
+> TS 版 `apps/web` 已随 web-to-tauri 迁移删除（原 Web 主应用：27 插件 + 空间 + 设置已全部迁入 `apps/tauri`）；原注释文档（约 60 个，覆盖 agent/governor/memory-archive/plugins/space/stores/ui 等）已同步删除，git 历史可找回。
 
 > 索引随整改批次持续推进，未整改模块完成后再补充登记。
 

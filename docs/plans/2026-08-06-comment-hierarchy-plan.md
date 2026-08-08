@@ -14,7 +14,7 @@ status: 执行中
 
 - 全库 `apps/` + `crates/` + `packages/` 共 1250 个 `.rs/.ts/.vue` 文件
 - 连续注释 ≥ 10 行的长注释块共 **495 块 / 262 文件**
-- 重灾区：`crates/agent-runtime/src/agent.rs`（343 行/21 块）、`apps/tauri/useLoopControlRust.ts`（329 行/15 块）、`apps/web/AgentChat.vue`（176 行/11 块）
+- 重灾区：`crates/agent-runtime/src/agent.rs`（343 行/21 块）、`apps/tauri/useLoopControlRust.ts`（329 行/15 块）、`apps/web/AgentChat.vue`（176 行/11 块，已随 apps/web 删除 2026-08-08）
 
 ## 排除项（不整改，依据如下）
 
@@ -42,8 +42,8 @@ status: 执行中
 | 1 | `crates/agent-runtime` | 核心，含 21 个有长注释的文件 |
 | 2 | `crates/agent-commands`、`crates/agent-memory`、`crates/server`（如有） | 命令层 + 记忆适配层 |
 | 3 | `apps/tauri/src/agent/` | useAgentRust / useLoopControlRust / useLongTaskRust 等 |
-| 4 | `apps/web/` | AgentChat.vue、governor、memory-archive 调用层（非待清理包本体） |
-| 5 | `apps/cli/` | serve.ts 等 |
+| 4 | ~~`apps/web/`~~ | AgentChat.vue、governor、memory-archive 调用层（**已删除 2026-08-08，批次取消**） |
+| 5 | ~~`apps/cli/`~~ | serve.ts 等（**已删除 2026-08-08，批次取消**） |
 | 6 | `packages/` 活跃包 | agent-core / agent-runtime / entity-core / governor-core / canvas-engine / font-kit / motion-kit 等（排除 memory-archive） |
 
 ## 文档组织

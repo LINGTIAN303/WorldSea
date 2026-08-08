@@ -80,16 +80,18 @@ status: 执行中
 | 文件 | 行数 | 类型 | 拆分方案 |
 |---|---|---|---|
 | packages/plugin-sdk/src/components/EntityFormModal.vue | 1087 | 职责混杂 | script 五类逻辑抽 composable：useEntityRefSearch（实体引用搜索）/ useDynamicForm（表单数据+ghost 防抖）/ useFieldPresets（预设+字段合并）/ useAutoLink（自动链接）；模板 + 编排留组件 |
-| apps/web/src/agent/AgentSettingsPanel.vue | 1125 | 职责混杂 | 先分析结构再按职责抽 composable |
-| apps/web/src/plugins/official/tactical-board/composables/boardDraw.ts | 1102 | 纯逻辑 | 按绘制主题拆：coordinates.ts（坐标计算）/ colors.ts（颜色表）/ terrain.ts（地形装饰）/ units.ts（单位绘制）/ overlay.ts（高亮/网格）；公共导出签名不变 |
+| ~~apps/web/src/agent/AgentSettingsPanel.vue~~ | 1125 | 职责混杂 | 先分析结构再按职责抽 composable（**已随 apps/web 删除 2026-08-08**） |
+| ~~apps/web/src/plugins/official/tactical-board/composables/boardDraw.ts~~ | 1102 | 纯逻辑 | 按绘制主题拆：coordinates.ts（坐标计算）/ colors.ts（颜色表）/ terrain.ts（地形装饰）/ units.ts（单位绘制）/ overlay.ts（高亮/网格）；公共导出签名不变（**已随 apps/web 删除 2026-08-08**） |
 
 约束：
 - 只搬移不改行为；组件渲染与事件流不变
 - 新 composable 文件按注释分层规则（≥10 行注释块抽取到 docs/details/注释/）
 - 工具级操作，禁止 shell 脚本
-- 验证：apps/web / plugin-sdk 相关 typecheck 通过
+- 验证：plugin-sdk 相关 typecheck 通过（原 apps/web 验证项已随 2026-08-08 删除失效）
 
 ## 第三轮执行结果（2026-08-06）
+
+> 注（2026-08-08）：第三~六轮中涉及 `apps/web` / `apps/cli` 的拆分成果（boardDraw / AgentSettingsPanel / web coreBackend / apps/web 注册层等）已随 web-to-tauri 迁移删除，以下记录仅保留历史过程；Tauri 端承接的成果（core-api-types 契约、coreBackend api/ 领域拆分）继续有效。
 
 - **boardDraw.ts（1102→152 行）**：拆为 boardCoordinates(135)/boardColors(41)/boardTerrain(220)/boardUnits(169)/boardOverlay(424)，boardDraw 保留主接口 + 5 个 `export *` re-export；6 处外部引用零改动
 - **EntityFormModal.vue（1087→790 行，script 650→353）**：抽 useFieldPresets(188)/useDynamicForm(92)/useEntityRefSearch(62)/useEntityFormSave(119)；autoLink 并入 save（仅一行 filter，独立文件属过度拆分）；调用环用 `getFormData` 闭包解 TDZ

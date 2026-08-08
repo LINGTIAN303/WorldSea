@@ -55,12 +55,12 @@
 |------|------|------|
 | 1. Single Agent | ✅ 已有 | [bridge.ts](../../packages/agent-runtime/src/bridge.ts) CoreBackend |
 | 2. ReAct | ⚠️ 隐式存在 | pi-agent-core 的 Agent 类内置 tool_call 循环 |
-| 3. Plan-and-Execute | 🟡 雏形 | [usePlanStore.ts](../../apps/web/src/agent/composables/usePlanStore.ts) 有 PlanItem 状态机 |
-| 8. Multi-Agent | 🟡 雏形 | [useOrchestrator.ts](../../apps/web/src/agent/composables/useOrchestrator.ts) 子 Agent 调度 |
+| 3. Plan-and-Execute | 🟡 雏形 | `usePlanStore.ts`（原 apps/web 路径，2026-08-08 已删除）有 PlanItem 状态机 |
+| 8. Multi-Agent | 🟡 雏形 | `useOrchestrator.ts`（原 apps/web 路径，2026-08-08 已删除）子 Agent 调度 |
 | 9. Supervisor | 🟡 雏形 | useOrchestrator 的 dispatch + maxConcurrency 控制即 Supervisor 雏形 |
 | 11. Tool Use | ✅ 已有 | [packages/agent-core/src/bus/](../../packages/agent-core/src/bus) ToolBus 完整实现 |
 | 12. Memory | 🟡 部分 | [memory-archive](../../packages/memory-archive) 已有，但未与 Agent loop 深度集成 |
-| 13. Loop Engineering | 🟡 部分 | [longTaskStore.ts](../../apps/web/src/agent/composables/longTaskStore.ts) 有 checkpoint/心跳 |
+| 13. Loop Engineering | 🟡 部分 | `longTaskStore.ts`（原 apps/web 路径，2026-08-08 已删除）有 checkpoint/心跳 |
 | 4. Reflection | ❌ 缺失 | — |
 | 5. Self-Refine | ❌ 缺失 | — |
 | 6. ToT | ❌ 缺失 | — |
@@ -135,7 +135,7 @@
 - [ ] 验收：现有功能不退化，新增可控中断能力
 
 ##### 0.3 实现 Plan-and-Execute 模式
-- [ ] 复用 [usePlanStore.ts](../../apps/web/src/agent/composables/usePlanStore.ts) 的 PlanItem 状态机
+- [ ] 复用 `usePlanStore.ts`（原 apps/web 路径，2026-08-08 已删除）的 PlanItem 状态机
 - [ ] 实现 `PlanNode`（生成计划）+ `ExecuteNode`（逐步执行）
 - [ ] 支持 Plan 动态调整（执行中发现新任务可追加）
 - [ ] 验收：可让 Agent 先列计划再执行，UI 展示进度
@@ -394,7 +394,7 @@
 - **配套**：`commands/got.rs`（8 个 Tauri 命令：create/run/abort/destroy/get_state/set_state/list_sessions/get_tree）
 
 ##### 2.3 Multi-Agent 完善
-- [x] 迁移 [useOrchestrator.ts](../../apps/web/src/agent/composables/useOrchestrator.ts) 到 Rust — `crates/agent-runtime/src/multi_agent.rs` 实现 `MultiAgentNode`
+- [x] 迁移 `useOrchestrator.ts`（原 apps/web 路径，2026-08-08 已删除）到 Rust — `crates/agent-runtime/src/multi_agent.rs` 实现 `MultiAgentNode`
 - [x] 用 `tokio::sync::mpsc` 实现 Agent 间通信 — 每 Agent 一个 mpsc receiver，按 topology（mesh/ring/star/pipeline/custom）构建 sender 网络
 - [x] 共享黑板板模式（Shared Blackboard）— `SharedBlackboard`（`Arc<RwLock<...>>`）存储全局上下文 + final_result
 - [x] 验收：cargo test multi_agent:: 全通过；5 种拓扑 + 3 种收敛条件（MaxRounds/GoalReached/AllAgentsIdle）+ AgentRole 语义标签 + 前端 `useMultiAgentRust.ts` composable
@@ -419,7 +419,7 @@
 
 ##### 2.6 Loop Engineering
 - [x] 通用循环控制：中断/恢复/重试/超时/限流 — `crates/agent-runtime/src/loop_control.rs` 实现 `LoopController`（RateLimiter + RetryPolicy + SoftTimeout + Watchdog），协作式软限制（`should_stop()`/`should_retry()` 返回建议）
-- [x] 检查点持久化（迁移 [longTaskStore.ts](../../apps/web/src/agent/composables/longTaskStore.ts)）— `crates/agent-runtime/src/long_task.rs` 实现 `LongTaskManager`（任务生命周期 + checkpoint 保存/加载 + heartbeat），前端 `useLongTaskRust.ts` composable
+- [x] 检查点持久化（迁移 `longTaskStore.ts`，原 apps/web 路径 2026-08-08 已删除）— `crates/agent-runtime/src/long_task.rs` 实现 `LongTaskManager`（任务生命周期 + checkpoint 保存/加载 + heartbeat），前端 `useLongTaskRust.ts` composable
 - [x] 心跳与看门狗 — `Watchdog` 配置（默认 5min 无活动触发恢复）+ `update_heartbeat` 命令 + `update_activity` 接口
 - [x] 验收：cargo test loop_control:: + long_task:: 全通过；9 个 loop_control 命令（create/check/record_turn/record_tool_call/record_tokens/update_activity/reset_counters/get_config/get_status/destroy/list_tasks）+ 7 个 long_task 命令（save/load/list_running/list_all/update_heartbeat/update_status/delete）+ 前端 `useLoopControlRust.ts` + `useLongTaskRust.ts` composable
 - **完成时间**：2026-07-28

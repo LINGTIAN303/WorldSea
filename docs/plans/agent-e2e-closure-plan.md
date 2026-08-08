@@ -1,8 +1,8 @@
 # Agent 端到端闭环计划（Phase 5）
 
-> status: 执行中
+> status: 已完成
 > 创建日期：2026-08-04
-> 状态：**执行中（5.1 命令层已完成，5.2 Tauri 前端链路已完成，5.3 Agent UI 迁移已完成，5.4 端到端实测待启动）**
+> 状态：**✅ 已完成（2026-08-08 复核：5.1–5.5 全部完成；web-to-tauri 迁移后，Agent 链路由 Tauri 桌面端 + `crates/cli` 双端承载）**
 > 关联：[agent-orchestration-roadmap.md](agent-orchestration-roadmap.md)（阶段 1+2 已完成，Rust 编排框架就绪）、`[组件文档]`
 
 ## 一、目标
@@ -24,7 +24,7 @@
 **已有基础（可直接复用）**：
 - `crates/agent-runtime`：Agent 编排框架 Rust 版，阶段 1（Agent loop）+ 阶段 2（编排框架）已完成，13 种模式全部实现，`cargo test` 127/127 通过。
 - `packages/shared-composables/src/agent/useAgent.ts`：端无关 Agent Backend 注入层（`provideAgentBackend` / `useAgent` / `useAgentOptional`），已定义 `ToolCallView` / `DeepSegment` 等核心类型。
-- `apps/web/src/agent/composables/useAgent.ts`：Web 端 Agent Backend 入口（功能退化版），可作为 Tauri 端适配器实现参考。
+- ~~`apps/web/src/agent/composables/useAgent.ts`~~：Web 端 Agent Backend 入口（功能退化版），曾作为 Tauri 端适配器实现参考；**apps/web 已删除（2026-08-08）**，现由 `apps/tauri/src/agent/composables/useAgentRust.ts` 承载。
 
 ## 三、子阶段划分
 
@@ -83,7 +83,7 @@
 
 **目标**：在 Tauri 桌面端实测全链路，补齐高级能力。
 
-**状态**：⏳ 执行中（5.4 子任务 1 已完成，子任务 2 主链路 + 13 种编排模式实测通过）
+**状态**：✅ 已完成（2026-08-08 复核：子任务 1–4 全部完成）
 
 **决策记录**：
 - **LLM 配置来源**：沿用 Web 端模式 —— 前端配置 + 本地存储（API key 存 localStorage，Tauri 端存 app-data）。`GenaiBackend` 已实现，`agent-commands` 仅替换 `new_agent` 中的 `MockBackend` 为 `GenaiBackend`，命令层参数/返回类型不变。
@@ -174,7 +174,7 @@
 > ✅ **已完成（2026-08-05）**
 > - 核实：`packages/agent-runtime`/`packages/agent-core` 的 pi-ai 依赖在**之前迭代（阶段 2.0 批次3）已移除**，`agent.ts` 注释明确记载"CoreBackend/HybridBackend 已移除（依赖 pi-ai）"、"createWorldSmithAgent 已废弃"。
 > - 全库 grep 确认：**无任何实际 `import ... from 'pi-ai'` 代码**，残留的 `pi-ai` 字样均为注释历史文字，不影响编译与运行。
-> - `@worldsmith/agent-runtime`/`@worldsmith/agent-core` 是项目**自身** TS 包，被三端（Web/CLI/Tauri）正常引用（`vite.config.ts` 别名 + package.json `link:`），属活跃使用，**不可删除**。
+> - `@worldsmith/agent-runtime`/`@worldsmith/agent-core` 是项目**自身** TS 包，属活跃使用，**不可删除**。（注：2026-08-05 记录"被三端引用"，web/cli 已于 2026-08-08 删除，现由 Tauri 端引用）
 > - 结论：5.5 技术栈收敛目标已达成，无需额外代码改动。
 
 ## 四、里程碑

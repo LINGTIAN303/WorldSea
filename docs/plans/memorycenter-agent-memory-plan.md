@@ -108,13 +108,13 @@ Storage trait（可插拔）
         - 接线：App.vue 增「记忆」tab，挂载 MemoryPanel（传当前会话 sessionId，会话隔离）
         - 验证：agent-commands / agent-runtime / tauri cargo check 通过；前端 typecheck 通过
         - 说明：管理功能（标签/置顶/删除/回收站/定时归档/合并）留待后续迭代，MVP 聚焦核心闭环
-阶段 5  清理：确认稳定后清理 TS 版 memory-archive ⏳ 部分完成（Tauri 端已清，Web 端保留）
+阶段 5  清理：确认稳定后清理 TS 版 memory-archive ✅ 已完成（2026-08-08 复核：apps/web 已删除，"Web 端保留"理由失效，阶段 5 视为完成）
         - Tauri 端：删除 apps/tauri/src/memory-archive/（TauriFsOperations.ts 孤立文件，
           无任何引用），移除 tauri tsconfig.json / vite.config.ts 的 @worldsmith/memory-archive
           路径映射。vue-tsc typecheck 通过 ✅
-        - Web 端：保留（apps/web 仍依赖 TS memory-archive 的 ArchivePanel/archive 视图等
-          十几个组件，且 Web 聊天后端未接通，无法回退 Rust 记忆）。待 Web 聊天接入
-          Rust 后端后再迁移清理
+        - Web 端：原保留决策（apps/web 依赖 TS memory-archive 的 ArchivePanel/archive 视图等
+          十几个组件，且 Web 聊天后端未接通，无法回退 Rust 记忆）已随 **apps/web 删除（2026-08-08）**
+          失效；TS memory-archive 仅保留于 packages/memory-archive 供既有消费方使用
 ```
 
 ---
