@@ -131,21 +131,22 @@ pnpm build:wasm-all
 ### Development
 
 ```bash
-# Web mode (browser)
+# Desktop mode (Tauri，唯一 GUI)
 pnpm dev
+# 或 pnpm tauri:dev
 
-# Desktop mode (Tauri)
-pnpm tauri:dev
+# CLI 交互对话（Rust binary，需 WORLDSMITH_API_KEY 或 --api-key）
+pnpm chat
 ```
 
 ### Build
 
 ```bash
-# Web build
-pnpm build:web
-
 # Desktop build (produces installer)
 pnpm tauri:build
+
+# CLI（crates/cli）
+cargo build --release --manifest-path crates/cli/Cargo.toml
 ```
 
 ### Test
@@ -161,17 +162,16 @@ pnpm test:coverage
 
 ```
 WorldSmith/
-  apps/                   — 三端独立应用（端分离完成，主应用入口 = apps/web）
-    web/                  — Web 端（端口 5174，Vite + WASM + CLI serve 代理）—— 主应用
-    cli/                  — CLI 端（commander：chat / serve，HTTP+WS 服务，python-services 微服务）
-    tauri/                — Tauri 桌面端（端口 5175，独立 src-tauri + Rust 命令层）
+  apps/
+    tauri/                — 唯一 GUI（Tauri 桌面端，端口 5175，独立 src-tauri + Rust 命令层；apps/web 已于迁移后删除）
   crates/
     agent-runtime/        — Rust Agent 后端（genai LLM + tokio 编排：ToT/GoT/Multi-Agent/Supervisor/Router/Loop）
+    cli/                  — CLI（Rust binary `worldsmith`：chat 交互对话，复用 agent-runtime；原 TS apps/cli 已删除）
   packages/               — 共享 monorepo 子包（13 个，见上）
   worldsmith-core/        — Rust WASM core (storage, validation, graph layout)
   worldsmith-skills-store — Rust Skills Store crate（独立 cargo test，无 Tauri 依赖）
   tactical-engine/        — Rust WASM tactical engine (pathfinding)
-  docs/                   — Roadmap, design specs, plans（含 端分离/ 文档库）
+  docs/                   — Roadmap, design specs, plans（含 端分离/ 历史文档库）
   scripts/                — Build & utility scripts
 ```
 

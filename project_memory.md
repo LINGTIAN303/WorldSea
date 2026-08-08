@@ -3,7 +3,51 @@
 
 > 本文档由主要执行 Agent 维护，记录项目概况、架构、任务状态与关键决策。
 > 任务路线独立维护于 docs/plans/ROADMAP.md，防止本文档反复更新导致任务丢失。
-> 最后更新：2026-08-02
+> 最后更新：2026-08-08
+
+## 〇、当前主线：Web 端迁入 Tauri（2026-08-08 启动）
+
+> 用户决策：移除 apps/web，全部功能迁入 Tauri（唯一 GUI）；CLI 收敛为本地自动化（移除 serve）；群聊/主题编辑器首期暂缓。
+> 完整计划见 docs/plans/2026-08-08-web-to-tauri-migration-plan.md（7 Phase）
+
+**已完成的 Phase（2026-08-08）**：
+- **Phase A ✅ 后端命令补全**：Tauri 端 core/api 整体对齐 web 端 WASM 版本（runtime/algo/retrofit/health + worldsmithCore/wasm.worker/wasmWorkerPool 三个 WASM 加载器，算法/校验复用 WASM 核心）；新增 Rust fs 命令层 fs_commands.rs（cmd_fs_write/read/list/delete，FileStorageBackend 数据落盘）。空间索引/存储健康检查无 Rust 命令 → 返回降级值
+- **Phase B ✅ 数据层验证**：新增 cmd_get_app_data_dir / cmd_delete_project_db 命令；useProjectSwitcher 三处（initialize/createAndSwitch/switchProject）自动绑定应用数据目录子路径（{dataDir}/projects/{id}），避免降级到不存在的 TauriStorageBackend
+- **Phase C 骨架 ✅（进行中）**：
+  - web Shell 主框架依赖树 58+ 文件迁入 Tauri（stores/composables/assets/ui 布局/弹窗/boot + modules 三件套 + avatar 存储 + ProjectFS）
+  - token 桥接：web-tokens-bridge.css（232 条 web 变量 → Tauri 令牌映射，浅/深双主题）
+  - App.vue 拆分为 AgentWorkspace.vue（1898 行，原 rail+5 视图完整保留）+ 新 App.vue（Shell 宿主，注册 agent 视图到 pluginStore）
+  - 裁剪暂缓组件：AgentOverlay/SmartFill/ThemeEditor/AppMessageHandler（首期暂缓）
+  - tauri vue-tsc 零错误 + vite build 通过（含 WASM 打包）
+- **Phase C 第一批插件 ✅**：characters/regions/concepts/items（22 文件零差异复制 + PluginManager/PluginSandbox/plugin-manifest 基础设施 + 轻量 bootstrap.ts 装配）
+- **Phase C 第二批插件 ✅（轻插件，10 个）**：timeline/organizations/culture/conflict/inspiration/apparel/outline/manuscript/drawing/notebook
+  - 目录零差异复制 + bootstrap.ts 装配（MIGRATED_PLUGIN_IDS/pluginLoaders 各 10 行）
+  - 前置补齐：① vite alias 补 `@worldsmith/agent-runtime/toolbus`/`tools` 子路径（修 dev optimizer 的 algo-tools 解析失败）② `useAgentPluginBridge` 复制（零依赖）③ Tauri 端新增 `agent/composables/useAgent.ts` 兼容入口（复用 useAgentRust）④ npm 新增 @tiptap/* 5 个 + vuedraggable
+  - 验证：tauri dev 启动无报错、vue-tsc 零错误
+- **Phase C 第三批插件 ✅（WASM 布局类 13 个）**：graph/mindmap/species/languages/plants/magic/weapons/combat_stats/buildings/tactical-board/workflow/module-builder/custom（27 插件全量迁完）
+  - 目录零差异复制 + bootstrap.ts 装配
+  - 前置补齐：① `agent/composables/useOrchestrator.ts` re-export（共享包）② `core/ModuleRuntime.ts` + `core/ModuleViewRegistry.ts` 复制（module-builder 依赖）③ npm 新增 echarts/graphology/graphology-layout/graphology-layout-forceatlas2/sigma
+  - 说明：workflowApi 为 web stub 版（Engine 通道不可用，Rust 版待对接）；mindmap useRustLayout 纯 JS fallback；tactical-engine WASM 失败自动降级 JS
+  - 验证：tauri dev 无报错、vue-tsc 零错误
+- **Phase C 快捷键收敛 ✅**：AgentWorkspace 的 window keydown 改为 capture 阶段监听 + 命中自身键（Ctrl+N/1..4/L/K、Esc 停止生成）时 stopPropagation，先于 Shell useShortcuts（document 冒泡 + stopImmediatePropagation）。修复前 agent 视图内 Ctrl+K 被 Shell 全局搜索抢占；修复后 agent 视图内 Ctrl+K 聚焦输入框、切走视图恢复全局搜索。浏览器实测双向验证通过
+- **Phase C cmd_fs_watch_* ✅（Phase C 全部完成）**：新建 fs_watch_commands.rs 实现 cmd_fs_watch_start（notify v8 递归监听 + app.emit fs:change 事件 + Rust 端过滤内部元数据）/ cmd_fs_watch_stop；lib.rs 注册 + manage FsWatchRegistry；Cargo.toml 新增 notify v8.2.0。前端 entity-core useFsWatcher 已就绪，调用链已接通（useProjectSwitcher / ProjectSwitcherDialog）
+- **Phase D1 ✅（Agent 空间面板迁入）**：对话核心保留 Tauri AgentWorkspace chat（Rust 后端）；迁入 ActivityLog/PlanPanel/KnowledgeWall 三个面板到 chat 视图内浮动面板（仿 web：左=会话栏⇄知识墙，右=活动日志⇄任务计划，带缩放手柄+滑入滑出）。kb 存储改 Rust fs 落盘（useKbRust.ts 适配层复用 cmd_fs_*，global→{dataDir}/.worldsmith/kb.json、project→{projectDir}/.worldsmith/kb.json，无新增 Rust 命令）。TuiIcon 补 folder/folderOpen/paperclip/tree/video/package 六图标。修复 agent 内置视图从 sidebar 消失（App.vue 移除 pluginId+ensureViewInOrder）。降级：PlanPanel 用量/上下文区移除（Rust Agent 无 usage 接口）、KnowledgeWall usePersonaFont 降级。验证：vue-tsc 零错误、浏览器实测面板开关/互斥/宽度/空状态正常；kb 落盘待 Tauri 窗口实测
+- **Phase D1 不迁**：MemoryShelf（MemoryPanel Rust memory_* 已覆盖）、SpaceAgentSettingsPanel（Rust 无 MCP/Skills/APIKey 命令）、PersonaMirror（font 暂缓组）、SessionSidebar/SpaceNavbar（SessionList/rail 已覆盖）
+- **Phase D2 ✅（存储管理迁入）**：TrashPanel/ConsistencyReportPanel/StorageManagementTab 已在 Phase C Shell 迁移时迁入 apps/tauri/src/ui/data/（依赖均为 entity-core 共享包），挂 Shell 与设置弹窗「存储」tab。本次补齐 MenuBar「⋯」菜单入口（回收站 ws-open-trash / 一致性检查 ws-open-consistency，web 端本就无入口）。kb 落盘修复：useKbRust project scope 未绑定 projectDir 时兜底 dataDir/projects/{currentProjectId}（getProjectManager），用户实测落盘成功。验证：typecheck 通过、浏览器实测三面板打开渲染正常；删除→回收→恢复链路待 Tauri 窗口实测
+- **Phase D3 ✅（暂缓组标记，Phase D 全部完成）**：三组暂缓范围核对 + 标注 + 残留验证。① 残留验证：Tauri 端 group-chat/smart-fill 零命中；font 仅 2 处共享包使用（PhonePreview useFontPresets、AppearancePanel 注释），跨 app 引用 7 处均为迁移注释无运行时 import；web 端 typecheck 通过。② 标注：三组入口加"暂缓组标记"注释（group-chat/index.ts、smart-fill/SmartFillChat.vue、usePersonaFont.ts）。③ 界定修正：font 暂缓组 = web 独有的人格字体闭环（usePersonaFont/persona-font-store/FontSelectorDropdown/PersonaMirror/AgentPersonaBar/PersonaAvatarCanvas/setFontTool/fontSpanParser/FontInstallConfirm）；font-kit/entity-core fontStore 是共享包 Tauri 已用，不暂缓
+- **Phase E ✅（主题适配）**：① E1 令牌映射补齐——全量扫描 apps/tauri/src 所有 var(--x)（约 180 个）比对 theme.css + web-tokens-bridge.css，补 40+ 缺失项（--space-1..6/--duration-fast/--ease-default/--color-primary-subtle/--bg-hover/--danger-light/--ws-*/--z-detail 等），全部 var() 链引用 Tauri 令牌双主题自动跟随；② E2 Naive UI 替换——worldsmithCore.ts 删除无效 `await import('naive-ui')`（实际走 window.__worldsmith_notify_wasm_failure__）、GlobalGraph.vue NAlert→TuiIcon 自定义 banner（.g-wasm-notice），全库 naive 零引用零依赖；③ E3 theme-editor 迁入——4 文件至 apps/tauri/src/components/theme-editor/（WsModal→TuiModal、WsIcon→TuiIcon 图标 sparkle/wrench/terminal、useTheme→@/composables/useTheme），Shell 挂载 + ws-open-theme-editor + MenuBar 菜单入口。验证：vue-tsc 通过；浏览器实测 3 tab 渲染正常（专业 tab WCAG 对比度 AAA 15.3:1）；双主题 evaluate_script 实测令牌值全对（深 #8b87f8/浅 #4f46e5）
+- **Phase F ✅（CLI 收敛）**：TS 端 Agent（createWorldSmithAgent/createCliAgent）批次3 已废弃（pi-ai 移除），Agent 循环全在 Rust → F2 选型 **Rust CLI 接管 chat**（用户确认）。① **crates/cli 新建**（Rust binary `worldsmith`）：复用 crates/agent-runtime AgentLoop + GenaiBackend（genai 0.7.0-beta.16 native-tls 对齐 lock）+ SimpleToolBus；本地工具 4 个（read_file/write_file/list_directory/execute_command cmd /C）；std readline REPL（/quit /clear，ThinkingLevel::Low）；手写参数解析（-p/-m/--api-key/--base-url/-d，无 serve）；key 解析参数 > WORLDSMITH_API_KEY。② **TS apps/cli 删除**（23 文件：serve.ts/python-routes.ts/bridge.ts/python-services/*/cli/* 等），根 package.json 删 dev:cli/build:cli/typecheck:cli + 新增 pnpm chat；pnpm install 更新 lockfile（Packages: -1）；ci.yml cli-build 改 Rust cargo check。③ **F3 python-services 移除**（Tauri 零消费确认）。验证：cargo check 通过、--help 无 serve、无 key 报错清晰。已知限制：工具集最小 4 个、无流式输出、-d/--data 保留参数
+- **Phase G ✅（删除 web + 清理，迁移全部完成）**：① G1 apps/web 整目录删除；② G2 范围修正——wasm.worker/wasmWorkerPool 是 Tauri active 依赖（core/api runtime "算法/校验走 WASM"）保留，ws-adapter 仅 web 端随删，实际清理=修 vitest.config.ts（移除已删 web 的 setupFiles/glob 引用，coverage 改 packages）；③ G3 根 package.json scripts 收敛（dev/build 指 tauri、删 web 相关、新增 pnpm chat）+ ci.yml 删 web-build、cli-build 改 Rust；④ G4 文档同步（ARCHITECTURE/README/索引 双端化，端分离库标历史归档）。验证：tauri typecheck 通过、vitest 199 tests 全绿、全库 grep 无 apps/web/@worldsmith/web/ws-adapter 代码级残留、crates/cli cargo check 通过
+
+**待办（迁移收尾后的剩余项）**：
+- CLI：真实 LLM 对话端到端实测（配 API key 后 `pnpm chat`）；工具集扩展（实体/记忆）；流式输出（AgentLoop subscribe）
+- Tauri：窗口端到端实测（Phase D 面板/存储、E 主题编辑器预设主题）；WASM 布局类插件经 Rust 命令或降级实测
+- 暂缓组（group-chat/smart-fill/人格字体）按需评估迁入或删除决策
+
+**关键架构（Phase C 后）**：
+- 数据流三层：存储 → FileStorageBackend（Rust fs 命令）；算法/校验 → WASM；Agent → Rust 命令（已有）
+- Shell 渲染机制：pluginStore.registerView + uiStore.setView/viewComponent → ViewContainer 渲染
+- 注意：ui-kit WsIcon 图标用已注册名（如 lightning），'sparkle' 不在注册表会降级为文本
 
 ## 一、项目概况
 

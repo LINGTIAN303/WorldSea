@@ -1,30 +1,28 @@
 # WorldSmith 架构总览
 
-> 本文档描述**当前实际代码状态**（2026-08-06 复核），供新接手者快速定位代码。
+> 本文档描述**当前实际代码状态**（2026-08-08 复核，Phase G 迁移完成后），供新接手者快速定位代码。
 > 与 `docs/details/端分离/` 文档库区分：后者是端分离迁移的历史记录与目标架构设计。
 
 ## 1. 项目定位
 
 WorldSmith 是一个 AI 驱动的世界构建（worldbuilding）平台，帮助用户构建丰富、互相关联的虚构世界。
 
-- **主应用**：`apps/web`（Web 端，浏览器应用）
-- **桌面端**：`apps/tauri`（Tauri 2 桌面应用）
-- **CLI/服务端**：`apps/cli`（命令行 + HTTP/WS 服务）
-- **技术栈**：Vue 3 + TypeScript + Vite + Pinia + Naive UI（前端）；Rust（WASM 核心 + Tauri 后端 + Agent 编排）
+- **唯一 GUI**：`apps/tauri`（Tauri 2 桌面应用，原 `apps/web` 已于 2026-08-08 迁移后删除）
+- **CLI**：`crates/cli`（Rust binary `worldsmith`，chat 交互对话，原 TS `apps/cli` 已删除）
+- **技术栈**：Vue 3 + TypeScript + Vite + Pinia（前端）；Rust（WASM 核心 + Tauri 后端 + Agent 编排 + CLI）
 
 ## 2. 顶层目录结构
 
 ```
 worldsmith/
-├── apps/                  # 三端应用入口
-│   ├── web/               # ★ 主应用（完整前端：Agent、插件、Space、UI、core）
-│   ├── cli/               # CLI 端（commander：chat / serve，HTTP+WS 服务）
-│   └── tauri/             # Tauri 桌面端（独立 src-tauri + Rust 命令层）
+├── apps/                  # 应用入口
+│   └── tauri/             # ★ 唯一 GUI（Tauri 桌面端：独立 src-tauri + Rust 命令层）
 ├── packages/              # 共享 monorepo 子包（15 个，见 §4）
 ├── crates/                # Rust crates
 │   ├── agent-runtime/     # Rust Agent 编排后端（genai LLM + tokio）
 │   ├── agent-commands/    # 命令层（LoopControl/LongTask/SubAgent/Terminal 等）
 │   ├── agent-memory/      # Agent 记忆后端（MemoryCenter 适配）
+│   ├── cli/               # CLI（binary `worldsmith`：chat，复用 agent-runtime）
 │   └── vendor/            # 三方 vendor 代码（memory-center-core）
 ├── worldsmith-core/       # Rust WASM 核心（storage/validation/graph layout）
 ├── tactical-engine/       # Rust WASM 战术引擎（pathfinding）
@@ -33,15 +31,14 @@ worldsmith/
 └── scripts/               # 构建与工具脚本
 ```
 
-## 3. 三端职责
+## 3. 双端职责
 
 | 端 | 目录 | 职责 | 后端能力 |
 |----|------|------|----------|
-| **Web（主应用）** | `apps/web` | 浏览器运行的完整前端（Agent 对话、插件、群聊、字体、记忆库等） | WASM（worldsmith-core / tactical-engine）+ 可选 CLI serve 代理 |
-| **CLI** | `apps/cli` | 命令行应用，`serve` 模式提供 HTTP+WS 服务 | Node 执行适配器 + python-services 微服务 |
-| **Tauri** | `apps/tauri` | 桌面应用，前端 Vue + 后端 Rust（150+ 命令） | Rust 命令（src-tauri）+ `crates/agent-runtime` Agent 编排 |
+| **Tauri（唯一 GUI）** | `apps/tauri` | 桌面应用，前端 Vue（Agent 对话、27 插件、Space 面板、设置）+ 后端 Rust 命令 | Rust 命令（src-tauri）+ `crates/agent-runtime` Agent 编排 + WASM 算法/校验 |
+| **CLI** | `crates/cli` | 命令行应用，`chat` 交互式对话（本地自动化：读/写文件、执行命令） | `crates/agent-runtime` AgentLoop + GenaiBackend |
 
-**关键点**：端分离后，根级 `src/`、`src-tauri/`、`worldsmith-server/`、`worldsmith-agent/` 已全部迁移到三端与共享包，根目录不再存放应用源码。
+**关键点**：web-to-tauri 迁移（2026-08-08）完成后，`apps/web`（原 Web 主应用）与 `apps/cli`（原 TS CLI）均已删除，应用层收敛为 Tauri GUI + Rust CLI 双端；根级 `src/`、`src-tauri/`、`worldsmith-server/`、`worldsmith-agent/` 在更早的端分离中已迁移，根目录不存放应用源码。
 
 ## 4. 共享包（`packages/`）
 
@@ -77,26 +74,25 @@ worldsmith/
 
 ## 6. 数据流
 
-- **Web**：Vue UI → composables → `apps/web/src/core/worldsmithCore.ts`（WASM 算法层）。
 - **Tauri**：Vue UI → `Tauri invoke` → `apps/tauri/src-tauri` Rust 命令 → `crates/agent-runtime`。
-- **Agent**：`packages/agent-runtime` 是端无关核心，三端各自通过适配器（Web 用 WS、Tauri 用 invoke、CLI 用 Node）接入。
+- **Agent**：`packages/agent-runtime`（TS）是端无关核心；Rust 侧 `crates/agent-runtime` 为 Agent 循环主体，Tauri 用 invoke、CLI（crates/cli）直接复用 AgentLoop。
 
 ## 7. 关键入口
 
-- **Web 主应用**：`apps/web/src/main.ts` → `apps/web/src/App.vue` → `apps/web/src/ui/layout/Shell.vue`
-- **Agent 对话**：`apps/web/src/agent/AgentChat.vue`
-- **插件系统**：`apps/web/src/plugins/PluginManager.ts`
-- **群聊 Space**：`apps/web/src/space/AgentSpace.vue`
+- **Tauri 前端**：`apps/tauri/src/main.ts` → `apps/tauri/src/App.vue` → `apps/tauri/src/ui/layout/Shell.vue`
+- **Agent 对话**：`apps/tauri/src/agent/AgentWorkspace.vue`（chat 视图 + 浮动面板）
+- **插件系统**：`apps/tauri/src/plugins/PluginManager.ts`
 - **Tauri Rust 后端**：`apps/tauri/src-tauri/src/lib.rs`
-- **CLI serve**：`apps/cli/src/commands/serve.ts`
+- **CLI chat**：`crates/cli/src/main.rs`（AgentLoop + GenaiBackend）
 
 ## 8. 常用命令
 
 ```bash
-pnpm dev                 # 启动 Web 主应用（apps/web）
-pnpm typecheck:all       # 三端类型检查（web/tauri/cli）
-pnpm test:run            # 单元测试
-pnpm build:web           # 构建 Web
+pnpm dev                 # 启动 Tauri 桌面端（唯一 GUI）
+pnpm chat                # CLI 交互对话（crates/cli）
+pnpm typecheck:all       # Tauri 端类型检查
+pnpm test:run            # 单元测试（共享包）
 pnpm build:wasm-all      # 构建 WASM（worldsmith-core + tactical-engine）
 cargo check -p agent-runtime  # 检查 Rust Agent 后端
+cargo check --manifest-path crates/cli/Cargo.toml  # 检查 CLI
 ```
