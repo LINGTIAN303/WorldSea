@@ -113,18 +113,6 @@ jobs:
         continue-on-error: true # Phase 3 完成前 src/ 是骨架
       # 注：完整 Tauri app 构建（tauri build）在 release workflow 中执行
 
-  cli-build:
-    name: CLI Build (Rust)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Install native-tls system dependencies
-        run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config
-      - name: Cargo check (worldsmith-cli)
-        run: cargo check
-        working-directory: crates/cli
-
   # ════════════════════════════════════════════════════════════════
   # Tauri Rust 检查（apps/tauri/src-tauri）
   # ════════════════════════════════════════════════════════════════

@@ -21,7 +21,6 @@
     "tauri:build": "pnpm --filter @worldsmith/tauri tauri:build",
     "build:tauri:standalone": "pnpm --filter @worldsmith/tauri build",
     "build:tauri:app": "pnpm --filter @worldsmith/tauri tauri:build",
-    "chat": "cargo run --manifest-path crates/cli/Cargo.toml -- chat",
     "typecheck:tauri": "pnpm --filter @worldsmith/tauri typecheck",
     "typecheck:all": "pnpm --filter @worldsmith/tauri typecheck"
   },
