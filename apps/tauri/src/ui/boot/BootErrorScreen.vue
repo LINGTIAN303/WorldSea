@@ -231,7 +231,7 @@ function continueAnyway() {
   color: var(--ws-text-tertiary, #6b7280);
   background: rgba(255, 255, 255, 0.05);
   padding: 2px 6px;
-  border-radius: 3px;
+  border-radius: var(--radius-2xs);
 }
 
 .ws-boot-error__item-error {

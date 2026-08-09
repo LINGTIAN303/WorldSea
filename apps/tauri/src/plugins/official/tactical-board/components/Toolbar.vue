@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="tb-toolbar">
     <div class="tb-toolbar-group">
       <span class="tb-toolbar-label">网格</span>
@@ -188,7 +188,7 @@ const deployTeamModel = computed({
   gap: 3px;
   padding: 3px 8px;
   border: 1px solid var(--color-border);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: var(--color-bg-elevated);
   color: var(--color-text-primary);
   font-size: var(--font-size-sm);
@@ -252,7 +252,7 @@ const deployTeamModel = computed({
   color: var(--color-primary-hover);
   background: color-mix(in srgb, var(--color-primary-hover) 15%, transparent);
   border: 1px solid color-mix(in srgb, var(--color-primary-hover) 30%, transparent);
-  border-radius: 3px;
+  border-radius: var(--radius-2xs);
   padding: 0 4px;
   margin-left: 2px;
   vertical-align: middle;

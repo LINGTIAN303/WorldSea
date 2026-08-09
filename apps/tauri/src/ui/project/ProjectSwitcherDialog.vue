@@ -438,7 +438,7 @@ async function onImportProject() {
 .pm-current-badge {
   font-size: var(--font-size-xs, 11px);
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: var(--accent, var(--color-accent));
   color: var(--on-accent);
   font-weight: var(--font-weight-medium, 500);

@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="swimlane-header" :style="{ borderLeftColor: lane.color }">
     <button class="lane-collapse-btn" @click="$emit('toggleCollapse', lane.id)">
       <WsIcon :name="lane.collapsed ? 'chevron-right' : 'chevron-down'" size="xs" />
@@ -49,7 +49,7 @@ defineEmits<{
   align-items: center;
   justify-content: center;
   color: var(--text-tertiary);
-  border-radius: 3px;
+  border-radius: var(--radius-2xs);
 }
 .lane-collapse-btn:hover { background: var(--hover-bg); }
 
@@ -73,7 +73,7 @@ defineEmits<{
   font-size: var(--font-size-xs);
   color: var(--text-tertiary);
   padding: 1px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: var(--card-bg);
 }
 </style>

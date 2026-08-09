@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="ac-panel">
     <div class="ac-title">AI 控制</div>
     <div class="ac-teams">
@@ -115,7 +115,7 @@ const teamList = computed(() => [
 .ac-toggle {
   padding: 2px 6px;
   border: 1px solid #30363d;
-  border-radius: 3px;
+  border-radius: var(--radius-2xs);
   background: transparent;
   color: #8b949e;
   font-size: var(--font-size-xs);
@@ -154,7 +154,7 @@ const teamList = computed(() => [
 .ac-speed-btn {
   padding: 2px 6px;
   border: 1px solid #21262d;
-  border-radius: 3px;
+  border-radius: var(--radius-2xs);
   background: transparent;
   color: #8b949e;
   font-size: var(--font-size-xs);
@@ -181,7 +181,7 @@ const teamList = computed(() => [
   flex: 1;
   padding: 4px 4px;
   border: 1px solid #21262d;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: #21262d;
   color: #c9d1d9;
   font-size: var(--font-size-xs);

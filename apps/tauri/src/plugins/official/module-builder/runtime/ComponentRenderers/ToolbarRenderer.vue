@@ -46,6 +46,6 @@ function onAction(action: string) {
 
 <style scoped>
 .toolbar-renderer { display: flex; align-items: center; gap: 6px; padding: 6px 12px; background: var(--bg-secondary); border-bottom: 1px solid var(--border-color); }
-.tb-btn { padding: 4px 10px; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg); color: var(--text-color); font-size: var(--font-size-sm); cursor: pointer; }
+.tb-btn { padding: 4px 10px; border: 1px solid var(--border-color); border-radius: var(--radius-xs); background: var(--bg); color: var(--text-color); font-size: var(--font-size-sm); cursor: pointer; }
 .tb-btn:hover { background: var(--hover-bg); }
 </style>

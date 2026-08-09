@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="character-view">
     <GenericEntityView
       ref="gevRef"
@@ -414,10 +414,10 @@ function switchToInfoTab() {
 .dp-type-label { font-size: var(--font-size-sm); color: var(--text-secondary); }
 
 /* Compare */
-.btn-compare { padding: 7px 14px; background: var(--bg-tertiary); color: var(--text-secondary); border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-size: var(--font-size-sm); transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast), opacity var(--transition-fast), filter var(--transition-fast); }
+.btn-compare { padding: 7px 14px; background: var(--bg-tertiary); color: var(--text-secondary); border: 1px solid var(--border); border-radius: var(--radius-xs); cursor: pointer; font-size: var(--font-size-sm); transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast), opacity var(--transition-fast), filter var(--transition-fast); }
 .btn-compare.active { background: var(--primary-light); border-color: var(--primary); color: var(--primary); }
 .compare-overlay { position: fixed; inset: 0; z-index: var(--z-overlay); background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; }
-.compare-panel { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 12px; padding: 20px; min-width: 480px; max-width: 640px; max-height: 80vh; overflow-y: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+.compare-panel { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: var(--radius-2xl); padding: 20px; min-width: 480px; max-width: 640px; max-height: 80vh; overflow-y: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
 .compare-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
 .compare-header h3 { margin: 0; font-size: var(--font-size-lg); color: var(--accent); }
 .compare-table { display: flex; flex-direction: column; gap: 0; }
@@ -432,7 +432,7 @@ function switchToInfoTab() {
 .dp-name-row { display: flex; gap: 6px; margin-bottom: 6px; align-items: center; }
 .dp-name-input { flex: 1; padding: 5px 8px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); font-size: var(--font-size-sm); font-family: inherit; }
 .dp-name-ctx { flex: 1; padding: 5px 8px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); font-size: var(--font-size-sm); font-family: inherit; }
-.dp-name-rm { width: 22px; height: 22px; border: none; background: transparent; cursor: pointer; color: var(--danger); font-size: var(--font-size-sm); border-radius: 4px; flex-shrink: 0; }
+.dp-name-rm { width: 22px; height: 22px; border: none; background: transparent; cursor: pointer; color: var(--danger); font-size: var(--font-size-sm); border-radius: var(--radius-xs); flex-shrink: 0; }
 .dp-name-rm:hover { background: var(--danger-light); }
 
 /* Appearance tab */
@@ -464,9 +464,9 @@ function switchToInfoTab() {
 .dp-equip-body { flex: 1; min-width: 0; }
 .dp-equip-body h4 { margin: 0 0 2px; font-size: var(--font-size-sm); }
 .dp-equip-tags { display: flex; gap: 4px; align-items: center; }
-.dp-equip-type { font-size: var(--text-micro-font-size); padding: 1px 4px; background: var(--hover-bg); border-radius: 3px; color: var(--text-secondary); }
+.dp-equip-type { font-size: var(--text-micro-font-size); padding: 1px 4px; background: var(--hover-bg); border-radius: var(--radius-2xs); color: var(--text-secondary); }
 .dp-equip-def { font-size: var(--font-size-xs); color: var(--text-secondary); }
-.dp-equip-unequip { margin-left: auto; background: none; border: none; cursor: pointer; color: var(--text-tertiary); padding: 2px; border-radius: 4px; display: flex; align-items: center; }
+.dp-equip-unequip { margin-left: auto; background: none; border: none; cursor: pointer; color: var(--text-tertiary); padding: 2px; border-radius: var(--radius-xs); display: flex; align-items: center; }
 .dp-equip-unequip:hover { color: var(--danger); background: var(--danger-light); }
 </style>
 

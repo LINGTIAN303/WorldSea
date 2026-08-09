@@ -33,7 +33,7 @@ defineEmits<{ edit: [id: string]; publish: [id: string]; delete: [id: string] }>
 .mc-stats { display: flex; gap: 12px; margin-bottom: 12px; }
 .mc-stat { font-size: var(--font-size-sm); color: var(--text-secondary); }
 .mc-actions { display: flex; gap: 6px; }
-.mc-btn { padding: 4px 10px; border-radius: 4px; font-size: var(--font-size-sm); cursor: pointer; border: 1px solid var(--border-color); background: var(--bg); color: var(--text-secondary); }
+.mc-btn { padding: 4px 10px; border-radius: var(--radius-xs); font-size: var(--font-size-sm); cursor: pointer; border: 1px solid var(--border-color); background: var(--bg); color: var(--text-secondary); }
 .mc-btn:hover { background: var(--hover-bg); }
 .mc-btn-publish { background: var(--primary); color: var(--on-accent); border-color: var(--primary); }
 .mc-btn-delete { color: #e74c3c; }

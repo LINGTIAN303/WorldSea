@@ -52,7 +52,7 @@ const cardStyle = computed(() => ({
   z-index: 100;
   background: var(--card-bg, #fff);
   border: 1px solid var(--border-color, #e0e0e0);
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   padding: 10px 12px;
   min-width: 180px;
   max-width: 240px;
@@ -61,12 +61,12 @@ const cardStyle = computed(() => ({
 }
 .fnc-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
 .fnc-name { font-weight: var(--font-weight-semibold); font-size: var(--font-size-base); color: var(--text-color); }
-.fnc-gender { font-size: var(--font-size-xs); color: var(--text-tertiary); background: var(--bg-secondary, #f5f5f5); padding: 1px 6px; border-radius: 4px; }
+.fnc-gender { font-size: var(--font-size-xs); color: var(--text-tertiary); background: var(--bg-secondary, #f5f5f5); padding: 1px 6px; border-radius: var(--radius-xs); }
 .fnc-info { margin-bottom: 4px; }
 .fnc-race { font-size: var(--font-size-xs); color: var(--text-secondary); }
 .fnc-desc { font-size: var(--font-size-sm); color: var(--text-tertiary); margin: 4px 0 8px; line-height: 1.4; }
 .fnc-actions { display: flex; gap: 6px; }
-.fnc-btn { font-size: var(--font-size-xs); padding: 3px 8px; border: 1px solid var(--border-color); border-radius: 4px; background: transparent; color: var(--text-secondary); cursor: pointer; }
+.fnc-btn { font-size: var(--font-size-xs); padding: 3px 8px; border: 1px solid var(--border-color); border-radius: var(--radius-xs); background: transparent; color: var(--text-secondary); cursor: pointer; }
 .fnc-btn:hover { background: var(--bg-secondary); }
 .fnc-btn-primary { background: var(--primary, #7c3aed); color: var(--on-accent); border-color: var(--primary, #7c3aed); }
 .fnc-btn-primary:hover { opacity: 0.9; }

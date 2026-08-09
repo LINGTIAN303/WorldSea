@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <GenericEntityView
     entityType="outline_node"
     :form-fields="formFields"
@@ -375,7 +375,7 @@ useAgentPluginBridge('outline', async (event) => {
 .toolbar-count { font-size: var(--font-size-sm); color: var(--text-tertiary); margin-left: auto; }
 .outline-tree-area { display: flex; flex: 1; overflow: hidden; width: 100%; }
 .tree-container { flex: 1; overflow-y: auto; }
-.tree-add-btn, .tree-del-btn { width: 20px; height: 20px; border: none; background: transparent; cursor: pointer; font-size: var(--font-size-base); color: var(--text-tertiary); border-radius: 4px; opacity: 0; transition: opacity .1s; }
+.tree-add-btn, .tree-del-btn { width: 20px; height: 20px; border: none; background: transparent; cursor: pointer; font-size: var(--font-size-base); color: var(--text-tertiary); border-radius: var(--radius-xs); opacity: 0; transition: opacity .1s; }
 .tree-row:hover .tree-add-btn, .tree-row:hover .tree-del-btn { opacity: 1; }
 .tree-add-btn:hover { background: var(--bg); color: var(--success); }
 .tree-del-btn:hover { background: var(--bg); color: var(--danger); }
@@ -384,22 +384,22 @@ useAgentPluginBridge('outline', async (event) => {
 .sl-name { font-weight: var(--font-weight-semibold); font-size: var(--font-size-base); margin-right: 8px; }
 .sl-count { font-size: var(--font-size-sm); color: var(--text-tertiary); }
 .sl-nodes { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 8px; }
-.sl-tag { font-size: var(--font-size-sm); padding: 3px 8px; background: var(--primary-light); border-radius: 4px; cursor: pointer; }
+.sl-tag { font-size: var(--font-size-sm); padding: 3px 8px; background: var(--primary-light); border-radius: var(--radius-xs); cursor: pointer; }
 .sl-empty { font-size: var(--font-size-sm); color: var(--text-tertiary); }
 .progress-view { flex: 1; overflow-y: auto; width: 100%; }
 .progress-stats { display: flex; gap: 12px; margin-bottom: 16px; }
 .stat-card { flex: 1; padding: 20px; text-align: center; border: 1px solid var(--border-color); border-radius: var(--radius-md); }
 .stat-num { display: block; font-size: var(--font-size-3xl); font-weight: var(--font-weight-bold); color: var(--primary); }
 .stat-label { font-size: var(--font-size-sm); color: var(--text-tertiary); }
-.progress-bar-wrap { height: 8px; background: var(--border-color); border-radius: 4px; margin-bottom: 16px; overflow: hidden; }
-.progress-bar { height: 100%; background: var(--primary); border-radius: 4px; transition: width .3s; }
+.progress-bar-wrap { height: 8px; background: var(--border-color); border-radius: var(--radius-xs); margin-bottom: 16px; overflow: hidden; }
+.progress-bar { height: 100%; background: var(--primary); border-radius: var(--radius-xs); transition: width .3s; }
 .progress-line { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border-light); }
 .pl-name { font-weight: var(--font-weight-medium); } .pl-count { font-size: var(--font-size-sm); color: var(--text-tertiary); margin-left: auto; }
 
 .entity-links-area {
   margin: 4px 0;
   padding: 4px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: var(--bg-subtle, rgba(255,255,255,0.03));
 }
 .entity-badges {
@@ -411,7 +411,7 @@ useAgentPluginBridge('outline', async (event) => {
 .entity-badge {
   font-size: var(--font-size-xs);
   padding: 1px 6px;
-  border-radius: 3px;
+  border-radius: var(--radius-2xs);
   background: color-mix(in srgb, var(--badge-color, #888) 15%, transparent);
   color: var(--badge-color, #888);
   cursor: pointer;
@@ -424,7 +424,7 @@ useAgentPluginBridge('outline', async (event) => {
   font-size: var(--font-size-xs);
   padding: 1px 6px;
   border: 1px solid var(--border-color);
-  border-radius: 3px;
+  border-radius: var(--radius-2xs);
   background: transparent;
   color: var(--text-tertiary);
   cursor: pointer;
@@ -452,7 +452,7 @@ useAgentPluginBridge('outline', async (event) => {
   font-size: var(--font-size-xs);
   padding: 2px 8px;
   border: 1px solid;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   cursor: pointer;
   background: var(--bg-subtle, rgba(255,255,255,0.02));
   transition: background 0.1s;
@@ -481,7 +481,7 @@ useAgentPluginBridge('outline', async (event) => {
 .des-entity {
   font-size: var(--font-size-sm);
   padding: 1px 6px;
-  border-radius: 3px;
+  border-radius: var(--radius-2xs);
   background: var(--primary-light, rgba(79,70,229,0.1));
   cursor: pointer;
 }
@@ -499,14 +499,14 @@ useAgentPluginBridge('outline', async (event) => {
   padding: 8px;
   text-align: center;
   background: var(--bg-subtle, rgba(255,255,255,0.02));
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
 .inline-edit-area {
   width: 100%;
   min-height: 120px;
   padding: 8px;
   border: 1px solid var(--border-color);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: var(--bg-subtle, rgba(0,0,0,0.1));
   color: var(--text-primary);
   font-size: var(--font-size-sm);

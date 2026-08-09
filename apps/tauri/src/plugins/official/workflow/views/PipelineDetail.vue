@@ -326,7 +326,7 @@ function handleAddConnection() {
 }
 .pd-step-card {
   display: flex; align-items: center; gap: 8px;
-  padding: 10px 12px; border-radius: 8px; cursor: pointer;
+  padding: 10px 12px; border-radius: var(--radius-mid); cursor: pointer;
   background: var(--bg-secondary, #161b22);
   border: 1px solid var(--border, #30363d);
   transition: border-color 0.15s, background 0.15s;
@@ -338,7 +338,7 @@ function handleAddConnection() {
 .pd-step-card__icon { font-size: 18px; flex-shrink: 0; }
 .pd-step-card__info { flex: 1; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .pd-step-card__label { font-size: var(--fs-sm); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pd-step-card__desc { font-size: 10px; opacity: 0.5; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.pd-step-card__desc { font-size: var(--fs-2xs); opacity: 0.5; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .pd-step-card__add {
   width: 22px; height: 22px; border-radius: 50%; display: flex;
   align-items: center; justify-content: center; flex-shrink: 0;
@@ -348,7 +348,7 @@ function handleAddConnection() {
 
 /* 连接管理 */
 .pd-connections {
-  padding: 12px; background: var(--bg-secondary, #161b22); border-radius: 8px;
+  padding: 12px; background: var(--bg-secondary, #161b22); border-radius: var(--radius-mid);
   border: 1px solid var(--border, #30363d);
 }
 .pd-connections__header {

@@ -92,7 +92,7 @@ function handleSave() {
 }
 .st-dialog {
   background: var(--bg-primary, #0d1117); border: 1px solid var(--border, #30363d);
-  border-radius: 12px; padding: 24px; min-width: 400px; max-width: 480px;
+  border-radius: var(--radius-2xl); padding: 24px; min-width: 400px; max-width: 480px;
 }
 .st-title { margin: 0 0 4px; font-size: var(--fs-lg); font-weight: 600; }
 .st-hint { margin: 0 0 16px; font-size: var(--fs-sm); opacity: 0.5; }

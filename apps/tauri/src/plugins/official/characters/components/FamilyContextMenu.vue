@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div v-if="visible" class="fcm-menu" :style="menuStyle" @click.stop>
     <button class="fcm-item" @click="action('addParent')">↑ 添加父母</button>
     <button class="fcm-item" @click="action('addChild')">↓ 添加子女</button>
@@ -42,7 +42,7 @@ function action(type: string) {
   z-index: 200;
   background: var(--card-bg, #fff);
   border: 1px solid var(--border-color, #e0e0e0);
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   padding: 4px 0;
   min-width: 160px;
   box-shadow: 0 6px 16px rgba(0,0,0,0.18);

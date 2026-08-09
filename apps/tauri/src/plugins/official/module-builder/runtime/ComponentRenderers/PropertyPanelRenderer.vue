@@ -42,5 +42,5 @@ function onFieldChange(key: string, value: string) {
 .pp-empty { color: var(--text-tertiary); font-size: var(--font-size-sm); text-align: center; padding: 20px; }
 .pp-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
 .pp-label { font-size: var(--font-size-sm); color: var(--text-tertiary); min-width: 80px; flex-shrink: 0; }
-.pp-value { flex: 1; padding: 4px 6px; border: 1px solid var(--border-color); border-radius: 3px; font-size: var(--font-size-sm); background: var(--bg); color: var(--text-color); }
+.pp-value { flex: 1; padding: 4px 6px; border: 1px solid var(--border-color); border-radius: var(--radius-2xs); font-size: var(--font-size-sm); background: var(--bg); color: var(--text-color); }
 </style>

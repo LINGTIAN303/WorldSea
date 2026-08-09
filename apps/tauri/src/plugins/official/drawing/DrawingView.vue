@@ -732,21 +732,21 @@ watch([layers, activeLayerIndex], () => {
 .dv-board-empty h3 { margin: 0; font-size: var(--fs-lg); }
 .dv-board-empty p { margin: 0; font-size: var(--fs-md); }
 .dv-board-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
-.dv-board-card { padding: 12px; border-radius: 8px; border: 1px solid var(--color-border-subtle); background: var(--color-bg-surface); cursor: pointer; transition: border-color 0.15s; position: relative; }
+.dv-board-card { padding: 12px; border-radius: var(--radius-mid); border: 1px solid var(--color-border-subtle); background: var(--color-bg-surface); cursor: pointer; transition: border-color 0.15s; position: relative; }
 .dv-board-card:hover { border-color: var(--color-primary); }
-.dv-card-thumb { width: 100%; height: 100px; border-radius: 4px; background: var(--color-bg-elevated); display: flex; align-items: center; justify-content: center; overflow: hidden; margin-bottom: 8px; }
+.dv-card-thumb { width: 100%; height: 100px; border-radius: var(--radius-xs); background: var(--color-bg-elevated); display: flex; align-items: center; justify-content: center; overflow: hidden; margin-bottom: 8px; }
 .dv-card-thumb img { width: 100%; height: 100%; object-fit: cover; }
 .dv-card-placeholder { font-size: 32px; }
 .dv-card-info { display: flex; justify-content: space-between; align-items: center; }
 .dv-card-name { font-size: var(--fs-md); font-weight: 500; color: var(--color-text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dv-card-size { font-size: var(--fs-xs); color: var(--color-text-tertiary); }
-.dv-card-delete { position: absolute; top: 8px; right: 8px; width: 20px; height: 20px; border: none; background: rgba(0,0,0,0.3); color: #fff; border-radius: 50%; cursor: pointer; font-size: 10px; opacity: 0; transition: opacity 0.15s; display: flex; align-items: center; justify-content: center; }
+.dv-card-delete { position: absolute; top: 8px; right: 8px; width: 20px; height: 20px; border: none; background: rgba(0,0,0,0.3); color: #fff; border-radius: 50%; cursor: pointer; font-size: var(--fs-2xs); opacity: 0; transition: opacity 0.15s; display: flex; align-items: center; justify-content: center; }
 .dv-board-card:hover .dv-card-delete { opacity: 1; }
 .dv-card-delete:hover { background: var(--color-danger); }
 
 /* ─── 对话框 ─── */
 .dv-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 100; }
-.dv-dialog { background: var(--color-bg-surface); border: 1px solid var(--color-border-subtle); border-radius: 12px; padding: 24px; min-width: 360px; max-width: 500px; }
+.dv-dialog { background: var(--color-bg-surface); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-2xl); padding: 24px; min-width: 360px; max-width: 500px; }
 .dv-dialog h3 { margin: 0 0 16px; font-size: var(--fs-lg); color: var(--color-text-primary); }
 .dv-field { margin-bottom: 12px; }
 .dv-field label { display: block; font-size: var(--fs-md); margin-bottom: 4px; color: var(--color-text-secondary); }
@@ -754,12 +754,12 @@ watch([layers, activeLayerIndex], () => {
 .dv-input:focus { border-color: var(--color-primary); outline: none; }
 .dv-field-row { display: flex; gap: 12px; }
 .dv-field-row .dv-field { flex: 1; }
-.dv-color-lg { width: 100%; height: 36px; padding: 2px; border: 1px solid var(--color-border); border-radius: 4px; cursor: pointer; background: var(--color-bg-elevated); }
+.dv-color-lg { width: 100%; height: 36px; padding: 2px; border: 1px solid var(--color-border); border-radius: var(--radius-xs); cursor: pointer; background: var(--color-bg-elevated); }
 .dv-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 
 /* ─── 工具栏 ─── */
 .dv-toolbar { display: flex; align-items: center; gap: 4px; padding: 6px 10px; background: var(--color-bg-surface); border-bottom: 1px solid var(--color-border-subtle); flex-shrink: 0; flex-wrap: wrap; }
-.dv-btn { padding: 4px 10px; border: 1px solid var(--color-border); border-radius: 4px; background: var(--color-bg-elevated); cursor: pointer; font-size: var(--font-size-sm, 13px); color: var(--color-text-primary); transition: background 0.15s; }
+.dv-btn { padding: 4px 10px; border: 1px solid var(--color-border); border-radius: var(--radius-xs); background: var(--color-bg-elevated); cursor: pointer; font-size: var(--font-size-sm, 13px); color: var(--color-text-primary); transition: background 0.15s; }
 .dv-btn:hover { background: var(--color-bg-hover); }
 .dv-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .dv-btn--primary { background: var(--color-primary, #4a6cf7); color: var(--on-accent); border-color: transparent; }
@@ -769,11 +769,11 @@ watch([layers, activeLayerIndex], () => {
 .dv-btn-back { font-size: var(--font-size-xs, 12px); }
 .dv-toolbar-name { font-size: var(--font-size-sm, 13px); font-weight: 600; color: var(--color-text-primary); max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-.dv-tool-btn { width: 28px; height: 28px; border: 1px solid transparent; border-radius: 4px; background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--color-text-secondary); transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s; }
+.dv-tool-btn { width: 28px; height: 28px; border: 1px solid transparent; border-radius: var(--radius-xs); background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--color-text-secondary); transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s; }
 .dv-tool-btn:hover { background: var(--color-bg-hover); color: var(--color-text-primary); }
 .dv-tool-btn.active { background: color-mix(in srgb, var(--color-primary) 15%, transparent); color: var(--color-primary); border-color: var(--color-primary); }
 
-.dv-color { width: 28px; height: 28px; padding: 2px; border: 1px solid var(--color-border); border-radius: 4px; cursor: pointer; background: var(--color-bg-elevated); }
+.dv-color { width: 28px; height: 28px; padding: 2px; border: 1px solid var(--color-border); border-radius: var(--radius-xs); cursor: pointer; background: var(--color-bg-elevated); }
 .dv-width { width: 80px; }
 .dv-label { font-size: var(--font-size-xs, 11px); color: var(--color-text-tertiary); min-width: 24px; }
 .dv-sep { color: var(--color-border); font-size: var(--font-size-sm, 13px); margin: 0 2px; }
@@ -787,18 +787,18 @@ watch([layers, activeLayerIndex], () => {
 /* ─── 图层面板 ─── */
 .dv-layers { width: 180px; border-left: 1px solid var(--color-border-subtle); display: flex; flex-direction: column; background: var(--color-bg-surface); flex-shrink: 0; }
 .dv-layers-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; border-bottom: 1px solid var(--color-border-subtle); font-size: var(--font-size-sm, 13px); font-weight: 600; color: var(--color-text-primary); }
-.dv-layer-add { width: 20px; height: 20px; border: 1px dashed var(--color-border); border-radius: 4px; background: transparent; color: var(--color-primary); cursor: pointer; font-size: var(--fs-base); display: flex; align-items: center; justify-content: center; }
+.dv-layer-add { width: 20px; height: 20px; border: 1px dashed var(--color-border); border-radius: var(--radius-xs); background: transparent; color: var(--color-primary); cursor: pointer; font-size: var(--fs-base); display: flex; align-items: center; justify-content: center; }
 .dv-layer-add:hover { border-color: var(--color-primary); background: color-mix(in srgb, var(--color-primary) 10%, transparent); }
 .dv-layer-add:disabled { opacity: 0.4; cursor: not-allowed; }
 .dv-layers-list { flex: 1; overflow-y: auto; padding: 4px; }
-.dv-layer-item { display: flex; align-items: center; gap: 4px; padding: 4px 6px; border-radius: 4px; cursor: pointer; font-size: var(--font-size-xs, 12px); color: var(--color-text-secondary); transition: background 0.1s; }
+.dv-layer-item { display: flex; align-items: center; gap: 4px; padding: 4px 6px; border-radius: var(--radius-xs); cursor: pointer; font-size: var(--font-size-xs, 12px); color: var(--color-text-secondary); transition: background 0.1s; }
 .dv-layer-item:hover { background: var(--color-bg-hover); }
 .dv-layer-item.active { background: color-mix(in srgb, var(--color-primary) 15%, transparent); color: var(--color-primary); }
 .dv-layer-vis { border: none; background: none; cursor: pointer; font-size: var(--fs-sm); padding: 0; width: 18px; }
 .dv-layer-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dv-layer-rename { flex: 1; padding: 1px 4px; border: 1px solid var(--color-primary); border-radius: 3px; background: var(--color-bg-base); color: var(--color-text-primary); font-size: var(--font-size-xs, 12px); outline: none; }
-.dv-layer-lock { font-size: 10px; cursor: pointer; width: 16px; text-align: center; }
-.dv-layer-del { border: none; background: none; cursor: pointer; font-size: 10px; color: var(--color-text-tertiary); padding: 0 2px; opacity: 0; transition: opacity 0.1s; }
+.dv-layer-rename { flex: 1; padding: 1px 4px; border: 1px solid var(--color-primary); border-radius: var(--radius-2xs); background: var(--color-bg-base); color: var(--color-text-primary); font-size: var(--font-size-xs, 12px); outline: none; }
+.dv-layer-lock { font-size: var(--fs-2xs); cursor: pointer; width: 16px; text-align: center; }
+.dv-layer-del { border: none; background: none; cursor: pointer; font-size: var(--fs-2xs); color: var(--color-text-tertiary); padding: 0 2px; opacity: 0; transition: opacity 0.1s; }
 .dv-layer-item:hover .dv-layer-del { opacity: 1; }
 .dv-layer-del:hover { color: var(--color-danger); }
 .dv-layer-del:disabled { opacity: 0.3; cursor: not-allowed; }

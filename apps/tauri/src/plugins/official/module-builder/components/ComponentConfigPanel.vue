@@ -129,7 +129,7 @@ function onConfigChange() {
 .cp-comp-name { font-size: var(--font-size-sm); color: var(--text-tertiary); margin: 0 0 8px; border-bottom: 1px solid var(--border-color); padding-bottom: 4px; }
 .cp-field { display: flex; flex-direction: column; gap: 3px; }
 .cp-field-label { font-size: var(--font-size-sm); color: var(--text-secondary); }
-.cp-input, .cp-select { padding: 5px 8px; border: 1px solid var(--border-color); border-radius: 4px; font-size: var(--font-size-sm); background: var(--bg); color: var(--text-color); }
+.cp-input, .cp-select { padding: 5px 8px; border: 1px solid var(--border-color); border-radius: var(--radius-xs); font-size: var(--font-size-sm); background: var(--bg); color: var(--text-color); }
 .cp-toggle { display: flex; align-items: center; gap: 6px; font-size: var(--font-size-sm); }
 .cp-link-section { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border-color); }
 .cp-link-item { padding: 3px 0; }

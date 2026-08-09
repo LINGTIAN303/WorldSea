@@ -92,14 +92,14 @@ const positionStyle = computed(() => {
   font-size: var(--font-size-xs);
   padding: 1px 5px;
   background: var(--color-bg-elevated);
-  border-radius: 3px;
+  border-radius: var(--radius-2xs);
 }
 .mm-nt-tags { display: flex; gap: 3px; flex-wrap: wrap; }
 .mm-nt-tag {
   color: var(--primary);
   background: var(--color-primary-subtle, var(--color-bg-elevated));
   padding: 1px 5px;
-  border-radius: 3px;
+  border-radius: var(--radius-2xs);
   font-size: var(--font-size-xs);
 }
 .mm-nt-tag-more {

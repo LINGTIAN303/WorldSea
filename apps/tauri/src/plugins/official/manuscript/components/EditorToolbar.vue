@@ -85,14 +85,14 @@ function setHeading(e: Event) {
 .toolbar-spacer { flex: 1; }
 .tb-btn {
   width: 28px; height: 28px; border: none; background: transparent;
-  cursor: pointer; border-radius: 4px; font-size: var(--font-size-sm);
+  cursor: pointer; border-radius: var(--radius-xs); font-size: var(--font-size-sm);
   color: var(--text-secondary); display: flex; align-items: center; justify-content: center;
 }
 .tb-btn:hover { background: var(--hover-bg); }
 .tb-btn.active { background: var(--active-bg); color: var(--primary); }
 .tb-btn:disabled { opacity: 0.3; cursor: default; }
 .toolbar-select {
-  padding: 2px 6px; border: 1px solid var(--border-color); border-radius: 4px;
+  padding: 2px 6px; border: 1px solid var(--border-color); border-radius: var(--radius-xs);
   font-size: var(--font-size-sm); background: var(--input-bg); color: var(--text-color);
 }
 .save-status { font-size: var(--font-size-xs); margin-right: 8px; }

@@ -98,7 +98,7 @@ defineEmits<{
   cursor: pointer;
   font-size: var(--font-size-base);
   padding: 2px 4px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
 .mm-ai-close:hover { color: var(--text-color); background: var(--hover-bg); }
 .mm-ai-loading {
@@ -127,7 +127,7 @@ defineEmits<{
 .mm-ai-card {
   background: var(--bg);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   padding: 10px;
   margin-bottom: 8px;
   transition: border-color 0.15s;
@@ -144,7 +144,7 @@ defineEmits<{
 .mm-ai-badge {
   font-size: var(--font-size-xs);
   padding: 1px 6px;
-  border-radius: 3px;
+  border-radius: var(--radius-2xs);
   font-weight: var(--font-weight-semibold);
 }
 .mm-ai-badge.missing { background: color-mix(in srgb, var(--color-warning) 15%, transparent); color: var(--color-warning); }
@@ -199,7 +199,7 @@ defineEmits<{
   font-size: var(--font-size-xs);
   padding: 3px 10px;
   border: 1px solid var(--primary);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: transparent;
   color: var(--primary);
   cursor: pointer;

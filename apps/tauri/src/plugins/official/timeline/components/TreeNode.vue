@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="tree-node" :style="{ paddingLeft: depth * 20 + 'px' }">
     <div class="tree-line-container">
       <span v-if="depth > 0" class="tree-branch" :class="isLast ? 'tree-last' : 'tree-mid'"></span>
@@ -152,7 +152,7 @@ const breadcrumbText = computed(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 3px;
+  border-radius: var(--radius-2xs);
   color: var(--text-tertiary);
   flex-shrink: 0;
   margin-top: 6px;
@@ -190,7 +190,7 @@ const breadcrumbText = computed(() => {
 .collapsed-badge {
   font-size: var(--font-size-xs);
   padding: 1px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: var(--primary-light);
   color: var(--primary);
   margin-top: 8px;

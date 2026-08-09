@@ -65,7 +65,7 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.auto-fill-renderer { border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; background: var(--bg); }
+.auto-fill-renderer { border: 1px solid var(--border-color); border-radius: var(--radius-mid); overflow: hidden; background: var(--bg); }
 .af-header { display: flex; align-items: center; gap: 6px; padding: 8px 12px; background: var(--bg-secondary); border-bottom: 1px solid var(--border-color); }
 .af-icon { font-size: var(--font-size-lg); }
 .af-title { font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); color: var(--text-color); }
@@ -73,8 +73,8 @@ onBeforeUnmount(() => {
 .af-field { display: flex; flex-direction: column; gap: 3px; }
 .af-label { font-size: var(--font-size-xs); color: var(--text-tertiary); }
 .af-value-row { display: flex; align-items: center; gap: 6px; }
-.af-value { flex: 1; font-size: var(--font-size-sm); color: var(--text-color); padding: 4px 8px; background: var(--bg-secondary); border-radius: 4px; min-height: 20px; }
-.af-fill-btn { padding: 3px 8px; border: 1px solid var(--primary); border-radius: 4px; background: transparent; color: var(--primary); font-size: var(--font-size-xs); cursor: pointer; }
+.af-value { flex: 1; font-size: var(--font-size-sm); color: var(--text-color); padding: 4px 8px; background: var(--bg-secondary); border-radius: var(--radius-xs); min-height: 20px; }
+.af-fill-btn { padding: 3px 8px; border: 1px solid var(--primary); border-radius: var(--radius-xs); background: transparent; color: var(--primary); font-size: var(--font-size-xs); cursor: pointer; }
 .af-fill-btn:hover { background: rgba(79, 70, 229, 0.08); }
 .af-fill-all { padding: 6px 12px; background: var(--primary); color: var(--on-accent); border: none; border-radius: var(--radius-sm); font-size: var(--font-size-sm); cursor: pointer; margin-top: 4px; }
 .af-fill-all:hover { opacity: 0.9; }

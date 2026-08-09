@@ -108,7 +108,7 @@ defineEmits<{ close: [] }>()
 .guide-modal-body p { font-size: var(--font-size-sm); color: var(--color-text-secondary); line-height: 1.6; margin: 0; }
 
 .guide-example { display: flex; flex-direction: column; gap: 8px; }
-.ge-step { display: flex; gap: 10px; background: var(--canvas-bg); border-radius: 8px; padding: 10px; }
+.ge-step { display: flex; gap: 10px; background: var(--canvas-bg); border-radius: var(--radius-mid); padding: 10px; }
 .ge-num { width: 24px; height: 24px; background: var(--primary); color: var(--text); border-radius: 50%; font-size: var(--font-size-sm); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .ge-step strong { font-size: var(--font-size-sm); display: block; margin-bottom: 2px; }
 .ge-step p { font-size: var(--font-size-sm) !important; color: var(--color-text-tertiary) !important; }
@@ -119,10 +119,10 @@ defineEmits<{ close: [] }>()
 
 .guide-tips { padding-left: 20px; }
 .guide-tips li { font-size: var(--font-size-sm); color: var(--color-text-secondary); margin-bottom: 6px; line-height: 1.5; }
-.guide-tips code { background: var(--bg-secondary); padding: 1px 6px; border-radius: 3px; font-size: var(--font-size-sm); }
+.guide-tips code { background: var(--bg-secondary); padding: 1px 6px; border-radius: var(--radius-2xs); font-size: var(--font-size-sm); }
 
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; z-index: var(--z-sticky); }
-.modal { background: var(--color-bg-surface); border-radius: 12px; padding: 24px; max-width: 500px; width: 90%; }
+.modal { background: var(--color-bg-surface); border-radius: var(--radius-2xl); padding: 24px; max-width: 500px; width: 90%; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 .btn-primary { padding: 8px 16px; background: var(--primary); color: var(--color-text-inverse); border: none; border-radius: var(--radius-sm); cursor: pointer; font-size: var(--font-size-base); }
 </style>

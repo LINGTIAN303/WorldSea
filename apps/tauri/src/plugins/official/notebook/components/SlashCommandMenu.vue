@@ -101,7 +101,7 @@ defineExpose({ open, close, updateItems, onKeyDown })
   z-index: 200;
   background: var(--modal-bg);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   padding: 4px;
   width: 240px;
   max-height: 320px;

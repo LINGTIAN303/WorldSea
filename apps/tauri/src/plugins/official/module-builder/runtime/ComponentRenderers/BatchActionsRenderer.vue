@@ -27,6 +27,6 @@ function onBatchAction(action: string) {
 
 <style scoped>
 .batch-actions-renderer { display: flex; gap: 6px; padding: 6px 12px; }
-.ba-btn { padding: 4px 10px; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg); color: var(--text-color); font-size: var(--font-size-sm); cursor: pointer; }
+.ba-btn { padding: 4px 10px; border: 1px solid var(--border-color); border-radius: var(--radius-xs); background: var(--bg); color: var(--text-color); font-size: var(--font-size-sm); cursor: pointer; }
 .ba-btn:hover { background: var(--hover-bg); }
 </style>

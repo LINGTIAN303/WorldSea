@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div v-if="breadcrumb.length > 1" class="mm-breadcrumb">
     <template v-for="(item, i) in breadcrumb" :key="i">
       <span v-if="i > 0" class="mm-bc-sep">›</span>
@@ -32,7 +32,7 @@ defineEmits<{
 .mm-bc-item {
   background: none; border: none; cursor: pointer;
   color: var(--text-secondary); font-size: var(--font-size-sm);
-  padding: 2px 6px; border-radius: 4px;
+  padding: 2px 6px; border-radius: var(--radius-xs);
   transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast), opacity var(--transition-fast), filter var(--transition-fast);
 }
 .mm-bc-item:hover { background: var(--hover-bg); color: var(--text-color); }

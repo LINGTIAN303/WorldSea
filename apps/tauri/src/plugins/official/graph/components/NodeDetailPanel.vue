@@ -42,7 +42,7 @@ defineEmits<{
 .gg-detail-label { color: var(--color-text-secondary); }
 .gg-detail-value { color: var(--color-text-primary); }
 .gg-detail-desc { margin-top: 8px; font-size: var(--font-size-xs); color: var(--color-text-tertiary); line-height: 1.5; }
-.gg-detail-nav { margin-top: 12px; width: 100%; padding: 6px; border: 1px solid var(--color-primary); border-radius: 4px; background: var(--color-primary-subtle); color: var(--color-primary); cursor: pointer; font-size: var(--font-size-sm); }
+.gg-detail-nav { margin-top: 12px; width: 100%; padding: 6px; border: 1px solid var(--color-primary); border-radius: var(--radius-xs); background: var(--color-primary-subtle); color: var(--color-primary); cursor: pointer; font-size: var(--font-size-sm); }
 .gg-detail-nav:hover { background: var(--color-primary-subtle); }
 
 </style>

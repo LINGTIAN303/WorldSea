@@ -31,7 +31,7 @@ defineProps<{
 .mm-kh-option { display: flex; align-items: center; gap: 2px; }
 .mm-kh-option kbd {
   background: var(--color-bg-elevated); color: var(--color-text-primary); padding: 1px 5px;
-  border-radius: 3px; font-size: var(--font-size-xs); font-family: monospace;
+  border-radius: var(--radius-2xs); font-size: var(--font-size-xs); font-family: monospace;
 }
 .mm-kh-unknown { color: var(--danger); }
 </style>

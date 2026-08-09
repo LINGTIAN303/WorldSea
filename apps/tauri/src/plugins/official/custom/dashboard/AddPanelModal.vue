@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div v-if="show" class="modal-overlay" @click.self="$emit('close')">
     <div class="modal modal-sm">
       <h3>选择面板视图</h3>
@@ -90,7 +90,7 @@ function onConfirm() {
 
 .modal-sm {
   background: var(--modal-bg);
-  border-radius: 12px;
+  border-radius: var(--radius-2xl);
   padding: 20px;
   max-width: 360px;
   width: 90%;

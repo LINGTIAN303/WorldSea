@@ -99,7 +99,7 @@ async function doExport() {
   display: flex; align-items: center; justify-content: center; z-index: 300;
 }
 .export-dialog {
-  background: var(--modal-bg); border-radius: 12px; padding: 20px;
+  background: var(--modal-bg); border-radius: var(--radius-2xl); padding: 20px;
   max-width: 400px; width: 90%;
 }
 .export-dialog h3 { margin: 0 0 16px; font-size: var(--font-size-lg); }

@@ -164,12 +164,12 @@ const typeFilters = [
   color: var(--text-tertiary);
   padding: 2px 6px;
   background: var(--color-bg-elevated);
-  border-radius: 3px;
+  border-radius: var(--radius-2xs);
 }
 .type-filters { display: flex; gap: 4px; flex-wrap: wrap; }
 .type-chip {
   display: flex; align-items: center; gap: 3px;
-  padding: 2px 6px; border-radius: 4px; border: 1px solid;
+  padding: 2px 6px; border-radius: var(--radius-xs); border: 1px solid;
   font-size: var(--font-size-xs); cursor: pointer; white-space: nowrap;
   transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast), opacity var(--transition-fast), filter var(--transition-fast);
 }

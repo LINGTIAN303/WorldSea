@@ -161,7 +161,7 @@ defineExpose({ runAI })
 .ai-close {
   width: 24px; height: 24px; border: none; background: transparent;
   cursor: pointer; font-size: var(--font-size-base); color: var(--text-secondary);
-  border-radius: 4px; display: flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-xs); display: flex; align-items: center; justify-content: center;
 }
 .ai-close:hover { background: var(--hover-bg); }
 
@@ -192,7 +192,7 @@ defineExpose({ runAI })
 .ai-result-header { padding: 8px 12px; flex-shrink: 0; }
 .ai-mode-label {
   font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); color: var(--primary);
-  background: var(--primary-light); padding: 2px 8px; border-radius: 4px;
+  background: var(--primary-light); padding: 2px 8px; border-radius: var(--radius-xs);
 }
 .ai-result-body {
   flex: 1; overflow-y: auto; padding: 0 12px 12px;

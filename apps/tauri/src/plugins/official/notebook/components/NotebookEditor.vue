@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="nb-editor">
     <div class="nb-editor-header">
       <input v-model="editName" class="nb-editor-title" placeholder="笔记标题" @change="emitUpdate" />
@@ -156,20 +156,20 @@ function onCodeRun(output: string): void {
 .nb-editor { display: flex; flex-direction: column; height: 100%; }
 .nb-editor-header { display: flex; gap: 8px; padding: 8px 16px; border-bottom: 1px solid var(--color-border-subtle); align-items: center; background: var(--color-bg-surface); font-family: var(--font-family-editor-ui); }
 .nb-editor-title { flex: 1; background: transparent; border: none; color: var(--color-text-primary); font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold); outline: none; }
-.nb-editor-folder { padding: 4px 8px; border-radius: 4px; border: 1px solid var(--color-border); background: var(--color-bg-base); color: var(--color-text-secondary); font-size: var(--font-size-sm); outline: none; max-width: 140px; }
-.nb-editor-type { padding: 4px 8px; border-radius: 4px; border: 1px solid var(--color-border); background: var(--color-bg-base); color: var(--color-text-secondary); font-size: var(--font-size-sm); outline: none; }
+.nb-editor-folder { padding: 4px 8px; border-radius: var(--radius-xs); border: 1px solid var(--color-border); background: var(--color-bg-base); color: var(--color-text-secondary); font-size: var(--font-size-sm); outline: none; max-width: 140px; }
+.nb-editor-type { padding: 4px 8px; border-radius: var(--radius-xs); border: 1px solid var(--color-border); background: var(--color-bg-base); color: var(--color-text-secondary); font-size: var(--font-size-sm); outline: none; }
 .nb-editor-folder option, .nb-editor-type option { background: var(--color-bg-surface); color: var(--color-text-primary); }
 .nb-editor-body { flex: 1; overflow: hidden; }
 
 .nb-link-picker-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 1000; display: flex; align-items: center; justify-content: center; }
-.nb-link-picker { background: var(--color-bg-surface); border-radius: 8px; width: 360px; max-height: 400px; display: flex; flex-direction: column; box-shadow: 0 8px 32px rgba(0,0,0,0.2); }
+.nb-link-picker { background: var(--color-bg-surface); border-radius: var(--radius-mid); width: 360px; max-height: 400px; display: flex; flex-direction: column; box-shadow: 0 8px 32px rgba(0,0,0,0.2); }
 .nlp-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); color: var(--color-text-primary); border-bottom: 1px solid var(--color-border-subtle); }
-.nlp-close { padding: 2px 6px; border: none; background: transparent; color: var(--color-text-tertiary); cursor: pointer; border-radius: 4px; }
+.nlp-close { padding: 2px 6px; border: none; background: transparent; color: var(--color-text-tertiary); cursor: pointer; border-radius: var(--radius-xs); }
 .nlp-close:hover { background: var(--color-bg-hover); }
-.nlp-search { margin: 8px 12px; padding: 6px 8px; border-radius: 4px; border: 1px solid var(--color-border); background: var(--color-bg-base); color: var(--color-text-primary); font-size: var(--font-size-sm); outline: none; }
+.nlp-search { margin: 8px 12px; padding: 6px 8px; border-radius: var(--radius-xs); border: 1px solid var(--color-border); background: var(--color-bg-base); color: var(--color-text-primary); font-size: var(--font-size-sm); outline: none; }
 .nlp-search:focus { border-color: var(--color-primary); }
 .nlp-list { flex: 1; overflow-y: auto; padding: 4px 8px; }
-.nlp-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 4px; cursor: pointer; font-size: var(--font-size-sm); color: var(--color-text-primary); }
+.nlp-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--radius-xs); cursor: pointer; font-size: var(--font-size-sm); color: var(--color-text-primary); }
 .nlp-item:hover { background: var(--color-bg-hover); }
 .nlp-item-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nlp-empty { padding: 16px; text-align: center; font-size: var(--font-size-xs); color: var(--color-text-tertiary); }

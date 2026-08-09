@@ -259,7 +259,7 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 .cl-title { font-weight: var(--font-weight-semibold); font-size: var(--font-size-sm); }
-.cl-count { font-size: var(--font-size-xs); color: var(--text-tertiary); background: var(--bg-tertiary); padding: 1px 6px; border-radius: 8px; }
+.cl-count { font-size: var(--font-size-xs); color: var(--text-tertiary); background: var(--bg-tertiary); padding: 1px 6px; border-radius: var(--radius-mid); }
 
 .cl-group { display: flex; flex-direction: column; }
 .cl-group-header {
@@ -289,7 +289,7 @@ onBeforeUnmount(() => {
 .cl-item.active { background: var(--primary-light); }
 .cl-item-name { display: block; font-weight: var(--font-weight-medium); font-size: var(--font-size-sm); margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cl-item-meta { display: flex; align-items: center; gap: 6px; }
-.cl-status { font-size: var(--font-size-xs); padding: 1px 5px; border-radius: 3px; }
+.cl-status { font-size: var(--font-size-xs); padding: 1px 5px; border-radius: var(--radius-2xs); }
 .st-draft { background: #fef3c7; color: #92400e; }
 .st-revising { background: #dbeafe; color: #1e40af; }
 .st-final { background: #d1fae5; color: #065f46; }
@@ -300,7 +300,7 @@ onBeforeUnmount(() => {
 
 .cl-ctx-menu {
   position: fixed; z-index: var(--z-sticky); background: var(--modal-bg);
-  border: 1px solid var(--border-color); border-radius: 8px;
+  border: 1px solid var(--border-color); border-radius: var(--radius-mid);
   padding: 4px 0; min-width: 160px; box-shadow: 0 4px 16px rgba(0,0,0,0.15);
 }
 .cl-ctx-item { padding: 7px 14px; font-size: var(--font-size-sm); cursor: pointer; color: var(--text-color); display: flex; align-items: center; gap: 6px; }
@@ -310,12 +310,12 @@ onBeforeUnmount(() => {
 .cl-ctx-danger:hover { background: rgba(220, 53, 69, 0.08); }
 
 .cl-modal-overlay { position: fixed; inset: 0; background: var(--color-overlay); display: flex; align-items: center; justify-content: center; z-index: var(--z-sticky); }
-.cl-modal-sm { background: var(--modal-bg); border-radius: 12px; padding: 16px; max-width: 300px; width: 90%; }
+.cl-modal-sm { background: var(--modal-bg); border-radius: var(--radius-2xl); padding: 16px; max-width: 300px; width: 90%; }
 .cl-modal-sm h4 { margin: 0 0 10px; font-size: var(--font-size-base); }
-.cl-input { width: 100%; padding: 6px 10px; border: 1px solid var(--border-color); border-radius: 4px; font-size: var(--font-size-sm); background: var(--input-bg); color: var(--text-color); box-sizing: border-box; }
+.cl-input { width: 100%; padding: 6px 10px; border: 1px solid var(--border-color); border-radius: var(--radius-xs); font-size: var(--font-size-sm); background: var(--input-bg); color: var(--text-color); box-sizing: border-box; }
 .cl-modal-actions { margin-top: 10px; display: flex; justify-content: flex-end; gap: 8px; }
 .cl-outline-list { max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
-.cl-outline-item { padding: 6px 10px; font-size: var(--font-size-sm); cursor: pointer; border-radius: 4px; }
+.cl-outline-item { padding: 6px 10px; font-size: var(--font-size-sm); cursor: pointer; border-radius: var(--radius-xs); }
 .cl-outline-item:hover { background: var(--hover-bg); }
 .cl-outline-item.active { background: var(--active-bg); color: var(--primary); }
 </style>

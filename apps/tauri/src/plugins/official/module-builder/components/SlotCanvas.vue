@@ -117,7 +117,7 @@ function removeLastZone() {
 .canvas-empty-guide h3 { font-size: var(--font-size-lg); margin: 0 0 8px; }
 .canvas-empty-guide p { font-size: var(--font-size-sm); color: var(--text-secondary); }
 .canvas-toolbar { display: flex; gap: 6px; padding: 6px 12px; border-top: 1px solid var(--border-color); background: var(--bg-secondary); }
-.ct-btn { padding: 4px 10px; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg); font-size: var(--font-size-sm); cursor: pointer; color: var(--text-secondary); }
+.ct-btn { padding: 4px 10px; border: 1px solid var(--border-color); border-radius: var(--radius-xs); background: var(--bg); font-size: var(--font-size-sm); cursor: pointer; color: var(--text-secondary); }
 .ct-btn:hover { background: var(--hover-bg); }
 .ct-btn-danger { color: var(--danger); }
 </style>

@@ -80,12 +80,12 @@ function close() {
 
 <style scoped>
 .trash-overlay { position: fixed; inset: 0; z-index: var(--z-overlay); background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; }
-.trash-modal { width: 500px; max-height: 70vh; background: var(--content-bg); border-radius: 12px; box-shadow: 0 8px 40px rgba(0,0,0,0.15); display: flex; flex-direction: column; overflow: hidden; }
+.trash-modal { width: 500px; max-height: 70vh; background: var(--content-bg); border-radius: var(--radius-2xl); box-shadow: 0 8px 40px rgba(0,0,0,0.15); display: flex; flex-direction: column; overflow: hidden; }
 .trash-header { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--border); }
 .trash-header h3 { margin: 0; font-size: var(--font-size-lg); }
 .trash-hdr-actions { display: flex; align-items: center; gap: 12px; }
 .trash-count { font-size: var(--font-size-sm); color: var(--text-secondary); }
-.trash-close { background: none; border: none; font-size: var(--font-size-xl); cursor: pointer; padding: 4px 8px; border-radius: 4px; }
+.trash-close { background: none; border: none; font-size: var(--font-size-xl); cursor: pointer; padding: 4px 8px; border-radius: var(--radius-xs); }
 .trash-close:hover { background: var(--hover-bg); }
 .trash-toolbar { padding: 8px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: flex-end; }
 .trash-list { flex: 1; overflow-y: auto; }
@@ -93,7 +93,7 @@ function close() {
 .trash-item:hover { background: var(--hover-bg); }
 .trash-item-info { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
 .trash-item-name { font-weight: var(--font-weight-semibold); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.trash-item-type { font-size: var(--font-size-xs); color: var(--text-tertiary); background: var(--bg); padding: 2px 6px; border-radius: 4px; flex-shrink: 0; }
+.trash-item-type { font-size: var(--font-size-xs); color: var(--text-tertiary); background: var(--bg); padding: 2px 6px; border-radius: var(--radius-xs); flex-shrink: 0; }
 .trash-item-date { font-size: var(--font-size-xs); color: var(--text-tertiary); flex-shrink: 0; }
 .trash-item-actions { display: flex; gap: 6px; flex-shrink: 0; margin-left: 12px; }
 .trash-empty { text-align: center; padding: 40px; color: var(--text-tertiary); }

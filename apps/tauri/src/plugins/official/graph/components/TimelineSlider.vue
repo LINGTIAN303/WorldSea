@@ -90,7 +90,7 @@ function resetRange(): void {
   cursor: pointer;
   font-size: var(--font-size-xs);
   padding: 3px 10px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
 .gg-timeline-reset:hover { color: #fff; background: rgba(255,255,255,0.1); }
 .gg-timeline-close {
@@ -100,7 +100,7 @@ function resetRange(): void {
   cursor: pointer;
   font-size: var(--font-size-base);
   padding: 2px 4px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
 .gg-timeline-close:hover { color: #fff; background: rgba(255,255,255,0.08); }
 .gg-timeline-range {
@@ -118,7 +118,7 @@ function resetRange(): void {
   width: 80px;
   background: rgba(255,255,255,0.06);
   border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   color: #ccc;
   font-size: var(--font-size-sm);
   padding: 4px 8px;

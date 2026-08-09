@@ -39,7 +39,7 @@ function toggleSection(idx: number) {
 </script>
 
 <style scoped>
-.accordion-container-renderer { display: flex; flex-direction: column; width: 100%; border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; background: var(--bg); }
+.accordion-container-renderer { display: flex; flex-direction: column; width: 100%; border: 1px solid var(--border-color); border-radius: var(--radius-mid); overflow: hidden; background: var(--bg); }
 .ac-section { border-bottom: 1px solid var(--border-color); }
 .ac-section:last-child { border-bottom: none; }
 .ac-header { display: flex; align-items: center; gap: 6px; width: 100%; padding: 10px 12px; border: none; background: var(--bg-secondary); cursor: pointer; font-size: var(--font-size-sm); color: var(--text-color); text-align: left; }

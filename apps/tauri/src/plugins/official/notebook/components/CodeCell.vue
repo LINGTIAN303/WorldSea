@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="code-cell">
     <div class="cc-header">
       <select v-model="lang" class="cc-lang" @change="$emit('update', localCode); $emit('language-change', lang)">
@@ -50,13 +50,13 @@ async function runCode(): Promise<void> {
 <style scoped>
 .code-cell { display: flex; flex-direction: column; height: 100%; }
 .cc-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-.cc-lang { padding: 3px 8px; border-radius: 4px; border: 1px solid var(--color-border); background: var(--color-bg-base); color: var(--color-text-secondary); font-size: var(--font-size-xs); outline: none; }
+.cc-lang { padding: 3px 8px; border-radius: var(--radius-xs); border: 1px solid var(--color-border); background: var(--color-bg-base); color: var(--color-text-secondary); font-size: var(--font-size-xs); outline: none; }
 .cc-lang option { background: var(--color-bg-surface); color: var(--color-text-primary); }
-.cc-run-btn { padding: 3px 10px; border-radius: 4px; border: 1px solid var(--color-primary); background: transparent; color: var(--color-primary); font-size: var(--font-size-xs); cursor: pointer; }
+.cc-run-btn { padding: 3px 10px; border-radius: var(--radius-xs); border: 1px solid var(--color-primary); background: transparent; color: var(--color-primary); font-size: var(--font-size-xs); cursor: pointer; }
 .cc-run-btn:hover { background: color-mix(in srgb, var(--color-primary) 10%, transparent); }
 .cc-run-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .cc-editor { flex: 1; font-family: 'Fira Code', 'Consolas', monospace; font-size: var(--font-size-sm); line-height: 1.5; background: var(--color-bg-base); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-sm); padding: 12px; color: var(--color-text-primary); resize: none; outline: none; }
-.cc-output { margin-top: 8px; background: var(--color-bg-base); border: 1px solid var(--color-border-subtle); border-radius: 4px; padding: 8px; }
+.cc-output { margin-top: 8px; background: var(--color-bg-base); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-xs); padding: 8px; }
 .cc-output-label { font-size: var(--font-size-xs); color: var(--color-text-tertiary); text-transform: uppercase; margin-bottom: 4px; }
 .cc-output-content { font-family: 'Fira Code', 'Consolas', monospace; font-size: var(--font-size-sm); color: var(--color-text-secondary); white-space: pre-wrap; margin: 0; }
 </style>

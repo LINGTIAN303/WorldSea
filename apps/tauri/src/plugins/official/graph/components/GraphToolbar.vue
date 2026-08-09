@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="gg-toolbar">
     <select class="gg-select" :value="layout" @change="$emit('update:layout', ($event.target as HTMLSelectElement).value)">
       <option v-for="opt in layoutOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
@@ -56,7 +56,7 @@ defineEmits<{
 .gg-select { padding: 5px 8px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-bg-elevated); color: var(--color-text-primary); font-size: var(--font-size-sm); }
 .gg-filters { display: flex; align-items: center; gap: 3px; flex-wrap: wrap; }
 .gg-flabel { font-size: var(--font-size-xs); color: var(--color-text-secondary); }
-.gg-type-btn { font-size: var(--font-size-xs); padding: 3px 8px; border: 2px solid var(--color-border); background: var(--color-bg-elevated); border-radius: 12px; cursor: pointer; opacity: 0.4; transition: opacity 0.15s; color: var(--color-text-primary); }
+.gg-type-btn { font-size: var(--font-size-xs); padding: 3px 8px; border: 2px solid var(--color-border); background: var(--color-bg-elevated); border-radius: var(--radius-2xl); cursor: pointer; opacity: 0.4; transition: opacity 0.15s; color: var(--color-text-primary); }
 .gg-type-btn.on { opacity: 1; background: var(--color-bg-hover); }
 .gg-type-btn:hover { opacity: 0.75; }
 .gg-actions { display: flex; gap: 4px; }

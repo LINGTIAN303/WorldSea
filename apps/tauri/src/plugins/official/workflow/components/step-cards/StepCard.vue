@@ -45,7 +45,7 @@ const statusText = computed(() => {
 <style scoped>
 .sc-card {
   border: 1px solid var(--border, #30363d);
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   overflow: hidden;
   background: var(--bg-secondary, #161b22);
 }

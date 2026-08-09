@@ -210,7 +210,7 @@ onMounted(() => {
   color: var(--text-tertiary);
   background: var(--card-bg);
   padding: 1px 6px;
-  border-radius: 3px;
+  border-radius: var(--radius-2xs);
   pointer-events: none;
 }
 </style>

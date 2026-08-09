@@ -234,7 +234,7 @@ function onSelect(id: string) {
 
 .pb-card {
   padding: 14px;
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   border: 1px solid var(--border, #30363d);
   background: var(--bg-secondary, #161b22);
   cursor: pointer;
@@ -255,7 +255,7 @@ function onSelect(id: string) {
 .pb-card__desc { margin: 0; font-size: var(--fs-sm); opacity: 0.6; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .pb-card__footer { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
 .pb-card__tags { display: flex; gap: 4px; }
-.pb-tag { font-size: var(--fs-xs); padding: 1px 6px; border-radius: 4px; background: var(--bg-tertiary, #21262d); opacity: 0.7; }
+.pb-tag { font-size: var(--fs-xs); padding: 1px 6px; border-radius: var(--radius-xs); background: var(--bg-tertiary, #21262d); opacity: 0.7; }
 .pb-card__time { font-size: var(--fs-xs); opacity: 0.4; }
 
 .pb-card__enter {
@@ -276,7 +276,7 @@ function onSelect(id: string) {
 }
 .pb-dialog {
   background: var(--bg-primary, #0d1117); border: 1px solid var(--border, #30363d);
-  border-radius: 12px; padding: 24px; min-width: 360px; max-width: 500px;
+  border-radius: var(--radius-2xl); padding: 24px; min-width: 360px; max-width: 500px;
 }
 .pb-dialog--wide { max-width: 640px; }
 .pb-dialog h3 { margin: 0 0 16px; font-size: var(--fs-lg); }
@@ -292,7 +292,7 @@ function onSelect(id: string) {
 
 .pb-tpl-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
 .pb-tpl-card {
-  padding: 12px; border-radius: 8px; border: 1px solid var(--border, #30363d);
+  padding: 12px; border-radius: var(--radius-mid); border: 1px solid var(--border, #30363d);
   background: var(--bg-secondary, #161b22);
   cursor: pointer; transition: border-color 0.15s;
 }

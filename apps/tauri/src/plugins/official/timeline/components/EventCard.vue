@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div
     class="event-card"
     :class="{ highlighted: highlighted, 'is-range': isRange, compact }"
@@ -125,7 +125,7 @@ const statusClass = computed(() => {
   font-weight: var(--font-weight-semibold);
   background: var(--primary-light);
   padding: 2px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   white-space: nowrap;
 }
 .ec-importance {
@@ -157,7 +157,7 @@ const statusClass = computed(() => {
 .ec-tag {
   font-size: var(--font-size-xs);
   padding: 2px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   color: var(--text-secondary);
   background: var(--hover-bg);
 }
@@ -180,7 +180,7 @@ const statusClass = computed(() => {
   align-items: center;
   justify-content: center;
   background: rgba(255,255,255,0.9);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   cursor: pointer;
   opacity: 0;
   transition: opacity 0.15s;

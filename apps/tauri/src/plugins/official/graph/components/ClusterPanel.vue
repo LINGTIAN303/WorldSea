@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <Transition name="ws-slide-right">
     <div v-if="visible && clusters.length" class="gg-cluster">
       <div class="gg-cluster-header">
@@ -74,7 +74,7 @@ const hoveredCluster = ref<string | null>(null)
   cursor: pointer;
   font-size: var(--font-size-base);
   padding: 2px 4px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
 .gg-cluster-close:hover { color: #fff; background: rgba(255,255,255,0.08); }
 .gg-cluster-body {
@@ -112,7 +112,7 @@ const hoveredCluster = ref<string | null>(null)
   color: #888;
   background: rgba(255,255,255,0.06);
   padding: 1px 6px;
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
 }
 
 </style>

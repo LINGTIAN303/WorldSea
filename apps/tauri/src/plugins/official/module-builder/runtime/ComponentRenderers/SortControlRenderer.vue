@@ -45,7 +45,7 @@ function toggleDirection() {
 
 <style scoped>
 .sort-control-renderer { display: flex; align-items: center; gap: 4px; padding: 4px 8px; }
-.sc-select { padding: 4px 8px; border: 1px solid var(--border-color); border-radius: 4px; font-size: var(--font-size-sm); background: var(--bg); color: var(--text-color); }
-.sc-dir { width: 28px; height: 28px; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg); cursor: pointer; font-size: var(--font-size-base); color: var(--text-secondary); }
+.sc-select { padding: 4px 8px; border: 1px solid var(--border-color); border-radius: var(--radius-xs); font-size: var(--font-size-sm); background: var(--bg); color: var(--text-color); }
+.sc-dir { width: 28px; height: 28px; border: 1px solid var(--border-color); border-radius: var(--radius-xs); background: var(--bg); cursor: pointer; font-size: var(--font-size-base); color: var(--text-secondary); }
 .sc-dir:hover { background: var(--hover-bg); }
 </style>

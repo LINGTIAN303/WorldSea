@@ -34,7 +34,7 @@ const activeTab = ref(0)
 </script>
 
 <style scoped>
-.tab-container-renderer { display: flex; flex-direction: column; width: 100%; height: 100%; border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; background: var(--bg); }
+.tab-container-renderer { display: flex; flex-direction: column; width: 100%; height: 100%; border: 1px solid var(--border-color); border-radius: var(--radius-mid); overflow: hidden; background: var(--bg); }
 .tc-tabs { display: flex; border-bottom: 1px solid var(--border-color); background: var(--bg-secondary); }
 .tc-tab { padding: 8px 16px; border: none; background: transparent; font-size: var(--font-size-sm); cursor: pointer; color: var(--text-secondary); border-bottom: 2px solid transparent; }
 .tc-tab:hover { color: var(--text-color); }

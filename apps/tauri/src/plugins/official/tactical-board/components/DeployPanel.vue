@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="dp-panel">
     <div class="dp-title">部署单位</div>
     <div class="dp-team-select">
@@ -138,7 +138,7 @@ function onSelectEntity(entity: Entity) {
   flex: 1;
   padding: 4px;
   border: 1px solid var(--color-border);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: transparent;
   color: var(--color-text-secondary);
   font-size: var(--font-size-xs);
@@ -175,7 +175,7 @@ function onSelectEntity(entity: Entity) {
   width: 100%;
   padding: 2px 4px;
   border: 1px solid var(--color-border);
-  border-radius: 3px;
+  border-radius: var(--radius-2xs);
   background: var(--color-bg-base);
   color: var(--color-text-primary);
   font-size: var(--font-size-xs);
@@ -203,7 +203,7 @@ function onSelectEntity(entity: Entity) {
   align-items: center;
   gap: 6px;
   padding: 3px 6px;
-  border-radius: 3px;
+  border-radius: var(--radius-2xs);
   cursor: pointer;
   font-size: var(--font-size-xs);
   transition: background 0.1s;
@@ -249,7 +249,7 @@ function onSelectEntity(entity: Entity) {
   width: 100%;
   padding: 4px;
   border: 1px solid var(--color-border);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: var(--color-bg-elevated);
   color: var(--color-text-primary);
   font-size: var(--font-size-xs);

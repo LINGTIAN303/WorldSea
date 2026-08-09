@@ -244,16 +244,16 @@ function formatDuration(ms: number): string {
 .psn--edit-mode:active { cursor: grabbing; }
 .psn--current {
   outline: 2px solid var(--primary, #58a6ff);
-  outline-offset: 2px; border-radius: 8px;
+  outline-offset: 2px; border-radius: var(--radius-mid);
 }
 .psn--editing {
   outline: 2px solid var(--warning, #d29922);
-  outline-offset: 2px; border-radius: 8px;
+  outline-offset: 2px; border-radius: var(--radius-mid);
 }
 .psn--drag-over {
   background: color-mix(in srgb, var(--primary, #58a6ff) 8%, transparent);
   outline: 2px dashed var(--primary, #58a6ff);
-  outline-offset: 2px; border-radius: 8px;
+  outline-offset: 2px; border-radius: var(--radius-mid);
 }
 
 .psn-indicator { display: flex; flex-direction: column; align-items: center; width: 28px; flex-shrink: 0; }
@@ -290,7 +290,7 @@ function formatDuration(ms: number): string {
 .psn-ops--visible { opacity: 1; }
 .psn-op {
   background: none; border: none; cursor: pointer; font-size: var(--fs-md); padding: 2px 4px;
-  border-radius: 4px; transition: background 0.15s;
+  border-radius: var(--radius-xs); transition: background 0.15s;
 }
 .psn-op:hover { background: var(--bg-tertiary, #21262d); }
 .psn-op--danger:hover { background: color-mix(in srgb, var(--danger, #f85149) 20%, transparent); }

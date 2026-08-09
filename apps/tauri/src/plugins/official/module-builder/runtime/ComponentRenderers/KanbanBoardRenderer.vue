@@ -65,7 +65,7 @@ function onSelect(entity: any) {
 <style scoped>
 .kanban-board-renderer { overflow: auto; height: 100%; }
 .kb-board { display: flex; gap: 12px; padding: 12px; min-height: 100%; }
-.kb-column { min-width: 220px; max-width: 280px; background: var(--bg-secondary); border-radius: 8px; display: flex; flex-direction: column; }
+.kb-column { min-width: 220px; max-width: 280px; background: var(--bg-secondary); border-radius: var(--radius-mid); display: flex; flex-direction: column; }
 .kb-col-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); color: var(--text-secondary); }
 .kb-col-count { font-size: var(--font-size-xs); background: var(--border-color); border-radius: var(--radius-md); padding: 1px 8px; color: var(--text-tertiary); font-weight: var(--font-weight-normal); }
 .kb-col-cards { padding: 4px 8px 8px; display: flex; flex-direction: column; gap: 6px; flex: 1; }

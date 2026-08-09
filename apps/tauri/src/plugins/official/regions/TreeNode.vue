@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <GenericTreeView
     :node="node"
     :depth="depth"
@@ -54,7 +54,7 @@ function regionIcon(entity: any): string {
   font-size: var(--font-size-base);
   color: var(--text-tertiary);
   opacity: 0;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   transition: opacity 0.1s;
 }
 .tree-row:hover .tree-add {

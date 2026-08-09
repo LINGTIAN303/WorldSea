@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="lft-view">
     <div class="lft-toolbar">
       <button class="lft-btn" @click="$emit('back')" title="返回列表">
@@ -250,7 +250,7 @@ onMounted(async () => {
 .lft-toolbar-label { font-size: var(--font-size-xs); color: var(--color-text-secondary); white-space: nowrap; }
 .lft-toolbar-sep { width: 1px; height: 20px; background: var(--color-border); margin: 0 4px; }
 .lft-toolbar-spacer { flex: 1; }
-.lft-btn { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border: 1px solid var(--color-border); border-radius: 4px; background: var(--color-bg-elevated); color: var(--color-text-primary); font-size: var(--font-size-sm); cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s; white-space: nowrap; }
+.lft-btn { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border: 1px solid var(--color-border); border-radius: var(--radius-xs); background: var(--color-bg-elevated); color: var(--color-text-primary); font-size: var(--font-size-sm); cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s; white-space: nowrap; }
 .lft-btn:hover { background: var(--color-bg-hover); border-color: var(--color-text-secondary); color: var(--color-text-primary); }
 .lft-btn.active { background: var(--color-bg-hover); border-color: var(--color-primary); color: var(--color-primary); }
 .lft-toggle { display: flex; align-items: center; gap: 4px; font-size: var(--font-size-sm); color: var(--color-text-secondary); cursor: pointer; }
@@ -258,7 +258,7 @@ onMounted(async () => {
 .lft-count { font-size: var(--font-size-xs); color: var(--color-text-secondary); }
 .lft-main { flex: 1; min-height: 0; }
 .lft-canvas-container { width: 100%; height: 100%; }
-.lft-detail { position: absolute; right: 16px; top: 56px; width: 240px; background: var(--color-bg-surface); border: 1px solid var(--color-border); border-radius: 8px; padding: 12px; box-shadow: var(--shadow-modal); z-index: 10; max-height: calc(100% - 72px); overflow-y: auto; }
+.lft-detail { position: absolute; right: 16px; top: 56px; width: 240px; background: var(--color-bg-surface); border: 1px solid var(--color-border); border-radius: var(--radius-mid); padding: 12px; box-shadow: var(--shadow-modal); z-index: 10; max-height: calc(100% - 72px); overflow-y: auto; }
 .lft-detail-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .lft-detail-icon { font-size: var(--font-size-xl); }
 .lft-detail-name { font-size: var(--font-size-base); font-weight: var(--font-weight-semibold); color: var(--color-text-primary); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -270,7 +270,7 @@ onMounted(async () => {
 .lft-detail-section { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--color-border); }
 .lft-section-title { font-size: var(--font-size-xs); color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 4px; }
 .lft-text { font-size: var(--font-size-sm); color: var(--color-text-primary); line-height: 1.4; }
-.lft-link { font-size: var(--font-size-sm); padding: 2px 6px; border-radius: 3px; cursor: pointer; color: var(--color-primary); margin-bottom: 2px; display: flex; align-items: center; gap: 4px; }
+.lft-link { font-size: var(--font-size-sm); padding: 2px 6px; border-radius: var(--radius-2xs); cursor: pointer; color: var(--color-primary); margin-bottom: 2px; display: flex; align-items: center; gap: 4px; }
 .lft-link:hover { background: var(--color-primary-subtle); }
 .lft-relation-tag { font-size: var(--text-micro-font-size); color: var(--color-text-secondary); background: var(--color-bg-elevated); padding: 1px 4px; border-radius: 2px; }
 .lft-link-green { color: var(--color-success); }

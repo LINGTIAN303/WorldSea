@@ -118,7 +118,7 @@ onMounted(() => {
 .editor-wrap :deep(.tiptap code) {
   background: var(--bg-tertiary);
   padding: 2px 4px;
-  border-radius: 3px;
+  border-radius: var(--radius-2xs);
   font-size: var(--font-size-sm);
 }
 .editor-wrap :deep(.tiptap pre) {
@@ -133,7 +133,7 @@ onMounted(() => {
   background: var(--primary-light);
   color: var(--primary);
   padding: 1px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
   cursor: pointer;

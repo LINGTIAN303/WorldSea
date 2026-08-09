@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="nb-board">
     <div v-if="notes.length === 0" class="nb-board-empty">
       <WsIcon name="dashboard" size="xl" />
@@ -89,17 +89,17 @@ function onColChange(colType: string, evt: any) {
 .nb-board-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--color-text-tertiary); gap: 8px; }
 .nb-be-text { font-size: var(--font-size-sm); }
 .nb-board-columns { display: flex; gap: 16px; height: 100%; }
-.nb-board-col { min-width: 240px; max-width: 320px; flex: 1; display: flex; flex-direction: column; background: var(--color-bg-surface); border-radius: 8px; border: 1px solid var(--color-border-subtle); }
+.nb-board-col { min-width: 240px; max-width: 320px; flex: 1; display: flex; flex-direction: column; background: var(--color-bg-surface); border-radius: var(--radius-mid); border: 1px solid var(--color-border-subtle); }
 .nb-col-header { display: flex; align-items: center; gap: 6px; padding: 10px 12px; border-bottom: 1px solid var(--color-border-subtle); color: var(--color-text-secondary); font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); }
 .nb-col-count { margin-left: auto; font-size: var(--font-size-xs); color: var(--color-text-tertiary); }
 .nb-col-list { flex: 1; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 8px; min-height: 60px; }
-.nb-board-card { background: var(--color-bg-elevated); border: 1px solid var(--color-border-subtle); border-radius: 8px; padding: 12px; cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s; }
+.nb-board-card { background: var(--color-bg-elevated); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-mid); padding: 12px; cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s; }
 .nb-board-card:hover { border-color: var(--color-primary); transform: translateY(-1px); }
 .nb-bc-icon { font-size: var(--font-size-xl); margin-bottom: 6px; }
 .nb-bc-name { font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); color: var(--color-text-primary); margin-bottom: 4px; }
 .nb-bc-preview { font-size: var(--font-size-xs); color: var(--color-text-tertiary); line-height: 1.4; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
 .nb-bc-tags { display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap; }
-.nb-bc-tag { font-size: var(--font-size-xs); padding: 1px 6px; border-radius: 3px; background: color-mix(in srgb, var(--color-primary) 15%, transparent); color: var(--color-primary); }
+.nb-bc-tag { font-size: var(--font-size-xs); padding: 1px 6px; border-radius: var(--radius-2xs); background: color-mix(in srgb, var(--color-primary) 15%, transparent); color: var(--color-primary); }
 .nb-card-ghost { opacity: 0.3; }
 .nb-card-drag { opacity: 0.8; }
 </style>

@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="notebook-view">
     <div class="nb-toolbar">
       <div class="nb-toolbar-left">
@@ -497,14 +497,14 @@ useAgentPluginBridge('notebook', async (event) => {
 .notebook-view { display: flex; flex-direction: column; height: 100%; background: var(--color-bg-base); }
 .nb-toolbar { display: flex; justify-content: space-between; align-items: center; padding: 8px 16px; border-bottom: 1px solid var(--color-border-subtle); background: var(--color-bg-surface); }
 .nb-toolbar-left { display: flex; gap: 4px; align-items: center; }
-.nb-sidebar-toggle { padding: 4px 8px; border-radius: 4px; border: 1px solid var(--color-border); background: transparent; color: var(--color-text-tertiary); font-size: var(--font-size-xs); cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s; display: flex; align-items: center; justify-content: center; }
+.nb-sidebar-toggle { padding: 4px 8px; border-radius: var(--radius-xs); border: 1px solid var(--color-border); background: transparent; color: var(--color-text-tertiary); font-size: var(--font-size-xs); cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s; display: flex; align-items: center; justify-content: center; }
 .nb-sidebar-toggle:hover { background: var(--color-bg-hover); color: var(--color-text-secondary); border-color: var(--color-text-secondary); }
 .nb-toggle-icon { transition: transform 0.2s; display: inline-block; }
-.nb-mode-btn { padding: 4px 12px; border-radius: 4px; border: 1px solid transparent; background: transparent; color: var(--color-text-secondary); font-size: var(--font-size-sm); cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s; }
+.nb-mode-btn { padding: 4px 12px; border-radius: var(--radius-xs); border: 1px solid transparent; background: transparent; color: var(--color-text-secondary); font-size: var(--font-size-sm); cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s; }
 .nb-mode-btn:hover { background: var(--color-bg-hover); }
 .nb-mode-btn.active { background: color-mix(in srgb, var(--color-primary) 15%, transparent); color: var(--color-primary); border-color: var(--color-primary); }
 .nb-toolbar-right { display: flex; gap: 6px; }
-.nb-action-btn { padding: 4px 12px; border-radius: 4px; border: 1px solid var(--color-primary); background: transparent; color: var(--color-primary); font-size: var(--font-size-sm); cursor: pointer; }
+.nb-action-btn { padding: 4px 12px; border-radius: var(--radius-xs); border: 1px solid var(--color-primary); background: transparent; color: var(--color-primary); font-size: var(--font-size-sm); cursor: pointer; }
 .nb-action-btn:hover { background: color-mix(in srgb, var(--color-primary) 10%, transparent); }
 .nb-folder-btn { border-color: var(--color-text-tertiary); color: var(--color-text-tertiary); }
 .nb-folder-btn:hover { background: var(--color-bg-hover); border-color: var(--color-text-secondary); }
@@ -515,13 +515,13 @@ useAgentPluginBridge('notebook', async (event) => {
 .nb-sidebar.collapsed { width: 0; min-width: 0; border-right: none; }
 .nb-sidebar-inner { width: 240px; min-width: 240px; display: flex; flex-direction: column; height: 100%; }
 .nb-search { padding: 8px; }
-.nb-search-input { width: 100%; padding: 6px 8px; border-radius: 4px; border: 1px solid var(--color-border); background: var(--color-bg-base); color: var(--color-text-primary); font-size: var(--font-size-sm); outline: none; }
+.nb-search-input { width: 100%; padding: 6px 8px; border-radius: var(--radius-xs); border: 1px solid var(--color-border); background: var(--color-bg-base); color: var(--color-text-primary); font-size: var(--font-size-sm); outline: none; }
 .nb-search-input:focus { border-color: var(--color-primary); }
 .nb-note-list { flex: 1; overflow-y: auto; padding: 4px; }
 
 .nb-folder-input-wrap { display: flex; gap: 4px; padding: 6px 8px; border-top: 1px solid var(--color-border-subtle); align-items: center; }
-.nb-folder-input { flex: 1; padding: 4px 8px; border-radius: 4px; border: 1px solid var(--color-primary); background: var(--color-bg-base); color: var(--color-text-primary); font-size: var(--font-size-sm); outline: none; }
-.nb-fi-ok, .nb-fi-cancel { padding: 2px 8px; border-radius: 4px; border: 1px solid var(--color-border); background: transparent; color: var(--color-text-secondary); font-size: var(--font-size-sm); cursor: pointer; }
+.nb-folder-input { flex: 1; padding: 4px 8px; border-radius: var(--radius-xs); border: 1px solid var(--color-primary); background: var(--color-bg-base); color: var(--color-text-primary); font-size: var(--font-size-sm); outline: none; }
+.nb-fi-ok, .nb-fi-cancel { padding: 2px 8px; border-radius: var(--radius-xs); border: 1px solid var(--color-border); background: transparent; color: var(--color-text-secondary); font-size: var(--font-size-sm); cursor: pointer; }
 .nb-fi-ok:hover { background: color-mix(in srgb, var(--color-success) 15%, transparent); color: var(--color-success); border-color: var(--color-success); }
 .nb-fi-cancel:hover { background: color-mix(in srgb, var(--color-danger) 15%, transparent); color: var(--color-danger); border-color: var(--color-danger); }
 

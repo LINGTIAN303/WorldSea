@@ -216,7 +216,7 @@ onMounted(async () => {
 .evo-toolbar-label { font-size: var(--font-size-xs); color: var(--color-text-secondary); white-space: nowrap; }
 .evo-toolbar-sep { width: 1px; height: 20px; background: var(--color-border); margin: 0 4px; }
 .evo-toolbar-spacer { flex: 1; }
-.evo-btn { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border: 1px solid var(--color-border); border-radius: 4px; background: var(--color-bg-elevated); color: var(--color-text-primary); font-size: var(--font-size-sm); cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s; white-space: nowrap; }
+.evo-btn { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border: 1px solid var(--color-border); border-radius: var(--radius-xs); background: var(--color-bg-elevated); color: var(--color-text-primary); font-size: var(--font-size-sm); cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s; white-space: nowrap; }
 .evo-btn:hover { background: var(--color-bg-hover); border-color: var(--color-text-secondary); color: var(--color-text-primary); }
 .evo-btn.active { background: var(--color-bg-hover); border-color: var(--color-primary); color: var(--color-primary); }
 .evo-toggle { display: flex; align-items: center; gap: 4px; font-size: var(--font-size-sm); color: var(--color-text-secondary); cursor: pointer; }
@@ -224,7 +224,7 @@ onMounted(async () => {
 .evo-count { font-size: var(--font-size-xs); color: var(--color-text-secondary); }
 .evo-main { flex: 1; min-height: 0; }
 .evo-canvas-container { width: 100%; height: 100%; }
-.evo-detail { position: absolute; right: 16px; top: 56px; width: 240px; background: var(--color-bg-surface); border: 1px solid var(--color-border); border-radius: 8px; padding: 12px; box-shadow: var(--shadow-modal); z-index: 10; max-height: calc(100% - 72px); overflow-y: auto; }
+.evo-detail { position: absolute; right: 16px; top: 56px; width: 240px; background: var(--color-bg-surface); border: 1px solid var(--color-border); border-radius: var(--radius-mid); padding: 12px; box-shadow: var(--shadow-modal); z-index: 10; max-height: calc(100% - 72px); overflow-y: auto; }
 .evo-detail-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .evo-detail-icon { font-size: var(--font-size-xl); }
 .evo-detail-name { font-size: var(--font-size-base); font-weight: var(--font-weight-semibold); color: var(--color-text-primary); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -236,7 +236,7 @@ onMounted(async () => {
 .evo-detail-section { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--color-border); }
 .evo-section-title { font-size: var(--font-size-xs); color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 4px; }
 .evo-text { font-size: var(--font-size-sm); color: var(--color-text-primary); line-height: 1.4; }
-.evo-link { font-size: var(--font-size-sm); padding: 2px 6px; border-radius: 3px; cursor: pointer; color: var(--color-primary); margin-bottom: 2px; }
+.evo-link { font-size: var(--font-size-sm); padding: 2px 6px; border-radius: var(--radius-2xs); cursor: pointer; color: var(--color-primary); margin-bottom: 2px; }
 .evo-link:hover { background: var(--color-primary-subtle); }
 .evo-link-purple { color: var(--color-primary-hover); }
 .evo-link-purple:hover { background: rgba(210,168,255,0.1); }

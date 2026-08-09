@@ -322,7 +322,7 @@ onUnmounted(() => {
 
 .ws-splash__version {
   font-family: var(--font-family-base, 'DM Sans'), sans-serif;
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   letter-spacing: 0.15em;
   color: var(--color-text-secondary, #94A3B8);
   text-transform: uppercase;
@@ -334,7 +334,7 @@ onUnmounted(() => {
   position: absolute;
   z-index: 5;
   font-family: var(--font-family-base, 'DM Sans'), sans-serif;
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   letter-spacing: 0.2em;
   text-transform: uppercase;
   display: flex;

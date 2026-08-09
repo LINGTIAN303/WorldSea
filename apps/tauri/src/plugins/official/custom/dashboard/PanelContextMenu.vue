@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div v-if="show" class="cv-ctx-menu" :style="{ left: x + 'px', top: y + 'px' }">
     <div class="cv-ctx-item" role="button" tabindex="0" @click="onJump" @keydown.enter="onJump">
       ↗ 跳转到主视图
@@ -67,7 +67,7 @@ function onRemove() {
   z-index: var(--z-sticky);
   background: var(--modal-bg);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   padding: 4px 0;
   min-width: 160px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);

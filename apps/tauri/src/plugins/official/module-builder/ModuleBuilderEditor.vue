@@ -254,9 +254,9 @@ function selectRelationType(_idx: number) {}
 .editor-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; border-bottom: 1px solid var(--border-color); background: var(--canvas-bg); flex-shrink: 0; }
 .eh-left { display: flex; align-items: center; gap: 8px; }
 .eh-icon { font-size: var(--font-size-2xl); }
-.eh-name { font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); border: none; background: transparent; padding: 4px 8px; border-radius: 4px; width: 200px; color: var(--text-color); }
+.eh-name { font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); border: none; background: transparent; padding: 4px 8px; border-radius: var(--radius-xs); width: 200px; color: var(--text-color); }
 .eh-name:focus { background: var(--bg); outline: 1px solid var(--primary); }
-.eh-icon-input { width: 40px; text-align: center; font-size: var(--font-size-lg); border: 1px solid var(--border-color); border-radius: 4px; padding: 4px; background: var(--bg); color: var(--text-color); }
+.eh-icon-input { width: 40px; text-align: center; font-size: var(--font-size-lg); border: 1px solid var(--border-color); border-radius: var(--radius-xs); padding: 4px; background: var(--bg); color: var(--text-color); }
 .eh-right { display: flex; gap: 8px; }
 .editor-body { display: flex; flex: 1; overflow: hidden; }
 .editor-bottom { border-top: 1px solid var(--border-color); flex-shrink: 0; }
@@ -264,13 +264,13 @@ function selectRelationType(_idx: number) {}
 .eb-panel { display: flex; gap: 16px; padding: 12px; max-height: 200px; overflow-y: auto; }
 .eb-section { min-width: 200px; }
 .eb-section h5 { font-size: var(--font-size-sm); color: var(--text-tertiary); margin: 0 0 6px; }
-.eb-add-btn { display: block; width: 100%; padding: 6px; border: 1px dashed var(--text-tertiary); background: var(--canvas-bg); border-radius: 4px; cursor: pointer; font-size: var(--font-size-sm); color: var(--primary); margin-bottom: 4px; }
-.eb-item { display: flex; align-items: center; justify-content: space-between; padding: 4px 6px; font-size: var(--font-size-sm); cursor: pointer; border-radius: 3px; }
+.eb-add-btn { display: block; width: 100%; padding: 6px; border: 1px dashed var(--text-tertiary); background: var(--canvas-bg); border-radius: var(--radius-xs); cursor: pointer; font-size: var(--font-size-sm); color: var(--primary); margin-bottom: 4px; }
+.eb-item { display: flex; align-items: center; justify-content: space-between; padding: 4px 6px; font-size: var(--font-size-sm); cursor: pointer; border-radius: var(--radius-2xs); }
 .eb-item:hover { background: var(--hover-bg); }
 .eb-rm { width: 18px; height: 18px; border: none; background: transparent; color: var(--danger); cursor: pointer; font-size: var(--font-size-xs); border-radius: var(--radius-xs); }
 .eb-field-item { display: flex; gap: 4px; align-items: center; margin-bottom: 4px; }
-.eb-field-input { width: 70px; padding: 3px 6px; border: 1px solid var(--border-color); border-radius: 3px; font-size: var(--font-size-xs); background: var(--bg); color: var(--text-color); }
-.eb-field-select { padding: 3px; border: 1px solid var(--border-color); border-radius: 3px; font-size: var(--font-size-xs); background: var(--bg); color: var(--text-color); }
+.eb-field-input { width: 70px; padding: 3px 6px; border: 1px solid var(--border-color); border-radius: var(--radius-2xs); font-size: var(--font-size-xs); background: var(--bg); color: var(--text-color); }
+.eb-field-select { padding: 3px; border: 1px solid var(--border-color); border-radius: var(--radius-2xs); font-size: var(--font-size-xs); background: var(--bg); color: var(--text-color); }
 .btn-ghost { padding: 6px 12px; background: transparent; border: 1px solid var(--border-color); border-radius: var(--radius-sm); cursor: pointer; font-size: var(--font-size-sm); color: var(--text-secondary); }
 .btn-ghost:hover { background: var(--hover-bg); }
 .btn-secondary { padding: 8px 16px; background: var(--primary); color: var(--on-accent); border: none; border-radius: var(--radius-sm); cursor: pointer; font-size: var(--font-size-base); }

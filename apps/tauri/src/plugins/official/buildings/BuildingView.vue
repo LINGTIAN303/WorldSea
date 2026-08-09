@@ -37,7 +37,7 @@ const buildingTabs: RelationTabDef[] = [
 <style scoped>
 .bv-sec-btn {
   display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px;
-  border: 1px solid #21262d; border-radius: 4px; background: #21262d;
+  border: 1px solid #21262d; border-radius: var(--radius-xs); background: #21262d;
   color: #c9d1d9; font-size: var(--font-size-sm); cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s; white-space: nowrap;
 }
 .bv-sec-btn:hover { background: #30363d; border-color: #8b949e; color: #e6edf3; }

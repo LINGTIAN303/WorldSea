@@ -335,7 +335,7 @@ function onRelSelect(entity: any) {
 </script>
 
 <style scoped>
-.btn-view { width: 36px; height: 36px; border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer; font-size: var(--font-size-base); background: var(--card-bg); display: inline-flex; align-items: center; justify-content: center; }
+.btn-view { width: 36px; height: 36px; border: 1px solid var(--border-color); border-radius: var(--radius-xs); cursor: pointer; font-size: var(--font-size-base); background: var(--card-bg); display: inline-flex; align-items: center; justify-content: center; }
 .btn-view.active { border-color: var(--primary); background: var(--primary-light); }
 
 .tree-view { flex: 1; overflow-y: auto; }
@@ -354,9 +354,9 @@ function onRelSelect(entity: any) {
 .region-field-row .region-field-val { color: var(--text); flex: 1; }
 
 .rel-item { display: flex; align-items: center; gap: 6px; padding: 6px 0; font-size: var(--font-size-sm); cursor: pointer; }
-.rel-item:hover { background: var(--hover-bg); border-radius: 4px; }
+.rel-item:hover { background: var(--hover-bg); border-radius: var(--radius-xs); }
 .rel-type-badge { font-size: var(--font-size-xs); color: var(--text-tertiary); margin-left: 4px; }
-.rel-remove { margin-left: auto; background: none; border: none; cursor: pointer; color: var(--text-tertiary); padding: 2px; border-radius: 4px; display: flex; align-items: center; }
+.rel-remove { margin-left: auto; background: none; border: none; cursor: pointer; color: var(--text-tertiary); padding: 2px; border-radius: var(--radius-xs); display: flex; align-items: center; }
 .rel-remove:hover { color: var(--danger); background: var(--danger-light); }
 .rel-empty { font-size: var(--font-size-sm); color: var(--text-tertiary); }
 </style>

@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <GenericEntityView
     entity-type="organization"
     :form-fields="orgFields"
@@ -232,7 +232,7 @@ async function removeSubOrg(childId: string, parentId: string) {
 .rel-item:hover { background: var(--hover-bg); }
 .rel-name { flex: 1; }
 .rel-role { font-size: var(--font-size-xs); color: var(--text-tertiary); margin-left: 6px; }
-.rel-remove { margin-left: auto; background: none; border: none; cursor: pointer; color: var(--text-tertiary); padding: 2px; border-radius: 4px; display: flex; align-items: center; }
+.rel-remove { margin-left: auto; background: none; border: none; cursor: pointer; color: var(--text-tertiary); padding: 2px; border-radius: var(--radius-xs); display: flex; align-items: center; }
 .rel-remove:hover { color: var(--danger); background: var(--danger-light); }
 .rel-empty { font-size: var(--font-size-sm); color: var(--text-tertiary); }
 

@@ -38,7 +38,7 @@ const speciesTabs: RelationTabDef[] = [
 <style scoped>
 .sv-evo-btn {
   display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px;
-  border: 1px solid var(--color-border); border-radius: 4px; background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border); border-radius: var(--radius-xs); background: var(--color-bg-elevated);
   color: var(--color-text-primary); font-size: var(--font-size-sm); cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s; white-space: nowrap;
 }
 .sv-evo-btn:hover { background: var(--color-bg-hover); border-color: var(--color-text-secondary); color: var(--color-text-primary); }

@@ -167,35 +167,35 @@ function close() {
 
 <style scoped>
 .et-overlay { position: fixed; inset: 0; z-index: var(--z-overlay); background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; }
-.et-modal { width: 560px; max-height: 75vh; background: var(--content-bg); border-radius: 12px; box-shadow: 0 8px 40px rgba(0,0,0,0.15); display: flex; flex-direction: column; overflow: hidden; position: relative; }
+.et-modal { width: 560px; max-height: 75vh; background: var(--content-bg); border-radius: var(--radius-2xl); box-shadow: 0 8px 40px rgba(0,0,0,0.15); display: flex; flex-direction: column; overflow: hidden; position: relative; }
 .et-header { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--border); }
 .et-header h3 { margin: 0; font-size: var(--font-size-lg); }
-.et-close { background: none; border: none; font-size: var(--font-size-xl); cursor: pointer; padding: 4px 8px; border-radius: 4px; }
+.et-close { background: none; border: none; font-size: var(--font-size-xl); cursor: pointer; padding: 4px 8px; border-radius: var(--radius-xs); }
 .et-close:hover { background: var(--hover-bg); }
 .et-tabs { display: flex; border-bottom: 1px solid var(--border); }
 .et-tabs button { flex: 1; padding: 8px; border: none; background: var(--bg); cursor: pointer; font-size: var(--font-size-base); color: var(--text-secondary); transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s; }
 .et-tabs button.active { background: var(--primary); color: var(--text-on-primary, #fff); }
 .et-body { padding: 16px 20px; overflow-y: auto; flex: 1; }
-.et-select { width: 100%; padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; margin-bottom: 12px; background: var(--bg); color: var(--text); }
+.et-select { width: 100%; padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius-xs); margin-bottom: 12px; background: var(--bg); color: var(--text); }
 .et-list { display: flex; flex-direction: column; gap: 8px; }
-.et-card { border: 1px solid var(--border); border-radius: 8px; padding: 12px; display: flex; gap: 12px; cursor: pointer; transition: border-color 0.15s, background 0.15s; }
+.et-card { border: 1px solid var(--border); border-radius: var(--radius-mid); padding: 12px; display: flex; gap: 12px; cursor: pointer; transition: border-color 0.15s, background 0.15s; }
 .et-card:hover { border-color: var(--primary); background: var(--hover-bg); }
-.et-card-icon { font-size: 24px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 8px; background: var(--bg); }
+.et-card-icon { font-size: 24px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: var(--radius-mid); background: var(--bg); }
 .et-card-content { flex: 1; min-width: 0; }
 .et-card-h { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; flex-wrap: wrap; }
 .et-card-h strong { font-size: var(--font-size-base); }
-.et-type-badge { font-size: var(--font-size-xs); background: #eef2ff; color: var(--primary); padding: 2px 6px; border-radius: 4px; }
-.et-source-badge { font-size: var(--font-size-xs); padding: 1px 5px; border-radius: 3px; }
+.et-type-badge { font-size: var(--font-size-xs); background: #eef2ff; color: var(--primary); padding: 2px 6px; border-radius: var(--radius-xs); }
+.et-source-badge { font-size: var(--font-size-xs); padding: 1px 5px; border-radius: var(--radius-2xs); }
 .et-source-badge.builtin { background: #ecfdf5; color: #059669; }
 .et-source-badge.custom { background: #fef3c7; color: #d97706; }
 .et-card-desc { font-size: var(--font-size-sm); color: var(--text-secondary); margin: 4px 0; }
 .et-card-props, .et-card-entities { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
-.et-prop-tag { font-size: var(--font-size-xs); background: var(--bg); color: var(--text-secondary); padding: 2px 6px; border-radius: 3px; border: 1px solid var(--border); }
+.et-prop-tag { font-size: var(--font-size-xs); background: var(--bg); color: var(--text-secondary); padding: 2px 6px; border-radius: var(--radius-2xs); border: 1px solid var(--border); }
 .et-empty { text-align: center; padding: 40px; color: var(--text-tertiary); }
 
 /* 名称输入弹窗 */
-.et-name-overlay { position: absolute; inset: 0; z-index: 10; background: rgba(0,0,0,0.25); display: flex; align-items: center; justify-content: center; border-radius: 12px; }
-.et-name-modal { background: var(--content-bg); border-radius: 8px; padding: 20px; width: 320px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
+.et-name-overlay { position: absolute; inset: 0; z-index: 10; background: rgba(0,0,0,0.25); display: flex; align-items: center; justify-content: center; border-radius: var(--radius-2xl); }
+.et-name-modal { background: var(--content-bg); border-radius: var(--radius-mid); padding: 20px; width: 320px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
 .et-name-modal h4 { margin: 0 0 12px; font-size: var(--font-size-base); }
 .et-name-input { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: var(--font-size-base); background: var(--bg); color: var(--text); box-sizing: border-box; }
 .et-name-input:focus { outline: none; border-color: var(--primary); }

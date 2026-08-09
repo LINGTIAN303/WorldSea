@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="en-node" :class="[`en-${nodeType}`, { 'en-editing': isEditing }]" @click="onClick">
     <div class="en-left">
       <span v-if="node.type === 'custom'" class="en-icon"><WsIcon :name="categoryIcon" size="xs" /></span>
@@ -146,7 +146,7 @@ function cancelEdit() {
 .en-node:hover { background: var(--bg-secondary, rgba(0,0,0,0.02)); border-radius: var(--radius-sm); }
 .en-left { display: flex; flex-direction: column; align-items: center; width: 40px; flex-shrink: 0; }
 .en-icon { font-size: var(--font-size-base); margin-bottom: 4px; }
-.en-icon-rel { font-size: var(--font-size-xs); color: var(--text-tertiary); background: var(--bg-secondary); padding: 1px 4px; border-radius: 3px; }
+.en-icon-rel { font-size: var(--font-size-xs); color: var(--text-tertiary); background: var(--bg-secondary); padding: 1px 4px; border-radius: var(--radius-2xs); }
 .en-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--primary, #7c3aed); flex-shrink: 0; }
 .en-relation .en-dot { background: var(--color-primary); }
 .en-custom .en-dot { background: var(--color-warning); }
@@ -156,12 +156,12 @@ function cancelEdit() {
 .en-desc { font-size: var(--font-size-xs); color: var(--text-tertiary); margin: 2px 0 0; line-height: 1.4; }
 .en-link { font-size: var(--font-size-xs); color: var(--primary); background: none; border: none; cursor: pointer; padding: 0; margin-top: 2px; }
 .en-link:hover { text-decoration: underline; }
-.en-input, .en-select { width: 100%; padding: 5px 8px; border: 1px solid var(--border-color); border-radius: 4px; font-size: var(--font-size-sm); margin-bottom: 4px; background: var(--input-bg); color: var(--text-color); }
-.en-textarea { width: 100%; padding: 5px 8px; border: 1px solid var(--border-color); border-radius: 4px; font-size: var(--font-size-sm); margin-bottom: 4px; resize: vertical; background: var(--input-bg); color: var(--text-color); }
+.en-input, .en-select { width: 100%; padding: 5px 8px; border: 1px solid var(--border-color); border-radius: var(--radius-xs); font-size: var(--font-size-sm); margin-bottom: 4px; background: var(--input-bg); color: var(--text-color); }
+.en-textarea { width: 100%; padding: 5px 8px; border: 1px solid var(--border-color); border-radius: var(--radius-xs); font-size: var(--font-size-sm); margin-bottom: 4px; resize: vertical; background: var(--input-bg); color: var(--text-color); }
 .en-input-sm { width: 120px; }
 .en-edit-row { display: flex; gap: 6px; }
 .en-edit-actions { display: flex; gap: 4px; margin-top: 4px; }
-.en-btn-sm { font-size: var(--font-size-xs); padding: 2px 8px; border: 1px solid var(--border-color); border-radius: 4px; background: transparent; color: var(--text-color); cursor: pointer; }
+.en-btn-sm { font-size: var(--font-size-xs); padding: 2px 8px; border: 1px solid var(--border-color); border-radius: var(--radius-xs); background: transparent; color: var(--text-color); cursor: pointer; }
 .en-btn-cancel { color: var(--text-tertiary); }
 .en-btn-danger { color: #e74c3c; }
 </style>

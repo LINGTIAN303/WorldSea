@@ -141,7 +141,7 @@ function sendQuickAction(prompt: string) {
 }
 .pc-quick-btn {
   padding: 3px 10px;
-  border-radius: 12px;
+  border-radius: var(--radius-2xl);
   border: 1px solid var(--border, #30363d);
   background: var(--bg-tertiary, #21262d);
   color: var(--text-primary, #e6edf3);
@@ -162,7 +162,7 @@ function sendQuickAction(prompt: string) {
 .pc-input {
   flex: 1;
   padding: 8px 10px;
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   border: 1px solid var(--border, #30363d);
   background: var(--bg-primary, #0d1117);
   color: var(--text-primary, #e6edf3);
@@ -180,7 +180,7 @@ function sendQuickAction(prompt: string) {
 }
 .pc-send-btn {
   padding: 8px 16px;
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   border: none;
   background: var(--primary, #58a6ff);
   color: var(--text-on-primary, #fff);  cursor: pointer;

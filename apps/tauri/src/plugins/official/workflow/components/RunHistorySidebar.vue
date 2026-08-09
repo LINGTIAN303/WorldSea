@@ -168,7 +168,7 @@ defineExpose({ loadRuns })
   flex-direction: column;
   height: 100%;
   background: var(--bg-secondary, #161b22);
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   overflow: hidden;
 }
 
@@ -191,7 +191,7 @@ defineExpose({ loadRuns })
   color: var(--text-secondary, #8b949e);
   cursor: pointer;
   padding: 4px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -272,9 +272,9 @@ defineExpose({ loadRuns })
   text-overflow: ellipsis;
 }
 .rh-item__status {
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   padding: 1px 6px;
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   white-space: nowrap;
   flex-shrink: 0;
 }
@@ -307,7 +307,7 @@ defineExpose({ loadRuns })
   margin-top: 6px;
   padding: 6px 8px;
   background: color-mix(in srgb, var(--danger, #f85149) 10%, transparent);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   font-size: var(--fs-xs);
   color: var(--danger, #f85149);
   white-space: pre-wrap;

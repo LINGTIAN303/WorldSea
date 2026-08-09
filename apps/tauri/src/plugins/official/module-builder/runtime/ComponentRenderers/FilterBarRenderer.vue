@@ -70,11 +70,11 @@ function removeFilter(idx: number) {
 <style scoped>
 .filter-bar-renderer { padding: 6px 8px; display: flex; flex-direction: column; gap: 6px; }
 .fb-filters { display: flex; flex-wrap: wrap; gap: 4px; }
-.fb-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; background: var(--bg-secondary); border-radius: 12px; font-size: var(--font-size-xs); color: var(--text-secondary); }
+.fb-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; background: var(--bg-secondary); border-radius: var(--radius-2xl); font-size: var(--font-size-xs); color: var(--text-secondary); }
 .fb-chip-rm { border: none; background: transparent; color: var(--text-tertiary); cursor: pointer; font-size: var(--font-size-xs); }
 .fb-add { display: flex; gap: 4px; align-items: center; }
-.fb-select { padding: 4px 6px; border: 1px solid var(--border-color); border-radius: 4px; font-size: var(--font-size-sm); background: var(--bg); color: var(--text-color); }
+.fb-select { padding: 4px 6px; border: 1px solid var(--border-color); border-radius: var(--radius-xs); font-size: var(--font-size-sm); background: var(--bg); color: var(--text-color); }
 .fb-select-sm { width: 70px; }
-.fb-input { padding: 4px 6px; border: 1px solid var(--border-color); border-radius: 4px; font-size: var(--font-size-sm); width: 80px; background: var(--bg); color: var(--text-color); }
-.fb-add-btn { padding: 4px 8px; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg); cursor: pointer; font-size: var(--font-size-sm); color: var(--primary); }
+.fb-input { padding: 4px 6px; border: 1px solid var(--border-color); border-radius: var(--radius-xs); font-size: var(--font-size-sm); width: 80px; background: var(--bg); color: var(--text-color); }
+.fb-add-btn { padding: 4px 8px; border: 1px solid var(--border-color); border-radius: var(--radius-xs); background: var(--bg); cursor: pointer; font-size: var(--font-size-sm); color: var(--primary); }
 </style>

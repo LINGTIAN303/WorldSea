@@ -55,7 +55,7 @@ function startResize(e: MouseEvent) {
 </script>
 
 <style scoped>
-.split-panel-renderer { display: flex; width: 100%; height: 100%; min-height: 100px; border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; background: var(--bg); }
+.split-panel-renderer { display: flex; width: 100%; height: 100%; min-height: 100px; border: 1px solid var(--border-color); border-radius: var(--radius-mid); overflow: hidden; background: var(--bg); }
 .sp-pane { overflow: auto; min-width: 0; min-height: 0; display: flex; align-items: center; justify-content: center; }
 .sp-label { color: var(--text-tertiary); font-size: var(--font-size-sm); }
 .sp-divider { width: 4px; background: var(--border-color); cursor: col-resize; flex-shrink: 0; transition: background 0.1s; }

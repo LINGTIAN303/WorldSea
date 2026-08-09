@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div
     class="dashboard-view"
     @dragover.prevent="onExternalDragOver"
@@ -403,7 +403,7 @@ function movePanel(idx: number, dir: number) {
   display: flex;
   flex-direction: column;
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   overflow: hidden;
   background: var(--card-bg);
   position: relative;
@@ -468,7 +468,7 @@ function movePanel(idx: number, dir: number) {
   border: none;
   background: transparent;
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   font-size: var(--font-size-xs);
   color: var(--text-secondary);
   display: flex;

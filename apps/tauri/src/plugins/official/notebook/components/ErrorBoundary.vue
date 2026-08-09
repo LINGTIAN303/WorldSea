@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div v-if="hasError" class="nb-error-boundary">
     <div class="nb-error-icon"><WsIcon name="alert-triangle" size="sm" /></div>
     <div class="nb-error-msg">{{ errorMessage }}</div>
@@ -32,6 +32,6 @@ function retry() {
 .nb-error-boundary { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; height: 100%; color: var(--color-text-tertiary); padding: 40px; }
 .nb-error-icon { color: var(--color-warning); }
 .nb-error-msg { font-size: var(--font-size-sm); color: var(--color-text-secondary); text-align: center; }
-.nb-error-retry { padding: 6px 16px; border-radius: 4px; border: 1px solid var(--color-border); background: var(--color-bg-surface); color: var(--color-text-primary); font-size: var(--font-size-sm); cursor: pointer; }
+.nb-error-retry { padding: 6px 16px; border-radius: var(--radius-xs); border: 1px solid var(--color-border); background: var(--color-bg-surface); color: var(--color-text-primary); font-size: var(--font-size-sm); cursor: pointer; }
 .nb-error-retry:hover { background: var(--color-bg-hover); }
 </style>

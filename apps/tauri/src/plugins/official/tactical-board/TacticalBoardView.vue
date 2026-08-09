@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="tb-view">
     <Toolbar
       v-model:gridType="gridType"
@@ -701,7 +701,7 @@ onMounted(async () => {
   gap: 3px;
   padding: 3px 8px;
   border: 1px solid var(--color-border);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: var(--color-bg-elevated);
   color: var(--color-text-primary);
   font-size: var(--font-size-sm);
@@ -728,7 +728,7 @@ onMounted(async () => {
   align-items: center;
   gap: 6px;
   padding: 4px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   cursor: pointer;
   font-size: var(--font-size-sm);
   border-left: 3px solid transparent;

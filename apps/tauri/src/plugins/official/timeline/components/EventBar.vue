@@ -103,9 +103,9 @@ const tooltipStyle = computed(() => ({
 
 .bar-label { flex: 1; overflow: hidden; text-overflow: ellipsis; }
 .bar-badge {
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   padding: 1px 5px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: rgba(0,0,0,0.1);
   margin-left: 4px;
   flex-shrink: 0;

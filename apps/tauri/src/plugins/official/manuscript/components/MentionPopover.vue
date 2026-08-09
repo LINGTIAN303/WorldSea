@@ -121,7 +121,7 @@ defineExpose({ open, close })
   z-index: 200;
   background: var(--modal-bg);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   padding: 8px;
   width: 260px;
   max-height: 300px;
@@ -133,7 +133,7 @@ defineExpose({ open, close })
   width: 100%;
   padding: 6px 10px;
   border: 1px solid var(--border-color);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   font-size: var(--font-size-sm);
   background: var(--input-bg);
   color: var(--text-color);
@@ -150,7 +150,7 @@ defineExpose({ open, close })
   gap: 6px;
   padding: 5px 8px;
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   font-size: var(--font-size-sm);
 }
 .mention-item:hover,

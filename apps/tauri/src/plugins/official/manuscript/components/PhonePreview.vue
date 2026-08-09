@@ -182,7 +182,7 @@ function onResizeStart(e: MouseEvent) {
   display: flex; align-items: center; justify-content: center; z-index: 300;
 }
 .pp-frame {
-  background: var(--modal-bg); border-radius: 16px;
+  background: var(--modal-bg); border-radius: var(--radius-xl);
   box-shadow: 0 8px 32px rgba(0,0,0,0.25); display: flex;
   flex-direction: column; overflow: hidden; position: relative;
 }
@@ -196,12 +196,12 @@ function onResizeStart(e: MouseEvent) {
 .pp-controls { display: flex; align-items: center; gap: 6px; }
 .pp-select-sm {
   padding: 2px 6px; font-size: var(--font-size-xs); border: 1px solid var(--border-color);
-  border-radius: 4px; background: var(--input-bg); color: var(--text-color);
+  border-radius: var(--radius-xs); background: var(--input-bg); color: var(--text-color);
 }
 .pp-close {
   width: 24px; height: 24px; border: none; background: transparent;
   cursor: pointer; font-size: var(--font-size-base); color: var(--text-secondary);
-  border-radius: 4px; display: flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-xs); display: flex; align-items: center; justify-content: center;
 }
 .pp-close:hover { background: var(--hover-bg); }
 
@@ -216,7 +216,7 @@ function onResizeStart(e: MouseEvent) {
 
 .pp-screen {
   flex: 1; min-height: 0; overflow-y: auto;
-  border-radius: 12px; border: 1px solid rgba(128,128,128,0.15);
+  border-radius: var(--radius-2xl); border: 1px solid rgba(128,128,128,0.15);
   margin: 6px; transition: background 0.2s, color 0.2s;
 }
 /* 设备模拟器主题色 - 有意设计的硬编码值，用于真实还原手机外观 */

@@ -184,7 +184,7 @@ function getHistory(entityId: string): string[] {
   color: var(--text-tertiary, #999);
   cursor: pointer;
   padding: 2px 4px;
-  border-radius: 3px;
+  border-radius: var(--radius-2xs);
   flex-shrink: 0;
 }
 

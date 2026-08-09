@@ -202,7 +202,7 @@ function close() {
   width: 620px;
   max-height: 80vh;
   background: var(--content-bg);
-  border-radius: 12px;
+  border-radius: var(--radius-2xl);
   box-shadow: 0 8px 40px rgba(0, 0, 0, 0.15);
   display: flex;
   flex-direction: column;
@@ -225,7 +225,7 @@ function close() {
   font-size: var(--font-size-xl);
   cursor: pointer;
   padding: 4px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
 .crt-close:hover {
   background: var(--hover-bg);
@@ -370,7 +370,7 @@ function close() {
   font-size: var(--font-size-xs);
   background: var(--bg);
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   flex-shrink: 0;
 }
 .crt-list-item-label {
@@ -384,7 +384,7 @@ function close() {
   color: var(--text-tertiary);
   background: var(--bg);
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   flex-shrink: 0;
 }
 </style>

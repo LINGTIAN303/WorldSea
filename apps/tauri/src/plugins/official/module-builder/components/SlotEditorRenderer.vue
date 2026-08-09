@@ -153,7 +153,7 @@ function startResize(e: MouseEvent, comp: PlacedComponent) {
 .slot-editor { display: flex; gap: 8px; }
 .slot-horizontal { flex-direction: row; }
 .slot-vertical { flex-direction: column; }
-.slot-zone-editor { border: 2px dashed var(--border-color); border-radius: 8px; padding: 8px; min-height: 80px; display: flex; flex-direction: column; gap: 4px; }
+.slot-zone-editor { border: 2px dashed var(--border-color); border-radius: var(--radius-mid); padding: 8px; min-height: 80px; display: flex; flex-direction: column; gap: 4px; }
 .zone-label { font-size: var(--font-size-xs); color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
 .zone-canvas { position: relative; min-height: 60px; flex: 1; }
 .zone-component { position: absolute; display: flex; flex-direction: column; border: 1px solid var(--border-color); border-radius: var(--radius-sm); background: var(--bg); cursor: grab; font-size: var(--font-size-sm); min-width: 80px; min-height: 40px; user-select: none; }
@@ -163,12 +163,12 @@ function startResize(e: MouseEvent, comp: PlacedComponent) {
 .zc-header { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-bottom: 1px solid var(--border-color); }
 .zc-icon { font-size: var(--font-size-base); }
 .zc-label { flex: 1; }
-.zc-expand { width: 20px; height: 20px; border: none; background: transparent; cursor: pointer; font-size: var(--font-size-xs); border-radius: 3px; color: var(--text-secondary); }
+.zc-expand { width: 20px; height: 20px; border: none; background: transparent; cursor: pointer; font-size: var(--font-size-xs); border-radius: var(--radius-2xs); color: var(--text-secondary); }
 .zc-expand:hover { background: var(--hover-bg); }
 .zc-remove { width: 18px; height: 18px; border: none; background: transparent; color: var(--danger); cursor: pointer; font-size: var(--font-size-xs); border-radius: var(--radius-xs); }
 .zc-remove:hover { background: color-mix(in srgb, var(--danger) 10%, transparent); }
 .zc-child-slot { padding: 8px; min-height: 60px; }
 .zc-resize-handle { position: absolute; right: 0; bottom: 0; width: 12px; height: 12px; cursor: se-resize; }
 .zc-resize-handle::after { content: ''; position: absolute; right: 2px; bottom: 2px; width: 6px; height: 6px; border-right: 2px solid var(--text-tertiary); border-bottom: 2px solid var(--text-tertiary); }
-.zone-drop-hint { font-size: var(--font-size-xs); color: var(--text-tertiary); text-align: center; padding: 8px; border: 1px dashed var(--border-color); border-radius: 4px; }
+.zone-drop-hint { font-size: var(--font-size-xs); color: var(--text-tertiary); text-align: center; padding: 8px; border: 1px dashed var(--border-color); border-radius: var(--radius-xs); }
 </style>

@@ -65,7 +65,7 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.ai-assistant-renderer { display: flex; flex-direction: column; height: 100%; border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; background: var(--bg); }
+.ai-assistant-renderer { display: flex; flex-direction: column; height: 100%; border: 1px solid var(--border-color); border-radius: var(--radius-mid); overflow: hidden; background: var(--bg); }
 .aa-header { display: flex; align-items: center; gap: 6px; padding: 8px 12px; background: var(--bg-secondary); border-bottom: 1px solid var(--border-color); }
 .aa-icon { font-size: var(--font-size-lg); }
 .aa-title { font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); color: var(--text-color); }
@@ -74,7 +74,7 @@ onBeforeUnmount(() => {
 .aa-msg { display: flex; gap: 6px; font-size: var(--font-size-sm); }
 .aa-msg.user { flex-direction: row-reverse; }
 .aa-msg-role { font-size: var(--font-size-lg); flex-shrink: 0; }
-.aa-msg-text { padding: 6px 10px; border-radius: 8px; max-width: 80%; word-break: break-word; }
+.aa-msg-text { padding: 6px 10px; border-radius: var(--radius-mid); max-width: 80%; word-break: break-word; }
 .aa-msg.user .aa-msg-text { background: var(--primary); color: var(--on-accent); }
 .aa-msg.assistant .aa-msg-text { background: var(--bg-secondary); color: var(--text-color); }
 .aa-input-area { display: flex; gap: 6px; padding: 8px 12px; border-top: 1px solid var(--border-color); }

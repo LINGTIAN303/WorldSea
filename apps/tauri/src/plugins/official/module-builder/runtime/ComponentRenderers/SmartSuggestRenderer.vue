@@ -62,7 +62,7 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.smart-suggest-renderer { border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; background: var(--bg); }
+.smart-suggest-renderer { border: 1px solid var(--border-color); border-radius: var(--radius-mid); overflow: hidden; background: var(--bg); }
 .ss-header { display: flex; align-items: center; gap: 6px; padding: 8px 12px; background: var(--bg-secondary); border-bottom: 1px solid var(--border-color); }
 .ss-icon { font-size: var(--font-size-lg); }
 .ss-title { font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); color: var(--text-color); }
@@ -77,6 +77,6 @@ onBeforeUnmount(() => {
 .ss-item-content { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .ss-item-text { font-size: var(--font-size-sm); color: var(--text-color); }
 .ss-item-detail { font-size: var(--font-size-xs); color: var(--text-tertiary); }
-.ss-apply { padding: 3px 8px; border: 1px solid var(--primary); border-radius: 4px; background: transparent; color: var(--primary); font-size: var(--font-size-xs); cursor: pointer; flex-shrink: 0; }
+.ss-apply { padding: 3px 8px; border: 1px solid var(--primary); border-radius: var(--radius-xs); background: transparent; color: var(--primary); font-size: var(--font-size-xs); cursor: pointer; flex-shrink: 0; }
 .ss-apply:hover { background: rgba(79, 70, 229, 0.08); }
 </style>

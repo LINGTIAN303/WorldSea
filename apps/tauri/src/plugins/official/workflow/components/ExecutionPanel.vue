@@ -199,7 +199,7 @@ function formatDuration(ms: number): string {
 .agent-status--failed { color: var(--danger, #f85149); }
 .ep-agent__duration { font-size: var(--fs-xs); opacity: 0.5; }
 
-.ep-log { margin-top: 8px; padding: 12px; background: var(--bg-tertiary, #21262d); border-radius: 8px; }
+.ep-log { margin-top: 8px; padding: 12px; background: var(--bg-tertiary, #21262d); border-radius: var(--radius-mid); }
 .ep-log__title { margin: 0 0 8px; font-size: var(--fs-md); opacity: 0.7; }
 .ep-log__line { font-size: var(--fs-sm); font-family: monospace; opacity: 0.6; line-height: 1.6; }
 
@@ -211,13 +211,13 @@ function formatDuration(ms: number): string {
   padding: 10px 12px;
   background: color-mix(in srgb, var(--success, #3fb950) 6%, var(--bg-secondary, #161b22));
   border: 1px solid color-mix(in srgb, var(--success, #3fb950) 25%, transparent);
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
 }
 .ep-engine__header {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
 }
 .ep-engine__badge {
-  font-size: var(--fs-xs); font-weight: 600; padding: 2px 8px; border-radius: 4px;
+  font-size: var(--fs-xs); font-weight: 600; padding: 2px 8px; border-radius: var(--radius-xs);
   background: var(--bg-tertiary, #21262d);
 }
 .ep-engine__badge--running { color: var(--warning, #d29922); }
@@ -233,7 +233,7 @@ function formatDuration(ms: number): string {
 }
 
 .ep-engine__cancel {
-  padding: 2px 10px; border-radius: 4px;
+  padding: 2px 10px; border-radius: var(--radius-xs);
   border: 1px solid color-mix(in srgb, var(--danger, #f85149) 40%, transparent);
   background: transparent; color: var(--danger, #f85149);
   font-size: var(--fs-xs); cursor: pointer;
@@ -264,7 +264,7 @@ function formatDuration(ms: number): string {
 .ep-engine__current-label { opacity: 0.6; }
 .ep-engine__current-node {
   font-family: monospace; font-size: var(--fs-xs);
-  padding: 1px 6px; border-radius: 3px;
+  padding: 1px 6px; border-radius: var(--radius-2xs);
   background: var(--bg-tertiary, #21262d);
 }
 
@@ -272,13 +272,13 @@ function formatDuration(ms: number): string {
   margin-top: 8px; padding: 6px 10px;
   background: color-mix(in srgb, var(--danger, #f85149) 10%, transparent);
   border: 1px solid color-mix(in srgb, var(--danger, #f85149) 30%, transparent);
-  border-radius: 4px; font-size: var(--fs-sm); color: var(--danger, #f85149);
+  border-radius: var(--radius-xs); font-size: var(--fs-sm); color: var(--danger, #f85149);
 }
 
 .ep-engine__log {
   margin-top: 8px; max-height: 160px; overflow: auto;
   padding: 6px 8px; background: var(--bg-tertiary, #21262d);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
 .ep-engine__log-line {
   font-size: var(--fs-xs); font-family: monospace; opacity: 0.7;

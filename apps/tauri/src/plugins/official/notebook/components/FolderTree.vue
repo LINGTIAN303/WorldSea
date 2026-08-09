@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="folder-tree" @contextmenu.prevent="openContextMenu($event, 'empty')">
     <template v-if="searchMode">
       <div
@@ -358,7 +358,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeyDown))
 .folder-tree { padding: 4px 0; }
 .ft-folder-group { margin-bottom: 2px; }
 .ft-folder-header {
-  display: flex; align-items: center; gap: 4px; padding: 5px 6px; border-radius: 4px;
+  display: flex; align-items: center; gap: 4px; padding: 5px 6px; border-radius: var(--radius-xs);
   cursor: pointer; font-size: var(--font-size-sm); color: var(--color-text-secondary);
   transition: background 0.1s, border-color 0.1s, color 0.1s, box-shadow 0.1s, transform 0.1s, opacity 0.1s, filter 0.1s; user-select: none;
 }
@@ -389,7 +389,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeyDown))
 
 .ft-note-item {
   display: flex; align-items: center; gap: 6px; padding: 5px 8px 5px 28px;
-  border-radius: 4px; cursor: pointer; font-size: var(--font-size-sm);
+  border-radius: var(--radius-xs); cursor: pointer; font-size: var(--font-size-sm);
   color: var(--color-text-secondary); transition: background 0.1s, border-color 0.1s, color 0.1s, box-shadow 0.1s, transform 0.1s, opacity 0.1s, filter 0.1s;
 }
 .ft-note-item:hover { background: var(--color-bg-hover); }
@@ -399,7 +399,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeyDown))
 
 .ft-rename-input {
   flex: 1; min-width: 0; padding: 1px 4px; font-size: var(--font-size-sm);
-  border: 1px solid var(--color-primary); border-radius: 3px;
+  border: 1px solid var(--color-primary); border-radius: var(--radius-2xs);
   background: var(--color-bg-base); color: var(--color-text-primary); outline: none;
 }
 .ft-note-ghost { opacity: 0.3; }
@@ -415,7 +415,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeyDown))
   border-radius: var(--radius-sm); padding: 4px; box-shadow: 0 4px 16px rgba(0,0,0,0.18);
 }
 .ft-cm-item {
-  padding: 6px 12px; font-size: var(--font-size-sm); border-radius: 4px;
+  padding: 6px 12px; font-size: var(--font-size-sm); border-radius: var(--radius-xs);
   cursor: pointer; color: var(--color-text-primary); user-select: none;
 }
 .ft-cm-item:hover { background: var(--color-bg-hover); }

@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="up-panel" v-if="unit">
     <div class="up-title">
       <span class="up-dot" :class="'up-team-' + unit.team"></span>
@@ -133,14 +133,14 @@ const hpClass = computed(() => {
   flex: 1;
   height: 14px;
   background: color-mix(in srgb, var(--color-text-primary) 5%, transparent);
-  border-radius: 3px;
+  border-radius: var(--radius-2xs);
   position: relative;
   overflow: hidden;
 }
 
 .up-bar {
   height: 100%;
-  border-radius: 3px;
+  border-radius: var(--radius-2xs);
   transition: width 0.3s ease;
 }
 
@@ -169,7 +169,7 @@ const hpClass = computed(() => {
   flex: 1;
   text-align: center;
   background: color-mix(in srgb, var(--color-text-primary) 3%, transparent);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   padding: 4px 2px;
 }
 
@@ -197,7 +197,7 @@ const hpClass = computed(() => {
   flex: 1;
   padding: 5px 4px;
   border: 1px solid var(--color-border);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: var(--color-bg-elevated);
   color: var(--color-text-primary);
   font-size: var(--font-size-xs);

@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div :class="['note-card', variant]" @click="$emit('click', note.id)">
     <div class="nc-type-icon"><WsIcon :name="typeIcon" size="sm" /></div>
     <div class="nc-content">
@@ -37,7 +37,7 @@ const preview = computed(() =>
 .note-card { display: flex; align-items: center; gap: 8px; cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s; }
 .note-card.card { padding: 10px 12px; border: 1px solid var(--color-border-subtle); border-radius: var(--radius-sm); }
 .note-card.card:hover { border-color: var(--color-primary); }
-.note-card.list { padding: 5px 8px; border-radius: 4px; }
+.note-card.list { padding: 5px 8px; border-radius: var(--radius-xs); }
 .note-card.list:hover { background: var(--color-bg-hover); }
 .note-card.list.active { background: color-mix(in srgb, var(--color-primary) 15%, transparent); color: var(--color-primary); }
 .nc-type-icon { font-size: var(--font-size-xl); flex-shrink: 0; }
@@ -45,5 +45,5 @@ const preview = computed(() =>
 .nc-name { font-size: var(--font-size-sm); font-weight: var(--font-weight-medium); color: var(--color-text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nc-preview { font-size: var(--font-size-xs); color: var(--color-text-tertiary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 2px; }
 .nc-tags { display: flex; gap: 3px; flex-shrink: 0; }
-.nc-tag { font-size: var(--text-micro-font-size); padding: 1px 5px; border-radius: 3px; background: color-mix(in srgb, var(--color-primary) 15%, transparent); color: var(--color-primary); }
+.nc-tag { font-size: var(--text-micro-font-size); padding: 1px 5px; border-radius: var(--radius-2xs); background: color-mix(in srgb, var(--color-primary) 15%, transparent); color: var(--color-primary); }
 </style>

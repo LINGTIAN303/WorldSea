@@ -95,7 +95,7 @@ function confirm() {
 .fad-mode-toggle button.active { background: var(--primary, #7c3aed); color: var(--on-accent); }
 .fad-input, .fad-select { width: 100%; padding: 7px 10px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); font-size: var(--font-size-sm); margin-bottom: 8px; background: var(--input-bg, #fff); color: var(--text-color); }
 .fad-results { max-height: 150px; overflow-y: auto; }
-.fad-result-item { padding: 6px 8px; cursor: pointer; border-radius: 4px; display: flex; justify-content: space-between; }
+.fad-result-item { padding: 6px 8px; cursor: pointer; border-radius: var(--radius-xs); display: flex; justify-content: space-between; }
 .fad-result-item:hover { background: var(--bg-secondary, #f5f5f5); }
 .fad-result-sub { font-size: var(--font-size-xs); color: var(--text-tertiary); }
 .fad-empty { text-align: center; color: var(--text-tertiary); font-size: var(--font-size-sm); padding: 12px; }

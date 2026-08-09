@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="iv-wrap">
     <GenericEntityView
       v-if="viewMode === 'list'"
@@ -75,7 +75,7 @@ const filterOpts = [
   gap: 4px;
   padding: 3px 8px;
   border: 1px solid var(--color-border);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: var(--color-bg-elevated);
   color: var(--color-text-primary);
   font-size: var(--font-size-sm);

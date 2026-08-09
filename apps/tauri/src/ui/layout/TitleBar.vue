@@ -190,7 +190,7 @@ function close() {
   color: var(--text-tertiary, var(--color-text-tertiary));
 }
 .titlebar-chevron {
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   color: var(--text-tertiary, var(--color-text-tertiary));
   margin-top: 1px;
   flex-shrink: 0;

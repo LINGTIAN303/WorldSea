@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="dash-toolbar">
     <h3><WsIcon name="notepad" size="sm" /> 面板布局</h3>
     <CreateButton label="添加面板" size="small" @click="$emit('add')" />
@@ -58,7 +58,7 @@ defineEmits<{
 .dash-controls select {
   padding: 4px 6px;
   border: 1px solid var(--border-color);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   font-size: var(--font-size-sm);
 }
 </style>

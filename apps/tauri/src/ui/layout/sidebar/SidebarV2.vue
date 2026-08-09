@@ -449,7 +449,7 @@ onBeforeUnmount(() => {
   font-size: var(--font-size-xs);
   background: var(--bg-tertiary);
   color: var(--text-tertiary);
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   padding: 1px 6px;
   min-width: 18px;
   text-align: center;

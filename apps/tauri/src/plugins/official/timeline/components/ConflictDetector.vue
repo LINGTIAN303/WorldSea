@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <Transition name="ws-detail-backdrop">
     <div v-if="show" class="detail-backdrop"></div>
   </Transition>
@@ -86,7 +86,7 @@ defineEmits<{
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
   padding: 2px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   margin-bottom: 6px;
 }
 .same_date .conflict-type-badge { background: color-mix(in srgb, var(--color-warning) 20%, transparent); color: var(--color-warning); }
@@ -94,7 +94,7 @@ defineEmits<{
 .same_location .conflict-type-badge { background: color-mix(in srgb, var(--color-primary) 15%, transparent); color: var(--color-primary); }
 .conflict-desc { font-size: var(--font-size-sm); margin: 4px 0; }
 .conflict-entities { display: flex; gap: 4px; flex-wrap: wrap; margin: 6px 0; }
-.conflict-entity { font-size: var(--font-size-sm); padding: 2px 8px; background: var(--hover-bg); border-radius: 4px; }
+.conflict-entity { font-size: var(--font-size-sm); padding: 2px 8px; background: var(--hover-bg); border-radius: var(--radius-xs); }
 .conflict-date { font-size: var(--font-size-xs); color: var(--text-tertiary); margin-top: 4px; }
 .detail-close { position: absolute; top: 12px; right: 12px; width: 28px; height: 28px; border: none; background: transparent; border-radius: var(--radius-sm); cursor: pointer; font-size: var(--font-size-lg); color: var(--text-tertiary); display: flex; align-items: center; justify-content: center; }
 .detail-close:hover { background: var(--hover-bg); color: var(--text-color); }

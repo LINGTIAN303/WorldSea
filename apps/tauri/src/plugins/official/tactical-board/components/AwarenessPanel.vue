@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="aw-panel">
     <div class="aw-title">态势感知</div>
     <div class="aw-modes">
@@ -74,7 +74,7 @@ defineEmits<{
   gap: 2px;
   padding: 5px 2px;
   border: 1px solid var(--color-border);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: transparent;
   color: var(--color-text-secondary);
   cursor: pointer;
@@ -111,7 +111,7 @@ defineEmits<{
   gap: 3px;
   padding: 6px 8px;
   background: color-mix(in srgb, var(--color-text-primary) 2%, transparent);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   margin-bottom: 6px;
 }
 
@@ -152,7 +152,7 @@ defineEmits<{
   width: 100%;
   padding: 4px;
   border: 1px solid var(--color-border);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: transparent;
   color: var(--color-text-secondary);
   font-size: var(--font-size-xs);

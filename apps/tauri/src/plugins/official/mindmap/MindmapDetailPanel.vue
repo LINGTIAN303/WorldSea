@@ -193,7 +193,7 @@ watch(() => props.nodeId, () => {
   background: linear-gradient(180deg, var(--color-bg-elevated) 0%, transparent 100%);
 }
 .mm-dp-icon {
-  width: 32px; height: 32px; border-radius: 8px;
+  width: 32px; height: 32px; border-radius: var(--radius-mid);
   display: flex; align-items: center; justify-content: center;
   background: var(--color-bg-elevated);
   border: 1px solid var(--border-color);
@@ -204,7 +204,7 @@ watch(() => props.nodeId, () => {
 .mm-dp-close {
   background: none; border: none; cursor: pointer;
   color: var(--text-tertiary); font-size: var(--font-size-base);
-  width: 24px; height: 24px; border-radius: 4px;
+  width: 24px; height: 24px; border-radius: var(--radius-xs);
   display: flex; align-items: center; justify-content: center;
 }
 .mm-dp-close:hover { color: var(--text-color); background: var(--hover-bg); }
@@ -233,7 +233,7 @@ watch(() => props.nodeId, () => {
 .mm-dp-rel-type {
   color: var(--primary); font-weight: var(--font-weight-semibold);
   padding: 1px 6px; background: var(--color-primary-subtle, var(--color-bg-elevated));
-  border-radius: 4px; white-space: nowrap;
+  border-radius: var(--radius-xs); white-space: nowrap;
 }
 .mm-dp-rel-arrow { color: var(--text-tertiary); }
 .mm-dp-rel-target { color: var(--text-secondary); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -243,7 +243,7 @@ watch(() => props.nodeId, () => {
   line-height: 1.6; padding: 8px 10px;
   background: var(--color-bg-elevated);
   border-left: 3px solid var(--primary);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   margin: 0 0 8px;
 }
 .mm-dp-field-actions {
@@ -252,7 +252,7 @@ watch(() => props.nodeId, () => {
 .mm-dp-btn-sm {
   display: inline-flex; align-items: center; gap: 3px;
   padding: 3px 8px; font-size: var(--font-size-xs);
-  border: 1px solid var(--border-color); border-radius: 4px;
+  border: 1px solid var(--border-color); border-radius: var(--radius-xs);
   background: var(--card-bg); color: var(--text-secondary);
   cursor: pointer; transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast), opacity var(--transition-fast), filter var(--transition-fast);
 }

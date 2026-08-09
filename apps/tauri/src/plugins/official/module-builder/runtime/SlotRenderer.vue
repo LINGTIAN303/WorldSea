@@ -101,6 +101,6 @@ function getRenderer(typeId: ComponentTypeId) {
 .comp-child-slot { border-top: 1px solid var(--border-color); padding: 8px; min-height: 60px; }
 .zone-empty { display: flex; align-items: center; justify-content: center; flex: 1; min-height: 60px; border: 1px dashed var(--border-color); border-radius: var(--radius-sm); }
 .zone-empty-text { font-size: var(--font-size-xs); color: var(--text-tertiary); }
-.zone-comp-missing { padding: 8px; background: color-mix(in srgb, var(--color-warning) 15%, transparent); border: 1px solid var(--color-warning); border-radius: 4px; font-size: var(--font-size-sm); color: var(--color-warning); }
-.comp-error { padding: 8px; background: color-mix(in srgb, var(--color-danger) 15%, transparent); border: 1px solid var(--color-danger); border-radius: 4px; font-size: var(--font-size-sm); color: var(--color-danger); }
+.zone-comp-missing { padding: 8px; background: color-mix(in srgb, var(--color-warning) 15%, transparent); border: 1px solid var(--color-warning); border-radius: var(--radius-xs); font-size: var(--font-size-sm); color: var(--color-warning); }
+.comp-error { padding: 8px; background: color-mix(in srgb, var(--color-danger) 15%, transparent); border: 1px solid var(--color-danger); border-radius: var(--radius-xs); font-size: var(--font-size-sm); color: var(--color-danger); }
 </style>

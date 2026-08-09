@@ -38,7 +38,7 @@ const displayFields = computed(() => {
 </script>
 
 <style scoped>
-.entity-card-renderer { border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; background: var(--bg); }
+.entity-card-renderer { border: 1px solid var(--border-color); border-radius: var(--radius-mid); padding: 12px; background: var(--bg); }
 .ec-empty { color: var(--text-tertiary); font-size: var(--font-size-sm); text-align: center; padding: 20px; }
 .ec-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border-color); }
 .ec-icon { font-size: var(--font-size-xl); }

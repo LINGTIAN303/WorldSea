@@ -104,11 +104,11 @@ watch(() => ctx?.selectedEntity.value, (entity) => {
 .ef-layout-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .ef-field { display: flex; flex-direction: column; gap: 3px; }
 .ef-label { font-size: var(--font-size-sm); color: var(--text-tertiary); }
-.ef-input, .ef-textarea, .ef-select { padding: 6px 8px; border: 1px solid var(--border-color); border-radius: 4px; font-size: var(--font-size-sm); background: var(--bg); color: var(--text-color); }
+.ef-input, .ef-textarea, .ef-select { padding: 6px 8px; border: 1px solid var(--border-color); border-radius: var(--radius-xs); font-size: var(--font-size-sm); background: var(--bg); color: var(--text-color); }
 .ef-textarea { min-height: 60px; resize: vertical; }
 .ef-checkbox { display: flex; align-items: center; gap: 6px; font-size: var(--font-size-sm); }
 .ef-actions { display: flex; gap: 8px; margin-top: 16px; }
-.ef-btn { padding: 6px 14px; border-radius: 4px; font-size: var(--font-size-sm); cursor: pointer; border: none; }
+.ef-btn { padding: 6px 14px; border-radius: var(--radius-xs); font-size: var(--font-size-sm); cursor: pointer; border: none; }
 .ef-btn-primary { background: var(--primary); color: var(--on-accent); }
 .ef-btn-ghost { background: transparent; border: 1px solid var(--border-color); color: var(--text-secondary); }
 </style>

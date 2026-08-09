@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="bl-panel">
     <div class="bl-title">战斗日志</div>
     <div class="bl-list" ref="listRef">
@@ -63,7 +63,7 @@ watch(
   padding: 3px 4px;
   font-size: var(--font-size-xs);
   line-height: 1.4;
-  border-radius: 3px;
+  border-radius: var(--radius-2xs);
 }
 
 .bl-entry:hover {

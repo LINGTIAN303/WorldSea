@@ -146,11 +146,11 @@ function close() {
 
 <style scoped>
 .consistency-overlay { position: fixed; inset: 0; z-index: var(--z-overlay); background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; }
-.consistency-modal { width: 600px; max-height: 75vh; background: var(--content-bg); border-radius: 12px; box-shadow: 0 8px 40px rgba(0,0,0,0.15); display: flex; flex-direction: column; overflow: hidden; }
+.consistency-modal { width: 600px; max-height: 75vh; background: var(--content-bg); border-radius: var(--radius-2xl); box-shadow: 0 8px 40px rgba(0,0,0,0.15); display: flex; flex-direction: column; overflow: hidden; }
 .consistency-header { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--border); }
 .consistency-header h3 { margin: 0; font-size: var(--font-size-lg); }
 .consistency-hdr-actions { display: flex; align-items: center; gap: 10px; }
-.consistency-close { background: none; border: none; font-size: var(--font-size-xl); cursor: pointer; padding: 4px 8px; border-radius: 4px; }
+.consistency-close { background: none; border: none; font-size: var(--font-size-xl); cursor: pointer; padding: 4px 8px; border-radius: var(--radius-xs); }
 .consistency-close:hover { background: var(--hover-bg); }
 
 .consistency-summary { display: flex; align-items: center; gap: 10px; padding: 10px 20px; border-bottom: 1px solid var(--border); }
