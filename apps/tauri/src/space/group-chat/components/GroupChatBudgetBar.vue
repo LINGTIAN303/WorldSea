@@ -78,15 +78,15 @@ function formatTokens(n: number): string {
 }
 
 .budget-ok .budget-fill {
-  background: #10b981;
+  background: var(--success);
 }
 
 .budget-warning .budget-fill {
-  background: #f59e0b;
+  background: var(--warning);
 }
 
 .budget-danger .budget-fill {
-  background: #ef4444;
+  background: var(--danger);
 }
 
 .budget-percent {

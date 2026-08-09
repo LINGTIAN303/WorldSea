@@ -315,7 +315,7 @@ function onDocumentClick(event: MouseEvent): void {
 .delete-confirm-actions { display: flex; gap: 8px; justify-content: flex-end; }
 .delete-cancel-btn { padding: 6px 16px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); cursor: pointer; font-size: var(--fs-sm); }
 .delete-confirm-btn { padding: 6px 16px; border: none; border-radius: 8px; background: var(--danger); color: var(--on-accent); cursor: pointer; font-size: var(--fs-sm); font-weight: 600; }
-.delete-confirm-btn:hover { background: #dc2626; }
+.delete-confirm-btn:hover { background: var(--danger-hover); }
 
 .context-menu { background: rgba(10, 10, 20, 0.08); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid var(--color-border); border-radius: var(--radius-md); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2); padding: 4px; min-width: 140px; }
 .context-menu-item { padding: 8px 12px; font-size: var(--fs-sm); color: var(--color-text); cursor: pointer; border-radius: var(--radius-sm); transition: background 0.1s; }
