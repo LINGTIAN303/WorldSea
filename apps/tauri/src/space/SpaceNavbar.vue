@@ -46,18 +46,13 @@
         </div>
       </template>
 
-      <div class="mode-dropdown-wrap" ref="dropdownWrapRef">
-        <button v-if="sessionChatMode !== null && spaceStore.mode === 'chat'" class="mode-dropdown-btn locked" disabled>
-          <span class="mode-dropdown-icon"><WsIcon :name="currentMode.icon" size="xs" /></span>
-          <span class="mode-dropdown-label">{{ currentMode.label }}</span>
-          <span class="mode-lock-icon"><WsIcon name="lock" size="xs" /></span>
-        </button>
-        <button v-else class="mode-dropdown-btn" @click.stop="personaPopoverOpen = false; modeDropdownOpen = !modeDropdownOpen">
-          <span class="mode-dropdown-icon"><WsIcon :name="currentMode.icon" size="xs" /></span>
-          <span class="mode-dropdown-label">{{ currentMode.label }}</span>
-          <span class="mode-dropdown-arrow">▾</span>
-        </button>
-      </div>
+      <!-- 模式选择：分段滑块（2026-08-09 由下拉改滑块；单聊四模式 / 群聊两模式） -->
+      <TuiSegmented
+        v-model="modeModel"
+        :options="modeOptions"
+        :disabled="sessionChatMode !== null && spaceStore.mode === 'chat'"
+        class="mode-segmented"
+      />
     </div>
 
     <div class="navbar-center">
@@ -90,7 +85,6 @@
           @click="showProviderSlots = true"
           title="Provider 池管理"
         ><WsIcon name="key" size="sm" /></button>
-        <span class="nav-divider"></span>
       </template>
       <!-- 对话上下文组：记忆架 -->
       <button
@@ -99,7 +93,6 @@
         @click="spaceStore.toggleConfigPanel('memory')"
         title="记忆架"
       ><WsIcon name="brain" size="sm" /></button>
-      <span class="nav-divider"></span>
       <!-- 运行组：执行面板入口（带运行徽标） -->
       <button
         class="nav-btn"
@@ -107,7 +100,6 @@
         @click="spaceStore.toggleExecPanel()"
         title="运行面板（轨迹/活动/计划）"
       ><WsIcon name="chart" size="sm" /><span v-if="spaceStore.activityPinned" class="nav-badge"></span></button>
-      <span class="nav-divider"></span>
       <!-- 知识墙组：知识墙入口（Agent 设置已迁入主设置，2026-08-09） -->
       <button
         class="nav-btn"
@@ -151,29 +143,6 @@
     <AgentManagerPanel :visible="showAgentManager" :anchor-rect="agentManagerBtnRect" @close="showAgentManager = false" />
 
     <Teleport to="body">
-      <div v-if="modeDropdownOpen" class="mode-dropdown-backdrop" @click="modeDropdownOpen = false"></div>
-    </Teleport>
-
-    <Teleport to="body">
-      <Transition name="dropdown">
-        <div v-if="modeDropdownOpen" class="mode-dropdown-menu" :style="dropdownMenuStyle">
-          <button
-            v-for="m in chatModes"
-            :key="m.value"
-            class="mode-dropdown-item"
-            :class="{ active: (spaceStore.mode === 'group' ? spaceStore.groupChatMode : spaceStore.chatMode) === m.value, disabled: sessionChatMode !== null && spaceStore.mode === 'chat' }"
-            @click.stop="onModeSelect(m.value)"
-          >
-            <span class="mode-item-icon"><WsIcon :name="m.icon" size="sm" /></span>
-            <div class="mode-item-text">
-              <span class="mode-item-label">{{ m.label }}</span>
-              <span class="mode-item-desc">{{ m.desc }}</span>
-            </div>
-          </button>
-        </div>
-      </Transition>
-    </Teleport>
-    <Teleport to="body">
       <div v-if="moreMenuOpen" class="more-backdrop" @click="moreMenuOpen = false"></div>
     </Teleport>
 
@@ -203,6 +172,7 @@ import UserProfilePopover from './panels/UserProfilePopover.vue'
 import { WsIcon } from '@worldsmith/ui-kit'
 import AvatarBadge from '@/ui/AvatarBadge.vue'
 import PanelToggle from './PanelToggle.vue'
+import TuiSegmented from '@/components/ui/TuiSegmented.vue'
 // 群聊模式专属入口（2026-08-09 群聊 UI 骨架恢复后迁移）
 import ProviderSlotEditor from './group-chat/components/ProviderSlotEditor.vue'
 import AgentManagerPanel from './group-chat/components/AgentManagerPanel.vue'
@@ -237,7 +207,6 @@ const { agentName, moodIcon, moodLabel } = useAgentPersona()
 
 const personaPopoverOpen = ref(false)
 const userProfilePopoverOpen = ref(false)
-const modeDropdownOpen = ref(false)
 // 群聊模式专属状态（2026-08-09 迁移）
 const showProviderSlots = ref(false)
 const showAgentManager = ref(false)
@@ -260,7 +229,6 @@ const moreMenuStyle = ref<Record<string, string>>({ top: '56px', right: '16px' }
 
 const identityRef = ref<HTMLElement>()
 const userIdentityRef = ref<HTMLElement>()
-const dropdownWrapRef = ref<HTMLElement>()
 
 const currentSessionName = ref('')
 
@@ -275,47 +243,37 @@ async function updateSessionInfo() {
 
 watch(currentSessionId, () => { updateSessionInfo() })
 
+// ── 模式分段滑块（2026-08-09 由下拉改滑块）──
+// 选项源：单聊四模式 / 群聊两模式（TuiSegmented 只消费 {value,label}）
 const chatModes = computed(() => {
   // 群聊模式：会议/闲聊 两个子模式（2026-08-09 迁移）
   if (spaceStore.mode === 'group') {
     return [
-      { value: 'meeting' as const, icon: 'clipboard-list', label: '会议模式', desc: '有序讨论，深度发言，适合决策和评审' },
-      { value: 'casual' as const, icon: 'coffee', label: '闲聊模式', desc: '自由发言，简短互动，像微信群一样聊天' },
+      { value: 'meeting' as const, label: '会议' },
+      { value: 'casual' as const, label: '闲聊' },
     ]
   }
   return [
-    { value: 'normal' as const, icon: 'chat', label: '快问快答', desc: '快答为主，按需调用工具' },
-    { value: 'deep' as const, icon: 'brain', label: '深度思考', desc: '深度推理 + 工具验证 + 结构化推理链' },
-    { value: 'explore' as const, icon: 'search', label: '知识探索', desc: '知识库 → 联网搜索 → 项目数据 → 模型知识' },
-    { value: 'task' as const, icon: 'play', label: '任务执行', desc: '自主规划 + 连续执行 + 验证重试，动手把事做完' },
+    { value: 'normal' as const, label: '快问快答' },
+    { value: 'deep' as const, label: '深度思考' },
+    { value: 'explore' as const, label: '知识探索' },
+    { value: 'task' as const, label: '任务执行' },
   ]
 })
 
-const currentMode = computed(() => {
-  if (spaceStore.mode === 'group') {
-    return chatModes.value.find(m => m.value === spaceStore.groupChatMode) || chatModes.value[1]
-  }
-  return chatModes.value.find(m => m.value === spaceStore.chatMode) || chatModes.value[0]
-})
+const modeOptions = computed(() => chatModes.value)
 
-function onModeSelect(mode: string) {
-  if (spaceStore.mode === 'group') {
-    spaceStore.setGroupChatMode(mode as GroupChatMode)
-  } else {
-    if (sessionChatMode.value !== null) return
-    spaceStore.setChatMode(mode as ChatMode)
-  }
-  modeDropdownOpen.value = false
-}
-
-const dropdownMenuStyle = computed(() => {
-  const el = dropdownWrapRef.value
-  if (!el) return { top: '56px', left: '200px' }
-  const rect = el.getBoundingClientRect()
-  return {
-    top: `${rect.bottom + 6}px`,
-    left: `${rect.left}px`,
-  }
+// 双向模型：读当前模式，写时按 mode 分流写 store（群聊写 groupChatMode，单聊写 chatMode）
+const modeModel = computed({
+  get: () => (spaceStore.mode === 'group' ? spaceStore.groupChatMode : spaceStore.chatMode),
+  set: (v: string) => {
+    if (spaceStore.mode === 'group') {
+      spaceStore.setGroupChatMode(v as GroupChatMode)
+    } else {
+      if (sessionChatMode.value !== null) return
+      spaceStore.setChatMode(v as ChatMode)
+    }
+  },
 })
 
 const popoverStyle = ref<Record<string, string>>({ top: '56px', left: '16px' })
@@ -344,7 +302,6 @@ function updateUserProfilePopoverPosition() {
 
 function togglePersonaPopover() {
   personaPopoverOpen.value = !personaPopoverOpen.value
-  modeDropdownOpen.value = false
   userProfilePopoverOpen.value = false
   moreMenuOpen.value = false
   if (personaPopoverOpen.value) {
@@ -354,7 +311,6 @@ function togglePersonaPopover() {
 
 function toggleUserProfilePopover() {
   userProfilePopoverOpen.value = !userProfilePopoverOpen.value
-  modeDropdownOpen.value = false
   personaPopoverOpen.value = false
   moreMenuOpen.value = false
   if (userProfilePopoverOpen.value) {
@@ -364,7 +320,6 @@ function toggleUserProfilePopover() {
 
 function toggleMoreMenu() {
   moreMenuOpen.value = !moreMenuOpen.value
-  modeDropdownOpen.value = false
   personaPopoverOpen.value = false
   userProfilePopoverOpen.value = false
   if (moreMenuOpen.value) {
@@ -388,11 +343,6 @@ function onMore(action: 'workbench' | 'switch' | 'settings') {
 
 function onDocClick(e: MouseEvent) {
   const target = e.target as HTMLElement
-  if (modeDropdownOpen.value) {
-    if (!target.closest('.mode-dropdown-wrap') && !target.closest('.mode-dropdown-backdrop')) {
-      modeDropdownOpen.value = false
-    }
-  }
   if (moreMenuOpen.value) {
     if (!target.closest('.more-wrap') && !target.closest('.more-backdrop')) {
       moreMenuOpen.value = false
@@ -664,135 +614,13 @@ onBeforeUnmount(() => {
   color: var(--color-text-secondary);
 }
 
-.mode-dropdown-wrap {
-  position: relative;
+/* 模式分段滑块（2026-08-09 由下拉改滑块）：紧凑适配 48px 顶栏 */
+.mode-segmented {
   margin-left: 4px;
 }
-
-.mode-dropdown-btn {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  background: var(--color-surface);
-  color: var(--color-text-secondary);
+.mode-segmented :deep(.tui-seg__item) {
+  padding: 4px 12px;
   font-size: var(--font-size-xs);
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s;
-  white-space: nowrap;
-}
-
-.mode-dropdown-btn:hover {
-  border-color: var(--color-primary);
-  color: var(--color-text);
-}
-
-.mode-dropdown-icon {
-  font-size: var(--font-size-sm);
-  line-height: 1;
-}
-
-.mode-dropdown-label {
-  font-weight: 500;
-}
-
-.mode-dropdown-arrow {
-  font-size: 10px;
-  opacity: 0.5;
-  margin-left: 2px;
-}
-
-.mode-dropdown-menu {
-  position: fixed;
-  min-width: 220px;
-  background: rgba(10, 10, 20, 0.08);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-  padding: 4px;
-  z-index: 10001;
-}
-
-.mode-dropdown-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  width: 100%;
-  padding: 8px 10px;
-  border: none;
-  background: transparent;
-  border-radius: 8px;
-  cursor: pointer;
-  text-align: left;
-  transition: background 0.12s;
-  color: var(--color-text-secondary);
-}
-
-.mode-dropdown-btn.locked {
-  opacity: 0.7;
-  cursor: default;
-  border-color: var(--color-border);
-}
-
-.mode-dropdown-btn.locked:hover {
-  border-color: var(--color-border);
-  color: var(--color-text-secondary);
-}
-
-.mode-lock-icon {
-  font-size: 10px;
-  margin-left: 2px;
-  opacity: 0.6;
-}
-
-.mode-dropdown-item.disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-  pointer-events: none;
-}
-
-.mode-dropdown-item:hover {
-  background: var(--color-surface);
-  color: var(--color-text);
-}
-
-.mode-dropdown-item.active {
-  background: var(--color-primary-muted);
-  color: var(--color-text);
-}
-
-.mode-item-icon {
-  font-size: var(--font-size-lg);
-  line-height: 1;
-  margin-top: 2px;
-  flex-shrink: 0;
-}
-
-.mode-item-text {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.mode-item-label {
-  font-size: var(--font-size-sm);
-  font-weight: 500;
-}
-
-.mode-item-desc {
-  font-size: var(--font-size-2xs);
-  color: var(--color-text-tertiary);
-  line-height: 1.3;
-}
-
-.mode-dropdown-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 10000;
 }
 
 .more-wrap {
@@ -884,13 +712,6 @@ onBeforeUnmount(() => {
 .nav-btn.active {
   background: var(--color-primary-muted);
   color: var(--color-text-primary);
-}
-
-.nav-divider {
-  width: 1px;
-  height: 20px;
-  background: var(--color-border);
-  margin: 0 4px;
 }
 
 .persona-popover-overlay {

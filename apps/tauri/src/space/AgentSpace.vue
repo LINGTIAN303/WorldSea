@@ -1,5 +1,8 @@
 <template>
   <div class="agent-space">
+    <!-- 窗口栏（space 精简变体：拖拽区 + 居中标题 + 窗口控制，2026-08-09 补齐） -->
+    <TitleBar variant="space" :title="windowBarTitle" />
+
     <SpaceNavbar
       :panel-rotation="rotation"
       :panel-session-open="sessionOpen"
@@ -108,9 +111,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { useSpaceStore } from './stores/space-store'
 import { useUIStore } from '@/stores/uiStore'
+import TitleBar from '@/ui/layout/TitleBar.vue'
 import SpaceNavbar from './SpaceNavbar.vue'
 import SessionSidebar from './chat/SessionSidebar.vue'
 import SpaceChat from './chat/SpaceChat.vue'
@@ -136,6 +140,11 @@ const { addLog } = useActivityLog()
 const { hasActive } = useGenerationProgress()
 const planStore = usePlanStore()
 const { newSession } = useAgent()
+
+// 窗口栏标题（space 变体，2026-08-09）：随单聊/群聊模式动态显示
+const windowBarTitle = computed(() =>
+  spaceStore.mode === 'group' ? 'WorldSmith — 群聊空间' : 'WorldSmith — Agent 空间',
+)
 
 // PanelToggle state machine
 const rotation = ref<'session' | 'knowledge'>('session')

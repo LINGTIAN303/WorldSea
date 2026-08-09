@@ -1,24 +1,36 @@
 <template>
   <!-- 自定义标题栏：窗口最顶，替代系统原生标题栏（decorations:false）
        data-tauri-drag-region 提供拖拽移动 + 双击最大化/还原（Tauri 2 内置）
-       基础合并（2026-08-08）：MenuBar 左侧功能区（☰ 侧边栏切换 + 项目切换器 + 目录）上移并入窗口栏 -->
+       基础合并（2026-08-08）：MenuBar 左侧功能区（☰ 侧边栏切换 + 项目切换器 + 目录）上移并入窗口栏
+       variant="space"（2026-08-09）：Agent 空间精简窗口栏——仅拖拽区 + 居中标题 + 窗口控制，
+       隐藏工作台专属区（☰ 侧边栏 / 项目切换器 / 目录 / AppMenu / 视图名） -->
   <div class="titlebar" data-tauri-drag-region>
-    <div class="titlebar-left" data-tauri-drag-region>
-      <button class="titlebar-toggle" aria-label="切换侧边栏" title="切换侧边栏 (Ctrl+B)" @click="toggleSidebar">☰</button>
-      <button class="titlebar-switcher" title="切换项目" @click="openProjectManager">
-        <span class="titlebar-dot"></span>
-        <span class="titlebar-title">WorldSmith</span>
-        <span v-if="projectName" class="titlebar-project">{{ projectName }}</span>
-        <span class="titlebar-chevron">▾</span>
-      </button>
-      <span v-if="dirName" class="titlebar-dir" :title="dirName">{{ dirName }}</span>
-    </div>
-    <div class="titlebar-spacer" data-tauri-drag-region></div>
-    <div class="titlebar-center" data-tauri-drag-region>
-      <span v-if="uiStore.currentView" class="titlebar-viewname">{{ currentViewLabel }}</span>
-    </div>
+    <template v-if="variant === 'workbench'">
+      <div class="titlebar-left" data-tauri-drag-region>
+        <button class="titlebar-toggle" aria-label="切换侧边栏" title="切换侧边栏 (Ctrl+B)" @click="toggleSidebar">☰</button>
+        <button class="titlebar-switcher" title="切换项目" @click="openProjectManager">
+          <span class="titlebar-dot"></span>
+          <span class="titlebar-title">WorldSmith</span>
+          <span v-if="projectName" class="titlebar-project">{{ projectName }}</span>
+          <span class="titlebar-chevron">▾</span>
+        </button>
+        <span v-if="dirName" class="titlebar-dir" :title="dirName">{{ dirName }}</span>
+      </div>
+      <div class="titlebar-spacer" data-tauri-drag-region></div>
+      <div class="titlebar-center" data-tauri-drag-region>
+        <span v-if="uiStore.currentView" class="titlebar-viewname">{{ currentViewLabel }}</span>
+      </div>
+    </template>
+    <template v-else>
+      <!-- space 变体：拖拽区 + 居中标题（AgentSpace 顶部挂载） -->
+      <div class="titlebar-spacer" data-tauri-drag-region></div>
+      <div class="titlebar-center" data-tauri-drag-region>
+        <span class="titlebar-viewname">{{ title }}</span>
+      </div>
+      <div class="titlebar-spacer" data-tauri-drag-region></div>
+    </template>
     <div class="titlebar-right">
-      <AppMenu />
+      <AppMenu v-if="variant === 'workbench'" />
       <div class="titlebar-controls">
       <button class="titlebar-btn" aria-label="最小化" title="最小化" @click="minimize">
         <svg width="10" height="10" viewBox="0 0 10 10"><path d="M0 5h10" stroke="currentColor" stroke-width="1"/></svg>
@@ -43,6 +55,16 @@ import { useFileSystemProject } from '@/composables/useFileSystemProject'
 import { useUIStore } from '@/stores/uiStore'
 import { usePluginStore } from '@worldsmith/entity-core'
 import AppMenu from './AppMenu.vue'
+
+// 变体：workbench=工作台完整窗口栏 / space=Agent 空间精简窗口栏（2026-08-09）
+const props = withDefaults(defineProps<{
+  variant?: 'workbench' | 'space'
+  /** space 变体居中标题（缺省 "WorldSmith — Agent 空间"） */
+  title?: string
+}>(), {
+  variant: 'workbench',
+  title: 'WorldSmith — Agent 空间',
+})
 
 // 窗口控制仅在 Tauri 环境可用（浏览器预览 5175 时降级为 noop，避免顶层抛错）
 let appWindow: Window | null = null
