@@ -1,7 +1,7 @@
 <template>
   <Teleport to="body">
     <Transition name="lightbox">
-      <div v-if="visible" class="lightbox-overlay" role="dialog" aria-modal="true" aria-label="图片预览" @click.self="close" @keydown.escape="close">
+      <div v-if="visible" ref="overlayRef" class="lightbox-overlay" role="dialog" aria-modal="true" aria-label="图片预览" tabindex="-1" @click.self="close" @keydown.escape="close">
         <div class="lightbox-toolbar">
           <button class="lb-btn" @click="zoomIn" title="放大" aria-label="放大">🔍+</button>
           <button class="lb-btn" @click="zoomOut" title="缩小" aria-label="缩小">🔍-</button>
@@ -31,7 +31,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 
 const props = defineProps<{
   visible: boolean
@@ -42,6 +42,10 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: []
 }>()
+
+const overlayRef = ref<HTMLElement>()
+/** 打开前的焦点元素：关闭后还原 */
+let returnFocusEl: HTMLElement | null = null
 
 const scale = ref(1)
 const translateX = ref(0)
@@ -104,10 +108,42 @@ function onKeydown(e: KeyboardEvent) {
   if (e.key === '+' || e.key === '=') zoomIn()
   if (e.key === '-') zoomOut()
   if (e.key === '0') resetZoom()
+  // 焦点陷阱：Tab 仅在 lightbox 内循环
+  if (e.key === 'Tab') {
+    const overlay = overlayRef.value
+    if (!overlay) return
+    const focusables = overlay.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    )
+    if (focusables.length === 0) return
+    const first = focusables[0]
+    const last = focusables[focusables.length - 1]
+    const active = document.activeElement
+    if (e.shiftKey && (active === first || !overlay.contains(active))) {
+      e.preventDefault()
+      last.focus()
+    } else if (!e.shiftKey && (active === last || !overlay.contains(active))) {
+      e.preventDefault()
+      first.focus()
+    }
+  }
 }
 
 watch(() => props.visible, (v) => {
-  if (v) resetZoom()
+  if (v) {
+    resetZoom()
+    returnFocusEl = document.activeElement as HTMLElement
+    nextTick(() => {
+      const first =
+        overlayRef.value?.querySelector<HTMLElement>(
+          'input, select, textarea, button, [href], [tabindex]:not([tabindex="-1"])',
+        ) ?? overlayRef.value
+      first?.focus({ preventScroll: true })
+    })
+  } else {
+    returnFocusEl?.focus?.({ preventScroll: true })
+    returnFocusEl = null
+  }
 })
 
 onMounted(() => window.addEventListener('keydown', onKeydown))

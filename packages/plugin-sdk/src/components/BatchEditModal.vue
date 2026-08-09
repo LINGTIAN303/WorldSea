@@ -1,7 +1,7 @@
 <template>
   <Teleport to="body">
   <div class="be-overlay" v-if="show" @click.self="close">
-    <div class="be-modal" :style="{ width: modalResizable.width.value + 'px' }">
+    <div class="be-modal" ref="boxRef" role="dialog" aria-modal="true" aria-label="批量编辑" tabindex="-1" :style="{ width: modalResizable.width.value + 'px' }">
       <div class="be-header">
         <h3>批量编辑</h3>
         <div class="be-hdr-actions">
@@ -97,7 +97,7 @@
 
 <script setup lang="ts">
 import { useDialog, useUndoRedo, useResizable } from '../composables'
-import { ref, computed } from 'vue'
+import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
 import { useEntityStore, useRelationStore, entitySchemaRegistry } from '@worldsmith/entity-core'
 import { getEventBus } from '@worldsmith/entity-core'
 import { WsIcon } from '@worldsmith/ui-kit'
@@ -105,8 +105,60 @@ import type { Entity } from '@worldsmith/entity-core'
 
 const modalResizable = useResizable({ panelId: 'modal-batch-edit', defaultWidth: 700, minWidth: 400, side: 'right' })
 
-defineProps<{ show: boolean }>()
+const props = defineProps<{ show: boolean }>()
 const emit = defineEmits<{ close: [] }>()
+
+const boxRef = ref<HTMLElement>()
+/** 打开前的焦点元素：关闭后还原 */
+let returnFocusEl: HTMLElement | null = null
+
+// 焦点陷阱：Tab 仅在弹窗内循环 + Esc 关闭
+function onKeydown(e: KeyboardEvent) {
+  if (!props.show) return
+  if (e.key === 'Escape') {
+    e.stopPropagation()
+    close()
+    return
+  }
+  if (e.key === 'Tab') {
+    const box = boxRef.value
+    if (!box) return
+    const focusables = box.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    )
+    if (focusables.length === 0) return
+    const first = focusables[0]
+    const last = focusables[focusables.length - 1]
+    const active = document.activeElement
+    if (e.shiftKey && (active === first || !box.contains(active))) {
+      e.preventDefault()
+      last.focus()
+    } else if (!e.shiftKey && (active === last || !box.contains(active))) {
+      e.preventDefault()
+      first.focus()
+    }
+  }
+}
+
+watch(() => props.show, (v) => {
+  if (v) {
+    returnFocusEl = document.activeElement as HTMLElement
+    window.addEventListener('keydown', onKeydown)
+    nextTick(() => {
+      const first =
+        boxRef.value?.querySelector<HTMLElement>(
+          'input, select, textarea, button, [href], [tabindex]:not([tabindex="-1"])',
+        ) ?? boxRef.value
+      first?.focus({ preventScroll: true })
+    })
+  } else {
+    window.removeEventListener('keydown', onKeydown)
+    returnFocusEl?.focus?.({ preventScroll: true })
+    returnFocusEl = null
+  }
+})
+
+onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
 const entityStore = useEntityStore()
 const relationStore = useRelationStore()

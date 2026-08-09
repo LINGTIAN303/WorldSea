@@ -4,7 +4,7 @@
       <div v-if="visible" class="fpp-backdrop" @click="onClose" />
     </Transition>
     <Transition name="fpp-panel">
-      <div v-if="visible" class="fpp-panel" role="dialog" aria-label="字体预览与导出">
+      <div v-if="visible" ref="boxRef" class="fpp-panel" role="dialog" aria-modal="true" aria-label="字体预览与导出" tabindex="-1">
         <div class="fpp-header">
           <WsIcon name="type" size="sm" />
           <span class="fpp-title">字体预览与导出</span>
@@ -84,7 +84,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
 import WsIcon from '../WsIcon.vue'
 import FontSelector from './FontSelector.vue'
 import TextRenderPreview from './TextRenderPreview.vue'
@@ -99,6 +99,58 @@ const emit = defineEmits<{
   'close': []
   'exported': [blob: Blob, format: ImageFormat]
 }>()
+
+const boxRef = ref<HTMLElement>()
+/** 打开前的焦点元素：关闭后还原 */
+let returnFocusEl: HTMLElement | null = null
+
+// 焦点陷阱：Tab 仅在面板内循环 + Esc 关闭
+function onKeydown(e: KeyboardEvent) {
+  if (!props.visible) return
+  if (e.key === 'Escape') {
+    e.stopPropagation()
+    onClose()
+    return
+  }
+  if (e.key === 'Tab') {
+    const box = boxRef.value
+    if (!box) return
+    const focusables = box.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    )
+    if (focusables.length === 0) return
+    const first = focusables[0]
+    const last = focusables[focusables.length - 1]
+    const active = document.activeElement
+    if (e.shiftKey && (active === first || !box.contains(active))) {
+      e.preventDefault()
+      last.focus()
+    } else if (!e.shiftKey && (active === last || !box.contains(active))) {
+      e.preventDefault()
+      first.focus()
+    }
+  }
+}
+
+watch(() => props.visible, (v) => {
+  if (v) {
+    returnFocusEl = document.activeElement as HTMLElement
+    window.addEventListener('keydown', onKeydown)
+    nextTick(() => {
+      const first =
+        boxRef.value?.querySelector<HTMLElement>(
+          'input, select, textarea, button, [href], [tabindex]:not([tabindex="-1"])',
+        ) ?? boxRef.value
+      first?.focus({ preventScroll: true })
+    })
+  } else {
+    window.removeEventListener('keydown', onKeydown)
+    returnFocusEl?.focus?.({ preventScroll: true })
+    returnFocusEl = null
+  }
+})
+
+onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
 const fontFamily = ref('')
 const fontSize = ref(28)

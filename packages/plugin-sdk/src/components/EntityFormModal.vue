@@ -1,6 +1,6 @@
 <template>
   <div v-if="modelValue" class="efm-overlay" @click.self="close">
-    <div class="efm-box" :style="{ width: modalResizable.width.value + 'px' }">
+    <div class="efm-box" ref="boxRef" role="dialog" aria-modal="true" :aria-label="title" tabindex="-1" :style="{ width: modalResizable.width.value + 'px' }">
       <div class="efm-header">
         <h3>{{ title }}</h3>
         <button class="efm-close" @click="close">✕</button>
@@ -130,7 +130,7 @@
 <script setup lang="ts">
 import { toastSuccess, toastWarn } from '@worldsmith/ui-kit'
 import { useDialog, useResizable } from '../composables'
-import { ref, watch, computed, reactive, onUnmounted } from 'vue'
+import { ref, watch, computed, reactive, nextTick, onBeforeUnmount, onUnmounted } from 'vue'
 import { RichTextEditor, WsIcon } from '@worldsmith/ui-kit'
 import CustomDropdown from './CustomDropdown.vue'
 import ImageField from './ImageField.vue'
@@ -148,6 +148,38 @@ import { useEntityRefSearch } from './entity/useEntityRefSearch'
 import { useEntityFormSave } from './entity/useEntityFormSave'
 
 const modalResizable = useResizable({ panelId: 'modal-entity-form', defaultWidth: 560, minWidth: 320, side: 'right' })
+
+const boxRef = ref<HTMLElement>()
+/** 打开前的焦点元素：关闭后还原 */
+let returnFocusEl: HTMLElement | null = null
+
+// 焦点陷阱：Tab 仅在弹窗内循环 + Esc 关闭
+function onKeydown(e: KeyboardEvent) {
+  if (!props.modelValue) return
+  if (e.key === 'Escape') {
+    e.stopPropagation()
+    close()
+    return
+  }
+  if (e.key === 'Tab') {
+    const box = boxRef.value
+    if (!box) return
+    const focusables = box.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    )
+    if (focusables.length === 0) return
+    const first = focusables[0]
+    const last = focusables[focusables.length - 1]
+    const active = document.activeElement
+    if (e.shiftKey && (active === first || !box.contains(active))) {
+      e.preventDefault()
+      last.focus()
+    } else if (!e.shiftKey && (active === last || !box.contains(active))) {
+      e.preventDefault()
+      first.focus()
+    }
+  }
+}
 
 const props = defineProps<{
   modelValue: boolean
@@ -230,6 +262,19 @@ watch(() => props.modelValue, (v) => {
   if (v) {
     initFormData()
     activePreset.value = fieldOrderStore.getActivePreset(resolvedEntityType.value)
+    returnFocusEl = document.activeElement as HTMLElement
+    window.addEventListener('keydown', onKeydown)
+    nextTick(() => {
+      const first =
+        boxRef.value?.querySelector<HTMLElement>(
+          'input, select, textarea, button, [href], [tabindex]:not([tabindex="-1"])',
+        ) ?? boxRef.value
+      first?.focus({ preventScroll: true })
+    })
+  } else {
+    window.removeEventListener('keydown', onKeydown)
+    returnFocusEl?.focus?.({ preventScroll: true })
+    returnFocusEl = null
   }
 }, { immediate: true })
 
@@ -473,6 +518,8 @@ function handleSmartFillWriteBack(e: Event) {
 }
 
 window.addEventListener('worldsmith:smart-fill:write-back', handleSmartFillWriteBack)
+
+onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
 onUnmounted(() => {
   window.removeEventListener('worldsmith:smart-fill:result', handleSmartFillResult)

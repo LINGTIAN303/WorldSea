@@ -2,7 +2,7 @@
   <Teleport to="body">
     <Transition name="ws-scale-fade">
       <div v-if="state.show" class="dialog-overlay" @click.self="cancel">
-        <div class="dialog-box" ref="dialogBoxRef" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
+        <div class="dialog-box" ref="dialogBoxRef" role="dialog" aria-modal="true" aria-labelledby="dialog-title" tabindex="-1">
           <div class="dialog-header">
             <h3 id="dialog-title">{{ state.title }}</h3>
           </div>
@@ -28,7 +28,7 @@
 </template>
 
 <script setup lang="ts">
-import { watch, nextTick, ref } from 'vue'
+import { watch, nextTick, ref, onBeforeUnmount } from 'vue'
 import { useDialog } from '@worldsmith/ui-kit'
 
 const { state, doResolve } = useDialog()
@@ -47,9 +47,38 @@ function cancel() {
   else doResolve(null)
 }
 
+// 焦点陷阱：Tab 仅在弹窗内循环 + Esc 关闭
+function onKeydown(e: KeyboardEvent) {
+  if (!state.value.show) return
+  if (e.key === 'Escape') {
+    e.stopPropagation()
+    cancel()
+    return
+  }
+  if (e.key === 'Tab') {
+    const box = dialogBoxRef.value
+    if (!box) return
+    const focusables = box.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    )
+    if (focusables.length === 0) return
+    const first = focusables[0]
+    const last = focusables[focusables.length - 1]
+    const active = document.activeElement
+    if (e.shiftKey && (active === first || !box.contains(active))) {
+      e.preventDefault()
+      last.focus()
+    } else if (!e.shiftKey && (active === last || !box.contains(active))) {
+      e.preventDefault()
+      first.focus()
+    }
+  }
+}
+
 watch(() => state.value.show, (v) => {
   if (v) {
     previousFocus = document.activeElement as HTMLElement
+    window.addEventListener('keydown', onKeydown)
     nextTick(() => {
       if (state.value.mode === 'prompt') {
         inputRef.value?.focus()
@@ -62,12 +91,15 @@ watch(() => state.value.show, (v) => {
       }
     })
   } else {
+    window.removeEventListener('keydown', onKeydown)
     if (previousFocus) {
       previousFocus.focus()
       previousFocus = null
     }
   }
 })
+
+onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 </script>
 
 <style scoped>

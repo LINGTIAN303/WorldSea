@@ -1,6 +1,6 @@
 <template>
   <div v-if="show" class="cp-overlay" @click.self="cancel">
-    <div class="cp-dialog" :style="{ width: modalResizable.width.value + 'px' }">
+    <div class="cp-dialog" ref="boxRef" role="dialog" aria-modal="true" aria-label="选择颜色" tabindex="-1" :style="{ width: modalResizable.width.value + 'px' }">
       <div class="cp-header">
         <h3><WsIcon name="palette" size="sm" /> 选择颜色</h3>
         <button class="cp-close" @click="cancel">✕</button>
@@ -45,13 +45,45 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, nextTick, onBeforeUnmount } from 'vue'
 import { useResizable } from '@worldsmith/ui-kit'
 import WsIcon from '../WsIcon.vue'
 
 const props = defineProps<{ show: boolean; initialColor?: string }>()
 const emit = defineEmits<{ close: []; confirm: [color: string] }>()
 const modalResizable = useResizable({ panelId: 'modal-color-picker', defaultWidth: 340, minWidth: 240 })
+
+const boxRef = ref<HTMLElement>()
+/** 打开前的焦点元素：关闭后还原 */
+let returnFocusEl: HTMLElement | null = null
+
+// 焦点陷阱：Tab 仅在弹窗内循环 + Esc 关闭
+function onKeydown(e: KeyboardEvent) {
+  if (!props.show) return
+  if (e.key === 'Escape') {
+    e.stopPropagation()
+    cancel()
+    return
+  }
+  if (e.key === 'Tab') {
+    const box = boxRef.value
+    if (!box) return
+    const focusables = box.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    )
+    if (focusables.length === 0) return
+    const first = focusables[0]
+    const last = focusables[focusables.length - 1]
+    const active = document.activeElement
+    if (e.shiftKey && (active === first || !box.contains(active))) {
+      e.preventDefault()
+      last.focus()
+    } else if (!e.shiftKey && (active === last || !box.contains(active))) {
+      e.preventDefault()
+      first.focus()
+    }
+  }
+}
 
 const hue = ref(0)
 const sat = ref(80)
@@ -87,8 +119,23 @@ watch(() => props.show, (v) => {
   }
   if (v) {
     nextTick(drawWheel)
+    returnFocusEl = document.activeElement as HTMLElement
+    window.addEventListener('keydown', onKeydown)
+    nextTick(() => {
+      const first =
+        boxRef.value?.querySelector<HTMLElement>(
+          'input, select, textarea, button, [href], [tabindex]:not([tabindex="-1"])',
+        ) ?? boxRef.value
+      first?.focus({ preventScroll: true })
+    })
+  } else {
+    window.removeEventListener('keydown', onKeydown)
+    returnFocusEl?.focus?.({ preventScroll: true })
+    returnFocusEl = null
   }
 })
+
+onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
 onMounted(() => {
   if (props.show) nextTick(drawWheel)
