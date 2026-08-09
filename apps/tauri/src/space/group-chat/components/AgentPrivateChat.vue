@@ -117,7 +117,8 @@ import type { GroupMember } from '../types'
 import { getToolLabel as getSharedToolLabel } from '../types'
 import { useAgent } from '@/agent/composables/useAgent'
 import type { AgentEvent, IAgentBackend } from '@agent/index'
-import { createWorldSmithAgent, buildSharedBaseLayer, getToolsForSkills, ALL_TOOLS } from '@agent/index'
+import { buildSharedBaseLayer } from '@agent/index'
+import { createRustGroupChatBackend } from '../rust/RustGroupChatBackend'
 import { useFontLibraryStore } from '@/stores/fontLibraryStore'
 import { getModelInfo } from '@worldsmith/agent-runtime'
 import { WsIcon } from '@worldsmith/ui-kit'
@@ -225,42 +226,6 @@ function buildPrivateChatSystemPrompt(): string {
   return parts.join('\n\n')
 }
 
-function resolveAgentTools(): typeof ALL_TOOLS {
-  const m = props.member
-  const mode = m.baseLayerMode || 'empty'
-
-  // 空模式：纯聊天 NPC，无工具
-  if (mode === 'empty') {
-    return []
-  }
-
-  // 共享模式：使用全部工具
-  if (mode === 'shared') {
-    return ALL_TOOLS
-  }
-
-  // 自定义模式：根据 toolSource 解析
-  const source = m.toolSource || (m.enabledSkills?.length ? 'derived' : 'manual')
-
-  if (source === 'derived') {
-    if (m.enabledSkills && m.enabledSkills.length > 0) {
-      return getToolsForSkills(m.enabledSkills)
-    }
-    return ALL_TOOLS
-  }
-
-  // manual 模式：使用 enabledTools 列表
-  if (m.enabledTools && m.enabledTools.length > 0) {
-    const toolMap = new Map(ALL_TOOLS.map(t => [t.name, t]))
-    const filtered = m.enabledTools
-      .map(name => toolMap.get(name))
-      .filter((t): t is typeof ALL_TOOLS[0] => t != null)
-    return filtered.length > 0 ? filtered : ALL_TOOLS
-  }
-
-  return ALL_TOOLS
-}
-
 async function ensureBackend(): Promise<boolean> {
   if (backend) return true
 
@@ -272,14 +237,13 @@ async function ensureBackend(): Promise<boolean> {
   if (!providerConfig || !toolContext) return false
 
   const systemPrompt = buildPrivateChatSystemPrompt()
-  const tools = resolveAgentTools()
 
-  backend = await createWorldSmithAgent({
-    providerConfig,
-    toolContext,
-    tools,
-    projectName: 'WorldSmith-GroupChat',
-    systemPromptOverride: systemPrompt,
+  backend = await createRustGroupChatBackend({
+    participantId: `private-${props.member.id}`,
+    name: props.member.name,
+    systemPrompt,
+    providerConfig: providerConfig as any,
+    modelId: props.member.modelId,
   })
 
   if (props.member.modelId) {

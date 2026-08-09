@@ -1,5 +1,6 @@
 import type { IAgentBackend, AgentEvent, AgentMessage, ProviderConfig, IToolContext, CloudProvider, ProviderSlot } from '@agent/index'
-import { createWorldSmithAgent, loadApiKey, ALL_TOOLS, getToolsForSkills, buildSharedBaseLayer } from '@agent/index'
+import { loadApiKey, buildSharedBaseLayer } from '@agent/index'
+import { createRustGroupChatBackend } from '../rust/RustGroupChatBackend'
 import { useFontLibraryStore } from '@/stores/fontLibraryStore'
 import type { GroupMember, GroupChatMessage, GroupChatCostTracker, StreamingAgentState, ContextStrategy, RequestRecord, RequestTrackerSnapshot } from '../types'
 import type { IGroupChatEngine } from './IGroupChatEngine'
@@ -149,9 +150,6 @@ export class GroupChatEngine implements IGroupChatEngine {
       // 构建群聊 Agent 的独立系统提示词
       const groupSystemPrompt = this.buildGroupAgentSystemPrompt(p, toolContext)
 
-      // 根据 Agent 的 enabledTools/enabledSkills 过滤工具集
-      const agentTools = this.resolveAgentTools(p)
-
       // 解析 providerConfig：优先使用 ProviderSlot（多 Key 负载均衡），其次用 Agent 自带配置
       let resolvedProviderConfig: ProviderConfig
       if (p.providerSlotId) {
@@ -164,12 +162,12 @@ export class GroupChatEngine implements IGroupChatEngine {
         resolvedProviderConfig = p.providerConfig || providerConfig
       }
 
-      const agent = await createWorldSmithAgent({
-        providerConfig: resolvedProviderConfig,
-        toolContext,
-        tools: agentTools,
-        projectName: 'WorldSmith-GroupChat',
-        systemPromptOverride: groupSystemPrompt,
+      const agent = await createRustGroupChatBackend({
+        participantId: p.id,
+        name: p.name,
+        systemPrompt: groupSystemPrompt,
+        providerConfig: resolvedProviderConfig as any,
+        modelId: p.modelId || providerConfig.modelId || '',
       })
 
       const modelId = p.modelId || providerConfig.modelId || ''
@@ -236,44 +234,6 @@ export class GroupChatEngine implements IGroupChatEngine {
     return parts.join('\n\n')
   }
 
-  /** 按 baseLayerMode/toolSource/enabledSkills/enabledTools 解析工具集（决策规则见文档），详细见 docs/details/注释/web/space/group-chat/engine/GroupChatEngine.md */
-  private resolveAgentTools(member: GroupMember): typeof ALL_TOOLS {
-    const mode = member.baseLayerMode || 'empty'
-
-    // 空模式：纯聊天 NPC，无工具
-    if (mode === 'empty') {
-      return []
-    }
-
-    // 共享模式：使用全部工具
-    if (mode === 'shared') {
-      return ALL_TOOLS
-    }
-
-    // 自定义模式：根据 toolSource 解析
-    const source = member.toolSource || (member.enabledSkills?.length ? 'derived' : 'manual')
-
-    if (source === 'derived') {
-      if (member.enabledSkills && member.enabledSkills.length > 0) {
-        return getToolsForSkills(member.enabledSkills)
-      }
-      // 无技能的派生模式：旧数据兼容，回退到全部工具
-      return ALL_TOOLS
-    }
-
-    // manual 模式：使用 enabledTools 列表
-    if (member.enabledTools && member.enabledTools.length > 0) {
-      const toolMap = new Map(ALL_TOOLS.map(t => [t.name, t]))
-      const filtered = member.enabledTools
-        .map(name => toolMap.get(name))
-        .filter((t): t is typeof ALL_TOOLS[0] => t != null)
-      return filtered.length > 0 ? filtered : ALL_TOOLS
-    }
-
-    // manual 模式下无工具：旧数据兼容，回退到全部工具
-    return ALL_TOOLS
-  }
-
   /** 创建独立的 Moderator Agent（真正的 Agent，有完整工具能力） */
   private async ensureModeratorAgent(): Promise<IAgentBackend | null> {
     if (this.moderatorAgent) return this.moderatorAgent
@@ -281,10 +241,11 @@ export class GroupChatEngine implements IGroupChatEngine {
 
     try {
       // Moderator 是真正的 Agent，拥有完整的工具和对话能力
-      this.moderatorAgent = await createWorldSmithAgent({
-        providerConfig: this.moderatorProviderConfig,
-        toolContext: this.moderatorToolContext,
-        projectName: 'WorldSmith-Moderator',
+      this.moderatorAgent = await createRustGroupChatBackend({
+        participantId: 'moderator',
+        name: 'Moderator',
+        systemPrompt: '你是群聊主持人（Moderator），负责总结讨论并做出决策。',
+        providerConfig: this.moderatorProviderConfig as any,
       })
       return this.moderatorAgent
     } catch (err) {
