@@ -19,6 +19,10 @@ pub struct SessionRecord {
     pub created_at: u64,
     pub message_count: u32,
     pub updated_at: u64,
+    /// 会话标题（默认「新会话」，支持前端重命名）
+    pub title: String,
+    /// 是否固定到列表顶部
+    pub pinned: bool,
 }
 
 /// 会话持久化存储抽象
@@ -41,6 +45,10 @@ pub trait SessionRepository: Send + Sync {
     async fn load_messages(&self, session_id: &str) -> Result<Vec<OrchestratorMessage>, CommandError>;
     /// 删除会话及其消息（级联）
     async fn delete_session(&self, session_id: &str) -> Result<(), CommandError>;
+    /// 更新会话标题（写穿）
+    async fn update_title(&self, session_id: &str, title: &str) -> Result<(), CommandError>;
+    /// 设置会话固定状态（写穿）
+    async fn set_pinned(&self, session_id: &str, pinned: bool) -> Result<(), CommandError>;
 }
 
 /// SQLite 实现：`sessions` 表存会话头，`messages` 表按会话存消息 JSON 行
@@ -80,7 +88,7 @@ impl SqliteSessionRepository {
         Ok(Arc::new(Self { pool }))
     }
 
-    /// 建表（幂等）
+    /// 建表（幂等）+ 旧库补列迁移
     async fn init(pool: &SqlitePool) -> Result<(), CommandError> {
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS sessions (
@@ -88,12 +96,22 @@ impl SqliteSessionRepository {
                 system_prompt TEXT NOT NULL,
                 created_at    INTEGER NOT NULL,
                 message_count INTEGER NOT NULL,
-                updated_at    INTEGER NOT NULL
+                updated_at    INTEGER NOT NULL,
+                title         TEXT NOT NULL DEFAULT '新会话',
+                pinned        INTEGER NOT NULL DEFAULT 0
             )",
         )
         .execute(pool)
         .await
         .map_err(|e| CommandError::Internal(format!("初始化会话表失败: {e}")))?;
+
+        // 迁移：旧库无 title/pinned 列时补列（幂等，列已存在则 ALTER 报错被忽略）
+        let _ = sqlx::query("ALTER TABLE sessions ADD COLUMN title TEXT NOT NULL DEFAULT '新会话'")
+            .execute(pool)
+            .await;
+        let _ = sqlx::query("ALTER TABLE sessions ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0")
+            .execute(pool)
+            .await;
 
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS messages (
@@ -115,16 +133,19 @@ impl SqliteSessionRepository {
 impl SessionRepository for SqliteSessionRepository {
     async fn save_session(&self, record: &SessionRecord) -> Result<(), CommandError> {
         sqlx::query(
-            "INSERT INTO sessions (id, system_prompt, created_at, message_count, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5)
+            "INSERT INTO sessions (id, system_prompt, created_at, message_count, updated_at, title, pinned)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
              ON CONFLICT(id) DO UPDATE SET
-                system_prompt = ?2, created_at = ?3, message_count = ?4, updated_at = ?5",
+                system_prompt = ?2, created_at = ?3, message_count = ?4, updated_at = ?5,
+                title = ?6, pinned = ?7",
         )
         .bind(&record.id)
         .bind(&record.system_prompt)
         .bind(record.created_at as i64)
         .bind(record.message_count as i64)
         .bind(record.updated_at as i64)
+        .bind(&record.title)
+        .bind(record.pinned as i64)
         .execute(&self.pool)
         .await
         .map_err(|e| CommandError::Internal(format!("写入会话失败: {e}")))?;
@@ -132,19 +153,21 @@ impl SessionRepository for SqliteSessionRepository {
     }
 
     async fn load_sessions(&self) -> Result<Vec<SessionRecord>, CommandError> {
-        let rows: Vec<(String, String, i64, i64, i64)> =
-            sqlx::query_as("SELECT id, system_prompt, created_at, message_count, updated_at FROM sessions")
+        let rows: Vec<(String, String, i64, i64, i64, String, i64)> =
+            sqlx::query_as("SELECT id, system_prompt, created_at, message_count, updated_at, title, pinned FROM sessions")
                 .fetch_all(&self.pool)
                 .await
                 .map_err(|e| CommandError::Internal(format!("读取会话列表失败: {e}")))?;
         Ok(rows
             .into_iter()
-            .map(|(id, system_prompt, created_at, message_count, updated_at)| SessionRecord {
+            .map(|(id, system_prompt, created_at, message_count, updated_at, title, pinned)| SessionRecord {
                 id,
                 system_prompt,
                 created_at: created_at as u64,
                 message_count: message_count as u32,
                 updated_at: updated_at as u64,
+                title,
+                pinned: pinned != 0,
             })
             .collect())
     }
@@ -209,6 +232,31 @@ impl SessionRepository for SqliteSessionRepository {
             .map_err(|e| CommandError::Internal(format!("删除会话失败: {e}")))?;
         Ok(())
     }
+
+    async fn update_title(&self, session_id: &str, title: &str) -> Result<(), CommandError> {
+        let updated_at = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        sqlx::query("UPDATE sessions SET title = ?1, updated_at = ?2 WHERE id = ?3")
+            .bind(title)
+            .bind(updated_at as i64)
+            .bind(session_id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| CommandError::Internal(format!("更新会话标题失败: {e}")))?;
+        Ok(())
+    }
+
+    async fn set_pinned(&self, session_id: &str, pinned: bool) -> Result<(), CommandError> {
+        sqlx::query("UPDATE sessions SET pinned = ?1 WHERE id = ?2")
+            .bind(pinned as i64)
+            .bind(session_id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| CommandError::Internal(format!("更新会话固定状态失败: {e}")))?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -233,6 +281,8 @@ mod tests {
             created_at: 100,
             message_count: count,
             updated_at: 100,
+            title: "新会话".into(),
+            pinned: false,
         }
     }
 

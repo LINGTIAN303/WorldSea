@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, computed } from 'vue'
+import { onMounted, computed, ref } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
 import WsButton from '../WsButton.vue'
 import WsCheckbox from '../WsCheckbox.vue'
@@ -8,8 +8,11 @@ import { useOrphanCleanup } from '@worldsmith/entity-core/composables'
 import { useDataDiagnostics } from '@worldsmith/entity-core/composables'
 import { useAutoCleanup } from '@worldsmith/entity-core/composables'
 import { useToast } from '../../composables/useToast'
+import { useSystemBridge } from '@/composables/useSystemBridge'
 
 const toast = useToast()
+const { autostartEnabled, setAutostart } = useSystemBridge()
+const autostartOn = ref(false)
 const { stats, isScanning: statsScanning, refresh, scanOrphanCount } = useStorageStats()
 const {
   orphans, selectedIds, isScanning: orphanScanning, isCleaning,
@@ -63,7 +66,20 @@ async function onForceAutoCleanup(): Promise<void> {
   toast.toastSuccess(`自动清理完成，清理了 ${count} 项缓存`)
 }
 
-onMounted(() => {
+async function onToggleAutostart(e: Event): Promise<void> {
+  const on = (e.target as HTMLInputElement).checked
+  const ok = await setAutostart(on)
+  if (!ok) {
+    console.error('[Storage] 设置开机自启失败')
+    autostartOn.value = !on
+    return
+  }
+  autostartOn.value = on
+  toast.toastSuccess(on ? '已开启开机自启' : '已关闭开机自启')
+}
+
+onMounted(async () => {
+  autostartOn.value = await autostartEnabled()
   refresh()
   scanOrphanCount()
 })
@@ -71,6 +87,21 @@ onMounted(() => {
 
 <template>
   <div class="sm-tab">
+    <div class="sm-section sm-section--auto">
+      <div class="sm-section-head">
+        <WsIcon name="settings" size="xs" />
+        <span>系统集成</span>
+      </div>
+      <div class="sm-row">
+        <span class="sm-row-label">开机自启</span>
+        <label class="sm-toggle">
+          <input type="checkbox" :checked="autostartOn" @change="onToggleAutostart" />
+          <span class="sm-toggle-slider"></span>
+        </label>
+        <span class="sm-row-hint">登录系统后自动启动 WorldSmith</span>
+      </div>
+    </div>
+
     <div class="sm-section">
       <div class="sm-section-head">
         <WsIcon name="dashboard" size="xs" />
@@ -221,6 +252,13 @@ onMounted(() => {
   margin-bottom: 12px;
   font-size: var(--text-subheading-font-size);
 }
+/* 系统集成区：高度自适应（区别于固定高度的存储概览区） */
+.sm-section--auto { height: auto; }
+.sm-row { display: flex; align-items: center; gap: 10px; padding: 4px 2px; }
+.sm-row-label { font-size: var(--font-size-sm); color: var(--color-text-primary); }
+.sm-row-hint { font-size: var(--font-size-xs); color: var(--color-text-tertiary); }
+.sm-toggle { display: inline-flex; cursor: pointer; }
+.sm-toggle input { accent-color: var(--color-primary); width: 14px; height: 14px; cursor: pointer; }
 .sm-stats-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

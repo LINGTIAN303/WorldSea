@@ -37,6 +37,13 @@ use backend_bridge::BackendEventBridge;
 
 // ─── AgentLoop ────────────────────────────────────────────
 
+/// 会话累计用量（input/output tokens）
+#[derive(Debug, Clone, Default)]
+pub struct UsageAccum {
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+}
+
 /// AgentLoop — ReAct 模式的核心循环，详细见 docs/details/注释/agent-runtime/agent.md
 pub struct AgentLoop {
     /// LLM 后端访问器
@@ -95,6 +102,10 @@ pub struct AgentLoop {
     /// emit `LoopEngRecovered`。基于底层触发标志而非 check 返回级别，避免
     /// 软超时锁存后"后续 check 返回 None"被误判为恢复。
     loop_control_warned: Arc<AtomicBool>,
+    /// 会话累计用量（input/output tokens，供前端用量面板）
+    ///
+    /// 每轮 LLM 调用后从 `PromptResponse` 累加；`get_usage` 读取。
+    usage: Arc<AsyncMutex<UsageAccum>>,
     /// 记忆访问器（阶段 3：记忆闭环）
     ///
     /// 提供 recall / inject / record_turn / archive 织入能力。
@@ -124,6 +135,7 @@ impl AgentLoop {
         // 默认配置启用内建 LoopController（宽松配置），后续 with_loop_control 可覆盖
         let loop_controller = Arc::new(LoopController::new(LoopControlConfig::default()));
         let loop_control_warned = Arc::new(AtomicBool::new(false));
+        let usage = Arc::new(AsyncMutex::new(UsageAccum::default()));
 
         // 注入 backend 事件桥接 listener
         // 将 backend 的事件转发到 AgentLoop 的广播器
@@ -149,6 +161,7 @@ impl AgentLoop {
             last_phase_label,
             loop_controller,
             loop_control_warned,
+            usage,
             memory: None,
             memory_context: Arc::new(StdRwLock::new(None)),
         }
@@ -269,6 +282,11 @@ impl AgentLoop {
     /// 获取当前消息历史快照
     pub async fn get_messages(&self) -> Vec<OrchestratorMessage> {
         self.state.lock().await.messages.clone()
+    }
+
+    /// 获取会话累计用量（input/output tokens）
+    pub async fn get_usage(&self) -> UsageAccum {
+        self.usage.lock().await.clone()
     }
 
     /// 启动 ReAct 循环，详细见 docs/details/注释/agent-runtime/agent.md
@@ -498,6 +516,13 @@ impl AgentLoop {
             // - 取消：每次重试前检查 `cancel_flag`，已请求取消则返回 `Aborted`
             let prompt_input = String::new();
             let response = self.call_llm_with_retry(prompt_input, Some(options)).await?;
+
+            // 累计用量（每次 LLM 调用后累加 input/output tokens，供用量面板）
+            if response.input_tokens.is_some() || response.output_tokens.is_some() {
+                let mut usage = self.usage.lock().await;
+                usage.input_tokens += response.input_tokens.unwrap_or(0) as u64;
+                usage.output_tokens += response.output_tokens.unwrap_or(0) as u64;
+            }
 
             // 处理响应
             // 过滤空名工具调用（LLM 幻觉，实测复现）：空名工具无法执行，一律剔除，

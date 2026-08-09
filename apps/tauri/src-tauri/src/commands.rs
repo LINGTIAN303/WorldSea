@@ -212,6 +212,32 @@ pub async fn delete_session(
     state.delete_session(&session_id).await.map_err(|e| e.to_string())
 }
 
+/// 重命名会话标题
+#[tauri::command]
+pub async fn update_session_title(
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+    title: String,
+) -> Result<(), String> {
+    state
+        .update_session_title(&session_id, &title)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 设置会话固定状态
+#[tauri::command]
+pub async fn set_session_pinned(
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+    pinned: bool,
+) -> Result<(), String> {
+    state
+        .set_session_pinned(&session_id, pinned)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// 记忆列表（空查询=全量，按时间排序；支持可选关键词过滤）
 #[tauri::command]
 pub async fn memory_list(

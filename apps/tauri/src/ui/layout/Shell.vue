@@ -1,7 +1,7 @@
 <template>
   <div class="shell">
+    <TitleBar />
     <WelcomeOverlay />
-    <MenuBar />
     <div class="shell-body" :class="{ 'sidebar-right': settingsStore.sidebarPosition === 'right' }">
       <Sidebar />
       <ViewContainer />
@@ -32,7 +32,7 @@
 
 <script setup lang="ts">
 import { ref, defineAsyncComponent, onMounted, onUnmounted, watch } from 'vue'
-import MenuBar from './MenuBar.vue'
+import TitleBar from './TitleBar.vue'
 import Sidebar from './sidebar/SidebarV2.vue'
 import { Toast, DialogContainer, ViewContainer } from '@worldsmith/ui-kit'
 import WsConfirmDialog from '../WsConfirmDialog.vue'

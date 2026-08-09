@@ -4,6 +4,7 @@ import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { A2UIRenderer } from '@worldsmith/shared-ui'
 import { provideAgentBackend, useAgentRust } from './composables/useAgentRust'
 import { useLoopControlRust } from './composables/useLoopControlRust'
+import { useSystemBridge } from '@/composables/useSystemBridge'
 import TerminalView from '../terminal/components/TerminalView.vue'
 import SubAgentView from '../subagent/components/SubAgentView.vue'
 import SubAgentSection from './components/SubAgentSection.vue'
@@ -488,13 +489,15 @@ function stopIterationPolling() {
   }
 }
 
-// 生成中（sending / isStreaming）启动轮询，结束停止
+// 生成中（sending / isStreaming）启动轮询，结束停止；同时同步托盘 Agent 状态
 watch([sending, () => isStreaming.value], ([newSending, newStreaming]) => {
   if (newSending || newStreaming) {
     startIterationPolling()
   } else {
     stopIterationPolling()
   }
+  const { setAgentState } = useSystemBridge()
+  setAgentState(!!newSending || !!newStreaming)
 })
 
 // 组件卸载时清理轮询计时器

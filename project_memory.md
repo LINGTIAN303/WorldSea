@@ -40,9 +40,12 @@
 - **Phase G ✅（删除 web + 清理，迁移全部完成）**：① G1 apps/web 整目录删除；② G2 范围修正——wasm.worker/wasmWorkerPool 是 Tauri active 依赖（core/api runtime "算法/校验走 WASM"）保留，ws-adapter 仅 web 端随删，实际清理=修 vitest.config.ts（移除已删 web 的 setupFiles/glob 引用，coverage 改 packages）；③ G3 根 package.json scripts 收敛（dev/build 指 tauri、删 web 相关、新增 pnpm chat）+ ci.yml 删 web-build、cli-build 改 Rust；④ G4 文档同步（ARCHITECTURE/README/索引 双端化，端分离库标历史归档）。验证：tauri typecheck 通过、vitest 199 tests 全绿、全库 grep 无 apps/web/@worldsmith/web/ws-adapter 代码级残留、crates/cli cargo check 通过
 - **文档库全面同步 ✅（2026-08-08，G4 后续收尾）**：删除失锚注释文档（docs/details/注释/web/ 60 个 + cli/ 3 个，所描述代码已删，用户确认删除）；注释索引 README 删 web/cli 段并标"已删除"；端分离 README 补 2026-08-08 最终结局（收敛为 Tauri GUI + Rust CLI 双端）；总索引同步 agent-e2e-closure 计划状态（执行中→已完成）；5 份计划文档过时引用标注（agent-e2e-closure 状态复核、agent-orchestration-roadmap 失效链接、comment-hierarchy 批次 4/5 取消、large-file-split 拆分成果随删说明、memorycenter 阶段 5 完成复核）
 - **CLI 端移除 ✅（2026-08-08，用户确认）**：`crates/cli`（Rust binary `worldsmith`，Phase F 产物）整目录删除——其 chat / 文件读写 / 命令执行能力由 Tauri 端 `crates/agent-commands` 工具集覆盖（agent-runtime llm-genai feature 仍被 Tauri 依赖，零 dead code）。同步清理：根 package.json 删 `pnpm chat` 脚本、ci.yml 删 cli-build job；现状文档（ARCHITECTURE/index README/根 README）改为 Tauri 唯一 GUI + 共享 crates 描述；历史文档（端分离/注释/agent-e2e-closure/迁移计划）标注 CLI 已移除结局
+- **系统层集成 ✅（2026-08-08，用户确认方向）**：GUI 融入系统层——① 自定义标题栏（tauri.conf decorations:false+shadow，TitleBar.vue：data-tauri-drag-region 拖拽/双击最大化 + 自绘窗口按钮 + 双主题令牌，Shell 最顶集成）；② 托盘完整版（src-tauri/src/tray.rs：显示/新建/最近项目子菜单/打开 Agent/设置/Agent 状态项/退出；前端 cmd_tray_set_recent_projects + cmd_tray_set_agent_state 回写重建菜单；菜单动作 emit tray:* 事件由前端 useSystemBridge.ts 监听分发，最近项目点击 → switchProject）；③ 单实例（tauri-plugin-single-instance，二次启动聚焦主窗口）；④ 全局快捷键 Ctrl+Shift+W 唤起/隐藏（tauri-plugin-global-shortcut）；⑤ 系统通知（tauri-plugin-notification + cmd_notify 命令，Agent 长任务完成联动待接入）；⑥ 开机自启（tauri-plugin-autostart + cmd_autostart_* 命令 + 存储 tab「系统集成」开关）。主题跟随系统：**未重复实现**——components/ui/useTheme 已内置（preference 'system' 默认态 + matchMedia 实时监听，批次99 交付）
 
 **待办（迁移收尾后的剩余项）**：
 - Tauri：窗口端到端实测（Phase D 面板/存储、E 主题编辑器预设主题）；WASM 布局类插件经 Rust 命令或降级实测
+- 系统层集成窗口实测：标题栏拖拽/双击最大化/窗口按钮、托盘完整菜单（最近项目切换/新建/打开 Agent/设置/Agent 状态项）、全局快捷键 Ctrl+Shift+W、开机自启开关、系统通知
+- Agent 长任务完成 → cmd_notify 系统通知联动（当前仅命令就绪）
 - 暂缓组（group-chat/smart-fill/人格字体）按需评估迁入或删除决策
 - （CLI 已移除，其真实 LLM 对话/工具集扩展/流式输出待办随之取消；如需 headless 自动化入口，后续可在 Tauri 端以 Rust 命令形式提供）
 

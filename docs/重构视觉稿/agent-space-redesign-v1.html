@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>WorldSmith · Agent 空间重构视觉稿 V1</title>
+<style>
+  /* ── 令牌（对齐应用 theme.css 深色体系） ── */
+  :root {
+    --bg-app: #111113;
+    --bg-surface: #18181b;
+    --bg-muted: #202024;
+    --bg-active: #2e2e34;
+    --border: #27272c;
+    --border-strong: #38383f;
+    --text: #e4e4e7;
+    --text-secondary: #a1a1aa;
+    --text-muted: #71717a;
+    --accent: #8b87f8;
+    --accent-soft: rgba(139, 135, 248, 0.14);
+    --accent-border: rgba(139, 135, 248, 0.4);
+    --success: #22c55e;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    --radius-sm: 6px;
+    --radius: 8px;
+    --radius-md: 10px;
+    --radius-lg: 12px;
+    --font: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    --mono: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0c0c0e;
+    color: var(--text);
+    font-family: var(--font);
+    display: flex;
+    justify-content: center;
+    padding: 28px 16px;
+    min-height: 100vh;
+  }
+
+  /* ── 画布外壳 ── */
+  .stage { width: 1280px; max-width: 100%; }
+  .stage-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin-bottom: 14px; gap: 16px;
+  }
+  .stage-title { font-size: 17px; font-weight: 600; }
+  .stage-sub { font-size: 12px; color: var(--text-muted); }
+  .stage-actions { display: flex; gap: 8px; }
+  .chip {
+    font-size: 12px; padding: 4px 12px; border-radius: 999px;
+    border: 1px solid var(--border); color: var(--text-secondary); cursor: pointer;
+    background: var(--bg-surface); transition: all .12s;
+  }
+  .chip:hover { border-color: var(--accent-border); color: var(--text); }
+  .chip.on { background: var(--accent-soft); color: var(--accent); border-color: var(--accent-border); }
+
+  /* ── 窗口 ── */
+  .win {
+    border: 1px solid var(--border-strong); border-radius: var(--radius-lg);
+    overflow: hidden; background: var(--bg-app);
+    box-shadow: 0 24px 64px rgba(0,0,0,.5);
+  }
+  .titlebar {
+    height: 34px; display: flex; align-items: center; padding: 0 14px; gap: 8px;
+    background: var(--bg-surface); border-bottom: 1px solid var(--border);
+    font-size: 11px; color: var(--text-muted);
+  }
+  .tb-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .tb-dot.r { background: #ef4444; } .tb-dot.y { background: #f59e0b; } .tb-dot.g { background: #22c55e; }
+  .tb-title { margin-left: 8px; flex: 1; }
+
+  /* ── 顶栏（动作分层） ── */
+  .topbar {
+    height: 48px; display: flex; align-items: center; padding: 0 14px; gap: 6px;
+    background: var(--bg-surface); border-bottom: 1px solid var(--border);
+  }
+  .tb-group { display: flex; align-items: center; gap: 4px; }
+  .tb-sep { width: 1px; height: 20px; background: var(--border); margin: 0 6px; }
+  .ident { display: flex; align-items: center; gap: 8px; padding-right: 8px; }
+  .avatar {
+    width: 26px; height: 26px; border-radius: 50%;
+    background: linear-gradient(135deg, #8b87f8, #7c3aed);
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .avatar svg { width: 14px; height: 14px; stroke: #fff; }
+  .ident-name { font-size: 13px; font-weight: 600; }
+  .ident-status { font-size: 11px; color: var(--text-muted); }
+  .mode-btn {
+    display: flex; align-items: center; gap: 5px; font-size: 12px;
+    padding: 4px 10px; border-radius: var(--radius-sm);
+    border: 1px solid var(--border); background: var(--bg-muted); color: var(--text-secondary);
+  }
+  .tbtn {
+    width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+    border-radius: var(--radius-sm); border: none; background: transparent;
+    color: var(--text-secondary); cursor: pointer; transition: all .12s;
+  }
+  .tbtn:hover { background: var(--bg-muted); color: var(--text); }
+  .tbtn.active { background: var(--accent-soft); color: var(--accent); }
+  .tbtn svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.6; }
+  .tbtn.badge { position: relative; }
+  .tbtn .red-dot {
+    position: absolute; top: 5px; right: 5px; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--danger);
+  }
+  .tbtn.run { background: var(--accent-soft); color: var(--accent); }
+  .tb-spacer { flex: 1; }
+
+  /* ── 主体三区（双线分隔：各自边框 + 区域间缝隙） ── */
+  .body { display: flex; height: 640px; gap: 8px; padding: 8px; background: var(--bg-app); }
+
+  /* 左栏：会话（独立块） */
+  .sidebar { width: 240px; border: 1px solid var(--border); border-radius: var(--radius-md); display: flex; flex-direction: column; background: var(--bg-surface); flex-shrink: 0; }
+  .sb-toggle { display: flex; padding: 8px 10px 0; gap: 4px; }
+  .sb-toggle button {
+    flex: 1; font-size: 12px; padding: 5px 0; border-radius: var(--radius-sm);
+    border: 1px solid var(--border); background: var(--bg-muted); color: var(--text-muted); cursor: pointer;
+  }
+  .sb-toggle button.on { background: var(--accent-soft); color: var(--accent); border-color: var(--accent-border); }
+  .sb-group { padding: 10px 10px 0; }
+  .sb-group-label { font-size: 11px; color: var(--text-muted); padding: 0 6px 6px; display: flex; align-items: center; gap: 6px; }
+  .sb-group-label svg { width: 11px; height: 11px; stroke: var(--text-muted); fill: none; stroke-width: 1.6; }
+  .sb-item {
+    display: flex; align-items: center; gap: 8px; padding: 7px 8px;
+    border-radius: var(--radius-sm); cursor: pointer; margin-bottom: 2px;
+  }
+  .sb-item:hover { background: var(--bg-muted); }
+  .sb-item.on { background: var(--accent-soft); }
+  .sb-item.on .sb-name { color: var(--accent); }
+  .pin { color: var(--accent); font-size: 11px; flex-shrink: 0; }
+  .sb-name { font-size: 12px; color: var(--text-secondary); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sb-time { font-size: 10px; color: var(--text-muted); flex-shrink: 0; }
+  .sb-empty { font-size: 12px; color: var(--text-muted); padding: 8px 10px; }
+
+  /* 主区：对话（独立块） */
+  .chat { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--bg-app); border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; }
+  .chat-stream { flex: 1; overflow-y: auto; padding: 22px 26px; display: flex; flex-direction: column; gap: 18px; }
+  .msg { display: flex; gap: 10px; max-width: 780px; }
+  .msg.user { align-self: flex-end; flex-direction: row-reverse; }
+  .m-avatar {
+    width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .m-avatar svg { width: 13px; height: 13px; stroke: #fff; fill: none; stroke-width: 1.6; }
+  .m-avatar.ai { background: linear-gradient(135deg, #8b87f8, #7c3aed); }
+  .m-avatar.user { background: var(--bg-active); }
+  .m-avatar.user svg { stroke: var(--text-secondary); }
+  .m-body { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+  .m-meta { font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+  .m-meta .who { color: var(--text-secondary); }
+  .bubble {
+    background: var(--bg-surface); border: 1px solid var(--border);
+    border-radius: var(--radius-md); padding: 10px 14px; font-size: 13px; line-height: 1.65;
+    color: var(--text); max-width: 560px;
+  }
+  .msg.user .bubble { background: var(--accent-soft); border-color: var(--accent-border); }
+  .bubble .p { margin-bottom: 6px; } .bubble .p:last-child { margin-bottom: 0; }
+  .bubble .dim { color: var(--text-secondary); }
+  .bubble code {
+    font-family: var(--mono); font-size: 12px; background: var(--bg-active);
+    padding: 1px 6px; border-radius: 4px; color: var(--text);
+  }
+  .bubble pre {
+    font-family: var(--mono); font-size: 12px; background: var(--bg-active);
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 10px 12px; margin-top: 6px; overflow-x: auto; color: #c7c7d1; line-height: 1.6;
+  }
+  .bubble pre .k { color: var(--accent); }
+  .a2ui-card {
+    margin-top: 10px; border: 1px solid var(--accent-border); border-radius: var(--radius-md);
+    background: var(--bg-surface); overflow: hidden;
+  }
+  .a2ui-head {
+    font-size: 11px; color: var(--accent); padding: 6px 12px; background: var(--accent-soft);
+    border-bottom: 1px solid var(--accent-border); display: flex; align-items: center; gap: 6px;
+  }
+  .a2ui-head svg { width: 11px; height: 11px; stroke: var(--accent); fill: none; stroke-width: 1.6; }
+  .a2ui-body { padding: 10px 12px; font-size: 12px; color: var(--text-secondary); display: flex; gap: 8px; flex-wrap: wrap; }
+  .ent-tag {
+    display: inline-flex; align-items: center; gap: 6px; font-size: 12px;
+    padding: 4px 10px; border-radius: var(--radius-sm);
+    border: 1px solid var(--border); background: var(--bg-muted); color: var(--text);
+  }
+  .ent-tag b { color: var(--accent); font-weight: 600; }
+  .ent-tag .t { color: var(--text-muted); font-size: 11px; }
+  .chat-input {
+    border-top: 1px solid var(--border); padding: 12px 18px 14px; background: var(--bg-surface);
+  }
+  .input-shell {
+    border: 1px solid var(--border-strong); border-radius: var(--radius-lg);
+    background: var(--bg-muted); padding: 10px 14px; max-width: 860px; margin: 0 auto;
+    display: flex; align-items: flex-end; gap: 10px;
+  }
+  .input-shell .ta { flex: 1; font-size: 13px; color: var(--text); line-height: 1.5; min-height: 20px; }
+  .input-shell .ta .ph { color: var(--text-muted); }
+  .send {
+    width: 30px; height: 30px; border-radius: 50%; border: none; flex-shrink: 0;
+    background: var(--accent); display: flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+  .send svg { width: 14px; height: 14px; stroke: #fff; fill: none; stroke-width: 1.8; }
+  .input-hint { text-align: center; font-size: 10px; color: var(--text-muted); margin-top: 6px; }
+
+  /* 右栏：执行面板（双 Tab，独立块） */
+  .exec { width: 300px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg-surface); display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden; }
+  .exec-tabs { display: flex; padding: 8px 10px 0; gap: 4px; border-bottom: 1px solid var(--border); }
+  .exec-tabs button {
+    flex: 1; font-size: 12px; padding: 6px 0; border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+    border: 1px solid transparent; border-bottom: none; background: transparent; color: var(--text-muted); cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 5px;
+  }
+  .exec-tabs button svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 1.6; }
+  .exec-tabs button.on { background: var(--bg-app); color: var(--accent); border-color: var(--border); }
+  .exec-tabs .cnt {
+    font-size: 10px; background: var(--bg-active); color: var(--text-secondary);
+    border-radius: 999px; padding: 0 6px; line-height: 14px;
+  }
+  .exec-body { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .exec-pane { display: none; flex-direction: column; gap: 8px; }
+  .exec-pane.on { display: flex; }
+  .trace-item {
+    border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-app);
+    overflow: hidden;
+  }
+  .trace-item.running { border-color: var(--accent-border); }
+  .trace-bar { display: flex; align-items: center; gap: 8px; padding: 8px 10px; cursor: pointer; }
+  .trace-chev { color: var(--text-muted); font-size: 9px; transition: transform .15s; }
+  .trace-chev.open { transform: rotate(90deg); }
+  .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex-shrink: 0; animation: pulse 1.6s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
+  .trace-title { font-size: 12px; color: var(--text); flex: 1; }
+  .trace-status { font-size: 10px; color: var(--accent); flex-shrink: 0; }
+  .trace-status.done { color: var(--text-muted); }
+  .trace-body { padding: 0 10px 8px; display: none; flex-direction: column; gap: 6px; }
+  .trace-item.open .trace-body { display: flex; }
+  .tool-chip {
+    display: inline-flex; align-items: center; gap: 5px; font-size: 11px;
+    padding: 3px 8px; border-radius: 999px; background: var(--bg-muted);
+    border: 1px solid var(--border); color: var(--text-secondary); align-self: flex-start;
+  }
+  .tool-chip.running { color: var(--accent); border-color: var(--accent-border); background: var(--accent-soft); }
+  .tool-chip.done { color: var(--success); }
+  .tool-chip svg { width: 10px; height: 10px; stroke: currentColor; fill: none; stroke-width: 1.8; }
+  .tool-chip .t { color: var(--text-muted); }
+  .subagent-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; }
+  .sub-avatar {
+    width: 22px; height: 22px; border-radius: 6px; background: var(--bg-active);
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .sub-avatar svg { width: 11px; height: 11px; stroke: var(--accent); fill: none; stroke-width: 1.6; }
+  .sub-info { flex: 1; min-width: 0; }
+  .sub-name { font-size: 12px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sub-task { font-size: 10px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sub-status { font-size: 10px; color: var(--accent); flex-shrink: 0; }
+  .sub-status.done { color: var(--success); }
+  .sub-status.err { color: var(--danger); }
+  .activity-item { display: flex; gap: 8px; padding: 7px 8px; font-size: 11px; color: var(--text-secondary); }
+  .activity-item .t { color: var(--text-muted); flex-shrink: 0; }
+  .activity-item .d { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .activity-item .b { color: var(--accent); }
+  .plan-item { border: 1px solid var(--border); border-radius: var(--radius); padding: 9px 10px; background: var(--bg-app); }
+  .plan-title { font-size: 12px; color: var(--text); display: flex; align-items: center; gap: 6px; }
+  .plan-title .b { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+  .plan-step { display: flex; align-items: center; gap: 7px; margin-top: 7px; font-size: 11px; color: var(--text-secondary); }
+  .step-no {
+    width: 16px; height: 16px; border-radius: 50%; font-size: 10px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .step-no.done { background: var(--accent-soft); color: var(--accent); }
+  .step-no.cur { background: var(--accent); color: #fff; }
+  .step-bar { flex: 1; height: 3px; border-radius: 2px; background: var(--bg-active); overflow: hidden; }
+  .step-bar i { display: block; height: 100%; width: 100%; background: var(--accent); border-radius: 2px; }
+  .plan-empty, .exec-empty { font-size: 12px; color: var(--text-muted); text-align: center; padding: 28px 10px; }
+  .exec-empty svg { width: 22px; height: 22px; stroke: var(--text-muted); fill: none; stroke-width: 1.4; margin-bottom: 8px; }
+
+  /* 配置抽屉（设置面板：纵向分组） */
+  .settings {
+    position: fixed; top: 0; right: 0; bottom: 0; width: 460px;
+    background: var(--bg-surface); border-left: 1px solid var(--border-strong);
+    box-shadow: -24px 0 64px rgba(0,0,0,.45);
+    display: flex; flex-direction: column; transform: translateX(100%); transition: transform .22s cubic-bezier(.4,0,.2,1);
+    z-index: 50;
+  }
+  .settings.open { transform: translateX(0); }
+  .settings-head {
+    height: 48px; display: flex; align-items: center; justify-content: space-between;
+    padding: 0 14px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  .settings-title { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .settings-title svg { width: 14px; height: 14px; stroke: var(--accent); fill: none; stroke-width: 1.6; }
+  .settings-close {
+    width: 26px; height: 26px; border-radius: var(--radius-sm); border: none; background: transparent;
+    color: var(--text-muted); cursor: pointer; font-size: 14px;
+  }
+  .settings-close:hover { background: var(--bg-muted); color: var(--text); }
+  .settings-body { flex: 1; display: flex; min-height: 0; }
+  /* 左侧纵向分组导航 */
+  .settings-nav { width: 128px; border-right: 1px solid var(--border); padding: 10px 8px; overflow-y: auto; flex-shrink: 0; }
+  .snav-group { margin-bottom: 12px; }
+  .snav-group-label { font-size: 10px; color: var(--text-muted); padding: 0 8px 5px; letter-spacing: .4px; }
+  .snav-item {
+    display: flex; align-items: center; gap: 7px; width: 100%; text-align: left;
+    padding: 6px 8px; border-radius: var(--radius-sm); font-size: 12px;
+    color: var(--text-secondary); border: none; background: transparent; cursor: pointer;
+    margin-bottom: 2px; transition: all .12s;
+  }
+  .snav-item svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 1.6; flex-shrink: 0; }
+  .snav-item:hover { background: var(--bg-muted); color: var(--text); }
+  .snav-item.on { background: var(--accent-soft); color: var(--accent); }
+  .snav-item.lock { opacity: .45; cursor: not-allowed; }
+  /* 右侧面板内容 */
+  .settings-content { flex: 1; padding: 14px; overflow-y: auto; min-width: 0; }
+  .sc-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+  .sc-title svg { width: 14px; height: 14px; stroke: var(--accent); fill: none; stroke-width: 1.6; }
+  .sc-desc { font-size: 11px; color: var(--text-muted); margin-bottom: 14px; }
+  .field { margin-bottom: 14px; }
+  .field-label { font-size: 11px; color: var(--text-secondary); margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center; }
+  .field-label .val { color: var(--text); font-family: var(--mono); font-size: 11px; }
+  .select {
+    width: 100%; padding: 6px 10px; font-size: 12px; border-radius: var(--radius-sm);
+    border: 1px solid var(--border-strong); background: var(--bg-muted); color: var(--text);
+    appearance: none; cursor: pointer;
+  }
+  .range { width: 100%; accent-color: var(--accent); height: 4px; }
+  .key-input {
+    width: 100%; padding: 6px 10px; font-size: 12px; border-radius: var(--radius-sm);
+    border: 1px solid var(--border-strong); background: var(--bg-muted); color: var(--text);
+  }
+  .key-input::placeholder { color: var(--text-muted); }
+  .hint { font-size: 10px; color: var(--text-muted); margin-top: 4px; line-height: 1.5; }
+  .mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .mode-card {
+    border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 10px;
+    background: var(--bg-app); cursor: pointer; text-align: left;
+  }
+  .mode-card.on { border-color: var(--accent-border); background: var(--accent-soft); }
+  .mode-card .mc-label { font-size: 12px; color: var(--text); display: flex; align-items: center; gap: 6px; }
+  .mode-card .mc-label svg { width: 12px; height: 12px; stroke: var(--accent); fill: none; stroke-width: 1.6; }
+  .mode-card .mc-desc { font-size: 10px; color: var(--text-muted); margin-top: 2px; line-height: 1.4; }
+  .toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); }
+  .toggle-row:last-child { border-bottom: none; }
+  .toggle-label { font-size: 12px; color: var(--text); }
+  .toggle-desc { font-size: 10px; color: var(--text-muted); margin-top: 1px; }
+  .switch { position: relative; width: 30px; height: 17px; flex-shrink: 0; cursor: pointer; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .switch .slider {
+    position: absolute; inset: 0; border-radius: 999px; background: var(--bg-active);
+    border: 1px solid var(--border-strong); transition: all .15s;
+  }
+  .switch .slider::before {
+    content: ''; position: absolute; width: 11px; height: 11px; border-radius: 50%;
+    left: 2px; top: 2px; background: var(--text-muted); transition: all .15s;
+  }
+  .switch input:checked + .slider { background: var(--accent); border-color: var(--accent); }
+  .switch input:checked + .slider::before { transform: translateX(13px); background: #fff; }
+  .footer-note { font-size: 11px; color: var(--text-muted); padding: 10px 14px; border-top: 1px solid var(--border); }
+</style>
+</head>
+<body>
+  <div class="stage">
+    <div class="stage-head">
+      <div>
+        <div class="stage-title">WorldSmith · Agent 空间重构视觉稿 <span style="color:var(--accent)">V1</span></div>
+        <div class="stage-sub">模型 B 三区重组 · 执行轨迹剥离 · 设置纵向分组 · 顶栏动作分层</div>
+      </div>
+      <div class="stage-actions">
+        <button class="chip" id="toggleSettings">设置面板（纵向分组）</button>
+        <button class="chip" id="toggleExec">执行面板（轨迹/活动/计划）</button>
+      </div>
+    </div>
+
+    <div class="win">
+      <div class="titlebar">
+        <span class="tb-dot r"></span><span class="tb-dot y"></span><span class="tb-dot g"></span>
+        <span class="tb-title">WorldSmith — Agent 空间（视觉稿，非可运行界面）</span>
+        <span style="color:var(--text-muted)">1440 × 900 模拟</span>
+      </div>
+
+      <!-- 顶栏：动作分层 -->
+      <div class="topbar">
+        <div class="ident">
+          <div class="avatar"><svg viewBox="0 0 24 24"><path d="M12 3l1.8 4.7L18 9.5l-4.2 1.8L12 16l-1.8-4.7L6 9.5l4.2-1.8z"/></svg></div>
+          <div>
+            <div class="ident-name">WorldSmith</div>
+            <div class="ident-status">活跃 · 快问快答</div>
+          </div>
+        </div>
+        <div class="mode-btn"><svg viewBox="0 0 24 24" style="width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:1.6"><path d="M13 3L5 13h6l-1 8 8-10h-6z"/></svg> 快问快答 <span style="opacity:.5">▾</span></div>
+        <div class="tb-spacer"></div>
+        <div class="tb-group">
+          <button class="tbtn" title="会话栏"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg></button>
+          <button class="tbtn" title="知识墙"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h5"/></svg></button>
+          <span class="tb-sep"></span>
+          <button class="tbtn active" title="记忆架"><svg viewBox="0 0 24 24"><path d="M12 4a8 8 0 100 16h2v-2h-2a6 6 0 110-12h2V4h-2z"/><path d="M16 4h4v16h-4z"/></svg></button>
+          <button class="tbtn badge run" title="运行面板（执行中）"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1116 0"/><path d="M4 12h4l2-3 3 5 2-2h2"/></svg><span class="red-dot"></span></button>
+          <span class="tb-sep"></span>
+          <button class="tbtn" title="Agent 设置"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 00-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 00-2-1.2L14 3h-4l-.5 2.6a7 7 0 00-2 1.2l-2.4-1-2 3.4 2 1.6a7 7 0 000 2.4l-2 1.6 2 3.4 2.4-1a7 7 0 002 1.2l.5 2.6h4l.5-2.6a7 7 0 002-1.2l2.4 1 2-3.4-2-1.6c.06-.4.1-.8.1-1.2z"/></svg></button>
+          <button class="tbtn" title="更多"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button>
+        </div>
+      </div>
+
+      <div class="body">
+        <!-- 左栏：会话 -->
+        <aside class="sidebar">
+          <div class="sb-toggle">
+            <button class="on">会话</button>
+            <button>知识墙</button>
+          </div>
+          <div class="sb-group">
+            <div class="sb-group-label"><svg viewBox="0 0 24 24"><path d="M12 3l1.8 4.7L18 9.5l-4.2 1.8L12 16l-1.8-4.7L6 9.5l4.2-1.8z"/></svg>已固定</div>
+            <div class="sb-item on"><svg class="pin" viewBox="0 0 24 24" style="width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.6"><path d="M12 3v8l3 3v2h-6v-2l3-3V3"/><path d="M9 3h6"/></svg><span class="sb-name">世界构建 · 三王国设定</span><span class="sb-time">2h</span></div>
+            <div class="sb-item"><svg class="pin" viewBox="0 0 24 24" style="width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.6"><path d="M12 3v8l3 3v2h-6v-2l3-3V3"/><path d="M9 3h6"/></svg><span class="sb-name">角色卡批量生成</span><span class="sb-time">昨天</span></div>
+          </div>
+          <div class="sb-group">
+            <div class="sb-group-label"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>近期</div>
+            <div class="sb-item"><span class="sb-name">战力体系数值平衡推演</span><span class="sb-time">3h</span></div>
+            <div class="sb-item"><span class="sb-name">魔法技能树草案</span><span class="sb-time">昨天</span></div>
+            <div class="sb-item"><span class="sb-name">语言体系 · 龙语词汇</span><span class="sb-time">周二</span></div>
+            <div class="sb-empty" style="padding-top:10px">— 会话历史已持久化至 SQLite —</div>
+          </div>
+        </aside>
+
+        <!-- 主区：对话（纯净） -->
+        <main class="chat">
+          <div class="chat-stream">
+            <div class="msg">
+              <div class="m-avatar ai"><svg viewBox="0 0 24 24"><path d="M12 3l1.8 4.7L18 9.5l-4.2 1.8L12 16l-1.8-4.7L6 9.5l4.2-1.8z"/></svg></div>
+              <div class="m-body">
+                <div class="m-meta"><span class="who">WorldSmith</span>· 10:42</div>
+                <div class="bubble">
+                  <div class="p">已收到你的世界观设定请求。基于现有 <code>三王国</code> 实体，我先梳理冲突脉络。</div>
+                  <div class="a2ui-card">
+                    <div class="a2ui-head"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg>世界观卡片 · 冲突关联</div>
+                    <div class="a2ui-body">
+                      <span class="ent-tag"><b>北境王国</b><span class="t">conflict</span></span>
+                      <span class="ent-tag"><b>龙裔盟约</b><span class="t">conflict</span></span>
+                      <span class="ent-tag"><b>符文战争</b><span class="t">event</span></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="msg user">
+              <div class="m-avatar user"><svg viewBox="0 0 24 24"><path d="M4 20c0-3 3-5 8-5s8 2 8 5M12 4a4 4 0 100 8 4 4 0 000-8z"/></svg></div>
+              <div class="m-body">
+                <div class="m-meta"><span class="who">你</span>· 10:43</div>
+                <div class="bubble">
+                  <div class="p">把三王国的战力体系改成 <code>境界制</code>，并给出晋升瓶颈，<b style="color:var(--accent)">切换到任务执行模式</b></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="msg">
+              <div class="m-avatar ai"><svg viewBox="0 0 24 24"><path d="M12 3l1.8 4.7L18 9.5l-4.2 1.8L12 16l-1.8-4.7L6 9.5l4.2-1.8z"/></svg></div>
+              <div class="m-body">
+                <div class="m-meta"><span class="who">WorldSmith</span>· 10:43</div>
+                <div class="bubble">
+                  <div class="p">已切换<b style="color:var(--accent)">任务执行</b>模式。开始重构战力体系，执行过程在右侧<b style="color:var(--accent)">运行面板</b>实时可见。</div>
+                  <div class="p dim" style="font-size:11px">对话流保持纯净——阶段轨迹 / 子 Agent / 活动日志已移入右侧执行面板。</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="chat-input">
+            <div class="input-shell">
+              <div class="ta"><span class="ph">任务执行 — 输入消息，Agent 将自主规划并连续执行…</span></div>
+              <button class="send"><svg viewBox="0 0 24 24"><path d="M3 12l18-9-7 18-2.5-7z"/></svg></button>
+            </div>
+            <div class="input-hint">Enter 发送 · Shift+Enter 换行 · Ctrl+K 命令面板</div>
+          </div>
+        </main>
+
+        <!-- 右栏：执行面板 -->
+        <aside class="exec" id="execPanel">
+          <div class="exec-tabs">
+            <button class="on" data-pane="trace"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1116 0"/><path d="M4 12h4l2-3 3 5 2-2h2"/></svg>轨迹<span class="cnt">2</span></button>
+            <button data-pane="activity"><svg viewBox="0 0 24 24"><path d="M3 4h18v16H3z"/><path d="M3 9h18"/></svg>活动</button>
+            <button data-pane="plan"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>计划</button>
+          </div>
+          <div class="exec-body">
+            <!-- 轨迹 -->
+            <div class="exec-pane on" data-pane="trace">
+              <div class="trace-item running open">
+                <div class="trace-bar">
+                  <span class="trace-chev open">▶</span>
+                  <span class="live-dot"></span>
+                  <span class="trace-title">战力体系重构</span>
+                  <span class="trace-status">进行中 · 第 3 阶段</span>
+                </div>
+                <div class="trace-body">
+                  <span class="tool-chip running"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg>combat_stat.build <span class="t">· 4 实体</span></span>
+                  <span class="tool-chip done"><svg viewBox="0 0 24 24"><path d="M4 12l5 5L20 6"/></svg>entity.search</span>
+                  <span class="tool-chip done"><svg viewBox="0 0 24 24"><path d="M4 12l5 5L20 6"/></svg>schema.validate</span>
+                </div>
+              </div>
+              <div class="trace-item">
+                <div class="trace-bar">
+                  <span class="trace-chev">▶</span>
+                  <span class="trace-title">晋升瓶颈推演</span>
+                  <span class="trace-status done">完成</span>
+                </div>
+              </div>
+              <div class="subagent-item">
+                <div class="sub-avatar"><svg viewBox="0 0 24 24"><path d="M12 3l1.8 4.7L18 9.5l-4.2 1.8L12 16l-1.8-4.7L6 9.5l4.2-1.8z"/></svg></div>
+                <div class="sub-info">
+                  <div class="sub-name">战力数值平衡子 Agent</div>
+                  <div class="sub-task">评估境界间属性成长曲线…</div>
+                </div>
+                <span class="sub-status">运行中</span>
+              </div>
+              <div class="subagent-item">
+                <div class="sub-avatar"><svg viewBox="0 0 24 24"><path d="M12 3l1.8 4.7L18 9.5l-4.2 1.8L12 16l-1.8-4.7L6 9.5l4.2-1.8z"/></svg></div>
+                <div class="sub-info">
+                  <div class="sub-name">史料一致性子 Agent</div>
+                  <div class="sub-task">核对符文战争年表与境界时间线…</div>
+                </div>
+                <span class="sub-status done">完成</span>
+              </div>
+            </div>
+            <!-- 活动 -->
+            <div class="exec-pane" data-pane="activity">
+              <div class="activity-item"><span class="t">10:45</span><span class="d"><span class="b">entity.build</span> · 完成「大魔法师」境界实体</span></div>
+              <div class="activity-item"><span class="t">10:45</span><span class="d"><span class="b">combat_stat.update</span> · 更新 8 个属性值</span></div>
+              <div class="activity-item"><span class="t">10:44</span><span class="d"><span class="b">subagent.delegate</span> · 委派「史料一致性」</span></div>
+              <div class="activity-item"><span class="t">10:43</span><span class="d"><span class="b">chat.mode</span> · 切换任务执行</span></div>
+              <div class="activity-item"><span class="t">10:42</span><span class="d"><span class="b">schema.validate</span> · 全量校验通过</span></div>
+            </div>
+            <!-- 计划 -->
+            <div class="exec-pane" data-pane="plan">
+              <div class="plan-item">
+                <div class="plan-title"><span class="b"></span>战力体系 · 境界制重构</div>
+                <div class="plan-step"><span class="step-no done">✓</span><span>盘点现有 12 个战力实体</span></div>
+                <div class="plan-step"><span class="step-no done">✓</span><span>设计境界五层结构与晋升条件</span></div>
+                <div class="plan-step"><span class="step-no cur">3</span><span>迁移属性至境界制 Schema</span><span class="step-bar"><i style="width:60%"></i></span></div>
+                <div class="plan-step"><span class="step-no">4</span><span>数值平衡与冲突校验</span></div>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </div>
+
+  <!-- 配置抽屉：设置面板（纵向分组） -->
+  <div class="settings" id="settingsPanel">
+    <div class="settings-head">
+      <div class="settings-title"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 00-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 00-2-1.2L14 3h-4l-.5 2.6a7 7 0 00-2 1.2l-2.4-1-2 3.4 2 1.6a7 7 0 000 2.4l-2 1.6 2 3.4 2.4-1a7 7 0 002 1.2l.5 2.6h4l.5-2.6a7 7 0 002-1.2l2.4 1 2-3.4-2-1.6c.06-.4.1-.8.1-1.2z"/></svg>Agent 设置</div>
+      <button class="settings-close" id="settingsClose">✕</button>
+    </div>
+    <div class="settings-body">
+      <!-- 纵向分组导航 -->
+      <nav class="settings-nav">
+        <div class="snav-group">
+          <div class="snav-group-label">模型与推理</div>
+          <button class="snav-item on" data-nav="model"><svg viewBox="0 0 24 24"><path d="M5 5h14v9H5zM5 18h14M9 21h6"/></svg>核心</button>
+          <button class="snav-item" data-nav="provider"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>供应商</button>
+          <button class="snav-item" data-nav="usage"><svg viewBox="0 0 24 24"><path d="M4 18V6M10 18V10M16 18V3M22 18H2"/></svg>用量</button>
+        </div>
+        <div class="snav-group">
+          <div class="snav-group-label">能力与工具</div>
+          <button class="snav-item" data-nav="skills"><svg viewBox="0 0 24 24"><path d="M12 3l1.8 4.7L18 9.5l-4.2 1.8L12 16l-1.8-4.7L6 9.5l4.2-1.8z"/></svg>Skills</button>
+          <button class="snav-item" data-nav="mcp"><svg viewBox="0 0 24 24"><path d="M10 6h10M10 12h10M10 18h10"/><circle cx="5" cy="6" r="2"/><circle cx="5" cy="12" r="2"/><circle cx="5" cy="18" r="2"/></svg>MCP</button>
+          <button class="snav-item" data-nav="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.5-4.5"/></svg>搜索</button>
+          <button class="snav-item" data-nav="vision"><svg viewBox="0 0 24 24"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="2.5"/></svg>多模态</button>
+          <button class="snav-item" data-nav="terminal"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4z"/><path d="M8 9l3 3-3 3"/></svg>终端</button>
+        </div>
+        <div class="snav-group">
+          <div class="snav-group-label">边界与个性</div>
+          <button class="snav-item" data-nav="safety"><svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg>安全</button>
+          <button class="snav-item" data-nav="persona"><svg viewBox="0 0 24 24"><path d="M4 20c0-3 3-5 8-5s8 2 8 5M12 4a4 4 0 100 8 4 4 0 000-8z"/></svg>人格预设</button>
+          <button class="snav-item" data-nav="thinking"><svg viewBox="0 0 24 24"><path d="M12 3l1.8 4.7L18 9.5l-4.2 1.8L12 16l-1.8-4.7L6 9.5l4.2-1.8z"/></svg>思考级别</button>
+        </div>
+      </nav>
+      <!-- 面板内容（核心示例） -->
+      <div class="settings-content">
+        <div class="sc-title"><svg viewBox="0 0 24 24"><path d="M5 5h14v9H5z"/></svg>核心 · 模型与推理</div>
+        <div class="sc-desc">主模型与生成参数，切换后下次对话生效</div>
+        <div class="field">
+          <div class="field-label">供应商模式</div>
+          <select class="select">
+            <option>云端 API</option><option>本地模型</option><option>自定义</option>
+          </select>
+        </div>
+        <div class="field">
+          <div class="field-label">模型</div>
+          <select class="select"><option>DeepSeek V4 Flash</option><option>DeepSeek V4 Pro</option></select>
+        </div>
+        <div class="field">
+          <div class="field-label">API Key <span class="val">sk-****</span></div>
+          <input class="key-input" placeholder="sk-..." />
+        </div>
+        <div class="field">
+          <div class="field-label">温度 <span class="val">0.70</span></div>
+          <input class="range" type="range" min="0" max="200" value="140" />
+        </div>
+        <div class="field">
+          <div class="field-label">最大输出 <span class="val">384k</span></div>
+          <input class="range" type="range" min="1024" max="384000" value="384000" />
+        </div>
+        <div class="field">
+          <div class="field-label">上下文长度 <span class="val">1.0M</span></div>
+          <input class="range" type="range" min="4096" max="1000000" value="999424" />
+        </div>
+        <div class="field">
+          <div class="field-label">聊天模式</div>
+          <div class="mode-grid">
+            <button class="mode-card on"><span class="mc-label"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>快问快答</span><span class="mc-desc">快答为主，按需调用工具</span></button>
+            <button class="mode-card"><span class="mc-label"><svg viewBox="0 0 24 24"><path d="M12 3l1.8 4.7L18 9.5l-4.2 1.8L12 16l-1.8-4.7L6 9.5l4.2-1.8z"/></svg>深度思考</span><span class="mc-desc">推理 + 工具验证 + 推理链</span></button>
+            <button class="mode-card"><span class="mc-label"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.5-4.5"/></svg>知识探索</span><span class="mc-desc">知识库 → 联网 → 项目数据</span></button>
+            <button class="mode-card"><span class="mc-label"><svg viewBox="0 0 24 24"><path d="M6 3l14 9-14 9z"/></svg>任务执行</span><span class="mc-desc">自主规划 + 连续执行 + 验证</span></button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="footer-note">用量面板已恢复显示 · 11 个子面板按「模型与推理 / 能力与工具 / 边界与个性」三组归档</div>
+  </div>
+
+<script>
+  (function () {
+    var root = document.querySelector('.stage');
+    var settings = document.getElementById('settingsPanel');
+    var settingsBtn = document.getElementById('toggleSettings');
+    var closeBtn = document.getElementById('settingsClose');
+    settingsBtn.addEventListener('click', function () {
+      settings.classList.toggle('open');
+      settingsBtn.classList.toggle('on', settings.classList.contains('open'));
+    });
+    closeBtn.addEventListener('click', function () {
+      settings.classList.remove('open');
+      settingsBtn.classList.remove('on');
+    });
+    // 执行面板 Tab 切换
+    var tabBtns = document.querySelectorAll('.exec-tabs button');
+    tabBtns.forEach(function (b) {
+      b.addEventListener('click', function () {
+        tabBtns.forEach(function (x) { x.classList.remove('on'); });
+        b.classList.add('on');
+        document.querySelectorAll('.exec-pane').forEach(function (p) {
+          p.classList.toggle('on', p.getAttribute('data-pane') === b.getAttribute('data-pane'));
+        });
+      });
+    });
+    // 设置分组导航切换（面板内容静态示例，仅切换高亮）
+    var navBtns = document.querySelectorAll('.snav-item');
+    navBtns.forEach(function (b) {
+      b.addEventListener('click', function () {
+        navBtns.forEach(function (x) { x.classList.remove('on'); });
+        b.classList.add('on');
+      });
+    });
+    // 轨迹折叠
+    document.querySelectorAll('.trace-item').forEach(function (item) {
+      item.querySelector('.trace-bar').addEventListener('click', function () {
+        item.classList.toggle('open');
+        item.querySelector('.trace-chev').classList.toggle('open');
+      });
+    });
+  })();
+</script>
+</body>
+</html>

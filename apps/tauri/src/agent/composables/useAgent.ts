@@ -5,6 +5,16 @@
  */
 import { useAgentRust } from './useAgentRust'
 
+// re-export 共享类型（与 useAgentRust 一致，供依赖这些类型的组件使用）
+export type {
+  ChatMode,
+  InteractiveToolType,
+  ToolCallView,
+  PhaseOutput,
+  FinalOutput,
+  DeepSegment,
+} from '@worldsmith/shared-composables/agent/useAgent'
+
 export function useAgent() {
   return useAgentRust()
 }

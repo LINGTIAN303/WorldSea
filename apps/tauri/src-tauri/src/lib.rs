@@ -5,17 +5,13 @@
 // 批次97：窗口层体验——窗口状态记忆（位置/大小持久化）+ 系统托盘（后台长任务不中断）
 // + 关闭即最小化到托盘（托盘菜单「退出」才是真正退出）。
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use agent_commands::{
     AgentCommandService, LongTaskRepository, LoopControlRegistry, SqliteSessionRepository,
     SqliteSubAgentSpecStore, TerminalService,
 };
-use tauri::{
-    menu::{Menu, MenuItem},
-    tray::TrayIconBuilder,
-    Manager,
-};
+use tauri::Manager;
 
 mod commands;
 // Phase A 迁移：内容插件数据落盘（FileStorageBackend 依赖的 fs 命令）
@@ -26,17 +22,50 @@ mod fs_watch_commands;
 mod project_commands;
 // 实体/关系/KV/文件命令（TauriStorageBackend fallback 用，SQLite 全局库）
 mod entity_commands;
+// 系统层集成：托盘（完整菜单 + 状态同步 + 事件桥）
+mod tray;
+// 系统层集成：通知 / 开机自启命令
+mod system;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // 单实例：防多开，二次启动聚焦已有主窗口（须最先注册）
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            tray::show_main_window(app);
+        }))
         // 窗口状态记忆：恢复上次窗口位置/大小（桌面应用基础体验，批次97 P1-1）
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_opener::init())
+        // 系统通知：Agent 长任务完成/失败等（前端 cmd_notify 触发）
+        .plugin(tauri_plugin_notification::init())
+        // 全局快捷键：Ctrl+Shift+W 唤起/隐藏主窗口
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, shortcut, event| {
+                    use tauri_plugin_global_shortcut::{Code, Modifiers, ShortcutState};
+                    if event.state == ShortcutState::Pressed
+                        && shortcut
+                            .matches(Modifiers::CONTROL | Modifiers::SHIFT, Code::KeyW)
+                    {
+                        tray::toggle_main_window(app);
+                    }
+                })
+                .build(),
+        )
+        // 开机自启：设置面板 cmd_autostart_* 控制
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec!["--autostart"]),
+        ))
+        // 托盘动态状态（前端命令回写）
+        .manage(Mutex::new(tray::TrayState::default()))
         .invoke_handler(tauri::generate_handler![
             commands::new_session,
             commands::list_sessions,
             commands::delete_session,
+            commands::update_session_title,
+            commands::set_session_pinned,
             commands::memory_list,
             commands::memory_recall,
             commands::memory_archive,
@@ -134,6 +163,12 @@ pub fn run() {
             entity_commands::cmd_update_file,
             entity_commands::cmd_delete_file,
             entity_commands::cmd_get_file_content,
+            // 系统层集成：托盘状态同步 / 系统通知 / 开机自启
+            tray::cmd_tray_set_recent_projects,
+            tray::cmd_tray_set_agent_state,
+            system::cmd_notify,
+            system::cmd_autostart_is_enabled,
+            system::cmd_autostart_set_enabled,
         ])
         // Phase 5.1：Agent 命令服务（内部持有 session_id -> Arc<AgentLoop> 映射）
         // 终端服务（独立持有 ShellSessionManager，供前端直接调用终端命令）
@@ -146,6 +181,13 @@ pub fn run() {
             {
                 let window = app.get_webview_window("main").unwrap();
                 window.open_devtools();
+            }
+            // 无边框窗口兜底：tauri.conf.json 的 decorations:false 在增量编译缓存下
+            // 可能未编译进二进制（首次实测出现双标题栏），窗口创建后运行时再强制一次。
+            if let Some(window) = app.get_webview_window("main") {
+                if window.is_decorated().unwrap_or(true) {
+                    let _ = window.set_decorations(false);
+                }
             }
 
             // Loop Control 注册表：单独 manage 供 cmd_loop_control_* 命令使用，
@@ -207,9 +249,9 @@ pub fn run() {
             });
             app.manage(entity_db);
 
-            // 系统托盘（批次97 P1-3）：托盘菜单「显示主窗口 / 退出」。
+            // 系统托盘（tray.rs）：完整菜单（显示/新建/最近项目/Agent/设置/状态/退出）。
             // 构建失败（如无图标）不阻塞启动，仅记录——关闭行为将回退为直接退出。
-            let tray_active = match build_tray(app.handle()) {
+            let tray_active = match tray::build_tray(app.handle()) {
                 Ok(_tray) => true,
                 Err(e) => {
                     tracing::warn!("托盘初始化失败（关闭窗口将直接退出）: {e}");
@@ -217,6 +259,12 @@ pub fn run() {
                 }
             };
             app.manage(TrayActive(tray_active));
+
+            // 全局快捷键注册（Ctrl+Shift+W 唤起/隐藏主窗口）
+            use tauri_plugin_global_shortcut::GlobalShortcutExt;
+            if let Err(e) = app.global_shortcut().register("Ctrl+Shift+W") {
+                tracing::warn!("全局快捷键 Ctrl+Shift+W 注册失败: {e}");
+            }
 
             Ok(())
         })
@@ -237,48 +285,3 @@ pub fn run() {
 
 /** 托盘是否激活：决定关闭窗口是「最小化到托盘」还是「直接退出」 */
 struct TrayActive(bool);
-
-/** 构建系统托盘（显示主窗口 / 退出两项菜单） */
-fn build_tray<R: tauri::Runtime>(
-    app: &tauri::AppHandle<R>,
-) -> tauri::Result<tauri::tray::TrayIcon<R>> {
-    let show = MenuItem::with_id(app, "show", "显示主窗口", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "退出 WorldSmith", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&show, &quit])?;
-    let icon = app
-        .default_window_icon()
-        .cloned()
-        .expect("窗口默认图标缺失");
-    TrayIconBuilder::new()
-        .icon(icon)
-        .tooltip("WorldSmith — 世界观构建工具")
-        .menu(&menu)
-        .show_menu_on_left_click(false)
-        .on_tray_icon_event(|tray, event| {
-            // 左键单击托盘图标 → 显示主窗口（批次99 P2：单击/双击均有反应，避免"托盘失效"错觉）
-            if let tauri::tray::TrayIconEvent::Click {
-                button: tauri::tray::MouseButton::Left,
-                button_state: tauri::tray::MouseButtonState::Up,
-                ..
-            } = event
-            {
-                if let Some(w) = tray.app_handle().get_webview_window("main") {
-                    w.show().ok();
-                    w.unminimize().ok();
-                    w.set_focus().ok();
-                }
-            }
-        })
-        .on_menu_event(|app, event| match event.id.as_ref() {
-            "show" => {
-                if let Some(w) = app.get_webview_window("main") {
-                    w.show().ok();
-                    w.unminimize().ok();
-                    w.set_focus().ok();
-                }
-            }
-            "quit" => app.exit(0),
-            _ => {}
-        })
-        .build(app)
-}

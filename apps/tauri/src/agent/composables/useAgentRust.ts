@@ -30,6 +30,8 @@ import type {
   ChatMode,
   PromptOptions,
   A2UIMessage,
+  MCPConnectionConfig,
+  MCPConnectionState,
 } from '@agent/index'
 import type { DeepSegment } from '@worldsmith/shared-composables/agent/useAgent'
 
@@ -96,6 +98,8 @@ interface RustSessionInfo {
   id: string
   created_at: number
   message_count: number
+  title: string
+  pinned: boolean
 }
 
 /** Rust `agent_runtime::types::OrchestratorMessage` 镜像 */
@@ -123,6 +127,7 @@ interface RustSendMessageResult {
   session_id: string
   reply: string
   state: RustStateSnapshot
+  usage?: { input_tokens: number; output_tokens: number }
 }
 
 /** Rust `agent_commands::ProviderConfig` 镜像 */
@@ -203,6 +208,27 @@ const isInitialized = ref(true)
 /** 当前思考级别（深度模式：off/minimal/low/medium/high/xhigh），供对话页头部选择器展示 */
 const thinkingLevel = ref<ThinkingLevel>('off')
 
+/** 会话累计用量（由 send_message 响应 usage 累加，供用量面板） */
+interface UsageAggregate {
+  requestCount: number
+  inputTokens: number
+  outputTokens: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
+  totalCost: number
+  savedByCache: number
+}
+
+const totalUsage = ref<UsageAggregate>({
+  requestCount: 0,
+  inputTokens: 0,
+  outputTokens: 0,
+  cacheReadTokens: 0,
+  cacheWriteTokens: 0,
+  totalCost: 0,
+  savedByCache: 0,
+})
+
 /** 事件订阅者集合（subscribe 注册，dispose / 触发时分发） */
 const listeners = new Set<AgentEventListener>()
 
@@ -211,6 +237,12 @@ const sessionMessagesCache = new Map<string, AgentMessage[]>()
 
 /** 深度模式段（thinking | phase），由 Rust DeepPhaseChanged 事件驱动构建 */
 const deepSegments = ref<DeepSegment[]>([])
+
+/** 深度模式最终输出（占位：Rust 端经消息 content 返回，与 web 版一致暂未接通） */
+const finalOutput = ref<unknown>(null)
+
+/** 工具确认（占位：Rust 端工具调用自动执行，无需前端确认） */
+function resolveToolConfirmation(): void {}
 
 /** 深度阶段事件监听器清理函数（按 sessionId 索引，切换/删除会话时清理） */
 const deepPhaseUnlistenFns = new Map<string, UnlistenFn>()
@@ -747,6 +779,67 @@ async function deleteSession(sessionId: string): Promise<void> {
   await refreshSessionList()
 }
 
+/** 重命名会话标题（写穿 Rust SQLite，随后刷新列表） */
+async function updateSessionTitle(sessionId: string, title: string): Promise<void> {
+  await invoke('update_session_title', { sessionId, title })
+  await refreshSessionList()
+}
+
+/** 设置会话固定状态（写穿 Rust SQLite，随后刷新列表） */
+async function setSessionPinned(sessionId: string, pinned: boolean): Promise<void> {
+  await invoke('set_session_pinned', { sessionId, pinned })
+  await refreshSessionList()
+}
+
+// ─── MCP 连接（本地持久化；Rust 端暂无 MCP 后端，配置可管理，真实连接待后端支持）───
+
+/** MCP 配置存储 key（与 shared-composables useMcpConnections 同 key，保持一致） */
+const MCP_STORAGE_KEY = 'agent_mcp_connections'
+
+function loadMcpFromStorage(): MCPConnectionConfig[] {
+  try {
+    const raw = localStorage.getItem(MCP_STORAGE_KEY)
+    return raw ? (JSON.parse(raw) as MCPConnectionConfig[]) : []
+  } catch {
+    return []
+  }
+}
+
+function saveMcpToStorage(configs: MCPConnectionConfig[]): void {
+  try {
+    localStorage.setItem(MCP_STORAGE_KEY, JSON.stringify(configs))
+  } catch {}
+}
+
+function toMcpState(config: MCPConnectionConfig): MCPConnectionState {
+  return {
+    id: config.id,
+    config,
+    status: config.enabled ? 'connected' : 'disconnected',
+    tools: [],
+  }
+}
+
+/** MCP 连接状态列表（读自 localStorage，映射为 MCPConnectionState） */
+function getMCPConnections(): MCPConnectionState[] {
+  return loadMcpFromStorage().map(toMcpState)
+}
+
+/** 添加/更新 MCP 连接（写 localStorage，幂等） */
+async function addMCPConnection(config: MCPConnectionConfig): Promise<void> {
+  const list = loadMcpFromStorage()
+  const idx = list.findIndex((c) => c.id === config.id)
+  if (idx >= 0) list[idx] = config
+  else list.push(config)
+  saveMcpToStorage(list)
+}
+
+/** 移除 MCP 连接（写 localStorage） */
+async function removeMCPConnection(serverId: string): Promise<void> {
+  const list = loadMcpFromStorage().filter((c) => c.id !== serverId)
+  saveMcpToStorage(list)
+}
+
 /** 切换会话（加载该会话的消息历史） */
 async function switchSession(sessionId: string): Promise<void> {
   // 清理旧会话的深度阶段与 A2UI 监听，切换到新会话
@@ -839,6 +932,16 @@ async function prompt(text: string, options?: PromptOptions): Promise<void> {
     const streamed = lastStreamedMsg.value
     lastStreamedMsg.value = null
     streamingAssistant.value = null
+
+    // 累计用量（send_message 响应携带会话累计 input/output tokens）
+    if (result.usage) {
+      totalUsage.value = {
+        ...totalUsage.value,
+        requestCount: totalUsage.value.requestCount + 1,
+        inputTokens: result.usage.input_tokens,
+        outputTokens: result.usage.output_tokens,
+      }
+    }
 
     let assistantMsg: AgentMessage
     if (streamed) {
@@ -1083,10 +1186,20 @@ export function useAgentRust() {
     newSession,
     listSessions,
     deleteSession,
+    updateSessionTitle,
+    setSessionPinned,
     switchSession,
     sessionTitle,
     currentSessionId,
     sessionList,
+
+    // ── MCP 连接（本地管理，供设置面板 McpPanel 使用）──
+    getMCPConnections,
+    addMCPConnection,
+    removeMCPConnection,
+
+    // ── 用量（设置面板 UsagePanel 依赖）──
+    totalUsage,
 
     // ── 消息 ──
     messages,
@@ -1096,6 +1209,8 @@ export function useAgentRust() {
 
     // ── 深度模式段（DeepProcessPanel 依赖）──
     deepSegments,
+    finalOutput,
+    resolveToolConfirmation,
 
     // ── A2UI（A2UIRenderer 依赖）──
     a2uiSurfaces,

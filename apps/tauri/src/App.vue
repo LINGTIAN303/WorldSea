@@ -2,14 +2,19 @@
 import { onMounted } from 'vue'
 import Shell from './ui/layout/Shell.vue'
 import AgentWorkspace from './agent/AgentWorkspace.vue'
+import AgentSpace from './space/AgentSpace.vue'
 import { usePluginStore } from '@worldsmith/entity-core'
 import { useUIStore } from './stores/uiStore'
 import { useTheme } from './components/ui/useTheme'
 import { bootstrapPlugins } from './plugins/bootstrap'
 import { useProjectSwitcher } from './composables/useProjectSwitcher'
+import { useSystemBridge } from './composables/useSystemBridge'
 
-// 主题初始化：Shell 与 AgentWorkspace 共用（三态）
+// 主题初始化：Shell 与 AgentWorkspace 共用（三态；components/ui/useTheme 已内置
+// 跟随系统——preference 'system' 默认态 + matchMedia 实时监听，无需额外实现）
 const { theme: themeMode, apply: applyTheme } = useTheme()
+// 系统层桥：托盘事件监听 + 状态同步（App 启动时 setup，幂等）
+const { setup: setupSystemBridge } = useSystemBridge()
 
 const pluginStore = usePluginStore()
 const uiStore = useUIStore()
@@ -26,7 +31,7 @@ onMounted(async () => {
   } catch (err) {
     console.error('[App] 项目系统初始化失败:', err)
   }
-  // 注册 Agent 工作台视图到 Shell 侧栏（首项，默认选中）
+  // 注册 Agent 工作台视图到 Shell 侧栏（首项，默认选中；workbench 壳内使用）
   pluginStore.registerView({
     id: 'agent',
     label: 'Agent',
@@ -46,11 +51,15 @@ onMounted(async () => {
     uiStore.setView('agent')
     uiStore.viewComponent = AgentWorkspace
   }
+  // 系统层桥初始化：托盘事件监听 + 最近项目同步（异步，不阻塞启动）
+  void setupSystemBridge()
 })
 </script>
 
 <template>
-  <Shell />
+  <!-- 平级切换：space=Agent 聊天空间 / workbench=插件工作台（uiStore.currentShell 持久化） -->
+  <AgentSpace v-if="uiStore.currentShell === 'space'" />
+  <Shell v-else />
 </template>
 
 <style>

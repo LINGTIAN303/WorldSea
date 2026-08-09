@@ -52,6 +52,10 @@ pub struct SessionInfo {
     pub id: String,
     pub created_at: u64,
     pub message_count: u32,
+    /// 会话标题（默认「新会话」，可经 update_session_title 重命名）
+    pub title: String,
+    /// 是否固定到列表顶部
+    pub pinned: bool,
 }
 
 /// 发送消息参数
@@ -85,6 +89,15 @@ pub struct SendMessageResult {
     pub session_id: String,
     pub reply: String,
     pub state: AgentStateSnapshot,
+    /// 会话累计用量（input/output tokens，供前端用量面板）
+    pub usage: SessionUsageSummary,
+}
+
+/// 会话累计用量摘要（Tauri 序列化用）
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct SessionUsageSummary {
+    pub input_tokens: u64,
+    pub output_tokens: u64,
 }
 
 /// 更新模型参数
@@ -398,6 +411,8 @@ impl AgentCommandService {
             id: id.clone(),
             created_at: Self::now(),
             message_count: 0,
+            title: "新会话".into(),
+            pinned: false,
         };
         self.sessions.lock().await.insert(id.clone(), agent);
         self.subagent_managers
@@ -413,6 +428,8 @@ impl AgentCommandService {
                 created_at: info.created_at,
                 message_count: 0,
                 updated_at: info.created_at,
+                title: "新会话".into(),
+                pinned: false,
             };
             if let Err(e) = store.save_session(&record).await {
                 tracing::warn!("持久化新会话失败（仅内存生效）: {e}");
@@ -475,6 +492,8 @@ impl AgentCommandService {
                 id: record.id.clone(),
                 created_at: record.created_at,
                 message_count: record.message_count,
+                title: record.title.clone(),
+                pinned: record.pinned,
             };
             self.meta.lock().await.insert(record.id.clone(), info.clone());
             restored.push(info);
@@ -519,6 +538,52 @@ impl AgentCommandService {
             sessions.get(session_id).cloned()
         };
         Ok(agent.map(|a| a.memory()).flatten())
+    }
+
+    /// 重命名会话标题（更新内存 meta + 写穿持久化存储）
+    pub async fn update_session_title(
+        &self,
+        session_id: &str,
+        title: &str,
+    ) -> Result<(), CommandError> {
+        let title = title.trim();
+        if title.is_empty() {
+            return Err(CommandError::InvalidArgument("标题不能为空".into()));
+        }
+        {
+            let mut meta = self.meta.lock().await;
+            let Some(info) = meta.get_mut(session_id) else {
+                return Err(CommandError::session_not_found(session_id));
+            };
+            info.title = title.to_string();
+        }
+        if let Some(store) = &self.session_store {
+            if let Err(e) = store.update_title(session_id, title).await {
+                tracing::warn!("持久化会话标题失败: {e}");
+            }
+        }
+        Ok(())
+    }
+
+    /// 设置会话固定状态（更新内存 meta + 写穿持久化存储）
+    pub async fn set_session_pinned(
+        &self,
+        session_id: &str,
+        pinned: bool,
+    ) -> Result<(), CommandError> {
+        {
+            let mut meta = self.meta.lock().await;
+            let Some(info) = meta.get_mut(session_id) else {
+                return Err(CommandError::session_not_found(session_id));
+            };
+            info.pinned = pinned;
+        }
+        if let Some(store) = &self.session_store {
+            if let Err(e) = store.set_pinned(session_id, pinned).await {
+                tracing::warn!("持久化会话固定状态失败: {e}");
+            }
+        }
+        Ok(())
     }
 
     // ── 会话级记忆（阶段 4：前端 ArchivePanel 迁移后端）────────────────
@@ -618,10 +683,16 @@ impl AgentCommandService {
         }
         // 写穿消息快照到持久化存储
         self.persist_messages(&params.session_id).await;
+        // 读取会话累计用量
+        let usage = agent.get_usage().await;
         Ok(SendMessageResult {
             session_id: params.session_id,
             reply,
             state,
+            usage: SessionUsageSummary {
+                input_tokens: usage.input_tokens,
+                output_tokens: usage.output_tokens,
+            },
         })
     }
 
