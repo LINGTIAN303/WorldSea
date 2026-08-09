@@ -8,7 +8,7 @@
           :class="['theme-editor__tab', { 'theme-editor__tab--active': activeTab === tab.id }]"
           @click="activeTab = tab.id"
         >
-          <TuiIcon :name="tab.icon" :size="14" /> {{ tab.label }}
+          <WsIcon :name="tab.icon" :size="14" :stroke-width="1.7" /> {{ tab.label }}
         </button>
       </div>
       <div class="theme-editor__content">
@@ -22,7 +22,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import TuiIcon from '@/components/ui/TuiIcon.vue'
+import { WsIcon } from '@worldsmith/ui-kit'
 import TuiModal from '@/components/ui/TuiModal.vue'
 import ThemeEditorQuick from './ThemeEditorQuick.vue'
 import ThemeEditorPro from './ThemeEditorPro.vue'

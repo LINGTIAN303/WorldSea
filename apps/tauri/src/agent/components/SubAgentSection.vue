@@ -2,7 +2,7 @@
 /** SubAgentSection：子 Agent 委派过程展示（running/completed/error 三态），详细见 docs/details/注释/tauri/SubAgentSection.md */
 import { ref, computed } from 'vue'
 import { useAgentRust, type SubAgentState } from '../composables/useAgentRust'
-import TuiIcon from '../../components/ui/TuiIcon.vue'
+import { WsIcon } from '@worldsmith/ui-kit'
 import RunningDuration from './RunningDuration.vue'
 
 const backend = useAgentRust()
@@ -49,7 +49,7 @@ function isLong(text: string, threshold = 120): boolean {
     <!-- 顶部状态栏 -->
     <div class="bar">
       <span class="bar-title">
-        <TuiIcon name="subagent" :size="13" />
+        <WsIcon name="subagent" :size="13" :stroke-width="1.7" />
         子 Agent 委派
       </span>
       <span v-if="runningCount" class="chip running">
@@ -64,7 +64,7 @@ function isLong(text: string, threshold = 120): boolean {
         :aria-expanded="!collapsed"
         @click="collapsed = !collapsed"
       >
-        <TuiIcon :name="collapsed ? 'chevronRight' : 'chevronDown'" :size="14" />
+        <WsIcon :name="collapsed ? 'chevron-right' : 'chevron-down'" :size="14" :stroke-width="1.7" />
       </button>
     </div>
 

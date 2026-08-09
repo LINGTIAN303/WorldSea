@@ -7,7 +7,7 @@
  * 详细why请见 docs/details/注释/tauri/components/TuiToast.md
  */
 import { useTuiToast } from './useTuiToast'
-import TuiIcon from './TuiIcon.vue'
+import { WsIcon } from '@worldsmith/ui-kit'
 
 const { toasts, dismiss } = useTuiToast()
 
@@ -25,10 +25,10 @@ const ICONS: Record<string, string> = {
     <div class="tui-toast" role="status" aria-live="polite">
       <TransitionGroup name="tui-toast">
         <div v-for="t in toasts" :key="t.id" class="tui-toast__item" :class="`is-${t.type}`">
-          <span class="tui-toast__icon"><TuiIcon :name="ICONS[t.type]" :size="13" /></span>
+          <span class="tui-toast__icon"><WsIcon :name="ICONS[t.type]" :size="13" :stroke-width="1.7" /></span>
           <span class="tui-toast__msg">{{ t.msg }}</span>
           <button class="tui-toast__close" aria-label="关闭" @click="dismiss(t.id)">
-            <TuiIcon name="close" :size="12" />
+            <WsIcon name="close" :size="12" :stroke-width="1.7" />
           </button>
         </div>
       </TransitionGroup>

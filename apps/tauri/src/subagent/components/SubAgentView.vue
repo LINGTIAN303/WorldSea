@@ -7,7 +7,7 @@ import { subagentTemplates, type SubAgentTemplate } from '../templates'
 import TuiModal from '../../components/ui/TuiModal.vue'
 import TuiConfirm from '../../components/ui/TuiConfirm.vue'
 import TuiButton from '../../components/ui/TuiButton.vue'
-import TuiIcon from '../../components/ui/TuiIcon.vue'
+import { WsIcon } from '@worldsmith/ui-kit'
 import TuiEmpty from '../../components/ui/TuiEmpty.vue'
 import { useTuiToast } from '../../components/ui/useTuiToast'
 
@@ -475,7 +475,7 @@ onMounted(async () => {
               @click="openTplMenu()"
             >
               模板
-              <TuiIcon name="chevronDown" :size="12" :stroke-width="2" />
+              <WsIcon name="chevron-down" :size="12" :stroke-width="2" />
             </TuiButton>
             <!-- 过渡与 TuiSelect 菜单同一语言（批次90 4.4） -->
             <Transition name="tui-select">

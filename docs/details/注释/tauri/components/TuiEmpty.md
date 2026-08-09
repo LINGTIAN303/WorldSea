@@ -10,7 +10,7 @@
 
 | prop | 类型 | 默认 | 说明 |
 |------|------|------|------|
-| icon | string | 'info' | 图标名（TuiIcon 集合） |
+| icon | string | 'info' | 图标名（WsIcon 集合） |
 | title | string | '' | 主文案 |
 | hint | string | '' | 副文案（纯文本） |
 | compact | boolean | false | 窄面板/列表内嵌：徽标 40px、间距收紧 |

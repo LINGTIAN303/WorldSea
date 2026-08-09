@@ -7,35 +7,35 @@
         class="exec-tab"
         :class="{ on: tab === 'trace' }"
         @click="emit('update:tab', 'trace')"
-      ><TuiIcon name="activity" size="sm" />轨迹</button>
+      ><WsIcon name="activity" size="sm" :stroke-width="1.7" />轨迹</button>
       <button
         role="tab"
         :aria-selected="tab === 'activity'"
         class="exec-tab"
         :class="{ on: tab === 'activity' }"
         @click="emit('update:tab', 'activity')"
-      ><TuiIcon name="chart" size="sm" />活动</button>
+      ><WsIcon name="chart" size="sm" :stroke-width="1.7" />活动</button>
       <button
         role="tab"
         :aria-selected="tab === 'plan'"
         class="exec-tab"
         :class="{ on: tab === 'plan' }"
         @click="emit('update:tab', 'plan')"
-      ><TuiIcon name="task" size="sm" />计划</button>
+      ><WsIcon name="task" size="sm" :stroke-width="1.7" />计划</button>
       <button
         role="tab"
         :aria-selected="tab === 'terminal'"
         class="exec-tab"
         :class="{ on: tab === 'terminal' }"
         @click="emit('update:tab', 'terminal')"
-      ><TuiIcon name="terminal" size="sm" />终端</button>
+      ><WsIcon name="terminal" size="sm" :stroke-width="1.7" />终端</button>
       <button
         role="tab"
         :aria-selected="tab === 'subagent'"
         class="exec-tab"
         :class="{ on: tab === 'subagent' }"
         @click="emit('update:tab', 'subagent')"
-      ><TuiIcon name="subagent" size="sm" />子Agent</button>
+      ><WsIcon name="subagent" size="sm" :stroke-width="1.7" />子Agent</button>
     </div>
     <div class="exec-body">
       <div v-show="tab === 'trace'" class="exec-pane" role="tabpanel">
@@ -65,7 +65,7 @@
  * 活动（ActivityLog）/ 计划（PlanPanel）/ 终端（TerminalView，工作台 Agent 视图迁入）/
  * 子Agent（SubAgentView 规格管理，工作台 Agent 视图迁入）。受控组件：tab 由父级（space-store.execTab）驱动。
  */
-import TuiIcon from '@/components/ui/TuiIcon.vue'
+import { WsIcon } from '@worldsmith/ui-kit'
 import PhaseSection from '@/agent/components/PhaseSection.vue'
 import SubAgentSection from '@/agent/components/SubAgentSection.vue'
 import ActivityLog from '@/agent/panels/ActivityLog.vue'

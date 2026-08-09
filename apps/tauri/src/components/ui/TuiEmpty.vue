@@ -4,11 +4,11 @@
  * 视觉语言与对话区空状态一致：bg-muted 圆角徽标 + accent 色弱化图标 + text-secondary 主文案 + text-muted 副文案。
  * 详细why请见 docs/details/注释/tauri/components/TuiEmpty.md
  */
-import TuiIcon from './TuiIcon.vue'
+import { WsIcon } from '@worldsmith/ui-kit'
 
 withDefaults(
   defineProps<{
-    /** 图标名（TuiIcon 集合） */
+    /** 图标名（WsIcon 集合） */
     icon?: string
     /** 主文案 */
     title?: string
@@ -26,7 +26,7 @@ withDefaults(
 <template>
   <div class="tui-empty" :class="{ compact, fill }">
     <div v-if="icon" class="tui-empty-mark">
-      <TuiIcon :name="icon" :size="compact ? 20 : 26" :stroke-width="1.5" />
+      <WsIcon :name="icon" :size="compact ? 20 : 26" :stroke-width="1.5" />
     </div>
     <p v-if="title" class="tui-empty-title">{{ title }}</p>
     <p v-if="hint" class="tui-empty-hint">{{ hint }}</p>

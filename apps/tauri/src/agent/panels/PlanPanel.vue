@@ -2,14 +2,14 @@
   <div class="plan-panel">
     <div class="panel-header">
       <h3 class="panel-title">任务计划</h3>
-      <button class="panel-close-btn" @click="emit('close')" title="关闭"><TuiIcon name="close" :size="14" /></button>
+      <button class="panel-close-btn" @click="emit('close')" title="关闭"><WsIcon name="close" :size="14" :stroke-width="1.7" /></button>
     </div>
     <div class="panel-body">
       <div class="plan-scroll-area">
         <div class="section-header" role="button" tabindex="0" :aria-expanded="planExpanded" @click="planExpanded = !planExpanded" @keydown.enter.prevent="planExpanded = !planExpanded" @keydown.space.prevent="planExpanded = !planExpanded">
           <span class="section-label">计划</span>
           <span v-if="planProgress.total > 0" class="section-meta">{{ planProgress.completed }}/{{ planProgress.total }}</span>
-          <TuiIcon name="chevronDown" :size="13" class="section-chevron" :class="{ collapsed: !planExpanded }" />
+          <WsIcon name="chevron-down" :size="13" class="section-chevron" :class="{ collapsed: !planExpanded }" :stroke-width="1.7" />
         </div>
         <div v-show="planExpanded">
           <div v-if="!planStore.hasPlan.value" class="panel-empty">暂无任务计划</div>
@@ -20,8 +20,8 @@
             :class="[`plan-${item.status}`]"
           >
             <span class="item-step" :class="`step-${item.status}`">
-              <TuiIcon v-if="item.status === 'completed'" name="check" :size="12" />
-              <TuiIcon v-else-if="item.status === 'skipped'" name="chevronRight" :size="12" />
+              <WsIcon v-if="item.status === 'completed'" name="check" :size="12" :stroke-width="1.7" />
+              <WsIcon v-else-if="item.status === 'skipped'" name="chevron-right" :size="12" :stroke-width="1.7" />
               <template v-else>{{ idx + 1 }}</template>
             </span>
             <div class="item-content">
@@ -41,7 +41,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { usePlanStore } from '@worldsmith/shared-composables/agent/usePlanStore'
-import TuiIcon from '../../components/ui/TuiIcon.vue'
+import { WsIcon } from '@worldsmith/ui-kit'
 
 const emit = defineEmits<{ close: [] }>()
 

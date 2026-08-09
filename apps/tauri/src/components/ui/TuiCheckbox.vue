@@ -6,7 +6,7 @@
  * --border-strong 描边、按压回弹）。支持 label / disabled。
  * 详细why请见 docs/details/注释/tauri/components/TuiCheckbox.md
  */
-import TuiIcon from './TuiIcon.vue'
+import { WsIcon } from '@worldsmith/ui-kit'
 
 const props = withDefaults(
   defineProps<{
@@ -40,14 +40,14 @@ function onChange() {
       @change="onChange"
     />
     <span class="tui-checkbox__box" aria-hidden="true">
-      <TuiIcon v-if="modelValue" name="check" :size="13" class="tui-checkbox__check" />
+      <WsIcon v-if="modelValue" name="check" :size="13" class="tui-checkbox__check" :stroke-width="1.7" />
     </span>
     <span v-if="label" class="tui-checkbox__label">{{ label }}</span>
   </label>
 </template>
 
 <script lang="ts">
-export default { components: { TuiIcon } }
+export default { components: { WsIcon } }
 </script>
 
 <style scoped>

@@ -8,7 +8,7 @@
  * 详细why请见 docs/details/注释/tauri/components/TuiSelect.md
  */
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
-import TuiIcon from './TuiIcon.vue'
+import { WsIcon } from '@worldsmith/ui-kit'
 
 export interface TuiSelectOption {
   value: string
@@ -136,7 +136,7 @@ watch(
       <span class="tui-select__value" :class="{ 'is-empty': !current() }">
         {{ current()?.label ?? placeholder }}
       </span>
-      <TuiIcon name="chevronDown" :size="14" class="tui-select__caret" />
+      <WsIcon name="chevron-down" :size="14" class="tui-select__caret" :stroke-width="1.7" />
     </button>
 
     <Transition name="tui-select">
@@ -153,7 +153,7 @@ watch(
           @mouseenter="activeIdx = i"
         >
           <span>{{ opt.label }}</span>
-          <TuiIcon v-if="opt.value === modelValue" name="check" :size="13" class="tui-select__check" />
+          <WsIcon v-if="opt.value === modelValue" name="check" :size="13" class="tui-select__check" :stroke-width="1.7" />
         </li>
       </ul>
     </Transition>

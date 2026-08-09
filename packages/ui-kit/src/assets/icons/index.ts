@@ -4,6 +4,7 @@ import { actionIcons } from './action'
 import { dataIcons } from './data'
 import { themeIcons } from './theme'
 import { categoryIcons } from './category'
+import { navIcons } from './nav'
 
 const icons: Record<string, IconDef> = {
   ...worldIcons,
@@ -11,6 +12,7 @@ const icons: Record<string, IconDef> = {
   ...dataIcons,
   ...themeIcons,
   ...categoryIcons,
+  ...navIcons,
 }
 
 export type IconName = keyof typeof icons

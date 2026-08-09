@@ -7,7 +7,7 @@
  * 详细why请见 docs/details/注释/tauri/components/TuiButton.md
  */
 import { computed } from 'vue'
-import TuiIcon from './TuiIcon.vue'
+import { WsIcon } from '@worldsmith/ui-kit'
 
 const props = withDefaults(
   defineProps<{
@@ -38,8 +38,8 @@ const cls = computed(() => [`is-${props.variant}`, `is-${props.size}`, { 'is-loa
     :title="title"
     @click="emit('click', $event)"
   >
-    <TuiIcon v-if="loading" name="dots" :size="size === 'sm' ? 12 : 14" class="tui-btn__spin" />
-    <TuiIcon v-else-if="icon" :name="icon" :size="size === 'sm' ? 13 : 15" />
+    <WsIcon v-if="loading" name="dots" :size="size === 'sm' ? 12 : 14" class="tui-btn__spin" :stroke-width="1.7" />
+    <WsIcon v-else-if="icon" :name="icon" :size="size === 'sm' ? 13 : 15" :stroke-width="1.7" />
     <span v-if="$slots.default" class="tui-btn__label"><slot /></span>
   </button>
 </template>

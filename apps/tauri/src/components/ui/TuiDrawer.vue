@@ -8,7 +8,7 @@
  * 详细why请见 docs/details/注释/tauri/components/TuiDrawer.md
  */
 import { ref, watch, onBeforeUnmount, nextTick } from 'vue'
-import TuiIcon from './TuiIcon.vue'
+import { WsIcon } from '@worldsmith/ui-kit'
 
 const props = withDefaults(
   defineProps<{
@@ -114,7 +114,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
             <h2 class="tui-drawer__title">{{ title }}</h2>
           </slot>
           <button v-if="closable" class="tui-drawer__close" aria-label="关闭" @click="emit('close')">
-            <TuiIcon name="close" :size="14" />
+            <WsIcon name="close" :size="14" :stroke-width="1.7" />
           </button>
         </header>
 

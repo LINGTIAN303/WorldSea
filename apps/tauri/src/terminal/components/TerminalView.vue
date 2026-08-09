@@ -3,7 +3,7 @@
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { useTerminalRust, type CommandOutput } from '../composables/useTerminalRust'
 import TuiButton from '../../components/ui/TuiButton.vue'
-import TuiIcon from '../../components/ui/TuiIcon.vue'
+import { WsIcon } from '@worldsmith/ui-kit'
 import TuiEmpty from '../../components/ui/TuiEmpty.vue'
 import { useTuiToast } from '../../components/ui/useTuiToast'
 
@@ -201,7 +201,7 @@ defineExpose({ clearOutput })
     <div class="terminal-main">
       <header class="bar">
         <span class="title">
-          <TuiIcon name="terminal" :size="15" />
+          <WsIcon name="terminal" :size="15" :stroke-width="1.7" />
           终端
         </span>
         <span class="hint" :title="activeSessionId || undefined">
@@ -257,7 +257,7 @@ defineExpose({ clearOutput })
           <div v-if="e.stderr" class="entry-out stderr pre">{{ e.stderr }}</div>
           <!-- 退出码：有结果才显示（执行中/无结果不打扰），成功 check / 失败 warning 弱提示 -->
           <div v-if="e.exitCode !== null" class="entry-exit" :class="e.exitCode === 0 ? 'ok' : 'err'">
-            <TuiIcon :name="e.exitCode === 0 ? 'check' : 'warning'" :size="11" />
+            <WsIcon :name="e.exitCode === 0 ? 'check' : 'warning'" :size="11" :stroke-width="1.7" />
             退出码 {{ e.exitCode }}
           </div>
         </div>
@@ -265,10 +265,10 @@ defineExpose({ clearOutput })
 
       <Transition name="fade">
         <div v-if="error" class="error" role="alert">
-          <TuiIcon name="warning" :size="14" />
+          <WsIcon name="warning" :size="14" :stroke-width="1.7" />
           <span>{{ error }}</span>
           <button class="error-dismiss" title="关闭" aria-label="关闭" @click="error = ''">
-            <TuiIcon name="close" :size="12" />
+            <WsIcon name="close" :size="12" :stroke-width="1.7" />
           </button>
         </div>
       </Transition>
@@ -319,7 +319,7 @@ defineExpose({ clearOutput })
             <span class="s-meta" :title="s.shell + ' · ' + s.cwd">{{ s.shell }} · {{ s.cwd }}</span>
           </button>
           <button class="destroy" title="销毁会话" aria-label="销毁会话" @click="destroySession(s.session_id)">
-            <TuiIcon name="trash" :size="13" />
+            <WsIcon name="trash" :size="13" :stroke-width="1.7" />
           </button>
         </li>
       </ul>

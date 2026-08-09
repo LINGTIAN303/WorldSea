@@ -21,7 +21,7 @@ import KnowledgeWall from './panels/KnowledgeWall.vue'
 import { useActivityLog } from './composables/useActivityLog'
 import type { KBEntry } from '@agent/kb/kb-store'
 // Tauri 端统一基础组件
-import TuiIcon from '../components/ui/TuiIcon.vue'
+import { WsIcon } from '@worldsmith/ui-kit'
 import TuiButton from '../components/ui/TuiButton.vue'
 import TuiSelect from '../components/ui/TuiSelect.vue'
 import TuiConfirm from '../components/ui/TuiConfirm.vue'
@@ -785,7 +785,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
     <!-- 左侧全局导航轨道 -->
     <nav class="rail">
       <div class="rail-logo" title="WorldSmith Agent">
-        <TuiIcon name="sparkle" :size="18" :stroke-width="2" />
+        <WsIcon name="sparkle" :size="18" :stroke-width="2" />
       </div>
       <div class="rail-nav">
         <button
@@ -797,7 +797,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
           :aria-current="view === item.key ? 'page' : undefined"
           @click="switchView(item.key)"
         >
-          <TuiIcon :name="item.icon" :size="20" />
+          <WsIcon :name="item.icon" :size="20" :stroke-width="1.7" />
           <span class="rail-label">{{ item.label }}</span>
         </button>
       </div>
@@ -810,10 +810,11 @@ function onGlobalKeydown(e: KeyboardEvent) {
         >
           <!-- 图标随偏好切换旋转淡入（三态：sun / moon / monitor，视觉事件反馈） -->
           <Transition name="theme-icon" mode="out-in">
-            <TuiIcon
+            <WsIcon
               :key="themePref"
               :name="themePref === 'dark' ? 'moon' : themePref === 'light' ? 'sun' : 'monitor'"
               :size="19"
+              :stroke-width="1.7"
             />
           </Transition>
         </button>
@@ -823,7 +824,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
           aria-label="模型配置"
           @click="showModelSettings = true; refreshCurrentModel()"
         >
-          <TuiIcon name="bulb" :size="20" />
+          <WsIcon name="bulb" :size="20" :stroke-width="1.7" />
         </button>
       </div>
     </nav>
@@ -863,7 +864,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
                   aria-label="会话栏"
                   @click="toggleLeftPanel('session')"
                 >
-                  <TuiIcon name="chat" :size="15" />
+                  <WsIcon name="chat" :size="15" :stroke-width="1.7" />
                 </button>
                 <button
                   class="panel-toggle"
@@ -872,7 +873,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
                   aria-label="知识墙"
                   @click="toggleLeftPanel('knowledge')"
                 >
-                  <TuiIcon name="book" :size="15" />
+                  <WsIcon name="book" :size="15" :stroke-width="1.7" />
                 </button>
                 <button
                   class="panel-toggle"
@@ -881,7 +882,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
                   aria-label="活动日志"
                   @click="toggleRightPanel('activity')"
                 >
-                  <TuiIcon name="file" :size="15" />
+                  <WsIcon name="file" :size="15" :stroke-width="1.7" />
                 </button>
                 <button
                   class="panel-toggle"
@@ -890,7 +891,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
                   aria-label="任务计划"
                   @click="toggleRightPanel('plan')"
                 >
-                  <TuiIcon name="check" :size="15" />
+                  <WsIcon name="check" :size="15" :stroke-width="1.7" />
                 </button>
               </div>
               <TuiButton
@@ -904,7 +905,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
                 {{ currentModel || '模型' }}
               </TuiButton>
               <div class="think-field" title="思考深度（深度模式开关）">
-                <TuiIcon name="sparkle" :size="13" class="think-icon" />
+                <WsIcon name="sparkle" :size="13" class="think-icon" :stroke-width="1.7" />
                 <TuiSelect
                   :model-value="thinkingLevel"
                   size="sm"
@@ -933,7 +934,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
                     :disabled="messages.length === 0"
                     @click="closeMore(); onClear()"
                   >
-                    <TuiIcon name="trash" :size="13" />
+                    <WsIcon name="trash" :size="13" :stroke-width="1.7" />
                     清空对话
                   </button>
                   <button
@@ -996,7 +997,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
             <!-- 拖拽悬停遮罩：弱提示虚线框 + accent 图标（视觉一致，批次95） -->
             <Transition name="fade">
               <div v-if="dragging" class="drop-overlay" aria-hidden="true">
-                <TuiIcon name="upload" :size="20" />
+                <WsIcon name="upload" :size="20" :stroke-width="1.7" />
                 <span>释放以附加文件</span>
               </div>
             </Transition>
@@ -1037,7 +1038,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
                       aria-label="复制全文"
                       @click.stop="copyMessage(m.content)"
                     >
-                      <TuiIcon name="copy" :size="12" />
+                      <WsIcon name="copy" :size="12" :stroke-width="1.7" />
                     </button>
                     <MessageContent :content="m.content" />
                   </div>
@@ -1046,20 +1047,20 @@ function onGlobalKeydown(e: KeyboardEvent) {
                   </div>
                 </div>
                 <div class="avatar user" title="你">
-                  <TuiIcon name="chat" :size="13" :stroke-width="2" />
+                  <WsIcon name="chat" :size="13" :stroke-width="2" />
                 </div>
               </template>
               <!-- 工具结果：全宽中性虚线框，不带角色头像 -->
               <template v-else-if="m.role === 'toolResult'">
                 <div class="tool-result">
-                  <span class="tool-tag"><TuiIcon name="wrench" :size="11" /> 工具结果</span>
+                  <span class="tool-tag"><WsIcon name="wrench" :size="11" :stroke-width="1.7" /> 工具结果</span>
                   <MessageContent :content="m.content" />
                 </div>
               </template>
               <!-- 助手消息：左侧头像 + 名称行 + 气泡 -->
               <template v-else>
                 <div class="avatar assistant" title="WorldSmith">
-                  <TuiIcon name="sparkle" :size="13" :stroke-width="2" />
+                  <WsIcon name="sparkle" :size="13" :stroke-width="2" />
                 </div>
                 <div class="msg-body">
                   <div class="msg-meta">
@@ -1076,7 +1077,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
                       aria-label="复制全文"
                       @click.stop="copyMessage(m.content)"
                     >
-                      <TuiIcon name="copy" :size="12" />
+                      <WsIcon name="copy" :size="12" :stroke-width="1.7" />
                     </button>
                     <MessageContent
                       v-if="m.content"
@@ -1106,7 +1107,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
                 aria-label="回到最新"
                 @click="jumpToBottom"
               >
-                <TuiIcon name="chevronDown" :size="16" />
+                <WsIcon name="chevron-down" :size="16" :stroke-width="1.7" />
               </button>
             </Transition>
           </div>
@@ -1131,10 +1132,10 @@ function onGlobalKeydown(e: KeyboardEvent) {
           <!-- 错误提示：淡入轻微下滑，关闭时淡出（弱提示不打断）；role=alert 播报键盘触发的失败（批次90 7.2） -->
           <Transition name="err-bar">
             <div v-if="error" class="error-bar" role="alert">
-              <TuiIcon name="warning" :size="14" />
+              <WsIcon name="warning" :size="14" :stroke-width="1.7" />
               <span>{{ error }}</span>
               <button class="error-dismiss" title="关闭" aria-label="关闭" @click="error = ''">
-                <TuiIcon name="close" :size="12" />
+                <WsIcon name="close" :size="12" :stroke-width="1.7" />
               </button>
             </div>
           </Transition>
@@ -1155,7 +1156,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
                   class="attach-chip"
                   :title="img.name"
                 >
-                  <TuiIcon name="image" :size="12" />
+                  <WsIcon name="image" :size="12" :stroke-width="1.7" />
                   <span class="attach-name">{{ img.name }}</span>
                   <button
                     class="attach-remove"
@@ -1163,7 +1164,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
                     :aria-label="`移除附件 ${img.name}`"
                     @click="removeImage(i)"
                   >
-                    <TuiIcon name="close" :size="10" />
+                    <WsIcon name="close" :size="10" :stroke-width="1.7" />
                   </button>
                 </span>
                 <span
@@ -1172,7 +1173,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
                   class="attach-chip"
                   :title="f.name"
                 >
-                  <TuiIcon name="file" :size="12" />
+                  <WsIcon name="file" :size="12" :stroke-width="1.7" />
                   <span class="attach-name">{{ f.name }}</span>
                   <button
                     class="attach-remove"
@@ -1180,7 +1181,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
                     :aria-label="`移除附件 ${f.name}`"
                     @click="removeFile(i)"
                   >
-                    <TuiIcon name="close" :size="10" />
+                    <WsIcon name="close" :size="10" :stroke-width="1.7" />
                   </button>
                 </span>
               </div>
@@ -1206,7 +1207,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
                   aria-label="清空输入"
                   @click="input = ''; autoResizeInput()"
                 >
-                  <TuiIcon name="close" :size="12" />
+                  <WsIcon name="close" :size="12" :stroke-width="1.7" />
                 </button>
               </Transition>
               <!-- 轮转提示：非交互，输入文本时隐藏；切换时淡入淡出 -->
@@ -1244,7 +1245,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
                     aria-label="停止生成"
                     @click="onStop"
                   >
-                    <TuiIcon name="stop" :size="13" />
+                    <WsIcon name="stop" :size="13" :stroke-width="1.7" />
                   </button>
                   <button
                     v-else
@@ -1254,7 +1255,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
                     aria-label="发送"
                     @click="send"
                   >
-                    <TuiIcon name="send" :size="14" :stroke-width="2" />
+                    <WsIcon name="send" :size="14" :stroke-width="2" />
                   </button>
                 </div>
               </div>

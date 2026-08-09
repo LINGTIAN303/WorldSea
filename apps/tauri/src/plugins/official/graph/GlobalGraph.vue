@@ -32,10 +32,10 @@
       class="g-wasm-notice"
       role="alert"
     >
-      <TuiIcon name="warning" size="14" class="g-wasm-notice__icon" />
+      <WsIcon name="warning" size="14" class="g-wasm-notice__icon" :stroke-width="1.7" />
       <span class="g-wasm-notice__text">WASM 图算法不可用，当前使用 JS 降级实现（无权 Dijkstra），路径结果可能不是最短路径。</span>
       <button class="g-wasm-notice__close" aria-label="关闭提示" @click="backendNoticeVisible = false">
-        <TuiIcon name="close" size="12" />
+        <WsIcon name="close" size="12" :stroke-width="1.7" />
       </button>
     </div>
 
@@ -74,7 +74,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
-import TuiIcon from '@/components/ui/TuiIcon.vue'
+import { WsIcon } from '@worldsmith/ui-kit'
 import Graph from 'graphology'
 import { useEntityStore, useRelationStore, entitySchemaRegistry, getNodeTypeInfo } from '@worldsmith/entity-core'
 import { useGraphData, type GraphNode, useTypeMapping, useGraphFilter, useGraphAlgorithms } from '@worldsmith/ui-kit'

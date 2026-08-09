@@ -6,7 +6,7 @@
  */
 import { ref, computed } from 'vue'
 import type { DeepSegment } from '@worldsmith/shared-composables/agent/useAgent'
-import TuiIcon from '../../components/ui/TuiIcon.vue'
+import { WsIcon } from '@worldsmith/ui-kit'
 
 const props = defineProps<{
   segments: DeepSegment[]
@@ -41,7 +41,7 @@ function toolState(status?: string): string {
       @keydown.enter="collapsed = !collapsed"
       @keydown.space.prevent="collapsed = !collapsed"
     >
-      <span class="phase-icon"><TuiIcon name="sparkle" :size="13" /></span>
+      <span class="phase-icon"><WsIcon name="sparkle" :size="13" :stroke-width="1.7" /></span>
       <span class="phase-title">执行过程</span>
       <span class="phase-status" role="status">
         <span v-if="activePhase" class="live-dot" />
@@ -49,7 +49,7 @@ function toolState(status?: string): string {
         <template v-else>{{ doneCount }} 个阶段完成</template>
       </span>
       <span class="phase-chevron">
-        <TuiIcon :name="collapsed ? 'chevronRight' : 'chevronDown'" :size="13" />
+        <WsIcon :name="collapsed ? 'chevron-right' : 'chevron-down'" :size="13" :stroke-width="1.7" />
       </span>
     </div>
     <!-- 阶段列表：外层 Transition 负责折叠过渡（v-show 在 TransitionGroup 上不生效，批次89 4.1 修复），
@@ -66,7 +66,7 @@ function toolState(status?: string): string {
           <span class="phase-label">{{ seg.label }}</span>
           <span class="phase-tools">
             <span v-for="t in seg.tools" :key="t.id" class="tool-chip" :class="toolState(t.status)">
-              <TuiIcon name="wrench" :size="10" />
+              <WsIcon name="wrench" :size="10" :stroke-width="1.7" />
               {{ t.name }}
             </span>
           </span>

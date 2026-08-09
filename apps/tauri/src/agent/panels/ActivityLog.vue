@@ -3,8 +3,8 @@
     <div class="panel-header">
       <h3 class="panel-title">活动日志</h3>
       <div class="panel-header-actions">
-        <button v-if="logs.length > 0" class="panel-action-btn" @click="clearLogs" title="清空"><TuiIcon name="trash" :size="14" /></button>
-        <button class="panel-close-btn" @click="emit('close')" title="关闭"><TuiIcon name="close" :size="14" /></button>
+        <button v-if="logs.length > 0" class="panel-action-btn" @click="clearLogs" title="清空"><WsIcon name="trash" :size="14" :stroke-width="1.7" /></button>
+        <button class="panel-close-btn" @click="emit('close')" title="关闭"><WsIcon name="close" :size="14" :stroke-width="1.7" /></button>
       </div>
     </div>
     <div class="panel-body">
@@ -13,7 +13,7 @@
         <div class="section-header" role="button" tabindex="0" :aria-expanded="genExpanded" @click="genExpanded = !genExpanded" @keydown.enter.prevent="genExpanded = !genExpanded" @keydown.space.prevent="genExpanded = !genExpanded">
           <span class="section-label">生成进度</span>
           <span class="section-meta">{{ activeTasks.length }} 项进行中</span>
-          <TuiIcon name="chevronDown" :size="13" class="section-chevron" :class="{ collapsed: !genExpanded }" />
+          <WsIcon name="chevron-down" :size="13" class="section-chevron" :class="{ collapsed: !genExpanded }" :stroke-width="1.7" />
         </div>
         <div v-show="genExpanded">
           <div
@@ -24,8 +24,8 @@
           >
             <div class="gen-card-top">
               <span class="gen-type-badge" :class="`badge-${task.type}`">
-                <TuiIcon v-if="task.type === 'image'" name="image" :size="12" />
-                <TuiIcon v-else name="video" :size="12" />
+                <WsIcon v-if="task.type === 'image'" name="image" :size="12" :stroke-width="1.7" />
+                <WsIcon v-else name="video" :size="12" :stroke-width="1.7" />
                 {{ task.type === 'image' ? '图片' : '视频' }}
               </span>
               <span class="gen-model-tag">{{ task.model }}</span>
@@ -50,7 +50,7 @@
       <!-- 历史日志区 -->
       <div v-if="logs.length === 0 && visibleGenTasks.length === 0" class="panel-empty">暂无活动记录</div>
       <div v-for="log in logs" :key="log.id" class="log-item" :class="`log-${log.type}`" role="button" tabindex="0" :aria-expanded="expandedId === log.id" @click="toggleDetail(log.id)" @keydown.enter.prevent="toggleDetail(log.id)" @keydown.space.prevent="toggleDetail(log.id)">
-        <span class="log-icon"><TuiIcon :name="getLogIcon(log.type)" :size="14" /></span>
+        <span class="log-icon"><WsIcon :name="getLogIcon(log.type)" :size="14" :stroke-width="1.7" /></span>
         <div class="log-content">
           <span class="log-message">{{ log.message }}</span>
           <span class="log-time">{{ formatTime(log.timestamp) }}</span>
@@ -63,7 +63,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import TuiIcon from '../../components/ui/TuiIcon.vue'
+import { WsIcon } from '@worldsmith/ui-kit'
 import { useActivityLog } from '../composables/useActivityLog'
 import { useGenerationProgress } from '@worldsmith/shared-composables/agent/useGenerationProgress'
 

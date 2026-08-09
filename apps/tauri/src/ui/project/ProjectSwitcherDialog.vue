@@ -12,7 +12,7 @@
           @keydown.enter="onCreateProject"
         />
         <button class="pm-create-btn-dir" :title="newProjectDir || '选择项目目录（可选）'" :aria-label="newProjectDir || '选择项目目录'" @click="onSelectNewProjectDir">
-          <TuiIcon :name="newProjectDir ? 'folder' : 'folderOpen'" :size="14" />
+          <WsIcon :name="newProjectDir ? 'folder' : 'folder-open'" :size="14" :stroke-width="1.7" />
         </button>
         <button class="pm-create-btn" :disabled="!newProjectName.trim() || creating" @click="onCreateProject">
           {{ creating ? '创建中...' : '新建' }}
@@ -50,21 +50,21 @@
             </template>
           </div>
           <div class="pm-item-meta">
-            <span v-if="project.dirPath" class="pm-folder-badge" :title="project.dirPath"><TuiIcon name="folder" :size="13" /></span>
+            <span v-if="project.dirPath" class="pm-folder-badge" :title="project.dirPath"><WsIcon name="folder" :size="13" :stroke-width="1.7" /></span>
             <span v-if="project.id === currentProjectId" class="pm-current-badge">当前</span>
             <span class="pm-item-date">{{ formatDate(project.lastOpenedAt) }}</span>
           </div>
           <div class="pm-item-actions" @click.stop>
-            <button v-if="!project.dirPath" class="pm-action-btn" title="绑定本地目录" @click="onBindDir(project)"><TuiIcon name="folderOpen" :size="14" /></button>
-            <button v-else class="pm-action-btn" title="取消目录绑定" @click="onUnbindDir(project)"><TuiIcon name="folderOpen" :size="14" /><TuiIcon name="close" :size="9" class="pm-action-btn__overlay" /></button>
-            <button v-if="project.id === currentProjectId" class="pm-action-btn" title="导出项目" @click="onExportProject"><TuiIcon name="upload" :size="14" /></button>
-            <button class="pm-action-btn" title="重命名" @click="onRenameStart(project)"><TuiIcon name="edit" :size="14" /></button>
+            <button v-if="!project.dirPath" class="pm-action-btn" title="绑定本地目录" @click="onBindDir(project)"><WsIcon name="folder-open" :size="14" :stroke-width="1.7" /></button>
+            <button v-else class="pm-action-btn" title="取消目录绑定" @click="onUnbindDir(project)"><WsIcon name="folder-open" :size="14" :stroke-width="1.7" /><WsIcon name="close" :size="9" class="pm-action-btn__overlay" :stroke-width="1.7" /></button>
+            <button v-if="project.id === currentProjectId" class="pm-action-btn" title="导出项目" @click="onExportProject"><WsIcon name="upload" :size="14" :stroke-width="1.7" /></button>
+            <button class="pm-action-btn" title="重命名" @click="onRenameStart(project)"><WsIcon name="edit" :size="14" :stroke-width="1.7" /></button>
             <button
               class="pm-action-btn pm-action-btn--danger"
               title="删除"
               :disabled="project.id === currentProjectId"
               @click="onDeleteProject(project)"
-            ><TuiIcon name="trash" :size="14" /></button>
+            ><WsIcon name="trash" :size="14" :stroke-width="1.7" /></button>
           </div>
         </div>
 
@@ -76,7 +76,7 @@
       <!-- 导入项目 -->
       <div class="pm-import">
         <button class="pm-import-btn" :disabled="importing" @click="onImportProject">
-          <TuiIcon name="download" :size="14" />
+          <WsIcon name="download" :size="14" :stroke-width="1.7" />
           {{ importing ? '导入中...' : '从文件夹导入项目' }}
         </button>
       </div>
@@ -87,7 +87,7 @@
 <script setup lang="ts">
 import { ref, computed, nextTick } from 'vue'
 import TuiModal from '@/components/ui/TuiModal.vue'
-import TuiIcon from '@/components/ui/TuiIcon.vue'
+import { WsIcon } from '@worldsmith/ui-kit'
 import { useProjectSwitcher } from '../../composables/useProjectSwitcher'
 import { exportProjectToDir, importProjectFromDir } from '../../core/ProjectFS'
 import { getProjectManager, setStorageProjectDir } from '@worldsmith/entity-core/core'

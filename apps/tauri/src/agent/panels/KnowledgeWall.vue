@@ -4,10 +4,10 @@
       <h3 class="panel-title">知识墙</h3>
       <div class="panel-header-actions">
         <div class="view-toggle">
-          <button class="toggle-btn" :class="{ active: viewMode === 'tree' }" @click="viewMode = 'tree'" title="树形视图"><TuiIcon name="tree" :size="14" /></button>
-          <button class="toggle-btn" :class="{ active: viewMode === 'card' }" @click="viewMode = 'card'" title="卡片视图"><TuiIcon name="grid" :size="14" /></button>
+          <button class="toggle-btn" :class="{ active: viewMode === 'tree' }" @click="viewMode = 'tree'" title="树形视图"><WsIcon name="tree" :size="14" :stroke-width="1.7" /></button>
+          <button class="toggle-btn" :class="{ active: viewMode === 'card' }" @click="viewMode = 'card'" title="卡片视图"><WsIcon name="grid" :size="14" :stroke-width="1.7" /></button>
         </div>
-        <button class="panel-close-btn" @click="emit('close')" title="关闭"><TuiIcon name="close" :size="14" /></button>
+        <button class="panel-close-btn" @click="emit('close')" title="关闭"><WsIcon name="close" :size="14" :stroke-width="1.7" /></button>
       </div>
     </div>
     <div class="panel-search">
@@ -26,7 +26,7 @@
       <template v-else-if="viewMode === 'tree'">
         <div v-for="group in treeGroups" :key="group.prefix" class="tree-group">
           <div class="tree-folder" role="button" tabindex="0" :aria-expanded="expandedFolders.has(group.prefix)" @click="toggleFolder(group.prefix)" @keydown.enter.prevent="toggleFolder(group.prefix)" @keydown.space.prevent="toggleFolder(group.prefix)">
-            <span class="folder-icon"><TuiIcon :name="expandedFolders.has(group.prefix) ? 'folderOpen' : 'folder'" :size="14" /></span>
+            <span class="folder-icon"><WsIcon :name="expandedFolders.has(group.prefix) ? 'folder-open' : 'folder'" :size="14" :stroke-width="1.7" /></span>
             <span class="folder-name">{{ group.prefix || '/' }}</span>
             <span class="folder-count">{{ group.entries.length }}</span>
           </div>
@@ -42,8 +42,8 @@
                 <div class="entry-header">
                   <span class="entry-scope">[{{ entry.scope }}]</span>
                   <span class="entry-path">{{ getFileName(entry.path) }}</span>
-                  <button class="entry-mount-btn" @click="mountToInput(entry, $event)" title="挂载到输入框"><TuiIcon name="paperclip" :size="13" /></button>
-                  <span class="entry-status"><TuiIcon :name="getStatusIcon(entry)" :size="13" /></span>
+                  <button class="entry-mount-btn" @click="mountToInput(entry, $event)" title="挂载到输入框"><WsIcon name="paperclip" :size="13" :stroke-width="1.7" /></button>
+                  <span class="entry-status"><WsIcon :name="getStatusIcon(entry)" :size="13" :stroke-width="1.7" /></span>
                 </div>
                 <div v-if="entry.summary" class="entry-summary">{{ entry.summary.slice(0, 80) }}</div>
                 <div v-if="entry.tags.length" class="entry-tags">
@@ -65,8 +65,8 @@
           <div class="card-header">
             <span class="card-scope">[{{ entry.scope }}]</span>
             <span class="card-path">{{ entry.path }}</span>
-            <button class="entry-mount-btn" @click="mountToInput(entry, $event)" title="挂载到输入框"><TuiIcon name="paperclip" :size="13" /></button>
-            <span class="card-status"><TuiIcon :name="getStatusIcon(entry)" :size="13" /></span>
+            <button class="entry-mount-btn" @click="mountToInput(entry, $event)" title="挂载到输入框"><WsIcon name="paperclip" :size="13" :stroke-width="1.7" /></button>
+            <span class="card-status"><WsIcon :name="getStatusIcon(entry)" :size="13" :stroke-width="1.7" /></span>
           </div>
           <div v-if="entry.summary" class="card-summary">{{ entry.summary.slice(0, 80) }}</div>
           <div class="card-meta">
@@ -80,7 +80,7 @@
     <div v-if="previewEntry" class="preview-panel">
       <div class="preview-header">
         <span class="preview-title">{{ previewEntry.path }}</span>
-        <button class="panel-close-btn" @click="previewEntry = null"><TuiIcon name="close" :size="14" /></button>
+        <button class="panel-close-btn" @click="previewEntry = null"><WsIcon name="close" :size="14" :stroke-width="1.7" /></button>
       </div>
       <div class="preview-scope">[{{ previewEntry.scope }}]</div>
       <div v-if="previewLoading" class="panel-empty">加载中...</div>
@@ -96,7 +96,7 @@
         <div class="kb-dialog">
           <div class="kb-dialog-header">
             <span class="kb-dialog-title">新增知识</span>
-            <button class="panel-close-btn" @click="showAddDialog = false"><TuiIcon name="close" :size="14" /></button>
+            <button class="panel-close-btn" @click="showAddDialog = false"><WsIcon name="close" :size="14" :stroke-width="1.7" /></button>
           </div>
           <div class="kb-dialog-body">
             <div class="kb-field">
@@ -135,7 +135,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import TuiIcon from '../../components/ui/TuiIcon.vue'
+import { WsIcon } from '@worldsmith/ui-kit'
 import { kbList, kbSearchKeyword, kbWrite, kbReadById } from '../kb/useKbRust'
 import type { KBEntry, KBScope } from '@agent/kb/kb-store'
 import { useActivityLog } from '../composables/useActivityLog'

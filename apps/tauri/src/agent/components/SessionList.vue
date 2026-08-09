@@ -9,7 +9,7 @@
  */
 import { ref, computed } from 'vue'
 import { useAgentRust } from '../composables/useAgentRust'
-import TuiIcon from '../../components/ui/TuiIcon.vue'
+import { WsIcon } from '@worldsmith/ui-kit'
 import TuiEmpty from '../../components/ui/TuiEmpty.vue'
 import { formatRelativeTime } from '../../components/ui/format'
 
@@ -84,13 +84,13 @@ const groups = computed(() => {
         <span v-if="sessions.length" class="panel-count">{{ sessions.length }}</span>
       </div>
       <button class="new" title="新建会话" aria-label="新建会话" @click="emit('create')">
-        <TuiIcon name="plus" :size="14" :stroke-width="2" />
+        <WsIcon name="plus" :size="14" :stroke-width="2" />
       </button>
     </div>
 
     <!-- 搜索（会话较多时） -->
     <div v-if="sessions.length > 3" class="search">
-      <TuiIcon name="search" :size="13" class="search-icon" />
+      <WsIcon name="search" :size="13" class="search-icon" :stroke-width="1.7" />
       <input
         v-model="keyword"
         type="text"
@@ -105,7 +105,7 @@ const groups = computed(() => {
         aria-label="清空搜索"
         @click="keyword = ''"
       >
-        <TuiIcon name="close" :size="11" />
+        <WsIcon name="close" :size="11" :stroke-width="1.7" />
       </button>
     </div>
 
@@ -133,7 +133,7 @@ const groups = computed(() => {
             </span>
           </button>
           <button class="del" title="删除会话" aria-label="删除会话" @click="emit('remove', s.id)">
-            <TuiIcon name="trash" :size="13" />
+            <WsIcon name="trash" :size="13" :stroke-width="1.7" />
           </button>
         </li>
       </ul>

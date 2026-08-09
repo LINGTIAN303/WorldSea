@@ -14,7 +14,7 @@ import {
 } from './useMemoryCenterRust'
 import TuiButton from '../../components/ui/TuiButton.vue'
 import TuiEmpty from '../../components/ui/TuiEmpty.vue'
-import TuiIcon from '../../components/ui/TuiIcon.vue'
+import { WsIcon } from '@worldsmith/ui-kit'
 import { formatDateTime } from '../../components/ui/format'
 
 const props = defineProps<{ sessionId: string | null }>()
@@ -181,7 +181,7 @@ onBeforeUnmount(() => {
         <!-- 归档边界并入头部（批次105 双横条合并）：弱信息，值以 accent 强调 -->
         <span class="mp-boundary" title="归档边界索引（缓冲轮次阈值）">边界 <span class="mp-boundary-val">{{ archiveBoundary }}</span></span>
         <div class="mp-search-wrap">
-          <TuiIcon name="search" :size="13" class="mp-search-icon" />
+          <WsIcon name="search" :size="13" class="mp-search-icon" :stroke-width="1.7" />
           <input
             v-model="keyword"
             class="mp-search"
@@ -196,7 +196,7 @@ onBeforeUnmount(() => {
             aria-label="清空检索"
             @click="keyword = ''"
           >
-            <TuiIcon name="close" :size="11" />
+            <WsIcon name="close" :size="11" :stroke-width="1.7" />
           </button>
         </div>
         <TuiButton class="mp-refresh-btn" variant="ghost" size="sm" @click="refreshList">刷新</TuiButton>
@@ -253,7 +253,7 @@ onBeforeUnmount(() => {
       <div v-if="view === 'detail'" key="detail" class="mp-view">
         <!-- 详情导航栏（批次109 恢复：批次105 删 .mp-bar 时误删详情视图样式，更名 .mp-detail-bar 区分） -->
         <div class="mp-detail-bar">
-          <TuiButton variant="ghost" size="sm" icon="arrowLeft" @click="backToList">返回</TuiButton>
+          <TuiButton variant="ghost" size="sm" icon="arrow-left" @click="backToList">返回</TuiButton>
           <span class="mp-detail-title">{{ activeMemory ? titleOf(activeMemory) : '' }}</span>
         </div>
 
