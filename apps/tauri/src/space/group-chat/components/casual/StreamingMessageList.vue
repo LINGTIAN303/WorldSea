@@ -60,8 +60,8 @@ const {
   color: var(--color-text-secondary); transition: background 0.2s, border-color 0.2s, color 0.2s, box-shadow 0.2s, transform 0.2s, opacity 0.2s, filter 0.2s;
 }
 .streaming-tool-tag.running { border-color: var(--color-primary); color: var(--color-primary); }
-.streaming-tool-tag.completed { border-color: rgba(16, 185, 129, 0.3); color: #10b981; }
-.streaming-tool-tag.failed { border-color: rgba(239, 68, 68, 0.3); color: #ef4444; }
+.streaming-tool-tag.completed { border-color: color-mix(in srgb, var(--success) 30%, transparent); color: var(--success); }
+.streaming-tool-tag.failed { border-color: color-mix(in srgb, var(--danger) 30%, transparent); color: var(--danger); }
 .tc-spin { animation: spin 1s linear infinite; }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 @keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }

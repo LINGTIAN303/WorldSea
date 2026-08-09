@@ -104,8 +104,8 @@ watch(expanded, (v) => { if (v) refresh() })
 .agent-stat-row { display: flex; align-items: center; gap: 6px; padding: 3px 0; font-size: var(--fs-xs); }
 .stat-name { font-weight: 600; min-width: 60px; }
 .stat-total { color: var(--color-text-secondary); }
-.stat-success { color: #10b981; }
-.stat-error { color: #ef4444; }
+.stat-success { color: var(--success); }
+.stat-error { color: var(--danger); }
 .stat-latency { color: var(--color-text-tertiary); font-size: var(--fs-2xs); }
 .empty-hint { font-size: var(--fs-2xs); color: var(--color-text-tertiary); padding: 8px 0; }
 
@@ -118,12 +118,12 @@ watch(expanded, (v) => { if (v) refresh() })
 .rec-name { font-weight: 600; min-width: 50px; }
 .rec-protocol { font-size: var(--fs-3xs); color: var(--color-primary); background: rgba(108,92,231,0.08); padding: 1px 4px; border-radius: var(--radius-2xs); }
 .rec-status { font-weight: 600; min-width: 24px; }
-.rec-status.success { color: #10b981; }
-.rec-status.error { color: #ef4444; }
+.rec-status.success { color: var(--success); }
+.rec-status.error { color: var(--danger); }
 .rec-status.pending { color: var(--color-primary); }
 .rec-latency { color: var(--color-text-tertiary); }
 .rec-time { color: var(--color-text-tertiary); margin-left: auto; }
-.rec-error { color: #ef4444; font-weight: 700; cursor: help; }
+.rec-error { color: var(--danger); font-weight: 700; cursor: help; }
 
 .monitor-actions { display: flex; gap: 6px; }
 .clear-btn, .refresh-btn { padding: 3px 10px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); font-size: var(--fs-2xs); cursor: pointer; background: var(--color-surface); color: var(--color-text-secondary); }

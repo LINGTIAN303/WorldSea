@@ -256,7 +256,7 @@ onBeforeUnmount(() => {
 .context-menu-item { padding: 8px 12px; font-size: var(--fs-sm); color: var(--color-text); cursor: pointer; border-radius: var(--radius-sm); transition: background 0.1s; }
 .context-menu-item:hover { background: var(--color-surface); }
 .context-menu-item.danger { color: var(--danger); }
-.context-menu-item.danger:hover { background: rgba(239, 68, 68, 0.1); }
+.context-menu-item.danger:hover { background: color-mix(in srgb, var(--danger) 10%, transparent); }
 
 .delete-confirm-overlay { position: fixed; inset: 0; background: var(--overlay); z-index: var(--z-modal); display: flex; align-items: center; justify-content: center; }
 .delete-confirm-dialog { background: var(--color-surface-elevated); border: 1px solid var(--color-border); border-radius: var(--radius-2xl); padding: 20px; min-width: 260px; box-shadow: 0 8px 24px rgba(0,0,0,0.2); }

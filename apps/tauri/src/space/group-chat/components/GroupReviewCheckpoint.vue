@@ -148,8 +148,8 @@ function onConfirmDirection(e?: KeyboardEvent) {
 }
 
 .stop-btn {
-  border-color: #ef4444;
-  color: #ef4444;
+  border-color: var(--danger);
+  color: var(--danger);
 }
 
 .direction-input-area {

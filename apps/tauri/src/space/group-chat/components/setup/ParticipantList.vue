@@ -204,7 +204,7 @@ function getFallbackChainDisplay(idx: number): { id: string; name: string; isCur
 }
 
 .pc-name.has-error {
-  color: #ef4444;
+  color: var(--danger);
 }
 
 .pc-role {
@@ -249,9 +249,9 @@ function getFallbackChainDisplay(idx: number): { id: string; name: string; isCur
 }
 
 .health-unknown { color: var(--color-text-tertiary); }
-.health-ok { color: #10b981; }
-.health-slow { color: #f59e0b; }
-.health-bad { color: #ef4444; }
+.health-ok { color: var(--success); }
+.health-slow { color: var(--warning); }
+.health-bad { color: var(--danger); }
 
 .pc-fallback-row {
   margin-top: 4px;
@@ -281,6 +281,6 @@ function getFallbackChainDisplay(idx: number): { id: string; name: string; isCur
   margin-top: 4px;
   margin-left: 40px;
   font-size: var(--fs-2xs);
-  color: #ef4444;
+  color: var(--danger);
 }
 </style>

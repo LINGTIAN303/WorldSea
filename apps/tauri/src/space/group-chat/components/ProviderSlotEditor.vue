@@ -460,13 +460,13 @@ for (const slot of profileStore.slots) {
 }
 
 .guide-tag.local {
-  background: color-mix(in srgb, #22c55e 15%, transparent);
-  color: #22c55e;
+  background: color-mix(in srgb, var(--success) 15%, transparent);
+  color: var(--success);
 }
 
 .guide-tag.custom {
-  background: color-mix(in srgb, #f59e0b 15%, transparent);
-  color: #f59e0b;
+  background: color-mix(in srgb, var(--warning) 15%, transparent);
+  color: var(--warning);
 }
 
 .guide-tip {
@@ -522,8 +522,8 @@ for (const slot of profileStore.slots) {
 }
 
 .btn-delete:hover {
-  color: #ef4444;
-  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
 }
 
 .entry-list {
@@ -579,8 +579,8 @@ for (const slot of profileStore.slots) {
 }
 
 .btn-remove-entry:hover {
-  background: rgba(239, 68, 68, 0.15);
-  color: #ef4444;
+  background: color-mix(in srgb, var(--danger) 15%, transparent);
+  color: var(--danger);
 }
 
 .add-entry-row {

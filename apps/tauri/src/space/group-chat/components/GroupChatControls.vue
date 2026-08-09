@@ -134,12 +134,12 @@ function onInject(e?: KeyboardEvent) {
 }
 
 .stop-btn {
-  border-color: #ef4444;
-  color: #ef4444;
+  border-color: var(--danger);
+  color: var(--danger);
 }
 
 .stop-btn:hover {
-  background: rgba(239, 68, 68, 0.1);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
 }
 
 .inject-area {

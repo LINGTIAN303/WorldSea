@@ -225,8 +225,8 @@ function schedulePersist(): void {
 .announcement-input:focus { border-color: var(--color-primary); }
 
 .danger-zone { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--color-border); }
-.danger-btn { width: 100%; padding: 8px; border: 1px solid rgba(239,68,68,0.3); border-radius: var(--radius-mid); background: rgba(239,68,68,0.05); color: #ef4444; cursor: pointer; font-size: var(--fs-sm); }
-.danger-btn:hover { background: rgba(239,68,68,0.1); }
+.danger-btn { width: 100%; padding: 8px; border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent); border-radius: var(--radius-mid); background: color-mix(in srgb, var(--danger) 5%, transparent); color: var(--danger); cursor: pointer; font-size: var(--fs-sm); }
+.danger-btn:hover { background: color-mix(in srgb, var(--danger) 10%, transparent); }
 
 .sync-mode-section { margin-bottom: 14px; }
 .sync-mode-desc { font-size: var(--fs-3xs); color: var(--color-text-tertiary); margin-top: 2px; }

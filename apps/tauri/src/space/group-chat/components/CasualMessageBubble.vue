@@ -305,8 +305,8 @@ function onContextMenu(e: MouseEvent): void {
 .tool-call-tag:hover { filter: brightness(1.05); }
 
 .tool-call-tag.running { border-color: var(--color-primary); color: var(--color-primary); }
-.tool-call-tag.completed { border-color: rgba(16, 185, 129, 0.3); color: var(--success); }
-.tool-call-tag.failed { border-color: rgba(239, 68, 68, 0.3); color: var(--danger); }
+.tool-call-tag.completed { border-color: color-mix(in srgb, var(--success) 30%, transparent); color: var(--success); }
+.tool-call-tag.failed { border-color: color-mix(in srgb, var(--danger) 30%, transparent); color: var(--danger); }
 
 /* 重要性分级 */
 .tool-call-tag.importance-high {

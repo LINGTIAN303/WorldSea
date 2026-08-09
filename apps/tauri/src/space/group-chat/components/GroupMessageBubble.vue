@@ -253,15 +253,15 @@ function onCopy() {
   margin-left: 6px;
   padding: 1px 6px;
   font-size: var(--font-size-2xs);
-  background: rgba(245, 158, 11, 0.15);
-  color: #f59e0b;
+  background: color-mix(in srgb, var(--warning) 15%, transparent);
+  color: var(--warning);
   border-radius: var(--radius-xs);
   font-weight: 600;
 }
 
 .uncertainty-mark {
-  background: rgba(245, 158, 11, 0.2);
-  color: #f59e0b;
+  background: color-mix(in srgb, var(--warning) 20%, transparent);
+  color: var(--warning);
   padding: 0 2px;
   border-radius: 2px;
 }
@@ -363,8 +363,8 @@ function onCopy() {
 .tool-call-tag:hover { filter: brightness(1.05); }
 
 .tool-call-tag.running { border-color: var(--color-primary); color: var(--color-primary); }
-.tool-call-tag.completed { border-color: rgba(16, 185, 129, 0.3); color: #10b981; }
-.tool-call-tag.failed { border-color: rgba(239, 68, 68, 0.3); color: #ef4444; }
+.tool-call-tag.completed { border-color: color-mix(in srgb, var(--success) 30%, transparent); color: var(--success); }
+.tool-call-tag.failed { border-color: color-mix(in srgb, var(--danger) 30%, transparent); color: var(--danger); }
 
 .tool-call-tag.importance-high {
   background: rgba(108, 92, 231, 0.08);

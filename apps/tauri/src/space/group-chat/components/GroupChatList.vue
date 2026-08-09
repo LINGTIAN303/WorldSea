@@ -320,6 +320,6 @@ function onDocumentClick(event: MouseEvent): void {
 .context-menu { background: rgba(10, 10, 20, 0.08); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid var(--color-border); border-radius: var(--radius-md); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2); padding: 4px; min-width: 140px; }
 .context-menu-item { padding: 8px 12px; font-size: var(--fs-sm); color: var(--color-text); cursor: pointer; border-radius: var(--radius-sm); transition: background 0.1s; }
 .context-menu-item:hover { background: var(--color-surface); }
-.context-menu-item.danger { color: #ef4444; }
-.context-menu-item.danger:hover { background: rgba(239, 68, 68, 0.1); }
+.context-menu-item.danger { color: var(--danger); }
+.context-menu-item.danger:hover { background: color-mix(in srgb, var(--danger) 10%, transparent); }
 </style>
