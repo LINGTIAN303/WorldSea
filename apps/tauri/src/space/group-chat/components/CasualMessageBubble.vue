@@ -249,7 +249,7 @@ function onContextMenu(e: MouseEvent): void {
 .user-row { display: flex; gap: 8px; align-items: flex-start; justify-content: flex-end; }
 .user-bubble-wrap { max-width: 75%; display: flex; flex-direction: column; align-items: flex-end; }
 .user-avatar { background: linear-gradient(135deg, #10b981, #34d399) !important; }
-.user-text { padding: 8px 12px; background: rgba(108,92,231,0.12); border-radius: 12px 2px 12px 12px; font-size: var(--fs-md); line-height: 1.5; word-break: break-word; box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
+.user-text { padding: 8px 12px; background: rgba(108,92,231,0.12); border-radius: var(--radius-2xl) 2px var(--radius-2xl) var(--radius-2xl); font-size: var(--fs-md); line-height: 1.5; word-break: break-word; box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
 
 .avatar-placeholder { width: 28px; flex-shrink: 0; }
 

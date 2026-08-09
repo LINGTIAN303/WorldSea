@@ -319,7 +319,7 @@ onBeforeUnmount(() => {
 .time-divider::before, .time-divider::after { content: ''; flex: 1; height: 1px; background: var(--color-border); }
 .divider-text { font-size: var(--fs-xs); color: var(--color-text-tertiary); padding: 0 12px; white-space: nowrap; }
 
-.scroll-to-bottom { position: absolute; bottom: 68px; right: 16px; padding: 6px 14px; border: 1px solid var(--color-border); border-radius: 20px; background: var(--color-surface-elevated); box-shadow: 0 2px 8px rgba(0,0,0,0.12); cursor: pointer; font-size: var(--fs-sm); color: var(--color-text); z-index: 10; transition: background 0.2s, border-color 0.2s, color 0.2s, box-shadow 0.2s, transform 0.2s, opacity 0.2s, filter 0.2s; backdrop-filter: blur(8px); opacity: 0.85; }
+.scroll-to-bottom { position: absolute; bottom: 68px; right: 16px; padding: 6px 14px; border: 1px solid var(--color-border); border-radius: var(--radius-pill); background: var(--color-surface-elevated); box-shadow: 0 2px 8px rgba(0,0,0,0.12); cursor: pointer; font-size: var(--fs-sm); color: var(--color-text); z-index: 10; transition: background 0.2s, border-color 0.2s, color 0.2s, box-shadow 0.2s, transform 0.2s, opacity 0.2s, filter 0.2s; backdrop-filter: blur(8px); opacity: 0.85; }
 .scroll-to-bottom:hover { background: var(--color-surface); box-shadow: 0 4px 12px rgba(0,0,0,0.18); }
 
 .msg-list-enter-active { transition: background 0.2s ease-out, border-color 0.2s ease-out, color 0.2s ease-out, box-shadow 0.2s ease-out, transform 0.2s ease-out, opacity 0.2s ease-out, filter 0.2s ease-out; }

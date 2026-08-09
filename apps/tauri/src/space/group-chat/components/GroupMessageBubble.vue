@@ -212,7 +212,7 @@ function onCopy() {
 .msg-user .msg-body {
   margin-left: 0;
   margin-right: 36px;
-  border-radius: 12px 0 12px 12px;
+  border-radius: var(--radius-2xl) 0 var(--radius-2xl) var(--radius-2xl);
   border-left: none;
   border-right: 3px solid var(--color-primary);
   margin-left: auto;

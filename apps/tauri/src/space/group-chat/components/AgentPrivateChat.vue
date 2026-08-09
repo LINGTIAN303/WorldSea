@@ -684,12 +684,12 @@ onBeforeUnmount(() => {
 .msg-bubble.user {
   background: var(--color-primary);
   color: var(--on-accent);
-  border-radius: 12px 12px 4px 12px;
+  border-radius: var(--radius-2xl) var(--radius-2xl) var(--radius-xs) var(--radius-2xl);
 }
 
 .msg-bubble.agent {
   background: var(--color-surface-elevated);
-  border-radius: 12px 12px 12px 4px;
+  border-radius: var(--radius-2xl) var(--radius-2xl) var(--radius-2xl) var(--radius-xs);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
 }
 
