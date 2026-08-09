@@ -4,7 +4,9 @@
       <div v-if="isRustBackend" class="rust-mode-banner">
         Rust 模式：深度模式/长任务/A2UI/编排状态栏/终端/子 Agent 均已支持
       </div>
-      <div class="chat-messages">
+      <!-- 读屏直播区：告知 Agent 生成开始/完成（视觉隐藏，WCAG 4.1.3） -->
+      <div class="sr-only" role="status" aria-live="polite">{{ srStatus }}</div>
+      <div class="chat-messages" :aria-busy="isStreaming">
         <AgentMessageList
           ref="messageListRef"
           :messages="messages"
@@ -26,7 +28,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, computed } from 'vue'
+import { ref, nextTick, computed, watch } from 'vue'
 import ChatInput from './ChatInput.vue'
 import AgentMessageList from '@/agent/AgentMessageList.vue'
 import { useAgent } from '@/agent/composables/useAgent'
@@ -42,6 +44,13 @@ const {
   lastAssistantHasContent, lastAssistantHasThinking,
   a2uiSurfaces, resolveDataBinding,
 } = useAgent()
+
+// 读屏状态播报：生成开始/完成（视觉隐藏，仅 aria-live 播报）
+const srStatus = ref('')
+watch(isStreaming, (streaming, wasStreaming) => {
+  if (streaming) srStatus.value = 'Agent 正在生成回复'
+  else if (wasStreaming) srStatus.value = 'Agent 回复完成'
+})
 
 const messageListRef = ref<InstanceType<typeof AgentMessageList>>()
 

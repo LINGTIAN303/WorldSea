@@ -83,6 +83,8 @@
             </div>
           </template>
 
+          <!-- 读屏直播区：告知群聊生成/思考状态（视觉隐藏，WCAG 4.1.3） -->
+          <div class="sr-only" role="status" aria-live="polite">{{ srChatStatus }}</div>
           <div v-if="waitingSpeakers.length > 0 && !store.isStreaming && !store.isPaused" class="streaming-hint">
             <template v-for="(sid, i) in waitingSpeakers" :key="sid">
               <span v-if="i > 0" class="hint-sep">、</span>
@@ -174,6 +176,16 @@ const activeStreamingIds = computed(() => Object.keys(store.streamingAgents))
 
 const waitingSpeakers = computed(() => {
   return store.currentSpeakerIds.filter(id => !store.streamingAgents[id])
+})
+
+// 读屏播报文本：生成中 / 思考中（视觉隐藏，aria-live 播报）
+const srChatStatus = computed(() => {
+  if (store.isStreaming) return '群聊正在生成回复'
+  if (store.isPaused) return ''
+  if (waitingSpeakers.value.length > 0) {
+    return `${waitingSpeakers.value.map(id => getSpeakerName(id)).join('、')} 正在思考`
+  }
+  return ''
 })
 
 const currentSpeakerName = computed(() => {

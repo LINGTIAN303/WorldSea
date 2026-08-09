@@ -44,6 +44,8 @@
       <!-- 流式消息列表（Layer 1: 工具调用状态 + 流式文本） -->
       <StreamingMessageList />
 
+      <!-- 读屏直播区：告知群聊生成/输入状态（视觉隐藏，WCAG 4.1.3） -->
+      <div class="sr-only" role="status" aria-live="polite">{{ srChatStatus }}</div>
       <div v-if="typingAgentNames.length > 0 && !store.isStreaming" class="typing-hint">
         <span class="typing-dot">●</span>
         {{ typingAgentNames.join('、') }} 正在输入...
@@ -147,6 +149,15 @@ const { isSending } = engine
 
 // 流式消息显示（typingAgentNames 用于输入提示，其余由 StreamingMessageList 子组件消费）
 const { typingAgentNames } = useStreamingMessages()
+
+// 读屏播报文本：生成中 / 输入中（视觉隐藏，aria-live 播报）
+const srChatStatus = computed(() => {
+  if (store.isStreaming) return '群聊正在生成回复'
+  if (typingAgentNames.value.length > 0) {
+    return `${typingAgentNames.value.join('、')} 正在输入`
+  }
+  return ''
+})
 
 // 右键菜单（注入 setReplyTarget 回调）
 const { contextMenu, onMsgContextMenu, onContextReply, onContextCopy } = useCasualContextMenu({

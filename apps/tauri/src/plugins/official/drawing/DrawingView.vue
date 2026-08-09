@@ -17,7 +17,7 @@
         <button class="dv-btn dv-btn--primary" @click="showCreateDialog = true">创建第一个画板</button>
       </div>
       <div v-else class="dv-board-grid">
-        <div v-for="d in drawingEntities" :key="d.id" class="dv-board-card" @click="openDrawing(d.id)">
+        <div v-for="d in drawingEntities" :key="d.id" class="dv-board-card" role="button" tabindex="0" :aria-label="`打开画板 ${d.name}`" @click="openDrawing(d.id)" @keydown.enter.prevent="openDrawing(d.id)" @keydown.space.prevent="openDrawing(d.id)">
           <div class="dv-card-thumb">
             <img v-if="d.properties.thumbnail" :src="d.properties.thumbnail" alt="" />
             <span v-else class="dv-card-placeholder">🎨</span>
