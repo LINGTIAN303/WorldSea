@@ -153,8 +153,8 @@
   --transition-normal: 0.3s var(--ease);
 
   /* ── 布局 ── */
-  --layout-sidebar-width: 260px;
-  --layout-sidebar-collapsed-width: 56px;
+  --layout-sidebar-width: 220px;
+  --layout-sidebar-collapsed-width: 36px;
 
   /* ── Phase E1 补齐：迁移组件仍引用的 web 变量（theme-editor 等），
      与上面语义块同规：值全部引用 Tauri 令牌，深色自动跟随）── */
@@ -402,6 +402,6 @@
   --transition-fast: var(--dur-fast) var(--ease);
   --transition-base: var(--dur-base) var(--ease);
   --transition-normal: 0.3s var(--ease);
-  --layout-sidebar-width: 260px;
-  --layout-sidebar-collapsed-width: 56px;
+  --layout-sidebar-width: 220px;
+  --layout-sidebar-collapsed-width: 36px;
 }

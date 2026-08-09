@@ -1,65 +1,72 @@
 <template>
-  <div class="mindmap-toolbar">
-    <input :value="searchQuery" class="search-input" placeholder="搜索节点...  (Enter 下一处)" @input="$emit('update:searchQuery', ($event.target as HTMLInputElement).value)" @keydown.enter="$emit('search-next')" @keydown.shift.enter="$emit('search-prev')" />
+  <!-- 工具栏上移 R3 统一工具条（#view-toolbar-controls），套用 BuildingSectionView 模式；次要控件收进折叠菜单 -->
+  <Teleport to="#view-toolbar-controls">
+    <div class="mindmap-toolbar">
+      <input :value="searchQuery" class="search-input" placeholder="搜索节点...  (Enter 下一处)" @input="$emit('update:searchQuery', ($event.target as HTMLInputElement).value)" @keydown.enter="$emit('search-next')" @keydown.shift.enter="$emit('search-prev')" />
 
-    <span v-if="searchMatchCount > 0" class="search-counter">{{ searchMatchIndex + 1 }} / {{ searchMatchCount }}</span>
+      <span v-if="searchMatchCount > 0" class="search-counter">{{ searchMatchIndex + 1 }} / {{ searchMatchCount }}</span>
 
-    <CustomDropdown :model-value="layout" :options="layoutOptions" class="layout-dropdown" @update:model-value="$emit('update:layout', $event)" />
+      <CustomDropdown :model-value="layout" :options="layoutOptions" class="layout-dropdown" @update:model-value="$emit('update:layout', $event)" />
 
-    <div v-if="safeTypes && safeTypes.size !== undefined" class="type-filters">
-      <label v-for="type in typeFilters" :key="type.value" class="type-chip"
-        :class="{ active: safeTypes.has(type.value) }"
-        :style="{ borderColor: type.color, background: safeTypes.has(type.value) ? type.color + '18' : 'transparent' }">
-        <input type="checkbox" :checked="safeTypes.has(type.value)" @change="$emit('toggle-type', type.value)" />
-        {{ type.label }}
-      </label>
+      <!-- 常驻操作：视图导航 / 撤销重做 / 模式切换 / 缩放 -->
+      <div class="toolbar-actions">
+        <div class="action-group">
+          <button v-if="canGoBack" class="icon-btn" @click="$emit('go-back')" title="返回上层 (Esc)">←</button>
+          <button class="icon-btn" :class="{ active: detailPanelVisible }" @click="$emit('toggle-detail')" title="详情侧栏 (I)"><WsIcon name="outline" size="sm" /></button>
+          <button class="icon-btn" :class="{ active: minimapVisible }" @click="$emit('toggle-minimap')" title="小地图 (M)"><WsIcon name="search" size="sm" /></button>
+        </div>
+
+        <div class="action-group">
+          <button class="icon-btn" :disabled="!canUndo" :class="{ disabled: !canUndo }" @click="$emit('undo')" title="撤销 (Ctrl+Z)"><WsIcon name="refresh" size="sm" /></button>
+          <button class="icon-btn" :disabled="!canRedo" :class="{ disabled: !canRedo }" @click="$emit('redo')" title="重做 (Ctrl+Y)"><WsIcon name="refresh" size="sm" /></button>
+        </div>
+
+        <div class="action-group">
+          <button class="icon-btn" :class="{ active: editMode }" @click="$emit('toggle-edit-mode')" title="编辑模式 (E)"><WsIcon name="edit" size="sm" /></button>
+          <button class="icon-btn" :class="{ active: freeDrawMode }" @click="$emit('toggle-free-draw')" title="自由绘图 (D)"><WsIcon name="brush" size="sm" /></button>
+          <button class="icon-btn" @click="$emit('toggle-ai-suggest')" title="AI 关系建议 (Ctrl+J)"><WsIcon name="concept" size="sm" /></button>
+          <button class="icon-btn primary" @click="$emit('ai-organize')" title="AI 整理（让 Agent 帮你布局/找孤立/找环）"><WsIcon name="magic" size="sm" /> AI</button>
+        </div>
+
+        <div class="action-group">
+          <button class="icon-btn" @click="$emit('fit')" title="适应视图">⊞</button>
+          <button class="icon-btn" @click="$emit('zoom-in')" title="放大">＋</button>
+          <button class="icon-btn" @click="$emit('zoom-out')" title="缩小">－</button>
+          <span class="zoom-level">{{ zoomLevel }}%</span>
+        </div>
+      </div>
+
+      <!-- 折叠菜单：类型过滤 / 编辑添加 / 对齐 / 导出 等次要控件 -->
+      <ToolbarOverflow label="更多工具">
+        <div class="to-group">类型过滤</div>
+        <div v-if="safeTypes && safeTypes.size !== undefined" class="to-type-list">
+          <label v-for="type in typeFilters" :key="type.value" class="to-chip"
+            :style="{ borderColor: type.color, background: safeTypes.has(type.value) ? type.color + '18' : 'transparent' }">
+            <input type="checkbox" :checked="safeTypes.has(type.value)" @change="$emit('toggle-type', type.value)" />
+            {{ type.label }}
+          </label>
+        </div>
+
+        <div v-if="editMode" class="to-group">添加</div>
+        <button v-if="editMode" class="to-item" @click="$emit('add-textbox')"><WsIcon name="edit" size="sm" /> 添加文本框</button>
+        <button v-if="editMode" class="to-item" @click="$emit('add-image')"><WsIcon name="image" size="sm" /> 添加图片</button>
+        <button v-if="editMode" class="to-item" @click="$emit('add-note')"><WsIcon name="outline" size="sm" /> 添加备注</button>
+        <button v-if="editMode" class="to-item" @click="$emit('add-link')"><WsIcon name="link" size="sm" /> 添加链接</button>
+        <button v-if="editMode" class="to-item" @click="$emit('add-group')"><WsIcon name="item" size="sm" /> 添加分组</button>
+        <button v-if="editMode" class="to-item" @click="$emit('add-center')"><WsIcon name="star" size="sm" /> 添加中心节点</button>
+
+        <div v-if="selectedCount >= 2" class="to-group">对齐</div>
+        <button v-if="selectedCount >= 2" class="to-item" @click="$emit('align-selection', 'h')"><WsIcon name="arrow-up" size="sm" /> 水平对齐</button>
+        <button v-if="selectedCount >= 2" class="to-item" @click="$emit('align-selection', 'v')"><WsIcon name="refresh" size="sm" /> 垂直对齐</button>
+        <button v-if="selectedCount >= 2" class="to-item" @click="$emit('distribute-selection')">≣ 均匀分布</button>
+        <button v-if="selectedCount >= 2" class="to-item" @click="$emit('create-section-from-selection')"><WsIcon name="item" size="sm" /> 创建分组框</button>
+
+        <div class="to-group">导出</div>
+        <button class="to-item" @click="$emit('export-png')">🖼 导出 PNG</button>
+        <button class="to-item" @click="$emit('export-svg')">📐 导出 SVG</button>
+      </ToolbarOverflow>
     </div>
-
-    <div class="toolbar-actions">
-      <div class="action-group">
-        <button v-if="canGoBack" class="icon-btn" @click="$emit('go-back')" title="返回上层 (Esc)">←</button>
-        <button class="icon-btn" :class="{ active: detailPanelVisible }" @click="$emit('toggle-detail')" title="详情侧栏 (I)"><WsIcon name="outline" size="sm" /></button>
-        <button class="icon-btn" :class="{ active: minimapVisible }" @click="$emit('toggle-minimap')" title="小地图 (M)"><WsIcon name="search" size="sm" /></button>
-      </div>
-
-      <div class="action-group">
-        <button class="icon-btn" :disabled="!canUndo" :class="{ disabled: !canUndo }" @click="$emit('undo')" title="撤销 (Ctrl+Z)"><WsIcon name="refresh" size="sm" /></button>
-        <button class="icon-btn" :disabled="!canRedo" :class="{ disabled: !canRedo }" @click="$emit('redo')" title="重做 (Ctrl+Y)"><WsIcon name="refresh" size="sm" /></button>
-        <button v-if="editMode" class="icon-btn" @click="$emit('add-textbox')" title="添加文本框"><WsIcon name="edit" size="sm" /></button>
-        <button v-if="editMode" class="icon-btn" @click="$emit('add-image')" title="添加图片"><WsIcon name="image" size="sm" /></button>
-        <button v-if="editMode" class="icon-btn" @click="$emit('add-note')" title="添加备注"><WsIcon name="outline" size="sm" /></button>
-        <button v-if="editMode" class="icon-btn" @click="$emit('add-link')" title="添加链接"><WsIcon name="link" size="sm" /></button>
-        <button v-if="editMode" class="icon-btn" @click="$emit('add-group')" title="添加分组"><WsIcon name="item" size="sm" /></button>
-        <button v-if="editMode" class="icon-btn" @click="$emit('add-center')" title="添加中心节点"><WsIcon name="star" size="sm" /></button>
-      </div>
-
-      <div v-if="selectedCount >= 2" class="action-group">
-        <button class="icon-btn" @click="$emit('align-selection', 'h')" title="水平对齐"><WsIcon name="arrow-up" size="sm" /></button>
-        <button class="icon-btn" @click="$emit('align-selection', 'v')" title="垂直对齐"><WsIcon name="refresh" size="sm" /></button>
-        <button class="icon-btn" @click="$emit('distribute-selection')" title="均匀分布">≣</button>
-        <button class="icon-btn" @click="$emit('create-section-from-selection')" title="创建分组框"><WsIcon name="item" size="sm" /></button>
-      </div>
-
-      <div class="action-group">
-        <button class="icon-btn" :class="{ active: editMode }" @click="$emit('toggle-edit-mode')" title="编辑模式 (E)"><WsIcon name="edit" size="sm" /></button>
-        <button class="icon-btn" :class="{ active: freeDrawMode }" @click="$emit('toggle-free-draw')" title="自由绘图 (D)"><WsIcon name="brush" size="sm" /></button>
-        <button class="icon-btn" @click="$emit('toggle-ai-suggest')" title="AI 关系建议 (Ctrl+J)"><WsIcon name="concept" size="sm" /></button>
-        <button class="icon-btn primary" @click="$emit('ai-organize')" title="AI 整理（让 Agent 帮你布局/找孤立/找环）"><WsIcon name="magic" size="sm" /> AI</button>
-      </div>
-
-      <div class="action-group">
-        <button class="icon-btn" @click="$emit('fit')" title="适应视图">⊞</button>
-        <button class="icon-btn" @click="$emit('zoom-in')" title="放大">＋</button>
-        <button class="icon-btn" @click="$emit('zoom-out')" title="缩小">－</button>
-        <span class="zoom-level">{{ zoomLevel }}%</span>
-      </div>
-
-      <div class="action-group">
-        <button class="icon-btn" @click="$emit('export-png')" title="导出 PNG">🖼</button>
-        <button class="icon-btn" @click="$emit('export-svg')" title="导出 SVG">📐</button>
-      </div>
-    </div>
-  </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
@@ -67,6 +74,7 @@ import { computed } from 'vue'
 import { CustomDropdown } from '@worldsmith/plugin-sdk'
 import { LAYOUT_OPTIONS } from '../mindmapConfig'
 import { WsIcon } from '@worldsmith/ui-kit'
+import ToolbarOverflow from '@/components/ui/ToolbarOverflow.vue'
 
 const props = withDefaults(defineProps<{
   searchQuery: string
@@ -142,10 +150,11 @@ const typeFilters = [
 </script>
 
 <style scoped>
+/* 上移 R3：中和背景/边框/padding，单行适配 */
 .mindmap-toolbar {
   display: flex; align-items: center; gap: 8px;
-  padding: 6px 12px; background: var(--card-bg);
-  border-bottom: 1px solid var(--border-color); flex-wrap: wrap;
+  padding: 0; background: transparent; border: none;
+  flex-wrap: nowrap; min-width: 0;
 }
 .search-input {
   padding: 4px 10px;
@@ -166,15 +175,6 @@ const typeFilters = [
   background: var(--color-bg-elevated);
   border-radius: var(--radius-2xs);
 }
-.type-filters { display: flex; gap: 4px; flex-wrap: wrap; }
-.type-chip {
-  display: flex; align-items: center; gap: 3px;
-  padding: 2px 6px; border-radius: var(--radius-xs); border: 1px solid;
-  font-size: var(--font-size-xs); cursor: pointer; white-space: nowrap;
-  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast), opacity var(--transition-fast), filter var(--transition-fast);
-}
-.type-chip:hover { transform: translateY(-1px); }
-.type-chip input { width: 12px; height: 12px; margin: 0; cursor: pointer; accent-color: var(--primary); }
 .toolbar-actions { display: flex; gap: 6px; margin-left: auto; align-items: center; }
 .action-group { display: flex; gap: 2px; align-items: center; padding: 0 4px; border-right: 1px solid var(--border-color); }
 .action-group:last-child { border-right: none; }
@@ -192,4 +192,6 @@ const typeFilters = [
 .icon-btn.disabled, .icon-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .icon-btn.disabled:hover, .icon-btn:disabled:hover { background: transparent; transform: none; }
 .zoom-level { font-size: var(--font-size-xs); color: var(--text-tertiary); min-width: 36px; text-align: center; }
+/* 折叠菜单内：类型芯片纵向排列 */
+.to-type-list { display: flex; flex-direction: column; gap: 2px; padding: 2px 4px; }
 </style>

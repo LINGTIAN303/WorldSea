@@ -1,24 +1,27 @@
 <template>
   <div class="notebook-view">
-    <div class="nb-toolbar">
-      <div class="nb-toolbar-left">
-        <button class="nb-sidebar-toggle" @click="sidebarOpen = !sidebarOpen" :title="sidebarOpen ? '收起侧边栏' : '展开侧边栏'">
-          <span class="nb-toggle-icon"><WsIcon :name="sidebarOpen ? 'arrow-up' : 'chevron-right'" size="xs" /></span>
-        </button>
-        <button
-          v-for="mode in VIEW_MODES"
-          :key="mode"
-          :class="['nb-mode-btn', { active: currentMode === mode }]"
-          @click="currentMode = mode"
-        >
-          <WsIcon :name="modeIcons[mode]" size="xs" /> {{ modeLabels[mode] }}
-        </button>
+    <!-- 工具栏 Teleport 到 R3 视图工具条的控件区（#view-toolbar-controls），实现单条统一工具栏 -->
+    <Teleport to="#view-toolbar-controls">
+      <div class="nb-toolbar">
+        <div class="nb-toolbar-left">
+          <button class="nb-sidebar-toggle" @click="sidebarOpen = !sidebarOpen" :title="sidebarOpen ? '收起侧边栏' : '展开侧边栏'">
+            <span class="nb-toggle-icon"><WsIcon :name="sidebarOpen ? 'arrow-up' : 'chevron-right'" size="xs" /></span>
+          </button>
+          <button
+            v-for="mode in VIEW_MODES"
+            :key="mode"
+            :class="['nb-mode-btn', { active: currentMode === mode }]"
+            @click="currentMode = mode"
+          >
+            <WsIcon :name="modeIcons[mode]" size="xs" /> {{ modeLabels[mode] }}
+          </button>
+        </div>
+        <div class="nb-toolbar-right">
+          <button class="nb-action-btn" @click="createNote()">+ 笔记</button>
+          <button class="nb-action-btn nb-folder-btn" @click="createFolder">+ 文件夹</button>
+        </div>
       </div>
-      <div class="nb-toolbar-right">
-        <button class="nb-action-btn" @click="createNote()">+ 笔记</button>
-        <button class="nb-action-btn nb-folder-btn" @click="createFolder">+ 文件夹</button>
-      </div>
-    </div>
+    </Teleport>
 
     <div class="nb-content">
       <div :class="['nb-sidebar', { collapsed: !sidebarOpen }]">
@@ -495,7 +498,8 @@ useAgentPluginBridge('notebook', async (event) => {
 
 <style scoped>
 .notebook-view { display: flex; flex-direction: column; height: 100%; background: var(--color-bg-base); }
-.nb-toolbar { display: flex; justify-content: space-between; align-items: center; padding: 8px 16px; border-bottom: 1px solid var(--color-border-subtle); background: var(--color-bg-surface); }
+/* 工具栏 Teleport 到 R3 后：行内横排撑满控件区，去除自身背景/边框/内边距 */
+.nb-toolbar { display: flex; justify-content: space-between; align-items: center; padding: 0; border-bottom: none; background: transparent; min-width: 0; flex: 1 1 auto; }
 .nb-toolbar-left { display: flex; gap: 4px; align-items: center; }
 .nb-sidebar-toggle { padding: 4px 8px; border-radius: var(--radius-xs); border: 1px solid var(--color-border); background: transparent; color: var(--color-text-tertiary); font-size: var(--font-size-xs); cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s; display: flex; align-items: center; justify-content: center; }
 .nb-sidebar-toggle:hover { background: var(--color-bg-hover); color: var(--color-text-secondary); border-color: var(--color-text-secondary); }

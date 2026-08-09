@@ -1,20 +1,23 @@
 <template>
   <div class="gev-root">
-    <div class="toolbar">
-      <input v-model="searchQuery" class="search-input" :placeholder="`搜索${entityLabel}...`" />
-      <CustomDropdown v-if="filterOptions.length > 1" v-model="typeFilter" :options="filterOptions" />
-      <CustomDropdown
-        v-for="fd in filterDefs"
-        :key="fd.key"
-        v-model="filters[fd.key]"
-        :options="fd.options || dynamicFilterOptions(fd.key, fd.label)"
-      />
-      <CustomDropdown v-if="sortOptions.length > 0" v-model="sortBy" :options="[{ value: '', label: '默认排序' }, ...sortOptions.map(o => ({ value: o.key, label: o.label }))]" />
-      <slot name="toolbar-extra" />
-      <CreateButton v-if="!hideCreateButton" :label="`新建${entityLabel}`" @click="openNewForm" />
-      <button v-if="selectedIds.size > 0" class="btn-danger btn-sm" @click="onBatchDel">删除 ({{ selectedIds.size }})</button>
-      <button v-if="selectedIds.size > 0" class="btn-ghost btn-sm" @click="clearSelection">取消选择</button>
-    </div>
+    <!-- 工具栏 Teleport 到 R3 视图工具条的控件区（#view-toolbar-controls），实现单条统一工具栏 -->
+    <Teleport to="#view-toolbar-controls">
+      <div class="toolbar">
+        <input v-model="searchQuery" class="search-input" :placeholder="`搜索${entityLabel}...`" :aria-label="`搜索${entityLabel}`" />
+        <CustomDropdown v-if="filterOptions.length > 1" v-model="typeFilter" :options="filterOptions" />
+        <CustomDropdown
+          v-for="fd in filterDefs"
+          :key="fd.key"
+          v-model="filters[fd.key]"
+          :options="fd.options || dynamicFilterOptions(fd.key, fd.label)"
+        />
+        <CustomDropdown v-if="sortOptions.length > 0" v-model="sortBy" :options="[{ value: '', label: '默认排序' }, ...sortOptions.map(o => ({ value: o.key, label: o.label }))]" />
+        <slot name="toolbar-extra" />
+        <CreateButton v-if="!hideCreateButton" :label="`新建${entityLabel}`" @click="openNewForm" />
+        <button v-if="selectedIds.size > 0" class="btn-danger btn-sm" @click="onBatchDel">删除 ({{ selectedIds.size }})</button>
+        <button v-if="selectedIds.size > 0" class="btn-ghost btn-sm" @click="clearSelection">取消选择</button>
+      </div>
+    </Teleport>
 
     <n-alert v-if="filteredList.length > 200" type="warning" :show-icon="true" class="large-list-warning">
       当前显示 {{ filteredList.length }} 项，建议使用筛选器缩小范围以获得最佳体验。
@@ -573,6 +576,32 @@ defineExpose({
 
 <style scoped>
 .gev-root { display: flex; flex-direction: column; height: 100%; padding: 20px; }
+/* 工具栏 Teleport 到 R3 后，行内横排并适配 44px 工具条高度 */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+.search-input {
+  width: 180px;
+  height: 28px;
+  padding: 0 10px;
+  font-size: var(--font-size-sm);
+  color: var(--text-color);
+  background: var(--bg, var(--color-bg-surface));
+  border: 1px solid var(--border, var(--color-border));
+  border-radius: var(--radius-sm);
+  outline: none;
+  flex-shrink: 1;
+  min-width: 0;
+}
+.search-input:focus {
+  border-color: var(--primary, var(--color-primary));
+  box-shadow: 0 0 0 2px var(--color-primary-subtle, var(--accent-soft));
+}
+.search-input::placeholder { color: var(--text-tertiary, var(--color-text-tertiary)); }
 .entity-grid:has(> .ws-empty:only-child) { display: flex !important; align-items: center; justify-content: center; grid-template-columns: unset; }
 .large-list-warning { margin-bottom: 12px; }
 .card-footer { display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: 4px; margin-left: auto; }

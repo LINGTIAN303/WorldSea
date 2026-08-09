@@ -62,42 +62,49 @@
 
     <!-- 画板编辑视图 -->
     <template v-else>
-      <!-- 工具栏 -->
-      <div class="dv-toolbar">
-        <button class="dv-btn dv-btn-back" @click="closeDrawing" title="返回列表">← 返回</button>
-        <span class="dv-toolbar-name">{{ currentDrawingName }}</span>
-        <span class="dv-sep">|</span>
+      <!-- 工具栏上移 R3 统一工具条（#view-toolbar-controls），套用 BuildingSectionView 模式；次要操作收进折叠菜单 -->
+      <Teleport to="#view-toolbar-controls">
+        <div class="dv-toolbar">
+          <button class="dv-btn dv-btn-back" @click="closeDrawing" title="返回画板列表" aria-label="返回画板列表"><WsIcon name="arrow-left" size="sm" /></button>
 
-        <!-- 工具选择 -->
-        <button
-          v-for="tool in DRAWING_TOOLS" :key="tool.value"
-          :class="['dv-tool-btn', { active: activeTool === tool.value }]"
-          @click="activeTool = tool.value"
-          :title="tool.label"
-        >
-          <WsIcon :name="tool.icon" size="xs" />
-        </button>
+          <span class="dv-sep">|</span>
 
-        <span class="dv-sep">|</span>
-        <input type="color" v-model="strokeColor" class="dv-color" title="颜色" />
-        <input type="color" v-model="fillColor" class="dv-color" title="填充色" />
-        <input type="range" v-model="strokeWidth" min="1" max="30" class="dv-width" title="粗细" />
-        <span class="dv-label">{{ strokeWidth }}px</span>
+          <!-- 工具选择 -->
+          <button
+            v-for="tool in DRAWING_TOOLS" :key="tool.value"
+            :class="['dv-tool-btn', { active: activeTool === tool.value }]"
+            @click="activeTool = tool.value"
+            :title="tool.label"
+            :aria-label="tool.label"
+          >
+            <WsIcon :name="tool.icon" size="xs" />
+          </button>
 
-        <span class="dv-sep">|</span>
-        <button class="dv-btn" @click="undo" :disabled="history.length <= 1">撤销</button>
-        <button class="dv-btn" @click="redo" :disabled="future.length === 0">重做</button>
-        <button class="dv-btn dv-btn-danger" @click="clearActiveLayer">清空图层</button>
+          <span class="dv-sep">|</span>
+          <input type="color" v-model="strokeColor" class="dv-color" title="描边色" aria-label="描边色" />
+          <input type="color" v-model="fillColor" class="dv-color" title="填充色" aria-label="填充色" />
+          <input type="range" v-model="strokeWidth" min="1" max="30" class="dv-width" title="笔触粗细" aria-label="笔触粗细" />
+          <span class="dv-label">{{ strokeWidth }}px</span>
 
-        <span class="dv-sep">|</span>
-        <button class="dv-btn" @click="zoomIn">+</button>
-        <span class="dv-zoom">{{ Math.round(scale * 100) }}%</span>
-        <button class="dv-btn" @click="zoomOut">-</button>
-        <button class="dv-btn" @click="fitView">适应</button>
+          <span class="dv-sep">|</span>
+          <button class="dv-btn" @click="undo" :disabled="history.length <= 1">撤销</button>
+          <button class="dv-btn" @click="redo" :disabled="future.length === 0">重做</button>
 
-        <span class="dv-sep">|</span>
-        <button class="dv-btn dv-btn-primary" @click="exportImage">导出图片</button>
-      </div>
+          <span class="dv-sep">|</span>
+          <button class="dv-btn" @click="zoomIn" title="放大">＋</button>
+          <span class="dv-zoom">{{ Math.round(scale * 100) }}%</span>
+          <button class="dv-btn" @click="zoomOut" title="缩小">－</button>
+          <button class="dv-btn" @click="fitView" title="适应视图">适应</button>
+
+          <!-- 折叠菜单：清空 / 导出 等次要操作 -->
+          <ToolbarOverflow label="更多操作">
+            <div class="to-group">操作</div>
+            <button class="to-item to-item--danger" @click="clearActiveLayer"><WsIcon name="eraser" size="sm" /> 清空当前图层</button>
+            <div class="to-group">导出</div>
+            <button class="to-item" @click="exportImage"><WsIcon name="image" size="sm" /> 导出图片</button>
+          </ToolbarOverflow>
+        </div>
+      </Teleport>
 
       <div class="dv-main">
         <!-- 画布区域 -->
@@ -157,6 +164,7 @@ import { useCanvas } from '@worldsmith/ui-kit'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { WsIcon } from '@worldsmith/ui-kit'
 import { WsSpinner } from '@worldsmith/ui-kit'
+import ToolbarOverflow from '@/components/ui/ToolbarOverflow.vue'
 import { useDrawingPersistence } from './composables/useDrawingPersistence'
 import { useDrawingLayers } from './composables/useDrawingLayers'
 import { useAgentPluginBridge } from '@/composables/useAgentPluginBridge'
@@ -757,27 +765,30 @@ watch([layers, activeLayerIndex], () => {
 .dv-color-lg { width: 100%; height: 36px; padding: 2px; border: 1px solid var(--color-border); border-radius: var(--radius-xs); cursor: pointer; background: var(--color-bg-elevated); }
 .dv-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 
-/* ─── 工具栏 ─── */
-.dv-toolbar { display: flex; align-items: center; gap: 4px; padding: 6px 10px; background: var(--color-bg-surface); border-bottom: 1px solid var(--color-border-subtle); flex-shrink: 0; flex-wrap: wrap; }
-.dv-btn { padding: 4px 10px; border: 1px solid var(--color-border); border-radius: var(--radius-xs); background: var(--color-bg-elevated); cursor: pointer; font-size: var(--font-size-sm, 13px); color: var(--color-text-primary); transition: background 0.15s; }
+/* ─── 工具栏（上移 R3：中和背景/边框/padding，单行适配） ─── */
+.dv-toolbar {
+  display: flex; align-items: center; gap: 4px;
+  padding: 0; background: transparent; border: none;
+  flex-shrink: 0; flex-wrap: nowrap; min-width: 0;
+}
+.dv-btn { padding: 4px 10px; border: 1px solid var(--color-border); border-radius: var(--radius-xs); background: var(--color-bg-elevated); cursor: pointer; font-size: var(--font-size-sm, 13px); color: var(--color-text-primary); transition: background 0.15s; flex-shrink: 0; }
 .dv-btn:hover { background: var(--color-bg-hover); }
 .dv-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .dv-btn--primary { background: var(--color-primary, #4a6cf7); color: var(--on-accent); border-color: transparent; }
 .dv-btn--primary:hover { opacity: 0.9; }
 .dv-btn-danger { color: var(--color-danger, #f85149); }
 .dv-btn-danger:hover { background: color-mix(in srgb, var(--color-danger, #f85149) 15%, transparent); }
-.dv-btn-back { font-size: var(--font-size-xs, 12px); }
-.dv-toolbar-name { font-size: var(--font-size-sm, 13px); font-weight: 600; color: var(--color-text-primary); max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dv-btn-back { font-size: var(--font-size-xs, 12px); display: inline-flex; align-items: center; justify-content: center; }
 
-.dv-tool-btn { width: 28px; height: 28px; border: 1px solid transparent; border-radius: var(--radius-xs); background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--color-text-secondary); transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s; }
+.dv-tool-btn { width: 28px; height: 28px; border: 1px solid transparent; border-radius: var(--radius-xs); background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--color-text-secondary); flex-shrink: 0; transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s; }
 .dv-tool-btn:hover { background: var(--color-bg-hover); color: var(--color-text-primary); }
 .dv-tool-btn.active { background: color-mix(in srgb, var(--color-primary) 15%, transparent); color: var(--color-primary); border-color: var(--color-primary); }
 
-.dv-color { width: 28px; height: 28px; padding: 2px; border: 1px solid var(--color-border); border-radius: var(--radius-xs); cursor: pointer; background: var(--color-bg-elevated); }
-.dv-width { width: 80px; }
-.dv-label { font-size: var(--font-size-xs, 11px); color: var(--color-text-tertiary); min-width: 24px; }
-.dv-sep { color: var(--color-border); font-size: var(--font-size-sm, 13px); margin: 0 2px; }
-.dv-zoom { font-size: var(--font-size-xs, 11px); color: var(--color-text-tertiary); width: 40px; text-align: center; }
+.dv-color { width: 28px; height: 28px; padding: 2px; border: 1px solid var(--color-border); border-radius: var(--radius-xs); cursor: pointer; background: var(--color-bg-elevated); flex-shrink: 0; }
+.dv-width { width: 80px; flex-shrink: 0; }
+.dv-label { font-size: var(--font-size-xs, 11px); color: var(--color-text-tertiary); min-width: 24px; flex-shrink: 0; }
+.dv-sep { color: var(--color-border); font-size: var(--font-size-sm, 13px); margin: 0 2px; flex-shrink: 0; }
+.dv-zoom { font-size: var(--font-size-xs, 11px); color: var(--color-text-tertiary); width: 40px; text-align: center; flex-shrink: 0; }
 
 /* ─── 主区域 ─── */
 .dv-main { display: flex; flex: 1; overflow: hidden; }

@@ -1,10 +1,13 @@
 <template>
   <div class="manuscript-view">
-    <div class="toolbar">
-      <CustomDropdown v-model="filterOutline" :options="outlineFilterOptions" />
-      <CreateButton label="新建章节" @click="newManuscript" />
-      <span class="toolbar-info">共 {{ filteredManuscripts.length }} 章</span>
-    </div>
+    <!-- 工具栏 Teleport 到 R3 视图工具条的控件区（#view-toolbar-controls），实现单条统一工具栏 -->
+    <Teleport to="#view-toolbar-controls">
+      <div class="toolbar">
+        <CustomDropdown v-model="filterOutline" :options="outlineFilterOptions" />
+        <CreateButton label="新建章节" @click="newManuscript" />
+        <span class="toolbar-info">共 {{ filteredManuscripts.length }} 章</span>
+      </div>
+    </Teleport>
 
     <div class="ms-body">
       <div class="ms-sidebar" :class="{ collapsed: sidebarCollapsed }">
@@ -280,11 +283,13 @@ useAgentPluginBridge('manuscript', (event) => {
 }
 .toolbar {
   display: flex; align-items: center; gap: 10px;
-  margin-bottom: 12px; flex-shrink: 0;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--border-light);
+  margin: 0; flex-shrink: 0;
+  padding: 0;
+  border-bottom: none;
+  min-width: 0;
+  flex-wrap: nowrap;
 }
-.toolbar-info { font-size: var(--font-size-sm); color: var(--text-tertiary); margin-left: auto; }
+.toolbar-info { font-size: var(--font-size-sm); color: var(--text-tertiary); margin-left: auto; white-space: nowrap; }
 
 .ms-body { display: flex; flex: 1; gap: 0; overflow: hidden; }
 

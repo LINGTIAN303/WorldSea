@@ -1,6 +1,5 @@
 <template>
   <div class="dash-toolbar">
-    <h3><WsIcon name="notepad" size="sm" /> 面板布局</h3>
     <CreateButton label="添加面板" size="small" @click="$emit('add')" />
     <div class="dash-controls">
       <CustomDropdown :model-value="modelValue" :options="options" @update:model-value="$emit('update:modelValue', $event)" />
@@ -10,11 +9,10 @@
 
 <script setup lang="ts">
 /**
- * Dashboard 顶部工具栏
- * - 标题、添加面板按钮、布局方向选择器
+ * Dashboard 顶部工具栏（Teleport 到 R3 视图工具条控件区）
+ * - 添加面板按钮 + 布局方向选择器
  * - 布局方向通过 v-model 与父组件双向绑定
  */
-import { WsIcon } from '@worldsmith/ui-kit'
 import { CustomDropdown, CreateButton } from '@worldsmith/plugin-sdk'
 
 defineProps<{
@@ -30,17 +28,16 @@ defineEmits<{
 </script>
 
 <style scoped>
+/* Teleport 到 R3 后：行内横排撑满控件区，去除自身外边距 */
 .dash-toolbar {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 12px;
-  flex-shrink: 0;
-  flex-wrap: wrap;
-}
-
-.dash-toolbar h3 {
   margin: 0;
+  flex-shrink: 0;
+  flex-wrap: nowrap;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .dash-controls {

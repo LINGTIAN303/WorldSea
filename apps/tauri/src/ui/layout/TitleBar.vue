@@ -7,7 +7,8 @@
   <div class="titlebar" data-tauri-drag-region>
     <template v-if="variant === 'workbench'">
       <div class="titlebar-left" data-tauri-drag-region>
-        <button class="titlebar-toggle" aria-label="切换侧边栏" title="切换侧边栏 (Ctrl+B)" @click="toggleSidebar">☰</button>
+        <!-- ⋯ 更多操作：原右侧菜单上移至 ☰ 侧边栏切换按钮的位置（侧边栏切换已下放至窄条） -->
+        <AppMenu />
         <button class="titlebar-switcher" title="切换项目" @click="openProjectManager">
           <span class="titlebar-dot"></span>
           <span class="titlebar-title">WorldSmith</span>
@@ -30,13 +31,18 @@
       <div class="titlebar-spacer" data-tauri-drag-region></div>
     </template>
     <div class="titlebar-right">
-      <AppMenu v-if="variant === 'workbench'" />
       <div class="titlebar-controls">
       <button class="titlebar-btn" aria-label="最小化" title="最小化" @click="minimize">
         <svg width="10" height="10" viewBox="0 0 10 10"><path d="M0 5h10" stroke="currentColor" stroke-width="1"/></svg>
       </button>
-      <button class="titlebar-btn" aria-label="最大化/还原" title="最大化/还原" @click="toggleMaximize">
-        <svg width="10" height="10" viewBox="0 0 10 10"><rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1"/></svg>
+      <button class="titlebar-btn" :aria-label="maximized ? '还原' : '最大化'" :title="maximized ? '还原' : '最大化/还原'" @click="toggleMaximize">
+        <!-- 还原图标：两层重叠窗口 -->
+        <svg v-if="maximized" width="10" height="10" viewBox="0 0 10 10">
+          <rect x="1" y="3" width="6" height="6" fill="none" stroke="currentColor" stroke-width="1"/>
+          <path d="M3 3 V1 H9 V7 H7" fill="none" stroke="currentColor" stroke-width="1"/>
+        </svg>
+        <!-- 最大化图标：单窗口 -->
+        <svg v-else width="10" height="10" viewBox="0 0 10 10"><rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1"/></svg>
       </button>
       <button class="titlebar-btn titlebar-btn--close" aria-label="关闭" title="关闭（最小化到托盘）" @click="close">
         <svg width="10" height="10" viewBox="0 0 10 10"><path d="M0 0l10 10M10 0L0 10" stroke="currentColor" stroke-width="1"/></svg>
@@ -47,7 +53,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { getCurrentWindow, type Window } from '@tauri-apps/api/window'
 import { isTauri } from '@worldsmith/entity-core/core'
 import { useProjectSwitcher } from '@/composables/useProjectSwitcher'
@@ -84,9 +90,6 @@ const currentViewLabel = computed(() => {
   return view?.label ?? ''
 })
 
-function toggleSidebar() {
-  uiStore.toggleSidebar()
-}
 function openProjectManager() {
   // 与 MenuBar 项目切换器一致：通过全局事件打开项目管理弹窗
   window.dispatchEvent(new CustomEvent('ws-open-project-manager'))
@@ -96,8 +99,36 @@ function minimize() {
   appWindow?.minimize().catch(e => console.error('[TitleBar] minimize 失败:', e))
 }
 function toggleMaximize() {
+  // 切换后通过 onResized 事件同步 maximized 状态（异步，不在此处假设结果）
   appWindow?.toggleMaximize().catch(e => console.error('[TitleBar] toggleMaximize 失败:', e))
 }
+
+/* ── 最大化状态跟踪：最大化时图标切换为还原 ── */
+const maximized = ref(false)
+let unlistenResized: (() => void) | null = null
+
+async function syncMaximized() {
+  if (!appWindow) return
+  try {
+    maximized.value = await appWindow.isMaximized()
+  } catch {
+    maximized.value = false
+  }
+}
+
+onMounted(async () => {
+  if (!appWindow) return
+  await syncMaximized()
+  try {
+    unlistenResized = await appWindow.onResized(() => { void syncMaximized() })
+  } catch {
+    // 浏览器预览等非 Tauri 环境无窗口事件，忽略
+  }
+})
+
+onBeforeUnmount(() => {
+  unlistenResized?.()
+})
 function close() {
   // 触发 CloseRequested → Rust 侧托盘激活时拦截为最小化到托盘
   appWindow?.close().catch(e => console.error('[TitleBar] close 失败:', e))
@@ -123,28 +154,8 @@ function close() {
   align-items: center;
   gap: 4px;
   padding-left: 6px;
-  overflow: hidden;
+  /* 不裁切：AppMenu 下拉需要溢出可见（各子元素自带 max-width + overflow 截断） */
   white-space: nowrap;
-}
-/* ☰ 侧边栏切换：小方按钮，悬停反馈 */
-.titlebar-toggle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 26px;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  font-size: var(--font-size-md, 14px);
-  border-radius: var(--radius-sm, 6px);
-  color: var(--text-secondary, var(--color-text-secondary));
-  transition: background 0.12s, color 0.12s;
-  flex-shrink: 0;
-}
-.titlebar-toggle:hover {
-  background: var(--bg-hover, var(--color-bg-hover));
-  color: var(--text-color, var(--color-text-primary));
 }
 /* 项目切换器：紫点 + WorldSmith + 项目名 + ▾，点击打开项目管理 */
 .titlebar-switcher {

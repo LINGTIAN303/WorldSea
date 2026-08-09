@@ -81,6 +81,13 @@
   --chat-max-w: 860px;        /* 对话主区内容最大宽度（消息气泡/日期分隔/输入框/错误条统一，批次101 令牌化） */
   --disabled-opacity: 0.5;    /* 禁用态统一透明度（按钮/分段器/发送钮） */
 
+  /* ── 区域分割（三区双线：各区域为独立圆角块 + 区域间缝隙）── */
+  --region-gap: 8px;                    /* 区域间缝隙（双线之间的空隙，透出 --bg-app） */
+  --region-pad: 8px;                    /* 区域外内边距（各块到 shell 边缘） */
+  --region-radius: var(--radius-md);    /* 区域圆角 */
+  --region-border: var(--border);       /* 区域 1px 边框 */
+  --region-bg: var(--bg-surface);       /* 区域底色（独立块身份） */
+
   /* ── 动效 ── */
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
   --ease-out: cubic-bezier(0, 0, 0.2, 1);

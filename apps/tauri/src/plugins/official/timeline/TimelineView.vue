@@ -1,6 +1,8 @@
-﻿<template>
+<template>
   <div class="timeline-view">
-    <div class="toolbar">
+    <!-- 工具栏上移 R3 统一工具条（#view-toolbar-controls），套用 BuildingSectionView 模式 -->
+    <Teleport to="#view-toolbar-controls">
+      <div class="tl-toolbar">
       <input v-model="searchQuery" placeholder="搜索事件..." class="search-input" />
       <CustomDropdown v-model="eraFilter" :options="eraFilterOptions" />
       <CustomDropdown v-model="importanceFilter" :options="importanceFilterOptions" />
@@ -20,7 +22,8 @@
       <CreateButton label="新建事件" @click="openNewForm" />
       <button v-if="selectedIds.size > 0" class="btn-danger" @click="batchDelete(filteredEvents, '事件')"><WsIcon name="delete" size="xs" /> 删除 ({{ selectedIds.size }})</button>
       <button v-if="selectedIds.size > 0" class="btn-ghost" @click="clearSelection">取消选择</button>
-    </div>
+      </div>
+    </Teleport>
 
     <TimelineChart
       :events="filteredEvents"
@@ -348,6 +351,34 @@ useAgentPluginBridge('timeline', async (event) => {
 
 <style scoped>
 .timeline-view { padding: 20px; height: 100%; display: flex; flex-direction: column; }
+/* ── 工具栏上移 R3：中和背景/边框/padding，撑满控件区（BuildingSectionView 模式） ── */
+.tl-toolbar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 0; background: transparent; border: none;
+  flex-shrink: 0; flex-wrap: nowrap; min-width: 0;
+}
+/* R3 单行适配：上移后控件基线样式（scoped，仅作用于本视图 teleport 内容） */
+.search-input {
+  padding: 4px 10px; font-size: var(--font-size-sm);
+  border: 1px solid var(--border-color, var(--color-border));
+  border-radius: var(--radius-sm); background: var(--color-bg-elevated);
+  color: var(--text-color, var(--color-text-primary)); outline: none; min-width: 160px;
+}
+.search-input:focus { border-color: var(--primary); box-shadow: 0 0 0 2px var(--color-primary-subtle); }
+.btn-ghost {
+  padding: 4px 10px; font-size: var(--font-size-sm);
+  border: 1px solid var(--border-color, var(--color-border));
+  border-radius: var(--radius-sm); background: var(--color-bg-elevated);
+  color: var(--text-color, var(--color-text-primary)); cursor: pointer;
+  white-space: nowrap; transition: background .15s, border-color .15s;
+}
+.btn-ghost:hover { background: var(--hover-bg, var(--color-bg-hover)); }
+.btn-danger {
+  padding: 4px 10px; font-size: var(--font-size-sm);
+  border: 1px solid var(--danger); border-radius: var(--radius-sm);
+  background: transparent; color: var(--danger); cursor: pointer; white-space: nowrap;
+}
+.btn-danger:hover { background: color-mix(in srgb, var(--danger) 12%, transparent); }
 .btn-sm { padding: 5px 12px; font-size: var(--font-size-sm); }
 .btn-ghost.active {
   background: var(--primary-light);

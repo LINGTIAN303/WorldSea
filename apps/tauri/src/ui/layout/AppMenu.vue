@@ -36,39 +36,14 @@
             <span class="menu-item-label">{{ saving ? '导出中...' : '导出到文件夹' }}</span>
             <span class="menu-item-shortcut">{{ formatKeysForDisplay(['ctrl', 's']) }}</span>
           </button>
-          <button class="menu-item" role="menuitem" @click="openImportExport">
-            <WsIcon name="trade" size="sm" class="menu-item-icon" />
-            <span class="menu-item-label">导入/导出</span>
-            <span class="menu-item-shortcut">{{ formatKeysForDisplay(['ctrl', 'shift', 's']) }}</span>
-          </button>
-          <button class="menu-item" role="menuitem" @click="openBatchEdit">
-            <WsIcon name="edit" size="sm" class="menu-item-icon" />
-            <span class="menu-item-label">批量编辑</span>
-            <span class="menu-item-shortcut"></span>
-          </button>
-          <button class="menu-item" role="menuitem" @click="openTemplate">
-            <WsIcon name="list" size="sm" class="menu-item-icon" />
-            <span class="menu-item-label">模板管理</span>
-            <span class="menu-item-shortcut"></span>
-          </button>
           <button class="menu-item" role="menuitem" @click="openVersion">
             <WsIcon name="timeline" size="sm" class="menu-item-icon" />
             <span class="menu-item-label">最近修改</span>
             <span class="menu-item-shortcut"></span>
           </button>
-          <button class="menu-item" role="menuitem" @click="openDocExport">
-            <WsIcon name="print" size="sm" class="menu-item-icon" />
-            <span class="menu-item-label">导出文档</span>
-            <span class="menu-item-shortcut"></span>
-          </button>
           <button class="menu-item" role="menuitem" @click="openLayoutMgr">
             <WsIcon name="module-builder" size="sm" class="menu-item-icon" />
             <span class="menu-item-label">布局管理</span>
-            <span class="menu-item-shortcut"></span>
-          </button>
-          <button class="menu-item" role="menuitem" @click="openTrash">
-            <WsIcon name="trash" size="sm" class="menu-item-icon" />
-            <span class="menu-item-label">回收站</span>
             <span class="menu-item-shortcut"></span>
           </button>
           <button class="menu-item" role="menuitem" @click="openConsistency">
@@ -166,13 +141,8 @@ onMounted(() => {
 })
 
 function openSearch() { closeMenu(); window.dispatchEvent(new CustomEvent('ws-open-search')) }
-function openImportExport() { closeMenu(); window.dispatchEvent(new CustomEvent('ws-open-import-export')) }
-function openBatchEdit() { closeMenu(); window.dispatchEvent(new CustomEvent('ws-open-batch-edit')) }
-function openTemplate() { closeMenu(); window.dispatchEvent(new CustomEvent('ws-open-template')) }
 function openVersion() { closeMenu(); window.dispatchEvent(new CustomEvent('ws-open-version')) }
-function openDocExport() { closeMenu(); window.dispatchEvent(new CustomEvent('ws-open-doc-export')) }
 function openLayoutMgr() { closeMenu(); window.dispatchEvent(new CustomEvent('ws-open-layout-mgr')) }
-function openTrash() { closeMenu(); window.dispatchEvent(new CustomEvent('ws-open-trash')) }
 function openConsistency() { closeMenu(); window.dispatchEvent(new CustomEvent('ws-open-consistency')) }
 function openThemeEditor() { closeMenu(); window.dispatchEvent(new CustomEvent('ws-open-theme-editor')) }
 function openSettings() { closeMenu(); window.dispatchEvent(new CustomEvent('ws-open-settings')) }
@@ -235,7 +205,8 @@ async function saveFolder() {
 
 .appmenu-dropdown {
   position: absolute;
-  right: 0;
+  left: 0;
+  right: auto;
   top: calc(100% + 8px);
   min-width: 220px;
   background: var(--glass-bg, var(--bg));
@@ -250,7 +221,8 @@ async function saveFolder() {
 .appmenu-arrow {
   position: absolute;
   top: -6px;
-  right: 10px;
+  right: auto;
+  left: 10px;
   width: 12px;
   height: 12px;
   background: var(--glass-bg, var(--bg));

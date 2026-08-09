@@ -1,21 +1,24 @@
 <template>
   <div class="bs-view">
-    <div class="bs-toolbar">
-      <button class="bs-btn" @click="$emit('back')" title="返回列表">
-        <WsIcon name="chevron-right" :size="12" :stroke-width="2" />
-        列表
-      </button>
-      <div class="bs-toolbar-sep"></div>
-      <div class="bs-toolbar-group">
-        <span class="bs-toolbar-label">类型</span>
-        <CustomDropdown v-model="filterType" :options="filterTypeOpts" />
+    <!-- 工具栏 Teleport 到 R3 视图工具条的控件区（#view-toolbar-controls），实现单条统一工具栏 -->
+    <Teleport to="#view-toolbar-controls">
+      <div class="bs-toolbar">
+        <button class="bs-btn" @click="$emit('back')" title="返回列表">
+          <WsIcon name="chevron-right" :size="12" :stroke-width="2" />
+          列表
+        </button>
+        <div class="bs-toolbar-sep"></div>
+        <div class="bs-toolbar-group">
+          <span class="bs-toolbar-label">类型</span>
+          <CustomDropdown v-model="filterType" :options="filterTypeOpts" />
+        </div>
+        <div class="bs-toolbar-sep"></div>
+        <label class="bs-toggle"><input type="checkbox" v-model="showConnections" /> 通道</label>
+        <div class="bs-toolbar-spacer"></div>
+        <button class="bs-btn" @click="fitView" title="自动适配">⊞ 适配</button>
+        <span class="bs-count">{{ filteredNodes.length }} 栋建筑</span>
       </div>
-      <div class="bs-toolbar-sep"></div>
-      <label class="bs-toggle"><input type="checkbox" v-model="showConnections" /> 通道</label>
-      <div class="bs-toolbar-spacer"></div>
-      <button class="bs-btn" @click="fitView" title="自动适配">⊞ 适配</button>
-      <span class="bs-count">{{ filteredNodes.length }} 栋建筑</span>
-    </div>
+    </Teleport>
 
     <div class="bs-main">
       <div ref="containerRef" class="bs-canvas-container"></div>
@@ -218,7 +221,7 @@ onMounted(async () => {
 
 <style scoped>
 .bs-view { display: flex; flex-direction: column; height: 100%; background: var(--color-bg-base); color: var(--color-text-primary); font-size: var(--font-size-sm); position: relative; }
-.bs-toolbar { display: flex; gap: 8px; align-items: center; padding: 8px 16px; background: var(--color-bg-surface); border-bottom: 1px solid var(--color-border); flex-shrink: 0; flex-wrap: wrap; }
+.bs-toolbar { display: flex; gap: 8px; align-items: center; padding: 0; background: transparent; border-bottom: none; flex-shrink: 0; flex-wrap: nowrap; min-width: 0; }
 .bs-toolbar-group { display: flex; align-items: center; gap: 4px; }
 .bs-toolbar-label { font-size: var(--font-size-xs); color: var(--color-text-secondary); white-space: nowrap; }
 .bs-toolbar-sep { width: 1px; height: 20px; background: var(--color-border); margin: 0 4px; }
@@ -230,7 +233,7 @@ onMounted(async () => {
 .bs-count { font-size: var(--font-size-xs); color: var(--color-text-secondary); }
 .bs-main { flex: 1; min-height: 0; }
 .bs-canvas-container { width: 100%; height: 100%; }
-.bs-detail { position: absolute; right: 16px; top: 56px; width: 240px; background: var(--color-bg-surface); border: 1px solid var(--color-border); border-radius: var(--radius-mid); padding: 12px; box-shadow: var(--shadow-modal); z-index: 10; max-height: calc(100% - 72px); overflow-y: auto; }
+.bs-detail { position: absolute; right: 16px; top: 16px; width: 240px; background: var(--color-bg-surface); border: 1px solid var(--color-border); border-radius: var(--radius-mid); padding: 12px; box-shadow: var(--shadow-modal); z-index: 10; max-height: calc(100% - 32px); overflow-y: auto; }
 .bs-detail-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .bs-detail-icon { font-size: var(--font-size-xl); }
 .bs-detail-name { font-size: var(--font-size-base); font-weight: var(--font-weight-semibold); color: var(--color-text-primary); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

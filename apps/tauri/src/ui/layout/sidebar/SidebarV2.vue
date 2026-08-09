@@ -13,7 +13,29 @@
     @wheel.prevent="onWheel"
     @pointerdown="onPointerDown"
   >
+    <button
+      v-if="uiStore.sidebarCollapsed"
+      class="sidebar-toggle"
+      aria-label="展开侧边栏"
+      title="展开侧边栏 (Ctrl+B)"
+      @pointerdown.stop
+      @click="uiStore.toggleSidebar()"
+    >
+      <WsIcon name="menu" size="md" />
+    </button>
     <div class="sidebar-inner">
+      <!-- 展开态头部：收起侧边栏按钮 -->
+      <div v-if="!uiStore.sidebarCollapsed" class="sidebar-header">
+        <button
+          class="sidebar-collapse"
+          aria-label="收起侧边栏"
+          title="收起侧边栏 (Ctrl+B)"
+          @pointerdown.stop
+          @click="uiStore.toggleSidebar()"
+        >
+          <WsIcon :name="settingsStore.sidebarPosition === 'right' ? 'chevron-right' : 'chevron-left'" size="sm" />
+        </button>
+      </div>
       <div class="sidebar-carousel" ref="carouselRef">
         <div
           v-for="item in carouselItems"
@@ -332,13 +354,16 @@ onBeforeUnmount(() => {
 .sidebar {
   display: flex;
   flex-direction: column;
-  background: transparent;
+  /* 三区双线：独立圆角块（边框 + 底色），内缩 region-pad 与其余区域隔出缝隙 */
+  background: var(--region-bg, var(--bg-surface));
   overflow: hidden;
   /* 性能优化:脱离 flex 文档流(与原 Sidebar.vue 一致) */
   position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
+  left: var(--region-pad, 8px);
+  top: var(--region-pad, 8px);
+  bottom: var(--region-pad, 8px);
+  border: 1px solid var(--region-border, var(--border));
+  border-radius: var(--region-radius, var(--radius-md));
   z-index: 10;
   contain: strict;
   flex-shrink: 0;
@@ -352,7 +377,7 @@ onBeforeUnmount(() => {
 /* sidebar-right 模式:定位到右侧 */
 .sidebar.sidebar-right {
   left: auto;
-  right: 0;
+  right: var(--region-pad, 8px);
 }
 .sidebar:not(.dragging) {
   transition: none;
@@ -360,6 +385,54 @@ onBeforeUnmount(() => {
 .sidebar.dragging .sidebar-btn {
   cursor: grabbing;
   pointer-events: none;
+}
+/* 折叠窄条内的展开按钮（位于 sidebar-inner 之外，故不随 inner 滑出） */
+.sidebar-toggle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+.sidebar-toggle:hover {
+  background: var(--hover-bg);
+  color: var(--text-color);
+}
+/* 展开态头部：收起侧边栏按钮 */
+.sidebar-header {
+  flex-shrink: 0;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--region-border, var(--border));
+}
+.sidebar-collapse {
+  width: 250px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+.sidebar-collapse:hover {
+  background: var(--hover-bg);
+  color: var(--text-color);
 }
 .sidebar-inner {
   display: flex;
@@ -375,6 +448,7 @@ onBeforeUnmount(() => {
 .sidebar.collapsed .sidebar-inner {
   transform: translateX(-100%);
   opacity: 0;
+  pointer-events: none;
 }
 .sidebar.sidebar-right.collapsed .sidebar-inner {
   transform: translateX(100%);
@@ -384,11 +458,11 @@ onBeforeUnmount(() => {
   flex-direction: column;
   align-items: stretch;
   justify-content: center;
-  height: 100%;
+  flex: 1;
+  min-height: 200px;
   gap: 2px;
   padding: 4px 6px;
   position: relative;
-  min-height: 200px;
 }
 .sidebar-btn {
   display: flex;

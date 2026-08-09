@@ -53,19 +53,21 @@ const props = withDefaults(defineProps<{
   fallback: '',
 })
 
-/** 优先使用主题图标覆盖，否则使用注册表图标 */
+/** 主题覆盖优先；否则优先 Lucide 标准图标，最后回退到注册表路径图标 */
+const themeIconDef = computed(() => getThemeIconOverride(props.name))
+
+const lucideIcon = computed<Component | null>(() => {
+  if (themeIconDef.value) return null
+  return resolveLucideIcon(props.name)
+})
+
 const iconDef = computed(() => {
-  const themeOverride = getThemeIconOverride(props.name)
-  if (themeOverride) return themeOverride
+  if (themeIconDef.value) return themeIconDef.value
+  if (lucideIcon.value) return null
   return getIcon(props.name)
 })
 
 const resolvedViewBox = '0 0 24 24'
-
-const lucideIcon = computed<Component | null>(() => {
-  if (iconDef.value) return null
-  return resolveLucideIcon(props.name)
-})
 
 const resolvedSize = computed<IconSize | 'custom'>(() => {
   if (typeof props.size === 'string' && props.size in SIZE_MAP) return props.size as IconSize

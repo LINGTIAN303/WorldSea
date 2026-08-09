@@ -1,21 +1,24 @@
 <template>
   <div class="cal-view">
-    <div class="cal-toolbar">
-      <button class="cal-btn" @click="$emit('back')" title="返回列表">
-        <WsIcon name="chevron-right" :size="12" :stroke-width="2" />
-        列表
-      </button>
-      <div class="cal-toolbar-sep"></div>
-      <div class="cal-toolbar-group">
-        <span class="cal-toolbar-label">类型</span>
-        <CustomDropdown v-model="filterType" :options="filterTypeOpts" />
+    <!-- 工具栏 Teleport 到 R3 视图工具条的控件区（#view-toolbar-controls），实现单条统一工具栏 -->
+    <Teleport to="#view-toolbar-controls">
+      <div class="cal-toolbar">
+        <button class="cal-btn" @click="$emit('back')" title="返回列表">
+          <WsIcon name="chevron-right" :size="12" :stroke-width="2" />
+          列表
+        </button>
+        <div class="cal-toolbar-sep"></div>
+        <div class="cal-toolbar-group">
+          <span class="cal-toolbar-label">类型</span>
+          <CustomDropdown v-model="filterType" :options="filterTypeOpts" />
+        </div>
+        <div class="cal-toolbar-sep"></div>
+        <label class="cal-toggle"><input type="checkbox" v-model="showUntimed" /> 显示无固定时间</label>
+        <div class="cal-toolbar-spacer"></div>
+        <button class="cal-btn" @click="fitView" title="重置视图">⊞ 适配</button>
+        <span class="cal-count">{{ timedNodes.length }} 个有期 / {{ untimeNodes.length }} 个无期</span>
       </div>
-      <div class="cal-toolbar-sep"></div>
-      <label class="cal-toggle"><input type="checkbox" v-model="showUntimed" /> 显示无固定时间</label>
-      <div class="cal-toolbar-spacer"></div>
-      <button class="cal-btn" @click="fitView" title="重置视图">⊞ 适配</button>
-      <span class="cal-count">{{ timedNodes.length }} 个有期 / {{ untimeNodes.length }} 个无期</span>
-    </div>
+    </Teleport>
 
     <div class="cal-main">
       <div ref="containerRef" class="cal-canvas-container"></div>
@@ -145,7 +148,8 @@ onMounted(async () => {
 
 <style scoped>
 .cal-view { display: flex; flex-direction: column; height: 100%; background: var(--color-bg-base); color: var(--color-text-primary); font-size: var(--font-size-sm); position: relative; }
-.cal-toolbar { display: flex; gap: 8px; align-items: center; padding: 8px 16px; background: var(--color-bg-surface); border-bottom: 1px solid var(--color-border); flex-shrink: 0; flex-wrap: wrap; }
+/* 工具栏 Teleport 到 R3 后：行内横排，去除自身背景/边框/内边距 */
+.cal-toolbar { display: flex; gap: 8px; align-items: center; padding: 0; background: transparent; border-bottom: none; flex-shrink: 0; flex-wrap: nowrap; min-width: 0; }
 .cal-toolbar-group { display: flex; align-items: center; gap: 4px; }
 .cal-toolbar-label { font-size: var(--font-size-xs); color: var(--color-text-secondary); white-space: nowrap; }
 .cal-toolbar-sep { width: 1px; height: 20px; background: var(--color-border); margin: 0 4px; }
@@ -157,7 +161,7 @@ onMounted(async () => {
 .cal-count { font-size: var(--font-size-xs); color: var(--color-text-secondary); }
 .cal-main { flex: 1; min-height: 0; }
 .cal-canvas-container { width: 100%; height: 100%; }
-.cal-detail { position: absolute; right: 16px; top: 56px; width: 240px; background: var(--color-bg-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 12px; box-shadow: var(--shadow-card); z-index: 10; max-height: calc(100% - 72px); overflow-y: auto; }
+.cal-detail { position: absolute; right: 16px; top: 16px; width: 240px; background: var(--color-bg-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 12px; box-shadow: var(--shadow-card); z-index: 10; max-height: calc(100% - 32px); overflow-y: auto; }
 .cal-detail-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .cal-detail-icon { font-size: var(--font-size-xl); }
 .cal-detail-name { font-size: var(--font-size-base); font-weight: var(--font-weight-semibold); color: var(--color-text-primary); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

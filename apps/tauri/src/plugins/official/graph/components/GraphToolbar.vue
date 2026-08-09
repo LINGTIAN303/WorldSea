@@ -1,4 +1,6 @@
 <template>
+  <!-- 工具栏上移 R3 统一工具条（#view-toolbar-controls），套用 BuildingSectionView 模式 -->
+  <Teleport to="#view-toolbar-controls">
   <div class="gg-toolbar">
     <select class="gg-select" :value="layout" @change="$emit('update:layout', ($event.target as HTMLSelectElement).value)">
       <option v-for="opt in layoutOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
@@ -24,6 +26,7 @@
       <button class="gg-btn" @click="$emit('fit')" aria-label="适应画面">⊡</button>
     </div>
   </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
@@ -52,7 +55,7 @@ defineEmits<{
 </script>
 
 <style scoped>
-.gg-toolbar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--color-border); background: var(--color-bg-surface); flex-shrink: 0; flex-wrap: wrap; }
+.gg-toolbar { display: flex; align-items: center; gap: 8px; padding: 0; background: transparent; border: none; flex-shrink: 0; flex-wrap: nowrap; min-width: 0; }
 .gg-select { padding: 5px 8px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-bg-elevated); color: var(--color-text-primary); font-size: var(--font-size-sm); }
 .gg-filters { display: flex; align-items: center; gap: 3px; flex-wrap: wrap; }
 .gg-flabel { font-size: var(--font-size-xs); color: var(--color-text-secondary); }

@@ -6,11 +6,14 @@
     @drop="onExternalDrop"
     :class="{ 'dash-drop-target': isExternalDragOver }"
   >
-    <DashboardToolbar
-      v-model="direction"
-      :options="directionOptions"
-      @add="handleAddPanel"
-    />
+    <!-- 工具栏 Teleport 到 R3 视图工具条的控件区（#view-toolbar-controls），实现单条统一工具栏 -->
+    <Teleport to="#view-toolbar-controls">
+      <DashboardToolbar
+        v-model="direction"
+        :options="directionOptions"
+        @add="handleAddPanel"
+      />
+    </Teleport>
 
     <WsEmpty
       v-if="panels.length === 0"
