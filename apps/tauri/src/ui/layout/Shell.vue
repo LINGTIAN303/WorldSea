@@ -2,7 +2,7 @@
   <div class="shell">
     <TitleBar />
     <WelcomeOverlay />
-    <div class="shell-body" :class="{ 'sidebar-right': settingsStore.sidebarPosition === 'right' }">
+    <div id="main-content" tabindex="-1" class="shell-body" :class="{ 'sidebar-right': settingsStore.sidebarPosition === 'right' }">
       <Sidebar />
       <ViewContainer />
     </div>

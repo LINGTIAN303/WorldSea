@@ -63,6 +63,8 @@ onMounted(async () => {
 </script>
 
 <template>
+  <!-- 跳过导航直达主内容（WCAG 2.4.1 Bypass Blocks）：仅键盘/读屏聚焦时可见 -->
+  <a href="#main-content" class="skip-link">跳到主内容</a>
   <!-- 平级切换：space=Agent 聊天空间 / workbench=插件工作台（uiStore.currentShell 持久化） -->
   <AgentSpace v-if="uiStore.currentShell === 'space'" />
   <Shell v-else />
@@ -74,5 +76,26 @@ html, body, #app {
   height: 100%;
   margin: 0;
   overflow: hidden;
+}
+
+/* 跳过导航链接：默认移出屏幕，聚焦时滑入可见（WCAG 2.4.1） */
+.skip-link {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 10000;
+  padding: 10px 16px;
+  background: var(--bg-surface, #fff);
+  color: var(--text-primary, #18181b);
+  border: 2px solid var(--accent, #4f46e5);
+  border-radius: 0 0 var(--radius-sm, 6px) 0;
+  font-size: var(--fs-md, 14px);
+  text-decoration: none;
+  transform: translateY(-200%);
+  transition: transform var(--dur-fast, 0.15s) ease;
+}
+.skip-link:focus,
+.skip-link:focus-visible {
+  transform: translateY(0);
 }
 </style>

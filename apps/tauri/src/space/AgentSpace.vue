@@ -19,7 +19,7 @@
 
     <div v-if="sessionOpen || knowledgeOpen" class="panels-backdrop" @click="closeAll"></div>
 
-    <div class="space-body">
+    <div id="main-content" tabindex="-1" class="space-body">
       <!-- 单聊模式：左侧会话栏（双线分隔独立块） -->
       <Transition v-if="spaceStore.mode === 'chat'" name="sidebar-slide">
         <div
