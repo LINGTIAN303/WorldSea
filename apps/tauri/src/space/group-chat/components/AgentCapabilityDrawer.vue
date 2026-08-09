@@ -345,7 +345,7 @@ function resetToDerived(): void {
 .section-header .section-label { margin-bottom: 0; }
 .section-actions { display: flex; gap: 4px; }
 .action-btn { border: none; background: none; color: var(--color-text-tertiary); font-size: 10px; cursor: pointer; padding: 2px 6px; border-radius: 4px; transition: background 0.12s, border-color 0.12s, color 0.12s, box-shadow 0.12s, transform 0.12s, opacity 0.12s, filter 0.12s; }
-.action-btn:hover { color: var(--color-primary); background: rgba(108,92,231,0.06); }
+.action-btn:hover { color: var(--color-primary); background: color-mix(in srgb, var(--color-primary) 6%, transparent); }
 
 /* 技能区域 */
 .skills-section { margin-bottom: 16px; }
@@ -362,8 +362,8 @@ function resetToDerived(): void {
   transition: background 0.12s, border-color 0.12s, color 0.12s, box-shadow 0.12s, transform 0.12s, opacity 0.12s, filter 0.12s;
   user-select: none;
 }
-.skill-row:hover { background: rgba(108,92,231,0.04); }
-.skill-row.active { background: rgba(108,92,231,0.08); }
+.skill-row:hover { background: color-mix(in srgb, var(--color-primary) 4%, transparent); }
+.skill-row.active { background: color-mix(in srgb, var(--color-primary) 8%, transparent); }
 .skill-row-icon { color: var(--color-text-secondary); flex-shrink: 0; }
 .skill-row.active .skill-row-icon { color: var(--color-primary); }
 .skill-row-name { font-size: var(--fs-sm); font-weight: 500; flex: 1; }
@@ -399,7 +399,7 @@ function resetToDerived(): void {
 }
 .advanced-toggle:hover { border-color: var(--color-primary); color: var(--color-text); }
 .advanced-arrow { margin-left: auto; }
-.manual-badge { font-size: 9px; background: rgba(108,92,231,0.12); color: var(--color-primary); padding: 1px 6px; border-radius: 8px; font-weight: 600; }
+.manual-badge { font-size: 9px; background: color-mix(in srgb, var(--color-primary) 12%, transparent); color: var(--color-primary); padding: 1px 6px; border-radius: 8px; font-weight: 600; }
 .advanced-tools-content { margin-top: 8px; }
 .advanced-tools-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .advanced-tools-hint { font-size: 10px; color: var(--color-text-tertiary); }

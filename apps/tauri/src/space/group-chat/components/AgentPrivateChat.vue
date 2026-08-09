@@ -555,7 +555,7 @@ onBeforeUnmount(() => {
   transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s;
 }
 
-.btn-clear:hover { background: rgba(239, 68, 68, 0.1); color: #ef4444; border-color: rgba(239, 68, 68, 0.3); }
+.btn-clear:hover { background: var(--danger-soft); color: var(--danger); border-color: var(--danger); }
 
 .private-messages {
   flex: 1;
@@ -655,8 +655,8 @@ onBeforeUnmount(() => {
 }
 
 .tool-call-tag.running { border-color: var(--color-primary); color: var(--color-primary); }
-.tool-call-tag.completed { border-color: rgba(16, 185, 129, 0.3); color: #10b981; }
-.tool-call-tag.failed { border-color: rgba(239, 68, 68, 0.3); color: #ef4444; }
+.tool-call-tag.completed { border-color: var(--success); color: var(--success); }
+.tool-call-tag.failed { border-color: var(--danger); color: var(--danger); }
 
 .tc-pulse { animation: pulse 1.5s infinite; }
 .tc-done, .tc-fail { display: inline-flex; }

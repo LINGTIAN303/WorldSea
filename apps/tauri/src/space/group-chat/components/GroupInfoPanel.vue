@@ -231,7 +231,7 @@ function schedulePersist(): void {
 .sync-mode-section { margin-bottom: 14px; }
 .sync-mode-desc { font-size: 9px; color: var(--color-text-tertiary); margin-top: 2px; }
 
-.invite-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.3); z-index: 60; display: flex; align-items: center; justify-content: center; }
+.invite-overlay { position: absolute; inset: 0; background: var(--overlay); z-index: 60; display: flex; align-items: center; justify-content: center; }
 .invite-dialog { background: rgba(10, 10, 20, 0.08); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-radius: 12px; padding: 16px; width: 280px; max-height: 360px; display: flex; flex-direction: column; border: 1px solid var(--color-border); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25); }
 .invite-title { font-size: var(--fs-base); font-weight: 600; margin-bottom: 8px; text-align: center; color: var(--color-text); }
 .invite-search { width: 100%; padding: 6px 10px; border: 1px solid var(--color-border); border-radius: 8px; font-size: var(--fs-sm); background: var(--color-surface); outline: none; margin-bottom: 8px; color: var(--color-text); }

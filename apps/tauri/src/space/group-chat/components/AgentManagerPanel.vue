@@ -230,7 +230,7 @@ onMounted(async () => {
   transition: opacity 0.12s, background 0.12s;
 }
 .agent-card:hover .agent-delete-btn { opacity: 1; }
-.agent-delete-btn:hover { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+.agent-delete-btn:hover { background: var(--danger-soft); color: var(--danger); }
 
 .agent-empty { padding: 16px; font-size: var(--fs-sm); color: var(--color-text-tertiary); text-align: center; }
 
