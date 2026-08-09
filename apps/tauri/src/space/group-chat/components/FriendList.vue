@@ -233,7 +233,7 @@ onBeforeUnmount(() => {
 .friend-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .friend-name { font-size: var(--fs-md); font-weight: 600; color: var(--color-text); }
 .friend-role { font-size: var(--fs-xs); color: var(--color-text-tertiary); }
-.friend-source { font-size: 10px; color: var(--color-text-tertiary); }
+.friend-source { font-size: var(--fs-2xs); color: var(--color-text-tertiary); }
 
 .friend-empty {
   padding: 24px 12px;

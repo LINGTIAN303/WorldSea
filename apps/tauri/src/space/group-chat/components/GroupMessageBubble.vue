@@ -394,7 +394,7 @@ function onCopy() {
 .tool-detail-section { margin-bottom: 4px; }
 .tool-detail-section:last-child { margin-bottom: 0; }
 .tool-detail-label {
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   font-weight: 600;
   color: var(--color-text-tertiary);
   text-transform: uppercase;

@@ -477,7 +477,7 @@ watch(() => spaceStore.inputInjection, (injection) => {
   background: transparent;
   color: var(--color-primary);
   cursor: pointer;
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   display: flex;
   align-items: center;
   justify-content: center;

@@ -98,7 +98,7 @@ watch(expanded, (v) => { if (v) refresh() })
 .request-monitor { margin-bottom: 14px; }
 .section-label { font-size: var(--fs-xs); color: var(--color-text-tertiary); font-weight: 600; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
 .toggle-arrow { font-size: 8px; }
-.pending-badge { font-size: 9px; background: var(--color-primary); color: var(--on-accent); padding: 1px 6px; border-radius: var(--radius-mid); font-weight: 400; text-transform: none; letter-spacing: 0; }
+.pending-badge { font-size: var(--fs-3xs); background: var(--color-primary); color: var(--on-accent); padding: 1px 6px; border-radius: var(--radius-mid); font-weight: 400; text-transform: none; letter-spacing: 0; }
 
 .agent-stats { margin-bottom: 8px; }
 .agent-stat-row { display: flex; align-items: center; gap: 6px; padding: 3px 0; font-size: var(--fs-xs); }
@@ -106,17 +106,17 @@ watch(expanded, (v) => { if (v) refresh() })
 .stat-total { color: var(--color-text-secondary); }
 .stat-success { color: #10b981; }
 .stat-error { color: #ef4444; }
-.stat-latency { color: var(--color-text-tertiary); font-size: 10px; }
-.empty-hint { font-size: 10px; color: var(--color-text-tertiary); padding: 8px 0; }
+.stat-latency { color: var(--color-text-tertiary); font-size: var(--fs-2xs); }
+.empty-hint { font-size: var(--fs-2xs); color: var(--color-text-tertiary); padding: 8px 0; }
 
 .records-list { max-height: 200px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: var(--radius-sm); margin-bottom: 8px; }
-.record-row { display: flex; align-items: center; gap: 6px; padding: 3px 8px; font-size: 10px; border-bottom: 1px solid var(--color-border); }
+.record-row { display: flex; align-items: center; gap: 6px; padding: 3px 8px; font-size: var(--fs-2xs); border-bottom: 1px solid var(--color-border); }
 .record-row:last-child { border-bottom: none; }
 .record-row.success { }
 .record-row.error { background: rgba(239,68,68,0.05); }
 .record-row.pending { background: rgba(108,92,231,0.05); }
 .rec-name { font-weight: 600; min-width: 50px; }
-.rec-protocol { font-size: 9px; color: var(--color-primary); background: rgba(108,92,231,0.08); padding: 1px 4px; border-radius: var(--radius-2xs); }
+.rec-protocol { font-size: var(--fs-3xs); color: var(--color-primary); background: rgba(108,92,231,0.08); padding: 1px 4px; border-radius: var(--radius-2xs); }
 .rec-status { font-weight: 600; min-width: 24px; }
 .rec-status.success { color: #10b981; }
 .rec-status.error { color: #ef4444; }
@@ -126,6 +126,6 @@ watch(expanded, (v) => { if (v) refresh() })
 .rec-error { color: #ef4444; font-weight: 700; cursor: help; }
 
 .monitor-actions { display: flex; gap: 6px; }
-.clear-btn, .refresh-btn { padding: 3px 10px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); font-size: 10px; cursor: pointer; background: var(--color-surface); color: var(--color-text-secondary); }
+.clear-btn, .refresh-btn { padding: 3px 10px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); font-size: var(--fs-2xs); cursor: pointer; background: var(--color-surface); color: var(--color-text-secondary); }
 .clear-btn:hover, .refresh-btn:hover { border-color: var(--color-primary); }
 </style>

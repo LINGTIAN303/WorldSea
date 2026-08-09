@@ -168,7 +168,7 @@ defineExpose({ focusInput })
 .mention-item:hover { background: var(--color-surface); }
 .mention-avatar { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: var(--fs-xs); flex-shrink: 0; }
 .mention-name { font-size: var(--fs-sm); font-weight: 600; }
-.mention-role { font-size: 10px; color: var(--color-text-tertiary); }
+.mention-role { font-size: var(--fs-2xs); color: var(--color-text-tertiary); }
 .mention-empty { padding: 8px 10px; font-size: var(--fs-xs); color: var(--color-text-tertiary); text-align: center; }
 
 .input-row { display: flex; align-items: flex-end; gap: 6px; }

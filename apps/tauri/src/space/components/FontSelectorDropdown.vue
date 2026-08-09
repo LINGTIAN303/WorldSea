@@ -320,7 +320,7 @@ const filteredSystemFonts = computed(() => {
   flex-shrink: 0;
 }
 .font-tag {
-  font-size: 9px;
+  font-size: var(--fs-3xs);
   padding: 1px 4px;
   border-radius: var(--radius-2xs);
   background: var(--color-primary-muted);

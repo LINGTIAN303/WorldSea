@@ -265,7 +265,7 @@ function onContextMenu(e: MouseEvent): void {
   box-shadow: 0 0 0 2px rgba(108,92,231,0.3);
 }
 .avatar-letter { color: var(--on-accent); font-weight: 700; font-size: var(--fs-xs); }
-.msg-time { font-size: 10px; color: var(--color-text-tertiary); }
+.msg-time { font-size: var(--fs-2xs); color: var(--color-text-tertiary); }
 .user-time { margin-top: 2px; }
 .agent-time { margin-top: 2px; }
 
@@ -337,7 +337,7 @@ function onContextMenu(e: MouseEvent): void {
 .tool-detail-section { margin-bottom: 4px; }
 .tool-detail-section:last-child { margin-bottom: 0; }
 .tool-detail-label {
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   font-weight: 600;
   color: var(--color-text-tertiary);
   text-transform: uppercase;
@@ -401,7 +401,7 @@ function onContextMenu(e: MouseEvent): void {
   margin-bottom: 4px;
 }
 .thinking-pop-header {
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   font-weight: 600;
   color: var(--color-text-tertiary);
   margin-bottom: 4px;

@@ -229,7 +229,7 @@ function schedulePersist(): void {
 .danger-btn:hover { background: rgba(239,68,68,0.1); }
 
 .sync-mode-section { margin-bottom: 14px; }
-.sync-mode-desc { font-size: 9px; color: var(--color-text-tertiary); margin-top: 2px; }
+.sync-mode-desc { font-size: var(--fs-3xs); color: var(--color-text-tertiary); margin-top: 2px; }
 
 .invite-overlay { position: absolute; inset: 0; background: var(--overlay); z-index: 60; display: flex; align-items: center; justify-content: center; }
 .invite-dialog { background: rgba(10, 10, 20, 0.08); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-radius: var(--radius-2xl); padding: 16px; width: 280px; max-height: 360px; display: flex; flex-direction: column; border: 1px solid var(--color-border); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25); }
@@ -242,7 +242,7 @@ function schedulePersist(): void {
 .invite-avatar { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: var(--fs-xs); flex-shrink: 0; }
 .invite-info { flex: 1; }
 .invite-name { font-size: var(--fs-sm); font-weight: 600; color: var(--color-text); }
-.invite-role { font-size: 10px; color: var(--color-text-tertiary); margin-left: 4px; }
+.invite-role { font-size: var(--fs-2xs); color: var(--color-text-tertiary); margin-left: 4px; }
 .invite-check { color: var(--color-primary); font-weight: 700; }
 .invite-empty { padding: 12px; font-size: var(--fs-xs); color: var(--color-text-tertiary); text-align: center; }
 .invite-actions { display: flex; gap: 8px; margin-top: 10px; }

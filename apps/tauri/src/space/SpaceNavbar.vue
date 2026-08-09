@@ -432,7 +432,7 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   color: var(--color-text-secondary);
   line-height: 1;
   transition: color 0.15s;
@@ -464,7 +464,7 @@ onBeforeUnmount(() => {
 }
 
 .current-session {
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   color: var(--color-text-tertiary);
   max-width: 140px;
   white-space: nowrap;

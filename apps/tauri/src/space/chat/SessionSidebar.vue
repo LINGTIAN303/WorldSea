@@ -415,7 +415,7 @@ watch(currentSessionId, () => {
   display: inline-block;
   padding: 0 5px;
   border-radius: var(--radius-2xs);
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   font-weight: 600;
   line-height: 16px;
   letter-spacing: 0.3px;

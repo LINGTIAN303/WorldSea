@@ -344,14 +344,14 @@ function resetToDerived(): void {
 .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
 .section-header .section-label { margin-bottom: 0; }
 .section-actions { display: flex; gap: 4px; }
-.action-btn { border: none; background: none; color: var(--color-text-tertiary); font-size: 10px; cursor: pointer; padding: 2px 6px; border-radius: var(--radius-xs); transition: background 0.12s, border-color 0.12s, color 0.12s, box-shadow 0.12s, transform 0.12s, opacity 0.12s, filter 0.12s; }
+.action-btn { border: none; background: none; color: var(--color-text-tertiary); font-size: var(--fs-2xs); cursor: pointer; padding: 2px 6px; border-radius: var(--radius-xs); transition: background 0.12s, border-color 0.12s, color 0.12s, box-shadow 0.12s, transform 0.12s, opacity 0.12s, filter 0.12s; }
 .action-btn:hover { color: var(--color-primary); background: color-mix(in srgb, var(--color-primary) 6%, transparent); }
 
 /* 技能区域 */
 .skills-section { margin-bottom: 16px; }
-.skills-desc { font-size: 10px; color: var(--color-text-tertiary); margin-bottom: 8px; }
+.skills-desc { font-size: var(--fs-2xs); color: var(--color-text-tertiary); margin-bottom: 8px; }
 .skill-group { margin-bottom: 6px; }
-.skill-group-label { font-size: 9px; color: var(--color-text-tertiary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; padding: 0 4px; margin-bottom: 4px; }
+.skill-group-label { font-size: var(--fs-3xs); color: var(--color-text-tertiary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; padding: 0 4px; margin-bottom: 4px; }
 .skill-row {
   display: flex;
   align-items: center;
@@ -367,20 +367,20 @@ function resetToDerived(): void {
 .skill-row-icon { color: var(--color-text-secondary); flex-shrink: 0; }
 .skill-row.active .skill-row-icon { color: var(--color-primary); }
 .skill-row-name { font-size: var(--fs-sm); font-weight: 500; flex: 1; }
-.skill-row-count { font-size: 9px; color: var(--color-text-tertiary); }
+.skill-row-count { font-size: var(--fs-3xs); color: var(--color-text-tertiary); }
 .skill-row-check { color: var(--color-primary); flex-shrink: 0; }
-.skills-hint { font-size: 10px; color: var(--color-text-tertiary); margin-top: 4px; font-style: italic; }
+.skills-hint { font-size: var(--fs-2xs); color: var(--color-text-tertiary); margin-top: 4px; font-style: italic; }
 
 /* 工具预览 */
 .tool-preview-section { margin-bottom: 16px; }
 .tool-preview-summary { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
-.tool-preview-cat { font-size: 10px; color: var(--color-text-secondary); background: var(--color-surface); padding: 2px 8px; border-radius: var(--radius-md); }
+.tool-preview-cat { font-size: var(--fs-2xs); color: var(--color-text-secondary); background: var(--color-surface); padding: 2px 8px; border-radius: var(--radius-md); }
 .tool-preview-detail { border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 8px; margin-top: 6px; max-height: 200px; overflow-y: auto; }
 .preview-cat { margin-bottom: 6px; }
 .preview-cat:last-child { margin-bottom: 0; }
-.preview-cat-label { font-size: 10px; font-weight: 600; color: var(--color-text-secondary); margin-bottom: 2px; }
+.preview-cat-label { font-size: var(--fs-2xs); font-weight: 600; color: var(--color-text-secondary); margin-bottom: 2px; }
 .preview-cat-tools { display: flex; flex-wrap: wrap; gap: 4px; }
-.preview-tool-tag { font-size: 9px; color: var(--color-text-tertiary); background: var(--color-surface); padding: 1px 6px; border-radius: var(--radius-xs); font-family: monospace; }
+.preview-tool-tag { font-size: var(--fs-3xs); color: var(--color-text-tertiary); background: var(--color-surface); padding: 1px 6px; border-radius: var(--radius-xs); font-family: monospace; }
 
 /* 高级自定义工具 */
 .advanced-tools-section { margin-bottom: 16px; }
@@ -399,22 +399,22 @@ function resetToDerived(): void {
 }
 .advanced-toggle:hover { border-color: var(--color-primary); color: var(--color-text); }
 .advanced-arrow { margin-left: auto; }
-.manual-badge { font-size: 9px; background: color-mix(in srgb, var(--color-primary) 12%, transparent); color: var(--color-primary); padding: 1px 6px; border-radius: var(--radius-mid); font-weight: 600; }
+.manual-badge { font-size: var(--fs-3xs); background: color-mix(in srgb, var(--color-primary) 12%, transparent); color: var(--color-primary); padding: 1px 6px; border-radius: var(--radius-mid); font-weight: 600; }
 .advanced-tools-content { margin-top: 8px; }
 .advanced-tools-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-.advanced-tools-hint { font-size: 10px; color: var(--color-text-tertiary); }
+.advanced-tools-hint { font-size: var(--fs-2xs); color: var(--color-text-tertiary); }
 .always-available-hint {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   color: var(--color-text-tertiary);
   margin-bottom: 8px;
   padding: 4px 8px;
   background: var(--color-surface);
   border-radius: var(--radius-xs);
 }
-.reset-btn { border: 1px solid var(--color-border); background: none; color: var(--color-text-secondary); font-size: 10px; padding: 2px 8px; border-radius: var(--radius-xs); cursor: pointer; transition: background 0.12s, border-color 0.12s, color 0.12s, box-shadow 0.12s, transform 0.12s, opacity 0.12s, filter 0.12s; }
+.reset-btn { border: 1px solid var(--color-border); background: none; color: var(--color-text-secondary); font-size: var(--fs-2xs); padding: 2px 8px; border-radius: var(--radius-xs); cursor: pointer; transition: background 0.12s, border-color 0.12s, color 0.12s, box-shadow 0.12s, transform 0.12s, opacity 0.12s, filter 0.12s; }
 .reset-btn:hover { border-color: var(--color-primary); color: var(--color-primary); }
 
 /* 工具分类列表 */
@@ -423,7 +423,7 @@ function resetToDerived(): void {
 .tool-cat-header:hover { background: var(--color-surface-elevated); }
 .tool-cat-arrow { font-size: 8px; width: 12px; text-align: center; }
 .tool-cat-label { flex: 1; }
-.tool-cat-count { font-size: 9px; color: var(--color-text-tertiary); font-weight: 400; }
+.tool-cat-count { font-size: var(--fs-3xs); color: var(--color-text-tertiary); font-weight: 400; }
 .tool-cat-items { padding: 4px 8px; border-top: 1px solid var(--color-border); }
 .tool-item { display: flex; align-items: center; gap: 6px; padding: 3px 0; font-size: var(--fs-xs); cursor: pointer; }
 .tool-item input { accent-color: var(--color-primary); flex-shrink: 0; }
@@ -433,5 +433,5 @@ function resetToDerived(): void {
 .tool-name { font-weight: 600; min-width: 120px; white-space: nowrap; }
 .tool-derived-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--color-primary); flex-shrink: 0; }
 .tool-always-badge { font-size: 8px; background: var(--color-surface); color: var(--color-text-tertiary); padding: 0px 4px; border-radius: var(--radius-2xs); border: 1px solid var(--color-border); flex-shrink: 0; }
-.tool-desc-inline { color: var(--color-text-tertiary); font-size: 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tool-desc-inline { color: var(--color-text-tertiary); font-size: var(--fs-3xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>

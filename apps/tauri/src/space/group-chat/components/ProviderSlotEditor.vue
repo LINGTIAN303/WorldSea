@@ -424,7 +424,7 @@ for (const slot of profileStore.slots) {
   border-radius: 50%;
   background: color-mix(in srgb, var(--color-primary) 15%, transparent);
   color: var(--color-primary);
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   font-weight: 700;
   display: flex;
   align-items: center;
@@ -448,7 +448,7 @@ for (const slot of profileStore.slots) {
   display: inline-block;
   padding: 0 5px;
   border-radius: var(--radius-2xs);
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   font-weight: 600;
   margin-right: 4px;
   vertical-align: middle;
@@ -548,7 +548,7 @@ for (const slot of profileStore.slots) {
   border-radius: var(--radius-2xs);
   background: color-mix(in srgb, var(--color-primary) 15%, transparent);
   color: var(--color-primary);
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   font-weight: 600;
   text-transform: uppercase;
 }
@@ -732,7 +732,7 @@ for (const slot of profileStore.slots) {
 }
 
 .picker-item-id {
-  font-size: 9px;
+  font-size: var(--fs-3xs);
   color: var(--color-text-tertiary);
   font-family: monospace;
   max-width: 120px;

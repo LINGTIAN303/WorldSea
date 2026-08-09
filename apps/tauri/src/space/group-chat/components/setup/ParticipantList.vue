@@ -263,12 +263,12 @@ function getFallbackChainDisplay(idx: number): { id: string; name: string; isCur
 }
 
 .fallback-label {
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   color: var(--color-text-tertiary);
 }
 
 .fallback-item {
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   color: var(--color-text-tertiary);
 }
 
@@ -280,7 +280,7 @@ function getFallbackChainDisplay(idx: number): { id: string; name: string; isCur
 .pc-warning {
   margin-top: 4px;
   margin-left: 40px;
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   color: #ef4444;
 }
 </style>

@@ -209,7 +209,7 @@ onMounted(async () => {
 .agent-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .agent-name { font-size: var(--fs-md); font-weight: 600; color: var(--color-text); }
 .agent-role { font-size: var(--fs-xs); color: var(--color-text-tertiary); }
-.agent-source { font-size: 10px; color: var(--color-text-tertiary); }
+.agent-source { font-size: var(--fs-2xs); color: var(--color-text-tertiary); }
 
 .agent-delete-btn {
   position: absolute;
@@ -221,7 +221,7 @@ onMounted(async () => {
   background: transparent;
   border-radius: 50%;
   cursor: pointer;
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   color: var(--color-text-tertiary);
   display: flex;
   align-items: center;

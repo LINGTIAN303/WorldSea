@@ -745,7 +745,7 @@ onBeforeUnmount(() => {
 
 /* 时间戳 */
 .msg-time {
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   color: var(--color-text-tertiary);
   margin-top: 2px;
 }

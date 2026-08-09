@@ -49,7 +49,7 @@ const {
 .streaming-msg .msg-name { font-size: var(--fs-sm); font-weight: 600; }
 .streaming-msg .msg-content { margin-left: 36px; max-width: 75%; }
 .streaming-msg .msg-text { padding: 8px 12px; background: var(--color-surface-elevated); border-radius: 2px 12px 12px 12px; font-size: var(--fs-md); line-height: 1.5; box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
-.streaming-cursor { color: var(--color-primary); animation: pulse 1s infinite; font-size: 10px; margin-left: 2px; }
+.streaming-cursor { color: var(--color-primary); animation: pulse 1s infinite; font-size: var(--fs-2xs); margin-left: 2px; }
 
 /* Layer 1: 流式工具调用状态指示器 */
 .streaming-tools { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }

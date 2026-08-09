@@ -136,7 +136,7 @@ function onCreate(): void {
 .agent-avatar { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: var(--fs-xs); flex-shrink: 0; }
 .agent-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .agent-name { font-size: var(--fs-sm); font-weight: 600; }
-.agent-role { font-size: 10px; color: var(--color-text-tertiary); }
+.agent-role { font-size: var(--fs-2xs); color: var(--color-text-tertiary); }
 .agent-check { color: var(--color-primary); font-weight: 700; font-size: var(--fs-base); }
 .agent-list-empty { padding: 12px; font-size: var(--fs-xs); color: var(--color-text-tertiary); text-align: center; }
 

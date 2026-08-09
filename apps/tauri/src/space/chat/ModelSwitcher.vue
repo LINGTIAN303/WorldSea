@@ -200,7 +200,7 @@ onBeforeUnmount(() => {
 }
 
 .model-pill-arrow {
-  font-size: 9px;
+  font-size: var(--fs-3xs);
   opacity: 0.5;
   margin-left: 2px;
   transition: transform 0.2s;

@@ -134,7 +134,7 @@ function cancelRename(): void {
 }
 
 .saved-meta {
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   color: var(--color-text-tertiary);
   margin-top: 1px;
 }
