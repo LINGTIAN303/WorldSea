@@ -2,7 +2,7 @@
   <div class="rt-view">
     <div class="rt-toolbar">
       <button class="rt-btn" @click="$emit('back')" title="返回列表">
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 3L5 8l5 5"/></svg>
+        <WsIcon name="chevron-right" :size="12" :stroke-width="2" />
         列表
       </button>
       <div class="rt-toolbar-sep"></div>

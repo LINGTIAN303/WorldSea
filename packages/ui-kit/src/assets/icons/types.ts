@@ -1,5 +1,5 @@
 export interface IconDef {
-  d: string
+  d?: string
   fill?: boolean
   category?: string
 }

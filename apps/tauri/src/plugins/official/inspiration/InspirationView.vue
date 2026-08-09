@@ -12,12 +12,7 @@
     >
       <template #toolbar-extra>
         <button class="iv-canvas-btn" @click="viewMode = 'canvas'" title="画布视图">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-            <rect x="1" y="1" width="14" height="14" rx="2"/>
-            <line x1="5" y1="5" x2="11" y2="5"/>
-            <line x1="5" y1="8" x2="9" y2="8"/>
-            <line x1="5" y1="11" x2="7" y2="11"/>
-          </svg>
+          <WsIcon name="dashboard" :size="14" :stroke-width="1.5" />
           画布
         </button>
       </template>
@@ -28,6 +23,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { WsIcon } from '@worldsmith/ui-kit'
 import { GenericEntityView, type FormFieldDef } from '@worldsmith/plugin-sdk'
 import MoodboardView from './MoodboardView.vue'
 import type { Entity } from '@worldsmith/entity-core'

@@ -6,13 +6,7 @@
     <SchemaRenderer v-else type-key="item" :additional-filter="isWeaponItem" :detail-tabs="weaponTabs" facet-on-create="weapon" :schema-loader="loadEntityTypeSchema">
       <template #toolbar-extra>
         <button class="wv-lin-btn" @click="viewMode = 'lineage'" title="传承谱系视图">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-            <circle cx="8" cy="3" r="2" />
-            <circle cx="4" cy="12" r="2" />
-            <circle cx="12" cy="12" r="2" />
-            <line x1="8" y1="5" x2="4" y2="10" />
-            <line x1="8" y1="5" x2="12" y2="10" />
-          </svg>
+          <WsIcon name="family-tree" :size="16" :stroke-width="1.5" />
           谱系
         </button>
       </template>
@@ -22,6 +16,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { WsIcon } from '@worldsmith/ui-kit'
 import { SchemaRenderer, type RelationTabDef } from '@worldsmith/plugin-sdk'
 import WeaponLineageView from './WeaponLineageView.vue'
 import { schemaGetEntityType } from '@/core/coreBackend'

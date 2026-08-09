@@ -6,12 +6,7 @@
     <SchemaRenderer v-else type-key="combat_stat" :schema-loader="loadEntityTypeSchema">
       <template #toolbar-extra>
         <button class="csv-stair-btn" @click="viewMode = 'staircase'" title="境界阶梯/雷达图视图">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-            <rect x="1" y="12" width="3" height="3" rx="0.5"/>
-            <rect x="5" y="8" width="3" height="7" rx="0.5"/>
-            <rect x="9" y="4" width="3" height="11" rx="0.5"/>
-            <rect x="13" y="1" width="2" height="14" rx="0.5"/>
-          </svg>
+          <WsIcon name="chart" :size="14" :stroke-width="1.5" />
           阶梯
         </button>
       </template>
@@ -20,6 +15,7 @@
 </template>
 <script setup lang="ts">
 import { ref } from 'vue'
+import { WsIcon } from '@worldsmith/ui-kit'
 import { SchemaRenderer } from '@worldsmith/plugin-sdk'
 import RealmStaircaseView from './RealmStaircaseView.vue'
 import { schemaGetEntityType } from '@/core/coreBackend'

@@ -8,9 +8,7 @@
         title="刷新"
         @click="loadRuns"
       >
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/>
-        </svg>
+        <WsIcon name="refresh" :size="14" :stroke-width="2" />
       </button>
     </div>
 
@@ -66,6 +64,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { WsIcon } from '@worldsmith/ui-kit'
 import { workflowListRuns, workflowGetRun, type RunRecord } from '../api/workflowApi'
 
 const runs = ref<RunRecord[]>([])

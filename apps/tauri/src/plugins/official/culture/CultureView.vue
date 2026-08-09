@@ -6,14 +6,7 @@
     <SchemaRenderer v-else type-key="culture" :detail-tabs="cultureTabs" :schema-loader="loadEntityTypeSchema">
       <template #toolbar-extra>
         <button class="cv-cal-btn" @click="viewMode = 'calendar'" title="节日历环视图">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-            <circle cx="8" cy="8" r="6.5"/>
-            <line x1="8" y1="1.5" x2="8" y2="4"/>
-            <line x1="8" y1="12" x2="8" y2="14.5"/>
-            <line x1="1.5" y1="8" x2="4" y2="8"/>
-            <line x1="12" y1="8" x2="14.5" y2="8"/>
-            <circle cx="8" cy="8" r="1.5"/>
-          </svg>
+          <WsIcon name="calendar" :size="14" :stroke-width="1.5" />
           历环
         </button>
       </template>
@@ -22,6 +15,7 @@
 </template>
 <script setup lang="ts">
 import { ref } from 'vue'
+import { WsIcon } from '@worldsmith/ui-kit'
 import { SchemaRenderer, type RelationTabDef } from '@worldsmith/plugin-sdk'
 import FestivalCalendarView from './FestivalCalendarView.vue'
 import { schemaGetEntityType } from '@/core/coreBackend'

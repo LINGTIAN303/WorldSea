@@ -60,7 +60,7 @@ const iconDef = computed(() => {
   return getIcon(props.name)
 })
 
-const resolvedViewBox = computed(() => (iconDef.value as { viewBox?: string } | null)?.viewBox || '0 0 24 24')
+const resolvedViewBox = '0 0 24 24'
 
 const lucideIcon = computed<Component | null>(() => {
   if (iconDef.value) return null

@@ -2,7 +2,7 @@
   <div class="wl-view">
     <div class="wl-toolbar">
       <button class="wl-btn" @click="$emit('back')" title="返回列表">
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 3L5 8l5 5"/></svg>
+        <WsIcon name="chevron-right" :size="12" :stroke-width="2" />
         列表
       </button>
       <div class="wl-toolbar-sep"></div>
@@ -66,6 +66,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import { WsIcon } from '@worldsmith/ui-kit'
 import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'
 import { CustomDropdown } from '@worldsmith/plugin-sdk'
 import { useWeaponLineageData, type WeaponNode } from './composables/useWeaponLineageData'

@@ -6,12 +6,7 @@
     <SchemaRenderer v-else type-key="building" :detail-tabs="buildingTabs" :schema-loader="loadEntityTypeSchema">
       <template #toolbar-extra>
         <button class="bv-sec-btn" @click="viewMode = 'section'" title="剖面分层视图">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-            <rect x="2" y="1" width="12" height="14" rx="1"/>
-            <line x1="2" y1="5" x2="14" y2="5"/>
-            <line x1="2" y1="9" x2="14" y2="9"/>
-            <line x1="2" y1="13" x2="14" y2="13"/>
-          </svg>
+          <WsIcon name="grid" :size="14" :stroke-width="1.5" />
           剖面
         </button>
       </template>
@@ -20,6 +15,7 @@
 </template>
 <script setup lang="ts">
 import { ref } from 'vue'
+import { WsIcon } from '@worldsmith/ui-kit'
 import { SchemaRenderer, type RelationTabDef } from '@worldsmith/plugin-sdk'
 import BuildingSectionView from './BuildingSectionView.vue'
 import { schemaGetEntityType } from '@/core/coreBackend'

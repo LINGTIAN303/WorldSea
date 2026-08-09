@@ -7,10 +7,7 @@
       <template #toolbar-extra>
         <CustomDropdown v-model="levelFilter" :options="levelFilterOpts" />
         <button class="mv-tree-btn" @click="viewMode = 'tree'" title="技能树视图">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-            <circle cx="8" cy="3" r="2"/><circle cx="4" cy="11" r="2"/><circle cx="12" cy="11" r="2"/>
-            <line x1="8" y1="5" x2="4" y2="9"/><line x1="8" y1="5" x2="12" y2="9"/>
-          </svg>
+          <WsIcon name="family-tree" :size="14" :stroke-width="1.5" />
           技能树
         </button>
       </template>
@@ -19,6 +16,7 @@
 </template>
 <script setup lang="ts">
 import { ref } from 'vue'
+import { WsIcon } from '@worldsmith/ui-kit'
 import { SchemaRenderer, CustomDropdown, type RelationTabDef } from '@worldsmith/plugin-sdk'
 import SkillTreeView from './SkillTreeView.vue'
 import type { Entity } from '@worldsmith/entity-core'
