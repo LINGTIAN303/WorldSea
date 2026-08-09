@@ -52,23 +52,23 @@
       </div>
       <div class="evo-detail-section" v-if="ancestors.length > 0">
         <span class="evo-section-title">祖先</span>
-        <div v-for="a in ancestors" :key="a.id" class="evo-link" @click="selectById(a.id)">{{ a.icon }} {{ a.name }}</div>
+        <div v-for="a in ancestors" :key="a.id" class="evo-link" role="button" tabindex="0" :aria-label="`打开 ${a.name}`" @click="selectById(a.id)" @keydown.enter.prevent="selectById(a.id)" @keydown.space.prevent="selectById(a.id)">{{ a.icon }} {{ a.name }}</div>
       </div>
       <div class="evo-detail-section" v-if="descendants.length > 0">
         <span class="evo-section-title">进化后代</span>
-        <div v-for="d in descendants" :key="d.id" class="evo-link" @click="selectById(d.id)">{{ d.icon }} {{ d.name }}</div>
+        <div v-for="d in descendants" :key="d.id" class="evo-link" role="button" tabindex="0" :aria-label="`打开 ${d.name}`" @click="selectById(d.id)" @keydown.enter.prevent="selectById(d.id)" @keydown.space.prevent="selectById(d.id)">{{ d.icon }} {{ d.name }}</div>
       </div>
       <div class="evo-detail-section" v-if="hybrids.length > 0">
         <span class="evo-section-title">杂交亲缘</span>
-        <div v-for="h in hybrids" :key="h.id" class="evo-link evo-link-purple" @click="selectById(h.id)">{{ h.icon }} {{ h.name }}</div>
+        <div v-for="h in hybrids" :key="h.id" class="evo-link evo-link-purple" role="button" tabindex="0" :aria-label="`打开 ${h.name}`" @click="selectById(h.id)" @keydown.enter.prevent="selectById(h.id)" @keydown.space.prevent="selectById(h.id)">{{ h.icon }} {{ h.name }}</div>
       </div>
       <div class="evo-detail-section" v-if="symbiotes.length > 0">
         <span class="evo-section-title">共生</span>
-        <div v-for="s in symbiotes" :key="s.id" class="evo-link evo-link-green" @click="selectById(s.id)">{{ s.icon }} {{ s.name }}</div>
+        <div v-for="s in symbiotes" :key="s.id" class="evo-link evo-link-green" role="button" tabindex="0" :aria-label="`打开 ${s.name}`" @click="selectById(s.id)" @keydown.enter.prevent="selectById(s.id)" @keydown.space.prevent="selectById(s.id)">{{ s.icon }} {{ s.name }}</div>
       </div>
       <div class="evo-detail-section" v-if="rivals.length > 0">
         <span class="evo-section-title">天敌</span>
-        <div v-for="r in rivals" :key="r.id" class="evo-link evo-link-red" @click="selectById(r.id)">{{ r.icon }} {{ r.name }}</div>
+        <div v-for="r in rivals" :key="r.id" class="evo-link evo-link-red" role="button" tabindex="0" :aria-label="`打开 ${r.name}`" @click="selectById(r.id)" @keydown.enter.prevent="selectById(r.id)" @keydown.space.prevent="selectById(r.id)">{{ r.icon }} {{ r.name }}</div>
       </div>
     </div>
   </div>

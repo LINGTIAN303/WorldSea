@@ -43,11 +43,11 @@
       </div>
       <div class="bs-detail-section" v-if="residents.length > 0">
         <span class="bs-section-title">居民</span>
-        <div v-for="r in residents" :key="r.id" class="bs-link" @click="navigateTo(r.id, 'character')">{{ r.name }}</div>
+        <div v-for="r in residents" :key="r.id" class="bs-link" role="button" tabindex="0" :aria-label="`打开 ${r.name}`" @click="navigateTo(r.id, 'character')" @keydown.enter.prevent="navigateTo(r.id, 'character')" @keydown.space.prevent="navigateTo(r.id, 'character')">{{ r.name }}</div>
       </div>
       <div class="bs-detail-section" v-if="storedItems.length > 0">
         <span class="bs-section-title">存放物品</span>
-        <div v-for="it in storedItems" :key="it.id" class="bs-link" @click="navigateTo(it.id, 'item')">{{ it.name }}</div>
+        <div v-for="it in storedItems" :key="it.id" class="bs-link" role="button" tabindex="0" :aria-label="`打开 ${it.name}`" @click="navigateTo(it.id, 'item')" @keydown.enter.prevent="navigateTo(it.id, 'item')" @keydown.space.prevent="navigateTo(it.id, 'item')">{{ it.name }}</div>
       </div>
       <div class="bs-detail-section" v-if="buildingConnections.length > 0">
         <span class="bs-section-title">通道连接</span>

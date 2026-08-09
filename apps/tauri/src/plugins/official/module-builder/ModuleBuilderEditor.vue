@@ -40,7 +40,7 @@
         <div class="eb-section">
           <h5>实体类型</h5>
           <button class="eb-add-btn" @click="addEntityType">＋ 新建实体类型</button>
-          <div v-for="(et, idx) in module.entityTypes" :key="et.name" class="eb-item" @click="selectEntityType(idx)">
+          <div v-for="(et, idx) in module.entityTypes" :key="et.name" class="eb-item" role="button" tabindex="0" :aria-label="`选择 ${et.label || et.name}`" @click="selectEntityType(idx)" @keydown.enter.prevent="selectEntityType(idx)" @keydown.space.prevent="selectEntityType(idx)">
             <span>{{ et.icon }} {{ et.label || et.name }}</span>
             <button class="eb-rm" @click.stop="removeEntityType(idx)"><WsIcon name="close" size="xs" /></button>
           </div>
@@ -48,7 +48,7 @@
         <div class="eb-section">
           <h5>关系类型</h5>
           <button class="eb-add-btn" @click="addRelationType">＋ 新建关系类型</button>
-          <div v-for="(rt, idx) in module.relationTypes" :key="rt.name" class="eb-item" @click="selectRelationType(idx)">
+          <div v-for="(rt, idx) in module.relationTypes" :key="rt.name" class="eb-item" role="button" tabindex="0" :aria-label="`选择 ${rt.label || rt.name}`" @click="selectRelationType(idx)" @keydown.enter.prevent="selectRelationType(idx)" @keydown.space.prevent="selectRelationType(idx)">
             <span>{{ rt.icon || 'link' }} {{ rt.label || rt.name }}</span>
             <button class="eb-rm" @click.stop="removeRelationType(idx)"><WsIcon name="close" size="xs" /></button>
           </div>

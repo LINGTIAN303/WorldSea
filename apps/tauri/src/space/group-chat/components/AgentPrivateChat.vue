@@ -103,7 +103,7 @@
     <!-- 右键菜单 -->
     <Teleport to="body">
       <div v-if="contextMenu.visible" class="context-menu" :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }" @click.stop>
-        <div class="context-menu-item" @click="onCopyMessage">复制</div>
+        <div class="context-menu-item" role="button" tabindex="0" aria-label="复制" @click="onCopyMessage" @keydown.enter.prevent="onCopyMessage" @keydown.space.prevent="onCopyMessage">复制</div>
       </div>
     </Teleport>
   </div>

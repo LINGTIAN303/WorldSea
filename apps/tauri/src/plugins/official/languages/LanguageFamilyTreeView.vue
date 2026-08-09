@@ -58,23 +58,23 @@
       </div>
       <div class="lft-detail-section" v-if="branchParents.length > 0">
         <span class="lft-section-title">分支来源</span>
-        <div v-for="p in branchParents" :key="p.id" class="lft-link" @click="selectById(p.id)">{{ p.icon }} {{ p.name }}</div>
+        <div v-for="p in branchParents" :key="p.id" class="lft-link" role="button" tabindex="0" :aria-label="`打开 ${p.name}`" @click="selectById(p.id)" @keydown.enter.prevent="selectById(p.id)" @keydown.space.prevent="selectById(p.id)">{{ p.icon }} {{ p.name }}</div>
       </div>
       <div class="lft-detail-section" v-if="branchChildren.length > 0">
         <span class="lft-section-title">分支语言</span>
-        <div v-for="c in branchChildren" :key="c.id" class="lft-link" @click="selectById(c.id)">{{ c.icon }} {{ c.name }}</div>
+        <div v-for="c in branchChildren" :key="c.id" class="lft-link" role="button" tabindex="0" :aria-label="`打开 ${c.name}`" @click="selectById(c.id)" @keydown.enter.prevent="selectById(c.id)" @keydown.space.prevent="selectById(c.id)">{{ c.icon }} {{ c.name }}</div>
       </div>
       <div class="lft-detail-section" v-if="relatedLangs.length > 0">
         <span class="lft-section-title">关联语言</span>
-        <div v-for="r in relatedLangs" :key="r.id" class="lft-link" :class="relatedLinkClass(r.relation)" @click="selectById(r.id)">{{ r.icon }} {{ r.name }} <span class="lft-relation-tag">{{ r.relation }}</span></div>
+        <div v-for="r in relatedLangs" :key="r.id" class="lft-link" :class="relatedLinkClass(r.relation)" role="button" tabindex="0" :aria-label="`打开 ${r.name}`" @click="selectById(r.id)" @keydown.enter.prevent="selectById(r.id)" @keydown.space.prevent="selectById(r.id)">{{ r.icon }} {{ r.name }} <span class="lft-relation-tag">{{ r.relation }}</span></div>
       </div>
       <div class="lft-detail-section" v-if="spokenBySpecies.length > 0">
         <span class="lft-section-title">使用者</span>
-        <div v-for="s in spokenBySpecies" :key="s.id" class="lft-link" @click="navigateTo(s.id, 'species')">{{ s.name }}</div>
+        <div v-for="s in spokenBySpecies" :key="s.id" class="lft-link" role="button" tabindex="0" :aria-label="`打开 ${s.name}`" @click="navigateTo(s.id, 'species')" @keydown.enter.prevent="navigateTo(s.id, 'species')" @keydown.space.prevent="navigateTo(s.id, 'species')">{{ s.name }}</div>
       </div>
       <div class="lft-detail-section" v-if="spokenInRegions.length > 0">
         <span class="lft-section-title">通行区域</span>
-        <div v-for="r in spokenInRegions" :key="r.id" class="lft-link" @click="navigateTo(r.id, 'region')">{{ r.name }}</div>
+        <div v-for="r in spokenInRegions" :key="r.id" class="lft-link" role="button" tabindex="0" :aria-label="`打开 ${r.name}`" @click="navigateTo(r.id, 'region')" @keydown.enter.prevent="navigateTo(r.id, 'region')" @keydown.space.prevent="navigateTo(r.id, 'region')">{{ r.name }}</div>
       </div>
     </div>
   </div>

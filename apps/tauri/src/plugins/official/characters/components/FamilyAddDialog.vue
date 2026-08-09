@@ -9,7 +9,7 @@
       <div v-if="mode === 'search'" class="fad-search">
         <input v-model="searchQuery" class="fad-input" placeholder="搜索角色名称..." />
         <div class="fad-results">
-          <div v-for="c in searchResults" :key="c.id" class="fad-result-item" @click="selectExisting(c)">
+          <div v-for="c in searchResults" :key="c.id" class="fad-result-item" role="button" tabindex="0" :aria-label="`选择 ${c.name}`" @click="selectExisting(c)" @keydown.enter.prevent="selectExisting(c)" @keydown.space.prevent="selectExisting(c)">
             <span>{{ c.name }}</span>
             <span class="fad-result-sub">{{ c.properties?.gender || '' }} {{ c.properties?.race || '' }}</span>
           </div>

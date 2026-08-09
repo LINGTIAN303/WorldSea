@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="cal-view">
     <div class="cal-toolbar">
       <button class="cal-btn" @click="$emit('back')" title="返回列表">
@@ -44,15 +44,15 @@
       </div>
       <div class="cal-detail-section" v-if="relatedRegions.length > 0">
         <span class="cal-section-title">流行地区</span>
-        <div v-for="r in relatedRegions" :key="r.id" class="cal-link" @click="navigateTo(r.id, 'region')">{{ r.name }}</div>
+        <div v-for="r in relatedRegions" :key="r.id" class="cal-link" role="button" tabindex="0" :aria-label="`打开 ${r.name}`" @click="navigateTo(r.id, 'region')" @keydown.enter.prevent="navigateTo(r.id, 'region')" @keydown.space.prevent="navigateTo(r.id, 'region')">{{ r.name }}</div>
       </div>
       <div class="cal-detail-section" v-if="relatedSpecies.length > 0">
         <span class="cal-section-title">所属物种</span>
-        <div v-for="s in relatedSpecies" :key="s.id" class="cal-link" @click="navigateTo(s.id, 'species')">{{ s.name }}</div>
+        <div v-for="s in relatedSpecies" :key="s.id" class="cal-link" role="button" tabindex="0" :aria-label="`打开 ${s.name}`" @click="navigateTo(s.id, 'species')" @keydown.enter.prevent="navigateTo(s.id, 'species')" @keydown.space.prevent="navigateTo(s.id, 'species')">{{ s.name }}</div>
       </div>
       <div class="cal-detail-section" v-if="relatedOrgs.length > 0">
         <span class="cal-section-title">推行势力</span>
-        <div v-for="o in relatedOrgs" :key="o.id" class="cal-link" @click="navigateTo(o.id, 'organization')">{{ o.name }}</div>
+        <div v-for="o in relatedOrgs" :key="o.id" class="cal-link" role="button" tabindex="0" :aria-label="`打开 ${o.name}`" @click="navigateTo(o.id, 'organization')" @keydown.enter.prevent="navigateTo(o.id, 'organization')" @keydown.space.prevent="navigateTo(o.id, 'organization')">{{ o.name }}</div>
       </div>
     </div>
   </div>

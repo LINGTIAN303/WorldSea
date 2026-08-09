@@ -25,7 +25,7 @@
       </div>
       <template v-else-if="viewMode === 'tree'">
         <div v-for="group in treeGroups" :key="group.prefix" class="tree-group">
-          <div class="tree-folder" @click="toggleFolder(group.prefix)">
+          <div class="tree-folder" role="button" tabindex="0" :aria-expanded="expandedFolders.has(group.prefix)" @click="toggleFolder(group.prefix)" @keydown.enter.prevent="toggleFolder(group.prefix)" @keydown.space.prevent="toggleFolder(group.prefix)">
             <span class="folder-icon"><TuiIcon :name="expandedFolders.has(group.prefix) ? 'folderOpen' : 'folder'" :size="14" /></span>
             <span class="folder-name">{{ group.prefix || '/' }}</span>
             <span class="folder-count">{{ group.entries.length }}</span>

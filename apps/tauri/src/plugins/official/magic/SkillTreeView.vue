@@ -47,16 +47,16 @@
       </div>
       <div class="st-detail-section" v-if="prerequisites.length > 0">
         <span class="st-section-title">前置技能</span>
-        <div v-for="p in prerequisites" :key="p.id" class="st-link" @click="selectById(p.id)">{{ p.icon }} {{ p.name }}</div>
+        <div v-for="p in prerequisites" :key="p.id" class="st-link" role="button" tabindex="0" :aria-label="`打开 ${p.name}`" @click="selectById(p.id)" @keydown.enter.prevent="selectById(p.id)" @keydown.space.prevent="selectById(p.id)">{{ p.icon }} {{ p.name }}</div>
       </div>
       <div class="st-detail-section" v-if="upgrades.length > 0">
         <span class="st-section-title">进阶技能</span>
-        <div v-for="u in upgrades" :key="u.id" class="st-link" @click="selectById(u.id)">{{ u.icon }} {{ u.name }}</div>
+        <div v-for="u in upgrades" :key="u.id" class="st-link" role="button" tabindex="0" :aria-label="`打开 ${u.name}`" @click="selectById(u.id)" @keydown.enter.prevent="selectById(u.id)" @keydown.space.prevent="selectById(u.id)">{{ u.icon }} {{ u.name }}</div>
       </div>
       <div class="st-detail-section" v-if="counteredBy.length > 0 || countersList.length > 0">
         <span class="st-section-title">克制关系</span>
-        <div v-for="c in countersList" :key="'c-'+c.id" class="st-link st-link-red" @click="selectById(c.id)">克制 {{ c.icon }} {{ c.name }}</div>
-        <div v-for="c in counteredBy" :key="'cb-'+c.id" class="st-link st-link-red" @click="selectById(c.id)">被 {{ c.icon }} {{ c.name }} 克制</div>
+        <div v-for="c in countersList" :key="'c-'+c.id" class="st-link st-link-red" role="button" tabindex="0" :aria-label="`打开 ${c.name}`" @click="selectById(c.id)" @keydown.enter.prevent="selectById(c.id)" @keydown.space.prevent="selectById(c.id)">克制 {{ c.icon }} {{ c.name }}</div>
+        <div v-for="c in counteredBy" :key="'cb-'+c.id" class="st-link st-link-red" role="button" tabindex="0" :aria-label="`打开 ${c.name}`" @click="selectById(c.id)" @keydown.enter.prevent="selectById(c.id)" @keydown.space.prevent="selectById(c.id)">被 {{ c.icon }} {{ c.name }} 克制</div>
       </div>
     </div>
   </div>

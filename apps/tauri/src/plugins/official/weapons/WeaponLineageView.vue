@@ -46,19 +46,19 @@
       </div>
       <div class="wl-detail-section" v-if="currentHolder">
         <span class="wl-section-title">当前持有者</span>
-        <div class="wl-link" @click="navigateTo(currentHolder.characterId, 'character')">{{ currentHolder.characterName }}</div>
+        <div class="wl-link" role="button" tabindex="0" :aria-label="`打开 ${currentHolder.characterName}`" @click="navigateTo(currentHolder.characterId, 'character')" @keydown.enter.prevent="navigateTo(currentHolder.characterId, 'character')" @keydown.space.prevent="navigateTo(currentHolder.characterId, 'character')">{{ currentHolder.characterName }}</div>
       </div>
       <div class="wl-detail-section" v-if="pastHolders.length > 0">
         <span class="wl-section-title">历代持有者</span>
-        <div v-for="h in pastHolders" :key="h.characterId" class="wl-link wl-link-dim" @click="navigateTo(h.characterId, 'character')">{{ h.characterName }}</div>
+        <div v-for="h in pastHolders" :key="h.characterId" class="wl-link wl-link-dim" role="button" tabindex="0" :aria-label="`打开 ${h.characterName}`" @click="navigateTo(h.characterId, 'character')" @keydown.enter.prevent="navigateTo(h.characterId, 'character')" @keydown.space.prevent="navigateTo(h.characterId, 'character')">{{ h.characterName }}</div>
       </div>
       <div class="wl-detail-section" v-if="relatedWeapons.length > 0">
         <span class="wl-section-title">关联武器</span>
-        <div v-for="r in relatedWeapons" :key="r.id" class="wl-link" :class="relationClass(r.relation)" @click="selectById(r.id)">{{ r.icon }} {{ r.name }} <span class="wl-relation-tag">{{ r.relation }}</span></div>
+        <div v-for="r in relatedWeapons" :key="r.id" class="wl-link" :class="relationClass(r.relation)" role="button" tabindex="0" :aria-label="`打开 ${r.name}`" @click="selectById(r.id)" @keydown.enter.prevent="selectById(r.id)" @keydown.space.prevent="selectById(r.id)">{{ r.icon }} {{ r.name }} <span class="wl-relation-tag">{{ r.relation }}</span></div>
       </div>
       <div class="wl-detail-section" v-if="keyBattles.length > 0">
         <span class="wl-section-title">关键战役</span>
-        <div v-for="b in keyBattles" :key="b.id" class="wl-link" @click="navigateTo(b.id, 'event')">{{ b.name }}</div>
+        <div v-for="b in keyBattles" :key="b.id" class="wl-link" role="button" tabindex="0" :aria-label="`打开 ${b.name}`" @click="navigateTo(b.id, 'event')" @keydown.enter.prevent="navigateTo(b.id, 'event')" @keydown.space.prevent="navigateTo(b.id, 'event')">{{ b.name }}</div>
       </div>
     </div>
   </div>

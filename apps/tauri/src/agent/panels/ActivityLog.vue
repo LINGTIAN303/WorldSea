@@ -10,7 +10,7 @@
     <div class="panel-body">
       <!-- 生成进度区 -->
       <div v-if="visibleGenTasks.length > 0" class="gen-section">
-        <div class="section-header" @click="genExpanded = !genExpanded">
+        <div class="section-header" role="button" tabindex="0" :aria-expanded="genExpanded" @click="genExpanded = !genExpanded" @keydown.enter.prevent="genExpanded = !genExpanded" @keydown.space.prevent="genExpanded = !genExpanded">
           <span class="section-label">生成进度</span>
           <span class="section-meta">{{ activeTasks.length }} 项进行中</span>
           <TuiIcon name="chevronDown" :size="13" class="section-chevron" :class="{ collapsed: !genExpanded }" />
@@ -49,7 +49,7 @@
 
       <!-- 历史日志区 -->
       <div v-if="logs.length === 0 && visibleGenTasks.length === 0" class="panel-empty">暂无活动记录</div>
-      <div v-for="log in logs" :key="log.id" class="log-item" :class="`log-${log.type}`" @click="toggleDetail(log.id)">
+      <div v-for="log in logs" :key="log.id" class="log-item" :class="`log-${log.type}`" role="button" tabindex="0" :aria-expanded="expandedId === log.id" @click="toggleDetail(log.id)" @keydown.enter.prevent="toggleDetail(log.id)" @keydown.space.prevent="toggleDetail(log.id)">
         <span class="log-icon"><TuiIcon :name="getLogIcon(log.type)" :size="14" /></span>
         <div class="log-content">
           <span class="log-message">{{ log.message }}</span>

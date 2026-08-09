@@ -6,7 +6,7 @@
     </div>
     <div class="panel-body">
       <div class="plan-scroll-area">
-        <div class="section-header" @click="planExpanded = !planExpanded">
+        <div class="section-header" role="button" tabindex="0" :aria-expanded="planExpanded" @click="planExpanded = !planExpanded" @keydown.enter.prevent="planExpanded = !planExpanded" @keydown.space.prevent="planExpanded = !planExpanded">
           <span class="section-label">计划</span>
           <span v-if="planProgress.total > 0" class="section-meta">{{ planProgress.completed }}/{{ planProgress.total }}</span>
           <TuiIcon name="chevronDown" :size="13" class="section-chevron" :class="{ collapsed: !planExpanded }" />

@@ -124,22 +124,22 @@
         @click.stop
       >
         <template v-if="ctxMenu.type === 'folder'">
-          <div class="ft-cm-item" @click="ctxAction('create-note')">新建笔记</div>
-          <div class="ft-cm-item" @click="ctxAction('rename')">重命名</div>
+          <div class="ft-cm-item" role="button" tabindex="0" aria-label="新建笔记" @click="ctxAction('create-note')" @keydown.enter.prevent="ctxAction('create-note')" @keydown.space.prevent="ctxAction('create-note')">新建笔记</div>
+          <div class="ft-cm-item" role="button" tabindex="0" aria-label="重命名" @click="ctxAction('rename')" @keydown.enter.prevent="ctxAction('rename')" @keydown.space.prevent="ctxAction('rename')">重命名</div>
           <div class="ft-cm-sep"></div>
-          <div class="ft-cm-item ft-cm-danger" @click="ctxAction('delete-folder')">删除</div>
+          <div class="ft-cm-item ft-cm-danger" role="button" tabindex="0" aria-label="删除" @click="ctxAction('delete-folder')" @keydown.enter.prevent="ctxAction('delete-folder')" @keydown.space.prevent="ctxAction('delete-folder')">删除</div>
         </template>
         <template v-else-if="ctxMenu.type === 'note'">
-          <div class="ft-cm-item" @click="ctxAction('duplicate-note')">复制笔记</div>
+          <div class="ft-cm-item" role="button" tabindex="0" aria-label="复制笔记" @click="ctxAction('duplicate-note')" @keydown.enter.prevent="ctxAction('duplicate-note')" @keydown.space.prevent="ctxAction('duplicate-note')">复制笔记</div>
           <div class="ft-cm-sep"></div>
-          <div class="ft-cm-item ft-cm-danger" @click="ctxAction('delete-note')">删除笔记</div>
+          <div class="ft-cm-item ft-cm-danger" role="button" tabindex="0" aria-label="删除笔记" @click="ctxAction('delete-note')" @keydown.enter.prevent="ctxAction('delete-note')" @keydown.space.prevent="ctxAction('delete-note')">删除笔记</div>
         </template>
         <template v-else-if="ctxMenu.type === 'unfiled'">
-          <div class="ft-cm-item" @click="ctxAction('create-note')">新建笔记</div>
+          <div class="ft-cm-item" role="button" tabindex="0" aria-label="新建笔记" @click="ctxAction('create-note')" @keydown.enter.prevent="ctxAction('create-note')" @keydown.space.prevent="ctxAction('create-note')">新建笔记</div>
         </template>
         <template v-else-if="ctxMenu.type === 'empty'">
-          <div class="ft-cm-item" @click="ctxAction('create-note')">新建笔记</div>
-          <div class="ft-cm-item" @click="ctxAction('create-folder')">新建文件夹</div>
+          <div class="ft-cm-item" role="button" tabindex="0" aria-label="新建笔记" @click="ctxAction('create-note')" @keydown.enter.prevent="ctxAction('create-note')" @keydown.space.prevent="ctxAction('create-note')">新建笔记</div>
+          <div class="ft-cm-item" role="button" tabindex="0" aria-label="新建文件夹" @click="ctxAction('create-folder')" @keydown.enter.prevent="ctxAction('create-folder')" @keydown.space.prevent="ctxAction('create-folder')">新建文件夹</div>
         </template>
       </div>
     </Teleport>

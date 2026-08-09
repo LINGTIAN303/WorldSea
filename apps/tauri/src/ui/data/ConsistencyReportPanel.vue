@@ -29,7 +29,7 @@
         <div class="consistency-list">
           <template v-for="cat in categories" :key="cat.key">
             <div v-if="getIssuesByCategory(cat.key).length > 0" class="category-group">
-              <div class="category-header" @click="toggleCategory(cat.key)">
+              <div class="category-header" role="button" tabindex="0" :aria-expanded="expandedCategories[cat.key]" @click="toggleCategory(cat.key)" @keydown.enter.prevent="toggleCategory(cat.key)" @keydown.space.prevent="toggleCategory(cat.key)">
                 <span class="category-icon">{{ cat.icon }}</span>
                 <span class="category-label">{{ cat.label }}</span>
                 <span class="category-count">{{ getIssuesByCategory(cat.key).length }}</span>

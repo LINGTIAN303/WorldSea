@@ -44,15 +44,15 @@
       </div>
       <div class="rs-detail-section" v-if="relatedChars.length > 0">
         <span class="rs-section-title">当前境界角色</span>
-        <div v-for="c in relatedChars" :key="c.id" class="rs-link" @click="navigateTo(c.id, 'character')">{{ c.name }}</div>
+        <div v-for="c in relatedChars" :key="c.id" class="rs-link" role="button" tabindex="0" :aria-label="`打开 ${c.name}`" @click="navigateTo(c.id, 'character')" @keydown.enter.prevent="navigateTo(c.id, 'character')" @keydown.space.prevent="navigateTo(c.id, 'character')">{{ c.name }}</div>
       </div>
       <div class="rs-detail-section" v-if="relatedSkills.length > 0">
         <span class="rs-section-title">所需技能</span>
-        <div v-for="s in relatedSkills" :key="s.id" class="rs-link" @click="navigateTo(s.id, 'magic')">{{ s.name }}</div>
+        <div v-for="s in relatedSkills" :key="s.id" class="rs-link" role="button" tabindex="0" :aria-label="`打开 ${s.name}`" @click="navigateTo(s.id, 'magic')" @keydown.enter.prevent="navigateTo(s.id, 'magic')" @keydown.space.prevent="navigateTo(s.id, 'magic')">{{ s.name }}</div>
       </div>
       <div class="rs-detail-section" v-if="relatedItems.length > 0">
         <span class="rs-section-title">突破丹药/法器</span>
-        <div v-for="i in relatedItems" :key="i.id" class="rs-link" @click="navigateTo(i.id, 'item')">{{ i.name }}</div>
+        <div v-for="i in relatedItems" :key="i.id" class="rs-link" role="button" tabindex="0" :aria-label="`打开 ${i.name}`" @click="navigateTo(i.id, 'item')" @keydown.enter.prevent="navigateTo(i.id, 'item')" @keydown.space.prevent="navigateTo(i.id, 'item')">{{ i.name }}</div>
       </div>
     </div>
   </div>

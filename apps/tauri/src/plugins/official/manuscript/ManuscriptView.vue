@@ -8,7 +8,7 @@
 
     <div class="ms-body">
       <div class="ms-sidebar" :class="{ collapsed: sidebarCollapsed }">
-        <div class="ms-sidebar-toggle" @click="sidebarCollapsed = !sidebarCollapsed">
+        <div class="ms-sidebar-toggle" role="button" tabindex="0" :aria-expanded="!sidebarCollapsed" @click="sidebarCollapsed = !sidebarCollapsed" @keydown.enter.prevent="sidebarCollapsed = !sidebarCollapsed" @keydown.space.prevent="sidebarCollapsed = !sidebarCollapsed">
           <span><WsIcon :name="sidebarCollapsed ? 'chevron-right' : 'arrow-up'" size="xs" /></span>
         </div>
         <div v-show="!sidebarCollapsed" class="ms-sidebar-content">

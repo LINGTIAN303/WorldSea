@@ -51,19 +51,19 @@
       </div>
       <div class="rt-detail-section" v-if="producedItems.length > 0">
         <span class="rt-section-title">制成品</span>
-        <div v-for="i in producedItems" :key="i.id" class="rt-link" @click="selectById(i.id)"><WsIcon name="item" size="xs" /> {{ i.name }}</div>
+        <div v-for="i in producedItems" :key="i.id" class="rt-link" role="button" tabindex="0" :aria-label="`打开 ${i.name}`" @click="selectById(i.id)" @keydown.enter.prevent="selectById(i.id)" @keydown.space.prevent="selectById(i.id)"><WsIcon name="item" size="xs" /> {{ i.name }}</div>
       </div>
       <div class="rt-detail-section" v-if="sourcePlants.length > 0">
         <span class="rt-section-title">来源植物</span>
-        <div v-for="p in sourcePlants" :key="p.id" class="rt-link rt-link-green" @click="selectById(p.id)"><WsIcon name="plant" size="xs" /> {{ p.name }}</div>
+        <div v-for="p in sourcePlants" :key="p.id" class="rt-link rt-link-green" role="button" tabindex="0" :aria-label="`打开 ${p.name}`" @click="selectById(p.id)" @keydown.enter.prevent="selectById(p.id)" @keydown.space.prevent="selectById(p.id)"><WsIcon name="plant" size="xs" /> {{ p.name }}</div>
       </div>
       <div class="rt-detail-section" v-if="magicSpells.length > 0">
         <span class="rt-section-title">施法用途</span>
-        <div v-for="m in magicSpells" :key="m.id" class="rt-link rt-link-purple" @click="navigateTo(m.id, 'magic')"><WsIcon name="magic" size="xs" /> {{ m.name }}</div>
+        <div v-for="m in magicSpells" :key="m.id" class="rt-link rt-link-purple" role="button" tabindex="0" :aria-label="`打开 ${m.name}`" @click="navigateTo(m.id, 'magic')" @keydown.enter.prevent="navigateTo(m.id, 'magic')" @keydown.space.prevent="navigateTo(m.id, 'magic')"><WsIcon name="magic" size="xs" /> {{ m.name }}</div>
       </div>
       <div class="rt-detail-section" v-if="nativeRegions.length > 0">
         <span class="rt-section-title">原生地</span>
-        <div v-for="r in nativeRegions" :key="r.id" class="rt-link" @click="navigateTo(r.id, 'region')"><WsIcon name="location" size="xs" /> {{ r.name }}</div>
+        <div v-for="r in nativeRegions" :key="r.id" class="rt-link" role="button" tabindex="0" :aria-label="`打开 ${r.name}`" @click="navigateTo(r.id, 'region')" @keydown.enter.prevent="navigateTo(r.id, 'region')" @keydown.space.prevent="navigateTo(r.id, 'region')"><WsIcon name="location" size="xs" /> {{ r.name }}</div>
       </div>
     </div>
   </div>
