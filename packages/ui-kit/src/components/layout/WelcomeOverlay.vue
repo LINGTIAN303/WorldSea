@@ -1,7 +1,7 @@
 <template>
   <Transition name="ws-fade">
     <div v-if="visible" class="welcome-overlay" @click.self="skip">
-      <div class="welcome-card" :style="{ width: modalResizable.width.value + 'px' }">
+      <div ref="dialogRef" class="welcome-card" role="dialog" aria-modal="true" aria-label="欢迎使用 WorldSmith" tabindex="-1" :style="{ width: modalResizable.width.value + 'px' }">
         <button class="skip-btn" @click="skip">跳过</button>
 
         <div class="step-content">
@@ -51,13 +51,19 @@
           <button v-if="step > 0" class="nav-btn nav-prev" @click="step--">上一步</button>
           <div v-else class="nav-btn-placeholder"></div>
 
-          <div class="step-dots">
+          <div class="step-dots" role="tablist" aria-label="欢迎引导步骤">
             <span
               v-for="i in 3"
               :key="i"
               class="dot"
               :class="{ active: i - 1 === step }"
+              role="tab"
+              :aria-selected="i - 1 === step"
+              :aria-label="`第 ${i} 步`"
+              tabindex="0"
               @click="step = i - 1"
+              @keydown.enter.prevent="step = i - 1"
+              @keydown.space.prevent="step = i - 1"
             ></span>
           </div>
 
@@ -71,7 +77,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useEntityStore, usePluginStore } from '@worldsmith/entity-core'
 import { useUIStore } from '@worldsmith/entity-core'
 import { useResizable } from '@worldsmith/ui-kit'
@@ -81,6 +87,58 @@ const WELCOME_KEY = 'worldsmith_welcomed'
 
 const visible = ref(false)
 const step = ref(0)
+
+const dialogRef = ref<HTMLElement | null>(null)
+/** 打开前的焦点元素：关闭后还原 */
+let returnFocusEl: HTMLElement | null = null
+
+// 焦点陷阱：Tab 仅在弹窗内循环 + Esc 跳过
+function onKeydown(e: KeyboardEvent) {
+  if (!visible.value) return
+  if (e.key === 'Escape') {
+    e.stopPropagation()
+    skip()
+    return
+  }
+  if (e.key === 'Tab') {
+    const box = dialogRef.value
+    if (!box) return
+    const focusables = box.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    )
+    if (focusables.length === 0) return
+    const first = focusables[0]
+    const last = focusables[focusables.length - 1]
+    const active = document.activeElement
+    if (e.shiftKey && (active === first || !box.contains(active))) {
+      e.preventDefault()
+      last.focus()
+    } else if (!e.shiftKey && (active === last || !box.contains(active))) {
+      e.preventDefault()
+      first.focus()
+    }
+  }
+}
+
+watch(visible, (v) => {
+  if (v) {
+    returnFocusEl = document.activeElement as HTMLElement
+    window.addEventListener('keydown', onKeydown)
+    nextTick(() => {
+      const first =
+        dialogRef.value?.querySelector<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        ) ?? dialogRef.value
+      first?.focus({ preventScroll: true })
+    })
+  } else {
+    window.removeEventListener('keydown', onKeydown)
+    returnFocusEl?.focus?.({ preventScroll: true })
+    returnFocusEl = null
+  }
+})
+
+onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
 const entityStore = useEntityStore()
 const pluginStore = usePluginStore()

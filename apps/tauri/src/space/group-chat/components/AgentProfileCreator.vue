@@ -1,9 +1,9 @@
 <template>
   <div class="profile-creator-overlay" @click.self="$emit('close')">
-    <div class="profile-creator">
+    <div ref="dialogRef" class="profile-creator" role="dialog" aria-modal="true" aria-labelledby="apc-title" tabindex="-1">
       <div class="creator-header">
-        <h3>{{ isEditing ? '编辑 Agent' : '创建 Agent' }}</h3>
-        <button class="btn-close" @click="$emit('close')">×</button>
+        <h3 id="apc-title">{{ isEditing ? '编辑 Agent' : '创建 Agent' }}</h3>
+        <button class="btn-close" @click="$emit('close')" aria-label="关闭">×</button>
       </div>
 
       <div class="creator-body">
@@ -118,9 +118,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive } from 'vue'
+import { ref, computed, reactive, onMounted, nextTick } from 'vue'
 import { useAgentProfileStore } from '@/stores/agentProfileStore'
 import type { AgentProfile } from '@agent/group-chat/types'
+import { useFocusTrap } from '@/composables/useFocusTrap'
 
 const props = defineProps<{
   editingProfile?: AgentProfile
@@ -130,6 +131,17 @@ const emit = defineEmits<{
   close: []
   saved: []
 }>()
+
+const dialogRef = ref<HTMLElement | null>(null)
+
+const { activate } = useFocusTrap(dialogRef, {
+  escapeDeactivates: true,
+  onEscape: () => emit('close'),
+})
+
+onMounted(() => {
+  nextTick(() => activate())
+})
 
 const profileStore = useAgentProfileStore()
 const isEditing = computed(() => !!props.editingProfile)

@@ -1,9 +1,9 @@
 <template>
   <div v-if="show" class="shortcut-overlay" @click.self="$emit('close')">
-    <div class="shortcut-modal" :style="{ width: modalResizable.width.value + 'px' }">
+    <div ref="dialogRef" class="shortcut-modal" role="dialog" aria-modal="true" aria-labelledby="shm-title" tabindex="-1" :style="{ width: modalResizable.width.value + 'px' }">
       <div class="sh-header">
-        <h3><WsIcon name="settings" size="sm" /> 键盘快捷键</h3>
-        <button class="sh-close" @click="$emit('close')">✕</button>
+        <h3 id="shm-title"><WsIcon name="settings" size="sm" /> 键盘快捷键</h3>
+        <button class="sh-close" @click="$emit('close')" aria-label="关闭">✕</button>
       </div>
       <div class="sh-body">
         <div v-for="group in grouped" :key="group.scope" class="sh-group">
@@ -25,12 +25,64 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onBeforeUnmount } from 'vue'
+import { computed, ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useShortcuts, formatKeyForDisplay, useResizable } from '@worldsmith/ui-kit'
 import WsIcon from '../WsIcon.vue'
 
-defineProps<{ show: boolean }>()
+const props = defineProps<{ show: boolean }>()
 const emit = defineEmits<{ close: [] }>()
+
+const dialogRef = ref<HTMLElement | null>(null)
+/** 打开前的焦点元素：关闭后还原 */
+let returnFocusEl: HTMLElement | null = null
+
+// 焦点陷阱：Tab 仅在弹窗内循环 + Esc 关闭
+function onKeydown(e: KeyboardEvent) {
+  if (!props.show) return
+  if (e.key === 'Escape') {
+    e.stopPropagation()
+    emit('close')
+    return
+  }
+  if (e.key === 'Tab') {
+    const box = dialogRef.value
+    if (!box) return
+    const focusables = box.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    )
+    if (focusables.length === 0) return
+    const first = focusables[0]
+    const last = focusables[focusables.length - 1]
+    const active = document.activeElement
+    if (e.shiftKey && (active === first || !box.contains(active))) {
+      e.preventDefault()
+      last.focus()
+    } else if (!e.shiftKey && (active === last || !box.contains(active))) {
+      e.preventDefault()
+      first.focus()
+    }
+  }
+}
+
+watch(() => props.show, (v) => {
+  if (v) {
+    returnFocusEl = document.activeElement as HTMLElement
+    window.addEventListener('keydown', onKeydown)
+    nextTick(() => {
+      const first =
+        dialogRef.value?.querySelector<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        ) ?? dialogRef.value
+      first?.focus({ preventScroll: true })
+    })
+  } else {
+    window.removeEventListener('keydown', onKeydown)
+    returnFocusEl?.focus?.({ preventScroll: true })
+    returnFocusEl = null
+  }
+})
+
+onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
 const { getAll, register, unregister } = useShortcuts()
 const modalResizable = useResizable({ panelId: 'modal-shortcut-help', defaultWidth: 480, minWidth: 320 })

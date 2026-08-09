@@ -1,10 +1,10 @@
 <template>
   <div class="set-overlay" v-if="show" @click.self="close">
-    <div class="set-shell">
+    <div ref="dialogRef" class="set-shell" role="dialog" aria-modal="true" aria-labelledby="set-dialog-title" tabindex="-1">
       <div class="set-topbar">
         <div class="set-topbar-left">
           <WsIcon name="settings" size="sm" />
-          <span class="set-topbar-title">设置</span>
+          <span id="set-dialog-title" class="set-topbar-title">设置</span>
         </div>
         <div class="set-search-wrap">
           <svg class="set-search-icon" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6.5" cy="6.5" r="5"/><path d="M10.5 10.5L15 15"/></svg>
@@ -62,9 +62,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { useSettingsStore, useUIStore, usePluginStore } from '@worldsmith/entity-core'
 import { useResizable, WsIcon } from '@worldsmith/ui-kit'
+import { useFocusTrap } from '@/composables/useFocusTrap'
 import StorageManagementTab from '../data/StorageManagementTab.vue'
 // 设置子面板（已迁移到 ui-kit，通过 re-export 兼容层导入）
 import AppearancePanel from './panels/AppearancePanel.vue'
@@ -79,6 +80,13 @@ import SpaceAgentSettingsPanel from '@/space/panels/SpaceAgentSettingsPanel.vue'
 
 const props = defineProps<{ show: boolean }>()
 const emit = defineEmits<{ close: [] }>()
+
+const dialogRef = ref<HTMLElement | null>(null)
+
+const { activate, deactivate } = useFocusTrap(dialogRef, {
+  escapeDeactivates: true,
+  onEscape: () => close(),
+})
 
 // 模态框可调整大小（保留接口，当前未启用）
 const modalResizable = useResizable({ panelId: 'modal-settings', defaultWidth: 560, minWidth: 400, side: 'right' })
@@ -97,6 +105,9 @@ watch(() => props.show, (val) => {
   if (val) {
     dirty.value = false
     activeSection.value = null
+    nextTick(() => activate())
+  } else {
+    deactivate()
   }
 })
 
