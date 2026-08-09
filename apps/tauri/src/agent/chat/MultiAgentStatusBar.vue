@@ -913,4 +913,15 @@ function truncate(text: string, maxLen: number): string {
   word-break: break-all;
   font-family: ui-monospace, 'Cascadia Code', Menlo, monospace;
 }
+
+/* ── 减弱动态偏好（prefers-reduced-motion）：停用状态点闪烁与展开图标旋转 ──
+   与 TuiButton/TuiModal/TuiDrawer/AgentWorkspace 同一可访问性语言：仅保留静态状态。 */
+@media (prefers-reduced-motion: reduce) {
+  .ma-dot-running {
+    animation: none;
+  }
+  .ma-expand-icon {
+    transition: none;
+  }
+}
 </style>

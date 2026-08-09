@@ -420,4 +420,16 @@ function onContextMenu(e: MouseEvent): void {
 .thinking-pop-leave-active { transition: background 0.1s ease-in, border-color 0.1s ease-in, color 0.1s ease-in, box-shadow 0.1s ease-in, transform 0.1s ease-in, opacity 0.1s ease-in, filter 0.1s ease-in; }
 .thinking-pop-enter-from { opacity: 0; transform: translateY(4px) scale(0.95); }
 .thinking-pop-leave-to { opacity: 0; transform: translateY(2px) scale(0.98); }
+
+/* ── 减弱动态偏好（prefers-reduced-motion）：停用工具旋转与弹出位移 ──
+   与 TuiButton/TuiModal/TuiDrawer/AgentWorkspace 同一可访问性语言：仅保留静态状态。 */
+@media (prefers-reduced-motion: reduce) {
+  .tc-spin {
+    animation: none;
+  }
+  .thinking-pop-enter-from,
+  .thinking-pop-leave-to {
+    transform: none;
+  }
+}
 </style>

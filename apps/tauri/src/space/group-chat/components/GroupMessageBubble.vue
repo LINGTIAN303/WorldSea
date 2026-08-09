@@ -471,4 +471,12 @@ function onCopy() {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* ── 减弱动态偏好（prefers-reduced-motion）：停用工具旋转与消息位移 ──
+   与 TuiButton/TuiModal/TuiDrawer/AgentWorkspace 同一可访问性语言：仅保留静态状态。 */
+@media (prefers-reduced-motion: reduce) {
+  .tc-spin {
+    animation: none;
+  }
+}
 </style>

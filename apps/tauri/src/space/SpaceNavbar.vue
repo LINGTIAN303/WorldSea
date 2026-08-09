@@ -763,4 +763,22 @@ onBeforeUnmount(() => {
   opacity: 0;
   transform: translateY(-2px);
 }
+
+/* ── 减弱动态偏好（prefers-reduced-motion）：停用徽标脉冲与头像/文字位移 ──
+   与 TuiButton/TuiModal/TuiDrawer/AgentWorkspace 同一可访问性语言：仅保留静态状态。 */
+@media (prefers-reduced-motion: reduce) {
+  .nav-badge {
+    animation: none;
+  }
+  .user-avatar,
+  .user-avatar:hover,
+  .agent-avatar,
+  .agent-avatar:hover {
+    transform: none;
+  }
+  .mode-text-enter-from,
+  .mode-text-leave-to {
+    transform: none;
+  }
+}
 </style>

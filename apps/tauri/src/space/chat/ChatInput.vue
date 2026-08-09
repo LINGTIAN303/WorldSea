@@ -685,4 +685,16 @@ watch(() => spaceStore.inputInjection, (injection) => {
   opacity: 0;
   transform: translateY(-4px);
 }
+
+/* ── 减弱动态偏好（prefers-reduced-motion）：停用停止按钮脉冲与位移 ──
+   与 TuiButton/TuiModal/TuiDrawer/AgentWorkspace 同一可访问性语言：仅保留静态状态。 */
+@media (prefers-reduced-motion: reduce) {
+  .send-btn.stop-btn {
+    animation: none;
+  }
+  .warning-fade-enter-from,
+  .warning-fade-leave-to {
+    transform: none;
+  }
+}
 </style>

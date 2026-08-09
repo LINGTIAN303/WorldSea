@@ -517,4 +517,14 @@ onBeforeUnmount(() => {
 .empty-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--color-text-tertiary); }
 .empty-icon { font-size: 48px; opacity: 0.4; }
 .empty-text { font-size: var(--fs-base); }
+
+/* ── 减弱动态偏好（prefers-reduced-motion）：停用光标/思考点脉冲与工具旋转 ──
+   与 TuiButton/TuiModal/TuiDrawer/AgentWorkspace 同一可访问性语言：仅保留静态状态。 */
+@media (prefers-reduced-motion: reduce) {
+  .streaming-dot,
+  .streaming-cursor,
+  .tc-spin {
+    animation: none;
+  }
+}
 </style>

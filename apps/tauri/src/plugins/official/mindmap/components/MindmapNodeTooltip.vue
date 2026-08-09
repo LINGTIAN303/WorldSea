@@ -114,4 +114,12 @@ const positionStyle = computed(() => {
   padding-top: 4px;
   margin-top: 4px;
 }
+
+/* ── 减弱动态偏好（prefers-reduced-motion）：停用提示浮现位移动画 ──
+   与 TuiButton/TuiModal/TuiDrawer/AgentWorkspace 同一可访问性语言：仅保留静态状态。 */
+@media (prefers-reduced-motion: reduce) {
+  .mm-node-tooltip {
+    animation: none;
+  }
+}
 </style>

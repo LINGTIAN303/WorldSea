@@ -65,4 +65,13 @@ const {
 .tc-spin { animation: spin 1s linear infinite; }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 @keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
+
+/* ── 减弱动态偏好（prefers-reduced-motion）：停用光标脉冲与工具旋转 ──
+   与 TuiButton/TuiModal/TuiDrawer/AgentWorkspace 同一可访问性语言：仅保留静态状态。 */
+@media (prefers-reduced-motion: reduce) {
+  .streaming-cursor,
+  .tc-spin {
+    animation: none;
+  }
+}
 </style>

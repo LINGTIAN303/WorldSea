@@ -331,4 +331,12 @@ async function onRootClick(e: MouseEvent) {
     visibility: hidden;
   }
 }
+
+/* ── 减弱动态偏好（prefers-reduced-motion）：停用流式光标闪烁 ──
+   与 TuiButton/TuiModal/TuiDrawer/AgentWorkspace 同一可访问性语言：仅保留静态状态。 */
+@media (prefers-reduced-motion: reduce) {
+  .stream-cursor {
+    animation: none;
+  }
+}
 </style>

@@ -184,4 +184,19 @@ function onMouseUp() {
   opacity: 0;
   transform: scale(0.9);
 }
+
+/* ── 减弱动态偏好（prefers-reduced-motion）：停用长按脉冲与翻转/位移 ──
+   与 TuiButton/TuiModal/TuiDrawer/AgentWorkspace 同一可访问性语言：仅保留静态状态。 */
+@media (prefers-reduced-motion: reduce) {
+  .long-press-hint {
+    animation: none;
+  }
+  .flip-inner {
+    transition: none;
+  }
+  .mode-fade-enter-from,
+  .mode-fade-leave-to {
+    transform: none;
+  }
+}
 </style>
