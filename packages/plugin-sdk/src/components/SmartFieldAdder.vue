@@ -1,9 +1,9 @@
 <template>
   <Teleport to="body">
     <div v-if="visible" class="sfa-backdrop" @click.self="cancel">
-      <div class="sfa-dialog">
+      <div ref="dialogRef" class="sfa-dialog" role="dialog" aria-modal="true" aria-labelledby="sfa-title" tabindex="-1">
         <div class="sfa-header">
-          <span class="sfa-title">添加自定义字段</span>
+          <span id="sfa-title" class="sfa-title">添加自定义字段</span>
           <button class="sfa-close" @click="cancel"><WsIcon name="x" size="sm" /></button>
         </div>
 
@@ -89,7 +89,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, watch } from 'vue'
+import { ref, computed, nextTick, watch, onBeforeUnmount } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
 import {
   inferSemanticHintFromKey,
@@ -115,6 +115,8 @@ const emit = defineEmits<{
 }>()
 
 const keyInput = ref<HTMLInputElement | null>(null)
+const dialogRef = ref<HTMLElement | null>(null)
+let previousFocus: HTMLElement | null = null
 
 const fieldKey = ref('')
 const fieldType = ref<FieldSchema['fieldType']>('text')
@@ -294,14 +296,51 @@ function resetForm() {
   inferenceResult.value = null
 }
 
-// 弹窗打开时聚焦输入框
+// 弹窗打开时聚焦输入框 + 焦点陷阱
+function onKeydown(e: KeyboardEvent) {
+  if (!props.visible) return
+  if (e.key === 'Escape') {
+    e.stopPropagation()
+    cancel()
+    return
+  }
+  if (e.key === 'Tab') {
+    const box = dialogRef.value
+    if (!box) return
+    const focusables = box.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    )
+    if (focusables.length === 0) return
+    const first = focusables[0]
+    const last = focusables[focusables.length - 1]
+    const active = document.activeElement
+    if (e.shiftKey && (active === first || !box.contains(active))) {
+      e.preventDefault()
+      last.focus()
+    } else if (!e.shiftKey && (active === last || !box.contains(active))) {
+      e.preventDefault()
+      first.focus()
+    }
+  }
+}
+
 watch(() => props.visible, (v) => {
   if (v) {
+    previousFocus = document.activeElement as HTMLElement
+    window.addEventListener('keydown', onKeydown)
     nextTick(() => {
       keyInput.value?.focus()
     })
+  } else {
+    window.removeEventListener('keydown', onKeydown)
+    if (previousFocus) {
+      previousFocus.focus()
+      previousFocus = null
+    }
   }
 })
+
+onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 </script>
 
 <style scoped>

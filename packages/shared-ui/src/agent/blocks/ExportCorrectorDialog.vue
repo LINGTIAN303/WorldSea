@@ -2,9 +2,9 @@
   <Teleport to="body">
     <Transition name="corrector">
       <div v-if="show" class="corrector-overlay" @click.self="onOverlayClick">
-        <div class="corrector-panel">
+        <div ref="dialogRef" class="corrector-panel" role="dialog" aria-modal="true" aria-labelledby="corrector-title" tabindex="-1">
           <div class="corrector__header">
-            <h2 class="corrector__title">导出校正器</h2>
+            <h2 id="corrector-title" class="corrector__title">导出校正器</h2>
             <button class="corrector__close" @click="emit('close')">
               <WsIcon name="close" size="xs" />
             </button>
@@ -55,7 +55,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch, nextTick, onBeforeUnmount } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
 import type { ManuscriptBlock, ExportCorrectorConfig } from '@worldsmith/agent-runtime'
 import ExportControlPanel from './export-corrector/ExportControlPanel.vue'
@@ -108,6 +108,58 @@ const {
   exportGif,
   playGifPreview,
 } = useExportCorrector(props, emit, previewCanvasRef)
+
+const dialogRef = ref<HTMLElement | null>(null)
+let previousFocus: HTMLElement | null = null
+
+function onKeydown(e: KeyboardEvent) {
+  if (!props.show) return
+  if (e.key === 'Escape') {
+    e.stopPropagation()
+    emit('close')
+    return
+  }
+  if (e.key === 'Tab') {
+    const box = dialogRef.value
+    if (!box) return
+    const focusables = box.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    )
+    if (focusables.length === 0) return
+    const first = focusables[0]
+    const last = focusables[focusables.length - 1]
+    const active = document.activeElement
+    if (e.shiftKey && (active === first || !box.contains(active))) {
+      e.preventDefault()
+      last.focus()
+    } else if (!e.shiftKey && (active === last || !box.contains(active))) {
+      e.preventDefault()
+      first.focus()
+    }
+  }
+}
+
+watch(() => props.show, (v) => {
+  if (v) {
+    previousFocus = document.activeElement as HTMLElement
+    window.addEventListener('keydown', onKeydown)
+    nextTick(() => {
+      const box = dialogRef.value
+      if (box) {
+        const focusable = box.querySelector<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
+        focusable?.focus()
+      }
+    })
+  } else {
+    window.removeEventListener('keydown', onKeydown)
+    if (previousFocus) {
+      previousFocus.focus()
+      previousFocus = null
+    }
+  }
+})
+
+onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 </script>
 
 <style scoped>

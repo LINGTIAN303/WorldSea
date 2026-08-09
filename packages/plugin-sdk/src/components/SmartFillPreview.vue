@@ -1,9 +1,9 @@
 <template>
   <Teleport to="body">
     <div v-if="visible" class="sfp-overlay" @click.self="$emit('close')">
-      <div class="sfp-panel">
+      <div ref="dialogRef" class="sfp-panel" role="dialog" aria-modal="true" aria-labelledby="sfp-title" tabindex="-1">
         <div class="sfp-header">
-          <h3>✨ AI 智能填充预览</h3>
+          <h3 id="sfp-title">✨ AI 智能填充预览</h3>
           <label class="sfp-mode-toggle">
             <span class="sfp-mode-label">{{ includeExisting ? '含已有字段优化' : '仅空字段' }}</span>
             <input
@@ -50,7 +50,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch, nextTick, onBeforeUnmount } from 'vue'
 
 const props = defineProps<{
   visible: boolean
@@ -62,7 +62,7 @@ const props = defineProps<{
   includeExisting: boolean  // V2: 是否包含已有字段优化
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   close: []
   accept: [key: string]
   reject: [key: string]
@@ -73,6 +73,58 @@ defineEmits<{
 }>()
 
 const fieldKeys = computed(() => Object.keys(props.suggestions))
+
+const dialogRef = ref<HTMLElement | null>(null)
+let previousFocus: HTMLElement | null = null
+
+function onKeydown(e: KeyboardEvent) {
+  if (!props.visible) return
+  if (e.key === 'Escape') {
+    e.stopPropagation()
+    emit('close')
+    return
+  }
+  if (e.key === 'Tab') {
+    const box = dialogRef.value
+    if (!box) return
+    const focusables = box.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    )
+    if (focusables.length === 0) return
+    const first = focusables[0]
+    const last = focusables[focusables.length - 1]
+    const active = document.activeElement
+    if (e.shiftKey && (active === first || !box.contains(active))) {
+      e.preventDefault()
+      last.focus()
+    } else if (!e.shiftKey && (active === last || !box.contains(active))) {
+      e.preventDefault()
+      first.focus()
+    }
+  }
+}
+
+watch(() => props.visible, (v) => {
+  if (v) {
+    previousFocus = document.activeElement as HTMLElement
+    window.addEventListener('keydown', onKeydown)
+    nextTick(() => {
+      const box = dialogRef.value
+      if (box) {
+        const focusable = box.querySelector<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
+        focusable?.focus()
+      }
+    })
+  } else {
+    window.removeEventListener('keydown', onKeydown)
+    if (previousFocus) {
+      previousFocus.focus()
+      previousFocus = null
+    }
+  }
+})
+
+onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
 function truncate(text: string, max = 120): string {
   return text.length > max ? text.slice(0, max) + '...' : text
