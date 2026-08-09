@@ -404,7 +404,7 @@ async function save(): Promise<void> {
   border-radius: var(--radius-sm);
   border: none;
   background: var(--accent, #6366f1);
-  color: white;
+  color: var(--on-accent);
   font-size: var(--fs-md);
   font-weight: 500;
   cursor: pointer;

@@ -273,6 +273,6 @@ function selectRelationType(_idx: number) {}
 .eb-field-select { padding: 3px; border: 1px solid var(--border-color); border-radius: 3px; font-size: var(--font-size-xs); background: var(--bg); color: var(--text-color); }
 .btn-ghost { padding: 6px 12px; background: transparent; border: 1px solid var(--border-color); border-radius: var(--radius-sm); cursor: pointer; font-size: var(--font-size-sm); color: var(--text-secondary); }
 .btn-ghost:hover { background: var(--hover-bg); }
-.btn-secondary { padding: 8px 16px; background: var(--primary); color: white; border: none; border-radius: var(--radius-sm); cursor: pointer; font-size: var(--font-size-base); }
+.btn-secondary { padding: 8px 16px; background: var(--primary); color: var(--on-accent); border: none; border-radius: var(--radius-sm); cursor: pointer; font-size: var(--font-size-base); }
 .btn-secondary:hover { opacity: 0.9; }
 </style>

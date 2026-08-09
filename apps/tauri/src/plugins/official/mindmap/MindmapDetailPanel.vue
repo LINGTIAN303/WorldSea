@@ -274,5 +274,5 @@ watch(() => props.nodeId, () => {
 }
 .mm-dp-btn:hover { background: var(--hover-bg); color: var(--text-color); border-color: var(--primary); }
 .mm-dp-btn.danger { color: var(--danger); border-color: var(--danger); }
-.mm-dp-btn.danger:hover { background: var(--danger); color: white; }
+.mm-dp-btn.danger:hover { background: var(--danger); color: var(--on-accent); }
 </style>

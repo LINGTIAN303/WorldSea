@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="nb-tiptap-editor">
     <div class="nb-tt-toolbar">
       <div class="toolbar-group">
@@ -197,7 +197,7 @@ onBeforeUnmount(() => {
   color: var(--color-primary); padding: 1px 6px; border-radius: 4px;
   font-size: var(--font-size-sm); font-weight: var(--font-weight-medium); cursor: pointer;
 }
-.nb-editor-wrap :deep(.nb-mention:hover) { background: var(--color-primary); color: white; }
+.nb-editor-wrap :deep(.nb-mention:hover) { background: var(--color-primary); color: var(--on-accent); }
 
 .nb-preview-wrap { font-family: var(--font-family-content); font-size: var(--font-size-base); line-height: 1.7; color: var(--color-text-primary); }
 .nb-preview-wrap :deep(h1) { font-size: var(--font-size-2xl); font-weight: var(--font-weight-bold); margin: 20px 0 12px; }

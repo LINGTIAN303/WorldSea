@@ -1102,7 +1102,7 @@ useAgentPluginBridge('mindmap', (event) => {
 .mm-main-area { display: flex; flex: 1; min-height: 0; overflow: hidden; }
 .hidden-input { display: none; }
 .mm-selection-overlay { position: absolute; background: rgba(79, 70, 229, 0.15); border: 1px solid rgba(79, 70, 229, 0.5); pointer-events: none; z-index: 10; }
-.mm-connect-bar { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); background: var(--primary); color: white; padding: 6px 16px; border-radius: var(--radius-md); font-size: var(--font-size-sm); z-index: var(--z-detail); display: flex; align-items: center; gap: 4px; }
+.mm-connect-bar { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); background: var(--primary); color: var(--on-accent); padding: 6px 16px; border-radius: var(--radius-md); font-size: var(--font-size-sm); z-index: var(--z-detail); display: flex; align-items: center; gap: 4px; }
 .mm-inline-edit { position: absolute; z-index: var(--z-detail); display: flex; gap: 4px; background: var(--card-bg); padding: 4px; border-radius: var(--radius-md); box-shadow: var(--shadow-lg); border: 1px solid var(--border-color); }
 .mm-inline-input { border: none; border-bottom: 1px solid var(--border-color); background: transparent; color: var(--text-color); padding: 2px 6px; font-size: var(--font-size-sm); outline: none; }
 .mm-inline-input:focus { border-bottom-color: var(--primary); }

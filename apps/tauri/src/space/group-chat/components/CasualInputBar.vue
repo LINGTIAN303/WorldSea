@@ -178,7 +178,7 @@ defineExpose({ focusInput })
 .tool-btn { width: 32px; height: 32px; border: none; background: transparent; border-radius: var(--radius-sm); cursor: pointer; font-size: var(--fs-lg); display: flex; align-items: center; justify-content: center; transition: background 0.12s; }
 .tool-btn:hover { background: var(--color-surface); }
 
-.send-btn { padding: 6px 14px; border: none; background: var(--color-primary); color: white; border-radius: 8px; cursor: pointer; font-size: var(--fs-sm); font-weight: 600; transition: opacity 0.15s; }
+.send-btn { padding: 6px 14px; border: none; background: var(--color-primary); color: var(--on-accent); border-radius: 8px; cursor: pointer; font-size: var(--fs-sm); font-weight: 600; transition: opacity 0.15s; }
 .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .send-btn:not(:disabled):hover { opacity: 0.9; }
 </style>

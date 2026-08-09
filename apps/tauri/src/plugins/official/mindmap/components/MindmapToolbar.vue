@@ -187,7 +187,7 @@ const typeFilters = [
 }
 .icon-btn:hover { background: var(--hover-bg); color: var(--text-color); transform: translateY(-1px); }
 .icon-btn.active { background: var(--color-primary-subtle, var(--primary-light)); border-color: var(--primary); color: var(--primary); }
-.icon-btn.primary { background: linear-gradient(135deg, var(--primary), var(--color-primary-hover, var(--primary))); color: white; border-color: var(--primary); font-weight: var(--font-weight-semibold); }
+.icon-btn.primary { background: linear-gradient(135deg, var(--primary), var(--color-primary-hover, var(--primary))); color: var(--on-accent); border-color: var(--primary); font-weight: var(--font-weight-semibold); }
 .icon-btn.primary:hover { opacity: 0.9; }
 .icon-btn.disabled, .icon-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .icon-btn.disabled:hover, .icon-btn:disabled:hover { background: transparent; transform: none; }

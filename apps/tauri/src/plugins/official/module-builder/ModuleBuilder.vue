@@ -130,5 +130,5 @@ function executeDelete() {
 .ble-icon { font-size: var(--icon-2xl); display: block; margin-bottom: 12px; }
 .bl-empty h3 { font-size: var(--font-size-lg); margin: 0 0 8px; }
 .bl-empty p { font-size: var(--font-size-sm); color: var(--text-secondary); }
-.btn-primary { padding: 8px 16px; background: var(--primary); color: white; border: none; border-radius: var(--radius-sm); cursor: pointer; font-size: var(--font-size-base); }
+.btn-primary { padding: 8px 16px; background: var(--primary); color: var(--on-accent); border: none; border-radius: var(--radius-sm); cursor: pointer; font-size: var(--font-size-base); }
 </style>

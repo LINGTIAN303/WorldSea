@@ -109,6 +109,6 @@ watch(() => ctx?.selectedEntity.value, (entity) => {
 .ef-checkbox { display: flex; align-items: center; gap: 6px; font-size: var(--font-size-sm); }
 .ef-actions { display: flex; gap: 8px; margin-top: 16px; }
 .ef-btn { padding: 6px 14px; border-radius: 4px; font-size: var(--font-size-sm); cursor: pointer; border: none; }
-.ef-btn-primary { background: var(--primary); color: white; }
+.ef-btn-primary { background: var(--primary); color: var(--on-accent); }
 .ef-btn-ghost { background: transparent; border: 1px solid var(--border-color); color: var(--text-secondary); }
 </style>

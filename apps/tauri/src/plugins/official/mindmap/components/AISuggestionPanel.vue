@@ -207,7 +207,7 @@ defineEmits<{
 }
 .mm-ai-accept:hover {
   background: var(--primary);
-  color: white;
+  color: var(--on-accent);
 }
 .mm-ai-footer {
   padding: 8px 12px;
@@ -227,7 +227,10 @@ defineEmits<{
   font-size: var(--font-size-sm);
   transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s;
 }
-.mm-ai-analyze:hover { background: var(--primary); color: white; }
+.mm-ai-analyze:hover {
+  background: var(--primary);
+  color: var(--on-accent);
+}
 .mm-ai-analyze.ai { border-color: var(--color-primary); color: var(--color-primary); }
 .mm-ai-analyze.ai:hover { background: var(--color-primary); color: var(--color-text-inverse); }
 .mm-ai-analyze.ai:disabled { opacity: 0.5; cursor: not-allowed; }

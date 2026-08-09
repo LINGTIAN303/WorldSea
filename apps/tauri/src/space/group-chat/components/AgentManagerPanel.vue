@@ -254,8 +254,8 @@ onMounted(async () => {
 .delete-confirm-text { font-size: var(--fs-md); margin-bottom: 16px; line-height: 1.5; }
 .delete-confirm-actions { display: flex; gap: 8px; justify-content: flex-end; }
 .delete-cancel-btn { padding: 6px 16px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); cursor: pointer; font-size: var(--fs-sm); }
-.delete-confirm-btn { padding: 6px 16px; border: none; border-radius: 8px; background: #ef4444; color: white; cursor: pointer; font-size: var(--fs-sm); font-weight: 600; }
-.delete-confirm-btn:hover { background: #dc2626; }
+.delete-confirm-btn { padding: 6px 16px; border: none; border-radius: 8px; background: var(--danger); color: var(--on-accent); cursor: pointer; font-size: var(--fs-sm); font-weight: 600; }
+.delete-confirm-btn:hover { background: var(--danger-hover); }
 
 .panel-slide-enter-active { transition: opacity 0.15s ease, transform 0.15s ease; }
 .panel-slide-leave-active { transition: opacity 0.1s ease, transform 0.1s ease; }

@@ -318,7 +318,7 @@ function onStart(): void {
 
 .start-btn {
   background: var(--color-primary);
-  color: white;
+  color: var(--on-accent);
   box-shadow: 0 2px 8px rgba(108, 92, 231, 0.3);
 }
 

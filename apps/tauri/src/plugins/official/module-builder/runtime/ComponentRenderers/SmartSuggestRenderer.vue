@@ -68,7 +68,7 @@ onBeforeUnmount(() => {
 .ss-title { font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); color: var(--text-color); }
 .ss-body { padding: 10px 12px; }
 .ss-empty { display: flex; justify-content: center; padding: 12px; }
-.ss-ask-btn { padding: 6px 16px; background: var(--primary); color: white; border: none; border-radius: var(--radius-sm); font-size: var(--font-size-sm); cursor: pointer; }
+.ss-ask-btn { padding: 6px 16px; background: var(--primary); color: var(--on-accent); border: none; border-radius: var(--radius-sm); font-size: var(--font-size-sm); cursor: pointer; }
 .ss-ask-btn:hover { opacity: 0.9; }
 .ss-list { display: flex; flex-direction: column; gap: 6px; }
 .ss-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); cursor: pointer; transition: background 0.1s, border-color 0.1s, color 0.1s, box-shadow 0.1s, transform 0.1s, opacity 0.1s, filter 0.1s; }

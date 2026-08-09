@@ -795,7 +795,7 @@ for (const slot of profileStore.slots) {
   border-radius: var(--radius-sm);
   border: none;
   background: var(--color-primary);
-  color: white;
+  color: var(--on-accent);
   font-size: var(--fs-md);
   font-weight: 600;
   cursor: pointer;

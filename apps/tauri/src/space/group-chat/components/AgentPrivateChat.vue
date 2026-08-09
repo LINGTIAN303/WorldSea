@@ -683,7 +683,7 @@ onBeforeUnmount(() => {
 
 .msg-bubble.user {
   background: var(--color-primary);
-  color: white;
+  color: var(--on-accent);
   border-radius: 12px 12px 4px 12px;
 }
 
@@ -792,7 +792,7 @@ onBeforeUnmount(() => {
   border-radius: 8px;
   border: none;
   background: var(--color-primary);
-  color: white;
+  color: var(--on-accent);
   cursor: pointer;
   display: flex;
   align-items: center;

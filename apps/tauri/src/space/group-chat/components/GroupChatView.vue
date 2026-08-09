@@ -508,7 +508,7 @@ onBeforeUnmount(() => {
 .header-actions { display: flex; gap: 6px; }
 .action-btn { padding: 3px 10px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); font-size: var(--font-size-2xs); cursor: pointer; background: var(--color-surface-elevated); color: var(--color-text); transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s; }
 .new-btn { border-color: var(--color-primary); color: var(--color-primary); }
-.new-btn:hover { background: var(--color-primary); color: white; }
+.new-btn:hover { background: var(--color-primary); color: var(--on-accent); }
 
 .state-tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 600; }
 .completed-tag { background: rgba(16, 185, 129, 0.12); color: #10b981; }

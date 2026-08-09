@@ -41,5 +41,5 @@ const durationOptions = [
 .duration-option.selected { border-color: var(--color-primary); background: rgba(108,92,231,0.06); }
 .dialog-actions { display: flex; gap: 8px; justify-content: flex-end; }
 .cancel-btn { padding: 6px 14px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); cursor: pointer; font-size: var(--fs-sm); }
-.confirm-btn { padding: 6px 14px; border: none; border-radius: 8px; background: #ef4444; color: white; cursor: pointer; font-size: var(--fs-sm); font-weight: 600; }
+.confirm-btn { padding: 6px 14px; border: none; border-radius: 8px; background: var(--danger); color: var(--on-accent); cursor: pointer; font-size: var(--fs-sm); font-weight: 600; }
 </style>

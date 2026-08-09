@@ -140,6 +140,6 @@ function onCreate(): void {
 .agent-check { color: var(--color-primary); font-weight: 700; font-size: var(--fs-base); }
 .agent-list-empty { padding: 12px; font-size: var(--fs-xs); color: var(--color-text-tertiary); text-align: center; }
 
-.create-btn { width: 100%; padding: 10px; border: none; background: var(--color-primary); color: white; border-radius: var(--radius-md); cursor: pointer; font-size: var(--fs-md); font-weight: 600; }
+.create-btn { width: 100%; padding: 10px; border: none; background: var(--color-primary); color: var(--on-accent); border-radius: var(--radius-md); cursor: pointer; font-size: var(--fs-md); font-weight: 600; }
 .create-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 </style>

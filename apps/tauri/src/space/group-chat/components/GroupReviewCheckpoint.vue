@@ -143,7 +143,7 @@ function onConfirmDirection(e?: KeyboardEvent) {
 
 .continue-btn {
   background: var(--color-primary);
-  color: white;
+  color: var(--on-accent);
   border-color: var(--color-primary);
 }
 
@@ -181,7 +181,7 @@ function onConfirmDirection(e?: KeyboardEvent) {
 
 .confirm-dir-btn {
   background: var(--color-primary);
-  color: white;
+  color: var(--on-accent);
   border-color: var(--color-primary);
 }
 

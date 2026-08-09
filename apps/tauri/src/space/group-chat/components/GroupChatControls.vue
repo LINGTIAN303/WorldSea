@@ -164,7 +164,7 @@ function onInject(e?: KeyboardEvent) {
 
 .send-btn {
   background: var(--color-primary);
-  color: white;
+  color: var(--on-accent);
   border-color: var(--color-primary);
 }
 

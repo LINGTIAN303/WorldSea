@@ -247,6 +247,6 @@ function schedulePersist(): void {
 .invite-empty { padding: 12px; font-size: var(--fs-xs); color: var(--color-text-tertiary); text-align: center; }
 .invite-actions { display: flex; gap: 8px; margin-top: 10px; }
 .invite-cancel { flex: 1; padding: 8px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); cursor: pointer; font-size: var(--fs-sm); color: var(--color-text-secondary); }
-.invite-confirm { flex: 1; padding: 8px; border: none; border-radius: 8px; background: var(--color-primary); color: white; cursor: pointer; font-size: var(--fs-sm); font-weight: 600; }
+.invite-confirm { flex: 1; padding: 8px; border: none; border-radius: 8px; background: var(--color-primary); color: var(--on-accent); cursor: pointer; font-size: var(--fs-sm); font-weight: 600; }
 .invite-confirm:disabled { opacity: 0.4; cursor: not-allowed; }
 </style>
