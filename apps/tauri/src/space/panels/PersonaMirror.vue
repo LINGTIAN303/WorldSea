@@ -564,7 +564,7 @@ onMounted(async () => {
   position: fixed;
   inset: 0;
   z-index: 10001;
-  background: rgba(0, 0, 0, 0.35);
+  background: var(--overlay, rgba(0, 0, 0, 0.35));
   display: flex;
   align-items: center;
   justify-content: center;

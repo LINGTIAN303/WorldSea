@@ -275,7 +275,7 @@ function onContextMenu(e: MouseEvent): void {
 .user-time { margin-top: 2px; }
 .agent-time { margin-top: 2px; }
 
-.reply-preview { font-size: var(--fs-xs); color: var(--color-text-tertiary); padding: 4px 6px; background: rgba(0,0,0,0.05); border-radius: var(--radius-xs); border-left: 2px solid var(--color-border); margin-bottom: 4px; }
+.reply-preview { font-size: var(--fs-xs); color: var(--color-text-tertiary); padding: 4px 6px; background: var(--bg-muted, rgba(0,0,0,0.05)); border-radius: var(--radius-xs); border-left: 2px solid var(--color-border); margin-bottom: 4px; }
 .reply-name { font-weight: 600; margin-right: 4px; }
 
 .msg-image img { max-width: 240px; max-height: 180px; border-radius: var(--radius-mid); cursor: pointer; }

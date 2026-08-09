@@ -158,7 +158,7 @@ defineExpose({ focusInput })
 <style scoped>
 .casual-input-bar { border-top: 1px solid var(--color-border); padding: 8px 12px; background: var(--color-surface-elevated); position: relative; }
 
-.reply-bar { display: flex; align-items: center; gap: 4px; margin-bottom: 6px; padding: 4px 6px; background: rgba(0,0,0,0.05); border-radius: var(--radius-xs); border-left: 2px solid var(--color-primary); font-size: var(--fs-xs); color: var(--color-text-tertiary); }
+.reply-bar { display: flex; align-items: center; gap: 4px; margin-bottom: 6px; padding: 4px 6px; background: var(--bg-muted, rgba(0,0,0,0.05)); border-radius: var(--radius-xs); border-left: 2px solid var(--color-primary); font-size: var(--fs-xs); color: var(--color-text-tertiary); }
 .reply-hint { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .reply-cancel { background: none; border: none; cursor: pointer; opacity: 0.5; font-size: var(--fs-sm); padding: 2px 4px; }
 .reply-cancel:hover { opacity: 1; }
