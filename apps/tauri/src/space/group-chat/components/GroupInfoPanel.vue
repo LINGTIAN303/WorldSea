@@ -49,7 +49,12 @@
             :key="agent.id"
             class="invite-item"
             :class="{ selected: isInviteSelected(agent.id) }"
+            role="checkbox"
+            tabindex="0"
+            :aria-checked="isInviteSelected(agent.id)"
             @click="toggleInvite(agent)"
+            @keydown.enter.prevent="toggleInvite(agent)"
+            @keydown.space.prevent="toggleInvite(agent)"
           >
             <div class="invite-avatar" :style="{ background: agent.color }">{{ agent.name[0] }}</div>
             <div class="invite-info">

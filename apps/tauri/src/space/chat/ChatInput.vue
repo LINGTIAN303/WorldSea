@@ -15,6 +15,7 @@
             type="button"
             :disabled="isStreaming"
             title="添加文件（图片 / Word / PDF / 文本）"
+            aria-label="添加文件（图片 / Word / PDF / 文本）"
             @click="triggerFileInput"
           >
             <WsIcon name="paperclip" size="sm" />
@@ -28,7 +29,7 @@
               >
                 <WsIcon name="file" size="xs" />
                 <span class="kb-chip-label">{{ chip.label }}</span>
-                <button class="kb-chip-remove" type="button" @click.stop="removeKbChip(i)">✕</button>
+                <button class="kb-chip-remove" type="button" :aria-label="`移除知识条目 ${chip.label}`" @click.stop="removeKbChip(i)">✕</button>
               </div>
             </div>
             <div v-if="attachments.length" class="attachments-preview">
@@ -41,7 +42,7 @@
                 <img v-if="att.type === 'image' && att.previewUrl" :src="att.previewUrl" class="att-thumb" />
                 <span v-if="att.type === 'file'" class="att-file-icon"><WsIcon name="file" size="xs" /></span>
                 <span class="att-name">{{ att.name }}</span>
-                <button class="att-remove" type="button" @click.stop="removeAttachment(i)">✕</button>
+                <button class="att-remove" type="button" :aria-label="`移除附件 ${att.name}`" @click.stop="removeAttachment(i)">✕</button>
               </div>
             </div>
             <textarea
@@ -68,6 +69,7 @@
             class="send-btn"
             :class="{ 'stop-btn': isStreaming }"
             :disabled="!isStreaming && (!inputText.trim() && !attachments.length && !kbChips.length)"
+            :aria-label="isStreaming ? '停止生成' : '发送消息'"
             @click="isStreaming ? onStop() : onSend()"
           >
             <WsIcon v-if="isStreaming" name="square" size="sm" />
@@ -662,11 +664,11 @@ watch(() => spaceStore.inputInjection, (injection) => {
 .vision-warning {
   margin-top: 8px;
   padding: 6px 12px;
-  background: var(--color-warning-bg, rgba(255, 200, 0, 0.1));
-  border: 1px solid var(--color-warning-border, rgba(255, 200, 0, 0.3));
+  background: var(--warning-soft, rgba(255, 200, 0, 0.1));
+  border: 1px solid color-mix(in srgb, var(--warning, #d97706) 40%, transparent);
   border-radius: var(--radius-mid);
   font-size: var(--font-size-xs);
-  color: var(--color-warning-text, #d4a000);
+  color: var(--warning, #d4a000);
   text-align: center;
   max-width: 80%;
 }

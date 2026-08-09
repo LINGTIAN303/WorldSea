@@ -114,9 +114,9 @@ watch(expanded, (v) => { if (v) refresh() })
 .record-row:last-child { border-bottom: none; }
 .record-row.success { }
 .record-row.error { background: color-mix(in srgb, var(--danger) 5%, transparent); }
-.record-row.pending { background: rgba(108,92,231,0.05); }
+.record-row.pending { background: color-mix(in srgb, var(--color-primary) 5%, transparent); }
 .rec-name { font-weight: 600; min-width: 50px; }
-.rec-protocol { font-size: var(--fs-3xs); color: var(--color-primary); background: rgba(108,92,231,0.08); padding: 1px 4px; border-radius: var(--radius-2xs); }
+.rec-protocol { font-size: var(--fs-3xs); color: var(--color-primary); background: color-mix(in srgb, var(--color-primary) 8%, transparent); padding: 1px 4px; border-radius: var(--radius-2xs); }
 .rec-status { font-weight: 600; min-width: 24px; }
 .rec-status.success { color: var(--success); }
 .rec-status.error { color: var(--danger); }

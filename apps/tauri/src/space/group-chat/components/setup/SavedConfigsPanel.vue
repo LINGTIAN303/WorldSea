@@ -15,6 +15,7 @@
               ref="renameInputRef"
               v-model="renameValue"
               class="rename-input"
+              aria-label="配置重命名"
               @keydown.enter="confirmRename(cfg.id)"
               @keydown.escape="cancelRename"
               @blur="confirmRename(cfg.id)"
@@ -107,12 +108,12 @@ function cancelRename(): void {
 
 .saved-card:hover {
   border-color: var(--color-primary);
-  background: rgba(108, 92, 231, 0.03);
+  background: color-mix(in srgb, var(--color-primary) 3%, transparent);
 }
 
 .saved-card.active {
   border-color: var(--color-primary);
-  background: rgba(108, 92, 231, 0.07);
+  background: color-mix(in srgb, var(--color-primary) 7%, transparent);
 }
 
 .saved-main {

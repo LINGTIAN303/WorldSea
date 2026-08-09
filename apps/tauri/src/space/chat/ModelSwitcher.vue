@@ -1,6 +1,19 @@
 <template>
   <div class="model-switcher" :class="{ expanded: isExpanded }" ref="switcherRef">
-    <button class="model-pill" @mousedown.prevent @click.stop="open = !open; if (open) updateDropdownPosition()">
+    <button
+      class="model-pill"
+      aria-haspopup="listbox"
+      :aria-expanded="open"
+      aria-controls="model-listbox"
+      :aria-label="`当前模型：${shortName}，切换模型`"
+      @mousedown.prevent
+      @click.stop="toggleDropdown()"
+      @keydown.down.prevent="onTriggerKeydown"
+      @keydown.up.prevent="onTriggerKeydown"
+      @keydown.enter.prevent="toggleDropdown()"
+      @keydown.space.prevent="toggleDropdown()"
+      @keydown.esc.prevent="closeDropdown()"
+    >
       <img v-if="providerIconUrl" :src="providerIconUrl" class="model-pill-icon" alt="" />
       <span v-else class="model-pill-provider">{{ providerLabel }}</span>
       <span class="model-pill-name">{{ shortName }}</span>
@@ -11,18 +24,31 @@
         <div v-if="open" class="model-dropdown-backdrop" @click="open = false"></div>
       </Transition>
       <Transition name="dropdown">
-        <div v-if="open" class="model-dropdown" :style="dropdownStyle">
+        <div
+          v-if="open"
+          id="model-listbox"
+          class="model-dropdown"
+          role="listbox"
+          aria-label="模型列表"
+          :style="dropdownStyle"
+          @keydown="onListboxKeydown"
+        >
           <div class="dropdown-header">切换模型</div>
           <div v-for="group in dropdownGroups" :key="group.group" class="model-group">
-            <div class="model-group-label">{{ group.group }}</div>
+            <div class="model-group-label" role="presentation">{{ group.group }}</div>
             <button
               v-for="m in group.models"
               :key="m.id"
               class="model-option"
               :class="{ active: m.id === currentModelId }"
+              role="option"
+              :aria-selected="m.id === currentModelId"
+              :aria-label="`${m.name}（${group.group}）`"
+              :ref="(el) => collectOptionEl(el as HTMLElement | null, m.id)"
               @click="selectModel(m.provider, m.id)"
+              @focus="activeOptionId = m.id"
             >
-              <span class="model-option-status">{{ m.id === currentModelId ? '✓' : '' }}</span>
+              <span class="model-option-status" aria-hidden="true">{{ m.id === currentModelId ? '✓' : '' }}</span>
               <span class="model-option-name">{{ m.name }}</span>
             </button>
           </div>
@@ -33,7 +59,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { getModelInfo, getModelPresets } from '@worldsmith/agent-runtime'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useAgent } from '@/agent/composables/useAgent'
@@ -55,6 +81,8 @@ const { updateModel } = useAgent()
 
 const open = ref(false)
 const switcherRef = ref<HTMLElement>()
+const activeOptionId = ref('')
+const optionEls = new Map<string, HTMLElement>()
 
 const providerLabel = computed(() => {
   const labels: Record<string, string> = {
@@ -105,6 +133,90 @@ async function updateDropdownPosition() {
     }
   }
   dropdownGroups.value = filtered
+}
+
+/** 拍平所有选项（按分组顺序），供键盘导航使用 */
+const allOptions = computed(() => {
+  const list: { provider: string; id: string }[] = []
+  for (const group of dropdownGroups.value) {
+    for (const m of group.models) list.push({ provider: m.provider, id: m.id })
+  }
+  return list
+})
+
+function collectOptionEl(el: HTMLElement | null, id: string) {
+  if (el) optionEls.set(id, el)
+}
+
+async function toggleDropdown() {
+  open.value = !open.value
+  if (open.value) {
+    await updateDropdownPosition()
+    // 打开时默认聚焦当前模型，若无则聚焦第一项
+    activeOptionId.value = currentModelId.value
+    nextTick(() => {
+      const target = optionEls.get(activeOptionId.value) ?? optionEls.get(allOptions.value[0]?.id ?? '')
+      target?.focus()
+    })
+  }
+}
+
+function closeDropdown() {
+  open.value = false
+}
+
+function focusOptionById(id: string) {
+  activeOptionId.value = id
+  const el = optionEls.get(id)
+  el?.focus()
+}
+
+function onTriggerKeydown(e: KeyboardEvent) {
+  if (!open.value) {
+    toggleDropdown()
+    return
+  }
+  // 打开状态下的方向键：从当前/首项开始移动
+  const cur = activeOptionId.value || currentModelId.value
+  const idx = allOptions.value.findIndex(o => o.id === cur)
+  const count = allOptions.value.length
+  if (count === 0) return
+  const nextIdx = e.key === 'ArrowDown' ? Math.min(count - 1, (idx < 0 ? -1 : idx) + 1) : Math.max(0, (idx < 0 ? 0 : idx) - 1)
+  focusOptionById(allOptions.value[nextIdx].id)
+}
+
+function onListboxKeydown(e: KeyboardEvent) {
+  const count = allOptions.value.length
+  if (count === 0) return
+  let idx = allOptions.value.findIndex(o => o.id === activeOptionId.value)
+  if (idx < 0) idx = allOptions.value.findIndex(o => o.id === currentModelId.value)
+  switch (e.key) {
+    case 'ArrowDown':
+      e.preventDefault()
+      focusOptionById(allOptions.value[Math.min(count - 1, (idx < 0 ? -1 : idx) + 1)].id)
+      break
+    case 'ArrowUp':
+      e.preventDefault()
+      focusOptionById(allOptions.value[Math.max(0, (idx < 0 ? 0 : idx) - 1)].id)
+      break
+    case 'Home':
+      e.preventDefault()
+      focusOptionById(allOptions.value[0].id)
+      break
+    case 'End':
+      e.preventDefault()
+      focusOptionById(allOptions.value[count - 1].id)
+      break
+    case 'Enter':
+    case ' ':
+      // 选项本身是 button，Enter/Space 默认触发 click；这里无需重复处理
+      break
+    case 'Escape':
+      e.preventDefault()
+      closeDropdown()
+      switcherRef.value?.focus()
+      break
+  }
 }
 
 async function selectModel(provider: string, modelId: string) {

@@ -7,14 +7,14 @@
       :style="{ '--p-color': p.color, borderColor: `${p.color}33`, background: `${p.color}08` }"
     >
       <div class="pc-header">
-        <div class="pc-avatar" :style="{ background: p.color }" @click="cycleColor(i)">
+        <div class="pc-avatar" :style="{ background: p.color }" role="button" tabindex="0" :aria-label="`切换 ${p.name || '参与者'} 的颜色`" @click="cycleColor(i)" @keydown.enter.prevent="cycleColor(i)" @keydown.space.prevent="cycleColor(i)">
           <span class="avatar-letter">{{ (p.name || '?')[0] }}</span>
         </div>
         <div class="pc-fields">
-          <input v-model="p.name" class="pc-name" placeholder="名称" :class="{ 'has-error': isDuplicateName(i) }" />
-          <input v-model="p.role" class="pc-role" placeholder="角色描述" />
+          <input v-model="p.name" class="pc-name" placeholder="名称" aria-label="参与者名称" :class="{ 'has-error': isDuplicateName(i) }" />
+          <input v-model="p.role" class="pc-role" placeholder="角色描述" aria-label="角色描述" />
         </div>
-        <button class="pc-remove" @click="removeParticipant(i)" :disabled="modelValue.length <= 2"><WsIcon name="x" size="xs" /></button>
+        <button class="pc-remove" @click="removeParticipant(i)" :disabled="modelValue.length <= 2" :aria-label="`移除参与者 ${p.name || ''}`"><WsIcon name="x" size="xs" /></button>
       </div>
       <div class="pc-model-row">
         <ModelFlyoutSelect :model-id="p.modelId" @update:model-id="onModelChange(i, $event)" />

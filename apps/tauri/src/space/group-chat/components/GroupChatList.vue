@@ -18,7 +18,13 @@
         :key="group.id"
         class="group-item"
         :class="{ active: group.id === activeGroupId }"
+        role="button"
+        tabindex="0"
+        :aria-current="group.id === activeGroupId ? 'true' : undefined"
+        :aria-label="`群聊 ${group.name}${group.unreadCount > 0 ? `，${group.unreadCount} 条未读` : ''}`"
         @click="onSelect(group)"
+        @keydown.enter.prevent="onSelect(group)"
+        @keydown.space.prevent="onSelect(group)"
         @contextmenu.prevent="openGroupContextMenu($event, group.id)"
       >
         <div class="group-avatar">{{ group.avatar }}</div>
@@ -36,11 +42,11 @@
       </div>
     </div>
 
-    <div v-if="groupContextMenu.visible" class="context-menu" :style="groupContextMenuStyle" @click.stop>
-      <div class="context-menu-item" @click="onTogglePinGroup(groupContextMenu.groupId!)">
+    <div v-if="groupContextMenu.visible" class="context-menu" :style="groupContextMenuStyle" role="menu" @click.stop>
+      <button class="context-menu-item" role="menuitem" @click="onTogglePinGroup(groupContextMenu.groupId!)">
         {{ groupContextMenu.pinned ? '取消置顶' : '置顶' }}
-      </div>
-      <div class="context-menu-item danger" @click="onDeleteGroup(groupContextMenu.groupId!)">删除</div>
+      </button>
+      <button class="context-menu-item danger" role="menuitem" @click="onDeleteGroup(groupContextMenu.groupId!)">删除</button>
     </div>
 
     <CreateGroupDialog
@@ -263,7 +269,7 @@ function onDocumentClick(event: MouseEvent): void {
 
 .mode-tabs { display: flex; gap: 2px; padding: 0 8px 6px; }
 .mode-tab { flex: 1; padding: 4px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface); cursor: pointer; font-size: var(--fs-xs); text-align: center; transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s; color: var(--color-text-secondary); }
-.mode-tab.active { background: rgba(108,92,231,0.1); border-color: var(--color-primary); font-weight: 600; color: var(--color-text); }
+.mode-tab.active { background: color-mix(in srgb, var(--color-primary) 10%, transparent); border-color: var(--color-primary); font-weight: 600; color: var(--color-text); }
 
 .list-body { flex: 1; overflow-y: auto; min-height: 0; contain: layout paint style; }
 .group-item {
@@ -294,11 +300,11 @@ function onDocumentClick(event: MouseEvent): void {
   opacity: 0.04;
 }
 .group-item.active {
-  background: rgba(108,92,231,0.08);
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
   border-left-color: var(--color-primary);
 }
 .group-item.active:hover {
-  background: rgba(108,92,231,0.12);
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
 }
 .group-avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #6c5ce7, #a29bfe); display: flex; align-items: center; justify-content: center; font-size: var(--fs-base); flex-shrink: 0; }
 .group-info { flex: 1; min-width: 0; }
@@ -318,7 +324,7 @@ function onDocumentClick(event: MouseEvent): void {
 .delete-confirm-btn:hover { background: var(--danger-hover); }
 
 .context-menu { background: rgba(10, 10, 20, 0.08); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid var(--color-border); border-radius: var(--radius-md); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2); padding: 4px; min-width: 140px; }
-.context-menu-item { padding: 8px 12px; font-size: var(--fs-sm); color: var(--color-text); cursor: pointer; border-radius: var(--radius-sm); transition: background 0.1s; }
+.context-menu-item { width: 100%; text-align: left; background: none; border: none; padding: 8px 12px; font-size: var(--fs-sm); color: var(--color-text); cursor: pointer; border-radius: var(--radius-sm); transition: background 0.1s; }
 .context-menu-item:hover { background: var(--color-surface); }
 .context-menu-item.danger { color: var(--danger); }
 .context-menu-item.danger:hover { background: color-mix(in srgb, var(--danger) 10%, transparent); }

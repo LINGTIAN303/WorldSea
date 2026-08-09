@@ -564,6 +564,7 @@ onMounted(async () => {
         v-model="ioText"
         rows="12"
         spellcheck="false"
+        :aria-label="ioMode === 'import' ? '粘贴待导入的规格 JSON' : '当前规格 JSON 内容'"
         :placeholder="ioMode === 'import' ? '例如 [{id, name, description, system_prompt}]' : ''"
       />
       <p v-if="ioMsg" class="io-msg" :class="ioMsgType">{{ ioMsg }}</p>

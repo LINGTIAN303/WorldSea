@@ -264,12 +264,12 @@ function onStart(): void {
 
 .add-btn {
   padding: 3px 10px;
-  border: 1px dashed rgba(108, 92, 231, 0.4);
+  border: 1px dashed color-mix(in srgb, var(--color-primary) 40%, transparent);
   border-radius: var(--radius-sm);
   font-size: var(--font-size-2xs);
   color: var(--color-primary);
   cursor: pointer;
-  background: rgba(108, 92, 231, 0.06);
+  background: color-mix(in srgb, var(--color-primary) 6%, transparent);
 }
 
 .add-btn:disabled {
@@ -319,7 +319,7 @@ function onStart(): void {
 .start-btn {
   background: var(--color-primary);
   color: var(--on-accent);
-  box-shadow: 0 2px 8px rgba(108, 92, 231, 0.3);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-primary) 30%, transparent);
 }
 
 .start-btn:disabled {

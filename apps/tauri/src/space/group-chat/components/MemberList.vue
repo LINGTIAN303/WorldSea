@@ -5,7 +5,17 @@
       <button class="invite-btn" @click="$emit('invite')"><WsIcon name="plus" size="xs" /> 邀请</button>
     </div>
     <div class="members">
-      <div v-for="member in store.groupMembers" :key="member.id" class="member-item" @click="onMemberClick($event, member)">
+      <div
+        v-for="member in store.groupMembers"
+        :key="member.id"
+        class="member-item"
+        role="button"
+        tabindex="0"
+        :aria-label="`${member.name}：${member.role}${member.groupRole === 'owner' ? '（群主）' : member.groupRole === 'admin' ? '（管理员）' : ''}，打开操作菜单`"
+        @click="onMemberClick($event, member)"
+        @keydown.enter.prevent="onMemberKeydown($event, member)"
+        @keydown.space.prevent="onMemberKeydown($event, member)"
+      >
         <div class="member-avatar" :style="{ background: member.color }">
           <span class="avatar-letter">{{ member.name[0] }}</span>
         </div>
@@ -62,6 +72,12 @@ const menuAnchorRect = ref<DOMRect | null>(null)
 const muteTarget = ref<GroupMember | null>(null)
 
 function onMemberClick(event: MouseEvent, member: GroupMember): void {
+  selectedMember.value = member
+  menuAnchorRect.value = (event.currentTarget as HTMLElement).getBoundingClientRect()
+}
+
+function onMemberKeydown(event: KeyboardEvent, member: GroupMember): void {
+  // 键盘触发的操作菜单：以当前项矩形为锚点
   selectedMember.value = member
   menuAnchorRect.value = (event.currentTarget as HTMLElement).getBoundingClientRect()
 }
@@ -128,7 +144,7 @@ async function persistMembers(): Promise<void> {
 .list-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .section-label { font-size: var(--fs-xs); color: var(--color-text-tertiary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
 .invite-btn { padding: 4px 10px; border: 1px solid var(--color-primary); border-radius: var(--radius-sm); background: transparent; color: var(--color-primary); cursor: pointer; font-size: var(--fs-xs); font-weight: 600; }
-.invite-btn:hover { background: rgba(108,92,231,0.08); }
+.invite-btn:hover { background: color-mix(in srgb, var(--color-primary) 8%, transparent); }
 
 .members { display: flex; flex-direction: column; gap: 2px; }
 .member-item { display: flex; align-items: center; gap: 10px; padding: 6px 4px; border-radius: var(--radius-sm); cursor: pointer; }

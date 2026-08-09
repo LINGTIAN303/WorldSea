@@ -34,6 +34,7 @@
   --danger-hover: #b91c1c;
   --danger-soft: #fdecec;
   --info: #2563eb;
+  --info-soft: #e8effc;
 
   /* ── 排版 ── */
   --font-sans: 'Inter', system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
@@ -131,6 +132,26 @@
   --agent-text-tertiary: var(--text-muted);
   --agent-accent: var(--accent);
   --agent-accent-bg: var(--accent-soft);
+  /* Agent 面板迁移组件仍引用但未定义的 --agent-* 令牌（值全部引用 Tauri 令牌，深色自动跟随） */
+  --agent-primary: var(--accent);
+  --agent-font: var(--font-sans);
+  --agent-font-mono: var(--font-mono);
+  --agent-hover-bg: var(--bg-muted);
+  --agent-input-bg: var(--bg-muted);
+  --agent-border-color: var(--border);
+  --agent-radius: var(--radius-md);
+  --agent-blur: 12px;
+  /* Agent 面板语义色（shared-ui 组件引用，浅色基准值；深色下在下方覆盖提亮） */
+  --agent-danger: #ef4444;
+  --agent-success: #22c55e;
+  --agent-warning: #eab308;
+  --agent-info: #3b82f6;
+  --agent-segment-thinking: #a78bfa;   /* 思考段：淡紫 */
+  --agent-segment-tooling: #38bdf8;    /* 工具段：淡天蓝 */
+  --agent-segment-output: #34d399;     /* 输出段：淡翠绿 */
+  --agent-user-bubble: #f3f4f6;        /* 用户气泡底 */
+  --agent-radius-sm: 4px;
+  --agent-lens-blur: 8px;
   --color-bg-base: var(--bg-app);
   --color-bg-elevated: var(--bg-muted);
   --color-border: var(--border);
@@ -193,6 +214,17 @@
   --danger-hover: #ef4444;
   --danger-soft: rgba(239, 68, 68, 0.14);
   --info: #60a5fa;
+  --info-soft: rgba(96, 165, 250, 0.15);
+
+  /* Agent 面板语义色：深色下提亮（随 accent/语义色提亮原则），保证对比度 */
+  --agent-danger: #f87171;
+  --agent-success: #34d399;
+  --agent-warning: #fbbf24;
+  --agent-info: #60a5fa;
+  --agent-segment-thinking: #c084fc;
+  --agent-segment-tooling: #7dd3fc;
+  --agent-segment-output: #2dd4bf;
+  --agent-user-bubble: #27272c;
 
   /* 阴影（深底加深，保持浮起层次） */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);

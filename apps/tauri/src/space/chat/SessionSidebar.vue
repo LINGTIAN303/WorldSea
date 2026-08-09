@@ -27,7 +27,12 @@
           :key="s.id"
           class="session-item"
           :class="{ active: s.id === currentSessionId }"
+          role="button"
+          :tabindex="renamingId === s.id ? -1 : 0"
+          :aria-current="s.id === currentSessionId ? 'true' : undefined"
           @click="onSelect(s.id)"
+          @keydown.enter.prevent="onSelect(s.id)"
+          @keydown.space.prevent="onSelect(s.id)"
           @contextmenu.prevent="onContextMenu($event, s)"
         >
           <div v-if="renamingId === s.id" class="session-name">
@@ -48,7 +53,12 @@
           :key="s.id"
           class="session-item"
           :class="{ active: s.id === currentSessionId }"
+          role="button"
+          :tabindex="renamingId === s.id ? -1 : 0"
+          :aria-current="s.id === currentSessionId ? 'true' : undefined"
           @click="onSelect(s.id)"
+          @keydown.enter.prevent="onSelect(s.id)"
+          @keydown.space.prevent="onSelect(s.id)"
           @contextmenu.prevent="onContextMenu($event, s)"
         >
           <div v-if="renamingId === s.id" class="session-name">

@@ -27,7 +27,13 @@
           :key="tc.id"
           class="tool-call-tag"
           :class="[tc.status, getToolImportanceClass(tc.name)]"
+          role="button"
+          tabindex="0"
+          :aria-expanded="expandedToolId === tc.id"
+          :aria-label="`${getToolLabel(tc.name)}${expandedToolId === tc.id ? '，收起详情' : '，展开详情'}`"
           @click="toggleToolDetail(tc.id)"
+          @keydown.enter.prevent="toggleToolDetail(tc.id)"
+          @keydown.space.prevent="toggleToolDetail(tc.id)"
         >
           <WsIcon v-if="tc.status === 'running'" name="loader" size="xs" class="tc-spin" />
           <WsIcon v-else-if="tc.status === 'completed'" name="check" size="xs" />
@@ -56,11 +62,11 @@
         <div v-else v-html="renderedUserContent"></div>
         <span v-if="hasUncertainty" class="uncertainty-badge">待确认</span>
       </div>
-      <div v-if="isLong" class="text-expand-btn" @click="textExpanded = !textExpanded">
+      <div v-if="isLong" class="text-expand-btn" role="button" tabindex="0" :aria-expanded="textExpanded" @click="textExpanded = !textExpanded" @keydown.enter.prevent="textExpanded = !textExpanded" @keydown.space.prevent="textExpanded = !textExpanded">
         {{ textExpanded ? '收起' : '展开全文' }}
       </div>
       <div class="msg-actions">
-        <button class="action-btn" @click="onCopy" title="复制"><WsIcon name="copy" size="xs" /></button>
+        <button class="action-btn" @click="onCopy" title="复制" aria-label="复制消息"><WsIcon name="copy" size="xs" /></button>
         <span class="msg-time">{{ formatTime(msg.timestamp) }}</span>
       </div>
     </div>
@@ -367,8 +373,8 @@ function onCopy() {
 .tool-call-tag.failed { border-color: color-mix(in srgb, var(--danger) 30%, transparent); color: var(--danger); }
 
 .tool-call-tag.importance-high {
-  background: rgba(108, 92, 231, 0.08);
-  border-color: rgba(108, 92, 231, 0.25);
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+  border-color: color-mix(in srgb, var(--color-primary) 25%, transparent);
   font-weight: 500;
 }
 .tool-call-tag.importance-medium {
@@ -421,15 +427,15 @@ function onCopy() {
   border-radius: var(--radius-mid);
   font-size: var(--fs-xs);
   color: var(--color-primary);
-  background: rgba(108, 92, 231, 0.08);
-  border: 1px solid rgba(108, 92, 231, 0.15);
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 15%, transparent);
   cursor: pointer;
   user-select: none;
   transition: background 0.15s;
 }
 
 .text-expand-btn:hover {
-  background: rgba(108, 92, 231, 0.15);
+  background: color-mix(in srgb, var(--color-primary) 15%, transparent);
 }
 
 .msg-actions {

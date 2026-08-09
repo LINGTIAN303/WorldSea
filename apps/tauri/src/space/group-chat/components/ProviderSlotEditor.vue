@@ -68,7 +68,7 @@
               <!-- 云端模式：可搜索的模型选择器 -->
               <template v-if="ensureEntry(slot.id).mode === 'cloud'">
                 <div class="model-picker" :id="`picker-anchor-${slot.id}`">
-                  <div class="picker-trigger" @click="togglePicker(slot.id)" :id="`picker-trigger-${slot.id}`">
+                  <div class="picker-trigger" role="combobox" tabindex="0" :aria-haspopup="true" :aria-expanded="openPickerId === slot.id" :aria-label="`选择 ${slot.name || '槽位'} 的模型`" @click="togglePicker(slot.id)" @keydown.enter.prevent="togglePicker(slot.id)" @keydown.space.prevent="togglePicker(slot.id)" @keydown.esc="closePicker" :id="`picker-trigger-${slot.id}`">
                     <img v-if="ensureEntry(slot.id).provider && getProviderIconUrl(ensureEntry(slot.id).provider || '')" class="picker-icon" :src="getProviderIconUrl(ensureEntry(slot.id).provider || '')" alt="" />
                     <span class="picker-value" v-if="ensureEntry(slot.id).modelId">{{ getModelName(ensureEntry(slot.id).modelId) }}</span>
                     <span class="picker-placeholder" v-else>选择模型</span>

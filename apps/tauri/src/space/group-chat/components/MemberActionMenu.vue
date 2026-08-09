@@ -1,20 +1,20 @@
 <template>
   <Teleport to="body">
     <div class="menu-backdrop" @click.self="$emit('close')"></div>
-    <div class="member-action-menu" :style="menuStyle">
+    <div class="member-action-menu" :style="menuStyle" role="menu" :aria-label="`${member.name} 的操作菜单`" @keydown.esc="$emit('close')">
       <div class="menu-header">
         <div class="menu-avatar" :style="{ background: member.color }">{{ member.name[0] }}</div>
         <span class="menu-name">{{ member.name }}</span>
       </div>
       <div class="menu-actions">
-        <button class="menu-item" @click="$emit('privateChat', member.id)"><WsIcon name="chat" size="xs" /> 私聊</button>
-        <button v-if="member.groupRole === 'member'" class="menu-item" @click="$emit('setAdmin', member.id)">设为管理员</button>
-        <button v-if="member.groupRole === 'admin'" class="menu-item" @click="$emit('setAdmin', member.id)">取消管理员</button>
-        <button class="menu-item" @click="$emit('mute', member.id)">
+        <button class="menu-item" role="menuitem" @click="$emit('privateChat', member.id)"><WsIcon name="chat" size="xs" /> 私聊</button>
+        <button v-if="member.groupRole === 'member'" class="menu-item" role="menuitem" @click="$emit('setAdmin', member.id)">设为管理员</button>
+        <button v-if="member.groupRole === 'admin'" class="menu-item" role="menuitem" @click="$emit('setAdmin', member.id)">取消管理员</button>
+        <button class="menu-item" role="menuitem" @click="$emit('mute', member.id)">
           <WsIcon :name="member.muted ? 'volume-on' : 'volume-off'" size="xs" />
           {{ member.muted ? '解除禁言' : '禁言' }}
         </button>
-        <button class="menu-item danger" @click="$emit('kick', member.id)">移出群聊</button>
+        <button class="menu-item danger" role="menuitem" @click="$emit('kick', member.id)">移出群聊</button>
       </div>
     </div>
   </Teleport>
@@ -63,5 +63,5 @@ const menuStyle = computed(() => {
 .menu-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: none; background: transparent; border-radius: var(--radius-sm); cursor: pointer; font-size: var(--fs-sm); text-align: left; width: 100%; color: var(--color-text); }
 .menu-item:hover { background: var(--color-surface); }
 .menu-item.danger { color: var(--color-danger); }
-.menu-item.danger:hover { background: var(--color-danger-subtle, rgba(239,68,68,0.08)); }
+.menu-item.danger:hover { background: var(--danger-soft, rgba(239,68,68,0.08)); }
 </style>

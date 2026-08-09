@@ -38,7 +38,7 @@ const durationOptions = [
 .dialog-title { font-size: var(--fs-base); font-weight: 600; margin-bottom: 12px; }
 .duration-options { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
 .duration-option { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-mid); cursor: pointer; font-size: var(--fs-sm); }
-.duration-option.selected { border-color: var(--color-primary); background: rgba(108,92,231,0.06); }
+.duration-option.selected { border-color: var(--color-primary); background: color-mix(in srgb, var(--color-primary) 6%, transparent); }
 .dialog-actions { display: flex; gap: 8px; justify-content: flex-end; }
 .cancel-btn { padding: 6px 14px; border: 1px solid var(--color-border); border-radius: var(--radius-mid); background: var(--color-surface); cursor: pointer; font-size: var(--fs-sm); }
 .confirm-btn { padding: 6px 14px; border: none; border-radius: var(--radius-mid); background: var(--danger); color: var(--on-accent); cursor: pointer; font-size: var(--fs-sm); font-weight: 600; }

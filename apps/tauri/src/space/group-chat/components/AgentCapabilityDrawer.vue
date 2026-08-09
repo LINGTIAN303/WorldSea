@@ -27,8 +27,13 @@
             :key="skill.id"
             class="skill-row"
             :class="{ active: enabledSkills.includes(skill.id) }"
-            @click="toggleSkill(skill.id)"
+            role="checkbox"
+            tabindex="0"
+            :aria-checked="enabledSkills.includes(skill.id)"
             :title="skill.description"
+            @click="toggleSkill(skill.id)"
+            @keydown.enter.prevent="toggleSkill(skill.id)"
+            @keydown.space.prevent="toggleSkill(skill.id)"
           >
             <WsIcon :name="skill.icon" size="xs" class="skill-row-icon" />
             <span class="skill-row-name">{{ skill.name }}</span>
@@ -45,8 +50,13 @@
             :key="skill.id"
             class="skill-row"
             :class="{ active: enabledSkills.includes(skill.id) }"
-            @click="toggleSkill(skill.id)"
+            role="checkbox"
+            tabindex="0"
+            :aria-checked="enabledSkills.includes(skill.id)"
             :title="skill.description"
+            @click="toggleSkill(skill.id)"
+            @keydown.enter.prevent="toggleSkill(skill.id)"
+            @keydown.space.prevent="toggleSkill(skill.id)"
           >
             <WsIcon :name="skill.icon" size="xs" class="skill-row-icon" />
             <span class="skill-row-name">{{ skill.name }}</span>
@@ -85,7 +95,7 @@
 
       <!-- 高级：自定义工具 -->
       <div class="advanced-tools-section">
-        <div class="advanced-toggle" @click="advancedToolsExpanded = !advancedToolsExpanded">
+        <div class="advanced-toggle" role="button" tabindex="0" :aria-expanded="advancedToolsExpanded" @click="advancedToolsExpanded = !advancedToolsExpanded" @keydown.enter.prevent="advancedToolsExpanded = !advancedToolsExpanded" @keydown.space.prevent="advancedToolsExpanded = !advancedToolsExpanded">
           <WsIcon name="settings" size="xs" />
           <span>自定义工具</span>
           <span v-if="toolSource === 'manual'" class="manual-badge">已自定义</span>
@@ -101,7 +111,7 @@
                 <span>基础工具（查询/记忆/输出）始终可用，无需手动配置</span>
               </div>
               <div v-for="cat in toolCategories" :key="cat.id" class="tool-category">
-                <div class="tool-cat-header" @click="toggleCategory(cat.id)">
+                <div class="tool-cat-header" role="button" tabindex="0" :aria-expanded="expandedCategories.includes(cat.id)" @click="toggleCategory(cat.id)" @keydown.enter.prevent="toggleCategory(cat.id)" @keydown.space.prevent="toggleCategory(cat.id)">
                   <span class="tool-cat-arrow">{{ expandedCategories.includes(cat.id) ? '▼' : '▶' }}</span>
                   <span class="tool-cat-label">{{ cat.label }}</span>
                   <span class="tool-cat-count">{{ getCategoryCount(cat) }}</span>

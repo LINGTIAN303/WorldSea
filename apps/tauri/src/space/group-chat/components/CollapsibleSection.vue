@@ -1,6 +1,6 @@
 <template>
   <div class="collapsible-section">
-    <div class="section-header" @click="toggle">
+    <div class="section-header" role="button" tabindex="0" :aria-expanded="isOpen" @click="toggle" @keydown.enter.prevent="toggle" @keydown.space.prevent="toggle">
       <span class="section-arrow" :class="{ open: isOpen }">▶</span>
       <span class="section-title">{{ title }}</span>
       <span v-if="badge" class="section-badge">{{ badge }}</span>

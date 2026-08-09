@@ -5,7 +5,13 @@
       :key="tpl.id"
       class="template-card"
       :class="{ active: activeTemplate === tpl.id }"
+      role="radio"
+      tabindex="0"
+      :aria-checked="activeTemplate === tpl.id"
+      :aria-label="tpl.name"
       @click="$emit('apply', tpl.id)"
+      @keydown.enter.prevent="$emit('apply', tpl.id)"
+      @keydown.space.prevent="$emit('apply', tpl.id)"
     >
       <div class="tpl-icon"><WsIcon :name="tpl.icon" size="md" /></div>
       <div class="tpl-name">{{ tpl.name }}</div>
@@ -48,12 +54,12 @@ defineEmits<{
 
 .template-card:hover {
   border-color: var(--color-primary);
-  background: rgba(108, 92, 231, 0.04);
+  background: color-mix(in srgb, var(--color-primary) 4%, transparent);
 }
 
 .template-card.active {
   border-color: var(--color-primary);
-  background: rgba(108, 92, 231, 0.08);
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
 }
 
 .tpl-icon {

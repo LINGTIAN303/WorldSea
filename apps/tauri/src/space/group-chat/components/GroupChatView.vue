@@ -468,7 +468,7 @@ onBeforeUnmount(() => {
 .chat-header { padding: 8px 16px; border-bottom: 1px solid var(--color-border); display: flex; align-items: center; justify-content: space-between; }
 .header-left { display: flex; align-items: center; gap: 12px; }
 .topic-label { font-size: var(--font-size-sm); font-weight: 600; color: var(--color-text); }
-.parallel-badge { font-size: var(--fs-2xs); padding: 2px 6px; border-radius: var(--radius-xs); background: rgba(108, 92, 231, 0.12); color: var(--color-primary); font-weight: 600; }
+.parallel-badge { font-size: var(--fs-2xs); padding: 2px 6px; border-radius: var(--radius-xs); background: color-mix(in srgb, var(--color-primary) 12%, transparent); color: var(--color-primary); font-weight: 600; }
 
 .chat-messages { flex: 1; overflow-y: auto; padding: 8px 0; }
 .time-divider { display: flex; align-items: center; padding: 8px 16px; }

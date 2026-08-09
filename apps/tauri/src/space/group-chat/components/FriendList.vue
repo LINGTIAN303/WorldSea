@@ -10,7 +10,12 @@
         v-for="agent in filteredAgents"
         :key="agent.id"
         class="friend-item"
+        role="button"
+        tabindex="0"
+        :aria-label="`与 ${agent.name} 私聊`"
         @click="$emit('private-chat', agent)"
+        @keydown.enter.prevent="$emit('private-chat', agent)"
+        @keydown.space.prevent="$emit('private-chat', agent)"
         @contextmenu.prevent="onContextMenu($event, agent)"
       >
         <div class="friend-avatar" :style="{ background: agent.color }">{{ agent.avatar }}</div>
@@ -25,9 +30,9 @@
       </div>
     </div>
 
-    <div v-if="contextMenu.visible" class="context-menu" :style="contextMenuStyle" @click.stop>
-      <div class="context-menu-item" @click="onAddToGroup">添加到当前群聊</div>
-      <div class="context-menu-item danger" @click="onDeleteFriend">删除好友</div>
+    <div v-if="contextMenu.visible" class="context-menu" :style="contextMenuStyle" role="menu" @click.stop @keydown.esc="closeContextMenu">
+      <div class="context-menu-item" role="menuitem" tabindex="0" @click="onAddToGroup" @keydown.enter.prevent="onAddToGroup">添加到当前群聊</div>
+      <div class="context-menu-item danger" role="menuitem" tabindex="0" @click="onDeleteFriend" @keydown.enter.prevent="onDeleteFriend">删除好友</div>
     </div>
 
     <div v-if="deleteConfirmId" class="delete-confirm-overlay" @click.self="deleteConfirmId = null">
@@ -210,7 +215,7 @@ onBeforeUnmount(() => {
 }
 .friend-item:hover {
   background: var(--color-surface);
-  border-left-color: rgba(108,92,231,0.3);
+  border-left-color: color-mix(in srgb, var(--color-primary) 30%, transparent);
   transform: translateX(2px);
 }
 .friend-item:hover::after {

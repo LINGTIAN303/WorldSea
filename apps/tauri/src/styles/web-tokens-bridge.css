@@ -90,6 +90,8 @@
   --glass-blur: 12px;
 
   /* ── 排版 ── */
+  --font-size-3xs: var(--fs-3xs);
+  --font-size-2xs: var(--fs-2xs);
   --font-size-xs: var(--fs-xs);
   --font-size-sm: var(--fs-sm);
   --font-size-md: var(--fs-md);
@@ -101,6 +103,7 @@
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
+  --font-weight-normal: 400;
   --line-height-tight: var(--lh-tight);
   --line-height-normal: var(--lh-base);
   --font-family-base: var(--font-sans);
@@ -170,6 +173,8 @@
   --state-pressed-scale: var(--press-scale);
   /* 颜色别名 */
   --color-primary-subtle: var(--accent-soft);
+  --color-accent-soft: var(--accent-soft);
+  --accent-bg: var(--accent-soft);
   --color-primary-foreground: var(--on-accent);
   --primary-hover: var(--accent-hover);
   --primary-light: var(--accent-soft);
@@ -178,7 +183,7 @@
   --success-light: var(--success-soft);
   --warning-light: var(--warning-soft);
   --bg-hover: var(--bg-muted);
-  --bg-primary: var(--color-primary);
+  --bg-primary: var(--bg-surface);
   --bg-secondary: var(--bg-muted);
   --bg-subtle: var(--bg-muted);
   --border-light: var(--border);
@@ -190,6 +195,16 @@
   --text: var(--text-primary);
   --text-on-accent: var(--on-accent);
   --text-on-primary: var(--on-accent);
+  /* 颜色别名：Space / Agent 迁移组件仍引用的 web 语义变量（surface / text / error 系），
+     值引用 Tauri 令牌，浅色深色自动跟随 */
+  --color-surface: var(--bg-surface);
+  --color-surface-elevated: var(--bg-surface);
+  --color-surface-hover: var(--bg-muted);
+  --color-text: var(--text-primary);
+  --color-text-muted: var(--text-muted);
+  --color-primary-muted: var(--accent-soft);
+  --color-error: var(--danger);
+  --color-bg: var(--bg-surface);
   /* 字体/字号语义 */
   --font-family-content: var(--font-sans);
   --font-family-display: var(--font-sans);
@@ -214,6 +229,32 @@
   --z-drawer: var(--z-modal);
   --z-drawer-panel: var(--z-modal);
   --z-overlay: var(--z-modal);
+
+  /* ── 长尾补齐：ui-kit / plugin-sdk / shared-ui 组件引用的其余 web 变量（无兜底
+     或兜底为硬编码浅色 → 深色下断裂）。统一映射到 Tauri 令牌，深浅自动跟随。── */
+  --space-8: 32px;                 /* space 刻度补 8（WsEmpty 大留白） */
+  --icon-3xl: 40px;                /* icon 刻度补 3xl（WelcomeOverlay 大图标） */
+  --icon-size-xs: 14px;            /* WsIcon 尺寸刻度（原仅 CSS 兜底，此处集中定义） */
+  --icon-size-sm: 16px;
+  --icon-size-md: 20px;
+  --icon-size-lg: 24px;
+  --icon-size-xl: 32px;
+  --icon-stroke-linecap: round;    /* WsIcon SVG 描边端点（默认 round） */
+  --icon-stroke-linejoin: round;
+  --shadow-glow: 0 0 0 1px var(--accent-soft-border), 0 8px 32px var(--accent-soft);
+  --text-error: var(--danger);
+  --focus-ring: var(--ring-color);
+  --font-family: var(--font-sans);   /* WelcomeOverlay 徽标字体（原无兜底） */
+  --overlay-bg: var(--overlay);
+  --tag-bg: var(--bg-muted);
+  --text-base-font-size: var(--font-size-base);
+  --text-sm-font-size: var(--font-size-sm);
+  --text-xs-font-size: var(--font-size-xs);
+  --danger-bg: var(--danger-soft);
+  --color-success-bg: var(--success-soft);
+  --color-primary-light: var(--accent);
+  --color-border-hover: var(--border-strong);
+  --color-input-bg: var(--bg-muted);
 }
 
 /* ── 深色覆盖 ──
@@ -295,8 +336,19 @@
   --glass-bg: var(--bg-surface);
   --glass-border: var(--border);
   --glass-blur: 12px;
+  /* 颜色别名：Space / Agent 迁移组件 web 语义变量（深色同值，随底层令牌） */
+  --color-surface: var(--bg-surface);
+  --color-surface-elevated: var(--bg-surface);
+  --color-surface-hover: var(--bg-muted);
+  --color-text: var(--text-primary);
+  --color-text-muted: var(--text-muted);
+  --color-primary-muted: var(--accent-soft);
+  --color-error: var(--danger);
+  --color-bg: var(--bg-surface);
 
   /* 排版（深色同值，随底层令牌） */
+  --font-size-3xs: var(--fs-3xs);
+  --font-size-2xs: var(--fs-2xs);
   --font-size-xs: var(--fs-xs);
   --font-size-sm: var(--fs-sm);
   --font-size-md: var(--fs-md);
@@ -308,6 +360,7 @@
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
+  --font-weight-normal: 400;
   --line-height-tight: var(--lh-tight);
   --line-height-normal: var(--lh-base);
   --font-family-base: var(--font-sans);

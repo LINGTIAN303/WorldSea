@@ -128,9 +128,9 @@ async function onInputSend(text: string, rawAttachments: any[]): Promise<void> {
 .rust-mode-banner {
   padding: 6px 12px;
   font-size: var(--fs-sm);
-  color: var(--ws-text-secondary, #888);
-  background: var(--ws-bg-secondary, rgba(255, 200, 100, 0.08));
-  border-bottom: 1px solid var(--ws-border-light, rgba(255, 200, 100, 0.2));
+  color: var(--text-secondary, #888);
+  background: var(--warning-soft, rgba(255, 200, 100, 0.08));
+  border-bottom: 1px solid color-mix(in srgb, var(--warning, #d97706) 25%, transparent);
   text-align: center;
   flex-shrink: 0;
 }

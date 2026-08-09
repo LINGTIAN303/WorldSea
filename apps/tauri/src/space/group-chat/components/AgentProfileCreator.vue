@@ -21,6 +21,8 @@
                 :key="emoji"
                 class="avatar-option"
                 :class="{ selected: form.avatar === emoji }"
+                :aria-pressed="form.avatar === emoji"
+                :aria-label="`选择头像 ${emoji}`"
                 @click="form.avatar = emoji"
               >
                 {{ emoji }}
@@ -37,6 +39,8 @@
                 class="color-option"
                 :class="{ selected: form.color === color }"
                 :style="{ backgroundColor: color }"
+                :aria-pressed="form.color === color"
+                :aria-label="`选择标识色 ${color}`"
                 @click="form.color = color"
               />
             </div>
@@ -208,9 +212,9 @@ async function save(): Promise<void> {
 .profile-creator {
   width: 520px;
   max-height: 80vh;
-  background: var(--bg-primary, #1a1a2e);
+  background: var(--bg-surface);
   border-radius: var(--radius-2xl);
-  border: 1px solid var(--border-color, #2a2a4a);
+  border: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -221,14 +225,14 @@ async function save(): Promise<void> {
   justify-content: space-between;
   align-items: center;
   padding: 16px 20px;
-  border-bottom: 1px solid var(--border-color, #2a2a4a);
+  border-bottom: 1px solid var(--border);
 }
 
 .creator-header h3 {
   margin: 0;
   font-size: var(--fs-lg);
   font-weight: 600;
-  color: var(--text-primary, #e0e0e0);
+  color: var(--text-primary);
 }
 
 .btn-close {
@@ -236,14 +240,14 @@ async function save(): Promise<void> {
   height: 28px;
   border: none;
   background: transparent;
-  color: var(--text-secondary, #888);
+  color: var(--text-secondary);
   font-size: var(--fs-xl);
   cursor: pointer;
   border-radius: var(--radius-xs);
 }
 
 .btn-close:hover {
-  background: var(--bg-hover, #2a2a4a);
+  background: var(--bg-muted);
 }
 
 .creator-body {
@@ -264,7 +268,7 @@ async function save(): Promise<void> {
 .form-section label {
   font-size: var(--fs-sm);
   font-weight: 500;
-  color: var(--text-secondary, #888);
+  color: var(--text-secondary);
 }
 
 .hint {
@@ -277,9 +281,9 @@ async function save(): Promise<void> {
 .form-select {
   padding: 8px 12px;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border-color, #2a2a4a);
-  background: var(--bg-secondary, #16162a);
-  color: var(--text-primary, #e0e0e0);
+  border: 1px solid var(--border);
+  background: var(--bg-muted);
+  color: var(--text-primary);
   font-size: var(--fs-md);
   font-family: inherit;
 }
@@ -288,7 +292,7 @@ async function save(): Promise<void> {
 .form-textarea:focus,
 .form-select:focus {
   outline: none;
-  border-color: var(--accent, #6366f1);
+  border-color: var(--accent);
 }
 
 .form-textarea {
@@ -316,7 +320,7 @@ async function save(): Promise<void> {
   height: 36px;
   border-radius: 50%;
   border: 2px solid transparent;
-  background: var(--bg-secondary, #16162a);
+  background: var(--bg-muted);
   font-size: 18px;
   cursor: pointer;
   display: flex;
@@ -325,11 +329,11 @@ async function save(): Promise<void> {
 }
 
 .avatar-option.selected {
-  border-color: var(--accent, #6366f1);
+  border-color: var(--accent);
 }
 
 .avatar-option:hover {
-  background: var(--bg-hover, #2a2a4a);
+  background: var(--bg-active);
 }
 
 .color-picker {
@@ -348,16 +352,16 @@ async function save(): Promise<void> {
 
 .color-option.selected {
   border-color: white;
-  box-shadow: 0 0 0 2px var(--accent, #6366f1);
+  box-shadow: 0 0 0 2px var(--accent);
 }
 
 .form-range {
   width: 100%;
-  accent-color: var(--accent, #6366f1);
+  accent-color: var(--accent);
 }
 
 .form-details {
-  border: 1px solid var(--border-color, #2a2a4a);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 8px 12px;
 }
@@ -366,7 +370,7 @@ async function save(): Promise<void> {
   font-size: var(--fs-md);
   font-weight: 500;
   cursor: pointer;
-  color: var(--text-primary, #e0e0e0);
+  color: var(--text-primary);
 }
 
 .form-details[open] {
@@ -382,28 +386,28 @@ async function save(): Promise<void> {
   justify-content: flex-end;
   gap: 8px;
   padding: 12px 20px;
-  border-top: 1px solid var(--border-color, #2a2a4a);
+  border-top: 1px solid var(--border);
 }
 
 .btn-cancel {
   padding: 8px 16px;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border-color, #2a2a4a);
+  border: 1px solid var(--border);
   background: transparent;
-  color: var(--text-secondary, #888);
+  color: var(--text-secondary);
   font-size: var(--fs-md);
   cursor: pointer;
 }
 
 .btn-cancel:hover {
-  background: var(--bg-hover, #2a2a4a);
+  background: var(--bg-muted);
 }
 
 .btn-save {
   padding: 8px 20px;
   border-radius: var(--radius-sm);
   border: none;
-  background: var(--accent, #6366f1);
+  background: var(--accent);
   color: var(--on-accent);
   font-size: var(--fs-md);
   font-weight: 500;

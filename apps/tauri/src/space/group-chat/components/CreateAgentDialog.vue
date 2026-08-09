@@ -29,7 +29,13 @@
             class="color-dot"
             :class="{ active: selectedColor === c }"
             :style="{ background: c }"
+            role="radio"
+            tabindex="0"
+            :aria-checked="selectedColor === c"
+            :aria-label="`选择颜色 ${c}`"
             @click="selectedColor = c"
+            @keydown.enter.prevent="selectedColor = c"
+            @keydown.space.prevent="selectedColor = c"
           ></div>
         </div>
       </div>
@@ -37,11 +43,11 @@
       <div class="source-section">
         <div class="section-label">人格来源</div>
         <div class="source-options">
-          <div class="source-option" :class="{ active: sourceType === 'entity' }" @click="sourceType = 'entity'">
+          <div class="source-option" :class="{ active: sourceType === 'entity' }" role="radio" tabindex="0" :aria-checked="sourceType === 'entity'" @click="sourceType = 'entity'" @keydown.enter.prevent="sourceType = 'entity'" @keydown.space.prevent="sourceType = 'entity'">
             <span class="source-icon"><WsIcon name="landmark" size="xs" /></span>
             <span class="source-label">从实体选择</span>
           </div>
-          <div class="source-option" :class="{ active: sourceType === 'custom' }" @click="sourceType = 'custom'">
+          <div class="source-option" :class="{ active: sourceType === 'custom' }" role="radio" tabindex="0" :aria-checked="sourceType === 'custom'" @click="sourceType = 'custom'" @keydown.enter.prevent="sourceType = 'custom'" @keydown.space.prevent="sourceType = 'custom'">
             <span class="source-icon"><WsIcon name="pencil" size="xs" /></span>
             <span class="source-label">手动创建</span>
           </div>
@@ -56,7 +62,12 @@
             :key="entity.id"
             class="entity-item"
             :class="{ selected: selectedEntityId === entity.id }"
+            role="button"
+            tabindex="0"
+            :aria-pressed="selectedEntityId === entity.id"
             @click="onSelectEntity(entity)"
+            @keydown.enter.prevent="onSelectEntity(entity)"
+            @keydown.space.prevent="onSelectEntity(entity)"
           >
             <div class="entity-avatar">{{ entity.name[0] }}</div>
             <div class="entity-info">
@@ -78,15 +89,15 @@
         <div class="section-label">基础层</div>
         <div class="baselayer-desc">决定 Agent 的知识基础和工具能力</div>
         <div class="baselayer-options">
-          <div class="baselayer-option" :class="{ active: baseLayerMode === 'empty' }" @click="baseLayerMode = 'empty'">
+          <div class="baselayer-option" :class="{ active: baseLayerMode === 'empty' }" role="radio" tabindex="0" :aria-checked="baseLayerMode === 'empty'" @click="baseLayerMode = 'empty'" @keydown.enter.prevent="baseLayerMode = 'empty'" @keydown.space.prevent="baseLayerMode = 'empty'">
             <span class="baselayer-option-title">空</span>
             <span class="baselayer-option-desc">纯聊天 NPC，不使用任何工具</span>
           </div>
-          <div class="baselayer-option" :class="{ active: baseLayerMode === 'shared' }" @click="baseLayerMode = 'shared'">
+          <div class="baselayer-option" :class="{ active: baseLayerMode === 'shared' }" role="radio" tabindex="0" :aria-checked="baseLayerMode === 'shared'" @click="baseLayerMode = 'shared'" @keydown.enter.prevent="baseLayerMode = 'shared'" @keydown.space.prevent="baseLayerMode = 'shared'">
             <span class="baselayer-option-title">共享</span>
             <span class="baselayer-option-desc">标准基础层 + 全部工具能力</span>
           </div>
-          <div class="baselayer-option" :class="{ active: baseLayerMode === 'custom' }" @click="baseLayerMode = 'custom'">
+          <div class="baselayer-option" :class="{ active: baseLayerMode === 'custom' }" role="radio" tabindex="0" :aria-checked="baseLayerMode === 'custom'" @click="baseLayerMode = 'custom'" @keydown.enter.prevent="baseLayerMode = 'custom'" @keydown.space.prevent="baseLayerMode = 'custom'">
             <span class="baselayer-option-title">自定义</span>
             <span class="baselayer-option-desc">手动配置基础层和工具</span>
           </div>
@@ -677,7 +688,7 @@ function onCreate(): void {
 .source-section { margin-bottom: 14px; }
 .source-options { display: flex; gap: 8px; }
 .source-option { flex: 1; padding: 8px; border: 2px solid var(--color-border); border-radius: var(--radius-mid); cursor: pointer; text-align: center; transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s; }
-.source-option.active { border-color: var(--color-primary); background: rgba(108,92,231,0.06); }
+.source-option.active { border-color: var(--color-primary); background: color-mix(in srgb, var(--color-primary) 6%, transparent); }
 .source-icon { font-size: 18px; display: block; margin-bottom: 2px; }
 .source-label { font-size: var(--fs-xs); font-weight: 600; }
 
@@ -686,7 +697,7 @@ function onCreate(): void {
 .entity-list { max-height: 160px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: var(--radius-mid); }
 .entity-item { display: flex; align-items: center; gap: 8px; padding: 6px 10px; cursor: pointer; transition: background 0.12s; }
 .entity-item:hover { background: var(--color-surface); }
-.entity-item.selected { background: rgba(108,92,231,0.08); }
+.entity-item.selected { background: color-mix(in srgb, var(--color-primary) 8%, transparent); }
 .entity-avatar { width: 24px; height: 24px; border-radius: 50%; background: var(--color-surface); display: flex; align-items: center; justify-content: center; font-size: var(--fs-xs); font-weight: 700; flex-shrink: 0; }
 .entity-info { flex: 1; min-width: 0; }
 .entity-name { font-size: var(--fs-sm); font-weight: 600; }
@@ -703,7 +714,7 @@ function onCreate(): void {
 .baselayer-options { display: flex; gap: 6px; }
 .baselayer-option { flex: 1; padding: 8px 6px; border: 2px solid var(--color-border); border-radius: var(--radius-mid); cursor: pointer; text-align: center; transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s; }
 .baselayer-option:hover { border-color: var(--color-primary); }
-.baselayer-option.active { border-color: var(--color-primary); background: rgba(108,92,231,0.06); }
+.baselayer-option.active { border-color: var(--color-primary); background: color-mix(in srgb, var(--color-primary) 6%, transparent); }
 .baselayer-option-title { display: block; font-size: var(--fs-sm); font-weight: 600; margin-bottom: 2px; }
 .baselayer-option-desc { display: block; font-size: var(--fs-3xs); color: var(--color-text-tertiary); line-height: 1.3; }
 .baselayer-input { width: 100%; border: 1px solid var(--color-border); border-radius: var(--radius-mid); padding: 8px; font-size: var(--fs-sm); resize: vertical; outline: none; background: var(--color-surface); min-height: 80px; margin-top: 8px; }
@@ -720,11 +731,11 @@ function onCreate(): void {
 }
 .capability-card:hover {
   border-color: var(--color-primary);
-  background: rgba(108,92,231,0.03);
+  background: color-mix(in srgb, var(--color-primary) 3%, transparent);
 }
 .capability-card.panel-open {
   border-color: var(--color-primary);
-  background: rgba(108,92,231,0.06);
+  background: color-mix(in srgb, var(--color-primary) 6%, transparent);
 }
 .capability-card-header {
   display: flex;
@@ -748,7 +759,7 @@ function onCreate(): void {
 .capability-tools { color: var(--color-text-secondary); }
 .capability-manual-badge {
   font-size: var(--fs-3xs);
-  background: rgba(108,92,231,0.12);
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
   color: var(--color-primary);
   padding: 0px 5px;
   border-radius: var(--radius-sm);

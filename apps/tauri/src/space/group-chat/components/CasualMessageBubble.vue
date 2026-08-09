@@ -68,7 +68,13 @@
               :key="tc.id"
               class="tool-call-tag"
               :class="[tc.status, getToolImportanceClass(tc.name)]"
+              role="button"
+              tabindex="0"
+              :aria-expanded="expandedToolId === tc.id"
+              :aria-label="`${getToolLabel(tc.name)}${expandedToolId === tc.id ? '，收起详情' : '，展开详情'}`"
               @click="toggleToolDetail(tc.id)"
+              @keydown.enter.prevent="toggleToolDetail(tc.id)"
+              @keydown.space.prevent="toggleToolDetail(tc.id)"
             >
               <WsIcon v-if="tc.status === 'running'" name="loader" size="xs" class="tc-spin" />
               <WsIcon v-else-if="tc.status === 'completed'" name="check" size="xs" />
@@ -249,7 +255,7 @@ function onContextMenu(e: MouseEvent): void {
 .user-row { display: flex; gap: 8px; align-items: flex-start; justify-content: flex-end; }
 .user-bubble-wrap { max-width: 75%; display: flex; flex-direction: column; align-items: flex-end; }
 .user-avatar { background: linear-gradient(135deg, #10b981, #34d399) !important; }
-.user-text { padding: 8px 12px; background: rgba(108,92,231,0.12); border-radius: var(--radius-2xl) 2px var(--radius-2xl) var(--radius-2xl); font-size: var(--fs-md); line-height: 1.5; word-break: break-word; box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
+.user-text { padding: 8px 12px; background: color-mix(in srgb, var(--color-primary) 12%, transparent); border-radius: var(--radius-2xl) 2px var(--radius-2xl) var(--radius-2xl); font-size: var(--fs-md); line-height: 1.5; word-break: break-word; box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
 
 .avatar-placeholder { width: 28px; flex-shrink: 0; }
 
@@ -262,7 +268,7 @@ function onContextMenu(e: MouseEvent): void {
   cursor: pointer;
 }
 .msg-avatar.has-thinking:hover {
-  box-shadow: 0 0 0 2px rgba(108,92,231,0.3);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 30%, transparent);
 }
 .avatar-letter { color: var(--on-accent); font-weight: 700; font-size: var(--fs-xs); }
 .msg-time { font-size: var(--fs-2xs); color: var(--color-text-tertiary); }
@@ -310,8 +316,8 @@ function onContextMenu(e: MouseEvent): void {
 
 /* 重要性分级 */
 .tool-call-tag.importance-high {
-  background: rgba(108, 92, 231, 0.08);
-  border-color: rgba(108, 92, 231, 0.25);
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+  border-color: color-mix(in srgb, var(--color-primary) 25%, transparent);
   font-weight: 500;
 }
 .tool-call-tag.importance-medium {
@@ -363,9 +369,9 @@ function onContextMenu(e: MouseEvent): void {
   align-items: center;
   gap: 6px;
   padding: 4px 12px;
-  background: rgba(108, 92, 231, 0.06);
+  background: color-mix(in srgb, var(--color-primary) 6%, transparent);
   border-radius: var(--radius-2xl);
-  border: 1px solid rgba(108, 92, 231, 0.12);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 12%, transparent);
 }
 
 .world-event-icon {

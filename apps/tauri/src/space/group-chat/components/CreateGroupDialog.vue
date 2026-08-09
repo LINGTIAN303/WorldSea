@@ -13,7 +13,8 @@
         <div class="section-label">添加成员</div>
         <div class="selected-members">
           <span v-for="m in selectedMembers" :key="m.id" class="member-chip">
-            {{ m.name }} <span class="chip-remove" @click="toggleMember(m)"><WsIcon name="x" size="xs" /></span>
+            {{ m.name }}
+            <button class="chip-remove" :aria-label="`移除 ${m.name}`" @click="toggleMember(m)"><WsIcon name="x" size="xs" /></button>
           </span>
         </div>
         <input class="member-search" v-model="memberSearch" placeholder="搜索 Agent..." />
@@ -23,7 +24,13 @@
             :key="agent.id"
             class="agent-item"
             :class="{ selected: isSelected(agent.id) }"
+            role="checkbox"
+            :aria-checked="isSelected(agent.id)"
+            tabindex="0"
+            :aria-label="`${isSelected(agent.id) ? '移除' : '添加'} ${agent.name}（${agent.role}）`"
             @click="toggleMember(agent)"
+            @keydown.enter.prevent="toggleMember(agent)"
+            @keydown.space.prevent="toggleMember(agent)"
           >
             <div class="agent-avatar" :style="{ background: agent.color }">{{ agent.name[0] }}</div>
             <div class="agent-info">
@@ -124,15 +131,15 @@ function onCreate(): void {
 
 .members-section { margin-bottom: 16px; }
 .selected-members { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
-.member-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; background: rgba(108,92,231,0.1); border-radius: var(--radius-sm); font-size: var(--fs-xs); }
-.chip-remove { cursor: pointer; opacity: 0.5; }
+.member-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; background: color-mix(in srgb, var(--color-primary) 10%, transparent); border-radius: var(--radius-sm); font-size: var(--fs-xs); }
+.chip-remove { cursor: pointer; opacity: 0.5; background: none; border: none; padding: 0; display: inline-flex; align-items: center; color: inherit; }
 .chip-remove:hover { opacity: 1; }
 .member-search { width: 100%; padding: 6px 10px; border: 1px solid var(--color-border); border-radius: var(--radius-mid); font-size: var(--fs-sm); background: var(--color-surface); outline: none; margin-bottom: 6px; }
 
 .agent-list { max-height: 180px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: var(--radius-mid); }
 .agent-item { display: flex; align-items: center; gap: 8px; padding: 6px 10px; cursor: pointer; transition: background 0.12s; }
 .agent-item:hover { background: var(--color-surface); }
-.agent-item.selected { background: rgba(108,92,231,0.08); }
+.agent-item.selected { background: color-mix(in srgb, var(--color-primary) 8%, transparent); }
 .agent-avatar { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: var(--fs-xs); flex-shrink: 0; }
 .agent-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .agent-name { font-size: var(--fs-sm); font-weight: 600; }
