@@ -2,13 +2,13 @@
   <div class="dynamic-view">
     <!-- Toolbar -->
     <div class="dv-toolbar">
-      <input v-model="searchQuery" class="dv-search" :placeholder="`搜索${entityTypeDef?.label || '条目'}...`" />
+      <input v-model="searchQuery" class="dv-search" :aria-label="`搜索${entityTypeDef?.label || '条目'}`" :placeholder="`搜索${entityTypeDef?.label || '条目'}...`" />
       <button class="btn-primary" @click="openNewForm">＋ 新建</button>
     </div>
 
     <!-- Entity List -->
     <div class="dv-list">
-      <div v-for="e in filteredEntities" :key="e.id" class="dv-card" @click="selectEntity(e)">
+      <div v-for="e in filteredEntities" :key="e.id" class="dv-card" role="button" tabindex="0" :aria-label="`打开 ${e.name}`" @click="selectEntity(e)" @keydown.enter.prevent="selectEntity(e)" @keydown.space.prevent="selectEntity(e)">
         <div class="dv-card-header">
           <WsIcon :name="entitySchemaRegistry.getIconName(entityTypeKey)" size="sm" />
           <strong>{{ e.name }}</strong>
@@ -32,16 +32,16 @@
           <span class="dv-detail-label">{{ f.label }}</span>
           <span v-if="!editing" class="dv-detail-value">{{ formatValue(selectedEntity.properties[f.key], f) }}</span>
           <div v-else class="dv-detail-edit">
-            <input v-if="f.type==='text'||f.type==='url'||f.type==='email'||f.type==='color'" v-model="editForm[f.key]" />
-            <textarea v-else-if="f.type==='textarea'||f.type==='rich-text'||f.type==='markdown'" v-model="editForm[f.key]" rows="3"></textarea>
-            <input v-else-if="f.type==='number'" v-model.number="editForm[f.key]" type="number" />
+            <input v-if="f.type==='text'||f.type==='url'||f.type==='email'||f.type==='color'" v-model="editForm[f.key]" :aria-label="f.label" />
+            <textarea v-else-if="f.type==='textarea'||f.type==='rich-text'||f.type==='markdown'" v-model="editForm[f.key]" rows="3" :aria-label="f.label"></textarea>
+            <input v-else-if="f.type==='number'" v-model.number="editForm[f.key]" type="number" :aria-label="f.label" />
             <label v-else-if="f.type==='boolean'"><input type="checkbox" v-model="editForm[f.key]" /> {{ f.label }}</label>
-            <input v-else-if="f.type==='date'" v-model="editForm[f.key]" type="date" />
-            <select v-else-if="f.type==='select'" v-model="editForm[f.key]">
+            <input v-else-if="f.type==='date'" v-model="editForm[f.key]" type="date" :aria-label="f.label" />
+            <select v-else-if="f.type==='select'" v-model="editForm[f.key]" :aria-label="f.label">
               <option value="">--</option>
               <option v-for="o in f.options" :key="o">{{ o }}</option>
             </select>
-            <input v-else v-model="editForm[f.key]" />
+            <input v-else v-model="editForm[f.key]" :aria-label="f.label" />
           </div>
         </div>
       </div>
@@ -60,14 +60,14 @@
         <div class="form">
           <div v-for="f in allFields" :key="f.key" class="form-field">
             <label>{{ f.label }}<span v-if="f.required">*</span></label>
-            <input v-if="f.type==='text'||f.type==='url'||f.type==='email'||f.type==='color'" v-model="newForm[f.key]" />
-            <textarea v-else-if="f.type==='textarea'||f.type==='rich-text'||f.type==='markdown'" v-model="newForm[f.key]" rows="3"></textarea>
-            <input v-else-if="f.type==='number'" v-model.number="newForm[f.key]" type="number" />
+            <input v-if="f.type==='text'||f.type==='url'||f.type==='email'||f.type==='color'" v-model="newForm[f.key]" :aria-label="f.label" />
+            <textarea v-else-if="f.type==='textarea'||f.type==='rich-text'||f.type==='markdown'" v-model="newForm[f.key]" rows="3" :aria-label="f.label"></textarea>
+            <input v-else-if="f.type==='number'" v-model.number="newForm[f.key]" type="number" :aria-label="f.label" />
             <label v-else-if="f.type==='boolean'" class="inline-label">
               <input type="checkbox" v-model="newForm[f.key]" /> {{ f.label }}
             </label>
-            <input v-else-if="f.type==='date'" v-model="newForm[f.key]" type="date" />
-            <select v-else-if="f.type==='select'" v-model="newForm[f.key]">
+            <input v-else-if="f.type==='date'" v-model="newForm[f.key]" type="date" :aria-label="f.label" />
+            <select v-else-if="f.type==='select'" v-model="newForm[f.key]" :aria-label="f.label">
               <option value="">--</option>
               <option v-for="o in f.options" :key="o">{{ o }}</option>
             </select>

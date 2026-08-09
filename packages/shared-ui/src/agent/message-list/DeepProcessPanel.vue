@@ -1,9 +1,9 @@
-﻿<template>
+<template>
   <!-- 深度模式：渲染虚拟段落（过程段大折叠 + 选择型工具 + 最终结论区） -->
   <template v-if="deepSegments.length > 0">
     <!-- 过程段大折叠容器 -->
     <div class="process-collapse" :class="{ collapsed: !isProcessExpanded }">
-      <div class="process-collapse-header" @click="isProcessExpanded = !isProcessExpanded">
+      <div class="process-collapse-header" role="button" tabindex="0" :aria-expanded="isProcessExpanded" @click="isProcessExpanded = !isProcessExpanded" @keydown.enter.prevent="isProcessExpanded = !isProcessExpanded" @keydown.space.prevent="isProcessExpanded = !isProcessExpanded">
         <span class="process-collapse-icon"><WsIcon name="brain" size="s" /></span>
         <span class="process-collapse-title">思考过程</span>
         <span class="process-collapse-stats">{{ processStats }}</span>

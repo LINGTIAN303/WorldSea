@@ -9,7 +9,7 @@
 -->
 <template>
   <div class="block-video" @contextmenu.prevent="onContextMenu">
-    <div class="block-toggle" @click="expanded = !expanded">
+    <div class="block-toggle" role="button" tabindex="0" :aria-expanded="expanded" @click="expanded = !expanded" @keydown.enter.prevent="expanded = !expanded" @keydown.space.prevent="expanded = !expanded">
       <span class="block-icon"><WsIcon name="video" size="xs" /></span>
       <span class="block-title">{{ block.caption || '视频' }}</span>
       <span class="block-arrow">{{ expanded ? '▾ 点击收起' : '▸ 点击展开' }}</span>

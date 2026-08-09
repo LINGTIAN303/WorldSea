@@ -1,5 +1,5 @@
 <template>
-  <div class="inline-tool-call" :class="tc.status" @click="toggleExpand">
+  <div class="inline-tool-call" :class="tc.status" role="button" tabindex="0" :aria-expanded="isExpanded" @click="toggleExpand" @keydown.enter.prevent="toggleExpand" @keydown.space.prevent="toggleExpand">
     <!-- 摘要行1：工具名 + 状态 + 耗时 -->
     <div class="itc-summary">
       <span class="itc-dot"></span>

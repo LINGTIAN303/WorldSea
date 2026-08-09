@@ -30,10 +30,10 @@ const levelIcon = computed(() => ICONS[props.block.level] || 'ℹ️')
   margin: 4px 0;
 }
 .alert-bar { width: 3px; flex-shrink: 0; }
-.alert-info .alert-bar { background: #3b82f6; }
-.alert-success .alert-bar { background: #22c55e; }
-.alert-warning .alert-bar { background: #eab308; }
-.alert-error .alert-bar { background: #ef4444; }
+.alert-info .alert-bar { background: var(--agent-info, #3b82f6); }
+.alert-success .alert-bar { background: var(--agent-success, #22c55e); }
+.alert-warning .alert-bar { background: var(--agent-warning, #eab308); }
+.alert-error .alert-bar { background: var(--agent-danger, #ef4444); }
 .alert-body { display: flex; align-items: flex-start; gap: 8px; padding: 8px 12px; flex: 1; }
 .alert-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
 .alert-content { display: flex; flex-direction: column; gap: 2px; }

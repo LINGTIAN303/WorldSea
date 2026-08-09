@@ -1,7 +1,7 @@
 <template>
   <div class="dynamic-fields">
     <!-- 图标长条：添加自定义字段 -->
-    <div class="df-strip" @click="showSmartAdder = true" role="button" tabindex="0" @keydown.enter="showSmartAdder = true">
+    <div class="df-strip" @click="showSmartAdder = true" role="button" tabindex="0" @keydown.enter="showSmartAdder = true" @keydown.space.prevent="showSmartAdder = true">
       <WsIcon name="plus" size="sm" class="df-strip-icon" />
       <span class="df-strip-text">添加自定义字段</span>
     </div>
@@ -14,6 +14,7 @@
         :type="def.fieldType"
         :value="getValue(def.key)"
         class="df-input"
+        :aria-label="def.label"
         @input="updateValue(def.key, ($event.target as HTMLInputElement).value)"
       />
       <textarea
@@ -21,21 +22,23 @@
         :value="getValue(def.key) as string"
         class="df-input df-textarea"
         rows="2"
+        :aria-label="def.label"
         @input="updateValue(def.key, ($event.target as HTMLTextAreaElement).value)"
       ></textarea>
       <label v-else-if="def.fieldType === 'boolean'" class="df-check-wrap">
-        <input type="checkbox" :checked="!!getValue(def.key)" @change="updateValue(def.key, ($event.target as HTMLInputElement).checked)" />
+        <input type="checkbox" :checked="!!getValue(def.key)" :aria-label="def.label" @change="updateValue(def.key, ($event.target as HTMLInputElement).checked)" />
       </label>
       <select
         v-else-if="def.fieldType === 'select'"
         :value="getValue(def.key) as string"
         class="df-input"
+        :aria-label="def.label"
         @change="updateValue(def.key, ($event.target as HTMLSelectElement).value)"
       >
         <option value="">--</option>
         <option v-for="opt in def.options" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
       </select>
-      <button class="df-remove" @click="removeField(def.key)" title="删除此字段"><WsIcon name="x" size="xs" /></button>
+      <button class="df-remove" @click="removeField(def.key)" title="删除此字段" aria-label="删除此字段"><WsIcon name="x" size="xs" /></button>
     </div>
 
     <!-- 智能添加字段弹窗 -->

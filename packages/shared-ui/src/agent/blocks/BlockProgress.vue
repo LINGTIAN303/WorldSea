@@ -38,8 +38,8 @@ const statusIcon = computed(() => ICONS[props.block.status] || 'loader')
   height: 100%; border-radius: 2px; transition: width 0.3s ease;
   background: var(--agent-primary, #6c5ce7);
 }
-.progress-completed .progress-fill { background: #22c55e; }
-.progress-failed .progress-fill { background: #ef4444; }
+.progress-completed .progress-fill { background: var(--agent-success, #22c55e); }
+.progress-failed .progress-fill { background: var(--agent-danger, #ef4444); }
 .progress-running .progress-fill {
   background: linear-gradient(90deg, var(--agent-primary, #6c5ce7), var(--agent-accent, #b388ff));
   animation: ws-pulse 1.5s infinite;

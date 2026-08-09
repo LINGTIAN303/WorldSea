@@ -28,11 +28,11 @@
         >
           <label><WsIcon name="grip" size="xs" class="efm-drag-handle" /> {{ field.label }}<span v-if="field.required" class="efm-required">*</span><button v-if="isSparkleVisible(field)" class="efm-smart-fill-btn" @click="onSmartFillClick(field)" title="AI 建议">✨</button><button v-if="field.source && field.source !== 'builtin'" class="efm-field-del" @click="removeField(field.key)" title="删除此字段">✕</button></label>
           <div v-if="field.type === 'text'" class="efm-input-wrap">
-            <input v-model="formData[field.key]" :placeholder="field.placeholder" @input="onFieldInput(field)" @focus="onFieldFocus(field.key); onFieldFocusForTrigger(field, $event)" @blur="onFieldBlur(field.key); onFieldBlurForTrigger(field)" @keydown="onFieldKeydown(field, $event)" />
+            <input v-model="formData[field.key]" :placeholder="field.placeholder" :aria-label="field.label" @input="onFieldInput(field)" @focus="onFieldFocus(field.key); onFieldFocusForTrigger(field, $event)" @blur="onFieldBlur(field.key); onFieldBlurForTrigger(field)" @keydown="onFieldKeydown(field, $event)" />
             <SmartFillGhostText v-if="isSmartFillField(field) && ghostVisible && ghostFieldKey === field.key" :visible="true" :suggestion="ghostText" :current-text="formData[field.key] || ''" />
           </div>
           <div v-else-if="field.type === 'textarea'" class="efm-input-wrap">
-            <textarea v-model="formData[field.key]" :rows="field.rows || 3" :placeholder="field.placeholder" @input="onFieldInput(field)" @focus="onFieldFocus(field.key); onFieldFocusForTrigger(field, $event)" @blur="onFieldBlur(field.key); onFieldBlurForTrigger(field)" @keydown="onFieldKeydown(field, $event)"></textarea>
+            <textarea v-model="formData[field.key]" :rows="field.rows || 3" :placeholder="field.placeholder" :aria-label="field.label" @input="onFieldInput(field)" @focus="onFieldFocus(field.key); onFieldFocusForTrigger(field, $event)" @blur="onFieldBlur(field.key); onFieldBlurForTrigger(field)" @keydown="onFieldKeydown(field, $event)"></textarea>
             <SmartFillGhostText v-if="isSmartFillField(field) && ghostVisible && ghostFieldKey === field.key" :visible="true" :suggestion="ghostText" :current-text="formData[field.key] || ''" />
           </div>
           <div v-else-if="field.type === 'richtext'" class="efm-richtext-wrap">
@@ -40,13 +40,13 @@
             <button v-if="isSparkleVisible(field)" class="efm-smart-fill-inline" @click="onSmartFillClick(field)" title="AI 建议">✨</button>
           </div>
           <CustomDropdown v-else-if="field.type === 'select'" :model-value="formData[field.key]" @update:model-value="formData[field.key] = $event" :options="[{ value: '', label: '—' }, ...(field.options || [])]" />
-          <input v-else-if="field.type === 'tags'" v-model="formData[field.key]" placeholder="逗号分隔" />
-          <input v-else-if="field.type === 'color'" type="color" v-model="formData[field.key]" />
-          <input v-else-if="field.type === 'number'" type="number" v-model="formData[field.key]" />
-          <input v-else-if="field.type === 'boolean'" type="checkbox" v-model="formData[field.key]" />
-          <input v-else-if="field.type === 'date'" type="date" v-model="formData[field.key]" />
+          <input v-else-if="field.type === 'tags'" v-model="formData[field.key]" placeholder="逗号分隔" :aria-label="field.label" />
+          <input v-else-if="field.type === 'color'" type="color" v-model="formData[field.key]" :aria-label="field.label" />
+          <input v-else-if="field.type === 'number'" type="number" v-model="formData[field.key]" :aria-label="field.label" />
+          <input v-else-if="field.type === 'boolean'" type="checkbox" v-model="formData[field.key]" :aria-label="field.label" />
+          <input v-else-if="field.type === 'date'" type="date" v-model="formData[field.key]" :aria-label="field.label" />
           <div v-else-if="field.type === 'entityRef'" class="efm-eref">
-            <input v-model="formData[field.key]" :placeholder="field.placeholder || '搜索实体...'"
+            <input v-model="formData[field.key]" :placeholder="field.placeholder || '搜索实体...'" :aria-label="field.label"
               @focus="openEntityRef(field)" @input="onEntityRefSearch(field)" />
             <div v-if="activeEntityRef === field.key && entityRefResults.length > 0" class="efm-eref-dropdown">
               <div v-for="item in entityRefResults" :key="item.id" class="efm-eref-opt"
@@ -72,9 +72,9 @@
         <div class="efm-add-field">
           <button v-if="!showAddField" class="efm-add-btn" @click="showAddField = true">＋ 添加字段</button>
           <div v-else class="efm-adder">
-            <input v-model="newFieldKey" class="efm-adder-input" placeholder="字段 key（英文）" />
-            <input v-model="newFieldLabel" class="efm-adder-input" placeholder="显示名" />
-            <select v-model="newFieldType" class="efm-adder-type">
+            <input v-model="newFieldKey" class="efm-adder-input" placeholder="字段 key（英文）" aria-label="字段 key" />
+            <input v-model="newFieldLabel" class="efm-adder-input" placeholder="显示名" aria-label="显示名" />
+            <select v-model="newFieldType" class="efm-adder-type" aria-label="字段类型">
               <option value="text">文本</option>
               <option value="textarea">长文本</option>
               <option value="number">数字</option>
@@ -83,7 +83,7 @@
               <option value="select">选项</option>
               <option value="color">颜色</option>
             </select>
-            <input v-if="newFieldType === 'select'" v-model="newFieldOptions" class="efm-adder-input" placeholder="选项（逗号分隔）" />
+            <input v-if="newFieldType === 'select'" v-model="newFieldOptions" class="efm-adder-input" placeholder="选项（逗号分隔）" aria-label="选项" />
             <button class="efm-adder-ok" @click="confirmAddField">确定</button>
             <button class="efm-adder-cancel" @click="cancelAddField">取消</button>
           </div>

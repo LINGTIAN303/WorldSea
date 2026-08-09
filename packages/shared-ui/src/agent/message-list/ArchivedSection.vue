@@ -1,7 +1,7 @@
-﻿<template>
+<template>
   <!-- P12 决策：已归档消息折叠提示（设计文档 5.5 节） -->
   <div class="archived-section" :class="{ expanded: showArchived }">
-    <div class="archived-divider" @click="showArchived = !showArchived">
+    <div class="archived-divider" role="button" tabindex="0" :aria-expanded="showArchived" @click="showArchived = !showArchived" @keydown.enter.prevent="showArchived = !showArchived" @keydown.space.prevent="showArchived = !showArchived">
       <span class="archived-divider-icon"><WsIcon name="manuscript" size="s" /></span>
       <span class="archived-divider-text">
         {{ showArchived ? '收起' : '展开' }}已归档记忆（{{ archivedBoundaryIndex }} 条消息已归档）

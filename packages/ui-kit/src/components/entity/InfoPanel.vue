@@ -47,6 +47,7 @@
               :checked="!!editProps[field.key]"
               @change="onPropChange(field.key, ($event.target as HTMLInputElement).checked)"
               class="ip-checkbox"
+              :aria-label="field.label"
             />
             <input
               v-else-if="field.fieldType === 'color'"
@@ -54,6 +55,7 @@
               :value="String(editProps[field.key] ?? '')"
               @change="onPropChange(field.key, ($event.target as HTMLInputElement).value)"
               class="ip-color-input"
+              :aria-label="field.label"
             />
             <textarea
               v-else-if="field.fieldType === 'textarea'"
@@ -61,12 +63,14 @@
               @blur="onPropChange(field.key, ($event.target as HTMLTextAreaElement).value)"
               class="ip-input"
               rows="2"
+              :aria-label="field.label"
             ></textarea>
             <select
               v-else-if="field.fieldType === 'select' && field.options?.length"
               :value="String(editProps[field.key] ?? '')"
               @change="onPropChange(field.key, ($event.target as HTMLSelectElement).value)"
               class="ip-input"
+              :aria-label="field.label"
             >
               <option value="">—</option>
               <option v-for="opt in field.options" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
@@ -76,14 +80,15 @@
               :value="String(editProps[field.key] ?? '')"
               @blur="onPropChange(field.key, ($event.target as HTMLInputElement).value)"
               class="ip-input"
+              :aria-label="field.label"
             />
           </div>
           <div class="ip-add-field">
             <button v-if="!showAddField" class="ip-add-btn" @click="showAddField = true">＋ 添加字段</button>
             <div v-else class="ip-adder">
-              <input v-model="newFieldKey" class="ip-input ip-adder-key" placeholder="字段 key（英文）" />
-              <input v-model="newFieldLabel" class="ip-input ip-adder-label" placeholder="显示名" />
-              <select v-model="newFieldType" class="ip-adder-type">
+              <input v-model="newFieldKey" class="ip-input ip-adder-key" placeholder="字段 key（英文）" aria-label="字段 key" />
+              <input v-model="newFieldLabel" class="ip-input ip-adder-label" placeholder="显示名" aria-label="显示名" />
+              <select v-model="newFieldType" class="ip-adder-type" aria-label="字段类型">
                 <option value="text">文本</option>
                 <option value="textarea">长文本</option>
                 <option value="number">数字</option>
@@ -92,7 +97,7 @@
                 <option value="select">选项</option>
                 <option value="color">颜色</option>
               </select>
-              <input v-if="newFieldType === 'select'" v-model="newFieldOptions" class="ip-input" placeholder="选项（逗号分隔）" />
+              <input v-if="newFieldType === 'select'" v-model="newFieldOptions" class="ip-input" placeholder="选项（逗号分隔）" aria-label="选项" />
               <button class="ip-adder-ok" @click="confirmAddField">确定</button>
               <button class="ip-adder-cancel" @click="cancelAddField">取消</button>
             </div>

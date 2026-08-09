@@ -52,7 +52,7 @@
             </div>
             <button class="card-flip-btn" @click.stop="toggleFlip(item.id)" title="翻转查看图片">🔄</button>
           </div>
-          <div class="entity-card card-back" @click="toggleFlip(item.id)">
+          <div class="entity-card card-back" role="button" tabindex="0" :aria-label="`翻转回 ${item.name} 正面`" @click="toggleFlip(item.id)" @keydown.enter.prevent="toggleFlip(item.id)" @keydown.space.prevent="toggleFlip(item.id)">
             <EntityCardBack :entity="item" :cover-field-key="coverFieldKey" />
             <div class="card-back-info">
               <h3>{{ item.name }}</h3>

@@ -1,6 +1,6 @@
 <template>
   <div class="block-entity-card">
-    <div class="block-toggle" @click="expanded = !expanded">
+    <div class="block-toggle" role="button" tabindex="0" :aria-expanded="expanded" @click="expanded = !expanded" @keydown.enter.prevent="expanded = !expanded" @keydown.space.prevent="expanded = !expanded">
       <WsIcon :name="entityIcon" size="xs" class="block-icon" />
       <span class="block-title">{{ block.entityType }}: {{ block.name }}</span>
       <span class="block-meta">{{ block.entityType }}</span>
@@ -73,17 +73,17 @@ function onOpenDetail(e: MouseEvent) {
 .block-toggle {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 4px 10px; border-radius: 14px; cursor: pointer;
-  background: rgba(108,92,231,0.08); border: 1px solid rgba(108,92,231,0.2);
+  background: color-mix(in srgb, var(--agent-accent, #b388ff) 8%, transparent); border: 1px solid color-mix(in srgb, var(--agent-accent, #b388ff) 20%, transparent);
   transition: border-color 0.15s; font-size: 12px;
 }
-.block-toggle:hover { border-color: rgba(108,92,231,0.5); }
+.block-toggle:hover { border-color: color-mix(in srgb, var(--agent-accent, #b388ff) 50%, transparent); }
 .block-icon { color: var(--agent-accent, #b388ff); flex-shrink: 0; }
 .block-title { font-size: 12px; color: var(--agent-accent, #b388ff); font-weight: 500; }
 .block-meta { font-size: 11px; color: var(--agent-text-tertiary, #888); }
 .block-arrow { font-size: 11px; color: var(--agent-text-tertiary, #888); }
 .block-content {
   padding: 10px 12px; margin-top: 4px;
-  background: rgba(0,0,0,0.15); border: 1px solid rgba(108,92,231,0.2);
+  background: rgba(0,0,0,0.15); border: 1px solid color-mix(in srgb, var(--agent-accent, #b388ff) 20%, transparent);
   border-radius: 8px;
 }
 .ec-header { display: flex; align-items: center; gap: 8px; }
@@ -94,12 +94,12 @@ function onOpenDetail(e: MouseEvent) {
 .ec-open-btn {
   display: inline-flex; align-items: center; gap: 3px;
   padding: 3px 8px; border-radius: 4px; cursor: pointer;
-  background: transparent; border: 1px solid var(--agent-border, rgba(108,92,231,0.3));
+  background: transparent; border: 1px solid var(--agent-border, color-mix(in srgb, var(--agent-accent, #b388ff) 30%, transparent));
   color: var(--agent-text-secondary, #aaa); font-size: 11px;
   transition: all 0.15s; flex-shrink: 0;
 }
 .ec-open-btn:hover {
-  background: rgba(108,92,231,0.12);
+  background: color-mix(in srgb, var(--agent-accent, #b388ff) 12%, transparent);
   border-color: var(--agent-accent, #b388ff);
   color: var(--agent-accent, #b388ff);
 }
@@ -107,7 +107,7 @@ function onOpenDetail(e: MouseEvent) {
 .ec-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
 .ec-tag {
   font-size: 11px; padding: 1px 6px; border-radius: 3px;
-  background: rgba(108,92,231,0.15); color: var(--agent-accent, #b388ff);
+  background: color-mix(in srgb, var(--agent-accent, #b388ff) 15%, transparent); color: var(--agent-accent, #b388ff);
 }
 .block-expand-enter-active, .block-expand-leave-active {
   transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease, opacity 0.2s ease, filter 0.2s ease; overflow: hidden;

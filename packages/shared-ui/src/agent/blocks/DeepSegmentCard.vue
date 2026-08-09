@@ -2,7 +2,7 @@
   <div class="deep-seg-card" :class="[segment.type, segment.status || '']" :data-seg-id="segment.id">
     <!-- 推理段 -->
     <template v-if="segment.type === 'thinking'">
-      <div class="seg-header" @click="toggleExpand">
+      <div class="seg-header" role="button" tabindex="0" :aria-expanded="isExpanded" @click="toggleExpand" @keydown.enter.prevent="toggleExpand" @keydown.space.prevent="toggleExpand">
         <span class="seg-icon thinking-icon"><WsIcon name="brain" size="s" /></span>
         <span class="seg-title">推理过程</span>
         <span v-if="segment.status === 'streaming'" class="seg-badge streaming">思考中</span>
@@ -17,7 +17,7 @@
 
     <!-- 阶段容器段 -->
     <template v-else-if="segment.type === 'phase'">
-      <div class="seg-header phase-header" @click="toggleExpand">
+      <div class="seg-header phase-header" role="button" tabindex="0" :aria-expanded="isExpanded" @click="toggleExpand" @keydown.enter.prevent="toggleExpand" @keydown.space.prevent="toggleExpand">
         <div class="phase-marker">
           <span v-if="segment.status === 'done'" class="phase-check"><WsIcon name="check" size="xs" /></span>
           <span v-else-if="segment.status === 'active'" class="phase-pulse"></span>

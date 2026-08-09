@@ -1,6 +1,6 @@
 <template>
   <div class="block-table">
-    <div class="block-toggle" @click="expanded = !expanded">
+    <div class="block-toggle" role="button" tabindex="0" :aria-expanded="expanded" @click="expanded = !expanded" @keydown.enter.prevent="expanded = !expanded" @keydown.space.prevent="expanded = !expanded">
       <span class="block-icon">📊</span>
       <span class="block-title">表格: {{ block.title || '数据' }}</span>
       <span class="block-meta">{{ block.rows.length }}行 × {{ block.columns.length }}列</span>
@@ -45,17 +45,17 @@ const expanded = ref(false)
 .block-toggle {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 4px 10px; border-radius: 14px; cursor: pointer;
-  background: rgba(108,92,231,0.08); border: 1px solid rgba(108,92,231,0.2);
+  background: color-mix(in srgb, var(--agent-accent, #b388ff) 8%, transparent); border: 1px solid color-mix(in srgb, var(--agent-accent, #b388ff) 20%, transparent);
   transition: border-color 0.15s; font-size: 12px;
 }
-.block-toggle:hover { border-color: rgba(108,92,231,0.5); }
+.block-toggle:hover { border-color: color-mix(in srgb, var(--agent-accent, #b388ff) 50%, transparent); }
 .block-icon { font-size: 13px; }
 .block-title { font-size: 12px; color: var(--agent-accent, #b388ff); font-weight: 500; }
 .block-meta { font-size: 11px; color: var(--agent-text-tertiary, #888); }
 .block-arrow { font-size: 11px; color: var(--agent-text-tertiary, #888); }
 .block-content {
   padding: 10px 12px; margin-top: 4px;
-  background: rgba(0,0,0,0.15); border: 1px solid rgba(108,92,231,0.2);
+  background: rgba(0,0,0,0.15); border: 1px solid color-mix(in srgb, var(--agent-accent, #b388ff) 20%, transparent);
   border-radius: 8px; overflow-x: auto;
 }
 .block-table-inner { width: 100%; border-collapse: collapse; font-size: 12px; }

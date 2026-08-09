@@ -11,7 +11,11 @@
       <div
         class="image-drop-zone"
         :class="{ 'drop-active': isDragging, 'focal-mode': focalMode }"
+        role="button"
+        tabindex="0"
+        :aria-label="focalMode ? '点击设定封面焦点' : '选择或拖拽图片'"
         @click="onDropZoneClick"
+        @keydown="onDropZoneKeydown"
         @wheel.prevent="onWheel"
         @dragover.prevent="isDragging = true"
         @dragleave="isDragging = false"
@@ -53,6 +57,7 @@
         v-model="urlInput"
         class="image-url-input"
         placeholder="或输入图片 URL..."
+        aria-label="图片 URL"
         @keydown.enter="applyUrl"
       />
     </div>
@@ -163,6 +168,15 @@ function onDropZoneClick(e: MouseEvent) {
   const pos = `${clampedX}% ${clampedY}%`
   localCoverPosition.value = pos
   emit('update:coverPosition', pos)
+}
+
+/** 键盘可达性：Enter/Space 触发文件选择（指针坐标的焦点设定仅支持鼠标/触控） */
+function onDropZoneKeydown(e: KeyboardEvent) {
+  if (e.key !== 'Enter' && e.key !== ' ') return
+  e.preventDefault()
+  if (!focalMode.value) {
+    fileInputRef.value?.click()
+  }
 }
 
 function onWheel(e: WheelEvent) {

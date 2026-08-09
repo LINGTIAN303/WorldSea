@@ -81,13 +81,13 @@ function onConfirm(): void {
 .choice-options { display: flex; flex-wrap: wrap; gap: 6px; }
 .choice-btn {
   padding: 4px 10px; border-radius: 14px; cursor: pointer;
-  border: 1px solid rgba(108,92,231,0.3); background: transparent;
+  border: 1px solid color-mix(in srgb, var(--agent-accent, #b388ff) 30%, transparent); background: transparent;
   color: var(--agent-accent, #b388ff); font-size: 12px;
   transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s; display: flex; flex-direction: column; align-items: center;
   position: relative; overflow: hidden;
 }
 .choice-btn:active { transform: scale(0.95); }
-.choice-btn:hover { background: rgba(108,92,231,0.1); border-color: rgba(108,92,231,0.5); }
+.choice-btn:hover { background: color-mix(in srgb, var(--agent-accent, #b388ff) 10%, transparent); border-color: color-mix(in srgb, var(--agent-accent, #b388ff) 50%, transparent); }
 .choice-btn.active { background: var(--agent-accent, #b388ff); color: #fff; border-color: transparent; animation: ws-bounce 0.2s ease; }
 
 .choice-label { }

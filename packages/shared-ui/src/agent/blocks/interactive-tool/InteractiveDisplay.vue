@@ -1,7 +1,7 @@
 <template>
   <!-- 展示型：工具行 + 内嵌 Block 组件 -->
   <div class="itc-display" :class="tc.status">
-    <div class="itc-display-header" @click="toggleExpand">
+    <div class="itc-display-header" role="button" tabindex="0" :aria-expanded="isExpanded" @click="toggleExpand" @keydown.enter.prevent="toggleExpand" @keydown.space.prevent="toggleExpand">
       <span class="itc-display-dot" :class="tc.status"></span>
       <span class="itc-display-name">{{ getToolLabel(tc.name) }}</span>
       <span v-if="tc.status === 'running'" class="itc-display-status running">生成中</span>

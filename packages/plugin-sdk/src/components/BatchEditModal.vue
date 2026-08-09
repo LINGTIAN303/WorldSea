@@ -6,16 +6,16 @@
         <h3>批量编辑</h3>
         <div class="be-hdr-actions">
           <span class="be-count">{{ filtered.length }} / {{ entityStore.entities.length }}</span>
-          <button class="be-close" @click="close">✕</button>
+          <button class="be-close" @click="close" aria-label="关闭">✕</button>
         </div>
       </div>
 
       <div class="be-toolbar">
-        <select v-model="typeFilter">
+        <select v-model="typeFilter" aria-label="按类型过滤">
           <option value="">全部类型</option>
           <option v-for="t in allTypes" :key="t.typeKey" :value="t.typeKey"><WsIcon :name="entitySchemaRegistry.getIconName(t.typeKey)" size="xs" /> {{ t.label }}</option>
         </select>
-        <input v-model="searchQuery" placeholder="搜索名称..." class="be-search" />
+        <input v-model="searchQuery" placeholder="搜索名称..." class="be-search" aria-label="搜索名称" />
         <label class="be-chk"><input type="checkbox" v-model="selectAll" @change="toggleAll" /> 全选</label>
       </div>
 

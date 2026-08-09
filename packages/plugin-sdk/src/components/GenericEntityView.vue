@@ -35,7 +35,7 @@
           }"
         >
           <div v-if="hasImageField" class="entity-card-flipper">
-            <div class="entity-card card-front" @click="selectEntity(e)">
+            <div class="entity-card card-front" role="button" tabindex="0" :aria-label="`打开 ${e.name}`" @click="selectEntity(e)" @keydown.enter.prevent="selectEntity(e)" @keydown.space.prevent="selectEntity(e)">
               <input type="checkbox" class="batch-check" :checked="selectedIds.has(e.id)" @change="toggleSelect(e.id)" @click.stop />
               <EntityCardCover :entity="e" :cover-field-key="coverFieldKey" />
               <div class="card-header">
@@ -60,7 +60,7 @@
               </div>
               <button class="card-flip-btn" @click.stop="toggleFlip(e.id)" title="翻转查看图片">🔄</button>
             </div>
-            <div class="entity-card card-back" @click="toggleFlip(e.id)">
+            <div class="entity-card card-back" role="button" tabindex="0" :aria-label="`翻转回 ${e.name} 正面`" @click="toggleFlip(e.id)" @keydown.enter.prevent="toggleFlip(e.id)" @keydown.space.prevent="toggleFlip(e.id)">
               <EntityCardBack :entity="e" :cover-field-key="coverFieldKey" />
               <div class="card-back-info">
                 <h3>{{ e.name }}</h3>
@@ -70,7 +70,7 @@
               <button class="card-flip-btn" @click.stop="toggleFlip(e.id)" title="翻转回正面">🔄</button>
             </div>
           </div>
-          <div v-else class="entity-card" @click="selectEntity(e)">
+          <div v-else class="entity-card" role="button" tabindex="0" :aria-label="`打开 ${e.name}`" @click="selectEntity(e)" @keydown.enter.prevent="selectEntity(e)" @keydown.space.prevent="selectEntity(e)">
             <input type="checkbox" class="batch-check" :checked="selectedIds.has(e.id)" @change="toggleSelect(e.id)" @click.stop />
             <div class="card-header">
               <WsIcon class="card-icon" :name="resolvedIconFn(e)" size="sm" />

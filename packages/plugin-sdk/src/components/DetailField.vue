@@ -5,7 +5,7 @@
     <div v-if="effectiveEditing" class="field-edit">
       <input v-if="type === 'text' || type === 'number' || type === 'url' || type === 'email'"
         ref="inputRef" v-model="localValue" :type="type === 'number' ? 'number' : 'text'"
-        class="field-input" :placeholder="placeholder"
+        class="field-input" :placeholder="placeholder" :aria-label="label"
         @keydown.enter="commitFieldEdit"
         @keydown.escape.prevent="cancelFieldEdit"
         @blur="commitFieldEdit" />
@@ -14,11 +14,11 @@
       </span>
       <textarea v-else-if="type === 'textarea' || type === 'text-long'"
         ref="inputRef" v-model="localValue" class="field-input field-textarea"
-        :placeholder="placeholder" rows="2"
+        :placeholder="placeholder" rows="2" :aria-label="label"
         @keydown.escape.prevent="cancelFieldEdit"
         @blur="commitFieldEdit"></textarea>
       <select v-else-if="type === 'select'" ref="inputRef" v-model="localValue"
-        class="field-input" @change="commitFieldEdit">
+        class="field-input" :aria-label="label" @change="commitFieldEdit">
         <option value="">--</option>
         <option v-for="opt in options" :key="opt" :value="opt">{{ opt }}</option>
       </select>
@@ -31,6 +31,7 @@
       v-model="entitySearchQuery"
       class="field-input"
       :placeholder="placeholder || '搜索实体...'"
+      :aria-label="label"
       @focus="showEntityDropdown = true"
       @blur="onEntityBlur"
       @keydown.escape.prevent="showEntityDropdown = false"

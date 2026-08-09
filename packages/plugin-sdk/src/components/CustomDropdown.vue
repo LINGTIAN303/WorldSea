@@ -1,18 +1,24 @@
-﻿<template>
+<template>
   <div class="cd-wrapper" :class="{ disabled }" ref="wrapperRef">
-    <button class="cd-trigger" @click="toggle" :disabled="disabled">
+    <button class="cd-trigger" @click="toggle" :disabled="disabled"
+      role="combobox" aria-haspopup="listbox" :aria-expanded="isOpen" :aria-controls="listId"
+      @keydown="onTriggerKeydown">
       <span class="cd-value">{{ selectedLabel || placeholder || '—' }}</span>
       <span class="cd-arrow" :class="{ open: isOpen }">▾</span>
     </button>
     <Transition name="ws-menu">
-      <div v-if="isOpen" class="cd-dropdown">
+      <div v-if="isOpen" class="cd-dropdown" :id="listId" role="listbox">
         <button
           v-for="(opt, i) in options"
           :key="opt.value"
+          ref="optionRefs"
           class="cd-option"
+          role="option"
+          :aria-selected="opt.value === modelValue"
           :class="{ selected: opt.value === modelValue }"
           :style="{ animationDelay: i * 30 + 'ms' }"
-          @click="select(opt.value)">
+          @click="select(opt.value)"
+          @keydown="(e) => onOptionKeydown(e, i)">
           {{ opt.label }}
         </button>
       </div>
@@ -21,7 +27,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 
 interface Props {
   modelValue: string
@@ -41,6 +47,8 @@ const emit = defineEmits<{
 
 const isOpen = ref(false)
 const wrapperRef = ref<HTMLDivElement>()
+const optionRefs = ref<HTMLButtonElement[]>([])
+const listId = `cd-list-${Math.random().toString(36).slice(2, 8)}`
 
 const selectedLabel = computed(() => {
   const opt = props.options.find(o => o.value === props.modelValue)
@@ -50,6 +58,43 @@ const selectedLabel = computed(() => {
 function toggle() {
   if (props.disabled) return
   isOpen.value = !isOpen.value
+}
+
+/** 触发按钮键盘：Enter/Space 开合，ArrowDown 打开并聚焦首项，Escape 关闭 */
+function onTriggerKeydown(e: KeyboardEvent) {
+  if (props.disabled) return
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault()
+    toggle()
+  } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault()
+    if (!isOpen.value) isOpen.value = true
+    nextTick(() => optionRefs.value[0]?.focus())
+  } else if (e.key === 'Escape' && isOpen.value) {
+    isOpen.value = false
+  }
+}
+
+/** 选项键盘：方向键导航，Enter/Space 选择，Home/End 跳转，Escape 关闭 */
+function onOptionKeydown(e: KeyboardEvent, idx: number) {
+  const count = optionRefs.value.length
+  let target = -1
+  if (e.key === 'ArrowDown') target = (idx + 1) % count
+  else if (e.key === 'ArrowUp') target = (idx - 1 + count) % count
+  else if (e.key === 'Home') target = 0
+  else if (e.key === 'End') target = count - 1
+  else if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault()
+    select(props.options[idx].value)
+    return
+  } else if (e.key === 'Escape') {
+    isOpen.value = false
+    return
+  }
+  if (target >= 0) {
+    e.preventDefault()
+    optionRefs.value[target]?.focus()
+  }
 }
 
 function select(value: string) {

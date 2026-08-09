@@ -267,7 +267,11 @@
           v-for="tag in resolvedTags"
           :key="tag"
           class="a2ui-tag"
+          role="button"
+          tabindex="0"
           @click="$emit('action', { name: 'tag_click', data: { tag } })"
+          @keydown.enter.prevent="$emit('action', { name: 'tag_click', data: { tag } })"
+          @keydown.space.prevent="$emit('action', { name: 'tag_click', data: { tag } })"
         >
           {{ tag }}
         </span>
@@ -385,7 +389,12 @@
             v-for="opt in (comp.options || [])"
             :key="opt.id"
             :class="['a2ui-sp-option', { active: selectedSuggestion === opt.id }]"
+            role="button"
+            tabindex="0"
+            :aria-pressed="selectedSuggestion === opt.id"
             @click="selectSuggestion(opt.id)"
+            @keydown.enter.prevent="selectSuggestion(opt.id)"
+            @keydown.space.prevent="selectSuggestion(opt.id)"
           >
             <div class="a2ui-sp-label">{{ opt.label }}</div>
             <div v-if="opt.description" class="a2ui-sp-desc">{{ opt.description }}</div>
@@ -410,7 +419,11 @@
             v-for="(sug, si) in comp.suggestions"
             :key="si"
             class="a2ui-fp-sug-item"
+            role="button"
+            tabindex="0"
             @click="$emit('action', { name: 'file_route', data: { target: sug.target, reason: sug.reason, fileId: comp.fileId } })"
+            @keydown.enter.prevent="$emit('action', { name: 'file_route', data: { target: sug.target, reason: sug.reason, fileId: comp.fileId } })"
+            @keydown.space.prevent="$emit('action', { name: 'file_route', data: { target: sug.target, reason: sug.reason, fileId: comp.fileId } })"
           >
             → {{ sug.target }}：{{ sug.reason }}
           </div>
@@ -431,7 +444,12 @@
     <template v-else-if="comp.component === 'EntityLink'">
       <span
         class="a2ui-entity-link"
+        role="link"
+        tabindex="0"
+        :aria-label="`查看实体 ${comp.name}`"
         @click="$emit('action', { name: 'entity_navigate', data: { entityId: comp.entityId, entityType: comp.entityType } })"
+        @keydown.enter.prevent="$emit('action', { name: 'entity_navigate', data: { entityId: comp.entityId, entityType: comp.entityType } })"
+        @keydown.space.prevent="$emit('action', { name: 'entity_navigate', data: { entityId: comp.entityId, entityType: comp.entityType } })"
       >
         <WsIcon :name="ENTITY_ICONS[comp.entityType] || 'item'" size="xs" /> {{ comp.name }}
       </span>

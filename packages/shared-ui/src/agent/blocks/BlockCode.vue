@@ -1,6 +1,6 @@
 <template>
   <div class="block-code">
-    <div class="block-toggle" @click="expanded = !expanded">
+    <div class="block-toggle" role="button" tabindex="0" :aria-expanded="expanded" @click="expanded = !expanded" @keydown.enter.prevent="expanded = !expanded" @keydown.space.prevent="expanded = !expanded">
       <span class="block-icon">💻</span>
       <span class="block-title">代码: {{ block.language }}</span>
       <span class="block-meta">{{ lineCount }}行</span>
@@ -40,16 +40,16 @@ function copyCode(): void {
 .block-toggle {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 4px 10px; border-radius: 14px; cursor: pointer;
-  background: rgba(108,92,231,0.08); border: 1px solid rgba(108,92,231,0.2);
+  background: color-mix(in srgb, var(--agent-accent, #b388ff) 8%, transparent); border: 1px solid color-mix(in srgb, var(--agent-accent, #b388ff) 20%, transparent);
   transition: border-color 0.15s; font-size: 12px;
 }
-.block-toggle:hover { border-color: rgba(108,92,231,0.5); }
+.block-toggle:hover { border-color: color-mix(in srgb, var(--agent-accent, #b388ff) 50%, transparent); }
 .block-icon { font-size: 13px; }
 .block-title { font-size: 12px; color: var(--agent-accent, #b388ff); font-weight: 500; }
 .block-meta { font-size: 11px; color: var(--agent-text-tertiary, #888); }
 .block-arrow { font-size: 11px; color: var(--agent-text-tertiary, #888); }
 .block-content {
-  margin-top: 4px; border: 1px solid rgba(108,92,231,0.2);
+  margin-top: 4px; border: 1px solid color-mix(in srgb, var(--agent-accent, #b388ff) 20%, transparent);
   border-radius: 8px; overflow: hidden;
 }
 .code-header {
@@ -60,10 +60,10 @@ function copyCode(): void {
 .code-lang { font-size: 11px; color: var(--agent-text-tertiary, #888); text-transform: uppercase; }
 .code-copy {
   font-size: 11px; padding: 2px 8px; border-radius: 3px;
-  border: 1px solid rgba(108,92,231,0.3); background: transparent;
+  border: 1px solid color-mix(in srgb, var(--agent-accent, #b388ff) 30%, transparent); background: transparent;
   color: var(--agent-accent, #b388ff); cursor: pointer;
 }
-.code-copy:hover { background: rgba(108,92,231,0.1); }
+.code-copy:hover { background: color-mix(in srgb, var(--agent-accent, #b388ff) 10%, transparent); }
 .code-body {
   padding: 10px 12px; margin: 0;
   font-family: 'Fira Code', 'Consolas', monospace; font-size: 12px;

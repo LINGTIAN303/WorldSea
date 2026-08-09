@@ -1,12 +1,12 @@
 <template>
   <Teleport to="body">
     <Transition name="lightbox">
-      <div v-if="visible" class="lightbox-overlay" @click.self="close" @keydown.escape="close">
+      <div v-if="visible" class="lightbox-overlay" role="dialog" aria-modal="true" aria-label="图片预览" @click.self="close" @keydown.escape="close">
         <div class="lightbox-toolbar">
-          <button class="lb-btn" @click="zoomIn" title="放大">🔍+</button>
-          <button class="lb-btn" @click="zoomOut" title="缩小">🔍-</button>
-          <button class="lb-btn" @click="resetZoom" title="重置">↺</button>
-          <button class="lb-btn lb-close" @click="close" title="关闭">✕</button>
+          <button class="lb-btn" @click="zoomIn" title="放大" aria-label="放大">🔍+</button>
+          <button class="lb-btn" @click="zoomOut" title="缩小" aria-label="缩小">🔍-</button>
+          <button class="lb-btn" @click="resetZoom" title="重置" aria-label="重置缩放">↺</button>
+          <button class="lb-btn lb-close" @click="close" title="关闭" aria-label="关闭预览">✕</button>
         </div>
         <div
           class="lightbox-content"

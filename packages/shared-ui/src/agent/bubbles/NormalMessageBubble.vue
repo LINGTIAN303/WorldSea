@@ -59,7 +59,7 @@
         <div class="msg-text-content" :class="{ 'text-collapsed': !textExpanded && isTextLong }">
           <div v-html="renderedMarkdown"></div>
         </div>
-        <div v-if="isTextLong" class="text-expand-btn" @click="textExpanded = !textExpanded">
+        <div v-if="isTextLong" class="text-expand-btn" role="button" tabindex="0" :aria-expanded="textExpanded" @click="textExpanded = !textExpanded" @keydown.enter.prevent="textExpanded = !textExpanded" @keydown.space.prevent="textExpanded = !textExpanded">
           {{ textExpanded ? '收起' : '展开全文' }}
         </div>
         <MessageBlocks :blocks="msg.blocks" @block-action="emit('blockAction', $event)" />
@@ -71,10 +71,10 @@
         </template>
       </div>
       <div class="msg-actions" :class="{ visible: isHovered }">
-        <button class="action-btn" @click="emit('copy', msg)" title="复制"><WsIcon name="outline" size="xs" /></button>
-        <button v-if="msg.role === 'user'" class="action-btn" @click="emit('retry', msg)" title="重试"><WsIcon name="delete" size="xs" /></button>
-        <button v-if="msg.role === 'assistant'" class="action-btn" @click="onExportImage" title="导出为图片"><WsIcon name="image" size="xs" /></button>
-        <button v-if="msg.role === 'assistant'" class="action-btn" @click="onExportGif" title="导出为GIF"><WsIcon name="video" size="xs" /></button>
+        <button class="action-btn" @click="emit('copy', msg)" title="复制" aria-label="复制消息"><WsIcon name="outline" size="xs" /></button>
+        <button v-if="msg.role === 'user'" class="action-btn" @click="emit('retry', msg)" title="重试" aria-label="重试消息"><WsIcon name="delete" size="xs" /></button>
+        <button v-if="msg.role === 'assistant'" class="action-btn" @click="onExportImage" title="导出为图片" aria-label="导出为图片"><WsIcon name="image" size="xs" /></button>
+        <button v-if="msg.role === 'assistant'" class="action-btn" @click="onExportGif" title="导出为GIF" aria-label="导出为GIF"><WsIcon name="video" size="xs" /></button>
         <span class="msg-time">{{ formatTime(msg.timestamp) }}</span>
       </div>
     </div>
@@ -533,7 +533,7 @@ watch(renderedMarkdown, () => {
 /* 实体名 mention 高亮：用 :deep() 穿透 v-html 渲染的 DOM */
 :deep(.ws-entity-mention) {
   color: var(--agent-accent, #b388ff);
-  background: rgba(108, 92, 231, 0.1);
+  background: color-mix(in srgb, var(--agent-accent, #b388ff) 10%, transparent);
   border-radius: 3px;
   padding: 0 3px;
   cursor: pointer;
@@ -542,7 +542,7 @@ watch(renderedMarkdown, () => {
   border-bottom: 1px dashed var(--agent-accent, #b388ff);
 }
 :deep(.ws-entity-mention:hover) {
-  background: rgba(108, 92, 231, 0.25);
+  background: color-mix(in srgb, var(--agent-accent, #b388ff) 25%, transparent);
   color: var(--agent-text, #e0e0e0);
   border-bottom-style: solid;
 }

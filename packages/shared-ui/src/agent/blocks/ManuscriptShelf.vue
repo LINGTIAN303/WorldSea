@@ -1,6 +1,6 @@
 <template>
   <div v-if="manuscripts.length" class="manuscript-shelf">
-    <div class="shelf-header" @click="expanded = !expanded">
+    <div class="shelf-header" role="button" tabindex="0" :aria-expanded="expanded" @click="expanded = !expanded" @keydown.enter.prevent="expanded = !expanded" @keydown.space.prevent="expanded = !expanded">
       <WsIcon :name="expanded ? 'chevron-down' : 'chevron-right'" size="xs" />
       <span class="shelf-title">文境集</span>
       <span class="shelf-count">{{ manuscripts.length }}</span>
@@ -13,7 +13,12 @@
           class="shelf-thumb"
           :class="{ 'layout-vertical': ms.layout === 'vertical' }"
           :title="ms.title || '文稿'"
+          :aria-label="`跳转到文稿 ${ms.title || '未命名'}`"
+          role="button"
+          tabindex="0"
           @click="scrollToManuscript(ms.id)"
+          @keydown.enter.prevent="scrollToManuscript(ms.id)"
+          @keydown.space.prevent="scrollToManuscript(ms.id)"
         >
           <div class="thumb-preview">{{ ms.content.slice(0, 24) }}</div>
           <div class="thumb-label">{{ ms.title || '文稿' }}</div>
@@ -83,7 +88,7 @@ function scrollToManuscript(id: string) {
   font-size: 10px;
   padding: 0 4px;
   border-radius: 8px;
-  background: rgba(108, 92, 231, 0.15);
+  background: color-mix(in srgb, var(--agent-accent, #b388ff) 15%, transparent);
   color: var(--agent-accent, #b388ff);
 }
 
@@ -99,14 +104,14 @@ function scrollToManuscript(id: string) {
   width: 72px;
   padding: 6px 8px;
   border-radius: 6px;
-  background: rgba(108, 92, 231, 0.06);
-  border: 1px solid rgba(108, 92, 231, 0.15);
+  background: color-mix(in srgb, var(--agent-accent, #b388ff) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--agent-accent, #b388ff) 15%, transparent);
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease, opacity 0.15s ease, filter 0.15s ease;
 }
 .shelf-thumb:hover {
-  background: rgba(108, 92, 231, 0.12);
-  border-color: rgba(108, 92, 231, 0.35);
+  background: color-mix(in srgb, var(--agent-accent, #b388ff) 12%, transparent);
+  border-color: color-mix(in srgb, var(--agent-accent, #b388ff) 35%, transparent);
 }
 
 .shelf-thumb.layout-vertical {
@@ -151,7 +156,7 @@ function scrollToManuscript(id: string) {
 }
 
 :global(.shelf-highlight) {
-  box-shadow: 0 0 0 2px var(--agent-primary, #6c5ce7), 0 4px 24px rgba(108, 92, 231, 0.3) !important;
+  box-shadow: 0 0 0 2px var(--agent-primary, #6c5ce7), 0 4px 24px color-mix(in srgb, var(--agent-accent, #b388ff) 30%, transparent) !important;
   transition: box-shadow 0.3s ease;
 }
 </style>

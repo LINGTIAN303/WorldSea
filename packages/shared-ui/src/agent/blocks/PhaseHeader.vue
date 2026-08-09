@@ -1,5 +1,5 @@
 <template>
-  <div class="phase-header" :class="{ active: isActive, done: isDone }" @click="toggleExpand">
+  <div class="phase-header" :class="{ active: isActive, done: isDone }" role="button" tabindex="0" :aria-expanded="isExpanded" @click="toggleExpand" @keydown.enter.prevent="toggleExpand" @keydown.space.prevent="toggleExpand">
     <div class="phase-header-main">
       <div class="phase-marker">
         <span v-if="isDone" class="phase-check"><WsIcon name="check" size="xs" /></span>

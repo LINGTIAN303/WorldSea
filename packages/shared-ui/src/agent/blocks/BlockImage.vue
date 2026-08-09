@@ -10,7 +10,7 @@
     - 使用 Teleport 将右键菜单渲染到 body，避免被父容器裁剪
   -->
   <div class="block-image" @contextmenu.prevent="onContextMenu">
-    <div class="block-toggle" @click="expanded = !expanded">
+    <div class="block-toggle" role="button" tabindex="0" :aria-expanded="expanded" @click="expanded = !expanded" @keydown.enter.prevent="expanded = !expanded" @keydown.space.prevent="expanded = !expanded">
       <span class="block-icon"><WsIcon name="image" size="xs" /></span>
       <span class="block-title">{{ block.caption || block.alt || '图片' }}</span>
       <span class="block-arrow">{{ expanded ? '▾ 点击收起' : '▸ 点击展开' }}</span>
@@ -223,16 +223,16 @@ function copySrc(): void {
 .block-toggle {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 4px 10px; border-radius: 14px; cursor: pointer;
-  background: rgba(108,92,231,0.08); border: 1px solid rgba(108,92,231,0.2);
+  background: color-mix(in srgb, var(--agent-accent, #b388ff) 8%, transparent); border: 1px solid color-mix(in srgb, var(--agent-accent, #b388ff) 20%, transparent);
   transition: border-color 0.15s; font-size: 12px;
 }
-.block-toggle:hover { border-color: rgba(108,92,231,0.5); }
+.block-toggle:hover { border-color: color-mix(in srgb, var(--agent-accent, #b388ff) 50%, transparent); }
 .block-icon { font-size: 13px; }
 .block-title { font-size: 12px; color: var(--agent-accent, #b388ff); font-weight: 500; }
 .block-arrow { color: var(--agent-text-tertiary, #888); }
 .block-content {
   padding: 8px; margin-top: 4px;
-  background: rgba(0,0,0,0.15); border: 1px solid rgba(108,92,231,0.2);
+  background: rgba(0,0,0,0.15); border: 1px solid color-mix(in srgb, var(--agent-accent, #b388ff) 20%, transparent);
   border-radius: 8px; text-align: center;
 }
 .block-img { max-width: 100%; max-height: 300px; border-radius: 6px; object-fit: contain; cursor: pointer; }
@@ -241,7 +241,7 @@ function copySrc(): void {
 .block-expand-enter-from, .block-expand-leave-to { opacity: 0; }
 .img-ctx-menu {
   position: fixed; z-index: 10000;
-  background: rgba(20,20,30,0.96); border: 1px solid rgba(108,92,231,0.3);
+  background: rgba(20,20,30,0.96); border: 1px solid color-mix(in srgb, var(--agent-accent, #b388ff) 30%, transparent);
   border-radius: 8px; padding: 4px 0; min-width: 160px;
   box-shadow: 0 4px 20px rgba(0,0,0,0.5); backdrop-filter: blur(8px);
 }
@@ -250,5 +250,5 @@ function copySrc(): void {
   color: #ddd; font-size: 13px; text-align: left; cursor: pointer;
   transition: background 0.1s;
 }
-.ctx-item:hover { background: rgba(108,92,231,0.2); color: #fff; }
+.ctx-item:hover { background: color-mix(in srgb, var(--agent-accent, #b388ff) 20%, transparent); color: #fff; }
 </style>

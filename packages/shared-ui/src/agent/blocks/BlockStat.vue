@@ -1,6 +1,6 @@
 <template>
   <div class="block-stat">
-    <div class="block-toggle" @click="expanded = !expanded">
+    <div class="block-toggle" role="button" tabindex="0" :aria-expanded="expanded" @click="expanded = !expanded" @keydown.enter.prevent="expanded = !expanded" @keydown.space.prevent="expanded = !expanded">
       <span class="block-icon">📊</span>
       <span class="block-title">统计: {{ block.title || '概览' }}</span>
       <span class="block-meta">{{ block.items.length }}项</span>
@@ -35,17 +35,17 @@ function trendIcon(t: string): string { return t === 'up' ? '↑' : t === 'down'
 .block-toggle {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 4px 10px; border-radius: 14px; cursor: pointer;
-  background: rgba(108,92,231,0.08); border: 1px solid rgba(108,92,231,0.2);
+  background: color-mix(in srgb, var(--agent-accent, #b388ff) 8%, transparent); border: 1px solid color-mix(in srgb, var(--agent-accent, #b388ff) 20%, transparent);
   transition: border-color 0.15s; font-size: 12px;
 }
-.block-toggle:hover { border-color: rgba(108,92,231,0.5); }
+.block-toggle:hover { border-color: color-mix(in srgb, var(--agent-accent, #b388ff) 50%, transparent); }
 .block-icon { font-size: 13px; }
 .block-title { font-size: 12px; color: var(--agent-accent, #b388ff); font-weight: 500; }
 .block-meta { color: var(--agent-text-tertiary, #888); }
 .block-arrow { color: var(--agent-text-tertiary, #888); }
 .block-content {
   padding: 10px 12px; margin-top: 4px;
-  background: rgba(0,0,0,0.15); border: 1px solid rgba(108,92,231,0.2);
+  background: rgba(0,0,0,0.15); border: 1px solid color-mix(in srgb, var(--agent-accent, #b388ff) 20%, transparent);
   border-radius: 8px;
 }
 .stat-grid { display: flex; flex-wrap: wrap; gap: 10px; }
@@ -58,8 +58,8 @@ function trendIcon(t: string): string { return t === 'up' ? '↑' : t === 'down'
 .stat-value { font-size: 20px; font-weight: 700; color: var(--agent-text, #e0e0e0); }
 .stat-label { font-size: 11px; color: var(--agent-text-tertiary, #888); }
 .stat-trend { font-size: 12px; }
-.stat-trend.up { color: #22c55e; }
-.stat-trend.down { color: #ef4444; }
+.stat-trend.up { color: var(--agent-success, #22c55e); }
+.stat-trend.down { color: var(--agent-danger, #ef4444); }
 .stat-trend.flat { color: var(--agent-text-tertiary, #888); }
 .block-expand-enter-active, .block-expand-leave-active { transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease, opacity 0.2s ease, filter 0.2s ease; overflow: hidden; }
 .block-expand-enter-from, .block-expand-leave-to { opacity: 0; }

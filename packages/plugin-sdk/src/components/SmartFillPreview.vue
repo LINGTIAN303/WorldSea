@@ -13,7 +13,7 @@
               class="sfp-mode-switch"
             />
           </label>
-          <button class="sfp-close" @click="$emit('close')">✕</button>
+          <button class="sfp-close" @click="$emit('close')" aria-label="关闭预览">✕</button>
         </div>
         <div class="sfp-body">
           <div class="sfp-columns">
@@ -31,8 +31,8 @@
                 <span class="sfp-field-label">{{ fieldLabels[key] || key }}</span>
                 <span class="sfp-field-value sfp-suggestion">{{ truncate(suggestions[key] || '—') }}</span>
                 <div class="sfp-actions">
-                  <button class="sfp-action sfp-accept" :class="{ active: accepted.has(key) }" @click="$emit('accept', key)" title="接受">✓</button>
-                  <button class="sfp-action sfp-reject" :class="{ active: rejected.has(key) }" @click="$emit('reject', key)" title="拒绝">✕</button>
+                  <button class="sfp-action sfp-accept" :class="{ active: accepted.has(key) }" @click="$emit('accept', key)" title="接受" :aria-label="`接受 ${fieldLabels[key] || key} 的建议`" :aria-pressed="accepted.has(key)">✓</button>
+                  <button class="sfp-action sfp-reject" :class="{ active: rejected.has(key) }" @click="$emit('reject', key)" title="拒绝" :aria-label="`拒绝 ${fieldLabels[key] || key} 的建议`" :aria-pressed="rejected.has(key)">✕</button>
                 </div>
               </div>
             </div>

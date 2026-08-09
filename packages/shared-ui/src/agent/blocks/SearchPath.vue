@@ -6,7 +6,7 @@
       class="search-group"
       :class="{ 'group-active': group.active, 'group-done': group.done }"
     >
-      <div class="group-header" @click="toggleGroup(group.id)">
+      <div class="group-header" role="button" tabindex="0" :aria-expanded="!!expandedGroups[group.id]" @click="toggleGroup(group.id)" @keydown.enter.prevent="toggleGroup(group.id)" @keydown.space.prevent="toggleGroup(group.id)">
         <span class="group-icon"><WsIcon :name="group.icon" size="xs" /></span>
         <span class="group-label">{{ group.label }}</span>
         <span v-if="group.tools.length > 0" class="group-count">{{ group.tools.length }}条结果</span>
@@ -149,8 +149,8 @@ const gapCount = computed(() => {
 }
 
 .search-group.group-active {
-  border-color: rgba(108,92,231,0.25);
-  background: rgba(108,92,231,0.04);
+  border-color: color-mix(in srgb, var(--agent-accent, #b388ff) 25%, transparent);
+  background: color-mix(in srgb, var(--agent-accent, #b388ff) 4%, transparent);
 }
 
 .search-group.group-done {
@@ -183,7 +183,7 @@ const gapCount = computed(() => {
 }
 
 .group-count.searching {
-  background: rgba(108,92,231,0.1);
+  background: color-mix(in srgb, var(--agent-accent, #b388ff) 10%, transparent);
   color: var(--agent-primary, #6c5ce7);
 }
 
@@ -209,7 +209,7 @@ const gapCount = computed(() => {
 }
 
 .search-tool.running {
-  background: rgba(108,92,231,0.06);
+  background: color-mix(in srgb, var(--agent-accent, #b388ff) 6%, transparent);
 }
 
 .search-tool.completed {

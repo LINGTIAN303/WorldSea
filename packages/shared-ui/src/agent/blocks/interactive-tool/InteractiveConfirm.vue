@@ -1,7 +1,7 @@
 <template>
   <!-- 确认型：内联确认条 -->
   <div class="itc-confirm" :class="tc.status">
-    <div class="itc-confirm-header" @click="toggleExpand">
+    <div class="itc-confirm-header" role="button" tabindex="0" :aria-expanded="isExpanded" @click="toggleExpand" @keydown.enter.prevent="toggleExpand" @keydown.space.prevent="toggleExpand">
       <span class="itc-confirm-dot" :class="permissionColor"></span>
       <span class="itc-confirm-name">{{ getToolLabel(tc.name) }}</span>
       <span class="itc-confirm-level" :class="permissionColor">{{ permissionLabel }}</span>
