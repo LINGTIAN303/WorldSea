@@ -1,22 +1,19 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import Shell from './ui/layout/Shell.vue'
-import AgentWorkspace from './agent/AgentWorkspace.vue'
 import AgentSpace from './space/AgentSpace.vue'
-import { usePluginStore } from '@worldsmith/entity-core'
 import { useUIStore } from './stores/uiStore'
 import { useTheme } from './components/ui/useTheme'
 import { bootstrapPlugins } from './plugins/bootstrap'
 import { useProjectSwitcher } from './composables/useProjectSwitcher'
 import { useSystemBridge } from './composables/useSystemBridge'
 
-// 主题初始化：Shell 与 AgentWorkspace 共用（三态；components/ui/useTheme 已内置
+// 主题初始化：Shell 与 AgentSpace 共用（三态；components/ui/useTheme 已内置
 // 跟随系统——preference 'system' 默认态 + matchMedia 实时监听，无需额外实现）
 const { theme: themeMode, apply: applyTheme } = useTheme()
 // 系统层桥：托盘事件监听 + 状态同步（App 启动时 setup，幂等）
 const { setup: setupSystemBridge } = useSystemBridge()
 
-const pluginStore = usePluginStore()
 const uiStore = useUIStore()
 const projectSwitcher = useProjectSwitcher()
 
@@ -31,26 +28,11 @@ onMounted(async () => {
   } catch (err) {
     console.error('[App] 项目系统初始化失败:', err)
   }
-  // 注册 Agent 工作台视图到 Shell 侧栏（首项，默认选中；workbench 壳内使用）
-  pluginStore.registerView({
-    id: 'agent',
-    label: 'Agent',
-    icon: 'lightning',
-    component: AgentWorkspace,
-    // 内置工作台视图不挂插件归属（pluginId）：否则 sidebar 会被 isActive 过滤掉，
-    // 用户切换插件视图后将无法回到 Agent（Phase D 修复）
-  })
-  // 确保 agent 进入侧栏顺序且为首项
-  uiStore.ensureViewInOrder('agent')
-  uiStore.setView('agent')
-  uiStore.viewComponent = AgentWorkspace
-  // 启动已迁移插件（Phase C：注册视图/实体类型，追加到 agent 之后）
+  // Agent 工作台视图已退役（2026-08-09）：能力迁入 AgentSpace 执行面板，
+  // Shell 仅承载官方插件视图；默认进入 AgentSpace（currentShell 持久化）
+  // 启动已迁移插件（Phase C：注册视图/实体类型）
   await bootstrapPlugins()
-  // bootstrap 可能在无视图选中时兜底切到首个插件视图；agent 是内置默认，恢复为 agent
-  if (pluginStore.views.length > 0) {
-    uiStore.setView('agent')
-    uiStore.viewComponent = AgentWorkspace
-  }
+  // bootstrap 会在无视图选中时兜底切到首个插件视图
   // 系统层桥初始化：托盘事件监听 + 最近项目同步（异步，不阻塞启动）
   void setupSystemBridge()
 })

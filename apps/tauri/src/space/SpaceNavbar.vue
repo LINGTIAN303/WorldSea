@@ -84,13 +84,13 @@
         title="运行面板（轨迹/活动/计划）"
       ><WsIcon name="chart" size="sm" /><span v-if="spaceStore.activityPinned" class="nav-badge"></span></button>
       <span class="nav-divider"></span>
-      <!-- 配置组：Agent 设置 -->
+      <!-- 知识墙组：知识墙入口（Agent 设置已迁入主设置，2026-08-09） -->
       <button
         class="nav-btn"
-        :class="{ active: spaceStore.configPanel === 'settings' }"
-        @click="spaceStore.toggleConfigPanel('settings')"
-        title="Agent 设置"
-      ><WsIcon name="settings" size="sm" /></button>
+        :class="{ active: spaceStore.leftPanel === 'knowledge' }"
+        @click="emit('toggleKnowledge')"
+        title="知识墙"
+      ><WsIcon name="book" size="sm" /></button>
       <!-- 更多菜单：低频入口 -->
       <div class="more-wrap" ref="moreWrapRef">
         <button
@@ -192,6 +192,7 @@ const emit = defineEmits<{
   togglePanelClick: []
   togglePanelLongPress: []
   toggleNewSession: []
+  toggleKnowledge: []
   openWorkbench: []
   switchToWorkbench: []
   openSettings: []

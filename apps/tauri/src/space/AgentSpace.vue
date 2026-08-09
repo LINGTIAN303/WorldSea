@@ -7,8 +7,10 @@
       @toggle-panel-click="onToggleClick"
       @toggle-panel-long-press="onToggleLongPress"
       @toggle-new-session="onToggleNewSession"
+      @toggle-knowledge="onToggleKnowledge"
       @open-workbench="onOpenWorkbench"
       @switch-to-workbench="onSwitchToWorkbench"
+      @open-settings="onOpenSettings"
     />
 
     <div v-if="sessionOpen || knowledgeOpen" class="panels-backdrop" @click="closeAll"></div>
@@ -79,8 +81,7 @@
         :style="{ width: spaceStore.configPanelWidth + 'px' }"
       >
         <MemoryShelf v-if="spaceStore.configPanel === 'memory'" @close="spaceStore.setConfigPanel(null)" />
-        <PersonaMirror v-else-if="spaceStore.configPanel === 'persona'" @close="spaceStore.setConfigPanel(null)" />
-        <SpaceAgentSettingsPanel v-else @close="spaceStore.setConfigPanel(null)" />
+        <PersonaMirror v-else @close="spaceStore.setConfigPanel(null)" />
       </div>
     </Transition>
 
@@ -113,7 +114,6 @@ import SpaceChat from './chat/SpaceChat.vue'
 import KnowledgeWall from '@/agent/panels/KnowledgeWall.vue'
 import MemoryShelf from './panels/MemoryShelf.vue'
 import PersonaMirror from './panels/PersonaMirror.vue'
-import SpaceAgentSettingsPanel from './panels/SpaceAgentSettingsPanel.vue'
 import ExecPanel from './panels/ExecPanel.vue'
 import Shell from '@/ui/layout/Shell.vue'
 import WsDrawer from '@/ui/WsDrawer.vue'
@@ -237,6 +237,21 @@ function onOpenWorkbench() {
 function onSwitchToWorkbench() {
   spaceStore.setWorkspaceDrawerOpen(false)
   uiStore.setShell('workbench')
+}
+
+// 知识墙入口（顶栏图标，2026-08-09）：打开左侧知识墙面板
+function onToggleKnowledge() {
+  if (sessionOpen.value) {
+    sessionOpen.value = false
+    spaceStore.setSessionSidebarOpen(false)
+  }
+  knowledgeOpen.value = !knowledgeOpen.value
+  spaceStore.leftPanel = knowledgeOpen.value ? 'knowledge' : null
+}
+
+// Agent 设置已迁入主设置弹窗（2026-08-09）
+function onOpenSettings() {
+  settingsOpen.value = true
 }
 
 function onAddKnowledge() {

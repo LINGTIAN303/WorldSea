@@ -7,10 +7,10 @@ export type { ChatMode }
 export type SpaceMode = 'chat' | 'group'
 export type GroupChatMode = 'meeting' | 'casual'
 export type LeftPanel = 'knowledge' | null
-/** 配置抽屉：设置/记忆/人格（弹出层，互斥） */
-export type ConfigPanel = 'settings' | 'memory' | 'persona' | null
-/** 执行面板 Tab：轨迹/活动/计划 */
-export type ExecTab = 'trace' | 'activity' | 'plan'
+/** 配置抽屉：记忆/人格（弹出层，互斥；设置已迁入主设置弹窗，无 settings 分支） */
+export type ConfigPanel = 'memory' | 'persona' | null
+/** 执行面板 Tab：轨迹/活动/计划/终端/子Agent */
+export type ExecTab = 'trace' | 'activity' | 'plan' | 'terminal' | 'subagent'
 export type AgentMood = 'active' | 'thinking' | 'focused' | 'idle'
 
 export interface AgentPersona {

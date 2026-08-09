@@ -35,6 +35,7 @@
             <RelationsPanel v-if="cat.id === 'relations'" :search-query="searchQuery" @dirty="onDirty" />
             <CompanionPanel v-if="cat.id === 'video'" :search-query="searchQuery" @dirty="onDirty" />
             <ShortcutsPanel v-if="cat.id === 'shortcuts'" :search-query="searchQuery" @dirty="onDirty" />
+            <div v-if="cat.id === 'agent'" class="agent-set-embed"><SpaceAgentSettingsPanel @close="close" /></div>
           </template>
           <div v-if="matchedCategories.length === 0" class="set-empty">未找到匹配的设置项</div>
         </template>
@@ -51,6 +52,7 @@
           <template v-else-if="activeSection === 'storage'">
             <StorageManagementTab />
           </template>
+          <div v-else-if="activeSection === 'agent'" class="agent-set-embed"><SpaceAgentSettingsPanel @close="close" /></div>
         </template>
       </div>
 
@@ -72,6 +74,8 @@ import LayoutPanel from './panels/LayoutPanel.vue'
 import RelationsPanel from './panels/RelationsPanel.vue'
 import CompanionPanel from './panels/CompanionPanel.vue'
 import ShortcutsPanel from './panels/ShortcutsPanel.vue'
+// Agent 设置面板（embedded 封装，2026-08-09 迁入主设置）
+import SpaceAgentSettingsPanel from '@/space/panels/SpaceAgentSettingsPanel.vue'
 
 const props = defineProps<{ show: boolean }>()
 const emit = defineEmits<{ close: [] }>()
@@ -105,6 +109,7 @@ const categories = [
   { id: 'video', icon: 'cat-video', label: '陪伴模式' },
   { id: 'shortcuts', icon: 'cat-shortcuts', label: '快捷键' },
   { id: 'storage', icon: 'cat-storage', label: '存储' },
+  { id: 'agent', icon: 'bot', label: 'Agent' },
 ]
 
 const activeSection = ref<string | null>(null)
@@ -120,6 +125,7 @@ const CATEGORY_KEYWORDS: Record<string, string> = {
   video: '陪伴模式 video 通知 弹窗 人格 角色 附体 persona 概率 运气 场景 停驻 断句 字数 模型 独立 供应商 空间 静默',
   shortcuts: '快捷键 键盘 快捷 绑定 shortcut keyboard',
   storage: '存储 清理 孤立 文件 诊断 缓存 空间 配额 storage cleanup orphan diagnostic',
+  agent: 'Agent 模型 供应商 用量 Skills MCP 搜索 多模态 终端 安全 人格预设 思考级别 危险操作 确认 agent model provider usage skill mcp search vision terminal safety persona thinking',
 }
 
 const matchedCategories = computed(() => {
@@ -179,6 +185,21 @@ function close() {
 .stb-icon { display: inline-flex; }
 
 .set-cards { margin-top: 12px; padding: 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+
+/* Agent 设置内嵌：撑满卡片区高度，纵向导航 + 内容区自适应 */
+.agent-set-embed {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.agent-set-embed :deep(.space-agent-settings) {
+  flex: 1;
+  min-height: 0;
+}
+.agent-set-embed :deep(.space-agent-settings .panel-header) {
+  display: none;
+}
 
 .set-empty { text-align: center; padding: 32px 0; color: var(--text-tertiary, var(--color-text-tertiary)); font-size: var(--font-size-sm); }
 

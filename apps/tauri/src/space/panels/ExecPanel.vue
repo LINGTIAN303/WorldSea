@@ -22,6 +22,20 @@
         :class="{ on: tab === 'plan' }"
         @click="emit('update:tab', 'plan')"
       ><TuiIcon name="task" size="sm" />计划</button>
+      <button
+        role="tab"
+        :aria-selected="tab === 'terminal'"
+        class="exec-tab"
+        :class="{ on: tab === 'terminal' }"
+        @click="emit('update:tab', 'terminal')"
+      ><TuiIcon name="terminal" size="sm" />终端</button>
+      <button
+        role="tab"
+        :aria-selected="tab === 'subagent'"
+        class="exec-tab"
+        :class="{ on: tab === 'subagent' }"
+        @click="emit('update:tab', 'subagent')"
+      ><TuiIcon name="subagent" size="sm" />子Agent</button>
     </div>
     <div class="exec-body">
       <div v-show="tab === 'trace'" class="exec-pane" role="tabpanel">
@@ -34,6 +48,12 @@
       <div v-show="tab === 'plan'" class="exec-pane" role="tabpanel">
         <PlanPanel />
       </div>
+      <div v-show="tab === 'terminal'" class="exec-pane exec-pane-terminal" role="tabpanel">
+        <TerminalView />
+      </div>
+      <div v-show="tab === 'subagent'" class="exec-pane exec-pane-subagent" role="tabpanel">
+        <SubAgentView />
+      </div>
     </div>
   </div>
 </template>
@@ -41,14 +61,17 @@
 <script setup lang="ts">
 /**
  * ExecPanel：Agent 空间右侧执行面板（双线分隔独立块，由 AgentSpace 外层承载边框与缝隙）。
- * 三 Tab：轨迹（PhaseSection + SubAgentSection，消费 useAgentRust deepSegments）/
- * 活动（ActivityLog）/ 计划（PlanPanel）。受控组件：tab 由父级（space-store.execTab）驱动。
+ * 五 Tab：轨迹（PhaseSection + SubAgentSection，消费 useAgentRust deepSegments）/
+ * 活动（ActivityLog）/ 计划（PlanPanel）/ 终端（TerminalView，工作台 Agent 视图迁入）/
+ * 子Agent（SubAgentView 规格管理，工作台 Agent 视图迁入）。受控组件：tab 由父级（space-store.execTab）驱动。
  */
 import TuiIcon from '@/components/ui/TuiIcon.vue'
 import PhaseSection from '@/agent/components/PhaseSection.vue'
 import SubAgentSection from '@/agent/components/SubAgentSection.vue'
 import ActivityLog from '@/agent/panels/ActivityLog.vue'
 import PlanPanel from '@/agent/panels/PlanPanel.vue'
+import TerminalView from '@/terminal/components/TerminalView.vue'
+import SubAgentView from '@/subagent/components/SubAgentView.vue'
 import { useAgent } from '@/agent/composables/useAgent'
 import type { ExecTab } from '../stores/space-store'
 
@@ -123,5 +146,19 @@ const { deepSegments } = useAgent()
 .exec-pane :deep(.subagent-section) {
   max-width: none;
   margin: 0;
+}
+
+/* 终端/子Agent 迁入面板：撑满面板高度，去外层限宽 */
+.exec-pane-terminal,
+.exec-pane-subagent {
+  flex: 1;
+  min-height: 0;
+}
+.exec-pane-terminal :deep(.terminal-view),
+.exec-pane-subagent :deep(.subagent),
+.exec-pane-subagent :deep(.agent-settings),
+.exec-pane-subagent :deep(.subagent-view) {
+  height: 100%;
+  max-width: none;
 }
 </style>
