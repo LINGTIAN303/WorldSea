@@ -4,18 +4,42 @@ import Shell from './ui/layout/Shell.vue'
 import AgentSpace from './space/AgentSpace.vue'
 import { useUIStore } from './stores/uiStore'
 import { useTheme } from './components/ui/useTheme'
+import { useTheme as useEntityTheme } from '@worldsmith/entity-core'
+import { useGlobalEvents } from '@worldsmith/ui-kit'
 import { bootstrapPlugins } from './plugins/bootstrap'
 import { useProjectSwitcher } from './composables/useProjectSwitcher'
 import { useSystemBridge } from './composables/useSystemBridge'
 
 // 主题初始化：Shell 与 AgentSpace 共用（三态；components/ui/useTheme 已内置
 // 跟随系统——preference 'system' 默认态 + matchMedia 实时监听，无需额外实现）
-const { theme: themeMode, apply: applyTheme } = useTheme()
+const { theme: themeMode, apply: applyTheme, setMode } = useTheme()
 // 系统层桥：托盘事件监听 + 状态同步（App 启动时 setup，幂等）
 const { setup: setupSystemBridge } = useSystemBridge()
 
 const uiStore = useUIStore()
 const projectSwitcher = useProjectSwitcher()
+
+/**
+ * 预设主题切换统一落地（AppearancePanel/ThemeEditor 派发 ws-set-theme）。
+ * App.vue 恒挂载（AgentSpace / Shell 平级切换），在此注册保证两种壳都生效。
+ * - setTheme(id)：更新 entity-core currentThemeId（active 高亮）+ 应用 Manifest
+ * - setMode(mode)：App 壳唯一控制 data-theme（覆盖命名 id，保证明暗自洽）
+ * - setUserOverrides：写 --accent 令牌风味（与圆角/密度合并）
+ */
+const { setTheme: setNamedTheme, setUserOverrides, userOverrides } = useEntityTheme()
+function onSetTheme(e: Event) {
+  const detail = (e as CustomEvent).detail
+  if (!detail || !detail.id) return
+  try {
+    setNamedTheme(detail.id)
+    setMode(detail.mode === 'light' ? 'light' : 'dark')
+    setUserOverrides({ ...userOverrides.value, '--accent': detail.accent })
+  } catch (err) {
+    console.error('[ws-set-theme] 处理失败:', err)
+  }
+}
+const { on: onGlobalEvent } = useGlobalEvents()
+onGlobalEvent('ws-set-theme', onSetTheme)
 
 onMounted(async () => {
   // 应用初始主题（html data-theme 由此建立；apply 为同步函数，需传入当前主题模式）

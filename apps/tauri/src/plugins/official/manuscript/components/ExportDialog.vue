@@ -107,7 +107,7 @@ async function doExport() {
 .export-label { display: block; font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); margin-bottom: 6px; color: var(--text-secondary); }
 .export-formats { display: flex; gap: 6px; }
 .export-fmt-btn {
-  padding: 6px 12px; border: 1px solid var(--border-color); border-radius: 6px;
+  padding: 6px 12px; border: 1px solid var(--border-color); border-radius: var(--radius-sm);
   background: var(--input-bg); color: var(--text-color); font-size: var(--font-size-sm);
   cursor: pointer; transition: background 0.1s, border-color 0.1s, color 0.1s, box-shadow 0.1s, transform 0.1s, opacity 0.1s, filter 0.1s;
 }

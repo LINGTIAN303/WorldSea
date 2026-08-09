@@ -516,7 +516,7 @@ function stripHtml(s: string): string {
 .ip-order-body { flex: 1; overflow-y: auto; }
 .ip-order-item {
   display: flex; align-items: center; gap: 8px; padding: 8px 10px;
-  border-radius: 6px; margin-bottom: 4px; transition: background 0.15s, box-shadow 0.15s;
+  border-radius: var(--radius-sm); margin-bottom: 4px; transition: background 0.15s, box-shadow 0.15s;
   background: var(--bg-tertiary, rgba(0,0,0,0.03));
 }
 .ip-order-item.ip-order-drag-over {
@@ -537,12 +537,12 @@ function stripHtml(s: string): string {
 }
 .ip-order-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
 .ip-order-btn-save {
-  padding: 7px 16px; border-radius: 6px; cursor: pointer; font-size: var(--font-size-sm);
+  padding: 7px 16px; border-radius: var(--radius-sm); cursor: pointer; font-size: var(--font-size-sm);
   border: 1px solid var(--accent); background: var(--accent-bg); color: var(--accent);
 }
 .ip-order-btn-save:hover { background: var(--color-primary-active); color: #fff; }
 .ip-order-btn-cancel {
-  padding: 7px 16px; border-radius: 6px; cursor: pointer; font-size: var(--font-size-sm);
+  padding: 7px 16px; border-radius: var(--radius-sm); cursor: pointer; font-size: var(--font-size-sm);
   border: 1px solid var(--border); background: var(--bg-tertiary); color: var(--text-secondary);
 }
 .ip-order-btn-cancel:hover { background: var(--hover-bg); }

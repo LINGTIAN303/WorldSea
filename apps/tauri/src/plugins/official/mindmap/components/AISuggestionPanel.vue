@@ -220,7 +220,7 @@ defineEmits<{
   flex: 1;
   padding: 6px;
   border: 1px solid var(--primary);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--primary);
   cursor: pointer;
@@ -234,7 +234,7 @@ defineEmits<{
 .mm-ai-clear {
   padding: 6px 12px;
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-tertiary);
   cursor: pointer;

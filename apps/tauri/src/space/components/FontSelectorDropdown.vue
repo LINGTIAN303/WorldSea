@@ -262,7 +262,7 @@ const filteredSystemFonts = computed(() => {
   width: 100%;
   padding: 6px 10px;
   border: 1px solid var(--color-border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-size: var(--font-size-xs);
   background: var(--color-surface);
   color: var(--color-text);
@@ -282,7 +282,7 @@ const filteredSystemFonts = computed(() => {
   align-items: center;
   justify-content: space-between;
   padding: 8px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background 0.15s;
   gap: 8px;

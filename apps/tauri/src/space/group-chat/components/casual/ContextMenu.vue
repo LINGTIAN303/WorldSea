@@ -27,6 +27,6 @@ defineEmits<{
 
 <style scoped>
 .context-menu { position: fixed; background: var(--color-surface-elevated); border: 1px solid var(--color-border); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); padding: 4px; min-width: 120px; z-index: 10000; }
-.context-menu-item { padding: 8px 12px; font-size: 12px; cursor: pointer; border-radius: 4px; color: var(--color-text); }
+.context-menu-item { padding: 8px 12px; font-size: var(--fs-sm); cursor: pointer; border-radius: 4px; color: var(--color-text); }
 .context-menu-item:hover { background: var(--color-surface); }
 </style>

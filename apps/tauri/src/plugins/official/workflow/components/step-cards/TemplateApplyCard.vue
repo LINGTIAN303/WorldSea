@@ -11,6 +11,6 @@ import type { TemplateApplyConfig } from '../../types'
 defineProps<{ config: TemplateApplyConfig }>()
 </script>
 <style scoped>
-.tac__row { font-size: 12px; line-height: 1.6; }
+.tac__row { font-size: var(--fs-sm); line-height: 1.6; }
 .tac__row strong { color: var(--primary, #58a6ff); }
 </style>

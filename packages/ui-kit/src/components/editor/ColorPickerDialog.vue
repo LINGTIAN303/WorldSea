@@ -250,14 +250,14 @@ function hexToHsl(hex: string): { h: number; s: number; l: number } | null {
 .cp-slider-hue { background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00); }
 .cp-slider-val { font-size: var(--font-size-xs); color: var(--text-tertiary); width: 36px; text-align: right; }
 .cp-preview-row { display: flex; align-items: center; gap: 10px; }
-.cp-swatch { width: 36px; height: 36px; border-radius: 6px; border: 2px solid var(--border, var(--color-border)); flex-shrink: 0; }
+.cp-swatch { width: 36px; height: 36px; border-radius: var(--radius-sm); border: 2px solid var(--border, var(--color-border)); flex-shrink: 0; }
 .cp-hex-input { flex: 1; padding: 6px 10px; border: 1px solid var(--border, var(--color-border)); border-radius: 4px; background: var(--bg-tertiary, var(--color-bg-elevated)); color: var(--text); font-size: var(--font-size-sm); font-family: monospace; outline: none; }
 .cp-hex-input:focus { border-color: var(--accent, var(--color-primary)); }
 .cp-presets { display: flex; flex-wrap: wrap; gap: 4px; }
 .cp-preset-btn { width: 22px; height: 22px; border-radius: 4px; border: 1px solid var(--color-border); cursor: pointer; transition: transform 0.1s; }
 .cp-preset-btn:hover { transform: scale(1.2); }
 .cp-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--border, var(--color-border)); }
-.cp-btn { padding: 6px 16px; border-radius: 6px; font-size: var(--font-size-sm); cursor: pointer; border: 1px solid var(--border, var(--color-border)); }
+.cp-btn { padding: 6px 16px; border-radius: var(--radius-sm); font-size: var(--font-size-sm); cursor: pointer; border: 1px solid var(--border, var(--color-border)); }
 .cp-btn-primary { background: var(--accent, var(--color-primary)); color: var(--color-text-inverse); border-color: var(--accent, var(--color-primary)); }
 .cp-btn-primary:hover { opacity: 0.85; }
 .cp-btn-secondary { background: var(--bg-tertiary, var(--color-bg-elevated)); color: var(--text-secondary); }

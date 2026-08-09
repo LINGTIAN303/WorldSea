@@ -11,6 +11,6 @@ import type { BatchCreateConfig } from '../../types'
 defineProps<{ config: BatchCreateConfig }>()
 </script>
 <style scoped>
-.bcc__row { font-size: 12px; line-height: 1.6; }
+.bcc__row { font-size: var(--fs-sm); line-height: 1.6; }
 .bcc__row strong { color: var(--primary, #58a6ff); }
 </style>

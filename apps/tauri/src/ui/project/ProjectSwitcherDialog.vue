@@ -1,5 +1,5 @@
 <template>
-  <WsModal :show="show" title="项目管理" size="md" @close="$emit('close')">
+  <TuiModal :show="show" title="项目管理" size="md" @close="$emit('close')">
     <div class="project-manager">
       <!-- 新建项目 -->
       <div class="pm-create">
@@ -11,7 +11,7 @@
           @keydown.enter="onCreateProject"
         />
         <button class="pm-create-btn-dir" :title="newProjectDir || '选择项目目录（可选）'" @click="onSelectNewProjectDir">
-          {{ newProjectDir ? '📁' : '📂' }}
+          <TuiIcon :name="newProjectDir ? 'folder' : 'folderOpen'" :size="14" />
         </button>
         <button class="pm-create-btn" :disabled="!newProjectName.trim() || creating" @click="onCreateProject">
           {{ creating ? '创建中...' : '新建' }}
@@ -48,21 +48,21 @@
             </template>
           </div>
           <div class="pm-item-meta">
-            <span v-if="project.dirPath" class="pm-folder-badge" :title="project.dirPath">📁</span>
+            <span v-if="project.dirPath" class="pm-folder-badge" :title="project.dirPath"><TuiIcon name="folder" :size="13" /></span>
             <span v-if="project.id === currentProjectId" class="pm-current-badge">当前</span>
             <span class="pm-item-date">{{ formatDate(project.lastOpenedAt) }}</span>
           </div>
           <div class="pm-item-actions" @click.stop>
-            <button v-if="!project.dirPath" class="pm-action-btn" title="绑定本地目录" @click="onBindDir(project)">📂</button>
-            <button v-else class="pm-action-btn" title="取消目录绑定" @click="onUnbindDir(project)">📂✕</button>
-            <button v-if="project.id === currentProjectId" class="pm-action-btn" title="导出项目" @click="onExportProject">📤</button>
-            <button class="pm-action-btn" title="重命名" @click="onRenameStart(project)">✎</button>
+            <button v-if="!project.dirPath" class="pm-action-btn" title="绑定本地目录" @click="onBindDir(project)"><TuiIcon name="folderOpen" :size="14" /></button>
+            <button v-else class="pm-action-btn" title="取消目录绑定" @click="onUnbindDir(project)"><TuiIcon name="folderOpen" :size="14" /><TuiIcon name="close" :size="9" class="pm-action-btn__overlay" /></button>
+            <button v-if="project.id === currentProjectId" class="pm-action-btn" title="导出项目" @click="onExportProject"><TuiIcon name="upload" :size="14" /></button>
+            <button class="pm-action-btn" title="重命名" @click="onRenameStart(project)"><TuiIcon name="edit" :size="14" /></button>
             <button
               class="pm-action-btn pm-action-btn--danger"
               title="删除"
               :disabled="project.id === currentProjectId"
               @click="onDeleteProject(project)"
-            >✕</button>
+            ><TuiIcon name="trash" :size="14" /></button>
           </div>
         </div>
 
@@ -74,16 +74,18 @@
       <!-- 导入项目 -->
       <div class="pm-import">
         <button class="pm-import-btn" :disabled="importing" @click="onImportProject">
-          {{ importing ? '导入中...' : '📥 从文件夹导入项目' }}
+          <TuiIcon name="download" :size="14" />
+          {{ importing ? '导入中...' : '从文件夹导入项目' }}
         </button>
       </div>
     </div>
-  </WsModal>
+  </TuiModal>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, nextTick } from 'vue'
-import WsModal from '../WsModal.vue'
+import TuiModal from '@/components/ui/TuiModal.vue'
+import TuiIcon from '@/components/ui/TuiIcon.vue'
 import { useProjectSwitcher } from '../../composables/useProjectSwitcher'
 import { exportProjectToDir, importProjectFromDir } from '../../core/ProjectFS'
 import { getProjectManager, setStorageProjectDir } from '@worldsmith/entity-core/core'
@@ -332,6 +334,10 @@ async function onImportProject() {
   background: transparent;
   cursor: pointer;
   font-size: var(--font-size-sm, 13px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary, var(--color-text-secondary));
   transition: background var(--transition-fast, 0.15s), border-color var(--transition-fast, 0.15s), color var(--transition-fast, 0.15s), box-shadow var(--transition-fast, 0.15s), transform var(--transition-fast, 0.15s), opacity var(--transition-fast, 0.15s), filter var(--transition-fast, 0.15s);
 }
 
@@ -439,7 +445,9 @@ async function onImportProject() {
 }
 
 .pm-folder-badge {
-  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-tertiary, var(--color-text-tertiary));
   cursor: default;
 }
 
@@ -462,6 +470,7 @@ async function onImportProject() {
 }
 
 .pm-action-btn {
+  position: relative;
   width: 24px;
   height: 24px;
   border: none;
@@ -474,6 +483,13 @@ async function onImportProject() {
   align-items: center;
   justify-content: center;
   transition: background var(--transition-fast, 0.15s), border-color var(--transition-fast, 0.15s), color var(--transition-fast, 0.15s), box-shadow var(--transition-fast, 0.15s), transform var(--transition-fast, 0.15s), opacity var(--transition-fast, 0.15s), filter var(--transition-fast, 0.15s);
+}
+
+.pm-action-btn__overlay {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  color: var(--danger, var(--color-danger));
 }
 
 .pm-action-btn:hover {
@@ -523,6 +539,10 @@ async function onImportProject() {
   color: var(--text-secondary, var(--color-text-secondary));
   font-size: var(--font-size-sm, 13px);
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   transition: background var(--transition-fast, 0.15s), border-color var(--transition-fast, 0.15s), color var(--transition-fast, 0.15s), box-shadow var(--transition-fast, 0.15s), transform var(--transition-fast, 0.15s), opacity var(--transition-fast, 0.15s), filter var(--transition-fast, 0.15s);
 }
 

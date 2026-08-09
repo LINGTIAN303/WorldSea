@@ -259,7 +259,7 @@ function close() {
   color: var(--text-color, var(--color-text-primary));
 }
 .titlebar-btn--close:hover {
-  background: #e81123;
-  color: #fff;
+  background: var(--danger);
+  color: var(--on-accent);
 }
 </style>

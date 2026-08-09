@@ -578,5 +578,5 @@ useAgentPluginBridge('graph', (event) => {
   transition: background var(--transition-fast);
 }
 .g-wasm-notice__close:hover { background: rgba(255, 255, 255, 0.1); }
-.g-tooltip { position: fixed; pointer-events: none; z-index: var(--z-dropdown); background: rgba(10,14,20,0.92); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 6px 10px; font-size: var(--font-size-sm); color: #ccc; max-width: 240px; backdrop-filter: blur(4px); }
+.g-tooltip { position: fixed; pointer-events: none; z-index: var(--z-dropdown); background: rgba(10,14,20,0.92); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius-sm); padding: 6px 10px; font-size: var(--font-size-sm); color: #ccc; max-width: 240px; backdrop-filter: blur(4px); }
 </style>

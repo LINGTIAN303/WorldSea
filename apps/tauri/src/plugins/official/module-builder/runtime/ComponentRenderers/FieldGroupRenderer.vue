@@ -19,7 +19,7 @@ const isCollapsed = ref(false)
 </script>
 
 <style scoped>
-.field-group-renderer { border: 1px solid var(--border-color); border-radius: 6px; overflow: hidden; }
+.field-group-renderer { border: 1px solid var(--border-color); border-radius: var(--radius-sm); overflow: hidden; }
 .fg-header { display: flex; align-items: center; gap: 6px; padding: 8px 12px; background: var(--bg-secondary); cursor: pointer; font-size: var(--font-size-sm); font-weight: var(--font-weight-medium); }
 .fg-toggle { font-size: var(--font-size-xs); color: var(--text-tertiary); }
 .fg-content { padding: 12px; }

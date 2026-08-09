@@ -218,8 +218,8 @@ const planExpanded = ref(true)
 }
 
 .step-completed {
-  background: #00b894;
-  color: #fff;
+  background: var(--success);
+  color: var(--on-accent);
 }
 
 .step-skipped {
@@ -261,5 +261,19 @@ const planExpanded = ref(true)
   border-radius: 2px;
   background: var(--accent);
   transition: width 0.3s ease;
+}
+
+/* ── 减弱动态偏好（prefers-reduced-motion）：停用 step 脉冲与按压缩放手势 ──
+   与 TuiButton/TuiModal/TuiDrawer/AgentWorkspace 同一可访问性语言：仅保留静态状态。 */
+@media (prefers-reduced-motion: reduce) {
+  .step-in_progress {
+    animation: none;
+  }
+  .section-chevron {
+    transition: none;
+  }
+  .panel-close-btn:active:not(:disabled) {
+    transform: none;
+  }
 }
 </style>

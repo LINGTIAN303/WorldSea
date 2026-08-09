@@ -39,21 +39,21 @@ const { searchQuery, filteredLibrary } = useStepLibrary()
 
 <style scoped>
 .sl-view { padding: 12px; display: flex; flex-direction: column; gap: 8px; height: 100%; }
-.sl-title { margin: 0; font-size: 14px; font-weight: 600; }
+.sl-title { margin: 0; font-size: var(--fs-base); font-weight: 600; }
 .sl-search {
-  padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border, #30363d);
+  padding: 6px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border, #30363d);
   background: var(--bg-secondary, #161b22); color: var(--text-primary, #e6edf3);
-  font-size: 12px; outline: none;
+  font-size: var(--fs-sm); outline: none;
 }
 .sl-list { display: flex; flex-direction: column; gap: 4px; overflow: auto; }
 .sl-item {
   display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px;
-  border-radius: 6px; cursor: pointer; transition: background 0.15s;
+  border-radius: var(--radius-sm); cursor: pointer; transition: background 0.15s;
   border: 1px solid transparent;
 }
 .sl-item:hover { background: var(--bg-tertiary, #21262d); border-color: var(--border, #30363d); }
 .sl-item__icon { font-size: 18px; flex-shrink: 0; }
 .sl-item__info { display: flex; flex-direction: column; gap: 2px; }
-.sl-item__label { font-size: 13px; font-weight: 500; }
-.sl-item__desc { font-size: 11px; opacity: 0.5; line-height: 1.3; }
+.sl-item__label { font-size: var(--fs-md); font-weight: 500; }
+.sl-item__desc { font-size: var(--fs-xs); opacity: 0.5; line-height: 1.3; }
 </style>

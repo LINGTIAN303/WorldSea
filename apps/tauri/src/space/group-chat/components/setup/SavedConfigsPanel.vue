@@ -167,7 +167,7 @@ function cancelRename(): void {
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   padding: 2px 4px;
   border-radius: 4px;
   opacity: 0.5;

@@ -126,11 +126,11 @@ function sendQuickAction(prompt: string) {
   gap: 8px;
 }
 .pc-title {
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 600;
 }
 .pc-hint {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   opacity: 0.5;
 }
 
@@ -146,7 +146,7 @@ function sendQuickAction(prompt: string) {
   background: var(--bg-tertiary, #21262d);
   color: var(--text-primary, #e6edf3);
   cursor: pointer;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   transition: border-color 0.15s, background 0.15s;
 }
 .pc-quick-btn:hover {
@@ -166,7 +166,7 @@ function sendQuickAction(prompt: string) {
   border: 1px solid var(--border, #30363d);
   background: var(--bg-primary, #0d1117);
   color: var(--text-primary, #e6edf3);
-  font-size: 13px;
+  font-size: var(--fs-md);
   resize: none;
   font-family: inherit;
   line-height: 1.4;
@@ -184,7 +184,7 @@ function sendQuickAction(prompt: string) {
   border: none;
   background: var(--primary, #58a6ff);
   color: var(--text-on-primary, #fff);  cursor: pointer;
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 500;
   transition: opacity 0.15s;
   flex-shrink: 0;

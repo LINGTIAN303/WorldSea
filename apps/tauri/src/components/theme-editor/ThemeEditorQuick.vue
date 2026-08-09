@@ -45,19 +45,21 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+// entity-core 主题引擎：currentThemeId 作为预设高亮唯一来源（与 AppearancePanel 共享），
+// setUserOverrides 仅写令牌覆盖（圆角/密度），不碰 data-theme。
 import { useTheme } from '@/composables/useTheme'
 
-const { currentThemeId, setTheme, setUserOverrides } = useTheme()
+const { userOverrides, setUserOverrides, currentThemeId } = useTheme()
 
 const radiusStyle = ref<'sharp' | 'standard' | 'round'>('standard')
 const density = ref<'compact' | 'comfortable' | 'spacious'>('comfortable')
 
 const themes = [
-  { id: 'aurora-abyss', name: '极光深渊', primary: '#8b5cf6', previewStyle: { background: 'linear-gradient(135deg, #0f0f23, #1a1a3e)' } },
-  { id: 'light', name: '明亮', primary: '#4a6cf7', previewStyle: { background: '#f5f5f5' } },
-  { id: 'forge-ember', name: '锻造炉', primary: '#c87830', previewStyle: { background: 'linear-gradient(160deg, #1a1410, #2a1e14)' } },
-  { id: 'ink-scroll', name: '水墨卷轴', primary: '#2a2018', previewStyle: { background: 'linear-gradient(180deg, #f8f4ef, #f0ebe2)' } },
-  { id: 'crystal-prism', name: '晶体棱镜', primary: '#64b4ff', previewStyle: { background: 'linear-gradient(135deg, #0c0c14, #12121e)' } },
+  { id: 'aurora-abyss', name: '极光深渊', primary: '#8b5cf6', dark: true, previewStyle: { background: 'linear-gradient(135deg, #0f0f23, #1a1a3e)' } },
+  { id: 'light', name: '明亮', primary: '#4a6cf7', dark: false, previewStyle: { background: '#f5f5f5' } },
+  { id: 'forge-ember', name: '锻造炉', primary: '#c87830', dark: true, previewStyle: { background: 'linear-gradient(160deg, #1a1410, #2a1e14)' } },
+  { id: 'ink-scroll', name: '水墨卷轴', primary: '#2a2018', dark: false, previewStyle: { background: 'linear-gradient(180deg, #f8f4ef, #f0ebe2)' } },
+  { id: 'crystal-prism', name: '晶体棱镜', primary: '#64b4ff', dark: true, previewStyle: { background: 'linear-gradient(135deg, #0c0c14, #12121e)' } },
 ]
 
 const radiusOptions = [
@@ -72,6 +74,20 @@ const densityOptions = [
   { id: 'spacious' as const, label: '宽松' },
 ]
 
+/**
+ * 选择预设主题：与 AppearancePanel 走同一 canonical 路径——派发 ws-set-theme，
+ * 由 App.vue 统一落地（setNamedTheme 同步 currentThemeId 高亮 + setMode 控制 data-theme
+ * 明暗 + setUserOverrides 写 --accent 风味）。两处主题选择 UI 因此高亮保持一致，
+ * 且 data-theme 仍由 App 壳三态唯一控制，无踩踏。
+ */
+function setTheme(id: string) {
+  const theme = themes.find(t => t.id === id)
+  if (!theme) return
+  window.dispatchEvent(new CustomEvent('ws-set-theme', {
+    detail: { id, mode: theme.dark ? 'dark' : 'light', accent: theme.primary },
+  }))
+}
+
 function setRadiusStyle(style: 'sharp' | 'standard' | 'round') {
   radiusStyle.value = style
   applyQuickSettings()
@@ -83,7 +99,7 @@ function setDensity(d: 'compact' | 'comfortable' | 'spacious') {
 }
 
 function applyQuickSettings() {
-  const overrides: Record<string, string> = {}
+  const overrides: Record<string, string> = { ...userOverrides.value }
 
   if (radiusStyle.value === 'sharp') {
     overrides['--radius-btn'] = '2px'
@@ -101,10 +117,19 @@ function applyQuickSettings() {
     overrides['--spacing-card'] = 'var(--space-3)'
     overrides['--spacing-btn'] = 'var(--space-1) var(--space-2)'
     overrides['--spacing-gap'] = 'var(--space-2)'
+    // 固定高度按钮仅水平内边距收紧（TuiButton 保留高度）
+    overrides['--spacing-btn-x'] = 'var(--space-2)'
+    overrides['--spacing-btn-sm-x'] = 'var(--space-2)'
+    // 弹窗水平内边距收紧（TuiModal 保留垂直）
+    overrides['--spacing-modal-x'] = 'var(--space-4)'
   } else if (density.value === 'spacious') {
     overrides['--spacing-card'] = 'var(--space-6)'
     overrides['--spacing-btn'] = 'var(--space-3) var(--space-5)'
     overrides['--spacing-gap'] = 'var(--space-4)'
+    overrides['--spacing-btn-x'] = 'var(--space-5)'
+    overrides['--spacing-btn-sm-x'] = 'var(--space-4)'
+    // 弹窗水平内边距放宽（TuiModal 保留垂直）
+    overrides['--spacing-modal-x'] = 'var(--space-6)'
   }
 
   setUserOverrides(overrides)

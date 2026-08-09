@@ -97,7 +97,7 @@ function close() {
 .trash-item-date { font-size: var(--font-size-xs); color: var(--text-tertiary); flex-shrink: 0; }
 .trash-item-actions { display: flex; gap: 6px; flex-shrink: 0; margin-left: 12px; }
 .trash-empty { text-align: center; padding: 40px; color: var(--text-tertiary); }
-.btn { padding: 6px 14px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); cursor: pointer; font-size: var(--font-size-sm); }
+.btn { padding: 6px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); cursor: pointer; font-size: var(--font-size-sm); }
 .btn:hover { background: var(--bg-hover); }
 .btn.btn-sm { padding: 3px 8px; font-size: var(--font-size-xs); }
 .btn.btn-danger { color: var(--danger); border-color: var(--danger); }

@@ -13,8 +13,8 @@ import type { AgentTaskConfig } from '../../types'
 defineProps<{ config: AgentTaskConfig }>()
 </script>
 <style scoped>
-.atc__prompt { font-size: 12px; line-height: 1.5; opacity: 0.8; white-space: pre-wrap; }
-.atc__empty { font-size: 12px; opacity: 0.4; font-style: italic; }
+.atc__prompt { font-size: var(--fs-sm); line-height: 1.5; opacity: 0.8; white-space: pre-wrap; }
+.atc__empty { font-size: var(--fs-sm); opacity: 0.4; font-style: italic; }
 .atc__meta { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
-.atc__tag { font-size: 11px; padding: 2px 6px; background: var(--bg-tertiary, #21262d); border-radius: 4px; }
+.atc__tag { font-size: var(--fs-xs); padding: 2px 6px; background: var(--bg-tertiary, #21262d); border-radius: 4px; }
 </style>

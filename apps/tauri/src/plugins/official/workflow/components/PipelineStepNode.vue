@@ -259,11 +259,11 @@ function formatDuration(ms: number): string {
 .psn-indicator { display: flex; flex-direction: column; align-items: center; width: 28px; flex-shrink: 0; }
 .psn-num {
   width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
-  font-size: 12px; font-weight: 600; border: 2px solid var(--border, #30363d); background: var(--bg-secondary, #161b22);
+  font-size: var(--fs-sm); font-weight: 600; border: 2px solid var(--border, #30363d); background: var(--bg-secondary, #161b22);
 }
 .psn-grip {
-  width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center;
-  font-size: 16px; color: var(--text-secondary, #8b949e); background: var(--bg-tertiary, #21262d);
+  width: 28px; height: 28px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center;
+  font-size: var(--fs-lg); color: var(--text-secondary, #8b949e); background: var(--bg-tertiary, #21262d);
   cursor: grab; user-select: none;
 }
 .psn-grip:hover { color: var(--primary, #58a6ff); }
@@ -275,21 +275,21 @@ function formatDuration(ms: number): string {
 
 .psn-content { flex: 1; padding: 4px 0 16px; }
 .psn-header { display: flex; align-items: center; gap: 8px; }
-.psn-icon { font-size: 16px; }
-.psn-title { font-size: 14px; font-weight: 500; }
+.psn-icon { font-size: var(--fs-lg); }
+.psn-title { font-size: var(--fs-base); font-weight: 500; }
 .psn-title--editable { cursor: text; }
 .psn-title--editable:hover { text-decoration: underline; text-underline-offset: 2px; }
 .psn-title-input {
-  font-size: 14px; font-weight: 500; border: none; border-bottom: 1px solid var(--primary, #58a6ff);
+  font-size: var(--fs-base); font-weight: 500; border: none; border-bottom: 1px solid var(--primary, #58a6ff);
   background: transparent; color: inherit; outline: none; padding: 0; width: 160px;
 }
-.psn-badge { font-size: 11px; opacity: 0.5; }
-.psn-status { font-size: 11px; margin-left: auto; }
+.psn-badge { font-size: var(--fs-xs); opacity: 0.5; }
+.psn-status { font-size: var(--fs-xs); margin-left: auto; }
 .psn-ops { display: flex; gap: 2px; margin-left: 4px; opacity: 0; transition: opacity 0.15s; }
 .psn-node:hover .psn-ops { opacity: 1; }
 .psn-ops--visible { opacity: 1; }
 .psn-op {
-  background: none; border: none; cursor: pointer; font-size: 13px; padding: 2px 4px;
+  background: none; border: none; cursor: pointer; font-size: var(--fs-md); padding: 2px 4px;
   border-radius: 4px; transition: background 0.15s;
 }
 .psn-op:hover { background: var(--bg-tertiary, #21262d); }
@@ -302,29 +302,29 @@ function formatDuration(ms: number): string {
 .status--failed { color: var(--danger, #f85149); }
 .status--skipped { color: var(--text-secondary, #8b949e); font-style: italic; }
 
-.psn-body { margin-top: 8px; padding: 10px; background: var(--bg-tertiary, #21262d); border-radius: 6px; }
-.psn-instruction { margin: 0 0 8px; font-size: 13px; line-height: 1.5; }
+.psn-body { margin-top: 8px; padding: 10px; background: var(--bg-tertiary, #21262d); border-radius: var(--radius-sm); }
+.psn-instruction { margin: 0 0 8px; font-size: var(--fs-md); line-height: 1.5; }
 .psn-actions { display: flex; gap: 6px; }
 
 .psn-btn {
-  padding: 5px 12px; border-radius: 6px; border: 1px solid var(--border, #30363d);
+  padding: 5px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border, #30363d);
   background: var(--bg-secondary, #161b22); color: var(--text-primary, #e6edf3);
-  cursor: pointer; font-size: 12px;
+  cursor: pointer; font-size: var(--fs-sm);
 }
 .psn-btn--primary { background: var(--primary, #58a6ff); color: var(--text-on-primary, #fff); border-color: transparent; }
 
 .psn-agent-info {
-  display: flex; align-items: center; gap: 6px; font-size: 12px;
+  display: flex; align-items: center; gap: 6px; font-size: var(--fs-sm);
 }
-.psn-agent-icon { font-size: 14px; }
+.psn-agent-icon { font-size: var(--fs-base); }
 .psn-agent-name { color: var(--warning, #d29922); font-weight: 500; }
-.psn-agent-duration { font-size: 11px; opacity: 0.5; margin-left: auto; }
+.psn-agent-duration { font-size: var(--fs-xs); opacity: 0.5; margin-left: auto; }
 
-.psn-output { margin-top: 8px; padding: 8px 10px; background: var(--bg-tertiary, #21262d); border-radius: 6px; font-size: 12px; opacity: 0.8; }
+.psn-output { margin-top: 8px; padding: 8px 10px; background: var(--bg-tertiary, #21262d); border-radius: var(--radius-sm); font-size: var(--fs-sm); opacity: 0.8; }
 .psn-output p { margin: 0; }
 
 .psn-edit {
-  margin-top: 8px; padding: 12px; background: var(--bg-tertiary, #21262d); border-radius: 6px;
+  margin-top: 8px; padding: 12px; background: var(--bg-tertiary, #21262d); border-radius: var(--radius-sm);
   border: 1px solid var(--border, #30363d);
 }
 .psn-edit-actions { display: flex; gap: 6px; margin-top: 8px; }

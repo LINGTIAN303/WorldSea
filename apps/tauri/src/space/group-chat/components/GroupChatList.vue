@@ -255,14 +255,14 @@ function onDocumentClick(event: MouseEvent): void {
 <style scoped>
 .group-chat-list { display: flex; flex-direction: column; height: 100%; contain: layout paint style; }
 .list-header { padding: 8px; display: flex; gap: 6px; }
-.search-input { flex: 1; padding: 6px 10px; border: 1px solid var(--color-border); border-radius: 8px; font-size: 12px; background: var(--color-surface); outline: none; color: var(--color-text); }
+.search-input { flex: 1; padding: 6px 10px; border: 1px solid var(--color-border); border-radius: 8px; font-size: var(--fs-sm); background: var(--color-surface); outline: none; color: var(--color-text); }
 .search-input:focus { border-color: var(--color-primary); }
-.new-btn { padding: 6px 10px; border: none; background: var(--color-primary); color: white; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 600; white-space: nowrap; }
-.close-btn { width: 24px; height: 24px; border: none; background: transparent; border-radius: 4px; cursor: pointer; font-size: 12px; color: var(--color-text-tertiary); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.new-btn { padding: 6px 10px; border: none; background: var(--color-primary); color: white; border-radius: 8px; cursor: pointer; font-size: var(--fs-xs); font-weight: 600; white-space: nowrap; }
+.close-btn { width: 24px; height: 24px; border: none; background: transparent; border-radius: 4px; cursor: pointer; font-size: var(--fs-sm); color: var(--color-text-tertiary); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .close-btn:hover { background: var(--color-surface-elevated); color: var(--color-text); }
 
 .mode-tabs { display: flex; gap: 2px; padding: 0 8px 6px; }
-.mode-tab { flex: 1; padding: 4px; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-surface); cursor: pointer; font-size: 11px; text-align: center; transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s; color: var(--color-text-secondary); }
+.mode-tab { flex: 1; padding: 4px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface); cursor: pointer; font-size: var(--fs-xs); text-align: center; transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s; color: var(--color-text-secondary); }
 .mode-tab.active { background: rgba(108,92,231,0.1); border-color: var(--color-primary); font-weight: 600; color: var(--color-text); }
 
 .list-body { flex: 1; overflow-y: auto; min-height: 0; contain: layout paint style; }
@@ -300,25 +300,25 @@ function onDocumentClick(event: MouseEvent): void {
 .group-item.active:hover {
   background: rgba(108,92,231,0.12);
 }
-.group-avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #6c5ce7, #a29bfe); display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+.group-avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #6c5ce7, #a29bfe); display: flex; align-items: center; justify-content: center; font-size: var(--fs-base); flex-shrink: 0; }
 .group-info { flex: 1; min-width: 0; }
 .group-top { display: flex; justify-content: space-between; align-items: center; }
-.group-name { font-size: 13px; font-weight: 600; }
+.group-name { font-size: var(--fs-md); font-weight: 600; }
 .group-time { font-size: 10px; color: var(--color-text-tertiary); }
-.group-bottom { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--color-text-tertiary); }
+.group-bottom { display: flex; align-items: center; gap: 4px; font-size: var(--fs-xs); color: var(--color-text-tertiary); }
 .group-preview { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .unread-badge { min-width: 16px; height: 16px; border-radius: 8px; background: #ef4444; color: white; font-size: 9px; display: flex; align-items: center; justify-content: center; font-weight: 700; padding: 0 4px; }
 
 .delete-confirm-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 9998; display: flex; align-items: center; justify-content: center; }
 .delete-confirm-dialog { background: var(--color-surface-elevated); border: 1px solid var(--color-border); border-radius: 12px; padding: 20px; min-width: 260px; box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
-.delete-confirm-text { font-size: 13px; margin-bottom: 16px; line-height: 1.5; }
+.delete-confirm-text { font-size: var(--fs-md); margin-bottom: 16px; line-height: 1.5; }
 .delete-confirm-actions { display: flex; gap: 8px; justify-content: flex-end; }
-.delete-cancel-btn { padding: 6px 16px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); cursor: pointer; font-size: 12px; }
-.delete-confirm-btn { padding: 6px 16px; border: none; border-radius: 8px; background: #ef4444; color: white; cursor: pointer; font-size: 12px; font-weight: 600; }
+.delete-cancel-btn { padding: 6px 16px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); cursor: pointer; font-size: var(--fs-sm); }
+.delete-confirm-btn { padding: 6px 16px; border: none; border-radius: 8px; background: #ef4444; color: white; cursor: pointer; font-size: var(--fs-sm); font-weight: 600; }
 .delete-confirm-btn:hover { background: #dc2626; }
 
-.context-menu { background: rgba(10, 10, 20, 0.08); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid var(--color-border); border-radius: 10px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2); padding: 4px; min-width: 140px; }
-.context-menu-item { padding: 8px 12px; font-size: 12px; color: var(--color-text); cursor: pointer; border-radius: 6px; transition: background 0.1s; }
+.context-menu { background: rgba(10, 10, 20, 0.08); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid var(--color-border); border-radius: var(--radius-md); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2); padding: 4px; min-width: 140px; }
+.context-menu-item { padding: 8px 12px; font-size: var(--fs-sm); color: var(--color-text); cursor: pointer; border-radius: var(--radius-sm); transition: background 0.1s; }
 .context-menu-item:hover { background: var(--color-surface); }
 .context-menu-item.danger { color: #ef4444; }
 .context-menu-item.danger:hover { background: rgba(239, 68, 68, 0.1); }

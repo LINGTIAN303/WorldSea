@@ -184,9 +184,9 @@ onMounted(async () => {
   border-left: 3px solid transparent;
 }
 
-.memory-item.mem-fresh { border-left-color: #4caf50; }
-.memory-item.mem-normal { border-left-color: #ff9800; }
-.memory-item.mem-stale { border-left-color: #f44336; }
+.memory-item.mem-fresh { border-left-color: var(--success); }
+.memory-item.mem-normal { border-left-color: var(--warning); }
+.memory-item.mem-stale { border-left-color: var(--danger); }
 
 .mem-key {
   font-size: var(--font-size-xs);
@@ -227,7 +227,7 @@ onMounted(async () => {
   justify-content: space-between;
   align-items: center;
   padding: 6px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-size: var(--font-size-xs);
 }
 .entity-link:hover {

@@ -126,18 +126,18 @@ async function persistMembers(): Promise<void> {
 <style scoped>
 .member-list {}
 .list-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-.section-label { font-size: 11px; color: var(--color-text-tertiary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
-.invite-btn { padding: 4px 10px; border: 1px solid var(--color-primary); border-radius: 6px; background: transparent; color: var(--color-primary); cursor: pointer; font-size: 11px; font-weight: 600; }
+.section-label { font-size: var(--fs-xs); color: var(--color-text-tertiary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+.invite-btn { padding: 4px 10px; border: 1px solid var(--color-primary); border-radius: var(--radius-sm); background: transparent; color: var(--color-primary); cursor: pointer; font-size: var(--fs-xs); font-weight: 600; }
 .invite-btn:hover { background: rgba(108,92,231,0.08); }
 
 .members { display: flex; flex-direction: column; gap: 2px; }
-.member-item { display: flex; align-items: center; gap: 10px; padding: 6px 4px; border-radius: 6px; cursor: pointer; }
+.member-item { display: flex; align-items: center; gap: 10px; padding: 6px 4px; border-radius: var(--radius-sm); cursor: pointer; }
 .member-item:hover { background: var(--color-surface); }
 .member-avatar { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.avatar-letter { color: white; font-weight: 700; font-size: 12px; }
+.avatar-letter { color: white; font-weight: 700; font-size: var(--fs-sm); }
 .member-info { flex: 1; min-width: 0; }
 .member-name-row { display: flex; align-items: center; gap: 4px; }
-.member-name { font-size: 12px; font-weight: 600; }
+.member-name { font-size: var(--fs-sm); font-weight: 600; }
 .role-tag { font-size: 9px; padding: 1px 4px; border-radius: 3px; font-weight: 600; display: inline-flex; align-items: center; gap: 2px; }
 .owner-tag { background: rgba(245,158,11,0.15); color: #f59e0b; }
 .admin-tag { background: rgba(59,130,246,0.15); color: #3b82f6; }

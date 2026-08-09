@@ -308,14 +308,15 @@ textarea:focus {
   opacity: 0;
 }
 
-/* 尊重系统减弱动效偏好：所有动画/过渡瞬移完成，不打断操作 */
+/* 尊重系统减弱动效偏好：关闭动画(keyframes)；transition-duration 去 !important，
+   让组件级 reduced-motion 规则（更高特异性）接管为温和淡入，其余过渡仍近瞬移 */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+    transition-duration: 0.01ms;
     scroll-behavior: auto !important;
   }
 }

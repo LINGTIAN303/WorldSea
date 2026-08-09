@@ -123,7 +123,7 @@ function onConfirm() {
   padding: 8px 12px;
   border: 1px solid var(--border-color);
   background: var(--card-bg);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: var(--font-size-base);
   color: var(--text-color);

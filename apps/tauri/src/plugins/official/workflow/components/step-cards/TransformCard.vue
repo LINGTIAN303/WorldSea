@@ -10,7 +10,7 @@ import type { TransformConfig } from '../../types'
 defineProps<{ config: TransformConfig }>()
 </script>
 <style scoped>
-.tc__row { font-size: 12px; line-height: 1.5; }
-.tc__empty { font-size: 12px; opacity: 0.4; font-style: italic; }
-.tc__rules { margin-top: 6px; font-size: 11px; opacity: 0.6; white-space: pre-wrap; }
+.tc__row { font-size: var(--fs-sm); line-height: 1.5; }
+.tc__empty { font-size: var(--fs-sm); opacity: 0.4; font-style: italic; }
+.tc__rules { margin-top: 6px; font-size: var(--fs-xs); opacity: 0.6; white-space: pre-wrap; }
 </style>

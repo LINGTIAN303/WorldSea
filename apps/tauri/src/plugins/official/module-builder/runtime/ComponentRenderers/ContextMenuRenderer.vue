@@ -32,7 +32,7 @@ defineExpose({ show })
 </script>
 
 <style scoped>
-.context-menu-renderer { position: fixed; z-index: var(--z-dropdown); background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); padding: 4px 0; min-width: 120px; }
+.context-menu-renderer { position: fixed; z-index: var(--z-dropdown); background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-sm); box-shadow: 0 4px 12px rgba(0,0,0,0.15); padding: 4px 0; min-width: 120px; }
 .cm-item { padding: 6px 12px; font-size: var(--font-size-sm); cursor: pointer; }
 .cm-item:hover { background: var(--hover-bg); }
 </style>

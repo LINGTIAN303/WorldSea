@@ -39,7 +39,7 @@ defineEmits<{
   flex: 1;
   padding: 10px 8px;
   border: 1px solid var(--color-border);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--color-surface);
   cursor: pointer;
   text-align: center;

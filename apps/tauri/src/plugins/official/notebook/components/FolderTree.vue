@@ -403,7 +403,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeyDown))
   background: var(--color-bg-base); color: var(--color-text-primary); outline: none;
 }
 .ft-note-ghost { opacity: 0.3; }
-.ft-folder-ghost { opacity: 0.3; border: 1px dashed var(--color-primary); border-radius: 6px; }
+.ft-folder-ghost { opacity: 0.3; border: 1px dashed var(--color-primary); border-radius: var(--radius-sm); }
 .ft-empty { padding: 12px; text-align: center; font-size: var(--font-size-sm); color: var(--color-text-tertiary); }
 
 .ft-cm-backdrop {
@@ -412,7 +412,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeyDown))
 .ft-context-menu {
   position: fixed; z-index: 1000; min-width: 150px;
   background: var(--color-bg-surface); border: 1px solid var(--color-border);
-  border-radius: 6px; padding: 4px; box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+  border-radius: var(--radius-sm); padding: 4px; box-shadow: 0 4px 16px rgba(0,0,0,0.18);
 }
 .ft-cm-item {
   padding: 6px 12px; font-size: var(--font-size-sm); border-radius: 4px;

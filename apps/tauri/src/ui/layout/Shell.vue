@@ -49,16 +49,7 @@ const ShortcutHelpModal = defineAsyncComponent(() => import('@worldsmith/ui-kit'
 const UndoHistoryPanel = defineAsyncComponent(() => import('@worldsmith/ui-kit').then(m => m.UndoHistoryPanel))
 const InfoPanel = defineAsyncComponent(() => import('@worldsmith/ui-kit').then(m => m.InfoPanel))
 import { useShortcuts, useUndoRedo, useGlobalEvents } from '@worldsmith/ui-kit'
-import {
-  usePluginStore,
-  useDirtyTracker,
-  useEntityStore,
-  useRelationStore,
-  entitySchemaRegistry,
-  relationshipRegistry,
-  useUIStore,
-  useSettingsStore,
-} from '@worldsmith/entity-core'
+import { usePluginStore, useDirtyTracker, useEntityStore, useRelationStore, entitySchemaRegistry, relationshipRegistry, useUIStore, useSettingsStore } from '@worldsmith/entity-core'
 import { useFileSystemProject } from '@worldsmith/entity-core/composables'
 import CompanionNotification from '../companion/CompanionNotification.vue'
 import { useCompanionMode } from '@worldsmith/shared-composables/companion/useCompanionMode'

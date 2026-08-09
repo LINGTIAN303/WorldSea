@@ -183,10 +183,10 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   max-width: 220px;
   padding: 4px 10px;
   border: 1px solid var(--color-border, #d1d5db);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--color-surface, #fff);
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--fs-md);
   line-height: 1.4;
   color: var(--color-text, #111827);
   white-space: nowrap;
@@ -204,7 +204,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 
 .trigger-ctx {
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--color-text-muted, #9ca3af);
 }
 
@@ -212,7 +212,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   flex-shrink: 0;
   margin-left: auto;
   transition: transform 0.2s;
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 
 .trigger-arrow.open {
@@ -249,7 +249,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   gap: 8px;
   padding: 8px 12px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--fs-md);
   color: var(--color-text, #111827);
   transition: background 0.15s;
 }
@@ -276,7 +276,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 .provider-arrow {
   flex-shrink: 0;
   color: var(--color-text-muted, #9ca3af);
-  font-size: 14px;
+  font-size: var(--fs-base);
 }
 
 .flyout-models {
@@ -287,7 +287,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 
 .models-header {
   padding: 8px 12px 4px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   color: var(--color-text-muted, #9ca3af);
   text-transform: uppercase;
@@ -300,7 +300,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   gap: 6px;
   padding: 7px 12px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--fs-md);
   color: var(--color-text, #111827);
   transition: background 0.15s;
 }
@@ -322,13 +322,13 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 
 .model-ctx {
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--color-text-muted, #9ca3af);
 }
 
 .model-free {
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 .flyout-enter-active,

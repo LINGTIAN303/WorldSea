@@ -255,7 +255,7 @@ onMounted(() => {
   font-size: var(--font-size-sm);
   color: var(--color-text-tertiary);
   background: var(--color-surface);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -272,7 +272,7 @@ onMounted(() => {
   width: 100%;
   padding: 8px 10px;
   border: 1px solid var(--color-border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--color-surface);
   color: var(--color-text);
   font-size: var(--font-size-sm);
@@ -292,7 +292,7 @@ onMounted(() => {
   padding: 1px 8px;
   background: var(--color-primary);
   color: #fff;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   font-size: var(--font-size-xs);
 }
 
@@ -309,7 +309,7 @@ onMounted(() => {
   gap: 8px;
   padding: 8px 10px;
   border: 1px solid var(--color-border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--color-bg);
 }
 .store-source-item.disabled {
@@ -372,7 +372,7 @@ onMounted(() => {
 .store-source-form {
   padding: 10px;
   border: 1px solid var(--color-border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--color-surface);
 }
 
@@ -401,7 +401,7 @@ onMounted(() => {
   font-size: var(--font-size-sm);
   color: var(--color-error);
   background: var(--color-surface);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   margin-bottom: 8px;
 }
 
@@ -421,7 +421,7 @@ onMounted(() => {
 .store-skill-card {
   padding: 10px 12px;
   border: 1px solid var(--color-border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--color-bg);
   display: flex;
   flex-direction: column;
@@ -496,7 +496,7 @@ onMounted(() => {
   margin-top: 8px;
   padding: 10px;
   border: 1px solid var(--color-border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--color-bg);
 }
 .store-import-hint {

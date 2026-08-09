@@ -471,7 +471,7 @@ function truncate(text: string, maxLen: number): string {
   padding: 4px 12px;
   background: rgba(20, 184, 166, 0.06);
   border-top: 1px solid rgba(20, 184, 166, 0.15);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: rgba(204, 251, 241, 0.85);
   flex-shrink: 0;
 }
@@ -622,10 +622,10 @@ function truncate(text: string, maxLen: number): string {
   flex-direction: column;
   background: rgb(17, 24, 39);
   border: 1px solid rgba(75, 85, 99, 0.5);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
   z-index: 100;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: rgba(229, 231, 235, 0.9);
 }
 
@@ -694,7 +694,7 @@ function truncate(text: string, maxLen: number): string {
   background: rgba(20, 184, 166, 0.06);
   border-left: 2px solid rgba(20, 184, 166, 0.4);
   border-radius: 2px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: rgba(204, 251, 241, 0.9);
   line-height: 1.4;
 }
@@ -732,7 +732,7 @@ function truncate(text: string, maxLen: number): string {
   padding: 6px 12px;
 }
 .ma-final-content {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   line-height: 1.5;
   color: rgb(110, 231, 183);
   background: rgba(110, 231, 183, 0.06);

@@ -124,5 +124,5 @@ defineEmits<{ close: [] }>()
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; z-index: var(--z-sticky); }
 .modal { background: var(--color-bg-surface); border-radius: 12px; padding: 24px; max-width: 500px; width: 90%; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
-.btn-primary { padding: 8px 16px; background: var(--primary); color: var(--color-text-inverse); border: none; border-radius: 6px; cursor: pointer; font-size: var(--font-size-base); }
+.btn-primary { padding: 8px 16px; background: var(--primary); color: var(--color-text-inverse); border: none; border-radius: var(--radius-sm); cursor: pointer; font-size: var(--font-size-base); }
 </style>

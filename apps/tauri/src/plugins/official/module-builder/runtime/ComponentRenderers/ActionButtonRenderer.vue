@@ -34,7 +34,7 @@ function onAction() {
 </script>
 
 <style scoped>
-.action-btn-renderer { display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg); color: var(--text-color); font-size: var(--font-size-sm); cursor: pointer; }
+.action-btn-renderer { display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); background: var(--bg); color: var(--text-color); font-size: var(--font-size-sm); cursor: pointer; }
 .action-btn-renderer:hover { background: var(--hover-bg); }
 .ab-icon { font-size: var(--font-size-base); }
 .ab-label { font-weight: var(--font-weight-medium); }

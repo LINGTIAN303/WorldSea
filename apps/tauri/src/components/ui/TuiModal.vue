@@ -184,7 +184,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 14px 20px;
+  padding: 14px var(--spacing-modal-x, 20px);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
@@ -221,7 +221,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 }
 
 .tui-modal__body {
-  padding: 16px 20px;
+  padding: 16px var(--spacing-modal-x, 20px);
   overflow-y: auto;
   flex: 1;
   min-height: 0;
@@ -232,7 +232,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  padding: 12px 20px;
+  padding: 12px var(--spacing-modal-x, 20px);
   border-top: 1px solid var(--border);
   flex-shrink: 0;
 }
@@ -254,5 +254,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 .tui-modal-leave-to .tui-modal {
   opacity: 0;
   transform: translateY(6px) scale(0.98);
+}
+/* 减弱动态偏好：面板去掉位移/缩放，保留淡入；遮罩本为纯淡入无需处理（Emil 可访问性规则） */
+@media (prefers-reduced-motion: reduce) {
+  .tui-modal-enter-active .tui-modal,
+  .tui-modal-leave-active .tui-modal {
+    transition: opacity var(--dur-lg) var(--ease);
+  }
+  .tui-modal-enter-from .tui-modal,
+  .tui-modal-leave-to .tui-modal {
+    transform: none;
+  }
 }
 </style>

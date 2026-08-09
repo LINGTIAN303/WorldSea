@@ -94,27 +94,27 @@ function handleSave() {
   background: var(--bg-primary, #0d1117); border: 1px solid var(--border, #30363d);
   border-radius: 12px; padding: 24px; min-width: 400px; max-width: 480px;
 }
-.st-title { margin: 0 0 4px; font-size: 16px; font-weight: 600; }
-.st-hint { margin: 0 0 16px; font-size: 12px; opacity: 0.5; }
+.st-title { margin: 0 0 4px; font-size: var(--fs-lg); font-weight: 600; }
+.st-hint { margin: 0 0 16px; font-size: var(--fs-sm); opacity: 0.5; }
 .st-field { margin-bottom: 12px; }
-.st-field label { display: block; font-size: 13px; margin-bottom: 4px; opacity: 0.7; }
+.st-field label { display: block; font-size: var(--fs-md); margin-bottom: 4px; opacity: 0.7; }
 .st-field--row { display: flex; align-items: center; gap: 12px; }
 .st-field--row label { margin-bottom: 0; }
 .st-input {
-  width: 100%; padding: 8px 10px; border-radius: 6px;
+  width: 100%; padding: 8px 10px; border-radius: var(--radius-sm);
   border: 1px solid var(--border, #30363d); background: var(--bg-secondary, #161b22);
-  color: var(--text-primary, #e6edf3); font-size: 13px; box-sizing: border-box;
+  color: var(--text-primary, #e6edf3); font-size: var(--fs-md); box-sizing: border-box;
 }
-.st-input--short { width: 60px; text-align: center; font-size: 20px; }
+.st-input--short { width: 60px; text-align: center; font-size: var(--fs-xl); }
 .st-textarea { min-height: 60px; resize: vertical; }
 
-.st-info { margin-bottom: 16px; font-size: 12px; opacity: 0.5; }
+.st-info { margin-bottom: 16px; font-size: var(--fs-sm); opacity: 0.5; }
 
 .st-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .st-btn {
-  padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border, #30363d);
+  padding: 6px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border, #30363d);
   background: var(--bg-secondary, #161b22); color: var(--text-primary, #e6edf3);
-  cursor: pointer; font-size: 13px;
+  cursor: pointer; font-size: var(--fs-md);
 }
 .st-btn--primary { background: var(--primary, #58a6ff); color: var(--text-on-primary, #fff); border-color: transparent; }
 .st-btn:disabled { opacity: 0.5; cursor: not-allowed; }

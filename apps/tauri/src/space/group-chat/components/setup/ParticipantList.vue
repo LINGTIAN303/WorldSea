@@ -153,7 +153,7 @@ function getFallbackChainDisplay(idx: number): { id: string; name: string; isCur
 .participant-card {
   padding: 10px 12px;
   border: 1px solid var(--color-border);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   transition: border-color 0.15s;
 }
 
@@ -240,7 +240,7 @@ function getFallbackChainDisplay(idx: number): { id: string; name: string; isCur
 
 .pc-health-dot {
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   transition: transform 0.15s;
 }
 

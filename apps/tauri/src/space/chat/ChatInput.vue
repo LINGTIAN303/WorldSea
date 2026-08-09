@@ -455,7 +455,7 @@ watch(() => spaceStore.inputInjection, (injection) => {
   padding: 2px 6px 2px 8px;
   background: var(--color-primary-muted, rgba(59, 130, 246, 0.1));
   border: 1px solid var(--color-primary, rgba(59, 130, 246, 0.3));
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   font-size: var(--font-size-xs);
   color: var(--color-primary);
   max-width: 180px;
@@ -540,7 +540,7 @@ watch(() => spaceStore.inputInjection, (injection) => {
   background: transparent;
   color: var(--color-text-tertiary);
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -561,7 +561,7 @@ watch(() => spaceStore.inputInjection, (injection) => {
   border: none;
   background: transparent;
   color: var(--color-text-secondary);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -623,7 +623,7 @@ watch(() => spaceStore.inputInjection, (injection) => {
   border: none;
   background: var(--color-primary);
   color: var(--color-text-inverse);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   display: flex;
   align-items: center;

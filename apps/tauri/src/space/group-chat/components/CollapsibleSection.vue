@@ -38,7 +38,7 @@ function toggle() {
 
 <style scoped>
 .collapsible-section {
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   overflow: hidden;
 }
 

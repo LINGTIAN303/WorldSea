@@ -61,7 +61,7 @@ function onDragStart(comp: ComponentTypeDefinition, e: DragEvent) {
 .cp-title { font-size: var(--font-size-sm); color: var(--text-secondary); margin: 0 0 12px; }
 .cp-category { margin-bottom: 12px; }
 .cp-cat-label { font-size: var(--font-size-sm); color: var(--text-tertiary); margin: 0 0 6px; }
-.cp-item { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border: 1px dashed var(--border-color); border-radius: 6px; margin-bottom: 4px; cursor: grab; font-size: var(--font-size-sm); color: var(--primary); transition: background 0.1s, border-color 0.1s, color 0.1s, box-shadow 0.1s, transform 0.1s, opacity 0.1s, filter 0.1s; }
+.cp-item { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border: 1px dashed var(--border-color); border-radius: var(--radius-sm); margin-bottom: 4px; cursor: grab; font-size: var(--font-size-sm); color: var(--primary); transition: background 0.1s, border-color 0.1s, color 0.1s, box-shadow 0.1s, transform 0.1s, opacity 0.1s, filter 0.1s; }
 .cp-item:hover { background: var(--hover-bg); border-color: var(--primary); }
 .cp-item:active { cursor: grabbing; }
 .cp-item-icon { font-size: var(--font-size-base); }

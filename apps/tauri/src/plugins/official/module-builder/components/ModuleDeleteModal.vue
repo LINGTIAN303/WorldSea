@@ -30,6 +30,6 @@ defineEmits<{ close: []; confirm: [] }>()
 .modal-sm { max-width: 420px; }
 .modal h3 { margin: 0 0 8px; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
-.btn-secondary { padding: 8px 16px; background: var(--border-color); color: var(--text); border: none; border-radius: 6px; cursor: pointer; font-size: var(--font-size-base); }
+.btn-secondary { padding: 8px 16px; background: var(--border-color); color: var(--text); border: none; border-radius: var(--radius-sm); cursor: pointer; font-size: var(--font-size-base); }
 .btn-danger { padding: 8px 16px; background: var(--color-danger); color: var(--color-text-inverse); border: none; border-radius: var(--radius-sm); cursor: pointer; font-size: var(--font-size-base); }
 </style>

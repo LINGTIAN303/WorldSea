@@ -189,7 +189,7 @@ onBeforeUnmount(() => {
 .nb-editor-wrap :deep(.tiptap hr) { border: none; border-top: 1px solid var(--color-border-subtle); margin: 16px 0; }
 .nb-editor-wrap :deep(.tiptap code) { background: var(--color-bg-hover); padding: 2px 4px; border-radius: 3px; font-size: var(--font-size-sm); }
 .nb-editor-wrap :deep(.tiptap pre) {
-  background: var(--color-bg-hover); padding: 12px; border-radius: 6px; overflow-x: auto;
+  background: var(--color-bg-hover); padding: 12px; border-radius: var(--radius-sm); overflow-x: auto;
   font-size: var(--font-size-sm); margin: 8px 0;
 }
 .nb-editor-wrap :deep(.nb-mention) {
@@ -207,9 +207,9 @@ onBeforeUnmount(() => {
   border-left: 3px solid var(--color-primary); padding-left: 12px; margin: 8px 0; color: var(--color-text-secondary);
 }
 .nb-preview-wrap :deep(code) { background: var(--color-bg-hover); padding: 2px 4px; border-radius: 3px; font-size: var(--font-size-sm); }
-.nb-preview-wrap :deep(pre) { background: var(--color-bg-hover); padding: 12px; border-radius: 6px; overflow-x: auto; margin: 8px 0; }
+.nb-preview-wrap :deep(pre) { background: var(--color-bg-hover); padding: 12px; border-radius: var(--radius-sm); overflow-x: auto; margin: 8px 0; }
 
-.editor-fallback { width: 100%; height: 100%; min-height: 200px; border: 1px solid var(--color-border-subtle); border-radius: 6px; padding: 12px; font-family: var(--font-family-content); font-size: var(--font-size-base); line-height: 1.7; color: var(--color-text-primary); background: var(--color-bg-base); resize: vertical; outline: none; }
+.editor-fallback { width: 100%; height: 100%; min-height: 200px; border: 1px solid var(--color-border-subtle); border-radius: var(--radius-sm); padding: 12px; font-family: var(--font-family-content); font-size: var(--font-size-base); line-height: 1.7; color: var(--color-text-primary); background: var(--color-bg-base); resize: vertical; outline: none; }
 .editor-fallback:focus { border-color: var(--color-primary); }
 .editor-loading { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--color-text-tertiary); }
 </style>

@@ -125,6 +125,11 @@
   --spacing-input: 8px 12px;
   --spacing-btn: 8px 16px;
   --spacing-btn-sm: 4px 12px;
+  /* 固定高度按钮仅水平内边距（TuiButton 保留高度，密度只影响水平） */
+  --spacing-btn-x: 14px;
+  --spacing-btn-sm-x: 10px;
+  /* 弹窗水平内边距（TuiModal 保留垂直，密度只影响水平） */
+  --spacing-modal-x: 20px;
   --spacing-list: 8px;
   --spacing-gap: 12px;
   --spacing-gap-sm: 8px;
@@ -330,6 +335,11 @@
   --spacing-input: 8px 12px;
   --spacing-btn: 8px 16px;
   --spacing-btn-sm: 4px 12px;
+  /* 固定高度按钮仅水平内边距（TuiButton 保留高度，密度只影响水平） */
+  --spacing-btn-x: 14px;
+  --spacing-btn-sm-x: 10px;
+  /* 弹窗水平内边距（TuiModal 保留垂直，密度只影响水平） */
+  --spacing-modal-x: 20px;
   --spacing-list: 8px;
   --spacing-gap: 12px;
   --spacing-gap-sm: 8px;

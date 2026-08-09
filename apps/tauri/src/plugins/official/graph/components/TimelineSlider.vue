@@ -66,7 +66,7 @@ function resetRange(): void {
   right: 12px;
   background: rgba(10, 14, 20, 0.95);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   backdrop-filter: blur(12px);
   z-index: 20;
   padding: 12px 16px;

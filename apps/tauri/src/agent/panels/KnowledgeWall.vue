@@ -425,7 +425,7 @@ onMounted(async () => {
   color: var(--text-muted);
   background: var(--bg-muted);
   padding: 1px 6px;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
 }
 
 .tree-items {
@@ -606,8 +606,8 @@ onMounted(async () => {
 .kb-dialog-overlay {
   position: fixed;
   inset: 0;
-  z-index: 9999;
-  background: rgba(0, 0, 0, 0.35);
+  z-index: var(--z-modal);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -752,5 +752,18 @@ onMounted(async () => {
 .kb-btn-confirm:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+/* ── 减弱动态偏好（prefers-reduced-motion）：停用按压缩放手势 ──
+   与 TuiButton/TuiModal/TuiDrawer/AgentWorkspace 同一可访问性语言。 */
+@media (prefers-reduced-motion: reduce) {
+  .panel-close-btn:active:not(:disabled),
+  .toggle-btn:active:not(:disabled),
+  .entry-mount-btn:active:not(:disabled),
+  .add-btn:active:not(:disabled),
+  .scope-btn:active:not(:disabled),
+  .kb-btn-cancel:active:not(:disabled) {
+    transform: none;
+  }
 }
 </style>

@@ -133,7 +133,9 @@ export function useTheme() {
 
   function setTheme(id: string) {
     currentThemeId.value = id
-    document.documentElement.setAttribute('data-theme', id)
+    // 不再写 data-theme：data-theme 由 App 壳三态（components/ui/useTheme setMode）唯一控制，
+    // 命名 id（如 'forge-ember'）写入会让 theme.css 只认 light/dark 的覆盖失效而回退到 :root。
+    // 本函数只负责令牌/Manifest 风味；明暗由 App 壳在 ws-set-theme 中同步 setMode。
     ls.setItem(STORAGE_KEY, id)
     clearDynamicTokens()
     // fontStore 已下沉到 entity-core/src/stores/fontStore.ts，相对路径保持不变

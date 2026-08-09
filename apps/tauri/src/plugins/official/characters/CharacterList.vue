@@ -453,7 +453,7 @@ function switchToInfoTab() {
 .dp-equip-card { display: flex; gap: 8px; padding: 6px; background: var(--hover-bg); border-radius: var(--radius-sm); margin-bottom: 4px; }
 .dp-equip-header { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 40px; }
 .dp-equip-icon { font-size: var(--font-size-xl); }
-.dp-equip-armor { padding: 1px 5px; border-radius: 6px; font-size: var(--text-micro-font-size); font-weight: var(--font-weight-semibold); white-space: nowrap; }
+.dp-equip-armor { padding: 1px 5px; border-radius: var(--radius-sm); font-size: var(--text-micro-font-size); font-weight: var(--font-weight-semibold); white-space: nowrap; }
 .armor-none { background: var(--color-bg-elevated); color: var(--color-text-tertiary); }
 .armor-cloth { background: #6c5ce7; color: #fff; }
 .armor-leather { background: #e67e22; color: #fff; }

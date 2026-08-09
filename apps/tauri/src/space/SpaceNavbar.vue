@@ -413,7 +413,7 @@ onBeforeUnmount(() => {
   align-items: center;
   height: 20px;
   padding: 0 8px;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   cursor: pointer;
@@ -555,7 +555,7 @@ onBeforeUnmount(() => {
 }
 
 .user-avatar-letter {
-  color: white;
+  color: var(--on-accent);
   font-weight: 600;
   font-size: var(--font-size-base);
 }
@@ -640,7 +640,7 @@ onBeforeUnmount(() => {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--color-border);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
   padding: 4px;
   z-index: 10001;
@@ -674,7 +674,7 @@ onBeforeUnmount(() => {
   border: none;
   background: transparent;
   color: var(--color-text-secondary);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: var(--font-size-lg);
   display: flex;

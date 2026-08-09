@@ -344,7 +344,7 @@ useAgentPluginBridge('manuscript', (event) => {
 }
 .ms-action-btn {
   width: 32px; height: 32px; border: none; background: transparent;
-  cursor: pointer; border-radius: 6px; font-size: var(--font-size-lg);
+  cursor: pointer; border-radius: var(--radius-sm); font-size: var(--font-size-lg);
   display: flex; align-items: center; justify-content: center;
   transition: background 0.1s, transform 0.1s;
 }

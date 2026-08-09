@@ -114,7 +114,7 @@ defineExpose({ open, close, updateItems, onKeyDown })
   gap: 10px;
   padding: 8px 10px;
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-size: var(--font-size-sm);
 }
 .sc-item:hover,

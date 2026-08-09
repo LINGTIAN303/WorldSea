@@ -173,8 +173,8 @@ onMounted(async () => {
   border-bottom: 1px solid var(--color-border);
 }
 
-.panel-title { font-size: 14px; font-weight: 600; color: var(--color-text); }
-.close-btn { background: none; border: none; cursor: pointer; font-size: 16px; opacity: 0.5; color: var(--color-text-secondary); }
+.panel-title { font-size: var(--fs-base); font-weight: 600; color: var(--color-text); }
+.close-btn { background: none; border: none; cursor: pointer; font-size: var(--fs-lg); opacity: 0.5; color: var(--color-text-secondary); }
 .close-btn:hover { opacity: 1; }
 
 .panel-body { flex: 1; overflow-y: auto; padding: 12px; }
@@ -202,13 +202,13 @@ onMounted(async () => {
   justify-content: center;
   color: white;
   font-weight: 700;
-  font-size: 13px;
+  font-size: var(--fs-md);
   flex-shrink: 0;
 }
 
 .agent-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-.agent-name { font-size: 13px; font-weight: 600; color: var(--color-text); }
-.agent-role { font-size: 11px; color: var(--color-text-tertiary); }
+.agent-name { font-size: var(--fs-md); font-weight: 600; color: var(--color-text); }
+.agent-role { font-size: var(--fs-xs); color: var(--color-text-tertiary); }
 .agent-source { font-size: 10px; color: var(--color-text-tertiary); }
 
 .agent-delete-btn {
@@ -232,7 +232,7 @@ onMounted(async () => {
 .agent-card:hover .agent-delete-btn { opacity: 1; }
 .agent-delete-btn:hover { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
 
-.agent-empty { padding: 16px; font-size: 12px; color: var(--color-text-tertiary); text-align: center; }
+.agent-empty { padding: 16px; font-size: var(--fs-sm); color: var(--color-text-tertiary); text-align: center; }
 
 .create-btn {
   width: 100%;
@@ -242,7 +242,7 @@ onMounted(async () => {
   border-radius: 8px;
   background: transparent;
   color: var(--color-primary);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 600;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s;
@@ -251,10 +251,10 @@ onMounted(async () => {
 
 .delete-confirm-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.3); z-index: 60; display: flex; align-items: center; justify-content: center; }
 .delete-confirm-dialog { background: var(--color-surface-elevated); border: 1px solid var(--color-border); border-radius: 12px; padding: 20px; min-width: 260px; box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
-.delete-confirm-text { font-size: 13px; margin-bottom: 16px; line-height: 1.5; }
+.delete-confirm-text { font-size: var(--fs-md); margin-bottom: 16px; line-height: 1.5; }
 .delete-confirm-actions { display: flex; gap: 8px; justify-content: flex-end; }
-.delete-cancel-btn { padding: 6px 16px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); cursor: pointer; font-size: 12px; }
-.delete-confirm-btn { padding: 6px 16px; border: none; border-radius: 8px; background: #ef4444; color: white; cursor: pointer; font-size: 12px; font-weight: 600; }
+.delete-cancel-btn { padding: 6px 16px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); cursor: pointer; font-size: var(--fs-sm); }
+.delete-confirm-btn { padding: 6px 16px; border: none; border-radius: 8px; background: #ef4444; color: white; cursor: pointer; font-size: var(--fs-sm); font-weight: 600; }
 .delete-confirm-btn:hover { background: #dc2626; }
 
 .panel-slide-enter-active { transition: opacity 0.15s ease, transform 0.15s ease; }

@@ -132,4 +132,16 @@ const ICONS: Record<string, string> = {
   opacity: 0;
   transform: translateY(8px);
 }
+/* 减弱动态偏好：去掉位移动画，保留淡入淡出（Emil 可访问性规则） */
+@media (prefers-reduced-motion: reduce) {
+  .tui-toast-enter-active,
+  .tui-toast-leave-active,
+  .tui-toast-move {
+    transition: opacity var(--dur-base) var(--ease);
+  }
+  .tui-toast-enter-from,
+  .tui-toast-leave-to {
+    transform: none;
+  }
+}
 </style>

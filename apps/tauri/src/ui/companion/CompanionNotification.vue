@@ -128,7 +128,7 @@ function getHistory(entityId: string): string[] {
 .cn-card {
   pointer-events: auto;
   background: var(--content-bg, #fff);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   padding: 12px 14px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12), 0 0 0 1px var(--border, rgba(0, 0, 0, 0.06));
   transition: background 0.3s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease, opacity 0.3s ease, filter 0.3s ease;

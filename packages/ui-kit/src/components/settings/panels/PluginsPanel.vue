@@ -89,10 +89,10 @@ defineExpose({ resetPluginSearch: () => { pluginSearch.value = '' } })
 </script>
 
 <style scoped>
-.set-card { background: var(--content-bg, var(--color-bg-surface)); border-radius: 10px; padding: 14px 16px; box-shadow: 0 1px 6px rgba(0,0,0,0.06), 0 0 0 1px var(--border, var(--color-border)); }
+.set-card { background: var(--content-bg, var(--color-bg-surface)); border-radius: var(--radius-md); padding: 14px 16px; box-shadow: 0 1px 6px rgba(0,0,0,0.06), 0 0 0 1px var(--border, var(--color-border)); }
 .sc-head { font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); color: var(--text-tertiary, var(--color-text-tertiary)); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
 
-.set-input { padding: 4px 8px; font-size: var(--font-size-sm); border: 1px solid var(--border, var(--color-border)); border-radius: 6px; background: var(--bg, var(--color-bg-surface)); color: var(--text-color); }
+.set-input { padding: 4px 8px; font-size: var(--font-size-sm); border: 1px solid var(--border, var(--color-border)); border-radius: var(--radius-sm); background: var(--bg, var(--color-bg-surface)); color: var(--text-color); }
 .set-input:focus { outline: none; border-color: var(--primary, var(--color-primary)); }
 
 .set-plugin-search { margin-bottom: 8px; }
@@ -105,7 +105,7 @@ defineExpose({ resetPluginSearch: () => { pluginSearch.value = '' } })
 .sp-ghost { opacity: 0.4; background: var(--primary-light, color-mix(in srgb, var(--color-primary) 10%, transparent)); border-radius: 4px; }
 .sp-drag { background: var(--content-bg, var(--color-bg-surface)); box-shadow: 0 4px 12px rgba(0,0,0,0.15); border-radius: 4px; }
 .sp-source { font-size: var(--text-micro-font-size); color: var(--text-tertiary, var(--color-text-tertiary)); background: var(--bg-secondary, var(--color-bg-elevated)); padding: 1px 4px; border-radius: 3px; margin-right: 4px; }
-.sp-toggle { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: var(--font-size-sm); padding: 4px 6px; border-radius: 6px; transition: background 0.1s; }
+.sp-toggle { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: var(--font-size-sm); padding: 4px 6px; border-radius: var(--radius-sm); transition: background 0.1s; }
 .sp-toggle:hover { background: var(--hover-bg, var(--color-bg-hover)); }
 .sp-toggle input { margin: 0; accent-color: var(--primary, var(--color-primary)); }
 .sp-icon { font-size: var(--font-size-lg); }

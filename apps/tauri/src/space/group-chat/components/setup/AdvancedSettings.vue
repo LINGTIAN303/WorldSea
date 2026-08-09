@@ -139,7 +139,7 @@ function onParallelCount(e: Event): void {
 .toggle-track {
   width: 36px;
   height: 20px;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--color-border);
   position: relative;
   transition: background 0.2s;

@@ -118,7 +118,7 @@ async function resetCustomFields() {
 </script>
 
 <style scoped>
-.set-card { background: var(--content-bg, var(--color-bg-surface)); border-radius: 10px; padding: 14px 16px; box-shadow: 0 1px 6px rgba(0,0,0,0.06), 0 0 0 1px var(--border, var(--color-border)); }
+.set-card { background: var(--content-bg, var(--color-bg-surface)); border-radius: var(--radius-md); padding: 14px 16px; box-shadow: 0 1px 6px rgba(0,0,0,0.06), 0 0 0 1px var(--border, var(--color-border)); }
 .sc-head { font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); color: var(--text-tertiary, var(--color-text-tertiary)); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
 .set-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; font-size: var(--font-size-sm); gap: 12px; }
 .set-hint { font-size: var(--font-size-xs); color: var(--text-tertiary, var(--color-text-tertiary)); margin: -2px 0 4px; }
@@ -130,14 +130,14 @@ async function resetCustomFields() {
 .set-toggle input:checked + .set-toggle-slider { background: var(--primary, var(--color-primary)); }
 .set-toggle input:checked + .set-toggle-slider::before { transform: translateX(16px); }
 
-.set-input { padding: 4px 8px; font-size: var(--font-size-sm); border: 1px solid var(--border, var(--color-border)); border-radius: 6px; background: var(--bg, var(--color-bg-surface)); color: var(--text-color); }
+.set-input { padding: 4px 8px; font-size: var(--font-size-sm); border: 1px solid var(--border, var(--color-border)); border-radius: var(--radius-sm); background: var(--bg, var(--color-bg-surface)); color: var(--text-color); }
 .set-input:focus { outline: none; border-color: var(--primary, var(--color-primary)); }
 .set-input-sm { width: 72px; text-align: center; }
-.set-select { padding: 4px 8px; font-size: var(--font-size-sm); border: 1px solid var(--border, var(--color-border)); border-radius: 6px; background: var(--bg, var(--color-bg-surface)); color: var(--text-color); cursor: pointer; }
+.set-select { padding: 4px 8px; font-size: var(--font-size-sm); border: 1px solid var(--border, var(--color-border)); border-radius: var(--radius-sm); background: var(--bg, var(--color-bg-surface)); color: var(--text-color); cursor: pointer; }
 .set-select:focus { outline: none; border-color: var(--primary, var(--color-primary)); }
 
 .set-chip-group { display: flex; gap: 6px; flex-wrap: wrap; }
-.set-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border: 1px solid var(--border, var(--color-border)); border-radius: 14px; font-size: var(--font-size-sm); cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s; background: var(--bg, var(--color-bg-surface)); }
+.set-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border: 1px solid var(--border, var(--color-border)); border-radius: var(--radius-lg); font-size: var(--font-size-sm); cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s; background: var(--bg, var(--color-bg-surface)); }
 .set-chip input { display: none; }
 .set-chip.on { border-color: var(--primary, var(--color-primary)); background: var(--primary-light, color-mix(in srgb, var(--color-primary) 10%, transparent)); color: var(--primary, var(--color-primary)); }
 .set-chip:hover { border-color: var(--primary, var(--color-primary)); }
@@ -150,7 +150,7 @@ async function resetCustomFields() {
 .spw-reset:hover { background: var(--hover-bg, var(--color-bg-hover)); color: var(--primary); }
 
 .set-btn-row { display: flex; gap: 8px; margin-top: 6px; }
-.set-btn { font-size: var(--font-size-sm); padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border, var(--color-border)); background: var(--bg, var(--color-bg-surface)); cursor: pointer; color: var(--text-color); transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s; }
+.set-btn { font-size: var(--font-size-sm); padding: 6px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border, var(--color-border)); background: var(--bg, var(--color-bg-surface)); cursor: pointer; color: var(--text-color); transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s; }
 .set-btn:hover { border-color: var(--primary, var(--color-primary)); background: var(--primary-light, color-mix(in srgb, var(--color-primary) 10%, transparent)); }
 .set-btn-danger { color: var(--danger, var(--color-danger)); border-color: var(--danger, var(--color-danger)); }
 .set-btn-danger:hover { background: var(--danger, var(--color-danger)); color: #fff; }

@@ -156,16 +156,16 @@ function close() { emit('close') }
 .de-body { padding: 16px 20px; overflow-y: auto; flex: 1; }
 .de-options { display: flex; gap: 16px; margin-bottom: 12px; font-size: var(--font-size-base); cursor: pointer; }
 .de-options label { cursor: pointer; }
-.de-format-toggle { display: flex; gap: 0; margin-bottom: 12px; border: 1px solid var(--border, #ddd); border-radius: 6px; overflow: hidden; }
+.de-format-toggle { display: flex; gap: 0; margin-bottom: 12px; border: 1px solid var(--border, #ddd); border-radius: var(--radius-sm); overflow: hidden; }
 .de-format-btn { padding: 6px 16px; border: none; background: var(--bg-tertiary, #f0f0f0); cursor: pointer; font-size: var(--font-size-sm); color: var(--text-secondary, #666); transition: background 0.2s, border-color 0.2s, color 0.2s, box-shadow 0.2s, transform 0.2s, opacity 0.2s, filter 0.2s; }
 .de-format-btn:not(:last-child) { border-right: 1px solid var(--border, var(--color-border)); }
 .de-format-btn.active { background: var(--accent, #4a90d9); color: #fff; }
 .de-format-btn:hover:not(.active) { background: var(--bg-secondary, #e8e8e8); }
 .de-preview { position: relative; }
-.de-preview-iframe { width: 100%; height: 360px; border: 1px solid var(--border, #ddd); border-radius: 6px; background: #fff; }
-.de-preview textarea { width: 100%; border: 1px solid var(--border, #ddd); border-radius: 6px; padding: 8px; font-size: var(--font-size-sm); font-family: monospace; background: var(--bg, #fafafa); resize: vertical; }
+.de-preview-iframe { width: 100%; height: 360px; border: 1px solid var(--border, #ddd); border-radius: var(--radius-sm); background: #fff; }
+.de-preview textarea { width: 100%; border: 1px solid var(--border, #ddd); border-radius: var(--radius-sm); padding: 8px; font-size: var(--font-size-sm); font-family: monospace; background: var(--bg, #fafafa); resize: vertical; }
 .de-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
-.de-btn { padding: 8px 20px; border: 1px solid var(--border, #ddd); border-radius: 6px; background: var(--bg, #f8f8f8); cursor: pointer; font-size: var(--font-size-base); }
+.de-btn { padding: 8px 20px; border: 1px solid var(--border, #ddd); border-radius: var(--radius-sm); background: var(--bg, #f8f8f8); cursor: pointer; font-size: var(--font-size-base); }
 .de-btn:hover { background: var(--color-bg-hover); }
 .resize-handle-right {
   position: absolute;

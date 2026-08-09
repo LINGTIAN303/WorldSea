@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="persona-mirror">
     <div class="panel-header">
       <h3 class="panel-title" :style="{ fontFamily: fontFamily }">人格镜</h3>
@@ -374,7 +374,7 @@ onMounted(async () => {
   gap: 14px;
   padding: 12px;
   background: var(--color-surface);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
 }
 
 .persona-avatar-large {
@@ -419,7 +419,7 @@ onMounted(async () => {
 }
 .avatar-action-btn:hover {
   background: var(--color-primary);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .avatar-file-input { display: none; }
@@ -448,7 +448,7 @@ onMounted(async () => {
 
 .pref-item {
   padding: 6px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   margin-bottom: 4px;
   font-size: var(--font-size-xs);
 }
@@ -520,7 +520,7 @@ onMounted(async () => {
   flex: 1;
   padding: 6px 10px;
   border: 1px solid var(--color-border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--color-text-secondary);
   font-size: var(--font-size-xs);
@@ -545,7 +545,7 @@ onMounted(async () => {
 .profile-btn {
   padding: 4px 10px;
   border: 1px solid var(--color-border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--color-text-secondary);
   font-size: var(--font-size-2xs);

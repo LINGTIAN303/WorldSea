@@ -124,7 +124,7 @@ onMounted(() => {
 .editor-wrap :deep(.tiptap pre) {
   background: var(--bg-tertiary);
   padding: 12px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   overflow-x: auto;
   font-size: var(--font-size-sm);
   margin: 8px 0;

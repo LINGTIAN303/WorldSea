@@ -226,7 +226,7 @@ async function save(): Promise<void> {
 
 .creator-header h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--fs-lg);
   font-weight: 600;
   color: var(--text-primary, #e0e0e0);
 }
@@ -237,7 +237,7 @@ async function save(): Promise<void> {
   border: none;
   background: transparent;
   color: var(--text-secondary, #888);
-  font-size: 20px;
+  font-size: var(--fs-xl);
   cursor: pointer;
   border-radius: 4px;
 }
@@ -262,25 +262,25 @@ async function save(): Promise<void> {
 }
 
 .form-section label {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 500;
   color: var(--text-secondary, #888);
 }
 
 .hint {
   font-weight: 400;
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 .form-input,
 .form-textarea,
 .form-select {
   padding: 8px 12px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border-color, #2a2a4a);
   background: var(--bg-secondary, #16162a);
   color: var(--text-primary, #e0e0e0);
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-family: inherit;
 }
 
@@ -358,12 +358,12 @@ async function save(): Promise<void> {
 
 .form-details {
   border: 1px solid var(--border-color, #2a2a4a);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   padding: 8px 12px;
 }
 
 .form-details summary {
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 500;
   cursor: pointer;
   color: var(--text-primary, #e0e0e0);
@@ -387,11 +387,11 @@ async function save(): Promise<void> {
 
 .btn-cancel {
   padding: 8px 16px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border-color, #2a2a4a);
   background: transparent;
   color: var(--text-secondary, #888);
-  font-size: 13px;
+  font-size: var(--fs-md);
   cursor: pointer;
 }
 
@@ -401,11 +401,11 @@ async function save(): Promise<void> {
 
 .btn-save {
   padding: 8px 20px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   border: none;
   background: var(--accent, #6366f1);
   color: white;
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 500;
   cursor: pointer;
 }

@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { onMounted, computed, ref } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
-import WsButton from '../WsButton.vue'
-import WsCheckbox from '../WsCheckbox.vue'
+import TuiButton from '@/components/ui/TuiButton.vue'
+import TuiCheckbox from '@/components/ui/TuiCheckbox.vue'
 import { useStorageStats } from '@worldsmith/entity-core/composables'
 import { useOrphanCleanup } from '@worldsmith/entity-core/composables'
 import { useDataDiagnostics } from '@worldsmith/entity-core/composables'
@@ -106,9 +106,9 @@ onMounted(async () => {
       <div class="sm-section-head">
         <WsIcon name="dashboard" size="xs" />
         <span>存储概览</span>
-        <WsButton size="sm" variant="ghost" @click="onRefreshStats" :disabled="statsScanning">
+        <TuiButton size="sm" variant="ghost" @click="onRefreshStats" :disabled="statsScanning">
           刷新统计
-        </WsButton>
+        </TuiButton>
       </div>
       <div class="sm-stats-grid">
         <div class="sm-stat-item">
@@ -146,28 +146,28 @@ onMounted(async () => {
       <div class="sm-section-head">
         <WsIcon name="delete" size="xs" />
         <span>孤立文件清理</span>
-        <WsButton size="sm" variant="ghost" @click="onScanOrphans" :disabled="orphanScanning">
+        <TuiButton size="sm" variant="ghost" @click="onScanOrphans" :disabled="orphanScanning">
           {{ orphanScanning ? `扫描中 ${scanProgress}%` : '扫描' }}
-        </WsButton>
+        </TuiButton>
       </div>
       <div v-if="orphans.length > 0" class="sm-orphan-list">
         <div class="sm-orphan-actions">
-          <WsButton size="sm" variant="ghost" @click="selectAll">全选</WsButton>
-          <WsButton size="sm" variant="ghost" @click="deselectAll">全不选</WsButton>
+          <TuiButton size="sm" variant="ghost" @click="selectAll">全选</TuiButton>
+          <TuiButton size="sm" variant="ghost" @click="deselectAll">全不选</TuiButton>
           <span class="sm-selected-info">已选 {{ selectedCount }} 项 ({{ formatSize(selectedSize) }})</span>
         </div>
         <div v-for="o in orphans" :key="o.id" class="sm-orphan-item">
-          <WsCheckbox :checked="selectedIds.has(o.id)" @change="toggleSelect(o.id)" />
+          <TuiCheckbox :model-value="selectedIds.has(o.id)" @update:model-value="toggleSelect(o.id)" />
           <span class="sm-orphan-name">{{ o.name }}</span>
           <span class="sm-orphan-size">{{ formatSize(o.sizeEstimate) }}</span>
         </div>
         <div class="sm-orphan-actions">
-          <WsButton size="sm" variant="danger" @click="onCleanSelected" :disabled="selectedCount === 0 || isCleaning">
+          <TuiButton size="sm" variant="danger" @click="onCleanSelected" :disabled="selectedCount === 0 || isCleaning">
             清理选中项
-          </WsButton>
-          <WsButton size="sm" variant="danger" @click="onCleanAll" :disabled="isCleaning">
+          </TuiButton>
+          <TuiButton size="sm" variant="danger" @click="onCleanAll" :disabled="isCleaning">
             清理全部
-          </WsButton>
+          </TuiButton>
         </div>
       </div>
       <div v-else-if="!orphanScanning" class="sm-empty-hint">
@@ -185,9 +185,9 @@ onMounted(async () => {
         <span v-if="backendAvailable"><WsIcon name="check-circle" size="xs" /> 可用</span>
         <span v-else><WsIcon name="alert" size="xs" /> 不可用（降级模式）</span>
       </div>
-      <WsButton size="sm" variant="secondary" @click="onRunDiagnostics" :disabled="diagRunning">
+      <TuiButton size="sm" variant="secondary" @click="onRunDiagnostics" :disabled="diagRunning">
         {{ diagRunning ? '诊断中...' : '运行诊断' }}
-      </WsButton>
+      </TuiButton>
       <div v-if="diagResult" class="sm-diag-results">
         <div class="sm-diag-item" :class="{ 'sm-diag-ok': diagResult.orphanEntities.length === 0 }">
           <WsIcon v-if="diagResult.orphanEntities.length > 0" name="alert" size="xs" />
@@ -222,9 +222,9 @@ onMounted(async () => {
         <div>自动清理范围: 过期缓存 + 临时标记</div>
         <div>执行频率: 每 24 小时（应用启动时）</div>
       </div>
-      <WsButton size="sm" variant="ghost" @click="onForceAutoCleanup">
+      <TuiButton size="sm" variant="ghost" @click="onForceAutoCleanup">
         立即执行一次
-      </WsButton>
+      </TuiButton>
     </div>
   </div>
 </template>
@@ -240,7 +240,7 @@ onMounted(async () => {
 }
 .sm-section {
   border: 1px solid var(--color-border-subtle);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   height: 212px;
   padding: 16px;
   background: var(--color-bg-surface);

@@ -93,29 +93,29 @@ function onStatusChange(e: Event) {
 }
 .pt-back {
   background: none; border: none; color: var(--primary, #58a6ff);
-  cursor: pointer; font-size: 13px; padding: 4px 0;
+  cursor: pointer; font-size: var(--fs-md); padding: 4px 0;
 }
 .pt-info { flex: 1; }
 .pt-title { margin: 0; font-size: 18px; font-weight: 600; }
-.pt-desc { margin: 4px 0 0; font-size: 12px; opacity: 0.6; }
+.pt-desc { margin: 4px 0 0; font-size: var(--fs-sm); opacity: 0.6; }
 
 .pt-status-group {
   display: flex; align-items: center; gap: 4px; padding-top: 2px;
 }
-.pt-status-label { font-size: 12px; opacity: 0.6; }
+.pt-status-label { font-size: var(--fs-sm); opacity: 0.6; }
 .pt-status-select {
   padding: 3px 8px; border-radius: 5px; border: 1px solid var(--border, #30363d);
   background: var(--bg-secondary, #161b22); color: var(--text-primary, #e6edf3);
-  font-size: 12px; cursor: pointer; outline: none;
+  font-size: var(--fs-sm); cursor: pointer; outline: none;
 }
 .pt-status-select:focus { border-color: var(--primary, #58a6ff); }
 
 .pt-actions { display: flex; gap: 6px; }
 
 .pt-btn {
-  padding: 5px 12px; border-radius: 6px; border: 1px solid var(--border, #30363d);
+  padding: 5px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border, #30363d);
   background: var(--bg-secondary, #161b22); color: var(--text-primary, #e6edf3);
-  cursor: pointer; font-size: 12px; transition: background 0.15s, border-color 0.15s;
+  cursor: pointer; font-size: var(--fs-sm); transition: background 0.15s, border-color 0.15s;
 }
 .pt-btn:hover { background: var(--bg-tertiary, #21262d); }
 .pt-btn--active {

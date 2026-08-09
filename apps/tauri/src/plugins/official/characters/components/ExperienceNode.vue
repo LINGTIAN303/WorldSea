@@ -143,7 +143,7 @@ function cancelEdit() {
 
 <style scoped>
 .en-node { display: flex; gap: 12px; position: relative; min-height: 48px; cursor: pointer; padding: 4px 0; }
-.en-node:hover { background: var(--bg-secondary, rgba(0,0,0,0.02)); border-radius: 6px; }
+.en-node:hover { background: var(--bg-secondary, rgba(0,0,0,0.02)); border-radius: var(--radius-sm); }
 .en-left { display: flex; flex-direction: column; align-items: center; width: 40px; flex-shrink: 0; }
 .en-icon { font-size: var(--font-size-base); margin-bottom: 4px; }
 .en-icon-rel { font-size: var(--font-size-xs); color: var(--text-tertiary); background: var(--bg-secondary); padding: 1px 4px; border-radius: 3px; }

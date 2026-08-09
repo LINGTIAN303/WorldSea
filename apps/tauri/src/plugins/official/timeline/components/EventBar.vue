@@ -69,7 +69,7 @@ const tooltipStyle = computed(() => ({
 .event-bar {
   position: absolute;
   height: 28px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   display: flex;
   align-items: center;

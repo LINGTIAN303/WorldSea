@@ -84,7 +84,7 @@ function close() {
 .uhp-close { background: none; border: none; font-size: var(--font-size-xl); cursor: pointer; padding: 4px 8px; border-radius: 4px; }
 .uhp-close:hover { background: var(--hover-bg, #f3f4f6); }
 .uhp-body { padding: 8px 12px; overflow-y: auto; flex: 1; }
-.uhp-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 6px; cursor: pointer; transition: background 0.1s; }
+.uhp-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--radius-sm); cursor: pointer; transition: background 0.1s; }
 .uhp-item:hover { background: var(--hover-bg, #f3f4f6); }
 .uhp-item.selected { background: var(--primary-light, #eef2ff); }
 .uhp-item input[type="checkbox"] { margin: 0; accent-color: var(--primary, #4f46e5); flex-shrink: 0; }
@@ -93,7 +93,7 @@ function close() {
 .uhp-time { font-size: var(--font-size-xs); color: var(--text-tertiary); }
 .uhp-footer { display: flex; align-items: center; gap: 8px; padding: 10px 20px; border-top: 1px solid var(--border, #eee); }
 .uhp-count { font-size: var(--font-size-sm); color: var(--text-secondary); flex: 1; }
-.uhp-btn { padding: 6px 14px; border-radius: 6px; border: 1px solid var(--primary, #4f46e5); background: var(--primary, #4f46e5); color: #fff; font-size: var(--font-size-sm); cursor: pointer; transition: opacity 0.12s; }
+.uhp-btn { padding: 6px 14px; border-radius: var(--radius-sm); border: 1px solid var(--primary, #4f46e5); background: var(--primary, #4f46e5); color: #fff; font-size: var(--font-size-sm); cursor: pointer; transition: opacity 0.12s; }
 .uhp-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .uhp-btn:hover:not(:disabled) { opacity: 0.85; }
 .uhp-btn-secondary { background: var(--bg, #fafafa); color: var(--text-color); border-color: var(--border, #ddd); }

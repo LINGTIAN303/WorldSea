@@ -227,7 +227,7 @@ watch(() => props.nodeId, () => {
   cursor: pointer; transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast), opacity var(--transition-fast), filter var(--transition-fast);
   background: var(--color-bg-elevated);
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 .mm-dp-rel-item:hover { color: var(--primary); border-color: var(--primary); transform: translateX(2px); }
 .mm-dp-rel-type {
@@ -266,7 +266,7 @@ watch(() => props.nodeId, () => {
 }
 .mm-dp-btn {
   padding: 6px 12px; border: 1px solid var(--border-color);
-  border-radius: 6px; background: var(--card-bg);
+  border-radius: var(--radius-sm); background: var(--card-bg);
   cursor: pointer; font-size: var(--font-size-xs); color: var(--text-secondary);
   transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast), opacity var(--transition-fast), filter var(--transition-fast);
   display: inline-flex; align-items: center; gap: 4px;

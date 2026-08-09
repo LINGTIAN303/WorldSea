@@ -187,7 +187,7 @@ defineExpose({ open })
 </script>
 
 <style scoped>
-.dlg-close { width: 28px; height: 28px; border: none; background: transparent; border-radius: 6px; cursor: pointer; font-size: var(--font-size-lg); color: var(--text-tertiary); display: flex; align-items: center; justify-content: center; }
+.dlg-close { width: 28px; height: 28px; border: none; background: transparent; border-radius: var(--radius-sm); cursor: pointer; font-size: var(--font-size-lg); color: var(--text-tertiary); display: flex; align-items: center; justify-content: center; }
 .dlg-close:hover { background: var(--color-bg-hover); }
 
 .import-zone { border: 2px dashed var(--border-color); border-radius: var(--radius-md); padding: 24px; text-align: center; cursor: pointer; transition: border-color var(--transition-fast); }

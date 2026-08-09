@@ -78,8 +78,8 @@ onBeforeUnmount(() => {
 .aa-msg.user .aa-msg-text { background: var(--primary); color: white; }
 .aa-msg.assistant .aa-msg-text { background: var(--bg-secondary); color: var(--text-color); }
 .aa-input-area { display: flex; gap: 6px; padding: 8px 12px; border-top: 1px solid var(--border-color); }
-.aa-input { flex: 1; padding: 6px 10px; border: 1px solid var(--border-color); border-radius: 6px; font-size: var(--font-size-sm); background: var(--bg); color: var(--text-color); outline: none; }
+.aa-input { flex: 1; padding: 6px 10px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); font-size: var(--font-size-sm); background: var(--bg); color: var(--text-color); outline: none; }
 .aa-input:focus { border-color: var(--primary); }
-.aa-send { padding: 6px 14px; background: var(--primary); color: white; border: none; border-radius: 6px; font-size: var(--font-size-sm); cursor: pointer; }
+.aa-send { padding: 6px 14px; background: var(--primary); color: white; border: none; border-radius: var(--radius-sm); font-size: var(--font-size-sm); cursor: pointer; }
 .aa-send:disabled { opacity: 0.5; cursor: not-allowed; }
 </style>

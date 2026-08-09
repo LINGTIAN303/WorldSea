@@ -61,12 +61,12 @@ const textStyle = computed(() => ({
   justify-content: center;
   flex-shrink: 0;
   overflow: hidden;
-  color: #fff;
+  color: var(--on-accent);
   font-weight: 600;
   user-select: none;
 }
 .shape-circle { border-radius: 50%; }
-.shape-rounded { border-radius: 6px; }
+.shape-rounded { border-radius: var(--radius-sm); }
 .avatar-img {
   width: 100%;
   height: 100%;
@@ -75,6 +75,6 @@ const textStyle = computed(() => ({
 }
 .avatar-text {
   line-height: 1;
-  color: #fff;
+  color: var(--on-accent);
 }
 </style>

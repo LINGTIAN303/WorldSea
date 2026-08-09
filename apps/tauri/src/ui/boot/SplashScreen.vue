@@ -288,7 +288,7 @@ onUnmounted(() => {
 
 .ws-splash__status {
   font-family: var(--font-family-base, 'DM Sans'), sans-serif;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   letter-spacing: 0.12em;
   color: var(--color-text-secondary, #94A3B8);
   text-transform: uppercase;

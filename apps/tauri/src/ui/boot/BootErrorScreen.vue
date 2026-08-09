@@ -141,7 +141,7 @@ function continueAnyway() {
   position: absolute;
   width: 48px;
   height: 48px;
-  color: #ff6b6b;
+  color: var(--danger);
   opacity: 0.5;
 }
 .ws-boot-error__corner--tl { top: 24px; left: 24px; }
@@ -160,20 +160,20 @@ function continueAnyway() {
 }
 
 .ws-boot-error__icon {
-  color: #ff6b6b;
+  color: var(--danger);
   margin-bottom: 8px;
 }
 
 .ws-boot-error__title {
   font-size: 28px;
   font-weight: 700;
-  color: #ff6b6b;
+  color: var(--danger);
   letter-spacing: 0.05em;
   margin: 0;
 }
 
 .ws-boot-error__subtitle {
-  font-size: 14px;
+  font-size: var(--fs-base);
   color: var(--ws-text-secondary, #9ca3af);
   margin: 0 0 16px;
 }
@@ -184,7 +184,7 @@ function continueAnyway() {
 }
 
 .ws-boot-error__section-title {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -202,15 +202,15 @@ function continueAnyway() {
 
 .ws-boot-error__item {
   padding: 12px 16px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   border-left: 3px solid;
   background: rgba(255, 255, 255, 0.03);
 }
 .ws-boot-error__item--failed {
-  border-left-color: #ff6b6b;
+  border-left-color: var(--danger);
 }
 .ws-boot-error__item--skipped {
-  border-left-color: #fbbf24;
+  border-left-color: var(--warning);
 }
 
 .ws-boot-error__item-header {
@@ -222,12 +222,12 @@ function continueAnyway() {
 }
 
 .ws-boot-error__item-name {
-  font-size: 14px;
+  font-size: var(--fs-base);
   font-weight: 600;
 }
 
 .ws-boot-error__item-id {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--ws-text-tertiary, #6b7280);
   background: rgba(255, 255, 255, 0.05);
   padding: 2px 6px;
@@ -235,7 +235,7 @@ function continueAnyway() {
 }
 
 .ws-boot-error__item-error {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--ws-text-secondary, #9ca3af);
   margin: 0;
   word-break: break-word;
@@ -249,9 +249,9 @@ function continueAnyway() {
 
 .ws-boot-error__btn {
   padding: 10px 20px;
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 600;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   border: 1px solid transparent;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -259,11 +259,11 @@ function continueAnyway() {
 }
 
 .ws-boot-error__btn--primary {
-  background: #ff6b6b;
-  color: #fff;
+  background: var(--danger);
+  color: var(--on-accent);
 }
 .ws-boot-error__btn--primary:hover {
-  background: #ff5252;
+  background: var(--danger-hover);
 }
 
 .ws-boot-error__btn--secondary {
@@ -277,7 +277,7 @@ function continueAnyway() {
 }
 
 .ws-boot-error__hint {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--ws-text-tertiary, #6b7280);
   margin: 8px 0 0;
 }

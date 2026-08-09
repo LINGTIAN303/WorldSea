@@ -165,15 +165,15 @@ function formatDuration(ms: number): string {
   position: relative; overflow: hidden;
 }
 .ep-progress__bar { height: 100%; background: var(--success, #3fb950); border-radius: 2px; transition: width 0.3s; }
-.ep-progress__text { position: absolute; right: 0; top: -16px; font-size: 11px; opacity: 0.5; }
+.ep-progress__text { position: absolute; right: 0; top: -16px; font-size: var(--fs-xs); opacity: 0.5; }
 
 .ep-current {
   margin-top: 8px; padding: 8px 10px; background: var(--bg-tertiary, #21262d);
-  border-radius: 6px; display: flex; align-items: center; gap: 6px; font-size: 12px;
+  border-radius: var(--radius-sm); display: flex; align-items: center; gap: 6px; font-size: var(--fs-sm);
 }
 .ep-current__label { opacity: 0.6; }
 .ep-current__step { font-weight: 500; }
-.ep-current__type { font-size: 11px; opacity: 0.5; margin-left: auto; }
+.ep-current__type { font-size: var(--fs-xs); opacity: 0.5; margin-left: auto; }
 
 .ep-agents {
   margin-top: 8px;
@@ -187,23 +187,23 @@ function formatDuration(ms: number): string {
   gap: 6px;
   padding: 6px 10px;
   background: var(--bg-tertiary, #21262d);
-  border-radius: 6px;
-  font-size: 12px;
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-sm);
 }
-.ep-agent__icon { font-size: 14px; }
+.ep-agent__icon { font-size: var(--fs-base); }
 .ep-agent__name { font-weight: 500; }
-.ep-agent__status { font-size: 11px; margin-left: auto; }
+.ep-agent__status { font-size: var(--fs-xs); margin-left: auto; }
 .agent-status--running { color: var(--warning, #d29922); }
 .agent-status--pending { color: var(--text-secondary, #8b949e); }
 .agent-status--completed { color: var(--success, #3fb950); }
 .agent-status--failed { color: var(--danger, #f85149); }
-.ep-agent__duration { font-size: 11px; opacity: 0.5; }
+.ep-agent__duration { font-size: var(--fs-xs); opacity: 0.5; }
 
 .ep-log { margin-top: 8px; padding: 12px; background: var(--bg-tertiary, #21262d); border-radius: 8px; }
-.ep-log__title { margin: 0 0 8px; font-size: 13px; opacity: 0.7; }
-.ep-log__line { font-size: 12px; font-family: monospace; opacity: 0.6; line-height: 1.6; }
+.ep-log__title { margin: 0 0 8px; font-size: var(--fs-md); opacity: 0.7; }
+.ep-log__line { font-size: var(--fs-sm); font-family: monospace; opacity: 0.6; line-height: 1.6; }
 
-.ep-idle { text-align: center; padding: 24px; opacity: 0.4; font-size: 13px; }
+.ep-idle { text-align: center; padding: 24px; opacity: 0.4; font-size: var(--fs-md); }
 
 /* ── Engine 通道样式 ─────────────────────────────────────────── */
 .ep-engine {
@@ -217,7 +217,7 @@ function formatDuration(ms: number): string {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
 }
 .ep-engine__badge {
-  font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px;
+  font-size: var(--fs-xs); font-weight: 600; padding: 2px 8px; border-radius: 4px;
   background: var(--bg-tertiary, #21262d);
 }
 .ep-engine__badge--running { color: var(--warning, #d29922); }
@@ -228,7 +228,7 @@ function formatDuration(ms: number): string {
 .ep-engine__badge--unknown { color: var(--text-secondary, #8b949e); }
 
 .ep-engine__runid {
-  font-size: 11px; opacity: 0.5; font-family: monospace;
+  font-size: var(--fs-xs); opacity: 0.5; font-family: monospace;
   margin-left: auto;
 }
 
@@ -236,7 +236,7 @@ function formatDuration(ms: number): string {
   padding: 2px 10px; border-radius: 4px;
   border: 1px solid color-mix(in srgb, var(--danger, #f85149) 40%, transparent);
   background: transparent; color: var(--danger, #f85149);
-  font-size: 11px; cursor: pointer;
+  font-size: var(--fs-xs); cursor: pointer;
 }
 .ep-engine__cancel:hover {
   background: color-mix(in srgb, var(--danger, #f85149) 12%, transparent);
@@ -255,15 +255,15 @@ function formatDuration(ms: number): string {
 .ep-engine__progress-bar--cancelled { background: var(--text-secondary, #8b949e); }
 .ep-engine__progress-text {
   position: absolute; right: 0; top: -16px;
-  font-size: 11px; opacity: 0.5;
+  font-size: var(--fs-xs); opacity: 0.5;
 }
 
 .ep-engine__current {
-  margin-top: 8px; font-size: 12px; opacity: 0.7;
+  margin-top: 8px; font-size: var(--fs-sm); opacity: 0.7;
 }
 .ep-engine__current-label { opacity: 0.6; }
 .ep-engine__current-node {
-  font-family: monospace; font-size: 11px;
+  font-family: monospace; font-size: var(--fs-xs);
   padding: 1px 6px; border-radius: 3px;
   background: var(--bg-tertiary, #21262d);
 }
@@ -272,7 +272,7 @@ function formatDuration(ms: number): string {
   margin-top: 8px; padding: 6px 10px;
   background: color-mix(in srgb, var(--danger, #f85149) 10%, transparent);
   border: 1px solid color-mix(in srgb, var(--danger, #f85149) 30%, transparent);
-  border-radius: 4px; font-size: 12px; color: var(--danger, #f85149);
+  border-radius: 4px; font-size: var(--fs-sm); color: var(--danger, #f85149);
 }
 
 .ep-engine__log {
@@ -281,7 +281,7 @@ function formatDuration(ms: number): string {
   border-radius: 4px;
 }
 .ep-engine__log-line {
-  font-size: 11px; font-family: monospace; opacity: 0.7;
+  font-size: var(--fs-xs); font-family: monospace; opacity: 0.7;
   line-height: 1.5; white-space: pre-wrap; word-break: break-all;
 }
 </style>

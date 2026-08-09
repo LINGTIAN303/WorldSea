@@ -18,6 +18,6 @@ const strictnessLabel = computed(() => {
 })
 </script>
 <style scoped>
-.ccc__row { font-size: 12px; line-height: 1.6; }
+.ccc__row { font-size: var(--fs-sm); line-height: 1.6; }
 .ccc__row strong { color: var(--primary, #58a6ff); }
 </style>

@@ -69,6 +69,15 @@ function toggle() {
   applyPreference(order[(idx + 1) % order.length])
 }
 
+/**
+ * 强制设定模式（供主题编辑器等外部模块调用，接入同一三态模型）：
+ * 持久化该模式并应用；传入 'system' 则恢复跟随系统。
+ * 保证 data-theme 始终由本模块（App 壳三态）唯一控制，避免多主题源互相踩踏。
+ */
+function setMode(mode: ThemeMode) {
+  applyPreference(mode)
+}
+
 /** 跟随系统：清除显式选择，实时响应系统变化 */
 function followSystem() {
   applyPreference('system')
@@ -104,6 +113,7 @@ export function useTheme() {
     preference,
     toggle,
     apply,
+    setMode,
     followSystem,
   }
 }

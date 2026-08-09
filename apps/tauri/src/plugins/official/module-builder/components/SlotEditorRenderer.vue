@@ -156,7 +156,7 @@ function startResize(e: MouseEvent, comp: PlacedComponent) {
 .slot-zone-editor { border: 2px dashed var(--border-color); border-radius: 8px; padding: 8px; min-height: 80px; display: flex; flex-direction: column; gap: 4px; }
 .zone-label { font-size: var(--font-size-xs); color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
 .zone-canvas { position: relative; min-height: 60px; flex: 1; }
-.zone-component { position: absolute; display: flex; flex-direction: column; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg); cursor: grab; font-size: var(--font-size-sm); min-width: 80px; min-height: 40px; user-select: none; }
+.zone-component { position: absolute; display: flex; flex-direction: column; border: 1px solid var(--border-color); border-radius: var(--radius-sm); background: var(--bg); cursor: grab; font-size: var(--font-size-sm); min-width: 80px; min-height: 40px; user-select: none; }
 .zone-component:hover { background: var(--hover-bg); }
 .zone-component.selected { border-color: var(--primary); background: var(--primary-light); }
 .zone-component.expanded { z-index: 10; }

@@ -182,7 +182,7 @@ defineExpose({ loadRuns })
 }
 .rh-title {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 600;
 }
 .rh-refresh {
@@ -217,7 +217,7 @@ defineExpose({ loadRuns })
 .rh-loading {
   padding: 24px 12px;
   text-align: center;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   opacity: 0.5;
 }
 
@@ -227,11 +227,11 @@ defineExpose({ loadRuns })
 }
 .rh-empty p {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--fs-md);
   opacity: 0.4;
 }
 .rh-empty__hint {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   margin-top: 4px;
 }
 
@@ -243,7 +243,7 @@ defineExpose({ loadRuns })
 
 .rh-item {
   padding: 8px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background 0.15s;
   margin-bottom: 2px;
@@ -265,7 +265,7 @@ defineExpose({ loadRuns })
 }
 .rh-item__id {
   font-family: monospace;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
@@ -289,13 +289,13 @@ defineExpose({ loadRuns })
   display: flex;
   align-items: center;
   gap: 2px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   opacity: 0.5;
   margin-top: 2px;
 }
 
 .rh-item__trigger {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   opacity: 0.4;
   margin-top: 1px;
   white-space: nowrap;
@@ -308,7 +308,7 @@ defineExpose({ loadRuns })
   padding: 6px 8px;
   background: color-mix(in srgb, var(--danger, #f85149) 10%, transparent);
   border-radius: 4px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--danger, #f85149);
   white-space: pre-wrap;
   word-break: break-all;
@@ -320,10 +320,10 @@ defineExpose({ loadRuns })
 }
 .rh-error p {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 .rh-error__msg {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   opacity: 0.5;
   margin-top: 4px;
   word-break: break-all;
@@ -335,7 +335,7 @@ defineExpose({ loadRuns })
   border: 1px solid var(--border, #30363d);
   background: var(--bg-tertiary, #21262d);
   color: var(--primary, #58a6ff);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   cursor: pointer;
 }
 .rh-error__retry:hover {

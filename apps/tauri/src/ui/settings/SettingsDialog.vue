@@ -164,13 +164,13 @@ function close() {
 .set-overlay { position: fixed; inset: 0; z-index: var(--z-overlay); background: rgba(0,0,0,0.35); display: flex; align-items: flex-start; justify-content: center; padding-top: 3vh; }
 .set-shell { max-height: 78vh; display: flex; flex-direction: column; position: relative; min-width: 420px; max-width: 680px; width: auto; }
 
-.set-topbar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: var(--content-bg, var(--color-bg-surface)); border-radius: 10px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+.set-topbar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: var(--content-bg, var(--color-bg-surface)); border-radius: var(--radius-md); box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
 .set-topbar-left { display: flex; align-items: center; gap: 6px; color: var(--text-secondary); flex-shrink: 0; }
 .set-topbar-title { font-size: var(--font-size-base); font-weight: var(--font-weight-semibold); color: var(--text-color); }
 .set-topbar-spacer { flex: 1; }
 .set-search-wrap { position: relative; width: 500px; flex-shrink: 0; }
 .set-search-icon { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); color: var(--text-tertiary, var(--color-text-tertiary)); pointer-events: none; }
-.set-search-input { width: 100%; height: 28px; padding: 5px 28px; font-size: var(--font-size-sm); border: 1px solid var(--border, var(--color-border)); border-radius: 6px; background: var(--bg, var(--color-bg-surface)); color: #C8E6F0; }
+.set-search-input { width: 100%; height: 28px; padding: 5px 28px; font-size: var(--font-size-sm); border: 1px solid var(--border, var(--color-border)); border-radius: var(--radius-sm); background: var(--bg, var(--color-bg-surface)); color: var(--text-secondary); }
 .set-search-input:focus { outline: none; border-color: var(--primary, var(--color-primary)); }
 .set-search-input::placeholder { color: var(--text-tertiary, var(--color-text-tertiary)); }
 .set-search-clear { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); background: none; border: none; font-size: var(--font-size-xs); color: var(--text-tertiary, var(--color-text-tertiary)); cursor: pointer; padding: 2px; }

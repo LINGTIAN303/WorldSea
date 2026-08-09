@@ -287,7 +287,7 @@ watch(currentSessionId, () => {
   height: 28px;
   border: 1px dashed var(--color-border);
   background: transparent;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: var(--font-size-lg);
   color: var(--color-text-secondary);
@@ -328,7 +328,7 @@ watch(currentSessionId, () => {
   width: 100%;
   padding: 6px 10px;
   border: 1px solid var(--color-border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-size: var(--font-size-xs);
   background: var(--color-surface-elevated);
   color: var(--color-text);
@@ -454,7 +454,7 @@ watch(currentSessionId, () => {
   padding: 7px 12px;
   border: none;
   background: transparent;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: var(--font-size-xs);
   color: var(--color-text);
@@ -468,6 +468,6 @@ watch(currentSessionId, () => {
 }
 .session-ctx-menu .ctx-danger:hover {
   background: var(--color-danger, #e53e3e);
-  color: #fff;
+  color: var(--on-accent);
 }
 </style>

@@ -197,10 +197,10 @@ function close() {
 .et-name-overlay { position: absolute; inset: 0; z-index: 10; background: rgba(0,0,0,0.25); display: flex; align-items: center; justify-content: center; border-radius: 12px; }
 .et-name-modal { background: var(--content-bg); border-radius: 8px; padding: 20px; width: 320px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
 .et-name-modal h4 { margin: 0 0 12px; font-size: var(--font-size-base); }
-.et-name-input { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: var(--font-size-base); background: var(--bg); color: var(--text); box-sizing: border-box; }
+.et-name-input { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: var(--font-size-base); background: var(--bg); color: var(--text); box-sizing: border-box; }
 .et-name-input:focus { outline: none; border-color: var(--primary); }
 .et-name-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
-.et-btn { padding: 6px 14px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); cursor: pointer; font-size: var(--font-size-sm); color: var(--text); }
+.et-btn { padding: 6px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); cursor: pointer; font-size: var(--font-size-sm); color: var(--text); }
 .et-btn:hover { background: var(--bg-hover); }
 .et-btn.primary { background: var(--primary); color: var(--text-on-primary, #fff); border-color: var(--primary); }
 .et-btn.primary:hover { opacity: 0.9; }

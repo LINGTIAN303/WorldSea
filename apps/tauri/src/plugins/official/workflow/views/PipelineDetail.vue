@@ -277,10 +277,10 @@ function handleAddConnection() {
 }
 
 .pd-edit-banner {
-  padding: 6px 12px; border-radius: 6px;
+  padding: 6px 12px; border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--warning, #d29922) 12%, transparent);
   border: 1px solid color-mix(in srgb, var(--warning, #d29922) 30%, transparent);
-  font-size: 12px; color: var(--warning, #d29922); flex-shrink: 0;
+  font-size: var(--fs-sm); color: var(--warning, #d29922); flex-shrink: 0;
 }
 
 .pd-steps { display: flex; flex-direction: column; gap: 0; flex: 1; }
@@ -294,12 +294,12 @@ function handleAddConnection() {
   text-align: center;
 }
 .pd-empty__icon { font-size: 40px; }
-.pd-empty__hero h3 { margin: 0; font-size: 16px; font-weight: 600; }
-.pd-empty__desc { margin: 0; font-size: 13px; opacity: 0.6; }
+.pd-empty__hero h3 { margin: 0; font-size: var(--fs-lg); font-weight: 600; }
+.pd-empty__desc { margin: 0; font-size: var(--fs-md); opacity: 0.6; }
 
 .pd-empty__agent {
   display: flex; align-items: center; gap: 12px; width: 100%; max-width: 480px;
-  padding: 14px 16px; border-radius: 10px; cursor: pointer;
+  padding: 14px 16px; border-radius: var(--radius-md); cursor: pointer;
   background: color-mix(in srgb, var(--primary, #58a6ff) 10%, var(--bg-secondary, #161b22));
   border: 1px solid color-mix(in srgb, var(--primary, #58a6ff) 30%, transparent);
   transition: background 0.15s, border-color 0.15s;
@@ -310,15 +310,15 @@ function handleAddConnection() {
 }
 .pd-empty__agent-icon { font-size: 28px; flex-shrink: 0; }
 .pd-empty__agent-info { flex: 1; display: flex; flex-direction: column; gap: 2px; }
-.pd-empty__agent-title { font-size: 14px; font-weight: 600; }
-.pd-empty__agent-desc { font-size: 12px; opacity: 0.6; }
+.pd-empty__agent-title { font-size: var(--fs-base); font-weight: 600; }
+.pd-empty__agent-desc { font-size: var(--fs-sm); opacity: 0.6; }
 .pd-empty__arrow { font-size: 18px; color: var(--primary, #58a6ff); flex-shrink: 0; }
 
 .pd-empty__manual {
   width: 100%; max-width: 480px;
 }
 .pd-empty__manual h4 {
-  margin: 0 0 10px; font-size: 13px; font-weight: 500; opacity: 0.5;
+  margin: 0 0 10px; font-size: var(--fs-md); font-weight: 500; opacity: 0.5;
   text-align: center;
 }
 .pd-empty__steps {
@@ -337,12 +337,12 @@ function handleAddConnection() {
 }
 .pd-step-card__icon { font-size: 18px; flex-shrink: 0; }
 .pd-step-card__info { flex: 1; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.pd-step-card__label { font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pd-step-card__label { font-size: var(--fs-sm); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pd-step-card__desc { font-size: 10px; opacity: 0.5; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .pd-step-card__add {
   width: 22px; height: 22px; border-radius: 50%; display: flex;
   align-items: center; justify-content: center; flex-shrink: 0;
-  background: var(--bg-tertiary, #21262d); font-size: 14px; font-weight: 500;
+  background: var(--bg-tertiary, #21262d); font-size: var(--fs-base); font-weight: 500;
   color: var(--primary, #58a6ff);
 }
 
@@ -354,24 +354,24 @@ function handleAddConnection() {
 .pd-connections__header {
   display: flex; align-items: center; justify-content: space-between;
 }
-.pd-connections__header h4 { margin: 0; font-size: 13px; font-weight: 500; }
+.pd-connections__header h4 { margin: 0; font-size: var(--fs-md); font-weight: 500; }
 .pd-connections__add {
-  padding: 3px 10px; border-radius: 6px; border: 1px dashed var(--border, #30363d);
-  background: none; color: var(--primary, #58a6ff); font-size: 11px; cursor: pointer;
+  padding: 3px 10px; border-radius: var(--radius-sm); border: 1px dashed var(--border, #30363d);
+  background: none; color: var(--primary, #58a6ff); font-size: var(--fs-xs); cursor: pointer;
 }
 .pd-connections__add:hover { border-color: var(--primary, #58a6ff); }
-.pd-connections__empty { font-size: 12px; opacity: 0.5; margin: 8px 0 0; }
+.pd-connections__empty { font-size: var(--fs-sm); opacity: 0.5; margin: 8px 0 0; }
 .pd-connections__list { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
 .pd-conn {
   display: flex; align-items: center; gap: 6px; padding: 6px 10px;
-  background: var(--bg-tertiary, #21262d); border-radius: 6px; font-size: 12px;
+  background: var(--bg-tertiary, #21262d); border-radius: var(--radius-sm); font-size: var(--fs-sm);
 }
 .pd-conn__from, .pd-conn__to { font-weight: 500; }
 .pd-conn__arrow { color: var(--primary, #58a6ff); }
-.pd-conn__mapping { font-size: 11px; opacity: 0.5; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pd-conn__mapping { font-size: var(--fs-xs); opacity: 0.5; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pd-conn__delete {
   background: none; border: none; color: var(--danger, #f85149); cursor: pointer;
-  font-size: 12px; padding: 2px 4px; opacity: 0.6;
+  font-size: var(--fs-sm); padding: 2px 4px; opacity: 0.6;
 }
 .pd-conn__delete:hover { opacity: 1; }
 .pd-conn-form {
@@ -379,14 +379,14 @@ function handleAddConnection() {
 }
 .pd-conn-select {
   padding: 4px 8px; border-radius: 5px; border: 1px solid var(--border, #30363d);
-  background: var(--bg-primary, #0d1117); color: var(--text-primary, #e6edf3); font-size: 12px;
+  background: var(--bg-primary, #0d1117); color: var(--text-primary, #e6edf3); font-size: var(--fs-sm);
 }
 .pd-conn-select:focus { border-color: var(--primary, #58a6ff); outline: none; }
-.pd-conn-arrow { color: var(--primary, #58a6ff); font-size: 14px; }
+.pd-conn-arrow { color: var(--primary, #58a6ff); font-size: var(--fs-base); }
 .pd-conn-btn {
   padding: 4px 10px; border-radius: 5px; border: 1px solid var(--border, #30363d);
   background: var(--bg-secondary, #161b22); color: var(--text-primary, #e6edf3);
-  font-size: 11px; cursor: pointer;
+  font-size: var(--fs-xs); cursor: pointer;
 }
 .pd-conn-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 </style>

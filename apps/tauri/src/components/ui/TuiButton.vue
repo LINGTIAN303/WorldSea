@@ -60,12 +60,12 @@ const cls = computed(() => [`is-${props.variant}`, `is-${props.size}`, { 'is-loa
 }
 .tui-btn.is-sm {
   height: 28px;
-  padding: 0 10px;
+  padding: 0 var(--spacing-btn-sm-x, 10px);
   font-size: var(--fs-sm);
 }
 .tui-btn.is-md {
   height: 34px;
-  padding: 0 14px;
+  padding: 0 var(--spacing-btn-x, 14px);
 }
 .tui-btn:active:not(:disabled) {
   transform: scale(var(--press-scale));
@@ -130,5 +130,15 @@ const cls = computed(() => [`is-${props.variant}`, `is-${props.size}`, { 'is-loa
   background: var(--danger);
   border-color: var(--danger);
   color: var(--on-accent);
+}
+/* 减弱动态偏好：去掉按压位移，保留颜色过渡（Emil 可访问性规则） */
+@media (prefers-reduced-motion: reduce) {
+  .tui-btn {
+    transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
+      color var(--dur-fast) var(--ease);
+  }
+  .tui-btn:active:not(:disabled) {
+    transform: none;
+  }
 }
 </style>

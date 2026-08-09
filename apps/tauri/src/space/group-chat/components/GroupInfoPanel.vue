@@ -209,23 +209,23 @@ function schedulePersist(): void {
 <style scoped>
 .group-info-panel { position: absolute; right: 0; top: 0; bottom: 0; width: 320px; background: rgba(10, 10, 20, 0.08); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-left: 1px solid var(--color-border); z-index: 50; display: flex; flex-direction: column; box-shadow: -8px 0 24px rgba(0, 0, 0, 0.12); }
 .panel-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--color-border); }
-.panel-title { font-size: 14px; font-weight: 600; color: var(--color-text); }
-.close-btn { background: none; border: none; cursor: pointer; font-size: 16px; opacity: 0.5; color: var(--color-text-secondary); }
+.panel-title { font-size: var(--fs-base); font-weight: 600; color: var(--color-text); }
+.close-btn { background: none; border: none; cursor: pointer; font-size: var(--fs-lg); opacity: 0.5; color: var(--color-text-secondary); }
 .close-btn:hover { opacity: 1; }
 .panel-body { flex: 1; overflow-y: auto; padding: 16px; }
 
 .info-section { margin-bottom: 16px; }
-.section-label { font-size: 11px; color: var(--color-text-tertiary); font-weight: 600; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+.section-label { font-size: var(--fs-xs); color: var(--color-text-tertiary); font-weight: 600; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
 
 .avatar-edit { display: flex; align-items: center; gap: 12px; }
 .group-avatar { width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(135deg, #6c5ce7, #a29bfe); display: flex; align-items: center; justify-content: center; font-size: 22px; }
-.group-name-input { border: none; border-bottom: 1px solid var(--color-border); font-size: 16px; font-weight: 600; background: transparent; outline: none; padding: 4px 0; flex: 1; color: var(--color-text); }
+.group-name-input { border: none; border-bottom: 1px solid var(--color-border); font-size: var(--fs-lg); font-weight: 600; background: transparent; outline: none; padding: 4px 0; flex: 1; color: var(--color-text); }
 
-.announcement-input { width: 100%; border: 1px solid var(--color-border); border-radius: 8px; padding: 8px; font-size: 12px; resize: none; outline: none; background: var(--color-surface); color: var(--color-text); }
+.announcement-input { width: 100%; border: 1px solid var(--color-border); border-radius: 8px; padding: 8px; font-size: var(--fs-sm); resize: none; outline: none; background: var(--color-surface); color: var(--color-text); }
 .announcement-input:focus { border-color: var(--color-primary); }
 
 .danger-zone { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--color-border); }
-.danger-btn { width: 100%; padding: 8px; border: 1px solid rgba(239,68,68,0.3); border-radius: 8px; background: rgba(239,68,68,0.05); color: #ef4444; cursor: pointer; font-size: 12px; }
+.danger-btn { width: 100%; padding: 8px; border: 1px solid rgba(239,68,68,0.3); border-radius: 8px; background: rgba(239,68,68,0.05); color: #ef4444; cursor: pointer; font-size: var(--fs-sm); }
 .danger-btn:hover { background: rgba(239,68,68,0.1); }
 
 .sync-mode-section { margin-bottom: 14px; }
@@ -233,20 +233,20 @@ function schedulePersist(): void {
 
 .invite-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.3); z-index: 60; display: flex; align-items: center; justify-content: center; }
 .invite-dialog { background: rgba(10, 10, 20, 0.08); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-radius: 12px; padding: 16px; width: 280px; max-height: 360px; display: flex; flex-direction: column; border: 1px solid var(--color-border); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25); }
-.invite-title { font-size: 14px; font-weight: 600; margin-bottom: 8px; text-align: center; color: var(--color-text); }
-.invite-search { width: 100%; padding: 6px 10px; border: 1px solid var(--color-border); border-radius: 8px; font-size: 12px; background: var(--color-surface); outline: none; margin-bottom: 8px; color: var(--color-text); }
+.invite-title { font-size: var(--fs-base); font-weight: 600; margin-bottom: 8px; text-align: center; color: var(--color-text); }
+.invite-search { width: 100%; padding: 6px 10px; border: 1px solid var(--color-border); border-radius: 8px; font-size: var(--fs-sm); background: var(--color-surface); outline: none; margin-bottom: 8px; color: var(--color-text); }
 .invite-list { flex: 1; overflow-y: auto; max-height: 200px; border: 1px solid var(--color-border); border-radius: 8px; }
 .invite-item { display: flex; align-items: center; gap: 8px; padding: 6px 10px; cursor: pointer; }
 .invite-item:hover { background: var(--color-surface); }
 .invite-item.selected { background: var(--color-primary-muted); }
-.invite-avatar { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 11px; flex-shrink: 0; }
+.invite-avatar { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: var(--fs-xs); flex-shrink: 0; }
 .invite-info { flex: 1; }
-.invite-name { font-size: 12px; font-weight: 600; color: var(--color-text); }
+.invite-name { font-size: var(--fs-sm); font-weight: 600; color: var(--color-text); }
 .invite-role { font-size: 10px; color: var(--color-text-tertiary); margin-left: 4px; }
 .invite-check { color: var(--color-primary); font-weight: 700; }
-.invite-empty { padding: 12px; font-size: 11px; color: var(--color-text-tertiary); text-align: center; }
+.invite-empty { padding: 12px; font-size: var(--fs-xs); color: var(--color-text-tertiary); text-align: center; }
 .invite-actions { display: flex; gap: 8px; margin-top: 10px; }
-.invite-cancel { flex: 1; padding: 8px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); cursor: pointer; font-size: 12px; color: var(--color-text-secondary); }
-.invite-confirm { flex: 1; padding: 8px; border: none; border-radius: 8px; background: var(--color-primary); color: white; cursor: pointer; font-size: 12px; font-weight: 600; }
+.invite-cancel { flex: 1; padding: 8px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); cursor: pointer; font-size: var(--fs-sm); color: var(--color-text-secondary); }
+.invite-confirm { flex: 1; padding: 8px; border: none; border-radius: 8px; background: var(--color-primary); color: white; cursor: pointer; font-size: var(--fs-sm); font-weight: 600; }
 .invite-confirm:disabled { opacity: 0.4; cursor: not-allowed; }
 </style>

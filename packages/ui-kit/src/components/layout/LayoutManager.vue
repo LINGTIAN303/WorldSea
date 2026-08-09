@@ -137,7 +137,7 @@ function close() {
 .lm-action-btn:hover { border-color: var(--primary, var(--color-primary)); color: var(--primary, var(--color-primary)); }
 .lm-empty { font-size: var(--font-size-sm); color: var(--text-tertiary); padding: 4px 0; }
 .lm-footer { display: flex; justify-content: space-between; padding: 12px 20px; border-top: 1px solid var(--border, var(--color-border)); }
-.lm-btn { padding: 7px 16px; border-radius: 6px; cursor: pointer; font-size: var(--font-size-sm); border: 1px solid var(--border); }
+.lm-btn { padding: 7px 16px; border-radius: var(--radius-sm); cursor: pointer; font-size: var(--font-size-sm); border: 1px solid var(--border); }
 .lm-btn-danger { color: var(--danger, var(--color-danger)); border-color: var(--danger, var(--color-danger)); background: transparent; }
 .lm-btn-danger:hover { background: var(--danger, var(--color-danger)); color: var(--color-text-inverse); }
 .lm-btn-secondary { background: var(--bg-tertiary); color: var(--text-secondary); }

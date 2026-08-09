@@ -170,7 +170,7 @@ defineExpose({ runAI })
   border-bottom: 1px solid var(--border-light); flex-shrink: 0;
 }
 .ai-btn {
-  padding: 5px 10px; border: 1px solid var(--border-color); border-radius: 6px;
+  padding: 5px 10px; border: 1px solid var(--border-color); border-radius: var(--radius-sm);
   background: var(--input-bg); color: var(--text-color); font-size: var(--font-size-sm);
   cursor: pointer; transition: background 0.1s, border-color 0.1s, color 0.1s, box-shadow 0.1s, transform 0.1s, opacity 0.1s, filter 0.1s;
 }

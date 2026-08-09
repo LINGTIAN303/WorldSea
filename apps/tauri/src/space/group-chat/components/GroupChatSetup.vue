@@ -265,7 +265,7 @@ function onStart(): void {
 .add-btn {
   padding: 3px 10px;
   border: 1px dashed rgba(108, 92, 231, 0.4);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-size: var(--font-size-2xs);
   color: var(--color-primary);
   cursor: pointer;
@@ -303,7 +303,7 @@ function onStart(): void {
 
 .cancel-btn, .start-btn {
   padding: 8px 20px;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   font-size: var(--font-size-sm);
   font-weight: 600;
   cursor: pointer;

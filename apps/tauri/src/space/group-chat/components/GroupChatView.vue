@@ -483,7 +483,7 @@ onBeforeUnmount(() => {
 
 .streaming-msg { padding: 8px 16px; display: flex; flex-direction: column; gap: 4px; }
 .streaming-msg .msg-speaker { display: flex; align-items: center; gap: 8px; }
-.streaming-msg .speaker-avatar { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+.streaming-msg .speaker-avatar { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: var(--fs-base); flex-shrink: 0; }
 .streaming-msg .avatar-letter { color: white; font-weight: 700; font-size: var(--font-size-sm); }
 .streaming-msg .speaker-name { font-size: var(--font-size-sm); font-weight: 600; color: var(--speaker-color); }
 .degraded-tag { font-size: 10px; padding: 1px 5px; border-radius: 3px; background: rgba(245, 158, 11, 0.15); color: #f59e0b; font-weight: 600; }
@@ -495,7 +495,7 @@ onBeforeUnmount(() => {
 .streaming-tools { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
 .streaming-tool-tag {
   display: inline-flex; align-items: center; gap: 3px;
-  padding: 2px 8px; border-radius: 4px; font-size: 11px;
+  padding: 2px 8px; border-radius: 4px; font-size: var(--fs-xs);
   background: var(--color-surface); border: 1px solid var(--color-border);
   color: var(--color-text-secondary); transition: background 0.2s, border-color 0.2s, color 0.2s, box-shadow 0.2s, transform 0.2s, opacity 0.2s, filter 0.2s;
 }
@@ -506,7 +506,7 @@ onBeforeUnmount(() => {
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
 .header-actions { display: flex; gap: 6px; }
-.action-btn { padding: 3px 10px; border: 1px solid var(--color-border); border-radius: 6px; font-size: var(--font-size-2xs); cursor: pointer; background: var(--color-surface-elevated); color: var(--color-text); transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s; }
+.action-btn { padding: 3px 10px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); font-size: var(--font-size-2xs); cursor: pointer; background: var(--color-surface-elevated); color: var(--color-text); transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s; }
 .new-btn { border-color: var(--color-primary); color: var(--color-primary); }
 .new-btn:hover { background: var(--color-primary); color: white; }
 
@@ -516,5 +516,5 @@ onBeforeUnmount(() => {
 
 .empty-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--color-text-tertiary); }
 .empty-icon { font-size: 48px; opacity: 0.4; }
-.empty-text { font-size: 14px; }
+.empty-text { font-size: var(--fs-base); }
 </style>

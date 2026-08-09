@@ -25,7 +25,7 @@ defineEmits<{ edit: [id: string]; publish: [id: string]; delete: [id: string] }>
 </script>
 
 <style scoped>
-.module-card { border: 1px solid var(--border-color); border-radius: 10px; padding: 16px; cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s; background: var(--bg); }
+.module-card { border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 16px; cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s; background: var(--bg); }
 .module-card:hover { border-color: var(--primary); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
 .mc-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .mc-icon { font-size: var(--font-size-2xl); }

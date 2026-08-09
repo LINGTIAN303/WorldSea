@@ -91,7 +91,7 @@
       </div>
     </Transition>
 
-    <WsDrawer
+    <TuiDrawer
       :show="spaceStore.workspaceDrawerOpen"
       title="工作台"
       placement="right"
@@ -101,7 +101,7 @@
       <div class="drawer-shell-wrapper">
         <Shell />
       </div>
-    </WsDrawer>
+    </TuiDrawer>
 
     <!-- P3-W4 续：SettingsDialog 业务弹窗恢复 -->
     <SettingsDialog :show="settingsOpen" @close="settingsOpen = false" />
@@ -124,7 +124,7 @@ import MemoryShelf from './panels/MemoryShelf.vue'
 import PersonaMirror from './panels/PersonaMirror.vue'
 import ExecPanel from './panels/ExecPanel.vue'
 import Shell from '@/ui/layout/Shell.vue'
-import WsDrawer from '@/ui/WsDrawer.vue'
+import TuiDrawer from '@/components/ui/TuiDrawer.vue'
 import SettingsDialog from '@/ui/settings/SettingsDialog.vue'
 import { DialogContainer } from '@worldsmith/ui-kit'
 import WsConfirmDialog from '@/ui/WsConfirmDialog.vue'

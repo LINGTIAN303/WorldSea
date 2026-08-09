@@ -189,7 +189,7 @@ function onClearCustomStatus() {
 }
 .avatar-action-btn:hover {
   background: var(--color-primary);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .avatar-file-input { display: none; }
@@ -259,12 +259,12 @@ function onClearCustomStatus() {
 }
 
 .status-label {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 500;
 }
 
 .section-label {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   color: var(--color-text-tertiary);
   text-transform: uppercase;
@@ -285,9 +285,9 @@ function onClearCustomStatus() {
   padding: 6px 8px;
   border: none;
   background: transparent;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--fs-md);
   color: var(--color-text);
   transition: background 0.12s;
   text-align: left;
@@ -313,7 +313,7 @@ function onClearCustomStatus() {
 .status-check {
   color: var(--color-primary);
   font-weight: 700;
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 
 .custom-status-row {
@@ -326,8 +326,8 @@ function onClearCustomStatus() {
   flex: 1;
   padding: 4px 8px;
   border: 1px solid var(--color-border);
-  border-radius: 6px;
-  font-size: 12px;
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-sm);
   background: var(--color-surface);
   color: var(--color-text);
   outline: none;
@@ -340,13 +340,14 @@ function onClearCustomStatus() {
   padding: 4px 10px;
   border: none;
   background: var(--color-primary);
-  color: white;
-  border-radius: 6px;
-  font-size: 11px;
+  color: var(--on-accent);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-xs);
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
 }
+
 .custom-status-set-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
@@ -357,8 +358,8 @@ function onClearCustomStatus() {
   border: 1px solid var(--color-border);
   background: transparent;
   color: var(--color-text-tertiary);
-  border-radius: 6px;
-  font-size: 11px;
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-xs);
   cursor: pointer;
   white-space: nowrap;
 }

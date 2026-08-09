@@ -328,7 +328,7 @@ for (const slot of profileStore.slots) {
 
 .editor-header h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--fs-lg);
   font-weight: 600;
   color: var(--color-text);
 }
@@ -349,7 +349,7 @@ for (const slot of profileStore.slots) {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s;
 }
 
@@ -373,7 +373,7 @@ for (const slot of profileStore.slots) {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   transition: background 0.15s;
 }
 
@@ -393,7 +393,7 @@ for (const slot of profileStore.slots) {
 
 .empty-hint {
   text-align: center;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--color-text-tertiary);
   padding: 16px 0;
 }
@@ -412,7 +412,7 @@ for (const slot of profileStore.slots) {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--color-text-secondary);
   line-height: 1.5;
 }
@@ -439,7 +439,7 @@ for (const slot of profileStore.slots) {
 }
 
 .guide-substep {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--color-text-tertiary);
   line-height: 1.5;
 }
@@ -474,7 +474,7 @@ for (const slot of profileStore.slots) {
   padding: 6px 10px;
   border-radius: 4px;
   background: var(--color-surface);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--color-text-tertiary);
   line-height: 1.5;
 }
@@ -494,7 +494,7 @@ for (const slot of profileStore.slots) {
 
 .slot-name {
   font-weight: 600;
-  font-size: 14px;
+  font-size: var(--fs-base);
   color: var(--color-text);
   flex: 1;
 }
@@ -505,7 +505,7 @@ for (const slot of profileStore.slots) {
   border: 1px solid var(--color-border);
   background: var(--color-surface);
   color: var(--color-text-secondary);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   outline: none;
 }
 
@@ -539,7 +539,7 @@ for (const slot of profileStore.slots) {
   padding: 4px 8px;
   background: var(--color-surface);
   border-radius: 4px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--color-text-secondary);
 }
 
@@ -561,7 +561,7 @@ for (const slot of profileStore.slots) {
 
 .entry-provider {
   color: var(--color-text-tertiary);
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 .btn-remove-entry {
@@ -598,7 +598,7 @@ for (const slot of profileStore.slots) {
   border: 1px solid var(--color-border);
   background: var(--color-surface);
   color: var(--color-text);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   flex: 1;
   min-width: 0;
   outline: none;
@@ -642,7 +642,7 @@ for (const slot of profileStore.slots) {
 
 .picker-value {
   flex: 1;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--color-text);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -651,7 +651,7 @@ for (const slot of profileStore.slots) {
 
 .picker-placeholder {
   flex: 1;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--color-text-tertiary);
 }
 
@@ -678,11 +678,11 @@ for (const slot of profileStore.slots) {
 .picker-search {
   margin: 6px;
   padding: 6px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
   background: var(--color-surface);
   color: var(--color-text);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   outline: none;
   flex-shrink: 0;
 }
@@ -723,7 +723,7 @@ for (const slot of profileStore.slots) {
 }
 
 .picker-item-name {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--color-text);
   flex: 1;
   overflow: hidden;
@@ -744,7 +744,7 @@ for (const slot of profileStore.slots) {
 .picker-empty {
   padding: 16px;
   text-align: center;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--color-text-tertiary);
 }
 
@@ -754,7 +754,7 @@ for (const slot of profileStore.slots) {
   border: 1px solid var(--color-border);
   background: transparent;
   color: var(--color-text-secondary);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   cursor: pointer;
   white-space: nowrap;
   transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s;
@@ -778,11 +778,11 @@ for (const slot of profileStore.slots) {
 .form-input {
   flex: 1;
   padding: 8px 12px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
   background: var(--color-surface);
   color: var(--color-text);
-  font-size: 13px;
+  font-size: var(--fs-md);
   outline: none;
 }
 
@@ -792,11 +792,11 @@ for (const slot of profileStore.slots) {
 
 .btn-create {
   padding: 8px 16px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   border: none;
   background: var(--color-primary);
   color: white;
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 600;
   cursor: pointer;
   transition: opacity 0.15s;

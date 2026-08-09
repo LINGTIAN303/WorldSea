@@ -127,7 +127,7 @@ async function onInputSend(text: string, rawAttachments: any[]): Promise<void> {
 /* Rust 实验模式提示横幅 */
 .rust-mode-banner {
   padding: 6px 12px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--ws-text-secondary, #888);
   background: var(--ws-bg-secondary, rgba(255, 200, 100, 0.08));
   border-bottom: 1px solid var(--ws-border-light, rgba(255, 200, 100, 0.2));

@@ -43,7 +43,7 @@ import TerminalView from '@/terminal/components/TerminalView.vue'
 .terminal-embed {
   height: 360px;
   border: 1px solid var(--color-border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   overflow: hidden;
 }
 </style>

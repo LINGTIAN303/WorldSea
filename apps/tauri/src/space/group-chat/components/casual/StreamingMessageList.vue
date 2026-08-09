@@ -45,17 +45,17 @@ const {
 .streaming-msg { padding: 4px 16px; margin-bottom: 2px; }
 .streaming-msg .msg-header { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
 .streaming-msg .msg-avatar { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
-.streaming-msg .avatar-letter { color: white; font-weight: 700; font-size: 11px; }
-.streaming-msg .msg-name { font-size: 12px; font-weight: 600; }
+.streaming-msg .avatar-letter { color: white; font-weight: 700; font-size: var(--fs-xs); }
+.streaming-msg .msg-name { font-size: var(--fs-sm); font-weight: 600; }
 .streaming-msg .msg-content { margin-left: 36px; max-width: 75%; }
-.streaming-msg .msg-text { padding: 8px 12px; background: var(--color-surface-elevated); border-radius: 2px 12px 12px 12px; font-size: 13px; line-height: 1.5; box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
+.streaming-msg .msg-text { padding: 8px 12px; background: var(--color-surface-elevated); border-radius: 2px 12px 12px 12px; font-size: var(--fs-md); line-height: 1.5; box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
 .streaming-cursor { color: var(--color-primary); animation: pulse 1s infinite; font-size: 10px; margin-left: 2px; }
 
 /* Layer 1: 流式工具调用状态指示器 */
 .streaming-tools { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
 .streaming-tool-tag {
   display: inline-flex; align-items: center; gap: 3px;
-  padding: 2px 8px; border-radius: 4px; font-size: 11px;
+  padding: 2px 8px; border-radius: 4px; font-size: var(--fs-xs);
   background: var(--color-surface-elevated); border: 1px solid var(--color-border);
   color: var(--color-text-secondary); transition: background 0.2s, border-color 0.2s, color 0.2s, box-shadow 0.2s, transform 0.2s, opacity 0.2s, filter 0.2s;
 }

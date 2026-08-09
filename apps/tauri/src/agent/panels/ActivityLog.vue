@@ -324,7 +324,7 @@ function formatDuration(task: { startedAt: number; endedAt?: number }): string {
 
 .gen-video .gen-bar-fill { background: #e17055; }
 
-.gen-bar-fill.failed { background: #ff7675; animation: none; }
+.gen-bar-fill.failed { background: var(--danger); animation: none; }
 
 .gen-bar-fill.pulsing { animation: bar-pulse 1.8s ease-in-out infinite; }
 
@@ -360,8 +360,8 @@ function formatDuration(task: { startedAt: number; endedAt?: number }): string {
 .dot-pending { background: var(--text-muted); }
 .dot-generating { background: #74b9ff; animation: dot-blink 1.2s ease-in-out infinite; }
 .dot-polling { background: #fdcb6e; animation: dot-blink 1.2s ease-in-out infinite; }
-.dot-completed { background: #00b894; }
-.dot-failed { background: #ff7675; }
+.dot-completed { background: var(--success); }
+.dot-failed { background: var(--danger); }
 
 @keyframes dot-blink {
   0%, 100% { opacity: 1; }
@@ -387,7 +387,7 @@ function formatDuration(task: { startedAt: number; endedAt?: number }): string {
 }
 
 .log-item:hover { background: var(--bg-muted); }
-.log-item.log-error { border-left: 3px solid #e53e3e; }
+.log-item.log-error { border-left: 3px solid var(--danger); }
 .log-item.log-tool { border-left: 3px solid var(--accent); }
 .log-item.log-knowledge { border-left: 3px solid #38a169; }
 .log-item.log-memory { border-left: 3px solid #d69e2e; }
@@ -422,5 +422,24 @@ function formatDuration(task: { startedAt: number; endedAt?: number }): string {
   word-break: break-all;
   max-height: 120px;
   overflow-y: auto;
+}
+
+/* ── 减弱动态偏好（prefers-reduced-motion）：停用循环脉冲/闪烁与按压缩放手势 ──
+   与 TuiButton/TuiModal/TuiDrawer/AgentWorkspace 同一可访问性语言：仅保留静态状态。 */
+@media (prefers-reduced-motion: reduce) {
+  .gen-bar-fill.pulsing {
+    animation: none;
+  }
+  .dot-generating,
+  .dot-polling {
+    animation: none;
+  }
+  .section-chevron {
+    transition: none;
+  }
+  .panel-close-btn:active:not(:disabled),
+  .panel-action-btn:active:not(:disabled) {
+    transform: none;
+  }
 }
 </style>

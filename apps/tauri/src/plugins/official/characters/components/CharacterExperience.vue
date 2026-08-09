@@ -171,13 +171,13 @@ function onViewEntity(_id: string) {
 .ce-item { position: relative; }
 .ce-line { position: absolute; left: 19px; top: 30px; width: 2px; height: calc(100% - 10px); background: var(--border-color); }
 .ce-add-form { margin-top: 12px; padding: 10px; background: var(--bg-secondary, rgba(0,0,0,0.02)); border-radius: 8px; }
-.ce-input, .ce-select { width: 100%; padding: 6px 10px; border: 1px solid var(--border-color); border-radius: 6px; font-size: var(--font-size-sm); margin-bottom: 6px; background: var(--input-bg); color: var(--text-color); }
-.ce-textarea { width: 100%; padding: 6px 10px; border: 1px solid var(--border-color); border-radius: 6px; font-size: var(--font-size-sm); margin-bottom: 6px; resize: vertical; background: var(--input-bg); color: var(--text-color); }
+.ce-input, .ce-select { width: 100%; padding: 6px 10px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); font-size: var(--font-size-sm); margin-bottom: 6px; background: var(--input-bg); color: var(--text-color); }
+.ce-textarea { width: 100%; padding: 6px 10px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); font-size: var(--font-size-sm); margin-bottom: 6px; resize: vertical; background: var(--input-bg); color: var(--text-color); }
 .ce-add-row { display: flex; gap: 6px; align-items: center; }
-.ce-btn { font-size: var(--font-size-sm); padding: 4px 12px; border: 1px solid var(--border-color); border-radius: 6px; background: transparent; color: var(--text-color); cursor: pointer; }
+.ce-btn { font-size: var(--font-size-sm); padding: 4px 12px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); background: transparent; color: var(--text-color); cursor: pointer; }
 .ce-btn-primary { background: var(--primary, #7c3aed); color: #fff; border-color: var(--primary, #7c3aed); }
 .ce-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
-.ce-add-btn { margin-top: 8px; font-size: var(--font-size-sm); padding: 5px 12px; border: 1px dashed var(--border-color); border-radius: 6px; background: transparent; color: var(--text-secondary); cursor: pointer; width: 100%; }
+.ce-add-btn { margin-top: 8px; font-size: var(--font-size-sm); padding: 5px 12px; border: 1px dashed var(--border-color); border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary); cursor: pointer; width: 100%; }
 .ce-add-btn:hover { background: var(--bg-secondary); }
 </style>
 

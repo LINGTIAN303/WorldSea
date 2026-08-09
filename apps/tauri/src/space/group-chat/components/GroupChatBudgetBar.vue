@@ -54,7 +54,7 @@ function formatTokens(n: number): string {
 }
 
 .budget-icon {
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 
 .budget-text {

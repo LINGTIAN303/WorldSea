@@ -9,6 +9,6 @@ import type { UserReviewConfig } from '../../types'
 defineProps<{ config: UserReviewConfig }>()
 </script>
 <style scoped>
-.urc__instruction { margin: 0; font-size: 12px; line-height: 1.5; }
-.urc__skip { font-size: 11px; opacity: 0.5; font-style: italic; }
+.urc__instruction { margin: 0; font-size: var(--fs-sm); line-height: 1.5; }
+.urc__skip { font-size: var(--fs-xs); opacity: 0.5; font-style: italic; }
 </style>

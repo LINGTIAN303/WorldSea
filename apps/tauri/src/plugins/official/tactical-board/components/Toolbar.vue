@@ -163,7 +163,7 @@ const deployTeamModel = computed({
 .tb-phase {
   font-size: var(--font-size-xs);
   padding: 2px 8px;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   white-space: nowrap;
 }
 

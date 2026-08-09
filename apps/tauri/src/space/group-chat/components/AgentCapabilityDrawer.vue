@@ -311,7 +311,7 @@ function resetToDerived(): void {
 }
 
 .panel-title {
-  font-size: 14px;
+  font-size: var(--fs-base);
   font-weight: 600;
 }
 
@@ -340,7 +340,7 @@ function resetToDerived(): void {
 }
 
 /* 通用 section 样式 */
-.section-label { font-size: 11px; color: var(--color-text-tertiary); font-weight: 600; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+.section-label { font-size: var(--fs-xs); color: var(--color-text-tertiary); font-weight: 600; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
 .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
 .section-header .section-label { margin-bottom: 0; }
 .section-actions { display: flex; gap: 4px; }
@@ -357,7 +357,7 @@ function resetToDerived(): void {
   align-items: center;
   gap: 8px;
   padding: 7px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s, color 0.12s, box-shadow 0.12s, transform 0.12s, opacity 0.12s, filter 0.12s;
   user-select: none;
@@ -366,7 +366,7 @@ function resetToDerived(): void {
 .skill-row.active { background: rgba(108,92,231,0.08); }
 .skill-row-icon { color: var(--color-text-secondary); flex-shrink: 0; }
 .skill-row.active .skill-row-icon { color: var(--color-primary); }
-.skill-row-name { font-size: 12px; font-weight: 500; flex: 1; }
+.skill-row-name { font-size: var(--fs-sm); font-weight: 500; flex: 1; }
 .skill-row-count { font-size: 9px; color: var(--color-text-tertiary); }
 .skill-row-check { color: var(--color-primary); flex-shrink: 0; }
 .skills-hint { font-size: 10px; color: var(--color-text-tertiary); margin-top: 4px; font-style: italic; }
@@ -374,8 +374,8 @@ function resetToDerived(): void {
 /* 工具预览 */
 .tool-preview-section { margin-bottom: 16px; }
 .tool-preview-summary { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
-.tool-preview-cat { font-size: 10px; color: var(--color-text-secondary); background: var(--color-surface); padding: 2px 8px; border-radius: 10px; }
-.tool-preview-detail { border: 1px solid var(--color-border); border-radius: 6px; padding: 8px; margin-top: 6px; max-height: 200px; overflow-y: auto; }
+.tool-preview-cat { font-size: 10px; color: var(--color-text-secondary); background: var(--color-surface); padding: 2px 8px; border-radius: var(--radius-md); }
+.tool-preview-detail { border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 8px; margin-top: 6px; max-height: 200px; overflow-y: auto; }
 .preview-cat { margin-bottom: 6px; }
 .preview-cat:last-child { margin-bottom: 0; }
 .preview-cat-label { font-size: 10px; font-weight: 600; color: var(--color-text-secondary); margin-bottom: 2px; }
@@ -392,7 +392,7 @@ function resetToDerived(): void {
   border: 1px solid var(--color-border);
   border-radius: 8px;
   cursor: pointer;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 500;
   color: var(--color-text-secondary);
   transition: background 0.12s, border-color 0.12s, color 0.12s, box-shadow 0.12s, transform 0.12s, opacity 0.12s, filter 0.12s;
@@ -418,14 +418,14 @@ function resetToDerived(): void {
 .reset-btn:hover { border-color: var(--color-primary); color: var(--color-primary); }
 
 /* 工具分类列表 */
-.tool-category { margin-bottom: 4px; border: 1px solid var(--color-border); border-radius: 6px; overflow: hidden; }
-.tool-cat-header { display: flex; align-items: center; gap: 6px; padding: 6px 8px; cursor: pointer; background: var(--color-surface); font-size: 11px; font-weight: 600; }
+.tool-category { margin-bottom: 4px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); overflow: hidden; }
+.tool-cat-header { display: flex; align-items: center; gap: 6px; padding: 6px 8px; cursor: pointer; background: var(--color-surface); font-size: var(--fs-xs); font-weight: 600; }
 .tool-cat-header:hover { background: var(--color-surface-elevated); }
 .tool-cat-arrow { font-size: 8px; width: 12px; text-align: center; }
 .tool-cat-label { flex: 1; }
 .tool-cat-count { font-size: 9px; color: var(--color-text-tertiary); font-weight: 400; }
 .tool-cat-items { padding: 4px 8px; border-top: 1px solid var(--color-border); }
-.tool-item { display: flex; align-items: center; gap: 6px; padding: 3px 0; font-size: 11px; cursor: pointer; }
+.tool-item { display: flex; align-items: center; gap: 6px; padding: 3px 0; font-size: var(--fs-xs); cursor: pointer; }
 .tool-item input { accent-color: var(--color-primary); flex-shrink: 0; }
 .tool-item input:disabled { opacity: 0.5; cursor: not-allowed; }
 .tool-item.derived .tool-name { color: var(--color-primary); }

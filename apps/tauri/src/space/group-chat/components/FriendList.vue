@@ -181,9 +181,9 @@ onBeforeUnmount(() => {
 .friend-list { display: flex; flex-direction: column; height: 100%; contain: layout paint style; }
 
 .list-header { padding: 8px; display: flex; gap: 6px; }
-.search-input { flex: 1; padding: 6px 10px; border: 1px solid var(--color-border); border-radius: 8px; font-size: 12px; background: var(--color-surface); outline: none; color: var(--color-text); }
+.search-input { flex: 1; padding: 6px 10px; border: 1px solid var(--color-border); border-radius: 8px; font-size: var(--fs-sm); background: var(--color-surface); outline: none; color: var(--color-text); }
 .search-input:focus { border-color: var(--color-primary); }
-.close-btn { width: 24px; height: 24px; border: none; background: transparent; border-radius: 4px; cursor: pointer; font-size: 12px; color: var(--color-text-tertiary); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.close-btn { width: 24px; height: 24px; border: none; background: transparent; border-radius: 4px; cursor: pointer; font-size: var(--fs-sm); color: var(--color-text-tertiary); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .close-btn:hover { background: var(--color-surface-elevated); color: var(--color-text); }
 
 .friend-body { flex: 1; overflow-y: auto; min-height: 0; contain: layout paint style; }
@@ -224,20 +224,20 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
+  color: var(--on-accent);
   font-weight: 700;
-  font-size: 13px;
+  font-size: var(--fs-md);
   flex-shrink: 0;
 }
 
 .friend-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-.friend-name { font-size: 13px; font-weight: 600; color: var(--color-text); }
-.friend-role { font-size: 11px; color: var(--color-text-tertiary); }
+.friend-name { font-size: var(--fs-md); font-weight: 600; color: var(--color-text); }
+.friend-role { font-size: var(--fs-xs); color: var(--color-text-tertiary); }
 .friend-source { font-size: 10px; color: var(--color-text-tertiary); }
 
 .friend-empty {
   padding: 24px 12px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--color-text-tertiary);
   text-align: center;
   line-height: 1.6;
@@ -248,21 +248,21 @@ onBeforeUnmount(() => {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--color-border);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
   padding: 4px;
   min-width: 160px;
 }
-.context-menu-item { padding: 8px 12px; font-size: 12px; color: var(--color-text); cursor: pointer; border-radius: 6px; transition: background 0.1s; }
+.context-menu-item { padding: 8px 12px; font-size: var(--fs-sm); color: var(--color-text); cursor: pointer; border-radius: var(--radius-sm); transition: background 0.1s; }
 .context-menu-item:hover { background: var(--color-surface); }
-.context-menu-item.danger { color: #ef4444; }
+.context-menu-item.danger { color: var(--danger); }
 .context-menu-item.danger:hover { background: rgba(239, 68, 68, 0.1); }
 
 .delete-confirm-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 9998; display: flex; align-items: center; justify-content: center; }
 .delete-confirm-dialog { background: var(--color-surface-elevated); border: 1px solid var(--color-border); border-radius: 12px; padding: 20px; min-width: 260px; box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
-.delete-confirm-text { font-size: 13px; margin-bottom: 16px; line-height: 1.5; }
+.delete-confirm-text { font-size: var(--fs-md); margin-bottom: 16px; line-height: 1.5; }
 .delete-confirm-actions { display: flex; gap: 8px; justify-content: flex-end; }
-.delete-cancel-btn { padding: 6px 16px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); cursor: pointer; font-size: 12px; }
-.delete-confirm-btn { padding: 6px 16px; border: none; border-radius: 8px; background: #ef4444; color: white; cursor: pointer; font-size: 12px; font-weight: 600; }
-.delete-confirm-btn:hover { background: #dc2626; }
+.delete-cancel-btn { padding: 6px 16px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); cursor: pointer; font-size: var(--fs-sm); }
+.delete-confirm-btn { padding: 6px 16px; border: none; border-radius: 8px; background: var(--danger); color: var(--on-accent); cursor: pointer; font-size: var(--fs-sm); font-weight: 600; }
+.delete-confirm-btn:hover { background: var(--danger-hover); }
 </style>

@@ -234,7 +234,7 @@ watch(() => store.companionModeProviderKey, () => {
 </script>
 
 <style scoped>
-.set-card { background: var(--content-bg, var(--color-bg-surface)); border-radius: 10px; padding: 14px 16px; box-shadow: 0 1px 6px rgba(0,0,0,0.06), 0 0 0 1px var(--border, var(--color-border)); }
+.set-card { background: var(--content-bg, var(--color-bg-surface)); border-radius: var(--radius-md); padding: 14px 16px; box-shadow: 0 1px 6px rgba(0,0,0,0.06), 0 0 0 1px var(--border, var(--color-border)); }
 .sc-head { font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); color: var(--text-tertiary, var(--color-text-tertiary)); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
 .set-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; font-size: var(--font-size-sm); gap: 12px; }
 .set-row-sub { padding-left: 16px; }
@@ -247,9 +247,9 @@ watch(() => store.companionModeProviderKey, () => {
 .set-toggle input:checked + .set-toggle-slider { background: var(--primary, var(--color-primary)); }
 .set-toggle input:checked + .set-toggle-slider::before { transform: translateX(16px); }
 
-.set-input { padding: 4px 8px; font-size: var(--font-size-sm); border: 1px solid var(--border, var(--color-border)); border-radius: 6px; background: var(--bg, var(--color-bg-surface)); color: var(--text-color); }
+.set-input { padding: 4px 8px; font-size: var(--font-size-sm); border: 1px solid var(--border, var(--color-border)); border-radius: var(--radius-sm); background: var(--bg, var(--color-bg-surface)); color: var(--text-color); }
 .set-input:focus { outline: none; border-color: var(--primary, var(--color-primary)); }
-.set-select { padding: 4px 8px; font-size: var(--font-size-sm); border: 1px solid var(--border, var(--color-border)); border-radius: 6px; background: var(--bg, var(--color-bg-surface)); color: var(--text-color); cursor: pointer; }
+.set-select { padding: 4px 8px; font-size: var(--font-size-sm); border: 1px solid var(--border, var(--color-border)); border-radius: var(--radius-sm); background: var(--bg, var(--color-bg-surface)); color: var(--text-color); cursor: pointer; }
 .set-select:focus { outline: none; border-color: var(--primary, var(--color-primary)); }
 .set-range-wrap { display: flex; align-items: center; gap: 8px; }
 .set-range { width: 100px; accent-color: var(--primary, var(--color-primary)); }

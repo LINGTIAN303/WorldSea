@@ -507,11 +507,11 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 4px;
   padding: 4px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
   background: transparent;
   color: var(--color-text-secondary);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   cursor: pointer;
   transition: background 0.15s;
 }
@@ -532,19 +532,19 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
+  font-size: var(--fs-base);
   color: white;
 }
 
 .agent-name {
   font-weight: 600;
-  font-size: 14px;
+  font-size: var(--fs-base);
 }
 
 .btn-clear {
   width: 28px;
   height: 28px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
   background: transparent;
   color: var(--color-text-secondary);
@@ -592,7 +592,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   flex-shrink: 0;
   color: white;
 }
@@ -603,7 +603,7 @@ onBeforeUnmount(() => {
 }
 
 .msg-thinking details {
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--color-surface-elevated);
   border: 1px solid var(--color-border);
   overflow: hidden;
@@ -611,7 +611,7 @@ onBeforeUnmount(() => {
 
 .msg-thinking summary {
   padding: 6px 10px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--color-text-secondary);
   cursor: pointer;
   display: flex;
@@ -624,7 +624,7 @@ onBeforeUnmount(() => {
 
 .thinking-content {
   padding: 8px 10px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   line-height: 1.5;
   color: var(--color-text-tertiary);
   white-space: pre-wrap;
@@ -648,7 +648,7 @@ onBeforeUnmount(() => {
   gap: 3px;
   padding: 2px 8px;
   border-radius: 4px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   background: var(--color-surface-elevated);
   border: 1px solid var(--color-border);
   color: var(--color-text-secondary);
@@ -667,7 +667,7 @@ onBeforeUnmount(() => {
 .msg-bubble {
   padding: 8px 12px;
   border-radius: 12px;
-  font-size: 13px;
+  font-size: var(--fs-md);
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;
@@ -691,13 +691,13 @@ onBeforeUnmount(() => {
   background: var(--color-surface);
   padding: 1px 4px;
   border-radius: 3px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-family: var(--font-mono, monospace);
 }
 .msg-bubble.agent :deep(pre) {
   background: var(--color-surface);
   padding: 8px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   overflow-x: auto;
   margin: 6px 0;
 }
@@ -721,7 +721,7 @@ onBeforeUnmount(() => {
 .msg-bubble.agent :deep(th), .msg-bubble.agent :deep(td) {
   border: 1px solid var(--color-border);
   padding: 4px 8px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 .msg-bubble.agent :deep(th) { background: var(--color-surface); }
 
@@ -764,7 +764,7 @@ onBeforeUnmount(() => {
   border: 1px solid var(--color-border);
   background: var(--color-surface-elevated);
   color: var(--color-text);
-  font-size: 13px;
+  font-size: var(--fs-md);
   resize: none;
   font-family: inherit;
   line-height: 1.5;
@@ -810,7 +810,7 @@ onBeforeUnmount(() => {
 
 .context-menu-item {
   padding: 8px 12px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   cursor: pointer;
   border-radius: 4px;
   color: var(--color-text);

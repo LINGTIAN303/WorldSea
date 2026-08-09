@@ -417,7 +417,7 @@ function onThinkingLevelChange(e: Event): void {
   width: 100%;
   padding: 6px 8px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--agent-text-secondary);
   font-size: var(--font-size-xs);
@@ -536,7 +536,7 @@ function onThinkingLevelChange(e: Event): void {
   flex: 1;
   padding: 4px 8px;
   border: 1px solid var(--agent-border-color);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--agent-input-bg);
   color: var(--agent-text);
   font-size: var(--font-size-sm);
@@ -551,7 +551,7 @@ function onThinkingLevelChange(e: Event): void {
   flex: 1;
   padding: 4px 8px;
   border: 1px solid var(--agent-border-color);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--agent-input-bg);
   color: var(--agent-text);
   font-size: var(--font-size-sm);
@@ -688,7 +688,7 @@ function onThinkingLevelChange(e: Event): void {
 .mcp-presets { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--agent-border); }
 .mcp-presets-title { font-size: var(--font-size-xs); color: var(--agent-text-tertiary); margin-bottom: 6px; font-family: var(--agent-font); }
 .mcp-presets-grid { display: flex; flex-wrap: wrap; gap: 4px; }
-.preset-btn { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--agent-border); background: var(--agent-hover-bg); cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s; min-width: 90px; }
+.preset-btn { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 5px 8px; border-radius: var(--radius-sm); border: 1px solid var(--agent-border); background: var(--agent-hover-bg); cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s; min-width: 90px; }
 .preset-btn:hover:not(:disabled) { border-color: var(--agent-accent); background: color-mix(in srgb, var(--agent-primary) 8%, transparent); }
 .preset-btn.added { opacity: 0.4; cursor: default; }
 .preset-name { font-size: var(--font-size-xs); font-weight: var(--font-weight-medium); color: var(--agent-text); font-family: var(--agent-font); }
@@ -874,7 +874,7 @@ function onThinkingLevelChange(e: Event): void {
 .settings-btn-secondary:hover {
   background: rgba(231, 76, 60, 0.1);
   border-color: rgba(231, 76, 60, 0.3);
-  color: #e74c3c;
+  color: var(--danger);
 }
 
 .cli-capabilities-grid {
@@ -888,7 +888,7 @@ function onThinkingLevelChange(e: Event): void {
   justify-content: space-between;
   align-items: center;
   padding: 6px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--agent-hover-bg);
   border: 1px solid var(--agent-border);
 }
@@ -899,7 +899,7 @@ function onThinkingLevelChange(e: Event): void {
 }
 
 .cli-cap-tool-count {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--agent-text-secondary);
   background: rgba(52, 152, 219, 0.1);
   padding: 1px 6px;
@@ -1068,7 +1068,7 @@ function onThinkingLevelChange(e: Event): void {
   gap: 5px;
   padding: 3px 8px;
   border: 1px solid var(--agent-border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--agent-hover-bg);
   color: var(--agent-text-secondary);
   cursor: pointer;

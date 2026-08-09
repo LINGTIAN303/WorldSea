@@ -404,7 +404,7 @@ onBeforeUnmount(() => {
   white-space: nowrap;
   position: relative;
   user-select: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   flex-shrink: 0;
 }
 .sidebar-btn:hover {

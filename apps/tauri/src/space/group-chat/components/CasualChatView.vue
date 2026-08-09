@@ -302,24 +302,24 @@ onBeforeUnmount(() => {
 
 .chat-header { padding: 8px 16px; border-bottom: 1px solid var(--color-border); display: flex; align-items: center; justify-content: space-between; }
 .header-left { display: flex; align-items: center; gap: 8px; }
-.group-avatar { font-size: 20px; }
-.group-name { font-size: 14px; font-weight: 600; }
-.member-count { font-size: 11px; color: var(--color-text-tertiary); }
-.header-btn { width: 28px; height: 28px; border: none; background: transparent; border-radius: 6px; cursor: pointer; font-size: 14px; }
+.group-avatar { font-size: var(--fs-xl); }
+.group-name { font-size: var(--fs-base); font-weight: 600; }
+.member-count { font-size: var(--fs-xs); color: var(--color-text-tertiary); }
+.header-btn { width: 28px; height: 28px; border: none; background: transparent; border-radius: var(--radius-sm); cursor: pointer; font-size: var(--fs-base); }
 .header-btn:hover { background: var(--color-surface); }
 
 .chat-messages { flex: 1; overflow-y: auto; padding: 8px 0; position: relative; }
 
-.typing-hint { padding: 6px 16px; font-size: 11px; color: var(--color-text-tertiary); display: flex; align-items: center; gap: 4px; }
+.typing-hint { padding: 6px 16px; font-size: var(--fs-xs); color: var(--color-text-tertiary); display: flex; align-items: center; gap: 4px; }
 .typing-dot { color: var(--color-primary); animation: pulse 1.5s infinite; font-size: 8px; }
 
 @keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
 
 .time-divider { display: flex; align-items: center; padding: 8px 16px; }
 .time-divider::before, .time-divider::after { content: ''; flex: 1; height: 1px; background: var(--color-border); }
-.divider-text { font-size: 11px; color: var(--color-text-tertiary); padding: 0 12px; white-space: nowrap; }
+.divider-text { font-size: var(--fs-xs); color: var(--color-text-tertiary); padding: 0 12px; white-space: nowrap; }
 
-.scroll-to-bottom { position: absolute; bottom: 68px; right: 16px; padding: 6px 14px; border: 1px solid var(--color-border); border-radius: 20px; background: var(--color-surface-elevated); box-shadow: 0 2px 8px rgba(0,0,0,0.12); cursor: pointer; font-size: 12px; color: var(--color-text); z-index: 10; transition: background 0.2s, border-color 0.2s, color 0.2s, box-shadow 0.2s, transform 0.2s, opacity 0.2s, filter 0.2s; backdrop-filter: blur(8px); opacity: 0.85; }
+.scroll-to-bottom { position: absolute; bottom: 68px; right: 16px; padding: 6px 14px; border: 1px solid var(--color-border); border-radius: 20px; background: var(--color-surface-elevated); box-shadow: 0 2px 8px rgba(0,0,0,0.12); cursor: pointer; font-size: var(--fs-sm); color: var(--color-text); z-index: 10; transition: background 0.2s, border-color 0.2s, color 0.2s, box-shadow 0.2s, transform 0.2s, opacity 0.2s, filter 0.2s; backdrop-filter: blur(8px); opacity: 0.85; }
 .scroll-to-bottom:hover { background: var(--color-surface); box-shadow: 0 4px 12px rgba(0,0,0,0.18); }
 
 .msg-list-enter-active { transition: background 0.2s ease-out, border-color 0.2s ease-out, color 0.2s ease-out, box-shadow 0.2s ease-out, transform 0.2s ease-out, opacity 0.2s ease-out, filter 0.2s ease-out; }

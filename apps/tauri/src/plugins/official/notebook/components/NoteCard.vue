@@ -35,7 +35,7 @@ const preview = computed(() =>
 
 <style scoped>
 .note-card { display: flex; align-items: center; gap: 8px; cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s; }
-.note-card.card { padding: 10px 12px; border: 1px solid var(--color-border-subtle); border-radius: 6px; }
+.note-card.card { padding: 10px 12px; border: 1px solid var(--color-border-subtle); border-radius: var(--radius-sm); }
 .note-card.card:hover { border-color: var(--color-primary); }
 .note-card.list { padding: 5px 8px; border-radius: 4px; }
 .note-card.list:hover { background: var(--color-bg-hover); }

@@ -99,7 +99,7 @@ const props = defineProps<{ searchQuery?: string }>()
 const emit = defineEmits<{ dirty: [] }>()
 
 const store = useSettingsStore()
-const { currentThemeId, setTheme: setThemeFromEngine } = useTheme()
+const { currentThemeId } = useTheme()
 const fontStore = useFontStore()
 const { getPresetByFamily, markInstalled } = useFontPresets()
 const libraryStore = useFontLibraryStore()
@@ -134,13 +134,16 @@ const fontStorageHint = computed(() => {
   return `${(used / 1024 / 1024).toFixed(1)} MB / 400 MB`
 })
 
+// 预设主题：id 保留给 entity-core currentThemeId 追踪（active 高亮）；
+// mode 映射到 App 壳三态（唯一 data-theme 控制源，避免命名 id 写入 data-theme 破坏明暗）；
+// accent 为令牌风味（写 --accent 覆盖，与圆角/密度合并）。通过 ws-set-theme 事件交由 App 壳落地。
 const themes = [
-  { id: 'aurora-abyss', icon: 'theme-aurora-abyss', label: '极光深渊' },
-  { id: 'light', icon: 'theme-light', label: '明亮' },
-  { id: 'forge-ember', icon: 'theme-forge-ember', label: '锻造炉' },
-  { id: 'ink-scroll', icon: 'theme-ink-scroll', label: '水墨卷轴' },
-  { id: 'crystal-prism', icon: 'theme-crystal-prism', label: '晶体棱镜' },
-  { id: 'cosmic', icon: 'theme-cosmic', label: '宇宙' },
+  { id: 'aurora-abyss', icon: 'theme-aurora-abyss', label: '极光深渊', mode: 'dark', accent: '#8b5cf6' },
+  { id: 'light', icon: 'theme-light', label: '明亮', mode: 'light', accent: '#4a6cf7' },
+  { id: 'forge-ember', icon: 'theme-forge-ember', label: '锻造炉', mode: 'dark', accent: '#c87830' },
+  { id: 'ink-scroll', icon: 'theme-ink-scroll', label: '水墨卷轴', mode: 'light', accent: '#2a2018' },
+  { id: 'crystal-prism', icon: 'theme-crystal-prism', label: '晶体棱镜', mode: 'dark', accent: '#64b4ff' },
+  { id: 'cosmic', icon: 'theme-cosmic', label: '宇宙', mode: 'dark', accent: '#a855f7' },
 ]
 
 function match(keywords: string): boolean {
@@ -148,7 +151,9 @@ function match(keywords: string): boolean {
 }
 
 function onThemeChange(id: string) {
-  setThemeFromEngine(id)
+  const t = themes.find(x => x.id === id)
+  // 交由 App 壳落地（data-theme 唯一控制源）：App 监听 ws-set-theme → setMode + setUserOverrides
+  window.dispatchEvent(new CustomEvent('ws-set-theme', { detail: { id, mode: t?.mode ?? 'dark', accent: t?.accent } }))
   emit('dirty')
 }
 
@@ -256,7 +261,7 @@ function onFontImport(e: Event) {
 </script>
 
 <style scoped>
-.set-card { background: var(--content-bg, var(--color-bg-surface)); border-radius: 10px; padding: 14px 16px; box-shadow: 0 1px 6px rgba(0,0,0,0.06), 0 0 0 1px var(--border, var(--color-border)); }
+.set-card { background: var(--content-bg, var(--color-bg-surface)); border-radius: var(--radius-md); padding: 14px 16px; box-shadow: 0 1px 6px rgba(0,0,0,0.06), 0 0 0 1px var(--border, var(--color-border)); }
 .sc-head { font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); color: var(--text-tertiary, var(--color-text-tertiary)); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
 .set-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; font-size: var(--font-size-sm); gap: 12px; }
 .set-hint { font-size: var(--font-size-xs); color: var(--text-tertiary, var(--color-text-tertiary)); margin: -2px 0 4px; }
@@ -283,12 +288,12 @@ function onFontImport(e: Event) {
 .set-toggle input:checked + .set-toggle-slider { background: var(--primary, var(--color-primary)); }
 .set-toggle input:checked + .set-toggle-slider::before { transform: translateX(16px); }
 
-.set-select { padding: 4px 8px; font-size: var(--font-size-sm); border: 1px solid var(--border, var(--color-border)); border-radius: 6px; background: var(--bg, var(--color-bg-surface)); color: var(--text-color); cursor: pointer; }
+.set-select { padding: 4px 8px; font-size: var(--font-size-sm); border: 1px solid var(--border, var(--color-border)); border-radius: var(--radius-sm); background: var(--bg, var(--color-bg-surface)); color: var(--text-color); cursor: pointer; }
 .set-select:focus { outline: none; border-color: var(--primary, var(--color-primary)); }
 .set-range-wrap { display: flex; align-items: center; gap: 8px; }
 .set-range { width: 100px; accent-color: var(--primary, var(--color-primary)); }
 .set-range-val { font-size: var(--font-size-sm); color: var(--text-secondary); min-width: 28px; text-align: right; font-family: monospace; }
-.set-select--sm { max-width: 160px; font-size: 12px; padding: 3px 6px; }
+.set-select--sm { max-width: 160px; font-size: var(--fs-sm); padding: 3px 6px; }
 
 /* ── 字体设置面板 ── */
 .sf-layer-label { display: flex; flex-direction: column; gap: 2px; }
@@ -305,44 +310,44 @@ function onFontImport(e: Event) {
 
 .sf-import-btn {
   display: inline-block; padding: 6px 14px; border: 1px dashed var(--border-color);
-  border-radius: 6px; cursor: pointer; font-size: var(--font-size-sm); color: var(--text-secondary);
+  border-radius: var(--radius-sm); cursor: pointer; font-size: var(--font-size-sm); color: var(--text-secondary);
   transition: border-color 0.15s, color 0.15s;
 }
 .sf-import-btn:hover { border-color: var(--primary); color: var(--primary); }
 
 .sf-library-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-.sf-storage-hint { font-size: 12px; color: var(--color-text-muted); }
+.sf-storage-hint { font-size: var(--fs-sm); color: var(--color-text-muted); }
 .sf-library-list { display: flex; flex-direction: column; gap: 8px; }
 .sf-lib-card {
   position: relative; padding: 10px 12px; border: 1px solid var(--color-border);
-  border-radius: 6px; background: var(--color-surface);
+  border-radius: var(--radius-sm); background: var(--color-surface);
 }
 .sf-lib-info { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
 .sf-lib-name { font-weight: 500; }
-.sf-lib-source { font-size: 11px; padding: 1px 6px; border-radius: 3px; background: var(--color-surface-hover); }
+.sf-lib-source { font-size: var(--fs-xs); padding: 1px 6px; border-radius: 3px; background: var(--color-surface-hover); }
 .sf-lib-source[data-source="wsfont"] { color: #5b8def; }
 .sf-lib-source[data-source="raw"] { color: #8a8a8a; }
 .sf-lib-source[data-source="windfonts"] { color: #4caf50; }
 .sf-lib-source[data-source="preset"] { color: #9c6ade; }
 .sf-lib-source[data-source="zip"] { color: #e8a838; }
-.sf-lib-preview { font-size: 14px; margin: 4px 0; color: var(--color-text-secondary); }
-.sf-lib-meta { font-size: 11px; color: var(--color-text-muted); }
+.sf-lib-preview { font-size: var(--fs-base); margin: 4px 0; color: var(--color-text-secondary); }
+.sf-lib-meta { font-size: var(--fs-xs); color: var(--color-text-muted); }
 .sf-lib-delete {
   position: absolute; top: 8px; right: 8px; background: none; border: none;
-  cursor: pointer; color: var(--color-text-muted); font-size: 14px; padding: 2px 4px; border-radius: 3px;
+  cursor: pointer; color: var(--color-text-muted); font-size: var(--fs-base); padding: 2px 4px; border-radius: 3px;
 }
 .sf-lib-delete:hover { color: var(--color-danger); background: var(--color-surface-hover); }
 .sf-lib-group { margin-top: 8px; border: 1px solid var(--color-border); border-radius: 8px; overflow: hidden; }
 .sf-lib-group-header {
   display: flex; align-items: center; gap: 6px; padding: 8px 12px;
   background: var(--color-surface-hover); border-bottom: 1px solid var(--color-border);
-  font-size: 13px; font-weight: 500;
+  font-size: var(--fs-md); font-weight: 500;
 }
 .sf-lib-group-name { flex: 1; }
-.sf-lib-group-count { font-size: 11px; color: var(--color-text-muted); font-weight: 400; }
+.sf-lib-group-count { font-size: var(--fs-xs); color: var(--color-text-muted); font-weight: 400; }
 .sf-lib-group-delete {
   background: none; border: none; cursor: pointer; color: var(--color-text-muted);
-  font-size: 14px; padding: 2px 4px; border-radius: 3px;
+  font-size: var(--fs-base); padding: 2px 4px; border-radius: 3px;
 }
 .sf-lib-group-delete:hover { color: var(--color-danger); background: var(--color-surface); }
 .sf-lib-card--grouped { border: none; border-radius: 0; border-bottom: 1px solid var(--color-border-subtle); }

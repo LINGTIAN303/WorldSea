@@ -2186,4 +2186,93 @@ function onGlobalKeydown(e: KeyboardEvent) {
   background: var(--danger-soft);
   border-color: var(--danger);
 }
+
+/* ── 减弱动态偏好（prefers-reduced-motion）：去位移/缩放与循环动画，保留温和淡入 ──
+   与 TuiButton/TuiModal/TuiDrawer/WsConfirmDialog 同一可访问性语言（Emil 规则）：
+   视图切换/面板/消息流/提示轮转/错误条/主题图标 全部退化为纯 opacity，去掉脉冲。 */
+@media (prefers-reduced-motion: reduce) {
+  /* 主题图标：去掉旋转/缩放，仅淡入淡出 */
+  .theme-icon-enter-active,
+  .theme-icon-leave-active {
+    transition: opacity var(--dur-fast) var(--ease);
+  }
+  .theme-icon-enter-from,
+  .theme-icon-leave-to {
+    transform: none;
+  }
+  /* 视图切换：去掉水平滑动，仅淡入淡出 */
+  .view-fwd-enter-active,
+  .view-fwd-leave-active,
+  .view-back-enter-active,
+  .view-back-leave-active {
+    transition: opacity var(--dur-base) var(--ease);
+  }
+  .view-fwd-enter-from,
+  .view-fwd-leave-to,
+  .view-back-enter-from,
+  .view-back-leave-to {
+    transform: none;
+  }
+  /* 浮动面板：去掉水平滑入，仅淡入淡出 */
+  .panel-left-enter-active,
+  .panel-left-leave-active,
+  .panel-right-enter-active,
+  .panel-right-leave-active {
+    transition: opacity var(--dur-base) var(--ease);
+  }
+  .panel-left-enter-from,
+  .panel-left-leave-to,
+  .panel-right-enter-from,
+  .panel-right-leave-to {
+    transform: none;
+  }
+  /* 消息流：去掉上滑位移，仅淡入淡出 */
+  .msg-enter-active,
+  .msg-leave-active,
+  .msg-move {
+    transition: opacity var(--dur-base) var(--ease);
+  }
+  .msg-enter-from,
+  .msg-leave-to {
+    transform: none;
+  }
+  /* 轮转提示/错误条：去掉上下位移，仅淡入淡出 */
+  .hint-fade-enter-active,
+  .hint-fade-leave-active,
+  .err-bar-enter-active,
+  .err-bar-leave-active {
+    transition: opacity var(--dur-base) var(--ease);
+  }
+  .hint-fade-enter-from,
+  .hint-fade-leave-to,
+  .err-bar-enter-from,
+  .err-bar-leave-to {
+    transform: none;
+  }
+  /* 思考中脉冲点：停用循环动画，静态弱色圆点 */
+  .thinking-dot {
+    animation: none;
+  }
+  /* 回到最新悬浮按钮：去掉 hover 上浮位移 */
+  .scroll-bottom {
+    transition: border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+  }
+  .scroll-bottom:hover,
+  .scroll-bottom:active {
+    transform: translateX(-50%);
+  }
+  /* 按压微缩：统一停用 */
+  .rail-item:active,
+  .panel-toggle:active,
+  .scroll-bottom:active,
+  .msg-copy:active,
+  .chip:active,
+  .attach-remove:active,
+  .error-bar .error-dismiss:active,
+  .input-clear:active,
+  .send-btn:active,
+  .stop-btn:active {
+    transform: none;
+  }
+}
 </style>

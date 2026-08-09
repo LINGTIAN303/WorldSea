@@ -85,13 +85,13 @@ watch(() => state.value.show, (v) => {
 .dialog-body p { margin: 0 0 12px; font-size: var(--font-size-sm); color: var(--color-text-tertiary); line-height: 1.5; }
 .dialog-input {
   width: 100%; padding: 8px 12px; border: 1px solid var(--border);
-  border-radius: 6px; background: var(--bg-tertiary); color: var(--text);
+  border-radius: var(--radius-sm); background: var(--bg-tertiary); color: var(--text);
   font-size: var(--font-size-sm); outline: none; box-sizing: border-box;
 }
 .dialog-input:focus { border-color: var(--accent); }
 .dialog-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
-.btn-secondary { padding: 7px 16px; background: var(--bg-tertiary); color: #888; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-size: var(--font-size-sm); }
-.btn-primary { padding: 7px 16px; background: var(--accent-bg); color: var(--accent); border: 1px solid var(--accent); border-radius: 6px; cursor: pointer; font-size: var(--font-size-sm); }
+.btn-secondary { padding: 7px 16px; background: var(--bg-tertiary); color: #888; border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; font-size: var(--font-size-sm); }
+.btn-primary { padding: 7px 16px; background: var(--accent-bg); color: var(--accent); border: 1px solid var(--accent); border-radius: var(--radius-sm); cursor: pointer; font-size: var(--font-size-sm); }
 .btn-secondary:hover { background: var(--color-border); }
 .btn-primary:hover { background: var(--color-primary-active); }
 

@@ -154,9 +154,9 @@ function close() {
 .consistency-close:hover { background: var(--hover-bg); }
 
 .consistency-summary { display: flex; align-items: center; gap: 10px; padding: 10px 20px; border-bottom: 1px solid var(--border); }
-.summary-badge { font-size: var(--font-size-sm); padding: 2px 10px; border-radius: 10px; font-weight: var(--font-weight-semibold); }
+.summary-badge { font-size: var(--font-size-sm); padding: 2px 10px; border-radius: var(--radius-md); font-weight: var(--font-weight-semibold); }
 .summary-error { background: color-mix(in srgb, var(--danger) 15%, transparent); color: var(--danger); }
-.summary-warning { background: color-mix(in srgb, #e6a700 15%, transparent); color: #b38600; }
+.summary-warning { background: color-mix(in srgb, var(--warning) 15%, transparent); color: var(--warning); }
 .summary-info { background: color-mix(in srgb, var(--primary) 15%, transparent); color: var(--primary); }
 .summary-total { font-size: var(--font-size-sm); color: var(--text-secondary); margin-left: auto; }
 
@@ -169,13 +169,13 @@ function close() {
 .category-header:hover { background: var(--hover-bg); }
 .category-icon { font-size: var(--font-size-base); }
 .category-label { font-weight: var(--font-weight-semibold); flex: 1; }
-.category-count { font-size: var(--font-size-xs); background: var(--bg); padding: 2px 8px; border-radius: 10px; color: var(--text-secondary); }
+.category-count { font-size: var(--font-size-xs); background: var(--bg); padding: 2px 8px; border-radius: var(--radius-md); color: var(--text-secondary); }
 .category-toggle { font-size: var(--font-size-xs); color: var(--text-tertiary); }
 
 .category-issues { padding: 0 20px 8px; }
-.issue-item { display: flex; align-items: flex-start; gap: 8px; padding: 8px 12px; border-radius: 6px; margin-bottom: 4px; }
+.issue-item { display: flex; align-items: flex-start; gap: 8px; padding: 8px 12px; border-radius: var(--radius-sm); margin-bottom: 4px; }
 .issue-item.severity-error { background: color-mix(in srgb, var(--danger) 6%, transparent); }
-.issue-item.severity-warning { background: color-mix(in srgb, #e6a700 6%, transparent); }
+.issue-item.severity-warning { background: color-mix(in srgb, var(--warning) 6%, transparent); }
 .issue-item.severity-info { background: color-mix(in srgb, var(--primary) 6%, transparent); }
 .issue-severity-icon { flex-shrink: 0; margin-top: 1px; }
 .issue-content { flex: 1; min-width: 0; }
@@ -185,7 +185,7 @@ function close() {
 
 .consistency-empty { text-align: center; padding: 40px; color: var(--text-tertiary); }
 
-.btn { padding: 6px 14px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); cursor: pointer; font-size: var(--font-size-sm); }
+.btn { padding: 6px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); cursor: pointer; font-size: var(--font-size-sm); }
 .btn:hover { background: var(--bg-hover); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn.btn-sm { padding: 3px 8px; font-size: var(--font-size-xs); }
