@@ -1,14 +1,13 @@
 <template>
   <button class="create-btn" :class="{ 'create-btn-sm': size === 'small' }" :disabled="disabled" @click="$emit('click')">
-    <svg class="create-btn-icon" width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <line x1="7" y1="1" x2="7" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-      <line x1="1" y1="7" x2="13" y2="7" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-    </svg>
+    <WsIcon name="plus" :size="14" :stroke-width="2" class="create-btn-icon" />
     <span class="create-btn-text">{{ label }}</span>
   </button>
 </template>
 
 <script setup lang="ts">
+import { WsIcon } from '@worldsmith/ui-kit'
+
 defineProps<{
   label?: string
   disabled?: boolean

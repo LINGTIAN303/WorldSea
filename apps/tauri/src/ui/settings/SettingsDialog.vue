@@ -7,7 +7,7 @@
           <span id="set-dialog-title" class="set-topbar-title">设置</span>
         </div>
         <div class="set-search-wrap">
-          <svg class="set-search-icon" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6.5" cy="6.5" r="5"/><path d="M10.5 10.5L15 15"/></svg>
+          <WsIcon name="search" size="xs" class="set-search-icon" />
           <input type="text" class="set-search-input" v-model="searchQuery" placeholder="搜索设置..." aria-label="搜索设置" />
           <button v-if="searchQuery" class="set-search-clear" @click="searchQuery = ''" aria-label="清除搜索">✕</button>
         </div>
