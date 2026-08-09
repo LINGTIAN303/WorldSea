@@ -105,7 +105,7 @@ defineExpose({ open, close, updateItems, onKeyDown })
   padding: 4px;
   width: 240px;
   max-height: 320px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  box-shadow: var(--shadow-md);
   overflow-y: auto;
 }
 .sc-item {

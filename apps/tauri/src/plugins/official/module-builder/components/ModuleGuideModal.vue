@@ -121,7 +121,7 @@ defineEmits<{ close: [] }>()
 .guide-tips li { font-size: var(--font-size-sm); color: var(--color-text-secondary); margin-bottom: 6px; line-height: 1.5; }
 .guide-tips code { background: var(--bg-secondary); padding: 1px 6px; border-radius: var(--radius-2xs); font-size: var(--font-size-sm); }
 
-.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; z-index: var(--z-sticky); }
+.modal-overlay { position: fixed; inset: 0; background: var(--overlay); display: flex; align-items: center; justify-content: center; z-index: var(--z-sticky); }
 .modal { background: var(--color-bg-surface); border-radius: var(--radius-2xl); padding: 24px; max-width: 500px; width: 90%; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 .btn-primary { padding: 8px 16px; background: var(--primary); color: var(--color-text-inverse); border: none; border-radius: var(--radius-sm); cursor: pointer; font-size: var(--font-size-base); }

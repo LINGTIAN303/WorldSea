@@ -247,6 +247,6 @@ onMounted(async () => {
 .bs-link { font-size: var(--font-size-sm); padding: 2px 6px; border-radius: var(--radius-2xs); cursor: pointer; color: var(--color-primary); margin-bottom: 2px; display: flex; align-items: center; gap: 4px; }
 .bs-link:hover { background: var(--color-primary-subtle); }
 .bs-link-dim { color: var(--color-text-secondary); }
-.bs-link-dim:hover { background: rgba(139,148,158,0.1); }
+.bs-link-dim:hover { background: color-mix(in srgb, var(--color-text-secondary) 10%, transparent); }
 .bs-route-tag { font-size: var(--text-micro-font-size); background: var(--color-bg-elevated); padding: 1px 4px; border-radius: 2px; }
 </style>

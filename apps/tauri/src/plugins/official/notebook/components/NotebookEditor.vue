@@ -161,7 +161,7 @@ function onCodeRun(output: string): void {
 .nb-editor-folder option, .nb-editor-type option { background: var(--color-bg-surface); color: var(--color-text-primary); }
 .nb-editor-body { flex: 1; overflow: hidden; }
 
-.nb-link-picker-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 1000; display: flex; align-items: center; justify-content: center; }
+.nb-link-picker-overlay { position: fixed; inset: 0; background: var(--overlay); z-index: 1000; display: flex; align-items: center; justify-content: center; }
 .nb-link-picker { background: var(--color-bg-surface); border-radius: var(--radius-mid); width: 360px; max-height: 400px; display: flex; flex-direction: column; box-shadow: 0 8px 32px rgba(0,0,0,0.2); }
 .nlp-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); color: var(--color-text-primary); border-bottom: 1px solid var(--color-border-subtle); }
 .nlp-close { padding: 2px 6px; border: none; background: transparent; color: var(--color-text-tertiary); cursor: pointer; border-radius: var(--radius-xs); }

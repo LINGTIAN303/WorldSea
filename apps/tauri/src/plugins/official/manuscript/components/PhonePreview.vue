@@ -178,7 +178,7 @@ function onResizeStart(e: MouseEvent) {
 
 <style scoped>
 .pp-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.3);
+  position: fixed; inset: 0; background: var(--overlay);
   display: flex; align-items: center; justify-content: center; z-index: 300;
 }
 .pp-frame {

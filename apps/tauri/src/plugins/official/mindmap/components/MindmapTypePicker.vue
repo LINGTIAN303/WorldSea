@@ -31,7 +31,7 @@ defineEmits<{
 </script>
 
 <style scoped>
-.mm-modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: var(--z-overlay); display: flex; align-items: center; justify-content: center; }
+.mm-modal-backdrop { position: fixed; inset: 0; background: var(--overlay); z-index: var(--z-overlay); display: flex; align-items: center; justify-content: center; }
 .mm-modal { background: var(--card-bg); border-radius: var(--radius-xl); padding: 20px; min-width: 280px; max-width: 480px; box-shadow: var(--shadow-xl); }
 .mm-modal h4 { margin-bottom: 12px; }
 .mm-modal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; margin-bottom: 12px; }

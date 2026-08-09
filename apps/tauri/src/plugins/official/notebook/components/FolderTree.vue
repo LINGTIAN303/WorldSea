@@ -440,7 +440,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeyDown))
 .ft-context-menu {
   position: fixed; z-index: 1000; min-width: 150px;
   background: var(--color-bg-surface); border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm); padding: 4px; box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+  border-radius: var(--radius-sm); padding: 4px; box-shadow: var(--shadow-md);
 }
 .ft-cm-item {
   padding: 6px 12px; font-size: var(--font-size-sm); border-radius: var(--radius-xs);

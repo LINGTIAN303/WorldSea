@@ -87,7 +87,7 @@ function confirm() {
 </script>
 
 <style scoped>
-.fad-overlay { position: absolute; inset: 0; z-index: 300; background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; }
+.fad-overlay { position: absolute; inset: 0; z-index: 300; background: var(--overlay); display: flex; align-items: center; justify-content: center; }
 .fad-dialog { background: var(--card-bg, #fff); border-radius: var(--radius-md); padding: 16px; width: 280px; box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
 .fad-title { margin: 0 0 10px; font-size: var(--font-size-base); color: var(--text-color); }
 .fad-mode-toggle { display: flex; gap: 0; margin-bottom: 10px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); overflow: hidden; }

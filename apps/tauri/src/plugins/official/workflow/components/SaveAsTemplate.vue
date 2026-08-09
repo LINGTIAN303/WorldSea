@@ -87,7 +87,7 @@ function handleSave() {
 
 <style scoped>
 .st-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+  position: fixed; inset: 0; background: var(--overlay);
   display: flex; align-items: center; justify-content: center; z-index: 100;
 }
 .st-dialog {

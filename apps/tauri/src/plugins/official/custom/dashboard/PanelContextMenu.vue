@@ -70,7 +70,7 @@ function onRemove() {
   border-radius: var(--radius-mid);
   padding: 4px 0;
   min-width: 160px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow-md);
 }
 
 .cv-ctx-item {
