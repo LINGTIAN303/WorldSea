@@ -18,7 +18,7 @@
 
     <!-- Pipeline 列表 -->
     <div v-if="loading" class="pb-loading">
-      <WsSpinner />
+      <TuiSpinner />
     </div>
 
     <div v-else-if="pipelineList.length === 0" class="pb-empty">
@@ -105,7 +105,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
-import { WsSpinner } from '@worldsmith/ui-kit'
+import TuiSpinner from '@/components/ui/TuiSpinner.vue'
 import { usePipeline } from '../composables/usePipeline'
 import { usePipelineTemplates } from '../composables/usePipelineTemplates'
 import type { PipelineStatus } from '../types'
