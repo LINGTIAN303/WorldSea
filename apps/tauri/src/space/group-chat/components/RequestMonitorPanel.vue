@@ -113,7 +113,7 @@ watch(expanded, (v) => { if (v) refresh() })
 .record-row { display: flex; align-items: center; gap: 6px; padding: 3px 8px; font-size: var(--fs-2xs); border-bottom: 1px solid var(--color-border); }
 .record-row:last-child { border-bottom: none; }
 .record-row.success { }
-.record-row.error { background: rgba(239,68,68,0.05); }
+.record-row.error { background: color-mix(in srgb, var(--danger) 5%, transparent); }
 .record-row.pending { background: rgba(108,92,231,0.05); }
 .rec-name { font-weight: 600; min-width: 50px; }
 .rec-protocol { font-size: var(--fs-3xs); color: var(--color-primary); background: rgba(108,92,231,0.08); padding: 1px 4px; border-radius: var(--radius-2xs); }

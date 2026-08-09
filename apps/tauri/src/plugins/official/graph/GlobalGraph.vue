@@ -554,10 +554,10 @@ useAgentPluginBridge('graph', (event) => {
   gap: 8px;
   max-width: 80%;
   padding: 8px 12px;
-  background: rgba(37, 99, 235, 0.12);
-  border: 1px solid rgba(37, 99, 235, 0.3);
+  background: color-mix(in srgb, var(--info) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--info) 30%, transparent);
   border-radius: var(--radius-md);
-  color: #93c5fd;
+  color: var(--info);
   font-size: var(--font-size-xs);
   line-height: 1.5;
   z-index: 5;

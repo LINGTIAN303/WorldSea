@@ -186,8 +186,8 @@ function close() {
 .et-card-h strong { font-size: var(--font-size-base); }
 .et-type-badge { font-size: var(--font-size-xs); background: #eef2ff; color: var(--primary); padding: 2px 6px; border-radius: var(--radius-xs); }
 .et-source-badge { font-size: var(--font-size-xs); padding: 1px 5px; border-radius: var(--radius-2xs); }
-.et-source-badge.builtin { background: #ecfdf5; color: #059669; }
-.et-source-badge.custom { background: #fef3c7; color: #d97706; }
+.et-source-badge.builtin { background: var(--success-soft); color: var(--success); }
+.et-source-badge.custom { background: var(--warning-soft); color: var(--warning); }
 .et-card-desc { font-size: var(--font-size-sm); color: var(--text-secondary); margin: 4px 0; }
 .et-card-props, .et-card-entities { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
 .et-prop-tag { font-size: var(--font-size-xs); background: var(--bg); color: var(--text-secondary); padding: 2px 6px; border-radius: var(--radius-2xs); border: 1px solid var(--border); }

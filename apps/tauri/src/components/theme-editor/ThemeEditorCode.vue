@@ -174,9 +174,9 @@ async function exportToClipboard() {
 .theme-code__validation {
   padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); font-size: var(--font-size-xs);
 }
-.theme-code__validation.error { background: #ef444415; color: #ef4444; border: 1px solid #ef444430; }
-.theme-code__validation.success { background: #22c55e15; color: #22c55e; border: 1px solid #22c55e30; }
-.theme-code__validation.info { background: #3b82f615; color: #3b82f6; border: 1px solid #3b82f630; }
+.theme-code__validation.error { background: color-mix(in srgb, var(--danger) 15%, transparent); color: var(--danger); border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent); }
+.theme-code__validation.success { background: color-mix(in srgb, var(--success) 15%, transparent); color: var(--success); border: 1px solid color-mix(in srgb, var(--success) 30%, transparent); }
+.theme-code__validation.info { background: color-mix(in srgb, var(--info) 15%, transparent); color: var(--info); border: 1px solid color-mix(in srgb, var(--info) 30%, transparent); }
 
 .theme-code__section { }
 .theme-code__section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-2); }

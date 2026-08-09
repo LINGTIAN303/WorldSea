@@ -551,7 +551,7 @@ onBeforeUnmount(() => {
 }
 .user-avatar:hover {
   transform: scale(1.08);
-  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 20%, transparent);
 }
 
 .user-avatar-letter {
