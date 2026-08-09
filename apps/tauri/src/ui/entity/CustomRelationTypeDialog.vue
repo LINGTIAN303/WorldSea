@@ -325,7 +325,7 @@ function close() {
   font-size: var(--font-size-xs);
 }
 .btn.btn-primary {
-  color: #fff;
+  color: var(--on-accent);
   background: var(--primary);
   border-color: var(--primary);
 }

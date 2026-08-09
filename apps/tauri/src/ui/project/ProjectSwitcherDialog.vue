@@ -360,7 +360,7 @@ async function onImportProject() {
   border: none;
   border-radius: var(--radius-md, 6px);
   background: var(--accent, var(--color-accent));
-  color: #fff;
+  color: var(--on-accent);
   font-size: var(--font-size-sm, 13px);
   cursor: pointer;
   transition: opacity var(--transition-fast, 0.15s);
@@ -440,7 +440,7 @@ async function onImportProject() {
   padding: 2px 6px;
   border-radius: 4px;
   background: var(--accent, var(--color-accent));
-  color: #fff;
+  color: var(--on-accent);
   font-weight: var(--font-weight-medium, 500);
 }
 

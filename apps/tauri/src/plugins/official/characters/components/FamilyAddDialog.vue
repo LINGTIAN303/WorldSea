@@ -92,7 +92,7 @@ function confirm() {
 .fad-title { margin: 0 0 10px; font-size: var(--font-size-base); color: var(--text-color); }
 .fad-mode-toggle { display: flex; gap: 0; margin-bottom: 10px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); overflow: hidden; }
 .fad-mode-toggle button { flex: 1; padding: 6px 0; font-size: var(--font-size-sm); border: none; background: transparent; color: var(--text-secondary); cursor: pointer; }
-.fad-mode-toggle button.active { background: var(--primary, #7c3aed); color: #fff; }
+.fad-mode-toggle button.active { background: var(--primary, #7c3aed); color: var(--on-accent); }
 .fad-input, .fad-select { width: 100%; padding: 7px 10px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); font-size: var(--font-size-sm); margin-bottom: 8px; background: var(--input-bg, #fff); color: var(--text-color); }
 .fad-results { max-height: 150px; overflow-y: auto; }
 .fad-result-item { padding: 6px 8px; cursor: pointer; border-radius: 4px; display: flex; justify-content: space-between; }
@@ -101,6 +101,6 @@ function confirm() {
 .fad-empty { text-align: center; color: var(--text-tertiary); font-size: var(--font-size-sm); padding: 12px; }
 .fad-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
 .fad-btn-cancel { padding: 5px 14px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary); cursor: pointer; font-size: var(--font-size-sm); }
-.fad-btn-confirm { padding: 5px 14px; border: none; border-radius: var(--radius-sm); background: var(--primary, #7c3aed); color: #fff; cursor: pointer; font-size: var(--font-size-sm); }
+.fad-btn-confirm { padding: 5px 14px; border: none; border-radius: var(--radius-sm); background: var(--primary, #7c3aed); color: var(--on-accent); cursor: pointer; font-size: var(--font-size-sm); }
 .fad-btn-confirm:disabled { opacity: 0.5; cursor: not-allowed; }
 </style>

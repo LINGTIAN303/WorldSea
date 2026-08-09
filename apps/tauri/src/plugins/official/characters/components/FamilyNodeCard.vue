@@ -68,6 +68,6 @@ const cardStyle = computed(() => ({
 .fnc-actions { display: flex; gap: 6px; }
 .fnc-btn { font-size: var(--font-size-xs); padding: 3px 8px; border: 1px solid var(--border-color); border-radius: 4px; background: transparent; color: var(--text-secondary); cursor: pointer; }
 .fnc-btn:hover { background: var(--bg-secondary); }
-.fnc-btn-primary { background: var(--primary, #7c3aed); color: #fff; border-color: var(--primary, #7c3aed); }
+.fnc-btn-primary { background: var(--primary, #7c3aed); color: var(--on-accent); border-color: var(--primary, #7c3aed); }
 .fnc-btn-primary:hover { opacity: 0.9; }
 </style>

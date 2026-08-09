@@ -257,7 +257,7 @@ watch(() => props.nodeId, () => {
   cursor: pointer; transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast), opacity var(--transition-fast), filter var(--transition-fast);
 }
 .mm-dp-btn-sm:hover { border-color: var(--primary); color: var(--primary); }
-.mm-dp-btn-sm.primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+.mm-dp-btn-sm.primary { background: var(--primary); color: var(--on-accent); border-color: var(--primary); }
 .mm-dp-btn-sm.primary:hover { background: var(--primary-hover, var(--primary)); }
 .mm-dp-actions {
   padding: 12px 14px; display: flex; gap: 6px; margin-top: auto;

@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="drawing-view">
     <!-- 画板列表视图 -->
     <div v-if="!selectedDrawingId" class="dv-board">
@@ -762,7 +762,7 @@ watch([layers, activeLayerIndex], () => {
 .dv-btn { padding: 4px 10px; border: 1px solid var(--color-border); border-radius: 4px; background: var(--color-bg-elevated); cursor: pointer; font-size: var(--font-size-sm, 13px); color: var(--color-text-primary); transition: background 0.15s; }
 .dv-btn:hover { background: var(--color-bg-hover); }
 .dv-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.dv-btn--primary { background: var(--color-primary, #4a6cf7); color: #fff; border-color: transparent; }
+.dv-btn--primary { background: var(--color-primary, #4a6cf7); color: var(--on-accent); border-color: transparent; }
 .dv-btn--primary:hover { opacity: 0.9; }
 .dv-btn-danger { color: var(--color-danger, #f85149); }
 .dv-btn-danger:hover { background: color-mix(in srgb, var(--color-danger, #f85149) 15%, transparent); }

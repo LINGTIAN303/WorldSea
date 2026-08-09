@@ -291,7 +291,7 @@ onMounted(() => {
   margin-left: auto;
   padding: 1px 8px;
   background: var(--color-primary);
-  color: #fff;
+  color: var(--on-accent);
   border-radius: var(--radius-md);
   font-size: var(--font-size-xs);
 }
@@ -481,7 +481,7 @@ onMounted(() => {
 }
 .store-update-btn {
   background: var(--color-primary);
-  color: #fff;
+  color: var(--on-accent);
   border-color: var(--color-primary);
 }
 .store-uninstall-btn {
