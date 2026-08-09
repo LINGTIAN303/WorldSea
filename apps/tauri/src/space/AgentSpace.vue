@@ -57,7 +57,7 @@
       <div class="space-main">
         <!-- 单聊/群聊双模式（群聊 UI 骨架 2026-08-09 恢复） -->
         <SpaceChat v-if="spaceStore.mode === 'chat'" />
-        <GroupChatView v-else @close="spaceStore.setMode('chat')" />
+        <GroupChatView v-else @close="onGroupChatClose" />
       </div>
 
       <!-- 执行面板（常驻 Tab：轨迹/活动/计划，双轨之一） -->
@@ -265,6 +265,11 @@ function onToggleMode() {
     // 群聊模式下关闭单聊专属左栏（会话栏/知识墙）
     closeAll()
   }
+}
+
+// 群聊返回单聊（GroupChatView 关闭，如 GroupChatSetup 取消）
+function onGroupChatClose() {
+  spaceStore.setMode('chat')
 }
 
 function onAddKnowledge() {

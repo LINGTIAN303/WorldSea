@@ -76,6 +76,22 @@
     </div>
 
     <div class="navbar-right">
+      <!-- 群聊模式专属入口（2026-08-09）：Agent 管理 + Provider 池管理 -->
+      <template v-if="spaceStore.mode === 'group'">
+        <button
+          class="nav-btn"
+          :class="{ active: showAgentManager }"
+          @click="toggleAgentManager"
+          title="Agent 管理"
+          ref="agentManagerBtnRef"
+        ><WsIcon name="bot" size="sm" /></button>
+        <button
+          class="nav-btn"
+          @click="showProviderSlots = true"
+          title="Provider 池管理"
+        ><WsIcon name="key" size="sm" /></button>
+        <span class="nav-divider"></span>
+      </template>
       <!-- 对话上下文组：记忆架 -->
       <button
         class="nav-btn"
@@ -130,6 +146,10 @@
       </Transition>
     </Teleport>
 
+    <!-- 群聊模式专属浮层（2026-08-09）：Provider 池编辑 + Agent 管理 -->
+    <ProviderSlotEditor v-if="showProviderSlots" @close="showProviderSlots = false" />
+    <AgentManagerPanel :visible="showAgentManager" :anchor-rect="agentManagerBtnRect" @close="showAgentManager = false" />
+
     <Teleport to="body">
       <div v-if="modeDropdownOpen" class="mode-dropdown-backdrop" @click="modeDropdownOpen = false"></div>
     </Teleport>
@@ -141,7 +161,7 @@
             v-for="m in chatModes"
             :key="m.value"
             class="mode-dropdown-item"
-            :class="{ active: spaceStore.chatMode === m.value, disabled: sessionChatMode !== null }"
+            :class="{ active: (spaceStore.mode === 'group' ? spaceStore.groupChatMode : spaceStore.chatMode) === m.value, disabled: sessionChatMode !== null && spaceStore.mode === 'chat' }"
             @click.stop="onModeSelect(m.value)"
           >
             <span class="mode-item-icon"><WsIcon :name="m.icon" size="sm" /></span>
@@ -171,7 +191,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
-import { useSpaceStore, type ChatMode } from './stores/space-store'
+import { useSpaceStore, type ChatMode, type GroupChatMode } from './stores/space-store'
 import { useUserProfileStore } from './stores/user-profile-store'
 import { useAgentPersona } from './composables/useAgentPersona'
 import { usePersonaFont } from './composables/usePersonaFont'
@@ -183,6 +203,9 @@ import UserProfilePopover from './panels/UserProfilePopover.vue'
 import { WsIcon } from '@worldsmith/ui-kit'
 import AvatarBadge from '@/ui/AvatarBadge.vue'
 import PanelToggle from './PanelToggle.vue'
+// 群聊模式专属入口（2026-08-09 群聊 UI 骨架恢复后迁移）
+import ProviderSlotEditor from './group-chat/components/ProviderSlotEditor.vue'
+import AgentManagerPanel from './group-chat/components/AgentManagerPanel.vue'
 
 const { fontFamily, profile } = usePersonaFont()
 const fontStore = useFontStore()
@@ -215,6 +238,22 @@ const { agentName, moodIcon, moodLabel } = useAgentPersona()
 const personaPopoverOpen = ref(false)
 const userProfilePopoverOpen = ref(false)
 const modeDropdownOpen = ref(false)
+// 群聊模式专属状态（2026-08-09 迁移）
+const showProviderSlots = ref(false)
+const showAgentManager = ref(false)
+const agentManagerBtnRef = ref<HTMLElement>()
+const agentManagerBtnRect = ref<DOMRect>()
+
+function toggleAgentManager(): void {
+  if (showAgentManager.value) {
+    showAgentManager.value = false
+  } else {
+    if (agentManagerBtnRef.value) {
+      agentManagerBtnRect.value = agentManagerBtnRef.value.getBoundingClientRect()
+    }
+    showAgentManager.value = true
+  }
+}
 const moreMenuOpen = ref(false)
 const moreWrapRef = ref<HTMLElement>()
 const moreMenuStyle = ref<Record<string, string>>({ top: '56px', right: '16px' })
@@ -237,6 +276,13 @@ async function updateSessionInfo() {
 watch(currentSessionId, () => { updateSessionInfo() })
 
 const chatModes = computed(() => {
+  // 群聊模式：会议/闲聊 两个子模式（2026-08-09 迁移）
+  if (spaceStore.mode === 'group') {
+    return [
+      { value: 'meeting' as const, icon: 'clipboard-list', label: '会议模式', desc: '有序讨论，深度发言，适合决策和评审' },
+      { value: 'casual' as const, icon: 'coffee', label: '闲聊模式', desc: '自由发言，简短互动，像微信群一样聊天' },
+    ]
+  }
   return [
     { value: 'normal' as const, icon: 'chat', label: '快问快答', desc: '快答为主，按需调用工具' },
     { value: 'deep' as const, icon: 'brain', label: '深度思考', desc: '深度推理 + 工具验证 + 结构化推理链' },
@@ -246,12 +292,19 @@ const chatModes = computed(() => {
 })
 
 const currentMode = computed(() => {
+  if (spaceStore.mode === 'group') {
+    return chatModes.value.find(m => m.value === spaceStore.groupChatMode) || chatModes.value[1]
+  }
   return chatModes.value.find(m => m.value === spaceStore.chatMode) || chatModes.value[0]
 })
 
 function onModeSelect(mode: string) {
-  if (sessionChatMode.value !== null) return
-  spaceStore.setChatMode(mode as ChatMode)
+  if (spaceStore.mode === 'group') {
+    spaceStore.setGroupChatMode(mode as GroupChatMode)
+  } else {
+    if (sessionChatMode.value !== null) return
+    spaceStore.setChatMode(mode as ChatMode)
+  }
   modeDropdownOpen.value = false
 }
 
