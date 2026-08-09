@@ -118,7 +118,7 @@ function close() { tab.value = 'browse'; typeFilter.value = ''; createTypeFilter
 </script>
 
 <style scoped>
-.tm-overlay { position: fixed; inset: 0; z-index: var(--z-overlay); background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; }
+.tm-overlay { position: fixed; inset: 0; z-index: var(--z-overlay); background: var(--overlay); display: flex; align-items: center; justify-content: center; }
 .tm-modal { position: relative; max-height: 80vh; background: var(--content-bg); border-radius: 12px; box-shadow: 0 8px 40px rgba(0,0,0,0.15); display: flex; flex-direction: column; overflow: hidden; }
 .tm-header { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--border); }
 .tm-header h3 { margin: 0; font-size: var(--font-size-lg); }
@@ -134,7 +134,7 @@ function close() { tab.value = 'browse'; typeFilter.value = ''; createTypeFilter
 .tm-card { border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
 .tm-card-h { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
 .tm-card-h strong { font-size: var(--font-size-base); }
-.tm-type-badge { font-size: var(--font-size-xs); background: #eef2ff; color: var(--primary); padding: 2px 6px; border-radius: 4px; }
+.tm-type-badge { font-size: var(--font-size-xs); background: var(--accent-soft); color: var(--primary); padding: 2px 6px; border-radius: 4px; }
 .tm-card-desc { font-size: var(--font-size-sm); color: var(--text-secondary); margin: 4px 0 8px; }
 .tm-card-actions { display: flex; gap: 4px; }
 .tm-btn { padding: 4px 12px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg, #f8f8f8); cursor: pointer; font-size: var(--font-size-sm); }

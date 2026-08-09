@@ -69,7 +69,7 @@ function toggleHeading(level: number) {
 
 <style scoped>
 .rich-editor { border: 1px solid var(--border-color); border-radius: var(--radius-md); overflow: hidden; }
-.rich-editor:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,0.1); }
+.rich-editor:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent); }
 .editor-toolbar { display: flex; align-items: center; gap: 2px; padding: 6px 8px; border-bottom: 1px solid var(--border-color); flex-wrap: wrap; }
 .et-btn { width: 28px; height: 28px; border: none; background: transparent; border-radius: var(--radius-sm); cursor: pointer; font-size: var(--font-size-sm); color: var(--text-secondary); display: flex; align-items: center; justify-content: center; }
 .et-btn:hover { background: var(--hover-bg); color: var(--text-color); }

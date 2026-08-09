@@ -77,7 +77,7 @@ function close() {
 </script>
 
 <style scoped>
-.uhp-overlay { position: fixed; inset: 0; z-index: var(--z-overlay); background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; }
+.uhp-overlay { position: fixed; inset: 0; z-index: var(--z-overlay); background: var(--overlay); display: flex; align-items: center; justify-content: center; }
 .uhp-panel { position: relative; max-height: 70vh; background: var(--content-bg, #fff); border-radius: 12px; box-shadow: 0 8px 40px rgba(0,0,0,0.15); display: flex; flex-direction: column; overflow: hidden; }
 .uhp-header { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--border, #eee); }
 .uhp-header h3 { margin: 0; font-size: var(--font-size-lg); }

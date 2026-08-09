@@ -69,7 +69,7 @@ function formatKey(k: string): string {
 <style scoped>
 .shortcut-overlay {
   position: fixed; inset: 0; z-index: var(--z-overlay);
-  background: rgba(0,0,0,0.3);
+  background: var(--overlay);
   display: flex; align-items: center; justify-content: center;
   backdrop-filter: blur(2px);
 }

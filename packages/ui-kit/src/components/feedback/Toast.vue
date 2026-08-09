@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <Teleport to="body">
     <div class="toast-container" role="alert" aria-live="assertive">
       <TransitionGroup name="ws-toast">
@@ -48,9 +48,9 @@ const { toasts, dismiss } = useToast()
   border: 1px solid rgba(255,255,255,0.1);
 }
 
-.toast-item.success { background: rgba(34, 197, 94, 0.85); color: #fff; }
-.toast-item.error { background: rgba(239, 68, 68, 0.85); color: #fff; }
-.toast-item.info { background: rgba(59, 130, 246, 0.85); color: #fff; }
+.toast-item.success { background: color-mix(in srgb, var(--success) 85%, transparent); color: #fff; }
+.toast-item.error { background: color-mix(in srgb, var(--danger) 85%, transparent); color: #fff; }
+.toast-item.info { background: color-mix(in srgb, var(--info) 85%, transparent); color: #fff; }
 .toast-item.warn { background: color-mix(in srgb, var(--color-warning) 85%, transparent); color: #fff; }
 
 .toast-icon {

@@ -459,7 +459,7 @@ function stripHtml(s: string): string {
   border: 1px solid var(--danger, #e74c3c); background: transparent;
   cursor: pointer; color: var(--danger, #e74c3c); transition: background 0.12s, border-color 0.12s, color 0.12s, box-shadow 0.12s, transform 0.12s, opacity 0.12s, filter 0.12s;
 }
-.ip-del-btn:hover { background: var(--danger, #e74c3c); color: #fff; }
+.ip-del-btn:hover { background: var(--danger, #e74c3c); color: var(--on-accent); }
 .ip-hint { font-size: var(--font-size-xs); color: var(--text-tertiary); background: var(--bg-tertiary); padding: 1px 6px; border-radius: 3px; }
 .ip-close { background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: var(--font-size-lg); padding: 4px; margin-left: 4px; }
 .ip-body { flex: 1; overflow-y: auto; padding: 12px 16px; }
@@ -506,7 +506,7 @@ function stripHtml(s: string): string {
 
 .ip-order-overlay {
   position: fixed; inset: 0; z-index: var(--z-overlay);
-  background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;
+  background: var(--overlay); display: flex; align-items: center; justify-content: center;
 }
 .ip-order-box {
   background: var(--modal-bg, var(--bg-secondary)); border: 1px solid var(--border);
@@ -545,7 +545,7 @@ function stripHtml(s: string): string {
   padding: 7px 16px; border-radius: var(--radius-sm); cursor: pointer; font-size: var(--font-size-sm);
   border: 1px solid var(--accent); background: var(--accent-bg); color: var(--accent);
 }
-.ip-order-btn-save:hover { background: var(--color-primary-active); color: #fff; }
+.ip-order-btn-save:hover { background: var(--color-primary-active); color: var(--on-accent); }
 .ip-order-btn-cancel {
   padding: 7px 16px; border-radius: var(--radius-sm); cursor: pointer; font-size: var(--font-size-sm);
   border: 1px solid var(--border); background: var(--bg-tertiary); color: var(--text-secondary);

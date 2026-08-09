@@ -442,8 +442,8 @@ function close() {
 /* ─── Report ─── */
 .ie-report { background: var(--bg, #f9fafb); border: 1px solid var(--border, #e5e7eb); border-radius: 8px; padding: 12px; }
 .ie-report-status { font-weight: var(--font-weight-semibold); font-size: var(--font-size-base); margin-bottom: 8px; }
-.ie-report-status.success { color: #16a34a; }
-.ie-report-status.fail { color: #dc2626; }
+.ie-report-status.success { color: var(--success); }
+.ie-report-status.fail { color: var(--danger); }
 .ir-item { display: flex; gap: 8px; font-size: var(--font-size-sm); padding: 2px 0; }
 .ir-label { min-width: 80px; color: var(--text-secondary); }
 .ir-stat { color: var(--text-color); }
