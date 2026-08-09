@@ -161,7 +161,7 @@ function close() {
 </script>
 
 <style scoped>
-.set-overlay { position: fixed; inset: 0; z-index: var(--z-overlay); background: rgba(0,0,0,0.35); display: flex; align-items: flex-start; justify-content: center; padding-top: 3vh; }
+.set-overlay { position: fixed; inset: 0; z-index: var(--z-overlay); background: var(--overlay, rgba(0,0,0,0.35)); display: flex; align-items: flex-start; justify-content: center; padding-top: 3vh; }
 .set-shell { max-height: 78vh; display: flex; flex-direction: column; position: relative; min-width: 420px; max-width: 680px; width: auto; }
 
 .set-topbar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: var(--content-bg, var(--color-bg-surface)); border-radius: var(--radius-md); box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
