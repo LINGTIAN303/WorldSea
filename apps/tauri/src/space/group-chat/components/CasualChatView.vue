@@ -80,6 +80,7 @@
       :context-menu="contextMenu"
       @reply="onContextReply"
       @copy="onContextCopy"
+      @close="closeContextMenu"
     />
 
     <input
@@ -160,7 +161,7 @@ const srChatStatus = computed(() => {
 })
 
 // 右键菜单（注入 setReplyTarget 回调）
-const { contextMenu, onMsgContextMenu, onContextReply, onContextCopy } = useCasualContextMenu({
+const { contextMenu, onMsgContextMenu, onContextReply, onContextCopy, closeContextMenu } = useCasualContextMenu({
   setReplyTarget: (target) => { replyTarget.value = target },
 })
 

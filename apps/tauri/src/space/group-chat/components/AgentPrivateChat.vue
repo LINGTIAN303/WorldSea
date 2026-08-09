@@ -100,10 +100,10 @@
       </div>
     </div>
 
-    <!-- 右键菜单 -->
+    <!-- 右键菜单（WAI-ARIA Menu 模式：打开移焦、方向键、Esc 关闭、焦点归还） -->
     <Teleport to="body">
-      <div v-if="contextMenu.visible" class="context-menu" :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }" @click.stop>
-        <div class="context-menu-item" role="button" tabindex="0" aria-label="复制" @click="onCopyMessage" @keydown.enter.prevent="onCopyMessage" @keydown.space.prevent="onCopyMessage">复制</div>
+      <div v-if="contextMenu.visible" ref="menuRef" role="menu" tabindex="-1" class="context-menu" :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }" @click.stop @keydown="onMenuKeydown">
+        <div class="context-menu-item" role="menuitem" tabindex="-1" aria-label="复制" @click="onCopyMessage" @keydown.enter.prevent="onCopyMessage" @keydown.space.prevent="onCopyMessage">复制</div>
       </div>
     </Teleport>
   </div>
@@ -161,6 +161,30 @@ const streamingToolCalls = ref<ToolCallInfo[]>([])
 // 右键菜单
 const contextMenu = ref<{ visible: boolean; x: number; y: number; msg: PrivateChatMessage | null }>({
   visible: false, x: 0, y: 0, msg: null,
+})
+const menuRef = ref<HTMLDivElement | null>(null)
+let menuReturnFocusEl: HTMLElement | null = null
+
+/** 菜单内键盘导航：Esc 关闭 + 焦点归还（WAI-ARIA Menu 模式，单菜单项无需方向键） */
+function onMenuKeydown(e: KeyboardEvent): void {
+  if (e.key === 'Escape') {
+    e.preventDefault()
+    closeContextMenu()
+  }
+}
+
+// 打开：记录触发元素并移焦菜单项；关闭：仅当焦点仍在菜单内时归还焦点
+watch(() => contextMenu.value.visible, (visible) => {
+  if (visible) {
+    menuReturnFocusEl = document.activeElement as HTMLElement | null
+    nextTick(() => {
+      menuRef.value?.querySelector<HTMLElement>('[role="menuitem"]')?.focus()
+    })
+  } else if (menuReturnFocusEl) {
+    const inside = menuRef.value?.contains(document.activeElement as Node)
+    if (inside && menuReturnFocusEl.isConnected) menuReturnFocusEl.focus()
+    menuReturnFocusEl = null
+  }
 })
 
 let backend: IAgentBackend | null = null
@@ -814,6 +838,7 @@ onBeforeUnmount(() => {
   padding: 4px;
   min-width: 100px;
   z-index: 10000;
+  outline: none;
 }
 
 .context-menu-item {
@@ -824,5 +849,6 @@ onBeforeUnmount(() => {
   color: var(--color-text);
 }
 
-.context-menu-item:hover { background: var(--color-surface); }
+.context-menu-item:hover,
+.context-menu-item:focus { background: var(--color-surface); }
 </style>
