@@ -55,7 +55,7 @@ const menuStyle = computed(() => {
 
 <style scoped>
 .menu-backdrop { position: fixed; inset: 0; z-index: 9998; }
-.member-action-menu { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: var(--color-surface-elevated); border: 1px solid var(--color-border); border-radius: 12px; padding: 4px; min-width: 200px; z-index: 9999; box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
+.member-action-menu { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: var(--color-surface-elevated); border: 1px solid var(--color-border); border-radius: var(--radius-2xl); padding: 4px; min-width: 200px; z-index: 9999; box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
 .menu-header { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--color-border); margin-bottom: 4px; }
 .menu-avatar { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: var(--fs-xs); }
 .menu-name { font-weight: 600; font-size: var(--fs-md); }

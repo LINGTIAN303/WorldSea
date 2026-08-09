@@ -221,21 +221,21 @@ function schedulePersist(): void {
 .group-avatar { width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(135deg, #6c5ce7, #a29bfe); display: flex; align-items: center; justify-content: center; font-size: 22px; }
 .group-name-input { border: none; border-bottom: 1px solid var(--color-border); font-size: var(--fs-lg); font-weight: 600; background: transparent; outline: none; padding: 4px 0; flex: 1; color: var(--color-text); }
 
-.announcement-input { width: 100%; border: 1px solid var(--color-border); border-radius: 8px; padding: 8px; font-size: var(--fs-sm); resize: none; outline: none; background: var(--color-surface); color: var(--color-text); }
+.announcement-input { width: 100%; border: 1px solid var(--color-border); border-radius: var(--radius-mid); padding: 8px; font-size: var(--fs-sm); resize: none; outline: none; background: var(--color-surface); color: var(--color-text); }
 .announcement-input:focus { border-color: var(--color-primary); }
 
 .danger-zone { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--color-border); }
-.danger-btn { width: 100%; padding: 8px; border: 1px solid rgba(239,68,68,0.3); border-radius: 8px; background: rgba(239,68,68,0.05); color: #ef4444; cursor: pointer; font-size: var(--fs-sm); }
+.danger-btn { width: 100%; padding: 8px; border: 1px solid rgba(239,68,68,0.3); border-radius: var(--radius-mid); background: rgba(239,68,68,0.05); color: #ef4444; cursor: pointer; font-size: var(--fs-sm); }
 .danger-btn:hover { background: rgba(239,68,68,0.1); }
 
 .sync-mode-section { margin-bottom: 14px; }
 .sync-mode-desc { font-size: 9px; color: var(--color-text-tertiary); margin-top: 2px; }
 
 .invite-overlay { position: absolute; inset: 0; background: var(--overlay); z-index: 60; display: flex; align-items: center; justify-content: center; }
-.invite-dialog { background: rgba(10, 10, 20, 0.08); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-radius: 12px; padding: 16px; width: 280px; max-height: 360px; display: flex; flex-direction: column; border: 1px solid var(--color-border); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25); }
+.invite-dialog { background: rgba(10, 10, 20, 0.08); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-radius: var(--radius-2xl); padding: 16px; width: 280px; max-height: 360px; display: flex; flex-direction: column; border: 1px solid var(--color-border); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25); }
 .invite-title { font-size: var(--fs-base); font-weight: 600; margin-bottom: 8px; text-align: center; color: var(--color-text); }
-.invite-search { width: 100%; padding: 6px 10px; border: 1px solid var(--color-border); border-radius: 8px; font-size: var(--fs-sm); background: var(--color-surface); outline: none; margin-bottom: 8px; color: var(--color-text); }
-.invite-list { flex: 1; overflow-y: auto; max-height: 200px; border: 1px solid var(--color-border); border-radius: 8px; }
+.invite-search { width: 100%; padding: 6px 10px; border: 1px solid var(--color-border); border-radius: var(--radius-mid); font-size: var(--fs-sm); background: var(--color-surface); outline: none; margin-bottom: 8px; color: var(--color-text); }
+.invite-list { flex: 1; overflow-y: auto; max-height: 200px; border: 1px solid var(--color-border); border-radius: var(--radius-mid); }
 .invite-item { display: flex; align-items: center; gap: 8px; padding: 6px 10px; cursor: pointer; }
 .invite-item:hover { background: var(--color-surface); }
 .invite-item.selected { background: var(--color-primary-muted); }
@@ -246,7 +246,7 @@ function schedulePersist(): void {
 .invite-check { color: var(--color-primary); font-weight: 700; }
 .invite-empty { padding: 12px; font-size: var(--fs-xs); color: var(--color-text-tertiary); text-align: center; }
 .invite-actions { display: flex; gap: 8px; margin-top: 10px; }
-.invite-cancel { flex: 1; padding: 8px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); cursor: pointer; font-size: var(--fs-sm); color: var(--color-text-secondary); }
-.invite-confirm { flex: 1; padding: 8px; border: none; border-radius: 8px; background: var(--color-primary); color: var(--on-accent); cursor: pointer; font-size: var(--fs-sm); font-weight: 600; }
+.invite-cancel { flex: 1; padding: 8px; border: 1px solid var(--color-border); border-radius: var(--radius-mid); background: var(--color-surface); cursor: pointer; font-size: var(--fs-sm); color: var(--color-text-secondary); }
+.invite-confirm { flex: 1; padding: 8px; border: none; border-radius: var(--radius-mid); background: var(--color-primary); color: var(--on-accent); cursor: pointer; font-size: var(--fs-sm); font-weight: 600; }
 .invite-confirm:disabled { opacity: 0.4; cursor: not-allowed; }
 </style>

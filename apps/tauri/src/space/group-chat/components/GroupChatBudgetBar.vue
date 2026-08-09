@@ -49,7 +49,7 @@ function formatTokens(n: number): string {
   gap: 6px;
   padding: 4px 10px;
   font-size: var(--font-size-2xs);
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   background: var(--color-surface);
 }
 

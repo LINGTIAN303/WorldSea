@@ -209,7 +209,7 @@ async function save(): Promise<void> {
   width: 520px;
   max-height: 80vh;
   background: var(--bg-primary, #1a1a2e);
-  border-radius: 12px;
+  border-radius: var(--radius-2xl);
   border: 1px solid var(--border-color, #2a2a4a);
   display: flex;
   flex-direction: column;
@@ -239,7 +239,7 @@ async function save(): Promise<void> {
   color: var(--text-secondary, #888);
   font-size: var(--fs-xl);
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
 
 .btn-close:hover {

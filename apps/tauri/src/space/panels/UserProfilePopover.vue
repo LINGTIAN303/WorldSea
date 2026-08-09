@@ -229,7 +229,7 @@ function onClearCustomStatus() {
   height: 20px;
   border: none;
   background: transparent;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   cursor: pointer;
   color: var(--color-text-tertiary);
   display: flex;
@@ -250,7 +250,7 @@ function onClearCustomStatus() {
   width: 100%;
   padding: 2px 6px;
   border: 1px solid var(--color-primary);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   font-size: 15px;
   font-weight: 600;
   background: var(--color-surface);

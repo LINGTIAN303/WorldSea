@@ -100,7 +100,7 @@ function cancelRename(): void {
   justify-content: space-between;
   padding: 8px 10px;
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s;
 }
@@ -148,7 +148,7 @@ function cancelRename(): void {
   width: 100%;
   padding: 2px 6px;
   border: 1px solid var(--color-primary);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   font-size: var(--font-size-xs);
   font-weight: 600;
   background: var(--color-surface-elevated);
@@ -169,7 +169,7 @@ function cancelRename(): void {
   cursor: pointer;
   font-size: var(--fs-sm);
   padding: 2px 4px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   opacity: 0.5;
   transition: opacity 0.15s;
 }

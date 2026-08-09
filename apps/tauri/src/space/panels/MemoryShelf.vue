@@ -129,7 +129,7 @@ onMounted(async () => {
   height: 24px;
   border: none;
   background: transparent;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   cursor: pointer;
   font-size: var(--font-size-sm);
   color: var(--color-text-tertiary);
@@ -179,7 +179,7 @@ onMounted(async () => {
 
 .memory-item {
   padding: 8px 10px;
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   margin-bottom: 4px;
   border-left: 3px solid transparent;
 }

@@ -255,10 +255,10 @@ function onDocumentClick(event: MouseEvent): void {
 <style scoped>
 .group-chat-list { display: flex; flex-direction: column; height: 100%; contain: layout paint style; }
 .list-header { padding: 8px; display: flex; gap: 6px; }
-.search-input { flex: 1; padding: 6px 10px; border: 1px solid var(--color-border); border-radius: 8px; font-size: var(--fs-sm); background: var(--color-surface); outline: none; color: var(--color-text); }
+.search-input { flex: 1; padding: 6px 10px; border: 1px solid var(--color-border); border-radius: var(--radius-mid); font-size: var(--fs-sm); background: var(--color-surface); outline: none; color: var(--color-text); }
 .search-input:focus { border-color: var(--color-primary); }
-.new-btn { padding: 6px 10px; border: none; background: var(--color-primary); color: var(--on-accent); border-radius: 8px; cursor: pointer; font-size: var(--fs-xs); font-weight: 600; white-space: nowrap; }
-.close-btn { width: 24px; height: 24px; border: none; background: transparent; border-radius: 4px; cursor: pointer; font-size: var(--fs-sm); color: var(--color-text-tertiary); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.new-btn { padding: 6px 10px; border: none; background: var(--color-primary); color: var(--on-accent); border-radius: var(--radius-mid); cursor: pointer; font-size: var(--fs-xs); font-weight: 600; white-space: nowrap; }
+.close-btn { width: 24px; height: 24px; border: none; background: transparent; border-radius: var(--radius-xs); cursor: pointer; font-size: var(--fs-sm); color: var(--color-text-tertiary); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .close-btn:hover { background: var(--color-surface-elevated); color: var(--color-text); }
 
 .mode-tabs { display: flex; gap: 2px; padding: 0 8px 6px; }
@@ -307,14 +307,14 @@ function onDocumentClick(event: MouseEvent): void {
 .group-time { font-size: 10px; color: var(--color-text-tertiary); }
 .group-bottom { display: flex; align-items: center; gap: 4px; font-size: var(--fs-xs); color: var(--color-text-tertiary); }
 .group-preview { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.unread-badge { min-width: 16px; height: 16px; border-radius: 8px; background: var(--danger); color: var(--on-accent); font-size: 9px; display: flex; align-items: center; justify-content: center; font-weight: 700; padding: 0 4px; }
+.unread-badge { min-width: 16px; height: 16px; border-radius: var(--radius-mid); background: var(--danger); color: var(--on-accent); font-size: 9px; display: flex; align-items: center; justify-content: center; font-weight: 700; padding: 0 4px; }
 
 .delete-confirm-overlay { position: fixed; inset: 0; background: var(--overlay); z-index: var(--z-modal); display: flex; align-items: center; justify-content: center; }
-.delete-confirm-dialog { background: var(--color-surface-elevated); border: 1px solid var(--color-border); border-radius: 12px; padding: 20px; min-width: 260px; box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
+.delete-confirm-dialog { background: var(--color-surface-elevated); border: 1px solid var(--color-border); border-radius: var(--radius-2xl); padding: 20px; min-width: 260px; box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
 .delete-confirm-text { font-size: var(--fs-md); margin-bottom: 16px; line-height: 1.5; }
 .delete-confirm-actions { display: flex; gap: 8px; justify-content: flex-end; }
-.delete-cancel-btn { padding: 6px 16px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); cursor: pointer; font-size: var(--fs-sm); }
-.delete-confirm-btn { padding: 6px 16px; border: none; border-radius: 8px; background: var(--danger); color: var(--on-accent); cursor: pointer; font-size: var(--fs-sm); font-weight: 600; }
+.delete-cancel-btn { padding: 6px 16px; border: 1px solid var(--color-border); border-radius: var(--radius-mid); background: var(--color-surface); cursor: pointer; font-size: var(--fs-sm); }
+.delete-confirm-btn { padding: 6px 16px; border: none; border-radius: var(--radius-mid); background: var(--danger); color: var(--on-accent); cursor: pointer; font-size: var(--fs-sm); font-weight: 600; }
 .delete-confirm-btn:hover { background: var(--danger-hover); }
 
 .context-menu { background: rgba(10, 10, 20, 0.08); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid var(--color-border); border-radius: var(--radius-md); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2); padding: 4px; min-width: 140px; }

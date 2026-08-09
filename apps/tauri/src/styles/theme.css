@@ -49,9 +49,15 @@
   --lh-md: 1.5;           /* 紧凑多行文本（描述/摘要/多行输入） */
 
   /* ── 圆角 ── */
+  --radius-2xs: 3px;          /* 微：徽标/键帽/极小型标签 */
+  --radius-xs: 4px;           /* 小：小按钮/小徽标/紧凑输入框 */
   --radius-sm: 6px;
+  --radius-mid: 8px;          /* 中：卡片/输入框/下拉项 */
   --radius-md: 10px;
   --radius-lg: 14px;
+  --radius-xl: 16px;          /* 大：大圆角浮层/大卡片 */
+  --radius-2xl: 12px;         /* 弹窗/浮层（常用圆角） */
+  --radius-3xl: 24px;         /* 胶囊输入框/大浮层 */
   --radius-pill: 999px;
 
   /* ── 阴影 ── */

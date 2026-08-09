@@ -158,7 +158,7 @@ onMounted(async () => {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--color-border);
-  border-radius: 12px;
+  border-radius: var(--radius-2xl);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
   display: flex;
   flex-direction: column;
@@ -186,7 +186,7 @@ onMounted(async () => {
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   cursor: pointer;
   transition: background 0.12s;
   position: relative;
@@ -239,7 +239,7 @@ onMounted(async () => {
   margin-top: 12px;
   padding: 8px;
   border: 1px dashed var(--color-border);
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   background: transparent;
   color: var(--color-primary);
   font-size: var(--fs-sm);
@@ -250,11 +250,11 @@ onMounted(async () => {
 .create-btn:hover { background: var(--color-surface); border-color: var(--color-primary); }
 
 .delete-confirm-overlay { position: absolute; inset: 0; background: var(--overlay); z-index: var(--z-modal); display: flex; align-items: center; justify-content: center; }
-.delete-confirm-dialog { background: var(--color-surface-elevated); border: 1px solid var(--color-border); border-radius: 12px; padding: 20px; min-width: 260px; box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
+.delete-confirm-dialog { background: var(--color-surface-elevated); border: 1px solid var(--color-border); border-radius: var(--radius-2xl); padding: 20px; min-width: 260px; box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
 .delete-confirm-text { font-size: var(--fs-md); margin-bottom: 16px; line-height: 1.5; }
 .delete-confirm-actions { display: flex; gap: 8px; justify-content: flex-end; }
-.delete-cancel-btn { padding: 6px 16px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); cursor: pointer; font-size: var(--fs-sm); }
-.delete-confirm-btn { padding: 6px 16px; border: none; border-radius: 8px; background: var(--danger); color: var(--on-accent); cursor: pointer; font-size: var(--fs-sm); font-weight: 600; }
+.delete-cancel-btn { padding: 6px 16px; border: 1px solid var(--color-border); border-radius: var(--radius-mid); background: var(--color-surface); cursor: pointer; font-size: var(--fs-sm); }
+.delete-confirm-btn { padding: 6px 16px; border: none; border-radius: var(--radius-mid); background: var(--danger); color: var(--on-accent); cursor: pointer; font-size: var(--fs-sm); font-weight: 600; }
 .delete-confirm-btn:hover { background: var(--danger-hover); }
 
 .panel-slide-enter-active { transition: opacity 0.15s ease, transform 0.15s ease; }

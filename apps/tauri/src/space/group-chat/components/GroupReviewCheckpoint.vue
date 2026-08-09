@@ -82,7 +82,7 @@ function onConfirmDirection(e?: KeyboardEvent) {
 .review-checkpoint {
   padding: 16px;
   background: var(--color-surface-elevated);
-  border-radius: 12px;
+  border-radius: var(--radius-2xl);
   margin: 12px 16px;
   border: 1px solid var(--color-border);
 }
@@ -131,7 +131,7 @@ function onConfirmDirection(e?: KeyboardEvent) {
 
 .review-btn {
   padding: 6px 14px;
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   font-size: var(--font-size-xs);
   font-weight: 600;
   cursor: pointer;
@@ -161,7 +161,7 @@ function onConfirmDirection(e?: KeyboardEvent) {
 .direction-input {
   resize: none;
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   padding: 8px 10px;
   font-size: var(--font-size-sm);
   font-family: inherit;

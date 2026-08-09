@@ -34,12 +34,12 @@ const durationOptions = [
 
 <style scoped>
 .dialog-backdrop { position: fixed; inset: 0; z-index: 10000; }
-.mute-dialog { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: var(--color-surface-elevated); border: 1px solid var(--color-border); border-radius: 12px; padding: 20px; min-width: 280px; z-index: 10001; box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
+.mute-dialog { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: var(--color-surface-elevated); border: 1px solid var(--color-border); border-radius: var(--radius-2xl); padding: 20px; min-width: 280px; z-index: 10001; box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
 .dialog-title { font-size: var(--fs-base); font-weight: 600; margin-bottom: 12px; }
 .duration-options { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
-.duration-option { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 8px; cursor: pointer; font-size: var(--fs-sm); }
+.duration-option { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-mid); cursor: pointer; font-size: var(--fs-sm); }
 .duration-option.selected { border-color: var(--color-primary); background: rgba(108,92,231,0.06); }
 .dialog-actions { display: flex; gap: 8px; justify-content: flex-end; }
-.cancel-btn { padding: 6px 14px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); cursor: pointer; font-size: var(--fs-sm); }
-.confirm-btn { padding: 6px 14px; border: none; border-radius: 8px; background: var(--danger); color: var(--on-accent); cursor: pointer; font-size: var(--fs-sm); font-weight: 600; }
+.cancel-btn { padding: 6px 14px; border: 1px solid var(--color-border); border-radius: var(--radius-mid); background: var(--color-surface); cursor: pointer; font-size: var(--fs-sm); }
+.confirm-btn { padding: 6px 14px; border: none; border-radius: var(--radius-mid); background: var(--danger); color: var(--on-accent); cursor: pointer; font-size: var(--fs-sm); font-weight: 600; }
 </style>

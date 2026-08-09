@@ -121,7 +121,7 @@ function onInject(e?: KeyboardEvent) {
 .ctrl-btn {
   padding: 4px 12px;
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   font-size: var(--font-size-xs);
   cursor: pointer;
   background: var(--color-surface-elevated);
@@ -153,7 +153,7 @@ function onInject(e?: KeyboardEvent) {
   flex: 1;
   resize: none;
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   padding: 6px 10px;
   font-size: var(--font-size-sm);
   font-family: inherit;

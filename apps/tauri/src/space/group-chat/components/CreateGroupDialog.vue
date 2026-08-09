@@ -113,7 +113,7 @@ function onCreate(): void {
 
 <style scoped>
 .dialog-backdrop { position: fixed; inset: 0; z-index: 9998; }
-.create-dialog { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: var(--color-surface-elevated); border: 1px solid var(--color-border); border-radius: 12px; padding: 20px; min-width: 360px; max-height: 80vh; overflow-y: auto; z-index: 9999; box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
+.create-dialog { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: var(--color-surface-elevated); border: 1px solid var(--color-border); border-radius: var(--radius-2xl); padding: 20px; min-width: 360px; max-height: 80vh; overflow-y: auto; z-index: 9999; box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
 .dialog-title { font-size: var(--fs-lg); font-weight: 600; margin-bottom: 16px; text-align: center; }
 
 .avatar-section { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; justify-content: center; }
@@ -127,9 +127,9 @@ function onCreate(): void {
 .member-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; background: rgba(108,92,231,0.1); border-radius: var(--radius-sm); font-size: var(--fs-xs); }
 .chip-remove { cursor: pointer; opacity: 0.5; }
 .chip-remove:hover { opacity: 1; }
-.member-search { width: 100%; padding: 6px 10px; border: 1px solid var(--color-border); border-radius: 8px; font-size: var(--fs-sm); background: var(--color-surface); outline: none; margin-bottom: 6px; }
+.member-search { width: 100%; padding: 6px 10px; border: 1px solid var(--color-border); border-radius: var(--radius-mid); font-size: var(--fs-sm); background: var(--color-surface); outline: none; margin-bottom: 6px; }
 
-.agent-list { max-height: 180px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: 8px; }
+.agent-list { max-height: 180px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: var(--radius-mid); }
 .agent-item { display: flex; align-items: center; gap: 8px; padding: 6px 10px; cursor: pointer; transition: background 0.12s; }
 .agent-item:hover { background: var(--color-surface); }
 .agent-item.selected { background: rgba(108,92,231,0.08); }

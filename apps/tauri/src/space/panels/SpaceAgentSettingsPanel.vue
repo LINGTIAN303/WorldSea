@@ -374,7 +374,7 @@ onMounted(async () => {
   height: 24px;
   border: none;
   background: transparent;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   cursor: pointer;
   font-size: var(--font-size-sm);
   color: var(--color-text-tertiary);

@@ -307,7 +307,7 @@ watch(currentSessionId, () => {
   height: 24px;
   border: none;
   background: transparent;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   cursor: pointer;
   font-size: var(--font-size-sm);
   color: var(--color-text-tertiary);
@@ -366,7 +366,7 @@ watch(currentSessionId, () => {
 
 .session-item {
   padding: 8px 10px;
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   cursor: pointer;
   margin-bottom: 2px;
   transition: background 0.15s;
@@ -391,7 +391,7 @@ watch(currentSessionId, () => {
   width: 100%;
   padding: 2px 4px;
   border: 1px solid var(--color-primary);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   font-size: var(--font-size-xs);
   font-weight: 500;
   background: var(--color-surface-elevated);
@@ -414,7 +414,7 @@ watch(currentSessionId, () => {
 .session-mode-badge {
   display: inline-block;
   padding: 0 5px;
-  border-radius: 3px;
+  border-radius: var(--radius-2xs);
   font-size: 10px;
   font-weight: 600;
   line-height: 16px;
@@ -441,7 +441,7 @@ watch(currentSessionId, () => {
   min-width: 140px;
   background: var(--color-surface-elevated);
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
   padding: 4px;
 }

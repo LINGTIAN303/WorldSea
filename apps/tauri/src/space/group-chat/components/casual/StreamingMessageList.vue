@@ -55,7 +55,7 @@ const {
 .streaming-tools { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
 .streaming-tool-tag {
   display: inline-flex; align-items: center; gap: 3px;
-  padding: 2px 8px; border-radius: 4px; font-size: var(--fs-xs);
+  padding: 2px 8px; border-radius: var(--radius-xs); font-size: var(--fs-xs);
   background: var(--color-surface-elevated); border: 1px solid var(--color-border);
   color: var(--color-text-secondary); transition: background 0.2s, border-color 0.2s, color 0.2s, box-shadow 0.2s, transform 0.2s, opacity 0.2s, filter 0.2s;
 }

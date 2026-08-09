@@ -138,7 +138,7 @@ async function persistMembers(): Promise<void> {
 .member-info { flex: 1; min-width: 0; }
 .member-name-row { display: flex; align-items: center; gap: 4px; }
 .member-name { font-size: var(--fs-sm); font-weight: 600; }
-.role-tag { font-size: 9px; padding: 1px 4px; border-radius: 3px; font-weight: 600; display: inline-flex; align-items: center; gap: 2px; }
+.role-tag { font-size: 9px; padding: 1px 4px; border-radius: var(--radius-2xs); font-weight: 600; display: inline-flex; align-items: center; gap: 2px; }
 .owner-tag { background: rgba(245,158,11,0.15); color: #f59e0b; }
 .admin-tag { background: rgba(59,130,246,0.15); color: #3b82f6; }
 .mute-icon { color: var(--color-text-tertiary); }

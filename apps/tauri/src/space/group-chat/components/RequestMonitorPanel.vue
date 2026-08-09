@@ -98,7 +98,7 @@ watch(expanded, (v) => { if (v) refresh() })
 .request-monitor { margin-bottom: 14px; }
 .section-label { font-size: var(--fs-xs); color: var(--color-text-tertiary); font-weight: 600; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
 .toggle-arrow { font-size: 8px; }
-.pending-badge { font-size: 9px; background: var(--color-primary); color: var(--on-accent); padding: 1px 6px; border-radius: 8px; font-weight: 400; text-transform: none; letter-spacing: 0; }
+.pending-badge { font-size: 9px; background: var(--color-primary); color: var(--on-accent); padding: 1px 6px; border-radius: var(--radius-mid); font-weight: 400; text-transform: none; letter-spacing: 0; }
 
 .agent-stats { margin-bottom: 8px; }
 .agent-stat-row { display: flex; align-items: center; gap: 6px; padding: 3px 0; font-size: var(--fs-xs); }
@@ -116,7 +116,7 @@ watch(expanded, (v) => { if (v) refresh() })
 .record-row.error { background: rgba(239,68,68,0.05); }
 .record-row.pending { background: rgba(108,92,231,0.05); }
 .rec-name { font-weight: 600; min-width: 50px; }
-.rec-protocol { font-size: 9px; color: var(--color-primary); background: rgba(108,92,231,0.08); padding: 1px 4px; border-radius: 3px; }
+.rec-protocol { font-size: 9px; color: var(--color-primary); background: rgba(108,92,231,0.08); padding: 1px 4px; border-radius: var(--radius-2xs); }
 .rec-status { font-weight: 600; min-width: 24px; }
 .rec-status.success { color: #10b981; }
 .rec-status.error { color: #ef4444; }

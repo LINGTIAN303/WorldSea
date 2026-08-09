@@ -194,7 +194,7 @@ const filteredSystemFonts = computed(() => {
   width: 360px;
   max-height: 480px;
   background: var(--color-surface-elevated);
-  border-radius: 12px;
+  border-radius: var(--radius-2xl);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
   display: flex;
   flex-direction: column;
@@ -216,7 +216,7 @@ const filteredSystemFonts = computed(() => {
   height: 24px;
   border: none;
   background: transparent;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   cursor: pointer;
   font-size: var(--font-size-sm);
   color: var(--color-text-tertiary);
@@ -322,7 +322,7 @@ const filteredSystemFonts = computed(() => {
 .font-tag {
   font-size: 9px;
   padding: 1px 4px;
-  border-radius: 3px;
+  border-radius: var(--radius-2xs);
   background: var(--color-primary-muted);
   color: var(--color-primary);
   white-space: nowrap;

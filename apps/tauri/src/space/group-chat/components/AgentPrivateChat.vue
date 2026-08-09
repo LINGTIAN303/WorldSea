@@ -647,7 +647,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 3px;
   padding: 2px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   font-size: var(--fs-xs);
   background: var(--color-surface-elevated);
   border: 1px solid var(--color-border);
@@ -674,7 +674,7 @@ onBeforeUnmount(() => {
 /* 消息气泡 */
 .msg-bubble {
   padding: 8px 12px;
-  border-radius: 12px;
+  border-radius: var(--radius-2xl);
   font-size: var(--fs-md);
   line-height: 1.6;
   white-space: pre-wrap;
@@ -698,7 +698,7 @@ onBeforeUnmount(() => {
 .msg-bubble.agent :deep(code) {
   background: var(--color-surface);
   padding: 1px 4px;
-  border-radius: 3px;
+  border-radius: var(--radius-2xs);
   font-size: var(--fs-sm);
   font-family: var(--font-mono, monospace);
 }
@@ -768,7 +768,7 @@ onBeforeUnmount(() => {
 .chat-input {
   flex: 1;
   padding: 8px 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   border: 1px solid var(--color-border);
   background: var(--color-surface-elevated);
   color: var(--color-text);
@@ -789,7 +789,7 @@ onBeforeUnmount(() => {
 .btn-send {
   width: 36px;
   height: 36px;
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   border: none;
   background: var(--color-primary);
   color: var(--on-accent);
@@ -809,7 +809,7 @@ onBeforeUnmount(() => {
   position: fixed;
   background: var(--color-surface-elevated);
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   padding: 4px;
   min-width: 100px;
@@ -820,7 +820,7 @@ onBeforeUnmount(() => {
   padding: 8px 12px;
   font-size: var(--fs-sm);
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   color: var(--color-text);
 }
 

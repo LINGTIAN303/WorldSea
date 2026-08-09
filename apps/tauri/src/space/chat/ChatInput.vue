@@ -386,7 +386,7 @@ watch(() => spaceStore.inputInjection, (injection) => {
   max-width: 200px;
   background: var(--color-surface-elevated);
   border: 1px solid var(--color-border);
-  border-radius: 24px;
+  border-radius: var(--radius-3xl);
   padding: 6px 8px;
   /* 性能优化:只动画 width(0.2s),padding/border-radius 不动画直接快跳,避免 layout 抖动 */
   transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1),
@@ -403,7 +403,7 @@ watch(() => spaceStore.inputInjection, (injection) => {
 .capsule-input.expanded {
   width: calc(80% - 120px);
   max-width: calc(80% - 120px);
-  border-radius: 16px;
+  border-radius: var(--radius-xl);
   padding: 8px 12px;
   align-items: flex-end;
 }
@@ -499,7 +499,7 @@ watch(() => spaceStore.inputInjection, (injection) => {
   padding: 4px 8px;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: 12px;
+  border-radius: var(--radius-2xl);
   font-size: var(--font-size-xs);
   color: var(--color-text);
   max-width: 220px;
@@ -515,7 +515,7 @@ watch(() => spaceStore.inputInjection, (injection) => {
   width: 32px;
   height: 32px;
   object-fit: cover;
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   flex-shrink: 0;
 }
 
@@ -596,7 +596,7 @@ watch(() => spaceStore.inputInjection, (injection) => {
   flex: 1;
   resize: none;
   border: none;
-  border-radius: 12px;
+  border-radius: var(--radius-2xl);
   padding: 4px 8px;
   font-size: var(--font-size-sm);
   font-family: inherit;
@@ -664,7 +664,7 @@ watch(() => spaceStore.inputInjection, (injection) => {
   padding: 6px 12px;
   background: var(--color-warning-bg, rgba(255, 200, 0, 0.1));
   border: 1px solid var(--color-warning-border, rgba(255, 200, 0, 0.3));
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   font-size: var(--font-size-xs);
   color: var(--color-warning-text, #d4a000);
   text-align: center;

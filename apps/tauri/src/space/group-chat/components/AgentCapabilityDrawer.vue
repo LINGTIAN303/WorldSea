@@ -293,7 +293,7 @@ function resetToDerived(): void {
   max-height: 80vh;
   background: var(--color-surface-elevated);
   border: 1px solid var(--color-border);
-  border-radius: 12px;
+  border-radius: var(--radius-2xl);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
   display: flex;
   flex-direction: column;
@@ -321,7 +321,7 @@ function resetToDerived(): void {
   color: var(--color-text-secondary);
   cursor: pointer;
   padding: 4px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -344,7 +344,7 @@ function resetToDerived(): void {
 .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
 .section-header .section-label { margin-bottom: 0; }
 .section-actions { display: flex; gap: 4px; }
-.action-btn { border: none; background: none; color: var(--color-text-tertiary); font-size: 10px; cursor: pointer; padding: 2px 6px; border-radius: 4px; transition: background 0.12s, border-color 0.12s, color 0.12s, box-shadow 0.12s, transform 0.12s, opacity 0.12s, filter 0.12s; }
+.action-btn { border: none; background: none; color: var(--color-text-tertiary); font-size: 10px; cursor: pointer; padding: 2px 6px; border-radius: var(--radius-xs); transition: background 0.12s, border-color 0.12s, color 0.12s, box-shadow 0.12s, transform 0.12s, opacity 0.12s, filter 0.12s; }
 .action-btn:hover { color: var(--color-primary); background: color-mix(in srgb, var(--color-primary) 6%, transparent); }
 
 /* 技能区域 */
@@ -380,7 +380,7 @@ function resetToDerived(): void {
 .preview-cat:last-child { margin-bottom: 0; }
 .preview-cat-label { font-size: 10px; font-weight: 600; color: var(--color-text-secondary); margin-bottom: 2px; }
 .preview-cat-tools { display: flex; flex-wrap: wrap; gap: 4px; }
-.preview-tool-tag { font-size: 9px; color: var(--color-text-tertiary); background: var(--color-surface); padding: 1px 6px; border-radius: 4px; font-family: monospace; }
+.preview-tool-tag { font-size: 9px; color: var(--color-text-tertiary); background: var(--color-surface); padding: 1px 6px; border-radius: var(--radius-xs); font-family: monospace; }
 
 /* 高级自定义工具 */
 .advanced-tools-section { margin-bottom: 16px; }
@@ -390,7 +390,7 @@ function resetToDerived(): void {
   gap: 6px;
   padding: 8px 10px;
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   cursor: pointer;
   font-size: var(--fs-xs);
   font-weight: 500;
@@ -399,7 +399,7 @@ function resetToDerived(): void {
 }
 .advanced-toggle:hover { border-color: var(--color-primary); color: var(--color-text); }
 .advanced-arrow { margin-left: auto; }
-.manual-badge { font-size: 9px; background: color-mix(in srgb, var(--color-primary) 12%, transparent); color: var(--color-primary); padding: 1px 6px; border-radius: 8px; font-weight: 600; }
+.manual-badge { font-size: 9px; background: color-mix(in srgb, var(--color-primary) 12%, transparent); color: var(--color-primary); padding: 1px 6px; border-radius: var(--radius-mid); font-weight: 600; }
 .advanced-tools-content { margin-top: 8px; }
 .advanced-tools-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .advanced-tools-hint { font-size: 10px; color: var(--color-text-tertiary); }
@@ -412,9 +412,9 @@ function resetToDerived(): void {
   margin-bottom: 8px;
   padding: 4px 8px;
   background: var(--color-surface);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
-.reset-btn { border: 1px solid var(--color-border); background: none; color: var(--color-text-secondary); font-size: 10px; padding: 2px 8px; border-radius: 4px; cursor: pointer; transition: background 0.12s, border-color 0.12s, color 0.12s, box-shadow 0.12s, transform 0.12s, opacity 0.12s, filter 0.12s; }
+.reset-btn { border: 1px solid var(--color-border); background: none; color: var(--color-text-secondary); font-size: 10px; padding: 2px 8px; border-radius: var(--radius-xs); cursor: pointer; transition: background 0.12s, border-color 0.12s, color 0.12s, box-shadow 0.12s, transform 0.12s, opacity 0.12s, filter 0.12s; }
 .reset-btn:hover { border-color: var(--color-primary); color: var(--color-primary); }
 
 /* 工具分类列表 */
@@ -432,6 +432,6 @@ function resetToDerived(): void {
 .tool-item.always-on { opacity: 0.6; }
 .tool-name { font-weight: 600; min-width: 120px; white-space: nowrap; }
 .tool-derived-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--color-primary); flex-shrink: 0; }
-.tool-always-badge { font-size: 8px; background: var(--color-surface); color: var(--color-text-tertiary); padding: 0px 4px; border-radius: 3px; border: 1px solid var(--color-border); flex-shrink: 0; }
+.tool-always-badge { font-size: 8px; background: var(--color-surface); color: var(--color-text-tertiary); padding: 0px 4px; border-radius: var(--radius-2xs); border: 1px solid var(--color-border); flex-shrink: 0; }
 .tool-desc-inline { color: var(--color-text-tertiary); font-size: 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>

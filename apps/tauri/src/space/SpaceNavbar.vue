@@ -447,7 +447,7 @@ onBeforeUnmount(() => {
   height: 20px;
   border: none;
   background: transparent;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   cursor: pointer;
   font-size: var(--font-size-sm);
   font-weight: 500;
@@ -480,7 +480,7 @@ onBeforeUnmount(() => {
   cursor: pointer;
   user-select: none;
   padding: 4px 8px;
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   transition: background 0.15s;
 }
 .mode-switch:hover {
@@ -521,7 +521,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 10px;
   padding: 4px 8px;
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
 }
 
 .user-identity {
@@ -529,7 +529,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 10px;
   padding: 4px 8px;
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   cursor: pointer;
   transition: background 0.15s;
 }
@@ -654,7 +654,7 @@ onBeforeUnmount(() => {
   padding: 7px 10px;
   border: none;
   background: transparent;
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   cursor: pointer;
   text-align: left;
   font-size: var(--font-size-xs);
@@ -728,7 +728,7 @@ onBeforeUnmount(() => {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--color-border);
-  border-radius: 12px;
+  border-radius: var(--radius-2xl);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
   overflow-y: auto;
   z-index: 10000;

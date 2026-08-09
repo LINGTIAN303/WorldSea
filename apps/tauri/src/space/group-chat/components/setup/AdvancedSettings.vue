@@ -86,7 +86,7 @@ function onParallelCount(e: Event): void {
   width: 100%;
   padding: 8px 12px;
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   font-size: var(--font-size-sm);
   font-family: inherit;
   background: var(--color-surface-elevated);

@@ -310,7 +310,7 @@ for (const slot of profileStore.slots) {
   width: 640px;
   max-height: 80vh;
   background: var(--color-surface-elevated);
-  border-radius: 12px;
+  border-radius: var(--radius-2xl);
   border: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
@@ -447,7 +447,7 @@ for (const slot of profileStore.slots) {
 .guide-tag {
   display: inline-block;
   padding: 0 5px;
-  border-radius: 3px;
+  border-radius: var(--radius-2xs);
   font-size: 10px;
   font-weight: 600;
   margin-right: 4px;
@@ -472,7 +472,7 @@ for (const slot of profileStore.slots) {
 .guide-tip {
   margin-top: 4px;
   padding: 6px 10px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: var(--color-surface);
   font-size: var(--fs-xs);
   color: var(--color-text-tertiary);
@@ -481,7 +481,7 @@ for (const slot of profileStore.slots) {
 
 .slot-card {
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   padding: 12px;
 }
 
@@ -501,7 +501,7 @@ for (const slot of profileStore.slots) {
 
 .strategy-select {
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   border: 1px solid var(--color-border);
   background: var(--color-surface);
   color: var(--color-text-secondary);
@@ -511,7 +511,7 @@ for (const slot of profileStore.slots) {
 
 .btn-delete {
   padding: 4px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   border: none;
   background: transparent;
   color: var(--color-text-tertiary);
@@ -538,14 +538,14 @@ for (const slot of profileStore.slots) {
   gap: 8px;
   padding: 4px 8px;
   background: var(--color-surface);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   font-size: var(--fs-sm);
   color: var(--color-text-secondary);
 }
 
 .entry-mode {
   padding: 1px 6px;
-  border-radius: 3px;
+  border-radius: var(--radius-2xs);
   background: color-mix(in srgb, var(--color-primary) 15%, transparent);
   color: var(--color-primary);
   font-size: 10px;
@@ -594,7 +594,7 @@ for (const slot of profileStore.slots) {
 .entry-select,
 .entry-input {
   padding: 4px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   border: 1px solid var(--color-border);
   background: var(--color-surface);
   color: var(--color-text);
@@ -621,7 +621,7 @@ for (const slot of profileStore.slots) {
   align-items: center;
   gap: 6px;
   padding: 4px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   border: 1px solid var(--color-border);
   background: var(--color-surface);
   cursor: pointer;
@@ -667,7 +667,7 @@ for (const slot of profileStore.slots) {
   max-height: 320px;
   background: var(--color-surface-elevated);
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
   z-index: 10002;
   display: flex;
@@ -702,7 +702,7 @@ for (const slot of profileStore.slots) {
   align-items: center;
   gap: 8px;
   padding: 5px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   cursor: pointer;
   transition: background 0.1s;
 }
@@ -750,7 +750,7 @@ for (const slot of profileStore.slots) {
 
 .btn-add-entry {
   padding: 4px 10px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   border: 1px solid var(--color-border);
   background: transparent;
   color: var(--color-text-secondary);

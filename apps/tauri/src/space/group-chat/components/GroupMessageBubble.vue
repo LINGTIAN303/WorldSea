@@ -168,7 +168,7 @@ function onCopy() {
   color: var(--color-text-tertiary);
   background: var(--color-surface);
   padding: 4px 12px;
-  border-radius: 12px;
+  border-radius: var(--radius-2xl);
 }
 
 .msg-speaker {
@@ -255,7 +255,7 @@ function onCopy() {
   font-size: var(--font-size-2xs);
   background: rgba(245, 158, 11, 0.15);
   color: #f59e0b;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   font-weight: 600;
 }
 
@@ -307,14 +307,14 @@ function onCopy() {
 .msg-text :deep(code) {
   background: rgba(255, 255, 255, 0.08);
   padding: 1px 4px;
-  border-radius: 3px;
+  border-radius: var(--radius-2xs);
   font-size: var(--font-size-sm);
   font-family: 'Consolas', 'Monaco', monospace;
 }
 .msg-text :deep(pre) {
   background: rgba(0, 0, 0, 0.25);
   padding: 10px 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   overflow-x: auto;
   margin: 8px 0;
 }
@@ -351,7 +351,7 @@ function onCopy() {
   align-items: center;
   gap: 3px;
   padding: 2px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   font-size: var(--fs-xs);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -418,7 +418,7 @@ function onCopy() {
   display: inline-block;
   padding: 2px 8px;
   margin-top: 4px;
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   font-size: var(--fs-xs);
   color: var(--color-primary);
   background: rgba(108, 92, 231, 0.08);
@@ -452,7 +452,7 @@ function onCopy() {
   cursor: pointer;
   font-size: var(--font-size-sm);
   padding: 2px 4px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   opacity: 0.6;
   transition: opacity 0.1s;
 }

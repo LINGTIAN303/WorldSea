@@ -269,11 +269,11 @@ function onContextMenu(e: MouseEvent): void {
 .user-time { margin-top: 2px; }
 .agent-time { margin-top: 2px; }
 
-.reply-preview { font-size: var(--fs-xs); color: var(--color-text-tertiary); padding: 4px 6px; background: rgba(0,0,0,0.05); border-radius: 4px; border-left: 2px solid var(--color-border); margin-bottom: 4px; }
+.reply-preview { font-size: var(--fs-xs); color: var(--color-text-tertiary); padding: 4px 6px; background: rgba(0,0,0,0.05); border-radius: var(--radius-xs); border-left: 2px solid var(--color-border); margin-bottom: 4px; }
 .reply-name { font-weight: 600; margin-right: 4px; }
 
-.msg-image img { max-width: 240px; max-height: 180px; border-radius: 8px; cursor: pointer; }
-.msg-file { display: flex; align-items: center; gap: 8px; padding: 8px; background: var(--color-surface); border-radius: 8px; }
+.msg-image img { max-width: 240px; max-height: 180px; border-radius: var(--radius-mid); cursor: pointer; }
+.msg-file { display: flex; align-items: center; gap: 8px; padding: 8px; background: var(--color-surface); border-radius: var(--radius-mid); }
 .file-icon { font-size: 18px; }
 .file-info { display: flex; flex-direction: column; }
 .file-name { font-size: var(--fs-sm); font-weight: 500; }
@@ -293,7 +293,7 @@ function onContextMenu(e: MouseEvent): void {
   align-items: center;
   gap: 3px;
   padding: 2px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   font-size: var(--fs-xs);
   background: var(--color-surface-elevated);
   border: 1px solid var(--color-border);
@@ -364,7 +364,7 @@ function onContextMenu(e: MouseEvent): void {
   gap: 6px;
   padding: 4px 12px;
   background: rgba(108, 92, 231, 0.06);
-  border-radius: 12px;
+  border-radius: var(--radius-2xl);
   border: 1px solid rgba(108, 92, 231, 0.12);
 }
 
@@ -394,7 +394,7 @@ function onContextMenu(e: MouseEvent): void {
   overflow-y: auto;
   background: var(--color-surface-elevated);
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   box-shadow: 0 4px 16px rgba(0,0,0,0.15);
   z-index: 100;
   padding: 8px;
