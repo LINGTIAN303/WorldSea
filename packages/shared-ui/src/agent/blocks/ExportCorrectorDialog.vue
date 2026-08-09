@@ -114,7 +114,7 @@ const {
 .corrector-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.6);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -122,8 +122,8 @@ const {
   backdrop-filter: blur(4px);
 }
 .corrector-panel {
-  background: var(--modal-bg, #1a1a2e);
-  border: 1px solid var(--modal-border, rgba(255,255,255,0.1));
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
   border-radius: 12px;
   width: 95vw;
   max-width: 1200px;
@@ -137,7 +137,7 @@ const {
   align-items: center;
   justify-content: space-between;
   padding: 16px 24px;
-  border-bottom: 1px solid rgba(255,255,255,0.08);
+  border-bottom: 1px solid var(--border);
 }
 .corrector__title {
   font-size: 16px;
@@ -149,12 +149,12 @@ const {
   border: none; background: transparent;
   border-radius: 6px;
   cursor: pointer;
-  color: var(--text-tertiary, #888);
+  color: var(--text-muted);
   display: flex; align-items: center; justify-content: center;
 }
 .corrector__close:hover {
-  background: rgba(255,255,255,0.1);
-  color: var(--text-primary, #fff);
+  background: var(--bg-muted);
+  color: var(--text-primary);
 }
 .corrector__body {
   flex: 1;
@@ -179,9 +179,9 @@ const {
   width: 100%;
   height: 100%;
   min-height: 200px;
-  border: 1px solid rgba(255,255,255,0.08);
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: var(--bg-tertiary, #12121e);
+  background: var(--bg-muted);
   overflow: hidden;
 }
 .preview-canvas-wrap canvas {
@@ -197,13 +197,13 @@ const {
   align-items: center;
   justify-content: center;
   font-size: 12px;
-  color: var(--text-tertiary, #888);
-  background: rgba(0,0,0,0.4);
+  color: var(--text-muted);
+  background: var(--overlay);
 }
 .preview-info {
   margin-top: 8px;
   font-size: 12px;
-  color: var(--text-tertiary, #888);
+  color: var(--text-muted);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -213,19 +213,19 @@ const {
   font-size: 10px;
   padding: 1px 6px;
   border-radius: 4px;
-  background: rgba(255,255,255,0.06);
+  background: var(--bg-muted);
 }
 .preview-play-btn {
   font-size: 11px;
   padding: 2px 10px;
-  border: 1px solid rgba(255,255,255,0.15);
+  border: 1px solid var(--border-strong);
   border-radius: 4px;
-  background: rgba(255,255,255,0.06);
+  background: var(--bg-muted);
   cursor: pointer;
   color: inherit;
 }
 .preview-play-btn:hover {
-  background: rgba(255,255,255,0.12);
+  background: var(--bg-active);
 }
 
 .corrector-enter-active, .corrector-leave-active {

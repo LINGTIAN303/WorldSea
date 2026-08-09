@@ -162,16 +162,16 @@ function formatResult(result: string): string {
 <style scoped>
 .inline-tool-call {
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--agent-border);
+  background: color-mix(in srgb, var(--bg-surface) 2%, transparent);
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
   overflow: hidden;
 }
 
 .inline-tool-call:hover {
-  border-color: rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.03);
+  border-color: var(--agent-border-strong);
+  background: color-mix(in srgb, var(--bg-surface) 3%, transparent);
 }
 
 .inline-tool-call.running {
@@ -277,7 +277,7 @@ function formatResult(result: string): string {
 
 /* 展开详情 */
 .itc-detail {
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  border-top: 1px solid var(--agent-border);
   padding: 8px 10px;
 }
 
@@ -302,7 +302,7 @@ function formatResult(result: string): string {
   font-size: 11px;
   line-height: 1.5;
   color: var(--agent-text-secondary);
-  background: rgba(0, 0, 0, 0.15);
+  background: color-mix(in srgb, var(--bg-app) 15%, transparent);
   padding: 6px 8px;
   border-radius: 6px;
   overflow-x: auto;

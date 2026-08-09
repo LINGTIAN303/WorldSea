@@ -45,7 +45,7 @@ const expanded = ref(false)
 .block-arrow { color: var(--agent-text-tertiary, #888); }
 .block-content {
   padding: 8px 10px; margin-top: 4px;
-  background: rgba(0,0,0,0.15); border: 1px solid color-mix(in srgb, var(--agent-accent, #b388ff) 20%, transparent);
+  background: color-mix(in srgb, var(--bg-app) 15%, transparent); border: 1px solid color-mix(in srgb, var(--agent-accent, #b388ff) 20%, transparent);
   border-radius: 8px;
 }
 .list-item {
@@ -53,7 +53,7 @@ const expanded = ref(false)
   padding: 5px 8px; border-radius: 4px;
   transition: background 0.1s;
 }
-.list-item:hover { background: rgba(255,255,255,0.04); }
+.list-item:hover { background: color-mix(in srgb, var(--bg-surface) 4%, transparent); }
 .list-icon { font-size: 14px; flex-shrink: 0; }
 .list-info { display: flex; flex-direction: column; gap: 1px; flex: 1; }
 .list-label { font-size: 13px; color: var(--agent-text, #e0e0e0); }

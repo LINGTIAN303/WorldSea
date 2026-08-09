@@ -232,7 +232,7 @@ function copySrc(): void {
 .block-arrow { color: var(--agent-text-tertiary, #888); }
 .block-content {
   padding: 8px; margin-top: 4px;
-  background: rgba(0,0,0,0.15); border: 1px solid color-mix(in srgb, var(--agent-accent, #b388ff) 20%, transparent);
+  background: color-mix(in srgb, var(--bg-app) 15%, transparent); border: 1px solid color-mix(in srgb, var(--agent-accent, #b388ff) 20%, transparent);
   border-radius: 8px; text-align: center;
 }
 .block-img { max-width: 100%; max-height: 300px; border-radius: 6px; object-fit: contain; cursor: pointer; }
@@ -241,14 +241,14 @@ function copySrc(): void {
 .block-expand-enter-from, .block-expand-leave-to { opacity: 0; }
 .img-ctx-menu {
   position: fixed; z-index: 10000;
-  background: rgba(20,20,30,0.96); border: 1px solid color-mix(in srgb, var(--agent-accent, #b388ff) 30%, transparent);
+  background: var(--bg-surface); border: 1px solid color-mix(in srgb, var(--agent-accent, #b388ff) 30%, transparent);
   border-radius: 8px; padding: 4px 0; min-width: 160px;
   box-shadow: 0 4px 20px rgba(0,0,0,0.5); backdrop-filter: blur(8px);
 }
 .ctx-item {
   display: block; width: 100%; padding: 8px 14px; border: none; background: none;
-  color: #ddd; font-size: 13px; text-align: left; cursor: pointer;
+  color: var(--text-primary); font-size: 13px; text-align: left; cursor: pointer;
   transition: background 0.1s;
 }
-.ctx-item:hover { background: color-mix(in srgb, var(--agent-accent, #b388ff) 20%, transparent); color: #fff; }
+.ctx-item:hover { background: color-mix(in srgb, var(--agent-accent, #b388ff) 20%, transparent); color: var(--text-primary); }
 </style>

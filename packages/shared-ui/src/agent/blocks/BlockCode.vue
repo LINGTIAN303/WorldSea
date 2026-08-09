@@ -54,8 +54,8 @@ function copyCode(): void {
 }
 .code-header {
   display: flex; justify-content: space-between; align-items: center;
-  padding: 4px 10px; background: rgba(255,255,255,0.04);
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  padding: 4px 10px; background: color-mix(in srgb, var(--bg-surface) 4%, transparent);
+  border-bottom: 1px solid var(--agent-border);
 }
 .code-lang { font-size: 11px; color: var(--agent-text-tertiary, #888); text-transform: uppercase; }
 .code-copy {

@@ -26,7 +26,7 @@ const levelIcon = computed(() => ICONS[props.block.level] || 'ℹ️')
 <style scoped>
 .block-alert {
   display: flex; border-radius: 8px; overflow: hidden;
-  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
+  background: color-mix(in srgb, var(--bg-surface) 3%, transparent); border: 1px solid var(--agent-border);
   margin: 4px 0;
 }
 .alert-bar { width: 3px; flex-shrink: 0; }

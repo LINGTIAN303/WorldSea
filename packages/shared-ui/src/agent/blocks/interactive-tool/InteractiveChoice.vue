@@ -150,7 +150,7 @@ function onChoiceSelect(value: string, label: string): void {
 
 .itc-choice-btn.active {
   background: var(--agent-primary);
-  color: #fff;
+  color: var(--on-accent);
   border-color: transparent;
   animation: itc-bounce 0.25s ease;
 }

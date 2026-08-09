@@ -683,9 +683,9 @@ const renderedMermaid = computed(() => {
 }
 .a2ui-btn:hover { filter: brightness(1.2); }
 .a2ui-btn-sm { padding: 2px 8px; font-size: var(--font-size-xs); }
-.a2ui-btn-primary { background: var(--agent-accent, var(--color-primary)); color: #fff; border-color: transparent; }
+.a2ui-btn-primary { background: var(--agent-accent, var(--color-primary)); color: var(--on-accent); border-color: transparent; }
 .a2ui-btn-secondary { background: var(--agent-bg-tertiary, var(--color-bg-elevated)); }
-.a2ui-btn-danger { background: var(--color-danger); color: #fff; border-color: transparent; }
+.a2ui-btn-danger { background: var(--color-danger); color: var(--on-accent); border-color: transparent; }
 
 .a2ui-field { display: flex; flex-direction: column; gap: 4px; }
 .a2ui-label { font-size: var(--font-size-xs); color: var(--agent-text-secondary, var(--color-text-tertiary)); font-weight: var(--font-weight-medium); }
@@ -710,7 +710,7 @@ const renderedMermaid = computed(() => {
   background: transparent; color: var(--agent-text-secondary, var(--color-text-tertiary)); font-size: var(--font-size-sm); cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s;
 }
 .a2ui-choice:hover { border-color: var(--agent-accent, var(--color-primary)); }
-.a2ui-choice.active { background: var(--agent-accent, var(--color-primary)); color: #fff; border-color: transparent; }
+.a2ui-choice.active { background: var(--agent-accent, var(--color-primary)); color: var(--on-accent); border-color: transparent; }
 
 .a2ui-column { display: flex; flex-direction: column; gap: 8px; }
 .a2ui-row { display: flex; flex-direction: row; gap: 8px; align-items: center; flex-wrap: wrap; }

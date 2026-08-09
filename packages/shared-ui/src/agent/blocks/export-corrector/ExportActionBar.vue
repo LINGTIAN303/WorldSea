@@ -30,7 +30,7 @@ const emit = defineEmits<{
   align-items: center;
   gap: 8px;
   padding: 12px 24px;
-  border-top: 1px solid rgba(255,255,255,0.08);
+  border-top: 1px solid var(--border);
 }
 .ft-spacer {
   flex: 1;
@@ -38,7 +38,7 @@ const emit = defineEmits<{
 .ft-btn {
   padding: 6px 16px;
   font-size: 12px;
-  border: 1px solid rgba(255,255,255,0.12);
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
   background: transparent;
   cursor: pointer;
@@ -47,12 +47,12 @@ const emit = defineEmits<{
   transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s;
 }
 .ft-btn:hover {
-  background: rgba(255,255,255,0.08);
+  background: var(--bg-muted);
 }
 .ft-btn--primary {
-  background: var(--color-accent, #6c8cff);
-  border-color: var(--color-accent, #6c8cff);
-  color: #fff;
+  background: var(--agent-accent);
+  border-color: var(--agent-accent);
+  color: var(--on-accent);
 }
 .ft-btn--primary:hover {
   opacity: 0.9;

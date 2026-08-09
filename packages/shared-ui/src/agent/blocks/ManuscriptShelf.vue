@@ -62,7 +62,7 @@ function scrollToManuscript(id: string) {
 <style scoped>
 .manuscript-shelf {
   padding: 6px 12px;
-  border-top: 1px solid rgba(128, 128, 128, 0.1);
+  border-top: 1px solid var(--agent-border);
 }
 
 .shelf-header {

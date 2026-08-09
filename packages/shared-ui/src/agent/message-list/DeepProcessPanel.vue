@@ -182,8 +182,8 @@ const manuscriptBlocks = computed(() => props.finalOutputBlocks.filter(b => b.ty
 }
 
 .process-collapse.collapsed {
-  border-color: rgba(255, 255, 255, 0.06);
-  background: rgba(255, 255, 255, 0.02);
+  border-color: var(--agent-border);
+  background: color-mix(in srgb, var(--bg-surface) 2%, transparent);
 }
 
 .process-collapse-header {
@@ -197,7 +197,7 @@ const manuscriptBlocks = computed(() => props.finalOutputBlocks.filter(b => b.ty
 }
 
 .process-collapse-header:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: color-mix(in srgb, var(--bg-surface) 3%, transparent);
 }
 
 .process-collapse-icon {
@@ -214,7 +214,7 @@ const manuscriptBlocks = computed(() => props.finalOutputBlocks.filter(b => b.ty
 }
 
 .collapsed .process-collapse-icon {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--bg-surface) 6%, transparent);
   color: var(--agent-text-tertiary);
 }
 
@@ -244,7 +244,7 @@ const manuscriptBlocks = computed(() => props.finalOutputBlocks.filter(b => b.ty
 }
 
 .process-collapse-body {
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  border-top: 1px solid var(--agent-border);
   padding: 8px;
   display: flex;
   flex-direction: column;
@@ -293,7 +293,7 @@ const manuscriptBlocks = computed(() => props.finalOutputBlocks.filter(b => b.ty
   border-radius: 6px;
   flex-shrink: 0;
   background: color-mix(in srgb, var(--agent-success, #22c55e) 10%, transparent);
-  color: #22c55e;
+  color: var(--agent-success, #22c55e);
 }
 
 .final-output-title {
@@ -312,7 +312,7 @@ const manuscriptBlocks = computed(() => props.finalOutputBlocks.filter(b => b.ty
 }
 
 .final-output-body {
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  border-top: 1px solid var(--agent-border);
   padding: 8px 12px;
   font-size: 14px;
   line-height: 1.7;
@@ -320,7 +320,7 @@ const manuscriptBlocks = computed(() => props.finalOutputBlocks.filter(b => b.ty
 }
 
 .final-output-body :deep(code) {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--bg-surface) 6%, transparent);
   padding: 1px 4px;
   border-radius: 3px;
   font-size: 12px;
@@ -328,7 +328,7 @@ const manuscriptBlocks = computed(() => props.finalOutputBlocks.filter(b => b.ty
 
 /* 结论区 Block 渲染 */
 .final-output-blocks {
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  border-top: 1px solid var(--agent-border);
   padding: 8px 12px;
   display: flex;
   flex-direction: column;

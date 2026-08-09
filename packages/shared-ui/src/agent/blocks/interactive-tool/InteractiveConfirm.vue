@@ -105,13 +105,13 @@ function onReject(): void {
 }
 
 .itc-confirm.completed {
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--agent-border);
+  background: color-mix(in srgb, var(--bg-surface) 2%, transparent);
 }
 
 .itc-confirm.failed {
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--agent-border);
+  background: color-mix(in srgb, var(--bg-surface) 2%, transparent);
 }
 
 .itc-confirm-header {
@@ -204,7 +204,7 @@ function onReject(): void {
 }
 
 .itc-confirm-bar {
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid var(--agent-border);
   padding: 8px 10px;
   animation: itc-staircase 0.25s ease-out;
 }
@@ -227,16 +227,16 @@ function onReject(): void {
 .itc-confirm-reject {
   padding: 4px 12px;
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--bg-muted);
   color: var(--agent-text-secondary);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-strong);
   cursor: pointer;
   font-size: 12px;
   transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s;
 }
 
 .itc-confirm-reject:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--bg-active);
   color: var(--agent-text);
 }
 
@@ -247,7 +247,7 @@ function onReject(): void {
   cursor: pointer;
   font-size: 12px;
   font-weight: 600;
-  color: #fff;
+  color: var(--on-accent);
   transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s;
 }
 

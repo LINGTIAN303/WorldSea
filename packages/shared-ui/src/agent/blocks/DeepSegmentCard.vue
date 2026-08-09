@@ -120,15 +120,15 @@ function renderMarkdown(text: string): string {
 <style scoped>
 .deep-seg-card {
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--agent-border);
+  background: color-mix(in srgb, var(--bg-surface) 2%, transparent);
   overflow: hidden;
   transition: border-color 0.2s, background 0.2s;
   animation: seg-in 0.3s ease-out;
 }
 
 .deep-seg-card:hover {
-  border-color: rgba(255, 255, 255, 0.1);
+  border-color: var(--agent-border-strong);
 }
 
 /* 推理段 */
@@ -201,7 +201,7 @@ function renderMarkdown(text: string): string {
 }
 
 .seg-badge.count {
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--bg-surface) 5%, transparent);
   color: var(--agent-text-tertiary);
   font-variant-numeric: tabular-nums;
 }
@@ -248,8 +248,8 @@ function renderMarkdown(text: string): string {
   flex-shrink: 0;
   font-size: 10px;
   font-weight: 600;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1.5px solid rgba(255, 255, 255, 0.12);
+  background: color-mix(in srgb, var(--bg-surface) 6%, transparent);
+  border: 1.5px solid var(--agent-border-strong);
   color: var(--agent-text-tertiary);
 }
 
@@ -288,7 +288,7 @@ function renderMarkdown(text: string): string {
   flex: 1;
   height: 3px;
   border-radius: 2px;
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--bg-surface) 6%, transparent);
   overflow: hidden;
   min-width: 30px;
 }
@@ -360,7 +360,7 @@ function renderMarkdown(text: string): string {
 }
 
 .phase-output-content :deep(code) {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--bg-surface) 6%, transparent);
   padding: 1px 4px;
   border-radius: 3px;
   font-size: 11px;

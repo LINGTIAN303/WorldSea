@@ -55,7 +55,7 @@ function toggleExpand() {
 }
 
 .itc-normal:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: color-mix(in srgb, var(--bg-surface) 3%, transparent);
 }
 
 .itc-normal-dot {
@@ -91,7 +91,7 @@ function toggleExpand() {
 
 .itc-normal-status.running { color: var(--agent-segment-tooling, #38bdf8); }
 .itc-normal-status.completed { color: color-mix(in srgb, var(--agent-segment-output, #34d399) 60%, transparent); }
-.itc-normal-status.failed { color: rgba(239, 68, 68, 0.6); }
+.itc-normal-status.failed { color: color-mix(in srgb, var(--agent-danger, #ef4444) 60%, transparent); }
 
 .itc-normal-dur {
   font-size: 10px;
@@ -115,7 +115,7 @@ function toggleExpand() {
   width: 100%;
   margin-top: 4px;
   padding: 6px 8px;
-  background: rgba(0, 0, 0, 0.15);
+  background: color-mix(in srgb, var(--bg-app) 15%, transparent);
   border-radius: 6px;
 }
 
@@ -149,7 +149,7 @@ function toggleExpand() {
   word-break: break-all;
   margin: 0;
   font-family: 'Consolas', 'Monaco', monospace;
-  background: rgba(0, 0, 0, 0.1);
+  background: color-mix(in srgb, var(--bg-app) 10%, transparent);
 }
 
 .itc-detail-result {

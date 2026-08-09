@@ -50,13 +50,13 @@ const allKeys = computed(() => {
 .block-arrow { color: var(--agent-text-tertiary, #888); }
 .block-content {
   padding: 10px 12px; margin-top: 4px;
-  background: rgba(0,0,0,0.15); border: 1px solid color-mix(in srgb, var(--agent-accent, #b388ff) 20%, transparent);
+  background: color-mix(in srgb, var(--bg-app) 15%, transparent); border: 1px solid color-mix(in srgb, var(--agent-accent, #b388ff) 20%, transparent);
   border-radius: 8px;
 }
 .cmp-header { display: flex; justify-content: space-between; margin-bottom: 8px; }
 .cmp-name { font-size: 13px; font-weight: 600; color: var(--agent-text, #e0e0e0); flex: 1; text-align: center; }
 .cmp-vs { font-size: 11px; color: var(--agent-text-tertiary, #888); font-weight: 700; }
-.cmp-row { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 12px; }
+.cmp-row { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid var(--agent-border); font-size: 12px; }
 .cmp-row.diff { background: color-mix(in srgb, var(--agent-accent, #b388ff) 6%, transparent); border-radius: 3px; }
 .cmp-val { flex: 1; text-align: center; color: var(--agent-text, #e0e0e0); }
 .cmp-key { flex: 0 0 auto; padding: 0 8px; color: var(--agent-text-tertiary, #888); font-size: 11px; }

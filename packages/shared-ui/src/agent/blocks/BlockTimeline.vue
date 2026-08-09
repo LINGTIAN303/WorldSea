@@ -45,7 +45,7 @@ const expanded = ref(false)
 .block-arrow { color: var(--agent-text-tertiary, #888); }
 .block-content {
   padding: 10px 12px; margin-top: 4px;
-  background: rgba(0,0,0,0.15); border: 1px solid color-mix(in srgb, var(--agent-accent, #b388ff) 20%, transparent);
+  background: color-mix(in srgb, var(--bg-app) 15%, transparent); border: 1px solid color-mix(in srgb, var(--agent-accent, #b388ff) 20%, transparent);
   border-radius: 8px;
 }
 .tl-event { display: flex; position: relative; padding-left: 20px; padding-bottom: 12px; }

@@ -45,13 +45,13 @@ function trendIcon(t: string): string { return t === 'up' ? '↑' : t === 'down'
 .block-arrow { color: var(--agent-text-tertiary, #888); }
 .block-content {
   padding: 10px 12px; margin-top: 4px;
-  background: rgba(0,0,0,0.15); border: 1px solid color-mix(in srgb, var(--agent-accent, #b388ff) 20%, transparent);
+  background: color-mix(in srgb, var(--bg-app) 15%, transparent); border: 1px solid color-mix(in srgb, var(--agent-accent, #b388ff) 20%, transparent);
   border-radius: 8px;
 }
 .stat-grid { display: flex; flex-wrap: wrap; gap: 10px; }
 .stat-item {
   display: flex; flex-direction: column; align-items: center; gap: 2px;
-  padding: 8px 14px; border-radius: 8px; background: rgba(255,255,255,0.04);
+  padding: 8px 14px; border-radius: 8px; background: color-mix(in srgb, var(--bg-surface) 4%, transparent);
   min-width: 70px;
 }
 .stat-icon { font-size: 16px; }

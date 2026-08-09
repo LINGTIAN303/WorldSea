@@ -315,8 +315,8 @@ function formatDuration(start: number, end: number): string {
 
 .deep-step {
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--agent-border);
+  background: color-mix(in srgb, var(--bg-surface) 2%, transparent);
   overflow: hidden;
   transition: border-color 0.2s, background 0.2s;
 }
@@ -347,8 +347,8 @@ function formatDuration(start: number, end: number): string {
   flex-shrink: 0;
   font-size: 11px;
   font-weight: 600;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1.5px solid rgba(255, 255, 255, 0.12);
+  background: var(--agent-border);
+  border: 1.5px solid color-mix(in srgb, var(--bg-surface) 12%, transparent);
   color: var(--agent-text-tertiary);
 }
 
@@ -409,7 +409,7 @@ function formatDuration(start: number, end: number): string {
 }
 
 .deep-step-badge-pending {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--agent-border);
   color: var(--agent-text-tertiary);
 }
 
@@ -425,7 +425,7 @@ function formatDuration(start: number, end: number): string {
   flex: 1;
   height: 3px;
   border-radius: 2px;
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--bg-surface) 6%, transparent);
   overflow: hidden;
 }
 
@@ -472,7 +472,7 @@ function formatDuration(start: number, end: number): string {
   padding: 3px 8px;
   border-radius: 5px;
   font-size: 11px;
-  background: rgba(255, 255, 255, 0.02);
+  background: color-mix(in srgb, var(--bg-surface) 2%, transparent);
 }
 
 .deep-step-tool.running {
@@ -549,8 +549,8 @@ function formatDuration(start: number, end: number): string {
   font-size: 11px;
   font-weight: 600;
   flex-shrink: 0;
-  background: rgba(255,255,255,0.06);
-  border: 1.5px solid rgba(255,255,255,0.15);
+  background: var(--agent-border);
+  border: 1.5px solid color-mix(in srgb, var(--bg-surface) 15%, transparent);
   color: var(--agent-text-secondary);
   position: relative;
   z-index: 1;
@@ -578,7 +578,7 @@ function formatDuration(start: number, end: number): string {
   top: 22px;
   width: 1.5px;
   height: calc(100% - 22px);
-  background: rgba(255,255,255,0.1);
+  background: color-mix(in srgb, var(--bg-surface) 10%, transparent);
 }
 
 .step-line-done {
@@ -620,7 +620,7 @@ function formatDuration(start: number, end: number): string {
   padding: 2px 8px;
   border-radius: 6px;
   font-size: 11px;
-  background: rgba(255,255,255,0.03);
+  background: color-mix(in srgb, var(--bg-surface) 3%, transparent);
 }
 
 .step-tool.running {

@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <!-- 性能优化：滚动锚定 - 用户向上滚动浏览历史时显示"回到底部"按钮，点击恢复跟随 -->
   <Transition name="ws-fade">
     <button
@@ -66,7 +66,7 @@ const emit = defineEmits<{
   padding: 0 5px;
   border-radius: 9px;
   background: var(--agent-primary, #3b82f6);
-  color: #fff;
+  color: var(--on-accent);
   font-size: 10px;
   font-weight: 600;
   display: flex;

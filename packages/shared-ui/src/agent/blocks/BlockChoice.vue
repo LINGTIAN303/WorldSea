@@ -74,7 +74,7 @@ function onConfirm(): void {
 <style scoped>
 .block-choice {
   padding: 10px 12px; border-radius: 8px; margin: 4px 0;
-  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
+  background: color-mix(in srgb, var(--bg-surface) 3%, transparent); border: 1px solid var(--agent-border);
   border-left: 3px solid var(--agent-primary, #6c5ce7);
 }
 .choice-title { font-size: 12px; color: var(--agent-text-secondary, #888); margin-bottom: 8px; }
@@ -88,13 +88,13 @@ function onConfirm(): void {
 }
 .choice-btn:active { transform: scale(0.95); }
 .choice-btn:hover { background: color-mix(in srgb, var(--agent-accent, #b388ff) 10%, transparent); border-color: color-mix(in srgb, var(--agent-accent, #b388ff) 50%, transparent); }
-.choice-btn.active { background: var(--agent-accent, #b388ff); color: #fff; border-color: transparent; animation: ws-bounce 0.2s ease; }
+.choice-btn.active { background: var(--agent-accent, #b388ff); color: var(--on-accent); border-color: transparent; animation: ws-bounce 0.2s ease; }
 
 .choice-label { }
 .choice-desc { font-size: 10px; opacity: 0.7; margin-top: 2px; }
 .choice-confirm {
   margin-top: 8px; padding: 4px 12px; border-radius: 6px;
-  background: var(--agent-accent, #b388ff); color: #fff; border: none;
+  background: var(--agent-accent, #b388ff); color: var(--on-accent); border: none;
   font-size: 12px; cursor: pointer;
 }
 </style>

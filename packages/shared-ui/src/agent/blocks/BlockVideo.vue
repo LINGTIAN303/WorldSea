@@ -173,7 +173,7 @@ function formatDuration(sec: number): string {
 .block-arrow { color: var(--agent-text-tertiary, #888); }
 .block-content {
   padding: 8px; margin-top: 4px;
-  background: rgba(0,0,0,0.15); border: 1px solid rgba(225, 112, 85, 0.2);
+  background: color-mix(in srgb, var(--bg-app) 15%, transparent); border: 1px solid rgba(225, 112, 85, 0.2);
   border-radius: 8px; text-align: center;
 }
 .video-wrap {
@@ -206,16 +206,16 @@ function formatDuration(sec: number): string {
 .block-expand-enter-from, .block-expand-leave-to { opacity: 0; }
 .video-ctx-menu {
   position: fixed; z-index: 10000;
-  background: rgba(20,20,30,0.96); border: 1px solid rgba(225, 112, 85, 0.3);
+  background: var(--bg-surface); border: 1px solid rgba(225, 112, 85, 0.3);
   border-radius: 8px; padding: 4px 0; min-width: 160px;
   box-shadow: 0 4px 20px rgba(0,0,0,0.5); backdrop-filter: blur(8px);
 }
 .ctx-item {
   display: block; width: 100%; padding: 8px 14px; border: none; background: none;
-  color: #ddd; font-size: 13px; text-align: left; cursor: pointer;
+  color: var(--text-primary); font-size: 13px; text-align: left; cursor: pointer;
   transition: background 0.1s;
 }
-.ctx-item:hover { background: rgba(225, 112, 85, 0.2); color: #fff; }
+.ctx-item:hover { background: rgba(225, 112, 85, 0.2); color: var(--text-primary); }
 .video-fullscreen-overlay {
   position: fixed; inset: 0; z-index: 10001;
   background: rgba(0,0,0,0.9); display: flex; align-items: center; justify-content: center;

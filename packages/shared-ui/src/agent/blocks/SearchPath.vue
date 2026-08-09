@@ -144,8 +144,8 @@ const gapCount = computed(() => {
 .search-group {
   border-radius: 8px;
   overflow: hidden;
-  border: 1px solid rgba(255,255,255,0.06);
-  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--agent-border);
+  background: color-mix(in srgb, var(--bg-surface) 2%, transparent);
 }
 
 .search-group.group-active {
@@ -154,7 +154,7 @@ const gapCount = computed(() => {
 }
 
 .search-group.group-done {
-  border-color: rgba(34,197,94,0.15);
+  border-color: color-mix(in srgb, var(--agent-success) 15%, transparent);
 }
 
 .group-header {
@@ -168,7 +168,7 @@ const gapCount = computed(() => {
 }
 
 .group-header:hover {
-  background: rgba(255,255,255,0.03);
+  background: color-mix(in srgb, var(--bg-surface) 3%, transparent);
 }
 
 .group-icon { font-size: 14px; }
@@ -178,8 +178,8 @@ const gapCount = computed(() => {
   font-size: 10px;
   padding: 1px 6px;
   border-radius: 8px;
-  background: rgba(34,197,94,0.1);
-  color: rgba(34,197,94,0.8);
+  background: color-mix(in srgb, var(--agent-success, #22c55e) 10%, transparent);
+  color: color-mix(in srgb, var(--agent-success, #22c55e) 80%, transparent);
 }
 
 .group-count.searching {
@@ -227,6 +227,6 @@ const gapCount = computed(() => {
   padding: 4px 10px;
   font-size: 11px;
   color: var(--agent-text-secondary, #aaa);
-  border-top: 1px solid rgba(255,255,255,0.06);
+  border-top: 1px solid var(--agent-border);
 }
 </style>

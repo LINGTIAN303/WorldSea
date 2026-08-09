@@ -55,16 +55,16 @@ const expanded = ref(false)
 .block-arrow { font-size: 11px; color: var(--agent-text-tertiary, #888); }
 .block-content {
   padding: 10px 12px; margin-top: 4px;
-  background: rgba(0,0,0,0.15); border: 1px solid color-mix(in srgb, var(--agent-accent, #b388ff) 20%, transparent);
+  background: color-mix(in srgb, var(--bg-app) 15%, transparent); border: 1px solid color-mix(in srgb, var(--agent-accent, #b388ff) 20%, transparent);
   border-radius: 8px; overflow-x: auto;
 }
 .block-table-inner { width: 100%; border-collapse: collapse; font-size: 12px; }
 .block-table-inner th {
   padding: 5px 10px; text-align: left; color: var(--agent-text-secondary, #888);
-  border-bottom: 1px solid rgba(255,255,255,0.1); font-size: 11px; text-transform: uppercase;
+  border-bottom: 1px solid var(--agent-border); font-size: 11px; text-transform: uppercase;
 }
 .block-table-inner td {
-  padding: 5px 10px; border-bottom: 1px solid rgba(255,255,255,0.05);
+  padding: 5px 10px; border-bottom: 1px solid var(--agent-border);
   color: var(--agent-text, #e0e0e0);
 }
 .block-expand-enter-active, .block-expand-leave-active {

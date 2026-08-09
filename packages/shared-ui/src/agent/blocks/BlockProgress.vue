@@ -24,7 +24,7 @@ const statusIcon = computed(() => ICONS[props.block.status] || 'loader')
 <style scoped>
 .block-progress {
   padding: 8px 12px; border-radius: 8px; margin: 4px 0;
-  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
+  background: color-mix(in srgb, var(--bg-surface) 3%, transparent); border: 1px solid var(--agent-border);
   border-left: 3px solid var(--agent-primary, #6c5ce7);
 }
 .progress-header { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
@@ -32,7 +32,7 @@ const statusIcon = computed(() => ICONS[props.block.status] || 'loader')
 .progress-label { font-size: 12px; color: var(--agent-text, #e0e0e0); flex: 1; }
 .progress-pct { font-size: 12px; color: var(--agent-accent, #b388ff); font-weight: 600; }
 .progress-track {
-  height: 4px; border-radius: 2px; background: rgba(255,255,255,0.08); overflow: hidden;
+  height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--bg-surface) 8%, transparent); overflow: hidden;
 }
 .progress-fill {
   height: 100%; border-radius: 2px; transition: width 0.3s ease;

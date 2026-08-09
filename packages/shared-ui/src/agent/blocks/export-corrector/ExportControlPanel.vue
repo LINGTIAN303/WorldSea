@@ -145,7 +145,7 @@ const emit = defineEmits<{
   flex-shrink: 0;
   overflow-y: auto;
   padding: 16px 20px;
-  border-left: 1px solid rgba(255,255,255,0.08);
+  border-left: 1px solid var(--border);
 }
 .ctrl-section {
   margin-bottom: 20px;
@@ -167,7 +167,7 @@ const emit = defineEmits<{
   flex: 1;
   padding: 4px 8px;
   font-size: 11px;
-  border: 1px solid rgba(255,255,255,0.12);
+  border: 1px solid var(--border-strong);
   border-radius: 4px;
   background: transparent;
   cursor: pointer;
@@ -175,8 +175,8 @@ const emit = defineEmits<{
   font-family: inherit;
 }
 .ctrl-btn-sm.active {
-  background: rgba(255,255,255,0.12);
-  border-color: rgba(255,255,255,0.3);
+  background: var(--bg-active);
+  border-color: var(--border-strong);
 }
 .ctrl-ratios {
   display: flex;
@@ -187,7 +187,7 @@ const emit = defineEmits<{
 .ctrl-btn-ratio {
   padding: 3px 8px;
   font-size: 11px;
-  border: 1px solid rgba(255,255,255,0.1);
+  border: 1px solid var(--border);
   border-radius: 4px;
   background: transparent;
   cursor: pointer;
@@ -195,8 +195,8 @@ const emit = defineEmits<{
   font-family: inherit;
 }
 .ctrl-btn-ratio.active {
-  background: rgba(255,255,255,0.15);
-  border-color: rgba(255,255,255,0.3);
+  background: var(--bg-active);
+  border-color: var(--border-strong);
 }
 .ctrl-dim-inputs {
   display: flex;
@@ -211,9 +211,9 @@ const emit = defineEmits<{
 .ctrl-dim input {
   width: 70px;
   padding: 3px 6px;
-  border: 1px solid rgba(255,255,255,0.12);
+  border: 1px solid var(--border-strong);
   border-radius: 4px;
-  background: rgba(255,255,255,0.04);
+  background: var(--bg-muted);
   color: inherit;
   font-size: 12px;
   font-family: inherit;
@@ -229,13 +229,13 @@ const emit = defineEmits<{
   flex: 1;
   max-width: 120px;
   height: 4px;
-  accent-color: var(--color-accent, #6c8cff);
+  accent-color: var(--agent-accent);
 }
 .ctrl-row select {
   padding: 2px 6px;
-  border: 1px solid rgba(255,255,255,0.12);
+  border: 1px solid var(--border-strong);
   border-radius: 4px;
-  background: rgba(255,255,255,0.04);
+  background: var(--bg-muted);
   color: inherit;
   font-size: 12px;
   font-family: inherit;
@@ -244,7 +244,7 @@ const emit = defineEmits<{
   width: 28px;
   height: 22px;
   padding: 0;
-  border: 1px solid rgba(255,255,255,0.12);
+  border: 1px solid var(--border-strong);
   border-radius: 4px;
   background: transparent;
   cursor: pointer;
@@ -257,7 +257,7 @@ const emit = defineEmits<{
 .ctrl-btn-xs {
   font-size: 10px;
   padding: 1px 6px;
-  border: 1px solid rgba(255,255,255,0.1);
+  border: 1px solid var(--border);
   border-radius: 3px;
   background: transparent;
   cursor: pointer;
@@ -265,7 +265,7 @@ const emit = defineEmits<{
   font-family: inherit;
 }
 .ctrl-btn-xs:hover {
-  background: rgba(255,255,255,0.08);
+  background: var(--bg-muted);
 }
 .ctrl-toggle {
   display: flex;
@@ -278,15 +278,15 @@ const emit = defineEmits<{
   gap: 2px;
 }
 .ctrl-align-toggle .ctrl-btn-xs.active {
-  background: rgba(255,255,255,0.15);
-  border-color: rgba(255,255,255,0.3);
+  background: var(--bg-active);
+  border-color: var(--border-strong);
 }
 .ctrl-input {
   width: 100%;
   padding: 6px 8px;
-  border: 1px solid rgba(255,255,255,0.12);
+  border: 1px solid var(--border-strong);
   border-radius: 4px;
-  background: rgba(255,255,255,0.04);
+  background: var(--bg-muted);
   color: inherit;
   font-size: 12px;
   font-family: inherit;

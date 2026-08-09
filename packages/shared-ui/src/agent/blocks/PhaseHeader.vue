@@ -129,15 +129,15 @@ function formatDuration(start: number, end: number): string {
 <style scoped>
 .phase-header {
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--agent-border);
+  background: color-mix(in srgb, var(--bg-surface) 2%, transparent);
   cursor: pointer;
   transition: border-color 0.2s, background 0.2s;
   overflow: hidden;
 }
 
 .phase-header:hover {
-  border-color: rgba(255, 255, 255, 0.1);
+  border-color: var(--agent-border-strong);
 }
 
 .phase-header.active {
@@ -166,8 +166,8 @@ function formatDuration(start: number, end: number): string {
   flex-shrink: 0;
   font-size: 10px;
   font-weight: 600;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1.5px solid rgba(255, 255, 255, 0.12);
+  background: color-mix(in srgb, var(--bg-surface) 6%, transparent);
+  border: 1.5px solid var(--agent-border-strong);
   color: var(--agent-text-tertiary);
 }
 
@@ -227,7 +227,7 @@ function formatDuration(start: number, end: number): string {
   flex: 1;
   height: 3px;
   border-radius: 2px;
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--bg-surface) 6%, transparent);
   overflow: hidden;
   min-width: 40px;
 }
@@ -269,7 +269,7 @@ function formatDuration(start: number, end: number): string {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  border-top: 1px solid var(--agent-border);
 }
 
 .phase-tool-row {

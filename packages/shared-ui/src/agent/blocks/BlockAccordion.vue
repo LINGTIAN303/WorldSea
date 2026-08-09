@@ -41,10 +41,10 @@ const expanded = ref(false)
 .block-arrow { color: var(--agent-text-tertiary, #888); }
 .block-content {
   padding: 8px 10px; margin-top: 4px;
-  background: rgba(0,0,0,0.15); border: 1px solid color-mix(in srgb, var(--agent-accent, #b388ff) 20%, transparent);
+  background: color-mix(in srgb, var(--bg-app) 15%, transparent); border: 1px solid color-mix(in srgb, var(--agent-accent, #b388ff) 20%, transparent);
   border-radius: 8px;
 }
-.acc-section { border-bottom: 1px solid rgba(255,255,255,0.06); }
+.acc-section { border-bottom: 1px solid var(--agent-border); }
 .acc-section:last-child { border-bottom: none; }
 .acc-summary {
   cursor: pointer; padding: 6px 8px; font-size: 13px;

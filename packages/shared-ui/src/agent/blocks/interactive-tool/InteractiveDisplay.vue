@@ -82,14 +82,14 @@ const blockSummary = computed(() => {
 /* ─── 展示型：工具行 + 内嵌 Block ─── */
 .itc-display {
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--agent-border);
+  background: color-mix(in srgb, var(--bg-surface) 2%, transparent);
   overflow: hidden;
   transition: border-color 0.15s, background 0.15s;
 }
 
 .itc-display:hover {
-  border-color: rgba(255, 255, 255, 0.1);
+  border-color: var(--border-strong);
 }
 
 .itc-display-header {
@@ -174,7 +174,7 @@ const blockSummary = computed(() => {
 }
 
 .itc-display-block {
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  border-top: 1px solid var(--agent-border);
   padding: 8px 10px;
 }
 

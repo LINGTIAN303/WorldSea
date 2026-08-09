@@ -132,7 +132,7 @@ const renderedSummary = computed(() => renderArchiveSummary(props.archiveSummary
 }
 
 .archived-summary-content :deep(code) {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--bg-surface) 6%, transparent);
   padding: 1px 4px;
   border-radius: 3px;
   font-size: 12px;

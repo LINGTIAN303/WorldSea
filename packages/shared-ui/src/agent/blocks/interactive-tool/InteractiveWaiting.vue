@@ -41,7 +41,7 @@ defineProps<{
 }
 
 .itc-waiting:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: color-mix(in srgb, var(--bg-surface) 3%, transparent);
 }
 
 .itc-waiting-dot {
