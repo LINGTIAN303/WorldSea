@@ -1,7 +1,7 @@
 <template>
   <div class="st-overlay" @click.self="$emit('close')">
-    <div class="st-dialog">
-      <h3 class="st-title">保存为模板</h3>
+    <div ref="dialogRef" class="st-dialog" role="dialog" aria-modal="true" aria-labelledby="st-title" tabindex="-1">
+      <h3 id="st-title" class="st-title">保存为模板</h3>
       <p class="st-hint">将当前创作计划保存为模板，以便在其他项目中复用</p>
 
       <div class="st-field">
@@ -40,8 +40,9 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, computed } from 'vue'
+import { reactive, computed, ref, onMounted, nextTick } from 'vue'
 import type { CreationPipeline } from '../types'
+import { useFocusTrap } from '@/composables/useFocusTrap'
 
 const props = defineProps<{
   pipeline: CreationPipeline
@@ -58,6 +59,17 @@ const emit = defineEmits<{
     connections: any[]
   }]
 }>()
+
+const dialogRef = ref<HTMLElement | null>(null)
+
+const { activate } = useFocusTrap(dialogRef, {
+  escapeDeactivates: true,
+  onEscape: () => emit('close'),
+})
+
+onMounted(() => {
+  nextTick(() => activate())
+})
 
 const form = reactive({
   name: props.pipeline.name + ' (模板)',

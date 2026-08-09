@@ -1,8 +1,8 @@
 <template>
   <div v-if="show" class="modal-overlay guide-overlay" @click.self="$emit('close')">
-    <div class="modal guide-modal">
+    <div ref="dialogRef" class="modal guide-modal" role="dialog" aria-modal="true" aria-labelledby="mgm-title" tabindex="-1">
       <div class="guide-modal-header">
-        <h2><WsIcon name="puzzle" size="sm" /> 自定义模块使用指南</h2>
+        <h2 id="mgm-title"><WsIcon name="puzzle" size="sm" /> 自定义模块使用指南</h2>
         <button class="guide-close" @click="$emit('close')" aria-label="关闭"><WsIcon name="close" size="xs" /></button>
       </div>
 
@@ -90,10 +90,24 @@
 </template>
 
 <script setup lang="ts">
+import { ref, watch, nextTick } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
+import { useFocusTrap } from '@/composables/useFocusTrap'
 
-defineProps<{ show: boolean }>()
-defineEmits<{ close: [] }>()
+const props = defineProps<{ show: boolean }>()
+const emit = defineEmits<{ close: [] }>()
+
+const dialogRef = ref<HTMLElement | null>(null)
+
+const { activate, deactivate } = useFocusTrap(dialogRef, {
+  escapeDeactivates: true,
+  onEscape: () => emit('close'),
+})
+
+watch(() => props.show, (v) => {
+  if (v) nextTick(() => activate())
+  else deactivate()
+})
 </script>
 
 <style scoped>

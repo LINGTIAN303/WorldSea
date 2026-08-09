@@ -1,7 +1,7 @@
 <template>
   <div v-if="visible" class="fad-overlay" @click.self="$emit('close')">
-    <div class="fad-dialog">
-      <h4 class="fad-title">{{ title }}</h4>
+    <div ref="dialogRef" class="fad-dialog" role="dialog" aria-modal="true" aria-labelledby="fad-title" tabindex="-1">
+      <h4 id="fad-title" class="fad-title">{{ title }}</h4>
       <div class="fad-mode-toggle">
         <button :class="{ active: mode === 'search' }" @click="mode = 'search'">搜索已有角色</button>
         <button :class="{ active: mode === 'create' }" @click="mode = 'create'">新建角色</button>
@@ -34,9 +34,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { useEntityStore } from '@worldsmith/entity-core'
 import type { Entity } from '@worldsmith/entity-core'
+import { useFocusTrap } from '@/composables/useFocusTrap'
 
 const props = defineProps<{
   visible: boolean
@@ -49,6 +50,18 @@ const emit = defineEmits<{
   close: []
   confirm: [payload: { entityId: string; isNew: boolean; name?: string; gender?: string }]
 }>()
+
+const dialogRef = ref<HTMLElement | null>(null)
+
+const { activate, deactivate } = useFocusTrap(dialogRef, {
+  escapeDeactivates: true,
+  onEscape: () => emit('close'),
+})
+
+watch(() => props.visible, (v) => {
+  if (v) nextTick(() => activate())
+  else deactivate()
+})
 
 const entityStore = useEntityStore()
 const mode = ref<'search' | 'create'>('search')

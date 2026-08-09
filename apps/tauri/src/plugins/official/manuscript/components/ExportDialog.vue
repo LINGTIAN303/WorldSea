@@ -1,7 +1,7 @@
 <template>
   <div class="export-overlay" @click.self="$emit('close')">
-    <div class="export-dialog">
-      <h3><WsIcon name="item" size="sm" /> 导出</h3>
+    <div ref="dialogRef" class="export-dialog" role="dialog" aria-modal="true" aria-labelledby="export-dialog-title" tabindex="-1">
+      <h3 id="export-dialog-title"><WsIcon name="item" size="sm" /> 导出</h3>
 
       <div class="export-section">
         <label class="export-label">格式</label>
@@ -45,17 +45,29 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
 import { useManuscriptExport } from '../composables/useManuscriptExport'
 import type { Entity } from '@worldsmith/entity-core'
+import { useFocusTrap } from '@/composables/useFocusTrap'
 
 const props = defineProps<{
   currentChapter: Entity | null
   allChapters: Entity[]
 }>()
 
-defineEmits<{ close: [] }>()
+const emit = defineEmits<{ close: [] }>()
+
+const dialogRef = ref<HTMLElement | null>(null)
+
+const { activate } = useFocusTrap(dialogRef, {
+  escapeDeactivates: true,
+  onEscape: () => emit('close'),
+})
+
+onMounted(() => {
+  nextTick(() => activate())
+})
 
 const { exportChapter, exportMultiple } = useManuscriptExport()
 

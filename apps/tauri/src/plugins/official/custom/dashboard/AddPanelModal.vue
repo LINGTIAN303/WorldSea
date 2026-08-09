@@ -1,7 +1,7 @@
 <template>
   <div v-if="show" class="modal-overlay" @click.self="$emit('close')">
-    <div class="modal modal-sm">
-      <h3>选择面板视图</h3>
+    <div ref="dialogRef" class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="apm-title" tabindex="-1">
+      <h3 id="apm-title">选择面板视图</h3>
       <div class="cv-picker-list">
         <button
           v-for="view in views"
@@ -35,9 +35,10 @@
  * - 展示当前可添加的视图列表（已存在于面板中的视图会被过滤掉）
  * - 支持多选并批量添加
  */
-import { reactive, watch } from 'vue'
+import { reactive, watch, ref, nextTick } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
 import { CreateButton } from '@worldsmith/plugin-sdk'
+import { useFocusTrap } from '@/composables/useFocusTrap'
 
 /** 可选视图项的数据形状 */
 interface ViewOption {
@@ -55,6 +56,18 @@ const emit = defineEmits<{
   close: []
   confirm: [viewIds: string[]]
 }>()
+
+const dialogRef = ref<HTMLElement | null>(null)
+
+const { activate, deactivate } = useFocusTrap(dialogRef, {
+  escapeDeactivates: true,
+  onEscape: () => emit('close'),
+})
+
+watch(() => props.show, (v) => {
+  if (v) nextTick(() => activate())
+  else deactivate()
+})
 
 const selected = reactive(new Set<string>())
 

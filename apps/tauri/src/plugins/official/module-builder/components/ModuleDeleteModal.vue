@@ -1,7 +1,7 @@
 <template>
   <div v-if="show" class="modal-overlay" @click.self="$emit('close')">
-    <div class="modal modal-sm">
-      <h3 style="color:var(--danger);"><WsIcon name="warning" size="sm" /> 确认删除</h3>
+    <div ref="dialogRef" class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="mdm-title" tabindex="-1">
+      <h3 id="mdm-title" style="color:var(--danger);"><WsIcon name="warning" size="sm" /> 确认删除</h3>
       <p style="font-size:var(--font-size-base);margin:12px 0;">
         确定要删除模块 <strong>"{{ moduleName }}"</strong> 吗？
       </p>
@@ -18,10 +18,24 @@
 </template>
 
 <script setup lang="ts">
+import { ref, watch, nextTick } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
+import { useFocusTrap } from '@/composables/useFocusTrap'
 
-defineProps<{ show: boolean; moduleName: string }>()
-defineEmits<{ close: []; confirm: [] }>()
+const props = defineProps<{ show: boolean; moduleName: string }>()
+const emit = defineEmits<{ close: []; confirm: [] }>()
+
+const dialogRef = ref<HTMLElement | null>(null)
+
+const { activate, deactivate } = useFocusTrap(dialogRef, {
+  escapeDeactivates: true,
+  onEscape: () => emit('close'),
+})
+
+watch(() => props.show, (v) => {
+  if (v) nextTick(() => activate())
+  else deactivate()
+})
 </script>
 
 <style scoped>

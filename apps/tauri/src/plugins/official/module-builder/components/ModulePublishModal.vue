@@ -1,7 +1,7 @@
 <template>
   <div v-if="show" class="modal-overlay" @click.self="$emit('close')">
-    <div class="modal modal-sm">
-      <h3><WsIcon name="pin" size="sm" /> 发布到侧边栏</h3>
+    <div ref="dialogRef" class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="mpm-title" tabindex="-1">
+      <h3 id="mpm-title"><WsIcon name="pin" size="sm" /> 发布到侧边栏</h3>
       <p :style="'font-size:var(--font-size-sm);color:var(--color-text-secondary);margin-bottom:12px;'">
         这将注册 "{{ moduleName }}" 的所有实体类型和视图到系统中，
         侧边栏会新增对应的按钮，就像官方模块一样使用。
@@ -18,10 +18,24 @@
 </template>
 
 <script setup lang="ts">
+import { ref, watch, nextTick } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
+import { useFocusTrap } from '@/composables/useFocusTrap'
 
-defineProps<{ show: boolean; moduleName: string }>()
-defineEmits<{ close: []; confirm: [] }>()
+const props = defineProps<{ show: boolean; moduleName: string }>()
+const emit = defineEmits<{ close: []; confirm: [] }>()
+
+const dialogRef = ref<HTMLElement | null>(null)
+
+const { activate, deactivate } = useFocusTrap(dialogRef, {
+  escapeDeactivates: true,
+  onEscape: () => emit('close'),
+})
+
+watch(() => props.show, (v) => {
+  if (v) nextTick(() => activate())
+  else deactivate()
+})
 </script>
 
 <style scoped>
