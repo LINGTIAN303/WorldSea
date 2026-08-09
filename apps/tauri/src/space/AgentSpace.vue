@@ -8,6 +8,7 @@
       @toggle-panel-long-press="onToggleLongPress"
       @toggle-new-session="onToggleNewSession"
       @toggle-knowledge="onToggleKnowledge"
+      @toggle-mode="onToggleMode"
       @open-workbench="onOpenWorkbench"
       @switch-to-workbench="onSwitchToWorkbench"
       @open-settings="onOpenSettings"
@@ -54,7 +55,9 @@
       </Transition>
 
       <div class="space-main">
-        <SpaceChat />
+        <!-- 单聊/群聊双模式（群聊 UI 骨架 2026-08-09 恢复） -->
+        <SpaceChat v-if="spaceStore.mode === 'chat'" />
+        <GroupChatView v-else @close="spaceStore.setMode('chat')" />
       </div>
 
       <!-- 执行面板（常驻 Tab：轨迹/活动/计划，双轨之一） -->
@@ -111,6 +114,7 @@ import { useUIStore } from '@/stores/uiStore'
 import SpaceNavbar from './SpaceNavbar.vue'
 import SessionSidebar from './chat/SessionSidebar.vue'
 import SpaceChat from './chat/SpaceChat.vue'
+import GroupChatView from './group-chat/components/GroupChatView.vue'
 import KnowledgeWall from '@/agent/panels/KnowledgeWall.vue'
 import MemoryShelf from './panels/MemoryShelf.vue'
 import PersonaMirror from './panels/PersonaMirror.vue'
@@ -252,6 +256,15 @@ function onToggleKnowledge() {
 // Agent 设置已迁入主设置弹窗（2026-08-09）
 function onOpenSettings() {
   settingsOpen.value = true
+}
+
+// 单聊 ⇄ 群聊 模式切换（顶栏 mode-switch，群聊 UI 骨架 2026-08-09）
+function onToggleMode() {
+  spaceStore.setMode(spaceStore.mode === 'chat' ? 'group' : 'chat')
+  if (spaceStore.mode === 'group') {
+    // 群聊模式下关闭单聊专属左栏（会话栏/知识墙）
+    closeAll()
+  }
 }
 
 function onAddKnowledge() {

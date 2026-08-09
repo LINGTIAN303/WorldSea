@@ -62,6 +62,14 @@
 
     <div class="navbar-center">
       <div class="center-row">
+        <!-- 单聊 ⇄ 群聊 模式切换（群聊 UI 骨架 2026-08-09） -->
+        <div class="mode-switch" role="button" tabindex="0" :title="spaceStore.mode === 'chat' ? '切换群聊' : '切换单聊'"
+          @click="emit('toggleMode')" @keydown.enter.prevent="emit('toggleMode')" @keydown.space.prevent="emit('toggleMode')">
+          <span class="mode-switch-label" :class="{ on: spaceStore.mode === 'group' }">
+            <WsIcon :name="spaceStore.mode === 'chat' ? 'chat' : 'users'" size="xs" />
+            {{ spaceStore.mode === 'chat' ? '单聊' : '群聊' }}
+          </span>
+        </div>
         <button class="new-session-btn" @click="emit('toggleNewSession')" title="新建会话">+</button>
       </div>
       <div v-if="currentSessionName" class="current-session" :title="currentSessionName">{{ currentSessionName }}</div>
@@ -193,6 +201,7 @@ const emit = defineEmits<{
   togglePanelLongPress: []
   toggleNewSession: []
   toggleKnowledge: []
+  toggleMode: []
   openWorkbench: []
   switchToWorkbench: []
   openSettings: []
@@ -393,6 +402,41 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+/* 单聊 ⇄ 群聊 模式切换（群聊 UI 骨架 2026-08-09） */
+.mode-switch {
+  display: flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 10px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.mode-switch:hover {
+  background: var(--color-bg-active, var(--color-surface));
+  border-color: var(--color-border-strong);
+}
+.mode-switch:focus-visible {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+}
+.mode-switch-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--color-text-secondary);
+  line-height: 1;
+  transition: color 0.15s;
+}
+.mode-switch-label.on {
+  color: var(--color-accent);
+  font-weight: 600;
 }
 
 .new-session-btn {

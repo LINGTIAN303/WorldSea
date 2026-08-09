@@ -1,4 +1,4 @@
-import type { IAgentBackend } from './bridge-types'
+import type { AgentEventListener, IAgentBackend } from './bridge-types'
 import type { CreateAgentOptions } from './bridge-types'
 
 import { findSkillById } from './skills/registry'
@@ -269,15 +269,52 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
   { id: 'coding-agent', label: '编码 Agent', tools: [...codingAgentTools] },
 ]
 
+/**
+ * 群聊/私聊 LLM 通道暂用 stub（2026-08-09 群聊 UI 骨架恢复）：
+ * TS CoreBackend 已随端分离移除（原实现抛错），Rust 多 Agent 通道规划中。
+ * 返回占位 backend：prompt() 时向订阅者 emit 一条提示消息，保证群聊 UI 全链路可走通。
+ * 后续桥 Rust 会话时替换此实现（每参与者映射一个 Rust AgentLoop 会话）。
+ */
 export async function createWorldSmithAgent(_options: CreateAgentOptions): Promise<IAgentBackend> {
-  // 阶段 2.0 批次3：CoreBackend/HybridBackend 已移除（依赖 pi-ai）
-  // Agent 循环已由 Rust 端 agent_runtime::AgentLoop 接管
-  // 此函数保留导出签名以避免编译错误，但运行时抛错
-  throw new Error(
-    '[worldsmith-agent] createWorldSmithAgent 已废弃（批次3 移除 pi-ai 依赖）。\n' +
-    'Agent 循环已迁移至 Rust 后端，请使用 useAgentRustAdapter。\n' +
-    '受影响功能：Smart Fill、群聊、Agent 私聊等基于 TS CoreBackend 的能力。'
-  )
+  let disposed = false
+  const listeners = new Set<AgentEventListener>()
+  const sessionId = `group-stub-${Date.now()}`
+  const stubAgent: IAgentBackend = {
+    async prompt(text: string): Promise<void> {
+      if (disposed) return
+      const messageId = `stub-${Date.now()}`
+      const content =
+        '⚠️ 群聊 LLM 通道待接入（TS CoreBackend 已随端分离移除，Rust 多 Agent 通道规划中）。' +
+        `收到发言：${text.slice(0, 40)}…`
+      const listenersSnapshot = [...listeners]
+      for (const l of listenersSnapshot) {
+        l({
+          type: 'message_start',
+          message: { id: messageId, role: 'assistant', content: '', timestamp: Date.now() },
+        })
+      }
+      for (const l of listenersSnapshot) {
+        l({ type: 'message_end', messageId, content, thinking: '', usage: undefined })
+      }
+    },
+    async steer(): Promise<void> {},
+    async followUp(): Promise<void> {},
+    async abort(): Promise<void> {},
+    async updateModel(): Promise<void> {},
+    updateThinkingLevel(): void {},
+    clearHistory(): void {},
+    subscribe(listener: AgentEventListener): () => void {
+      listeners.add(listener)
+      return () => listeners.delete(listener)
+    },
+    dispose(): void {
+      disposed = true
+      listeners.clear()
+    },
+    state: { sessionId, model: null, thinkingLevel: 'off', messages: [], isStreaming: false, pendingToolCalls: [] },
+    isStreaming: false,
+  }
+  return stubAgent
 }
 
 export { DefaultToolBus } from './toolbus/toolbus'
