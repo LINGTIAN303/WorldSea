@@ -1,9 +1,11 @@
 # 群聊 LLM 通道桥 Rust 会话 — 实施计划
 
-> status: 待启动
+> status: 已完成
 > 日期：2026-08-09
 > 决策：用户已选 **方案 A（per-participant Rust session）**——每群聊参与者 = 一个独立 Rust AgentLoop 会话，TS 引擎继续负责轮次调度
 > 目标：替换 `createWorldSmithAgent` stub（packages/agent-runtime/src/agent.ts L278），让群聊参与者走真实 LLM
+>
+> **完成记录（2026-08-09，commit 81e3a23）**：T1 新建 `apps/tauri/src/space/group-chat/rust/RustGroupChatBackend.ts`（per-participant 工厂，独立流式监听 delta→message_update 转发）；T2 替换 GroupChatCoordinator / GroupChatEngine / AgentPrivateChat 三处 stub import，删除零调用 resolveAgentTools；T3 providerConfig 回退逻辑已在 Coordinator L168 就位（`(p.providerConfig as any) || providerConfig`）；T4 typecheck 0 错误 + cargo check 通过（Rust 侧零改动）+ 浏览器冒烟（无 vite-error-overlay、.group-chat-layout 正常挂载不白屏）。工具桥 `cmd_agent_tool_result` 与真实 LLM 桌面冒烟列为二期。
 
 ---
 
