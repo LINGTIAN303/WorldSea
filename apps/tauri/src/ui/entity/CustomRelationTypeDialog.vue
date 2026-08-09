@@ -1,9 +1,9 @@
 <template>
   <Teleport to="body">
     <div class="crt-overlay" v-if="show" @click.self="close">
-      <div class="crt-modal">
+      <div ref="dialogRef" class="crt-modal" role="dialog" aria-modal="true" aria-labelledby="crt-dialog-title" tabindex="-1">
         <div class="crt-header">
-          <h3>自定义关系类型</h3>
+          <h3 id="crt-dialog-title">自定义关系类型</h3>
           <button class="crt-close" @click="close">✕</button>
         </div>
 
@@ -96,12 +96,25 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, watch, nextTick } from 'vue'
 import { relationshipRegistry, entitySchemaRegistry } from '@worldsmith/entity-core'
 import type { RelationTypeSchemaV2 } from '@worldsmith/entity-core'
+import { useFocusTrap } from '@/composables/useFocusTrap'
 
-defineProps<{ show: boolean }>()
+const props = defineProps<{ show: boolean }>()
 const emit = defineEmits<{ close: [] }>()
+
+const dialogRef = ref<HTMLElement | null>(null)
+
+const { activate, deactivate } = useFocusTrap(dialogRef, {
+  escapeDeactivates: true,
+  onEscape: () => close(),
+})
+
+watch(() => props.show, (v) => {
+  if (v) nextTick(() => activate())
+  else deactivate()
+})
 
 const domainOptions = [
   { value: 'person', label: '人物' },

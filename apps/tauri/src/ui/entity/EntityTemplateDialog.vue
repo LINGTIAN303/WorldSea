@@ -1,9 +1,9 @@
 <template>
   <Teleport to="body">
     <div class="et-overlay" v-if="show" @click.self="close">
-      <div class="et-modal">
+      <div ref="dialogRef" class="et-modal" role="dialog" aria-modal="true" aria-labelledby="et-dialog-title" tabindex="-1">
         <div class="et-header">
-          <h3>实体模板</h3>
+          <h3 id="et-dialog-title">实体模板</h3>
           <button class="et-close" @click="close">✕</button>
         </div>
 
@@ -83,12 +83,25 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed, nextTick, watch } from 'vue'
 import { useEntityTemplates, entitySchemaRegistry } from '@worldsmith/entity-core'
 import type { EntityTemplate, WorldTemplate } from '@worldsmith/entity-core'
+import { useFocusTrap } from '@/composables/useFocusTrap'
 
-defineProps<{ show: boolean }>()
+const props = defineProps<{ show: boolean }>()
 const emit = defineEmits<{ close: [] }>()
+
+const dialogRef = ref<HTMLElement | null>(null)
+
+const { activate, deactivate } = useFocusTrap(dialogRef, {
+  escapeDeactivates: true,
+  onEscape: () => close(),
+})
+
+watch(() => props.show, (v) => {
+  if (v) nextTick(() => activate())
+  else deactivate()
+})
 
 const {
   getTemplatesForType,

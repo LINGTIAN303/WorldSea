@@ -1,8 +1,15 @@
 <template>
   <Teleport to="body">
     <div class="dialog-backdrop" @click.self="$emit('close')"></div>
-    <div class="create-dialog">
-      <div class="dialog-title">新建群聊</div>
+    <div
+      ref="dialogRef"
+      class="create-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="create-group-dialog-title"
+      tabindex="-1"
+    >
+      <div id="create-group-dialog-title" class="dialog-title">新建群聊</div>
 
       <div class="avatar-section">
         <div class="avatar-placeholder"><WsIcon name="camera" size="sm" /></div>
@@ -49,8 +56,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
+import { useFocusTrap } from '@/composables/useFocusTrap'
 
 export interface AgentItem {
   id: string
@@ -82,6 +90,17 @@ const emit = defineEmits<{
   close: []
   created: [data: CreateGroupData]
 }>()
+
+const dialogRef = ref<HTMLElement | null>(null)
+
+const { activate } = useFocusTrap(dialogRef, {
+  escapeDeactivates: true,
+  onEscape: () => emit('close'),
+})
+
+onMounted(() => {
+  nextTick(() => activate())
+})
 
 const groupName = ref('')
 const selectedMembers = ref<AgentItem[]>([])

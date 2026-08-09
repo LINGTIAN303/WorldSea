@@ -1,8 +1,15 @@
 <template>
   <Teleport to="body">
     <div class="dialog-backdrop" @click.self="$emit('cancel')"></div>
-    <div class="mute-dialog">
-      <div class="dialog-title">禁言 {{ memberName }}</div>
+    <div
+      ref="dialogRef"
+      class="mute-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="mute-dialog-title"
+      tabindex="-1"
+    >
+      <div id="mute-dialog-title" class="dialog-title">禁言 {{ memberName }}</div>
       <div class="duration-options">
         <label v-for="opt in durationOptions" :key="String(opt.value)" class="duration-option" :class="{ selected: selectedDuration === opt.value }">
           <input type="radio" :value="opt.value" v-model="selectedDuration" />
@@ -18,12 +25,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'
+import { useFocusTrap } from '@/composables/useFocusTrap'
 
 const props = defineProps<{ memberName: string }>()
-defineEmits<{ cancel: []; confirm: [duration: number | null] }>()
+const emit = defineEmits<{ cancel: []; confirm: [duration: number | null] }>()
+
+const dialogRef = ref<HTMLElement | null>(null)
 
 const selectedDuration = ref<number | null>(600000)
+
+const { activate } = useFocusTrap(dialogRef, {
+  escapeDeactivates: true,
+  onEscape: () => emit('cancel'),
+})
+
+onMounted(() => {
+  nextTick(() => activate())
+})
 
 const durationOptions = [
   { label: '10 分钟', value: 600000 },
