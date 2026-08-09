@@ -265,7 +265,7 @@ function formatDuration(task: { startedAt: number; endedAt?: number }): string {
 }
 
 .gen-type-badge {
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   font-weight: 600;
   padding: 1px 6px;
   border-radius: var(--radius-sm);
@@ -278,7 +278,7 @@ function formatDuration(task: { startedAt: number; endedAt?: number }): string {
 .badge-video { color: #e17055; background: rgba(225, 112, 85, 0.12); }
 
 .gen-model-tag {
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   color: var(--text-muted);
   background: var(--bg-surface);
   padding: 1px 5px;
@@ -287,7 +287,7 @@ function formatDuration(task: { startedAt: number; endedAt?: number }): string {
 }
 
 .gen-elapsed {
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }

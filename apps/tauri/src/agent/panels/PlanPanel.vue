@@ -192,7 +192,7 @@ const planExpanded = ref(true)
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   font-weight: 600;
   flex-shrink: 0;
   margin-top: 1px;

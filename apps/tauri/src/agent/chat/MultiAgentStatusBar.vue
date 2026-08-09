@@ -509,7 +509,7 @@ function truncate(text: string, maxLen: number): string {
   color: inherit;
   font-size: inherit;
   cursor: pointer;
-  border-radius: 3px;
+  border-radius: var(--radius-2xs);
   transition: background 0.15s;
 }
 .ma-summary-btn:hover {
@@ -572,7 +572,7 @@ function truncate(text: string, maxLen: number): string {
   border-radius: 7px;
   background: rgba(20, 184, 166, 0.6);
   color: rgb(240, 253, 250);
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   font-weight: 600;
   flex-shrink: 0;
 }
@@ -596,7 +596,7 @@ function truncate(text: string, maxLen: number): string {
   background: transparent;
   color: rgba(45, 212, 191, 0.6);
   cursor: pointer;
-  border-radius: 3px;
+  border-radius: var(--radius-2xs);
   transition: background 0.15s;
 }
 .ma-action-btn:hover:not(:disabled) {
@@ -651,7 +651,7 @@ function truncate(text: string, maxLen: number): string {
   background: transparent;
   color: rgba(156, 163, 175, 0.7);
   cursor: pointer;
-  border-radius: 3px;
+  border-radius: var(--radius-2xs);
 }
 .ma-popover-close:hover {
   background: rgba(255, 255, 255, 0.08);
@@ -669,7 +669,7 @@ function truncate(text: string, maxLen: number): string {
 }
 .ma-section:last-child { border-bottom: none; }
 .ma-section-title {
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   font-weight: 600;
   color: rgba(156, 163, 175, 0.9);
   text-transform: uppercase;
@@ -684,7 +684,7 @@ function truncate(text: string, maxLen: number): string {
 
 .ma-task-id {
   font-family: ui-monospace, 'Cascadia Code', Menlo, monospace;
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   color: rgba(204, 251, 241, 0.85);
   word-break: break-all;
 }
@@ -737,7 +737,7 @@ function truncate(text: string, maxLen: number): string {
   color: rgb(110, 231, 183);
   background: rgba(110, 231, 183, 0.06);
   padding: 6px 8px;
-  border-radius: 3px;
+  border-radius: var(--radius-2xs);
   border-left: 2px solid rgba(110, 231, 183, 0.5);
   word-break: break-word;
   white-space: pre-wrap;
@@ -757,7 +757,7 @@ function truncate(text: string, maxLen: number): string {
   margin-top: 0;
 }
 .ma-bb-subtitle {
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   font-weight: 600;
   color: rgba(45, 212, 191, 0.8);
   text-transform: uppercase;
@@ -775,7 +775,7 @@ function truncate(text: string, maxLen: number): string {
   gap: 6px;
   padding: 2px 4px;
   border-radius: 2px;
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   line-height: 1.4;
 }
 .ma-bb-kv-item:hover {
@@ -799,7 +799,7 @@ function truncate(text: string, maxLen: number): string {
   gap: 2px;
 }
 .ma-agent-group {
-  border-radius: 3px;
+  border-radius: var(--radius-2xs);
   background: rgba(255, 255, 255, 0.02);
 }
 .ma-agent-group[open] {
@@ -811,7 +811,7 @@ function truncate(text: string, maxLen: number): string {
   gap: 4px;
   padding: 3px 6px;
   cursor: pointer;
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   list-style: none;
 }
 .ma-agent-summary::-webkit-details-marker {
@@ -829,7 +829,7 @@ function truncate(text: string, maxLen: number): string {
 }
 .ma-agent-count {
   color: rgba(156, 163, 175, 0.7);
-  font-size: 9px;
+  font-size: var(--fs-3xs);
 }
 .ma-agent-output-list {
   padding: 2px 6px 4px 22px;
@@ -841,7 +841,7 @@ function truncate(text: string, maxLen: number): string {
   display: flex;
   gap: 4px;
   padding: 2px 4px;
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   line-height: 1.4;
   border-left: 1px solid rgba(75, 85, 99, 0.3);
 }
@@ -869,7 +869,7 @@ function truncate(text: string, maxLen: number): string {
   gap: 4px;
   padding: 2px 4px;
   border-radius: 2px;
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   line-height: 1.4;
 }
 .ma-event-icon {
@@ -888,7 +888,7 @@ function truncate(text: string, maxLen: number): string {
 .ma-event-more {
   padding: 4px;
   text-align: center;
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   color: rgba(156, 163, 175, 0.6);
   font-style: italic;
 }
@@ -896,7 +896,7 @@ function truncate(text: string, maxLen: number): string {
 .ma-empty {
   padding: 8px;
   text-align: center;
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   color: rgba(156, 163, 175, 0.6);
   font-style: italic;
 }
@@ -908,7 +908,7 @@ function truncate(text: string, maxLen: number): string {
   padding: 6px 12px;
 }
 .ma-error-text {
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   color: rgb(252, 165, 165);
   word-break: break-all;
   font-family: ui-monospace, 'Cascadia Code', Menlo, monospace;

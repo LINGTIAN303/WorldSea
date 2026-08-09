@@ -616,7 +616,7 @@ function onThinkingLevelChange(e: Event): void {
   align-items: center;
   gap: 8px;
   padding: 6px 8px;
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   background: var(--agent-hover-bg);
   border: 1px solid transparent;
   transition: border-color 0.15s, opacity 0.15s;
@@ -674,7 +674,7 @@ function onThinkingLevelChange(e: Event): void {
 }
 
 .mcp-list { display: flex; flex-direction: column; gap: 6px; }
-.mcp-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; background: var(--agent-hover-bg); border: 1px solid transparent; transition: border-color 0.15s, opacity 0.15s; }
+.mcp-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--radius-mid); background: var(--agent-hover-bg); border: 1px solid transparent; transition: border-color 0.15s, opacity 0.15s; }
 .mcp-item.disabled { opacity: 0.5; }
 .mcp-item:hover { border-color: var(--agent-border); }
 .mcp-status { font-size: var(--font-size-xs); flex-shrink: 0; }
@@ -705,7 +705,7 @@ function onThinkingLevelChange(e: Event): void {
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   border: 1px solid var(--agent-border);
   background: var(--agent-hover-bg);
   cursor: pointer;
@@ -776,7 +776,7 @@ function onThinkingLevelChange(e: Event): void {
   flex-direction: column;
   align-items: center;
   padding: 6px 4px;
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   background: var(--agent-hover-bg);
   border: 1px solid var(--agent-border);
 }
@@ -818,7 +818,7 @@ function onThinkingLevelChange(e: Event): void {
   display: inline-block;
   font-size: var(--text-micro-font-size);
   padding: 1px 5px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   margin-left: 4px;
   font-weight: var(--font-weight-semibold);
   letter-spacing: 0.3px;
@@ -842,7 +842,7 @@ function onThinkingLevelChange(e: Event): void {
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
   font-family: var(--agent-font);
@@ -903,14 +903,14 @@ function onThinkingLevelChange(e: Event): void {
   color: var(--agent-text-secondary);
   background: rgba(52, 152, 219, 0.1);
   padding: 1px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
 
 .settings-btn {
   flex: 1;
   padding: 8px 14px;
   border: 1px solid var(--agent-border);
-  border-radius: 8px;
+  border-radius: var(--radius-mid);
   background: var(--agent-hover-bg);
   color: var(--agent-text);
   font-size: var(--font-size-sm);

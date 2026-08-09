@@ -321,7 +321,7 @@ onMounted(() => {
   height: 24px;
   border: none;
   background: transparent;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -357,7 +357,7 @@ onMounted(() => {
   height: 24px;
   border: none;
   background: transparent;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -444,7 +444,7 @@ onMounted(() => {
   color: var(--color-text-tertiary);
   padding: 1px 6px;
   background: var(--color-surface);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   flex-shrink: 0;
 }
 
@@ -511,7 +511,7 @@ onMounted(() => {
   font-size: var(--font-size-xs);
   color: var(--color-error);
   background: var(--color-surface);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   display: flex;
   align-items: center;
   gap: 4px;
