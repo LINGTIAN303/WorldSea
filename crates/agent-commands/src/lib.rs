@@ -16,7 +16,7 @@ pub use loop_control::{
     LoopControlStatus,
 };
 pub use mock_backend::{MockBackend, thinking_level_to_str};
-pub use session_store::{SessionRecord, SessionRepository, SqliteSessionRepository};
+pub use session_store::{SessionKind, SessionRecord, SessionRepository, SqliteSessionRepository};
 pub use subagent::{register_subagent_tools, SubAgentInstanceInfo, SubAgentManager};
 pub use subagent_store::{SqliteSubAgentSpecStore, SubAgentSpecStore};
 pub use terminal::{register_terminal_tools, TerminalService};
@@ -56,6 +56,18 @@ pub struct SessionInfo {
     pub title: String,
     /// 是否固定到列表顶部
     pub pinned: bool,
+    /// 会话类型（chat/group，缺省 chat；group 为群聊参与者会话）
+    #[serde(default)]
+    pub kind: SessionKind,
+}
+
+/// 群聊参与者会话信息（映射查询结果）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GroupParticipantSessionInfo {
+    /// 群聊内参与者 id（与前端 GroupParticipant.id 对应）
+    pub participant_id: String,
+    /// 该参与者对应的 Rust 会话 id
+    pub session_id: String,
 }
 
 /// 发送消息参数
@@ -402,6 +414,17 @@ impl AgentCommandService {
         system_prompt: Option<String>,
         provider_config: Option<RuntimeProviderConfig>,
     ) -> Result<SessionInfo, CommandError> {
+        self.new_session_with_kind(system_prompt, provider_config, SessionKind::Chat)
+            .await
+    }
+
+    /// 建会话（内部版，可指定 kind）：生成会话 ID、构造 AgentLoop、注册内存表、写穿持久化
+    async fn new_session_with_kind(
+        &self,
+        system_prompt: Option<String>,
+        provider_config: Option<RuntimeProviderConfig>,
+        kind: SessionKind,
+    ) -> Result<SessionInfo, CommandError> {
         // 先生成会话 ID，作为记忆隔离依据传入 new_agent（构造 MemoryCenterAccessor）
         let id = uuid::Uuid::new_v4().to_string();
         // new_agent 会 move system_prompt，先克隆一份供后续持久化使用
@@ -413,6 +436,7 @@ impl AgentCommandService {
             message_count: 0,
             title: "新会话".into(),
             pinned: false,
+            kind,
         };
         self.sessions.lock().await.insert(id.clone(), agent);
         self.subagent_managers
@@ -430,6 +454,7 @@ impl AgentCommandService {
                 updated_at: info.created_at,
                 title: "新会话".into(),
                 pinned: false,
+                kind,
             };
             if let Err(e) = store.save_session(&record).await {
                 tracing::warn!("持久化新会话失败（仅内存生效）: {e}");
@@ -448,10 +473,16 @@ impl AgentCommandService {
             .ok_or_else(|| CommandError::session_not_found(session_id))
     }
 
-    /// 会话列表
-    pub async fn list_sessions(&self) -> Result<Vec<SessionInfo>, CommandError> {
+    /// 会话列表（默认只返回单聊会话；群聊参与者会话走 [`Self::list_group_session_participants`] 按群聊查询）
+    ///
+    /// `kind` 为 `Some` 时按类型过滤（`Some(Chat)` 供单聊侧边栏避免污染）。
+    pub async fn list_sessions(&self, kind: Option<SessionKind>) -> Result<Vec<SessionInfo>, CommandError> {
         let meta = self.meta.lock().await;
-        let mut list: Vec<SessionInfo> = meta.values().cloned().collect();
+        let mut list: Vec<SessionInfo> = meta
+            .values()
+            .filter(|s| kind.map_or(true, |k| s.kind == k))
+            .cloned()
+            .collect();
         list.sort_by_key(|s| s.created_at);
         Ok(list)
     }
@@ -494,12 +525,76 @@ impl AgentCommandService {
                 message_count: record.message_count,
                 title: record.title.clone(),
                 pinned: record.pinned,
+                kind: record.kind,
             };
             self.meta.lock().await.insert(record.id.clone(), info.clone());
             restored.push(info);
         }
         restored.sort_by_key(|s| s.created_at);
         Ok(restored)
+    }
+
+    /// 创建群聊参与者会话（kind='group' + 写 participantId↔sessionId 映射）
+    ///
+    /// 供前端 `createRustGroupChatBackend` 在群聊场景调用：建独立 AgentLoop 会话，
+    /// 并持久化 `group_id → participant_id → session_id` 映射，重启后可按群聊恢复。
+    /// 模型热切换由前端创建后经 `update_model` 完成（与单聊路径一致），此处不重复。
+    pub async fn create_group_session_participant(
+        &self,
+        group_id: &str,
+        participant_id: &str,
+        system_prompt: Option<String>,
+        provider_config: Option<RuntimeProviderConfig>,
+    ) -> Result<GroupParticipantSessionInfo, CommandError> {
+        let info = self
+            .new_session_with_kind(system_prompt, provider_config, SessionKind::Group)
+            .await?;
+        // 写映射（持久化；失败弱提示——会话仍可用，仅重启后无法恢复定位）
+        if let Some(store) = &self.session_store {
+            if let Err(e) = store
+                .save_group_participant(group_id, participant_id, &info.id)
+                .await
+            {
+                tracing::warn!("持久化群聊参与者会话映射失败: {e}");
+            }
+        }
+        Ok(GroupParticipantSessionInfo {
+            participant_id: participant_id.to_string(),
+            session_id: info.id,
+        })
+    }
+
+    /// 按群聊 id 查询参与者会话映射（重启后恢复群聊用）
+    pub async fn list_group_session_participants(
+        &self,
+        group_id: &str,
+    ) -> Result<Vec<GroupParticipantSessionInfo>, CommandError> {
+        let store = match &self.session_store {
+            Some(s) => s.clone(),
+            None => return Ok(Vec::new()),
+        };
+        let rows = store.load_group_participants(group_id).await?;
+        Ok(rows
+            .into_iter()
+            .map(|(participant_id, session_id)| GroupParticipantSessionInfo {
+                participant_id,
+                session_id,
+            })
+            .collect())
+    }
+
+    /// 删除群聊全部参与者会话（级联：逐会话删除 + 清映射行）
+    pub async fn delete_group_session_participants(&self, group_id: &str) -> Result<(), CommandError> {
+        let store = match &self.session_store {
+            Some(s) => s.clone(),
+            None => return Ok(()),
+        };
+        let rows = store.load_group_participants(group_id).await?;
+        for (_, session_id) in rows {
+            self.delete_session(&session_id).await?;
+        }
+        store.delete_group_participants(group_id).await?;
+        Ok(())
     }
 
     /// 删除会话

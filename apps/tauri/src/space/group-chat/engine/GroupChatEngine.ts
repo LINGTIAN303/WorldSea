@@ -1,6 +1,6 @@
 import type { IAgentBackend, AgentEvent, AgentMessage, ProviderConfig, IToolContext, CloudProvider, ProviderSlot } from '@agent/index'
 import { loadApiKey, buildSharedBaseLayer } from '@agent/index'
-import { createRustGroupChatBackend } from '../rust/RustGroupChatBackend'
+import { createOrAttachRustGroupChatBackend } from '../rust/RustGroupChatBackend'
 import { useFontLibraryStore } from '@/stores/fontLibraryStore'
 import type { GroupMember, GroupChatMessage, GroupChatCostTracker, StreamingAgentState, ContextStrategy, RequestRecord, RequestTrackerSnapshot } from '../types'
 import type { IGroupChatEngine } from './IGroupChatEngine'
@@ -68,6 +68,9 @@ export class GroupChatEngine implements IGroupChatEngine {
   private moderatorProviderConfig: ProviderConfig | null = null
   private moderatorToolContext: IToolContext | null = null
 
+  // 群聊会话 id（Dexie session.id / GroupInfo.id），参与者会话持久化映射用
+  private groupId: string | null = null
+
   constructor(strategy: IChatStrategy, budgetMaxCostUsd: number = 1.0, contextWindow: number = 32768) {
     this.strategy = strategy
     this.costTracker = new CostTrackerImpl({ maxCostUsd: budgetMaxCostUsd, warnAtPercent: 80 }, '')
@@ -82,13 +85,14 @@ export class GroupChatEngine implements IGroupChatEngine {
     this.providerPool = new ProviderPool()
   }
 
-  async createAgents(participants: GroupMember[], providerConfig: ProviderConfig, toolContext: IToolContext): Promise<void> {
+  async createAgents(participants: GroupMember[], providerConfig: ProviderConfig, toolContext: IToolContext, groupId?: string): Promise<void> {
     this.agents.clear()
     this.participantApiKeys = {}
     this.agentModelMap = {}
     this.agentProfiles.clear()
     this.agentProviderMap = {}
     this.members = participants
+    this.groupId = groupId || null
 
     // 保存 Moderator 配置
     this.moderatorProviderConfig = providerConfig
@@ -162,9 +166,10 @@ export class GroupChatEngine implements IGroupChatEngine {
         resolvedProviderConfig = p.providerConfig || providerConfig
       }
 
-      const agent = await createRustGroupChatBackend({
+      const agent = await createOrAttachRustGroupChatBackend({
         participantId: p.id,
         name: p.name,
+        groupId: this.groupId || undefined,
         systemPrompt: groupSystemPrompt,
         providerConfig: resolvedProviderConfig as any,
         modelId: p.modelId || providerConfig.modelId || '',
@@ -241,9 +246,10 @@ export class GroupChatEngine implements IGroupChatEngine {
 
     try {
       // Moderator 是真正的 Agent，拥有完整的工具和对话能力
-      this.moderatorAgent = await createRustGroupChatBackend({
+      this.moderatorAgent = await createOrAttachRustGroupChatBackend({
         participantId: 'moderator',
         name: 'Moderator',
+        groupId: this.groupId || undefined,
         systemPrompt: '你是群聊主持人（Moderator），负责总结讨论并做出决策。',
         providerConfig: this.moderatorProviderConfig as any,
       })

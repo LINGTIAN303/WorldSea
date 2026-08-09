@@ -69,6 +69,7 @@ import { useGroupChatStore } from '../GroupChatStore'
 import { useAgentRegistryStore } from '../management/AgentRegistryStore'
 import { useSpaceStore } from '@/space/stores/space-store'
 import { getAllGroupSessions, getGroupSession, getCasualGroupSession, deleteGroupSession, deleteCasualGroupSession } from '../GroupSessionManager'
+import { deleteGroupParticipantSessions } from '../rust/RustGroupChatBackend'
 import type { GroupChatMode } from '../types'
 import CreateGroupDialog, { type AgentItem, type CreateGroupData } from './CreateGroupDialog.vue'
 import { WsIcon } from '@worldsmith/ui-kit'
@@ -150,6 +151,8 @@ async function confirmDeleteGroup(): Promise<void> {
   const group = groupStore.groups.find(g => g.id === id)
   const mode = group?.mode
   deleteConfirmGroupId.value = null
+  // 级联清理该群聊的参与者 Rust 会话（先清 Rust 再删 Dexie，保证不残留孤儿）
+  await deleteGroupParticipantSessions(id)
   if (mode === 'casual') {
     await deleteCasualGroupSession(id)
   } else {

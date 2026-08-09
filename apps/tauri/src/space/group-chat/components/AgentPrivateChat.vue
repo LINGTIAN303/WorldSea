@@ -118,7 +118,7 @@ import { getToolLabel as getSharedToolLabel } from '../types'
 import { useAgent } from '@/agent/composables/useAgent'
 import type { AgentEvent, IAgentBackend } from '@agent/index'
 import { buildSharedBaseLayer } from '@agent/index'
-import { createRustGroupChatBackend } from '../rust/RustGroupChatBackend'
+import { createOrAttachRustGroupChatBackend } from '../rust/RustGroupChatBackend'
 import { useFontLibraryStore } from '@/stores/fontLibraryStore'
 import { getModelInfo } from '@worldsmith/agent-runtime'
 import { WsIcon } from '@worldsmith/ui-kit'
@@ -142,6 +142,8 @@ interface PrivateChatMessage {
 
 const props = defineProps<{
   member: GroupMember
+  /** 群聊会话 id（私聊参与者会话持久化映射用，避免污染单聊侧边栏） */
+  groupId?: string
 }>()
 
 defineEmits<{ close: [] }>()
@@ -238,9 +240,10 @@ async function ensureBackend(): Promise<boolean> {
 
   const systemPrompt = buildPrivateChatSystemPrompt()
 
-  backend = await createRustGroupChatBackend({
+  backend = await createOrAttachRustGroupChatBackend({
     participantId: `private-${props.member.id}`,
     name: props.member.name,
+    groupId: props.groupId,
     systemPrompt,
     providerConfig: providerConfig as any,
     modelId: props.member.modelId,

@@ -96,7 +96,7 @@
     <Teleport to="body">
       <Transition name="private-slide">
         <div v-if="privateChatAgent" class="private-chat-overlay">
-          <AgentPrivateChat :member="privateChatAgent" @close="privateChatAgent = null" />
+          <AgentPrivateChat :member="privateChatAgent" :group-id="store.groupInfo?.id" @close="privateChatAgent = null" />
         </div>
       </Transition>
     </Teleport>

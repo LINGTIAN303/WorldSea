@@ -195,12 +195,15 @@ pub async fn new_session(
         .map_err(|e| e.to_string())
 }
 
-/// 会话列表
+/// 会话列表（默认只返回单聊会话，群聊参与者会话不在此列）
 #[tauri::command]
 pub async fn list_sessions(
     state: State<'_, AgentCommandService>,
 ) -> Result<Vec<agent_commands::SessionInfo>, String> {
-    state.list_sessions().await.map_err(|e| e.to_string())
+    state
+        .list_sessions(Some(agent_commands::SessionKind::Chat))
+        .await
+        .map_err(|e| e.to_string())
 }
 
 /// 删除会话
@@ -234,6 +237,45 @@ pub async fn set_session_pinned(
 ) -> Result<(), String> {
     state
         .set_session_pinned(&session_id, pinned)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 创建群聊参与者会话（kind='group' + 写 participantId↔sessionId 映射）
+#[tauri::command]
+pub async fn create_group_session_participant(
+    state: State<'_, AgentCommandService>,
+    group_id: String,
+    participant_id: String,
+    system_prompt: Option<String>,
+    provider_config: Option<ProviderConfig>,
+) -> Result<agent_commands::GroupParticipantSessionInfo, String> {
+    state
+        .create_group_session_participant(&group_id, &participant_id, system_prompt, provider_config)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 按群聊 id 查询参与者会话映射（重启后恢复群聊用）
+#[tauri::command]
+pub async fn list_group_session_participants(
+    state: State<'_, AgentCommandService>,
+    group_id: String,
+) -> Result<Vec<agent_commands::GroupParticipantSessionInfo>, String> {
+    state
+        .list_group_session_participants(&group_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 删除群聊全部参与者会话（级联：逐会话删除 + 清映射行）
+#[tauri::command]
+pub async fn delete_group_session_participants(
+    state: State<'_, AgentCommandService>,
+    group_id: String,
+) -> Result<(), String> {
+    state
+        .delete_group_session_participants(&group_id)
         .await
         .map_err(|e| e.to_string())
 }

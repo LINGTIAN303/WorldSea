@@ -75,10 +75,10 @@
     async fn list_and_delete_session() {
         let svc = AgentCommandService::new();
         let info = svc.new_session(None, None).await.unwrap();
-        let list = svc.list_sessions().await.unwrap();
+        let list = svc.list_sessions(None).await.unwrap();
         assert_eq!(list.len(), 1);
         svc.delete_session(&info.id).await.unwrap();
-        assert!(svc.list_sessions().await.unwrap().is_empty());
+        assert!(svc.list_sessions(None).await.unwrap().is_empty());
     }
 
     #[tokio::test]

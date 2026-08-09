@@ -8,10 +8,25 @@ use sqlx::SqlitePool;
 
 use crate::CommandError;
 
+/// 会话类型：chat=单聊（默认），group=群聊参与者
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SessionKind {
+    Chat,
+    Group,
+}
+
+impl Default for SessionKind {
+    fn default() -> Self {
+        SessionKind::Chat
+    }
+}
+
 /// 会话头记录（列表项 + 重建 AgentLoop 所需）
 ///
 /// `system_prompt` 单独落列，便于启动时按原样重建 AgentLoop 配置；
 /// 具体消息内容走 [`messages`] 表，经 [`SessionRepository::load_messages`] 恢复。
+/// `kind` 区分单聊/群聊参与者会话（群聊侧边栏过滤与恢复定位用，缺省 chat）。
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SessionRecord {
     pub id: String,
@@ -23,6 +38,9 @@ pub struct SessionRecord {
     pub title: String,
     /// 是否固定到列表顶部
     pub pinned: bool,
+    /// 会话类型（chat/group，缺省 chat）
+    #[serde(default)]
+    pub kind: SessionKind,
 }
 
 /// 会话持久化存储抽象
@@ -49,6 +67,19 @@ pub trait SessionRepository: Send + Sync {
     async fn update_title(&self, session_id: &str, title: &str) -> Result<(), CommandError>;
     /// 设置会话固定状态（写穿）
     async fn set_pinned(&self, session_id: &str, pinned: bool) -> Result<(), CommandError>;
+    /// 保存群聊参与者会话映射（写穿；group_id+participant_id 走 upsert）
+    async fn save_group_participant(
+        &self,
+        group_id: &str,
+        participant_id: &str,
+        session_id: &str,
+    ) -> Result<(), CommandError>;
+    /// 按群聊 id 加载参与者会话映射（返回 (participant_id, session_id)）
+    async fn load_group_participants(&self, group_id: &str) -> Result<Vec<(String, String)>, CommandError>;
+    /// 删除群聊全部参与者会话映射（级联；session 行由 delete_session 处理）
+    async fn delete_group_participants(&self, group_id: &str) -> Result<(), CommandError>;
+    /// 按会话类型加载会话头（list_sessions 过滤用）
+    async fn load_sessions_by_kind(&self, kind: SessionKind) -> Result<Vec<SessionRecord>, CommandError>;
 }
 
 /// SQLite 实现：`sessions` 表存会话头，`messages` 表按会话存消息 JSON 行
@@ -112,6 +143,10 @@ impl SqliteSessionRepository {
         let _ = sqlx::query("ALTER TABLE sessions ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0")
             .execute(pool)
             .await;
+        // 迁移：会话类型列（chat/group），旧库全为单聊补默认 chat
+        let _ = sqlx::query("ALTER TABLE sessions ADD COLUMN kind TEXT NOT NULL DEFAULT 'chat'")
+            .execute(pool)
+            .await;
 
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS messages (
@@ -125,6 +160,21 @@ impl SqliteSessionRepository {
         .execute(pool)
         .await
         .map_err(|e| CommandError::Internal(format!("初始化会话消息表失败: {e}")))?;
+
+        // 群聊参与者会话映射表：group_id + participant_id → rust_session_id
+        // （session 行删除时级联清理映射，保证不残留孤儿关联）
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS group_chat_sessions (
+                group_id        TEXT NOT NULL,
+                participant_id  TEXT NOT NULL,
+                session_id      TEXT NOT NULL,
+                PRIMARY KEY (group_id, participant_id),
+                FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+            )",
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| CommandError::Internal(format!("初始化群聊参与者会话表失败: {e}")))?;
         Ok(())
     }
 }
@@ -133,11 +183,11 @@ impl SqliteSessionRepository {
 impl SessionRepository for SqliteSessionRepository {
     async fn save_session(&self, record: &SessionRecord) -> Result<(), CommandError> {
         sqlx::query(
-            "INSERT INTO sessions (id, system_prompt, created_at, message_count, updated_at, title, pinned)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+            "INSERT INTO sessions (id, system_prompt, created_at, message_count, updated_at, title, pinned, kind)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
              ON CONFLICT(id) DO UPDATE SET
                 system_prompt = ?2, created_at = ?3, message_count = ?4, updated_at = ?5,
-                title = ?6, pinned = ?7",
+                title = ?6, pinned = ?7, kind = ?8",
         )
         .bind(&record.id)
         .bind(&record.system_prompt)
@@ -146,6 +196,7 @@ impl SessionRepository for SqliteSessionRepository {
         .bind(record.updated_at as i64)
         .bind(&record.title)
         .bind(record.pinned as i64)
+        .bind(kind_to_str(record.kind))
         .execute(&self.pool)
         .await
         .map_err(|e| CommandError::Internal(format!("写入会话失败: {e}")))?;
@@ -153,23 +204,27 @@ impl SessionRepository for SqliteSessionRepository {
     }
 
     async fn load_sessions(&self) -> Result<Vec<SessionRecord>, CommandError> {
-        let rows: Vec<(String, String, i64, i64, i64, String, i64)> =
-            sqlx::query_as("SELECT id, system_prompt, created_at, message_count, updated_at, title, pinned FROM sessions")
-                .fetch_all(&self.pool)
-                .await
-                .map_err(|e| CommandError::Internal(format!("读取会话列表失败: {e}")))?;
+        let rows: Vec<(String, String, i64, i64, i64, String, i64, String)> = sqlx::query_as(
+            "SELECT id, system_prompt, created_at, message_count, updated_at, title, pinned, kind FROM sessions",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| CommandError::Internal(format!("读取会话列表失败: {e}")))?;
         Ok(rows
             .into_iter()
-            .map(|(id, system_prompt, created_at, message_count, updated_at, title, pinned)| SessionRecord {
-                id,
-                system_prompt,
-                created_at: created_at as u64,
-                message_count: message_count as u32,
-                updated_at: updated_at as u64,
-                title,
-                pinned: pinned != 0,
-            })
+            .map(record_from_row)
             .collect())
+    }
+
+    async fn load_sessions_by_kind(&self, kind: SessionKind) -> Result<Vec<SessionRecord>, CommandError> {
+        let rows: Vec<(String, String, i64, i64, i64, String, i64, String)> = sqlx::query_as(
+            "SELECT id, system_prompt, created_at, message_count, updated_at, title, pinned, kind FROM sessions WHERE kind = ?1",
+        )
+        .bind(kind_to_str(kind))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| CommandError::Internal(format!("按类型读取会话列表失败: {e}")))?;
+        Ok(rows.into_iter().map(record_from_row).collect())
     }
 
     async fn replace_messages(
@@ -257,6 +312,82 @@ impl SessionRepository for SqliteSessionRepository {
             .map_err(|e| CommandError::Internal(format!("更新会话固定状态失败: {e}")))?;
         Ok(())
     }
+
+    async fn save_group_participant(
+        &self,
+        group_id: &str,
+        participant_id: &str,
+        session_id: &str,
+    ) -> Result<(), CommandError> {
+        sqlx::query(
+            "INSERT INTO group_chat_sessions (group_id, participant_id, session_id)
+             VALUES (?1, ?2, ?3)
+             ON CONFLICT(group_id, participant_id) DO UPDATE SET session_id = ?3",
+        )
+        .bind(group_id)
+        .bind(participant_id)
+        .bind(session_id)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| CommandError::Internal(format!("写入群聊参与者会话映射失败: {e}")))?;
+        Ok(())
+    }
+
+    async fn load_group_participants(&self, group_id: &str) -> Result<Vec<(String, String)>, CommandError> {
+        let rows: Vec<(String, String)> = sqlx::query_as(
+            "SELECT participant_id, session_id FROM group_chat_sessions WHERE group_id = ?1",
+        )
+        .bind(group_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| CommandError::Internal(format!("读取群聊参与者会话映射失败: {e}")))?;
+        Ok(rows)
+    }
+
+    async fn delete_group_participants(&self, group_id: &str) -> Result<(), CommandError> {
+        sqlx::query("DELETE FROM group_chat_sessions WHERE group_id = ?1")
+            .bind(group_id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| CommandError::Internal(format!("删除群聊参与者会话映射失败: {e}")))?;
+        Ok(())
+    }
+}
+
+/// kind 枚举 → SQL 存储字符串（与 sessions.kind 列 TEXT 一致）
+fn kind_to_str(kind: SessionKind) -> &'static str {
+    match kind {
+        SessionKind::Chat => "chat",
+        SessionKind::Group => "group",
+    }
+}
+
+/// SQL 行 → SessionRecord（kind 列转枚举，未知值回退 chat）
+fn record_from_row(
+    (id, system_prompt, created_at, message_count, updated_at, title, pinned, kind): (
+        String,
+        String,
+        i64,
+        i64,
+        i64,
+        String,
+        i64,
+        String,
+    ),
+) -> SessionRecord {
+    SessionRecord {
+        id,
+        system_prompt,
+        created_at: created_at as u64,
+        message_count: message_count as u32,
+        updated_at: updated_at as u64,
+        title,
+        pinned: pinned != 0,
+        kind: match kind.as_str() {
+            "group" => SessionKind::Group,
+            _ => SessionKind::Chat,
+        },
+    }
 }
 
 #[cfg(test)]
@@ -283,6 +414,7 @@ mod tests {
             updated_at: 100,
             title: "新会话".into(),
             pinned: false,
+            kind: SessionKind::Chat,
         }
     }
 
@@ -362,5 +494,74 @@ mod tests {
         let all = store.load_sessions().await.unwrap();
         assert_eq!(all.len(), 1, "重启后应能加载已持久化的会话");
         assert_eq!(store.load_messages("s1").await.unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn kind_roundtrip_and_filter() {
+        let store = SqliteSessionRepository::new_in_memory().await.unwrap();
+
+        // 单聊会话（kind 缺省 chat）
+        let mut chat = record("chat1", 0);
+        chat.kind = SessionKind::Chat;
+        store.save_session(&chat).await.unwrap();
+        // 群聊参与者会话（kind = group）
+        let mut group = record("group1", 0);
+        group.kind = SessionKind::Group;
+        store.save_session(&group).await.unwrap();
+
+        // 全量加载保留 kind
+        let all = store.load_sessions().await.unwrap();
+        assert_eq!(all.len(), 2);
+        assert!(all.iter().any(|r| r.id == "group1" && r.kind == SessionKind::Group));
+        assert!(all.iter().any(|r| r.id == "chat1" && r.kind == SessionKind::Chat));
+
+        // 按 kind 过滤
+        let chats = store.load_sessions_by_kind(SessionKind::Chat).await.unwrap();
+        assert_eq!(chats.len(), 1);
+        assert_eq!(chats[0].id, "chat1");
+        let groups = store.load_sessions_by_kind(SessionKind::Group).await.unwrap();
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].id, "group1");
+    }
+
+    #[tokio::test]
+    async fn group_participant_mapping_roundtrip_and_cascade() {
+        let store = SqliteSessionRepository::new_in_memory().await.unwrap();
+        let mut g1 = record("g1", 0);
+        g1.kind = SessionKind::Group;
+        let mut g2 = record("g2", 0);
+        g2.kind = SessionKind::Group;
+        store.save_session(&g1).await.unwrap();
+        store.save_session(&g2).await.unwrap();
+
+        store.save_group_participant("grp-a", "p1", "g1").await.unwrap();
+        store.save_group_participant("grp-a", "p2", "g2").await.unwrap();
+        store.save_group_participant("grp-b", "p1", "g1").await.unwrap();
+
+        let a = store.load_group_participants("grp-a").await.unwrap();
+        assert_eq!(a.len(), 2);
+        assert!(a.contains(&("p1".to_string(), "g1".to_string())));
+        assert!(a.contains(&("p2".to_string(), "g2".to_string())));
+
+        // upsert：同 group_id+participant_id 覆盖
+        let mut g3 = record("g3", 0);
+        g3.kind = SessionKind::Group;
+        store.save_session(&g3).await.unwrap();
+        store.save_group_participant("grp-a", "p1", "g3").await.unwrap();
+        let a = store.load_group_participants("grp-a").await.unwrap();
+        assert_eq!(a.len(), 2);
+        assert!(a.contains(&("p1".to_string(), "g3".to_string())));
+
+        // 删除会话行 → 映射级联清理（外键 ON DELETE CASCADE）
+        store.delete_session("g3").await.unwrap();
+        let a = store.load_group_participants("grp-a").await.unwrap();
+        assert!(!a.iter().any(|(_, sid)| sid == "g3"), "删除会话后映射应级联清理");
+
+        // delete_group_participants 清空某群聊全部映射
+        store.delete_group_participants("grp-a").await.unwrap();
+        let a = store.load_group_participants("grp-a").await.unwrap();
+        assert!(a.is_empty());
+        let b = store.load_group_participants("grp-b").await.unwrap();
+        assert_eq!(b.len(), 1, "grp-b 映射不受影响");
     }
 }

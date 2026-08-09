@@ -1,6 +1,6 @@
 import type { IAgentBackend, AgentEvent, AgentMessage } from '@agent/index'
 import { loadApiKey } from '@agent/index'
-import { createRustGroupChatBackend } from './rust/RustGroupChatBackend'
+import { createOrAttachRustGroupChatBackend } from './rust/RustGroupChatBackend'
 import { buildContextInjection } from '@agent/context/builder'
 import type { GroupChatConfig, GroupParticipant, GroupChatBudget } from './types'
 import { DEFAULT_GROUP_CHAT_CONFIG, DEFAULT_GROUP_CHAT_BUDGET } from './types'
@@ -161,9 +161,10 @@ export class GroupChatCoordinator {
 
     for (const p of participants) {
       console.log('[GroupChatCoordinator] Creating agent for:', p.name, 'modelId:', p.modelId, 'provider:', (p.providerConfig as any)?.provider)
-      const agent = await createRustGroupChatBackend({
+      const agent = await createOrAttachRustGroupChatBackend({
         participantId: p.id,
         name: p.name,
+        groupId: store.currentSessionId || undefined,
         systemPrompt: p.systemPrompt || buildParticipantSystemPrompt(p, topic),
         providerConfig: (p.providerConfig as any) || providerConfig,
         modelId: p.modelId || providerConfig.modelId || '',

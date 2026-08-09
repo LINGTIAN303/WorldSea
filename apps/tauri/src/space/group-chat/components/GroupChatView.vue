@@ -273,6 +273,27 @@ async function onCreateGroup(data: CreateGroupData): Promise<void> {
 
 async function onSelectGroup(payload: { id: string; mode: GroupChatMode }): Promise<void> {
   store.setGroupMode(payload.mode)
+
+  // meeting 模式恢复：从列表点进旧会话（loadSession 已填 store，state='completed'），
+  // 重建 coordinator 并 start——createOrAttach 会按持久化映射 attach 复用既有 Rust 会话（历史上下文延续），
+  // 实现「可继续发言」。casual 模式由 CasualChatView 惰性 ensureEngine（已传 groupInfo.id）覆盖。
+  if (payload.mode === 'meeting' && store.state === 'completed' && store.currentSessionId && store.participants.length > 0) {
+    const ok = await ensureInitialized()
+    if (!ok) return
+    const providerConfig = getProviderConfig()
+    const toolContext = getToolContext()
+    if (!providerConfig || !toolContext) return
+
+    coordinator?.dispose()
+    coordinator = new GroupChatCoordinator(
+      { maxRounds: store.config.maxRounds, parallelCount: store.config.parallelCount, autoDegradation: store.config.autoDegradation },
+      { maxCostUsd: store.budget.maxCostUsd },
+    )
+    coordinator.onRoundEnd = () => { saveCurrentSession() }
+    coordinator.onComplete = () => { saveCurrentSession() }
+    // groupId 由 coordinator 内部从 store.currentSessionId 取（createOrAttach 持久化映射）
+    await coordinator.start(store.topic, store.participants, providerConfig, toolContext)
+  }
 }
 
 function onStripToggle(panel: PanelType): void {

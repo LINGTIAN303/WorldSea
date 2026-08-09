@@ -484,7 +484,7 @@ export function useCasualChatEngine(options?: CasualChatEngineOptions) {
       }
 
       if (store.groupMembers.length > 0) {
-        await eng.createAgents(store.groupMembers, providerConfig, toolContext)
+        await eng.createAgents(store.groupMembers, providerConfig, toolContext, store.groupInfo?.id)
         store.setOnlineBatch(store.groupMembers.map(m => m.id))
 
         for (const m of store.groupMembers) {

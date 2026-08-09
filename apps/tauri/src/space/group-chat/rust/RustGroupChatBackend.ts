@@ -40,6 +40,18 @@ interface RustSessionInfo {
   pinned: boolean
 }
 
+/** create_group_session_participant 命令返回（映射查询结果） */
+interface RustGroupParticipantResult {
+  participant_id: string
+  session_id: string
+}
+
+/** list_group_session_participants 命令返回 */
+interface RustGroupParticipantListResult {
+  participant_id: string
+  session_id: string
+}
+
 interface RustSendMessageResult {
   session_id: string
   reply: string
@@ -74,6 +86,8 @@ export interface RustGroupChatParticipantOptions {
   participantId: string
   /** 参与者名称（仅日志） */
   name: string
+  /** 群聊会话 id（Dexie GroupSession.id）。传入时走 create_group_session_participant 命令写持久化映射；不传则纯临时会话 */
+  groupId?: string
   /** 独立系统提示词（参与者人格） */
   systemPrompt?: string
   /** 全局 Provider 配置（参与者未配时回退） */
@@ -99,12 +113,80 @@ function normalizeProviderConfig(cfg?: RustProviderConfigInput): RustProviderCon
  * 创建群聊参与者的 Rust 后端（实现 IAgentBackend）
  *
  * 生命周期：
- * - 创建：invoke('new_session', { systemPrompt, providerConfig }) → rustSessionId
+ * - 创建：invoke('new_session' / 'create_group_session_participant') → rustSessionId
  * - 发言：invoke('send_message', { params: { sessionId, text } }) → { reply, usage, state }
  * - 流式：listen('agent:event:stream:' + sessionId) → 逐 delta 转 message_update
  * - 销毁：dispose() → delete_session + unlisten + 清映射
+ *
+ * groupId 传入时走持久化路径（create_group_session_participant，写 group_id↔participantId↔sessionId 映射）；
+ * 不传则纯临时会话（new_session，kind='chat'）。
  */
 export async function createRustGroupChatBackend(
+  options: RustGroupChatParticipantOptions,
+): Promise<IAgentBackend> {
+  // ── 创建 Rust 会话 ──────────────────────────────────────────────
+  // 群聊持久化路径：走 create_group_session_participant（kind='group' + 写映射），
+  // 单聊/临时路径：new_session（kind='chat'，不写映射）
+  const sessionInfo = options.groupId
+    ? await invoke<RustGroupParticipantResult>('create_group_session_participant', {
+        groupId: options.groupId,
+        participantId: options.participantId,
+        systemPrompt: options.systemPrompt ?? null,
+        providerConfig: normalizeProviderConfig(options.providerConfig),
+      })
+    : await invoke<RustSessionInfo>('new_session', {
+        systemPrompt: options.systemPrompt ?? null,
+        providerConfig: normalizeProviderConfig(options.providerConfig),
+      })
+  const sessionId = options.groupId ? (sessionInfo as RustGroupParticipantResult).session_id : (sessionInfo as RustSessionInfo).id
+  // 持久化群聊会话（有 groupId）dispose 时不删会话——映射已写库，删了会导致恢复后 attach 到已删会话；
+  // 统一由 deleteGroupParticipantSessions（删除群聊时）级联清理。临时会话（无 groupId）dispose 即删。
+  const cleanupOnDispose = options.cleanupOnDispose ?? (options.groupId ? false : true)
+  return buildBackend(sessionId, { ...options, cleanupOnDispose })
+}
+
+/**
+ * 创建或恢复群聊参与者的 Rust 后端（推荐入口）
+ *
+ * - 有 groupId 且持久化映射中已存在该 participantId 的会话 → attach 复用（重启后恢复路径，历史上下文延续）
+ * - 否则 → 创建新会话（写映射）
+ * 查询失败降级为新建（不阻塞发言）。
+ */
+export async function createOrAttachRustGroupChatBackend(
+  options: RustGroupChatParticipantOptions,
+): Promise<IAgentBackend> {
+  if (options.groupId) {
+    try {
+      const mappings = await listGroupParticipantSessions(options.groupId)
+      const hit = mappings.find((m) => m.participantId === options.participantId)
+      if (hit) {
+        return await attachRustGroupChatBackend(hit.sessionId, options)
+      }
+    } catch (err) {
+      console.warn(`[RustGroupChatBackend] 查询群聊映射失败，降级新建 (${options.groupId}):`, err)
+    }
+  }
+  return createRustGroupChatBackend(options)
+}
+
+/**
+ * 恢复群聊参与者的 Rust 后端（attach 模式，重启恢复用）
+ *
+ * 不创建新会话：直接复用持久化映射中已存在的 rustSessionId（restore_sessions 已重建 AgentLoop），
+ * 仅注册流式监听与内存映射。dispose 默认不删会话（cleanupOnDispose=false），
+ * 会话清理统一走 delete_group_session_participants（删除群聊时级联）。
+ */
+export async function attachRustGroupChatBackend(
+  sessionId: string,
+  options: Pick<RustGroupChatParticipantOptions, 'participantId' | 'name'> &
+    Partial<RustGroupChatParticipantOptions>,
+): Promise<IAgentBackend> {
+  return buildBackend(sessionId, { ...options, cleanupOnDispose: options.cleanupOnDispose ?? false })
+}
+
+/** 核心构造：给定既有 rustSessionId，注册流式监听 + 构建 IAgentBackend（create/attach 共用） */
+async function buildBackend(
+  sessionId: string,
   options: RustGroupChatParticipantOptions,
 ): Promise<IAgentBackend> {
   let disposed = false
@@ -117,7 +199,7 @@ export async function createRustGroupChatBackend(
       }
     : null
   let state: AgentStateSnapshot = {
-    sessionId: '',
+    sessionId,
     model: initialModel,
     thinkingLevel: 'off' as ThinkingLevel,
     messages: [],
@@ -125,15 +207,6 @@ export async function createRustGroupChatBackend(
     pendingToolCalls: [],
   }
   let cleanup: UnlistenFn | null = null
-
-  // ── 创建 Rust 会话 ──────────────────────────────────────────────
-  const sessionInfo = await invoke<RustSessionInfo>('new_session', {
-    systemPrompt: options.systemPrompt ?? null,
-    providerConfig: normalizeProviderConfig(options.providerConfig),
-  })
-  const sessionId = sessionInfo.id
-  state = { ...state, sessionId }
-  participantSessionMap.set(options.participantId, sessionId)
 
   // ── 注册流式监听（独立实现：delta → message_update 转发）───────────
   cleanup = await listen<RustStreamPayload>(`agent:event:stream:${sessionId}`, (event) => {
@@ -159,6 +232,7 @@ export async function createRustGroupChatBackend(
     }
   })
   listenerCleanupMap.set(options.participantId, cleanup)
+  participantSessionMap.set(options.participantId, sessionId)
 
   // 创建后热切换模型（participant.modelId 与全局不同时）
   if (options.modelId) {
@@ -337,4 +411,21 @@ export async function createRustGroupChatBackend(
 /** 查询某参与者的 Rust 会话 id（调试/诊断用） */
 export function getRustSessionId(participantId: string): string | undefined {
   return participantSessionMap.get(participantId)
+}
+
+/** 查询群聊全部参与者的 Rust 会话映射（重启恢复用，走 list_group_session_participants 命令） */
+export async function listGroupParticipantSessions(
+  groupId: string,
+): Promise<Array<{ participantId: string; sessionId: string }>> {
+  const rows = await invoke<RustGroupParticipantListResult[]>('list_group_session_participants', {
+    groupId,
+  })
+  return (rows || []).map((r) => ({ participantId: r.participant_id, sessionId: r.session_id }))
+}
+
+/** 级联删除群聊全部参与者 Rust 会话（删除群聊时调用，走 delete_group_session_participants 命令） */
+export async function deleteGroupParticipantSessions(groupId: string): Promise<void> {
+  await invoke('delete_group_session_participants', { groupId }).catch((err) =>
+    console.warn(`[RustGroupChatBackend] delete_group_session_participants 失败 (${groupId}):`, err),
+  )
 }
