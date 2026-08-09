@@ -190,11 +190,6 @@
   --text: var(--text-primary);
   --text-on-accent: var(--on-accent);
   --text-on-primary: var(--on-accent);
-  --ws-bg-base: var(--bg-app);
-  --ws-text-primary: var(--text-primary);
-  --ws-text-secondary: var(--text-secondary);
-  --ws-text-tertiary: var(--text-muted);
-  --ws-font-mono: var(--font-mono);
   /* 字体/字号语义 */
   --font-family-content: var(--font-sans);
   --font-family-display: var(--font-sans);
