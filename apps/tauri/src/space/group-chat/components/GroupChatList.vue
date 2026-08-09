@@ -309,7 +309,7 @@ function onDocumentClick(event: MouseEvent): void {
 .group-preview { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .unread-badge { min-width: 16px; height: 16px; border-radius: 8px; background: var(--danger); color: var(--on-accent); font-size: 9px; display: flex; align-items: center; justify-content: center; font-weight: 700; padding: 0 4px; }
 
-.delete-confirm-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 9998; display: flex; align-items: center; justify-content: center; }
+.delete-confirm-overlay { position: fixed; inset: 0; background: var(--overlay); z-index: var(--z-modal); display: flex; align-items: center; justify-content: center; }
 .delete-confirm-dialog { background: var(--color-surface-elevated); border: 1px solid var(--color-border); border-radius: 12px; padding: 20px; min-width: 260px; box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
 .delete-confirm-text { font-size: var(--fs-md); margin-bottom: 16px; line-height: 1.5; }
 .delete-confirm-actions { display: flex; gap: 8px; justify-content: flex-end; }
