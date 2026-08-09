@@ -43,9 +43,9 @@
           <span class="panel-icon"><WsIcon :name="panel.icon" size="xs" :fallback="panel.icon" /></span>
           <span class="panel-title">{{ panel.label }}</span>
           <div class="panel-actions">
-            <button class="panel-btn" @click="movePanel(idx, -1)" :disabled="idx === 0" title="前移"><WsIcon name="arrow-up" size="xs" /></button>
-            <button class="panel-btn" @click="movePanel(idx, 1)" :disabled="idx === panels.length - 1" title="后移"><WsIcon name="chevron-right" size="xs" /></button>
-            <button class="panel-btn panel-close" @click="removePanel(idx)" title="移除"><WsIcon name="close" size="xs" /></button>
+            <button class="panel-btn" @click="movePanel(idx, -1)" :disabled="idx === 0" title="前移" aria-label="前移"><WsIcon name="arrow-up" size="xs" /></button>
+            <button class="panel-btn" @click="movePanel(idx, 1)" :disabled="idx === panels.length - 1" title="后移" aria-label="后移"><WsIcon name="chevron-right" size="xs" /></button>
+            <button class="panel-btn panel-close" @click="removePanel(idx)" title="移除" aria-label="移除面板"><WsIcon name="close" size="xs" /></button>
           </div>
         </div>
         <div class="cv-panel-content">
@@ -640,6 +640,6 @@ function movePanel(idx: number, dir: number) {
 .dash-drop-target {
   outline: 2px dashed var(--primary);
   outline-offset: -2px;
-  background: rgba(74, 108, 247, 0.04);
+  background: var(--accent-soft, rgba(74, 108, 247, 0.04));
 }
 </style>

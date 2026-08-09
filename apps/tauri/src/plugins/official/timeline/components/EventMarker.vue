@@ -1,9 +1,15 @@
-﻿<template>
+<template>
   <div
     class="event-marker"
     :class="[importanceClass, { selected: isSelected }]"
     :style="markerStyle"
+    role="button"
+    tabindex="0"
+    :aria-pressed="isSelected"
+    :aria-label="`选择事件：${event.name}`"
     @click="$emit('select')"
+    @keydown.enter="$emit('select')"
+    @keydown.space.prevent="$emit('select')"
     @mouseenter="hovered = true"
     @mouseleave="hovered = false"
   >
@@ -75,7 +81,7 @@ const tooltipStyle = computed(() => ({
   z-index: 3;
 }
 .event-marker.selected .marker-dot {
-  box-shadow: 0 0 0 3px rgba(79,70,229,0.2);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary, #4f46e5) 20%, transparent);
 }
 
 .marker-dot {

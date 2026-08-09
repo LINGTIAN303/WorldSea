@@ -70,13 +70,13 @@ const teamList = computed(() => [
 <style scoped>
 .ac-panel {
   padding: 10px 12px;
-  border-bottom: 1px solid #21262d;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .ac-title {
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
-  color: #8b949e;
+  color: var(--color-text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 8px;
@@ -103,21 +103,21 @@ const teamList = computed(() => [
   flex-shrink: 0;
 }
 
-.ac-team-ally { background: #4a9eff; }
-.ac-team-enemy { background: #ff4a4a; }
-.ac-team-neutral { background: #9a9a9a; }
+.ac-team-ally { background: var(--color-info); }
+.ac-team-enemy { background: var(--color-danger); }
+.ac-team-neutral { background: var(--color-text-tertiary); }
 
 .ac-team-name {
   flex: 1;
-  color: #c9d1d9;
+  color: var(--color-text-primary);
 }
 
 .ac-toggle {
   padding: 2px 6px;
-  border: 1px solid #30363d;
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-2xs);
   background: transparent;
-  color: #8b949e;
+  color: var(--color-text-secondary);
   font-size: var(--font-size-xs);
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s;
@@ -131,7 +131,7 @@ const teamList = computed(() => [
 .ac-toggle.active {
   border-color: var(--color-primary-hover);
   color: var(--color-primary-hover);
-  background: rgba(210, 168, 255, 0.1);
+  background: color-mix(in srgb, var(--color-primary-hover) 10%, transparent);
 }
 
 .ac-speed {
@@ -143,7 +143,7 @@ const teamList = computed(() => [
 
 .ac-speed-label {
   font-size: var(--font-size-xs);
-  color: #8b949e;
+  color: var(--color-text-secondary);
 }
 
 .ac-speed-btns {
@@ -153,23 +153,23 @@ const teamList = computed(() => [
 
 .ac-speed-btn {
   padding: 2px 6px;
-  border: 1px solid #21262d;
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-2xs);
   background: transparent;
-  color: #8b949e;
+  color: var(--color-text-secondary);
   font-size: var(--font-size-xs);
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s;
 }
 
 .ac-speed-btn:hover {
-  border-color: #8b949e;
+  border-color: var(--color-text-secondary);
 }
 
 .ac-speed-btn.active {
-  border-color: #58a6ff;
-  color: #58a6ff;
-  background: rgba(88, 166, 255, 0.1);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
 }
 
 .ac-actions {
@@ -180,10 +180,10 @@ const teamList = computed(() => [
 .ac-btn {
   flex: 1;
   padding: 4px 4px;
-  border: 1px solid #21262d;
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-xs);
-  background: #21262d;
-  color: #c9d1d9;
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
   font-size: var(--font-size-xs);
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s;
@@ -200,39 +200,39 @@ const teamList = computed(() => [
 }
 
 .ac-btn-step {
-  border-color: #58a6ff;
-  color: #58a6ff;
+  border-color: var(--color-primary);
+  color: var(--color-primary);
 }
 
 .ac-btn-step:hover:not(:disabled) {
-  background: rgba(88, 166, 255, 0.15);
+  background: color-mix(in srgb, var(--color-primary) 15%, transparent);
 }
 
 .ac-btn-auto {
-  border-color: #3fb950;
-  color: #3fb950;
+  border-color: var(--color-success);
+  color: var(--color-success);
 }
 
 .ac-btn-auto:hover:not(:disabled) {
-  background: rgba(63, 185, 80, 0.15);
+  background: color-mix(in srgb, var(--color-success) 15%, transparent);
 }
 
 .ac-btn-auto.running {
-  border-color: #f85149;
-  color: #f85149;
+  border-color: var(--color-danger);
+  color: var(--color-danger);
 }
 
 .ac-btn-auto.running:hover:not(:disabled) {
-  background: rgba(248, 81, 73, 0.15);
+  background: color-mix(in srgb, var(--color-danger) 15%, transparent);
 }
 
 .ac-btn-disable {
-  border-color: #8b949e;
-  color: #8b949e;
+  border-color: var(--color-text-secondary);
+  color: var(--color-text-secondary);
 }
 
 .ac-btn-disable:hover:not(:disabled) {
-  background: rgba(139, 148, 158, 0.15);
+  background: color-mix(in srgb, var(--color-text-secondary) 15%, transparent);
 }
 
 .ac-info {

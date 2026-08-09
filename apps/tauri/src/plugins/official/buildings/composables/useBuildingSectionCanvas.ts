@@ -9,6 +9,12 @@ import {
 import type { BuildingNode, ConnectionEdge } from './useBuildingSectionData'
 import { parseFloors } from './useBuildingSectionData'
 
+/** 从 CSS 变量读取主题色（canvas 背景由引擎按 --color-bg-base 主题化，文本/边框须同步主题，否则浅色下不可见） */
+function cssVar(name: string, fallback: string): string {
+  if (typeof window === 'undefined') return fallback
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback
+}
+
 const MINI_W = 100
 const MINI_H = 80
 const FLOOR_H = 36
@@ -76,6 +82,7 @@ function drawMiniBuilding(
   const y = node.y - MINI_H / 2
 
   ctx.save()
+  const text = cssVar('--color-text-primary', '#e6edf3')
 
   if (isSelected) {
     ctx.shadowColor = node.color
@@ -93,20 +100,20 @@ function drawMiniBuilding(
   }
   ctx.fillStyle = hexToRgba(node.color, isSelected ? 0.2 : isHovered ? 0.12 : 0.06)
   ctx.fill()
-  ctx.strokeStyle = isSelected ? node.color : isHovered ? '#e6edf3' : hexToRgba(node.color, 0.4)
+  ctx.strokeStyle = isSelected ? node.color : isHovered ? text : hexToRgba(node.color, 0.4)
   ctx.lineWidth = isSelected ? 2 : 1
   ctx.stroke()
 
   ctx.shadowBlur = 0
 
   ctx.font = '18px sans-serif'
-  ctx.fillStyle = '#e6edf3'
+  ctx.fillStyle = text
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   ctx.fillText(node.icon, node.x, node.y - 10)
 
   ctx.font = '10px sans-serif'
-  ctx.fillStyle = '#e6edf3'
+  ctx.fillStyle = text
   const nameText = node.name.length > 6 ? node.name.slice(0, 6) + '…' : node.name
   ctx.fillText(nameText, node.x, node.y + 8)
 
@@ -128,6 +135,8 @@ function drawExpandedBuilding(
   const y = node.y - totalH / 2
 
   ctx.save()
+  const muted = cssVar('--color-text-secondary', '#c9d1d9')
+  const tertiary = cssVar('--color-text-tertiary', '#8b949e')
 
   ctx.shadowColor = node.color
   ctx.shadowBlur = 16
@@ -177,14 +186,14 @@ function drawExpandedBuilding(
 
     if (floor.content) {
       ctx.font = '10px sans-serif'
-      ctx.fillStyle = '#c9d1d9'
+      ctx.fillStyle = muted
       const contentText = floor.content.length > 20 ? floor.content.slice(0, 20) + '…' : floor.content
       ctx.fillText(contentText, x + 40, fy + FLOOR_H / 2)
     }
   }
 
   ctx.font = '9px sans-serif'
-  ctx.fillStyle = '#8b949e'
+  ctx.fillStyle = tertiary
   ctx.textAlign = 'right'
   ctx.textBaseline = 'bottom'
   const infoParts = [node.style, node.material, node.status].filter(Boolean)

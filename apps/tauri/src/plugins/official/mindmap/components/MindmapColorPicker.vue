@@ -4,7 +4,7 @@
       <div class="mm-modal">
         <h4>选择颜色</h4>
         <div class="mm-color-grid">
-          <button v-for="c in presetColors" :key="c" class="mm-color-btn" :style="{ background: c }" @click="$emit('pick', c)"></button>
+          <button v-for="c in presetColors" :key="c" class="mm-color-btn" :style="{ background: c }" :aria-label="`选择颜色 ${c}`" @click="$emit('pick', c)"></button>
         </div>
         <div style="margin-top:8px;display:flex;gap:8px;align-items:center;">
           <input :value="customColor" type="color" class="mm-color-input" aria-label="自定义颜色" @input="$emit('update:customColor', ($event.target as HTMLInputElement).value)" />

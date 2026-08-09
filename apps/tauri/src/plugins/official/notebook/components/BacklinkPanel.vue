@@ -7,7 +7,7 @@
       </button>
     </div>
     <div v-if="links.length" class="bl-list">
-      <div v-for="link in links" :key="link.id" class="bl-item" @click="$emit('navigate', link.id)">
+      <div v-for="link in links" :key="link.id" class="bl-item" role="button" tabindex="0" :aria-label="`打开 ${link.name}`" @click="$emit('navigate', link.id)" @keydown.enter.prevent="$emit('navigate', link.id)" @keydown.space.prevent="$emit('navigate', link.id)">
         {{ link.name }}
       </div>
     </div>

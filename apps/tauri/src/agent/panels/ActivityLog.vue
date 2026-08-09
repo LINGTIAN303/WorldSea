@@ -358,8 +358,8 @@ function formatDuration(task: { startedAt: number; endedAt?: number }): string {
 }
 
 .dot-pending { background: var(--text-muted); }
-.dot-generating { background: #74b9ff; animation: dot-blink 1.2s ease-in-out infinite; }
-.dot-polling { background: #fdcb6e; animation: dot-blink 1.2s ease-in-out infinite; }
+.dot-generating { background: var(--info); animation: dot-blink 1.2s ease-in-out infinite; }
+.dot-polling { background: var(--warning); animation: dot-blink 1.2s ease-in-out infinite; }
 .dot-completed { background: var(--success); }
 .dot-failed { background: var(--danger); }
 
@@ -389,8 +389,8 @@ function formatDuration(task: { startedAt: number; endedAt?: number }): string {
 .log-item:hover { background: var(--bg-muted); }
 .log-item.log-error { border-left: 3px solid var(--danger); }
 .log-item.log-tool { border-left: 3px solid var(--accent); }
-.log-item.log-knowledge { border-left: 3px solid #38a169; }
-.log-item.log-memory { border-left: 3px solid #d69e2e; }
+.log-item.log-knowledge { border-left: 3px solid var(--success); }
+.log-item.log-memory { border-left: 3px solid var(--warning); }
 
 .log-icon { font-size: var(--fs-base); flex-shrink: 0; color: var(--text-secondary); }
 

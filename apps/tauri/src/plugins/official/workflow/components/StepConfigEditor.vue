@@ -168,26 +168,26 @@ onMounted(async () => {
 
 <style scoped>
 .sce { display: flex; flex-direction: column; gap: 6px; }
-.sce-label { font-size: var(--fs-sm); font-weight: 500; color: var(--text-secondary, #8b949e); margin-top: 4px; }
+.sce-label { font-size: var(--fs-sm); font-weight: 500; color: var(--text-secondary, #6b7280); margin-top: 4px; }
 .sce-hint { font-weight: normal; opacity: 0.6; font-style: italic; }
 .sce-input, .sce-select {
-  padding: 5px 8px; border-radius: 5px; border: 1px solid var(--border, #30363d);
-  background: var(--bg-secondary, #161b22); color: var(--text-primary, #e6edf3);
+  padding: 5px 8px; border-radius: 5px; border: 1px solid var(--border, #e4e4e7);
+  background: var(--bg-secondary, #f4f4f5); color: var(--text-primary, #18181b);
   font-size: var(--fs-sm); outline: none;
 }
 .sce-input:focus, .sce-select:focus, .sce-textarea:focus {
-  border-color: var(--primary, #58a6ff);
+  border-color: var(--primary, #4f46e5);
 }
 .sce-textarea {
-  padding: 6px 8px; border-radius: 5px; border: 1px solid var(--border, #30363d);
-  background: var(--bg-secondary, #161b22); color: var(--text-primary, #e6edf3);
+  padding: 6px 8px; border-radius: 5px; border: 1px solid var(--border, #e4e4e7);
+  background: var(--bg-secondary, #f4f4f5); color: var(--text-primary, #18181b);
   font-size: var(--fs-sm); outline: none; resize: vertical; font-family: inherit;
 }
 .sce-checkbox-label {
   display: flex; align-items: center; gap: 6px; font-size: var(--fs-sm); cursor: pointer;
-  color: var(--text-primary, #e6edf3);
+  color: var(--text-primary, #18181b);
 }
 .sce-checkbox-label input[type="checkbox"] {
-  accent-color: var(--primary, #58a6ff);
+  accent-color: var(--primary, #4f46e5);
 }
 </style>

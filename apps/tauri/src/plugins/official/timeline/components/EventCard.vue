@@ -2,10 +2,15 @@
   <div
     class="event-card"
     :class="{ highlighted: highlighted, 'is-range': isRange, compact }"
+    role="button"
+    tabindex="0"
+    :aria-label="`选择事件：${event.name}`"
     @click="$emit('select')"
+    @keydown.enter="$emit('select')"
+    @keydown.space.prevent="$emit('select')"
   >
     <label v-if="!compact" class="batch-check" @click.stop>
-      <input type="checkbox" :checked="batchSelected" @change="$emit('toggleSelect')" />
+      <input type="checkbox" :checked="batchSelected" :aria-label="`批量选择：${event.name}`" @change="$emit('toggleSelect')" />
     </label>
 
     <div v-if="breadcrumb && !compact" class="ec-breadcrumb">{{ breadcrumb }}</div>
@@ -89,7 +94,7 @@ const statusClass = computed(() => {
 }
 .event-card.highlighted {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(79,70,229,0.12);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary, #4f46e5) 12%, transparent);
 }
 .event-card.is-range {
   border-left: 3px solid var(--primary);
@@ -179,7 +184,7 @@ const statusClass = computed(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255,255,255,0.9);
+  background: var(--bg-surface, rgba(255,255,255,0.9));
   border-radius: var(--radius-xs);
   cursor: pointer;
   opacity: 0;

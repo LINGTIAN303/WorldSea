@@ -66,13 +66,13 @@
     <button v-if="ctxMenu.nodeType === 'note'" class="mm-ctx-item" @click="$emit('edit-note-content')"><WsIcon name="edit" size="xs" /> 编辑内容</button>
 
     <!-- 空白处操作 -->
-    <div v-if="!ctxMenu.nodeId && !ctxMenu.edgeId" class="mm-ctx-item" @click="$emit('create-node')">＋ 新建节点</div>
+    <button v-if="!ctxMenu.nodeId && !ctxMenu.edgeId" class="mm-ctx-item" @click="$emit('create-node')">＋ 新建节点</button>
     <div v-if="!ctxMenu.nodeId && !ctxMenu.edgeId" class="mm-ctx-divider"></div>
-    <div v-if="!ctxMenu.nodeId && !ctxMenu.edgeId" class="mm-ctx-item" @click="$emit('add-textbox')"><WsIcon name="edit" size="xs" /> 文本框</div>
-    <div v-if="!ctxMenu.nodeId && !ctxMenu.edgeId" class="mm-ctx-item" @click="$emit('add-image')"><WsIcon name="image" size="xs" /> 图片</div>
-    <div v-if="!ctxMenu.nodeId && !ctxMenu.edgeId" class="mm-ctx-item" @click="$emit('add-note')"><WsIcon name="outline" size="xs" /> 备注</div>
-    <div v-if="!ctxMenu.nodeId && !ctxMenu.edgeId" class="mm-ctx-item" @click="$emit('add-link')"><WsIcon name="link" size="xs" /> 链接</div>
-    <div v-if="!ctxMenu.nodeId && !ctxMenu.edgeId" class="mm-ctx-item" @click="$emit('add-group')"><WsIcon name="item" size="xs" /> 分组</div>
+    <button v-if="!ctxMenu.nodeId && !ctxMenu.edgeId" class="mm-ctx-item" @click="$emit('add-textbox')"><WsIcon name="edit" size="xs" /> 文本框</button>
+    <button v-if="!ctxMenu.nodeId && !ctxMenu.edgeId" class="mm-ctx-item" @click="$emit('add-image')"><WsIcon name="image" size="xs" /> 图片</button>
+    <button v-if="!ctxMenu.nodeId && !ctxMenu.edgeId" class="mm-ctx-item" @click="$emit('add-note')"><WsIcon name="outline" size="xs" /> 备注</button>
+    <button v-if="!ctxMenu.nodeId && !ctxMenu.edgeId" class="mm-ctx-item" @click="$emit('add-link')"><WsIcon name="link" size="xs" /> 链接</button>
+    <button v-if="!ctxMenu.nodeId && !ctxMenu.edgeId" class="mm-ctx-item" @click="$emit('add-group')"><WsIcon name="item" size="xs" /> 分组</button>
 
     <!-- 笔迹操作 -->
     <template v-if="ctxMenu.strokeId">

@@ -9,18 +9,21 @@
           class="ef-input"
           :type="inputType(f.type)"
           :value="fieldValue(f.key)"
+          :aria-label="f.label"
           @input="onFieldInput(f.key, ($event.target as HTMLInputElement).value)"
         />
         <textarea
           v-else-if="f.type === 'textarea' || f.type === 'rich-text' || f.type === 'markdown'"
           class="ef-textarea"
           :value="fieldValue(f.key)"
+          :aria-label="f.label"
           @input="onFieldInput(f.key, ($event.target as HTMLTextAreaElement).value)"
         />
         <select
           v-else-if="f.type === 'select'"
           class="ef-select"
           :value="fieldValue(f.key)"
+          :aria-label="f.label"
           @change="onFieldInput(f.key, ($event.target as HTMLSelectElement).value)"
         >
           <option v-for="opt in (f.options || [])" :key="opt" :value="opt">{{ opt }}</option>

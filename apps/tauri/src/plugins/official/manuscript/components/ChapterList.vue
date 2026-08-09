@@ -6,7 +6,7 @@
     </div>
 
     <div v-for="group in groupedChapters" :key="group.name" class="cl-group">
-      <div class="cl-group-header" @click="toggleGroup(group.name)">
+      <div class="cl-group-header" role="button" tabindex="0" :aria-expanded="!collapsedGroups.has(group.name)" @click="toggleGroup(group.name)" @keydown.enter.prevent="toggleGroup(group.name)" @keydown.space.prevent="toggleGroup(group.name)">
         <span class="cl-collapse"><WsIcon :name="collapsedGroups.has(group.name) ? 'chevron-right' : 'chevron-down'" size="xs" /></span>
         <span class="cl-group-name">{{ group.name }}</span>
         <span class="cl-group-count">{{ group.items.length }}</span>
@@ -24,7 +24,12 @@
           <div
             class="cl-item"
             :class="{ active: currentId === element.id }"
+            role="button"
+            tabindex="0"
+            :aria-pressed="currentId === element.id"
             @click="$emit('select', element)"
+            @keydown.enter.prevent="$emit('select', element)"
+            @keydown.space.prevent="$emit('select', element)"
             @contextmenu.prevent="onContext($event, element)"
           >
             <span class="cl-item-name">{{ element.name }}</span>
@@ -39,13 +44,13 @@
 
     <WsEmpty v-if="chapters.length === 0" preset="no-data" title="暂无章节" />
 
-    <div v-if="ctxMenu.show" class="cl-ctx-menu" :style="{ left: ctxMenu.x + 'px', top: ctxMenu.y + 'px' }">
-      <div class="cl-ctx-item" @click="ctxRename"><WsIcon name="edit" size="xs" /> 重命名</div>
-      <div class="cl-ctx-item" @click="ctxCycleStatus"><WsIcon name="delete" size="xs" /> 切换状态</div>
-      <div class="cl-ctx-item" @click="ctxSetVolume"><WsIcon name="folder" size="xs" /> 修改所属卷</div>
-      <div class="cl-ctx-item" @click="ctxLinkOutline"><WsIcon name="link" size="xs" /> 关联大纲节点</div>
+    <div v-if="ctxMenu.show" class="cl-ctx-menu" :style="{ left: ctxMenu.x + 'px', top: ctxMenu.y + 'px' }" role="menu">
+      <div class="cl-ctx-item" role="menuitem" tabindex="0" @click="ctxRename" @keydown.enter.prevent="ctxRename"><WsIcon name="edit" size="xs" /> 重命名</div>
+      <div class="cl-ctx-item" role="menuitem" tabindex="0" @click="ctxCycleStatus" @keydown.enter.prevent="ctxCycleStatus"><WsIcon name="delete" size="xs" /> 切换状态</div>
+      <div class="cl-ctx-item" role="menuitem" tabindex="0" @click="ctxSetVolume" @keydown.enter.prevent="ctxSetVolume"><WsIcon name="folder" size="xs" /> 修改所属卷</div>
+      <div class="cl-ctx-item" role="menuitem" tabindex="0" @click="ctxLinkOutline" @keydown.enter.prevent="ctxLinkOutline"><WsIcon name="link" size="xs" /> 关联大纲节点</div>
       <div class="cl-ctx-divider"></div>
-      <div class="cl-ctx-item cl-ctx-danger" @click="ctxDelete"><WsIcon name="delete" size="xs" /> 删除</div>
+      <div class="cl-ctx-item cl-ctx-danger" role="menuitem" tabindex="0" @click="ctxDelete" @keydown.enter.prevent="ctxDelete"><WsIcon name="delete" size="xs" /> 删除</div>
     </div>
 
     <div v-if="showVolumeInput" class="cl-modal-overlay" @click.self="showVolumeInput = false">
@@ -290,9 +295,9 @@ onBeforeUnmount(() => {
 .cl-item-name { display: block; font-weight: var(--font-weight-medium); font-size: var(--font-size-sm); margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cl-item-meta { display: flex; align-items: center; gap: 6px; }
 .cl-status { font-size: var(--font-size-xs); padding: 1px 5px; border-radius: var(--radius-2xs); }
-.st-draft { background: #fef3c7; color: #92400e; }
-.st-revising { background: #dbeafe; color: #1e40af; }
-.st-final { background: #d1fae5; color: #065f46; }
+.st-draft { background: var(--warning-soft, #fef3c7); color: var(--warning, #92400e); }
+.st-revising { background: var(--info-soft, #dbeafe); color: var(--info, #1e40af); }
+.st-final { background: var(--success-soft, #d1fae5); color: var(--success, #065f46); }
 .cl-words { font-size: var(--font-size-xs); color: var(--text-tertiary); }
 
 .cl-ghost { opacity: 0.4; background: var(--primary-light); }
@@ -307,7 +312,7 @@ onBeforeUnmount(() => {
 .cl-ctx-item:hover { background: var(--hover-bg); }
 .cl-ctx-divider { height: 1px; background: var(--border-light); margin: 4px 0; }
 .cl-ctx-danger { color: var(--danger); }
-.cl-ctx-danger:hover { background: rgba(220, 53, 69, 0.08); }
+.cl-ctx-danger:hover { background: var(--danger-soft, rgba(220, 53, 69, 0.08)); }
 
 .cl-modal-overlay { position: fixed; inset: 0; background: var(--color-overlay); display: flex; align-items: center; justify-content: center; z-index: var(--z-sticky); }
 .cl-modal-sm { background: var(--modal-bg); border-radius: var(--radius-2xl); padding: 16px; max-width: 300px; width: 90%; }

@@ -8,11 +8,11 @@
         </div>
         <div class="set-search-wrap">
           <svg class="set-search-icon" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6.5" cy="6.5" r="5"/><path d="M10.5 10.5L15 15"/></svg>
-          <input type="text" class="set-search-input" v-model="searchQuery" placeholder="搜索设置..." />
-          <button v-if="searchQuery" class="set-search-clear" @click="searchQuery = ''">✕</button>
+          <input type="text" class="set-search-input" v-model="searchQuery" placeholder="搜索设置..." aria-label="搜索设置" />
+          <button v-if="searchQuery" class="set-search-clear" @click="searchQuery = ''" aria-label="清除搜索">✕</button>
         </div>
         <div class="set-topbar-spacer"></div>
-        <button class="set-close" @click="close">✕</button>
+        <button class="set-close" @click="close" aria-label="关闭设置">✕</button>
       </div>
 
       <nav class="set-tabs">

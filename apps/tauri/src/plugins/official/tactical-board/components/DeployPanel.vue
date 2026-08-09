@@ -38,7 +38,13 @@
       <div class="dp-entity-header">可用实体</div>
       <div v-for="e in availableEntities" :key="e.id" class="dp-entity-item"
         :class="{ 'dp-placed': placedIds.has(e.id) }"
-        @click="onSelectEntity(e)">
+        role="button"
+        tabindex="0"
+        :aria-pressed="placedIds.has(e.id)"
+        :aria-label="`部署 ${e.name}`"
+        @click="onSelectEntity(e)"
+        @keydown.enter.prevent="onSelectEntity(e)"
+        @keydown.space.prevent="onSelectEntity(e)">
         <span class="dp-entity-name">{{ e.name }}</span>
         <span class="dp-entity-type">{{ e.type }}</span>
         <span v-if="placedIds.has(e.id)" class="dp-placed-badge">已部署</span>

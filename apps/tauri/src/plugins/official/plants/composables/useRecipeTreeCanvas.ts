@@ -8,6 +8,12 @@ import {
 } from '@worldsmith/canvas-engine/tree'
 import type { RecipeNode, RecipeEdge, RecipeNodeType } from './useRecipeTreeData'
 
+/** 从 CSS 变量读取主题色（canvas 背景由引擎按 --color-bg-base 主题化，文本/边框须同步主题，否则浅色下不可见） */
+function cssVar(name: string, fallback: string): string {
+  if (typeof window === 'undefined') return fallback
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback
+}
+
 const NODE_W = 160
 const NODE_H = 56
 const NODE_R = 8
@@ -39,6 +45,8 @@ function drawRecipeNode(
   const borderColor = TYPE_BORDER[node.nodeType]
 
   ctx.save()
+  const text = cssVar('--color-text-primary', '#e6edf3')
+  const tertiary = cssVar('--color-text-tertiary', '#8b949e')
 
   if (state.isSelected) {
     ctx.shadowColor = borderColor
@@ -49,20 +57,20 @@ function drawRecipeNode(
   roundRect(ctx, x, y, NODE_W, NODE_H, NODE_R)
   ctx.fillStyle = hexToRgba(borderColor, 0.12)
   ctx.fill()
-  ctx.strokeStyle = state.isSelected ? borderColor : state.isHovered ? '#e6edf3' : hexToRgba(borderColor, 0.4)
+  ctx.strokeStyle = state.isSelected ? borderColor : state.isHovered ? text : hexToRgba(borderColor, 0.4)
   ctx.lineWidth = state.isSelected ? 2 : 1
   ctx.stroke()
 
   ctx.shadowBlur = 0
 
   ctx.font = '16px sans-serif'
-  ctx.fillStyle = '#e6edf3'
+  ctx.fillStyle = text
   ctx.textAlign = 'left'
   ctx.textBaseline = 'middle'
   ctx.fillText(node.icon, x + 8, y + NODE_H / 2 - 6)
 
   ctx.font = '12px sans-serif'
-  ctx.fillStyle = '#e6edf3'
+  ctx.fillStyle = text
   const nameText = node.name.length > 8 ? node.name.slice(0, 8) + '…' : node.name
   ctx.fillText(nameText, x + 30, y + NODE_H / 2 - 8)
 
@@ -80,7 +88,7 @@ function drawRecipeNode(
   const typeTag = node.nodeType === 'plant' ? '🌿' : node.nodeType === 'item' ? '📦' : '🔮'
   ctx.font = '8px sans-serif'
   ctx.textAlign = 'right'
-  ctx.fillStyle = '#8b949e'
+  ctx.fillStyle = tertiary
   ctx.fillText(typeTag, x + NODE_W - 8, y + 12)
 
   ctx.restore()

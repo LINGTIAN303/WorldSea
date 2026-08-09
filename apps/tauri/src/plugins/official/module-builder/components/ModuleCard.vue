@@ -36,5 +36,5 @@ defineEmits<{ edit: [id: string]; publish: [id: string]; delete: [id: string] }>
 .mc-btn { padding: 4px 10px; border-radius: var(--radius-xs); font-size: var(--font-size-sm); cursor: pointer; border: 1px solid var(--border-color); background: var(--bg); color: var(--text-secondary); }
 .mc-btn:hover { background: var(--hover-bg); }
 .mc-btn-publish { background: var(--primary); color: var(--on-accent); border-color: var(--primary); }
-.mc-btn-delete { color: #e74c3c; }
+.mc-btn-delete { color: var(--danger, #e74c3c); }
 </style>

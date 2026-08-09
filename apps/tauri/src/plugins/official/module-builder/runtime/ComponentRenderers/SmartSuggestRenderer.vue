@@ -72,11 +72,11 @@ onBeforeUnmount(() => {
 .ss-ask-btn:hover { opacity: 0.9; }
 .ss-list { display: flex; flex-direction: column; gap: 6px; }
 .ss-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); cursor: pointer; transition: background 0.1s, border-color 0.1s, color 0.1s, box-shadow 0.1s, transform 0.1s, opacity 0.1s, filter 0.1s; }
-.ss-item:hover { border-color: var(--primary); background: rgba(79, 70, 229, 0.04); }
+.ss-item:hover { border-color: var(--primary); background: var(--accent-soft, rgba(79, 70, 229, 0.04)); }
 .ss-item-icon { font-size: var(--font-size-base); flex-shrink: 0; }
 .ss-item-content { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .ss-item-text { font-size: var(--font-size-sm); color: var(--text-color); }
 .ss-item-detail { font-size: var(--font-size-xs); color: var(--text-tertiary); }
 .ss-apply { padding: 3px 8px; border: 1px solid var(--primary); border-radius: var(--radius-xs); background: transparent; color: var(--primary); font-size: var(--font-size-xs); cursor: pointer; flex-shrink: 0; }
-.ss-apply:hover { background: rgba(79, 70, 229, 0.08); }
+.ss-apply:hover { background: var(--accent-soft, rgba(79, 70, 229, 0.08)); }
 </style>

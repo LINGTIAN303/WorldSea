@@ -95,7 +95,7 @@
         </div>
 
         <!-- Agent 设计入口 -->
-        <div class="pd-empty__agent" @click="$emit('send-prompt', `/skill:creation-orchestrator 请为「${pipeline.name}」设计创作步骤。${pipeline.description ? '目标：' + pipeline.description : ''}`)">
+        <div class="pd-empty__agent" role="button" tabindex="0" @click="$emit('send-prompt', `/skill:creation-orchestrator 请为「${pipeline.name}」设计创作步骤。${pipeline.description ? '目标：' + pipeline.description : ''}`)" @keydown.enter.prevent="$emit('send-prompt', `/skill:creation-orchestrator 请为「${pipeline.name}」设计创作步骤。${pipeline.description ? '目标：' + pipeline.description : ''}`)" @keydown.space.prevent="$emit('send-prompt', `/skill:creation-orchestrator 请为「${pipeline.name}」设计创作步骤。${pipeline.description ? '目标：' + pipeline.description : ''}`)">
           <span class="pd-empty__agent-icon">🤖</span>
           <div class="pd-empty__agent-info">
             <span class="pd-empty__agent-title">让 Agent 帮你设计</span>
@@ -112,7 +112,11 @@
               v-for="item in stepLibraryItems"
               :key="item.type"
               class="pd-step-card"
+              role="button"
+              tabindex="0"
               @click="$emit('add-step', item)"
+              @keydown.enter.prevent="$emit('add-step', item)"
+              @keydown.space.prevent="$emit('add-step', item)"
             >
               <span class="pd-step-card__icon">{{ item.icon }}</span>
               <div class="pd-step-card__info">
@@ -258,7 +262,7 @@ function handleAddConnection() {
   height: 100%; padding: 16px; gap: 12px; overflow: hidden;
 }
 .pd-view--editing {
-  background: color-mix(in srgb, var(--warning, #d29922) 3%, var(--bg-primary, #0d1117));
+  background: color-mix(in srgb, var(--warning, #d97706) 3%, var(--bg-primary, #ffffff));
 }
 .pd-view--with-sidebar { flex-direction: row; }
 
@@ -272,15 +276,15 @@ function handleAddConnection() {
 .pd-sidebar {
   width: 320px; flex-shrink: 0;
   padding-left: 12px;
-  border-left: 1px solid var(--border, #30363d);
+  border-left: 1px solid var(--border, #e4e4e7);
   overflow: auto;
 }
 
 .pd-edit-banner {
   padding: 6px 12px; border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--warning, #d29922) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--warning, #d29922) 30%, transparent);
-  font-size: var(--fs-sm); color: var(--warning, #d29922); flex-shrink: 0;
+  background: color-mix(in srgb, var(--warning, #d97706) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning, #d97706) 30%, transparent);
+  font-size: var(--fs-sm); color: var(--warning, #d97706); flex-shrink: 0;
 }
 
 .pd-steps { display: flex; flex-direction: column; gap: 0; flex: 1; }
@@ -300,19 +304,19 @@ function handleAddConnection() {
 .pd-empty__agent {
   display: flex; align-items: center; gap: 12px; width: 100%; max-width: 480px;
   padding: 14px 16px; border-radius: var(--radius-md); cursor: pointer;
-  background: color-mix(in srgb, var(--primary, #58a6ff) 10%, var(--bg-secondary, #161b22));
-  border: 1px solid color-mix(in srgb, var(--primary, #58a6ff) 30%, transparent);
+  background: color-mix(in srgb, var(--primary, #4f46e5) 10%, var(--bg-secondary, #f4f4f5));
+  border: 1px solid color-mix(in srgb, var(--primary, #4f46e5) 30%, transparent);
   transition: background 0.15s, border-color 0.15s;
 }
 .pd-empty__agent:hover {
-  background: color-mix(in srgb, var(--primary, #58a6ff) 18%, var(--bg-secondary, #161b22));
-  border-color: var(--primary, #58a6ff);
+  background: color-mix(in srgb, var(--primary, #4f46e5) 18%, var(--bg-secondary, #f4f4f5));
+  border-color: var(--primary, #4f46e5);
 }
 .pd-empty__agent-icon { font-size: 28px; flex-shrink: 0; }
 .pd-empty__agent-info { flex: 1; display: flex; flex-direction: column; gap: 2px; }
 .pd-empty__agent-title { font-size: var(--fs-base); font-weight: 600; }
 .pd-empty__agent-desc { font-size: var(--fs-sm); opacity: 0.6; }
-.pd-empty__arrow { font-size: 18px; color: var(--primary, #58a6ff); flex-shrink: 0; }
+.pd-empty__arrow { font-size: 18px; color: var(--primary, #4f46e5); flex-shrink: 0; }
 
 .pd-empty__manual {
   width: 100%; max-width: 480px;
@@ -327,13 +331,13 @@ function handleAddConnection() {
 .pd-step-card {
   display: flex; align-items: center; gap: 8px;
   padding: 10px 12px; border-radius: var(--radius-mid); cursor: pointer;
-  background: var(--bg-secondary, #161b22);
-  border: 1px solid var(--border, #30363d);
+  background: var(--bg-secondary, #f4f4f5);
+  border: 1px solid var(--border, #e4e4e7);
   transition: border-color 0.15s, background 0.15s;
 }
 .pd-step-card:hover {
-  border-color: var(--primary, #58a6ff);
-  background: var(--bg-tertiary, #21262d);
+  border-color: var(--primary, #4f46e5);
+  background: var(--bg-tertiary, #e4e4e7);
 }
 .pd-step-card__icon { font-size: 18px; flex-shrink: 0; }
 .pd-step-card__info { flex: 1; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
@@ -342,35 +346,35 @@ function handleAddConnection() {
 .pd-step-card__add {
   width: 22px; height: 22px; border-radius: 50%; display: flex;
   align-items: center; justify-content: center; flex-shrink: 0;
-  background: var(--bg-tertiary, #21262d); font-size: var(--fs-base); font-weight: 500;
-  color: var(--primary, #58a6ff);
+  background: var(--bg-tertiary, #e4e4e7); font-size: var(--fs-base); font-weight: 500;
+  color: var(--primary, #4f46e5);
 }
 
 /* 连接管理 */
 .pd-connections {
-  padding: 12px; background: var(--bg-secondary, #161b22); border-radius: var(--radius-mid);
-  border: 1px solid var(--border, #30363d);
+  padding: 12px; background: var(--bg-secondary, #f4f4f5); border-radius: var(--radius-mid);
+  border: 1px solid var(--border, #e4e4e7);
 }
 .pd-connections__header {
   display: flex; align-items: center; justify-content: space-between;
 }
 .pd-connections__header h4 { margin: 0; font-size: var(--fs-md); font-weight: 500; }
 .pd-connections__add {
-  padding: 3px 10px; border-radius: var(--radius-sm); border: 1px dashed var(--border, #30363d);
-  background: none; color: var(--primary, #58a6ff); font-size: var(--fs-xs); cursor: pointer;
+  padding: 3px 10px; border-radius: var(--radius-sm); border: 1px dashed var(--border, #e4e4e7);
+  background: none; color: var(--primary, #4f46e5); font-size: var(--fs-xs); cursor: pointer;
 }
-.pd-connections__add:hover { border-color: var(--primary, #58a6ff); }
+.pd-connections__add:hover { border-color: var(--primary, #4f46e5); }
 .pd-connections__empty { font-size: var(--fs-sm); opacity: 0.5; margin: 8px 0 0; }
 .pd-connections__list { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
 .pd-conn {
   display: flex; align-items: center; gap: 6px; padding: 6px 10px;
-  background: var(--bg-tertiary, #21262d); border-radius: var(--radius-sm); font-size: var(--fs-sm);
+  background: var(--bg-tertiary, #e4e4e7); border-radius: var(--radius-sm); font-size: var(--fs-sm);
 }
 .pd-conn__from, .pd-conn__to { font-weight: 500; }
-.pd-conn__arrow { color: var(--primary, #58a6ff); }
+.pd-conn__arrow { color: var(--primary, #4f46e5); }
 .pd-conn__mapping { font-size: var(--fs-xs); opacity: 0.5; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pd-conn__delete {
-  background: none; border: none; color: var(--danger, #f85149); cursor: pointer;
+  background: none; border: none; color: var(--danger, #dc2626); cursor: pointer;
   font-size: var(--fs-sm); padding: 2px 4px; opacity: 0.6;
 }
 .pd-conn__delete:hover { opacity: 1; }
@@ -378,14 +382,14 @@ function handleAddConnection() {
   margin-top: 8px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
 }
 .pd-conn-select {
-  padding: 4px 8px; border-radius: 5px; border: 1px solid var(--border, #30363d);
-  background: var(--bg-primary, #0d1117); color: var(--text-primary, #e6edf3); font-size: var(--fs-sm);
+  padding: 4px 8px; border-radius: 5px; border: 1px solid var(--border, #e4e4e7);
+  background: var(--bg-primary, #ffffff); color: var(--text-primary, #18181b); font-size: var(--fs-sm);
 }
-.pd-conn-select:focus { border-color: var(--primary, #58a6ff); outline: none; }
-.pd-conn-arrow { color: var(--primary, #58a6ff); font-size: var(--fs-base); }
+.pd-conn-select:focus { border-color: var(--primary, #4f46e5); outline: none; }
+.pd-conn-arrow { color: var(--primary, #4f46e5); font-size: var(--fs-base); }
 .pd-conn-btn {
-  padding: 4px 10px; border-radius: 5px; border: 1px solid var(--border, #30363d);
-  background: var(--bg-secondary, #161b22); color: var(--text-primary, #e6edf3);
+  padding: 4px 10px; border-radius: 5px; border: 1px solid var(--border, #e4e4e7);
+  background: var(--bg-secondary, #f4f4f5); color: var(--text-primary, #18181b);
   font-size: var(--fs-xs); cursor: pointer;
 }
 .pd-conn-btn:disabled { opacity: 0.4; cursor: not-allowed; }

@@ -42,7 +42,7 @@ function onSelect(entity: any) {
 .entity-list-renderer { display: flex; flex-direction: column; overflow-y: auto; height: 100%; }
 .el-item { display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; border-bottom: 1px solid var(--border-color); transition: background 0.1s; }
 .el-item:hover { background: var(--hover-bg); }
-.el-item.selected { background: rgba(79, 70, 229, 0.08); border-left: 3px solid var(--primary); }
+.el-item.selected { background: var(--accent-soft, rgba(79, 70, 229, 0.08)); border-left: 3px solid var(--primary); }
 .el-icon { font-size: var(--font-size-xl); flex-shrink: 0; }
 .el-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .el-name { font-size: var(--font-size-sm); font-weight: var(--font-weight-medium); color: var(--text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

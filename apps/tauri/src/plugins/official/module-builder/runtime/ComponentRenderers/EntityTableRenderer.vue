@@ -69,6 +69,6 @@ function onSort(field: string) {
 .et-sort { font-size: var(--font-size-xs); color: var(--primary); }
 .et-row { cursor: pointer; transition: background 0.1s; }
 .et-row:hover { background: var(--hover-bg); }
-.et-row.selected { background: rgba(79, 70, 229, 0.08); }
+.et-row.selected { background: var(--accent-soft, rgba(79, 70, 229, 0.08)); }
 .et-td { padding: 6px 10px; border-bottom: 1px solid var(--border-color); color: var(--text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
 </style>

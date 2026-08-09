@@ -13,9 +13,9 @@
       </button>
     </div>
     <div class="gg-actions">
-      <button class="gg-btn" :class="{ active: clusteringOn }" @click="$emit('toggle-clustering')" title="智能聚类">◉</button>
-      <button class="gg-btn" @click="$emit('open-path-search')" title="路径搜索">⇢</button>
-      <button class="gg-btn" @click="$emit('open-timeline')" title="时间轴过滤"><WsIcon name="timeline" size="xs" /></button>
+      <button class="gg-btn" :class="{ active: clusteringOn }" @click="$emit('toggle-clustering')" title="智能聚类" aria-label="智能聚类">◉</button>
+      <button class="gg-btn" @click="$emit('open-path-search')" title="路径搜索" aria-label="路径搜索">⇢</button>
+      <button class="gg-btn" @click="$emit('open-timeline')" title="时间轴过滤" aria-label="时间轴过滤"><WsIcon name="timeline" size="xs" /></button>
     </div>
     <div class="gg-zoom">
       <button class="gg-btn" @click="$emit('zoom-in')" aria-label="放大">＋</button>

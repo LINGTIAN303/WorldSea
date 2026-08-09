@@ -9,6 +9,12 @@ import {
 import type { RealmStep } from './useRealmStaircaseData'
 import { getRadarValues, RADAR_DIMS } from './useRealmStaircaseData'
 
+/** 从 CSS 变量读取主题色（canvas 背景由引擎按 --color-bg-base 主题化，文本/边框须同步主题，否则浅色下不可见） */
+function cssVar(name: string, fallback: string): string {
+  if (typeof window === 'undefined') return fallback
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback
+}
+
 const STEP_W = 200
 const STEP_H = 48
 const STEP_GAP = 8
@@ -65,6 +71,8 @@ function drawStairNode(
   const y = node.y - STEP_H / 2
 
   ctx.save()
+  const text = cssVar('--color-text-primary', '#e6edf3')
+  const muted = cssVar('--color-text-tertiary', '#8b949e')
 
   if (state.isSelected) {
     ctx.shadowColor = node.color
@@ -79,25 +87,25 @@ function drawStairNode(
       ? hexToRgba(node.color, 0.15)
       : hexToRgba(node.color, 0.08)
   ctx.fill()
-  ctx.strokeStyle = state.isSelected ? node.color : state.isHovered ? '#e6edf3' : hexToRgba(node.color, 0.3)
+  ctx.strokeStyle = state.isSelected ? node.color : state.isHovered ? text : hexToRgba(node.color, 0.3)
   ctx.lineWidth = state.isSelected ? 2 : 1
   ctx.stroke()
 
   ctx.shadowBlur = 0
 
   ctx.font = '16px sans-serif'
-  ctx.fillStyle = '#e6edf3'
+  ctx.fillStyle = text
   ctx.textAlign = 'left'
   ctx.textBaseline = 'middle'
   ctx.fillText(node.icon, x + 10, y + STEP_H / 2)
 
   ctx.font = '13px sans-serif'
-  ctx.fillStyle = '#e6edf3'
+  ctx.fillStyle = text
   const nameText = node.name.length > 8 ? node.name.slice(0, 8) + '…' : node.name
   ctx.fillText(nameText, x + 32, y + STEP_H / 2 - 7)
 
   ctx.font = '10px sans-serif'
-  ctx.fillStyle = '#8b949e'
+  ctx.fillStyle = muted
   const realmText = node.realm || node.system
   ctx.fillText(realmText, x + 32, y + STEP_H / 2 + 9)
 
@@ -127,12 +135,16 @@ function drawRadarChart(
   const angleStep = (Math.PI * 2) / n
 
   ctx.save()
+  const panel = cssVar('--color-bg-surface', 'rgba(22,27,34,0.9)')
+  const border = cssVar('--color-border', '#21262d')
+  const borderStrong = cssVar('--color-border-strong', '#30363d')
+  const textTertiary = cssVar('--color-text-tertiary', '#8b949e')
 
   ctx.beginPath()
   ctx.arc(cx, cy, r + 30, 0, Math.PI * 2)
-  ctx.fillStyle = 'rgba(22,27,34,0.9)'
+  ctx.fillStyle = panel
   ctx.fill()
-  ctx.strokeStyle = '#21262d'
+  ctx.strokeStyle = border
   ctx.lineWidth = 1
   ctx.stroke()
 
@@ -152,7 +164,7 @@ function drawRadarChart(
       if (i === 0) ctx.moveTo(px, py)
       else ctx.lineTo(px, py)
     }
-    ctx.strokeStyle = hexToRgba('#30363d', 0.5)
+    ctx.strokeStyle = hexToRgba(borderStrong, 0.5)
     ctx.lineWidth = 0.5
     ctx.stroke()
   }
@@ -164,7 +176,7 @@ function drawRadarChart(
     ctx.beginPath()
     ctx.moveTo(cx, cy)
     ctx.lineTo(px, py)
-    ctx.strokeStyle = '#21262d'
+    ctx.strokeStyle = border
     ctx.lineWidth = 0.5
     ctx.stroke()
 
@@ -172,7 +184,7 @@ function drawRadarChart(
     const lx = cx + Math.cos(angle) * labelR
     const ly = cy + Math.sin(angle) * labelR
     ctx.font = '10px sans-serif'
-    ctx.fillStyle = '#8b949e'
+    ctx.fillStyle = textTertiary
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     ctx.fillText(RADAR_DIMS[i].label, lx, ly)
@@ -234,7 +246,7 @@ export function useRealmStaircaseCanvas(containerRef: Ref<HTMLElement | null>) {
         const dpr = window.devicePixelRatio || 1
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
         ctx.font = '14px sans-serif'
-        ctx.fillStyle = '#8b949e'
+        ctx.fillStyle = cssVar('--color-text-tertiary', '#8b949e')
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
         ctx.fillText('暂无战力数据', w / 2, h / 2)

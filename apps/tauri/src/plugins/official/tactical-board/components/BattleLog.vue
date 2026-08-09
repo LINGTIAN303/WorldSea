@@ -44,7 +44,7 @@ watch(
 .bl-title {
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
-  color: #8b949e;
+  color: var(--color-text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   padding: 8px 12px 4px;
@@ -67,18 +67,18 @@ watch(
 }
 
 .bl-entry:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: color-mix(in srgb, var(--color-text-secondary) 5%, transparent);
 }
 
 .bl-turn {
-  color: #484f58;
+  color: var(--color-text-tertiary);
   font-size: var(--font-size-xs);
   flex-shrink: 0;
   min-width: 22px;
 }
 
 .bl-text {
-  color: #c9d1d9;
+  color: var(--color-text-primary);
   word-break: break-all;
 }
 

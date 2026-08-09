@@ -161,14 +161,14 @@ function formatDuration(ms: number): string {
 }
 
 .ep-progress {
-  height: 4px; background: var(--bg-tertiary, #21262d); border-radius: 2px;
+  height: 4px; background: var(--bg-tertiary, #e4e4e7); border-radius: 2px;
   position: relative; overflow: hidden;
 }
-.ep-progress__bar { height: 100%; background: var(--success, #3fb950); border-radius: 2px; transition: width 0.3s; }
+.ep-progress__bar { height: 100%; background: var(--success, #16a34a); border-radius: 2px; transition: width 0.3s; }
 .ep-progress__text { position: absolute; right: 0; top: -16px; font-size: var(--fs-xs); opacity: 0.5; }
 
 .ep-current {
-  margin-top: 8px; padding: 8px 10px; background: var(--bg-tertiary, #21262d);
+  margin-top: 8px; padding: 8px 10px; background: var(--bg-tertiary, #e4e4e7);
   border-radius: var(--radius-sm); display: flex; align-items: center; gap: 6px; font-size: var(--fs-sm);
 }
 .ep-current__label { opacity: 0.6; }
@@ -186,20 +186,20 @@ function formatDuration(ms: number): string {
   align-items: center;
   gap: 6px;
   padding: 6px 10px;
-  background: var(--bg-tertiary, #21262d);
+  background: var(--bg-tertiary, #e4e4e7);
   border-radius: var(--radius-sm);
   font-size: var(--fs-sm);
 }
 .ep-agent__icon { font-size: var(--fs-base); }
 .ep-agent__name { font-weight: 500; }
 .ep-agent__status { font-size: var(--fs-xs); margin-left: auto; }
-.agent-status--running { color: var(--warning, #d29922); }
-.agent-status--pending { color: var(--text-secondary, #8b949e); }
-.agent-status--completed { color: var(--success, #3fb950); }
-.agent-status--failed { color: var(--danger, #f85149); }
+.agent-status--running { color: var(--warning, #d97706); }
+.agent-status--pending { color: var(--text-secondary, #6b7280); }
+.agent-status--completed { color: var(--success, #16a34a); }
+.agent-status--failed { color: var(--danger, #dc2626); }
 .ep-agent__duration { font-size: var(--fs-xs); opacity: 0.5; }
 
-.ep-log { margin-top: 8px; padding: 12px; background: var(--bg-tertiary, #21262d); border-radius: var(--radius-mid); }
+.ep-log { margin-top: 8px; padding: 12px; background: var(--bg-tertiary, #e4e4e7); border-radius: var(--radius-mid); }
 .ep-log__title { margin: 0 0 8px; font-size: var(--fs-md); opacity: 0.7; }
 .ep-log__line { font-size: var(--fs-sm); font-family: monospace; opacity: 0.6; line-height: 1.6; }
 
@@ -209,8 +209,8 @@ function formatDuration(ms: number): string {
 .ep-engine {
   margin-top: 10px;
   padding: 10px 12px;
-  background: color-mix(in srgb, var(--success, #3fb950) 6%, var(--bg-secondary, #161b22));
-  border: 1px solid color-mix(in srgb, var(--success, #3fb950) 25%, transparent);
+  background: color-mix(in srgb, var(--success, #16a34a) 6%, var(--bg-secondary, #f4f4f5));
+  border: 1px solid color-mix(in srgb, var(--success, #16a34a) 25%, transparent);
   border-radius: var(--radius-mid);
 }
 .ep-engine__header {
@@ -218,14 +218,14 @@ function formatDuration(ms: number): string {
 }
 .ep-engine__badge {
   font-size: var(--fs-xs); font-weight: 600; padding: 2px 8px; border-radius: var(--radius-xs);
-  background: var(--bg-tertiary, #21262d);
+  background: var(--bg-tertiary, #e4e4e7);
 }
-.ep-engine__badge--running { color: var(--warning, #d29922); }
-.ep-engine__badge--completed { color: var(--success, #3fb950); }
-.ep-engine__badge--failed { color: var(--danger, #f85149); }
-.ep-engine__badge--cancelled { color: var(--text-secondary, #8b949e); }
-.ep-engine__badge--idle { color: var(--text-secondary, #8b949e); }
-.ep-engine__badge--unknown { color: var(--text-secondary, #8b949e); }
+.ep-engine__badge--running { color: var(--warning, #d97706); }
+.ep-engine__badge--completed { color: var(--success, #16a34a); }
+.ep-engine__badge--failed { color: var(--danger, #dc2626); }
+.ep-engine__badge--cancelled { color: var(--text-secondary, #6b7280); }
+.ep-engine__badge--idle { color: var(--text-secondary, #6b7280); }
+.ep-engine__badge--unknown { color: var(--text-secondary, #6b7280); }
 
 .ep-engine__runid {
   font-size: var(--fs-xs); opacity: 0.5; font-family: monospace;
@@ -234,25 +234,25 @@ function formatDuration(ms: number): string {
 
 .ep-engine__cancel {
   padding: 2px 10px; border-radius: var(--radius-xs);
-  border: 1px solid color-mix(in srgb, var(--danger, #f85149) 40%, transparent);
-  background: transparent; color: var(--danger, #f85149);
+  border: 1px solid color-mix(in srgb, var(--danger, #dc2626) 40%, transparent);
+  background: transparent; color: var(--danger, #dc2626);
   font-size: var(--fs-xs); cursor: pointer;
 }
 .ep-engine__cancel:hover {
-  background: color-mix(in srgb, var(--danger, #f85149) 12%, transparent);
+  background: color-mix(in srgb, var(--danger, #dc2626) 12%, transparent);
 }
 
 .ep-engine__progress {
   margin-top: 8px; height: 4px;
-  background: var(--bg-tertiary, #21262d);
+  background: var(--bg-tertiary, #e4e4e7);
   border-radius: 2px; position: relative; overflow: hidden;
 }
 .ep-engine__progress-bar {
   height: 100%; border-radius: 2px; transition: width 0.3s;
-  background: var(--success, #3fb950);
+  background: var(--success, #16a34a);
 }
-.ep-engine__progress-bar--failed { background: var(--danger, #f85149); }
-.ep-engine__progress-bar--cancelled { background: var(--text-secondary, #8b949e); }
+.ep-engine__progress-bar--failed { background: var(--danger, #dc2626); }
+.ep-engine__progress-bar--cancelled { background: var(--text-secondary, #6b7280); }
 .ep-engine__progress-text {
   position: absolute; right: 0; top: -16px;
   font-size: var(--fs-xs); opacity: 0.5;
@@ -265,19 +265,19 @@ function formatDuration(ms: number): string {
 .ep-engine__current-node {
   font-family: monospace; font-size: var(--fs-xs);
   padding: 1px 6px; border-radius: var(--radius-2xs);
-  background: var(--bg-tertiary, #21262d);
+  background: var(--bg-tertiary, #e4e4e7);
 }
 
 .ep-engine__error {
   margin-top: 8px; padding: 6px 10px;
-  background: color-mix(in srgb, var(--danger, #f85149) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--danger, #f85149) 30%, transparent);
-  border-radius: var(--radius-xs); font-size: var(--fs-sm); color: var(--danger, #f85149);
+  background: color-mix(in srgb, var(--danger, #dc2626) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger, #dc2626) 30%, transparent);
+  border-radius: var(--radius-xs); font-size: var(--fs-sm); color: var(--danger, #dc2626);
 }
 
 .ep-engine__log {
   margin-top: 8px; max-height: 160px; overflow: auto;
-  padding: 6px 8px; background: var(--bg-tertiary, #21262d);
+  padding: 6px 8px; background: var(--bg-tertiary, #e4e4e7);
   border-radius: var(--radius-xs);
 }
 .ep-engine__log-line {

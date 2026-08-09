@@ -23,7 +23,12 @@
           <template #item="{ element }">
             <div
               class="nb-board-card"
+              role="button"
+              tabindex="0"
+              :aria-label="`打开笔记 ${element.name}`"
               @click="$emit('select', element.id)"
+              @keydown.enter.prevent="$emit('select', element.id)"
+              @keydown.space.prevent="$emit('select', element.id)"
             >
               <div class="nb-bc-icon"><WsIcon :name="getNoteIcon(element)" size="sm" /></div>
               <div class="nb-bc-name">{{ element.name }}</div>

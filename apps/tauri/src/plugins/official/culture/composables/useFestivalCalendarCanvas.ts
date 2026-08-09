@@ -8,6 +8,12 @@ import {
 import type { FestivalNode } from './useFestivalCalendarData'
 import { monthToAngle } from './useFestivalCalendarData'
 
+/** 从 CSS 变量读取主题色（canvas 背景由引擎按 --color-bg-base 主题化，文本/边框须同步主题，否则浅色下不可见） */
+function cssVar(name: string, fallback: string): string {
+  if (typeof window === 'undefined') return fallback
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback
+}
+
 const BASE_R = 200
 const MARKER_R = 6
 
@@ -125,7 +131,7 @@ function drawMonthTicks(ctx: CanvasRenderingContext2D): void {
     ctx.beginPath()
     ctx.moveTo(x1, y1)
     ctx.lineTo(x2, y2)
-    ctx.strokeStyle = '#30363d'
+    ctx.strokeStyle = cssVar('--color-border-strong', '#30363d')
     ctx.lineWidth = 2
     ctx.stroke()
   }
@@ -133,7 +139,7 @@ function drawMonthTicks(ctx: CanvasRenderingContext2D): void {
 
 function drawMonthLabels(ctx: CanvasRenderingContext2D): void {
   ctx.font = '11px sans-serif'
-  ctx.fillStyle = '#8b949e'
+  ctx.fillStyle = cssVar('--color-text-tertiary', '#8b949e')
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
 
@@ -155,6 +161,7 @@ function drawCalMarker(
   const r = state.isSelected ? MARKER_R + 2 : state.isHovered ? MARKER_R + 1 : MARKER_R
 
   ctx.save()
+  const text = cssVar('--color-text-primary', '#e6edf3')
 
   if (state.isSelected) {
     ctx.shadowColor = node.color
@@ -165,21 +172,21 @@ function drawCalMarker(
   ctx.arc(x, y, r, 0, Math.PI * 2)
   ctx.fillStyle = hexToRgba(node.color, state.isSelected ? 0.9 : state.isHovered ? 0.7 : 0.5)
   ctx.fill()
-  ctx.strokeStyle = state.isSelected ? '#e6edf3' : node.color
+  ctx.strokeStyle = state.isSelected ? text : node.color
   ctx.lineWidth = state.isSelected ? 2 : 1
   ctx.stroke()
 
   ctx.shadowBlur = 0
 
   ctx.font = '12px sans-serif'
-  ctx.fillStyle = '#e6edf3'
+  ctx.fillStyle = text
   ctx.textAlign = 'center'
   ctx.textBaseline = 'bottom'
   ctx.fillText(node.icon, x, y - MARKER_R - 2)
 
   if (state.isSelected || state.isHovered) {
     ctx.font = '10px sans-serif'
-    ctx.fillStyle = '#e6edf3'
+    ctx.fillStyle = text
     ctx.textAlign = 'center'
     ctx.textBaseline = 'top'
     const nameText = node.name.length > 6 ? node.name.slice(0, 6) + '…' : node.name
@@ -237,7 +244,7 @@ export function useFestivalCalendarCanvas(containerRef: Ref<HTMLElement | null>)
 
       const startY = -_untimedNodes.length * 12
       ctx.font = '9px sans-serif'
-      ctx.fillStyle = '#8b949e'
+      ctx.fillStyle = cssVar('--color-text-tertiary', '#8b949e')
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
       ctx.fillText('— 无固定时间 —', 0, startY - 14)

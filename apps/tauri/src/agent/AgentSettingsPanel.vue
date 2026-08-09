@@ -494,7 +494,7 @@ function onThinkingLevelChange(e: Event): void {
   position: absolute;
   inset: 0;
   background: var(--agent-border-color);
-  border-radius: 18px;
+  border-radius: var(--radius-pill, 18px);
   transition: background 0.2s;
 }
 
@@ -796,7 +796,7 @@ function onThinkingLevelChange(e: Event): void {
 }
 
 .usage-saved .usage-value {
-  color: var(--agent-success, #22c55e);
+  color: var(--success, #16a34a);
 }
 
 .usage-section-title {
@@ -809,7 +809,7 @@ function onThinkingLevelChange(e: Event): void {
 }
 
 .usage-cache-hit .usage-value {
-  color: var(--agent-success, #22c55e);
+  color: var(--success, #16a34a);
 }
 
 
@@ -826,15 +826,15 @@ function onThinkingLevelChange(e: Event): void {
 }
 
 .mode-tauri .mode-badge {
-  background: rgba(46, 204, 113, 0.2);
-  color: #2ecc71;
-  border: 1px solid rgba(46, 204, 113, 0.3);
+  background: var(--success-soft, rgba(46, 204, 113, 0.2));
+  color: var(--success, #2ecc71);
+  border: 1px solid color-mix(in srgb, var(--success, #2ecc71) 30%, transparent);
 }
 
 .mode-web .mode-badge {
-  background: rgba(52, 152, 219, 0.2);
-  color: #3498db;
-  border: 1px solid rgba(52, 152, 219, 0.3);
+  background: var(--info-soft, rgba(52, 152, 219, 0.2));
+  color: var(--info, #3498db);
+  border: 1px solid color-mix(in srgb, var(--info, #3498db) 30%, transparent);
 }
 
 .mode-indicator {
@@ -849,15 +849,15 @@ function onThinkingLevelChange(e: Event): void {
 }
 
 .mode-indicator.mode-tauri {
-  background: rgba(46, 204, 113, 0.1);
-  border: 1px solid rgba(46, 204, 113, 0.25);
-  color: #2ecc71;
+  background: var(--success-soft, rgba(46, 204, 113, 0.1));
+  border: 1px solid color-mix(in srgb, var(--success, #2ecc71) 25%, transparent);
+  color: var(--success, #2ecc71);
 }
 
 .mode-indicator.mode-web {
-  background: rgba(52, 152, 219, 0.1);
-  border: 1px solid rgba(52, 152, 219, 0.25);
-  color: #3498db;
+  background: var(--info-soft, rgba(52, 152, 219, 0.1));
+  border: 1px solid color-mix(in srgb, var(--info, #3498db) 25%, transparent);
+  color: var(--info, #3498db);
 }
 
 .terminal-mode-display {
@@ -872,8 +872,8 @@ function onThinkingLevelChange(e: Event): void {
 }
 
 .settings-btn-secondary:hover {
-  background: rgba(231, 76, 60, 0.1);
-  border-color: rgba(231, 76, 60, 0.3);
+  background: var(--danger-soft, rgba(231, 76, 60, 0.1));
+  border-color: color-mix(in srgb, var(--danger, #dc2626) 30%, transparent);
   color: var(--danger);
 }
 
@@ -901,7 +901,7 @@ function onThinkingLevelChange(e: Event): void {
 .cli-cap-tool-count {
   font-size: var(--fs-xs);
   color: var(--agent-text-secondary);
-  background: rgba(52, 152, 219, 0.1);
+  background: var(--info-soft, rgba(52, 152, 219, 0.1));
   padding: 1px 6px;
   border-radius: var(--radius-xs);
 }

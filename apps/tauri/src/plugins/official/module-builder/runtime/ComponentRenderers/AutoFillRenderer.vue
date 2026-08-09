@@ -75,7 +75,7 @@ onBeforeUnmount(() => {
 .af-value-row { display: flex; align-items: center; gap: 6px; }
 .af-value { flex: 1; font-size: var(--font-size-sm); color: var(--text-color); padding: 4px 8px; background: var(--bg-secondary); border-radius: var(--radius-xs); min-height: 20px; }
 .af-fill-btn { padding: 3px 8px; border: 1px solid var(--primary); border-radius: var(--radius-xs); background: transparent; color: var(--primary); font-size: var(--font-size-xs); cursor: pointer; }
-.af-fill-btn:hover { background: rgba(79, 70, 229, 0.08); }
+.af-fill-btn:hover { background: var(--accent-soft, rgba(79, 70, 229, 0.08)); }
 .af-fill-all { padding: 6px 12px; background: var(--primary); color: var(--on-accent); border: none; border-radius: var(--radius-sm); font-size: var(--font-size-sm); cursor: pointer; margin-top: 4px; }
 .af-fill-all:hover { opacity: 0.9; }
 </style>

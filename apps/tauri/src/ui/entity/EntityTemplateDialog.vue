@@ -20,7 +20,7 @@
           </select>
 
           <div class="et-list" v-if="filteredEntityTemplates.length">
-            <div v-for="tmpl in filteredEntityTemplates" :key="tmpl.id" class="et-card" @click="onApplyEntityTemplate(tmpl)">
+            <div v-for="tmpl in filteredEntityTemplates" :key="tmpl.id" class="et-card" role="button" tabindex="0" :aria-label="`应用模板：${tmpl.name}`" @click="onApplyEntityTemplate(tmpl)" @keydown.enter.prevent="onApplyEntityTemplate(tmpl)" @keydown.space.prevent="onApplyEntityTemplate(tmpl)">
               <div class="et-card-icon">{{ entitySchemaRegistry.getEmoji(tmpl.entityType) }}</div>
               <div class="et-card-content">
                 <div class="et-card-h">
@@ -41,7 +41,7 @@
         <!-- 世界观模板 -->
         <div v-if="tab === 'world'" class="et-body">
           <div class="et-list" v-if="worldTemplates.length">
-            <div v-for="wt in worldTemplates" :key="wt.id" class="et-card et-card-world" @click="onApplyWorldTemplate(wt)">
+            <div v-for="wt in worldTemplates" :key="wt.id" class="et-card et-card-world" role="button" tabindex="0" :aria-label="`应用世界观模板：${wt.name}`" @click="onApplyWorldTemplate(wt)" @keydown.enter.prevent="onApplyWorldTemplate(wt)" @keydown.space.prevent="onApplyWorldTemplate(wt)">
               <div class="et-card-icon">{{ wt.icon === 'castle' ? '🏰' : '🌍' }}</div>
               <div class="et-card-content">
                 <div class="et-card-h">
@@ -184,7 +184,7 @@ function close() {
 .et-card-content { flex: 1; min-width: 0; }
 .et-card-h { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; flex-wrap: wrap; }
 .et-card-h strong { font-size: var(--font-size-base); }
-.et-type-badge { font-size: var(--font-size-xs); background: #eef2ff; color: var(--primary); padding: 2px 6px; border-radius: var(--radius-xs); }
+.et-type-badge { font-size: var(--font-size-xs); background: var(--color-primary-subtle, #eef2ff); color: var(--primary); padding: 2px 6px; border-radius: var(--radius-xs); }
 .et-source-badge { font-size: var(--font-size-xs); padding: 1px 5px; border-radius: var(--radius-2xs); }
 .et-source-badge.builtin { background: var(--success-soft); color: var(--success); }
 .et-source-badge.custom { background: var(--warning-soft); color: var(--warning); }

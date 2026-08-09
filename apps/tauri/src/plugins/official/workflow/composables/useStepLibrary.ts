@@ -91,12 +91,12 @@ export const STEP_TYPE_ICONS: Record<StepType, string> = {
 
 /** 步骤类型对应的颜色 */
 export const STEP_TYPE_COLORS: Record<StepType, string> = {
-  'agent-task': 'var(--primary, #58a6ff)',
-  'user-review': 'var(--warning, #d29922)',
-  'batch-create': 'var(--success, #3fb950)',
+  'agent-task': 'var(--primary, #4f46e5)',
+  'user-review': 'var(--warning, #d97706)',
+  'batch-create': 'var(--success, #16a34a)',
   'template-apply': 'var(--info, #79c0ff)',
-  'consistency-check': 'var(--danger, #f85149)',
-  'transform': 'var(--secondary, #8b949e)',
+  'consistency-check': 'var(--danger, #dc2626)',
+  'transform': 'var(--secondary, #6b7280)',
 }
 
 export function useStepLibrary() {

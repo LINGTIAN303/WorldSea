@@ -163,6 +163,6 @@ function cancelEdit() {
 .en-edit-actions { display: flex; gap: 4px; margin-top: 4px; }
 .en-btn-sm { font-size: var(--font-size-xs); padding: 2px 8px; border: 1px solid var(--border-color); border-radius: var(--radius-xs); background: transparent; color: var(--text-color); cursor: pointer; }
 .en-btn-cancel { color: var(--text-tertiary); }
-.en-btn-danger { color: #e74c3c; }
+.en-btn-danger { color: var(--danger, #e74c3c); }
 </style>
 

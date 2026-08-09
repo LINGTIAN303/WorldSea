@@ -167,7 +167,7 @@ defineExpose({ loadRuns })
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--bg-secondary, #161b22);
+  background: var(--bg-secondary, #f4f4f5);
   border-radius: var(--radius-mid);
   overflow: hidden;
 }
@@ -177,7 +177,7 @@ defineExpose({ loadRuns })
   align-items: center;
   justify-content: space-between;
   padding: 10px 12px;
-  border-bottom: 1px solid var(--border, #30363d);
+  border-bottom: 1px solid var(--border, #e4e4e7);
   flex-shrink: 0;
 }
 .rh-title {
@@ -188,7 +188,7 @@ defineExpose({ loadRuns })
 .rh-refresh {
   background: none;
   border: none;
-  color: var(--text-secondary, #8b949e);
+  color: var(--text-secondary, #6b7280);
   cursor: pointer;
   padding: 4px;
   border-radius: var(--radius-xs);
@@ -197,8 +197,8 @@ defineExpose({ loadRuns })
   justify-content: center;
 }
 .rh-refresh:hover:not(:disabled) {
-  color: var(--primary, #58a6ff);
-  background: var(--bg-tertiary, #21262d);
+  color: var(--primary, #4f46e5);
+  background: var(--bg-tertiary, #e4e4e7);
 }
 .rh-refresh:disabled {
   opacity: 0.4;
@@ -249,11 +249,11 @@ defineExpose({ loadRuns })
   margin-bottom: 2px;
 }
 .rh-item:hover {
-  background: var(--bg-tertiary, #21262d);
+  background: var(--bg-tertiary, #e4e4e7);
 }
 .rh-item--active {
-  background: var(--bg-tertiary, #21262d);
-  border-left: 2px solid var(--primary, #58a6ff);
+  background: var(--bg-tertiary, #e4e4e7);
+  border-left: 2px solid var(--primary, #4f46e5);
   padding-left: 8px;
 }
 
@@ -278,12 +278,12 @@ defineExpose({ loadRuns })
   white-space: nowrap;
   flex-shrink: 0;
 }
-.rh-status--running { color: var(--warning, #d29922); background: color-mix(in srgb, var(--warning, #d29922) 15%, transparent); }
-.rh-status--completed { color: var(--success, #3fb950); background: color-mix(in srgb, var(--success, #3fb950) 15%, transparent); }
-.rh-status--failed { color: var(--danger, #f85149); background: color-mix(in srgb, var(--danger, #f85149) 15%, transparent); }
-.rh-status--cancelled { color: var(--text-secondary, #8b949e); background: var(--bg-tertiary, #21262d); }
-.rh-status--pending { color: var(--text-secondary, #8b949e); background: var(--bg-tertiary, #21262d); }
-.rh-status--paused { color: var(--warning, #d29922); background: color-mix(in srgb, var(--warning, #d29922) 15%, transparent); }
+.rh-status--running { color: var(--warning, #d97706); background: color-mix(in srgb, var(--warning, #d97706) 15%, transparent); }
+.rh-status--completed { color: var(--success, #16a34a); background: color-mix(in srgb, var(--success, #16a34a) 15%, transparent); }
+.rh-status--failed { color: var(--danger, #dc2626); background: color-mix(in srgb, var(--danger, #dc2626) 15%, transparent); }
+.rh-status--cancelled { color: var(--text-secondary, #6b7280); background: var(--bg-tertiary, #e4e4e7); }
+.rh-status--pending { color: var(--text-secondary, #6b7280); background: var(--bg-tertiary, #e4e4e7); }
+.rh-status--paused { color: var(--warning, #d97706); background: color-mix(in srgb, var(--warning, #d97706) 15%, transparent); }
 
 .rh-item__meta {
   display: flex;
@@ -306,10 +306,10 @@ defineExpose({ loadRuns })
 .rh-item__error {
   margin-top: 6px;
   padding: 6px 8px;
-  background: color-mix(in srgb, var(--danger, #f85149) 10%, transparent);
+  background: color-mix(in srgb, var(--danger, #dc2626) 10%, transparent);
   border-radius: var(--radius-xs);
   font-size: var(--fs-xs);
-  color: var(--danger, #f85149);
+  color: var(--danger, #dc2626);
   white-space: pre-wrap;
   word-break: break-all;
 }
@@ -332,14 +332,14 @@ defineExpose({ loadRuns })
   margin-top: 8px;
   padding: 4px 12px;
   border-radius: 5px;
-  border: 1px solid var(--border, #30363d);
-  background: var(--bg-tertiary, #21262d);
-  color: var(--primary, #58a6ff);
+  border: 1px solid var(--border, #e4e4e7);
+  background: var(--bg-tertiary, #e4e4e7);
+  color: var(--primary, #4f46e5);
   font-size: var(--fs-xs);
   cursor: pointer;
 }
 .rh-error__retry:hover {
-  border-color: var(--primary, #58a6ff);
+  border-color: var(--primary, #4f46e5);
 }
 
 /* ── 减弱动态偏好（prefers-reduced-motion）：停用刷新图标旋转 ──

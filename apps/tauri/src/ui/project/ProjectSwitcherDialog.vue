@@ -8,9 +8,10 @@
           class="pm-create-input"
           v-model="newProjectName"
           placeholder="新项目名称..."
+          aria-label="新项目名称"
           @keydown.enter="onCreateProject"
         />
-        <button class="pm-create-btn-dir" :title="newProjectDir || '选择项目目录（可选）'" @click="onSelectNewProjectDir">
+        <button class="pm-create-btn-dir" :title="newProjectDir || '选择项目目录（可选）'" :aria-label="newProjectDir || '选择项目目录'" @click="onSelectNewProjectDir">
           <TuiIcon :name="newProjectDir ? 'folder' : 'folderOpen'" :size="14" />
         </button>
         <button class="pm-create-btn" :disabled="!newProjectName.trim() || creating" @click="onCreateProject">
@@ -37,6 +38,7 @@
                 type="text"
                 class="pm-rename-input"
                 v-model="renameValue"
+                aria-label="项目重命名"
                 @keydown.enter="onRenameConfirm(project.id)"
                 @keydown.escape="onRenameCancel"
                 @blur="onRenameConfirm(project.id)"
@@ -498,8 +500,8 @@ async function onImportProject() {
 }
 
 .pm-action-btn--danger:hover {
-  background: rgba(220, 50, 50, 0.15);
-  color: #dc3232;
+  background: var(--danger-soft, rgba(220, 50, 50, 0.15));
+  color: var(--danger, #dc3232);
 }
 
 .pm-action-btn:disabled {

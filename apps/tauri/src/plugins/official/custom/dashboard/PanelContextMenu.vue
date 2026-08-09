@@ -98,6 +98,6 @@ function onRemove() {
 }
 
 .cv-ctx-danger:hover {
-  background: rgba(220, 53, 69, 0.08);
+  background: var(--danger-soft, rgba(220, 53, 69, 0.08));
 }
 </style>

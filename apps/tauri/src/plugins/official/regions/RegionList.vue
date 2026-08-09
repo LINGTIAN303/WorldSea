@@ -32,8 +32,14 @@
         <div v-for="item in visibleTree(entities)" :key="item.entity.id" class="tree-item"
           :class="{ selected: selectedRegion?.id === item.entity.id, 'batch-selected': batchIds.has(item.entity.id) }"
           :style="{ paddingLeft: (item.depth * 20 + 8) + 'px' }"
-          @click="onTreeSelect(item.entity, selectFn)">
-          <span v-if="item.children.length" class="tree-toggle" @click.stop="toggleExpand(item.entity.id)">
+          role="button"
+          tabindex="0"
+          :aria-current="selectedRegion?.id === item.entity.id ? 'true' : undefined"
+          :aria-label="`打开区域 ${item.entity.name}`"
+          @click="onTreeSelect(item.entity, selectFn)"
+          @keydown.enter.prevent="onTreeSelect(item.entity, selectFn)"
+          @keydown.space.prevent="onTreeSelect(item.entity, selectFn)">
+          <span v-if="item.children.length" class="tree-toggle" tabindex="-1" role="button" :aria-label="`${expandedMap[item.entity.id] !== false ? '收起' : '展开'} ${item.entity.name}`" @click.stop="toggleExpand(item.entity.id)" @keydown.enter.prevent.stop="toggleExpand(item.entity.id)">
             {{ expandedMap[item.entity.id] !== false ? 'v' : '>' }}
           </span>
           <span v-else class="tree-toggle tree-toggle-spacer"></span>
@@ -55,7 +61,7 @@
           class="entity-card-wrapper"
           :class="{ 'batch-selected': batchIds.has(e.id) }"
         >
-          <div class="entity-card" @click="selectFn(e)">
+          <div class="entity-card" role="button" tabindex="0" :aria-label="`打开区域 ${e.name}`" @click="selectFn(e)" @keydown.enter.prevent="selectFn(e)" @keydown.space.prevent="selectFn(e)">
             <input type="checkbox" class="batch-check" :checked="batchIds.has(e.id)" @change="batchToggle(e.id)" @click.stop />
             <div class="card-header">
               <WsIcon class="card-icon" :name="typeIcon(e)" size="sm" />

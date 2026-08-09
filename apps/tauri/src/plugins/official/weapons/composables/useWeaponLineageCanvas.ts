@@ -8,6 +8,12 @@ import {
 } from '@worldsmith/canvas-engine/tree'
 import type { WeaponNode, WeaponEdge, HolderLink } from './useWeaponLineageData'
 
+/** 从 CSS 变量读取主题色（canvas 背景由引擎按 --color-bg-base 主题化，文本/边框须同步主题，否则浅色下不可见） */
+function cssVar(name: string, fallback: string): string {
+  if (typeof window === 'undefined') return fallback
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback
+}
+
 const NODE_W = 160
 const NODE_H = 56
 const NODE_R = 8
@@ -34,6 +40,8 @@ function drawWeaponNode(
   const y = node.y - NODE_H / 2
 
   ctx.save()
+  const text = cssVar('--color-text-primary', '#e6edf3')
+  const tertiary = cssVar('--color-text-tertiary', '#8b949e')
 
   if (state.isSelected) {
     ctx.shadowColor = node.color
@@ -44,20 +52,20 @@ function drawWeaponNode(
   roundRect(ctx, x, y, NODE_W, NODE_H, NODE_R)
   ctx.fillStyle = hexToRgba(node.color, 0.15)
   ctx.fill()
-  ctx.strokeStyle = state.isSelected ? node.color : state.isHovered ? '#e6edf3' : hexToRgba(node.color, 0.4)
+  ctx.strokeStyle = state.isSelected ? node.color : state.isHovered ? text : hexToRgba(node.color, 0.4)
   ctx.lineWidth = state.isSelected ? 2 : 1
   ctx.stroke()
 
   ctx.shadowBlur = 0
 
   ctx.font = '16px sans-serif'
-  ctx.fillStyle = '#e6edf3'
+  ctx.fillStyle = text
   ctx.textAlign = 'left'
   ctx.textBaseline = 'middle'
   ctx.fillText(node.icon, x + 8, y + NODE_H / 2 - 6)
 
   ctx.font = '12px sans-serif'
-  ctx.fillStyle = '#e6edf3'
+  ctx.fillStyle = text
   const nameText = node.name.length > 8 ? node.name.slice(0, 8) + '…' : node.name
   ctx.fillText(nameText, x + 30, y + NODE_H / 2 - 8)
 
@@ -67,7 +75,7 @@ function drawWeaponNode(
 
   if (node.status) {
     ctx.font = '9px sans-serif'
-    ctx.fillStyle = '#8b949e'
+    ctx.fillStyle = tertiary
     ctx.textAlign = 'right'
     ctx.fillText(node.status, x + NODE_W - 8, y + NODE_H / 2 + 6)
   }
@@ -140,6 +148,10 @@ function drawHolderChain(
   const chainStartY = weaponNode.y - (holders.length - 1) * 14
 
   ctx.save()
+  const text = cssVar('--color-text-primary', '#e6edf3')
+  const textTertiary = cssVar('--color-text-tertiary', '#8b949e')
+  const accent = cssVar('--color-primary', '#58a6ff')
+  const borderStrong = cssVar('--color-border-strong', '#30363d')
   ctx.font = '10px sans-serif'
   ctx.textAlign = 'left'
   ctx.textBaseline = 'middle'
@@ -151,16 +163,16 @@ function drawHolderChain(
     ctx.beginPath()
     ctx.moveTo(weaponNode.x + NODE_W / 2, weaponNode.y)
     ctx.lineTo(chainStartX, hy)
-    ctx.strokeStyle = h.isCurrent ? '#58a6ff' : '#30363d'
+    ctx.strokeStyle = h.isCurrent ? accent : borderStrong
     ctx.lineWidth = h.isCurrent ? 1.5 : 0.8
     ctx.stroke()
 
     ctx.beginPath()
     ctx.arc(chainStartX + 4, hy, 4, 0, Math.PI * 2)
-    ctx.fillStyle = h.isCurrent ? '#58a6ff' : '#8b949e'
+    ctx.fillStyle = h.isCurrent ? accent : textTertiary
     ctx.fill()
 
-    ctx.fillStyle = h.isCurrent ? '#e6edf3' : '#8b949e'
+    ctx.fillStyle = h.isCurrent ? text : textTertiary
     const label = (h.isCurrent ? '● ' : '○ ') + h.characterName
     ctx.fillText(label, chainStartX + 14, hy)
   }

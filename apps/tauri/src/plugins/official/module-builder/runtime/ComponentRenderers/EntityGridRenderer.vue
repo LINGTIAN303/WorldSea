@@ -60,7 +60,7 @@ function onSelect(entity: any) {
 .eg-grid { display: grid; gap: 8px; }
 .eg-card { border: 1px solid var(--border-color); border-radius: var(--radius-mid); padding: 12px; cursor: pointer; transition: background 0.1s, border-color 0.1s, color 0.1s, box-shadow 0.1s, transform 0.1s, opacity 0.1s, filter 0.1s; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; }
 .eg-card:hover { border-color: var(--primary); box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-.eg-card.selected { border-color: var(--primary); background: rgba(79, 70, 229, 0.08); }
+.eg-card.selected { border-color: var(--primary); background: var(--accent-soft, rgba(79, 70, 229, 0.08)); }
 .eg-icon { font-size: var(--font-size-2xl); }
 .eg-name { font-size: var(--font-size-sm); font-weight: var(--font-weight-medium); color: var(--text-color); }
 .eg-fields { display: flex; flex-direction: column; gap: 2px; width: 100%; }

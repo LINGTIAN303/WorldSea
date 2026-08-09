@@ -10,6 +10,12 @@ import {
 } from '@worldsmith/canvas-engine/tree'
 import type { SkillNode, SkillEdge } from './useSkillTreeData'
 
+/** 从 CSS 变量读取主题色（canvas 背景由引擎按 --color-bg-base 主题化，文本/边框须同步主题，否则浅色下不可见） */
+function cssVar(name: string, fallback: string): string {
+  if (typeof window === 'undefined') return fallback
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback
+}
+
 const NODE_W = 160
 const NODE_H = 60
 const NODE_R = 8
@@ -29,9 +35,12 @@ function drawSkillNode(
   const y = node.y - NODE_H / 2
 
   ctx.save()
+  const text = cssVar('--color-text-primary', '#e6edf3')
+  const tertiary = cssVar('--color-text-tertiary', '#8b949e')
+  const accent = cssVar('--color-primary', '#58a6ff')
 
   if (state.isSelected) {
-    ctx.shadowColor = '#58a6ff'
+    ctx.shadowColor = accent
     ctx.shadowBlur = 12
   }
 
@@ -39,26 +48,26 @@ function drawSkillNode(
   roundRect(ctx, x, y, NODE_W, NODE_H, NODE_R)
   ctx.fillStyle = hexToRgba(node.color, 0.2)
   ctx.fill()
-  ctx.strokeStyle = state.isSelected ? '#58a6ff' : state.isHovered ? '#e6edf3' : hexToRgba(node.color, 0.5)
+  ctx.strokeStyle = state.isSelected ? accent : state.isHovered ? text : hexToRgba(node.color, 0.5)
   ctx.lineWidth = state.isSelected ? 2 : 1
   ctx.stroke()
 
   ctx.shadowBlur = 0
 
   ctx.font = '16px sans-serif'
-  ctx.fillStyle = '#e6edf3'
+  ctx.fillStyle = text
   ctx.textAlign = 'left'
   ctx.textBaseline = 'middle'
   ctx.fillText(node.icon, x + 8, y + NODE_H / 2 - 6)
 
   ctx.font = '13px sans-serif'
-  ctx.fillStyle = '#e6edf3'
+  ctx.fillStyle = text
   ctx.textAlign = 'left'
   const nameText = node.name.length > 10 ? node.name.slice(0, 10) + '…' : node.name
   ctx.fillText(nameText, x + 30, y + NODE_H / 2 - 6)
 
   ctx.font = '10px sans-serif'
-  ctx.fillStyle = '#8b949e'
+  ctx.fillStyle = tertiary
   ctx.textAlign = 'left'
   ctx.fillText(node.level, x + 30, y + NODE_H / 2 + 12)
 

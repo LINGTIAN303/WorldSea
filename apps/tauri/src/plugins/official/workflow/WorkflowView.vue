@@ -270,7 +270,7 @@ onBeforeUnmount(() => {
 
 .wv-sidebar {
   width: 240px;
-  border-left: 1px solid var(--border, #30363d);
+  border-left: 1px solid var(--border, #e4e4e7);
   overflow: auto;
   flex-shrink: 0;
 }

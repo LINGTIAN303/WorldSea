@@ -1,5 +1,11 @@
 <template>
-  <div ref="containerRef" class="mindmap-canvas-container">
+  <div
+    ref="containerRef"
+    class="mindmap-canvas-container"
+    role="application"
+    tabindex="0"
+    aria-label="思维导图画布。可使用方向键移动选择、回车打开节点，Esc 取消选择"
+  >
     <!-- 选区矩形 overlay -->
     <div
       v-if="selectionRectOverlay"
@@ -131,7 +137,7 @@ defineExpose({
 .mm-selection-overlay {
   position: absolute;
   border: 1px dashed var(--primary, #4a6cf7);
-  background: rgba(74, 108, 247, 0.06);
+  background: color-mix(in srgb, var(--primary, #4a6cf7) 6%, transparent);
   pointer-events: none;
   z-index: 10;
 }

@@ -44,28 +44,28 @@ const statusText = computed(() => {
 
 <style scoped>
 .sc-card {
-  border: 1px solid var(--border, #30363d);
+  border: 1px solid var(--border, #e4e4e7);
   border-radius: var(--radius-mid);
   overflow: hidden;
-  background: var(--bg-secondary, #161b22);
+  background: var(--bg-secondary, #f4f4f5);
 }
 .sc-card__header {
   display: flex; align-items: center; gap: 8px;
   padding: 8px 12px;
-  border-bottom: 1px solid var(--border, #30363d);
+  border-bottom: 1px solid var(--border, #e4e4e7);
 }
 .sc-card__icon { font-size: var(--fs-lg); }
 .sc-card__title { font-size: var(--fs-md); font-weight: 500; flex: 1; }
 .sc-card__status { font-size: var(--fs-xs); }
-.status--pending { color: var(--text-secondary, #8b949e); }
-.status--running { color: var(--warning, #d29922); }
-.status--completed { color: var(--success, #3fb950); }
-.status--failed { color: var(--danger, #f85149); }
-.status--skipped { color: var(--text-secondary, #8b949e); font-style: italic; }
+.status--pending { color: var(--text-secondary, #6b7280); }
+.status--running { color: var(--warning, #d97706); }
+.status--completed { color: var(--success, #16a34a); }
+.status--failed { color: var(--danger, #dc2626); }
+.status--skipped { color: var(--text-secondary, #6b7280); font-style: italic; }
 .sc-card__body { padding: 8px 12px; font-size: var(--fs-sm); }
 .sc-card__output {
-  padding: 6px 12px; background: var(--bg-tertiary, #21262d);
-  font-size: var(--fs-xs); opacity: 0.7; border-top: 1px solid var(--border, #30363d);
+  padding: 6px 12px; background: var(--bg-tertiary, #e4e4e7);
+  font-size: var(--fs-xs); opacity: 0.7; border-top: 1px solid var(--border, #e4e4e7);
 }
 .sc-card__output p { margin: 0; }
 </style>

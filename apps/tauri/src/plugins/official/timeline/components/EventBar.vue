@@ -3,7 +3,13 @@
     class="event-bar"
     :class="[importanceClass, { selected: isSelected, 'is-dragging': isDragging }]"
     :style="barStyle"
+    role="button"
+    tabindex="0"
+    :aria-pressed="isSelected"
+    :aria-label="`选择事件：${event.name}`"
     @click="$emit('select')"
+    @keydown.enter="$emit('select')"
+    @keydown.space.prevent="$emit('select')"
     @mouseenter="hovered = true"
     @mouseleave="hovered = false"
   >
@@ -88,7 +94,7 @@ const tooltipStyle = computed(() => ({
 }
 .event-bar.selected {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(79,70,229,0.15);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary, #4f46e5) 15%, transparent);
   z-index: 3;
 }
 .event-bar.is-dragging {

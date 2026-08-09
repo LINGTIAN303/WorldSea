@@ -6,7 +6,13 @@
         :key="note.id"
         class="ft-note-item"
         :class="{ active: selectedNoteId === note.id }"
+        role="button"
+        tabindex="0"
+        :aria-current="selectedNoteId === note.id ? 'true' : undefined"
+        :aria-label="`打开笔记 ${note.name}`"
         @click="$emit('selectNote', note.id)"
+        @keydown.enter.prevent="$emit('selectNote', note.id)"
+        @keydown.space.prevent="$emit('selectNote', note.id)"
         @contextmenu.stop="openContextMenu($event, 'note', note)"
       >
         <span class="ft-note-icon"><WsIcon :name="getNoteIcon(note)" size="xs" /></span>
@@ -32,7 +38,13 @@
               <div
                 class="ft-note-item"
                 :class="{ active: selectedNoteId === element.id }"
+                role="button"
+                tabindex="0"
+                :aria-current="selectedNoteId === element.id ? 'true' : undefined"
+                :aria-label="`打开笔记 ${element.name}`"
                 @click="$emit('selectNote', element.id)"
+                @keydown.enter.prevent="$emit('selectNote', element.id)"
+                @keydown.space.prevent="$emit('selectNote', element.id)"
                 @contextmenu.stop="openContextMenu($event, 'note', element)"
               >
                 <span class="ft-note-icon"><WsIcon :name="getNoteIcon(element)" size="xs" /></span>
@@ -48,7 +60,12 @@
           <div :class="['ft-folder-group', { collapsed: collapsedFolders.has(folder.id) }]">
             <div
               class="ft-folder-header"
+              role="button"
+              tabindex="0"
+              :aria-expanded="!collapsedFolders.has(folder.id)"
               @click="onFolderHeaderClick($event, folder.id)"
+              @keydown.enter.prevent="onFolderHeaderKeydown(folder.id)"
+              @keydown.space.prevent="onFolderHeaderKeydown(folder.id)"
               @contextmenu.stop="openContextMenu($event, 'folder', folder)"
             >
               <span class="ft-folder-drag" title="拖拽排序"><WsIcon name="grip" size="xs" /></span>
@@ -78,7 +95,13 @@
                   <div
                     class="ft-note-item"
                     :class="{ active: selectedNoteId === element.id }"
+                    role="button"
+                    tabindex="0"
+                    :aria-current="selectedNoteId === element.id ? 'true' : undefined"
+                    :aria-label="`打开笔记 ${element.name}`"
                     @click="$emit('selectNote', element.id)"
+                    @keydown.enter.prevent="$emit('selectNote', element.id)"
+                    @keydown.space.prevent="$emit('selectNote', element.id)"
                     @contextmenu.stop="openContextMenu($event, 'note', element)"
                   >
                     <span class="ft-note-icon"><WsIcon :name="getNoteIcon(element)" size="xs" /></span>
@@ -299,6 +322,11 @@ function onFolderHeaderClick(ev: MouseEvent, folderId: string) {
   if (renamingFolderId.value === folderId) return
   const target = ev.target as HTMLElement
   if (target.closest('.ft-folder-drag') || target.closest('.ft-folder-del')) return
+  emit('toggleFolder', folderId)
+}
+
+function onFolderHeaderKeydown(folderId: string) {
+  if (renamingFolderId.value === folderId) return
   emit('toggleFolder', folderId)
 }
 

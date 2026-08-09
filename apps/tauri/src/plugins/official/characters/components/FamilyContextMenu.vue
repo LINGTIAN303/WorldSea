@@ -59,7 +59,7 @@ function action(type: string) {
   cursor: pointer;
 }
 .fcm-item:hover { background: var(--bg-secondary, #f5f5f5); }
-.fcm-item-danger { color: #e74c3c; }
+.fcm-item-danger { color: var(--danger, #e74c3c); }
 .fcm-divider { height: 1px; background: var(--border-color); margin: 4px 0; }
 </style>
 
