@@ -42,7 +42,7 @@
       </div>
     </div>
 
-    <div v-if="groupContextMenu.visible" class="context-menu" :style="groupContextMenuStyle" role="menu" @click.stop>
+    <div v-if="groupContextMenu.visible" ref="menuRef" class="context-menu" :style="groupContextMenuStyle" role="menu" tabindex="-1" @click.stop @keydown="onMenuKeydown">
       <button class="context-menu-item" role="menuitem" @click="onTogglePinGroup(groupContextMenu.groupId!)">
         {{ groupContextMenu.pinned ? '取消置顶' : '置顶' }}
       </button>
@@ -69,7 +69,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useGroupStore } from '../management/GroupStore'
 import { useGroupChatStore } from '../GroupChatStore'
 import { useAgentRegistryStore } from '../management/AgentRegistryStore'
@@ -137,6 +137,31 @@ function closeGroupContextMenu(): void {
   groupContextMenu.value.visible = false
   groupContextMenu.value.groupId = null
 }
+
+const menuRef = ref<HTMLDivElement | null>(null)
+let menuReturnFocusEl: HTMLElement | null = null
+
+/** 菜单键盘导航：Esc 关闭 + 焦点归还（WAI-ARIA Menu 模式） */
+function onMenuKeydown(e: KeyboardEvent): void {
+  if (e.key === 'Escape') {
+    e.preventDefault()
+    closeGroupContextMenu()
+  }
+}
+
+// 打开：记录触发元素并移焦首项；关闭：仅当焦点仍在菜单内时归还焦点
+watch(() => groupContextMenu.value.visible, (visible) => {
+  if (visible) {
+    menuReturnFocusEl = document.activeElement as HTMLElement | null
+    nextTick(() => {
+      menuRef.value?.querySelector<HTMLElement>('[role="menuitem"]')?.focus()
+    })
+  } else if (menuReturnFocusEl) {
+    const inside = menuRef.value?.contains(document.activeElement as Node)
+    if (inside && menuReturnFocusEl.isConnected) menuReturnFocusEl.focus()
+    menuReturnFocusEl = null
+  }
+})
 function onTogglePinGroup(groupId: string): void {
   const group = groupStore.groups.find(g => g.id === groupId)
   if (!group) return

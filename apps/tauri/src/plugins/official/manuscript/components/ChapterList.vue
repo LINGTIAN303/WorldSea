@@ -44,7 +44,7 @@
 
     <WsEmpty v-if="chapters.length === 0" preset="no-data" title="暂无章节" />
 
-    <div v-if="ctxMenu.show" class="cl-ctx-menu" :style="{ left: ctxMenu.x + 'px', top: ctxMenu.y + 'px' }" role="menu">
+    <div v-if="ctxMenu.show" ref="ctxMenuRef" class="cl-ctx-menu" :style="{ left: ctxMenu.x + 'px', top: ctxMenu.y + 'px' }" role="menu" tabindex="-1" @keydown="onCtxMenuKeydown">
       <div class="cl-ctx-item" role="menuitem" tabindex="0" @click="ctxRename" @keydown.enter.prevent="ctxRename"><WsIcon name="edit" size="xs" /> 重命名</div>
       <div class="cl-ctx-item" role="menuitem" tabindex="0" @click="ctxCycleStatus" @keydown.enter.prevent="ctxCycleStatus"><WsIcon name="delete" size="xs" /> 切换状态</div>
       <div class="cl-ctx-item" role="menuitem" tabindex="0" @click="ctxSetVolume" @keydown.enter.prevent="ctxSetVolume"><WsIcon name="folder" size="xs" /> 修改所属卷</div>
@@ -91,7 +91,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive, onBeforeUnmount } from 'vue'
+import { ref, computed, reactive, watch, nextTick, onBeforeUnmount } from 'vue'
 import draggable from 'vuedraggable'
 import { WsIcon } from '@worldsmith/ui-kit'
 import { WsEmpty } from '@worldsmith/ui-kit'
@@ -172,6 +172,31 @@ const showVolumeInput = ref(false)
 const volumeInputVal = ref('')
 const showOutlinePicker = ref(false)
 const outlinePickId = ref('')
+
+const ctxMenuRef = ref<HTMLDivElement | null>(null)
+let ctxMenuReturnFocusEl: HTMLElement | null = null
+
+/** 菜单键盘导航：Esc 关闭 + 焦点归还（WAI-ARIA Menu 模式） */
+function onCtxMenuKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape') {
+    e.preventDefault()
+    closeCtx()
+  }
+}
+
+// 打开：记录触发元素并移焦首项；关闭：仅当焦点仍在菜单内时归还焦点
+watch(() => ctxMenu.show, (show) => {
+  if (show) {
+    ctxMenuReturnFocusEl = document.activeElement as HTMLElement | null
+    nextTick(() => {
+      ctxMenuRef.value?.querySelector<HTMLElement>('[role="menuitem"]')?.focus()
+    })
+  } else if (ctxMenuReturnFocusEl) {
+    const inside = ctxMenuRef.value?.contains(document.activeElement as Node)
+    if (inside && ctxMenuReturnFocusEl.isConnected) ctxMenuReturnFocusEl.focus()
+    ctxMenuReturnFocusEl = null
+  }
+})
 
 function onContext(e: MouseEvent, entity: Entity) {
   ctxMenu.x = e.clientX
