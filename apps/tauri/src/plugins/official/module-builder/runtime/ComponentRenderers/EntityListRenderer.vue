@@ -26,7 +26,7 @@ import { WsEmpty } from '@worldsmith/ui-kit'
 const props = defineProps<{ config: Record<string, unknown>; componentId: string }>()
 const ctx = inject<ModuleRuntimeContext | null>('moduleRuntimeContext', null)
 
-const displayList = computed(() => ctx?.filteredList.value || [])
+const displayList = computed(() => ctx?.getFilteredByType(props.config.entityType as string) || [])
 
 const entityIcon = computed(() => {
   const types = ctx?.manifest.entityTypes || []

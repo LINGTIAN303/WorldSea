@@ -26,6 +26,8 @@ export interface ModuleRuntimeContext {
   setSearchQuery(query: string): void
   setFilters(filters: SearchFilter[]): void
   setSortConfig(config: SortConfig | null): void
+  /** 在全局搜索/筛选/排序基础上，按组件配置的实体类型进一步过滤；entityType 为空时返回全量过滤结果 */
+  getFilteredByType(entityType?: string): Entity[]
   emit(event: string, payload?: unknown): void
   on(event: string, handler: (payload?: unknown) => void): void
   off(event: string, handler: (payload?: unknown) => void): void
@@ -118,6 +120,13 @@ export function createModuleRuntimeContext(module: CustomModule): ModuleRuntimeC
 
   function setSortConfig(config: SortConfig | null) {
     sortConfig.value = config
+  }
+
+  function getFilteredByType(entityType?: string): Entity[] {
+    const list = filteredList.value
+    if (!entityType) return list
+    const fullType = `custom.${module.id}.${entityType}`
+    return list.filter(e => e.type === fullType)
   }
 
   function emit(event: string, payload?: unknown) {
@@ -226,6 +235,7 @@ export function createModuleRuntimeContext(module: CustomModule): ModuleRuntimeC
     setSearchQuery,
     setFilters,
     setSortConfig,
+    getFilteredByType,
     emit,
     on,
     off,

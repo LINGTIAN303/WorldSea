@@ -25,7 +25,7 @@ const chartRef = ref<HTMLDivElement>()
 let chart: echarts.ECharts | null = null
 
 function buildOption() {
-  const list = ctx?.filteredList.value || []
+  const list = ctx?.getFilteredByType(props.config.entityType as string) || []
   const labelField = (props.config.labelField as string) || 'name'
   const valueField = (props.config.valueField as string) || ''
   const title = (props.config.title as string) || ''
