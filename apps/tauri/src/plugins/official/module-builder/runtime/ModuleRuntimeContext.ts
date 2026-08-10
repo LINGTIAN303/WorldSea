@@ -191,12 +191,16 @@ export function createModuleRuntimeContext(module: CustomModule): ModuleRuntimeC
     return entities
   }
 
-  function initialize() {
+  async function initialize() {
+    // 加载模块下所有实体类型的数据，合并进共享列表（替代旧实现仅加载 types[0]）
     const types = module.entityTypes
-    if (types.length > 0) {
-      const fullType = `custom.${module.id}.${types[0].name}`
-      getEntitiesByType(fullType)
+    const merged: Entity[] = []
+    for (const et of types) {
+      const fullType = `custom.${module.id}.${et.name}`
+      const entities = await storage.getEntitiesByType(fullType)
+      merged.push(...entities)
     }
+    entityList.value = merged
   }
 
   function dispose() {

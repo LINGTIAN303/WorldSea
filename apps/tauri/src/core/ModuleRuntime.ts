@@ -9,31 +9,34 @@ import { entitySchemaRegistry, relationSchemaRegistry } from '@worldsmith/entity
  * 将 ModuleField 转为 FieldSchema
  */
 function toFieldSchema(f: ModuleField): FieldSchema {
+  // 全量、语义保留的映射：编辑器可选类型（FieldType）→ 运行时 fieldType。
+  // 旧实现把 rich-text/tags/rating/entity-ref 等静默压成 text，导致 schema 语义丢失。
   const typeMap: Record<string, FieldSchema['fieldType']> = {
     'text': 'text',
     'textarea': 'textarea',
-    'number': 'text',
+    'rich-text': 'rich-text',
+    'markdown': 'markdown',
+    'number': 'number',
     'boolean': 'boolean',
     'date': 'date',
-    'datetime': 'text',
-    'time': 'text',
+    'datetime': 'datetime',
+    'time': 'time',
     'select': 'select',
-    'multi-select': 'text',
+    'multi-select': 'multi-select',
+    'tags': 'tags',
+    'rating': 'rating',
+    'slider': 'slider',
+    'color': 'color',
     'image': 'image',
-    'url': 'text',
-    'email': 'text',
-    'color': 'text',
-    'rich-text': 'textarea',
-    'markdown': 'textarea',
-    'rating': 'text',
-    'slider': 'text',
-    'entity-ref': 'text',
-    'entity-refs': 'text',
-    'formula': 'text',
-    'computed': 'text',
-    'template': 'textarea',
-    'location': 'text',
-    'file': 'text',
+    'url': 'url',
+    'email': 'email',
+    'entity-ref': 'entity-ref',
+    'entity-refs': 'entity-refs',
+    'formula': 'formula',
+    'computed': 'computed',
+    'template': 'template',
+    'location': 'location',
+    'file': 'file',
   }
   return {
     key: f.key,
@@ -87,15 +90,10 @@ export function registerModule(mod: CustomModule) {
 }
 
 /**
- * 为模块生成视图元数据
+ * 为模块生成发布视图元数据。
+ * 收敛为单一语义：一律渲染为运行时视图（ModuleRuntimeRenderer），
+ * 视图 id 固定为 `custom.{modId}.main`，消除「layoutSchema 渲染 / generateViews」双轨。
  */
-export function generateViews(mod: CustomModule) {
-  return mod.views.map(v => ({
-    id: `custom.${mod.id}.${v.id}`,
-    label: v.label,
-    icon: v.icon,
-    // 返回模块信息和视图配置，由 DynamicEntityView 运行时解析
-    _moduleId: mod.id,
-    _viewConfig: v,
-  }))
+export function getCustomModuleViews(mod: CustomModule): { id: string; label: string; icon: string }[] {
+  return [{ id: `custom.${mod.id}.main`, label: mod.name || '自定义模块', icon: mod.icon || 'settings' }]
 }

@@ -4,7 +4,7 @@ import type { ModuleLayoutSchema } from './layoutSchema'
 export type FieldType =
   | 'text' | 'textarea' | 'number' | 'boolean'
   | 'date' | 'datetime' | 'time'
-  | 'select' | 'multi-select'
+  | 'select' | 'multi-select' | 'tags'
   | 'image' | 'url' | 'email' | 'color'
   | 'rich-text' | 'markdown'
   | 'rating' | 'slider'

@@ -1,7 +1,8 @@
+// 字段类型选项：键名对齐契约 FieldType，避免与 ModuleRuntime.toFieldSchema 映射不一致
 export const fieldTypes = [
   { value: 'text', label: '文本' },
   { value: 'textarea', label: '长文本' },
-  { value: 'richtext', label: '富文本' },
+  { value: 'rich-text', label: '富文本' },
   { value: 'number', label: '数字' },
   { value: 'select', label: '下拉选择' },
   { value: 'multi-select', label: '多选' },
@@ -11,7 +12,7 @@ export const fieldTypes = [
   { value: 'rating', label: '评分' },
   { value: 'slider', label: '滑块' },
   { value: 'color', label: '颜色' },
-  { value: 'entityRef', label: '关联实体' },
+  { value: 'entity-ref', label: '关联实体' },
 ]
 
 export const viewTypeOptions = [
@@ -26,25 +27,6 @@ export const cardSortOrderOptions = [
   { value: 'asc', label: '升序' },
   { value: 'desc', label: '降序' },
 ]
-
-export function fieldTypeIcon(type: string): string {
-  const map: Record<string, string> = {
-    text: '📝',
-    textarea: '📄',
-    richtext: '✍️',
-    number: '🔢',
-    select: '📋',
-    'multi-select': '☑️',
-    tags: '🏷️',
-    boolean: '🔘',
-    date: '📅',
-    rating: '⭐',
-    slider: '🎚️',
-    color: '🎨',
-    entityRef: '🔗',
-  }
-  return map[type] || '◻'
-}
 
 import type { ComponentTypeDefinition, ConfigFieldDefinition } from './types/layoutSchema'
 import DetailPanelRenderer from './runtime/ComponentRenderers/DetailPanelRenderer.vue'
@@ -79,7 +61,7 @@ export const COMPONENT_TYPE_DEFINITIONS: ComponentTypeDefinition[] = [
   {
     typeId: 'detail-panel',
     label: '详情面板',
-    icon: '📋',
+    icon: 'document',
     category: 'detail-edit',
     configSchema: [
       entityTypeRefConfig,
@@ -92,7 +74,7 @@ export const COMPONENT_TYPE_DEFINITIONS: ComponentTypeDefinition[] = [
   {
     typeId: 'edit-form',
     label: '编辑表单',
-    icon: '✏️',
+    icon: 'pencil',
     category: 'detail-edit',
     configSchema: [
       entityTypeRefConfig,
@@ -104,7 +86,7 @@ export const COMPONENT_TYPE_DEFINITIONS: ComponentTypeDefinition[] = [
   {
     typeId: 'property-panel',
     label: '属性面板',
-    icon: '🏷️',
+    icon: 'tag',
     category: 'detail-edit',
     configSchema: [
       entityTypeRefConfig,
@@ -117,7 +99,7 @@ export const COMPONENT_TYPE_DEFINITIONS: ComponentTypeDefinition[] = [
   {
     typeId: 'field-group',
     label: '字段分组',
-    icon: '📁',
+    icon: 'folder',
     category: 'detail-edit',
     configSchema: [
       { key: 'label', label: '分组名称', type: 'text' },
@@ -130,7 +112,7 @@ export const COMPONENT_TYPE_DEFINITIONS: ComponentTypeDefinition[] = [
   {
     typeId: 'toolbar',
     label: '工具栏',
-    icon: '🔧',
+    icon: 'wrench',
     category: 'action-tool',
     configSchema: [
       { key: 'actions', label: '操作列表', type: 'multiselect', options: ['create', 'delete', 'save', 'export', 'import', 'duplicate', 'refresh'] },
@@ -142,7 +124,7 @@ export const COMPONENT_TYPE_DEFINITIONS: ComponentTypeDefinition[] = [
   {
     typeId: 'action-button',
     label: '操作按钮',
-    icon: '🔘',
+    icon: 'send',
     category: 'action-tool',
     configSchema: [
       { key: 'label', label: '按钮文字', type: 'text' },
@@ -155,7 +137,7 @@ export const COMPONENT_TYPE_DEFINITIONS: ComponentTypeDefinition[] = [
   {
     typeId: 'batch-actions',
     label: '批量操作',
-    icon: '☑️',
+    icon: 'check',
     category: 'action-tool',
     configSchema: [
       { key: 'actions', label: '操作列表', type: 'multiselect', options: ['delete', 'export'] },
@@ -167,7 +149,7 @@ export const COMPONENT_TYPE_DEFINITIONS: ComponentTypeDefinition[] = [
   {
     typeId: 'context-menu',
     label: '右键菜单',
-    icon: '📝',
+    icon: 'menu',
     category: 'action-tool',
     configSchema: [
       { key: 'items', label: '菜单项', type: 'text' },
@@ -178,7 +160,7 @@ export const COMPONENT_TYPE_DEFINITIONS: ComponentTypeDefinition[] = [
   {
     typeId: 'quick-actions',
     label: '快捷操作',
-    icon: '⚡',
+    icon: 'zap',
     category: 'action-tool',
     configSchema: [
       { key: 'actions', label: '操作列表', type: 'multiselect', options: ['create', 'delete', 'save', 'refresh'] },
@@ -191,7 +173,7 @@ export const COMPONENT_TYPE_DEFINITIONS: ComponentTypeDefinition[] = [
   {
     typeId: 'search-box',
     label: '搜索框',
-    icon: '🔍',
+    icon: 'search',
     category: 'search-filter',
     configSchema: [
       { key: 'placeholder', label: '占位文字', type: 'text', defaultValue: '搜索...' },
@@ -202,7 +184,7 @@ export const COMPONENT_TYPE_DEFINITIONS: ComponentTypeDefinition[] = [
   {
     typeId: 'filter-bar',
     label: '筛选条件栏',
-    icon: '🔽',
+    icon: 'filter',
     category: 'search-filter',
     configSchema: [
       entityTypeRefConfig,
@@ -213,7 +195,7 @@ export const COMPONENT_TYPE_DEFINITIONS: ComponentTypeDefinition[] = [
   {
     typeId: 'sort-control',
     label: '排序控件',
-    icon: '↕️',
+    icon: 'sort',
     category: 'search-filter',
     configSchema: [
       entityTypeRefConfig,
@@ -224,7 +206,7 @@ export const COMPONENT_TYPE_DEFINITIONS: ComponentTypeDefinition[] = [
   {
     typeId: 'entity-list',
     label: '实体列表',
-    icon: '📋',
+    icon: 'list',
     category: 'data-display',
     configSchema: [
       entityTypeRefConfig,
@@ -236,7 +218,7 @@ export const COMPONENT_TYPE_DEFINITIONS: ComponentTypeDefinition[] = [
   {
     typeId: 'entity-grid',
     label: '实体网格',
-    icon: '🔲',
+    icon: 'grid',
     category: 'data-display',
     configSchema: [
       entityTypeRefConfig,
@@ -249,7 +231,7 @@ export const COMPONENT_TYPE_DEFINITIONS: ComponentTypeDefinition[] = [
   {
     typeId: 'entity-table',
     label: '实体表格',
-    icon: '📊',
+    icon: 'table',
     category: 'data-display',
     configSchema: [
       entityTypeRefConfig,
@@ -261,7 +243,7 @@ export const COMPONENT_TYPE_DEFINITIONS: ComponentTypeDefinition[] = [
   {
     typeId: 'kanban-board',
     label: '看板',
-    icon: '📌',
+    icon: 'tactical-board',
     category: 'data-display',
     configSchema: [
       entityTypeRefConfig,
@@ -273,7 +255,7 @@ export const COMPONENT_TYPE_DEFINITIONS: ComponentTypeDefinition[] = [
   {
     typeId: 'entity-card',
     label: '实体卡片',
-    icon: '🃏',
+    icon: 'item',
     category: 'data-display',
     configSchema: [
       entityTypeRefConfig,
@@ -285,7 +267,7 @@ export const COMPONENT_TYPE_DEFINITIONS: ComponentTypeDefinition[] = [
   {
     typeId: 'chart-bar',
     label: '柱状图',
-    icon: '📊',
+    icon: 'chart',
     category: 'visualization',
     configSchema: [
       entityTypeRefConfig,
@@ -299,7 +281,7 @@ export const COMPONENT_TYPE_DEFINITIONS: ComponentTypeDefinition[] = [
   {
     typeId: 'chart-pie',
     label: '饼图',
-    icon: '🥧',
+    icon: 'chart',
     category: 'visualization',
     configSchema: [
       entityTypeRefConfig,
@@ -313,7 +295,7 @@ export const COMPONENT_TYPE_DEFINITIONS: ComponentTypeDefinition[] = [
   {
     typeId: 'chart-line',
     label: '折线图',
-    icon: '📈',
+    icon: 'chart',
     category: 'visualization',
     configSchema: [
       entityTypeRefConfig,
@@ -328,7 +310,7 @@ export const COMPONENT_TYPE_DEFINITIONS: ComponentTypeDefinition[] = [
   {
     typeId: 'relation-graph',
     label: '关系图谱',
-    icon: '🕸️',
+    icon: 'graph',
     category: 'visualization',
     configSchema: [
       entityTypeRefConfig,
@@ -340,7 +322,7 @@ export const COMPONENT_TYPE_DEFINITIONS: ComponentTypeDefinition[] = [
   {
     typeId: 'tab-container',
     label: '标签页容器',
-    icon: '📑',
+    icon: 'dashboard',
     category: 'layout-container',
     configSchema: [
       { key: 'tabs', label: '标签列表', type: 'multiselect' },
@@ -351,7 +333,7 @@ export const COMPONENT_TYPE_DEFINITIONS: ComponentTypeDefinition[] = [
   {
     typeId: 'accordion-container',
     label: '手风琴容器',
-    icon: '🪗',
+    icon: 'chevron-down',
     category: 'layout-container',
     configSchema: [
       { key: 'sectionsText', label: '折叠区域（逗号分隔）', type: 'text', defaultValue: '区域1' },
@@ -362,7 +344,7 @@ export const COMPONENT_TYPE_DEFINITIONS: ComponentTypeDefinition[] = [
   {
     typeId: 'split-panel',
     label: '分割面板',
-    icon: '↔️',
+    icon: 'grip',
     category: 'layout-container',
     configSchema: [
       { key: 'direction', label: '方向', type: 'select', options: ['horizontal', 'vertical'] },
