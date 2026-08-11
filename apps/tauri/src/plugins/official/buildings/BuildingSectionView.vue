@@ -1,23 +1,20 @@
 <template>
   <div class="bs-view">
-    <!-- 工具栏 Teleport 到 R3 视图工具条的控件区（#view-toolbar-controls），实现单条统一工具栏 -->
-    <Teleport to="#view-toolbar-controls">
-      <div class="bs-toolbar">
-        <button class="bs-btn" @click="$emit('back')" title="返回列表">
-          <WsIcon name="chevron-right" :size="12" :stroke-width="2" />
-          列表
-        </button>
-        <div class="bs-toolbar-sep"></div>
-        <div class="bs-toolbar-group">
-          <span class="bs-toolbar-label">类型</span>
-          <CustomDropdown v-model="filterType" :options="filterTypeOpts" />
-        </div>
-        <div class="bs-toolbar-sep"></div>
-        <label class="bs-toggle"><input type="checkbox" v-model="showConnections" /> 通道</label>
-        <div class="bs-toolbar-spacer"></div>
-        <button class="bs-btn" @click="fitView" title="自动适配">⊞ 适配</button>
-        <span class="bs-count">{{ filteredNodes.length }} 栋建筑</span>
+    <!-- 工具栏按控件类型分发到 R3 统一工具条各落点（筛选→收束条，动作→动作区） -->
+    <Teleport to="#view-toolbar-filter-body">
+      <div class="bs-toolbar-group">
+        <span class="bs-toolbar-label">类型</span>
+        <CustomDropdown v-model="filterType" :options="filterTypeOpts" />
       </div>
+      <label class="bs-toggle"><input type="checkbox" v-model="showConnections" /> 通道</label>
+    </Teleport>
+    <Teleport to="#view-toolbar-actions">
+      <button class="bs-btn" @click="$emit('back')" title="返回列表">
+        <WsIcon name="chevron-right" :size="12" :stroke-width="2" />
+        列表
+      </button>
+      <button class="bs-btn" @click="fitView" title="自动适配">⊞ 适配</button>
+      <span class="bs-count">{{ filteredNodes.length }} 栋建筑</span>
     </Teleport>
 
     <div class="bs-main">

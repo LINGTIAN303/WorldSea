@@ -1,23 +1,20 @@
 <template>
   <div class="cal-view">
-    <!-- 工具栏 Teleport 到 R3 视图工具条的控件区（#view-toolbar-controls），实现单条统一工具栏 -->
-    <Teleport to="#view-toolbar-controls">
-      <div class="cal-toolbar">
-        <button class="cal-btn" @click="$emit('back')" title="返回列表">
-          <WsIcon name="chevron-right" :size="12" :stroke-width="2" />
-          列表
-        </button>
-        <div class="cal-toolbar-sep"></div>
-        <div class="cal-toolbar-group">
-          <span class="cal-toolbar-label">类型</span>
-          <CustomDropdown v-model="filterType" :options="filterTypeOpts" />
-        </div>
-        <div class="cal-toolbar-sep"></div>
-        <label class="cal-toggle"><input type="checkbox" v-model="showUntimed" /> 显示无固定时间</label>
-        <div class="cal-toolbar-spacer"></div>
-        <button class="cal-btn" @click="fitView" title="重置视图">⊞ 适配</button>
-        <span class="cal-count">{{ timedNodes.length }} 个有期 / {{ untimeNodes.length }} 个无期</span>
+    <!-- 工具栏按控件类型分发到 R3 统一工具条各落点（筛选→收束条，动作→动作区） -->
+    <Teleport to="#view-toolbar-filter-body">
+      <div class="cal-toolbar-group">
+        <span class="cal-toolbar-label">类型</span>
+        <CustomDropdown v-model="filterType" :options="filterTypeOpts" />
       </div>
+      <label class="cal-toggle"><input type="checkbox" v-model="showUntimed" /> 显示无固定时间</label>
+    </Teleport>
+    <Teleport to="#view-toolbar-actions">
+      <button class="cal-btn" @click="$emit('back')" title="返回列表">
+        <WsIcon name="chevron-right" :size="12" :stroke-width="2" />
+        列表
+      </button>
+      <button class="cal-btn" @click="fitView" title="重置视图">⊞ 适配</button>
+      <span class="cal-count">{{ timedNodes.length }} 个有期 / {{ untimeNodes.length }} 个无期</span>
     </Teleport>
 
     <div class="cal-main">

@@ -12,14 +12,12 @@
       @toggle-new-session="onToggleNewSession"
       @toggle-knowledge="onToggleKnowledge"
       @toggle-mode="onToggleMode"
-      @open-workbench="onOpenWorkbench"
-      @switch-to-workbench="onSwitchToWorkbench"
       @open-settings="onOpenSettings"
     />
 
     <div v-if="sessionOpen || knowledgeOpen" class="panels-backdrop" @click="closeAll"></div>
 
-    <div id="main-content" tabindex="-1" class="space-body">
+    <div id="agent-space-main" tabindex="-1" class="space-body">
       <!-- 单聊模式：左侧会话栏（双线分隔独立块） -->
       <Transition v-if="spaceStore.mode === 'chat'" name="sidebar-slide">
         <div
@@ -91,18 +89,6 @@
       </div>
     </Transition>
 
-    <TuiDrawer
-      :show="spaceStore.workspaceDrawerOpen"
-      title="工作台"
-      placement="right"
-      size="lg"
-      @close="spaceStore.setWorkspaceDrawerOpen(false)"
-    >
-      <div class="drawer-shell-wrapper">
-        <Shell />
-      </div>
-    </TuiDrawer>
-
     <!-- P3-W4 续：SettingsDialog 业务弹窗恢复 -->
     <SettingsDialog :show="settingsOpen" @close="settingsOpen = false" />
     <DialogContainer />
@@ -113,7 +99,6 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
 import { useSpaceStore } from './stores/space-store'
-import { useUIStore } from '@/stores/uiStore'
 import TitleBar from '@/ui/layout/TitleBar.vue'
 import SpaceNavbar from './SpaceNavbar.vue'
 import SessionSidebar from './chat/SessionSidebar.vue'
@@ -123,8 +108,6 @@ import KnowledgeWall from '@/agent/panels/KnowledgeWall.vue'
 import MemoryShelf from './panels/MemoryShelf.vue'
 import PersonaMirror from './panels/PersonaMirror.vue'
 import ExecPanel from './panels/ExecPanel.vue'
-import Shell from '@/ui/layout/Shell.vue'
-import TuiDrawer from '@/components/ui/TuiDrawer.vue'
 import SettingsDialog from '@/ui/settings/SettingsDialog.vue'
 import { DialogContainer } from '@worldsmith/ui-kit'
 import WsConfirmDialog from '@/ui/WsConfirmDialog.vue'
@@ -135,7 +118,6 @@ import { useGenerationProgress } from '@worldsmith/shared-composables/agent/useG
 import { usePlanStore } from '@worldsmith/shared-composables/agent/usePlanStore'
 
 const spaceStore = useSpaceStore()
-const uiStore = useUIStore()
 const { addLog } = useActivityLog()
 const { hasActive } = useGenerationProgress()
 const planStore = usePlanStore()
@@ -242,15 +224,6 @@ watch(() => planStore.hasPlan, (has) => {
     spaceStore.setExecTab('plan')
   }
 })
-
-function onOpenWorkbench() {
-  spaceStore.setWorkspaceDrawerOpen(true)
-}
-
-function onSwitchToWorkbench() {
-  spaceStore.setWorkspaceDrawerOpen(false)
-  uiStore.setShell('workbench')
-}
 
 // 知识墙入口（顶栏图标，2026-08-09）：打开左侧知识墙面板
 function onToggleKnowledge() {
@@ -454,11 +427,6 @@ function onExecResizeStart(e: MouseEvent) {
 
 .resize-handle-left {
   left: 0;
-}
-
-.drawer-shell-wrapper {
-  height: 100%;
-  overflow: hidden;
 }
 
 .space-main {

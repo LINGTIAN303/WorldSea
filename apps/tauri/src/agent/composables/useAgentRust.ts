@@ -910,7 +910,7 @@ async function prompt(text: string, options?: PromptOptions): Promise<void> {
   messages.value.push(userMsg)
   sessionMessagesCache.get(sessionId)?.push(userMsg)
 
-  emit({ type: 'agent_start', sessionId, chatMode: options?.chatMode ?? 'normal' })
+  emit({ type: 'agent_start', sessionId, chatMode: options?.chatMode ?? 'deep' })
 
   isStreaming.value = true
   try {

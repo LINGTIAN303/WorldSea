@@ -8,7 +8,7 @@ import { usePluginStore, useEntityStore, useRelationStore, useFileStore } from '
 import { setAgentCurrentProjectId } from '@agent/session/manager'
 import { moduleRegistry } from '@/modules/registry'
 import { pluginAPI } from '@worldsmith/entity-core'
-import { isTauri } from '@worldsmith/entity-core/core'
+import { isTauri, hasTauriInvoke } from '@worldsmith/entity-core/core'
 import { useFsWatcher } from './useFsWatcher'
 
 const switching = ref(false)
@@ -40,7 +40,7 @@ export function useProjectSwitcher() {
     const projectId = await pm.initialize()
 
     // 3. Tauri 环境：切换后端 SQLite 数据库（P3-W4 续恢复）
-    if (isTauri()) {
+    if (isTauri() && hasTauriInvoke()) {
       try {
         const { invoke } = await import('@tauri-apps/api/core')
         await invoke('cmd_switch_project', { projectId })
@@ -52,7 +52,7 @@ export function useProjectSwitcher() {
     // 2.5 设置 FileStorageBackend 目录绑定
     let dirPath = await pm.getProjectDir(projectId)
     // Tauri 兜底：旧项目无目录时自动绑定应用数据目录下的子目录，避免降级到不可用的 TauriStorageBackend
-    if (!dirPath && isTauri()) {
+    if (!dirPath && isTauri() && hasTauriInvoke()) {
       const dataDir = await getTauriDataDir()
       if (dataDir) {
         const autoDir = `${dataDir}/projects/${projectId}`
@@ -106,7 +106,7 @@ export function useProjectSwitcher() {
       }
 
       // 2. Tauri 环境：切换后端 SQLite 数据库（P3-W4 续恢复）
-      if (isTauri()) {
+      if (isTauri() && hasTauriInvoke()) {
         try {
           const { invoke } = await import('@tauri-apps/api/core')
           await invoke('cmd_switch_project', { projectId: targetProjectId })
@@ -118,7 +118,7 @@ export function useProjectSwitcher() {
       // 2. 设置 FileStorageBackend 目录绑定
       let dirPath = await pm.getProjectDir(targetProjectId)
       // Tauri 兜底：旧项目无目录时自动绑定应用数据目录下的子目录
-      if (!dirPath && isTauri()) {
+      if (!dirPath && isTauri() && hasTauriInvoke()) {
         const dataDir = await getTauriDataDir()
         if (dataDir) {
           const autoDir = `${dataDir}/projects/${targetProjectId}`
@@ -227,7 +227,7 @@ export function useProjectSwitcher() {
    * 仅在 isTauri() 且命令存在时返回目录路径，否则返回 null。
    */
   async function getTauriDataDir(): Promise<string | null> {
-    if (!isTauri()) return null
+    if (!(isTauri() && hasTauriInvoke())) return null
     try {
       const { invoke } = await import('@tauri-apps/api/core')
       return (await invoke('cmd_get_app_data_dir')) as string
@@ -258,7 +258,7 @@ export function useProjectSwitcher() {
   async function deleteProject(id: string): Promise<void> {
     await pm.deleteProject(id)
     // Tauri 环境：删除后端 SQLite 文件（P3-W4 续恢复）
-    if (isTauri()) {
+    if (isTauri() && hasTauriInvoke()) {
       try {
         const { invoke } = await import('@tauri-apps/api/core')
         await invoke('cmd_delete_project_db', { projectId: id })

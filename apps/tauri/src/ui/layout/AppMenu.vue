@@ -3,24 +3,29 @@
        hover 展开 / 点击固定（pin），点外部取消；菜单项通过全局事件分发到 Shell 各处理器 -->
   <div
     class="appmenu"
-    @mouseenter="onWrapperEnter"
-    @mouseleave="onWrapperLeave"
+    @mouseenter="onEnter"
+    @mouseleave="onLeave"
   >
     <button
       class="appmenu-btn"
       :class="{ 'appmenu-btn--pinned': pinned }"
+      ref="triggerRef"
       aria-label="更多操作"
       title="更多操作"
+      @pointerdown.stop
       @click="togglePin"
     >⋯</button>
-    <Transition name="ws-menu">
-      <div
-        v-if="menuVisible"
-        class="appmenu-dropdown"
-        role="menu"
-      >
-        <div class="appmenu-arrow"></div>
-        <div class="appmenu-list">
+    <Teleport to="body">
+      <Transition name="ws-menu">
+        <div
+          v-if="menuVisible"
+          class="appmenu-dropdown"
+          role="menu"
+          :style="dropdownStyle"
+          @mouseenter="onEnter"
+          @mouseleave="onLeave"
+        >
+          <div class="appmenu-list">
           <button class="menu-item" role="menuitem" @click="openSearch">
             <WsIcon name="search" size="sm" class="menu-item-icon" />
             <span class="menu-item-label">搜索</span>
@@ -58,36 +63,42 @@
           </button>
         </div>
         <div class="menu-divider"></div>
-        <button class="menu-item" role="menuitem" @click="openAgentSpace">
-          <span class="menu-item-icon"><WsIcon name="chat" size="sm" /></span>
-          <span class="menu-item-label">Agent 空间</span>
-          <span class="menu-item-shortcut"></span>
-        </button>
         <button class="menu-item" role="menuitem" @click="openSettings">
           <span class="menu-item-icon"><WsIcon name="settings" size="sm" /></span>
           <span class="menu-item-label">设置</span>
           <span class="menu-item-shortcut">{{ formatKeysForDisplay(['ctrl', ',']) }}</span>
         </button>
-      </div>
-    </Transition>
-    <div
-      v-if="pinned"
-      class="appmenu-overlay"
-      @click="unpin"
-    ></div>
+        </div>
+      </Transition>
+    </Teleport>
+    <Teleport to="body">
+      <div
+        v-if="menuVisible"
+        class="appmenu-hotzone"
+        :style="hotzoneStyle"
+        @mouseenter="onEnter"
+        @mouseleave="onLeave"
+      ></div>
+    </Teleport>
+    <Teleport to="body">
+      <div
+        v-if="pinned"
+        class="appmenu-overlay"
+        @pointerdown.stop
+        @click="unpin"
+      ></div>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue'
-import { useUIStore } from '@/stores/uiStore'
+import { computed, ref, watch, nextTick, onMounted } from 'vue'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useShortcuts, formatKeysForDisplay } from '@worldsmith/plugin-sdk'
 import { useFileSystemProject } from '@/composables/useFileSystemProject'
 import { useToast } from '@/composables/useToast'
 import { WsIcon } from '@worldsmith/ui-kit'
 
-const uiStore = useUIStore()
 const settingsStore = useSettingsStore()
 const { register } = useShortcuts()
 const { isProjectOpen, dirName, saving, openFolder: doOpenFolder, saveToFolder, lastError } = useFileSystemProject()
@@ -96,15 +107,47 @@ const { toastSuccess, toastWarn } = useToast()
 const hovering = ref(false)
 const pinned = ref(false)
 const manuallyClosed = ref(false)
+const triggerRef = ref<HTMLElement>()
+const dropdownStyle = ref<Record<string, string>>({})
+const hotzoneStyle = ref<Record<string, string>>({})
 
 const menuVisible = computed(() => (hovering.value || pinned.value) && !manuallyClosed.value)
 
-function onWrapperEnter() {
+// 菜单打开时按触发按钮坐标定位（Teleport 到 body，向上展开适配侧边栏底部）
+watch(menuVisible, (v) => {
+  if (v) {
+    nextTick(() => {
+      const el = triggerRef.value
+      if (!el) return
+      const rect = el.getBoundingClientRect()
+      dropdownStyle.value = {
+        left: `${rect.left}px`,
+        bottom: `${window.innerHeight - rect.top + 8}px`,
+        minWidth: '220px',
+      }
+      // 衔接热区：覆盖按钮顶部与菜单底部之间的空隙（略加宽便于斜向穿越），
+      // 使鼠标能从按钮平滑移动到菜单而不触发关闭
+      hotzoneStyle.value = {
+        left: `${rect.left - 10}px`,
+        top: `${rect.top - 14}px`,
+        width: `${rect.width + 20}px`,
+        height: '14px',
+      }
+    })
+  }
+})
+
+function onEnter() {
   hovering.value = true
   manuallyClosed.value = false
 }
 
-function onWrapperLeave() {
+function onLeave(e: MouseEvent) {
+  // 若鼠标正移入悬停组内其他元素（按钮/热区/菜单），保持菜单打开，实现衔接穿越
+  const related = e.relatedTarget as HTMLElement | null
+  if (related && related.closest('.appmenu, .appmenu-hotzone, .appmenu-dropdown')) {
+    return
+  }
   hovering.value = false
 }
 
@@ -147,8 +190,6 @@ function openConsistency() { closeMenu(); window.dispatchEvent(new CustomEvent('
 function openThemeEditor() { closeMenu(); window.dispatchEvent(new CustomEvent('ws-open-theme-editor')) }
 function openSettings() { closeMenu(); window.dispatchEvent(new CustomEvent('ws-open-settings')) }
 
-function openAgentSpace() { closeMenu(); uiStore.setShell('space') }
-
 async function openFolder() {
   closeMenu()
   const ok = await doOpenFolder()
@@ -179,8 +220,8 @@ async function saveFolder() {
 }
 
 .appmenu-btn {
-  width: 34px;
-  height: 26px;
+  width: 210px;
+  height: 40px;
   border: none;
   background: transparent;
   cursor: pointer;
@@ -204,43 +245,15 @@ async function saveFolder() {
 }
 
 .appmenu-dropdown {
-  position: absolute;
-  left: 0;
-  right: auto;
-  top: calc(100% + 8px);
+  position: fixed;
   min-width: 220px;
   background: var(--glass-bg, var(--bg));
   border: 1px solid var(--glass-border, var(--border-color));
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-xl);
   padding: 6px;
-  z-index: 200;
+  z-index: 2000;
   backdrop-filter: blur(var(--glass-blur));
-}
-
-.appmenu-arrow {
-  position: absolute;
-  top: -6px;
-  right: auto;
-  left: 10px;
-  width: 12px;
-  height: 12px;
-  background: var(--glass-bg, var(--bg));
-  border-left: 1px solid var(--glass-border, var(--border-color));
-  border-top: 1px solid var(--glass-border, var(--border-color));
-  transform: rotate(45deg);
-  z-index: 201;
-}
-
-.appmenu-arrow::after {
-  content: '';
-  position: absolute;
-  top: -1px;
-  left: -2px;
-  width: 14px;
-  height: 2px;
-  background: var(--glass-bg, var(--bg));
-  transform: rotate(-45deg);
 }
 
 .appmenu-list {
@@ -303,5 +316,12 @@ async function saveFolder() {
   right: 0;
   bottom: 0;
   z-index: 150;
+}
+
+/* 衔接热区：按钮与菜单之间的透明桥梁，z-index 低于菜单(2000)以免遮挡菜单项 */
+.appmenu-hotzone {
+  position: fixed;
+  z-index: 1900;
+  background: transparent;
 }
 </style>

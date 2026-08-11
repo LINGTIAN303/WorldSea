@@ -1,26 +1,22 @@
 <template>
   <div class="notebook-view">
-    <!-- 工具栏 Teleport 到 R3 视图工具条的控件区（#view-toolbar-controls），实现单条统一工具栏 -->
-    <Teleport to="#view-toolbar-controls">
-      <div class="nb-toolbar">
-        <div class="nb-toolbar-left">
-          <button class="nb-sidebar-toggle" @click="sidebarOpen = !sidebarOpen" :title="sidebarOpen ? '收起侧边栏' : '展开侧边栏'">
-            <span class="nb-toggle-icon"><WsIcon :name="sidebarOpen ? 'arrow-up' : 'chevron-right'" size="xs" /></span>
-          </button>
-          <button
-            v-for="mode in VIEW_MODES"
-            :key="mode"
-            :class="['nb-mode-btn', { active: currentMode === mode }]"
-            @click="currentMode = mode"
-          >
-            <WsIcon :name="modeIcons[mode]" size="xs" /> {{ modeLabels[mode] }}
-          </button>
-        </div>
-        <div class="nb-toolbar-right">
-          <button class="nb-action-btn" @click="createNote()">+ 笔记</button>
-          <button class="nb-action-btn nb-folder-btn" @click="createFolder">+ 文件夹</button>
-        </div>
-      </div>
+    <!-- 工具栏按控件类型分发到 R3 统一工具条各落点（动作→动作区，新建→新建区） -->
+    <Teleport to="#view-toolbar-actions">
+      <button class="nb-sidebar-toggle" @click="sidebarOpen = !sidebarOpen" :title="sidebarOpen ? '收起侧边栏' : '展开侧边栏'">
+        <span class="nb-toggle-icon"><WsIcon :name="sidebarOpen ? 'arrow-up' : 'chevron-right'" size="xs" /></span>
+      </button>
+      <button
+        v-for="mode in VIEW_MODES"
+        :key="mode"
+        :class="['nb-mode-btn', { active: currentMode === mode }]"
+        @click="currentMode = mode"
+      >
+        <WsIcon :name="modeIcons[mode]" size="xs" /> {{ modeLabels[mode] }}
+      </button>
+    </Teleport>
+    <Teleport to="#view-toolbar-create">
+      <button class="nb-action-btn" @click="createNote()">+ 笔记</button>
+      <button class="nb-action-btn nb-folder-btn" @click="createFolder">+ 文件夹</button>
     </Teleport>
 
     <div class="nb-content">

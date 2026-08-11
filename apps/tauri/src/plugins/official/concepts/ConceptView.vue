@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <GenericEntityView
     entityType="concept"
     :form-fields="fields"
@@ -39,15 +39,22 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { GenericEntityView, EntityRelationSelector, type FormFieldDef, type FilterDef, type CardFieldDef, type RelationTabDef } from '@worldsmith/plugin-sdk'
 import { WsIcon } from '@worldsmith/ui-kit'
 import { WsEmpty } from '@worldsmith/ui-kit'
 import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'
 import type { Entity } from '@worldsmith/entity-core'
+import { useMindmapStore } from '../mindmap/mindmapStore'
 
 const entityStore = useEntityStore()
 const relationStore = useRelationStore()
+
+// 清理思维导图自动创建产生的重复「中心主题」概念（保留 1 个）
+onMounted(async () => {
+  await entityStore.loadAll()
+  await useMindmapStore().deduplicateCenterNodes()
+})
 
 const fields: FormFieldDef[] = [
   { key: 'name', label: '名称', type: 'text', required: true, placeholder: '概念名称' },

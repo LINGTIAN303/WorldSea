@@ -1,7 +1,6 @@
 <template>
-  <!-- 工具栏上移 R3 统一工具条（#view-toolbar-controls），套用 BuildingSectionView 模式 -->
-  <Teleport to="#view-toolbar-controls">
-  <div class="gg-toolbar">
+  <!-- 布局选择 + 实体类型筛选 → 筛选收束条 -->
+  <Teleport to="#view-toolbar-filter-body">
     <select class="gg-select" :value="layout" @change="$emit('update:layout', ($event.target as HTMLSelectElement).value)">
       <option v-for="opt in layoutOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
     </select>
@@ -14,6 +13,9 @@
         <WsIcon v-if="t.icon" :name="t.icon" size="xs" /> {{ t.label }}
       </button>
     </div>
+  </Teleport>
+  <!-- 动作 + 缩放 → 动作落点 -->
+  <Teleport to="#view-toolbar-actions">
     <div class="gg-actions">
       <button class="gg-btn" :class="{ active: clusteringOn }" @click="$emit('toggle-clustering')" title="智能聚类" aria-label="智能聚类">◉</button>
       <button class="gg-btn" @click="$emit('open-path-search')" title="路径搜索" aria-label="路径搜索">⇢</button>
@@ -25,7 +27,6 @@
       <button class="gg-btn" @click="$emit('zoom-out')" aria-label="缩小">−</button>
       <button class="gg-btn" @click="$emit('fit')" aria-label="适应画面">⊡</button>
     </div>
-  </div>
   </Teleport>
 </template>
 

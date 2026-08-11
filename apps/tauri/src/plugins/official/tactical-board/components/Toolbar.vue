@@ -1,5 +1,6 @@
 <template>
-  <div class="tb-toolbar">
+  <!-- 静态配置 → 筛选收束条（网格/规格） -->
+  <Teleport to="#view-toolbar-filter-body">
     <div class="tb-toolbar-group">
       <span class="tb-toolbar-label">网格</span>
       <CustomDropdown v-model="gridTypeModel" :options="gridTypeOptions" @update:modelValue="$emit('rebuildBoard')" />
@@ -8,7 +9,27 @@
       <span class="tb-toolbar-label">规格</span>
       <CustomDropdown v-model="gridSizeModel" :options="gridSizeOptions" @update:modelValue="$emit('rebuildBoard')" />
     </div>
-    <div class="tb-toolbar-sep"></div>
+  </Teleport>
+
+  <!-- 视图模式/状态 → 动作落点（势力/威胁/补给 + 阶段标签） -->
+  <Teleport to="#view-toolbar-actions">
+    <button class="tb-btn" :class="{ active: awarenessMode === 'influence' }"
+      @click="$emit('toggleAwareness', 'influence')" title="势力范围">
+      <WsIcon name="target" size="xs" /> 势力
+    </button>
+    <button class="tb-btn" :class="{ active: awarenessMode === 'threat' }"
+      @click="$emit('toggleAwareness', 'threat')" title="威胁区域">
+      <WsIcon name="warning" size="xs" /> 威胁
+    </button>
+    <button class="tb-btn" :class="{ active: awarenessMode === 'supply' }"
+      @click="$emit('toggleAwareness', 'supply')" title="补给线">
+      <WsIcon name="arrow-left-right" size="xs" /> 补给
+    </button>
+    <span class="tb-phase" :class="'tb-phase-' + battlePhase">{{ phaseLabel }}</span>
+  </Teleport>
+
+  <!-- 战斗控制台（保留在画布上方） -->
+  <div class="tb-toolbar">
     <template v-if="battlePhase === 'deployment'">
       <div class="tb-toolbar-group">
         <span class="tb-toolbar-label">地形笔</span>
@@ -39,20 +60,6 @@
       <span class="tb-victory-text"><WsIcon name="star" size="xs" /> {{ victoryLabel }} 获胜！</span>
       <button class="tb-btn" @click="$emit('resetBattle')">重新部署</button>
     </template>
-    <div class="tb-toolbar-spacer"></div>
-    <button class="tb-btn" :class="{ active: awarenessMode === 'influence' }"
-      @click="$emit('toggleAwareness', 'influence')" title="势力范围">
-      <WsIcon name="target" size="xs" /> 势力
-    </button>
-    <button class="tb-btn" :class="{ active: awarenessMode === 'threat' }"
-      @click="$emit('toggleAwareness', 'threat')" title="威胁区域">
-      <WsIcon name="warning" size="xs" /> 威胁
-    </button>
-    <button class="tb-btn" :class="{ active: awarenessMode === 'supply' }"
-      @click="$emit('toggleAwareness', 'supply')" title="补给线">
-      <WsIcon name="arrow-left-right" size="xs" /> 补给
-    </button>
-    <span class="tb-phase" :class="'tb-phase-' + battlePhase">{{ phaseLabel }}</span>
   </div>
 </template>
 

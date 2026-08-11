@@ -6,14 +6,12 @@
     @drop="onExternalDrop"
     :class="{ 'dash-drop-target': isExternalDragOver }"
   >
-    <!-- 工具栏 Teleport 到 R3 视图工具条的控件区（#view-toolbar-controls），实现单条统一工具栏 -->
-    <Teleport to="#view-toolbar-controls">
-      <DashboardToolbar
-        v-model="direction"
-        :options="directionOptions"
-        @add="handleAddPanel"
-      />
-    </Teleport>
+    <!-- Dashboard 工具栏由 DashboardToolbar 内部按类型分发到 R3 工具条各落点 -->
+    <DashboardToolbar
+      v-model="direction"
+      :options="directionOptions"
+      @add="handleAddPanel"
+    />
 
     <WsEmpty
       v-if="panels.length === 0"

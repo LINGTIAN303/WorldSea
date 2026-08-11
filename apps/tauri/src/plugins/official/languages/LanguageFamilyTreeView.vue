@@ -1,16 +1,11 @@
 <template>
   <div class="lft-view">
-    <div class="lft-toolbar">
-      <button class="lft-btn" @click="$emit('back')" title="返回列表">
-        <WsIcon name="chevron-right" :size="12" :stroke-width="2" />
-        列表
-      </button>
-      <div class="lft-toolbar-sep"></div>
+    <!-- 筛选/视图模式 → 收束条 -->
+    <Teleport to="#view-toolbar-filter-body">
       <div class="lft-toolbar-group">
         <button class="lft-btn" :class="{active: layoutMode === 'top-down'}" @click="switchLayout('top-down')">语系树</button>
         <button class="lft-btn" :class="{active: layoutMode === 'radial'}" @click="switchLayout('radial')">径向</button>
       </div>
-      <div class="lft-toolbar-sep"></div>
       <div class="lft-toolbar-group">
         <span class="lft-toolbar-label">语系</span>
         <CustomDropdown v-model="filterFamily" :options="filterFamilyOpts" />
@@ -19,13 +14,18 @@
         <span class="lft-toolbar-label">类型</span>
         <CustomDropdown v-model="filterType" :options="filterTypeOpts" />
       </div>
-      <div class="lft-toolbar-sep"></div>
       <label class="lft-toggle"><input type="checkbox" v-model="showRelated" /> 关联</label>
       <label class="lft-toggle" v-if="layoutMode === 'top-down'"><input type="checkbox" v-model="showClusters" /> 聚类</label>
-      <div class="lft-toolbar-spacer"></div>
+    </Teleport>
+    <!-- 动作 → 动作落点 -->
+    <Teleport to="#view-toolbar-actions">
+      <button class="lft-btn" @click="$emit('back')" title="返回列表">
+        <WsIcon name="chevron-right" :size="12" :stroke-width="2" />
+        列表
+      </button>
       <button class="lft-btn" @click="fitView" title="自动适配">⊞ 适配</button>
       <span class="lft-count">{{ filteredNodes.length }} 种语言</span>
-    </div>
+    </Teleport>
 
     <div class="lft-main">
       <div ref="containerRef" class="lft-canvas-container"></div>

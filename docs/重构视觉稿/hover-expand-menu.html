@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>悬浮展开式导航菜单 · 成品</title>
+<style>
+  :root {
+    --menu-bg: #ffffff;
+    --menu-shadow: 0 10px 25px 0 rgba(0, 0, 0, 0.075);
+    --link-hover-bg: #eeeeee;
+    --link-color: #1f2328;
+    --accent: #2563eb;
+    --radius: 8px;
+    --gap: 4px;
+    --icon-size: 28px;
+    --link-w: 70px;
+    --link-w-expanded: 130px;
+    --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+      "Microsoft YaHei", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%);
+    color: var(--link-color);
+  }
+
+  /* 说明卡 */
+  .demo-note {
+    position: fixed;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 13px;
+    color: #64748b;
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(6px);
+    padding: 6px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    white-space: nowrap;
+  }
+
+  /* ===== 菜单主体 ===== */
+  .menu {
+    padding: 0.5rem;
+    background-color: var(--menu-bg);
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: var(--gap);
+    border-radius: 15px;
+    box-shadow: var(--menu-shadow);
+  }
+
+  .link {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    width: var(--link-w);
+    height: 50px;
+    border-radius: var(--radius);
+    position: relative;
+    z-index: 1;
+    overflow: hidden;
+    text-decoration: none;
+    color: inherit;
+    transition: width 0.2s var(--ease);
+  }
+
+  /* 展开背景层：显式 left:0 定位，避免依赖静态位置导致错位 */
+  .link::before {
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: -1;
+    content: "";
+    display: block;
+    border-radius: var(--radius);
+    width: 100%;
+    height: 100%;
+    transform: translateX(100%);
+    transform-origin: center right;
+    transition: transform 0.2s var(--ease);
+    background-color: var(--link-hover-bg);
+  }
+
+  .link:hover,
+  .link:focus-visible {
+    outline: none;
+    width: var(--link-w-expanded);
+  }
+
+  .link:hover::before,
+  .link:focus-visible::before,
+  .link:hover .link-title,
+  .link:focus-visible .link-title {
+    transform: translateX(0);
+    opacity: 1;
+  }
+
+  /* 选中态：用主题色背景区分当前页 */
+  .link.is-active {
+    color: #fff;
+  }
+  .link.is-active::before {
+    background-color: var(--accent);
+  }
+
+  .link-icon {
+    width: var(--icon-size);
+    height: var(--icon-size);
+    display: block;
+    flex-shrink: 0;
+    left: calc((var(--link-w) - var(--icon-size)) / 2);
+    position: absolute;
+  }
+  .link-icon svg {
+    width: var(--icon-size);
+    height: var(--icon-size);
+    display: block;
+  }
+
+  .link-title {
+    transform: translateX(100%);
+    transform-origin: center right;
+    transition: transform 0.2s var(--ease), opacity 0.2s var(--ease);
+    opacity: 0;
+    display: block;
+    text-align: center;
+    text-indent: var(--icon-size);
+    width: 100%;
+    font-size: 14px;
+    font-weight: 500;
+    user-select: none;
+  }
+
+  /* 键盘焦点可见环（仅键盘触发，鼠标不显示） */
+  .link:focus-visible {
+    box-shadow: 0 0 0 2px var(--accent);
+  }
+
+  /* 尊重系统「减弱动效」偏好：关闭位移，只留瞬间展开 */
+  @media (prefers-reduced-motion: reduce) {
+    .link,
+    .link::before,
+    .link-title {
+      transition: none;
+    }
+  }
+</style>
+</head>
+<body>
+  <div class="demo-note">悬停 / 键盘 Tab 聚焦可展开 · 点击选中（当前页高亮）</div>
+
+  <nav class="menu" aria-label="主导航">
+    <!-- 菜单项由 JS 数据驱动渲染 -->
+  </nav>
+
+<script>
+  // 菜单数据：图标复用 Phosphor 风格 SVG path，避免引入 emoji / 字体图标
+  const menuItems = [
+    {
+      label: 'Home',
+      active: true,
+      svg: '<path d="M213.3815,109.61945,133.376,36.88436a8,8,0,0,0-10.76339.00036l-79.9945,72.73477A8,8,0,0,0,40,115.53855V208a8,8,0,0,0,8,8H208a8,8,0,0,0,8-8V115.53887A8,8,0,0,0,213.3815,109.61945Z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16" />',
+    },
+    {
+      label: 'Games',
+      svg: '<polyline points="76.201 132.201 152.201 40.201 216 40 215.799 103.799 123.799 179.799" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16" /><line x1="100" y1="156" x2="160" y2="96" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16" /><path d="M82.14214,197.45584,52.201,227.397a8,8,0,0,1-11.31371,0L28.603,215.11268a8,8,0,0,1,0-11.31371l29.94113-29.94112a8,8,0,0,0,0-11.31371L37.65685,141.65685a8,8,0,0,1,0-11.3137l12.6863-12.6863a8,8,0,0,1,11.3137,0l76.6863,76.6863a8,8,0,0,1,0,11.3137l-12.6863,12.6863a8,8,0,0,1-11.3137,0L93.45584,197.45584A8,8,0,0,0,82.14214,197.45584Z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16" />',
+    },
+    {
+      label: 'Chat',
+      svg: '<path d="M45.42853,176.99811A95.95978,95.95978,0,1,1,79.00228,210.5717l.00023-.001L45.84594,220.044a8,8,0,0,1-9.89-9.89l9.47331-33.15657Z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16" /><line x1="96" y1="112" x2="160" y2="112" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16" /><line x1="96" y1="144" x2="160" y2="144" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16" />',
+    },
+    {
+      label: 'Search',
+      svg: '<circle cx="116" cy="116" r="84" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16" /><line x1="175.39356" y1="175.40039" x2="223.99414" y2="224.00098" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16" />',
+    },
+    {
+      label: 'Profile',
+      svg: '<circle cx="128" cy="96" r="64" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="16" /><path d="M30.989,215.99064a112.03731,112.03731,0,0,1,194.02311.002" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16" />',
+    },
+  ]
+
+  const menu = document.querySelector('.menu')
+  const links = menuItems.map((item, index) => {
+    const a = document.createElement('a')
+    a.href = '#'
+    a.className = 'link'
+    if (item.active) a.classList.add('is-active')
+    a.setAttribute('aria-label', item.label)
+    a.setAttribute('aria-current', item.active ? 'page' : 'false')
+    a.innerHTML = `
+      <span class="link-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" fill="currentColor" viewBox="0 0 256 256" aria-hidden="true">${item.svg}</svg>
+      </span>
+      <span class="link-title">${item.label}</span>`
+    // 点击切换选中态（演示用）
+    a.addEventListener('click', (e) => {
+      e.preventDefault()
+      links.forEach((l) => l.classList.remove('is-active'))
+      a.classList.add('is-active')
+      links.forEach((l) => l.setAttribute('aria-current', 'false'))
+      a.setAttribute('aria-current', 'page')
+    })
+    return a
+  })
+  links.forEach((a) => menu.appendChild(a))
+</script>
+</body>
+</html>

@@ -26,7 +26,9 @@
     <template #toolbar-extra>
       <slot name="toolbar-extra" />
     </template>
-    <template #list="listSlotProps">
+    <!-- 仅当消费者真正提供 list 插槽时才转发，避免 GenericEntityView 误判 hasListSlot
+         跳过空状态居中（SchemaRenderer 默认列表应走 GenericEntityView 自带居中） -->
+    <template v-if="hasListSlot" #list="listSlotProps">
       <slot name="list" v-bind="listSlotProps" />
     </template>
     <template #card-subtitle="{ entity }">
@@ -54,11 +56,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, useSlots } from 'vue'
 import { entitySchemaRegistry } from '@worldsmith/entity-core'
 import type { EntityTypeSchema } from '@worldsmith/core-api-types'
 import GenericEntityView from './GenericEntityView.vue'
 import type { FormFieldDef, RelationTabDef, CardFieldDef, CustomTabDef, FilterDef } from './types'
+
+const slots = useSlots()
+/** 消费者是否真正提供了 list 插槽（用于条件转发，避免 GenericEntityView 误判） */
+const hasListSlot = computed(() => !!slots['list'])
 
 const props = withDefaults(defineProps<{
   typeKey: string

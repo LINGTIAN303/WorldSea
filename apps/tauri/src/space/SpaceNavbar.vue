@@ -51,6 +51,7 @@
         v-model="modeModel"
         :options="modeOptions"
         :disabled="sessionChatMode !== null && spaceStore.mode === 'chat'"
+        icon-mode
         class="mode-segmented"
       />
     </div>
@@ -149,9 +150,7 @@
     <Teleport to="body">
       <Transition name="dropdown">
         <div v-if="moreMenuOpen" class="more-menu" :style="moreMenuStyle">
-          <button class="more-item" @click="onMore('workbench')"><WsIcon name="monitor" size="sm" /><span>工作台（抽屉）</span></button>
-          <button class="more-item" @click="onMore('switch')"><WsIcon name="home" size="sm" /><span>切换到工作台主界面</span></button>
-          <button class="more-item" @click="onMore('settings')"><WsIcon name="pencil" size="sm" /><span>全局设置</span></button>
+          <button class="more-item" @click="onMore()"><WsIcon name="pencil" size="sm" /><span>全局设置</span></button>
         </div>
       </Transition>
     </Teleport>
@@ -195,8 +194,6 @@ const emit = defineEmits<{
   toggleNewSession: []
   toggleKnowledge: []
   toggleMode: []
-  openWorkbench: []
-  switchToWorkbench: []
   openSettings: []
 }>()
 
@@ -244,20 +241,20 @@ async function updateSessionInfo() {
 watch(currentSessionId, () => { updateSessionInfo() })
 
 // ── 模式分段滑块（2026-08-09 由下拉改滑块）──
-// 选项源：单聊四模式 / 群聊两模式（TuiSegmented 只消费 {value,label}）
+// 选项源：单聊三模式（快问快答已移除，2026-08-12）/ 群聊两模式（消费 {value,label,icon}）
+// iconMode：图标常驻 + 单级文字
 const chatModes = computed(() => {
   // 群聊模式：会议/闲聊 两个子模式（2026-08-09 迁移）
   if (spaceStore.mode === 'group') {
     return [
-      { value: 'meeting' as const, label: '会议' },
-      { value: 'casual' as const, label: '闲聊' },
+      { value: 'meeting' as const, label: '会议', icon: 'users' },
+      { value: 'casual' as const, label: '闲聊', icon: 'chat' },
     ]
   }
   return [
-    { value: 'normal' as const, label: '快问快答' },
-    { value: 'deep' as const, label: '深度思考' },
-    { value: 'explore' as const, label: '知识探索' },
-    { value: 'task' as const, label: '任务执行' },
+    { value: 'deep' as const, label: '深度思考', icon: 'bulb' },
+    { value: 'explore' as const, label: '知识探索', icon: 'book' },
+    { value: 'task' as const, label: '任务执行', icon: 'task' },
   ]
 })
 
@@ -334,11 +331,9 @@ function toggleMoreMenu() {
   }
 }
 
-function onMore(action: 'workbench' | 'switch' | 'settings') {
+function onMore() {
   moreMenuOpen.value = false
-  if (action === 'workbench') emit('openWorkbench')
-  else if (action === 'switch') emit('switchToWorkbench')
-  else emit('openSettings')
+  emit('openSettings')
 }
 
 function onDocClick(e: MouseEvent) {
@@ -619,8 +614,12 @@ onBeforeUnmount(() => {
   margin-left: 4px;
 }
 .mode-segmented :deep(.tui-seg__item) {
-  padding: 4px 12px;
+  padding: 4px 10px;
   font-size: var(--font-size-xs);
+}
+/* iconMode 下：图标与文字间距微调，保持顶栏紧凑 */
+.mode-segmented :deep(.tui-seg.is-icon-mode .tui-seg__item) {
+  gap: 4px;
 }
 
 .more-wrap {

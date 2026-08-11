@@ -94,6 +94,14 @@ const DEFAULT_VISIBLE_TYPES = [
   'concept', 'item', 'textbox', 'image', 'note', 'link', 'group',
 ]
 
+/* ────────────────────────────────────────────────
+   模块级：用户是否已主动删除「中心主题」
+   由 ensureCenterNode 在检测到中心节点残留（centerNodeId 指向已删除实体）时置位，
+   持久化到 localStorage，刷新/重启后仍生效，确保思维导图不再自动重建被删除的中心。
+   ──────────────────────────────────────────────── */
+const userDeletedCenter = ref<boolean>(loadFromStorage<boolean>('userDeletedCenter', false))
+watch(userDeletedCenter, (v) => saveToStorage('userDeletedCenter', v))
+
 export const useMindmapStore = defineStore('mindmap', () => {
   // ========================================================================
   // 外部数据源
@@ -123,14 +131,59 @@ export const useMindmapStore = defineStore('mindmap', () => {
   // ========================================================================
   const centerNodeId = ref<string | null>(loadFromStorage<string | null>('centerNodeId', null))
 
-  /** 自动创建中心主题实体（若尚不存在则新建） */
-  async function ensureCenterNode(): Promise<string> {
+  /** 清理重复的「中心主题」概念实体：保留 1 个（优先 centerNodeId 指向的），删除其余 */
+  async function deduplicateCenterNodes(): Promise<void> {
+    const centers = entityStore.entities.filter(
+      e => e.type === 'concept' && e.name === '中心主题'
+    )
+    if (centers.length <= 1) return
+    const keepId = centers.find(c => c.id === centerNodeId.value)?.id ?? centers[0].id
+    await Promise.all(
+      centers.filter(c => c.id !== keepId).map(c => entityStore.remove(c.id))
+    )
+    centerNodeId.value = keepId
+  }
+
+  /** 自动创建中心主题实体（若尚不存在则新建）。用户删除过中心节点时不自动重建 */
+  async function ensureCenterNode(): Promise<string | null> {
+    // 先清理历史遗留的重复「中心主题」，再决定是否新建
+    await deduplicateCenterNodes()
     const existing = centerNodeId.value
     if (existing && entityStore.entities.find(e => e.id === existing)) {
       return existing
     }
-    // 若已有实体但无 centerNodeId，取第一个作为中心
-    if (entityStore.entities.length > 0 && !existing) {
+    // 中心节点残留：centerNodeId 曾指向一个已不存在的实体 → 中心被删除过。
+    // 尊重删除，置位标记，不自动重建「中心主题」
+    if (centerNodeId.value !== null) {
+      userDeletedCenter.value = true
+    }
+    // 用户已主动删除中心节点 → 尊重删除，不再自动创建「中心主题」，
+    // 优先以用户手动新建的「中心主题」/现有首个实体为中心；无任何实体则返回 null（思维导图空）
+    if (userDeletedCenter.value) {
+      const manualCenter = entityStore.entities.find(
+        e => e.type === 'concept' && e.name === '中心主题'
+      )
+      if (manualCenter) {
+        centerNodeId.value = manualCenter.id
+        return manualCenter.id
+      }
+      if (entityStore.entities.length > 0) {
+        centerNodeId.value = entityStore.entities[0].id
+        return centerNodeId.value
+      }
+      centerNodeId.value = null
+      return null
+    }
+    // 优先复用已存在的「中心主题」概念实体，避免重复创建（防污染概念/设定库）
+    const existingCenter = entityStore.entities.find(
+      e => e.type === 'concept' && e.name === '中心主题'
+    )
+    if (existingCenter) {
+      centerNodeId.value = existingCenter.id
+      return existingCenter.id
+    }
+    // 若已有其他实体但无中心节点，取第一个作为中心
+    if (entityStore.entities.length > 0) {
       centerNodeId.value = entityStore.entities[0].id
       return centerNodeId.value!
     }
@@ -489,7 +542,7 @@ export const useMindmapStore = defineStore('mindmap', () => {
 
   return {
     // 状态
-    centerNodeId, ensureCenterNode,
+    centerNodeId, ensureCenterNode, deduplicateCenterNodes, userDeletedCenter,
     navigationStack, currentRootId, breadcrumb,
     selectedNodeIds, focusedNodeId,
     camera,

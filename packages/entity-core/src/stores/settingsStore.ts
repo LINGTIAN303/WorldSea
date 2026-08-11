@@ -11,7 +11,21 @@ export interface PluginToggle {
   active: boolean
   dependencies?: { moduleId: string; version?: string; optional?: boolean }[]
   source?: 'builtin' | 'local' | 'remote'
+  /** 插件分类，用于插件管理页标签筛选 */
+  category?: PluginCategory
 }
+
+/** 插件分类定义（插件管理页标签筛选用） */
+export const PLUGIN_CATEGORIES = [
+  { id: 'world', label: '世界观' },
+  { id: 'characters', label: '角色' },
+  { id: 'items', label: '物品' },
+  { id: 'narrative', label: '叙事' },
+  { id: 'visual', label: '视觉' },
+  { id: 'system', label: '系统' },
+] as const
+
+export type PluginCategory = typeof PLUGIN_CATEGORIES[number]['id']
 
 export interface CustomProviderEntry {
   id: string
@@ -86,33 +100,33 @@ const STORAGE_KEY_GROUP_CHAT_GLOBAL_RPM = 'worldsmith_group_chat_global_rpm'
 const STORAGE_KEY_GROUP_CHAT_GLOBAL_CONCURRENT = 'worldsmith_group_chat_global_concurrent'
 
 const DEFAULT_PLUGINS: PluginToggle[] = [
-  { id: 'official.characters', label: '人物志', icon: 'character', active: true },
-  { id: 'official.regions', label: '区域图谱', icon: 'region', active: false },
-  { id: 'official.timeline', label: '时间线', icon: 'timeline', active: true },
-  { id: 'official.organizations', label: '势力', icon: 'organization', active: false },
-  { id: 'official.concepts', label: '概念/设定库', icon: 'concept', active: true },
-  { id: 'official.items', label: '道具/装备', icon: 'trade', active: false },
-  { id: 'official.apparel', label: '服饰/装备', icon: 'apparel', active: false },
-  { id: 'official.mindmap', label: '思维导图', icon: 'mindmap', active: false },
-  { id: 'official.custom', label: '自定义视图', icon: 'dashboard', active: false },
-  { id: 'official.module-builder', label: '自定义模块', icon: 'module-builder', active: true },
-  { id: 'official.graph', label: '关系图谱', icon: 'graph', active: false },
-  { id: 'official.buildings', label: '建筑物', icon: 'building', active: false },
-  { id: 'official.species', label: '种族', icon: 'species', active: false },
-  { id: 'official.magic', label: '魔法', icon: 'magic', active: false },
-  { id: 'official.outline', label: '大纲', icon: 'outline', active: true },
-  { id: 'official.languages', label: '语言/文字', icon: 'language', active: false },
-  { id: 'official.culture', label: '文化/文明', icon: 'culture', active: false },
-  { id: 'official.conflict', label: '冲突/战争', icon: 'combat', active: false },
-  { id: 'official.inspiration', label: '灵感/素材库', icon: 'inspiration', active: true },
-  { id: 'official.plants', label: '植物', icon: 'plant', active: false },
-  { id: 'official.combat_stats', label: '战力', icon: 'combat', active: false },
-  { id: 'official.weapons', label: '武器', icon: 'weapon', active: false },
-  { id: 'official.manuscript', label: '正文编辑', icon: 'manuscript', active: false },
-  { id: 'official.drawing', label: '画板', icon: 'drawing', active: false },
-  { id: 'official.tactical-board', label: '战术棋盘', icon: 'tactical-board', active: false },
-  { id: 'official.notebook', label: '笔记本', icon: 'notebook', active: true },
-  { id: 'official.workflow', label: '工作流', icon: 'lightning', active: true },
+  { id: 'official.characters', label: '人物志', icon: 'character', active: true, category: 'characters' },
+  { id: 'official.regions', label: '区域图谱', icon: 'region', active: false, category: 'world' },
+  { id: 'official.timeline', label: '时间线', icon: 'timeline', active: true, category: 'narrative' },
+  { id: 'official.organizations', label: '势力', icon: 'organization', active: false, category: 'characters' },
+  { id: 'official.concepts', label: '概念/设定库', icon: 'concept', active: true, category: 'world' },
+  { id: 'official.items', label: '道具/装备', icon: 'trade', active: false, category: 'items' },
+  { id: 'official.apparel', label: '服饰/装备', icon: 'apparel', active: false, category: 'items' },
+  { id: 'official.mindmap', label: '思维导图', icon: 'mindmap', active: false, category: 'visual' },
+  { id: 'official.custom', label: '自定义视图', icon: 'dashboard', active: false, category: 'system' },
+  { id: 'official.module-builder', label: '自定义模块', icon: 'module-builder', active: true, category: 'system' },
+  { id: 'official.graph', label: '关系图谱', icon: 'graph', active: false, category: 'visual' },
+  { id: 'official.buildings', label: '建筑物', icon: 'building', active: false, category: 'world' },
+  { id: 'official.species', label: '种族', icon: 'species', active: false, category: 'world' },
+  { id: 'official.magic', label: '魔法', icon: 'magic', active: false, category: 'world' },
+  { id: 'official.outline', label: '大纲', icon: 'outline', active: true, category: 'narrative' },
+  { id: 'official.languages', label: '语言/文字', icon: 'language', active: false, category: 'world' },
+  { id: 'official.culture', label: '文化/文明', icon: 'culture', active: false, category: 'world' },
+  { id: 'official.conflict', label: '冲突/战争', icon: 'combat', active: false, category: 'narrative' },
+  { id: 'official.inspiration', label: '灵感/素材库', icon: 'inspiration', active: true, category: 'narrative' },
+  { id: 'official.plants', label: '植物', icon: 'plant', active: false, category: 'world' },
+  { id: 'official.combat_stats', label: '战力', icon: 'combat', active: false, category: 'system' },
+  { id: 'official.weapons', label: '武器', icon: 'weapon', active: false, category: 'items' },
+  { id: 'official.manuscript', label: '正文编辑', icon: 'manuscript', active: false, category: 'narrative' },
+  { id: 'official.drawing', label: '画板', icon: 'drawing', active: false, category: 'visual' },
+  { id: 'official.tactical-board', label: '战术棋盘', icon: 'tactical-board', active: false, category: 'visual' },
+  { id: 'official.notebook', label: '笔记本', icon: 'notebook', active: true, category: 'visual' },
+  { id: 'official.workflow', label: '工作流', icon: 'lightning', active: true, category: 'system' },
 ]
 
 function loadPlugins(): PluginToggle[] {
@@ -247,6 +261,9 @@ const SHORTCUT_DEFAULTS: Record<string, string[]> = {
 }
 
 const STORAGE_KEY_SHORTCUTS = 'worldsmith_shortcuts'
+// 语音输入设置（Web Speech API）
+const STORAGE_KEY_VOICE_LANG = 'worldsmith_voice_lang'
+const STORAGE_KEY_VOICE_CONTINUOUS = 'worldsmith_voice_continuous'
 
 function loadShortcuts(): Record<string, string[]> {
   try {
@@ -263,6 +280,10 @@ export const useSettingsStore = defineStore('settings', () => {
   const { currentThemeId, setTheme: setThemeFromEngine } = useTheme()
   const plugins = ref<PluginToggle[]>(loadPlugins())
   const theme = computed(() => currentThemeId.value)
+
+  // 语音输入设置（Web Speech API）：识别语言 + 连续识别
+  const voiceLang = persistedRef(STORAGE_KEY_VOICE_LANG, 'zh-CN')
+  const voiceContinuous = persistedRef(STORAGE_KEY_VOICE_CONTINUOUS, false)
 
   const undoHistoryLimit = persistedRef(STORAGE_KEY_UNDO_LIMIT, 20)
   const multiStepRedo = persistedRef(STORAGE_KEY_MULTI_STEP_REDO, true)
@@ -438,5 +459,6 @@ export const useSettingsStore = defineStore('settings', () => {
            groupChatMaxAgents, groupChatDefaultStrategy, groupChatGlobalRpm, groupChatGlobalConcurrent,
              sidebarPosition, detailPanelPosition,
             timelineDragEnabled, timelineDefaultMode, timelineDefaultGroup, timelineCompactMode,
+           voiceLang, voiceContinuous,
            DEFAULT_SCENE_PROBS }
 })

@@ -35,6 +35,7 @@
             <RelationsPanel v-if="cat.id === 'relations'" :search-query="searchQuery" @dirty="onDirty" />
             <CompanionPanel v-if="cat.id === 'video'" :search-query="searchQuery" @dirty="onDirty" />
             <ShortcutsPanel v-if="cat.id === 'shortcuts'" :search-query="searchQuery" @dirty="onDirty" />
+            <VoicePanel v-if="cat.id === 'voice'" :search-query="searchQuery" @dirty="onDirty" />
             <div v-if="cat.id === 'agent'" class="agent-set-embed"><SpaceAgentSettingsPanel @close="close" /></div>
           </template>
           <div v-if="matchedCategories.length === 0" class="set-empty">未找到匹配的设置项</div>
@@ -49,6 +50,7 @@
           <RelationsPanel v-else-if="activeSection === 'relations'" @dirty="onDirty" />
           <CompanionPanel v-else-if="activeSection === 'video'" @dirty="onDirty" />
           <ShortcutsPanel v-else-if="activeSection === 'shortcuts'" @dirty="onDirty" />
+          <VoicePanel v-else-if="activeSection === 'voice'" @dirty="onDirty" />
           <template v-else-if="activeSection === 'storage'">
             <StorageManagementTab />
           </template>
@@ -75,6 +77,7 @@ import LayoutPanel from './panels/LayoutPanel.vue'
 import RelationsPanel from './panels/RelationsPanel.vue'
 import CompanionPanel from './panels/CompanionPanel.vue'
 import ShortcutsPanel from './panels/ShortcutsPanel.vue'
+import VoicePanel from './panels/VoicePanel.vue'
 // Agent 设置面板（embedded 封装，2026-08-09 迁入主设置）
 import SpaceAgentSettingsPanel from '@/space/panels/SpaceAgentSettingsPanel.vue'
 
@@ -119,6 +122,7 @@ const categories = [
   { id: 'relations', icon: 'cat-relations', label: '关系' },
   { id: 'video', icon: 'cat-video', label: '陪伴模式' },
   { id: 'shortcuts', icon: 'cat-shortcuts', label: '快捷键' },
+  { id: 'voice', icon: 'volume-on', label: '语音' },
   { id: 'storage', icon: 'cat-storage', label: '存储' },
   { id: 'agent', icon: 'bot', label: 'Agent' },
 ]
@@ -135,6 +139,7 @@ const CATEGORY_KEYWORDS: Record<string, string> = {
   relations: '关系 自动 创建 实体 引用 图谱 选择器 relation auto create',
   video: '陪伴模式 video 通知 弹窗 人格 角色 附体 persona 概率 运气 场景 停驻 断句 字数 模型 独立 供应商 空间 静默',
   shortcuts: '快捷键 键盘 快捷 绑定 shortcut keyboard',
+  voice: '语音 识别 输入 麦克风 连续 语言 voice',
   storage: '存储 清理 孤立 文件 诊断 缓存 空间 配额 storage cleanup orphan diagnostic',
   agent: 'Agent 模型 供应商 用量 Skills MCP 搜索 多模态 终端 安全 人格预设 思考级别 危险操作 确认 agent model provider usage skill mcp search vision terminal safety persona thinking',
 }
@@ -207,6 +212,9 @@ function close() {
 .agent-set-embed :deep(.space-agent-settings) {
   flex: 1;
   min-height: 0;
+  /* 去掉外层面板背景/内边距，让卡片直接浮在设置背景上、卡片间缝隙透出背景（与其余标签页一致） */
+  background: transparent;
+  padding: 0;
 }
 .agent-set-embed :deep(.space-agent-settings .panel-header) {
   display: none;

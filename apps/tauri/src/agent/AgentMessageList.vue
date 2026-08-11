@@ -140,7 +140,7 @@ const props = withDefaults(defineProps<{
   lastAssistantHasThinking: boolean
   a2uiSurfaces: Record<string, any>
   resolveDataBinding: (binding: any, dataModel: Record<string, unknown>) => any
-  chatMode?: 'normal' | 'deep' | 'explore' | 'task' | 'group-chat'
+  chatMode?: 'deep' | 'explore' | 'task' | 'group-chat'
   useDeepLayout?: boolean
 }>(), {
   useDeepLayout: true,

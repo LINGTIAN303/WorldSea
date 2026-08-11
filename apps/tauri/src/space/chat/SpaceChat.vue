@@ -1,9 +1,6 @@
 <template>
   <div class="space-chat agent-panel">
     <template v-if="spaceStore.mode === 'chat'">
-      <div v-if="isRustBackend" class="rust-mode-banner">
-        Rust 模式：深度模式/长任务/A2UI/编排状态栏/终端/子 Agent 均已支持
-      </div>
       <!-- 读屏直播区：告知 Agent 生成开始/完成（视觉隐藏，WCAG 4.1.3） -->
       <div class="sr-only" role="status" aria-live="polite">{{ srStatus }}</div>
       <div class="chat-messages" :aria-busy="isStreaming">
@@ -28,7 +25,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, computed, watch } from 'vue'
+import { ref, nextTick, watch } from 'vue'
 import ChatInput from './ChatInput.vue'
 import AgentMessageList from '@/agent/AgentMessageList.vue'
 import { useAgent } from '@/agent/composables/useAgent'
@@ -37,8 +34,6 @@ import { useFileStore } from '@worldsmith/entity-core'
 import type { ImageAttachment, FileAttachment } from '@agent/index'
 
 const spaceStore = useSpaceStore()
-// Tauri 端恒为 Rust 后端（浏览器预览时也走 useAgentRust）
-const isRustBackend = computed(() => true)
 const {
   messages, isStreaming, sendMessage, steer,
   lastAssistantHasContent, lastAssistantHasThinking,
@@ -81,7 +76,7 @@ function onBlockAction(event: { blockId: string; action: string; data?: Record<s
   void steer(steerText)
 }
 
-async function onInputSend(text: string, rawAttachments: any[]): Promise<void> {
+async function onInputSend(text: string, rawAttachments: any[], references?: { id: string; name: string; type: string }[]): Promise<void> {
   if (isStreaming.value) return
 
   const images: ImageAttachment[] = []
@@ -104,7 +99,12 @@ async function onInputSend(text: string, rawAttachments: any[]): Promise<void> {
     }
   }
 
-  const finalText = text || (images.length ? '请描述这张图片' : '')
+  // 实体引用：构造结构化上下文块，携带 id/名称/类型供 Agent 读取实体
+  const refsBlock = (references || []).length
+    ? '\n' + references!.map((r) => `[世界设定引用 ${r.name}（${r.type}，id=${r.id}）]`).join('\n')
+    : ''
+
+  const finalText = (text || (images.length ? '请描述这张图片' : '')) + refsBlock
   await sendMessage(
     finalText,
     images.length ? images : undefined,
@@ -131,16 +131,5 @@ async function onInputSend(text: string, rawAttachments: any[]): Promise<void> {
   display: flex;
   flex-direction: column;
   min-height: 0;
-}
-
-/* Rust 实验模式提示横幅 */
-.rust-mode-banner {
-  padding: 6px 12px;
-  font-size: var(--fs-sm);
-  color: var(--text-secondary, #888);
-  background: var(--warning-soft, rgba(255, 200, 100, 0.08));
-  border-bottom: 1px solid color-mix(in srgb, var(--warning, #d97706) 25%, transparent);
-  text-align: center;
-  flex-shrink: 0;
 }
 </style>

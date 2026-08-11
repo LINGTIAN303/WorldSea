@@ -111,6 +111,31 @@ export class FileStorageBackend implements StorageBackend {
    */
   private _pendingWrites = new Set<Promise<unknown>>()
 
+  /**
+   * 每实体写操作队列（tail promise）。
+   * 键为实体 id，值为该实体最后一次写操作的尾部 promise。
+   * 用于删除前等待同实体 in-flight 写入落盘，消除"写入尚未完成、删除已执行、
+   * 随后 in-flight 写入把文件写回"的竞态（实体删除后复活的根因）。
+   */
+  private _entityWriteQueues = new Map<string, Promise<unknown>>()
+
+  /**
+   * 将实体的写操作串行化排队，返回本次操作的 promise。
+   * 队列尾部吞掉错误避免中断后续操作，错误由调用方（task 内部）自行处理。
+   */
+  private enqueueEntityWrite<T>(id: string, task: () => Promise<T>): Promise<T> {
+    const prev = this._entityWriteQueues.get(id) ?? Promise.resolve()
+    const run = prev.then(task)
+    this._entityWriteQueues.set(id, run.catch(() => {}))
+    return run
+  }
+
+  /** 等待某实体的所有 in-flight 写操作完成 */
+  private async waitEntityWrites(id: string): Promise<void> {
+    const tail = this._entityWriteQueues.get(id)
+    if (tail) await tail.catch(() => {})
+  }
+
   constructor(fallback: StorageBackend) {
     this._fallback = fallback
   }
@@ -415,7 +440,7 @@ export class FileStorageBackend implements StorageBackend {
     this._entityCache.set(entity.id, entity)
     // 文件写入异步化（不阻塞调用方），失败时回滚内存保证一致性
     const content = JSON.stringify(entity)
-    this.trackWrite(
+    const write = this.enqueueEntityWrite(entity.id, () =>
       writeTextFile(filePath, content, true).catch(err => {
         console.error('[FileStorageBackend] putEntity 写入失败，回滚内存:', entity.id, err)
         if (oldEntry) this._entityIndex.set(entity.id, oldEntry)
@@ -424,6 +449,7 @@ export class FileStorageBackend implements StorageBackend {
         else this._entityCache.delete(entity.id)
       }),
     )
+    this.trackWrite(write)
   }
 
   async updateEntity(id: string, changes: Partial<Entity>): Promise<void> {
@@ -445,18 +471,20 @@ export class FileStorageBackend implements StorageBackend {
     this._entityCache.set(id, updated)
     // 文件写入异步化，失败时回滚内存
     const content = JSON.stringify(updated)
-    this.trackWrite(
-      writeTextFile(newPath, content, true).then(async () => {
+    const write = this.enqueueEntityWrite(id, async () => {
+      try {
+        await writeTextFile(newPath, content, true)
         // 写入成功后删除旧路径文件
         if (oldPath && oldPath !== newPath) {
           try { await deleteFile(oldPath) } catch { /* 旧文件删除失败可忽略 */ }
         }
-      }).catch(err => {
+      } catch (err) {
         console.error('[FileStorageBackend] updateEntity 写入失败，回滚内存:', id, err)
         if (oldEntry) this._entityIndex.set(id, oldEntry)
         this._entityCache.set(id, existing)
-      }),
-    )
+      }
+    })
+    this.trackWrite(write)
   }
 
   async deleteEntity(id: string): Promise<void> {
@@ -466,18 +494,25 @@ export class FileStorageBackend implements StorageBackend {
     const path = this.entityFilePathById(id)
     const oldEntry = this._entityIndex.get(id)
     const oldEntity = this._entityCache.get(id)
-    // 先更新内存索引和缓存
+    // 先等待该实体的 in-flight 写入落盘，避免"写入未完成、删除已执行、
+    // 随后写入把文件写回"的竞态（实体删除后复活的根因）
+    await this.waitEntityWrites(id)
+    // 从内存索引和缓存移除
     this._entityIndex.delete(id)
     this._entityCache.delete(id)
-    // 文件删除异步化，失败时回滚内存
+    // 清空该实体的写队列，防止删除后遗留引用
+    this._entityWriteQueues.delete(id)
+    // 文件删除必须真正等待；失败时回滚内存并向上抛错，
+    // 使 deleteEntityAtomic 能感知删除失败，而非"假成功"
     if (path) {
-      this.trackWrite(
-        deleteFile(path).catch(err => {
-          console.error('[FileStorageBackend] deleteEntity 删除失败，回滚内存:', id, err)
-          if (oldEntry) this._entityIndex.set(id, oldEntry)
-          if (oldEntity) this._entityCache.set(id, oldEntity)
-        }),
-      )
+      try {
+        await deleteFile(path)
+      } catch (err) {
+        console.error('[FileStorageBackend] deleteEntity 删除失败，回滚内存:', id, err)
+        if (oldEntry) this._entityIndex.set(id, oldEntry)
+        if (oldEntity) this._entityCache.set(id, oldEntity)
+        throw err
+      }
     }
   }
 

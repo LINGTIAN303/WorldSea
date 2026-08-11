@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="timeline-chart" ref="chartContainer">
     <template v-if="layoutMode === 'horizontal'">
       <TimelineAxis
@@ -63,7 +63,7 @@
     </template>
 
     <template v-else>
-      <div class="vertical-body">
+      <div class="vertical-body" :class="{ 'is-empty': events.length === 0 && !loading }">
         <div class="timeline-line"></div>
 
         <template v-for="group in eraGroups" :key="group.era">
@@ -356,6 +356,14 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
   overflow-y: auto;
   position: relative;
   padding: 10px 0 10px 20px;
+}
+
+/* 空事件状态：提示语在视图区域内垂直+水平居中 */
+.vertical-body.is-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-left: 0;
 }
 
 .timeline-line {

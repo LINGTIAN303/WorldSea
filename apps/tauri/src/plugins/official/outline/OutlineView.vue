@@ -10,17 +10,25 @@
     id-prefix="otl"
     :hide-create-button="true"
     >
-    <!-- 工具栏额外按钮 -->
-    <template #toolbar-extra>
-      <CreateButton label="新建卷/章" @click="addRootNode" />
+    <!-- 页签切换（视图模式）→ 筛选收束条 -->
+    <template #toolbar-filter-extra>
       <CustomDropdown v-model="activeTab" :options="activeTabOptions" />
+    </template>
+
+    <!-- 状态计数 → 动作区 -->
+    <template #toolbar-extra>
       <span class="toolbar-count">共 {{ flatNodes.length }} 个节点</span>
+    </template>
+
+    <!-- 新建根节点 → 新建区 -->
+    <template #toolbar-create-extra>
+      <CreateButton label="新建卷/章" @click="addRootNode" />
     </template>
 
     <!-- 自定义列表：树状视图 / 情节线索 / 进度总览 -->
     <template #list="{ select: selectEntity }">
       <div v-if="activeTab === 'tree'" class="outline-tree-area">
-        <div class="tree-container">
+        <div class="tree-container" :class="{ 'is-empty': treeData.length === 0 }">
           <WsEmpty v-if="treeData.length === 0" preset="no-data" title="空大纲" description="点击上方按钮创建第一个章节" />
           <GenericTreeView
             v-for="node in treeData"
@@ -78,7 +86,7 @@
         </div>
       </div>
 
-      <div v-if="activeTab === 'storylines'" class="storyline-view">
+      <div v-if="activeTab === 'storylines'" class="storyline-view" :class="{ 'is-empty': storylines.length === 0 }">
         <div v-for="line in storylines" :key="line" class="storyline-row">
           <span class="sl-name">{{ line }}</span>
           <span class="sl-count">{{ nodesByLine(line, flatNodes).length }} 个节点</span>
@@ -375,6 +383,8 @@ useAgentPluginBridge('outline', async (event) => {
 .toolbar-count { font-size: var(--font-size-sm); color: var(--text-tertiary); margin-left: auto; }
 .outline-tree-area { display: flex; flex: 1; overflow: hidden; width: 100%; }
 .tree-container { flex: 1; overflow-y: auto; }
+/* 空大纲状态：提示语在视图区域内垂直+水平居中 */
+.tree-container.is-empty, .storyline-view.is-empty { display: flex; align-items: center; justify-content: center; }
 .tree-add-btn, .tree-del-btn { width: 20px; height: 20px; border: none; background: transparent; cursor: pointer; font-size: var(--font-size-base); color: var(--text-tertiary); border-radius: var(--radius-xs); opacity: 0; transition: opacity .1s; }
 .tree-row:hover .tree-add-btn, .tree-row:hover .tree-del-btn { opacity: 1; }
 .tree-add-btn:hover { background: var(--bg); color: var(--success); }

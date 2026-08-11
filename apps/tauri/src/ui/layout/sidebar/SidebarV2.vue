@@ -58,6 +58,10 @@
         </div>
       </div>
     </div>
+    <!-- 侧边栏底部：⋯ 更多操作菜单（原窗口栏左端迁入），与顶部收缩按钮上下对齐对称 -->
+    <div class="sidebar-footer">
+      <AppMenu />
+    </div>
   </div>
 </template>
 
@@ -72,6 +76,7 @@ import { hasIcon } from '@/assets/iconRegistry'
 import { useSidebarPhysics } from './useSidebarPhysics'
 import { useSidebarInteraction } from './useSidebarInteraction'
 import { useSidebarDragHandler } from './useSidebarDragHandler'
+import AppMenu from '@/ui/layout/AppMenu.vue'
 
 const uiStore = useUIStore()
 const settingsStore = useSettingsStore()
@@ -386,13 +391,9 @@ onBeforeUnmount(() => {
   cursor: grabbing;
   pointer-events: none;
 }
-/* 折叠窄条内的展开按钮（位于 sidebar-inner 之外，故不随 inner 滑出） */
+/* 折叠窄条内的展开按钮（flex 子项，占多数比例；位于 sidebar-inner 之外，不随 inner 隐藏） */
 .sidebar-toggle {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  flex: 3;
   width: 100%;
   border: none;
   background: transparent;
@@ -434,10 +435,29 @@ onBeforeUnmount(() => {
   background: var(--hover-bg);
   color: var(--text-color);
 }
+/* 侧边栏底部：⋯ 更多操作菜单，与顶部收缩按钮上下对齐对称（双线分隔独立块） */
+.sidebar-footer {
+  flex-shrink: 0;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-top: 1px solid var(--region-border, var(--border));
+}
+/* 收缩态：展开按钮占多数（flex:3），底部 ⋯ 菜单区域高度与展开态一致（40px），不各占一半 */
+.sidebar.collapsed .sidebar-footer {
+  height: 40px;
+  border-top: none;
+}
+/* 收缩态窄条：⋯ 按钮保持短宽度（不随展开态拉伸到整宽），适配 36px 窄条 */
+.sidebar.collapsed .sidebar-footer :deep(.appmenu-btn) {
+  width: 34px;
+}
 .sidebar-inner {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   position: relative;
   overflow: hidden;
   contain: layout paint style;
@@ -446,12 +466,7 @@ onBeforeUnmount(() => {
               opacity 0.15s ease;
 }
 .sidebar.collapsed .sidebar-inner {
-  transform: translateX(-100%);
-  opacity: 0;
-  pointer-events: none;
-}
-.sidebar.sidebar-right.collapsed .sidebar-inner {
-  transform: translateX(100%);
+  display: none;
 }
 .sidebar-carousel {
   display: flex;
@@ -463,6 +478,8 @@ onBeforeUnmount(() => {
   gap: 2px;
   padding: 4px 6px;
   position: relative;
+  /* 治本裁剪：插件按钮在轮播边界即被裁剪，不再溢出覆盖头部收缩按钮 */
+  overflow: hidden;
 }
 .sidebar-btn {
   display: flex;

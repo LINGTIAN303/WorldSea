@@ -1,20 +1,10 @@
 <template>
   <div class="pipeline-board">
-    <!-- 顶部工具栏 -->
-    <div class="pb-toolbar">
-      <h2 class="pb-title">
-        <WsIcon name="lightning" size="sm" />
-        创作编排
-      </h2>
-      <div class="pb-actions">
-        <button class="pb-btn pb-btn--primary" @click="showCreateDialog = true">
-          + 新建计划
-        </button>
-        <button class="pb-btn" @click="showTemplateDialog = true">
-          📋 从模板创建
-        </button>
-      </div>
-    </div>
+    <!-- 新建/模板按钮上移 R3 视图工具条（图标/标题 R3 面包屑已提供） -->
+    <Teleport to="#view-toolbar-create">
+      <CreateButton label="新建计划" @click="showCreateDialog = true" />
+      <button class="pb-btn" @click="showTemplateDialog = true">从模板创建</button>
+    </Teleport>
 
     <!-- Pipeline 列表 -->
     <div v-if="loading" class="pb-loading">
@@ -109,7 +99,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { CreateButton } from '@worldsmith/plugin-sdk'
 import TuiSpinner from '@/components/ui/TuiSpinner.vue'
 import { usePipeline } from '../composables/usePipeline'
 import { usePipelineTemplates } from '../composables/usePipelineTemplates'
@@ -188,23 +178,9 @@ function onSelect(id: string) {
   overflow: auto;
 }
 
-.pb-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-shrink: 0;
-}
-
-.pb-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-}
-
-.pb-actions { display: flex; gap: 8px; }
+/* 上移 R3：操作按钮组单行适配 44px 工具条 */
+.pb-actions { display: flex; gap: 6px; align-items: center; }
+.pb-actions .pb-btn { padding: 4px 10px; flex-shrink: 0; }
 
 .pb-btn {
   padding: 6px 14px;

@@ -41,7 +41,7 @@ export interface AgentMessage {
 }
 
 /** 聊天模式：影响布局与思维链展示 */
-export type ChatMode = 'normal' | 'deep' | 'explore' | 'task' | 'group-chat'
+export type ChatMode = 'deep' | 'explore' | 'task' | 'group-chat'
 
 /** 深度模式段类型 */
 export type DeepSegmentType = 'thinking' | 'tooling' | 'output'

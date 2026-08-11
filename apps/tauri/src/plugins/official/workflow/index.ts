@@ -50,5 +50,7 @@ export function activate(api: PluginAPIType) {
     label: '创作编排',
     icon: 'lightning',
     component: WorkflowView,
+    // 全屏画布：工具条悬浮胶囊，不占 44px，hover 顶部浮现
+    toolbar: 'overlay',
   })
 }

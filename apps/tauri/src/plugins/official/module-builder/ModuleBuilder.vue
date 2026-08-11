@@ -1,6 +1,6 @@
 <template>
   <div class="builder-view">
-    <div v-if="!editingModuleId" class="builder-list">
+    <div v-if="!viewingModuleId" class="builder-list">
       <!-- 新建模块按钮上移 R3 视图工具条（图标/标题 R3 面包屑已提供） -->
       <Teleport to="#view-toolbar-create">
         <CreateButton label="新建模块" @click="createNewModule" />
@@ -24,11 +24,8 @@
         </div>
       </div>
     </div>
-    <ModuleBuilderEditor
-      v-else
-      :module-id="editingModuleId"
-      @back="editingModuleId = null"
-    />
+    <!-- 编辑器（以工具条+视图为画布） -->
+    <PageEditor v-else :module-id="viewingModuleId" @back="viewingModuleId = null" @publish="onPublish" />
     <ModuleDeleteModal :show="showDeleteConfirm" :module-name="moduleToDelete?.name ?? ''" @close="showDeleteConfirm = false" @confirm="executeDelete" />
     <ModulePublishModal :show="showPublishModal" :module-name="moduleToPublish?.name ?? ''" @close="closePublishModal" @confirm="confirmPublish" />
     <ModuleGuideModal :show="showGuide" @close="showGuide = false" />
@@ -43,18 +40,19 @@ import { useCustomModuleStore } from '@worldsmith/entity-core'
 import { registerModule, unregisterModule, getCustomModuleViews } from '../../../core/ModuleRuntime'
 import { setModuleViewData, clearModuleViewData } from '../../../core/ModuleViewRegistry'
 import { pluginAPI, usePluginStore } from '@worldsmith/entity-core'
+import { createEmptyLayoutSchema } from './types/layoutSchema'
 import ModuleRuntimeRenderer from './runtime/ModuleRuntimeRenderer.vue'
 import ModuleCard from './components/ModuleCard.vue'
-import ModuleBuilderEditor from './ModuleBuilderEditor.vue'
 import ModuleDeleteModal from './components/ModuleDeleteModal.vue'
 import ModulePublishModal from './components/ModulePublishModal.vue'
 import ModuleGuideModal from './components/ModuleGuideModal.vue'
+import PageEditor from './PageEditor.vue'
 import type { CustomModule, PluginView } from '@worldsmith/entity-core'
 
 const customModuleStore = useCustomModuleStore()
 const pluginStore = usePluginStore()
 
-const editingModuleId = ref<string | null>(null)
+const viewingModuleId = ref<string | null>(null)
 const showDeleteConfirm = ref(false)
 const moduleToDelete = ref<CustomModule | null>(null)
 const showPublishModal = ref(false)
@@ -75,14 +73,14 @@ function createNewModule() {
     views: [],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    layoutSchema: { version: 1, layout: { id: 'root', direction: 'vertical', children: [] }, components: [] },
+    layoutSchema: createEmptyLayoutSchema() as any,
   }
   customModuleStore.addModule(mod)
-  editingModuleId.value = id
+  viewingModuleId.value = id
 }
 
 function startEdit(id: string) {
-  editingModuleId.value = id
+  viewingModuleId.value = id
 }
 
 /**
@@ -194,4 +192,10 @@ function executeDelete() {
 .ble-icon { font-size: var(--icon-2xl); display: block; margin-bottom: 12px; }
 .bl-empty h3 { font-size: var(--font-size-lg); margin: 0 0 8px; }
 .bl-empty p { font-size: var(--font-size-sm); color: var(--text-secondary); }
+.editor-placeholder { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--text-secondary); }
+.ep-icon { font-size: var(--icon-2xl); color: var(--text-tertiary); }
+.editor-placeholder h3 { font-size: var(--font-size-lg); margin: 0; }
+.editor-placeholder p { font-size: var(--font-size-sm); color: var(--text-tertiary); margin: 0 0 8px; }
+.btn-ghost { padding: 6px 12px; background: transparent; border: 1px solid var(--border-color); border-radius: var(--radius-sm); cursor: pointer; font-size: var(--font-size-sm); color: var(--text-secondary); }
+.btn-ghost:hover { background: var(--hover-bg); }
 </style>

@@ -1,12 +1,14 @@
 <template>
   <div class="manuscript-view">
-    <!-- 工具栏 Teleport 到 R3 视图工具条的控件区（#view-toolbar-controls），实现单条统一工具栏 -->
-    <Teleport to="#view-toolbar-controls">
-      <div class="toolbar">
-        <CustomDropdown v-model="filterOutline" :options="outlineFilterOptions" />
-        <CreateButton label="新建章节" @click="newManuscript" />
-        <span class="toolbar-info">共 {{ filteredManuscripts.length }} 章</span>
-      </div>
+    <!-- 工具栏按控件类型分发到 R3 统一工具条各落点（筛选→收束条，动作→动作区，新建→新建区） -->
+    <Teleport to="#view-toolbar-filter-body">
+      <CustomDropdown v-model="filterOutline" :options="outlineFilterOptions" />
+    </Teleport>
+    <Teleport to="#view-toolbar-actions">
+      <span class="toolbar-info">共 {{ filteredManuscripts.length }} 章</span>
+    </Teleport>
+    <Teleport to="#view-toolbar-create">
+      <CreateButton label="新建章节" @click="newManuscript" />
     </Teleport>
 
     <div class="ms-body">

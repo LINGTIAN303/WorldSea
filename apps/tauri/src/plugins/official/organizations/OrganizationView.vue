@@ -14,7 +14,7 @@
   >
     <!-- Tree list view via list slot -->
     <template #list="{ entities, selectedIds: batchIds, toggleSelect: batchToggle, select: gevSelect }">
-      <div class="org-tree">
+      <div class="org-tree" :class="{ 'is-empty': entities.length === 0 }">
         <OrgTreeNode
           v-for="node in buildTree(entities)"
           :key="node.entity.id"
@@ -227,6 +227,8 @@ async function removeSubOrg(childId: string, parentId: string) {
 
 <style scoped>
 .org-tree { flex: 1; overflow-y: auto; min-width: 250px; }
+/* 空实体状态：组织树空提示垂直+水平居中 */
+.org-tree.is-empty { display: flex; align-items: center; justify-content: center; }
 
 .rel-item { padding: 5px 8px; font-size: var(--font-size-sm); cursor: pointer; border-radius: var(--radius-sm); transition: background var(--transition-fast); display: flex; align-items: center; }
 .rel-item:hover { background: var(--hover-bg); }

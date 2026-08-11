@@ -68,7 +68,7 @@ export async function runModerator(
     // 清理调度历史，确保每次决策独立
     backend.clearHistory()
 
-    await backend.prompt(prompt, { contextOverride: systemPrompt, chatMode: 'normal' })
+    await backend.prompt(prompt, { contextOverride: systemPrompt, chatMode: 'deep' })
 
     const state = backend.state
     const lastAssistant = [...state.messages].reverse().find(m => m.role === 'assistant')

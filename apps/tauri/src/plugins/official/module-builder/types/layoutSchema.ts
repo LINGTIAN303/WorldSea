@@ -1,5 +1,34 @@
 import type { Component } from 'vue'
 
+/* ── 新槽位模型（P1 槽位优先） ── */
+
+export type SlotArrangement =
+  | 'horizontal' | 'vertical' | 'tabs' | 'grid'
+  | 'accordion' | 'carousel' | 'split' | 'free'
+
+export interface SlotSize {
+  width?: number | 'auto'
+  height?: number | 'auto'
+  flex?: number
+  minWidth?: number
+  minHeight?: number
+}
+
+/** 槽位：递归结构单元。container 内含子槽位；leaf 内含组件。 */
+export interface Slot {
+  id: string
+  name?: string
+  arrangement: SlotArrangement
+  kind: 'container' | 'leaf'
+  size?: SlotSize
+  /** 形态专属配置（grid: columns / tabs: labels / …） */
+  options?: Record<string, unknown>
+  children?: Slot[]
+  components?: PlacedComponent[]
+}
+
+/* ── 旧模型（迁移源，仅用于读取历史数据） ── */
+
 export interface LayoutSlot {
   id: string
   direction: 'horizontal' | 'vertical'
@@ -12,10 +41,13 @@ export type LayoutSlotChild =
   | { type: 'slot'; slot: LayoutSlot }
   | { type: 'zone'; zoneId: string; width?: number | 'auto'; height?: number | 'auto'; flex?: number; resizable?: boolean }
 
+/* ── 组件 ── */
+
 export interface PlacedComponent {
   id: string
   type: ComponentTypeId
-  zoneId: string
+  /** 旧模型 zoneId；新模型组件内嵌 leaf 槽位，可省略 */
+  zoneId?: string
   config: Record<string, unknown>
   width?: number | 'auto'
   height?: number | 'auto'
@@ -23,9 +55,26 @@ export interface PlacedComponent {
   x?: number
   y?: number
   expanded?: boolean
-  childSlot?: LayoutSlot
+  childSlot?: Slot
   linkTo?: string[]
 }
+
+/* ── schema 主结构 ── */
+
+export interface ModuleLayoutSchema {
+  version: 2
+  root: Slot
+}
+
+export function createEmptySlotRoot(): Slot {
+  return { id: 'root', arrangement: 'vertical', kind: 'container', children: [] }
+}
+
+export function createEmptyLayoutSchema(): ModuleLayoutSchema {
+  return { version: 2, root: createEmptySlotRoot() }
+}
+
+/* ── 组件类型 ── */
 
 export type ComponentTypeId =
   | 'detail-panel' | 'edit-form' | 'property-panel' | 'field-group'
@@ -60,10 +109,4 @@ export interface ComponentTypeDefinition {
   renderer: Component
   configurator?: Component
   defaultConfig: Record<string, unknown>
-}
-
-export interface ModuleLayoutSchema {
-  version: 1
-  layout: LayoutSlot
-  components: PlacedComponent[]
 }

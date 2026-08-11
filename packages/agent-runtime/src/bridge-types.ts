@@ -7,7 +7,7 @@ export interface ImageAttachment {
   mimeType: string
 }
 
-export type ChatMode = 'normal' | 'deep' | 'explore' | 'task' | 'group-chat'
+export type ChatMode = 'deep' | 'explore' | 'task' | 'group-chat'
 
 export interface PromptOptions {
   skillNames?: string[]

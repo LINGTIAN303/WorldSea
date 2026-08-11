@@ -1,12 +1,17 @@
 <template>
-  <!-- 工具栏上移 R3 统一工具条（#view-toolbar-controls），套用 BuildingSectionView 模式；次要控件收进折叠菜单 -->
-  <Teleport to="#view-toolbar-controls">
-    <div class="mindmap-toolbar">
-      <input :value="searchQuery" class="search-input" placeholder="搜索节点...  (Enter 下一处)" @input="$emit('update:searchQuery', ($event.target as HTMLInputElement).value)" @keydown.enter="$emit('search-next')" @keydown.shift.enter="$emit('search-prev')" />
+  <!-- 搜索 + 匹配计数 → 标题旁搜索落点 -->
+  <Teleport to="#view-toolbar-search">
+    <input :value="searchQuery" class="search-input" placeholder="搜索节点...  (Enter 下一处)" @input="$emit('update:searchQuery', ($event.target as HTMLInputElement).value)" @keydown.enter="$emit('search-next')" @keydown.shift.enter="$emit('search-prev')" />
+    <span v-if="searchMatchCount > 0" class="search-counter">{{ searchMatchIndex + 1 }} / {{ searchMatchCount }}</span>
+  </Teleport>
 
-      <span v-if="searchMatchCount > 0" class="search-counter">{{ searchMatchIndex + 1 }} / {{ searchMatchCount }}</span>
+  <!-- 布局选择 → 筛选收束条 -->
+  <Teleport to="#view-toolbar-filter-body">
+    <CustomDropdown :model-value="layout" :options="layoutOptions" class="layout-dropdown" @update:model-value="$emit('update:layout', $event)" />
+  </Teleport>
 
-      <CustomDropdown :model-value="layout" :options="layoutOptions" class="layout-dropdown" @update:model-value="$emit('update:layout', $event)" />
+  <!-- 常驻操作 + 折叠菜单 → 动作落点 -->
+  <Teleport to="#view-toolbar-actions">
 
       <!-- 常驻操作：视图导航 / 撤销重做 / 模式切换 / 缩放 -->
       <div class="toolbar-actions">
@@ -65,7 +70,6 @@
         <button class="to-item" @click="$emit('export-png')">🖼 导出 PNG</button>
         <button class="to-item" @click="$emit('export-svg')">📐 导出 SVG</button>
       </ToolbarOverflow>
-    </div>
   </Teleport>
 </template>
 

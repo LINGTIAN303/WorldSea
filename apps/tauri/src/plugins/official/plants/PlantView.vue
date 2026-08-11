@@ -30,6 +30,8 @@ const plantTabs: RelationTabDef[] = [
 ]
 </script>
 <style scoped>
+/* 根容器撑满视图高度，保证 SchemaRenderer → GenericEntityView 空状态可垂直居中 */
+.plant-view { display: flex; flex-direction: column; height: 100%; }
 .pv-recipe-btn {
   display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px;
   border: 1px solid var(--color-border); border-radius: var(--radius-xs); background: var(--color-bg-elevated);

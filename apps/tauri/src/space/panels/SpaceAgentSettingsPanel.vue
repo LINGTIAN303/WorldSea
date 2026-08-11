@@ -97,7 +97,6 @@ const skills = ref<SkillMeta[]>(getAllSkills())
 const THINKING_LEVELS = computed(() => getThinkingLevels(currentModelId.value))
 
 const CHAT_MODES = [
-  { value: 'normal', icon: 'chat', label: '快问快答', desc: '快答为主，按需调用工具' },
   { value: 'deep', icon: 'brain', label: '深度思考', desc: '深度推理 + 工具验证 + 结构化推理链' },
   { value: 'explore', icon: 'search', label: '知识探索', desc: '知识库 → 联网搜索 → 项目数据 → 模型知识' },
   { value: 'task', icon: 'play', label: '任务执行', desc: '自主规划 + 连续执行 + 验证重试，动手把事做完' },

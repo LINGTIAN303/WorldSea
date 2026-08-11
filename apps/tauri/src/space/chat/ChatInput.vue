@@ -1,74 +1,140 @@
 <template>
-  <div class="chat-input-area">
-      <div class="input-row">
-        <div
-          class="capsule-input"
-          :class="{ expanded: isExpanded, focused: isFocused, 'drag-over': isDragOver }"
-          @dragover.prevent="isDragOver = true"
-          @dragleave.prevent="isDragOver = false"
-          @drop.prevent="onDrop"
-        >
-          <!-- 性能优化:按钮始终渲染,用 opacity + transform 控制可见性 -->
-          <!-- 替代原 v-if mount/unmount,避免 flex 子元素数量变化触发重排 -->
-          <button
-            class="attach-btn"
-            type="button"
-            :disabled="isStreaming"
-            title="添加文件（图片 / Word / PDF / 文本）"
-            aria-label="添加文件（图片 / Word / PDF / 文本）"
-            @click="triggerFileInput"
-          >
-            <WsIcon name="paperclip" size="sm" />
-          </button>
-          <div class="input-stack">
-            <div v-if="kbChips.length" class="kb-chips-area">
-              <div
-                v-for="(chip, i) in kbChips"
-                :key="i"
-                class="kb-chip"
+  <div class="chat-input-area" ref="inputAreaRef">
+    <!-- 召唤菜单（四符号统一，固定定位，Teleport 到 body） -->
+    <SummonMenu
+      ref="summonMenuRef"
+      :visible="summonMenuVisible"
+      :items="summonItems"
+      :filter="activeFilter"
+      :position="menuStyle"
+      :loading="referenceLoading"
+      :empty-hint="menuMode === 'references' ? referenceEmptyHint : undefined"
+      @select="handleSummonSelect"
+      @cancel="handleSummonCancel"
+    />
+
+    <!-- 双层输入框：上层胶囊输入区 + 下层常驻工具栏 -->
+    <div
+      class="chat-input-box"
+      :class="{ expanded: isExpanded, focused: isFocused, 'drag-over': isDragOver }"
+      @dragover.prevent="isDragOver = true"
+      @dragleave.prevent="isDragOver = false"
+      @drop.prevent="onDrop"
+    >
+      <!-- ── 上层：胶囊输入区 ── -->
+      <div class="input-capsule">
+        <div class="input-stack">
+          <!-- 召唤 chips（/技能 + @引用，随消息发送） -->
+          <div v-if="summonChips.length" class="chips-area">
+            <div
+              v-for="(chip, i) in summonChips"
+              :key="chip.id"
+              class="chip"
+              :class="`chip-${chip.kind}`"
+            >
+              <span class="chip-prefix">{{ chip.prefix }}</span>
+              <span class="chip-label">{{ chip.name }}</span>
+              <button
+                class="chip-remove"
+                type="button"
+                :aria-label="`移除 ${chip.name}`"
+                @click.stop="removeChip(i)"
               >
-                <WsIcon name="file" size="xs" />
-                <span class="kb-chip-label">{{ chip.label }}</span>
-                <button class="kb-chip-remove" type="button" :aria-label="`移除知识条目 ${chip.label}`" @click.stop="removeKbChip(i)">✕</button>
-              </div>
+                <WsIcon name="x" size="xs" />
+              </button>
             </div>
-            <div v-if="attachments.length" class="attachments-preview">
-              <div
-                v-for="(att, i) in attachments"
-                :key="i"
-                class="att-item"
-                :class="{ 'att-image': att.type === 'image', 'att-file': att.type === 'file' }"
+          </div>
+          <!-- 知识墙注入 chips -->
+          <div v-if="kbChips.length" class="chips-area">
+            <div v-for="(chip, i) in kbChips" :key="i" class="chip chip-kb">
+              <WsIcon name="file" size="xs" />
+              <span class="chip-label">{{ chip.label }}</span>
+              <button
+                class="chip-remove"
+                type="button"
+                :aria-label="`移除知识条目 ${chip.label}`"
+                @click.stop="removeKbChip(i)"
               >
-                <img v-if="att.type === 'image' && att.previewUrl" :src="att.previewUrl" class="att-thumb" />
-                <span v-if="att.type === 'file'" class="att-file-icon"><WsIcon name="file" size="xs" /></span>
-                <span class="att-name">{{ att.name }}</span>
-                <button class="att-remove" type="button" :aria-label="`移除附件 ${att.name}`" @click.stop="removeAttachment(i)">✕</button>
-              </div>
+                <WsIcon name="x" size="xs" />
+              </button>
             </div>
+          </div>
+          <!-- 附件预览 -->
+          <div v-if="attachments.length" class="attachments-preview">
+            <div
+              v-for="(att, i) in attachments"
+              :key="i"
+              class="att-item"
+              :class="{ 'att-image': att.type === 'image', 'att-file': att.type === 'file' }"
+            >
+              <img v-if="att.type === 'image' && att.previewUrl" :src="att.previewUrl" class="att-thumb" />
+              <span v-if="att.type === 'file'" class="att-file-icon"><WsIcon name="file" size="xs" /></span>
+              <span class="att-name">{{ att.name }}</span>
+              <button class="att-remove" type="button" :aria-label="`移除附件 ${att.name}`" @click.stop="removeAttachment(i)">
+                <WsIcon name="x" size="xs" />
+              </button>
+            </div>
+          </div>
+          <!-- textarea + 占位符轮播 overlay -->
+          <div class="textarea-wrap">
             <textarea
               ref="textareaRef"
               v-model="inputText"
               class="chat-textarea"
-              :placeholder="placeholder"
               rows="1"
+              aria-label="消息输入框"
               @focus="onFocus"
               @blur="onBlur"
-              @keydown.enter.exact="onEnter"
-              @input="autoResize"
+              @keydown="onKeydown"
+              @input="onInput"
               @paste="onPaste"
             ></textarea>
+            <Transition name="ph" mode="out-in">
+              <span v-if="!inputText" :key="currentPlaceholder" class="ph-overlay">{{ currentPlaceholder }}</span>
+            </Transition>
           </div>
-          <input
-            ref="fileInputRef"
-            type="file"
-            class="hidden-file-input"
-            multiple
-            @change="onFileInputChange"
-          />
+        </div>
+        <input
+          ref="fileInputRef"
+          type="file"
+          class="hidden-file-input"
+          multiple
+          @change="onFileInputChange"
+        />
+      </div>
+
+      <!-- ── 下层：常驻工具栏 ── -->
+      <div class="input-toolbar">
+        <div class="toolbar-left">
+          <button class="tool-btn" type="button" title="附件（图片/文件）" aria-label="添加附件" @click="triggerFileInput">
+            <WsIcon name="paperclip" size="sm" />
+          </button>
+          <button class="tool-btn" type="button" title="@ 引用实体" aria-label="插入引用符号" @click="insertPrefix('@')">
+            <WsIcon name="document" size="sm" />
+          </button>
+          <button class="tool-btn" type="button" title="/ 技能指令" aria-label="插入技能符号" @click="insertPrefix('/')">
+            <WsIcon name="zap" size="sm" />
+          </button>
+          <button class="tool-btn" type="button" title="！区域面板" aria-label="插入区域符号" @click="insertPrefix('！')">
+            <WsIcon name="book" size="sm" />
+          </button>
+          <button class="tool-btn" type="button" title="# 命令" aria-label="插入命令符号" @click="insertPrefix('#')">
+            <WsIcon name="settings" size="sm" />
+          </button>
+          <button class="tool-btn" :class="{ 'voice-active': isListening }" type="button" title="语音输入（麦克风转文字）" aria-label="语音输入" @click="toggleVoice">
+            <WsIcon name="volume-on" size="sm" />
+          </button>
+        </div>
+        <div class="toolbar-center">
+          <span class="mode-label">{{ modeLabel }}</span>
+        </div>
+        <div class="toolbar-right">
+          <ModelSwitcher :is-expanded="isExpanded" @change="onModelChange" />
           <button
             class="send-btn"
+            type="button"
             :class="{ 'stop-btn': isStreaming }"
-            :disabled="!isStreaming && (!inputText.trim() && !attachments.length && !kbChips.length)"
+            :disabled="sendDisabled"
             :aria-label="isStreaming ? '停止生成' : '发送消息'"
             @click="isStreaming ? onStop() : onSend()"
           >
@@ -76,22 +142,35 @@
             <WsIcon v-else name="send" size="sm" />
           </button>
         </div>
-        <ModelSwitcher :is-expanded="isExpanded" @change="onModelChange" />
       </div>
+    </div>
+
+    <Transition name="warning-fade">
+      <div v-if="voiceHint" class="vision-warning voice-hint">{{ voiceHint }}</div>
+    </Transition>
     <Transition name="warning-fade">
       <div v-if="visionWarning" class="vision-warning">{{ visionWarning }}</div>
     </Transition>
   </div>
 </template>
+
 <script setup lang="ts">
-import { ref, computed, nextTick, watch } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { ref, computed, nextTick, watch, onMounted, onBeforeUnmount } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
+import { isTauri, hasTauriInvoke } from '@worldsmith/entity-core/core'
+import { WsIcon, toastInfo, toastWarn } from '@worldsmith/ui-kit'
 import { useSpaceStore, type InputInjectionChip } from '../stores/space-store'
 import { useAgent } from '@/agent/composables/useAgent'
 import { modelSupportsVision } from '@worldsmith/agent-runtime'
 import { useSettingsStore } from '@/stores/settingsStore'
+import { useEntityStore } from '@worldsmith/entity-core'
 import { extractDocumentText } from '@/composables/useFileExtract'
 import ModelSwitcher from './ModelSwitcher.vue'
+import SummonMenu from './SummonMenu.vue'
+import {
+  SUMMON_ITEMS, filterByPrefix, getReferenceEntries, matchesFilter,
+  type SummonItem, type ChatMode,
+} from './summon-registry'
 
 interface FileAttachment {
   type: 'image' | 'file'
@@ -102,13 +181,24 @@ interface FileAttachment {
   textContent?: string
 }
 
+/** 实体引用载荷：随消息发送，携带 id/名称/类型供 Agent 读取实体上下文 */
+interface ReferencePayload {
+  id: string
+  name: string
+  type: string
+}
+
+type MenuMode = 'primary' | 'params' | 'references'
+
 const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
 const MAX_IMAGE_SIZE = 20 * 1024 * 1024
 const MAX_IMAGE_COUNT = 10
 const MAX_IMAGE_DIMENSION = 2048
+/** 音频/视频 MIME 前缀（走桌面端 whisper 转录） */
+const AUDIO_VIDEO_RE = /^(audio|video)\//
 
 const emit = defineEmits<{
-  send: [text: string, attachments: FileAttachment[]]
+  send: [text: string, attachments: FileAttachment[], references?: ReferencePayload[]]
 }>()
 
 const spaceStore = useSpaceStore()
@@ -121,39 +211,562 @@ function currentModelId(): string {
     : settingsStore.aiCustomModel
 }
 
+/* ── 基础状态 ── */
 const inputText = ref('')
 const textareaRef = ref<HTMLTextAreaElement>()
 const fileInputRef = ref<HTMLInputElement>()
+const inputAreaRef = ref<HTMLElement>()
 const isExpanded = ref(false)
 const isFocused = ref(false)
 const isDragOver = ref(false)
 const attachments = ref<FileAttachment[]>([])
 const visionWarning = ref('')
 const kbChips = ref<InputInjectionChip[]>([])
+/** 召唤 chips（/技能 + @引用，随消息发送） */
+const summonChips = ref<SummonItem[]>([])
 
-function removeKbChip(index: number): void {
-  kbChips.value.splice(index, 1)
-  if (!inputText.value.trim() && !attachments.value.length && !kbChips.value.length) {
-    isExpanded.value = false
+/* ── 召唤菜单状态 ── */
+const summonMenuVisible = ref(false)
+const summonPrefix = ref('')
+const summonFilter = ref('')
+const summonMenuRef = ref<InstanceType<typeof SummonMenu>>()
+const menuStyle = ref<{ left: string; bottom: string; width: string }>({ left: '0px', bottom: '0px', width: '360px' })
+let summonSymbolStart = -1
+let summonRafId: number | null = null
+const menuMode = ref<MenuMode>('primary')
+const pendingCommand = ref<SummonItem | null>(null)
+const paramFilter = ref('')
+const pendingReference = ref<SummonItem | null>(null)
+const referenceFilter = ref('')
+const referenceItems = ref<SummonItem[]>([])
+const referenceLoading = ref(false)
+const referenceEmptyHint = ref('')
+
+/* ── 占位符轮播 ── */
+const placeholderByMode: Record<ChatMode, string[]> = {
+  deep: ['深度思考：问题越具体，洞察越深刻…', '适合长任务与复杂推理'],
+  explore: ['知识探索：探索世界的设定与脉络…', '输入 @ 可引用世界设定实体'],
+  task: ['任务执行：拆解并分步完成…', '描述目标，我来规划执行'],
+  'group-chat': ['群聊模式…', '邀请 Agent 参与讨论'],
+}
+const placeholderList = computed(() => placeholderByMode[spaceStore.chatMode] ?? placeholderByMode.deep)
+const placeholderIndex = ref(0)
+let placeholderTimer: ReturnType<typeof setInterval> | null = null
+const currentPlaceholder = computed(
+  () => placeholderList.value[placeholderIndex.value % placeholderList.value.length],
+)
+
+const modeLabel = computed(() => {
+  switch (spaceStore.chatMode) {
+    case 'deep': return '深度思考'
+    case 'explore': return '知识探索'
+    case 'task': return '任务执行'
+    default: return '深度思考'
+  }
+})
+
+/* ── 召唤菜单可选项（按模式） ── */
+const summonItems = computed<SummonItem[]>(() => {
+  if (menuMode.value === 'references') return referenceItems.value
+  if (menuMode.value === 'params' && pendingCommand.value?.params?.[0]?.type === 'enum') {
+    const param = pendingCommand.value.params[0]
+    const cmd = pendingCommand.value
+    return (param.enum_values || []).map((val, idx) => ({
+      id: `param-${cmd.id}-${idx}`,
+      prefix: cmd.prefix,
+      name: val,
+      description: '',
+      icon: 'chat',
+      kind: 'command' as const,
+      payload: val,
+    }))
+  }
+  if (!summonPrefix.value) return []
+  if (summonPrefix.value === '@') return getReferenceEntries().filter((i) => matchesFilter(i, summonFilter.value))
+  return filterByPrefix(SUMMON_ITEMS, summonPrefix.value)
+})
+
+const activeFilter = computed(() => {
+  if (menuMode.value === 'params') return paramFilter.value
+  if (menuMode.value === 'references') return referenceFilter.value
+  return summonFilter.value
+})
+
+const hasSummonMatches = computed(() => {
+  if (menuMode.value === 'references' && referenceLoading.value) return true
+  return summonItems.value.some((i) => matchesFilter(i, activeFilter.value))
+})
+
+const sendDisabled = computed(
+  () => !isStreaming.value && !inputText.value.trim() && !attachments.value.length
+    && !summonChips.value.length && !kbChips.value.length,
+)
+
+/* ── 占位符轮播 ── */
+function startPlaceholderRotation() {
+  if (placeholderTimer) return
+  placeholderTimer = setInterval(() => {
+    if (!inputText.value && placeholderList.value.length > 0) {
+      placeholderIndex.value = (placeholderIndex.value + 1) % placeholderList.value.length
+    }
+  }, 3000)
+}
+function stopPlaceholderRotation() {
+  if (placeholderTimer) {
+    clearInterval(placeholderTimer)
+    placeholderTimer = null
   }
 }
 
-const placeholder = computed(() => {
-  const modeHint = (() => {
-    switch (spaceStore.chatMode) {
-      case 'normal': return '快问快答'
-      case 'deep': return '深度思考'
-      case 'explore': return '知识探索'
-      case 'task': return '任务执行'
-      default: return '消息'
-    }
-  })()
-  return `${modeHint} — 拖拽文件或图片，点击📎上传…`
-})
+/* ── 输入处理（轻量立即 + 重量召唤检测 rAF 节流） ── */
+function onInput(e: Event) {
+  const target = e.target as HTMLTextAreaElement
+  const value = target.value
+  const cursorPos = target.selectionStart ?? value.length
+  inputText.value = value
+  isExpanded.value = true
+  autoResize()
+  if (summonRafId !== null) cancelAnimationFrame(summonRafId)
+  summonRafId = requestAnimationFrame(() => {
+    summonRafId = null
+    detectSummon(value, cursorPos)
+  })
+}
 
-function visionSupported(): boolean {
-  const model = currentModelId()
-  return !!model && modelSupportsVision(model)
+function detectSummon(value: string, cursorPos: number) {
+  // references 模式：提取光标前的引用过滤
+  if (menuMode.value === 'references' && pendingReference.value) {
+    const refPrefix = `${pendingReference.value.prefix}${pendingReference.value.name} `
+    const idx = value.lastIndexOf(refPrefix, cursorPos)
+    if (idx >= 0) {
+      referenceFilter.value = value.slice(idx + refPrefix.length, cursorPos)
+      summonSymbolStart = idx
+    } else {
+      exitReferencesMode()
+    }
+  }
+  // params 模式：提取光标前的参数过滤
+  if (menuMode.value === 'params' && pendingCommand.value) {
+    const cmdPrefix = `${pendingCommand.value.prefix}${pendingCommand.value.name} `
+    const idx = value.lastIndexOf(cmdPrefix, cursorPos)
+    if (idx >= 0) {
+      paramFilter.value = value.slice(idx + cmdPrefix.length, cursorPos)
+      summonSymbolStart = idx
+    } else {
+      exitParamsMode()
+    }
+  }
+  // primary 模式：检测召唤符号（任意位置，符号前须单词边界）
+  if (menuMode.value === 'primary') {
+    const beforeCursor = value.slice(0, cursorPos)
+    const m = beforeCursor.match(/(^|\s)([#/~!！@])([^#/~!！@\s]*)$/)
+    if (m) {
+      const prefix = m[2] === '!' ? '！' : m[2]
+      const filter = m[3]
+      const items = prefix === '@' ? getReferenceEntries() : filterByPrefix(SUMMON_ITEMS, prefix)
+      if (items.length > 0) {
+        summonSymbolStart = cursorPos - filter.length - 1
+        summonPrefix.value = prefix
+        summonFilter.value = filter
+        summonMenuVisible.value = true
+        updateMenuPosition()
+        return
+      }
+    }
+    if (summonMenuVisible.value) closeSummonMenu()
+  }
+}
+
+function updateMenuPosition() {
+  const el = inputAreaRef.value
+  if (!el) return
+  const rect = el.getBoundingClientRect()
+  menuStyle.value = {
+    left: `${Math.max(8, rect.left + rect.width / 2 - 180)}px`,
+    bottom: `${window.innerHeight - rect.top + 8}px`,
+    width: '360px',
+  }
+}
+
+/* ── 草稿保留辅助 ── */
+function removeSummonSymbolKeepDraft() {
+  const value = inputText.value
+  if (summonSymbolStart < 0 || summonSymbolStart >= value.length) {
+    inputText.value = ''
+    summonSymbolStart = -1
+    return
+  }
+  inputText.value = value.slice(0, summonSymbolStart).replace(/\s+$/, '')
+  summonSymbolStart = -1
+  nextTick(() => focusInputEnd())
+}
+
+function keepDraftAndAppend(suffix: string) {
+  const value = inputText.value
+  if (summonSymbolStart < 0) {
+    inputText.value = suffix
+    nextTick(() => focusInputEnd())
+    return
+  }
+  const draft = value.slice(0, summonSymbolStart).replace(/\s+$/, '')
+  inputText.value = draft ? `${draft} ${suffix}` : suffix
+  summonSymbolStart = -1
+  nextTick(() => focusInputEnd())
+}
+
+/* ── 键盘 ── */
+function onKeydown(e: KeyboardEvent) {
+  // 菜单可见且有关键导航键时，交给菜单
+  if (summonMenuVisible.value && hasSummonMatches.value
+    && ['ArrowDown', 'ArrowUp', 'Enter'].includes(e.key)) {
+    summonMenuRef.value?.handleKeydown(e)
+    return
+  }
+  // Escape 始终关闭/回退菜单
+  if (summonMenuVisible.value && e.key === 'Escape') {
+    summonMenuRef.value?.handleKeydown(e)
+    return
+  }
+  // Enter 发送（Shift+Enter 换行）
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault()
+    onSend()
+  }
+}
+
+/* ── 召唤菜单选中路由 ── */
+function handleSummonSelect(item: SummonItem) {
+  // params 模式：选中枚举值 → 执行命令
+  if (menuMode.value === 'params' && pendingCommand.value) {
+    executeCommand(pendingCommand.value, item.payload)
+    removeSummonSymbolKeepDraft()
+    closeSummonMenu()
+    return
+  }
+  // references 模式：选中引用 → 添加 chip
+  if (menuMode.value === 'references' && pendingReference.value) {
+    addReferenceChip(item)
+    return
+  }
+  switch (item.kind) {
+    case 'command':
+      if (item.params && item.params.length > 0 && item.params[0].type === 'enum') {
+        enterParamsMode(item)
+        return
+      }
+      executeCommand(item)
+      removeSummonSymbolKeepDraft()
+      closeSummonMenu()
+      break
+    case 'skill':
+      addChip(item)
+      break
+    case 'region':
+      summonRegion(item)
+      removeSummonSymbolKeepDraft()
+      closeSummonMenu()
+      break
+    case 'reference':
+      enterReferencesMode(item)
+      break
+  }
+}
+
+function executeCommand(item: SummonItem, paramValue?: string) {
+  if (item.payload === 'chatMode') {
+    spaceStore.setChatMode((paramValue ?? 'deep') as ChatMode)
+    return
+  }
+  if (item.payload === 'help') {
+    const summary = SUMMON_ITEMS.map((i) => `${i.prefix}${i.name}`).join('  ')
+    toastInfo(`召唤指令：${summary}；输入 @ 可引用世界设定实体`)
+  }
+}
+
+function summonRegion(item: SummonItem) {
+  switch (item.payload) {
+    case 'knowledge': spaceStore.toggleLeftPanel('knowledge'); break
+    case 'memory': spaceStore.toggleConfigPanel('memory'); break
+    case 'exec': spaceStore.toggleExecPanel(); break
+    case 'sessions': spaceStore.toggleSessionSidebar(); break
+  }
+}
+
+function addChip(item: SummonItem) {
+  if (summonChips.value.some((c) => c.id === item.id)) {
+    removeSummonSymbolKeepDraft()
+    closeSummonMenu()
+    return
+  }
+  summonChips.value = [...summonChips.value, item]
+  removeSummonSymbolKeepDraft()
+  closeSummonMenu()
+}
+
+function addReferenceChip(item: SummonItem) {
+  if (summonChips.value.some((c) => c.referenceId && c.referenceId === item.referenceId)) {
+    removeSummonSymbolKeepDraft()
+    closeSummonMenu()
+    return
+  }
+  summonChips.value = [...summonChips.value, item]
+  removeSummonSymbolKeepDraft()
+  closeSummonMenu()
+}
+
+function removeChip(index: number) {
+  summonChips.value = summonChips.value.filter((_, i) => i !== index)
+}
+
+function enterParamsMode(item: SummonItem) {
+  menuMode.value = 'params'
+  pendingCommand.value = item
+  paramFilter.value = ''
+  keepDraftAndAppend(`${item.prefix}${item.name} `)
+  summonMenuVisible.value = true
+  updateMenuPosition()
+}
+
+function exitParamsMode() {
+  menuMode.value = 'primary'
+  pendingCommand.value = null
+  paramFilter.value = ''
+}
+
+async function enterReferencesMode(item: SummonItem) {
+  menuMode.value = 'references'
+  pendingReference.value = item
+  referenceFilter.value = ''
+  referenceItems.value = []
+  referenceLoading.value = true
+  referenceEmptyHint.value = ''
+  keepDraftAndAppend(`${item.prefix}${item.name} `)
+  summonMenuVisible.value = true
+  updateMenuPosition()
+  try {
+    const entityStore = useEntityStore()
+    let list = entityStore.entities
+    if (!list.length) {
+      await entityStore.loadAll()
+      list = entityStore.entities
+    }
+    // 按所选引用类型过滤（all 为全部）
+    const refType = item.payload
+    if (refType !== 'all') list = list.filter((e) => e.type === refType)
+    referenceItems.value = list.map((e) => ({
+      id: `ref-${e.id}`,
+      prefix: '@',
+      name: e.name || e.id,
+      description: e.type,
+      icon: 'document',
+      kind: 'reference' as const,
+      payload: e.type, // 携带实体类型，发送时随载荷传给 Agent
+      referenceId: e.id,
+      referenceName: e.name || e.id,
+    }))
+    if (!referenceItems.value.length) {
+      referenceEmptyHint.value = refType === 'all' ? '暂无可用实体，可在世界设定中创建' : `暂无「${item.name}」实体`
+    }
+  } catch (err) {
+    console.error('[summon] 加载引用失败:', err)
+    referenceEmptyHint.value = '加载失败，请稍后重试'
+  } finally {
+    referenceLoading.value = false
+  }
+  nextTick(() => focusInputEnd())
+}
+
+function exitReferencesMode() {
+  menuMode.value = 'primary'
+  pendingReference.value = null
+  referenceFilter.value = ''
+  referenceItems.value = []
+  referenceLoading.value = false
+  referenceEmptyHint.value = ''
+}
+
+function handleSummonCancel() {
+  if (menuMode.value === 'references') {
+    exitReferencesMode()
+    keepDraftAndAppend(summonPrefix.value)
+    summonFilter.value = ''
+    return
+  }
+  if (menuMode.value === 'params') {
+    exitParamsMode()
+    keepDraftAndAppend(summonPrefix.value)
+    summonFilter.value = ''
+    return
+  }
+  removeSummonSymbolKeepDraft()
+  closeSummonMenu()
+}
+
+function closeSummonMenu() {
+  summonMenuVisible.value = false
+  summonPrefix.value = ''
+  summonFilter.value = ''
+  summonSymbolStart = -1
+  menuMode.value = 'primary'
+  pendingCommand.value = null
+  paramFilter.value = ''
+  pendingReference.value = null
+  referenceFilter.value = ''
+  referenceItems.value = []
+  referenceLoading.value = false
+  referenceEmptyHint.value = ''
+}
+
+function focusInputEnd() {
+  const ta = textareaRef.value
+  if (!ta) return
+  ta.focus()
+  const len = ta.value.length
+  ta.setSelectionRange(len, len)
+}
+
+/* ── 工具栏符号插入 ── */
+function insertPrefix(p: string) {
+  const ta = textareaRef.value
+  if (!ta) return
+  const pos = ta.selectionStart ?? inputText.value.length
+  inputText.value = inputText.value.slice(0, pos) + p + inputText.value.slice(pos)
+  isExpanded.value = true
+  nextTick(() => {
+    ta.focus()
+    const np = pos + p.length
+    ta.setSelectionRange(np, np)
+    detectSummon(inputText.value, np)
+  })
+}
+
+/* ── 语音输入（Web Speech API 实时转文字）── */
+const isListening = ref(false)
+const voiceHint = ref('')
+let recognition: any = null
+
+function ensureRecognition(): any {
+  if (recognition) return recognition
+  const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+  if (!SR) return null
+  recognition = new SR()
+  recognition.interimResults = true
+  recognition.onresult = (e: any) => {
+    let interim = ''
+    let final = ''
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript
+      if (e.results[i].isFinal) final += t
+      else interim += t
+    }
+    if (final) {
+      // 最终结果提交进输入框
+      inputText.value += final
+      isExpanded.value = true
+      autoResize()
+    }
+    voiceHint.value = interim ? `正在聆听：${interim}` : '正在聆听…'
+  }
+  recognition.onend = () => {
+    // 连续模式：识别会话自然结束后自动重启（除非用户已手动停止，isListening 为 false）
+    if (isListening.value && settingsStore.voiceContinuous) {
+      try {
+        recognition?.start()
+        return
+      } catch {}
+    }
+    isListening.value = false
+    voiceHint.value = ''
+  }
+  recognition.onerror = (e: any) => {
+    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+      isListening.value = false
+      voiceHint.value = ''
+      toastWarn('麦克风权限被拒绝，请在系统设置中允许后重试')
+    } else if (e.error !== 'no-speech') {
+      isListening.value = false
+      voiceHint.value = ''
+      toastWarn(`语音识别失败：${e.error || '未知错误'}`)
+    }
+    // no-speech 等非致命错误保持识别状态，交由 onend 决定是否（连续模式）重启
+  }
+  return recognition
+}
+
+function toggleVoice() {
+  if (isListening.value) {
+    isListening.value = false // 标记停止，阻止 onend 自动重启
+    voiceHint.value = ''
+    try { recognition?.stop() } catch {}
+    return
+  }
+  const sr = ensureRecognition()
+  if (!sr) {
+    toastWarn('当前环境不支持语音识别，请使用 Chrome / Edge 浏览器')
+    return
+  }
+  // 应用设置：识别语言（auto 交由浏览器默认）+ 连续模式
+  sr.lang = settingsStore.voiceLang === 'auto' ? undefined : settingsStore.voiceLang
+  sr.continuous = settingsStore.voiceContinuous
+  try {
+    sr.start()
+    isListening.value = true
+    isExpanded.value = true
+    voiceHint.value = '正在聆听…'
+  } catch {
+    toastWarn('语音启动失败，请重试')
+  }
+}
+
+function stopVoice() {
+  if (recognition) {
+    try { recognition.abort() } catch {}
+  }
+}
+
+/* ── 发送 ── */
+function buildFullText(): string {
+  const kbPrefix = kbChips.value.map((c) => c.ref).join('')
+  const skillPrefix = summonChips.value.filter((c) => c.kind === 'skill').map((c) => c.payload).join('')
+  return (kbPrefix + skillPrefix + inputText.value.trim()).trim()
+}
+
+function collectReferences(): ReferencePayload[] {
+  return summonChips.value
+    .filter((c) => c.kind === 'reference' && c.referenceId)
+    .map((c) => ({
+      id: c.referenceId as string,
+      name: c.referenceName || c.name,
+      type: c.payload,
+    }))
+}
+
+function onSend() {
+  const fullText = buildFullText()
+  if ((!fullText && !attachments.value.length && !summonChips.value.length) || isStreaming.value) return
+  if (menuMode.value === 'params' || menuMode.value === 'references') return
+  if (summonMenuVisible.value && hasSummonMatches.value) return
+  const hasImages = attachments.value.some((a) => a.type === 'image')
+  if (hasImages && !visionSupported()) {
+    showVisionWarning('当前模型不支持图片理解，请切换到支持视觉的模型')
+    return
+  }
+  const currentAttachments = [...attachments.value]
+  const currentReferences = collectReferences()
+  inputText.value = ''
+  kbChips.value = []
+  summonChips.value = []
+  attachments.value = []
+  if (textareaRef.value) textareaRef.value.style.height = 'auto'
+  emit('send', fullText, currentAttachments, currentReferences.length ? currentReferences : undefined)
+}
+
+function onStop() {
+  abort()
+}
+
+function onModelChange(_provider: string, _modelId: string) {
+  // 模型已由 ModelSwitcher 内部更新，此处留空供扩展
 }
 
 function onFocus() {
@@ -163,11 +776,13 @@ function onFocus() {
 
 function onBlur() {
   isFocused.value = false
-  if (!inputText.value.trim() && !attachments.value.length && !kbChips.value.length) {
+  if (summonMenuVisible.value) closeSummonMenu()
+  if (!inputText.value.trim() && !attachments.value.length && !summonChips.value.length && !kbChips.value.length) {
     isExpanded.value = false
   }
 }
 
+/* ── 自适应高度 ── */
 function autoResize() {
   nextTick(() => {
     const el = textareaRef.value
@@ -176,6 +791,12 @@ function autoResize() {
       el.style.height = Math.min(el.scrollHeight, 160) + 'px'
     }
   })
+}
+
+/* ── 附件（图片 / 文件） ── */
+function visionSupported(): boolean {
+  const model = currentModelId()
+  return !!model && modelSupportsVision(model)
 }
 
 function showVisionWarning(msg: string): void {
@@ -189,8 +810,7 @@ async function compressImage(dataUrl: string, mimeType: string): Promise<{ base6
     img.onload = () => {
       let { width, height } = img
       if (width <= MAX_IMAGE_DIMENSION && height <= MAX_IMAGE_DIMENSION) {
-        const base64 = dataUrl.split(',')[1]
-        resolve({ base64, mimeType })
+        resolve({ base64: dataUrl.split(',')[1], mimeType })
         return
       }
       const scale = MAX_IMAGE_DIMENSION / Math.max(width, height)
@@ -201,20 +821,45 @@ async function compressImage(dataUrl: string, mimeType: string): Promise<{ base6
       canvas.height = height
       const ctx = canvas.getContext('2d')
       if (!ctx) {
-        const base64 = dataUrl.split(',')[1]
-        resolve({ base64, mimeType })
+        resolve({ base64: dataUrl.split(',')[1], mimeType })
         return
       }
       ctx.drawImage(img, 0, 0, width, height)
       const compressed = canvas.toDataURL(mimeType, 0.9)
       resolve({ base64: compressed.split(',')[1], mimeType })
     }
-    img.onerror = () => {
-      const base64 = dataUrl.split(',')[1]
-      resolve({ base64, mimeType })
-    }
+    img.onerror = () => resolve({ base64: dataUrl.split(',')[1], mimeType })
     img.src = dataUrl
   })
+}
+
+/** 音频/视频转录：调用桌面端 whisper 后端，返回文本后作为附件 */
+function transcribeMedia(file: File): void {
+  if (!(isTauri() && hasTauriInvoke())) {
+    showVisionWarning('音频/视频转录需在桌面端使用，浏览器预览不支持')
+    return
+  }
+  const reader = new FileReader()
+  reader.onload = async () => {
+    const dataUrl = reader.result as string
+    const base64 = dataUrl.split(',')[1] || ''
+    showVisionWarning(`正在转录「${file.name}」，请稍候…`)
+    try {
+      const text = (await invoke('transcribe_media', { data: base64, name: file.name })) as string
+      attachments.value.push({
+        type: 'file',
+        name: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        data: '',
+        textContent: text && text.trim() ? text : '[转录结果为空]',
+      })
+      isExpanded.value = true
+    } catch (err) {
+      console.error('[transcribe] 转录失败:', err)
+      showVisionWarning(`转录失败：${String(err)}`)
+    }
+  }
+  reader.readAsDataURL(file)
 }
 
 function processFile(file: File): void {
@@ -223,7 +868,7 @@ function processFile(file: File): void {
       showVisionWarning('当前模型不支持图片理解，请切换到支持视觉的模型')
       return
     }
-    const currentImageCount = attachments.value.filter(a => a.type === 'image').length
+    const currentImageCount = attachments.value.filter((a) => a.type === 'image').length
     if (currentImageCount >= MAX_IMAGE_COUNT) {
       showVisionWarning(`最多同时发送 ${MAX_IMAGE_COUNT} 张图片`)
       return
@@ -235,7 +880,7 @@ function processFile(file: File): void {
     const reader = new FileReader()
     reader.onload = () => {
       const dataUrl = reader.result as string
-      compressImage(dataUrl, file.type).then(compressed => {
+      compressImage(dataUrl, file.type).then((compressed) => {
         attachments.value.push({
           type: 'image',
           name: file.name,
@@ -249,9 +894,13 @@ function processFile(file: File): void {
     return
   }
 
-  // docx / pdf / text 统一走 useFileExtract（含 pdfjs Web Worker 配置）
-  // fire-and-forget：保持与原 reader.onload 异步语义一致
-  extractDocumentText(file).then(extracted => {
+  // 音频/视频：桌面端调用 whisper 转录成文本后作为附件发送
+  if (AUDIO_VIDEO_RE.test(file.type)) {
+    transcribeMedia(file)
+    return
+  }
+
+  extractDocumentText(file).then((extracted) => {
     if (extracted) {
       attachments.value.push({
         type: 'file',
@@ -262,7 +911,6 @@ function processFile(file: File): void {
       })
       return
     }
-    // 不支持的文件类型
     attachments.value.push({
       type: 'file',
       name: file.name,
@@ -279,13 +927,13 @@ function removeAttachment(index: number): void {
 
 function onPaste(e: ClipboardEvent): void {
   if (!e.clipboardData?.items) return
-  const imageItems = Array.from(e.clipboardData.items).filter(item => item.type.startsWith('image/'))
+  const imageItems = Array.from(e.clipboardData.items).filter((item) => item.type.startsWith('image/'))
   if (imageItems.length === 0) return
   if (!visionSupported()) {
     showVisionWarning('当前模型不支持图片理解，请切换到支持视觉的模型')
     return
   }
-  const currentCount = attachments.value.filter(a => a.type === 'image').length
+  const currentCount = attachments.value.filter((a) => a.type === 'image').length
   const remaining = MAX_IMAGE_COUNT - currentCount
   if (remaining <= 0) {
     showVisionWarning(`最多同时发送 ${MAX_IMAGE_COUNT} 张图片`)
@@ -325,38 +973,14 @@ function onFileInputChange(e: Event): void {
   isExpanded.value = true
 }
 
-function onEnter(e: KeyboardEvent) {
-  if (e.shiftKey) return
-  e.preventDefault()
-  onSend()
-}
-
-function onSend() {
-  const text = inputText.value.trim()
-  const kbPrefix = kbChips.value.map(c => c.ref).join('')
-  const fullText = kbPrefix + text
-  if ((!fullText && !attachments.value.length) || isStreaming.value) return
-  const hasImages = attachments.value.some(a => a.type === 'image')
-  if (hasImages && !visionSupported()) {
-    showVisionWarning('当前模型不支持图片理解，请切换到支持视觉的模型')
-    return
+function removeKbChip(index: number): void {
+  kbChips.value.splice(index, 1)
+  if (!inputText.value.trim() && !attachments.value.length && !kbChips.value.length && !summonChips.value.length) {
+    isExpanded.value = false
   }
-  const currentAttachments = [...attachments.value]
-  inputText.value = ''
-  kbChips.value = []
-  attachments.value = []
-  if (textareaRef.value) textareaRef.value.style.height = 'auto'
-  emit('send', fullText, currentAttachments)
 }
 
-function onStop() {
-  abort()
-}
-
-function onModelChange(_provider: string, _modelId: string) {
-}
-
-// 监听知识墙挂载注入
+/* ── 监听知识墙挂载注入 ── */
 watch(() => spaceStore.inputInjection, (injection) => {
   if (injection) {
     kbChips.value.push(injection)
@@ -368,6 +992,16 @@ watch(() => spaceStore.inputInjection, (injection) => {
     })
   }
 })
+
+onMounted(() => {
+  startPlaceholderRotation()
+})
+
+onBeforeUnmount(() => {
+  stopPlaceholderRotation()
+  stopVoice()
+  if (summonRafId !== null) cancelAnimationFrame(summonRafId)
+})
 </script>
 
 <style scoped>
@@ -375,58 +1009,49 @@ watch(() => spaceStore.inputInjection, (injection) => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 12px 16px 16px;
+  padding: 10px 16px 14px;
   background: transparent;
   position: relative;
 }
 
-.capsule-input {
-  display: flex;
-  align-items: flex-end;
-  gap: 0;
-  width: 200px;
-  max-width: 200px;
+/* ── 双层输入框 ── */
+.chat-input-box {
+  width: min(520px, calc(100% - 32px));
+  max-width: min(520px, calc(100% - 32px));
   background: var(--color-surface-elevated);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-3xl);
-  padding: 6px 8px;
-  /* 性能优化:只动画 width(0.2s),padding/border-radius 不动画直接快跳,避免 layout 抖动 */
+  border-radius: var(--radius-2xl);
+  overflow: hidden;
   transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1),
               max-width 0.2s cubic-bezier(0.4, 0, 0.2, 1),
               border-color 0.15s,
               box-shadow 0.15s,
               background 0.15s;
-  overflow: hidden;
-  /* 性能优化:隔离内部重排,避免扩散到父级 flex 容器(input-row) */
   contain: layout paint style;
   will-change: width;
 }
 
-.capsule-input.expanded {
-  width: calc(80% - 120px);
-  max-width: calc(80% - 120px);
+.chat-input-box.expanded {
+  width: calc(88% - 40px);
+  max-width: calc(88% - 40px);
   border-radius: var(--radius-xl);
-  padding: 8px 12px;
-  align-items: flex-end;
 }
 
-.capsule-input.focused {
+.chat-input-box.focused {
   border-color: var(--color-primary);
   box-shadow: 0 0 0 2px var(--color-primary-muted);
 }
 
-.capsule-input.drag-over {
+.chat-input-box.drag-over {
   border-color: var(--color-primary);
   background: var(--color-primary-muted);
   box-shadow: 0 0 0 2px var(--color-primary);
 }
 
-.input-row {
+/* ── 上层胶囊输入区 ── */
+.input-capsule {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  width: 100%;
+  padding: 8px 12px 6px;
 }
 
 .input-stack {
@@ -436,21 +1061,14 @@ watch(() => spaceStore.inputInjection, (injection) => {
   min-width: 0;
 }
 
-.attachments-preview {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 4px 0 6px;
-}
-
-.kb-chips-area {
+.chips-area {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  padding: 4px 0 2px;
+  padding: 0 0 4px;
 }
 
-.kb-chip {
+.chip {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -464,22 +1082,38 @@ watch(() => spaceStore.inputInjection, (injection) => {
   line-height: 1.4;
 }
 
-.kb-chip-label {
+.chip-kb {
+  color: var(--color-text-secondary);
+  background: var(--color-surface);
+  border-color: var(--color-border);
+}
+
+.chip-reference {
+  color: var(--color-success, #10b981);
+  background: color-mix(in srgb, var(--color-success, #10b981) 10%, transparent);
+  border-color: color-mix(in srgb, var(--color-success, #10b981) 40%, transparent);
+}
+
+.chip-prefix {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-weight: 600;
+  opacity: 0.8;
+}
+
+.chip-label {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  flex: 1;
   min-width: 0;
 }
 
-.kb-chip-remove {
+.chip-remove {
   width: 16px;
   height: 16px;
   border: none;
   background: transparent;
-  color: var(--color-primary);
+  color: currentColor;
   cursor: pointer;
-  font-size: var(--fs-2xs);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -489,9 +1123,17 @@ watch(() => spaceStore.inputInjection, (injection) => {
   opacity: 0.6;
 }
 
-.kb-chip-remove:hover {
+.chip-remove:hover {
   opacity: 1;
-  background: var(--color-primary, rgba(59, 130, 246, 0.15));
+  background: color-mix(in srgb, var(--color-primary, #3b82f6) 15%, transparent);
+}
+
+/* 附件 */
+.attachments-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 0 6px;
 }
 
 .att-item {
@@ -522,8 +1164,7 @@ watch(() => spaceStore.inputInjection, (injection) => {
 }
 
 .att-file-icon {
-  font-size: 18px;
-  line-height: 1;
+  display: flex;
   flex-shrink: 0;
 }
 
@@ -542,7 +1183,6 @@ watch(() => spaceStore.inputInjection, (injection) => {
   background: transparent;
   color: var(--color-text-tertiary);
   cursor: pointer;
-  font-size: var(--fs-sm);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -556,42 +1196,9 @@ watch(() => spaceStore.inputInjection, (injection) => {
   color: var(--color-text);
 }
 
-.attach-btn {
-  flex-shrink: 0;
-  width: 32px;
-  height: 32px;
-  border: none;
-  background: transparent;
-  color: var(--color-text-secondary);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  /* 性能优化:opacity + transform 控制可见性(合成层),替代 v-if mount/unmount */
-  transition: background 0.15s, color 0.15s, opacity 0.2s, transform 0.2s;
-  margin-right: 4px;
-}
-
-/* 性能优化:未展开时按钮不可见(但仍渲染,避免 mount/unmount 触发 flex 重排) */
-.capsule-input:not(.expanded) .attach-btn {
-  opacity: 0;
-  transform: scale(0.8);
-  pointer-events: none;
-}
-
-.attach-btn:hover:not(:disabled) {
-  background: var(--color-surface);
-  color: var(--color-primary);
-}
-
-.attach-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.hidden-file-input {
-  display: none;
+/* textarea + 占位符 */
+.textarea-wrap {
+  position: relative;
 }
 
 .chat-textarea {
@@ -611,17 +1218,104 @@ watch(() => spaceStore.inputInjection, (injection) => {
   width: 100%;
 }
 
-.chat-textarea::placeholder {
+.ph-overlay {
+  position: absolute;
+  top: 0;
+  left: 8px;
+  padding: 4px 0;
+  font-size: var(--font-size-sm);
   color: var(--color-text-tertiary);
+  pointer-events: none;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: calc(100% - 16px);
+}
+
+.ph-enter-active,
+.ph-leave-active {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.ph-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+.ph-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+/* ── 下层常驻工具栏 ── */
+.input-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px 8px;
+  border-top: 1px solid var(--color-border);
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.toolbar-center {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  overflow: hidden;
+}
+
+.mode-label {
+  font-size: var(--font-size-2xs);
+  color: var(--color-text-tertiary);
+  white-space: nowrap;
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.tool-btn {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+
+.tool-btn:hover {
+  background: var(--color-surface);
+  color: var(--color-primary);
+}
+
+.tool-btn.voice-active {
+  color: var(--color-danger, #e74c3c);
+  background: color-mix(in srgb, var(--color-danger, #e74c3c) 12%, transparent);
+  animation: stop-pulse 1.2s ease-in-out infinite;
+}
+
+.voice-hint {
+  background: color-mix(in srgb, var(--color-primary, #3b82f6) 10%, transparent);
+  border-color: color-mix(in srgb, var(--color-primary, #3b82f6) 40%, transparent);
+  color: var(--color-primary, #3b82f6);
 }
 
 .send-btn {
   flex-shrink: 0;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border: none;
   background: var(--color-primary);
   color: var(--color-text-inverse);
@@ -630,16 +1324,7 @@ watch(() => spaceStore.inputInjection, (injection) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  /* 性能优化:opacity + transform 控制可见性(合成层),替代 v-if mount/unmount */
-  transition: background 0.15s, opacity 0.2s, transform 0.2s;
-  margin-left: 8px;
-}
-
-/* 性能优化:未展开时按钮不可见(但仍渲染,避免 mount/unmount 触发 flex 重排) */
-.capsule-input:not(.expanded) .send-btn {
-  opacity: 0;
-  transform: scale(0.8);
-  pointer-events: none;
+  transition: background 0.15s, opacity 0.2s;
 }
 
 .send-btn:disabled {
@@ -659,6 +1344,10 @@ watch(() => spaceStore.inputInjection, (injection) => {
 @keyframes stop-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.7; }
+}
+
+.hidden-file-input {
+  display: none;
 }
 
 .vision-warning {
@@ -688,14 +1377,12 @@ watch(() => spaceStore.inputInjection, (injection) => {
   transform: translateY(-4px);
 }
 
-/* ── 减弱动态偏好（prefers-reduced-motion）：停用停止按钮脉冲与位移 ──
-   与 TuiButton/TuiModal/TuiDrawer/AgentWorkspace 同一可访问性语言：仅保留静态状态。 */
 @media (prefers-reduced-motion: reduce) {
   .send-btn.stop-btn {
     animation: none;
   }
-  .warning-fade-enter-from,
-  .warning-fade-leave-to {
+  .ph-enter-from,
+  .ph-leave-to {
     transform: none;
   }
 }

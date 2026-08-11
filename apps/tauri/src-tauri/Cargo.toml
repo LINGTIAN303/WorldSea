@@ -37,3 +37,24 @@ agent-runtime = { path = "../../../crates/agent-runtime", features = ["llm-genai
 # 实体存储命令（TauriStorageBackend fallback）：sqlx 0.8 + sqlite，与 agent-commands 对齐
 sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio"] }
 notify = "8.2.0"
+
+# ── Phase 音视频转录（transcribe_media）：candle-whisper 语音转文字 ──
+# 模型推理栈（CPU）：candle-transformers 的 whisper 实现 + tokenizers 词表
+# 选 0.9.x 稳定版；whisper 模块用 Whisper::load + pcm_to_mel 需外部 mel 滤波器（whisper.rs 内 Slaney 现算）
+candle-core = "0.9.2"
+candle-nn = "0.9.2"
+candle-transformers = "0.9.2"
+# 模型下载（openai/whisper-tiny → app.data_dir()/whisper-models）
+# 用 ureq 直连（跟随重定向、支持 HF_ENDPOINT 镜像），替代 hf-hub——hf-hub 0.3.x 对
+# huggingface 的相对 Location 重定向解析失败（RelativeUrlWithoutBase），本机实测 curl 可达。
+ureq = "2"
+# whisper 多语言 tokenizer（tokenizer.json，含 <|zh|> 等特殊 token）
+tokenizers = "0.23"
+# 音频/视频解码（mp3/mp4/m4a/wav/aac/ogg 等）→ 16kHz mono PCM
+# pin 到 0.5.x 稳定 API（SampleBuffer/DecoderOptions/probe 等经典路径），0.6.0 为大规模重写版接口不兼容。
+# 按需启用所需 codec/format，不启用 all 以免拉取不需要的 caf 等导致下载失败。
+symphonia = { version = "0.5.4", features = ["aac", "mp3", "pcm", "vorbis", "isomp4", "ogg", "wav", "aiff", "mkv"] }
+# 前端传入 base64 → 解码为字节
+base64 = "0.22"
+# 内部错误包装（命令层转为 String 返回）
+anyhow = "1"

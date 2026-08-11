@@ -1,21 +1,21 @@
 <template>
   <div class="mv-view">
-    <div class="mv-toolbar">
-      <button class="mv-btn" @click="$emit('back')" title="返回列表">
-        <WsIcon name="chevron-right" :size="12" :stroke-width="2" />
-        列表
-      </button>
-      <div class="mv-toolbar-sep"></div>
+    <!-- 筛选 → 收束条 -->
+    <Teleport to="#view-toolbar-filter-body">
       <div class="mv-toolbar-group">
         <span class="mv-toolbar-label">筛选</span>
         <CustomDropdown v-model="filterType" :options="filterOptions" />
       </div>
-      <div class="mv-toolbar-group">
-        <button class="mv-btn" @click="autoLayout" title="自动排列">≡ 排列</button>
-      </div>
-      <div class="mv-toolbar-spacer"></div>
+    </Teleport>
+    <!-- 动作 → 动作落点 -->
+    <Teleport to="#view-toolbar-actions">
+      <button class="mv-btn" @click="$emit('back')" title="返回列表">
+        <WsIcon name="chevron-right" :size="12" :stroke-width="2" />
+        列表
+      </button>
+      <button class="mv-btn" @click="autoLayout" title="自动排列">≡ 排列</button>
       <span class="mv-count">{{ filteredCards.length }} 项素材</span>
-    </div>
+    </Teleport>
 
     <div class="mv-main">
       <MoodboardCanvas

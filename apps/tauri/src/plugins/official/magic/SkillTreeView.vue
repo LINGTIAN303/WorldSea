@@ -1,16 +1,11 @@
 <template>
   <div class="st-view">
-    <div class="st-toolbar">
-      <button class="st-btn" @click="$emit('back')" title="返回列表">
-        <WsIcon name="chevron-right" :size="12" :stroke-width="2" />
-        列表
-      </button>
-      <div class="st-toolbar-sep"></div>
+    <!-- 筛选/视图模式 → 收束条 -->
+    <Teleport to="#view-toolbar-filter-body">
       <div class="st-toolbar-group">
         <button class="st-btn" :class="{active: layoutMode === 'bottom-up'}" @click="switchLayout('bottom-up')">传统树</button>
         <button class="st-btn" :class="{active: layoutMode === 'radial'}" @click="switchLayout('radial')">径向</button>
       </div>
-      <div class="st-toolbar-sep"></div>
       <div class="st-toolbar-group">
         <span class="st-toolbar-label">体系</span>
         <CustomDropdown v-model="filterType" :options="filterTypeOpts" />
@@ -19,13 +14,18 @@
         <span class="st-toolbar-label">等级</span>
         <CustomDropdown v-model="filterLevel" :options="filterLevelOpts" />
       </div>
-      <div class="st-toolbar-sep"></div>
       <label class="st-toggle"><input type="checkbox" v-model="showCounters" /> 克制</label>
       <label class="st-toggle" v-if="layoutMode === 'bottom-up'"><input type="checkbox" v-model="showClusters" /> 聚类</label>
-      <div class="st-toolbar-spacer"></div>
+    </Teleport>
+    <!-- 动作 → 动作落点 -->
+    <Teleport to="#view-toolbar-actions">
+      <button class="st-btn" @click="$emit('back')" title="返回列表">
+        <WsIcon name="chevron-right" :size="12" :stroke-width="2" />
+        列表
+      </button>
       <button class="st-btn" @click="fitView" title="自动适配">⊞ 适配</button>
       <span class="st-count">{{ filteredNodes.length }} 个技能</span>
-    </div>
+    </Teleport>
 
     <div class="st-main">
       <div ref="containerRef" class="st-canvas-container"></div>

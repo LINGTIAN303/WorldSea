@@ -133,9 +133,9 @@ const agentFontStyle = computed(() => {
   return style
 })
 
-// ===== 聊天模式（优先 prop，其次 metadata，兜底 normal） =====
+// ===== 聊天模式（优先 prop，其次 metadata，兜底 deep） =====
 const chatMode = computed<ChatMode>(() =>
-  props.chatMode || (props.msg?.metadata?.chatMode as ChatMode) || 'normal'
+  props.chatMode || (props.msg?.metadata?.chatMode as ChatMode) || 'deep'
 )
 
 // ===== Markdown 渲染（含实体 mention 注入） =====

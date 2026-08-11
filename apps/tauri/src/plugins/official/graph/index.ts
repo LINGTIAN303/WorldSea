@@ -27,5 +27,7 @@ export function activate(api: PluginAPIType) {
     label: '全局图谱',
     icon: 'graph',
     component: GlobalGraph,
+    // 全屏画布：工具条悬浮胶囊，不占 44px，hover 顶部浮现
+    toolbar: 'overlay',
   })
 }

@@ -59,9 +59,8 @@ export const useSpaceStore = defineStore('space', () => {
   const leftPanelWidth = ref(340)
   const MIN_PANEL_WIDTH = 240
   const MAX_PANEL_WIDTH = 560
-  const chatMode = ref<ChatMode>('normal')
+  const chatMode = ref<ChatMode>('deep')
   const groupChatMode = ref<GroupChatMode>('casual')
-  const workspaceDrawerOpen = ref(false)
   const sessionSidebarOpen = ref(false)
   const sessionSidebarWidth = ref(260)
   const persona = ref<AgentPersona>(loadPersona())
@@ -89,7 +88,6 @@ export const useSpaceStore = defineStore('space', () => {
   }
   function setChatMode(m: ChatMode) { chatMode.value = m }
   function setGroupChatMode(m: GroupChatMode) { groupChatMode.value = m }
-  function setWorkspaceDrawerOpen(v: boolean) { workspaceDrawerOpen.value = v }
   function setSessionSidebarOpen(v: boolean) { sessionSidebarOpen.value = v }
   function toggleSessionSidebar() { sessionSidebarOpen.value = !sessionSidebarOpen.value }
   function setLeftPanelWidth(w: number) {
@@ -102,14 +100,14 @@ export const useSpaceStore = defineStore('space', () => {
 
   return {
     mode, leftPanel, leftPanelWidth,
-    chatMode, groupChatMode, workspaceDrawerOpen, sessionSidebarOpen, sessionSidebarWidth, persona,
+    chatMode, groupChatMode, sessionSidebarOpen, sessionSidebarWidth, persona,
     activityPinned, inputInjection,
     // 双轨（T1）
     execPanelOpen, execTab, configPanel, execPanelWidth, configPanelWidth,
     toggleExecPanel, openExecPanel, closeExecPanel, setExecTab,
     setConfigPanel, toggleConfigPanel, setExecPanelWidth, setConfigPanelWidth,
     setMode, toggleLeftPanel, setChatMode, setGroupChatMode,
-    setWorkspaceDrawerOpen, setSessionSidebarOpen, toggleSessionSidebar,
+    setSessionSidebarOpen, toggleSessionSidebar,
     setLeftPanelWidth,
     updatePersona,
   }

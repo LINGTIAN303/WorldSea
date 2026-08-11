@@ -1,10 +1,14 @@
 <template>
-  <div class="dash-toolbar">
+  <!-- 添加面板 → 新建类落点 -->
+  <Teleport to="#view-toolbar-create">
     <CreateButton label="添加面板" size="small" @click="$emit('add')" />
+  </Teleport>
+  <!-- 布局方向选择 → 筛选收束条 -->
+  <Teleport to="#view-toolbar-filter-body">
     <div class="dash-controls">
       <CustomDropdown :model-value="modelValue" :options="options" @update:model-value="$emit('update:modelValue', $event)" />
     </div>
-  </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">

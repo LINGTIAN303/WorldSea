@@ -26,6 +26,8 @@ mod entity_commands;
 mod tray;
 // 系统层集成：通知 / 开机自启命令
 mod system;
+// 音视频转录（candle-whisper 语音转文字）
+mod whisper;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -172,6 +174,8 @@ pub fn run() {
             system::cmd_notify,
             system::cmd_autostart_is_enabled,
             system::cmd_autostart_set_enabled,
+            // 音视频转录（candle-whisper 语音转文字）
+            whisper::transcribe_media,
         ])
         // Phase 5.1：Agent 命令服务（内部持有 session_id -> Arc<AgentLoop> 映射）
         // 终端服务（独立持有 ShellSessionManager，供前端直接调用终端命令）

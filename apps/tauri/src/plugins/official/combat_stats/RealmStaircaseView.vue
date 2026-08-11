@@ -1,18 +1,20 @@
 <template>
   <div class="rs-view">
-    <div class="rs-toolbar">
-      <button class="rs-btn" @click="$emit('back')" title="返回列表">
-        <WsIcon name="chevron-right" :size="12" :stroke-width="2" />
-        列表
-      </button>
-      <div class="rs-toolbar-sep"></div>
+    <!-- 筛选 → 收束条 -->
+    <Teleport to="#view-toolbar-filter-body">
       <div class="rs-toolbar-group">
         <span class="rs-toolbar-label">体系</span>
         <CustomDropdown v-model="filterSystem" :options="filterSystemOpts" />
       </div>
-      <div class="rs-toolbar-spacer"></div>
+    </Teleport>
+    <!-- 动作 → 动作落点 -->
+    <Teleport to="#view-toolbar-actions">
+      <button class="rs-btn" @click="$emit('back')" title="返回列表">
+        <WsIcon name="chevron-right" :size="12" :stroke-width="2" />
+        列表
+      </button>
       <span class="rs-count">{{ filteredSteps.length }} 个境界</span>
-    </div>
+    </Teleport>
 
     <div class="rs-main">
       <div ref="containerRef" class="rs-canvas-container"></div>

@@ -63,11 +63,15 @@ onMounted(async () => {
 </script>
 
 <template>
-  <!-- 跳过导航直达主内容（WCAG 2.4.1 Bypass Blocks）：仅键盘/读屏聚焦时可见 -->
-  <a href="#main-content" class="skip-link">跳到主内容</a>
-  <!-- 平级切换：space=Agent 聊天空间 / workbench=插件工作台（uiStore.currentShell 持久化） -->
-  <AgentSpace v-if="uiStore.currentShell === 'space'" />
-  <Shell v-else />
+  <!-- 跳过导航直达主内容（WCAG 2.4.1 Bypass Blocks）：仅键盘/读屏聚焦时可见。
+       两壳常驻故 id 各一，按当前壳路由到可见目标 -->
+  <a :href="uiStore.currentShell === 'space' ? '#agent-space-main' : '#main-content'" class="skip-link">跳到主内容</a>
+  <!-- 两壳 v-show 常驻（2026-08-10）：AgentSpace 与 Shell 均不卸载。
+       视图工具条已在 ViewContainer 随流占位，其 Teleport 目标 #view-toolbar-*
+       随 ViewContainer 常驻——壳切换时目标始终存在，避免同树卸载冲突。
+       代价：两壳常驻内存增加（见项目记忆预估）。 -->
+  <AgentSpace v-show="uiStore.currentShell === 'space'" />
+  <Shell v-show="uiStore.currentShell === 'workbench'" />
 </template>
 
 <style>

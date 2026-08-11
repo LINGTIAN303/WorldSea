@@ -1,28 +1,28 @@
 <template>
   <div class="evo-view">
-    <div class="evo-toolbar">
-      <button class="evo-btn" @click="$emit('back')" title="返回列表">
-        <WsIcon name="chevron-right" :size="12" :stroke-width="2" />
-        列表
-      </button>
-      <div class="evo-toolbar-sep"></div>
+    <!-- 筛选/视图模式 → 收束条 -->
+    <Teleport to="#view-toolbar-filter-body">
       <div class="evo-toolbar-group">
         <button class="evo-btn" :class="{active: layoutMode === 'top-down'}" @click="switchLayout('top-down')">进化树</button>
         <button class="evo-btn" :class="{active: layoutMode === 'radial'}" @click="switchLayout('radial')">径向</button>
       </div>
-      <div class="evo-toolbar-sep"></div>
       <div class="evo-toolbar-group">
         <span class="evo-toolbar-label">类型</span>
         <CustomDropdown v-model="filterType" :options="filterTypeOpts" />
       </div>
-      <div class="evo-toolbar-sep"></div>
       <label class="evo-toggle"><input type="checkbox" v-model="showSymbiosis" /> 共生</label>
       <label class="evo-toggle"><input type="checkbox" v-model="showRivals" /> 天敌</label>
       <label class="evo-toggle" v-if="layoutMode === 'top-down'"><input type="checkbox" v-model="showClusters" /> 聚类</label>
-      <div class="evo-toolbar-spacer"></div>
+    </Teleport>
+    <!-- 动作 → 动作落点 -->
+    <Teleport to="#view-toolbar-actions">
+      <button class="evo-btn" @click="$emit('back')" title="返回列表">
+        <WsIcon name="chevron-right" :size="12" :stroke-width="2" />
+        列表
+      </button>
       <button class="evo-btn" @click="fitView" title="自动适配">⊞ 适配</button>
       <span class="evo-count">{{ filteredNodes.length }} 个物种</span>
-    </div>
+    </Teleport>
 
     <div class="evo-main">
       <div ref="containerRef" class="evo-canvas-container"></div>

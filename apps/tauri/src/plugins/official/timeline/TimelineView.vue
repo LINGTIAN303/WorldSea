@@ -1,28 +1,32 @@
 <template>
   <div class="timeline-view">
-    <!-- 工具栏上移 R3 统一工具条（#view-toolbar-controls），套用 BuildingSectionView 模式 -->
-    <Teleport to="#view-toolbar-controls">
-      <div class="tl-toolbar">
+    <!-- 工具栏上移 R3 统一工具条（搜索→标题旁，筛选→收束条，动作→动作区，新建→新建区），套用 BuildingSectionView 模式 -->
+    <Teleport to="#view-toolbar-search">
       <input v-model="searchQuery" placeholder="搜索事件..." class="search-input" />
+    </Teleport>
+    <Teleport to="#view-toolbar-filter-body">
       <CustomDropdown v-model="eraFilter" :options="eraFilterOptions" />
       <CustomDropdown v-model="importanceFilter" :options="importanceFilterOptions" />
+      <CustomDropdown v-model="groupModeValue" :options="groupModeOptions" />
+    </Teleport>
+    <Teleport to="#view-toolbar-actions">
       <button class="btn-ghost btn-sm" :class="{ active: sortMode === 'tree' }" @click="toggleSortMode" :title="sortMode === 'chrono' ? '切换为大纲视图' : '切换为时间排序'">
         <WsIcon :name="sortMode === 'chrono' ? 'timeline' : 'plant'" size="xs" /> {{ sortMode === 'chrono' ? '时间序' : '大纲序' }}
       </button>
       <button class="btn-ghost btn-sm" :class="{ active: layoutMode === 'horizontal' }" @click="toggleLayoutMode" :title="layoutMode === 'vertical' ? '切换为水平时间线' : '切换为垂直时间线'">
         <WsIcon :name="layoutMode === 'vertical' ? 'timeline' : 'graph'" size="xs" /> {{ layoutMode === 'vertical' ? '垂直' : '水平' }}
       </button>
-      <CustomDropdown v-model="groupModeValue" :options="groupModeOptions" />
       <button v-if="sortMode === 'tree'" class="btn-ghost btn-sm" @click="tree.expandAll()" title="全部展开"><WsIcon name="expand" size="xs" /> 展开</button>
       <button v-if="sortMode === 'tree'" class="btn-ghost btn-sm" @click="tree.collapseAll()" title="全部折叠"><WsIcon name="collapse" size="xs" /> 折叠</button>
       <button v-if="layoutMode === 'vertical'" class="btn-ghost btn-sm" :class="{ active: compactMode }" @click="compactMode = !compactMode" title="紧凑模式"><WsIcon name="list" size="xs" /> {{ compactMode ? '紧凑' : '展开' }}</button>
       <button class="btn-ghost btn-sm" @click="showConflicts = true" :title="hasConflicts ? `${conflicts.length} 个冲突` : '检测时间冲突'">
         <WsIcon name="warning" size="xs" /> 冲突{{ hasConflicts ? ` (${conflicts.length})` : '' }}
       </button>
-      <CreateButton label="新建事件" @click="openNewForm" />
       <button v-if="selectedIds.size > 0" class="btn-danger" @click="batchDelete(filteredEvents, '事件')"><WsIcon name="delete" size="xs" /> 删除 ({{ selectedIds.size }})</button>
       <button v-if="selectedIds.size > 0" class="btn-ghost" @click="clearSelection">取消选择</button>
-      </div>
+    </Teleport>
+    <Teleport to="#view-toolbar-create">
+      <CreateButton label="新建事件" @click="openNewForm" />
     </Teleport>
 
     <TimelineChart

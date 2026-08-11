@@ -1,8 +1,22 @@
 <template>
   <div class="set-card" v-show="match('插件 plugin 启用 禁用')">
-    <div class="sc-head">插件管理</div>
+    <div class="sc-head">
+      <span>插件管理</span>
+      <div class="set-plugin-cats" role="tablist" aria-label="插件分类筛选">
+        <button
+          v-for="c in PLUGIN_CATEGORIES"
+          :key="c.id"
+          type="button"
+          class="sp-cat"
+          :class="{ active: activeCategory === c.id }"
+          role="tab"
+          :aria-selected="activeCategory === c.id"
+          @click="onCategoryClick(c.id)"
+        >{{ c.label }}</button>
+      </div>
+    </div>
     <div class="set-plugin-search"><input type="text" v-model="pluginSearch" placeholder="搜索插件..." class="set-input" /></div>
-    <draggable v-if="!pluginSearch" :list="pluginList" item-key="id" ghost-class="sp-ghost" drag-class="sp-drag" handle=".sp-grip" @end="onPluginDragEnd" class="set-plugin-list">
+    <draggable v-if="showDraggable" :list="pluginList" item-key="id" ghost-class="sp-ghost" drag-class="sp-drag" handle=".sp-grip" @end="onPluginDragEnd" class="set-plugin-list">
       <template #item="{ element: p }">
         <div class="set-plugin-item">
           <span class="sp-grip" title="拖拽排序"><WsIcon name="grip" size="xs" /></span>
@@ -22,7 +36,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { useSettingsStore, useUIStore, usePluginStore } from '@worldsmith/entity-core'
+import { useSettingsStore, useUIStore, usePluginStore, PLUGIN_CATEGORIES, type PluginCategory } from '@worldsmith/entity-core'
 import { hasIcon } from '@worldsmith/ui-kit'
 import WsIcon from '../../WsIcon.vue'
 import draggable from 'vuedraggable'
@@ -37,9 +51,16 @@ const pluginStore = usePluginStore()
 
 // 插件面板内部的搜索框（独立于全局 searchQuery）
 const pluginSearch = ref('')
+// 当前选中的分类筛选（'all' 表示全部）
+const activeCategory = ref<PluginCategory | 'all'>('all')
 
 function match(keywords: string): boolean {
   return matchKeywords(props.searchQuery ?? '', keywords)
+}
+
+function onCategoryClick(id: PluginCategory) {
+  // 再次点击当前分类则取消筛选，回到全部
+  activeCategory.value = activeCategory.value === id ? 'all' : id
 }
 
 const pluginList = ref(store.plugins.map(p => ({ ...p })))
@@ -60,12 +81,21 @@ watch(() => [uiStore.sidebarOrder, store.plugins] as const, () => {
   syncPluginList()
 }, { deep: true, immediate: true })
 
+// 仅在「未搜索 且 未筛选分类」时启用拖拽排序，避免对子集排序造成歧义
+const showDraggable = computed(() => !pluginSearch.value && activeCategory.value === 'all')
+
 const filteredPlugins = computed(() => {
-  if (!pluginSearch.value) return pluginList.value
-  const q = pluginSearch.value.toLowerCase()
-  return pluginList.value.filter(p =>
-    p.label.toLowerCase().includes(q) || p.id.toLowerCase().includes(q)
-  )
+  let list = pluginList.value
+  if (activeCategory.value !== 'all') {
+    list = list.filter(p => p.category === activeCategory.value)
+  }
+  if (pluginSearch.value) {
+    const q = pluginSearch.value.toLowerCase()
+    list = list.filter(p =>
+      p.label.toLowerCase().includes(q) || p.id.toLowerCase().includes(q)
+    )
+  }
+  return list
 })
 
 function onPluginDragEnd() {
@@ -90,13 +120,19 @@ defineExpose({ resetPluginSearch: () => { pluginSearch.value = '' } })
 
 <style scoped>
 .set-card { background: var(--content-bg, var(--color-bg-surface)); border-radius: var(--radius-md); padding: 14px 16px; box-shadow: 0 1px 6px rgba(0,0,0,0.06), 0 0 0 1px var(--border, var(--color-border)); }
-.sc-head { font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); color: var(--text-tertiary, var(--color-text-tertiary)); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+.sc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); color: var(--text-tertiary, var(--color-text-tertiary)); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+.sc-head > span { flex-shrink: 0; }
 
 .set-input { padding: 4px 8px; font-size: var(--font-size-sm); border: 1px solid var(--border, var(--color-border)); border-radius: var(--radius-sm); background: var(--bg, var(--color-bg-surface)); color: var(--text-color); }
 .set-input:focus { outline: none; border-color: var(--primary, var(--color-primary)); }
 
 .set-plugin-search { margin-bottom: 8px; }
 .set-plugin-search .set-input { width: 100%; }
+.set-plugin-cats { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.sp-cat { padding: 2px 10px; font-size: var(--font-size-xs, 12px); line-height: 1.6; color: var(--text-secondary, var(--color-text-secondary)); background: transparent; border: 1px solid var(--border, var(--color-border)); border-radius: 999px; cursor: pointer; transition: background 0.1s, border-color 0.1s, color 0.1s; }
+.sp-cat:hover { background: var(--hover-bg, var(--color-bg-hover)); }
+.sp-cat:focus-visible { outline: none; border-color: var(--primary, var(--color-primary)); box-shadow: 0 0 0 3px var(--primary-soft, color-mix(in srgb, var(--color-primary) 15%, transparent)); }
+.sp-cat.active { background: var(--primary, var(--color-primary)); border-color: var(--primary, var(--color-primary)); color: var(--on-accent, #fff); }
 .set-plugin-list { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 2px; max-height: 320px; overflow-y: auto; }
 .set-plugin-item { padding: 3px 0; display: flex; align-items: center; gap: 4px; }
 .sp-grip { cursor: grab; color: var(--text-tertiary, #bbb); font-size: var(--font-size-base); line-height: 1; padding: 2px 2px; user-select: none; flex-shrink: 0; transition: color 0.1s; }

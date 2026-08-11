@@ -11,9 +11,12 @@
 
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
-import { isTauri } from '@worldsmith/entity-core/core'
+import { isTauri, hasTauriInvoke } from '@worldsmith/entity-core/core'
 import { useProjectSwitcher } from './useProjectSwitcher'
 import { useUIStore } from '@/stores/uiStore'
+
+/** Tauri 环境且 IPC 桥真正可用（预览/浏览器注入占位标志时桥缺失，需规避 invoke/listen 崩溃） */
+const canUseTauri = () => isTauri() && hasTauriInvoke()
 
 let setupDone = false
 const unlisteners: UnlistenFn[] = []
@@ -23,7 +26,7 @@ export function useSystemBridge() {
 
   /** 将当前项目列表同步到托盘「最近项目」子菜单 */
   async function syncRecentProjects(): Promise<void> {
-    if (!isTauri()) return
+    if (!canUseTauri()) return
     try {
       const ps = useProjectSwitcher()
       const list = await ps.listProjects()
@@ -37,19 +40,19 @@ export function useSystemBridge() {
 
   /** 回写 Agent 生成状态（托盘「Agent 生成中… / 空闲」状态项） */
   function setAgentState(streaming: boolean): void {
-    if (!isTauri()) return
+    if (!canUseTauri()) return
     invoke('cmd_tray_set_agent_state', { streaming }).catch(() => {})
   }
 
   /** 发系统通知（Agent 长任务完成/失败等） */
   function notify(title: string, body: string): void {
-    if (!isTauri()) return
+    if (!canUseTauri()) return
     invoke('cmd_notify', { title, body }).catch(() => {})
   }
 
   /** 查询开机自启状态 */
   async function autostartEnabled(): Promise<boolean> {
-    if (!isTauri()) return false
+    if (!canUseTauri()) return false
     try {
       return await invoke('cmd_autostart_is_enabled')
     } catch {
@@ -59,7 +62,7 @@ export function useSystemBridge() {
 
   /** 设置开机自启，返回是否成功 */
   async function setAutostart(enabled: boolean): Promise<boolean> {
-    if (!isTauri()) return false
+    if (!canUseTauri()) return false
     try {
       await invoke('cmd_autostart_set_enabled', { enabled })
       return true
@@ -75,7 +78,7 @@ export function useSystemBridge() {
 
   /** 挂载托盘事件监听 + 初始同步（应用启动时调用一次，幂等） */
   async function setup(): Promise<void> {
-    if (!isTauri() || setupDone) return
+    if (!canUseTauri() || setupDone) return
     setupDone = true
 
     unlisteners.push(

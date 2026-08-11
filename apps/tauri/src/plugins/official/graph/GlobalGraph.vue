@@ -18,6 +18,10 @@
     />
     <div ref="containerRef" class="g-canvas"></div>
 
+    <div v-if="entityStore.entities.length === 0" class="g-empty">
+      <WsEmpty preset="no-data" title="图谱为空" description="创建实体后会自动显示在这里" />
+    </div>
+
     <PathSearchPanel
       :visible="showPathSearch"
       :nodes="graphNodes"
@@ -74,7 +78,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon, WsEmpty } from '@worldsmith/ui-kit'
 import Graph from 'graphology'
 import { useEntityStore, useRelationStore, entitySchemaRegistry, getNodeTypeInfo } from '@worldsmith/entity-core'
 import { useGraphData, type GraphNode, useTypeMapping, useGraphFilter, useGraphAlgorithms } from '@worldsmith/ui-kit'
@@ -544,6 +548,15 @@ useAgentPluginBridge('graph', (event) => {
 <style scoped>
 .graph-view { display: flex; flex-direction: column; height: 100%; position: relative; background: #0a0e14; }
 .g-canvas { flex: 1; background: #0a0e14; }
+.g-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 1;
+}
 .g-wasm-notice {
   position: absolute;
   top: 44px;

@@ -78,9 +78,9 @@ const hasVisibleContent = computed(() => {
   return false
 })
 
-/** 聊天模式：props 优先，回退到 msg.metadata.chatMode，最终回退 'normal' */
+/** 聊天模式：props 优先，回退到 msg.metadata.chatMode，最终回退 'deep' */
 const chatMode = computed(() =>
-  props.chatMode || (props.msg?.metadata?.chatMode as ChatMode) || 'normal'
+  props.chatMode || (props.msg?.metadata?.chatMode as ChatMode) || 'deep'
 )
 
 /** 是否启用深度模式布局：chatMode === 'deep' 且 useDeepLayout 为真 */

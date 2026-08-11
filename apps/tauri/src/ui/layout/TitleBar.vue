@@ -5,10 +5,18 @@
        variant="space"（2026-08-09）：Agent 空间精简窗口栏——仅拖拽区 + 居中标题 + 窗口控制，
        隐藏工作台专属区（☰ 侧边栏 / 项目切换器 / 目录 / AppMenu / 视图名） -->
   <div class="titlebar" data-tauri-drag-region>
+    <!-- 新增：Agent 空间/工作台 切换按钮（两种壳共用窗口栏左端；取代原 ⋯ 更多操作菜单位，由它负责双向切换） -->
+    <button
+      class="titlebar-shell-toggle"
+      :title="shellToggleTitle"
+      :aria-label="shellToggleTitle"
+      @click="toggleShell"
+    >
+      <WsIcon :name="shellToggleIcon" size="sm" />
+      <span class="shell-toggle-label">{{ shellToggleLabel }}</span>
+    </button>
     <template v-if="variant === 'workbench'">
       <div class="titlebar-left" data-tauri-drag-region>
-        <!-- ⋯ 更多操作：原右侧菜单上移至 ☰ 侧边栏切换按钮的位置（侧边栏切换已下放至窄条） -->
-        <AppMenu />
         <button class="titlebar-switcher" title="切换项目" @click="openProjectManager">
           <span class="titlebar-dot"></span>
           <span class="titlebar-title">WorldSmith</span>
@@ -60,7 +68,7 @@ import { useProjectSwitcher } from '@/composables/useProjectSwitcher'
 import { useFileSystemProject } from '@/composables/useFileSystemProject'
 import { useUIStore } from '@/stores/uiStore'
 import { usePluginStore } from '@worldsmith/entity-core'
-import AppMenu from './AppMenu.vue'
+import { WsIcon } from '@worldsmith/ui-kit'
 
 // 变体：workbench=工作台完整窗口栏 / space=Agent 空间精简窗口栏（2026-08-09）
 const props = withDefaults(defineProps<{
@@ -89,6 +97,14 @@ const currentViewLabel = computed(() => {
   const view = pluginStore.views.find((v) => v.id === uiStore.currentView)
   return view?.label ?? ''
 })
+
+/* ── Agent 空间 / 工作台 切换按钮（2026-08-10）：按钮显示目标壳，点击双向切换 ── */
+const shellToggleLabel = computed(() => uiStore.currentShell === 'workbench' ? 'Agent 空间' : '工作台')
+const shellToggleIcon = computed(() => uiStore.currentShell === 'workbench' ? 'chat' : 'monitor')
+const shellToggleTitle = computed(() => uiStore.currentShell === 'workbench' ? '进入 Agent 空间' : '返回工作台')
+function toggleShell() {
+  uiStore.setShell(uiStore.currentShell === 'workbench' ? 'space' : 'workbench')
+}
 
 function openProjectManager() {
   // 与 MenuBar 项目切换器一致：通过全局事件打开项目管理弹窗
@@ -156,6 +172,31 @@ function close() {
   padding-left: 6px;
   /* 不裁切：AppMenu 下拉需要溢出可见（各子元素自带 max-width + overflow 截断） */
   white-space: nowrap;
+}
+/* Agent 空间 / 工作台 切换按钮（两种壳共用窗口栏左端） */
+.titlebar-shell-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  margin-left: 6px;
+  padding: 0 10px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: var(--radius-sm, 6px);
+  color: var(--text-secondary, var(--color-text-secondary));
+  font-size: var(--font-size-sm, 12px);
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 0.12s, color 0.12s;
+}
+.titlebar-shell-toggle:hover {
+  background: var(--bg-hover, var(--color-bg-hover));
+  color: var(--text-color, var(--color-text-primary));
+}
+.shell-toggle-label {
+  line-height: 1;
 }
 /* 项目切换器：紫点 + WorldSmith + 项目名 + ▾，点击打开项目管理 */
 .titlebar-switcher {

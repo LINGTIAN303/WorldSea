@@ -50,5 +50,7 @@ export function activate(api: PluginAPIType) {
     label: '画板',
     icon: 'drawing',
     component: DrawingView,
+    // 全屏画布：工具条悬浮胶囊，不占 44px，hover 顶部浮现
+    toolbar: 'overlay',
   })
 }

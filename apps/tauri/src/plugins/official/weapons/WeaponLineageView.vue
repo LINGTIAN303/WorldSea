@@ -1,27 +1,27 @@
 <template>
   <div class="wl-view">
-    <div class="wl-toolbar">
-      <button class="wl-btn" @click="$emit('back')" title="返回列表">
-        <WsIcon name="chevron-right" :size="12" :stroke-width="2" />
-        列表
-      </button>
-      <div class="wl-toolbar-sep"></div>
+    <!-- 筛选/视图模式 → 收束条 -->
+    <Teleport to="#view-toolbar-filter-body">
       <div class="wl-toolbar-group">
         <button class="wl-btn" :class="{active: layoutMode === 'grid'}" @click="switchLayout('grid')">武器架</button>
         <button class="wl-btn" :class="{active: layoutMode === 'radial'}" @click="switchLayout('radial')">径向</button>
       </div>
-      <div class="wl-toolbar-sep"></div>
       <div class="wl-toolbar-group">
         <span class="wl-toolbar-label">类型</span>
         <CustomDropdown v-model="filterType" :options="filterTypeOpts" />
       </div>
-      <div class="wl-toolbar-sep"></div>
       <label class="wl-toggle"><input type="checkbox" v-model="showHolders" /> 持有者</label>
       <label class="wl-toggle"><input type="checkbox" v-model="showRelations" /> 克制/配套</label>
-      <div class="wl-toolbar-spacer"></div>
+    </Teleport>
+    <!-- 动作 → 动作落点 -->
+    <Teleport to="#view-toolbar-actions">
+      <button class="wl-btn" @click="$emit('back')" title="返回列表">
+        <WsIcon name="chevron-right" :size="12" :stroke-width="2" />
+        列表
+      </button>
       <button class="wl-btn" @click="fitView" title="自动适配">⊞ 适配</button>
       <span class="wl-count">{{ filteredNodes.length }} 件武器</span>
-    </div>
+    </Teleport>
 
     <div class="wl-main">
       <div ref="containerRef" class="wl-canvas-container"></div>

@@ -2,13 +2,10 @@
   <div class="drawing-view">
     <!-- 画板列表视图 -->
     <div v-if="!selectedDrawingId" class="dv-board">
-      <div class="dv-board-toolbar">
-        <h2 class="dv-board-title">
-          <WsIcon name="drawing" size="sm" />
-          画板
-        </h2>
-        <button class="dv-btn dv-btn--primary" @click="showCreateDialog = true">+ 新建画板</button>
-      </div>
+      <!-- 新建画板按钮上移 R3 视图工具条（图标/标题 R3 面包屑已提供） -->
+      <Teleport to="#view-toolbar-create">
+        <CreateButton label="新建画板" @click="showCreateDialog = true" />
+      </Teleport>
       <div v-if="loading" class="dv-board-loading"><WsSpinner /></div>
       <div v-else-if="drawingEntities.length === 0" class="dv-board-empty">
         <div class="dv-be-icon">🎨</div>
@@ -62,8 +59,8 @@
 
     <!-- 画板编辑视图 -->
     <template v-else>
-      <!-- 工具栏上移 R3 统一工具条（#view-toolbar-controls），套用 BuildingSectionView 模式；次要操作收进折叠菜单 -->
-      <Teleport to="#view-toolbar-controls">
+      <!-- 画布操作工具栏上移 R3 工具条动作区（#view-toolbar-actions）；次要操作收进折叠菜单 -->
+      <Teleport to="#view-toolbar-actions">
         <div class="dv-toolbar">
           <button class="dv-btn dv-btn-back" @click="closeDrawing" title="返回画板列表" aria-label="返回画板列表"><WsIcon name="arrow-left" size="sm" /></button>
 
@@ -159,7 +156,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
-import { useShortcuts } from '@worldsmith/plugin-sdk'
+import { useShortcuts, CreateButton } from '@worldsmith/plugin-sdk'
 import { useCanvas } from '@worldsmith/ui-kit'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { WsIcon } from '@worldsmith/ui-kit'
@@ -732,9 +729,9 @@ watch([layers, activeLayerIndex], () => {
 
 /* ─── 画板列表 ─── */
 .dv-board { display: flex; flex-direction: column; height: 100%; padding: 16px; gap: 16px; overflow: auto; }
-.dv-board-toolbar { display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
-.dv-board-title { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 18px; font-weight: 600; }
 .dv-board-loading { display: flex; justify-content: center; padding: 48px; }
+/* 上移 R3：包裹新建按钮，避免撑满 .vt-controls（flex:1） */
+.dv-actions { display: flex; align-items: center; gap: 8px; }
 .dv-board-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; gap: 8px; opacity: 0.7; }
 .dv-be-icon { font-size: 48px; }
 .dv-board-empty h3 { margin: 0; font-size: var(--fs-lg); }

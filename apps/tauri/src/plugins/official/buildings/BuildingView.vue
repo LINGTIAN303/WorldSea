@@ -31,6 +31,8 @@ const buildingTabs: RelationTabDef[] = [
 ]
 </script>
 <style scoped>
+/* 根容器撑满视图高度，保证 SchemaRenderer → GenericEntityView 空状态可垂直居中 */
+.building-view { display: flex; flex-direction: column; height: 100%; }
 .bv-sec-btn {
   display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px;
   border: 1px solid var(--border, #e4e4e7); border-radius: var(--radius-xs); background: var(--bg-secondary, #f4f4f5);

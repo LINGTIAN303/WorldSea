@@ -114,7 +114,7 @@ export interface AgentSession {
     usage?: SessionUsage
   }
   /** 会话锁定的聊天模式（首次发送消息时锁定） */
-  chatMode?: 'normal' | 'deep' | 'explore' | 'task'
+  chatMode?: 'deep' | 'explore' | 'task'
   /** 深度模式虚拟段落（持久化以支持刷新后恢复） */
   deepSegments?: unknown[]
   /** 深度模式最终结论区（持久化以支持刷新后恢复） */

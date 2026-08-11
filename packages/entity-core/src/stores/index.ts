@@ -14,9 +14,10 @@ export type {
   FontPreferences,
 } from './fontStore'
 export { useUIStore } from './uiStore'
-export { useSettingsStore } from './settingsStore'
+export { useSettingsStore, PLUGIN_CATEGORIES } from './settingsStore'
 export type {
   PluginToggle,
+  PluginCategory,
   CustomProviderEntry,
 } from './settingsStore'
 

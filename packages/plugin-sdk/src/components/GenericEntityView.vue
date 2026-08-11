@@ -1,9 +1,14 @@
 <template>
   <div class="gev-root">
-    <!-- 工具栏 Teleport 到 R3 视图工具条的控件区（#view-toolbar-controls），实现单条统一工具栏 -->
-    <Teleport to="#view-toolbar-controls">
-      <div class="toolbar">
-        <input v-model="searchQuery" class="search-input" :placeholder="`搜索${entityLabel}...`" :aria-label="`搜索${entityLabel}`" />
+    <!-- 工具栏按控件类型分发到 R3 统一工具条各落点（搜索→标题旁，筛选→收束条，动作→动作区，新建→新建区） -->
+    <!-- 搜索框 → 标题右侧（#view-toolbar-search） -->
+    <Teleport to="#view-toolbar-search">
+      <input v-model="searchQuery" class="search-input" :placeholder="`搜索${entityLabel}...`" :aria-label="`搜索${entityLabel}`" />
+    </Teleport>
+
+    <!-- 筛选/排序 → 收束控件面板内（#view-toolbar-filter-body） -->
+    <Teleport to="#view-toolbar-filter-body">
+      <div class="toolbar-filters">
         <CustomDropdown v-if="filterOptions.length > 1" v-model="typeFilter" :options="filterOptions" />
         <CustomDropdown
           v-for="fd in filterDefs"
@@ -12,18 +17,32 @@
           :options="fd.options || dynamicFilterOptions(fd.key, fd.label)"
         />
         <CustomDropdown v-if="sortOptions.length > 0" v-model="sortBy" :options="[{ value: '', label: '默认排序' }, ...sortOptions.map(o => ({ value: o.key, label: o.label }))]" />
-        <slot name="toolbar-extra" />
-        <CreateButton v-if="!hideCreateButton" :label="`新建${entityLabel}`" @click="openNewForm" />
-        <button v-if="selectedIds.size > 0" class="btn-danger btn-sm" @click="onBatchDel">删除 ({{ selectedIds.size }})</button>
-        <button v-if="selectedIds.size > 0" class="btn-ghost btn-sm" @click="clearSelection">取消选择</button>
+        <slot name="toolbar-filter-extra" />
       </div>
+    </Teleport>
+
+    <!-- 动作类 → 新建左侧（#view-toolbar-actions） -->
+    <Teleport to="#view-toolbar-actions">
+      <div class="toolbar-actions">
+        <slot name="toolbar-extra" />
+        <template v-if="selectedIds.size > 0">
+          <button class="btn-danger btn-sm" @click="onBatchDel">删除 ({{ selectedIds.size }})</button>
+          <button class="btn-ghost btn-sm" @click="clearSelection">取消选择</button>
+        </template>
+      </div>
+    </Teleport>
+
+    <!-- 新建类 → 更多菜单左侧（#view-toolbar-create） -->
+    <Teleport to="#view-toolbar-create">
+      <CreateButton v-if="!hideCreateButton" :label="`新建${entityLabel}`" @click="openNewForm" />
+      <slot name="toolbar-create-extra" />
     </Teleport>
 
     <n-alert v-if="filteredList.length > 200" type="warning" :show-icon="true" class="large-list-warning">
       当前显示 {{ filteredList.length }} 项，建议使用筛选器缩小范围以获得最佳体验。
     </n-alert>
 
-    <div class="entity-grid">
+    <div class="entity-grid" :class="{ 'is-empty': !hasListSlot && filteredList.length === 0, 'has-custom-list': hasListSlot }">
       <slot name="list" :entities="filteredList" :selected-ids="selectedIds" :toggle-select="toggleSelect" :select="selectEntity">
         <div
           v-for="(e, idx) in filteredList"
@@ -221,7 +240,7 @@
 <script setup lang="ts">
 import { toastSuccess, toastWithUndo } from '@worldsmith/ui-kit'
 import { useEntityEdit, useBatchDelete, useDuplicateNameCheck, useShortcuts, useConfirm, useHighlight } from '../composables'
-import { ref, computed, onMounted, onBeforeUnmount, reactive } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, reactive, useSlots } from 'vue'
 import { useEntityStore, useRelationStore, entitySchemaRegistry } from '@worldsmith/entity-core'
 import type { Entity } from '@worldsmith/entity-core'
 import { NAlert } from 'naive-ui'
@@ -276,6 +295,8 @@ const props = withDefaults(defineProps<{
 
 const entityStore = useEntityStore()
 const relationStore = useRelationStore()
+const slots = useSlots()
+const hasListSlot = computed(() => !!slots['list'])
 const { checkAndConfirmName } = useDuplicateNameCheck()
 const { confirm } = useConfirm()
 const { register, unregister } = useShortcuts()
@@ -576,8 +597,16 @@ defineExpose({
 
 <style scoped>
 .gev-root { display: flex; flex-direction: column; height: 100%; padding: 20px; }
-/* 工具栏 Teleport 到 R3 后，行内横排并适配 44px 工具条高度 */
-.toolbar {
+/* 筛选条内控件：横向排列（收束在向右伸展的筛选条内，超宽滚轮左右移动） */
+.toolbar-filters {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+/* 动作区控件：横向排列（Teleport 到工具条动作落点） */
+.toolbar-actions {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -602,8 +631,180 @@ defineExpose({
   box-shadow: 0 0 0 2px var(--color-primary-subtle, var(--accent-soft));
 }
 .search-input::placeholder { color: var(--text-tertiary, var(--color-text-tertiary)); }
-.entity-grid:has(> .ws-empty:only-child) { display: flex !important; align-items: center; justify-content: center; grid-template-columns: unset; }
+.entity-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+  overflow-y: auto;
+  align-content: start;
+  align-items: stretch;
+  padding-top: 12px;
+}
+/* 空实体状态：整视图空提示垂直+水平居中（仅默认列表，自定义 #list 插槽插件不受影响） */
+.entity-grid.is-empty { display: flex !important; align-items: center; justify-content: center; grid-template-columns: unset; }
+/* 自定义 #list 插槽：改为 flex 列撑满视图，避免自定义列表内容被困在默认卡片 grid 单列（导致空提示停在左上角） */
+.entity-grid.has-custom-list { display: flex; flex-direction: column; grid-template-columns: unset; }
 .large-list-warning { margin-bottom: 12px; }
+
+/* ── 实体卡片（双线分隔：每卡自带 1px 边框 + gap 缝隙透出 app 底色）── */
+.entity-card-wrapper {
+  position: relative;
+  display: flex;
+  border: 1px solid var(--border, #ececec);
+  border-radius: var(--radius-mid, 8px);
+  background: var(--bg-surface, #ffffff);
+  overflow: hidden;
+  transition: border-color var(--dur-fast, 0.15s) var(--ease, ease),
+              box-shadow var(--dur-fast, 0.15s) var(--ease, ease);
+}
+.entity-card-wrapper:hover {
+  border-color: var(--border-strong, #d9d9de);
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(16, 24, 40, 0.05));
+}
+/* 打开详情：accent 描边高亮 */
+.entity-card-wrapper.active {
+  border-color: var(--accent, #4f46e5);
+  box-shadow: 0 0 0 1px var(--accent, #4f46e5);
+}
+/* 批量选择态 */
+.entity-card-wrapper.batch-selected {
+  border-color: var(--accent, #4f46e5);
+  background: var(--accent-soft, #eef2ff);
+}
+/* 搜索命中高亮 */
+.entity-card-wrapper.search-highlight { border-color: var(--warning, #d97706); }
+/* 关系高亮过滤时未命中项变暗 */
+.entity-card-wrapper.dimmed { opacity: 0.45; }
+
+/* 卡片本体：可点击填充区 */
+.entity-card {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  cursor: pointer;
+  outline: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.entity-card:focus-visible {
+  box-shadow: 0 0 0 var(--ring-width, 3px) var(--ring-color, rgba(79, 70, 229, 0.35));
+}
+
+/* 封面：贴合卡片顶部（负边距抵消卡片内边距） */
+.entity-card .card-cover-wrap {
+  margin: -12px -12px 10px;
+}
+.entity-card .card-cover {
+  width: 100%;
+  height: 110px;
+  object-fit: cover;
+  display: block;
+}
+
+/* 卡片头部：图标 + 名称区 */
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.card-icon {
+  color: var(--accent, #4f46e5);
+  flex-shrink: 0;
+}
+.card-body {
+  flex: 1;
+  min-width: 0;
+}
+.card-body h3 {
+  margin: 0;
+  font-size: var(--fs-base, 14px);
+  font-weight: 600;
+  color: var(--text-primary, #1f2328);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.card-body p {
+  margin: 2px 0 0;
+  font-size: var(--fs-xs, 11px);
+  color: var(--text-secondary, #6b7280);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 翻转按钮：hover 浮现 */
+.card-flip-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--fs-xs, 11px);
+  background: var(--bg-muted, #f4f4f5);
+  border: 1px solid var(--border, #ececec);
+  border-radius: var(--radius-xs, 4px);
+  color: var(--text-secondary, #6b7280);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--dur-fast, 0.15s) var(--ease, ease);
+}
+.entity-card-wrapper:hover .card-flip-btn { opacity: 1; }
+
+/* 批量选择复选框 */
+.batch-check {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--accent, #4f46e5);
+  cursor: pointer;
+}
+
+/* 翻转容器（3D 双面） */
+.entity-card-flipper {
+  position: relative;
+  flex: 1;
+  display: flex;
+  perspective: 1000px;
+}
+.entity-card-flipper .entity-card {
+  backface-visibility: hidden;
+  transition: transform var(--dur-base, 0.22s) var(--ease, ease);
+}
+.entity-card-flipper .card-back {
+  position: absolute;
+  inset: 0;
+  transform: rotateY(180deg);
+  background: var(--bg-surface, #ffffff);
+}
+.entity-card-wrapper.is-flipped .entity-card-flipper .card-front { transform: rotateY(180deg); }
+.entity-card-wrapper.is-flipped .entity-card-flipper .card-back { transform: rotateY(0deg); }
+
+/* 卡片背面信息区 */
+.card-back-info { margin-top: auto; }
+.card-back-info h3 {
+  margin: 0;
+  font-size: var(--fs-base, 14px);
+  font-weight: 600;
+  color: var(--text-primary, #1f2328);
+}
+.card-back-info p {
+  margin: 2px 0 0;
+  font-size: var(--fs-xs, 11px);
+  color: var(--text-secondary, #6b7280);
+}
 .card-footer { display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: 4px; margin-left: auto; }
 .card-tag { font-size: var(--font-size-xs); padding: 1px 6px; background: var(--hover-bg); border-radius: 4px; color: var(--text-secondary); }
 .dp-rel-item { display: flex; align-items: center; gap: 6px; padding: 4px 0; font-size: var(--font-size-sm); }

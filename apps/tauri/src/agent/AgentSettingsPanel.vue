@@ -11,8 +11,8 @@
         <button class="menu-close-btn" @click="emit('close')">✕</button>
       </div>
       <div class="settings-body">
-        <!-- 左侧纵向分组导航 -->
-        <nav class="settings-nav">
+        <!-- 左侧纵向分组导航（仅独立悬浮面板；设置内嵌走卡片式布局） -->
+        <nav v-if="!embedded" class="settings-nav">
           <div v-for="group in NAV_GROUPS" :key="group.label" class="snav-group">
             <div class="snav-group-label">{{ group.label }}</div>
             <button
@@ -27,6 +27,122 @@
         </nav>
         <!-- 右侧面板内容 -->
         <div class="settings-content">
+        <!-- 设置内嵌（embedded）：卡片式全展开，无左侧导航 -->
+        <template v-if="embedded">
+          <!-- 模型卡片 -->
+          <div class="agent-set-card">
+            <div class="agent-set-head">模型</div>
+            <ModelPanel
+              :embedded="true"
+              :current-model-id="currentModelId"
+              :temperature="temperature"
+              :max-tokens="maxTokens"
+              :context-length="contextLength"
+              :max-context-length="maxContextLength"
+              :max-output-tokens="maxOutputTokens"
+              :max-temperature="maxTemperature"
+              :persona-preset="personaPreset"
+              :chat-mode="chatMode"
+              :chat-modes="[...chatModes]"
+              :locked-chat-mode="lockedChatMode"
+              :cloud-api-key="cloudApiKey"
+              :custom-api-key="customApiKey"
+              :fetched-models="fetchedModels"
+              :fetching-models="fetchingModels"
+              :fetch-error="fetchError"
+              :can-fetch-models="canFetchModels"
+              @update:temperature="emit('update:temperature', $event)"
+              @update:max-tokens="emit('update:maxTokens', $event)"
+              @update:context-length="emit('update:contextLength', $event)"
+              @update:persona-preset="emit('update:personaPreset', $event)"
+              @update:cloud-api-key="cloudApiKey = $event"
+              @update:custom-api-key="customApiKey = $event"
+              @model-change="(provider, modelId) => emit('model-change', provider, modelId)"
+              @chat-mode-change="(mode) => emit('chat-mode-change', mode)"
+              @provider-change="(provider, modelId) => emit('provider-change', provider, modelId)"
+              @fetch-models="onFetchModels"
+            />
+          </div>
+          <!-- 用量卡片 -->
+          <div class="agent-set-card">
+            <div class="agent-set-head">用量</div>
+            <UsagePanel
+              :total-usage="totalUsage"
+              :calculated-cost="calculatedCost"
+              :cumulative-usage="cumulativeUsage"
+              :cache-hit-rate="cacheHitRate"
+            />
+          </div>
+          <!-- 能力与工具卡片 -->
+          <div class="agent-set-card">
+            <div class="agent-set-head">能力与工具</div>
+            <div class="agent-set-sub">搜索</div>
+            <div class="settings-row">
+              <select :value="searchEngine" @change="onSearchEngineChange" class="settings-select">
+                <option value="tavily">Tavily</option>
+                <option value="serpapi">SerpAPI</option>
+                <option value="bing">Bing</option>
+              </select>
+            </div>
+            <div class="settings-row" style="margin-top:6px">
+              <input
+                type="password"
+                :value="searchApiKey"
+                @input="onSearchApiKeyChange"
+                placeholder="搜索 API Key"
+                class="settings-input"
+              />
+            </div>
+            <div class="settings-hint">web_search 需配置 Key；web_fetch（阅读网页）无需 Key，直接可用</div>
+            <div class="agent-set-sub">多模态</div>
+            <VisionPanel />
+            <div class="agent-set-sub">终端</div>
+            <TerminalPanel @open-terminal="emit('open-terminal')" />
+          </div>
+          <!-- Skills 卡片 -->
+          <div class="agent-set-card">
+            <div class="agent-set-head">Skills</div>
+            <div class="skills-list">
+              <div v-for="skill in skills" :key="skill.id" class="skill-item" :class="{ disabled: !skill.enabled }">
+                <span class="skill-icon"><WsIcon :name="skill.icon" size="sm" /></span>
+                <div class="skill-info">
+                  <span class="skill-name">{{ skill.name }}</span>
+                  <span class="skill-desc">{{ skill.description }}</span>
+                </div>
+                <button class="skill-toggle" @click="emit('toggle-skill', skill.id)" :title="skill.enabled ? '点击禁用' : '点击启用'">
+                  <WsIcon :name="skill.enabled ? 'check' : 'close'" size="xs" />
+                </button>
+              </div>
+            </div>
+            <SkillsStorePanel @skills-changed="emit('skills-changed')" />
+          </div>
+          <!-- MCP 卡片 -->
+          <div class="agent-set-card">
+            <div class="agent-set-head">MCP</div>
+            <McpPanel
+              :mcp-connections="mcpConnections"
+              @toggle-mcp="(serverId) => emit('toggle-mcp', serverId)"
+              @add-mcp="(config) => emit('add-mcp', config)"
+              @remove-mcp="(serverId) => emit('remove-mcp', serverId)"
+            />
+          </div>
+          <!-- 边界与个性卡片 -->
+          <div class="agent-set-card">
+            <div class="agent-set-head">边界与个性</div>
+            <div class="settings-row">
+              <span class="settings-row-label">危险操作确认</span>
+              <label class="settings-toggle"><input type="checkbox" v-model="settingsStore.aiDangerConfirm" /><span class="settings-toggle-slider"></span></label>
+            </div>
+            <div class="settings-hint">开启后 AI 删除实体/关系时需用户确认</div>
+            <div class="agent-set-sub">思考级别</div>
+            <select :value="thinkingLevel" @change="onThinkingLevelChange" class="settings-select">
+              <option v-for="lvl in thinkingLevels" :key="lvl.value" :value="lvl.value">{{ lvl.label }}</option>
+            </select>
+            <div class="settings-hint">控制推理深度：off 直答，深度级别越高推理链越完整</div>
+          </div>
+        </template>
+        <!-- 独立悬浮面板：左侧导航切换子面板 -->
+        <template v-else>
         <Transition name="ws-slide-up" mode="out-in">
           <!-- 模型/核心面板（两种模式共用 ModelPanel，内部按 embedded 切换显示） -->
           <ModelPanel v-if="settingsSubPanel === 'model'" key="model"
@@ -163,6 +279,7 @@
             @open-terminal="emit('open-terminal')"
           />
         </Transition>
+        </template>
         </div>
       </div>
     </div>
@@ -351,6 +468,49 @@ function onThinkingLevelChange(e: Event): void {
 .agent-settings-embedded .settings-body {
   max-height: none;
   flex: 1;
+  /* 设置内嵌：卡片式竖排，整体滚动（无左侧导航） */
+  flex-direction: column;
+  overflow-y: auto;
+  gap: 10px;
+}
+
+.agent-settings-embedded .settings-content {
+  overflow: visible;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
+
+/* 设置内嵌卡片（与其它设置面板的 set-card 视觉一致） */
+.agent-set-card {
+  background: var(--content-bg, var(--color-bg-surface));
+  border-radius: var(--radius-md, 8px);
+  padding: 14px 16px;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.06), 0 0 0 1px var(--border, var(--color-border));
+  flex-shrink: 0;
+}
+.agent-set-head {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-tertiary, var(--color-text-tertiary));
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.agent-set-sub {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-tertiary, var(--color-text-tertiary));
+  margin: 12px 0 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border, var(--color-border));
+}
+.agent-set-sub:first-of-type {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
 }
 
 .settings-drag-handle {

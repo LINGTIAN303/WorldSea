@@ -180,7 +180,7 @@ export async function deleteSession(id: string): Promise<void> {
 }
 
 /** 创建新会话，使用 crypto.randomUUID() 生成唯一 ID */
-export async function createSession(providerMode: string, modelId: string, chatMode?: 'normal' | 'deep' | 'explore' | 'task'): Promise<AgentSession> {
+export async function createSession(providerMode: string, modelId: string, chatMode?: 'deep' | 'explore' | 'task'): Promise<AgentSession> {
   const session: AgentSession = {
     id: crypto.randomUUID(),
     name: '新会话',

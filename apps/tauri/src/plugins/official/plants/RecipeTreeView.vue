@@ -1,26 +1,26 @@
 <template>
   <div class="rt-view">
-    <div class="rt-toolbar">
-      <button class="rt-btn" @click="$emit('back')" title="返回列表">
-        <WsIcon name="chevron-right" :size="12" :stroke-width="2" />
-        列表
-      </button>
-      <div class="rt-toolbar-sep"></div>
+    <!-- 筛选/视图模式 → 收束条 -->
+    <Teleport to="#view-toolbar-filter-body">
       <div class="rt-toolbar-group">
         <button class="rt-btn" :class="{active: layoutMode === 'bottom-up'}" @click="switchLayout('bottom-up')">配方树</button>
         <button class="rt-btn" :class="{active: layoutMode === 'radial'}" @click="switchLayout('radial')">径向</button>
       </div>
-      <div class="rt-toolbar-sep"></div>
       <div class="rt-toolbar-group">
         <span class="rt-toolbar-label">节点</span>
         <CustomDropdown v-model="filterNodeType" :options="filterNodeTypeOpts" />
       </div>
-      <div class="rt-toolbar-sep"></div>
       <label class="rt-toggle"><input type="checkbox" v-model="showMagic" /> 施法材料</label>
-      <div class="rt-toolbar-spacer"></div>
+    </Teleport>
+    <!-- 动作 → 动作落点 -->
+    <Teleport to="#view-toolbar-actions">
+      <button class="rt-btn" @click="$emit('back')" title="返回列表">
+        <WsIcon name="chevron-right" :size="12" :stroke-width="2" />
+        列表
+      </button>
       <button class="rt-btn" @click="fitView" title="自动适配">⊞ 适配</button>
       <span class="rt-count">{{ filteredNodes.length }} 个节点</span>
-    </div>
+    </Teleport>
 
     <div class="rt-main">
       <div ref="containerRef" class="rt-canvas-container"></div>
