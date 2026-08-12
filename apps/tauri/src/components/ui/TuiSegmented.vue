@@ -165,14 +165,24 @@ function onKeydown(e: KeyboardEvent) {
 
 /* ── iconMode 图标常驻 + 单级文字（可选）──
    图标常驻显示；文字用 grid-template-columns 0fr→1fr 平滑展开/收起，
-   仅当前项（或悬停项）露文字，其余仅图标。 */
+   仅当前项（或悬停项）露文字，其余仅图标。
+   紧凑布局：容器无 gap，纯图标项收窄 padding 靠拢，露文字项保留正常 padding。 */
+.tui-seg.is-icon-mode {
+  gap: 0;
+}
 .tui-seg.is-icon-mode .tui-seg__item {
   flex: none;
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  padding-left: 6px;
+  padding-right: 6px;
 }
-.tui-seg.is-icon-mode .tui-seg__icon {
+.tui-seg.is-icon-mode .tui-seg__item.label-on {
+  padding-left: 10px;
+  padding-right: 10px;
+}
+.tui-seg.is-icon-mode :deep(.tui-seg__icon) {
   flex-shrink: 0;
 }
 .tui-seg.is-icon-mode .tui-seg__label {

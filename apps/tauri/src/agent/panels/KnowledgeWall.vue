@@ -1,13 +1,14 @@
 <template>
   <div class="knowledge-wall">
     <div class="panel-header">
-      <h3 class="panel-title">知识墙</h3>
+      <!-- embedded（嵌入侧边栏 Tab）：隐藏标题与关闭，由外层 Tab 承担 -->
+      <h3 v-if="!embedded" class="panel-title">知识墙</h3>
       <div class="panel-header-actions">
         <div class="view-toggle">
           <button class="toggle-btn" :class="{ active: viewMode === 'tree' }" @click="viewMode = 'tree'" title="树形视图"><WsIcon name="tree" :size="14" :stroke-width="1.7" /></button>
           <button class="toggle-btn" :class="{ active: viewMode === 'card' }" @click="viewMode = 'card'" title="卡片视图"><WsIcon name="grid" :size="14" :stroke-width="1.7" /></button>
         </div>
-        <button class="panel-close-btn" @click="emit('close')" title="关闭"><WsIcon name="close" :size="14" :stroke-width="1.7" /></button>
+        <button v-if="!embedded" class="panel-close-btn" @click="emit('close')" title="关闭"><WsIcon name="close" :size="14" :stroke-width="1.7" /></button>
       </div>
     </div>
     <div class="panel-search">
@@ -147,6 +148,9 @@ const emit = defineEmits<{
   mount: [entry: KBEntry]
 }>()
 
+// 2026-08-12：embedded 嵌入侧边栏 Tab 时隐藏自身标题/关闭按钮，避免与外层 Tab 重复
+const props = withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false })
+
 const { addLog } = useActivityLog()
 
 const loading = ref(true)
@@ -285,7 +289,7 @@ onMounted(async () => {
   flex-direction: column;
   height: 100%;
   background: var(--bg-surface);
-  border-right: 1px solid var(--border);
+  /* 并排后边框由外层 .space-panel 承担，去掉内部右边框避免双线（2026-08-12） */
 }
 
 .panel-header {

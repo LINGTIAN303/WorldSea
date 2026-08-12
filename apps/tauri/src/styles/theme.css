@@ -12,6 +12,10 @@
   --bg-muted: #f4f4f5;        /* 弱背景（消息底、选中、hover） */
   --bg-active: #e9e9ea;
 
+  /* 模式/壳切换按钮激活态（2026-08-12）：填充色与面板色一致，文字随主题取对比色 */
+  --switch-bg: var(--bg-surface);
+  --switch-fg: var(--text-primary);
+
   --border: #ececec;          /* 基础细边框 */
   --border-strong: #d9d9de;   /* 强调边框 / hover */
 
@@ -197,6 +201,9 @@
   --bg-surface: #18181b;
   --bg-muted: #202024;
   --bg-active: #2e2e34;
+
+  /* 切换按钮激活态：深色下填充=面板色（#18181b），文字用白以保持对比 */
+  --switch-fg: #ffffff;
 
   --border: #27272c;
   --border-strong: #38383f;

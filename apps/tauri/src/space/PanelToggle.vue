@@ -1,89 +1,23 @@
 <template>
   <button
     class="panel-toggle"
-    :class="btnClass"
-    @click="onClick"
-    @mousedown="onMouseDown"
-    @mouseup="onMouseUp"
-    @mouseleave="onMouseUp"
-    @contextmenu.prevent
-    :title="title"
+    :class="{ active: open }"
+    @click="emit('click')"
+    :title="open ? '收起侧边栏' : '打开侧边栏'"
+    :aria-label="open ? '收起侧边栏' : '打开侧边栏'"
+    :aria-pressed="open"
   >
-    <div class="toggle-content">
-      <Transition name="mode-fade" mode="out-in">
-        <div v-if="!bothOpen" key="single" class="flip-scene" :class="{ flipped: rotation === 'knowledge' }">
-          <div class="flip-inner">
-            <div class="flip-front"><WsIcon name="clipboard-list" size="sm" /></div>
-            <div class="flip-back"><WsIcon name="book" size="sm" /></div>
-          </div>
-        </div>
-        <div v-else key="both" class="both-icons">
-          <WsIcon name="clipboard-list" size="xs" />
-          <WsIcon name="book" size="xs" />
-        </div>
-      </Transition>
-    </div>
+    <WsIcon :name="open ? 'panel-left-close' : 'panel-left-open'" size="sm" />
   </button>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
 
-const props = defineProps<{
-  rotation: 'session' | 'knowledge'
-  sessionOpen: boolean
-  knowledgeOpen: boolean
-}>()
-
-const emit = defineEmits<{
-  click: []
-  longpress: []
-}>()
-
-const bothOpen = computed(() => props.sessionOpen && props.knowledgeOpen)
-const hint = ref(false)
-
-const btnClass = computed(() => {
-  const c: string[] = []
-  if (bothOpen.value) c.push('both')
-  else if (props.rotation === 'session' && props.sessionOpen) c.push('active')
-  else if (props.rotation === 'knowledge' && props.knowledgeOpen) c.push('active')
-  if (hint.value) c.push('long-press-hint')
-  return c
-})
-
-const title = computed(() => {
-  if (bothOpen.value) return '会话列表 + 知识墙'
-  if (props.sessionOpen) return '会话列表'
-  if (props.knowledgeOpen) return '知识墙'
-  return props.rotation === 'session' ? '会话列表' : '知识墙'
-})
-
-let longPressTimer: ReturnType<typeof setTimeout> | null = null
-let isLongPress = false
-
-function onClick() {
-  if (isLongPress) return
-  emit('click')
-}
-
-function onMouseDown() {
-  isLongPress = false
-  longPressTimer = setTimeout(() => {
-    isLongPress = true
-    hint.value = true
-    setTimeout(() => hint.value = false, 300)
-    emit('longpress')
-  }, 300)
-}
-
-function onMouseUp() {
-  if (longPressTimer) {
-    clearTimeout(longPressTimer)
-    longPressTimer = null
-  }
-}
+// 2026-08-12：由「会话列表/知识墙」双图标翻转按钮，简化为单一「侧边栏」开关按钮。
+// 会话列表与知识库已合并到侧边栏面板内，由面板内 Tab 切换，不再经此按钮切换。
+defineProps<{ open: boolean }>()
+const emit = defineEmits<{ click: [] }>()
 </script>
 
 <style scoped>
@@ -99,7 +33,7 @@ function onMouseUp() {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: width 0.25s ease, background 0.15s;
+  transition: background 0.15s, color 0.15s;
   flex-shrink: 0;
   color: var(--color-text-secondary);
 }
@@ -108,95 +42,5 @@ function onMouseUp() {
 }
 .panel-toggle.active {
   color: var(--color-primary);
-}
-.panel-toggle.both {
-  width: 40px;
-  color: var(--color-primary);
-}
-
-.toggle-content {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 22px;
-}
-
-.flip-scene {
-  width: 18px;
-  height: 20px;
-  perspective: 80px;
-}
-
-.flip-inner {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-  transform-style: preserve-3d;
-}
-
-.flip-scene.flipped .flip-inner {
-  transform: rotateX(180deg);
-}
-
-.flip-front,
-.flip-back {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  backface-visibility: hidden;
-}
-
-.flip-back {
-  transform: rotateX(180deg);
-}
-
-.both-icons {
-  display: flex;
-  align-items: center;
-  gap: 1px;
-}
-
-.long-press-hint {
-  animation: pulse-hint 0.3s ease;
-}
-
-@keyframes pulse-hint {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.12); }
-  100% { transform: scale(1); }
-}
-
-.mode-fade-enter-active {
-  transition: opacity 0.15s ease, transform 0.15s ease;
-}
-.mode-fade-leave-active {
-  transition: opacity 0.1s ease, transform 0.1s ease;
-}
-.mode-fade-enter-from {
-  opacity: 0;
-  transform: scale(0.9);
-}
-.mode-fade-leave-to {
-  opacity: 0;
-  transform: scale(0.9);
-}
-
-/* ── 减弱动态偏好（prefers-reduced-motion）：停用长按脉冲与翻转/位移 ──
-   与 TuiButton/TuiModal/TuiDrawer/AgentWorkspace 同一可访问性语言：仅保留静态状态。 */
-@media (prefers-reduced-motion: reduce) {
-  .long-press-hint {
-    animation: none;
-  }
-  .flip-inner {
-    transition: none;
-  }
-  .mode-fade-enter-from,
-  .mode-fade-leave-to {
-    transform: none;
-  }
 }
 </style>

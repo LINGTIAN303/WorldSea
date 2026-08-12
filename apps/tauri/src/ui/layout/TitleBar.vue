@@ -4,7 +4,7 @@
        基础合并（2026-08-08）：MenuBar 左侧功能区（☰ 侧边栏切换 + 项目切换器 + 目录）上移并入窗口栏
        variant="space"（2026-08-09）：Agent 空间精简窗口栏——仅拖拽区 + 居中标题 + 窗口控制，
        隐藏工作台专属区（☰ 侧边栏 / 项目切换器 / 目录 / AppMenu / 视图名） -->
-  <div class="titlebar" data-tauri-drag-region>
+  <div class="titlebar" :class="{ 'is-space': variant === 'space' }" data-tauri-drag-region>
     <!-- 新增：Agent 空间/工作台 切换按钮（两种壳共用窗口栏左端；取代原 ⋯ 更多操作菜单位，由它负责双向切换） -->
     <button
       class="titlebar-shell-toggle"
@@ -12,7 +12,7 @@
       :aria-label="shellToggleTitle"
       @click="toggleShell"
     >
-      <WsIcon :name="shellToggleIcon" size="sm" />
+      <WsIcon :name="shellToggleIcon" size="sm" class="shell-toggle-icon" />
       <span class="shell-toggle-label">{{ shellToggleLabel }}</span>
     </button>
     <template v-if="variant === 'workbench'">
@@ -98,10 +98,10 @@ const currentViewLabel = computed(() => {
   return view?.label ?? ''
 })
 
-/* ── Agent 空间 / 工作台 切换按钮（2026-08-10）：按钮显示目标壳，点击双向切换 ── */
-const shellToggleLabel = computed(() => uiStore.currentShell === 'workbench' ? 'Agent 空间' : '工作台')
-const shellToggleIcon = computed(() => uiStore.currentShell === 'workbench' ? 'chat' : 'monitor')
-const shellToggleTitle = computed(() => uiStore.currentShell === 'workbench' ? '进入 Agent 空间' : '返回工作台')
+/* ── Agent 空间 / 工作台 切换按钮（2026-08-10）：显示当前所在壳 + 激活填充，点击双向切换 ── */
+const shellToggleLabel = computed(() => uiStore.currentShell === 'space' ? 'Agent 空间' : '工作台')
+const shellToggleIcon = computed(() => uiStore.currentShell === 'space' ? 'chat' : 'monitor')
+const shellToggleTitle = computed(() => uiStore.currentShell === 'space' ? '切换到工作台' : '进入 Agent 空间')
 function toggleShell() {
   uiStore.setShell(uiStore.currentShell === 'workbench' ? 'space' : 'workbench')
 }
@@ -165,6 +165,12 @@ function close() {
   /* 高于内容区，保证 ⋯ 下拉菜单浮层可见 */
   z-index: 100;
 }
+/* space 变体：顶栏并入深色带（2026-08-12，与 SpaceNavbar 同 bg-muted 连成连续深色带）
+   去掉下沿分割线，与缝隙同色融为一体 */
+.titlebar.is-space {
+  --titlebar-bg: var(--bg-muted);
+  border-bottom: none;
+}
 .titlebar-left {
   display: flex;
   align-items: center;
@@ -173,30 +179,60 @@ function close() {
   /* 不裁切：AppMenu 下拉需要溢出可见（各子元素自带 max-width + overflow 截断） */
   white-space: nowrap;
 }
-/* Agent 空间 / 工作台 切换按钮（两种壳共用窗口栏左端） */
+/* Agent 空间 / 工作台 切换按钮（2026-08-12）：默认填充激活，悬停时填充向外扩散到空心 */
 .titlebar-shell-toggle {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 6px;
   height: 26px;
   margin-left: 6px;
-  padding: 0 10px;
-  border: none;
+  padding: 0 12px;
   background: transparent;
+  color: var(--switch-bg);
   cursor: pointer;
-  border-radius: var(--radius-sm, 6px);
-  color: var(--text-secondary, var(--color-text-secondary));
+  border-radius: 999px;
   font-size: var(--font-size-sm, 12px);
+  font-weight: 600;
   white-space: nowrap;
+  border: none;
   flex-shrink: 0;
-  transition: background 0.12s, color 0.12s;
+  overflow: hidden;
+  transition: color 0.5s ease;
+}
+/* 填充层：默认覆盖整个胶囊（激活填充），悬停时向外扩散并淡出，露出空心。
+   border-radius: inherit 让填充匹配胶囊形状，避免水平椭圆 */
+.titlebar-shell-toggle::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 118%;
+  height: 118%;
+  border-radius: inherit;
+  background: var(--switch-bg);
+  transform: translate(-50%, -50%) scale(1);
+  z-index: 1;
+  transition: transform 0.5s ease, opacity 0.5s ease;
+}
+.titlebar-shell-toggle:hover::after {
+  transform: translate(-50%, -50%) scale(1.7);
+  opacity: 0;
 }
 .titlebar-shell-toggle:hover {
-  background: var(--bg-hover, var(--color-bg-hover));
-  color: var(--text-color, var(--color-text-primary));
+  color: var(--switch-bg);
 }
-.shell-toggle-label {
-  line-height: 1;
+.shell-toggle-label,
+.titlebar-shell-toggle :deep(.shell-toggle-icon) {
+  position: relative;
+  z-index: 2;
+  transition: color 0.5s ease;
+  color: var(--switch-fg);
+}
+/* 填充散开变空心后，文字/图标随之切换为主文字色，保证在各主题下对比度 */
+.titlebar-shell-toggle:hover .shell-toggle-label,
+.titlebar-shell-toggle:hover :deep(.shell-toggle-icon) {
+  color: var(--text-primary);
 }
 /* 项目切换器：紫点 + WorldSmith + 项目名 + ▾，点击打开项目管理 */
 .titlebar-switcher {

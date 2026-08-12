@@ -1,6 +1,7 @@
 <template>
   <div class="memory-shelf">
-    <div class="panel-header">
+    <!-- embedded（嵌入右侧配置 Tab）：隐藏标题与关闭，由外层 Tab 承担 -->
+    <div v-if="!embedded" class="panel-header">
       <h3 class="panel-title" :style="{ fontFamily: fontFamily }">记忆架</h3>
       <button class="panel-close-btn" @click="emit('close')" title="关闭">✕</button>
     </div>
@@ -48,6 +49,9 @@ import { kbList } from '@agent/kb/kb-store'
 import { usePersonaFont } from '../composables/usePersonaFont'
 
 const emit = defineEmits<{ close: [] }>()
+
+// 2026-08-12：embedded 嵌入右侧配置 Tab 时隐藏自身 header（标题/关闭）
+const props = withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false })
 
 const { fontFamily } = usePersonaFont()
 
@@ -110,10 +114,8 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: rgba(10, 10, 20, 0.08);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-left: 1px solid var(--color-border);
+  /* 与其他大区域面板同色：背景交给外层 .config-drawer（--color-surface-elevated），
+     移除半透明毛玻璃，避免记忆架颜色与其他面板不一致（2026-08-12） */
 }
 
 .panel-header {

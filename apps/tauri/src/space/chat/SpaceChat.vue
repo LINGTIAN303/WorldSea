@@ -19,7 +19,7 @@
           @block-action="onBlockAction"
         />
       </div>
-      <ChatInput @send="onInputSend" />
+      <ChatInput class="chat-input-dock" :class="{ docked: inputDocked }" @send="onInputSend" />
     </template>
   </div>
 </template>
@@ -42,6 +42,8 @@ const {
 
 // 读屏状态播报：生成开始/完成（视觉隐藏，仅 aria-live 播报）
 const srStatus = ref('')
+// 输入框定位：初始居中（false），发送首条消息后下沉到底端（true）
+const inputDocked = ref(false)
 watch(isStreaming, (streaming, wasStreaming) => {
   if (streaming) srStatus.value = 'Agent 正在生成回复'
   else if (wasStreaming) srStatus.value = 'Agent 回复完成'
@@ -78,6 +80,9 @@ function onBlockAction(event: { blockId: string; action: string; data?: Record<s
 
 async function onInputSend(text: string, rawAttachments: any[], references?: { id: string; name: string; type: string }[]): Promise<void> {
   if (isStreaming.value) return
+
+  // 首次发送后输入框从居中下沉到底端
+  inputDocked.value = true
 
   const images: ImageAttachment[] = []
   const files: FileAttachment[] = []
@@ -122,6 +127,23 @@ async function onInputSend(text: string, rawAttachments: any[], references?: { i
   flex-direction: column;
   height: 100%;
   min-width: 0;
+  position: relative;
+}
+
+/* 输入框初始居中，发送首条消息后（.docked）下沉到底端
+   用更高特异性覆盖 ChatInput 根元素 .chat-input-area 的 position:relative */
+.space-chat .chat-input-dock {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.space-chat .chat-input-dock.docked {
+  top: auto;
+  bottom: 0;
+  transform: translateY(0);
 }
 
 .chat-messages {

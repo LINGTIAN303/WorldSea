@@ -1,6 +1,7 @@
 <template>
   <div class="persona-mirror">
-    <div class="panel-header">
+    <!-- embedded（嵌入右侧配置 Tab）：隐藏标题与关闭，由外层 Tab 承担 -->
+    <div v-if="!embedded" class="panel-header">
       <h3 class="panel-title" :style="{ fontFamily: fontFamily }">人格镜</h3>
       <button class="panel-close-btn" @click="emit('close')" title="关闭">✕</button>
     </div>
@@ -111,6 +112,9 @@ import type { KBEntry } from '@agent/kb/kb-store'
 import type { FontLibraryEntry } from '@/composables/fontInstaller'
 
 const emit = defineEmits<{ close: [] }>()
+
+// 2026-08-12：embedded 嵌入右侧配置 Tab 时隐藏自身 header（标题/关闭）
+const props = withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false })
 
 const { persona, moodIcon, moodLabel } = useAgentPersona()
 const { fontFamily, profile } = usePersonaFont()

@@ -4,11 +4,8 @@
       <!-- 单聊模式：PanelToggle + Agent身份 -->
       <template v-if="spaceStore.mode === 'chat'">
         <PanelToggle
-          :rotation="panelRotation"
-          :session-open="panelSessionOpen"
-          :knowledge-open="panelKnowledgeOpen"
+          :open="panelSessionOpen"
           @click="emit('togglePanelClick')"
-          @longpress="emit('togglePanelLongPress')"
         />
         <div class="agent-identity" ref="identityRef">
           <AvatarBadge
@@ -87,27 +84,13 @@
           title="Provider 池管理"
         ><WsIcon name="key" size="sm" /></button>
       </template>
-      <!-- 对话上下文组：记忆架 -->
+      <!-- 右侧栏开关（执行/配置 合并，2026-08-12）：图标为与左侧相反的右侧栏图标，带运行徽标 -->
       <button
         class="nav-btn"
-        :class="{ active: spaceStore.configPanel === 'memory' }"
-        @click="spaceStore.toggleConfigPanel('memory')"
-        title="记忆架"
-      ><WsIcon name="brain" size="sm" /></button>
-      <!-- 运行组：执行面板入口（带运行徽标） -->
-      <button
-        class="nav-btn"
-        :class="{ active: spaceStore.execPanelOpen }"
-        @click="spaceStore.toggleExecPanel()"
-        title="运行面板（轨迹/活动/计划）"
-      ><WsIcon name="chart" size="sm" /><span v-if="spaceStore.activityPinned" class="nav-badge"></span></button>
-      <!-- 知识墙组：知识墙入口（Agent 设置已迁入主设置，2026-08-09） -->
-      <button
-        class="nav-btn"
-        :class="{ active: spaceStore.leftPanel === 'knowledge' }"
-        @click="emit('toggleKnowledge')"
-        title="知识墙"
-      ><WsIcon name="book" size="sm" /></button>
+        :class="{ active: spaceStore.rightPanelOpen }"
+        @click="spaceStore.toggleRightPanel()"
+        title="右侧栏（执行/配置）"
+      ><WsIcon :name="spaceStore.rightPanelOpen ? 'panel-right-close' : 'panel-right-open'" size="sm" /><span v-if="spaceStore.activityPinned" class="nav-badge"></span></button>
       <!-- 更多菜单：低频入口 -->
       <div class="more-wrap" ref="moreWrapRef">
         <button
@@ -183,16 +166,12 @@ const { currentSessionId } = useAgent()
 const sessionChatMode = ref<ChatMode | null>(null)
 
 const props = defineProps<{
-  panelRotation: 'session' | 'knowledge'
   panelSessionOpen: boolean
-  panelKnowledgeOpen: boolean
 }>()
 
 const emit = defineEmits<{
   togglePanelClick: []
-  togglePanelLongPress: []
   toggleNewSession: []
-  toggleKnowledge: []
   toggleMode: []
   openSettings: []
 }>()
@@ -364,8 +343,7 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   height: 48px;
   padding: 0 16px;
-  background: var(--color-surface-elevated);
-  border-bottom: 1px solid var(--color-border);
+  background: var(--bg-muted);
   flex-shrink: 0;
   gap: 12px;
   position: relative;
@@ -402,39 +380,61 @@ onBeforeUnmount(() => {
   gap: 4px;
 }
 
-/* 单聊 ⇄ 群聊 模式切换（群聊 UI 骨架 2026-08-09） */
+/* 单聊 ⇄ 群聊 模式切换（2026-08-12）：默认填充激活，悬停时填充向外扩散到空心 */
 .mode-switch {
-  display: flex;
+  position: relative;
+  display: inline-flex;
   align-items: center;
-  height: 20px;
-  padding: 0 8px;
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  height: 24px;
+  padding: 0 10px;
+  gap: 4px;
+  border-radius: 999px;
+  background: transparent;
+  border: none;
+  color: var(--switch-bg);
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  overflow: hidden;
+  transition: color 0.5s ease;
 }
-.mode-switch:hover {
-  background: var(--color-bg-active, var(--color-surface));
-  border-color: var(--color-border-strong);
+/* 填充层：默认覆盖整个胶囊（激活填充），悬停时向外扩散并淡出，露出空心。
+   border-radius: inherit 让填充匹配胶囊形状，避免水平椭圆 */
+.mode-switch::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 118%;
+  height: 118%;
+  border-radius: inherit;
+  background: var(--switch-bg);
+  transform: translate(-50%, -50%) scale(1);
+  z-index: 1;
+  transition: transform 0.5s ease, opacity 0.5s ease;
+}
+.mode-switch:hover::after {
+  transform: translate(-50%, -50%) scale(1.7);
+  opacity: 0;
 }
 .mode-switch:focus-visible {
   outline: none;
-  border-color: var(--color-accent);
   box-shadow: 0 0 0 3px var(--color-accent-soft);
 }
 .mode-switch-label {
+  position: relative;
+  z-index: 2;
   display: inline-flex;
   align-items: center;
   gap: 4px;
   font-size: var(--fs-2xs);
-  color: var(--color-text-secondary);
-  line-height: 1;
-  transition: color 0.15s;
-}
-.mode-switch-label.on {
-  color: var(--color-accent);
   font-weight: 600;
+  color: var(--switch-fg);
+  line-height: 1;
+  transition: color 0.5s ease;
+}
+/* 填充散开变空心后，文字随之切换为主文字色，保证在各主题下对比度 */
+.mode-switch:hover .mode-switch-label,
+.mode-switch:hover .mode-switch-label.on {
+  color: var(--text-primary);
 }
 
 .new-session-btn {
@@ -467,33 +467,6 @@ onBeforeUnmount(() => {
   text-overflow: ellipsis;
   line-height: 1.2;
   margin-top: 1px;
-}
-
-.mode-switch {
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  user-select: none;
-  padding: 4px 8px;
-  border-radius: var(--radius-mid);
-  transition: background 0.15s;
-}
-.mode-switch:hover {
-  background: var(--color-surface);
-}
-
-.mode-switch-track {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-}
-
-.mode-switch-label {
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  color: var(--color-text);
-  white-space: nowrap;
 }
 
 .mode-text-enter-active {

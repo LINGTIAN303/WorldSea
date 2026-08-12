@@ -1,11 +1,25 @@
 <template>
   <div class="session-sidebar">
-    <div class="sidebar-header">
-      <h3 class="sidebar-title">会话 <span class="title-count">{{ items.length }}</span></h3>
-      <button class="new-session-btn" @click="onNewSession" title="新建会话">+</button>
-      <button class="sidebar-close-btn" @click="emit('close')" title="关闭">✕</button>
+    <div class="sidebar-tabs">
+      <button
+        class="sidebar-tab"
+        :class="{ active: tab === 'session' }"
+        @click="tab = 'session'"
+        title="会话列表"
+      ><WsIcon name="clipboard-list" size="sm" />会话列表</button>
+      <button
+        class="sidebar-tab"
+        :class="{ active: tab === 'knowledge' }"
+        @click="tab = 'knowledge'"
+        title="知识库"
+      ><WsIcon name="book" size="sm" />知识库</button>
+      <button class="sidebar-close-btn" @click="emit('close')" title="关闭"><WsIcon name="close" size="sm" /></button>
     </div>
 
+    <template v-if="tab === 'session'">
+    <div class="sidebar-new-row">
+      <button class="new-session-btn" @click="onNewSession" title="新建会话">+</button>
+    </div>
     <div class="sidebar-search">
       <input
         v-model="searchQuery"
@@ -72,6 +86,13 @@
         </div>
       </div>
     </div>
+    </template>
+    <template v-else>
+      <!-- 知识库 Tab：KnowledgeWall 嵌入侧边栏（embedded 隐藏其自身标题/关闭，避免与 Tab 重复） -->
+      <div class="sidebar-kb">
+        <KnowledgeWall embedded @close="tab = 'session'" />
+      </div>
+    </template>
 
     <Teleport to="body">
       <div
@@ -92,8 +113,18 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick, type Ref } from 'vue'
 import { useAgent } from '@/agent/composables/useAgent'
+import { WsIcon } from '@worldsmith/ui-kit'
+import KnowledgeWall from '@/agent/panels/KnowledgeWall.vue'
+import { useSpaceStore } from '../stores/space-store'
 
 const emit = defineEmits<{ close: [] }>()
+
+// 2026-08-12：会话列表 / 知识库 共用一个侧边栏面板，经 Tab 切换（默认会话列表）
+const spaceStore = useSpaceStore()
+const tab = computed({
+  get: () => spaceStore.sessionSidebarTab,
+  set: (v: 'session' | 'knowledge') => spaceStore.setSessionSidebarTab(v),
+})
 
 /** Rust SessionInfo 镜像（useAgentRust 返回 any，显式标注避免类型扩散） */
 interface RustSessionInfo {
@@ -264,10 +295,69 @@ watch(currentSessionId, () => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: rgba(10, 10, 20, 0.08);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-right: 1px solid var(--color-border);
+  /* 与其他大区域面板同色：背景交给外层 .session-panel（--color-surface-elevated），
+     移除原先的半透明毛玻璃，避免会话栏颜色与其他面板不一致（2026-08-12） */
+}
+
+/* 侧边栏 Tab（2026-08-12）：会话列表 / 知识库 共用一个面板，面板内切换 */
+.sidebar-tabs {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  padding: 6px 10px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+.sidebar-tabs .sidebar-close-btn {
+  align-self: center;
+  margin-left: auto;
+}
+.sidebar-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 4px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  transition: color 0.15s;
+  /* 贴住下边框，让指示条与分割线对齐 */
+  margin-bottom: -1px;
+}
+.sidebar-tab:hover {
+  color: var(--color-text);
+}
+.sidebar-tab.active {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+/* 底部指示条：2px 主色线，克制地标示当前 Tab */
+.sidebar-tab::after {
+  content: '';
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  bottom: 0;
+  height: 2px;
+  border-radius: 1px;
+  background: transparent;
+  transition: background 0.15s;
+}
+.sidebar-tab.active::after {
+  background: var(--color-primary);
+}
+.sidebar-new-row {
+  display: flex;
+  justify-content: flex-end;
+  padding: 6px 10px;
+}
+.sidebar-kb {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .sidebar-header {

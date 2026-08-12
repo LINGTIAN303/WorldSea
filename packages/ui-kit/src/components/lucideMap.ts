@@ -21,6 +21,8 @@ import {
   Moon, Hand, Type, Flower, Leaf, FlaskConical, Gem, Droplet, Construction, PawPrint,
   HardDrive, GitCompare, Activity, StickyNote, Paperclip, Glasses,
   ArrowLeftRight, ListChecks, SkipForward, Square, Bot, VolumeOff, Volume2,
+  PanelLeft, PanelLeftOpen, PanelLeftClose,
+  PanelRight, PanelRightOpen, PanelRightClose,
 } from 'lucide-vue-next'
 
 const LUCIDE_MAP: Record<string, Component> = {
@@ -45,6 +47,12 @@ const LUCIDE_MAP: Record<string, Component> = {
   plus: Plus,
   minus: Minus,
   menu: Menu,
+  'panel-left': PanelLeft,
+  'panel-left-open': PanelLeftOpen,
+  'panel-left-close': PanelLeftClose,
+  'panel-right': PanelRight,
+  'panel-right-open': PanelRightOpen,
+  'panel-right-close': PanelRightClose,
   'more-horizontal': MoreHorizontal,
   expand: Maximize2,
   collapse: Minimize2,
