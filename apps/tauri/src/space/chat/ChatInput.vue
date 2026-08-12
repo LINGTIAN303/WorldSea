@@ -325,7 +325,6 @@ function onInput(e: Event) {
   const cursorPos = target.selectionStart ?? value.length
   inputText.value = value
   isExpanded.value = true
-  autoResize()
   if (summonRafId !== null) cancelAnimationFrame(summonRafId)
   summonRafId = requestAnimationFrame(() => {
     summonRafId = null
@@ -485,8 +484,12 @@ function executeCommand(item: SummonItem, paramValue?: string) {
 
 function summonRegion(item: SummonItem) {
   switch (item.payload) {
-    case 'knowledge': spaceStore.toggleLeftPanel('knowledge'); break
-    case 'memory': spaceStore.toggleConfigPanel('memory'); break
+    case 'knowledge':
+      // 2026-08-12：知识库并入侧边栏 Tab，召唤时打开侧边栏并切换到知识库
+      spaceStore.setSessionSidebarOpen(true)
+      spaceStore.setSessionSidebarTab('knowledge')
+      break
+    case 'memory': spaceStore.toggleConfigMemory(); break
     case 'exec': spaceStore.toggleExecPanel(); break
     case 'sessions': spaceStore.toggleSessionSidebar(); break
   }
@@ -663,7 +666,6 @@ function ensureRecognition(): any {
       // 最终结果提交进输入框
       inputText.value += final
       isExpanded.value = true
-      autoResize()
     }
     voiceHint.value = interim ? `正在聆听：${interim}` : '正在聆听…'
   }
@@ -757,7 +759,7 @@ function onSend() {
   kbChips.value = []
   summonChips.value = []
   attachments.value = []
-  if (textareaRef.value) textareaRef.value.style.height = 'auto'
+  // 2026-08-12：高度固定由 CSS 控制（4.5em），无需行内重置，否则会覆盖固定三行高
   emit('send', fullText, currentAttachments, currentReferences.length ? currentReferences : undefined)
 }
 
@@ -780,17 +782,6 @@ function onBlur() {
   if (!inputText.value.trim() && !attachments.value.length && !summonChips.value.length && !kbChips.value.length) {
     isExpanded.value = false
   }
-}
-
-/* ── 自适应高度 ── */
-function autoResize() {
-  nextTick(() => {
-    const el = textareaRef.value
-    if (el) {
-      el.style.height = 'auto'
-      el.style.height = Math.min(el.scrollHeight, 160) + 'px'
-    }
-  })
 }
 
 /* ── 附件（图片 / 文件） ── */
@@ -988,7 +979,6 @@ watch(() => spaceStore.inputInjection, (injection) => {
     isExpanded.value = true
     nextTick(() => {
       textareaRef.value?.focus()
-      autoResize()
     })
   }
 })
@@ -1014,27 +1004,16 @@ onBeforeUnmount(() => {
   position: relative;
 }
 
-/* ── 双层输入框 ── */
+/* ── 双层输入框（2026-08-12：整体伸缩移除，固定最大态 70% 宽度；08-13 缩至 55%） ── */
 .chat-input-box {
-  width: min(520px, calc(100% - 32px));
-  max-width: min(520px, calc(100% - 32px));
+  width: min(55%, calc(100% - 32px));
+  max-width: min(55%, calc(100% - 32px));
   background: var(--color-surface-elevated);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-2xl);
   overflow: hidden;
-  transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-              max-width 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-              border-color 0.15s,
-              box-shadow 0.15s,
-              background 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
   contain: layout paint style;
-  will-change: width;
-}
-
-.chat-input-box.expanded {
-  width: calc(88% - 40px);
-  max-width: calc(88% - 40px);
-  border-radius: var(--radius-xl);
 }
 
 .chat-input-box.focused {
@@ -1048,10 +1027,14 @@ onBeforeUnmount(() => {
   box-shadow: 0 0 0 2px var(--color-primary);
 }
 
-/* ── 上层胶囊输入区 ── */
+/* ── 上层胶囊输入区 ──
+   08-13：textarea 垂直 padding 归零，垂直留白由本层 padding 提供（上12 下4）；
+   上层固定 70px = 12 + textarea 54 + 4；首行落位固定于胶囊顶 12px 处，滚动不再偏移 */
 .input-capsule {
   display: flex;
-  padding: 8px 12px 6px;
+  padding: 12px 12px 4px;
+  height: 70px;
+  box-sizing: border-box;
 }
 
 .input-stack {
@@ -1196,34 +1179,52 @@ onBeforeUnmount(() => {
   color: var(--color-text);
 }
 
-/* textarea + 占位符 */
+/* textarea + 占位符
+   08-13：textarea 撑满上层剩余空间（flex），上层固定高度容纳约 4 行，
+   textarea 底部贴合上层底部，超出 4 行再滚动 */
 .textarea-wrap {
   position: relative;
+  flex: 1;
+  display: flex;
+  min-height: 0;
 }
 
 .chat-textarea {
-  flex: 1;
+  flex: none;
   resize: none;
   border: none;
   border-radius: var(--radius-2xl);
-  padding: 4px 8px;
+  /* 08-13：垂直 padding 归零、仅留水平；垂直留白由外层胶囊控制，
+     避免溢出滚动时浏览器压缩 padding 导致首行落位偏移 */
+  padding: 0 8px;
   font-size: var(--font-size-sm);
   font-family: inherit;
   background: transparent;
   color: var(--color-text);
   line-height: 1.5;
-  max-height: 120px;
+  /* 精确 3 行（54px），第 4 行滚动且完全不可见 */
+  height: 54px;
+  box-sizing: border-box;
   overflow-y: auto;
   outline: none;
   width: 100%;
+}
+
+/* 2026-08-12：豁免全局 textarea:focus 光环（theme.css 全局规则），
+   聚焦态统一由外层 .chat-input-box.focused 的 2px 主色环指示，避免双重胶囊长条 */
+.chat-textarea:focus {
+  box-shadow: none;
+  border-color: transparent;
 }
 
 .ph-overlay {
   position: absolute;
   top: 0;
   left: 8px;
-  padding: 4px 0;
+  /* 08-13：与 textarea 首行对齐（首行顶于内容区顶部，padding 归零） */
+  padding: 0;
   font-size: var(--font-size-sm);
+  line-height: 1.5;
   color: var(--color-text-tertiary);
   pointer-events: none;
   white-space: nowrap;
@@ -1245,14 +1246,13 @@ onBeforeUnmount(() => {
   transform: translateY(-6px);
 }
 
-/* ── 下层常驻工具栏 ── */
+/* ── 下层常驻工具栏（2026-08-12：中线移除；08-13 缩短 padding，中线下沉） ── */
 .input-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 6px;
-  padding: 6px 8px;
-  border-top: 1px solid var(--color-border);
+  padding: 4px 8px;
 }
 
 .toolbar-left {
