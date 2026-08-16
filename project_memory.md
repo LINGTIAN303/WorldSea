@@ -3,12 +3,13 @@
 
 > 本文档由主要执行 Agent 维护，记录项目概况、架构、任务状态与关键决策。
 > 任务路线独立维护于 docs/plans/ROADMAP.md，防止本文档反复更新导致任务丢失。
-> 最后更新：2026-08-08
+> 最后更新：2026-08-16（同步 README/packages 现状与 08-09~08-12 进展）
 
-## 〇、当前主线：Web 端迁入 Tauri（2026-08-08 启动）
+## 〇、Web 端迁入 Tauri（已完成，2026-08-08）
 
 > 用户决策：移除 apps/web，全部功能迁入 Tauri（唯一 GUI）；CLI 收敛为本地自动化（移除 serve）；群聊/主题编辑器首期暂缓。
-> 完整计划见 docs/plans/2026-08-08-web-to-tauri-migration-plan.md（7 Phase）
+> 完整计划见 docs/plans/2026-08-08-web-to-tauri-migration-plan.md（7 Phase 全部完成）
+> 当前主线：Tauri 桌面端打磨 + Rust Agent 深化（UI 审计批次 87-109 + 全局规则已落地）
 
 **已完成的 Phase（2026-08-08）**：
 - **Phase A ✅ 后端命令补全**：Tauri 端 core/api 整体对齐 web 端 WASM 版本（runtime/algo/retrofit/health + worldsmithCore/wasm.worker/wasmWorkerPool 三个 WASM 加载器，算法/校验复用 WASM 核心）；新增 Rust fs 命令层 fs_commands.rs（cmd_fs_write/read/list/delete，FileStorageBackend 数据落盘）。空间索引/存储健康检查无 Rust 命令 → 返回降级值
@@ -61,23 +62,23 @@
 - **仓库**：https://github.com/LINGTIAN303/WorldSmith.git
 - **许可证**：MIT
 - **版本**：0.0.0（开发中，启动页显示 v0.1.0-alpha）
-- **部署**：单二进制部署（Tauri），Web 模式可独立运行
+- **部署**：单二进制部署（Tauri 唯一 GUI，Web/CLI 已移除）
 - **项目状态**：本地开发，暂不上线与推送
 
 ## 二、技术栈
 
 | 层 | 技术 |
 |---|---|
-| 前端 | Vue 3 + TypeScript 6 + Vite 8 + Pinia + Naive UI |
+| 前端 | Vue 3 + TypeScript 6 + Vite 8 + Pinia + ui-kit（Tui* 组件 + WsIcon，Naive UI 已移除） |
 | 桌面 | Tauri 2（Rust 后端）|
 | WASM 核心 | Rust（worldsmith-core、tactical-engine）|
-| Agent (TS) | @earendil-works/pi-ai 框架 + 自定义 ToolBus（工具总线），核心在 `packages/agent-runtime` |
+| Agent (TS) | ~~@earendil-works/pi-ai~~（已移除 2026-08-08）；`packages/agent-runtime` 保留共享组件/工具/技能，不再承载 Agent 循环 |
 | Agent (Rust) | `crates/agent-runtime`（genai LLM 层 + tokio 编排），Tauri 命令桥接，主应用默认后端 |
 | 编排模式 | Rust：ToT / GoT / Multi-Agent / Supervisor / Router / Loop Engineering |
 | 图表 | ECharts、Sigma.js、D3、Graphology |
 | 编辑器 | TipTap 3 |
 | 数据库 | IndexedDB（Dexie）/ SQLite（Tauri）|
-| 构建 | pnpm monorepo（packages/ 下 13 个子包 + apps/ 三端骨架）|
+| 构建 | pnpm monorepo（packages/ 下 15 个子包 + apps/tauri 唯一 GUI）|
 
 ## 三、后端架构（2026-08-04 更新，端分离后结构）
 
@@ -88,20 +89,20 @@
 3. **crates/agent-runtime**（Rust，2026-07-25 起新增）：Rust Agent 后端 — AgentLoop/GenaiBackend/ToolBus/ToT/GoT/Multi-Agent/Supervisor/Router/Loop-Engineering/LongTask，经 Tauri 命令层暴露
 4. **apps/tauri/src-tauri**（Rust）：Tauri 桌面端命令层 — 工作流引擎、文件系统、agent_bridge（14 agent 命令 + session 6 命令 + long_task/loop_control 等）
 5. **worldsmith-skills-store**（Rust，2026-07-07 起新增）：Skills Store 独立 crate（19+ 单测，无 Tauri 依赖）
-6. **apps/cli**（Node.js）：CLI 端（commander：chat / serve，HTTP+WS 服务），python-services 微服务（crawl/convert/vector-search 能力已从旧 worldsmith-server 迁入）
-7. **packages/agent-runtime**（TS）：端无关 Agent 运行时（Agent 核心、工具、技能、会话、ExecutionAdapter）— 原 worldsmith-agent 核心已下沉至此
+6. ~~**apps/cli**（Node.js）~~：已移除（2026-08-08，含 serve / python-services；chat 能力由 Rust agent-commands 覆盖）
+7. **packages/agent-runtime**（TS）：端无关 Agent 共享层（Agent 工具/技能/会话/ExecutionAdapter 等）— 原 worldsmith-agent 核心已下沉至此；Agent 主循环已由 Rust 接管
 
-**覆盖度结论**：约 40-45% 后端功能尚未触达前端 UI；CRDT 协同算法全套（15 个函数）未接入前端。Rust Agent 编排模式（ToT/GoT/Multi-Agent/Supervisor/Router/Loop）已有前端 composable，但 UI 端到端实测待补。
+**覆盖度结论**：web-to-tauri 迁移后，Tauri 端已覆盖 27 插件 + Agent 空间 + 设置；Rust Agent 编排模式（ToT/GoT/Multi-Agent/Supervisor/Router/Loop）已有前端 composable；剩余风险为 Tauri 窗口端到端实测（托盘/快捷键/通知等）待补。
 
 ## 四、Monorepo 子包（packages/）
 
-agent-core / agent-runtime / canvas-engine / entity-core / font-kit / governor-core / memory-archive / motion-kit / perf-kit / plugin-sdk / shared-composables / theme-kit / ui-kit（共 13 个）
+agent-core / agent-runtime / canvas-engine / core-api-types / entity-core / font-kit / governor-core / memory-archive / motion-kit / perf-kit / plugin-sdk / shared-composables / shared-ui / theme-kit / ui-kit（共 15 个）
 
 ## 五、当前任务状态
 
 - **ROADMAP**：28 条任务方向，分 8 大类别（详见 docs/plans/ROADMAP.md；任务 1 ✅、任务 3 ✅、任务 4 ✅（P1-P4 + task 模式方向 A-D）、任务 24 进行中（阶段 1-4 完成，待桌面端 UI 实测），其余待启动）
 - **Rust Agent 后端**：阶段 1.1-1.5 ✅、阶段 2.0（UI 集成）✅、阶段 2.5（会话持久化）✅、Phase 2 Loop Engineering（long_task/loop_control）✅；待办：failTask 终态闭环重测、深度模式/A2UI/终端/子 Agent 补齐
-- **端分离**：✅ **全部完成（2026-08-04）**。Phase 1-6 全落地，根级 `src/`、`src-tauri/`、`worldsmith-server/`、`worldsmith-agent/` 已删除，业务 UI 全部迁入 `apps/web`（主应用入口）、`apps/tauri`、`apps/cli`；提交 `980385c`（重构主体）+ `c08c235`（文档同步）。docs/details/端分离/ 作为历史迁移记录归档
+- **端分离**：✅ **全部完成（2026-08-04，后续已收敛）**。Phase 1-6 全落地，根级 `src/`、`src-tauri/`、`worldsmith-server/`、`worldsmith-agent/` 已删除；`apps/web` 与 `apps/cli` 已于 2026-08-08 web-to-tauri 迁移后删除，当前唯一 GUI 为 `apps/tauri`。提交 `980385c`（重构主体）+ `c08c235`（文档同步）。docs/details/端分离/ 作为历史迁移记录归档
 - **工作区收敛**：@agent 统一到 packages/agent-runtime 单轨（c3856de），worldsmith-agent 冻结为端适配器宿主
 - **实际文档**（2026-08-06 四类结构）：docs/index/README.md（文档索引，摘要层）、docs/plans/（计划类：ROADMAP / agent-e2e-closure-plan / agent-orchestration-roadmap / perf-kit-plan / skills-store-spec / rust-backend-completion-plan / phase4-scheduler-plan）、docs/details/（详情类：ARCHITECTURE.md、端分离/ 迁移文档库 11 份、memory-archive/ 设计 3 份）、docs/misc/（其他：self-iteration-decisions、skills-store-test-source）
 - **注意**：docs/replication-wiki/ 目录当前不存在（会话初读到的 README 为工具缓存旧内容）；项目结构以源码与 README.md 为准
@@ -710,7 +711,7 @@ agent_end → checkShouldAutoContinue=true → autoContinueTask → backend.prom
 
 <!-- MemoryCenter:SECTION:task_state START -->
 ## 当前任务
-Tauri 端 UI/UX 全维度优化（视觉 + 交互事件 + 键盘可达性 + 性能 + 桌面成熟度）——批次 87-94 完成，视觉审查 27 项 + 交互审计 20 项 P2 + 二/三轮审计全部闭环
+Tauri 端 UI/UX 全维度优化（视觉 + 交互事件 + 键盘可达性 + 性能 + 桌面成熟度）——批次 87-109 完成；当前工作区有 Rust Agent 深化 + Space 聊天 UI 未提交改动（体检同步 2026-08-16）
 
 ## 已完成步骤
 - [x] 阶段 1.5 Tauri 集成：14 个 agent 命令 + 事件桥接 + 多实例管理 + 前端通信层
@@ -949,3 +950,16 @@ Tauri 端 UI/UX 全维度优化（视觉 + 交互事件 + 键盘可达性 + 性�
 - **验证**：14 项 Playwright 断言全 PASS（跨年/边界/aria/聚焦/方向键回环/Esc 焦点归还/选中关闭/详情栏样式）+ 双主题截图归档（b109-header-more-light/dark.png）
 - **MemoryCenter 归档**：hook a5d8d23c（批次 103-108，321 轮，阈值 90%）
 - **第七轮审计其余 P3 未做**（低收益或需业务确认）：P3-1 formatMsgTime 模板双调用、P3-2 SessionList 相对时间 60s tick、P3-8 useWorkflowEngineRun 无消费方（死代码待确认）、P3-10 SubAgentView instances-header 字号档位（视为合理层级差异）
+
+## 本次进展（2026-08-09 ~ 08-12）— a11y / 图标统一 / 模块构建器 / Space UI 重构
+- **08-09 a11y 批次**：新增跳过导航链接直达主内容（WCAG 2.4.1）；补齐 7 个官方插件 + 剩余 5 个模态/弹窗焦点陷阱与 ARIA；右键菜单升级为 WAI-ARIA Menu 模式；聊天区读屏直播区与画板键盘可达性
+- **08-10 图标体系统一**：合并 TuiIcon 到统一 WsIcon；插件视图图标标准化为 WsIcon/Lucide；清理剩余内联 SVG；工作台视图工具栏上移 R3 统一工具条
+- **08-11 module-builder 修复**：收敛自定义模块发布/删除/字段类型与图标，消除告警；运行时集合类组件按实体类型过滤数据
+- **08-12 Space UI 重构**：模式切换图标化（单级文字交互）并移除快问快答模式；Agent 空间 UI 重构与三级中性灰分区；双层胶囊输入框优化
+
+## 本次进展（2026-08-14）— 全局规则落地
+- **三份全局规则入库**（协作与沟通 / 交付与质量 / 会话韧性）：
+  - `.opencode/rules/`：`collaboration-communication.md`、`delivery-quality.md`、`session-resilience.md`（完整版，含部署凭证）
+  - `AGENTS.md`：追加 `global-rules` 块（可执行摘要，凭证不重复明文，指向 gitignore 文件）—— 每次会话自动注入
+  - `.catpaw/rules/`：`collaboration-guide.md`、`code-review-checklist.md`、`project-deployment.md` 同步合并新内容（UX 判定线、7 点硬/软分层 + 模板、docs 目录体系、压缩阈值 75%/85%、历史分叉处理、部署失败排查），保留 worldsmith 不上线不推送备注
+- **关键约束提醒**：AGENTS.md 被 git 跟踪 → 凭证类内容不得明文写入；`.opencode/`、`.catpaw/` 已 gitignore 可存敏感信息

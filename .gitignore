@@ -93,6 +93,8 @@ package-lock.json
 test-deep-mode-fix.png
 .test-screenshots/
 splash-preview/
+# dsh 环境诊断报告（本机生成，不入库）
+dsh_report_*.txt
 
 # ── Python cache ────────────────────────────────────────────────────────
 **/__pycache__/

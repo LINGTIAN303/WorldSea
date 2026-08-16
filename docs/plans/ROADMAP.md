@@ -259,3 +259,4 @@
 - **2026-07-31**：端分离检查点 5c32c78（825 文件入库）；Phase 3 真实状态复核（部分完成，业务 UI 未迁入三端）；**决策：暂停业务 UI 大迁移，回到主应用开发**；任务 19 前置（图片头像）完成
 - **2026-08-01**：Rust 长任务前端生命周期接入（useAgentRust.ts，startTask/checkpoint/断点恢复复用 taskId）
 - **2026-08-02**：工作区收敛（@agent 统一到 packages/agent-runtime 单轨 c3856de，worldsmith-agent 冻结为适配器宿主）；Tauri 端到端链路打通（20a3933）；Rust 长任务 startTask/心跳/checkpoint/SQLite 持久化实测通过，failTask 终态待重测
+- **2026-08-12**：新增 OpenWorld 可取点融入工作线（独立文档 `docs/plans/openworld-integration-plan.md`，含决策记录 001/002/003）——OpenWorld 已放弃，精华融入后删除；建议 P0 先做 HITL 权限确认 / 多场景插件 / 符号召唤分层 / @引用归属校验

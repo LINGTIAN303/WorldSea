@@ -38,7 +38,7 @@ Built with **Tauri 2** + **Vue 3** + **TypeScript** + **Rust (WASM)**.
 - Deep thinking mode with phased output
 - Group chat with multiple AI personas
 - Smart fill — context-aware field completion
-- **Dual backend**: TypeScript agent-runtime (pi-ai) + Rust agent-runtime (genai + tokio)，Tauri 桌面端默认走 Rust 后端
+- **Agent runtime**: Rust agent-runtime（genai + tokio），Tauri 命令桥接；TS 版 pi-ai 已于 2026-08-08 移除
 - **Orchestration patterns** (Rust): Tree of Thoughts、Graph of Thoughts、Multi-Agent、Supervisor、Router、Loop Engineering，均带 Tauri 命令 + 前端 composable
 - **Long-running tasks**: 心跳/checkpoint/断点恢复/协作式取消（TS + Rust 双实现）
 - **Skills Store**: 技能源仓库 manifest 规范、安装/更新/卸载、多平台互通（Claude Code / Cursor / WorldSmith）
@@ -66,8 +66,7 @@ Built with **Tauri 2** + **Vue 3** + **TypeScript** + **Rust (WASM)**.
 | Frontend | Vue 3, TypeScript 6, Vite 8, Pinia |
 | Desktop | Tauri 2 (Rust backend) |
 | WASM Core | Rust (worldsmith-core, tactical-engine) |
-| Agent (TS) | [pi-ai](https://github.com/earendil-works/pi-ai) framework + custom tool bus（`packages/agent-runtime`） |
-| Agent (Rust) | `crates/agent-runtime`（genai LLM 层 + tokio 编排，Tauri 命令桥接，主应用默认后端） |
+| Agent | `crates/agent-runtime`（genai LLM 层 + tokio 编排，Tauri 命令桥接，主应用唯一后端；TS pi-ai 已于 2026-08-08 移除） |
 | Orchestration | ToT / GoT / Multi-Agent / Supervisor / Router / Loop Engineering（Rust 编排节点） |
 | Charts | ECharts, Sigma.js, D3 |
 | Editor | TipTap |
@@ -82,6 +81,7 @@ packages/
   agent-core/       — Agent framework core (registry, bus, execution, guard)
   agent-runtime/    — 端无关 Agent 运行时（Agent 核心、工具、技能、会话、ExecutionAdapter）
   canvas-engine/    — Shared canvas rendering engine (graph, tree, geometry)
+  core-api-types/   — 跨端 API 类型契约（EntityTypeSchema 等权威定义）
   entity-core/      — Entity CRUD, relations, facets, traits
   font-kit/         — Font management & rendering
   governor-core/    — Governor core (environment, registry)
@@ -90,6 +90,7 @@ packages/
   perf-kit/         — Performance utilities (reactive, IO batching, render throttle)
   plugin-sdk/       — Plugin development SDK (components, composables)
   shared-composables — 三端共享 Vue composables（agent/companion/entity/ui）
+  shared-ui/        — 共享 UI 组件（A2UI 等）
   theme-kit/        — Theme manifest system & texture engine
   ui-kit/           — Shared UI components
 ```
@@ -161,7 +162,7 @@ WorldSmith/
   crates/
     agent-runtime/        — Rust Agent 后端（genai LLM + tokio 编排：ToT/GoT/Multi-Agent/Supervisor/Router/Loop）
     agent-commands/       — Rust 命令层（LoopControl/LongTask/SubAgent/Terminal 等）
-  packages/               — 共享 monorepo 子包（13 个，见上）
+  packages/               — 共享 monorepo 子包（15 个，见上）
   worldsmith-core/        — Rust WASM core (storage, validation, graph layout)
   worldsmith-skills-store — Rust Skills Store crate（独立 cargo test，无 Tauri 依赖）
   tactical-engine/        — Rust WASM tactical engine (pathfinding)
