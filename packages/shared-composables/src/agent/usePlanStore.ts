@@ -3,7 +3,7 @@ import { ref, computed, readonly } from 'vue'
 export interface PlanItem {
   id: string
   title: string
-  status: 'pending' | 'in_progress' | 'completed' | 'skipped'
+  status: 'pending' | 'in_progress' | 'completed' | 'skipped' | 'failed'
   description?: string
   order: number
 }

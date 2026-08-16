@@ -105,8 +105,9 @@ async function onInputSend(text: string, rawAttachments: any[], references?: { i
   }
 
   // 实体引用：构造结构化上下文块，携带 id/名称/类型供 Agent 读取实体
+  // C2 引用有效性校验：type 供 entity_get 的 expected_type 参数校验类型一致性，防引用错配
   const refsBlock = (references || []).length
-    ? '\n' + references!.map((r) => `[世界设定引用 ${r.name}（${r.type}，id=${r.id}）]`).join('\n')
+    ? '\n' + references!.map((r) => `[世界设定引用 ${r.name}（type=${r.type}，id=${r.id}）\n  读取时调用 entity_get，并传 expected_type="${r.type}" 校验引用有效性]`).join('\n')
     : ''
 
   const finalText = (text || (images.length ? '请描述这张图片' : '')) + refsBlock

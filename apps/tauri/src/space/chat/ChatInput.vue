@@ -112,13 +112,16 @@
           <button class="tool-btn" type="button" title="@ 引用实体" aria-label="插入引用符号" @click="insertPrefix('@')">
             <WsIcon name="document" size="sm" />
           </button>
-          <button class="tool-btn" type="button" title="/ 技能指令" aria-label="插入技能符号" @click="insertPrefix('/')">
+          <button class="tool-btn" type="button" title="/ 指令与技能" aria-label="插入指令符号" @click="insertPrefix('/')">
             <WsIcon name="zap" size="sm" />
           </button>
-          <button class="tool-btn" type="button" title="！区域面板" aria-label="插入区域符号" @click="insertPrefix('！')">
+          <button class="tool-btn" type="button" title="！创作区视图" aria-label="插入创作区符号" @click="insertPrefix('！')">
             <WsIcon name="book" size="sm" />
           </button>
-          <button class="tool-btn" type="button" title="# 命令" aria-label="插入命令符号" @click="insertPrefix('#')">
+          <button class="tool-btn" type="button" title="~ Agent 资产" aria-label="插入资产符号" @click="insertPrefix('~')">
+            <WsIcon name="archive" size="sm" />
+          </button>
+          <button class="tool-btn" type="button" title="# 应用层面板" aria-label="插入面板符号" @click="insertPrefix('#')">
             <WsIcon name="settings" size="sm" />
           </button>
           <button class="tool-btn" :class="{ 'voice-active': isListening }" type="button" title="语音输入（麦克风转文字）" aria-label="语音输入" @click="toggleVoice">
@@ -129,6 +132,17 @@
           <span class="mode-label">{{ modeLabel }}</span>
         </div>
         <div class="toolbar-right">
+          <button
+            class="tool-btn router-toggle"
+            :class="{ active: routerEnabled }"
+            type="button"
+            :title="`四管线路由${routerEnabled ? '已开启' : '已关闭'}（点击切换）`"
+            :aria-label="`四管线路由开关：${routerEnabled ? '开启' : '关闭'}`"
+            :aria-pressed="routerEnabled"
+            @click="toggleRouter"
+          >
+            <WsIcon name="workflow" size="sm" />
+          </button>
           <ModelSwitcher :is-expanded="isExpanded" @change="onModelChange" />
           <button
             class="send-btn"
@@ -163,12 +177,13 @@ import { useSpaceStore, type InputInjectionChip } from '../stores/space-store'
 import { useAgent } from '@/agent/composables/useAgent'
 import { modelSupportsVision } from '@worldsmith/agent-runtime'
 import { useSettingsStore } from '@/stores/settingsStore'
-import { useEntityStore } from '@worldsmith/entity-core'
+import { usePluginStore, useEntityStore } from '@worldsmith/entity-core'
+import { useUIStore } from '@/stores/uiStore'
 import { extractDocumentText } from '@/composables/useFileExtract'
 import ModelSwitcher from './ModelSwitcher.vue'
 import SummonMenu from './SummonMenu.vue'
 import {
-  SUMMON_ITEMS, filterByPrefix, getReferenceEntries, matchesFilter,
+  buildSummonItems, filterByPrefix, getReferenceEntries, matchesFilter,
   type SummonItem, type ChatMode,
 } from './summon-registry'
 
@@ -203,7 +218,9 @@ const emit = defineEmits<{
 
 const spaceStore = useSpaceStore()
 const settingsStore = useSettingsStore()
-const { isStreaming, abort } = useAgent()
+const pluginStore = usePluginStore()
+const uiStore = useUIStore()
+const { isStreaming, abort, currentSessionId, setRouterEnabled, currentSessionRouterEnabled } = useAgent()
 
 function currentModelId(): string {
   return settingsStore.aiProviderMode === 'cloud'
@@ -222,6 +239,25 @@ const isDragOver = ref(false)
 const attachments = ref<FileAttachment[]>([])
 const visionWarning = ref('')
 const kbChips = ref<InputInjectionChip[]>([])
+/** 四管线路由开关（A3 会话级，默认开启；关闭后发送跳过路由意图分类） */
+const routerEnabled = ref(true)
+/** 切换四管线路由开关并写穿 Rust 后端 */
+async function toggleRouter() {
+  routerEnabled.value = !routerEnabled.value
+  const sid = currentSessionId.value
+  if (sid) {
+    try {
+      await setRouterEnabled(sid, routerEnabled.value)
+    } catch (e) {
+      toastWarn('切换四管线路由失败，已回滚')
+      routerEnabled.value = !routerEnabled.value
+    }
+  }
+}
+// 切换会话时同步为持久化的路由开关状态（无会话/未记录默认开启）
+watch(currentSessionId, () => {
+  routerEnabled.value = currentSessionRouterEnabled.value
+})
 /** 召唤 chips（/技能 + @引用，随消息发送） */
 const summonChips = ref<SummonItem[]>([])
 
@@ -266,6 +302,15 @@ const modeLabel = computed(() => {
 })
 
 /* ── 召唤菜单可选项（按模式） ── */
+
+/** 创作区视图源：插件视图注册表（不含 Agent 主界面） */
+const creationViews = computed<{ id: string; label: string; icon: string }[]>(() =>
+  pluginStore.views.map((v) => ({ id: v.id, label: v.label, icon: v.icon })),
+)
+
+/** 统一召唤条目（# 面板 / ~ 资产 / / 指令+技能 / ！创作区），@ 另行动态生成 */
+const allSummonItems = computed<SummonItem[]>(() => buildSummonItems(creationViews.value))
+
 const summonItems = computed<SummonItem[]>(() => {
   if (menuMode.value === 'references') return referenceItems.value
   if (menuMode.value === 'params' && pendingCommand.value?.params?.[0]?.type === 'enum') {
@@ -283,7 +328,7 @@ const summonItems = computed<SummonItem[]>(() => {
   }
   if (!summonPrefix.value) return []
   if (summonPrefix.value === '@') return getReferenceEntries().filter((i) => matchesFilter(i, summonFilter.value))
-  return filterByPrefix(SUMMON_ITEMS, summonPrefix.value)
+  return filterByPrefix(allSummonItems.value, summonPrefix.value).filter((i) => matchesFilter(i, summonFilter.value))
 })
 
 const activeFilter = computed(() => {
@@ -362,7 +407,7 @@ function detectSummon(value: string, cursorPos: number) {
     if (m) {
       const prefix = m[2] === '!' ? '！' : m[2]
       const filter = m[3]
-      const items = prefix === '@' ? getReferenceEntries() : filterByPrefix(SUMMON_ITEMS, prefix)
+      const items = prefix === '@' ? getReferenceEntries() : filterByPrefix(allSummonItems.value, prefix)
       if (items.length > 0) {
         summonSymbolStart = cursorPos - filter.length - 1
         summonPrefix.value = prefix
@@ -458,8 +503,11 @@ function handleSummonSelect(item: SummonItem) {
       closeSummonMenu()
       break
     case 'skill':
+    case 'pipeline':
       addChip(item)
       break
+    case 'panel':
+    case 'asset':
     case 'region':
       summonRegion(item)
       removeSummonSymbolKeepDraft()
@@ -477,21 +525,40 @@ function executeCommand(item: SummonItem, paramValue?: string) {
     return
   }
   if (item.payload === 'help') {
-    const summary = SUMMON_ITEMS.map((i) => `${i.prefix}${i.name}`).join('  ')
+    const summary = allSummonItems.value.map((i) => `${i.prefix}${i.name}`).join('  ')
     toastInfo(`召唤指令：${summary}；输入 @ 可引用世界设定实体`)
   }
 }
 
 function summonRegion(item: SummonItem) {
-  switch (item.payload) {
-    case 'knowledge':
-      // 2026-08-12：知识库并入侧边栏 Tab，召唤时打开侧边栏并切换到知识库
-      spaceStore.setSessionSidebarOpen(true)
-      spaceStore.setSessionSidebarTab('knowledge')
-      break
-    case 'memory': spaceStore.toggleConfigMemory(); break
-    case 'exec': spaceStore.toggleExecPanel(); break
-    case 'sessions': spaceStore.toggleSessionSidebar(); break
+  // # 应用层面板
+  if (item.kind === 'panel') {
+    switch (item.payload) {
+      case 'exec': spaceStore.toggleExecPanel(); break
+      case 'config': spaceStore.toggleConfigMemory(); break
+      case 'sessions': spaceStore.toggleSessionSidebar(); break
+    }
+    return
+  }
+  // ~ Agent 持久化资产
+  if (item.kind === 'asset') {
+    switch (item.payload) {
+      case 'knowledge':
+        spaceStore.setSessionSidebarOpen(true)
+        spaceStore.setSessionSidebarTab('knowledge')
+        break
+      case 'memory': spaceStore.toggleConfigMemory(); break
+    }
+    return
+  }
+  // ！创作区视图 → 切换到插件视图
+  if (item.kind === 'region') {
+    const view = pluginStore.getView(item.payload)
+    if (view) {
+      uiStore.setView(view.id)
+      uiStore.viewComponent = view.component
+    }
+    return
   }
 }
 
@@ -729,8 +796,10 @@ function stopVoice() {
 /* ── 发送 ── */
 function buildFullText(): string {
   const kbPrefix = kbChips.value.map((c) => c.ref).join('')
+  // 管线前缀必须在最前（作为消息首 token，供后端 extract_force_pipeline 命中）
+  const pipelinePrefix = summonChips.value.filter((c) => c.kind === 'pipeline').map((c) => c.payload).join('')
   const skillPrefix = summonChips.value.filter((c) => c.kind === 'skill').map((c) => c.payload).join('')
-  return (kbPrefix + skillPrefix + inputText.value.trim()).trim()
+  return (kbPrefix + pipelinePrefix + skillPrefix + inputText.value.trim()).trim()
 }
 
 function collectReferences(): ReferencePayload[] {
@@ -1077,6 +1146,16 @@ onBeforeUnmount(() => {
   border-color: color-mix(in srgb, var(--color-success, #10b981) 40%, transparent);
 }
 
+/* 四管线 Chip（force_pipeline 强制路由）——琥珀色区分，前缀加粗 */
+.chip-pipeline {
+  color: var(--color-warning, #d97706);
+  background: color-mix(in srgb, var(--color-warning, #d97706) 10%, transparent);
+  border-color: color-mix(in srgb, var(--color-warning, #d97706) 40%, transparent);
+}
+.chip-pipeline .chip-prefix {
+  font-weight: 700;
+}
+
 .chip-prefix {
   font-family: var(--font-mono, ui-monospace, monospace);
   font-weight: 600;
@@ -1304,6 +1383,15 @@ onBeforeUnmount(() => {
   color: var(--color-danger, #e74c3c);
   background: color-mix(in srgb, var(--color-danger, #e74c3c) 12%, transparent);
   animation: stop-pulse 1.2s ease-in-out infinite;
+}
+
+/* A3 四管线路由开关：开启点亮，关闭置灰 */
+.tool-btn.router-toggle.active {
+  color: var(--color-primary, #3b82f6);
+  background: color-mix(in srgb, var(--color-primary, #3b82f6) 12%, transparent);
+}
+.tool-btn.router-toggle:not(.active) {
+  opacity: 0.55;
 }
 
 .voice-hint {

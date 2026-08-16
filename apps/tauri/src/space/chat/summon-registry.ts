@@ -1,18 +1,22 @@
 /**
- * 召唤系统注册表（summon registry）
+ * 召唤系统注册表（summon registry）—— 统一符号召唤分层（D1）
  *
- * 四符号统一入口，触发方式在 ChatInput 内实现（任意光标位置 + rAF 节流）：
- *   # 命令   → 立即执行（切换模式 / 帮助）
- *   / 技能   → 转成 Chip 随消息发送（附加指令前缀）
- *   ！区域   → 召唤面板 / 视图
- *   @ 引用   → 从世界设定实体库异步拉列表 → Chip 随消息发送
+ * 五符号统一入口，触发方式在 ChatInput 内实现（任意光标位置 + rAF 节流）：
+ *   # 应用层面板 → 打开面板（运行 / 配置 / 会话列表）
+ *   ~ Agent 资产 → 打开持久化资产面板（记忆架 / 知识墙）
+ *   ！创作区     → 切换插件创作视图（角色 / 区域 / 概念 / 物品 …）
+ *   / 指令+技能  → 立即执行指令（模式切换 / 帮助）；技能转 Chip 随消息发送
+ *   @ 引用       → 从世界设定实体库异步拉列表 → Chip 随消息发送
+ *
+ * # / ~ 面板为静态定义；！创作区由 buildSummonItems 从插件视图注册表动态生成；
+ * @ 引用由 getReferenceEntries 从实体类型注册表动态生成。
  */
 import type { ChatMode } from '@worldsmith/shared-composables/agent/useAgent'
 import { entitySchemaRegistry } from '@worldsmith/entity-core'
 
 export type { ChatMode }
 
-export type SummonKind = 'command' | 'skill' | 'region' | 'reference'
+export type SummonKind = 'panel' | 'asset' | 'region' | 'skill' | 'command' | 'reference' | 'pipeline'
 
 export interface SummonParam {
   type: 'enum'
@@ -37,17 +41,35 @@ export interface SummonItem {
 }
 
 /** 召唤符号集合（！兼容英文 ! 输入，统一归一化为中文 ！） */
-export const SUMMON_PREFIXES = ['#', '/', '！', '!', '@'] as const
+export const SUMMON_PREFIXES = ['#', '/', '！', '!', '~', '@'] as const
 
-/** 对话模式枚举（与 space-store ChatMode 对齐，供 #模式 二级菜单） */
+/** 对话模式枚举（与 space-store ChatMode 对齐，供 /模式 二级菜单） */
 export const CHAT_MODE_ENUM: ChatMode[] = ['deep', 'explore', 'task']
 
-/** 内置召唤条目（后续可按需扩展） */
-export const SUMMON_ITEMS: SummonItem[] = [
-  // ── # 命令（立即执行）──
+/**
+ * 应用层面板（#）——静态定义，打开国际化控制器面板。
+ * payload 与 space-store 右侧面板/侧边栏操作对齐。
+ */
+export const APP_PANELS: SummonItem[] = [
+  { id: 'panel-exec', prefix: '#', name: '运行面板', description: '打开运行面板（轨迹/活动/计划）', icon: 'chart', kind: 'panel', payload: 'exec' },
+  { id: 'panel-config', prefix: '#', name: '配置面板', description: '打开配置面板（记忆/人格）', icon: 'settings', kind: 'panel', payload: 'config' },
+  { id: 'panel-sessions', prefix: '#', name: '会话列表', description: '打开会话侧边栏', icon: 'chat', kind: 'panel', payload: 'sessions' },
+]
+
+/**
+ * Agent 持久化资产（~）——静态定义，打开资产面板。
+ * knowledge 并入侧边栏 Tab，memory 为配置面板内记忆子页。
+ */
+export const AGENT_ASSETS: SummonItem[] = [
+  { id: 'asset-knowledge', prefix: '~', name: '知识墙', description: '打开知识墙（侧边栏）', icon: 'book', kind: 'asset', payload: 'knowledge' },
+  { id: 'asset-memory', prefix: '~', name: '记忆架', description: '打开记忆架（配置面板）', icon: 'brain', kind: 'asset', payload: 'memory' },
+]
+
+/** 指令（/ 立即执行）——模式切换 / 帮助 */
+export const COMMAND_ITEMS: SummonItem[] = [
   {
     id: 'cmd-mode',
-    prefix: '#',
+    prefix: '/',
     name: '模式',
     description: '切换对话模式（深度/探索/任务）',
     icon: 'chat',
@@ -57,25 +79,71 @@ export const SUMMON_ITEMS: SummonItem[] = [
   },
   {
     id: 'cmd-help',
-    prefix: '#',
+    prefix: '/',
     name: '帮助',
     description: '查看召唤指令说明',
     icon: 'help',
     kind: 'command',
     payload: 'help',
   },
-  // ── / 技能（Chip，随消息发送）──
+]
+
+/** 技能（/ Chip，随消息发送） */
+export const SKILL_ITEMS: SummonItem[] = [
   { id: 'skill-detail', prefix: '/', name: '深度解析', description: '逐步深入分析问题', icon: 'brain', kind: 'skill', payload: '请逐步深入分析：' },
   { id: 'skill-brainstorm', prefix: '/', name: '创意发散', description: '头脑风暴多种可能', icon: 'lightbulb', kind: 'skill', payload: '请进行创意发散：' },
   { id: 'skill-summarize', prefix: '/', name: '精炼总结', description: '提取核心要点', icon: 'list', kind: 'skill', payload: '请精炼总结：' },
   { id: 'skill-code', prefix: '/', name: '代码生成', description: '生成代码实现', icon: 'code', kind: 'skill', payload: '请生成代码：' },
   { id: 'skill-outline', prefix: '/', name: '大纲', description: '生成结构化大纲', icon: 'outline', kind: 'skill', payload: '请先生成大纲：' },
-  // ── ！区域（召唤面板 / 视图）──
-  { id: 'region-knowledge', prefix: '！', name: '知识墙', description: '打开知识墙面板', icon: 'book', kind: 'region', payload: 'knowledge' },
-  { id: 'region-memory', prefix: '！', name: '记忆架', description: '打开记忆架', icon: 'brain', kind: 'region', payload: 'memory' },
-  { id: 'region-exec', prefix: '！', name: '运行面板', description: '打开运行面板（轨迹/活动/计划）', icon: 'chart', kind: 'region', payload: 'exec' },
-  { id: 'region-sessions', prefix: '！', name: '会话列表', description: '打开会话列表', icon: 'chat', kind: 'region', payload: 'sessions' },
 ]
+
+/**
+ * 四管线（/ Chip，随消息发送，force_pipeline 强制路由）
+ *
+ * A3 Routing 四管线：payload 注入 `/管线` 前缀，作为消息首 token，
+ * 后端 `extract_force_pipeline` 命中后跳过 LLM 意图分类直接路由到对应管线。
+ * 非强约束：仅当消息首 token 命中时生效，其余走 LLM(3s 超时降级关键词)。
+ */
+export const PIPELINE_ITEMS: SummonItem[] = [
+  { id: 'pipeline-query', prefix: '/', name: '查询', description: '强制查询管线：事实检索、快速问答', icon: 'search', kind: 'pipeline', payload: '/查询 ' },
+  { id: 'pipeline-research', prefix: '/', name: '研究', description: '强制研究管线：深度调研、文献综述', icon: 'book-open', kind: 'pipeline', payload: '/调研 ' },
+  { id: 'pipeline-experiment', prefix: '/', name: '实验', description: '强制实验管线：数据分析、代码计算', icon: 'flask-conical', kind: 'pipeline', payload: '/分析 ' },
+  { id: 'pipeline-compose', prefix: '/', name: '创作', description: '强制创作管线：写作、润色、内容生成', icon: 'pen-line', kind: 'pipeline', payload: '/写作 ' },
+]
+
+/** 创作区视图源（！）——由插件视图注册表驱动，见 buildSummonItems */
+export interface CreationViewSource {
+  id: string
+  label: string
+  icon: string
+}
+
+/**
+ * 统一构建全部召唤条目（D1 分层）。
+ * 传入插件视图注册表（pluginStore.views 或 pluginAPI.getViews()）作为 ！创作区来源，
+ * 与静态 # 面板 / ~ 资产 / / 指令+技能 合并；@ 引用由 getReferenceEntries 单独动态生成。
+ */
+export function buildSummonItems(creationViews: CreationViewSource[] = []): SummonItem[] {
+  const items: SummonItem[] = [
+    ...APP_PANELS,
+    ...AGENT_ASSETS,
+    ...COMMAND_ITEMS,
+    ...SKILL_ITEMS,
+    ...PIPELINE_ITEMS,
+  ]
+  for (const v of creationViews) {
+    items.push({
+      id: `region-${v.id}`,
+      prefix: '！',
+      name: v.label,
+      description: '切换到创作视图',
+      icon: v.icon || 'layout',
+      kind: 'region',
+      payload: v.id,
+    })
+  }
+  return items
+}
 
 /**
  * 生成 @ 引用条目（动态读取实体类型注册表）

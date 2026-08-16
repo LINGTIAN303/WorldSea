@@ -51,6 +51,16 @@
         icon-mode
         class="mode-segmented"
       />
+      <!-- B1 场景选择器（MVP 默认 worldbuilding）：决定会话身份与工具集 -->
+      <div class="scene-select" title="Agent 场景（决定身份与工具集，切换将新建对应场景会话）">
+        <WsIcon name="globe" size="xs" class="scene-icon" />
+        <TuiSelect
+          :model-value="currentScenarioId"
+          size="sm"
+          :options="scenarioOptions"
+          @update:model-value="onScenarioChange"
+        />
+      </div>
     </div>
 
     <div class="navbar-center">
@@ -155,13 +165,14 @@ import { WsIcon } from '@worldsmith/ui-kit'
 import AvatarBadge from '@/ui/AvatarBadge.vue'
 import PanelToggle from './PanelToggle.vue'
 import TuiSegmented from '@/components/ui/TuiSegmented.vue'
+import TuiSelect from '@/components/ui/TuiSelect.vue'
 // 群聊模式专属入口（2026-08-09 群聊 UI 骨架恢复后迁移）
 import ProviderSlotEditor from './group-chat/components/ProviderSlotEditor.vue'
 import AgentManagerPanel from './group-chat/components/AgentManagerPanel.vue'
 
 const { fontFamily, profile } = usePersonaFont()
 const fontStore = useFontStore()
-const { currentSessionId } = useAgent()
+const { currentSessionId, newSession, listScenarios } = useAgent()
 // 会话锁定模式：Rust 端无此概念（深度模式经 thinkingLevel 控制），恒 null 不锁定
 const sessionChatMode = ref<ChatMode | null>(null)
 
@@ -218,6 +229,37 @@ async function updateSessionInfo() {
 }
 
 watch(currentSessionId, () => { updateSessionInfo() })
+
+// ── B1 场景选择器（多场景，MVP 默认 worldbuilding） ──
+/** 可用场景列表（源自 Rust list_scenarios） */
+const scenarioOptions = ref<{ value: string; label: string }[]>([])
+/** 当前场景 ID（场景为会话级，缺省 worldbuilding） */
+const currentScenarioId = ref('worldbuilding')
+
+/** 加载可用场景（B1；失败静默，默认 worldbuilding 仍可用） */
+async function loadScenarios() {
+  try {
+    const list: { id: string; display_name: string }[] = await listScenarios()
+    scenarioOptions.value = list.map((s) => ({ value: s.id, label: s.display_name }))
+    if (scenarioOptions.value.length > 0 && !scenarioOptions.value.some((o) => o.value === currentScenarioId.value)) {
+      currentScenarioId.value = scenarioOptions.value[0].value
+    }
+  } catch (err) {
+    console.warn('[scenario] 加载场景失败，保持默认 worldbuilding:', err)
+  }
+}
+
+/** 场景切换：场景为会话级，切换即用新场景新建会话 */
+async function onScenarioChange(scenarioId: string) {
+  currentScenarioId.value = scenarioId
+  try {
+    await newSession('新会话', undefined, scenarioId)
+    const label = scenarioOptions.value.find((o) => o.value === scenarioId)?.label ?? scenarioId
+    window.dispatchEvent(new CustomEvent('ws-scenario-changed', { detail: { id: scenarioId, label } }))
+  } catch (err) {
+    console.warn('[scenario] 切换场景失败:', err)
+  }
+}
 
 // ── 模式分段滑块（2026-08-09 由下拉改滑块）──
 // 选项源：单聊三模式（快问快答已移除，2026-08-12）/ 群聊两模式（消费 {value,label,icon}）
@@ -328,6 +370,8 @@ onMounted(() => {
   document.addEventListener('click', onDocClick)
   updateSessionInfo()
   window.addEventListener('ws-session-title-updated', updateSessionInfo)
+  // B1：加载可用场景（默认 worldbuilding）
+  loadScenarios()
 })
 
 onBeforeUnmount(() => {
@@ -593,6 +637,17 @@ onBeforeUnmount(() => {
 /* iconMode 下：图标与文字间距微调，保持顶栏紧凑 */
 .mode-segmented :deep(.tui-seg.is-icon-mode .tui-seg__item) {
   gap: 4px;
+}
+
+/* B1 场景选择器：紧凑适配 48px 顶栏 */
+.scene-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 4px;
+}
+.scene-icon {
+  color: var(--color-text-secondary);
 }
 
 .more-wrap {

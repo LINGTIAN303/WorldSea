@@ -18,8 +18,9 @@ export {
 } from '@worldsmith/shared-composables/agent/useAgent'
 
 import { ref, computed, readonly } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
+import { invoke as tauriInvoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+import { useConfirm } from '@worldsmith/ui-kit'
 import type {
   AgentMessage,
   AgentEvent,
@@ -34,6 +35,37 @@ import type {
   MCPConnectionState,
 } from '@agent/index'
 import type { DeepSegment } from '@worldsmith/shared-composables/agent/useAgent'
+import { usePlanStore } from '@worldsmith/shared-composables/agent/usePlanStore'
+import { useActivityLog, type ActivityLogEntry } from './useActivityLog'
+
+// ── 浏览器 preview 兼容：非 Tauri 环境（window.__TAURI_INTERNALS__ 缺失）下
+//    @tauri-apps/api/core 的 invoke 为 undefined。这里用 safeInvoke 兜底，
+//    使纯浏览器（vite dev）能展示 UI（如场景下拉），真实功能需 Tauri 桌面运行。
+const isTauriRuntime = (): boolean =>
+  !!(window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__
+
+/** 浏览器 preview 的命令 mock（仅非 Tauri 环境生效） */
+function mockInvoke(cmd: string): unknown {
+  switch (cmd) {
+    case 'list_scenarios':
+      return [{ id: 'worldbuilding', display_name: '世界构建' }]
+    case 'new_session':
+      return { id: `mock-session-${Date.now()}` }
+    case 'list_sessions':
+      return []
+    default:
+      // 无法桥接 Rust 的命令返回空对象，避免调用方因 undefined 崩溃
+      return {}
+  }
+}
+
+/** 安全 invoke：Tauri 环境走真实 IPC；浏览器 preview 走 mock */
+function safeInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+  if (!isTauriRuntime()) {
+    return Promise.resolve(mockInvoke(cmd) as unknown as T)
+  }
+  return tauriInvoke<T>(cmd, args)
+}
 
 // ─── Rust DeepPhaseChanged 事件 Payload ──────────────────────────────
 interface RustDeepPhaseChangedPayload {
@@ -100,6 +132,8 @@ interface RustSessionInfo {
   message_count: number
   title: string
   pinned: boolean
+  /** A3 四管线路由开关（持久化） */
+  routerEnabled: boolean
 }
 
 /** Rust `agent_runtime::types::OrchestratorMessage` 镜像 */
@@ -120,6 +154,18 @@ interface RustStateSnapshot {
   messages: RustMessage[]
   model: string
   thinking_level: string | null
+  /** A4 Plan-Exec：当前任务计划（null=无计划） */
+  plan: RustPlanItem[] | null
+}
+
+/** Rust `PlanItem` 镜像（snake_case 字段，与 plan_commands/PlanCreated 一致） */
+interface RustPlanItem {
+  id: string
+  title: string
+  status: 'pending' | 'in_progress' | 'completed' | 'skipped' | 'failed'
+  description?: string | null
+  order: number
+  output?: string | null
 }
 
 /** Rust `agent_commands::SendMessageResult` 镜像 */
@@ -202,6 +248,13 @@ const messages = ref<AgentMessage[]>([])
 const isStreaming = ref(false)
 /** 会话列表（listSessions 结果） */
 const sessionList = ref<RustSessionInfo[]>([])
+/** 当前会话的四管线路由开关（A3，持久化；无会话/缺省视为开启） */
+const currentSessionRouterEnabled = computed<boolean>(() => {
+  const sid = currentSessionId.value
+  if (!sid) return true
+  const s = sessionList.value.find((x) => x.id === sid)
+  return s ? s.routerEnabled : true
+})
 /** 是否已初始化（Tauri 端无需异步初始化，直接置 true） */
 const isInitialized = ref(true)
 
@@ -694,16 +747,225 @@ function teardownStreamListener(sessionId: string): void {
   }
 }
 
+// ─── HITL 工具确认事件监听（agent:confirm:{session_id}，A5）────────────────────
+
+/** Rust `ConfirmationRequested` / `ConfirmationResolved` 事件 payload 镜像 */
+interface RustConfirmPayload {
+  /** 确认请求唯一 ID（回传 cmd_agent_confirm 时原样返回） */
+  confirmId: string
+  /** 待确认的工具名 */
+  toolName: string
+  /** 待确认的工具参数 */
+  args?: Record<string, unknown>
+  /** 仅 resolved 事件：`resolved` 标记 */
+  type?: 'resolved'
+  /** 仅 resolved 事件：审批结果 */
+  approved?: boolean
+}
+
+/** HITL 确认事件监听器清理函数（按 sessionId 索引） */
+const confirmUnlistenFns = new Map<string, UnlistenFn>()
+
+/**
+ * 为指定会话设置 HITL 工具确认监听（A5）
+ *
+ * 监听 `agent:confirm:{session_id}`，收到 `ConfirmationRequested` 后弹确认框，
+ * 用户选择后经 `cmd_agent_confirm` 回传放行/拒绝。幂等：已存在监听器则直接返回。
+ */
+async function setupConfirmListener(sessionId: string): Promise<void> {
+  if (confirmUnlistenFns.has(sessionId)) return
+
+  const eventName = `agent:confirm:${sessionId}`
+  try {
+    const unlisten = await listen<RustConfirmPayload>(eventName, async (e) => {
+      const payload = e.payload
+      // resolved 事件：Rust 已解决（弹窗由 doConfirm/doCancel 关闭），无需处理
+      if (payload.type === 'resolved') return
+      const { confirm } = useConfirm()
+      const argSummary = payload.args ? JSON.stringify(payload.args).slice(0, 200) : ''
+      const approved = await confirm({
+        type: 'danger',
+        title: '危险操作确认',
+        description: `工具 "${payload.toolName}" 将执行${argSummary ? `\n参数：${argSummary}` : ''}\n是否继续？`,
+      })
+      await safeInvoke('cmd_agent_confirm', {
+        sessionId,
+        confirmId: payload.confirmId,
+        approved,
+      })
+    })
+    confirmUnlistenFns.set(sessionId, unlisten)
+  } catch (err) {
+    console.error(`[useAgentRust] listen ${eventName} 失败:`, err)
+  }
+}
+
+/** 清理指定会话的 HITL 确认事件监听 */
+function teardownConfirmListener(sessionId: string): void {
+  const unlisten = confirmUnlistenFns.get(sessionId)
+  if (unlisten) {
+    unlisten()
+    confirmUnlistenFns.delete(sessionId)
+  }
+}
+
+// ─── A4 Plan-Exec 计划事件监听（agent:event:plan_created / plan_update）────────
+
+/** Rust `PlanCreated` 事件 payload：`{ items: PlanItem[] }`（snake_case 字段） */
+interface RustPlanCreatedPayload {
+  items: Array<{
+    id: string
+    title: string
+    status: 'pending' | 'in_progress' | 'completed' | 'skipped' | 'failed'
+    description?: string
+    order: number
+    output?: string | null
+  }>
+}
+
+/** Rust `PlanStepUpdate` 事件 payload：`{ itemId, status, output? }` */
+interface RustPlanUpdatePayload {
+  itemId: string
+  status: 'pending' | 'in_progress' | 'completed' | 'skipped' | 'failed'
+  output?: unknown
+}
+
+/** Rust `PlanReplanned` 事件 payload：`{ items: PlanItem[] }`（整体替换后的完整计划） */
+interface RustPlanReplannedPayload {
+  items: RustPlanItem[]
+}
+
+/** 计划事件监听器清理函数（按 sessionId 索引） */
+const planUnlistenFns = new Map<string, UnlistenFn>()
+
+/**
+ * 为指定会话设置计划事件监听
+ *
+ * 监听 `agent:event:plan_created:{session_id}` / `agent:event:plan_update:{session_id}`，
+ * 收到 Rust payload 后更新 `usePlanStore`，驱动 PlanPanel 展示。幂等：已存在监听器则直接返回。
+ */
+async function setupPlanListener(sessionId: string): Promise<void> {
+  if (planUnlistenFns.has(sessionId)) return
+
+  const createdEvent = `agent:event:plan_created:${sessionId}`
+  const updateEvent = `agent:event:plan_update:${sessionId}`
+  const replannedEvent = `agent:event:plan_replanned:${sessionId}`
+  try {
+    const unlistenCreated = await listen<RustPlanCreatedPayload>(createdEvent, (e) => {
+      usePlanStore().createPlan(e.payload.items)
+    })
+    const unlistenUpdate = await listen<RustPlanUpdatePayload>(updateEvent, (e) => {
+      usePlanStore().updateItem(e.payload.itemId, e.payload.status)
+    })
+    const unlistenReplanned = await listen<RustPlanReplannedPayload>(replannedEvent, (e) => {
+      // Replanner：整体替换为重规划后的完整计划（保留失败项及之前已完成进度）
+      usePlanStore().createPlan(
+        e.payload.items.map((p) => ({
+          id: p.id,
+          title: p.title,
+          status: p.status,
+          description: p.description ?? undefined,
+          order: p.order,
+        })),
+      )
+    })
+    // 统一清理：dispose/teardown 时按 sessionId 释放三个监听
+    planUnlistenFns.set(sessionId, () => {
+      unlistenCreated()
+      unlistenUpdate()
+      unlistenReplanned()
+    })
+  } catch (err) {
+    console.error(`[useAgentRust] listen ${createdEvent} / ${updateEvent} / ${replannedEvent} 失败:`, err)
+  }
+}
+
+/** 清理指定会话的计划事件监听 */
+function teardownPlanListener(sessionId: string): void {
+  const unlisten = planUnlistenFns.get(sessionId)
+  if (unlisten) {
+    unlisten()
+    planUnlistenFns.delete(sessionId)
+  }
+}
+
+// ─── A1 全链路事件流可观测（agent:event:trace:{session_id}）──────────────
+
+/** Rust `emit_trace` payload：`{ seq, type, summary }`（seq 为全会话递增序号，据此还原时序） */
+interface RustTracePayload {
+  seq: number
+  type: string
+  summary: string
+}
+
+/** trace 事件类型 → 活动日志类目（未知类型归为 info） */
+function traceTypeToLogType(traceType: string): ActivityLogEntry['type'] {
+  switch (traceType) {
+    case 'error':
+    case 'sub_agent_error':
+      return 'error'
+    case 'tool_call_start':
+    case 'tool_call_end':
+    case 'plan_created':
+    case 'plan_step_update':
+    case 'plan_replanned':
+    case 'sub_agent_start':
+    case 'sub_agent_completed':
+    case 'confirmation_requested':
+      return 'tool'
+    default:
+      return 'info'
+  }
+}
+
+/** trace 事件监听器清理函数（按 sessionId 索引） */
+const traceUnlistenFns = new Map<string, UnlistenFn>()
+
+/**
+ * 为指定会话设置 trace 事件监听（A1 全链路事件流可观测）
+ *
+ * 监听 `agent:event:trace:{session_id}`，收到 Rust payload 后把摘要写入
+ * `useActivityLog`，使活动日志能按序还原「AgentStart → … → AgentEnd」完整事件链。
+ * 幂等：已存在监听器则直接返回。
+ */
+async function setupTraceListener(sessionId: string): Promise<void> {
+  if (traceUnlistenFns.has(sessionId)) return
+
+  const eventName = `agent:event:trace:${sessionId}`
+  try {
+    const unlisten = await listen<RustTracePayload>(eventName, (e) => {
+      const { type, summary } = e.payload
+      useActivityLog().addLog(traceTypeToLogType(type), summary, undefined, type)
+    })
+    traceUnlistenFns.set(sessionId, unlisten)
+  } catch (err) {
+    console.error(`[useAgentRust] listen ${eventName} 失败:`, err)
+  }
+}
+
+/** 清理指定会话的 trace 事件监听 */
+function teardownTraceListener(sessionId: string): void {
+  const unlisten = traceUnlistenFns.get(sessionId)
+  if (unlisten) {
+    unlisten()
+    traceUnlistenFns.delete(sessionId)
+  }
+}
+
 // ─── 命令封装：会话生命周期 ────────────────────────────────────
 
-/** 新建会话（返回 Rust SessionInfo） */
+/** 新建会话（返回 Rust SessionInfo）
+ * - `scenarioId`：B1 场景 ID（可选；缺省不传 → Rust 使用默认场景 worldbuilding）
+ */
 async function newSession(
   systemPrompt?: string,
   providerConfig?: RustProviderConfigFull,
+  scenarioId?: string,
 ): Promise<RustSessionInfo> {
-  const info = await invoke<RustSessionInfo>('new_session', {
+  const info = await safeInvoke<RustSessionInfo>('new_session', {
     systemPrompt: systemPrompt ?? null,
     providerConfig: providerConfig ?? null,
+    scenarioId: scenarioId ?? null,
   })
   // 先清理当前会话的旧监听器（避免旧会话残留事件污染全局状态）
   const oldSessionId = currentSessionId.value
@@ -712,6 +974,9 @@ async function newSession(
     teardownA2UIListener(oldSessionId)
     teardownSubAgentListener(oldSessionId)
     teardownStreamListener(oldSessionId)
+    teardownConfirmListener(oldSessionId)
+    teardownPlanListener(oldSessionId)
+    teardownTraceListener(oldSessionId)
   }
   currentSessionId.value = info.id
   messages.value = []
@@ -723,13 +988,29 @@ async function newSession(
   deepSegments.value = []
   a2uiSurfaces.value = {}
   subAgents.value = []
+  // A4 Plan-Exec：新会话无计划，清空 usePlanStore（按会话隔离）
+  usePlanStore().clearPlan()
   sessionMessagesCache.set(info.id, [])
   await setupDeepPhaseListener(info.id)
   await setupA2UIListener(info.id)
   await setupSubAgentListener(info.id)
   await setupStreamListener(info.id)
+  await setupConfirmListener(info.id)
+  await setupPlanListener(info.id)
+  await setupTraceListener(info.id)
   await refreshSessionList()
   return info
+}
+
+/** B1 场景摘要（Rust ScenarioInfo 序列化视图） */
+interface RustScenarioInfo {
+  id: string
+  display_name: string
+}
+
+/** 列出可用场景（B1 多场景；默认 worldbuilding，供场景选择器） */
+async function listScenarios(): Promise<RustScenarioInfo[]> {
+  return safeInvoke<RustScenarioInfo[]>('list_scenarios')
 }
 
 /**
@@ -751,7 +1032,7 @@ function sessionTitle(sessionId?: string | null): string {
 
 /** 会话列表 */
 async function listSessions(): Promise<RustSessionInfo[]> {
-  const list = await invoke<RustSessionInfo[]>('list_sessions')
+  const list = await safeInvoke<RustSessionInfo[]>('list_sessions')
   sessionList.value = list
   return list
 }
@@ -763,12 +1044,14 @@ async function refreshSessionList(): Promise<void> {
 
 /** 删除会话（若删除的是当前会话，清空本地状态） */
 async function deleteSession(sessionId: string): Promise<void> {
-  await invoke('delete_session', { sessionId })
+  await safeInvoke('delete_session', { sessionId })
   sessionMessagesCache.delete(sessionId)
   teardownDeepPhaseListener(sessionId)
   teardownA2UIListener(sessionId)
   teardownSubAgentListener(sessionId)
   teardownStreamListener(sessionId)
+  teardownConfirmListener(sessionId)
+  teardownTraceListener(sessionId)
   if (currentSessionId.value === sessionId) {
     currentSessionId.value = null
     messages.value = []
@@ -781,14 +1064,19 @@ async function deleteSession(sessionId: string): Promise<void> {
 
 /** 重命名会话标题（写穿 Rust SQLite，随后刷新列表） */
 async function updateSessionTitle(sessionId: string, title: string): Promise<void> {
-  await invoke('update_session_title', { sessionId, title })
+  await safeInvoke('update_session_title', { sessionId, title })
   await refreshSessionList()
 }
 
 /** 设置会话固定状态（写穿 Rust SQLite，随后刷新列表） */
 async function setSessionPinned(sessionId: string, pinned: boolean): Promise<void> {
-  await invoke('set_session_pinned', { sessionId, pinned })
+  await safeInvoke('set_session_pinned', { sessionId, pinned })
   await refreshSessionList()
+}
+
+/** 设置会话级四管线路由开关（A3，默认开启；关闭后发送跳过路由意图分类） */
+async function setRouterEnabled(sessionId: string, enabled: boolean): Promise<void> {
+  await safeInvoke('set_session_router_enabled', { sessionId, enabled })
 }
 
 // ─── MCP 连接（本地持久化；Rust 端暂无 MCP 后端，配置可管理，真实连接待后端支持）───
@@ -849,6 +1137,9 @@ async function switchSession(sessionId: string): Promise<void> {
     teardownA2UIListener(oldSessionId)
     teardownSubAgentListener(oldSessionId)
     teardownStreamListener(oldSessionId)
+    teardownConfirmListener(oldSessionId)
+    teardownPlanListener(oldSessionId)
+    teardownTraceListener(oldSessionId)
   }
   currentSessionId.value = sessionId
   deepSegments.value = []
@@ -858,6 +1149,9 @@ async function switchSession(sessionId: string): Promise<void> {
   await setupA2UIListener(sessionId)
   await setupSubAgentListener(sessionId)
   await setupStreamListener(sessionId)
+  await setupConfirmListener(sessionId)
+  await setupPlanListener(sessionId)
+  await setupTraceListener(sessionId)
   const cached = sessionMessagesCache.get(sessionId)
   if (cached) {
     messages.value = cached
@@ -865,12 +1159,33 @@ async function switchSession(sessionId: string): Promise<void> {
     messages.value = []
   }
   try {
-    const rustMsgs = await invoke<RustMessage[]>('get_messages', { sessionId })
+    const rustMsgs = await safeInvoke<RustMessage[]>('get_messages', { sessionId })
     const tsMsgs = rustMsgs.map(rustMsgToTsMsg)
     messages.value = tsMsgs
     sessionMessagesCache.set(sessionId, tsMsgs)
   } catch (err) {
     console.warn(`[useAgentRust] switchSession(${sessionId}) 加载消息失败（保持缓存）:`, err)
+  }
+  // A4 Plan-Exec：切换会话时恢复该会话的计划（按会话隔离），无计划则清空
+  try {
+    const snap = await safeInvoke<RustStateSnapshot>('get_state', { sessionId })
+    const plan = snap?.plan
+    if (plan && plan.length > 0) {
+      // Rust 端 description 可能为 null，映射为前端 usePlanStore 期望的形态
+      usePlanStore().createPlan(
+        plan.map((p) => ({
+          id: p.id,
+          title: p.title,
+          status: p.status,
+          description: p.description ?? undefined,
+          order: p.order,
+        })),
+      )
+    } else {
+      usePlanStore().clearPlan()
+    }
+  } catch (err) {
+    console.warn(`[useAgentRust] switchSession(${sessionId}) 恢复计划失败:`, err)
   }
 }
 
@@ -914,7 +1229,7 @@ async function prompt(text: string, options?: PromptOptions): Promise<void> {
 
   isStreaming.value = true
   try {
-    const result = await invoke<RustSendMessageResult>('send_message', {
+    const result = await safeInvoke<RustSendMessageResult>('send_message', {
       params: {
         sessionId,
         text: effective,
@@ -976,7 +1291,7 @@ async function prompt(text: string, options?: PromptOptions): Promise<void> {
 /** 中途引导（对应 Rust `steer`，实现 IAgentBackend.steer） */
 async function steer(text: string): Promise<void> {
   const sessionId = await ensureSession()
-  await invoke('steer', { sessionId, text })
+  await safeInvoke('steer', { sessionId, text })
 }
 
 /** follow-up（对应 steer，实现 IAgentBackend.followUp） */
@@ -988,7 +1303,7 @@ async function followUp(text: string): Promise<void> {
 async function abort(): Promise<void> {
   const sessionId = currentSessionId.value
   if (!sessionId) return
-  await invoke('abort', { sessionId })
+  await safeInvoke('abort', { sessionId })
   isStreaming.value = false
 }
 
@@ -996,7 +1311,7 @@ async function abort(): Promise<void> {
 async function clearHistory(): Promise<void> {
   const sessionId = currentSessionId.value
   if (!sessionId) return
-  await invoke('clear_history', { sessionId })
+  await safeInvoke('clear_history', { sessionId })
   messages.value = []
   sessionMessagesCache.set(sessionId, [])
 }
@@ -1006,7 +1321,7 @@ async function refreshMessages(): Promise<void> {
   const sessionId = currentSessionId.value
   if (!sessionId) return
   try {
-    const rustMsgs = await invoke<RustMessage[]>('get_messages', { sessionId })
+    const rustMsgs = await safeInvoke<RustMessage[]>('get_messages', { sessionId })
     const tsMsgs = rustMsgs.map(rustMsgToTsMsg)
     messages.value = tsMsgs
     sessionMessagesCache.set(sessionId, tsMsgs)
@@ -1018,7 +1333,7 @@ async function refreshMessages(): Promise<void> {
 /** 清理上下文窗口（对应 Rust `trim_context`，移除前 upToIndex 条消息） */
 async function trimContext(upToIndex: number): Promise<void> {
   const sessionId = await ensureSession()
-  await invoke('trim_context', { sessionId, upToIndex })
+  await safeInvoke('trim_context', { sessionId, upToIndex })
   await refreshMessages()
 }
 
@@ -1033,7 +1348,7 @@ async function updateModel(
   temperature?: number,
 ): Promise<void> {
   const sessionId = await ensureSession()
-  await invoke('update_model', {
+  await safeInvoke('update_model', {
     params: {
       sessionId,
       provider,
@@ -1050,7 +1365,7 @@ async function updateModel(
 async function updateThinkingLevel(level: ThinkingLevel): Promise<void> {
   const sessionId = currentSessionId.value
   if (!sessionId) return
-  await invoke('update_thinking_level', { sessionId, level })
+  await safeInvoke('update_thinking_level', { sessionId, level })
   thinkingLevel.value = level
 }
 
@@ -1059,7 +1374,7 @@ async function getProviderConfig(): Promise<RustProviderConfig | null> {
   const sessionId = currentSessionId.value
   if (!sessionId) return null
   try {
-    return await invoke<RustProviderConfig>('get_provider_config', { sessionId })
+    return await safeInvoke<RustProviderConfig>('get_provider_config', { sessionId })
   } catch {
     return null
   }
@@ -1074,7 +1389,19 @@ async function getProviderConfig(): Promise<RustProviderConfig | null> {
 async function setProviderConfig(config: RustProviderConfigFull): Promise<void> {
   const sessionId = currentSessionId.value
   if (!sessionId) return
-  await invoke('set_provider_config', { sessionId, config })
+  await safeInvoke('set_provider_config', { sessionId, config })
+}
+
+/**
+ * 注入备用 API Key 池（对应 Rust `set_api_key_pool`，A2 多 Key 降级）
+ *
+ * 主 key 由 `setProviderConfig` 写入；`keys` 为备用 key 池，主 key 请求
+ * 命中认证/限流/网络错误时逐把降级重试。
+ */
+async function setApiKeyPool(keys: string[]): Promise<void> {
+  const sessionId = currentSessionId.value
+  if (!sessionId) return
+  await safeInvoke('set_api_key_pool', { sessionId, keys })
 }
 
 /** 获取心跳状态（对应 Rust `get_heartbeat`，长任务监控） */
@@ -1082,7 +1409,7 @@ async function getHeartbeat(): Promise<RustHeartbeatStatus> {
   const sessionId = currentSessionId.value
   if (!sessionId) return 'alive'
   try {
-    return await invoke<RustHeartbeatStatus>('get_heartbeat', { sessionId })
+    return await safeInvoke<RustHeartbeatStatus>('get_heartbeat', { sessionId })
   } catch {
     return 'alive'
   }
@@ -1093,7 +1420,7 @@ async function getState(): Promise<RustStateSnapshot | null> {
   const sessionId = currentSessionId.value
   if (!sessionId) return null
   try {
-    return await invoke<RustStateSnapshot>('get_state', { sessionId })
+    return await safeInvoke<RustStateSnapshot>('get_state', { sessionId })
   } catch {
     return null
   }
@@ -1135,6 +1462,21 @@ function dispose(): void {
   streamUnlistenFns.clear()
   streamingAssistant.value = null
   lastStreamedMsg.value = null
+  // 清理所有 HITL 确认事件监听器
+  for (const unlisten of confirmUnlistenFns.values()) {
+    unlisten()
+  }
+  confirmUnlistenFns.clear()
+  // 清理所有计划事件监听器（A4 Plan-Exec）
+  for (const unlisten of planUnlistenFns.values()) {
+    unlisten()
+  }
+  planUnlistenFns.clear()
+  // 清理所有 trace 事件监听器（A1 全链路事件流可观测）
+  for (const unlisten of traceUnlistenFns.values()) {
+    unlisten()
+  }
+  traceUnlistenFns.clear()
 }
 
 // ─── 派生状态 ────────────────────────────────────
@@ -1184,14 +1526,17 @@ export function useAgentRust() {
 
     // ── 会话管理 ──
     newSession,
+    listScenarios,
     listSessions,
     deleteSession,
     updateSessionTitle,
     setSessionPinned,
+    setRouterEnabled,
     switchSession,
     sessionTitle,
     currentSessionId,
     sessionList,
+    currentSessionRouterEnabled,
 
     // ── MCP 连接（本地管理，供设置面板 McpPanel 使用）──
     getMCPConnections,
@@ -1226,6 +1571,7 @@ export function useAgentRust() {
     // ── 状态查询 ──
     getProviderConfig,
     setProviderConfig,
+    setApiKeyPool,
     getHeartbeat,
     getState,
     refreshMessages,
