@@ -12,6 +12,7 @@ use agent_runtime::long_task::{LongTaskRecord, LongTaskStatus};
 use agent_runtime::loop_control::LoopControlConfig;
 use agent_runtime::supervisor::SubAgentSpec;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex as StdMutex, OnceLock};
 use tauri::{AppHandle, Emitter, State};
 
@@ -22,10 +23,97 @@ use tauri::{AppHandle, Emitter, State};
 struct TauriAgentEventEmitter {
     app: AppHandle,
     session_id: String,
+    /// A1 全链路事件流可观测：trace 事件全局序号（每会话递增，前端据此还原时序）
+    trace_seq: AtomicU64,
+}
+
+impl TauriAgentEventEmitter {
+    /// A1 全链路事件流可观测：把非高频事件映射为 `(类型, 摘要)`，供 trace 通道投递
+    ///
+    /// 过滤掉高频流式增量 `StreamDelta`（避免 trace 消息爆炸），其余阶段事件全部纳入，
+    /// 使前端能按序还原「一次对话一条可追踪链」（AgentStart → … → AgentEnd）。
+    fn trace_summary(event: &OrchestratorEvent) -> Option<(&'static str, String)> {
+        match event {
+            OrchestratorEvent::Agent(AgentEvent::AgentStart { model }) => {
+                Some(("agent_start", format!("Agent 启动（模型 {model}）")))
+            }
+            OrchestratorEvent::Agent(AgentEvent::UserMessage { content, .. }) => {
+                Some(("user_message", format!("收到用户消息（{} 字）", content.chars().count())))
+            }
+            OrchestratorEvent::Agent(AgentEvent::StreamStart { model }) => {
+                Some(("stream_start", format!("开始流式响应（模型 {model}）")))
+            }
+            OrchestratorEvent::Agent(AgentEvent::StreamEnd { .. }) => {
+                Some(("stream_end", "流式响应结束".to_string()))
+            }
+            OrchestratorEvent::Agent(AgentEvent::ToolCallStart { name, .. }) => {
+                Some(("tool_call_start", format!("调用工具 {name}")))
+            }
+            OrchestratorEvent::Agent(AgentEvent::ToolCallEnd { .. }) => {
+                Some(("tool_call_end", "工具执行完成".to_string()))
+            }
+            OrchestratorEvent::Agent(AgentEvent::Error { message }) => {
+                Some(("error", format!("执行出错：{message}")))
+            }
+            OrchestratorEvent::Agent(AgentEvent::AgentEnd) => {
+                Some(("agent_end", "Agent 执行结束".to_string()))
+            }
+            OrchestratorEvent::DeepPhaseChanged { phase_label, .. } => {
+                Some(("phase_changed", format!("进入阶段：{phase_label}")))
+            }
+            OrchestratorEvent::RouterDecisionMade { target_name, .. } => {
+                Some(("router_decision", format!("路由决策 → {target_name}")))
+            }
+            OrchestratorEvent::PlanCreated { items } => {
+                Some(("plan_created", format!("创建任务计划（{n} 步）", n = items.len())))
+            }
+            OrchestratorEvent::PlanStepUpdate { step_id, status, .. } => {
+                Some(("plan_step_update", format!("计划步骤 {step_id} → {status:?}")))
+            }
+            OrchestratorEvent::PlanReplanned { items } => {
+                Some(("plan_replanned", format!("重规划任务计划（{n} 步）", n = items.len())))
+            }
+            OrchestratorEvent::SubAgentStarted { sub_agent_name, .. } => {
+                Some(("sub_agent_start", format!("子 Agent 启动：{sub_agent_name}")))
+            }
+            OrchestratorEvent::SubAgentCompleted { sub_agent_name, .. } => {
+                Some(("sub_agent_completed", format!("子 Agent 完成：{sub_agent_name}")))
+            }
+            OrchestratorEvent::SubAgentError { sub_agent_name, .. } => {
+                Some(("sub_agent_error", format!("子 Agent 失败：{sub_agent_name}")))
+            }
+            OrchestratorEvent::ConfirmationRequested { tool_name, .. } => {
+                Some(("confirmation_requested", format!("请求确认工具 {tool_name}")))
+            }
+            // 其余事件（含高频 StreamDelta、A2UI 等）不纳入 trace 通道
+            _ => None,
+        }
+    }
+
+    /// A1：向 trace 通道投递事件（若该事件有 trace 摘要）
+    fn emit_trace(&self, event: &OrchestratorEvent) {
+        let Some((etype, summary)) = Self::trace_summary(event) else {
+            return;
+        };
+        let seq = self.trace_seq.fetch_add(1, Ordering::SeqCst);
+        let trace_name = format!("agent:event:trace:{}", self.session_id);
+        if let Err(err) = self.app.emit(
+            &trace_name,
+            serde_json::json!({
+                "seq": seq,
+                "type": etype,
+                "summary": summary,
+            }),
+        ) {
+            tracing::warn!("Failed to emit trace event to frontend: {}", err);
+        }
+    }
 }
 
 impl EventListener for TauriAgentEventEmitter {
     fn on_event(&self, event: &OrchestratorEvent) {
+        // A1 全链路事件流可观测：非高频事件按序投递到 trace 通道（保留原分散通道）
+        self.emit_trace(event);
         match event {
             OrchestratorEvent::DeepPhaseChanged {
                 phase_label,
@@ -131,6 +219,34 @@ impl EventListener for TauriAgentEventEmitter {
                     tracing::warn!("Failed to emit SubAgentError event to frontend: {}", err);
                 }
             }
+            OrchestratorEvent::ConfirmationRequested {
+                confirm_id,
+                tool_name,
+                args,
+            } => {
+                // 转发到前端：事件名 `agent:confirm:{session_id}`
+                // payload: { confirmId, toolName, args }
+                let event_name = format!("agent:confirm:{}", self.session_id);
+                if let Err(err) = self.app.emit(&event_name, serde_json::json!({
+                    "confirmId": confirm_id,
+                    "toolName": tool_name,
+                    "args": args,
+                })) {
+                    tracing::warn!("Failed to emit ConfirmationRequested event to frontend: {}", err);
+                }
+            }
+            OrchestratorEvent::ConfirmationResolved { confirm_id, approved } => {
+                // 转发到前端：事件名 `agent:confirm:{session_id}`
+                // payload: { confirmId, approved }（供前端清理进行中的确认弹窗）
+                let event_name = format!("agent:confirm:{}", self.session_id);
+                if let Err(err) = self.app.emit(&event_name, serde_json::json!({
+                    "type": "resolved",
+                    "confirmId": confirm_id,
+                    "approved": approved,
+                })) {
+                    tracing::warn!("Failed to emit ConfirmationResolved event to frontend: {}", err);
+                }
+            }
             // 流式响应事件（打字机效果）
             //
             // 转发 `StreamStart` / `StreamDelta` / `StreamEnd` / `Error` / `AgentEnd`
@@ -157,6 +273,46 @@ impl EventListener for TauriAgentEventEmitter {
                 let event_name = format!("agent:event:stream:{}", self.session_id);
                 if let Err(err) = self.app.emit(&event_name, payload) {
                     tracing::warn!("Failed to emit Stream event to frontend: {}", err);
+                }
+            }
+            // ── A4 Plan-Exec 计划事件 ──
+            // 转发 `PlanCreated` / `PlanStepUpdate` 到前端通道
+            // `agent:event:plan_created:{session_id}` / `agent:event:plan_update:{session_id}`，
+            // 前端 `useAgentEvents` 据此更新 `usePlanStore`，驱动 PlanPanel 展示。
+            OrchestratorEvent::PlanCreated { items } => {
+                let event_name = format!("agent:event:plan_created:{}", self.session_id);
+                if let Err(err) = self.app.emit(
+                    &event_name,
+                    serde_json::json!({ "items": items }),
+                ) {
+                    tracing::warn!("Failed to emit PlanCreated event to frontend: {}", err);
+                }
+            }
+            OrchestratorEvent::PlanStepUpdate {
+                step_id,
+                status,
+                output,
+            } => {
+                let event_name = format!("agent:event:plan_update:{}", self.session_id);
+                if let Err(err) = self.app.emit(
+                    &event_name,
+                    serde_json::json!({
+                        "itemId": step_id,
+                        "status": status,
+                        "output": output,
+                    }),
+                ) {
+                    tracing::warn!("Failed to emit PlanStepUpdate event to frontend: {}", err);
+                }
+            }
+            // A4 Replanner：计划重规划后整体刷新前端
+            OrchestratorEvent::PlanReplanned { items } => {
+                let event_name = format!("agent:event:plan_replanned:{}", self.session_id);
+                if let Err(err) = self.app.emit(
+                    &event_name,
+                    serde_json::json!({ "items": items }),
+                ) {
+                    tracing::warn!("Failed to emit PlanReplanned event to frontend: {}", err);
                 }
             }
             // 其他事件目前不需要转发到前端
@@ -188,11 +344,20 @@ pub async fn new_session(
     state: State<'_, AgentCommandService>,
     system_prompt: Option<String>,
     provider_config: Option<ProviderConfig>,
+    scenario_id: Option<String>,
 ) -> Result<agent_commands::SessionInfo, String> {
     state
-        .new_session(system_prompt, provider_config)
+        .new_session(system_prompt, provider_config, scenario_id)
         .await
         .map_err(|e| e.to_string())
+}
+
+/// 列出可用场景（B1 场景选择器）
+#[tauri::command]
+pub async fn list_scenarios(
+    state: State<'_, AgentCommandService>,
+) -> Result<Vec<agent_commands::ScenarioInfo>, String> {
+    Ok(state.list_scenarios().await)
 }
 
 /// 会话列表（默认只返回单聊会话，群聊参与者会话不在此列）
@@ -237,6 +402,21 @@ pub async fn set_session_pinned(
 ) -> Result<(), String> {
     state
         .set_session_pinned(&session_id, pinned)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 设置会话级四管线路由开关（A3）
+///
+/// 关闭后该会话 `run()` 跳过路由决策（不再产生额外 LLM 意图分类调用）。
+#[tauri::command]
+pub async fn set_session_router_enabled(
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+    enabled: bool,
+) -> Result<(), String> {
+    state
+        .set_session_router_enabled(&session_id, enabled)
         .await
         .map_err(|e| e.to_string())
 }
@@ -368,6 +548,7 @@ pub async fn send_message(
         let emitter = Arc::new(TauriAgentEventEmitter {
             app: app.clone(),
             session_id: params.session_id.clone(),
+            trace_seq: AtomicU64::new(0),
         });
         agent.subscribe(emitter.clone()).await;
         let mut registry = emitter_registry().lock().unwrap();
@@ -375,6 +556,22 @@ pub async fn send_message(
     }
 
     state.send_message(params).await.map_err(|e| e.to_string())
+}
+
+/// 解析 HITL 工具确认（A5）：前端 `agent:confirm:{session_id}` 弹窗后回传
+///
+/// `approved=true` 放行工具执行，`false` 拒绝（工具按失败返回给 LLM）。
+#[tauri::command]
+pub async fn cmd_agent_confirm(
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+    confirm_id: String,
+    approved: bool,
+) -> Result<bool, String> {
+    state
+        .resolve_confirmation(&session_id, &confirm_id, approved)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 /// 中断当前运行
@@ -489,6 +686,19 @@ pub async fn set_provider_config(
 ) -> Result<(), String> {
     state
         .set_provider_config(&session_id, config)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 注入备用 API Key 池（A2 多 Key 降级）
+#[tauri::command]
+pub async fn set_api_key_pool(
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+    keys: Vec<String>,
+) -> Result<(), String> {
+    state
+        .set_api_key_pool(&session_id, keys)
         .await
         .map_err(|e| e.to_string())
 }

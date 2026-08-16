@@ -6796,6 +6796,8 @@ dependencies = [
  "once_cell",
  "rustls",
  "rustls-pki-types",
+ "serde",
+ "serde_json",
  "url",
  "webpki-roots 0.26.11",
 ]
@@ -7708,6 +7710,7 @@ dependencies = [
  "agent-commands",
  "agent-runtime",
  "anyhow",
+ "async-trait",
  "base64 0.22.1",
  "candle-core",
  "candle-nn",
@@ -7727,6 +7730,7 @@ dependencies = [
  "tauri-plugin-single-instance",
  "tauri-plugin-window-state",
  "tokenizers",
+ "tokio",
  "tracing",
  "ureq",
 ]

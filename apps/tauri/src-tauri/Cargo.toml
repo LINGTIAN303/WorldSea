@@ -26,6 +26,8 @@ tauri-plugin-autostart = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tracing = "0.1"
+# B1 场景实体访问器：实现 agent-runtime 的 ScenarioEntityProvider trait 需要 async_trait
+async-trait = "0.1"
 # 长任务命令参数（cmd_long_task_update_heartbeat / update_status 的 RFC3339 时间戳）
 chrono = { version = "0.4", features = ["serde"] }
 
@@ -47,7 +49,8 @@ candle-transformers = "0.9.2"
 # 模型下载（openai/whisper-tiny → app.data_dir()/whisper-models）
 # 用 ureq 直连（跟随重定向、支持 HF_ENDPOINT 镜像），替代 hf-hub——hf-hub 0.3.x 对
 # huggingface 的相对 Location 重定向解析失败（RelativeUrlWithoutBase），本机实测 curl 可达。
-ureq = "2"
+# json feature：B3 搜索 Provider（Tavily/Bing/SerpAPI）need send_json/into_json
+ureq = { version = "2", features = ["json"] }
 # whisper 多语言 tokenizer（tokenizer.json，含 <|zh|> 等特殊 token）
 tokenizers = "0.23"
 # 音频/视频解码（mp3/mp4/m4a/wav/aac/ogg 等）→ 16kHz mono PCM
@@ -58,3 +61,9 @@ symphonia = { version = "0.5.4", features = ["aac", "mp3", "pcm", "vorbis", "iso
 base64 = "0.22"
 # 内部错误包装（命令层转为 String 返回）
 anyhow = "1"
+# B3 搜索工具：spawn_blocking 隔离阻塞网络调用（ureq 同步 API）
+tokio = { version = "1", features = ["rt"] }
+
+[dev-dependencies]
+# 实体只读工具单测：#[tokio::test] 需要 tokio 宏与运行时（sqlx 也依赖 tokio 做异步）
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

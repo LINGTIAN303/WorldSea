@@ -28,6 +28,10 @@ mod tray;
 mod system;
 // 音视频转录（candle-whisper 语音转文字）
 mod whisper;
+// B3 搜索 Provider 抽象 + 降级链（web_search 原生工具 + 配置命令）
+mod search_commands;
+// A4 Plan-Exec 计划工具（plan_create / plan_update）
+mod plan_commands;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -64,10 +68,12 @@ pub fn run() {
         .manage(Mutex::new(tray::TrayState::default()))
         .invoke_handler(tauri::generate_handler![
             commands::new_session,
+            commands::list_scenarios,
             commands::list_sessions,
             commands::delete_session,
             commands::update_session_title,
             commands::set_session_pinned,
+            commands::set_session_router_enabled,
             commands::create_group_session_participant,
             commands::list_group_session_participants,
             commands::delete_group_session_participants,
@@ -77,6 +83,7 @@ pub fn run() {
             commands::memory_load_chunk,
             commands::memory_boundary,
             commands::send_message,
+            commands::cmd_agent_confirm,
             commands::abort,
             commands::steer,
             commands::clear_history,
@@ -88,6 +95,7 @@ pub fn run() {
             commands::update_thinking_level,
             commands::get_provider_config,
             commands::set_provider_config,
+            commands::set_api_key_pool,
             commands::get_heartbeat,
             commands::terminal_execute_command,
             commands::terminal_detect_shells,
@@ -176,6 +184,8 @@ pub fn run() {
             system::cmd_autostart_set_enabled,
             // 音视频转录（candle-whisper 语音转文字）
             whisper::transcribe_media,
+            // B3 搜索 Provider 配置（设置搜索 API Key，作用于 web_search 工具降级链）
+            search_commands::set_search_config,
         ])
         // Phase 5.1：Agent 命令服务（内部持有 session_id -> Arc<AgentLoop> 映射）
         // 终端服务（独立持有 ShellSessionManager，供前端直接调用终端命令）
@@ -212,6 +222,20 @@ pub fn run() {
             std::fs::create_dir_all(&app_data).ok();
             let db_path = app_data.join("subagent_specs.db");
             let session_db_path = app_data.join("sessions.db");
+            // 实体/关系/KV/文件全局库（entities.db）：TauriStorageBackend fallback 用，
+            // projectDir 未绑定（启动早期/无项目）时实体数据兜底存储。
+            // 先于 AgentCommandService 创建，供场景实体访问器（B1 场景上下文注入）引用。
+            let entity_db_path = app_data.join("entities.db");
+            let entity_db = tauri::async_runtime::block_on(async {
+                entity_commands::EntityDb::new(entity_db_path.to_str().unwrap())
+                    .await
+                    .expect("初始化实体数据库失败")
+            });
+            // B3 搜索 Provider 降级链：global 管理，供 web_search 工具 + set_search_config 命令共享
+            let search_chain = Arc::new(search_commands::SearchProviderChain::new(
+                search_commands::SearchConfig::default(),
+            ));
+            app.manage(search_chain.clone());
             let svc = tauri::async_runtime::block_on(async {
                 let store = SqliteSubAgentSpecStore::new(db_path.to_str().unwrap())
                     .await
@@ -228,6 +252,19 @@ pub fn run() {
                     .with_memory_root(Some(app_data.join("worldsmith").join("memory")))
                     // 会话持久化：注入 SQLite 会话存储，会话变更写穿 + 启动恢复
                     .with_session_store(session_store)
+                    // B1 场景上下文注入：注入实体访问器，场景 build_system_prompt 可感知项目已有实体
+                    .with_entity_provider(Some(Arc::new(
+                        entity_commands::SqliteScenarioEntityProvider::new(entity_db.clone()),
+                    )))
+                    // B1 场景工具桥 MVP：注入原生实体只读工具（entity_list/entity_get），
+                    // 使 worldbuilding 场景 tool_ids() 声明的同名工具可被 LLM 调用
+                    .with_extra_tools(
+                        entity_commands::entity_read_tools(entity_db.clone())
+                            .into_iter()
+                            .chain(search_commands::search_tools(search_chain.clone()))
+                            .chain(plan_commands::plan_tools())
+                            .collect(),
+                    )
             });
             // 启动加载：从会话库恢复全部历史会话（重建 AgentLoop + 消息历史），
             // 失败仅告警弱提示，不阻塞应用启动（无历史则按空会话启动）。
@@ -236,6 +273,7 @@ pub fn run() {
                 tracing::warn!("恢复持久化会话失败（按空会话启动）: {e}");
             }
             app.manage(svc);
+            app.manage(entity_db);
 
             // 长任务持久化：独立数据库文件（long_tasks.db），供 cmd_long_task_* 命令使用
             let lt_db_path = app_data.join("long_tasks.db");
@@ -245,16 +283,6 @@ pub fn run() {
                     .expect("初始化长任务数据库失败")
             });
             app.manage(long_task_repo);
-
-            // 实体/关系/KV/文件全局库（entities.db）：TauriStorageBackend fallback 用，
-            // projectDir 未绑定（启动早期/无项目）时实体数据兜底存储。
-            let entity_db_path = app_data.join("entities.db");
-            let entity_db = tauri::async_runtime::block_on(async {
-                entity_commands::EntityDb::new(entity_db_path.to_str().unwrap())
-                    .await
-                    .expect("初始化实体数据库失败")
-            });
-            app.manage(entity_db);
 
             // 系统托盘（tray.rs）：完整菜单（显示/新建/最近项目/Agent/设置/状态/退出）。
             // 构建失败（如无图标）不阻塞启动，仅记录——关闭行为将回退为直接退出。
