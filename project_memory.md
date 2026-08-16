@@ -711,7 +711,7 @@ agent_end → checkShouldAutoContinue=true → autoContinueTask → backend.prom
 
 <!-- MemoryCenter:SECTION:task_state START -->
 ## 当前任务
-Tauri 端 UI/UX 全维度优化（视觉 + 交互事件 + 键盘可达性 + 性能 + 桌面成熟度）——批次 87-109 完成；当前工作区有 Rust Agent 深化 + Space 聊天 UI 未提交改动（体检同步 2026-08-16）
+Tauri 端 UI/UX 全维度优化（视觉 + 交互事件 + 键盘可达性 + 性能 + 桌面成熟度）——批次 87-109 完成；OpenWorld 精华融入（A3/A4/A5/B1/B3/C1/C2）已于 2026-08-16 分 6 笔提交收敛
 
 ## 已完成步骤
 - [x] 阶段 1.5 Tauri 集成：14 个 agent 命令 + 事件桥接 + 多实例管理 + 前端通信层
@@ -956,6 +956,11 @@ Tauri 端 UI/UX 全维度优化（视觉 + 交互事件 + 键盘可达性 + 性�
 - **08-10 图标体系统一**：合并 TuiIcon 到统一 WsIcon；插件视图图标标准化为 WsIcon/Lucide；清理剩余内联 SVG；工作台视图工具栏上移 R3 统一工具条
 - **08-11 module-builder 修复**：收敛自定义模块发布/删除/字段类型与图标，消除告警；运行时集合类组件按实体类型过滤数据
 - **08-12 Space UI 重构**：模式切换图标化（单级文字交互）并移除快问快答模式；Agent 空间 UI 重构与三级中性灰分区；双层胶囊输入框优化
+
+## 本次进展（2026-08-16）— 项目体检 + 文档同步 + OpenWorld 融入提交
+- **体检**：vitest 204/204 全绿；vue-tsc 通过；cargo check 6/7 通过（`worldsmith-skills-store` 因环境 TLS/SEC_E_NO_CREDENTIALS 阻塞，非代码问题）
+- **文档同步**：README/project_memory 修正 TS pi-ai 已移除、packages 15 个、Naive UI 已移除、当前主线状态；新增 OpenWorld 融入计划文档
+- **OpenWorld 精华融入**（A3 路由 / A4 计划 / A5 确认 / B1 场景 / B3 搜索 / C1 产物 / C2 引用校验）分 6 笔提交收敛：docs / agent-runtime / agent-commands / tauri / artifacts / space
 
 ## 本次进展（2026-08-14）— 全局规则落地
 - **三份全局规则入库**（协作与沟通 / 交付与质量 / 会话韧性）：
