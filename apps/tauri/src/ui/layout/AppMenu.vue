@@ -56,6 +56,11 @@
             <span class="menu-item-label">一致性检查</span>
             <span class="menu-item-shortcut"></span>
           </button>
+          <button class="menu-item" role="menuitem" @click="openArtifacts">
+            <WsIcon name="file-text" size="sm" class="menu-item-icon" />
+            <span class="menu-item-label">产物</span>
+            <span class="menu-item-shortcut"></span>
+          </button>
           <button class="menu-item" role="menuitem" @click="openThemeEditor">
             <WsIcon name="palette" size="sm" class="menu-item-icon" />
             <span class="menu-item-label">主题编辑器</span>
@@ -187,6 +192,7 @@ function openSearch() { closeMenu(); window.dispatchEvent(new CustomEvent('ws-op
 function openVersion() { closeMenu(); window.dispatchEvent(new CustomEvent('ws-open-version')) }
 function openLayoutMgr() { closeMenu(); window.dispatchEvent(new CustomEvent('ws-open-layout-mgr')) }
 function openConsistency() { closeMenu(); window.dispatchEvent(new CustomEvent('ws-open-consistency')) }
+function openArtifacts() { closeMenu(); window.dispatchEvent(new CustomEvent('ws-open-artifacts')) }
 function openThemeEditor() { closeMenu(); window.dispatchEvent(new CustomEvent('ws-open-theme-editor')) }
 function openSettings() { closeMenu(); window.dispatchEvent(new CustomEvent('ws-open-settings')) }
 

@@ -10,6 +10,7 @@ export default defineConfig({
     globals: true,
     include: [
       'packages/memory-archive/**/__tests__/**/*.spec.ts',
+      'packages/entity-core/**/__tests__/**/*.spec.ts',
     ],
     coverage: {
       provider: 'v8',

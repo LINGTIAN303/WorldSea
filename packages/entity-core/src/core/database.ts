@@ -2,6 +2,7 @@ import Dexie, { type Table } from 'dexie'
 import type { Entity } from '../types'
 import type { Relation } from '../types'
 import type { ProjectFile, ProjectFileContent } from '../types'
+import type { Artifact, ArtifactVersion } from '../types'
 
 export interface ModuleInstance {
   id: string
@@ -25,6 +26,8 @@ export class WorldDatabase extends Dexie {
   files!: Table<ProjectFile, string>
   file_contents!: Table<ProjectFileContent, string>
   project_settings!: Table<ProjectSetting, string>
+  artifacts!: Table<Artifact, string>
+  artifact_versions!: Table<ArtifactVersion, string>
 
   /**
    * @param projectId 项目 ID。传入时数据库名为 `WorldSmith-Project-${projectId}`；
@@ -107,6 +110,18 @@ export class WorldDatabase extends Dexie {
       files: 'id, path, name, entityId, *tags, createdAt',
       file_contents: 'id',
       project_settings: 'key',
+    })
+    // v9: Artifact 多版本 + 回滚（C1）— 新增 artifacts + artifact_versions 表
+    this.version(9).stores({
+      entities: 'id, type, name, *tags, updatedAt, [type+updatedAt], [type+name]',
+      relations: 'id, type, sourceId, targetId, pairId, createdAt',
+      modules: 'id, active, source',
+      kv_store: 'key',
+      files: 'id, path, name, entityId, *tags, createdAt',
+      file_contents: 'id',
+      project_settings: 'key',
+      artifacts: 'id, title, artifact_type, project_id, version, updatedAt',
+      artifact_versions: 'id, artifact_id, version, createdAt, [artifact_id+version]',
     })
   }
 }

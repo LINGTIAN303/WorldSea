@@ -6,6 +6,7 @@ export { usePluginStore } from './pluginStore'
 export { useTemplateStore, type Template } from './templateStore'
 export { useFieldOrderStore } from './fieldOrderStore'
 export { useTrashStore, type TrashItem } from './trashStore'
+export { useArtifactStore } from './artifactStore'
 // 共享 stores（Phase 4 从根 src/stores/ 下沉到 entity-core）
 export { useFontStore } from './fontStore'
 export type {

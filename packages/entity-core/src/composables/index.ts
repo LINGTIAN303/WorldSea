@@ -24,6 +24,7 @@ export { useImageResolver, type ImagePersistedEvent, type UseImageResolverOption
 export { useCascadeDelete } from './useCascadeDelete'
 export { useDirtyTracker } from './useDirtyTracker'
 export { useTrash } from './useTrash'
+export { useArtifacts } from './useArtifacts'
 export { useEntityTemplates } from './useEntityTemplates'
 export { useAdvancedSearch, type SearchFilter } from './useAdvancedSearch'
 export { useVersionSnapshot, type Snapshot } from './useVersionSnapshot'

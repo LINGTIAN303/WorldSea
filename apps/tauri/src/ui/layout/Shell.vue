@@ -20,6 +20,7 @@
     <UndoHistoryPanel :show="undoHistoryOpen" @close="undoHistoryOpen = false" @redo="onRedoFromHistory" />
     <InfoPanel />
     <TrashPanel :show="trashOpen" @close="trashOpen = false" />
+    <ArtifactsPanel :show="artifactsOpen" @close="artifactsOpen = false" />
     <ConsistencyReportPanel :show="consistencyOpen" @close="consistencyOpen = false" />
     <SettingsDialog :show="settingsOpen" @close="settingsOpen = false" />
     <ThemeEditor :show="themeEditorOpen" @close="themeEditorOpen = false" />
@@ -67,6 +68,7 @@ const undoHistoryOpen = ref(false)
 // P3-W4 续：恢复业务弹窗（TrashPanel / ConsistencyReportPanel / SettingsDialog /
 // CustomRelationTypeDialog / EntityTemplateDialog / ProjectSwitcherDialog）
 const trashOpen = ref(false)
+const artifactsOpen = ref(false)
 const consistencyOpen = ref(false)
 const settingsOpen = ref(false)
 const customRelTypeOpen = ref(false)
@@ -75,6 +77,7 @@ const projectManagerOpen = ref(false)
 const themeEditorOpen = ref(false)
 
 const TrashPanel = defineAsyncComponent(() => import('@/ui/data/TrashPanel.vue'))
+const ArtifactsPanel = defineAsyncComponent(() => import('@/ui/data/ArtifactsPanel.vue'))
 const ConsistencyReportPanel = defineAsyncComponent(() => import('@/ui/data/ConsistencyReportPanel.vue'))
 const SettingsDialog = defineAsyncComponent(() => import('@/ui/settings/SettingsDialog.vue'))
 const ThemeEditor = defineAsyncComponent(() => import('@/components/theme-editor/ThemeEditor.vue'))
@@ -90,6 +93,7 @@ function onOpenVersion() { versionOpen.value = true }
 function onOpenDocExport() { docOpen.value = true }
 function onOpenLayoutMgr() { layoutMgrOpen.value = true }
 function onOpenTrash() { trashOpen.value = true }
+function onOpenArtifacts() { artifactsOpen.value = true }
 function onOpenConsistency() { consistencyOpen.value = true }
 function onOpenSettings() { settingsOpen.value = true }
 function onOpenThemeEditor() { themeEditorOpen.value = true }
@@ -138,6 +142,7 @@ onGlobalEvent('ws-open-doc-export', onOpenDocExport)
 onGlobalEvent('ws-open-layout-mgr', onOpenLayoutMgr)
 // P3-W4 续：恢复业务弹窗全局事件
 onGlobalEvent('ws-open-trash', onOpenTrash)
+onGlobalEvent('ws-open-artifacts', onOpenArtifacts)
 onGlobalEvent('ws-open-consistency', onOpenConsistency)
 onGlobalEvent('ws-open-settings', onOpenSettings)
 onGlobalEvent('ws-open-theme-editor', onOpenThemeEditor)

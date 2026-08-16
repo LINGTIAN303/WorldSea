@@ -48,3 +48,5 @@ export type {
 } from './trait'
 
 export type { EntityTemplate, WorldTemplate } from './template'
+
+export type { Artifact, ArtifactVersion } from './artifact'
