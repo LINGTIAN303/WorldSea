@@ -29,6 +29,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use agent_memory::MemoryCenterAccessor;
 use agent_runtime::agent::{AgentLoop, AgentLoopConfig, AgentState, AgentStateSnapshot};
 use agent_runtime::backend::ThinkingLevel;
+use agent_runtime::confirmation::{ConfirmationBroker, ConfirmationPolicy};
 use agent_runtime::llm::config::ProviderConfig as RuntimeProviderConfig;
 use agent_runtime::llm::GenaiBackend;
 use agent_runtime::long_task::HeartbeatStatus;
@@ -38,8 +39,12 @@ use agent_runtime::memory::{
     RecallMode,
 };
 use agent_runtime::supervisor::SubAgentSpec;
+use agent_runtime::scenario::{
+    Scenario, ScenarioEntityProvider, ScenarioRegistry, WorldbuildingScenario,
+};
+use agent_runtime::router::{RouterConfig, RouterNode};
 use memory_center_core::model::ArchiveConfig;
-use agent_runtime::tool::SimpleToolBus;
+use agent_runtime::tool::{SimpleToolBus, Tool, ToolBus};
 use agent_runtime::types::OrchestratorMessage;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{Mutex, RwLock};
@@ -59,6 +64,14 @@ pub struct SessionInfo {
     /// 会话类型（chat/group，缺省 chat；group 为群聊参与者会话）
     #[serde(default)]
     pub kind: SessionKind,
+    /// A3 四管线路由开关（缺省开启，持久化）
+    #[serde(default = "default_session_true")]
+    pub router_enabled: bool,
+}
+
+/// SessionInfo.router_enabled 的 serde 缺省值（旧前端/缺省字段视为开启）
+fn default_session_true() -> bool {
+    true
 }
 
 /// 群聊参与者会话信息（映射查询结果）
@@ -182,6 +195,38 @@ pub struct AgentCommandService {
     /// `clear_history`/`trim_context`/`delete_session` 各操作**写穿**到存储；启动时经
     /// [`Self::restore_sessions`] 加载全部会话重建 AgentLoop，应用重启后历史不丢失。
     session_store: Option<Arc<dyn SessionRepository>>,
+    /// 场景插件注册中心（B1 多场景，MVP 仅 worldbuilding）
+    ///
+    /// 惰性注册：`ensure_scenarios` 在首次需要时注册内置场景。
+    scenario_registry: ScenarioRegistry,
+    /// 场景实体访问器（B1 场景上下文注入）
+    ///
+    /// `None`：不在会话中注入实体摘要（默认）；`Some`：`new_agent` 构造
+    /// `AgentLoopConfig` 时注入，`build_prompt_options` 据此把项目实体摘要
+    /// 填入 `ScenarioContext`，场景 `build_system_prompt` 拼入 system prompt。
+    entity_provider: Option<Arc<dyn ScenarioEntityProvider>>,
+    /// 额外注册进每个会话 ToolBus 的工具（B1 场景工具桥 MVP）
+    ///
+    /// `new_agent` 在注册 terminal/subagent 工具后，把本列表逐个注册进 tool_bus。
+    /// 供 Tauri 层注入原生实体只读工具（entity_list/entity_get），使 worldbuilding
+    /// 场景 `tool_ids()` 声明的同名工具对 LLM 可见且可执行。空列表 = 不注入。
+    extra_tools: Vec<Arc<dyn Tool>>,
+}
+
+/// 场景摘要（Tauri 序列化用）
+#[derive(Debug, Clone, Serialize)]
+pub struct ScenarioInfo {
+    pub id: String,
+    pub display_name: String,
+}
+
+impl From<&dyn Scenario> for ScenarioInfo {
+    fn from(s: &dyn Scenario) -> Self {
+        Self {
+            id: s.id().to_string(),
+            display_name: s.display_name().to_string(),
+        }
+    }
 }
 
 /// 校验一个子 Agent 规格是否合法
@@ -282,6 +327,24 @@ impl AgentCommandService {
         self
     }
 
+    /// 注入场景实体访问器（链式，B1 场景上下文注入）
+    ///
+    /// 传入后 `new_agent` 构造 `AgentLoopConfig` 时带上 provider，使场景
+    /// `build_system_prompt` 能经 `ScenarioContext.entity_summary` 感知项目已有实体。
+    pub fn with_entity_provider(mut self, provider: Option<Arc<dyn ScenarioEntityProvider>>) -> Self {
+        self.entity_provider = provider;
+        self
+    }
+
+    /// 注入额外工具（链式，B1 场景工具桥 MVP）
+    ///
+    /// 传入的原生工具（如 entity_list/entity_get）会在 `new_agent` 中注册进
+    /// 每个会话的 ToolBus，使场景 `tool_ids()` 声明的同名工具可被 LLM 调用。
+    pub fn with_extra_tools(mut self, tools: Vec<Arc<dyn Tool>>) -> Self {
+        self.extra_tools = tools;
+        self
+    }
+
     /// 把指定会话的内建 LoopController 注册为 loop_control 任务（共享同一实例）
     ///
     /// 解决"内建（自动）与命令层（手动）双轨不共享"：取该会话 `AgentLoop` 内建的
@@ -343,6 +406,7 @@ impl AgentCommandService {
         session_id: &str,
         system_prompt: Option<String>,
         provider_config: Option<RuntimeProviderConfig>,
+        scenario: Option<Arc<dyn Scenario>>,
     ) -> (Arc<AgentLoop>, Arc<SubAgentManager>) {
         let config = provider_config.unwrap_or_else(Self::default_provider_config);
         let backend = Arc::new(GenaiBackend::new(config));
@@ -358,11 +422,35 @@ impl AgentCommandService {
             self.subagent_specs.clone(),
         )
         .await;
+        // B1 场景工具桥 MVP：注册注入的原生工具（如 entity_list/entity_get），
+        // 使世界构建场景 `tool_ids()` 声明的同名工具对 LLM 可见且可执行。
+        for tool in &self.extra_tools {
+            tool_bus.register(tool.clone()).await;
+        }
         let agent_config = AgentLoopConfig {
             system_prompt,
+            // B1：场景插件（None=默认静态 prompt / 默认工具视图）
+            scenario,
+            // B1 场景上下文注入：把实体访问器传给 AgentLoop，供 build_prompt_options 注入实体摘要
+            entity_provider: self.entity_provider.clone(),
+            // A5 HITL：启用默认危险操作确认策略（execute_command 危险命令 / delegate_to_sub_agent）
+            confirmation_policy: Some(ConfirmationPolicy::dangerous_only()),
             ..Default::default()
         };
+        // A3 四管线路由：为每个会话注入四管线路由节点（发送时决策管线）
+        // 四管线 = Query/Research/Experiment/Compose；PipelineRoutingStrategy 在发送时
+        // 先做 LLM 意图分类（3s 超时降级关键词），force_pipeline Chip（/管线 前缀）命中则跳过 LLM。
+        // 注意：router 需在 `AgentLoop::new(backend, …)` move backend 之前 clone。
+        let router = Arc::new(RouterNode::with_pipeline_strategy(
+            "router",
+            "四管线",
+            backend.clone(),
+            RouterConfig::default(),
+        ));
         let mut agent_builder = AgentLoop::new(backend, tool_bus).with_config(agent_config);
+        // A5 HITL：为每个会话注入独立的确认协调器（配合 confirmation_policy 生效）
+        agent_builder = agent_builder.with_confirmation(Some(Arc::new(ConfirmationBroker::new())));
+        agent_builder = agent_builder.with_router(Some(router));
         // 记忆注入：配置了 memory_root 时为该会话构造 MemoryCenterAccessor 并注入，
         // 失败仅告警不阻断（弱提示语义，记忆不可用不影响主流程）。
         if let Some(root) = &self.memory_root {
@@ -394,6 +482,35 @@ impl AgentCommandService {
         }
     }
 
+    // ── B1 场景：惰性注册 / 解析 / 列表 ─────────────────────────
+
+    /// 惰性注册内置场景（首次需要时注册 worldbuilding）
+    fn ensure_scenarios(&self) {
+        if self.scenario_registry.list().is_empty() {
+            self.scenario_registry
+                .register(Arc::new(WorldbuildingScenario::new()));
+        }
+    }
+
+    /// 按 id 解析场景（None=默认场景，MVP 为 worldbuilding）
+    fn resolve_scenario(&self, id: Option<&str>) -> Option<Arc<dyn Scenario>> {
+        self.ensure_scenarios();
+        match id {
+            Some(id) => self.scenario_registry.find(id),
+            None => self.scenario_registry.default_plugin(),
+        }
+    }
+
+    /// 列出可用场景（供前端场景选择器）
+    pub async fn list_scenarios(&self) -> Vec<ScenarioInfo> {
+        self.ensure_scenarios();
+        self.scenario_registry
+            .list()
+            .iter()
+            .map(|p| ScenarioInfo::from(p.as_ref()))
+            .collect()
+    }
+
     fn now() -> u64 {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -413,8 +530,9 @@ impl AgentCommandService {
         &self,
         system_prompt: Option<String>,
         provider_config: Option<RuntimeProviderConfig>,
+        scenario_id: Option<String>,
     ) -> Result<SessionInfo, CommandError> {
-        self.new_session_with_kind(system_prompt, provider_config, SessionKind::Chat)
+        self.new_session_with_kind(system_prompt, provider_config, SessionKind::Chat, scenario_id)
             .await
     }
 
@@ -424,12 +542,16 @@ impl AgentCommandService {
         system_prompt: Option<String>,
         provider_config: Option<RuntimeProviderConfig>,
         kind: SessionKind,
+        scenario_id: Option<String>,
     ) -> Result<SessionInfo, CommandError> {
         // 先生成会话 ID，作为记忆隔离依据传入 new_agent（构造 MemoryCenterAccessor）
         let id = uuid::Uuid::new_v4().to_string();
         // new_agent 会 move system_prompt，先克隆一份供后续持久化使用
         let persisted_prompt = system_prompt.clone();
-        let (agent, sub_agent_manager) = self.new_agent(&id, system_prompt, provider_config).await;
+        let scenario = self.resolve_scenario(scenario_id.as_deref());
+        let (agent, sub_agent_manager) = self
+            .new_agent(&id, system_prompt, provider_config, scenario)
+            .await;
         let info = SessionInfo {
             id: id.clone(),
             created_at: Self::now(),
@@ -437,6 +559,7 @@ impl AgentCommandService {
             title: "新会话".into(),
             pinned: false,
             kind,
+            router_enabled: true,
         };
         self.sessions.lock().await.insert(id.clone(), agent);
         self.subagent_managers
@@ -455,6 +578,7 @@ impl AgentCommandService {
                 title: "新会话".into(),
                 pinned: false,
                 kind,
+                router_enabled: true,
             };
             if let Err(e) = store.save_session(&record).await {
                 tracing::warn!("持久化新会话失败（仅内存生效）: {e}");
@@ -502,15 +626,20 @@ impl AgentCommandService {
         for record in records {
             // 重建 AgentLoop（provider 用默认占位，前端按需 set_provider_config）
             let (agent, sub_agent_manager) =
-                self.new_agent(&record.id, Some(record.system_prompt), None).await;
+                self.new_agent(&record.id, Some(record.system_prompt), None, None).await;
+            // 应用持久化的四管线路由开关
+            agent.set_router_enabled(record.router_enabled);
             // 恢复消息历史（含 system 首条）
             let messages = store.load_messages(&record.id).await?;
+            // A4 Plan-Exec：恢复持久化的计划
+            let plan = store.load_plan(&record.id).await?;
             agent
                 .restore_state(AgentState {
                     messages,
                     current_iteration: 0,
                     aborted: false,
                     paused: false,
+                    plan,
                 })
                 .await;
             // 注册回服务
@@ -526,6 +655,7 @@ impl AgentCommandService {
                 title: record.title.clone(),
                 pinned: record.pinned,
                 kind: record.kind,
+                router_enabled: record.router_enabled,
             };
             self.meta.lock().await.insert(record.id.clone(), info.clone());
             restored.push(info);
@@ -547,7 +677,7 @@ impl AgentCommandService {
         provider_config: Option<RuntimeProviderConfig>,
     ) -> Result<GroupParticipantSessionInfo, CommandError> {
         let info = self
-            .new_session_with_kind(system_prompt, provider_config, SessionKind::Group)
+            .new_session_with_kind(system_prompt, provider_config, SessionKind::Group, None)
             .await?;
         // 写映射（持久化；失败弱提示——会话仍可用，仅重启后无法恢复定位）
         if let Some(store) = &self.session_store {
@@ -681,6 +811,30 @@ impl AgentCommandService {
         Ok(())
     }
 
+    /// 设置会话级四管线路由开关（A3）
+    ///
+    /// 关闭后该会话 `run()` 跳过路由决策（不再产生额外 LLM 意图分类调用）。
+    /// 命中会话不存在时返回错误。
+    pub async fn set_session_router_enabled(
+        &self,
+        session_id: &str,
+        enabled: bool,
+    ) -> Result<(), CommandError> {
+        let agent = self.get_agent(session_id).await?;
+        agent.set_router_enabled(enabled);
+        // 更新内存 meta（供 list_sessions 返回最新开关状态）
+        if let Some(info) = self.meta.lock().await.get_mut(session_id) {
+            info.router_enabled = enabled;
+        }
+        // 写穿持久化存储（失败仅告警弱提示，不阻断）
+        if let Some(store) = &self.session_store {
+            if let Err(e) = store.set_router_enabled(session_id, enabled).await {
+                tracing::warn!("持久化会话路由开关失败: {e}");
+            }
+        }
+        Ok(())
+    }
+
     // ── 会话级记忆（阶段 4：前端 ArchivePanel 迁移后端）────────────────
 
     /// 获取会话记忆访问器（未启用记忆时返回 None）
@@ -791,6 +945,20 @@ impl AgentCommandService {
         })
     }
 
+    /// 解析一次待定的工具确认（HITL，A5）
+    ///
+    /// 前端在 `agent:confirm:{session_id}` 弹窗后调用，`approved=true` 放行、
+    /// `false` 拒绝。返回是否成功唤醒对应等待方（confirm_id 已超时/已处理时 false）。
+    pub async fn resolve_confirmation(
+        &self,
+        session_id: &str,
+        confirm_id: &str,
+        approved: bool,
+    ) -> Result<bool, CommandError> {
+        let agent = self.get_agent(session_id).await?;
+        Ok(agent.resolve_confirmation(confirm_id, approved).await)
+    }
+
     /// 中途引导（steer，对应前端 sendBlockAction）
     pub async fn steer(&self, session_id: &str, text: String) -> Result<(), CommandError> {
         let agent = self.get_agent(session_id).await?;
@@ -844,6 +1012,11 @@ impl AgentCommandService {
         let messages = agent.get_messages().await;
         if let Err(e) = store.replace_messages(session_id, &messages).await {
             tracing::warn!("持久化会话 {session_id} 消息失败: {e}");
+        }
+        // A4 Plan-Exec：随消息一并写穿当前计划（与消息同生命周期，send_message 后持久化）
+        let plan = agent.get_plan().await;
+        if let Err(e) = store.save_plan(session_id, &plan).await {
+            tracing::warn!("持久化会话 {session_id} 计划失败: {e}");
         }
     }
 
@@ -1058,6 +1231,22 @@ impl AgentCommandService {
     ) -> Result<(), CommandError> {
         let agent = self.get_agent(session_id).await?;
         agent.set_provider_config(config).await.map_err(CommandError::from)
+    }
+
+    /// 注入备用 API Key 池（A2 多 Key 降级）
+    ///
+    /// 主 key 由 `set_provider_config` 写入；`keys` 为备用 key 池，主 key 请求
+    /// 命中认证/限流/网络错误时逐把降级重试。
+    pub async fn set_api_key_pool(
+        &self,
+        session_id: &str,
+        keys: Vec<String>,
+    ) -> Result<(), CommandError> {
+        let agent = self.get_agent(session_id).await?;
+        agent
+            .set_api_key_pool(keys)
+            .await
+            .map_err(CommandError::from)
     }
 
     /// 获取心跳状态（长任务监控）

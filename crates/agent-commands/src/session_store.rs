@@ -41,6 +41,14 @@ pub struct SessionRecord {
     /// 会话类型（chat/group，缺省 chat）
     #[serde(default)]
     pub kind: SessionKind,
+    /// A3 四管线路由开关（缺省开启，持久化）
+    #[serde(default = "default_true")]
+    pub router_enabled: bool,
+}
+
+/// SessionRecord.router_enabled 的 serde 缺省值（旧记录/缺省字段视为开启）
+fn default_true() -> bool {
+    true
 }
 
 /// 会话持久化存储抽象
@@ -67,6 +75,8 @@ pub trait SessionRepository: Send + Sync {
     async fn update_title(&self, session_id: &str, title: &str) -> Result<(), CommandError>;
     /// 设置会话固定状态（写穿）
     async fn set_pinned(&self, session_id: &str, pinned: bool) -> Result<(), CommandError>;
+    /// 设置会话级四管线路由开关（写穿，A3）
+    async fn set_router_enabled(&self, session_id: &str, enabled: bool) -> Result<(), CommandError>;
     /// 保存群聊参与者会话映射（写穿；group_id+participant_id 走 upsert）
     async fn save_group_participant(
         &self,
@@ -80,6 +90,14 @@ pub trait SessionRepository: Send + Sync {
     async fn delete_group_participants(&self, group_id: &str) -> Result<(), CommandError>;
     /// 按会话类型加载会话头（list_sessions 过滤用）
     async fn load_sessions_by_kind(&self, kind: SessionKind) -> Result<Vec<SessionRecord>, CommandError>;
+    /// 写穿某会话的 A4 计划（JSON；None=清空计划）
+    async fn save_plan(
+        &self,
+        session_id: &str,
+        plan: &Option<Vec<agent_runtime::types::PlanItem>>,
+    ) -> Result<(), CommandError>;
+    /// 加载某会话的 A4 计划（None=无计划）
+    async fn load_plan(&self, session_id: &str) -> Result<Option<Vec<agent_runtime::types::PlanItem>>, CommandError>;
 }
 
 /// SQLite 实现：`sessions` 表存会话头，`messages` 表按会话存消息 JSON 行
@@ -147,6 +165,16 @@ impl SqliteSessionRepository {
         let _ = sqlx::query("ALTER TABLE sessions ADD COLUMN kind TEXT NOT NULL DEFAULT 'chat'")
             .execute(pool)
             .await;
+        // 迁移：A3 四管线路由开关列，旧库补默认开启
+        let _ = sqlx::query(
+            "ALTER TABLE sessions ADD COLUMN router_enabled INTEGER NOT NULL DEFAULT 1",
+        )
+        .execute(pool)
+        .await;
+        // 迁移：A4 Plan-Exec 计划列（JSON 数组或 NULL），旧库补默认空
+        let _ = sqlx::query("ALTER TABLE sessions ADD COLUMN plan TEXT")
+            .execute(pool)
+            .await;
 
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS messages (
@@ -183,11 +211,11 @@ impl SqliteSessionRepository {
 impl SessionRepository for SqliteSessionRepository {
     async fn save_session(&self, record: &SessionRecord) -> Result<(), CommandError> {
         sqlx::query(
-            "INSERT INTO sessions (id, system_prompt, created_at, message_count, updated_at, title, pinned, kind)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+            "INSERT INTO sessions (id, system_prompt, created_at, message_count, updated_at, title, pinned, kind, router_enabled)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
              ON CONFLICT(id) DO UPDATE SET
                 system_prompt = ?2, created_at = ?3, message_count = ?4, updated_at = ?5,
-                title = ?6, pinned = ?7, kind = ?8",
+                title = ?6, pinned = ?7, kind = ?8, router_enabled = ?9",
         )
         .bind(&record.id)
         .bind(&record.system_prompt)
@@ -197,6 +225,7 @@ impl SessionRepository for SqliteSessionRepository {
         .bind(&record.title)
         .bind(record.pinned as i64)
         .bind(kind_to_str(record.kind))
+        .bind(record.router_enabled as i64)
         .execute(&self.pool)
         .await
         .map_err(|e| CommandError::Internal(format!("写入会话失败: {e}")))?;
@@ -204,8 +233,8 @@ impl SessionRepository for SqliteSessionRepository {
     }
 
     async fn load_sessions(&self) -> Result<Vec<SessionRecord>, CommandError> {
-        let rows: Vec<(String, String, i64, i64, i64, String, i64, String)> = sqlx::query_as(
-            "SELECT id, system_prompt, created_at, message_count, updated_at, title, pinned, kind FROM sessions",
+        let rows: Vec<(String, String, i64, i64, i64, String, i64, String, i64)> = sqlx::query_as(
+            "SELECT id, system_prompt, created_at, message_count, updated_at, title, pinned, kind, router_enabled FROM sessions",
         )
         .fetch_all(&self.pool)
         .await
@@ -217,8 +246,8 @@ impl SessionRepository for SqliteSessionRepository {
     }
 
     async fn load_sessions_by_kind(&self, kind: SessionKind) -> Result<Vec<SessionRecord>, CommandError> {
-        let rows: Vec<(String, String, i64, i64, i64, String, i64, String)> = sqlx::query_as(
-            "SELECT id, system_prompt, created_at, message_count, updated_at, title, pinned, kind FROM sessions WHERE kind = ?1",
+        let rows: Vec<(String, String, i64, i64, i64, String, i64, String, i64)> = sqlx::query_as(
+            "SELECT id, system_prompt, created_at, message_count, updated_at, title, pinned, kind, router_enabled FROM sessions WHERE kind = ?1",
         )
         .bind(kind_to_str(kind))
         .fetch_all(&self.pool)
@@ -313,6 +342,20 @@ impl SessionRepository for SqliteSessionRepository {
         Ok(())
     }
 
+    async fn set_router_enabled(
+        &self,
+        session_id: &str,
+        enabled: bool,
+    ) -> Result<(), CommandError> {
+        sqlx::query("UPDATE sessions SET router_enabled = ?1 WHERE id = ?2")
+            .bind(enabled as i64)
+            .bind(session_id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| CommandError::Internal(format!("更新会话路由开关失败: {e}")))?;
+        Ok(())
+    }
+
     async fn save_group_participant(
         &self,
         group_id: &str,
@@ -352,6 +395,42 @@ impl SessionRepository for SqliteSessionRepository {
             .map_err(|e| CommandError::Internal(format!("删除群聊参与者会话映射失败: {e}")))?;
         Ok(())
     }
+
+    async fn save_plan(
+        &self,
+        session_id: &str,
+        plan: &Option<Vec<agent_runtime::types::PlanItem>>,
+    ) -> Result<(), CommandError> {
+        let plan_json = plan
+            .as_ref()
+            .map(|p| serde_json::to_string(p).unwrap_or_else(|_| "[]".into()));
+        sqlx::query("UPDATE sessions SET plan = ?1 WHERE id = ?2")
+            .bind(plan_json)
+            .bind(session_id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| CommandError::Internal(format!("写穿会话计划失败: {e}")))?;
+        Ok(())
+    }
+
+    async fn load_plan(&self, session_id: &str) -> Result<Option<Vec<agent_runtime::types::PlanItem>>, CommandError> {
+        let plan_json: Option<String> = sqlx::query_scalar("SELECT plan FROM sessions WHERE id = ?1")
+            .bind(session_id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|e| CommandError::Internal(format!("读取会话计划失败: {e}")))?
+            .flatten();
+        match plan_json {
+            None => Ok(None),
+            Some(json) if json.trim().is_empty() => Ok(None),
+            Some(json) => {
+                let items: Vec<agent_runtime::types::PlanItem> = serde_json::from_str(&json)
+                    .map_err(|e| CommandError::Internal(format!("解析会话计划失败: {e}")))?;
+                // 空数组/空计划视为无计划，统一返回 None
+                Ok(if items.is_empty() { None } else { Some(items) })
+            }
+        }
+    }
 }
 
 /// kind 枚举 → SQL 存储字符串（与 sessions.kind 列 TEXT 一致）
@@ -364,7 +443,7 @@ fn kind_to_str(kind: SessionKind) -> &'static str {
 
 /// SQL 行 → SessionRecord（kind 列转枚举，未知值回退 chat）
 fn record_from_row(
-    (id, system_prompt, created_at, message_count, updated_at, title, pinned, kind): (
+    (id, system_prompt, created_at, message_count, updated_at, title, pinned, kind, router_enabled): (
         String,
         String,
         i64,
@@ -373,6 +452,7 @@ fn record_from_row(
         String,
         i64,
         String,
+        i64,
     ),
 ) -> SessionRecord {
     SessionRecord {
@@ -387,6 +467,7 @@ fn record_from_row(
             "group" => SessionKind::Group,
             _ => SessionKind::Chat,
         },
+        router_enabled: router_enabled != 0,
     }
 }
 
@@ -415,6 +496,7 @@ mod tests {
             title: "新会话".into(),
             pinned: false,
             kind: SessionKind::Chat,
+            router_enabled: true,
         }
     }
 
@@ -494,6 +576,87 @@ mod tests {
         let all = store.load_sessions().await.unwrap();
         assert_eq!(all.len(), 1, "重启后应能加载已持久化的会话");
         assert_eq!(store.load_messages("s1").await.unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn router_enabled_roundtrip_and_persist() {
+        // 用临时文件模拟持久化：设置开关后关闭 store，再重新打开验证已落库
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("router.db");
+        let path = db_path.to_str().unwrap().to_string();
+
+        {
+            let store = SqliteSessionRepository::new(&path).await.unwrap();
+            let mut r = record("s1", 0);
+            r.router_enabled = false;
+            store.save_session(&r).await.unwrap();
+            // set_router_enabled 写穿更新
+            store.set_router_enabled("s1", false).await.unwrap();
+            let loaded = store.load_sessions().await.unwrap();
+            assert_eq!(loaded[0].router_enabled, false);
+        } // drop store → 连接池关闭（模拟重启）
+
+        let store = SqliteSessionRepository::new(&path).await.unwrap();
+        let loaded = store.load_sessions().await.unwrap();
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(loaded[0].router_enabled, false, "重启后应保留关闭状态");
+    }
+
+    #[tokio::test]
+    async fn plan_roundtrip_and_persist() {
+        // 用临时文件模拟持久化：save_plan 后关闭 store 再重新打开，验证计划已落库
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("plan.db");
+        let path = db_path.to_str().unwrap().to_string();
+
+        let items = vec![
+            agent_runtime::types::PlanItem {
+                id: "plan-item-1-0".into(),
+                title: "第一步".into(),
+                description: Some("调研".into()),
+                status: agent_runtime::types::PlanItemStatus::Pending,
+                order: 0,
+                output: None,
+            },
+            agent_runtime::types::PlanItem {
+                id: "plan-item-1-1".into(),
+                title: "第二步".into(),
+                description: None,
+                status: agent_runtime::types::PlanItemStatus::InProgress,
+                order: 1,
+                output: None,
+            },
+        ];
+
+        {
+            let store = SqliteSessionRepository::new(&path).await.unwrap();
+            store.save_session(&record("s1", 0)).await.unwrap();
+            store.save_plan("s1", &Some(items.clone())).await.unwrap();
+            // 即时读取验证内存往返
+            let loaded = store.load_plan("s1").await.unwrap().unwrap();
+            assert_eq!(loaded.len(), 2);
+            assert_eq!(loaded[0].title, "第一步");
+            assert_eq!(loaded[0].status, agent_runtime::types::PlanItemStatus::Pending);
+            assert_eq!(loaded[1].status, agent_runtime::types::PlanItemStatus::InProgress);
+        } // drop store → 连接池关闭（模拟重启）
+
+        let store = SqliteSessionRepository::new(&path).await.unwrap();
+        let loaded = store.load_plan("s1").await.unwrap().unwrap();
+        assert_eq!(loaded.len(), 2, "重启后应恢复计划");
+        assert_eq!(loaded[0].title, "第一步");
+        assert_eq!(loaded[1].status, agent_runtime::types::PlanItemStatus::InProgress);
+    }
+
+    #[tokio::test]
+    async fn plan_clear_and_none_for_missing_session() {
+        let store = SqliteSessionRepository::new_in_memory().await.unwrap();
+        // 无会话 → 无计划
+        assert!(store.load_plan("missing").await.unwrap().is_none());
+
+        store.save_session(&record("s1", 0)).await.unwrap();
+        store.save_plan("s1", &Some(vec![])).await.unwrap();
+        // 空数组 → 视为无计划
+        assert!(store.load_plan("s1").await.unwrap().is_none());
     }
 
     #[tokio::test]
