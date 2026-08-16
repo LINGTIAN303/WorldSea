@@ -140,6 +140,7 @@ impl AgentLoop {
             messages: state.messages.clone(),
             model,
             thinking_level,
+            plan: state.plan.clone(),
         }
     }
 
@@ -190,6 +191,17 @@ impl AgentLoop {
     pub async fn set_provider_config(&self, config: ProviderConfig) -> Result<(), AgentError> {
         self.backend
             .set_provider_config(config)
+            .await
+            .map_err(AgentError::from)
+    }
+
+    /// 注入备用 API Key 池（A2 多 Key 降级）
+    ///
+    /// 主 key 由 [`Self::set_provider_config`] 写入；`keys` 为备用 key 池，
+    /// 主 key 请求命中可重试错误（认证/限流/网络）时逐把降级重试。
+    pub async fn set_api_key_pool(&self, keys: Vec<String>) -> Result<(), AgentError> {
+        self.backend
+            .set_api_key_pool(keys)
             .await
             .map_err(AgentError::from)
     }

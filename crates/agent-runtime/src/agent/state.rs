@@ -1,5 +1,5 @@
 use crate::backend::ThinkingLevel;
-use crate::types::{MessageRole, OrchestratorMessage};
+use crate::types::{MessageRole, OrchestratorMessage, PlanItem};
 
 /// AgentLoop 运行时状态
 #[derive(Debug, Clone)]
@@ -12,6 +12,8 @@ pub struct AgentState {
     pub aborted: bool,
     /// 是否暂停
     pub paused: bool,
+    /// A4 Plan-Exec：当前任务计划（由 plan_create 创建、plan_update 推进，随会话持久化）
+    pub plan: Option<Vec<PlanItem>>,
 }
 
 impl AgentState {
@@ -22,6 +24,7 @@ impl AgentState {
             current_iteration: 0,
             aborted: false,
             paused: false,
+            plan: None,
         }
     }
 
@@ -68,4 +71,6 @@ pub struct AgentStateSnapshot {
     pub model: String,
     /// 当前思考级别
     pub thinking_level: Option<ThinkingLevel>,
+    /// A4 Plan-Exec：当前任务计划（前端 get_state 恢复用；null=无计划）
+    pub plan: Option<Vec<PlanItem>>,
 }

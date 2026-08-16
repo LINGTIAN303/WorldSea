@@ -36,6 +36,8 @@ pub struct GenaiBackend {
     client: Client,
     /// Provider 配置
     config: Arc<RwLock<ProviderConfig>>,
+    /// 备用 API Key 池（A2 多 Key 降级）；主 key 在 config 中，池为空则无降级
+    key_pool: Arc<RwLock<Vec<String>>>,
     /// 内部消息历史
     messages: Arc<RwLock<Vec<OrchestratorMessage>>>,
     /// steer 缓冲区
@@ -53,6 +55,7 @@ impl GenaiBackend {
         Self {
             client: Client::default(),
             config: Arc::new(RwLock::new(config)),
+            key_pool: Arc::new(RwLock::new(Vec::new())),
             messages: Arc::new(RwLock::new(Vec::new())),
             steer_buffer: Arc::new(RwLock::new(Vec::new())),
             event_broadcaster: Arc::new(RwLock::new(EventBroadcaster::new())),
@@ -64,10 +67,24 @@ impl GenaiBackend {
         Self {
             client,
             config: Arc::new(RwLock::new(config)),
+            key_pool: Arc::new(RwLock::new(Vec::new())),
             messages: Arc::new(RwLock::new(Vec::new())),
             steer_buffer: Arc::new(RwLock::new(Vec::new())),
             event_broadcaster: Arc::new(RwLock::new(EventBroadcaster::new())),
         }
+    }
+
+    /// 注入备用 API Key 池（A2）
+    pub async fn set_key_pool(&self, keys: Vec<String>) {
+        *self.key_pool.write().await = keys;
+    }
+
+    /// 读取备用 API Key 池（去重，排除与主 key 重复的项）
+    async fn backup_keys(&self, primary: &str) -> Vec<String> {
+        let pool = self.key_pool.read().await.clone();
+        pool.into_iter()
+            .filter(|k| !k.is_empty() && k != primary)
+            .collect()
     }
 
     /// 订阅事件广播
@@ -269,6 +286,192 @@ impl GenaiBackend {
     async fn broadcast(&self, event: OrchestratorEvent) {
         self.event_broadcaster.read().await.broadcast(&event);
     }
+
+    /// 用指定 ServiceTarget 执行一次流式调用并聚合结果（A2 多 Key 降级的单次尝试）
+    async fn exec_stream_once(
+        &self,
+        service_target: ServiceTarget,
+        chat_req: genai::chat::ChatRequest,
+        chat_opts: &genai::chat::ChatOptions,
+    ) -> Result<PromptResponse, BackendError> {
+        use futures_util::StreamExt;
+
+        let stream_resp = self
+            .client
+            .exec_chat_stream(service_target, chat_req, Some(chat_opts))
+            .await
+            .map_err(LlmError::from)?;
+        let mut stream = stream_resp.stream;
+
+        let mut full_text = String::new();
+        let mut reasoning_text = String::new();
+
+        // 工具调用聚合状态机：call_id -> ToolCall
+        //
+        // genai 0.7 的 ToolCallChunk 每次携带一个完整 ToolCall（非增量），
+        // 但同一个 call_id 可能多次出现（不同字段分批到达），故用 HashMap 去重合并。
+        // 与 stream.rs 的实现保持一致。
+        let mut pending_tool_calls: HashMap<String, ToolCall> = HashMap::new();
+
+        while let Some(event_result) = stream.next().await {
+            let event = event_result.map_err(LlmError::from)?;
+            match event {
+                ChatStreamEvent::Start => {
+                    debug!("genai stream start");
+                }
+                ChatStreamEvent::Chunk(chunk) => {
+                    // genai 0.7 StreamChunk.content 直接是 String
+                    let text = chunk.content.as_str();
+                    full_text.push_str(text);
+                    // 广播 StreamDelta
+                    let _ = self
+                        .broadcast(OrchestratorEvent::Agent(
+                            crate::event::AgentEvent::StreamDelta {
+                                delta: text.to_string(),
+                            },
+                        ))
+                        .await;
+                }
+                ChatStreamEvent::ReasoningChunk(chunk) => {
+                    reasoning_text.push_str(chunk.content.as_str());
+                }
+                ChatStreamEvent::ThoughtSignatureChunk(_) => {
+                    // 暂不处理 thought signature
+                }
+                ChatStreamEvent::Heartbeat => {
+                    // 握手心跳（genai >= 0.7.0-beta.16），忽略即可
+                }
+                ChatStreamEvent::ToolCallChunk(tool_chunk) => {
+                    // genai 0.7 ToolChunk { tool_call: ToolCall }
+                    // ToolCall 含 call_id / fn_name / fn_arguments / thought_signatures
+                    // 每次到达的 ToolCall 通常是完整的（非增量），用 HashMap 合并去重
+                    let tc = tool_chunk.tool_call;
+                    let call_id = tc.call_id.clone();
+                    // 广播 ToolCallStart（携带工具名，便于前端展示）
+                    let _ = self
+                        .broadcast(OrchestratorEvent::Agent(
+                            crate::event::AgentEvent::ToolCallStart {
+                                tool_call_id: call_id.clone(),
+                                name: tc.fn_name.clone(),
+                                args: tc.fn_arguments.clone(),
+                            },
+                        ))
+                        .await;
+                    // 覆盖式更新（后到的 chunk 字段更完整）
+                    pending_tool_calls.insert(call_id, tc);
+                }
+                ChatStreamEvent::End(end) => {
+                    // 优先使用 StreamEnd 的 captured_tool_calls（权威），
+                    // 回退到循环中累积的 pending_tool_calls。
+                    let final_tool_calls: Vec<ToolCall> = end
+                        .captured_tool_calls()
+                        .map(|v| v.into_iter().cloned().collect())
+                        .unwrap_or_else(|| pending_tool_calls.values().cloned().collect());
+
+                    // 广播每个工具调用的 ToolCallEnd
+                    for tc in &final_tool_calls {
+                        let _ = self
+                            .broadcast(OrchestratorEvent::Agent(
+                                crate::event::AgentEvent::ToolCallEnd {
+                                    tool_call_id: tc.call_id.clone(),
+                                    result: tc.fn_arguments.clone(),
+                                },
+                            ))
+                            .await;
+                    }
+
+                    // 先 clone 出 captured_usage / captured_stop_reason，
+                    // 再调用 captured_into_first_text()（后者会消费 end）
+                    let captured_usage = end.captured_usage.clone();
+                    let captured_stop_reason = end.captured_stop_reason.clone();
+                    if let Some(captured) = end.captured_into_first_text() {
+                        if full_text.is_empty() {
+                            full_text = captured;
+                        }
+                    }
+                    debug!(
+                        "genai stream end, stop_reason={:?}, usage={:?}, tool_calls={}",
+                        captured_stop_reason,
+                        captured_usage,
+                        final_tool_calls.len()
+                    );
+
+                    // 将聚合的 ToolCall 转换为 types::ToolCall
+                    // 注意：此处不能直接 return，因为还需要处理完 stream
+                    // 将结果暂存到 pending_tool_calls（覆盖），稍后统一构造 PromptResponse
+                    // 为避免借用问题，直接构造 PromptResponse 并 break
+                    let aggregated: Vec<crate::types::ToolCall> = final_tool_calls
+                        .iter()
+                        .map(|tc| crate::types::ToolCall {
+                            id: tc.call_id.clone(),
+                            name: tc.fn_name.clone(),
+                            args: tc.fn_arguments.clone(),
+                        })
+                        .collect();
+
+                    let input_tokens = captured_usage
+                        .as_ref()
+                        .and_then(|u| u.prompt_tokens)
+                        .map(|v| v as u32);
+                    let output_tokens = captured_usage
+                        .as_ref()
+                        .and_then(|u| u.completion_tokens)
+                        .map(|v| v as u32);
+                    let stop_reason_str = captured_stop_reason.as_ref().map(|r| match r {
+                        genai::chat::StopReason::Completed(_) => "end_turn",
+                        genai::chat::StopReason::ToolCall(_) => "tool_calls",
+                        genai::chat::StopReason::MaxTokens(_) => "max_tokens",
+                        genai::chat::StopReason::StopSequence(_) => "stop_sequence",
+                        genai::chat::StopReason::ContentFilter(_) => "content_filter",
+                        genai::chat::StopReason::Other(_) => "other",
+                    });
+
+                    return Ok(PromptResponse {
+                        text: full_text.clone(),
+                        tool_calls: aggregated,
+                        input_tokens,
+                        output_tokens,
+                        stop_reason: stop_reason_str.map(|s| s.to_string()),
+                    });
+                }
+            }
+        }
+
+        // 走到这里说明 stream 未触发 End 事件（异常情况）
+        // 返回已收集的内容，但不包含工具调用
+        debug!("genai stream 未触发 End 事件，返回部分内容");
+        Ok(PromptResponse {
+            text: full_text,
+            tool_calls: Vec::new(),
+            input_tokens: None,
+            output_tokens: None,
+            stop_reason: None,
+        })
+    }
+
+    /// 处理一次成功响应：推入 assistant 消息并广播 StreamEnd（A2 降级成功后的收尾）
+    async fn finish_prompt(&self, response: PromptResponse) -> Result<PromptResponse, BackendError> {
+        // 推入 assistant 消息（含 tool_calls，供下一轮 LLM 上下文使用）
+        let mut messages = self.messages.write().await;
+        messages.push(OrchestratorMessage {
+            role: MessageRole::Assistant,
+            content: response.text.clone(),
+            tool_calls: response.tool_calls.clone(),
+            tool_call_id: None,
+            meta: None,
+        });
+
+        // 广播 StreamEnd
+        let _ = self
+            .broadcast(OrchestratorEvent::Agent(
+                crate::event::AgentEvent::StreamEnd {
+                    full_text: response.text.clone(),
+                },
+            ))
+            .await;
+
+        Ok(response)
+    }
 }
 
 #[async_trait]
@@ -318,217 +521,47 @@ impl NodeBackendAccessor for GenaiBackend {
             });
         }
 
-        // 3. 解析 ServiceTarget
-        let service_target = Self::resolve_service_target(&config).map_err(BackendError::from)?;
+        // 3. 收集候选 key（主 key + 备用 key 池）
+        let primary_key = config.api_key().to_string();
+        let mut candidate_keys: Vec<String> = vec![primary_key.clone()];
+        if !matches!(config, ProviderConfig::Local { .. }) {
+            candidate_keys.extend(self.backup_keys(&primary_key).await);
+        }
 
-        // 4. 构建 ChatRequest + ChatOptions
+        // 4-6. 逐 key 尝试执行（A2 多 Key 降级）：
+        // 主 key 请求命中可重试错误（认证/限流/网络）时，换池中下一把 key 重试。
         let messages_snapshot = self.messages.read().await.clone();
         let (chat_req, chat_opts) =
             Self::build_chat_request(&messages_snapshot, &opts).map_err(BackendError::from)?;
 
-        // 5. 广播 StreamStart
-        self.broadcast(OrchestratorEvent::Agent(crate::event::AgentEvent::StreamStart {
-            model: config.model_id().to_string(),
-        }))
-        .await;
-
-        // 6. 执行流式调用，聚合 ToolCall 与文本
-        let stream_result: Result<PromptResponse, BackendError> = async {
-            use futures_util::StreamExt;
-
-            // exec_chat_stream 签名：(&self, model, chat_req, Option<&ChatOptions>)
-            // 返回 ChatStreamResponse { stream: ChatStream, model_iden: ModelIden }
-            // 传入 ServiceTarget（ModelSpec::Target），直接绕过 adapter 推断。
-            let stream_resp = self
-                .client
-                .exec_chat_stream(service_target, chat_req, Some(&chat_opts))
-                .await
-                .map_err(LlmError::from)?;
-
-            let mut stream = stream_resp.stream;
-
-            let mut full_text = String::new();
-            let mut reasoning_text = String::new();
-
-            // 工具调用聚合状态机：call_id -> ToolCall
-            //
-            // genai 0.7 的 ToolCallChunk 每次携带一个完整 ToolCall（非增量），
-            // 但同一个 call_id 可能多次出现（不同字段分批到达），故用 HashMap 去重合并。
-            // 与 stream.rs 的实现保持一致。
-            let mut pending_tool_calls: HashMap<String, ToolCall> = HashMap::new();
-
-            while let Some(event_result) = stream.next().await {
-                let event = event_result.map_err(LlmError::from)?;
-                match event {
-                    ChatStreamEvent::Start => {
-                        debug!("genai stream start");
+        let mut last_error: Option<BackendError> = None;
+        for key in &candidate_keys {
+            let mut attempt_config = config.clone();
+            if !matches!(config, ProviderConfig::Local { .. }) {
+                attempt_config = set_config_api_key(&config, key);
+            }
+            let service_target =
+                Self::resolve_service_target(&attempt_config).map_err(BackendError::from)?;
+            self.broadcast(OrchestratorEvent::Agent(crate::event::AgentEvent::StreamStart {
+                model: attempt_config.model_id().to_string(),
+            }))
+            .await;
+            let stream_result = self
+                .exec_stream_once(service_target, chat_req.clone(), &chat_opts)
+                .await;
+            match stream_result {
+                Ok(resp) => return self.finish_prompt(resp).await,
+                Err(e) => {
+                    if is_retryable_error(&e) && last_error.is_none() {
+                        last_error = Some(e);
+                        continue;
                     }
-                    ChatStreamEvent::Chunk(chunk) => {
-                        // genai 0.7 StreamChunk.content 直接是 String
-                        let text = chunk.content.as_str();
-                        full_text.push_str(text);
-                        // 广播 StreamDelta
-                        let _ = self
-                            .broadcast(OrchestratorEvent::Agent(
-                                crate::event::AgentEvent::StreamDelta {
-                                    delta: text.to_string(),
-                                },
-                            ))
-                            .await;
-                    }
-                    ChatStreamEvent::ReasoningChunk(chunk) => {
-                        reasoning_text.push_str(chunk.content.as_str());
-                    }
-                    ChatStreamEvent::ThoughtSignatureChunk(_) => {
-                        // 暂不处理 thought signature
-                    }
-                    ChatStreamEvent::Heartbeat => {
-                        // 握手心跳（genai >= 0.7.0-beta.16），忽略即可
-                    }
-                    ChatStreamEvent::ToolCallChunk(tool_chunk) => {
-                        // genai 0.7 ToolChunk { tool_call: ToolCall }
-                        // ToolCall 含 call_id / fn_name / fn_arguments / thought_signatures
-                        // 每次到达的 ToolCall 通常是完整的（非增量），用 HashMap 合并去重
-                        let tc = tool_chunk.tool_call;
-                        let call_id = tc.call_id.clone();
-                        // 广播 ToolCallStart（携带工具名，便于前端展示）
-                        let _ = self
-                            .broadcast(OrchestratorEvent::Agent(
-                                crate::event::AgentEvent::ToolCallStart {
-                                    tool_call_id: call_id.clone(),
-                                    name: tc.fn_name.clone(),
-                                    args: tc.fn_arguments.clone(),
-                                },
-                            ))
-                            .await;
-                        // 覆盖式更新（后到的 chunk 字段更完整）
-                        pending_tool_calls.insert(call_id, tc);
-                    }
-                    ChatStreamEvent::End(end) => {
-                        // 优先使用 StreamEnd 的 captured_tool_calls（权威），
-                        // 回退到循环中累积的 pending_tool_calls。
-                        let final_tool_calls: Vec<ToolCall> = end
-                            .captured_tool_calls()
-                            .map(|v| v.into_iter().cloned().collect())
-                            .unwrap_or_else(|| pending_tool_calls.values().cloned().collect());
-
-                        // 广播每个工具调用的 ToolCallEnd
-                        for tc in &final_tool_calls {
-                            let _ = self
-                                .broadcast(OrchestratorEvent::Agent(
-                                    crate::event::AgentEvent::ToolCallEnd {
-                                        tool_call_id: tc.call_id.clone(),
-                                        result: tc.fn_arguments.clone(),
-                                    },
-                                ))
-                                .await;
-                        }
-
-                        // 先 clone 出 captured_usage / captured_stop_reason，
-                        // 再调用 captured_into_first_text()（后者会消费 end）
-                        let captured_usage = end.captured_usage.clone();
-                        let captured_stop_reason = end.captured_stop_reason.clone();
-                        if let Some(captured) = end.captured_into_first_text() {
-                            if full_text.is_empty() {
-                                full_text = captured;
-                            }
-                        }
-                        debug!(
-                            "genai stream end, stop_reason={:?}, usage={:?}, tool_calls={}",
-                            captured_stop_reason,
-                            captured_usage,
-                            final_tool_calls.len()
-                        );
-
-                        // 将聚合的 ToolCall 转换为 types::ToolCall
-                        // 注意：此处不能直接 return，因为还需要处理完 stream
-                        // 将结果暂存到 pending_tool_calls（覆盖），稍后统一构造 PromptResponse
-                        // 为避免借用问题，直接构造 PromptResponse 并 break
-                        let aggregated: Vec<crate::types::ToolCall> = final_tool_calls
-                            .iter()
-                            .map(|tc| crate::types::ToolCall {
-                                id: tc.call_id.clone(),
-                                name: tc.fn_name.clone(),
-                                args: tc.fn_arguments.clone(),
-                            })
-                            .collect();
-
-                        let input_tokens = captured_usage
-                            .as_ref()
-                            .and_then(|u| u.prompt_tokens)
-                            .map(|v| v as u32);
-                        let output_tokens = captured_usage
-                            .as_ref()
-                            .and_then(|u| u.completion_tokens)
-                            .map(|v| v as u32);
-                        let stop_reason_str = captured_stop_reason.as_ref().map(|r| match r {
-                            genai::chat::StopReason::Completed(_) => "end_turn",
-                            genai::chat::StopReason::ToolCall(_) => "tool_calls",
-                            genai::chat::StopReason::MaxTokens(_) => "max_tokens",
-                            genai::chat::StopReason::StopSequence(_) => "stop_sequence",
-                            genai::chat::StopReason::ContentFilter(_) => "content_filter",
-                            genai::chat::StopReason::Other(_) => "other",
-                        });
-
-                        return Ok(PromptResponse {
-                            text: full_text.clone(),
-                            tool_calls: aggregated,
-                            input_tokens,
-                            output_tokens,
-                            stop_reason: stop_reason_str.map(|s| s.to_string()),
-                        });
-                    }
+                    return Err(e);
                 }
             }
-
-            // 走到这里说明 stream 未触发 End 事件（异常情况）
-            // 返回已收集的内容，但不包含工具调用
-            debug!("genai stream 未触发 End 事件，返回部分内容");
-            Ok(PromptResponse {
-                text: full_text,
-                tool_calls: Vec::new(),
-                input_tokens: None,
-                output_tokens: None,
-                stop_reason: None,
-            })
         }
-        .await;
-
-        // 7. 处理结果
-        match stream_result {
-            Ok(response) => {
-                // 推入 assistant 消息（含 tool_calls，供下一轮 LLM 上下文使用）
-                let mut messages = self.messages.write().await;
-                messages.push(OrchestratorMessage {
-                    role: MessageRole::Assistant,
-                    content: response.text.clone(),
-                    tool_calls: response.tool_calls.clone(),
-                    tool_call_id: None,
-                    meta: None,
-                });
-
-                // 广播 StreamEnd
-                let _ = self
-                    .broadcast(OrchestratorEvent::Agent(
-                        crate::event::AgentEvent::StreamEnd {
-                            full_text: response.text.clone(),
-                        },
-                    ))
-                    .await;
-
-                Ok(response)
-            }
-            Err(e) => {
-                warn!("genai prompt 失败: {e}");
-                // 广播 Error 事件
-                let _ = self
-                    .broadcast(OrchestratorEvent::Agent(crate::event::AgentEvent::Error {
-                        message: e.to_string(),
-                    }))
-                    .await;
-                Err(e)
-            }
-        }
+        // 所有候选 key 均失败
+        Err(last_error.unwrap_or_else(|| BackendError::Other("无可用 API Key".into())))
     }
 
     async fn steer(&self, text: String) -> Result<(), BackendError> {
@@ -668,16 +701,73 @@ impl NodeBackendAccessor for GenaiBackend {
         *self.config.write().await = config;
         Ok(())
     }
+
+    /// 注入备用 API Key 池（A2 多 Key 降级）
+    async fn set_api_key_pool(&self, keys: Vec<String>) -> Result<(), BackendError> {
+        self.set_key_pool(keys).await;
+        Ok(())
+    }
 }
 
 // ─── genai 类型适配辅助 ────────────────────────────────────
 // 注：genai 0.7.0-beta.14 的 StreamChunk.content 直接是 String，
 // 无需额外的 content_text trait。直接通过 chunk.content.as_str() 访问。
 
+// ─── A2 多 Key 降级辅助 ────────────────────────────────────
+
+/// 用备用 key 替换 ProviderConfig 中的 api_key（返回新副本，不改原 config）
+fn set_config_api_key(config: &ProviderConfig, key: &str) -> ProviderConfig {
+    match config {
+        ProviderConfig::Cloud {
+            provider,
+            model_id,
+            api_key: _,
+        } => ProviderConfig::Cloud {
+            provider: provider.clone(),
+            model_id: model_id.clone(),
+            api_key: key.to_string(),
+        },
+        ProviderConfig::Local {
+            endpoint,
+            api_type,
+            model_id,
+        } => ProviderConfig::Local {
+            endpoint: endpoint.clone(),
+            api_type: *api_type,
+            model_id: model_id.clone(),
+        },
+        ProviderConfig::Custom {
+            base_url,
+            api_key: _,
+            api_type,
+            model_id,
+            context_window,
+            max_tokens,
+        } => ProviderConfig::Custom {
+            base_url: base_url.clone(),
+            api_key: key.to_string(),
+            api_type: *api_type,
+            model_id: model_id.clone(),
+            context_window: *context_window,
+            max_tokens: *max_tokens,
+        },
+    }
+}
+
+/// 判断某个错误是否可触发 key 降级重试（认证失败/限流/网络）
+fn is_retryable_error(e: &BackendError) -> bool {
+    matches!(
+        e,
+        BackendError::Auth(_)
+            | BackendError::RateLimit
+            | BackendError::Network(_)
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::llm::config::ProviderConfig;
+    use crate::llm::config::{LocalApiType, ProviderConfig};
 
     #[test]
     fn resolve_service_target_cloud() {
@@ -942,5 +1032,59 @@ mod tests {
             Err(BackendError::Auth(_)) => {}
             _ => panic!("应为 Auth 错误"),
         }
+    }
+
+    // ─── A2 多 Key 降级 ───
+
+    #[test]
+    fn set_config_api_key_replaces_cloud_key() {
+        let config = ProviderConfig::Cloud {
+            provider: "deepseek".to_string(),
+            model_id: "deepseek-v4-flash".to_string(),
+            api_key: "sk-primary".to_string(),
+        };
+        let swapped = set_config_api_key(&config, "sk-backup");
+        assert_eq!(swapped.api_key(), "sk-backup");
+        assert_eq!(swapped.model_id(), "deepseek-v4-flash");
+        // 原 config 不被修改
+        assert_eq!(config.api_key(), "sk-primary");
+    }
+
+    #[test]
+    fn set_config_api_key_preserves_local() {
+        let config = ProviderConfig::Local {
+            endpoint: "http://localhost:11434".to_string(),
+            api_type: LocalApiType::Ollama,
+            model_id: "llama3".to_string(),
+        };
+        let swapped = set_config_api_key(&config, "sk-ignored");
+        assert_eq!(swapped.api_key(), "");
+        assert_eq!(swapped.model_id(), "llama3");
+    }
+
+    #[test]
+    fn is_retryable_error_classifies_network_and_auth() {
+        assert!(is_retryable_error(&BackendError::Network("timeout".into())));
+        assert!(is_retryable_error(&BackendError::Auth("401".into())));
+        assert!(is_retryable_error(&BackendError::RateLimit));
+        assert!(!is_retryable_error(&BackendError::ModelNotFound("x".into())));
+        assert!(!is_retryable_error(&BackendError::Other("boom".into())));
+    }
+
+    #[tokio::test]
+    async fn backup_keys_excludes_primary_and_empty() {
+        let backend = GenaiBackend::new(ProviderConfig::Cloud {
+            provider: "deepseek".to_string(),
+            model_id: "deepseek-v4-flash".to_string(),
+            api_key: "sk-primary".to_string(),
+        });
+        backend.set_key_pool(vec![
+            "sk-backup1".to_string(),
+            "sk-primary".to_string(), // 与主 key 重复，应排除
+            "".to_string(),           // 空 key，应排除
+            "sk-backup2".to_string(),
+        ]).await;
+        let backups = backend.backup_keys("sk-primary").await;
+        assert_eq!(backups, vec!["sk-backup1".to_string(), "sk-backup2".to_string()]);
     }
 }

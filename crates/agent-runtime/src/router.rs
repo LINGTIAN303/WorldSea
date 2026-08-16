@@ -1,6 +1,7 @@
 //! Router Pattern — 路由编排模式，详细见 docs/details/注释/agent-runtime/router.md
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -301,6 +302,293 @@ impl RoutingStrategy for KeywordRoutingStrategy {
     }
 }
 
+// ─── 四管线（A3）──────────────────────────────────────────────
+//
+// 参考 OpenWorld `IntentClassifier + Dispatcher` 的语义四管线设计，适配到
+// WorldSmith 现有的 `RoutingStrategy` / `RouteTarget` / `RouterNode` 架构。
+// 四管线：Query(查询) / Research(研究) / Experiment(实验) / Compose(创作)。
+// 意图分类策略：LLM 优先（3s 超时）→ 降级关键词 → RouterNode.fallback。
+// 支持 force_pipeline 强制管线（前端 Chip 注入 `/管线` 前缀）。
+
+/// 四管线枚举
+///
+/// 对应 OpenWorld `PipelineKind`，语义化区分用户意图：
+/// - `Query`：事实性查询、信息检索、简单问答
+/// - `Research`：深度研究、多源调研、综述生成
+/// - `Experiment`：数据分析、代码编写、实验脚本
+/// - `Compose`：创作、写作、润色、内容生成
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Pipeline {
+    Query,
+    Research,
+    Experiment,
+    Compose,
+}
+
+impl Pipeline {
+    /// 管线对应的路由目标 ID
+    pub fn target_id(self) -> &'static str {
+        match self {
+            Self::Query => "query",
+            Self::Research => "research",
+            Self::Experiment => "experiment",
+            Self::Compose => "compose",
+        }
+    }
+
+    /// 管线人类可读标签
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Query => "查询专家",
+            Self::Research => "研究专家",
+            Self::Experiment => "实验专家",
+            Self::Compose => "创作专家",
+        }
+    }
+
+    /// 管线对应的最大工具轮次（语义提示，供未来接入 AgentLoop 时动态调整 MAX_ROUNDS）
+    ///
+    /// 与 OpenWorld 一致：Query=3（快问答）、Research/Experiment=10（深度/计算）、Compose=5（创作）。
+    #[allow(dead_code)]
+    pub fn max_tool_rounds(self) -> usize {
+        match self {
+            Self::Query => 3,
+            Self::Research => 10,
+            Self::Experiment => 10,
+            Self::Compose => 5,
+        }
+    }
+
+    /// 解析显式管线名（大小写不敏感），无效返回 `None`
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s.to_lowercase().as_str() {
+            "query" => Some(Self::Query),
+            "research" => Some(Self::Research),
+            "experiment" => Some(Self::Experiment),
+            "compose" => Some(Self::Compose),
+            _ => None,
+        }
+    }
+
+    /// 管线行为指引（追加到 system prompt，指导 Agent 处理方式）
+    ///
+    /// 供 AgentLoop 发送链路接入时，把路由决策转化为对本轮任务的执行指引。
+    pub fn directive(self) -> &'static str {
+        match self {
+            Self::Query => {
+                "本次任务按「查询」管线处理：快速、低开销地回答事实性问题，克制不必要的工具调用。"
+            }
+            Self::Research => {
+                "本次任务按「研究」管线处理：可进行多步检索、多源整合，最后给出综述性结论。"
+            }
+            Self::Experiment => {
+                "本次任务按「实验」管线处理：允许编写代码、分析数据、运行计算来验证或产出结果。"
+            }
+            Self::Compose => {
+                "本次任务按「创作」管线处理：注重结构、文采与艺术联想性，产出高质量文本。"
+            }
+        }
+    }
+}
+
+/// 构造四管线的路由目标列表
+///
+/// 与 `RouteTarget` 兼容，可直接作为 `RouterNode` 的 targets；
+/// 每个目标带内部使用的 `keywords`（供关键词策略降级时匹配）。
+pub fn pipeline_targets() -> Vec<RouteTarget> {
+    vec![
+        RouteTarget {
+            id: "query".into(),
+            name: "查询专家".into(),
+            description: "处理事实性查询、信息检索、简单问答类任务（快、低开销）".into(),
+            keywords: Some(vec![
+                "查询".into(),
+                "事实".into(),
+                "解释".into(),
+                "请问".into(),
+                "什么是".into(),
+                "如何".into(),
+            ]),
+        },
+        RouteTarget {
+            id: "research".into(),
+            name: "研究专家".into(),
+            description: "处理深度研究、多源调研、综述生成类任务（多步检索、多源整合）".into(),
+            keywords: Some(vec![
+                "研究".into(),
+                "调研".into(),
+                "综述".into(),
+                "文献".into(),
+                "检索".into(),
+            ]),
+        },
+        RouteTarget {
+            id: "experiment".into(),
+            name: "实验专家".into(),
+            description: "处理数据分析、代码编写、实验脚本类任务（计算、尝试、创新）".into(),
+            keywords: Some(vec![
+                "实验".into(),
+                "分析".into(),
+                "计算".into(),
+                "代码".into(),
+                "数据".into(),
+                "脚本".into(),
+            ]),
+        },
+        RouteTarget {
+            id: "compose".into(),
+            name: "创作专家".into(),
+            description: "处理创作、写作、润色、内容生成类任务（保持艺术联想性）".into(),
+            keywords: Some(vec![
+                "创作".into(),
+                "写作".into(),
+                "续写".into(),
+                "润色".into(),
+                "改写".into(),
+                "撰写".into(),
+            ]),
+        },
+    ]
+}
+
+/// 从输入文本提取强制管线（force_pipeline）
+///
+/// 检测两类信号：
+/// 1. 领先 token 为 Chip 前缀（中文 `/写作` `/调研` `/分析` `/查询` 或英文 `/compose` 等）
+/// 2. 整段输入等于显式管线名（`query` / `research` / `experiment` / `compose`）
+///
+/// 命中返回对应 `Pipeline`，否则 `None`（交由 LLM/关键词策略正常分类）。
+/// 优先级：Compose > Research > Experiment > Query（与 OpenWorld Dispatcher 一致）。
+pub fn extract_force_pipeline(input: &str) -> Option<Pipeline> {
+    let trimmed = input.trim();
+    let lower = trimmed.to_lowercase();
+    let first_word = lower.split_whitespace().next().unwrap_or("");
+
+    // 1. Chip 前缀（领先 token）
+    for kw in [
+        "/写作",
+        "/续写",
+        "/润色",
+        "/创作",
+        "/改写",
+        "/撰写",
+        "/compose",
+        "/write",
+        "/polish",
+    ] {
+        if first_word.starts_with(kw) || first_word == kw {
+            return Some(Pipeline::Compose);
+        }
+    }
+    for kw in ["/调研", "/综述", "/文献", "/检索", "/research"] {
+        if first_word.starts_with(kw) || first_word == kw {
+            return Some(Pipeline::Research);
+        }
+    }
+    for kw in [
+        "/分析", "/计算", "/实验", "/代码", "/数据", "/experiment", "/analyze",
+    ] {
+        if first_word.starts_with(kw) || first_word == kw {
+            return Some(Pipeline::Experiment);
+        }
+    }
+    for kw in ["/查询", "/解释", "/问答", "/query", "/search"] {
+        if first_word.starts_with(kw) || first_word == kw {
+            return Some(Pipeline::Query);
+        }
+    }
+
+    // 2. 整段等于显式管线名
+    match lower.trim() {
+        "query" => Some(Pipeline::Query),
+        "research" => Some(Pipeline::Research),
+        "experiment" => Some(Pipeline::Experiment),
+        "compose" => Some(Pipeline::Compose),
+        _ => None,
+    }
+}
+
+/// 四管线路由策略（A3 默认）
+///
+/// 组合策略：
+/// 1. **force_pipeline 优先**：输入含强制管线前缀时直接路由，跳过 LLM。
+/// 2. **LLM 意图分类**：带 `timeout`（默认 3s），返回各分支能力描述最匹配者。
+/// 3. **超时降级关键词**：LLM 超时（网络/卡顿）时降级到 `KeywordRoutingStrategy`，
+///    避免用户等待；关键词未命中时由 `RouterNode` 的 fallback 兜底。
+pub struct PipelineRoutingStrategy {
+    llm_strategy: LlmRoutingStrategy,
+    keyword_strategy: KeywordRoutingStrategy,
+    timeout: Duration,
+}
+
+impl Default for PipelineRoutingStrategy {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl PipelineRoutingStrategy {
+    /// 创建四管线路由策略，使用默认 3s 超时
+    pub fn new() -> Self {
+        Self {
+            llm_strategy: LlmRoutingStrategy::new(),
+            keyword_strategy: KeywordRoutingStrategy::new(),
+            timeout: Duration::from_secs(3),
+        }
+    }
+
+    /// 使用自定义超时创建
+    pub fn with_timeout(timeout: Duration) -> Self {
+        Self {
+            llm_strategy: LlmRoutingStrategy::new(),
+            keyword_strategy: KeywordRoutingStrategy::new(),
+            timeout,
+        }
+    }
+}
+
+#[async_trait]
+impl RoutingStrategy for PipelineRoutingStrategy {
+    async fn route(
+        &self,
+        input: &str,
+        targets: &[RouteTarget],
+        backend: &dyn NodeBackendAccessor,
+    ) -> Result<RouteResult, RoutingError> {
+        if targets.is_empty() {
+            return Err(RoutingError::NoTargets);
+        }
+
+        // 1. force_pipeline 强制
+        if let Some(pipeline) = extract_force_pipeline(input) {
+            if let Some(target) = targets.iter().find(|t| t.id == pipeline.target_id()) {
+                debug!(
+                    "Router: 强制管线 pipeline={:?} target={}",
+                    pipeline,
+                    target.id
+                );
+                return Ok(RouteResult {
+                    target_id: target.id.clone(),
+                    reason: Some(format!("强制管线: {}", pipeline.label())),
+                });
+            }
+        }
+
+        // 2. LLM 意图分类（带超时）
+        match tokio::time::timeout(self.timeout, self.llm_strategy.route(input, targets, backend))
+            .await
+        {
+            Ok(Ok(result)) => Ok(result),
+            Ok(Err(e)) => Err(e),
+            Err(_elapsed) => {
+                // 3. 超时降级关键词
+                warn!("Router: LLM 路由超时（{:?}），降级关键词策略", self.timeout);
+                self.keyword_strategy.route(input, targets, backend).await
+            }
+        }
+    }
+}
+
 // ─── Router 配置 ────────────────────────────────────────────
 
 /// Router 配置
@@ -410,6 +698,27 @@ impl RouterNode {
         )
     }
 
+    /// 使用四管线策略创建（A3 便捷方法）
+    ///
+    /// 自动使用 `pipeline_targets()` 作为路由目标，并接入 `PipelineRoutingStrategy`
+    /// （LLM 3s 超时降级关键词 + force_pipeline 强制）。
+    pub fn with_pipeline_strategy(
+        id: impl Into<String>,
+        name: impl Into<String>,
+        backend: Arc<dyn NodeBackendAccessor>,
+        config: RouterConfig,
+    ) -> Self {
+        let targets = pipeline_targets();
+        Self::new(
+            id,
+            name,
+            targets,
+            Arc::new(PipelineRoutingStrategy::new()),
+            backend,
+            config,
+        )
+    }
+
     /// 查找路由目标
     fn find_target(&self, target_id: &str) -> Option<&RouteTarget> {
         self.targets.iter().find(|t| t.id == target_id)
@@ -418,6 +727,18 @@ impl RouterNode {
     /// 获取路由目标列表（只读）
     pub fn targets(&self) -> &[RouteTarget] {
         &self.targets
+    }
+
+    /// 仅做路由决策（供 AgentLoop 发送链路接入）
+    ///
+    /// 直接调用内部策略返回 `RouteResult`，不产生 `OrchestratorNode::execute` 的
+    /// 事件/状态副作用。事件广播与 fallback 处理由调用方（AgentLoop）负责。
+    pub async fn decide(
+        &self,
+        input: &str,
+        backend: &dyn NodeBackendAccessor,
+    ) -> Result<RouteResult, RoutingError> {
+        self.strategy.route(input, &self.targets, backend).await
     }
 }
 

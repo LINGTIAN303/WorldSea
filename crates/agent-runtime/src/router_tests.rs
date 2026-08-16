@@ -527,3 +527,132 @@
             .contains("技术子路由"));
         assert!(result_b.summary.as_deref().unwrap().contains("代码专家"));
     }
+
+    // ─── 四管线（A3）测试 ────────────────────────────────────
+
+    /// 测试用 Backend — prompt 永不返回（用于触发超时降级）
+    struct HangingBackend;
+
+    #[async_trait]
+    impl NodeBackendAccessor for HangingBackend {
+        async fn prompt(
+            &self,
+            _prompt: String,
+            _options: Option<PromptCallOptions>,
+        ) -> Result<PromptResponse, BackendError> {
+            tokio::time::sleep(std::time::Duration::from_secs(3600)).await;
+            unreachable!("HangingBackend 不应返回")
+        }
+
+        async fn steer(&self, _text: String) -> Result<(), BackendError> {
+            Ok(())
+        }
+
+        async fn get_messages(&self) -> Vec<crate::types::OrchestratorMessage> {
+            Vec::new()
+        }
+
+        async fn set_messages(
+            &self,
+            _messages: Vec<crate::types::OrchestratorMessage>,
+        ) -> Result<(), BackendError> {
+            Ok(())
+        }
+
+        async fn trim_context(&self, _up_to_index: usize) -> Result<(), BackendError> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn pipeline_targets_should_contain_four_pipelines() {
+        let targets = pipeline_targets();
+        assert_eq!(targets.len(), 4);
+        let ids: Vec<&str> = targets.iter().map(|t| t.id.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec!["query", "research", "experiment", "compose"]
+        );
+        // 每个目标都带关键词（供降级时匹配）
+        assert!(targets.iter().all(|t| t.keywords.is_some()));
+    }
+
+    #[test]
+    fn pipeline_enum_should_map_target_and_rounds() {
+        assert_eq!(Pipeline::Query.target_id(), "query");
+        assert_eq!(Pipeline::Research.target_id(), "research");
+        assert_eq!(Pipeline::Experiment.target_id(), "experiment");
+        assert_eq!(Pipeline::Compose.target_id(), "compose");
+        assert_eq!(Pipeline::Query.label(), "查询专家");
+        assert_eq!(Pipeline::Compose.label(), "创作专家");
+        assert_eq!(Pipeline::Query.max_tool_rounds(), 3);
+        assert_eq!(Pipeline::Research.max_tool_rounds(), 10);
+        assert_eq!(Pipeline::Experiment.max_tool_rounds(), 10);
+        assert_eq!(Pipeline::Compose.max_tool_rounds(), 5);
+    }
+
+    #[test]
+    fn pipeline_from_str_should_parse_explicit_names() {
+        assert_eq!(Pipeline::from_str("query"), Some(Pipeline::Query));
+        assert_eq!(Pipeline::from_str("RESEARCH"), Some(Pipeline::Research));
+        assert_eq!(Pipeline::from_str("compose"), Some(Pipeline::Compose));
+        assert_eq!(Pipeline::from_str("invalid"), None);
+    }
+
+    #[test]
+    fn extract_force_pipeline_should_match_chinese_chip_prefix() {
+        assert_eq!(extract_force_pipeline("/调研 三篇论文"), Some(Pipeline::Research));
+        assert_eq!(extract_force_pipeline("/写作 一章"), Some(Pipeline::Compose));
+        assert_eq!(extract_force_pipeline("/分析 这批数据"), Some(Pipeline::Experiment));
+        assert_eq!(extract_force_pipeline("/查询 什么是 RAG"), Some(Pipeline::Query));
+        // 无前缀 → None
+        assert_eq!(extract_force_pipeline("帮我写一封邮件"), None);
+    }
+
+    #[test]
+    fn extract_force_pipeline_should_match_explicit_name_and_priority() {
+        assert_eq!(extract_force_pipeline("/compose 文案"), Some(Pipeline::Compose));
+        assert_eq!(extract_force_pipeline("research"), Some(Pipeline::Research));
+        // 优先级：Compose > Research > Experiment > Query
+        assert_eq!(extract_force_pipeline("/写作 并 调研"), Some(Pipeline::Compose));
+    }
+
+    #[tokio::test]
+    async fn pipeline_strategy_should_force_route_and_skip_llm() {
+        // 强制管线应跳过 LLM 调用
+        let backend = make_blueprint("should_not_be_called");
+        let targets = pipeline_targets();
+        let strategy = PipelineRoutingStrategy::new();
+        let result = strategy
+            .route("/调研 Transformer", &targets, &*backend)
+            .await
+            .unwrap();
+        assert_eq!(result.target_id, "research");
+    }
+
+    #[tokio::test]
+    async fn pipeline_strategy_should_timeout_and_fallback_to_keyword() {
+        // HangingBackend 永不返回 → 触发超时 → 降级关键词
+        let hanging: Arc<dyn NodeBackendAccessor> = Arc::new(HangingBackend);
+        let targets = pipeline_targets();
+        // 用极短超时（50ms）加速测试
+        let strategy = PipelineRoutingStrategy::with_timeout(std::time::Duration::from_millis(50));
+        // 输入含关键词 "调研" → 关键词策略命中 research
+        let result = strategy
+            .route("帮我调研一下 Transformer 的注意力机制", &targets, &*hanging)
+            .await
+            .unwrap();
+        assert_eq!(result.target_id, "research");
+    }
+
+    #[tokio::test]
+    async fn pipeline_strategy_should_use_llm_result_on_success() {
+        let backend = make_blueprint(r#"{"target_id":"compose","reason":"写作任务"}"#);
+        let targets = pipeline_targets();
+        let strategy = PipelineRoutingStrategy::new();
+        let result = strategy
+            .route("请帮我写一段产品介绍", &targets, &*backend)
+            .await
+            .unwrap();
+        assert_eq!(result.target_id, "compose");
+    }

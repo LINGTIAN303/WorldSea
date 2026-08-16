@@ -3,6 +3,7 @@
     use super::*;
     use async_trait::async_trait;
     use crate::backend::PromptResponse;
+    use crate::router::RouterConfig;
     use crate::tool::{EchoTool, SimpleToolBus};
     use crate::types::ToolCall;
 
@@ -712,4 +713,368 @@
         let agent = AgentLoop::new(backend, tool_bus);
         let result = agent.run("测试".into()).await.expect("应执行成功");
         assert_eq!(result, "ok");
+    }
+
+    // ─── A3 四管线路由：AgentLoop 发送链路接入 ────────────────────────
+
+    /// 测试用：收集 RouterDecisionMade 事件的监听器
+    struct RouterListener {
+        decisions: std::sync::Mutex<Vec<(String, String)>>, // (target_id, target_name)
+    }
+
+    impl EventListener for RouterListener {
+        fn on_event(&self, event: &OrchestratorEvent) {
+            if let OrchestratorEvent::RouterDecisionMade {
+                target_id,
+                target_name,
+                ..
+            } = event
+            {
+                if let Ok(mut v) = self.decisions.lock() {
+                    v.push((target_id.clone(), target_name.clone()));
+                }
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn run_with_router_broadcasts_decision_and_injects_directive() {
+        let backend = Arc::new(MockBackend::new(vec![PromptResponse::text_only("完成")]));
+        let tool_bus = Arc::new(SimpleToolBus::new());
+
+        // 四管线路由节点：force_pipeline 命中 research（跳过 LLM，不消耗 mock 响应）
+        let router: Arc<RouterNode> = Arc::new(RouterNode::with_pipeline_strategy(
+            "router",
+            "四管线",
+            backend.clone() as Arc<dyn NodeBackendAccessor>,
+            RouterConfig::default(),
+        ));
+
+        let agent = AgentLoop::new(backend.clone(), tool_bus)
+            .with_router(Some(router))
+            .with_config(AgentLoopConfig {
+                system_prompt: Some("基础系统提示".into()),
+                ..Default::default()
+            });
+
+        let listener = Arc::new(RouterListener {
+            decisions: std::sync::Mutex::new(Vec::new()),
+        });
+        agent.subscribe(listener.clone()).await;
+
+        let result = agent.run("/调研 论文".into()).await;
+        assert!(result.is_ok(), "应执行成功，实际: {result:?}");
+
+        // 1. RouterDecisionMade 事件已广播（force_pipeline → research）
+        let decisions = listener.decisions.lock().unwrap().clone();
+        assert_eq!(decisions.len(), 1, "应广播 1 次路由决策，实际: {decisions:?}");
+        assert_eq!(decisions[0].0, "research", "应路由到 research");
+
+        // 2. 管线指引已注入 system prompt（研究管线）
+        let last_options = backend.last_options.lock().await.clone().unwrap();
+        let sys = last_options.system_prompt_override.unwrap_or_default();
+        assert!(
+            sys.contains("研究"),
+            "system prompt 应含研究管线指引，实际: {sys}"
+        );
+    }
+
+    #[tokio::test]
+    async fn run_with_router_disabled_skips_decision_and_directive() {
+        let backend = Arc::new(MockBackend::new(vec![PromptResponse::text_only("完成")]));
+        let tool_bus = Arc::new(SimpleToolBus::new());
+
+        let router: Arc<RouterNode> = Arc::new(RouterNode::with_pipeline_strategy(
+            "router",
+            "四管线",
+            backend.clone() as Arc<dyn NodeBackendAccessor>,
+            RouterConfig::default(),
+        ));
+
+        let agent = AgentLoop::new(backend.clone(), tool_bus)
+            .with_router(Some(router))
+            .with_config(AgentLoopConfig {
+                system_prompt: Some("基础系统提示".into()),
+                ..Default::default()
+            });
+        // 关闭四管线路由开关
+        agent.set_router_enabled(false);
+
+        let listener = Arc::new(RouterListener {
+            decisions: std::sync::Mutex::new(Vec::new()),
+        });
+        agent.subscribe(listener.clone()).await;
+
+        let result = agent.run("/调研 论文".into()).await;
+        assert!(result.is_ok(), "应执行成功，实际: {result:?}");
+
+        // 1. 关闭后不广播 RouterDecisionMade
+        let decisions = listener.decisions.lock().unwrap().clone();
+        assert_eq!(decisions.len(), 0, "关闭路由后不应广播决策，实际: {decisions:?}");
+
+        // 2. system prompt 不含管线指引（仅基础系统提示）
+        let last_options = backend.last_options.lock().await.clone().unwrap();
+        let sys = last_options.system_prompt_override.unwrap_or_default();
+        assert!(
+            !sys.contains("研究"),
+            "关闭路由后 system prompt 不应含研究管线指引，实际: {sys}"
+        );
+        assert!(sys.contains("基础系统提示"), "应保留基础系统提示，实际: {sys}");
+    }
+
+    // ── B2 场景工具门控（可见性 + 执行） ──
+
+    /// 测试用具名回显工具（验证白名单按名门控）
+    struct NamedEchoTool(&'static str);
+    #[async_trait]
+    impl crate::tool::Tool for NamedEchoTool {
+        fn name(&self) -> &str {
+            self.0
+        }
+        fn description(&self) -> &str {
+            "具名回显工具（测试用）"
+        }
+        fn parameters(&self) -> serde_json::Value {
+            serde_json::json!({ "type": "object", "properties": {} })
+        }
+        async fn execute(
+            &self,
+            args: serde_json::Value,
+        ) -> Result<serde_json::Value, crate::tool::ToolError> {
+            Ok(args)
+        }
+    }
+
+    #[tokio::test]
+    async fn scenario_filters_visible_and_executable_tools_b2() {
+        use crate::scenario::WorldbuildingScenario;
+        use crate::tool::{ToolBus, ToolError};
+
+        // 工具总线：白名单内 entity_get + 系统基础工具 execute_command + 白名单外 secret_tool
+        let tool_bus = Arc::new(SimpleToolBus::new());
+        tool_bus.register(Arc::new(NamedEchoTool("entity_get"))).await;
+        tool_bus.register(Arc::new(NamedEchoTool("execute_command"))).await;
+        tool_bus.register(Arc::new(NamedEchoTool("secret_tool"))).await;
+
+        let backend = Arc::new(MockBackend::new(vec![]));
+        let scenario: Arc<dyn crate::scenario::Scenario> = Arc::new(WorldbuildingScenario::new());
+        let agent = AgentLoop::new(backend, tool_bus).with_config(AgentLoopConfig {
+            scenario: Some(scenario),
+            ..Default::default()
+        });
+
+        let config = agent.config_snapshot();
+        let eff = agent.effective_tool_bus(&config);
+
+        // 可见性：白名单外不可见，白名单内可见（含系统基础工具 execute_command）
+        let names: Vec<String> = eff
+            .list_all()
+            .await
+            .into_iter()
+            .map(|d| d.name)
+            .collect();
+        assert!(
+            !names.contains(&"secret_tool".to_string()),
+            "非白名单工具不应可见: {names:?}"
+        );
+        assert!(
+            names.contains(&"entity_get".to_string()),
+            "场景 tool_ids 内工具应可见: {names:?}"
+        );
+        assert!(
+            names.contains(&"execute_command".to_string()),
+            "系统基础工具应可见: {names:?}"
+        );
+
+        // 执行：白名单外被拦截（NotFound），白名单内可执行
+        assert!(
+            matches!(
+                eff.call_tool("secret_tool", serde_json::json!({})).await,
+                Err(ToolError::NotFound(_))
+            ),
+            "非白名单工具执行应返回 NotFound"
+        );
+        assert!(
+            eff.call_tool("entity_get", serde_json::json!({})).await.is_ok(),
+            "白名单工具应可执行"
+        );
+    }
+
+    // ── A4 Plan-Exec：plan 工具结果写入 state + 广播事件 ──
+
+    /// 捕获 plan 事件（PlanCreated / PlanStepUpdate）的测试监听器
+    struct PlanListener(std::sync::Mutex<Vec<String>>);
+    impl EventListener for PlanListener {
+        fn on_event(&self, event: &OrchestratorEvent) {
+            let mut guard = self.0.lock().unwrap();
+            match event {
+                OrchestratorEvent::PlanCreated { items } => {
+                    guard.push(format!("created:{}", items.len()));
+                }
+                OrchestratorEvent::PlanStepUpdate { step_id, status, .. } => {
+                    guard.push(format!("update:{step_id}:{status:?}"));
+                }
+                OrchestratorEvent::PlanReplanned { items } => {
+                    guard.push(format!("replanned:{}", items.len()));
+                }
+                _ => {}
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn apply_plan_result_writes_state_and_broadcasts() {
+        let backend = Arc::new(MockBackend::new(vec![]));
+        let tool_bus = Arc::new(SimpleToolBus::new());
+        let agent = AgentLoop::new(backend, tool_bus);
+
+        let listener = Arc::new(PlanListener(std::sync::Mutex::new(Vec::new())));
+        agent.subscribe(listener.clone()).await;
+
+        // plan_create：写入 state.plan + 广播 PlanCreated
+        agent
+            .apply_plan_result(
+                "plan_create",
+                &serde_json::json!({
+                    "items": [
+                        { "id": "p-0", "title": "A", "description": "调研", "status": "pending", "order": 0 },
+                        { "id": "p-1", "title": "B", "status": "in_progress", "order": 1 }
+                    ]
+                }),
+            )
+            .await;
+        let plan = agent.get_plan().await.unwrap();
+        assert_eq!(plan.len(), 2, "plan_create 应写入 2 项");
+        assert_eq!(plan[0].title, "A");
+        assert_eq!(plan[1].status, crate::types::PlanItemStatus::InProgress);
+
+        // plan_update：更新对应项状态 + 广播 PlanStepUpdate
+        agent
+            .apply_plan_result(
+                "plan_update",
+                &serde_json::json!({ "item_id": "p-0", "status": "completed" }),
+            )
+            .await;
+        let plan = agent.get_plan().await.unwrap();
+        assert_eq!(plan[0].status, crate::types::PlanItemStatus::Completed);
+
+        {
+            let events = listener.0.lock().unwrap();
+            assert_eq!(events.len(), 2, "应广播 PlanCreated + PlanStepUpdate 各一次");
+            assert_eq!(events[0], "created:2");
+            assert!(events[1].starts_with("update:p-0:Completed"), "实际: {}", events[1]);
+        }
+    }
+
+    #[tokio::test]
+    async fn apply_plan_result_ignores_unknown_or_invalid() {
+        let backend = Arc::new(MockBackend::new(vec![]));
+        let tool_bus = Arc::new(SimpleToolBus::new());
+        let agent = AgentLoop::new(backend, tool_bus);
+
+        // 非 plan 工具名 → 无副作用
+        agent.apply_plan_result("echo", &serde_json::json!({ "items": [] })).await;
+        assert!(agent.get_plan().await.is_none(), "非 plan 工具不应写入 plan");
+
+        // plan_create 空 items → 不写入
+        agent.apply_plan_result("plan_create", &serde_json::json!({ "items": [] })).await;
+        assert!(agent.get_plan().await.is_none(), "空 items 不应写入 plan");
+
+        // plan_update 非法 status → 不写入不广播，plan 保持 None
+        agent.apply_plan_result("plan_update", &serde_json::json!({ "item_id": "x", "status": "bogus" })).await;
+        assert!(agent.get_plan().await.is_none(), "非法 status 不应写入 plan");
+    }
+
+    #[tokio::test]
+    async fn apply_plan_result_replans_keeps_failed_prefix_and_replaces_rest() {
+        let backend = Arc::new(MockBackend::new(vec![]));
+        let tool_bus = Arc::new(SimpleToolBus::new());
+        let agent = AgentLoop::new(backend, tool_bus);
+
+        let listener = Arc::new(PlanListener(std::sync::Mutex::new(Vec::new())));
+        agent.subscribe(listener.clone()).await;
+
+        // 建 3 步计划
+        agent
+            .apply_plan_result(
+                "plan_create",
+                &serde_json::json!({
+                    "items": [
+                        { "id": "p-0", "title": "A", "status": "pending", "order": 0 },
+                        { "id": "p-1", "title": "B", "status": "pending", "order": 1 },
+                        { "id": "p-2", "title": "C", "status": "pending", "order": 2 }
+                    ]
+                }),
+            )
+            .await;
+        // 第 1 步完成、第 2 步失败
+        agent
+            .apply_plan_result("plan_update", &serde_json::json!({ "item_id": "p-0", "status": "completed" }))
+            .await;
+        agent
+            .apply_plan_result("plan_update", &serde_json::json!({ "item_id": "p-1", "status": "failed" }))
+            .await;
+
+        // 重规划：保留已完成 p-0 与失败 p-1，替换其后为 D/E
+        agent
+            .apply_plan_result(
+                "plan_replan",
+                &serde_json::json!({
+                    "failed_item_id": "p-1",
+                    "new_steps": [
+                        { "title": "D", "description": "重规划一" },
+                        { "title": "E" }
+                    ]
+                }),
+            )
+            .await;
+
+        let plan = agent.get_plan().await.unwrap();
+        // 保留 p-0(completed)/p-1(failed)，替换掉 p-2，追加 D/E
+        assert_eq!(plan.len(), 4, "应保留 2 项 + 新增 2 项");
+        assert_eq!(plan[0].id, "p-0");
+        assert_eq!(plan[0].status, crate::types::PlanItemStatus::Completed);
+        assert_eq!(plan[1].id, "p-1");
+        assert_eq!(plan[1].status, crate::types::PlanItemStatus::Failed);
+        assert_eq!(plan[2].title, "D");
+        assert_eq!(plan[2].description.as_deref(), Some("重规划一"));
+        assert_eq!(plan[2].order, 2, "重排 order 从失败项之后续接");
+        assert_eq!(plan[3].title, "E");
+        assert_eq!(plan[3].order, 3);
+        assert!(plan.iter().all(|i| i.id != "p-2"), "原后续 p-2 应被替换");
+
+        // 事件：PlanCreated + 2×PlanStepUpdate + PlanReplanned
+        let events = listener.0.lock().unwrap();
+        assert!(events.iter().any(|e| e.starts_with("created:3")));
+        assert_eq!(events.iter().filter(|e| e.starts_with("update:")).count(), 2);
+        assert!(events.iter().any(|e| e.starts_with("replanned:4")), "实际: {events:?}");
+    }
+
+    #[tokio::test]
+    async fn apply_plan_result_replan_ignores_missing_failed_item() {
+        let backend = Arc::new(MockBackend::new(vec![]));
+        let tool_bus = Arc::new(SimpleToolBus::new());
+        let agent = AgentLoop::new(backend, tool_bus);
+
+        agent
+            .apply_plan_result(
+                "plan_create",
+                &serde_json::json!({
+                    "items": [
+                        { "id": "p-0", "title": "A", "status": "pending", "order": 0 },
+                        { "id": "p-1", "title": "B", "status": "pending", "order": 1 }
+                    ]
+                }),
+            )
+            .await;
+        // failed_item_id 不存在 → 不替换、不广播，plan 保持原样
+        agent
+            .apply_plan_result(
+                "plan_replan",
+                &serde_json::json!({ "failed_item_id": "nope", "new_steps": [{ "title": "X" }] }),
+            )
+            .await;
+        let plan = agent.get_plan().await.unwrap();
+        assert_eq!(plan.len(), 2, "未命中 failed_item_id 不应改动计划");
+        assert_eq!(plan[0].id, "p-0");
     }

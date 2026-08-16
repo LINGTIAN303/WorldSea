@@ -106,6 +106,14 @@ pub trait NodeBackendAccessor: Send + Sync {
             "set_provider_config not supported by this backend".into(),
         ))
     }
+
+    /// 注入备用 API Key 池（A2 多 Key 降级）
+    ///
+    /// 主 key 由 [`ProviderConfig`] 承载；`keys` 为备用 key 池，当主 key 请求
+    /// 命中可重试错误（认证失败/限流/网络）时逐把降级重试。默认空实现（不启用）。
+    async fn set_api_key_pool(&self, _keys: Vec<String>) -> Result<(), BackendError> {
+        Ok(())
+    }
 }
 
 /// LLM 调用返回结果 — 阶段 1.3 引入

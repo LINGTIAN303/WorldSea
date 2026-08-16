@@ -4,6 +4,7 @@ pub mod agent;
 pub mod alias;
 pub mod a2ui;
 pub mod backend;
+pub mod confirmation;
 pub mod deep_phases;
 pub mod event;
 pub mod graph_of_thoughts;
@@ -19,6 +20,7 @@ pub mod multi_agent;
 pub mod node;
 pub mod orchestrator;
 pub mod router;
+pub mod scenario;
 pub mod supervisor;
 pub mod tool;
 pub mod tree_of_thoughts;
@@ -27,6 +29,7 @@ pub mod types;
 // ─── 公共导出 ────────────────────────────────────────────
 pub use agent::{AgentError, AgentLoop, AgentLoopConfig, AgentState, AgentStateSnapshot};
 pub use backend::{NodeBackendAccessor, PromptCallOptions, PromptResponse, ThinkingLevel};
+pub use confirmation::{ConfirmationBroker, ConfirmationPolicy};
 pub use deep_phases::{classify_tool, all_phase_labels, all_phase_tools, DEEP_PHASES, OTHER_PHASE_LABEL, OTHER_PHASE_INDEX};
 pub use event::OrchestratorEvent;
 pub use graph_of_thoughts::{
@@ -57,8 +60,12 @@ pub use orchestrator::{
     DefaultOrchestrator, Orchestrator, OrchestratorEdge, OrchestratorResult, OrchestratorRunOptions,
 };
 pub use router::{
-    KeywordRoutingStrategy, LlmRoutingStrategy, RouteResult, RouteTarget, RouterConfig, RouterNode,
-    RoutingError, RoutingPromptTemplate, RoutingStrategy,
+    extract_force_pipeline, pipeline_targets, KeywordRoutingStrategy, LlmRoutingStrategy, Pipeline,
+    PipelineRoutingStrategy, RouteResult, RouteTarget, RouterConfig, RouterNode, RoutingError,
+    RoutingPromptTemplate, RoutingStrategy,
+};
+pub use scenario::{
+    Scenario, ScenarioContext, ScenarioEntityProvider, ScenarioRegistry, WorldbuildingScenario,
 };
 pub use supervisor::{
     AssignmentError, AssignmentPromptTemplate, AssignmentResult, AssignmentStrategy,

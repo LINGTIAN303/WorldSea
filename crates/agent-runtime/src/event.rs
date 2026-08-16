@@ -88,6 +88,11 @@ pub enum OrchestratorEvent {
         status: crate::types::PlanItemStatus,
         output: Option<String>,
     },
+    /// 计划已重规划（Replanner）
+    ///
+    /// 在 `plan_replan` 工具执行后触发，携带替换后的完整计划（保留了失败步骤及其之前的
+    /// 已完成进度，仅替换其后的待执行步骤）。前端据此整体刷新 `usePlanStore` / PlanPanel。
+    PlanReplanned { items: Vec<PlanItem> },
 
     // ── Reflection 事件 ──
     /// 评审结果
@@ -595,6 +600,27 @@ pub enum OrchestratorEvent {
         surface_id: String,
         /// A2UI 消息载荷
         message: A2UIMessage,
+    },
+
+    // HITL 权限确认事件（A5），详细见 docs/details/注释/agent-runtime/event.md
+    /// 请求用户确认某次工具调用（危险操作）
+    ///
+    /// 由 `ConfirmationBroker::request` 广播，Tauri 端转发到前端
+    /// `agent:confirm:{session_id}`，前端弹窗后经 `cmd_agent_confirm` 回传。
+    ConfirmationRequested {
+        /// 确认请求唯一 ID（前端回传时原样返回）
+        confirm_id: String,
+        /// 待确认的工具名
+        tool_name: String,
+        /// 待确认的工具参数
+        args: serde_json::Value,
+    },
+    /// 确认已解决（前端已响应，用于前端清理进行中的确认弹窗）
+    ConfirmationResolved {
+        /// 确认请求唯一 ID
+        confirm_id: String,
+        /// 用户审批结果
+        approved: bool,
     },
 }
 

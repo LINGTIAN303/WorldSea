@@ -1,6 +1,9 @@
+use std::sync::Arc;
 use std::time::Duration;
 
+use crate::confirmation::ConfirmationPolicy;
 use crate::loop_control::LoopControlConfig;
+use crate::scenario::{Scenario, ScenarioEntityProvider};
 
 // ─── 配置与状态 ────────────────────────────────────────────
 
@@ -57,6 +60,29 @@ pub struct AgentLoopConfig {
     // ─── Loop Engineering 批次5：内建循环控制器 ───
     /// 内建 LoopController 配置（`None`=禁用内建自动控制），详细见 docs/details/注释/agent-runtime/agent.md
     pub loop_control: Option<LoopControlConfig>,
+
+    // ─── B1 多场景插件（MVP） ───
+    /// 场景插件（`None`=不启用场景，保持静态 `system_prompt` 行为）
+    ///
+    /// 启用后：
+    /// - `build_prompt_options` 用场景 `build_system_prompt` 构建/追加到 system prompt
+    /// - 工具视图按「系统基础工具 ∪ 场景 tool_ids」裁剪（WhitelistToolBus）
+    pub scenario: Option<Arc<dyn Scenario>>,
+
+    // ─── B1 场景上下文注入 ─────────────────────────────
+    /// 场景实体访问器（`None`=不注入实体摘要）
+    ///
+    /// 启用后 `build_prompt_options` 在构建场景 prompt 前经此访问器拉取
+    /// 当前项目实体摘要，填入 `ScenarioContext.entity_summary`，供场景
+    /// `build_system_prompt` 拼入 system prompt（让 Agent 首轮即感知项目已有设定）。
+    pub entity_provider: Option<Arc<dyn ScenarioEntityProvider>>,
+
+    // ─── A5 HITL 权限确认 ─────────────────────────────
+    /// 确认策略（`None`=不启用 HITL 确认）
+    ///
+    /// 启用后，AgentLoop 在 `execute_tool_calls` 中对命中策略的工具调用发起
+    /// 确认（经 `ConfirmationBroker` 广播事件 + 等待前端回传），危险操作需用户确认。
+    pub confirmation_policy: Option<ConfirmationPolicy>,
 }
 
 impl Default for AgentLoopConfig {
@@ -78,6 +104,12 @@ impl Default for AgentLoopConfig {
             min_interval_between_calls: None,
             // 批次5：默认启用内建 LoopController（宽松配置）
             loop_control: Some(LoopControlConfig::default()),
+            // B1：默认不启用场景（保持静态 system_prompt 行为）
+            scenario: None,
+            // B1 场景上下文注入：默认不注入实体摘要
+            entity_provider: None,
+            // A5 HITL：默认不启用确认（无 broker 时策略不生效）
+            confirmation_policy: None,
         }
     }
 }

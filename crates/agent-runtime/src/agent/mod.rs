@@ -8,11 +8,14 @@ use tokio::sync::{Mutex as AsyncMutex, RwLock};
 use tracing::{debug, error, info, warn};
 
 use crate::backend::NodeBackendAccessor;
+use crate::confirmation::ConfirmationBroker;
 use crate::event::{AgentEvent, EventBroadcaster, EventListener, OrchestratorEvent};
 use crate::loop_control::{LoopControlConfig, LoopController};
 use crate::long_task::{CheckpointProvider, LongTaskManager};
+use crate::node::OrchestratorNode;
+use crate::router::{Pipeline, RouterNode};
 use crate::tool::ToolBus;
-use crate::types::{MessageRole, OrchestratorMessage, ToolCall};
+use crate::types::{MessageRole, OrchestratorMessage, PlanItem, ToolCall};
 
 // 仅供 tests.rs（`use super::*` glob 引入）使用的类型，非 test 构建下不参与编译
 #[cfg(test)]
@@ -116,6 +119,26 @@ pub struct AgentLoop {
     /// 每次 `run` 开头重新计算（recall → inject），供 `build_prompt_options`
     /// 拼入 `system_prompt_override`。使用 `StdRwLock`（短临界区，不跨 await 持有）。
     memory_context: Arc<StdRwLock<Option<String>>>,
+    /// HITL 确认协调器（A5，`None`=不启用确认）
+    ///
+    /// 通过 `with_confirmation` 注入。启用后，`execute_tool_calls` 对命中
+    /// `config.confirmation_policy` 的工具调用发起确认（广播事件 + 等待前端回传）。
+    confirmation_broker: Option<Arc<ConfirmationBroker>>,
+    /// A3 四管线路由节点（`None`=不启用发送链路路由）
+    ///
+    /// 通过 `with_router` 注入。启用后，`run()` 在接收用户输入时先经
+    /// `RouterNode::decide` 决策管线（force_pipeline 兜底生效），广播
+    /// `RouterDecisionMade` 事件，并把管线指引写入 `pipeline_context`（追加到 system prompt）。
+    router: Option<Arc<RouterNode>>,
+    /// A3 四管线路由开关（会话级，默认开启）
+    ///
+    /// 经 `set_router_enabled` 动态控制。关闭时 `run()` 跳过路由决策（不产生
+    /// 额外 LLM 意图分类调用），并清空上一轮的管线指引。`router` 仍需注入。
+    router_enabled: Arc<AtomicBool>,
+    /// 最近一次路由决策的管线指引（`None`=本轮无路由/未命中管线）
+    ///
+    /// `run()` 开头写入，`build_prompt_options` 拼入 system_prompt 末尾。
+    pipeline_context: Arc<StdRwLock<Option<String>>>,
 }
 
 impl AgentLoop {
@@ -164,6 +187,10 @@ impl AgentLoop {
             usage,
             memory: None,
             memory_context: Arc::new(StdRwLock::new(None)),
+            confirmation_broker: None,
+            router: None,
+            router_enabled: Arc::new(AtomicBool::new(true)),
+            pipeline_context: Arc::new(StdRwLock::new(None)),
         }
     }
 
@@ -207,6 +234,63 @@ impl AgentLoop {
     pub fn with_memory(mut self, memory: Option<Arc<dyn crate::memory::MemoryAccessor>>) -> Self {
         self.memory = memory;
         self
+    }
+
+    /// 注入 HITL 确认协调器（链式，同步，A5）
+    ///
+    /// 传 `Some(broker)` 启用确认能力（配合 `config.confirmation_policy` 生效），
+    /// 传 `None` 禁用。默认（`new` 创建）不启用。
+    pub fn with_confirmation(mut self, broker: Option<Arc<ConfirmationBroker>>) -> Self {
+        self.confirmation_broker = broker;
+        self
+    }
+
+    /// 注入四管线路由节点（链式，同步，A3）
+    ///
+    /// 传 `Some(router)` 启用发送链路路由（`run()` 时先决策管线并注入指引），
+    /// 传 `None` 禁用。默认（`new` 创建）不启用，行为与未接入前一致。
+    pub fn with_router(mut self, router: Option<Arc<RouterNode>>) -> Self {
+        self.router = router;
+        self
+    }
+
+    /// 设置四管线路由是否启用（会话级开关，A3）
+    ///
+    /// 关闭后 `run()` 跳过路由决策（不再产生额外 LLM 意图分类调用），
+    /// 并清空上一轮的管线指引。默认开启。
+    pub fn set_router_enabled(&self, enabled: bool) {
+        self.router_enabled.store(enabled, Ordering::SeqCst);
+        if !enabled {
+            // 关闭时同步清空可能出现残留的管线指引
+            if let Ok(mut guard) = self.pipeline_context.write() {
+                *guard = None;
+            }
+        }
+    }
+
+    /// 四管线路由是否启用（会话级开关，A3）
+    pub fn router_enabled(&self) -> bool {
+        self.router_enabled.load(Ordering::SeqCst)
+    }
+
+    /// 解析一次待定的工具确认（前端经 `cmd_agent_confirm` 回传）
+    ///
+    /// 返回是否成功唤醒对应等待方（confirm_id 不存在 = 已超时/已处理）。
+    /// 未启用确认或 broker 不存在时恒返回 `false`。
+    pub async fn resolve_confirmation(&self, confirm_id: &str, approved: bool) -> bool {
+        let Some(broker) = &self.confirmation_broker else {
+            return false;
+        };
+        let resolved = broker.resolve(confirm_id, approved).await;
+        if resolved {
+            // 广播确认已解决，供前端清理进行中的确认弹窗
+            self.broadcast(OrchestratorEvent::ConfirmationResolved {
+                confirm_id: confirm_id.to_string(),
+                approved,
+            })
+            .await;
+        }
+        resolved
     }
 
     /// 内建 LoopController 是否启用
@@ -284,6 +368,16 @@ impl AgentLoop {
         self.state.lock().await.messages.clone()
     }
 
+    /// A4 Plan-Exec：获取当前任务计划（None=无计划）
+    pub async fn get_plan(&self) -> Option<Vec<PlanItem>> {
+        self.state.lock().await.plan.clone()
+    }
+
+    /// A4 Plan-Exec：设置当前任务计划（None=清空计划）
+    pub async fn set_plan(&self, plan: Option<Vec<PlanItem>>) {
+        self.state.lock().await.plan = plan;
+    }
+
     /// 获取会话累计用量（input/output tokens）
     pub async fn get_usage(&self) -> UsageAccum {
         self.usage.lock().await.clone()
@@ -348,6 +442,52 @@ impl AgentLoop {
                             }
                         }
                     }
+                }
+            }
+        }
+
+        // ─── A3 四管线路由：接入发送链路 ───
+        // 若配置了路由节点且开关开启，先决策管线（force_pipeline 兜底生效）。据此：
+        // 1. 广播 RouterDecisionMade 事件（前端可展示选中管线 / force_pipeline Chip 生效）
+        // 2. 把管线指引写入 pipeline_context，由 build_prompt_options 追加到 system prompt
+        // 若开关关闭或未配置路由节点，或路由失败，静默跳过并清空管线指引。
+        {
+            let enabled = self.router_enabled.load(Ordering::SeqCst);
+            if enabled {
+                if let Some(router) = &self.router {
+                    match router.decide(&run_user_input, self.backend.as_ref()).await {
+                        Ok(result) => {
+                            let pipeline = Pipeline::from_str(&result.target_id);
+                            if let Some(p) = pipeline {
+                                if let Ok(mut guard) = self.pipeline_context.write() {
+                                    *guard = Some(p.directive().to_string());
+                                }
+                            }
+                            self.broadcast(OrchestratorEvent::RouterDecisionMade {
+                                node_id: router.id().to_string(),
+                                target_id: result.target_id.clone(),
+                                target_name: pipeline
+                                    .map(|p| p.label().to_string())
+                                    .unwrap_or_else(|| result.target_id.clone()),
+                                reason: result.reason.clone(),
+                                is_fallback: false,
+                            })
+                            .await;
+                            debug!(
+                                "AgentLoop 路由决策：target={} pipeline={:?}",
+                                result.target_id, pipeline
+                            );
+                        }
+                        Err(e) => {
+                            warn!("AgentLoop 路由决策失败，本轮使用静态配置: {}", e);
+                        }
+                    }
+                }
+            }
+            // 开关关闭或未配置路由节点时，清空上一轮管线指引，避免残留
+            if !enabled || self.router.is_none() {
+                if let Ok(mut guard) = self.pipeline_context.write() {
+                    *guard = None;
                 }
             }
         }
