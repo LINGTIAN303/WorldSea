@@ -13,7 +13,7 @@ export type RightTab = 'exec' | 'config'
 /** 配置 Tab 内子切换：记忆 / 人格 */
 export type ConfigSubTab = 'memory' | 'persona'
 /** 执行面板 Tab：轨迹/活动/计划/终端/子Agent */
-export type ExecTab = 'trace' | 'activity' | 'plan' | 'terminal' | 'subagent'
+export type ExecTab = 'trace' | 'activity' | 'plan' | 'router' | 'terminal' | 'subagent'
 export type AgentMood = 'active' | 'thinking' | 'focused' | 'idle'
 
 export interface AgentPersona {

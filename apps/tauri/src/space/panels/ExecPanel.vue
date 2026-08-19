@@ -24,6 +24,13 @@
       ><WsIcon name="task" size="sm" :stroke-width="1.7" />计划</button>
       <button
         role="tab"
+        :aria-selected="tab === 'router'"
+        class="exec-tab"
+        :class="{ on: tab === 'router' }"
+        @click="emit('update:tab', 'router')"
+      ><WsIcon name="route" size="sm" :stroke-width="1.7" />路由</button>
+      <button
+        role="tab"
         :aria-selected="tab === 'terminal'"
         class="exec-tab"
         :class="{ on: tab === 'terminal' }"
@@ -48,6 +55,9 @@
       <div v-show="tab === 'plan'" class="exec-pane" role="tabpanel">
         <PlanPanel />
       </div>
+      <div v-show="tab === 'router'" class="exec-pane" role="tabpanel">
+        <RouterPanel />
+      </div>
       <div v-show="tab === 'terminal'" class="exec-pane exec-pane-terminal" role="tabpanel">
         <TerminalView />
       </div>
@@ -70,6 +80,7 @@ import PhaseSection from '@/agent/components/PhaseSection.vue'
 import SubAgentSection from '@/agent/components/SubAgentSection.vue'
 import ActivityLog from '@/agent/panels/ActivityLog.vue'
 import PlanPanel from '@/agent/panels/PlanPanel.vue'
+import RouterPanel from '@/agent/panels/RouterPanel.vue'
 import TerminalView from '@/terminal/components/TerminalView.vue'
 import SubAgentView from '@/subagent/components/SubAgentView.vue'
 import { useAgent } from '@/agent/composables/useAgent'

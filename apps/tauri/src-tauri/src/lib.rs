@@ -32,6 +32,8 @@ mod whisper;
 mod search_commands;
 // A4 Plan-Exec 计划工具（plan_create / plan_update）
 mod plan_commands;
+// Router Pattern 编排模式：Tauri 命令层（Router 样板，收纳编排 4 模式 UI 下沉）
+mod router_commands;
 // Rust → 前端 双向工具桥（entity_create/update + content_search 等经前端执行）
 mod frontend_tool_bridge;
 // 安全存储命令（cmd_secure_store/load/delete）：API Key 落应用数据目录 SQLite
@@ -79,6 +81,13 @@ pub fn run() {
             commands::set_session_pinned,
             commands::set_session_router_enabled,
             commands::orchestrator_run_plan,
+            // Router Pattern 编排模式（Router 样板命令）
+            router_commands::router_create,
+            router_commands::router_route,
+            router_commands::router_set_targets,
+            router_commands::router_get_state,
+            router_commands::router_list_sessions,
+            router_commands::router_destroy,
             commands::create_group_session_participant,
             commands::list_group_session_participants,
             commands::delete_group_session_participants,
@@ -207,6 +216,8 @@ pub fn run() {
         .manage(TerminalService::new())
         // Phase C 收尾：文件监听器注册表（cmd_fs_watch_start/stop 共享）
         .manage(fs_watch_commands::FsWatchRegistry(Default::default()))
+        // Router Pattern 编排注册表（router_* 命令共享；按会话存 targets/策略/最近决策）
+        .manage(router_commands::RouterRegistry::new())
         .setup(|app| {
             #[cfg(debug_assertions)]
             {
