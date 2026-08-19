@@ -74,7 +74,7 @@
 | WASM 核心 | Rust（worldsmith-core、tactical-engine）|
 | Agent (TS) | ~~@earendil-works/pi-ai~~（已移除 2026-08-08）；`packages/agent-runtime` 保留共享组件/工具/技能，不再承载 Agent 循环 |
 | Agent (Rust) | `crates/agent-runtime`（genai LLM 层 + tokio 编排），Tauri 命令桥接，主应用默认后端 |
-| 编排模式 | Rust：ToT / GoT / Multi-Agent / Supervisor / Router / Loop Engineering |
+| 编排模式 | Rust 13 种全落地（2026-08-19 补齐 Plan-Execute / Reflection / Self-Refine；ToT / GoT / Multi-Agent / Supervisor / Router / Loop Engineering）|
 | 图表 | ECharts、Sigma.js、D3、Graphology |
 | 编辑器 | TipTap 3 |
 | 数据库 | IndexedDB（Dexie）/ SQLite（Tauri）|
@@ -92,7 +92,7 @@
 6. ~~**apps/cli**（Node.js）~~：已移除（2026-08-08，含 serve / python-services；chat 能力由 Rust agent-commands 覆盖）
 7. **packages/agent-runtime**（TS）：端无关 Agent 共享层（Agent 工具/技能/会话/ExecutionAdapter 等）— 原 worldsmith-agent 核心已下沉至此；Agent 主循环已由 Rust 接管
 
-**覆盖度结论**：web-to-tauri 迁移后，Tauri 端已覆盖 27 插件 + Agent 空间 + 设置；Rust Agent 编排模式（ToT/GoT/Multi-Agent/Supervisor/Router/Loop）已有前端 composable；剩余风险为 Tauri 窗口端到端实测（托盘/快捷键/通知等）待补。
+**覆盖度结论**：web-to-tauri 迁移后，Tauri 端已覆盖 27 插件 + Agent 空间 + 设置；Rust Agent 编排模式（**13 种全落地**，2026-08-19 补齐 3/4/5，真实 DeepSeek 双链路超验）已有前端 composable；剩余风险为 Tauri 窗口端到端实测（托盘/快捷键/通知等）待补。
 
 ## 四、Monorepo 子包（packages/）
 
@@ -101,7 +101,7 @@ agent-core / agent-runtime / canvas-engine / core-api-types / entity-core / font
 ## 五、当前任务状态
 
 - **ROADMAP**：28 条任务方向，分 8 大类别（详见 docs/plans/ROADMAP.md；任务 1 ✅、任务 3 ✅、任务 4 ✅（P1-P4 + task 模式方向 A-D）、任务 24 进行中（阶段 1-4 完成，待桌面端 UI 实测），其余待启动）
-- **Rust Agent 后端**：阶段 1.1-1.5 ✅、阶段 2.0（UI 集成）✅、阶段 2.5（会话持久化）✅、Phase 2 Loop Engineering（long_task/loop_control）✅；待办：failTask 终态闭环重测、深度模式/A2UI/终端/子 Agent 补齐
+- **Rust Agent 后端**：阶段 1.1-1.5 ✅、阶段 2.0（UI 集成）✅、阶段 2.5（会话持久化）✅、Phase 2 Loop Engineering（long_task/loop_control）✅、**编排 13 模式闭环（2026-08-19，补齐 Plan-Execute / Reflection / Self-Refine + 计划面板 UI，含真实双链路超验）**；待办：failTask 终态闭环重测、深度模式/A2UI/终端/子 Agent 补齐、Refine 多轮迭代低分场景实测
 - **端分离**：✅ **全部完成（2026-08-04，后续已收敛）**。Phase 1-6 全落地，根级 `src/`、`src-tauri/`、`worldsmith-server/`、`worldsmith-agent/` 已删除；`apps/web` 与 `apps/cli` 已于 2026-08-08 web-to-tauri 迁移后删除，当前唯一 GUI 为 `apps/tauri`。提交 `980385c`（重构主体）+ `c08c235`（文档同步）。docs/details/端分离/ 作为历史迁移记录归档
 - **工作区收敛**：@agent 统一到 packages/agent-runtime 单轨（c3856de），worldsmith-agent 冻结为端适配器宿主
 - **实际文档**（2026-08-06 四类结构）：docs/index/README.md（文档索引，摘要层）、docs/plans/（计划类：ROADMAP / agent-e2e-closure-plan / agent-orchestration-roadmap / perf-kit-plan / skills-store-spec / rust-backend-completion-plan / phase4-scheduler-plan）、docs/details/（详情类：ARCHITECTURE.md、端分离/ 迁移文档库 11 份、memory-archive/ 设计 3 份）、docs/misc/（其他：self-iteration-decisions、skills-store-test-source）

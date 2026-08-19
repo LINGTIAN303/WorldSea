@@ -1,4 +1,4 @@
-//! Plan-and-Execute 模式节点（PlanNode + ExecuteNode）
+//! Plan-and-Execute 模式节点（PlanNode + ExecuteNode），详细见 docs/details/注释/agent-runtime/plan.md
 //!
 //! 链路：PlanNode 把用户任务分解为计划项（写 `state.plan`）→ ExecuteNode 逐个执行。
 //! ExecuteNode 采用「内部循环」：一次 execute 跑完所有 pending 项（每项独立 LLM 调用并广播

@@ -1,4 +1,4 @@
-//! Reflection / Self-Refine 模式节点（ReflectionNode + RefineNode）
+//! Reflection / Self-Refine 模式节点（ReflectionNode + RefineNode），详细见 docs/details/注释/agent-runtime/reflection.md
 //!
 //! 链路：ReflectionNode 评审上一条 assistant 输出 → 评分低于阈值时 continue 到 RefineNode →
 //! RefineNode 依据评审反馈修正 → continue 回 ReflectionNode 再评审，直至收敛。

@@ -51,21 +51,24 @@
 
 ### 2.2 现有基础盘点
 
-| 模式 | 现状 | 文件 |
+> **2026-08-19 更新**：11 种模式（除 12 Memory 深度集成、13 Loop 部分横切外）已在 Rust 端全部落地；
+> 本次补齐 3/4/5 节点。下表标注 Rust 落点；14（原 TS 兜底路径）已不再依赖。
+
+| 模式 | 现状 | Rust 落点 |
 |------|------|------|
-| 1. Single Agent | ✅ 已有 | [bridge.ts](../../packages/agent-runtime/src/bridge.ts) CoreBackend |
-| 2. ReAct | ⚠️ 隐式存在 | pi-agent-core 的 Agent 类内置 tool_call 循环 |
-| 3. Plan-and-Execute | 🟡 雏形 | `usePlanStore.ts`（原 apps/web 路径，2026-08-08 已删除）有 PlanItem 状态机 |
-| 8. Multi-Agent | 🟡 雏形 | `useOrchestrator.ts`（原 apps/web 路径，2026-08-08 已删除）子 Agent 调度 |
-| 9. Supervisor | 🟡 雏形 | useOrchestrator 的 dispatch + maxConcurrency 控制即 Supervisor 雏形 |
-| 11. Tool Use | ✅ 已有 | [packages/agent-core/src/bus/](../../packages/agent-core/src/bus) ToolBus 完整实现 |
-| 12. Memory | 🟡 部分 | [memory-archive](../../packages/memory-archive) 已有，但未与 Agent loop 深度集成 |
-| 13. Loop Engineering | 🟡 部分 | `longTaskStore.ts`（原 apps/web 路径，2026-08-08 已删除）有 checkpoint/心跳 |
-| 4. Reflection | ❌ 缺失 | — |
-| 5. Self-Refine | ❌ 缺失 | — |
-| 6. ToT | ❌ 缺失 | — |
-| 7. GoT | ❌ 缺失 | — |
-| 10. Router | ❌ 缺失 | — |
+| 1. Single Agent | ✅ | [agent/mod.rs](../../crates/agent-runtime/src/agent/mod.rs) AgentLoop |
+| 2. ReAct | ✅ | [agent/mod.rs](../../crates/agent-runtime/src/agent/mod.rs) `run_react_loop` |
+| 3. Plan-and-Execute | ✅ 本次补齐 | [plan.rs](../../crates/agent-runtime/src/plan.rs) PlanNode + ExecuteNode |
+| 4. Reflection | ✅ 本次补齐 | [reflection.rs](../../crates/agent-runtime/src/reflection.rs) ReflectionNode |
+| 5. Self-Refine | ✅ 本次补齐 | [reflection.rs](../../crates/agent-runtime/src/reflection.rs) RefineNode |
+| 6. ToT | ✅ | [tree_of_thoughts](../../crates/agent-runtime/src/tree_of_thoughts/mod.rs) ToTNode |
+| 7. GoT | ✅ | [graph_of_thoughts.rs](../../crates/agent-runtime/src/graph_of_thoughts.rs) GoTNode |
+| 8. Multi-Agent | ✅ | [multi_agent](../../crates/agent-runtime/src/multi_agent/mod.rs) MultiAgentNode |
+| 9. Supervisor | ✅ | [supervisor.rs](../../crates/agent-runtime/src/supervisor.rs) SupervisorNode |
+| 10. Router | ✅ | [router.rs](../../crates/agent-runtime/src/router.rs) RouterNode |
+| 11. Tool Use | ✅ | [tool.rs](../../crates/agent-runtime/src/tool.rs) ToolBus |
+| 12. Memory | ✅ 部分 | [memory.rs](../../crates/agent-runtime/src/memory.rs) MemoryAccessor 横切 |
+| 13. Loop Engineering | ✅ 部分 | [loop_control.rs](../../crates/agent-runtime/src/loop_control.rs) + [long_task.rs](../../crates/agent-runtime/src/long_task.rs) |
 
 ## 三、三条路径分析
 
@@ -484,14 +487,15 @@
 |--------|----------|------|
 | M0 | 阶段 0 完成：TS 编排框架，模式 1-5 可用 | ✅ 已跳过（Rust 路线直接实现，TS 仅保留部分产出） |
 | M1 | 阶段 1 完成：Rust Agent loop，pi-ai 移除 | ✅ 已完成（2026-07-25 Tauri 集成，cargo check 0 errors；pi-ai 依赖保留在 TS 端作为备用） |
-| M2 | 阶段 2 完成：13 模式全可用，Rust 编排框架 | ✅ 已完成（2026-07-28，ToT/GoT/Multi-Agent/Supervisor/Router/Loop 6 模式 + AgentLoop 基础 loop；cargo test 127/127） |
+| M2 | 阶段 2 完成：13 模式全可用，Rust 编排框架 | ✅ 已完成（2026-08-19 补齐 3/4/5 节点后闭环：12 模式 Rust 落地 + Memory/Loop 横切；真实 DeepSeek 双链路验证；详见 [交付清单](../misc/orchestration-patterns-delivery.md)） |
 | M3 | 阶段 3（如需）：自研 pi-ai | ⏳ 可选（genai 未成瓶颈前不启动） |
 
 > **待办**（阶段 1/2 验收未闭环部分）：
-> - Rust Agent 端到端实测：浏览器切换 Rust 后端，验证流式对话/长任务/编排模式（部分已通过：长任务 startTask/心跳/checkpoint/SQLite 持久化 2026-08-02）
+> - ~~Rust Agent 端到端实测~~（已基本闭环：流式/长任务/编排 3-5 双链路真实验证）
 > - failTask 终态闭环（Rust 长任务，2026-08-02 待收敛后干净环境重测）
 > - 深度模式 / A2UI / 终端 / 子 Agent 补齐（Rust 后端高级能力）
 > - TS→Rust 迁移完成度：pi-ai 依赖移除尚未执行（TS 后端仍可用作兜底）
+> - Refine 多轮迭代在真实低分场景实测（当前评审 95 一次收敛，迭代分支待专用用例验证，详见 [交付清单](../misc/orchestration-patterns-delivery.md) 遗留风险）
 
 ## 八、参考资料
 

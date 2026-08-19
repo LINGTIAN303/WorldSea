@@ -1,4 +1,4 @@
-/** usePlanRust：Rust 编排图（Plan→Execute→[Reflection→Refine]）Tauri 适配器。
+/** usePlanRust：Rust 编排图（Plan→Execute→[Reflection→Refine]）Tauri 适配器，详细见 docs/details/注释/tauri/usePlanRust.md。
  *  封装 `orchestrator_run_plan` 命令 + 监听 `agent:event:reflection:{session_id}` 评审事件。
  *  计划步骤进度复用现有 `agent:event:plan_created/plan_update` 通道（useAgentRust 已驱动 usePlanStore）。 */
 
