@@ -50,7 +50,7 @@ pub struct RouterState {
 }
 
 /// 全局 Router 注册表（按 session_id）
-pub struct RouterRegistry(pub Mutex<HashMap<String, RouterEntry>>);
+pub struct RouterRegistry(pub(crate) Mutex<HashMap<String, RouterEntry>>);
 
 impl RouterRegistry {
     pub fn new() -> Self {
