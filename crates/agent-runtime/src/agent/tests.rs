@@ -4,7 +4,10 @@
     use async_trait::async_trait;
     use crate::backend::PromptResponse;
     use crate::router::RouterConfig;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
     use crate::tool::{EchoTool, SimpleToolBus};
+    use crate::tool_hook::{ToolHookAction, ToolLifecycleHook};
     use crate::types::ToolCall;
 
     /// Mock 后端 — 返回预设响应
@@ -1077,4 +1080,101 @@
         let plan = agent.get_plan().await.unwrap();
         assert_eq!(plan.len(), 2, "未命中 failed_item_id 不应改动计划");
         assert_eq!(plan[0].id, "p-0");
+    }
+
+    // ─── A6 工具生命周期钩子集成测试 ─────────────────────────────
+
+    /// 修改式 hook：echo 工具的 message 参数改为 "hooked"，并统计 post 调用
+    struct ModifyingHook {
+        post_calls: Arc<AtomicUsize>,
+    }
+    impl ToolLifecycleHook for ModifyingHook {
+        fn on_pre_use(&self, tool: &str, args: &serde_json::Value) -> ToolHookAction {
+            if tool == "echo" {
+                let mut a = args.clone();
+                a["message"] = serde_json::json!("hooked");
+                ToolHookAction::Allow(a)
+            } else {
+                ToolHookAction::Allow(args.clone())
+            }
+        }
+        fn on_post_use(&self, _t: &str, _a: &serde_json::Value, _r: &serde_json::Value) {
+            self.post_calls.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+
+    #[tokio::test]
+    async fn tool_hook_modifies_args_before_execution() {
+        let backend = Arc::new(MockBackend::new(vec![
+            PromptResponse {
+                text: "调 echo".into(),
+                tool_calls: vec![ToolCall {
+                    id: "call_hook".into(),
+                    name: "echo".into(),
+                    args: serde_json::json!({ "message": "hello" }),
+                }],
+                input_tokens: None,
+                output_tokens: None,
+                stop_reason: Some("tool_calls".into()),
+            },
+            PromptResponse::text_only("完成"),
+        ]));
+        let tool_bus = Arc::new(SimpleToolBus::new());
+        tool_bus.register(Arc::new(EchoTool)).await;
+        let post_calls = Arc::new(AtomicUsize::new(0));
+
+        let agent = AgentLoop::new(backend, tool_bus)
+            .with_tool_hook(Arc::new(ModifyingHook { post_calls: post_calls.clone() }));
+        let result = agent.run("调用 echo".into()).await.expect("应执行成功");
+        assert_eq!(result, "完成");
+        assert!(post_calls.load(Ordering::SeqCst) > 0, "post hook 应被触发");
+
+        // 验证工具实际收到的是修改后的参数（hooked 而非 hello）
+        let msgs = agent.get_messages().await;
+        let tr = msgs
+            .iter()
+            .find(|m| m.role == MessageRole::ToolResult)
+            .expect("应有 toolResult");
+        assert!(tr.content.contains("hooked"), "工具应收到修改后的参数");
+        assert!(!tr.content.contains("hello"), "不应收到原始参数");
+    }
+
+    /// 拒绝式 hook：无条件拒绝工具执行
+    struct DenyHook;
+    impl ToolLifecycleHook for DenyHook {
+        fn on_pre_use(&self, _t: &str, _a: &serde_json::Value) -> ToolHookAction {
+            ToolHookAction::Deny("被 A6 钩子拒绝".into())
+        }
+    }
+
+    #[tokio::test]
+    async fn tool_hook_denies_tool_execution() {
+        let backend = Arc::new(MockBackend::new(vec![
+            PromptResponse {
+                text: "调 echo".into(),
+                tool_calls: vec![ToolCall {
+                    id: "call_deny".into(),
+                    name: "echo".into(),
+                    args: serde_json::json!({ "message": "hello" }),
+                }],
+                input_tokens: None,
+                output_tokens: None,
+                stop_reason: Some("tool_calls".into()),
+            },
+            PromptResponse::text_only("收到拒绝"),
+        ]));
+        let tool_bus = Arc::new(SimpleToolBus::new());
+        tool_bus.register(Arc::new(EchoTool)).await;
+
+        let agent = AgentLoop::new(backend, tool_bus).with_tool_hook(Arc::new(DenyHook));
+        let result = agent.run("调用 echo".into()).await.expect("应执行成功");
+        assert_eq!(result, "收到拒绝");
+
+        // 工具被拒绝 → toolResult 内容为拒绝原因（工具未真正执行）
+        let msgs = agent.get_messages().await;
+        let tr = msgs
+            .iter()
+            .find(|m| m.role == MessageRole::ToolResult)
+            .expect("应有 toolResult");
+        assert!(tr.content.contains("被 A6 钩子拒绝"));
     }

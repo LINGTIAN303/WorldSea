@@ -198,6 +198,16 @@
               </div>
               <div class="settings-hint">开启后 AI 删除实体/关系时需用户确认</div>
             </div>
+            <!-- A7：工具安全级别（三档，运行时切换 Rust 侧确认策略） -->
+            <div class="settings-section">
+              <div class="settings-label">工具安全级别</div>
+              <select :value="securityLevel" @change="onSecurityLevelChange" class="settings-select">
+                <option value="off">宽松（关闭确认）</option>
+                <option value="dangerous_only">推荐（仅危险操作确认）</option>
+                <option value="moderate_and_dangerous">严格（写操作/命令一律确认）</option>
+              </select>
+              <div class="settings-hint">控制 Agent 执行工具前的确认程度，需对当前会话生效</div>
+            </div>
           </div>
           <!-- 人格预设面板（内联，对应视觉稿边界与个性组） -->
           <div v-else-if="settingsSubPanel === 'persona'" key="persona" class="sub-panel">
@@ -357,6 +367,7 @@ const emit = defineEmits<{
   'open-terminal': []
   'api-key-change': [provider: string, apiKey: string]
   'provider-change': [provider: string, modelId: string]
+  'security-level-change': [level: string]
 }>()
 
 // ── 模型 API Key 加载/持久化（拆分至 useModelApiKeyConfig） ──
@@ -441,6 +452,15 @@ function onPersonaPresetChange(e: Event): void {
 
 function onThinkingLevelChange(e: Event): void {
   emit('thinking-level-change', (e.target as HTMLSelectElement).value)
+}
+
+// A7 工具安全级别：加载 settingsStore 持久值，切换时 emit（SpaceAgentSettingsPanel 转发到 useAgentRust.setSecurityLevel）
+const securityLevel = ref(settingsStore.agentSecurityLevel || 'dangerous_only')
+
+function onSecurityLevelChange(e: Event): void {
+  const level = (e.target as HTMLSelectElement).value
+  settingsStore.agentSecurityLevel = level
+  emit('security-level-change', level)
 }
 </script>
 

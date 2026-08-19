@@ -968,3 +968,18 @@ Tauri 端 UI/UX 全维度优化（视觉 + 交互事件 + 键盘可达性 + 性�
   - `AGENTS.md`：追加 `global-rules` 块（可执行摘要，凭证不重复明文，指向 gitignore 文件）—— 每次会话自动注入
   - `.catpaw/rules/`：`collaboration-guide.md`、`code-review-checklist.md`、`project-deployment.md` 同步合并新内容（UX 判定线、7 点硬/软分层 + 模板、docs 目录体系、压缩阈值 75%/85%、历史分叉处理、部署失败排查），保留 worldsmith 不上线不推送备注
 - **关键约束提醒**：AGENTS.md 被 git 跟踪 → 凭证类内容不得明文写入；`.opencode/`、`.catpaw/` 已 gitignore 可存敏感信息
+
+## 本次进展（2026-08-19）— FrontendToolBridge（决策 021）
+- **背景**：B1 worldbuilding 场景 `tool_ids()` 声明 `entity_create/update/delete`、`entity_get_context`、`relation_list/create`、`content_search`、`memory_recall/store` 等工具，但 Rust 只原生实现 `entity_list/entity_get`（7.7 工具桥），其余对 LLM 可见却执行报 `NotFound`——B1 场景能力被裁半，是 7.7「完整 TS↔Rust 双向桥」遗留的最大短板
+- **结论**：新增 **Rust→前端 TS 双向执行桥**，机制与 A5 ConfirmationBroker 同构（oneshot 等待）。Rust `FrontendBridgeTool::execute` 生成 `call_id` → `AppHandle` 广播**全局事件** `agent:tool_call` → await oneshot（120s 超时）；前端全局监听 → `ALL_TOOLS_MAP.get(name)` 以 `IToolContext`（复用 entity-core stores）执行 → `invoke('cmd_agent_tool_result')` 按 callId 回传
+- **关键设计**：用「全局通道 + call_id 唯一匹配」而非 per-session——桥工具 execute 无 session 上下文，工具目标是项目级 stores（跨会话共享），无需按会话弹窗；跨会话并行靠唯一 call_id 安全
+- **实施**（用户确认：Tauri 层桥 + 首批 3 核心）：Rust `frontend_tool_bridge.rs`（`FrontendToolBridge` + `FrontendBridgeTool` + `bridge_tools()`）+ `commands.rs::cmd_agent_tool_result` + `lib.rs` 装配（manage + 并入 extra_tools）；前端 `useAgentRust` 加 `buildBridgeContext`/`handleToolCall`/`setup/teardownToolBridgeListener`（幂等全局监听）接入 newSession/switchSession/dispose。首批桥接 `entity_create`/`entity_update`/`content_search`
+- **验证**：`cargo check` + `cargo test --lib` 23 passed + `vue-tsc --noEmit` 通过；dev server 正常
+- **风险点（用户知悉）**：① 真实链路需 Tauri 桌面端验证（浏览器 preview 走 mockInvoke 不发真实 IPC）；② 结果回传依赖前端全局监听器已注册，未注册会超时 120s；③ **数据源分叉**——`entity_list/get`（Rust SQLite 兜底库）与桥工具（前端 Dexie 项目库）不一致，同一会话混用可能读到不同实体视图，后续需评估统一
+- **后续可扩展**：其余场景工具（relation_create/memory_store/kb_* 等）在 `bridge_tools()` 增加对应 `FrontendBridgeTool` 即可
+- **本次决策已完整落盘** `docs/plans/openworld-integration-plan.md` 决策 021 + 已完成表 + 变更记录
+- **Tauri 桌面端端到端排障 3 项（决策 021 补充）**：
+  ① `UpdateModelParams` 补 `#[serde(rename_all = "camelCase")]`（修「API Key 缺失」根因——此前前端 camelCase 参数无法注入 Rust GenaiBackend）+ 前端 `ensureModelKey()` 发送前幂等注入 key（settingsStore 读权威 provider/model + loadApiKey）
+  ② `App.vue` 补齐 `provideAgentUiDeps` 全 7 字段（修深度消息渲染 `useAgentUiDeps 未注入` / `instance.update` 崩溃，Tauri 迁移遗漏的 provide 契约）
+  ③ 新增 `secure_store.rs`：`cmd_secure_store/load/delete` 三命令落 SQLite（修 `cmd_secure_store not found` Keyring 降级警告，key 落应用数据目录持久化，4 单测）
+- **桌面端实测**：创建角色正常回复、无 API Key 缺失、无渲染崩溃、无 secure_store 警告；角色创建桥链路（key → LLM → entity_create 经桥转发前端 → 落 Dexie）具备，实体落库待实际请求确认

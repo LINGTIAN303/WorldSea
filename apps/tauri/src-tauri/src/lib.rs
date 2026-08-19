@@ -32,6 +32,10 @@ mod whisper;
 mod search_commands;
 // A4 Plan-Exec 计划工具（plan_create / plan_update）
 mod plan_commands;
+// Rust → 前端 双向工具桥（entity_create/update + content_search 等经前端执行）
+mod frontend_tool_bridge;
+// 安全存储命令（cmd_secure_store/load/delete）：API Key 落应用数据目录 SQLite
+mod secure_store;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -74,6 +78,7 @@ pub fn run() {
             commands::update_session_title,
             commands::set_session_pinned,
             commands::set_session_router_enabled,
+            commands::orchestrator_run_plan,
             commands::create_group_session_participant,
             commands::list_group_session_participants,
             commands::delete_group_session_participants,
@@ -84,6 +89,11 @@ pub fn run() {
             commands::memory_boundary,
             commands::send_message,
             commands::cmd_agent_confirm,
+            commands::cmd_agent_set_security_level,
+            // FrontendToolBridge：前端执行桥工具后按 callId 回传结果
+            commands::cmd_agent_tool_result,
+            // 诊断日志（临时，排障用）
+            commands::cmd_diag_log,
             commands::abort,
             commands::steer,
             commands::clear_history,
@@ -186,6 +196,10 @@ pub fn run() {
             whisper::transcribe_media,
             // B3 搜索 Provider 配置（设置搜索 API Key，作用于 web_search 工具降级链）
             search_commands::set_search_config,
+            // 安全存储（cmd_secure_store/load/delete）：API Key 落应用数据目录 SQLite
+            secure_store::cmd_secure_store,
+            secure_store::cmd_secure_load,
+            secure_store::cmd_secure_delete,
         ])
         // Phase 5.1：Agent 命令服务（内部持有 session_id -> Arc<AgentLoop> 映射）
         // 终端服务（独立持有 ShellSessionManager，供前端直接调用终端命令）
@@ -231,11 +245,27 @@ pub fn run() {
                     .await
                     .expect("初始化实体数据库失败")
             });
+            // 安全存储（secure_store.db）：API Key 等的持久化（cmd_secure_store/load/delete）。
+            // 前端 key-store 在 Tauri 环境优先走本命令；此前未注册导致「cmd_secure_store not found」
+            // 警告 + 每次都降级 localStorage。此处补齐，key 落应用数据目录，跨重启持久。
+            let secure_store_path = app_data.join("secure_store.db");
+            let secure_store = tauri::async_runtime::block_on(async {
+                secure_store::SecureStore::new(secure_store_path.to_str().unwrap())
+                    .await
+                    .expect("初始化安全存储数据库失败")
+            });
+            app.manage(secure_store);
             // B3 搜索 Provider 降级链：global 管理，供 web_search 工具 + set_search_config 命令共享
             let search_chain = Arc::new(search_commands::SearchProviderChain::new(
                 search_commands::SearchConfig::default(),
             ));
             app.manage(search_chain.clone());
+            // FrontendToolBridge：构造前端工具桥（注入 AppHandle 发全局 agent:tool_call 事件），
+            // manage 供 cmd_agent_tool_result 命令使用；桥工具并入 extra_tools 注入每个会话
+            let frontend_bridge = Arc::new(frontend_tool_bridge::FrontendToolBridge::new(
+                app.handle().clone(),
+            ));
+            app.manage(frontend_bridge.clone());
             let svc = tauri::async_runtime::block_on(async {
                 let store = SqliteSubAgentSpecStore::new(db_path.to_str().unwrap())
                     .await
@@ -263,6 +293,9 @@ pub fn run() {
                             .into_iter()
                             .chain(search_commands::search_tools(search_chain.clone()))
                             .chain(plan_commands::plan_tools())
+                            // FrontendToolBridge：注入前端执行桥工具（entity_create/update +
+                            // content_search），这些工具 Rust 无原生实现，经全局事件转前端执行
+                            .chain(frontend_tool_bridge::bridge_tools(frontend_bridge.clone()))
                             .collect(),
                     )
             });

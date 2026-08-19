@@ -30,6 +30,7 @@ use agent_memory::MemoryCenterAccessor;
 use agent_runtime::agent::{AgentLoop, AgentLoopConfig, AgentState, AgentStateSnapshot};
 use agent_runtime::backend::ThinkingLevel;
 use agent_runtime::confirmation::{ConfirmationBroker, ConfirmationPolicy};
+use agent_runtime::event::{EventBroadcaster, EventListener, OrchestratorEvent};
 use agent_runtime::llm::config::ProviderConfig as RuntimeProviderConfig;
 use agent_runtime::llm::GenaiBackend;
 use agent_runtime::long_task::HeartbeatStatus;
@@ -38,6 +39,11 @@ use agent_runtime::memory::{
     ArchiveSource, MemoryArchiveResult, MemoryChunkContent, MemoryRecallOptions, MemoryRecallResult,
     RecallMode,
 };
+use agent_runtime::orchestrator::{
+    DefaultOrchestrator, Orchestrator, OrchestratorResult,
+};
+use agent_runtime::plan::{ExecuteNode, ExecuteNodeConfig, PlanNode, PlanNodeConfig};
+use agent_runtime::reflection::{ReflectionNode, ReflectionNodeConfig, RefineNode, RefineNodeConfig};
 use agent_runtime::supervisor::SubAgentSpec;
 use agent_runtime::scenario::{
     Scenario, ScenarioEntityProvider, ScenarioRegistry, WorldbuildingScenario,
@@ -50,6 +56,55 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::{Mutex, RwLock};
 
 // ─── 命令参数 / 返回类型 ────────────────────────────────────
+
+/// 编排图运行参数（Plan→Execute→[Reflection→Refine]）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlanExecuteOptions {
+    /// 是否启用 Reflection/Self-Refine 循环（默认 false = 仅 Plan→Execute）
+    #[serde(default)]
+    pub refine: bool,
+    /// 计划最大步骤数（默认 10）
+    #[serde(default = "default_max_items")]
+    pub max_items: usize,
+    /// Reflection→Refine 最大迭代轮数（默认 3）
+    #[serde(default = "default_max_refine_iterations")]
+    pub max_refine_iterations: u32,
+}
+
+fn default_max_items() -> usize {
+    10
+}
+
+fn default_max_refine_iterations() -> u32 {
+    3
+}
+
+impl Default for PlanExecuteOptions {
+    fn default() -> Self {
+        Self {
+            refine: false,
+            max_items: default_max_items(),
+            max_refine_iterations: default_max_refine_iterations(),
+        }
+    }
+}
+
+/// 事件转发监听器：把编排器事件转投到 AgentLoop 的广播器，
+/// 使订阅会话事件的监听器（如 Tauri 事件桥）能收到 Plan/Reflection 进度。
+///
+/// 只读锁竞争时丢弃事件（不阻塞编排执行），与 AgentLoop 的 BackendEventBridge 同策略。
+struct ForwardToAgentBroadcaster {
+    target: Arc<RwLock<EventBroadcaster>>,
+}
+
+impl EventListener for ForwardToAgentBroadcaster {
+    fn on_event(&self, event: &OrchestratorEvent) {
+        if let Ok(b) = self.target.try_read() {
+            b.broadcast(event);
+        }
+    }
+}
 
 /// 会话信息（列表项）
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -125,8 +180,26 @@ pub struct SessionUsageSummary {
     pub output_tokens: u64,
 }
 
+/// A7 安全级别（前端设置开关，运行时切换确认策略）
+///
+/// - `Off`：关闭确认，所有工具直接执行
+/// - `DangerousOnly`：仅危险操作确认（默认，对应 `ConfirmationPolicy::dangerous_only`）
+/// - `ModerateAndDangerous`：危险 + 中等（写操作/命令）一律确认
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SecurityLevel {
+    Off,
+    DangerousOnly,
+    ModerateAndDangerous,
+}
+
 /// 更新模型参数
+///
+/// `rename_all = "camelCase"`：Tauri v2 只对顶层命令参数做 camelCase 转换，
+/// 嵌套结构体需在 serde 层声明（与 `SendMessageParams` 一致），否则前端传
+/// `sessionId`/`modelId` 会因字段名 `session_id` 不匹配触发反序列化失败，
+/// 导致 key 注入不进 Rust 后端（表现为「API Key 缺失」）。
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct UpdateModelParams {
     pub session_id: String,
     pub provider: String,
@@ -597,6 +670,75 @@ impl AgentCommandService {
             .ok_or_else(|| CommandError::session_not_found(session_id))
     }
 
+    /// 运行 Plan-and-Execute 编排图（可附带 Reflection/Self-Refine 循环）
+    ///
+    /// 复用会话 AgentLoop 的 LLM 后端与事件通道：
+    /// - backend：从会话 AgentLoop 取出，注入 `DefaultOrchestrator`
+    /// - 事件：编排器事件经 [`ForwardToAgentBroadcaster`] 转投到会话广播器，
+    ///   使前端现有 `agent:event:*` 通道能收到 `PlanCreated` / `ReflectionResult` 等进度
+    ///
+    /// 链路（refine=false）：Plan → Execute（内部循环逐步骤执行）
+    /// 链路（refine=true）：Plan → Execute → Reflection ⇄ Refine（直至收敛）
+    pub async fn run_plan_execute(
+        &self,
+        session_id: &str,
+        input: String,
+        options: PlanExecuteOptions,
+    ) -> Result<OrchestratorResult, CommandError> {
+        let agent = self.get_agent(session_id).await?;
+        let backend = agent.node_backend();
+
+        let mut orch = DefaultOrchestrator::new().with_backend(backend);
+
+        // Plan → Execute
+        let plan_node = PlanNode::new(PlanNodeConfig {
+            id: "plan".into(),
+            max_items: options.max_items,
+            next_node_id: Some("execute".into()),
+            ..Default::default()
+        });
+        let execute_node = ExecuteNode::new(ExecuteNodeConfig {
+            id: "execute".into(),
+            next_node_id: if options.refine {
+                Some("reflection".into())
+            } else {
+                None
+            },
+            ..Default::default()
+        });
+        orch.add_node(Box::new(plan_node));
+        orch.add_node(Box::new(execute_node));
+
+        // 可选：Reflection → Refine 循环
+        if options.refine {
+            let reflection_node = ReflectionNode::new(ReflectionNodeConfig {
+                id: "reflection".into(),
+                next_node_id: Some("refine".into()),
+                ..Default::default()
+            });
+            let refine_node = RefineNode::new(RefineNodeConfig {
+                id: "refine".into(),
+                max_iterations: options.max_refine_iterations,
+                reflection_node_id: "reflection".into(),
+                ..Default::default()
+            });
+            orch.add_node(Box::new(reflection_node));
+            orch.add_node(Box::new(refine_node));
+        }
+        orch.set_entry("plan");
+
+        // 事件转发：编排事件 → 会话广播器 → Tauri 事件桥 → 前端
+        let forward = ForwardToAgentBroadcaster {
+            target: agent.broadcaster_ref(),
+        };
+        orch.subscribe(Arc::new(forward));
+
+        orch
+            .run(input, None)
+            .await
+            .map_err(|e| CommandError::Agent(format!("编排图执行失败: {e}")))
+    }
+
     /// 会话列表（默认只返回单聊会话；群聊参与者会话走 [`Self::list_group_session_participants`] 按群聊查询）
     ///
     /// `kind` 为 `Some` 时按类型过滤（`Some(Chat)` 供单聊侧边栏避免污染）。
@@ -943,6 +1085,26 @@ impl AgentCommandService {
                 output_tokens: usage.output_tokens,
             },
         })
+    }
+
+    /// A7 安全级别（前端设置开关，运行时切换确认策略）
+    ///
+    /// 对应 `ConfirmationPolicy` 三档：`Off`/`DangerousOnly`(默认)/`ModerateAndDangerous`。
+    pub async fn set_security_level(
+        &self,
+        session_id: &str,
+        level: SecurityLevel,
+    ) -> Result<(), CommandError> {
+        let agent = self.get_agent(session_id).await?;
+        let policy = match level {
+            SecurityLevel::Off => None,
+            SecurityLevel::DangerousOnly => Some(ConfirmationPolicy::dangerous_only()),
+            SecurityLevel::ModerateAndDangerous => {
+                Some(ConfirmationPolicy::moderate_and_dangerous())
+            }
+        };
+        agent.set_confirmation_policy(policy);
+        Ok(())
     }
 
     /// 解析一次待定的工具确认（HITL，A5）

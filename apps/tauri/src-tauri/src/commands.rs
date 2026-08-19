@@ -2,8 +2,8 @@
 
 use agent_commands::{
     AgentCommandService, LongTaskRepository, LoopControlCheckResult, LoopControlEntry,
-    LoopControlRegistry, LoopControlRegistryError, LoopControlStatus, SendMessageParams,
-    SubAgentInstanceInfo, TerminalService, UpdateModelParams,
+    LoopControlRegistry, LoopControlRegistryError, LoopControlStatus, SecurityLevel,
+    SendMessageParams, SubAgentInstanceInfo, TerminalService, UpdateModelParams,
 };
 use agent_runtime::backend::ThinkingLevel;
 use agent_runtime::event::{OrchestratorEvent, EventListener, AgentEvent};
@@ -315,6 +315,17 @@ impl EventListener for TauriAgentEventEmitter {
                     tracing::warn!("Failed to emit PlanReplanned event to frontend: {}", err);
                 }
             }
+            // Reflection/Self-Refine 评审结果：转发到 `agent:event:reflection:{session_id}`，
+            // 前端据此展示评分/问题/建议（与 A4 计划事件同一转发模式）
+            OrchestratorEvent::ReflectionResult { result } => {
+                let event_name = format!("agent:event:reflection:{}", self.session_id);
+                if let Err(err) = self.app.emit(
+                    &event_name,
+                    serde_json::json!({ "result": result }),
+                ) {
+                    tracing::warn!("Failed to emit ReflectionResult event to frontend: {}", err);
+                }
+            }
             // 其他事件目前不需要转发到前端
             _ => {}
         }
@@ -417,6 +428,26 @@ pub async fn set_session_router_enabled(
 ) -> Result<(), String> {
     state
         .set_session_router_enabled(&session_id, enabled)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 运行 Plan-and-Execute 编排图（3/4/5 编排模式命令入口）
+///
+/// - `options.refine = false`：链路 Plan → Execute（计划生成 → 逐步执行）
+/// - `options.refine = true`：链路 Plan → Execute → Reflection ⇄ Refine（自我评审迭代优化）
+///
+/// 复用会话的 LLM 后端；编排进度（PlanCreated / PlanStepUpdate / ReflectionResult）
+/// 经会话事件通道转发到前端 `agent:event:trace:{session_id}`。
+#[tauri::command]
+pub async fn orchestrator_run_plan(
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+    input: String,
+    options: Option<agent_commands::PlanExecuteOptions>,
+) -> Result<agent_runtime::orchestrator::OrchestratorResult, String> {
+    state
+        .run_plan_execute(&session_id, input, options.unwrap_or_default())
         .await
         .map_err(|e| e.to_string())
 }
@@ -572,6 +603,57 @@ pub async fn cmd_agent_confirm(
         .resolve_confirmation(&session_id, &confirm_id, approved)
         .await
         .map_err(|e| e.to_string())
+}
+
+/// FrontendToolBridge：前端执行桥工具后回传结果
+///
+/// Rust `FrontendBridgeTool::execute` 把工具调用转发前端（全局 `agent:tool_call` 事件，
+/// 携带 `callId`），前端用 `ALL_TOOLS_MAP` 执行后经本命令按 `callId` 回传结果。
+/// `ok=true` 表示执行成功（`result` 为工具返回值）；`ok=false` 表示执行失败
+/// （`result` 为错误信息字符串或 `{ "error": "..." }` 对象）。
+#[tauri::command]
+pub fn cmd_agent_tool_result(
+    bridge: State<'_, Arc<crate::frontend_tool_bridge::FrontendToolBridge>>,
+    call_id: String,
+    ok: bool,
+    result: serde_json::Value,
+) -> Result<bool, String> {
+    Ok(bridge.resolve(&call_id, ok, result))
+}
+
+/// 诊断日志命令：前端 `ensureModelKey` 等关键链路把诊断信息打到 Rust tracing，
+/// 便于在 tauri:dev 终端定位「API Key 缺失」根因（临时，排障后可移除）
+#[tauri::command]
+pub fn cmd_diag_log(label: String, payload: serde_json::Value) -> Result<(), String> {
+    // 用 warn 级别（tauri dev 默认 RUST_LOG 过滤 info，warn 必显示）
+    tracing::warn!("[diag] {label}: {}", payload.to_string());
+    Ok(())
+}
+
+/// A7：设置会话安全级别（运行时切换确认策略）
+///
+/// `level`：`off` / `dangerous_only`(默认) / `moderate_and_dangerous`。
+#[tauri::command]
+pub async fn cmd_agent_set_security_level(
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+    level: String,
+) -> Result<(), String> {
+    let parsed = parse_security_level(&level)?;
+    state
+        .set_security_level(&session_id, parsed)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 解析安全级别字符串 → `SecurityLevel`（非法返回错误，供前端开关映射）
+fn parse_security_level(s: &str) -> Result<SecurityLevel, String> {
+    match s.to_lowercase().as_str() {
+        "off" => Ok(SecurityLevel::Off),
+        "dangerous_only" => Ok(SecurityLevel::DangerousOnly),
+        "moderate_and_dangerous" => Ok(SecurityLevel::ModerateAndDangerous),
+        _ => Err(format!("未知安全级别: {s}")),
+    }
 }
 
 /// 中断当前运行

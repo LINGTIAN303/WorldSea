@@ -11,6 +11,7 @@ import type {
 } from '@worldsmith/agent-core/orchestrator'
 import { recallMemory, formatMemoryForPrompt } from '../tools/memory'
 import type { MemoryEntry } from '../tools/memory-internal'
+import { inferImportance } from '../tools/memory-internal'
 
 /** KV 模型 → MemoryRecallResult 字段映射适配器，详细见 docs/details/注释/packages/agent-runtime/orchestrator-pi-backend-memory-accessor.md */
 function entryToRecallResult(entry: MemoryEntry, score?: number): MemoryRecallResult {
@@ -151,6 +152,7 @@ export class PiBackendMemoryAccessor implements MemoryAccessor {
       timestamp: r.createdAt,
       accessCount: r.accessCount,
       lastAccessedAt: Date.now(),
+      importance: inferImportance(r.hookId.replace(/^kv_/, '')),
     }))
 
     // 应用 maxTokens 限制

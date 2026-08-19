@@ -44,8 +44,8 @@ Nginx 部署、Marketplace 仓库同步、工作区多租户）不适用，不�
 | A3 | Routing 意图分类 + 四管线 | IntentClassifier（LLM 3s 超时降级关键词）+ Query/Research/Experiment/Compose 四管线 + force_pipeline Chip 强制 | A | 中 | Rust 有 orchestrator/router，但无「语义四管线」与「前端 force_pipeline 强制」 | `crates/agent-runtime/router`、`apps/tauri/src/space/chat` | 已完成 |
 | A4 | Plan-Exec + Replanner + Checkpoint 回放 | 计划生成→持久化→逐步执行→重规划→checkpoint 时间旅行（分支回放） | A | 中 | Rust 有 PlanPanel、orchestrator、长任务 checkpoint；回放分支能力待对齐 | `crates/agent-runtime`、`apps/tauri/src/agent/panels/PlanPanel.vue` | 已完成（工具闭环+持久化+重规划；Checkpoint 回放暂缓，决策 016） |
 | A5 | HITL 权限确认 / 提问 | 工具调用前权限守卫弹窗 + ask_user 提问，oneshot 跨连接等待，超时可配 | A | 高 | 已有 PermissionGuard（packages/agent-core/guard）、WsConfirmDialog | `packages/agent-core/guard`、`apps/tauri` | 已完成（MVP） |
-| A6 | Hook 工具生命周期护栏 | PreToolUse/PostToolUse/OnError 拦截，可 allow/deny/modify args | B | 中 | 无 | `packages/agent-core/execution` | 待评估 |
-| A7 | 权限分级守卫 + 沙盒策略 | Dangerous/Moderate/Safe + 危险命令识别 + SandboxPolicy | B | 高 | 已有 guard，分级细节待对齐 | `packages/agent-core/guard` | 待评估 |
+| A6 | Hook 工具生命周期护栏 | PreToolUse/PostToolUse/OnError 拦截，可 allow/deny/modify args | B | 中 | 无 | `packages/agent-core/execution` | 已完成（Rust 三阶段 hook 机制，决策 020） |
+| A7 | 权限分级守卫 + 沙盒策略 | Dangerous/Moderate/Safe + 危险命令识别 + SandboxPolicy | B | 高 | 已有 guard，分级细节待对齐 | `packages/agent-core/guard` | 已完成（Rust 三分级 + 前端安全级别开关，决策 019） |
 | A8 | 配额/用量计量 | CostMeter 按 token 用量扣减，进对话前校验 | B | 中 | 已有 UsagePanel | `packages/governor-core`、`apps/tauri` | 待评估 |
 | A9 | 可观测性（审计+metrics） | agent_runs/tool_executions/llm_calls 审计 + metrics + Web Vitals | C | 中 | 已有 ActivityLog、perf-kit | 待定 | 待评估 |
 
@@ -216,6 +216,67 @@ Nginx 部署、Marketplace 仓库同步、工作区多租户）不适用，不�
 - **理由**：沿用 OpenWorld「一次对话一条可追踪链」理念，用最小侵入补齐全链路可观测——只加一个聚合通道，前端复用既有 ActivityLog UI，不新增面板。
 - **影响**：`commands.rs` `TauriAgentEventEmitter` 加 `trace_seq: AtomicU64` + `trace_summary`（17 类事件映射，过滤高频 `StreamDelta`）+ `emit_trace`（payload `{seq,type,summary}`）；前端 `useActivityLog.ts` `ActivityLogEntry` 加 `traceType`、`addLog` 加可选第 4 参；`useAgentRust.ts` 新增 `setupTraceListener`/`teardownTraceListener`（按 trace 类型映射活动日志类目 error/tool/info），接入 newSession/switchSession/deleteSession/dispose 生命周期。验证：`cargo check` + tauri 22 tests + `vue-tsc --noEmit` 通过。A1 盘点表状态 →「已完成」。
 
+### 决策 018｜C3 长期记忆加权融合排序（2026-08-13）
+- **背景**：C3 原为 OpenWorld「sqlite-vec 向量检索 + importance 混合排序」。探查发现 `@worldsmith/memory-archive` 框架**未接入实际运行**（仅设计文档引用，`RecallEngine` 改了不生效）；真正被 Agent 使用的是 `packages/agent-runtime` 的 `tools/memory.ts`（localStorage 长期记忆，`PiBackendMemoryAccessor` → `recallMemory`）。现有 hybrid 混合逻辑是**取最高分**（`Math.max(关键词分, 语义分×5)`），importance 未参与检索排序。
+- **结论**：只做「加权融合排序（含 importance）」，**不引入 sqlite-vec**（记忆规模小——长期记忆上限 200 条，纯内存余弦扫描已够，sqlite-vec 属过度工程）。用户确认：importance 由**框架按 key 推断**（零侵入），融合公式用**归一化加权**。
+- **理由**：真正有价值的是提升检索质量——把「关键词命中 / 语义相关 / importance」三信号加权融合，`importance` 让「偏好/规则/决策」等高价值记忆在弱匹配时也能浮出；sqlite-vec 留待记忆量涨大再说。
+- **影响**：`tools/memory-internal.ts`：`MemoryEntry` 加 `importance` 字段 + `inferImportance(key)`（高价值词 0.8 / 中价值 0.65 / 默认 0.5）+ `loadMemory` 兼容旧数据（缺省 0.5）。`tools/memory.ts`：`memory_store` 存储时自动推断 importance、可选 `importance`(0-1) 显式覆盖；`recallMemory` 改归一化加权融合 `final = 0.45×词分归一 + 0.35×语义分 + 0.20×importance`（词分归一 = score/(score+3)；语义阈值从 0.25 放宽到 0，交综合分裁决；keyword/semantic 单模式分支不变）。`kb/kb-extractor.ts`、`orchestrator/pi-backend-memory-accessor.ts` 补齐 importance。验证：agent-runtime `vue-tsc --noEmit` 通过。C3 盘点表状态 →「已完成（加权融合排序；sqlite-vec 暂缓）」。
+- **风险点（用户知悉）**：语义阈值放宽到 0 后，弱语义信号可能带噪音；若实测偏高，可对语义分加下限过滤（如 <0.2 视作 0）。
+
+### 决策 019｜A7 权限分级守卫（三分级 + 前端安全级别开关，2026-08-13）
+- **背景**：A7 原为 OpenWorld「危险命令识别 + 权限分级守卫 + SandboxPolicy」。A5 已实现 `ConfirmationPolicy`（`dangerous_only`，仅二元「危险/非危险」确认）；TS 侧 `PermissionGuard` 已有 safe/moderate/dangerous 三分级，但 Rust 侧 `Tool` trait 无权限等级，`needs_confirmation` 靠工具名/命令子串、无 Moderate 层。桌面端本地单用户，进程级 SandboxPolicy（landlock，对应 B4 也评估过）无价值，故**不引入沙盒进程隔离**，聚焦「权限分级 + 确认」。
+- **结论**：Rust 侧建立三分级并暴露前端开关（off / dangerous_only / moderate_and_dangerous），运行时切换确认策略。用户确认按三分级方案执行。
+- **理由**：把 A5 二元确认升级为 Safe/Moderate/Dangerous 分级——Dangerous 无条件确认、Moderate 按策略开关、Safe 放行；`moderate_and_dangerous` 严格档让写操作/命令一律确认，补上「仅危险确认」过于宽松的盲区。全程复用 A5 确认链路，零新依赖，行为向后兼容。
+- **影响**：`confirmation.rs`：新增 `ToolPermission` 枚举 + `tool_permission()` 集中映射表（Dangerous=委派/删除，Moderate=命令执行，Safe=plan/entity_get/web_search 等只读，未登记默认 Moderate）+ `ConfirmationPolicy.confirm_moderate` 字段 + `moderate_and_dangerous()` 工厂 + `needs_confirmation` 三分级裁决（测试 4/4）。`agent/mod.rs`：`set_confirmation_policy()` 动态写 config（运行时生效）。`agent-commands`：`SecurityLevel` 枚举（Off/DangerousOnly/ModerateAndDangerous）+ `set_security_level` 服务。Tauri：`cmd_agent_set_security_level` 命令 + `parse_security_level`。前端：`useAgentRust.setSecurityLevel`、`AgentSettingsPanel` 安全面板新增「工具安全级别」三档下拉、`SpaceAgentSettingsPanel` 转发、`settingsStore.agentSecurityLevel`（localStorage 持久化）。验证：`cargo check`（三 crate）+ 前端 `vue-tsc` 通过。A7 盘点表状态 →「已完成」。
+- **风险点（用户知悉）**：默认仍 `dangerous_only`；`moderate_and_dangerous` 为需用户主动选择的严格模式。
+
+### 决策 020｜A6 Hook 工具生命周期护栏（PreToolUse/PostToolUse/OnError，2026-08-13）
+- **背景**：A6 原为 OpenWorld「PreToolUse/PostToolUse/OnError 三处拦截，可 allow/deny/modify args」。WorldSmith Rust 侧无工具生命周期 hook（仅 A5/A7 的确认机制）。TS 侧 `agent-core` 也仅有权限元数据，无 hook 拦截实现。
+- **结论**：在 Rust `AgentLoop` 采**三阶段 hook 机制**（新 `tool_hook.rs` + `ToolLifecycleHook` trait + `ToolHookAction`），接入默认串行工具执行链。用户确认：pre hook 改 args 直接返回 `Allow(new_args)`，`on_error` 只记录不阻断流程。
+- **理由**：与 A5/A7 确认（阻断危险）互补，A6 是**可编程护栏**——pre 可改写参数/拒绝，post/on_error 供审计观测；机制解耦、零新依赖，注册若干 hook 即可扩展策略（内置 `AuditLifecycleHook` 作示例）。
+- **影响**：新增 `crates/agent-runtime/src/tool_hook.rs`（`ToolHookAction::{Allow(Value),Deny(String)}` + `ToolLifecycleHook::{on_pre_use,on_post_use,on_error}` + `AuditLifecycleHook`，2 单测）；`lib.rs` 导出；`AgentLoop` 加 `tool_hooks` 字段 + `with_tool_hook` builder（复用 A5 注入模式）；`execute_tool_with_retry` 接入——pre（循环跑、后一个 `Allow` 覆盖前一个；`Deny` 转 `ToolError::Execution` 并跑全部 on_error 后返回）→ `call_tool(effective_args)` → 成功 `on_post_use` → 最终失败 `on_error`。验证：`cargo test tool_hook` 4/4（2 单元 + 2 集成 `tool_hook_modifies_args_before_execution`/`tool_hook_denies_tool_execution`，实测改 args 生效、deny 进入 toolResult）+ 三 crate `cargo check` 通过。A6 盘点表状态 →「已完成」。
+- **风险点（用户知悉）**：并行执行路径（`parallel_tool_calls=true`，默认关闭）不套 hook，与 A5 确认一致；如需并行生效需单独接入。
+
+### 决策 021｜FrontendToolBridge：Rust→前端 TS 工具双向执行桥（2026-08-19）
+- **背景**：B1 worldbuilding 场景 `WorldbuildingScenario::tool_ids()` 声明了 `entity_create/update/delete`、`entity_get_context`、`relation_list/create`、`content_search`、`memory_recall/store` 等工具，但 Rust ToolBus 经 7.7 工具桥只原生实现了 `entity_list/entity_get` 两个只读工具，其余工具对 LLM 可见（经 WhitelistToolBus 白名单）却在执行时报 `ToolError::NotFound`，场景工具能力被裁半——B1 闭环的最大短板。而这些工具的**前端 TS 实现完备**（`ALL_TOOLS_MAP`，依赖 `IToolContext` 的 Dexie entity/relation/file store）。
+- **结论**：新增 TS↔Rust **双向执行桥**，机制与 A5 `ConfirmationBroker` 同构（oneshot 等待）：
+  1. Rust `FrontendBridgeTool::execute` 生成唯一 `call_id` → 经 `AppHandle` 广播**全局事件** `agent:tool_call`（payload: `{ callId, toolName, args }`）→ `await oneshot`（120s 超时）
+  2. 前端全局监听 `agent:tool_call` → `ALL_TOOLS_MAP.get(toolName)` 找到 TS 工具实现，以 **`IToolContext`（复用 entity-core stores）** 执行 → `invoke('cmd_agent_tool_result', { callId, ok, result })` 回传
+  3. Rust `cmd_agent_tool_result` 按 `call_id` 找到等待方 `resolve` 唤醒返回给 LLM
+  - **关键简化**：用「全局事件通道 + call_id 唯一匹配」而非 per-session 通道——桥工具 `execute` 时无 session 上下文，工具目标是**项目级 stores**（跨会话共享），无需像 HITL 确认那样按会话弹窗；跨会话并行靠唯一 call_id 天然区分安全。
+  - **实施分层**（用户确认：Tauri 层桥 + 首批跑通 3 个核心）：
+    - Rust：`apps/tauri/src-tauri/src/frontend_tool_bridge.rs`（`FrontendToolBridge` pending-map + `FrontendBridgeTool` 实现 `Tool` trait + `bridge_tools()` 工厂）；命令层 `commands.rs::cmd_agent_tool_result`；`lib.rs` setup 构造 bridge 并 manage、`bridge_tools()` 并入 `extra_tools` 注入每会话
+    - 前端：`useAgentRust.ts` 加 `buildBridgeContext()`（复用 entity-core stores 构造 `IToolContext`，与 useGroupChat 同构）+ `handleToolCall()` + `setup/teardownToolBridgeListener()`（幂等全局监听），接入 newSession/switchSession/dispose 生命周期；桥工具返回的 JSON 字符串经 `parseMaybeJson` 反序列化为结构化值回传
+  - **首批桥接 3 工具**：`entity_create` / `entity_update` / `content_search`（工具定义 description/parameters 与前端口径完全对齐）
+- **理由**：把 B1 场景从「只读实体查询」扩展到「CRUD + 内容检索」，让 worldbuilding 场景 LLM 能真正创作/修改世界设定，而非只能查；机制复用 A5 成熟的 oneshot 跨进程等待模式，零新依赖，符合「桌面本地单用户 + 前端持有 TS store」的现实架构——TS 工具执行器本就有且随前端 store 一致，重复在 Rust 原生实现会双端维护成本高、且丢失前端口径。
+- **影响**：worldbuilding 场景声明但 Rust 未实现的工具，经桥完成「LLM 可见 → 前端执行 → 结果回填」全链路；`entity_get/entity_list` 仍走 Rust 原生（数据源全局 `EntityDb` SQLite，与前端 Dexie 项目库存在数据源差异——桥工具走前端 Dexie 项目库，后续若需统一可再评估）。验证：`cargo check`（worldsmith-tauri-app）干净、`cargo test --lib` 23 passed（含桥模块 1 单测）、前端 `vue-tsc --noEmit` typecheck 通过、dev server HMR 正常。
+- **风险点（用户知悉）**：① 端到端真实链路需 Tauri 桌面端运行验证（浏览器 preview 模式 `cmd_agent_tool_result` 在 mockInvoke 兜底返回空对象，不发真实 IPC）；② 桥工具结果回传依赖前端全局监听器已就绪（首次建会话时注册），若未注册会超时 120s；③ `entity_list/get`（Rust SQLite 兜底库）与桥工具（前端 Dexie 项目库）数据源不一致，同一会话混用时可能出现「Rust 读到 SQLite 旧实体、前端读到 Dexie 新实体」的视图分叉，需用户知悉并决定后续是否统一数据源。
+- **后续可扩展**：其余场景声明工具（`relation_create/memory_store/kb_*` 等）只需在 `bridge_tools()` 增加对应 `FrontendBridgeTool`（description/parameters 对齐前端）+ 前端确保该工具已注册进 `ALL_TOOLS_MAP` 即可；若需覆盖更多场景可参考决策 7.7 的完整 FrontendToolBridge 设想扩展。
+
+### 决策 021 补充｜端到端排障记录（2026-08-19，Tauri 桌面端实测）
+> 背景：决策 021 后到 Tauri 桌面端实测「创建角色 → entity_create 经桥落库」闭环，连续暴露 **3 个既有的非桥 bug** 阻塞链路，逐一修复后才真正跑通。这 3 个 bug 均与「API Key 注入 / 深度消息渲染 / Key 持久化」相关，是 OpenWorld 融入（A 类工程实践）在 Tauri 桌面端落地时的隐蔽断点，特此记录备查。
+
+**排障 1：API Key 缺失（UpdateModelParams 缺 camelCase）**
+- **现象**：`send_message` 报 `LLM 后端错误: 认证失败: API Key 缺失: provider=deepseek`，即便前端确定已配置 key。
+- **根因**：`crates/agent-commands/src/lib.rs` 的 `UpdateModelParams` **漏了 `#[serde(rename_all = "camelCase")]`**。其字段是 `session_id/model_id/api_key`，而前端 `updateModel` 传 `sessionId/modelId/apiKey`（camelCase）→ Tauri 反序列化失败 `invalid args ... missing field 'session_id'`（此错误被 `ensureModelKey` 捕获静默）。**key 从未注入进 Rust 的 `GenaiBackend`**，发送时后端空 key →「API Key 缺失」。对照：`SendMessageParams` 一直有 camelCase 标注（故 `send_message` 只报 key 缺失而非参错）。
+- **修复**：给 `UpdateModelParams` 补 `#[serde(rename_all = "camelCase")]`（[lib.rs](crates/agent-commands/src/lib.rs)，与 `SendMessageParams` 对齐）。
+- **辅助**：前端 `useAgentRust.ts` 新增 `ensureModelKey()` 幂等兜底——发送（`prompt`）前从 `settingsStore`（`@worldsmith/entity-core`）读权威 provider/model（cloud/local/custom 三模式），经 `loadApiKey(provider)` 读 key，`update_model` 注入该会话；`modelKeyInjectedSessions` Set 记忆避免每轮重复。同时在发送失败时把诊断（session/mode/provider/model/key 注入态）拼进错误信息，便于 UI 直接定位。
+- **经验**：Tauri v2 命令嵌套结构体参数必须显式 `serde(rename_all = "camelCase")`，否则前后端契约静默断裂。排查 API 注入类问题，先核对命令参数结构的 serde 声明。
+
+**排障 2：useAgentUiDeps 未注入（深度消息渲染崩溃）**
+- **现象**：key 修好后，Agent 正常回复但渲染时崩 `[useAgentUiDeps] 未注入 AgentUiDeps` + `TypeError: instance.update is not a function`。
+- **根因**：深度模式消息气泡 `DeepMessageArea` / `useMarkdownRender` 依赖 `useAgentUiDeps()`（契约在 `packages/shared-composables/src/agent/deps.ts`），但 **Tauri 端从未调用 `provideAgentUiDeps(...)`**——Web→Tauri 迁移遗漏。此前因 API Key 缺失 Agent 从未走到回复渲染，故未暴露。
+- **修复**：`apps/tauri/src/App.vue`（恒挂载，AgentSpace/Shell 平级）setup 里 `provideAgentUiDeps` 补齐全部 7 字段：`fontFamily`（fontStore `prefs.agent`）、`fontPrefs`（同）、`persona` + `enterAnimation`（persona-font-store `activeProfile`）、`activityLogs`（useActivityLog `logs`）、`replaceFontSpans`（暂 passthrough，后续可接 fontSpanParser）、`AvatarBadge`（ui/AvatarBadge.vue）。
+- **经验**：共享层 `provide` 契约若在某个端（Web/Tauri）漏调，会在**首次渲染消费方**时才崩溃，且常被更前端的故障掩盖。迁移后应逐端验证共享注入点。
+
+**排障 3：cmd_secure_store not found（Keyring 命令未实现）**
+- **现象**：每次 `loadApiKey` 打 `[key-store] Keyring 检测失败，降级到 localStorage 加密存储: Command cmd_secure_store not found` 警告。
+- **根因**：前端 `key-store.ts`（`packages/agent-runtime/src/providers`)在 Tauri 环境优先调 `cmd_secure_store/load/delete` 三个命令，但 **Rust 端从未注册** → invoke not found → 每次降级浏览器 localStorage（且加密，不影响功能，但 key 不落系统数据目录）。
+- **修复**：新增 `apps/tauri/src-tauri/src/secure_store.rs`——`SecureStore`（SQLite `secure_store.db`，key→value）+ `cmd_secure_store/load/delete` 三命令；lib.rs 声明模块 + 注册 invoke_handler + setup 里 manage 实例（复用已有 app_data_dir + sqlx 建库模式）。4 单测通过、`cargo check` 干净。key 现落应用数据目录，跨重启持久。
+- **经验**：前端针对 Tauri 的「优先 Keyring」分支依赖一组同名命令，若 Rust 端只实现部分或漏实现，会静默降级。功能正常但伴随警告 + 安全/持久档位下降，属「无告警缺口」，应补齐并单元测试覆盖。
+
+**收尾验证**：三项修复后，Tauri 桌面端「创建一个名叫艾琳的女性角色」实测**正常回复、无 API Key 缺失、无 useAgentUiDeps 崩溃、无 cmd_secure_store 警告**。角色创建桥（key → LLM → entity_create 经 frontend_tool_bridge 转发前端 → 落前端 Dexie 库）链路具备，最终实体落库待用户实际请求创建实体时确认。
+
 ---
 
 ## 五、衔接（与已有计划对齐）
@@ -241,6 +302,10 @@ Nginx 部署、Marketplace 仓库同步、工作区多租户）不适用，不�
 | B2 场景工具过滤 | 已完成 | 决策 012；`effective_tool_bus` 把 WhitelistToolBus 门控从「可见性」升级为「可见性 + 执行双门控」，串行/并行工具执行统一走白名单，非白名单返回 NotFound |
 | A4 Plan-Exec + Replanner | 已完成（工具闭环 + 持久化 + 重规划） | 决策 013/014/015/016；`plan_create`/`plan_update`/`plan_replan` 原生工具 + 全场景注册 + 事件双通道驱动 `usePlanStore`/PlanPanel；计划状态下沉 Rust 随会话 SQLite 持久化、切换会话恢复；失败步骤后局部重规划（保留已完成进度）。Checkpoint 回放**暂缓**（决策 016） |
 | A1 全链路事件流可观测 | 已完成 | 决策 017；统一 trace 事件通道 `agent:event:trace:{session_id}`（`trace_seq` 序号 + `trace_summary` 17 类事件映射，过滤高频 StreamDelta）+ 前端 `useActivityLog` 加 `traceType`、`useAgentRust` 新增 trace 监听按序还原完整事件链 |
+| C3 长期记忆加权融合排序 | 已完成（加权融合排序；sqlite-vec 暂缓） | 决策 018；`tools/memory-internal.ts` 加 `importance` + `inferImportance`；`tools/memory.ts` 的 `recallMemory` 从取最高分改归一化加权融合（0.45 词分 + 0.35 语义 + 0.20 importance）、`memory_store` 自动标注 importance；kb-extractor / pi-backend-memory-accessor 补 importance；sqlite-vec 留待记忆规模增长（决策 016 类似思路） |
+| A7 权限分级守卫 | 已完成（三分级 + 前端开关） | 决策 019；`ConfirmationPolicy` 升级 Safe/Moderate/Dangerous 三分级 + `tool_permission()` 映射表 + `moderate_and_dangerous()` 严格档；`AgentLoop.set_confirmation_policy` 运行时切换；`SecurityLevel` 枚举 + 命令 + 前端「工具安全级别」三档下拉（localStorage 持久化）；不引入进程级沙盒（桌面单用户无价值） |
+| A6 Hook 工具生命周期护栏 | 已完成（Rust 三阶段机制） | 决策 020；新增 `tool_hook.rs`：`ToolHookAction::{Allow(Value),Deny(String)}` + `ToolLifecycleHook`（on_pre_use/on_post_use/on_error）+ `AuditLifecycleHook`；`AgentLoop.with_tool_hook` 注册，`execute_tool_with_retry` 接入（pre 改 args/拒绝 → call_tool → post → on_error）；内置审计钩子示例，待接 A1 trace 或持久化审计表 |
+| B1 场景工具闭环（FrontendToolBridge） | 已完成（首批 3 工具：entity_create/entity_update/content_search） | 决策 021；新增 `frontend_tool_bridge.rs`（`FrontendToolBridge` oneshot + `FrontendBridgeTool` + `bridge_tools()`）+ `cmd_agent_tool_result` 命令 + lib.rs 装配（manage + 并入 extra_tools）；前端 `useAgentRust` 加 `buildBridgeContext`/`handleToolCall`/`setupToolBridgeListener`（全局 `agent:tool_call` 监听，`ALL_TOOLS_MAP` 执行 + 按 callId 回传）。把 B1 从「只读实体查询」扩展到「CRUD + 内容检索」，补齐 7.7 声明的场景工具被 NotFound 裁半的短板；其余场景工具（relation/memory/kb 等）可按 `bridge_tools()` 扩展 |
 
 _（采纳并实施的项目移入此处并保留决策理由，详见对应实施记录章节。）_
 
@@ -447,3 +512,8 @@ AgentLoop 执行走完整 tool_bus（`call_tool` 命中原生工具）→ 读 En
 - **2026-08-12**：C2 引用有效性校验完成（决策 007）——`entity_get` 工具增强（可选 `expected_type`，读取前校验 id 存在防悬空 + 类型匹配防错配）；`SpaceChat.vue` 引用块结构化指示 LLM 传 `expected_type`；tauri 单测 2/2 通过（含新增 `entity_get_reference_validity_check`）、前端 `vue-tsc` 通过。编译用 `cargo test --offline` 规避 rsproxy CDN 不可达。
 - **2026-08-12**：A2 多 Key 池 + 降级完成（决策 008）——`backend.rs` trait 增 `set_api_key_pool` default 方法；`GenaiBackend` 增 `key_pool` 字段、`prompt` 改为逐候选 key 降级重试（可重试错误 Auth/RateLimit/Network 换下一把 key）、`exec_stream_once`/`finish_prompt` 重构 + `set_config_api_key`/`is_retryable_error` 辅助；命令层 `set_api_key_pool` 服务 + Tauri 命令 + `useAgentRust.setApiKeyPool` 暴露。agent-runtime 测试 204/204 通过（含 4 个新增 A2 测试）、三 crate `cargo check` + 前端 `vue-tsc` 通过。llm-genai feature 需 tuna 镜像避免 rsproxy 超时。
 - **2026-08-13**：A1 全链路事件流可观测完成（决策 017）——`commands.rs` `TauriAgentEventEmitter` 加 `trace_seq`/`trace_summary`/`emit_trace`，把 17 类非高频事件按序投递到新通道 `agent:event:trace:{session_id}`（过滤高频 StreamDelta）；`useActivityLog.ts` `ActivityLogEntry` 加 `traceType`；`useAgentRust.ts` 新增 trace 监听（按类型映射 error/tool/info）接入会话生命周期。`cargo check` + tauri 22 tests + `vue-tsc --noEmit` 通过。A1 盘点表状态 →「已完成」。
+- **2026-08-13**：C3 长期记忆加权融合排序完成（决策 018）——`tools/memory-internal.ts` 加 `importance` 字段 + `inferImportance` + 旧数据兼容；`tools/memory.ts` 的 `memory_store` 自动/显式标注 importance、`recallMemory` 从「取最高分」改「归一化加权融合」（0.45 词分 + 0.35 语义 + 0.20 importance，语义阈值放宽到 0）；kb-extractor / pi-backend-memory-accessor 补 importance。agent-runtime `vue-tsc --noEmit` 通过；不引入 sqlite-vec（待记忆规模增长）。C3 盘点表状态 →「已完成（加权融合排序；sqlite-vec 暂缓）」。
+- **2026-08-13**：A7 权限分级守卫完成（决策 019）——`confirmation.rs` 加 `ToolPermission` 枚举 + `tool_permission()` 映射表 + `ConfirmationPolicy` 三分级裁决 + `moderate_and_dangerous()` 严格档（测试 4/4）；`AgentLoop.set_confirmation_policy` 运行时切换；`agent-commands` 加 `SecurityLevel` 枚举 + `set_security_level` 服务；Tauri `cmd_agent_set_security_level` 命令；前端 `AgentSettingsPanel` 安全面板「工具安全级别」三档下拉 + `settingsStore.agentSecurityLevel` 持久化。`cargo check`（三 crate）+ `vue-tsc` 通过；不引入进程级沙盒（桌面单用户无价值）。A7 盘点表状态 →「已完成」。
+- **2026-08-13**：A6 Hook 工具生命周期护栏完成（决策 020）——新增 `crates/agent-runtime/src/tool_hook.rs`（`ToolHookAction::{Allow(Value),Deny(String)}` + `ToolLifecycleHook` 三方法 + `AuditLifecycleHook`，2 单测）；`AgentLoop` 加 `tool_hooks` 字段 + `with_tool_hook` builder；`execute_tool_with_retry` 接入（pre 改 args/拒绝 → call_tool → post → on_error）。`cargo test tool_hook` 4/4（含 2 集成实测改 args 生效、deny 进 toolResult）+ 三 crate `cargo check` 通过。A6 盘点表状态 →「已完成」。
+- **2026-08-19**：FrontendToolBridge 完成（决策 021）——B1 场景工具闭环补齐：Rust `frontend_tool_bridge.rs`（`FrontendToolBridge` oneshot + `FrontendBridgeTool` 实现 Tool + `bridge_tools()` 首批 3 工具）+ `commands.rs::cmd_agent_tool_result` + `lib.rs` setup 构造 manage + 并入 extra_tools；前端 `useAgentRust` 加 `buildBridgeContext`（复用 entity-core stores 构造 `IToolContext`）/`handleToolCall`（`ALL_TOOLS_MAP` 执行 + 按 callId 回传）/`setup/teardownToolBridgeListener`（全局 `agent:tool_call` 幂等监听）接入 newSession/switchSession/dispose。首批桥接 `entity_create`/`entity_update`/`content_search`，worldbuilding 场景从「只读查询」扩展到「CRUD + 内容检索」。验证：`cargo check` + `cargo test --lib` 23 passed + `vue-tsc --noEmit` 通过。风险点（用户知悉）：真实链路需 Tauri 桌面端验证；`entity_list/get`（Rust SQLite）与桥工具（前端 Dexie）数据源不一致。详见决策 021。
+- **2026-08-19**：FrontendToolBridge Tauri 桌面端端到端排障 3 项（决策 021 补充）——① `UpdateModelParams` 补 `#[serde(rename_all = "camelCase")]`（修 API Key 缺失根因）+ 前端 `ensureModelKey()` 发送前幂等注入 key；② `App.vue` 补齐 `provideAgentUiDeps`（修深度消息渲染 `useAgentUiDeps 未注入`/`instance.update` 崩溃）；③ 新增 `secure_store.rs`（`cmd_secure_store/load/delete` 三命令落 SQLite，修 `cmd_secure_store not found` Keyring 降级警告，4 单测）。收尾验证：桌面端「创建角色」实测正常回复、无 API Key 缺失、无渲染崩溃、无 secure_store 警告，角色创建桥链路具备。详见「决策 021 补充」。新增依赖：无（secure_store 复用已有 sqlx）。

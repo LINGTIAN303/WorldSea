@@ -19,11 +19,14 @@ pub mod memory;
 pub mod multi_agent;
 pub mod node;
 pub mod orchestrator;
+pub mod plan;
+pub mod reflection;
 pub mod router;
 pub mod scenario;
 pub mod supervisor;
 pub mod tool;
 pub mod tree_of_thoughts;
+pub mod tool_hook;
 pub mod types;
 
 // ─── 公共导出 ────────────────────────────────────────────
@@ -58,6 +61,13 @@ pub use memory::{
 pub use node::{NodeContext, NodeResult, NodeType, OrchestratorNode};
 pub use orchestrator::{
     DefaultOrchestrator, Orchestrator, OrchestratorEdge, OrchestratorResult, OrchestratorRunOptions,
+};
+pub use plan::{
+    ExecuteFailurePolicy, ExecuteNode, ExecuteNodeConfig, PlanNode, PlanNodeConfig,
+};
+pub use reflection::{
+    default_dimensions, ReflectionDimension, ReflectionNode, ReflectionNodeConfig, RefineNode,
+    RefineNodeConfig,
 };
 pub use router::{
     extract_force_pipeline, pipeline_targets, KeywordRoutingStrategy, LlmRoutingStrategy, Pipeline,

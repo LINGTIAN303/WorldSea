@@ -4,6 +4,7 @@ use tracing::{debug, info, warn};
 
 use crate::event::{AgentEvent, OrchestratorEvent};
 use crate::tool::ToolError;
+use crate::tool_hook::ToolHookAction;
 use crate::types::{MessageRole, OrchestratorMessage, PlanItem, PlanItemStatus, ToolCall};
 
 use super::{AgentError, AgentLoop};
@@ -139,6 +140,23 @@ impl AgentLoop {
         // 执行返回 NotFound 被拦截（与可见性过滤一致，避免绕过场景工具约束）。
         let bus = self.effective_tool_bus(&config);
 
+        // A6 工具生命周期钩子：pre 阶段（可改 args / 拒绝）
+        // 多个钩子按注册顺序依次执行，后一个通过 Allow(new_args) 覆盖前一个。
+        let mut effective_args = args.clone();
+        for hook in &self.tool_hooks {
+            match hook.on_pre_use(name, &effective_args) {
+                ToolHookAction::Allow(new_args) => effective_args = new_args,
+                ToolHookAction::Deny(reason) => {
+                    let err = ToolError::Execution(reason);
+                    // 拒绝：跑全部 on_error 钩子记录，再返回（视为工具失败）
+                    for h in &self.tool_hooks {
+                        h.on_error(name, &effective_args, &err);
+                    }
+                    return Err(err);
+                }
+            }
+        }
+
         let mut attempt: u32 = 0;
         loop {
             // 取消检查（每次重试前）
@@ -149,7 +167,7 @@ impl AgentLoop {
 
             // 执行调用（含超时）
             let call_result = if let Some(t) = timeout {
-                match tokio::time::timeout(t, bus.call_tool(name, args.clone())).await {
+                match tokio::time::timeout(t, bus.call_tool(name, effective_args.clone())).await {
                     Ok(r) => r,
                     Err(_elapsed) => {
                         warn!("工具 {} 执行超时（{:?}，attempt {}）", name, t, attempt + 1);
@@ -157,13 +175,23 @@ impl AgentLoop {
                     }
                 }
             } else {
-                bus.call_tool(name, args.clone()).await
+                bus.call_tool(name, effective_args.clone()).await
             };
 
             match call_result {
-                Ok(v) => return Ok(v),
+                Ok(v) => {
+                    // A6：post 阶段（观测结果，不阻断）
+                    for h in &self.tool_hooks {
+                        h.on_post_use(name, &effective_args, &v);
+                    }
+                    return Ok(v);
+                }
                 Err(e) => {
                     if attempt >= max_retries {
+                        // A6：on_error 阶段（记录错误，不阻断流程）
+                        for h in &self.tool_hooks {
+                            h.on_error(name, &effective_args, &e);
+                        }
                         // Loop Engineering 批次5：广播重试耗尽事件
                         self.emit_loop_retry_exhausted(max_retries, &e.to_string())
                             .await;

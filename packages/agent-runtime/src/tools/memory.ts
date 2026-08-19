@@ -3,7 +3,7 @@
 import type { ToolDefinition } from '../bridge-types'
 import type { ToolMeta } from '@worldsmith/agent-core'
 import { semanticSearchMemory, indexMemoryEntry, removeMemoryIndex, isEmbeddingReady } from '../embedding/index'
-import { loadMemory, saveMemory, evictIfNeeded, type MemoryEntry } from './memory-internal'
+import { loadMemory, saveMemory, evictIfNeeded, inferImportance, type MemoryEntry } from './memory-internal'
 
 const MAX_VALUE_LENGTH = 2000
 
@@ -23,36 +23,58 @@ function keywordRecall(entries: MemoryEntry[], query: string): { entry: MemoryEn
   }).filter(s => s.score > 0)
 }
 
-/** 统一的记忆召回函数（混合模式核心：关键词 + 语义合并），详细见 docs/details/注释/packages/agent-runtime/tools-memory.md */
+/** C3：关键词分归一化到 0-1（逻辑回归式压缩，score=0→0，越大越趋近 1） */
+function normalizeKeywordScore(score: number): number {
+  if (score <= 0) return 0
+  return score / (score + 3)
+}
+
+/**
+ * C3：归一化加权融合排序（原「取最高分」升级为三信号加权）
+ *
+ * final = 0.45 × 词分[0-1] + 0.35 × 语义分[0-1] + 0.20 × importance[0-1]
+ *
+ * - 关键词命中是最可靠信号，权重最高
+ * - 语义相关度次之（不在融合前设硬阈值，交由综合分裁决）
+ * - importance 作为辅助偏置，让「偏好/规则/决策」等高价值记忆在弱匹配时也能浮出
+ */
 export async function recallMemory(query: string, limit: number = 5): Promise<MemoryEntry[]> {
   const entries = loadMemory()
   if (!query) return entries.slice(0, limit)
 
+  // 关键词分（量纲 0-10+）→ 归一化 0-1
   const kwScored = keywordRecall(entries, query)
-  const kwMap = new Map<string, { entry: MemoryEntry; score: number }>()
+  const fused = new Map<string, { entry: MemoryEntry; kwScore: number; semScore: number }>()
   for (const s of kwScored) {
-    kwMap.set(s.entry.key, s)
+    fused.set(s.entry.key, { entry: s.entry, kwScore: s.score, semScore: 0 })
   }
 
+  // 语义分（cosine 0-1），融合裁决、不设硬阈值
   if (isEmbeddingReady()) {
     try {
-      const semResults = await semanticSearchMemory(query, limit * 2, 0.25)
+      const semResults = await semanticSearchMemory(query, limit * 3, 0)
       for (const sem of semResults) {
         const key = sem.metadata.key || sem.id.replace('memory_', '')
-        const existing = kwMap.get(key)
+        const existing = fused.get(key)
         if (existing) {
-          existing.score = Math.max(existing.score, sem.score * 5)
+          existing.semScore = Math.max(existing.semScore, sem.score)
         } else {
           const entry = entries.find(e => e.key === key)
           if (entry) {
-            kwMap.set(key, { entry, score: sem.score * 5 })
+            fused.set(key, { entry, kwScore: 0, semScore: sem.score })
           }
         }
       }
     } catch {}
   }
 
-  const allScored = [...kwMap.values()]
+  const allScored = [...fused.values()].map(({ entry, kwScore, semScore }) => ({
+    entry,
+    score:
+      0.45 * normalizeKeywordScore(kwScore) +
+      0.35 * semScore +
+      0.20 * entry.importance,
+  }))
   allScored.sort((a, b) => b.score - a.score)
   const results = allScored.slice(0, limit).map(s => s.entry)
 
@@ -86,6 +108,7 @@ export const memoryStoreTool: ToolDefinition = {
     key: { type: 'string', description: '记忆条目的键名，如 "user_preference_style" 或 "world_rule_magic_system"', required: true },
     value: { type: 'string', description: '要保存的信息内容', required: true },
     tags: { type: 'string', description: '标签，逗号分隔，用于分类检索，如 "设定,规则,魔法"', required: false },
+    importance: { type: 'number', description: '(可选)重要性 0-1，缺省按 key 自动推断（偏好/规则/决策等关键设定权重更高）', required: false },
   },
   meta: {
     permission: 'moderate',
@@ -97,6 +120,11 @@ export const memoryStoreTool: ToolDefinition = {
     const key = String(args.key).trim()
     let value = String(args.value).trim()
     const tags = String(args.tags || '').split(',').map(t => t.trim()).filter(Boolean)
+    // C3：显式传参优先，否则按 key 自动推断（0-1，非法值回退推断）
+    const explicitImportance = Number(args.importance)
+    const importance = !Number.isNaN(explicitImportance)
+      ? Math.max(0, Math.min(1, explicitImportance))
+      : inferImportance(key)
 
     if (!key || !value) {
       return JSON.stringify({ error: 'key 和 value 不能为空' })
@@ -114,6 +142,7 @@ export const memoryStoreTool: ToolDefinition = {
       timestamp: existing >= 0 ? entries[existing].timestamp : now,
       accessCount: existing >= 0 ? entries[existing].accessCount : 0,
       lastAccessedAt: now,
+      importance,
     }
 
     if (existing >= 0) {

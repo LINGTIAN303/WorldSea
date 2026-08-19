@@ -351,7 +351,7 @@ fn str_field(v: &Value, key: &str) -> Option<String> {
 /* ═══════════════ 实体命令 ═══════════════ */
 
 #[tauri::command]
-pub async fn cmd_get_all_entities(state: State<'_, EntityDb>) -> Result<Vec<Value>, String> {
+pub async fn cmd_get_all_entities(state: State<'_, Arc<EntityDb>>) -> Result<Vec<Value>, String> {
     let rows: Vec<(String,)> = sqlx::query_as("SELECT data FROM entities ORDER BY id")
         .fetch_all(&state.pool)
         .await
@@ -364,7 +364,7 @@ pub async fn cmd_get_all_entities(state: State<'_, EntityDb>) -> Result<Vec<Valu
 
 #[tauri::command]
 pub async fn cmd_get_entity(
-    state: State<'_, EntityDb>,
+    state: State<'_, Arc<EntityDb>>,
     id: String,
 ) -> Result<Option<Value>, String> {
     let row: Option<(String,)> = sqlx::query_as("SELECT data FROM entities WHERE id = ?")
@@ -377,7 +377,7 @@ pub async fn cmd_get_entity(
 
 #[tauri::command]
 pub async fn cmd_get_entities_by_type(
-    state: State<'_, EntityDb>,
+    state: State<'_, Arc<EntityDb>>,
     entity_type: String,
 ) -> Result<Vec<Value>, String> {
     let rows: Vec<(String,)> = sqlx::query_as("SELECT data FROM entities WHERE type = ? ORDER BY id")
@@ -393,7 +393,7 @@ pub async fn cmd_get_entities_by_type(
 
 #[tauri::command]
 pub async fn cmd_put_entity(
-    state: State<'_, EntityDb>,
+    state: State<'_, Arc<EntityDb>>,
     entity_json: String,
 ) -> Result<(), String> {
     let v = parse_json(&entity_json, "实体")?;
@@ -411,7 +411,7 @@ pub async fn cmd_put_entity(
 
 #[tauri::command]
 pub async fn cmd_update_entity(
-    state: State<'_, EntityDb>,
+    state: State<'_, Arc<EntityDb>>,
     id: String,
     changes_json: String,
 ) -> Result<(), String> {
@@ -439,7 +439,7 @@ pub async fn cmd_update_entity(
 }
 
 #[tauri::command]
-pub async fn cmd_delete_entity(state: State<'_, EntityDb>, id: String) -> Result<(), String> {
+pub async fn cmd_delete_entity(state: State<'_, Arc<EntityDb>>, id: String) -> Result<(), String> {
     sqlx::query("DELETE FROM entities WHERE id = ?")
         .bind(&id)
         .execute(&state.pool)
@@ -450,7 +450,7 @@ pub async fn cmd_delete_entity(state: State<'_, EntityDb>, id: String) -> Result
 
 #[tauri::command]
 pub async fn cmd_count_entities_by_type(
-    state: State<'_, EntityDb>,
+    state: State<'_, Arc<EntityDb>>,
 ) -> Result<Vec<(String, i64)>, String> {
     sqlx::query_as("SELECT type, COUNT(*) FROM entities GROUP BY type")
         .fetch_all(&state.pool)
@@ -459,7 +459,7 @@ pub async fn cmd_count_entities_by_type(
 }
 
 #[tauri::command]
-pub async fn cmd_clear_entities(state: State<'_, EntityDb>) -> Result<(), String> {
+pub async fn cmd_clear_entities(state: State<'_, Arc<EntityDb>>) -> Result<(), String> {
     sqlx::query("DELETE FROM entities")
         .execute(&state.pool)
         .await
@@ -469,7 +469,7 @@ pub async fn cmd_clear_entities(state: State<'_, EntityDb>) -> Result<(), String
 
 #[tauri::command]
 pub async fn cmd_import_entities(
-    state: State<'_, EntityDb>,
+    state: State<'_, Arc<EntityDb>>,
     entities_json: String,
 ) -> Result<usize, String> {
     let arr: Vec<Value> =
@@ -492,7 +492,7 @@ pub async fn cmd_import_entities(
 /* ═══════════════ 关系命令 ═══════════════ */
 
 #[tauri::command]
-pub async fn cmd_get_all_relations(state: State<'_, EntityDb>) -> Result<Vec<Value>, String> {
+pub async fn cmd_get_all_relations(state: State<'_, Arc<EntityDb>>) -> Result<Vec<Value>, String> {
     let rows: Vec<(String,)> = sqlx::query_as("SELECT data FROM relations ORDER BY id")
         .fetch_all(&state.pool)
         .await
@@ -505,7 +505,7 @@ pub async fn cmd_get_all_relations(state: State<'_, EntityDb>) -> Result<Vec<Val
 
 #[tauri::command]
 pub async fn cmd_get_relations_by_entity(
-    state: State<'_, EntityDb>,
+    state: State<'_, Arc<EntityDb>>,
     entity_id: String,
 ) -> Result<Vec<Value>, String> {
     let rows: Vec<(String,)> = sqlx::query_as(
@@ -524,7 +524,7 @@ pub async fn cmd_get_relations_by_entity(
 
 #[tauri::command]
 pub async fn cmd_put_relation(
-    state: State<'_, EntityDb>,
+    state: State<'_, Arc<EntityDb>>,
     relation_json: String,
 ) -> Result<(), String> {
     let v = parse_json(&relation_json, "关系")?;
@@ -546,7 +546,7 @@ pub async fn cmd_put_relation(
 
 #[tauri::command]
 pub async fn cmd_update_relation(
-    state: State<'_, EntityDb>,
+    state: State<'_, Arc<EntityDb>>,
     id: String,
     changes_json: String,
 ) -> Result<(), String> {
@@ -576,7 +576,7 @@ pub async fn cmd_update_relation(
 }
 
 #[tauri::command]
-pub async fn cmd_delete_relation(state: State<'_, EntityDb>, id: String) -> Result<(), String> {
+pub async fn cmd_delete_relation(state: State<'_, Arc<EntityDb>>, id: String) -> Result<(), String> {
     sqlx::query("DELETE FROM relations WHERE id = ?")
         .bind(&id)
         .execute(&state.pool)
@@ -587,7 +587,7 @@ pub async fn cmd_delete_relation(state: State<'_, EntityDb>, id: String) -> Resu
 
 #[tauri::command]
 pub async fn cmd_delete_relations_by_entity(
-    state: State<'_, EntityDb>,
+    state: State<'_, Arc<EntityDb>>,
     entity_id: String,
 ) -> Result<u64, String> {
     let res = sqlx::query("DELETE FROM relations WHERE source_id = ? OR target_id = ?")
@@ -600,7 +600,7 @@ pub async fn cmd_delete_relations_by_entity(
 }
 
 #[tauri::command]
-pub async fn cmd_clear_relations(state: State<'_, EntityDb>) -> Result<(), String> {
+pub async fn cmd_clear_relations(state: State<'_, Arc<EntityDb>>) -> Result<(), String> {
     sqlx::query("DELETE FROM relations")
         .execute(&state.pool)
         .await
@@ -610,7 +610,7 @@ pub async fn cmd_clear_relations(state: State<'_, EntityDb>) -> Result<(), Strin
 
 #[tauri::command]
 pub async fn cmd_import_relations(
-    state: State<'_, EntityDb>,
+    state: State<'_, Arc<EntityDb>>,
     relations_json: String,
 ) -> Result<usize, String> {
     let arr: Vec<Value> =
@@ -638,7 +638,7 @@ pub async fn cmd_import_relations(
 
 #[tauri::command]
 pub async fn cmd_kv_get(
-    state: State<'_, EntityDb>,
+    state: State<'_, Arc<EntityDb>>,
     key: String,
 ) -> Result<Option<String>, String> {
     let row: Option<(String,)> = sqlx::query_as("SELECT value FROM kv WHERE key = ?")
@@ -651,7 +651,7 @@ pub async fn cmd_kv_get(
 
 #[tauri::command]
 pub async fn cmd_kv_set(
-    state: State<'_, EntityDb>,
+    state: State<'_, Arc<EntityDb>>,
     key: String,
     value: String,
 ) -> Result<(), String> {
@@ -665,7 +665,7 @@ pub async fn cmd_kv_set(
 }
 
 #[tauri::command]
-pub async fn cmd_kv_delete(state: State<'_, EntityDb>, key: String) -> Result<(), String> {
+pub async fn cmd_kv_delete(state: State<'_, Arc<EntityDb>>, key: String) -> Result<(), String> {
     sqlx::query("DELETE FROM kv WHERE key = ?")
         .bind(&key)
         .execute(&state.pool)
@@ -675,7 +675,7 @@ pub async fn cmd_kv_delete(state: State<'_, EntityDb>, key: String) -> Result<()
 }
 
 #[tauri::command]
-pub async fn cmd_kv_get_all(state: State<'_, EntityDb>) -> Result<Vec<(String, String)>, String> {
+pub async fn cmd_kv_get_all(state: State<'_, Arc<EntityDb>>) -> Result<Vec<(String, String)>, String> {
     sqlx::query_as("SELECT key, value FROM kv ORDER BY key")
         .fetch_all(&state.pool)
         .await
@@ -685,7 +685,7 @@ pub async fn cmd_kv_get_all(state: State<'_, EntityDb>) -> Result<Vec<(String, S
 /* ═══════════════ 文件命令 ═══════════════ */
 
 #[tauri::command]
-pub async fn cmd_get_all_files(state: State<'_, EntityDb>) -> Result<Vec<Value>, String> {
+pub async fn cmd_get_all_files(state: State<'_, Arc<EntityDb>>) -> Result<Vec<Value>, String> {
     let rows: Vec<(String,)> = sqlx::query_as("SELECT data FROM files ORDER BY id")
         .fetch_all(&state.pool)
         .await
@@ -698,7 +698,7 @@ pub async fn cmd_get_all_files(state: State<'_, EntityDb>) -> Result<Vec<Value>,
 
 #[tauri::command]
 pub async fn cmd_get_file(
-    state: State<'_, EntityDb>,
+    state: State<'_, Arc<EntityDb>>,
     id: String,
 ) -> Result<Option<Value>, String> {
     let row: Option<(String,)> = sqlx::query_as("SELECT data FROM files WHERE id = ?")
@@ -711,7 +711,7 @@ pub async fn cmd_get_file(
 
 #[tauri::command]
 pub async fn cmd_get_file_by_path(
-    state: State<'_, EntityDb>,
+    state: State<'_, Arc<EntityDb>>,
     path: String,
 ) -> Result<Option<Value>, String> {
     let row: Option<(String,)> = sqlx::query_as("SELECT data FROM files WHERE path = ? LIMIT 1")
@@ -724,7 +724,7 @@ pub async fn cmd_get_file_by_path(
 
 #[tauri::command]
 pub async fn cmd_get_files_by_entity(
-    state: State<'_, EntityDb>,
+    state: State<'_, Arc<EntityDb>>,
     entity_id: String,
 ) -> Result<Vec<Value>, String> {
     let rows: Vec<(String,)> = sqlx::query_as("SELECT data FROM files WHERE entity_id = ? ORDER BY id")
@@ -740,7 +740,7 @@ pub async fn cmd_get_files_by_entity(
 
 #[tauri::command]
 pub async fn cmd_put_file(
-    state: State<'_, EntityDb>,
+    state: State<'_, Arc<EntityDb>>,
     file_json: String,
     content_json: String,
 ) -> Result<(), String> {
@@ -764,7 +764,7 @@ pub async fn cmd_put_file(
 
 #[tauri::command]
 pub async fn cmd_update_file(
-    state: State<'_, EntityDb>,
+    state: State<'_, Arc<EntityDb>>,
     id: String,
     changes_json: String,
 ) -> Result<(), String> {
@@ -794,7 +794,7 @@ pub async fn cmd_update_file(
 }
 
 #[tauri::command]
-pub async fn cmd_delete_file(state: State<'_, EntityDb>, id: String) -> Result<(), String> {
+pub async fn cmd_delete_file(state: State<'_, Arc<EntityDb>>, id: String) -> Result<(), String> {
     sqlx::query("DELETE FROM files WHERE id = ?")
         .bind(&id)
         .execute(&state.pool)
@@ -805,7 +805,7 @@ pub async fn cmd_delete_file(state: State<'_, EntityDb>, id: String) -> Result<(
 
 #[tauri::command]
 pub async fn cmd_get_file_content(
-    state: State<'_, EntityDb>,
+    state: State<'_, Arc<EntityDb>>,
     id: String,
 ) -> Result<Option<Value>, String> {
     let row: Option<(Option<String>,)> = sqlx::query_as("SELECT content FROM files WHERE id = ?")

@@ -1,7 +1,12 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import Shell from './ui/layout/Shell.vue'
 import AgentSpace from './space/AgentSpace.vue'
+import AvatarBadge from './ui/AvatarBadge.vue'
+import { provideAgentUiDeps, type ActivityLogItem, type AgentFontPrefs, type PersonaFontInfo } from '@worldsmith/shared-composables/agent/deps'
+import { useFontStore } from './stores/fontStore'
+import { usePersonaFontStore } from './space/stores/persona-font-store'
+import { useActivityLog } from './agent/composables/useActivityLog'
 import { useUIStore } from './stores/uiStore'
 import { useTheme } from './components/ui/useTheme'
 import { useTheme as useEntityTheme } from '@worldsmith/entity-core'
@@ -18,6 +23,39 @@ const { setup: setupSystemBridge } = useSystemBridge()
 
 const uiStore = useUIStore()
 const projectSwitcher = useProjectSwitcher()
+
+// ── Agent UI 依赖注入（AgentUiDeps）────────────────────────────
+// 深度模式消息气泡（DeepMessageArea / useMarkdownRender）依赖 useAgentUiDeps()，
+// Tauri 端此前未注入导致「[useAgentUiDeps] 未注入 AgentUiDeps」崩溃。此处补齐。
+// - fontPrefs 取 fontStore.prefs.agent（FontLayer 含 'agent'）
+// - persona/enterAnimation 取 persona-font-store 当前档案
+// - activityLogs 取 useActivityLog 模块级日志
+// - replaceFontSpans：{font:...} 内联标记解析，先做 passthrough（后续可接 fontSpanParser 完整实现）
+const fontStore = useFontStore()
+const personaFontStore = usePersonaFontStore()
+const { logs: activityLogsValue } = useActivityLog()
+
+// fontFamily：Agent 层字体串（fallback 兜底）
+const agentFontFamily = computed(() => {
+  const family = fontStore.prefs.agent.family
+  return family ? `"${family}", sans-serif` : 'sans-serif'
+})
+
+provideAgentUiDeps({
+  fontFamily: agentFontFamily,
+  enterAnimation: computed(() => personaFontStore.activeProfile.animationStyle.messageEnter),
+  fontPrefs: computed<AgentFontPrefs>(() => {
+    const { family, weight, style } = fontStore.prefs.agent
+    return { family, weight, style }
+  }),
+  persona: computed<PersonaFontInfo>(() => {
+    const p = personaFontStore.activeProfile
+    return { fontFamily: p.fontFamily, sizeScale: p.sizeScale, weightDefault: p.weightDefault as string }
+  }),
+  activityLogs: computed<ActivityLogItem[]>(() => activityLogsValue.value as unknown as ActivityLogItem[]),
+  replaceFontSpans: (text: string) => text, // {font:...} 标记暂 passthrough，后续接完整 parser
+  AvatarBadge,
+})
 
 /**
  * 预设主题切换统一落地（AppearancePanel/ThemeEditor 派发 ws-set-theme）。

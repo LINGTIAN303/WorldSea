@@ -49,6 +49,7 @@
         @open-terminal="openTerminal"
         @api-key-change="onApiKeyChange"
         @provider-change="onProviderChange"
+        @security-level-change="onSecurityLevelChange"
       />
     </div>
   </div>
@@ -73,6 +74,7 @@ const {
   totalUsage,
   updateThinkingLevel,
   updateModel,
+  setSecurityLevel,
 } = useAgent()
 
 const settingsStore = useSettingsStore()
@@ -209,6 +211,13 @@ function onThinkingLevelChange(level: string): void {
   thinkingLevel.value = level as ThinkingLevel
   updateThinkingLevel(level as ThinkingLevel)
   try { localStorage.setItem('agent_thinking_level', level) } catch {}
+}
+
+// A7：切换工具安全级别 → 调用 Rust 后端（setSecurityLevel），对当前会话运行时生效
+function onSecurityLevelChange(level: string): void {
+  setSecurityLevel(level).catch((err: unknown) => {
+    console.warn('[SpaceAgentSettings] 设置安全级别失败:', err)
+  })
 }
 
 async function onSearchEngineChange(engine: string): Promise<void> {

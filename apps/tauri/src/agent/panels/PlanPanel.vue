@@ -5,6 +5,29 @@
       <button class="panel-close-btn" @click="emit('close')" title="关闭"><WsIcon name="close" :size="14" :stroke-width="1.7" /></button>
     </div>
     <div class="panel-body">
+      <!-- 编排运行入口：调用 orchestrator_run_plan（Plan→Execute→[Reflection→Refine]） -->
+      <div class="orchestrate-box">
+        <textarea
+          v-model="taskInput"
+          class="orch-input"
+          placeholder="输入任务，一键 Plan-and-Execute 编排…"
+          :disabled="running"
+          rows="2"
+          @keydown.enter.exact.prevent="run"
+        ></textarea>
+        <div class="orch-controls">
+          <label class="refine-toggle">
+            <input type="checkbox" v-model="refineEnabled" :disabled="running" />
+            <span>启用自我评审优化</span>
+          </label>
+          <button class="run-btn" :disabled="running || !taskInput.trim()" @click="run">
+            <template v-if="running">编排中…</template>
+            <template v-else>开始计划编排</template>
+          </button>
+        </div>
+        <div v-if="orchError" class="orch-error">{{ orchError }}</div>
+      </div>
+
       <div class="plan-scroll-area">
         <div class="section-header" role="button" tabindex="0" :aria-expanded="planExpanded" @click="planExpanded = !planExpanded" @keydown.enter.prevent="planExpanded = !planExpanded" @keydown.space.prevent="planExpanded = !planExpanded">
           <span class="section-label">计划</span>
@@ -33,6 +56,38 @@
             <div class="plan-mini-fill" :style="{ width: planProgress.pct + '%' }"></div>
           </div>
         </div>
+
+        <!-- 自我评审结果区（Reflection/Self-Refine 每轮评分/问题/建议） -->
+        <div
+          v-if="reflections.length"
+          class="section-header reflection-header"
+          role="button"
+          tabindex="0"
+          :aria-expanded="reflectionExpanded"
+          @click="reflectionExpanded = !reflectionExpanded"
+          @keydown.enter.prevent="reflectionExpanded = !reflectionExpanded"
+          @keydown.space.prevent="reflectionExpanded = !reflectionExpanded"
+        >
+          <span class="section-label">自我评审</span>
+          <span class="section-meta">{{ reflections.length }} 轮</span>
+          <WsIcon name="chevron-down" :size="13" class="section-chevron" :class="{ collapsed: !reflectionExpanded }" :stroke-width="1.7" />
+        </div>
+        <div v-show="reflectionExpanded">
+          <div v-for="r in reflections" :key="r.iteration" class="reflection-card">
+            <div class="reflection-head">
+              <span class="reflection-round">第 {{ r.iteration }} 轮</span>
+              <span class="reflection-score" :class="scoreClass(r.score)">{{ r.score }}/100</span>
+            </div>
+            <div v-if="r.issues.length" class="reflection-section">
+              <div v-for="(iss, i) in r.issues" :key="i" class="reflection-issue" :class="`sev-${iss.severity}`">
+                <span class="sev-tag">{{ iss.severity }}</span>{{ iss.description }}
+              </div>
+            </div>
+            <div v-if="r.suggestions.length" class="reflection-section">
+              <div v-for="(s, i) in r.suggestions" :key="i" class="reflection-suggestion">• {{ s }}</div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -42,6 +97,7 @@
 import { ref } from 'vue'
 import { usePlanStore } from '@worldsmith/shared-composables/agent/usePlanStore'
 import { WsIcon } from '@worldsmith/ui-kit'
+import { usePlanRust } from '@/agent/composables/usePlanRust'
 
 const emit = defineEmits<{ close: [] }>()
 
@@ -49,6 +105,28 @@ const planStore = usePlanStore()
 
 const planProgress = planStore.progress
 const planExpanded = ref(true)
+const reflectionExpanded = ref(true)
+
+// ─── 编排运行（usePlanRust 单例）───
+const { running, error: orchError, reflections, runPlan } = usePlanRust()
+const taskInput = ref('')
+const refineEnabled = ref(false)
+
+async function run(): Promise<void> {
+  const input = taskInput.value.trim()
+  if (!input || running.value) return
+  try {
+    await runPlan(input, { refine: refineEnabled.value })
+  } catch {
+    // 错误已写入 orchError（usePlanRust 状态）
+  }
+}
+
+function scoreClass(score: number): string {
+  if (score >= 80) return 'score-high'
+  if (score >= 60) return 'score-mid'
+  return 'score-low'
+}
 </script>
 
 <style scoped>
@@ -107,6 +185,93 @@ const planExpanded = ref(true)
   padding: 10px 14px;
 }
 
+/* --- 编排运行入口 --- */
+
+.orchestrate-box {
+  flex-shrink: 0;
+  padding-bottom: 10px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.orch-input {
+  width: 100%;
+  box-sizing: border-box;
+  resize: none;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-muted);
+  color: var(--text-primary);
+  font-size: var(--fs-sm);
+  font-family: inherit;
+  line-height: 1.4;
+}
+
+.orch-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.orch-input:disabled {
+  opacity: 0.6;
+}
+
+.orch-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.refine-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.refine-toggle input {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.run-btn {
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.15s;
+}
+
+.run-btn:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.run-btn:active:not(:disabled) {
+  transform: scale(var(--press-scale));
+}
+
+.run-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.orch-error {
+  margin-top: 8px;
+  font-size: var(--fs-xs);
+  color: var(--danger, #e5484d);
+  word-break: break-word;
+}
+
 .plan-scroll-area {
   flex: 1;
   overflow-y: auto;
@@ -134,6 +299,11 @@ const planExpanded = ref(true)
 
 .section-header:hover .section-label {
   color: var(--text-primary);
+}
+
+.reflection-header {
+  margin-top: 6px;
+  border-top: 1px solid var(--border);
 }
 
 .section-label {
@@ -263,6 +433,75 @@ const planExpanded = ref(true)
   transition: width 0.3s ease;
 }
 
+/* --- Reflection 评审卡片 --- */
+
+.reflection-card {
+  padding: 8px;
+  margin-bottom: 6px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-muted);
+  border-left: 3px solid var(--border);
+}
+
+.reflection-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.reflection-round {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.reflection-score {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.reflection-score.score-high { color: var(--success); }
+.reflection-score.score-mid { color: var(--warning, #efaa17); }
+.reflection-score.score-low { color: var(--danger, #e5484d); }
+
+.reflection-section {
+  margin-top: 4px;
+}
+
+.reflection-issue {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
+  line-height: 1.4;
+  padding: 2px 0;
+}
+
+.reflection-issue.sev-error { color: var(--danger, #e5484d); }
+.reflection-issue.sev-warning { color: var(--warning, #efaa17); }
+
+.sev-tag {
+  flex-shrink: 0;
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0 4px;
+  margin-top: 1px;
+}
+
+.reflection-suggestion {
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
+  line-height: 1.4;
+  padding: 1px 0;
+}
+
 /* ── 减弱动态偏好（prefers-reduced-motion）：停用 step 脉冲与按压缩放手势 ──
    与 TuiButton/TuiModal/TuiDrawer/AgentWorkspace 同一可访问性语言：仅保留静态状态。 */
 @media (prefers-reduced-motion: reduce) {
@@ -272,7 +511,8 @@ const planExpanded = ref(true)
   .section-chevron {
     transition: none;
   }
-  .panel-close-btn:active:not(:disabled) {
+  .panel-close-btn:active:not(:disabled),
+  .run-btn:active:not(:disabled) {
     transform: none;
   }
 }

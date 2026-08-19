@@ -2,7 +2,7 @@
 
 import { kbWrite, kbSearchKeyword, type KBScope } from './kb-store'
 import { indexKBEntry } from './kb-indexer'
-import { loadMemory, saveMemory, evictIfNeeded } from '../tools/memory-internal'
+import { loadMemory, saveMemory, evictIfNeeded, inferImportance } from '../tools/memory-internal'
 
 export interface ExtractionResult {
   extracted: number
@@ -148,6 +148,8 @@ export async function extractShortMemory(
         timestamp: Date.now(),
         accessCount: 0,
         lastAccessedAt: Date.now(),
+        // C3：自动提取的记忆按 key 推断重要性
+        importance: inferImportance(key),
       })
       stored++
     }

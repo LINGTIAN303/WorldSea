@@ -8,6 +8,7 @@ use std::sync::{Arc, RwLock};
 use std::time::Instant;
 
 use async_trait::async_trait;
+use serde::Serialize;
 use tokio::sync::Mutex as AsyncMutex;
 
 use crate::backend::NodeBackendAccessor;
@@ -80,7 +81,7 @@ pub struct OrchestratorRunOptions {
 }
 
 /// 运行结果
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct OrchestratorResult {
     /// 最终状态
     pub status: OrchestratorEndStatus,
@@ -353,12 +354,20 @@ impl Orchestrator for DefaultOrchestrator {
         // ── 串行 DAG 遍历主循环 ──
         // 阶段 1.1 实现单链路串行遍历；并发分支（fork/join）留待阶段 2.3 Multi-Agent 扩展
         let mut current_id = entry_id.clone();
-        // 节点访问计数（循环检测：同节点访问超过 MAX_VISIT_PER_NODE 视为死循环）
-        let mut visit_counts: HashMap<String, u32> = HashMap::new();
+        // 循环检测（动态）：区分"有进展的有限循环"与"无进展的死循环"。
+        // 记录每个节点"连续无进展"的访问次数——只要 messages/plan/reflections 任一有增长
+        // 即视为有进展并重置计数。这样 Reflection⇄Refine 等每轮追加消息的合法循环不会误报，
+        // 而空转节点（反复访问但不产生任何状态变化）累计超阈值即判定死循环。
+        #[derive(Default)]
+        struct VisitRecord {
+            count: u32,
+            progress: (usize, usize, usize),
+        }
+        let mut visit_records: HashMap<String, VisitRecord> = HashMap::new();
+        const MAX_VISIT_WITHOUT_PROGRESS: u32 = 10;
         let mut iterations = 0u32;
         let mut final_status = OrchestratorEndStatus::Completed;
         let mut last_error: Option<String> = None;
-        const MAX_VISIT_PER_NODE: u32 = 5;
 
         let abort_checker = AbortChecker::new(Arc::clone(&self.aborted));
 
@@ -388,14 +397,32 @@ impl Orchestrator for DefaultOrchestrator {
                 }
             }
 
-            // 4. 循环检测（同节点访问次数超阈值）
-            let count = visit_counts.entry(current_id.clone()).or_insert(0);
-            *count += 1;
-            if *count > MAX_VISIT_PER_NODE {
+            // 4. 循环检测：同一节点连续无进展访问超阈值 → 疑似死循环
+            let progress = {
+                let state = self.state.lock().await;
+                (
+                    state.messages.len(),
+                    state.plan.as_ref().map(|p| p.len()).unwrap_or(0),
+                    state.reflections.as_ref().map(|r| r.len()).unwrap_or(0),
+                )
+            };
+            let record = visit_records
+                .entry(current_id.clone())
+                .or_insert_with(|| VisitRecord {
+                    count: 0,
+                    progress,
+                });
+            if progress != record.progress {
+                // 有进展：重置连续无进展计数并更新基线
+                record.count = 0;
+                record.progress = progress;
+            }
+            record.count += 1;
+            if record.count > MAX_VISIT_WITHOUT_PROGRESS {
                 final_status = OrchestratorEndStatus::Error;
                 last_error = Some(format!(
-                    "节点 {} 被访问超过 {} 次，疑似循环（如需 Plan-Execute-Reflection 循环，请提高 max_iterations 或调整图拓扑）",
-                    current_id, MAX_VISIT_PER_NODE
+                    "节点 {} 连续 {} 次无进展地被重复访问，疑似死循环（如属合法的有限循环，请确保每轮推进状态或调整图拓扑）",
+                    current_id, MAX_VISIT_WITHOUT_PROGRESS
                 ));
                 break;
             }
@@ -874,6 +901,31 @@ mod tests {
 
         let r = orch.run("hi".into(), Some(options)).await.unwrap();
         assert_eq!(r.status, OrchestratorEndStatus::Error);
-        assert!(r.error.as_deref().unwrap_or("").contains("疑似循环"));
+        assert!(r.error.as_deref().unwrap_or("").contains("疑似"));
+    }
+
+    #[tokio::test]
+    async fn run_with_progress_loop_should_hit_max_iterations_not_cycle_detection() {
+        // 自循环节点但每轮 push 消息（有进展）→ 不应触发"疑似死循环"误报，
+        // 应被 max_iterations 正常拦截（模拟 Reflection⇄Refine 类合法循环）
+        let mut orch = make_orch();
+        let n1 = StubNode::new("n1", NodeStatus::Continue)
+            .with_next("n1")
+            .with_message("progress");
+        orch.add_node(Box::new(n1));
+        orch.set_entry("n1");
+
+        let options = OrchestratorRunOptions {
+            max_iterations: Some(3),
+            ..Default::default()
+        };
+
+        let r = orch.run("hi".into(), Some(options)).await.unwrap();
+        assert_eq!(r.status, OrchestratorEndStatus::Error);
+        assert!(
+            r.error.as_deref().unwrap_or("").contains("最大轮次"),
+            "有进展循环应被 max_iterations 拦截而非疑似死循环，实际: {:?}",
+            r.error
+        );
     }
 }

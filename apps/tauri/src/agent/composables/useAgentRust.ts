@@ -21,6 +21,9 @@ import { ref, computed, readonly } from 'vue'
 import { invoke as tauriInvoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { useConfirm } from '@worldsmith/ui-kit'
+import { ALL_TOOLS_MAP, loadApiKey, type IToolContext } from '@agent/index'
+import { useEntityStore, useRelationStore, useFileStore } from '@worldsmith/entity-core'
+import { useSettingsStore } from '@/stores/settingsStore'
 import type {
   AgentMessage,
   AgentEvent,
@@ -809,6 +812,133 @@ function teardownConfirmListener(sessionId: string): void {
   }
 }
 
+// ─── FrontendToolBridge：Rust 前端工具执行桥（agent:tool_call 全局监听）────────
+
+/** Rust `FrontendToolBridge::request` 广播的全局事件 payload（callId + toolName + args） */
+interface RustToolCallPayload {
+  /** 唯一调用 ID（回传 cmd_agent_tool_result 时原样返回） */
+  callId: string
+  /** 待执行的工具名（前端 ALL_TOOLS_MAP 查找键） */
+  toolName: string
+  /** 工具参数 */
+  args: Record<string, unknown>
+}
+
+/** 桥全局事件监听器清理函数（桥为全局通道，仅 setup/teardown 一次） */
+let toolBridgeUnlisten: UnlistenFn | null = null
+/** 桥工具执行上下文（惰性构造：首次收到工具调用才建，复用 entity-core stores） */
+let toolBridgeContext: IToolContext | null = null
+
+/**
+ * 构造桥工具执行上下文（IToolContext）
+ *
+ * Rust 端桥工具（entity_create/entity_update/content_search）在 Rust ToolBus 注册，
+ * 但执行需前端 `ALL_TOOLS_MAP` 中对应 TS 实现，后者依赖 `IToolContext.stores`
+ * （entity/relation/file 的 Dexie store）。本函数复用 `@worldsmith/entity-core` 的
+ * stores 构造上下文，与 useGroupChat 的 buildToolContext 同构。惰性构造避免首屏开销。
+ */
+function buildBridgeContext(): IToolContext {
+  if (toolBridgeContext) return toolBridgeContext
+  const entityStore = useEntityStore()
+  const relationStore = useRelationStore()
+  const fileStore = useFileStore()
+  const { confirm } = useConfirm()
+  toolBridgeContext = {
+    stores: {
+      entity: entityStore,
+      relation: relationStore,
+      file: fileStore,
+      settings: {
+        getProviderConfig: () => null as never,
+        getSearchConfig: () => null as never,
+      },
+      ui: {
+        confirm: async (title: string, msg: string) => {
+          return confirm({ type: 'warning', title, description: msg })
+        },
+      },
+    },
+    projectInfo: {
+      name: 'WorldSmith',
+      entityTypes: entityStore.types.map((t) => t.typeKey),
+      relationTypes: [],
+      dirPath: null,
+    },
+    platform: 'web' as const,
+    currentSessionId: currentSessionId.value ?? undefined,
+  }
+  return toolBridgeContext
+}
+
+/**
+ * 处理一条前端工具桥调用（全局 agent:tool_call 事件）
+ *
+ * 收到 Rust 桥工具调用后：`ALL_TOOLS_MAP.get(toolName)` 找前端实现 →
+ * 以桥上下文执行 → `cmd_agent_tool_result` 回传结果。工具未在前端注册时回传 error。
+ */
+async function handleToolCall(payload: RustToolCallPayload): Promise<void> {
+  const { callId, toolName, args } = payload
+  const tool = ALL_TOOLS_MAP.get(toolName)
+  if (!tool) {
+    await safeInvoke('cmd_agent_tool_result', {
+      callId,
+      ok: false,
+      result: { error: `前端未注册工具 "${toolName}"` },
+    })
+    return
+  }
+  try {
+    const out = await tool.execute(args, buildBridgeContext())
+    // tool.execute 返回 JSON 字符串；原样回传给 Rust（转 Value 保持结构）
+    await safeInvoke('cmd_agent_tool_result', {
+      callId,
+      ok: true,
+      result: parseMaybeJson(out),
+    })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    await safeInvoke('cmd_agent_tool_result', {
+      callId,
+      ok: false,
+      result: { error: msg },
+    })
+  }
+}
+
+/** 尝试把工具返回的 JSON 字符串解析为结构化值；解析失败原样返回字符串 */
+function parseMaybeJson(s: string): unknown {
+  try {
+    return JSON.parse(s)
+  } catch {
+    return s
+  }
+}
+
+/**
+ * 设置前端工具桥全局监听器（幂等：已监听则直接返回）
+ *
+ * 桥为全局事件通道（`agent:tool_call`，无 session 后缀），只需注册一次。
+ * 跨会话并行调用靠唯一 callId 区分，前端全局只应有一个执行器避免重复。
+ */
+async function setupToolBridgeListener(): Promise<void> {
+  if (toolBridgeUnlisten) return
+  try {
+    toolBridgeUnlisten = await listen<RustToolCallPayload>('agent:tool_call', (e) => {
+      void handleToolCall(e.payload)
+    })
+  } catch (err) {
+    console.error('[useAgentRust] listen agent:tool_call 失败:', err)
+  }
+}
+
+/** 清理前端工具桥全局监听器（应用 dispose 时调用） */
+function teardownToolBridgeListener(): void {
+  if (toolBridgeUnlisten) {
+    toolBridgeUnlisten()
+    toolBridgeUnlisten = null
+  }
+}
+
 // ─── A4 Plan-Exec 计划事件监听（agent:event:plan_created / plan_update）────────
 
 /** Rust `PlanCreated` 事件 payload：`{ items: PlanItem[] }`（snake_case 字段） */
@@ -998,6 +1128,8 @@ async function newSession(
   await setupConfirmListener(info.id)
   await setupPlanListener(info.id)
   await setupTraceListener(info.id)
+  // FrontendToolBridge：全局桥监听器仅在初次建会话时注册一次（幂等）
+  await setupToolBridgeListener()
   await refreshSessionList()
   return info
 }
@@ -1152,6 +1284,8 @@ async function switchSession(sessionId: string): Promise<void> {
   await setupConfirmListener(sessionId)
   await setupPlanListener(sessionId)
   await setupTraceListener(sessionId)
+  // FrontendToolBridge：全局桥监听器幂等注册（保证任意会话切换路径可用）
+  await setupToolBridgeListener()
   const cached = sessionMessagesCache.get(sessionId)
   if (cached) {
     messages.value = cached
@@ -1204,6 +1338,8 @@ async function ensureSession(): Promise<string> {
 async function prompt(text: string, options?: PromptOptions): Promise<void> {
   const sessionId = await ensureSession()
   const textContent = text.trim()
+  // 确保当前会话的 Rust 端已注入模型 + API Key（幂等兜底，避免新会话空 key 报「API Key 缺失」）
+  await ensureModelKey()
   // 发送文本 = 用户输入 + 附件注入内容（hiddenText，如"仅附件"消息、图片占位、文件全文）
   const effective = options?.hiddenText ? `${textContent}\n\n${options.hiddenText}` : textContent
   if (!effective.trim()) return
@@ -1277,7 +1413,17 @@ async function prompt(text: string, options?: PromptOptions): Promise<void> {
     emit({ type: 'message_end', messageId: assistantMsg.id, content: result.reply, thinking: '' })
     emit({ type: 'turn_end', message: assistantMsg })
   } catch (err) {
-    const error = err instanceof Error ? err : new Error(String(err))
+    // 增强错误信息：附加当前会话/模型配置/key 注入状态，便于在 UI 直接定位「API Key 缺失」根因
+    let diagSuffix = ''
+    try {
+      const s = useSettingsStore()
+      const sess = currentSessionId.value
+      const provider = s.aiProviderMode === 'cloud' ? (s.aiCloudProvider || '') : (s.aiProviderMode === 'custom' ? (s.aiCustomType || '') : (s.aiLocalType || ''))
+      const model = s.aiProviderMode === 'cloud' ? s.aiCloudModel : (s.aiProviderMode === 'custom' ? s.aiCustomModel : s.aiLocalModel)
+      const key = (provider && modelKeyInjectedSessions.has(sess ?? '')) ? '(已注入本会话)' : '(本会话尚未注入key)'
+      diagSuffix = ` [诊断: session=${sess?.slice(0,8)}, mode=${s.aiProviderMode}, provider=${provider}, model=${model || '空'}, key=${key}]`
+    } catch {}
+    const error = err instanceof Error ? new Error(err.message + diagSuffix) : new Error(String(err) + diagSuffix)
     emit({ type: 'error', error })
     emit({ type: 'agent_end', sessionId, messages: messages.value })
     throw error
@@ -1305,6 +1451,13 @@ async function abort(): Promise<void> {
   if (!sessionId) return
   await safeInvoke('abort', { sessionId })
   isStreaming.value = false
+}
+
+/** A7：设置当前会话安全级别（off / dangerous_only / moderate_and_dangerous，运行时生效） */
+async function setSecurityLevel(level: string): Promise<void> {
+  const sessionId = currentSessionId.value
+  if (!sessionId) return
+  await safeInvoke('cmd_agent_set_security_level', { sessionId, level })
 }
 
 /** 清空历史（对应 Rust `clear_history`） */
@@ -1359,6 +1512,86 @@ async function updateModel(
       maxTokens: maxTokens ?? null,
     },
   })
+}
+
+// ─── 发送前「确保模型 + API Key 已注入 Rust 会话」 ───────────────────────
+//
+// 背景：Rust 侧 `new_session` 用默认占位配置（空 api_key）创建 AgentLoop，key 需前端
+// 显式调用 `update_model` / `set_provider_config` 才会写入。而这两者的注入点（ModelSwitcher
+// 切换模型 / ModelSettingsDialog 保存 / 设置面板 onModelChange）都要求 `currentSessionId`
+// 已存在；若用户「配置完 key 后才建会话」或「应用重启 / 切换会话」，新会话的 Rust 端
+// 仍是空 key → `send_message` 报「API Key 缺失」。
+//
+// 修复：在 `prompt`（send_message）发送前兜底注入——从 localStorage 的 `agent_current_model`
+// 读当前 provider/model，经 `loadApiKey(provider)` 取已存 key，若该会话尚未注入过则
+// 复用 `update_model` 把 key 推给 Rust。用 Set 记忆已注入会话避免每轮重复 invoke。
+const modelKeyInjectedSessions = new Set<string>()
+
+/**
+ * 确保当前会话的 Rust 端已注入模型 + API Key（幂等兜底，发送前调用）
+ *
+ * 数据源取 `settingsStore`（@worldsmith/entity-core，权威）：按 mode 分支读
+ * cloud（aiCloudProvider/aiCloudModel）/ local（endpoint/apiType/model）/
+ * custom（baseUrl/apiType/model）。key 经 `loadApiKey(provider)` 读取。
+ * 有 model 且该会话未经注入过 → 调 `update_model` 注入；否则保持现状
+ * （由 Rust 返回「API Key 缺失」错误引导用户配置）。
+ */
+async function ensureModelKey(): Promise<void> {
+  const sessionId = currentSessionId.value
+  if (!sessionId || modelKeyInjectedSessions.has(sessionId)) return
+  // 记录进入态（诊断：确认是否因 sessionId 空 或 key 未存而跳过）
+  void safeInvoke('cmd_diag_log', {
+    label: 'ensureModelKey.enter',
+    payload: { sessionId },
+  }).catch(() => {})
+  // settingsStore 需要 Pinia 激活；模块级惰性获取
+  let provider: string
+  let modelId: string
+  let baseUrl: string | undefined
+  let apiKey: string
+  try {
+    const s = useSettingsStore()
+    if (s.aiProviderMode === 'custom') {
+      provider = s.aiCustomType || 'openai-compatible'
+      modelId = s.aiCustomModel
+      baseUrl = s.aiCustomBaseUrl || undefined
+    } else if (s.aiProviderMode === 'local') {
+      provider = s.aiLocalType || 'ollama'
+      modelId = s.aiLocalModel
+      baseUrl = s.aiLocalEndpoint || undefined
+    } else {
+      provider = s.aiCloudProvider || 'deepseek'
+      modelId = s.aiCloudModel
+    }
+    if (!modelId) {
+      void safeInvoke('cmd_diag_log', {
+        label: 'ensureModelKey.noModel',
+        payload: { provider, mode: s.aiProviderMode },
+      }).catch(() => {})
+      return // 未选模型 → 交由用户配置，不猜测
+    }
+    apiKey = await loadApiKey(provider)
+  } catch (err) {
+    console.warn('[useAgentRust] ensureModelKey 读取模型配置失败:', err)
+    return
+  }
+  // 诊断：确认读到 provider/model/key 三者（同时打到 Rust tracing，便于在终端定位）
+  console.warn('[ensureModelKey] 诊断:', { sessionId, provider, modelId, baseUrl, hasKey: !!apiKey, keyLen: apiKey?.length ?? 0 })
+  void safeInvoke('cmd_diag_log', {
+    label: 'ensureModelKey.value',
+    payload: { sessionId, provider, modelId, baseUrl, hasKey: !!apiKey, keyLen: apiKey?.length ?? 0 },
+  }).catch(() => {})
+  if (!apiKey) return // 无已存 key → 保持现状，Rust 返回缺失错误引导用户
+  try {
+    await updateModel(provider, modelId, baseUrl, apiKey, undefined, 8192, undefined)
+    modelKeyInjectedSessions.add(sessionId)
+    void safeInvoke('cmd_diag_log', {
+      label: 'ensureModelKey.injected',
+      payload: { sessionId, provider, modelId },
+    }).catch(() => {})
+  } catch (err) {
+    console.warn('[useAgentRust] ensureModelKey 注入 API Key 失败:', err)
+  }
 }
 
 /** 更新思考级别（对应 Rust `update_thinking_level`），成功后同步本地状态供选择器展示 */
@@ -1477,6 +1710,8 @@ function dispose(): void {
     unlisten()
   }
   traceUnlistenFns.clear()
+  // 清理 FrontendToolBridge 全局桥监听器
+  teardownToolBridgeListener()
 }
 
 // ─── 派生状态 ────────────────────────────────────
@@ -1517,6 +1752,7 @@ export function useAgentRust() {
     steer,
     followUp,
     abort,
+    setSecurityLevel,
     updateModel,
     updateThinkingLevel,
     clearHistory,

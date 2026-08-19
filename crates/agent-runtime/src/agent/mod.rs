@@ -8,7 +8,7 @@ use tokio::sync::{Mutex as AsyncMutex, RwLock};
 use tracing::{debug, error, info, warn};
 
 use crate::backend::NodeBackendAccessor;
-use crate::confirmation::ConfirmationBroker;
+use crate::confirmation::{ConfirmationBroker, ConfirmationPolicy};
 use crate::event::{AgentEvent, EventBroadcaster, EventListener, OrchestratorEvent};
 use crate::loop_control::{LoopControlConfig, LoopController};
 use crate::long_task::{CheckpointProvider, LongTaskManager};
@@ -124,6 +124,11 @@ pub struct AgentLoop {
     /// 通过 `with_confirmation` 注入。启用后，`execute_tool_calls` 对命中
     /// `config.confirmation_policy` 的工具调用发起确认（广播事件 + 等待前端回传）。
     confirmation_broker: Option<Arc<ConfirmationBroker>>,
+    /// A6 工具生命周期钩子（空=不启用）
+    ///
+    /// 通过 `with_tool_hook` 注入。`execute_tool_with_retry` 在 `call_tool` 前
+    /// 依次跑 `on_pre_use`（可改 args / 拒绝），成功后跑 `on_post_use`，失败跑 `on_error`。
+    tool_hooks: Vec<Arc<dyn crate::tool_hook::ToolLifecycleHook>>,
     /// A3 四管线路由节点（`None`=不启用发送链路路由）
     ///
     /// 通过 `with_router` 注入。启用后，`run()` 在接收用户输入时先经
@@ -188,6 +193,7 @@ impl AgentLoop {
             memory: None,
             memory_context: Arc::new(StdRwLock::new(None)),
             confirmation_broker: None,
+            tool_hooks: Vec::new(),
             router: None,
             router_enabled: Arc::new(AtomicBool::new(true)),
             pipeline_context: Arc::new(StdRwLock::new(None)),
@@ -245,6 +251,14 @@ impl AgentLoop {
         self
     }
 
+    /// 注册工具生命周期钩子（链式，同步，A6）
+    ///
+    /// 可多次调用注册多个钩子，按注册顺序在 `call_tool` 前依次执行。
+    pub fn with_tool_hook(mut self, hook: Arc<dyn crate::tool_hook::ToolLifecycleHook>) -> Self {
+        self.tool_hooks.push(hook);
+        self
+    }
+
     /// 注入四管线路由节点（链式，同步，A3）
     ///
     /// 传 `Some(router)` 启用发送链路路由（`run()` 时先决策管线并注入指引），
@@ -271,6 +285,18 @@ impl AgentLoop {
     /// 四管线路由是否启用（会话级开关，A3）
     pub fn router_enabled(&self) -> bool {
         self.router_enabled.load(Ordering::SeqCst)
+    }
+
+    /// 设置会话级确认策略（A7 安全级别，运行时即时生效）
+    ///
+    /// - `Some(policy)`：启用对应确认策略（如 `dangerous_only` / `moderate_and_dangerous`）
+    /// - `None`：关闭确认（所有工具直接执行）
+    ///
+    /// 写入 config（`maybe_require_confirmation` 每次读取），无需重启会话。
+    pub fn set_confirmation_policy(&self, policy: Option<ConfirmationPolicy>) {
+        if let Ok(mut guard) = self.config.write() {
+            guard.confirmation_policy = policy;
+        }
     }
 
     /// 解析一次待定的工具确认（前端经 `cmd_agent_confirm` 回传）
@@ -339,6 +365,15 @@ impl AgentLoop {
     /// 事件的监听器（如 Tauri 端）能收到子 Agent 的委派进度。
     pub fn broadcaster_ref(&self) -> Arc<RwLock<EventBroadcaster>> {
         Arc::clone(&self.broadcaster)
+    }
+
+    /// 获取内部 LLM 后端访问器（供编排节点复用同一 backend）
+    ///
+    /// 例如：AgentCommandService 在运行 Plan→Execute→Reflection→Refine 编排图时，
+    /// 从会话的 AgentLoop 取出 backend 注入 `DefaultOrchestrator`，使编排节点与
+    /// 会话使用同一个 LLM Provider 配置。
+    pub fn node_backend(&self) -> Arc<dyn NodeBackendAccessor> {
+        Arc::clone(&self.backend)
     }
 
     /// 广播事件
