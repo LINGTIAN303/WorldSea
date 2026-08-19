@@ -24,25 +24,32 @@
       ><WsIcon name="task" size="sm" :stroke-width="1.7" />计划</button>
       <button
         role="tab"
-        :aria-selected="tab === 'router'"
-        class="exec-tab"
-        :class="{ on: tab === 'router' }"
-        @click="emit('update:tab', 'router')"
-      ><WsIcon name="route" size="sm" :stroke-width="1.7" />路由</button>
-      <button
-        role="tab"
-        :aria-selected="tab === 'terminal'"
-        class="exec-tab"
-        :class="{ on: tab === 'terminal' }"
-        @click="emit('update:tab', 'terminal')"
-      ><WsIcon name="terminal" size="sm" :stroke-width="1.7" />终端</button>
-      <button
-        role="tab"
         :aria-selected="tab === 'subagent'"
         class="exec-tab"
         :class="{ on: tab === 'subagent' }"
         @click="emit('update:tab', 'subagent')"
-      ><WsIcon name="subagent" size="sm" :stroke-width="1.7" />子Agent</button>
+      ><WsIcon name="user" size="sm" :stroke-width="1.7" />子Agent</button>
+      <button
+        role="tab"
+        :aria-selected="tab === 'tot'"
+        class="exec-tab"
+        :class="{ on: tab === 'tot' }"
+        @click="emit('update:tab', 'tot')"
+      ><WsIcon name="workflow" size="sm" :stroke-width="1.7" />ToT</button>
+      <button
+        role="tab"
+        :aria-selected="tab === 'got'"
+        class="exec-tab"
+        :class="{ on: tab === 'got' }"
+        @click="emit('update:tab', 'got')"
+      ><WsIcon name="mindmap" size="sm" :stroke-width="1.7" />GoT</button>
+      <button
+        role="tab"
+        :aria-selected="tab === 'supervisor'"
+        class="exec-tab"
+        :class="{ on: tab === 'supervisor' }"
+        @click="emit('update:tab', 'supervisor')"
+      ><WsIcon name="handshake" size="sm" :stroke-width="1.7" />委派</button>
     </div>
     <div class="exec-body">
       <div v-show="tab === 'trace'" class="exec-pane" role="tabpanel">
@@ -57,6 +64,39 @@
       </div>
       <div v-show="tab === 'router'" class="exec-pane" role="tabpanel">
         <RouterPanel />
+      </div>
+      <div v-show="tab === 'tot'" class="exec-pane" role="tabpanel">
+        <OrchestratorPanel
+          mode="tot"
+          title="ToT 思维树"
+          icon="workflow"
+          placeholder="输入问题，生成多分支思维树并评分…"
+          run-label="开始思维树"
+          empty-title="尚未运行思维树"
+          empty-hint="输入问题，用多路径思维树推理并评分"
+        />
+      </div>
+      <div v-show="tab === 'got'" class="exec-pane" role="tabpanel">
+        <OrchestratorPanel
+          mode="got"
+          title="GoT 思维图"
+          icon="mindmap"
+          placeholder="输入问题，构建并聚合多路径思维图…"
+          run-label="开始思维图"
+          empty-title="尚未运行思维图"
+          empty-hint="输入问题，构建图结构并聚合思考"
+        />
+      </div>
+      <div v-show="tab === 'supervisor'" class="exec-pane" role="tabpanel">
+        <OrchestratorPanel
+          mode="supervisor"
+          title="Supervisor 委派"
+          icon="handshake"
+          placeholder="输入任务，按子 Agent 能力委派…"
+          run-label="开始委派"
+          empty-title="尚未运行委派"
+          empty-hint="输入任务，由 Supervisor 分配给多个子 Agent"
+        />
       </div>
       <div v-show="tab === 'terminal'" class="exec-pane exec-pane-terminal" role="tabpanel">
         <TerminalView />
@@ -81,6 +121,7 @@ import SubAgentSection from '@/agent/components/SubAgentSection.vue'
 import ActivityLog from '@/agent/panels/ActivityLog.vue'
 import PlanPanel from '@/agent/panels/PlanPanel.vue'
 import RouterPanel from '@/agent/panels/RouterPanel.vue'
+import OrchestratorPanel from '@/agent/panels/OrchestratorPanel.vue'
 import TerminalView from '@/terminal/components/TerminalView.vue'
 import SubAgentView from '@/subagent/components/SubAgentView.vue'
 import { useAgent } from '@/agent/composables/useAgent'

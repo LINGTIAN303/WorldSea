@@ -81,6 +81,9 @@ pub fn run() {
             commands::set_session_pinned,
             commands::set_session_router_enabled,
             commands::orchestrator_run_plan,
+            commands::orchestrator_run_tot,
+            commands::orchestrator_run_got,
+            commands::orchestrator_run_supervisor,
             // Router Pattern 编排模式（Router 样板命令）
             router_commands::router_create,
             router_commands::router_route,

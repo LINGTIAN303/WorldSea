@@ -376,6 +376,14 @@ impl AgentLoop {
         Arc::clone(&self.backend)
     }
 
+    /// 获取内部 ToolBus 访问器（供 Supervisor 编排节点为子 Agent 提供共享工具）
+    ///
+    /// SupervisorNode 构造需要 `Arc<dyn ToolBus>` 来运行被委派的子 Agent，
+    /// 从会话 AgentLoop 取出即可与主 Agent 共享同一批工具（terminal/subagent 等）。
+    pub fn tool_bus(&self) -> Arc<dyn ToolBus> {
+        Arc::clone(&self.tool_bus)
+    }
+
     /// 广播事件
     async fn broadcast(&self, event: OrchestratorEvent) {
         self.broadcaster.read().await.broadcast(&event);

@@ -44,11 +44,14 @@ use agent_runtime::orchestrator::{
 };
 use agent_runtime::plan::{ExecuteNode, ExecuteNodeConfig, PlanNode, PlanNodeConfig};
 use agent_runtime::reflection::{ReflectionNode, ReflectionNodeConfig, RefineNode, RefineNodeConfig};
-use agent_runtime::supervisor::SubAgentSpec;
 use agent_runtime::scenario::{
     Scenario, ScenarioEntityProvider, ScenarioRegistry, WorldbuildingScenario,
 };
 use agent_runtime::router::{RouterConfig, RouterNode};
+// 编排 4 模式 UI 下沉：ToT / GoT / Supervisor 节点，用于构单节点编排图跑通前端口令
+use agent_runtime::graph_of_thoughts::{GoTConfig, GoTNode};
+use agent_runtime::supervisor::{SubAgentSpec, SupervisorConfig, SupervisorNode};
+use agent_runtime::tree_of_thoughts::{ToTConfig, ToTNode};
 use memory_center_core::model::ArchiveConfig;
 use agent_runtime::tool::{SimpleToolBus, Tool, ToolBus};
 use agent_runtime::types::OrchestratorMessage;
@@ -78,6 +81,47 @@ fn default_max_items() -> usize {
 
 fn default_max_refine_iterations() -> u32 {
     3
+}
+
+/// ToT（Tree of Thoughts）编排运行参数（可选项覆盖 `ToTConfig` 默认）
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToTExecuteOptions {
+    /// 最大深度（覆盖默认 5）
+    #[serde(default)]
+    pub max_depth: Option<usize>,
+    /// Beam 宽度 — 每层保留 top-K（默认 3）
+    #[serde(default)]
+    pub beam_width: Option<usize>,
+    /// 分支因子 — 每节点候选数（默认 3）
+    #[serde(default)]
+    pub branch_factor: Option<usize>,
+    /// 最大节点数（默认 50）
+    #[serde(default)]
+    pub max_thoughts: Option<usize>,
+}
+
+/// GoT（Graph of Thoughts）编排运行参数（复用 ToT 参数 + 聚合开关）
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GoTExecuteOptions {
+    /// 基础 ToT 参数
+    #[serde(flatten)]
+    pub tot: ToTExecuteOptions,
+    /// 是否启用聚合（默认 true）
+    #[serde(default)]
+    pub aggregation_enabled: Option<bool>,
+}
+
+/// Supervisor 编排运行参数（子 Agent 规格 + 协调轮次）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SupervisorExecuteOptions {
+    /// 子 Agent 规格列表（委派目标）
+    pub specs: Vec<SubAgentSpec>,
+    /// 最大协调轮次（覆盖默认 1，多轮需 >1）
+    #[serde(default)]
+    pub max_rounds: Option<u32>,
 }
 
 impl Default for PlanExecuteOptions {
@@ -737,6 +781,115 @@ impl AgentCommandService {
             .run(input, None)
             .await
             .map_err(|e| CommandError::Agent(format!("编排图执行失败: {e}")))
+    }
+
+    /// 运行 ToT（Tree of Thoughts）编排图（单节点：ToTNode）
+    ///
+    /// 复用会话 AgentLoop 的 LLM 后端；思维树构建/评分/收敛由 `ToTNode`
+    /// 在 `DefaultOrchestrator` 内执行，事件经 [`ForwardToAgentBroadcaster`] 转投会话广播器。
+    pub async fn run_tot(
+        &self,
+        session_id: &str,
+        input: String,
+        options: ToTExecuteOptions,
+    ) -> Result<OrchestratorResult, CommandError> {
+        let agent = self.get_agent(session_id).await?;
+        let backend = agent.node_backend();
+        let config = ToTConfig {
+            max_depth: options.max_depth.unwrap_or(ToTConfig::default().max_depth),
+            beam_width: options.beam_width.unwrap_or(ToTConfig::default().beam_width),
+            branch_factor: options
+                .branch_factor
+                .unwrap_or(ToTConfig::default().branch_factor),
+            max_thoughts: options.max_thoughts.unwrap_or(ToTConfig::default().max_thoughts),
+            ..Default::default()
+        };
+        let mut orch = DefaultOrchestrator::new().with_backend(backend.clone());
+        orch.add_node(Box::new(ToTNode::with_default_strategies(
+            "tot", "ToT", backend, config,
+        )));
+        orch.set_entry("tot");
+        orch.subscribe(Arc::new(ForwardToAgentBroadcaster {
+            target: agent.broadcaster_ref(),
+        }));
+        orch.run(input, None)
+            .await
+            .map_err(|e| CommandError::Agent(format!("ToT 执行失败: {e}")))
+    }
+
+    /// 运行 GoT（Graph of Thoughts）编排图（单节点：GoTNode）
+    ///
+    /// `GoTNode` 的 backend 来自 `DefaultOrchestrator`（`with_backend` 注入），
+    /// 无需重复传给构造器。聚合策略由 `with_default_strategies` 内置。
+    pub async fn run_got(
+        &self,
+        session_id: &str,
+        input: String,
+        options: GoTExecuteOptions,
+    ) -> Result<OrchestratorResult, CommandError> {
+        let agent = self.get_agent(session_id).await?;
+        let backend = agent.node_backend();
+        let ToTExecuteOptions {
+            max_depth,
+            beam_width,
+            branch_factor,
+            max_thoughts,
+        } = options.tot;
+        let config = GoTConfig {
+            tot: ToTConfig {
+                max_depth: max_depth.unwrap_or(ToTConfig::default().max_depth),
+                beam_width: beam_width.unwrap_or(ToTConfig::default().beam_width),
+                branch_factor: branch_factor.unwrap_or(ToTConfig::default().branch_factor),
+                max_thoughts: max_thoughts.unwrap_or(ToTConfig::default().max_thoughts),
+                ..Default::default()
+            },
+            aggregation_enabled: options.aggregation_enabled.unwrap_or(true),
+            ..Default::default()
+        };
+        let mut orch = DefaultOrchestrator::new().with_backend(backend);
+        orch.add_node(Box::new(GoTNode::with_default_strategies("got", "GoT", config)));
+        orch.set_entry("got");
+        orch.subscribe(Arc::new(ForwardToAgentBroadcaster {
+            target: agent.broadcaster_ref(),
+        }));
+        orch.run(input, None)
+            .await
+            .map_err(|e| CommandError::Agent(format!("GoT 执行失败: {e}")))
+    }
+
+    /// 运行 Supervisor 编排图（单节点：SupervisorNode）
+    ///
+    /// 复用会话的 backend 与 ToolBus（通过 `AgentLoop::tool_bus()`），使被委派的
+    /// 子 Agent 与主 Agent 共享同一批工具。委派由内置 LLM 分配策略完成。
+    pub async fn run_supervisor(
+        &self,
+        session_id: &str,
+        input: String,
+        options: SupervisorExecuteOptions,
+    ) -> Result<OrchestratorResult, CommandError> {
+        let agent = self.get_agent(session_id).await?;
+        let backend = agent.node_backend();
+        let tool_bus = agent.tool_bus();
+        let config = SupervisorConfig {
+            max_rounds: options.max_rounds.unwrap_or(SupervisorConfig::default().max_rounds),
+            ..Default::default()
+        };
+        let mut orch = DefaultOrchestrator::new().with_backend(backend.clone());
+        orch.add_node(Box::new(SupervisorNode::with_default_strategy(
+            "supervisor",
+            "Supervisor",
+            options.specs,
+            backend,
+            tool_bus,
+            config,
+        )));
+        orch.set_entry("supervisor");
+        orch.subscribe(Arc::new(ForwardToAgentBroadcaster {
+            target: agent.broadcaster_ref(),
+        }));
+        orch.run(input, None)
+            .await
+            .map_err(|e| CommandError::Agent(format!("Supervisor 执行失败: {e}")))
     }
 
     /// 会话列表（默认只返回单聊会话；群聊参与者会话走 [`Self::list_group_session_participants`] 按群聊查询）

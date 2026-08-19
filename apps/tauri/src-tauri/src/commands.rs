@@ -487,6 +487,60 @@ pub async fn orchestrator_run_plan(
         .map_err(|e| e.to_string())
 }
 
+/// 运行 ToT（Tree of Thoughts）编排图；思维树进度经会话事件通道转发前端
+#[tauri::command]
+pub async fn orchestrator_run_tot(
+    app: AppHandle,
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+    input: String,
+    options: Option<agent_commands::ToTExecuteOptions>,
+) -> Result<agent_runtime::orchestrator::OrchestratorResult, String> {
+    if let Ok(agent) = state.get_agent(&session_id).await {
+        ensure_emitter_registered(&app, &agent, &session_id).await;
+    }
+    state
+        .run_tot(&session_id, input, options.unwrap_or_default())
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 运行 GoT（Graph of Thoughts）编排图
+#[tauri::command]
+pub async fn orchestrator_run_got(
+    app: AppHandle,
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+    input: String,
+    options: Option<agent_commands::GoTExecuteOptions>,
+) -> Result<agent_runtime::orchestrator::OrchestratorResult, String> {
+    if let Ok(agent) = state.get_agent(&session_id).await {
+        ensure_emitter_registered(&app, &agent, &session_id).await;
+    }
+    state
+        .run_got(&session_id, input, options.unwrap_or_default())
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 运行 Supervisor 编排图（子 Agent 委派协调）
+#[tauri::command]
+pub async fn orchestrator_run_supervisor(
+    app: AppHandle,
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+    input: String,
+    options: agent_commands::SupervisorExecuteOptions,
+) -> Result<agent_runtime::orchestrator::OrchestratorResult, String> {
+    if let Ok(agent) = state.get_agent(&session_id).await {
+        ensure_emitter_registered(&app, &agent, &session_id).await;
+    }
+    state
+        .run_supervisor(&session_id, input, options)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// 创建群聊参与者会话（kind='group' + 写 participantId↔sessionId 映射）
 #[tauri::command]
 pub async fn create_group_session_participant(
