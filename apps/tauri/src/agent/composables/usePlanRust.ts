@@ -91,6 +91,11 @@ async function runPlan(input: string, options: PlanRunOptions = {}): Promise<Orc
       },
     })
     lastResult.value = result
+    // 编排图"完成但内部失败"（如计划解析失败/LLM 调用失败）时，
+    // invoke 不抛错，需把 result.error 显式反映到错误提示，避免静默失败
+    if (result.error) {
+      error.value = `编排完成但出错：${result.error}`
+    }
     return result
   } catch (err) {
     error.value = err instanceof Error ? err.message : String(err)

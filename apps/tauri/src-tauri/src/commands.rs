@@ -344,6 +344,35 @@ fn emitter_registry() -> &'static StdMutex<HashMap<String, Arc<TauriAgentEventEm
     EMITTER_REGISTRY.get_or_init(|| StdMutex::new(HashMap::new()))
 }
 
+/// 确保某会话的 AgentLoop 已订阅 TauriAgentEventEmitter（事件桥到前端），幂等（每会话一次）
+///
+/// 发送链路（`send_message`）与编排链路（`orchestrator_run_plan`）共用：
+/// 新建会话但从未发消息时，emitter 尚未注册，编排事件（PlanCreated / ReflectionResult 等）
+/// 会桥接不到前端。本函数在此场景下补齐订阅。
+///
+/// 注意：`emitter_registry` 的 MutexGuard 不能跨 await 持有（future 非 Send），
+/// 先判断是否需要注册（guard 随即释放），再 await subscribe，最后重新加锁插入。
+async fn ensure_emitter_registered(
+    app: &AppHandle,
+    agent: &Arc<agent_runtime::agent::AgentLoop>,
+    session_id: &str,
+) {
+    let needs_register = {
+        let registry = emitter_registry().lock().unwrap();
+        !registry.contains_key(session_id)
+    };
+    if needs_register {
+        let emitter = Arc::new(TauriAgentEventEmitter {
+            app: app.clone(),
+            session_id: session_id.to_string(),
+            trace_seq: AtomicU64::new(0),
+        });
+        agent.subscribe(emitter.clone()).await;
+        let mut registry = emitter_registry().lock().unwrap();
+        registry.entry(session_id.to_string()).or_insert(emitter);
+    }
+}
+
 /// 新建会话
 ///
 /// # 参数
@@ -441,11 +470,17 @@ pub async fn set_session_router_enabled(
 /// 经会话事件通道转发到前端 `agent:event:trace:{session_id}`。
 #[tauri::command]
 pub async fn orchestrator_run_plan(
+    app: AppHandle,
     state: State<'_, AgentCommandService>,
     session_id: String,
     input: String,
     options: Option<agent_commands::PlanExecuteOptions>,
 ) -> Result<agent_runtime::orchestrator::OrchestratorResult, String> {
+    // 与 send_message 同路：确保 emitter 已订阅，使编排事件（PlanCreated/ReflectionResult）
+    // 能桥接前端（新建会话未发消息时也能收到）
+    if let Ok(agent) = state.get_agent(&session_id).await {
+        ensure_emitter_registered(&app, &agent, &session_id).await;
+    }
     state
         .run_plan_execute(&session_id, input, options.unwrap_or_default())
         .await
@@ -567,24 +602,7 @@ pub async fn send_message(
     let agent = state.get_agent(&params.session_id).await.map_err(|e| e.to_string())?;
 
     // 注册事件转发监听器（每会话仅一次，复用 emitter 避免事件多播）
-    //
-    // 注意：`emitter_registry` 的 MutexGuard 不能跨 await 持有（否则 future 非 Send），
-    // 故先判断是否需要注册（guard 随即释放），再在 guard 之外 await subscribe，
-    // 最后重新加锁插入。
-    let needs_register = {
-        let registry = emitter_registry().lock().unwrap();
-        !registry.contains_key(&params.session_id)
-    };
-    if needs_register {
-        let emitter = Arc::new(TauriAgentEventEmitter {
-            app: app.clone(),
-            session_id: params.session_id.clone(),
-            trace_seq: AtomicU64::new(0),
-        });
-        agent.subscribe(emitter.clone()).await;
-        let mut registry = emitter_registry().lock().unwrap();
-        registry.entry(params.session_id.clone()).or_insert(emitter);
-    }
+    ensure_emitter_registered(&app, &agent, &params.session_id).await;
 
     state.send_message(params).await.map_err(|e| e.to_string())
 }
