@@ -1,5 +1,12 @@
 <template>
   <div class="group-chat-layout">
+    <!-- [E] 群聊顶栏控件收容（原 SpaceNavbar 群聊分支迁入；不打扰单聊） -->
+    <GroupChatTopbar
+      @toggle-mode="onToggleToChat"
+      @toggle-right-panel="spaceStore.toggleRightPanel()"
+      @open-settings="onOpenSettings"
+    />
+    <div class="group-body">
     <SidebarStrip :active-panel="activePanel" @toggle="onStripToggle" />
     <Transition name="sidebar-expand">
       <div v-if="activePanel === 'groups'" class="sidebar-panel">
@@ -122,6 +129,7 @@
         <div class="empty-text">选择或创建一个群聊开始</div>
       </div>
     </div>
+    </div>
   </div>
 </template>
 
@@ -145,12 +153,13 @@ import GroupReviewCheckpoint from './GroupReviewCheckpoint.vue'
 import CasualChatView from './CasualChatView.vue'
 import GroupChatList from './GroupChatList.vue'
 import FriendList from './FriendList.vue'
+import GroupChatTopbar from './GroupChatTopbar.vue'
 import SidebarStrip from './SidebarStrip.vue'
 import type { PanelType } from './SidebarStrip.vue'
 import type { CreateGroupData } from './CreateGroupDialog.vue'
 import type { ChatAgent } from '../types'
 
-defineEmits<{ close: [] }>()
+const emit = defineEmits<{ close: []; 'toggle-mode': []; 'open-settings': [] }>()
 
 const store = useGroupChatStore()
 const spaceStore = useSpaceStore()
@@ -316,6 +325,16 @@ function onStripToggle(panel: PanelType): void {
   }
 }
 
+/** [E] 群聊顶栏：切回单聊（沿用外层 onToggleMode 语义） */
+function onToggleToChat(): void {
+  emit('toggle-mode')
+}
+
+/** [E] 群聊顶栏：打开全局设置 */
+function onOpenSettings(): void {
+  emit('open-settings')
+}
+
 function onFriendPrivateChat(_agent: ChatAgent): void {
   // 会议模式下暂不支持私聊，后续可扩展
 }
@@ -455,7 +474,9 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.group-chat-layout { display: flex; height: 100%; }
+/* [E] 群聊顶栏收容后：改为列布局（顶栏 + 下方行布局 body） */
+.group-chat-layout { display: flex; flex-direction: column; height: 100%; }
+.group-body { display: flex; flex: 1; min-height: 0; }
 
 /* 展开面板 */
 .sidebar-panel {

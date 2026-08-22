@@ -3,7 +3,7 @@
     <div class="panel-header">
       <h3 class="panel-title">活动日志</h3>
       <div class="panel-header-actions">
-        <button v-if="logs.length > 0" class="panel-action-btn" @click="clearLogs" title="清空"><WsIcon name="trash" :size="14" :stroke-width="1.7" /></button>
+        <button v-if="logs.length > 0" class="panel-action-btn" @click="clearLogs()" title="清空"><WsIcon name="trash" :size="14" :stroke-width="1.7" /></button>
         <button class="panel-close-btn" @click="emit('close')" title="关闭"><WsIcon name="close" :size="14" :stroke-width="1.7" /></button>
       </div>
     </div>

@@ -1,0 +1,231 @@
+/**
+ * stream：Agent 输出事件行流（统一扁平形态）统一样式
+ *
+ * 设计规则（对齐计划「统一形态规则」）：
+ *  - 左对齐、无气泡底、无彩边：取消 ws-deep / ws-bubble 双容器与阶段卡装饰；
+ *  - 行间距 4-6px，行内用 --agent-*/--font-size-* token，禁止硬编码色值；
+ *  - 动画类统一使用 `ws-stream-` 前缀：命中 reduced-motion.css 的 `[class*='ws-']`
+ *    覆盖规则，无需额外改动 reduced-motion.css。
+ */
+
+/* ===== 事件行通用布局 ===== */
+.ws-stream-row {
+  position: relative;
+  min-width: 0;
+  /* 统一行间距（计划约定 4-6px） */
+  margin: 0;
+}
+
+/* 行列表容器：纵向扁平流，无 extra padding/分隔装饰 */
+.ws-stream-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+}
+
+/* 统一字号/字族基础（正文行单独覆盖 font-size） */
+.ws-stream-row {
+  font-family: var(--agent-font);
+  color: var(--agent-text);
+  font-size: var(--font-size-base);
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+/* ===== Divider 分隔线 ===== */
+.ws-stream-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+  /* 弱化分隔，仅保留时间/轮次文本的识别性 */
+  color: var(--agent-text-tertiary);
+  font-size: var(--font-size-xs);
+  white-space: nowrap;
+}
+.ws-stream-divider::before,
+.ws-stream-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--agent-hover-bg);
+}
+
+/* ===== Think 行（动态折叠推理流） ===== */
+.ws-stream-think {
+  /* 纯文本/浅底单行扁平样式，无卡片边框 */
+  width: 100%;
+  cursor: pointer;
+  user-select: none;
+  font-size: var(--font-size-sm);
+  color: var(--agent-text-secondary);
+  padding: 2px 4px;
+  margin: 1px 0;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+.ws-stream-think:hover {
+  background: var(--agent-hover-bg);
+}
+.ws-stream-think-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+  color: var(--agent-text-secondary);
+  margin-right: 6px;
+}
+.ws-stream-think-chevron {
+  font-size: 10px;
+  color: var(--agent-text-tertiary);
+  transition: transform 0.2s;
+}
+.ws-stream-think.open .ws-stream-think-chevron {
+  transform: rotate(90deg);
+}
+/* 折叠态的摘要（首行/末行） */
+.ws-stream-think-summary {
+  color: var(--agent-text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+}
+/* 展开的正文（服务端流式滚动跟随） */
+.ws-stream-think-body {
+  margin-top: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--agent-text-tertiary);
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
+  padding: 6px 8px;
+  background: var(--agent-hover-bg);
+  border-radius: 6px;
+}
+/* running 态的「跟随末尾」点位：可被外部用于感知当前行是否在流式 */
+.ws-stream-think[data-follow-end] .ws-stream-think-body {
+  scroll-behavior: auto;
+}
+
+/* ===== Tool 行（扁平单行） ===== */
+.ws-stream-tool {
+  width: 100%;
+  border-radius: 6px;
+  font-size: var(--font-size-sm);
+  color: var(--agent-text-secondary);
+  transition: background 0.15s;
+}
+.ws-stream-tool-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  cursor: pointer;
+}
+.ws-stream-tool-summary:hover {
+  background: var(--agent-hover-bg);
+}
+/* 状态点：running 主色脉冲；completed/failed 用 ✓/✗ 图标 */
+.ws-stream-tool-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--agent-text-tertiary);
+}
+.ws-stream-tool-dot.running {
+  background: var(--agent-primary);
+  animation: ws-stream-pulse 1.5s infinite;
+}
+.ws-stream-tool-icon-success { color: var(--agent-success); flex-shrink: 0; display: inline-flex; }
+.ws-stream-tool-icon-fail { color: var(--agent-danger); flex-shrink: 0; display: inline-flex; }
+.ws-stream-tool-name {
+  font-weight: 600;
+  color: var(--agent-text);
+  flex-shrink: 0;
+}
+.ws-stream-tool-status {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.ws-stream-tool-status.running {
+  background: color-mix(in srgb, var(--agent-primary) 10%, transparent);
+  color: var(--agent-primary);
+}
+.ws-stream-tool-status.completed {
+  background: color-mix(in srgb, var(--agent-success) 8%, transparent);
+  color: color-mix(in srgb, var(--agent-success) 70%, transparent);
+}
+.ws-stream-tool-status.failed {
+  background: color-mix(in srgb, var(--agent-danger) 8%, transparent);
+  color: color-mix(in srgb, var(--agent-danger) 70%, transparent);
+}
+.ws-stream-tool-args {
+  flex: 1;
+  min-width: 0;
+  color: var(--agent-text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ws-stream-tool-chevron {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--agent-text-tertiary);
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+.ws-stream-tool-chevron.open {
+  transform: rotate(90deg);
+}
+/* 展开详情（参数 JSON + 结果），无卡片装饰 */
+.ws-stream-tool-detail {
+  border-top: 1px solid var(--agent-hover-bg);
+  margin: 0 6px;
+  padding: 6px 4px;
+}
+.ws-stream-tool-detail-sec { margin-bottom: 6px; }
+.ws-stream-tool-detail-sec:last-child { margin-bottom: 0; }
+.ws-stream-tool-detail-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--agent-text-tertiary);
+  margin-bottom: 4px;
+}
+.ws-stream-tool-detail-code {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--agent-text-secondary);
+  background: var(--agent-hover-bg);
+  padding: 6px 8px;
+  border-radius: 6px;
+  overflow-x: auto;
+  max-height: 200px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-family: 'Consolas', 'Monaco', monospace;
+}
+.ws-stream-tool-detail-result { max-height: 300px; }
+
+/* ===== 动画（统一 ws-stream- 前缀，reduced-motion 自动覆盖） ===== */
+@keyframes ws-stream-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+@keyframes ws-stream-row-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.ws-stream-row-enter {
+  animation: ws-stream-row-in 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}

@@ -12,7 +12,7 @@
     <div class="block-toggle" role="button" tabindex="0" :aria-expanded="expanded" @click="expanded = !expanded" @keydown.enter.prevent="expanded = !expanded" @keydown.space.prevent="expanded = !expanded">
       <span class="block-icon"><WsIcon name="video" size="xs" /></span>
       <span class="block-title">{{ block.caption || '视频' }}</span>
-      <span class="block-arrow">{{ expanded ? '▾ 点击收起' : '▸ 点击展开' }}</span>
+      <span class="block-arrow"><WsIcon :name="expanded ? 'chevron-down' : 'chevron-right'" size="xs" /><span>{{ expanded ? '点击收起' : '点击展开' }}</span></span>
     </div>
     <Transition name="block-expand">
       <div v-if="expanded" class="block-content">
@@ -28,7 +28,7 @@
             @pause="isPlaying = false"
           />
           <div class="video-overlay" v-if="!isPlaying">
-            <span class="play-icon">▶</span>
+            <WsIcon name="play" size="sm" class="play-icon" />
           </div>
         </div>
         <div class="video-actions">
@@ -60,7 +60,7 @@
           controls
           autoplay
         />
-        <button class="fullscreen-close" @click="fullscreenOpen = false">✕</button>
+        <button class="fullscreen-close" :aria-label="'关闭全屏'" @click="fullscreenOpen = false"><WsIcon name="close" size="sm" /></button>
       </div>
     </Teleport>
   </div>

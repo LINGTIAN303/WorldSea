@@ -5,17 +5,12 @@
       <div class="settings-hint">当主模型不支持图片理解时，Agent 会自动调用 vision_analyze 工具，通过视觉模型分析图片并将结果传回主模型</div>
       <div class="settings-row">
         <span class="settings-key">供应商</span>
-        <select :value="settingsStore.visionSubAgentProvider" @change="onVisionProviderChange" class="settings-select">
-          <option value="">自动选择</option>
-          <option v-for="p in visionProviders" :key="p" :value="p">{{ visionProviderLabels[p] || p }}</option>
-        </select>
+        <TuiSelect :model-value="settingsStore.visionSubAgentProvider" :options="visionProviderOptions" @update:model-value="onVisionProviderChange" />
       </div>
       <div class="settings-row">
         <span class="settings-key">视觉模型</span>
         <template v-if="visionSubAgentModels.length > 0">
-          <select :value="settingsStore.visionSubAgentModel" @change="onVisionModelChange" class="settings-select">
-            <option v-for="m in visionSubAgentModels" :key="m.id" :value="m.id">{{ m.name }}</option>
-          </select>
+          <TuiSelect :model-value="settingsStore.visionSubAgentModel" :options="visionModelOptions" placeholder="选择视觉模型" @update:model-value="onVisionModelChange" />
         </template>
         <template v-else>
           <input type="text" class="settings-input" v-model="settingsStore.visionSubAgentModel" placeholder="视觉模型 ID" />
@@ -30,17 +25,12 @@
       <div class="settings-hint">Agent 可通过 image_generate 工具生成图片</div>
       <div class="settings-row">
         <span class="settings-key">供应商</span>
-        <select :value="imageGenProvider" @change="onImageGenProviderChange" class="settings-select">
-          <option value="">未配置</option>
-          <option v-for="p in imageGenProviders" :key="p.value" :value="p.value">{{ p.label }}</option>
-        </select>
+        <TuiSelect :model-value="imageGenProviderSelectValue" :options="imageGenProviderOptions" placeholder="未配置" @update:model-value="onImageGenProviderChange" />
       </div>
       <div class="settings-row">
         <span class="settings-key">模型 ID</span>
         <template v-if="imageGenModelOptions.length > 0">
-          <select :value="imageGenModel" @change="onImageGenModelChange" class="settings-select">
-            <option v-for="m in imageGenModelOptions" :key="m.value" :value="m.value">{{ m.label }}</option>
-          </select>
+          <TuiSelect :model-value="imageGenModel" :options="imageGenModelOptions" placeholder="选择模型" @update:model-value="onImageGenModelChange" />
         </template>
         <template v-else>
           <input type="text" class="settings-input" v-model="imageGenModel" placeholder="如 dall-e-3" />
@@ -48,10 +38,7 @@
       </div>
       <div class="settings-row" v-if="imageGenProvider === 'custom'">
         <span class="settings-key">供应商</span>
-        <select :value="imageGenCustomProviderId" @change="onImageGenCustomProviderChange" class="settings-select">
-          <option value="">选择自定义供应商</option>
-          <option v-for="cp in settingsStore.customProviders" :key="cp.id" :value="cp.id">{{ cp.name || cp.baseUrl }}</option>
-        </select>
+        <TuiSelect :model-value="imageGenCustomProviderId" :options="imageGenCustomProviderOptions" placeholder="选择自定义供应商" @update:model-value="onImageGenCustomProviderChange" />
       </div>
       <div class="settings-hint" v-if="imageGenProvider">API Key 自动复用上方已配置的密钥</div>
       <div class="settings-hint" v-if="imageGenProvider">已配置 {{ imageGenProviders.find(p => p.value === (imageGenProvider === 'custom' ? `custom:${imageGenCustomProviderId}` : imageGenProvider))?.label || imageGenProvider }} 图像生成</div>
@@ -63,17 +50,12 @@
       <div class="settings-hint">Agent 可通过 video_generate 工具生成视频（异步模式）</div>
       <div class="settings-row">
         <span class="settings-key">供应商</span>
-        <select :value="videoGenProvider" @change="onVideoGenProviderChange" class="settings-select">
-          <option value="">未配置</option>
-          <option v-for="p in videoGenProviders" :key="p.value" :value="p.value">{{ p.label }}</option>
-        </select>
+        <TuiSelect :model-value="videoGenProvider" :options="videoGenProviderOptions" placeholder="未配置" @update:model-value="onVideoGenProviderChange" />
       </div>
       <div class="settings-row">
         <span class="settings-key">模型 ID</span>
         <template v-if="videoGenModelOptions.length > 0">
-          <select :value="videoGenModel" @change="onVideoGenModelChange" class="settings-select">
-            <option v-for="m in videoGenModelOptions" :key="m.value" :value="m.value">{{ m.label }}</option>
-          </select>
+          <TuiSelect :model-value="videoGenModel" :options="videoGenModelOptions" placeholder="选择模型" @update:model-value="onVideoGenModelChange" />
         </template>
         <template v-else>
           <input type="text" class="settings-input" v-model="videoGenModel" placeholder="如 agnes-video-v2.0" />
@@ -88,6 +70,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import TuiSelect from '../../components/ui/TuiSelect.vue'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { getModelsByProvider, getModelInfo, modelSupportsVision, getVisionModels, getProviderLabelMap } from '@worldsmith/agent-runtime'
 
@@ -114,8 +97,17 @@ const visionSubAgentModels = computed(() => {
 
 const currentModelSupportsVision = computed(() => modelSupportsVision(settingsStore.aiCloudModel))
 
-function onVisionProviderChange(e: Event): void {
-  const provider = (e.target as HTMLSelectElement).value
+// ── TuiSelect 选项集（替代原生 select，与配置层其它面板统一） ──
+const visionProviderOptions = computed(() => [
+  { value: '', label: '自动选择' },
+  ...visionProviders.value.map((p) => ({ value: p, label: visionProviderLabels[p] || p })),
+])
+const visionModelOptions = computed(() =>
+  visionSubAgentModels.value.map((m) => ({ value: m.id, label: m.name })),
+)
+
+function onVisionProviderChange(v: string): void {
+  const provider = v
   settingsStore.visionSubAgentProvider = provider
   if (provider) {
     const visionModels = getModelsByProvider(provider).filter(m => {
@@ -131,9 +123,8 @@ function onVisionProviderChange(e: Event): void {
   }
 }
 
-function onVisionModelChange(e: Event): void {
-  const modelId = (e.target as HTMLSelectElement).value
-  settingsStore.visionSubAgentModel = modelId
+function onVisionModelChange(v: string): void {
+  settingsStore.visionSubAgentModel = v
 }
 
 // ── 图像生成配置 ──
@@ -198,8 +189,7 @@ const imageGenModelOptions = computed(() => {
   return []
 })
 
-function onImageGenProviderChange(e: Event): void {
-  const value = (e.target as HTMLSelectElement).value
+function onImageGenProviderChange(value: string): void {
   if (value.startsWith('custom:')) {
     imageGenProvider.value = 'custom'
     const cpId = value.slice(7)
@@ -224,8 +214,7 @@ function onImageGenProviderChange(e: Event): void {
   }
 }
 
-function onImageGenCustomProviderChange(e: Event): void {
-  const cpId = (e.target as HTMLSelectElement).value
+function onImageGenCustomProviderChange(cpId: string): void {
   imageGenCustomProviderId.value = cpId
   const cp = settingsStore.customProviders.find(p => p.id === cpId)
   if (cp) {
@@ -234,8 +223,8 @@ function onImageGenCustomProviderChange(e: Event): void {
   }
 }
 
-function onImageGenModelChange(e: Event): void {
-  imageGenModel.value = (e.target as HTMLSelectElement).value
+function onImageGenModelChange(v: string): void {
+  imageGenModel.value = v
 }
 
 // ── 视频生成配置 ──
@@ -253,6 +242,20 @@ const videoGenProviders = [
   { value: 'bytedance', label: '字节 (Seedance)' },
   { value: 'kling', label: '快手 (可灵)' },
 ]
+
+// ── 图像/视频生成的 TuiSelect 选项集与回显映射 ──
+/** 图像生成供应商下拉值（custom 时映射为 `custom:${id}` 以定位选项） */
+const imageGenProviderSelectValue = computed(() =>
+  imageGenProvider.value === 'custom' ? `custom:${imageGenCustomProviderId.value}` : imageGenProvider.value,
+)
+const imageGenProviderOptions = computed(() => [
+  { value: '', label: '未配置' },
+  ...imageGenProviders.value,
+])
+const imageGenCustomProviderOptions = computed(() =>
+  settingsStore.customProviders.map((cp) => ({ value: cp.id, label: cp.name || cp.baseUrl })),
+)
+const videoGenProviderOptions = [{ value: '', label: '未配置' }, ...videoGenProviders]
 
 const videoGenModelOptions = computed(() => {
   const provider = videoGenProvider.value
@@ -297,8 +300,7 @@ const videoGenModelOptions = computed(() => {
   return []
 })
 
-function onVideoGenProviderChange(e: Event): void {
-  const provider = (e.target as HTMLSelectElement).value
+function onVideoGenProviderChange(provider: string): void {
   videoGenProvider.value = provider
   const defaults: Record<string, string> = {
     agnes: 'agnes-video-v2.0',
@@ -311,7 +313,7 @@ function onVideoGenProviderChange(e: Event): void {
   videoGenModel.value = defaults[provider] || ''
 }
 
-function onVideoGenModelChange(e: Event): void {
-  videoGenModel.value = (e.target as HTMLSelectElement).value
+function onVideoGenModelChange(v: string): void {
+  videoGenModel.value = v
 }
 </script>

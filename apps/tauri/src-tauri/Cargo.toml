@@ -18,6 +18,7 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-opener = "2"
 tauri-plugin-window-state = "2"
+tauri-plugin-dialog = "2"
 # ── 系统层集成（窗口栏/托盘/单实例/通知/快捷键/自启）──
 tauri-plugin-single-instance = "2"
 tauri-plugin-notification = "2"
@@ -62,7 +63,15 @@ base64 = "0.22"
 # 内部错误包装（命令层转为 String 返回）
 anyhow = "1"
 # B3 搜索工具：spawn_blocking 隔离阻塞网络调用（ureq 同步 API）
-tokio = { version = "1", features = ["rt"] }
+tokio = { version = "1", features = ["rt", "sync"] }
+
+# ── [HTTP-BRIDGE] 临时：浏览器直连真实后端的 HTTP 服务（axum RPC + SSE）；移除时删除本段 ──
+axum = "0.7"
+tower = { version = "0.5", features = ["util"] }
+tower-http = { version = "0.5", features = ["cors"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
+# [HTTP-BRIDGE] 图布局/图分析算法（cmd_algo_*）：mindmap Rust 布局/分析真实后端（默认 features，无 wasm 依赖）
+worldsmith-core = { path = "../../../worldsmith-core" }
 
 [dev-dependencies]
 # 实体只读工具单测：#[tokio::test] 需要 tokio 宏与运行时（sqlx 也依赖 tokio 做异步）

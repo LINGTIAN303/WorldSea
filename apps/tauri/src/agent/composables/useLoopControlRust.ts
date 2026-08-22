@@ -6,8 +6,7 @@
 /** useLoopControlRust：Loop Engineering 前端适配层（命令管理 + 事件监听 + 响应式状态），详细见 docs/details/注释/tauri/useLoopControlRust.md */
 
 import { reactive, readonly, computed, shallowReactive } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
-import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+import { invoke, listen, type UnlistenFn } from './transport'
 
 /** 生命周期调试日志开关：仅开发环境输出（生产构建剔除，P3-9） */
 const DEV_LOG = import.meta.env.DEV

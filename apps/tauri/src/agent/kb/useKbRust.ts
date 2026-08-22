@@ -9,7 +9,7 @@
  * 读写复用现有命令层 cmd_fs_read / cmd_fs_write / cmd_get_app_data_dir，
  * 无新增 Rust 命令。数据在内存缓存 + 每次变更整体落盘（条目量级小，文件读写成本可接受）。
  */
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from '../composables/transport'
 import { getStorageBackend } from '@worldsmith/entity-core'
 import type { KBEntry, KBScope } from '@agent/kb/kb-store'
 

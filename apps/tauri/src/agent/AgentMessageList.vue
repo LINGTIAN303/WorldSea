@@ -19,55 +19,33 @@
         @action="onA2UIAction"
       />
 
-      <!-- 深度模式：渲染虚拟段落（过程段折叠 + 选择型工具 + 最终结论区） -->
-      <DeepProcessPanel
-        v-if="isDeepMode && deepSegments.length > 0"
-        :deep-segments="deepSegments"
-        :final-output="finalOutput"
-        :final-output-blocks="finalOutputBlocks"
-        :choice-tool-calls="choiceToolCalls"
-        :agent-is-streaming="agentIsStreaming"
-        :is-deep-mode="isDeepMode"
-        :messages="messages"
+      <!-- 顶部占位:窗口以上所有事件行的估算高度总和 -->
+      <div
+        v-if="windowedDisplayItems.topPlaceholderHeight > 0"
+        class="window-placeholder"
+        :style="{ height: windowedDisplayItems.topPlaceholderHeight + 'px' }"
+        aria-hidden="true"
+      ></div>
+
+      <!-- 事件行流：窗口内切片全量交给 AgentStreamList 渲染（去模式分叉，单一扁平形态）。
+           窗口化由本层支配，AgentStreamList 只做纯行渲染 + 事件透传。 -->
+      <AgentStreamList
+        :items="windowedDisplayItems.items"
         @block-action="emit('block-action', $event)"
-        @tool-confirm="onToolConfirm"
         @manuscript-local-action="emit('manuscript-local-action', $event)"
+        @copy="emit('copy', $event)"
+        @retry="emit('retry', $event)"
+        @tool-confirm="onToolConfirm"
+        @scroll-to-message="scrollToMessage"
       />
 
-      <!-- 非深度模式 或 深度模式无段落时：渲染消息气泡 -->
-      <template v-if="!isDeepMode || deepSegments.length === 0">
-        <!-- 性能优化:渲染窗口化,远离视口的消息用占位 div 替代,避免长对话 DOM 节点爆炸 -->
-        <!-- 顶部占位:窗口以上所有 item 的估算高度总和 -->
-        <div
-          v-if="windowedDisplayItems.topPlaceholderHeight > 0"
-          class="window-placeholder"
-          :style="{ height: windowedDisplayItems.topPlaceholderHeight + 'px' }"
-          aria-hidden="true"
-        ></div>
-        <AgentMessageBubble
-          v-for="item in windowedDisplayItems.items"
-          :key="item.type === 'divider' ? 'div-' + item._windowIndex : item.msg!.id"
-          :is-divider="item.type === 'divider'"
-          :divider-text="item.dividerText"
-          :msg="item.msg"
-          :is-hovered="item.type === 'message' && hoveredMsgId === item.msg!.id"
-          :chat-mode="chatMode"
-          :use-deep-layout="useDeepLayout"
-          @hover="item.type === 'message' && (hoveredMsgId = $event)"
-          @leave="hoveredMsgId = ''"
-          @copy="item.type === 'message' && emit('copy', $event)"
-          @retry="item.type === 'message' && emit('retry', $event)"
-          @block-action="emit('block-action', $event)"
-          @manuscript-local-action="emit('manuscript-local-action', $event)"
-        />
-        <!-- 底部占位:窗口以下所有 item 的估算高度总和 -->
-        <div
-          v-if="windowedDisplayItems.bottomPlaceholderHeight > 0"
-          class="window-placeholder"
-          :style="{ height: windowedDisplayItems.bottomPlaceholderHeight + 'px' }"
-          aria-hidden="true"
-        ></div>
-      </template>
+      <!-- 底部占位:窗口以下所有事件行的估算高度总和 -->
+      <div
+        v-if="windowedDisplayItems.bottomPlaceholderHeight > 0"
+        class="window-placeholder"
+        :style="{ height: windowedDisplayItems.bottomPlaceholderHeight + 'px' }"
+        aria-hidden="true"
+      ></div>
 
       <!-- 流式输出占位符 + 思考中提示 -->
       <StreamingPlaceholder
@@ -77,20 +55,24 @@
         :enter-animation="enterAnimation"
         :dot-text="dotText"
       />
+
+      <!-- Phase 5：会话标题生成中等候动画（首条消息后、LLM 标题落地前显示，复用思考中省略号） -->
+      <Transition name="title-pending">
+        <div v-if="sessionTitlePending?.[currentSessionId] && !isStreaming" class="title-pending">
+          <span class="title-pending-label">正在生成会话标题</span><span class="title-pending-dots">{{ titleDotText }}</span>
+        </div>
+      </Transition>
+
+      <!-- [④] Turn 状态：整 running turn 常驻 + 耗时（≥15s 显示） -->
+      <TurnStatus :running="isStreaming" :start-time="turnStartTime" />
+
+      <!-- [⑥] 会话错误行：由 activity log error 项派生 -->
+      <ErrorRows :error="turnError" />
     </div>
 
-    <!-- 深度模式：右下角用户消息列表 -->
-    <DeepUserBar
-      :visible="isDeepMode && deepUserMessages.length > 0"
-      :messages="messages"
-      :deep-user-messages="deepUserMessages"
-      :visible-msg-ids="visibleMsgIds"
-      @scroll-to-message="scrollToMessage"
-    />
-
-    <!-- 非深度模式：用户消息点状导航 -->
+    <!-- 用户消息点状导航（保留为可选，不再按模式隐藏） -->
     <DotNav
-      v-if="userMessages.length && !isDeepMode"
+      v-if="userMessages.length"
       :user-messages="userMessages"
       :visible-msg-ids="visibleMsgIds"
       @scroll-to-message="scrollToMessage"
@@ -107,31 +89,21 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import AgentMessageBubble from './AgentMessageBubble.vue'
+import AgentStreamList from '@worldsmith/shared-ui/agent/stream/AgentStreamList.vue'
 import A2UIRenderer from '@worldsmith/shared-ui/agent/a2ui/A2UIRenderer.vue'
 import { usePersonaFont } from '../space/composables/usePersonaFont'
 import { useAgent } from './composables/useAgent'
-import type { ToolCallView } from './composables/useAgent'
+import { useActivityLog } from './composables/useActivityLog'
 import { useArchiveStore } from '../stores/archiveStore'
 import { watchDebounced } from '@worldsmith/perf-kit/render'
-import type { AgentMessage, MessageBlock } from '@agent/index'
-import {
-  formatDividerTime,
-  useDotAnimation,
-  useMessageWindowing,
-  MessageListEmpty,
-  ArchivedSection,
-  StreamingPlaceholder,
-  ScrollToBottomButton,
-  DotNav,
-  DeepUserBar,
-  DeepProcessPanel,
-  type DisplayItem,
-} from '@worldsmith/shared-ui/agent/message-list'
+import type { AgentMessage } from '@agent/index'
+import type { AgentStreamItem } from '@worldsmith/shared-composables/agent/useAgent'
+import { useDotAnimation, useMessageWindowing, MessageListEmpty, ArchivedSection, StreamingPlaceholder, ScrollToBottomButton, DotNav, TurnStatus, ErrorRows } from '@worldsmith/shared-ui/agent/message-list'
 
 const { enterAnimation } = usePersonaFont()
-const { deepSegments, finalOutput, isStreaming: agentIsStreaming, resolveToolConfirmation } = useAgent()
+const { agentStream, isStreaming: agentIsStreaming, resolveToolConfirmation, sessionTitlePending, currentSessionId } = useAgent()
 const archiveStore = useArchiveStore()
+const { logs: activityLogs } = useActivityLog()
 
 const props = withDefaults(defineProps<{
   messages: Array<AgentMessage>
@@ -140,7 +112,9 @@ const props = withDefaults(defineProps<{
   lastAssistantHasThinking: boolean
   a2uiSurfaces: Record<string, any>
   resolveDataBinding: (binding: any, dataModel: Record<string, unknown>) => any
+  /** @deprecated legacy：不再驱动渲染形态（列表层已全面用 agentStream 事件行流） */
   chatMode?: 'deep' | 'explore' | 'task' | 'group-chat'
+  /** @deprecated legacy：不再驱动渲染形态 */
   useDeepLayout?: boolean
 }>(), {
   useDeepLayout: true,
@@ -155,12 +129,21 @@ const emit = defineEmits<{
   retry: [msg: any]
 }>()
 
-/** 当前 hover 的消息 ID（用于消息气泡 hover 状态高亮） */
-const hoveredMsgId = ref('')
-const messagesContainer = ref<HTMLDivElement>()
+// [④] Turn 状态计时锚定：isStreaming 由假转真的上升沿记录 turn 开始时间
+const turnStartTime = ref<number | null>(null)
+watch(() => props.isStreaming, (streaming, was) => {
+  if (streaming && !was) turnStartTime.value = Date.now()
+  else if (!streaming) turnStartTime.value = null
+})
 
-/** 深度模式开关：仅当 chatMode='deep' 且 useDeepLayout=true 时启用 */
-const isDeepMode = computed(() => props.chatMode === 'deep' && props.useDeepLayout)
+// [⑥] 会话错误行：取 activity log 最近的 error 项派生
+const turnError = computed<{ message: string; code?: string } | null>(() => {
+  const last = [...activityLogs.value].reverse().find(l => l.type === 'error')
+  if (!last) return null
+  return { message: last.message, code: last.detail ? String(last.detail) : undefined }
+})
+
+const messagesContainer = ref<HTMLDivElement>()
 
 /** 从 archiveStore 读取归档边界索引（响应式） */
 const archivedBoundaryIndex = computed(() => archiveStore.archivedBoundaryIndex)
@@ -178,71 +161,19 @@ const archiveSummaryText = computed(() => {
   return summaryMsg?.content || ''
 })
 
-/** 深度模式下过滤掉用户消息，只保留助手消息（用户消息由 DeepUserBar 单独展示） */
-const filteredMessages = computed(() => {
-  if (!isDeepMode.value) return props.messages
-  return props.messages.filter(m => m.role === 'assistant')
-})
-
-/** 深度模式下所有用户消息 */
-const deepUserMessages = computed(() => {
-  if (!isDeepMode.value) return []
-  return props.messages.filter(m => m.role === 'user')
-})
-
-/** 非深度模式下所有用户消息（供点状导航使用） */
+/** 所有用户消息（供点状导航使用，锚定 id 与事件流中 user 行 id 一致） */
 const userMessages = computed(() => props.messages.filter(m => m.role === 'user'))
-
-/**
- * 完整 displayItems（不含窗口化切片），作为窗口化的数据源。
- * 在消息之间插入时间分隔线（>30 分钟）和深度模式回合分隔线（>10 秒）。
- */
-const fullDisplayItems = computed<DisplayItem[]>(() => {
-  const items: DisplayItem[] = []
-  const source = filteredMessages.value
-  const THIRTY_MIN = 30 * 60 * 1000
-  for (let i = 0; i < source.length; i++) {
-    const msg = source[i]
-    if (i === 0 || msg.timestamp - source[i - 1].timestamp > THIRTY_MIN) {
-      items.push({ type: 'divider', dividerText: formatDividerTime(msg.timestamp) })
-    }
-    if (isDeepMode.value && msg.role === 'assistant' && i > 0 && source[i - 1].role === 'assistant') {
-      const gap = msg.timestamp - source[i - 1].timestamp
-      if (gap > 10_000) {
-        items.push({ type: 'divider', dividerText: 'turn-separator' })
-      }
-    }
-    items.push({ type: 'message', msg })
-  }
-  return items
-})
-
-/** finalOutput 中的 Block 数据（从最后一条助手消息的 blocks 中提取） */
-const finalOutputBlocks = computed<MessageBlock[]>(() => {
-  if (!finalOutput.value) return []
-  const lastAssistant = [...props.messages].reverse().find(m => m.role === 'assistant')
-  if (!lastAssistant?.blocks?.length) return []
-  return lastAssistant.blocks
-})
-
-/** 深度模式：从所有阶段中提取选择型工具（独立于折叠容器渲染） */
-const choiceToolCalls = computed(() => {
-  if (!isDeepMode.value) return []
-  const result: ToolCallView[] = []
-  for (const seg of deepSegments.value) {
-    if (seg.type === 'phase' && seg.tools) {
-      for (const tc of seg.tools) {
-        if (tc.interactiveType === 'choice') result.push(tc as ToolCallView)
-      }
-    }
-  }
-  return result
-})
 
 /** 思考中省略号动画（isStreaming 变化时自动启停） */
 const { dotText } = useDotAnimation(agentIsStreaming)
 
-/** 渲染窗口化 + 滚动锚定 + 可见性观察 */
+/** Phase 5：会话标题生成中等候动画开关（当前会话首条消息后标题落地前，且不在流式输出时）。
+ *  按 currentSessionId 取隔离标记，避免切会话后串扰到其他会话。 */
+const titleDotOn = computed(() => Boolean(sessionTitlePending?.value?.[currentSessionId.value]) && !props.isStreaming)
+/** 标题生成中等候省略号动画（与思考中动画同源 useDotAnimation 复用「思考中」占位形态） */
+const { dotText: titleDotText } = useDotAnimation(titleDotOn)
+
+/** 渲染窗口化 + 滚动锚定 + 可见性观察：数据源为事件行流 agentStream（去 isDeepMode 分叉） */
 const {
   windowedDisplayItems,
   showScrollToBottomBtn,
@@ -252,11 +183,10 @@ const {
   scrollToBottom,
   scrollToMessage,
   scheduleScrollToBottom,
-} = useMessageWindowing({
+} = useMessageWindowing<AgentStreamItem>({
   container: messagesContainer,
-  fullDisplayItems,
+  items: computed(() => agentStream.value),
   messages: computed(() => props.messages),
-  isDeepMode,
 })
 
 /** 是否存在 A2UI 界面 */
@@ -267,17 +197,32 @@ function onA2UIAction(surfaceId: string, action: { name: string; data?: any }): 
   emit('a2ui-action', surfaceId, action)
 }
 
-/** 深度模式内联确认回调（选择型工具/确认型工具） */
+/** 工具确认回调（选择型/确认型工具，事件行流 ToolRow 透传） */
 function onToolConfirm(event: { toolId: string; approved: boolean }): void {
   resolveToolConfirmation(event.toolId, event.approved)
 }
 
 // ===== 自动滚动到底部的触发时机 =====
-// 消息列表、A2UI 界面、深度段、最终结论变化时，若用户在底部跟随状态则自动滚动
-watchDebounced(() => props.messages.length, () => scheduleScrollToBottom(), { debounce: 50 })
+// 事件行数组、A2UI 界面、末条助手正文内容长度变化时，若用户在底部跟随状态则自动滚动
+watchDebounced(() => agentStream.value.length, () => scheduleScrollToBottom(), { debounce: 50 })
+// 流式输出：末条助手正文行 content 原地增长（delta 不可变替换），跟随其长度变化持续自动跟随
+watchDebounced(
+  () => {
+    const stream = agentStream.value
+    let lastLen = 0
+    for (let i = stream.length - 1; i >= 0; i--) {
+      const row = stream[i]
+      if (row.type === 'assistant') {
+        lastLen = (row.msg.content?.length ?? 0) + ((row.msg as { thinking?: string }).thinking?.length ?? 0)
+        break
+      }
+    }
+    return lastLen
+  },
+  () => scheduleScrollToBottom(),
+  { debounce: 30 },
+)
 watchDebounced(() => Object.keys(props.a2uiSurfaces).length, () => scheduleScrollToBottom(), { debounce: 50 })
-watchDebounced(() => deepSegments.value.length, () => scheduleScrollToBottom(), { debounce: 50 })
-watch(() => finalOutput.value, () => scheduleScrollToBottom())
 
 // 保持公共契约：父组件 AgentChat 通过 ref 调用 scrollToBottom 和访问 messagesContainer
 defineExpose({
@@ -306,6 +251,10 @@ defineExpose({
   gap: 8px;
   scrollbar-width: none;
   min-height: 0;
+  /* [2] 消息流区域宽度跟随输入栏（--conv-w）：内容居中，与输入栏同宽 */
+  width: 100%;
+  max-width: var(--conv-w);
+  align-self: center;
 }
 
 .messages-scroll > * {
@@ -321,5 +270,29 @@ defineExpose({
   width: 100%;
   flex-shrink: 0;
   pointer-events: none;
+}
+
+/* Phase 5：会话标题生成中等候动画 */
+.title-pending {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: var(--font-size-2xs);
+  color: var(--color-text-tertiary);
+  padding: 2px 4px;
+}
+.title-pending-dots {
+  color: var(--color-text-tertiary);
+  letter-spacing: 1px;
+}
+.title-pending-enter-active {
+  transition: opacity 0.2s ease;
+}
+.title-pending-leave-active {
+  transition: opacity 0.15s ease;
+}
+.title-pending-enter-from,
+.title-pending-leave-to {
+  opacity: 0;
 }
 </style>

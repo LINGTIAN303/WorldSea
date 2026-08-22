@@ -22,7 +22,7 @@
                 <span class="preview-dpr">{{ devicePixelRatio }}x</span>
                 <span v-if="isFixedMode" class="preview-tag">固定尺寸</span>
                 <span v-else class="preview-tag">自适应</span>
-                <button v-if="gifMode" class="preview-play-btn" @click="playGifPreview">▶ 预览动画</button>
+                <button v-if="gifMode" class="preview-play-btn" @click="playGifPreview"><WsIcon name="play" size="xs" /> 预览动画</button>
               </div>
             </div>
 

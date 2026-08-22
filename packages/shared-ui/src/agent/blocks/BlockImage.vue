@@ -13,7 +13,7 @@
     <div class="block-toggle" role="button" tabindex="0" :aria-expanded="expanded" @click="expanded = !expanded" @keydown.enter.prevent="expanded = !expanded" @keydown.space.prevent="expanded = !expanded">
       <span class="block-icon"><WsIcon name="image" size="xs" /></span>
       <span class="block-title">{{ block.caption || block.alt || '图片' }}</span>
-      <span class="block-arrow">{{ expanded ? '▾ 点击收起' : '▸ 点击展开' }}</span>
+      <span class="block-arrow"><WsIcon :name="expanded ? 'chevron-down' : 'chevron-right'" size="xs" /><span>{{ expanded ? '点击收起' : '点击展开' }}</span></span>
     </div>
     <Transition name="block-expand">
       <div v-if="expanded" ref="contentRef" class="block-content">

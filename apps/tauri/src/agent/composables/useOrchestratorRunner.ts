@@ -4,7 +4,7 @@
  *  实时事件（思维树/委派进度）未单独映射前端通道，使用最终 `OrchestratorResult` 展示终态。 */
 
 import { ref, readonly, type Ref } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from './transport'
 import { useAgentRust } from './useAgentRust'
 
 // 模块级单例：复用 useAgentRust 的当前会话 ref（同一引用）

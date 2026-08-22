@@ -22,7 +22,8 @@
     "@worldsmith/shared-composables": "link:../shared-composables",
     "@worldsmith/ui-kit": "link:../ui-kit",
     "dompurify": "^3.4.3",
-    "marked": "^18.0.3"
+    "marked": "^18.0.3",
+    "prismjs": "^1.29.0"
   },
   "peerDependencies": {
     "pinia": "^3.0.0",
@@ -30,6 +31,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "@types/prismjs": "^1.26.5",
     "typescript": "~6.0.2",
     "vue-tsc": "^3.2.7"
   }

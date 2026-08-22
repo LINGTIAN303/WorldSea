@@ -55,7 +55,7 @@
           </div>
         </div>
       </div>
-      <div class="msg-text" :class="{ 'has-uncertainty': hasUncertainty }">
+      <div class="msg-text" :class="{ 'has-uncertainty': hasUncertainty }" @click="onContentClick">
         <div v-if="msg.role === 'assistant'" class="msg-text-content" :class="{ 'text-collapsed': !textExpanded && isLong }">
           <div v-html="renderedContent"></div>
         </div>
@@ -81,6 +81,7 @@ import { useMessageRender } from '../composables/useMessageRender'
 import { useMessageTime } from '../composables/useMessageTime'
 import { getToolLabel, getToolIcon, getToolImportance } from '../types'
 import { WsIcon } from '@worldsmith/ui-kit'
+import { handleCodeCopyClick } from '@worldsmith/shared-ui/agent/bubbles'
 import AvatarBadge from '@/ui/AvatarBadge.vue'
 
 const props = defineProps<{ msg: AgentMessage }>()
@@ -89,6 +90,11 @@ const { renderContent, isTextLong, textExpanded } = useMessageRender()
 const { formatTime } = useMessageTime()
 
 const expandedToolId = ref<string | null>(null)
+
+/** 代码块复制（事件委托：v-html 内 .ws-code-copy 按钮由容器 click 统一处理） */
+function onContentClick(e: MouseEvent) {
+  handleCodeCopyClick(e)
+}
 
 const hasUncertainty = computed(() =>
   props.msg.role === 'assistant' ? hasUncertaintyMarkers(props.msg.content ?? '') : false

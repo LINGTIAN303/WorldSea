@@ -83,6 +83,13 @@ pub struct AgentLoopConfig {
     /// 启用后，AgentLoop 在 `execute_tool_calls` 中对命中策略的工具调用发起
     /// 确认（经 `ConfirmationBroker` 广播事件 + 等待前端回传），危险操作需用户确认。
     pub confirmation_policy: Option<ConfirmationPolicy>,
+
+    /// 会话绑定的工作区根目录（`None`=不限定工作区）
+    ///
+    /// 供 `AgentLoop` 构造 [`crate::tool_context::ToolContext`] 并注入到工具执行
+    /// （`call_tool_with_ctx`），使 FS 类工具能基于该目录解析相对路径。
+    /// 对齐前端 `ProjectManager.dirPath` / `IToolContext.projectInfo.dirPath` 概念。
+    pub workdir: Option<std::path::PathBuf>,
 }
 
 impl Default for AgentLoopConfig {
@@ -110,6 +117,8 @@ impl Default for AgentLoopConfig {
             entity_provider: None,
             // A5 HITL：默认不启用确认（无 broker 时策略不生效）
             confirmation_policy: None,
+            // 工作区：默认不限定（None=相对路径原样返回）
+            workdir: None,
         }
     }
 }

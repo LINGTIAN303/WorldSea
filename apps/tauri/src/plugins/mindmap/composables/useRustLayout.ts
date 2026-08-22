@@ -10,7 +10,7 @@
  * 通过 Tauri invoke 调用 worldsmith-core 的布局算法。
  * Web 环境下回退到 d3-force 纯 JS 实现。
  */
-import { invoke } from '@tauri-apps/api/core'
+import { invoke, isHttpBackend } from '../../../agent/composables/transport'
 import type { GraphNode, GraphEdge } from '@worldsmith/canvas-engine'
 
 export interface LayoutNodeResult {
@@ -66,7 +66,8 @@ let _tauriAvailable: boolean | null = null
 function isTauriAvailable(): boolean {
   if (_tauriAvailable !== null) return _tauriAvailable
   try {
-    _tauriAvailable = !!window.__TAURI_INTERNALS__ || !!window.__TAURI__
+    // 桌面 Tauri 或 HTTP 桥（浏览器 preview）都走真实 Rust 命令
+    _tauriAvailable = !!window.__TAURI_INTERNALS__ || !!window.__TAURI__ || isHttpBackend()
   } catch {
     _tauriAvailable = false
   }

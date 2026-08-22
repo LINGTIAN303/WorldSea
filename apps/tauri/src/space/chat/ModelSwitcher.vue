@@ -17,7 +17,7 @@
       <img v-if="providerIconUrl" :src="providerIconUrl" class="model-pill-icon" alt="" />
       <span v-else class="model-pill-provider">{{ providerLabel }}</span>
       <span class="model-pill-name">{{ shortName }}</span>
-      <span class="model-pill-arrow" :class="{ open }">▾</span>
+      <WsIcon name="chevron-down" size="xs" class="model-pill-arrow" :class="{ open }" />
     </button>
     <Teleport to="body">
       <Transition name="dropdown">
@@ -34,6 +34,16 @@
           @keydown="onListboxKeydown"
         >
           <div class="dropdown-header">切换模型</div>
+          <!-- [E3] AutoModel 占位选项 -->
+          <button
+            class="model-option"
+            :class="{ active: currentModelId === 'auto' }"
+            @click="selectAutoModel"
+          >
+            <span class="model-option-status" aria-hidden="true"><WsIcon v-if="currentModelId === 'auto'" name="check" size="xs" /></span>
+            <span class="model-option-name">AutoModel</span>
+            <span class="model-option-tag">自动</span>
+          </button>
           <div v-for="group in dropdownGroups" :key="group.group" class="model-group">
             <div class="model-group-label" role="presentation">{{ group.group }}</div>
             <button
@@ -48,10 +58,24 @@
               @click="selectModel(m.provider, m.id)"
               @focus="activeOptionId = m.id"
             >
-              <span class="model-option-status" aria-hidden="true">{{ m.id === currentModelId ? '✓' : '' }}</span>
+              <span class="model-option-status" aria-hidden="true"><WsIcon v-if="m.id === currentModelId" name="check" size="xs" /></span>
               <span class="model-option-name">{{ m.name }}</span>
+              <!-- [E3] 思考档位占位：弹出浮窗（暂不实现） -->
+              <button class="think-btn" type="button" title="思考档位（占位）" @click.stop="openThinking(m.name, $event)"><WsIcon name="brain" size="xs" /></button>
             </button>
           </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- [E3] 思考档位浮窗占位 -->
+    <Teleport to="body">
+      <div v-if="thinkingFor" class="think-overlay" @click.self="thinkingFor = null"></div>
+      <Transition name="dropdown">
+        <div v-if="thinkingFor" class="think-pop" :style="thinkStyle" @click.stop>
+          <div class="think-header">{{ thinkingFor.name }} · 思考档位</div>
+          <div class="think-body">思考档位设置（占位，暂未实现）</div>
+          <button class="think-close" @click="thinkingFor = null">关闭</button>
         </div>
       </Transition>
     </Teleport>
@@ -60,9 +84,11 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { WsIcon } from '@worldsmith/ui-kit'
 import { getModelInfo, getModelPresets } from '@worldsmith/agent-runtime'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useAgent } from '@/agent/composables/useAgent'
+import { useSessionViewState } from '@/agent/composables/useSessionViewState'
 import { loadApiKey, hasApiKey } from '@agent/index'
 import { getProviderIconUrl } from '@/assets/providerIcons'
 
@@ -78,11 +104,15 @@ const emit = defineEmits<{
 
 const settingsStore = useSettingsStore()
 const { updateModel } = useAgent()
+const sessionView = useSessionViewState()
 
 const open = ref(false)
 const switcherRef = ref<HTMLElement>()
 const activeOptionId = ref('')
 const optionEls = new Map<string, HTMLElement>()
+
+/** [E3] 会话级模型优先；缺省回退全局 settingsStore（新会话用全局默认） */
+const sessionModel = computed(() => sessionView.activeState.value?.model ?? null)
 
 const providerLabel = computed(() => {
   const labels: Record<string, string> = {
@@ -99,6 +129,8 @@ const providerIconUrl = computed(() => {
 })
 
 const currentModelId = computed(() => {
+  const sm = sessionModel.value
+  if (sm?.modelId) return sm.modelId
   if (settingsStore.aiProviderMode === 'cloud') return settingsStore.aiCloudModel
   if (settingsStore.aiProviderMode === 'local') return settingsStore.aiLocalModel
   return settingsStore.aiCustomModel
@@ -242,7 +274,29 @@ async function selectModel(provider: string, modelId: string) {
   try {
     localStorage.setItem('agent_current_model', JSON.stringify({ provider, modelId, contextLength: contextWindow }))
   } catch {}
+  // [E3] 会话级记忆：当前会话记住该模型（切换会话恢复）
+  sessionView.setModel({ provider, modelId })
   emit('change', provider, modelId)
+}
+
+/** [E3] AutoModel 占位：暂不真正切换（显示选项 + 标记，TODO 实现自动选模型） */
+function selectAutoModel() {
+  open.value = false
+  if (currentModelId.value === 'auto') return
+  console.warn('[ModelSwitcher] AutoModel 暂未实现（占位）')
+  emit('change', '', 'auto')
+}
+
+/** [E3] 思考档位浮窗占位：模型条目右侧弹出，展示思考档位（暂不实现，静态骨架） */
+const thinkingFor = ref<{ name: string } | null>(null)
+const thinkStyle = ref<Record<string, string>>({ top: '0px', right: '8px' })
+function openThinking(name: string, ev: MouseEvent) {
+  const rect = (ev.currentTarget as HTMLElement).getBoundingClientRect()
+  thinkStyle.value = {
+    top: `${rect.top}px`,
+    right: `${Math.max(8, window.innerWidth - rect.right + 8)}px`,
+  }
+  thinkingFor.value = { name }
 }
 
 function onDocClick(e: MouseEvent) {
@@ -401,6 +455,74 @@ onBeforeUnmount(() => {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* [E3] AutoModel 占位标签 + 思考档位按钮/浮窗 */
+.model-option-tag {
+  flex-shrink: 0;
+  font-size: var(--font-size-2xs);
+  color: var(--color-text-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  padding: 0 6px;
+}
+.think-btn {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-tertiary);
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.think-btn:hover {
+  color: var(--color-primary);
+  background: var(--color-surface);
+}
+.think-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+}
+.think-pop {
+  position: fixed;
+  min-width: 200px;
+  background: var(--color-surface-elevated);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  padding: 10px;
+  z-index: 10001;
+}
+.think-header {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 6px;
+}
+.think-body {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+  margin-bottom: 10px;
+}
+.think-close {
+  padding: 4px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+}
+.think-close:hover {
+  border-color: var(--color-primary);
+  color: var(--color-text);
 }
 
 .dropdown-enter-active {

@@ -1,20 +1,25 @@
-﻿/**
+/**
  * AgentMessageList 拆分后的共用类型与纯函数。
  *
  * 这里集中放置无状态、无副作用的工具，供主文件、子组件与 composable 复用，
  * 避免逻辑重复并保持各模块职责单一。
  */
 import type { AgentMessage } from '@worldsmith/agent-runtime'
+import type { DeepSegment } from '@worldsmith/shared-composables/agent/useAgent'
 
 /**
  * 渲染窗口化中的单个展示项。
  * - message: 普通消息气泡
+ * - segment: 深度模式链段卡片（推理 Think 条 / 阶段工具卡），由 AgentMessageList 展开平铺
  * - divider: 时间分隔线（dividerText === 'turn-separator' 时为深度模式回合分隔）
+ * - toolcall: 选择型工具卡（独立于阶段卡，始终可交互）
  * _windowIndex 仅用于窗口化切片时给 divider 提供稳定的 key。
  */
 export interface DisplayItem {
-  type: 'message' | 'divider'
+  type: 'message' | 'segment' | 'toolcall' | 'divider'
   msg?: AgentMessage
+  segment?: DeepSegment
+  toolCall?: import('@worldsmith/shared-composables/agent/useAgent').ToolCallView
   dividerText?: string
   _windowIndex?: number
 }
@@ -32,6 +37,22 @@ export function formatDividerTime(ts: number): string {
   if (isToday) return `今天 ${time}`
   if (isYesterday) return `昨天 ${time}`
   return `${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${time}`
+}
+
+/**
+ * 获取展示项的稳定 id（供窗口化高度测量 / 滚动定位 / key 使用）。
+ * - message → msg.id
+ * - segment → segment.id
+ * - toolcall → toolCall.id
+ * - divider → 'divider'
+ */
+export function getItemId(item: DisplayItem): string {
+  switch (item.type) {
+    case 'message': return item.msg?.id ?? ''
+    case 'segment': return item.segment?.id ?? ''
+    case 'toolcall': return item.toolCall?.id ?? ''
+    default: return 'divider'
+  }
 }
 
 /** 截断文本，超过 maxLen 加省略号 */

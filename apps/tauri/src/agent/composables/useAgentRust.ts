@@ -6,8 +6,8 @@ export type {
   InteractiveToolType,
   ToolCallView,
   PhaseOutput,
-  FinalOutput,
   DeepSegment,
+  AgentStreamItem,
 } from '@worldsmith/shared-composables/agent/useAgent'
 
 // re-export 注入工具（供需要 provide/inject 的组件使用）
@@ -19,8 +19,9 @@ export {
 
 import { ref, computed, readonly } from 'vue'
 import { invoke as tauriInvoke } from '@tauri-apps/api/core'
-import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+import { listen, type UnlistenFn, isHttpBackend, invokeRpc } from './transport'
 import { useConfirm } from '@worldsmith/ui-kit'
+import { useOrchEvents } from './useOrchEvents'
 import { ALL_TOOLS_MAP, loadApiKey, type IToolContext } from '@agent/index'
 import { useEntityStore, useRelationStore, useFileStore } from '@worldsmith/entity-core'
 import { useSettingsStore } from '@/stores/settingsStore'
@@ -37,9 +38,15 @@ import type {
   MCPConnectionConfig,
   MCPConnectionState,
 } from '@agent/index'
-import type { DeepSegment } from '@worldsmith/shared-composables/agent/useAgent'
+import type { DeepSegment, AgentStreamItem, ToolCallView } from '@worldsmith/shared-composables/agent/useAgent'
+import { formatDividerTime } from '@worldsmith/shared-ui/agent/message-list/utils'
 import { usePlanStore } from '@worldsmith/shared-composables/agent/usePlanStore'
 import { useActivityLog, type ActivityLogEntry } from './useActivityLog'
+import { useSessionViewState, LAST_SESSION_KEY } from './useSessionViewState'
+import { resolveWorkspaceDir, ensureWorkspaceDir } from '@/space/workspace'
+
+// ToT/GoT/Supervisor 实时事件监听：模块级单例解构（供会话生命周期注册/清理）
+const { setupOrchListener, teardownOrchListener, setupOrchSupervisorListener, teardownOrchSupervisorListener } = useOrchEvents()
 
 // ── 浏览器 preview 兼容：非 Tauri 环境（window.__TAURI_INTERNALS__ 缺失）下
 //    @tauri-apps/api/core 的 invoke 为 undefined。这里用 safeInvoke 兜底，
@@ -56,14 +63,19 @@ function mockInvoke(cmd: string): unknown {
       return { id: `mock-session-${Date.now()}` }
     case 'list_sessions':
       return []
+    case 'cmd_agent_generate_title':
+      // 浏览器 preview：生成标题命令返回占位「新会话」，不触发真实 LLM
+      return '新会话'
     default:
       // 无法桥接 Rust 的命令返回空对象，避免调用方因 undefined 崩溃
       return {}
   }
 }
 
-/** 安全 invoke：Tauri 环境走真实 IPC；浏览器 preview 走 mock */
-function safeInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+/** 安全 invoke：Tauri 环境走真实 IPC；浏览器 preview 走 mock；配置了 HTTP 后端时走 RPC（[HTTP-BRIDGE]） */
+async function safeInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+  // [HTTP-BRIDGE] 临时：浏览器直连真实后端
+  if (isHttpBackend()) return invokeRpc<T>(cmd, args)
   if (!isTauriRuntime()) {
     return Promise.resolve(mockInvoke(cmd) as unknown as T)
   }
@@ -122,6 +134,7 @@ type RustSubAgentPayload =
 type RustStreamPayload =
   | { type: 'start'; model: string }
   | { type: 'delta'; delta: string }
+  | { type: 'reasoning'; delta: string }
   | { type: 'end'; fullText: string }
   | { type: 'error'; message: string }
   | { type: 'agent_end' }
@@ -137,6 +150,16 @@ interface RustSessionInfo {
   pinned: boolean
   /** A3 四管线路由开关（持久化） */
   routerEnabled: boolean
+  /** 会话绑定的工作区根目录（Phase 4 接入本地文件系统；None=不限定） */
+  workdir?: string
+}
+
+/** Rust `agent_commands::WorkdirRecord` 镜像（目录实体，camelCase；Phase 3 会话树分组用） */
+export interface RustWorkdirRecord {
+  id: string
+  path: string
+  label: string
+  createdAt: number
 }
 
 /** Rust `agent_runtime::types::OrchestratorMessage` 镜像 */
@@ -243,14 +266,37 @@ function rustMsgToTsMsg(r: RustMessage, index: number): AgentMessage {
 
 // ─── 模块级单例状态（与 useLongTaskRust 一致）──────────────────────────────
 
+/** 全局单调计数器：保证 `${prefix}-{ts}-{seq}` 唯一，避免同毫秒内相邻消息 id 碰撞触发 Vue 重复 key 警告 */
+let msgIdSeq = 0
+
+/** 生成全局唯一消息 id（前缀 + 时间戳 + 单调序号，杜绝同毫秒碰撞） */
+function nextMsgId(prefix: string): string {
+  msgIdSeq += 1
+  return `${prefix}-${Date.now()}-${msgIdSeq}`
+}
+
+/** 生成助手消息 id（沿用事件流 id 语义，片段真实唯一） */
+function nextAssistantId(): string {
+  return nextMsgId('assistant')
+}
+
 /** 当前会话 ID（null=尚未创建会话） */
 const currentSessionId = ref<string | null>(null)
+/** 当前会话绑定的工作区根目录（Phase 4 接入本地文件系统；供 WorkspacePanel 展示） */
+const currentWorkdir = ref<string | null>(null)
 /** 当前会话消息列表 */
 const messages = ref<AgentMessage[]>([])
 /** 是否正在流式输出 */
 const isStreaming = ref(false)
 /** 会话列表（listSessions 结果） */
 const sessionList = ref<RustSessionInfo[]>([])
+/** 待激活会话 id（Phase 5：newSession 后延迟展示，首条消息发送成功后才移除并展示条目） */
+const pendingSessionIds = ref<string[]>([])
+/** 首条消息后、LLM 标题生成完成前置 true（消息区展示等候动画；标题事件落地后清除对应会话）。
+ *  按会话隔离（key=sessionId）：避免切会话后动画串扰到其他会话。 */
+const sessionTitlePending = ref<Record<string, boolean>>({})
+/** 目录实体列表（cmd_list_workdirs 结果；Phase 3 会话树分组标签来源） */
+const workdirs = ref<RustWorkdirRecord[]>([])
 /** 当前会话的四管线路由开关（A3，持久化；无会话/缺省视为开启） */
 const currentSessionRouterEnabled = computed<boolean>(() => {
   const sid = currentSessionId.value
@@ -291,11 +337,15 @@ const listeners = new Set<AgentEventListener>()
 /** 会话消息缓存（按 sessionId），切换会话时优先从缓存恢复，缺失再回源 get_messages */
 const sessionMessagesCache = new Map<string, AgentMessage[]>()
 
+/** Agent 输出事件流（唯一渲染源）：thinking/toolCalls 从消息字段拆为独立事件行 */
+const agentStream = ref<AgentStreamItem[]>([])
+/** 事件流会话缓存（按 sessionId），切换会话时恢复/回源重建 */
+const sessionStreamCache = new Map<string, AgentStreamItem[]>()
+/** 当前流式 think 事件行（关联当前 streamingAssistant），reasoning 增量累积于此 */
+const streamingThink = ref<AgentStreamItem | null>(null)
+
 /** 深度模式段（thinking | phase），由 Rust DeepPhaseChanged 事件驱动构建 */
 const deepSegments = ref<DeepSegment[]>([])
-
-/** 深度模式最终输出（占位：Rust 端经消息 content 返回，与 web 版一致暂未接通） */
-const finalOutput = ref<unknown>(null)
 
 /** 工具确认（占位：Rust 端工具调用自动执行，无需前端确认） */
 function resolveToolConfirmation(): void {}
@@ -372,9 +422,126 @@ function emit(event: AgentEvent): void {
   }
 }
 
+// ─── 事件流辅助函数 ────────────────────────────────────────
+
+/** 向当前会话事件流追加一行（同步 agentStream 与 sessionStreamCache） */
+function streamAppend(sessionId: string, item: AgentStreamItem): void {
+  agentStream.value = [...agentStream.value, item]
+  const cache = sessionStreamCache.get(sessionId)
+  if (cache) cache.push(item)
+}
+
+/** 原位替换指定 id 的事件行（不可变，触发响应式；未命中则忽略） */
+function streamReplace(sessionId: string, id: string, item: AgentStreamItem): void {
+  const idx = agentStream.value.findIndex((x) => x.id === id)
+  if (idx >= 0) {
+    const copy = [...agentStream.value]
+    copy[idx] = item
+    agentStream.value = copy
+  }
+  const cache = sessionStreamCache.get(sessionId)
+  if (cache) {
+    const ci = cache.findIndex((x) => x.id === id)
+    if (ci >= 0) cache[ci] = item
+  }
+}
+
+/** 在当前事件流中查找最后一条与工具名匹配的 tool 行（用于去重/原位更新） */
+function findLastToolRow(name: string): AgentStreamItem | undefined {
+  const rows = agentStream.value
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const r = rows[i]
+    if (r.type === 'tool' && r.tc.name === name) return r
+  }
+  return undefined
+}
+
+// ─── 时间分隔行（Phase 4 恢复：跨轮次 >30 分钟事件间补时间分隔线）──
+
+/** 相邻两条内容行时间间隔超过该阈值（毫秒）时，在中间插入时间分隔行（修复 Phase 3 回归） */
+const AGE_DIVIDER_THRESHOLD = 30 * 60 * 1000
+
+/** 取事件流尾部最后一条内容行（剔除 divider，供年龄分隔插入比对） */
+function lastContentStreamItem(): AgentStreamItem | undefined {
+  const rows = agentStream.value
+  for (let i = rows.length - 1; i >= 0; i--) {
+    if (rows[i].type !== 'divider') return rows[i]
+  }
+  return undefined
+}
+
+/**
+ * 向事件流追加一行；若与上一条内容行时间间隔 > AGE_DIVIDER_THRESHOLD，
+ * 先插入一条时间分隔行（默认开启，可用 opts.injectAgeDivider 关闭）。
+ * 仅内容行（user/assistant/think/tool）参与触发；同轮次内时间戳接近，天然不会误插。
+ */
+function pushStreamItem(sessionId: string, item: AgentStreamItem, opts?: { injectAgeDivider?: boolean }): void {
+  const injectAgeDivider = opts?.injectAgeDivider ?? true
+  if (injectAgeDivider) {
+    const last = lastContentStreamItem()
+    if (last && item.timestamp - last.timestamp > AGE_DIVIDER_THRESHOLD) {
+      streamAppend(sessionId, {
+        type: 'divider',
+        id: nextMsgId('div'),
+        dividerText: formatDividerTime(item.timestamp),
+        timestamp: item.timestamp,
+      })
+    }
+  }
+  streamAppend(sessionId, item)
+}
+
+/** 追加/原位更新助手正文事件行（id=msg.id），作为刷新后回源重建所需的稳定锚点 */
+function upsertAssistantStreamRow(sessionId: string, msg: AgentMessage): void {
+  const existing = agentStream.value.find((x) => x.type === 'assistant' && x.id === msg.id)
+  const row: AgentStreamItem = { type: 'assistant', msg, id: msg.id, timestamp: msg.timestamp }
+  if (existing) streamReplace(sessionId, msg.id, row)
+  else pushStreamItem(sessionId, row)
+}
+
+/** 回源重建：把历史 AgentMessage 重建为事件行（think/tool/assistant/user 行），相邻超时补时间分隔行 */
+function rebuildStreamFromMessages(msgs: AgentMessage[]): AgentStreamItem[] {
+  const rows: AgentStreamItem[] = []
+  // 相邻内容行时间间隔超阈值时先插入时间分隔行（对齐 streamAppend 链路的年龄分隔）
+  let lastContentTs = 0
+  const pushContent = (row: AgentStreamItem): void => {
+    if (row.type !== 'divider' && lastContentTs !== 0 && row.timestamp - lastContentTs > AGE_DIVIDER_THRESHOLD) {
+      rows.push({
+        type: 'divider',
+        id: nextMsgId('div'),
+        dividerText: formatDividerTime(row.timestamp),
+        timestamp: row.timestamp,
+      })
+    }
+    rows.push(row)
+    if (row.type !== 'divider') lastContentTs = row.timestamp
+  }
+  for (const m of msgs) {
+    const ts = m.timestamp ?? Date.now()
+    if (m.role === 'user') {
+      pushContent({ type: 'user', msg: m, id: m.id, timestamp: ts })
+      continue
+    }
+    const think = (m as { thinking?: string }).thinking
+    const tcs = m.toolCalls
+    if (think) {
+      pushContent({ type: 'think', id: nextMsgId('think'), text: think, status: 'complete', timestamp: ts })
+    }
+    if (tcs && tcs.length > 0) {
+      for (const tc of tcs) {
+        pushContent({ type: 'tool', id: nextMsgId('tool'), tc: tc as ToolCallView, timestamp: ts })
+      }
+    }
+    if (m.content) {
+      pushContent({ type: 'assistant', msg: m, id: nextMsgId('stream-assistant'), timestamp: ts })
+    }
+  }
+  return rows
+}
+
 // ─── 深度阶段事件监听（DeepPhaseChanged）────────────────────────────
 
-/** 设置 DeepPhaseChanged 事件监听（去重/追加阶段段/更新工具与阶段状态），详细见 docs/details/注释/tauri/useAgentRust.md */
+/** 设置 DeepPhaseChanged 事件监听（双写：驱动 tool 事件行 + 维护 deepSegments 供右侧阶段轨迹），详细见 docs/details/注释/tauri/useAgentRust.md */
 async function setupDeepPhaseListener(sessionId: string): Promise<void> {
   if (deepPhaseUnlistenFns.has(sessionId)) return
 
@@ -382,46 +549,68 @@ async function setupDeepPhaseListener(sessionId: string): Promise<void> {
   try {
     const unlisten = await listen<RustDeepPhaseChangedPayload>(eventName, (e) => {
       const payload = e.payload
-      // 去重：同一 phaseIndex 已存在则更新其工具/状态，不重复追加
-      const existing = deepSegments.value.find((s) => s.type === 'phase' && s.index === payload.phaseIndex)
-      if (existing && existing.type === 'phase') {
-        // 阶段完成事件（phase_completed=true）：trigger_tool 是"触发本次切换的新工具"
-        // （属于下一阶段），不应加入旧阶段段。仅更新已存在工具的状态并标记完成。
-        if (payload.phaseCompleted) {
-          const toolIdx = existing.tools.findIndex((t) => t.name === payload.triggerTool)
-          if (toolIdx >= 0) {
-            existing.tools[toolIdx].status = payload.toolStatus
-            if (payload.toolStatus !== 'running') existing.tools[toolIdx].endedAt = Date.now()
-          }
-          existing.status = 'done'
-          return
+      const now = Date.now()
+      // ── ① 事件行流：工具驱动为独立 tool 行（running→completed/failed 原位更新）──
+      const existingToolRow = findLastToolRow(payload.triggerTool)
+      if (existingToolRow && existingToolRow.type === 'tool') {
+        const tc: ToolCallView = {
+          ...existingToolRow.tc,
+          status: payload.toolStatus,
+          endedAt: payload.toolStatus !== 'running' ? now : existingToolRow.tc.endedAt,
         }
-        // 同阶段内工具状态更新（phase_completed=false）：更新/新增触发工具
-        const toolIdx = existing.tools.findIndex((t) => t.name === payload.triggerTool)
-        const now = Date.now()
-        if (toolIdx >= 0) {
-          existing.tools[toolIdx].status = payload.toolStatus
-          if (payload.toolStatus !== 'running') existing.tools[toolIdx].endedAt = now
-        } else {
-          existing.tools.push({
-            id: `phase-tool-${now}`,
+        streamReplace(sessionId, existingToolRow.id, { ...existingToolRow, tc })
+      } else {
+        streamAppend(sessionId, {
+          type: 'tool',
+          id: nextMsgId('tool'),
+          tc: {
+            id: nextMsgId('tool'),
             name: payload.triggerTool,
             args: {},
             status: payload.toolStatus,
             startedAt: now,
             endedAt: payload.toolStatus !== 'running' ? now : undefined,
-          })
+          },
+          timestamp: now,
+        })
+      }
+
+      // ── ② 右侧阶段轨迹（PhaseSection/TracePanel 消费）：维护 deepSegments phase 段 ──
+      // 去重：同一 phaseIndex 已存在则更新其工具/状态，不重复追加
+      const existingSeg = deepSegments.value.find((s) => s.type === 'phase' && s.index === payload.phaseIndex)
+      if (existingSeg && existingSeg.type === 'phase') {
+        // 阶段完成事件：仅更新已存在工具的状态并标记完成，不把下一阶段的新工具塞入旧阶段
+        if (payload.phaseCompleted) {
+          const ti = existingSeg.tools.findIndex((t) => t.name === payload.triggerTool)
+          if (ti >= 0) {
+            existingSeg.tools[ti].status = payload.toolStatus
+            if (payload.toolStatus !== 'running') existingSeg.tools[ti].endedAt = now
+          }
+          existingSeg.status = 'done'
+        } else {
+          // 同阶段内工具状态更新：更新/新增触发工具
+          const ti = existingSeg.tools.findIndex((t) => t.name === payload.triggerTool)
+          if (ti >= 0) {
+            existingSeg.tools[ti].status = payload.toolStatus
+            if (payload.toolStatus !== 'running') existingSeg.tools[ti].endedAt = now
+          } else {
+            existingSeg.tools.push({
+              id: `phase-tool-${now}`,
+              name: payload.triggerTool,
+              args: {},
+              status: payload.toolStatus,
+              startedAt: now,
+              endedAt: payload.toolStatus !== 'running' ? now : undefined,
+            })
+          }
         }
         return
       }
-      // 新阶段：先把之前所有 active 阶段标记为 done（阶段切换）
+      // 新阶段：先把之前所有 active 阶段标记为 done，再追加新 phase 段
       for (const seg of deepSegments.value) {
-        if (seg.type === 'phase' && seg.status === 'active') {
-          seg.status = 'done'
-        }
+        if (seg.type === 'phase' && seg.status === 'active') seg.status = 'done'
       }
-      const now = Date.now()
-      const newSegment: DeepSegment = {
+      deepSegments.value.push({
         id: `phase-${payload.phaseIndex}-${now}`,
         type: 'phase',
         label: payload.phaseLabel,
@@ -437,8 +626,7 @@ async function setupDeepPhaseListener(sessionId: string): Promise<void> {
         }],
         outputs: [],
         status: payload.phaseCompleted ? 'done' : 'active',
-      }
-      deepSegments.value.push(newSegment)
+      })
     })
     deepPhaseUnlistenFns.set(sessionId, unlisten)
   } catch (err) {
@@ -681,8 +869,10 @@ function handleStreamEvent(sessionId: string, payload: RustStreamPayload): void 
   // 会话守卫：仅处理当前会话的流式事件，避免旧会话残留事件污染全局消息区
   if (sessionId !== currentSessionId.value) return
   if (payload.type === 'start') {
+    // 新流开始：重置流式 think 引用，后续 reasoning 增量将新建 think 行
+    streamingThink.value = null
     const msg: AgentMessage = {
-      id: `assistant-${Date.now()}`,
+      id: nextAssistantId(),
       role: 'assistant',
       content: '',
       timestamp: Date.now(),
@@ -700,10 +890,52 @@ function handleStreamEvent(sessionId: string, payload: RustStreamPayload): void 
     const updated: AgentMessage = { ...target, content: target.content + payload.delta }
     streamingAssistant.value = updated
     upsertMsgInSession(target.id, updated, sessionId)
+    // 同步更新/追加助手正文事件行（唯一渲染源）
+    upsertAssistantStreamRow(sessionId, updated)
+    return
+  }
+
+  // [链逐条] 推理增量：双写——消息字段 thinking（供 lastAssistantHasThinking 等回源消费）+ think 事件行（唯一渲染源）
+  if (payload.type === 'reasoning') {
+    const target = streamingAssistant.value
+    if (!target) return
+    // 双写 1：消息字段 thinking（保留，供回源/兼容消费）
+    const updated: AgentMessage = {
+      ...target,
+      ...((target as { thinking?: string }).thinking !== undefined
+        ? { thinking: (target as { thinking?: string }).thinking + payload.delta }
+        : { thinking: payload.delta }),
+    }
+    streamingAssistant.value = updated
+    upsertMsgInSession(target.id, updated, sessionId)
+    // 双写 2：追加/更新 think 事件行（同一推理增量累积在同一行）
+    const cur = streamingThink.value
+    if (cur && cur.type === 'think') {
+      const newRow: AgentStreamItem = { ...cur, text: cur.text + payload.delta }
+      streamingThink.value = newRow
+      streamReplace(sessionId, cur.id, newRow)
+    } else {
+      const newRow: AgentStreamItem = {
+        type: 'think',
+        id: nextMsgId('think'),
+        text: payload.delta,
+        status: 'streaming',
+        timestamp: Date.now(),
+      }
+      streamingThink.value = newRow
+      streamAppend(sessionId, newRow)
+    }
     return
   }
 
   if (payload.type === 'end') {
+    // think 行收尾：置 complete（若有流式 think）
+    const cur = streamingThink.value
+    if (cur && cur.type === 'think') {
+      const done: AgentStreamItem = { ...cur, status: 'complete' }
+      streamingThink.value = null
+      streamReplace(sessionId, cur.id, done)
+    }
     const target = streamingAssistant.value
     streamingAssistant.value = null
     if (target) {
@@ -711,11 +943,20 @@ function handleStreamEvent(sessionId: string, payload: RustStreamPayload): void 
       const updated: AgentMessage = { ...target, content: payload.fullText }
       lastStreamedMsg.value = updated
       upsertMsgInSession(target.id, updated, sessionId)
+      // 收尾助手正文事件行（唯一渲染源）
+      upsertAssistantStreamRow(sessionId, updated)
     }
     return
   }
 
   // error / agent_end：清理流式占位，保留已累积内容
+  // think 行收尾：置 complete 并清空流式引用
+  const cur = streamingThink.value
+  if (cur && cur.type === 'think') {
+    const done: AgentStreamItem = { ...cur, status: 'complete' }
+    streamingThink.value = null
+    streamReplace(sessionId, cur.id, done)
+  }
   streamingAssistant.value = null
   // 复位流式状态：即使 send_message 的 invoke promise 因重载/中断被丢弃，
   // 后端仍会经流事件通道广播 agent_end/error，据此兜底复位，避免「思考中…」卡死
@@ -747,6 +988,52 @@ function teardownStreamListener(sessionId: string): void {
   if (unlisten) {
     unlisten()
     streamUnlistenFns.delete(sessionId)
+  }
+}
+
+// ─── 会话标题更新事件监听（agent:session_title_updated，Phase 5）────────────
+
+/** Rust `cmd_agent_generate_title` 生成的标题更新事件 payload 镜像 */
+interface RustSessionTitleUpdatedPayload {
+  sessionId: string
+  title: string
+}
+
+/** 标题更新全局监听器（幂等：module 级单例，dispose 时清理） */
+let sessionTitleUnlisten: UnlistenFn | null = null
+
+/**
+ * 为全局注册会话标题更新监听（Phase 5）
+ *
+ * 监听 `agent:session_title_updated`：Rust LLM 生成标题后推送，前端据此：
+ * 1. 就地更新 `sessionList` 对应会话的 title（无需整表刷新即刷新 Sidebar）；
+ * 2. 清除标题等候动画标记（标题已落地）；
+ * 3. 派发 `ws-session-title-updated`，触发 SessionSidebar 的 refresh 保持分组一致。
+ */
+async function setupSessionTitleListener(): Promise<void> {
+  if (sessionTitleUnlisten) return
+  try {
+    sessionTitleUnlisten = await listen<RustSessionTitleUpdatedPayload>('agent:session_title_updated', (e) => {
+      const { sessionId, title } = e.payload
+      const s = sessionList.value.find((x) => x.id === sessionId)
+      if (s) s.title = title
+      // 只清除该会话的标题等候标记，避免影响其他会话
+      delete sessionTitlePending.value[sessionId]
+      // 通知 SessionSidebar 刷新（其订阅 ws-session-title-updated → refresh）
+      window.dispatchEvent(new Event('ws-session-title-updated'))
+    })
+  } catch (err) {
+    console.error('[useAgentRust] listen agent:session_title_updated 失败:', err)
+  }
+}
+
+/** 生成会话标题（Phase 5：首条消息 + 首条回复 → cmd_agent_generate_title，异步不阻塞输出流） */
+async function generateSessionTitle(sessionId: string, firstMessage: string, firstReply: string): Promise<void> {
+  try {
+    await safeInvoke<string>('cmd_agent_generate_title', { sessionId, firstMessage, firstReply })
+  } catch (err) {
+    // 生成失败降级（Rust 保留「新会话」占位），不影响对话，仅清除等候动画
+    console.warn('[useAgentRust] 生成会话标题失败（保留「新会话」占位）:', err)
   }
 }
 
@@ -838,7 +1125,11 @@ let toolBridgeContext: IToolContext | null = null
  * stores 构造上下文，与 useGroupChat 的 buildToolContext 同构。惰性构造避免首屏开销。
  */
 function buildBridgeContext(): IToolContext {
-  if (toolBridgeContext) return toolBridgeContext
+  // 已缓存则仅动态刷新 workdir（会话切换后 dirPath 保持最新），复用 stores 避免重复构造
+  if (toolBridgeContext) {
+    toolBridgeContext.projectInfo.dirPath = currentWorkdir.value ?? null
+    return toolBridgeContext
+  }
   const entityStore = useEntityStore()
   const relationStore = useRelationStore()
   const fileStore = useFileStore()
@@ -862,7 +1153,8 @@ function buildBridgeContext(): IToolContext {
       name: 'WorldSmith',
       entityTypes: entityStore.types.map((t) => t.typeKey),
       relationTypes: [],
-      dirPath: null,
+      // Phase 4 工作区：从当前会话 workdir 注入（原硬编码 null）
+      dirPath: currentWorkdir.value ?? null,
     },
     platform: 'web' as const,
     currentSessionId: currentSessionId.value ?? undefined,
@@ -1065,7 +1357,8 @@ async function setupTraceListener(sessionId: string): Promise<void> {
   try {
     const unlisten = await listen<RustTracePayload>(eventName, (e) => {
       const { type, summary } = e.payload
-      useActivityLog().addLog(traceTypeToLogType(type), summary, undefined, type)
+      // 活动日志按事件源会话写入桶（跨会话隔离）
+      useActivityLog().addLog(traceTypeToLogType(type), summary, undefined, type, sessionId)
     })
     traceUnlistenFns.set(sessionId, unlisten)
   } catch (err) {
@@ -1092,10 +1385,15 @@ async function newSession(
   providerConfig?: RustProviderConfigFull,
   scenarioId?: string,
 ): Promise<RustSessionInfo> {
+  // Phase 4 工作区：workdir 来源 = 输入栏 WorkdirSelect 选中的目录（currentWorkdir）；
+  // 未手动选择（含浏览器 preview）则回退固定默认目录 ~/.worldsmith/workspace（resolveWorkspaceDir() 无参）
+  const workdir = currentWorkdir.value ?? (await resolveWorkspaceDir())
+  await ensureWorkspaceDir(workdir)
   const info = await safeInvoke<RustSessionInfo>('new_session', {
     systemPrompt: systemPrompt ?? null,
     providerConfig: providerConfig ?? null,
     scenarioId: scenarioId ?? null,
+    workdir,
   })
   // 先清理当前会话的旧监听器（避免旧会话残留事件污染全局状态）
   const oldSessionId = currentSessionId.value
@@ -1107,8 +1405,19 @@ async function newSession(
     teardownConfirmListener(oldSessionId)
     teardownPlanListener(oldSessionId)
     teardownTraceListener(oldSessionId)
+    teardownOrchListener(oldSessionId)
+    teardownOrchSupervisorListener(oldSessionId)
   }
   currentSessionId.value = info.id
+  // Phase 5：新建会话标记为「待激活」→ 列表延迟展示（首条消息后才移除并展示条目）
+  pendingSessionIds.value = [...pendingSessionIds.value.filter((id) => id !== info.id), info.id]
+  // Phase 5：新会话暂无标题生成中状态（重置按会话标记，避免旧会话残留）
+  sessionTitlePending.value = {}
+  // Phase 4 工作区：记录当前会话 workdir（Rust 持久化回传优先，缺省用解析值）
+  currentWorkdir.value = info.workdir ?? workdir
+  // 会话级视图状态：新会话绑定空桶（场景继承传参，模式/execTab 默认）
+  useSessionViewState().setActiveSession(info.id)
+  if (scenarioId) useSessionViewState().setScene(scenarioId)
   messages.value = []
   // 新会话：重置流式/生成状态（旧会话失败遗留的 isStreaming 需归零）
   isStreaming.value = false
@@ -1120,7 +1429,11 @@ async function newSession(
   subAgents.value = []
   // A4 Plan-Exec：新会话无计划，清空 usePlanStore（按会话隔离）
   usePlanStore().clearPlan()
+  // ToT/GoT/Supervisor 实时树：新会话 active 桶已切换为空桶，无需全局清空
   sessionMessagesCache.set(info.id, [])
+  agentStream.value = []
+  sessionStreamCache.set(info.id, [])
+  streamingThink.value = null
   await setupDeepPhaseListener(info.id)
   await setupA2UIListener(info.id)
   await setupSubAgentListener(info.id)
@@ -1128,6 +1441,10 @@ async function newSession(
   await setupConfirmListener(info.id)
   await setupPlanListener(info.id)
   await setupTraceListener(info.id)
+  await setupOrchListener(info.id)
+  await setupOrchSupervisorListener(info.id)
+  // Phase 5：注册全局会话标题更新监听（幂等），供首条消息后的 LLM 标题落地更新
+  await setupSessionTitleListener()
   // FrontendToolBridge：全局桥监听器仅在初次建会话时注册一次（幂等）
   await setupToolBridgeListener()
   await refreshSessionList()
@@ -1169,15 +1486,50 @@ async function listSessions(): Promise<RustSessionInfo[]> {
   return list
 }
 
+/** 目录实体列表（cmd_list_workdirs；Phase 3 会话树分组标签来源，失败静默保持空） */
+async function loadWorkdirs(): Promise<void> {
+  try {
+    const list = await safeInvoke<RustWorkdirRecord[]>('cmd_list_workdirs')
+    workdirs.value = Array.isArray(list) ? list : []
+  } catch (err) {
+    console.warn('[useAgentRust] loadWorkdirs 失败，保持已有目录实体:', err)
+  }
+}
+
 /** 刷新会话列表（内部：写入 sessionList） */
 async function refreshSessionList(): Promise<void> {
   await listSessions()
+  // Phase 3：同步刷新目录实体，保证会话树分组标签与目录列表一致
+  await loadWorkdirs()
+}
+
+/**
+ * 启动/进入空间时恢复上次会话：无活跃会话则回到 LAST_SESSION_KEY 指向的会话（若仍存在），
+ * 否则取列表首个。仅当有会话时生效；已活跃则跳过（幂等）。修复「侧边栏默认关闭 → 加载后
+ * 无活跃会话 → 执行面板 tab 静默失效」问题：恢复逻辑提升到本层，不再依赖侧边栏挂载。
+ */
+async function restoreLastSession(): Promise<void> {
+  if (currentSessionId.value != null) return
+  let list: RustSessionInfo[] = []
+  try {
+    list = await listSessions()
+  } catch {
+    return
+  }
+  if (list.length === 0) return
+  let lastId: string | null = null
+  try { lastId = localStorage.getItem(LAST_SESSION_KEY) } catch {}
+  const target = lastId && list.some((s) => s.id === lastId) ? lastId : list[0].id
+  await switchSession(target)
 }
 
 /** 删除会话（若删除的是当前会话，清空本地状态） */
 async function deleteSession(sessionId: string): Promise<void> {
   await safeInvoke('delete_session', { sessionId })
   sessionMessagesCache.delete(sessionId)
+  sessionStreamCache.delete(sessionId)
+  // 级联清理该会话的视图状态（场景/模式/execTab/活动/编排）
+  useSessionViewState().removeSession(sessionId)
   teardownDeepPhaseListener(sessionId)
   teardownA2UIListener(sessionId)
   teardownSubAgentListener(sessionId)
@@ -1186,7 +1538,11 @@ async function deleteSession(sessionId: string): Promise<void> {
   teardownTraceListener(sessionId)
   if (currentSessionId.value === sessionId) {
     currentSessionId.value = null
+    // Phase 4 工作区：删除当前会话时清空工作区引用
+    currentWorkdir.value = null
     messages.value = []
+    agentStream.value = []
+    streamingThink.value = null
     deepSegments.value = []
     a2uiSurfaces.value = {}
     subAgents.value = []
@@ -1197,6 +1553,12 @@ async function deleteSession(sessionId: string): Promise<void> {
 /** 重命名会话标题（写穿 Rust SQLite，随后刷新列表） */
 async function updateSessionTitle(sessionId: string, title: string): Promise<void> {
   await safeInvoke('update_session_title', { sessionId, title })
+  await refreshSessionList()
+}
+
+/** 更新会话绑定的工作区根目录（目录选择器切换工作区时同步会话归属；workdir 可为 null=不限定） */
+async function updateSessionWorkdir(sessionId: string, workdir: string | null): Promise<void> {
+  await safeInvoke('cmd_update_session_workdir', { sessionId, workdir })
   await refreshSessionList()
 }
 
@@ -1272,8 +1634,14 @@ async function switchSession(sessionId: string): Promise<void> {
     teardownConfirmListener(oldSessionId)
     teardownPlanListener(oldSessionId)
     teardownTraceListener(oldSessionId)
+    teardownOrchListener(oldSessionId)
+    teardownOrchSupervisorListener(oldSessionId)
   }
   currentSessionId.value = sessionId
+  // Phase 4 工作区：切换会话时恢复该会话绑定的工作区根目录（列表缺省为 null=不限定）
+  currentWorkdir.value = sessionList.value.find((s) => s.id === sessionId)?.workdir ?? null
+  // 会话级视图状态：水合该会话的场景/模式/execTab/活动日志/编排现场（切换即恢复）
+  useSessionViewState().setActiveSession(sessionId)
   deepSegments.value = []
   a2uiSurfaces.value = {}
   subAgents.value = []
@@ -1284,8 +1652,12 @@ async function switchSession(sessionId: string): Promise<void> {
   await setupConfirmListener(sessionId)
   await setupPlanListener(sessionId)
   await setupTraceListener(sessionId)
+  await setupOrchListener(sessionId)
+  await setupOrchSupervisorListener(sessionId)
   // FrontendToolBridge：全局桥监听器幂等注册（保证任意会话切换路径可用）
   await setupToolBridgeListener()
+  // Phase 3：切换会话后同步刷新目录实体，保证会话树分组最新
+  await loadWorkdirs()
   const cached = sessionMessagesCache.get(sessionId)
   if (cached) {
     messages.value = cached
@@ -1299,6 +1671,20 @@ async function switchSession(sessionId: string): Promise<void> {
     sessionMessagesCache.set(sessionId, tsMsgs)
   } catch (err) {
     console.warn(`[useAgentRust] switchSession(${sessionId}) 加载消息失败（保持缓存）:`, err)
+  }
+  // 事件流：先清空当前流，优先从该会话缓存恢复；缺失则按历史消息重建并写回缓存
+  streamingThink.value = null
+  agentStream.value = []
+  const cachedStream = sessionStreamCache.get(sessionId)
+  if (cachedStream) {
+    agentStream.value = cachedStream
+  } else {
+    const tsMsgs = messages.value
+    if (tsMsgs.length > 0) {
+      const rebuilt = rebuildStreamFromMessages(tsMsgs)
+      agentStream.value = rebuilt
+      sessionStreamCache.set(sessionId, rebuilt)
+    }
   }
   // A4 Plan-Exec：切换会话时恢复该会话的计划（按会话隔离），无计划则清空
   try {
@@ -1351,7 +1737,7 @@ async function prompt(text: string, options?: PromptOptions): Promise<void> {
 
   // 用户消息（气泡只显示用户输入文本，附件注入内容不进显示）
   const userMsg: AgentMessage = {
-    id: `user-${Date.now()}`,
+    id: nextMsgId('user'),
     role: 'user',
     content: textContent,
     timestamp: Date.now(),
@@ -1360,6 +1746,8 @@ async function prompt(text: string, options?: PromptOptions): Promise<void> {
   }
   messages.value.push(userMsg)
   sessionMessagesCache.get(sessionId)?.push(userMsg)
+  // 用户消息事件行（唯一渲染源；id=userMsg.id，供点状导航/窗口化锚定对齐）
+  pushStreamItem(sessionId, { type: 'user', msg: userMsg, id: userMsg.id, timestamp: userMsg.timestamp })
 
   emit({ type: 'agent_start', sessionId, chatMode: options?.chatMode ?? 'deep' })
 
@@ -1398,20 +1786,44 @@ async function prompt(text: string, options?: PromptOptions): Promise<void> {
     if (streamed) {
       assistantMsg = { ...streamed, content: result.reply }
       upsertMsgInSession(streamed.id, assistantMsg, sessionId)
+      upsertAssistantStreamRow(sessionId, assistantMsg)
     } else {
       assistantMsg = {
-        id: `assistant-${Date.now()}`,
+        id: nextAssistantId(),
         role: 'assistant',
         content: result.reply,
         timestamp: Date.now(),
       }
       messages.value.push(assistantMsg)
       sessionMessagesCache.get(sessionId)?.push(assistantMsg)
+      // 非流式后端：一次性追加助手正文事件行（唯一渲染源）
+      upsertAssistantStreamRow(sessionId, assistantMsg)
     }
 
     emit({ type: 'message_start', message: assistantMsg })
     emit({ type: 'message_end', messageId: assistantMsg.id, content: result.reply, thinking: '' })
     emit({ type: 'turn_end', message: assistantMsg })
+
+    // Phase 5：首条消息成功回复后，激活「待激活」会话并异步生成 LLM 标题
+    const wasPending = pendingSessionIds.value.includes(sessionId)
+    if (wasPending) {
+      // 1) 移除待激活标记 → 刷新列表展示会话条目（占位「新会话」归属到目录组）；
+      //    刷新失败仅告警，不计入消息发送失败（消息已成功回复）
+      pendingSessionIds.value = pendingSessionIds.value.filter((id) => id !== sessionId)
+      try {
+        await refreshSessionList()
+      } catch (err) {
+        console.warn('[useAgentRust] 激活会话刷新列表失败:', err)
+      }
+      // 2) 标题到来前，消息区显示等候动画（按会话隔离标记，避免切会话串扰）
+      sessionTitlePending.value[sessionId] = true
+      // 3) 异步调 Rust 生成标题（不阻塞输出流；完成后经 agent:session_title_updated 事件更新 Sidebar）
+      void generateSessionTitle(sessionId, textContent, result.reply).finally(() => {
+        // 兜底：无论生成成功/失败/无事件送达，标题终会落地或保留占位，动画不应残留。
+        // 仅清除该会话的标记，避免误清其他会话（切会话场景）。
+        delete sessionTitlePending.value[sessionId]
+      })
+    }
   } catch (err) {
     // 增强错误信息：附加当前会话/模型配置/key 注入状态，便于在 UI 直接定位「API Key 缺失」根因
     let diagSuffix = ''
@@ -1467,6 +1879,9 @@ async function clearHistory(): Promise<void> {
   await safeInvoke('clear_history', { sessionId })
   messages.value = []
   sessionMessagesCache.set(sessionId, [])
+  agentStream.value = []
+  streamingThink.value = null
+  sessionStreamCache.set(sessionId, [])
 }
 
 /** 从后端重新拉取当前会话消息并更新本地状态与缓存（trim / 外部变更后调用） */
@@ -1712,6 +2127,15 @@ function dispose(): void {
   traceUnlistenFns.clear()
   // 清理 FrontendToolBridge 全局桥监听器
   teardownToolBridgeListener()
+  // 清理会话标题更新全局监听器（Phase 5）
+  if (sessionTitleUnlisten) {
+    sessionTitleUnlisten()
+    sessionTitleUnlisten = null
+  }
+  // 清理事件流状态
+  agentStream.value = []
+  sessionStreamCache.clear()
+  streamingThink.value = null
 }
 
 // ─── 派生状态 ────────────────────────────────────
@@ -1766,12 +2190,22 @@ export function useAgentRust() {
     listSessions,
     deleteSession,
     updateSessionTitle,
+    updateSessionWorkdir,
     setSessionPinned,
     setRouterEnabled,
     switchSession,
+    restoreLastSession,
     sessionTitle,
     currentSessionId,
+    // Phase 4 工作区：当前会话绑定的工作区根目录（WorkspacePanel 消费）
+    currentWorkdir,
     sessionList,
+    // Phase 5：待激活会话（SessionSidebar 过滤）+ 标题生成中等候动画（消息区）
+    pendingSessionIds,
+    sessionTitlePending,
+    // Phase 3 会话树：目录实体列表 + 刷新（SessionSidebar 分组用）
+    workdirs,
+    loadWorkdirs,
     currentSessionRouterEnabled,
 
     // ── MCP 连接（本地管理，供设置面板 McpPanel 使用）──
@@ -1788,9 +2222,12 @@ export function useAgentRust() {
     lastAssistantHasContent,
     lastAssistantHasThinking,
 
+    // ── 事件流（唯一渲染源，Phase 1+）──
+    agentStream,
+
     // ── 深度模式段（DeepProcessPanel 依赖）──
+    /** @deprecated 待后续清理，改用 agentStream */
     deepSegments,
-    finalOutput,
     resolveToolConfirmation,
 
     // ── A2UI（A2UIRenderer 依赖）──

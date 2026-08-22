@@ -8,7 +8,9 @@
     >
       <div v-if="!embedded" class="settings-drag-handle">
         <span class="menu-title"><WsIcon name="settings" size="sm" /> AI 助手设置</span>
-        <button class="menu-close-btn" @click="emit('close')">✕</button>
+        <button class="menu-close-btn" title="关闭" aria-label="关闭" @click="emit('close')">
+          <WsIcon name="close" :size="13" :stroke-width="1.7" />
+        </button>
       </div>
       <div class="settings-body">
         <!-- 左侧纵向分组导航（仅独立悬浮面板；设置内嵌走卡片式布局） -->
@@ -78,13 +80,9 @@
             <div class="agent-set-head">能力与工具</div>
             <div class="agent-set-sub">搜索</div>
             <div class="settings-row">
-              <select :value="searchEngine" @change="onSearchEngineChange" class="settings-select">
-                <option value="tavily">Tavily</option>
-                <option value="serpapi">SerpAPI</option>
-                <option value="bing">Bing</option>
-              </select>
+              <TuiSelect :model-value="searchEngine" :options="searchEngineOptions" @update:model-value="onSearchEngineChange" />
             </div>
-            <div class="settings-row" style="margin-top:6px">
+            <div class="settings-row settings-row-gap">
               <input
                 type="password"
                 :value="searchApiKey"
@@ -135,9 +133,7 @@
             </div>
             <div class="settings-hint">开启后 AI 删除实体/关系时需用户确认</div>
             <div class="agent-set-sub">思考级别</div>
-            <select :value="thinkingLevel" @change="onThinkingLevelChange" class="settings-select">
-              <option v-for="lvl in thinkingLevels" :key="lvl.value" :value="lvl.value">{{ lvl.label }}</option>
-            </select>
+            <TuiSelect :model-value="thinkingLevel" :options="thinkingLevels" @update:model-value="onThinkingLevelChange" />
             <div class="settings-hint">控制推理深度：off 直答，深度级别越高推理链越完整</div>
           </div>
         </template>
@@ -201,11 +197,7 @@
             <!-- A7：工具安全级别（三档，运行时切换 Rust 侧确认策略） -->
             <div class="settings-section">
               <div class="settings-label">工具安全级别</div>
-              <select :value="securityLevel" @change="onSecurityLevelChange" class="settings-select">
-                <option value="off">宽松（关闭确认）</option>
-                <option value="dangerous_only">推荐（仅危险操作确认）</option>
-                <option value="moderate_and_dangerous">严格（写操作/命令一律确认）</option>
-              </select>
+              <TuiSelect :model-value="securityLevel" :options="securityOptions" @update:model-value="onSecurityLevelChange" />
               <div class="settings-hint">控制 Agent 执行工具前的确认程度，需对当前会话生效</div>
             </div>
           </div>
@@ -213,12 +205,7 @@
           <div v-else-if="settingsSubPanel === 'persona'" key="persona" class="sub-panel">
             <div class="settings-section">
               <div class="settings-label">AI 人格预设</div>
-              <select :value="personaPreset" @change="onPersonaPresetChange" class="settings-select">
-                <option value="default">默认助手</option>
-                <option value="creative">创意写手</option>
-                <option value="analyst">严谨分析师</option>
-                <option value="storyteller">故事叙述者</option>
-              </select>
+              <TuiSelect :model-value="personaPreset" :options="personaOptions" @update:model-value="onPersonaPresetChange" />
               <div class="settings-hint">定义 AI 的表达风格与角色倾向，切换后后续对话生效</div>
             </div>
           </div>
@@ -226,9 +213,7 @@
           <div v-else-if="settingsSubPanel === 'thinking'" key="thinking" class="sub-panel">
             <div class="settings-section">
               <div class="settings-label">思考级别</div>
-              <select :value="thinkingLevel" @change="onThinkingLevelChange" class="settings-select">
-                <option v-for="lvl in thinkingLevels" :key="lvl.value" :value="lvl.value">{{ lvl.label }}</option>
-              </select>
+              <TuiSelect :model-value="thinkingLevel" :options="thinkingLevels" @update:model-value="onThinkingLevelChange" />
               <div class="settings-hint">控制推理深度：off 直答，深度级别越高推理链越完整</div>
             </div>
           </div>
@@ -242,13 +227,9 @@
           <!-- 搜索面板（短子面板，内联） -->
           <div v-else-if="settingsSubPanel === 'search'" key="search" class="sub-panel">
             <div class="settings-row">
-              <select :value="searchEngine" @change="onSearchEngineChange" class="settings-select">
-                <option value="tavily">Tavily</option>
-                <option value="serpapi">SerpAPI</option>
-                <option value="bing">Bing</option>
-              </select>
+              <TuiSelect :model-value="searchEngine" :options="searchEngineOptions" @update:model-value="onSearchEngineChange" />
             </div>
-            <div class="settings-row" style="margin-top:6px">
+            <div class="settings-row settings-row-gap">
               <input
                 type="password"
                 :value="searchApiKey"
@@ -299,6 +280,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
+import TuiSelect from '../components/ui/TuiSelect.vue'
 import { usePanelDrag } from './composables/usePanelDrag'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useModelApiKeyConfig } from './composables/useModelApiKeyConfig'
@@ -437,8 +419,8 @@ const panelStyle = computed(() => {
 })
 
 // ── 搜索面板事件转发（短子面板内联） ──
-function onSearchEngineChange(e: Event): void {
-  emit('search-engine-change', (e.target as HTMLSelectElement).value)
+function onSearchEngineChange(v: string): void {
+  emit('search-engine-change', v)
 }
 
 function onSearchApiKeyChange(e: Event): void {
@@ -446,22 +428,39 @@ function onSearchApiKeyChange(e: Event): void {
 }
 
 // ── 人格预设/思考级别面板事件转发（边界与个性组） ──
-function onPersonaPresetChange(e: Event): void {
-  emit('update:personaPreset', (e.target as HTMLSelectElement).value)
+function onPersonaPresetChange(v: string): void {
+  emit('update:personaPreset', v)
 }
 
-function onThinkingLevelChange(e: Event): void {
-  emit('thinking-level-change', (e.target as HTMLSelectElement).value)
+function onThinkingLevelChange(v: string): void {
+  emit('thinking-level-change', v)
 }
 
 // A7 工具安全级别：加载 settingsStore 持久值，切换时 emit（SpaceAgentSettingsPanel 转发到 useAgentRust.setSecurityLevel）
 const securityLevel = ref(settingsStore.agentSecurityLevel || 'dangerous_only')
 
-function onSecurityLevelChange(e: Event): void {
-  const level = (e.target as HTMLSelectElement).value
-  settingsStore.agentSecurityLevel = level
-  emit('security-level-change', level)
+function onSecurityLevelChange(v: string): void {
+  settingsStore.agentSecurityLevel = v
+  emit('security-level-change', v)
 }
+
+// ── TuiSelect 选项集（替代原生 select；thinkingLevels 用 props 直传，值/label 对齐） ──
+const searchEngineOptions: Array<{ value: string; label: string }> = [
+  { value: 'tavily', label: 'Tavily' },
+  { value: 'serpapi', label: 'SerpAPI' },
+  { value: 'bing', label: 'Bing' },
+]
+const personaOptions: Array<{ value: string; label: string }> = [
+  { value: 'default', label: '默认助手' },
+  { value: 'creative', label: '创意写手' },
+  { value: 'analyst', label: '严谨分析师' },
+  { value: 'storyteller', label: '故事叙述者' },
+]
+const securityOptions: Array<{ value: string; label: string }> = [
+  { value: 'off', label: '宽松（关闭确认）' },
+  { value: 'dangerous_only', label: '推荐（仅危险操作确认）' },
+  { value: 'moderate_and_dangerous', label: '严格（写操作/命令一律确认）' },
+]
 </script>
 
 <style>
@@ -503,9 +502,9 @@ function onSecurityLevelChange(e: Event): void {
   flex: 1;
 }
 
-/* 设置内嵌卡片（与其它设置面板的 set-card 视觉一致） */
+/* 设置内嵌卡片（与其它设置面板的 set-card 视觉一致）；背景用统一 surface token（原引用未定义的 --color-bg-surface 致卡片背景失效） */
 .agent-set-card {
-  background: var(--content-bg, var(--color-bg-surface));
+  background: var(--bg-surface);
   border-radius: var(--radius-md, 8px);
   padding: 14px 16px;
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.06), 0 0 0 1px var(--border, var(--color-border));
@@ -638,6 +637,16 @@ function onSecurityLevelChange(e: Event): void {
   align-items: center;
   gap: 8px;
 }
+/* 行间纵向留白：替代内联 margin-top（统一视觉节奏） */
+.settings-row-gap {
+  margin-top: 6px;
+}
+/* 配置层 TuiSelect：撑满所在 row 的剩余宽度（替代原生 select 的 flex:1） */
+.agent-settings .tui-select,
+.agent-settings-embedded .tui-select {
+  flex: 1;
+  min-width: 0;
+}
 
 .settings-row-label {
   font-size: var(--font-size-sm);
@@ -685,7 +694,7 @@ function onSecurityLevelChange(e: Event): void {
   height: 12px;
   left: 3px;
   top: 3px;
-  background: var(--color-bg-surface);
+  background: var(--bg-surface);
   border-radius: 50%;
   transition: transform 0.2s;
 }

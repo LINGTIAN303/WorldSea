@@ -121,6 +121,8 @@ export interface AgentSession {
   finalOutput?: unknown
   /** 是否已固定（收藏），固定的会话不会被自动清理 */
   pinned?: boolean
+  /** 会话绑定的工作区根目录（Phase 4 接入本地文件系统；与 Rust SessionInfo.workdir 映射） */
+  workdir?: string
 }
 
 /**

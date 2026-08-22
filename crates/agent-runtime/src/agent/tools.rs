@@ -140,6 +140,14 @@ impl AgentLoop {
         // 执行返回 NotFound 被拦截（与可见性过滤一致，避免绕过场景工具约束）。
         let bus = self.effective_tool_bus(&config);
 
+        // 构造本会话的工具上下文（workdir 来自 AgentLoop 持有字段）
+        // 读锁短临界区：取出后立即释放，不跨 await 持有
+        let workdir = self.workdir.read().map(|g| g.clone()).unwrap_or(None);
+        let self_tool_ctx = crate::tool_context::ToolContext {
+            workdir,
+            project_id: None,
+        };
+
         // A6 工具生命周期钩子：pre 阶段（可改 args / 拒绝）
         // 多个钩子按注册顺序依次执行，后一个通过 Allow(new_args) 覆盖前一个。
         let mut effective_args = args.clone();
@@ -167,7 +175,7 @@ impl AgentLoop {
 
             // 执行调用（含超时）
             let call_result = if let Some(t) = timeout {
-                match tokio::time::timeout(t, bus.call_tool(name, effective_args.clone())).await {
+                match tokio::time::timeout(t, bus.call_tool_with_ctx(name, &self_tool_ctx, effective_args.clone())).await {
                     Ok(r) => r,
                     Err(_elapsed) => {
                         warn!("工具 {} 执行超时（{:?}，attempt {}）", name, t, attempt + 1);
@@ -175,7 +183,7 @@ impl AgentLoop {
                     }
                 }
             } else {
-                bus.call_tool(name, effective_args.clone()).await
+                bus.call_tool_with_ctx(name, &self_tool_ctx, effective_args.clone()).await
             };
 
             match call_result {
@@ -227,12 +235,39 @@ impl AgentLoop {
         tool_calls: Vec<ToolCall>,
     ) -> Result<Vec<OrchestratorMessage>, AgentError> {
         let config_snapshot = self.config_snapshot();
-        // A5 HITL：若任一工具需确认，强制走串行（确认需逐次暂停等待，不适合并行）
-        let any_needs_confirm = config_snapshot
-            .confirmation_policy
-            .as_ref()
-            .map(|p| tool_calls.iter().any(|t| p.needs_confirmation(&t.name, &t.args)))
-            .unwrap_or(false);
+        // 构造本会话的工具上下文（workdir 来自 AgentLoop 持有字段）
+        // 读锁短临界区：取出后立即释放，不跨 await 持有
+        let workdir = self.workdir.read().map(|g| g.clone()).unwrap_or(None);
+        let self_tool_ctx = crate::tool_context::ToolContext {
+            workdir,
+            project_id: None,
+        };
+        // A5 HITL：若任一工具需确认（策略命中 / 敏感目录拒绝 / 越界确认），强制走串行
+        // 确认需逐次暂停等待；敏感目录拒绝/越界确认若走并行会被绕过，故一并纳入。
+        let any_needs_confirm = tool_calls.iter().any(|t| {
+            let allow_sensitive =
+                config_snapshot
+                    .confirmation_policy
+                    .as_ref()
+                    .map(|p| p.allow_sensitive_with_confirm)
+                    .unwrap_or(false);
+            let guard = crate::confirmation::guard_fs_path(
+                &t.name,
+                &t.args,
+                &self_tool_ctx,
+                allow_sensitive,
+            );
+            let needs_guard = matches!(
+                guard,
+                crate::confirmation::PathGuard::Deny(_) | crate::confirmation::PathGuard::Confirm
+            );
+            let needs_policy = config_snapshot
+                .confirmation_policy
+                .as_ref()
+                .map(|p| p.needs_confirmation(&t.name, &t.args))
+                .unwrap_or(false);
+            needs_guard || needs_policy
+        });
         if config_snapshot.parallel_tool_calls && tool_calls.len() > 1 && !any_needs_confirm {
             self.execute_tool_calls_parallel(tool_calls).await
         } else {
@@ -242,17 +277,48 @@ impl AgentLoop {
 
     /// A5 HITL：若命中确认策略，则发起确认并等待用户回传
     ///
-    /// 返回 `Some(denied_value)` 表示用户拒绝/超时（作为工具结果返回，不执行工具）；
+    /// 返回 `Some(denied_value)` 表示用户拒绝/超时/敏感目录拒绝（作为工具结果返回，不执行工具）；
     /// 返回 `None` 表示放行或未命中策略（可继续执行）。
+    ///
+    /// # Phase 5 动态路径判定
+    /// 在 `policy.needs_confirmation` 判定基础上，用 [`ToolContext`](crate::tool_context::ToolContext)
+    /// 对 FS 工具做额外裁决：
+    /// - 命中敏感目录（`~/.ssh`、`~/.gnupg`、`/etc`、`/usr`、`/bin`、`/sbin`）：
+    ///   默认直接拒绝；若 `policy.allow_sensitive_with_confirm` 开启 → 转为需确认（经确认放行）。
+    /// - 写/搜索类工具（`write_file`/`edit_file`/`search_files`）解析后越出 workdir
+    ///   → 强制确认（对齐「工作区之外需授权」）。
     async fn maybe_require_confirmation(
         &self,
         name: &str,
         args: &serde_json::Value,
+        ctx: &crate::tool_context::ToolContext,
     ) -> Option<serde_json::Value> {
         let config = self.config_snapshot();
+        let allow_sensitive = config
+            .confirmation_policy
+            .as_ref()
+            .map(|p| p.allow_sensitive_with_confirm)
+            .unwrap_or(false);
+        // 动态路径守卫：命中敏感目录（未开启确认开关）/ 越界，统一做一次裁决
+        let guard = crate::confirmation::guard_fs_path(name, args, ctx, allow_sensitive);
+        // 0) 敏感目录守卫：未开启确认开关时命中即拒绝（安全底线）
+        if let crate::confirmation::PathGuard::Deny(reason) = guard {
+            return Some(serde_json::json!({
+                "error": reason,
+                "tool": name,
+            }));
+        }
+        // 未启用确认（无 broker / 无 policy）→ 放行（敏感目录已在上面拦截，
+        // 越界写入由 FS 工具执行时的 `ensure_within_workdir` 兜底拒绝）
         let broker = self.confirmation_broker.as_ref()?;
         let policy = config.confirmation_policy.as_ref()?;
-        if !policy.needs_confirmation(name, args) {
+        // 策略判定（三级裁决 + 危险命令模式）
+        let mut needs = policy.needs_confirmation(name, args);
+        // 动态路径守卫：写/搜索类越出 workdir，或开启确认开关后命中敏感目录 → 强制确认
+        if !needs && guard == crate::confirmation::PathGuard::Confirm {
+            needs = true;
+        }
+        if !needs {
             return None;
         }
         let approved = broker
@@ -282,6 +348,14 @@ impl AgentLoop {
     ) -> Result<Vec<OrchestratorMessage>, AgentError> {
         let mut results = Vec::with_capacity(tool_calls.len());
 
+        // 构造本会话的工具上下文（workdir 来自 AgentLoop 持有字段）
+        // 读锁短临界区：取出后立即释放，不跨 await 持有
+        let workdir = self.workdir.read().map(|g| g.clone()).unwrap_or(None);
+        let self_tool_ctx = crate::tool_context::ToolContext {
+            workdir,
+            project_id: None,
+        };
+
         for tc in tool_calls {
             // 广播 ToolCallStart
             self.broadcast(OrchestratorEvent::Agent(AgentEvent::ToolCallStart {
@@ -299,7 +373,10 @@ impl AgentLoop {
             }
 
             // A5 HITL：命中确认策略则先暂停征询用户，拒绝/超时按工具失败返回
-            let tool_result = match self.maybe_require_confirmation(&tc.name, &tc.args).await {
+            let tool_result = match self
+                .maybe_require_confirmation(&tc.name, &tc.args, &self_tool_ctx)
+                .await
+            {
                 Some(denied) => Ok(denied),
                 None => self.execute_tool_with_retry(&tc.name, tc.args.clone()).await,
             };
@@ -370,8 +447,17 @@ impl AgentLoop {
             (usize, String, String, serde_json::Value),
         > = tokio::task::JoinSet::new();
 
+        // 构造本会话的工具上下文（workdir 来自 AgentLoop 持有字段），并行时 clone 进每个 task
+        // 读锁短临界区：取出后立即释放，不跨 await 持有
+        let workdir = self.workdir.read().map(|g| g.clone()).unwrap_or(None);
+        let self_tool_ctx = crate::tool_context::ToolContext {
+            workdir,
+            project_id: None,
+        };
+
         for (idx, tc) in tool_calls.into_iter().enumerate() {
             let tool_bus = bus.clone();
+            let ctx = self_tool_ctx.clone();
             let call_id = tc.id.clone();
             let tool_name = tc.name.clone();
             let args = tc.args.clone();
@@ -383,7 +469,7 @@ impl AgentLoop {
 
             join_set.spawn(async move {
                 debug!("并行执行工具: {} (call_id={})", tool_name, call_id);
-                let result_value = match tool_bus.call_tool(&tool_name, args).await {
+                let result_value = match tool_bus.call_tool_with_ctx(&tool_name, &ctx, args).await {
                     Ok(v) => v,
                     Err(e) => {
                         warn!("工具 {} 并行执行失败: {}", tool_name, e);

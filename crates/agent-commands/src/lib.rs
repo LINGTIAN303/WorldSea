@@ -1,6 +1,7 @@
 //! agent-commands 命令层（服务层）：封装 AgentLoop 能力为 Tauri 可调用的命令服务，详细见 docs/details/注释/agent-commands/lib.md
 
 mod error;
+mod fs_tools;
 mod long_task_store;
 mod loop_control;
 mod mock_backend;
@@ -10,13 +11,16 @@ mod subagent_store;
 mod terminal;
 
 pub use error::CommandError;
+pub use fs_tools::register_fs_tools;
 pub use long_task_store::LongTaskRepository;
 pub use loop_control::{
     LoopControlCheckResult, LoopControlEntry, LoopControlRegistry, LoopControlRegistryError,
     LoopControlStatus,
 };
 pub use mock_backend::{MockBackend, thinking_level_to_str};
-pub use session_store::{SessionKind, SessionRecord, SessionRepository, SqliteSessionRepository};
+pub use session_store::{
+    SessionKind, SessionRecord, SessionRepository, SqliteSessionRepository, WorkdirRecord,
+};
 pub use subagent::{register_subagent_tools, SubAgentInstanceInfo, SubAgentManager};
 pub use subagent_store::{SqliteSubAgentSpecStore, SubAgentSpecStore};
 pub use terminal::{register_terminal_tools, TerminalService};
@@ -28,7 +32,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use agent_memory::MemoryCenterAccessor;
 use agent_runtime::agent::{AgentLoop, AgentLoopConfig, AgentState, AgentStateSnapshot};
-use agent_runtime::backend::ThinkingLevel;
+use agent_runtime::backend::{NodeBackendAccessor, PromptCallOptions, ThinkingLevel};
 use agent_runtime::confirmation::{ConfirmationBroker, ConfirmationPolicy};
 use agent_runtime::event::{EventBroadcaster, EventListener, OrchestratorEvent};
 use agent_runtime::llm::config::ProviderConfig as RuntimeProviderConfig;
@@ -50,6 +54,7 @@ use agent_runtime::scenario::{
 use agent_runtime::router::{RouterConfig, RouterNode};
 // 编排 4 模式 UI 下沉：ToT / GoT / Supervisor 节点，用于构单节点编排图跑通前端口令
 use agent_runtime::graph_of_thoughts::{GoTConfig, GoTNode};
+use agent_runtime::multi_agent::{AgentSpec, MultiAgentConfig, MultiAgentNode, Topology};
 use agent_runtime::supervisor::{SubAgentSpec, SupervisorConfig, SupervisorNode};
 use agent_runtime::tree_of_thoughts::{ToTConfig, ToTNode};
 use memory_center_core::model::ArchiveConfig;
@@ -124,6 +129,38 @@ pub struct SupervisorExecuteOptions {
     pub max_rounds: Option<u32>,
 }
 
+/// Multi-Agent 编排运行参数（Agent 规格 + 拓扑 + 协作轮次）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MultiAgentExecuteOptions {
+    /// 参与协作的 Agent 规格列表（必须含 system_prompt；建议首个配置 initial_message 启动协作）
+    pub specs: Vec<AgentSpec>,
+    /// 最大协作轮次（覆盖默认 10）
+    #[serde(default)]
+    pub max_rounds: Option<usize>,
+    /// 拓扑结构（mesh/ring/star/pipeline；缺省 mesh）
+    #[serde(default)]
+    pub topology: Option<Topology>,
+    /// 是否启用共享黑板（默认 true）
+    #[serde(default)]
+    pub blackboard_enabled: Option<bool>,
+    /// 是否最后综合所有 Agent 输出（默认 true）
+    #[serde(default)]
+    pub require_synthesis: Option<bool>,
+}
+
+impl Default for MultiAgentExecuteOptions {
+    fn default() -> Self {
+        Self {
+            specs: Vec::new(),
+            max_rounds: None,
+            topology: None,
+            blackboard_enabled: None,
+            require_synthesis: None,
+        }
+    }
+}
+
 impl Default for PlanExecuteOptions {
     fn default() -> Self {
         Self {
@@ -166,6 +203,9 @@ pub struct SessionInfo {
     /// A3 四管线路由开关（缺省开启，持久化）
     #[serde(default = "default_session_true")]
     pub router_enabled: bool,
+    /// 会话绑定的工作区根目录（Phase 3 接入本地文件系统；None=不限定）
+    #[serde(default)]
+    pub workdir: Option<String>,
 }
 
 /// SessionInfo.router_enabled 的 serde 缺省值（旧前端/缺省字段视为开启）
@@ -518,18 +558,24 @@ impl AgentCommandService {
     /// - `provider_config`：Provider 配置（cloud/local/custom 三种模式）
     ///   - `Some`：按注入配置构造 GenaiBackend
     ///   - `None`：降级为默认 Cloud 占位（空 API Key，需 `set_provider_config` 后可用）
+    /// - `workdir`：会话绑定的工作区根目录（`None`=不限定，FS 工具相对路径原样返回）
+    ///   - Phase 2 接入：写入 `AgentLoopConfig.workdir`，供 AgentLoop 构造 ToolContext
     async fn new_agent(
         &self,
         session_id: &str,
         system_prompt: Option<String>,
         provider_config: Option<RuntimeProviderConfig>,
         scenario: Option<Arc<dyn Scenario>>,
+        workdir: Option<PathBuf>,
     ) -> (Arc<AgentLoop>, Arc<SubAgentManager>) {
         let config = provider_config.unwrap_or_else(Self::default_provider_config);
         let backend = Arc::new(GenaiBackend::new(config));
         let tool_bus = Arc::new(SimpleToolBus::new());
         // 注册终端工具（execute_command + 持久化 shell 会话）
         terminal::register_terminal_tools(&*tool_bus).await;
+        // 注册文件系统工具（read_file/write_file/list_directory/search_files/edit_file），
+        // 基于 ToolContext.workdir 解析相对路径；写在 terminal 之后（FS 为独立工具组）。
+        fs_tools::register_fs_tools(&*tool_bus).await;
         // 注册子 Agent 编排工具（delegate_to_sub_agent / list_sub_agents），
         // 共享服务级 `subagent_specs` 注册表，跨会话可见。
         let sub_agent_manager = subagent::register_subagent_tools(
@@ -552,6 +598,8 @@ impl AgentCommandService {
             entity_provider: self.entity_provider.clone(),
             // A5 HITL：启用默认危险操作确认策略（execute_command 危险命令 / delegate_to_sub_agent）
             confirmation_policy: Some(ConfirmationPolicy::dangerous_only()),
+            // Phase 2：会话工作区（供 FS 工具解析相对路径，None=不限定）
+            workdir,
             ..Default::default()
         };
         // A3 四管线路由：为每个会话注入四管线路由节点（发送时决策管线）
@@ -643,13 +691,15 @@ impl AgentCommandService {
     /// - `system_prompt`：系统提示词
     /// - `provider_config`：Provider 配置（可选，缺省用默认 Cloud 占位，
     ///   随后可调用 [`Self::set_provider_config`] 写入真实配置）
+    /// - `workdir`：会话绑定的工作区根目录（`None`=不限定，向后兼容；Phase 3）
     pub async fn new_session(
         &self,
         system_prompt: Option<String>,
         provider_config: Option<RuntimeProviderConfig>,
         scenario_id: Option<String>,
+        workdir: Option<PathBuf>,
     ) -> Result<SessionInfo, CommandError> {
-        self.new_session_with_kind(system_prompt, provider_config, SessionKind::Chat, scenario_id)
+        self.new_session_with_kind(system_prompt, provider_config, SessionKind::Chat, scenario_id, workdir)
             .await
     }
 
@@ -660,14 +710,17 @@ impl AgentCommandService {
         provider_config: Option<RuntimeProviderConfig>,
         kind: SessionKind,
         scenario_id: Option<String>,
+        workdir: Option<PathBuf>,
     ) -> Result<SessionInfo, CommandError> {
         // 先生成会话 ID，作为记忆隔离依据传入 new_agent（构造 MemoryCenterAccessor）
         let id = uuid::Uuid::new_v4().to_string();
         // new_agent 会 move system_prompt，先克隆一份供后续持久化使用
         let persisted_prompt = system_prompt.clone();
+        // workdir 会被 move 进 new_agent，先转成字符串供 SessionInfo/SessionRecord 复用
+        let workdir_str = workdir.as_ref().map(|p| p.to_string_lossy().to_string());
         let scenario = self.resolve_scenario(scenario_id.as_deref());
         let (agent, sub_agent_manager) = self
-            .new_agent(&id, system_prompt, provider_config, scenario)
+            .new_agent(&id, system_prompt, provider_config, scenario, workdir)
             .await;
         let info = SessionInfo {
             id: id.clone(),
@@ -677,6 +730,7 @@ impl AgentCommandService {
             pinned: false,
             kind,
             router_enabled: true,
+            workdir: workdir_str.clone(),
         };
         self.sessions.lock().await.insert(id.clone(), agent);
         self.subagent_managers
@@ -696,6 +750,7 @@ impl AgentCommandService {
                 pinned: false,
                 kind,
                 router_enabled: true,
+                workdir: workdir_str.clone(),
             };
             if let Err(e) = store.save_session(&record).await {
                 tracing::warn!("持久化新会话失败（仅内存生效）: {e}");
@@ -892,6 +947,45 @@ impl AgentCommandService {
             .map_err(|e| CommandError::Agent(format!("Supervisor 执行失败: {e}")))
     }
 
+    /// 运行 Multi-Agent 协作编排图（单节点：MultiAgentNode）
+    ///
+    /// 复用会话的 backend 与 ToolBus，使 N 个协作 Agent 共享同一批工具与 LLM 后端。
+    /// 拓扑/黑板/综合由 `MultiAgentConfig` 控制；协作过程事件经
+    /// [`ForwardToAgentBroadcaster`] 转投会话广播器，前端可实时展示黑板与轮次。
+    pub async fn run_multi(
+        &self,
+        session_id: &str,
+        input: String,
+        options: MultiAgentExecuteOptions,
+    ) -> Result<OrchestratorResult, CommandError> {
+        let agent = self.get_agent(session_id).await?;
+        let backend = agent.node_backend();
+        let tool_bus = agent.tool_bus();
+        let defaults = MultiAgentConfig::default();
+        let config = MultiAgentConfig {
+            max_rounds: options.max_rounds.unwrap_or(defaults.max_rounds),
+            topology: options.topology.unwrap_or(defaults.topology),
+            blackboard_enabled: options
+                .blackboard_enabled
+                .unwrap_or(defaults.blackboard_enabled),
+            require_synthesis: options
+                .require_synthesis
+                .unwrap_or(defaults.require_synthesis),
+            ..defaults
+        };
+        let mut orch = DefaultOrchestrator::new().with_backend(backend.clone());
+        orch.add_node(Box::new(MultiAgentNode::new(
+            "multi_agent", "MultiAgent", options.specs, backend, tool_bus, config,
+        )));
+        orch.set_entry("multi_agent");
+        orch.subscribe(Arc::new(ForwardToAgentBroadcaster {
+            target: agent.broadcaster_ref(),
+        }));
+        orch.run(input, None)
+            .await
+            .map_err(|e| CommandError::Agent(format!("Multi-Agent 执行失败: {e}")))
+    }
+
     /// 会话列表（默认只返回单聊会话；群聊参与者会话走 [`Self::list_group_session_participants`] 按群聊查询）
     ///
     /// `kind` 为 `Some` 时按类型过滤（`Some(Chat)` 供单聊侧边栏避免污染）。
@@ -920,8 +1014,11 @@ impl AgentCommandService {
         let mut restored = Vec::with_capacity(records.len());
         for record in records {
             // 重建 AgentLoop（provider 用默认占位，前端按需 set_provider_config）
-            let (agent, sub_agent_manager) =
-                self.new_agent(&record.id, Some(record.system_prompt), None, None).await;
+            // workdir 从持久化列读回（None=不限定），Phase 3 接入本地文件系统
+            let workdir = record.workdir.clone().map(PathBuf::from);
+            let (agent, sub_agent_manager) = self
+                .new_agent(&record.id, Some(record.system_prompt), None, None, workdir)
+                .await;
             // 应用持久化的四管线路由开关
             agent.set_router_enabled(record.router_enabled);
             // 恢复消息历史（含 system 首条）
@@ -951,6 +1048,7 @@ impl AgentCommandService {
                 pinned: record.pinned,
                 kind: record.kind,
                 router_enabled: record.router_enabled,
+                workdir: record.workdir.clone(),
             };
             self.meta.lock().await.insert(record.id.clone(), info.clone());
             restored.push(info);
@@ -972,7 +1070,7 @@ impl AgentCommandService {
         provider_config: Option<RuntimeProviderConfig>,
     ) -> Result<GroupParticipantSessionInfo, CommandError> {
         let info = self
-            .new_session_with_kind(system_prompt, provider_config, SessionKind::Group, None)
+            .new_session_with_kind(system_prompt, provider_config, SessionKind::Group, None, None)
             .await?;
         // 写映射（持久化；失败弱提示——会话仍可用，仅重启后无法恢复定位）
         if let Some(store) = &self.session_store {
@@ -1083,6 +1181,106 @@ impl AgentCommandService {
             }
         }
         Ok(())
+    }
+
+    /// 更新会话绑定的工作区根目录（写穿持久化）。目录选择器切换工作区时同步当前会话归属，
+    /// 使侧边栏会话树按新目录分组。workdir=None 表示不限定。
+    pub async fn update_session_workdir(
+        &self,
+        session_id: &str,
+        workdir: Option<String>,
+    ) -> Result<(), CommandError> {
+        // 同步内存会话元数据缓存（list_sessions 读 meta，不更新则列表仍显示旧目录）
+        {
+            let mut meta = self.meta.lock().await;
+            let Some(info) = meta.get_mut(session_id) else {
+                return Err(CommandError::session_not_found(session_id));
+            };
+            info.workdir = workdir.clone();
+        }
+        if let Some(store) = &self.session_store {
+            store
+                .update_workdir(session_id, workdir.as_deref())
+                .await
+                .map_err(|e| CommandError::Internal(format!("更新会话工作区目录失败: {e}")))?;
+        }
+        Ok(())
+    }
+
+    /// 生成会话标题（Phase 5：LLM 异步生成，首条消息 + 首条回复 → 轻量模型 → ≤60 字符）
+    ///
+    /// # 流程
+    /// 1. 标题锁定：仅当当前标题为「新会话」时才覆盖（用户已手动重命名则不覆盖）。
+    /// 2. 拼接「首条消息 + 首条回复」（各截断 600 字符），调 LLM 生成简洁标题。
+    /// 3. 复用当前会话的 Provider 配置，但新建独立 `GenaiBackend`——单次生成不污染
+    ///    会话消息历史（`prompt` 会把 user/assistant 消息推入自身 backend 消息表）。
+    /// 4. 生成成功 → 更新标题（复用 `update_session_title`，含写穿持久化）并返回新标题；
+    ///    失败/模型不可用 → 保留「新会话」占位（不阻断前端，等待下一次首消息再试）。
+    ///
+    /// 返回实际生效的标题（未改动时返回原标题/占位）。
+    pub async fn generate_session_title(
+        &self,
+        session_id: &str,
+        first_message: &str,
+        first_reply: &str,
+    ) -> Result<String, CommandError> {
+        // 标题锁定：仅当前标题为「新会话」才生成覆盖（手动重命名不覆盖）
+        {
+            let meta = self.meta.lock().await;
+            if let Some(info) = meta.get(session_id) {
+                if info.title != "新会话" {
+                    return Ok(info.title.clone());
+                }
+            }
+        }
+        let agent = self.get_agent(session_id).await?;
+        // 复用会话当前 Provider 配置（含 API Key），单次生成，避免污染会话消息历史
+        let config = agent
+            .current_provider_config()
+            .await
+            .unwrap_or_else(Self::default_provider_config);
+        let backend = GenaiBackend::new(config);
+        // 拼接并截断首条消息/首条回复（各 600 字符）作为生成依据
+        let input = format!(
+            "用户首条消息：{}\n\n助手首条回复：{}",
+            truncate_chars(first_message, 600),
+            truncate_chars(first_reply, 600)
+        );
+        let options = PromptCallOptions {
+            // 系统提示：生成 ≤60 字符简洁标题，匹配用户语言，名词短语优先，不逐字复制请求
+            system_prompt_override: Some(
+                "生成一个不超过60字符的简洁会话标题。要求：匹配用户语言，名词短语优先，\
+                 提炼对话主题，不要逐字复制请求原文，不要引号或多余标点。只输出标题本身。"
+                    .into(),
+            ),
+            max_tokens: Some(64),
+            ..Default::default()
+        };
+        let generated = match backend.prompt(input, Some(options)).await {
+            Ok(resp) => resp.text.trim().to_string(),
+            Err(e) => {
+                // 生成失败降级：保留「新会话」占位，记录日志（不阻断前端输出流）
+                tracing::warn!("会话标题生成失败，保留占位「新会话」: {e}");
+                return Ok("新会话".into());
+            }
+        };
+        if generated.is_empty() {
+            return Ok("新会话".into());
+        }
+        // 重入校验标题锁定：LLM 调用期间用户可能已手动重命名（title ≠ 新会话），
+        // 此时不得再覆盖（避免把用户起的标题覆盖掉）。
+        {
+            let meta = self.meta.lock().await;
+            if let Some(info) = meta.get(session_id) {
+                if info.title != "新会话" {
+                    return Ok(info.title.clone());
+                }
+            }
+        }
+        // 截断到 60 字符并写穿持久化（update_session_title 内含标题非空校验）
+        let title = truncate_chars(&generated, 60);
+        self.update_session_title(session_id, &title).await?;
+        Ok(title)
     }
 
     /// 设置会话固定状态（更新内存 meta + 写穿持久化存储）
@@ -1335,6 +1533,49 @@ impl AgentCommandService {
         }
     }
 
+    // ── 目录实体（Workdir）──────────────────────────────────
+
+    /// 列出全部目录实体（前端目录空间选择器 / 会话树分组用）
+    ///
+    /// 未注入持久化存储时返回空列表（调用方按无目录实体处理）。
+    pub async fn list_workdirs(&self) -> Result<Vec<WorkdirRecord>, CommandError> {
+        let store = match &self.session_store {
+            Some(s) => s.clone(),
+            None => return Ok(Vec::new()),
+        };
+        store.list_workdirs().await
+    }
+
+    /// 写入/覆盖一个目录实体（按 path 去重），返回 upsert 后的记录
+    ///
+    /// 未注入持久化存储时返回错误（目录实体必须先配库才能保存）。
+    pub async fn save_workdir(
+        &self,
+        path: String,
+        label: String,
+    ) -> Result<WorkdirRecord, CommandError> {
+        let store = match &self.session_store {
+            Some(s) => s.clone(),
+            None => {
+                return Err(CommandError::Internal(
+                    "未配置目录持久化存储，无法保存目录实体".into(),
+                ))
+            }
+        };
+        store.upsert_workdir(&path, &label).await
+    }
+
+    /// 删除一个目录实体（按 id）
+    ///
+    /// 未注入持久化存储时不作操作（按成功处理）。
+    pub async fn delete_workdir(&self, id: String) -> Result<(), CommandError> {
+        let store = match &self.session_store {
+            Some(s) => s.clone(),
+            None => return Ok(()),
+        };
+        store.delete_workdir(&id).await
+    }
+
     // ── 子 Agent 编排 ────────────────────────────────────
 
     /// 注册一个子 Agent 规格（同名按 id 覆盖）
@@ -1570,6 +1811,13 @@ impl AgentCommandService {
         let status = agent.long_task_manager().get_heartbeat_status().await;
         Ok(status)
     }
+}
+
+/// 按字符边界截断字符串到最多 `max` 字符（避免在 UTF-8 多字节序列中间截断）
+///
+/// 供标题生成等场景：对首条消息/首条回复/生成标题做长度上限，防止超长文本进入 LLM 或侧边栏。
+fn truncate_chars(s: &str, max: usize) -> String {
+    s.chars().take(max).collect()
 }
 
 #[cfg(test)]

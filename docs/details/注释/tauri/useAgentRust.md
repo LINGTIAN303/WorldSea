@@ -103,6 +103,8 @@ Rust `agent_runtime::llm::config::ProviderConfig` 镜像（tagged enum，`mode` 
 
 幂等：若已存在监听器，直接返回（避免重复监听）。
 
+> (已更新：2026-08-21 改为**双写 tool 事件行 + deepSegments**——不再由 deepPhases 构造带标签色带的 phase 段；`deepSegments` 保留供右侧轨迹面板 TracePanel / PhaseSection / ExecPanel 消费，见注释块 9)
+
 ## 注释块 6（原文件第 580-589 行）
 
 处理一条子 Agent 委派事件，增量更新 `subAgents` 列表
@@ -135,3 +137,51 @@ Tauri 端 Agent Backend composable
 实现 `IAgentBackend` 契约（prompt / steer / followUp / abort / updateModel /
 updateThinkingLevel / clearHistory / subscribe / dispose / isStreaming），
 并补充会话管理 / 消息列表 / 心跳等 UI 需要的扩展方法。
+
+## 注释块 9（2026-08-21 事件行流重构）
+
+# 事件行流引擎（agentStream）—— 2026-08-21 去模式化重构
+
+移除 deep / normal / explore 三种 chatMode 形态，主对话流统一为单一
+**事件行流** `agentStream`。
+
+## 唯一渲染源
+
+`agentStream: AgentStreamItem[]` 成为主对话流**唯一渲染源**，5 变体：
+
+| 变体 | 渲染行 | 说明 |
+|---|---|---|
+| `user{msg}` | UserRow | 用户消息行 |
+| `assistant{msg}` | AssistantRow | 助手消息行（复用 useMarkdownRender） |
+| `think{text,status}` | ThinkRow | 思考行（动态折叠） |
+| `tool{tc}` | ToolRow | 工具行（扁平行） |
+| `divider{dividerText}` | DividerRow | 分隔行 |
+
+渲染引擎：`packages/shared-ui/src/agent/stream/`（AgentStreamList + rows/）。
+列表层 `AgentMessageList.vue` 直接消费 agentStream，
+删除 isDeepMode / deepSegments 平铺 / turn-separator / DeepSegmentCard。
+
+## 双写策略
+
+**thinking 双写**：流式 reasoning 事件同时写 `AgentMessage.thinking` 字段 +
+追加 think 事件行（供 AgentStreamList ThinkRow 动态折叠渲染）。
+
+**deep_phase_changed 双写**：收到 `agent:event:deep_phase_changed:{session_id}`，
+同时 ① 追加 tool 事件行（主对话流扁平化工具展示）；② 更新 `deepSegments`
+（保持阶段先后顺序，供右侧轨迹面板 TracePanel / PhaseSection / ExecPanel
+消费）。不再由 deepPhases 构造带标签色带的 phase 段（思维链改由 think 行表达）。
+
+## 回源重建 + 时间分隔
+
+**回源重建**：`rebuildStreamFromMessages` 从消息历史重建 agentStream
+（刷新 / 回源后保持一致）。
+
+**>30min divider 合成**：`pushStreamItem` / `lastContentStreamItem` /
+`AGE_DIVIDER_THRESHOLD` 判定超过 30 分钟，追加 divider 时间分隔行。
+
+## finalOutput 移除 / deepSegments 保留
+
+- `finalOutput` / `FinalOutput` 已删除：权威输出统一由事件行流
+  （assistant{msg}）表达，无需独立冗余字段。
+- `deepSegments` 保留：右侧轨迹面板 TracePanel / PhaseSection / ExecPanel
+  仍消费（主对话流左侧已不再消费；见注释块 5 就地更新说明）。

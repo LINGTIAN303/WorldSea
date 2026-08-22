@@ -106,23 +106,9 @@
       <!-- ── 下层：常驻工具栏 ── -->
       <div class="input-toolbar">
         <div class="toolbar-left">
+          <!-- [E1] 左侧控件收缩到 附件 + 语音；@//!/~/# 符号入口移除（功能保留：可直接输入符号触发召唤系统） -->
           <button class="tool-btn" type="button" title="附件（图片/文件）" aria-label="添加附件" @click="triggerFileInput">
             <WsIcon name="paperclip" size="sm" />
-          </button>
-          <button class="tool-btn" type="button" title="@ 引用实体" aria-label="插入引用符号" @click="insertPrefix('@')">
-            <WsIcon name="document" size="sm" />
-          </button>
-          <button class="tool-btn" type="button" title="/ 指令与技能" aria-label="插入指令符号" @click="insertPrefix('/')">
-            <WsIcon name="zap" size="sm" />
-          </button>
-          <button class="tool-btn" type="button" title="！创作区视图" aria-label="插入创作区符号" @click="insertPrefix('！')">
-            <WsIcon name="book" size="sm" />
-          </button>
-          <button class="tool-btn" type="button" title="~ Agent 资产" aria-label="插入资产符号" @click="insertPrefix('~')">
-            <WsIcon name="archive" size="sm" />
-          </button>
-          <button class="tool-btn" type="button" title="# 应用层面板" aria-label="插入面板符号" @click="insertPrefix('#')">
-            <WsIcon name="settings" size="sm" />
           </button>
           <button class="tool-btn" :class="{ 'voice-active': isListening }" type="button" title="语音输入（麦克风转文字）" aria-label="语音输入" @click="toggleVoice">
             <WsIcon name="volume-on" size="sm" />
@@ -143,6 +129,7 @@
           >
             <WsIcon name="workflow" size="sm" />
           </button>
+          <WorkdirSelect />
           <ModelSwitcher :is-expanded="isExpanded" @change="onModelChange" />
           <button
             class="send-btn"
@@ -170,10 +157,11 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick, watch, onMounted, onBeforeUnmount } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from '@/agent/composables/transport'
 import { isTauri, hasTauriInvoke } from '@worldsmith/entity-core/core'
 import { WsIcon, toastInfo, toastWarn } from '@worldsmith/ui-kit'
 import { useSpaceStore, type InputInjectionChip } from '../stores/space-store'
+import { useSessionViewState } from '@/agent/composables/useSessionViewState'
 import { useAgent } from '@/agent/composables/useAgent'
 import { modelSupportsVision } from '@worldsmith/agent-runtime'
 import { useSettingsStore } from '@/stores/settingsStore'
@@ -181,6 +169,7 @@ import { usePluginStore, useEntityStore } from '@worldsmith/entity-core'
 import { useUIStore } from '@/stores/uiStore'
 import { extractDocumentText } from '@/composables/useFileExtract'
 import ModelSwitcher from './ModelSwitcher.vue'
+import WorkdirSelect from './WorkdirSelect.vue'
 import SummonMenu from './SummonMenu.vue'
 import {
   buildSummonItems, filterByPrefix, getReferenceEntries, matchesFilter,
@@ -217,6 +206,9 @@ const emit = defineEmits<{
 }>()
 
 const spaceStore = useSpaceStore()
+// 聊天模式按会话隔离（viewState 权威）：占位符轮播 / 模式标签 / 模型参数弹窗回写均用当前会话模式
+const sessionView = useSessionViewState()
+const sessionMode = computed(() => sessionView.activeState.value?.chatMode ?? 'deep')
 const settingsStore = useSettingsStore()
 const pluginStore = usePluginStore()
 const uiStore = useUIStore()
@@ -285,7 +277,7 @@ const placeholderByMode: Record<ChatMode, string[]> = {
   task: ['任务执行：拆解并分步完成…', '描述目标，我来规划执行'],
   'group-chat': ['群聊模式…', '邀请 Agent 参与讨论'],
 }
-const placeholderList = computed(() => placeholderByMode[spaceStore.chatMode] ?? placeholderByMode.deep)
+const placeholderList = computed(() => placeholderByMode[sessionMode.value] ?? placeholderByMode.deep)
 const placeholderIndex = ref(0)
 let placeholderTimer: ReturnType<typeof setInterval> | null = null
 const currentPlaceholder = computed(
@@ -293,7 +285,7 @@ const currentPlaceholder = computed(
 )
 
 const modeLabel = computed(() => {
-  switch (spaceStore.chatMode) {
+  switch (sessionMode.value) {
     case 'deep': return '深度思考'
     case 'explore': return '知识探索'
     case 'task': return '任务执行'
@@ -521,7 +513,7 @@ function handleSummonSelect(item: SummonItem) {
 
 function executeCommand(item: SummonItem, paramValue?: string) {
   if (item.payload === 'chatMode') {
-    spaceStore.setChatMode((paramValue ?? 'deep') as ChatMode)
+    sessionView.setMode((paramValue ?? 'deep') as ChatMode)
     return
   }
   if (item.payload === 'help') {
@@ -695,20 +687,7 @@ function focusInputEnd() {
   ta.setSelectionRange(len, len)
 }
 
-/* ── 工具栏符号插入 ── */
-function insertPrefix(p: string) {
-  const ta = textareaRef.value
-  if (!ta) return
-  const pos = ta.selectionStart ?? inputText.value.length
-  inputText.value = inputText.value.slice(0, pos) + p + inputText.value.slice(pos)
-  isExpanded.value = true
-  nextTick(() => {
-    ta.focus()
-    const np = pos + p.length
-    ta.setSelectionRange(np, np)
-    detectSummon(inputText.value, np)
-  })
-}
+/* ── 工具栏符号插入（已移除按钮，保留符号直接输入触发召唤系统） ── */
 
 /* ── 语音输入（Web Speech API 实时转文字）── */
 const isListening = ref(false)
@@ -1054,6 +1033,9 @@ watch(() => spaceStore.inputInjection, (injection) => {
 
 onMounted(() => {
   startPlaceholderRotation()
+  // Phase 4：刷新目录实体列表，供输入栏目录选择器下拉候选（浏览器 preview 走 mock 兜底）
+  const backend = useAgent()
+  if (typeof backend.loadWorkdirs === 'function') void backend.loadWorkdirs()
 })
 
 onBeforeUnmount(() => {
@@ -1073,10 +1055,10 @@ onBeforeUnmount(() => {
   position: relative;
 }
 
-/* ── 双层输入框（2026-08-12：整体伸缩移除，固定最大态 70% 宽度；08-13 缩至 55%） ── */
+/* ── 双层输入框（[C] 宽度联动：以 W=55vw 为上限；主区被左栏/右栏挤窄时收缩到主区-2vw，左右各留 1vw 缝） ── */
 .chat-input-box {
-  width: min(55%, calc(100% - 32px));
-  max-width: min(55%, calc(100% - 32px));
+  width: min(var(--conv-w), calc(100% - 2vw));
+  max-width: min(var(--conv-w), calc(100% - 2vw));
   background: var(--color-surface-elevated);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-2xl);
@@ -1125,8 +1107,8 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 4px;
   padding: 2px 6px 2px 8px;
-  background: var(--color-primary-muted, rgba(59, 130, 246, 0.1));
-  border: 1px solid var(--color-primary, rgba(59, 130, 246, 0.3));
+  background: var(--color-primary-muted);
+  border: 1px solid var(--color-primary);
   border-radius: var(--radius-md);
   font-size: var(--font-size-xs);
   color: var(--color-primary);
@@ -1141,16 +1123,16 @@ onBeforeUnmount(() => {
 }
 
 .chip-reference {
-  color: var(--color-success, #10b981);
-  background: color-mix(in srgb, var(--color-success, #10b981) 10%, transparent);
-  border-color: color-mix(in srgb, var(--color-success, #10b981) 40%, transparent);
+  color: var(--color-success);
+  background: color-mix(in srgb, var(--color-success) 10%, transparent);
+  border-color: color-mix(in srgb, var(--color-success) 40%, transparent);
 }
 
 /* 四管线 Chip（force_pipeline 强制路由）——琥珀色区分，前缀加粗 */
 .chip-pipeline {
-  color: var(--color-warning, #d97706);
-  background: color-mix(in srgb, var(--color-warning, #d97706) 10%, transparent);
-  border-color: color-mix(in srgb, var(--color-warning, #d97706) 40%, transparent);
+  color: var(--color-warning);
+  background: color-mix(in srgb, var(--color-warning) 10%, transparent);
+  border-color: color-mix(in srgb, var(--color-warning) 40%, transparent);
 }
 .chip-pipeline .chip-prefix {
   font-weight: 700;
@@ -1187,7 +1169,7 @@ onBeforeUnmount(() => {
 
 .chip-remove:hover {
   opacity: 1;
-  background: color-mix(in srgb, var(--color-primary, #3b82f6) 15%, transparent);
+  background: color-mix(in srgb, var(--color-primary) 15%, transparent);
 }
 
 /* 附件 */
@@ -1380,24 +1362,24 @@ onBeforeUnmount(() => {
 }
 
 .tool-btn.voice-active {
-  color: var(--color-danger, #e74c3c);
-  background: color-mix(in srgb, var(--color-danger, #e74c3c) 12%, transparent);
+  color: var(--color-danger);
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
   animation: stop-pulse 1.2s ease-in-out infinite;
 }
 
 /* A3 四管线路由开关：开启点亮，关闭置灰 */
 .tool-btn.router-toggle.active {
-  color: var(--color-primary, #3b82f6);
-  background: color-mix(in srgb, var(--color-primary, #3b82f6) 12%, transparent);
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
 }
 .tool-btn.router-toggle:not(.active) {
   opacity: 0.55;
 }
 
 .voice-hint {
-  background: color-mix(in srgb, var(--color-primary, #3b82f6) 10%, transparent);
-  border-color: color-mix(in srgb, var(--color-primary, #3b82f6) 40%, transparent);
-  color: var(--color-primary, #3b82f6);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  border-color: color-mix(in srgb, var(--color-primary) 40%, transparent);
+  color: var(--color-primary);
 }
 
 .send-btn {
@@ -1425,7 +1407,7 @@ onBeforeUnmount(() => {
 }
 
 .send-btn.stop-btn {
-  background: var(--color-danger, #e74c3c);
+  background: var(--color-danger);
   animation: stop-pulse 1.5s ease-in-out infinite;
 }
 
@@ -1441,11 +1423,11 @@ onBeforeUnmount(() => {
 .vision-warning {
   margin-top: 8px;
   padding: 6px 12px;
-  background: var(--warning-soft, rgba(255, 200, 0, 0.1));
-  border: 1px solid color-mix(in srgb, var(--warning, #d97706) 40%, transparent);
+  background: var(--warning-soft);
+  border: 1px solid color-mix(in srgb, var(--warning) 40%, transparent);
   border-radius: var(--radius-mid);
   font-size: var(--font-size-xs);
-  color: var(--warning, #d4a000);
+  color: var(--warning);
   text-align: center;
   max-width: 80%;
 }

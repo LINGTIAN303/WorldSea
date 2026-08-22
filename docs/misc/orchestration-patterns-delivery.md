@@ -72,7 +72,7 @@ PlanNode → ExecuteNode → (可选) ReflectionNode ⇄ RefineNode
 ## 六、遗留风险 / 待办
 
 1. **Refine 迭代循环未实测**：本次评审 95 分一次收敛，未触发 Refine→再评审循环。低分场景的 Refine 迭代需另行构造低质量任务验证。
-2. **前端评审事件按 session 单桶累积**：跨会话会覆盖，建议后续按 session 分桶。
+2. **前端评审事件按 session 单桶累积**：✅ 已修复（2026-08-19）——`usePlanRust` 评审历史改为按 session 分桶（`reflectionBuckets: Map`），监听器按 session 注册/清理，`watch(currentSessionId)` 切换会话时 tear down 旧会话监听；`runPlan` 每次运行清空本会话分桶。跨会话不再覆盖互窜。
 3. 详细注释文档（docs/details/注释/agent-runtime/plan.md / reflection.md / usePlanRust.md）待补。
 
 ## 七、提交记录

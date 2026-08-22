@@ -40,6 +40,9 @@
   --info: #2563eb;
   --info-soft: #e8effc;
 
+  /* 用户头像品牌渐变（SpaceNavbar user-avatar；深色下可叠加微调） */
+  --user-avatar-grad: linear-gradient(135deg, #10b981, #34d399);
+
   /* ── 排版 ── */
   --font-sans: 'Inter', system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
   --font-mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
@@ -82,7 +85,8 @@
   --empty-icon: #c7cad3;      /* 空态徽标图标色：浅色下用灰调（bg-muted 上仍可辨，批次87 #14 修复）；深色下覆盖为 accent 弱化 */
   --input-sm-h: 30px;         /* 紧凑输入框高度（搜索/检索/新建会话名三档统一基准）；与按钮 sm 28px 相邻为 2px 输入略高的既定双基准，不强行拉平 */
   --chat-gutter: 24px;        /* 对话主区横轴间距（header/状态条/子代理条/消息/输入栏统一） */
-  --chat-max-w: 860px;        /* 对话主区内容最大宽度（消息气泡/日期分隔/输入框/错误条统一，批次101 令牌化） */
+  --conv-w: min(55vw, calc(100vw - 32px)); /* [C] 对话主区内容宽度基准（消息区跟随输入栏）：W=55%视口，全屏与输入栏对齐；主区窄时输入栏用 min(W, 主区-2vw) 留缝 */
+  --chat-max-w: var(--conv-w); /* 对话主区内容最大宽度（消息气泡/日期分隔/输入框/错误条统一，批次101 令牌化；[C] 跟随输入栏宽度） */
   --disabled-opacity: 0.5;    /* 禁用态统一透明度（按钮/分段器/发送钮） */
 
   /* ── 区域分割（三区双线：各区域为独立圆角块 + 区域间缝隙）── */
@@ -239,6 +243,9 @@
   --agent-segment-tooling: #7dd3fc;
   --agent-segment-output: #2dd4bf;
   --agent-user-bubble: #27272c;
+
+  /* 用户头像品牌渐变：深色下提亮保持对比 */
+  --user-avatar-grad: linear-gradient(135deg, #34d399, #6ee7b7);
 
   /* 阴影（深底加深，保持浮起层次） */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);

@@ -7,7 +7,7 @@
     <span v-else-if="tc.status === 'completed'" class="itc-normal-status completed">完成</span>
     <span v-else class="itc-normal-status failed">失败</span>
     <span v-if="tc.endedAt && tc.startedAt" class="itc-normal-dur">{{ formatDuration(tc.startedAt, tc.endedAt) }}</span>
-    <span class="itc-normal-chevron" :class="{ expanded: isExpanded }">▸</span>
+    <WsIcon name="chevron-right" size="xs" class="itc-normal-chevron" :class="{ expanded: isExpanded }" />
     <Transition name="itc-detail">
       <div v-if="isExpanded" class="itc-normal-detail" @click.stop>
         <div v-if="Object.keys(tc.args).length > 0" class="itc-detail-section">

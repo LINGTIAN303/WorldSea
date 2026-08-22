@@ -15,6 +15,15 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex as StdMutex, OnceLock};
 use tauri::{AppHandle, Emitter, State};
+use serde_json::json;
+
+/// [HTTP-BRIDGE] 事件双路发射：桌面 IPC（app.emit）+ 全局广播 hub（浏览器 SSE 订阅）。
+/// 桌面行为不变（原 emit 保留），仅额外 publish 一份到 hub。移除时删除本函数并还原各调用点。
+fn emit_dual(app: &AppHandle, name: &str, payload: serde_json::Value) -> Result<(), tauri::Error> {
+    let r = app.emit(name, payload.clone());
+    crate::http_bridge::events::publish(name, payload);
+    r
+}
 
 /// 转发 AgentLoop 事件到 Tauri 前端事件系统
 ///
@@ -97,7 +106,7 @@ impl TauriAgentEventEmitter {
         };
         let seq = self.trace_seq.fetch_add(1, Ordering::SeqCst);
         let trace_name = format!("agent:event:trace:{}", self.session_id);
-        if let Err(err) = self.app.emit(
+        if let Err(err) = emit_dual(&self.app, 
             &trace_name,
             serde_json::json!({
                 "seq": seq,
@@ -107,6 +116,40 @@ impl TauriAgentEventEmitter {
         ) {
             tracing::warn!("Failed to emit trace event to frontend: {}", err);
         }
+    }
+}
+
+/// 编排实时事件（ToT/GoT 思维树）→ `agent:event:orch:{session_id}`
+///
+/// payload 采用 `{ kind, payload }` 双层结构：`kind` 为事件类别
+/// （node_created / node_scored / branch_explored / aggregated / goal_reached / terminated），
+/// `payload` 为该事件视角的 camelCase 明细，前端据此逐类更新实时思维树。
+fn emit_orch(emitter: &TauriAgentEventEmitter, kind: &str, payload: serde_json::Value) {
+    let event_name = format!("agent:event:orch:{}", emitter.session_id);
+    if let Err(err) = emit_dual(&emitter.app, &event_name, serde_json::json!({ "kind": kind, "payload": payload })) {
+        tracing::warn!("Failed to emit orchestration event ({kind}) to frontend: {err}");
+    }
+}
+
+/// Supervisor 委派实时事件 → `agent:event:orch_supervisor:{session_id}`
+///
+/// payload 与 emit_orch 同构 `{ kind, payload }`；kind ∈
+/// task_assigned / sub_agent_started / sub_agent_completed。
+fn emit_orch_supervisor(emitter: &TauriAgentEventEmitter, kind: &str, payload: serde_json::Value) {
+    let event_name = format!("agent:event:orch_supervisor:{}", emitter.session_id);
+    if let Err(err) = emit_dual(&emitter.app, &event_name, serde_json::json!({ "kind": kind, "payload": payload })) {
+        tracing::warn!("Failed to emit supervisor event ({kind}) to frontend: {err}");
+    }
+}
+
+/// Multi-Agent 实时事件 → `agent:event:orch_multi:{session_id}`
+///
+/// payload 同构 `{ kind, payload }`；kind ∈
+/// round_started / message_sent / blackboard_updated / round_completed / converged。
+fn emit_orch_multi(emitter: &TauriAgentEventEmitter, kind: &str, payload: serde_json::Value) {
+    let event_name = format!("agent:event:orch_multi:{}", emitter.session_id);
+    if let Err(err) = emit_dual(&emitter.app, &event_name, serde_json::json!({ "kind": kind, "payload": payload })) {
+        tracing::warn!("Failed to emit multi-agent event ({kind}) to frontend: {err}");
     }
 }
 
@@ -126,7 +169,7 @@ impl EventListener for TauriAgentEventEmitter {
                 // 转发到前端：事件名 `agent:event:deep_phase_changed:{session_id}`
                 // payload: { phaseLabel, phaseIndex, triggerTool, toolStatus, phaseCompleted }
                 let event_name = format!("agent:event:deep_phase_changed:{}", self.session_id);
-                if let Err(err) = self.app.emit(
+                if let Err(err) = emit_dual(&self.app, 
                     &event_name,
                     serde_json::json!({
                         "phaseLabel": phase_label,
@@ -150,7 +193,7 @@ impl EventListener for TauriAgentEventEmitter {
                 // 转发到前端：事件名 `agent:event:a2ui:{session_id}`
                 // payload: { surfaceId, message }（message 序列化为 camelCase，null 变体自动跳过）
                 let event_name = format!("agent:event:a2ui:{}", self.session_id);
-                if let Err(err) = self.app.emit(
+                if let Err(err) = emit_dual(&self.app, 
                     &event_name,
                     serde_json::json!({
                         "surfaceId": surface_id,
@@ -172,7 +215,7 @@ impl EventListener for TauriAgentEventEmitter {
                 // 转发到前端：事件名 `agent:event:subagent:{session_id}`
                 // payload: { type, subAgentId, subAgentName, taskDescription }
                 let event_name = format!("agent:event:subagent:{}", self.session_id);
-                if let Err(err) = self.app.emit(&event_name, serde_json::json!({
+                if let Err(err) = emit_dual(&self.app, &event_name, serde_json::json!({
                     "type": "start",
                     "subAgentId": sub_agent_id,
                     "subAgentName": sub_agent_name,
@@ -180,6 +223,10 @@ impl EventListener for TauriAgentEventEmitter {
                 })) {
                     tracing::warn!("Failed to emit SubAgentStarted event to frontend: {}", err);
                 }
+                // 同步转发到 Supervisor 委派通道（缺省 live 事件），供「委派」面板实时编排日志
+                emit_orch_supervisor(self, "sub_agent_started", json!({
+                    "subAgentId": sub_agent_id, "subAgentName": sub_agent_name,
+                }));
             }
             OrchestratorEvent::SubAgentCompleted {
                 sub_agent_id,
@@ -191,7 +238,7 @@ impl EventListener for TauriAgentEventEmitter {
                 // 转发到前端：事件名 `agent:event:subagent:{session_id}`
                 // payload: { type, subAgentId, subAgentName, outputChars, durationMs }
                 let event_name = format!("agent:event:subagent:{}", self.session_id);
-                if let Err(err) = self.app.emit(&event_name, serde_json::json!({
+                if let Err(err) = emit_dual(&self.app, &event_name, serde_json::json!({
                     "type": "completed",
                     "subAgentId": sub_agent_id,
                     "subAgentName": sub_agent_name,
@@ -200,6 +247,12 @@ impl EventListener for TauriAgentEventEmitter {
                 })) {
                     tracing::warn!("Failed to emit SubAgentCompleted event to frontend: {}", err);
                 }
+                // 同步转发到 Supervisor 委派通道，供「委派」面板实时编排日志
+                emit_orch_supervisor(self, "sub_agent_completed", json!({
+                    "subAgentId": sub_agent_id,
+                    "outputChars": output_chars,
+                    "durationMs": duration_ms,
+                }));
             }
             OrchestratorEvent::SubAgentError {
                 sub_agent_id,
@@ -210,7 +263,7 @@ impl EventListener for TauriAgentEventEmitter {
                 // 转发到前端：事件名 `agent:event:subagent:{session_id}`
                 // payload: { type, subAgentId, subAgentName, error }
                 let event_name = format!("agent:event:subagent:{}", self.session_id);
-                if let Err(err) = self.app.emit(&event_name, serde_json::json!({
+                if let Err(err) = emit_dual(&self.app, &event_name, serde_json::json!({
                     "type": "error",
                     "subAgentId": sub_agent_id,
                     "subAgentName": sub_agent_name,
@@ -227,7 +280,7 @@ impl EventListener for TauriAgentEventEmitter {
                 // 转发到前端：事件名 `agent:confirm:{session_id}`
                 // payload: { confirmId, toolName, args }
                 let event_name = format!("agent:confirm:{}", self.session_id);
-                if let Err(err) = self.app.emit(&event_name, serde_json::json!({
+                if let Err(err) = emit_dual(&self.app, &event_name, serde_json::json!({
                     "confirmId": confirm_id,
                     "toolName": tool_name,
                     "args": args,
@@ -239,7 +292,7 @@ impl EventListener for TauriAgentEventEmitter {
                 // 转发到前端：事件名 `agent:confirm:{session_id}`
                 // payload: { confirmId, approved }（供前端清理进行中的确认弹窗）
                 let event_name = format!("agent:confirm:{}", self.session_id);
-                if let Err(err) = self.app.emit(&event_name, serde_json::json!({
+                if let Err(err) = emit_dual(&self.app, &event_name, serde_json::json!({
                     "type": "resolved",
                     "confirmId": confirm_id,
                     "approved": approved,
@@ -260,6 +313,9 @@ impl EventListener for TauriAgentEventEmitter {
                     AgentEvent::StreamDelta { delta } => {
                         serde_json::json!({ "type": "delta", "delta": delta })
                     }
+                    AgentEvent::ReasoningDelta { delta } => {
+                        serde_json::json!({ "type": "reasoning", "delta": delta })
+                    }
                     AgentEvent::StreamEnd { full_text } => {
                         serde_json::json!({ "type": "end", "fullText": full_text })
                     }
@@ -271,7 +327,7 @@ impl EventListener for TauriAgentEventEmitter {
                     _ => return,
                 };
                 let event_name = format!("agent:event:stream:{}", self.session_id);
-                if let Err(err) = self.app.emit(&event_name, payload) {
+                if let Err(err) = emit_dual(&self.app, &event_name, payload) {
                     tracing::warn!("Failed to emit Stream event to frontend: {}", err);
                 }
             }
@@ -281,7 +337,7 @@ impl EventListener for TauriAgentEventEmitter {
             // 前端 `useAgentEvents` 据此更新 `usePlanStore`，驱动 PlanPanel 展示。
             OrchestratorEvent::PlanCreated { items } => {
                 let event_name = format!("agent:event:plan_created:{}", self.session_id);
-                if let Err(err) = self.app.emit(
+                if let Err(err) = emit_dual(&self.app, 
                     &event_name,
                     serde_json::json!({ "items": items }),
                 ) {
@@ -294,7 +350,7 @@ impl EventListener for TauriAgentEventEmitter {
                 output,
             } => {
                 let event_name = format!("agent:event:plan_update:{}", self.session_id);
-                if let Err(err) = self.app.emit(
+                if let Err(err) = emit_dual(&self.app, 
                     &event_name,
                     serde_json::json!({
                         "itemId": step_id,
@@ -308,7 +364,7 @@ impl EventListener for TauriAgentEventEmitter {
             // A4 Replanner：计划重规划后整体刷新前端
             OrchestratorEvent::PlanReplanned { items } => {
                 let event_name = format!("agent:event:plan_replanned:{}", self.session_id);
-                if let Err(err) = self.app.emit(
+                if let Err(err) = emit_dual(&self.app, 
                     &event_name,
                     serde_json::json!({ "items": items }),
                 ) {
@@ -319,12 +375,135 @@ impl EventListener for TauriAgentEventEmitter {
             // 前端据此展示评分/问题/建议（与 A4 计划事件同一转发模式）
             OrchestratorEvent::ReflectionResult { result } => {
                 let event_name = format!("agent:event:reflection:{}", self.session_id);
-                if let Err(err) = self.app.emit(
+                if let Err(err) = emit_dual(&self.app, 
                     &event_name,
                     serde_json::json!({ "result": result }),
                 ) {
                     tracing::warn!("Failed to emit ReflectionResult event to frontend: {}", err);
                 }
+            }
+            // ─── 编排 4 模式 UI 下沉：ToT/GoT 思维树实时事件 → `agent:event:orch:{session_id}` ───
+            OrchestratorEvent::ThoughtNodeCreated {
+                thought_id,
+                parent_id,
+                depth,
+                content_preview,
+                ..
+            } => {
+                emit_orch(self, "node_created", json!({
+                    "thoughtId": thought_id, "parentId": parent_id, "depth": depth,
+                    "contentPreview": content_preview,
+                }));
+            }
+            OrchestratorEvent::ThoughtNodeScored {
+                thought_id,
+                score,
+                reasoning,
+                ..
+            } => {
+                emit_orch(self, "node_scored", json!({
+                    "thoughtId": thought_id, "score": score, "reasoning": reasoning,
+                }));
+            }
+            OrchestratorEvent::ThoughtBranchExplored {
+                parent_id,
+                child_count,
+                depth,
+                kept_count,
+                ..
+            } => {
+                emit_orch(self, "branch_explored", json!({
+                    "parentId": parent_id, "childCount": child_count,
+                    "depth": depth, "keptCount": kept_count,
+                }));
+            }
+            OrchestratorEvent::ThoughtsAggregated {
+                aggregated_thought_id,
+                source_ids,
+                depth,
+                content_preview,
+                ..
+            } => {
+                emit_orch(self, "aggregated", json!({
+                    "aggregatedThoughtId": aggregated_thought_id, "sourceIds": source_ids,
+                    "depth": depth, "contentPreview": content_preview,
+                }));
+            }
+            OrchestratorEvent::ToTGoalReached {
+                thought_id,
+                depth,
+                content,
+                score,
+                ..
+            } => {
+                emit_orch(self, "goal_reached", json!({
+                    "thoughtId": thought_id, "depth": depth,
+                    "content": content, "score": score,
+                }));
+            }
+            OrchestratorEvent::ToTTerminated {
+                reason,
+                total_nodes,
+                max_depth_reached,
+                best_thought_id,
+                best_score,
+                ..
+            } => {
+                emit_orch(self, "terminated", json!({
+                    "reason": reason, "totalNodes": total_nodes,
+                    "maxDepthReached": max_depth_reached,
+                    "bestThoughtId": best_thought_id, "bestScore": best_score,
+                }));
+            }
+            OrchestratorEvent::SupervisorTaskAssigned {
+                sub_agent_id,
+                sub_agent_name,
+                task_description,
+                reasoning,
+                ..
+            } => {
+                emit_orch_supervisor(self, "task_assigned", json!({
+                    "subAgentId": sub_agent_id,
+                    "subAgentName": sub_agent_name,
+                    "taskDescription": task_description,
+                    "reasoning": reasoning,
+                }));
+            }
+            // ─── Multi-Agent 实时事件 → `agent:event:orch_multi:{session_id}` ───
+            OrchestratorEvent::MultiAgentRoundStarted {
+                round, agent_count, ..
+            } => {
+                emit_orch_multi(self, "round_started", json!({
+                    "round": round, "agentCount": agent_count,
+                }));
+            }
+            OrchestratorEvent::MultiAgentMessageSent {
+                from,
+                to,
+                message_type,
+                content_preview,
+                ..
+            } => {
+                emit_orch_multi(self, "message_sent", json!({
+                    "from": from, "to": to,
+                    "messageType": message_type,
+                    "contentPreview": content_preview,
+                }));
+            }
+            OrchestratorEvent::MultiAgentBlackboardUpdated { key, by, .. } => {
+                emit_orch_multi(self, "blackboard_updated", json!({
+                    "key": key, "by": by,
+                }));
+            }
+            OrchestratorEvent::MultiAgentRoundCompleted { round, outputs, .. } => {
+                emit_orch_multi(self, "round_completed", json!({
+                    "round": round, "outputs": outputs,
+                }));
+            }
+            OrchestratorEvent::MultiAgentConverged { reason, final_result, .. } => {
+                emit_orch_multi(self, "converged", json!({
+                    "reason": reason, "finalResult": final_result,
+                }));
             }
             // 其他事件目前不需要转发到前端
             _ => {}
@@ -379,15 +558,22 @@ async fn ensure_emitter_registered(
 /// - `system_prompt`：系统提示词
 /// - `provider_config`：Provider 配置（可选，缺省用默认 Cloud 占位，
 ///   随后可调用 `set_provider_config` 写入真实配置）
+/// - `workdir`：会话绑定的工作区根目录（可选，None=不限定；Phase 3 接入本地文件系统）
 #[tauri::command]
 pub async fn new_session(
     state: State<'_, AgentCommandService>,
     system_prompt: Option<String>,
     provider_config: Option<ProviderConfig>,
     scenario_id: Option<String>,
+    workdir: Option<String>,
 ) -> Result<agent_commands::SessionInfo, String> {
     state
-        .new_session(system_prompt, provider_config, scenario_id)
+        .new_session(
+            system_prompt,
+            provider_config,
+            scenario_id,
+            workdir.map(std::path::PathBuf::from),
+        )
         .await
         .map_err(|e| e.to_string())
 }
@@ -433,6 +619,50 @@ pub async fn update_session_title(
         .map_err(|e| e.to_string())
 }
 
+/// 生成会话标题（Phase 5：LLM 异步生成，异步不阻塞前端口令调用方）
+///
+/// 由前端在「首条消息 + 首条回复」到位后调用：Rust 调轻量模型生成 ≤60 字符标题，
+/// 更新会话标题后经 `agent:session_title_updated` 事件推前端刷新 Sidebar。
+/// 返回实际生效的标题（生成失败返回「新会话」占位，不报错阻断）。
+#[tauri::command]
+pub async fn cmd_agent_generate_title(
+    app: AppHandle,
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+    first_message: String,
+    first_reply: String,
+) -> Result<String, String> {
+    // 确保会话事件桥已订阅（标题更新事件仍走统一前端通道；未发消息时补订阅）
+    if let Ok(agent) = state.get_agent(&session_id).await {
+        ensure_emitter_registered(&app, &agent, &session_id).await;
+    }
+    let title = state
+        .generate_session_title(&session_id, &first_message, &first_reply)
+        .await
+        .map_err(|e| e.to_string())?;
+    // 广播标题更新事件（含 sessionId + title），前端据此更新 Sidebar 条目标题
+    if let Err(err) = emit_dual(&app, "agent:session_title_updated", serde_json::json!({
+        "sessionId": session_id,
+        "title": title,
+    })) {
+        tracing::warn!("Failed to emit session title updated event to frontend: {err}");
+    }
+    Ok(title)
+}
+
+/// 更新会话绑定的工作区根目录（目录选择器切换工作区时同步当前会话归属）
+#[tauri::command]
+pub async fn cmd_update_session_workdir(
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+    workdir: Option<String>,
+) -> Result<(), String> {
+    state
+        .update_session_workdir(&session_id, workdir)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// 设置会话固定状态
 #[tauri::command]
 pub async fn set_session_pinned(
@@ -459,6 +689,33 @@ pub async fn set_session_router_enabled(
         .set_session_router_enabled(&session_id, enabled)
         .await
         .map_err(|e| e.to_string())
+}
+
+/// 列出全部目录实体（目录空间选择器 / 会话树分组用）
+#[tauri::command]
+pub async fn cmd_list_workdirs(
+    state: State<'_, AgentCommandService>,
+) -> Result<Vec<agent_commands::WorkdirRecord>, String> {
+    state.list_workdirs().await.map_err(|e| e.to_string())
+}
+
+/// 保存/覆盖一个目录实体（按 path 去重，返回 upsert 后的记录）
+#[tauri::command]
+pub async fn cmd_save_workdir(
+    state: State<'_, AgentCommandService>,
+    path: String,
+    label: String,
+) -> Result<agent_commands::WorkdirRecord, String> {
+    state.save_workdir(path, label).await.map_err(|e| e.to_string())
+}
+
+/// 删除一个目录实体（按 id）
+#[tauri::command]
+pub async fn cmd_delete_workdir(
+    state: State<'_, AgentCommandService>,
+    id: String,
+) -> Result<(), String> {
+    state.delete_workdir(id).await.map_err(|e| e.to_string())
 }
 
 /// 运行 Plan-and-Execute 编排图（3/4/5 编排模式命令入口）
@@ -537,6 +794,24 @@ pub async fn orchestrator_run_supervisor(
     }
     state
         .run_supervisor(&session_id, input, options)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 运行 Multi-Agent 协作编排图（N 个 Agent 共享黑板协作）
+#[tauri::command]
+pub async fn orchestrator_run_multi(
+    app: AppHandle,
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+    input: String,
+    options: agent_commands::MultiAgentExecuteOptions,
+) -> Result<agent_runtime::orchestrator::OrchestratorResult, String> {
+    if let Ok(agent) = state.get_agent(&session_id).await {
+        ensure_emitter_registered(&app, &agent, &session_id).await;
+    }
+    state
+        .run_multi(&session_id, input, options)
         .await
         .map_err(|e| e.to_string())
 }
@@ -1175,7 +1450,7 @@ impl EventListener for LoopControlTauriEventListener {
         };
 
         let event_name = format!("loop_control:event:{task_id}");
-        if let Err(err) = self.app.emit(&event_name, payload) {
+        if let Err(err) = emit_dual(&self.app, &event_name, payload) {
             tracing::warn!("Failed to emit loop_control event to frontend: {}", err);
         }
     }

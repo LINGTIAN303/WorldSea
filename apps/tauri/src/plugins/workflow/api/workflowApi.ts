@@ -5,7 +5,7 @@
 
 /** Workflow 引擎 Tauri 命令调用层（镜像 28 个 #[tauri::command]），详细见 docs/details/注释/tauri/workflowApi.md */
 
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from '../../../agent/composables/transport'
 
 // ─── 类型定义（镜像 Rust 端 structs，serde camelCase） ─────────────────────────
 

@@ -47,6 +47,27 @@ pub trait Tool: Send + Sync {
     /// 工具执行结果（JSON Value，将被序列化为字符串回传给 LLM）
     async fn execute(&self, args: serde_json::Value) -> Result<serde_json::Value, ToolError>;
 
+    /// 带上下文执行工具（默认实现，向后兼容）
+    ///
+    /// # 设计背景
+    /// 阶段 1.4 之前工具无法感知会话级工作区。本方法通过 [`crate::tool_context::ToolContext`]
+    /// 注入 `workdir`/`project_id`，使 FS 类工具能基于工作区解析相对路径。
+    ///
+    /// # 默认实现
+    /// 忽略 `ctx`，回落到 [`execute`]（旧工具零改动）。
+    /// 需要感知上下文的工具（如 FS 工具）应**覆写**本方法。
+    ///
+    /// # 参数
+    /// - `ctx`：工具上下文（工作区等信息，默认实现忽略）
+    /// - `args`：调用参数（JSON Value）
+    async fn execute_with_ctx(
+        &self,
+        _ctx: &crate::tool_context::ToolContext,
+        args: serde_json::Value,
+    ) -> Result<serde_json::Value, ToolError> {
+        self.execute(args).await
+    }
+
     /// 生成工具定义快照（默认实现，供 ToolBus::list_all 使用）
     fn definition(&self) -> ToolDefinition {
         ToolDefinition {
@@ -94,6 +115,25 @@ pub trait ToolBus: Send + Sync {
         name: &str,
         args: serde_json::Value,
     ) -> Result<serde_json::Value, ToolError>;
+
+    /// 带上下文调用工具（默认实现，向后兼容）
+    ///
+    /// # 设计背景
+    /// 与 [`Tool::execute_with_ctx`] 配套，让调用方（如 AgentLoop）在工具执行时
+    /// 注入会话级工作区信息。默认实现忽略 `ctx`，回落到 [`call_tool`]（传空 ctx 语义）。
+    ///
+    /// # 参数
+    /// - `name`：工具名称（可为旧别名，会自动映射）
+    /// - `ctx`：工具上下文（工作区等信息，默认实现忽略）
+    /// - `args`：调用参数（JSON Value）
+    async fn call_tool_with_ctx(
+        &self,
+        name: &str,
+        _ctx: &crate::tool_context::ToolContext,
+        args: serde_json::Value,
+    ) -> Result<serde_json::Value, ToolError> {
+        self.call_tool(name, args).await
+    }
 
     /// 已注册工具数量
     async fn count(&self) -> usize;
@@ -209,6 +249,18 @@ impl ToolBus for SimpleToolBus {
         name: &str,
         args: serde_json::Value,
     ) -> Result<serde_json::Value, ToolError> {
+        // 旧入口：委托给带上下文版本，传空上下文（向后兼容，无工作区约束）。
+        // 注意：不直接执行，避免与 call_tool_with_ctx 形成递归。
+        self.call_tool_with_ctx(name, &crate::tool_context::ToolContext::default(), args)
+            .await
+    }
+
+    async fn call_tool_with_ctx(
+        &self,
+        name: &str,
+        ctx: &crate::tool_context::ToolContext,
+        args: serde_json::Value,
+    ) -> Result<serde_json::Value, ToolError> {
         // 先解析别名（旧名 → 新名）
         let resolved = self.resolve_alias(name);
         let tool = self
@@ -219,7 +271,8 @@ impl ToolBus for SimpleToolBus {
             .cloned()
             // 错误信息用原始 name（便于排查调用方传了什么）
             .ok_or_else(|| ToolError::NotFound(name.to_string()))?;
-        tool.execute(args).await
+        // 真正执行入口：走 execute_with_ctx（默认回落到 execute）
+        tool.execute_with_ctx(ctx, args).await
     }
 
     async fn count(&self) -> usize {
@@ -307,9 +360,20 @@ impl ToolBus for WhitelistToolBus {
         name: &str,
         args: serde_json::Value,
     ) -> Result<serde_json::Value, ToolError> {
+        // 旧入口：委托给带上下文版本，传空上下文（向后兼容，无工作区约束）
+        self.call_tool_with_ctx(name, &crate::tool_context::ToolContext::default(), args)
+            .await
+    }
+
+    async fn call_tool_with_ctx(
+        &self,
+        name: &str,
+        ctx: &crate::tool_context::ToolContext,
+        args: serde_json::Value,
+    ) -> Result<serde_json::Value, ToolError> {
         let resolved = self.resolve_alias(name);
         if self.allowed.read().await.contains(&resolved) {
-            self.inner.call_tool(&resolved, args).await
+            self.inner.call_tool_with_ctx(&resolved, ctx, args).await
         } else {
             Err(ToolError::NotFound(name.to_string()))
         }

@@ -1,7 +1,7 @@
 /** useSubagentRust：Tauri 端子 Agent 规格管理适配器（subagent_* 命令封装），详细见 docs/details/注释/tauri/useSubagentRust.md */
 
 import { ref } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from '../../agent/composables/transport'
 
 // ─── 类型（与后端 SubAgentSpec 对齐，snake_case JSON 键）────────
 

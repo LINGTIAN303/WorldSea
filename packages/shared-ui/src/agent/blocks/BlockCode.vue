@@ -1,10 +1,10 @@
 <template>
   <div class="block-code">
     <div class="block-toggle" role="button" tabindex="0" :aria-expanded="expanded" @click="expanded = !expanded" @keydown.enter.prevent="expanded = !expanded" @keydown.space.prevent="expanded = !expanded">
-      <span class="block-icon">💻</span>
+      <WsIcon name="terminal" size="xs" class="block-icon" />
       <span class="block-title">代码: {{ block.language }}</span>
       <span class="block-meta">{{ lineCount }}行</span>
-      <span class="block-arrow">{{ expanded ? '▾ 点击收起' : '▸ 点击展开' }}</span>
+      <span class="block-arrow"><WsIcon :name="expanded ? 'chevron-down' : 'chevron-right'" size="xs" /><span>{{ expanded ? '点击收起' : '点击展开' }}</span></span>
     </div>
     <Transition name="block-expand">
       <div v-if="expanded" class="block-content">
@@ -20,6 +20,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { WsIcon } from '@worldsmith/ui-kit'
 import type { CodeBlockData } from '@worldsmith/agent-runtime'
 
 const props = defineProps<{

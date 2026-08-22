@@ -3,7 +3,7 @@
  *  与 usePlanRust 同构（模块级单例，复用 useAgentRust 的 currentSessionId）。 */
 
 import { ref, readonly } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from './transport'
 import { useAgentRust } from './useAgentRust'
 
 // 模块级单例：复用 useAgentRust 的当前会话 ref（同一引用）

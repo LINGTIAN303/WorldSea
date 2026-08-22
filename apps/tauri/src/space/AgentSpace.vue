@@ -1,15 +1,12 @@
 <template>
   <div class="agent-space">
-    <!-- 窗口栏（space 精简变体：拖拽区 + 居中标题 + 窗口控制，2026-08-09 补齐） -->
-    <TitleBar variant="space" :title="windowBarTitle" />
-
-    <SpaceNavbar
-      :panel-session-open="sessionOpen"
-      @toggle-panel-click="onTogglePanelClick"
-      @toggle-new-session="onToggleNewSession"
-      @toggle-mode="onToggleMode"
-      @open-settings="onOpenSettings"
-    />
+    <!-- 窗口栏（space 精简变体：拖拽区 + 居中标题 + 窗口控制，2026-08-09 补齐）。
+         [A1] 顶栏移除后：左侧栏开关经 space-left 插槽注入窗口栏（Agent空间/工作台 切换右侧） -->
+    <TitleBar variant="space" :title="windowBarTitle">
+      <template #space-left>
+        <PanelToggle :open="sessionOpen" @click="onTogglePanelClick" />
+      </template>
+    </TitleBar>
 
     <div id="agent-space-main" tabindex="-1" class="space-body">
       <!-- 单聊模式：左侧侧边栏（会话列表/知识库 双 Tab 共用一个面板，2026-08-12） -->
@@ -19,7 +16,10 @@
           class="session-panel"
           :style="{ width: spaceStore.sessionSidebarWidth + 'px' }"
         >
-          <SessionSidebar @close="closeSession" />
+          <SessionSidebar
+            @close="closeSession"
+            @open-settings="onOpenSettings"
+          />
           <div
             class="resize-handle resize-handle-right"
             @mousedown="onSessionResizeStart"
@@ -29,16 +29,26 @@
 
       <div class="space-main">
         <!-- 单聊/群聊双模式（群聊 UI 骨架 2026-08-09 恢复） -->
-        <SpaceChat v-if="spaceStore.mode === 'chat'" />
-        <GroupChatView v-else @close="onGroupChatClose" />
+        <SpaceChat
+          v-if="spaceStore.mode === 'chat'"
+          :right-panel-open="spaceStore.rightPanelOpen"
+          @toggle-right-panel="onToggleRightPanel"
+          @toggle-mode="onToggleMode"
+        />
+        <GroupChatView
+          v-else
+          @close="onGroupChatClose"
+          @toggle-mode="onToggleMode"
+          @open-settings="onOpenSettings"
+        />
       </div>
 
-      <!-- 右侧面板（执行 / 配置 合并为一个面板，Level-1 Tab 切换，2026-08-12） -->
+      <!-- [C] 右侧面板工作台式：执行 / 配置 / 创作 / 预览 + 号（会话级记忆上次面板） -->
       <Transition name="panel-slide-right">
         <div
           v-if="spaceStore.rightPanelOpen"
           class="right-panel"
-          :style="{ width: spaceStore.rightPanelWidth + 'px' }"
+          :style="{ width: rightPanelWidthRendered + 'px' }"
         >
           <div
             class="resize-handle resize-handle-left"
@@ -46,34 +56,53 @@
           ></div>
           <div class="right-panel-tabs">
             <button
+              v-for="p in PANEL_META"
+              :key="p.id"
               class="right-tab"
-              :class="{ active: spaceStore.rightTab === 'exec' }"
-              @click="spaceStore.setRightTab('exec')"
-              title="执行（轨迹/活动/计划）"
-            ><WsIcon name="chart" size="sm" />执行</button>
-            <button
-              class="right-tab"
-              :class="{ active: spaceStore.rightTab === 'config' }"
-              @click="spaceStore.setRightTab('config')"
-              title="配置（记忆/人格）"
-            ><WsIcon name="settings" size="sm" />配置</button>
+              :class="{ active: rightTab === p.id }"
+              @click="setRightTab(p.id)"
+              :title="p.title"
+            ><WsIcon :name="p.icon" size="sm" />{{ p.label }}</button>
+            <div class="panel-add-wrap" ref="addWrapRef">
+              <button class="panel-add-btn" :class="{ active: addMenuOpen }" @click="toggleAddMenu" title="添加面板" :aria-label="'添加面板'"><WsIcon name="plus" size="sm" /></button>
+            </div>
             <button class="right-panel-close" @click="spaceStore.closeRightPanel()" title="关闭"><WsIcon name="close" size="sm" /></button>
           </div>
           <div class="right-panel-body">
-            <template v-if="spaceStore.rightTab === 'exec'">
-              <ExecPanel :tab="spaceStore.execTab" @update:tab="spaceStore.setExecTab" />
-            </template>
+            <!-- 空容器起步：无活跃会话 -->
+            <div v-if="!hasActiveSession" class="right-empty">
+              <WsIcon name="layout-grid" size="lg" class="right-empty-icon" />
+              <p class="right-empty-text">创建或打开一个会话以使用面板</p>
+              <button class="right-empty-add" @click="toggleAddMenu"><WsIcon name="plus" size="sm" />添加面板</button>
+            </div>
             <template v-else>
-              <div class="right-config-subtabs">
-                <button class="right-subtab" :class="{ active: spaceStore.configSubTab === 'memory' }" @click="spaceStore.setConfigSubTab('memory')">记忆</button>
-                <button class="right-subtab" :class="{ active: spaceStore.configSubTab === 'persona' }" @click="spaceStore.setConfigSubTab('persona')">人格</button>
-              </div>
-              <div class="right-config-body">
-                <MemoryShelf v-if="spaceStore.configSubTab === 'memory'" embedded />
-                <PersonaMirror v-else embedded />
-              </div>
+              <ExecPanel v-if="rightTab === 'exec'" :tab="execTab" @update:tab="setExecTab" />
+              <template v-else-if="rightTab === 'config'">
+                <div class="right-config-subtabs">
+                  <button class="right-subtab" :class="{ active: spaceStore.configSubTab === 'memory' }" @click="spaceStore.setConfigSubTab('memory')">记忆</button>
+                  <button class="right-subtab" :class="{ active: spaceStore.configSubTab === 'persona' }" @click="spaceStore.setConfigSubTab('persona')">人格</button>
+                </div>
+                <div class="right-config-body">
+                  <MemoryShelf v-if="spaceStore.configSubTab === 'memory'" embedded />
+                  <PersonaMirror v-else embedded />
+                </div>
+              </template>
+              <CreationPanel v-else-if="rightTab === 'creation'" />
+              <PreviewPanel v-else-if="rightTab === 'preview'" />
             </template>
           </div>
+
+          <!-- + 号浮窗：选择面板类型 -->
+          <Teleport to="body">
+            <div v-if="addMenuOpen" class="add-backdrop" @click="addMenuOpen = false"></div>
+            <Transition name="dropdown">
+              <div v-if="addMenuOpen" class="add-menu" :style="addMenuStyle">
+                <button v-for="p in PANEL_META" :key="p.id" class="add-item" @click="addPanel(p.id)">
+                  <WsIcon :name="p.icon" size="sm" /><span>{{ p.label }}</span>
+                </button>
+              </div>
+            </Transition>
+          </Teleport>
         </div>
       </Transition>
     </div>
@@ -86,27 +115,121 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, onMounted } from 'vue'
 import { useSpaceStore } from './stores/space-store'
+import { useUserProfileStore } from './stores/user-profile-store'
 import TitleBar from '@/ui/layout/TitleBar.vue'
-import SpaceNavbar from './SpaceNavbar.vue'
+import PanelToggle from './PanelToggle.vue'
 import SessionSidebar from './chat/SessionSidebar.vue'
 import SpaceChat from './chat/SpaceChat.vue'
 import GroupChatView from './group-chat/components/GroupChatView.vue'
 import MemoryShelf from './panels/MemoryShelf.vue'
 import PersonaMirror from './panels/PersonaMirror.vue'
 import ExecPanel from './panels/ExecPanel.vue'
+import CreationPanel from './panels/CreationPanel.vue'
+import PreviewPanel from './panels/PreviewPanel.vue'
 import SettingsDialog from '@/ui/settings/SettingsDialog.vue'
 import { DialogContainer, WsIcon } from '@worldsmith/ui-kit'
 import WsConfirmDialog from '@/ui/WsConfirmDialog.vue'
 import { useAgent } from '@/agent/composables/useAgent'
 import { useGenerationProgress } from '@worldsmith/shared-composables/agent/useGenerationProgress'
 import { usePlanStore } from '@worldsmith/shared-composables/agent/usePlanStore'
+import { useSessionViewState } from '@/agent/composables/useSessionViewState'
+import { provideMessageSpeakerContext } from '@worldsmith/shared-composables/agent/useMessageSpeaker'
+import { usePersonaFont } from './composables/usePersonaFont'
+import type { ExecTab, RightTab } from './stores/space-store'
+
+/** [C] 右侧面板工作台式：四类面板元数据（Tab 栏 + +号浮窗共用） */
+const PANEL_META: { id: RightTab; label: string; icon: string; title: string }[] = [
+  { id: 'exec', label: '执行', icon: 'chart', title: '执行（轨迹/活动/计划）' },
+  { id: 'config', label: '配置', icon: 'settings', title: '配置（记忆/人格）' },
+  { id: 'creation', label: '创作', icon: 'layout', title: '创作（插件创作视图）' },
+  { id: 'preview', label: '预览', icon: 'eye', title: '预览（项目产物）' },
+]
 
 const spaceStore = useSpaceStore()
+const userProfileStore = useUserProfileStore()
 const { hasActive } = useGenerationProgress()
 const planStore = usePlanStore()
-const { newSession } = useAgent()
+const { restoreLastSession } = useAgent()
+const personaFont = usePersonaFont()
+
+// [D] 注入 SpeakerContext：单聊/群聊消息身份显示前提（NormalMessageBubble 依赖；此前未在任何入口提供，导致 user 气泡渲染中断）
+const persona = computed(() => spaceStore.persona)
+const agentFont = computed(() => ({
+  fontFamily: personaFont.fontFamily.value || undefined,
+  accentColor: personaFont.profile.value.accentColor,
+}))
+const userProfile = computed(() => ({
+  nickname: userProfileStore.profile.nickname,
+  avatar: userProfileStore.profile.avatar || null,
+  statusColor: userProfileStore.statusColor,
+}))
+provideMessageSpeakerContext({
+  persona: computed(() => ({ name: persona.value.name, avatar: persona.value.avatar || null })),
+  userProfile,
+  agentFont,
+  defaultAgentColor: personaFont.profile.value.accentColor,
+})
+
+// execTab 按会话隔离（viewState 权威，切换会话自动恢复该会话上次子页）
+const sessionView = useSessionViewState()
+const execTab = computed(() => sessionView.activeState.value?.execTab ?? 'trace')
+function setExecTab(t: ExecTab) { sessionView.setExecTab(t) }
+
+// [C] 右侧面板 Level-1 会话级记忆：rightPanel 由 viewState 权威；无活跃会话时空容器
+const hasActiveSession = computed(() => !!sessionView.activeSessionId.value)
+const rightTab = computed<RightTab>(() => sessionView.activeState.value?.rightPanel ?? 'exec')
+
+/** [1] 右栏目标宽（不含左栏）：默认 70vw（未自定义）→ 目标=70vw；自定义 → 目标=存储宽。
+      store.rightPanelWidth 恒为该目标宽；实际呈现宽 = 目标宽 - 左栏宽（computed rightPanelWidthRendered），
+      使左栏开启时右栏真正收缩、内容随左栏变化，且不压缩主对话区（主区 min-width:30% 兜底）。 */
+const MIN_RIGHT_PANEL = 240
+const rightPanelWidthRendered = computed(() => {
+  const leftW = spaceStore.sessionSidebarOpen ? spaceStore.sessionSidebarWidth : 0
+  return Math.max(MIN_RIGHT_PANEL, spaceStore.rightPanelWidth - leftW)
+})
+
+/** 打开右栏/左栏变化时，将 store.rightPanelWidth（目标宽）重置为 70vw 或保持自定义存储宽 */
+function applyRightPanelWidth() {
+  if (!spaceStore.rightPanelWidthCustom) {
+    const base = Math.max(MIN_RIGHT_PANEL, Math.floor(window.innerWidth * 0.7))
+    spaceStore.setRightPanelWidth(base)
+  }
+}
+function setRightTab(t: RightTab) {
+  spaceStore.openRightPanel(t)
+  applyRightPanelWidth()
+  sessionView.setRightPanel(t)
+}
+
+/** [1] 主对话区右上角右栏开关：打开时同样触发 70% 主导 */
+function onToggleRightPanel() {
+  spaceStore.toggleRightPanel()
+  if (spaceStore.rightPanelOpen) applyRightPanelWidth()
+}
+
+// [C] + 号浮窗：添加/切换面板
+const addMenuOpen = ref(false)
+const addWrapRef = ref<HTMLElement>()
+const addMenuStyle = ref<Record<string, string>>({ bottom: '8px', right: '8px' })
+function toggleAddMenu() {
+  addMenuOpen.value = !addMenuOpen.value
+  if (addMenuOpen.value) {
+    const el = addWrapRef.value
+    if (el) {
+      const rect = el.getBoundingClientRect()
+      addMenuStyle.value = {
+        bottom: `${Math.max(8, window.innerHeight - rect.top + 6)}px`,
+        right: `${Math.max(8, window.innerWidth - rect.right)}px`,
+      }
+    }
+  }
+}
+function addPanel(t: RightTab) {
+  addMenuOpen.value = false
+  setRightTab(t)
+}
 
 // 窗口栏标题（space 变体，2026-08-09）：随单聊/群聊模式动态显示
 const windowBarTitle = computed(() =>
@@ -127,17 +250,11 @@ function closeSession() {
   spaceStore.setSessionSidebarOpen(false)
 }
 
-function onToggleNewSession() {
-  sessionOpen.value = true
-  spaceStore.setSessionSidebarOpen(true)
-  newSession()
-}
-
 // 生成任务活跃时自动打开右侧面板（执行 Tab · 活动）
 watch(hasActive, (active) => {
   if (active) {
-    spaceStore.openRightPanel('exec')
-    spaceStore.setExecTab('activity')
+    setRightTab('exec')
+    setExecTab('activity')
     spaceStore.activityPinned = true
   } else {
     spaceStore.activityPinned = false
@@ -147,9 +264,23 @@ watch(hasActive, (active) => {
 // Plan 创建时自动打开右侧面板（执行 Tab · 计划）
 watch(() => planStore.hasPlan, (has) => {
   if (has) {
-    spaceStore.openRightPanel('exec')
-    spaceStore.setExecTab('plan')
+    setRightTab('exec')
+    setExecTab('plan')
   }
+})
+
+// [1] 左栏开合/变宽时，若右栏展开则重算右栏宽，使其内容随左栏真正收缩（非 overflow 裁剪）。
+//     默认(未自定义)按 70% 占比；自定义时保持存储宽。右栏实际宽 = 目标宽 - 左栏宽。
+watch(
+  () => [spaceStore.sessionSidebarOpen, spaceStore.sessionSidebarWidth] as const,
+  () => {
+    if (spaceStore.rightPanelOpen) applyRightPanelWidth()
+  },
+)
+
+// 进入空间即恢复上次会话（chat 模式），使右侧执行面板 tab 加载后立即可用
+onMounted(() => {
+  if (spaceStore.mode === 'chat') restoreLastSession()
 })
 
 // Agent 设置已迁入主设置弹窗（2026-08-09）
@@ -178,6 +309,7 @@ function startResize(
   startWidth: number,
   calcDelta: (ev: MouseEvent) => number,
   setter: (w: number) => void,
+  onEnd?: () => void,
 ) {
   e.preventDefault()
 
@@ -202,6 +334,7 @@ function startResize(
     document.removeEventListener('mouseup', onUp)
     document.body.style.cursor = ''
     document.body.style.userSelect = ''
+    onEnd?.()
   }
 
   document.body.style.cursor = 'col-resize'
@@ -218,7 +351,10 @@ function onSessionResizeStart(e: MouseEvent) {
 }
 
 function onExecResizeStart(e: MouseEvent) {
-  startResize(e, spaceStore.rightPanelWidth, ev => e.clientX - ev.clientX, spaceStore.setRightPanelWidth)
+  startResize(e, spaceStore.rightPanelWidth, ev => e.clientX - ev.clientX, spaceStore.setRightPanelWidth, () => {
+    // [3] 用户拖拽右栏结束：标记为自定义宽度，持久保持、不再被默认 70% 弹回
+    spaceStore.markRightPanelWidthCustom()
+  })
 }
 </script>
 
@@ -345,6 +481,121 @@ function onExecResizeStart(e: MouseEvent) {
   flex-direction: column;
 }
 
+/* [C] 空容器起步 */
+.right-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  gap: 10px;
+  padding: 20px;
+  text-align: center;
+}
+.right-empty-icon {
+  color: var(--color-text-tertiary);
+  opacity: 0.4;
+}
+.right-empty-text {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+}
+.right-empty-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s;
+}
+.right-empty-add:hover {
+  border-color: var(--color-primary);
+  color: var(--color-text);
+}
+
+/* [C] 面板 Tab 栏：横向滚动 +  + 号按钮 */
+.right-panel-tabs {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  padding: 6px 10px 0;
+  border-bottom: 1px solid var(--color-border);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.right-panel-tabs::-webkit-scrollbar {
+  display: none;
+}
+.panel-add-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.panel-add-btn {
+  width: 26px;
+  height: 26px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-tertiary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+.panel-add-btn:hover {
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+.panel-add-btn.active {
+  background: var(--color-primary-muted);
+  color: var(--color-primary);
+}
+.add-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+}
+.add-menu {
+  position: fixed;
+  min-width: 140px;
+  background: var(--color-surface-elevated);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  padding: 4px;
+  z-index: 10001;
+}
+.add-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-mid);
+  cursor: pointer;
+  text-align: left;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  transition: background 0.12s;
+}
+.add-item:hover {
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
 /* 配置内子切换（记忆 / 人格）：次级下划线，字号更小以区分层级 */
 .right-config-subtabs {
   display: flex;
@@ -415,7 +666,8 @@ function onExecResizeStart(e: MouseEvent) {
 
 .space-main {
   flex: 1;
-  min-width: 0;
+  /* [1] 主对话区最低宽度 30%：右栏 70% 主导时聊天保底 30%，左栏展开只挤压右栏、不压缩聊天 */
+  min-width: 30%;
   overflow: hidden;
   /* 双线分隔独立块 */
   border: 1px solid var(--color-border);
@@ -457,5 +709,15 @@ function onExecResizeStart(e: MouseEvent) {
 .panel-slide-right-leave-active .plan-panel-content {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
+}
+
+/* 减弱动态偏好：面板滑入/滑出归零位移（位移距离不进集中 reduced-motion，此处 scoped 兜底） */
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-slide-enter-from,
+  .sidebar-slide-leave-to,
+  .panel-slide-right-enter-from,
+  .panel-slide-right-leave-to {
+    transform: none;
+  }
 }
 </style>

@@ -85,6 +85,43 @@ export function useFileSystemProject() {
   }
 
   /**
+   * 将指定目录直接绑定为当前项目的存储目录（统一根目录）。
+   * 与 openFolder 的绑定逻辑一致，但不弹系统目录对话框——由调用方传入已选目录
+   * （如 Agent 工作区「打开文件夹」选中的目录），使 Agent 工作区与项目数据存储共享同一根目录。
+   */
+  async function bindDirToProject(dirPath: string): Promise<boolean> {
+    if (!isSupported.value) {
+      lastError.value = '文件系统操作需要 Tauri 桌面端环境'
+      return false
+    }
+    lastError.value = ''
+    try {
+      const pm = getProjectManager()
+      const projectId = pm.getCurrentProjectId()
+      if (!projectId) {
+        lastError.value = '请先创建或选择一个项目'
+        return false
+      }
+      await pm.setProjectDir(projectId, dirPath)
+      await setStorageProjectDir(dirPath)
+      const { startWatching } = useFsWatcher()
+      await startWatching()
+      boundDir.value = dirPath
+      const fsb = getFileStorageBackend()
+      if (fsb?.isReady) {
+        const entityStore = useEntityStore()
+        const relationStore = useRelationStore()
+        await entityStore.loadAll()
+        await relationStore.loadAll()
+      }
+      return true
+    } catch (err: any) {
+      lastError.value = err.message ?? '绑定目录失败'
+      return false
+    }
+  }
+
+  /**
    * 导出当前项目到指定目录。
    * 使用 ProjectFS.exportProjectToDir 格式（entities/ + relations/ 目录结构）。
    */
@@ -170,6 +207,7 @@ export function useFileSystemProject() {
     loading,
     lastError,
     openFolder,
+    bindDirToProject,
     saveToFolder,
     closeProject,
     tryRestoreProject,

@@ -1,6 +1,32 @@
 <template>
   <div class="space-chat agent-panel">
     <template v-if="spaceStore.mode === 'chat'">
+      <!-- [A2] 顶栏移除后：主对话区右上角工具行（右侧栏开关 + 单聊/群聊切换） -->
+      <div class="chat-topbar">
+        <div class="chat-topbar-right">
+          <button
+            class="chat-top-btn"
+            :class="{ active: rightPanelOpen }"
+            @click="emit('toggle-right-panel')"
+            title="右侧栏（执行/配置/创作/预览）"
+            :aria-pressed="rightPanelOpen"
+          ><WsIcon :name="rightPanelOpen ? 'panel-right-close' : 'panel-right-open'" size="sm" /><span v-if="spaceStore.activityPinned" class="nav-badge"></span></button>
+          <div
+            class="mode-switch"
+            role="button"
+            tabindex="0"
+            title="切换群聊"
+            @click="emit('toggle-mode')"
+            @keydown.enter.prevent="emit('toggle-mode')"
+            @keydown.space.prevent="emit('toggle-mode')"
+          >
+            <span class="mode-switch-label">
+              <WsIcon name="chat" size="xs" />
+              单聊
+            </span>
+          </div>
+        </div>
+      </div>
       <!-- 读屏直播区：告知 Agent 生成开始/完成（视觉隐藏，WCAG 4.1.3） -->
       <div class="sr-only" role="status" aria-live="polite">{{ srStatus }}</div>
       <div class="chat-messages" :aria-busy="isStreaming">
@@ -12,7 +38,7 @@
           :last-assistant-has-thinking="lastAssistantHasThinking"
           :a2ui-surfaces="a2uiSurfaces"
           :resolve-data-binding="resolveDataBinding"
-          :chat-mode="spaceStore.chatMode"
+          :chat-mode="sessionMode"
           @a2ui-action="onA2UIAction"
           @copy="copyMessage"
           @retry="retryMessage"
@@ -25,15 +51,30 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, watch } from 'vue'
+import { ref, nextTick, watch, computed } from 'vue'
 import ChatInput from './ChatInput.vue'
 import AgentMessageList from '@/agent/AgentMessageList.vue'
 import { useAgent } from '@/agent/composables/useAgent'
 import { useSpaceStore } from '../stores/space-store'
+import { useSessionViewState } from '@/agent/composables/useSessionViewState'
 import { useFileStore } from '@worldsmith/entity-core'
+import { WsIcon } from '@worldsmith/ui-kit'
 import type { ImageAttachment, FileAttachment } from '@agent/index'
 
+const props = defineProps<{
+  /** [A2] 右侧面板是否打开（顶栏移除后主对话区右上角开关需要） */
+  rightPanelOpen?: boolean
+}>()
+
+const emit = defineEmits<{
+  'toggle-right-panel': []
+  'toggle-mode': []
+}>()
+
 const spaceStore = useSpaceStore()
+// 聊天模式按会话隔离（viewState 权威），渲染与发送均用当前会话的模式
+const sessionView = useSessionViewState()
+const sessionMode = computed(() => sessionView.activeState.value?.chatMode ?? 'deep')
 const {
   messages, isStreaming, sendMessage, steer,
   lastAssistantHasContent, lastAssistantHasThinking,
@@ -42,8 +83,9 @@ const {
 
 // 读屏状态播报：生成开始/完成（视觉隐藏，仅 aria-live 播报）
 const srStatus = ref('')
-// 输入框定位：初始居中（false），发送首条消息后下沉到底端（true）
-const inputDocked = ref(false)
+// [E2] 输入框定位：居中状态仅限空会话；有渲染消息的会话保持下沉
+// （由消息数驱动而非"是否发送过"，切回旧会话/加载历史消息时同样保持下沉）
+const inputDocked = computed(() => messages.value.length > 0)
 watch(isStreaming, (streaming, wasStreaming) => {
   if (streaming) srStatus.value = 'Agent 正在生成回复'
   else if (wasStreaming) srStatus.value = 'Agent 回复完成'
@@ -81,9 +123,6 @@ function onBlockAction(event: { blockId: string; action: string; data?: Record<s
 async function onInputSend(text: string, rawAttachments: any[], references?: { id: string; name: string; type: string }[]): Promise<void> {
   if (isStreaming.value) return
 
-  // 首次发送后输入框从居中下沉到底端
-  inputDocked.value = true
-
   const images: ImageAttachment[] = []
   const files: FileAttachment[] = []
   const fileStore = useFileStore()
@@ -115,7 +154,7 @@ async function onInputSend(text: string, rawAttachments: any[], references?: { i
     finalText,
     images.length ? images : undefined,
     files.length ? files : undefined,
-    spaceStore.chatMode,
+    sessionMode.value,
   )
   await nextTick()
   messageListRef.value?.scrollToBottom()
@@ -154,5 +193,104 @@ async function onInputSend(text: string, rawAttachments: any[], references?: { i
   display: flex;
   flex-direction: column;
   min-height: 0;
+}
+
+/* [2] 输入栏 .docked 为 absolute 浮在底部，会让消息流最后一行被遮挡。
+       消息列表 .chat-messages 预留底部占位（≈输入栏 dock 态高度），使最后一行可滚到输入栏上方 */
+.space-chat .chat-messages {
+  padding-bottom: 0;
+}
+.space-chat:has(.chat-input-dock.docked) .chat-messages {
+  padding-bottom: 76px;
+}
+
+/* [A2] 顶栏移除后主对话区右上角工具行：右对齐，不占主区高度 */
+.chat-topbar {
+  display: flex;
+  justify-content: flex-end;
+  flex-shrink: 0;
+  height: 32px;
+  padding: 0 10px;
+  align-items: center;
+}
+.chat-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.chat-top-btn {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+.chat-top-btn:hover {
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+}
+.chat-top-btn.active {
+  background: var(--color-primary-muted);
+  color: var(--color-text-primary);
+}
+/* 运行徽标（生成中活动红点，同 SpaceNavbar） */
+.chat-topbar .nav-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--danger, #ef4444);
+  animation: chat-nav-badge-pulse 1.6s infinite;
+}
+@keyframes chat-nav-badge-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+/* 单聊 ⇄ 群聊 切换（胶囊，同 SpaceNavbar mode-switch 简化：静态填充态） */
+.mode-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  gap: 4px;
+  border-radius: 999px;
+  background: var(--switch-bg);
+  border: none;
+  color: var(--switch-fg);
+  cursor: pointer;
+  overflow: hidden;
+}
+.mode-switch:hover {
+  filter: brightness(1.1);
+}
+.mode-switch:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+}
+.mode-switch-label {
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  color: var(--switch-fg);
+  line-height: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-topbar .nav-badge {
+    animation: none;
+  }
 }
 </style>

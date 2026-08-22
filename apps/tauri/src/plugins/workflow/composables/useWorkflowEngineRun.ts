@@ -6,7 +6,7 @@
 /** useWorkflowEngineRun：直接 Dispatch 兜底通道的运行控制器（事件监听 + 轮询兜底），详细见 docs/details/注释/tauri/useWorkflowEngineRun.md */
 
 import { ref, onUnmounted, readonly } from 'vue'
-import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+import { listen, type UnlistenFn } from '../../../agent/composables/transport'
 import {
   workflowRun,
   workflowStatus,

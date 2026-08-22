@@ -8,7 +8,7 @@
       <span v-else-if="tc.status === 'completed'" class="itc-status completed">完成</span>
       <span v-else class="itc-status failed">失败</span>
       <span v-if="tc.endedAt && tc.startedAt" class="itc-dur">{{ formatDuration(tc.startedAt, tc.endedAt) }}</span>
-      <span class="itc-chevron" :class="{ expanded: isExpanded }">▸</span>
+      <WsIcon name="chevron-right" size="xs" class="itc-chevron" :class="{ expanded: isExpanded }" />
     </div>
     <!-- 摘要行2：参数摘要 -->
     <div class="itc-args-preview">
@@ -32,6 +32,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { WsIcon } from '@worldsmith/ui-kit'
 
 export interface ToolCallView {
   id: string

@@ -3,11 +3,7 @@
     <template v-if="embedded">
       <div class="settings-row">
         <span class="sp-row-label">供应商模式</span>
-        <select v-model="settingsStore.aiProviderMode" class="settings-select" aria-label="供应商模式">
-          <option value="cloud">云端 API</option>
-          <option value="local">本地模型</option>
-          <option value="custom">自定义</option>
-        </select>
+        <TuiSelect :model-value="settingsStore.aiProviderMode" :options="providerModeOptions" aria-label="供应商模式" @update:model-value="settingsStore.aiProviderMode = $event" />
       </div>
       <template v-if="settingsStore.aiProviderMode === 'cloud'">
         <div class="settings-row">
@@ -26,9 +22,7 @@
         <div class="settings-row">
           <span class="sp-row-label">模型</span>
           <template v-if="currentProviderModels.length > 0">
-            <select :value="settingsStore.aiCloudModel" @change="onCloudModelChange" class="settings-select">
-              <option v-for="m in currentProviderModels" :key="m.id" :value="m.id">{{ m.name }}{{ getModelInfo(m.id)?.supportsVision ? ' (视觉)' : '' }}</option>
-            </select>
+            <TuiSelect :model-value="settingsStore.aiCloudModel" :options="currentProviderModelOptions" placeholder="选择模型" @update:model-value="onCloudModelChange" />
           </template>
           <template v-else>
             <input type="text" class="settings-input" v-model="settingsStore.aiCloudModel" placeholder="模型 ID" />
@@ -46,12 +40,7 @@
         </div>
         <div class="settings-row">
           <span class="sp-row-label">API 类型</span>
-          <select v-model="settingsStore.aiLocalType" class="settings-select" aria-label="API 类型">
-            <option value="ollama">Ollama</option>
-            <option value="lm-studio">LM Studio</option>
-            <option value="vllm">vLLM</option>
-            <option value="llama-cpp">llama.cpp</option>
-          </select>
+          <TuiSelect :model-value="settingsStore.aiLocalType" :options="localTypeOptions" aria-label="API 类型" @update:model-value="settingsStore.aiLocalType = $event" />
         </div>
         <div class="settings-row">
           <span class="sp-row-label">模型 ID</span>
@@ -79,18 +68,12 @@
         </div>
         <div class="settings-row">
           <span class="sp-row-label">API 类型</span>
-          <select v-model="settingsStore.aiCustomType" class="settings-select" aria-label="API 类型">
-            <option value="openai-compatible">OpenAI 兼容</option>
-            <option value="anthropic-compatible">Anthropic 兼容</option>
-          </select>
+          <TuiSelect :model-value="settingsStore.aiCustomType" :options="customTypeOptions" aria-label="API 类型" @update:model-value="settingsStore.aiCustomType = $event" />
         </div>
         <div class="settings-row">
           <span class="sp-row-label">模型 ID</span>
           <div class="cp-model-field">
-            <select v-if="fetchedModels.length > 0" v-model="settingsStore.aiCustomModel" class="settings-select">
-              <option value="" disabled>选择模型</option>
-              <option v-for="m in fetchedModels" :key="m" :value="m">{{ m }}</option>
-            </select>
+            <TuiSelect v-if="props.fetchedModels.length > 0" :model-value="settingsStore.aiCustomModel" :options="fetchedModelsOptions" placeholder="选择模型" @update:model-value="settingsStore.aiCustomModel = $event" />
             <input v-else type="text" class="settings-input" v-model="settingsStore.aiCustomModel" placeholder="模型 ID" />
             <button class="cp-fetch-btn" @click="emit('fetch-models')" :disabled="!canFetchModels || fetchingModels" :title="fetchError || '拉取模型列表'">
               <WsIcon :name="fetchingModels ? 'loading' : 'refresh'" size="xs" />
@@ -112,12 +95,10 @@
       <template v-if="settingsStore.aiProviderMode === 'cloud'">
         <div class="settings-row">
           <template v-if="currentProviderModels.length > 0">
-            <select :value="currentModelId" @change="onModelSelectChange" class="settings-select" aria-label="模型切换">
-              <option v-for="m in currentProviderModels" :key="m.id" :value="m.id">{{ m.name }}{{ getModelInfo(m.id)?.supportsVision ? ' (视觉)' : '' }}</option>
-            </select>
+            <TuiSelect :model-value="currentModelId" :options="currentProviderModelOptions" placeholder="选择模型" aria-label="模型切换" @update:model-value="onModelSelectChange" />
           </template>
           <template v-else>
-            <input type="text" class="settings-input" :value="currentModelId" @change="onModelSelectChange" placeholder="模型 ID" />
+            <input type="text" class="settings-input" :value="currentModelId" @change="(e) => onModelSelectChange((e.target as HTMLInputElement).value)" placeholder="模型 ID" />
           </template>
         </div>
         <div class="settings-hint">当前供应商: {{ currentProviderLabel }}，切换供应商请前往供应商面板</div>
@@ -160,12 +141,7 @@
     <div class="settings-section">
       <div class="settings-label">AI 人格预设</div>
       <div class="settings-row">
-        <select :value="personaPreset" @change="onPersonaChange" class="settings-select">
-          <option value="default">默认助手</option>
-          <option value="creative">创意写手</option>
-          <option value="analyst">严谨分析师</option>
-          <option value="storyteller">故事叙述者</option>
-        </select>
+        <TuiSelect :model-value="personaPreset" :options="personaOptions" @update:model-value="onPersonaChange" />
       </div>
     </div>
     <div v-if="!embedded" class="settings-section">
@@ -196,6 +172,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
+import TuiSelect from '../../components/ui/TuiSelect.vue'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { getDefaultModelId, getModelInfo, getModelsByProvider, getAllProviderManifests, getProviderLabelMap } from '@worldsmith/agent-runtime'
 import { getProviderIconUrl } from '../../assets/providerIcons'
@@ -261,6 +238,40 @@ const currentProviderLabel = computed(() => {
   return labels[settingsStore.aiCloudProvider] || settingsStore.aiCloudProvider
 })
 
+// ── TuiSelect 选项集（替代原生 select，与配置层其它面板统一） ──
+const providerModeOptions = [
+  { value: 'cloud', label: '云端 API' },
+  { value: 'local', label: '本地模型' },
+  { value: 'custom', label: '自定义' },
+]
+const localTypeOptions = [
+  { value: 'ollama', label: 'Ollama' },
+  { value: 'lm-studio', label: 'LM Studio' },
+  { value: 'vllm', label: 'vLLM' },
+  { value: 'llama-cpp', label: 'llama.cpp' },
+]
+const customTypeOptions = [
+  { value: 'openai-compatible', label: 'OpenAI 兼容' },
+  { value: 'anthropic-compatible', label: 'Anthropic 兼容' },
+]
+const personaOptions = [
+  { value: 'default', label: '默认助手' },
+  { value: 'creative', label: '创意写手' },
+  { value: 'analyst', label: '严谨分析师' },
+  { value: 'storyteller', label: '故事叙述者' },
+]
+/** 当前供应商的模型选项（cloud 模式下展示，含视觉标记） */
+const currentProviderModelOptions = computed(() =>
+  currentProviderModels.value.map((m) => ({
+    value: m.id,
+    label: `${m.name}${getModelInfo(m.id)?.supportsVision ? ' (视觉)' : ''}`,
+  })),
+)
+/** 自定义供应商拉取到的模型选项 */
+const fetchedModelsOptions = computed(() =>
+  (props.fetchedModels ?? []).map((m) => ({ value: m, label: m })),
+)
+
 function onCloudProviderChange(e: Event): void {
   const provider = (e.target as HTMLSelectElement).value
   settingsStore.aiCloudProvider = provider
@@ -271,14 +282,12 @@ function onCloudProviderChange(e: Event): void {
   }
 }
 
-function onCloudModelChange(e: Event): void {
-  const modelId = (e.target as HTMLSelectElement).value
+function onCloudModelChange(modelId: string): void {
   settingsStore.aiCloudModel = modelId
   emit('model-change', settingsStore.aiCloudProvider, modelId)
 }
 
-function onModelSelectChange(e: Event): void {
-  const modelId = (e.target as HTMLSelectElement).value
+function onModelSelectChange(modelId: string): void {
   emit('model-change', settingsStore.aiCloudProvider, modelId)
 }
 
@@ -294,8 +303,8 @@ function onContextLengthChange(e: Event): void {
   emit('update:contextLength', Number((e.target as HTMLInputElement).value))
 }
 
-function onPersonaChange(e: Event): void {
-  emit('update:personaPreset', (e.target as HTMLSelectElement).value)
+function onPersonaChange(v: string): void {
+  emit('update:personaPreset', v)
 }
 
 function onChatModeClick(mode: string): void {

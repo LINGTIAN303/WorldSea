@@ -5,7 +5,7 @@
 
 /** 长任务管理器（Rust SQLite 后端版：状态机/心跳/checkpoint/协作式取消），详细见 docs/details/注释/tauri/useLongTaskRust.md */
 import { ref, readonly, computed } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from './transport'
 
 /** 生命周期调试日志开关：仅开发环境输出（生产构建剔除，P3-9） */
 const DEV_LOG = import.meta.env.DEV

@@ -44,6 +44,22 @@ pub struct SessionRecord {
     /// A3 四管线路由开关（缺省开启，持久化）
     #[serde(default = "default_true")]
     pub router_enabled: bool,
+    /// 会话绑定的工作区根目录（Phase 3 接入本地文件系统；None=不限定）
+    #[serde(default)]
+    pub workdir: Option<String>,
+}
+
+/// 目录实体（工作区目录条目，Workdir 表）
+///
+/// `path` 为目录绝对路径，`label` 为展示用名称；前端目录空间选择器
+/// 用它做「目录实体 → 会话」两级树分组的目录条目，会话经 workdir 路径关联。
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkdirRecord {
+    pub id: String,
+    pub path: String,
+    pub label: String,
+    pub created_at: u64,
 }
 
 /// SessionRecord.router_enabled 的 serde 缺省值（旧记录/缺省字段视为开启）
@@ -77,6 +93,8 @@ pub trait SessionRepository: Send + Sync {
     async fn set_pinned(&self, session_id: &str, pinned: bool) -> Result<(), CommandError>;
     /// 设置会话级四管线路由开关（写穿，A3）
     async fn set_router_enabled(&self, session_id: &str, enabled: bool) -> Result<(), CommandError>;
+    /// 更新会话绑定的工作区根目录（写穿；None=不限定）。目录选择器切换工作区时同步当前会话归属
+    async fn update_workdir(&self, session_id: &str, workdir: Option<&str>) -> Result<(), CommandError>;
     /// 保存群聊参与者会话映射（写穿；group_id+participant_id 走 upsert）
     async fn save_group_participant(
         &self,
@@ -98,6 +116,12 @@ pub trait SessionRepository: Send + Sync {
     ) -> Result<(), CommandError>;
     /// 加载某会话的 A4 计划（None=无计划）
     async fn load_plan(&self, session_id: &str) -> Result<Option<Vec<agent_runtime::types::PlanItem>>, CommandError>;
+    /// 写入/覆盖一个目录实体（按 path UNIQUE 去重，返回 upsert 后的记录）
+    async fn upsert_workdir(&self, path: &str, label: &str) -> Result<WorkdirRecord, CommandError>;
+    /// 列出全部目录实体（前端目录选择器 / 会话树分组用）
+    async fn list_workdirs(&self) -> Result<Vec<WorkdirRecord>, CommandError>;
+    /// 删除一个目录实体（按 id）
+    async fn delete_workdir(&self, id: &str) -> Result<(), CommandError>;
 }
 
 /// SQLite 实现：`sessions` 表存会话头，`messages` 表按会话存消息 JSON 行
@@ -175,6 +199,10 @@ impl SqliteSessionRepository {
         let _ = sqlx::query("ALTER TABLE sessions ADD COLUMN plan TEXT")
             .execute(pool)
             .await;
+        // 迁移：会话工作区根目录列（Phase 3 接入本地文件系统），旧库补默认空
+        let _ = sqlx::query("ALTER TABLE sessions ADD COLUMN workdir TEXT")
+            .execute(pool)
+            .await;
 
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS messages (
@@ -203,6 +231,20 @@ impl SqliteSessionRepository {
         .execute(pool)
         .await
         .map_err(|e| CommandError::Internal(format!("初始化群聊参与者会话表失败: {e}")))?;
+
+        // 目录实体表（Workdir）：path UNIQUE 按路径去重，id 供前端树形分组定位；
+        // 会话仍存 workdir 路径字符串，经路径与本表目录条目关联（Phase 2 目录实体）。
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS workdirs (
+                id         TEXT PRIMARY KEY,
+                path       TEXT UNIQUE NOT NULL,
+                label      TEXT NOT NULL,
+                created_at INTEGER NOT NULL
+            )",
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| CommandError::Internal(format!("初始化目录实体表失败: {e}")))?;
         Ok(())
     }
 }
@@ -211,11 +253,11 @@ impl SqliteSessionRepository {
 impl SessionRepository for SqliteSessionRepository {
     async fn save_session(&self, record: &SessionRecord) -> Result<(), CommandError> {
         sqlx::query(
-            "INSERT INTO sessions (id, system_prompt, created_at, message_count, updated_at, title, pinned, kind, router_enabled)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+            "INSERT INTO sessions (id, system_prompt, created_at, message_count, updated_at, title, pinned, kind, router_enabled, workdir)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
              ON CONFLICT(id) DO UPDATE SET
                 system_prompt = ?2, created_at = ?3, message_count = ?4, updated_at = ?5,
-                title = ?6, pinned = ?7, kind = ?8, router_enabled = ?9",
+                title = ?6, pinned = ?7, kind = ?8, router_enabled = ?9, workdir = ?10",
         )
         .bind(&record.id)
         .bind(&record.system_prompt)
@@ -226,6 +268,7 @@ impl SessionRepository for SqliteSessionRepository {
         .bind(record.pinned as i64)
         .bind(kind_to_str(record.kind))
         .bind(record.router_enabled as i64)
+        .bind(&record.workdir)
         .execute(&self.pool)
         .await
         .map_err(|e| CommandError::Internal(format!("写入会话失败: {e}")))?;
@@ -233,12 +276,13 @@ impl SessionRepository for SqliteSessionRepository {
     }
 
     async fn load_sessions(&self) -> Result<Vec<SessionRecord>, CommandError> {
-        let rows: Vec<(String, String, i64, i64, i64, String, i64, String, i64)> = sqlx::query_as(
-            "SELECT id, system_prompt, created_at, message_count, updated_at, title, pinned, kind, router_enabled FROM sessions",
-        )
-        .fetch_all(&self.pool)
-        .await
-        .map_err(|e| CommandError::Internal(format!("读取会话列表失败: {e}")))?;
+        let rows: Vec<(String, String, i64, i64, i64, String, i64, String, i64, Option<String>)> =
+            sqlx::query_as(
+                "SELECT id, system_prompt, created_at, message_count, updated_at, title, pinned, kind, router_enabled, workdir FROM sessions",
+            )
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| CommandError::Internal(format!("读取会话列表失败: {e}")))?;
         Ok(rows
             .into_iter()
             .map(record_from_row)
@@ -246,13 +290,14 @@ impl SessionRepository for SqliteSessionRepository {
     }
 
     async fn load_sessions_by_kind(&self, kind: SessionKind) -> Result<Vec<SessionRecord>, CommandError> {
-        let rows: Vec<(String, String, i64, i64, i64, String, i64, String, i64)> = sqlx::query_as(
-            "SELECT id, system_prompt, created_at, message_count, updated_at, title, pinned, kind, router_enabled FROM sessions WHERE kind = ?1",
-        )
-        .bind(kind_to_str(kind))
-        .fetch_all(&self.pool)
-        .await
-        .map_err(|e| CommandError::Internal(format!("按类型读取会话列表失败: {e}")))?;
+        let rows: Vec<(String, String, i64, i64, i64, String, i64, String, i64, Option<String>)> =
+            sqlx::query_as(
+                "SELECT id, system_prompt, created_at, message_count, updated_at, title, pinned, kind, router_enabled, workdir FROM sessions WHERE kind = ?1",
+            )
+            .bind(kind_to_str(kind))
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| CommandError::Internal(format!("按类型读取会话列表失败: {e}")))?;
         Ok(rows.into_iter().map(record_from_row).collect())
     }
 
@@ -356,6 +401,20 @@ impl SessionRepository for SqliteSessionRepository {
         Ok(())
     }
 
+    async fn update_workdir(
+        &self,
+        session_id: &str,
+        workdir: Option<&str>,
+    ) -> Result<(), CommandError> {
+        sqlx::query("UPDATE sessions SET workdir = ?1 WHERE id = ?2")
+            .bind(workdir)
+            .bind(session_id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| CommandError::Internal(format!("更新会话工作区目录失败: {e}")))?;
+        Ok(())
+    }
+
     async fn save_group_participant(
         &self,
         group_id: &str,
@@ -431,6 +490,71 @@ impl SessionRepository for SqliteSessionRepository {
             }
         }
     }
+
+    async fn upsert_workdir(&self, path: &str, label: &str) -> Result<WorkdirRecord, CommandError> {
+        // 按 path 去重：已存在则复用原 id 仅更新 label；不存在则新建 id
+        let existing: Option<(String, i64)> =
+            sqlx::query_as("SELECT id, created_at FROM workdirs WHERE path = ?1")
+                .bind(path)
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(|e| CommandError::Internal(format!("查询目录实体失败: {e}")))?;
+        if let Some((id, created_at)) = existing {
+            sqlx::query("UPDATE workdirs SET label = ?1 WHERE id = ?2")
+                .bind(label)
+                .bind(&id)
+                .execute(&self.pool)
+                .await
+                .map_err(|e| CommandError::Internal(format!("更新目录实体失败: {e}")))?;
+            Ok(WorkdirRecord {
+                id,
+                path: path.to_string(),
+                label: label.to_string(),
+                created_at: created_at as u64,
+            })
+        } else {
+            let id = uuid::Uuid::new_v4().to_string();
+            let created_at = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            sqlx::query(
+                "INSERT INTO workdirs (id, path, label, created_at) VALUES (?1, ?2, ?3, ?4)",
+            )
+            .bind(&id)
+            .bind(path)
+            .bind(label)
+            .bind(created_at as i64)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| CommandError::Internal(format!("写入目录实体失败: {e}")))?;
+            Ok(WorkdirRecord {
+                id,
+                path: path.to_string(),
+                label: label.to_string(),
+                created_at,
+            })
+        }
+    }
+
+    async fn list_workdirs(&self) -> Result<Vec<WorkdirRecord>, CommandError> {
+        let rows: Vec<(String, String, String, i64)> = sqlx::query_as(
+            "SELECT id, path, label, created_at FROM workdirs ORDER BY created_at",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| CommandError::Internal(format!("读取目录实体列表失败: {e}")))?;
+        Ok(rows.into_iter().map(workdir_from_row).collect())
+    }
+
+    async fn delete_workdir(&self, id: &str) -> Result<(), CommandError> {
+        sqlx::query("DELETE FROM workdirs WHERE id = ?1")
+            .bind(id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| CommandError::Internal(format!("删除目录实体失败: {e}")))?;
+        Ok(())
+    }
 }
 
 /// kind 枚举 → SQL 存储字符串（与 sessions.kind 列 TEXT 一致）
@@ -443,7 +567,7 @@ fn kind_to_str(kind: SessionKind) -> &'static str {
 
 /// SQL 行 → SessionRecord（kind 列转枚举，未知值回退 chat）
 fn record_from_row(
-    (id, system_prompt, created_at, message_count, updated_at, title, pinned, kind, router_enabled): (
+    (id, system_prompt, created_at, message_count, updated_at, title, pinned, kind, router_enabled, workdir): (
         String,
         String,
         i64,
@@ -453,6 +577,7 @@ fn record_from_row(
         i64,
         String,
         i64,
+        Option<String>,
     ),
 ) -> SessionRecord {
     SessionRecord {
@@ -468,6 +593,17 @@ fn record_from_row(
             _ => SessionKind::Chat,
         },
         router_enabled: router_enabled != 0,
+        workdir,
+    }
+}
+
+/// SQL 行 → WorkdirRecord
+fn workdir_from_row((id, path, label, created_at): (String, String, String, i64)) -> WorkdirRecord {
+    WorkdirRecord {
+        id,
+        path,
+        label,
+        created_at: created_at as u64,
     }
 }
 
@@ -497,6 +633,7 @@ mod tests {
             pinned: false,
             kind: SessionKind::Chat,
             router_enabled: true,
+            workdir: None,
         }
     }
 
@@ -600,6 +737,28 @@ mod tests {
         let loaded = store.load_sessions().await.unwrap();
         assert_eq!(loaded.len(), 1);
         assert_eq!(loaded[0].router_enabled, false, "重启后应保留关闭状态");
+    }
+
+    #[tokio::test]
+    async fn workdir_roundtrip_and_persist() {
+        // 用临时文件模拟持久化：写入 workdir 后关闭 store 再重新打开，验证已落库
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("workdir.db");
+        let path = db_path.to_str().unwrap().to_string();
+
+        {
+            let store = SqliteSessionRepository::new(&path).await.unwrap();
+            let mut r = record("s1", 0);
+            r.workdir = Some("D:/workspaces/proj-a".into());
+            store.save_session(&r).await.unwrap();
+            let loaded = store.load_sessions().await.unwrap();
+            assert_eq!(loaded[0].workdir.as_deref(), Some("D:/workspaces/proj-a"));
+        } // drop store → 连接池关闭（模拟重启）
+
+        let store = SqliteSessionRepository::new(&path).await.unwrap();
+        let loaded = store.load_sessions().await.unwrap();
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(loaded[0].workdir.as_deref(), Some("D:/workspaces/proj-a"), "重启后应保留 workdir");
     }
 
     #[tokio::test]
@@ -726,5 +885,43 @@ mod tests {
         assert!(a.is_empty());
         let b = store.load_group_participants("grp-b").await.unwrap();
         assert_eq!(b.len(), 1, "grp-b 映射不受影响");
+    }
+
+    #[tokio::test]
+    async fn workdir_upsert_list_delete() {
+        let store = SqliteSessionRepository::new_in_memory().await.unwrap();
+        assert!(store.list_workdirs().await.unwrap().is_empty());
+
+        // 新建目录实体
+        let w = store
+            .upsert_workdir("D:/workspaces/proj-a", "项目 A")
+            .await
+            .unwrap();
+        assert!(!w.id.is_empty());
+        assert_eq!(w.path, "D:/workspaces/proj-a");
+        assert_eq!(w.label, "项目 A");
+
+        // 按 path 去重：同 path 再 upsert 只更新 label，id/created_at 保持
+        let w2 = store
+            .upsert_workdir("D:/workspaces/proj-a", "项目 A 改名")
+            .await
+            .unwrap();
+        assert_eq!(w2.id, w.id, "同 path 复用原 id");
+        assert_eq!(w2.created_at, w.created_at, "同 path 保留原 created_at");
+        assert_eq!(w2.label, "项目 A 改名");
+
+        // 不同 path 新增为独立条目
+        store
+            .upsert_workdir("D:/workspaces/proj-b", "项目 B")
+            .await
+            .unwrap();
+        let all = store.list_workdirs().await.unwrap();
+        assert_eq!(all.len(), 2);
+
+        // 删除按 id
+        store.delete_workdir(&w.id).await.unwrap();
+        let all = store.list_workdirs().await.unwrap();
+        assert_eq!(all.len(), 1);
+        assert_eq!(all[0].path, "D:/workspaces/proj-b");
     }
 }

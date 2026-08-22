@@ -38,6 +38,10 @@ mod router_commands;
 mod frontend_tool_bridge;
 // 安全存储命令（cmd_secure_store/load/delete）：API Key 落应用数据目录 SQLite
 mod secure_store;
+// [HTTP-BRIDGE] 临时：浏览器直连真实后端的 HTTP 服务（axum RPC + SSE）；移除时删除本段与 http_bridge/ 目录
+mod http_bridge;
+// [HTTP-BRIDGE] 图布局/图分析算法命令（cmd_algo_*）：薄封装 worldsmith-core 算法，桌面 IPC + HTTP RPC 双端
+mod algo_commands;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -49,6 +53,8 @@ pub fn run() {
         // 窗口状态记忆：恢复上次窗口位置/大小（桌面应用基础体验，批次97 P1-1）
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_opener::init())
+        // 系统目录选择对话框：目录空间选择器「打开文件夹」/ 项目管理器绑定目录（plugin-dialog）
+        .plugin(tauri_plugin_dialog::init())
         // 系统通知：Agent 长任务完成/失败等（前端 cmd_notify 触发）
         .plugin(tauri_plugin_notification::init())
         // 全局快捷键：Ctrl+Shift+W 唤起/隐藏主窗口
@@ -78,12 +84,18 @@ pub fn run() {
             commands::list_sessions,
             commands::delete_session,
             commands::update_session_title,
+            commands::cmd_agent_generate_title,
+            commands::cmd_update_session_workdir,
             commands::set_session_pinned,
             commands::set_session_router_enabled,
+            commands::cmd_list_workdirs,
+            commands::cmd_save_workdir,
+            commands::cmd_delete_workdir,
             commands::orchestrator_run_plan,
             commands::orchestrator_run_tot,
             commands::orchestrator_run_got,
             commands::orchestrator_run_supervisor,
+            commands::orchestrator_run_multi,
             // Router Pattern 编排模式（Router 样板命令）
             router_commands::router_create,
             router_commands::router_route,
@@ -159,6 +171,12 @@ pub fn run() {
             fs_commands::cmd_fs_read,
             fs_commands::cmd_fs_list,
             fs_commands::cmd_fs_delete,
+            // Phase 4 工作区：文件系统元数据/目录/复制/重命名/搜索命令（WorkspacePanel 依赖）
+            fs_commands::cmd_fs_stat,
+            fs_commands::cmd_fs_mkdir,
+            fs_commands::cmd_fs_copy,
+            fs_commands::cmd_fs_rename,
+            fs_commands::cmd_fs_search,
             // Phase A 迁移：项目切换（useProjectSwitcher Tauri 分支）
             project_commands::cmd_switch_project,
             // Phase B 迁移：获取应用数据目录（自动绑定项目存储目录）
@@ -212,6 +230,16 @@ pub fn run() {
             secure_store::cmd_secure_store,
             secure_store::cmd_secure_load,
             secure_store::cmd_secure_delete,
+            // [HTTP-BRIDGE] 图布局/图分析算法（cmd_algo_*）：mindmap Rust 布局/分析真实后端
+            algo_commands::cmd_algo_force_layout,
+            algo_commands::cmd_algo_radial_layout,
+            algo_commands::cmd_algo_tree_layout,
+            algo_commands::cmd_algo_grid_layout,
+            algo_commands::cmd_algo_layout_unified,
+            algo_commands::cmd_algo_dijkstra_path,
+            algo_commands::cmd_algo_connected_components,
+            algo_commands::cmd_algo_pagerank,
+            algo_commands::cmd_algo_community_detection,
         ])
         // Phase 5.1：Agent 命令服务（内部持有 session_id -> Arc<AgentLoop> 映射）
         // 终端服务（独立持有 ShellSessionManager，供前端直接调用终端命令）
@@ -346,6 +374,17 @@ pub fn run() {
             use tauri_plugin_global_shortcut::GlobalShortcutExt;
             if let Err(e) = app.global_shortcut().register("Ctrl+Shift+W") {
                 tracing::warn!("全局快捷键 Ctrl+Shift+W 注册失败: {e}");
+            }
+
+            // [HTTP-BRIDGE] 临时：启动 HTTP 服务（浏览器直连真实后端）；移除时删除本段
+            {
+                let mut reg = http_bridge::rpc::Registry::new();
+                http_bridge::rpc::register_core(&mut reg);
+                let port = std::env::var("WORLDSMITH_HTTP_PORT")
+                    .ok()
+                    .and_then(|s| s.parse::<u16>().ok())
+                    .unwrap_or(8787);
+                http_bridge::spawn(app.handle().clone(), Arc::new(reg), port);
             }
 
             Ok(())

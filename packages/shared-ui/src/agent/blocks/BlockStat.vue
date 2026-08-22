@@ -1,10 +1,10 @@
 <template>
   <div class="block-stat">
     <div class="block-toggle" role="button" tabindex="0" :aria-expanded="expanded" @click="expanded = !expanded" @keydown.enter.prevent="expanded = !expanded" @keydown.space.prevent="expanded = !expanded">
-      <span class="block-icon">📊</span>
+      <WsIcon name="chart" size="xs" class="block-icon" />
       <span class="block-title">统计: {{ block.title || '概览' }}</span>
       <span class="block-meta">{{ block.items.length }}项</span>
-      <span class="block-arrow">{{ expanded ? '▾ 点击收起' : '▸ 点击展开' }}</span>
+      <span class="block-arrow"><WsIcon :name="expanded ? 'chevron-down' : 'chevron-right'" size="xs" /><span>{{ expanded ? '点击收起' : '点击展开' }}</span></span>
     </div>
     <Transition name="block-expand">
       <div v-if="expanded" class="block-content">
@@ -13,7 +13,7 @@
             <span v-if="item.icon" class="stat-icon">{{ item.icon }}</span>
             <span class="stat-value">{{ item.value }}</span>
             <span class="stat-label">{{ item.label }}</span>
-            <span v-if="item.trend" class="stat-trend" :class="item.trend">{{ trendIcon(item.trend) }}</span>
+            <span v-if="item.trend" class="stat-trend" :class="item.trend"><WsIcon :name="trendIcon(item.trend)" size="xs" /></span>
           </div>
         </div>
       </div>
@@ -23,11 +23,13 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { WsIcon } from '@worldsmith/ui-kit'
 import type { StatBlock } from '@worldsmith/agent-runtime'
 
 defineProps<{ block: StatBlock }>()
 const expanded = ref(false)
-function trendIcon(t: string): string { return t === 'up' ? '↑' : t === 'down' ? '↓' : '→' }
+/** trend 值 → WsIcon 图标名（up/down/flat → 趋势箭头） */
+function trendIcon(t: string): string { return t === 'up' ? 'trending-up' : t === 'down' ? 'trending-down' : 'trending-flat' }
 </script>
 
 <style scoped>

@@ -1,0 +1,92 @@
+<!--
+  ThinkRow：动态折叠推理行（对齐 Harness ReasoningRow）
+  - running（流式）：默认展开，标题「推理过程」+ 末行摘要，data-follow-end 标记，正文自动跟随末尾；
+  - complete（完成）：默认折叠为「推理过程 ▸ 首行摘要」单行，点击展开全文。
+  纯文本/浅底单行扁平样式，无卡片边框。
+-->
+<template>
+  <div
+    class="ws-stream-row ws-stream-think"
+    :class="{ open: isOpen }"
+    :data-follow-end="isStreaming ? '' : undefined"
+    role="button"
+    tabindex="0"
+    :aria-expanded="isOpen"
+    @click="toggle"
+    @keydown.enter.prevent="toggle"
+    @keydown.space.prevent="toggle"
+    @mouseenter="emit('hover', item.id)"
+    @mouseleave="emit('leave')"
+  >
+    <span class="ws-stream-think-title">
+      <WsIcon name="chevron-right" size="xs" class="ws-stream-think-chevron" />{{ label }}
+    </span>
+    <!-- 折叠态：单行摘要 -->
+    <span v-if="!isOpen" class="ws-stream-think-summary">{{ summary }}</span>
+    <!-- 展开态：正文（运行中自动跟随末尾，点击 stop 避免误塌缩） -->
+    <div v-else ref="bodyEl" class="ws-stream-think-body" @click.stop>{{ item.text }}</div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { WsIcon } from '@worldsmith/ui-kit'
+import { useThinkingFold } from '../../bubbles/useThinkingFold'
+
+/** Think 行的最小形参与事件流项一致 */
+interface ThinkItem {
+  id: string
+  text: string
+  status: 'streaming' | 'complete'
+}
+
+const props = defineProps<{
+  item: ThinkItem
+}>()
+
+const emit = defineEmits<{
+  (e: 'hover', id: string): void
+  (e: 'leave'): void
+}>()
+
+/** streaming 视为 running（默认展开），complete 折叠 */
+const isStreaming = computed(() => props.item.status === 'streaming')
+
+// ===== 思维折叠（label='推理过程'，defaultOpen=running） =====
+const { label, isOpen, toggle } = useThinkingFold(
+  () => '推理过程',
+  () => isStreaming.value,
+)
+
+// ===== 摘要：running=末行 / complete=首行 =====
+const lines = computed(() =>
+  props.item.text.split('\n').map(s => s.trim()).filter(Boolean),
+)
+const summary = computed(() => {
+  const l = lines.value
+  const src = isStreaming.value ? l[l.length - 1] : l[0]
+  return (src || '').slice(0, 80)
+})
+
+// ===== 运行中自动跟随末尾（对齐 scrollLeft=scrollWidth-clientWidth） =====
+const bodyEl = ref<HTMLDivElement | null>(null)
+function followEnd() {
+  if (!bodyEl.value) return
+  bodyEl.value.scrollLeft = bodyEl.value.scrollWidth - bodyEl.value.clientWidth
+}
+watch(
+  () => props.item.text,
+  () => {
+    if (isOpen.value && isStreaming.value) {
+      nextTick(followEnd)
+    }
+  },
+)
+// 监听锚点：open 变化为 true 且 running 时也跟随一次
+watch(isOpen, () => {
+  if (isOpen.value && isStreaming.value) nextTick(followEnd)
+})
+onBeforeUnmount(() => {
+  bodyEl.value = null
+})
+</script>

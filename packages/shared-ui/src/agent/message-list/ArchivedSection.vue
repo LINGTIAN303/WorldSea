@@ -6,7 +6,7 @@
       <span class="archived-divider-text">
         {{ showArchived ? '收起' : '展开' }}已归档记忆（{{ archivedBoundaryIndex }} 条消息已归档）
       </span>
-      <span class="archived-divider-chevron" :class="{ expanded: showArchived }">▸</span>
+      <WsIcon name="chevron-right" size="xs" class="archived-divider-chevron" :class="{ expanded: showArchived }" />
     </div>
     <Transition name="archived-expand">
       <div v-if="showArchived" class="archived-summary-body">

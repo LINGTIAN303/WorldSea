@@ -2,7 +2,7 @@
   <div class="block-alert" :class="`alert-${block.level}`">
     <div class="alert-bar"></div>
     <div class="alert-body">
-      <span class="alert-icon">{{ levelIcon }}</span>
+      <WsIcon :name="levelIcon" size="xs" class="alert-icon" />
       <div class="alert-content">
         <span v-if="block.title" class="alert-title">{{ block.title }}</span>
         <span class="alert-message">{{ block.message }}</span>
@@ -13,14 +13,16 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { WsIcon } from '@worldsmith/ui-kit'
 import type { AlertBlock } from '@worldsmith/agent-runtime'
 
 const props = defineProps<{
   block: AlertBlock
 }>()
 
-const ICONS: Record<string, string> = { info: 'ℹ️', success: '✅', warning: '⚠️', error: '❌' }
-const levelIcon = computed(() => ICONS[props.block.level] || 'ℹ️')
+/** 等级 → WsIcon 图标名（info/success/warning/error → 线性图标） */
+const ICONS: Record<string, string> = { info: 'info', success: 'check', warning: 'warning', error: 'close' }
+const levelIcon = computed(() => ICONS[props.block.level] || 'info')
 </script>
 
 <style scoped>

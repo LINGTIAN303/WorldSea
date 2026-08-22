@@ -1,7 +1,7 @@
 /** useTerminalRust：Tauri 端终端服务适配器（terminal_* 命令封装，模块级单例），详细见 docs/details/注释/tauri/useTerminalRust.md */
 
 import { ref } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from '../../agent/composables/transport'
 
 // ─── 类型 ───────────────────────────────────────────────────
 

@@ -4,7 +4,7 @@
       <span class="block-icon"><WsIcon name="document" size="xs" /></span>
       <span class="block-title">{{ block.title || '详情' }}</span>
       <span class="block-meta">{{ block.sections.length }}段</span>
-      <span class="block-arrow">{{ expanded ? '▾ 点击收起' : '▸ 点击展开' }}</span>
+      <span class="block-arrow"><WsIcon :name="expanded ? 'chevron-down' : 'chevron-right'" size="xs" /><span>{{ expanded ? '点击收起' : '点击展开' }}</span></span>
     </div>
     <Transition name="block-expand">
       <div v-if="expanded" class="block-content">
@@ -51,8 +51,6 @@ const expanded = ref(false)
   color: var(--agent-text, #e0e0e0); font-weight: 500;
   list-style: none;
 }
-.acc-summary::before { content: '▸ '; color: var(--agent-accent, #b388ff); }
-.acc-section[open] .acc-summary::before { content: '▾ '; }
 .acc-body {
   padding: 4px 8px 8px; font-size: 12px;
   color: var(--agent-text-secondary, #aaa); line-height: 1.5; white-space: pre-wrap;

@@ -20,10 +20,7 @@
       </div>
       <div class="settings-row">
         <span class="sp-row-label">传输</span>
-        <select class="settings-select" v-model="mcpForm.transport">
-          <option value="streamable-http">HTTP/SSE</option>
-          <option value="stdio">stdio</option>
-        </select>
+        <TuiSelect :model-value="mcpForm.transport" :options="transportOptions" aria-label="传输" @update:model-value="mcpForm.transport = $event" />
       </div>
       <div v-if="mcpForm.transport !== 'stdio'" class="settings-row">
         <span class="sp-row-label">URL</span>
@@ -63,6 +60,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
+import TuiSelect from '../../components/ui/TuiSelect.vue'
 import type { MCPConnectionConfig } from '@agent/index'
 
 const props = defineProps<{
@@ -76,9 +74,13 @@ const emit = defineEmits<{
 }>()
 
 const mcpAdding = ref(false)
+const transportOptions = [
+  { value: 'streamable-http', label: 'HTTP/SSE' },
+  { value: 'stdio', label: 'stdio' },
+]
 const mcpForm = ref({
   name: '',
-  transport: 'streamable-http' as 'streamable-http' | 'stdio',
+  transport: 'streamable-http',
   url: '',
   command: '',
   argsStr: '',

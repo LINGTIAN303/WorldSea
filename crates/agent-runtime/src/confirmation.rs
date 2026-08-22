@@ -8,6 +8,7 @@
 //! 决策在 Rust 侧（`ConfirmationPolicy` 配置需确认工具集），MVP 仅覆盖危险操作。
 
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -15,6 +16,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::{oneshot, Mutex, RwLock};
 
 use crate::event::{EventBroadcaster, OrchestratorEvent};
+use crate::tool_context::ToolContext;
 
 /// 默认确认超时（60s），超时按拒绝处理，避免 Agent 无限等待
 const DEFAULT_CONFIRM_TIMEOUT: Duration = Duration::from_secs(60);
@@ -49,6 +51,9 @@ pub fn tool_permission(tool_name: &str) -> ToolPermission {
         // 计划写入 / 搜索 / 实体读：Safe 级可放行
         "plan_create" | "plan_update" | "plan_replan" | "entity_list" | "entity_get"
         | "web_search" | "list_sub_agents" => ToolPermission::Safe,
+        // 文件系统工具（Phase 5）：只读放行（Safe）；写入/编辑 → Moderate（默认不确认，可按策略开启）
+        "read_file" | "list_directory" | "search_files" => ToolPermission::Safe,
+        "write_file" | "edit_file" => ToolPermission::Moderate,
         // 其余未登记工具按 Moderate 兜底（策略默认不确认，行为不变）
         _ => ToolPermission::Moderate,
     }
@@ -73,6 +78,10 @@ pub struct ConfirmationPolicy {
     pub dangerous_command_patterns: Vec<String>,
     /// A7：是否需要确认 Moderate 级工具（默认 false = 仅确认 Dangerous）
     pub confirm_moderate: bool,
+    /// 是否允许「确认放行」敏感目录（默认 false = 敏感目录无条件拒绝）
+    ///
+    /// 为 true 时命中敏感目录由 拒绝 改为 需确认（用户可在确认弹窗放行/拒绝）。
+    pub allow_sensitive_with_confirm: bool,
 }
 
 impl ConfirmationPolicy {
@@ -108,6 +117,8 @@ impl ConfirmationPolicy {
                 "npm uninstall -g".into(),
             ],
             confirm_moderate,
+            // 默认 false：敏感目录仍无条件拒绝（保持既有安全底线）
+            allow_sensitive_with_confirm: false,
         }
     }
 
@@ -141,6 +152,152 @@ impl ConfirmationPolicy {
             }
         }
     }
+}
+
+// ─── Phase 5 动态路径守卫（越界确认 / 敏感目录拒绝） ──────────────────────
+
+/// 路径守卫裁决结果（Phase 5：动态路径权限分层）
+///
+/// 供 `maybe_require_confirmation`（`agent/tools.rs`）在确认层做额外裁决：
+/// - [`Allow`](PathGuard::Allow)：放行（路径在 workdir 内，或工具不带路径参数）
+/// - [`Confirm`](PathGuard::Confirm)：需确认（写/搜索类工具解析后路径越出 workdir）
+/// - [`Deny`](PathGuard::Deny)：拒绝（命中敏感目录，返回拒绝原因）
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PathGuard {
+    /// 放行（路径在 workdir 内，或工具不带路径参数）
+    Allow,
+    /// 需确认（写/搜索类工具解析后路径越出 workdir）
+    Confirm,
+    /// 拒绝（命中敏感目录，返回拒绝原因）
+    Deny(String),
+}
+
+/// 是否为文件系统工具（决定是否做路径守卫）
+fn is_fs_tool(tool_name: &str) -> bool {
+    matches!(
+        tool_name,
+        "read_file" | "write_file" | "edit_file" | "list_directory" | "search_files"
+    )
+}
+
+/// 是否为写/搜索类工具（越出 workdir 需确认；读类越界放行，对齐「绝对路径读允许」）
+fn is_write_or_search_tool(tool_name: &str) -> bool {
+    matches!(tool_name, "write_file" | "edit_file" | "search_files")
+}
+
+/// 提取 FS 工具的目标路径参数（read/write/edit 用 `path`；list/search 缺省 `.`）
+///
+/// 返回 `None` 表示该工具无路径参数（如参数缺失），守卫按放行处理。
+fn fs_path_arg(tool_name: &str, args: &serde_json::Value) -> Option<String> {
+    match tool_name {
+        "read_file" | "write_file" | "edit_file" => args
+            .get("path")
+            .and_then(|v| v.as_str())
+            .map(String::from),
+        "list_directory" | "search_files" => Some(
+            args.get("path")
+                .and_then(|v| v.as_str())
+                .unwrap_or(".")
+                .to_string(),
+        ),
+        _ => None,
+    }
+}
+
+/// 用户主目录（兼容 Unix `HOME` / Windows `USERPROFILE`）
+fn home_dir() -> Option<PathBuf> {
+    std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(PathBuf::from)
+}
+
+/// 展开路径开头的 `~` 为用户主目录（`~` / `~/xxx` / `~\xxx`）
+fn expand_home(raw: &str) -> String {
+    if raw == "~" {
+        if let Some(home) = home_dir() {
+            return home.to_string_lossy().to_string();
+        }
+        return raw.to_string();
+    }
+    if let Some(rest) = raw
+        .strip_prefix("~/")
+        .or_else(|| raw.strip_prefix("~\\"))
+    {
+        if let Some(home) = home_dir() {
+            return home.join(rest).to_string_lossy().to_string();
+        }
+    }
+    raw.to_string()
+}
+
+/// 判断解析后路径是否命中敏感目录（返回命中项描述，供拒绝原因展示）
+///
+/// 敏感目录清单（对齐 Claude Code 的受保护目录）：
+/// - 用户主目录下的密钥/配置目录：`~/.ssh`、`~/.gnupg`
+/// - 系统目录：`/etc`、`/usr`、`/bin`、`/sbin`
+///
+/// 采用 `Path::starts_with` 做组件级前缀匹配（避免 `/etcetera` 误命中 `/etc`）。
+fn is_sensitive_path(p: &Path) -> Option<String> {
+    // 用户主目录下的密钥/配置目录
+    if let Some(home) = home_dir() {
+        for (name, label) in [(".ssh", "~/.ssh"), (".gnupg", "~/.gnupg")] {
+            let sensitive = home.join(name);
+            if p == sensitive || p.starts_with(&sensitive) {
+                return Some(format!("敏感目录 {label}"));
+            }
+        }
+    }
+    // 系统目录（绝对路径前缀，Unix 风格）
+    for sys in ["/etc", "/usr", "/bin", "/sbin"] {
+        let sp = Path::new(sys);
+        if p == sp || p.starts_with(sp) {
+            return Some(format!("系统目录 {sys}"));
+        }
+    }
+    None
+}
+
+/// 动态路径守卫（Phase 5：权限规则分层）
+///
+/// 对 FS 工具做越界/敏感目录裁决：
+/// - 命中敏感目录（`~/.ssh`、`~/.gnupg`、`/etc`、`/usr`、`/bin`、`/sbin`）：
+///   默认 → [`PathGuard::Deny`]；`allow_sensitive_with_confirm=true` → [`PathGuard::Confirm`]
+///   （允许经确认放行，安全底线由确认弹窗兜底）
+/// - 写/搜索类工具（`write_file`/`edit_file`/`search_files`）解析后越出 workdir
+///   （workdir 非 `None`）→ [`PathGuard::Confirm`]（强制确认，对齐「工作区之外需授权」）
+/// - 其余 → [`PathGuard::Allow`]（读类越界放行，对齐「绝对路径读允许」）
+///
+/// `allow_sensitive_with_confirm`：是否允许「确认放行」敏感目录（Phase 1 权限策略，默认 false）。
+pub fn guard_fs_path(
+    tool_name: &str,
+    args: &serde_json::Value,
+    ctx: &ToolContext,
+    allow_sensitive_with_confirm: bool,
+) -> PathGuard {
+    if !is_fs_tool(tool_name) {
+        return PathGuard::Allow;
+    }
+    let Some(raw) = fs_path_arg(tool_name, args) else {
+        return PathGuard::Allow;
+    };
+    // 展开 ~ 再 resolve，保证 ~/.ssh 等能正确命中敏感目录
+    let expanded = expand_home(&raw);
+    let resolved = ctx.resolve_path(&expanded);
+    // 1) 敏感目录：默认拒绝；开启确认开关 → 改为 Confirm（允许经确认放行）
+    if let Some(reason) = is_sensitive_path(&resolved) {
+        if allow_sensitive_with_confirm {
+            return PathGuard::Confirm; // 开启确认开关：允许经确认放行
+        }
+        return PathGuard::Deny(reason);
+    }
+    // 2) 写/搜索类越出 workdir → 确认
+    if is_write_or_search_tool(tool_name)
+        && ctx.workdir.is_some()
+        && !ctx.is_within_workdir(resolved.to_string_lossy().as_ref())
+    {
+        return PathGuard::Confirm;
+    }
+    PathGuard::Allow
 }
 
 // ─── ConfirmationBroker ────────────────────────────────────
@@ -295,5 +452,127 @@ mod tests {
         };
         assert!(broker2.resolve(&id, true).await);
         assert_eq!(handle.await.unwrap(), Some(true));
+    }
+
+    // ─── Phase 5 动态路径守卫测试 ─────────────────────────────
+
+    fn ctx_for(wd: &str) -> ToolContext {
+        ToolContext {
+            workdir: Some(PathBuf::from(wd)),
+            project_id: None,
+        }
+    }
+
+    #[test]
+    fn guard_write_outside_workdir_confirms() {
+        // write_file 越出 workdir → 需确认
+        let ctx = ctx_for("/workspace");
+        let guard = guard_fs_path(
+            "write_file",
+            &serde_json::json!({ "path": "/tmp/out.txt", "content": "x" }),
+            &ctx,
+            false,
+        );
+        assert_eq!(guard, PathGuard::Confirm);
+    }
+
+    #[test]
+    fn guard_write_inside_workdir_allows() {
+        // write_file 在 workdir 内 → 放行（Moderate 默认不确认由策略裁决）
+        let ctx = ctx_for("/workspace");
+        let guard = guard_fs_path(
+            "write_file",
+            &serde_json::json!({ "path": "src/a.txt", "content": "x" }),
+            &ctx,
+            false,
+        );
+        assert_eq!(guard, PathGuard::Allow);
+    }
+
+    #[test]
+    fn guard_read_outside_workdir_allows() {
+        // read_file 越出 workdir → 放行（读类越界允许，对齐「绝对路径读允许」）
+        let ctx = ctx_for("/workspace");
+        let guard = guard_fs_path("read_file", &serde_json::json!({ "path": "/tmp/x.txt" }), &ctx, false);
+        assert_eq!(guard, PathGuard::Allow);
+    }
+
+    #[test]
+    fn guard_search_outside_workdir_confirms() {
+        // search_files 越出 workdir → 需确认（用非敏感目录的越界路径，避免先命中敏感目录 Deny）
+        let ctx = ctx_for("/workspace");
+        let guard = guard_fs_path("search_files", &serde_json::json!({ "pattern": "*.rs", "path": "/tmp/out" }), &ctx, false);
+        assert_eq!(guard, PathGuard::Confirm);
+    }
+
+    #[test]
+    fn guard_denies_system_dir() {
+        // 系统目录（/etc）命中 → 拒绝（无论读写）
+        let ctx = ctx_for("/workspace");
+        let guard = guard_fs_path("read_file", &serde_json::json!({ "path": "/etc/passwd" }), &ctx, false);
+        assert!(matches!(guard, PathGuard::Deny(_)));
+    }
+
+    #[test]
+    fn guard_sensitive_dir_deny_by_default() {
+        // Phase 1：allow_sensitive_with_confirm=false（默认）→ 敏感目录仍 Deny
+        let ctx = ctx_for("/workspace");
+        let guard = guard_fs_path(
+            "read_file",
+            &serde_json::json!({ "path": "/etc/passwd" }),
+            &ctx,
+            false,
+        );
+        assert!(matches!(guard, PathGuard::Deny(_)), "默认应拒绝敏感目录: {guard:?}");
+    }
+
+    #[test]
+    fn guard_sensitive_dir_confirm_when_allowed() {
+        // Phase 1：allow_sensitive_with_confirm=true → 敏感目录由 Deny 改为 Confirm（允许经确认放行）
+        let ctx = ctx_for("/workspace");
+        let guard = guard_fs_path(
+            "read_file",
+            &serde_json::json!({ "path": "/etc/passwd" }),
+            &ctx,
+            true,
+        );
+        assert_eq!(guard, PathGuard::Confirm, "开启确认开关后敏感目录应转为 Confirm");
+    }
+
+    #[test]
+    fn guard_denies_home_ssh() {
+        // ~/.ssh 命中 → 拒绝（依赖真实 home 环境变量）
+        let ctx = ctx_for("/workspace");
+        if let Some(home) = home_dir() {
+            let ssh = home.join(".ssh").join("id_rsa");
+            let guard = guard_fs_path("read_file", &serde_json::json!({ "path": ssh.to_string_lossy() }), &ctx, false);
+            assert!(matches!(guard, PathGuard::Deny(_)), "~/.ssh 应被拒绝: {guard:?}");
+        }
+    }
+
+    #[test]
+    fn guard_non_fs_tool_allows() {
+        // 非 FS 工具不做路径守卫
+        let ctx = ctx_for("/workspace");
+        let guard = guard_fs_path("execute_command", &serde_json::json!({ "command": "ls" }), &ctx, false);
+        assert_eq!(guard, PathGuard::Allow);
+    }
+
+    #[test]
+    fn guard_no_workdir_no_constraint() {
+        // workdir 为 None → 无约束，写类任意路径放行
+        let ctx = ToolContext::default();
+        let guard = guard_fs_path("write_file", &serde_json::json!({ "path": "/any/path" }), &ctx, false);
+        assert_eq!(guard, PathGuard::Allow);
+    }
+
+    #[test]
+    fn tool_permission_fs_tools() {
+        // FS 工具等级登记：只读 Safe，写入 Moderate
+        assert_eq!(tool_permission("read_file"), ToolPermission::Safe);
+        assert_eq!(tool_permission("list_directory"), ToolPermission::Safe);
+        assert_eq!(tool_permission("search_files"), ToolPermission::Safe);
+        assert_eq!(tool_permission("write_file"), ToolPermission::Moderate);
+        assert_eq!(tool_permission("edit_file"), ToolPermission::Moderate);
     }
 }

@@ -51,8 +51,8 @@
       :class="{ 'step-active': step.active, 'step-done': step.done }"
     >
       <div class="step-marker">
-        <span v-if="step.done" class="step-check">✓</span>
-        <span v-else-if="step.active" class="step-pulse">●</span>
+        <span v-if="step.done" class="step-check"><WsIcon name="check" size="xs" /></span>
+        <span v-else-if="step.active" class="step-pulse ws-step-pulse" aria-hidden="true"></span>
         <span v-else class="step-dot">{{ idx + 1 }}</span>
       </div>
       <div v-if="idx < steps.length - 1" class="step-line" :class="{ 'step-line-done': step.done }"></div>
@@ -61,7 +61,7 @@
         <div v-if="step.tools.length > 0" class="step-tools">
           <div v-for="tc in step.tools" :key="tc.id" class="step-tool" :class="tc.status">
             <span class="step-tool-icon">
-              <span v-if="tc.status === 'running'" class="tc-spin">🔧</span>
+              <span v-if="tc.status === 'running'" class="tc-spin"><WsIcon name="wrench" size="xs" /></span>
               <span v-else-if="tc.status === 'completed'"><WsIcon name="check" size="xs" /></span>
               <span v-else><WsIcon name="x" size="xs" /></span>
             </span>
@@ -569,7 +569,13 @@ function formatDuration(start: number, end: number): string {
 }
 
 .step-check { font-size: 12px; font-weight: 700; }
-.step-pulse { animation: ws-pulse 1.5s infinite; }
+/* 步骤进行中：CSS 圆点（ws- 前缀类名确保 reduced-motion 停用脉冲） */
+.step-pulse {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--agent-primary);
+  display: inline-block;
+  animation: ws-pulse 1.5s infinite;
+}
 .step-dot { font-size: 10px; }
 
 .step-line {

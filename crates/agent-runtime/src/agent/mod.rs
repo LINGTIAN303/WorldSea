@@ -61,6 +61,16 @@ pub struct AgentLoop {
     /// - 配置写入是短临界区，不涉及 await，不会阻塞异步运行时
     /// - 同步锁允许 `with_config` 保持同步签名，便于链式调用
     config: Arc<StdRwLock<AgentLoopConfig>>,
+    /// 会话绑定的工作区根目录（从 `config.workdir` 读取）
+    ///
+    /// 用于构造 [`crate::tool_context::ToolContext`] 并注入到工具执行，
+    /// 使 FS 类工具能基于该目录解析相对路径。与 `config.workdir` 保持一致
+    /// （`with_config`/`set_config` 同步更新）。
+    ///
+    /// 选用 `Arc<StdRwLock<...>>` 而非普通字段：`set_config` 接收 `&self`，
+    /// 无法直接写普通字段；用锁包裹后 `with_config`/`set_config` 均可更新，
+    /// 且工具执行时读取（短临界区，不跨 await）。
+    workdir: Arc<StdRwLock<Option<std::path::PathBuf>>>,
     /// 事件广播器
     broadcaster: Arc<RwLock<EventBroadcaster>>,
     /// 是否正在流式输出（run 方法活跃中）
@@ -181,6 +191,7 @@ impl AgentLoop {
             tool_bus,
             state,
             config,
+            workdir: Arc::new(StdRwLock::new(None)),
             broadcaster,
             is_streaming,
             long_task_manager,
@@ -330,6 +341,12 @@ impl AgentLoop {
     /// `PromptCallOptions.system_prompt_override` 传给 backend 处理，
     /// 避免 `blocking_lock` 在异步上下文中 panic。
     pub fn with_config(self, config: AgentLoopConfig) -> Self {
+        // 同步 workdir 独立字段（供工具执行时构造 ToolContext）
+        if let Ok(mut guard) = self.workdir.write() {
+            *guard = config.workdir.clone();
+        } else {
+            warn!("with_config: workdir RwLock poisoned");
+        }
         if let Ok(mut guard) = self.config.write() {
             *guard = config;
         } else {
@@ -340,6 +357,10 @@ impl AgentLoop {
 
     /// 运行时更新配置
     pub async fn set_config(&self, config: AgentLoopConfig) {
+        // 同步 workdir 独立字段（供工具执行时构造 ToolContext）
+        if let Ok(mut guard) = self.workdir.write() {
+            *guard = config.workdir.clone();
+        }
         if let Ok(mut guard) = self.config.write() {
             *guard = config;
         }

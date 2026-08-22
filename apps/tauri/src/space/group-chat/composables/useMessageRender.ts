@@ -1,69 +1,16 @@
 import { ref } from 'vue'
-import { Marked } from 'marked'
-import DOMPurify from 'dompurify'
+import { renderMarkdownHtml, stripJsonBlocks } from '@worldsmith/shared-ui/agent/bubbles'
 
-const marked = new Marked({ gfm: true, breaks: true })
-
-function renderMd(text: string): string {
-  if (!text) return ''
-  return DOMPurify.sanitize(marked.parse(text) as string)
-}
-
-function stripJsonBlocks(text: string): string {
-  const mdParts: string[] = []
-  let lastEnd = 0
-  let i = 0
-  while (i < text.length) {
-    if (text[i] === '{') {
-      const jsonStr = tryExtractJson(text, i)
-      if (jsonStr) {
-        if (i > lastEnd) mdParts.push(text.slice(lastEnd, i))
-        lastEnd = i + jsonStr.length
-        i = lastEnd
-        continue
-      }
-    }
-    i++
-  }
-  if (lastEnd < text.length) mdParts.push(text.slice(lastEnd))
-  return mdParts.map(s => s.trim()).filter(Boolean).join('\n')
-}
-
-function tryExtractJson(text: string, start: number): string | null {
-  if (text[start] !== '{') return null
-  let depth = 0
-  let j = start
-  let inStr = false
-  let esc = false
-  while (j < text.length) {
-    const ch = text[j]
-    if (esc) { esc = false; j++; continue }
-    if (ch === '\\' && inStr) { esc = true; j++; continue }
-    if (ch === '"') { inStr = !inStr; j++; continue }
-    if (!inStr) {
-      if (ch === '{') depth++
-      else if (ch === '}') {
-        depth--
-        if (depth === 0) {
-          const str = text.slice(start, j + 1)
-          try {
-            const obj = JSON.parse(str)
-            if (obj && typeof obj === 'object' && !Array.isArray(obj)) return str
-          } catch {}
-          return null
-        }
-      }
-    }
-    j++
-  }
-  return null
-}
-
+/**
+ * 群聊消息 Markdown 渲染（统一走 shared-ui 渲染链路：代码块外壳/复制/语法高亮/流式降级）。
+ * 详细见 docs/details/注释/tauri/useMessageRender.md
+ * stripJsonBlocks 剥离 Agent 输出中混入的结构化 JSON（Block 指令），复用 shared-ui 实现。
+ */
 export function useMessageRender() {
   function renderContent(content: string): string {
     if (!content) return ''
     const filtered = stripJsonBlocks(content.trim())
-    return filtered ? renderMd(filtered) : ''
+    return filtered ? renderMarkdownHtml(filtered) : ''
   }
 
   function renderPlainText(content: string): string {

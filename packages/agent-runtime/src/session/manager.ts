@@ -60,6 +60,14 @@ export function setAgentCurrentProjectId(projectId: string | null): void {
 }
 
 /**
+ * 获取当前项目 ID（供解析工作区根目录：`~/.worldsmith/workspaces/{projectId}`）。
+ * 未初始化项目系统时为 null（调用方回退到默认工作区）。
+ */
+export function getAgentCurrentProjectId(): string | null {
+  return currentProjectId
+}
+
+/**
  * 获取当前项目的 AgentDB 实例。
  * 如果没有设置 projectId，回退到旧的全局数据库。
  */

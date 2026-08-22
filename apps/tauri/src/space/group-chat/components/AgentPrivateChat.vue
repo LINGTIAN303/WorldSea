@@ -37,14 +37,14 @@
             <!-- 工具调用 -->
             <div v-if="msg.toolCalls && msg.toolCalls.length > 0" class="msg-tool-calls">
               <span v-for="tc in msg.toolCalls" :key="tc.id" class="tool-call-tag" :class="tc.status">
-                <span v-if="tc.status === 'running'" class="tc-pulse">🔧</span>
+                <span v-if="tc.status === 'running'" class="tc-pulse"><WsIcon name="wrench" size="xs" /></span>
                 <span v-else-if="tc.status === 'completed'" class="tc-done"><WsIcon name="check" size="xs" /></span>
                 <span v-else class="tc-fail"><WsIcon name="x" size="xs" /></span>
                 {{ getToolLabel(tc.name) }}
               </span>
             </div>
             <!-- Markdown 内容 -->
-            <div class="msg-bubble agent" v-html="renderMd(msg.content)" @contextmenu="onMsgContextMenu($event, msg)"></div>
+            <div class="msg-bubble agent" v-html="renderMd(msg.content)" @click="onContentClick" @contextmenu="onMsgContextMenu($event, msg)"></div>
             <span class="msg-time agent-time">{{ formatTime(msg.timestamp) }}</span>
           </div>
         </div>
@@ -66,13 +66,13 @@
             <!-- 流式工具调用 -->
             <div v-if="streamingToolCalls.length > 0" class="msg-tool-calls">
               <span v-for="tc in streamingToolCalls" :key="tc.id" class="tool-call-tag" :class="tc.status">
-                <span v-if="tc.status === 'running'" class="tc-pulse">🔧</span>
+                <span v-if="tc.status === 'running'" class="tc-pulse"><WsIcon name="wrench" size="xs" /></span>
                 <span v-else-if="tc.status === 'completed'" class="tc-done"><WsIcon name="check" size="xs" /></span>
                 <span v-else class="tc-fail"><WsIcon name="x" size="xs" /></span>
                 {{ getToolLabel(tc.name) }}
               </span>
             </div>
-            <div class="msg-bubble agent streaming" v-html="streamingText ? renderMd(streamingText) : ''"></div>
+            <div class="msg-bubble agent streaming" v-html="streamingText ? renderMd(streamingText) : ''" @click="onContentClick"></div>
             <div v-if="!streamingText && !streamingThinking && streamingToolCalls.length === 0" class="msg-bubble agent streaming-hint">正在思考...</div>
           </div>
         </div>
@@ -111,10 +111,9 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
-import { Marked } from 'marked'
-import DOMPurify from 'dompurify'
 import type { GroupMember } from '../types'
 import { getToolLabel as getSharedToolLabel } from '../types'
+import { renderMarkdownHtml, handleCodeCopyClick } from '@worldsmith/shared-ui/agent/bubbles'
 import { useAgent } from '@/agent/composables/useAgent'
 import type { AgentEvent, IAgentBackend } from '@agent/index'
 import { buildSharedBaseLayer } from '@agent/index'
@@ -189,12 +188,14 @@ watch(() => contextMenu.value.visible, (visible) => {
 
 let backend: IAgentBackend | null = null
 
-// Markdown 渲染
-const marked = new Marked({ gfm: true, breaks: true })
-
+// Markdown 渲染（统一走 shared-ui 渲染链路：代码块外壳/复制/语法高亮/流式降级）
 function renderMd(text: string): string {
-  if (!text) return ''
-  return DOMPurify.sanitize(marked.parse(text) as string)
+  return renderMarkdownHtml(text)
+}
+
+/** 代码块复制（事件委托：v-html 内 .ws-code-copy 按钮由气泡 click 统一处理） */
+function onContentClick(e: MouseEvent): void {
+  handleCodeCopyClick(e)
 }
 
 // 工具标签映射：使用共享的 TOOL_CATEGORIES
@@ -736,6 +737,54 @@ onBeforeUnmount(() => {
 .msg-bubble.agent :deep(pre code) {
   background: transparent;
   padding: 0;
+}
+/* 代码块外壳（shared-ui useMarkdownRender 生成）：语言标签 + 复制按钮 */
+.msg-bubble.agent :deep(.ws-code-block) {
+  margin: 8px 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--color-surface);
+}
+.msg-bubble.agent :deep(.ws-code-head) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 3px 10px;
+  background: var(--color-surface-elevated);
+  border-bottom: 1px solid var(--color-border);
+}
+.msg-bubble.agent :deep(.ws-code-lang) {
+  font-family: var(--font-mono, monospace);
+  font-size: var(--fs-2xs);
+  text-transform: lowercase;
+  color: var(--color-text-tertiary);
+  letter-spacing: 0.3px;
+}
+.msg-bubble.agent :deep(.ws-code-copy) {
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: var(--fs-2xs);
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: var(--radius-2xs);
+  transition: color 0.15s, background 0.15s;
+}
+.msg-bubble.agent :deep(.ws-code-copy:hover) {
+  color: var(--color-primary);
+  background: var(--color-surface);
+}
+.msg-bubble.agent :deep(.ws-code-block pre) {
+  background: transparent;
+  margin: 0;
+  padding: 8px 10px;
+}
+.msg-bubble.agent :deep(.ws-code-block pre code) {
+  background: none;
+  padding: 0;
+  white-space: pre;
 }
 .msg-bubble.agent :deep(ul), .msg-bubble.agent :deep(ol) {
   padding-left: 20px;

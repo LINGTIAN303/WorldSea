@@ -11,7 +11,6 @@ export type {
   InteractiveToolType,
   ToolCallView,
   PhaseOutput,
-  FinalOutput,
   DeepSegment,
 } from '@worldsmith/shared-composables/agent/useAgent'
 

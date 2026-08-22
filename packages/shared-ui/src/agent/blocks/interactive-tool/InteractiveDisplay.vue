@@ -8,7 +8,7 @@
       <span v-else-if="tc.status === 'completed'" class="itc-display-status completed">完成</span>
       <span v-else class="itc-display-status failed">失败</span>
       <span v-if="blockSummary" class="itc-display-summary">{{ blockSummary }}</span>
-      <span class="itc-display-chevron" :class="{ expanded: isExpanded }">▸</span>
+      <WsIcon name="chevron-right" size="xs" class="itc-display-chevron" :class="{ expanded: isExpanded }" />
     </div>
     <Transition name="itc-block-expand">
       <div v-if="isExpanded && block && tc.status === 'completed'" class="itc-display-block" @click.stop>

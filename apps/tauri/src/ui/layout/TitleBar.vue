@@ -5,16 +5,20 @@
        variant="space"（2026-08-09）：Agent 空间精简窗口栏——仅拖拽区 + 居中标题 + 窗口控制，
        隐藏工作台专属区（☰ 侧边栏 / 项目切换器 / 目录 / AppMenu / 视图名） -->
   <div class="titlebar" :class="{ 'is-space': variant === 'space' }" data-tauri-drag-region>
-    <!-- 新增：Agent 空间/工作台 切换按钮（两种壳共用窗口栏左端；取代原 ⋯ 更多操作菜单位，由它负责双向切换） -->
-    <button
-      class="titlebar-shell-toggle"
-      :title="shellToggleTitle"
-      :aria-label="shellToggleTitle"
-      @click="toggleShell"
-    >
-      <WsIcon :name="shellToggleIcon" size="sm" class="shell-toggle-icon" />
-      <span class="shell-toggle-label">{{ shellToggleLabel }}</span>
-    </button>
+    <!-- 左侧：Agent 空间/工作台 切换按钮（两种壳共用；取代原 ⋯ 更多操作菜单位） + space 变体注入面板控件 -->
+    <div class="titlebar-shell-left">
+      <button
+        class="titlebar-shell-toggle"
+        :title="shellToggleTitle"
+        :aria-label="shellToggleTitle"
+        @click="toggleShell"
+      >
+        <WsIcon :name="shellToggleIcon" size="sm" class="shell-toggle-icon" />
+        <span class="shell-toggle-label">{{ shellToggleLabel }}</span>
+      </button>
+      <!-- [A1] space 变体：AgentSpace 注入左侧栏开关（PanelToggle）等 -->
+      <slot v-if="variant === 'space'" name="space-left" />
+    </div>
     <template v-if="variant === 'workbench'">
       <div class="titlebar-left" data-tauri-drag-region>
         <button class="titlebar-switcher" title="切换项目" @click="openProjectManager">
@@ -178,6 +182,16 @@ function close() {
   padding-left: 6px;
   /* 不裁切：AppMenu 下拉需要溢出可见（各子元素自带 max-width + overflow 截断） */
   white-space: nowrap;
+}
+/* [A1] 窗口栏左侧：Agent空间/工作台切换 + space 变体注入的面板控件（PanelToggle） */
+.titlebar-shell-left {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.titlebar-shell-left :deep(.panel-toggle) {
+  height: 32px;
+  margin-left: 2px;
 }
 /* Agent 空间 / 工作台 切换按钮（2026-08-12）：默认填充激活，悬停时填充向外扩散到空心 */
 .titlebar-shell-toggle {

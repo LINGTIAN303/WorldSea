@@ -6,8 +6,75 @@ import { useStreamingRenderer } from '@worldsmith/perf-kit/render'
 import { useEntityMentionIndex } from '@worldsmith/shared-composables/agent/useEntityMentionIndex'
 import { useAgentUiDeps } from '@worldsmith/shared-composables/agent/deps'
 
+/** HTML 转义（代码块内嵌 / 纯文本回退用） */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+/** 是否含未闭合代码围栏（``` 数量为奇数） */
+function hasUnclosedFence(text: string): boolean {
+  const fences = text.split('```').length - 1
+  return fences % 2 === 1
+}
+
+/**
+ * 语法高亮钩子（C 阶段接入）：对语言 lang 的代码返回高亮 HTML；返回 null 表示不高亮。
+ * 默认不启用（B 阶段先落地代码块外壳），C 阶段注入 Prism 轻量实现。
+ * 模块级可写，供外部注入，避免 shared-ui 与高亮库强耦合。
+ */
+let highlightCode: ((code: string, lang: string) => string | null) | null = null
+export function setCodeHighlighter(fn: ((code: string, lang: string) => string | null) | null): void {
+  highlightCode = fn
+}
+
+/** 生成高亮后的 <code> 内容：命中高亮器返回其输出，否则转义原文 */
+function renderCodeContent(code: string, lang: string): string {
+  if (highlightCode) {
+    try {
+      const highlighted = highlightCode(code, lang)
+      if (highlighted) return highlighted
+    } catch {
+      // 高亮失败降级为纯文本
+    }
+  }
+  return escapeHtml(code)
+}
+
 /** marked 实例（无状态，模块级共享） */
 const marked = new Marked({ gfm: true, breaks: true })
+
+/**
+ * 自定义 code renderer：为代码块包裹 header（语言标签 + 复制按钮）。
+ * 与 Tauri 端 MessageContent 同款外壳，保证跨端代码块体验一致。
+ * data-copy 存转义后的代码文本，复制动作由气泡根元素事件委托处理。
+ */
+marked.use({
+  renderer: {
+    code({ text, lang }) {
+      const language = lang || 'text'
+      const safeLang = escapeHtml(language)
+      const body = renderCodeContent(String(text), language)
+      return [
+        '<div class="ws-code-block">',
+        '<div class="ws-code-head">',
+        `<span class="ws-code-lang">${safeLang}</span>`,
+        `<button type="button" class="ws-code-copy" data-copy="${escapeHtml(String(text))}">复制</button>`,
+        '</div>',
+        `<pre><code class="language-${safeLang}">${body}</code></pre>`,
+        '</div>',
+      ].join('')
+    },
+    link({ href, title, text }) {
+      const hrefAttr = escapeHtml(String(href))
+      const titleAttr = title ? ` title="${escapeHtml(String(title))}"` : ''
+      return `<a href="${hrefAttr}" target="_blank" rel="noopener noreferrer"${titleAttr}>${text}</a>`
+    },
+  },
+})
 
 /** DOMPurify hook：保留 data-ws-* 自定义属性（实体 mention 依赖）—— 模块级只注册一次 */
 let purifyHookRegistered = false
@@ -182,9 +249,13 @@ export function useMarkdownRender(getContent: () => string) {
 
   const throttledRaw = useStreamingRenderer(() => rawMarkdown.value, { initialValue: '' })
 
-  /** 渲染单段 Markdown 为已消毒+注入 mention 的 HTML */
+  /** 渲染单段 Markdown 为已消毒+注入 mention 的 HTML（含流式降级） */
   function renderMd(text: string): string {
     if (!text) return ''
+    // 流式中代码围栏未闭合 → 纯文本（换行转 <br>），避免误吞噬后续内容
+    if (hasUnclosedFence(text)) {
+      return escapeHtml(text).replace(/\n/g, '<br>')
+    }
     const raw = DOMPurify.sanitize(marked.parse(text) as string)
     return injectMentions(raw, matchInText)
   }
@@ -195,4 +266,35 @@ export function useMarkdownRender(getContent: () => string) {
   })
 
   return { rawMarkdown, throttledRaw, renderedMarkdown, renderMd }
+}
+
+/** 代码块复制按钮事件处理器（v-html 内按钮无法直接绑定，由气泡根元素事件委托调用）。
+ *  命中 .ws-code-copy 时读取 data-copy 写入剪贴板，按钮短暂显示「已复制」。
+ *  @returns 是否处理了代码复制（true 时调用方可不再走 mention 分支） */
+export function handleCodeCopyClick(e: MouseEvent): boolean {
+  const btn = (e.target as HTMLElement).closest?.('.ws-code-copy') as HTMLElement | null
+  if (!btn) return false
+  const text = btn.dataset.copy ?? ''
+  navigator.clipboard.writeText(text).catch(() => {})
+  btn.textContent = '已复制'
+  setTimeout(() => {
+    btn.textContent = '复制'
+  }, 1600)
+  return true
+}
+
+/**
+ * 模块级纯函数：渲染单段 Markdown 为已消毒 HTML（无 mention 注入，无 rAF 节流）。
+ *
+ * 供无实体索引的轻场景复用（如群聊/私聊气泡），与 `useMarkdownRender.renderMd` 共用同一
+ * marked 实例 + 代码块外壳 + 流式降级，保证跨入口代码块体验一致。
+ * 调用方需要复制按钮时，在 v-html 容器根元素上绑定 `@click` 并调用 `handleCodeCopyClick`。
+ */
+export function renderMarkdownHtml(text: string): string {
+  if (!text) return ''
+  // 流式中代码围栏未闭合 → 纯文本（换行转 <br>），避免误吞噬后续内容
+  if (hasUnclosedFence(text)) {
+    return escapeHtml(text).replace(/\n/g, '<br>')
+  }
+  return DOMPurify.sanitize(marked.parse(text) as string)
 }

@@ -30,6 +30,11 @@ pub enum AgentEvent {
     StreamStart { model: String },
     /// 流式增量
     StreamDelta { delta: String },
+    /// 推理（思考）增量
+    ///
+    /// 与 `StreamDelta`（正文输出）区分：经 llm `ReasoningChunk` 驱动，逐条广播，
+    /// 前端把它追加到助理消息的 thinking 字段并流式渲染。
+    ReasoningDelta { delta: String },
     /// 流式结束
     StreamEnd { full_text: String },
     /// 工具调用开始

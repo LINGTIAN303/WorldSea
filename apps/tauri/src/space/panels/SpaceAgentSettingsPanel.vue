@@ -2,7 +2,7 @@
   <div class="space-agent-settings">
     <div class="panel-header">
       <h3 class="panel-title">Agent 设置</h3>
-      <button class="panel-close-btn" @click="emit('close')" title="关闭">✕</button>
+      <button class="panel-close-btn" @click="emit('close')" title="关闭"><WsIcon name="close" size="sm" /></button>
     </div>
     <div class="panel-body">
       <AgentSettingsPanel
@@ -57,10 +57,11 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
+import { WsIcon } from '@worldsmith/ui-kit'
 import { useAgent } from '@/agent/composables/useAgent'
 import type { ChatMode } from '@/agent/composables/useAgent'
 import { useSettingsStore } from '@/stores/settingsStore'
-import { useSpaceStore } from '../stores/space-store'
+import { useSessionViewState } from '@/agent/composables/useSessionViewState'
 import { useMcpConnections } from '@worldsmith/shared-composables/agent/useMcpConnections'
 import { getAllSkills, toggleSkill, storeApiKey, loadApiKey, removeApiKey } from '@agent/index'
 import { getModelInfo, calculateCost, getThinkingLevels } from '@worldsmith/agent-runtime'
@@ -78,7 +79,8 @@ const {
 } = useAgent()
 
 const settingsStore = useSettingsStore()
-const spaceStore = useSpaceStore()
+// 聊天模式按会话隔离（viewState 权威）
+const sessionView = useSessionViewState()
 // 注入 useAgentRust（提供 getMCPConnections/addMCPConnection/removeMCPConnection 本地管理）
 const { connections: mcpConnections, addConnection, removeConnection, toggleConnection, ensureLoaded: ensureMcpLoaded } = useMcpConnections({ getAgent: () => useAgent() })
 
@@ -104,13 +106,13 @@ const CHAT_MODES = [
   { value: 'task', icon: 'play', label: '任务执行', desc: '自主规划 + 连续执行 + 验证重试，动手把事做完' },
 ]
 
-// Tauri 端聊天模式由 spaceStore 管理；Rust 端无锁定概念，lockedChatMode 恒为 null
-const activeChatMode = computed(() => spaceStore.chatMode)
+// Tauri 端聊天模式按会话隔离（viewState 权威）；Rust 端无锁定概念，lockedChatMode 恒为 null
+const activeChatMode = computed(() => sessionView.activeState.value?.chatMode ?? 'deep')
 const lockedChatMode = computed(() => null)
 
 function onChatModeChange(mode: string): void {
   if (lockedChatMode.value !== null) return
-  spaceStore.setChatMode(mode as ChatMode)
+  sessionView.setMode(mode as ChatMode)
 }
 
 const maxOutputTokensForModel = computed(() => {

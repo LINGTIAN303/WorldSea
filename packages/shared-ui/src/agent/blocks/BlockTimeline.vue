@@ -1,10 +1,10 @@
 <template>
   <div class="block-timeline">
     <div class="block-toggle" role="button" tabindex="0" :aria-expanded="expanded" @click="expanded = !expanded" @keydown.enter.prevent="expanded = !expanded" @keydown.space.prevent="expanded = !expanded">
-      <span class="block-icon">📅</span>
+      <WsIcon name="timeline" size="xs" class="block-icon" />
       <span class="block-title">时间线: {{ block.title || '事件' }}</span>
       <span class="block-meta">{{ block.events.length }}个事件</span>
-      <span class="block-arrow">{{ expanded ? '▾ 点击收起' : '▸ 点击展开' }}</span>
+      <span class="block-arrow"><WsIcon :name="expanded ? 'chevron-down' : 'chevron-right'" size="xs" /><span>{{ expanded ? '点击收起' : '点击展开' }}</span></span>
     </div>
     <Transition name="block-expand">
       <div v-if="expanded" class="block-content">
@@ -24,6 +24,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { WsIcon } from '@worldsmith/ui-kit'
 import type { TimelineBlock } from '@worldsmith/agent-runtime'
 
 defineProps<{ block: TimelineBlock }>()

@@ -25,6 +25,7 @@ pub mod router;
 pub mod scenario;
 pub mod supervisor;
 pub mod tool;
+pub mod tool_context;
 pub mod tree_of_thoughts;
 pub mod tool_hook;
 pub mod types;
@@ -82,6 +83,7 @@ pub use supervisor::{
     LlmAssignmentStrategy, SubAgentSpec, SupervisorConfig, SupervisorNode,
 };
 pub use tool::{SimpleToolBus, Tool, ToolBus, ToolDefinition, ToolError, WhitelistToolBus};
+pub use tool_context::ToolContext;
 pub use tree_of_thoughts::{
     BeamSearchStrategy, ExplorationPromptTemplate, ExplorationStrategy, GoalCheckPromptTemplate,
     GoalCheckStrategy, LlmGoalCheckStrategy, LlmScoringStrategy, ScoringPromptTemplate,

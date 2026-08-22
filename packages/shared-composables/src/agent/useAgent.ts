@@ -1,7 +1,7 @@
 /** 端无关 Agent Backend 注入层（provideAgentBackend/useAgent 注入契约），详细见 docs/details/注释/packages/shared-composables/agent/useAgent.md */
 
 import { inject, provide, type InjectionKey } from 'vue'
-import type { ImageAttachment, FileAttachment, ChatMode } from '@agent/index'
+import type { ChatMode } from '@agent/index'
 
 export type { ChatMode }
 
@@ -35,19 +35,12 @@ export interface PhaseOutput {
   status: 'streaming' | 'complete'
 }
 
-/** 最终结论区 */
-export interface FinalOutput {
-  content: string
-  blocks: import('@agent/index').MessageBlock[]
-  images: ImageAttachment[]
-  files: FileAttachment[]
-  status: 'streaming' | 'complete'
-}
-
 /**
  * 深度模式段类型：
  * - thinking: 推理过程（保留所有历史推理）
  * - phase: 阶段容器（内嵌工具列表 + 中间输出）
+ *
+ * @deprecated 待 Phase 4 清理，改用 AgentStreamItem
  */
 export type DeepSegment =
   | { id: string; type: 'thinking'; thinking: string; timestamp: number; status: 'streaming' | 'complete' }
@@ -91,3 +84,11 @@ export function useAgent(): any {
 export function useAgentOptional(): any | null {
   return inject(AGENT_BACKEND_INJECTION_KEY, null)
 }
+
+/** Agent 输出事件流单行（统一渲染源，对齐 Harness Node 流） */
+export type AgentStreamItem =
+  | { type: 'user'; msg: import('@agent/index').AgentMessage; id: string; timestamp: number }
+  | { type: 'assistant'; msg: import('@agent/index').AgentMessage; id: string; timestamp: number }
+  | { type: 'think'; id: string; text: string; status: 'streaming' | 'complete'; timestamp: number }
+  | { type: 'tool'; tc: ToolCallView; id: string; timestamp: number }
+  | { type: 'divider'; id: string; dividerText: string; timestamp: number }

@@ -12,8 +12,7 @@
  *
  * 详细设计见 docs/plans/2026-08-09-group-chat-rust-bridge-plan.md
  */
-import { invoke } from '@tauri-apps/api/core'
-import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+import { invoke, listen, type UnlistenFn } from '../../../agent/composables/transport'
 import type {
   AgentEvent,
   AgentEventListener,

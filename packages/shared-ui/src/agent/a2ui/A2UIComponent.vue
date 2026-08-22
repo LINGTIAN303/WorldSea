@@ -435,7 +435,7 @@
       <div class="a2ui-code-block">
         <div class="a2ui-cb-header">
           <span class="a2ui-cb-lang">{{ comp.language || 'text' }}</span>
-          <button v-if="comp.runnable" class="a2ui-cb-run" @click="$emit('action', { name: 'code_run', data: { code: comp.code, noteId: comp.noteId } })">▶ 运行</button>
+          <button v-if="comp.runnable" class="a2ui-cb-run" @click="$emit('action', { name: 'code_run', data: { code: comp.code, noteId: comp.noteId } })"><WsIcon name="play" size="xs" /> 运行</button>
         </div>
         <pre class="a2ui-cb-code"><code>{{ comp.code || '' }}</code></pre>
       </div>

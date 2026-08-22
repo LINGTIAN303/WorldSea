@@ -4,12 +4,13 @@
  */
 
 /** Rust 图分析算法桥接（Tauri invoke → worldsmith-core，Web 回退 JS），详细见 docs/details/注释/tauri/useRustGraphAnalysis.md */
-import { invoke } from '@tauri-apps/api/core'
+import { invoke, isHttpBackend } from '../../../agent/composables/transport'
 import type { GraphNode, GraphEdge } from '@worldsmith/canvas-engine'
 
 function isTauriAvailable(): boolean {
   try {
-    return !!window.__TAURI_INTERNALS__ || !!window.__TAURI__
+    // 桌面 Tauri 或 HTTP 桥（浏览器 preview）都走真实 Rust 命令
+    return !!window.__TAURI_INTERNALS__ || !!window.__TAURI__ || isHttpBackend()
   } catch {
     return false
   }

@@ -2,7 +2,7 @@
   <div class="font-selector" v-if="visible">
     <div class="selector-header">
       <span class="selector-title">选择字体</span>
-      <button class="selector-close" @click="emit('close')">✕</button>
+      <button class="selector-close" @click="emit('close')"><WsIcon name="close" size="sm" /></button>
     </div>
     <div class="selector-tabs">
       <button
@@ -64,6 +64,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { WsIcon } from '@worldsmith/ui-kit'
 import { list, scanSystemFonts } from '@worldsmith/font-kit'
 
 interface WindFontsItem {

@@ -3,6 +3,9 @@
  *
  * 从原 AgentMessageBubble.vue 中提取，供主文件与各子组件复用。
  * 保持与原 props 内联类型完全一致，不改变任何字段。
+ *
+ * Phase 4：已删除模式专属类型（ChatMode/DeepSegmentType/RenderUnit/
+ * RenderUnitType/AgentRenderPlan/PhaseGroup），保留 stream 行组件等复用类型。
  */
 import type { ToolCallView } from '../blocks/InlineToolCall.vue'
 
@@ -40,13 +43,10 @@ export interface AgentMessage {
   metadata?: Record<string, unknown>
 }
 
-/** 聊天模式：影响布局与思维链展示 */
-export type ChatMode = 'deep' | 'explore' | 'task' | 'group-chat'
-
-/** 深度模式段类型 */
-export type DeepSegmentType = 'thinking' | 'tooling' | 'output'
-
 /** Block 交互事件（复用 blocks 定义，避免两处重复导出冲突） */
 export type { BlockActionEvent } from '../blocks'
 
 export type { ToolCallView }
+
+/** 用户消息内容片段（@path 知识引用拆为 chip + 文本，UserRow 复用） */
+export type UserContentSegment = { type: 'text'; text: string } | { type: 'chip'; label: string }

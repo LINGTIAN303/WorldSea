@@ -1,0 +1,42 @@
+/**
+ * Agent 组件动画的可访问性降级（prefers-reduced-motion）。
+ *
+ * shared-ui 的 Agent 组件分散在多个 .vue 文件，逐个补 scoped @media 会重复且零散。
+ * 此处集中为一处全局规则：用户开启「减弱动态效果」时，停用 shared-ui 动画类名的
+ * 关键帧动画（保留终态，避免位移/脉冲/闪烁）。
+ *
+ * 类名前缀均属 shared-ui 专属（tc- / seg- / itc- / ws- / block- / phase- / bar- / a2ui- / ms- / group-），
+ * 不会误伤宿主应用的自定义动画；其余宿主动画由各自 scoped 规则负责。
+ */
+@media (prefers-reduced-motion: reduce) {
+  /* 通用：直接停用关键帧动画（含 WebKit 前缀） */
+  [class*='tc-'],
+  [class*='seg-'],
+  [class*='itc-'],
+  [class*='ws-'],
+  [class*='phase-'],
+  [class*='bar-'],
+  [class*='block-'],
+  [class*='streaming-'],
+  [class*='cursor-'],
+  .chat-msg,
+  .deep-area,
+  .archived-section,
+  .a2ui-surface,
+  .ms-canvas {
+    animation: none !important;
+    -webkit-animation: none !important;
+  }
+
+  /* 过渡也压缩（位移/缩放类 hover 动效），避免瞬时跳变不适 */
+  .block-toggle,
+  .choice-btn,
+  .a2ui-btn,
+  .a2ui-choice,
+  .a2ui-tag,
+  .msg-bubble,
+  .tool-call-tag,
+  .exec-tab {
+    transition: none !important;
+  }
+}

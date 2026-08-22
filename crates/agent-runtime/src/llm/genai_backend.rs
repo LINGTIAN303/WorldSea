@@ -334,6 +334,15 @@ impl GenaiBackend {
                 }
                 ChatStreamEvent::ReasoningChunk(chunk) => {
                     reasoning_text.push_str(chunk.content.as_str());
+                    // [链逐条] 广播推理增量，供前端逐条追加到助理消息 thinking 字段实时渲染
+                    let reasoning = chunk.content.as_str();
+                    let _ = self
+                        .broadcast(OrchestratorEvent::Agent(
+                            crate::event::AgentEvent::ReasoningDelta {
+                                delta: reasoning.to_string(),
+                            },
+                        ))
+                        .await;
                 }
                 ChatStreamEvent::ThoughtSignatureChunk(_) => {
                     // 暂不处理 thought signature

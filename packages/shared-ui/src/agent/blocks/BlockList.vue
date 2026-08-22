@@ -4,7 +4,7 @@
       <span class="block-icon"><WsIcon name="clipboard-list" size="xs" /></span>
       <span class="block-title">列表: {{ block.title || '项目' }}</span>
       <span class="block-meta">{{ block.items.length }}项</span>
-      <span class="block-arrow">{{ expanded ? '▾ 点击收起' : '▸ 点击展开' }}</span>
+      <span class="block-arrow"><WsIcon :name="expanded ? 'chevron-down' : 'chevron-right'" size="xs" /><span>{{ expanded ? '点击收起' : '点击展开' }}</span></span>
     </div>
     <Transition name="block-expand">
       <div v-if="expanded" class="block-content">

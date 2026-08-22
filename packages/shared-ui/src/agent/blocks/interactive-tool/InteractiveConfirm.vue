@@ -8,7 +8,7 @@
       <span v-if="tc.status === 'running'" class="itc-confirm-status running">等待确认</span>
       <span v-else-if="tc.status === 'completed'" class="itc-confirm-status completed">已执行</span>
       <span v-else class="itc-confirm-status failed">已拒绝</span>
-      <span class="itc-confirm-chevron" :class="{ expanded: isExpanded }">▸</span>
+      <WsIcon name="chevron-right" size="xs" class="itc-confirm-chevron" :class="{ expanded: isExpanded }" />
     </div>
     <Transition name="itc-confirm-expand">
       <div v-if="isExpanded && tc.status === 'running'" class="itc-confirm-bar" @click.stop>

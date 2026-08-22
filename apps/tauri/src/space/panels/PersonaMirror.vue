@@ -3,7 +3,7 @@
     <!-- embedded（嵌入右侧配置 Tab）：隐藏标题与关闭，由外层 Tab 承担 -->
     <div v-if="!embedded" class="panel-header">
       <h3 class="panel-title" :style="{ fontFamily: fontFamily }">人格镜</h3>
-      <button class="panel-close-btn" @click="emit('close')" title="关闭">✕</button>
+      <button class="panel-close-btn" @click="emit('close')" title="关闭"><WsIcon name="close" size="sm" /></button>
     </div>
     <div class="panel-body">
       <div class="section-label">Agent 自我认知</div>

@@ -1,20 +1,20 @@
-/** 消息列表渲染窗口化 + 滚动锚定 composable（前缀和二分定位 + 回到底部按钮），详细见 docs/details/注释/packages/shared-ui/agent/message-list/useMessageWindowing.md */
+/** 消息列表渲染窗口化 + 滚动锚定 composable（前缀和二分定位 + 回到底部按钮）。泛化接收任意「含唯一 id 的事件行数组」（对齐 Agent 事件行流），详细见 docs/details/注释/packages/shared-ui/agent/message-list/useMessageWindowing.md */
 import { ref, computed, shallowRef, watch, nextTick, onMounted, onBeforeUnmount, type Ref } from 'vue'
 import type { AgentMessage } from '@worldsmith/agent-runtime'
-import { findAssistantAfterUserMsg, type DisplayItem } from './utils'
 
 // 窗口化常量
 const WINDOW_BUFFER = 20          // 视口上下各保留 20 条缓冲，减少滚动时频繁切换
 const INITIAL_RENDER_COUNT = 50   // 初始渲染最近 50 条（覆盖大多数对话首屏）
 const ESTIMATED_ITEM_HEIGHT = 80  // 未测量过的 item 估算高度（px）
 
-export function useMessageWindowing(options: {
+/** 窗口化行通用约束：每行必须暴露可直接用于锚定/高度缓存的唯一 id */
+export function useMessageWindowing<Row extends { id: string }>(options: {
   container: Ref<HTMLDivElement | undefined>
-  fullDisplayItems: Ref<DisplayItem[]>
+  /** 事件行流的完整数组（窗口化数据源；行类型由调用方决定，仅需含 id 字段） */
+  items: Ref<Readonly<Row[]>>
   messages: Ref<AgentMessage[]>
-  isDeepMode: Ref<boolean>
 }) {
-  const { container, fullDisplayItems, messages, isDeepMode } = options
+  const { container, items, messages } = options
 
   // ===== 窗口化状态 =====
   const visibleStart = ref(0)
@@ -36,12 +36,14 @@ export function useMessageWindowing(options: {
   const showScrollToBottomBtn = ref(false)
   const newMsgCountWhileAway = ref(0)
   const lastSeenLength = ref(0)
+  /** [③] 滚动归属账本：记录程序化写入的 scrollTop，区分读者滚动 vs 程序化滚动（对齐 Harness observedTopRef）；非响应式普通变量 */
+  let observedTop = 0
 
   // ===== 可见消息 ID 集合（供点状导航/深度用户条高亮） =====
   const visibleMsgIds = ref<Set<string>>(new Set())
 
   interface WindowedItems {
-    items: DisplayItem[]
+    items: Row[]
     topPlaceholderHeight: number
     bottomPlaceholderHeight: number
   }
@@ -55,12 +57,12 @@ export function useMessageWindowing(options: {
 
   /**
    * 重建前缀和数组 + 计算已测量 item 平均高度。
-   * 调用时机：ResizeObserver 测量到新高度后、fullDisplayItems 长度变化后。
+   * 调用时机：ResizeObserver 测量到新高度后、items 长度变化后。
    * 复杂度 O(n)，但 Float64Array 数组运算极快（1000 项 < 0.1ms）。
    */
   function rebuildPrefixSums(): void {
     rebuildRafId = null
-    const total = fullDisplayItems.value.length
+    const total = items.value.length
     if (total === 0) {
       prefixSums.value = null
       avgMeasuredHeight = ESTIMATED_ITEM_HEIGHT
@@ -111,22 +113,20 @@ export function useMessageWindowing(options: {
   }
 
   const windowedDisplayItems = computed<WindowedItems>(() => {
-    const all = fullDisplayItems.value
+    const all = items.value
     const total = all.length
-    // 流式输出期间，最后一条消息（正在生成）必须始终在窗口内，确保用户可见
+    // 流式输出期间，最后一条（正在生成）必须始终在窗口内，确保用户可见
     let end = Math.min(visibleEnd.value, total)
     // 若在底部跟随状态，强制 end 覆盖到最后一条
     if (isAtBottom.value && end < total) end = total
     const start = Math.min(visibleStart.value, end)
-    const items: DisplayItem[] = []
-    for (let i = start; i < end; i++) {
-      items.push({ ...all[i], _windowIndex: i })
-    }
+    // 原样切片（不做展开/注入 _windowIndex），保留判定联合类型，由调用方行渲染器按 item.type 收敛
+    const windowed = all.slice(start, end)
     // O(1) 占位高度：前缀和直接取值，替代原 O(n) 遍历累加
     const sums = prefixSums.value
     const topPlaceholderHeight = sums ? sums[start] : 0
     const bottomPlaceholderHeight = sums ? sums[total] - sums[end] : 0
-    return { items, topPlaceholderHeight, bottomPlaceholderHeight }
+    return { items: windowed, topPlaceholderHeight, bottomPlaceholderHeight }
   })
 
   /** 根据滚动位置更新可见窗口。性能：rAF 节流 + 二分查找 O(log n)。 */
@@ -135,7 +135,7 @@ export function useMessageWindowing(options: {
     if (!scroll) return
     const scrollTop = scroll.scrollTop
     const viewportH = scroll.clientHeight
-    const all = fullDisplayItems.value
+    const all = items.value
     const total = all.length
     if (total === 0) return
 
@@ -165,19 +165,27 @@ export function useMessageWindowing(options: {
   function onScroll(): void {
     const scroll = getScrollEl()
     if (!scroll) return
-    // 更新 isAtBottom（距底部 < 60px 视为在底部）
-    const distanceToBottom = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight
+    // [③] flow-tip 跟随归属判定（对齐 Harness ChatView observedTopRef 语义）：
+    //   记录程序化写入的 scrollTop 到 observedTopRef（滚动锚定在写入后同步记录），
+    //   仅当读者输入（wheel/touch/scrollbar/键盘）导致实际位移偏离账本时才更新 isAtBottom。
+    const floor = Math.max(0, scroll.scrollHeight - scroll.clientHeight)
+    const movedByReader = Math.abs(scroll.scrollTop - Math.min(observedTop, floor)) > 0.5
     const wasAtBottom = isAtBottom.value
-    isAtBottom.value = distanceToBottom < 60
+    const isAtBottomNow = movedByReader
+      ? floor - scroll.scrollTop <= 60
+      : wasAtBottom
+    isAtBottom.value = isAtBottomNow
     // 从底部离开时，显示"回到底部"按钮
-    if (wasAtBottom && !isAtBottom.value) {
+    if (wasAtBottom && !isAtBottomNow) {
       showScrollToBottomBtn.value = true
     }
     // 回到底部时，清除按钮和计数
-    if (!wasAtBottom && isAtBottom.value) {
+    if (!wasAtBottom && isAtBottomNow) {
       showScrollToBottomBtn.value = false
       newMsgCountWhileAway.value = 0
     }
+    // 读者滚动才记账本（程序化写入由 scrollToBottom 自行记账）
+    if (movedByReader) observedTop = scroll.scrollTop
     // rAF 节流更新窗口
     if (scrollRafId !== null) return
     scrollRafId = requestAnimationFrame(() => {
@@ -188,16 +196,20 @@ export function useMessageWindowing(options: {
 
   function scrollToBottom(): void {
     const scroll = getScrollEl()
-    if (scroll) scroll.scrollTop = scroll.scrollHeight
+    if (scroll) {
+      scroll.scrollTop = scroll.scrollHeight
+      // [③] 程序化写入同步记账，避免 onScroll 误判为读者离开底部
+      observedTop = scroll.scrollTop
+    }
   }
 
   function jumpToBottom(): void {
-    scrollToBottom()
+    scrollToBottom() // 内部已同步记账 observedTopRef
     isAtBottom.value = true
     showScrollToBottomBtn.value = false
     newMsgCountWhileAway.value = 0
     // 跳到底部时扩展窗口覆盖到底部
-    visibleEnd.value = fullDisplayItems.value.length
+    visibleEnd.value = items.value.length
   }
 
   /**
@@ -217,29 +229,27 @@ export function useMessageWindowing(options: {
     scrollTimer = setTimeout(() => nextTick(scrollToBottom), 50)
   }
 
-  /** 跳转到指定消息（深度模式下跳转到对应的助手回复） */
+  /**
+   * 跳转到指定事件行（去模式分叉：统一按事件行 id 锚定）。
+   * 目标未渲染进窗口时，先扩展窗口覆盖目标附近，等待 DOM 更新后滚动。
+   */
   function scrollToMessage(id: string): void {
     const containerEl = container.value
     if (!containerEl) return
-    // 深度模式下，用户消息不在 DOM 中，跳转到对应的助手回复
-    const targetId = isDeepMode.value
-      ? (findAssistantAfterUserMsg(messages.value, id) || id)
-      : id
-    // 窗口化改造：目标消息可能不在当前窗口内（占位状态），需先扩展窗口再滚动
-    const all = fullDisplayItems.value
-    const targetIndex = all.findIndex(item => item.type === 'message' && item.msg?.id === targetId)
+    const all = items.value
+    const targetIndex = all.findIndex(item => item.id === id)
     if (targetIndex >= 0 && (targetIndex < visibleStart.value || targetIndex >= visibleEnd.value)) {
       // 目标在窗口外，扩展窗口覆盖目标附近
       visibleStart.value = Math.max(0, targetIndex - WINDOW_BUFFER)
       visibleEnd.value = Math.min(all.length, targetIndex + WINDOW_BUFFER * 2)
       // 等待 DOM 更新后再滚动
       nextTick(() => {
-        const el = containerEl.querySelector(`[data-msg-id="${targetId}"]`) as HTMLElement | null
+        const el = containerEl.querySelector(`[data-msg-id="${id}"]`) as HTMLElement | null
         if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
       })
       return
     }
-    const el = containerEl.querySelector(`[data-msg-id="${targetId}"]`) as HTMLElement | null
+    const el = containerEl.querySelector(`[data-msg-id="${id}"]`) as HTMLElement | null
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
 
@@ -332,9 +342,9 @@ export function useMessageWindowing(options: {
     // 其他情况由 MutationObserver 增量处理，无需手动干预
   })
 
-  // 消息列表长度变化时（新消息到来/筛选切换），重建前缀和
+  // 事件行数组长度变化时（新行到来/切换筛选），重建前缀和
   // immediate: true 保证组件初始化时就构建一次前缀和
-  watch(() => fullDisplayItems.value.length, () => {
+  watch(() => items.value.length, () => {
     scheduleRebuildPrefixSums()
   }, { immediate: true })
 
@@ -352,8 +362,8 @@ export function useMessageWindowing(options: {
             const el = entry.target as HTMLElement
             const msgId = el.dataset?.msgId
             if (msgId) {
-              // 找到该消息在 fullDisplayItems 中的索引，缓存真实高度
-              const idx = fullDisplayItems.value.findIndex(item => item.type === 'message' && item.msg?.id === msgId)
+              // 找到该消息/链段/工具卡在 items 中的索引，缓存真实高度
+              const idx = items.value.findIndex(item => item.id === msgId)
               if (idx >= 0) {
                 measuredHeights.set(idx, entry.contentRect.height)
               }
