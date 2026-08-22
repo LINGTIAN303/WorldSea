@@ -85,6 +85,7 @@ package-lock.json
 .codebuddy/
 .qoder/
 .workbuddy/
+.trae/
 .superpowers/
 .opencode/
 .omo/
