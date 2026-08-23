@@ -1,9 +1,8 @@
 /**
- * 供应商官方彩色 SVG 图标映射（来源：@lobehub/icons-static-svg 本地 vendor）
- *
- * 优先用彩色 `-color.svg`（部分缺彩色/no 变体的：anthropic/openai/xai/grok/agnes 无彩色静态；
- * mimo/siliconflow/dots 无任何静态 → 抛给 ProviderLogo 走品牌色王形，保证全部有颜色、无黑色）。
- * 命名对照：agnes→agnesai、qwen→qwen、xai→xai（同名），alibabacloud 为阿里云。
+ * 供应商官方彩色 SVG 图标映射
+ * - 大部分来自 @lobehub/icons-static-svg 本地 vendor（彩色 -color.svg）
+ * - 其无彩色/缺失者由用户提供的本地官方图标补齐（icons/ 目录）
+ * 仍缺失（dots/xfyun）→ ProviderLogo 走品牌色王形。
  */
 import zhipu from '@lobehub/icons-static-svg/icons/zhipu-color.svg'
 import tencentcloud from '@lobehub/icons-static-svg/icons/tencentcloud-color.svg'
@@ -24,9 +23,22 @@ import bailian from '@lobehub/icons-static-svg/icons/bailian-color.svg'
 import chatglm from '@lobehub/icons-static-svg/icons/chatglm-color.svg'
 import alibabacloud from '@lobehub/icons-static-svg/icons/alibabacloud-color.svg'
 import bytedance from '@lobehub/icons-static-svg/icons/bytedance-brand-color.svg'
+// —— 用户提供的本地官方图标（补 static-svg 无彩色/缺失的供应商）——
+import openai from './icons/openai.svg'
+import anthropic from './icons/anthropic.svg'
+import groq from './icons/groq.svg'
+import mimo from './icons/xiaomimimo.svg'
+import siliconflow from './icons/siliconcloud-color.svg'
+import agnes from './icons/agnesai.svg'
 
-/** provider id → 官方彩色图标 URL；未收录（无彩色静态/完全缺失）返回 undefined，由调用方回退到品牌色王形 */
+/** provider id → 官方彩色图标 URL；未收录（dots/xfyun）返回 undefined，由调用方回退到品牌色王形 */
 const ICONS: Record<string, string> = {
+  openai,
+  anthropic,
+  groq,
+  mimo,
+  siliconflow,
+  agnes,
   zhipu,
   tencentcloud,
   stepfun,
@@ -46,7 +58,7 @@ const ICONS: Record<string, string> = {
   chatglm,
   alibabacloud,
   bytedance,
-  // 注意：anthropic/openai/xai/grok/agnes 无彩色静态；mimo/siliconflow/dots 无静态 → 不在此映射，走王形兜底
+  // dots / xfyun 无官方图标资源 → 走王形兜底
 }
 
 /** 取供应商官方彩色图标 URL；无则返回 undefined */
