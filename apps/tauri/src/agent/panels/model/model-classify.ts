@@ -27,7 +27,8 @@ const MODALITY_OVERRIDES: Record<string, ModelModality> = {
   'doubao-seedance': 'video',
   'agnes-video': 'video',
   'cogvideox': 'video',
-  'wan': 'video',
+  'hailuo': 'video', // MiniMax 海螺视频（Hailuo/H3）
+  'wan': 'video', // 通义万相 wan2.x
   't2v': 'video',
   'i2v': 'video',
   // 图像生成
@@ -40,6 +41,7 @@ const MODALITY_OVERRIDES: Record<string, ModelModality> = {
   'kling-image': 'image',
   // 语音
   'stepaudio': 'audio',
+  'speech-': 'audio', // MiniMax speech-2.x T2A 语音
   'audio-speech': 'audio',
   'whisper': 'audio',
   'senseaudio': 'audio',
@@ -66,10 +68,23 @@ const MODALITY_OVERRIDES: Record<string, ModelModality> = {
   'qwen-vl-max': 'image',
 }
 
-/** 推断模型模态 */
+/** 推断模型模态（精确优先，其次最长前缀匹配，避免「mimo」误匹配「mimo-v2.5」这类冲突） */
 export function modalityOf(modelId: string): ModelModality {
   const key = modelId.toLowerCase()
-  if (MODALITY_OVERRIDES[key]) return MODALITY_OVERRIDES[key]
+  // 1. 精确匹配
+  const exact = MODALITY_OVERRIDES[key]
+  if (exact) return exact
+  // 2. 前缀匹配：取匹配到的最长前缀
+  let best: ModelModality | undefined
+  let bestLen = 0
+  for (const [prefix, mod] of Object.entries(MODALITY_OVERRIDES)) {
+    if (key.startsWith(prefix) && prefix.length > bestLen) {
+      best = mod
+      bestLen = prefix.length
+    }
+  }
+  if (best) return best
+  // 3. 回退 registry 能力
   const info = getModelInfo(modelId)
   if (!info) return 'text'
   if (info.supportsVision) return 'image' // 至少有图像理解能力；具体视频/全模态由覆盖表补充
