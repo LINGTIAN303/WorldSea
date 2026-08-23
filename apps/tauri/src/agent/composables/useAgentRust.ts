@@ -424,23 +424,36 @@ function emit(event: AgentEvent): void {
 
 // ─── 事件流辅助函数 ────────────────────────────────────────
 
-/** 向当前会话事件流追加一行（同步 agentStream 与 sessionStreamCache） */
+/** 向当前会话事件流追加一行（同步 agentStream 与 sessionStreamCache）。
+ *  幂等保护：agentStream 与 cache 均已存在同 id 行则跳过，杜绝任何路径下的同 id 重复。
+ *  关键：cache 与 agentStream 可能因上一轮 `[...]` 重建而脱钩（cache 旧引用、agentStream 新引用），
+ *  此时两者都要各自做幂等，否则 cache 会被重复 push 累积同 id，最终 switchSession 恢复时带进 agentStream。 */
 function streamAppend(sessionId: string, item: AgentStreamItem): void {
-  agentStream.value = [...agentStream.value, item]
   const cache = sessionStreamCache.get(sessionId)
-  if (cache) cache.push(item)
+  // 幂等：agentStream 或 cache 已有同 id 则不再追加（各查一遍，杜绝脱钩后 cache/agentStream 各自多份）
+  if (agentStream.value.some((x) => x.id === item.id)) return
+  if (cache && cache.some((x) => x.id === item.id)) return
+  if (cache) {
+    // 以 cache 为事实源追加，再重建 agentStream 引用使二者重新同构（避免后续脱钩）
+    cache.push(item)
+    agentStream.value = [...cache]
+  } else {
+    agentStream.value = [...agentStream.value, item]
+  }
 }
 
-/** 原位替换指定 id 的事件行（不可变，触发响应式；未命中则忽略） */
+/** 原位替换指定 id 的事件行（新建数组引用触发响应式，未命中则忽略）。
+ *  若 agentStream.value 与 sessionStreamCache 共享引用，只替换一份即可（cache 也自动更新）。 */
 function streamReplace(sessionId: string, id: string, item: AgentStreamItem): void {
+  const cache = sessionStreamCache.get(sessionId)
   const idx = agentStream.value.findIndex((x) => x.id === id)
   if (idx >= 0) {
     const copy = [...agentStream.value]
     copy[idx] = item
     agentStream.value = copy
   }
-  const cache = sessionStreamCache.get(sessionId)
-  if (cache) {
+  // cache 与 agentStream 可能共享引用：只有不同引用时才需单独替换 cache
+  if (cache && cache !== agentStream.value) {
     const ci = cache.findIndex((x) => x.id === id)
     if (ci >= 0) cache[ci] = item
   }
@@ -477,6 +490,8 @@ function lastContentStreamItem(): AgentStreamItem | undefined {
  */
 function pushStreamItem(sessionId: string, item: AgentStreamItem, opts?: { injectAgeDivider?: boolean }): void {
   const injectAgeDivider = opts?.injectAgeDivider ?? true
+  // 防御：同 id 已存在则不再追加（user/assistant/tool 在重建与会话追加叠加时防重）
+  if (agentStream.value.some((x) => x.id === item.id)) return
   if (injectAgeDivider) {
     const last = lastContentStreamItem()
     if (last && item.timestamp - last.timestamp > AGE_DIVIDER_THRESHOLD) {
@@ -491,12 +506,21 @@ function pushStreamItem(sessionId: string, item: AgentStreamItem, opts?: { injec
   streamAppend(sessionId, item)
 }
 
-/** 追加/原位更新助手正文事件行（id=msg.id），作为刷新后回源重建所需的稳定锚点 */
+/** 追加/原位更新助手正文事件行（id=msg.id），作为刷新后回源重建所需的稳定锚点。
+ *  幂等：同 id 已存在则原位替换（streamReplace 仅替换单个游标），从未存在才追加；杜绝流式期间重复行。 */
 function upsertAssistantStreamRow(sessionId: string, msg: AgentMessage): void {
-  const existing = agentStream.value.find((x) => x.type === 'assistant' && x.id === msg.id)
   const row: AgentStreamItem = { type: 'assistant', msg, id: msg.id, timestamp: msg.timestamp }
+  const existing = agentStream.value.find((x) => x.type === 'assistant' && x.id === msg.id)
   if (existing) streamReplace(sessionId, msg.id, row)
   else pushStreamItem(sessionId, row)
+}
+
+/** 追加/原位更新流式 think 正文事件行（同 id 累积 reasoning 增量）。
+ *  幂等：同 id 已存在则原位替换，从未存在才追加；杜绝流式期间重复 think 行。 */
+function upsertThinkStreamRow(sessionId: string, newRow: AgentStreamItem): void {
+  const existing = agentStream.value.find((x) => x.type === 'think' && x.id === newRow.id)
+  if (existing) streamReplace(sessionId, newRow.id, newRow)
+  else streamAppend(sessionId, newRow)
 }
 
 /** 回源重建：把历史 AgentMessage 重建为事件行（think/tool/assistant/user 行），相邻超时补时间分隔行 */
@@ -881,6 +905,9 @@ function handleStreamEvent(sessionId: string, payload: RustStreamPayload): void 
     lastStreamedMsg.value = msg
     messages.value.push(msg)
     sessionMessagesCache.get(sessionId)?.push(msg)
+    // 立即把空助手行放进 agentStream（唯一渲染源锚点）：
+    // 后续 delta/end 的 upsert 恒能 find 到该 id 走原位替换，杜绝流式期间重复 append。
+    upsertAssistantStreamRow(sessionId, msg)
     return
   }
 
@@ -908,12 +935,12 @@ function handleStreamEvent(sessionId: string, payload: RustStreamPayload): void 
     }
     streamingAssistant.value = updated
     upsertMsgInSession(target.id, updated, sessionId)
-    // 双写 2：追加/更新 think 事件行（同一推理增量累积在同一行）
+    // 双写 2：追加/更新 think 事件行（同一推理增量累积在同一行，交由带下标缓存的 upsert）
     const cur = streamingThink.value
     if (cur && cur.type === 'think') {
       const newRow: AgentStreamItem = { ...cur, text: cur.text + payload.delta }
       streamingThink.value = newRow
-      streamReplace(sessionId, cur.id, newRow)
+      upsertThinkStreamRow(sessionId, newRow)
     } else {
       const newRow: AgentStreamItem = {
         type: 'think',
@@ -923,7 +950,7 @@ function handleStreamEvent(sessionId: string, payload: RustStreamPayload): void 
         timestamp: Date.now(),
       }
       streamingThink.value = newRow
-      streamAppend(sessionId, newRow)
+      upsertThinkStreamRow(sessionId, newRow)
     }
     return
   }
@@ -1128,6 +1155,8 @@ function buildBridgeContext(): IToolContext {
   // 已缓存则仅动态刷新 workdir（会话切换后 dirPath 保持最新），复用 stores 避免重复构造
   if (toolBridgeContext) {
     toolBridgeContext.projectInfo.dirPath = currentWorkdir.value ?? null
+    // Phase B 边界加固：同步注入工作区 workdir（供 coding 工具链边界 resolver 使用）
+    toolBridgeContext.workspace = { workdir: currentWorkdir.value ?? undefined }
     return toolBridgeContext
   }
   const entityStore = useEntityStore()
@@ -1156,6 +1185,9 @@ function buildBridgeContext(): IToolContext {
       // Phase 4 工作区：从当前会话 workdir 注入（原硬编码 null）
       dirPath: currentWorkdir.value ?? null,
     },
+    // Phase B 边界加固：注入工作区 workdir（供 coding 工具链边界 resolver 使用；
+    // 无 workdir 时 workdir 为 undefined = 未绑定工作区、写边界未启用）
+    workspace: { workdir: currentWorkdir.value ?? undefined },
     platform: 'web' as const,
     currentSessionId: currentSessionId.value ?? undefined,
   }
@@ -1677,7 +1709,17 @@ async function switchSession(sessionId: string): Promise<void> {
   agentStream.value = []
   const cachedStream = sessionStreamCache.get(sessionId)
   if (cachedStream) {
-    agentStream.value = cachedStream
+    // 恢复时去重：同一 id 只保留首次出现，杜绝多路赋值叠加出的重复行
+    const dedup: AgentStreamItem[] = []
+    const seen = new Set<string>()
+    for (const row of cachedStream) {
+      if (seen.has(row.id)) continue
+      seen.add(row.id)
+      dedup.push(row)
+    }
+    agentStream.value = dedup
+    // 同步回写去重结果，避免后续再次引用到含重复的缓存
+    sessionStreamCache.set(sessionId, dedup)
   } else {
     const tsMsgs = messages.value
     if (tsMsgs.length > 0) {
@@ -1724,6 +1766,12 @@ async function ensureSession(): Promise<string> {
 async function prompt(text: string, options?: PromptOptions): Promise<void> {
   const sessionId = await ensureSession()
   const textContent = text.trim()
+  // 并发门控（对齐 OpenCode ensureRunning）：上一轮仍在流式/生成时不重复创建 user 消息。
+  // 防止连点/重入/非 UI 路径（AISidebar/插件）在 Running 状态下再调 send，避免重复 user 行与重复 AI 响应。
+  if (isStreaming.value) {
+    console.warn('[useAgentRust] 上一轮仍在生成，忽略重复 send')
+    return
+  }
   // 确保当前会话的 Rust 端已注入模型 + API Key（幂等兜底，避免新会话空 key 报「API Key 缺失」）
   await ensureModelKey()
   // 发送文本 = 用户输入 + 附件注入内容（hiddenText，如"仅附件"消息、图片占位、文件全文）
@@ -1914,6 +1962,9 @@ async function updateModel(
   _contextWindow?: number,
   maxTokens?: number,
   temperature?: number,
+  topP?: number,
+  topK?: number,
+  thinkingMode?: boolean,
 ): Promise<void> {
   const sessionId = await ensureSession()
   await safeInvoke('update_model', {
@@ -1925,6 +1976,10 @@ async function updateModel(
       apiKey: apiKey ?? null,
       temperature: temperature ?? null,
       maxTokens: maxTokens ?? null,
+      // Top P：前端滑块 0~100，Rust/genai 需 0~1
+      topP: topP != null ? topP / 100 : null,
+      topK: topK ?? null,
+      thinkingMode: thinkingMode ?? null,
     },
   })
 }

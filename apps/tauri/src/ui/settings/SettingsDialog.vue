@@ -1,6 +1,10 @@
 <template>
   <div class="set-overlay" v-if="show" @click.self="close">
     <div ref="dialogRef" class="set-shell" role="dialog" aria-modal="true" aria-labelledby="set-dialog-title" tabindex="-1">
+      <aside v-show="railVisible" class="set-rail" aria-label="配置目录" :style="railStyle">
+        <button v-for="(it, i) in railItems" :key="i" class="set-rail-item"
+          :class="railItemClass(i)" @click="goRail(i)">{{ it.text }}</button>
+      </aside>
       <div class="set-topbar">
         <div class="set-topbar-left">
           <WsIcon name="settings" size="sm" />
@@ -15,16 +19,22 @@
         <button class="set-close" @click="close" aria-label="关闭设置">✕</button>
       </div>
 
-      <nav class="set-tabs">
-        <button v-for="cat in categories" :key="cat.id"
-          class="set-tab" :class="{ active: activeSection === cat.id }"
-          @click="onTabClick(cat.id)">
-          <WsIcon :name="cat.icon" size="xs" class="stb-icon" />
-          <span class="stb-label">{{ cat.label }}</span>
-        </button>
-      </nav>
+      <div class="set-tabs-wrap" :class="{ 'has-scroll': canScrollTabs }">
+        <button v-show="canScrollLeft" class="set-tabs-arrow set-tabs-arrow--left"
+          @click="scrollTabs(-1)" aria-label="向左滚动"><WsIcon name="chevron-left" size="xs" /></button>
+        <nav ref="tabsRef" class="set-tabs" @scroll="onTabsScroll" @wheel="onTabsWheel">
+          <button v-for="cat in categories" :key="cat.id"
+            class="set-tab" :class="{ active: activeSection === cat.id }"
+            @click="onTabClick(cat.id)">
+            <WsIcon :name="cat.icon" size="xs" class="stb-icon" />
+            <span class="stb-label">{{ cat.label }}</span>
+          </button>
+        </nav>
+        <button v-show="canScrollRight" class="set-tabs-arrow set-tabs-arrow--right"
+          @click="scrollTabs(1)" aria-label="向右滚动"><WsIcon name="chevron-right" size="xs" /></button>
+      </div>
 
-      <div class="set-cards" v-if="activeSection || searchQuery">
+      <div class="set-cards" ref="cardsRef" v-if="activeSection || searchQuery">
         <!-- 搜索模式：渲染所有匹配类别的面板 -->
         <template v-if="searchQuery">
           <template v-for="cat in matchedCategories" :key="cat.id">
@@ -36,25 +46,27 @@
             <CompanionPanel v-if="cat.id === 'video'" :search-query="searchQuery" @dirty="onDirty" />
             <ShortcutsPanel v-if="cat.id === 'shortcuts'" :search-query="searchQuery" @dirty="onDirty" />
             <VoicePanel v-if="cat.id === 'voice'" :search-query="searchQuery" @dirty="onDirty" />
+            <AccessibilityPanel v-if="cat.id === 'accessibility'" :search-query="searchQuery" />
             <div v-if="cat.id === 'agent'" class="agent-set-embed"><SpaceAgentSettingsPanel @close="close" /></div>
           </template>
           <div v-if="matchedCategories.length === 0" class="set-empty">未找到匹配的设置项</div>
         </template>
 
-        <!-- 正常模式：只渲染当前激活的分类 -->
+        <!-- 正常模式：只渲染当前激活的分类（均接入 CardDeck 叠放翻卡，左列标题点击翻卡） -->
         <template v-else>
-          <AppearancePanel v-if="activeSection === 'appearance'" @dirty="onDirty" />
-          <PluginsPanel v-else-if="activeSection === 'plugins'" @dirty="onDirty" />
-          <EditorPanel v-else-if="activeSection === 'editor'" @dirty="onDirty" />
-          <LayoutPanel v-else-if="activeSection === 'layout'" @dirty="onDirty" />
-          <RelationsPanel v-else-if="activeSection === 'relations'" @dirty="onDirty" />
-          <CompanionPanel v-else-if="activeSection === 'video'" @dirty="onDirty" />
-          <ShortcutsPanel v-else-if="activeSection === 'shortcuts'" @dirty="onDirty" />
-          <VoicePanel v-else-if="activeSection === 'voice'" @dirty="onDirty" />
+          <AppearancePanel v-if="activeSection === 'appearance'" ref="appearanceRef" @dirty="onDirty" @card-change="onPanelCardChange" />
+          <PluginsPanel v-else-if="activeSection === 'plugins'" ref="pluginsRef" @dirty="onDirty" @card-change="onPanelCardChange" />
+          <EditorPanel v-else-if="activeSection === 'editor'" ref="editorRef" @dirty="onDirty" @card-change="onPanelCardChange" />
+          <LayoutPanel v-else-if="activeSection === 'layout'" ref="layoutRef" @dirty="onDirty" @card-change="onPanelCardChange" />
+          <RelationsPanel v-else-if="activeSection === 'relations'" ref="relationsRef" @dirty="onDirty" @card-change="onPanelCardChange" />
+          <CompanionPanel v-else-if="activeSection === 'video'" ref="companionRef" @dirty="onDirty" @card-change="onPanelCardChange" />
+          <ShortcutsPanel v-else-if="activeSection === 'shortcuts'" ref="shortcutsRef" @dirty="onDirty" @card-change="onPanelCardChange" />
+          <VoicePanel v-else-if="activeSection === 'voice'" ref="voiceRef" @dirty="onDirty" @card-change="onPanelCardChange" />
+          <AccessibilityPanel v-else-if="activeSection === 'accessibility'" ref="accessibilityRef" @card-change="onPanelCardChange" />
           <template v-else-if="activeSection === 'storage'">
-            <StorageManagementTab />
+            <StorageManagementTab ref="storageRef" @card-change="onPanelCardChange" />
           </template>
-          <div v-else-if="activeSection === 'agent'" class="agent-set-embed"><SpaceAgentSettingsPanel @close="close" /></div>
+          <div v-else-if="activeSection === 'agent'" class="agent-set-embed"><SpaceAgentSettingsPanel ref="agentSetRef" @close="close" @card-change="onPanelCardChange" /></div>
         </template>
       </div>
 
@@ -64,7 +76,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useSettingsStore, useUIStore, usePluginStore } from '@worldsmith/entity-core'
 import { useResizable, WsIcon } from '@worldsmith/ui-kit'
 import { useFocusTrap } from '@/composables/useFocusTrap'
@@ -78,6 +90,7 @@ import RelationsPanel from './panels/RelationsPanel.vue'
 import CompanionPanel from './panels/CompanionPanel.vue'
 import ShortcutsPanel from './panels/ShortcutsPanel.vue'
 import VoicePanel from './panels/VoicePanel.vue'
+import AccessibilityPanel from './panels/AccessibilityPanel.vue'
 // Agent 设置面板（embedded 封装，2026-08-09 迁入主设置）
 import SpaceAgentSettingsPanel from '@/space/panels/SpaceAgentSettingsPanel.vue'
 
@@ -125,10 +138,193 @@ const categories = [
   { id: 'voice', icon: 'volume-on', label: '语音' },
   { id: 'storage', icon: 'cat-storage', label: '存储' },
   { id: 'agent', icon: 'bot', label: 'Agent' },
+  { id: 'accessibility', icon: 'motion', label: '无障碍' },
 ]
 
 const activeSection = ref<string | null>(null)
 const searchQuery = ref('')
+
+// ── Tab 栏单行横向滚动 + 左右三角控件 ──
+const tabsRef = ref<HTMLElement | null>(null)
+const canScrollLeft = ref(false)
+const canScrollRight = ref(false)
+const canScrollTabs = computed(() => canScrollLeft.value || canScrollRight.value)
+
+function onTabsScroll(): void {
+  const el = tabsRef.value
+  if (!el) return
+  canScrollLeft.value = el.scrollLeft > 0
+  canScrollRight.value = el.scrollLeft + el.clientWidth < el.scrollWidth - 1
+}
+
+function recomputeTabsOverflow(): void {
+  const el = tabsRef.value
+  if (!el) return
+  // 有横向溢出才显示三角；滚到尽头自动隐藏对应侧
+  canScrollLeft.value = el.scrollLeft > 0
+  canScrollRight.value = el.scrollLeft + el.clientWidth < el.scrollWidth - 1
+}
+
+function scrollTabs(dir: number): void {
+  const el = tabsRef.value
+  if (!el) return
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  el.scrollBy({ left: dir * 240, behavior: reduced ? 'auto' : 'smooth' })
+}
+
+/** 滚轮横向滚动 Tab 栏（默认滚轮是纵向，这里转成横向） */
+function onTabsWheel(e: WheelEvent): void {
+  const el = tabsRef.value
+  if (!el) return
+  el.scrollLeft += e.deltaY
+  e.preventDefault()
+}
+
+// 监听 Tab 溢出变化：打开时/渲染后/窗口尺寸变化时复算（ResizeObserver 对 scrollWidth 溢出不触发，故需显式复算）
+let tabsResizeObs: ResizeObserver | null = null
+watch(() => props.show, (val) => {
+  if (val) {
+    nextTick(() => {
+      recomputeTabsOverflow()
+      // 字体/布局可能晚稳定，延迟再复算一次
+      window.setTimeout(() => recomputeTabsOverflow(), 80)
+      if (!tabsResizeObs && tabsRef.value) {
+        tabsResizeObs = new ResizeObserver(() => recomputeTabsOverflow())
+        tabsResizeObs.observe(tabsRef.value)
+      }
+    })
+  }
+})
+function onWindowResize(): void {
+  recomputeTabsOverflow()
+  updateRailLayout()
+}
+onMounted(() => {
+  nextTick(() => {
+    recomputeTabsOverflow()
+    window.setTimeout(() => recomputeTabsOverflow(), 80)
+  })
+  window.addEventListener('resize', onWindowResize)
+})
+onUnmounted(() => {
+  tabsResizeObs?.disconnect()
+  window.removeEventListener('resize', onWindowResize)
+})
+
+// ── 配置面板左侧「UI 框列」：从当前面板 .sc-head 派生 + scroll-spy 高亮 ──
+interface RailItem { text: string; el: HTMLElement }
+const cardsRef = ref<HTMLElement | null>(null)
+const railItems = ref<RailItem[]>([])
+const activeRail = ref(-1)
+const railVisible = computed(() => !searchQuery.value && activeSection.value !== null && railItems.value.length > 0)
+/** 各分类面板实例（均暴露 goToCard，供左列标题点击翻卡；@card-change 上报左列高亮） */
+const appearanceRef = ref<InstanceType<typeof AppearancePanel> | null>(null)
+const pluginsRef = ref<InstanceType<typeof PluginsPanel> | null>(null)
+const editorRef = ref<InstanceType<typeof EditorPanel> | null>(null)
+const layoutRef = ref<InstanceType<typeof LayoutPanel> | null>(null)
+const relationsRef = ref<InstanceType<typeof RelationsPanel> | null>(null)
+const companionRef = ref<InstanceType<typeof CompanionPanel> | null>(null)
+const shortcutsRef = ref<InstanceType<typeof ShortcutsPanel> | null>(null)
+const voiceRef = ref<InstanceType<typeof VoicePanel> | null>(null)
+const storageRef = ref<InstanceType<typeof StorageManagementTab> | null>(null)
+const accessibilityRef = ref<InstanceType<typeof AccessibilityPanel> | null>(null)
+const agentSetRef = ref<InstanceType<typeof SpaceAgentSettingsPanel> | null>(null)
+const panelRefs: Record<string, { value: any }> = {
+  appearance: appearanceRef,
+  plugins: pluginsRef,
+  editor: editorRef,
+  layout: layoutRef,
+  relations: relationsRef,
+  video: companionRef,
+  shortcuts: shortcutsRef,
+  voice: voiceRef,
+  storage: storageRef,
+  accessibility: accessibilityRef,
+  agent: agentSetRef,
+}
+/** 叠放翻卡上报：左列高亮跟随当前卡片 */
+function onPanelCardChange(i: number): void {
+  activeRail.value = i
+}
+/** 左列定位样式：top/height 与配置面板区对齐（全高背景）；标题项在 rail 内垂直居中，中心自然对齐主卡中心 */
+const railStyle = ref<Record<string, string>>({})
+
+/** 更新左列标题区位置：rail 高度保持配置面板区全高（保留全高背景），顶部与配置面板区对齐；
+    标题项垂直居中（.set-rail justify-content:center），标题项中心落在 rail 中心 = 主卡中心线。 */
+function updateRailLayout(): void {
+  const cardsEl = cardsRef.value
+  if (!cardsEl) {
+    railStyle.value = {}
+    return
+  }
+  railStyle.value = {
+    top: `${cardsEl.offsetTop}px`,
+    height: `${cardsEl.offsetHeight}px`,
+  }
+}
+
+/** 各面板分节标题选择器与其所属卡片的选择器（覆盖标准 .sc-head / 语音 .set-card-title / 存储 .sm-section-head / Agent .agent-set-head） */
+const HEADING_SELECTOR = '.sc-head, .set-card-title, .sm-section-head, .agent-set-head'
+const SECTION_SELECTOR = '.set-card, .sm-section, .agent-set-card'
+
+/** 提取分节标题主文本：部分 .sc-head 内含多个元素（如插件面板含筛选标签），只取首个文字子节点 */
+function headText(h: HTMLElement): string {
+  const span = h.querySelector('span')
+  if (span) return span.textContent?.trim() || ''
+  return h.textContent?.trim() || ''
+}
+
+/** 重建左列：读取当前面板内所有分节标题文本。全部分类均为叠放翻卡，高亮由 card-change 事件驱动（默认第一张） */
+function rebuildRail(): void {
+  const cardsEl = cardsRef.value
+  if (!cardsEl) {
+    railItems.value = []
+    activeRail.value = -1
+    return
+  }
+  const heads = Array.from(cardsEl.querySelectorAll(HEADING_SELECTOR)) as HTMLElement[]
+  railItems.value = heads.map(h => ({
+    text: headText(h),
+    el: h.closest(SECTION_SELECTOR) as HTMLElement,
+  })).filter(r => r.text && r.el)
+  activeRail.value = 0
+  nextTick(updateRailLayout)
+}
+
+function goRail(i: number): void {
+  const item = railItems.value[i]
+  // 全部分类均接入 CardDeck 叠放翻卡：左列标题 → 翻到对应卡（单卡分类 goToCard 为 no-op）
+  const panel = panelRefs[activeSection.value ?? '']?.value
+  if (panel?.goToCard && item) {
+    panel.goToCard(i)
+    activeRail.value = i
+    return
+  }
+  if (!item?.el) return
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  item.el.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' })
+}
+
+/** 左列标题块的复合类：位置（首/中/尾/单）+ 激活态 + 放射透视变量 */
+function railItemClass(i: number): Record<string, boolean | string> {
+  const n = railItems.value.length
+  const posClass = n === 1 ? 'set-rail-item--single'
+    : i === 0 ? 'set-rail-item--top'
+    : i === n - 1 ? 'set-rail-item--bottom'
+    : 'set-rail-item--mid'
+  return {
+    on: activeRail.value === i,
+    [posClass]: true,
+    // 绕枢轴偏移量（-1~1，0=中间格），驱动「》」放射旋转/收窄
+    '--v-offset': n <= 1 ? '0' : ((i - (n - 1) / 2) / ((n - 1) / 2)).toFixed(3),
+    '--v-abs': n <= 1 ? '0' : Math.abs((i - (n - 1) / 2) / ((n - 1) / 2)).toFixed(3),
+  }
+}
+
+// 切换分类或退出搜索后重建左列（此时面板已渲染）
+watch(activeSection, () => { if (!searchQuery.value) nextTick(rebuildRail) })
+watch(searchQuery, (q) => { if (!q) nextTick(rebuildRail) })
+onMounted(() => nextTick(() => { if (!props.show) return; rebuildRail() }))
 
 // 各分类的搜索关键词（用于搜索模式下过滤匹配的分类）
 const CATEGORY_KEYWORDS: Record<string, string> = {
@@ -142,6 +338,7 @@ const CATEGORY_KEYWORDS: Record<string, string> = {
   voice: '语音 识别 输入 麦克风 连续 语言 voice',
   storage: '存储 清理 孤立 文件 诊断 缓存 空间 配额 storage cleanup orphan diagnostic',
   agent: 'Agent 模型 供应商 用量 Skills MCP 搜索 多模态 终端 安全 人格预设 思考级别 危险操作 确认 agent model provider usage skill mcp search vision terminal safety persona thinking',
+  accessibility: '动画效果 减弱动态 动画 动效 消息 脉冲 状态 面板 侧边栏 弹窗 控件 启动 眩晕 降低 可访问 reduce motion accessibility',
 }
 
 const matchedCategories = computed(() => {
@@ -178,7 +375,7 @@ function close() {
 
 <style scoped>
 .set-overlay { position: fixed; inset: 0; z-index: var(--z-overlay); background: var(--overlay, rgba(0,0,0,0.35)); display: flex; align-items: flex-start; justify-content: center; padding-top: 3vh; }
-.set-shell { max-height: 78vh; display: flex; flex-direction: column; position: relative; min-width: 420px; max-width: 680px; width: auto; }
+.set-shell { height: min(88vh, 640px); display: flex; flex-direction: column; position: relative; min-width: 420px; max-width: 680px; width: auto; }
 
 .set-topbar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: var(--content-bg, var(--color-bg-surface)); border-radius: var(--radius-md); box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
 .set-topbar-left { display: flex; align-items: center; gap: 6px; color: var(--text-secondary); flex-shrink: 0; }
@@ -194,13 +391,76 @@ function close() {
 .set-close { background: none; border: none; font-size: var(--font-size-lg); cursor: pointer; padding: 4px 6px; border-radius: var(--radius-xs); color: var(--text-tertiary, var(--color-text-tertiary)); flex-shrink: 0; }
 .set-close:hover { background: var(--hover-bg, var(--color-bg-hover)); color: var(--text-color); }
 
-.set-tabs { display: flex; gap: 6px; padding: 8px 0 0; flex-wrap: wrap; }
+/* Tab 栏：单行横向滚动（隐藏滚动条），左右端漂浮三角控件 */
+.set-tabs-wrap { position: relative; padding-top: 8px; }
+.set-tabs { display: flex; gap: 6px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding: 0 18px 0 18px; }
+.set-tabs::-webkit-scrollbar { display: none; }
+.set-tabs-arrow {
+  position: absolute; top: 50%; transform: translateY(-50%); z-index: 2;
+  width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
+  border: none; border-radius: 50%; cursor: pointer;
+  background: var(--content-bg, var(--color-bg-surface)); color: var(--text-secondary);
+  box-shadow: 0 1px 6px rgba(0,0,0,0.18); font-size: var(--font-size-base);
+  transition: background 0.15s, color 0.15s, transform 0.15s;
+}
+.set-tabs-arrow:hover { background: var(--primary-light, color-mix(in srgb, var(--color-primary) 10%, transparent)); color: var(--primary, var(--color-primary)); }
+.set-tabs-arrow--left { left: 0; }
+.set-tabs-arrow--right { right: 0; }
 .set-tab { display: flex; align-items: center; gap: 5px; padding: 7px 14px; border: none; border-radius: var(--radius-mid); background: var(--content-bg, var(--color-bg-surface)); color: var(--text-secondary); font-size: var(--font-size-sm); cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s; white-space: nowrap; box-shadow: 0 1px 4px rgba(0,0,0,0.05), 0 0 0 1px var(--border, var(--color-border)); }
 .set-tab:hover { background: var(--content-bg, var(--color-bg-surface)); color: var(--text-color); box-shadow: 0 2px 8px rgba(0,0,0,0.08), 0 0 0 1px var(--border, var(--color-border)); }
 .set-tab.active { background: var(--primary-light, color-mix(in srgb, var(--color-primary) 10%, transparent)); color: var(--primary, var(--color-primary)); font-weight: var(--font-weight-medium); box-shadow: 0 2px 8px color-mix(in srgb, var(--color-primary) 12%, transparent), 0 0 0 1px var(--primary, color-mix(in srgb, var(--color-primary) 20%, transparent)); }
 .stb-icon { display: inline-flex; }
 
-.set-cards { margin-top: 12px; padding: 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+/* 左列标题导航：绝对定位贴附对话框左侧外侧（脱离文档流，不挤压/偏移对话框），top/height 由 JS 对齐配置面板区 */
+.set-rail {
+  position: absolute; right: calc(100% + 14px); width: 120px;
+  overflow-y: auto; display: flex; flex-direction: column; gap: 3px;
+  padding: 4px 0; scrollbar-width: none;
+  /* 标题项垂直居中：使标题项中心落在 rail 中心 = 主卡中心线（rail 全高背景） */
+  justify-content: center;
+  /* 视距：为每个扇骨提供透视上下文（枢轴在左端） */
+  perspective: 700px;
+}
+.set-rail::-webkit-scrollbar { display: none; }
+.set-rail-item {
+  position: relative;
+  display: block; text-align: left; border: none; border-radius: 4px;
+  /* 右侧留白避让楔形收窄；左端贴枢轴 */
+  padding: 7px 22px 7px 12px; font-size: var(--font-size-xs); color: var(--text-secondary);
+  background:
+    linear-gradient(100deg, var(--content-bg, var(--color-bg-surface)) 0%, var(--content-bg, var(--color-bg-surface)) 84%, color-mix(in srgb, var(--color-primary) 9%, var(--content-bg, var(--color-bg-surface))) 100%);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.07), 0 0 0 1px var(--border, var(--color-border));
+  transition: background 0.2s, color 0.2s, box-shadow 0.2s, transform 0.2s;
+  cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  /* 扇形放射：「》」展开 —— 以左端为枢轴，rotateY 随 --v-offset 展开；宽度略按位置增（越靠中间越宽=正对） */
+  transform-origin: left center;
+  transform: rotateY(calc(var(--v-offset) * 22deg)) scale(calc(1 - var(--v-abs) * 0.12));
+  width: calc(100% - var(--v-abs) * 6%);
+  margin-left: calc(var(--v-abs) * 6%);
+}
+.set-rail-item:hover,
+.set-rail-item.on {
+  color: var(--primary, var(--color-primary));
+  background:
+    linear-gradient(100deg, color-mix(in srgb, var(--color-primary) 12%, var(--content-bg, var(--color-bg-surface))) 0%, color-mix(in srgb, var(--color-primary) 15%, var(--content-bg, var(--color-bg-surface))) 84%, color-mix(in srgb, var(--color-primary) 32%, var(--content-bg, var(--color-bg-surface))) 100%);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-primary) 14%, transparent), 0 0 0 1px color-mix(in srgb, var(--color-primary) 22%, transparent);
+  /* 激活/悬停：扇骨转正朝用户 */
+  transform: rotateY(0deg) scale(1);
+  width: 100%;
+  margin-left: 0;
+}
+/* 斜向 3D（分位）：左上收窄成楔形（扇骨向枢轴点收拢），右侧保持竖直；仅切边框，文本保持水平 */
+.set-rail-item--top { clip-path: polygon(0 0, 100% 12%, 100% 100%, 0 100%); }
+.set-rail-item--mid { clip-path: polygon(0 0, 100% 12%, 100% 88%, 0 100%); }
+.set-rail-item--bottom { clip-path: polygon(0 0, 100% 0, 100% 88%, 0 100%); }
+.set-rail-item--single { clip-path: polygon(0 0, 100% 12%, 100% 88%, 0 100%); }
+/* 激活态左侧强调条（贴正面竖边，不被斜切影响） */
+.set-rail-item.on::before {
+  content: ''; position: absolute; left: 0; top: 8%; bottom: 8%; width: 3px; border-radius: 2px;
+  background: var(--primary, var(--color-primary));
+}
+
+.set-cards { margin-top: 12px; padding: 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; flex: 1; min-width: 0; min-height: 0; }
 
 /* Agent 设置内嵌：撑满卡片区高度，纵向导航 + 内容区自适应 */
 .agent-set-embed {
@@ -224,4 +484,8 @@ function close() {
 
 .resize-handle-right { position: absolute; right: 0; top: 0; width: 6px; height: 100%; cursor: col-resize; z-index: 10; background: transparent; transition: background 0.15s; }
 .resize-handle-right:hover, .resize-handle-right:active { background: var(--primary); opacity: 0.3; }
+
+/* 减弱动态效果：关闭平滑动画与过渡 */
+:root[data-anim-panels='off'] .set-tabs-arrow { transition: none; }
+:root[data-anim-panels='off'] .set-rail-item { transition: none; }
 </style>

@@ -1,7 +1,16 @@
 <template>
   <div class="sub-panel">
+    <div class="ms-cat-bar" role="tablist" aria-label="MCP 分类">
+      <button
+        v-for="c in MCP_CATS"
+        :key="c.value"
+        class="ms-cat" :class="{ on: activeMcpCat === c.value }"
+        role="tab" :aria-selected="activeMcpCat === c.value"
+        @click="activeMcpCat = c.value as McpCat"
+      >{{ c.label }}<span class="ms-cat-count">{{ catMcpCount(c.value) }}</span></button>
+    </div>
     <div class="mcp-list">
-      <div v-for="conn in mcpConnections" :key="conn.id" class="mcp-item" :class="{ disabled: !conn.config.enabled }">
+      <div v-for="conn in filteredConns" :key="conn.id" class="mcp-item" :class="{ disabled: !conn.config.enabled }">
         <span class="mcp-status"><WsIcon :name="conn.status === 'connected' ? 'check' : conn.status === 'connecting' ? 'timeline' : conn.status === 'error' ? 'close' : 'grip'" size="xs" /></span>
         <div class="mcp-info">
           <span class="mcp-name">{{ conn.config.name }}</span>
@@ -73,6 +82,31 @@ const emit = defineEmits<{
   'remove-mcp': [serverId: string]
 }>()
 
+// D 批：MCP 分类栏（按状态/启用）
+type McpCat = 'all' | 'connected' | 'connecting' | 'error' | 'disabled'
+const MCP_CATS = [
+  { value: 'all', label: '全部' },
+  { value: 'connected', label: '已连接' },
+  { value: 'connecting', label: '连接中' },
+  { value: 'error', label: '异常' },
+  { value: 'disabled', label: '已禁用' },
+]
+const activeMcpCat = ref<McpCat>('all')
+function mcpCategory(c: { config: { enabled: boolean }; status: string }): string {
+  if (!c.config.enabled) return 'disabled'
+  if (c.status === 'connected') return 'connected'
+  if (c.status === 'connecting') return 'connecting'
+  return 'error'
+}
+const filteredConns = computed(() => {
+  if (activeMcpCat.value === 'all') return props.mcpConnections
+  return props.mcpConnections.filter((c) => mcpCategory(c) === activeMcpCat.value)
+})
+function catMcpCount(cat: string): number {
+  if (cat === 'all') return props.mcpConnections.length
+  return props.mcpConnections.filter((c) => mcpCategory(c) === cat).length
+}
+
 const mcpAdding = ref(false)
 const transportOptions = [
   { value: 'streamable-http', label: 'HTTP/SSE' },
@@ -133,3 +167,19 @@ const mcpFormData = computed(() => ({
   enabled: true,
 }))
 </script>
+
+<style scoped>
+.ms-cat-bar { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
+.ms-cat {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 10px; border-radius: var(--radius-pill, 999px);
+  border: 1px solid var(--color-border, var(--agent-border));
+  background: var(--color-surface, var(--agent-hover-bg));
+  color: var(--color-text-secondary, var(--agent-text-secondary));
+  font-size: var(--font-size-xs);
+  cursor: pointer; transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.ms-cat:hover { color: var(--color-text, var(--agent-text)); }
+.ms-cat.on { border-color: var(--color-primary, var(--agent-primary)); color: var(--color-primary, var(--agent-primary)); background: color-mix(in srgb, var(--color-primary, var(--agent-primary)) 12%, transparent); }
+.ms-cat-count { font-size: var(--font-size-2xs, 10px); opacity: 0.7; }
+</style>

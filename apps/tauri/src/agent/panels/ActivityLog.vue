@@ -426,20 +426,18 @@ function formatDuration(task: { startedAt: number; endedAt?: number }): string {
 
 /* ── 减弱动态偏好（prefers-reduced-motion）：停用循环脉冲/闪烁与按压缩放手势 ──
    与 TuiButton/TuiModal/TuiDrawer/AgentWorkspace 同一可访问性语言：仅保留静态状态。 */
-@media (prefers-reduced-motion: reduce) {
-  .gen-bar-fill.pulsing {
-    animation: none;
-  }
-  .dot-generating,
-  .dot-polling {
-    animation: none;
-  }
-  .section-chevron {
-    transition: none;
-  }
-  .panel-close-btn:active:not(:disabled),
-  .panel-action-btn:active:not(:disabled) {
-    transform: none;
-  }
+:root[data-anim-status='off'] .gen-bar-fill.pulsing {
+  animation: none;
+}
+:root[data-anim-status='off'] .dot-generating,
+:root[data-anim-status='off'] .dot-polling {
+  animation: none;
+}
+:root[data-anim-status='off'] .section-chevron {
+  transition: none;
+}
+:root[data-anim-status='off'] .panel-close-btn:active:not(:disabled),
+:root[data-anim-status='off'] .panel-action-btn:active:not(:disabled) {
+  transform: none;
 }
 </style>

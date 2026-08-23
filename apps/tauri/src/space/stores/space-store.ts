@@ -8,8 +8,8 @@ export type SpaceMode = 'chat' | 'group'
 export type GroupChatMode = 'meeting' | 'casual'
 /** 侧边栏内 Tab（2026-08-12）：会话列表 / 知识库 共用一个面板，默认会话列表 */
 export type SidebarTab = 'session' | 'knowledge'
-/** 右侧面板 Level-1 Tab（2026-08-12）：执行 / 配置 共用一个面板；[C] 2026-08-20 扩展为 执行/配置/创作/预览 四类工作台面板 */
-export type RightTab = 'exec' | 'config' | 'creation' | 'preview'
+/** 右侧面板 Level-1 Tab（2026-08-12）：执行 / 配置 共用一个面板；[C] 2026-08-20 扩展为 执行/配置/创作/预览；2026-08-23 加入 用量 */
+export type RightTab = 'exec' | 'config' | 'creation' | 'preview' | 'usage'
 /** 配置 Tab 内子切换：记忆 / 人格 */
 export type ConfigSubTab = 'memory' | 'persona'
 /** 执行面板 Tab：轨迹/活动/计划/终端/子Agent/工作区 + 编排 5 模式（Router/ToT/GoT/Supervisor/Multi-Agent） */

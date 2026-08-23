@@ -75,7 +75,5 @@ onBeforeUnmount(() => {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }
 }
-@media (prefers-reduced-motion: reduce) {
-  .turn-status-dot { animation: none; }
-}
+:root[data-anim-messages='off'] .turn-status-dot { animation: none; }
 </style>

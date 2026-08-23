@@ -760,14 +760,12 @@ onMounted(async () => {
 
 /* ── 减弱动态偏好（prefers-reduced-motion）：停用按压缩放手势 ──
    与 TuiButton/TuiModal/TuiDrawer/AgentWorkspace 同一可访问性语言。 */
-@media (prefers-reduced-motion: reduce) {
-  .panel-close-btn:active:not(:disabled),
-  .toggle-btn:active:not(:disabled),
-  .entry-mount-btn:active:not(:disabled),
-  .add-btn:active:not(:disabled),
-  .scope-btn:active:not(:disabled),
-  .kb-btn-cancel:active:not(:disabled) {
-    transform: none;
-  }
+:root[data-anim-status='off'] .panel-close-btn:active:not(:disabled),
+:root[data-anim-status='off'] .toggle-btn:active:not(:disabled),
+:root[data-anim-status='off'] .entry-mount-btn:active:not(:disabled),
+:root[data-anim-status='off'] .add-btn:active:not(:disabled),
+:root[data-anim-status='off'] .scope-btn:active:not(:disabled),
+:root[data-anim-status='off'] .kb-btn-cancel:active:not(:disabled) {
+  transform: none;
 }
 </style>

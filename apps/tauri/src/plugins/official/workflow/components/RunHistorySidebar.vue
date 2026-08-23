@@ -343,9 +343,7 @@ defineExpose({ loadRuns })
 
 /* ── 减弱动态偏好（prefers-reduced-motion）：停用刷新图标旋转 ──
    与 TuiButton/TuiModal/TuiDrawer/AgentWorkspace 同一可访问性语言：仅保留静态状态。 */
-@media (prefers-reduced-motion: reduce) {
-  .rh-refresh:disabled svg {
-    animation: none;
-  }
+:root[data-anim-messages='off'] .rh-refresh:disabled svg {
+  animation: none;
 }
 </style>

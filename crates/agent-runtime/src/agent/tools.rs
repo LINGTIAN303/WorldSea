@@ -143,9 +143,11 @@ impl AgentLoop {
         // 构造本会话的工具上下文（workdir 来自 AgentLoop 持有字段）
         // 读锁短临界区：取出后立即释放，不跨 await 持有
         let workdir = self.workdir.read().map(|g| g.clone()).unwrap_or(None);
+        let workspace_id = self.workspace_id.read().map(|g| g.clone()).unwrap_or(None);
         let self_tool_ctx = crate::tool_context::ToolContext {
             workdir,
             project_id: None,
+            workspace_id,
         };
 
         // A6 工具生命周期钩子：pre 阶段（可改 args / 拒绝）
@@ -238,9 +240,11 @@ impl AgentLoop {
         // 构造本会话的工具上下文（workdir 来自 AgentLoop 持有字段）
         // 读锁短临界区：取出后立即释放，不跨 await 持有
         let workdir = self.workdir.read().map(|g| g.clone()).unwrap_or(None);
+        let workspace_id = self.workspace_id.read().map(|g| g.clone()).unwrap_or(None);
         let self_tool_ctx = crate::tool_context::ToolContext {
             workdir,
             project_id: None,
+            workspace_id,
         };
         // A5 HITL：若任一工具需确认（策略命中 / 敏感目录拒绝 / 越界确认），强制走串行
         // 确认需逐次暂停等待；敏感目录拒绝/越界确认若走并行会被绕过，故一并纳入。
@@ -351,9 +355,11 @@ impl AgentLoop {
         // 构造本会话的工具上下文（workdir 来自 AgentLoop 持有字段）
         // 读锁短临界区：取出后立即释放，不跨 await 持有
         let workdir = self.workdir.read().map(|g| g.clone()).unwrap_or(None);
+        let workspace_id = self.workspace_id.read().map(|g| g.clone()).unwrap_or(None);
         let self_tool_ctx = crate::tool_context::ToolContext {
             workdir,
             project_id: None,
+            workspace_id,
         };
 
         for tc in tool_calls {
@@ -450,9 +456,11 @@ impl AgentLoop {
         // 构造本会话的工具上下文（workdir 来自 AgentLoop 持有字段），并行时 clone 进每个 task
         // 读锁短临界区：取出后立即释放，不跨 await 持有
         let workdir = self.workdir.read().map(|g| g.clone()).unwrap_or(None);
+        let workspace_id = self.workspace_id.read().map(|g| g.clone()).unwrap_or(None);
         let self_tool_ctx = crate::tool_context::ToolContext {
             workdir,
             project_id: None,
+            workspace_id,
         };
 
         for (idx, tc) in tool_calls.into_iter().enumerate() {

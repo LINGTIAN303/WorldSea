@@ -1,49 +1,56 @@
 <template>
-  <div class="set-card" v-show="match('插件 plugin 启用 禁用')">
-    <div class="sc-head">
-      <span>插件管理</span>
-      <div class="set-plugin-cats" role="tablist" aria-label="插件分类筛选">
-        <button
-          v-for="c in PLUGIN_CATEGORIES"
-          :key="c.id"
-          type="button"
-          class="sp-cat"
-          :class="{ active: activeCategory === c.id }"
-          role="tab"
-          :aria-selected="activeCategory === c.id"
-          @click="onCategoryClick(c.id)"
-        >{{ c.label }}</button>
-      </div>
-    </div>
-    <div class="set-plugin-search"><input type="text" v-model="pluginSearch" placeholder="搜索插件..." class="set-input" /></div>
-    <draggable v-if="showDraggable" :list="pluginList" item-key="id" ghost-class="sp-ghost" drag-class="sp-drag" handle=".sp-grip" @end="onPluginDragEnd" class="set-plugin-list">
-      <template #item="{ element: p }">
-        <div class="set-plugin-item">
-          <span class="sp-grip" title="拖拽排序"><WsIcon name="grip" size="xs" /></span>
-          <span v-if="p.source" class="sp-source">{{ p.source === 'builtin' ? '内置' : p.source === 'local' ? '本地' : '远程' }}</span>
-          <label class="sp-toggle"><input type="checkbox" :checked="p.active" @change="onPluginToggle(p.id)" /><span class="sp-icon"><WsIcon v-if="hasIcon(p.icon)" :name="p.icon" size="sm" /><span v-else>{{ p.icon }}</span></span><span class="sp-label">{{ p.label }}</span></label>
+  <CardDeck :count="1" :flat="!!searchQuery" @change="(i) => emit('card-change', i)" ref="deckRef">
+    <template #card="{ idx, cls }">
+      <div class="set-card deck-card" :class="cls" :data-index="idx" v-show="match('插件 plugin 启用 禁用')">
+        <div class="sc-head">
+          <span>插件管理</span>
+          <div class="set-plugin-cats" role="tablist" aria-label="插件分类筛选">
+            <button
+              v-for="c in PLUGIN_CATEGORIES"
+              :key="c.id"
+              type="button"
+              class="sp-cat"
+              :class="{ active: activeCategory === c.id }"
+              role="tab"
+              :aria-selected="activeCategory === c.id"
+              @click="onCategoryClick(c.id)"
+            >{{ c.label }}</button>
+          </div>
         </div>
-      </template>
-    </draggable>
-    <div v-else class="set-plugin-list">
-      <div v-for="p in filteredPlugins" :key="p.id" class="set-plugin-item">
-        <span v-if="p.source" class="sp-source">{{ p.source === 'builtin' ? '内置' : p.source === 'local' ? '本地' : '远程' }}</span>
-        <label class="sp-toggle"><input type="checkbox" :checked="p.active" @change="onPluginToggle(p.id)" /><span class="sp-icon"><WsIcon v-if="hasIcon(p.icon)" :name="p.icon" size="sm" /><span v-else>{{ p.icon }}</span></span><span class="sp-label">{{ p.label }}</span></label>
+        <div class="set-plugin-search"><input type="text" v-model="pluginSearch" placeholder="搜索插件..." class="set-input" /></div>
+        <draggable v-if="showDraggable" :list="pluginList" item-key="id" ghost-class="sp-ghost" drag-class="sp-drag" handle=".sp-grip" @end="onPluginDragEnd" class="set-plugin-list">
+          <template #item="{ element: p }">
+            <div class="set-plugin-item">
+              <span class="sp-grip" title="拖拽排序"><WsIcon name="grip" size="xs" /></span>
+              <span v-if="p.source" class="sp-source">{{ p.source === 'builtin' ? '内置' : p.source === 'local' ? '本地' : '远程' }}</span>
+              <label class="sp-toggle"><input type="checkbox" :checked="p.active" @change="onPluginToggle(p.id)" /><span class="sp-icon"><WsIcon v-if="hasIcon(p.icon)" :name="p.icon" size="sm" /><span v-else>{{ p.icon }}</span></span><span class="sp-label">{{ p.label }}</span></label>
+            </div>
+          </template>
+        </draggable>
+        <div v-else class="set-plugin-list">
+          <div v-for="p in filteredPlugins" :key="p.id" class="set-plugin-item">
+            <span v-if="p.source" class="sp-source">{{ p.source === 'builtin' ? '内置' : p.source === 'local' ? '本地' : '远程' }}</span>
+            <label class="sp-toggle"><input type="checkbox" :checked="p.active" @change="onPluginToggle(p.id)" /><span class="sp-icon"><WsIcon v-if="hasIcon(p.icon)" :name="p.icon" size="sm" /><span v-else>{{ p.icon }}</span></span><span class="sp-label">{{ p.label }}</span></label>
+          </div>
+        </div>
       </div>
-    </div>
-  </div>
+    </template>
+  </CardDeck>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useSettingsStore, useUIStore, usePluginStore, PLUGIN_CATEGORIES, type PluginCategory } from '@worldsmith/entity-core'
 import { hasIcon } from '@worldsmith/ui-kit'
+import { CardDeck } from '@worldsmith/ui-kit'
 import WsIcon from '../../WsIcon.vue'
 import draggable from 'vuedraggable'
 import { matchKeywords } from '../utils'
 
 const props = defineProps<{ searchQuery?: string }>()
-const emit = defineEmits<{ dirty: [] }>()
+const emit = defineEmits<{ dirty: []; 'card-change': [index: number] }>()
+
+const deckRef = ref<InstanceType<typeof CardDeck> | null>(null)
 
 const store = useSettingsStore()
 const uiStore = useUIStore()
@@ -115,7 +122,7 @@ function onPluginToggle(id: string) {
   emit('dirty')
 }
 
-defineExpose({ resetPluginSearch: () => { pluginSearch.value = '' } })
+defineExpose({ resetPluginSearch: () => { pluginSearch.value = '' }, goToCard: (i: number) => deckRef.value?.goToCard(i) })
 </script>
 
 <style scoped>

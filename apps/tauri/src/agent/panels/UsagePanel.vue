@@ -72,3 +72,34 @@ function formatTokens(n: number): string {
   return String(n)
 }
 </script>
+
+<style scoped>
+.sub-panel { padding: 8px 0; }
+.usage-section-title {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary, var(--agent-text-tertiary));
+  margin-top: 8px;
+  margin-bottom: 4px;
+  padding-bottom: 2px;
+  border-bottom: 1px solid var(--color-border, var(--agent-border));
+}
+.usage-section-title:first-child { margin-top: 0; }
+.usage-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.usage-item {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 6px 4px; border-radius: var(--radius-mid, 8px);
+  background: var(--color-surface, var(--agent-hover-bg));
+  border: 1px solid var(--color-border, var(--agent-border));
+}
+.usage-value {
+  font-size: var(--font-size-base); font-weight: var(--font-weight-semibold);
+  color: var(--color-primary, var(--agent-primary));
+  font-family: var(--font-mono, var(--font-mono, ui-monospace, monospace));
+}
+.usage-label {
+  font-size: var(--font-size-xs); color: var(--color-text-tertiary, var(--agent-text-tertiary));
+  margin-top: 2px; text-align: center;
+}
+.usage-saved .usage-value { color: var(--color-success, #16a34a); }
+.usage-cache-hit .usage-value { color: var(--color-success, #16a34a); }
+</style>

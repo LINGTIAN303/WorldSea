@@ -170,6 +170,12 @@ pub struct PromptCallOptions {
     pub temperature: Option<f32>,
     /// 最大 token
     pub max_tokens: Option<u32>,
+    /// 采样 Top P（None=用 Provider 默认）
+    pub top_p: Option<f32>,
+    /// 采样 Top K（None=用 Provider 默认）
+    pub top_k: Option<u32>,
+    /// 思考模式开关（true=请求模型推理，经 reasoning_effort 传导）
+    pub thinking_mode: Option<bool>,
     /// 思考级别
     pub thinking_level: Option<ThinkingLevel>,
     /// 图片附件

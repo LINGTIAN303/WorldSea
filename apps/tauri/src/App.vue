@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import Shell from './ui/layout/Shell.vue'
 import AgentSpace from './space/AgentSpace.vue'
 import AvatarBadge from './ui/AvatarBadge.vue'
@@ -9,11 +9,28 @@ import { usePersonaFontStore } from './space/stores/persona-font-store'
 import { useActivityLog } from './agent/composables/useActivityLog'
 import { useUIStore } from './stores/uiStore'
 import { useTheme } from './components/ui/useTheme'
-import { useTheme as useEntityTheme } from '@worldsmith/entity-core'
+import { useTheme as useEntityTheme, useSettingsStore } from '@worldsmith/entity-core'
 import { useGlobalEvents } from '@worldsmith/ui-kit'
 import { bootstrapPlugins } from './plugins/bootstrap'
 import { useProjectSwitcher } from './composables/useProjectSwitcher'
 import { useSystemBridge } from './composables/useSystemBridge'
+
+// ── 无障碍：减弱动态效果（应用级配置） ──
+// 写入根元素 data-reduce-motion，CSS 据此关闭界面动效（Agent 设置翻卡等）；
+// 默认不减弱（保留动画），由「设置 → 动画效果」开关控制
+const settingsStore = useSettingsStore()
+watch(() => settingsStore.reduceMotion, (v) => {
+  document.documentElement.dataset.reduceMotion = v ? 'on' : 'off'
+}, { immediate: true })
+
+// ── 动画效果分组开关（应用级配置） ──
+// 每组合开关写入根元素 data-anim-<组>（如 data-anim-messages），CSS 据此关闭对应组件动画；
+// 默认全部开启，由「设置 → 动画效果」面板逐项控制
+watch(() => settingsStore.animations, (a) => {
+  for (const [k, v] of Object.entries(a ?? {})) {
+    document.documentElement.dataset[`anim${k[0].toUpperCase()}${k.slice(1)}`] = v ? 'on' : 'off'
+  }
+}, { immediate: true, deep: true })
 
 // 主题初始化：Shell 与 AgentSpace 共用（三态；components/ui/useTheme 已内置
 // 跟随系统——preference 'system' 默认态 + matchMedia 实时监听，无需额外实现）

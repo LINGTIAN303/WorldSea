@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, computed, ref } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
+import { CardDeck } from '@worldsmith/ui-kit'
 import TuiButton from '@/components/ui/TuiButton.vue'
 import TuiCheckbox from '@/components/ui/TuiCheckbox.vue'
 import { useStorageStats } from '@worldsmith/entity-core/composables'
@@ -20,6 +21,11 @@ const {
 } = useOrphanCleanup()
 const { result: diagResult, isRunning: diagRunning, backendAvailable, run: runDiag } = useDataDiagnostics()
 const { lastRunAt, forceRun } = useAutoCleanup()
+
+// ── 叠放翻卡：复用通用 CardDeck（count=5，五个功能分区为五张卡；左列标题点击 → goToCard） ──
+const emit = defineEmits<{ 'card-change': [index: number] }>()
+const deckRef = ref<InstanceType<typeof CardDeck> | null>(null)
+defineExpose({ goToCard: (i: number) => deckRef.value?.goToCard(i) })
 
 const selectedCount = computed(() => selectedIds.value.size)
 const selectedSize = computed(() => {
@@ -87,145 +93,149 @@ onMounted(async () => {
 
 <template>
   <div class="sm-tab">
-    <div class="sm-section sm-section--auto">
-      <div class="sm-section-head">
-        <WsIcon name="settings" size="xs" />
-        <span>系统集成</span>
-      </div>
-      <div class="sm-row">
-        <span class="sm-row-label">开机自启</span>
-        <label class="sm-toggle">
-          <input type="checkbox" :checked="autostartOn" @change="onToggleAutostart" />
-          <span class="sm-toggle-slider"></span>
-        </label>
-        <span class="sm-row-hint">登录系统后自动启动 WorldSmith</span>
-      </div>
-    </div>
+    <CardDeck :count="5" @change="(i) => emit('card-change', i)" ref="deckRef">
+      <template #card="{ idx, cls }">
+        <div v-if="idx === 0" class="sm-section sm-section--auto deck-card" :class="cls" :data-index="0">
+          <div class="sm-section-head">
+            <WsIcon name="settings" size="xs" />
+            <span>系统集成</span>
+          </div>
+          <div class="sm-row">
+            <span class="sm-row-label">开机自启</span>
+            <label class="sm-toggle">
+              <input type="checkbox" :checked="autostartOn" @change="onToggleAutostart" />
+              <span class="sm-toggle-slider"></span>
+            </label>
+            <span class="sm-row-hint">登录系统后自动启动 WorldSmith</span>
+          </div>
+        </div>
 
-    <div class="sm-section">
-      <div class="sm-section-head">
-        <WsIcon name="dashboard" size="xs" />
-        <span>存储概览</span>
-        <TuiButton size="sm" variant="ghost" @click="onRefreshStats" :disabled="statsScanning">
-          刷新统计
-        </TuiButton>
-      </div>
-      <div class="sm-stats-grid">
-        <div class="sm-stat-item">
-          <span class="sm-stat-value">{{ stats.totalUsageMB.toFixed(1) }} MB</span>
-          <span class="sm-stat-label">已用空间</span>
+        <div v-else-if="idx === 1" class="sm-section deck-card" :class="cls" :data-index="1">
+          <div class="sm-section-head">
+            <WsIcon name="dashboard" size="xs" />
+            <span>存储概览</span>
+            <TuiButton size="sm" variant="ghost" @click="onRefreshStats" :disabled="statsScanning">
+              刷新统计
+            </TuiButton>
+          </div>
+          <div class="sm-stats-grid">
+            <div class="sm-stat-item">
+              <span class="sm-stat-value">{{ stats.totalUsageMB.toFixed(1) }} MB</span>
+              <span class="sm-stat-label">已用空间</span>
+            </div>
+            <div class="sm-stat-item" v-if="stats.quotaMB">
+              <span class="sm-stat-value">{{ stats.quotaMB.toFixed(0) }} MB</span>
+              <span class="sm-stat-label">存储配额</span>
+            </div>
+            <div class="sm-stat-item">
+              <span class="sm-stat-value">{{ stats.entityCount }}</span>
+              <span class="sm-stat-label">实体</span>
+            </div>
+            <div class="sm-stat-item">
+              <span class="sm-stat-value">{{ stats.relationCount }}</span>
+              <span class="sm-stat-label">关系</span>
+            </div>
+            <div class="sm-stat-item">
+              <span class="sm-stat-value">{{ stats.fileCount }}</span>
+              <span class="sm-stat-label">文件</span>
+            </div>
+            <div class="sm-stat-item">
+              <span class="sm-stat-value">{{ stats.sessionCount }}</span>
+              <span class="sm-stat-label">Agent 会话</span>
+            </div>
+          </div>
+          <div class="sm-orphan-hint" v-if="stats.orphanFileCount !== null && stats.orphanFileCount > 0">
+            <WsIcon name="warning" size="xs" />
+            <span>孤立文件: {{ stats.orphanFileCount }} 个</span>
+          </div>
         </div>
-        <div class="sm-stat-item" v-if="stats.quotaMB">
-          <span class="sm-stat-value">{{ stats.quotaMB.toFixed(0) }} MB</span>
-          <span class="sm-stat-label">存储配额</span>
-        </div>
-        <div class="sm-stat-item">
-          <span class="sm-stat-value">{{ stats.entityCount }}</span>
-          <span class="sm-stat-label">实体</span>
-        </div>
-        <div class="sm-stat-item">
-          <span class="sm-stat-value">{{ stats.relationCount }}</span>
-          <span class="sm-stat-label">关系</span>
-        </div>
-        <div class="sm-stat-item">
-          <span class="sm-stat-value">{{ stats.fileCount }}</span>
-          <span class="sm-stat-label">文件</span>
-        </div>
-        <div class="sm-stat-item">
-          <span class="sm-stat-value">{{ stats.sessionCount }}</span>
-          <span class="sm-stat-label">Agent 会话</span>
-        </div>
-      </div>
-      <div class="sm-orphan-hint" v-if="stats.orphanFileCount !== null && stats.orphanFileCount > 0">
-        <WsIcon name="warning" size="xs" />
-        <span>孤立文件: {{ stats.orphanFileCount }} 个</span>
-      </div>
-    </div>
 
-    <div class="sm-section">
-      <div class="sm-section-head">
-        <WsIcon name="delete" size="xs" />
-        <span>孤立文件清理</span>
-        <TuiButton size="sm" variant="ghost" @click="onScanOrphans" :disabled="orphanScanning">
-          {{ orphanScanning ? `扫描中 ${scanProgress}%` : '扫描' }}
-        </TuiButton>
-      </div>
-      <div v-if="orphans.length > 0" class="sm-orphan-list">
-        <div class="sm-orphan-actions">
-          <TuiButton size="sm" variant="ghost" @click="selectAll">全选</TuiButton>
-          <TuiButton size="sm" variant="ghost" @click="deselectAll">全不选</TuiButton>
-          <span class="sm-selected-info">已选 {{ selectedCount }} 项 ({{ formatSize(selectedSize) }})</span>
+        <div v-else-if="idx === 2" class="sm-section deck-card" :class="cls" :data-index="2">
+          <div class="sm-section-head">
+            <WsIcon name="delete" size="xs" />
+            <span>孤立文件清理</span>
+            <TuiButton size="sm" variant="ghost" @click="onScanOrphans" :disabled="orphanScanning">
+              {{ orphanScanning ? `扫描中 ${scanProgress}%` : '扫描' }}
+            </TuiButton>
+          </div>
+          <div v-if="orphans.length > 0" class="sm-orphan-list">
+            <div class="sm-orphan-actions">
+              <TuiButton size="sm" variant="ghost" @click="selectAll">全选</TuiButton>
+              <TuiButton size="sm" variant="ghost" @click="deselectAll">全不选</TuiButton>
+              <span class="sm-selected-info">已选 {{ selectedCount }} 项 ({{ formatSize(selectedSize) }})</span>
+            </div>
+            <div v-for="o in orphans" :key="o.id" class="sm-orphan-item">
+              <TuiCheckbox :model-value="selectedIds.has(o.id)" @update:model-value="toggleSelect(o.id)" />
+              <span class="sm-orphan-name">{{ o.name }}</span>
+              <span class="sm-orphan-size">{{ formatSize(o.sizeEstimate) }}</span>
+            </div>
+            <div class="sm-orphan-actions">
+              <TuiButton size="sm" variant="danger" @click="onCleanSelected" :disabled="selectedCount === 0 || isCleaning">
+                清理选中项
+              </TuiButton>
+              <TuiButton size="sm" variant="danger" @click="onCleanAll" :disabled="isCleaning">
+                清理全部
+              </TuiButton>
+            </div>
+          </div>
+          <div v-else-if="!orphanScanning" class="sm-empty-hint">
+            {{ stats.orphanFileCount === 0 ? '未发现孤立文件' : '点击"扫描"检测孤立文件' }}
+          </div>
         </div>
-        <div v-for="o in orphans" :key="o.id" class="sm-orphan-item">
-          <TuiCheckbox :model-value="selectedIds.has(o.id)" @update:model-value="toggleSelect(o.id)" />
-          <span class="sm-orphan-name">{{ o.name }}</span>
-          <span class="sm-orphan-size">{{ formatSize(o.sizeEstimate) }}</span>
-        </div>
-        <div class="sm-orphan-actions">
-          <TuiButton size="sm" variant="danger" @click="onCleanSelected" :disabled="selectedCount === 0 || isCleaning">
-            清理选中项
+
+        <div v-else-if="idx === 3" class="sm-section deck-card" :class="cls" :data-index="3">
+          <div class="sm-section-head">
+            <WsIcon name="search" size="xs" />
+            <span>数据诊断</span>
+          </div>
+          <div class="sm-diag-backend">
+            WASM 后端:
+            <span v-if="backendAvailable"><WsIcon name="check-circle" size="xs" /> 可用</span>
+            <span v-else><WsIcon name="alert" size="xs" /> 不可用（降级模式）</span>
+          </div>
+          <TuiButton size="sm" variant="secondary" @click="onRunDiagnostics" :disabled="diagRunning">
+            {{ diagRunning ? '诊断中...' : '运行诊断' }}
           </TuiButton>
-          <TuiButton size="sm" variant="danger" @click="onCleanAll" :disabled="isCleaning">
-            清理全部
+          <div v-if="diagResult" class="sm-diag-results">
+            <div class="sm-diag-item" :class="{ 'sm-diag-ok': diagResult.orphanEntities.length === 0 }">
+              <WsIcon v-if="diagResult.orphanEntities.length > 0" name="alert" size="xs" />
+              <WsIcon v-else name="check-circle" size="xs" />
+              孤立实体: {{ diagResult.orphanEntities.length }} 个
+            </div>
+            <div class="sm-diag-item" :class="{ 'sm-diag-ok': diagResult.danglingRelations.length === 0 }">
+              <WsIcon v-if="diagResult.danglingRelations.length > 0" name="alert" size="xs" />
+              <WsIcon v-else name="check-circle" size="xs" />
+              悬空关系: {{ diagResult.danglingRelations.length }} 个
+            </div>
+            <div class="sm-diag-item" :class="{ 'sm-diag-ok': diagResult.duplicateNames.length === 0 }">
+              <WsIcon v-if="diagResult.duplicateNames.length > 0" name="alert" size="xs" />
+              <WsIcon v-else name="check-circle" size="xs" />
+              重名冲突: {{ diagResult.duplicateNames.length }} 处
+            </div>
+            <div class="sm-diag-item" :class="{ 'sm-diag-ok': diagResult.inconsistentTypes.length === 0 }">
+              <WsIcon v-if="diagResult.inconsistentTypes.length > 0" name="alert" size="xs" />
+              <WsIcon v-else name="check-circle" size="xs" />
+              未注册类型: {{ diagResult.inconsistentTypes.length }} 个
+            </div>
+          </div>
+        </div>
+
+        <div v-else class="sm-section deck-card" :class="cls" :data-index="4">
+          <div class="sm-section-head">
+            <WsIcon name="refresh" size="xs" />
+            <span>自动清理</span>
+          </div>
+          <div class="sm-autoclean-info">
+            <div>上次自动清理: {{ formatDate(lastRunAt) }}</div>
+            <div>自动清理范围: 过期缓存 + 临时标记</div>
+            <div>执行频率: 每 24 小时（应用启动时）</div>
+          </div>
+          <TuiButton size="sm" variant="ghost" @click="onForceAutoCleanup">
+            立即执行一次
           </TuiButton>
         </div>
-      </div>
-      <div v-else-if="!orphanScanning" class="sm-empty-hint">
-        {{ stats.orphanFileCount === 0 ? '未发现孤立文件' : '点击"扫描"检测孤立文件' }}
-      </div>
-    </div>
-
-    <div class="sm-section">
-      <div class="sm-section-head">
-        <WsIcon name="search" size="xs" />
-        <span>数据诊断</span>
-      </div>
-      <div class="sm-diag-backend">
-        WASM 后端:
-        <span v-if="backendAvailable"><WsIcon name="check-circle" size="xs" /> 可用</span>
-        <span v-else><WsIcon name="alert" size="xs" /> 不可用（降级模式）</span>
-      </div>
-      <TuiButton size="sm" variant="secondary" @click="onRunDiagnostics" :disabled="diagRunning">
-        {{ diagRunning ? '诊断中...' : '运行诊断' }}
-      </TuiButton>
-      <div v-if="diagResult" class="sm-diag-results">
-        <div class="sm-diag-item" :class="{ 'sm-diag-ok': diagResult.orphanEntities.length === 0 }">
-          <WsIcon v-if="diagResult.orphanEntities.length > 0" name="alert" size="xs" />
-          <WsIcon v-else name="check-circle" size="xs" />
-          孤立实体: {{ diagResult.orphanEntities.length }} 个
-        </div>
-        <div class="sm-diag-item" :class="{ 'sm-diag-ok': diagResult.danglingRelations.length === 0 }">
-          <WsIcon v-if="diagResult.danglingRelations.length > 0" name="alert" size="xs" />
-          <WsIcon v-else name="check-circle" size="xs" />
-          悬空关系: {{ diagResult.danglingRelations.length }} 个
-        </div>
-        <div class="sm-diag-item" :class="{ 'sm-diag-ok': diagResult.duplicateNames.length === 0 }">
-          <WsIcon v-if="diagResult.duplicateNames.length > 0" name="alert" size="xs" />
-          <WsIcon v-else name="check-circle" size="xs" />
-          重名冲突: {{ diagResult.duplicateNames.length }} 处
-        </div>
-        <div class="sm-diag-item" :class="{ 'sm-diag-ok': diagResult.inconsistentTypes.length === 0 }">
-          <WsIcon v-if="diagResult.inconsistentTypes.length > 0" name="alert" size="xs" />
-          <WsIcon v-else name="check-circle" size="xs" />
-          未注册类型: {{ diagResult.inconsistentTypes.length }} 个
-        </div>
-      </div>
-    </div>
-
-    <div class="sm-section">
-      <div class="sm-section-head">
-        <WsIcon name="refresh" size="xs" />
-        <span>自动清理</span>
-      </div>
-      <div class="sm-autoclean-info">
-        <div>上次自动清理: {{ formatDate(lastRunAt) }}</div>
-        <div>自动清理范围: 过期缓存 + 临时标记</div>
-        <div>执行频率: 每 24 小时（应用启动时）</div>
-      </div>
-      <TuiButton size="sm" variant="ghost" @click="onForceAutoCleanup">
-        立即执行一次
-      </TuiButton>
-    </div>
+      </template>
+    </CardDeck>
   </div>
 </template>
 
@@ -360,4 +370,9 @@ onMounted(async () => {
   gap: 4px;
   margin-bottom: 8px;
 }
+/* 叠放翻卡上下文（CardDeck 注入 deck-card）：覆盖 .sm-section 固定高度 212px，
+   让卡片随叠放位撑满/收缩（与参考 Agent 面板一致）；非 deck 场景保持原 212px 堆叠布局 */
+.sm-section.deck-card--mid { height: calc(100% - 2 * var(--deck-peek)); }
+.sm-section.deck-card--up,
+.sm-section.deck-card--down { height: var(--deck-peek); }
 </style>

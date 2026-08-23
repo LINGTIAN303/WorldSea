@@ -18,6 +18,7 @@
     <template v-else>
       <div
         class="ws-stream-tool-summary"
+        :class="{ 'is-failed': isFailed }"
         role="button"
         tabindex="0"
         :aria-expanded="isExpanded"
@@ -29,15 +30,22 @@
         <span class="ws-stream-tool-dot" :class="item.tc.status" v-if="item.tc.status === 'running'"></span>
         <WsIcon v-else-if="item.tc.status === 'completed'" name="check" size="xs" class="ws-stream-tool-icon-success" />
         <WsIcon v-else name="x" size="xs" class="ws-stream-tool-icon-fail" />
-        <span class="ws-stream-tool-name">{{ label }}</span>
-        <span class="ws-stream-tool-status" :class="item.tc.status">
-          {{ statusText }}
-        </span>
-        <span v-if="argsPreview" class="ws-stream-tool-args">{{ argsPreview }}</span>
-        <WsIcon name="chevron-right" size="xs" class="ws-stream-tool-chevron" :class="{ open: isExpanded }" />
+        <!-- 操作分类单字角标（弱提示分级，无卡片盒子） -->
+        <span class="ws-stream-tool-mark" :class="op">{{ mark }}</span>
+        <!-- 语义动词 + 操作对象名（操作行段主体） -->
+        <span class="ws-stream-tool-verb">{{ verb }}</span>
+        <span v-if="subject" class="ws-stream-tool-subject">{{ subject }}</span>
+        <span class="ws-stream-tool-name">({{ label }})</span>
+        <!-- 失败直显错误摘要（不展开）；成功展示效果标签 -->
+        <span v-if="!isFailed && effect" class="ws-stream-tool-effect">{{ effect }}</span>
+        <span v-if="isFailed" class="ws-stream-tool-error">{{ errorText }}</span>
+        <span v-else-if="argsPreview" class="ws-stream-tool-args">{{ argsPreview }}</span>
+        <!-- 成功才渲染可展开的 chevron；失败显示提示（不可展开） -->
+        <span v-if="isFailed" class="ws-stream-tool-failed-hint">已失败</span>
+        <WsIcon v-else name="chevron-right" size="xs" class="ws-stream-tool-chevron" :class="{ open: isExpanded }" />
       </div>
-      <!-- 展开详情（参数 JSON + 结果） -->
-      <div v-if="isExpanded" class="ws-stream-tool-detail" @click.stop>
+      <!-- 展开详情（参数 JSON + 结果；失败直显、不展开） -->
+      <div v-if="isExpanded && !isFailed" class="ws-stream-tool-detail" @click.stop>
         <div v-if="hasArgs" class="ws-stream-tool-detail-sec">
           <div class="ws-stream-tool-detail-label">参数</div>
           <pre class="ws-stream-tool-detail-code">{{ formatJson(item.tc.args) }}</pre>
@@ -56,6 +64,14 @@ import { computed, ref } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
 import InteractiveToolCall from '../../blocks/InteractiveToolCall.vue'
 import { getToolLabel } from '../../bubbles/toolLabels'
+import {
+  getOpKind,
+  OP_VERB,
+  OP_MARK,
+  extractOperationSubject,
+  extractEffectLabel,
+  type ToolMeta,
+} from './toolSemantics'
 import type { ToolCallView, InteractiveToolType } from '@worldsmith/shared-composables/agent/useAgent'
 
 /** Tool 行的最小形参：只需 tc 字段 */
@@ -81,19 +97,55 @@ const isInteractive = computed(() =>
   interactiveType.value === 'choice' || interactiveType.value === 'confirm' || interactiveType.value === 'display',
 )
 
-// ===== 工具名 + 状态文案 =====
+// ===== 工具名（复用 getToolLabel 作工具名显示） =====
 const label = computed(() => getToolLabel(props.item.tc.name))
-const statusText = computed(() => {
-  switch (props.item.tc.status) {
-    case 'running': return '执行中'
-    case 'completed': return '完成'
-    default: return '失败'
+
+// ===== 操作语义（按工具名分类 + args 提取对象名） =====
+const op = computed(() => getOpKind(props.item.tc.name))
+const verb = computed(() => OP_VERB[op.value])
+const mark = computed(() => OP_MARK[op.value])
+const subject = computed(() =>
+  extractOperationSubject(op.value, props.item.tc.name, props.item.tc.args),
+)
+
+// ===== 结果 __meta 解析（JSON 容错；旧工具无 __meta → 回退 args 摘要） =====
+const parsedResult = computed<Record<string, unknown> | null>(() => {
+  const r = props.item.tc.result
+  if (!r) return null
+  try {
+    const parsed = JSON.parse(r)
+    return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : null
+  } catch {
+    return null
   }
 })
+const meta = computed<ToolMeta | null>(() => {
+  const m = parsedResult.value?.__meta
+  return m && typeof m === 'object' ? (m as ToolMeta) : null
+})
+const effect = computed(() => extractEffectLabel(meta.value))
 
-// ===== 展开态 =====
+// ===== 失败态：直显错误摘要，不可展开 =====
+const isFailed = computed(() => props.item.tc.status === 'failed')
+const errorText = computed(() => {
+  const r = props.item.tc.result
+  if (r) {
+    // 优先解码 result 中的 error 字段（Rust/桥错误约定 { error: "..." }）
+    const m = parsedResult.value
+    if (m && typeof m.error === 'string') return m.error
+    // 纯字符串结果直接展示
+    if (typeof r === 'string') {
+      const t = r.trim()
+      if (t && t !== '执行失败') return t.length > 80 ? t.slice(0, 77) + '...' : t
+    }
+  }
+  return '执行失败'
+})
+
+// ===== 展开态（失败不展开） =====
 const isExpanded = ref(false)
 function toggleExpand() {
+  if (isFailed.value) return
   isExpanded.value = !isExpanded.value
 }
 

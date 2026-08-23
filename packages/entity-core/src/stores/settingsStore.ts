@@ -99,6 +99,29 @@ const STORAGE_KEY_GROUP_CHAT_MAX_AGENTS = 'worldsmith_group_chat_max_agents'
 const STORAGE_KEY_GROUP_CHAT_DEFAULT_STRATEGY = 'worldsmith_group_chat_default_strategy'
 const STORAGE_KEY_GROUP_CHAT_GLOBAL_RPM = 'worldsmith_group_chat_global_rpm'
 const STORAGE_KEY_GROUP_CHAT_GLOBAL_CONCURRENT = 'worldsmith_group_chat_global_concurrent'
+// 无障碍：减弱动态效果（默认 false = 不减弱，保留动画；开启后通过根元素 data-reduce-motion 关闭界面动效）
+const STORAGE_KEY_REDUCE_MOTION = 'worldsmith_reduce_motion'
+// 动画效果分组开关（2026-08-23）：供用户逐项关闭某类动画，默认全部开启
+const STORAGE_KEY_ANIMATIONS = 'worldsmith_animations'
+/** 动画效果分组定义：key → 展示标签 */
+export const ANIMATION_GROUPS: Record<string, string> = {
+  messages: '消息与对话',
+  status: '状态与脉冲',
+  panels: '面板与侧边栏',
+  overlays: '弹窗与控件',
+  splash: '启动动画',
+}
+/** 动画分组默认值：全部开启 */
+const ANIMATION_DEFAULTS: Record<string, boolean> = Object.keys(ANIMATION_GROUPS).reduce((acc, k) => ({ ...acc, [k]: true }), {})
+
+function loadAnimations(): Record<string, boolean> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_ANIMATIONS)
+    return raw ? { ...ANIMATION_DEFAULTS, ...JSON.parse(raw) } : { ...ANIMATION_DEFAULTS }
+  } catch {
+    return { ...ANIMATION_DEFAULTS }
+  }
+}
 
 const DEFAULT_PLUGINS: PluginToggle[] = [
   { id: 'official.characters', label: '人物志', icon: 'character', active: true, category: 'characters' },
@@ -349,6 +372,11 @@ export const useSettingsStore = defineStore('settings', () => {
   const groupChatDefaultStrategy = persistedRef(STORAGE_KEY_GROUP_CHAT_DEFAULT_STRATEGY, 'speaking-desire')
   const groupChatGlobalRpm = persistedRef(STORAGE_KEY_GROUP_CHAT_GLOBAL_RPM, 60)
   const groupChatGlobalConcurrent = persistedRef(STORAGE_KEY_GROUP_CHAT_GLOBAL_CONCURRENT, 5)
+  // 无障碍：减弱动态效果（默认 false = 不减弱）
+  const reduceMotion = persistedRef(STORAGE_KEY_REDUCE_MOTION, false)
+  // 动画效果分组开关（默认全部开启；关闭某组 → 根元素 data-anim-<组>='off' 禁用该类动画）
+  const animations = ref<Record<string, boolean>>(loadAnimations())
+  watch(animations, (v) => { localStorage.setItem(STORAGE_KEY_ANIMATIONS, JSON.stringify(v)) }, { deep: true })
 
   const DEFAULT_SCENE_PROBS: Record<string, number> = {
     entity_create: 80,
@@ -460,7 +488,8 @@ export const useSettingsStore = defineStore('settings', () => {
            companionModeCustomModel, companionModeProviderKey, companionModeModelId,
            companionModeSilentInSpace,
            groupChatMaxAgents, groupChatDefaultStrategy, groupChatGlobalRpm, groupChatGlobalConcurrent,
-             sidebarPosition, detailPanelPosition,
+            reduceMotion, animations, ANIMATION_GROUPS,
+            sidebarPosition, detailPanelPosition,
             timelineDragEnabled, timelineDefaultMode, timelineDefaultGroup, timelineCompactMode,
            voiceLang, voiceContinuous,
            DEFAULT_SCENE_PROBS }

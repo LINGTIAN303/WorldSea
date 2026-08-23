@@ -31,77 +31,78 @@
         <div class="settings-content">
         <!-- 设置内嵌（embedded）：卡片式全展开，无左侧导航 -->
         <template v-if="embedded">
-          <!-- 模型卡片 -->
-          <div class="agent-set-card">
-            <div class="agent-set-head">模型</div>
-            <ModelPanel
-              :embedded="true"
-              :current-model-id="currentModelId"
-              :temperature="temperature"
-              :max-tokens="maxTokens"
-              :context-length="contextLength"
-              :max-context-length="maxContextLength"
-              :max-output-tokens="maxOutputTokens"
-              :max-temperature="maxTemperature"
-              :persona-preset="personaPreset"
-              :chat-mode="chatMode"
-              :chat-modes="[...chatModes]"
-              :locked-chat-mode="lockedChatMode"
-              :cloud-api-key="cloudApiKey"
-              :custom-api-key="customApiKey"
-              :fetched-models="fetchedModels"
-              :fetching-models="fetchingModels"
-              :fetch-error="fetchError"
-              :can-fetch-models="canFetchModels"
-              @update:temperature="emit('update:temperature', $event)"
-              @update:max-tokens="emit('update:maxTokens', $event)"
-              @update:context-length="emit('update:contextLength', $event)"
-              @update:persona-preset="emit('update:personaPreset', $event)"
-              @update:cloud-api-key="cloudApiKey = $event"
-              @update:custom-api-key="customApiKey = $event"
-              @model-change="(provider, modelId) => emit('model-change', provider, modelId)"
-              @chat-mode-change="(mode) => emit('chat-mode-change', mode)"
-              @provider-change="(provider, modelId) => emit('provider-change', provider, modelId)"
-              @fetch-models="onFetchModels"
-            />
-          </div>
-          <!-- 用量卡片 -->
-          <div class="agent-set-card">
-            <div class="agent-set-head">用量</div>
-            <UsagePanel
-              :total-usage="totalUsage"
-              :calculated-cost="calculatedCost"
-              :cumulative-usage="cumulativeUsage"
-              :cache-hit-rate="cacheHitRate"
-            />
-          </div>
-          <!-- 能力与工具卡片 -->
-          <div class="agent-set-card">
-            <div class="agent-set-head">能力与工具</div>
-            <div class="agent-set-sub">搜索</div>
-            <div class="settings-row">
-              <TuiSelect :model-value="searchEngine" :options="searchEngineOptions" @update:model-value="onSearchEngineChange" />
-            </div>
-            <div class="settings-row settings-row-gap">
-              <input
-                type="password"
-                :value="searchApiKey"
-                @input="onSearchApiKeyChange"
-                placeholder="搜索 API Key"
-                class="settings-input"
-              />
-            </div>
-            <div class="settings-hint">web_search 需配置 Key；web_fetch（阅读网页）无需 Key，直接可用</div>
-            <div class="agent-set-sub">多模态</div>
-            <VisionPanel />
-            <div class="agent-set-sub">终端</div>
-            <TerminalPanel @open-terminal="emit('open-terminal')" />
-          </div>
-          <!-- Skills 卡片 -->
-          <div class="agent-set-card">
-            <div class="agent-set-head">Skills</div>
+          <!-- 显式轮转（叠放翻卡）：复用通用 CardDeck，当前卡完全显示，上/下一张各露一截边；滚轮边界续页 + 左列标题翻卡 -->
+          <CardDeck ref="deckRef" :count="3" @change="(i) => emit('card-change', i)">
+            <template #card="{ idx, cls }">
+              <div class="agent-set-card deck-card" :class="cls" :data-index="idx">
+              <!-- 模型卡片：收缩为「供应商类型 + 可用模型」，二级/三级弹窗承载详情（重构 2026-08-23） -->
+              <template v-if="idx === 0">
+                <div class="agent-set-head">模型</div>
+                <ModelsSection
+                  @open-type="openTypeDialog"
+                  @open-model="openModelDialog"
+                />
+              </template>
+              <!-- Skills 卡片（含「工具」区块：搜索/视觉/图像/视频 并入，C 批 2026-08-23） -->
+              <template v-else-if="idx === 1">
+                <div class="agent-set-head">Skills</div>
+
+            <!-- 工具（原「能力与工具」并入 Skills） -->
+            <div class="agent-set-sub">工具</div>
             <div class="skills-list">
-              <div v-for="skill in skills" :key="skill.id" class="skill-item" :class="{ disabled: !skill.enabled }">
+              <div
+                v-for="tool in CAPABILITY_TOOL_META"
+                :key="tool.id"
+                class="skill-item"
+                :class="{ disabled: !capEnabled(tool.id) }"
+              >
+                <span class="skill-icon"><WsIcon :name="tool.icon" size="sm" /></span>
+                <div class="skill-info">
+                  <span class="skill-name">{{ tool.name }}</span>
+                  <span class="skill-desc">{{ tool.description }}</span>
+                </div>
+                <button class="skill-toggle" @click="toggleCapability(tool.id)" :title="capEnabled(tool.id) ? '点击禁用' : '点击启用'">
+                  <WsIcon :name="capEnabled(tool.id) ? 'check' : 'close'" size="xs" />
+                </button>
+                <button class="skill-toggle skill-config-btn" :class="{ on: openCapConfig === tool.id }" :title="'配置'" @click="openCapConfig = openCapConfig === tool.id ? '' : tool.id">
+                  <WsIcon name="edit" size="xs" />
+                </button>
+              </div>
+              <!-- 搜索工具配置 -->
+              <div v-if="openCapConfig === 'search'" class="tool-config">
+                <div class="settings-row">
+                  <TuiSelect :model-value="searchEngine" :options="searchEngineOptions" @update:model-value="onSearchEngineChange" />
+                </div>
+                <div class="settings-row settings-row-gap">
+                  <input
+                    type="password"
+                    :value="searchApiKey"
+                    @input="onSearchApiKeyChange"
+                    placeholder="搜索 API Key"
+                    class="settings-input"
+                  />
+                </div>
+                <div class="settings-hint">web_search 需配置 Key；web_fetch（阅读网页）无需 Key</div>
+              </div>
+              <!-- 视觉分析 / 图像生成 / 视频生成 配置（共用 VisionPanel） -->
+              <div v-if="['vision', 'image', 'video'].includes(openCapConfig)" class="tool-config">
+                <VisionPanel />
+              </div>
+            </div>
+
+            <!-- 技能清单（D 批：分类栏） -->
+            <div class="agent-set-sub">技能</div>
+            <div class="ms-cat-bar" role="tablist" aria-label="技能分类">
+              <button
+                v-for="c in SKILL_CATS"
+                :key="c.value"
+                class="ms-cat" :class="{ on: activeSkillCat === c.value }"
+                role="tab" :aria-selected="activeSkillCat === c.value"
+                @click="activeSkillCat = c.value as any"
+              >{{ c.label }}<span class="ms-cat-count">{{ catSkillCount(c.value as any) }}</span></button>
+            </div>
+            <div class="skills-list">
+              <div v-for="skill in skillsOfCat()" :key="skill.id" class="skill-item" :class="{ disabled: !skill.enabled }">
                 <span class="skill-icon"><WsIcon :name="skill.icon" size="sm" /></span>
                 <div class="skill-info">
                   <span class="skill-name">{{ skill.name }}</span>
@@ -112,30 +113,21 @@
                 </button>
               </div>
             </div>
-            <SkillsStorePanel @skills-changed="emit('skills-changed')" />
-          </div>
-          <!-- MCP 卡片 -->
-          <div class="agent-set-card">
-            <div class="agent-set-head">MCP</div>
-            <McpPanel
-              :mcp-connections="mcpConnections"
-              @toggle-mcp="(serverId) => emit('toggle-mcp', serverId)"
-              @add-mcp="(config) => emit('add-mcp', config)"
-              @remove-mcp="(serverId) => emit('remove-mcp', serverId)"
-            />
-          </div>
-          <!-- 边界与个性卡片 -->
-          <div class="agent-set-card">
-            <div class="agent-set-head">边界与个性</div>
-            <div class="settings-row">
-              <span class="settings-row-label">危险操作确认</span>
-              <label class="settings-toggle"><input type="checkbox" v-model="settingsStore.aiDangerConfirm" /><span class="settings-toggle-slider"></span></label>
-            </div>
-            <div class="settings-hint">开启后 AI 删除实体/关系时需用户确认</div>
-            <div class="agent-set-sub">思考级别</div>
-            <TuiSelect :model-value="thinkingLevel" :options="thinkingLevels" @update:model-value="onThinkingLevelChange" />
-            <div class="settings-hint">控制推理深度：off 直答，深度级别越高推理链越完整</div>
-          </div>
+                <SkillsStorePanel @skills-changed="emit('skills-changed')" />
+              </template>
+              <!-- MCP 卡片 -->
+              <template v-else>
+                <div class="agent-set-head">MCP</div>
+                <McpPanel
+                  :mcp-connections="mcpConnections"
+                  @toggle-mcp="(serverId) => emit('toggle-mcp', serverId)"
+                  @add-mcp="(config) => emit('add-mcp', config)"
+                  @remove-mcp="(serverId) => emit('remove-mcp', serverId)"
+                />
+              </template>
+              </div>
+            </template>
+          </CardDeck>
         </template>
         <!-- 独立悬浮面板：左侧导航切换子面板 -->
         <template v-else>
@@ -150,7 +142,6 @@
             :max-context-length="maxContextLength"
             :max-output-tokens="maxOutputTokens"
             :max-temperature="maxTemperature"
-            :persona-preset="personaPreset"
             :chat-mode="chatMode"
             :chat-modes="[...chatModes]"
             :locked-chat-mode="lockedChatMode"
@@ -163,7 +154,6 @@
             @update:temperature="emit('update:temperature', $event)"
             @update:max-tokens="emit('update:maxTokens', $event)"
             @update:context-length="emit('update:contextLength', $event)"
-            @update:persona-preset="emit('update:personaPreset', $event)"
             @update:cloud-api-key="cloudApiKey = $event"
             @update:custom-api-key="customApiKey = $event"
             @model-change="(provider, modelId) => emit('model-change', provider, modelId)"
@@ -207,14 +197,6 @@
               <div class="settings-label">AI 人格预设</div>
               <TuiSelect :model-value="personaPreset" :options="personaOptions" @update:model-value="onPersonaPresetChange" />
               <div class="settings-hint">定义 AI 的表达风格与角色倾向，切换后后续对话生效</div>
-            </div>
-          </div>
-          <!-- 思考级别面板（内联，对应视觉稿边界与个性组） -->
-          <div v-else-if="settingsSubPanel === 'thinking'" key="thinking" class="sub-panel">
-            <div class="settings-section">
-              <div class="settings-label">思考级别</div>
-              <TuiSelect :model-value="thinkingLevel" :options="thinkingLevels" @update:model-value="onThinkingLevelChange" />
-              <div class="settings-hint">控制推理深度：off 直答，深度级别越高推理链越完整</div>
             </div>
           </div>
           <!-- 用量面板 -->
@@ -275,11 +257,51 @@
       </div>
     </div>
   </Transition>
+  <!-- 模型卡片二级弹窗（Teleport 到 body；由内嵌卡片 ModelsSection 触发） -->
+  <ProviderTypeDialog
+    v-if="modelDialog?.kind === 'type'"
+    :mode="modelDialog.mode"
+    :current-model-id="currentModelId"
+    :temperature="temperature"
+    :max-tokens="maxTokens"
+    :context-length="contextLength"
+    :max-context-length="maxContextLength"
+    :max-output-tokens="maxOutputTokens"
+    :max-temperature="maxTemperature"
+    :chat-mode="chatMode"
+    :chat-modes="[...chatModes]"
+    :locked-chat-mode="lockedChatMode"
+    :cloud-api-key="cloudApiKey"
+    :custom-api-key="customApiKey"
+    :fetched-models="fetchedModels"
+    :fetching-models="fetchingModels"
+    :fetch-error="fetchError"
+    :can-fetch-models="canFetchModels"
+    @close="closeModelDialog"
+    @update:temperature="emit('update:temperature', $event)"
+    @update:max-tokens="emit('update:maxTokens', $event)"
+    @update:context-length="emit('update:contextLength', $event)"
+    @update:cloud-api-key="cloudApiKey = $event"
+    @update:custom-api-key="customApiKey = $event"
+    @model-change="(p, m) => emit('model-change', p, m)"
+    @provider-change="(p, m) => emit('provider-change', p, m)"
+  />
+  <ModelParamsDialog
+    v-if="modelDialog?.kind === 'model'"
+    :model="modelDialog.model"
+    :max-context-length="maxContextLength"
+    :max-output-tokens="maxOutputTokens"
+    :max-temperature="maxTemperature"
+    :model-supports-vision="dialogModelInfo?.supportsVision ?? false"
+    :model-supports-thinking="dialogModelInfo?.supportsThinking ?? false"
+    @close="closeModelDialog"
+    @save="onModelParamsSave"
+  />
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon, CardDeck } from '@worldsmith/ui-kit'
 import TuiSelect from '../components/ui/TuiSelect.vue'
 import { usePanelDrag } from './composables/usePanelDrag'
 import { useSettingsStore } from '@/stores/settingsStore'
@@ -293,6 +315,11 @@ import UsagePanel from './panels/UsagePanel.vue'
 import VisionPanel from './panels/VisionPanel.vue'
 import McpPanel from './panels/McpPanel.vue'
 import TerminalPanel from './panels/TerminalPanel.vue'
+// 模型卡片重构（2026-08-23）：一级平铺卡片 + 二级弹窗
+import ModelsSection from './panels/model/ModelsSection.vue'
+import ProviderTypeDialog from './panels/model/ProviderTypeDialog.vue'
+import ModelParamsDialog from './panels/model/ModelParamsDialog.vue'
+import { getModelInfo } from '@worldsmith/agent-runtime'
 
 const settingsStore = useSettingsStore()
 
@@ -320,7 +347,7 @@ const props = withDefaults(defineProps<{
   cacheHitRate: number
   searchEngine: string
   searchApiKey: string
-  skills: Array<{ id: string; icon: string; name: string; description: string; enabled: boolean }>
+  skills: Array<{ id: string; icon: string; name: string; description: string; enabled: boolean; category?: 'domain' | 'action' | 'persona' }>
   mcpConnections: Array<{ id: string; config: { id: string; name: string; transport: string; url?: string; command?: string; args?: string[]; enabled: boolean }; status: string; tools: unknown[]; error?: string }>
   embedded?: boolean
 }>(), {
@@ -350,6 +377,7 @@ const emit = defineEmits<{
   'api-key-change': [provider: string, apiKey: string]
   'provider-change': [provider: string, modelId: string]
   'security-level-change': [level: string]
+  'card-change': [index: number]
 }>()
 
 // ── 模型 API Key 加载/持久化（拆分至 useModelApiKeyConfig） ──
@@ -364,6 +392,81 @@ const { fetchedModels, fetchingModels, fetchError, canFetchModels, onFetchModels
 
 // 当前展开的子面板
 const settingsSubPanel = ref('')
+
+// ── 叠放翻卡：复用通用 CardDeck（翻卡逻辑/样式已下沉 ui-kit useCardDeck + CardDeck.vue） ──
+const deckRef = ref<InstanceType<typeof CardDeck> | null>(null)
+defineExpose({ goToCard: (i: number) => deckRef.value?.goToCard(i) })
+
+// ── C 批：能力工具并入 Skills（搜索/视觉分析/图像生成/视频生成） ──
+const CAPABILITY_TOOL_META = [
+  { id: 'search', icon: 'search', name: '搜索', description: 'web_search 联网检索' },
+  { id: 'vision', icon: 'eye', name: '视觉分析', description: 'vision_analyze 图片理解' },
+  { id: 'image', icon: 'layout', name: '图像生成', description: 'image_generate 文生图' },
+  { id: 'video', icon: 'play', name: '视频生成', description: 'video_generate 文生视频（异步）' },
+]
+const CAP_TOOL_KEY = 'worldsmith_capability_tools'
+const openCapConfig = ref('')
+function capEnabled(id: string): boolean {
+  try {
+    const raw = JSON.parse(localStorage.getItem(CAP_TOOL_KEY) || '{}')
+    return raw[id] !== false
+  } catch {
+    return true
+  }
+}
+function toggleCapability(id: string): void {
+  let raw: Record<string, boolean> = {}
+  try {
+    raw = JSON.parse(localStorage.getItem(CAP_TOOL_KEY) || '{}')
+  } catch {}
+  raw[id] = !capEnabled(id)
+  try {
+    localStorage.setItem(CAP_TOOL_KEY, JSON.stringify(raw))
+  } catch {}
+}
+
+// ── D 批：Skills 分类栏（domain/action/persona） ──
+const SKILL_CATS = [
+  { value: 'all', label: '全部' },
+  { value: 'domain', label: '领域' },
+  { value: 'action', label: '操作' },
+  { value: 'persona', label: '人格' },
+]
+const activeSkillCat = ref<'all' | 'domain' | 'action' | 'persona'>('all')
+function skillsOfCat(): Array<{ id: string; icon: string; name: string; description: string; enabled: boolean; category?: 'domain' | 'action' | 'persona' }> {
+  if (activeSkillCat.value === 'all') return props.skills
+  return props.skills.filter((s) => s.category === activeSkillCat.value)
+}
+function catSkillCount(c: 'all' | 'domain' | 'action' | 'persona'): number {
+  if (c === 'all') return props.skills.length
+  return props.skills.filter((s) => s.category === c).length
+}
+
+// ── 模型卡片二级弹窗状态（2026-08-23 重构） ──
+type ModelDialogState =
+  | null
+  | { kind: 'type'; mode: 'cloud' | 'local' | 'custom' }
+  | { kind: 'model'; model: { id: string; name: string } }
+const modelDialog = ref<ModelDialogState>(null)
+
+function openTypeDialog(mode: 'cloud' | 'local' | 'custom'): void {
+  modelDialog.value = { kind: 'type', mode }
+}
+function openModelDialog(model: { id: string; name: string }): void {
+  modelDialog.value = { kind: 'model', model }
+}
+function closeModelDialog(): void {
+  modelDialog.value = null
+}
+/** 弹窗模型对应的 registry 信息（用于视觉/思考能力提示） */
+const dialogModelInfo = computed(() => {
+  if (modelDialog.value?.kind !== 'model') return null
+  return getModelInfo(modelDialog.value.model.id) ?? null
+})
+/** 模型参数保存：模型级预设已写 localStorage；TopP/TopK/思考模式/图片输入经此透出，待后端传导（里程碑 A 契约） */
+function onModelParamsSave(_params: { contextLength: number; maxTokens: number; temperature: number; topP: number; topK: number; thinking: boolean; inputImage: boolean }): void {
+  // 目前仅落 localStorage（ModelParamsDialog 内已写）；后端传导在 CONTRACT 阶段接入
+}
 
 /** 子面板纵向分组导航（模型与推理 / 能力与工具 / 边界与个性） */
 const NAV_GROUPS = [
@@ -390,7 +493,6 @@ const NAV_GROUPS = [
     items: [
       { key: 'safety', label: '安全', icon: 'shield' },
       { key: 'persona', label: '人格预设', icon: 'person' },
-      { key: 'thinking', label: '思考级别', icon: 'sparkles' },
     ],
   },
 ]
@@ -430,10 +532,6 @@ function onSearchApiKeyChange(e: Event): void {
 // ── 人格预设/思考级别面板事件转发（边界与个性组） ──
 function onPersonaPresetChange(v: string): void {
   emit('update:personaPreset', v)
-}
-
-function onThinkingLevelChange(v: string): void {
-  emit('thinking-level-change', v)
 }
 
 // A7 工具安全级别：加载 settingsStore 持久值，切换时 emit（SpaceAgentSettingsPanel 转发到 useAgentRust.setSecurityLevel）
@@ -487,19 +585,20 @@ const securityOptions: Array<{ value: string; label: string }> = [
 .agent-settings-embedded .settings-body {
   max-height: none;
   flex: 1;
-  /* 设置内嵌：卡片式竖排，整体滚动（无左侧导航） */
+  /* 设置内嵌：叠放翻卡，滚动由卡片内部 / 翻卡接管（无左侧导航） */
   flex-direction: column;
-  overflow-y: auto;
+  overflow: hidden;
   gap: 10px;
 }
 
 .agent-settings-embedded .settings-content {
-  overflow: visible;
+  overflow: hidden;
   padding: 0;
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 10px;
   flex: 1;
+  min-height: 0;
 }
 
 /* 设置内嵌卡片（与其它设置面板的 set-card 视觉一致）；背景用统一 surface token（原引用未定义的 --color-bg-surface 致卡片背景失效） */
@@ -510,6 +609,9 @@ const securityOptions: Array<{ value: string; label: string }> = [
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.06), 0 0 0 1px var(--border, var(--color-border));
   flex-shrink: 0;
 }
+
+/* 叠放翻卡（card-deck / deck-card / anim-* 三态 + 翻转动画 + data-reduce-motion 降级）
+   共享样式已下沉至 ui-kit 的 CardDeck.vue，此处不再重复定义（2026-08-23） */
 .agent-set-head {
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
@@ -861,6 +963,36 @@ const securityOptions: Array<{ value: string; label: string }> = [
 .skill-toggle:hover {
   transform: scale(1.2);
 }
+
+/* C 批：能力工具配置展开块 + 配置按钮 */
+.skill-config-btn { opacity: 0; transition: opacity 0.15s, color 0.15s; }
+.skill-item:hover .skill-config-btn { opacity: 1; }
+.skill-config-btn.on { opacity: 1; color: var(--agent-primary); }
+.tool-config {
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--agent-hover-bg);
+  border: 1px solid var(--agent-border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.tool-config .settings-row { display: flex; align-items: center; gap: 8px; }
+
+/* D 批：Skills/MCP 分类栏（与 ModelsSection 视觉一致的胶囊 bar，此处作用于 Agent 设置卡片区） */
+.ms-cat-bar { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
+.ms-cat {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 10px; border-radius: var(--radius-pill, 999px);
+  border: 1px solid var(--agent-border);
+  background: var(--agent-hover-bg);
+  color: var(--text-secondary, var(--agent-text-secondary));
+  font-size: var(--font-size-xs);
+  cursor: pointer; transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.ms-cat:hover { color: var(--color-text, var(--agent-text)); }
+.ms-cat.on { border-color: var(--color-primary, var(--agent-primary)); color: var(--color-primary, var(--agent-primary)); background: color-mix(in srgb, var(--agent-primary, var(--color-primary)) 12%, transparent); }
+.ms-cat-count { font-size: var(--font-size-2xs, 10px); opacity: 0.7; }
 
 .mcp-list { display: flex; flex-direction: column; gap: 6px; }
 .mcp-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--radius-mid); background: var(--agent-hover-bg); border: 1px solid transparent; transition: border-color 0.15s, opacity 0.15s; }

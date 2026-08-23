@@ -288,9 +288,7 @@ async function onInputSend(text: string, rawAttachments: any[], references?: { i
   color: var(--switch-fg);
   line-height: 1;
 }
-@media (prefers-reduced-motion: reduce) {
-  .chat-topbar .nav-badge {
-    animation: none;
-  }
+:root[data-anim-messages='off'] .chat-topbar .nav-badge {
+  animation: none;
 }
 </style>

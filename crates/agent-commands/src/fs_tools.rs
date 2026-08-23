@@ -65,6 +65,21 @@ fn entry_mtime(meta: &std::fs::Metadata) -> u64 {
         .unwrap_or(0)
 }
 
+/// 把 `__meta` 操作元数据合并进结果 value（前端 ToolRow 读它展示语义操作段）
+///
+/// 原则：`__meta` 是附加字段，不破坏原结果结构。若结果本就是 object 则直接
+/// 插入 `__meta` 键；否则（纯字符串）包一层 `{ value: 原值, __meta }` 保持兼容。
+/// 见 docs/details/注释/agent-commands/fs.md 与前端 toolSemantics.ts。
+fn with_meta(result: Value, meta: Value) -> Value {
+    if let Some(obj) = result.as_object() {
+        let mut obj = obj.clone();
+        obj.insert("__meta".to_string(), meta);
+        Value::Object(obj)
+    } else {
+        json!({ "value": result, "__meta": meta })
+    }
+}
+
 /// 简单通配符匹配（支持 `*` 匹配任意串、`?` 匹配单字符）
 ///
 /// 用于 `search_files` 的文件名 glob 匹配。无外部 glob 依赖，
@@ -127,9 +142,22 @@ impl Tool for ReadFileTool {
             .and_then(|v| v.as_str())
             .ok_or_else(|| ToolError::ArgsParse("缺少 path 参数".into()))?;
         let resolved = resolve_fs_path(ctx, path);
+        // 读类收敛：workdir 存在时越界默认拒绝（对齐写类 ensure_within_workdir 语义；
+        // workdir 为 None 时 is_within_workdir 恒 true，放行绝对路径，向后兼容）
+        let raw = resolved.to_string_lossy();
+        if !ctx.is_within_workdir(&raw) {
+            return Err(ToolError::Execution(format!(
+                "拒绝读取路径在 workspace 之外: {}",
+                resolved.display()
+            )));
+        }
         let content = std::fs::read_to_string(&resolved)
             .map_err(|e| ToolError::Execution(format!("读取文件失败 {}: {e}", resolved.display())))?;
-        Ok(json!({ "content": content, "path": resolved.to_string_lossy() }))
+        let path = resolved.to_string_lossy().to_string();
+        Ok(with_meta(
+            json!({ "content": content.clone(), "path": path.clone() }),
+            json!({ "op": "read", "path": path, "size": content.len(), "lines": content.lines().count() }),
+        ))
     }
 }
 
@@ -179,7 +207,11 @@ impl Tool for WriteFileTool {
         std::fs::write(&resolved, content.as_bytes())
             .map_err(|e| ToolError::Execution(format!("写入文件失败 {}: {e}", resolved.display())))?;
         let bytes = content.len() as u64;
-        Ok(json!({ "ok": true, "path": resolved.to_string_lossy(), "bytes": bytes }))
+        let path = resolved.to_string_lossy().to_string();
+        Ok(with_meta(
+            json!({ "ok": true, "path": path.clone(), "bytes": bytes }),
+            json!({ "op": "create", "path": path, "size": bytes }),
+        ))
     }
 }
 
@@ -218,6 +250,15 @@ impl Tool for ListDirectoryTool {
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
         let resolved = resolve_fs_path(ctx, raw);
+        // 读类收敛：workdir 存在时越界默认拒绝（拒绝递归列出外部目录；
+        // workdir 为 None 时 is_within_workdir 恒 true，放行绝对路径，向后兼容）
+        let resolved_raw = resolved.to_string_lossy();
+        if !ctx.is_within_workdir(&resolved_raw) {
+            return Err(ToolError::Execution(format!(
+                "拒绝列出 workspace 之外的目录: {}",
+                resolved.display()
+            )));
+        }
         if !resolved.is_dir() {
             return Err(ToolError::Execution(format!(
                 "目录不存在或不是目录: {}",
@@ -226,8 +267,19 @@ impl Tool for ListDirectoryTool {
         }
         let mut entries: Vec<Value> = Vec::new();
         collect_entries(&resolved, &resolved, recursive, &mut entries)?;
-        Ok(json!({ "path": resolved.to_string_lossy(), "entries": entries }))
+        let path = resolved.to_string_lossy().to_string();
+        Ok(with_meta(
+            json!({ "path": path.clone(), "entries": entries }),
+            json!({ "op": "read", "path": path, "size": collect_entries_size(&resolved) }),
+        ))
     }
+}
+
+/// 递归统计目录条目总数（供 list_directory 的 __meta 数量提示）
+fn collect_entries_size(dir: &Path) -> usize {
+    std::fs::read_dir(dir)
+        .map(|rd| rd.flatten().map(|_| 1).sum())
+        .unwrap_or(0)
 }
 
 /// 递归收集目录条目（base 用于计算相对路径；recursive=false 时只列当前层）
@@ -318,7 +370,10 @@ impl Tool for SearchFilesTool {
         }
         let mut matches: Vec<Value> = Vec::new();
         search_walk(&base, pattern, query, &mut matches)?;
-        Ok(json!({ "matches": matches }))
+        Ok(with_meta(
+            json!({ "matches": matches }),
+            json!({ "op": "search", "path": base.to_string_lossy(), "pattern": pattern, "hits": matches.len() }),
+        ))
     }
 }
 
@@ -420,11 +475,13 @@ impl Tool for EditFileTool {
         let new_content = content.replace(old_string, new_string);
         std::fs::write(&resolved, new_content.as_bytes())
             .map_err(|e| ToolError::Execution(format!("写入文件失败 {}: {e}", resolved.display())))?;
-        Ok(json!({
-            "ok": true,
-            "path": resolved.to_string_lossy(),
-            "replacements": replacements,
-        }))
+        let path = resolved.to_string_lossy().to_string();
+        let additions = new_string.matches('\n').count() as u64;
+        let deletions = old_string.matches('\n').count() as u64;
+        Ok(with_meta(
+            json!({ "ok": true, "path": path.clone(), "replacements": replacements }),
+            json!({ "op": "edit", "path": path, "replacements": replacements, "additions": additions, "deletions": deletions }),
+        ))
     }
 }
 
@@ -451,6 +508,7 @@ mod tests {
         ToolContext {
             workdir: Some(dir.to_path_buf()),
             project_id: None,
+            workspace_id: None,
         }
     }
 
@@ -490,6 +548,45 @@ mod tests {
             .execute_with_ctx(&ctx, json!({ "path": outside.to_string_lossy(), "content": "x" }))
             .await;
         assert!(res.is_err());
+    }
+
+    #[tokio::test]
+    async fn read_absolute_outside_workdir_rejected() {
+        let dir = tempfile::tempdir().unwrap();
+        let ctx = ctx_for(dir.path());
+        // 写一个外部文件再用绝对路径读 → 读类越界默认拒绝
+        let outside = dir.path().parent().unwrap().join("outside_read.txt");
+        std::fs::write(&outside, "secret").unwrap();
+        let res = ReadFileTool
+            .execute_with_ctx(&ctx, json!({ "path": outside.to_string_lossy() }))
+            .await;
+        assert!(res.is_err(), "workdir 存在时绝对路径越界读取应被拒绝");
+        let _ = std::fs::remove_file(&outside);
+    }
+
+    #[tokio::test]
+    async fn read_absolute_allowed_when_no_workdir() {
+        // 向后兼容：workdir 为 None 时放行绝对路径读取
+        let dir = tempfile::tempdir().unwrap();
+        let f = dir.path().join("compat.txt");
+        std::fs::write(&f, "hi").unwrap();
+        let ctx = ToolContext::default();
+        let res = ReadFileTool
+            .execute_with_ctx(&ctx, json!({ "path": f.to_string_lossy() }))
+            .await;
+        assert!(res.is_ok(), "workdir 为 None 时应放行绝对路径读取");
+        assert_eq!(res.unwrap()["content"], "hi");
+    }
+
+    #[tokio::test]
+    async fn list_absolute_outside_workdir_rejected() {
+        let dir = tempfile::tempdir().unwrap();
+        let ctx = ctx_for(dir.path());
+        let outside = dir.path().parent().unwrap();
+        let res = ListDirectoryTool
+            .execute_with_ctx(&ctx, json!({ "path": outside.to_string_lossy() }))
+            .await;
+        assert!(res.is_err(), "workdir 存在时列出外部目录应被拒绝");
     }
 
     #[tokio::test]
@@ -558,5 +655,50 @@ mod tests {
             .execute_with_ctx(&ctx, json!({ "path": "c.txt", "old_string": "missing", "new_string": "x" }))
             .await;
         assert!(res.is_err());
+    }
+
+    #[tokio::test]
+    async fn results_attach_meta_without_breaking_fields() {
+        // 事件流丰富化：写/读/编辑/搜索结果都带 __meta（op/path/效果字段），且原字段不被破坏
+        let dir = tempfile::tempdir().unwrap();
+        let ctx = ctx_for(dir.path());
+
+        // 写：__meta.op == create，原字段 ok/bytes 保留
+        let w = WriteFileTool
+            .execute_with_ctx(&ctx, json!({ "path": "meta.txt", "content": "hello\nworld" }))
+            .await
+            .unwrap();
+        assert_eq!(w["ok"], true);
+        assert_eq!(w["bytes"], 11);
+        assert_eq!(w["__meta"]["op"], "create");
+        assert!(w["__meta"]["path"].as_str().unwrap().ends_with("meta.txt"));
+
+        // 读：__meta.op == read，带 lines，原字段 content 保留
+        let r = ReadFileTool
+            .execute_with_ctx(&ctx, json!({ "path": "meta.txt" }))
+            .await
+            .unwrap();
+        assert_eq!(r["content"], "hello\nworld");
+        assert_eq!(r["__meta"]["op"], "read");
+        assert_eq!(r["__meta"]["lines"], 2);
+
+        // 编辑：__meta.op == edit，带 replacements，原字段保留
+        let e = EditFileTool
+            .execute_with_ctx(&ctx, json!({ "path": "meta.txt", "old_string": "world", "new_string": "x\ny" }))
+            .await
+            .unwrap();
+        assert_eq!(e["replacements"], 1);
+        assert_eq!(e["__meta"]["op"], "edit");
+        assert_eq!(e["__meta"]["additions"], 1);
+        assert_eq!(e["__meta"]["deletions"], 0);
+
+        // 搜索：__meta.op == search，带 hits，原字段 matches 保留
+        let s = SearchFilesTool
+            .execute_with_ctx(&ctx, json!({ "pattern": "*.txt" }))
+            .await
+            .unwrap();
+        assert!(s["matches"].as_array().unwrap().len() >= 1);
+        assert_eq!(s["__meta"]["op"], "search");
+        assert!(s["__meta"]["hits"].as_u64().unwrap() >= 1);
     }
 }

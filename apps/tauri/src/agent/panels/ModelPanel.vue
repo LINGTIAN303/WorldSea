@@ -27,7 +27,14 @@
           <template v-else>
             <input type="text" class="settings-input" v-model="settingsStore.aiCloudModel" placeholder="模型 ID" />
           </template>
+          <!-- D3 云端刷新模型入口 -->
+          <button class="cp-fetch-btn" @click="() => void onRefreshCloudModels()" :disabled="cloudFetching || !cloudProviderListable" :title="cloudFetchError || (cloudProviderListable ? '刷新模型列表' : '该供应商不支持模型列表')">
+            <WsIcon :name="cloudFetching ? 'loading' : 'refresh'" size="xs" />
+          </button>
         </div>
+        <div v-if="cloudFetchError && cloudProviderListable" class="cp-fetch-error">{{ cloudFetchError }}</div>
+        <!-- F 新鲜度提示：上次成功更新时间 -->
+        <div v-if="fetchInfo?.fetchedAt && cloudProviderListable" class="settings-hint model-fresh-hint">{{ formatModelFresh(fetchInfo.fetchedAt) }}</div>
         <div class="settings-row">
           <span class="sp-row-label">API Key</span>
           <input type="password" class="settings-input" v-model="cloudApiKeyLocal" placeholder="sk-..." />
@@ -138,12 +145,6 @@
       </div>
       <div class="settings-hint">最大 {{ formatTokens(maxContextLength) }}</div>
     </div>
-    <div class="settings-section">
-      <div class="settings-label">AI 人格预设</div>
-      <div class="settings-row">
-        <TuiSelect :model-value="personaPreset" :options="personaOptions" @update:model-value="onPersonaChange" />
-      </div>
-    </div>
     <div v-if="!embedded" class="settings-section">
       <div class="settings-label">回答模式</div>
       <div class="chat-mode-grid">
@@ -174,8 +175,9 @@ import { computed } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
 import TuiSelect from '../../components/ui/TuiSelect.vue'
 import { useSettingsStore } from '../../stores/settingsStore'
-import { getDefaultModelId, getModelInfo, getModelsByProvider, getAllProviderManifests, getProviderLabelMap } from '@worldsmith/agent-runtime'
+import { getDefaultModelId, getModelInfo, getAllProviderManifests, getProviderLabelMap, getProviderManifest } from '@worldsmith/agent-runtime'
 import { getProviderIconUrl } from '../../assets/providerIcons'
+import { useCloudModelFetch, formatModelFresh } from '../composables/useCloudModelFetch'
 
 const props = defineProps<{
   embedded: boolean
@@ -186,7 +188,6 @@ const props = defineProps<{
   maxContextLength: number
   maxOutputTokens: number
   maxTemperature: number
-  personaPreset: string
   chatMode: string
   chatModes: Array<{ value: string; icon: string; label: string; desc: string }>
   lockedChatMode: string | null
@@ -202,7 +203,6 @@ const emit = defineEmits<{
   'update:temperature': [value: number]
   'update:maxTokens': [value: number]
   'update:contextLength': [value: number]
-  'update:personaPreset': [value: string]
   'update:cloudApiKey': [value: string]
   'update:customApiKey': [value: string]
   'model-change': [provider: string, modelId: string]
@@ -212,6 +212,9 @@ const emit = defineEmits<{
 }>()
 
 const settingsStore = useSettingsStore()
+
+// 云端模型拉取（响应式列表 + 手动/切供应商刷新 + 新鲜度），复用 ProviderPanel 同一份逻辑
+const { currentProviderModels, cloudFetching, cloudFetchError, fetchInfo, onRefreshCloudModels } = useCloudModelFetch()
 
 // 通过 computed 写入器实现 v-model 双向绑定到父组件的 ref
 const cloudApiKeyLocal = computed({
@@ -223,7 +226,11 @@ const customApiKeyLocal = computed({
   set: (v) => emit('update:customApiKey', v),
 })
 
-const currentProviderModels = computed(() => getModelsByProvider(settingsStore.aiCloudProvider))
+// 当前供应商是否支持模型列表（决定刷新按钮可用性与提示）
+const cloudProviderListable = computed(() => {
+  const m = getProviderManifest(settingsStore.aiCloudProvider)
+  return m?.supportsModelListing !== false
+})
 
 const cloudProviderOptions = computed(() =>
   getAllProviderManifests().map(m => ({
@@ -254,12 +261,6 @@ const customTypeOptions = [
   { value: 'openai-compatible', label: 'OpenAI 兼容' },
   { value: 'anthropic-compatible', label: 'Anthropic 兼容' },
 ]
-const personaOptions = [
-  { value: 'default', label: '默认助手' },
-  { value: 'creative', label: '创意写手' },
-  { value: 'analyst', label: '严谨分析师' },
-  { value: 'storyteller', label: '故事叙述者' },
-]
 /** 当前供应商的模型选项（cloud 模式下展示，含视觉标记） */
 const currentProviderModelOptions = computed(() =>
   currentProviderModels.value.map((m) => ({
@@ -280,6 +281,8 @@ function onCloudProviderChange(e: Event): void {
     settingsStore.aiCloudModel = defaultModelId
     emit('provider-change', provider, defaultModelId)
   }
+  // D1 切供应商主动拉取（fire-and-forget；支持 listing 的供应商才拉）
+  void onRefreshCloudModels(provider)
 }
 
 function onCloudModelChange(modelId: string): void {
@@ -301,10 +304,6 @@ function onMaxTokensChange(e: Event): void {
 
 function onContextLengthChange(e: Event): void {
   emit('update:contextLength', Number((e.target as HTMLInputElement).value))
-}
-
-function onPersonaChange(v: string): void {
-  emit('update:personaPreset', v)
 }
 
 function onChatModeClick(mode: string): void {

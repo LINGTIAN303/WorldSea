@@ -55,9 +55,7 @@ withDefaults(
 }
 
 /* 减弱动态偏好：减速而非停止（加载语义不可丢失） */
-@media (prefers-reduced-motion: reduce) {
-  .tui-spinner {
-    animation-duration: 1.6s;
-  }
+:root[data-anim-overlays='off'] .tui-spinner {
+  animation-duration: 1.6s;
 }
 </style>

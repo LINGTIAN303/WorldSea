@@ -201,9 +201,7 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 /* 尊重系统「减弱动效」偏好：文字直接切换，不做宽度动画 */
-@media (prefers-reduced-motion: reduce) {
-  .tui-seg.is-icon-mode .tui-seg__label {
-    transition: none;
-  }
+:root[data-anim-overlays='off'] .tui-seg.is-icon-mode .tui-seg__label {
+  transition: none;
 }
 </style>

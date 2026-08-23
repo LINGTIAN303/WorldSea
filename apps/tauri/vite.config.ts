@@ -106,6 +106,50 @@ const aliasArray = Object.entries(aliases).map(([key, value]) => {
   return { find: key, replacement: value }
 })
 
+// ────────────────────────── Provider /api 代理（浏览器 preview 场景） ──────────────────────────
+// 浏览器 preview（trae-preview / 纯 Web 预览）无法走 Tauri IPC，`/api/<provider>` 请求由
+// Vite 在此转发到对应供应商上游，绕过浏览器 CORS（changeOrigin 伪造成同源）。
+// 键：provider 的 proxyPath（浏览器侧调用路径前缀）
+// 值：该 provider 的 directBaseUrl（上游真实 Base URL）
+// 匹配 / 转发：把 key 前缀重写为空后拼接到 target（与 provider-registry.buildRequestUrl 一致）
+const PROVIDER_PROXY: Record<string, string> = {
+  '/api/anthropic': 'https://api.anthropic.com',
+  '/api/openai/v1': 'https://api.openai.com',
+  '/api/google': 'https://generativelanguage.googleapis.com',
+  '/api/deepseek': 'https://api.deepseek.com',
+  '/api/groq/openai/v1': 'https://api.groq.com/openai',
+  '/api/openrouter/api/v1': 'https://openrouter.ai/api',
+  '/api/zhipu/api/paas/v4': 'https://open.bigmodel.cn/api/paas/v4',
+  '/api/qwen/compatible-mode/v1': 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+  '/api/minimax/v1': 'https://api.minimax.chat/v1',
+  '/api/kimi/v1': 'https://api.moonshot.cn/v1',
+  '/api/agnes/v1': 'https://api.agnesai.com/v1',
+  '/api/sensenova/v1': 'https://token.sensenova.cn/v1',
+  '/api/doubao/api/v3': 'https://ark.cn-beijing.volces.com/api/v3',
+  '/api/xai/v1': 'https://api.x.ai',
+  '/api/mistral/v1': 'https://api.mistral.ai',
+  '/api/stepfun/v1': 'https://api.stepfun.com',
+  '/api/mimo/v1': 'https://api.xiaomimimo.com/v1',
+  '/api/siliconflow/v1': 'https://api.siliconflow.cn/v1',
+  '/api/tencentcloud/v1': 'https://api.cloud.tencent.com',
+  '/api/longcat/v1': 'https://api.longcat.chat/v1',
+  '/api/dots/v1': 'https://api.dots.ai/v1',
+  '/api/xfyun/v1': 'https://maas-api.xfyun.cn/v1',
+  '/api/bailian/compatible-mode/v1': 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+  '/api/modelscope/v1': 'https://api-inference.modelscope.cn/v1',
+  '/api/kling/v1': 'https://api.klingai.com',
+}
+
+const providerProxy: Record<string, string | Record<string, unknown>> = {}
+for (const [key, target] of Object.entries(PROVIDER_PROXY)) {
+  providerProxy[key] = {
+    target,
+    changeOrigin: true,
+    secure: false,
+    rewrite: (p: string) => (p.startsWith(key) ? p.slice(key.length) || '/' : p),
+  }
+}
+
 export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
@@ -151,7 +195,9 @@ export default defineConfig({
         '**/node_modules/.cache/**',
       ],
     },
-    // Tauri 端不需要 /api/* 代理 — 通过 IPC 直接调用 Rust 命令
+    // Provider /api 代理（浏览器 preview 场景）：Tauri IPC 组不受影响，
+    // 仅当请求命中 /api/* 且命中 PROVIDER_PROXY 时转发到上游。
+    proxy: providerProxy,
   },
   // Worker 格式：WASM top-level await 需要 ES 格式（iife 不支持）
   // 修复 vite 8 + rolldown worker 默认 iife 导致的 build 失败

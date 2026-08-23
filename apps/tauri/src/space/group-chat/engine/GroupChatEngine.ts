@@ -31,6 +31,21 @@ const PROVIDER_PROXY_PATHS: Record<string, string> = {
   google: '/api/google',
   groq: '/api/groq/openai/v1',
   openrouter: '/api/openrouter/api/v1',
+  agnes: '/api/agnes/v1',
+  sensenova: '/api/sensenova/v1',
+  doubao: '/api/doubao/api/v3',
+  xai: '/api/xai/v1',
+  mistral: '/api/mistral/v1',
+  stepfun: '/api/stepfun/v1',
+  mimo: '/api/mimo/v1',
+  siliconflow: '/api/siliconflow/v1',
+  tencentcloud: '/api/tencentcloud/v1',
+  longcat: '/api/longcat/v1',
+  dots: '/api/dots/v1',
+  xfyun: '/api/xfyun/v1',
+  bailian: '/api/bailian/compatible-mode/v1',
+  modelscope: '/api/modelscope/v1',
+  kling: '/api/kling/v1',
 }
 
 export class GroupChatEngine implements IGroupChatEngine {

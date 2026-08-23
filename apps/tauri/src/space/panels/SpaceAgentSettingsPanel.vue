@@ -6,6 +6,7 @@
     </div>
     <div class="panel-body">
       <AgentSettingsPanel
+        ref="agentSettingsRef"
         :visible="true"
         :position="{ x: 0, y: 0 }"
         :dragged="false"
@@ -50,6 +51,7 @@
         @api-key-change="onApiKeyChange"
         @provider-change="onProviderChange"
         @security-level-change="onSecurityLevelChange"
+        @card-change="(i) => emit('card-change', i)"
       />
     </div>
   </div>
@@ -68,7 +70,13 @@ import { getModelInfo, calculateCost, getThinkingLevels } from '@worldsmith/agen
 import AgentSettingsPanel from '@/agent/AgentSettingsPanel.vue'
 import type { ThinkingLevel, MCPConnectionConfig, SkillMeta } from '@agent/index'
 
-const emit = defineEmits<{ close: [] }>()
+const emit = defineEmits<{ close: []; 'card-change': [index: number] }>()
+
+// 透传叠放翻卡：供主设置左列标题点击翻卡（SettingsDialog 调用）
+const agentSettingsRef = ref<InstanceType<typeof AgentSettingsPanel> | null>(null)
+defineExpose({
+  goToCard: (i: number) => agentSettingsRef.value?.goToCard(i),
+})
 
 // Tauri 端 useAgent = useAgentRust（Rust Agent 后端适配器）
 const {
@@ -153,16 +161,34 @@ watch([() => settingsStore.aiCloudModel, () => settingsStore.aiCloudProvider], a
   try { await onModelChange(newProvider, newModel) } catch {}
 })
 
-// Rust updateModel 签名：(provider, modelId, baseUrl?, apiKey?, contextWindow?, maxTokens?, temperature?)
+// Rust updateModel 签名：(provider, modelId, baseUrl?, apiKey?, contextWindow?, maxTokens?, temperature?, topP?, topK?, thinkingMode?)
+/** 读取当前模型挂载的会话窗口参数（localStorage：`agent_session_window` + 模型级 `agent_model_params_<modelId>`） */
+function loadSessionWindow(modelId: string): { topP?: number; topK?: number; thinking?: boolean } {
+  try {
+    const w = JSON.parse(localStorage.getItem('agent_session_window') || '{}')
+    const m = JSON.parse(localStorage.getItem(`agent_model_params_${modelId}`) || '{}')
+    const src = { ...w, ...m }
+    return {
+      topP: src.topP != null ? src.topP : 100,
+      topK: src.topK != null ? src.topK : 40,
+      thinking: src.thinking ?? false,
+    }
+  } catch {
+    return { topP: 100, topK: 40, thinking: false }
+  }
+}
+
 function onTemperatureChange(val: number) {
   temperature.value = val
-  updateModel(currentProvider.value, currentModelId.value, undefined, undefined, contextLength.value, maxTokens.value, val)
+  const sw = loadSessionWindow(currentModelId.value)
+  updateModel(currentProvider.value, currentModelId.value, undefined, undefined, contextLength.value, maxTokens.value, val, sw.topP, sw.topK, sw.thinking)
   saveAgentSettings()
 }
 
 function onMaxTokensChange(val: number) {
   maxTokens.value = val
-  updateModel(currentProvider.value, currentModelId.value, undefined, undefined, contextLength.value, val, temperature.value)
+  const sw = loadSessionWindow(currentModelId.value)
+  updateModel(currentProvider.value, currentModelId.value, undefined, undefined, contextLength.value, val, temperature.value, sw.topP, sw.topK, sw.thinking)
   saveAgentSettings()
 }
 
@@ -202,7 +228,8 @@ async function onModelChange(provider: string, modelId: string): Promise<void> {
     }
   }
   const apiKey = await loadApiKey(provider)
-  await updateModel(provider, modelId, undefined, apiKey || undefined, contextLength.value, maxTokens.value, temperature.value)
+  const sw = loadSessionWindow(modelId)
+  await updateModel(provider, modelId, undefined, apiKey || undefined, contextLength.value, maxTokens.value, temperature.value, sw.topP, sw.topK, sw.thinking)
   try {
     localStorage.setItem('agent_current_model', JSON.stringify({ provider, modelId, contextLength: contextLength.value }))
   } catch {}
@@ -341,7 +368,7 @@ async function loadCurrentModel(): Promise<void> {
     if (raw) {
       const cfg = JSON.parse(raw)
       currentProvider.value = cfg.provider || 'deepseek'
-      currentModelId.value = cfg.modelId || 'deepseek-chat'
+      currentModelId.value = cfg.modelId || 'deepseek-v4-flash'
       if (cfg.contextLength) contextLength.value = cfg.contextLength
     }
   } catch {}
@@ -399,6 +426,7 @@ onMounted(async () => {
 
 .panel-body {
   flex: 1;
-  overflow-y: auto;
+  /* 叠放翻卡：滚动由 AgentSettingsPanel 卡片内部接管，外层不再整体滚动 */
+  overflow: hidden;
 }
 </style>

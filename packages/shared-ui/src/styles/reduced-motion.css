@@ -1,42 +1,40 @@
 /**
- * Agent 组件动画的可访问性降级（prefers-reduced-motion）。
+ * Agent 组件动画的可访问性降级（减弱动态效果，应用配置总开关 data-reduce-motion）。
  *
- * shared-ui 的 Agent 组件分散在多个 .vue 文件，逐个补 scoped @media 会重复且零散。
+ * shared-ui 的 Agent 组件分散在多个 .vue 文件，逐个补 scoped 规则会重复且零散。
  * 此处集中为一处全局规则：用户开启「减弱动态效果」时，停用 shared-ui 动画类名的
  * 关键帧动画（保留终态，避免位移/脉冲/闪烁）。
  *
  * 类名前缀均属 shared-ui 专属（tc- / seg- / itc- / ws- / block- / phase- / bar- / a2ui- / ms- / group-），
  * 不会误伤宿主应用的自定义动画；其余宿主动画由各自 scoped 规则负责。
+ * 原系统 prefers-reduced-motion 媒体查询改为应用配置根属性（2026-08-23 可配置化）。
  */
-@media (prefers-reduced-motion: reduce) {
-  /* 通用：直接停用关键帧动画（含 WebKit 前缀） */
-  [class*='tc-'],
-  [class*='seg-'],
-  [class*='itc-'],
-  [class*='ws-'],
-  [class*='phase-'],
-  [class*='bar-'],
-  [class*='block-'],
-  [class*='streaming-'],
-  [class*='cursor-'],
-  .chat-msg,
-  .deep-area,
-  .archived-section,
-  .a2ui-surface,
-  .ms-canvas {
-    animation: none !important;
-    -webkit-animation: none !important;
-  }
+:root[data-reduce-motion='on'] [class*='tc-'],
+:root[data-reduce-motion='on'] [class*='seg-'],
+:root[data-reduce-motion='on'] [class*='itc-'],
+:root[data-reduce-motion='on'] [class*='ws-'],
+:root[data-reduce-motion='on'] [class*='phase-'],
+:root[data-reduce-motion='on'] [class*='bar-'],
+:root[data-reduce-motion='on'] [class*='block-'],
+:root[data-reduce-motion='on'] [class*='streaming-'],
+:root[data-reduce-motion='on'] [class*='cursor-'],
+:root[data-reduce-motion='on'] .chat-msg,
+:root[data-reduce-motion='on'] .deep-area,
+:root[data-reduce-motion='on'] .archived-section,
+:root[data-reduce-motion='on'] .a2ui-surface,
+:root[data-reduce-motion='on'] .ms-canvas {
+  animation: none !important;
+  -webkit-animation: none !important;
+}
 
-  /* 过渡也压缩（位移/缩放类 hover 动效），避免瞬时跳变不适 */
-  .block-toggle,
-  .choice-btn,
-  .a2ui-btn,
-  .a2ui-choice,
-  .a2ui-tag,
-  .msg-bubble,
-  .tool-call-tag,
-  .exec-tab {
-    transition: none !important;
-  }
+/* 过渡也压缩（位移/缩放类 hover 动效），避免瞬时跳变不适 */
+:root[data-reduce-motion='on'] .block-toggle,
+:root[data-reduce-motion='on'] .choice-btn,
+:root[data-reduce-motion='on'] .a2ui-btn,
+:root[data-reduce-motion='on'] .a2ui-choice,
+:root[data-reduce-motion='on'] .a2ui-tag,
+:root[data-reduce-motion='on'] .msg-bubble,
+:root[data-reduce-motion='on'] .tool-call-tag,
+:root[data-reduce-motion='on'] .exec-tab {
+  transition: none !important;
 }

@@ -71,6 +71,11 @@ pub struct AgentLoop {
     /// 无法直接写普通字段；用锁包裹后 `with_config`/`set_config` 均可更新，
     /// 且工具执行时读取（短临界区，不跨 await）。
     workdir: Arc<StdRwLock<Option<std::path::PathBuf>>>,
+    /// 会话绑定的 Workspace 实体 id（从 `config.workspace_id` 读取）
+    ///
+    /// 用于构造 [`crate::tool_context::ToolContext`] 并注入到工具执行（Phase A）。
+    /// 与 `config.workspace_id` 保持一致（`with_config`/`set_config` 同步更新）。
+    workspace_id: Arc<StdRwLock<Option<String>>>,
     /// 事件广播器
     broadcaster: Arc<RwLock<EventBroadcaster>>,
     /// 是否正在流式输出（run 方法活跃中）
@@ -192,6 +197,7 @@ impl AgentLoop {
             state,
             config,
             workdir: Arc::new(StdRwLock::new(None)),
+            workspace_id: Arc::new(StdRwLock::new(None)),
             broadcaster,
             is_streaming,
             long_task_manager,
@@ -347,6 +353,12 @@ impl AgentLoop {
         } else {
             warn!("with_config: workdir RwLock poisoned");
         }
+        // 同步 workspace_id 独立字段（Phase A，供 ToolContext 注入）
+        if let Ok(mut guard) = self.workspace_id.write() {
+            *guard = config.workspace_id.clone();
+        } else {
+            warn!("with_config: workspace_id RwLock poisoned");
+        }
         if let Ok(mut guard) = self.config.write() {
             *guard = config;
         } else {
@@ -360,6 +372,10 @@ impl AgentLoop {
         // 同步 workdir 独立字段（供工具执行时构造 ToolContext）
         if let Ok(mut guard) = self.workdir.write() {
             *guard = config.workdir.clone();
+        }
+        // 同步 workspace_id 独立字段（Phase A，供 ToolContext 注入）
+        if let Ok(mut guard) = self.workspace_id.write() {
+            *guard = config.workspace_id.clone();
         }
         if let Ok(mut guard) = self.config.write() {
             *guard = config;

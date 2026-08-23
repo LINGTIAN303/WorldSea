@@ -56,6 +56,7 @@ export { default as ViewToolbarFilter } from './components/layout/ViewToolbarFil
 export { default as GlobalSearch } from './components/search/GlobalSearch.vue'
 export { default as WelcomeOverlay } from './components/layout/WelcomeOverlay.vue'
 export { default as ShortcutHelpModal } from './components/settings/ShortcutHelpModal.vue'
+export { default as CardDeck } from './components/settings/CardDeck.vue'
 export { default as VersionHistory } from './components/data/VersionHistory.vue'
 export { default as UndoHistoryPanel } from './components/data/UndoHistoryPanel.vue'
 export { default as DocExport } from './components/data/DocExport.vue'
@@ -149,6 +150,7 @@ export {
   type ResizableOptions,
 } from './composables/useResizable'
 export { useDialog } from './composables/useDialog'
+export { useCardDeck } from './composables/useCardDeck'
 export { useConfirm, type ConfirmType } from './composables/useConfirm'
 export { useSelection, SelectionKey, provideGlobalSelection, type SelectionState } from './composables/useSelection'
 export {

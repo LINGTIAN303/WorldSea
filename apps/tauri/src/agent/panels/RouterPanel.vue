@@ -334,7 +334,5 @@ onMounted(async () => {
 .rp-destroy:hover { color: var(--danger, #e5484d); border-color: var(--danger, #e5484d); }
 .rp-destroy:disabled { opacity: 0.5; cursor: not-allowed; }
 
-@media (prefers-reduced-motion: reduce) {
-  .rp-collapse .spin90, .rp-run-btn:active:not(:disabled) { transition: none; transform: none; }
-}
+:root[data-anim-status='off'] .rp-collapse .spin90, :root[data-anim-status='off'] .rp-run-btn:active:not(:disabled) { transition: none; transform: none; }
 </style>

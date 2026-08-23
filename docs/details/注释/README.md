@@ -30,7 +30,6 @@
 | src/mcp.rs | [mcp.md](agent-runtime/mcp.md) | MCP 工具适配器 |
 | src/llm/（mod/config/error/model/manifest/stream/genai_backend） | [llm.md](agent-runtime/llm.md) | LLM 通信层（Provider 配置/清单/流式/GenaiBackend） |
 | src/backend.rs | [backend.md](agent-runtime/backend.md) | LLM 后端访问器（NodeBackendAccessor） |
-| tests/deep_phases_parity.rs | [deep_phases_parity.md](agent-runtime/deep_phases_parity.md) | Deep Phases 跨语言一致性测试 |
 | src/lib.rs | [lib.md](agent-runtime/lib.md) | crate 导出与架构总览 |
 | 拆分记录（2026-08-06） | — | 测试已分离：agent/supervisor/tree_of_thoughts/multi_agent/router/long_task/graph_of_thoughts 的测试模块迁出至对应 `*_tests.rs`（`#[path]` 引入） |
 | 拆分记录（2026-08-06） | — | agent.rs 按职责拆为 src/agent/ 目录（config/state/error/loop_control/memory/llm/tools/interaction/long_task/backend_bridge + tests.rs），对外 API 不变，cargo test 170 + 5 全绿 |

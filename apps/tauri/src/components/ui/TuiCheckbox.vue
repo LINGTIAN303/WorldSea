@@ -105,12 +105,10 @@ export default { components: { WsIcon } }
   line-height: 1;
 }
 /* 减弱动态偏好：去掉按压缩放（Emil 可访问性规则） */
-@media (prefers-reduced-motion: reduce) {
-  .tui-checkbox__box {
-    transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
-  }
-  .tui-checkbox:not(.is-disabled):active .tui-checkbox__box {
-    transform: none;
-  }
+:root[data-anim-overlays='off'] .tui-checkbox__box {
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+:root[data-anim-overlays='off'] .tui-checkbox:not(.is-disabled):active .tui-checkbox__box {
+  transform: none;
 }
 </style>

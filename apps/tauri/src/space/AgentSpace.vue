@@ -89,6 +89,15 @@
               </template>
               <CreationPanel v-else-if="rightTab === 'creation'" />
               <PreviewPanel v-else-if="rightTab === 'preview'" />
+              <!-- 用量（B 批：从主设置迁入右栏，2026-08-23） -->
+              <div v-else-if="rightTab === 'usage'" class="right-usage-body">
+                <UsagePanel
+                  :total-usage="totalUsage"
+                  :calculated-cost="calculatedCost"
+                  :cumulative-usage="cumulativeUsage"
+                  :cache-hit-rate="cacheHitRate"
+                />
+              </div>
             </template>
           </div>
 
@@ -132,6 +141,9 @@ import SettingsDialog from '@/ui/settings/SettingsDialog.vue'
 import { DialogContainer, WsIcon } from '@worldsmith/ui-kit'
 import WsConfirmDialog from '@/ui/WsConfirmDialog.vue'
 import { useAgent } from '@/agent/composables/useAgent'
+import UsagePanel from '@/agent/panels/UsagePanel.vue'
+import { useSettingsStore } from '@/stores/settingsStore'
+import { calculateCost } from '@worldsmith/agent-runtime'
 import { useGenerationProgress } from '@worldsmith/shared-composables/agent/useGenerationProgress'
 import { usePlanStore } from '@worldsmith/shared-composables/agent/usePlanStore'
 import { useSessionViewState } from '@/agent/composables/useSessionViewState'
@@ -145,14 +157,32 @@ const PANEL_META: { id: RightTab; label: string; icon: string; title: string }[]
   { id: 'config', label: '配置', icon: 'settings', title: '配置（记忆/人格）' },
   { id: 'creation', label: '创作', icon: 'layout', title: '创作（插件创作视图）' },
   { id: 'preview', label: '预览', icon: 'eye', title: '预览（项目产物）' },
+  { id: 'usage', label: '用量', icon: 'dashboard', title: '用量（请求/token/费用）' },
 ]
 
 const spaceStore = useSpaceStore()
 const userProfileStore = useUserProfileStore()
 const { hasActive } = useGenerationProgress()
 const planStore = usePlanStore()
-const { restoreLastSession } = useAgent()
+const { restoreLastSession, totalUsage } = useAgent()
 const personaFont = usePersonaFont()
+
+// ── B 批：用量数据（右栏「用量」tab） ──
+const settingsStore = useSettingsStore()
+const usageModelId = computed(() =>
+  settingsStore.aiProviderMode === 'cloud' ? settingsStore.aiCloudModel : settingsStore.aiCustomModel,
+)
+const calculatedCost = computed(() =>
+  calculateCost(
+    usageModelId.value,
+    totalUsage.value.inputTokens,
+    totalUsage.value.outputTokens,
+    totalUsage.value.cacheReadTokens,
+    totalUsage.value.cacheWriteTokens,
+  ),
+)
+const cumulativeUsage = computed(() => totalUsage.value)
+const cacheHitRate = computed(() => 0)
 
 // [D] 注入 SpeakerContext：单聊/群聊消息身份显示前提（NormalMessageBubble 依赖；此前未在任何入口提供，导致 user 气泡渲染中断）
 const persona = computed(() => spaceStore.persona)
@@ -712,12 +742,10 @@ function onExecResizeStart(e: MouseEvent) {
 }
 
 /* 减弱动态偏好：面板滑入/滑出归零位移（位移距离不进集中 reduced-motion，此处 scoped 兜底） */
-@media (prefers-reduced-motion: reduce) {
-  .sidebar-slide-enter-from,
-  .sidebar-slide-leave-to,
-  .panel-slide-right-enter-from,
-  .panel-slide-right-leave-to {
-    transform: none;
-  }
+:root[data-anim-panels='off'] .sidebar-slide-enter-from,
+:root[data-anim-panels='off'] .sidebar-slide-leave-to,
+:root[data-anim-panels='off'] .panel-slide-right-enter-from,
+:root[data-anim-panels='off'] .panel-slide-right-leave-to {
+  transform: none;
 }
 </style>

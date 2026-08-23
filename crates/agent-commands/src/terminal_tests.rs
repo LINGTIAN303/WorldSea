@@ -34,6 +34,49 @@
     }
 
     #[tokio::test]
+    async fn execute_command_defaults_cwd_to_workdir() {
+        // cwd 缺省时默认注入 workdir
+        let dir = tempfile::tempdir().unwrap();
+        let ctx = ToolContext {
+            workdir: Some(dir.path().to_path_buf()),
+            project_id: None,
+            workspace_id: None,
+        };
+        // 用 pwd（unix）/cd（windows）验证默认落在 workdir 内
+        let cmd = if cfg!(target_os = "windows") {
+            "dir /b"
+        } else {
+            "pwd"
+        };
+        let tool = ExecuteCommandTool;
+        let res = tool
+            .execute_with_ctx(&ctx, serde_json::json!({ "command": cmd }))
+            .await
+            .expect("带 workdir 的默认执行应成功");
+        assert_eq!(res["exit_code"], 0);
+    }
+
+    #[tokio::test]
+    async fn execute_command_rejects_out_of_workdir_cwd() {
+        // 显式传入越界 cwd → 拒绝
+        let dir = tempfile::tempdir().unwrap();
+        let ctx = ToolContext {
+            workdir: Some(dir.path().to_path_buf()),
+            project_id: None,
+            workspace_id: None,
+        };
+        let outside = dir.path().parent().unwrap().to_string_lossy().to_string();
+        let tool = ExecuteCommandTool;
+        let res = tool
+            .execute_with_ctx(
+                &ctx,
+                serde_json::json!({ "command": "echo hi", "cwd": outside }),
+            )
+            .await;
+        assert!(res.is_err(), "越界 cwd 应被拒绝");
+    }
+
+    #[tokio::test]
     async fn session_lifecycle_create_exec_destroy() {
         let manager = ShellSessionManager::new();
         let create = ShellSessionCreateTool::new(manager.clone());

@@ -20,6 +20,7 @@ pub use loop_control::{
 pub use mock_backend::{MockBackend, thinking_level_to_str};
 pub use session_store::{
     SessionKind, SessionRecord, SessionRepository, SqliteSessionRepository, WorkdirRecord,
+    WorkspaceRecord,
 };
 pub use subagent::{register_subagent_tools, SubAgentInstanceInfo, SubAgentManager};
 pub use subagent_store::{SqliteSubAgentSpecStore, SubAgentSpecStore};
@@ -206,6 +207,12 @@ pub struct SessionInfo {
     /// 会话绑定的工作区根目录（Phase 3 接入本地文件系统；None=不限定）
     #[serde(default)]
     pub workdir: Option<String>,
+    /// 会话绑定的 Workspace 实体 id（Phase A；`None`=旧数据缺省，用 workdir 兜底）
+    ///
+    /// `workdir` 字符串保留做向后兼容展示，`workspace_id` 是新引入的实体引用；
+    /// `list_sessions` 返回时若 `workspace_id` 存在，会用对应 workspaces.root 兜底 workdir。
+    #[serde(default)]
+    pub workspace_id: Option<String>,
 }
 
 /// SessionInfo.router_enabled 的 serde 缺省值（旧前端/缺省字段视为开启）
@@ -296,6 +303,15 @@ pub struct UpdateModelParams {
     pub temperature: Option<f32>,
     #[serde(default)]
     pub max_tokens: Option<u32>,
+    /// 采样 Top P（0~1；前端若存 0~100 需先 ÷100）
+    #[serde(default)]
+    pub top_p: Option<f32>,
+    /// 采样 Top K
+    #[serde(default)]
+    pub top_k: Option<u32>,
+    /// 思考模式开关
+    #[serde(default)]
+    pub thinking_mode: Option<bool>,
 }
 
 /// Provider 配置（`get_provider_config` 回显的简化视图）
@@ -560,6 +576,8 @@ impl AgentCommandService {
     ///   - `None`：降级为默认 Cloud 占位（空 API Key，需 `set_provider_config` 后可用）
     /// - `workdir`：会话绑定的工作区根目录（`None`=不限定，FS 工具相对路径原样返回）
     ///   - Phase 2 接入：写入 `AgentLoopConfig.workdir`，供 AgentLoop 构造 ToolContext
+    /// - `workspace_id`：会话绑定的 Workspace 实体 id（Phase A，`None`=旧数据缺省）
+    ///   - 写入 `AgentLoopConfig.workspace_id`（ToolContext 亦带上），供前端/工具感知实体归属
     async fn new_agent(
         &self,
         session_id: &str,
@@ -567,6 +585,7 @@ impl AgentCommandService {
         provider_config: Option<RuntimeProviderConfig>,
         scenario: Option<Arc<dyn Scenario>>,
         workdir: Option<PathBuf>,
+        workspace_id: Option<String>,
     ) -> (Arc<AgentLoop>, Arc<SubAgentManager>) {
         let config = provider_config.unwrap_or_else(Self::default_provider_config);
         let backend = Arc::new(GenaiBackend::new(config));
@@ -600,6 +619,8 @@ impl AgentCommandService {
             confirmation_policy: Some(ConfirmationPolicy::dangerous_only()),
             // Phase 2：会话工作区（供 FS 工具解析相对路径，None=不限定）
             workdir,
+            // Phase A：会话绑定的 Workspace 实体 id（供 ToolContext 注入，None=旧数据缺省）
+            workspace_id,
             ..Default::default()
         };
         // A3 四管线路由：为每个会话注入四管线路由节点（发送时决策管线）
@@ -703,6 +724,49 @@ impl AgentCommandService {
             .await
     }
 
+    // ── WorkspaceManager（Phase A：Workspace 实体化）──────────────
+
+    /// 为 `workdir` 生成/复用 Workspace 实体（幂等，按 root 去重）
+    ///
+    /// 按 workdir 根目录在 `workspaces` 表 upsert：已存在复用原 id，否则新建并落库。
+    /// 返回 `WorkspaceRecord`，其 `id` 供 `new_session` 写入 `SessionRecord.workspace_id`。
+    /// `label` 默认取目录名（workdir 末段）。
+    pub async fn ensure_workspace(
+        &self,
+        workdir: &str,
+        label: &str,
+    ) -> Result<WorkspaceRecord, CommandError> {
+        let store = match &self.session_store {
+            Some(s) => s.clone(),
+            None => {
+                return Err(CommandError::Internal(
+                    "未配置会话持久化存储，无法创建 Workspace 实体".into(),
+                ))
+            }
+        };
+        store.upsert_workspace(workdir, label).await
+    }
+
+    /// 从目录路径导出展示用名称（取末段；根路径无末段时回退全路径）
+    fn workspace_label_from(workdir: &PathBuf) -> String {
+        workdir
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| workdir.to_string_lossy().to_string())
+    }
+
+    /// 列出全部 Workspace 实体（前端目录选择器 / 会话树分组用）
+    ///
+    /// 未注入持久化存储时返回空列表（调用方按无实体处理）。
+    pub async fn list_workspaces(&self) -> Result<Vec<WorkspaceRecord>, CommandError> {
+        let store = match &self.session_store {
+            Some(s) => s.clone(),
+            None => return Ok(Vec::new()),
+        };
+        store.list_workspaces().await
+    }
+
     /// 建会话（内部版，可指定 kind）：生成会话 ID、构造 AgentLoop、注册内存表、写穿持久化
     async fn new_session_with_kind(
         &self,
@@ -718,9 +782,27 @@ impl AgentCommandService {
         let persisted_prompt = system_prompt.clone();
         // workdir 会被 move 进 new_agent，先转成字符串供 SessionInfo/SessionRecord 复用
         let workdir_str = workdir.as_ref().map(|p| p.to_string_lossy().to_string());
+        // Phase A：workdir 存在时为其删除/复用 Workspace 实体取 workspace_id（幂等）
+        let workspace_id = match workdir.as_ref() {
+            Some(wd) => {
+                let label = Self::workspace_label_from(wd);
+                match self
+                    .ensure_workspace(&wd.to_string_lossy().to_string(), &label)
+                    .await
+                {
+                    Ok(ws) => Some(ws.id),
+                    Err(e) => {
+                        // 实体化失败不阻断建会话：退回 workdir 兼容层（仅告警）
+                        tracing::warn!("ensure_workspace 失败，退回 workdir 兼容层: {e}");
+                        None
+                    }
+                }
+            }
+            None => None,
+        };
         let scenario = self.resolve_scenario(scenario_id.as_deref());
         let (agent, sub_agent_manager) = self
-            .new_agent(&id, system_prompt, provider_config, scenario, workdir)
+            .new_agent(&id, system_prompt, provider_config, scenario, workdir, workspace_id.clone())
             .await;
         let info = SessionInfo {
             id: id.clone(),
@@ -731,6 +813,7 @@ impl AgentCommandService {
             kind,
             router_enabled: true,
             workdir: workdir_str.clone(),
+            workspace_id: workspace_id.clone(),
         };
         self.sessions.lock().await.insert(id.clone(), agent);
         self.subagent_managers
@@ -751,6 +834,7 @@ impl AgentCommandService {
                 kind,
                 router_enabled: true,
                 workdir: workdir_str.clone(),
+                workspace_id,
             };
             if let Err(e) = store.save_session(&record).await {
                 tracing::warn!("持久化新会话失败（仅内存生效）: {e}");
@@ -990,12 +1074,36 @@ impl AgentCommandService {
     ///
     /// `kind` 为 `Some` 时按类型过滤（`Some(Chat)` 供单聊侧边栏避免污染）。
     pub async fn list_sessions(&self, kind: Option<SessionKind>) -> Result<Vec<SessionInfo>, CommandError> {
-        let meta = self.meta.lock().await;
-        let mut list: Vec<SessionInfo> = meta
-            .values()
-            .filter(|s| kind.map_or(true, |k| s.kind == k))
-            .cloned()
-            .collect();
+        let mut list: Vec<SessionInfo> = {
+            let meta = self.meta.lock().await;
+            meta.values()
+                .filter(|s| kind.map_or(true, |k| s.kind == k))
+                .cloned()
+                .collect()
+        };
+        // Phase A：workspace_id 存在但 workdir 缺失时，用 workspaces.root 兜底，
+        // 保证前端会话树按目录分组不回归（workdir 为实体 root 派生）。
+        if list
+            .iter()
+            .any(|s| s.workspace_id.is_some() && s.workdir.is_none())
+        {
+            if let Some(store) = &self.session_store {
+                let workspaces = store.list_workspaces().await?;
+                let mut root_by_id: HashMap<String, String> = HashMap::new();
+                for ws in &workspaces {
+                    root_by_id.insert(ws.id.clone(), ws.root.clone());
+                }
+                for s in list.iter_mut() {
+                    if s.workdir.is_none() {
+                        if let Some(ws_id) = &s.workspace_id {
+                            if let Some(root) = root_by_id.get(ws_id) {
+                                s.workdir = Some(root.clone());
+                            }
+                        }
+                    }
+                }
+            }
+        }
         list.sort_by_key(|s| s.created_at);
         Ok(list)
     }
@@ -1011,13 +1119,32 @@ impl AgentCommandService {
             None => return Ok(Vec::new()),
         };
         let records = store.load_sessions().await?;
+        // Phase A：预载 workspace_id → root 映射，供按实体还原 workdir root（一次查询）
+        let mut root_by_wsid: HashMap<String, String> = HashMap::new();
+        if let Ok(workspaces) = store.list_workspaces().await {
+            for ws in &workspaces {
+                root_by_wsid.insert(ws.id.clone(), ws.root.clone());
+            }
+        }
         let mut restored = Vec::with_capacity(records.len());
         for record in records {
             // 重建 AgentLoop（provider 用默认占位，前端按需 set_provider_config）
-            // workdir 从持久化列读回（None=不限定），Phase 3 接入本地文件系统
-            let workdir = record.workdir.clone().map(PathBuf::from);
+            // workdir：优先按 workspace_id → workspaces.root 还原；无实体时退回持久化 workdir 列
+            let workspace_id = record.workspace_id.clone();
+            let workdir_str = match workspace_id.as_ref().and_then(|id| root_by_wsid.get(id)) {
+                Some(root) => Some(root.clone()),
+                None => record.workdir.clone(),
+            };
+            let workdir = workdir_str.clone().map(PathBuf::from);
             let (agent, sub_agent_manager) = self
-                .new_agent(&record.id, Some(record.system_prompt), None, None, workdir)
+                .new_agent(
+                    &record.id,
+                    Some(record.system_prompt),
+                    None,
+                    None,
+                    workdir,
+                    workspace_id.clone(),
+                )
                 .await;
             // 应用持久化的四管线路由开关
             agent.set_router_enabled(record.router_enabled);
@@ -1048,7 +1175,8 @@ impl AgentCommandService {
                 pinned: record.pinned,
                 kind: record.kind,
                 router_enabled: record.router_enabled,
-                workdir: record.workdir.clone(),
+                workdir: workdir_str,
+                workspace_id: workspace_id,
             };
             self.meta.lock().await.insert(record.id.clone(), info.clone());
             restored.push(info);
@@ -1744,6 +1872,9 @@ impl AgentCommandService {
                 params.api_key,
                 params.temperature,
                 params.max_tokens,
+                params.top_p,
+                params.top_k,
+                params.thinking_mode,
             )
             .await
             .map_err(CommandError::from)

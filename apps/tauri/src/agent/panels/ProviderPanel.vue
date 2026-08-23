@@ -26,7 +26,14 @@
         <template v-else>
           <input type="text" class="settings-input" v-model="settingsStore.aiCloudModel" placeholder="模型 ID" />
         </template>
+        <!-- D3 云端刷新模型入口 -->
+        <button class="cp-fetch-btn" @click="() => void onRefreshCloudModels()" :disabled="cloudFetching || !cloudProviderListable" :title="cloudFetchError || (cloudProviderListable ? '刷新模型列表' : '该供应商不支持模型列表')">
+          <WsIcon :name="cloudFetching ? 'loading' : 'refresh'" size="xs" />
+        </button>
       </div>
+      <div v-if="cloudFetchError && cloudProviderListable" class="cp-fetch-error">{{ cloudFetchError }}</div>
+      <!-- F 新鲜度提示：上次成功更新时间 -->
+      <div v-if="fetchInfo?.fetchedAt && cloudProviderListable" class="settings-hint model-fresh-hint">{{ formatModelFresh(fetchInfo.fetchedAt) }}</div>
       <div class="settings-row">
         <span class="sp-row-label">API Key</span>
         <input type="password" class="settings-input" v-model="cloudApiKeyLocal" placeholder="sk-..." />
@@ -104,8 +111,9 @@ import { computed } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
 import TuiSelect from '../../components/ui/TuiSelect.vue'
 import { useSettingsStore } from '../../stores/settingsStore'
-import { getDefaultModelId, getModelInfo, getModelsByProvider, getAllProviderManifests } from '@worldsmith/agent-runtime'
+import { getDefaultModelId, getModelInfo, getAllProviderManifests, getProviderManifest } from '@worldsmith/agent-runtime'
 import { getProviderIconUrl } from '../../assets/providerIcons'
+import { useCloudModelFetch, formatModelFresh } from '../composables/useCloudModelFetch'
 
 const props = defineProps<{
   cloudApiKey: string
@@ -136,7 +144,14 @@ const customApiKeyLocal = computed({
   set: (v) => emit('update:customApiKey', v),
 })
 
-const currentProviderModels = computed(() => getModelsByProvider(settingsStore.aiCloudProvider))
+// 云端模型拉取（响应式列表 + 手动/切供应商刷新 + 新鲜度）
+const { currentProviderModels, cloudFetching, cloudFetchError, fetchInfo, onRefreshCloudModels } = useCloudModelFetch()
+
+// 当前供应商是否支持模型列表（决定刷新按钮可用性与提示）
+const cloudProviderListable = computed(() => {
+  const m = getProviderManifest(settingsStore.aiCloudProvider)
+  return m?.supportsModelListing !== false
+})
 
 const cloudProviderOptions = computed(() =>
   getAllProviderManifests().map(m => ({

@@ -396,9 +396,7 @@ onUnmounted(() => {
   .ws-splash__label--fixed { bottom: 30px; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .ws-splash__title,
-  .ws-splash__status,
-  .ws-splash__dot { animation: none !important; }
-}
+:root[data-anim-splash='off'] .ws-splash__title,
+:root[data-anim-splash='off'] .ws-splash__status,
+:root[data-anim-splash='off'] .ws-splash__dot { animation: none !important; }
 </style>

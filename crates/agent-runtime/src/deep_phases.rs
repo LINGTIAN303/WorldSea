@@ -4,12 +4,13 @@
 
 /// Deep Mode 五阶段定义（label + 工具名列表）
 ///
-/// 顺序即阶段顺序（index 0..4），与 TS 端 `DEEP_PHASES` 数组一致。
+/// 顺序即阶段顺序（index 0..4）。
 /// 工具名采用 snake_case，与 LLM 工具调用返回的 `name` 字段一致。
 ///
 /// # 注意
-/// 此处工具名需与 `src/agent/bubbles/deepPhases.ts` 中的 `DEEP_PHASES` 保持一致。
-/// 修改时请同步更新 TS 端，并通过 CI 测试 `tests/deep_phases_parity.rs` 验证。
+/// 早期前端存在一份同名 `deepPhases.ts`（`DEEP_PHASES` 数组）并配套跨语言
+/// 一致性测试 `deep_phases_parity.rs`；随 Deep Mode UI 下线，该 TS 端与 parity
+/// 测试已一并移除。本模块现为 Rust 端独有，由 `agent/mod.rs` 调用。
 pub const DEEP_PHASES: &[(&str, &[&str])] = &[
     // ── 阶段 1：问题拆解 ──
     ("问题拆解", &["output_list", "output_choice"]),
@@ -109,10 +110,9 @@ pub fn phase_index_by_label(label: &str) -> Option<i8> {
         .map(|i| i as i8)
 }
 
-/// 收集所有已分阶段的工具名（用于 CI 一致性测试）
+/// 收集所有已分阶段的工具名
 ///
 /// 返回扁平化的工具名列表，顺序与 `DEEP_PHASES` 中的定义一致。
-/// CI 测试 `tests/deep_phases_parity.rs` 会对比此列表与 TS 端 `ALL_PHASE_TOOLS`。
 pub fn all_phase_tools() -> Vec<&'static str> {
     DEEP_PHASES
         .iter()

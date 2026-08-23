@@ -354,14 +354,12 @@ onBeforeUnmount(() => {
 
 /* ── 减弱动态偏好（prefers-reduced-motion）：停用输入点脉冲与消息/抽屉位移 ──
    与 TuiButton/TuiModal/TuiDrawer/AgentWorkspace 同一可访问性语言：仅保留静态状态。 */
-@media (prefers-reduced-motion: reduce) {
-  .typing-dot {
-    animation: none;
-  }
-  .msg-list-enter-from,
-  .private-slide-enter-from,
-  .private-slide-leave-to {
-    transform: none;
-  }
+:root[data-anim-messages='off'] .typing-dot {
+  animation: none;
+}
+:root[data-anim-messages='off'] .msg-list-enter-from,
+:root[data-anim-messages='off'] .private-slide-enter-from,
+:root[data-anim-messages='off'] .private-slide-leave-to {
+  transform: none;
 }
 </style>

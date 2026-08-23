@@ -460,6 +460,7 @@ mod tests {
         ToolContext {
             workdir: Some(PathBuf::from(wd)),
             project_id: None,
+            workspace_id: None,
         }
     }
 

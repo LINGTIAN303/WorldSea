@@ -1,63 +1,78 @@
 <template>
-  <div class="set-card" v-show="match('思维导图 mindmap 中心 节点')">
-    <div class="sc-head">思维导图</div>
-    <div class="set-row"><span>中心节点上限</span><input type="number" class="set-input set-input-sm" :value="store.maxCenterNodes" min="1" max="20" @input="onMaxCenterNodesChange" /></div>
-  </div>
-  <div class="set-card" v-show="match('面板 panel 布局 宽度 侧边栏 位置 左右 sidebar 实体 详情 panel detail position')">
-    <div class="sc-head">面板布局</div>
-    <div class="set-row"><span>启用自定义视窗数量上限</span><label class="set-toggle"><input type="checkbox" :checked="store.panelLimitEnabled" @change="store.panelLimitEnabled = ($event.target as HTMLInputElement).checked" /><span class="set-toggle-slider"></span></label></div>
-    <div class="set-row"><span>插件侧边栏位置</span>
-      <div class="set-chip-group">
-        <label class="set-chip" :class="{ on: store.sidebarPosition === 'left' }">
-          <input type="radio" name="sidebarPos" value="left" v-model="store.sidebarPosition" /> 左侧
-        </label>
-        <label class="set-chip" :class="{ on: store.sidebarPosition === 'right' }">
-          <input type="radio" name="sidebarPos" value="right" v-model="store.sidebarPosition" /> 右侧
-        </label>
+  <CardDeck :count="4" :flat="!!searchQuery" @change="(i) => emit('card-change', i)" ref="deckRef">
+    <template #card="{ idx, cls }">
+      <div class="set-card deck-card" :class="cls" :data-index="idx"
+        v-show="idx === 0 ? match('思维导图 mindmap 中心 节点') : idx === 1 ? match('面板 panel 布局 宽度 侧边栏 位置 左右 sidebar 实体 详情 panel detail position') : idx === 2 ? match('字段 field 预设 布局 重置') : match('时间线 timeline 拖拽 泳道 甘特图 紧凑 分组')">
+        <!-- 思维导图 -->
+        <template v-if="idx === 0">
+          <div class="sc-head">思维导图</div>
+          <div class="set-row"><span>中心节点上限</span><input type="number" class="set-input set-input-sm" :value="store.maxCenterNodes" min="1" max="20" @input="onMaxCenterNodesChange" /></div>
+        </template>
+        <!-- 面板布局 -->
+        <template v-else-if="idx === 1">
+          <div class="sc-head">面板布局</div>
+          <div class="set-row"><span>启用自定义视窗数量上限</span><label class="set-toggle"><input type="checkbox" :checked="store.panelLimitEnabled" @change="store.panelLimitEnabled = ($event.target as HTMLInputElement).checked" /><span class="set-toggle-slider"></span></label></div>
+          <div class="set-row"><span>插件侧边栏位置</span>
+            <div class="set-chip-group">
+              <label class="set-chip" :class="{ on: store.sidebarPosition === 'left' }">
+                <input type="radio" name="sidebarPos" value="left" v-model="store.sidebarPosition" /> 左侧
+              </label>
+              <label class="set-chip" :class="{ on: store.sidebarPosition === 'right' }">
+                <input type="radio" name="sidebarPos" value="right" v-model="store.sidebarPosition" /> 右侧
+              </label>
+            </div>
+          </div>
+          <div class="set-row"><span>实体详情面板位置</span>
+            <div class="set-chip-group">
+              <label class="set-chip" :class="{ on: store.detailPanelPosition === 'left' }">
+                <input type="radio" name="detailPos" value="left" v-model="store.detailPanelPosition" /> 左侧
+              </label>
+              <label class="set-chip" :class="{ on: store.detailPanelPosition === 'right' }">
+                <input type="radio" name="detailPos" value="right" v-model="store.detailPanelPosition" /> 右侧
+              </label>
+            </div>
+          </div>
+          <div v-if="panelWidths.length > 0" class="set-panel-widths">
+            <div v-for="pw in panelWidths" :key="pw.panelId" class="spw-row"><span class="spw-label">{{ panelLabel(pw.panelId) }}</span><span class="spw-value">{{ pw.width }}px</span><button class="spw-reset" @click="onResetPanelWidth(pw.panelId)">↺</button></div>
+            <button class="set-btn" @click="resetAllWidths">重置所有面板宽度</button>
+          </div>
+        </template>
+        <!-- 字段布局预设 -->
+        <template v-else-if="idx === 2">
+          <div class="sc-head">字段布局预设</div>
+          <div class="set-hint">重置后恢复插件原始字段顺序，删除所有自定义字段和用户预设</div>
+          <div class="set-btn-row">
+            <button class="set-btn" @click="resetFieldPresets">重置所有字段预设</button>
+            <button class="set-btn set-btn-danger" @click="resetCustomFields">清除所有自定义字段</button>
+          </div>
+        </template>
+        <!-- 时间线 -->
+        <template v-else>
+          <div class="sc-head">时间线</div>
+          <div class="set-row"><span>拖拽改时间</span><label class="set-toggle"><input type="checkbox" v-model="store.timelineDragEnabled" /><span class="set-toggle-slider"></span></label></div>
+          <div class="set-hint">启用后可在水平模式中拖拽事件条形修改日期</div>
+          <div class="set-row"><span>默认布局模式</span><select v-model="store.timelineDefaultMode" class="set-select"><option value="vertical">垂直时间线</option><option value="horizontal">水平甘特图</option></select></div>
+          <div class="set-row"><span>默认泳道分组</span><select v-model="store.timelineDefaultGroup" class="set-select"><option value="none">无分组</option><option value="character">按角色</option><option value="location">按地点</option><option value="era">按纪元</option><option value="tag">按标签</option></select></div>
+          <div class="set-row"><span>紧凑模式</span><label class="set-toggle"><input type="checkbox" v-model="store.timelineCompactMode" /><span class="set-toggle-slider"></span></label></div>
+          <div class="set-hint">垂直模式下使用紧凑卡片布局</div>
+        </template>
       </div>
-    </div>
-    <div class="set-row"><span>实体详情面板位置</span>
-      <div class="set-chip-group">
-        <label class="set-chip" :class="{ on: store.detailPanelPosition === 'left' }">
-          <input type="radio" name="detailPos" value="left" v-model="store.detailPanelPosition" /> 左侧
-        </label>
-        <label class="set-chip" :class="{ on: store.detailPanelPosition === 'right' }">
-          <input type="radio" name="detailPos" value="right" v-model="store.detailPanelPosition" /> 右侧
-        </label>
-      </div>
-    </div>
-    <div v-if="panelWidths.length > 0" class="set-panel-widths">
-      <div v-for="pw in panelWidths" :key="pw.panelId" class="spw-row"><span class="spw-label">{{ panelLabel(pw.panelId) }}</span><span class="spw-value">{{ pw.width }}px</span><button class="spw-reset" @click="onResetPanelWidth(pw.panelId)">↺</button></div>
-      <button class="set-btn" @click="resetAllWidths">重置所有面板宽度</button>
-    </div>
-  </div>
-  <div class="set-card" v-show="match('字段 field 预设 布局 重置')">
-    <div class="sc-head">字段布局预设</div>
-    <div class="set-hint">重置后恢复插件原始字段顺序，删除所有自定义字段和用户预设</div>
-    <div class="set-btn-row">
-      <button class="set-btn" @click="resetFieldPresets">重置所有字段预设</button>
-      <button class="set-btn set-btn-danger" @click="resetCustomFields">清除所有自定义字段</button>
-    </div>
-  </div>
-  <div class="set-card" v-show="match('时间线 timeline 拖拽 泳道 甘特图 紧凑 分组')">
-    <div class="sc-head">时间线</div>
-    <div class="set-row"><span>拖拽改时间</span><label class="set-toggle"><input type="checkbox" v-model="store.timelineDragEnabled" /><span class="set-toggle-slider"></span></label></div>
-    <div class="set-hint">启用后可在水平模式中拖拽事件条形修改日期</div>
-    <div class="set-row"><span>默认布局模式</span><select v-model="store.timelineDefaultMode" class="set-select"><option value="vertical">垂直时间线</option><option value="horizontal">水平甘特图</option></select></div>
-    <div class="set-row"><span>默认泳道分组</span><select v-model="store.timelineDefaultGroup" class="set-select"><option value="none">无分组</option><option value="character">按角色</option><option value="location">按地点</option><option value="era">按纪元</option><option value="tag">按标签</option></select></div>
-    <div class="set-row"><span>紧凑模式</span><label class="set-toggle"><input type="checkbox" v-model="store.timelineCompactMode" /><span class="set-toggle-slider"></span></label></div>
-    <div class="set-hint">垂直模式下使用紧凑卡片布局</div>
-  </div>
+    </template>
+  </CardDeck>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useSettingsStore, useFieldOrderStore, fieldRegistry } from '@worldsmith/entity-core'
-import { useConfirm, getAllPanelWidths, resetPanelWidth, resetAllPanelWidths, PANEL_LABELS, toastSuccess } from '@worldsmith/ui-kit'
+import { useConfirm, getAllPanelWidths, resetPanelWidth, resetAllPanelWidths, PANEL_LABELS, toastSuccess, CardDeck } from '@worldsmith/ui-kit'
 import { matchKeywords } from '../utils'
 
 const props = defineProps<{ searchQuery?: string }>()
-const emit = defineEmits<{ dirty: [] }>()
+const emit = defineEmits<{ dirty: []; 'card-change': [index: number] }>()
+
+// ── 叠放翻卡：复用通用 CardDeck（翻卡逻辑/样式已下沉 ui-kit useCardDeck + CardDeck.vue） ──
+const deckRef = ref<InstanceType<typeof CardDeck> | null>(null)
+defineExpose({ goToCard: (i: number) => deckRef.value?.goToCard(i) })
 
 const store = useSettingsStore()
 const { confirm } = useConfirm()

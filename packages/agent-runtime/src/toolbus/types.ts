@@ -71,6 +71,13 @@ export interface IToolContext {
     /** 项目关联的本地目录路径（Phase 2：文件系统主存储） */
     dirPath?: string | null
   }
+  /**
+   * 当前会话绑定的 Workspace（Phase B：边界加固）
+   * - id：Workspace 实体 id（Rust 侧）
+   * - workdir：工作区根目录，供 coding 工具链边界 resolver 使用；
+   *   为空/无会话时 undefined，表示「未绑定工作区、写边界未启用」
+   */
+  workspace?: { id?: string; workdir?: string }
   emitA2UI?: (surfaceId: string, message: A2UIMessage) => void
   platform?: import('./capability-types').Platform
   appendBlock?: (block: import('../bridge-types').MessageBlock) => void

@@ -117,9 +117,7 @@ const positionStyle = computed(() => {
 
 /* ── 减弱动态偏好（prefers-reduced-motion）：停用提示浮现位移动画 ──
    与 TuiButton/TuiModal/TuiDrawer/AgentWorkspace 同一可访问性语言：仅保留静态状态。 */
-@media (prefers-reduced-motion: reduce) {
-  .mm-node-tooltip {
-    animation: none;
-  }
+:root[data-anim-status='off'] .mm-node-tooltip {
+  animation: none;
 }
 </style>

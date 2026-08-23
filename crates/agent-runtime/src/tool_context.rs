@@ -15,6 +15,7 @@ use std::path::{Component, Path, PathBuf};
 /// # 字段
 /// - `workdir`：会话绑定的工作区根目录（`None`=无约束，相对路径原样返回）
 /// - `project_id`：关联项目 ID（可选，供多项目/多工作区场景区分）
+/// - `workspace_id`：关联 Workspace 实体 id（Phase A，`None`=旧数据缺省）
 ///
 /// # 约束
 /// 需满足 `Clone + Send + Sync`（并行工具执行时 `JoinSet::spawn` 需 clone 进每个 task）。
@@ -24,6 +25,8 @@ pub struct ToolContext {
     pub workdir: Option<PathBuf>,
     /// 关联项目 ID（可选）
     pub project_id: Option<String>,
+    /// Workspace 实体 id（可选；Phase A，供工具/后续边界感知实体归属）
+    pub workspace_id: Option<String>,
 }
 
 impl ToolContext {
@@ -91,6 +94,7 @@ mod tests {
         let ctx = ToolContext {
             workdir: Some(PathBuf::from("/workspace")),
             project_id: None,
+            workspace_id: None,
         };
         let resolved = ctx.resolve_path("src/a.md");
         assert_eq!(resolved, PathBuf::from("/workspace/src/a.md"));
@@ -101,6 +105,7 @@ mod tests {
         let ctx = ToolContext {
             workdir: Some(PathBuf::from("/workspace")),
             project_id: None,
+            workspace_id: None,
         };
         let resolved = ctx.resolve_path("/etc/passwd");
         assert_eq!(resolved, PathBuf::from("/etc/passwd"));
@@ -118,6 +123,7 @@ mod tests {
         let ctx = ToolContext {
             workdir: Some(PathBuf::from("/workspace")),
             project_id: None,
+            workspace_id: None,
         };
         assert!(ctx.is_within_workdir("src/a.md"));
         assert!(ctx.is_within_workdir("/workspace/src/a.md"));
@@ -128,6 +134,7 @@ mod tests {
         let ctx = ToolContext {
             workdir: Some(PathBuf::from("/workspace")),
             project_id: None,
+            workspace_id: None,
         };
         assert!(!ctx.is_within_workdir("/etc/passwd"));
         assert!(!ctx.is_within_workdir("../outside.md"));

@@ -113,6 +113,18 @@
           <button class="tool-btn" :class="{ 'voice-active': isListening }" type="button" title="语音输入（麦克风转文字）" aria-label="语音输入" @click="toggleVoice">
             <WsIcon name="volume-on" size="sm" />
           </button>
+          <!-- E 批：权限分级选择器（危险操作分级，随消息输入栏常驻） -->
+          <div class="perm-seg" role="group" aria-label="权限分级">
+            <button
+              v-for="p in PERMISSION_LEVELS"
+              :key="p.value"
+              class="perm-seg-item"
+              :class="{ on: permissionLevel === p.value }"
+              :title="p.desc"
+              :aria-pressed="permissionLevel === p.value"
+              @click="onPermissionChange(p.value)"
+            >{{ p.label }}</button>
+          </div>
         </div>
         <div class="toolbar-center">
           <span class="mode-label">{{ modeLabel }}</span>
@@ -212,7 +224,25 @@ const sessionMode = computed(() => sessionView.activeState.value?.chatMode ?? 'd
 const settingsStore = useSettingsStore()
 const pluginStore = usePluginStore()
 const uiStore = useUIStore()
-const { isStreaming, abort, currentSessionId, setRouterEnabled, currentSessionRouterEnabled } = useAgent()
+const { isStreaming, abort, currentSessionId, setRouterEnabled, currentSessionRouterEnabled, setSecurityLevel } = useAgent()
+
+// E 批：权限分级选择器（危险操作分级：宽松/推荐/严格；持久于 settingsStore.agentSecurityLevel，写穿后端 SecurityLevel）
+const PERMISSION_LEVELS = [
+  { value: 'off', label: '宽松', desc: '关闭确认：工具直接执行' },
+  { value: 'dangerous_only', label: '推荐', desc: '仅危险操作需确认' },
+  { value: 'moderate_and_dangerous', label: '严格', desc: '写操作/命令一律确认' },
+]
+const permissionLevel = ref(settingsStore.agentSecurityLevel || 'dangerous_only')
+async function onPermissionChange(v: string): Promise<void> {
+  if (permissionLevel.value === v) return
+  permissionLevel.value = v
+  settingsStore.agentSecurityLevel = v
+  try {
+    await setSecurityLevel(v)
+  } catch (e) {
+    toastWarn('切换权限分级失败')
+  }
+}
 
 function currentModelId(): string {
   return settingsStore.aiProviderMode === 'cloud'
@@ -1367,6 +1397,35 @@ onBeforeUnmount(() => {
   animation: stop-pulse 1.2s ease-in-out infinite;
 }
 
+/* E 批：权限分级选择器（紧凑分段控件，贴合工具栏） */
+.perm-seg {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  padding: 2px;
+  gap: 2px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md, 8px);
+  background: var(--color-surface);
+}
+.perm-seg-item {
+  border: none;
+  background: transparent;
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-2xs, 10px);
+  padding: 2px 7px;
+  border-radius: var(--radius-sm, 6px);
+  cursor: pointer;
+  line-height: 1.5;
+  transition: color 0.15s, background 0.15s;
+  white-space: nowrap;
+}
+.perm-seg-item:hover { color: var(--color-text); }
+.perm-seg-item.on {
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 14%, transparent);
+}
+
 /* A3 四管线路由开关：开启点亮，关闭置灰 */
 .tool-btn.router-toggle.active {
   color: var(--color-primary);
@@ -1447,13 +1506,11 @@ onBeforeUnmount(() => {
   transform: translateY(-4px);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .send-btn.stop-btn {
-    animation: none;
-  }
-  .ph-enter-from,
-  .ph-leave-to {
-    transform: none;
-  }
+:root[data-anim-messages='off'] .send-btn.stop-btn {
+  animation: none;
+}
+:root[data-anim-messages='off'] .ph-enter-from,
+:root[data-anim-messages='off'] .ph-leave-to {
+  transform: none;
 }
 </style>

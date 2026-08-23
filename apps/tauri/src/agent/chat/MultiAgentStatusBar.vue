@@ -916,12 +916,10 @@ function truncate(text: string, maxLen: number): string {
 
 /* ── 减弱动态偏好（prefers-reduced-motion）：停用状态点闪烁与展开图标旋转 ──
    与 TuiButton/TuiModal/TuiDrawer/AgentWorkspace 同一可访问性语言：仅保留静态状态。 */
-@media (prefers-reduced-motion: reduce) {
-  .ma-dot-running {
-    animation: none;
-  }
-  .ma-expand-icon {
-    transition: none;
-  }
+:root[data-anim-status='off'] .ma-dot-running {
+  animation: none;
+}
+:root[data-anim-status='off'] .ma-expand-icon {
+  transition: none;
 }
 </style>

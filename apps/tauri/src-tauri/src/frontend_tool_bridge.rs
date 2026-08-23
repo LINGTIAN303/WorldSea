@@ -170,7 +170,45 @@ impl Tool for FrontendBridgeTool {
     }
 
     async fn execute(&self, args: serde_json::Value) -> Result<serde_json::Value, ToolError> {
-        self.bridge.request(self.name, args).await
+        let result = self.bridge.request(self.name, args.clone()).await?;
+        // 事件流丰富化：按工具名+args 附 __meta，供前端 ToolRow 展示语义操作段
+        Ok(attach_bridge_meta(self.name, &args, result))
+    }
+}
+
+/// 为桥工具返回结果附 `__meta` 操作元数据（object 合并键；兼容非 object 则包裹）
+///
+/// 与 agent-commands fs_tools / terminal 的 __meta 约定一致，见前端 toolSemantics.ts。
+fn attach_bridge_meta(
+    name: &str,
+    args: &serde_json::Value,
+    result: serde_json::Value,
+) -> serde_json::Value {
+    let meta = match name {
+        "entity_create" => Some(serde_json::json!({
+            "op": "create",
+            "entityType": args.get("type").and_then(|v| v.as_str()),
+            "name": args.get("name").and_then(|v| v.as_str()),
+        })),
+        "entity_update" => Some(serde_json::json!({
+            "op": "edit",
+            "entityType": args.get("type").and_then(|v| v.as_str()),
+            "id": args.get("id").and_then(|v| v.as_str()),
+            "name": args.get("name").and_then(|v| v.as_str()),
+        })),
+        "content_search" => Some(serde_json::json!({
+            "op": "search",
+            "query": args.get("keyword").and_then(|v| v.as_str()),
+        })),
+        _ => None,
+    };
+    let Some(meta) = meta else { return result };
+    if let Some(obj) = result.as_object() {
+        let mut obj = obj.clone();
+        obj.insert("__meta".to_string(), meta);
+        serde_json::Value::Object(obj)
+    } else {
+        serde_json::json!({ "value": result, "__meta": meta })
     }
 }
 
@@ -239,6 +277,8 @@ pub fn bridge_tools(bridge: Arc<FrontendToolBridge>) -> Vec<Arc<dyn Tool>> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
     fn bridge_tools_define_three_first_batch_tools() {
         // 验证构造的桥工具契约：需 AppHandle 实例化，故此处仅验证清单由名称文档承载。
@@ -249,5 +289,38 @@ mod tests {
         assert!(names.contains(&"entity_create"));
         assert!(names.contains(&"entity_update"));
         assert!(names.contains(&"content_search"));
+    }
+
+    #[test]
+    fn attach_bridge_meta_merges_without_breaking_result() {
+        // 事件流丰富化：entity_create 附 __meta（op/entityType/name），原字段 id/type/name 保留
+        let res = attach_bridge_meta(
+            "entity_create",
+            &serde_json::json!({ "type": "角色", "name": "林晚" }),
+            serde_json::json!({ "id": "e1", "type": "角色", "name": "林晚" }),
+        );
+        assert_eq!(res["id"], "e1");
+        assert_eq!(res["type"], "角色");
+        assert_eq!(res["__meta"]["op"], "create");
+        assert_eq!(res["__meta"]["entityType"], "角色");
+        assert_eq!(res["__meta"]["name"], "林晚");
+
+        // content_search 附 search/query；entity_get 不匹配（_ => None），结果原样返回
+        let sr = attach_bridge_meta(
+            "content_search",
+            &serde_json::json!({ "keyword": "雾都" }),
+            serde_json::json!({ "count": 1 }),
+        );
+        assert_eq!(sr["__meta"]["op"], "search");
+        assert_eq!(sr["__meta"]["query"], "雾都");
+        assert_eq!(sr["count"], 1);
+
+        let plain = attach_bridge_meta(
+            "entity_get",
+            &serde_json::json!({ "id": "x" }),
+            serde_json::json!({ "ok": true }),
+        );
+        assert_eq!(plain["ok"], true);
+        assert!(plain.get("__meta").is_none());
     }
 }

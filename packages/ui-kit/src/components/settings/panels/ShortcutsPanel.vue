@@ -1,33 +1,41 @@
 <template>
-  <div class="set-card" v-show="match('快捷键 keyboard shortcut 键盘')">
-    <div class="sc-head">快捷键</div>
-    <div class="set-hint" style="margin-bottom:8px">点击快捷键开始记录，按下新的组合键即可修改</div>
-    <div v-for="grp in shortcutGroups" :key="grp.scope" v-show="match('快捷键 ' + scopeLabel(grp.scope))" class="ss-group">
-      <h5 class="ss-scope">{{ scopeLabel(grp.scope) }}</h5>
-      <div v-for="s in grp.items" :key="s.id" v-show="match(s.description + ' ' + s.id)" class="ss-row">
-        <span class="ss-desc">{{ s.description }}</span>
-        <div class="ss-keys-area">
-          <span v-if="recording !== s.id" class="ss-keys" @click="startRecord(s.id)">
-            <kbd v-for="k in getDisplayKeys(s)" :key="k" class="ss-kbd">{{ fmt(k) }}</kbd>
-            <span class="ss-edit-icon"><WsIcon name="edit" size="xs" /></span>
-          </span>
-          <span v-else class="ss-recording" @click="cancelRecord">按下新的组合键...</span>
-          <button v-if="hasOverride(s.id)" class="ss-reset" @click.stop="resetKey(s.id)">↺</button>
+  <CardDeck :count="1" :flat="!!searchQuery" @change="(i) => emit('card-change', i)" ref="deckRef">
+    <template #card="{ idx, cls }">
+      <div class="set-card deck-card" :class="cls" :data-index="idx" v-show="match('快捷键 keyboard shortcut 键盘')">
+        <div class="sc-head">快捷键</div>
+        <div class="set-hint" style="margin-bottom:8px">点击快捷键开始记录，按下新的组合键即可修改</div>
+        <div v-for="grp in shortcutGroups" :key="grp.scope" v-show="match('快捷键 ' + scopeLabel(grp.scope))" class="ss-group">
+          <h5 class="ss-scope">{{ scopeLabel(grp.scope) }}</h5>
+          <div v-for="s in grp.items" :key="s.id" v-show="match(s.description + ' ' + s.id)" class="ss-row">
+            <span class="ss-desc">{{ s.description }}</span>
+            <div class="ss-keys-area">
+              <span v-if="recording !== s.id" class="ss-keys" @click="startRecord(s.id)">
+                <kbd v-for="k in getDisplayKeys(s)" :key="k" class="ss-kbd">{{ fmt(k) }}</kbd>
+                <span class="ss-edit-icon"><WsIcon name="edit" size="xs" /></span>
+              </span>
+              <span v-else class="ss-recording" @click="cancelRecord">按下新的组合键...</span>
+              <button v-if="hasOverride(s.id)" class="ss-reset" @click.stop="resetKey(s.id)">↺</button>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
-  </div>
+    </template>
+  </CardDeck>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { CardDeck } from '@worldsmith/ui-kit'
 import { useSettingsStore } from '@worldsmith/entity-core'
 import { useShortcuts, formatKeyForDisplay } from '@worldsmith/ui-kit'
 import WsIcon from '../../WsIcon.vue'
 import { matchKeywords, DEFAULT_SHORTCUTS, SCOPE_ORDER, scopeLabel, type ShortcutItem } from '../utils'
 
 const props = defineProps<{ searchQuery?: string }>()
-const emit = defineEmits<{ dirty: [] }>()
+const emit = defineEmits<{ dirty: []; 'card-change': [index: number] }>()
+
+const deckRef = ref<InstanceType<typeof CardDeck> | null>(null)
+defineExpose({ goToCard: (i: number) => deckRef.value?.goToCard(i) })
 
 const store = useSettingsStore()
 const { updateKeys } = useShortcuts()

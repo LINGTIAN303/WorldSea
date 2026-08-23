@@ -153,6 +153,9 @@ impl AgentLoop {
         api_key: Option<String>,
         temperature: Option<f32>,
         max_tokens: Option<u32>,
+        top_p: Option<f32>,
+        top_k: Option<u32>,
+        thinking_mode: Option<bool>,
     ) -> Result<(), AgentError> {
         // 1. 调用 backend.update_provider 热切换
         // clone provider/model_id 供下面日志使用，避免 move 后借用报错
@@ -161,14 +164,28 @@ impl AgentLoop {
             .await
             .map_err(AgentError::from)?;
 
-        // 2. 同步更新 config 的 temperature/max_tokens（若传入）
-        if temperature.is_some() || max_tokens.is_some() {
+        // 2. 同步更新 config 的 temperature/max_tokens/top_p/top_k/thinking_mode（若传入）
+        if temperature.is_some()
+            || max_tokens.is_some()
+            || top_p.is_some()
+            || top_k.is_some()
+            || thinking_mode.is_some()
+        {
             if let Ok(mut guard) = self.config.write() {
                 if let Some(t) = temperature {
                     guard.temperature = Some(t);
                 }
                 if let Some(m) = max_tokens {
                     guard.max_tokens = Some(m);
+                }
+                if let Some(p) = top_p {
+                    guard.top_p = Some(p);
+                }
+                if let Some(k) = top_k {
+                    guard.top_k = Some(k);
+                }
+                if let Some(tm) = thinking_mode {
+                    guard.thinking_mode = Some(tm);
                 }
             }
         }

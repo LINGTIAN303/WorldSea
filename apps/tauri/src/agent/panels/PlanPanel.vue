@@ -504,16 +504,14 @@ function scoreClass(score: number): string {
 
 /* ── 减弱动态偏好（prefers-reduced-motion）：停用 step 脉冲与按压缩放手势 ──
    与 TuiButton/TuiModal/TuiDrawer/AgentWorkspace 同一可访问性语言：仅保留静态状态。 */
-@media (prefers-reduced-motion: reduce) {
-  .step-in_progress {
-    animation: none;
-  }
-  .section-chevron {
-    transition: none;
-  }
-  .panel-close-btn:active:not(:disabled),
-  .run-btn:active:not(:disabled) {
-    transform: none;
-  }
+:root[data-anim-status='off'] .step-in_progress {
+  animation: none;
+}
+:root[data-anim-status='off'] .section-chevron {
+  transition: none;
+}
+:root[data-anim-status='off'] .panel-close-btn:active:not(:disabled),
+:root[data-anim-status='off'] .run-btn:active:not(:disabled) {
+  transform: none;
 }
 </style>

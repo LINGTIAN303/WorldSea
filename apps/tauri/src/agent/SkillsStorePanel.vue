@@ -158,6 +158,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { WsIcon } from '@worldsmith/ui-kit'
 import { useSkillsStore } from '@worldsmith/shared-composables/agent/useSkillsStore'
 import type { RemoteSkillEntry } from '@agent/index'
 

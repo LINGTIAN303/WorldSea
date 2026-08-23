@@ -18,6 +18,12 @@ pub struct AgentLoopConfig {
     pub temperature: Option<f32>,
     /// 最大 token
     pub max_tokens: Option<u32>,
+    /// 采样 Top P（None=用 Provider 默认；0~1，前端存 0~100 需换算）
+    pub top_p: Option<f32>,
+    /// 采样 Top K（None=用 Provider 默认）
+    pub top_k: Option<u32>,
+    /// 思考模式开关（true=向模型请求推理/思考；经 reasoning_effort 传导，受厂商支持）
+    pub thinking_mode: Option<bool>,
     /// 是否并行执行工具调用（阶段 1.3 恒为 false，阶段 1.4 启用）
     pub parallel_tool_calls: bool,
     /// 思考级别（DeepSeek/Anthropic reasoning）
@@ -90,6 +96,12 @@ pub struct AgentLoopConfig {
     /// （`call_tool_with_ctx`），使 FS 类工具能基于该目录解析相对路径。
     /// 对齐前端 `ProjectManager.dirPath` / `IToolContext.projectInfo.dirPath` 概念。
     pub workdir: Option<std::path::PathBuf>,
+
+    /// 会话绑定的 Workspace 实体 id（Phase A；`None`=旧数据缺省）
+    ///
+    /// 供 `AgentLoop` 构造 [`crate::tool_context::ToolContext`] 时一并注入
+    /// `workspace_id`，使工具/后续边界可感知会话归属的 Workspace 实体。
+    pub workspace_id: Option<String>,
 }
 
 impl Default for AgentLoopConfig {
@@ -99,6 +111,9 @@ impl Default for AgentLoopConfig {
             system_prompt: None,
             temperature: None,
             max_tokens: None,
+            top_p: None,
+            top_k: None,
+            thinking_mode: None,
             parallel_tool_calls: false,
             thinking_level: None,
             // 批次4 默认值：保守策略
@@ -119,6 +134,8 @@ impl Default for AgentLoopConfig {
             confirmation_policy: None,
             // 工作区：默认不限定（None=相对路径原样返回）
             workdir: None,
+            // Workspace 实体 id：默认无（旧数据缺省）
+            workspace_id: None,
         }
     }
 }

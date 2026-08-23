@@ -96,7 +96,7 @@ const parallelCount = ref(1)
 const autoDegradation = ref(true)
 const activeTemplate = ref<string | null>(null)
 
-const defaultModelId = computed(() => 'deepseek-chat')
+const defaultModelId = computed(() => 'deepseek-v4-flash')
 
 const participants = ref<ParticipantDraft[]>([
   { name: '历史学者', role: '从历史和文化角度分析', color: assignAgentColor(0), modelId: defaultModelId.value },

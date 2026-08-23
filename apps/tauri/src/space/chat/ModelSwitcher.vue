@@ -33,7 +33,12 @@
           :style="dropdownStyle"
           @keydown="onListboxKeydown"
         >
-          <div class="dropdown-header">切换模型</div>
+          <div class="dropdown-header">切换模型
+            <!-- D3 全局刷新模型列表入口：对已配置 key 且支持 listing 的供应商后台刷新后重建列表 -->
+            <button class="model-refresh-btn" type="button" :disabled="refreshingModels" :title="'刷新模型列表'" @click.stop="onRefreshModelList">
+              <WsIcon :name="refreshingModels ? 'loading' : 'refresh'" size="xs" />
+            </button>
+          </div>
           <!-- [E3] AutoModel 占位选项 -->
           <button
             class="model-option"
@@ -85,7 +90,7 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
-import { getModelInfo, getModelPresets } from '@worldsmith/agent-runtime'
+import { getModelInfo, getModelPresets, getProviderManifest, refreshModels } from '@worldsmith/agent-runtime'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useAgent } from '@/agent/composables/useAgent'
 import { useSessionViewState } from '@/agent/composables/useSessionViewState'
@@ -110,6 +115,8 @@ const open = ref(false)
 const switcherRef = ref<HTMLElement>()
 const activeOptionId = ref('')
 const optionEls = new Map<string, HTMLElement>()
+// 全局刷新模型的 loading 状态（刷新按钮展示）
+const refreshingModels = ref(false)
 
 /** [E3] 会话级模型优先；缺省回退全局 settingsStore（新会话用全局默认） */
 const sessionModel = computed(() => sessionView.activeState.value?.model ?? null)
@@ -280,11 +287,38 @@ async function selectModel(provider: string, modelId: string) {
 }
 
 /** [E3] AutoModel 占位：暂不真正切换（显示选项 + 标记，TODO 实现自动选模型） */
-function selectAutoModel() {
+async function selectAutoModel() {
   open.value = false
   if (currentModelId.value === 'auto') return
   console.warn('[ModelSwitcher] AutoModel 暂未实现（占位）')
   emit('change', '', 'auto')
+}
+
+/**
+ * D3 全局刷新模型列表：对模型预设中所有已配置 key 且支持模型列表的供应商
+ * 后台 refreshModels（写缓存），完成后重建下拉分组（fire-and-forget，只刷新当前已配置的）
+ */
+async function onRefreshModelList(): Promise<void> {
+  if (refreshingModels.value) return
+  refreshingModels.value = true
+  try {
+    const providers = Array.from(new Set(
+      getModelPresets().map(g => g.models[0]?.provider).filter(Boolean),
+    )) as string[]
+    await Promise.all(providers.map(async (provider) => {
+      try {
+        const manifest = getProviderManifest(provider)
+        if (!manifest || manifest.supportsModelListing === false) return
+        const key = await loadApiKey(provider)
+        if (!key) return // 未配置 key 的供应商跳过
+        await refreshModels(provider, key)
+      } catch { /* 单个供应商失败不影响其它 */ }
+    }))
+    // 刷新完成后重建下拉分组（读取新缓存 + key 过滤）
+    await updateDropdownPosition()
+  } finally {
+    refreshingModels.value = false
+  }
 }
 
 /** [E3] 思考档位浮窗占位：模型条目右侧弹出，展示思考档位（暂不实现，静态骨架） */
@@ -397,12 +431,36 @@ onBeforeUnmount(() => {
 }
 
 .dropdown-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 6px 10px 4px;
   font-size: var(--font-size-xs);
   font-weight: 600;
   color: var(--color-text-secondary);
   border-bottom: 1px solid var(--color-border);
   margin-bottom: 4px;
+}
+
+.model-refresh-btn {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-text-tertiary);
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  padding: 2px 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.model-refresh-btn:hover:not(:disabled) {
+  color: var(--color-primary);
+  background: var(--color-surface);
+}
+.model-refresh-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .model-group {

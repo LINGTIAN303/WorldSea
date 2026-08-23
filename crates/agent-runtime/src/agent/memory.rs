@@ -128,6 +128,9 @@ impl AgentLoop {
             tools,
             temperature: config.temperature,
             max_tokens: config.max_tokens,
+            top_p: config.top_p,
+            top_k: config.top_k,
+            thinking_mode: config.thinking_mode,
             thinking_level: config.thinking_level,
             images: Vec::new(),
         }

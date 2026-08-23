@@ -1,6 +1,6 @@
 /** 动态模型拉取服务：通过 /v1/models 端点获取模型列表并缓存，详细见 docs/details/注释/packages/agent-runtime/providers-model-fetcher.md */
 
-import { buildModelsEndpoint, getProviderManifest } from './provider-registry'
+import { getProviderManifest } from './provider-registry'
 import { loadApiKey } from './key-store'
 import { smartFetch } from '../utils/smart-fetch'
 import { isTauri } from '../execution'
@@ -19,8 +19,22 @@ export interface FetchedModelEntry {
 }
 
 interface CachedFetchedModels {
+  /** 最近一次成功拉取的时间戳（即 fetchedAt） */
   timestamp: number
+  /** 拉取到的模型列表 */
   models: FetchedModelEntry[]
+  /** 最近一次拉取失败的提示（成功拉取或清缓存时清除；失败保留旧缓存但不覆盖 timestamp） */
+  lastError?: string
+}
+
+/** 供应商模型拉取新鲜度信息（供 UI 展示「上次更新 X 前」） */
+export interface ModelFetchInfo {
+  /** 最近一次成功拉取的毫秒时间戳；从未成功拉取过则为 undefined */
+  fetchedAt?: number
+  /** 缓存是否在 TTL 内（24h）仍算新鲜 */
+  isFresh: boolean
+  /** 最近一次拉取失败的提示（拉取成功即清除）；undefined 表示最近一次成功或从未拉取 */
+  lastError?: string
 }
 
 /**
@@ -30,46 +44,63 @@ export async function fetchModelsFromProvider(providerId: string, apiKey?: strin
   const manifest = getProviderManifest(providerId)
   if (!manifest || manifest.supportsModelListing === false) return []
 
-  const key = apiKey || loadApiKey(`worldsmith_ak_${providerId}`) || ''
+  const key = apiKey || (await loadApiKey(`worldsmith_ak_${providerId}`)) || ''
   if (!key) return []
 
-  // 构建请求 URL：优先使用代理路径（开发环境），降级到直连
-  let modelsUrl: string
-  const headers: Record<string, string> = { 'Authorization': `Bearer ${key}` }
+  // 鉴权方式：OpenAI/多数走 bearer；Anthropic 走 x-api-key 头；Google 走 URL query `key`
+  const authType = manifest.modelsAuthType || 'bearer'
+  const headers: Record<string, string> = {}
+  if (authType === 'api-key-header') {
+    headers['x-api-key'] = key
+    headers['anthropic-version'] = '2023-06-01'
+  } else if (authType === 'bearer') {
+    headers['Authorization'] = `Bearer ${key}`
+  } else {
+    headers['x-goog-api-key'] = key
+  }
+  headers['content-type'] = 'application/json'
+
+  const modelsPath = manifest.modelsPath || '/v1/models'
+  // 模型列表端点 URL：直接直连或以代理拼接（查询拼接统一用 URL 参数）
+  const sep = authType === 'query-key' ? (modelsPath.includes('?') ? '&' : '?') : ''
+  const directUrl = `${manifest.directBaseUrl}${modelsPath}${sep}${authType === 'query-key' ? `key=${encodeURIComponent(key)}` : ''}`
 
   // Tauri 模式：直连供应商 API；Web 开发模式：走 Vite 代理
+  let modelsUrl: string
   if (isTauri()) {
-    const directUrl = buildModelsEndpoint(providerId)
-    if (!directUrl) return []
     modelsUrl = directUrl
   } else {
     const origin = typeof window !== 'undefined' ? window.location.origin : ''
     if (origin) {
       const proxyBase = manifest.proxyPath
-      const modelsPath = manifest.modelsPath || '/models'
       modelsUrl = `${origin}${proxyBase}${modelsPath.startsWith('/') ? modelsPath : `/${modelsPath}`}`
     } else {
-      const directUrl = buildModelsEndpoint(providerId)
-      if (!directUrl) return []
       modelsUrl = directUrl
     }
   }
 
   try {
-    const res = await smartFetch(modelsUrl, {
-      headers,
-      timeout: 15,
-    })
+    const res = await smartFetch(modelsUrl, { headers, timeout: 15 })
     if (!res.ok) return []
 
     const data = await res.json()
-    const models: FetchedModelEntry[] = (data.data || [])
-      .map((m: any) => {
-        const id = typeof m.id === 'string' ? m.id : ''
-        if (!id) return null
-        return { id, provider: providerId }
+    const parserType = manifest.modelsParserType || 'openai'
+    let rawIds: string[]
+
+    if (parserType === 'google') {
+      // Google: { models: [{ name: "models/gemini-..." }] }
+      rawIds = (data.models || []).map((m: any) => {
+        const name = typeof m?.name === 'string' ? m.name : ''
+        return name.startsWith('models/') ? name.slice('models/'.length) : name
       })
-      .filter(Boolean) as FetchedModelEntry[]
+    } else {
+      // openai / anthropic: { data: [{ id }] }
+      rawIds = (data.data || []).map((m: any) => (typeof m?.id === 'string' ? m.id : ''))
+    }
+
+    const models: FetchedModelEntry[] = rawIds
+      .filter((id: string) => id.length > 0)
+      .map((id: string) => ({ id, provider: providerId }))
 
     return models.sort((a, b) => a.id.localeCompare(b.id))
   } catch {
@@ -91,9 +122,11 @@ export function getCachedModels(providerId: string): FetchedModelEntry[] | null 
 export async function refreshModels(providerId: string, apiKey?: string): Promise<FetchedModelEntry[]> {
   const fetched = await fetchModelsFromProvider(providerId, apiKey)
   if (fetched.length > 0) {
+    // 拉取成功：写入新缓存（timestamp 会被更新为当前时间，即 fetchedAt）
     saveCache(providerId, fetched)
   } else {
-    // 拉取失败不清缓存，保留上次成功的结果
+    // 拉取失败：不清缓存，保留上次成功的结果，仅记录失败原因（timestamp 保持成功时间）
+    markCacheError(providerId)
   }
   return fetched
 }
@@ -116,6 +149,19 @@ export function getModelsWithBackgroundRefresh(
   })
 
   return result
+}
+
+/**
+ * 获取供应商模型拉取的「新鲜度」信息（供 UI 显示「上次更新 X 前」）
+ */
+export function getLastModelFetchInfo(providerId: string): ModelFetchInfo {
+  const cached = loadCache(providerId)
+  if (!cached) return { isFresh: false }
+  return {
+    fetchedAt: cached.timestamp,
+    isFresh: Date.now() - cached.timestamp <= CACHE_TTL,
+    lastError: cached.lastError,
+  }
 }
 
 /** 清除供应商缓存 */
@@ -153,4 +199,15 @@ function saveCache(providerId: string, models: FetchedModelEntry[]): void {
     const cached: CachedFetchedModels = { timestamp: Date.now(), models }
     localStorage.setItem(`${CACHE_KEY_PREFIX}${providerId}`, JSON.stringify(cached))
   } catch { /* quota exceeded, ignore */ }
+}
+
+/** 拉取失败时：保留旧缓存并仅记录失败原因（不清空，也不更新 timestamp 成功时间） */
+function markCacheError(providerId: string): void {
+  try {
+    const raw = localStorage.getItem(`${CACHE_KEY_PREFIX}${providerId}`)
+    if (!raw) return
+    const cached = JSON.parse(raw) as CachedFetchedModels
+    cached.lastError = '拉取失败，已保留上次成功缓存'
+    localStorage.setItem(`${CACHE_KEY_PREFIX}${providerId}`, JSON.stringify(cached))
+  } catch { /* 忽略写入失败 */ }
 }

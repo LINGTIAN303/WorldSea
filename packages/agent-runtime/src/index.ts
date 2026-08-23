@@ -44,8 +44,8 @@ export type { ProviderManifest, ProviderCompatConfig, ApiType, ThinkingFormat, T
 // Phase 4 收尾：供应商配置解析器（原 @agent/providers/resolve）
 export { resolveModel } from './providers/resolve'
 export type { ResolvedModel } from './providers/resolve'
-export { fetchModelsFromProvider, getCachedModels, refreshModels, getModelsWithBackgroundRefresh, clearModelCache, clearAllModelCache } from './providers/model-fetcher'
-export type { FetchedModelEntry } from './providers/model-fetcher'
+export { fetchModelsFromProvider, getCachedModels, refreshModels, getModelsWithBackgroundRefresh, getLastModelFetchInfo, clearModelCache, clearAllModelCache } from './providers/model-fetcher'
+export type { FetchedModelEntry, ModelFetchInfo } from './providers/model-fetcher'
 export { storeApiKey, loadApiKey, removeApiKey, hasApiKey } from './providers/key-store'
 
 // ═══ 模型注册表 ═══

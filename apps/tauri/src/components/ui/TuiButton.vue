@@ -132,13 +132,11 @@ const cls = computed(() => [`is-${props.variant}`, `is-${props.size}`, { 'is-loa
   color: var(--on-accent);
 }
 /* 减弱动态偏好：去掉按压位移，保留颜色过渡（Emil 可访问性规则） */
-@media (prefers-reduced-motion: reduce) {
-  .tui-btn {
-    transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
-      color var(--dur-fast) var(--ease);
-  }
-  .tui-btn:active:not(:disabled) {
-    transform: none;
-  }
+:root[data-anim-overlays='off'] .tui-btn {
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+:root[data-anim-overlays='off'] .tui-btn:active:not(:disabled) {
+  transform: none;
 }
 </style>

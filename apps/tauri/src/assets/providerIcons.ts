@@ -24,6 +24,15 @@ import doubaoIcon from './provider-icons/doubao-color.svg'
 import xaiIcon from './provider-icons/xai-color.svg'
 import mistralIcon from './provider-icons/mistral-color.svg'
 import stepfunIcon from './provider-icons/stepfun-color.svg'
+// 新增供应商（2026-08-23）
+// 六家有官方 SVG（tencentcloud/longcat/bailian/modelscope/kling）；四家（mimo/xfyun/dots/siliconflow）
+// CDN 无官方图标，复用本地通用占位 provider-placeholder.svg，避免外部 CDN 跨域（ORB）依赖。
+import placeholderIcon from './provider-icons/provider-placeholder.svg'
+import tencentcloudIcon from './provider-icons/tencentcloud-color.svg'
+import longcatIcon from './provider-icons/longcat-color.svg'
+import bailianIcon from './provider-icons/bailian-color.svg'
+import modelscopeIcon from './provider-icons/modelscope-color.svg'
+import klingIcon from './provider-icons/kling-color.svg'
 
 /** 供应商 key → 本地 SVG URL 映射 */
 const LOCAL_ICONS: Record<string, string> = {
@@ -43,24 +52,28 @@ const LOCAL_ICONS: Record<string, string> = {
   xai: xaiIcon,
   mistral: mistralIcon,
   stepfun: stepfunIcon,
+  // 新增供应商
+  mimo: placeholderIcon,
+  xfyun: placeholderIcon,
+  dots: placeholderIcon,
+  siliconflow: placeholderIcon,
+  tencentcloud: tencentcloudIcon,
+  longcat: longcatIcon,
+  bailian: bailianIcon,
+  modelscope: modelscopeIcon,
+  kling: klingIcon,
 }
 
-/** CDN 降级 URL 基础路径 */
-const CDN_BASE = 'https://unpkg.com/@lobehub/icons-static-svg@latest/icons'
-
-/** CDN 图标 ID 映射（部分供应商的图标 ID 与 key 不同） */
-const CDN_ICON_ID: Record<string, string> = {
-  kimi: 'moonshot',
-}
+/** CDN 降级 URL 基础路径（已弃用——全部供应商走本地 SVG 或占位，避免外部 CDN 跨域） */
+// const CDN_BASE = 'https://unpkg.com/@lobehub/icons-static-svg@latest/icons'
 
 /**
  * 获取供应商品牌图标 URL
- * 优先使用本地 SVG，降级到 CDN
+ * 优先使用本地 SVG（含新增供应商本地文件与占位），未知/未登记供应商一律返回本地占位图，
+ * 避免对 unpkg 等外部 CDN 发起跨域请求（浏览器 ORB 会拦截，且离线环境失败）。
  */
 export function getProviderIconUrl(provider: string): string {
-  if (LOCAL_ICONS[provider]) return LOCAL_ICONS[provider]
-  const cdnId = CDN_ICON_ID[provider] || provider
-  return `${CDN_BASE}/${cdnId}.svg`
+  return LOCAL_ICONS[provider] || placeholderIcon
 }
 
 /** 检查供应商是否有对应的品牌图标 */

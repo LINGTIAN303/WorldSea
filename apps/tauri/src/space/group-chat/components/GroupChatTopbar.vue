@@ -313,7 +313,5 @@ function onMore() {
 .dropdown-enter-from { opacity: 0; transform: translateY(-4px); }
 .dropdown-leave-to { opacity: 0; transform: translateY(-2px); }
 
-@media (prefers-reduced-motion: reduce) {
-  .nav-badge { animation: none; }
-}
+:root[data-anim-messages='off'] .nav-badge { animation: none; }
 </style>

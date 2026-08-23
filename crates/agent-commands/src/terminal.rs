@@ -2,9 +2,10 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use agent_runtime::tool::{Tool, ToolError};
+use agent_runtime::tool_context::ToolContext;
 use async_trait::async_trait;
 use regex::Regex;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -16,6 +17,20 @@ use std::process::Stdio;
 const DEFAULT_TIMEOUT_MS: u64 = 30_000;
 /// 持久化会话单次命令读取超时（毫秒）
 const DEFAULT_SESSION_TIMEOUT_MS: u64 = 30_000;
+
+/// 把 `__meta` 操作元数据合并进结果 value（前端 ToolRow 读它展示语义操作段）
+///
+/// 与 fs_tools::with_meta 同一约定：object 直接加 `__meta` 键；纯字符串包
+/// `{ value, __meta }`。见前端 toolSemantics.ts。
+fn with_meta(result: serde_json::Value, meta: serde_json::Value) -> serde_json::Value {
+    if let Some(obj) = result.as_object() {
+        let mut obj = obj.clone();
+        obj.insert("__meta".to_string(), meta);
+        serde_json::Value::Object(obj)
+    } else {
+        serde_json::json!({ "value": result, "__meta": meta })
+    }
+}
 
 /// 清理 ANSI 转义码与不可打印字符（对齐 TS 端 execute_command 的清理逻辑）
 fn clean_ansi(input: &str) -> String {
@@ -128,11 +143,41 @@ impl ShellSessionManager {
 
 // ─── 单次命令执行 ─────────────────────────────────────────
 
+/// 解析命令的工作目录（cwd）
+///
+/// # 规则
+/// - `cwd` 参数显式传入 → 用之；若 workdir 存在且该 cwd 越界 → 拒绝
+/// - `cwd` 参数缺省 → 默认取 `ctx.workdir`（shell cwd 默认注入工作区）；
+///   workdir 为 None（未绑定的旧库/旧会话）→ 返回 None，沿用当前进程 cwd，向后兼容
+fn resolve_command_cwd(
+    args: &serde_json::Value,
+    ctx: &ToolContext,
+) -> Result<Option<String>, ToolError> {
+    if let Some(cwd) = args.get("cwd").and_then(|v| v.as_str()) {
+        // 显式传入的 cwd 越出 workdir → 拒绝（仅当 workdir 存在时判定）
+        if ctx.workdir.is_some() && !ctx.is_within_workdir(cwd) {
+            return Err(ToolError::Execution(format!(
+                "拒绝在 workspace 之外执行命令，cwd 越界: {cwd}"
+            )));
+        }
+        return Ok(Some(cwd.to_string()));
+    }
+    // 缺省：workdir 存在则默认注入为 cwd；否则 None（当前进程 cwd）
+    if let Some(wd) = &ctx.workdir {
+        return Ok(Some(wd.to_string_lossy().to_string()));
+    }
+    Ok(None)
+}
+
 /// 单次命令执行工具（对齐 TS 端 `execute_command`）
 pub struct ExecuteCommandTool;
 
 impl ExecuteCommandTool {
-    async fn run(&self, args: serde_json::Value) -> Result<serde_json::Value, ToolError> {
+    async fn run(
+        &self,
+        args: serde_json::Value,
+        ctx: &ToolContext,
+    ) -> Result<serde_json::Value, ToolError> {
         let command = args
             .get("command")
             .and_then(|v| v.as_str())
@@ -141,33 +186,44 @@ impl ExecuteCommandTool {
         if command.trim().is_empty() {
             return Err(ToolError::ArgsParse("command 不能为空".into()));
         }
-        let cwd = args.get("cwd").and_then(|v| v.as_str());
+        let cwd = resolve_command_cwd(&args, ctx)?;
         let timeout_ms = args
             .get("timeout_ms")
             .and_then(|v| v.as_u64())
             .unwrap_or(DEFAULT_TIMEOUT_MS);
         let env_list = parse_env(&args);
 
-        let mut cmd = build_command(&command, cwd, None);
+        let mut cmd = build_command(&command, cwd.as_deref(), None);
         if let Some(env_list) = env_list {
             for (k, v) in env_list {
                 cmd.env(k, v);
             }
         }
 
+        let started = Instant::now();
         let output = match tokio::time::timeout(Duration::from_millis(timeout_ms), cmd.output()).await {
             Ok(Ok(o)) => o,
             Ok(Err(e)) => return Err(ToolError::Execution(format!("命令启动失败: {e}"))),
             Err(_) => return Err(ToolError::Execution("命令执行超时".into())),
         };
+        let duration_ms = started.elapsed().as_millis() as u64;
 
         let stdout = clean_ansi(&String::from_utf8_lossy(&output.stdout));
         let stderr = clean_ansi(&String::from_utf8_lossy(&output.stderr));
-        Ok(serde_json::json!({
-            "stdout": if stdout.is_empty() { "(命令已执行，无输出)" } else { &stdout },
-            "stderr": stderr,
-            "exit_code": output.status.code(),
-        }))
+        let exit_code = output.status.code();
+        Ok(with_meta(
+            serde_json::json!({
+                "stdout": if stdout.is_empty() { "(命令已执行，无输出)" } else { &stdout },
+                "stderr": stderr,
+                "exit_code": exit_code,
+            }),
+            serde_json::json!({
+                "op": "cmd",
+                "command": &command,
+                "exit_code": exit_code,
+                "duration_ms": duration_ms,
+            }),
+        ))
     }
 }
 
@@ -192,7 +248,16 @@ impl Tool for ExecuteCommandTool {
         })
     }
     async fn execute(&self, args: serde_json::Value) -> Result<serde_json::Value, ToolError> {
-        self.run(args).await
+        // execute 走默认上下文（workdir=None），保持旧行为（cwd 缺省为当前进程 cwd）
+        self.run(args, &ToolContext::default()).await
+    }
+    async fn execute_with_ctx(
+        &self,
+        ctx: &ToolContext,
+        args: serde_json::Value,
+    ) -> Result<serde_json::Value, ToolError> {
+        // 覆写以读取 ctx.workdir：cwd 缺省注入工作区，越界 cwd 拒绝
+        self.run(args, ctx).await
     }
 }
 

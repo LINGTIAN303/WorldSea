@@ -551,12 +551,10 @@ onBeforeUnmount(() => {
 
 /* ── 减弱动态偏好（prefers-reduced-motion）：停用点击脉冲与折叠位移 ──
    与 TuiButton/TuiModal/TuiDrawer/AgentWorkspace 同一可访问性语言：仅保留静态状态。 */
-@media (prefers-reduced-motion: reduce) {
-  .sidebar-btn.pulse {
-    animation: none;
-  }
-  .sidebar-inner {
-    transition: none;
-  }
+:root[data-anim-status='off'] .sidebar-btn.pulse {
+  animation: none;
+}
+:root[data-anim-status='off'] .sidebar-inner {
+  transition: none;
 }
 </style>

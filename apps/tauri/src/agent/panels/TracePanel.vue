@@ -207,7 +207,5 @@ const rows = computed<TraceRow[]>(() => {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }
 }
-@media (prefers-reduced-motion: reduce) {
-  .dot-active, .dot-streaming { animation: none; }
-}
+:root[data-anim-status='off'] .dot-active, :root[data-anim-status='off'] .dot-streaming { animation: none; }
 </style>

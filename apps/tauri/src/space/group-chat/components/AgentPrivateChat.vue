@@ -690,10 +690,8 @@ onBeforeUnmount(() => {
 
 /* ── 减弱动态偏好（prefers-reduced-motion）：停用工具调用脉冲 ──
    与 TuiButton/TuiModal/TuiDrawer/AgentWorkspace 同一可访问性语言：仅保留静态状态。 */
-@media (prefers-reduced-motion: reduce) {
-  .tc-pulse {
-    animation: none;
-  }
+:root[data-anim-messages='off'] .tc-pulse {
+  animation: none;
 }
 
 /* 消息气泡 */

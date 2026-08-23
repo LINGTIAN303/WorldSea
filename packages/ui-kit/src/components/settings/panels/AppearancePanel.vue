@@ -1,102 +1,115 @@
 <template>
-  <div class="set-card" v-show="match('主题 theme 外观 深色 浅色 极光 锻造 水墨 棱镜 宇宙 编辑器')">
-    <div class="sc-head">主题</div>
-    <div class="set-theme-row">
-      <button v-for="t in themes" :key="t.id" class="set-theme-btn" :class="{ on: currentThemeId === t.id }" @click="onThemeChange(t.id)">
-        <WsIcon :name="t.icon" size="md" class="st-icon" />
-        <span class="st-label">{{ t.label }}</span>
-      </button>
-    </div>
-    <button class="set-theme-editor-btn" @click="openThemeEditor">
-      <WsIcon name="theme-editor" size="xs" /> 主题编辑器
-    </button>
-  </div>
-  <div class="set-card" v-show="match('高亮 highlight 脉冲 动画 淡化 扩散 透明度')">
-    <div class="sc-head">高亮</div>
-    <div class="set-row"><span>脉冲动画</span><label class="set-toggle"><input type="checkbox" v-model="store.highlight_pulseEnabled" /><span class="set-toggle-slider"></span></label></div>
-    <div class="set-row"><span>启用淡化</span><label class="set-toggle"><input type="checkbox" v-model="store.highlight_dimmingEnabled" /><span class="set-toggle-slider"></span></label></div>
-    <template v-if="store.highlight_dimmingEnabled">
-      <div class="set-row"><span>淡化模式</span><select v-model="store.highlight_dimmingMode" class="set-select"><option value="simple">简单淡化</option><option value="spread">关系扩散</option></select></div>
-      <div class="set-row"><span>淡化透明度</span><div class="set-range-wrap"><input type="range" min="0.1" max="0.5" step="0.05" v-model.number="store.highlight_dimOpacity" class="set-range" /><span class="set-range-val">{{ store.highlight_dimOpacity }}</span></div></div>
-      <div v-if="store.highlight_dimmingMode === 'spread'" class="set-row"><span>扩散跳数</span><select v-model.number="store.highlight_spreadHops" class="set-select"><option :value="1">1 跳</option><option :value="2">2 跳</option><option :value="3">3 跳</option></select></div>
-    </template>
-  </div>
-
-  <div class="set-card">
-    <div class="sc-head">字体库</div>
-    <div class="sf-library-header">
-      <label class="sf-import-btn">
-        导入字体
-        <input type="file" accept=".wsfont,.ttf,.otf,.woff,.woff2,.zip" @change="onFontImport" style="display:none" />
-      </label>
-      <span class="sf-storage-hint">{{ fontStorageHint }}</span>
-    </div>
-    <div v-if="fontLibraryEntries.length === 0" class="set-hint" style="padding:12px 0">尚未安装字体，点击"导入字体"添加</div>
-    <div v-else class="sf-library-list">
-      <!-- 无分组的独立字体 -->
-      <div v-for="entry in standaloneEntries" :key="entry.id" class="sf-lib-card">
-        <div class="sf-lib-info">
-          <span class="sf-lib-name">{{ entry.displayName }}</span>
-          <span class="sf-lib-source" :data-source="entry.source">{{ sourceLabel(entry.source) }}</span>
-        </div>
-        <div class="sf-lib-preview" :style="{ fontFamily: `'${entry.family}', sans-serif` }">预览文本 Preview</div>
-        <div class="sf-lib-meta">{{ entry.variants.length }} 变体 · {{ formatSize(entry.totalSize) }}</div>
-        <button class="sf-lib-delete" @click="onFontDelete(entry.id)" title="删除字体">✕</button>
-      </div>
-      <!-- 按 ZIP 分组 -->
-      <div v-for="group in fontGroups" :key="group.groupId" class="sf-lib-group">
-        <div class="sf-lib-group-header">
-          <WsIcon name="package" size="xs" />
-          <span class="sf-lib-group-name">{{ group.groupName }}</span>
-          <span class="sf-lib-group-count">{{ group.entries.length }} 字体</span>
-          <button class="sf-lib-group-delete" @click="onFontGroupDelete(group.groupId)" title="删除整组">✕</button>
-        </div>
-        <div v-for="entry in group.entries" :key="entry.id" class="sf-lib-card sf-lib-card--grouped">
-          <div class="sf-lib-info">
-            <span class="sf-lib-name">{{ entry.displayName }}</span>
-            <span class="sf-lib-source" :data-source="entry.source">{{ sourceLabel(entry.source) }}</span>
+  <CardDeck :count="4" :flat="!!searchQuery" @change="(i) => emit('card-change', i)" ref="deckRef">
+    <template #card="{ idx, cls }">
+      <div class="set-card deck-card" :class="cls" :data-index="idx"
+        v-show="idx === 0 ? match('主题 theme 外观 深色 浅色 极光 锻造 水墨 棱镜 宇宙 编辑器') : idx === 1 ? match('高亮 highlight 脉冲 动画 淡化 扩散 透明度') : true">
+        <!-- 主题 -->
+        <template v-if="idx === 0">
+          <div class="sc-head">主题</div>
+          <div class="set-theme-row">
+            <button v-for="t in themes" :key="t.id" class="set-theme-btn" :class="{ on: currentThemeId === t.id }" @click="onThemeChange(t.id)">
+              <WsIcon :name="t.icon" size="md" class="st-icon" />
+              <span class="st-label">{{ t.label }}</span>
+            </button>
           </div>
-          <div class="sf-lib-preview" :style="{ fontFamily: `'${entry.family}', sans-serif` }">预览文本 Preview</div>
-          <div class="sf-lib-meta">{{ entry.variants.length }} 变体 · {{ formatSize(entry.totalSize) }}</div>
-        </div>
+          <button class="set-theme-editor-btn" @click="openThemeEditor">
+            <WsIcon name="theme-editor" size="xs" /> 主题编辑器
+          </button>
+        </template>
+        <!-- 高亮 -->
+        <template v-else-if="idx === 1">
+          <div class="sc-head">高亮</div>
+          <div class="set-row"><span>脉冲动画</span><label class="set-toggle"><input type="checkbox" v-model="store.highlight_pulseEnabled" /><span class="set-toggle-slider"></span></label></div>
+          <div class="set-row"><span>启用淡化</span><label class="set-toggle"><input type="checkbox" v-model="store.highlight_dimmingEnabled" /><span class="set-toggle-slider"></span></label></div>
+          <template v-if="store.highlight_dimmingEnabled">
+            <div class="set-row"><span>淡化模式</span><select v-model="store.highlight_dimmingMode" class="set-select"><option value="simple">简单淡化</option><option value="spread">关系扩散</option></select></div>
+            <div class="set-row"><span>淡化透明度</span><div class="set-range-wrap"><input type="range" min="0.1" max="0.5" step="0.05" v-model.number="store.highlight_dimOpacity" class="set-range" /><span class="set-range-val">{{ store.highlight_dimOpacity }}</span></div></div>
+            <div v-if="store.highlight_dimmingMode === 'spread'" class="set-row"><span>扩散跳数</span><select v-model.number="store.highlight_spreadHops" class="set-select"><option :value="1">1 跳</option><option :value="2">2 跳</option><option :value="3">3 跳</option></select></div>
+          </template>
+        </template>
+        <!-- 字体库 -->
+        <template v-else-if="idx === 2">
+          <div class="sc-head">字体库</div>
+          <div class="sf-library-header">
+            <label class="sf-import-btn">
+              导入字体
+              <input type="file" accept=".wsfont,.ttf,.otf,.woff,.woff2,.zip" @change="onFontImport" style="display:none" />
+            </label>
+            <span class="sf-storage-hint">{{ fontStorageHint }}</span>
+          </div>
+          <div v-if="fontLibraryEntries.length === 0" class="set-hint" style="padding:12px 0">尚未安装字体，点击"导入字体"添加</div>
+          <div v-else class="sf-library-list">
+            <!-- 无分组的独立字体 -->
+            <div v-for="entry in standaloneEntries" :key="entry.id" class="sf-lib-card">
+              <div class="sf-lib-info">
+                <span class="sf-lib-name">{{ entry.displayName }}</span>
+                <span class="sf-lib-source" :data-source="entry.source">{{ sourceLabel(entry.source) }}</span>
+              </div>
+              <div class="sf-lib-preview" :style="{ fontFamily: `'${entry.family}', sans-serif` }">预览文本 Preview</div>
+              <div class="sf-lib-meta">{{ entry.variants.length }} 变体 · {{ formatSize(entry.totalSize) }}</div>
+              <button class="sf-lib-delete" @click="onFontDelete(entry.id)" title="删除字体">✕</button>
+            </div>
+            <!-- 按 ZIP 分组 -->
+            <div v-for="group in fontGroups" :key="group.groupId" class="sf-lib-group">
+              <div class="sf-lib-group-header">
+                <WsIcon name="package" size="xs" />
+                <span class="sf-lib-group-name">{{ group.groupName }}</span>
+                <span class="sf-lib-group-count">{{ group.entries.length }} 字体</span>
+                <button class="sf-lib-group-delete" @click="onFontGroupDelete(group.groupId)" title="删除整组">✕</button>
+              </div>
+              <div v-for="entry in group.entries" :key="entry.id" class="sf-lib-card sf-lib-card--grouped">
+                <div class="sf-lib-info">
+                  <span class="sf-lib-name">{{ entry.displayName }}</span>
+                  <span class="sf-lib-source" :data-source="entry.source">{{ sourceLabel(entry.source) }}</span>
+                </div>
+                <div class="sf-lib-preview" :style="{ fontFamily: `'${entry.family}', sans-serif` }">预览文本 Preview</div>
+                <div class="sf-lib-meta">{{ entry.variants.length }} 变体 · {{ formatSize(entry.totalSize) }}</div>
+              </div>
+            </div>
+          </div>
+        </template>
+        <!-- 字体分层 -->
+        <template v-else>
+          <div class="sc-head">字体分层</div>
+          <div class="set-hint" style="margin-bottom:8px">每层字体可独立设置，未设置则跟随上层默认值</div>
+          <div v-for="fl in FONT_LAYERS" :key="fl.key" class="sf-layer-row">
+            <div class="sf-layer-main">
+              <span class="sf-layer-label">{{ fl.label }}<span class="set-hint-inline">{{ fl.hint }}</span></span>
+              <div class="sf-layer-controls">
+                <select class="set-select" :value="fontStore.prefs[fl.key].family" @change="onFontLayerChange(fl.key, ($event.target as HTMLSelectElement).value)">
+                  <option value="">默认</option>
+                  <option v-for="e in fontLibraryEntries" :key="e.id" :value="e.family">{{ e.displayName }}</option>
+                </select>
+                <button class="sf-reset-btn" v-if="fontStore.prefs[fl.key].family" @click="fontStore.resetLayer(fl.key)" title="重置为默认">↺</button>
+              </div>
+            </div>
+            <div v-if="fontStore.prefs[fl.key].family && getVariantsForFamily(fontStore.prefs[fl.key].family).length > 1" class="sf-layer-variants">
+              <select class="set-select set-select--sm" :value="variantKey(fontStore.prefs[fl.key])" @change="onVariantChange(fl.key, ($event.target as HTMLSelectElement).value)">
+                <option v-for="v in getVariantsForFamily(fontStore.prefs[fl.key].family)" :key="`${v.weight}-${v.style}`" :value="`${v.weight}-${v.style}`">{{ weightLabel(v.weight) }} {{ v.style === 'italic' ? '斜体' : '' }}</option>
+              </select>
+            </div>
+          </div>
+        </template>
       </div>
-    </div>
-  </div>
-
-  <div class="set-card">
-    <div class="sc-head">字体分层</div>
-    <div class="set-hint" style="margin-bottom:8px">每层字体可独立设置，未设置则跟随上层默认值</div>
-    <div v-for="fl in FONT_LAYERS" :key="fl.key" class="sf-layer-row">
-      <div class="sf-layer-main">
-        <span class="sf-layer-label">{{ fl.label }}<span class="set-hint-inline">{{ fl.hint }}</span></span>
-        <div class="sf-layer-controls">
-          <select class="set-select" :value="fontStore.prefs[fl.key].family" @change="onFontLayerChange(fl.key, ($event.target as HTMLSelectElement).value)">
-            <option value="">默认</option>
-            <option v-for="e in fontLibraryEntries" :key="e.id" :value="e.family">{{ e.displayName }}</option>
-          </select>
-          <button class="sf-reset-btn" v-if="fontStore.prefs[fl.key].family" @click="fontStore.resetLayer(fl.key)" title="重置为默认">↺</button>
-        </div>
-      </div>
-      <div v-if="fontStore.prefs[fl.key].family && getVariantsForFamily(fontStore.prefs[fl.key].family).length > 1" class="sf-layer-variants">
-        <select class="set-select set-select--sm" :value="variantKey(fontStore.prefs[fl.key])" @change="onVariantChange(fl.key, ($event.target as HTMLSelectElement).value)">
-          <option v-for="v in getVariantsForFamily(fontStore.prefs[fl.key].family)" :key="`${v.weight}-${v.style}`" :value="`${v.weight}-${v.style}`">{{ weightLabel(v.weight) }} {{ v.style === 'italic' ? '斜体' : '' }}</option>
-        </select>
-      </div>
-    </div>
-  </div>
+    </template>
+  </CardDeck>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
 import { useSettingsStore, useTheme, useFontStore, type FontLayer } from '@worldsmith/entity-core'
 import { useFontPresets, useFontLibraryStore, type FontLibraryEntry, type FontVariantEntry } from '@worldsmith/font-kit'
 import { installFromWsfont, installFromRawFont, installFromZip } from '@worldsmith/font-kit'
 import WsIcon from '../../WsIcon.vue'
-import { toastSuccess } from '@worldsmith/ui-kit'
+import { toastSuccess, CardDeck } from '@worldsmith/ui-kit'
 import { matchKeywords, FONT_LAYERS, weightLabel, sourceLabel, formatSize } from '../utils'
 
 const props = defineProps<{ searchQuery?: string }>()
-const emit = defineEmits<{ dirty: [] }>()
+const emit = defineEmits<{ dirty: []; 'card-change': [index: number] }>()
+
+// ── 叠放翻卡：复用通用 CardDeck（翻卡逻辑/样式已下沉 ui-kit useCardDeck + CardDeck.vue） ──
+const deckRef = ref<InstanceType<typeof CardDeck> | null>(null)
+defineExpose({ goToCard: (i: number) => deckRef.value?.goToCard(i) })
 
 const store = useSettingsStore()
 const { currentThemeId } = useTheme()

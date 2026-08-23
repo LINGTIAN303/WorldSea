@@ -127,14 +127,12 @@ watch(() => state.value.show, (v) => {
   transform: translateY(6px) scale(0.98);
 }
 /* 减弱动态偏好：去掉位移/缩放，保留淡入（Emil 可访问性规则） */
-@media (prefers-reduced-motion: reduce) {
-  .ws-confirm-enter-active .ws-confirm,
-  .ws-confirm-leave-active .ws-confirm {
-    transition: opacity var(--dur-lg) var(--ease);
-  }
-  .ws-confirm-enter-from .ws-confirm,
-  .ws-confirm-leave-to .ws-confirm {
-    transform: none;
-  }
+:root[data-anim-overlays='off'] .ws-confirm-enter-active .ws-confirm,
+:root[data-anim-overlays='off'] .ws-confirm-leave-active .ws-confirm {
+  transition: opacity var(--dur-lg) var(--ease);
+}
+:root[data-anim-overlays='off'] .ws-confirm-enter-from .ws-confirm,
+:root[data-anim-overlays='off'] .ws-confirm-leave-to .ws-confirm {
+  transform: none;
 }
 </style>

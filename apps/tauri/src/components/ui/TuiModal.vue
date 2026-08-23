@@ -256,14 +256,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   transform: translateY(6px) scale(0.98);
 }
 /* 减弱动态偏好：面板去掉位移/缩放，保留淡入；遮罩本为纯淡入无需处理（Emil 可访问性规则） */
-@media (prefers-reduced-motion: reduce) {
-  .tui-modal-enter-active .tui-modal,
-  .tui-modal-leave-active .tui-modal {
-    transition: opacity var(--dur-lg) var(--ease);
-  }
-  .tui-modal-enter-from .tui-modal,
-  .tui-modal-leave-to .tui-modal {
-    transform: none;
-  }
+:root[data-anim-overlays='off'] .tui-modal-enter-active .tui-modal,
+:root[data-anim-overlays='off'] .tui-modal-leave-active .tui-modal {
+  transition: opacity var(--dur-lg) var(--ease);
+}
+:root[data-anim-overlays='off'] .tui-modal-enter-from .tui-modal,
+:root[data-anim-overlays='off'] .tui-modal-leave-to .tui-modal {
+  transform: none;
 }
 </style>

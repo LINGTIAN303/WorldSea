@@ -986,14 +986,12 @@ watch(currentSessionId, () => {
   color: var(--danger, #ef4444);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .agent-avatar,
-  .agent-avatar:hover {
-    transform: none;
-  }
-  .kb-caret,
-  .group-caret {
-    transition: none;
-  }
+:root[data-anim-panels='off'] .agent-avatar,
+:root[data-anim-panels='off'] .agent-avatar:hover {
+  transform: none;
+}
+:root[data-anim-panels='off'] .kb-caret,
+:root[data-anim-panels='off'] .group-caret {
+  transition: none;
 }
 </style>

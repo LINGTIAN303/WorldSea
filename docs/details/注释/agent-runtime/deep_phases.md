@@ -7,15 +7,13 @@
 
 # Deep Mode 阶段定义与工具映射
 
-移植自 TS 端 `src/agent/bubbles/deepPhases.ts`。
+早期移植自 TS 端 `src/agent/bubbles/deepPhases.ts`（现已随 Deep Mode UI 下线）。
 将工具调用按"问题拆解→证据收集→推理分析→创作操作→结论输出"五阶段分组，
 用于 Rust 端 ReAct 循环判定当前所处阶段并广播 `DeepPhaseChanged` 事件。
 
 ## 设计原则
 - **单一真理源（Rust 侧）**：本模块是 Rust 端阶段判定的唯一来源，
   不依赖 TS 后端，直接基于工具名映射表判定。
-- **与 TS 端一致性**：工具集合需与 `deepPhases.ts` 保持一致，
-  通过 CI 测试 `tests/deep_phases_parity.rs` 保障（见任务7）。
 - **静态数据**：使用 `&'static [&'static str]` 切片，避免运行时分配。
 
 ## 阶段判定规则
@@ -23,11 +21,11 @@
 2. 未在表中的工具归为"其他操作"，`phase_index = -1`。
 3. 同一工具不会出现在多个阶段（保持互斥）。
 
-## 与 TS 端的差异
-- TS 端在前端 `DeepMessageArea.vue` 通过计算属性实时构建 `deepSegments`；
+## 与 TS 端的差异（历史说明）
+- 早期 TS 端在前端 `DeepMessageArea.vue` 通过计算属性实时构建 `deepSegments`；
   Rust 端只发 `DeepPhaseChanged` 事件，由前端组合成 `deepSegments`。
-- TS 端的 `ALL_PHASE_TOOLS` Set 在 Rust 侧用 `classify_tool` 返回值
-  `phase_index == -1` 表达"未匹配"。
+- 随 Deep Mode UI 下线，TS 端 `deepPhases.ts` 与跨语言一致性测试
+  `deep_phases_parity.rs` 已一并移除，本模块现为 Rust 端独有。
 
 ---
 

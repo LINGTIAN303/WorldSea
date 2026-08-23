@@ -105,12 +105,10 @@ defineProps<{
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .scanner span::before {
-    animation: none;
-    width: 100%;
-    color: var(--agent-text, #17FEFF);
-  }
+:root[data-anim-messages='off'] .scanner span::before {
+  animation: none;
+  width: 100%;
+  color: var(--agent-text, #17FEFF);
 }
 
 .streaming-thinking-hint {

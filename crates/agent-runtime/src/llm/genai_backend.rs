@@ -8,7 +8,7 @@ use genai::chat::{
     ChatMessage, ChatOptions, ChatRequest, ChatStreamEvent, ContentPart, MessageContent, ToolCall,
     ToolResponse,
 };
-use genai::chat::{Tool as GenaiTool, ToolChoice, ToolName};
+use genai::chat::{Tool as GenaiTool, ToolChoice, ToolName, ReasoningEffort};
 use genai::adapter::AdapterKind;
 use genai::resolver::{AuthData, Endpoint};
 use genai::{Client, ModelIden, ServiceTarget};
@@ -260,6 +260,23 @@ impl GenaiBackend {
         }
         if let Some(max_tokens) = options.max_tokens {
             chat_opts = chat_opts.with_max_tokens(max_tokens as u32);
+        }
+        // 采样 Top P（真实传导到模型请求）
+        if let Some(top_p) = options.top_p {
+            chat_opts = chat_opts.with_top_p(top_p as f64);
+        }
+        // 采样 Top K（genai 无原生项，经 extra_body 通用注入）
+        if let Some(top_k) = options.top_k {
+            let mut extra = chat_opts
+                .extra_body
+                .clone()
+                .unwrap_or_else(|| serde_json::json!({}));
+            extra["top_k"] = serde_json::json!(top_k);
+            chat_opts.extra_body = Some(extra);
+        }
+        // 思考模式（true=向模型请求推理，经 reasoning_effort 传导，受厂商支持）
+        if options.thinking_mode == Some(true) {
+            chat_opts = chat_opts.with_reasoning_effort(ReasoningEffort::Medium);
         }
         // 存在工具时显式设置 tool_choice = auto（部分 provider 未收到该字段不触发工具调用）
         if !options.tools.is_empty() {

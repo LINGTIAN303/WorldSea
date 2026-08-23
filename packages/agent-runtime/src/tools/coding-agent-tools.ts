@@ -31,6 +31,55 @@ async function runCommand(command: string, cwd?: string, timeout = 15000): Promi
   }
 }
 
+// ── 路径边界工具（Phase B：coding 工具链接入 workdir 边界） ────────────
+// 说明：本包独立于 Tauri，不能 import 任何 Tauri / node 路径模块，
+// 因此这里用轻量字符串实现 Windows/Unix 双兼容的词法归一（对齐 Rust 侧
+// ensure_within_workdir 的词法归一判定，见 plan workspace-entity-boundary-hardening）。
+
+/** 判断是否绝对路径（Unix `/` 开头或 Windows 盘符 `C:\`） */
+function isAbsolutePath(p: string): boolean {
+  return /^[/\\]/.test(p) || /^[a-zA-Z]:[/\\]/.test(p)
+}
+
+/** 词法归一化：分隔符统一为 '/', 去掉尾斜杠（根 '/' 例外） */
+function normalizeFsPath(p: string): string {
+  const s = p.replace(/\\/g, '/').replace(/\/+$/, '')
+  return s === '' ? '/' : s
+}
+
+/** workdir 下的路径拼接（父目录去尾斜杠，子路径去前导斜杠） */
+function joinFsPath(parent: string, child: string): string {
+  const p = normalizeFsPath(parent)
+  const c = normalizeFsPath(child).replace(/^\/+/, '')
+  return `${p}/${c}`
+}
+
+/** 判断 child 是否位于 parent 目录内（词法归一后的前缀比较） */
+function isWithinDirectory(parent: string, child: string): boolean {
+  const p = normalizeFsPath(parent)
+  const c = normalizeFsPath(child)
+  return c === p || c.startsWith(p + '/')
+}
+
+/**
+ * 把 path 归一到 workdir 内（Phase B 边界契约）：
+ * - 无 workdir（未绑定工作区）→ 返回原路径 ok:true（显式未加固，写类由调用方额外拦截）
+ * - 相对路径 → join workdir（归一分隔符）
+ * - 绝对路径且在 workdir 内 → 原样返回
+ * - 绝对路径且越出 workdir → ok:false + reason（拒绝：路径在 workspace 之外）
+ */
+function resolveWithinWorkspace(ctx: IToolContext, path: string): { path: string; ok: boolean; reason?: string } {
+  const workdir = ctx.workspace?.workdir
+  if (!workdir) return { path, ok: true }
+  if (!isAbsolutePath(path)) {
+    return { path: joinFsPath(workdir, path), ok: true }
+  }
+  if (isWithinDirectory(workdir, path)) {
+    return { path, ok: true }
+  }
+  return { path, ok: false, reason: '拒绝：路径在 workspace 之外' }
+}
+
 // ── read_file ──────────────────────────────────────────────
 
 const readFileTool: ToolDefinition = {
@@ -49,8 +98,11 @@ const readFileTool: ToolDefinition = {
     aliases: ['fs_read', 'fs_stat', 'file_read'],
     displayName: '读取文件',
   } satisfies ToolMeta,
-  execute: async (args, _ctx) => {
-    const path = String(args.path)
+  execute: async (args, ctx) => {
+    // Phase B 边界：path 归一到工作区内，越界路径拒绝（读类无 workdir 时放行）
+    const resolved = resolveWithinWorkspace(ctx, String(args.path))
+    if (!resolved.ok) return JSON.stringify({ ok: false, error: resolved.reason, path: String(args.path) })
+    const path = resolved.path
     const offset = args.offset ? Number(args.offset) : 1
     const limit = args.limit ? Math.min(Number(args.limit), 500) : 500
     const encoding = String(args.encoding || 'utf-8')
@@ -98,8 +150,12 @@ const writeFileTool: ToolDefinition = {
     aliases: ['fs_write', 'fs_mkdir', 'file_write'],
     displayName: '写入文件',
   } satisfies ToolMeta,
-  execute: async (args, _ctx) => {
-    const path = String(args.path)
+  execute: async (args, ctx) => {
+    // Phase B 边界：写类。无 workdir（旧会话/未绑定）→ 未加固，按计划放行（行为不变）；
+    //             有 workdir 时越界由 resolveWithinWorkspace 拒绝。
+    const resolved = resolveWithinWorkspace(ctx, String(args.path))
+    if (!resolved.ok) return JSON.stringify({ ok: false, error: resolved.reason, path: String(args.path) })
+    const path = resolved.path
     const content = String(args.content)
     const createDirs = args.createDirs !== false
 
@@ -141,8 +197,11 @@ const editFileTool: ToolDefinition = {
     alwaysAvailable: true,
     displayName: '编辑文件',
   } satisfies ToolMeta,
-  execute: async (args, _ctx) => {
-    const path = String(args.path)
+  execute: async (args, ctx) => {
+    // Phase B 边界：写类。无 workdir（旧会话/未绑定）→ 未加固，按计划放行；越界由 resolveWithinWorkspace 拒绝
+    const resolved = resolveWithinWorkspace(ctx, String(args.path))
+    if (!resolved.ok) return JSON.stringify({ ok: false, error: resolved.reason, path: String(args.path) })
+    const path = resolved.path
     const oldString = String(args.old_string)
     const newString = String(args.new_string)
     const replaceAll = !!args.replace_all
@@ -247,8 +306,11 @@ const searchFilesTool: ToolDefinition = {
     aliases: ['fs_search', 'content_search'],
     displayName: '搜索文件',
   } satisfies ToolMeta,
-  execute: async (args, _ctx) => {
-    const path = String(args.path)
+  execute: async (args, ctx) => {
+    // Phase B 边界：搜索类。path 归一到工作区内，越界拒绝（无 workdir 时放行）
+    const resolved = resolveWithinWorkspace(ctx, String(args.path))
+    if (!resolved.ok) return JSON.stringify({ ok: false, error: resolved.reason, path: String(args.path) })
+    const path = resolved.path
     const pattern = String(args.pattern)
     const searchType = String(args.type || 'glob')
     const maxResults = args.max_results ? Number(args.max_results) : 30
@@ -292,8 +354,11 @@ const listDirectoryTool: ToolDefinition = {
     aliases: ['fs_list', 'file_list'],
     displayName: '列出目录',
   } satisfies ToolMeta,
-  execute: async (args, _ctx) => {
-    const path = String(args.path)
+  execute: async (args, ctx) => {
+    // Phase B 边界：path 归一到工作区内，越界拒绝（读类无 workdir 时放行）
+    const resolved = resolveWithinWorkspace(ctx, String(args.path))
+    if (!resolved.ok) return JSON.stringify({ ok: false, error: resolved.reason, path: String(args.path) })
+    const path = resolved.path
     const recursive = !!args.recursive
 
     const invoke = await getTauriInvoke()
@@ -349,7 +414,7 @@ const executeCommandTool: ToolDefinition = {
     ],
     displayName: '执行命令',
   } satisfies ToolMeta,
-  execute: async (args: Record<string, unknown>, _ctx: IToolContext): Promise<string> => {
+  execute: async (args: Record<string, unknown>, ctx: IToolContext): Promise<string> => {
     const adapter = await createExecutionAdapter()
     if (!adapter.isAvailable()) {
       const connected = await adapter.tryConnect()
@@ -359,7 +424,16 @@ const executeCommandTool: ToolDefinition = {
     }
 
     const command = String(args.command)
-    const cwd = args.cwd ? String(args.cwd) : undefined
+    // cwd 缺省 = 工作区 workdir（有 workdir 时）；无 workdir 用 args.cwd 或 undefined（未加固，放行）。
+    // 显式传入 cwd 且 workdir 存在时做边界校验，越界拒绝。
+    let cwd: string | undefined = ctx.workspace?.workdir ?? (args.cwd ? String(args.cwd) : undefined)
+    if (args.cwd && ctx.workspace?.workdir) {
+      const resolvedCwd = resolveWithinWorkspace(ctx, String(args.cwd))
+      if (!resolvedCwd.ok) {
+        return JSON.stringify({ ok: false, error: resolvedCwd.reason, cwd: String(args.cwd), command })
+      }
+      cwd = resolvedCwd.path
+    }
     const env = args.env as Record<string, string> | undefined
 
     try {
