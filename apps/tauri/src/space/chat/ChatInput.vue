@@ -113,17 +113,34 @@
           <button class="tool-btn" :class="{ 'voice-active': isListening }" type="button" title="语音输入（麦克风转文字）" aria-label="语音输入" @click="toggleVoice">
             <WsIcon name="volume-on" size="sm" />
           </button>
-          <!-- E 批：权限分级选择器（危险操作分级，随消息输入栏常驻） -->
-          <div class="perm-seg" role="group" aria-label="权限分级">
+          <!-- P0-4 迭代：权限分级改为图标下拉（手动确认/自动判断/完全通过），外部点击关闭 -->
+          <div class="perm-dd" ref="permRef">
             <button
-              v-for="p in PERMISSION_LEVELS"
-              :key="p.value"
-              class="perm-seg-item"
-              :class="{ on: permissionLevel === p.value }"
-              :title="p.desc"
-              :aria-pressed="permissionLevel === p.value"
-              @click="onPermissionChange(p.value)"
-            >{{ p.label }}</button>
+              class="tool-btn perm-dd-trigger"
+              :class="{ on: permOpen, warn: permissionLevel === 'off' }"
+              type="button"
+              :title="`权限分级：${permLabel}`"
+              :aria-label="`权限分级：${permLabel}`"
+              :aria-expanded="permOpen"
+              @click.stop="permOpen = !permOpen"
+            ><WsIcon name="shield" size="sm" /></button>
+            <Teleport to="body">
+              <div v-if="permOpen" class="perm-backdrop" @click="permOpen = false"></div>
+            </Teleport>
+            <Transition name="perm-fade">
+              <div v-if="permOpen" class="perm-dd-menu">
+                <button
+                  v-for="p in PERMISSION_LEVELS"
+                  :key="p.value"
+                  class="perm-dd-item"
+                  :class="{ on: permissionLevel === p.value, warn: p.value === 'off' }"
+                  @click="pickPermission(p.value)"
+                >
+                  <span class="perm-dd-label">{{ p.label }}</span>
+                  <span class="perm-dd-desc">{{ p.desc }}</span>
+                </button>
+              </div>
+            </Transition>
           </div>
         </div>
         <div class="toolbar-center">
@@ -226,17 +243,21 @@ const pluginStore = usePluginStore()
 const uiStore = useUIStore()
 const { isStreaming, abort, currentSessionId, setRouterEnabled, currentSessionRouterEnabled, setSecurityLevel } = useAgent()
 
-// E 批：权限分级选择器（危险操作分级：宽松/推荐/严格；持久于 settingsStore.agentSecurityLevel，写穿后端 SecurityLevel）
+// P0-4 迭代：权限分级图标下拉（危险操作分级三档）；value=后端 security level
+// 完全通过=off｜自动判断=dangerous_only｜手动确认=moderate_and_dangerous
 const PERMISSION_LEVELS = [
-  { value: 'off', label: '宽松', desc: '关闭确认：工具直接执行' },
-  { value: 'dangerous_only', label: '推荐', desc: '仅危险操作需确认' },
-  { value: 'moderate_and_dangerous', label: '严格', desc: '写操作/命令一律确认' },
+  { value: 'moderate_and_dangerous', label: '手动确认', desc: '写操作/命令一律确认' },
+  { value: 'dangerous_only', label: '自动判断', desc: '仅危险操作需确认' },
+  { value: 'off', label: '完全通过', desc: '放开全部权限' },
 ]
 const permissionLevel = ref(settingsStore.agentSecurityLevel || 'dangerous_only')
-async function onPermissionChange(v: string): Promise<void> {
-  if (permissionLevel.value === v) return
+const permOpen = ref(false)
+const permLabel = computed(() => PERMISSION_LEVELS.find((p) => p.value === permissionLevel.value)?.label || '权限分级')
+async function pickPermission(v: string): Promise<void> {
+  if (permissionLevel.value === v) { permOpen.value = false; return }
   permissionLevel.value = v
   settingsStore.agentSecurityLevel = v
+  permOpen.value = false
   try {
     await setSecurityLevel(v)
   } catch (e) {
@@ -1397,34 +1418,37 @@ onBeforeUnmount(() => {
   animation: stop-pulse 1.2s ease-in-out infinite;
 }
 
-/* E 批：权限分级选择器（紧凑分段控件，贴合工具栏） */
-.perm-seg {
-  display: inline-flex;
-  align-items: center;
-  margin-left: 6px;
-  padding: 2px;
-  gap: 2px;
+/* P0-4 迭代：权限分级图标下拉 */
+.perm-dd { position: relative; display: flex; align-items: center; margin-left: 6px; }
+.perm-dd-trigger.on { color: var(--color-primary); background: color-mix(in srgb, var(--color-primary) 14%, transparent); }
+.perm-dd-trigger.warn { color: var(--color-warning); }
+.perm-dd-trigger.warn.on { background: color-mix(in srgb, var(--color-warning) 16%, transparent); }
+.perm-backdrop { position: fixed; inset: 0; z-index: 1000; }
+.perm-dd-menu {
+  position: absolute; bottom: calc(100% + 6px); right: 0;
+  min-width: 150px;
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 4px;
+  background: var(--color-surface-elevated);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md, 8px);
-  background: var(--color-surface);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  z-index: 1001;
+  backdrop-filter: blur(16px);
 }
-.perm-seg-item {
-  border: none;
-  background: transparent;
-  color: var(--color-text-tertiary);
-  font-size: var(--font-size-2xs, 10px);
-  padding: 2px 7px;
-  border-radius: var(--radius-sm, 6px);
-  cursor: pointer;
-  line-height: 1.5;
-  transition: color 0.15s, background 0.15s;
-  white-space: nowrap;
+.perm-dd-item {
+  display: flex; flex-direction: column; gap: 1px; align-items: flex-start;
+  padding: 6px 9px; border: none; background: transparent; border-radius: var(--radius-sm, 6px);
+  cursor: pointer; text-align: left; transition: background 0.12s;
 }
-.perm-seg-item:hover { color: var(--color-text); }
-.perm-seg-item.on {
-  color: var(--color-primary);
-  background: color-mix(in srgb, var(--color-primary) 14%, transparent);
-}
+.perm-dd-item:hover { background: var(--color-surface); }
+.perm-dd-item.on { background: color-mix(in srgb, var(--color-primary) 14%, transparent); }
+.perm-dd-label { font-size: var(--font-size-xs); color: var(--color-text); }
+.perm-dd-desc { font-size: var(--font-size-2xs, 10px); color: var(--color-text-tertiary); }
+.perm-dd-item.on .perm-dd-label { color: var(--color-primary); }
+.perm-dd-item.warn .perm-dd-label { color: var(--color-warning); }
+.perm-fade-enter-active, .perm-fade-leave-active { transition: opacity 0.12s ease; }
+.perm-fade-enter-from, .perm-fade-leave-to { opacity: 0; }
 
 /* A3 四管线路由开关：开启点亮，关闭置灰 */
 .tool-btn.router-toggle.active {

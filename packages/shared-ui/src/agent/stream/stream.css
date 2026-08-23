@@ -1,12 +1,8 @@
-/**
- * stream：Agent 输出事件行流（统一扁平形态）统一样式
- *
+/* stream：Agent 输出事件行流（统一扁平形态）统一样式
  * 设计规则（对齐计划「统一形态规则」）：
  *  - 左对齐、无气泡底、无彩边：取消 ws-deep / ws-bubble 双容器与阶段卡装饰；
- *  - 行间距 4-6px，行内用 --agent-*/--font-size-* token，禁止硬编码色值；
- *  - 动画类统一使用 `ws-stream-` 前缀：命中 reduced-motion.css 的 `[class*='ws-']`
- *    覆盖规则，无需额外改动 reduced-motion.css。
- */
+ *  - 行间距 4-6px，行内用 --agent-* / --font-size-* token，禁止硬编码色值；
+ *  - 动画类统一使用 ws-stream- 前缀：命中 reduced-motion.css 的 ws-[class*] 覆盖规则。 */
 
 /* ===== 事件行通用布局 ===== */
 .ws-stream-row {

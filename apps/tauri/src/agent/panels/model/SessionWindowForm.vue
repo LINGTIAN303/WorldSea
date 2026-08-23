@@ -5,41 +5,40 @@
     <div class="swf-row">
       <span class="swf-label">上下文长度</span>
       <div class="settings-row">
-        <input type="range" min="4096" :max="maxContextLength" step="1024" v-model.number="d.contextLength" class="settings-slider" />
-        <span class="settings-value">{{ formatTokens(d.contextLength) }}</span>
+        <input type="number" min="4096" :max="maxContextLength" step="1024" v-model.number="d.contextLength" class="settings-num-input" />
+        <span class="swf-max">最大 {{ formatTokens(maxContextLength) }}</span>
       </div>
-      <div class="settings-hint">最大 {{ formatTokens(maxContextLength) }}</div>
     </div>
 
     <div class="swf-row">
       <span class="swf-label">输出 (Max Tokens)</span>
       <div class="settings-row">
-        <input type="range" min="1024" :max="maxOutputTokens" step="1024" v-model.number="d.maxTokens" class="settings-slider" />
-        <span class="settings-value">{{ d.maxTokens }}</span>
+        <input type="number" min="1024" :max="maxOutputTokens" step="1024" v-model.number="d.maxTokens" class="settings-num-input" />
+        <span class="swf-max">最大 {{ maxOutputTokens }}</span>
       </div>
     </div>
 
     <div class="swf-row">
       <span class="swf-label">温度</span>
       <div class="settings-row">
-        <input type="range" min="0" :max="maxTemperature" v-model.number="d.temperature" class="settings-slider" />
-        <span class="settings-value">{{ (d.temperature / 100).toFixed(2) }}</span>
+        <input type="number" min="0" :max="maxTemperature" step="1" v-model.number="d.temperature" class="settings-num-input" />
+        <span class="swf-max">{{ (d.temperature / 100).toFixed(2) }}（0-{{ maxTemperature }}）</span>
       </div>
     </div>
 
     <div class="swf-row">
       <span class="swf-label">Top P</span>
       <div class="settings-row">
-        <input type="range" min="0" max="100" v-model.number="d.topP" class="settings-slider" />
-        <span class="settings-value">{{ (d.topP / 100).toFixed(2) }}</span>
+        <input type="number" min="0" max="100" step="1" v-model.number="d.topP" class="settings-num-input" />
+        <span class="swf-max">{{ (d.topP / 100).toFixed(2) }}（0-1）</span>
       </div>
     </div>
 
     <div class="swf-row">
       <span class="swf-label">Top K</span>
       <div class="settings-row">
-        <input type="range" min="1" max="100" v-model.number="d.topK" class="settings-slider" />
-        <span class="settings-value">{{ d.topK }}</span>
+        <input type="number" min="1" max="100" step="1" v-model.number="d.topK" class="settings-num-input" />
+        <span class="swf-max">{{ d.topK }}（1-100）</span>
       </div>
     </div>
 
@@ -106,6 +105,18 @@ function formatTokens(n: number): string {
 .swf-row { display: flex; flex-direction: column; gap: 4px; }
 .swf-label { font-size: var(--font-size-sm); color: var(--color-text); }
 .settings-row { display: flex; align-items: center; gap: 8px; }
+.settings-num-input {
+  width: 120px; flex-shrink: 0;
+  padding: 4px 8px;
+  border: 1px solid var(--color-border, var(--agent-border-color));
+  border-radius: 6px;
+  background: var(--color-surface, var(--agent-input-bg));
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  outline: none;
+}
+.settings-num-input:focus { border-color: var(--color-primary); }
+.swf-max { font-size: var(--font-size-2xs, 10px); color: var(--color-text-tertiary); }
 .settings-slider { flex: 1; accent-color: var(--color-primary); height: 4px; }
 .settings-value { font-size: var(--font-size-sm); color: var(--color-text-secondary); min-width: 48px; text-align: right; }
 .settings-hint { font-size: var(--font-size-xs); color: var(--color-text-tertiary); }

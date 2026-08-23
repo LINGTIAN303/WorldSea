@@ -219,6 +219,9 @@ importers:
 
   apps/tauri:
     dependencies:
+      '@lobehub/icons-static-svg':
+        specifier: ^1.94.0
+        version: 1.94.0
       '@tauri-apps/api':
         specifier: ^2.11.0
         version: 2.11.1
@@ -970,6 +973,9 @@ packages:
 
   '@juggle/resize-observer@3.4.0':
     resolution: {integrity: sha512-dfLbk+PwWvFzSxwk3n5ySL0hfBog779o8h68wK/7/APo/7cgyWp5jcXockbxdk5kFRkbeXWm4Fbi9FrdN381sA==}
+
+  '@lobehub/icons-static-svg@1.94.0':
+    resolution: {integrity: sha512-Inx1TYkjLH6YeHOIHeVW9+OM/xxRnk8TmcQVKquFUDBmE3X9sUuRGt7kALrrDBNNAbrWz7Qq6fAiFj9E9Mmw9Q==}
 
   '@mixmark-io/domino@2.2.0':
     resolution: {integrity: sha512-Y28PR25bHXUg88kCV7nivXrP2Nj2RueZ3/l/jdx6J9f8J4nsEGcgX0Qe6lt7Pa+J79+kPiJU3LguR6O/6zrLOw==}
@@ -3557,6 +3563,8 @@ snapshots:
       '@jridgewell/sourcemap-codec': 1.5.5
 
   '@juggle/resize-observer@3.4.0': {}
+
+  '@lobehub/icons-static-svg@1.94.0': {}
 
   '@mixmark-io/domino@2.2.0': {}
 

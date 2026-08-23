@@ -1,7 +1,7 @@
 <template>
   <Teleport to="body">
     <div class="mdl-overlay" @mousedown.self="onBack" @keydown.esc="onBack">
-      <div class="mdl-shell" role="dialog" aria-modal="true" :aria-label="title">
+      <div class="mdl-shell" :class="{ wide }" role="dialog" aria-modal="true" :aria-label="title">
         <header class="mdl-header">
           <button v-if="onBack || (level === 2 && showBack)" class="mdl-back" type="button" :aria-label="`返回${title}`" @click="onBack">
             <WsIcon name="chevron-left" size="sm" />
@@ -27,10 +27,13 @@ const props = withDefaults(defineProps<{
   title: string
   /** 面板层级：1=一级卡片，2=二级，3=三级（用于宽度/纵深差异） */
   level?: number
+  /** 主从分栏（供应商→模型）时加宽 */
+  wide?: boolean
   /** 三级平移返回二级 */
   showBack?: boolean
 }>(), {
   level: 1,
+  wide: false,
   showBack: false,
 })
 
@@ -68,6 +71,10 @@ function onClose(): void {
   background: var(--color-surface-elevated, var(--content-bg, var(--bg, var(--color-bg-surface))));
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
   overflow: hidden;
+}
+.mdl-shell.wide {
+  max-width: 760px;
+  width: min(760px, calc(100vw - 48px));
 }
 .mdl-header {
   display: flex;

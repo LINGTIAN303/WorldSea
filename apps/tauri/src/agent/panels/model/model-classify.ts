@@ -19,19 +19,45 @@ export const MODALITY_LABELS: Record<ModelModality, string> = {
 }
 export const MODALITY_ORDER: ModelModality[] = ['multimodal', 'text', 'image', 'video', 'audio']
 
-/** 已知的 音/视频/全模态 模型 ID 覆盖（registry 无此维度，先以已知项硬编码；可后续下沉到 registry） */
+/** 已知的 音/视频/图像/全模态 模型 ID 覆盖（registry 无此维度，据 provider-models-matrix-20260823 归纳；可后续下沉到 registry） */
 const MODALITY_OVERRIDES: Record<string, ModelModality> = {
+  // 视频生成
   'kling-video': 'video',
   'video-01': 'video',
   'doubao-seedance': 'video',
+  'agnes-video': 'video',
+  'cogvideox': 'video',
+  'wan': 'video',
+  't2v': 'video',
+  'i2v': 'video',
+  // 图像生成
   'gpt-image': 'image',
   'dall-e': 'image',
   'imagen': 'image',
-  'midjourney-shadow': 'image',
-  'whisper': 'audio',
+  'agnes-image': 'image',
+  'step-image': 'image',
+  'cogview': 'image',
+  'kling-image': 'image',
+  // 语音
+  'stepaudio': 'audio',
   'audio-speech': 'audio',
+  'whisper': 'audio',
+  'senseaudio': 'audio',
+  // 全模态
   'mimo-v2.5': 'multimodal',
   'mimo': 'multimodal',
+  'minimax-m3': 'multimodal',
+  'kimi-k3': 'multimodal',
+  'deepseek-v4-flash-vision-exp': 'multimodal',
+  'step-3.7-flash': 'multimodal',
+  'glm-5v': 'multimodal',
+  'glm-4.6v': 'multimodal',
+  'qwen3.8-max': 'multimodal',
+  'qwen3.7-max': 'multimodal',
+  'qwen3.7-plus': 'multimodal',
+  'doubao-seed-evolving': 'multimodal',
+  'sensenova-6.8-flash-lite': 'multimodal',
+  'sensenova-6.5-pro': 'multimodal',
   'gemini-3.7-flash': 'multimodal',
   'gemini-3.6-flash': 'multimodal',
   'gemini-3.5-flash': 'multimodal',
@@ -59,13 +85,16 @@ export const CATEGORY_LABELS: Record<ProviderCategory, string> = {
 }
 export const CATEGORY_ORDER: ProviderCategory[] = ['official', 'aggregate', 'app']
 
-/** 已知供应商类别覆盖（官方=模型原厂直连；聚合=聚合平台；应用=移动端/特定应用 API） */
+/** 已知供应商类别覆盖（官方=模型原厂直连；聚合=聚合平台/中转；应用=移动端/特定应用 API）
+    据 provider-models-matrix-20260823 的聚合类确认：openrouter/tencentcloud(TokenHub)/bailian(百炼)/modelscope/siliconflow 均属聚合 */
 const CATEGORY_OVERRIDES: Record<string, ProviderCategory> = {
   openrouter: 'aggregate',
   agnes: 'app',
   'tencentcloud': 'aggregate',
   modelscope: 'aggregate',
-  doubao: 'app',
+  bailian: 'aggregate',
+  siliconflow: 'aggregate',
+  doubao: 'aggregate', // 火山方舟亦转售第三方
 }
 
 /** 推断供应商类别（云 API） */
@@ -105,4 +134,13 @@ export function getAvailableModels(providerId?: string): AvailableModelView[] {
     name: m.name,
     modality: modalityOf(m.id),
   }))
+}
+
+/** modelId → { name, modality } 的映射（供「已保存模型网格」取展示名与模态） */
+export function getModelInfoById(): Record<string, { name: string; modality: ModelModality }> {
+  const map: Record<string, { name: string; modality: ModelModality }> = {}
+  for (const m of MODEL_REGISTRY) {
+    map[m.id] = { name: m.name, modality: modalityOf(m.id) }
+  }
+  return map
 }
