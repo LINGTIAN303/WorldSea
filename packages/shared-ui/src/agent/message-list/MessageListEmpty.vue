@@ -1,7 +1,10 @@
-﻿<template>
+<template>
   <!-- 空对话欢迎语 -->
   <div class="chat-empty">
-    <div class="empty-icon"><WsIcon name="profile" size="lg" /></div>
+    <div class="empty-icon">
+      <!-- #icon 插槽：宿主可注入品牌 logo 替换默认图标 -->
+      <slot name="icon"><WsIcon name="profile" size="lg" /></slot>
+    </div>
     <div class="empty-title">WorldSmith 助手</div>
     <div class="empty-hint">我可以帮你管理世界观实体和关系。试试输入 / 查看可用命令</div>
   </div>

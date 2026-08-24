@@ -125,7 +125,7 @@
       </template>
 
       <div v-else class="empty-state">
-        <div class="empty-icon"><WsIcon name="users" size="lg" /></div>
+        <div class="empty-icon"><WorldSmithLogo :size="48" :radius="14" /></div>
         <div class="empty-text">选择或创建一个群聊开始</div>
       </div>
     </div>
@@ -158,6 +158,7 @@ import SidebarStrip from './SidebarStrip.vue'
 import type { PanelType } from './SidebarStrip.vue'
 import type { CreateGroupData } from './CreateGroupDialog.vue'
 import type { ChatAgent } from '../types'
+import WorldSmithLogo from '@/components/brand/WorldSmithLogo.vue'
 
 const emit = defineEmits<{ close: []; 'toggle-mode': []; 'open-settings': [] }>()
 

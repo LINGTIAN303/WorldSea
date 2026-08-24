@@ -100,6 +100,7 @@
       <div class="agent-identity" ref="identityRef">
         <AvatarBadge
           class="agent-avatar"
+          brand
           :avatar="spaceStore.persona.avatar"
           :name="agentName"
           :color="profile.accentColor"
@@ -149,6 +150,7 @@
       <Transition name="popover">
         <div v-if="aboutOpen" class="about-overlay" @click.self="aboutOpen = false">
           <div class="about-dialog">
+            <WorldSmithLogo :size="56" :radius="14" tone="white" class="about-logo" />
             <h3 class="about-title">WorldSmith Agent</h3>
             <p class="about-version">版本 {{ appVersion }}</p>
             <button class="about-close" @click="aboutOpen = false">关闭</button>
@@ -185,6 +187,7 @@ import { usePersonaFont } from '../composables/usePersonaFont'
 import { useFontStore } from '@/stores/fontStore'
 import PersonaMirror from '../panels/PersonaMirror.vue'
 import AvatarBadge from '@/ui/AvatarBadge.vue'
+import WorldSmithLogo from '@/components/brand/WorldSmithLogo.vue'
 import TuiSegmented from '@/components/ui/TuiSegmented.vue'
 import TuiSelect from '@/components/ui/TuiSelect.vue'
 import { useSessionTree, type WorkdirRecord } from './useSessionTree'
@@ -897,9 +900,13 @@ watch(currentSessionId, () => {
   text-align: center;
 }
 .about-title {
-  margin: 0 0 8px;
+  margin: 12px 0 8px;
   font-size: var(--font-size-base);
   color: var(--color-text);
+}
+.about-logo {
+  display: block;
+  margin: 0 auto;
 }
 .about-version {
   margin: 0 0 16px;

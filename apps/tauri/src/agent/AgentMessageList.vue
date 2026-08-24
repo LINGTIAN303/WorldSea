@@ -2,7 +2,11 @@
   <div class="chat-messages" ref="messagesContainer">
     <div class="messages-scroll">
       <!-- 空对话欢迎语 -->
-      <MessageListEmpty v-if="messages.length === 0 && archivedBoundaryIndex === 0" />
+      <MessageListEmpty v-if="messages.length === 0 && archivedBoundaryIndex === 0">
+        <template #icon>
+          <WorldSmithLogo :size="48" :radius="14" />
+        </template>
+      </MessageListEmpty>
 
       <!-- P12 决策：已归档消息折叠区（设计文档 5.5 节） -->
       <ArchivedSection
@@ -54,7 +58,11 @@
         :last-assistant-has-thinking="lastAssistantHasThinking"
         :enter-animation="enterAnimation"
         :dot-text="dotText"
-      />
+      >
+        <template #icon>
+          <WorldSmithLogo :size="15" :radius="4" />
+        </template>
+      </StreamingPlaceholder>
 
       <!-- Phase 5：会话标题生成中等候动画（首条消息后、LLM 标题落地前显示，复用思考中省略号） -->
       <Transition name="title-pending">
@@ -99,6 +107,7 @@ import { watchDebounced } from '@worldsmith/perf-kit/render'
 import type { AgentMessage } from '@agent/index'
 import type { AgentStreamItem } from '@worldsmith/shared-composables/agent/useAgent'
 import { useDotAnimation, useMessageWindowing, MessageListEmpty, ArchivedSection, StreamingPlaceholder, ScrollToBottomButton, DotNav, TurnStatus, ErrorRows } from '@worldsmith/shared-ui/agent/message-list'
+import WorldSmithLogo from '@/components/brand/WorldSmithLogo.vue'
 
 const { enterAnimation } = usePersonaFont()
 const { agentStream, isStreaming: agentIsStreaming, resolveToolConfirmation, sessionTitlePending, currentSessionId } = useAgent()

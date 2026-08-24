@@ -22,7 +22,7 @@
     <template v-if="variant === 'workbench'">
       <div class="titlebar-left" data-tauri-drag-region>
         <button class="titlebar-switcher" title="切换项目" @click="openProjectManager">
-          <span class="titlebar-dot"></span>
+          <WorldSmithLogo :size="15" :radius="4" class="titlebar-logo" />
           <span class="titlebar-title">WorldSmith</span>
           <span v-if="projectName" class="titlebar-project">{{ projectName }}</span>
           <span class="titlebar-chevron">▾</span>
@@ -73,6 +73,7 @@ import { useFileSystemProject } from '@/composables/useFileSystemProject'
 import { useUIStore } from '@/stores/uiStore'
 import { usePluginStore } from '@worldsmith/entity-core'
 import { WsIcon } from '@worldsmith/ui-kit'
+import WorldSmithLogo from '@/components/brand/WorldSmithLogo.vue'
 
 // 变体：workbench=工作台完整窗口栏 / space=Agent 空间精简窗口栏（2026-08-09）
 const props = withDefaults(defineProps<{
@@ -265,13 +266,11 @@ function close() {
 .titlebar-switcher:hover {
   background: var(--bg-hover, var(--color-bg-hover));
 }
-.titlebar-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--color-primary);
-  opacity: 0.85;
+.titlebar-logo {
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .titlebar-title {
   font-size: var(--font-size-sm, 12px);

@@ -1,7 +1,10 @@
 <template>
   <!-- [A] scanner 等候输出动画：助手无内容无思考时替换原光标占位 -->
   <div v-if="isStreaming && !lastAssistantHasContent && !lastAssistantHasThinking" class="chat-msg msg-assistant">
-    <span class="msg-icon"><WsIcon name="profile" size="xs" /></span>
+    <span class="msg-icon">
+      <!-- #icon 插槽：由宿主注入品牌 logo 替换默认图标（默认保留 profile 图标） -->
+      <slot name="icon"><WsIcon name="profile" size="xs" /></slot>
+    </span>
     <div class="msg-body">
       <div class="loader">
         <div class="scanner">

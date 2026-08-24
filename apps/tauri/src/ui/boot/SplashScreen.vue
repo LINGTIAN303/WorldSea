@@ -36,6 +36,9 @@
 
     <!-- 中央内容 -->
     <div class="ws-splash__content">
+      <div class="ws-splash__logo-glow">
+        <WorldSmithLogo :size="96" :radius="22" class="ws-splash__logo" />
+      </div>
       <div class="ws-splash__title-glow">
         <h1 class="ws-splash__title">WorldSmith</h1>
       </div>
@@ -60,6 +63,7 @@
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { createSplashEngine, type SplashEngine } from './splash-canvas'
 import { useUIStore } from '../../stores/uiStore'
+import WorldSmithLogo from '../../components/brand/WorldSmithLogo.vue'
 
 const constellationRef = ref<HTMLCanvasElement | null>(null)
 const interactionRef = ref<HTMLCanvasElement | null>(null)
@@ -262,6 +266,35 @@ onUnmounted(() => {
   line-height: 1;
   margin: 0;
   animation: ws-splash-breathe 4s ease-in-out infinite;
+}
+
+/* 品牌 Logo：辉光 + 轻微呼吸，与标题 glow 呼应 */
+.ws-splash__logo-glow {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+  margin-bottom: -6px;
+}
+.ws-splash__logo-glow::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 140%;
+  height: 140%;
+  background: radial-gradient(ellipse, color-mix(in srgb, var(--color-primary, #7C3AED) 22%, transparent) 0%, transparent 68%);
+  filter: blur(18px);
+  z-index: -1;
+  animation: ws-splash-breathe 4s ease-in-out infinite;
+}
+.ws-splash__logo {
+  display: block;
+  animation: ws-splash-logo-float 5s ease-in-out infinite;
+}
+@keyframes ws-splash-logo-float {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50%      { transform: translateY(-3px) scale(1.015); }
 }
 
 @keyframes ws-splash-breathe {

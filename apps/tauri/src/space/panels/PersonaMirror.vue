@@ -17,11 +17,13 @@
             :font-family="fontFamily"
             :size="48"
           />
-          <PersonaAvatarCanvas
+          <AvatarBadge
             v-else
-            :character="persona.avatar || persona.name.charAt(0)"
+            brand
+            :avatar="persona.avatar"
+            :name="persona.name"
+            :color="profile.accentColor"
             :font-family="fontFamily"
-            :accent-color="profile.accentColor"
             :size="48"
           />
           <div class="avatar-actions">
@@ -102,7 +104,6 @@ import { useSpaceStore } from '../stores/space-store'
 import { uploadAvatarFromFile, deleteAvatar } from '@/composables/avatarStore'
 import { isImageAvatar, isAvatarRef, getAvatarRefId } from '@/ui/avatar'
 import AvatarBadge from '@/ui/AvatarBadge.vue'
-import PersonaAvatarCanvas from '../components/PersonaAvatarCanvas.vue'
 import FontSelectorDropdown from '../components/FontSelectorDropdown.vue'
 import { usePersonaFontStore } from '../stores/persona-font-store'
 import { WsIcon } from '@worldsmith/ui-kit'

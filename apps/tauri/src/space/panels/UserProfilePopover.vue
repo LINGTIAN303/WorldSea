@@ -3,6 +3,7 @@
     <div class="popover-header">
       <div class="profile-avatar">
         <AvatarBadge
+          brand
           :avatar="userProfileStore.profile.avatar"
           :name="userProfileStore.profile.nickname"
           color="linear-gradient(135deg, #10b981, #34d399)"

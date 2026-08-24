@@ -5,6 +5,7 @@
       <div class="user-identity" ref="userIdentityRef">
         <div class="user-avatar" @click.stop="toggleUserProfilePopover">
           <AvatarBadge
+            brand
             :avatar="userProfileStore.profile.avatar"
             :name="userProfileStore.profile.nickname"
             color="var(--user-avatar-grad)"

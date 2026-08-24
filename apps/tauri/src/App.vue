@@ -14,6 +14,8 @@ import { useGlobalEvents } from '@worldsmith/ui-kit'
 import { bootstrapPlugins } from './plugins/bootstrap'
 import { useProjectSwitcher } from './composables/useProjectSwitcher'
 import { useSystemBridge } from './composables/useSystemBridge'
+import SplashScreen from './ui/boot/SplashScreen.vue'
+import BootErrorScreen from './ui/boot/BootErrorScreen.vue'
 
 // ── 无障碍：减弱动态效果（应用级配置） ──
 // 写入根元素 data-reduce-motion，CSS 据此关闭界面动效（Agent 设置翻卡等）；
@@ -111,9 +113,10 @@ onMounted(async () => {
   // Shell 仅承载官方插件视图；默认进入 AgentSpace（currentShell 持久化）
   // 启动已迁移插件（Phase C：注册视图/实体类型）
   await bootstrapPlugins()
-  // bootstrap 会在无视图选中时兜底切到首个插件视图
   // 系统层桥初始化：托盘事件监听 + 最近项目同步（异步，不阻塞启动）
   void setupSystemBridge()
+  // 核心启动完成 → 通知 SplashScreen 淡出（bootState: 'booting' → 'ready'）
+  uiStore.markReady()
 })
 </script>
 
@@ -127,6 +130,10 @@ onMounted(async () => {
        代价：两壳常驻内存增加（见项目记忆预估）。 -->
   <AgentSpace v-show="uiStore.currentShell === 'space'" />
   <Shell v-show="uiStore.currentShell === 'workbench'" />
+
+  <!-- 启动流程：bootState 驱动 Splash（booting）/ 错误页（error）。ready 后均卸载。 -->
+  <SplashScreen v-if="uiStore.bootState === 'booting'" />
+  <BootErrorScreen v-if="uiStore.bootState === 'error'" />
 </template>
 
 <style>
