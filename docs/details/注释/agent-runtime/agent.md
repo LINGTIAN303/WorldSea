@@ -484,6 +484,63 @@ AgentLoop 和 Backend 各自持有独立的 `EventBroadcaster`：
 
 ---
 
+## 织入点 Hook 协议（matrix §8 里程碑 5，2026-08-25 实现）
+
+> 代码：[kernel/agent/hooks.rs](../../../../crates/agent-runtime/src/kernel/agent/hooks.rs)
+> 把 `AgentLoop::run` 生命周期内的横切织入位（记忆闭环 / 四管线路由 / DeepPhase 阶段判定）
+> 显性化为统一位点契约，并提供外部扩展通道。**不改变**内置织入行为与对外契约。
+
+### 位点清单（`RunPhase`）
+
+| 位点 | run() 位置 | 内置织入（组织化内部方法） | 外部钩子可观察 |
+|------|-----------|--------------------------|---------------|
+| `BeforeReact` | run 开头、ReAct 循环前 | 记忆召回 `run_recall_memory` + 路由决策 `run_router_decision` | 本轮输入、backend、emitter |
+| `AfterUserMessage` | user 消息入队并广播后 | 无 | 输入侧上下文 |
+| `OnToolCall` | run_react_loop 每轮工具调用后 | DeepPhase 阶段切换事件 + long_task checkpoint | 当前工具名 `ctx.tool_name` |
+| `AfterReact` | ReAct 循环结束、终态事件广播后 | 无 | 本轮成败 `ctx.succeeded` |
+| `AfterRun` | run 收尾 | 记忆归档 `run_memory_archive` | 本轮成败 `ctx.succeeded` |
+
+### 契约（`AgentLoopHook` trait）
+
+每位点一个方法（`on_before_react` / `on_after_user_message` / `on_tool_call` /
+`on_after_react` / `on_after_run`），默认空实现，实现方仅覆写关心的位点。
+`HookContext` 注入只读上下文：`agent`（AgentLoop 只读引用）、`run_user_input`、
+`tool_name`（OnToolCall）、`succeeded`（AfterReact/AfterRun）。
+
+### 设计约束
+
+1. **内置织入保持底座内聚**：记忆/路由/DeepPhase 重构成内部方法（`run_recall_memory` /
+   `run_router_decision` / `run_memory_archive`）组织化，`with_memory`/`with_router` 启用
+   语义不变；钩子仅作额外观察/扩展，不替代内置逻辑。
+2. **零行为变化**：默认无钩子注册（`dispatch` 空快照短路），`run()` 对外行为与迁移前一致。
+3. **hook 失败不阻断主流程**：协议约定实现方在 hook 内自行容错，调度方不捕获异常。
+
+### 使用示例
+
+```rust,ignore
+struct UsageLogger;
+#[async_trait]
+impl AgentLoopHook for UsageLogger {
+    async fn on_after_run(&self, ctx: &HookContext<'_>) {
+        if let Ok(usage) = ctx.agent.get_usage().await {
+            tracing::info!("本轮 usage: {:?}", usage);
+        }
+    }
+}
+
+let agent = AgentLoop::new(backend, tool_bus)
+    .with_hook(Arc::new(UsageLogger));
+// 或运行期追加：agent.register_hook(Arc::new(UsageLogger));
+```
+
+### 验证
+
+`run_dispatches_hooks_in_order_and_keeps_behavior` 单测：注册 RecordingHook 跑一次
+无工具调用 run，断言按 `before_react → after_user_message → after_react → after_run`
+顺序调度，且返回文本与无钩子时一致（行为不变）。
+
+---
+
 ## 模块职责一句话
 
-AgentLoop ReAct 核心循环：配置管理、ReAct 主循环、工具执行（串行/并行）、限流/超时/重试、事件广播、记忆注入、长任务集成。
+AgentLoop ReAct 核心循环：配置管理、ReAct 主循环、工具执行（串行/并行）、限流/超时/重试、事件广播、记忆注入、长任务集成、织入点 Hook 协议（RunPhase 位点 + AgentLoopHook 扩展通道）。

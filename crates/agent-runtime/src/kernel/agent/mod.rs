@@ -24,6 +24,7 @@ use crate::backend::{BackendError, PromptCallOptions};
 mod backend_bridge;
 mod config;
 mod error;
+mod hooks;
 mod interaction;
 mod llm;
 mod long_task;
@@ -34,6 +35,7 @@ mod tools;
 
 pub use config::AgentLoopConfig;
 pub use error::AgentError;
+pub use hooks::{AgentLoopHook, AgentLoopHooks, HookContext, RunPhase};
 pub use state::{AgentState, AgentStateSnapshot};
 
 use backend_bridge::BackendEventBridge;
@@ -159,6 +161,11 @@ pub struct AgentLoop {
     ///
     /// `run()` 开头写入，`build_prompt_options` 拼入 system_prompt 末尾。
     pipeline_context: Arc<StdRwLock<Option<String>>>,
+    /// 织入点 Hook 注册表（轻量协议化，matrix §8 里程碑 5）
+    ///
+    /// `run()` 在各位点（`RunPhase`）统一调度；默认无钩子，注册后按位点观察/扩展。
+    /// 内置织入（记忆/路由/DeepPhase）为底座内聚能力，不随钩子启用与否而改变。
+    hooks: AgentLoopHooks,
 }
 
 impl AgentLoop {
@@ -214,7 +221,22 @@ impl AgentLoop {
             router: None,
             router_enabled: Arc::new(AtomicBool::new(true)),
             pipeline_context: Arc::new(StdRwLock::new(None)),
+            hooks: AgentLoopHooks::default(),
         }
+    }
+
+    /// 注册织入点钩子（builder 链式，构造期使用）
+    ///
+    /// 钩子按 `RunPhase` 位点在 `run()` 生命周期被调度；可多次调用注册多个钩子。
+    /// 内置织入（记忆/路由/DeepPhase）不受影响，钩子仅作额外观察/扩展。
+    pub fn with_hook(self, hook: Arc<dyn AgentLoopHook>) -> Self {
+        self.hooks.register(hook);
+        self
+    }
+
+    /// 向已创建的 AgentLoop 追加织入点钩子（运行期使用）
+    pub fn register_hook(&self, hook: Arc<dyn AgentLoopHook>) {
+        self.hooks.register(hook);
     }
 
     /// 覆盖内建 LoopController 配置（链式，同步）
@@ -509,67 +531,15 @@ impl AgentLoop {
             }
         }
 
-        // 阶段 3：记忆闭环（recall → inject → 织入 system prompt）
-        // 仅在启用记忆且检索到结果时执行；任一环节失败静默跳过，不影响主流程。
-        // 注入文本存入 memory_context，由 build_prompt_options 拼入 system_prompt_override。
-        if let Some(memory) = &self.memory {
-            if let Ok(recall_results) = memory.recall(run_user_input.clone(), None).await {
-                if !recall_results.is_empty() {
-                    if let Ok(injected) = memory.inject(recall_results, None).await {
-                        if !injected.is_empty() {
-                            if let Ok(mut guard) = self.memory_context.write() {
-                                *guard = Some(injected);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // ─── A3 四管线路由：接入发送链路 ───
-        // 若配置了路由节点且开关开启，先决策管线（force_pipeline 兜底生效）。据此：
-        // 1. 广播 RouterDecisionMade 事件（前端可展示选中管线 / force_pipeline Chip 生效）
-        // 2. 把管线指引写入 pipeline_context，由 build_prompt_options 追加到 system prompt
-        // 若开关关闭或未配置路由节点，或路由失败，静默跳过并清空管线指引。
+        // [RunPhase::BeforeReact] 内置织入（组织化内部方法）+ 钩子调度
+        // 1. 记忆闭环（recall → inject → memory_context）见 run_recall_memory
+        // 2. 四管线路由决策（decide → pipeline_context + RouterDecisionMade）见 run_router_decision
+        // 3. 外部钩子可在 BeforeReact 位点观察/扩展（协议：不改变内置织入行为）
+        self.run_recall_memory(&run_user_input).await;
+        self.run_router_decision(&run_user_input).await;
         {
-            let enabled = self.router_enabled.load(Ordering::SeqCst);
-            if enabled {
-                if let Some(router) = &self.router {
-                    match router.decide(&run_user_input, self.backend.as_ref()).await {
-                        Ok(result) => {
-                            let pipeline = Pipeline::from_str(&result.target_id);
-                            if let Some(p) = pipeline {
-                                if let Ok(mut guard) = self.pipeline_context.write() {
-                                    *guard = Some(p.directive().to_string());
-                                }
-                            }
-                            self.broadcast(OrchestratorEvent::RouterDecisionMade {
-                                node_id: router.id().to_string(),
-                                target_id: result.target_id.clone(),
-                                target_name: pipeline
-                                    .map(|p| p.label().to_string())
-                                    .unwrap_or_else(|| result.target_id.clone()),
-                                reason: result.reason.clone(),
-                                is_fallback: false,
-                            })
-                            .await;
-                            debug!(
-                                "AgentLoop 路由决策：target={} pipeline={:?}",
-                                result.target_id, pipeline
-                            );
-                        }
-                        Err(e) => {
-                            warn!("AgentLoop 路由决策失败，本轮使用静态配置: {}", e);
-                        }
-                    }
-                }
-            }
-            // 开关关闭或未配置路由节点时，清空上一轮管线指引，避免残留
-            if !enabled || self.router.is_none() {
-                if let Ok(mut guard) = self.pipeline_context.write() {
-                    *guard = None;
-                }
-            }
+            let ctx = HookContext::new(&self, &run_user_input);
+            self.hooks.dispatch(RunPhase::BeforeReact, &ctx).await;
         }
 
         // 推入 user 消息
@@ -607,6 +577,12 @@ impl AgentLoop {
         }))
         .await;
 
+        // [RunPhase::AfterUserMessage] 钩子调度（外部观察本轮输入侧上下文）
+        {
+            let ctx = HookContext::new(&self, &run_user_input);
+            self.hooks.dispatch(RunPhase::AfterUserMessage, &ctx).await;
+        }
+
         // 执行 ReAct 循环
         let result = self.run_react_loop().await;
 
@@ -632,18 +608,103 @@ impl AgentLoop {
             }
         }
 
-        // 阶段 3：记忆闭环（run 结束：record_turn + archive）
-        // 记录本轮对话（供归档前累积）并触发归档；任一环节失败静默跳过，不影响主流程返回。
-        if let Some(memory) = &self.memory {
-            let assistant_text = match &result {
-                Ok(text) => text.clone(),
-                Err(_) => String::new(),
-            };
-            let _ = memory.record_turn(run_user_input, assistant_text).await;
-            let _ = memory.archive(None).await;
+        // [RunPhase::AfterReact] 钩子调度（外部观察本轮成败）
+        {
+            let mut ctx = HookContext::new(&self, &run_user_input);
+            ctx.succeeded = result.is_ok();
+            self.hooks.dispatch(RunPhase::AfterReact, &ctx).await;
+        }
+
+        // [RunPhase::AfterRun] 内置织入（记忆归档，见 run_memory_archive）+ 钩子调度
+        self.run_memory_archive(&run_user_input, &result).await;
+        {
+            let mut ctx = HookContext::new(&self, &run_user_input);
+            ctx.succeeded = result.is_ok();
+            self.hooks.dispatch(RunPhase::AfterRun, &ctx).await;
         }
 
         result
+    }
+
+    /// [RunPhase::BeforeReact 内置] 记忆闭环 — recall → inject → memory_context
+    ///
+    /// 仅在启用记忆且检索到结果时执行；任一环节失败静默跳过，不影响主流程。
+    /// 注入文本存入 memory_context，由 build_prompt_options 拼入 system_prompt_override。
+    async fn run_recall_memory(&self, user_input: &str) {
+        if let Some(memory) = &self.memory {
+            if let Ok(recall_results) = memory.recall(user_input.to_string(), None).await {
+                if !recall_results.is_empty() {
+                    if let Ok(injected) = memory.inject(recall_results, None).await {
+                        if !injected.is_empty() {
+                            if let Ok(mut guard) = self.memory_context.write() {
+                                *guard = Some(injected);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// [RunPhase::BeforeReact 内置] 四管线路由决策 — decide → pipeline_context + RouterDecisionMade
+    ///
+    /// 若配置了路由节点且开关开启，先决策管线（force_pipeline 兜底生效）：
+    /// 1. 广播 RouterDecisionMade 事件（前端可展示选中管线 / force_pipeline Chip 生效）
+    /// 2. 把管线指引写入 pipeline_context，由 build_prompt_options 追加到 system prompt
+    /// 开关关闭 / 未配置路由节点 / 路由失败时静默跳过并清空管线指引。
+    async fn run_router_decision(&self, user_input: &str) {
+        let enabled = self.router_enabled.load(Ordering::SeqCst);
+        if enabled {
+            if let Some(router) = &self.router {
+                match router.decide(user_input, self.backend.as_ref()).await {
+                    Ok(result) => {
+                        let pipeline = Pipeline::from_str(&result.target_id);
+                        if let Some(p) = pipeline {
+                            if let Ok(mut guard) = self.pipeline_context.write() {
+                                *guard = Some(p.directive().to_string());
+                            }
+                        }
+                        self.broadcast(OrchestratorEvent::RouterDecisionMade {
+                            node_id: router.id().to_string(),
+                            target_id: result.target_id.clone(),
+                            target_name: pipeline
+                                .map(|p| p.label().to_string())
+                                .unwrap_or_else(|| result.target_id.clone()),
+                            reason: result.reason.clone(),
+                            is_fallback: false,
+                        })
+                        .await;
+                        debug!(
+                            "AgentLoop 路由决策：target={} pipeline={:?}",
+                            result.target_id, pipeline
+                        );
+                    }
+                    Err(e) => {
+                        warn!("AgentLoop 路由决策失败，本轮使用静态配置: {}", e);
+                    }
+                }
+            }
+        }
+        // 开关关闭或未配置路由节点时，清空上一轮管线指引，避免残留
+        if !enabled || self.router.is_none() {
+            if let Ok(mut guard) = self.pipeline_context.write() {
+                *guard = None;
+            }
+        }
+    }
+
+    /// [RunPhase::AfterRun 内置] 记忆归档 — record_turn + archive
+    ///
+    /// 记录本轮对话（供归档前累积）并触发归档；任一环节失败静默跳过，不影响主流程返回。
+    async fn run_memory_archive(&self, user_input: &str, result: &Result<String, AgentError>) {
+        if let Some(memory) = &self.memory {
+            let assistant_text = match result {
+                Ok(text) => text.clone(),
+                Err(_) => String::new(),
+            };
+            let _ = memory.record_turn(user_input.to_string(), assistant_text).await;
+            let _ = memory.archive(None).await;
+        }
     }
 
     /// ReAct 核心循环，详细见 docs/details/注释/agent-runtime/agent.md
@@ -887,6 +948,18 @@ impl AgentLoop {
                         *guard = current_phase_label.clone();
                     }
                 }
+            }
+
+            // [RunPhase::OnToolCall] 钩子调度（观察每轮工具调用；tool_name 由本循环暂存）
+            if !self.hooks.is_empty() {
+                let input = self
+                    .last_user_text
+                    .read()
+                    .map(|g| g.clone())
+                    .unwrap_or_default();
+                let mut ctx = HookContext::new(&self, &input);
+                ctx.tool_name = tool_name_for_checkpoint.as_deref();
+                self.hooks.dispatch(RunPhase::OnToolCall, &ctx).await;
             }
 
             if self.long_task_manager.has_active_task().await {

@@ -1,17 +1,12 @@
 //! Tree of Thoughts (ToT) — 思维树编排模式，详细见 docs/details/注释/agent-runtime/tree_of_thoughts.md
+//!
+//! 类型与策略已上移 patterns/shared/thoughts.rs（GoT 共享），本模块仅保留 ToTNode 执行体。
 
-mod config;
-mod error;
-mod node;
-mod strategies;
-
-pub use config::ToTConfig;
-pub use error::ToTError;
-pub use node::{ThoughtNode, ThoughtNodeStatus, ToTTerminationReason};
-pub use strategies::{
+// 从共享层转入类型与策略（同时 re-export，保持对外可见性不变）
+pub use crate::patterns::shared::thoughts::{
     BeamSearchStrategy, ExplorationPromptTemplate, ExplorationStrategy, GoalCheckPromptTemplate,
     GoalCheckStrategy, LlmGoalCheckStrategy, LlmScoringStrategy, ScoringPromptTemplate,
-    ScoringStrategy,
+    ScoringStrategy, ThoughtNode, ThoughtNodeStatus, ToTConfig, ToTError, ToTTerminationReason,
 };
 
 use std::collections::HashMap;

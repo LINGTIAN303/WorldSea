@@ -74,6 +74,50 @@
     }
 
     #[tokio::test]
+    async fn run_dispatches_hooks_in_order_and_keeps_behavior() {
+        // 验证织入点协议（matrix §8 里程碑 5）：
+        // 1. 注册的钩子按 RunPhase 位点顺序被调度
+        // 2. 钩子存在不影响 AgentLoop::run 的对外行为（结果不变）
+        let backend = Arc::new(MockBackend::new(vec![PromptResponse::text_only(
+            "你好，我是助手",
+        )]));
+        let tool_bus = Arc::new(SimpleToolBus::new());
+
+        let order = Arc::new(std::sync::Mutex::new(Vec::new()));
+        struct RecordingHook {
+            order: Arc<std::sync::Mutex<Vec<&'static str>>>,
+        }
+        #[async_trait]
+        impl AgentLoopHook for RecordingHook {
+            async fn on_before_react(&self, _ctx: &HookContext<'_>) {
+                self.order.lock().unwrap().push("before_react");
+            }
+            async fn on_after_user_message(&self, _ctx: &HookContext<'_>) {
+                self.order.lock().unwrap().push("after_user_message");
+            }
+            async fn on_after_react(&self, _ctx: &HookContext<'_>) {
+                self.order.lock().unwrap().push("after_react");
+            }
+            async fn on_after_run(&self, _ctx: &HookContext<'_>) {
+                self.order.lock().unwrap().push("after_run");
+            }
+        }
+
+        let agent = AgentLoop::new(backend, tool_bus).with_hook(Arc::new(RecordingHook {
+            order: order.clone(),
+        }));
+        let result = agent.run("你好".into()).await.expect("应执行成功");
+        assert_eq!(result, "你好，我是助手", "钩子存在不应改变 run 行为");
+
+        let order = order.lock().unwrap();
+        assert_eq!(
+            order.as_slice(),
+            &["before_react", "after_user_message", "after_react", "after_run"],
+            "钩子应按 RunPhase 位点顺序调度"
+        );
+    }
+
+    #[tokio::test]
     async fn run_executes_tool_calls_then_returns_final_text() {
         let backend = Arc::new(MockBackend::new(vec![
             PromptResponse {

@@ -11,10 +11,10 @@ use tracing::{debug, info, warn};
 use crate::backend::PromptCallOptions;
 use crate::event::OrchestratorEvent;
 use crate::node::{NodeContext, NodeResult, NodeStatus, NodeType, OrchestratorNode};
-use crate::tree_of_thoughts::{
-    ExplorationStrategy, GoalCheckStrategy, LlmGoalCheckStrategy,
-    LlmScoringStrategy, ScoringStrategy, ThoughtNode, ThoughtNodeStatus, ToTConfig, ToTError,
-    ToTTerminationReason,
+// GoT 经 patterns/shared 公开类型复用（matrix §4 解耦，不再跨模式 import tot 内部符号）
+use crate::patterns::shared::thoughts::{
+    ExplorationStrategy, GoalCheckStrategy, LlmGoalCheckStrategy, LlmScoringStrategy,
+    ScoringStrategy, ThoughtNode, ThoughtNodeStatus, ToTConfig, ToTError, ToTTerminationReason,
 };
 use crate::types::{MessageRole, OrchestratorMessage};
 
@@ -290,7 +290,7 @@ impl GoTNode {
         Self::new(
             id,
             name,
-            Arc::new(crate::tree_of_thoughts::BeamSearchStrategy::new()),
+            Arc::new(crate::patterns::shared::thoughts::BeamSearchStrategy::new()),
             Arc::new(LlmScoringStrategy::new()),
             Arc::new(LlmGoalCheckStrategy::new()),
             Arc::new(LlmAggregationStrategy::new()),

@@ -1,9 +1,175 @@
+//! 思维域共享类型 — ThoughtNode/ToTConfig/ToTError/ToTTerminationReason + 策略 trait
+//!
+//! 原 tree_of_thoughts/{node,config,error,strategies}.rs 合并，供 ToT/GoT 共同复用
+//! （matrix §4 GoT 解耦：GoT 经本模块公开 API 复用，不再跨目录 import tot 内部符号）。
+
 use async_trait::async_trait;
 use tracing::{debug, info};
 
-use super::error::{extract_json_object, ToTError};
-use super::node::ThoughtNode;
 use crate::backend::{NodeBackendAccessor, PromptCallOptions};
+use crate::patterns::shared::json::extract_json_object_string;
+
+// ─── 思维节点 ────────────────────────────────────────────
+
+/// 思维节点 — 树/图中的一个思维状态
+///
+/// 每个节点包含思维内容、父节点引用、深度、评分与子节点列表。
+/// 根节点 depth=0，content=用户输入。
+///
+/// ## GoT 扩展
+/// - `parents`：图语义下的多父节点列表（树语义下为空 Vec）
+/// - `parent_id` 保留用于树语义兼容（ToT 模式下为单一 parent）
+/// - GoT 聚合节点的 `parents` 包含所有被聚合的源节点 ID
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ThoughtNode {
+    /// 节点唯一 ID（UUID 或递增编号）
+    pub id: String,
+    /// 思维内容（LLM 生成的思维文本）
+    pub content: String,
+    /// 父节点 ID（根节点为 None）
+    ///
+    /// 树语义字段：ToT 模式下为单一 parent。
+    /// GoT 聚合节点也设置此字段（取第一个源节点），以保持向后兼容。
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub parent_id: Option<String>,
+    /// 多父节点列表（图语义）
+    ///
+    /// GoT 扩展字段：聚合节点的所有源节点 ID。
+    /// ToT 模式下为空 Vec（树语义，仅用 `parent_id`）。
+    /// 序列化时默认空 Vec（向后兼容老数据）。
+    #[serde(default)]
+    pub parents: Vec<String>,
+    /// 深度（根节点=0）
+    pub depth: usize,
+    /// 评分（0-100，越高越好；None=未评分）
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub score: Option<u8>,
+    /// 评分理由（可选，LLM 评分策略会填充）
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub score_reasoning: Option<String>,
+    /// 子节点 ID 列表
+    #[serde(default)]
+    pub children: Vec<String>,
+    /// 节点状态
+    pub status: ThoughtNodeStatus,
+}
+
+/// 思维节点状态
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ThoughtNodeStatus {
+    /// 待评分（刚创建）
+    Pending,
+    /// 已评分
+    Scored,
+    /// 已扩展（已生成子节点）
+    Expanded,
+    /// 被剪枝（评分过低，不继续扩展）
+    Pruned,
+    /// 达成目标
+    Goal,
+}
+
+// ─── 终止原因 ────────────────────────────────────────────
+
+/// 思维探索终止原因（ToT/GoT 共用）
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ToTTerminationReason {
+    /// LLM 目标达成
+    GoalReached,
+    /// 深度超限
+    MaxDepthExceeded,
+    /// 节点数超限
+    MaxThoughtsExceeded,
+    /// 评分收敛（top-K 差距 < threshold）
+    ScoreConverged,
+    /// 无候选节点（所有都被剪枝）
+    NoCandidates,
+    /// 外部中断
+    Aborted,
+}
+
+impl ToTTerminationReason {
+    /// 转为字符串标识（用于事件序列化）
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::GoalReached => "goal_reached",
+            Self::MaxDepthExceeded => "max_depth_exceeded",
+            Self::MaxThoughtsExceeded => "max_thoughts_exceeded",
+            Self::ScoreConverged => "score_converged",
+            Self::NoCandidates => "no_candidates",
+            Self::Aborted => "aborted",
+        }
+    }
+}
+
+// ─── ToT 配置 ────────────────────────────────────────────
+
+/// 思维探索配置（ToT/GoT 共用，GoT 以 `#[serde(flatten)]` 复用）
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ToTConfig {
+    /// 最大深度（默认 5）
+    pub max_depth: usize,
+    /// 最大节点数（默认 50）
+    pub max_thoughts: usize,
+    /// Beam 宽度 — 每层保留的 top-K 节点数（默认 3）
+    pub beam_width: usize,
+    /// 分支因子 — 每个节点生成的候选数（默认 3）
+    pub branch_factor: usize,
+    /// 评分收敛阈值 — top-K 评分差距小于此值则收敛（默认 5）
+    pub score_convergence_threshold: u8,
+    /// 是否在最后汇总最优思维（生成 summary 字段）
+    pub require_summary: bool,
+    /// 是否在根节点就检查目标（默认 false，根节点通常只是问题陈述）
+    pub check_goal_at_root: bool,
+}
+
+impl Default for ToTConfig {
+    fn default() -> Self {
+        Self {
+            max_depth: 5,
+            max_thoughts: 50,
+            beam_width: 3,
+            branch_factor: 3,
+            score_convergence_threshold: 5,
+            require_summary: true,
+            check_goal_at_root: false,
+        }
+    }
+}
+
+// ─── 错误 ────────────────────────────────────────────
+
+/// 思维探索错误（ToT/GoT 共用）
+#[derive(Debug, thiserror::Error)]
+pub enum ToTError {
+    #[error("LLM 调用失败: {0}")]
+    LlmCall(String),
+
+    #[error("LLM 响应解析失败: {0}")]
+    Parse(String),
+
+    #[error("探索失败: {0}")]
+    Explore(String),
+
+    #[error("评分失败: {0}")]
+    Score(String),
+
+    #[error("目标检查失败: {0}")]
+    GoalCheck(String),
+
+    #[error("配置错误: {0}")]
+    Config(String),
+
+    #[error("其他错误: {0}")]
+    Other(String),
+}
+
+impl From<crate::backend::BackendError> for ToTError {
+    fn from(e: crate::backend::BackendError) -> Self {
+        Self::LlmCall(e.to_string())
+    }
+}
 
 // ─── 探索策略 trait ────────────────────────────────────────────
 
@@ -13,7 +179,7 @@ use crate::backend::{NodeBackendAccessor, PromptCallOptions};
 /// 可注入自定义实现：基于规则、基于模板、基于历史经验等。
 #[async_trait]
 pub trait ExplorationStrategy: Send + Sync {
-    /// 根据父节点生成下一层候选思维，详细见 docs/details/注释/agent-runtime/tree_of_thoughts.md
+    /// 根据父节点生成下一层候选思维
     async fn expand(
         &self,
         parent: &ThoughtNode,
@@ -32,11 +198,6 @@ pub trait ExplorationStrategy: Send + Sync {
 #[async_trait]
 pub trait ScoringStrategy: Send + Sync {
     /// 评分一个思维节点
-    ///
-    /// # 参数
-    /// - `node`：待评分节点
-    /// - `context`：原始任务/问题
-    /// - `backend`：LLM 后端访问器
     ///
     /// # 返回
     /// `(score, reasoning)`：评分（0-100）与可选理由。
@@ -57,14 +218,6 @@ pub trait ScoringStrategy: Send + Sync {
 #[async_trait]
 pub trait GoalCheckStrategy: Send + Sync {
     /// 检查是否达成目标
-    ///
-    /// # 参数
-    /// - `node`：待检查节点
-    /// - `context`：原始任务/问题
-    /// - `backend`：LLM 后端访问器
-    ///
-    /// # 返回
-    /// `true` 表示该节点已达成目标，ToT 应终止并返回此节点。
     async fn check_goal(
         &self,
         node: &ThoughtNode,
@@ -177,7 +330,7 @@ impl Default for GoalCheckPromptTemplate {
 /// Beam Search 探索策略（默认实现）
 ///
 /// 通过调用 LLM 生成多个不同的候选思维。
-/// 评分与剪枝由 `ToTNode::execute` 统一处理，本策略只负责"生成"。
+/// 评分与剪枝由节点 execute 统一处理，本策略只负责"生成"。
 pub struct BeamSearchStrategy {
     /// 提示词模板
     pub prompt_template: ExplorationPromptTemplate,
@@ -221,7 +374,7 @@ impl BeamSearchStrategy {
     ///
     /// 真实 LLM（尤其推理模型）常返回嵌套结构（如 `[["思维1","思维2"],["思维3"]]`），
     /// 这里递归展平所有数组层级为扁平字符串列表，提升健壮性。
-    pub(super) fn parse_response(text: &str) -> Result<Vec<String>, ToTError> {
+    pub fn parse_response(text: &str) -> Result<Vec<String>, ToTError> {
         let trimmed = text.trim();
         let json_str = trimmed
             .strip_prefix("```json")
@@ -342,8 +495,8 @@ impl LlmScoringStrategy {
     }
 
     /// 解析 LLM 输出的 JSON（容错处理 ```json 包裹 + 双花括号）
-    pub(super) fn parse_response(text: &str) -> Result<(u8, Option<String>), ToTError> {
-        let json_str = extract_json_object(text);
+    pub fn parse_response(text: &str) -> Result<(u8, Option<String>), ToTError> {
+        let json_str = extract_json_object_string(text);
 
         #[derive(serde::Deserialize)]
         struct ScoreResponse {
@@ -425,8 +578,8 @@ impl LlmGoalCheckStrategy {
     }
 
     /// 解析 LLM 输出的 JSON（容错处理 ```json 包裹 + 双花括号）
-    pub(super) fn parse_response(text: &str) -> Result<bool, ToTError> {
-        let json_str = extract_json_object(text);
+    pub fn parse_response(text: &str) -> Result<bool, ToTError> {
+        let json_str = extract_json_object_string(text);
 
         #[derive(serde::Deserialize)]
         struct GoalCheckResponse {
@@ -472,3 +625,4 @@ impl GoalCheckStrategy for LlmGoalCheckStrategy {
         Self::parse_response(&response.text)
     }
 }
+

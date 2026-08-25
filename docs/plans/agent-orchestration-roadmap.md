@@ -4,6 +4,7 @@
 > 创建日期：2026-07-24
 > 状态：**阶段 1（Rust Agent loop）+ 阶段 2（编排框架）已完成**（2026-07-28，cargo test 127/127）；阶段 0（TS 编排验证）未做完整，被 Rust 直接实现替代；阶段 3（自研 pi-ai）可选待定
 > 关联：替换 WorldSmith 的 TS pi-ai（详见 [project_memory.md](../../project_memory.md)）
+> 2026-08-25：13 模式层级重划已产出权威矩阵 [orchestration-matrix.md](../details/架构/orchestration-matrix.md)（纯文档，未动代码）；同日经两方方案裁定（[03-两方方案裁定纪要.md](./agent编排层架构重构/03-两方方案裁定纪要.md)）合并修正后，matrix 为唯一架构权威；本文档三层架构图保留为历史规划视角
 
 ## 一、目标
 
