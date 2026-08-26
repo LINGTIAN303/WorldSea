@@ -12,11 +12,14 @@ use crate::types::OrchestratorState;
 
 // ─── 节点类型 ────────────────────────────────────
 
-/// 节点类型枚举（对应 TS 版 `NodeType`）
+/// 节点类型枚举（matrix §7 待决 6 清理，2026-08-25）
+///
+/// 仅保留有 OrchestratorNode 实现的真节点（9 模式 + Custom 扩展位）。
+/// React/Memory 语义由底座能力表达（AgentLoop / MemoryAccessor 服务），
+/// SubAgent 由工具委派表达（delegate_to_sub_agent），均非编排图节点——
+/// 产品语义「13 模式」与架构两层归属从此代码级一致。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NodeType {
-    /// ReAct 循环（基础工具调用）
-    React,
     /// 生成计划
     Plan,
     /// 执行计划项
@@ -29,8 +32,6 @@ pub enum NodeType {
     Router,
     /// 监督者
     Supervisor,
-    /// 子 Agent
-    SubAgent,
     /// Tree of Thoughts 思维节点
     Thought,
     /// Graph of Thoughts 思维图节点（阶段 2.2 新增）
@@ -42,9 +43,7 @@ pub enum NodeType {
     /// 去中心化对等协作：N 个 AgentLoop 通过 mpsc 通道 + SharedBlackboard 协作。
     /// 与 `Supervisor` 区分：Supervisor 是中心化调度，MultiAgent 是对等通信。
     MultiAgent,
-    /// 记忆读写
-    Memory,
-    /// 自定义
+    /// 自定义（扩展通道）
     Custom,
 }
 
@@ -52,18 +51,15 @@ impl NodeType {
     /// 转为字符串标识（用于序列化/日志）
     pub fn as_str(&self) -> &'static str {
         match self {
-            Self::React => "react",
             Self::Plan => "plan",
             Self::Execute => "execute",
             Self::Reflection => "reflection",
             Self::Refine => "refine",
             Self::Router => "router",
             Self::Supervisor => "supervisor",
-            Self::SubAgent => "sub-agent",
             Self::Thought => "thought",
             Self::Graph => "graph",
             Self::MultiAgent => "multi-agent",
-            Self::Memory => "memory",
             Self::Custom => "custom",
         }
     }
