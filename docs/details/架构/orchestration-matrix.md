@@ -230,7 +230,7 @@
 4. **A3 Routing 与 Router 节点职责边界**：A3 四管线（Query/Research/Experiment/Compose，产品级）与内核级 RouterNode（路由决策）关系待后续澄清，防止"两套路由"概念混淆。
 5. **代码模块化的前提依赖**：搬移 8 个扩展模式为独立目录时，需同步改 lib.rs 导出、agent-commands import、tests 路径——属后续里程碑，迁移顺序建议：先 ToT/Multi-Agent（已是目录，搬移样板）→ 单文件升目录（Supervisor/Router/GoT）→ plan/reflection 拆目录。
 6. **NodeType 枚举与两层归属错位**（2026-08-25 裁定新增）——**已完成（2026-08-25，commit 8345e84）**：枚举删除 `React/SubAgent/Memory` 三个无节点变体，仅保留 9 模式真节点 + `Custom` 扩展位；`as_str` 删对应分支；全库 grep 零引用 + 编译期穷尽匹配保证安全。产品语义「13 模式」与架构两层归属代码级一致。**未引入 ExtensionRegistry 注册表**（扩展通道本就是实现 trait，动态注册需求尚不存在）。
-7. **SubAgent 双池并存**（2026-08-25 裁定新增，待决）：`patterns/supervisor` 的 `SubAgentSpec` + 节点级 agent 池（单次编排内生命周期）与 `agent-commands/subagent.rs` 的 `SubAgentManager`（跨会话命令层注册表 + 实例缓存 + 事件归一）两套子 Agent 管理并存。处置方向：Spec 类型与实例池下沉为共享底层，保留双触发（Supervisor 图节点显式调度 / delegate 工具由 LLM 自主隐式委派，两者互补）；**不将 SubAgent 节点化**（会消灭自主委派语义）。两池生命周期语义不同（单次编排 vs 跨会话命令层），强行合一的语义损失风险需权衡——变更价值评估见 2026-08-25 会话结论（暂缓，待真实负担出现）。
+7. **SubAgent 双池并存**（2026-08-25 裁定新增）——**已完成（2026-08-25，commit 09b933b）**：新增 `agent-kernel/src/sub_agent_pool.rs` 共享运行时（`SubAgentSpec` 上移 + `SubAgentPool`：懒加载池/spec 指纹复用/规格变更重建+上下文迁移/WhitelistToolBus 白名单隔离/clear/remove/instances）；`SupervisorNode` 与 `SubAgentManager` 均改用 SubAgentPool（各自删除重复创建实现）。边界：池只承载「创建/复用/重建/隔离」，不承载触发语义（Supervisor 图节点显式调度 vs delegate 工具隐式委派）与命令层状态（specs 注册表、委派深度/超时、事件广播）——后者保留原位。**不将 SubAgent 节点化**（会消灭自主委派语义）。行为增强：Supervisor 子 Agent 现自动获得白名单隔离 + 规格变更重建能力。
 
 ---
 
