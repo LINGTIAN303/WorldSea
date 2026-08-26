@@ -7,32 +7,45 @@
 
 ## 模块清单
 
-### agent-runtime（crates/agent-runtime）
+### agent-runtime（crates/：agent-runtime 聚合壳 → agent-kernel 底座 + agent-patterns 扩展）
+
+> **2026-08-25 crate 拆分**：`agent-runtime` 已转聚合壳（转发两子 crate，对外路径不变），代码物理位于
+> `crates/agent-kernel/src`（底座）与 `crates/agent-patterns/src`（扩展模式）。以下代码文件列按新物理路径标注。
+
+#### agent-kernel（底座，`crates/agent-kernel/src`）
 
 | 代码文件 | 详细注释文档 | 摘要 |
 |---|---|---|
-| src/agent/（mod.rs + config/state/error/loop_control/memory/llm/tools/interaction/long_task/backend_bridge，原 agent.rs 2026-08-06 拆分） | [agent.md](agent-runtime/agent.md) | AgentLoop ReAct 核心循环：配置、主循环、工具执行、记忆注入 |
-| src/event.rs | [event.md](agent-runtime/event.md) | AgentEvent 事件模型与序列化契约 |
-| src/loop_control.rs | [loop_control.md](agent-runtime/loop_control.md) | LoopController 限流/超时/看门狗自动控制 |
-| src/supervisor.rs | [supervisor.md](agent-runtime/supervisor.md) | 子 Agent 委派监督器 |
-| src/router.rs | [router.md](agent-runtime/router.md) | 模型路由选择 |
-| src/multi_agent.rs | [multi_agent.md](agent-runtime/multi_agent.md) | 去中心化多 Agent 协作模式 |
-| src/long_task.rs | [long_task.md](agent-runtime/long_task.md) | 长任务管理器 |
-| src/graph_of_thoughts.rs | [graph_of_thoughts.md](agent-runtime/graph_of_thoughts.md) | GoT 思维图谱 |
-| src/tree_of_thoughts/（mod + node/strategies/config/error，原 tree_of_thoughts.rs 2026-08-06 拆分） | [tree_of_thoughts.md](agent-runtime/tree_of_thoughts.md) | ToT 思维树 |
-| src/a2ui.rs | [a2ui.md](agent-runtime/a2ui.md) | A2UI 界面渲染事件 |
-| src/tool.rs | [tool.md](agent-runtime/tool.md) | 工具调用抽象 |
-| src/deep_phases.rs | [deep_phases.md](agent-runtime/deep_phases.md) | 深度思考阶段 |
-| src/memory.rs | [memory.md](agent-runtime/memory.md) | 记忆访问器 |
-| src/orchestrator.rs | [orchestrator.md](agent-runtime/orchestrator.md) | 编排器接口与执行 |
-| src/node.rs | [node.md](agent-runtime/node.md) | 节点接口与上下文 |
-| src/alias.rs | [alias.md](agent-runtime/alias.md) | 工具名别名系统 |
-| src/mcp.rs | [mcp.md](agent-runtime/mcp.md) | MCP 工具适配器 |
-| src/llm/（mod/config/error/model/manifest/stream/genai_backend） | [llm.md](agent-runtime/llm.md) | LLM 通信层（Provider 配置/清单/流式/GenaiBackend） |
-| src/backend.rs | [backend.md](agent-runtime/backend.md) | LLM 后端访问器（NodeBackendAccessor） |
-| src/lib.rs | [lib.md](agent-runtime/lib.md) | crate 导出与架构总览 |
+| kernel/agent/（AgentLoop 最小闭环） | [agent.md](agent-runtime/agent.md) | AgentLoop ReAct 核心循环：配置、主循环、工具执行、记忆注入、织入点 Hook 协议 |
+| kernel/node.rs | [node.md](agent-runtime/node.md) | 节点接口与上下文（OrchestratorNode + NodeType 10 变体） |
+| kernel/orchestrator.rs | [orchestrator.md](agent-runtime/orchestrator.md) | 编排器接口与执行（DefaultOrchestrator 图宿主） |
+| kernel/backend.rs | [backend.md](agent-runtime/backend.md) | LLM 后端访问器（NodeBackendAccessor） |
+| kernel/tool.rs + tool_context.rs + tool_hook.rs | [tool.md](agent-runtime/tool.md) | 工具调用抽象：ToolBus/白名单/上下文/生命周期钩子 |
+| kernel/memory.rs | [memory.md](agent-runtime/memory.md) | 记忆访问器（MemoryAccessor 横切服务） |
+| kernel/event.rs | [event.md](agent-runtime/event.md) | 编排事件模型与序列化契约 |
+| kernel/types.rs | — | 编排状态与消息共享类型（含 PlanItem/ReflectionResult 等） |
+| kernel/confirmation.rs | — | 权限确认策略（治理层） |
+| kernel/loop_control.rs | [loop_control.md](agent-runtime/loop_control.md) | LoopController 限流/超时/看门狗自动控制（工程横切） |
+| kernel/long_task.rs | [long_task.md](agent-runtime/long_task.md) | 长任务管理器（检查点/心跳/看门狗） |
+| kernel/llm/ | [llm.md](agent-runtime/llm.md) | LLM 通信层（Provider 配置/清单/流式/GenaiBackend） |
+| kernel/alias.rs / mcp.rs / a2ui.rs / deep_phases.rs / scenario.rs | alias.md / [mcp.md](agent-runtime/mcp.md) / [a2ui.md](agent-runtime/a2ui.md) / [deep_phases.md](agent-runtime/deep_phases.md) | 工具别名 / MCP 适配 / A2UI 渲染 / 深度任务层 / 场景上下文（可承载类层锚点） |
+| kernel/router_decider.rs（2026-08-25 新增） | — | RouterDecider trait + Pipeline/RouterDecision（消除 kernel→patterns 反向依赖） |
+| kernel/sub_agent_pool.rs（2026-08-25 新增） | — | SubAgentSpec +SubAgentPool 共享运行时（Supervisor 与命令层双池统一，§7 待决 7） |
+| kernel/lib.rs | [lib.md](agent-runtime/lib.md) | 底座内核导出与架构总览 |
+
+#### agent-patterns（扩展模式，`crates/agent-patterns/src`）
+
+| 代码文件 | 详细注释文档 | 摘要 |
+|---|---|---|
+| patterns/supervisor/ | [supervisor.md](agent-runtime/supervisor.md) | 监督者：子 Agent 显式调度（池已下沉 SubAgentPool） |
+| patterns/router/ | [router.md](agent-runtime/router.md) | 模型路由选择 / A3 四管线 |
+| patterns/multi_agent/ | [multi_agent.md](agent-runtime/multi_agent.md) | 去中心化多 Agent 协作模式 |
+| patterns/tot/（原 tree_of_thoughts） | [tree_of_thoughts.md](agent-runtime/tree_of_thoughts.md) | ToT 思维树 |
+| patterns/got/（原 graph_of_thoughts） | [graph_of_thoughts.md](agent-runtime/graph_of_thoughts.md) | GoT 思维图谱 |
+| patterns/plan_execute/（原 plan.rs） | — | Plan-and-Execute 节点（plan.rs 拆分目录） |
+| patterns/reflective/（原 reflection.rs） | — | Reflection + Self-Refine（ReflectionNode/RefineNode 同域） |
+| patterns/shared/（thoughts.rs + json.rs） | — | 跨模式共享类型与 JSON 工具（GoT/ToT 解耦落点） |
 | 拆分记录（2026-08-06） | — | 测试已分离：agent/supervisor/tree_of_thoughts/multi_agent/router/long_task/graph_of_thoughts 的测试模块迁出至对应 `*_tests.rs`（`#[path]` 引入） |
-| 拆分记录（2026-08-06） | — | agent.rs 按职责拆为 src/agent/ 目录（config/state/error/loop_control/memory/llm/tools/interaction/long_task/backend_bridge + tests.rs），对外 API 不变，cargo test 170 + 5 全绿 |
 
 ### agent-commands（crates/agent-commands）
 
