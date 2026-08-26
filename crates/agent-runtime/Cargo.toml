@@ -2,7 +2,7 @@
 name = "agent-runtime"
 version = "0.1.0"
 edition = "2021"
-description = "Agent 编排框架 Rust 版 — Orchestrator/Node/State trait 抽象层"
+description = "Agent 编排框架聚合壳 — 转发 agent-kernel（底座）+ agent-patterns（扩展模式），保持对外路径 agent_runtime::xxx 兼容"
 license = "MIT OR Apache-2.0"
 keywords = ["agent", "orchestrator", "llm", "ai", "编排"]
 categories = ["asynchronous", "data-structures"]
@@ -12,39 +12,14 @@ crate-type = ["rlib"]
 
 [features]
 default = []
-# 阶段 1.2 启用：genai LLM 通信层
-llm-genai = ["dep:genai"]
-# 阶段 1.4 启用：SQLite 持久化
-sqlite = ["dep:sqlx"]
+# 传导到 agent-kernel：genai LLM 通信层
+llm-genai = ["agent-kernel/llm-genai"]
+# 传导到 agent-kernel：SQLite 持久化
+sqlite = ["agent-kernel/sqlite"]
 
 [dependencies]
-# ── 序列化 ──
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-
-# ── 异步运行时 ──
-tokio = { version = "1", features = ["sync", "macros", "rt", "time"] }
-async-trait = "0.1"
-futures-util = "0.3"
-
-# ── 工具链 ──
-thiserror = "2"
-tracing = "0.1"
-uuid = { version = "1", features = ["v4"] }
-chrono = { version = "0.4", features = ["serde"] }
-
-# ── 可选依赖（阶段 1.2/1.4 启用）──
-# genai: 关闭默认 rustls-tls（依赖 aws-lc-rs 编译），改用 native-tls
-#   - Windows: schannel（系统自带，无需编译）
-#   - Linux: OpenSSL（系统包管理器安装）
-#   - macOS: SecureTransport（系统自带）
-# 对齐到 0.7.0-beta.16：与 agent-commands / tauri 的 Cargo.lock 保持一致，
-# 避免同一份代码在不同 crate 构建下因枚举变体不一致（Heartbeat）而编译失败
-genai = { version = "0.7.0-beta.16", optional = true, default-features = false, features = ["native-tls"] }
-sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio"], optional = true }
-
-[dev-dependencies]
-tokio = { version = "1", features = ["full", "test-util"] }
+agent-kernel = { path = "../agent-kernel" }
+agent-patterns = { path = "../agent-patterns" }
 
 [profile.release]
 opt-level = "s"

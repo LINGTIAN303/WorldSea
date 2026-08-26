@@ -25,7 +25,7 @@
 | 状态 | 文档 | 摘要（结论） | 链接 |
 |------|------|-------------|------|
 | 现行 | WorldSmith 架构总览 | 当前实际代码状态（2026-08-08 复核）：Tauri 唯一 GUI + 共享 packages + Rust crates（CLI 已于 2026-08-08 移除），docs 目录说明，供新接手者定位代码 | [ARCHITECTURE.md](../details/ARCHITECTURE.md) |
-| 执行中 | 编排模式层级架构矩阵 | 13 模式现状+目标双栏契约；底座=Agent 执行内核（内聚内核），归属：底座能力 5 + 扩展模式 8；`kernel/ + patterns/` 代码模块化施工图纸与**唯一架构权威**（2026-08-25 裁定合并 + 阶段 A/B + 织入点 Hook 协议化全部完成：src 重组为 kernel 底座 + patterns 扩展，hooks.rs 提供 RunPhase 位点扩展通道，全量测试通过） | [orchestration-matrix.md](../details/架构/orchestration-matrix.md) |
+| 执行中 | 编排模式层级架构矩阵 | 13 模式现状+目标双栏契约；底座=Agent 执行内核（内聚内核），归属：底座能力 5 + 扩展模式 8；`kernel/ + patterns/` 代码模块化施工图纸与**唯一架构权威**（2026-08-25 裁定合并 + 阶段 A/B + 里程碑 2/5 全部完成：crate 拆为 agent-kernel + agent-patterns + agent-runtime 壳，RouterDecider 消除反向依赖，hooks.rs 提供 RunPhase 位点扩展通道，全量测试通过） | [orchestration-matrix.md](../details/架构/orchestration-matrix.md) |
 | 已完成 | 三端分离文档库 | Web/CLI/Tauri 三端彻底分离（物理目录+共享代码层+后端能力重叠处理），共 13 个文件含 6 Phase 迁移路线、风险回滚、验证清单。**最终结局（2026-08-08）**：web/cli 均已删除，收敛为 Tauri 唯一 GUI + 共享 crates，作为历史归档 | [端分离/README.md](../details/端分离/README.md) |
 | 已完成 | 记忆归档框架设计 | memory-archive 框架核心设计（归档/检索/调度分层） | [2026-06-17-memory-archive-framework-design.md](../details/memory-archive/2026-06-17-memory-archive-framework-design.md) |
 | 现行 | 详细注释索引 | 注释分层后的详细层（why/how）文档，按模块与代码文件一一对应（agent-runtime/agent-commands/tauri/packages），代码内注释附相对路径直达 | [注释/README.md](../details/注释/README.md) |

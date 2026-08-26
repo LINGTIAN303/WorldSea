@@ -1,105 +1,34 @@
-//! Agent Runtime crate 入口（kernel 内核 + patterns 扩展层），详细见 docs/details/注释/agent-runtime/lib.md
+//! Agent Runtime crate — 聚合壳（matrix §8 里程碑 2，2026-08-25）
 //!
-//! 布局：`kernel/`（底座内核，可独立运行）+ `patterns/`（8 扩展模式独立目录）。
-//! 下方转发层仅作对外路径兼容的公共门面（matrix §8 阶段 A/B 迁移后保持），
-//! 内部实现一律在 kernel/ 与 patterns/ 中。
+//! 物理拆分后转发两个子 crate，保持对外路径 `agent_runtime::xxx` 零改动：
+//! - `agent_kernel`：底座内核（node/orchestrator/agent/backend/tool/memory/...）
+//! - `agent_patterns`：扩展模式（tot/got/plan_execute/reflective/router/supervisor/multi_agent/shared）
+//!
+//! 底座模块经 `pub use agent_kernel::*` 直达根；扩展模式保留旧路径转发层
+//! （`plan`→`plan_execute`、`reflection`→`reflective`、`tree_of_thoughts`→`tot`、
+//! `graph_of_thoughts`→`got`），与拆分前对外语义一致。
 
-pub mod kernel;
-pub mod patterns;
+pub use agent_kernel::*;
+pub use agent_patterns::*;
 
-// ─── 底座内核转发层（kernel/，对外路径兼容）─────────────────────
-pub mod agent {
-    pub use crate::kernel::agent::*;
-}
-pub mod alias {
-    pub use crate::kernel::alias::*;
-}
-pub mod a2ui {
-    pub use crate::kernel::a2ui::*;
-}
-pub mod backend {
-    pub use crate::kernel::backend::*;
-}
-pub mod confirmation {
-    pub use crate::kernel::confirmation::*;
-}
-pub mod deep_phases {
-    pub use crate::kernel::deep_phases::*;
-}
-pub mod event {
-    pub use crate::kernel::event::*;
-}
-// llm 模块整体开放：config/manifest/model/error 为纯数据，供 backend.rs 的
-// NodeBackendAccessor 接口引用（不依赖 genai）；仅 genai_backend / stream
-// 子模块在内部按 feature "llm-genai" 门控。
-pub mod llm {
-    pub use crate::kernel::llm::*;
-}
-pub mod long_task {
-    pub use crate::kernel::long_task::*;
-}
-pub mod loop_control {
-    pub use crate::kernel::loop_control::*;
-}
-pub mod mcp {
-    pub use crate::kernel::mcp::*;
-}
-pub mod memory {
-    pub use crate::kernel::memory::*;
-}
-pub mod node {
-    pub use crate::kernel::node::*;
-}
-pub mod orchestrator {
-    pub use crate::kernel::orchestrator::*;
-}
-pub mod scenario {
-    pub use crate::kernel::scenario::*;
-}
-pub mod tool {
-    pub use crate::kernel::tool::*;
-}
-pub mod tool_context {
-    pub use crate::kernel::tool_context::*;
-}
-pub mod tool_hook {
-    pub use crate::kernel::tool_hook::*;
-}
-pub mod types {
-    pub use crate::kernel::types::*;
-}
-
-// ─── 扩展模式转发层（patterns/，对外路径兼容）───────────────────
-// graph_of_thoughts 已物理迁移至 patterns/got/
+// ─── 扩展模式旧路径转发层（对外兼容 agent_runtime::plan 等）───────────────────
+// 同名模块（multi_agent/router/supervisor）经 `pub use agent_patterns::*` 直达根；
+// 此处仅映射改名模块：graph_of_thoughts→got、plan→plan_execute、
+// reflection→reflective、tree_of_thoughts→tot。
 pub mod graph_of_thoughts {
-    pub use crate::patterns::got::*;
+    pub use agent_patterns::got::*;
 }
-// multi_agent 已物理迁移至 patterns/multi_agent/
-pub mod multi_agent {
-    pub use crate::patterns::multi_agent::*;
-}
-// plan 已物理迁移至 patterns/plan_execute/
 pub mod plan {
-    pub use crate::patterns::plan_execute::*;
+    pub use agent_patterns::plan_execute::*;
 }
-// reflection 已物理迁移至 patterns/reflective/
 pub mod reflection {
-    pub use crate::patterns::reflective::*;
+    pub use agent_patterns::reflective::*;
 }
-// router 已物理迁移至 patterns/router/
-pub mod router {
-    pub use crate::patterns::router::*;
-}
-// supervisor 已物理迁移至 patterns/supervisor/
-pub mod supervisor {
-    pub use crate::patterns::supervisor::*;
-}
-// tree_of_thoughts 已物理迁移至 patterns/tot/
 pub mod tree_of_thoughts {
-    pub use crate::patterns::tot::*;
+    pub use agent_patterns::tot::*;
 }
 
-// ─── 公共导出 ────────────────────────────────────────────
+// ─── 公共导出（与拆分前一致，类型来自上述转发/直达路径）───────────────────
 pub use agent::{AgentError, AgentLoop, AgentLoopConfig, AgentState, AgentStateSnapshot};
 pub use backend::{NodeBackendAccessor, PromptCallOptions, PromptResponse, ThinkingLevel};
 pub use confirmation::{ConfirmationBroker, ConfirmationPolicy};

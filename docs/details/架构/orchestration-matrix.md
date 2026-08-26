@@ -3,7 +3,7 @@
 > status: 执行中（作为后续代码模块化施工基准）
 > 创建日期：2026-08-25（纯文档期：现状收集 + 架构分析，未动代码）
 > 修正记录：2026-08-25 吸收「Harness 方案」裁定合并——GoT/Reflection 跨模式耦合补录（§4，已经代码核实）、NodeType 枚举清理与 SubAgent 双池两项待决（§7）、织入点协议化里程碑（§8）
-> 施工进展：2026-08-25 阶段 A（patterns/ 8 扩展模式迁移）+ 阶段 B（kernel/ 底座目录化）+ 里程碑 5（织入点 Hook 协议化）均已完成——src 重组为 kernel（底座）+ patterns（8 模式 + shared），lib.rs 转发层公共门面保持对外兼容；kernel/agent/hooks.rs 提供 RunPhase 位点 + AgentLoopHook 扩展通道（内置织入组织化，行为零变化）；cargo test 全绿（agent-runtime 240 + agent-commands 86+1 + tauri check）。
+> 施工进展：2026-08-25 阶段 A/B + 里程碑 2/5 全部完成——`crates/` 拆为 `agent-kernel`（底座）+ `agent-patterns`（8 扩展模式 + shared）+ `agent-runtime`（聚合壳，对外路径零改动）；RouterDecider trait 抽象消除 kernel→patterns 反向依赖；织入点 Hook 协议化（RunPhase 位点 + AgentLoopHook）；cargo test 全绿（agent-kernel 140 + agent-patterns 100 + agent-commands 86+1 + tauri check）。
 > 关联：[agent-orchestration-roadmap.md](../../plans/agent-orchestration-roadmap.md)（规划，13 模式编号源） · [orchestration-patterns-delivery.md](../../misc/orchestration-patterns-delivery.md)（交付史） · [03-两方方案裁定纪要.md](../../plans/agent编排层架构重构/03-两方方案裁定纪要.md)（两方方案裁定，本文档权威性来源） · [ARCHITECTURE.md](../ARCHITECTURE.md)（项目总览）
 > 用途：回答「底座该是什么」+ 给 13 个名义模式重新归位，作为 `kernel/ + patterns/` 代码模块化的**施工图纸与验收基准**。
 
