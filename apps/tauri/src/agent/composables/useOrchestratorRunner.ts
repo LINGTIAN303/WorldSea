@@ -29,8 +29,14 @@ export interface OrchestratorRunner {
   reset: () => void
 }
 
-/** 创建一个编排图运行器（按 Tauri 命令名绑定对应模式） */
-export function createOrchestratorRunner(command: string): OrchestratorRunner {
+/** 工厂可选钩子 — 让「运行编排图」的统一骨架适配特殊事件型模式（如 Plan 的评审监听） */
+export interface OrchestratorRunHooks {
+  /** invoke 编排命令前调用：注册/清理会话级事件监听、重置衍生状态（如评审分桶） */
+  onPrepare?: (sessionId: string) => Promise<void> | void
+}
+
+/** 创建一个编排图运行器（按 Tauri 命令名绑定对应模式；hooks 提供运行前事件准备） */
+export function createOrchestratorRunner(command: string, hooks?: OrchestratorRunHooks): OrchestratorRunner {
   const busy = ref(false)
   const error = ref('')
   const result = ref<OrchestratorResult | null>(null)
@@ -49,6 +55,14 @@ export function createOrchestratorRunner(command: string): OrchestratorRunner {
     busy.value = true
     error.value = ''
     result.value = null
+    // 运行前钩子（如注册模式专属事件监听）；失败不阻断 invoke（由模式侧容错）
+    if (hooks?.onPrepare) {
+      try {
+        await hooks.onPrepare(sid)
+      } catch (err) {
+        console.warn(`[useOrchestratorRunner] onPrepare(${command}) 失败:`, err)
+      }
+    }
     try {
       const res = await invoke<OrchestratorResult>(command, { sessionId: sid, input, options: options ?? null })
       result.value = res
