@@ -2,6 +2,7 @@
     use agent_runtime::backend::{BackendError, PromptCallOptions, PromptResponse};
     use agent_runtime::event::EventListener;
     use agent_runtime::tool::SimpleToolBus;
+    use agent_runtime::types::{MessageRole, OrchestratorMessage};
 
     /// 会阻塞的 mock backend：prompt 前 sleep，用于触发 delegate 超时
     struct SlowBackend {

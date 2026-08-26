@@ -22,6 +22,7 @@ pub mod node;
 pub mod orchestrator;
 pub mod router_decider;
 pub mod scenario;
+pub mod sub_agent_pool;
 pub mod tool;
 pub mod tool_context;
 pub mod tool_hook;

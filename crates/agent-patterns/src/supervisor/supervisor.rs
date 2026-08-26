@@ -1,4 +1,4 @@
-﻿//! Supervisor Pattern — 监督者编排模式，详细见 docs/details/注释/agent-runtime/supervisor.md
+//! Supervisor Pattern — 监督者编排模式，详细见 docs/details/注释/agent-runtime/supervisor.md
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -7,41 +7,23 @@ use std::time::Instant;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 
 use agent_kernel::agent::{AgentLoop, AgentLoopConfig};
 use agent_kernel::backend::{NodeBackendAccessor, PromptCallOptions};
 use agent_kernel::event::OrchestratorEvent;
 use agent_kernel::node::{NodeContext, NodeResult, NodeStatus, NodeType, OrchestratorNode};
+use agent_kernel::sub_agent_pool::SubAgentPool;
 use agent_kernel::tool::ToolBus;
 use agent_kernel::types::{MessageRole, OrchestratorMessage};
 
 // ─── 子 Agent 规格 ────────────────────────────────────────────
 
-/// 子 Agent 规格 — 描述一个可调用的专长子 Agent
+/// 子 Agent 规格 — 已上移底座 `agent_kernel::sub_agent_pool::SubAgentSpec`
 ///
-/// 由用户在创建 SupervisorNode 时提供，定义子 Agent 的能力与配置。
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct SubAgentSpec {
-    /// 子 Agent 唯一 ID（用于 `AssignmentResult.sub_agent_id` 引用）
-    pub id: String,
-    /// 人类可读名称
-    pub name: String,
-    /// 能力描述（供 LLM 选择时参考，应清晰描述专长）
-    pub description: String,
-    /// 系统提示词（定义子 Agent 的专长与行为边界）
-    pub system_prompt: String,
-    /// 工具白名单（None=继承 ToolBus 中所有工具）
-    ///
-    /// 注意：阶段 1.2 的 ToolBus 不支持按白名单筛选，此字段仅作元数据记录。
-    /// 实际工具隔离需在 ToolBus 层实现（阶段 1.4 扩展）。
-    #[serde(skip_serializing_if = "Option::is_none", default)]
-    pub tools_whitelist: Option<Vec<String>>,
-    /// 子 Agent 最大迭代次数（None=用 `AgentLoopConfig` 默认值）
-    #[serde(skip_serializing_if = "Option::is_none", default)]
-    pub max_iterations: Option<u32>,
-}
+/// （matrix §7 待决 7：共享池下沉，SubAgentManager 与 SupervisorNode 共用类型），
+/// 此处 pub re-export 保持对外路径 `supervisor::SubAgentSpec` 兼容。
+pub use agent_kernel::sub_agent_pool::SubAgentSpec;
 
 // ─── 任务分配结果 ────────────────────────────────────────────
 
@@ -451,14 +433,10 @@ pub struct SupervisorNode {
     name: String,
     /// 子 Agent 规格（按声明顺序，LLM 策略会展示给 LLM）
     specs: Vec<SubAgentSpec>,
-    /// 子 Agent 实例池（lazy 初始化：首次调用时创建并缓存）
-    agents: Arc<RwLock<HashMap<String, Arc<AgentLoop>>>>,
+    /// 子 Agent 实例池（共享底层 SubAgentPool，matrix §7 待决 7；持有 backend/tool_bus）
+    pool: SubAgentPool,
     /// 任务分配策略
     strategy: Arc<dyn AssignmentStrategy>,
-    /// 共享 LLM 后端
-    backend: Arc<dyn NodeBackendAccessor>,
-    /// 共享工具总线
-    tool_bus: Arc<dyn ToolBus>,
     /// 配置
     config: SupervisorConfig,
 }
@@ -478,10 +456,12 @@ impl SupervisorNode {
             id: id.into(),
             name: name.into(),
             specs,
-            agents: Arc::new(RwLock::new(HashMap::new())),
+            pool: SubAgentPool::new(
+                backend,
+                tool_bus,
+                config.agent_loop_config.max_iterations,
+            ),
             strategy,
-            backend,
-            tool_bus,
             config,
         }
     }
@@ -506,40 +486,14 @@ impl SupervisorNode {
         )
     }
 
-    /// 获取或创建子 Agent 实例（lazy 初始化）
+    /// 获取或创建子 Agent 实例（懒加载，经共享 SubAgentPool）
     ///
-    /// 首次调用时创建 AgentLoop 并缓存，后续调用直接返回缓存的实例。
+    /// 以共享 `agent_loop_config` 为基础配置（规格覆盖 system_prompt / max_iterations），
+    /// 规格变更时池内自动重建 + 上下文迁移；规格指定白名单时自动工具隔离。
     async fn get_or_create_agent(&self, spec: &SubAgentSpec) -> Arc<AgentLoop> {
-        // 先尝试读锁快速路径
-        {
-            let agents = self.agents.read().await;
-            if let Some(agent) = agents.get(&spec.id) {
-                return Arc::clone(agent);
-            }
-        }
-
-        // 写锁创建
-        let mut agents = self.agents.write().await;
-        // Double-check（防止并发重复创建）
-        if let Some(agent) = agents.get(&spec.id) {
-            return Arc::clone(agent);
-        }
-
-        // 构造子 Agent 配置（在共享配置基础上覆盖 system_prompt 与 max_iterations）
-        let mut child_config = self.config.agent_loop_config.clone();
-        child_config.system_prompt = Some(spec.system_prompt.clone());
-        if let Some(max_iter) = spec.max_iterations {
-            child_config.max_iterations = max_iter;
-        }
-
-        let agent = Arc::new(
-            AgentLoop::new(Arc::clone(&self.backend), Arc::clone(&self.tool_bus))
-                .with_config(child_config),
-        );
-
-        agents.insert(spec.id.clone(), Arc::clone(&agent));
-        info!("Supervisor: 创建子 Agent 实例 id={} name={}", spec.id, spec.name);
-        agent
+        self.pool
+            .get_or_create(spec, self.config.agent_loop_config.clone())
+            .await
     }
 
     /// 查找子 Agent 规格
@@ -557,8 +511,7 @@ impl SupervisorNode {
     /// 注意：此方法不会销毁已返回给调用方的 `Arc<AgentLoop>`，
     /// 只清空 SupervisorNode 内部的缓存。
     pub async fn clear_agent_pool(&self) {
-        let mut agents = self.agents.write().await;
-        agents.clear();
+        self.pool.clear().await;
     }
 }
 

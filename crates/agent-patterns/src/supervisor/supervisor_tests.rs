@@ -1,4 +1,4 @@
-﻿// ─── 单元测试 ────────────────────────────────────────────
+// ─── 单元测试 ────────────────────────────────────────────
 
     use super::*;
     use agent_kernel::backend::{BackendError, PromptResponse};
@@ -353,9 +353,8 @@
         // Arc 指针相等性检查
         assert!(Arc::ptr_eq(&a1, &a2));
 
-        // 池中应只有 1 个实例
-        let pool = node.agents.read().await;
-        assert_eq!(pool.len(), 1);
+        // 池中应只有 1 个实例（共享 SubAgentPool）
+        assert_eq!(node.pool.len().await, 1);
     }
 
     // ─── 测试：事件触发序列 ────────────────────────────────────

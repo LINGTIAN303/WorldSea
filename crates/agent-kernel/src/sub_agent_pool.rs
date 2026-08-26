@@ -1,0 +1,230 @@
+//! 子 Agent 实例池 — 底座共享运行时（matrix §7 待决 7 收敛，2026-08-25）
+//!
+//! 原 `SupervisorNode`（patterns/supervisor）与 `SubAgentManager`（agent-commands/subagent.rs）
+//! 各自维护「SubAgentSpec + 懒加载 AgentLoop 池」：两处 get_or_create 实现重复，且
+//! Supervisor 侧缺少 Manager 已有的安全能力。本模块把**创建/复用/规格变更重建/
+//! 上下文迁移/工具白名单隔离**下沉为共享底层：
+//! - `SubAgentSpec`：子 Agent 规格（从 patterns/supervisor 上移，re-export 保兼容）
+//! - `SubAgentPool`：懒加载实例池（spec 指纹 + WhitelistToolBus 隔离 + 上下文迁移）
+//!
+//! 边界：本模块只承载「池」运行时，**不**承载触发语义（Supervisor 图节点显式调度
+//! vs delegate 工具隐式委派）与命令层状态（specs 注册表 / list_instances 查询 /
+//! 委派深度/超时）——后两者分别留在 SupervisorNode 与 SubAgentManager。
+
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use serde::{Deserialize, Serialize};
+use tokio::sync::RwLock;
+use tracing::{debug, info};
+
+use crate::agent::{AgentLoop, AgentLoopConfig};
+use crate::backend::NodeBackendAccessor;
+use crate::tool::{ToolBus, WhitelistToolBus};
+use crate::types::{MessageRole, OrchestratorMessage};
+
+/// 子 Agent 规格 — 定义子 Agent 的能力与配置
+///
+/// 由两类使用方提供：SupervisorNode（图节点 specs，LLM 分配给子 Agent）与
+/// SubAgentManager（命令层注册表，主 Agent 经 delegate 工具隐式委派）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SubAgentSpec {
+    /// 子 Agent 唯一 ID（供派发方引用）
+    pub id: String,
+    /// 人类可读名称
+    pub name: String,
+    /// 能力描述（供 LLM 选择时参考，应清晰描述专长）
+    pub description: String,
+    /// 系统提示词（定义子 Agent 的专长与行为边界）
+    pub system_prompt: String,
+    /// 工具白名单（None=继承 ToolBus 中所有工具）
+    ///
+    /// 实际隔离经 `WhitelistToolBus` 生效：白名单非空时子 Agent 只见/能调名单内工具。
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub tools_whitelist: Option<Vec<String>>,
+    /// 子 Agent 最大迭代次数（None=用基础配置的默认值）
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub max_iterations: Option<u32>,
+}
+
+/// 缓存子 Agent — 记录实例及其来源规格
+///
+/// 规格变更（重建检测用）对比用完整 `SubAgentSpec` 指纹（PartialEq）。
+struct CachedSubAgent {
+    /// 创建该实例时使用的规格快照
+    spec: SubAgentSpec,
+    /// 实例本身
+    agent: Arc<AgentLoop>,
+}
+
+/// 子 Agent 实例的对外信息（供命令层 list_instances 展示）
+///
+/// 前端据此展示每个子 Agent 实例累积的上下文规模（`message_count`）与
+/// 是否正在流式执行（`is_streaming`），便于判断哪些实例可安全清空。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubAgentInstanceInfo {
+    /// 子 Agent 实例的 id（与规格 id 一致）
+    pub sub_agent_id: String,
+    /// 子 Agent 名称（来自来源规格）
+    pub name: String,
+    /// 实例当前累积的消息条数（含 system 消息与工具往返）
+    pub message_count: usize,
+    /// 实例是否正在流式执行（判断是否可安全清空）
+    pub is_streaming: bool,
+}
+
+/// 子 Agent 懒加载实例池 — SupervisorNode / SubAgentManager 共用
+///
+/// 能力（对齐原 SubAgentManager 实现）：
+/// - 按 spec 指纹复用；规格变更时重建（新规格生效）
+/// - 重建时迁移旧实例的非 system 对话上下文（保留已累积专业对话，只换 system prompt）
+/// - 规格指定 `tools_whitelist` 时以 `WhitelistToolBus` 隔离工具视图
+pub struct SubAgentPool {
+    /// 共享 LLM 后端（与派发方同一个）
+    backend: Arc<dyn NodeBackendAccessor>,
+    /// 共享工具总线（与派发方同一个）
+    tool_bus: Arc<dyn ToolBus>,
+    /// spec 未指定 max_iterations 时的默认值
+    default_max_iterations: u32,
+    /// 实例池（按 sub_agent_id 懒加载缓存，含来源规格）
+    agents: Arc<RwLock<HashMap<String, CachedSubAgent>>>,
+}
+
+impl SubAgentPool {
+    /// 创建子 Agent 实例池
+    pub fn new(
+        backend: Arc<dyn NodeBackendAccessor>,
+        tool_bus: Arc<dyn ToolBus>,
+        default_max_iterations: u32,
+    ) -> Self {
+        Self {
+            backend,
+            tool_bus,
+            default_max_iterations,
+            agents: Arc::new(RwLock::new(HashMap::new())),
+        }
+    }
+
+    /// 获取或创建子 Agent 实例（懒加载 + 池化复用 + 规格变更重建/上下文迁移）
+    ///
+    /// `base_config` 作为子 Agent 的基础配置（system_prompt 与 max_iterations 被
+    /// 规格覆盖）：SupervisorNode 传共享 `agent_loop_config`（保留其其它默认继承），
+    /// SubAgentManager 传 `AgentLoopConfig::default()`。
+    ///
+    /// 若实例池中已有同 id 实例且来源规格与当前一致则直接复用；否则重建，
+    /// 并把旧实例的非 system 消息迁移到新实例（仅替换 system prompt）。
+    pub async fn get_or_create(
+        &self,
+        spec: &SubAgentSpec,
+        base_config: AgentLoopConfig,
+    ) -> Arc<AgentLoop> {
+        // 读锁快速路径
+        {
+            let agents = self.agents.read().await;
+            if let Some(cached) = agents.get(&spec.id) {
+                if &cached.spec == spec {
+                    return Arc::clone(&cached.agent);
+                }
+            }
+        }
+        // 写锁 + Double-check
+        let mut agents = self.agents.write().await;
+        if let Some(cached) = agents.get(&spec.id) {
+            if &cached.spec == spec {
+                return Arc::clone(&cached.agent);
+            }
+        }
+
+        let mut child_config = base_config;
+        child_config.system_prompt = Some(spec.system_prompt.clone());
+        child_config.max_iterations = spec.max_iterations.unwrap_or(self.default_max_iterations);
+
+        // 子 Agent 工具总线：规格指定白名单时用 WhitelistToolBus 包装（工具隔离）
+        let child_tool_bus: Arc<dyn ToolBus> = match &spec.tools_whitelist {
+            Some(list) if !list.is_empty() => {
+                Arc::new(WhitelistToolBus::new(Arc::clone(&self.tool_bus), list.clone()))
+            }
+            _ => Arc::clone(&self.tool_bus),
+        };
+
+        let agent = Arc::new(
+            AgentLoop::new(Arc::clone(&self.backend), child_tool_bus).with_config(child_config),
+        );
+
+        // 上下文迁移：规格变更重建时，把旧实例的非 system 消息迁到新实例
+        // （新规格 system prompt 已由 with_config 推入，additional 旧上下文）
+        if let Some(old_cached) = agents.get(&spec.id) {
+            let old_messages = old_cached.agent.get_runtime_messages().await;
+            let non_system_messages: Vec<OrchestratorMessage> = old_messages
+                .into_iter()
+                .filter(|m| m.role != MessageRole::System)
+                .collect();
+            if !non_system_messages.is_empty() {
+                let mut new_messages = agent.get_runtime_messages().await;
+                new_messages.extend(non_system_messages);
+                if let Err(e) = agent.set_runtime_messages(new_messages).await {
+                    debug!("子 Agent {} 规格变更上下文迁移失败: {}", spec.id, e);
+                } else {
+                    info!("子 Agent {} 规格变更上下文迁移完成", spec.id);
+                }
+            }
+        }
+
+        agents.insert(
+            spec.id.clone(),
+            CachedSubAgent {
+                spec: spec.clone(),
+                agent: Arc::clone(&agent),
+            },
+        );
+        agent
+    }
+
+    /// 清空实例池（SupervisorNode 重置 / 命令层清空场景）
+    ///
+    /// 注意：不销毁已返回给调用方的 `Arc<AgentLoop>`，只清空内部缓存。
+    /// 返回被清空的实例数。
+    pub async fn clear(&self) -> usize {
+        let mut agents = self.agents.write().await;
+        let count = agents.len();
+        agents.clear();
+        count
+    }
+
+    /// 移除单个实例（重置其累积上下文：下次委派按最新规格懒加载重建）
+    ///
+    /// 返回是否成功移除（id 不存在时返回 `false`）。
+    pub async fn remove(&self, sub_agent_id: &str) -> bool {
+        self.agents.write().await.remove(sub_agent_id).is_some()
+    }
+
+    /// 池内实例数
+    pub async fn len(&self) -> usize {
+        self.agents.read().await.len()
+    }
+
+    /// 池内实例信息列表（命令层 list_instances 查询用）
+    pub async fn instances(&self) -> Vec<SubAgentInstanceInfo> {
+        let agents = self.agents.read().await;
+        // 先取出 Arc 快照（释放读锁），再逐项 await 查询（避免持锁跨 await）
+        let entries: Vec<(String, String, Arc<AgentLoop>)> = agents
+            .iter()
+            .map(|(id, cached)| (id.clone(), cached.spec.name.clone(), Arc::clone(&cached.agent)))
+            .collect();
+        drop(agents);
+
+        let mut list = Vec::with_capacity(entries.len());
+        for (id, name, agent) in entries {
+            let snapshot = agent.get_state_snapshot().await;
+            let message_count = agent.get_messages().await.len();
+            list.push(SubAgentInstanceInfo {
+                sub_agent_id: id,
+                name,
+                message_count,
+                is_streaming: snapshot.is_streaming,
+            });
+        }
+        list.sort_by(|a, b| a.sub_agent_id.cmp(&b.sub_agent_id));
+        list
+    }
+}
