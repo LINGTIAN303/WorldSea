@@ -850,24 +850,16 @@
     }
 
     #[tokio::test]
-    async fn run_with_router_disabled_skips_decision_and_directive() {
+    async fn run_without_router_skips_decision_and_directive() {
+        // FIX-4（2026-08-27）：废弃会话级路由开关——未配置 Router 时静默跳过判型并清空管线指引。
+        // 开关命令已删除，本测试验证"无 Router → 不广播 RouterDecisionMade、system prompt 无管线指引"。
         let backend = Arc::new(MockBackend::new(vec![PromptResponse::text_only("完成")]));
         let tool_bus = Arc::new(SimpleToolBus::new());
 
-        let router = MockRouterDecider {
-            target_id: "research".into(),
-            target_name: "研究专家".into(),
-            reason: None,
-        };
-
-        let agent = AgentLoop::new(backend.clone(), tool_bus)
-            .with_router(Some(Arc::new(router)))
-            .with_config(AgentLoopConfig {
-                system_prompt: Some("基础系统提示".into()),
-                ..Default::default()
-            });
-        // 关闭四管线路由开关
-        agent.set_router_enabled(false);
+        let agent = AgentLoop::new(backend.clone(), tool_bus).with_config(AgentLoopConfig {
+            system_prompt: Some("基础系统提示".into()),
+            ..Default::default()
+        });
 
         let listener = Arc::new(RouterListener {
             decisions: std::sync::Mutex::new(Vec::new()),
@@ -877,16 +869,16 @@
         let result = agent.run("/调研 论文".into()).await;
         assert!(result.is_ok(), "应执行成功，实际: {result:?}");
 
-        // 1. 关闭后不广播 RouterDecisionMade
+        // 1. 无 Router 不广播 RouterDecisionMade
         let decisions = listener.decisions.lock().unwrap().clone();
-        assert_eq!(decisions.len(), 0, "关闭路由后不应广播决策，实际: {decisions:?}");
+        assert_eq!(decisions.len(), 0, "无 Router 不应广播决策，实际: {decisions:?}");
 
         // 2. system prompt 不含管线指引（仅基础系统提示）
         let last_options = backend.last_options.lock().await.clone().unwrap();
         let sys = last_options.system_prompt_override.unwrap_or_default();
         assert!(
             !sys.contains("研究"),
-            "关闭路由后 system prompt 不应含研究管线指引，实际: {sys}"
+            "无 Router 时 system prompt 不应含研究管线指引，实际: {sys}"
         );
         assert!(sys.contains("基础系统提示"), "应保留基础系统提示，实际: {sys}");
     }

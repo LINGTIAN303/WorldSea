@@ -11,6 +11,7 @@
 //! - `RouterDecider`：决策接口，AgentLoop 依赖此 trait，不再依赖具体 RouterNode
 
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
 
 use crate::backend::NodeBackendAccessor;
 
@@ -101,7 +102,8 @@ impl Pipeline {
 /// 与 patterns::router 的 `RouteResult`（仅 target_id + reason）解耦：
 /// 本类型补充 `target_name`（人类可读标签），供 AgentLoop 直接广播
 /// `RouterDecisionMade` 事件，无需再查管线标签。
-#[derive(Debug, Clone)]
+/// `Serialize`/`Deserialize` 供 D23 `ArtifactKind::Routing` 交接物跨边界传递。
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RouterDecision {
     /// 被选中的路由目标 ID（如 "query"/"research"）
     pub target_id: String,

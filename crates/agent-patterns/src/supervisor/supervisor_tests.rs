@@ -617,6 +617,124 @@
         assert_eq!(strategy.count_of("only"), 1);
     }
 
+    // ─── M5-RK2 修复：子 Agent 超限 = 正常收敛（B0-4 语义），不中断 Supervisor ───
+
+    /// 子 Agent 持续工具调用永不结束 → max_iterations 超限 →
+    /// Supervisor 收敛已产出的部分结果（Done），而非 Error 中断整条链
+    #[tokio::test]
+    async fn subagent_max_iterations_should_converge_partial_not_error() {
+        use agent_kernel::backend::PromptResponse;
+        use agent_kernel::tool::Tool;
+        use agent_kernel::types::ToolCall;
+
+        // 每轮都返回工具调用 → 子 Agent 永不自然结束，必然撞 max_iterations
+        struct InfiniteToolBackend;
+        #[async_trait]
+        impl NodeBackendAccessor for InfiniteToolBackend {
+            async fn prompt(
+                &self,
+                _prompt: String,
+                _options: Option<PromptCallOptions>,
+            ) -> Result<PromptResponse, BackendError> {
+                Ok(PromptResponse {
+                    text: "继续".into(),
+                    tool_calls: vec![ToolCall {
+                        id: "call_loop".into(),
+                        name: "echo".into(),
+                        args: serde_json::json!({}),
+                    }],
+                    input_tokens: None,
+                    output_tokens: None,
+                    stop_reason: Some("tool_calls".into()),
+                })
+            }
+            async fn steer(&self, _text: String) -> Result<(), BackendError> {
+                Ok(())
+            }
+            async fn get_messages(&self) -> Vec<agent_kernel::types::OrchestratorMessage> {
+                Vec::new()
+            }
+            async fn set_messages(
+                &self,
+                _m: Vec<agent_kernel::types::OrchestratorMessage>,
+            ) -> Result<(), BackendError> {
+                Ok(())
+            }
+            async fn trim_context(&self, _up_to_index: usize) -> Result<(), BackendError> {
+                Ok(())
+            }
+        }
+
+        // 回显工具（让 tool call 可执行，否则 AgentLoop 报"工具不存在"）
+        struct EchoTool;
+        #[async_trait]
+        impl Tool for EchoTool {
+            fn name(&self) -> &str {
+                "echo"
+            }
+            fn description(&self) -> &str {
+                "回显工具"
+            }
+            fn parameters(&self) -> serde_json::Value {
+                serde_json::json!({})
+            }
+            async fn execute(
+                &self,
+                _args: serde_json::Value,
+            ) -> Result<serde_json::Value, agent_kernel::tool::ToolError> {
+                Ok(serde_json::json!({"echo": "pong"}))
+            }
+        }
+
+        let backend = Arc::new(InfiniteToolBackend);
+        let tool_bus = Arc::new(SimpleToolBus::new());
+        tool_bus.register(Arc::new(EchoTool)).await;
+
+        // 子 Agent 规格 max_iterations=1 → 一轮工具后必超限
+        let specs = vec![SubAgentSpec {
+            id: "worker".into(),
+            name: "工人".into(),
+            description: "执行任务".into(),
+            system_prompt: "你是执行者".into(),
+            tools_whitelist: None,
+            max_iterations: Some(1),
+        }];
+
+        let node = SupervisorNode::with_default_strategy(
+            "sup",
+            "监督者",
+            specs,
+            Arc::clone(&backend) as Arc<dyn NodeBackendAccessor>,
+            tool_bus as Arc<dyn ToolBus>,
+            SupervisorConfig::default(),
+        );
+
+        let mut state = OrchestratorState::new("完成任务");
+        let emitter = NoopEmitter;
+        let abort = NoopAbort;
+        let ctx = NodeContext {
+            state: &mut state,
+            backend: &*backend,
+            memory: None,
+            emitter: &emitter,
+            abort_check: &abort,
+        };
+
+        let result = node.execute(ctx).await;
+        // M5-RK2：子 Agent 超限应收敛（非 Error 中断），Continue=正常完成（与成功路径一致）
+        assert_ne!(
+            result.status,
+            NodeStatus::Error,
+            "子 Agent 超限不应中断 Supervisor，实际: {:?}",
+            result.status
+        );
+        // 部分结果已写入 state.messages（Supervisor → 子 Agent 输出）
+        let last = state.messages.last().unwrap();
+        assert!(last.content.contains("[Supervisor → 工人]"));
+        // 输出为已产出的 assistant 内容（工具往返的"继续"也保留在消息里，取最后一条 assistant）
+        assert!(last.content.contains("[SubAgent 输出]"));
+    }
+
     #[tokio::test]
     async fn load_based_should_balance_over_multiple_assignments() {
         let backend = StubBackend::new("");
@@ -781,4 +899,173 @@
         let last = state.messages.last().unwrap();
         assert!(!last.content.contains("[轮"));
         assert!(last.content.contains("[Supervisor → 代码专家]"));
+    }
+
+    // ─── M3-RK1 测试：子 run 记账器挂钩（Supervisor 图节点委派路径）───
+
+    /// 测试用记账器 — 记录 begin/finish 调用（验证 Supervisor 委派时挂 run 树）
+    struct StubAccountant {
+        calls: Arc<Mutex<Vec<String>>>,
+    }
+
+    #[async_trait]
+    impl SubRunAccountant for StubAccountant {
+        async fn begin(
+            &self,
+            parent_run_id: Option<String>,
+            sub_agent_id: &str,
+            sub_agent_name: &str,
+        ) -> Option<String> {
+            self.calls.lock().unwrap().push(format!(
+                "begin:{sub_agent_id}:{sub_agent_name}:parent={}",
+                parent_run_id.unwrap_or_else(|| "none".into())
+            ));
+            Some(format!("sub-{sub_agent_id}"))
+        }
+
+        async fn finish(&self, sub_run_id: &str, status: &str, summary: Option<String>) {
+            self.calls.lock().unwrap().push(format!(
+                "finish:{sub_run_id}:{status}:summary={}",
+                summary.unwrap_or_default()
+            ));
+        }
+    }
+
+    /// SupervisorNode 委派前调用 begin（建子 run），成功后调用 finish（completed + 结果摘要）
+    #[tokio::test]
+    async fn sub_run_accountant_hooks_begin_and_finish_on_delegation() {
+        let backend = Arc::new(StubBackend::new("子 Agent 完成的任务输出"));
+        let tool_bus = Arc::new(SimpleToolBus::new());
+        let strategy = Arc::new(StubStrategy::new("coder"));
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let accountant = Arc::new(StubAccountant {
+            calls: Arc::clone(&calls),
+        });
+        let node = SupervisorNode::new(
+            "sup",
+            "监督者",
+            make_specs(),
+            strategy,
+            Arc::clone(&backend) as Arc<dyn NodeBackendAccessor>,
+            tool_bus as Arc<dyn ToolBus>,
+            SupervisorConfig::default(),
+        )
+        .with_accountant(accountant);
+
+        let mut state = OrchestratorState::new("写一个函数");
+        let emitter = NoopEmitter;
+        let abort = NoopAbort;
+        let ctx = NodeContext {
+            state: &mut state,
+            backend: &*backend,
+            memory: None,
+            emitter: &emitter,
+            abort_check: &abort,
+        };
+
+        let result = node.execute(ctx).await;
+        assert_eq!(result.status, NodeStatus::Continue);
+
+        let c = calls.lock().unwrap();
+        // 一次委派 = begin(委派前) + finish(成功后收口)
+        assert_eq!(c.len(), 2, "应恰好 begin 一次 + finish 一次，实际: {:?}", *c);
+        assert!(
+            c[0].starts_with("begin:coder:代码专家:"),
+            "begin 应带子 Agent id/name，实际: {}",
+            c[0]
+        );
+        // 命令层记账器会自行解析父 run（此处传 None，命令层用 current_top_run 兜底）
+        assert!(c[0].contains("parent=none"));
+        assert!(
+            c[1].starts_with("finish:sub-coder:completed:"),
+            "成功后应 finish completed，实际: {}",
+            c[1]
+        );
+        // 结果摘要 = 子 Agent 输出前 200 字符
+        assert!(c[1].contains("子 Agent 完成的任务输出"));
+    }
+
+    /// 子 Agent 不可恢复故障：begin 后 finish error（run 树记录失败状态，不悬挂）
+    #[tokio::test]
+    async fn sub_run_accountant_finishes_error_when_subagent_fails() {
+        use agent_kernel::backend::BackendError;
+        use agent_kernel::types::ToolCall;
+
+        // 后端返回工具调用但工具不存在 → AgentLoop 报工具错误（不可恢复故障路径）
+        struct BrokenBackend;
+        #[async_trait]
+        impl NodeBackendAccessor for BrokenBackend {
+            async fn prompt(
+                &self,
+                _prompt: String,
+                _options: Option<PromptCallOptions>,
+            ) -> Result<PromptResponse, BackendError> {
+                Ok(PromptResponse {
+                    text: "".into(),
+                    tool_calls: vec![ToolCall {
+                        id: "call_x".into(),
+                        name: "missing_tool".into(),
+                        args: serde_json::json!({}),
+                    }],
+                    input_tokens: None,
+                    output_tokens: None,
+                    stop_reason: Some("tool_calls".into()),
+                })
+            }
+            async fn steer(&self, _text: String) -> Result<(), BackendError> {
+                Ok(())
+            }
+            async fn get_messages(&self) -> Vec<agent_kernel::types::OrchestratorMessage> {
+                Vec::new()
+            }
+            async fn set_messages(
+                &self,
+                _m: Vec<agent_kernel::types::OrchestratorMessage>,
+            ) -> Result<(), BackendError> {
+                Ok(())
+            }
+            async fn trim_context(&self, _up_to_index: usize) -> Result<(), BackendError> {
+                Ok(())
+            }
+        }
+
+        let backend = Arc::new(BrokenBackend);
+        let tool_bus = Arc::new(SimpleToolBus::new());
+        let strategy = Arc::new(StubStrategy::new("coder"));
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let accountant = Arc::new(StubAccountant {
+            calls: Arc::clone(&calls),
+        });
+        let node = SupervisorNode::new(
+            "sup",
+            "监督者",
+            make_specs(),
+            strategy,
+            Arc::clone(&backend) as Arc<dyn NodeBackendAccessor>,
+            tool_bus as Arc<dyn ToolBus>,
+            SupervisorConfig::default(),
+        )
+        .with_accountant(accountant);
+
+        let mut state = OrchestratorState::new("写一个函数");
+        let emitter = NoopEmitter;
+        let abort = NoopAbort;
+        let ctx = NodeContext {
+            state: &mut state,
+            backend: &*backend,
+            memory: None,
+            emitter: &emitter,
+            abort_check: &abort,
+        };
+
+        let result = node.execute(ctx).await;
+        assert_eq!(result.status, NodeStatus::Error);
+
+        let c = calls.lock().unwrap();
+        assert_eq!(c.len(), 2, "begin + finish(error) 各一次，实际: {:?}", *c);
+        assert!(
+            c[1].starts_with("finish:sub-coder:error:"),
+            "子 Agent 失败应 finish error，实际: {}",
+            c[1]
+        );
     }

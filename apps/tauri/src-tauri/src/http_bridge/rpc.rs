@@ -60,6 +60,18 @@ struct SessionArgs {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct RunIdArgs {
+    run_id: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ArtifactIdArgs {
+    artifact_id: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct SessionTitleArgs {
     session_id: String,
     title: String,
@@ -70,13 +82,6 @@ struct SessionTitleArgs {
 struct SessionPinnedArgs {
     session_id: String,
     pinned: bool,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct SessionEnabledArgs {
-    session_id: String,
-    enabled: bool,
 }
 
 #[derive(Deserialize)]
@@ -186,11 +191,43 @@ pub fn register_core(reg: &mut Registry) {
             c::list_scenarios(st).await.map(|r| to_value(r).unwrap_or(Value::Null))
         })
     }));
+    // 模式注册表（C0-15 / M1-8）：命令菜单数据源，浏览器端同可达
+    reg.register("list_patterns", Arc::new(move |_app, _args| {
+        Box::pin(async move {
+            let r = c::list_patterns();
+            Ok(to_value(r).unwrap_or(Value::Null))
+        })
+    }));
     reg.register("list_sessions", Arc::new(move |app, _args| {
         let app = app.clone();
         Box::pin(async move {
             let st = app.state::<agent_commands::AgentCommandService>();
             c::list_sessions(st).await.map(|r| to_value(r).unwrap_or(Value::Null))
+        })
+    }));
+    // ── run 注册表（B22 / FIX-1 / M1-9）──
+    reg.register("get_run", Arc::new(move |app, args| {
+        let app = app.clone();
+        Box::pin(async move {
+            let a: RunIdArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
+            let st = app.state::<agent_commands::AgentCommandService>();
+            c::get_run(st, a.run_id).await.map(|r| to_value(r).unwrap_or(Value::Null))
+        })
+    }));
+    reg.register("get_artifact", Arc::new(move |app, args| {
+        let app = app.clone();
+        Box::pin(async move {
+            let a: ArtifactIdArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
+            let st = app.state::<agent_commands::AgentCommandService>();
+            c::get_artifact(st, a.artifact_id).await.map(|r| to_value(r).unwrap_or(Value::Null))
+        })
+    }));
+    reg.register("list_session_runs", Arc::new(move |app, args| {
+        let app = app.clone();
+        Box::pin(async move {
+            let a: SessionArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
+            let st = app.state::<agent_commands::AgentCommandService>();
+            c::list_session_runs(st, a.session_id).await.map(|r| to_value(r).unwrap_or(Value::Null))
         })
     }));
     reg.register("delete_session", Arc::new(move |app, args| {
@@ -215,14 +252,6 @@ pub fn register_core(reg: &mut Registry) {
             let a: SessionPinnedArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
             let st = app.state::<agent_commands::AgentCommandService>();
             c::set_session_pinned(st, a.session_id, a.pinned).await.map(|_| Value::Null)
-        })
-    }));
-    reg.register("set_session_router_enabled", Arc::new(move |app, args| {
-        let app = app.clone();
-        Box::pin(async move {
-            let a: SessionEnabledArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
-            let st = app.state::<agent_commands::AgentCommandService>();
-            c::set_session_router_enabled(st, a.session_id, a.enabled).await.map(|_| Value::Null)
         })
     }));
 

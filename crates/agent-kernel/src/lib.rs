@@ -20,6 +20,7 @@ pub mod mcp;
 pub mod memory;
 pub mod node;
 pub mod orchestrator;
+pub mod pipeline;
 pub mod router_decider;
 pub mod scenario;
 pub mod sub_agent_pool;

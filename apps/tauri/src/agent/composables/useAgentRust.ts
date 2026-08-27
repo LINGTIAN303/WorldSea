@@ -43,10 +43,14 @@ import { formatDividerTime } from '@worldsmith/shared-ui/agent/message-list/util
 import { usePlanStore } from '@worldsmith/shared-composables/agent/usePlanStore'
 import { useActivityLog, type ActivityLogEntry } from './useActivityLog'
 import { useSessionViewState, LAST_SESSION_KEY } from './useSessionViewState'
+import { useOrchestrationTrace } from './useOrchestrationTrace'
 import { resolveWorkspaceDir, ensureWorkspaceDir } from '@/space/workspace'
 
 // ToT/GoT/Supervisor 实时事件监听：模块级单例解构（供会话生命周期注册/清理）
 const { setupOrchListener, teardownOrchListener, setupOrchSupervisorListener, teardownOrchSupervisorListener } = useOrchEvents()
+// M2 编排迹线（NIT-3 双轨收口）：监听并入 useAgentRust 会话生命周期统一管理，
+// 组件仅消费状态（单一状态源），不再各自实例化监听。
+const { resetOrchestrationTrace, setupOrchestrationTraceListener, teardownOrchestrationTraceListener } = useOrchestrationTrace()
 
 // ── 浏览器 preview 兼容：非 Tauri 环境（window.__TAURI_INTERNALS__ 缺失）下
 //    @tauri-apps/api/core 的 invoke 为 undefined。这里用 safeInvoke 兜底，
@@ -148,8 +152,6 @@ interface RustSessionInfo {
   message_count: number
   title: string
   pinned: boolean
-  /** A3 四管线路由开关（持久化） */
-  routerEnabled: boolean
   /** 会话绑定的工作区根目录（Phase 4 接入本地文件系统；None=不限定） */
   workdir?: string
 }
@@ -297,13 +299,6 @@ const pendingSessionIds = ref<string[]>([])
 const sessionTitlePending = ref<Record<string, boolean>>({})
 /** 目录实体列表（cmd_list_workdirs 结果；Phase 3 会话树分组标签来源） */
 const workdirs = ref<RustWorkdirRecord[]>([])
-/** 当前会话的四管线路由开关（A3，持久化；无会话/缺省视为开启） */
-const currentSessionRouterEnabled = computed<boolean>(() => {
-  const sid = currentSessionId.value
-  if (!sid) return true
-  const s = sessionList.value.find((x) => x.id === sid)
-  return s ? s.routerEnabled : true
-})
 /** 是否已初始化（Tauri 端无需异步初始化，直接置 true） */
 const isInitialized = ref(true)
 
@@ -1439,6 +1434,7 @@ async function newSession(
     teardownTraceListener(oldSessionId)
     teardownOrchListener(oldSessionId)
     teardownOrchSupervisorListener(oldSessionId)
+    teardownOrchestrationTraceListener(oldSessionId)
   }
   currentSessionId.value = info.id
   // Phase 5：新建会话标记为「待激活」→ 列表延迟展示（首条消息后才移除并展示条目）
@@ -1459,6 +1455,8 @@ async function newSession(
   deepSegments.value = []
   a2uiSurfaces.value = {}
   subAgents.value = []
+  // M2 编排迹线：新会话重置（跨会话不残留 run）
+  resetOrchestrationTrace()
   // A4 Plan-Exec：新会话无计划，清空 usePlanStore（按会话隔离）
   usePlanStore().clearPlan()
   // ToT/GoT/Supervisor 实时树：新会话 active 桶已切换为空桶，无需全局清空
@@ -1475,6 +1473,7 @@ async function newSession(
   await setupTraceListener(info.id)
   await setupOrchListener(info.id)
   await setupOrchSupervisorListener(info.id)
+  await setupOrchestrationTraceListener(info.id)
   // Phase 5：注册全局会话标题更新监听（幂等），供首条消息后的 LLM 标题落地更新
   await setupSessionTitleListener()
   // FrontendToolBridge：全局桥监听器仅在初次建会话时注册一次（幂等）
@@ -1568,6 +1567,7 @@ async function deleteSession(sessionId: string): Promise<void> {
   teardownStreamListener(sessionId)
   teardownConfirmListener(sessionId)
   teardownTraceListener(sessionId)
+  teardownOrchestrationTraceListener(sessionId)
   if (currentSessionId.value === sessionId) {
     currentSessionId.value = null
     // Phase 4 工作区：删除当前会话时清空工作区引用
@@ -1578,6 +1578,8 @@ async function deleteSession(sessionId: string): Promise<void> {
     deepSegments.value = []
     a2uiSurfaces.value = {}
     subAgents.value = []
+    // M2 编排迹线：删除当前会话时清空 run 状态
+    resetOrchestrationTrace()
   }
   await refreshSessionList()
 }
@@ -1598,11 +1600,6 @@ async function updateSessionWorkdir(sessionId: string, workdir: string | null): 
 async function setSessionPinned(sessionId: string, pinned: boolean): Promise<void> {
   await safeInvoke('set_session_pinned', { sessionId, pinned })
   await refreshSessionList()
-}
-
-/** 设置会话级四管线路由开关（A3，默认开启；关闭后发送跳过路由意图分类） */
-async function setRouterEnabled(sessionId: string, enabled: boolean): Promise<void> {
-  await safeInvoke('set_session_router_enabled', { sessionId, enabled })
 }
 
 // ─── MCP 连接（本地持久化；Rust 端暂无 MCP 后端，配置可管理，真实连接待后端支持）───
@@ -1668,6 +1665,7 @@ async function switchSession(sessionId: string): Promise<void> {
     teardownTraceListener(oldSessionId)
     teardownOrchListener(oldSessionId)
     teardownOrchSupervisorListener(oldSessionId)
+    teardownOrchestrationTraceListener(oldSessionId)
   }
   currentSessionId.value = sessionId
   // Phase 4 工作区：切换会话时恢复该会话绑定的工作区根目录（列表缺省为 null=不限定）
@@ -1677,6 +1675,8 @@ async function switchSession(sessionId: string): Promise<void> {
   deepSegments.value = []
   a2uiSurfaces.value = {}
   subAgents.value = []
+  // M2 编排迹线：切会话重置 run 状态（run 挂会话，不跨会话残留）
+  resetOrchestrationTrace()
   await setupDeepPhaseListener(sessionId)
   await setupA2UIListener(sessionId)
   await setupSubAgentListener(sessionId)
@@ -1686,6 +1686,7 @@ async function switchSession(sessionId: string): Promise<void> {
   await setupTraceListener(sessionId)
   await setupOrchListener(sessionId)
   await setupOrchSupervisorListener(sessionId)
+  await setupOrchestrationTraceListener(sessionId)
   // FrontendToolBridge：全局桥监听器幂等注册（保证任意会话切换路径可用）
   await setupToolBridgeListener()
   // Phase 3：切换会话后同步刷新目录实体，保证会话树分组最新
@@ -2247,7 +2248,6 @@ export function useAgentRust() {
     updateSessionTitle,
     updateSessionWorkdir,
     setSessionPinned,
-    setRouterEnabled,
     switchSession,
     restoreLastSession,
     sessionTitle,
@@ -2261,7 +2261,6 @@ export function useAgentRust() {
     // Phase 3 会话树：目录实体列表 + 刷新（SessionSidebar 分组用）
     workdirs,
     loadWorkdirs,
-    currentSessionRouterEnabled,
 
     // ── MCP 连接（本地管理，供设置面板 McpPanel 使用）──
     getMCPConnections,

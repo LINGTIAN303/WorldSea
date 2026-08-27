@@ -147,17 +147,6 @@
           <span class="mode-label">{{ modeLabel }}</span>
         </div>
         <div class="toolbar-right">
-          <button
-            class="tool-btn router-toggle"
-            :class="{ active: routerEnabled }"
-            type="button"
-            :title="`四管线路由${routerEnabled ? '已开启' : '已关闭'}（点击切换）`"
-            :aria-label="`四管线路由开关：${routerEnabled ? '开启' : '关闭'}`"
-            :aria-pressed="routerEnabled"
-            @click="toggleRouter"
-          >
-            <WsIcon name="workflow" size="sm" />
-          </button>
           <WorkdirSelect />
           <ModelSwitcher :is-expanded="isExpanded" @change="onModelChange" />
           <button
@@ -241,7 +230,7 @@ const sessionMode = computed(() => sessionView.activeState.value?.chatMode ?? 'd
 const settingsStore = useSettingsStore()
 const pluginStore = usePluginStore()
 const uiStore = useUIStore()
-const { isStreaming, abort, currentSessionId, setRouterEnabled, currentSessionRouterEnabled, setSecurityLevel } = useAgent()
+const { isStreaming, abort, setSecurityLevel } = useAgent()
 
 // P0-4 迭代：权限分级图标下拉（危险操作分级三档）；value=后端 security level
 // 完全通过=off｜自动判断=dangerous_only｜手动确认=moderate_and_dangerous
@@ -282,25 +271,6 @@ const isDragOver = ref(false)
 const attachments = ref<FileAttachment[]>([])
 const visionWarning = ref('')
 const kbChips = ref<InputInjectionChip[]>([])
-/** 四管线路由开关（A3 会话级，默认开启；关闭后发送跳过路由意图分类） */
-const routerEnabled = ref(true)
-/** 切换四管线路由开关并写穿 Rust 后端 */
-async function toggleRouter() {
-  routerEnabled.value = !routerEnabled.value
-  const sid = currentSessionId.value
-  if (sid) {
-    try {
-      await setRouterEnabled(sid, routerEnabled.value)
-    } catch (e) {
-      toastWarn('切换四管线路由失败，已回滚')
-      routerEnabled.value = !routerEnabled.value
-    }
-  }
-}
-// 切换会话时同步为持久化的路由开关状态（无会话/未记录默认开启）
-watch(currentSessionId, () => {
-  routerEnabled.value = currentSessionRouterEnabled.value
-})
 /** 召唤 chips（/技能 + @引用，随消息发送） */
 const summonChips = ref<SummonItem[]>([])
 
@@ -1449,15 +1419,6 @@ onBeforeUnmount(() => {
 .perm-dd-item.warn .perm-dd-label { color: var(--color-warning); }
 .perm-fade-enter-active, .perm-fade-leave-active { transition: opacity 0.12s ease; }
 .perm-fade-enter-from, .perm-fade-leave-to { opacity: 0; }
-
-/* A3 四管线路由开关：开启点亮，关闭置灰 */
-.tool-btn.router-toggle.active {
-  color: var(--color-primary);
-  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
-}
-.tool-btn.router-toggle:not(.active) {
-  opacity: 0.55;
-}
 
 .voice-hint {
   background: color-mix(in srgb, var(--color-primary) 10%, transparent);

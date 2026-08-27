@@ -12,6 +12,9 @@ use agent_runtime::tool::{Tool, ToolBus, ToolError};
 use async_trait::async_trait;
 use tokio::sync::RwLock;
 
+use crate::run_store::{RunStatus, RunStore};
+use agent_runtime::types::ConvergeReason;
+
 // 当前委派深度（任务本地存储，防递归委派膨胀）
 // 子 Agent 复用主 Agent 的 `tool_bus`，因此也能看到 `delegate_to_sub_agent` 工具，
 // 理论上可递归委派（孙 Agent）。用 `tokio::task_local!` 在**当前任务**的调用栈上记录
@@ -43,6 +46,8 @@ pub struct SubAgentManager {
     max_delegate_depth: usize,
     /// 事件广播器（可选，委派进度事件透传前端；set_broadcaster 注入），详细见 docs/details/注释/agent-commands/subagent.md
     broadcaster: std::sync::RwLock<Option<Arc<RwLock<EventBroadcaster>>>>,
+    /// run 注册表（可选，M3-1：委派时创建子 run 挂到当前顶层 run 下，构成子 run 树）
+    run_store: std::sync::RwLock<Option<Arc<RunStore>>>,
 }
 
 impl SubAgentManager {
@@ -58,7 +63,18 @@ impl SubAgentManager {
             delegate_timeout: std::time::Duration::from_secs(120),
             max_delegate_depth: 3,
             broadcaster: std::sync::RwLock::new(None),
+            run_store: std::sync::RwLock::new(None),
         }
+    }
+
+    /// 注入 run 注册表（M3-1）：启用委派子 run 树（无则跳过子 run 记录）
+    pub fn set_run_store(&self, store: Arc<RunStore>) {
+        *self.run_store.write().unwrap() = Some(store);
+    }
+
+    /// 当前 run 注册表引用（无则 None）
+    fn run_store_ref(&self) -> Option<Arc<RunStore>> {
+        self.run_store.read().unwrap().clone()
     }
 
     /// 设置子 Agent 单次委派超时（返回 &self 支持链式调用）
@@ -176,6 +192,26 @@ impl SubAgentManager {
         let sub_agent_name = spec.name.clone();
         let task_description = task.to_string();
 
+        // M3-1：创建子 run（挂到当前顶层 run 下；session 继承父 run，保证按会话可查）
+        let mut sub_run_id: Option<String> = None;
+        if let Some(store) = self.run_store_ref() {
+            let parent = store.current_top_run().await;
+            let sub_session = if let Some(p) = &parent {
+                store.get(p).await.map(|r| r.session_id).unwrap_or_else(|| "subagent".into())
+            } else {
+                "subagent".into()
+            };
+            sub_run_id = Some(
+                store
+                    .create(
+                        &sub_session,
+                        parent,
+                        Some(format!("sub:{}", spec.id)),
+                    )
+                    .await,
+            );
+        }
+
         // 委派开始：广播 SubAgentStarted，前端据此展示"子 Agent 正在执行..."
         self.emit(OrchestratorEvent::SubAgentStarted {
             node_id: node_id.clone(),
@@ -199,6 +235,14 @@ impl SubAgentManager {
             Ok(Ok(text)) => text,
             Ok(Err(e)) => {
                 let err_msg = format!("子 Agent '{}' 执行失败: {e}", spec.name);
+                // M3-1：子 run 收口（Error）
+                if let Some(sr) = &sub_run_id {
+                    if let Some(store) = self.run_store_ref() {
+                        store
+                            .finish(sr, RunStatus::Error, None, Some(err_msg.clone()))
+                            .await;
+                    }
+                }
                 self.emit(OrchestratorEvent::SubAgentError {
                     node_id,
                     sub_agent_id: spec.id.clone(),
@@ -218,6 +262,14 @@ impl SubAgentManager {
 
                 let err_msg =
                     format!("子 Agent '{}' 执行超时（>{:?}）", spec.name, self.delegate_timeout);
+                // M3-1：子 run 收口（Timeout）
+                if let Some(sr) = &sub_run_id {
+                    if let Some(store) = self.run_store_ref() {
+                        store
+                            .finish(sr, RunStatus::Timeout, Some(ConvergeReason::LimitReached), Some(err_msg.clone()))
+                            .await;
+                    }
+                }
                 self.emit(OrchestratorEvent::SubAgentError {
                     node_id,
                     sub_agent_id: spec.id.clone(),
@@ -229,6 +281,16 @@ impl SubAgentManager {
             }
         };
         let duration_ms = started.elapsed().as_millis() as u64;
+
+        // M3-1：子 run 收口（Completed + 结果摘要 = 子 Agent 输出前 200 字符）
+        if let Some(sr) = &sub_run_id {
+            if let Some(store) = self.run_store_ref() {
+                let summary: String = result.chars().take(200).collect();
+                store
+                    .finish(sr, RunStatus::Completed, Some(ConvergeReason::GoalReached), Some(summary))
+                    .await;
+            }
+        }
 
         // 委派完成：广播 SubAgentCompleted，前端据此更新"子 Agent 已完成，输出 N 字符"
         self.emit(OrchestratorEvent::SubAgentCompleted {

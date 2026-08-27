@@ -5,6 +5,8 @@ mod fs_tools;
 mod long_task_store;
 mod loop_control;
 mod mock_backend;
+mod pattern_registry;
+mod run_store;
 mod session_store;
 mod subagent;
 mod subagent_store;
@@ -18,6 +20,11 @@ pub use loop_control::{
     LoopControlStatus,
 };
 pub use mock_backend::{MockBackend, thinking_level_to_str};
+pub use pattern_registry::{
+    CapabilityGroup, PatternConfig, PatternRegistryEntry, get_pattern, list_patterns,
+    pattern_registry, validate_registry,
+};
+pub use run_store::{DecisionRecord, OrchestrationRun, RunStatus, RunStore};
 pub use session_store::{
     SessionKind, SessionRecord, SessionRepository, SqliteSessionRepository, WorkdirRecord,
     WorkspaceRecord,
@@ -35,7 +42,9 @@ use agent_memory::MemoryCenterAccessor;
 use agent_runtime::agent::{AgentLoop, AgentLoopConfig, AgentState, AgentStateSnapshot};
 use agent_runtime::backend::{NodeBackendAccessor, PromptCallOptions, ThinkingLevel};
 use agent_runtime::confirmation::{ConfirmationBroker, ConfirmationPolicy};
-use agent_runtime::event::{EventBroadcaster, EventListener, OrchestratorEvent};
+use agent_runtime::event::{
+    EventBroadcaster, EventListener, OrchestratorEndStatus, OrchestratorEvent,
+};
 use agent_runtime::llm::config::ProviderConfig as RuntimeProviderConfig;
 use agent_runtime::llm::GenaiBackend;
 use agent_runtime::long_task::HeartbeatStatus;
@@ -45,14 +54,15 @@ use agent_runtime::memory::{
     RecallMode,
 };
 use agent_runtime::orchestrator::{
-    DefaultOrchestrator, Orchestrator, OrchestratorResult,
+    DefaultOrchestrator, Orchestrator, OrchestratorError, OrchestratorResult,
+    OrchestratorRunOptions,
 };
 use agent_runtime::plan::{ExecuteNode, ExecuteNodeConfig, PlanNode, PlanNodeConfig};
 use agent_runtime::reflection::{ReflectionNode, ReflectionNodeConfig, RefineNode, RefineNodeConfig};
 use agent_runtime::scenario::{
     Scenario, ScenarioEntityProvider, ScenarioRegistry, WorldbuildingScenario,
 };
-use agent_runtime::router::{RouterConfig, RouterNode};
+use agent_runtime::router::{Pipeline, RouterConfig, RouterNode};
 // 编排 4 模式 UI 下沉：ToT / GoT / Supervisor 节点，用于构单节点编排图跑通前端口令
 use agent_runtime::graph_of_thoughts::{GoTConfig, GoTNode};
 use agent_runtime::multi_agent::{AgentSpec, MultiAgentConfig, MultiAgentNode, Topology};
@@ -60,7 +70,7 @@ use agent_runtime::supervisor::{SubAgentSpec, SupervisorConfig, SupervisorNode};
 use agent_runtime::tree_of_thoughts::{ToTConfig, ToTNode};
 use memory_center_core::model::ArchiveConfig;
 use agent_runtime::tool::{SimpleToolBus, Tool, ToolBus};
-use agent_runtime::types::OrchestratorMessage;
+use agent_runtime::types::{ConvergeReason, HandoverArtifact, OrchestratorMessage};
 use serde::{Deserialize, Serialize};
 use tokio::sync::{Mutex, RwLock};
 
@@ -105,6 +115,12 @@ pub struct ToTExecuteOptions {
     /// 最大节点数（默认 50）
     #[serde(default)]
     pub max_thoughts: Option<usize>,
+    /// 节点执行超时（毫秒；M5 走查 ⑤ 触发 Degraded 用，B0-21）
+    ///
+    /// `None` = 默认 10 分钟；`Some(0)` = 禁用冻结检测；`Some(n)` = 自定义阈值。
+    /// 超时 → 判定冻结 → 产出 Degraded 物 + run 出口 Completed + reason=degraded。
+    #[serde(default)]
+    pub node_timeout_ms: Option<u64>,
 }
 
 /// GoT（Graph of Thoughts）编排运行参数（复用 ToT 参数 + 聚合开关）
@@ -119,6 +135,12 @@ pub struct GoTExecuteOptions {
     pub aggregation_enabled: Option<bool>,
 }
 
+impl GoTExecuteOptions {
+    fn node_timeout_ms(&self) -> Option<u64> {
+        self.tot.node_timeout_ms
+    }
+}
+
 /// Supervisor 编排运行参数（子 Agent 规格 + 协调轮次）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -128,6 +150,9 @@ pub struct SupervisorExecuteOptions {
     /// 最大协调轮次（覆盖默认 1，多轮需 >1）
     #[serde(default)]
     pub max_rounds: Option<u32>,
+    /// 节点执行超时（毫秒；M5 走查 ⑤ 触发 Degraded 用，B0-21）
+    #[serde(default)]
+    pub node_timeout_ms: Option<u64>,
 }
 
 /// Multi-Agent 编排运行参数（Agent 规格 + 拓扑 + 协作轮次）
@@ -148,6 +173,9 @@ pub struct MultiAgentExecuteOptions {
     /// 是否最后综合所有 Agent 输出（默认 true）
     #[serde(default)]
     pub require_synthesis: Option<bool>,
+    /// 节点执行超时（毫秒；M5 走查 ⑤ 触发 Degraded 用，B0-21）
+    #[serde(default)]
+    pub node_timeout_ms: Option<u64>,
 }
 
 impl Default for MultiAgentExecuteOptions {
@@ -158,6 +186,7 @@ impl Default for MultiAgentExecuteOptions {
             topology: None,
             blackboard_enabled: None,
             require_synthesis: None,
+            node_timeout_ms: None,
         }
     }
 }
@@ -201,9 +230,6 @@ pub struct SessionInfo {
     /// 会话类型（chat/group，缺省 chat；group 为群聊参与者会话）
     #[serde(default)]
     pub kind: SessionKind,
-    /// A3 四管线路由开关（缺省开启，持久化）
-    #[serde(default = "default_session_true")]
-    pub router_enabled: bool,
     /// 会话绑定的工作区根目录（Phase 3 接入本地文件系统；None=不限定）
     #[serde(default)]
     pub workdir: Option<String>,
@@ -213,11 +239,6 @@ pub struct SessionInfo {
     /// `list_sessions` 返回时若 `workspace_id` 存在，会用对应 workspaces.root 兜底 workdir。
     #[serde(default)]
     pub workspace_id: Option<String>,
-}
-
-/// SessionInfo.router_enabled 的 serde 缺省值（旧前端/缺省字段视为开启）
-fn default_session_true() -> bool {
-    true
 }
 
 /// 群聊参与者会话信息（映射查询结果）
@@ -357,6 +378,19 @@ pub struct AgentCommandService {
     /// 与命令层共享的同一实例，使「内建自动（AgentLoop 内）与命令层手动」
     /// 操作同一份控制器状态，消除双轨不共享。
     loop_control_registry: Arc<LoopControlRegistry>,
+    /// run 注册表（B22，M1）：请求级编排上下文实体，纯内存 HashMap。
+    ///
+    /// run_* 各入口在此登记 run（生成 run_id → 传入 OrchestratorRunOptions）、
+    /// 结束后收口状态；`get_run` / `get_artifact` / `list_session_runs` 读取。
+    runs: Arc<RunStore>,
+    /// B10 判型请求级缓存（M4-5）：键 = (session_id, 原文)，值 = 判型管线。
+    ///
+    /// 同会话同文本重发不重复 LLM 判型；容量 128 简单防泄漏（超出清空）。
+    pipeline_cache: Mutex<HashMap<(String, String), Pipeline>>,
+    /// 当前活跃编排器（M4-6 插话门）：run_* 运行期间注册、结束后清除（B11 顶层串行 → 全局单例安全）。
+    ///
+    /// steer 命令据此选择「编排节点边界注入」或「AgentLoop steer（react）」。
+    active_orchestrator: RwLock<Option<Arc<DefaultOrchestrator>>>,
     /// 记忆存储根目录（SQLite 落盘路径，来自 tauri 应用数据目录）
     ///
     /// `None`：不启用长期记忆（默认）；`Some`：`new_session` 时为每个会话构造
@@ -446,7 +480,163 @@ pub fn validate_subagent_spec(spec: &SubAgentSpec) -> Result<(), String> {
     Ok(())
 }
 
+/// 编排器出口状态 → run 实体状态（B22/NIT-2：两套枚举 additive 对齐）
+fn to_run_status(status: OrchestratorEndStatus) -> RunStatus {
+    match status {
+        OrchestratorEndStatus::Completed => RunStatus::Completed,
+        OrchestratorEndStatus::Aborted => RunStatus::Aborted,
+        OrchestratorEndStatus::Error => RunStatus::Error,
+        OrchestratorEndStatus::Timeout => RunStatus::Timeout,
+    }
+}
+
+/// 剥离输入首 token（M4-2：force_pipeline 前缀 /调研 等 Chip 不进规划提示）
+fn strip_first_token(text: &str) -> String {
+    let t = text.trim();
+    match t.find(char::is_whitespace) {
+        Some(i) => t[i..].trim_start().to_string(),
+        None => String::new(),
+    }
+}
+
+/// M5-RK1：专属 run_* 编排模式前缀（区别于 A3 四管线前缀 /调研 等）
+///
+/// 前端 `/` 命令菜单（PIPELINE_ITEMS）注入 5 个模式项按模式直发对应 run_*：
+/// - `Plan` → run_plan_execute（强制规划管线，绕过 LLM 判型）
+/// - `Tot` → run_tot（思维树分支探索）
+/// - `Got` → run_got（多源聚合）
+/// - `Supervisor` → run_supervisor（拆分子任务委派子 Agent）
+/// - `Multi` → run_multi（黑板协作多智能体）
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ModePrefix {
+    Plan,
+    Tot,
+    Got,
+    Supervisor,
+    Multi,
+}
+
+impl ModePrefix {
+    fn as_prefix(self) -> &'static str {
+        match self {
+            Self::Plan => "/plan",
+            Self::Tot => "/tot",
+            Self::Got => "/got",
+            Self::Supervisor => "/supervisor",
+            Self::Multi => "/multi",
+        }
+    }
+}
+
+/// 从输入首 token 提取模式前缀（大小写不敏感，`/tot 问题` 与 `/tot问题` 均可命中）
+///
+/// 与 [`agent_runtime::router::extract_force_pipeline`]（四管线前缀）互不重叠：
+/// 模式前缀在四管线 kw 表之外，四管线前缀在本表之外，二者不会互相误判。
+fn extract_mode_prefix(input: &str) -> Option<ModePrefix> {
+    let first = input.trim().split_whitespace().next().unwrap_or("");
+    let lower = first.to_lowercase();
+    [
+        ModePrefix::Plan,
+        ModePrefix::Tot,
+        ModePrefix::Got,
+        ModePrefix::Supervisor,
+        ModePrefix::Multi,
+    ]
+    .into_iter()
+    .find(|m| lower == m.as_prefix() || lower.starts_with(m.as_prefix()))
+}
+
+/// M3-RK1：Supervisor 图节点委派路径的子 run 记账器（映射到 RunStore）
+///
+/// SupervisorNode（patterns 层）不感知 RunStore；本实现把「建子 run / 收口」映射到
+/// 命令层 RunStore：父 run = 当前顶层 run（B11 顶层串行），session 继承父 run，
+/// 使 Supervisor 委派的每个子 Agent 成为 run 树子节点（前端"查看委派现场"数据源）。
+struct RunStoreSubRunAccountant {
+    store: Arc<RunStore>,
+}
+
+#[async_trait::async_trait]
+impl agent_runtime::sub_agent_pool::SubRunAccountant for RunStoreSubRunAccountant {
+    async fn begin(
+        &self,
+        _parent_run_id: Option<String>,
+        sub_agent_id: &str,
+        _sub_agent_name: &str,
+    ) -> Option<String> {
+        // 父 run = 当前活跃顶层 run（顶层串行下即 supervisor 自身 run）
+        let parent = self.store.current_top_run().await;
+        let sub_session = if let Some(p) = &parent {
+            self.store
+                .get(p)
+                .await
+                .map(|r| r.session_id)
+                .unwrap_or_else(|| "supervisor".into())
+        } else {
+            "supervisor".into()
+        };
+        Some(
+            self.store
+                .create(
+                    &sub_session,
+                    parent,
+                    Some(format!("sub:{}", sub_agent_id)),
+                )
+                .await,
+        )
+    }
+
+    async fn finish(&self, sub_run_id: &str, status: &str, summary: Option<String>) {
+        let (run_status, reason) = match status {
+            "error" => (RunStatus::Error, None),
+            "timeout" => (RunStatus::Timeout, Some(ConvergeReason::LimitReached)),
+            _ => (RunStatus::Completed, Some(ConvergeReason::GoalReached)),
+        };
+        self.store.finish(sub_run_id, run_status, reason, summary).await;
+    }
+}
+
+/// M1-7/M1-8 收口：单节点链构图前硬校验（D23）。
+///
+/// 注册表提供产出 kind 声明（注册项③），构图期校验入口存在与节点合法；
+/// 单节点链无组合边，kind 匹配不参与——拦截价值集中在入口/节点必达。
+fn verify_single_node_pipeline(
+    pattern_id: &str,
+    node_id: &str,
+    node_type: agent_runtime::node::NodeType,
+) -> Result<(), CommandError> {
+    use agent_runtime::pipeline::{validate_pipeline, PipelineDecl, PipelineNodeDecl};
+
+    let entry = get_pattern(pattern_id).ok_or_else(|| {
+        CommandError::Agent(format!("模式未注册，构图期拒绝: {pattern_id}"))
+    })?;
+    let decl = PipelineDecl {
+        nodes: vec![PipelineNodeDecl {
+            id: node_id.into(),
+            node_type,
+            output_kind: Some(entry.artifact_kind),
+        }],
+        edges: vec![],
+        entry: node_id.into(),
+    };
+    validate_pipeline(&decl)
+        .map_err(|e| CommandError::Agent(format!("管线定义非法，构图期拒绝: {e}")))
+}
+
 impl AgentCommandService {
+    /// M4-6 插话门（FIX-3/D21）：运行期间注册当前编排器（steer 队列转发目标），结束后清除
+    ///
+    /// `fut` 为编排器 run future；无论成败都在结束后解除注册（B11 顶层串行 → 全局单例安全）。
+    async fn run_with_active_orchestrator(
+        &self,
+        orch: Arc<DefaultOrchestrator>,
+        fut: impl std::future::Future<Output = Result<OrchestratorResult, OrchestratorError>>,
+    ) -> Result<OrchestratorResult, OrchestratorError> {
+        *self.active_orchestrator.write().await = Some(Arc::clone(&orch));
+        let result = fut.await;
+        *self.active_orchestrator.write().await = None;
+        result
+    }
+
     /// 创建空服务
     pub fn new() -> Self {
         Self::default()
@@ -653,6 +843,8 @@ impl AgentCommandService {
         // 将子 Agent 管理器的广播器指向主 Agent 的广播器，
         // 使子 Agent 委派事件（Started/Completed/Error）能透传到订阅主 Agent 的前端。
         sub_agent_manager.set_broadcaster(agent.broadcaster_ref());
+        // M3-1：子 Agent 管理器注入共享 run 注册表（委派创建子 run 构成 run 树）
+        sub_agent_manager.set_run_store(Arc::clone(&self.runs));
         (agent, sub_agent_manager)
     }
 
@@ -811,7 +1003,6 @@ impl AgentCommandService {
             title: "新会话".into(),
             pinned: false,
             kind,
-            router_enabled: true,
             workdir: workdir_str.clone(),
             workspace_id: workspace_id.clone(),
         };
@@ -832,7 +1023,6 @@ impl AgentCommandService {
                 title: "新会话".into(),
                 pinned: false,
                 kind,
-                router_enabled: true,
                 workdir: workdir_str.clone(),
                 workspace_id,
             };
@@ -870,8 +1060,68 @@ impl AgentCommandService {
     ) -> Result<OrchestratorResult, CommandError> {
         let agent = self.get_agent(session_id).await?;
         let backend = agent.node_backend();
+        // B22：登记 run（run_id 贯穿轨迹事件；管线名 = 链族预设语义）
+        let pipeline = if options.refine { "research-plan" } else { "quick-plan" };
+        let run_id = self
+            .runs
+            .create(session_id, None, Some(pipeline.to_string()))
+            .await;
 
         let mut orch = DefaultOrchestrator::new().with_backend(backend);
+
+        // M1-7 构图期硬校验（D23 硬层 / D0-1/2/3）：
+        // 先声明管线（节点/边/入口 + kind），非法组合在构图期拒绝（每条非法组合一条用例，见 kernel pipeline.rs tests）
+        {
+            use agent_runtime::pipeline::{PipelineDecl, PipelineEdgeDecl, PipelineNodeDecl};
+            use agent_runtime::types::ArtifactKindTag;
+            use agent_runtime::node::NodeType;
+
+            let mut nodes = vec![
+                PipelineNodeDecl {
+                    id: "plan".into(),
+                    node_type: NodeType::Plan,
+                    output_kind: Some(ArtifactKindTag::Plan),
+                },
+                PipelineNodeDecl {
+                    id: "execute".into(),
+                    node_type: NodeType::Execute,
+                    output_kind: Some(ArtifactKindTag::Execution),
+                },
+            ];
+            let mut edges = vec![PipelineEdgeDecl {
+                from: "plan".into(),
+                to: "execute".into(),
+                accepts: vec![ArtifactKindTag::Plan],
+            }];
+            if options.refine {
+                nodes.push(PipelineNodeDecl {
+                    id: "reflection".into(),
+                    node_type: NodeType::Reflection,
+                    output_kind: Some(ArtifactKindTag::Reflection),
+                });
+                nodes.push(PipelineNodeDecl {
+                    id: "refine".into(),
+                    node_type: NodeType::Refine,
+                    output_kind: Some(ArtifactKindTag::Plan),
+                });
+                edges.push(PipelineEdgeDecl {
+                    from: "execute".into(),
+                    to: "reflection".into(),
+                    accepts: vec![ArtifactKindTag::Execution],
+                });
+                edges.push(PipelineEdgeDecl {
+                    from: "reflection".into(),
+                    to: "refine".into(),
+                    accepts: vec![ArtifactKindTag::Reflection],
+                });
+            }
+            agent_runtime::pipeline::validate_pipeline(&PipelineDecl {
+                nodes,
+                edges,
+                entry: "plan".into(),
+            })
+            .map_err(|e| CommandError::Agent(format!("管线定义非法，构图期拒绝: {e}")))?;
+        }
 
         // Plan → Execute
         let plan_node = PlanNode::new(PlanNodeConfig {
@@ -910,16 +1160,43 @@ impl AgentCommandService {
         }
         orch.set_entry("plan");
 
+        // M4-6 插话门：构图完成 → 包 Arc（subscribe &self）→ 注册为当前活跃编排器后 run
+        let orch = Arc::new(orch);
+
         // 事件转发：编排事件 → 会话广播器 → Tauri 事件桥 → 前端
         let forward = ForwardToAgentBroadcaster {
             target: agent.broadcaster_ref(),
         };
         orch.subscribe(Arc::new(forward));
 
-        orch
-            .run(input, None)
+        let result = self
+            .run_with_active_orchestrator(
+                Arc::clone(&orch),
+                orch.run(
+                    input,
+                    Some(OrchestratorRunOptions {
+                        run_id: Some(run_id.clone()),
+                        pipeline: Some(pipeline.to_string()),
+                        ..Default::default()
+                    }),
+                ),
+            )
             .await
-            .map_err(|e| CommandError::Agent(format!("编排图执行失败: {e}")))
+            .map_err(|e| CommandError::Agent(format!("编排图执行失败: {e}")))?;
+        // FIX-1 闭环（M5-RK3 补验修复）：run 结束前把交接物全文写入 RunStore（get_artifact 查询源）
+        for artifact in &result.artifacts {
+            self.runs.add_artifact(&run_id, artifact.clone()).await;
+        }
+        // B22：run 收口（状态 + 收敛原因 + 终局结论）
+        self.runs
+            .finish(
+                &run_id,
+                to_run_status(result.status),
+                result.converge_reason,
+                result.final_message.clone(),
+            )
+            .await;
+        Ok(result)
     }
 
     /// 运行 ToT（Tree of Thoughts）编排图（单节点：ToTNode）
@@ -934,6 +1211,11 @@ impl AgentCommandService {
     ) -> Result<OrchestratorResult, CommandError> {
         let agent = self.get_agent(session_id).await?;
         let backend = agent.node_backend();
+        // B22：登记 run（管线名 = 链族预设语义）
+        let run_id = self
+            .runs
+            .create(session_id, None, Some("tot".to_string()))
+            .await;
         let config = ToTConfig {
             max_depth: options.max_depth.unwrap_or(ToTConfig::default().max_depth),
             beam_width: options.beam_width.unwrap_or(ToTConfig::default().beam_width),
@@ -943,17 +1225,45 @@ impl AgentCommandService {
             max_thoughts: options.max_thoughts.unwrap_or(ToTConfig::default().max_thoughts),
             ..Default::default()
         };
+        // M1-7/8：单节点链构图期校验（注册表提供 kind 声明）
+        verify_single_node_pipeline("tot", "tot", agent_runtime::node::NodeType::Thought)?;
         let mut orch = DefaultOrchestrator::new().with_backend(backend.clone());
         orch.add_node(Box::new(ToTNode::with_default_strategies(
             "tot", "ToT", backend, config,
         )));
         orch.set_entry("tot");
+        let orch = Arc::new(orch);
         orch.subscribe(Arc::new(ForwardToAgentBroadcaster {
             target: agent.broadcaster_ref(),
         }));
-        orch.run(input, None)
+        let result = self
+            .run_with_active_orchestrator(
+                Arc::clone(&orch),
+                orch.run(
+                    input,
+                    Some(OrchestratorRunOptions {
+                        run_id: Some(run_id.clone()),
+                        pipeline: Some("tot".to_string()),
+                        node_timeout_ms: options.node_timeout_ms,
+                        ..Default::default()
+                    }),
+                ),
+            )
             .await
-            .map_err(|e| CommandError::Agent(format!("ToT 执行失败: {e}")))
+            .map_err(|e| CommandError::Agent(format!("ToT 执行失败: {e}")))?;
+        // FIX-1 闭环（M5-RK3 补验修复）：交接物全文写入 RunStore（get_artifact 查询源）
+        for artifact in &result.artifacts {
+            self.runs.add_artifact(&run_id, artifact.clone()).await;
+        }
+        self.runs
+            .finish(
+                &run_id,
+                to_run_status(result.status),
+                result.converge_reason,
+                result.final_message.clone(),
+            )
+            .await;
+        Ok(result)
     }
 
     /// 运行 GoT（Graph of Thoughts）编排图（单节点：GoTNode）
@@ -968,11 +1278,17 @@ impl AgentCommandService {
     ) -> Result<OrchestratorResult, CommandError> {
         let agent = self.get_agent(session_id).await?;
         let backend = agent.node_backend();
+        // B22：登记 run
+        let run_id = self
+            .runs
+            .create(session_id, None, Some("got".to_string()))
+            .await;
         let ToTExecuteOptions {
             max_depth,
             beam_width,
             branch_factor,
             max_thoughts,
+            ..
         } = options.tot;
         let config = GoTConfig {
             tot: ToTConfig {
@@ -985,15 +1301,43 @@ impl AgentCommandService {
             aggregation_enabled: options.aggregation_enabled.unwrap_or(true),
             ..Default::default()
         };
+        // M1-7/8：单节点链构图期校验（注册表提供 kind 声明）
+        verify_single_node_pipeline("got", "got", agent_runtime::node::NodeType::Graph)?;
         let mut orch = DefaultOrchestrator::new().with_backend(backend);
         orch.add_node(Box::new(GoTNode::with_default_strategies("got", "GoT", config)));
         orch.set_entry("got");
+        let orch = Arc::new(orch);
         orch.subscribe(Arc::new(ForwardToAgentBroadcaster {
             target: agent.broadcaster_ref(),
         }));
-        orch.run(input, None)
+        let result = self
+            .run_with_active_orchestrator(
+                Arc::clone(&orch),
+                orch.run(
+                    input,
+                    Some(OrchestratorRunOptions {
+                        run_id: Some(run_id.clone()),
+                        pipeline: Some("got".to_string()),
+                        node_timeout_ms: options.node_timeout_ms(),
+                        ..Default::default()
+                    }),
+                ),
+            )
             .await
-            .map_err(|e| CommandError::Agent(format!("GoT 执行失败: {e}")))
+            .map_err(|e| CommandError::Agent(format!("GoT 执行失败: {e}")))?;
+        // FIX-1 闭环（M5-RK3 补验修复）：交接物全文写入 RunStore（get_artifact 查询源）
+        for artifact in &result.artifacts {
+            self.runs.add_artifact(&run_id, artifact.clone()).await;
+        }
+        self.runs
+            .finish(
+                &run_id,
+                to_run_status(result.status),
+                result.converge_reason,
+                result.final_message.clone(),
+            )
+            .await;
+        Ok(result)
     }
 
     /// 运行 Supervisor 编排图（单节点：SupervisorNode）
@@ -1009,26 +1353,67 @@ impl AgentCommandService {
         let agent = self.get_agent(session_id).await?;
         let backend = agent.node_backend();
         let tool_bus = agent.tool_bus();
+        // B22：登记 run
+        let run_id = self
+            .runs
+            .create(session_id, None, Some("supervisor".to_string()))
+            .await;
         let config = SupervisorConfig {
             max_rounds: options.max_rounds.unwrap_or(SupervisorConfig::default().max_rounds),
             ..Default::default()
         };
+        // M1-7/8：单节点链构图期校验（注册表提供 kind 声明）
+        verify_single_node_pipeline("supervisor", "supervisor", agent_runtime::node::NodeType::Supervisor)?;
         let mut orch = DefaultOrchestrator::new().with_backend(backend.clone());
-        orch.add_node(Box::new(SupervisorNode::with_default_strategy(
-            "supervisor",
-            "Supervisor",
-            options.specs,
-            backend,
-            tool_bus,
-            config,
-        )));
+        // M3-RK1：注入子 run 记账器——Supervisor 图节点委派路径的子 Agent 挂到 run 树
+        // （父 run = 当前顶层 run；session 继承父 run；front-end 据此渲染委派现场）
+        let accountant = Arc::new(RunStoreSubRunAccountant {
+            store: Arc::clone(&self.runs),
+        });
+        orch.add_node(Box::new(
+            SupervisorNode::with_default_strategy(
+                "supervisor",
+                "Supervisor",
+                options.specs,
+                backend,
+                tool_bus,
+                config,
+            )
+            .with_accountant(accountant),
+        ));
         orch.set_entry("supervisor");
+        let orch = Arc::new(orch);
         orch.subscribe(Arc::new(ForwardToAgentBroadcaster {
             target: agent.broadcaster_ref(),
         }));
-        orch.run(input, None)
+        let result = self
+            .run_with_active_orchestrator(
+                Arc::clone(&orch),
+                orch.run(
+                    input,
+                    Some(OrchestratorRunOptions {
+                        run_id: Some(run_id.clone()),
+                        pipeline: Some("supervisor".to_string()),
+                        node_timeout_ms: options.node_timeout_ms,
+                        ..Default::default()
+                    }),
+                ),
+            )
             .await
-            .map_err(|e| CommandError::Agent(format!("Supervisor 执行失败: {e}")))
+            .map_err(|e| CommandError::Agent(format!("Supervisor 执行失败: {e}")))?;
+        // FIX-1 闭环（M5-RK3 补验修复）：交接物全文写入 RunStore（get_artifact 查询源）
+        for artifact in &result.artifacts {
+            self.runs.add_artifact(&run_id, artifact.clone()).await;
+        }
+        self.runs
+            .finish(
+                &run_id,
+                to_run_status(result.status),
+                result.converge_reason,
+                result.final_message.clone(),
+            )
+            .await;
+        Ok(result)
     }
 
     /// 运行 Multi-Agent 协作编排图（单节点：MultiAgentNode）
@@ -1045,6 +1430,11 @@ impl AgentCommandService {
         let agent = self.get_agent(session_id).await?;
         let backend = agent.node_backend();
         let tool_bus = agent.tool_bus();
+        // B22：登记 run
+        let run_id = self
+            .runs
+            .create(session_id, None, Some("multi-agent".to_string()))
+            .await;
         let defaults = MultiAgentConfig::default();
         let config = MultiAgentConfig {
             max_rounds: options.max_rounds.unwrap_or(defaults.max_rounds),
@@ -1057,17 +1447,60 @@ impl AgentCommandService {
                 .unwrap_or(defaults.require_synthesis),
             ..defaults
         };
+        // M1-7/8：单节点链构图期校验（注册表提供 kind 声明）
+        verify_single_node_pipeline("multi_agent", "multi_agent", agent_runtime::node::NodeType::MultiAgent)?;
         let mut orch = DefaultOrchestrator::new().with_backend(backend.clone());
         orch.add_node(Box::new(MultiAgentNode::new(
             "multi_agent", "MultiAgent", options.specs, backend, tool_bus, config,
         )));
         orch.set_entry("multi_agent");
+        let orch = Arc::new(orch);
         orch.subscribe(Arc::new(ForwardToAgentBroadcaster {
             target: agent.broadcaster_ref(),
         }));
-        orch.run(input, None)
+        let result = self
+            .run_with_active_orchestrator(
+                Arc::clone(&orch),
+                orch.run(
+                    input,
+                    Some(OrchestratorRunOptions {
+                        run_id: Some(run_id.clone()),
+                        pipeline: Some("multi-agent".to_string()),
+                        node_timeout_ms: options.node_timeout_ms,
+                        ..Default::default()
+                    }),
+                ),
+            )
             .await
-            .map_err(|e| CommandError::Agent(format!("Multi-Agent 执行失败: {e}")))
+            .map_err(|e| CommandError::Agent(format!("Multi-Agent 执行失败: {e}")))?;
+        // FIX-1 闭环（M5-RK3 补验修复）：交接物全文写入 RunStore（get_artifact 查询源）
+        for artifact in &result.artifacts {
+            self.runs.add_artifact(&run_id, artifact.clone()).await;
+        }
+        self.runs
+            .finish(
+                &run_id,
+                to_run_status(result.status),
+                result.converge_reason,
+                result.final_message.clone(),
+            )
+            .await;
+        Ok(result)
+    }
+
+    /// 按 run_id 查 run 实体（B22 / FIX-1：迹线回看与调试用）
+    pub async fn get_run(&self, run_id: &str) -> Option<OrchestrationRun> {
+        self.runs.get(run_id).await
+    }
+
+    /// 按 artifact_id 取物全文（D23「事件轻、物权威」闭环 / FIX-1）
+    pub async fn get_artifact(&self, artifact_id: &str) -> Option<HandoverArtifact> {
+        self.runs.get_artifact(artifact_id).await
+    }
+
+    /// 按会话列 run（B11：事件按 run_id 隔离；调试与 M2 迹线兜底）
+    pub async fn list_session_runs(&self, session_id: &str) -> Vec<OrchestrationRun> {
+        self.runs.list_by_session(session_id).await
     }
 
     /// 会话列表（默认只返回单聊会话；群聊参与者会话走 [`Self::list_group_session_participants`] 按群聊查询）
@@ -1146,8 +1579,6 @@ impl AgentCommandService {
                     workspace_id.clone(),
                 )
                 .await;
-            // 应用持久化的四管线路由开关
-            agent.set_router_enabled(record.router_enabled);
             // 恢复消息历史（含 system 首条）
             let messages = store.load_messages(&record.id).await?;
             // A4 Plan-Exec：恢复持久化的计划
@@ -1174,7 +1605,6 @@ impl AgentCommandService {
                 title: record.title.clone(),
                 pinned: record.pinned,
                 kind: record.kind,
-                router_enabled: record.router_enabled,
                 workdir: workdir_str,
                 workspace_id: workspace_id,
             };
@@ -1432,30 +1862,6 @@ impl AgentCommandService {
         Ok(())
     }
 
-    /// 设置会话级四管线路由开关（A3）
-    ///
-    /// 关闭后该会话 `run()` 跳过路由决策（不再产生额外 LLM 意图分类调用）。
-    /// 命中会话不存在时返回错误。
-    pub async fn set_session_router_enabled(
-        &self,
-        session_id: &str,
-        enabled: bool,
-    ) -> Result<(), CommandError> {
-        let agent = self.get_agent(session_id).await?;
-        agent.set_router_enabled(enabled);
-        // 更新内存 meta（供 list_sessions 返回最新开关状态）
-        if let Some(info) = self.meta.lock().await.get_mut(session_id) {
-            info.router_enabled = enabled;
-        }
-        // 写穿持久化存储（失败仅告警弱提示，不阻断）
-        if let Some(store) = &self.session_store {
-            if let Err(e) = store.set_router_enabled(session_id, enabled).await {
-                tracing::warn!("持久化会话路由开关失败: {e}");
-            }
-        }
-        Ok(())
-    }
-
     // ── 会话级记忆（阶段 4：前端 ArchivePanel 迁移后端）────────────────
 
     /// 获取会话记忆访问器（未启用记忆时返回 None）
@@ -1541,10 +1947,178 @@ impl AgentCommandService {
 
     // ── 对话主链路 ────────────────────────────────────
 
+    /// M5-RK1：按模式前缀分发到专属 run_* 编排（send_message 模式分流调用）
+    ///
+    /// 特权/委派类（supervisor/multi）需要规格：无规格时返回**明确引导错误**
+    /// （反模式 6「永不静默降级」——不偷偷退回 plan_execute，让用户知道差什么）。
+    async fn run_mode_prefix(
+        &self,
+        session_id: &str,
+        mode: ModePrefix,
+        text: String,
+    ) -> Result<OrchestratorResult, CommandError> {
+        match mode {
+            ModePrefix::Plan => self
+                .run_plan_execute(
+                    session_id,
+                    text,
+                    PlanExecuteOptions {
+                        refine: true,
+                        ..Default::default()
+                    },
+                )
+                .await,
+            ModePrefix::Tot => self.run_tot(session_id, text, ToTExecuteOptions::default()).await,
+            ModePrefix::Got => self.run_got(session_id, text, GoTExecuteOptions::default()).await,
+            ModePrefix::Supervisor => {
+                let specs = self.list_subagent_specs().await;
+                if specs.is_empty() {
+                    return Err(CommandError::Agent(
+                        "/supervisor 需先配置子 Agent 规格：请先注册至少一个子 Agent（设置→子Agent）后再委派"
+                            .into(),
+                    ));
+                }
+                self.run_supervisor(
+                    session_id,
+                    text,
+                    SupervisorExecuteOptions {
+                        specs,
+                        max_rounds: None,
+                        node_timeout_ms: None,
+                    },
+                )
+                .await
+            }
+            ModePrefix::Multi => {
+                // MultiAgent 每个参与 Agent 需完整规格（system_prompt/角色），无全局默认阵容；
+                // 空规格会黑盒失败，此处显式引导走右栏「多Agent」面板选择阵容。
+                Err(CommandError::Agent(
+                    "/multi 需显式指定协作阵容：请在右侧「多Agent」面板选择参与 Agent 与黑板书配置后运行"
+                        .into(),
+                ))
+            }
+        }
+    }
+
     /// 发送消息（ReAct 循环执行）
     pub async fn send_message(&self, params: SendMessageParams) -> Result<SendMessageResult, CommandError> {
         let agent = self.get_agent(&params.session_id).await?;
-        let reply = agent.run(params.text).await?;
+        // M5-RK1（2026-08-27 走查修复）：探索/委派/规划族命令前缀直通专属 run_* 编排。
+        // 修复 /plan /tot /got /supervisor /multi 此前被当普通文本走 plan_execute 的链路断裂
+        // （E19 任务④探索入口卡 / 任务⑤降级路径受阻的根因）。
+        if let Some(mode) = extract_mode_prefix(&params.text) {
+            let text = strip_first_token(&params.text);
+            if text.is_empty() {
+                return Err(CommandError::Internal(
+                    "模式前缀后缺少任务描述（如 /tot 你的问题）".into(),
+                ));
+            }
+            let result = self.run_mode_prefix(&params.session_id, mode, text).await?;
+            let usage = agent.get_usage().await;
+            let state = agent.get_state_snapshot().await;
+            return Ok(SendMessageResult {
+                session_id: params.session_id,
+                reply: result.final_message.unwrap_or_default(),
+                state,
+                usage: SessionUsageSummary {
+                    input_tokens: usage.input_tokens,
+                    output_tokens: usage.output_tokens,
+                },
+            });
+        }
+        // M4-2/M4-5（A1 自动为主 + B10 缓存）：判型 = force_pipeline 前缀 → 请求级缓存 → LLM 预判型。
+        // 非 query（研究/实验/创作）自动进编排：转 run_plan_execute（编排 run 发 orchestration_trace
+        // 事件 → 前端编排段浮现 = 判型结果 = run 形状，B22）；Query / 无命中 → 快问答退化 run
+        // （react，无编排段 = C20 分级透明）。
+        let forced = agent_runtime::router::extract_force_pipeline(&params.text);
+        let target = if let Some(p) = forced {
+            p
+        } else {
+            // B10：同会话同文本缓存命中则复用（不重复 LLM 判型）
+            let cache_key = (params.session_id.clone(), params.text.clone());
+            let cached = self.pipeline_cache.lock().await.get(&cache_key).copied();
+            if let Some(p) = cached {
+                p
+            } else {
+                // LLM 预判型（classify_pipeline 复用 AgentLoop 判型链路；3s 超时降级 query）
+                let p = tokio::time::timeout(
+                    std::time::Duration::from_secs(3),
+                    agent.classify_pipeline(&params.text),
+                )
+                .await
+                .ok()
+                .flatten()
+                .unwrap_or(Pipeline::Query);
+                let mut cache = self.pipeline_cache.lock().await;
+                if cache.len() >= 128 {
+                    cache.clear();
+                }
+                cache.insert(cache_key, p);
+                p
+            }
+        };
+        let is_complex = matches!(
+            target,
+            Pipeline::Research | Pipeline::Experiment | Pipeline::Compose
+        );
+        if is_complex {
+            // 有前缀（/调研 等 Chip）才剥离首 token 进规划提示；预判型（无前缀）原文直入
+            let text = if forced.is_some() {
+                strip_first_token(&params.text)
+            } else {
+                params.text.clone()
+            };
+            if !text.is_empty() {
+                let result = self
+                    .run_plan_execute(
+                        &params.session_id,
+                        text,
+                        PlanExecuteOptions {
+                            refine: true,
+                            ..Default::default()
+                        },
+                    )
+                    .await?;
+                let usage = agent.get_usage().await;
+                // state 用 AgentLoop 会话快照（与 react 路径一致；编排过程经 trace 事件呈现）
+                let state = agent.get_state_snapshot().await;
+                return Ok(SendMessageResult {
+                    session_id: params.session_id,
+                    reply: result.final_message.unwrap_or_default(),
+                    state,
+                    usage: SessionUsageSummary {
+                        input_tokens: usage.input_tokens,
+                        output_tokens: usage.output_tokens,
+                    },
+                });
+            }
+        }
+
+        // M4-1（B22）：send_message 亦建 run——快问答 = 退化 run（单阶段 ReAct，无编排段 = C20 分级透明）。
+        // 退化 run 不产生 orchestration_trace 事件（未走编排引擎），前端据此天然无感。
+        let run_id = self
+            .runs
+            .create(&params.session_id, None, Some("react".to_string()))
+            .await;
+        let agent = match self.get_agent(&params.session_id).await {
+            Ok(a) => a,
+            Err(e) => {
+                self.runs
+                    .finish(&run_id, RunStatus::Error, None, Some(e.to_string()))
+                    .await;
+                return Err(e);
+            }
+        };
+        let reply = match agent.run(params.text).await {
+            Ok(r) => r,
+            Err(e) => {
+                let msg = e.to_string();
+                self.runs
+                    .finish(&run_id, RunStatus::Error, None, Some(msg.clone()))
+                    .await;
+                return Err(e.into());
+            }
+        };
         let state = agent.get_state_snapshot().await;
         // 更新会话消息数
         let count = state.messages.len() as u32;
@@ -1555,6 +2129,14 @@ impl AgentCommandService {
         self.persist_messages(&params.session_id).await;
         // 读取会话累计用量
         let usage = agent.get_usage().await;
+        self.runs
+            .finish(
+                &run_id,
+                RunStatus::Completed,
+                Some(ConvergeReason::GoalReached),
+                Some(reply.clone()),
+            )
+            .await;
         Ok(SendMessageResult {
             session_id: params.session_id,
             reply,
@@ -1601,7 +2183,14 @@ impl AgentCommandService {
     }
 
     /// 中途引导（steer，对应前端 sendBlockAction）
+    ///
+    /// M4-6（FIX-3 / D21 插话门）：有活跃编排 run → steer 进编排器节点边界队列（不中断链）；
+    /// 否则走 AgentLoop steer（react 路径原语义）。
     pub async fn steer(&self, session_id: &str, text: String) -> Result<(), CommandError> {
+        if let Some(orch) = self.active_orchestrator.read().await.clone() {
+            orch.push_steer(text);
+            return Ok(());
+        }
         let agent = self.get_agent(session_id).await?;
         agent.steer(text).await.map_err(CommandError::from)
     }

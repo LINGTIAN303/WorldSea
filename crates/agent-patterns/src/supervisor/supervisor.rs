@@ -13,7 +13,7 @@ use agent_kernel::agent::{AgentLoop, AgentLoopConfig};
 use agent_kernel::backend::{NodeBackendAccessor, PromptCallOptions};
 use agent_kernel::event::OrchestratorEvent;
 use agent_kernel::node::{NodeContext, NodeResult, NodeStatus, NodeType, OrchestratorNode};
-use agent_kernel::sub_agent_pool::SubAgentPool;
+use agent_kernel::sub_agent_pool::{SubAgentPool, SubRunAccountant};
 use agent_kernel::tool::ToolBus;
 use agent_kernel::types::{MessageRole, OrchestratorMessage};
 
@@ -439,6 +439,9 @@ pub struct SupervisorNode {
     strategy: Arc<dyn AssignmentStrategy>,
     /// 配置
     config: SupervisorConfig,
+    /// 子 run 记账器（M3-RK1：可选注入；命令层实现映射到 RunStore，
+    /// 使 Supervisor 图节点委派的每个子 Agent 成为 run 树子节点）
+    accountant: Option<Arc<dyn SubRunAccountant>>,
 }
 
 impl SupervisorNode {
@@ -463,7 +466,14 @@ impl SupervisorNode {
             ),
             strategy,
             config,
+            accountant: None,
         }
+    }
+
+    /// 注入子 run 记账器（M3-RK1：命令层映射到 RunStore，委派的子 Agent 挂到 run 树）
+    pub fn with_accountant(mut self, accountant: Arc<dyn SubRunAccountant>) -> Self {
+        self.accountant = Some(accountant);
+        self
     }
 
     /// 使用默认 LLM 策略创建（便捷方法）
@@ -646,15 +656,74 @@ impl OrchestratorNode for SupervisorNode {
                 task_description: assignment.task_description.clone(),
             });
 
+            // M3-RK1：委派前建子 run（Supervisor 图节点路径挂到 run 树；
+            // 父 run 由命令层记账器从当前顶层 run 自行解析）
+            let mut sub_run_id: Option<String> = None;
+            if let Some(acc) = &self.accountant {
+                sub_run_id = acc
+                    .begin(None, &spec.id, &spec.name)
+                    .await;
+            }
+
             let run_start = Instant::now();
-            let sub_agent_output =
-                match agent.run(assignment.task_description.clone()).await {
-                    Ok(text) => text,
-                    Err(e) => {
+            // M5-RK2（2026-08-27 走查修复）：子 Agent 超限 = 正常收敛（B0-4 语义），
+            // 不中断 Supervisor——取已产出的部分结果作为子 Agent 输出收敛（limit_reached）。
+            // 只有不可恢复故障（backend/工具/其他）才走 Error 中断。
+            let sub_agent_output = match agent.run(assignment.task_description.clone()).await {
+                Ok(text) => text,
+                Err(e) => match &e {
+                    agent_kernel::agent::AgentError::MaxIterationsExceeded(_) => {
+                        // 子 Agent 迭代超限但可能已产出部分内容：取最后一条 assistant 消息
+                        // 作为部分结果（若无则退回错误提示原文），按 Done 收敛而非 Error 中断。
+                        let partial = agent
+                            .get_runtime_messages()
+                            .await
+                            .into_iter()
+                            .rev()
+                            .find(|m| m.role == MessageRole::Assistant)
+                            .map(|m| m.content)
+                            .filter(|s| !s.trim().is_empty());
+                        match partial {
+                            Some(text) => {
+                                info!(
+                                    "SubAgent '{}' 达到迭代上限，收敛部分结果（{} 字符）",
+                                    spec.name,
+                                    text.len()
+                                );
+                                text
+                            }
+                            None => {
+                                let error_msg = format!(
+                                    "子 Agent '{}' 执行失败（轮 {}）: {}",
+                                    spec.name, round, e
+                                );
+                                // M3-RK1：子 run 收口（error）
+                                if let Some(sr) = &sub_run_id {
+                                    if let Some(acc) = &self.accountant {
+                                        acc.finish(sr, "error", Some(error_msg.clone())).await;
+                                    }
+                                }
+                                ctx.emit(OrchestratorEvent::SubAgentError {
+                                    node_id: self.id.clone(),
+                                    sub_agent_id: spec.id.clone(),
+                                    sub_agent_name: spec.name.clone(),
+                                    error: error_msg.clone(),
+                                });
+                                return NodeResult::error(error_msg);
+                            }
+                        }
+                    }
+                    _ => {
                         let error_msg = format!(
                             "子 Agent '{}' 执行失败（轮 {}）: {}",
                             spec.name, round, e
                         );
+                        // M3-RK1：子 run 收口（error）
+                        if let Some(sr) = &sub_run_id {
+                            if let Some(acc) = &self.accountant {
+                                acc.finish(sr, "error", Some(error_msg.clone())).await;
+                            }
+                        }
                         ctx.emit(OrchestratorEvent::SubAgentError {
                             node_id: self.id.clone(),
                             sub_agent_id: spec.id.clone(),
@@ -663,7 +732,8 @@ impl OrchestratorNode for SupervisorNode {
                         });
                         return NodeResult::error(error_msg);
                     }
-                };
+                },
+            };
             let duration_ms = run_start.elapsed().as_millis() as u64;
 
             ctx.emit(OrchestratorEvent::SubAgentCompleted {
@@ -673,6 +743,14 @@ impl OrchestratorNode for SupervisorNode {
                 output_chars: sub_agent_output.len(),
                 duration_ms,
             });
+
+            // M3-RK1：委派成功收口子 run（completed + 结果摘要）
+            if let Some(sr) = &sub_run_id {
+                if let Some(acc) = &self.accountant {
+                    let summary: String = sub_agent_output.chars().take(200).collect();
+                    acc.finish(sr, "completed", Some(summary)).await;
+                }
+            }
 
             // ─ 3h. 收集输出，写入 state.messages ─
             let mut meta = HashMap::new();
@@ -790,6 +868,7 @@ impl OrchestratorNode for SupervisorNode {
             next_node_id: None,
             error: None,
             summary,
+            ..Default::default()
         }
     }
 }

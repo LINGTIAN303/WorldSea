@@ -158,6 +158,74 @@ impl EventListener for TauriAgentEventEmitter {
         // A1 全链路事件流可观测：非高频事件按序投递到 trace 通道（保留原分散通道）
         self.emit_trace(event);
         match event {
+            // ── 统一轨迹事件族 orchestration_trace（B7/D23，M1-RK1）──
+            // 投递到 `agent:event:trace:{sid}` 通道，前端 useOrchestrationTrace 按 run_id 聚合。
+            OrchestratorEvent::TracePipeStarted {
+                run_id,
+                pipeline,
+                reason,
+            } => {
+                let event_name = format!("agent:event:orchestration_trace:{}", self.session_id);
+                if let Err(err) = emit_dual(&self.app, &event_name, serde_json::json!({
+                    "type": "pipe_started",
+                    "runId": run_id,
+                    "pipeline": pipeline,
+                    "reason": reason,
+                })) {
+                    tracing::warn!("Failed to emit TracePipeStarted: {}", err);
+                }
+            }
+            OrchestratorEvent::TracePhaseEntered {
+                run_id,
+                phase,
+                reason,
+            } => {
+                let event_name = format!("agent:event:orchestration_trace:{}", self.session_id);
+                if let Err(err) = emit_dual(&self.app, &event_name, serde_json::json!({
+                    "type": "phase_entered",
+                    "runId": run_id,
+                    "phase": phase,
+                    "reason": reason,
+                })) {
+                    tracing::warn!("Failed to emit TracePhaseEntered: {}", err);
+                }
+            }
+            OrchestratorEvent::TracePhaseResult {
+                run_id,
+                phase,
+                status,
+                summary,
+                artifact_id,
+            } => {
+                let event_name = format!("agent:event:orchestration_trace:{}", self.session_id);
+                if let Err(err) = emit_dual(&self.app, &event_name, serde_json::json!({
+                    "type": "phase_result",
+                    "runId": run_id,
+                    "phase": phase,
+                    "status": status,
+                    "summary": summary,
+                    "artifactId": artifact_id,
+                })) {
+                    tracing::warn!("Failed to emit TracePhaseResult: {}", err);
+                }
+            }
+            OrchestratorEvent::TracePipeFinished {
+                run_id,
+                status,
+                reason,
+                final_message,
+            } => {
+                let event_name = format!("agent:event:orchestration_trace:{}", self.session_id);
+                if let Err(err) = emit_dual(&self.app, &event_name, serde_json::json!({
+                    "type": "pipe_finished",
+                    "runId": run_id,
+                    "status": status,
+                    "reason": reason,
+                    "finalMessage": final_message,
+                })) {
+                    tracing::warn!("Failed to emit TracePipeFinished: {}", err);
+                }
+            }
             OrchestratorEvent::DeepPhaseChanged {
                 phase_label,
                 phase_index,
@@ -586,6 +654,15 @@ pub async fn list_scenarios(
     Ok(state.list_scenarios().await)
 }
 
+/// 模式注册表（C0-15 契约发现 / M1-8）：前端据此渲染命令菜单（A1 `/`），不再按模式写死
+#[tauri::command]
+pub fn list_patterns() -> Vec<agent_commands::PatternRegistryEntry> {
+    agent_commands::list_patterns()
+        .into_iter()
+        .cloned()
+        .collect()
+}
+
 /// 会话列表（默认只返回单聊会话，群聊参与者会话不在此列）
 #[tauri::command]
 pub async fn list_sessions(
@@ -595,6 +672,33 @@ pub async fn list_sessions(
         .list_sessions(Some(agent_commands::SessionKind::Chat))
         .await
         .map_err(|e| e.to_string())
+}
+
+/// 按 run_id 查 run 实体（B22 / FIX-1）
+#[tauri::command]
+pub async fn get_run(
+    state: State<'_, AgentCommandService>,
+    run_id: String,
+) -> Result<Option<agent_commands::OrchestrationRun>, String> {
+    Ok(state.get_run(&run_id).await)
+}
+
+/// 按 artifact_id 取物全文（D23 物权威 / FIX-1）
+#[tauri::command]
+pub async fn get_artifact(
+    state: State<'_, AgentCommandService>,
+    artifact_id: String,
+) -> Result<Option<agent_runtime::types::HandoverArtifact>, String> {
+    Ok(state.get_artifact(&artifact_id).await)
+}
+
+/// 按会话列 run（B11 隔离；M2 迹线兜底）
+#[tauri::command]
+pub async fn list_session_runs(
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+) -> Result<Vec<agent_commands::OrchestrationRun>, String> {
+    Ok(state.list_session_runs(&session_id).await)
 }
 
 /// 删除会话
@@ -672,21 +776,6 @@ pub async fn set_session_pinned(
 ) -> Result<(), String> {
     state
         .set_session_pinned(&session_id, pinned)
-        .await
-        .map_err(|e| e.to_string())
-}
-
-/// 设置会话级四管线路由开关（A3）
-///
-/// 关闭后该会话 `run()` 跳过路由决策（不再产生额外 LLM 意图分类调用）。
-#[tauri::command]
-pub async fn set_session_router_enabled(
-    state: State<'_, AgentCommandService>,
-    session_id: String,
-    enabled: bool,
-) -> Result<(), String> {
-    state
-        .set_session_router_enabled(&session_id, enabled)
         .await
         .map_err(|e| e.to_string())
 }

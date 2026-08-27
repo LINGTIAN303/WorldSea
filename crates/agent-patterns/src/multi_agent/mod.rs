@@ -1,4 +1,4 @@
-﻿//! Multi-Agent Pattern — 多 Agent 协作模式，详细见 docs/details/注释/agent-runtime/multi_agent.md
+//! Multi-Agent Pattern — 多 Agent 协作模式，详细见 docs/details/注释/agent-runtime/multi_agent.md
 
 mod blackboard;
 mod config;
@@ -730,6 +730,7 @@ impl OrchestratorNode for MultiAgentNode {
                 self.specs.len(),
                 round
             )),
+            ..Default::default()
         }
     }
 }

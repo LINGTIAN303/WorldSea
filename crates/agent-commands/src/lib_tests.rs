@@ -503,3 +503,123 @@
             "重复 task_id 应包装为 Internal 错误，实际: {err}"
         );
     }
+
+    // ── M5-RK1：模式前缀分流 ─────────────────────────────────
+
+    /// 五个模式前缀全部命中（带空格与无空格两种写法）
+    #[test]
+    fn extract_mode_prefix_matches_all_five() {
+        assert_eq!(extract_mode_prefix("/plan 先调研再写"), Some(ModePrefix::Plan));
+        assert_eq!(extract_mode_prefix("/tot 难题"), Some(ModePrefix::Tot));
+        assert_eq!(extract_mode_prefix("/got 对比"), Some(ModePrefix::Got));
+        assert_eq!(extract_mode_prefix("/supervisor 委派"), Some(ModePrefix::Supervisor));
+        assert_eq!(extract_mode_prefix("/multi 协作"), Some(ModePrefix::Multi));
+        // 无空格紧贴写法
+        assert_eq!(extract_mode_prefix("/tot难题"), Some(ModePrefix::Tot));
+        // 大小写不敏感
+        assert_eq!(extract_mode_prefix("/TOT 难题"), Some(ModePrefix::Tot));
+    }
+
+    /// 四管线前缀不被模式前缀吞、普通文本不误判
+    #[test]
+    fn extract_mode_prefix_ignores_pipeline_and_plain() {
+        assert_eq!(extract_mode_prefix("/调研 论文"), None, "四管线前缀归 force_pipeline");
+        assert_eq!(extract_mode_prefix("/写作 一章"), None);
+        assert_eq!(extract_mode_prefix("帮我写一封信"), None);
+        assert_eq!(extract_mode_prefix("tot 不是命令"), None, "裸词不命中，仅前置 / 前缀");
+    }
+
+    /// 模式前缀后缺任务描述 → send_message 报错（不静默降级回 react）
+    #[tokio::test]
+    async fn send_message_mode_prefix_without_task_fails() {
+        let svc = AgentCommandService::new();
+        let info = svc.new_session(None, None, None, None).await.unwrap();
+        let err = svc
+            .send_message(SendMessageParams {
+                session_id: info.id.clone(),
+                text: "/tot".into(),
+                images: vec![],
+                mode: None,
+            })
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(err, CommandError::Internal(_)),
+            "缺任务描述应报错，实际: {err}"
+        );
+    }
+
+    /// /multi 前缀 → 明确引导错误（无 spec 时不允许黑盒失败）
+    #[tokio::test]
+    async fn send_message_multi_prefix_guides_to_panel() {
+        let svc = AgentCommandService::new();
+        let info = svc.new_session(None, None, None, None).await.unwrap();
+        let err = svc
+            .send_message(SendMessageParams {
+                session_id: info.id.clone(),
+                text: "/multi 协作任务".into(),
+                images: vec![],
+                mode: None,
+            })
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(err, CommandError::Agent(_)),
+            "应返回引导错误，实际: {err}"
+        );
+    }
+
+    /// /supervisor 前缀 → 无注册规格时引导错误（明确差什么，不静默走 plan_execute）
+    #[tokio::test]
+    async fn send_message_supervisor_prefix_requires_specs() {
+        let svc = AgentCommandService::new();
+        let info = svc.new_session(None, None, None, None).await.unwrap();
+        let err = svc
+            .send_message(SendMessageParams {
+                session_id: info.id.clone(),
+                text: "/supervisor 拆解任务".into(),
+                images: vec![],
+                mode: None,
+            })
+            .await
+            .unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("子 Agent") || matches!(err, CommandError::Agent(_)),
+            "应提示需配置子 Agent 规格，实际: {msg}"
+        );
+    }
+
+    // ── M3-RK1：Supervisor 图节点委派路径子 run 记账器 ──
+
+    /// RunStoreSubRunAccountant：begin 建子 run 挂到当前顶层 run，finish 收口
+    #[tokio::test]
+    async fn run_store_sub_run_accountant_hooks_parent_and_finishes() {
+        use agent_runtime::sub_agent_pool::SubRunAccountant;
+        let store = Arc::new(RunStore::new());
+        // 先建顶层 run（supervisor 自身）
+        let top = store.create("sess-1", None, Some("supervisor".to_string())).await;
+        assert_eq!(store.current_top_run().await.as_deref(), Some(top.as_str()));
+
+        let acc = RunStoreSubRunAccountant { store: Arc::clone(&store) };
+        // begin：子 run 挂到顶层（父=current_top），session 继承
+        let sub = acc.begin(None, "writer", "写作助手").await.unwrap();
+        let sub_run = store.get(&sub).await.unwrap();
+        assert_eq!(sub_run.parent_run_id.as_deref(), Some(top.as_str()), "子 run 应挂父 run");
+        assert_eq!(sub_run.session_id, "sess-1", "子 run 应继承父 run 的 session");
+        assert_eq!(sub_run.pipeline.as_deref(), Some("sub:writer"));
+
+        // finish：completed + 摘要
+        acc.finish(&sub, "completed", Some("结果摘要".into())).await;
+        let sub_run = store.get(&sub).await.unwrap();
+        assert_eq!(sub_run.status, RunStatus::Completed);
+        assert_eq!(sub_run.converge_reason, Some(ConvergeReason::GoalReached));
+        assert_eq!(sub_run.final_message.as_deref(), Some("结果摘要"));
+
+        // finish error 语义
+        let sub2 = acc.begin(None, "coder", "代码助手").await.unwrap();
+        acc.finish(&sub2, "error", Some("失败".into())).await;
+        let sub2_run = store.get(&sub2).await.unwrap();
+        assert_eq!(sub2_run.status, RunStatus::Error);
+        assert_eq!(sub2_run.converge_reason, None);
+    }

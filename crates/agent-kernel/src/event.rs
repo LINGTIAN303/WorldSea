@@ -10,7 +10,7 @@ use serde::Serialize;
 use crate::a2ui::A2UIMessage;
 use crate::memory::{MemoryArchiveResult, MemoryRecallResult};
 use crate::node::{NodeStatus, NodeType};
-use crate::types::{ImageAttachment, PlanItem, ReflectionResult};
+use crate::types::{ConvergeReason, ImageAttachment, PlanItem, ReflectionResult};
 
 // ─── 基础 Agent 事件 ────────────────────────────────────
 
@@ -82,6 +82,40 @@ pub enum OrchestratorEvent {
         status: NodeStatus,
         summary: Option<String>,
         duration_ms: u64,
+    },
+
+    // ── 统一轨迹事件族 orchestration_trace（B7 / D23）──
+    // 管线级骨架事件：轨迹是索引级摘要，细节事件族（Plan/ToT/MultiAgent 等）保留并存。
+    // 全部携带 run_id；phase_result 只带 artifact_id + summary（事件轻、物权威）。
+    /// 管线启动（判型选型完成 → run 形状确定）
+    TracePipeStarted {
+        run_id: String,
+        pipeline: String,
+        /// 判型理由（RouterDecisionMade.reason 直传，A1 可纠之"可见"半）
+        reason: Option<String>,
+    },
+    /// 阶段进入
+    TracePhaseEntered {
+        run_id: String,
+        phase: String,
+        reason: Option<String>,
+    },
+    /// 阶段结果
+    TracePhaseResult {
+        run_id: String,
+        phase: String,
+        status: TracePhaseStatus,
+        summary: String,
+        /// 该阶段产出的交接物（D23）
+        artifact_id: Option<String>,
+    },
+    /// 管线结束
+    TracePipeFinished {
+        run_id: String,
+        status: OrchestratorEndStatus,
+        /// 收敛原因（D0-4 六值枚举）
+        reason: Option<ConvergeReason>,
+        final_message: Option<String>,
     },
 
     // ── Plan-and-Execute 事件 ──
@@ -647,6 +681,10 @@ pub enum ToolStatus {
 #[derive(Debug, Clone)]
 pub struct OrchestratorEndResult {
     pub status: OrchestratorEndStatus,
+    /// 归属 run（B22：轨迹事件聚合键；None = 未在 run 上下文运行的旧路径）
+    pub run_id: Option<String>,
+    /// 收敛原因（D0-4 六值枚举；B0-4：超限也是收敛的一种）
+    pub converge_reason: Option<ConvergeReason>,
     pub final_message: Option<String>,
     pub iterations: u32,
     pub error: Option<String>,
@@ -660,6 +698,23 @@ pub enum OrchestratorEndStatus {
     Aborted,
     Error,
     Timeout,
+}
+
+/// 轨迹阶段结果状态（TracePhaseResult.status）
+///
+/// 与 `NodeStatus`（四出口）不同：阶段结果表达的是"这步走完的质量"，
+/// 供前端迹线折叠态区分成功/降级/失败，独立于节点图语义。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TracePhaseStatus {
+    /// 阶段正常完成（产出物或正常收敛）
+    Success,
+    /// 阶段降级（降级支路接管，产出 Degraded 物）
+    Degraded,
+    /// 阶段失败（不可恢复，run 走 Error 出口）
+    Failed,
+    /// 阶段被跳过（条件支路未命中）
+    Skipped,
 }
 
 // ─── 事件监听器 ────────────────────────────────────

@@ -152,11 +152,6 @@ pub struct AgentLoop {
     /// `RouterDecisionMade` 事件，并把管线指引写入 `pipeline_context`（追加到 system prompt）。
     /// 依赖 trait 而非具体 `RouterNode`（crate 拆分前置，matrix §8 里程碑 2）。
     router: Option<Arc<dyn RouterDecider>>,
-    /// A3 四管线路由开关（会话级，默认开启）
-    ///
-    /// 经 `set_router_enabled` 动态控制。关闭时 `run()` 跳过路由决策（不产生
-    /// 额外 LLM 意图分类调用），并清空上一轮的管线指引。`router` 仍需注入。
-    router_enabled: Arc<AtomicBool>,
     /// 最近一次路由决策的管线指引（`None`=本轮无路由/未命中管线）
     ///
     /// `run()` 开头写入，`build_prompt_options` 拼入 system_prompt 末尾。
@@ -219,7 +214,6 @@ impl AgentLoop {
             confirmation_broker: None,
             tool_hooks: Vec::new(),
             router: None,
-            router_enabled: Arc::new(AtomicBool::new(true)),
             pipeline_context: Arc::new(StdRwLock::new(None)),
             hooks: AgentLoopHooks::default(),
         }
@@ -308,25 +302,6 @@ impl AgentLoop {
     pub fn with_router(mut self, router: Option<Arc<dyn RouterDecider>>) -> Self {
         self.router = router;
         self
-    }
-
-    /// 设置四管线路由是否启用（会话级开关，A3）
-    ///
-    /// 关闭后 `run()` 跳过路由决策（不再产生额外 LLM 意图分类调用），
-    /// 并清空上一轮的管线指引。默认开启。
-    pub fn set_router_enabled(&self, enabled: bool) {
-        self.router_enabled.store(enabled, Ordering::SeqCst);
-        if !enabled {
-            // 关闭时同步清空可能出现残留的管线指引
-            if let Ok(mut guard) = self.pipeline_context.write() {
-                *guard = None;
-            }
-        }
-    }
-
-    /// 四管线路由是否启用（会话级开关，A3）
-    pub fn router_enabled(&self) -> bool {
-        self.router_enabled.load(Ordering::SeqCst)
     }
 
     /// 设置会话级确认策略（A7 安全级别，运行时即时生效）
@@ -651,45 +626,43 @@ impl AgentLoop {
 
     /// [RunPhase::BeforeReact 内置] 四管线路由决策 — decide → pipeline_context + RouterDecisionMade
     ///
-    /// 若配置了路由节点且开关开启，先决策管线（force_pipeline 兜底生效）：
+    /// 若配置了路由节点，先决策管线（force_pipeline 兜底生效）：
     /// 1. 广播 RouterDecisionMade 事件（前端可展示选中管线 / force_pipeline Chip 生效）
     /// 2. 把管线指引写入 pipeline_context，由 build_prompt_options 追加到 system prompt
-    /// 开关关闭 / 未配置路由节点 / 路由失败时静默跳过并清空管线指引。
+    /// 未配置路由节点 / 路由失败时静默跳过并清空管线指引。
     async fn run_router_decision(&self, user_input: &str) {
-        let enabled = self.router_enabled.load(Ordering::SeqCst);
-        if enabled {
-            if let Some(router) = &self.router {
-                match router.decide(user_input, self.backend.as_ref()).await {
-                    Ok(decision) => {
-                        let pipeline = Pipeline::from_str(&decision.target_id);
-                        if let Some(p) = pipeline {
-                            if let Ok(mut guard) = self.pipeline_context.write() {
-                                *guard = Some(p.directive().to_string());
-                            }
+        // FIX-4/M5 决策：路由无会话级开关（自动判型默认全开），由 `/指令` 颗粒度覆盖。
+        // 未配置路由节点时静默跳过并清空管线指引。
+        match &self.router {
+            Some(router) => match router.decide(user_input, self.backend.as_ref()).await {
+                Ok(decision) => {
+                    let pipeline = Pipeline::from_str(&decision.target_id);
+                    if let Some(p) = pipeline {
+                        if let Ok(mut guard) = self.pipeline_context.write() {
+                            *guard = Some(p.directive().to_string());
                         }
-                        self.broadcast(OrchestratorEvent::RouterDecisionMade {
-                            node_id: router.id(),
-                            target_id: decision.target_id.clone(),
-                            target_name: decision.target_name.clone(),
-                            reason: decision.reason.clone(),
-                            is_fallback: false,
-                        })
-                        .await;
-                        debug!(
-                            "AgentLoop 路由决策：target={} pipeline={:?}",
-                            decision.target_id, pipeline
-                        );
                     }
-                    Err(e) => {
-                        warn!("AgentLoop 路由决策失败，本轮使用静态配置: {}", e);
-                    }
+                    self.broadcast(OrchestratorEvent::RouterDecisionMade {
+                        node_id: router.id(),
+                        target_id: decision.target_id.clone(),
+                        target_name: decision.target_name.clone(),
+                        reason: decision.reason.clone(),
+                        is_fallback: false,
+                    })
+                    .await;
+                    debug!(
+                        "AgentLoop 路由决策：target={} pipeline={:?}",
+                        decision.target_id, pipeline
+                    );
                 }
-            }
-        }
-        // 开关关闭或未配置路由节点时，清空上一轮管线指引，避免残留
-        if !enabled || self.router.is_none() {
-            if let Ok(mut guard) = self.pipeline_context.write() {
-                *guard = None;
+                Err(e) => {
+                    warn!("AgentLoop 路由决策失败，本轮使用静态配置: {}", e);
+                }
+            },
+            None => {
+                if let Ok(mut guard) = self.pipeline_context.write() {
+                    *guard = None;
+                }
             }
         }
     }
@@ -705,6 +678,22 @@ impl AgentLoop {
             };
             let _ = memory.record_turn(user_input.to_string(), assistant_text).await;
             let _ = memory.archive(None).await;
+        }
+    }
+
+    /// M4-5（B10）：预判型 — 供 send_message 在 run 启动前决定 run 形状
+    ///
+    /// 复用与 `run_router_decision` 完全相同的 `RouterDecider::decide` 判型链路
+    /// （force_pipeline → LLM → 关键词 → 兜底），但不广播事件、不改写 pipeline_context，
+    /// 纯查询无副作用。
+    pub async fn classify_pipeline(&self, user_input: &str) -> Option<Pipeline> {
+        let router = self.router.as_ref()?;
+        match router.decide(user_input, self.backend.as_ref()).await {
+            Ok(decision) => Pipeline::from_str(&decision.target_id),
+            Err(e) => {
+                tracing::warn!("AgentLoop 预判型失败，按 query 处理: {}", e);
+                None
+            }
         }
     }
 

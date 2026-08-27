@@ -73,6 +73,26 @@ pub struct SubAgentInstanceInfo {
     pub is_streaming: bool,
 }
 
+/// 子 Agent 委派 run 记账器（M3-RK1 补缺：Supervisor 图节点委派路径子 run 挂接）
+///
+/// SupervisorNode（patterns 层）不能依赖 commands 层 RunStore；本 trait 把
+/// 「建子 run / 收口子 run」抽象为可选注入点，命令层实现并注入闭包。
+/// 前端据此可把 Supervisor 委派的每个子 Agent 展示为 run 树子节点。
+#[async_trait::async_trait]
+pub trait SubRunAccountant: Send + Sync {
+    /// 子 Agent 委派开始：建子 run（挂到父 run 下），返回 sub_run_id
+    async fn begin(
+        &self,
+        parent_run_id: Option<String>,
+        sub_agent_id: &str,
+        sub_agent_name: &str,
+    ) -> Option<String>;
+    /// 子 Agent 委派收口：更新子 run 状态与结果摘要
+    ///
+    /// `status`：completed / error / timeout（与 commands 层 RunStatus 对齐的字符串）
+    async fn finish(&self, sub_run_id: &str, status: &str, summary: Option<String>);
+}
+
 /// 子 Agent 懒加载实例池 — SupervisorNode / SubAgentManager 共用
 ///
 /// 能力（对齐原 SubAgentManager 实现）：

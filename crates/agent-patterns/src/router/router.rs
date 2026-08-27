@@ -1,4 +1,4 @@
-﻿//! Router Pattern — 路由编排模式，详细见 docs/details/注释/agent-runtime/router.md
+//! Router Pattern — 路由编排模式，详细见 docs/details/注释/agent-runtime/router.md
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -835,6 +835,7 @@ impl OrchestratorNode for RouterNode {
             next_node_id: Some(target.id.clone()),
             error: None,
             summary: Some(format!("Router: 已路由到 '{}' 分支", target.name)),
+            ..Default::default()
         }
     }
 }

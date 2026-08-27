@@ -5,17 +5,22 @@
 
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
-use std::time::Instant;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use async_trait::async_trait;
 use serde::Serialize;
 use tokio::sync::Mutex as AsyncMutex;
 
 use crate::backend::NodeBackendAccessor;
-use crate::event::{EventBroadcaster, OrchestratorEndResult, OrchestratorEvent, OrchestratorEndStatus};
+use crate::event::{EventBroadcaster, OrchestratorEndResult, OrchestratorEvent, OrchestratorEndStatus, TracePhaseStatus};
 use crate::memory::MemoryAccessor;
-use crate::node::{AbortCheck, EventEmitter, NodeContext, NodeStatus, OrchestratorNode};
-use crate::types::{ImageAttachment, MessageRole, OrchestratorState};
+use crate::node::{
+    AbortCheck, EventEmitter, NodeContext, NodeResult, NodeStatus, OrchestratorNode,
+};
+use crate::types::{
+    ArtifactKind, ConvergeReason, HandoverArtifact, ImageAttachment, MessageRole,
+    OrchestratorMessage, OrchestratorState,
+};
 
 // ─── 边与图 ────────────────────────────────────
 
@@ -78,6 +83,32 @@ pub struct OrchestratorRunOptions {
     pub max_iterations: Option<u32>,
     /// 超时（毫秒）
     pub timeout_ms: Option<u64>,
+    /// run_id（B22：轨迹事件聚合键；None = 内部生成 uuid）
+    pub run_id: Option<String>,
+    /// 管线名（TracePipeStarted.pipeline；None = "default"）
+    pub pipeline: Option<String>,
+    /// 判型理由（TracePipeStarted.reason；A1 可纠之"可见"半）
+    pub pipeline_reason: Option<String>,
+    /// 节点执行超时（毫秒）（B0-21 run 级冻结检测：单节点 execute 挂起兜底）
+    ///
+    /// None = 用默认值 [`NODE_TIMEOUT_DEFAULT_MS`]（10 分钟）；
+    /// Some(0) = 禁用冻结检测；Some(n) = 自定义阈值。
+    /// 超时 → 判定冻结 → 产出 Degraded 物 + run 出口 Completed + converge_reason=Degraded。
+    pub node_timeout_ms: Option<u64>,
+}
+
+/// 节点执行超时默认值（B0-21 run 级冻结检测）：10 分钟
+///
+/// 单节点 execute 超过此阈值判定冻结（覆盖编排节点内部 prompt 挂起场景，
+/// LoopEng 看门狗覆盖不到的盲区）→ 产出 Degraded 物降级收敛。
+pub const NODE_TIMEOUT_DEFAULT_MS: u64 = 10 * 60 * 1000;
+
+/// 当前时间戳（Unix 毫秒）— 供 Degraded 物等时间戳字段
+fn now_ms() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
 }
 
 /// 运行结果
@@ -85,6 +116,10 @@ pub struct OrchestratorRunOptions {
 pub struct OrchestratorResult {
     /// 最终状态
     pub status: OrchestratorEndStatus,
+    /// 收敛原因（D0-4 六值枚举；B0-4：超限/无进展也是收敛）
+    pub converge_reason: Option<ConvergeReason>,
+    /// 归属 run
+    pub run_id: Option<String>,
     /// 最终消息（Agent 的最后一条回复）
     pub final_message: Option<String>,
     /// 执行的轮次数
@@ -93,6 +128,9 @@ pub struct OrchestratorResult {
     pub error: Option<String>,
     /// 最终状态快照
     pub final_state: OrchestratorState,
+    /// 本次 run 产出的交接物全文（D23/FIX-1 闭环：事件只带 artifact_id+summary，
+    /// 物全文随结果带回，命令层写入 RunStore 供 get_artifact 查询）
+    pub artifacts: Vec<HandoverArtifact>,
 }
 
 // ─── Orchestrator trait ────────────────────────────────────
@@ -230,6 +268,15 @@ pub struct DefaultOrchestrator {
     aborted: Arc<AsyncMutex<bool>>,
     paused: Arc<AsyncMutex<bool>>,
     state: Arc<AsyncMutex<OrchestratorState>>,
+    /// 插话门队列（D21/M4-6）：用户中途插话 → 节点边界注入，不中断链
+    ///
+    /// run 主循环每轮开始 drain 并追加为 user 消息（下一个节点执行前可见）。
+    steer_queue: RwLock<Vec<String>>,
+    /// 本 run 交接物全文集合（FIX-1 闭环 / M5-RK3 补验修复）
+    ///
+    /// 每轮节点产出 `NodeResult.artifact` 后追加；run 结束时随
+    /// [`OrchestratorResult::artifacts`] 带回，由命令层写入 RunStore 供 get_artifact。
+    run_artifacts: AsyncMutex<Vec<HandoverArtifact>>,
 }
 
 impl DefaultOrchestrator {
@@ -245,6 +292,21 @@ impl DefaultOrchestrator {
             aborted: Arc::new(AsyncMutex::new(false)),
             paused: Arc::new(AsyncMutex::new(false)),
             state: Arc::new(AsyncMutex::new(OrchestratorState::new(String::new()))),
+            steer_queue: RwLock::new(Vec::new()),
+            run_artifacts: AsyncMutex::new(Vec::new()),
+        }
+    }
+
+    /// 收集本 run 全部交接物（FIX-1 闭环：结果携带，供命令层写 RunStore）
+    async fn collect_artifacts(&self) -> Vec<HandoverArtifact> {
+        let mut guard = self.run_artifacts.lock().await;
+        std::mem::take(&mut *guard)
+    }
+
+    /// 插话门入队（D21/M4-6）：用户中途插话，不中断链，节点边界注入
+    pub fn push_steer(&self, text: String) {
+        if let Ok(mut q) = self.steer_queue.write() {
+            q.push(text);
         }
     }
 
@@ -329,6 +391,17 @@ impl Orchestrator for DefaultOrchestrator {
         let max_iterations = options.max_iterations.unwrap_or(50);
         let start = Instant::now();
 
+        // ── 节点执行超时（B0-21 冻结检测）：None→默认 10min；Some(0)=禁用；Some(n)=自定义 ──
+        let node_timeout: Option<Duration> = match options.node_timeout_ms {
+            Some(0) => None,
+            Some(n) => Some(Duration::from_millis(n)),
+            None => Some(Duration::from_millis(NODE_TIMEOUT_DEFAULT_MS)),
+        };
+
+        // ── run_id（B22）：外部传入或内部生成，贯穿全部轨迹事件 ──
+        let run_id = options.run_id.clone().unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+        let pipeline = options.pipeline.clone().unwrap_or_else(|| "default".into());
+
         // ── 重置中断标志 ──
         // 每次运行前清空 aborted，支持同一 Orchestrator 多次 run
         {
@@ -345,10 +418,15 @@ impl Orchestrator for DefaultOrchestrator {
             state.images = options.images.clone();
         }
 
-        // ── 广播 OrchestratorStart ──
+        // ── 广播 OrchestratorStart + TracePipeStarted ──
         self.broadcast(OrchestratorEvent::OrchestratorStart {
             entry_node_id: entry_id.clone(),
             input,
+        });
+        self.broadcast(OrchestratorEvent::TracePipeStarted {
+            run_id: run_id.clone(),
+            pipeline,
+            reason: options.pipeline_reason.clone(),
         });
 
         // ── 串行 DAG 遍历主循环 ──
@@ -367,24 +445,51 @@ impl Orchestrator for DefaultOrchestrator {
         const MAX_VISIT_WITHOUT_PROGRESS: u32 = 10;
         let mut iterations = 0u32;
         let mut final_status = OrchestratorEndStatus::Completed;
+        let mut converge_reason: Option<ConvergeReason> = None;
         let mut last_error: Option<String> = None;
 
         let abort_checker = AbortChecker::new(Arc::clone(&self.aborted));
 
         loop {
+            // 0. 插话门（D21/M4-6）：节点边界注入排队 steer（不中断链）——
+            //    下一节点执行前用户插话可见为 user 消息
+            {
+                let has_steer = !self
+                    .steer_queue
+                    .read()
+                    .map(|q| q.is_empty())
+                    .unwrap_or(true);
+                if has_steer {
+                    let mut state = self.state.lock().await;
+                    let drain: Vec<String> = self
+                        .steer_queue
+                        .write()
+                        .map(|mut q| std::mem::take(&mut *q))
+                        .unwrap_or_default();
+                    for text in drain {
+                        state.messages.push(OrchestratorMessage {
+                            role: MessageRole::User,
+                            content: text,
+                            tool_calls: Vec::new(),
+                            tool_call_id: None,
+                            meta: None,
+                        });
+                    }
+                }
+            }
+
             // 1. 中断检查
             if abort_checker.is_aborted() {
                 final_status = OrchestratorEndStatus::Aborted;
+                converge_reason = Some(ConvergeReason::Aborted);
                 break;
             }
 
-            // 2. 最大轮次保护
+            // 2. 最大轮次保护（B0-4：超限 = 正常收敛的一种，Completed + limit_reached）
             if iterations >= max_iterations {
-                final_status = OrchestratorEndStatus::Error;
-                last_error = Some(format!(
-                    "超过最大轮次: {}（max_iterations）",
-                    max_iterations
-                ));
+                final_status = OrchestratorEndStatus::Completed;
+                converge_reason = Some(ConvergeReason::LimitReached);
+                last_error = None;
                 break;
             }
             iterations += 1;
@@ -419,7 +524,9 @@ impl Orchestrator for DefaultOrchestrator {
             }
             record.count += 1;
             if record.count > MAX_VISIT_WITHOUT_PROGRESS {
-                final_status = OrchestratorEndStatus::Error;
+                // B0-4/D0-4：无进展 = 正常收敛的一种（no_progress），带当前最优/部分结果
+                final_status = OrchestratorEndStatus::Completed;
+                converge_reason = Some(ConvergeReason::NoProgress);
                 last_error = Some(format!(
                     "节点 {} 连续 {} 次无进展地被重复访问，疑似死循环（如属合法的有限循环，请确保每轮推进状态或调整图拓扑）",
                     current_id, MAX_VISIT_WITHOUT_PROGRESS
@@ -441,18 +548,29 @@ impl Orchestrator for DefaultOrchestrator {
             let node_name = node.name().to_string();
             let node_type = node.node_type();
 
-            // 6. 广播 NodeStart
+            // 6. 广播 NodeStart + TracePhaseEntered
             self.broadcast(OrchestratorEvent::NodeStart {
                 node_id: node_id.clone(),
                 node_name: node_name.clone(),
                 node_type,
+            });
+            self.broadcast(OrchestratorEvent::TracePhaseEntered {
+                run_id: run_id.clone(),
+                phase: node_id.clone(),
+                reason: None, // 阶段进入理由由节点自身事件携带（如 RouterDecisionMade.reason），骨架不强求
             });
 
             let node_start = Instant::now();
 
             // 7. 执行节点（持锁构造 NodeContext，execute 期间 state 锁被持有）
             //    注意：节点内部若需并发访问 state，应自行 clone 后操作
-            let node_result = {
+            //    冻结检测（B0-21）：单节点 execute 外包 timeout，超时 → Frozen 分支降级
+            enum NodeExec {
+                Executed(NodeResult),
+                /// 冻结：节点执行超时（卡死）
+                Frozen(String),
+            }
+            let node_exec: NodeExec = {
                 let mut state_guard = self.state.lock().await;
                 let emitter = BroadcasterEmitter {
                     broadcaster: &self.broadcaster,
@@ -466,18 +584,98 @@ impl Orchestrator for DefaultOrchestrator {
                     abort_check: &abort_checker,
                 };
 
-                node.execute(ctx).await
+                match node_timeout {
+                    Some(dur) => match tokio::time::timeout(dur, node.execute(ctx)).await {
+                        Ok(r) => NodeExec::Executed(r),
+                        Err(_) => NodeExec::Frozen(format!(
+                            "节点 {} 执行超时（{}ms），判定冻结并降级",
+                            node_id,
+                            dur.as_millis()
+                        )),
+                    },
+                    None => NodeExec::Executed(node.execute(ctx).await),
+                }
             };
 
             let duration_ms = node_start.elapsed().as_millis() as u64;
 
-            // 8. 广播 NodeEnd
+            // 7.1 冻结分支：构造降级 NodeResult + 预置 run 出口（广播统一走第 8 步，避免重复）
+            let node_result = match node_exec {
+                NodeExec::Frozen(message) => {
+                    let degraded = HandoverArtifact {
+                        artifact_id: uuid::Uuid::new_v4().to_string(),
+                        run_id: run_id.clone(),
+                        from_node: node_id.clone(),
+                        kind: ArtifactKind::Degraded {
+                            from: node_id.clone(),
+                            reason: message.clone(),
+                            partial: None,
+                        },
+                        summary: message.clone(),
+                        produced_at: now_ms(),
+                    };
+                    final_status = OrchestratorEndStatus::Completed;
+                    converge_reason = Some(ConvergeReason::Degraded);
+                    // 冻结视为本 run 收敛（降级物在事件流中有实体痕迹），不继续执行后续节点
+                    NodeResult {
+                        status: NodeStatus::Done,
+                        converge_reason: Some(ConvergeReason::Degraded),
+                        summary: Some(message),
+                        artifact: Some(degraded),
+                        ..Default::default()
+                    }
+                }
+                NodeExec::Executed(r) => r,
+            };
+
+            // 8. 广播 NodeEnd + TracePhaseResult（事件轻、物权威：只带 artifact_id + summary）
+            //    降级物识别：产出 Degraded 物 → phase 标记 Degraded、NodeEnd 标记 Error（已降级）
+            let degraded_phase = matches!(
+                &node_result.artifact,
+                Some(a) if matches!(a.kind, ArtifactKind::Degraded { .. })
+            );
+            let phase_status = if degraded_phase {
+                TracePhaseStatus::Degraded
+            } else {
+                match node_result.status {
+                    NodeStatus::Done | NodeStatus::Continue => TracePhaseStatus::Success,
+                    NodeStatus::Aborted => TracePhaseStatus::Failed,
+                    NodeStatus::Error => TracePhaseStatus::Failed,
+                }
+            };
+            let node_end_status = if degraded_phase {
+                NodeStatus::Error
+            } else {
+                node_result.status
+            };
+            let phase_summary = node_result
+                .artifact
+                .as_ref()
+                .map(|a| a.summary.clone())
+                .or_else(|| node_result.summary.clone())
+                .unwrap_or_else(|| node_name.clone());
             self.broadcast(OrchestratorEvent::NodeEnd {
                 node_id: node_id.clone(),
-                status: node_result.status,
+                status: node_end_status,
                 summary: node_result.summary.clone(),
                 duration_ms,
             });
+            self.broadcast(OrchestratorEvent::TracePhaseResult {
+                run_id: run_id.clone(),
+                phase: node_id.clone(),
+                status: phase_status,
+                summary: phase_summary,
+                artifact_id: node_result
+                    .artifact
+                    .as_ref()
+                    .map(|a| a.artifact_id.clone()),
+            });
+
+            // FIX-1 闭环（M5-RK3 补验修复）：节点产出交接物全文存入本 run 集合，
+            // 供 run 结束时随 OrchestratorResult.artifacts 带回 → RunStore.get_artifact。
+            if let Some(artifact) = node_result.artifact.clone() {
+                self.run_artifacts.lock().await.push(artifact);
+            }
 
             // 9. 处理节点执行结果
             match node_result.status {
@@ -504,10 +702,15 @@ impl Orchestrator for DefaultOrchestrator {
                 }
                 NodeStatus::Done => {
                     final_status = OrchestratorEndStatus::Completed;
+                    // D0-4：节点声明收敛原因优先；缺省按 Done 语义推断
+                    converge_reason = node_result
+                        .converge_reason
+                        .or(Some(ConvergeReason::GoalReached));
                     break;
                 }
                 NodeStatus::Aborted => {
                     final_status = OrchestratorEndStatus::Aborted;
+                    converge_reason = Some(ConvergeReason::Aborted);
                     break;
                 }
                 NodeStatus::Error => {
@@ -530,22 +733,37 @@ impl Orchestrator for DefaultOrchestrator {
             (msg, state.clone())
         };
 
-        // ── 广播 OrchestratorEnd ──
+        // FIX-1 闭环（M5-RK3 补验修复）：收集本 run 全部门店交接物全文。
+        // 每轮 node_result.artifact 已在主循环存入交接物区；这里读取供结果携带。
+        let artifacts = self.collect_artifacts().await;
+
+        // ── 广播 OrchestratorEnd + TracePipeFinished ──
         self.broadcast(OrchestratorEvent::OrchestratorEnd {
             result: OrchestratorEndResult {
                 status: final_status,
+                run_id: Some(run_id.clone()),
+                converge_reason,
                 final_message: final_message.clone(),
                 iterations,
                 error: last_error.clone(),
             },
         });
+        self.broadcast(OrchestratorEvent::TracePipeFinished {
+            run_id: run_id.clone(),
+            status: final_status,
+            reason: converge_reason,
+            final_message: final_message.clone(),
+        });
 
         Ok(OrchestratorResult {
             status: final_status,
+            converge_reason,
+            run_id: Some(run_id),
             final_message,
             iterations,
             error: last_error,
             final_state,
+            artifacts,
         })
     }
 
@@ -633,6 +851,8 @@ mod tests {
         next: Option<String>,
         // 在 state.messages 末尾追加一条 assistant 消息（用于验证 final_message 提取）
         append_message: Option<String>,
+        // 模拟节点挂起（执行前 sleep；用于冻结检测测试）
+        sleep_before_execute: Option<Duration>,
         execute_count: AtomicU32,
     }
 
@@ -645,6 +865,7 @@ mod tests {
                 result_status: status,
                 next: None,
                 append_message: None,
+                sleep_before_execute: None,
                 execute_count: AtomicU32::new(0),
             }
         }
@@ -656,6 +877,12 @@ mod tests {
 
         fn with_message(mut self, msg: &str) -> Self {
             self.append_message = Some(msg.into());
+            self
+        }
+
+        /// 模拟挂起：execute 先 sleep（冻结检测测试用）
+        fn with_sleep(mut self, dur: Duration) -> Self {
+            self.sleep_before_execute = Some(dur);
             self
         }
 
@@ -678,6 +905,11 @@ mod tests {
         async fn execute<'a>(&'a self, mut ctx: NodeContext<'a>) -> NodeResult {
             self.execute_count.fetch_add(1, Ordering::SeqCst);
 
+            // 模拟挂起（冻结检测测试）
+            if let Some(dur) = &self.sleep_before_execute {
+                tokio::time::sleep(*dur).await;
+            }
+
             // 模拟节点写入消息（验证 final_message 提取逻辑）
             if let Some(msg) = &self.append_message {
                 ctx.state.messages.push(OrchestratorMessage {
@@ -694,6 +926,7 @@ mod tests {
                 next_node_id: self.next.clone(),
                 error: None,
                 summary: Some(format!("stub {} executed", self.id)),
+                ..Default::default()
             }
         }
     }
@@ -853,14 +1086,21 @@ mod tests {
 
         let result = orch_arc.run("hi".into(), None).await;
         let r = result.unwrap();
-        // 中断后状态应为 Aborted（也可能因为时序先 hit max_iterations，但通常 abort 先到）
+        // 中断后状态应为 Aborted。StubNode 自循环不产出消息，三种结局都可能：
+        // ① abort 先到 → Aborted(+Aborted)
+        // ② 空转先触发无进展检测 → Completed(+NoProgress)
+        // ③ 满 50 轮 → Completed(+LimitReached)
+        let aborted = r.status == OrchestratorEndStatus::Aborted
+            && r.converge_reason == Some(ConvergeReason::Aborted);
+        let limit_converged = r.status == OrchestratorEndStatus::Completed
+            && r.converge_reason == Some(ConvergeReason::LimitReached);
+        let no_progress_converged = r.status == OrchestratorEndStatus::Completed
+            && r.converge_reason == Some(ConvergeReason::NoProgress);
         assert!(
-            matches!(
-                r.status,
-                OrchestratorEndStatus::Aborted | OrchestratorEndStatus::Error
-            ),
-            "status = {:?}",
-            r.status
+            aborted || limit_converged || no_progress_converged,
+            "status = {:?}, converge_reason = {:?}",
+            r.status,
+            r.converge_reason
         );
     }
 
@@ -879,8 +1119,9 @@ mod tests {
 
         let result = orch.run("hi".into(), Some(options)).await;
         let r = result.unwrap();
-        assert_eq!(r.status, OrchestratorEndStatus::Error);
-        assert!(r.error.as_deref().unwrap_or("").contains("最大轮次"));
+        // B0-4：超限 = 正常收敛（Completed + limit_reached），不再视为 Error
+        assert_eq!(r.status, OrchestratorEndStatus::Completed);
+        assert_eq!(r.converge_reason, Some(ConvergeReason::LimitReached));
     }
 
     #[tokio::test]
@@ -900,7 +1141,9 @@ mod tests {
         };
 
         let r = orch.run("hi".into(), Some(options)).await.unwrap();
-        assert_eq!(r.status, OrchestratorEndStatus::Error);
+        // D0-4：无进展也是收敛（Completed + no_progress），诊断文字保留在 error
+        assert_eq!(r.status, OrchestratorEndStatus::Completed);
+        assert_eq!(r.converge_reason, Some(ConvergeReason::NoProgress));
         assert!(r.error.as_deref().unwrap_or("").contains("疑似"));
     }
 
@@ -921,11 +1164,176 @@ mod tests {
         };
 
         let r = orch.run("hi".into(), Some(options)).await.unwrap();
-        assert_eq!(r.status, OrchestratorEndStatus::Error);
+        // B0-4：有进展循环被 max_iterations 正常拦截 = Completed + limit_reached
+        assert_eq!(r.status, OrchestratorEndStatus::Completed);
+        assert_eq!(r.converge_reason, Some(ConvergeReason::LimitReached));
         assert!(
-            r.error.as_deref().unwrap_or("").contains("最大轮次"),
+            r.error.is_none() || !r.error.as_deref().unwrap_or("").contains("疑似"),
             "有进展循环应被 max_iterations 拦截而非疑似死循环，实际: {:?}",
             r.error
         );
+    }
+
+    #[tokio::test]
+    async fn run_with_frozen_node_should_degrade() {
+        // B0-21 冻结检测：单节点 execute 挂起超过 node_timeout → 降级收敛
+        let mut orch = make_orch();
+        // 节点 sleep 500ms > node_timeout 50ms → 必然冻结
+        let n1 = StubNode::new("n1", NodeStatus::Done).with_sleep(Duration::from_millis(500));
+        orch.add_node(Box::new(n1));
+        orch.set_entry("n1");
+
+        let options = OrchestratorRunOptions {
+            node_timeout_ms: Some(50),
+            ..Default::default()
+        };
+        let r = orch.run("hi".into(), Some(options)).await.unwrap();
+        assert_eq!(r.status, OrchestratorEndStatus::Completed);
+        assert_eq!(r.converge_reason, Some(ConvergeReason::Degraded));
+        // 降级物必须存在于事件流（审计链不断裂）：final_state 不承载物，
+        // 验证 run 结果侧通过 Degraded 物 kind 识别由事件消费方处理；
+        // 此处校验出口语义 + error 保留冻结原因说明即可
+        assert!(
+            r.error.is_none() || r.error.as_deref().unwrap_or("").is_empty(),
+            "降级收敛不应携带 error: {:?}",
+            r.error
+        );
+        // FIX-1 闭环（M5-RK3 补验修复）：降级物全文随 OrchestratorResult 携带
+        // （命令层据此写入 RunStore 供 get_artifact，事件流只带 artifact_id + summary）
+        assert_eq!(r.artifacts.len(), 1, "应携带 1 个 Degraded 物全文");
+        assert!(
+            matches!(r.artifacts[0].kind, ArtifactKind::Degraded { .. }),
+            "携带的物应为 Degraded，实际: {:?}",
+            r.artifacts[0].kind
+        );
+    }
+
+    #[tokio::test]
+    async fn run_with_node_timeout_disabled_should_complete_normally() {
+        let mut orch = make_orch();
+        let n1 = StubNode::new("n1", NodeStatus::Done).with_sleep(Duration::from_millis(60));
+        orch.add_node(Box::new(n1));
+        orch.set_entry("n1");
+
+        // Some(0) = 显式禁用冻结检测：即使节点稍慢也正常完成
+        let options = OrchestratorRunOptions {
+            node_timeout_ms: Some(0),
+            ..Default::default()
+        };
+        let r = orch.run("hi".into(), Some(options)).await.unwrap();
+        assert_eq!(r.status, OrchestratorEndStatus::Completed);
+        assert_eq!(r.converge_reason, Some(ConvergeReason::GoalReached));
+    }
+
+    #[tokio::test]
+    async fn run_with_steer_injects_at_node_boundary() {
+        // M4-6（D21 插话门）：运行中 push_steer → 下一轮节点边界注入为 user 消息（不中断链）
+        let mut orch = make_orch();
+        let n1 = StubNode::new("n1", NodeStatus::Continue)
+            .with_next("n1")
+            .with_sleep(Duration::from_millis(30));
+        orch.add_node(Box::new(n1));
+        orch.set_entry("n1");
+
+        let orch_arc = Arc::new(orch);
+        let orch_for_steer = Arc::clone(&orch_arc);
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            orch_for_steer.push_steer("中途插话：改走研究".into());
+        });
+
+        let options = OrchestratorRunOptions {
+            max_iterations: Some(2),
+            node_timeout_ms: Some(0), // 禁用冻结检测（测试节点 sleep 未超时语义干扰）
+            ..Default::default()
+        };
+        let r = orch_arc.run("hi".into(), Some(options)).await.unwrap();
+        let injected = r
+            .final_state
+            .messages
+            .iter()
+            .any(|m| matches!(m.role, MessageRole::User) && m.content.contains("中途插话"));
+        assert!(injected, "steer 应在下一轮节点边界注入为 user 消息");
+    }
+
+    // ─── M5 承诺验收（B0-18）：事件收集器 + 迹线事件序 + 降级物可追踪 ───
+
+    /// 事件记录器（M5：承诺「过程可解释」「故障可见」的可测化）
+    #[derive(Default)]
+    struct EventRecorder {
+        events: Arc<std::sync::Mutex<Vec<crate::event::OrchestratorEvent>>>,
+    }
+
+    impl crate::event::EventListener for EventRecorder {
+        fn on_event(&self, event: &crate::event::OrchestratorEvent) {
+            self.events.lock().unwrap().push(event.clone());
+        }
+    }
+
+    /// 承诺①可解释（B0-18/E19-①）：一次编排 run 的轨迹事件序与 run_id 贯穿
+    #[tokio::test]
+    async fn trace_events_are_ordered_and_scoped_to_run() {
+        let mut orch = make_orch();
+        let n1 = StubNode::new("n1", NodeStatus::Done);
+        orch.add_node(Box::new(n1));
+        orch.set_entry("n1");
+
+        let recorder = Arc::new(EventRecorder::default());
+        orch.subscribe(Arc::clone(&recorder) as Arc<dyn crate::event::EventListener>);
+
+        let r = orch
+            .run("hi".into(), Some(OrchestratorRunOptions { run_id: Some("run-x".into()), ..Default::default() }))
+            .await
+            .unwrap();
+        let run_id = r.run_id.clone().unwrap();
+
+        let mut trace: Vec<(&str, String)> = Vec::new();
+        for ev in recorder.events.lock().unwrap().iter() {
+            match ev {
+                crate::event::OrchestratorEvent::TracePipeStarted { run_id, .. } => trace.push(("pipe_started", run_id.clone())),
+                crate::event::OrchestratorEvent::TracePhaseEntered { run_id, .. } => trace.push(("phase_entered", run_id.clone())),
+                crate::event::OrchestratorEvent::TracePhaseResult { run_id, .. } => trace.push(("phase_result", run_id.clone())),
+                crate::event::OrchestratorEvent::TracePipeFinished { run_id, .. } => trace.push(("pipe_finished", run_id.clone())),
+                _ => {}
+            }
+        }
+        assert_eq!(trace.len(), 4, "一次 run 恰有 started/entered/result/finished 四件");
+        let kinds: Vec<&str> = trace.iter().map(|(k, _)| *k).collect();
+        assert_eq!(
+            kinds,
+            vec!["pipe_started", "phase_entered", "phase_result", "pipe_finished"],
+            "迹线事件必须严格按阶段推进序发出"
+        );
+        assert!(trace.iter().all(|(_, rid)| *rid == run_id), "轨迹事件 run_id 必须一致");
+    }
+
+    /// 承诺③故障可见（B0-18/E19-②）：冻结降级 → Degraded 物在事件流可追踪（artifact_id + degraded 状态）
+    #[tokio::test]
+    async fn degraded_artifact_is_traceable_in_event_stream() {
+        let mut orch = make_orch();
+        let n1 = StubNode::new("n1", NodeStatus::Done).with_sleep(Duration::from_millis(300));
+        orch.add_node(Box::new(n1));
+        orch.set_entry("n1");
+
+        let recorder = Arc::new(EventRecorder::default());
+        orch.subscribe(Arc::clone(&recorder) as Arc<dyn crate::event::EventListener>);
+
+        let options = OrchestratorRunOptions {
+            node_timeout_ms: Some(50),
+            ..Default::default()
+        };
+        let r = orch.run("hi".into(), Some(options)).await.unwrap();
+        assert_eq!(r.converge_reason, Some(ConvergeReason::Degraded));
+
+        // 事件流：phase_result 必须为 degraded 且携带 artifact_id（降级物可追溯）
+        let mut degraded_artifact_id: Option<String> = None;
+        for ev in recorder.events.lock().unwrap().iter() {
+            if let crate::event::OrchestratorEvent::TracePhaseResult { status, artifact_id, .. } = ev {
+                if *status == crate::event::TracePhaseStatus::Degraded {
+                    degraded_artifact_id = artifact_id.clone();
+                }
+            }
+        }
+        assert!(degraded_artifact_id.is_some(), "降级 phase 必须产出 artifact_id（审计链不断裂）");
     }
 }

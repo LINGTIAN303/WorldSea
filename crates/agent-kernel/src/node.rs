@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use crate::backend::NodeBackendAccessor;
 use crate::event::OrchestratorEvent;
 use crate::memory::MemoryAccessor;
-use crate::types::OrchestratorState;
+use crate::types::{ConvergeReason, HandoverArtifact, OrchestratorState};
 
 // ─── 节点类型 ────────────────────────────────────
 
@@ -78,6 +78,26 @@ pub struct NodeResult {
     pub error: Option<String>,
     /// 节点输出的摘要（用于日志/调试）
     pub summary: Option<String>,
+    /// 节点产出的交接物（D23：显式输出槽，None = 本节点不产出物）
+    pub artifact: Option<HandoverArtifact>,
+    /// 收敛原因（D0-4：节点声明本段的收敛性质，编排器写回 End 结果）
+    ///
+    /// 仅 `status=Done` 时有意义；缺省时编排器按出口语义推断
+    /// （正常 Done→GoalReached / 超限→LimitReached / 无进展→NoProgress）。
+    pub converge_reason: Option<ConvergeReason>,
+}
+
+impl Default for NodeResult {
+    fn default() -> Self {
+        Self {
+            status: NodeStatus::Continue,
+            next_node_id: None,
+            error: None,
+            summary: None,
+            artifact: None,
+            converge_reason: None,
+        }
+    }
 }
 
 impl NodeResult {
@@ -88,6 +108,8 @@ impl NodeResult {
             next_node_id: None,
             error: None,
             summary: None,
+            artifact: None,
+            converge_reason: None,
         }
     }
 
@@ -98,6 +120,8 @@ impl NodeResult {
             next_node_id: Some(node_id.into()),
             error: None,
             summary: None,
+            artifact: None,
+            converge_reason: None,
         }
     }
 
@@ -108,6 +132,8 @@ impl NodeResult {
             next_node_id: None,
             error: None,
             summary: None,
+            artifact: None,
+            converge_reason: None,
         }
     }
 
@@ -118,6 +144,23 @@ impl NodeResult {
             next_node_id: None,
             error: None,
             summary: Some(summary.into()),
+            artifact: None,
+            converge_reason: None,
+        }
+    }
+
+    /// 创建 Done 结果（带交接物 + 收敛原因）— D23 显式输出槽的推荐构造器
+    pub fn done_with_artifact(
+        artifact: HandoverArtifact,
+        converge_reason: Option<ConvergeReason>,
+    ) -> Self {
+        Self {
+            status: NodeStatus::Done,
+            next_node_id: None,
+            error: None,
+            summary: Some(artifact.summary.clone()),
+            artifact: Some(artifact),
+            converge_reason,
         }
     }
 
@@ -128,6 +171,8 @@ impl NodeResult {
             next_node_id: None,
             error: None,
             summary: None,
+            artifact: None,
+            converge_reason: None,
         }
     }
 
@@ -138,6 +183,8 @@ impl NodeResult {
             next_node_id: None,
             error: Some(message.into()),
             summary: None,
+            artifact: None,
+            converge_reason: None,
         }
     }
 }

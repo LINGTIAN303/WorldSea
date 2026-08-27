@@ -7,6 +7,8 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
+use crate::router_decider::RouterDecision;
+
 // ─── 共享状态 ────────────────────────────────────────────
 
 /// 编排状态 — 节点间共享的数据容器
@@ -217,6 +219,167 @@ pub struct WorkingMemorySnapshot {
     pub count: usize,
     /// 估算的 token 数
     pub estimated_tokens: usize,
+}
+
+// ─── 段间交接物（D23 定案）───────────────────────────────────
+
+/// 收敛原因 — run 出口如何收敛的六值枚举（D0-4）
+///
+/// 各模式内部终止条件向本枚举映射（ToT GoalReached→GoalReached、ScoreConverged→ThresholdMet、
+/// MaxDepth/MaxThoughts→LimitReached、NoCandidates→NoProgress；MultiAgent 三收敛同理）。
+/// 由节点经 `NodeResult.converge_reason` 传出，编排器写入 `OrchestratorEndResult`。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ConvergeReason {
+    /// 达成目标（正常完成）
+    GoalReached,
+    /// 达到评审阈值（评分合格收敛）
+    ThresholdMet,
+    /// 达到次数/时间上限（B0-4：超限 = 正常收敛的一种，带当前最优/部分结果）
+    LimitReached,
+    /// 无进展（循环检测/停止推进判定）
+    NoProgress,
+    /// 被中止
+    Aborted,
+    /// 降级收敛（产出 Degraded 物）
+    Degraded,
+}
+
+/// 交接物 — 段间流动的类型化信封（D23）
+///
+/// 节点经 `NodeResult.artifact` 显式输出；编排器存入 run 交接物区，
+/// 并只在 `TracePhaseResult` 事件里携带 `artifact_id + summary`（事件轻、物权威）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HandoverArtifact {
+    /// 物唯一 ID
+    pub artifact_id: String,
+    /// 归属 run
+    pub run_id: String,
+    /// 产出节点 ID
+    pub from_node: String,
+    /// 物类型与载荷（九类）
+    pub kind: ArtifactKind,
+    /// 一句话摘要（迹线与事件用）
+    pub summary: String,
+    /// 产出时间戳（Unix 毫秒）
+    pub produced_at: i64,
+}
+
+/// 交接物类型（D23 九类）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ArtifactKind {
+    /// 计划（已有类型升格一等公民）
+    Plan(Vec<PlanItem>),
+    /// 评审结果（已有类型升格）
+    Reflection(ReflectionResult),
+    /// 路由决策（已有类型升格；reason 与 decision 内嵌理由并存，事件用前者）
+    Routing {
+        decision: RouterDecision,
+        reason: Option<String>,
+    },
+    /// 执行结果（Execute 各步输出聚合为一个物，步骤级是 phase 内细节）
+    Execution {
+        step_results: Vec<StepResult>,
+        status: ExecStatus,
+    },
+    /// 委派结果（挂接 run 树子节点）
+    Delegation {
+        sub_run_id: String,
+        task: String,
+        output: String,
+    },
+    /// 探索结果（ToT）
+    Exploration {
+        best_path: String,
+        score: u8,
+        explored: usize,
+        term_reason: String,
+    },
+    /// 多源聚合（GoT）
+    Aggregation {
+        content: String,
+        sources: Vec<String>,
+    },
+    /// 协作收敛（MultiAgent）
+    Convergence {
+        final_result: String,
+        reason: String,
+    },
+    /// 一等降级物（探索失败/委派失败/评审不达阈都产出，审计链不断裂）
+    Degraded {
+        from: String,
+        reason: String,
+        partial: Option<String>,
+    },
+}
+
+/// 交接物类型标签 — 无载荷的 kind 名字（D23 构图期 kind 校验用）
+///
+/// 边声明"接受什么 kind"、节点声明"产出什么 kind"都使用标签配对，
+/// 避免在校验逻辑里匹配带载荷的 `ArtifactKind` 全枚举。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ArtifactKindTag {
+    Plan,
+    Reflection,
+    Routing,
+    Execution,
+    Delegation,
+    Exploration,
+    Aggregation,
+    Convergence,
+    Degraded,
+}
+
+impl ArtifactKind {
+    /// 映射为无载荷标签（供构图期 kind 校验 / 注册表声明）
+    pub fn tag(&self) -> ArtifactKindTag {
+        match self {
+            ArtifactKind::Plan(_) => ArtifactKindTag::Plan,
+            ArtifactKind::Reflection(_) => ArtifactKindTag::Reflection,
+            ArtifactKind::Routing { .. } => ArtifactKindTag::Routing,
+            ArtifactKind::Execution { .. } => ArtifactKindTag::Execution,
+            ArtifactKind::Delegation { .. } => ArtifactKindTag::Delegation,
+            ArtifactKind::Exploration { .. } => ArtifactKindTag::Exploration,
+            ArtifactKind::Aggregation { .. } => ArtifactKindTag::Aggregation,
+            ArtifactKind::Convergence { .. } => ArtifactKindTag::Convergence,
+            ArtifactKind::Degraded { .. } => ArtifactKindTag::Degraded,
+        }
+    }
+}
+
+/// 执行步骤结果 — `ArtifactKind::Execution` 的 step_results 元素
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StepResult {
+    /// 步骤 ID
+    pub step_id: String,
+    /// 步骤标题
+    pub title: String,
+    /// 执行输出摘要
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub output: Option<String>,
+    /// 步骤状态
+    pub status: StepStatus,
+}
+
+/// 执行步骤状态
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StepStatus {
+    Pending,
+    InProgress,
+    Completed,
+    Skipped,
+    Failed,
+}
+
+/// 执行批次状态 — `ArtifactKind::Execution` 的整体 status
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ExecStatus {
+    Completed,
+    Degraded,
+    Failed,
 }
 
 #[cfg(test)]

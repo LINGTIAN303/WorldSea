@@ -13,7 +13,7 @@ use genai::adapter::AdapterKind;
 use genai::resolver::{AuthData, Endpoint};
 use genai::{Client, ModelIden, ServiceTarget};
 use tokio::sync::RwLock;
-use tracing::{debug, warn};
+use tracing::debug;
 
 use crate::backend::{BackendError, NodeBackendAccessor, PromptCallOptions, PromptResponse};
 use crate::event::{EventBroadcaster, EventListener, OrchestratorEvent};

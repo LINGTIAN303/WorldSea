@@ -41,9 +41,6 @@ pub struct SessionRecord {
     /// 会话类型（chat/group，缺省 chat）
     #[serde(default)]
     pub kind: SessionKind,
-    /// A3 四管线路由开关（缺省开启，持久化）
-    #[serde(default = "default_true")]
-    pub router_enabled: bool,
     /// 会话绑定的工作区根目录（Phase 3 接入本地文件系统；None=不限定）
     #[serde(default)]
     pub workdir: Option<String>,
@@ -83,11 +80,6 @@ pub struct WorkspaceRecord {
     pub created_at: u64,
 }
 
-/// SessionRecord.router_enabled 的 serde 缺省值（旧记录/缺省字段视为开启）
-fn default_true() -> bool {
-    true
-}
-
 /// 会话持久化存储抽象
 ///
 /// 独立为 trait 便于：单测用内存实现验证业务逻辑，不经真实 DB；真实场景用
@@ -112,8 +104,6 @@ pub trait SessionRepository: Send + Sync {
     async fn update_title(&self, session_id: &str, title: &str) -> Result<(), CommandError>;
     /// 设置会话固定状态（写穿）
     async fn set_pinned(&self, session_id: &str, pinned: bool) -> Result<(), CommandError>;
-    /// 设置会话级四管线路由开关（写穿，A3）
-    async fn set_router_enabled(&self, session_id: &str, enabled: bool) -> Result<(), CommandError>;
     /// 更新会话绑定的工作区根目录（写穿；None=不限定）。目录选择器切换工作区时同步当前会话归属
     async fn update_workdir(&self, session_id: &str, workdir: Option<&str>) -> Result<(), CommandError>;
     /// 保存群聊参与者会话映射（写穿；group_id+participant_id 走 upsert）
@@ -216,7 +206,7 @@ impl SqliteSessionRepository {
         let _ = sqlx::query("ALTER TABLE sessions ADD COLUMN kind TEXT NOT NULL DEFAULT 'chat'")
             .execute(pool)
             .await;
-        // 迁移：A3 四管线路由开关列，旧库补默认开启
+        // 迁移：session 级路由开关列——列物理保留（历史数据兼容），不再读写（FIX-4：开关废弃，指令化）
         let _ = sqlx::query(
             "ALTER TABLE sessions ADD COLUMN router_enabled INTEGER NOT NULL DEFAULT 1",
         )
@@ -297,12 +287,13 @@ impl SqliteSessionRepository {
 #[async_trait::async_trait]
 impl SessionRepository for SqliteSessionRepository {
     async fn save_session(&self, record: &SessionRecord) -> Result<(), CommandError> {
+        // 注：sessions.router_enabled 列物理保留（历史数据兼容）但不再读写（FIX-4：开关废弃，指令化）
         sqlx::query(
-            "INSERT INTO sessions (id, system_prompt, created_at, message_count, updated_at, title, pinned, kind, router_enabled, workdir, workspace_id)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+            "INSERT INTO sessions (id, system_prompt, created_at, message_count, updated_at, title, pinned, kind, workdir, workspace_id)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
              ON CONFLICT(id) DO UPDATE SET
                 system_prompt = ?2, created_at = ?3, message_count = ?4, updated_at = ?5,
-                title = ?6, pinned = ?7, kind = ?8, router_enabled = ?9, workdir = ?10, workspace_id = ?11",
+                title = ?6, pinned = ?7, kind = ?8, workdir = ?9, workspace_id = ?10",
         )
         .bind(&record.id)
         .bind(&record.system_prompt)
@@ -312,7 +303,6 @@ impl SessionRepository for SqliteSessionRepository {
         .bind(&record.title)
         .bind(record.pinned as i64)
         .bind(kind_to_str(record.kind))
-        .bind(record.router_enabled as i64)
         .bind(&record.workdir)
         .bind(&record.workspace_id)
         .execute(&self.pool)
@@ -331,12 +321,11 @@ impl SessionRepository for SqliteSessionRepository {
             String,
             i64,
             String,
-            i64,
             Option<String>,
             Option<String>,
         )> =
             sqlx::query_as(
-                "SELECT id, system_prompt, created_at, message_count, updated_at, title, pinned, kind, router_enabled, workdir, workspace_id FROM sessions",
+                "SELECT id, system_prompt, created_at, message_count, updated_at, title, pinned, kind, workdir, workspace_id FROM sessions",
             )
             .fetch_all(&self.pool)
             .await
@@ -357,12 +346,11 @@ impl SessionRepository for SqliteSessionRepository {
             String,
             i64,
             String,
-            i64,
             Option<String>,
             Option<String>,
         )> =
             sqlx::query_as(
-                "SELECT id, system_prompt, created_at, message_count, updated_at, title, pinned, kind, router_enabled, workdir, workspace_id FROM sessions WHERE kind = ?1",
+                "SELECT id, system_prompt, created_at, message_count, updated_at, title, pinned, kind, workdir, workspace_id FROM sessions WHERE kind = ?1",
             )
             .bind(kind_to_str(kind))
             .fetch_all(&self.pool)
@@ -454,20 +442,6 @@ impl SessionRepository for SqliteSessionRepository {
             .execute(&self.pool)
             .await
             .map_err(|e| CommandError::Internal(format!("更新会话固定状态失败: {e}")))?;
-        Ok(())
-    }
-
-    async fn set_router_enabled(
-        &self,
-        session_id: &str,
-        enabled: bool,
-    ) -> Result<(), CommandError> {
-        sqlx::query("UPDATE sessions SET router_enabled = ?1 WHERE id = ?2")
-            .bind(enabled as i64)
-            .bind(session_id)
-            .execute(&self.pool)
-            .await
-            .map_err(|e| CommandError::Internal(format!("更新会话路由开关失败: {e}")))?;
         Ok(())
     }
 
@@ -713,7 +687,6 @@ fn record_from_row(
         title,
         pinned,
         kind,
-        router_enabled,
         workdir,
         workspace_id,
     ): (
@@ -725,7 +698,6 @@ fn record_from_row(
         String,
         i64,
         String,
-        i64,
         Option<String>,
         Option<String>,
     ),
@@ -742,7 +714,6 @@ fn record_from_row(
             "group" => SessionKind::Group,
             _ => SessionKind::Chat,
         },
-        router_enabled: router_enabled != 0,
         workdir,
         workspace_id,
     }
@@ -793,7 +764,6 @@ mod tests {
             title: "新会话".into(),
             pinned: false,
             kind: SessionKind::Chat,
-            router_enabled: true,
             workdir: None,
             workspace_id: None,
         }
@@ -875,30 +845,6 @@ mod tests {
         let all = store.load_sessions().await.unwrap();
         assert_eq!(all.len(), 1, "重启后应能加载已持久化的会话");
         assert_eq!(store.load_messages("s1").await.unwrap().len(), 1);
-    }
-
-    #[tokio::test]
-    async fn router_enabled_roundtrip_and_persist() {
-        // 用临时文件模拟持久化：设置开关后关闭 store，再重新打开验证已落库
-        let dir = tempfile::tempdir().unwrap();
-        let db_path = dir.path().join("router.db");
-        let path = db_path.to_str().unwrap().to_string();
-
-        {
-            let store = SqliteSessionRepository::new(&path).await.unwrap();
-            let mut r = record("s1", 0);
-            r.router_enabled = false;
-            store.save_session(&r).await.unwrap();
-            // set_router_enabled 写穿更新
-            store.set_router_enabled("s1", false).await.unwrap();
-            let loaded = store.load_sessions().await.unwrap();
-            assert_eq!(loaded[0].router_enabled, false);
-        } // drop store → 连接池关闭（模拟重启）
-
-        let store = SqliteSessionRepository::new(&path).await.unwrap();
-        let loaded = store.load_sessions().await.unwrap();
-        assert_eq!(loaded.len(), 1);
-        assert_eq!(loaded[0].router_enabled, false, "重启后应保留关闭状态");
     }
 
     #[tokio::test]

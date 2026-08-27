@@ -1,4 +1,4 @@
-﻿//! Tree of Thoughts (ToT) — 思维树编排模式，详细见 docs/details/注释/agent-runtime/tree_of_thoughts.md
+//! Tree of Thoughts (ToT) — 思维树编排模式，详细见 docs/details/注释/agent-runtime/tree_of_thoughts.md
 //!
 //! 类型与策略已上移 patterns/shared/thoughts.rs（GoT 共享），本模块仅保留 ToTNode 执行体。
 
@@ -800,6 +800,7 @@ impl OrchestratorNode for ToTNode {
                     next_node_id: None,
                     error: None,
                     summary,
+                    ..Default::default()
                 };
             }
 
@@ -921,6 +922,7 @@ impl OrchestratorNode for ToTNode {
             next_node_id: None,
             error: None,
             summary,
+            ..Default::default()
         }
     }
 }

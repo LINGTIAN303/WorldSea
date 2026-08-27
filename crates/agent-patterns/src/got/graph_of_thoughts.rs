@@ -1,4 +1,4 @@
-﻿//! Graph of Thoughts (GoT) — 思维图编排模式，详细见 docs/details/注释/agent-runtime/graph_of_thoughts.md
+//! Graph of Thoughts (GoT) — 思维图编排模式，详细见 docs/details/注释/agent-runtime/graph_of_thoughts.md
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -712,6 +712,7 @@ impl OrchestratorNode for GoTNode {
                     next_node_id: None,
                     error: Some(err_msg),
                     summary: Some("GoT: 根节点评分失败".into()),
+                    ..Default::default()
                 };
             }
         }
@@ -739,6 +740,7 @@ impl OrchestratorNode for GoTNode {
                         next_node_id: None,
                         error: None,
                         summary: Some("GoT: 根节点已达成目标".into()),
+                        ..Default::default()
                     };
                 }
                 Ok(false) => {}
@@ -754,6 +756,7 @@ impl OrchestratorNode for GoTNode {
                         next_node_id: None,
                         error: Some(err_msg),
                         summary: Some("GoT: 根节点目标检查失败".into()),
+                        ..Default::default()
                     };
                 }
             }
@@ -786,6 +789,7 @@ impl OrchestratorNode for GoTNode {
                     next_node_id: None,
                     error: None,
                     summary: Some("GoT: 用户中断".into()),
+                    ..Default::default()
                 };
             }
 
@@ -901,6 +905,7 @@ impl OrchestratorNode for GoTNode {
                         next_node_id: None,
                         error: None,
                         summary: Some("GoT: 用户中断".into()),
+                        ..Default::default()
                     };
                 }
 
@@ -920,6 +925,7 @@ impl OrchestratorNode for GoTNode {
                             next_node_id: None,
                             error: Some(err_msg),
                             summary: Some("GoT: 扩展失败".into()),
+                            ..Default::default()
                         };
                     }
                 }
@@ -933,6 +939,7 @@ impl OrchestratorNode for GoTNode {
                         next_node_id: None,
                         error: None,
                         summary: Some("GoT: 用户中断".into()),
+                        ..Default::default()
                     };
                 }
 
@@ -952,6 +959,7 @@ impl OrchestratorNode for GoTNode {
                             next_node_id: None,
                             error: Some(err_msg),
                             summary: Some("GoT: 评分失败".into()),
+                            ..Default::default()
                         };
                     }
                 }
@@ -982,6 +990,7 @@ impl OrchestratorNode for GoTNode {
                                     tree.get(new_id).and_then(|n| n.score).unwrap_or(0)
                                 }
                             )),
+                            ..Default::default()
                         };
                     }
                     Ok(false) => {}
@@ -997,6 +1006,7 @@ impl OrchestratorNode for GoTNode {
                             next_node_id: None,
                             error: Some(err_msg),
                             summary: Some("GoT: 目标检查失败".into()),
+                            ..Default::default()
                         };
                     }
                 }
@@ -1034,6 +1044,7 @@ impl OrchestratorNode for GoTNode {
                         next_node_id: None,
                         error: Some(err_msg),
                         summary: Some("GoT: 聚合失败".into()),
+                        ..Default::default()
                     };
                 }
             };
@@ -1078,6 +1089,7 @@ impl OrchestratorNode for GoTNode {
                     "GoT: 已找到最优思维（深度 {}，评分 {}）",
                     current_depth, best_score
                 )),
+                ..Default::default()
             }
         } else {
             NodeResult {
@@ -1085,6 +1097,7 @@ impl OrchestratorNode for GoTNode {
                 next_node_id: None,
                 error: Some("GoT: 未找到任何思维节点".into()),
                 summary: Some("GoT: 探索失败".into()),
+                ..Default::default()
             }
         }
     }

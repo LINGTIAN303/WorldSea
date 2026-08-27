@@ -85,6 +85,8 @@
         <TracePanel />
         <PhaseSection :segments="deepSegments" />
         <SubAgentSection />
+        <!-- M3-RK1 前端可视化：会话 run 树（顶层 + 委派子 run，list_session_runs 数据源） -->
+        <RunTreeSection />
       </div>
       <div v-show="tab === 'activity'" class="exec-pane" role="tabpanel">
         <ActivityLog />
@@ -155,6 +157,7 @@
 import { WsIcon } from '@worldsmith/ui-kit'
 import PhaseSection from '@/agent/components/PhaseSection.vue'
 import SubAgentSection from '@/agent/components/SubAgentSection.vue'
+import RunTreeSection from '@/agent/components/RunTreeSection.vue'
 import ActivityLog from '@/agent/panels/ActivityLog.vue'
 import TracePanel from '@/agent/panels/TracePanel.vue'
 import PlanPanel from '@/agent/panels/PlanPanel.vue'
@@ -239,9 +242,10 @@ const { deepSegments } = useAgent()
   gap: 10px;
 }
 
-/* 窄面板内轨迹组件去外层限宽（PhaseSection/SubAgentSection 的 860px 上限在 300px 面板内无意义） */
+/* 窄面板内轨迹组件去外层限宽（PhaseSection/SubAgentSection/RunTreeSection 的 860px 上限在 300px 面板内无意义） */
 .exec-pane :deep(.phase-section),
-.exec-pane :deep(.subagent-section) {
+.exec-pane :deep(.subagent-section),
+.exec-pane :deep(.run-tree-section) {
   max-width: none;
   margin: 0;
 }

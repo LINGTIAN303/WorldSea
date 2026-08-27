@@ -51,6 +51,22 @@
         aria-hidden="true"
       ></div>
 
+      <!-- M2 编排段：已完成 run 折叠卡 + 活跃 run 实时段（串行场景流尾追加） -->
+      <OrchestrationSegment
+        v-for="r in finishedRuns"
+        :key="`orch-${r.runId}`"
+        :run="r"
+        @abort-request="onAbortOrchestration"
+        @open-detail="onOpenDetail"
+      />
+      <OrchestrationSegment
+        v-if="activeRun"
+        :key="`orch-active-${activeRun.runId}`"
+        :run="activeRun"
+        @abort-request="onAbortOrchestration"
+        @open-detail="onOpenDetail"
+      />
+
       <!-- 流式输出占位符 + 思考中提示 -->
       <StreamingPlaceholder
         :is-streaming="isStreaming"
@@ -107,12 +123,37 @@ import { watchDebounced } from '@worldsmith/perf-kit/render'
 import type { AgentMessage } from '@agent/index'
 import type { AgentStreamItem } from '@worldsmith/shared-composables/agent/useAgent'
 import { useDotAnimation, useMessageWindowing, MessageListEmpty, ArchivedSection, StreamingPlaceholder, ScrollToBottomButton, DotNav, TurnStatus, ErrorRows } from '@worldsmith/shared-ui/agent/message-list'
+// M2：编排迹线（useOrchestrationTrace 聚合 + 编排段渲染）
+import OrchestrationSegment from './components/OrchestrationSegment.vue'
+import { useOrchestrationTrace } from './composables/useOrchestrationTrace'
+import { useSessionViewState } from './composables/useSessionViewState'
+import { invoke } from './composables/transport'
+import type { ExecTab } from '@/space/stores/space-store'
 import WorldSmithLogo from '@/components/brand/WorldSmithLogo.vue'
 
 const { enterAnimation } = usePersonaFont()
 const { agentStream, isStreaming: agentIsStreaming, resolveToolConfirmation, sessionTitlePending, currentSessionId } = useAgent()
 const archiveStore = useArchiveStore()
 const { logs: activityLogs } = useActivityLog()
+// M2：编排迹线（状态由 useAgentRust 会话生命周期统一维护，本组件纯消费）+ 中止处理
+const { activeRun, finishedRuns } = useOrchestrationTrace()
+const sessionViewState = useSessionViewState()
+
+/** M3 详图驱动：点击编排段入口卡 → 右栏 ExecPanel 切到对应详图 tab（A4）；tab 来自组件内固定映射，运行时安全 */
+function onOpenDetail(tab: string): void {
+  sessionViewState.setExecTab(tab as ExecTab)
+}
+
+/** 中止按钮：复用后端 abort 命令（M2-4） */
+async function onAbortOrchestration(): Promise<void> {
+  const sid = currentSessionId.value
+  if (!sid) return
+  try {
+    await invoke('abort', { sessionId: sid })
+  } catch (err) {
+    console.error('[AgentMessageList] 中止编排失败:', err)
+  }
+}
 
 const props = withDefaults(defineProps<{
   messages: Array<AgentMessage>
@@ -182,6 +223,17 @@ const titleDotOn = computed(() => Boolean(sessionTitlePending?.value?.[currentSe
 /** 标题生成中等候省略号动画（与思考中动画同源 useDotAnimation 复用「思考中」占位形态） */
 const { dotText: titleDotText } = useDotAnimation(titleDotOn)
 
+/** 行级高度分桶估算（止血包③）：事件行高度分布极端不均（tool 行 ~32px vs 长 markdown 行数千 px），
+ *  全局平均估算两头失真导致窗口切片/占位高度大幅偏差；按行类型给矮行固定估值，高行回落测量平均 */
+function estimateRowHeight(row: AgentStreamItem): number | undefined {
+  switch (row.type) {
+    case 'tool': return 32       // 扁平工具单行（padding 4*2 + 行高 ~24）
+    case 'divider': return 33    // margin 8*2 + 文本行 ~17
+    case 'think': return 60      // 折叠态单行 + 标题；流式展开态由 ResizeObserver 实测覆盖
+    default: return undefined    // user / assistant 回落全局测量平均
+  }
+}
+
 /** 渲染窗口化 + 滚动锚定 + 可见性观察：数据源为事件行流 agentStream（去 isDeepMode 分叉） */
 const {
   windowedDisplayItems,
@@ -196,6 +248,7 @@ const {
   container: messagesContainer,
   items: computed(() => agentStream.value),
   messages: computed(() => props.messages),
+  estimateHeight: estimateRowHeight,
 })
 
 /** 是否存在 A2UI 界面 */
@@ -264,6 +317,9 @@ defineExpose({
   width: 100%;
   max-width: var(--conv-w);
   align-self: center;
+  /* 止血包：禁用浏览器原生 scroll anchoring——流式内容增长时原生锚定会自动调整 scrollTop，
+     与自制锚定（observedTop 账本 + 程序化 scrollToBottom）互相打架，是视口跳动的来源之一 */
+  overflow-anchor: none;
 }
 
 .messages-scroll > * {
