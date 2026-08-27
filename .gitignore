@@ -141,3 +141,6 @@ midscene_run/
 # ── 临时/待办文件（本机未归类，不入库）─────────────────────────────────
 docs/test.md
 write_guide.js
+
+# ── MemoryCenter 项目记忆（本机维护，不入库）────────────────────────────
+project_memory.md
