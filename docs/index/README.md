@@ -14,6 +14,10 @@
 | 已完成 | Agent 端到端闭环计划（Phase 5） | 让 Agent 从 Rust 框架就绪到 Tauri 桌面端真正可用。5.1–5.5 全部完成（命令层 / Tauri 前端链路 / UI 抽共享层 / 端到端实测+高级能力 / TS→Rust 收敛）；web-to-tauri 迁移后由 Tauri 桌面端承载（`crates/cli` 已于 2026-08-08 移除，能力由 agent-commands 覆盖） | [agent-e2e-closure-plan.md](../plans/agent-e2e-closure-plan.md) |
 | 已完成 | Agent 编排框架路线图 | Rust 原生实现 13 种 Agent 模式，阶段 1（Agent loop）+ 阶段 2（编排框架）+ 阶段 3（pi-ai）均完成（2026-08-25 复核）。**架构权威已移交** [orchestration-matrix.md](../details/架构/orchestration-matrix.md)：13 模式重归位「底座能力 5 + 扩展模式 8」，本计划为历史规划视角 | [agent-orchestration-roadmap.md](../plans/agent-orchestration-roadmap.md) |
 | 已完成 | 编排层架构重构：两方方案裁定与归档 | 两路 Agent 各自分析产出的方案经第三方裁定：01（甲方矩阵表）事实贡献已吸收入 matrix；02（Harness 底座攻击方向）五项核心主张全部否决（ReAct 抽离违反底座内聚等），合理内核（织入点协议化）降级执行；03 裁定纪要含后续施工链（阶段 A/B + 里程碑 2/3/5 + §7 待决 6/7） | [01-编排模式矩阵表.md](../plans/agent编排层架构重构/01-编排模式矩阵表.md) · [02-Harness底座架构设计.md](../plans/agent编排层架构重构/02-Harness底座架构设计.md) · [03-两方方案裁定纪要.md](../plans/agent编排层架构重构/03-两方方案裁定纪要.md) |
+| 执行中 | 编排模式投放与框架链路：问题清单 | 13 模式如何投放到前端（触发模型/投影形态/迹线布局/干预/可解释）、后端如何生产管线事实（轨迹事件/编排上下文/降级/判型/隔离）、模式组合协议（条件支路/junction/探索定位）、里程碑划分——**研究全部收敛（2026-08-27，83/83 条：64 定案 + 17 倾向 + 2 完成）**：五把钥匙（C20 产品性格/D21 链性质/B22 运行单元/D23 交接物/A1 触发模型）+ 13 项拍板；E18/E19 已定案；**施工蓝图已产出 → [04-方案.md](../plans/编排模式投放设计/04-方案.md)** | [01-问题清单.md](../plans/编排模式投放设计/01-问题清单.md) |
+| 执行中 | 编排模式投放：整合方案 v1 蓝图 | 全部研究结论的施工化：核心契约三张表（OrchestrationRun 实体含子 run 树/HandoverArtifact 九类交接物/模式注册表繁殖成本 8→2 处）+ 轨迹事件族四事件 + 预设映射表（四管线=链族预设）+ 门清单（v1 中止+插话）+ 前端形态规格（编排段时态规则/右栏详图驱动组件零重写）+ 里程碑 M1-M5 细化（每级含验收）+ 五条基准验证 + v2 延期项 12 条显式清单 + 风险 4 项 | [04-方案.md](../plans/编排模式投放设计/04-方案.md) |
+| 执行中 | 编排模式投放：现状事实清单（阶段 0 勘察） | 87 条研究题的代码事实地基：模式触点对照（修正"Router 无事件"前提）/ 事件系统全景（10 前端通道、无 run_id、骨架事件已有雏形）/ 运行机制（串行 DAG、pause 空壳存根）/ 次数阈值表 / 持久化边界 / 前端资产（TracePanel 迹线雏形、11 子 tab 手动切换）/ 繁殖成本 8 处 / 钥匙问题直接输入 | [02-现状事实.md](../plans/编排模式投放设计/02-现状事实.md) |
+| 执行中 | 编排模式投放：外部参照卡（阶段 1 调研） | 7 家竞品过程可视化形态卡（Claude/ChatGPT/Cursor/Windsurf/Devin/Manus/Gemini）+ 12 条反模式 + 8 条设计原则——"统一迹线 + 按需详图"方向被三头部产品殊途同归印证；可抄规格：折叠摘要 10 行 3 秒 / 密度三档 / "已学到 + 下一步"叙事；最大空白 = 多智能体过程呈现 | [03-外部参照.md](../plans/编排模式投放设计/03-外部参照.md) |
 | 执行中 | perf-kit 实施方案 | 系统性解决 22 个性能问题（响应式过度/串行 I/O/缺渲染节流）。`@worldsmith/perf-kit` 包已建，Phase 1-3 全落地 + Phase 4 部分落地（虚拟滚动/脏矩形/DB 下推），其余待排期 | [perf-kit-plan.md](../plans/perf-kit-plan.md) |
 | 执行中 | 大文件拆分计划 | 测试分离（agent-runtime 7 + agent-commands 4，`#[path]` 方式）+ 数据型拆分（SKILL_REGISTRY 按类别拆入 skills/data/）+ EntityTypeSchema 三份定义统一（core-api-types 契约权威）；14 包 typecheck 全绿，已提交 80d35e1 | [2026-08-06-large-file-split-plan.md](../plans/2026-08-06-large-file-split-plan.md) |
 | 执行中 | MemoryCenter 召回集成计划 | 召回 MemoryCenter 作为 WorldSmith Agent 记忆后端：MemoryAccessor trait 注入点已定义，阶段 3 已完成闭环验证 | [memorycenter-agent-memory-plan.md](../plans/memorycenter-agent-memory-plan.md) |
@@ -36,6 +40,7 @@
 
 | 状态 | 文档 | 摘要（结论） | 链接 |
 |------|------|-------------|------|
+| 执行中 | Agent 空间单聊走查问题清单 | 2026-08-28 computer-use 真机走查（输出区/左栏/输入栏/右栏 + 冒烟测试 8 项）：**17 项发现**——高严重 5 项（X1 编排路径消息不持久化/I1 下拉不可关闭/L1 时间戳秒当毫秒/O4 裸 JSON 流式/O1 内容重复渲染），中 5 项，低 7 项；附修复优先级建议（X1→I1→L1→O4 顺序） | [Agent空间单聊走查问题清单.md](../misc/Agent空间单聊走查问题清单.md) |
 | 执行中 | 自迭代决策记录 | 用户放开自迭代权限后"拍板"决策的备查记录（如子 Agent 编排接入主循环的方案选择与理由），按主题分片存于 self-iteration/，持续追加中 | [self-iteration-decisions.md](../执行中/self-iteration-decisions.md) |
 | 已完成 | 编排模式补齐交付清单 | Plan-and-Execute / Reflection / Self-Refine 三模式补齐交付史（Rust + 前端计划面板 + 真实 DeepSeek 端到端实测）；含实测中发现的循环检测误报/静默失败/事件桥接三修复 | [orchestration-patterns-delivery.md](../misc/orchestration-patterns-delivery.md) |
 | — | 技能源测试数据 | Skills Store 商城联调用的示例技能源（example-creator，含 SKILL.md/skill.yaml/manifest） | [skills-store-test-source/](../misc/skills-store-test-source/) |
