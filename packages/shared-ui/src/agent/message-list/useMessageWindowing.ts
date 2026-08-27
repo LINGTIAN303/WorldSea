@@ -7,20 +7,37 @@ const WINDOW_BUFFER = 20          // 视口上下各保留 20 条缓冲，减少
 const INITIAL_RENDER_COUNT = 50   // 初始渲染最近 50 条（覆盖大多数对话首屏）
 const ESTIMATED_ITEM_HEIGHT = 80  // 未测量过的 item 估算高度（px）
 
+/**
+ * 判底阈值：视口高度的 15%，下限 60px。
+ * 流式 markdown 块级展开一次可增长数百 px，固定 60px 会在跟随延迟窗口内
+ * 误判「读者离开底部」导致跟随断流（视口反复跳动的主根因）。
+ */
+function bottomThreshold(viewportH: number): number {
+  return Math.max(60, viewportH * 0.15)
+}
+
 /** 窗口化行通用约束：每行必须暴露可直接用于锚定/高度缓存的唯一 id */
 export function useMessageWindowing<Row extends { id: string }>(options: {
   container: Ref<HTMLDivElement | undefined>
   /** 事件行流的完整数组（窗口化数据源；行类型由调用方决定，仅需含 id 字段） */
   items: Ref<Readonly<Row[]>>
   messages: Ref<AgentMessage[]>
+  /**
+   * 行级高度估算（止血包③）：返回 undefined 回落到全局测量平均。
+   * 事件行高度分布极端不均（tool 行 ~32px vs 长 markdown 行数千 px），
+   * 全局平均两头失真；调用方按行类型分桶可显著提升窗口切片与占位高度准确性。
+   */
+  estimateHeight?: (row: Row) => number | undefined
 }) {
-  const { container, items, messages } = options
+  const { container, items, messages, estimateHeight } = options
 
   // ===== 窗口化状态 =====
   const visibleStart = ref(0)
   const visibleEnd = ref(INITIAL_RENDER_COUNT)
-  // 已测量的 item 高度缓存（Map<index, height>），首次渲染后由 ResizeObserver 填充
-  const measuredHeights = new Map<number, number>()
+  // 已测量的 item 高度缓存（Map<id, height>），首次渲染后由 ResizeObserver 填充。
+  // 止血包②：以行 id 作 key（原为数组下标——回源重建/切会话后行序变化会导致高度张冠李戴，
+  // 前缀和与占位高度随之错位，滚动位置跳变）。
+  const measuredHeights = new Map<string, number>()
   let resizeObserver: ResizeObserver | null = null
   let scrollRafId: number | null = null
 
@@ -53,7 +70,6 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
   let mutationObserver: MutationObserver | null = null
   // 已观察过的消息节点集合，避免 MutationObserver 重复 observe
   const observedMsgEls = new WeakSet<Element>()
-  let scrollTimer: ReturnType<typeof setTimeout> | null = null
 
   /**
    * 重建前缀和数组 + 计算已测量 item 平均高度。
@@ -80,11 +96,19 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
       : ESTIMATED_ITEM_HEIGHT
 
     // 构建前缀和：prefixSums[i] = sum of height(item[0..i-1])
+    // 优先级：测量值 > 行级分桶估算 > 全局测量平均
     const sums = new Float64Array(total + 1)
     sums[0] = 0
     const avg = avgMeasuredHeight
+    const all = items.value
     for (let i = 0; i < total; i++) {
-      sums[i + 1] = sums[i] + (measuredHeights.get(i) ?? avg)
+      const measured = measuredHeights.get(all[i].id)
+      if (measured !== undefined) {
+        sums[i + 1] = sums[i] + measured
+      } else {
+        const estimated = estimateHeight?.(all[i])
+        sums[i + 1] = sums[i] + (estimated !== undefined ? estimated : avg)
+      }
     }
     prefixSums.value = sums
   }
@@ -171,8 +195,10 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
     const floor = Math.max(0, scroll.scrollHeight - scroll.clientHeight)
     const movedByReader = Math.abs(scroll.scrollTop - Math.min(observedTop, floor)) > 0.5
     const wasAtBottom = isAtBottom.value
+    // 止血包①：判底阈值按视口高度动态化，替代固定 60px（流式块级展开时跟随延迟
+    // 窗口内差值可远超 60px，固定值会误判离开底部 → 跟随断流 + 占位高度跳变）
     const isAtBottomNow = movedByReader
-      ? floor - scroll.scrollTop <= 60
+      ? floor - scroll.scrollTop <= bottomThreshold(scroll.clientHeight)
       : wasAtBottom
     isAtBottom.value = isAtBottomNow
     // 从底部离开时，显示"回到底部"按钮
@@ -225,8 +251,10 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
       return
     }
     lastSeenLength.value = messages.value.length
-    if (scrollTimer) clearTimeout(scrollTimer)
-    scrollTimer = setTimeout(() => nextTick(scrollToBottom), 50)
+    // 止血包④：去掉原内部 50ms setTimeout 延迟（调用方 watchDebounced 已节流 30-50ms，
+    // 双重延迟让跟随滚动显著滞后于流式内容增长，表现为视口被内容周期性推挤跳动）。
+    // nextTick 确保 DOM 更新后写入 scrollTop，写入后同步记账。
+    nextTick(() => { scrollToBottom(); })
   }
 
   /**
@@ -361,12 +389,10 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
           for (const entry of entries) {
             const el = entry.target as HTMLElement
             const msgId = el.dataset?.msgId
+            // 止血包②：按行 id 直写高度缓存（原按 index 写入需 findIndex 反查，
+            // 且行序变化后错位；id 键天然免疫行序变化，还省一次 O(n) 查找）
             if (msgId) {
-              // 找到该消息/链段/工具卡在 items 中的索引，缓存真实高度
-              const idx = items.value.findIndex(item => item.id === msgId)
-              if (idx >= 0) {
-                measuredHeights.set(idx, entry.contentRect.height)
-              }
+              measuredHeights.set(msgId, entry.contentRect.height)
             }
           }
           // 测量到新高度后，重建前缀和（rAF 合并，避免过度重建）
@@ -386,7 +412,6 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
     if (resizeObserver) { resizeObserver.disconnect(); resizeObserver = null }
     if (scrollRafId !== null) { cancelAnimationFrame(scrollRafId); scrollRafId = null }
     if (rebuildRafId !== null) { cancelAnimationFrame(rebuildRafId); rebuildRafId = null }
-    if (scrollTimer) { clearTimeout(scrollTimer); scrollTimer = null }
     // 移除 scroll 监听
     const scroll = getScrollEl()
     if (scroll) scroll.removeEventListener('scroll', onScroll)
