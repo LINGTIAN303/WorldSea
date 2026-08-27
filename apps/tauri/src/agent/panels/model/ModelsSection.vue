@@ -10,8 +10,10 @@
         @click="emit('open-type', t.mode)"
       >
         <span class="ms-type-icon"><WsIcon :name="t.icon" size="md" /></span>
-        <span class="ms-type-label">{{ t.label }}</span>
-        <span class="ms-type-desc">{{ t.desc }}</span>
+        <span class="ms-type-text">
+          <span class="ms-type-label">{{ t.label }}</span>
+          <span class="ms-type-desc">{{ t.desc }}</span>
+        </span>
       </button>
     </div>
 
@@ -76,9 +78,9 @@ interface SavedModel {
 const settingsStore = useSettingsStore()
 
 const TYPE_TILES = [
-  { mode: 'cloud' as const, icon: 'globe', label: '云端 API', desc: '官方/聚合/应用云端供应商' },
-  { mode: 'local' as const, icon: 'monitor', label: '本地模型', desc: 'Ollama / LM Studio / vLLM' },
-  { mode: 'custom' as const, icon: 'link', label: '第三方自定义', desc: 'OpenAI / Anthropic 兼容端点' },
+  { mode: 'cloud' as const, icon: 'globe', label: '云端 API', desc: '各自知名官方' },
+  { mode: 'local' as const, icon: 'monitor', label: '本地模型', desc: '自行部署接入' },
+  { mode: 'custom' as const, icon: 'link', label: '第三方自定义', desc: '请谨慎使用' },
 ]
 
 const PROVIDER_LABEL: Record<string, string> = {
@@ -177,10 +179,11 @@ function isActiveModel(model: SavedModel): boolean {
   background: color-mix(in srgb, var(--color-primary) 10%, transparent);
   box-shadow: 0 0 0 1px var(--color-primary) inset;
 }
-.ms-type-icon { display: flex; color: var(--color-text-secondary); }
+.ms-type-icon { display: flex; color: var(--color-text-secondary); flex-shrink: 0; }
 .ms-type.on .ms-type-icon { color: var(--color-primary); }
+.ms-type-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .ms-type-label { font-size: var(--font-size-sm); font-weight: var(--font-weight-medium); color: var(--color-text); }
-.ms-type-desc { font-size: var(--font-size-xs); color: var(--color-text-tertiary); margin-left: auto; white-space: nowrap; }
+.ms-type-desc { font-size: var(--font-size-xs); color: var(--color-text-tertiary); line-height: 1.4; }
 
 .ms-cat-bar { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
 .ms-cat {

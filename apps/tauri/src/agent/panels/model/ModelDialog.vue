@@ -71,6 +71,7 @@ function onClose(): void {
   background: var(--color-surface-elevated, var(--content-bg, var(--bg, var(--color-bg-surface))));
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
   overflow: hidden;
+  transition: width 0.3s cubic-bezier(0.22, 0.8, 0.36, 1), max-width 0.3s cubic-bezier(0.22, 0.8, 0.36, 1);
 }
 .mdl-shell.wide {
   max-width: 760px;
