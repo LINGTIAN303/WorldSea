@@ -32,16 +32,17 @@
             <span class="workdir-option-icon"><WsIcon name="folder-open" size="xs" /></span>
             <span class="workdir-option-name">打开文件夹…</span>
           </button>
-          <!-- 默认工作区 -->
+          <!-- 默认根（任务29/A1：绑定项目时=项目目录，未绑定时=兜底工作区） -->
           <button
             class="workdir-option"
             :class="{ active: isDefault }"
             role="option"
             :aria-selected="isDefault"
+            :title="defaultDir"
             @click="selectDefault"
           >
             <span class="workdir-option-status" aria-hidden="true"><WsIcon v-if="isDefault" name="check" size="xs" /></span>
-            <span class="workdir-option-name">默认工作区</span>
+            <span class="workdir-option-name">{{ defaultOptionLabel }}</span>
           </button>
           <!-- 已记录目录实体 -->
           <div v-if="recordedList.length" class="workdir-group">
@@ -75,11 +76,8 @@ import { WsIcon } from '@worldsmith/ui-kit'
 import { invoke } from '@/agent/composables/transport'
 import { useAgent } from '@/agent/composables/useAgent'
 import type { RustWorkdirRecord } from '@/agent/composables/useAgentRust'
-import { resolveWorkspaceDir } from '../workspace'
+import { resolveWorkspaceDir, resolveDefaultWorkspaceDir } from '../workspace'
 import { toastError, toastSuccess, toastWarn } from '@/composables/useToast'
-
-/** 记住上次选择的 localStorage key */
-const LAST_WORKDIR_KEY = 'last_workdir'
 
 const backend = useAgent()
 /** 当前会话绑定的工作区根目录（ref，可读写；无会话为 null） */
@@ -92,22 +90,28 @@ const loadWorkdirs = backend.loadWorkdirs as () => Promise<void>
 const open = ref(false)
 const selectRef = ref<HTMLElement>()
 const dropdownStyle = ref<Record<string, string>>({ top: '0px', left: '0px' })
-/** 默认工作区路径（固定 ~/.worldsmith/workspace，挂载时解析） */
+/** 兜底默认工作区路径（~/.worldsmith/workspace，挂载时解析；任务29/A1 下仅未绑定项目时作为默认根） */
+const fallbackDir = ref('')
+/** 当前默认根（任务29/A1 统一根：当前项目目录优先，未绑定项目时 = fallbackDir） */
 const defaultDir = ref('')
 
-/** 当前选中路径（currentWorkdir 或默认目录） */
+/** 当前选中路径（currentWorkdir 或默认根） */
 const currentPath = computed(() => currentWorkdir.value || defaultDir.value)
-/** 是否选中默认工作区 */
+/** 是否选中当前默认根（项目目录或兜底工作区） */
 const isDefault = computed(() => Boolean(currentWorkdir.value && currentWorkdir.value === defaultDir.value))
-/** 展示名称：默认工作区 / 已记录目录的实体 label / 回退路径基名（I3：与下拉勾选项名统一） */
+/** 展示名称：兜底工作区固定叫「默认工作区」；已记录目录用实体 label（I3）；其余按路径基名（含项目目录） */
 const displayLabel = computed(() => {
   const p = currentPath.value
   if (!p) return '默认工作区'
-  if (p === defaultDir.value) return '默认工作区'
+  if (p === fallbackDir.value) return '默认工作区'
   const rec = workdirs.value.find((w) => w.path === p)
   if (rec && rec.label) return rec.label
   return baseName(p)
 })
+/** 下拉默认项标题：绑定项目时为「项目目录」，未绑定时为「默认工作区」 */
+const defaultOptionLabel = computed(() =>
+  defaultDir.value && fallbackDir.value && defaultDir.value !== fallbackDir.value ? '项目目录' : '默认工作区',
+)
 /** 下拉中「已记录目录」候选（排除默认目录实体，避免与默认项重复） */
 const recordedList = computed(() =>
   workdirs.value.filter((w) => defaultDir.value && w.path !== defaultDir.value),
@@ -146,7 +150,8 @@ function closeDropdown() {
  *  save=true 为「用户主动选择/新建目录」（打开文件夹），此时联动绑定为当前项目存储目录（统一根目录）。 */
 function applyWorkdir(path: string, label: string, save: boolean) {
   currentWorkdir.value = path
-  try { localStorage.setItem(LAST_WORKDIR_KEY, path) } catch {}
+  // 任务29/A1：不再跨启动记忆手动选择（last_workdir 退役）——重启后默认根由
+  // 项目绑定目录（ProjectManager.dirPath → resolveWorkspaceDir）天然恢复
   open.value = false
   // X3 修复：仅切换「本次发送目录」（currentWorkdir 供工具桥上下文/新会话创建消费），
   // 不再改写当前会话归属——会话条目保持原工作空间分组；切走再切回时恢复该会话原目录
@@ -166,6 +171,8 @@ async function bindAsProjectDir(path: string, label: string) {
     const ok = await bindDirToProject(path)
     if (ok) {
       toastSuccess(`已绑定工作区「${label}」为项目存储目录`)
+      // 任务29/A1：绑定成功后默认根随 ProjectManager 变化，刷新下拉默认项解析
+      defaultDir.value = await resolveWorkspaceDir()
     } else {
       const err = useFileSystemProject().lastError?.value ?? '绑定失败'
       toastWarn(`已设为工作区，但未绑定项目存储：${err}`)
@@ -196,10 +203,10 @@ async function openPicker() {
   }
 }
 
-/** 选择默认工作区（固定 ~/.worldsmith/workspace，无需另存目录实体） */
+/** 选择当前默认根（任务29/A1：绑定项目时即项目目录；未绑定时为兜底工作区），无需另存目录实体 */
 async function selectDefault() {
   const path = await resolveWorkspaceDir()
-  applyWorkdir(path, '默认工作区', false)
+  applyWorkdir(path, baseName(path), false)
 }
 
 /** 选择已记录目录实体（选择即复用，无需重新保存） */
@@ -225,12 +232,11 @@ onMounted(async () => {
   // capture 阶段监听：抢在 useShortcuts（document 冒泡，命中即 stopImmediatePropagation）之前消费 Esc
   document.addEventListener('click', onDocClick)
   document.addEventListener('keydown', onDocKeydown, true)
-  // 解析固定默认目录（resolveWorkspaceDir() 无参）
+  // 兜底工作区 + 当前默认根（任务29/A1：resolveWorkspaceDir 无参 = 项目目录优先，兜底 ~/.worldsmith/workspace）
+  fallbackDir.value = await resolveDefaultWorkspaceDir()
   defaultDir.value = await resolveWorkspaceDir()
-  // 记住上次选择：存在则恢复为当前工作区（否则 fallback 默认目录）
-  let last: string | null = null
-  try { last = localStorage.getItem(LAST_WORKDIR_KEY) } catch {}
-  if (last && !currentWorkdir.value) currentWorkdir.value = last
+  // last_workdir 自动恢复已随 A1 退役：项目绑定目录持久化于 ProjectManager，
+  // 重启后经 resolveWorkspaceDir 天然恢复；手动选择仅运行时生效
 })
 
 onBeforeUnmount(() => {

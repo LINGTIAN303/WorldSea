@@ -1436,8 +1436,9 @@ async function newSession(
   providerConfig?: RustProviderConfigFull,
   scenarioId?: string,
 ): Promise<RustSessionInfo> {
-  // Phase 4 工作区：workdir 来源 = 输入栏 WorkdirSelect 选中的目录（currentWorkdir）；
-  // 未手动选择（含浏览器 preview）则回退固定默认目录 ~/.worldsmith/workspace（resolveWorkspaceDir() 无参）
+  // 任务29/A1 统一根：workdir 来源 = 输入栏 WorkdirSelect 选中的目录（currentWorkdir）；
+  // 未手动选择则回退当前默认根（resolveWorkspaceDir() 无参 = 当前项目目录优先，
+  // 无绑定项目时兜底 ~/.worldsmith/workspace）——见 docs/plans/workspace-unification-plan.md
   const workdir = currentWorkdir.value ?? (await resolveWorkspaceDir())
   await ensureWorkspaceDir(workdir)
   const info = await safeInvoke<RustSessionInfo>('new_session', {

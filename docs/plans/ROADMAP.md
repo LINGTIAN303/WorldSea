@@ -223,7 +223,7 @@
 - **涉及模块**：`packages/entity-core/`（ProjectManager/FileStorageBackend/useFileSystemProject/useFsWatcher）、`apps/tauri/src/space/workspace.ts`、`apps/tauri/src/space/chat/WorkdirSelect.vue`、`apps/tauri/src/space/panels/WorkspacePanel.vue`、`apps/tauri/src-tauri/src/fs_commands.rs`、`project_commands.rs`、Rust session 数据模型
 - **状态**：进行中
 - **优先级**：—
-- **备注**：方案 [workspace-unification-plan.md](workspace-unification-plan.md)。M0 完成（现状冻结 + 2026-08-28 五问全部拍板：A1 项目目录权威根 / B1 惰性迁移 / C1 空间级浏览器 / D1 session.project_id / E1 混居写保护）。M1 根统一硬阻塞——核心改动面 WorkdirSelect.vue + useAgentRust.ts 在走查修复批次（29 文件未提交）内；M2 边界收敛与批次零重叠可先行
+- **备注**：方案 [workspace-unification-plan.md](workspace-unification-plan.md)。M0 完成（五问拍板 A1/B1/C1/D1/E1）；M1 根统一 ✅（2026-08-28：resolveWorkspaceDir 当前项目目录优先 + last_workdir 退役，typecheck/build 全绿，待真机验证）；下一步 M2 边界收敛（实施计划待确认）
 
 ---
 
