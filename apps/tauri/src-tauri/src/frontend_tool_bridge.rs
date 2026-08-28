@@ -196,6 +196,12 @@ fn attach_bridge_meta(
             "id": args.get("id").and_then(|v| v.as_str()),
             "name": args.get("name").and_then(|v| v.as_str()),
         })),
+        // delete 的 name 从结果取（args 仅含 id；TS 实现返回 {success,id,name,deletedRelations}）
+        "entity_delete" => Some(serde_json::json!({
+            "op": "delete",
+            "id": args.get("id").and_then(|v| v.as_str()),
+            "name": result.get("name").and_then(|v| v.as_str()),
+        })),
         "content_search" => Some(serde_json::json!({
             "op": "search",
             "query": args.get("keyword").and_then(|v| v.as_str()),
@@ -250,6 +256,21 @@ pub fn bridge_tools(bridge: Arc<FrontendToolBridge>) -> Vec<Arc<dyn Tool>> {
             }),
             bridge.clone(),
         )),
+        // 任务29/M4 收敛补齐：E1 拒绝裸删 entities/ 后的语义删除正道（TS 实现已存在
+        // entity-crud.ts entityDeleteTool：级联删关联关系 + 清索引 + 关 A2UI 画布），
+        // 此前桥上缺失导致 Agent 删实体无合法路径——E1 引导语与桥清单在此对齐闭环
+        Arc::new(FrontendBridgeTool::new(
+            "entity_delete",
+            "删除指定实体及其所有关联关系。此操作不可逆。需要实体 ID（可通过 entity_list 获取）。执行前请向用户确认删除意图。",
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string", "description": "实体 ID" }
+                },
+                "required": ["id"]
+            }),
+            bridge.clone(),
+        )),
         Arc::new(FrontendBridgeTool::new(
             "content_search",
             "在项目的所有实体中搜索内容。支持语义搜索（理解含义）和关键词搜索（精确匹配）的混合模式。语义搜索能找到意思相近但不包含关键词的内容；关键词搜索能精确匹配文本。使用场景：模糊查找、概念搜索、精确匹配。",
@@ -280,14 +301,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn bridge_tools_define_three_first_batch_tools() {
+    fn bridge_tools_define_first_batch_tools() {
         // 验证构造的桥工具契约：需 AppHandle 实例化，故此处仅验证清单由名称文档承载。
-        // 桥工具列表由 `bridge_tools` 返回三个，name 与前端 ALL_TOOLS_MAP 对齐——
+        // 桥工具列表由 `bridge_tools` 返回四个，name 与前端 ALL_TOOLS_MAP 对齐——
         // 该契约在 lib.rs 装配 `.chain(bridge_tools(...))` 处应用。
-        let names = ["entity_create", "entity_update", "content_search"];
-        assert_eq!(names.len(), 3);
+        // 任务29/M4：entity_delete 补齐（E1 拒绝裸删后的语义删除正道），三→四。
+        let names = ["entity_create", "entity_update", "entity_delete", "content_search"];
+        assert_eq!(names.len(), 4);
         assert!(names.contains(&"entity_create"));
         assert!(names.contains(&"entity_update"));
+        assert!(names.contains(&"entity_delete"));
         assert!(names.contains(&"content_search"));
     }
 

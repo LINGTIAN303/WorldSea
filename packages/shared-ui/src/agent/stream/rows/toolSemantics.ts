@@ -175,6 +175,9 @@ export function extractEffectLabel(meta?: ToolMeta | null): string {
     }
     case 'search':
       return typeof meta.hits === 'number' ? `命中 ${meta.hits}` : ''
+    case 'delete':
+      // 任务29/M4：entity_delete 桥工具效果标签（name 由后端从结果合入 __meta）
+      return meta.name ? `已删 ${meta.name}` : ''
     case 'cmd': {
       const parts: string[] = []
       if (typeof meta.exit_code === 'number') parts.push(`exit ${meta.exit_code}`)

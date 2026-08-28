@@ -99,7 +99,7 @@ WorldSmith 是 Agent 产品、Harness 工程。文件系统对 Harness 不是"�
 - **M4 收尾**：✅ 2026-08-29 落地（风险点并入本里程碑一并推进）——
   - **数据源分叉收敛**（分叉 #5 主危害消除）：实体真身在文件主存储，而 Agent 的 entity_list/get 与场景实体摘要此前读 EntityDb SQLite 兜底库（两侧无同步 → 空/过时数据）。新增文件版 `FsScenarioEntityProvider` + `fs_entity_tools`（扫 `{workdir}/entities/`，摘要格式与 C2 引用校验语义对齐 SQLite 版），经 `with_session_entity_adapter` 工厂注入——有 workdir 的会话同名覆盖注册（ToolBus 覆盖语义），无 workdir 回退 SQLite 兜底。**EntityDb 收敛定位 = 前端 TauriStorageBackend fallback 专用**，不再是 Agent 实体读来源
   - **shell 写入盲区词法防护**（风险①消化）：`shellCommandTouchesProtectedPath`（写操作词 × 受保护目录字样同现即拒，宁误拦不错放）接入 execute_command 与 shell_session exec 双入口；**非完备声明**：变量间接/别名可绕过，定位 = 拦常见误操作 + 引导语义层，不能替代用户监督
-  - **FrontendToolBridge 收敛评估**：**保留**——E1 后 entity_create/update/delete（写）经桥走实体语义层是唯一正道（裸写已被拒）；读类桥工具与 Rust fs 版暂并行，真机验证 fs 版稳定后再评估退役
+  - **FrontendToolBridge 收敛定案（2026-08-29 实施）**：**保留**——E1 后写类经桥走实体语义层是唯一正道。摸底澄清：桥上从无读类工具（entity_list/get 由 Rust 原生覆盖，SQLite 版 → M4 fs 版）；真正的缺口是 **entity_delete 桥工具缺失**（E1 引导语提到但 Agent 无合法删除路径）——已补齐（桥第 4 工具 + `__meta op:delete` + 前端 toolSemantics 效果标签「已删 ×」），E1 引导语与桥清单完全闭环。content_search 保留（语义搜索 Rust 无对应实现）
   - 验证：tauri 30 测试（单线程）/ commands 101 / vitest 26（含 +7 shell 防护）/ typecheck / build 全绿
   - **端到端走查清单（M1-M4 验收，待真机一次性执行）**：
     1. 绑定项目 → 新会话：输入栏 pill 显示项目目录基名，会话 workdir = 项目目录（M1/A1）
