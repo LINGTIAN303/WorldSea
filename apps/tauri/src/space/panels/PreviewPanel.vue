@@ -42,7 +42,7 @@
       <div class="section-header">
         <WsIcon name="file" size="sm" /><span>素材 / 文件</span>
       </div>
-      <div class="section-empty">素材文件预览接入中（TODO）</div>
+      <div class="section-empty">素材与文件预览即将支持</div>
     </div>
   </div>
 </template>

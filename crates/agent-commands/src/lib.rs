@@ -70,7 +70,7 @@ use agent_runtime::supervisor::{SubAgentSpec, SupervisorConfig, SupervisorNode};
 use agent_runtime::tree_of_thoughts::{ToTConfig, ToTNode};
 use memory_center_core::model::ArchiveConfig;
 use agent_runtime::tool::{SimpleToolBus, Tool, ToolBus};
-use agent_runtime::types::{ConvergeReason, HandoverArtifact, OrchestratorMessage};
+use agent_runtime::types::{ConvergeReason, HandoverArtifact, MessageRole, OrchestratorMessage};
 use serde::{Deserialize, Serialize};
 use tokio::sync::{Mutex, RwLock};
 
@@ -1581,6 +1581,9 @@ impl AgentCommandService {
                 .await;
             // 恢复消息历史（含 system 首条）
             let messages = store.load_messages(&record.id).await?;
+            // X1 修复：message_count 从实际恢复的消息数派生——sessions 表的该列仅创建期
+            // 写入、不随 persist_messages 更新，重启后若读列值会「归 0」，改为派生杜绝该问题
+            let message_count = messages.len() as u32;
             // A4 Plan-Exec：恢复持久化的计划
             let plan = store.load_plan(&record.id).await?;
             agent
@@ -1601,7 +1604,7 @@ impl AgentCommandService {
             let info = SessionInfo {
                 id: record.id.clone(),
                 created_at: record.created_at,
-                message_count: record.message_count,
+                message_count,
                 title: record.title.clone(),
                 pinned: record.pinned,
                 kind: record.kind,
@@ -1814,15 +1817,29 @@ impl AgentCommandService {
             max_tokens: Some(64),
             ..Default::default()
         };
-        let generated = match backend.prompt(input, Some(options)).await {
-            Ok(resp) => resp.text.trim().to_string(),
-            Err(e) => {
-                // 生成失败降级：保留「新会话」占位，记录日志（不阻断前端输出流）
-                tracing::warn!("会话标题生成失败，保留占位「新会话」: {e}");
-                return Ok("新会话".into());
+        // 标题生成：偶发 LLM 失败（DeepSeek 限流/超时）会直接降级「新会话」，
+        // 首条消息仅触发一次生成，失败则该会话永久留占位 → 重试 1 次提升成功率（L2 优化）
+        let mut generated = String::new();
+        let mut last_err = String::new();
+        for attempt in 0..2u32 {
+            match backend.prompt(input.clone(), Some(options.clone())).await {
+                Ok(resp) => {
+                    let t = resp.text.trim().to_string();
+                    if !t.is_empty() {
+                        generated = t;
+                        break;
+                    }
+                    last_err = "空响应".into();
+                }
+                Err(e) => {
+                    last_err = e.to_string();
+                    tracing::warn!(attempt, "会话标题生成失败，准备重试: {e}");
+                }
             }
-        };
+        }
         if generated.is_empty() {
+            // 两次失败降级：保留「新会话」占位，记录日志（不阻断前端输出流）
+            tracing::warn!("会话标题生成失败（重试后仍失败），保留占位「新会话」: {last_err}");
             return Ok("新会话".into());
         }
         // 重入校验标题锁定：LLM 调用期间用户可能已手动重命名（title ≠ 新会话），
@@ -2014,6 +2031,14 @@ impl AgentCommandService {
                 ));
             }
             let result = self.run_mode_prefix(&params.session_id, mode, text).await?;
+            // X1 修复：编排路径收口——用户消息+终稿入环、message_count 回写、写穿持久化
+            // （此前仅 react 路径持久化，run_mode_prefix 编排消息零落库 → 刷新即丢历史）
+            self.finalize_orchestration_turn(
+                &params.session_id,
+                &params.text,
+                result.final_message.as_deref(),
+            )
+            .await;
             let usage = agent.get_usage().await;
             let state = agent.get_state_snapshot().await;
             return Ok(SendMessageResult {
@@ -2079,6 +2104,13 @@ impl AgentCommandService {
                         },
                     )
                     .await?;
+                // X1 修复：判型编排路径同样收口入环 + 持久化（与 run_mode_prefix / react 路径一致）
+                self.finalize_orchestration_turn(
+                    &params.session_id,
+                    &params.text,
+                    result.final_message.as_deref(),
+                )
+                .await;
                 let usage = agent.get_usage().await;
                 // state 用 AgentLoop 会话快照（与 react 路径一致；编排过程经 trace 事件呈现）
                 let state = agent.get_state_snapshot().await;
@@ -2228,6 +2260,43 @@ impl AgentCommandService {
         // 写穿压缩后的消息快照
         self.persist_messages(session_id).await;
         Ok(())
+    }
+
+    /// X1 修复：编排路径收口——把本轮「用户消息 + 终稿回复」追加进会话 AgentLoop 历史，
+    /// 回写 meta.message_count 并写穿持久化（对齐 react 路径语义；编排引擎本身不触碰会话历史）。
+    /// reply 为空（异常收敛）时只入环用户消息，避免空 assistant 轮污染上下文。
+    async fn finalize_orchestration_turn(
+        &self,
+        session_id: &str,
+        user_text: &str,
+        reply: Option<&str>,
+    ) {
+        let agent = match self.sessions.lock().await.get(session_id).cloned() {
+            Some(a) => a,
+            None => return,
+        };
+        let mut msgs = vec![OrchestratorMessage {
+            role: MessageRole::User,
+            content: user_text.to_string(),
+            tool_calls: Vec::new(),
+            tool_call_id: None,
+            meta: None,
+        }];
+        if let Some(reply) = reply.filter(|r| !r.is_empty()) {
+            msgs.push(OrchestratorMessage {
+                role: MessageRole::Assistant,
+                content: reply.to_string(),
+                tool_calls: Vec::new(),
+                tool_call_id: None,
+                meta: None,
+            });
+        }
+        agent.append_messages(msgs).await;
+        let count = agent.get_messages().await.len() as u32;
+        if let Some(meta) = self.meta.lock().await.get_mut(session_id) {
+            meta.message_count = count;
+        }
+        self.persist_messages(session_id).await;
     }
 
     /// 写穿某会话当前消息快照到持久化存储（弱提示：失败仅记日志不阻断）

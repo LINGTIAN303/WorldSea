@@ -217,9 +217,12 @@ impl OrchestratorNode for ReflectionNode {
         if ctx.is_aborted() {
             return NodeResult::aborted();
         }
+        // 原始评审 JSON 作为 System 消息写入历史（N8 修复：此前用 Assistant 角色——
+        // 编排 final_message 取「最后一条 assistant」，评审 JSON 会顶替 execute/refine 的
+        // 面向用户正文成为终稿。评审属于内部过程，改 System 不占 assistant 位。）
         ctx.state
             .messages
-            .push(make_msg(MessageRole::Assistant, response.clone()));
+            .push(make_msg(MessageRole::System, response.clone()));
 
         let Some(result) = parse_reflection(&response, &target, iteration) else {
             return NodeResult::error("无法从 LLM 响应解析出评审结果（期望 JSON）");

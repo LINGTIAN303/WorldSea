@@ -22,7 +22,7 @@
 <script setup lang="ts">
 import { WsIcon } from '@worldsmith/ui-kit'
 
-const scanningText = 'Loading...'
+const scanningText = '正在处理…'
 
 defineProps<{
   isStreaming: boolean

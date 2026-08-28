@@ -10,7 +10,7 @@ import { useActivityLog } from './agent/composables/useActivityLog'
 import { useUIStore } from './stores/uiStore'
 import { useTheme } from './components/ui/useTheme'
 import { useTheme as useEntityTheme, useSettingsStore } from '@worldsmith/entity-core'
-import { useGlobalEvents } from '@worldsmith/ui-kit'
+import { useGlobalEvents, setActiveViewId } from '@worldsmith/ui-kit'
 import { bootstrapPlugins } from './plugins/bootstrap'
 import { useProjectSwitcher } from './composables/useProjectSwitcher'
 import { useSystemBridge } from './composables/useSystemBridge'
@@ -97,6 +97,17 @@ function onSetTheme(e: Event) {
 }
 const { on: onGlobalEvent } = useGlobalEvents()
 onGlobalEvent('ws-set-theme', onSetTheme)
+
+// N9 视图上下文注入：Agent 空间（currentShell==='space'）→ view 快捷键失效（setActiveViewId(null)），
+// 主视图（workbench）→ 跟随当前 view。两壳 v-show 常驻，插件视图组件在 Agent 空间仍挂载，
+// 不注入会导致其 view 快捷键（角色 n/delete 等）在 Agent 空间误触发。
+watch(
+  () => [uiStore.currentShell, uiStore.currentView] as const,
+  ([shell, view]) => {
+    setActiveViewId(shell === 'space' ? null : view)
+  },
+  { immediate: true },
+)
 
 onMounted(async () => {
   // 应用初始主题（html data-theme 由此建立；apply 为同步函数，需传入当前主题模式）

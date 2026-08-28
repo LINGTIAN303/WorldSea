@@ -52,9 +52,10 @@ const emit = defineEmits<{
 /** streaming 视为 running（默认展开），complete 折叠 */
 const isStreaming = computed(() => props.item.status === 'streaming')
 
-// ===== 思维折叠（label='推理过程'，defaultOpen=running） =====
+// ===== 思维折叠（label='模型推理'，defaultOpen=running）；N5：标题统一「模型推理」——
+// 判型/回答阶段推理块语言可能混排（中英），统一标题弱化观感差异 =====
 const { label, isOpen, toggle } = useThinkingFold(
-  () => '推理过程',
+  () => '模型推理',
   () => isStreaming.value,
 )
 

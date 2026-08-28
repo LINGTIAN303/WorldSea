@@ -25,7 +25,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { computed, ref, watch, nextTick, onBeforeUnmount } from 'vue'
 import { useShortcuts, formatKeyForDisplay, useResizable } from '@worldsmith/ui-kit'
 import WsIcon from '../WsIcon.vue'
 
@@ -87,10 +87,18 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 const { getAll, register, unregister } = useShortcuts()
 const modalResizable = useResizable({ panelId: 'modal-shortcut-help', defaultWidth: 480, minWidth: 320 })
 
-onMounted(() => {
-  register({ id: 'help.shortcuts.close', keys: ['?'], description: '关闭快捷键帮助', scope: 'modal', handler: () => emit('close') })
-  register({ id: 'help.shortcuts.close-esc', keys: ['escape'], description: '关闭快捷键帮助', scope: 'modal', handler: () => emit('close') })
-})
+// I1 根因修复：注册跟随 show——本组件被 Shell 常驻挂载（:show 控显隐），常驻注册会让
+// modal-scope Esc 永久占用，经 useShortcuts 命中即 stopImmediatePropagation 吞掉全局 Esc，
+// 连带废掉输入栏下拉/TuiModal 的 Esc 关闭。仅弹窗可见时占用，关闭即释放。
+watch(() => props.show, (show) => {
+  if (show) {
+    register({ id: 'help.shortcuts.close', keys: ['?'], description: '关闭快捷键帮助', scope: 'modal', handler: () => emit('close') })
+    register({ id: 'help.shortcuts.close-esc', keys: ['escape'], description: '关闭快捷键帮助', scope: 'modal', handler: () => emit('close') })
+  } else {
+    unregister('help.shortcuts.close')
+    unregister('help.shortcuts.close-esc')
+  }
+}, { immediate: true })
 
 onBeforeUnmount(() => {
   unregister('help.shortcuts.close')

@@ -28,3 +28,20 @@
 `new_agent` 已改用 [`GenaiBackend`]（真实 LLM 后端），从注入的
 [`RuntimeProviderConfig`] 构造。前端通过 `set_provider_config` 命令写入
 Provider 配置（含 API Key），`get_provider_config` 回显真实配置。
+
+## 编排路径消息收口（X1 修复，2026-08-28）
+
+**整体语义**：编排引擎（plan_execute / tot / got / supervisor / multi）复用会话的
+LLM backend 与 ToolBus，但**不触碰会话 AgentLoop 的消息历史**——编排过程经
+orchestration_trace 事件呈现，历史里只有终稿。因此 `send_message` 的两处编排早退
+路径（`run_mode_prefix` 前缀分流、判型 is_complex）统一经 `finalize_orchestration_turn`
+收口，对齐 react 路径语义：
+
+1. 用户消息（保留原文含 / 前缀，刷新后前端用户行显示一致）+ 终稿回复追加进环
+   （kernel `AgentLoop::append_messages`，不触发执行）；
+2. 回写 `meta.message_count`（侧栏「N 条」与 react 同口径 = 环内消息总数，含 system）；
+3. `persist_messages` 写穿 messages 表（刷新/重启恢复源）。
+
+**重启计数派生**：`restore_sessions` 的 message_count 改为从 messages 表实际恢复条数
+派生——sessions 表的 message_count 列仅创建期写入、不随 persist 更新，读列值会「重启归 0」。
+**空终稿**：reply 为空只入环用户消息，避免空 assistant 轮污染上下文。

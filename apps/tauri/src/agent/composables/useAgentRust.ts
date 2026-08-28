@@ -50,7 +50,7 @@ import { resolveWorkspaceDir, ensureWorkspaceDir } from '@/space/workspace'
 const { setupOrchListener, teardownOrchListener, setupOrchSupervisorListener, teardownOrchSupervisorListener } = useOrchEvents()
 // M2 编排迹线（NIT-3 双轨收口）：监听并入 useAgentRust 会话生命周期统一管理，
 // 组件仅消费状态（单一状态源），不再各自实例化监听。
-const { resetOrchestrationTrace, setupOrchestrationTraceListener, teardownOrchestrationTraceListener } = useOrchestrationTrace()
+const { activeRun, finishedRuns, resetOrchestrationTrace, setupOrchestrationTraceListener, teardownOrchestrationTraceListener } = useOrchestrationTrace()
 
 // ── 浏览器 preview 兼容：非 Tauri 环境（window.__TAURI_INTERNALS__ 缺失）下
 //    @tauri-apps/api/core 的 invoke 为 undefined。这里用 safeInvoke 兜底，
@@ -284,6 +284,10 @@ function nextAssistantId(): string {
 
 /** 当前会话 ID（null=尚未创建会话） */
 const currentSessionId = ref<string | null>(null)
+/** L3 懒创建：草稿态标志——点「+ 会话」进入（currentSessionId=null），
+ *  首条消息 newSession 或切换会话时清除。供自动恢复逻辑（restoreLastSession /
+ *  SessionSidebar.refresh）识别草稿态并跳过「无会话自动切回」，否则 draft 被瞬间覆盖。 */
+const draftSessionActive = ref(false)
 /** 当前会话绑定的工作区根目录（Phase 4 接入本地文件系统；供 WorkspacePanel 展示） */
 const currentWorkdir = ref<string | null>(null)
 /** 当前会话消息列表 */
@@ -552,7 +556,9 @@ function rebuildStreamFromMessages(msgs: AgentMessage[]): AgentStreamItem[] {
       }
     }
     if (m.content) {
-      pushContent({ type: 'assistant', msg: m, id: nextMsgId('stream-assistant'), timestamp: ts })
+      // N1 修复：id 用 m.id（与 upsertAssistantStreamRow 的实时流路径对齐），
+      // 否则恢复态 AssistantRow hover emit 的 msg.id 与事件行 id 永不匹配 → 操作栏隐形但仍可点击
+      pushContent({ type: 'assistant', msg: m, id: m.id, timestamp: ts })
     }
   }
   return rows
@@ -887,6 +893,17 @@ function upsertMsgInSession(id: string, updated: AgentMessage, sessionId: string
 function handleStreamEvent(sessionId: string, payload: RustStreamPayload): void {
   // 会话守卫：仅处理当前会话的流式事件，避免旧会话残留事件污染全局消息区
   if (sessionId !== currentSessionId.value) return
+  // O1/O4 修复：编排 run 活跃期间，过程流不进正文——
+  // 过程（阶段进度/摘要/终局结论）由编排段（OrchestrationSegment）承载，终稿由 send_message
+  // 返回值唯一渲染。这同时拦掉：流式早期工具调用参数 JSON 逐字符渲染成正文（O4）、
+  // execute 步骤产物与最终文档重复平铺（O1）、编排各节点 reasoning 块泛滥（O2 主因）。
+  // react 退化 run（快问答）无 trace 事件、activeRun 恒空 → 不受影响，正常打字机流式。
+  if (
+    activeRun.value
+    && (payload.type === 'start' || payload.type === 'delta' || payload.type === 'reasoning' || payload.type === 'end')
+  ) {
+    return
+  }
   if (payload.type === 'start') {
     // 新流开始：重置流式 think 引用，后续 reasoning 增量将新建 think 行
     streamingThink.value = null
@@ -1052,7 +1069,14 @@ async function setupSessionTitleListener(): Promise<void> {
 /** 生成会话标题（Phase 5：首条消息 + 首条回复 → cmd_agent_generate_title，异步不阻塞输出流） */
 async function generateSessionTitle(sessionId: string, firstMessage: string, firstReply: string): Promise<void> {
   try {
-    await safeInvoke<string>('cmd_agent_generate_title', { sessionId, firstMessage, firstReply })
+    const title = await safeInvoke<string>('cmd_agent_generate_title', { sessionId, firstMessage, firstReply })
+    // L2 修复：HTTP 桥（浏览器模式）下 agent:session_title_updated 事件不达前端，
+    // 依赖事件会让侧栏标题停留在「新会话」（前端 sessionTitle 兜底=首条消息）——
+    // 生成成功后主动刷新列表拉取后端 title。桌面端事件到达时双保险（幂等）。
+    void title
+    await refreshSessionList().catch((err) => {
+      console.warn('[useAgentRust] 标题生成后刷新列表失败:', err)
+    })
   } catch (err) {
     // 生成失败降级（Rust 保留「新会话」占位），不影响对话，仅清除等候动画
     console.warn('[useAgentRust] 生成会话标题失败（保留「新会话」占位）:', err)
@@ -1422,6 +1446,8 @@ async function newSession(
     scenarioId: scenarioId ?? null,
     workdir,
   })
+  // L3：真正创建后退出草稿态
+  draftSessionActive.value = false
   // 先清理当前会话的旧监听器（避免旧会话残留事件污染全局状态）
   const oldSessionId = currentSessionId.value
   if (oldSessionId && oldSessionId !== info.id) {
@@ -1493,9 +1519,45 @@ async function listScenarios(): Promise<RustScenarioInfo[]> {
   return safeInvoke<RustScenarioInfo[]>('list_scenarios')
 }
 
+/** L3 懒创建：进入「新会话草稿态」——不创建后端会话，仅清空本地显示态。
+ *  首条消息发送时 `ensureSession()`（currentSessionId 为 null → new_session）才真正创建，
+ *  消除「点 + 产生孤儿空会话」「切走无入口可回」问题（未产生对话不生产会话条目）。 */
+async function newDraftSession(): Promise<void> {
+  // L3：进入草稿态（先置标志再清 currentSessionId，避免 watch/refresh 自动恢复旧会话）
+  draftSessionActive.value = true
+  const oldSessionId = currentSessionId.value
+  if (oldSessionId) {
+    teardownDeepPhaseListener(oldSessionId)
+    teardownA2UIListener(oldSessionId)
+    teardownSubAgentListener(oldSessionId)
+    teardownStreamListener(oldSessionId)
+    teardownConfirmListener(oldSessionId)
+    teardownPlanListener(oldSessionId)
+    teardownTraceListener(oldSessionId)
+    teardownOrchListener(oldSessionId)
+    teardownOrchSupervisorListener(oldSessionId)
+    teardownOrchestrationTraceListener(oldSessionId)
+  }
+  currentSessionId.value = null
+  sessionTitlePending.value = {}
+  messages.value = []
+  isStreaming.value = false
+  streamingAssistant.value = null
+  lastStreamedMsg.value = null
+  deepSegments.value = []
+  a2uiSurfaces.value = {}
+  subAgents.value = []
+  resetOrchestrationTrace()
+  usePlanStore().clearPlan()
+  agentStream.value = []
+  streamingThink.value = null
+}
+
 /**
  * 会话显示标题：从消息缓存取首条用户消息截断；无数据回退短 id。
- * 供会话列表展示更友好的标题（Rust 端 SessionInfo 无 title 字段）。
+ * L2 修复（2026-08-28）：注释更新——后端 SessionInfo 已有完整 title 体系
+ * （title 字段 + update_session_title / cmd_agent_generate_title），本函数仅作
+ * 「后端 title 为「新会话」占位」时的前端兜底（首条用户消息 / 短 id）。
  */
 function sessionTitle(sessionId?: string | null): string {
   if (!sessionId) return '新会话'
@@ -1540,7 +1602,8 @@ async function refreshSessionList(): Promise<void> {
  * 无活跃会话 → 执行面板 tab 静默失效」问题：恢复逻辑提升到本层，不再依赖侧边栏挂载。
  */
 async function restoreLastSession(): Promise<void> {
-  if (currentSessionId.value != null) return
+  // L3：草稿态跳过自动恢复（用户点「+」进入草稿后不应被切回旧会话）
+  if (currentSessionId.value != null || draftSessionActive.value) return
   let list: RustSessionInfo[] = []
   try {
     list = await listSessions()
@@ -1773,6 +1836,18 @@ async function prompt(text: string, options?: PromptOptions): Promise<void> {
     console.warn('[useAgentRust] 上一轮仍在生成，忽略重复 send')
     return
   }
+  // 上一轮编排 run 异常未收口（后端 error 路径不产 pipe_finished）→ 本地强制收口为 failed，
+  // 防止残留的 activeRun 让本轮 react 流式也被 O1/O4 的「编排期间流式抑制」误伤
+  if (activeRun.value) {
+    const stale = activeRun.value
+    stale.status = 'finished'
+    stale.finishedStatus = stale.finishedStatus ?? 'failed'
+    stale.finishedAt = Date.now()
+    if (!finishedRuns.value.some((fr) => fr.runId === stale.runId)) {
+      finishedRuns.value = [...finishedRuns.value, stale]
+    }
+    activeRun.value = null
+  }
   // 确保当前会话的 Rust 端已注入模型 + API Key（幂等兜底，避免新会话空 key 报「API Key 缺失」）
   await ensureModelKey()
   // 发送文本 = 用户输入 + 附件注入内容（hiddenText，如"仅附件"消息、图片占位、文件全文）
@@ -1872,6 +1947,12 @@ async function prompt(text: string, options?: PromptOptions): Promise<void> {
         // 仅清除该会话的标记，避免误清其他会话（切会话场景）。
         delete sessionTitlePending.value[sessionId]
       })
+    } else {
+      // X1 配套：每轮回复成功后同步侧栏 message_count（后端 finalize/react 均已回写 meta，
+      // 前端列表是快照缓存，不刷新会停留在上轮数值；激活分支上面已刷，此处补常规轮次）
+      void refreshSessionList().catch((err) => {
+        console.warn('[useAgentRust] 回复后刷新会话列表失败:', err)
+      })
     }
   } catch (err) {
     // 增强错误信息：附加当前会话/模型配置/key 注入状态，便于在 UI 直接定位「API Key 缺失」根因
@@ -1912,6 +1993,13 @@ async function abort(): Promise<void> {
   if (!sessionId) return
   await safeInvoke('abort', { sessionId })
   isStreaming.value = false
+  // N4 修复：流中断提示——输出戛然而止无任何「已停止」标记，用户无法区分中断/出错/完成
+  pushStreamItem(sessionId, {
+    type: 'divider',
+    id: nextMsgId('div'),
+    dividerText: '已由用户停止',
+    timestamp: Date.now(),
+  })
 }
 
 /** A7：设置当前会话安全级别（off / dangerous_only / moderate_and_dangerous，运行时生效） */
@@ -2242,6 +2330,8 @@ export function useAgentRust() {
 
     // ── 会话管理 ──
     newSession,
+    newDraftSession,
+    draftSessionActive,
     listScenarios,
     listSessions,
     deleteSession,

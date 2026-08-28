@@ -341,12 +341,21 @@ function onDocClick(e: MouseEvent) {
   }
 }
 
+/** I1 修复：全局 Escape 关闭（原仅触发器/列表框聚焦时生效，焦点在输入框时无响应） */
+function onDocKeydown(e: KeyboardEvent) {
+  if (!open.value) return
+  if (e.key === 'Escape') open.value = false
+}
+
 onMounted(() => {
+  // capture 阶段监听：抢在 useShortcuts（document 冒泡，命中即 stopImmediatePropagation）之前消费 Esc
   document.addEventListener('click', onDocClick)
+  document.addEventListener('keydown', onDocKeydown, true)
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', onDocClick)
+  document.removeEventListener('keydown', onDocKeydown, true)
 })
 </script>
 

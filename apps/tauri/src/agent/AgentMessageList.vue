@@ -67,8 +67,9 @@
         @open-detail="onOpenDetail"
       />
 
-      <!-- 流式输出占位符 + 思考中提示 -->
+      <!-- 流式输出占位符 + 思考中提示；O5：编排 run 活跃时不显示（编排段已承载运行态，避免三处运行态并存） -->
       <StreamingPlaceholder
+        v-if="!activeRun"
         :is-streaming="isStreaming"
         :last-assistant-has-content="lastAssistantHasContent"
         :last-assistant-has-thinking="lastAssistantHasThinking"

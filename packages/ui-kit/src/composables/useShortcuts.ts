@@ -39,6 +39,14 @@ export function formatKeyForDisplay(k: string): string {
 
 const registry = new Map<string, ShortcutDef>()
 const defaultKeysMap = new Map<string, string[]>()
+// ── 视图上下文（N9 修复 2026-08-28）──
+// view scope 快捷键仅在「主视图上下文」生效：Agent 空间激活（App.vue currentShell==='space'）
+// 时由 App 注入 null → view 快捷键全部失效，避免 Shell 常驻挂载的插件视图（角色/导图等）
+// 快捷键在 Agent 空间误触发（如 n=新建 / delete=删除）。
+let activeViewId: string | null = null
+export function setActiveViewId(id: string | null): void {
+  activeViewId = id
+}
 
 function normalizeKeys(e: KeyboardEvent): string[] {
   const keys: string[] = []
@@ -112,6 +120,8 @@ function attachGlobalListener() {
 
     for (const scope of SCOPE_ORDER) {
       if (isInput && scope !== 'modal') continue
+      // N9：无视图上下文（Agent 空间）→ view scope 快捷键全部失效
+      if (scope === 'view' && activeViewId === null) continue
 
       for (const [, def] of registry) {
         if (def.scope !== scope) continue
@@ -120,7 +130,10 @@ function attachGlobalListener() {
         if (def.preventDefault || isPreventDefault(pressed)) {
           e.preventDefault()
         }
-        e.stopImmediatePropagation()
+        // N9 修复：不再 stopImmediatePropagation——原实现命中任意注册键位即吞掉传播，
+        // 同 document 节点后注册的监听（输入栏下拉/全局 Esc 处理器等）全部饿死，
+        // 且常驻 modal-scope Esc 会永久吞掉全局 Escape（TuiModal/TuiDrawer 关闭失效）。
+        // 快捷键只消费自身（命中首个即 return，单键仍只触发一个 handler），不阻断传播。
         def.handler()
         return
       }

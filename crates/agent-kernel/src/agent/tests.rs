@@ -73,6 +73,39 @@
         assert_eq!(result, "你好，我是助手");
     }
 
+    /// X1：append_messages 追加消息入环（不触发执行）——命令层编排路径收口的入环基础
+    #[tokio::test]
+    async fn append_messages_extends_history_without_run() {
+        use crate::types::{MessageRole, OrchestratorMessage};
+        let backend = Arc::new(MockBackend::new(vec![]));
+        let tool_bus = Arc::new(SimpleToolBus::new());
+        let agent = AgentLoop::new(backend, tool_bus);
+
+        let before = agent.get_messages().await.len();
+        agent
+            .append_messages(vec![
+                OrchestratorMessage {
+                    role: MessageRole::User,
+                    content: "/plan 写文档".into(),
+                    tool_calls: Vec::new(),
+                    tool_call_id: None,
+                    meta: None,
+                },
+                OrchestratorMessage {
+                    role: MessageRole::Assistant,
+                    content: "终稿".into(),
+                    tool_calls: Vec::new(),
+                    tool_call_id: None,
+                    meta: None,
+                },
+            ])
+            .await;
+
+        let after = agent.get_messages().await;
+        assert_eq!(after.len(), before + 2);
+        assert_eq!(after.last().unwrap().content, "终稿");
+    }
+
     #[tokio::test]
     async fn run_dispatches_hooks_in_order_and_keeps_behavior() {
         // 验证织入点协议（matrix §8 里程碑 5）：

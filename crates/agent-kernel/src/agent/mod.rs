@@ -448,6 +448,11 @@ impl AgentLoop {
         self.state.lock().await.messages.clone()
     }
 
+    /// 追加消息到会话历史（不触发执行；命令层编排路径收口入环用——X1 持久化缺口修复）
+    pub async fn append_messages(&self, msgs: Vec<OrchestratorMessage>) {
+        self.state.lock().await.messages.extend(msgs);
+    }
+
     /// A4 Plan-Exec：获取当前任务计划（None=无计划）
     pub async fn get_plan(&self) -> Option<Vec<PlanItem>> {
         self.state.lock().await.plan.clone()

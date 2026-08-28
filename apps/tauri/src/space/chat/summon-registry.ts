@@ -134,8 +134,9 @@ export function buildSummonItems(creationViews: CreationViewSource[] = []): Summ
     ...APP_PANELS,
     ...AGENT_ASSETS,
     ...COMMAND_ITEMS,
-    ...SKILL_ITEMS,
+    // I2 修复：编排模式项提前到技能之前（原在 SKILL_ITEMS 尾部，打 / 首屏看不到 /plan 等 5 项）
     ...PIPELINE_ITEMS,
+    ...SKILL_ITEMS,
   ]
   for (const v of creationViews) {
     items.push({

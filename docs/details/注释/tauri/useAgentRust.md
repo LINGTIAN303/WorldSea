@@ -174,10 +174,28 @@ updateThinkingLevel / clearHistory / subscribe / dispose / isStreaming），
 ## 回源重建 + 时间分隔
 
 **回源重建**：`rebuildStreamFromMessages` 从消息历史重建 agentStream
-（刷新 / 回源后保持一致）。
+（刷新 / 回源后保持一致）。assistant 行 id 用 `msg.id`（与实时流
+`upsertAssistantStreamRow` 对齐，N1 修复：否则恢复态 hover 操作栏永不显示）。
 
 **>30min divider 合成**：`pushStreamItem` / `lastContentStreamItem` /
 `AGE_DIVIDER_THRESHOLD` 判定超过 30 分钟，追加 divider 时间分隔行。
+
+## 编排期间流式抑制（O1/O4 修复，2026-08-28）
+
+**为什么**：编排引擎的节点 LLM 调用复用会话 backend，其 StreamDelta /
+Reasoning 事件经 BackendEventBridge → 会话广播器直达本模块，与 react 主链路
+同通道。不区分会导致：流式早期工具调用参数 JSON 逐字符渲染成正文（O4）、
+execute 步骤产物与最终文档重复平铺（O1）、每节点 reasoning 块泛滥（O2 主因）。
+
+**怎么做**：`handleStreamEvent` 顶部守卫——`activeRun`（useOrchestrationTrace
+的活跃编排 run）存在时，`start/delta/reasoning/end` 四类正文事件直接丢弃。
+过程呈现统一由编排段（OrchestrationSegment：阶段进度/摘要/终局结论）承载，
+终稿由 `prompt()` 拿 `send_message` 返回的 reply 唯一渲染（lastStreamedMsg 为
+null → 走新建 assistant 行分支）。react 退化 run 无 trace 事件、activeRun 恒空，
+打字机流式不受影响。
+
+**边界加固**：`prompt()` 入口对上一轮异常未收口的编排 run（后端 error 路径不产
+pipe_finished）本地强制收口为 failed，防止残留 activeRun 误伤本轮 react 流式。
 
 ## finalOutput 移除 / deepSegments 保留
 

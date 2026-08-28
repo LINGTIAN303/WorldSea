@@ -590,6 +590,44 @@
         );
     }
 
+    /// X1：编排路径收口——用户/终稿消息入环 + message_count 回写 + 写穿持久化 + 重启恢复派生计数。
+    /// 编排引擎本身不触碰会话历史，收口逻辑（send_message 两处编排早退路径共用）独立单测覆盖；
+    /// 真实编排需 LLM，走 #[ignore] e2e。
+    #[tokio::test]
+    async fn orchestration_turn_finalizes_persistence_and_count() {
+        let store: Arc<dyn SessionRepository> =
+            SqliteSessionRepository::new_in_memory().await.unwrap();
+        let svc = AgentCommandService::new().with_session_store(Arc::clone(&store));
+        let info = svc.new_session(None, None, None, None).await.unwrap();
+
+        svc.finalize_orchestration_turn(&info.id, "/plan 写文档", Some("终稿内容"))
+            .await;
+
+        // ① 消息入环：用户消息 + 终稿（历史含 system 首条，按角色断言）
+        let msgs = svc.get_messages(&info.id).await.unwrap();
+        assert!(msgs
+            .iter()
+            .any(|m| m.role == MessageRole::User && m.content == "/plan 写文档"));
+        assert!(msgs
+            .iter()
+            .any(|m| m.role == MessageRole::Assistant && m.content == "终稿内容"));
+
+        // ② message_count 回写（侧栏「N 条」，与 react 路径同口径 = 环内消息总数）
+        let list = svc.list_sessions(None).await.unwrap();
+        assert_eq!(list[0].message_count, msgs.len() as u32);
+
+        // ③ 写穿持久化（刷新/重启后的恢复源）
+        let persisted = store.load_messages(&info.id).await.unwrap();
+        assert_eq!(persisted.len(), msgs.len());
+
+        // ④ 重启恢复：计数从 messages 表派生（不读 sessions 列，杜绝「重启归 0」）
+        let svc2 = AgentCommandService::new().with_session_store(store);
+        let restored = svc2.restore_sessions().await.unwrap();
+        assert_eq!(restored[0].message_count, msgs.len() as u32);
+        let restored_msgs = svc2.get_messages(&restored[0].id).await.unwrap();
+        assert_eq!(restored_msgs.len(), msgs.len());
+    }
+
     // ── M3-RK1：Supervisor 图节点委派路径子 run 记账器 ──
 
     /// RunStoreSubRunAccountant：begin 建子 run 挂到当前顶层 run，finish 收口

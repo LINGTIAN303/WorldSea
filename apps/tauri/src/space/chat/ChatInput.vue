@@ -114,6 +114,7 @@
             <WsIcon name="volume-on" size="sm" />
           </button>
           <!-- P0-4 迭代：权限分级改为图标下拉（手动确认/自动判断/完全通过），外部点击关闭 -->
+          <!-- I1 修复：菜单 Teleport 到 body + 固定定位（原非传送被输入区层叠/裁剪，三选项仅残影不可点） -->
           <div class="perm-dd" ref="permRef">
             <button
               class="tool-btn perm-dd-trigger"
@@ -122,25 +123,25 @@
               :title="`权限分级：${permLabel}`"
               :aria-label="`权限分级：${permLabel}`"
               :aria-expanded="permOpen"
-              @click.stop="permOpen = !permOpen"
+              @click.stop="togglePermMenu"
             ><WsIcon name="shield" size="sm" /></button>
             <Teleport to="body">
               <div v-if="permOpen" class="perm-backdrop" @click="permOpen = false"></div>
+              <Transition name="perm-fade">
+                <div v-if="permOpen" class="perm-dd-menu" :style="permMenuStyle">
+                  <button
+                    v-for="p in PERMISSION_LEVELS"
+                    :key="p.value"
+                    class="perm-dd-item"
+                    :class="{ on: permissionLevel === p.value, warn: p.value === 'off' }"
+                    @click="pickPermission(p.value)"
+                  >
+                    <span class="perm-dd-label">{{ p.label }}</span>
+                    <span class="perm-dd-desc">{{ p.desc }}</span>
+                  </button>
+                </div>
+              </Transition>
             </Teleport>
-            <Transition name="perm-fade">
-              <div v-if="permOpen" class="perm-dd-menu">
-                <button
-                  v-for="p in PERMISSION_LEVELS"
-                  :key="p.value"
-                  class="perm-dd-item"
-                  :class="{ on: permissionLevel === p.value, warn: p.value === 'off' }"
-                  @click="pickPermission(p.value)"
-                >
-                  <span class="perm-dd-label">{{ p.label }}</span>
-                  <span class="perm-dd-desc">{{ p.desc }}</span>
-                </button>
-              </div>
-            </Transition>
           </div>
         </div>
         <div class="toolbar-center">
@@ -241,7 +242,32 @@ const PERMISSION_LEVELS = [
 ]
 const permissionLevel = ref(settingsStore.agentSecurityLevel || 'dangerous_only')
 const permOpen = ref(false)
+const permRef = ref<HTMLElement>()
+const permMenuStyle = ref<Record<string, string>>({})
 const permLabel = computed(() => PERMISSION_LEVELS.find((p) => p.value === permissionLevel.value)?.label || '权限分级')
+/** I1 修复：向上弹出的固定定位（底边对齐触发器顶边 + 6px，与 WorkdirSelect 同模式） */
+function updatePermMenuPosition(): void {
+  const el = permRef.value
+  if (!el) return
+  const rect = el.getBoundingClientRect()
+  permMenuStyle.value = {
+    bottom: `${window.innerHeight - rect.top + 6}px`,
+    right: `${window.innerWidth - rect.right}px`,
+  }
+}
+function togglePermMenu(): void {
+  permOpen.value = !permOpen.value
+  if (permOpen.value) updatePermMenuPosition()
+}
+/** I1 修复：全局 Escape 关闭（原无任何 Escape 处理，打开后仅能点选项/背景关闭） */
+function onPermDocKeydown(e: KeyboardEvent): void {
+  if (e.key === 'Escape') permOpen.value = false
+}
+watch(permOpen, (open) => {
+  // capture 阶段监听：抢在 useShortcuts（document 冒泡，命中即 stopImmediatePropagation）之前消费 Esc
+  if (open) document.addEventListener('keydown', onPermDocKeydown, true)
+  else document.removeEventListener('keydown', onPermDocKeydown, true)
+})
 async function pickPermission(v: string): Promise<void> {
   if (permissionLevel.value === v) { permOpen.value = false; return }
   permissionLevel.value = v
@@ -293,7 +319,8 @@ const referenceEmptyHint = ref('')
 
 /* ── 占位符轮播 ── */
 const placeholderByMode: Record<ChatMode, string[]> = {
-  deep: ['深度思考：问题越具体，洞察越深刻…', '适合长任务与复杂推理'],
+  // N3 修复：deep 第二条原「适合长任务与复杂推理」与 task 模式语义重叠易误读，改为深度模式独有语义
+  deep: ['深度思考：问题越具体，洞察越深刻…', '多轮推理：层层推演，深挖本质'],
   explore: ['知识探索：探索世界的设定与脉络…', '输入 @ 可引用世界设定实体'],
   task: ['任务执行：拆解并分步完成…', '描述目标，我来规划执行'],
   'group-chat': ['群聊模式…', '邀请 Agent 参与讨论'],
@@ -1063,6 +1090,7 @@ onBeforeUnmount(() => {
   stopPlaceholderRotation()
   stopVoice()
   if (summonRafId !== null) cancelAnimationFrame(summonRafId)
+  document.removeEventListener('keydown', onPermDocKeydown)
 })
 </script>
 
@@ -1394,8 +1422,9 @@ onBeforeUnmount(() => {
 .perm-dd-trigger.warn { color: var(--color-warning); }
 .perm-dd-trigger.warn.on { background: color-mix(in srgb, var(--color-warning) 16%, transparent); }
 .perm-backdrop { position: fixed; inset: 0; z-index: 1000; }
+/* I1 修复：菜单随 backdrop 一同 Teleport 到 body，改 absolute→fixed（bottom/right 由内联定位注入） */
 .perm-dd-menu {
-  position: absolute; bottom: calc(100% + 6px); right: 0;
+  position: fixed;
   min-width: 150px;
   display: flex; flex-direction: column; gap: 2px;
   padding: 4px;

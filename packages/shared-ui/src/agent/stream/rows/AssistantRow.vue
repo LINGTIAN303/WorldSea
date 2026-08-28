@@ -56,9 +56,9 @@
     <!-- Block*（非 manuscript）紧贴正文后 -->
     <MessageBlocks :blocks="blockBlocks" @block-action="(e) => emit('block-action', e)" />
 
-    <!-- 操作栏（复制 / 导出图片 / 导出GIF / 时间） -->
-    <div class="msg-actions" :class="{ visible: isHovered }">
-      <button type="button" class="action-btn" title="复制" aria-label="复制消息" @click="emit('copy', msg)"><WsIcon name="outline" size="xs" /></button>
+    <!-- 操作栏（复制 / 导出图片 / 导出GIF / 时间）；N2：复制图标改 copy（原 outline 与功能错位） -->
+      <div class="msg-actions" :class="{ visible: isHovered }">
+        <button type="button" class="action-btn" title="复制" aria-label="复制消息" @click="emit('copy', msg)"><WsIcon name="copy" size="xs" /></button>
       <button type="button" class="action-btn" title="导出为图片" aria-label="导出为图片" @click="actions.onExportImage"><WsIcon name="image" size="xs" /></button>
       <button type="button" class="action-btn" title="导出为GIF" aria-label="导出为GIF" @click="actions.onExportGif"><WsIcon name="video" size="xs" /></button>
       <span class="msg-time">{{ actions.timeLabel }}</span>
@@ -229,7 +229,8 @@ watch(renderedMarkdown, () => {
 }
 .ws-slider { position: relative; }
 .ws-slider.text-collapsed {
-  max-height: 200px;
+  /* O3：阈值上调后折叠展示更高截断，保留足够阅读上下文 */
+  max-height: 320px;
   overflow: hidden;
 }
 .ws-slider.text-collapsed::after {

@@ -155,6 +155,7 @@ export { useConfirm, type ConfirmType } from './composables/useConfirm'
 export { useSelection, SelectionKey, provideGlobalSelection, type SelectionState } from './composables/useSelection'
 export {
   useShortcuts,
+  setActiveViewId,
   formatKeysForDisplay,
   formatKeyForDisplay,
   type ShortcutScope,

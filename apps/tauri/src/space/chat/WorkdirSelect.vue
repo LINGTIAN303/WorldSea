@@ -84,10 +84,6 @@ const LAST_WORKDIR_KEY = 'last_workdir'
 const backend = useAgent()
 /** 当前会话绑定的工作区根目录（ref，可读写；无会话为 null） */
 const currentWorkdir = backend.currentWorkdir as { value: string | null }
-/** 当前会话 id（同步更新会话归属用；无会话为 null） */
-const currentSessionId = backend.currentSessionId as { value: string | null }
-/** 更新当前会话的 workdir（目录选择器切换时同步会话归属，写穿 Rust + 刷新列表） */
-const updateSessionWorkdir = backend.updateSessionWorkdir as (sessionId: string, workdir: string | null) => Promise<void>
 /** 已记录目录实体列表（Phase 3 会话树分组标签来源，这里仅作下拉候选） */
 const workdirs = backend.workdirs as { value: RustWorkdirRecord[] }
 /** 刷新目录实体列表（从 cmd_list_workdirs 拉取） */
@@ -103,11 +99,13 @@ const defaultDir = ref('')
 const currentPath = computed(() => currentWorkdir.value || defaultDir.value)
 /** 是否选中默认工作区 */
 const isDefault = computed(() => Boolean(currentWorkdir.value && currentWorkdir.value === defaultDir.value))
-/** 展示名称：默认工作区或目录基名 */
+/** 展示名称：默认工作区 / 已记录目录的实体 label / 回退路径基名（I3：与下拉勾选项名统一） */
 const displayLabel = computed(() => {
   const p = currentPath.value
   if (!p) return '默认工作区'
   if (p === defaultDir.value) return '默认工作区'
+  const rec = workdirs.value.find((w) => w.path === p)
+  if (rec && rec.label) return rec.label
   return baseName(p)
 })
 /** 下拉中「已记录目录」候选（排除默认目录实体，避免与默认项重复） */
@@ -150,11 +148,8 @@ function applyWorkdir(path: string, label: string, save: boolean) {
   currentWorkdir.value = path
   try { localStorage.setItem(LAST_WORKDIR_KEY, path) } catch {}
   open.value = false
-  // 选择目录后同步更新当前活动会话的 workdir（会话归属跟随新目录；无会话则预留给未来会话）
-  const sid = currentSessionId.value
-  if (sid) void updateSessionWorkdir(sid, path).catch((err) => {
-    console.warn('[WorkdirSelect] 更新会话归属失败:', err)
-  })
+  // X3 修复：仅切换「本次发送目录」（currentWorkdir 供工具桥上下文/新会话创建消费），
+  // 不再改写当前会话归属——会话条目保持原工作空间分组；切走再切回时恢复该会话原目录
   if (save) {
     void invoke('cmd_save_workdir', { path, label }).catch((err) => {
       console.warn('[WorkdirSelect] 保存目录实体失败:', err)
@@ -220,8 +215,16 @@ function onDocClick(e: MouseEvent) {
   }
 }
 
+/** I1 修复：全局 Escape 关闭（原仅触发按钮聚焦时生效，焦点在输入框时 Escape 无响应） */
+function onDocKeydown(e: KeyboardEvent) {
+  if (!open.value) return
+  if (e.key === 'Escape') open.value = false
+}
+
 onMounted(async () => {
+  // capture 阶段监听：抢在 useShortcuts（document 冒泡，命中即 stopImmediatePropagation）之前消费 Esc
   document.addEventListener('click', onDocClick)
+  document.addEventListener('keydown', onDocKeydown, true)
   // 解析固定默认目录（resolveWorkspaceDir() 无参）
   defaultDir.value = await resolveWorkspaceDir()
   // 记住上次选择：存在则恢复为当前工作区（否则 fallback 默认目录）
@@ -232,6 +235,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', onDocClick)
+  document.removeEventListener('keydown', onDocKeydown, true)
 })
 </script>
 

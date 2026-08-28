@@ -74,7 +74,11 @@
             <div v-if="renamingId === s.id" class="session-name">
               <input :ref="captureRenameInput" class="session-name-input" :value="s.name" @click.stop @keyup.enter="submitRename(s.id)" @keyup.esc="cancelRename" @blur="submitRename(s.id)" />
             </div>
-            <div v-else class="session-name" @dblclick="startRename(s.id)">{{ s.name }}</div>
+            <div v-else class="session-name" @dblclick="startRename(s.id)">
+              <!-- N6 修复：固定会话图钉标识（固定后无任何视觉反馈，用户看不出变化） -->
+              <WsIcon v-if="s.pinned" name="pin" size="xs" class="session-pin" />
+              {{ s.name }}
+            </div>
             <div class="session-meta">
               <span class="session-time">{{ formatTime(s.createdAt) }}</span>
               <span class="session-count">{{ s.messageCount }} 条</span>
@@ -178,7 +182,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick, type Ref } from 'vue'
 import { useAgent } from '@/agent/composables/useAgent'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon, useConfirm } from '@worldsmith/ui-kit'
 import KnowledgeWall from '@/agent/panels/KnowledgeWall.vue'
 import { useSpaceStore, type ChatMode } from '../stores/space-store'
 import { useSessionViewState, LAST_SESSION_KEY } from '@/agent/composables/useSessionViewState'
@@ -213,7 +217,7 @@ interface RustSessionInfo {
 
 // useAgentRust：会话列表/切换/删除/重命名/固定均由 Rust 后端管理
 const backend = useAgent()
-const { currentSessionId, newSession, switchSession, deleteSession, listSessions, listScenarios, sessionTitle, updateSessionTitle, setSessionPinned, loadWorkdirs } = backend
+const { currentSessionId, newSession, newDraftSession, draftSessionActive, switchSession, deleteSession, listSessions, listScenarios, sessionTitle, updateSessionTitle, setSessionPinned, loadWorkdirs } = backend
 const sessionList = backend.sessionList as unknown as Ref<RustSessionInfo[]>
 const workdirs = backend.workdirs as unknown as Ref<WorkdirRecord[]>
 /** Phase 5：待激活会话 id（newSession 后延迟展示，首条消息后才展示条目） */
@@ -263,7 +267,8 @@ async function loadDefaultDir(): Promise<void> {
 const { sessionGroups, toggleGroup } = useSessionTree(filteredItems, workdirs, defaultDir)
 
 function formatTime(ts: number): string {
-  const d = new Date(ts)
+  // L1 修复：Rust created_at 为 epoch 秒，前端 Date 按毫秒解析需 ×1000
+  const d = new Date(ts * 1000)
   const now = new Date()
   const pad = (n: number) => n.toString().padStart(2, '0')
   const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`
@@ -281,7 +286,8 @@ async function refresh() {
     await loadWorkdirs()
     await loadDefaultDir()
     // 启动恢复：首载无活跃会话时，回到上次活跃会话（若仍存在），水合其会话级视图状态
-    if (currentSessionId.value == null && list.length > 0) {
+    // L3：草稿态跳过自动恢复（点「+」进入草稿后不应被切回旧会话）
+    if (currentSessionId.value == null && !draftSessionActive.value && list.length > 0) {
       const lastId = localStorage.getItem(LAST_SESSION_KEY)
       const target = lastId && list.some((s: { id: string }) => s.id === lastId) ? lastId : list[0].id
       await switchSession(target)
@@ -291,8 +297,9 @@ async function refresh() {
 }
 
 async function onNewSession() {
-  await newSession()
-  await refresh()
+  // L3 懒创建：点「+ 会话」仅进入草稿态（不创建后端会话），首条消息发送时才创建；
+  // 未产生对话不生产会话条目，消除「孤儿空会话」「切走无入口可回」
+  await newDraftSession()
 }
 
 async function onSelect(id: string) {
@@ -365,7 +372,18 @@ async function onUnpin() {
 
 async function onDelete() {
   const id = contextMenu.value.sessionId
+  const pinned = contextMenu.value.pinned
   contextMenu.value.visible = false
+  // N7 修复：删除二次确认（消息不可恢复）；固定会话跳过确认（用户明确要删）
+  if (!pinned) {
+    const { confirm } = useConfirm()
+    const ok = await confirm({
+      type: 'danger',
+      title: '删除会话',
+      description: '删除后该会话的全部对话记录将不可恢复，确定删除？',
+    })
+    if (!ok) return
+  }
   await deleteSession(id)
 }
 
@@ -691,6 +709,13 @@ watch(currentSessionId, () => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* N6：固定会话图钉图标（弱化色调，与标题同排） */
+.session-pin {
+  color: var(--color-primary);
+  margin-right: 4px;
+  flex-shrink: 0;
+  vertical-align: -1px;
 }
 .session-name-input {
   width: 100%;

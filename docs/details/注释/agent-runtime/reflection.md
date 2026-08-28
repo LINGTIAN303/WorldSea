@@ -36,7 +36,7 @@ RefineNode.execute
 - `ReflectionNodeConfig`：`prompt_template`（占位符 `{{input}}` `{{target}}` `{{dimensions}}`）/ `dimensions`（默认 correctness/completeness/style）/ `pass_threshold`（默认 70）/ `record_user_message` / `record_reflection_as_message` / `next_node_id`
 - **评审维度默认三项**：正确性（事实/推理/逻辑）、完整性（覆盖需求）、风格（格式/表达）
 - **返回值语义**：`score ≥ threshold` → `Done`（通过结束）；否则 `Continue` + `next_node_id` 指向 Refine
-- **评审结果双写**：写入 `state.reflections`（供 RefineNode 读取）+ 格式化为 system 消息追加到 messages（保留在对话历史中）
+- **评审结果双写**：写入 `state.reflections`（供 RefineNode 读取）+ 原始评审 JSON **以 System 角色**追加到 messages（保留在对话历史中；N8 修复 2026-08-28：此前用 Assistant 角色，会让编排 `final_message` 取「最后一条 assistant」时顶替 execute/refine 的面向用户正文成为终稿）
 
 ### JSON 容错解析（评审结果）
 

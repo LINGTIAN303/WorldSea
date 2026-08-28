@@ -28,10 +28,10 @@
         </template>
       </div>
 
-      <!-- 操作栏（复制 / 重试 / 时间） -->
+      <!-- N2 修复：复制=copy、重试=redo（原 outline/delete 图标与功能语义错位） -->
       <div class="msg-actions" :class="{ visible: isHovered }">
-        <button type="button" class="action-btn" title="复制" aria-label="复制消息" @click="emit('copy', msg)"><WsIcon name="outline" size="xs" /></button>
-        <button type="button" class="action-btn" title="重试" aria-label="重试消息" @click="emit('retry', msg)"><WsIcon name="delete" size="xs" /></button>
+        <button type="button" class="action-btn" title="复制" aria-label="复制消息" @click="emit('copy', msg)"><WsIcon name="copy" size="xs" /></button>
+        <button type="button" class="action-btn" title="重试" aria-label="重试消息" @click="emit('retry', msg)"><WsIcon name="redo" size="xs" /></button>
         <span class="msg-time">{{ actions.timeLabel }}</span>
       </div>
     </div>

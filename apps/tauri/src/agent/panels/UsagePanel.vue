@@ -31,7 +31,8 @@
         <span class="usage-label">缓存节省</span>
       </div>
     </div>
-    <div class="usage-section-title">累计 (所有会话)</div>
+    <!-- R3 修复：原「累计 (所有会话)」误导——数据为前端内存态（刷新清零），非持久化会话累计 -->
+    <div class="usage-section-title">本次运行累计 <span class="usage-section-hint">（内存态，刷新后清零）</span></div>
     <div class="usage-grid">
       <div class="usage-item">
         <span class="usage-value">{{ cumulativeUsage.requestCount }}</span>
