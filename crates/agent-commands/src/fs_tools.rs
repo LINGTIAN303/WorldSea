@@ -47,6 +47,89 @@ fn ensure_within_workdir(ctx: &ToolContext, path: &Path) -> Result<(), ToolError
     Ok(())
 }
 
+// ── 任务29/E1：项目数据区写保护（Rust 原生工具组版） ─────────────
+//
+// 背景：统一根后项目实体真身落盘 `{workdir}/entities/`，平台元数据在
+// `{workdir}/.worldsmith/`。Agent 裸写/删除这些文件会经 fs_watch 回流成真实
+// 数据丢失——实体变更必须走语义层（FrontendToolBridge 的 entity_* 工具）。
+// 注意：本模块与 terminal.rs 的防护是**运行时真实链路**（Rust 主循环的
+// FS/terminal 工具组）；packages/agent-runtime 的 TS 版 workspace-boundary
+// 仅服务 TS 工具时代/桥路径，两层语义保持对齐。
+
+/// E1 受保护一级子目录名（实体数据区 + 平台元数据区）
+pub const PROTECTED_DIR_NAMES: [&str; 2] = ["entities", ".worldsmith"];
+
+/// E1 拒绝消息（引导模型走实体语义层）
+pub const PROTECTED_WRITE_ERROR: &str =
+    "拒绝：该路径位于项目数据区（entities/ 或 .worldsmith/），Agent 不可直接写入、移动或删除。\
+     实体数据请使用语义工具（entity_create / entity_update / entity_delete / content_search）操作。";
+
+/// E1 判定：解析后的路径是否落在 workdir 的受保护一级子目录内（大小写不敏感）
+///
+/// 受保护目录本身（如 `{workdir}/entities`）同样命中——对目录本身的写/删同样危险。
+pub fn is_protected_project_path(workdir: &Path, path: &Path) -> bool {
+    let Ok(rel) = path.strip_prefix(workdir) else {
+        return false;
+    };
+    let Some(first) = rel.components().next() else {
+        return false;
+    };
+    let first = first.as_os_str().to_string_lossy().to_lowercase();
+    PROTECTED_DIR_NAMES.iter().any(|name| first == *name)
+}
+
+/// E1 写守卫：workdir 存在且解析路径命中受保护目录 → 拒绝（写类工具统一入口）
+pub fn ensure_not_protected(ctx: &ToolContext, path: &Path) -> Result<(), ToolError> {
+    if let Some(workdir) = &ctx.workdir {
+        if is_protected_project_path(workdir, path) {
+            return Err(ToolError::Execution(PROTECTED_WRITE_ERROR.to_string()));
+        }
+    }
+    Ok(())
+}
+
+/// shell 写操作词（覆盖常见 shell/PowerShell 删除/移动/重定向/写入指令）
+///
+/// 子串匹配（含前后空格语境），非词边界精确——少量误报可接受（宁误拦不错放）。
+fn shell_has_write_hint(lower_command: &str) -> bool {
+    const WORDS: [&str; 15] = [
+        "rm ", "del ", "erase", "rmdir", "remove-item", "move-item", "rename-item", "mv ",
+        "set-content", "add-content", "out-file", "new-item", "copy-item", "tee-object", "cp ",
+    ];
+    WORDS.iter().any(|w| lower_command.contains(w)) || lower_command.contains('>')
+}
+
+/// shell 词法防护：命令串同现写操作词与受保护目录字样 → 判定触碰（E1 盲区收敛）
+///
+/// - `workdir` 为 `Some`：规则一（相对字样）+ 规则二（`{workdir}/entities|.worldsmith` 子串）
+/// - `workdir` 为 `None`：仅规则一（无从锚定绝对路径）
+///
+/// **非完备声明**：变量间接、别名、子串拼接可绕过——定位是拦截常见误操作并引导
+/// 语义层，不能替代用户监督（方案文档 §六 已记录接受该残余风险）。
+pub fn shell_command_touches_protected_path(workdir: Option<&Path>, command: &str) -> bool {
+    if command.is_empty() {
+        return false;
+    }
+    let lower = command.to_lowercase();
+    if !shell_has_write_hint(&lower) {
+        return false;
+    }
+    // 规则一：相对保护目录字样（entities/ 或 .worldsmith/，兼容双分隔符）
+    const PROTECTED_HINTS: [&str; 4] = ["entities/", "entities\\", ".worldsmith/", ".worldsmith\\"];
+    if PROTECTED_HINTS.iter().any(|h| lower.contains(h)) {
+        return true;
+    }
+    // 规则二：绝对保护路径（workdir 归一 + /entities|.worldsmith 子串）
+    if let Some(workdir) = workdir {
+        let w = workdir.to_string_lossy().replace('\\', "/").to_lowercase();
+        let n = lower.replace('\\', "/");
+        if n.contains(&format!("{w}/entities")) || n.contains(&format!("{w}/.worldsmith")) {
+            return true;
+        }
+    }
+    false
+}
+
 /// 取文件/目录的元数据大小（目录返回 0）
 fn entry_size(meta: &std::fs::Metadata) -> u64 {
     if meta.is_file() {
@@ -199,6 +282,8 @@ impl Tool for WriteFileTool {
         let resolved = resolve_fs_path(ctx, path);
         // 写入越界直接拒绝（安全约束）
         ensure_within_workdir(ctx, &resolved)?;
+        // 任务29/E1：项目数据区（entities/.worldsmith）裸写拒绝，须经实体语义层
+        ensure_not_protected(ctx, &resolved)?;
         // 自动创建父目录
         if let Some(parent) = resolved.parent() {
             std::fs::create_dir_all(parent)
@@ -462,6 +547,8 @@ impl Tool for EditFileTool {
         let resolved = resolve_fs_path(ctx, path);
         // 写入越界直接拒绝（安全约束）
         ensure_within_workdir(ctx, &resolved)?;
+        // 任务29/E1：项目数据区（entities/.worldsmith）裸写拒绝，须经实体语义层
+        ensure_not_protected(ctx, &resolved)?;
         let content = std::fs::read_to_string(&resolved)
             .map_err(|e| ToolError::Execution(format!("读取文件失败 {}: {e}", resolved.display())))?;
         // 找不到 old_string 时返回错误，避免静默无操作
@@ -548,6 +635,70 @@ mod tests {
             .execute_with_ctx(&ctx, json!({ "path": outside.to_string_lossy(), "content": "x" }))
             .await;
         assert!(res.is_err());
+    }
+
+    // ── 任务29/E1：项目数据区写保护 ──
+
+    #[test]
+    fn protected_path_detection() {
+        let wd = Path::new("C:/proj");
+        assert!(is_protected_project_path(wd, Path::new("C:/proj/entities/a.json")));
+        assert!(is_protected_project_path(wd, Path::new("C:/proj/.worldsmith/kv.json")));
+        assert!(is_protected_project_path(wd, Path::new("C:/proj/Entities/x.json")));
+        assert!(is_protected_project_path(wd, Path::new("C:/proj/entities")));
+        assert!(!is_protected_project_path(wd, Path::new("C:/proj/notes.md")));
+        assert!(!is_protected_project_path(wd, Path::new("C:/other/entities/x.json")));
+    }
+
+    #[test]
+    fn shell_guard_detection() {
+        let wd = Path::new("C:/proj");
+        // 写操作词 × 相对保护目录
+        assert!(shell_command_touches_protected_path(Some(wd), "rm entities/a.json"));
+        assert!(shell_command_touches_protected_path(Some(wd), "echo x > .worldsmith/kv.json"));
+        // 写操作词 × 绝对保护路径
+        assert!(shell_command_touches_protected_path(Some(wd), "rm C:/proj/entities/a.json"));
+        // 纯读命令不拦（E1 只保护写）
+        assert!(!shell_command_touches_protected_path(Some(wd), "cat entities/a.json"));
+        // 写操作但无保护目录字样
+        assert!(!shell_command_touches_protected_path(Some(wd), "echo hi > log.txt"));
+        // 无写操作词
+        assert!(!shell_command_touches_protected_path(Some(wd), "ls entities/"));
+        assert!(!shell_command_touches_protected_path(Some(wd), ""));
+    }
+
+    #[tokio::test]
+    async fn write_into_entities_rejected_by_e1() {
+        let dir = tempfile::tempdir().unwrap();
+        let ctx = ctx_for(dir.path());
+        // write_file：Err + 引导语义层
+        let res = WriteFileTool
+            .execute_with_ctx(
+                &ctx,
+                json!({ "path": "entities/hero_abc.json", "content": "{}" }),
+            )
+            .await;
+        let err = res.err().map(|e| e.to_string()).unwrap_or_default();
+        assert!(err.contains("项目数据区"), "意外响应: {err}");
+        // edit_file：同样拒绝
+        let dir2 = tempfile::tempdir().unwrap();
+        let ctx2 = ctx_for(dir2.path());
+        let target = dir2.path().join("entities").join("x.json");
+        std::fs::create_dir_all(target.parent().unwrap()).unwrap();
+        std::fs::write(&target, "{}").unwrap();
+        let res2 = EditFileTool
+            .execute_with_ctx(
+                &ctx2,
+                json!({ "path": target.to_string_lossy(), "old_string": "{", "new_string": "[]" }),
+            )
+            .await;
+        assert!(res2.is_err());
+        // 受保护目录之外的写入不受影响
+        let ok = WriteFileTool
+            .execute_with_ctx(&ctx, json!({ "path": "notes/ok.txt", "content": "fine" }))
+            .await
+            .unwrap();
+        assert_eq!(ok["ok"], true);
     }
 
     #[tokio::test]

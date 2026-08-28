@@ -186,6 +186,15 @@ impl ExecuteCommandTool {
         if command.trim().is_empty() {
             return Err(ToolError::ArgsParse("command 不能为空".into()));
         }
+        // 任务29/E1 盲区词法防护：命令串同现写操作词与受保护目录字样 → 拒绝并引导语义层
+        //（真实链路防护——Rust 主循环的 terminal 工具组；非完备声明见 fs_tools 模块注释）
+        if crate::fs_tools::shell_command_touches_protected_path(ctx.workdir.as_deref(), &command) {
+            return Ok(serde_json::json!({
+                "ok": false,
+                "error": crate::fs_tools::PROTECTED_WRITE_ERROR,
+                "command": &command,
+            }));
+        }
         let cwd = resolve_command_cwd(&args, ctx)?;
         let timeout_ms = args
             .get("timeout_ms")
@@ -417,6 +426,15 @@ impl Tool for ShellSessionExecTool {
             .get("timeout_ms")
             .and_then(|v| v.as_u64())
             .unwrap_or(DEFAULT_SESSION_TIMEOUT_MS);
+        // 任务29/E1 盲区词法防护（shell 会话无 per-call ctx，仅规则一：写操作词 × 相对保护目录字样）
+        if crate::fs_tools::shell_command_touches_protected_path(None, &command) {
+            return Ok(serde_json::json!({
+                "ok": false,
+                "error": crate::fs_tools::PROTECTED_WRITE_ERROR,
+                "session_id": &session_id,
+                "command": &command,
+            }));
+        }
 
         let mut sessions = self.manager.sessions.lock().await;
         let session = sessions

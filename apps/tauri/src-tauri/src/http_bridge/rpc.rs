@@ -1332,11 +1332,13 @@ fn register_extra(reg: &mut Registry) {
     }));
 
     // ── Secure Store / Search ──
+    // 注意：manage 的是 Arc<SecureStore>（SecureStore::new 返回 Arc<Self>），
+    // state 取键必须同为 Arc<SecureStore>——取裸类型会 panic（存量 bug，2026-08-29 修）
     reg.register("cmd_secure_store", Arc::new(move |app, args| {
         let app = app.clone();
         Box::pin(async move {
             let a: SecureSetArg = from_value(args).map_err(|e| e.to_string())?;
-            let st = app.state::<secure_store::SecureStore>();
+            let st = app.state::<std::sync::Arc<secure_store::SecureStore>>();
             secure_store::cmd_secure_store(st, a.key, a.value).await.map(|_| Value::Null)
         })
     }));
@@ -1344,7 +1346,7 @@ fn register_extra(reg: &mut Registry) {
         let app = app.clone();
         Box::pin(async move {
             let a: SecureKeyArg = from_value(args).map_err(|e| e.to_string())?;
-            let st = app.state::<secure_store::SecureStore>();
+            let st = app.state::<std::sync::Arc<secure_store::SecureStore>>();
             secure_store::cmd_secure_load(st, a.key).await.map(|r| to_value(r).unwrap_or(Value::Null))
         })
     }));
@@ -1352,7 +1354,7 @@ fn register_extra(reg: &mut Registry) {
         let app = app.clone();
         Box::pin(async move {
             let a: SecureKeyArg = from_value(args).map_err(|e| e.to_string())?;
-            let st = app.state::<secure_store::SecureStore>();
+            let st = app.state::<std::sync::Arc<secure_store::SecureStore>>();
             secure_store::cmd_secure_delete(st, a.key).await.map(|_| Value::Null)
         })
     }));

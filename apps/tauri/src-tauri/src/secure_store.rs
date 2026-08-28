@@ -78,20 +78,23 @@ impl SecureStore {
 }
 
 /// 写入 / 更新安全存储项（覆盖语义）
+///
+/// 注意 State 键为 `Arc<SecureStore>`——manage 的是 `Arc<Self>`（new 返回 Arc），
+/// 取裸 `SecureStore` 会 state() panic（2026-08-29 修复的存量 bug）。
 #[tauri::command]
-pub async fn cmd_secure_store(state: State<'_, SecureStore>, key: String, value: String) -> Result<(), String> {
+pub async fn cmd_secure_store(state: State<'_, Arc<SecureStore>>, key: String, value: String) -> Result<(), String> {
     state.set(&key, &value).await
 }
 
 /// 读取安全存储项（不存在的 key 返回空字符串，与前端 key-store 期望一致）
 #[tauri::command]
-pub async fn cmd_secure_load(state: State<'_, SecureStore>, key: String) -> Result<String, String> {
+pub async fn cmd_secure_load(state: State<'_, Arc<SecureStore>>, key: String) -> Result<String, String> {
     Ok(state.get(&key).await?.unwrap_or_default())
 }
 
 /// 删除安全存储项（不存在视为成功）
 #[tauri::command]
-pub async fn cmd_secure_delete(state: State<'_, SecureStore>, key: String) -> Result<(), String> {
+pub async fn cmd_secure_delete(state: State<'_, Arc<SecureStore>>, key: String) -> Result<(), String> {
     let _ = state.delete(&key).await?;
     Ok(())
 }
