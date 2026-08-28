@@ -21,6 +21,7 @@
 | 执行中 | perf-kit 实施方案 | 系统性解决 22 个性能问题（响应式过度/串行 I/O/缺渲染节流）。`@worldsmith/perf-kit` 包已建，Phase 1-3 全落地 + Phase 4 部分落地（虚拟滚动/脏矩形/DB 下推），其余待排期 | [perf-kit-plan.md](../plans/perf-kit-plan.md) |
 | 执行中 | 大文件拆分计划 | 测试分离（agent-runtime 7 + agent-commands 4，`#[path]` 方式）+ 数据型拆分（SKILL_REGISTRY 按类别拆入 skills/data/）+ EntityTypeSchema 三份定义统一（core-api-types 契约权威）；14 包 typecheck 全绿，已提交 80d35e1 | [2026-08-06-large-file-split-plan.md](../plans/2026-08-06-large-file-split-plan.md) |
 | 执行中 | MemoryCenter 召回集成计划 | 召回 MemoryCenter 作为 WorldSmith Agent 记忆后端：MemoryAccessor trait 注入点已定义，阶段 3 已完成闭环验证 | [memorycenter-agent-memory-plan.md](../plans/memorycenter-agent-memory-plan.md) |
+| 执行中 | 项目空间 × Agent 工作空间统一方案 | Harness 级文件系统收敛（ROADMAP 任务 29）：四条不变量 + 两套空间实现地图 + 7 分叉清单；**五问已拍板（2026-08-28）**：A1 项目目录权威根 / B1 惰性迁移 / C1 空间级浏览器 / D1 session.project_id / E1 混居写保护；M0 完成；M1 根统一被走查批次阻塞（WorkdirSelect/useAgentRust 在其 29 文件内），M2 边界收敛可先行 | [workspace-unification-plan.md](../plans/workspace-unification-plan.md) |
 | 已完成 | Rust Agent 后端补全执行计划（P0 + P1） | Rust 后端在基础对话+会话持久化+多会话管理层面完整替代 TS 后端。P0 持久化 + P1 功能完整已完成，待端到端实测 | [rust-backend-completion-plan.md](../plans/rust-backend-completion-plan.md) |
 | 已完成 | Skills Store 技能源仓库规范 | 定义技能源仓库格式、manifest schema、安装流程与安全模型，现行标准。阶段 1-4 + 方向 2/3 已完成，待桌面端 UI 端到端实测 | [skills-store-spec.md](../plans/skills-store-spec.md) |
 | 已完成 | Phase 4 实施计划：周期管理（ArchiveScheduler） | 记忆库自动化运维（周期归档/调度）。ArchiveScheduler 已实现于 `packages/memory-archive/src/scheduler/ArchiveScheduler.ts` | [2026-06-19-phase4-scheduler-plan.md](../plans/2026-06-19-phase4-scheduler-plan.md) |
@@ -40,7 +41,7 @@
 
 | 状态 | 文档 | 摘要（结论） | 链接 |
 |------|------|-------------|------|
-| 执行中 | Agent 空间单聊走查问题清单 | 2026-08-28 computer-use 真机走查（输出区/左栏/输入栏/右栏 + 冒烟测试 8 项）：**17 项发现**——高严重 5 项（X1 编排路径消息不持久化/I1 下拉不可关闭/L1 时间戳秒当毫秒/O4 裸 JSON 流式/O1 内容重复渲染），中 5 项，低 7 项；附修复优先级建议（X1→I1→L1→O4 顺序） | [Agent空间单聊走查问题清单.md](../misc/Agent空间单聊走查问题清单.md) |
+| 已完成 | Agent 空间单聊走查问题清单 | 2026-08-28 走查 17+N9 项发现，经第一/中/低三批修复 + 风险点两处后，**全清单截图终验通过**（23 项验证全绿，见清单第九节）：高 6/中 9/低 8 全部闭环。残余留观 R1/T5/O2 残余 | [Agent空间单聊走查问题清单.md](../misc/Agent空间单聊走查问题清单.md) |
 | 执行中 | 自迭代决策记录 | 用户放开自迭代权限后"拍板"决策的备查记录（如子 Agent 编排接入主循环的方案选择与理由），按主题分片存于 self-iteration/，持续追加中 | [self-iteration-decisions.md](../执行中/self-iteration-decisions.md) |
 | 已完成 | 编排模式补齐交付清单 | Plan-and-Execute / Reflection / Self-Refine 三模式补齐交付史（Rust + 前端计划面板 + 真实 DeepSeek 端到端实测）；含实测中发现的循环检测误报/静默失败/事件桥接三修复 | [orchestration-patterns-delivery.md](../misc/orchestration-patterns-delivery.md) |
 | — | 技能源测试数据 | Skills Store 商城联调用的示例技能源（example-creator，含 SKILL.md/skill.yaml/manifest） | [skills-store-test-source/](../misc/skills-store-test-source/) |

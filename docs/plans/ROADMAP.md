@@ -218,6 +218,13 @@
 - **优先级**：—
 - **备注**：记忆库三层架构已完整（框架包 + 宿主集成层 + UI 层），199 测试通过。迭代方向待定（用户视角体验？性能？检索质量？）
 
+### 29. 项目空间 × Agent 工作空间统一
+- **简述**：统一工作台项目空间与 Agent 工作空间的文件系统：一个项目 = 一个目录 = 一个事实源，Agent 与人与工具共享
+- **涉及模块**：`packages/entity-core/`（ProjectManager/FileStorageBackend/useFileSystemProject/useFsWatcher）、`apps/tauri/src/space/workspace.ts`、`apps/tauri/src/space/chat/WorkdirSelect.vue`、`apps/tauri/src/space/panels/WorkspacePanel.vue`、`apps/tauri/src-tauri/src/fs_commands.rs`、`project_commands.rs`、Rust session 数据模型
+- **状态**：进行中
+- **优先级**：—
+- **备注**：方案 [workspace-unification-plan.md](workspace-unification-plan.md)。M0 完成（现状冻结 + 2026-08-28 五问全部拍板：A1 项目目录权威根 / B1 惰性迁移 / C1 空间级浏览器 / D1 session.project_id / E1 混居写保护）。M1 根统一硬阻塞——核心改动面 WorkdirSelect.vue + useAgentRust.ts 在走查修复批次（29 文件未提交）内；M2 边界收敛与批次零重叠可先行
+
 ---
 
 ## 任务依赖关系
