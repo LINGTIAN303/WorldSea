@@ -91,6 +91,7 @@ struct NewSessionArgs {
     provider_config: Option<agent_runtime::llm::config::ProviderConfig>,
     scenario_id: Option<String>,
     workdir: Option<String>,
+    project_id: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -179,7 +180,7 @@ pub fn register_core(reg: &mut Registry) {
         Box::pin(async move {
             let a: NewSessionArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
             let st = app.state::<agent_commands::AgentCommandService>();
-            c::new_session(st, a.system_prompt, a.provider_config, a.scenario_id, a.workdir)
+            c::new_session(st, a.system_prompt, a.provider_config, a.scenario_id, a.workdir, a.project_id)
                 .await
                 .map(|r| to_value(r).unwrap_or(Value::Null))
         })

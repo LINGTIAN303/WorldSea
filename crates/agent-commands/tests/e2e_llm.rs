@@ -72,6 +72,7 @@ async fn e2e_main_chain_deepseek_stream_reply() {
             Some(deepseek_config(&api_key)),
             None,
             None,
+            None,
         )
         .await
         .expect("new_session 应成功");
@@ -1615,6 +1616,7 @@ async fn e2e_subagent_orchestration_deepseek() {
             Some(deepseek_config(&api_key)),
             None,
             None,
+            None,
         )
         .await
         .expect("会话创建失败");
@@ -1741,6 +1743,7 @@ async fn e2e_subagent_terminal_whitelist_deepseek() {
             Some(deepseek_config(&api_key)),
             None,
             None,
+            None,
         )
         .await
         .expect("会话创建失败");
@@ -1858,6 +1861,7 @@ async fn e2e_subagent_multi_dispatch_deepseek() {
             Some(deepseek_config(&api_key)),
             None,
             None,
+            None,
         )
         .await
         .expect("会话创建失败");
@@ -1970,6 +1974,7 @@ async fn e2e_subagent_spec_hot_update_deepseek() {
                     .into(),
             ),
             Some(deepseek_config(&api_key)),
+            None,
             None,
             None,
         )

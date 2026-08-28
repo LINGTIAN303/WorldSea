@@ -223,7 +223,7 @@
 - **涉及模块**：`packages/entity-core/`（ProjectManager/FileStorageBackend/useFileSystemProject/useFsWatcher）、`apps/tauri/src/space/workspace.ts`、`apps/tauri/src/space/chat/WorkdirSelect.vue`、`apps/tauri/src/space/panels/WorkspacePanel.vue`、`apps/tauri/src-tauri/src/fs_commands.rs`、`project_commands.rs`、Rust session 数据模型
 - **状态**：进行中
 - **优先级**：—
-- **备注**：方案 [workspace-unification-plan.md](workspace-unification-plan.md)。M0 完成（五问拍板 A1/B1/C1/D1/E1）；M1 根统一 ✅（2026-08-28：resolveWorkspaceDir 当前项目目录优先 + last_workdir 退役）；项目目录绑定入口已迁移至输入栏 WorkdirSelect（唯一入口源，AppMenu 项移除）；M2 边界收敛 ✅（共享边界契约 workspace-boundary + E1 写保护接入 coding/fs 两工具族，19 单测全绿）；均待真机验证。下一步 M3 锚点（session.project_id）与空间级文件浏览器
+- **备注**：方案 [workspace-unification-plan.md](workspace-unification-plan.md)。M0-M3 全部落地（2026-08-28）：M1 项目目录默认根 + 入口迁移输入栏唯一入口；M2 共享边界契约 + E1 写保护；M3 session.project_id 锚点（ALTER 幂等迁移）+ WorkspacePanel 空间级升级（无会话可浏览统一根）+ 术语统一。验证：commands 101 测试 / vitest 223 / typecheck / build 全绿，**待一次性真机走查**。剩余 M4（数据源分叉/桥收敛/端到端实测/shell 盲区评估）
 
 ---
 

@@ -154,6 +154,8 @@ interface RustSessionInfo {
   pinned: boolean
   /** 会话绑定的工作区根目录（Phase 4 接入本地文件系统；None=不限定） */
   workdir?: string
+  /** 会话归属项目 id（任务29/D1 锚点；null=旧数据/未归属） */
+  project_id?: string | null
 }
 
 /** Rust `agent_commands::WorkdirRecord` 镜像（目录实体，camelCase；Phase 3 会话树分组用） */
@@ -1428,6 +1430,16 @@ function teardownTraceListener(sessionId: string): void {
 
 // ─── 命令封装：会话生命周期 ────────────────────────────────────
 
+/** 任务29/D1：取当前项目 id（动态 import ProjectManager；项目系统未就绪/浏览器 preview 返回 null） */
+async function getCurrentProjectIdSafe(): Promise<string | null> {
+  try {
+    const { getProjectManager } = await import('@worldsmith/entity-core/core')
+    return getProjectManager().getCurrentProjectId()
+  } catch {
+    return null
+  }
+}
+
 /** 新建会话（返回 Rust SessionInfo）
  * - `scenarioId`：B1 场景 ID（可选；缺省不传 → Rust 使用默认场景 worldbuilding）
  */
@@ -1441,11 +1453,14 @@ async function newSession(
   // 无绑定项目时兜底 ~/.worldsmith/workspace）——见 docs/plans/workspace-unification-plan.md
   const workdir = currentWorkdir.value ?? (await resolveWorkspaceDir())
   await ensureWorkspaceDir(workdir)
+  // 任务29/D1 锚点：会话归属当前项目（弱引用前端 ProjectManager 的项目 UUID）
+  const projectId = await getCurrentProjectIdSafe()
   const info = await safeInvoke<RustSessionInfo>('new_session', {
     systemPrompt: systemPrompt ?? null,
     providerConfig: providerConfig ?? null,
     scenarioId: scenarioId ?? null,
     workdir,
+    projectId: projectId ?? null,
   })
   // L3：真正创建后退出草稿态
   draftSessionActive.value = false

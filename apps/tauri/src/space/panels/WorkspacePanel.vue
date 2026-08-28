@@ -3,7 +3,8 @@
     <!-- 顶部：标题 + 刷新 + 面包屑 -->
     <div class="wp-header">
       <div class="wp-title-row">
-        <span class="wp-title"><WsIcon name="folder" size="sm" /> 工作区</span>
+        <!-- 任务29/术语统一：「工作区」→「项目目录」（统一根口径，见 workspace-unification-plan.md） -->
+        <span class="wp-title"><WsIcon name="folder" size="sm" /> 项目目录</span>
         <button class="wp-action-btn" title="刷新" @click="refresh"><WsIcon name="refresh" size="sm" /></button>
       </div>
       <div v-if="rootPath" class="wp-breadcrumb">
@@ -17,7 +18,7 @@
           </button>
         </template>
       </div>
-      <div v-else class="wp-no-dir">未绑定工作区（创建会话后生效）</div>
+      <div v-else class="wp-no-dir">未绑定项目目录</div>
     </div>
 
     <!-- 工具栏：新建文件/文件夹/上传 -->
@@ -96,6 +97,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { WsIcon, useConfirm } from '@worldsmith/ui-kit'
 import { invoke } from '@/agent/composables/transport'
 import { useAgent } from '@/agent/composables/useAgent'
+import { resolveWorkspaceDir } from '../workspace'
 
 /** 目录树节点（对应 cmd_fs_list 返回的 FsEntry camelCase 结构） */
 interface FsNode {
@@ -221,9 +223,10 @@ async function refresh(): Promise<void> {
   await openDir(currentPath.value ?? rootPath.value)
 }
 
-/** 初始化：读取当前会话 workdir 作为工作区根 */
+/** 初始化：解析空间级根（任务29/C1：会话 workdir 优先；无会话回落统一根 = 当前项目目录，
+ *  浏览器 preview 为可读假路径，列表失败时呈空态），不再要求"先创建会话"才能浏览 */
 async function init(): Promise<void> {
-  const wd = currentWorkdir.value
+  const wd = currentWorkdir.value ?? (await resolveWorkspaceDir())
   if (!wd) {
     rootPath.value = null
     currentPath.value = null

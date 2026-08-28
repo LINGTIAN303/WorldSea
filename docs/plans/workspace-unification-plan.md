@@ -95,11 +95,14 @@ WorldSmith 是 Agent 产品、Harness 工程。文件系统对 Harness 不是"�
 - **M0 基线**：✅ 现状事实冻结于 §二（2026-08-28 完成）；走查批次已提交（0bd2201，27 文件），冲突面解除
 - **M1 根统一**：✅ 2026-08-28 落地——`resolveWorkspaceDir` 改为当前项目目录优先（新增 `resolveDefaultWorkspaceDir` 导出兜底）；WorkdirSelect last_workdir 跨启动记忆退役 + 默认项动态文案（项目目录/默认工作区）+ 绑定成功后刷新默认根解析；useAgentRust.newSession 注释同步。B1 惰性语义天然满足（旧会话 workdir 不动，仅新建会话用新默认）。验证：typecheck + vite build 全绿，待真机验证
 - **M2 边界收敛**：✅ 2026-08-28 落地——共享边界契约 [workspace-boundary.ts](../../packages/agent-runtime/src/tools/workspace-boundary.ts)（workdir 词法边界自 coding-agent-tools 迁出 + E1 判定/写守卫新增，消费方共享）；coding 工具 write_file/edit_file 换用写守卫；**fs-tools 五个写类工具（fs_write/mkdir/copy/move/delete）由零守卫全量接入 E1**（fs_move 源目标双守卫、fs_copy 守目标）；fs_commands.rs 头注释补「兜底防线」定位。已知限制：shell/execute_command 内容级写入无法词法拦截（接受风险，记录于边界模块注释）。验证：新增单测 19 项全绿（vitest 全量 223 绿）+ typecheck EXIT=0，待真机验证
-- **M3 锚点与视图**：session.project_id（D1）+ 统一文件浏览器（C1）+ 术语统一（分叉 #3）
-- **M4 收尾**：数据源分叉评估（分叉 #5）、桥收敛路径、端到端实测
+- **M3 锚点与视图**：✅ 2026-08-28 落地——**D1 锚点**：Rust sessions 表 ALTER 幂等补 `project_id` 列（弱引用前端项目 UUID，旧会话 NULL 惰性），SessionRecord/SessionInfo 字段 + save/load 双向 + Tauri 命令与 HTTP 桥同步透传，前端 newSession 注入当前项目 id（getCurrentProjectIdSafe 静默兜底）；**C1 空间级浏览器**：WorkspacePanel 根解析升级为「会话 workdir 优先，无会话回落统一根（当前项目目录）」，不再要求先建会话；**术语统一**：面板标题「工作区」→「项目目录」，空态文案同步。project_id 的消费（按项目过滤/记忆隔离）留 M4 与记忆集成联做。验证：agent-commands 101 测试全绿 + typecheck/build EXIT=0，待真机验证
+- **M4 收尾**：数据源分叉评估（分叉 #5）、桥收敛路径、端到端实测、shell 写入盲区根治评估
 
 ## 六、风险与协作边界
 
 - **冲突规避**：走查批次已提交（0bd2201，2026-08-28），M1 冲突解除并落地；后续里程碑开工前仍需复查 `git status` 确认无新并行批次
-- **数据迁移**：A1/D1 均涉及默认行为变化，需保证"未绑定项目的旧项目"行为不劣化
+- **数据迁移**：A1/D1 均涉及默认行为变化，需保证"未绑定项目的旧项目"行为不劣化（D1 迁移用 ALTER TABLE 幂等补列，旧会话 project_id=NULL 惰性，符合 B1）
 - **不自动修复约定**：§四 各项均为用户决策点，未拍板前不动代码
+- **已知风险（2026-08-28 记录，用户确认暂不根治）**：
+  - shell 内容级写入盲区：execute_command/shell 工具的内容级写入（如 shell 重定向写 entities/）无法词法拦截，E1 仅覆盖显式写类工具；根治需 Rust 侧系统级拦截或 shell 包装，留 M4 评估
+  - M1/M2/M3 均待真机验证：绑定项目桌面端的默认根、E1 拒绝行为、session.project_id 回传，需一次性真机走查

@@ -50,6 +50,12 @@ pub struct SessionRecord {
     /// 二者并存时以 `workspace_id` → workspaces.root 为准。
     #[serde(default)]
     pub workspace_id: Option<String>,
+    /// 会话归属的项目 id（任务29/D1 锚点；`None`=旧数据/未归属）
+    ///
+    /// 弱引用前端 ProjectManager 的项目 UUID（Rust 无 projects 表，不校验外键），
+    /// 供后续按项目过滤会话/记忆隔离等消费；`workdir`/`workspace_id` 继续承载目录语义。
+    #[serde(default)]
+    pub project_id: Option<String>,
 }
 
 /// 目录实体（工作区目录条目，Workdir 表）
@@ -224,6 +230,10 @@ impl SqliteSessionRepository {
         let _ = sqlx::query("ALTER TABLE sessions ADD COLUMN workspace_id TEXT")
             .execute(pool)
             .await;
+        // 迁移：会话归属项目 id 列（任务29/D1 锚点，弱引用前端项目 UUID），旧库补默认空
+        let _ = sqlx::query("ALTER TABLE sessions ADD COLUMN project_id TEXT")
+            .execute(pool)
+            .await;
 
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS messages (
@@ -289,11 +299,11 @@ impl SessionRepository for SqliteSessionRepository {
     async fn save_session(&self, record: &SessionRecord) -> Result<(), CommandError> {
         // 注：sessions.router_enabled 列物理保留（历史数据兼容）但不再读写（FIX-4：开关废弃，指令化）
         sqlx::query(
-            "INSERT INTO sessions (id, system_prompt, created_at, message_count, updated_at, title, pinned, kind, workdir, workspace_id)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+            "INSERT INTO sessions (id, system_prompt, created_at, message_count, updated_at, title, pinned, kind, workdir, workspace_id, project_id)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
              ON CONFLICT(id) DO UPDATE SET
                 system_prompt = ?2, created_at = ?3, message_count = ?4, updated_at = ?5,
-                title = ?6, pinned = ?7, kind = ?8, workdir = ?9, workspace_id = ?10",
+                title = ?6, pinned = ?7, kind = ?8, workdir = ?9, workspace_id = ?10, project_id = ?11",
         )
         .bind(&record.id)
         .bind(&record.system_prompt)
@@ -305,6 +315,7 @@ impl SessionRepository for SqliteSessionRepository {
         .bind(kind_to_str(record.kind))
         .bind(&record.workdir)
         .bind(&record.workspace_id)
+        .bind(&record.project_id)
         .execute(&self.pool)
         .await
         .map_err(|e| CommandError::Internal(format!("写入会话失败: {e}")))?;
@@ -323,9 +334,10 @@ impl SessionRepository for SqliteSessionRepository {
             String,
             Option<String>,
             Option<String>,
+            Option<String>,
         )> =
             sqlx::query_as(
-                "SELECT id, system_prompt, created_at, message_count, updated_at, title, pinned, kind, workdir, workspace_id FROM sessions",
+                "SELECT id, system_prompt, created_at, message_count, updated_at, title, pinned, kind, workdir, workspace_id, project_id FROM sessions",
             )
             .fetch_all(&self.pool)
             .await
@@ -348,9 +360,10 @@ impl SessionRepository for SqliteSessionRepository {
             String,
             Option<String>,
             Option<String>,
+            Option<String>,
         )> =
             sqlx::query_as(
-                "SELECT id, system_prompt, created_at, message_count, updated_at, title, pinned, kind, workdir, workspace_id FROM sessions WHERE kind = ?1",
+                "SELECT id, system_prompt, created_at, message_count, updated_at, title, pinned, kind, workdir, workspace_id, project_id FROM sessions WHERE kind = ?1",
             )
             .bind(kind_to_str(kind))
             .fetch_all(&self.pool)
@@ -689,6 +702,7 @@ fn record_from_row(
         kind,
         workdir,
         workspace_id,
+        project_id,
     ): (
         String,
         String,
@@ -698,6 +712,7 @@ fn record_from_row(
         String,
         i64,
         String,
+        Option<String>,
         Option<String>,
         Option<String>,
     ),
@@ -716,6 +731,7 @@ fn record_from_row(
         },
         workdir,
         workspace_id,
+        project_id,
     }
 }
 
@@ -766,6 +782,7 @@ mod tests {
             kind: SessionKind::Chat,
             workdir: None,
             workspace_id: None,
+            project_id: None,
         }
     }
 

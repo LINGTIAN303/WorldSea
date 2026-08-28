@@ -239,6 +239,10 @@ pub struct SessionInfo {
     /// `list_sessions` 返回时若 `workspace_id` 存在，会用对应 workspaces.root 兜底 workdir。
     #[serde(default)]
     pub workspace_id: Option<String>,
+    /// 会话归属的项目 id（任务29/D1 锚点；`None`=旧数据/未归属）。
+    /// 弱引用前端 ProjectManager 的项目 UUID，供按项目过滤/记忆隔离等后续消费。
+    #[serde(default)]
+    pub project_id: Option<String>,
 }
 
 /// 群聊参与者会话信息（映射查询结果）
@@ -905,14 +909,16 @@ impl AgentCommandService {
     /// - `provider_config`：Provider 配置（可选，缺省用默认 Cloud 占位，
     ///   随后可调用 [`Self::set_provider_config`] 写入真实配置）
     /// - `workdir`：会话绑定的工作区根目录（`None`=不限定，向后兼容；Phase 3）
+    /// - `project_id`：会话归属项目 id（任务29/D1 锚点，可选；弱引用前端 ProjectManager）
     pub async fn new_session(
         &self,
         system_prompt: Option<String>,
         provider_config: Option<RuntimeProviderConfig>,
         scenario_id: Option<String>,
         workdir: Option<PathBuf>,
+        project_id: Option<String>,
     ) -> Result<SessionInfo, CommandError> {
-        self.new_session_with_kind(system_prompt, provider_config, SessionKind::Chat, scenario_id, workdir)
+        self.new_session_with_kind(system_prompt, provider_config, SessionKind::Chat, scenario_id, workdir, project_id)
             .await
     }
 
@@ -967,6 +973,7 @@ impl AgentCommandService {
         kind: SessionKind,
         scenario_id: Option<String>,
         workdir: Option<PathBuf>,
+        project_id: Option<String>,
     ) -> Result<SessionInfo, CommandError> {
         // 先生成会话 ID，作为记忆隔离依据传入 new_agent（构造 MemoryCenterAccessor）
         let id = uuid::Uuid::new_v4().to_string();
@@ -1005,6 +1012,7 @@ impl AgentCommandService {
             kind,
             workdir: workdir_str.clone(),
             workspace_id: workspace_id.clone(),
+            project_id: project_id.clone(),
         };
         self.sessions.lock().await.insert(id.clone(), agent);
         self.subagent_managers
@@ -1025,6 +1033,7 @@ impl AgentCommandService {
                 kind,
                 workdir: workdir_str.clone(),
                 workspace_id,
+                project_id,
             };
             if let Err(e) = store.save_session(&record).await {
                 tracing::warn!("持久化新会话失败（仅内存生效）: {e}");
@@ -1610,6 +1619,7 @@ impl AgentCommandService {
                 kind: record.kind,
                 workdir: workdir_str,
                 workspace_id: workspace_id,
+                project_id: record.project_id,
             };
             self.meta.lock().await.insert(record.id.clone(), info.clone());
             restored.push(info);
@@ -1631,7 +1641,7 @@ impl AgentCommandService {
         provider_config: Option<RuntimeProviderConfig>,
     ) -> Result<GroupParticipantSessionInfo, CommandError> {
         let info = self
-            .new_session_with_kind(system_prompt, provider_config, SessionKind::Group, None, None)
+            .new_session_with_kind(system_prompt, provider_config, SessionKind::Group, None, None, None)
             .await?;
         // 写映射（持久化；失败弱提示——会话仍可用，仅重启后无法恢复定位）
         if let Some(store) = &self.session_store {
