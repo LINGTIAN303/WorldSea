@@ -422,6 +422,20 @@ pub struct AgentCommandService {
     /// 供 Tauri 层注入原生实体只读工具（entity_list/entity_get），使 worldbuilding
     /// 场景 `tool_ids()` 声明的同名工具对 LLM 可见且可执行。空列表 = 不注入。
     extra_tools: Vec<Arc<dyn Tool>>,
+    /// 会话级实体读取工厂（任务29/M4 数据源收敛；Tauri 层注入）
+    ///
+    /// 按会话 workdir 构造文件版实体工具（entity_list/entity_get，扫 `{workdir}/entities/`）。
+    /// 有 workdir 的会话在 extra_tools 之后注册（ToolBus 同名覆盖语义），使 Agent
+    /// 读到文件主存储的真身数据；无 workdir 会话回退 extra_tools 的 SQLite 兜底。
+    /// `None`（默认）：不覆盖，全部走 SQLite 兜底（旧行为）。
+    session_entity_tools_factory:
+        Option<Arc<dyn Fn(&std::path::Path) -> Vec<Arc<dyn Tool>> + Send + Sync>>,
+    /// 会话级场景实体访问器工厂（任务29/M4；与上配套，按 workdir 构造文件版 provider）
+    ///
+    /// 有 workdir 时取代全局 `entity_provider`（SQLite 版）注入 `AgentLoopConfig`；
+    /// 无 workdir 或未注入时回退全局 provider。
+    session_entity_provider_factory:
+        Option<Arc<dyn Fn(&std::path::Path) -> Arc<dyn ScenarioEntityProvider> + Send + Sync>>,
 }
 
 /// 场景摘要（Tauri 序列化用）
@@ -712,6 +726,20 @@ impl AgentCommandService {
         self
     }
 
+    /// 注入会话级实体读取工厂（任务29/M4 数据源收敛；Tauri 层 setup 时调用）
+    ///
+    /// - `tools_factory`：按会话 workdir 构造文件版 entity_list/entity_get（同名覆盖 extra_tools）
+    /// - `provider_factory`：按会话 workdir 构造文件版场景实体访问器（取代全局 SQLite provider）
+    pub fn with_session_entity_adapter(
+        mut self,
+        tools_factory: Arc<dyn Fn(&std::path::Path) -> Vec<Arc<dyn Tool>> + Send + Sync>,
+        provider_factory: Arc<dyn Fn(&std::path::Path) -> Arc<dyn ScenarioEntityProvider> + Send + Sync>,
+    ) -> Self {
+        self.session_entity_tools_factory = Some(tools_factory);
+        self.session_entity_provider_factory = Some(provider_factory);
+        self
+    }
+
     /// 把指定会话的内建 LoopController 注册为 loop_control 任务（共享同一实例）
     ///
     /// 解决"内建（自动）与命令层（手动）双轨不共享"：取该会话 `AgentLoop` 内建的
@@ -803,12 +831,31 @@ impl AgentCommandService {
         for tool in &self.extra_tools {
             tool_bus.register(tool.clone()).await;
         }
+        // 任务29/M4 数据源收敛：有 workdir 的会话用文件版实体工具覆盖注册
+        // （ToolBus 同名覆盖），使 Agent 读到项目目录 entities/ 的真身数据；
+        // 无 workdir 或未注入工厂时保持 extra_tools 的 SQLite 兜底（旧行为）。
+        let session_entity_provider: Option<Arc<dyn ScenarioEntityProvider>> = match workdir.as_ref()
+        {
+            Some(wd) => {
+                if let Some(factory) = &self.session_entity_tools_factory {
+                    for tool in factory(wd) {
+                        tool_bus.register(tool).await;
+                    }
+                }
+                match &self.session_entity_provider_factory {
+                    Some(f) => Some(f(wd)),
+                    None => self.entity_provider.clone(),
+                }
+            }
+            None => self.entity_provider.clone(),
+        };
         let agent_config = AgentLoopConfig {
             system_prompt,
             // B1：场景插件（None=默认静态 prompt / 默认工具视图）
             scenario,
             // B1 场景上下文注入：把实体访问器传给 AgentLoop，供 build_prompt_options 注入实体摘要
-            entity_provider: self.entity_provider.clone(),
+            // （任务29/M4：有 workdir 时为文件版 provider，否则回退全局 SQLite 版）
+            entity_provider: session_entity_provider,
             // A5 HITL：启用默认危险操作确认策略（execute_command 危险命令 / delegate_to_sub_agent）
             confirmation_policy: Some(ConfirmationPolicy::dangerous_only()),
             // Phase 2：会话工作区（供 FS 工具解析相对路径，None=不限定）

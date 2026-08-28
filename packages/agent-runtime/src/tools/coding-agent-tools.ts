@@ -5,7 +5,7 @@ import type { ToolMeta } from '@worldsmith/agent-core'
 import type { IToolContext } from '../toolbus/types'
 import { createExecutionAdapter, isTauri } from '../execution'
 // 任务29/M2：路径边界契约收敛到共享模块（kernel 级 resolver + E1 写保护），本文件不再本地实现
-import { resolveWithinWorkspace, resolveWriteWithinWorkspace } from './workspace-boundary'
+import { resolveWithinWorkspace, resolveWriteWithinWorkspace, shellCommandTouchesProtectedPath, PROTECTED_WRITE_ERROR } from './workspace-boundary'
 
 /** Tauri invoke 缓存 */
 let _invoke: ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) | null = null
@@ -379,6 +379,11 @@ const executeCommandTool: ToolDefinition = {
     }
 
     const command = String(args.command)
+    // 任务29/M4 E1 盲区词法防护：命令串同现写操作词与受保护目录字样 → 拒绝并引导语义层
+    //（非完备：变量间接/别名可绕过，定位=拦常见误操作，见 workspace-boundary 模块注释）
+    if (ctx.workspace?.workdir && shellCommandTouchesProtectedPath(ctx.workspace.workdir, command)) {
+      return JSON.stringify({ ok: false, error: PROTECTED_WRITE_ERROR, command })
+    }
     // cwd 缺省 = 工作区 workdir（有 workdir 时）；无 workdir 用 args.cwd 或 undefined（未加固，放行）。
     // 显式传入 cwd 且 workdir 存在时做边界校验，越界拒绝。
     let cwd: string | undefined = ctx.workspace?.workdir ?? (args.cwd ? String(args.cwd) : undefined)
@@ -447,7 +452,7 @@ const shellSessionTool: ToolDefinition = {
     ],
     displayName: 'Shell 会话',
   } satisfies ToolMeta,
-  execute: async (args: Record<string, unknown>, _ctx: IToolContext): Promise<string> => {
+  execute: async (args: Record<string, unknown>, ctx: IToolContext): Promise<string> => {
     const action = String(args.action || '')
     const adapter = await createExecutionAdapter()
 
@@ -497,6 +502,10 @@ const shellSessionTool: ToolDefinition = {
         const timeoutMs = args.timeout_ms ? Number(args.timeout_ms) : undefined
         if (!sessionId || !command) {
           return JSON.stringify({ ok: false, error: 'session_id 和 command 为必填参数' })
+        }
+        // 任务29/M4 E1 盲区词法防护：与 execute_command 同规则（写操作词 × 受保护目录字样）
+        if (ctx.workspace?.workdir && shellCommandTouchesProtectedPath(ctx.workspace.workdir, command)) {
+          return JSON.stringify({ ok: false, error: PROTECTED_WRITE_ERROR, command })
         }
         try {
           const result = await adapter.execInSession(sessionId, command, timeoutMs)

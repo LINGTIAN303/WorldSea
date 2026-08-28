@@ -96,13 +96,25 @@ WorldSmith 是 Agent 产品、Harness 工程。文件系统对 Harness 不是"�
 - **M1 根统一**：✅ 2026-08-28 落地——`resolveWorkspaceDir` 改为当前项目目录优先（新增 `resolveDefaultWorkspaceDir` 导出兜底）；WorkdirSelect last_workdir 跨启动记忆退役 + 默认项动态文案（项目目录/默认工作区）+ 绑定成功后刷新默认根解析；useAgentRust.newSession 注释同步。B1 惰性语义天然满足（旧会话 workdir 不动，仅新建会话用新默认）。验证：typecheck + vite build 全绿，待真机验证
 - **M2 边界收敛**：✅ 2026-08-28 落地——共享边界契约 [workspace-boundary.ts](../../packages/agent-runtime/src/tools/workspace-boundary.ts)（workdir 词法边界自 coding-agent-tools 迁出 + E1 判定/写守卫新增，消费方共享）；coding 工具 write_file/edit_file 换用写守卫；**fs-tools 五个写类工具（fs_write/mkdir/copy/move/delete）由零守卫全量接入 E1**（fs_move 源目标双守卫、fs_copy 守目标）；fs_commands.rs 头注释补「兜底防线」定位。已知限制：shell/execute_command 内容级写入无法词法拦截（接受风险，记录于边界模块注释）。验证：新增单测 19 项全绿（vitest 全量 223 绿）+ typecheck EXIT=0，待真机验证
 - **M3 锚点与视图**：✅ 2026-08-28 落地——**D1 锚点**：Rust sessions 表 ALTER 幂等补 `project_id` 列（弱引用前端项目 UUID，旧会话 NULL 惰性），SessionRecord/SessionInfo 字段 + save/load 双向 + Tauri 命令与 HTTP 桥同步透传，前端 newSession 注入当前项目 id（getCurrentProjectIdSafe 静默兜底）；**C1 空间级浏览器**：WorkspacePanel 根解析升级为「会话 workdir 优先，无会话回落统一根（当前项目目录）」，不再要求先建会话；**术语统一**：面板标题「工作区」→「项目目录」，空态文案同步。project_id 的消费（按项目过滤/记忆隔离）留 M4 与记忆集成联做。验证：agent-commands 101 测试全绿 + typecheck/build EXIT=0，待真机验证
-- **M4 收尾**：数据源分叉评估（分叉 #5）、桥收敛路径、端到端实测、shell 写入盲区根治评估
+- **M4 收尾**：✅ 2026-08-29 落地（风险点并入本里程碑一并推进）——
+  - **数据源分叉收敛**（分叉 #5 主危害消除）：实体真身在文件主存储，而 Agent 的 entity_list/get 与场景实体摘要此前读 EntityDb SQLite 兜底库（两侧无同步 → 空/过时数据）。新增文件版 `FsScenarioEntityProvider` + `fs_entity_tools`（扫 `{workdir}/entities/`，摘要格式与 C2 引用校验语义对齐 SQLite 版），经 `with_session_entity_adapter` 工厂注入——有 workdir 的会话同名覆盖注册（ToolBus 覆盖语义），无 workdir 回退 SQLite 兜底。**EntityDb 收敛定位 = 前端 TauriStorageBackend fallback 专用**，不再是 Agent 实体读来源
+  - **shell 写入盲区词法防护**（风险①消化）：`shellCommandTouchesProtectedPath`（写操作词 × 受保护目录字样同现即拒，宁误拦不错放）接入 execute_command 与 shell_session exec 双入口；**非完备声明**：变量间接/别名可绕过，定位 = 拦常见误操作 + 引导语义层，不能替代用户监督
+  - **FrontendToolBridge 收敛评估**：**保留**——E1 后 entity_create/update/delete（写）经桥走实体语义层是唯一正道（裸写已被拒）；读类桥工具与 Rust fs 版暂并行，真机验证 fs 版稳定后再评估退役
+  - 验证：tauri 30 测试（单线程）/ commands 101 / vitest 26（含 +7 shell 防护）/ typecheck / build 全绿
+  - **端到端走查清单（M1-M4 验收，待真机一次性执行）**：
+    1. 绑定项目 → 新会话：输入栏 pill 显示项目目录基名，会话 workdir = 项目目录（M1/A1）
+    2. 无会话打开右栏「项目目录」面板：显示当前项目目录文件树（M3/C1）
+    3. Agent 请求 `fs_delete entities/xxx.json` → 拒绝并提示 entity_delete（M2/E1）
+    4. Agent `entity_list` → 返回文件主存储的实体真身（M4 收敛）
+    5. Agent shell `rm entities/x.json` → 词法防护拒绝（M4）
+    6. 重启应用 → project_id 持久回传，旧会话 workdir 不变（M3/D1+B1）
 
 ## 六、风险与协作边界
 
 - **冲突规避**：走查批次已提交（0bd2201，2026-08-28），M1 冲突解除并落地；后续里程碑开工前仍需复查 `git status` 确认无新并行批次
 - **数据迁移**：A1/D1 均涉及默认行为变化，需保证"未绑定项目的旧项目"行为不劣化（D1 迁移用 ALTER TABLE 幂等补列，旧会话 project_id=NULL 惰性，符合 B1）
 - **不自动修复约定**：§四 各项均为用户决策点，未拍板前不动代码
-- **已知风险（2026-08-28 记录，用户确认暂不根治）**：
-  - shell 内容级写入盲区：execute_command/shell 工具的内容级写入（如 shell 重定向写 entities/）无法词法拦截，E1 仅覆盖显式写类工具；根治需 Rust 侧系统级拦截或 shell 包装，留 M4 评估
-  - M1/M2/M3 均待真机验证：绑定项目桌面端的默认根、E1 拒绝行为、session.project_id 回传，需一次性真机走查
+- **已知风险（2026-08-29 M4 处置后状态）**：
+  - shell 内容级写入盲区：✅ 已实施词法防护（M4，写操作词 × 保护目录字样同现即拒）——**非完备**：变量间接/别名/子串拼接仍可绕过，残余风险接受并依赖用户监督（根治需 Rust 系统级拦截，暂不评估）
+  - 真机验证：M1-M4 验收已收敛为 §五 M4 段的 6 项端到端走查清单，待一次性真机走查
+  - 既有测试隔离 flaky（新发现，非本任务引入）：tauri 侧 secure_store/entity_commands 的 SQLite 临时库用固定文件名（{pid}），全量并行跑偶发 `database is locked`；单线程跑全绿。建议后续测试文件名加唯一后缀（未修，不在本任务范围）

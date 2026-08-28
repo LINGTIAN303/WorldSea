@@ -223,7 +223,7 @@
 - **涉及模块**：`packages/entity-core/`（ProjectManager/FileStorageBackend/useFileSystemProject/useFsWatcher）、`apps/tauri/src/space/workspace.ts`、`apps/tauri/src/space/chat/WorkdirSelect.vue`、`apps/tauri/src/space/panels/WorkspacePanel.vue`、`apps/tauri/src-tauri/src/fs_commands.rs`、`project_commands.rs`、Rust session 数据模型
 - **状态**：进行中
 - **优先级**：—
-- **备注**：方案 [workspace-unification-plan.md](workspace-unification-plan.md)。M0-M3 全部落地（2026-08-28）：M1 项目目录默认根 + 入口迁移输入栏唯一入口；M2 共享边界契约 + E1 写保护；M3 session.project_id 锚点（ALTER 幂等迁移）+ WorkspacePanel 空间级升级（无会话可浏览统一根）+ 术语统一。验证：commands 101 测试 / vitest 223 / typecheck / build 全绿，**待一次性真机走查**。剩余 M4（数据源分叉/桥收敛/端到端实测/shell 盲区评估）
+- **备注**：方案 [workspace-unification-plan.md](workspace-unification-plan.md)。**M0-M4 全部落地（2026-08-28/29）**：M1 项目目录默认根 + 输入栏唯一绑定入口；M2 共享边界契约 + E1 写保护；M3 session.project_id 锚点 + WorkspacePanel 空间级升级 + 术语统一；M4 数据源分叉收敛（Agent 实体读切文件主存储，EntityDb 降为前端 fallback 专用）+ shell 盲区词法防护 + 桥收敛评估。验证：commands 101 / tauri 30 / vitest 26 / typecheck / build 全绿；**剩端到端走查清单 6 项待真机**（方案 §五 M4 段）
 
 ---
 

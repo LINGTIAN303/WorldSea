@@ -343,6 +343,17 @@ pub fn run() {
                             .chain(frontend_tool_bridge::bridge_tools(frontend_bridge.clone()))
                             .collect(),
                     )
+                    // 任务29/M4 数据源收敛：有 workdir 的会话改用文件版实体读取
+                    //（扫 {workdir}/entities/ 真身数据，同名覆盖 SQLite 兜底版；
+                    //  EntityDb 由此收敛为前端 TauriStorageBackend fallback 专用）
+                    .with_session_entity_adapter(
+                        Arc::new(|workdir| entity_commands::fs_entity_tools(workdir.to_path_buf())),
+                        Arc::new(|workdir| {
+                            Arc::new(entity_commands::FsScenarioEntityProvider::new(
+                                workdir.to_path_buf(),
+                            )) as Arc<dyn agent_runtime::scenario::ScenarioEntityProvider>
+                        }),
+                    )
             });
             // 启动加载：从会话库恢复全部历史会话（重建 AgentLoop + 消息历史），
             // 失败仅告警弱提示，不阻塞应用启动（无历史则按空会话启动）。

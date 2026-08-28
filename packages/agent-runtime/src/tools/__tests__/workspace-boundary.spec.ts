@@ -9,6 +9,7 @@ import {
   normalizeFsPath,
   resolveWithinWorkspace,
   resolveWriteWithinWorkspace,
+  shellCommandTouchesProtectedPath,
 } from '../workspace-boundary'
 
 /** 构造最小 IToolContext（边界函数只消费 workspace.workdir） */
@@ -119,5 +120,36 @@ describe('resolveWriteWithinWorkspace（写类守卫）', () => {
     const r = resolveWriteWithinWorkspace(ctxWith(WIN_WORKDIR), 'C:/other/entities/x.json')
     expect(r.ok).toBe(false)
     expect(r.reason).not.toContain('entity_create')
+  })
+})
+
+describe('shellCommandTouchesProtectedPath（E1 盲区词法防护）', () => {
+  it('rm + 相对保护目录 → 触碰', () => {
+    expect(shellCommandTouchesProtectedPath(WIN_WORKDIR, 'rm entities/hero_abc.json')).toBe(true)
+  })
+
+  it('重定向 + .worldsmith → 触碰', () => {
+    expect(shellCommandTouchesProtectedPath(WIN_WORKDIR, 'echo x > .worldsmith/kv_store.json')).toBe(true)
+  })
+
+  it('绝对路径删除 → 触碰（规则二）', () => {
+    expect(shellCommandTouchesProtectedPath(WIN_WORKDIR, 'rm C:/proj/entities/hero.json')).toBe(true)
+  })
+
+  it('PowerShell Remove-Item → 触碰', () => {
+    expect(shellCommandTouchesProtectedPath(WIN_WORKDIR, 'Remove-Item -Path .\\entities\\x.json')).toBe(true)
+  })
+
+  it('纯读命令（cat/ls entities/）→ 不触碰（E1 只保护写）', () => {
+    expect(shellCommandTouchesProtectedPath(WIN_WORKDIR, 'cat entities/hero.json')).toBe(false)
+    expect(shellCommandTouchesProtectedPath(WIN_WORKDIR, 'ls .worldsmith/')).toBe(false)
+  })
+
+  it('写操作但无保护目录字样 → 不触碰', () => {
+    expect(shellCommandTouchesProtectedPath(WIN_WORKDIR, 'echo hello > notes/log.txt')).toBe(false)
+  })
+
+  it('无 workdir 语义由调用方处理（空命令不触碰）', () => {
+    expect(shellCommandTouchesProtectedPath(WIN_WORKDIR, '')).toBe(false)
   })
 })

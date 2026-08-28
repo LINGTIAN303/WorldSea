@@ -100,3 +100,39 @@ export function resolveWriteWithinWorkspace(ctx: IToolContext, path: string): { 
   }
   return resolved
 }
+
+// ── shell 内容级写入的词法防护（任务29/M4：E1 盲区收敛） ─────────────
+//
+// execute_command / shell_session exec 的命令串是自由文本，E1 的路径级守卫拦不住
+// 重定向/删除类内容写入（如 `rm entities/x.json`、`echo x > .worldsmith/kv`）。
+// 本函数做保守词法扫描：命令串**同现**写操作词与受保护目录字样 → 判定触碰。
+// 非完备声明：变量间接、别名、子串拼接可绕过——定位是拦截常见误操作 +
+// 提示模型走语义层，不能替代用户监督（方案文档 §六 已记录）。
+
+/** 写操作词（覆盖常见 shell/PowerShell 删除/移动/重定向/写入指令） */
+const SHELL_WRITE_HINT_RE =
+  /(?:^|[\s|;&])(rm|del|erase|rd|rmdir|remove-item|move-item|rename-item|mv|set-content|add-content|out-file|new-item|copy-item|tee-object|echo)\b|\>{1,2}\s|\bcp\b/i
+
+/** 受保护目录的相对/任意位置字样（entities/ 或 .worldsmith/，兼容双分隔符） */
+const SHELL_PROTECTED_HINT_RE = /(^|[\s"'`(=\\/:])(entities|\.worldsmith)[\\/]/i
+
+/**
+ * 判定 shell 命令串是否可能触碰 workdir 下的受保护目录（E1 盲区词法防护）。
+ * 保守策略：写操作词与受保护目录字样同现即判定触碰（宁误拦不错放，
+ * 误拦仅损失一次调用并收到引导信息，漏放则实体数据经 fs_watch 真实丢失）。
+ */
+export function shellCommandTouchesProtectedPath(workdir: string, command: string): boolean {
+  if (!command) return false
+  // 规则一：写操作词 + 相对保护目录字样（entities/ / .worldsmith/）
+  if (SHELL_WRITE_HINT_RE.test(command) && SHELL_PROTECTED_HINT_RE.test(command)) {
+    return true
+  }
+  // 规则二：写操作词 + 绝对保护路径（workdir + /entities|.worldsmith 子串）
+  const w = normalizeFsPath(workdir).toLowerCase()
+  const n = normalizeFsPath(command).toLowerCase()
+  if (SHELL_WRITE_HINT_RE.test(command) &&
+      (n.includes(`${w}/entities`) || n.includes(`${w}/.worldsmith`))) {
+    return true
+  }
+  return false
+}

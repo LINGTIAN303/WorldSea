@@ -818,6 +818,232 @@ pub async fn cmd_get_file_content(
         .map(|c| serde_json::from_str(&c).unwrap_or(Value::Null)))
 }
 
+// ─── 文件版实体读取（任务29/M4 数据源收敛） ─────────────────
+//
+// 统一根（A1）后项目实体真身落盘于 `{项目目录}/entities/{type}/*.json`（FileStorageBackend
+// 文件主存储），而 B1 场景的实体摘要与 entity_list/entity_get 原生工具此前读 EntityDb
+// （SQLite 兜底库）——两侧无同步，Agent 读到空/过时数据的分叉。本节提供按会话 workdir
+// 直接扫描实体文件的实现：new_agent 有 workdir 时**覆盖注册**同名工具与 provider
+// （ToolBus 同名覆盖语义），无 workdir 会话回退 EntityDb 兜底（旧数据兼容）。
+// EntityDb 由此收敛定位：仅服务前端 TauriStorageBackend fallback，不再作为 Agent 实体读来源。
+
+/// 扫描 `{root}/entities/{type}/*.json`，返回实体 JSON 列表（可选按类型过滤）
+///
+/// 同步读（实体量级小、本地磁盘）；目录不存在返回空（空项目视为无实体，不报错）。
+fn scan_entities_json(root: &std::path::Path, entity_type: Option<&str>) -> Vec<Value> {
+    let entities_dir = root.join("entities");
+    let mut out = Vec::new();
+    let type_dirs = match std::fs::read_dir(&entities_dir) {
+        Ok(d) => d,
+        Err(_) => return out,
+    };
+    for dir_entry in type_dirs.flatten() {
+        let path = dir_entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+        let ty = dir_entry.file_name().to_string_lossy().to_string();
+        if let Some(filter) = entity_type {
+            if ty != filter {
+                continue;
+            }
+        }
+        let files = match std::fs::read_dir(&path) {
+            Ok(f) => f,
+            Err(_) => continue,
+        };
+        for file_entry in files.flatten() {
+            let fp = file_entry.path();
+            if fp.extension().and_then(|e| e.to_str()) != Some("json") {
+                continue;
+            }
+            if let Ok(content) = std::fs::read_to_string(&fp) {
+                if let Ok(v) = serde_json::from_str::<Value>(&content) {
+                    out.push(v);
+                }
+            }
+        }
+    }
+    out
+}
+
+/// 按摘要格式截断描述（保留前 120 字符，对齐 EntityDb::summarize_types）
+fn truncate_desc(desc: &str) -> String {
+    if desc.chars().count() > 120 {
+        let mut cut: String = desc.chars().take(120).collect();
+        cut.push('…');
+        cut
+    } else {
+        desc.to_string()
+    }
+}
+
+/// 文件版场景实体访问器：从会话 workdir 的 `entities/` 目录扫描生成摘要
+///
+/// 兑现 [`ScenarioEntityProvider`] 注释预告的 "per-project FileStorageBackend" 实现；
+/// 由 new_agent 按会话 workdir 构造（见 agent-commands），取代全局 SQLite 版注入。
+#[derive(Debug)]
+pub struct FsScenarioEntityProvider {
+    root: std::path::PathBuf,
+}
+
+impl FsScenarioEntityProvider {
+    pub fn new(root: std::path::PathBuf) -> Self {
+        Self { root }
+    }
+}
+
+#[async_trait]
+impl ScenarioEntityProvider for FsScenarioEntityProvider {
+    async fn entity_summary(&self, types: &[&str], per_type_limit: usize) -> String {
+        // 同步 IO 包 spawn_blocking，避免阻塞异步执行器（实体量大时扫描有成本）
+        let root = self.root.clone();
+        let types: Vec<String> = types.iter().map(|s| s.to_string()).collect();
+        tauri::async_runtime::spawn_blocking(move || {
+            let mut sections: Vec<String> = Vec::new();
+            for ty in &types {
+                let entities = scan_entities_json(&root, Some(ty));
+                if entities.is_empty() {
+                    continue;
+                }
+                let parts: Vec<String> = entities
+                    .into_iter()
+                    .take(per_type_limit)
+                    .map(|v| {
+                        let name = v
+                            .get("name")
+                            .and_then(|x| x.as_str())
+                            .unwrap_or("（未命名）");
+                        let desc = v.get("description").and_then(|x| x.as_str()).unwrap_or("");
+                        format!("- {name}：{}", truncate_desc(desc))
+                    })
+                    .collect();
+                sections.push(format!("【{ty}】\n{}", parts.join("\n")));
+            }
+            if sections.is_empty() {
+                String::new()
+            } else {
+                sections.join("\n\n")
+            }
+        })
+        .await
+        .unwrap_or_default()
+    }
+}
+
+/// 文件版实体读取工具集：entity_list / entity_get（按会话 workdir 扫描，C2 校验语义与 SQLite 版对齐）
+pub fn fs_entity_tools(root: std::path::PathBuf) -> Vec<Arc<dyn Tool>> {
+    vec![
+        Arc::new(FsEntityListTool { root: root.clone() }),
+        Arc::new(FsEntityGetTool { root }),
+    ]
+}
+
+/// 文件版 entity_list：列出实体（可按类型过滤）
+#[derive(Debug)]
+pub struct FsEntityListTool {
+    root: std::path::PathBuf,
+}
+
+#[async_trait]
+impl Tool for FsEntityListTool {
+    fn name(&self) -> &str {
+        "entity_list"
+    }
+    fn description(&self) -> &str {
+        "列出项目中的已有实体（角色/区域/势力/事件/概念/物种/魔法等），可按类型过滤。"
+    }
+    fn parameters(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "entity_type": {
+                    "type": "string",
+                    "description": "(可选)实体类型过滤词，如 character/region/organization/event/concept/species/magic；不传则列出全部"
+                }
+            },
+            "required": []
+        })
+    }
+    async fn execute(&self, args: serde_json::Value) -> Result<serde_json::Value, ToolError> {
+        let entity_type = args
+            .get("entity_type")
+            .and_then(|v| v.as_str())
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty());
+        let root = self.root.clone();
+        let list = tauri::async_runtime::spawn_blocking(move || {
+            scan_entities_json(&root, entity_type.as_deref())
+        })
+        .await
+        .map_err(|e| ToolError::Execution(format!("扫描实体文件失败: {e}")))?;
+        Ok(serde_json::json!(list))
+    }
+}
+
+/// 文件版 entity_get：按 ID 获取单个实体（含 expected_type 引用校验）
+#[derive(Debug)]
+pub struct FsEntityGetTool {
+    root: std::path::PathBuf,
+}
+
+#[async_trait]
+impl Tool for FsEntityGetTool {
+    fn name(&self) -> &str {
+        "entity_get"
+    }
+    fn description(&self) -> &str {
+        "按 ID 获取单个实体的完整详情。可选 expected_type 用于校验引用类型一致性。"
+    }
+    fn parameters(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "id": { "type": "string", "description": "实体 ID" },
+                "expected_type": {
+                    "type": "string",
+                    "description": "(可选)期望的实体类型；若不匹配将返回错误，防止引用错配"
+                }
+            },
+            "required": ["id"]
+        })
+    }
+    async fn execute(&self, args: serde_json::Value) -> Result<serde_json::Value, ToolError> {
+        let id = args
+            .get("id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::ArgsParse("缺少 id 参数".into()))?
+            .to_string();
+        let expected_type = args
+            .get("expected_type")
+            .and_then(|v| v.as_str())
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty());
+        let root = self.root.clone();
+        // 闭包内检索用副本（id 留给外层错误消息借用）
+        let find_id = id.clone();
+        let found = tauri::async_runtime::spawn_blocking(move || {
+            scan_entities_json(&root, None)
+                .into_iter()
+                .find(|v| v.get("id").and_then(|x| x.as_str()) == Some(find_id.as_str()))
+        })
+        .await
+        .map_err(|e| ToolError::Execution(format!("扫描实体文件失败: {e}")))?;
+        let Some(entity) = found else {
+            return Ok(serde_json::json!({ "error": format!("实体 {id} 不存在（可能是悬空引用）") }));
+        };
+        if let Some(expected) = expected_type {
+            let actual = entity.get("type").and_then(|t| t.as_str()).unwrap_or_default();
+            if actual != expected {
+                return Ok(serde_json::json!({
+                    "error": format!("引用类型不匹配：期望 {expected}，实际 {actual}（id={id}）")
+                }));
+            }
+        }
+        Ok(entity)
+    }
+}
+
 // ─── 测试 ────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -913,5 +1139,68 @@ mod tests {
             .unwrap();
         let derr = dangling.get("error").and_then(|e| e.as_str()).unwrap_or("");
         assert!(derr.contains("悬空引用"), "意外响应: {dangling}");
+    }
+
+    /// 构造临时实体目录（{tmp}/entities/{type}/*.json，模拟文件主存储布局）
+    fn temp_entities_dir() -> std::path::PathBuf {
+        let tmp = std::env::temp_dir()
+            .join(format!("ws_fs_entity_test_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        let entities = tmp.join("entities");
+        std::fs::create_dir_all(entities.join("character")).unwrap();
+        std::fs::create_dir_all(entities.join("region")).unwrap();
+        std::fs::write(
+            entities.join("character").join("a.json"),
+            r#"{"id":"c1","type":"character","name":"艾琳","description":"主角"}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            entities.join("region").join("b.json"),
+            r#"{"id":"r1","type":"region","name":"北境","description":"寒冷之地"}"#,
+        )
+        .unwrap();
+        tmp
+    }
+
+    #[tokio::test]
+    async fn fs_entity_tools_scan_list_and_get() {
+        let tmp = temp_entities_dir();
+        let tools = fs_entity_tools(tmp.clone());
+        // list 全部（2 个实体）
+        let all = tools[0].execute(serde_json::json!({})).await.unwrap();
+        assert_eq!(all.as_array().map(|a| a.len()), Some(2));
+        // list 按类型过滤
+        let by_type = tools[0]
+            .execute(serde_json::json!({ "entity_type": "character" }))
+            .await
+            .unwrap();
+        assert_eq!(by_type.as_array().map(|a| a.len()), Some(1));
+        // get 命中 + expected_type 校验通过
+        let got = tools[1]
+            .execute(serde_json::json!({ "id": "c1", "expected_type": "character" }))
+            .await
+            .unwrap();
+        assert_eq!(got["name"], "艾琳");
+        // get 悬空引用 → error
+        let missing = tools[1]
+            .execute(serde_json::json!({ "id": "ghost" }))
+            .await
+            .unwrap();
+        assert!(missing.get("error").is_some());
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[tokio::test]
+    async fn fs_scenario_provider_summary() {
+        let tmp = temp_entities_dir();
+        let provider = FsScenarioEntityProvider::new(tmp.clone());
+        // 摘要含类型段与实体名（格式对齐 EntityDb::summarize_types）
+        let summary = provider.entity_summary(&["character", "region"], 10).await;
+        assert!(summary.contains("【character】"), "意外摘要: {summary}");
+        assert!(summary.contains("艾琳"));
+        // 无实体类型 → 空串（调用方跳过段落）
+        let empty = provider.entity_summary(&["magic"], 10).await;
+        assert!(empty.is_empty());
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 }
