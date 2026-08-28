@@ -5,11 +5,17 @@
  * - Tauri 桌面模式：优先使用 Tauri 原生命令（cmd_fs_*），无需 PowerShell 中间层
  * - Web 模式：降级到 PowerShell/Shell 命令通过终端适配器执行
  *
+ * 任务29/M2（E1 写保护）：写类工具（fs_write/mkdir/copy/move/delete）统一经
+ * workspace-boundary 的 resolveWriteWithinWorkspace 守卫——workdir 下的项目数据区
+ * （entities/、.worldsmith/）裸写/移动/删除拒绝，须经实体语义层（entity_* 工具）。
+ * 读类工具（fs_read/list/stat/search）不受限。
+ *
  * 工具: fs_read / fs_write / fs_list / fs_move / fs_delete / fs_search / fs_stat / fs_mkdir / fs_copy
  */
 
 import type { ToolDefinition } from '../bridge-types'
 import { createExecutionAdapter, isTauri } from '../execution'
+import { resolveWriteWithinWorkspace } from './workspace-boundary'
 
 /** Tauri invoke 缓存 */
 let _invoke: ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) | null = null
@@ -72,14 +78,17 @@ const fsReadTool: ToolDefinition = {
 
 const fsWriteTool: ToolDefinition = {
   name: 'fs_write',
-  description: '写入或创建本地文件。仅用于项目工作区外的文件操作，项目内文件请使用内驱工具。',
+  description: '写入或创建本地文件。仅用于项目工作区外的文件操作，项目内文件请使用内驱工具。项目数据区（entities/、.worldsmith/）受保护，不可直接写入。',
   parameters: {
     path: { type: 'string', description: '文件绝对路径', required: true },
     content: { type: 'string', description: '文件内容', required: true },
     createDirs: { type: 'boolean', description: '是否自动创建父目录' },
   },
-  execute: async (args, _ctx) => {
-    const path = String(args.path)
+  execute: async (args, ctx) => {
+    // 任务29/E1 写守卫：workdir 边界归一 + 项目数据区裸写拒绝（无 workdir 时仅归一放行）
+    const resolved = resolveWriteWithinWorkspace(ctx, String(args.path))
+    if (!resolved.ok) return JSON.stringify({ ok: false, error: resolved.reason })
+    const path = resolved.path
     const content = String(args.content)
     const createDirs = !!args.createDirs
 
@@ -173,13 +182,16 @@ const fsStatTool: ToolDefinition = {
 
 const fsMkdirTool: ToolDefinition = {
   name: 'fs_mkdir',
-  description: '创建目录。支持递归创建父目录。',
+  description: '创建目录。支持递归创建父目录。项目数据区（entities/、.worldsmith/）受保护，不可在其中创建目录。',
   parameters: {
     path: { type: 'string', description: '目录绝对路径', required: true },
     recursive: { type: 'boolean', description: '是否递归创建父目录（默认 true）' },
   },
-  execute: async (args, _ctx) => {
-    const path = String(args.path)
+  execute: async (args, ctx) => {
+    // 任务29/E1 写守卫：在 entities/ 下建目录会破坏实体索引结构，同属拒绝范围
+    const resolved = resolveWriteWithinWorkspace(ctx, String(args.path))
+    if (!resolved.ok) return JSON.stringify({ ok: false, error: resolved.reason })
+    const path = resolved.path
     const recursive = args.recursive !== false
 
     // Tauri 原生路径
@@ -208,9 +220,12 @@ const fsCopyTool: ToolDefinition = {
     source: { type: 'string', description: '源路径', required: true },
     destination: { type: 'string', description: '目标路径', required: true },
   },
-  execute: async (args, _ctx) => {
+  execute: async (args, ctx) => {
+    // 任务29/E1 写守卫：fs_copy 源为只读不拦，目标（写入方）必须守卫
+    const resolved = resolveWriteWithinWorkspace(ctx, String(args.destination))
+    if (!resolved.ok) return JSON.stringify({ ok: false, error: resolved.reason })
     const source = String(args.source)
-    const destination = String(args.destination)
+    const destination = resolved.path
 
     // Tauri 原生路径
     const invoke = await getTauriInvoke()
@@ -239,9 +254,14 @@ const fsMoveTool: ToolDefinition = {
     source: { type: 'string', description: '源路径', required: true },
     destination: { type: 'string', description: '目标路径', required: true },
   },
-  execute: async (args, _ctx) => {
-    const source = String(args.source)
-    const destination = String(args.destination)
+  execute: async (args, ctx) => {
+    // 任务29/E1 写守卫：fs_move 等效删除源文件，源与目标都须守卫
+    const resolvedSrc = resolveWriteWithinWorkspace(ctx, String(args.source))
+    if (!resolvedSrc.ok) return JSON.stringify({ ok: false, error: resolvedSrc.reason })
+    const resolvedDst = resolveWriteWithinWorkspace(ctx, String(args.destination))
+    if (!resolvedDst.ok) return JSON.stringify({ ok: false, error: resolvedDst.reason })
+    const source = resolvedSrc.path
+    const destination = resolvedDst.path
 
     // Tauri 原生路径
     const invoke = await getTauriInvoke()
@@ -265,13 +285,16 @@ const fsMoveTool: ToolDefinition = {
 
 const fsDeleteTool: ToolDefinition = {
   name: 'fs_delete',
-  description: '删除本地文件或目录。此操作不可逆，请谨慎使用。',
+  description: '删除本地文件或目录。此操作不可逆，请谨慎使用。项目数据区（entities/、.worldsmith/）受保护，不可删除；实体删除请使用 entity_delete。',
   parameters: {
     path: { type: 'string', description: '要删除的文件/目录路径', required: true },
     recursive: { type: 'boolean', description: '是否递归删除目录' },
   },
-  execute: async (args, _ctx) => {
-    const path = String(args.path)
+  execute: async (args, ctx) => {
+    // 任务29/E1 写守卫：删除实体文件会经 fs_watch 回流成数据丢失，项目数据区拒绝
+    const resolved = resolveWriteWithinWorkspace(ctx, String(args.path))
+    if (!resolved.ok) return JSON.stringify({ ok: false, error: resolved.reason })
+    const path = resolved.path
     const recursive = !!args.recursive
 
     // Tauri 原生路径

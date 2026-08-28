@@ -94,7 +94,7 @@ WorldSmith 是 Agent 产品、Harness 工程。文件系统对 Harness 不是"�
 
 - **M0 基线**：✅ 现状事实冻结于 §二（2026-08-28 完成）；走查批次已提交（0bd2201，27 文件），冲突面解除
 - **M1 根统一**：✅ 2026-08-28 落地——`resolveWorkspaceDir` 改为当前项目目录优先（新增 `resolveDefaultWorkspaceDir` 导出兜底）；WorkdirSelect last_workdir 跨启动记忆退役 + 默认项动态文案（项目目录/默认工作区）+ 绑定成功后刷新默认根解析；useAgentRust.newSession 注释同步。B1 惰性语义天然满足（旧会话 workdir 不动，仅新建会话用新默认）。验证：typecheck + vite build 全绿，待真机验证
-- **M2 边界收敛**：kernel 级 resolver + 目录写保护（E1）+ `cmd_fs_*` 黑名单兜底化（实施计划待确认后开工）
+- **M2 边界收敛**：✅ 2026-08-28 落地——共享边界契约 [workspace-boundary.ts](../../packages/agent-runtime/src/tools/workspace-boundary.ts)（workdir 词法边界自 coding-agent-tools 迁出 + E1 判定/写守卫新增，消费方共享）；coding 工具 write_file/edit_file 换用写守卫；**fs-tools 五个写类工具（fs_write/mkdir/copy/move/delete）由零守卫全量接入 E1**（fs_move 源目标双守卫、fs_copy 守目标）；fs_commands.rs 头注释补「兜底防线」定位。已知限制：shell/execute_command 内容级写入无法词法拦截（接受风险，记录于边界模块注释）。验证：新增单测 19 项全绿（vitest 全量 223 绿）+ typecheck EXIT=0，待真机验证
 - **M3 锚点与视图**：session.project_id（D1）+ 统一文件浏览器（C1）+ 术语统一（分叉 #3）
 - **M4 收尾**：数据源分叉评估（分叉 #5）、桥收敛路径、端到端实测
 

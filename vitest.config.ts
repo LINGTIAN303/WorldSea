@@ -11,6 +11,7 @@ export default defineConfig({
     include: [
       'packages/memory-archive/**/__tests__/**/*.spec.ts',
       'packages/entity-core/**/__tests__/**/*.spec.ts',
+      'packages/agent-runtime/src/tools/__tests__/**/*.spec.ts',
     ],
     coverage: {
       provider: 'v8',
