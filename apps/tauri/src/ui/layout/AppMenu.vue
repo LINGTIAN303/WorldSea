@@ -31,11 +31,7 @@
             <span class="menu-item-label">搜索</span>
             <span class="menu-item-shortcut">{{ formatKeysForDisplay(['ctrl', 'k']) }}</span>
           </button>
-          <button class="menu-item" role="menuitem" @click="openFolder">
-            <WsIcon name="folder-open" size="sm" class="menu-item-icon" />
-            <span class="menu-item-label">{{ isProjectOpen ? '切换项目目录' : '绑定项目目录' }}</span>
-            <span class="menu-item-shortcut"></span>
-          </button>
+          <!-- 任务29：项目目录绑定入口已迁移至 Agent 输入栏 WorkdirSelect（唯一入口源） -->
           <button class="menu-item" role="menuitem" @click="saveFolder" :disabled="saving">
             <WsIcon name="save" size="sm" class="menu-item-icon" />
             <span class="menu-item-label">{{ saving ? '导出中...' : '导出到文件夹' }}</span>
@@ -106,7 +102,8 @@ import { WsIcon } from '@worldsmith/ui-kit'
 
 const settingsStore = useSettingsStore()
 const { register } = useShortcuts()
-const { isProjectOpen, dirName, saving, openFolder: doOpenFolder, saveToFolder, lastError } = useFileSystemProject()
+// 任务29：openFolder/isProjectOpen/dirName 已随入口迁移移除——项目目录绑定唯一入口 = Agent 输入栏 WorkdirSelect
+const { saving, saveToFolder, lastError } = useFileSystemProject()
 const { toastSuccess, toastWarn } = useToast()
 
 const hovering = ref(false)
@@ -195,16 +192,6 @@ function openConsistency() { closeMenu(); window.dispatchEvent(new CustomEvent('
 function openArtifacts() { closeMenu(); window.dispatchEvent(new CustomEvent('ws-open-artifacts')) }
 function openThemeEditor() { closeMenu(); window.dispatchEvent(new CustomEvent('ws-open-theme-editor')) }
 function openSettings() { closeMenu(); window.dispatchEvent(new CustomEvent('ws-open-settings')) }
-
-async function openFolder() {
-  closeMenu()
-  const ok = await doOpenFolder()
-  if (ok) {
-    toastSuccess(`已绑定目录：${dirName.value}`)
-  } else if (lastError.value) {
-    toastWarn(lastError.value)
-  }
-}
 
 async function saveFolder() {
   closeMenu()
