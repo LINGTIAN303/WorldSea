@@ -284,6 +284,47 @@ pub fn bridge_tools(bridge: Arc<FrontendToolBridge>) -> Vec<Arc<dyn Tool>> {
                 },
                 "required": ["keyword"]
             }),
+            bridge.clone(),
+        )),
+        // Skills 点火（H3 P1，2026-08-30）：技能元工具三件——schema 与前端 meta-tools.ts
+        // 对齐拷贝；执行经 ALL_TOOLS_MAP 的 SKILL_META_TOOLS（progressive disclosure 懒加载）。
+        // load_skill 让 LLM 可见技能索引（ensureSession 注入 system_prompt）后按需激活技能。
+        Arc::new(FrontendBridgeTool::new(
+            "load_skill",
+            "Load and activate a skill by its id. This will inject the skill instructions into your context, giving you specialized capabilities. Available skills are listed in the \"Available Skills\" section of your system prompt. Call this tool when the user task matches a skill description. Small reference documents (≤2) are automatically preloaded. For additional references, use load_skill_reference.",
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "skill_id": { "type": "string", "description": "The skill id to activate (e.g. \"worldbuilding\", \"content-craft\", \"analysis-engine\")" }
+                },
+                "required": ["skill_id"]
+            }),
+            bridge.clone(),
+        )),
+        Arc::new(FrontendBridgeTool::new(
+            "load_skill_reference",
+            "Load a reference document from an active skill. Note: small reference sets (≤2 files) are already preloaded when you call load_skill. Use this tool for additional references or skills with 3+ references. Returns the full reference content.",
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "skill_id": { "type": "string", "description": "The skill id that contains the reference" },
+                    "ref_path": { "type": "string", "description": "The reference file name (e.g. \"references/algo-catalog.md\")" }
+                },
+                "required": ["skill_id", "ref_path"]
+            }),
+            bridge.clone(),
+        )),
+        Arc::new(FrontendBridgeTool::new(
+            "load_skill_asset",
+            "Load a template or static resource from an active skill. Use when you need entity templates, output format templates, or other assets referenced in the skill instructions.",
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "skill_id": { "type": "string", "description": "The skill id that contains the asset" },
+                    "asset_path": { "type": "string", "description": "The asset file name (e.g. \"entity-templates.yaml\")" }
+                },
+                "required": ["skill_id", "asset_path"]
+            }),
             bridge,
         )),
     ]
@@ -303,15 +344,27 @@ mod tests {
     #[test]
     fn bridge_tools_define_first_batch_tools() {
         // 验证构造的桥工具契约：需 AppHandle 实例化，故此处仅验证清单由名称文档承载。
-        // 桥工具列表由 `bridge_tools` 返回四个，name 与前端 ALL_TOOLS_MAP 对齐——
+        // 桥工具列表由 `bridge_tools` 返回七个，name 与前端 ALL_TOOLS_MAP 对齐——
         // 该契约在 lib.rs 装配 `.chain(bridge_tools(...))` 处应用。
         // 任务29/M4：entity_delete 补齐（E1 拒绝裸删后的语义删除正道），三→四。
-        let names = ["entity_create", "entity_update", "entity_delete", "content_search"];
-        assert_eq!(names.len(), 4);
+        // H3 Skills 点火（P1，2026-08-30）：技能元工具三件（load_skill/_reference/_asset），四→七。
+        let names = [
+            "entity_create",
+            "entity_update",
+            "entity_delete",
+            "content_search",
+            "load_skill",
+            "load_skill_reference",
+            "load_skill_asset",
+        ];
+        assert_eq!(names.len(), 7);
         assert!(names.contains(&"entity_create"));
         assert!(names.contains(&"entity_update"));
         assert!(names.contains(&"entity_delete"));
         assert!(names.contains(&"content_search"));
+        assert!(names.contains(&"load_skill"));
+        assert!(names.contains(&"load_skill_reference"));
+        assert!(names.contains(&"load_skill_asset"));
     }
 
     #[test]

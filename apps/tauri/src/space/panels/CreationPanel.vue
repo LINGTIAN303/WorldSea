@@ -2,10 +2,10 @@
   <div class="creation-panel">
     <!-- 空状态：无选中视图 -->
     <div v-if="!activeViewId" class="creation-empty">
-      <WsIcon name="layout" size="lg" class="empty-icon" />
+      <WsIcon name="palette" size="lg" class="empty-icon" />
       <p class="empty-title">创作面板</p>
       <p class="empty-hint">选择一个创作视图开始</p>
-      <button class="view-select-btn" @click="showPicker = true">
+      <button class="view-select-btn" @click="openPicker($event)">
         <WsIcon name="plus" size="sm" />选择视图
       </button>
     </div>
@@ -13,31 +13,30 @@
     <template v-else>
       <div class="creation-header">
         <span class="creation-view-label">{{ activeViewLabel }}</span>
-        <button class="creation-switch" @click="showPicker = true" title="切换视图"><WsIcon name="refresh" size="xs" /></button>
+        <button class="creation-switch" @click="openPicker($event)" title="切换视图"><WsIcon name="refresh" size="xs" /></button>
       </div>
       <div class="creation-body">
         <component :is="activeViewComponent" />
       </div>
     </template>
 
-    <!-- 视图选择浮窗 -->
+    <!-- [③] 视图选择浮窗菜单（2026-08-29 由居中弹窗改为锚定触发按钮的浮窗菜单） -->
     <Teleport to="body">
-      <Transition name="popover">
-        <div v-if="showPicker" class="picker-overlay" @click.self="showPicker = false">
-          <div class="picker-dialog">
-            <div class="picker-header">选择创作视图</div>
-            <button
-              v-for="v in viewOptions"
-              :key="v.id"
-              class="picker-item"
-              :class="{ active: v.id === activeViewId }"
-              @click="selectView(v.id)"
-            >
-              <WsIcon :name="v.icon || 'layout'" size="sm" />
-              <span class="picker-item-label">{{ v.label }}</span>
-            </button>
-            <div v-if="viewOptions.length === 0" class="picker-empty">暂无可用创作视图</div>
-          </div>
+      <div v-if="showPicker" class="picker-backdrop" @click="showPicker = false"></div>
+      <Transition name="dropdown">
+        <div v-if="showPicker" class="picker-menu" :style="pickerStyle">
+          <div class="picker-header">选择创作视图</div>
+          <button
+            v-for="v in viewOptions"
+            :key="v.id"
+            class="picker-item"
+            :class="{ active: v.id === activeViewId }"
+            @click="selectView(v.id)"
+          >
+            <WsIcon :name="v.icon || 'palette'" size="sm" />
+            <span class="picker-item-label">{{ v.label }}</span>
+          </button>
+          <div v-if="viewOptions.length === 0" class="picker-empty">暂无可用创作视图</div>
         </div>
       </Transition>
     </Teleport>
@@ -45,12 +44,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
 import { usePluginStore } from '@worldsmith/entity-core'
 
 const pluginStore = usePluginStore()
 const showPicker = ref(false)
+const pickerStyle = ref<Record<string, string>>({ bottom: '8px', right: '8px' })
 const activeViewId = ref('')
 
 /** 可用的插件创作视图（排除空间/主视图 `custom` 等非创作视图） */
@@ -68,10 +68,32 @@ const activeViewComponent = computed(() => {
   return v?.component ?? null
 })
 
+/** 打开浮窗菜单：锚定触发按钮（右下角） */
+function openPicker(ev: MouseEvent) {
+  const el = ev.currentTarget as HTMLElement
+  const rect = el.getBoundingClientRect()
+  pickerStyle.value = {
+    bottom: `${Math.max(8, window.innerHeight - rect.top + 6)}px`,
+    right: `${Math.max(8, window.innerWidth - rect.right)}px`,
+  }
+  showPicker.value = true
+}
+
 function selectView(id: string) {
   activeViewId.value = id
   showPicker.value = false
 }
+
+function onDocKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape') showPicker.value = false
+}
+
+onMounted(() => {
+  document.addEventListener('keydown', onDocKeydown, true)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', onDocKeydown, true)
+})
 </script>
 
 <style scoped>
@@ -158,24 +180,26 @@ function selectView(id: string) {
   min-height: 0;
   overflow-y: auto;
 }
-.picker-overlay {
+/* 浮窗菜单（锚定触发按钮） */
+.picker-backdrop {
   position: fixed;
   inset: 0;
   z-index: 10000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.3);
 }
-.picker-dialog {
-  min-width: 240px;
+.picker-menu {
+  position: fixed;
+  min-width: 220px;
+  max-width: 280px;
   max-height: 60vh;
   overflow-y: auto;
   background: var(--color-surface-elevated);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: 8px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  padding: 6px;
+  z-index: 10001;
 }
 .picker-header {
   padding: 6px 10px 4px;
@@ -217,12 +241,18 @@ function selectView(id: string) {
   color: var(--color-text-tertiary);
   font-size: var(--font-size-xs);
 }
-.popover-enter-active,
-.popover-leave-active {
-  transition: opacity 0.15s ease;
+.dropdown-enter-active {
+  transition: opacity 0.12s ease, transform 0.12s ease;
 }
-.popover-enter-from,
-.popover-leave-to {
+.dropdown-leave-active {
+  transition: opacity 0.08s ease, transform 0.08s ease;
+}
+.dropdown-enter-from {
   opacity: 0;
+  transform: translateY(4px);
+}
+.dropdown-leave-to {
+  opacity: 0;
+  transform: translateY(2px);
 }
 </style>

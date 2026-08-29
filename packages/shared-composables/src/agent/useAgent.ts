@@ -17,6 +17,10 @@ export interface ToolCallView {
   result?: string
   startedAt: number
   endedAt?: number
+  /** 行段种类（行段模型 v2）：归约层由工具名推导；旧路径未携带时渲染层按名称回退分类 */
+  rowKind?: import('./turnModel').ActionRowKind
+  /** 执行耗时（毫秒，H7 P0.5 事件权威字段）；旧事件/历史回源无此字段则不显示 */
+  durationMs?: number
   /** 交互类型分类（深度模式专用） */
   interactiveType?: InteractiveToolType
   /** 展示型工具的 Block 数据（output_* 工具执行后回填） */
@@ -87,8 +91,31 @@ export function useAgentOptional(): any | null {
 
 /** Agent 输出事件流单行（统一渲染源，对齐 Harness Node 流） */
 export type AgentStreamItem =
-  | { type: 'user'; msg: import('@agent/index').AgentMessage; id: string; timestamp: number }
-  | { type: 'assistant'; msg: import('@agent/index').AgentMessage; id: string; timestamp: number }
+  /** turnId：所属轮次（渲染层按轮次分组、折叠 latch 归属都需要；旧调用方可不传） */
+  | {
+      type: 'user'
+      msg: import('@agent/index').AgentMessage
+      id: string
+      timestamp: number
+      turnId?: string
+    }
+  /** isResult=true 表示此正文行是 ③ 结果层；false/undefined 为 ② 过程层的过程文本段 */
+  | {
+      type: 'assistant'
+      msg: import('@agent/index').AgentMessage
+      id: string
+      timestamp: number
+      isResult?: boolean
+    }
   | { type: 'think'; id: string; text: string; status: 'streaming' | 'complete'; timestamp: number }
   | { type: 'tool'; tc: ToolCallView; id: string; timestamp: number }
   | { type: 'divider'; id: string; dividerText: string; timestamp: number }
+  /** 过程层折叠摘要行：过程层折叠时替代全部过程行段，点击可展开 */
+  | {
+      type: 'process_summary'
+      id: string
+      turnId: string
+      thinkCount: number
+      actionCount: number
+      timestamp: number
+    }

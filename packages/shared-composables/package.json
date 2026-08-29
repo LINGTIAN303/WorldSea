@@ -14,6 +14,7 @@
     "./agent/useGenerationProgress": "./src/agent/useGenerationProgress.ts",
     "./agent/useCliAgent": "./src/agent/useCliAgent.ts",
     "./agent/useAgent": "./src/agent/useAgent.ts",
+    "./agent/turnModel": "./src/agent/turnModel.ts",
     "./agent/useOrchestrator": "./src/agent/useOrchestrator.ts",
     "./agent/useTitleGen": "./src/agent/useTitleGen.ts",
     "./agent/useSkillsStore": "./src/agent/useSkillsStore.ts",

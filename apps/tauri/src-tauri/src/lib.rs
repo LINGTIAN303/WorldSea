@@ -36,6 +36,13 @@ mod plan_commands;
 mod router_commands;
 // Rust → 前端 双向工具桥（entity_create/update + content_search 等经前端执行）
 mod frontend_tool_bridge;
+// MCP 客户端 Hub（rmcp：stdio / streamable-http 双传输 + 工具快照）
+mod mcp_client;
+// MCP Tauri 命令层（连接/断开/状态/持久化，SQLite mcp.db）
+mod mcp_commands;
+// Skills Store 命令层（Task 24 阶段2/4；H3 点火 2026-08-30 从 git 历史重建——
+// 原实现在 980385c 端分离迁移中被删，详见 Harness 工程差距调研 H3）
+mod skills_store;
 // 安全存储命令（cmd_secure_store/load/delete）：API Key 落应用数据目录 SQLite
 mod secure_store;
 // [HTTP-BRIDGE] 临时：浏览器直连真实后端的 HTTP 服务（axum RPC + SSE）；移除时删除本段与 http_bridge/ 目录
@@ -119,6 +126,21 @@ pub fn run() {
             commands::cmd_agent_set_security_level,
             // FrontendToolBridge：前端执行桥工具后按 callId 回传结果
             commands::cmd_agent_tool_result,
+            // Skills Store（H3 点火 2026-08-30 重建）：商城安装/卸载/版本/本地导入/目录
+            skills_store::cmd_skills_download_manifest,
+            skills_store::cmd_skills_install,
+            skills_store::cmd_skills_uninstall,
+            skills_store::cmd_skills_get_installed_versions,
+            skills_store::cmd_skills_import_local,
+            skills_store::cmd_skills_get_dir,
+            // MCP（H2 重建 2026-08-30 · rmcp）：连接/断开/状态/工具/持久化
+            mcp_commands::cmd_mcp_connect,
+            mcp_commands::cmd_mcp_disconnect,
+            mcp_commands::cmd_mcp_status,
+            mcp_commands::cmd_mcp_list_tools,
+            mcp_commands::cmd_mcp_save,
+            mcp_commands::cmd_mcp_delete,
+            mcp_commands::cmd_mcp_saved,
             // 诊断日志（临时，排障用）
             commands::cmd_diag_log,
             commands::abort,
@@ -311,7 +333,7 @@ pub fn run() {
                 app.handle().clone(),
             ));
             app.manage(frontend_bridge.clone());
-            let svc = tauri::async_runtime::block_on(async {
+            let mut svc = tauri::async_runtime::block_on(async {
                 let store = SqliteSubAgentSpecStore::new(db_path.to_str().unwrap())
                     .await
                     .expect("初始化子 Agent 规格数据库失败");
@@ -355,6 +377,20 @@ pub fn run() {
                         }),
                     )
             });
+            // H2 MCP 重建（P2，2026-08-30 · Rust 原生 rmcp 路线）：MCP Hub 初始化——
+            // 打开 mcp.db（SQLite 持久化）+ 工具快照供给器（new_agent 时注入会话 tool_bus）
+            let mcp_state = tauri::async_runtime::block_on(async {
+                mcp_commands::init_state(app.handle()).await.expect("初始化 MCP 状态失败")
+            });
+            svc.set_mcp_tools_provider({
+                let hub = mcp_state.hub.clone();
+                Arc::new(move || hub.tools_for_bus())
+            });
+            app.manage(mcp_state);
+            {
+                let state = app.state::<mcp_commands::McpState>();
+                tauri::async_runtime::block_on(mcp_commands::auto_connect_all(&state));
+            }
             // 启动加载：从会话库恢复全部历史会话（重建 AgentLoop + 消息历史），
             // 失败仅告警弱提示，不阻塞应用启动（无历史则按空会话启动）。
             let restored = tauri::async_runtime::block_on(async { svc.restore_sessions().await });

@@ -76,15 +76,22 @@
               <button class="right-empty-add" @click="toggleAddMenu"><WsIcon name="plus" size="sm" />添加面板</button>
             </div>
             <template v-else>
-              <ExecPanel v-if="rightTab === 'exec'" :tab="execTab" @update:tab="setExecTab" />
+              <ExecPanel v-if="rightTab === 'exec'" />
               <template v-else-if="rightTab === 'config'">
                 <div class="right-config-subtabs">
                   <button class="right-subtab" :class="{ active: spaceStore.configSubTab === 'memory' }" @click="spaceStore.setConfigSubTab('memory')">记忆</button>
                   <button class="right-subtab" :class="{ active: spaceStore.configSubTab === 'persona' }" @click="spaceStore.setConfigSubTab('persona')">人格</button>
+                  <button class="right-subtab" :class="{ active: spaceStore.configSubTab === 'profile' }" @click="spaceStore.setConfigSubTab('profile')">档案</button>
                 </div>
                 <div class="right-config-body">
                   <MemoryShelf v-if="spaceStore.configSubTab === 'memory'" embedded />
-                  <PersonaMirror v-else embedded />
+                  <PersonaMirror v-else-if="spaceStore.configSubTab === 'persona'" embedded />
+                  <!-- [②] 档案占位（不在本次实现） -->
+                  <div v-else class="right-profile-placeholder">
+                    <WsIcon name="user" size="lg" class="right-profile-icon" />
+                    <p class="right-profile-title">档案</p>
+                    <p class="right-profile-hint">占位，待实现</p>
+                  </div>
                 </div>
               </template>
               <CreationPanel v-else-if="rightTab === 'creation'" />
@@ -149,13 +156,13 @@ import { usePlanStore } from '@worldsmith/shared-composables/agent/usePlanStore'
 import { useSessionViewState } from '@/agent/composables/useSessionViewState'
 import { provideMessageSpeakerContext } from '@worldsmith/shared-composables/agent/useMessageSpeaker'
 import { usePersonaFont } from './composables/usePersonaFont'
-import type { ExecTab, RightTab } from './stores/space-store'
+import type { RightTab } from './stores/space-store'
 
 /** [C] 右侧面板工作台式：四类面板元数据（Tab 栏 + +号浮窗共用） */
 const PANEL_META: { id: RightTab; label: string; icon: string; title: string }[] = [
   { id: 'exec', label: '执行', icon: 'chart', title: '执行（轨迹/活动/计划）' },
   { id: 'config', label: '配置', icon: 'settings', title: '配置（记忆/人格）' },
-  { id: 'creation', label: '创作', icon: 'layout', title: '创作（插件创作视图）' },
+  { id: 'creation', label: '创作', icon: 'palette', title: '创作（插件创作视图）' },
   { id: 'preview', label: '预览', icon: 'eye', title: '预览（项目产物）' },
   { id: 'usage', label: '用量', icon: 'dashboard', title: '用量（请求/token/费用）' },
 ]
@@ -202,10 +209,8 @@ provideMessageSpeakerContext({
   defaultAgentColor: personaFont.profile.value.accentColor,
 })
 
-// execTab 按会话隔离（viewState 权威，切换会话自动恢复该会话上次子页）
+// 会话级视图状态（viewState 权威：rightPanel / openExecSections 等）
 const sessionView = useSessionViewState()
-const execTab = computed(() => sessionView.activeState.value?.execTab ?? 'trace')
-function setExecTab(t: ExecTab) { sessionView.setExecTab(t) }
 
 // [C] 右侧面板 Level-1 会话级记忆：rightPanel 由 viewState 权威；无活跃会话时空容器
 const hasActiveSession = computed(() => !!sessionView.activeSessionId.value)
@@ -280,22 +285,22 @@ function closeSession() {
   spaceStore.setSessionSidebarOpen(false)
 }
 
-// 生成任务活跃时自动打开右侧面板（执行 Tab · 活动）
+// 生成任务活跃时自动打开右侧面板（执行 Tab · 活动区，新增式）
 watch(hasActive, (active) => {
   if (active) {
     setRightTab('exec')
-    setExecTab('activity')
+    sessionView.addExecSection('activity')
     spaceStore.activityPinned = true
   } else {
     spaceStore.activityPinned = false
   }
 })
 
-// Plan 创建时自动打开右侧面板（执行 Tab · 计划）
+// Plan 创建时自动打开右侧面板（执行 Tab · 计划区，新增式）
 watch(() => planStore.hasPlan, (has) => {
   if (has) {
     setRightTab('exec')
-    setExecTab('plan')
+    sessionView.addExecSection('plan')
   }
 })
 
@@ -509,6 +514,33 @@ function onExecResizeStart(e: MouseEvent) {
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+/* [②] 档案占位 */
+.right-profile-placeholder {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px;
+  text-align: center;
+}
+.right-profile-icon {
+  color: var(--color-text-tertiary);
+  opacity: 0.5;
+}
+.right-profile-title {
+  margin: 0;
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  color: var(--color-text);
+}
+.right-profile-hint {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
 }
 
 /* [C] 空容器起步 */

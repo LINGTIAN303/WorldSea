@@ -133,6 +133,8 @@ pub struct PromptResponse {
     pub output_tokens: Option<u32>,
     /// 停止原因（如 "stop"、"tool_calls"、"length"）
     pub stop_reason: Option<String>,
+    /// 推理文本（链式/深度推理模型的内部推理内容，可选；供持久化与前端渲染）
+    pub reasoning: Option<String>,
 }
 
 impl PromptResponse {
@@ -144,6 +146,7 @@ impl PromptResponse {
             input_tokens: None,
             output_tokens: None,
             stop_reason: None,
+            reasoning: None,
         }
     }
 
@@ -192,6 +195,7 @@ pub enum ThinkingLevel {
     Medium,
     High,
     Xhigh,
+    Max,
 }
 
 /// LLM 后端错误

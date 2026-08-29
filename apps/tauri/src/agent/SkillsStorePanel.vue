@@ -77,6 +77,39 @@
         </Transition>
       </div>
 
+      <!-- 已安装技能（H3 冒烟修复 2026-08-30）：商城主列表只显示远程源技能，
+           本地导入/无源安装的技能无处可见——此区块列出全部已安装（installedVersionMap ∩ registry 合并视图） -->
+      <div class="store-section" v-if="localInstalledSkills.length > 0">
+        <div class="store-browse-header">
+          <span class="store-section-title">已安装 <span class="store-section-count">{{ localInstalledSkills.length }}</span></span>
+          <button class="store-section-toggle" @click="refreshStore" :disabled="store.loading.value">
+            <WsIcon name="refresh" size="xs" />
+            {{ store.loading.value ? '刷新中...' : '刷新' }}
+          </button>
+        </div>
+        <div class="store-skill-grid">
+          <div v-for="s in localInstalledSkills" :key="s.id" class="store-skill-card">
+            <div class="store-skill-header">
+              <span class="store-skill-name">{{ s.name }}</span>
+              <span v-if="s.version" class="store-skill-version">v{{ s.version }}</span>
+            </div>
+            <div class="store-skill-meta">
+              <span class="store-skill-installed-tag">{{ s.id }}</span>
+            </div>
+            <div class="store-skill-actions">
+              <button
+                class="sub-panel-btn store-action-btn store-uninstall-btn"
+                :disabled="store.installing.value === s.id"
+                @click="onUninstall(s.id)"
+              >
+                <WsIcon name="delete" size="xs" />
+                {{ store.installing.value === s.id ? '卸载中...' : '卸载' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- 商城浏览区 -->
       <div class="store-section">
         <div class="store-browse-header">
@@ -160,6 +193,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
 import { useSkillsStore } from '@worldsmith/shared-composables/agent/useSkillsStore'
+import { getAllSkills, initSkillRegistry } from '@agent/skills/registry'
 import type { RemoteSkillEntry } from '@agent/index'
 
 const emit = defineEmits<{ 'skills-changed': [] }>()
@@ -197,9 +231,22 @@ function confirmAddSource(): void {
   }
 }
 
-/** 刷新商城（远程 + 已安装） */
+/** 已安装到本地的技能——以 store.installedVersionMap 为主驱动（onMounted 即拉取，不依赖
+ *  registry 刷新时机；此前用 getAllSkills() 过滤 map，但 registry 的已安装合并只在
+ *  建会话/点刷新时执行，导致区块恒空——冒烟第三轮根因）。registry 仅补充友好名。 */
+const localInstalledSkills = computed(() => {
+  const map = store.installedVersionMap.value
+  const nameById = new Map(getAllSkills().map(s => [s.id, s.name]))
+  return [...map.entries()].map(([id, version]) => ({ id, name: nameById.get(id) ?? id, version }))
+})
+
+/** 刷新商城（远程 + 已安装 + registry 重扫：导入/安装后保证本区块与 Agent 索引同步） */
 async function refreshStore(): Promise<void> {
-  await Promise.all([store.refreshRemote(), store.refreshInstalled()])
+  await Promise.all([
+    store.refreshRemote(),
+    store.refreshInstalled(),
+    initSkillRegistry().catch(() => {}),
+  ])
 }
 
 /** 安装/更新技能，完成后通知父组件刷新技能列表 */

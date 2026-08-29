@@ -1,80 +1,146 @@
 <!--
-  AgentStreamList：事件行流纯行渲染容器
-  遍历 agentStream（AgentStreamItem[]），按 item.type 分发到对应行组件（user/assistant/think/tool/divider）。
-  不负责窗口化（列表层接管）；只做纯行渲染 + 事件透传。
+  AgentStreamList：事件行流的轮次分组渲染容器
+  按轮次（Turn）把事件行组织为三个结构层（设计文档 §3.1）：
+    ① 用户消息层 → UserRow
+    ② LLM 过程层 → 该轮的全部过程行段（推理 / 过程文本 / 动作 / 折叠摘要）
+    ③ LLM 结果层 → 该轮的最终输出，唯一带操作栏
+  分组以 user 行为界。窗口化切片可能从轮次中间开始 → 首组无用户行（orphan 组），
+  保证不丢行。窗口化按 data-msg-id 的 id 键测量高度，与 DOM 嵌套无关，故分组安全。
+
+  不负责窗口化（列表层接管）；只做分组 + 行分发 + 事件透传。
   入场动画治理（止血包⑤）：ws-stream-row-enter 仅挂「真正新追加」的行——
-  首屏水合批次与整表替换（切会话/回源重建）不播动画，窗口切片滚动进出的旧行不播，
-  消除滚动浏览/切会话时的整屏行闪烁（原实现所有行挂载即播 CSS animation）。
-  emits：block-action / manuscript-local-action / hover / leave / copy / retry / tool-confirm / scroll-to-message。
+  首屏水合批次与整表替换（切会话/回源重建）不播动画，窗口切片滚动进出的旧行不播。
+  emits：block-action / manuscript-local-action / hover / leave / copy / retry /
+        tool-confirm / segment-expand / expand / scroll-to-message。
 -->
 <template>
   <div class="ws-stream-list">
-    <template v-for="item in items" :key="item.id">
-      <!-- 用户行 -->
-      <UserRow
-        v-if="item.type === 'user'"
-        :class="animatedIds.has(item.id) ? 'ws-stream-row-enter' : undefined"
-        :msg="item.msg"
-        :is-hovered="hoveredId === item.id"
+    <template v-for="group in groups" :key="group.id">
+      <!-- ① 用户消息层 -->
+      <StreamRow
+        v-if="group.user"
+        :item="group.user"
+        :animated="animatedIds.has(group.user.id)"
+        :is-hovered="hoveredId === group.user.id"
         @hover="onHover"
         @leave="onLeave"
         @copy="(m) => emit('copy', m)"
         @retry="(m) => emit('retry', m)"
       />
-      <!-- 正文行 -->
-      <AssistantRow
-        v-else-if="item.type === 'assistant'"
-        :class="animatedIds.has(item.id) ? 'ws-stream-row-enter' : undefined"
-        :msg="item.msg"
-        :is-hovered="hoveredId === item.id"
+      <!-- ② LLM 过程层（data-turn-id 供折叠控制器做视口判定） -->
+      <div v-if="group.process.length > 0" class="ws-turn-process" :data-turn-id="group.id">
+        <StreamRow
+          v-for="row in group.process"
+          :key="row.id"
+          :item="row"
+          :animated="animatedIds.has(row.id)"
+          :is-hovered="hoveredId === row.id"
+          @hover="onHover"
+          @leave="onLeave"
+          @copy="(m) => emit('copy', m)"
+          @block-action="(e) => emit('block-action', e)"
+          @manuscript-local-action="(e) => emit('manuscript-local-action', e)"
+          @tool-confirm="(e) => emit('tool-confirm', e)"
+          @expand="() => emit('segment-expand', group.id)"
+          @expand-process="() => emit('expand', group.id)"
+        />
+      </div>
+      <!-- ③ LLM 结果层（唯一带操作栏，由 AssistantRow 的 isResult 驱动）
+           data-result-turn-id：折叠/展开过程层时作为滚动锚点，避免高度骤变导致视口跳动 -->
+      <div v-if="group.result" class="ws-turn-result" :data-result-turn-id="group.id">
+        <StreamRow
+          :item="group.result"
+          :animated="animatedIds.has(group.result.id)"
+          :is-hovered="hoveredId === group.result.id"
+          @hover="onHover"
+          @leave="onLeave"
+          @copy="(m) => emit('copy', m)"
+          @block-action="(e) => emit('block-action', e)"
+          @manuscript-local-action="(e) => emit('manuscript-local-action', e)"
+        />
+      </div>
+      <!-- 尾部行：结果层之后仍属于本轮次的行（如中止「已停止」分隔行） -->
+      <StreamRow
+        v-for="row in group.tail"
+        :key="row.id"
+        :item="row"
+        :animated="animatedIds.has(row.id)"
+        :is-hovered="hoveredId === row.id"
         @hover="onHover"
         @leave="onLeave"
         @copy="(m) => emit('copy', m)"
         @block-action="(e) => emit('block-action', e)"
         @manuscript-local-action="(e) => emit('manuscript-local-action', e)"
-      />
-      <!-- Think 行 -->
-      <ThinkRow
-        v-else-if="item.type === 'think'"
-        :class="animatedIds.has(item.id) ? 'ws-stream-row-enter' : undefined"
-        :item="item"
-        @hover="onHover"
-        @leave="onLeave"
-      />
-      <!-- Tool 行 -->
-      <ToolRow
-        v-else-if="item.type === 'tool'"
-        :class="animatedIds.has(item.id) ? 'ws-stream-row-enter' : undefined"
-        :item="item"
-        @block-action="(e) => emit('block-action', e)"
         @tool-confirm="(e) => emit('tool-confirm', e)"
-      />
-      <!-- 分隔线 -->
-      <DividerRow
-        v-else-if="item.type === 'divider'"
-        :class="animatedIds.has(item.id) ? 'ws-stream-row-enter' : undefined"
-        :divider-text="item.dividerText"
-        :timestamp="item.timestamp"
+        @expand="() => emit('segment-expand', group.id)"
       />
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { AgentStreamItem } from '@worldsmith/shared-composables/agent/useAgent'
-import UserRow from './rows/UserRow.vue'
-import AssistantRow from './rows/AssistantRow.vue'
-import ThinkRow from './rows/ThinkRow.vue'
-import ToolRow from './rows/ToolRow.vue'
-import DividerRow from './rows/DividerRow.vue'
+import StreamRow from './rows/StreamRow.vue'
 import type { AgentMessage, BlockActionEvent } from '../bubbles/types'
 import './stream.css'
+
+type UserItem = Extract<AgentStreamItem, { type: 'user' }>
+type AssistantItem = Extract<AgentStreamItem, { type: 'assistant' }>
+
+/** 轮次分组：一个 Turn 的三层结构 + 尾部行 */
+interface TurnGroup {
+  id: string
+  /** ① 用户消息层；窗口切片从轮次中间开始时为 null */
+  user: UserItem | null
+  /** ② 过程层行段（推理 / 过程文本 / 动作 / 折叠摘要） */
+  process: AgentStreamItem[]
+  /** ③ 结果层；结果层未落地时为 null */
+  result: AssistantItem | null
+  /** 结果层之后仍属于本轮次的行（如中止分隔行） */
+  tail: AgentStreamItem[]
+}
 
 /** 事件行流 items */
 const props = defineProps<{
   items: AgentStreamItem[]
 }>()
+
+/**
+ * 按轮次分组：以 user 行开启新组，isResult 的正文行归为结果层，其后行入 tail
+ *
+ * 分组只做「切段」，不改变行的相对顺序——窗口化依赖渲染顺序与 items 顺序一致。
+ */
+const groups = computed<TurnGroup[]>(() => {
+  const out: TurnGroup[] = []
+  let cur: TurnGroup | null = null
+  for (const it of props.items) {
+    if (it.type === 'user') {
+      // group.id 取 turnId（折叠 latch 归属用）；旧调用方未带 turnId 时回退行 id
+      cur = { id: it.turnId ?? it.id, user: it, process: [], result: null, tail: [] }
+      out.push(cur)
+      continue
+    }
+    // 切片从轮次中间开始：造无用户行的组承接，避免行被丢弃
+    if (!cur) {
+      cur = { id: `orphan-${it.id}`, user: null, process: [], result: null, tail: [] }
+      out.push(cur)
+    }
+    if (it.type === 'assistant' && it.isResult) {
+      // 同组已存在结果层属异常数据：开新组承载，避免后者覆盖前者
+      if (cur.result) {
+        cur = { id: `tail-${it.id}`, user: null, process: [], result: null, tail: [] }
+        out.push(cur)
+      }
+      cur.result = it
+    } else if (cur.result) {
+      cur.tail.push(it)
+    } else {
+      cur.process.push(it)
+    }
+  }
+  return out
+})
 
 // ===== 入场动画治理（止血包⑤）=====
 // seenIds：本组件实例生命周期内已渲染过的行 id；animatedIds：本批次新追加、需播动画的行 id。
@@ -133,6 +199,10 @@ const emit = defineEmits<{
   (e: 'copy', msg: AgentMessage): void
   (e: 'retry', msg: AgentMessage): void
   (e: 'tool-confirm', event: { toolId: string; approved: boolean }): void
+  /** 用户展开了某轮次的某个行段 → 置 userEverExpanded latch（折叠三条件分派用） */
+  (e: 'segment-expand', turnId: string): void
+  /** 用户点击折叠摘要行 → 解除该轮次的过程层折叠 */
+  (e: 'expand', turnId: string): void
   (e: 'scroll-to-message', msgId: string): void
 }>()
 </script>

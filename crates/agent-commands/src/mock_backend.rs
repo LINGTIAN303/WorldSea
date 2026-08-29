@@ -87,6 +87,7 @@ pub fn thinking_level_to_str(level: Option<ThinkingLevel>) -> Option<String> {
         ThinkingLevel::Medium => "medium",
         ThinkingLevel::High => "high",
         ThinkingLevel::Xhigh => "xhigh",
+        ThinkingLevel::Max => "max",
     }
     .to_string())
 }

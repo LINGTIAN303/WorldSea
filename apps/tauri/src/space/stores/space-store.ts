@@ -10,8 +10,8 @@ export type GroupChatMode = 'meeting' | 'casual'
 export type SidebarTab = 'session' | 'knowledge'
 /** 右侧面板 Level-1 Tab（2026-08-12）：执行 / 配置 共用一个面板；[C] 2026-08-20 扩展为 执行/配置/创作/预览；2026-08-23 加入 用量 */
 export type RightTab = 'exec' | 'config' | 'creation' | 'preview' | 'usage'
-/** 配置 Tab 内子切换：记忆 / 人格 */
-export type ConfigSubTab = 'memory' | 'persona'
+/** 配置 Tab 内子切换：记忆 / 人格 / 档案（档案为占位，2026-08-29） */
+export type ConfigSubTab = 'memory' | 'persona' | 'profile'
 /** 执行面板 Tab：轨迹/活动/计划/终端/子Agent/工作区 + 编排 5 模式（Router/ToT/GoT/Supervisor/Multi-Agent） */
 export type ExecTab = 'trace' | 'activity' | 'plan' | 'router' | 'tot' | 'got' | 'supervisor' | 'multi' | 'terminal' | 'subagent' | 'workspace'
 export type AgentMood = 'active' | 'thinking' | 'focused' | 'idle'

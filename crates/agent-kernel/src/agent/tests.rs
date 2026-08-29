@@ -163,6 +163,7 @@
                 input_tokens: None,
                 output_tokens: None,
                 stop_reason: Some("tool_calls".into()),
+                reasoning: None,
             },
             PromptResponse::text_only("工具返回了 hello"),
         ]));
@@ -198,6 +199,7 @@
             input_tokens: None,
             output_tokens: None,
             stop_reason: Some("tool_calls".into()),
+                reasoning: None,
         };
         let backend = Arc::new(MockBackend::new(vec![infinite_tool_call; 100]));
         let tool_bus = Arc::new(SimpleToolBus::new());
@@ -229,6 +231,7 @@
                 input_tokens: None,
                 output_tokens: None,
                 stop_reason: Some("tool_calls".into()),
+                reasoning: None,
             },
             PromptResponse::text_only("最终回复"),
         ]));
@@ -280,6 +283,7 @@
             input_tokens: None,
             output_tokens: None,
             stop_reason: Some("tool_calls".into()),
+                reasoning: None,
         };
         let backend = Arc::new(MockBackend::new(vec![infinite_tool_call; 100]));
         let tool_bus = Arc::new(SimpleToolBus::new());
@@ -379,6 +383,7 @@
                 input_tokens: None,
                 output_tokens: None,
                 stop_reason: Some("tool_calls".into()),
+                reasoning: None,
             },
             PromptResponse::text_only("工具失败，但我继续回复"),
         ]));
@@ -444,6 +449,7 @@
             input_tokens: None,
             output_tokens: None,
             stop_reason: Some("tool_calls".into()),
+                reasoning: None,
         };
         let backend = Arc::new(MockBackend::new(vec![infinite_tool_call; 100]));
         let tool_bus = Arc::new(SimpleToolBus::new());
@@ -500,6 +506,7 @@
             input_tokens: None,
             output_tokens: None,
             stop_reason: Some("tool_calls".into()),
+                reasoning: None,
         };
         // 3 轮工具调用 + 1 轮最终文本 = 正常收敛，远低于默认 100 turns 上限
         let backend = Arc::new(MockBackend::new(vec![
@@ -622,6 +629,7 @@
             input_tokens: None,
             output_tokens: None,
             stop_reason: Some("end_turn".into()),
+                reasoning: None,
         }]));
         let tool_bus = Arc::new(SimpleToolBus::new());
 
@@ -1207,6 +1215,7 @@
                 input_tokens: None,
                 output_tokens: None,
                 stop_reason: Some("tool_calls".into()),
+                reasoning: None,
             },
             PromptResponse::text_only("完成"),
         ]));
@@ -1251,6 +1260,7 @@
                 input_tokens: None,
                 output_tokens: None,
                 stop_reason: Some("tool_calls".into()),
+                reasoning: None,
             },
             PromptResponse::text_only("收到拒绝"),
         ]));

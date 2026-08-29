@@ -56,14 +56,11 @@
         </div>
       </div>
       <div class="msg-text" :class="{ 'has-uncertainty': hasUncertainty }" @click="onContentClick">
-        <div v-if="msg.role === 'assistant'" class="msg-text-content" :class="{ 'text-collapsed': !textExpanded && isLong }">
+        <div v-if="msg.role === 'assistant'" class="msg-text-content">
           <div v-html="renderedContent"></div>
         </div>
         <div v-else v-html="renderedUserContent"></div>
         <span v-if="hasUncertainty" class="uncertainty-badge">待确认</span>
-      </div>
-      <div v-if="isLong" class="text-expand-btn" role="button" tabindex="0" :aria-expanded="textExpanded" @click="textExpanded = !textExpanded" @keydown.enter.prevent="textExpanded = !textExpanded" @keydown.space.prevent="textExpanded = !textExpanded">
-        {{ textExpanded ? '收起' : '展开全文' }}
       </div>
       <div class="msg-actions">
         <button class="action-btn" @click="onCopy" title="复制" aria-label="复制消息"><WsIcon name="copy" size="xs" /></button>
@@ -86,7 +83,7 @@ import AvatarBadge from '@/ui/AvatarBadge.vue'
 
 const props = defineProps<{ msg: AgentMessage }>()
 
-const { renderContent, isTextLong, textExpanded } = useMessageRender()
+const { renderContent } = useMessageRender()
 const { formatTime } = useMessageTime()
 
 const expandedToolId = ref<string | null>(null)
@@ -116,10 +113,6 @@ const msgBodyStyle = computed(() => {
   }
   return style
 })
-
-const isLong = computed(() =>
-  props.msg.role === 'assistant' ? isTextLong(props.msg.content ?? '') : false
-)
 
 const renderedContent = computed(() => {
   if (props.msg.role !== 'assistant') return ''

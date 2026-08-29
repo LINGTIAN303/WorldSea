@@ -108,6 +108,10 @@ function registerAllTools(): void {
     ...docConvertTools,
     ...nativeTools,
     ...codingAgentTools,
+    // H3 Skills 点火（P1，2026-08-30）：技能元工具必须进 ALL_TOOLS_MAP——
+    // 桥执行（FrontendToolBridge → ALL_TOOLS_MAP.get）查的是 MAP 而非 ALL_TOOLS 数组，
+    // 漏注册会导致 LLM 调 load_skill 报「前端未注册工具」
+    ...SKILL_META_TOOLS,
   ]
   for (const t of all) {
     ALL_TOOLS_MAP.set(t.name, t)

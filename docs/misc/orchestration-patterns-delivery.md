@@ -2,14 +2,14 @@
 
 > status: 已完成
 > 日期：2026-08-19
-> 关联：[agent-orchestration-roadmap.md](../plans/agent-orchestration-roadmap.md)（M2 阶段 13 模式闭环）
+> 关联：[agent-orchestration-roadmap.md](../plans/已完成/agent-orchestration-roadmap.md)（M2 阶段 13 模式闭环）
 > 本次补齐 Rust 侧缺失的 3/4/5 三个编排模式 + 前端计划面板 UI，并经真实 DeepSeek 端到端实测。
 
 ---
 
 ## 一、背景
 
-[agent-orchestration-roadmap.md](../plans/agent-orchestration-roadmap.md) 宣称 M2「13 种模式全部可用」，但实际 Rust 端只落地了 9 个（编排层 ToT/GoT/Multi-Agent/Supervisor/Router 5 节点 + AgentLoop 原子 + ToolBus + Memory + LoopEngineering），**3/4/5（Plan-and-Execute / Reflection / Self-Refine）只有 `NodeType` 枚举、没有节点实现**。
+[agent-orchestration-roadmap.md](../plans/已完成/agent-orchestration-roadmap.md) 宣称 M2「13 种模式全部可用」，但实际 Rust 端只落地了 9 个（编排层 ToT/GoT/Multi-Agent/Supervisor/Router 5 节点 + AgentLoop 原子 + ToolBus + Memory + LoopEngineering），**3/4/5（Plan-and-Execute / Reflection / Self-Refine）只有 `NodeType` 枚举、没有节点实现**。
 
 本次交付即补全这 3 个模式 + 前端入口，使 13 模式在 Rust/桌面端真正闭环。
 

@@ -88,10 +88,26 @@ if (!purifyHookRegistered) {
 }
 
 /**
- * 实体名高亮注入缓存：按原始文本缓存注入结果，避免流式输出时重复匹配
- * 注：原 WeakMap 在 TS5.7+ 要求 key 为 object，改用 Map；文本量有限，无需 GC 回收
+ * 实体名高亮注入缓存：按原始 HTML 缓存注入结果，避免重渲染时重复匹配
+ *
+ * ⚠️ key 是**完整 HTML 字符串**：流式输出时每个 delta 都产生一个新 key，
+ * 且命中率极低（HTML 每次都在变）——无上限会随流式输出持续泄漏（一轮长回复可累积数千条）。
+ * 故设上限并 FIFO 淘汰（Map 保持插入顺序，从头删即最早条目）。
+ *
+ * 注：原 WeakMap 在 TS5.7+ 要求 key 为 object，改用 Map。
  */
+const MENTION_CACHE_MAX = 200
 const mentionInjectCache = new Map<string, string>()
+
+/** 淘汰最早的 20%：一次删一批而非一条，摊销淘汰开销 */
+function evictMentionCache(): void {
+  const drop = Math.ceil(MENTION_CACHE_MAX * 0.2)
+  let i = 0
+  for (const k of mentionInjectCache.keys()) {
+    if (i++ >= drop) break
+    mentionInjectCache.delete(k)
+  }
+}
 
 /**
  * 从 Markdown 文本中剥离顶层 JSON 对象块
@@ -220,6 +236,7 @@ function injectMentions(html: string, matchInText: (text: string) => Array<{ sta
     }
 
     const result = hasMatch ? root.innerHTML : html
+    if (mentionInjectCache.size >= MENTION_CACHE_MAX) evictMentionCache()
     mentionInjectCache.set(html, result)
     return result
   } catch {

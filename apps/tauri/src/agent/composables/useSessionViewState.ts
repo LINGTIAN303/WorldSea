@@ -33,6 +33,8 @@ export interface SessionViewState {
   sceneId: string
   chatMode: ChatMode
   execTab: ExecTab
+  /** [2026-08-29] 执行面板已打开的区（宫格首页 + 加号新增式多面板，按打开顺序堆叠） */
+  openExecSections: ExecTab[]
   /** [C] 右侧面板工作台式 Level-1（执行/配置/创作/预览），会话级记忆上次面板 */
   rightPanel: RightTab
   /** [E3] 会话级模型选择（缺省 null → 回退全局 settingsStore） */
@@ -42,6 +44,8 @@ export interface SessionViewState {
   multiSummary: MultiAgentSummary | null
   lastSwitchAt: number
 }
+
+const VALID_EXEC_TABS: ExecTab[] = ['trace', 'activity', 'plan', 'router', 'tot', 'got', 'supervisor', 'multi', 'terminal', 'subagent', 'workspace']
 
 const STORAGE_KEY = 'worldsmith_agent_session_views'
 export const LAST_SESSION_KEY = 'worldsmith_agent_last_session'
@@ -58,6 +62,7 @@ function defaultState(partial?: Partial<SessionViewState>): SessionViewState {
     sceneId: 'worldbuilding',
     chatMode: 'deep',
     execTab: 'trace',
+    openExecSections: [],
     rightPanel: 'exec',
     model: null,
     activityLog: [],
@@ -94,6 +99,10 @@ function ensureHydrated(): void {
 /** 归一化（合并默认值 + 列表截断），保证落盘数据损坏也不崩 */
 function normalize(raw: Partial<SessionViewState>): SessionViewState {
   const s = defaultState(raw)
+  // openExecSections 去重 + 过滤非法值（旧版落盘可能含脏数据）
+  const seen = new Set<ExecTab>()
+  s.openExecSections = (raw.openExecSections ?? [])
+    .filter((t): t is ExecTab => VALID_EXEC_TABS.includes(t as ExecTab) && !seen.has(t as ExecTab) && !!seen.add(t as ExecTab))
   s.activityLog = (raw.activityLog ?? []).slice(0, MAX_ACTIVITY)
   s.orch = {
     nodes: (raw.orch?.nodes ?? []).slice(0, MAX_ORCH_NODES),
@@ -211,6 +220,26 @@ function setExecTab(t: ExecTab): void {
   scheduleSave()
 }
 
+/** [2026-08-29] 追加打开一个执行区（宫格/加号/自动打开共用）；已打开则幂等。同时更新 execTab 兼容旧消费方 */
+function addExecSection(t: ExecTab): void {
+  const id = activeSessionId.value
+  if (!id) return
+  const s = getOrCreate(id)
+  if (!s.openExecSections.includes(t)) s.openExecSections.push(t)
+  s.execTab = t
+  scheduleSave()
+}
+
+/** [2026-08-29] 关闭一个执行区（卡片 ×）；关闭当前 execTab 时回退到最后一个剩余区 */
+function removeExecSection(t: ExecTab): void {
+  const id = activeSessionId.value
+  if (!id) return
+  const s = getOrCreate(id)
+  s.openExecSections = s.openExecSections.filter(x => x !== t)
+  if (s.execTab === t) s.execTab = s.openExecSections[s.openExecSections.length - 1] ?? 'trace'
+  scheduleSave()
+}
+
 /** [C] 右侧面板工作台式 Level-1（会话级记忆）：无活跃会话时不落库（空容器由 AgentSpace 呈现） */
 function setRightPanel(t: RightTab): void {
   const id = activeSessionId.value
@@ -245,6 +274,8 @@ export function useSessionViewState() {
     setScene,
     setMode,
     setExecTab,
+    addExecSection,
+    removeExecSection,
     setRightPanel,
     setModel,
     setMultiSummary,

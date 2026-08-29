@@ -1,14 +1,16 @@
 <!--
   AssistantRow：正文行（左对齐、无气泡底）
-  复用 useMarkdownRender（v-html ws-agent-md）+ useTextFold 长文折叠 + images/files + MessageBlocks
+  复用 useMarkdownRender（v-html ws-agent-md）+ images/files + MessageBlocks
   + manuscript 贴顶 + 操作栏（useMessageActions：复制/导出图片/GIF/时间）
   + 根 onRootClick 事件委托（代码复制 + 实体 mention → useEntityMiniPanel）+ applyFontSpanStyles。
+  长文折叠已移除（2026-08-30 用户拍板：「展开全文」不再使用，正文全量展示）。
   emits：hover / leave / copy / block-action / manuscript-local-action。
 -->
 <template>
   <div
     ref="rootEl"
     class="ws-stream-row ws-assistant-row"
+    :class="{ 'is-result': isResult !== false }"
     :data-msg-id="msg.id"
     @mouseenter="emit('hover', msg.id)"
     @mouseleave="emit('leave')"
@@ -36,28 +38,17 @@
       </div>
     </div>
 
-    <!-- 正文 Markdown（长文折叠） -->
+    <!-- 正文 Markdown（2026-08-30 用户拍板：移除长文折叠，「展开全文」不再使用） -->
     <div class="ws-assistant-text" :style="agentFontStyle">
-      <div class="ws-slider" :class="{ 'text-collapsed': !textExpanded && isTextLong }">
-        <div class="ws-agent-md" v-html="renderedMarkdown"></div>
-      </div>
-      <div
-        v-if="isTextLong"
-        class="text-expand-btn"
-        role="button"
-        tabindex="0"
-        :aria-expanded="textExpanded"
-        @click="toggleText"
-        @keydown.enter.prevent="toggleText"
-        @keydown.space.prevent="toggleText"
-      >{{ textExpanded ? '收起' : '展开全文' }}</div>
+      <div class="ws-agent-md" v-html="renderedMarkdown"></div>
     </div>
 
     <!-- Block*（非 manuscript）紧贴正文后 -->
     <MessageBlocks :blocks="blockBlocks" @block-action="(e) => emit('block-action', e)" />
 
-    <!-- 操作栏（复制 / 导出图片 / 导出GIF / 时间）；N2：复制图标改 copy（原 outline 与功能错位） -->
-      <div class="msg-actions" :class="{ visible: isHovered }">
+    <!-- 操作栏（复制 / 导出图片 / 导出GIF / 时间）；N2：复制图标改 copy（原 outline 与功能错位）
+         仅 ③ 结果层拥有：过程文本段不是最终答案，不提供复制/导出（避免过程内容被误当答案导出） -->
+      <div v-if="showActions" class="msg-actions" :class="{ visible: isHovered }">
         <button type="button" class="action-btn" title="复制" aria-label="复制消息" @click="emit('copy', msg)"><WsIcon name="copy" size="xs" /></button>
       <button type="button" class="action-btn" title="导出为图片" aria-label="导出为图片" @click="actions.onExportImage"><WsIcon name="image" size="xs" /></button>
       <button type="button" class="action-btn" title="导出为GIF" aria-label="导出为GIF" @click="actions.onExportGif"><WsIcon name="video" size="xs" /></button>
@@ -74,16 +65,21 @@ import MessageBlocks from '../../bubbles/MessageBlocks.vue'
 import { useAgentUiDeps } from '@worldsmith/shared-composables/agent/deps'
 import { useEntityMiniPanel } from '@worldsmith/shared-composables/entity/useEntityMiniPanel'
 import { useMarkdownRender, handleCodeCopyClick } from '../../bubbles/useMarkdownRender'
-import { useTextFold } from '../../bubbles/useTextFold'
 import { useMessageActions } from '../../bubbles/useMessageActions'
 import type { AgentMessage, BlockActionEvent } from '../../bubbles/types'
 import '../../bubbles/agent-markdown.css'
 
-/** 正文行 props：消息体 + 是否 hover（驱动操作栏显隐） */
+/** 正文行 props：消息体 + 是否 hover（驱动操作栏显隐）+ 是否 ③ 结果层 */
 const props = defineProps<{
   msg: AgentMessage
   isHovered?: boolean
+  /** ③ 结果层标记：结果层带操作栏并做字号/字重微调。
+   *  ② 过程层的过程文本段传 false。默认 undefined 视为 true——既有调用方行为不变 */
+  isResult?: boolean
 }>()
+
+/** 仅结果层展示操作栏；过程文本段不是最终答案，不提供复制/导出 */
+const showActions = computed(() => props.isResult !== false)
 
 const emit = defineEmits<{
   (e: 'hover', msgId: string): void
@@ -95,11 +91,6 @@ const emit = defineEmits<{
 
 // ===== Markdown 渲染（正文，assistant 角色） =====
 const { renderedMarkdown } = useMarkdownRender(() => props.msg.content)
-
-// ===== 长文折叠 =====
-const { expanded: textExpanded, isLong: isTextLong, toggle: toggleText } = useTextFold(
-  () => props.msg.content,
-)
 
 // ===== 操作栏（复制/导出图片/GIF/时间） =====
 const actions = useMessageActions(
@@ -227,36 +218,6 @@ watch(renderedMarkdown, () => {
   word-break: break-word;
   font-family: var(--agent-font);
 }
-.ws-slider { position: relative; }
-.ws-slider.text-collapsed {
-  /* O3：阈值上调后折叠展示更高截断，保留足够阅读上下文 */
-  max-height: 320px;
-  overflow: hidden;
-}
-.ws-slider.text-collapsed::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 56px;
-  background: linear-gradient(transparent, var(--agent-bg));
-  pointer-events: none;
-}
-.text-expand-btn {
-  display: inline-block;
-  padding: 2px 8px;
-  margin-top: 4px;
-  border-radius: 8px;
-  font-size: 11px;
-  color: var(--agent-accent);
-  background: color-mix(in srgb, var(--agent-primary) 8%, transparent);
-  border: 1px solid color-mix(in srgb, var(--agent-primary) 15%, transparent);
-  cursor: pointer;
-  user-select: none;
-  transition: background 0.15s;
-}
-.text-expand-btn:hover { background: color-mix(in srgb, var(--agent-primary) 15%, transparent); }
 
 /* manuscript 画布布局：放宽宽度 */
 .ws-assistant-row:has(.manuscript-canvas) { max-width: 100%; }

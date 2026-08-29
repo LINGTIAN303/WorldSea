@@ -8,6 +8,7 @@
   <div
     class="ws-stream-row ws-stream-think"
     :class="{ open: isOpen }"
+    :data-msg-id="item.id"
     :data-follow-end="isStreaming ? '' : undefined"
     role="button"
     tabindex="0"
@@ -47,6 +48,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'hover', id: string): void
   (e: 'leave'): void
+  (e: 'expand'): void
 }>()
 
 /** streaming 视为 running（默认展开），complete 折叠 */
@@ -54,10 +56,21 @@ const isStreaming = computed(() => props.item.status === 'streaming')
 
 // ===== 思维折叠（label='模型推理'，defaultOpen=running）；N5：标题统一「模型推理」——
 // 判型/回答阶段推理块语言可能混排（中英），统一标题弱化观感差异 =====
-const { label, isOpen, toggle } = useThinkingFold(
+const { label, isOpen, toggle: toggleFold } = useThinkingFold(
   () => '模型推理',
   () => isStreaming.value,
 )
+
+/**
+ * 上抛 expand：用户主动展开时置该轮次的 userEverExpanded latch
+ * 折叠三条件靠这个 latch 区分「立即折叠」与「延迟/离开视口才折叠」。
+ * running 态的默认展开不算用户操作（只有由关到开才上抛）。
+ */
+function toggle() {
+  const wasOpen = isOpen.value
+  toggleFold()
+  if (!wasOpen && isOpen.value) emit('expand')
+}
 
 // ===== 摘要：running=末行 / complete=首行 =====
 const lines = computed(() =>

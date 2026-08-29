@@ -13,6 +13,9 @@ import type { SkillMeta } from './registry'
 import { readInstalledSkillFile } from './manifest'
 import { parseFrontmatter } from './parser'
 import type { ParsedSkillMd } from './parser'
+// H3 修复（2026-08-30）：Vite8/Rolldown 的 import.meta.glob 对模块相对模式静默 0 命中，
+// 内置技能内容改为显式动态 import 映射（生成方式见 content-map.ts 头注释），保留懒加载
+import { SKILL_CONTENT_LOADERS } from './content-map'
 
 // 向后兼容：re-export parseFrontmatter / ParsedSkillMd（原内联于本模块，Task 24 阶段1 提取到 parser.ts 共用）
 export { parseFrontmatter }
@@ -52,26 +55,14 @@ export async function loadSkillPrompt(skill: SkillMeta): Promise<string | null> 
       return result
     }
 
-    // 内置技能：import.meta.glob（编译时打包）
-    const dirName = skill.promptFile.split('/')[0]
-
-    const skillMdModules = import.meta.glob('../skills/*/SKILL.md', { query: '?raw', import: 'default', eager: false })
-    const skillMdPath = `../skills/${dirName}/SKILL.md`
-    const skillMdLoader = skillMdModules[skillMdPath]
-    if (skillMdLoader) {
-      const content = (await skillMdLoader()) as string
-      const parsed = parseFrontmatter(content)
-      const result = parsed.body.trim()
-      skillCache.set(skill.id, result)
-      return result
-    }
-
-    const instructionsModules = import.meta.glob('../skills/*/instructions.md', { query: '?raw', import: 'default', eager: false })
-    const instructionsPath = `../skills/${dirName}/instructions.md`
-    const instructionsLoader = instructionsModules[instructionsPath]
-    if (instructionsLoader) {
-      const content = (await instructionsLoader()) as string
-      const result = content.trim()
+    // 内置技能：content-map 显式映射（Vite8/Rolldown glob 对模块相对模式静默 0 命中）
+    const loader = SKILL_CONTENT_LOADERS[skill.promptFile]
+    if (loader) {
+      const mod = await loader()
+      // SKILL.md 含 frontmatter，解析取 body；其他文件（如 instructions.md）直接用全文
+      const result = skill.promptFile.toLowerCase().includes('skill.md')
+        ? parseFrontmatter(mod.default).body.trim()
+        : mod.default.trim()
       skillCache.set(skill.id, result)
       return result
     }
@@ -98,16 +89,15 @@ export async function loadSkillReference(skill: SkillMeta, refPath: string): Pro
       return content
     }
 
-    // 内置技能
-    const modules = import.meta.glob('../skills/*/references/*.md', { query: '?raw', import: 'default', eager: false })
+    // 内置技能：content-map 显式映射
     const dirName = skill.promptFile?.split('/')[0]
     if (!dirName) return null
-    const path = `../skills/${dirName}/references/${refPath}`
-    const loader = modules[path]
+    const relPath = refPath.startsWith('references/') ? refPath : `references/${refPath}`
+    const loader = SKILL_CONTENT_LOADERS[`${dirName}/${relPath}`]
     if (!loader) return null
-    const content = (await loader()) as string
-    referenceCache.set(cacheKey, content)
-    return content
+    const mod = await loader()
+    referenceCache.set(cacheKey, mod.default)
+    return mod.default
   } catch {
     return null
   }
@@ -129,18 +119,15 @@ export async function loadSkillAsset(skill: SkillMeta, assetPath: string): Promi
       return content
     }
 
-    // 内置技能
-    const mdModules = import.meta.glob('../skills/*/assets/*.md', { query: '?raw', import: 'default', eager: false })
-    const yamlModules = import.meta.glob('../skills/*/assets/*.yaml', { query: '?raw', import: 'default', eager: false })
-    const allModules = { ...mdModules, ...yamlModules }
+    // 内置技能：content-map 显式映射
     const dirName = skill.promptFile?.split('/')[0]
     if (!dirName) return null
-    const path = `../skills/${dirName}/assets/${assetPath}`
-    const loader = allModules[path]
+    const relPath = assetPath.startsWith('assets/') ? assetPath : `assets/${assetPath}`
+    const loader = SKILL_CONTENT_LOADERS[`${dirName}/${relPath}`]
     if (!loader) return null
-    const content = (await loader()) as string
-    assetCache.set(cacheKey, content)
-    return content
+    const mod = await loader()
+    assetCache.set(cacheKey, mod.default)
+    return mod.default
   } catch {
     return null
   }

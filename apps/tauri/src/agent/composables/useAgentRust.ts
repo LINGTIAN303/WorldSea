@@ -23,6 +23,8 @@ import { listen, type UnlistenFn, isHttpBackend, invokeRpc } from './transport'
 import { useConfirm } from '@worldsmith/ui-kit'
 import { useOrchEvents } from './useOrchEvents'
 import { ALL_TOOLS_MAP, loadApiKey, type IToolContext } from '@agent/index'
+// H3 Skills 点火（P1，2026-08-30）：技能索引注入 + 已安装技能扫描合并
+import { buildSkillIndexPrompt, initSkillRegistry } from '@agent/skills/registry'
 import { useEntityStore, useRelationStore, useFileStore } from '@worldsmith/entity-core'
 import { useSettingsStore } from '@/stores/settingsStore'
 import type {
@@ -38,9 +40,18 @@ import type {
   MCPConnectionConfig,
   MCPConnectionState,
 } from '@agent/index'
-import type { DeepSegment, AgentStreamItem, ToolCallView } from '@worldsmith/shared-composables/agent/useAgent'
-import { formatDividerTime } from '@worldsmith/shared-ui/agent/message-list/utils'
+import type { DeepSegment, AgentStreamItem } from '@worldsmith/shared-composables/agent/useAgent'
 import { usePlanStore } from '@worldsmith/shared-composables/agent/usePlanStore'
+// 轮次模型：回源重建与实时流共用同一套归约规则
+import {
+  rebuildFromMessages,
+  flattenTurn,
+  reduceEvent,
+  parseToolResult,
+  type FlatRow,
+  type Turn,
+  type TurnEvent,
+} from '@worldsmith/shared-composables/agent/turnModel'
 import { useActivityLog, type ActivityLogEntry } from './useActivityLog'
 import { useSessionViewState, LAST_SESSION_KEY } from './useSessionViewState'
 import { useOrchestrationTrace } from './useOrchestrationTrace'
@@ -140,6 +151,18 @@ type RustStreamPayload =
   | { type: 'delta'; delta: string }
   | { type: 'reasoning'; delta: string }
   | { type: 'end'; fullText: string }
+  | { type: 'tool_call_start'; toolCallId: string; name: string; args: unknown }
+  | {
+      type: 'tool_call_end'
+      toolCallId: string
+      result: unknown
+      /** H7 P0.5：顶层权威成败（"success"/"failed"）；缺失时回退 parseToolResult 推断 */
+      status?: string
+      /** H7 P0.5：执行耗时（毫秒） */
+      durationMs?: number
+      /** H7 P0.5：失败错误摘要 */
+      error?: string
+    }
   | { type: 'error'; message: string }
   | { type: 'agent_end' }
 
@@ -168,7 +191,8 @@ export interface RustWorkdirRecord {
 
 /** Rust `agent_runtime::types::OrchestratorMessage` 镜像 */
 interface RustMessage {
-  role: 'user' | 'assistant' | 'tool_result' | 'system'
+  // R14：实际序列化值为 serde lowercase "toolresult"（非 snake_case）
+  role: 'user' | 'assistant' | 'tool_result' | 'toolresult' | 'system'
   content: string
   tool_calls?: Array<{ id: string; name: string; args: unknown }>
   tool_call_id?: string
@@ -247,14 +271,14 @@ type RustHeartbeatStatus = 'alive' | 'stale' | 'dead'
  * Rust `OrchestratorMessage` → TS `AgentMessage`
  *
  * 字段映射：
- * - role：`tool_result` → `toolResult`（TS 约定）
+ * - role：`tool_result`/`toolresult` → `toolResult`（TS 约定；R14 补 serde lowercase 实际值）
  * - 补充 `id` / `timestamp`（Rust 端无此字段，前端生成）
  * - tool_calls → toolCalls（camelCase）
  */
 function rustMsgToTsMsg(r: RustMessage, index: number): AgentMessage {
   return {
     id: `rust-${Date.now()}-${index}`,
-    role: r.role === 'tool_result' ? 'toolResult' : r.role,
+    role: r.role === 'tool_result' || r.role === 'toolresult' ? 'toolResult' : r.role,
     content: r.content,
     timestamp: Date.now(),
     toolCalls: r.tool_calls?.map((tc, i) => ({
@@ -338,12 +362,120 @@ const listeners = new Set<AgentEventListener>()
 /** 会话消息缓存（按 sessionId），切换会话时优先从缓存恢复，缺失再回源 get_messages */
 const sessionMessagesCache = new Map<string, AgentMessage[]>()
 
-/** Agent 输出事件流（唯一渲染源）：thinking/toolCalls 从消息字段拆为独立事件行 */
-const agentStream = ref<AgentStreamItem[]>([])
-/** 事件流会话缓存（按 sessionId），切换会话时恢复/回源重建 */
-const sessionStreamCache = new Map<string, AgentStreamItem[]>()
-/** 当前流式 think 事件行（关联当前 streamingAssistant），reasoning 增量累积于此 */
-const streamingThink = ref<AgentStreamItem | null>(null)
+/** 轮次树（渲染层唯一事实源）：实时流与回源重建共用同一归约器 */
+const turns = ref<Turn[]>([])
+/** 轮次树会话缓存（按 sessionId），切换会话时恢复/回源重建 */
+const sessionTurnsCache = new Map<string, Turn[]>()
+/** 展平缓存条目：记录产生该结果的轮次引用，用于判定是否可复用 */
+interface FlatCacheEntry {
+  turn: Turn
+  rows: FlatRow[]
+}
+/** 行映射缓存条目：记录产生该 item 的行引用，用于判定是否可复用 */
+interface ItemCacheEntry {
+  row: FlatRow
+  item: AgentStreamItem
+}
+
+/** 轮次展平缓存：turnId → { turn 引用, rows }；turn 引用未变则整轮复用 */
+const flatRowCache = new Map<string, FlatCacheEntry>()
+/** 行映射缓存：rowId → { row 引用, item }；row 引用未变则复用同一个 item 对象 */
+const streamItemCache = new Map<string, ItemCacheEntry>()
+/**
+ * 清空展平/映射缓存（切会话时调用）
+ *
+ * 缓存按行 id 索引，而回源行 id 形如 `msg-${i}`——**跨会话必然重复**，不清理会随切换次数累积。
+ * 但**会话内绝不能清理**：否则超长会话会退化为每 delta 清空重建，比不缓存还慢。
+ */
+function resetStreamCaches(): void {
+  flatRowCache.clear()
+  streamItemCache.clear()
+}
+
+/**
+ * 事件流（派生视图）：由轮次树展平，保持 AgentStreamItem 契约供窗口化与行组件消费
+ *
+ * 两级缓存避免每个 delta 都全量重算（原实现：flattenTurns + map 两次 O(总行数)）：
+ * 1. **轮次级**：turn 对象引用未变（本次事件没触及该轮次）→ 整轮 FlatRow[] 复用；
+ * 2. **行级**：FlatRow 引用未变 → 复用同一个 AgentStreamItem 对象。
+ *
+ * 第 2 级是关键：Vue 的 v-for 按 key 比对时 props 引用相同会跳过子组件 patch，
+ * 于是流式输出时**只有当前正在增长的那一段真正重建**，其余行零开销。
+ *
+ * 复用判据一律用引用相等（===）——归约器是不可变的，未被触及的部分天然保持同一引用。
+ */
+const agentStream = computed<AgentStreamItem[]>(() => {
+  const abortedText = '已由用户停止'
+
+  // ① 展平：只重算引用变化的轮次
+  const rows: FlatRow[] = []
+  for (const t of turns.value) {
+    const hit = flatRowCache.get(t.id)
+    if (hit && hit.turn === t) {
+      for (const r of hit.rows) rows.push(r)
+      continue
+    }
+    const next = flattenTurn(t, { abortedText })
+    flatRowCache.set(t.id, { turn: t, rows: next })
+    for (const r of next) rows.push(r)
+  }
+
+  // ② 映射：只重建引用变化的行
+  const items: AgentStreamItem[] = new Array(rows.length)
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]
+    const hit = streamItemCache.get(row.id)
+    if (hit && hit.row === row) {
+      items[i] = hit.item
+      continue
+    }
+    const item = flatRowToStreamItem(row)
+    streamItemCache.set(row.id, { row, item })
+    items[i] = item
+  }
+  return items
+})
+
+/**
+ * 设置某轮次的过程层折叠态（用户点击摘要行展开，或手动收起）
+ *
+ * 折叠态存在 Turn 上而非行组件内部 state：
+ * - 切会话回源重建后仍与用户操作一致（组件 state 会随卸载丢失）；
+ * - 后续自动折叠控制器与此函数写同一个字段，不会产生两套互相打架的状态。
+ */
+function setProcessCollapsed(turnId: string, collapsed: boolean): void {
+  const idx = turns.value.findIndex((t) => t.id === turnId)
+  if (idx < 0 || turns.value[idx].processCollapsed === collapsed) return
+  const next = [...turns.value]
+  next[idx] = { ...next[idx], processCollapsed: collapsed }
+  turns.value = next
+  // 同步会话缓存：切走再切回时保持用户已展开/收起的状态
+  const sid = currentSessionId.value
+  if (sid && sessionTurnsCache.has(sid)) sessionTurnsCache.set(sid, next)
+}
+
+/**
+ * 标记用户展开过该轮次的某个行段（latch：置 userEverExpanded）
+ *
+ * 折叠三条件靠它分派：未展开过 → 立即折叠；展开过 → 需等空闲 5s 或离开视口。
+ * latch 语义：展开了又收起仍为 true（用户表达过关注，不该被立即折叠）。
+ */
+function markTurnExpanded(turnId: string): void {
+  applyTurnEvent(currentSessionId.value ?? '', { type: 'turn_expanded', turnId })
+}
+
+/**
+ * 自动折叠执行（由折叠控制器调用）
+ *
+ * 走归约器的 auto_collapse 事件而非直接改 processCollapsed：
+ * 同时置 hasAutoCollapsed latch，保证「每个轮次只自动折叠一次」。
+ */
+function autoCollapseProcess(turnId: string): void {
+  applyTurnEvent(currentSessionId.value ?? '', { type: 'auto_collapse', turnId })
+}
+
+/** 当前进行中的轮次 id（流式事件归属用；null=无进行中轮次） */
+const currentTurnId = ref<string | null>(null)
 
 /** 深度模式段（thinking | phase），由 Rust DeepPhaseChanged 事件驱动构建 */
 const deepSegments = ref<DeepSegment[]>([])
@@ -425,145 +557,97 @@ function emit(event: AgentEvent): void {
 
 // ─── 事件流辅助函数 ────────────────────────────────────────
 
-/** 向当前会话事件流追加一行（同步 agentStream 与 sessionStreamCache）。
- *  幂等保护：agentStream 与 cache 均已存在同 id 行则跳过，杜绝任何路径下的同 id 重复。
- *  关键：cache 与 agentStream 可能因上一轮 `[...]` 重建而脱钩（cache 旧引用、agentStream 新引用），
- *  此时两者都要各自做幂等，否则 cache 会被重复 push 累积同 id，最终 switchSession 恢复时带进 agentStream。 */
-function streamAppend(sessionId: string, item: AgentStreamItem): void {
-  const cache = sessionStreamCache.get(sessionId)
-  // 幂等：agentStream 或 cache 已有同 id 则不再追加（各查一遍，杜绝脱钩后 cache/agentStream 各自多份）
-  if (agentStream.value.some((x) => x.id === item.id)) return
-  if (cache && cache.some((x) => x.id === item.id)) return
-  if (cache) {
-    // 以 cache 为事实源追加，再重建 agentStream 引用使二者重新同构（避免后续脱钩）
-    cache.push(item)
-    agentStream.value = [...cache]
-  } else {
-    agentStream.value = [...agentStream.value, item]
+/**
+ * 派发一条轮次事件（轮次树的唯一写入口），并同步会话缓存
+ *
+ * 归约器是纯函数：幂等与去重（动作段按 id、文本段按候选游标）都在 turnModel 内部保证，
+ * 这里不再需要旧实现的线性扫描 + 全数组复制（`streamAppend` / `streamReplace` 的 O(n) 开销）。
+ */
+function applyTurnEvent(sessionId: string, event: TurnEvent): void {
+  const next = reduceEvent(turns.value, event)
+  if (next === turns.value) return // 未命中（如事件归属的轮次不存在）→ 不触发响应式
+  turns.value = next
+  // 会话缓存指向同一棵树（引用共享，无需深拷贝）
+  if (sessionTurnsCache.has(sessionId)) {
+    sessionTurnsCache.set(sessionId, next)
   }
-}
-
-/** 原位替换指定 id 的事件行（新建数组引用触发响应式，未命中则忽略）。
- *  若 agentStream.value 与 sessionStreamCache 共享引用，只替换一份即可（cache 也自动更新）。 */
-function streamReplace(sessionId: string, id: string, item: AgentStreamItem): void {
-  const cache = sessionStreamCache.get(sessionId)
-  const idx = agentStream.value.findIndex((x) => x.id === id)
-  if (idx >= 0) {
-    const copy = [...agentStream.value]
-    copy[idx] = item
-    agentStream.value = copy
-  }
-  // cache 与 agentStream 可能共享引用：只有不同引用时才需单独替换 cache
-  if (cache && cache !== agentStream.value) {
-    const ci = cache.findIndex((x) => x.id === id)
-    if (ci >= 0) cache[ci] = item
-  }
-}
-
-/** 在当前事件流中查找最后一条与工具名匹配的 tool 行（用于去重/原位更新） */
-function findLastToolRow(name: string): AgentStreamItem | undefined {
-  const rows = agentStream.value
-  for (let i = rows.length - 1; i >= 0; i--) {
-    const r = rows[i]
-    if (r.type === 'tool' && r.tc.name === name) return r
-  }
-  return undefined
-}
-
-// ─── 时间分隔行（Phase 4 恢复：跨轮次 >30 分钟事件间补时间分隔线）──
-
-/** 相邻两条内容行时间间隔超过该阈值（毫秒）时，在中间插入时间分隔行（修复 Phase 3 回归） */
-const AGE_DIVIDER_THRESHOLD = 30 * 60 * 1000
-
-/** 取事件流尾部最后一条内容行（剔除 divider，供年龄分隔插入比对） */
-function lastContentStreamItem(): AgentStreamItem | undefined {
-  const rows = agentStream.value
-  for (let i = rows.length - 1; i >= 0; i--) {
-    if (rows[i].type !== 'divider') return rows[i]
-  }
-  return undefined
 }
 
 /**
- * 向事件流追加一行；若与上一条内容行时间间隔 > AGE_DIVIDER_THRESHOLD，
- * 先插入一条时间分隔行（默认开启，可用 opts.injectAgeDivider 关闭）。
- * 仅内容行（user/assistant/think/tool）参与触发；同轮次内时间戳接近，天然不会误插。
+ * 回源重建：把持久化消息交给 turnModel 归约，再展平为事件行
+ *
+ * 与实时流共用同一套归约规则（rebuildFromMessages → 同一 reduceEvent），
+ * 保证刷新前后产出结构一致，消除"两套 DOM"。
+ * 入参用 Rust 原始消息而非 rustMsgToTsMsg 的映射结果——
+ * `tool_call_id` 与 `meta.thinking` 只存在于原始形态（映射函数两者都不带）。
  */
-function pushStreamItem(sessionId: string, item: AgentStreamItem, opts?: { injectAgeDivider?: boolean }): void {
-  const injectAgeDivider = opts?.injectAgeDivider ?? true
-  // 防御：同 id 已存在则不再追加（user/assistant/tool 在重建与会话追加叠加时防重）
-  if (agentStream.value.some((x) => x.id === item.id)) return
-  if (injectAgeDivider) {
-    const last = lastContentStreamItem()
-    if (last && item.timestamp - last.timestamp > AGE_DIVIDER_THRESHOLD) {
-      streamAppend(sessionId, {
-        type: 'divider',
-        id: nextMsgId('div'),
-        dividerText: formatDividerTime(item.timestamp),
-        timestamp: item.timestamp,
-      })
-    }
-  }
-  streamAppend(sessionId, item)
+function rebuildTurnsFromMessages(msgs: RustMessage[]): Turn[] {
+  // Rust 端消息无 id 字段，按序补稳定 id，使文本段 id 确定性可复现
+  const withIds = msgs.map((m, i) => ({ ...m, id: `msg-${i}` }))
+  return rebuildFromMessages(withIds)
 }
 
-/** 追加/原位更新助手正文事件行（id=msg.id），作为刷新后回源重建所需的稳定锚点。
- *  幂等：同 id 已存在则原位替换（streamReplace 仅替换单个游标），从未存在才追加；杜绝流式期间重复行。 */
-function upsertAssistantStreamRow(sessionId: string, msg: AgentMessage): void {
-  const row: AgentStreamItem = { type: 'assistant', msg, id: msg.id, timestamp: msg.timestamp }
-  const existing = agentStream.value.find((x) => x.type === 'assistant' && x.id === msg.id)
-  if (existing) streamReplace(sessionId, msg.id, row)
-  else pushStreamItem(sessionId, row)
-}
-
-/** 追加/原位更新流式 think 正文事件行（同 id 累积 reasoning 增量）。
- *  幂等：同 id 已存在则原位替换，从未存在才追加；杜绝流式期间重复 think 行。 */
-function upsertThinkStreamRow(sessionId: string, newRow: AgentStreamItem): void {
-  const existing = agentStream.value.find((x) => x.type === 'think' && x.id === newRow.id)
-  if (existing) streamReplace(sessionId, newRow.id, newRow)
-  else streamAppend(sessionId, newRow)
-}
-
-/** 回源重建：把历史 AgentMessage 重建为事件行（think/tool/assistant/user 行），相邻超时补时间分隔行 */
-function rebuildStreamFromMessages(msgs: AgentMessage[]): AgentStreamItem[] {
-  const rows: AgentStreamItem[] = []
-  // 相邻内容行时间间隔超阈值时先插入时间分隔行（对齐 streamAppend 链路的年龄分隔）
-  let lastContentTs = 0
-  const pushContent = (row: AgentStreamItem): void => {
-    if (row.type !== 'divider' && lastContentTs !== 0 && row.timestamp - lastContentTs > AGE_DIVIDER_THRESHOLD) {
-      rows.push({
-        type: 'divider',
-        id: nextMsgId('div'),
-        dividerText: formatDividerTime(row.timestamp),
-        timestamp: row.timestamp,
-      })
-    }
-    rows.push(row)
-    if (row.type !== 'divider') lastContentTs = row.timestamp
-  }
-  for (const m of msgs) {
-    const ts = m.timestamp ?? Date.now()
-    if (m.role === 'user') {
-      pushContent({ type: 'user', msg: m, id: m.id, timestamp: ts })
-      continue
-    }
-    const think = (m as { thinking?: string }).thinking
-    const tcs = m.toolCalls
-    if (think) {
-      pushContent({ type: 'think', id: nextMsgId('think'), text: think, status: 'complete', timestamp: ts })
-    }
-    if (tcs && tcs.length > 0) {
-      for (const tc of tcs) {
-        pushContent({ type: 'tool', id: nextMsgId('tool'), tc: tc as ToolCallView, timestamp: ts })
+/** 渲染行 → 事件行（保持 AgentStreamItem 契约，供窗口化与行组件消费） */
+function flatRowToStreamItem(row: FlatRow): AgentStreamItem {
+  switch (row.type) {
+    case 'user':
+      return {
+        type: 'user',
+        msg: {
+          id: row.msg.id,
+          role: 'user',
+          content: row.msg.text,
+          timestamp: row.msg.timestamp,
+          images: row.msg.images,
+          files: row.msg.files,
+        },
+        id: row.msg.id,
+        timestamp: row.msg.timestamp,
+        turnId: row.turnId,
       }
-    }
-    if (m.content) {
-      // N1 修复：id 用 m.id（与 upsertAssistantStreamRow 的实时流路径对齐），
-      // 否则恢复态 AssistantRow hover emit 的 msg.id 与事件行 id 永不匹配 → 操作栏隐形但仍可点击
-      pushContent({ type: 'assistant', msg: m, id: m.id, timestamp: ts })
-    }
+    case 'think':
+      return { type: 'think', id: row.id, text: row.text, status: row.status, timestamp: row.timestamp }
+    case 'action':
+      return {
+        type: 'tool',
+        id: row.id,
+        tc: {
+          id: row.id,
+          name: row.label,
+          // 行段模型 v2：rowKind 随 FlatRow 透传（实时与回源同源于 turns → 单点透传）
+          rowKind: row.rowKind,
+          args: row.args ?? {},
+          status: row.status === 'running' ? 'running' : row.status === 'failed' ? 'failed' : 'completed',
+          startedAt: row.timestamp,
+          endedAt: row.status === 'running' ? undefined : row.timestamp,
+          // H7 P0.5：执行耗时随 FlatRow 透传（回源旧消息无此字段则不显示）
+          durationMs: row.durationMs,
+          // ToolRow 期望字符串结果；回源携带的是原始结果文本，原样透传
+          result: typeof row.result === 'string' ? row.result : undefined,
+        },
+        timestamp: row.timestamp,
+      }
+    case 'text':
+      // id 沿用文本段 id（与实时路径同构，延续 N1 修复语义）
+      return {
+        type: 'assistant',
+        msg: { id: row.id, role: 'assistant', content: row.text, timestamp: row.timestamp },
+        id: row.id,
+        timestamp: row.timestamp,
+        isResult: row.isResult,
+      }
+    case 'divider':
+      return { type: 'divider', id: row.id, dividerText: row.text, timestamp: row.timestamp }
+    case 'process_summary':
+      return {
+        type: 'process_summary',
+        id: row.id,
+        turnId: row.turnId,
+        thinkCount: row.thinkCount,
+        actionCount: row.actionCount,
+        timestamp: row.timestamp,
+      }
   }
-  return rows
 }
 
 // ─── 深度阶段事件监听（DeepPhaseChanged）────────────────────────────
@@ -577,32 +661,11 @@ async function setupDeepPhaseListener(sessionId: string): Promise<void> {
     const unlisten = await listen<RustDeepPhaseChangedPayload>(eventName, (e) => {
       const payload = e.payload
       const now = Date.now()
-      // ── ① 事件行流：工具驱动为独立 tool 行（running→completed/failed 原位更新）──
-      const existingToolRow = findLastToolRow(payload.triggerTool)
-      if (existingToolRow && existingToolRow.type === 'tool') {
-        const tc: ToolCallView = {
-          ...existingToolRow.tc,
-          status: payload.toolStatus,
-          endedAt: payload.toolStatus !== 'running' ? now : existingToolRow.tc.endedAt,
-        }
-        streamReplace(sessionId, existingToolRow.id, { ...existingToolRow, tc })
-      } else {
-        streamAppend(sessionId, {
-          type: 'tool',
-          id: nextMsgId('tool'),
-          tc: {
-            id: nextMsgId('tool'),
-            name: payload.triggerTool,
-            args: {},
-            status: payload.toolStatus,
-            startedAt: now,
-            endedAt: payload.toolStatus !== 'running' ? now : undefined,
-          },
-          timestamp: now,
-        })
-      }
+      // 命令段不再由此驱动：DeepPhaseChanged 是「阶段切换」的副产物，同阶段内连续调用不发事件，
+      // 用它当命令段源会导致段缺失。权威命令段已接通 ToolCallStart/End（tools.rs 真实执行前后广播），
+      // 由 handleStreamEvent 消费并按 toolCallId 幂等收敛。此处仅维护右侧阶段轨迹。
 
-      // ── ② 右侧阶段轨迹（PhaseSection/TracePanel 消费）：维护 deepSegments phase 段 ──
+      // ── 右侧阶段轨迹（PhaseSection/TracePanel 消费）：维护 deepSegments phase 段 ──
       // 去重：同一 phaseIndex 已存在则更新其工具/状态，不重复追加
       const existingSeg = deepSegments.value.find((s) => s.type === 'phase' && s.index === payload.phaseIndex)
       if (existingSeg && existingSeg.type === 'phase') {
@@ -906,9 +969,11 @@ function handleStreamEvent(sessionId: string, payload: RustStreamPayload): void 
   ) {
     return
   }
+  // 轮次归属：turnId 为空（编排路径未开轮）时仅维护消息状态，不写轮次树
+  const turnId = currentTurnId.value
+
   if (payload.type === 'start') {
-    // 新流开始：重置流式 think 引用，后续 reasoning 增量将新建 think 行
-    streamingThink.value = null
+    // 新流开始：创建空助手消息承载后续增量（messages 仍维护，供 lastAssistantHas* 等消费）
     const msg: AgentMessage = {
       id: nextAssistantId(),
       role: 'assistant',
@@ -919,9 +984,7 @@ function handleStreamEvent(sessionId: string, payload: RustStreamPayload): void 
     lastStreamedMsg.value = msg
     messages.value.push(msg)
     sessionMessagesCache.get(sessionId)?.push(msg)
-    // 立即把空助手行放进 agentStream（唯一渲染源锚点）：
-    // 后续 delta/end 的 upsert 恒能 find 到该 id 走原位替换，杜绝流式期间重复 append。
-    upsertAssistantStreamRow(sessionId, msg)
+    if (turnId) applyTurnEvent(sessionId, { type: 'round_start', turnId })
     return
   }
 
@@ -931,16 +994,14 @@ function handleStreamEvent(sessionId: string, payload: RustStreamPayload): void 
     const updated: AgentMessage = { ...target, content: target.content + payload.delta }
     streamingAssistant.value = updated
     upsertMsgInSession(target.id, updated, sessionId)
-    // 同步更新/追加助手正文事件行（唯一渲染源）
-    upsertAssistantStreamRow(sessionId, updated)
+    if (turnId) applyTurnEvent(sessionId, { type: 'text_delta', turnId, delta: payload.delta })
     return
   }
 
-  // [链逐条] 推理增量：双写——消息字段 thinking（供 lastAssistantHasThinking 等回源消费）+ think 事件行（唯一渲染源）
+  // 推理增量：双写——消息字段 thinking（供 lastAssistantHasThinking 消费）+ 轮次树推理段
   if (payload.type === 'reasoning') {
     const target = streamingAssistant.value
     if (!target) return
-    // 双写 1：消息字段 thinking（保留，供回源/兼容消费）
     const updated: AgentMessage = {
       ...target,
       ...((target as { thinking?: string }).thinking !== undefined
@@ -949,34 +1010,12 @@ function handleStreamEvent(sessionId: string, payload: RustStreamPayload): void 
     }
     streamingAssistant.value = updated
     upsertMsgInSession(target.id, updated, sessionId)
-    // 双写 2：追加/更新 think 事件行（同一推理增量累积在同一行，交由带下标缓存的 upsert）
-    const cur = streamingThink.value
-    if (cur && cur.type === 'think') {
-      const newRow: AgentStreamItem = { ...cur, text: cur.text + payload.delta }
-      streamingThink.value = newRow
-      upsertThinkStreamRow(sessionId, newRow)
-    } else {
-      const newRow: AgentStreamItem = {
-        type: 'think',
-        id: nextMsgId('think'),
-        text: payload.delta,
-        status: 'streaming',
-        timestamp: Date.now(),
-      }
-      streamingThink.value = newRow
-      upsertThinkStreamRow(sessionId, newRow)
-    }
+    // 分段由归约器判定：连续 reasoning 累积同一段，遇正文则另起新段
+    if (turnId) applyTurnEvent(sessionId, { type: 'reasoning', turnId, delta: payload.delta })
     return
   }
 
   if (payload.type === 'end') {
-    // think 行收尾：置 complete（若有流式 think）
-    const cur = streamingThink.value
-    if (cur && cur.type === 'think') {
-      const done: AgentStreamItem = { ...cur, status: 'complete' }
-      streamingThink.value = null
-      streamReplace(sessionId, cur.id, done)
-    }
     const target = streamingAssistant.value
     streamingAssistant.value = null
     if (target) {
@@ -984,20 +1023,54 @@ function handleStreamEvent(sessionId: string, payload: RustStreamPayload): void 
       const updated: AgentMessage = { ...target, content: payload.fullText }
       lastStreamedMsg.value = updated
       upsertMsgInSession(target.id, updated, sessionId)
-      // 收尾助手正文事件行（唯一渲染源）
-      upsertAssistantStreamRow(sessionId, updated)
+    }
+    // fullText 为权威：校正增量丢失，亦覆盖「无 delta 只有 fullText」的一次性输出
+    if (turnId) applyTurnEvent(sessionId, { type: 'round_end', turnId, fullText: payload.fullText })
+    return
+  }
+
+  // 工具调用开始：命令段的权威事件源（tools.rs 真实执行前广播）
+  // 同一 toolCallId 可能重复到达（genai 流式期也会广播一次），归约器按 refId 幂等覆盖。
+  if (payload.type === 'tool_call_start') {
+    if (turnId) {
+      applyTurnEvent(sessionId, {
+        type: 'action_start',
+        turnId,
+        id: `tool-${payload.toolCallId}`,
+        action: 'tool',
+        label: payload.name,
+        refId: payload.toolCallId,
+        args: (payload.args ?? {}) as Record<string, unknown>,
+      })
+    }
+    return
+  }
+
+  // 工具调用结束：result 为工具真实执行结果（失败时为 { error, tool }）
+  if (payload.type === 'tool_call_end') {
+    if (turnId) {
+      const parsed = parseToolResult(payload.result)
+      // H7 P0.5：事件顶层 status/error 权威（后端真实执行结果）；解析推断仅作旧事件回退
+      const status =
+        payload.status === 'failed' ? 'failed' : payload.status === 'success' ? 'completed' : parsed.status
+      applyTurnEvent(sessionId, {
+        type: 'action_end',
+        turnId,
+        refId: payload.toolCallId,
+        status,
+        result: parsed.result,
+        error: payload.error ?? parsed.error,
+        durationMs: payload.durationMs,
+      })
     }
     return
   }
 
   // error / agent_end：清理流式占位，保留已累积内容
-  // think 行收尾：置 complete 并清空流式引用
-  const cur = streamingThink.value
-  if (cur && cur.type === 'think') {
-    const done: AgentStreamItem = { ...cur, status: 'complete' }
-    streamingThink.value = null
-    streamReplace(sessionId, cur.id, done)
-  }
+  // 段收尾与结果层固化不在此处——turn_end 由 prompt 的 send_message 返回路径统一发送，
+  // 避免「事件先到、返回值后到」两次 turn_end 造成结果层重复段
+  // 但动作段必须在此兜底：中断/异常时工具不会有 ToolCallEnd 到达，否则命令段永久转圈
+  if (turnId) applyTurnEvent(sessionId, { type: 'actions_settle', turnId })
   streamingAssistant.value = null
   // 复位流式状态：即使 send_message 的 invoke promise 因重载/中断被丢弃，
   // 后端仍会经流事件通道广播 agent_end/error，据此兜底复位，避免「思考中…」卡死
@@ -1503,9 +1576,9 @@ async function newSession(
   usePlanStore().clearPlan()
   // ToT/GoT/Supervisor 实时树：新会话 active 桶已切换为空桶，无需全局清空
   sessionMessagesCache.set(info.id, [])
-  agentStream.value = []
-  sessionStreamCache.set(info.id, [])
-  streamingThink.value = null
+  turns.value = []
+  sessionTurnsCache.set(info.id, [])
+  currentTurnId.value = null
   await setupDeepPhaseListener(info.id)
   await setupA2UIListener(info.id)
   await setupSubAgentListener(info.id)
@@ -1565,8 +1638,8 @@ async function newDraftSession(): Promise<void> {
   subAgents.value = []
   resetOrchestrationTrace()
   usePlanStore().clearPlan()
-  agentStream.value = []
-  streamingThink.value = null
+  turns.value = []
+  currentTurnId.value = null
 }
 
 /**
@@ -1637,7 +1710,7 @@ async function restoreLastSession(): Promise<void> {
 async function deleteSession(sessionId: string): Promise<void> {
   await safeInvoke('delete_session', { sessionId })
   sessionMessagesCache.delete(sessionId)
-  sessionStreamCache.delete(sessionId)
+  sessionTurnsCache.delete(sessionId)
   // 级联清理该会话的视图状态（场景/模式/execTab/活动/编排）
   useSessionViewState().removeSession(sessionId)
   teardownDeepPhaseListener(sessionId)
@@ -1652,8 +1725,8 @@ async function deleteSession(sessionId: string): Promise<void> {
     // Phase 4 工作区：删除当前会话时清空工作区引用
     currentWorkdir.value = null
     messages.value = []
-    agentStream.value = []
-    streamingThink.value = null
+    turns.value = []
+    currentTurnId.value = null
     deepSegments.value = []
     a2uiSurfaces.value = {}
     subAgents.value = []
@@ -1681,53 +1754,38 @@ async function setSessionPinned(sessionId: string, pinned: boolean): Promise<voi
   await refreshSessionList()
 }
 
-// ─── MCP 连接（本地持久化；Rust 端暂无 MCP 后端，配置可管理，真实连接待后端支持）───
+// ─── MCP 连接（H2 重建 P2，2026-08-30 · Rust 原生 rmcp 后端真实接线）───
+// 配置持久化（SQLite mcp.db）与连接生命周期（应用级）全在 Rust 侧；
+// 本层只做 invoke 转发。旧 localStorage 伪状态已废弃（agent_mcp_connections key 不再读写）。
 
-/** MCP 配置存储 key（与 shared-composables useMcpConnections 同 key，保持一致） */
-const MCP_STORAGE_KEY = 'agent_mcp_connections'
-
-function loadMcpFromStorage(): MCPConnectionConfig[] {
-  try {
-    const raw = localStorage.getItem(MCP_STORAGE_KEY)
-    return raw ? (JSON.parse(raw) as MCPConnectionConfig[]) : []
-  } catch {
-    return []
-  }
+/** 已保存配置 + 活跃状态合并视图（面板列表数据源） */
+async function getMCPConnections(): Promise<MCPConnectionState[]> {
+  const saved = await safeInvoke<MCPConnectionConfig[]>('cmd_mcp_saved', {}).catch(() => [])
+  const status = await safeInvoke<Array<{ id: string; connected: boolean; toolCount: number }>>(
+    'cmd_mcp_status',
+    {},
+  ).catch(() => [] as Array<{ id: string; connected: boolean; toolCount: number }>)
+  const statusMap = new Map(status.map((s) => [s.id, s]))
+  return saved.map((config) => {
+    const st = statusMap.get(config.id)
+    return {
+      id: config.id,
+      config,
+      // 真实状态：enabled 且 Rust 侧活跃连接才算 connected
+      status: config.enabled && st?.connected ? 'connected' : 'disconnected',
+      tools: [],
+    } as MCPConnectionState
+  })
 }
 
-function saveMcpToStorage(configs: MCPConnectionConfig[]): void {
-  try {
-    localStorage.setItem(MCP_STORAGE_KEY, JSON.stringify(configs))
-  } catch {}
-}
-
-function toMcpState(config: MCPConnectionConfig): MCPConnectionState {
-  return {
-    id: config.id,
-    config,
-    status: config.enabled ? 'connected' : 'disconnected',
-    tools: [],
-  }
-}
-
-/** MCP 连接状态列表（读自 localStorage，映射为 MCPConnectionState） */
-function getMCPConnections(): MCPConnectionState[] {
-  return loadMcpFromStorage().map(toMcpState)
-}
-
-/** 添加/更新 MCP 连接（写 localStorage，幂等） */
+/** 保存配置并连接（rmcp：stdio/http 按配置分派），幂等（同 id 重连） */
 async function addMCPConnection(config: MCPConnectionConfig): Promise<void> {
-  const list = loadMcpFromStorage()
-  const idx = list.findIndex((c) => c.id === config.id)
-  if (idx >= 0) list[idx] = config
-  else list.push(config)
-  saveMcpToStorage(list)
+  await safeInvoke('cmd_mcp_connect', { config })
 }
 
-/** 移除 MCP 连接（写 localStorage） */
+/** 删除配置并断开（连接保留语义由 toggle 组合表达） */
 async function removeMCPConnection(serverId: string): Promise<void> {
-  const list = loadMcpFromStorage().filter((c) => c.id !== serverId)
-  saveMcpToStorage(list)
+  await safeInvoke('cmd_mcp_delete', { serverId })
 }
 
 /** 切换会话（加载该会话的消息历史） */
@@ -1776,37 +1834,28 @@ async function switchSession(sessionId: string): Promise<void> {
   } else {
     messages.value = []
   }
+  // rustMsgs 提升到分支外：事件流重建需要原始形态（含 tool_call_id / meta.thinking）
+  let rustMsgs: RustMessage[] = []
   try {
-    const rustMsgs = await safeInvoke<RustMessage[]>('get_messages', { sessionId })
+    rustMsgs = await safeInvoke<RustMessage[]>('get_messages', { sessionId })
     const tsMsgs = rustMsgs.map(rustMsgToTsMsg)
     messages.value = tsMsgs
     sessionMessagesCache.set(sessionId, tsMsgs)
   } catch (err) {
     console.warn(`[useAgentRust] switchSession(${sessionId}) 加载消息失败（保持缓存）:`, err)
   }
-  // 事件流：先清空当前流，优先从该会话缓存恢复；缺失则按历史消息重建并写回缓存
-  streamingThink.value = null
-  agentStream.value = []
-  const cachedStream = sessionStreamCache.get(sessionId)
-  if (cachedStream) {
-    // 恢复时去重：同一 id 只保留首次出现，杜绝多路赋值叠加出的重复行
-    const dedup: AgentStreamItem[] = []
-    const seen = new Set<string>()
-    for (const row of cachedStream) {
-      if (seen.has(row.id)) continue
-      seen.add(row.id)
-      dedup.push(row)
-    }
-    agentStream.value = dedup
-    // 同步回写去重结果，避免后续再次引用到含重复的缓存
-    sessionStreamCache.set(sessionId, dedup)
-  } else {
-    const tsMsgs = messages.value
-    if (tsMsgs.length > 0) {
-      const rebuilt = rebuildStreamFromMessages(tsMsgs)
-      agentStream.value = rebuilt
-      sessionStreamCache.set(sessionId, rebuilt)
-    }
+  // 轮次树：优先从会话缓存恢复；缺失则按历史消息重建并写回缓存
+  // 去重不再是问题——归约器本身幂等（动作段按 id、文本段按候选游标），无需事后扫描
+  // 展平/映射缓存随会话切换清空（跨会话行 id 必然重复，不清会累积）
+  resetStreamCaches()
+  currentTurnId.value = null
+  turns.value = []
+  const cachedTurns = sessionTurnsCache.get(sessionId)
+  if (cachedTurns) {
+    turns.value = cachedTurns
+  } else if (rustMsgs.length > 0) {
+    turns.value = rebuildTurnsFromMessages(rustMsgs)
+    sessionTurnsCache.set(sessionId, turns.value)
   }
   // A4 Plan-Exec：切换会话时恢复该会话的计划（按会话隔离），无计划则清空
   try {
@@ -1833,12 +1882,68 @@ async function switchSession(sessionId: string): Promise<void> {
 
 // ─── 命令封装：对话主链路 ────────────────────────────────────
 
+/** H5 规则工程（P2，2026-08-30）：项目规则文件名（workdir 根，随项目走，类比 AGENTS.md）
+ *  导出供 ProjectRulesEditor（编辑侧）共用，保证读写文件名单一来源 */
+export const PROJECT_RULES_FILE = 'WORLDSMITH.md'
+
+/**
+ * 读取项目规则文本（workdir/WORLDSMITH.md）
+ *
+ * 未绑定 workdir 或文件不存在时返回 null（无规则不注入）。
+ * 规则内容经 new_session(system_prompt) 的 static_p 段注入（与场景 prompt 拼接非覆盖）。
+ */
+async function loadProjectRules(): Promise<string | null> {
+  const dir = currentWorkdir.value
+  if (!dir) return null
+  try {
+    const content = await tauriInvoke<string>('cmd_fs_read', { path: `${dir}/${PROJECT_RULES_FILE}` })
+    return content?.trim() ? content : null
+  } catch {
+    return null // 文件不存在（首次使用）视为无规则
+  }
+}
+
+/**
+ * 构建会话级 system prompt 注入段（ensureSession → newSession 用）。
+ *
+ * 组成（按序拼接，空段跳过）：
+ * ① 项目规则（H5 P2：workdir/WORLDSMITH.md，用户自写的强制约束）；
+ * ② 技能索引（H3 P1：initSkillRegistry 每次建会话重扫 + buildSkillIndexPrompt 启停过滤）。
+ *
+ * 注入契约：new_session(system_prompt) → AgentLoopConfig.system_prompt →
+ * build_prompt_options 的 static_p 段与场景 prompt **拼接**（非覆盖，
+ * 见 agent-kernel memory.rs）；LLM 据此遵守规则并调用 load_skill 激活技能。
+ *
+ * ⚠ TODO(await-user · 2026-08-30)：H5 规则工程的设计点已标记待用户说明——
+ * 注入措辞（「强制严格遵守」）、生效时机（仅新会话）、单文件格式（WORLDSMITH.md）。
+ * 用户后续说明后按其要求调整；调整前请勿视为最终设计。
+ */
+async function buildSessionSystemPrompt(): Promise<string | undefined> {
+  const sections: string[] = []
+
+  // ⚠ TODO(await-user)：规则注入段（措辞/生效时机待用户说明，见函数头标记）
+  const rules = await loadProjectRules()
+  if (rules) {
+    sections.push('## 项目规则（Project Rules）\n\n以下是本项目的强制规则，必须严格遵守：\n\n' + rules.trim())
+  }
+
+  try {
+    await initSkillRegistry()
+  } catch (e) {
+    console.warn('[useAgentRust] initSkillRegistry 失败，仅内置技能参与索引', e)
+  }
+  const index = buildSkillIndexPrompt()
+  if (index) sections.push(index)
+
+  return sections.length ? sections.join('\n\n') : undefined
+}
+
 /**
  * 确保存在当前会话（无则新建）
  */
 async function ensureSession(): Promise<string> {
   if (currentSessionId.value) return currentSessionId.value
-  const info = await newSession()
+  const info = await newSession(await buildSessionSystemPrompt())
   return info.id
 }
 
@@ -1886,8 +1991,20 @@ async function prompt(text: string, options?: PromptOptions): Promise<void> {
   }
   messages.value.push(userMsg)
   sessionMessagesCache.get(sessionId)?.push(userMsg)
-  // 用户消息事件行（唯一渲染源；id=userMsg.id，供点状导航/窗口化锚定对齐）
-  pushStreamItem(sessionId, { type: 'user', msg: userMsg, id: userMsg.id, timestamp: userMsg.timestamp })
+  // 开新轮次（① 用户消息层）：后续流式事件按 turnId 归属到本轮
+  const turnId = nextMsgId('turn')
+  currentTurnId.value = turnId
+  applyTurnEvent(sessionId, {
+    type: 'turn_start',
+    turnId,
+    userMessage: {
+      id: userMsg.id,
+      text: textContent,
+      timestamp: userMsg.timestamp,
+      images: options?.images,
+      files: options?.files,
+    },
+  })
 
   emit({ type: 'agent_start', sessionId, chatMode: options?.chatMode ?? 'deep' })
 
@@ -1926,7 +2043,6 @@ async function prompt(text: string, options?: PromptOptions): Promise<void> {
     if (streamed) {
       assistantMsg = { ...streamed, content: result.reply }
       upsertMsgInSession(streamed.id, assistantMsg, sessionId)
-      upsertAssistantStreamRow(sessionId, assistantMsg)
     } else {
       assistantMsg = {
         id: nextAssistantId(),
@@ -1936,9 +2052,15 @@ async function prompt(text: string, options?: PromptOptions): Promise<void> {
       }
       messages.value.push(assistantMsg)
       sessionMessagesCache.get(sessionId)?.push(assistantMsg)
-      // 非流式后端：一次性追加助手正文事件行（唯一渲染源）
-      upsertAssistantStreamRow(sessionId, assistantMsg)
     }
+    // 轮次收口：以 reply 为权威固化 ③ 结果层（turn_end 唯一发送点）
+    applyTurnEvent(sessionId, {
+      type: 'turn_end',
+      turnId,
+      status: 'complete',
+      finalText: result.reply,
+    })
+    currentTurnId.value = null
 
     emit({ type: 'message_start', message: assistantMsg })
     emit({ type: 'message_end', messageId: assistantMsg.id, content: result.reply, thinking: '' })
@@ -1982,6 +2104,9 @@ async function prompt(text: string, options?: PromptOptions): Promise<void> {
       diagSuffix = ` [诊断: session=${sess?.slice(0,8)}, mode=${s.aiProviderMode}, provider=${provider}, model=${model || '空'}, key=${key}]`
     } catch {}
     const error = err instanceof Error ? new Error(err.message + diagSuffix) : new Error(String(err) + diagSuffix)
+    // 轮次收口为 error：保留已累积的过程层内容，结果层不落地
+    applyTurnEvent(sessionId, { type: 'turn_end', turnId, status: 'error' })
+    currentTurnId.value = null
     emit({ type: 'error', error })
     emit({ type: 'agent_end', sessionId, messages: messages.value })
     throw error
@@ -2009,13 +2134,13 @@ async function abort(): Promise<void> {
   if (!sessionId) return
   await safeInvoke('abort', { sessionId })
   isStreaming.value = false
-  // N4 修复：流中断提示——输出戛然而止无任何「已停止」标记，用户无法区分中断/出错/完成
-  pushStreamItem(sessionId, {
-    type: 'divider',
-    id: nextMsgId('div'),
-    dividerText: '已由用户停止',
-    timestamp: Date.now(),
-  })
+  streamingAssistant.value = null
+  // N4 修复：流中断提示——轮次标记 aborted，展平时在末尾补「已由用户停止」分隔行
+  const turnId = currentTurnId.value
+  if (turnId) {
+    applyTurnEvent(sessionId, { type: 'turn_end', turnId, status: 'aborted' })
+    currentTurnId.value = null
+  }
 }
 
 /** A7：设置当前会话安全级别（off / dangerous_only / moderate_and_dangerous，运行时生效） */
@@ -2032,9 +2157,10 @@ async function clearHistory(): Promise<void> {
   await safeInvoke('clear_history', { sessionId })
   messages.value = []
   sessionMessagesCache.set(sessionId, [])
-  agentStream.value = []
-  streamingThink.value = null
-  sessionStreamCache.set(sessionId, [])
+  resetStreamCaches()
+  turns.value = []
+  sessionTurnsCache.set(sessionId, [])
+  currentTurnId.value = null
 }
 
 /** 从后端重新拉取当前会话消息并更新本地状态与缓存（trim / 外部变更后调用） */
@@ -2292,10 +2418,10 @@ function dispose(): void {
     sessionTitleUnlisten()
     sessionTitleUnlisten = null
   }
-  // 清理事件流状态
-  agentStream.value = []
-  sessionStreamCache.clear()
-  streamingThink.value = null
+  // 清理轮次树状态
+  turns.value = []
+  sessionTurnsCache.clear()
+  currentTurnId.value = null
 }
 
 // ─── 派生状态 ────────────────────────────────────
@@ -2384,6 +2510,12 @@ export function useAgentRust() {
 
     // ── 事件流（唯一渲染源，Phase 1+）──
     agentStream,
+    // 过程层折叠态（用户手动展开/收起；自动折叠控制器写同一字段）
+    setProcessCollapsed,
+    markTurnExpanded,
+    autoCollapseProcess,
+    // 轮次树（折叠控制器与视口判定消费）
+    turns,
 
     // ── 深度模式段（DeepProcessPanel 依赖）──
     /** @deprecated 待后续清理，改用 agentStream */

@@ -198,6 +198,18 @@ export function importWorldSmithYaml(raw: string, fallbackId: string): ImportRes
  * @param fallbackId 当文件无 id/name 时的兜底 id（通常用文件名）
  */
 export function autoImportSkill(raw: string, fallbackId: string): ImportResult {
+  // H3 冒烟修复（2026-08-30）：导入校验收紧——此前 default 分支把任何无特征文本
+  // 兜底当 Claude Code 导入，任意 md（项目笔记等无 frontmatter 文档）都会"导入成功"，
+  // 无效技能既进不了列表（id 崩坏如 "WorldSmith-"）又会污染 Agent 技能索引。
+  // 现要求：必须有 YAML frontmatter（--- 包裹），或 WorldSmith skill.yaml 特征（id: / baseTools）。
+  const hasFrontmatter = /^---\s*\n/.test(raw)
+  const isWorldsmithYaml = !hasFrontmatter && (/\bbaseTools\b/.test(raw) || /^\s*id\s*:/m.test(raw))
+  if (!hasFrontmatter && !isWorldsmithYaml) {
+    throw new Error(
+      '无法识别为技能文件：缺少 YAML frontmatter（--- 包裹的 name/description 等）。'
+      + '技能导入要求 Claude Code SKILL.md（含 frontmatter）、Cursor .mdc 或 WorldSmith skill.yaml 格式',
+    )
+  }
   const platform = detectPlatform(raw)
   switch (platform) {
     case 'cursor':
@@ -205,8 +217,15 @@ export function autoImportSkill(raw: string, fallbackId: string): ImportResult {
     case 'worldsmith':
       return importWorldSmithYaml(raw, fallbackId)
     case 'claude-code':
-    default:
-      return importClaudeCodeSkill(raw, fallbackId)
+    default: {
+      const result = importClaudeCodeSkill(raw, fallbackId)
+      // Claude Code 规范 name 必填：缺失时拒绝而非 fallback（防 "SKILL" 这类无效 id 入库）。
+      // frontmatterToMeta 的 name 兜底链为 fm.name || fm.id || fallbackId——等于 fallbackId 即两者皆缺。
+      if (!result.meta.name || result.meta.name === fallbackId) {
+        throw new Error('SKILL.md frontmatter 缺少 name 字段（Claude Code 规范必填），已拒绝导入')
+      }
+      return result
+    }
   }
 }
 

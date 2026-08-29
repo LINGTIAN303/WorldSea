@@ -6,7 +6,12 @@
   emits：block-action / tool-confirm / hover / leave。
 -->
 <template>
-  <div class="ws-stream-row ws-stream-tool" @mouseenter="emit('hover', item.id)" @mouseleave="emit('leave')">
+  <div
+    class="ws-stream-row ws-stream-tool"
+    :data-msg-id="item.id"
+    @mouseenter="emit('hover', item.id)"
+    @mouseleave="emit('leave')"
+  >
     <!-- 交互工具：保留选择/确认交互 -->
     <InteractiveToolCall
       v-if="isInteractive"
@@ -18,7 +23,7 @@
     <template v-else>
       <div
         class="ws-stream-tool-summary"
-        :class="{ 'is-failed': isFailed }"
+        :class="[`kind-${rowKind}`, { 'is-failed': isFailed }]"
         role="button"
         tabindex="0"
         :aria-expanded="isExpanded"
@@ -38,6 +43,8 @@
         <span class="ws-stream-tool-name">({{ label }})</span>
         <!-- 失败直显错误摘要（不展开）；成功展示效果标签 -->
         <span v-if="!isFailed && effect" class="ws-stream-tool-effect">{{ effect }}</span>
+        <!-- 执行耗时（H7 P0.5 事件权威字段；shell 类 effect 已含时长则不重复显示） -->
+        <span v-if="durationText" class="ws-stream-tool-duration">{{ durationText }}</span>
         <span v-if="isFailed" class="ws-stream-tool-error">{{ errorText }}</span>
         <span v-else-if="argsPreview" class="ws-stream-tool-args">{{ argsPreview }}</span>
         <!-- 成功才渲染可展开的 chevron；失败显示提示（不可展开） -->
@@ -64,6 +71,7 @@ import { computed, ref } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
 import InteractiveToolCall from '../../blocks/InteractiveToolCall.vue'
 import { getToolLabel } from '../../bubbles/toolLabels'
+import { classifyActionRowKind } from '@worldsmith/shared-composables/agent/turnModel'
 import {
   getOpKind,
   OP_VERB,
@@ -89,6 +97,8 @@ const emit = defineEmits<{
   (e: 'tool-confirm', event: { toolId: string; approved: boolean }): void
   (e: 'hover', id: string): void
   (e: 'leave'): void
+  /** 用户展开详情：置该轮次的 userEverExpanded latch（折叠三条件分派用） */
+  (e: 'expand'): void
 }>()
 
 // ===== 交互类型：choice/confirm/display 走 InteractiveToolCall =====
@@ -99,6 +109,9 @@ const isInteractive = computed(() =>
 
 // ===== 工具名（复用 getToolLabel 作工具名显示） =====
 const label = computed(() => getToolLabel(props.item.tc.name))
+
+// ===== 行段种类（行段模型 v2）：归约层推导随流透传；旧路径按工具名回退分类 =====
+const rowKind = computed(() => props.item.tc.rowKind ?? classifyActionRowKind(props.item.tc.name))
 
 // ===== 操作语义（按工具名分类 + args 提取对象名） =====
 const op = computed(() => getOpKind(props.item.tc.name))
@@ -125,6 +138,16 @@ const meta = computed<ToolMeta | null>(() => {
 })
 const effect = computed(() => extractEffectLabel(meta.value))
 
+// ===== 执行耗时（H7 P0.5 事件权威字段）；shell 类已由 __meta duration_ms 进 effect，避免重复 =====
+const durationText = computed(() => {
+  const ms = props.item.tc.durationMs
+  if (ms === undefined || ms <= 0) return ''
+  if (meta.value?.duration_ms !== undefined) return ''
+  return ms < 60_000
+    ? `${(ms / 1000).toFixed(1)}s`
+    : `${Math.floor(ms / 60_000)}m${String(Math.round((ms % 60_000) / 1000)).padStart(2, '0')}s`
+})
+
 // ===== 失败态：直显错误摘要，不可展开 =====
 const isFailed = computed(() => props.item.tc.status === 'failed')
 const errorText = computed(() => {
@@ -147,6 +170,7 @@ const isExpanded = ref(false)
 function toggleExpand() {
   if (isFailed.value) return
   isExpanded.value = !isExpanded.value
+  if (isExpanded.value) emit('expand')
 }
 
 // ===== 参数/结果格式化（复用 InlineToolCall 逻辑代码） =====

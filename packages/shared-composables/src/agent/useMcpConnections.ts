@@ -79,7 +79,7 @@ export function useMcpConnections(options: UseMcpConnectionsOptions = {}) {
         try { await agent.addMCPConnection(config) } catch {}
       }
     }
-    connections.value = agent.getMCPConnections()
+    connections.value = await agent.getMCPConnections()
   }
 
   async function addConnection(config: MCPConnectionConfig): Promise<void> {
@@ -89,7 +89,7 @@ export function useMcpConnections(options: UseMcpConnectionsOptions = {}) {
     const configs = loadFromStorage().filter(c => c.id !== config.id)
     configs.push(config)
     saveToStorage(configs)
-    connections.value = agent.getMCPConnections()
+    connections.value = await agent.getMCPConnections()
   }
 
   async function removeConnection(serverId: string): Promise<void> {
@@ -109,7 +109,7 @@ export function useMcpConnections(options: UseMcpConnectionsOptions = {}) {
       configs.push({ ...defaultCfg, enabled: false })
     }
     saveToStorage(configs)
-    connections.value = agent.getMCPConnections()
+    connections.value = await agent.getMCPConnections()
   }
 
   async function toggleConnection(serverId: string): Promise<void> {
@@ -131,13 +131,13 @@ export function useMcpConnections(options: UseMcpConnectionsOptions = {}) {
     } else {
       await agent.removeMCPConnection(serverId)
     }
-    connections.value = agent.getMCPConnections()
+    connections.value = await agent.getMCPConnections()
   }
 
   async function refreshConnections(): Promise<void> {
     const agent = getAgentMethods()
     if (!agent) return
-    connections.value = agent.getMCPConnections()
+    connections.value = await agent.getMCPConnections()
   }
 
   return {

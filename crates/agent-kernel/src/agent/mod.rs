@@ -672,9 +672,10 @@ impl AgentLoop {
         }
     }
 
-    /// [RunPhase::AfterRun 内置] 记忆归档 — record_turn + archive
+    /// [RunPhase::AfterRun 内置] 记忆归档 — record_turn + archive + 上下文预算裁剪
     ///
     /// 记录本轮对话（供归档前累积）并触发归档；任一环节失败静默跳过，不影响主流程返回。
+    /// 归档后执行上下文预算检查（H1 修复 P1.5，见 `enforce_context_budget`）。
     async fn run_memory_archive(&self, user_input: &str, result: &Result<String, AgentError>) {
         if let Some(memory) = &self.memory {
             let assistant_text = match result {
@@ -683,6 +684,66 @@ impl AgentLoop {
             };
             let _ = memory.record_turn(user_input.to_string(), assistant_text).await;
             let _ = memory.archive(None).await;
+        }
+        self.enforce_context_budget().await;
+    }
+
+    /// H1 修复（P1.5，2026-08-30）：上下文预算自动裁剪 — 消息历史只进不出的解药
+    ///
+    /// 此前消息历史只进不出：归档是"增值"而非"腾挪"（archive 的边界被忽略），
+    /// 全链路无 token 计量，长会话终将顶爆 LLM 上下文窗口。
+    ///
+    /// 策略：AfterRun 阶段估算活跃历史字节量，超预算则从头部裁掉最旧消息只保留
+    /// 最近 `HISTORY_KEEP_MESSAGES` 条（`trim_context` 同步 backend + state 两边）。
+    ///
+    /// 语义安全：被裁轮次必然已归档进记忆——归档阈值（2000 token）远小于预算阈值
+    /// （约 5 万+ token），预算触发时未归档缓冲只剩最近几轮，保留条数足够覆盖。
+    async fn enforce_context_budget(&self) {
+        // ═══════════════════════════════════════════════════════════════
+        // ⚠ TODO(await-user · 2026-08-30)：以下两个阈值为【占位默认值】，已标记待定！
+        // 用户明确要求：上下文压缩/归档阈值涉及消息删除，需慎重——后续将由用户
+        // 说明具体策略后调整（可能改为可配置/按 token 精算/归档联动策略等）。
+        // 在用户说明之前，此处的数值仅作为保守占位，勿当作最终设计依赖。
+        // ═══════════════════════════════════════════════════════════════
+        const HISTORY_BUDGET_BYTES: usize = 160_000; // ⚠ 占位待定（≈5.3 万汉字 / 16 万 ASCII 字符）
+        const HISTORY_KEEP_MESSAGES: usize = 12; // ⚠ 占位待定（保留最近 12 条 ≈4-6 轮）
+
+        let (total_bytes, total_msgs) = {
+            let state = self.state.lock().await;
+            let bytes: usize = state
+                .messages
+                .iter()
+                .map(|m| m.content.len() + 32) // content + 结构开销粗估
+                .sum();
+            (bytes, state.messages.len())
+        };
+        if total_bytes <= HISTORY_BUDGET_BYTES || total_msgs <= HISTORY_KEEP_MESSAGES {
+            return;
+        }
+
+        // 从头部计算需裁条数：裁到预算内或只剩保留条数
+        let mut drop = 0usize;
+        let mut acc = total_bytes;
+        {
+            let state = self.state.lock().await;
+            let keep_from = total_msgs.saturating_sub(HISTORY_KEEP_MESSAGES);
+            for m in state.messages.iter() {
+                if drop >= keep_from || acc <= HISTORY_BUDGET_BYTES {
+                    break;
+                }
+                acc -= m.content.len() + 32;
+                drop += 1;
+            }
+        }
+        if drop == 0 {
+            return;
+        }
+        match self.trim_context(drop).await {
+            Ok(()) => info!(
+                "上下文预算裁剪：历史 {} 字节超预算 {}，已裁掉最旧 {} 条（保留 {} 条）",
+                total_bytes, HISTORY_BUDGET_BYTES, drop, total_msgs - drop
+            ),
+            Err(e) => warn!("上下文预算裁剪失败: {}", e),
         }
     }
 
@@ -811,6 +872,13 @@ impl AgentLoop {
                 .filter(|tc| !tc.name.trim().is_empty())
                 .collect();
 
+            // 若有推理内容，写入 meta["thinking"] 持久化，供刷新后回源重建推理段
+            let meta = response.reasoning.as_ref().map(|r| {
+                let mut m = std::collections::HashMap::new();
+                m.insert("thinking".to_string(), serde_json::json!(r));
+                m
+            });
+
             if tool_calls.is_empty() {
                 // 无有效工具调用：推入 assistant 消息，返回最终文本
                 let final_text = response.text.clone();
@@ -821,7 +889,7 @@ impl AgentLoop {
                         content: final_text.clone(),
                         tool_calls: Vec::new(),
                         tool_call_id: None,
-                        meta: None,
+                        meta: meta.clone(),
                     });
                 }
 
@@ -841,7 +909,7 @@ impl AgentLoop {
             // 此处 tool_calls 已过滤空名，取第一个（主工具）即可。
             let tool_name_for_checkpoint = tool_calls.first().map(|tc| tc.name.clone());
 
-            // 推入 assistant 消息（含 tool_calls）
+            // 推入 assistant 消息（含 tool_calls 与 reasoning）
             {
                 let mut state = self.state.lock().await;
                 state.messages.push(OrchestratorMessage {
@@ -849,7 +917,7 @@ impl AgentLoop {
                     content: assistant_text,
                     tool_calls: tool_calls.clone(),
                     tool_call_id: None,
-                    meta: None,
+                    meta: meta.clone(),
                 });
             }
 

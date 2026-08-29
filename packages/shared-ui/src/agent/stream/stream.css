@@ -211,6 +211,13 @@
   padding: 1px 5px;
   border-radius: 4px;
 }
+/* 执行耗时（H7 P0.5 事件权威字段，如 1.2s / 1m05s） */
+.ws-stream-tool-duration {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--agent-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
 /* 失败直显错误摘要（不展开） */
 .ws-stream-tool-error {
   flex: 1;
@@ -280,6 +287,84 @@
 }
 .ws-stream-tool-detail-result { max-height: 300px; }
 
+/* ===== 轮次三层结构（① 用户层 / ② 过程层 / ③ 结果层）=====
+ * 设计约束（用户拍板）：
+ *  - 轮次之间仅 8px gap，不加分隔线（靠用户消息气泡天然分界）；
+ *  - 结果层与过程文本段仅做字重/字级弱化区分，不靠颜色/边框/卡片；
+ *  - 只有结果层带操作栏（由 AssistantRow 的 isResult 控制渲染，见组件）。
+ * 分组用 <template v-for> 不产生 DOM 节点，故各层容器是 .ws-stream-list 的直接子元素，
+ * 层内间距沿用容器 gap(4px)，轮次/层间用 margin-top 叠加补足。 */
+
+/* 轮次边界：前面有兄弟元素的用户行即为非首轮 → 4px(gap) + 4px = 8px */
+.ws-stream-list > * + .ws-user-row {
+  margin-top: 4px;
+}
+
+/* ② 过程层：内部行纵向扁平流，间距同层内 */
+.ws-turn-process {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* ③ 结果层：与上方过程层留出 8px（4px gap + 4px） */
+.ws-turn-result {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  margin-top: 4px;
+}
+/* 结果层过后才落地时（无过程层），首个元素不该有额外上边距 */
+.ws-stream-list > .ws-turn-result:first-child {
+  margin-top: 0;
+}
+
+/* 结果层与过程文本段的视觉区分：仅字重微调 + 过程段弱化
+ * 注意：不在此处改 font-size——ws-assistant-text 上的 agentFontStyle 是 inline style，
+ * CSS 覆盖不生效，字号差异需由 persona 字体体系统一处理。 */
+.ws-turn-process .ws-assistant-row .ws-assistant-text {
+  font-weight: 400;
+  color: var(--agent-text-secondary);
+}
+.ws-turn-result .ws-assistant-row.is-result .ws-assistant-text {
+  font-weight: 500;
+}
+
+/* ===== 过程层折叠摘要行 ===== */
+.ws-process-summary {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  cursor: pointer;
+  user-select: none;
+  font-size: var(--font-size-sm);
+  color: var(--agent-text-tertiary);
+  padding: 2px 4px;
+  margin: 1px 0;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+.ws-process-summary:hover {
+  background: var(--agent-hover-bg);
+}
+.ws-process-summary-chevron {
+  font-size: 10px;
+  color: var(--agent-text-tertiary);
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+.ws-process-summary:hover .ws-process-summary-chevron {
+  transform: rotate(90deg);
+}
+.ws-process-summary-text {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* ===== 动画（统一 ws-stream- 前缀，reduced-motion 自动覆盖） ===== */
 @keyframes ws-stream-pulse {
   0%, 100% { opacity: 1; }
@@ -292,3 +377,31 @@
 .ws-stream-row-enter {
   animation: ws-stream-row-in 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
+/* ═══ 行段模型 v2：按行段种类（rowKind）的差异化行卡 ═══
+   对齐市面 Harness 过程流范式（Claude Code / Cursor）：终端与命令段等宽命令主显，
+   文件/搜索/工具段分色弱区分；只动呈现（配色/字体），不改行结构与交互。 */
+
+/* 终端段 / 命令段：命令对象等宽字体（$ cmd 主显） */
+.ws-stream-tool-summary.kind-terminal .ws-stream-tool-subject,
+.ws-stream-tool-summary.kind-command .ws-stream-tool-subject {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 0.92em;
+  letter-spacing: 0;
+}
+
+/* 单字角标按行段种类分色（底色淡染，克制不抢主体） */
+.ws-stream-tool-summary.kind-terminal .ws-stream-tool-mark { color: var(--agent-success); background: color-mix(in srgb, var(--agent-success) 12%, transparent); }
+.ws-stream-tool-summary.kind-command  .ws-stream-tool-mark { color: var(--agent-warning, #d97706); background: color-mix(in srgb, var(--agent-warning, #d97706) 12%, transparent); }
+.ws-stream-tool-summary.kind-search   .ws-stream-tool-mark { color: var(--agent-purple, #8b5cf6); background: color-mix(in srgb, var(--agent-purple, #8b5cf6) 12%, transparent); }
+.ws-stream-tool-summary.kind-file     .ws-stream-tool-mark { color: var(--agent-primary); background: color-mix(in srgb, var(--agent-primary) 12%, transparent); }
+.ws-stream-tool-summary.kind-tool     .ws-stream-tool-mark { color: var(--agent-info, #0ea5e9); background: color-mix(in srgb, var(--agent-info, #0ea5e9) 12%, transparent); }
+.ws-stream-tool-summary.kind-other    .ws-stream-tool-mark { color: var(--agent-text-secondary, #8a8a93); background: color-mix(in srgb, var(--agent-text-secondary, #8a8a93) 12%, transparent); }
+
+/* 文件段：对象名（路径基名）路径感呈现 */
+.ws-stream-tool-summary.kind-file .ws-stream-tool-subject {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 0.92em;
+}
+
+/* 搜索段：查询词引号弱化为主文本的一部分（跟随现有 subject 样式，仅色带区分） */
+.ws-stream-tool-summary.kind-search .ws-stream-tool-subject { color: var(--agent-purple, #8b5cf6); }

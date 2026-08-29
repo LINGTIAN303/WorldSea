@@ -1,5 +1,6 @@
 <template>
   <div class="model-switcher" :class="{ expanded: isExpanded }" ref="switcherRef">
+    <!-- [③] 入口去胶囊：扁平无边框，hover 浅底 + 主色 -->
     <button
       class="model-pill"
       aria-haspopup="listbox"
@@ -39,18 +40,19 @@
               <WsIcon :name="refreshingModels ? 'loading' : 'refresh'" size="xs" />
             </button>
           </div>
-          <!-- [E3] AutoModel 占位选项 -->
+          <!-- [⑦] AutoModel 条目：WorldSmith Logo 图标（自动选型逻辑暂放，占位） -->
           <button
             class="model-option"
             :class="{ active: currentModelId === 'auto' }"
             @click="selectAutoModel"
           >
             <span class="model-option-status" aria-hidden="true"><WsIcon v-if="currentModelId === 'auto'" name="check" size="xs" /></span>
+            <WorldSmithLogo :size="16" class="model-option-icon" alt="WorldSmith" />
             <span class="model-option-name">AutoModel</span>
             <span class="model-option-tag">自动</span>
           </button>
+          <!-- [②] 去掉供应商分组标题，仅保留模型（仍按供应商排列，组间细分隔线） -->
           <div v-for="group in dropdownGroups" :key="group.group" class="model-group">
-            <div class="model-group-label" role="presentation">{{ group.group }}</div>
             <button
               v-for="m in group.models"
               :key="m.id"
@@ -64,23 +66,51 @@
               @focus="activeOptionId = m.id"
             >
               <span class="model-option-status" aria-hidden="true"><WsIcon v-if="m.id === currentModelId" name="check" size="xs" /></span>
+              <!-- [⑤] 供应商 Logo 图标 -->
+              <img :src="getProviderIconUrl(m.provider)" class="model-option-icon" alt="" />
               <span class="model-option-name">{{ m.name }}</span>
-              <!-- [E3] 思考档位占位：弹出浮窗（暂不实现） -->
-              <button class="think-btn" type="button" title="思考档位（占位）" @click.stop="openThinking(m.name, $event)"><WsIcon name="brain" size="xs" /></button>
+              <!-- [⑥] 思考档位悬停触发（仅支持思考的模型；原入口按钮移除） -->
+              <span
+                v-if="modelSupportsThinking(m.id)"
+                class="think-hint"
+                :class="{ active: thinkTarget?.id === m.id }"
+                title="思考档位"
+                @mouseenter.stop="onThinkEnter(m, $event)"
+                @mouseleave.stop="onThinkLeave"
+                @click.stop
+              ><WsIcon name="brain" size="xs" /></span>
             </button>
           </div>
         </div>
       </Transition>
     </Teleport>
 
-    <!-- [E3] 思考档位浮窗占位 -->
+    <!-- [⑥] 思考档位悬停浮窗（按模型自身档位） -->
     <Teleport to="body">
-      <div v-if="thinkingFor" class="think-overlay" @click.self="thinkingFor = null"></div>
       <Transition name="dropdown">
-        <div v-if="thinkingFor" class="think-pop" :style="thinkStyle" @click.stop>
-          <div class="think-header">{{ thinkingFor.name }} · 思考档位</div>
-          <div class="think-body">思考档位设置（占位，暂未实现）</div>
-          <button class="think-close" @click="thinkingFor = null">关闭</button>
+        <div
+          v-if="thinkTarget"
+          class="think-pop"
+          :style="thinkStyle"
+          @mouseenter="onThinkEnter(thinkTarget, $event)"
+          @mouseleave="onThinkLeave"
+          @click.stop
+        >
+          <div class="think-header">{{ thinkTarget.name }} · 思考档位</div>
+          <div class="think-levels">
+            <button
+              v-for="lvl in thinkLevels"
+              :key="lvl.value"
+              class="think-level"
+              :class="{ on: isThinkActive(lvl.value) }"
+              type="button"
+              @click="selectThinkLevel(lvl.value)"
+            >
+              <span class="think-level-label">{{ lvl.label }}</span>
+              <span class="think-level-desc">{{ lvl.desc }}</span>
+              <WsIcon v-if="isThinkActive(lvl.value)" name="check" size="xs" class="think-level-check" />
+            </button>
+          </div>
         </div>
       </Transition>
     </Teleport>
@@ -90,12 +120,14 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
-import { getModelInfo, getModelPresets, getProviderManifest, refreshModels } from '@worldsmith/agent-runtime'
+import { getModelInfo, getModelPresets, getProviderManifest, refreshModels, getThinkingLevels } from '@worldsmith/agent-runtime'
+import type { ThinkingLevel } from '@worldsmith/agent-runtime'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useAgent } from '@/agent/composables/useAgent'
 import { useSessionViewState } from '@/agent/composables/useSessionViewState'
 import { loadApiKey, hasApiKey } from '@agent/index'
 import { getProviderIconUrl } from '@/assets/providerIcons'
+import WorldSmithLogo from '@/components/brand/WorldSmithLogo.vue'
 
 const props = withDefaults(defineProps<{
   isExpanded?: boolean
@@ -108,7 +140,7 @@ const emit = defineEmits<{
 }>()
 
 const settingsStore = useSettingsStore()
-const { updateModel } = useAgent()
+const { updateModel, thinkingLevel, updateThinkingLevel } = useAgent()
 const sessionView = useSessionViewState()
 
 const open = ref(false)
@@ -260,6 +292,7 @@ function onListboxKeydown(e: KeyboardEvent) {
 
 async function selectModel(provider: string, modelId: string) {
   open.value = false
+  thinkTarget.value = null
   if (modelId === currentModelId.value) return
 
   const info = getModelInfo(modelId)
@@ -283,10 +316,26 @@ async function selectModel(provider: string, modelId: string) {
   } catch {}
   // [E3] 会话级记忆：当前会话记住该模型（切换会话恢复）
   sessionView.setModel({ provider, modelId })
+  // [④] 切换模型后校验思考档位：新模型不支持当前档位则重置到可用档（如 glm-5.3 思考恒开，无 off）
+  syncThinkingLevelToModel(modelId)
   emit('change', provider, modelId)
 }
 
-/** [E3] AutoModel 占位：暂不真正切换（显示选项 + 标记，TODO 实现自动选模型） */
+/** [④] 校验并同步思考档位到目标模型（档位集 = getThinkingLevels(modelId)） */
+async function syncThinkingLevelToModel(modelId: string): Promise<void> {
+  const valid = getThinkingLevels(modelId)
+  const cur = thinkingLevel.value as string
+  if (valid.some(l => l.value === cur)) return
+  const fallback = valid.find(l => l.value === 'off') ?? valid[0]
+  if (!fallback) return
+  try {
+    await updateThinkingLevel(fallback.value as ThinkingLevel)
+    thinkingLevel.value = fallback.value as ThinkingLevel
+    localStorage.setItem('agent_thinking_level', fallback.value)
+  } catch { /* 降级：仅本地态更新失败不影响模型切换 */ }
+}
+
+/** [⑦] AutoModel 占位：暂不真正切换（显示选项 + 标记，TODO 自动选型逻辑下轮实现） */
 async function selectAutoModel() {
   open.value = false
   if (currentModelId.value === 'auto') return
@@ -321,16 +370,59 @@ async function onRefreshModelList(): Promise<void> {
   }
 }
 
-/** [E3] 思考档位浮窗占位：模型条目右侧弹出，展示思考档位（暂不实现，静态骨架） */
-const thinkingFor = ref<{ name: string } | null>(null)
+// ── [④⑥] 思考档位悬停浮窗 ─────────────────────────────────────────
+interface ThinkTarget { id: string; name: string; provider: string }
+const thinkTarget = ref<ThinkTarget | null>(null)
 const thinkStyle = ref<Record<string, string>>({ top: '0px', right: '8px' })
-function openThinking(name: string, ev: MouseEvent) {
+let thinkTimer: ReturnType<typeof setTimeout> | null = null
+
+/** 模型是否支持思考（决定是否渲染悬停触发点） */
+function modelSupportsThinking(id: string): boolean {
+  return !!getModelInfo(id)?.supportsThinking
+}
+
+function onThinkEnter(m: ThinkTarget, ev: MouseEvent) {
+  if (thinkTimer) { clearTimeout(thinkTimer); thinkTimer = null }
+  thinkTarget.value = m
+  // 浮窗定位：跟随触发点下方右侧
   const rect = (ev.currentTarget as HTMLElement).getBoundingClientRect()
   thinkStyle.value = {
-    top: `${rect.top}px`,
-    right: `${Math.max(8, window.innerWidth - rect.right + 8)}px`,
+    top: `${Math.min(rect.bottom + 4, window.innerHeight - 120)}px`,
+    right: `${Math.max(8, window.innerWidth - rect.right + 4)}px`,
   }
-  thinkingFor.value = { name }
+}
+
+function onThinkLeave() {
+  // 防抖关闭：允许鼠标移入浮窗（浮窗 mouseenter 会取消定时器）
+  if (thinkTimer) clearTimeout(thinkTimer)
+  thinkTimer = setTimeout(() => { thinkTarget.value = null }, 120)
+}
+
+/** 当前悬停模型的可用档位 */
+const thinkLevels = computed(() => thinkTarget.value ? getThinkingLevels(thinkTarget.value.id) : [])
+
+/** 当前档位是否生效（仅当悬停模型就是当前模型时高亮） */
+function isThinkActive(level: string): boolean {
+  return !!thinkTarget.value
+    && thinkTarget.value.id === currentModelId.value
+    && thinkingLevel.value === level
+}
+
+/** 选择档位：悬停模型非当前模型时先切换，再应用档位 */
+async function selectThinkLevel(level: string) {
+  const t = thinkTarget.value
+  if (!t) return
+  if (t.id !== currentModelId.value) {
+    await selectModel(t.provider, t.id)
+  }
+  try {
+    await updateThinkingLevel(level as ThinkingLevel)
+    thinkingLevel.value = level as ThinkingLevel
+    localStorage.setItem('agent_thinking_level', level)
+  } catch (err) {
+    console.warn('[ModelSwitcher] 设置思考档位失败:', err)
+  }
+  thinkTarget.value = null
 }
 
 function onDocClick(e: MouseEvent) {
@@ -343,8 +435,10 @@ function onDocClick(e: MouseEvent) {
 
 /** I1 修复：全局 Escape 关闭（原仅触发器/列表框聚焦时生效，焦点在输入框时无响应） */
 function onDocKeydown(e: KeyboardEvent) {
-  if (!open.value) return
-  if (e.key === 'Escape') open.value = false
+  if (e.key === 'Escape') {
+    open.value = false
+    thinkTarget.value = null
+  }
 }
 
 onMounted(() => {
@@ -356,6 +450,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   document.removeEventListener('click', onDocClick)
   document.removeEventListener('keydown', onDocKeydown, true)
+  if (thinkTimer) clearTimeout(thinkTimer)
 })
 </script>
 
@@ -366,24 +461,25 @@ onBeforeUnmount(() => {
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* [③] 入口去胶囊：扁平无边框，hover 浅底 + 主色字 */
 .model-pill {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 10px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-3xl);
-  background: var(--color-surface-elevated);
+  padding: 4px 8px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
   color: var(--color-text-secondary);
   font-size: var(--font-size-xs);
   cursor: pointer;
   white-space: nowrap;
-  transition: background 0.2s, border-color 0.2s, color 0.2s, box-shadow 0.2s, transform 0.2s, opacity 0.2s, filter 0.2s;
-  height: 32px;
+  transition: background 0.2s, color 0.2s;
+  height: 28px;
 }
 
 .model-pill:hover {
-  border-color: var(--color-primary);
+  background: var(--color-surface);
   color: var(--color-text);
 }
 
@@ -424,10 +520,11 @@ onBeforeUnmount(() => {
   z-index: 10000;
 }
 
+/* [①] 下拉高度降至原 60%：70vh × 0.6 ≈ 42vh */
 .model-dropdown {
   position: fixed;
   min-width: 200px;
-  max-height: 70vh;
+  max-height: 42vh;
   overflow-y: auto;
   background: rgba(10, 10, 20, 0.08);
   backdrop-filter: blur(16px);
@@ -472,16 +569,11 @@ onBeforeUnmount(() => {
   cursor: not-allowed;
 }
 
-.model-group {
-  margin-bottom: 2px;
-}
-
-.model-group-label {
-  padding: 4px 10px 2px;
-  font-size: var(--font-size-2xs);
-  color: var(--color-text-tertiary);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+/* [②] 分组无标题，组间细分割线（首个分组无上边线） */
+.model-group + .model-group {
+  border-top: 1px solid var(--color-border);
+  margin-top: 4px;
+  padding-top: 2px;
 }
 
 .model-option {
@@ -517,6 +609,14 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 
+/* [⑤] 供应商 Logo 图标（模型名左侧） */
+.model-option-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
 .model-option-name {
   flex: 1;
   min-width: 0;
@@ -524,7 +624,7 @@ onBeforeUnmount(() => {
   text-overflow: ellipsis;
 }
 
-/* [E3] AutoModel 占位标签 + 思考档位按钮/浮窗 */
+/* [⑦] AutoModel 占位标签 */
 .model-option-tag {
   flex-shrink: 0;
   font-size: var(--font-size-2xs);
@@ -533,63 +633,96 @@ onBeforeUnmount(() => {
   border-radius: var(--radius-pill);
   padding: 0 6px;
 }
-.think-btn {
+
+/* [⑥] 思考档位悬停触发点（原入口按钮移除） */
+.think-hint {
   flex-shrink: 0;
   width: 20px;
   height: 20px;
-  border: none;
-  background: transparent;
-  color: var(--color-text-tertiary);
-  border-radius: var(--radius-xs);
-  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  color: var(--color-text-tertiary);
+  border-radius: var(--radius-xs);
+  opacity: 0.55;
+  transition: opacity 0.15s, color 0.15s, background 0.15s;
 }
-.think-btn:hover {
+.think-hint:hover,
+.think-hint.active {
+  opacity: 1;
   color: var(--color-primary);
   background: var(--color-surface);
 }
-.think-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 10000;
-}
+
+/* 思考档位浮窗 */
 .think-pop {
   position: fixed;
-  min-width: 200px;
+  min-width: 220px;
+  max-height: 40vh;
+  overflow-y: auto;
   background: var(--color-surface-elevated);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-  padding: 10px;
-  z-index: 10001;
+  padding: 8px;
+  z-index: 10002;
 }
 .think-header {
   font-size: var(--font-size-xs);
   font-weight: 600;
   color: var(--color-text);
   margin-bottom: 6px;
+  padding: 0 2px 4px;
+  border-bottom: 1px solid var(--color-border);
 }
-.think-body {
-  font-size: var(--font-size-xs);
-  color: var(--color-text-tertiary);
-  margin-bottom: 10px;
+.think-levels {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
-.think-close {
-  padding: 4px 12px;
-  border: 1px solid var(--color-border);
+.think-level {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  background: transparent;
   border-radius: var(--radius-sm);
-  background: var(--color-surface);
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-xs);
   cursor: pointer;
+  text-align: left;
+  color: var(--color-text-secondary);
+  transition: background 0.12s;
 }
-.think-close:hover {
-  border-color: var(--color-primary);
+.think-level:hover {
+  background: var(--color-surface);
   color: var(--color-text);
+}
+.think-level.on {
+  background: var(--color-primary-muted);
+  color: var(--color-primary);
+}
+.think-level-label {
+  flex-shrink: 0;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  min-width: 32px;
+}
+.think-level-desc {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-size-2xs);
+  color: var(--color-text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.think-level.on .think-level-desc {
+  color: var(--color-text-secondary);
+}
+.think-level-check {
+  flex-shrink: 0;
 }
 
 .dropdown-enter-active {

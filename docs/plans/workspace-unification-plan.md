@@ -114,7 +114,9 @@ WorldSmith 是 Agent 产品、Harness 工程。文件系统对 Harness 不是"�
 - **冲突规避**：走查批次已提交（0bd2201，2026-08-28），M1 冲突解除并落地；后续里程碑开工前仍需复查 `git status` 确认无新并行批次
 - **数据迁移**：A1/D1 均涉及默认行为变化，需保证"未绑定项目的旧项目"行为不劣化（D1 迁移用 ALTER TABLE 幂等补列，旧会话 project_id=NULL 惰性，符合 B1）
 - **不自动修复约定**：§四 各项均为用户决策点，未拍板前不动代码
-- **已知风险（2026-08-29 M4 处置后状态）**：
-  - shell 内容级写入盲区：✅ 已实施词法防护（M4，写操作词 × 保护目录字样同现即拒）——**非完备**：变量间接/别名/子串拼接仍可绕过，残余风险接受并依赖用户监督（根治需 Rust 系统级拦截，暂不评估）
-  - 真机验证：M1-M4 验收已收敛为 §五 M4 段的 6 项端到端走查清单，待一次性真机走查
-  - 既有测试隔离 flaky（新发现，非本任务引入）：tauri 侧 secure_store/entity_commands 的 SQLite 临时库用固定文件名（{pid}），全量并行跑偶发 `database is locked`；单线程跑全绿。建议后续测试文件名加唯一后缀（未修，不在本任务范围）
+- **已知风险（2026-08-29 真机验证后处置状态）**：
+  - ~~E1 防护层错位~~（真机验证发现，a8fc9b0 已修）：原 M2/M4 防护加在 TS 层（workspace-boundary），但 Rust 主循环注册的是 **Rust 原生 FS/terminal 工具组**——TS 防护不在真实链路（并行会话的 rm 成功删除暴露）。已下沉 Rust：fs_tools 写类 E1 守卫 + terminal 双入口 shell 词法防护，**真机 3/3 通过**（entity_list 读文件真身 191 个/旧桥 0；write_file 与 rm entities 均在路径校验阶段被拒并引导语义工具）
+  - ~~secure_store 类型不匹配 panic~~（真机发现存量 bug，a8fc9b0 已修）：manage 的是 Arc<Self> 而命令取裸类型→每次调用 panic，前端静默降级 localStorage 掩盖至今；已统一 Arc 化
+  - shell 词法防护**非完备声明**不变：变量间接/别名可绕过，定位=拦常见误操作（真机验证确认防护在路径解析阶段拦截、未尝试执行）
+  - 端到端走查清单 6 项：**真机已验证 4 项**（①绑定项目会话 pill=项目目录 ②fs_delete/write_file 拒绝 ③entity_list 文件真身+实时一致 ④shell rm 拒绝），剩 ⑤无会话项目目录面板、⑥重启 project_id 持久 两项 UI 走查（RPC 层 project_id 回传已验证）
+  - 既有测试隔离 flaky（tauri SQLite 临时库固定文件名并行锁竞争，单线程全绿）未修，建议后续加唯一后缀

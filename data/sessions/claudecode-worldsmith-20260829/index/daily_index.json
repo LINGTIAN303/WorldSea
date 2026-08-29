@@ -1,0 +1,296 @@
+{
+  "id": "60b0e8e2-1a76-4f18-8c8e-6f654d5ba3c3",
+  "schema_version": 1,
+  "session_id": "claudecode-worldsmith-20260829",
+  "project_id": null,
+  "hooks": [
+    {
+      "id": "0613e2f2-620f-4e9e-99f3-567c75e42ee3",
+      "memory_id": "sessions/claudecode-worldsmith-20260829/daily/2026-08-29_123044_808.json",
+      "summary": {
+        "title": "给出 docs/plans/2026-08-29-stream-render-layer-plan.md 链接，后确认用 ZCode 内置浏览器冒烟，Tauri...",
+        "abstract_text": null,
+        "key_facts": [],
+        "key_entities": [],
+        "clue_anchors": []
+      },
+      "tags": [
+        {
+          "kind": "Text"
+        }
+      ],
+      "archived_at": "2026-08-29T12:30:44.808285300Z",
+      "period": "Daily",
+      "token_count": 468,
+      "file_status": "normal",
+      "archive_reason": null,
+      "raw_context_path": null
+    },
+    {
+      "id": "4c21146a-13be-4d3b-868e-2141358260f0",
+      "memory_id": "sessions/claudecode-worldsmith-20260829/daily/2026-08-29_135430_834.json",
+      "summary": {
+        "title": "/goal 执行 VibeCoding编排模式链路设计.md，让 WordSmith 达到成熟 Harness 工程，流式区行段缺数据/渲染模型，代码与视觉都要...",
+        "abstract_text": null,
+        "key_facts": [],
+        "key_entities": [],
+        "clue_anchors": []
+      },
+      "tags": [
+        {
+          "kind": "Text"
+        }
+      ],
+      "archived_at": "2026-08-29T13:54:30.834317100Z",
+      "period": "Daily",
+      "token_count": 312,
+      "file_status": "normal",
+      "archive_reason": null,
+      "raw_context_path": null
+    },
+    {
+      "id": "33da419f-31ee-47fb-a536-813b95c4df3d",
+      "memory_id": "sessions/claudecode-worldsmith-20260829/daily/2026-08-29_141144_610.json",
+      "summary": {
+        "title": "（系统续跑指令：按接续点推进 M2 循环层）...",
+        "abstract_text": null,
+        "key_facts": [],
+        "key_entities": [],
+        "clue_anchors": []
+      },
+      "tags": [
+        {
+          "kind": "Text"
+        }
+      ],
+      "archived_at": "2026-08-29T14:11:44.610809700Z",
+      "period": "Daily",
+      "token_count": 188,
+      "file_status": "normal",
+      "archive_reason": null,
+      "raw_context_path": null
+    },
+    {
+      "id": "df568edc-1996-4a1b-85a7-0925ed3cb4dc",
+      "memory_id": "sessions/claudecode-worldsmith-20260829/daily/2026-08-29_142756_054.json",
+      "summary": {
+        "title": "（系统续跑指令：M2 收尾 + 前端行段 v2 + R14）...",
+        "abstract_text": null,
+        "key_facts": [],
+        "key_entities": [],
+        "clue_anchors": []
+      },
+      "tags": [
+        {
+          "kind": "Text"
+        }
+      ],
+      "archived_at": "2026-08-29T14:27:56.054275900Z",
+      "period": "Daily",
+      "token_count": 216,
+      "file_status": "normal",
+      "archive_reason": null,
+      "raw_context_path": null
+    },
+    {
+      "id": "965cba97-e53a-4bd3-a928-f9b06be82d9e",
+      "memory_id": "sessions/claudecode-worldsmith-20260829/daily/2026-08-29_144444_702.json",
+      "summary": {
+        "title": "（系统续跑指令：M3 composite + 7 模式适配 → 前端行段 v2 → R14）...",
+        "abstract_text": null,
+        "key_facts": [],
+        "key_entities": [],
+        "clue_anchors": []
+      },
+      "tags": [
+        {
+          "kind": "Text"
+        }
+      ],
+      "archived_at": "2026-08-29T14:44:44.702016300Z",
+      "period": "Daily",
+      "token_count": 211,
+      "file_status": "normal",
+      "archive_reason": null,
+      "raw_context_path": null
+    },
+    {
+      "id": "c90386c7-8b19-4e13-a109-dd4360e644a3",
+      "memory_id": "sessions/claudecode-worldsmith-20260829/daily/2026-08-29_150746_429.json",
+      "summary": {
+        "title": "（系统续跑指令：接续点 0 前端行段模型 v2）...",
+        "abstract_text": null,
+        "key_facts": [],
+        "key_entities": [],
+        "clue_anchors": []
+      },
+      "tags": [
+        {
+          "kind": "Text"
+        }
+      ],
+      "archived_at": "2026-08-29T15:07:46.429884100Z",
+      "period": "Daily",
+      "token_count": 245,
+      "file_status": "normal",
+      "archive_reason": null,
+      "raw_context_path": null
+    },
+    {
+      "id": "25e8fa5a-49b3-4050-8733-438e572c38dd",
+      "memory_id": "sessions/claudecode-worldsmith-20260829/daily/2026-08-29_153454_817.json",
+      "summary": {
+        "title": "（系统续跑指令：M3 续车道并发 + wait-set → 7 模式适配）...",
+        "abstract_text": null,
+        "key_facts": [],
+        "key_entities": [],
+        "clue_anchors": []
+      },
+      "tags": [
+        {
+          "kind": "Text"
+        }
+      ],
+      "archived_at": "2026-08-29T15:34:54.817675600Z",
+      "period": "Daily",
+      "token_count": 210,
+      "file_status": "normal",
+      "archive_reason": null,
+      "raw_context_path": null
+    },
+    {
+      "id": "3f10d051-bc51-45df-88f7-5e52ff337a30",
+      "memory_id": "sessions/claudecode-worldsmith-20260829/daily/2026-08-29_155045_316.json",
+      "summary": {
+        "title": "（系统续跑指令：7 模式适配迁入 → Loop Engineering）...",
+        "abstract_text": null,
+        "key_facts": [],
+        "key_entities": [],
+        "clue_anchors": []
+      },
+      "tags": [
+        {
+          "kind": "Text"
+        }
+      ],
+      "archived_at": "2026-08-29T15:50:45.316378900Z",
+      "period": "Daily",
+      "token_count": 218,
+      "file_status": "normal",
+      "archive_reason": null,
+      "raw_context_path": null
+    },
+    {
+      "id": "0251e4eb-c31d-4027-92f2-d3e5284b877d",
+      "memory_id": "sessions/claudecode-worldsmith-20260829/daily/2026-08-29_161039_787.json",
+      "summary": {
+        "title": "（系统续跑指令：M3 尾三模式 → M4 → M5）...",
+        "abstract_text": null,
+        "key_facts": [],
+        "key_entities": [],
+        "clue_anchors": []
+      },
+      "tags": [
+        {
+          "kind": "Text"
+        }
+      ],
+      "archived_at": "2026-08-29T16:10:39.787457200Z",
+      "period": "Daily",
+      "token_count": 199,
+      "file_status": "normal",
+      "archive_reason": null,
+      "raw_context_path": null
+    },
+    {
+      "id": "a42018c5-b64c-4971-ad50-82df402f28ff",
+      "memory_id": "sessions/claudecode-worldsmith-20260829/daily/2026-08-29_163047_865.json",
+      "summary": {
+        "title": "（系统续跑指令：M4 记忆横切 → M5 GenaiAdapter → exit_code/R6 → 实时视觉冒烟）...",
+        "abstract_text": null,
+        "key_facts": [],
+        "key_entities": [],
+        "clue_anchors": []
+      },
+      "tags": [
+        {
+          "kind": "Text"
+        }
+      ],
+      "archived_at": "2026-08-29T16:30:47.865233400Z",
+      "period": "Daily",
+      "token_count": 237,
+      "file_status": "normal",
+      "archive_reason": null,
+      "raw_context_path": null
+    },
+    {
+      "id": "84787ec3-54b0-4eb0-804c-a9cdb116664b",
+      "memory_id": "sessions/claudecode-worldsmith-20260829/daily/2026-08-29_163908_636.json",
+      "summary": {
+        "title": "（系统续跑指令：桌面端实时流视觉冒烟 + R6 立项）...",
+        "abstract_text": null,
+        "key_facts": [],
+        "key_entities": [],
+        "clue_anchors": []
+      },
+      "tags": [
+        {
+          "kind": "Text"
+        }
+      ],
+      "archived_at": "2026-08-29T16:39:08.636476200Z",
+      "period": "Daily",
+      "token_count": 223,
+      "file_status": "normal",
+      "archive_reason": null,
+      "raw_context_path": null
+    },
+    {
+      "id": "9c2b98ee-89ae-4dab-9ade-1ebe551cc959",
+      "memory_id": "sessions/claudecode-worldsmith-20260829/daily/2026-08-29_170554_975.json",
+      "summary": {
+        "title": "（系统续跑指令：桌面端 tauri:dev 实时流截图 + R6 第一部分）...",
+        "abstract_text": null,
+        "key_facts": [],
+        "key_entities": [],
+        "clue_anchors": []
+      },
+      "tags": [
+        {
+          "kind": "Text"
+        }
+      ],
+      "archived_at": "2026-08-29T17:05:54.975652500Z",
+      "period": "Daily",
+      "token_count": 224,
+      "file_status": "normal",
+      "archive_reason": null,
+      "raw_context_path": null
+    },
+    {
+      "id": "fa20ad64-aea0-4b32-b793-dc21b5b14f2b",
+      "memory_id": "sessions/claudecode-worldsmith-20260829/daily/2026-08-29_171135_986.json",
+      "summary": {
+        "title": "做一份交接文档，本会话到此为止...",
+        "abstract_text": null,
+        "key_facts": [],
+        "key_entities": [],
+        "clue_anchors": []
+      },
+      "tags": [
+        {
+          "kind": "Text"
+        }
+      ],
+      "archived_at": "2026-08-29T17:11:35.986006200Z",
+      "period": "Daily",
+      "token_count": 118,
+      "file_status": "normal",
+      "archive_reason": null,
+      "raw_context_path": null
+    }
+  ],
+  "updated_at": "2026-08-29T17:11:35.991813500Z",
+  "period": "Daily"
+}

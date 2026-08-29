@@ -2,7 +2,7 @@
 
 > 承载代码内注释分层后的「详细」层（why/how）：设计决策、整体思路、模块职责、事件协议、踩坑约束。
 > 代码文件内仅保留一行简要注释 + 本目录相对路径；此处按模块与代码文件一一对应。
-> 配套规则见【[2026-08-06-comment-hierarchy-plan.md](../../plans/2026-08-06-comment-hierarchy-plan.md)】。
+> 配套规则见【[2026-08-06-comment-hierarchy-plan.md](../../plans/已完成/2026-08-06-comment-hierarchy-plan.md)】。
 > 代码变更影响注释含义时，必须同步更新本目录对应文档。
 
 ## 模块清单

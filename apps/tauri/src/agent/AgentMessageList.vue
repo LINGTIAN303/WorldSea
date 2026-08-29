@@ -40,6 +40,8 @@
         @copy="emit('copy', $event)"
         @retry="emit('retry', $event)"
         @tool-confirm="onToolConfirm"
+        @expand="onExpandProcess"
+        @segment-expand="onSegmentExpand"
         @scroll-to-message="scrollToMessage"
       />
 
@@ -113,7 +115,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import AgentStreamList from '@worldsmith/shared-ui/agent/stream/AgentStreamList.vue'
 import A2UIRenderer from '@worldsmith/shared-ui/agent/a2ui/A2UIRenderer.vue'
 import { usePersonaFont } from '../space/composables/usePersonaFont'
@@ -123,7 +125,7 @@ import { useArchiveStore } from '../stores/archiveStore'
 import { watchDebounced } from '@worldsmith/perf-kit/render'
 import type { AgentMessage } from '@agent/index'
 import type { AgentStreamItem } from '@worldsmith/shared-composables/agent/useAgent'
-import { useDotAnimation, useMessageWindowing, MessageListEmpty, ArchivedSection, StreamingPlaceholder, ScrollToBottomButton, DotNav, TurnStatus, ErrorRows } from '@worldsmith/shared-ui/agent/message-list'
+import { useDotAnimation, useMessageWindowing, useProcessCollapse, MessageListEmpty, ArchivedSection, StreamingPlaceholder, ScrollToBottomButton, DotNav, TurnStatus, ErrorRows } from '@worldsmith/shared-ui/agent/message-list'
 // M2：编排迹线（useOrchestrationTrace 聚合 + 编排段渲染）
 import OrchestrationSegment from './components/OrchestrationSegment.vue'
 import { useOrchestrationTrace } from './composables/useOrchestrationTrace'
@@ -133,7 +135,7 @@ import type { ExecTab } from '@/space/stores/space-store'
 import WorldSmithLogo from '@/components/brand/WorldSmithLogo.vue'
 
 const { enterAnimation } = usePersonaFont()
-const { agentStream, isStreaming: agentIsStreaming, resolveToolConfirmation, sessionTitlePending, currentSessionId } = useAgent()
+const { agentStream, isStreaming: agentIsStreaming, resolveToolConfirmation, sessionTitlePending, currentSessionId, setProcessCollapsed, markTurnExpanded, autoCollapseProcess, turns } = useAgent()
 const archiveStore = useArchiveStore()
 const { logs: activityLogs } = useActivityLog()
 // M2：编排迹线（状态由 useAgentRust 会话生命周期统一维护，本组件纯消费）+ 中止处理
@@ -154,6 +156,49 @@ async function onAbortOrchestration(): Promise<void> {
   } catch (err) {
     console.error('[AgentMessageList] 中止编排失败:', err)
   }
+}
+
+/** 定位某轮次的结果层元素（滚动锚点；按 dataset 遍历比对，避免属性选择器转义问题） */
+function findResultAnchor(scroll: HTMLElement, turnId: string): HTMLElement | null {
+  for (const el of scroll.querySelectorAll<HTMLElement>('[data-result-turn-id]')) {
+    if (el.dataset.resultTurnId === turnId) return el
+  }
+  return null
+}
+
+/**
+ * 在改变过程层折叠态前后保持锚点（结果层顶部）的视口位置不变
+ *
+ * 过程层展开/收起会让高度骤变数百 px：不补偿的话视口内容整体位移，
+ * 用户正在读的内容会突然跑掉——这正是要消除的"不稳定"。
+ * 以结果层顶部为锚点而非过程层：折叠后过程层只剩一行摘要，其位置本身就在变。
+ */
+function withProcessAnchor(turnId: string, mutate: () => void): void {
+  const scroll = messagesContainer.value?.querySelector<HTMLElement>('.messages-scroll') ?? null
+  const anchor = scroll ? findResultAnchor(scroll, turnId) : null
+  const beforeTop = anchor ? anchor.getBoundingClientRect().top : null
+  mutate()
+  if (!scroll || !anchor || beforeTop === null) return
+  nextTick(() => {
+    const delta = anchor.getBoundingClientRect().top - beforeTop
+    // delta<0：锚点上移（高度减少）→ 同步下移 scrollTop，使其回到原视口位置
+    if (Math.abs(delta) > 0.5) scroll.scrollTop += delta
+  })
+}
+
+/** 过程层折叠摘要行点击：展开该轮次的过程层（折叠态写在 Turn 上，切会话后仍一致） */
+function onExpandProcess(turnId: string): void {
+  withProcessAnchor(turnId, () => setProcessCollapsed(turnId, false))
+}
+
+/** 自动折叠执行点：补偿滚动后再折叠，避免视口跳动 */
+function onCollapseProcess(turnId: string): void {
+  withProcessAnchor(turnId, () => autoCollapseProcess(turnId))
+}
+
+/** 行段展开（推理/工具详情）：置 userEverExpanded latch，供折叠三条件分派 */
+function onSegmentExpand(turnId: string): void {
+  markTurnExpanded(turnId)
 }
 
 const props = withDefaults(defineProps<{
@@ -195,6 +240,17 @@ const turnError = computed<{ message: string; code?: string } | null>(() => {
 })
 
 const messagesContainer = ref<HTMLDivElement>()
+
+// ─── 过程层自动折叠（§3.4 三条件）──────────────────────────
+// 结果层落地后按三条件折叠该轮次的过程层：未展开过 → 立即；
+// 展开过但在视口内 → 空闲 5s；展开过且已滚出视口 → 立即。
+// latch（hasAutoCollapsed）保证每个轮次只自动折叠一次，用户手动展开后不再自动收起。
+useProcessCollapse({
+  turns,
+  container: messagesContainer,
+  // 经 onCollapseProcess 包装：先记锚点位置，折叠后补偿 scrollTop
+  onCollapse: onCollapseProcess,
+})
 
 /** 从 archiveStore 读取归档边界索引（响应式） */
 const archivedBoundaryIndex = computed(() => archiveStore.archivedBoundaryIndex)

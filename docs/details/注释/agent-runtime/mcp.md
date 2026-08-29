@@ -1,6 +1,6 @@
 # mcp.rs 详细注释文档（agent-runtime）
 
-> 来源：`crates/agent-runtime/src/mcp.rs` 中连续 ≥ 10 行的长注释块，按文件内出现顺序迁移至此。
+> 来源：`crates/agent-kernel/src/mcp.rs`（2026-08-25 crate 重组前为 `crates/agent-runtime/src/mcp.rs`，现经 agent-runtime 聚合壳 `pub use` 转发）中连续 ≥ 10 行的长注释块，按文件内出现顺序迁移至此。
 > 代码内原位置已替换为一行简要注释 + 相对路径。
 
 ## 注释块 1（原文件第 1-17 行）

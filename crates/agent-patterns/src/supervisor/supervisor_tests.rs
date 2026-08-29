@@ -646,6 +646,7 @@
                     input_tokens: None,
                     output_tokens: None,
                     stop_reason: Some("tool_calls".into()),
+                    reasoning: None,
                 })
             }
             async fn steer(&self, _text: String) -> Result<(), BackendError> {
@@ -1010,6 +1011,7 @@
                     input_tokens: None,
                     output_tokens: None,
                     stop_reason: Some("tool_calls".into()),
+                    reasoning: None,
                 })
             }
             async fn steer(&self, _text: String) -> Result<(), BackendError> {

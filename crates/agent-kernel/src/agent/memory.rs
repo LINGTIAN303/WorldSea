@@ -18,6 +18,10 @@ const SYSTEM_BASE_TOOLS: &[&str] = &[
     "plan_create",
     "plan_update",
     "plan_replan",
+    // H3 Skills 点火（P1，2026-08-30）：技能元工具三件，跨场景通用（progressive disclosure）
+    "load_skill",
+    "load_skill_reference",
+    "load_skill_asset",
 ];
 
 /// 世界构建场景注入的实体类型（对应 WorldSmith 实体类型规范，见 typeMappingRegistry.ts）

@@ -57,14 +57,14 @@ export const MODEL_REGISTRY: ModelInfo[] = [
   { id: 'meta-llama/llama-4-scout-17b-16e-instruct', name: 'Llama 4 Scout', provider: 'groq', contextLength: 131072, maxOutputTokens: 8192, supportsThinking: false, supportsVision: true, inputPricePerMillion: 0.11, outputPricePerMillion: 0.34, cacheReadPricePerMillion: 0.11, cacheWritePricePerMillion: 0.11, currency: 'USD' },
   { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B', provider: 'groq', contextLength: 131072, maxOutputTokens: 32768, supportsThinking: false, supportsVision: false, inputPricePerMillion: 0.59, outputPricePerMillion: 0.79, cacheReadPricePerMillion: 0.59, cacheWritePricePerMillion: 0.59, currency: 'USD' },
   // ── 智谱 GLM（新旗舰 5.3/5.2，移除 glm-5/5-turbo/4.7/4.6/4.5，保留 4.7-flash）──
-  { id: 'glm-5.3', name: 'GLM-5.3', provider: 'zhipu', contextLength: 1000000, maxOutputTokens: 128000, supportsThinking: true, supportsVision: false, thinkingModes: ['off', 'low', 'medium', 'high'], inputPricePerMillion: 8, outputPricePerMillion: 28, cacheReadPricePerMillion: 2, cacheWritePricePerMillion: 8, currency: 'CNY' },
+  { id: 'glm-5.3', name: 'GLM-5.3', provider: 'zhipu', contextLength: 1000000, maxOutputTokens: 128000, supportsThinking: true, supportsVision: false, thinkingModes: ['low', 'high', 'max'], inputPricePerMillion: 8, outputPricePerMillion: 28, cacheReadPricePerMillion: 2, cacheWritePricePerMillion: 8, currency: 'CNY' },
   { id: 'glm-5.2', name: 'GLM-5.2', provider: 'zhipu', contextLength: 1000000, maxOutputTokens: 128000, supportsThinking: true, supportsVision: false, thinkingModes: ['off', 'low', 'medium', 'high'], inputPricePerMillion: 8, outputPricePerMillion: 28, cacheReadPricePerMillion: 2, cacheWritePricePerMillion: 8, currency: 'CNY' },
   { id: 'glm-5.1', name: 'GLM-5.1', provider: 'zhipu', contextLength: 200000, maxOutputTokens: 128000, supportsThinking: true, supportsVision: false, thinkingModes: ['off', 'low', 'medium', 'high'], inputPricePerMillion: 6, outputPricePerMillion: 24, cacheReadPricePerMillion: 1.3, cacheWritePricePerMillion: 6, currency: 'CNY' },
   { id: 'glm-4.7-flash', name: 'GLM-4.7 Flash', provider: 'zhipu', contextLength: 200000, maxOutputTokens: 128000, supportsThinking: true, supportsVision: false, thinkingModes: ['off', 'low', 'medium', 'high'], inputPricePerMillion: 0, outputPricePerMillion: 0, cacheReadPricePerMillion: 0, cacheWritePricePerMillion: 0, currency: 'CNY' },
   { id: 'glm-5v-turbo', name: 'GLM-5V Turbo', provider: 'zhipu', contextLength: 200000, maxOutputTokens: 128000, supportsThinking: true, supportsVision: true, thinkingModes: ['off', 'low', 'medium', 'high'], inputPricePerMillion: 5, outputPricePerMillion: 22, cacheReadPricePerMillion: 1.2, cacheWritePricePerMillion: 5, currency: 'CNY' },
   { id: 'glm-4.6v', name: 'GLM-4.6V', provider: 'zhipu', contextLength: 200000, maxOutputTokens: 128000, supportsThinking: false, supportsVision: true, inputPricePerMillion: 6, outputPricePerMillion: 24, cacheReadPricePerMillion: 1.5, cacheWritePricePerMillion: 6, currency: 'CNY' },
   // ── 通义千问（新旗舰 qwen3.8-max；移除 qwen3.6-flash / 3-vl-*）──
-  { id: 'qwen3.8-max', name: 'Qwen3.8-Max', provider: 'qwen', contextLength: 1000000, maxOutputTokens: 131072, supportsThinking: true, supportsVision: true, thinkingModes: ['off', 'low', 'medium', 'high'], inputPricePerMillion: 12, outputPricePerMillion: 36, cacheReadPricePerMillion: 2.4, cacheWritePricePerMillion: 12, currency: 'CNY' },
+  { id: 'qwen3.8-max', name: 'Qwen3.8-Max', provider: 'qwen', contextLength: 1000000, maxOutputTokens: 131072, supportsThinking: true, supportsVision: true, thinkingModes: ['low', 'high', 'xhigh'], inputPricePerMillion: 12, outputPricePerMillion: 36, cacheReadPricePerMillion: 2.4, cacheWritePricePerMillion: 12, currency: 'CNY' },
   { id: 'qwen3.7-max', name: 'Qwen3.7-Max', provider: 'qwen', contextLength: 1000000, maxOutputTokens: 131072, supportsThinking: true, supportsVision: true, thinkingModes: ['off', 'low', 'medium', 'high'], inputPricePerMillion: 12, outputPricePerMillion: 36, cacheReadPricePerMillion: 2.4, cacheWritePricePerMillion: 12, currency: 'CNY' },
   { id: 'qwen3.7-plus', name: 'Qwen3.7-Plus', provider: 'qwen', contextLength: 1000000, maxOutputTokens: 131072, supportsThinking: true, supportsVision: true, thinkingModes: ['off', 'low', 'medium', 'high'], inputPricePerMillion: 4, outputPricePerMillion: 12, cacheReadPricePerMillion: 0.8, cacheWritePricePerMillion: 4, currency: 'CNY' },
   { id: 'qwen3.7-flash', name: 'Qwen3.7-Flash', provider: 'qwen', contextLength: 1000000, maxOutputTokens: 65536, supportsThinking: true, supportsVision: true, thinkingModes: ['off', 'low', 'medium', 'high'], inputPricePerMillion: 0.6, outputPricePerMillion: 2.4, cacheReadPricePerMillion: 0.12, cacheWritePricePerMillion: 0.6, currency: 'CNY' },
@@ -124,7 +124,7 @@ export const MODEL_REGISTRY: ModelInfo[] = [
   // ── SiliconFlow（聚合平台，动态拉取为主，这里放代表性预设兜底）──
   { id: 'deepseek-ai/DeepSeek-V4-Flash', name: 'DeepSeek-V4-Flash', provider: 'siliconflow', contextLength: 1000000, maxOutputTokens: 65536, supportsThinking: true, supportsVision: false, thinkingModes: ['off', 'low', 'medium', 'high'], inputPricePerMillion: 1, outputPricePerMillion: 2, cacheReadPricePerMillion: 0.02, cacheWritePricePerMillion: 0, currency: 'CNY' },
   // ── 腾讯云 TokenHub（聚合平台；Hy3 混元旗舰）──
-  { id: 'hy3', name: '腾讯混元 Hy3', provider: 'tencentcloud', contextLength: 262144, maxOutputTokens: 262144, supportsThinking: false, supportsVision: false, inputPricePerMillion: 1, outputPricePerMillion: 4, cacheReadPricePerMillion: 0.25, cacheWritePricePerMillion: 0, currency: 'CNY' },
+  { id: 'hy3', name: '腾讯混元 Hy3', provider: 'tencentcloud', contextLength: 262144, maxOutputTokens: 262144, supportsThinking: true, supportsVision: false, thinkingModes: ['off', 'low', 'high'], inputPricePerMillion: 1, outputPricePerMillion: 4, cacheReadPricePerMillion: 0.25, cacheWritePricePerMillion: 0, currency: 'CNY' },
   // ── LongCat（美团，新供应商；官方 1M ctx/262K out，纯文本）──
   { id: 'longcat-2.0', name: 'LongCat-2.0', provider: 'longcat', contextLength: 1000000, maxOutputTokens: 262144, supportsThinking: true, supportsVision: false, thinkingModes: ['off', 'low', 'medium', 'high'], inputPricePerMillion: 5, outputPricePerMillion: 20, cacheReadPricePerMillion: 0.1, cacheWritePricePerMillion: 0, currency: 'CNY' },
   // ── Dots Studio（新供应商；官方 280B MoE/512K ctx，图文视频音频全模态）──
@@ -266,9 +266,11 @@ export function getThinkingLevels(modelId: string): { value: string; label: stri
     { value: 'medium', label: '中', desc: '平衡思考' },
     { value: 'high', label: '高', desc: '深度思考' },
     { value: 'xhigh', label: '极高', desc: '极致思考' },
+    { value: 'max', label: '最大', desc: '全力思考' },
   ]
   if (info.thinkingModes) {
-    return levels.filter(l => l.value === 'off' || info.thinkingModes!.includes(l.value))
+    // 档位完全由模型自身 thinkingModes 决定（含 off：如 glm-5.3/qwen3.8-max 思考恒开则不含 off）
+    return levels.filter(l => info.thinkingModes!.includes(l.value))
   }
   return levels
 }

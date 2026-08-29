@@ -41,6 +41,73 @@ impl TauriAgentEventEmitter {
     ///
     /// 过滤掉高频流式增量 `StreamDelta`（避免 trace 消息爆炸），其余阶段事件全部纳入，
     /// 使前端能按序还原「一次对话一条可追踪链」（AgentStart → … → AgentEnd）。
+    /// R6 第一部分：动作段事件 → 流通道 payload（`agent:event:stream:{sid}` 的
+    /// `type: "action_event"` 消息）。六类动作段的统一转发映射——前端 turnModel
+    /// 据此驱动 ActionSegment（第三部分接入消费）；持久化载体为第二部分。
+    /// 已知限制：字段为 camelCase 明细快照，phase/router 类不含完整枚举序列化。
+    fn action_event_payload(event: &OrchestratorEvent) -> Option<(&'static str, serde_json::Value)> {
+        match event {
+            OrchestratorEvent::SubAgentStarted { sub_agent_id, sub_agent_name, task_description, .. } => {
+                Some((
+                    "subagent",
+                    serde_json::json!({ "phase": "start", "subAgentId": sub_agent_id, "name": sub_agent_name, "task": task_description }),
+                ))
+            }
+            OrchestratorEvent::SubAgentCompleted { sub_agent_id, sub_agent_name, output_chars, duration_ms, .. } => {
+                Some((
+                    "subagent",
+                    serde_json::json!({ "phase": "completed", "subAgentId": sub_agent_id, "name": sub_agent_name, "outputChars": output_chars, "durationMs": duration_ms }),
+                ))
+            }
+            OrchestratorEvent::SubAgentError { sub_agent_id, sub_agent_name, .. } => {
+                Some(("subagent", serde_json::json!({ "phase": "error", "subAgentId": sub_agent_id, "name": sub_agent_name })))
+            }
+            OrchestratorEvent::TracePipeStarted { run_id, pipeline, reason } => {
+                Some(("phase", serde_json::json!({ "phase": "pipe_started", "runId": run_id, "pipeline": pipeline, "reason": reason })))
+            }
+            OrchestratorEvent::TracePhaseEntered { run_id, phase, reason } => {
+                Some(("phase", serde_json::json!({ "phase": "entered", "runId": run_id, "phase": phase, "reason": reason })))
+            }
+            OrchestratorEvent::TracePhaseResult { run_id, phase, status, summary, .. } => {
+                Some((
+                    "phase",
+                    serde_json::json!({ "phase": "result", "runId": run_id, "phase": phase, "status": format!("{status:?}"), "summary": summary }),
+                ))
+            }
+            OrchestratorEvent::TracePipeFinished { run_id, status, .. } => {
+                Some(("phase", serde_json::json!({ "phase": "pipe_finished", "runId": run_id, "status": format!("{status:?}") })))
+            }
+            OrchestratorEvent::RouterDecisionMade { target_name, .. } => {
+                Some(("router", serde_json::json!({ "phase": "decision", "target": target_name })))
+            }
+            OrchestratorEvent::ReflectionResult { result } => {
+                Some(("reflection", serde_json::json!({ "result": result })))
+            }
+            OrchestratorEvent::ConfirmationRequested { confirm_id, tool_name, .. } => {
+                Some(("confirm", serde_json::json!({ "phase": "requested", "confirmId": confirm_id, "tool": tool_name })))
+            }
+            OrchestratorEvent::ConfirmationResolved { confirm_id, approved } => {
+                Some(("confirm", serde_json::json!({ "phase": "resolved", "confirmId": confirm_id, "approved": approved })))
+            }
+            _ => None,
+        }
+    }
+
+    /// R6 第一部分：动作段事件注入流通道（与 AgentEvent 十变体同通道，
+    /// payload type="action_event"——前端按 action 字段驱动对应动作段）
+    fn emit_stream_action(&self, action: &str, payload: serde_json::Value) {
+        let event_name = format!("agent:event:stream:{}", self.session_id);
+        let mut wrapped = serde_json::json!({ "type": "action_event", "action": action });
+        if let (Some(obj), Some(extra)) = (wrapped.as_object_mut(), payload.as_object()) {
+            for (k, v) in extra {
+                obj.insert(k.clone(), v.clone());
+            }
+        }
+        if let Err(err) = emit_dual(&self.app, &event_name, wrapped) {
+            tracing::warn!("Failed to emit action event to stream: {}", err);
+        }
+    }
+
     fn trace_summary(event: &OrchestratorEvent) -> Option<(&'static str, String)> {
         match event {
             OrchestratorEvent::Agent(AgentEvent::AgentStart { model }) => {
@@ -58,8 +125,12 @@ impl TauriAgentEventEmitter {
             OrchestratorEvent::Agent(AgentEvent::ToolCallStart { name, .. }) => {
                 Some(("tool_call_start", format!("调用工具 {name}")))
             }
-            OrchestratorEvent::Agent(AgentEvent::ToolCallEnd { .. }) => {
-                Some(("tool_call_end", "工具执行完成".to_string()))
+            OrchestratorEvent::Agent(AgentEvent::ToolCallEnd { duration_ms, .. }) => {
+                // H7 P0.5：trace 摘要携带耗时（活动日志可读性）
+                Some((
+                    "tool_call_end",
+                    format!("工具执行完成（{}ms）", duration_ms),
+                ))
             }
             OrchestratorEvent::Agent(AgentEvent::Error { message }) => {
                 Some(("error", format!("执行出错：{message}")))
@@ -155,6 +226,11 @@ fn emit_orch_multi(emitter: &TauriAgentEventEmitter, kind: &str, payload: serde_
 
 impl EventListener for TauriAgentEventEmitter {
     fn on_event(&self, event: &OrchestratorEvent) {
+        // R6 第一部分：六类动作段事件（subagent/a2ui/phase/router/reflection/confirm）
+        // 注入流通道（此前仅 trace/orch 专用通道，行段模型拿不到——回源即失的转发缺口）
+        if let Some((action, payload)) = Self::action_event_payload(event) {
+            self.emit_stream_action(action, payload);
+        }
         // A1 全链路事件流可观测：非高频事件按序投递到 trace 通道（保留原分散通道）
         self.emit_trace(event);
         match event {
@@ -391,7 +467,47 @@ impl EventListener for TauriAgentEventEmitter {
                         serde_json::json!({ "type": "error", "message": message })
                     }
                     AgentEvent::AgentEnd => serde_json::json!({ "type": "agent_end" }),
-                    // 其他基础 Agent 事件（UserMessage / ToolCall* / A2UI）暂不在此通道转发
+                    // 工具调用事件：转发到流通道，由前端 turnModel 驱动 ActionSegment
+                    // 注意 genai_backend 与 tools.rs 都会广播 ToolCallStart/End（call_id 相同，结果不同）。
+                    // 前端按 toolCallId 幂等覆盖：先到的 args 会被后到的真实执行结果覆盖。
+                    AgentEvent::ToolCallStart {
+                        tool_call_id,
+                        name,
+                        args,
+                    } => serde_json::json!({
+                        "type": "tool_call_start",
+                        "toolCallId": tool_call_id,
+                        "name": name,
+                        "args": args,
+                    }),
+                    AgentEvent::ToolCallEnd {
+                        tool_call_id,
+                        result,
+                        status,
+                        duration_ms,
+                        error,
+                    } => {
+                        // H7 P0.5：透传顶层权威 status/durationMs/error（前端回退解析保留）
+                        let mut payload = serde_json::json!({
+                            "type": "tool_call_end",
+                            "toolCallId": tool_call_id,
+                            "result": result,
+                            "status": status,
+                            "durationMs": duration_ms,
+                        });
+                        if let Some(err) = error {
+                            payload["error"] = serde_json::Value::String(err.to_string());
+                        }
+                        payload
+                    }
+                    // R6 第一部分：A2UI 归 AgentEvent——注入流通道动作段消息
+                    AgentEvent::A2UI { surface_id, .. } => serde_json::json!({
+                        "type": "action_event",
+                        "action": "a2ui",
+                        "phase": "update",
+                        "surfaceId": surface_id,
+                    }),
+                    // 其他基础 Agent 事件（UserMessage 等）暂不在此通道转发
                     _ => return,
                 };
                 let event_name = format!("agent:event:stream:{}", self.session_id);

@@ -394,17 +394,11 @@ impl GenaiBackend {
                         .map(|v| v.into_iter().cloned().collect())
                         .unwrap_or_else(|| pending_tool_calls.values().cloned().collect());
 
-                    // 广播每个工具调用的 ToolCallEnd
-                    for tc in &final_tool_calls {
-                        let _ = self
-                            .broadcast(OrchestratorEvent::Agent(
-                                crate::event::AgentEvent::ToolCallEnd {
-                                    tool_call_id: tc.call_id.clone(),
-                                    result: tc.fn_arguments.clone(),
-                                },
-                            ))
-                            .await;
-                    }
+                    // 注意：此处不再广播 ToolCallEnd。
+                    // 本阶段 genai 侧只能拿到工具调用参数（fn_arguments），而 AgentEvent::ToolCallEnd
+                    // 的 result 语义是「工具执行结果」。若在此广播，前端会把参数当成结果显示，
+                    // 随后又被 tools.rs 的真实结果覆盖，表现为命令段内容闪变。
+                    // 权威的 ToolCallEnd 由 tools.rs（真实执行后）广播，失败路径同样会广播。
 
                     // 先 clone 出 captured_usage / captured_stop_reason，
                     // 再调用 captured_into_first_text()（后者会消费 end）
@@ -458,6 +452,11 @@ impl GenaiBackend {
                         input_tokens,
                         output_tokens,
                         stop_reason: stop_reason_str.map(|s| s.to_string()),
+                        reasoning: if reasoning_text.is_empty() {
+                            None
+                        } else {
+                            Some(reasoning_text.clone())
+                        },
                     });
                 }
             }
@@ -472,6 +471,11 @@ impl GenaiBackend {
             input_tokens: None,
             output_tokens: None,
             stop_reason: None,
+            reasoning: if reasoning_text.is_empty() {
+                None
+            } else {
+                Some(reasoning_text)
+            },
         })
     }
 

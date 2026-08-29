@@ -21,3 +21,9 @@ export {
 } from './utils'
 export { useMessageWindowing } from './useMessageWindowing'
 export { useDotAnimation } from './useDotAnimation'
+export {
+  useProcessCollapse,
+  decideCollapse,
+  type CollapseDecision,
+  type UseProcessCollapseOptions,
+} from './useProcessCollapse'

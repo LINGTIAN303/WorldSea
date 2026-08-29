@@ -40,7 +40,21 @@ pub enum AgentEvent {
     /// 工具调用开始
     ToolCallStart { tool_call_id: String, name: String, args: serde_json::Value },
     /// 工具调用结束
-    ToolCallEnd { tool_call_id: String, result: serde_json::Value },
+    ///
+    /// H7 P0.5（2026-08-30）：补 `status`/`duration_ms`/`error` 顶层权威字段，
+    /// 前端不再从 result 内 error 键 / `__meta.exit_code` 猜测成败与耗时
+    /// （旧字段解析保留，兼容历史消息回源）。
+    ToolCallEnd {
+        tool_call_id: String,
+        result: serde_json::Value,
+        /// 成败终态："success" / "failed"（确认拒绝按 denied 结果返回，计 success）
+        status: String,
+        /// 执行耗时（毫秒）；含 HITL 确认等待（用户视角该步骤总耗时）
+        duration_ms: u64,
+        /// 失败时的错误摘要（成功为 None）
+        #[serde(skip_serializing_if = "Option::is_none")]
+        error: Option<String>,
+    },
     /// 错误
     Error { message: String },
     /// Agent 结束

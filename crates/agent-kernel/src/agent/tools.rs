@@ -1,5 +1,6 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use serde_json::Value;
 use tracing::{debug, info, warn};
 
 use crate::event::{AgentEvent, OrchestratorEvent};
@@ -8,6 +9,39 @@ use crate::tool_hook::ToolHookAction;
 use crate::types::{MessageRole, OrchestratorMessage, PlanItem, PlanItemStatus, ToolCall};
 
 use super::{AgentError, AgentLoop};
+
+/// H1 修复（P1.5，2026-08-30）：工具结果统一裁剪——单个字符串值超限截断（保留头部），
+/// 防止 terminal 大输出 / 大文件读取把消息历史与 LLM 上下文撑爆。
+/// 此前截断只靠各工具源头自律，terminal/读文件类无兜底。
+const TOOL_RESULT_STR_LIMIT: usize = 12_000;
+
+/// 递归裁剪工具结果中的超长字符串（保留结构：Object/Array 遍历，`__meta` 元数据键不截）。
+/// 截断在 UTF-8 字符边界进行，尾部追加省略标记。
+fn clamp_tool_result(value: &mut Value) {
+    match value {
+        Value::String(s) => {
+            if s.len() <= TOOL_RESULT_STR_LIMIT {
+                return;
+            }
+            // 按字符边界截断（避免劈开多字节字符），尾部追加省略标记
+            let mut end = TOOL_RESULT_STR_LIMIT;
+            while end > 0 && !s.is_char_boundary(end) {
+                end -= 1;
+            }
+            let omitted = s.len() - end;
+            *s = format!("{}\n…[已截断，省略 {} 字节]", &s[..end], omitted);
+        }
+        Value::Array(arr) => arr.iter_mut().for_each(clamp_tool_result),
+        Value::Object(map) => {
+            for (k, v) in map.iter_mut() {
+                if k != "__meta" {
+                    clamp_tool_result(v);
+                }
+            }
+        }
+        _ => {}
+    }
+}
 
 impl AgentLoop {
     /// A4 Plan-Exec：解析状态字符串 → `PlanItemStatus`（非法返回 `None`）
@@ -379,6 +413,8 @@ impl AgentLoop {
             }
 
             // A5 HITL：命中确认策略则先暂停征询用户，拒绝/超时按工具失败返回
+            // H7 P0.5：计时起点含确认等待（用户视角该步骤总耗时）
+            let exec_started = std::time::Instant::now();
             let tool_result = match self
                 .maybe_require_confirmation(&tc.name, &tc.args, &self_tool_ctx)
                 .await
@@ -387,21 +423,32 @@ impl AgentLoop {
                 None => self.execute_tool_with_retry(&tc.name, tc.args.clone()).await,
             };
 
-            let result_value = match tool_result {
-                Ok(v) => v,
+            let duration_ms = exec_started.elapsed().as_millis() as u64;
+            let (status, error, mut result_value) = match tool_result {
+                Ok(v) => ("success", None, v),
                 Err(e) => {
                     warn!("工具 {} 执行失败: {}", tc.name, e);
-                    serde_json::json!({
-                        "error": e.to_string(),
-                        "tool": tc.name,
-                    })
+                    (
+                        "failed",
+                        Some(e.to_string()),
+                        serde_json::json!({
+                            "error": e.to_string(),
+                            "tool": tc.name,
+                        }),
+                    )
                 }
             };
 
-            // 广播 ToolCallEnd
+            // H1 修复（P1.5）：统一裁剪超长字符串（广播与入历史看到一致内容）
+            clamp_tool_result(&mut result_value);
+
+            // 广播 ToolCallEnd（status/duration_ms/error 顶层权威——H7 P0.5）
             self.broadcast(OrchestratorEvent::Agent(AgentEvent::ToolCallEnd {
                 tool_call_id: tc.id.clone(),
                 result: result_value.clone(),
+                status: status.to_string(),
+                duration_ms,
+                error,
             }))
             .await;
 
@@ -449,8 +496,9 @@ impl AgentLoop {
         }
 
         // 2. 用 JoinSet 并发执行（含并行模式重试/超时限制说明），详细见 docs/details/注释/agent-runtime/agent.md
+        // 元组末三位为 H7 P0.5 执行耗时/成败/错误摘要（task 内计时，含重试）
         let mut join_set: tokio::task::JoinSet<
-            (usize, String, String, serde_json::Value),
+            (usize, String, String, serde_json::Value, u64, String, Option<String>),
         > = tokio::task::JoinSet::new();
 
         // 构造本会话的工具上下文（workdir 来自 AgentLoop 持有字段），并行时 clone 进每个 task
@@ -477,22 +525,31 @@ impl AgentLoop {
 
             join_set.spawn(async move {
                 debug!("并行执行工具: {} (call_id={})", tool_name, call_id);
-                let result_value = match tool_bus.call_tool_with_ctx(&tool_name, &ctx, args).await {
-                    Ok(v) => v,
-                    Err(e) => {
-                        warn!("工具 {} 并行执行失败: {}", tool_name, e);
-                        serde_json::json!({
-                            "error": e.to_string(),
-                            "tool": tool_name,
-                        })
-                    }
-                };
-                (idx, call_id, tool_name, result_value)
+                // H7 P0.5：task 内计时（覆盖重试；Start 广播在 spawn 前统一进行，不计入）
+                let exec_started = std::time::Instant::now();
+                let (result_value, status, error) =
+                    match tool_bus.call_tool_with_ctx(&tool_name, &ctx, args).await {
+                        Ok(v) => (v, "success", None),
+                        Err(e) => {
+                            warn!("工具 {} 并行执行失败: {}", tool_name, e);
+                            let msg = e.to_string();
+                            (
+                                serde_json::json!({
+                                    "error": msg.clone(),
+                                    "tool": tool_name,
+                                }),
+                                "failed",
+                                Some(msg),
+                            )
+                        }
+                    };
+                let duration_ms = exec_started.elapsed().as_millis() as u64;
+                (idx, call_id, tool_name, result_value, duration_ms, status.to_string(), error)
             });
         }
 
         // 3. 收集所有结果
-        let mut indexed_results: Vec<(usize, String, String, serde_json::Value)> =
+        let mut indexed_results: Vec<(usize, String, String, serde_json::Value, u64, String, Option<String>)> =
             Vec::with_capacity(join_set.len());
 
         while let Some(joined) = join_set.join_next().await {
@@ -508,20 +565,29 @@ impl AgentLoop {
                         serde_json::json!({
                             "error": format!("task panic: {join_err}"),
                         }),
+                        0,
+                        "failed".to_string(),
+                        Some(format!("task panic: {join_err}")),
                     ));
                 }
             }
         }
 
         // 4. 按原索引排序，保证 toolResult 顺序与 tool_calls 一致
-        indexed_results.sort_by_key(|(idx, _, _, _)| *idx);
+        indexed_results.sort_by_key(|r| r.0);
 
         // 5. 按顺序广播 ToolCallEnd 并构造 toolResult 消息
         let mut results = Vec::with_capacity(indexed_results.len());
-        for (_, call_id, tool_name, result_value) in indexed_results {
+        for (_, call_id, tool_name, mut result_value, duration_ms, status, error) in indexed_results {
+            // H1 修复（P1.5）：统一裁剪超长字符串（与串行路径一致）
+            clamp_tool_result(&mut result_value);
+
             self.broadcast(OrchestratorEvent::Agent(AgentEvent::ToolCallEnd {
                 tool_call_id: call_id.clone(),
                 result: result_value.clone(),
+                status,
+                duration_ms,
+                error,
             }))
             .await;
 

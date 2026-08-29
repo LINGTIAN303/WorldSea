@@ -436,6 +436,13 @@ pub struct AgentCommandService {
     /// 无 workdir 或未注入时回退全局 provider。
     session_entity_provider_factory:
         Option<Arc<dyn Fn(&std::path::Path) -> Arc<dyn ScenarioEntityProvider> + Send + Sync>>,
+    /// H2 MCP 重建（P2，2026-08-30）：MCP 工具供给器（Tauri 层注入 McpHub 快照闭包）
+    ///
+    /// `new_agent` 每次构造会话时同步调用，把**当前已连接**的 MCP 工具注册进该会话的
+    /// tool_bus（连接变更后新建的会话拿到新工具集，与技能/规则同策略；已有会话不热更新）。
+    /// `None`（默认）：不注入。
+    mcp_tools_provider:
+        Option<Arc<dyn Fn() -> Vec<Arc<dyn Tool>> + Send + Sync>>,
 }
 
 /// 场景摘要（Tauri 序列化用）
@@ -726,6 +733,17 @@ impl AgentCommandService {
         self
     }
 
+    /// H2 MCP 重建（P2，2026-08-30）：注入 MCP 工具供给器
+    ///
+    /// Tauri 层 setup 时传入闭包（内部读 McpHub 工具快照）。`new_agent` 每次
+    /// 构造会话时同步调用，把**当前已连接**的 MCP 工具动态注册进该会话 tool_bus。
+    pub fn set_mcp_tools_provider(
+        &mut self,
+        provider: Arc<dyn Fn() -> Vec<Arc<dyn Tool>> + Send + Sync>,
+    ) {
+        self.mcp_tools_provider = Some(provider);
+    }
+
     /// 注入会话级实体读取工厂（任务29/M4 数据源收敛；Tauri 层 setup 时调用）
     ///
     /// - `tools_factory`：按会话 workdir 构造文件版 entity_list/entity_get（同名覆盖 extra_tools）
@@ -830,6 +848,13 @@ impl AgentCommandService {
         // 使世界构建场景 `tool_ids()` 声明的同名工具对 LLM 可见且可执行。
         for tool in &self.extra_tools {
             tool_bus.register(tool.clone()).await;
+        }
+        // H2 MCP 重建（P2，2026-08-30）：注入当前已连接的 MCP 工具（动态拉取快照——
+        // 连接变更后新建的会话拿到新工具集，与技能/规则同策略）
+        if let Some(provider) = &self.mcp_tools_provider {
+            for tool in provider() {
+                tool_bus.register(tool).await;
+            }
         }
         // 任务29/M4 数据源收敛：有 workdir 的会话用文件版实体工具覆盖注册
         // （ToolBus 同名覆盖），使 Agent 读到项目目录 entities/ 的真身数据；

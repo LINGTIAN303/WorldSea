@@ -1,6 +1,6 @@
 # Skills Store 技能源仓库规范
 
-> status: 已完成
+> status: 部分断线（格式规范现行 / 安装链路待重建）
 >
 > Task 24 阶段2 · 2026-07-07
 >
@@ -8,6 +8,8 @@
 > 阶段3 前端商城 UI 基于本规范实现浏览/安装/卸载/更新。
 >
 > **当前状态（2026-08-02）**：Task 24 阶段 1-4 + 方向 2/3 已完成（动态加载 / 安装机制 / 商城 UI / 多平台互通 / 独立 Rust crate worldsmith-skills-store / 真实技能源上线）。本规范定义的 manifest schema 与安装安全模型仍为现行标准。待办：桌面端 UI 端到端实测。
+>
+> **⚠ 断线声明（2026-08-30 实况核对）→ ✅ 已重建（同日 Harness 调研 P1「Skills 点火」）**：2026-08 后端重组期间（980385c 端分离迁移），`apps/tauri/src-tauri/src/skills_store.rs` 与独立 crate `worldsmith-skills-store` 被删除，`cmd_skills_*` 六命令零注册，商城安装/卸载/导入/目录扫描链路全部必然失败。**2026-08-30 已从 git 历史重建**：crate 回归 `crates/worldsmith-skills-store/`（CoreError 本地化 + From→String 适配新结构，19 单元测试通过）、skills_store.rs 六命令恢复并注册（错误类型 String 化）。本文规范（manifest schema / skill.yaml / SKILL.md 双格式 / 安全模型 / platform-adapters）持续为现行标准。待桌面实例重启后真机验证；HTTP 桥 rpc.rs 未同步六命令（见 Harness 调研风险点②）。
 
 ---
 

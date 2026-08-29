@@ -53,6 +53,8 @@
         @security-level-change="onSecurityLevelChange"
         @card-change="(i) => emit('card-change', i)"
       />
+      <!-- H5 规则工程（P2，2026-08-30）：项目规则编辑（WORLDSMITH.md，新会话自动注入） -->
+      <ProjectRulesEditor />
     </div>
   </div>
 </template>
@@ -68,6 +70,7 @@ import { useMcpConnections } from '@worldsmith/shared-composables/agent/useMcpCo
 import { getAllSkills, toggleSkill, storeApiKey, loadApiKey, removeApiKey } from '@agent/index'
 import { getModelInfo, calculateCost, getThinkingLevels } from '@worldsmith/agent-runtime'
 import AgentSettingsPanel from '@/agent/AgentSettingsPanel.vue'
+import ProjectRulesEditor from './ProjectRulesEditor.vue'
 import type { ThinkingLevel, MCPConnectionConfig, SkillMeta } from '@agent/index'
 
 const emit = defineEmits<{ close: []; 'card-change': [index: number] }>()
