@@ -390,6 +390,80 @@ pub fn register_core(reg: &mut Registry) {
             c::cmd_agent_set_security_level(st, a.session_id, a.level).await.map(|_| Value::Null)
         })
     }));
+    // 诊断：会话工具名清单（MCP 注入链路验证，2026-08-30）
+    reg.register("cmd_agent_tool_names", Arc::new(move |app, args| {
+        let app = app.clone();
+        Box::pin(async move {
+            let a: SessionArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
+            let st = app.state::<agent_commands::AgentCommandService>();
+            c::cmd_agent_tool_names(st, a.session_id).await.map(|r| to_value(r).unwrap_or(Value::Null))
+        })
+    }));
+
+    // ── MCP（H2 重建 2026-08-30 · 硬约束：新命令必须同步桥接层）──
+    #[derive(Deserialize)]
+    struct McpConnectArgs {
+        config: crate::mcp_client::McpConnectionConfig,
+    }
+    #[derive(Deserialize)]
+    struct McpIdArgs {
+        id: String,
+    }
+    reg.register("cmd_mcp_status", Arc::new(move |app, _args| {
+        let app = app.clone();
+        Box::pin(async move {
+            let st = app.state::<crate::mcp_commands::McpState>();
+            crate::mcp_commands::cmd_mcp_status(st).await.map(|r| to_value(r).unwrap_or(Value::Null))
+        })
+    }));
+    reg.register("cmd_mcp_saved", Arc::new(move |app, _args| {
+        let app = app.clone();
+        Box::pin(async move {
+            let st = app.state::<crate::mcp_commands::McpState>();
+            crate::mcp_commands::cmd_mcp_saved(st).await.map(|r| to_value(r).unwrap_or(Value::Null))
+        })
+    }));
+    reg.register("cmd_mcp_connect", Arc::new(move |app, args| {
+        let app = app.clone();
+        Box::pin(async move {
+            let a: McpConnectArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
+            let st = app.state::<crate::mcp_commands::McpState>();
+            let svc = app.state::<agent_commands::AgentCommandService>();
+            crate::mcp_commands::cmd_mcp_connect(st, svc, a.config).await.map(|r| to_value(r).unwrap_or(Value::Null))
+        })
+    }));
+    reg.register("cmd_mcp_disconnect", Arc::new(move |app, args| {
+        let app = app.clone();
+        Box::pin(async move {
+            let a: McpIdArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
+            let st = app.state::<crate::mcp_commands::McpState>();
+            crate::mcp_commands::cmd_mcp_disconnect(st, a.id).await.map(|_| Value::Null)
+        })
+    }));
+    reg.register("cmd_mcp_list_tools", Arc::new(move |app, args| {
+        let app = app.clone();
+        Box::pin(async move {
+            let a: McpIdArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
+            let st = app.state::<crate::mcp_commands::McpState>();
+            crate::mcp_commands::cmd_mcp_list_tools(st, a.id).await.map(|r| to_value(r).unwrap_or(Value::Null))
+        })
+    }));
+    reg.register("cmd_mcp_save", Arc::new(move |app, args| {
+        let app = app.clone();
+        Box::pin(async move {
+            let a: McpConnectArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
+            let st = app.state::<crate::mcp_commands::McpState>();
+            crate::mcp_commands::cmd_mcp_save(st, a.config).await.map(|_| Value::Null)
+        })
+    }));
+    reg.register("cmd_mcp_delete", Arc::new(move |app, args| {
+        let app = app.clone();
+        Box::pin(async move {
+            let a: McpIdArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
+            let st = app.state::<crate::mcp_commands::McpState>();
+            crate::mcp_commands::cmd_mcp_delete(st, a.id).await.map(|_| Value::Null)
+        })
+    }));
 
     // ── 编排：plan / tot / got / supervisor / multi ──
     reg.register("orchestrator_run_plan", Arc::new(move |app, args| {

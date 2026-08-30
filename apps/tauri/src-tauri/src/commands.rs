@@ -1201,6 +1201,18 @@ pub async fn cmd_agent_set_security_level(
         .map_err(|e| e.to_string())
 }
 
+/// 诊断：列出指定会话 tool_bus 的全部工具名（MCP 注入链路验证，2026-08-30）
+#[tauri::command]
+pub async fn cmd_agent_tool_names(
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+) -> Result<Vec<String>, String> {
+    state
+        .tool_names(&session_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// 解析安全级别字符串 → `SecurityLevel`（非法返回错误，供前端开关映射）
 fn parse_security_level(s: &str) -> Result<SecurityLevel, String> {
     match s.to_lowercase().as_str() {

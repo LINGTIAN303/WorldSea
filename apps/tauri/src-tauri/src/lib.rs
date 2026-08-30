@@ -124,6 +124,8 @@ pub fn run() {
             commands::send_message,
             commands::cmd_agent_confirm,
             commands::cmd_agent_set_security_level,
+            // 诊断：会话工具名清单（MCP 注入链路验证）
+            commands::cmd_agent_tool_names,
             // FrontendToolBridge：前端执行桥工具后按 callId 回传结果
             commands::cmd_agent_tool_result,
             // Skills Store（H3 点火 2026-08-30 重建）：商城安装/卸载/版本/本地导入/目录

@@ -8,6 +8,8 @@ interface ConfirmOptions {
   description?: string
   confirmText?: string
   cancelText?: string
+  /** 可选第三键文案（如「取消(跳过)」）；空/缺省则不渲染。点击按 cancel（false）解析 */
+  neutralText?: string
 }
 
 interface ConfirmState {
@@ -17,6 +19,7 @@ interface ConfirmState {
   description: string
   confirmText: string
   cancelText: string
+  neutralText: string
   resolve: ((value: boolean) => void) | null
 }
 
@@ -27,6 +30,7 @@ const state = ref<ConfirmState>({
   description: '',
   confirmText: '确定',
   cancelText: '取消',
+  neutralText: '',
   resolve: null,
 })
 
@@ -48,6 +52,7 @@ export function useConfirm() {
         description: options.description || '',
         confirmText: options.confirmText || defaults.confirmText,
         cancelText: options.cancelText || defaults.cancelText,
+        neutralText: options.neutralText || '',
         resolve,
       }
     })
@@ -65,5 +70,10 @@ export function useConfirm() {
     state.value.show = false
   }
 
-  return { state, confirm, doConfirm, doCancel }
+  /** 第三键（中性选项）：与 cancel 同为 false，仅语义标签不同（如「跳过」vs「拒绝」） */
+  function doNeutral() {
+    doCancel()
+  }
+
+  return { state, confirm, doConfirm, doCancel, doNeutral }
 }

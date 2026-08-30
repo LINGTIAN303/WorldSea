@@ -1196,10 +1196,15 @@ async function setupConfirmListener(sessionId: string): Promise<void> {
       if (payload.type === 'resolved') return
       const { confirm } = useConfirm()
       const argSummary = payload.args ? JSON.stringify(payload.args).slice(0, 200) : ''
+      // 三键确认（2026-08-30）：通过 / 取消(跳过) / 拒绝——此前只有 取消+确认(文案"删除"，
+      // 被读成"拒绝")，没有「通过」入口。kernel v1 仅 bool：跳过与拒绝均按 false（不执行）处理
       const approved = await confirm({
         type: 'danger',
         title: '危险操作确认',
         description: `工具 "${payload.toolName}" 将执行${argSummary ? `\n参数：${argSummary}` : ''}\n是否继续？`,
+        confirmText: '通过',
+        cancelText: '拒绝',
+        neutralText: '取消(跳过)',
       })
       await safeInvoke('cmd_agent_confirm', {
         sessionId,

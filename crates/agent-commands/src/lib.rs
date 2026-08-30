@@ -1150,6 +1150,21 @@ impl AgentCommandService {
             .ok_or_else(|| CommandError::session_not_found(session_id))
     }
 
+    /// 诊断：列出指定会话 tool_bus 的全部工具名（2026-08-30，MCP 注入链路验证用）
+    ///
+    /// 返回 LLM 工具视图的同源清单（`tool_bus.list_all()`），可用于核对
+    /// MCP 工具（`mcp_{server_id}_` 前缀）是否真正注册进会话。
+    pub async fn tool_names(&self, session_id: &str) -> Result<Vec<String>, CommandError> {
+        let agent = self.get_agent(session_id).await?;
+        Ok(agent
+            .tool_bus()
+            .list_all()
+            .await
+            .into_iter()
+            .map(|d| d.name)
+            .collect())
+    }
+
     /// 运行 Plan-and-Execute 编排图（可附带 Reflection/Self-Refine 循环）
     ///
     /// 复用会话 AgentLoop 的 LLM 后端与事件通道：

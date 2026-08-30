@@ -10,6 +10,8 @@
           <p v-if="state.description" :id="descId" class="ws-confirm__desc">{{ state.description }}</p>
           <div class="ws-confirm__actions">
             <TuiButton variant="ghost" size="sm" @click="doCancel">{{ state.cancelText }}</TuiButton>
+            <!-- 可选第三键（中性选项，如「取消(跳过)」）：仅 HITL 等三选场景渲染 -->
+            <TuiButton v-if="state.neutralText" variant="ghost" size="sm" @click="doNeutral">{{ state.neutralText }}</TuiButton>
             <TuiButton :variant="state.type === 'danger' ? 'danger' : 'primary'" size="sm" @click="doConfirm">{{ state.confirmText }}</TuiButton>
           </div>
         </div>
@@ -25,7 +27,7 @@ import { useFocusTrap } from '@/composables/useFocusTrap'
 import { WsIcon } from '@worldsmith/ui-kit'
 import TuiButton from '@/components/ui/TuiButton.vue'
 
-const { state, doConfirm, doCancel } = useConfirm()
+const { state, doConfirm, doCancel, doNeutral } = useConfirm()
 const confirmRef = ref<HTMLElement | null>(null)
 
 const titleId = 'ws-confirm-title'
