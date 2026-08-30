@@ -877,8 +877,33 @@ impl AgentCommandService {
         }
         // H2 MCP 重建（P2，2026-08-30）：注入当前已连接的 MCP 工具（动态拉取快照——
         // 连接变更后新建的会话拿到新工具集，与技能/规则同策略）
+        // MCP 感知注记：工具名 `mcp_{server_id}_` 前缀对 LLM 不够显性（真机实测模型曾答
+        // 「没有接入任何 MCP 工具」，尽管总线里已有 33 个 mcp_* 工具）——把已连接服务器
+        // 清单写进 system prompt，使模型能直接回答/调用
+        let mut mcp_note = String::new();
         if let Some(provider) = &self.mcp_tools_provider {
-            for tool in provider() {
+            let mcp_tools = provider();
+            if !mcp_tools.is_empty() {
+                let mut counts: std::collections::BTreeMap<String, usize> = Default::default();
+                for t in &mcp_tools {
+                    // 名字契约：mcp_{server_id}_{tool_name}（server_id 不含下划线）
+                    if let Some(rest) = t.name().strip_prefix("mcp_") {
+                        if let Some(pos) = rest.find('_') {
+                            *counts.entry(rest[..pos].to_string()).or_default() += 1;
+                        }
+                    }
+                }
+                let list: Vec<String> = counts
+                    .iter()
+                    .map(|(id, c)| format!("{id}（{c} 个工具，前缀 mcp_{id}_）"))
+                    .collect();
+                mcp_note = format!(
+                    "\n\n[MCP 环境] 当前已连接 {} 个 MCP 服务器：{}。工具名以 mcp_ 开头的即 MCP 工具，可直接调用；若用户问及 MCP 能力，请基于本清单回答。",
+                    list.len(),
+                    list.join("、")
+                );
+            }
+            for tool in mcp_tools {
                 tool_bus.register(tool).await;
             }
         }
@@ -899,6 +924,11 @@ impl AgentCommandService {
                 }
             }
             None => self.entity_provider.clone(),
+        };
+        // MCP 感知注记追加到 system prompt 末尾（无 MCP 时为空串，不影响原 prompt）
+        let system_prompt = match system_prompt {
+            Some(p) if !mcp_note.is_empty() => Some(format!("{p}{mcp_note}")),
+            other => other,
         };
         let agent_config = AgentLoopConfig {
             system_prompt,
