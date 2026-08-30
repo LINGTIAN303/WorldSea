@@ -543,9 +543,13 @@ impl AgentLoop {
                     });
                 }
             }
+            // 用户消息注入时间戳前缀（2026-08-30）：LLM 在接收请求时即可感知当前时间，
+            // 无需额外工具调用。格式 [YYYYMMDDHHMMSS]。仅改存储进历史的消息内容（LLM 视图），
+            // 下方 UserMessage 广播事件仍用原始 user_input，避免前端气泡显示时间戳。
+            let timestamped = format!("[{}] {}", chrono::Local::now().format("%Y%m%d%H%M%S"), user_input);
             state.messages.push(OrchestratorMessage {
                 role: MessageRole::User,
-                content: user_input.clone(),
+                content: timestamped,
                 tool_calls: Vec::new(),
                 tool_call_id: None,
                 meta: None,

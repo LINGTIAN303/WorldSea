@@ -256,7 +256,11 @@ impl GenaiBackend {
         // 构建 ChatOptions（with_capture_* 是 builder 方法）
         let mut chat_opts = ChatOptions::default();
         if let Some(temp) = options.temperature {
-            chat_opts = chat_opts.with_temperature(temp.into());
+            // R15 温度修复（2026-08-30）：前端 UI 刻度为「API 温度 ×100」（默认 70，
+            // 上限 100/200），API 合法域为 [0, 2]——归一化后再传给 genai，
+            // 否则 OpenAI 兼容端点直接 400（"Invalid temperature value"）
+            let normalized_temp = (f64::from(temp) / 100.0).clamp(0.0, 2.0);
+            chat_opts = chat_opts.with_temperature(normalized_temp.into());
         }
         if let Some(max_tokens) = options.max_tokens {
             chat_opts = chat_opts.with_max_tokens(max_tokens as u32);

@@ -32,7 +32,7 @@
         <!-- 设置内嵌（embedded）：卡片式全展开，无左侧导航 -->
         <template v-if="embedded">
           <!-- 显式轮转（叠放翻卡）：复用通用 CardDeck，当前卡完全显示，上/下一张各露一截边；滚轮边界续页 + 左列标题翻卡 -->
-          <CardDeck ref="deckRef" :count="3" @change="(i) => emit('card-change', i)">
+          <CardDeck ref="deckRef" :count="4" @change="(i) => emit('card-change', i)">
             <template #card="{ idx, cls }">
               <div class="agent-set-card deck-card" :class="cls" :data-index="idx">
               <!-- 模型卡片：收缩为「供应商类型 + 可用模型」，二级/三级弹窗承载详情（重构 2026-08-23） -->
@@ -116,7 +116,7 @@
                 <SkillsStorePanel @skills-changed="emit('skills-changed')" />
               </template>
               <!-- MCP 卡片 -->
-              <template v-else>
+              <template v-else-if="idx === 2">
                 <div class="agent-set-head">MCP</div>
                 <McpPanel
                   :mcp-connections="mcpConnections"
@@ -124,6 +124,11 @@
                   @add-mcp="(config) => emit('add-mcp', config)"
                   @remove-mcp="(serverId) => emit('remove-mcp', serverId)"
                 />
+              </template>
+              <!-- 规则卡片（H5 规则工程 P2：WORLDSMITH.md 项目规则，新会话自动注入） -->
+              <template v-else-if="idx === 3">
+                <div class="agent-set-head">规则</div>
+                <ProjectRulesEditor />
               </template>
               </div>
             </template>
@@ -225,6 +230,8 @@
           <!-- 多模态面板 -->
           <VisionPanel v-else-if="settingsSubPanel === 'vision'" key="vision" />
           <!-- Skills 面板（短子面板，内联） -->
+          <!-- H5 规则工程（P2）：项目规则编辑（WORLDSMITH.md，新会话自动注入） -->
+          <ProjectRulesEditor v-else-if="settingsSubPanel === 'rules'" key="rules" />
           <div v-else-if="settingsSubPanel === 'skills'" key="skills" class="sub-panel">
             <div class="skills-list">
               <div v-for="skill in skills" :key="skill.id" class="skill-item" :class="{ disabled: !skill.enabled }">
@@ -303,6 +310,7 @@
 import { ref, computed } from 'vue'
 import { WsIcon, CardDeck } from '@worldsmith/ui-kit'
 import TuiSelect from '../components/ui/TuiSelect.vue'
+import ProjectRulesEditor from '@/space/panels/ProjectRulesEditor.vue'
 import { usePanelDrag } from './composables/usePanelDrag'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useModelApiKeyConfig } from './composables/useModelApiKeyConfig'
@@ -481,6 +489,7 @@ const NAV_GROUPS = [
   {
     label: '能力与工具',
     items: [
+      { key: 'rules', label: '规则', icon: 'manuscript' },
       { key: 'skills', label: 'Skills', icon: 'star' },
       { key: 'mcp', label: 'MCP', icon: 'link' },
       { key: 'search', label: '搜索', icon: 'globe' },

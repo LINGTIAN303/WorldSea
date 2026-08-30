@@ -67,6 +67,7 @@ import type { ChatMode } from '@/agent/composables/useAgent'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useSessionViewState } from '@/agent/composables/useSessionViewState'
 import { useMcpConnections } from '@worldsmith/shared-composables/agent/useMcpConnections'
+import { toastError } from '@/composables/useToast'
 import { getAllSkills, toggleSkill, storeApiKey, loadApiKey, removeApiKey } from '@agent/index'
 import { getModelInfo, calculateCost, getThinkingLevels } from '@worldsmith/agent-runtime'
 import AgentSettingsPanel from '@/agent/AgentSettingsPanel.vue'
@@ -294,7 +295,12 @@ function onToggleSkill(skillId: string): void {
 async function onAddMcp(config: MCPConnectionConfig): Promise<void> {
   try {
     await addConnection(config)
-  } catch {}
+  } catch (err) {
+    // 激活失败必须可见（此前空 catch 吞错，预设点了没反应无法排查）
+    const msg = err instanceof Error ? err.message : String(err)
+    toastError(`MCP「${config.name}」激活失败：${msg}`)
+    console.error('[MCP] 激活连接失败:', config.name, err)
+  }
 }
 
 async function onToggleMcp(serverId: string): Promise<void> {

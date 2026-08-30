@@ -59,6 +59,25 @@ fn default_true() -> bool {
     true
 }
 
+/// Windows 下 stdio 命令解析：npx/uvx 等在 Windows 以 `.cmd` 批处理形式安装，
+/// `CreateProcess` 不认无扩展名命令也不直接执行批处理——按 PATH 搜索解析为
+/// 绝对路径（优先 `.cmd`，其次 `.exe`）。非 Windows 或已带扩展名时原样返回。
+fn resolve_windows_command(command: &str) -> String {
+    if cfg!(windows) && std::path::Path::new(command).extension().is_none() {
+        if let Ok(path_var) = std::env::var("PATH") {
+            for dir in std::env::split_paths(&path_var) {
+                for ext in [".cmd", ".exe"] {
+                    let candidate = dir.join(format!("{command}{ext}"));
+                    if candidate.is_file() {
+                        return candidate.to_string_lossy().into_owned();
+                    }
+                }
+            }
+        }
+    }
+    command.to_string()
+}
+
 // ─── 内部连接状态 ────────────────────────────────────────────
 
 type ClientService = RunningService<RoleClient, ()>;
@@ -162,8 +181,11 @@ impl McpHub {
                     .ok_or("stdio 传输缺少 command 字段")?
                     .clone();
                 let args = config.args.clone();
+                // Windows：npx/uvx 实为 .cmd 批处理，CreateProcess 无法直接执行，
+                // 需按 PATH 解析为绝对路径（详见 resolve_windows_command）
+                let resolved = resolve_windows_command(&command);
                 let transport = TokioChildProcess::new(
-                    tokio::process::Command::new(command).configure(|cmd| {
+                    tokio::process::Command::new(resolved).configure(|cmd| {
                         cmd.args(args.iter().cloned());
                     }),
                 )
@@ -175,7 +197,9 @@ impl McpHub {
                         .map_err(|e| format!("MCP 初始化握手失败: {e}"))?,
                 )
             }
-            "http" => {
+            // 前端 McpPanel 历史值为 "streamable-http"，与 "http" 同义（Streamable HTTP 传输），
+            // 两者都接受——此前仅匹配 "http" 导致官方预设全部落入「不支持的传输方式」
+            "http" | "streamable-http" => {
                 let url = config
                     .url
                     .as_ref()

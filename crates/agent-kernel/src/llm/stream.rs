@@ -319,7 +319,10 @@ fn build_chat_request(
 
     let mut chat_opts = ChatOptions::default();
     if let Some(temp) = options.temperature {
-        chat_opts = chat_opts.with_temperature(temp.into());
+        // R15 温度修复（2026-08-30）：UI 刻度（×100）归一化到 API 合法域 [0, 2]，
+        // 与 genai_backend.rs 非流式路径保持一致
+        let normalized_temp = (f64::from(temp) / 100.0).clamp(0.0, 2.0);
+        chat_opts = chat_opts.with_temperature(normalized_temp.into());
     }
     if let Some(max_tokens) = options.max_tokens {
         chat_opts = chat_opts.with_max_tokens(max_tokens as u32);
