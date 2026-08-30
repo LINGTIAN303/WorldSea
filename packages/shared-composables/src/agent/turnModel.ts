@@ -145,6 +145,12 @@ export interface Turn {
   status: TurnStatus
   /** ② 过程层折叠态（由自动折叠控制器与用户手动操作共同驱动） */
   processCollapsed: boolean
+  /**
+   * 用户是否从折叠态手动展开过过程层（常驻折叠行标记，2026-08-30）
+   * 为真时展开态在过程行段上方渲染一条「收起」头行，用户可再次折叠——
+   * 否则展开后摘要行消失、无法收回。仅影响渲染，不参与折叠判定。
+   */
+  processPeeked?: boolean
   /** 用户是否曾展开过本轮次的任何行段（latch：展开了又收起仍为 true，用于折叠条件 2/3 的分派） */
   userEverExpanded: boolean
   /** 自动折叠是否已执行过（latch：每个轮次只自动折叠一次，避免反复折叠打扰阅读） */
@@ -724,13 +730,15 @@ export type FlatRow =
     }
   | { id: string; turnId: string; type: 'text'; text: string; isResult: boolean; timestamp: number }
   | { id: string; turnId: string; type: 'divider'; text: string; timestamp: number }
-  /** 过程层折叠摘要：过程层折叠时，全部过程行段收敛为这一行（点击可展开） */
+  /** 过程层折叠摘要：过程层折叠时，全部过程行段收敛为这一行（点击可展开）；
+   *  expanded=true 时为展开态的常驻折叠头行（点击收起） */
   | {
       id: string
       turnId: string
       type: 'process_summary'
       thinkCount: number
       actionCount: number
+      expanded?: boolean
       timestamp: number
     }
 
@@ -798,12 +806,28 @@ export function flattenTurn(t: Turn, opts?: { abortedText?: string }): FlatRow[]
         type: 'process_summary',
         thinkCount,
         actionCount,
+        expanded: false,
         timestamp: t.userMessage.timestamp,
       })
     }
     const rs = resultSegment(t)
     if (rs) rows.push(segmentToRow(rs, t.id, true))
   } else {
+    // 常驻折叠头行（2026-08-30）：用户从折叠态手动展开后，保留一条「收起」头行，
+    // 使过程层可再次折叠——修复此前展开后摘要行消失、无法收回的问题
+    const thinkCount = turnThinkCount(t)
+    const actionCount = turnActionCount(t)
+    if (t.processPeeked && thinkCount + actionCount > 0) {
+      rows.push({
+        id: `${t.id}-process`,
+        turnId: t.id,
+        type: 'process_summary',
+        thinkCount,
+        actionCount,
+        expanded: true,
+        timestamp: t.userMessage.timestamp,
+      })
+    }
     for (const s of t.segments) {
       rows.push(segmentToRow(s, t.id, s.id === t.resultId))
     }

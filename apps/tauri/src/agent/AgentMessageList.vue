@@ -186,9 +186,16 @@ function withProcessAnchor(turnId: string, mutate: () => void): void {
   })
 }
 
-/** 过程层折叠摘要行点击：展开该轮次的过程层（折叠态写在 Turn 上，切会话后仍一致） */
+/**
+ * 过程层折叠摘要行点击：按当前态切换（折叠 → 展开 / 展开态头行 → 收起）
+ * 折叠态写在 Turn 上（含 processPeeked 常驻头行标记），切会话后仍一致
+ */
 function onExpandProcess(turnId: string): void {
-  withProcessAnchor(turnId, () => setProcessCollapsed(turnId, false))
+  const turn = turns.value.find(
+    (t: { id: string; processCollapsed: boolean }) => t.id === turnId,
+  )
+  const next = turn ? !turn.processCollapsed : false
+  withProcessAnchor(turnId, () => setProcessCollapsed(turnId, next))
 }
 
 /** 自动折叠执行点：补偿滚动后再折叠，避免视口跳动 */

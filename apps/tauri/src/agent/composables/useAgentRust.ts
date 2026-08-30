@@ -447,7 +447,8 @@ function setProcessCollapsed(turnId: string, collapsed: boolean): void {
   const idx = turns.value.findIndex((t) => t.id === turnId)
   if (idx < 0 || turns.value[idx].processCollapsed === collapsed) return
   const next = [...turns.value]
-  next[idx] = { ...next[idx], processCollapsed: collapsed }
+  // processPeeked：从折叠态手动展开 → 常驻折叠头行；手动收起 → 清除标记
+  next[idx] = { ...next[idx], processCollapsed: collapsed, processPeeked: !collapsed }
   turns.value = next
   // 同步会话缓存：切走再切回时保持用户已展开/收起的状态
   const sid = currentSessionId.value
@@ -645,6 +646,7 @@ function flatRowToStreamItem(row: FlatRow): AgentStreamItem {
         turnId: row.turnId,
         thinkCount: row.thinkCount,
         actionCount: row.actionCount,
+        expanded: row.expanded,
         timestamp: row.timestamp,
       }
   }

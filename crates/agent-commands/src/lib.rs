@@ -744,6 +744,32 @@ impl AgentCommandService {
         self.mcp_tools_provider = Some(provider);
     }
 
+    /// MCP 工具热注入（2026-08-30）：把当前快照注册进**所有活跃会话**的 tool_bus
+    ///
+    /// v1 冷策略（仅新会话生效）导致用户连接 MCP 后在当前会话看不到工具——
+    /// 本方法在 cmd_mcp_connect 成功后调用，弥补已有会话。register 同名覆盖
+    /// 幂等，重复调用无副作用。返回本次注入的工具数（0 = 无 provider 或无工具）。
+    ///
+    /// 注：仅做「增」不做「删」——断开/删除连接后旧工具仍留在已建会话的
+    /// tool_bus 中（SimpleToolBus 无注销能力），重启或新建会话后消失（v1 取舍）。
+    pub async fn hot_inject_mcp_tools(&self) -> usize {
+        let Some(provider) = &self.mcp_tools_provider else {
+            return 0;
+        };
+        let tools = provider();
+        if tools.is_empty() {
+            return 0;
+        }
+        let sessions = self.sessions.lock().await;
+        for agent in sessions.values() {
+            let bus = agent.tool_bus();
+            for tool in &tools {
+                bus.register(tool.clone()).await;
+            }
+        }
+        tools.len()
+    }
+
     /// 注入会话级实体读取工厂（任务29/M4 数据源收敛；Tauri 层 setup 时调用）
     ///
     /// - `tools_factory`：按会话 workdir 构造文件版 entity_list/entity_get（同名覆盖 extra_tools）

@@ -14,6 +14,7 @@ use sqlx::SqlitePool;
 use tauri::Manager;
 
 use crate::mcp_client::{McpConnectionConfig, McpHub, McpStatusEntry};
+use agent_commands::AgentCommandService;
 use agent_runtime::mcp::McpToolInfo;
 
 /// MCP 全局状态（setup 时构造，tauri State 共享）
@@ -57,9 +58,13 @@ pub async fn init_state(app: &tauri::AppHandle) -> Result<McpState, String> {
 }
 
 /// 保存连接配置并连接（幂等：同 id 重连）。返回发现的工具清单。
+///
+/// 连接成功后执行 MCP 工具热注入：把工具快照注册进所有活跃会话的 tool_bus，
+/// 使当前会话立即可用（v1 冷策略只对新会话生效，此处弥补）。
 #[tauri::command]
 pub async fn cmd_mcp_connect(
     state: tauri::State<'_, McpState>,
+    svc: tauri::State<'_, AgentCommandService>,
     config: McpConnectionConfig,
 ) -> Result<Vec<McpToolInfo>, String> {
     let tools = state.hub.connect(config.clone()).await?;
@@ -72,6 +77,11 @@ pub async fn cmd_mcp_connect(
         .execute(&state.pool)
         .await
         .map_err(|e| format!("持久化连接配置失败: {e}"))?;
+    // 热注入失败不阻断连接结果（工具已发现并持久化，最差新会话仍能拿到）
+    let injected = svc.hot_inject_mcp_tools().await;
+    if injected > 0 {
+        tracing::info!("MCP「{}」已连接，热注入 {} 个工具到活跃会话", config.name, injected);
+    }
     Ok(tools)
 }
 

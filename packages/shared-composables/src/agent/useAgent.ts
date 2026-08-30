@@ -110,12 +110,14 @@ export type AgentStreamItem =
   | { type: 'think'; id: string; text: string; status: 'streaming' | 'complete'; timestamp: number }
   | { type: 'tool'; tc: ToolCallView; id: string; timestamp: number }
   | { type: 'divider'; id: string; dividerText: string; timestamp: number }
-  /** 过程层折叠摘要行：过程层折叠时替代全部过程行段，点击可展开 */
+  /** 过程层折叠摘要行：过程层折叠时替代全部过程行段（点击展开）；
+   *  expanded=true 为展开态的常驻折叠头行（点击收起） */
   | {
       type: 'process_summary'
       id: string
       turnId: string
       thinkCount: number
       actionCount: number
+      expanded?: boolean
       timestamp: number
     }
