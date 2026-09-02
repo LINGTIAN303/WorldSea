@@ -19,6 +19,7 @@ use std::time::UNIX_EPOCH;
 use agent_runtime::tool::{Tool, ToolError};
 use agent_runtime::tool_context::ToolContext;
 use async_trait::async_trait;
+use regex::Regex;
 use serde_json::{json, Value};
 
 /// 默认搜索/列表根目录（未传 path 时使用）
@@ -196,7 +197,7 @@ fn wildcard_match(pattern: &str, text: &str) -> bool {
 
 // ─── read_file ────────────────────────────────────────────
 
-/// 读取文本文件工具
+/// 读取文本文件工具（支持按行分页 offset/limit + 大文件自动截断)
 pub struct ReadFileTool;
 
 #[async_trait]
@@ -205,13 +206,15 @@ impl Tool for ReadFileTool {
         "read_file"
     }
     fn description(&self) -> &str {
-        "读取指定文本文件的内容。支持绝对路径或相对工作区的路径。"
+        "读取指定文本文件的内容。支持绝对路径或相对工作区的路径；可按行分页读取（offset 起始行 / limit 行数），大文件自动截断并提示用 offset 继续。"
     }
     fn parameters(&self) -> Value {
         json!({
             "type": "object",
             "properties": {
-                "path": { "type": "string", "description": "要读取的文件路径（绝对或相对工作区）" }
+                "path": { "type": "string", "description": "要读取的文件路径（绝对或相对工作区）" },
+                "offset": { "type": "integer", "description": "从第几行开始读取（0 起计，默认 0）" },
+                "limit": { "type": "integer", "description": "最多读取多少行（默认自动截断上限，见 truncated）" }
             },
             "required": ["path"]
         })
@@ -224,6 +227,11 @@ impl Tool for ReadFileTool {
             .get("path")
             .and_then(|v| v.as_str())
             .ok_or_else(|| ToolError::ArgsParse("缺少 path 参数".into()))?;
+        let offset = args
+            .get("offset")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0) as usize;
+        let limit = args.get("limit").and_then(|v| v.as_u64()).map(|n| n as usize);
         let resolved = resolve_fs_path(ctx, path);
         // 读类收敛：workdir 存在时越界默认拒绝（对齐写类 ensure_within_workdir 语义；
         // workdir 为 None 时 is_within_workdir 恒 true，放行绝对路径，向后兼容）
@@ -236,10 +244,34 @@ impl Tool for ReadFileTool {
         }
         let content = std::fs::read_to_string(&resolved)
             .map_err(|e| ToolError::Execution(format!("读取文件失败 {}: {e}", resolved.display())))?;
+        // 按行分页：offset/limit + 无 limit 时的默认截断上限（大文件保护）
+        const DEFAULT_MAX_LINES: usize = 2000;
+        let total_lines = content.lines().count();
+        let begin = offset.min(total_lines);
+        let effective_limit = limit.unwrap_or(DEFAULT_MAX_LINES);
+        let end = (begin + effective_limit).min(total_lines);
+        // truncated：还有更多行未返回（提示用 offset=end 继续）
+        let truncated = end < total_lines;
+        let page = content.lines().skip(begin).take(end - begin).collect::<Vec<_>>().join("\n");
         let path = resolved.to_string_lossy().to_string();
         Ok(with_meta(
-            json!({ "content": content.clone(), "path": path.clone() }),
-            json!({ "op": "read", "path": path, "size": content.len(), "lines": content.lines().count() }),
+            json!({
+                "content": page,
+                "path": path.clone(),
+                "offset": begin,
+                "lines_returned": end - begin,
+                "total_lines": total_lines,
+                "truncated": truncated,
+            }),
+            json!({
+                "op": "read",
+                "path": path,
+                "size": content.len(),
+                "lines": total_lines,
+                "offset": begin,
+                "limit": end - begin,
+                "truncated": truncated,
+            }),
         ))
     }
 }
@@ -292,6 +324,21 @@ impl Tool for WriteFileTool {
         std::fs::write(&resolved, content.as_bytes())
             .map_err(|e| ToolError::Execution(format!("写入文件失败 {}: {e}", resolved.display())))?;
         let bytes = content.len() as u64;
+        // 2026-09-02 文件变更流事件：write 成功后推送全量新增 diff（绿行；大文件截断到 500 行）
+        if let Some(sink) = &ctx.tool_stream {
+            let added = content
+                .lines()
+                .take(500)
+                .map(String::from)
+                .collect::<Vec<_>>();
+            let path = resolved.to_string_lossy().to_string();
+            let total_lines = content.lines().count();
+            sink.file_change(
+                path,
+                "write".to_string(),
+                serde_json::json!([{ "removed": [], "added": added, "truncated_at": total_lines > 500 }]),
+            );
+        }
         let path = resolved.to_string_lossy().to_string();
         Ok(with_meta(
             json!({ "ok": true, "path": path.clone(), "bytes": bytes }),
@@ -565,9 +612,459 @@ impl Tool for EditFileTool {
         let path = resolved.to_string_lossy().to_string();
         let additions = new_string.matches('\n').count() as u64;
         let deletions = old_string.matches('\n').count() as u64;
+        // 2026-09-02 文件变更流事件：edit 成功后推送绿红 diff（不进入 LLM 消息上下文）
+        if let Some(sink) = &ctx.tool_stream {
+            let removed = old_string.lines().map(String::from).collect::<Vec<_>>();
+            let added = new_string.lines().map(String::from).collect::<Vec<_>>();
+            let path = path.clone();
+            sink.file_change(
+                path,
+                "edit".to_string(),
+                serde_json::json!([{ "removed": removed, "added": added }]),
+            );
+        }
         Ok(with_meta(
             json!({ "ok": true, "path": path.clone(), "replacements": replacements }),
             json!({ "op": "edit", "path": path, "replacements": replacements, "additions": additions, "deletions": deletions }),
+        ))
+    }
+}
+
+// ─── grep（内容搜索，ripgrep 风格） ────────────────────────────
+
+/// grep/find 默认跳过目录（产物/隐藏，对齐 rg 默认语义）
+const GREP_SKIP_DIRS: [&str; 7] = [".git", "node_modules", "target", "dist", ".idea", ".vscode", ".worldsmith"];
+
+/// 内容搜索工具（ripgrep 风格，2026-09-02 系统工具）
+///
+/// 支持正则 + include/exclude glob 过滤 + 匹配行输出；默认跳过产物目录，
+/// 限定搜索在 workdir 内；`max_results` 上限防结果爆炸。
+pub struct GrepTool;
+
+#[async_trait]
+impl Tool for GrepTool {
+    fn name(&self) -> &str {
+        "grep"
+    }
+    fn description(&self) -> &str {
+        "在工作区内按正则搜索文件内容（ripgrep 风格）。pattern 为正则；可传 include/exclude 过滤文件名 glob；output_mode=files 只列命中文件，matching_lines 输出 路径:行号:内容。默认跳过 .git/node_modules/target/dist 等目录。"
+    }
+    fn parameters(&self) -> Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "pattern": { "type": "string", "description": "正则表达式（Rust regex 语法）" },
+                "path": { "type": "string", "description": "可选：搜索起始目录（默认工作区根，必须限定在 workdir 内）" },
+                "include": { "type": "array", "items": { "type": "string" }, "description": "可选：仅匹配这些文件名 glob（如 [\"*.rs\", \"*.toml\"]）" },
+                "exclude": { "type": "array", "items": { "type": "string" }, "description": "可选：排除这些文件名 glob（如 [\"*.min.js\"]）" },
+                "output_mode": { "type": "string", "enum": ["files", "matching_lines"], "description": "files=仅列命中文件（默认）；matching_lines=输出 路径:行号:内容" },
+                "max_results": { "type": "integer", "description": "可选：最多返回命中条目数（默认 500）" },
+                "case_sensitive": { "type": "boolean", "description": "可选：是否大小写敏感（默认 false）" }
+            },
+            "required": ["pattern"]
+        })
+    }
+    async fn execute(&self, args: Value) -> Result<Value, ToolError> {
+        self.execute_with_ctx(&ToolContext::default(), args).await
+    }
+    async fn execute_with_ctx(&self, ctx: &ToolContext, args: Value) -> Result<Value, ToolError> {
+        let pattern = args
+            .get("pattern")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::ArgsParse("缺少 pattern 参数".into()))?;
+        let raw = args
+            .get("path")
+            .and_then(|v| v.as_str())
+            .unwrap_or(DEFAULT_ROOT);
+        let include = str_array(args.get("include"));
+        let exclude = str_array(args.get("exclude"));
+        let output_mode = args
+            .get("output_mode")
+            .and_then(|v| v.as_str())
+            .unwrap_or("files");
+        let max_results = args
+            .get("max_results")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(500) as usize;
+        let case_sensitive = args
+            .get("case_sensitive")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
+        let base = resolve_fs_path(ctx, raw);
+        let base_raw = base.to_string_lossy();
+        if !ctx.is_within_workdir(&base_raw) {
+            return Err(ToolError::Execution(format!(
+                "搜索路径越出工作区，已被拒绝: {}",
+                base.display()
+            )));
+        }
+        if !base.is_dir() {
+            return Err(ToolError::Execution(format!(
+                "目录不存在或不是目录: {}",
+                base.display()
+            )));
+        }
+        // 正则（case_sensitive=false 时加 (?i) 内联，rg 默认智能大小写简化为全程不敏感）
+        let final_pattern = if case_sensitive {
+            pattern.to_string()
+        } else {
+            format!("(?i){pattern}")
+        };
+        let re = Regex::new(&final_pattern)
+            .map_err(|e| ToolError::ArgsParse(format!("非法正则 pattern: {e}")))?;
+
+        let mut matches: Vec<Value> = Vec::new();
+        grep_walk(
+            &base,
+            &re,
+            &include,
+            &exclude,
+            output_mode,
+            max_results,
+            &mut matches,
+        )?;
+        Ok(with_meta(
+            json!({ "matches": matches, "output_mode": output_mode }),
+            json!({
+                "op": "grep",
+                "path": base.to_string_lossy(),
+                "pattern": pattern,
+                "hits": matches.len(),
+                "truncated": matches.len() >= max_results,
+            }),
+        ))
+    }
+}
+
+/// 读取 string 数组参数（include/exclude）
+fn str_array(v: Option<&Value>) -> Vec<String> {
+    v.and_then(|v| v.as_array())
+        .map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect())
+        .unwrap_or_default()
+}
+
+/// 递归执行 grep：跳过默认目录 → 文件名过滤 → 逐行正则匹配
+fn grep_walk(
+    dir: &Path,
+    re: &Regex,
+    include: &[String],
+    exclude: &[String],
+    output_mode: &str,
+    max_results: usize,
+    matches: &mut Vec<Value>,
+) -> Result<(), ToolError> {
+    if matches.len() >= max_results {
+        return Ok(());
+    }
+    let rd = std::fs::read_dir(dir)
+        .map_err(|e| ToolError::Execution(format!("读取目录失败 {}: {e}", dir.display())))?;
+    for entry in rd {
+        let entry = entry.map_err(|e| ToolError::Execution(format!("读取目录项失败: {e}")))?;
+        let path = entry.path();
+        let meta = entry
+            .metadata()
+            .map_err(|e| ToolError::Execution(format!("读取元数据失败 {}: {e}", path.display())))?;
+        let fname = entry.file_name().to_string_lossy().to_string();
+        if meta.is_dir() {
+            if GREP_SKIP_DIRS.contains(&fname.as_str()) {
+                continue;
+            }
+            grep_walk(&path, re, include, exclude, output_mode, max_results, matches)?;
+            continue;
+        }
+        // 文件名 glob 过滤
+        if !include.is_empty() && !include.iter().any(|g| wildcard_match(g, &fname)) {
+            continue;
+        }
+        if exclude.iter().any(|g| wildcard_match(g, &fname)) {
+            continue;
+        }
+        // 文本读取失败（二进制等）跳过
+        let Ok(content) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        // 逐行匹配
+        let mut file_count = 0usize;
+        for (idx, line) in content.lines().enumerate() {
+            if re.is_match(line) {
+                file_count += 1;
+                if output_mode == "matching_lines" {
+                    if matches.len() >= max_results {
+                        break;
+                    }
+                    matches.push(json!({
+                        "path": path.to_string_lossy(),
+                        "line": idx + 1,
+                        "text": line.to_string(),
+                    }));
+                }
+            }
+        }
+        if file_count > 0 && output_mode != "matching_lines" {
+            matches.push(json!({
+                "path": path.to_string_lossy(),
+                "count": file_count,
+            }));
+        }
+    }
+    Ok(())
+}
+
+// ─── find（文件查找，文件名/路径过滤） ────────────────────────────
+
+/// 文件查找工具（2026-09-02 系统工具）
+///
+/// 按文件名通配（glob * ?）递归查找；支持 type（file/dir）与 max_depth 过滤。
+pub struct FindTool;
+
+#[async_trait]
+impl Tool for FindTool {
+    fn name(&self) -> &str {
+        "find"
+    }
+    fn description(&self) -> &str {
+        "在工作区内按文件名（glob，支持 * 和 ?）查找文件或目录。可选 type（file/dir）与 max_depth 限制；默认跳过 .git/node_modules/target/dist 等目录。"
+    }
+    fn parameters(&self) -> Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "pattern": { "type": "string", "description": "文件名匹配模式（glob，如 *.md、main*、?.rs）" },
+                "path": { "type": "string", "description": "可选：查找起始目录（默认工作区根，必须限定在 workdir 内）" },
+                "type": { "type": "string", "enum": ["file", "dir"], "description": "可选：仅匹配文件或目录" },
+                "max_depth": { "type": "integer", "description": "可选：最大递归深度（默认不限制；根为 0）" },
+                "max_results": { "type": "integer", "description": "可选：最多返回条目数（默认 500）" }
+            },
+            "required": ["pattern"]
+        })
+    }
+    async fn execute(&self, args: Value) -> Result<Value, ToolError> {
+        self.execute_with_ctx(&ToolContext::default(), args).await
+    }
+    async fn execute_with_ctx(&self, ctx: &ToolContext, args: Value) -> Result<Value, ToolError> {
+        let pattern = args
+            .get("pattern")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::ArgsParse("缺少 pattern 参数".into()))?;
+        let raw = args
+            .get("path")
+            .and_then(|v| v.as_str())
+            .unwrap_or(DEFAULT_ROOT);
+        let want_type = args.get("type").and_then(|v| v.as_str());
+        let max_depth = args.get("max_depth").and_then(|v| v.as_u64()).map(|n| n as usize);
+        let max_results = args
+            .get("max_results")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(500) as usize;
+
+        let base = resolve_fs_path(ctx, raw);
+        let base_raw = base.to_string_lossy();
+        if !ctx.is_within_workdir(&base_raw) {
+            return Err(ToolError::Execution(format!(
+                "查找路径越出工作区，已被拒绝: {}",
+                base.display()
+            )));
+        }
+        if !base.is_dir() {
+            return Err(ToolError::Execution(format!(
+                "目录不存在或不是目录: {}",
+                base.display()
+            )));
+        }
+        let mut matches: Vec<Value> = Vec::new();
+        find_walk(&base, pattern, want_type, max_depth, max_results, &mut matches, 0)?;
+        Ok(with_meta(
+            json!({ "matches": matches }),
+            json!({ "op": "find", "path": base.to_string_lossy(), "pattern": pattern, "hits": matches.len() }),
+        ))
+    }
+}
+
+/// 递归查找：文件名通配 + type 过滤 + max_depth 限制
+fn find_walk(
+    dir: &Path,
+    pattern: &str,
+    want_type: Option<&str>,
+    max_depth: Option<usize>,
+    max_results: usize,
+    matches: &mut Vec<Value>,
+    depth: usize,
+) -> Result<(), ToolError> {
+    if matches.len() >= max_results {
+        return Ok(());
+    }
+    if let Some(max) = max_depth {
+        if depth > max {
+            return Ok(());
+        }
+    }
+    let rd = std::fs::read_dir(dir)
+        .map_err(|e| ToolError::Execution(format!("读取目录失败 {}: {e}", dir.display())))?;
+    for entry in rd {
+        let entry = entry.map_err(|e| ToolError::Execution(format!("读取目录项失败: {e}")))?;
+        let path = entry.path();
+        let meta = entry
+            .metadata()
+            .map_err(|e| ToolError::Execution(format!("读取元数据失败 {}: {e}", path.display())))?;
+        let is_dir = meta.is_dir();
+        let fname = entry.file_name().to_string_lossy().to_string();
+        if is_dir && GREP_SKIP_DIRS.contains(&fname.as_str()) {
+            continue;
+        }
+        if wildcard_match(pattern, &fname) {
+            let ftype = if is_dir { "dir" } else { "file" };
+            if want_type.map(|t| t == ftype).unwrap_or(true) {
+                matches.push(json!({
+                    "path": path.to_string_lossy(),
+                    "type": ftype,
+                    "depth": depth,
+                    "size": if is_dir { Value::Null } else { json!(meta.len()) },
+                }));
+            }
+        }
+        if is_dir {
+            find_walk(&path, pattern, want_type, max_depth, max_results, matches, depth + 1)?;
+        }
+    }
+    Ok(())
+}
+
+// ─── edit_diff（Diff 编辑：多块原子替换） ────────────────────────────
+
+/// 单块替换定义
+const EDIT_DIFF_MAX_BLOCKS: usize = 20;
+
+/// Diff 编辑工具（2026-09-02 系统工具，对齐 Claude Code MultiEdit 语义）
+///
+/// 一次提交多个替换块（每块 old_string/new_string 精确替换）。
+/// 先整体校验：任一 old_string 未找到或多处命中（未显式 replace_all）→ 拒绝且不写盘（原子性）。
+pub struct EditDiffTool;
+
+#[async_trait]
+impl Tool for EditDiffTool {
+    fn name(&self) -> &str {
+        "edit_diff"
+    }
+    fn description(&self) -> &str {
+        "对同一文件一次性应用多个精确字符串替换（diff 编辑）。edits 数组每项 {old_string, new_string, replace_all?}；任一旧串未找到或多处命中都会拒写（原子），适合需要一次改多处、且旧串需唯一定位的场景。"
+    }
+    fn parameters(&self) -> Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "path": { "type": "string", "description": "要编辑的文件路径（绝对或相对工作区）" },
+                "edits": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "old_string": { "type": "string", "description": "要被替换的原始文本" },
+                            "new_string": { "type": "string", "description": "替换后的新文本" },
+                            "replace_all": { "type": "boolean", "description": "可选：true=替换所有出现位置（默认 false 要求唯一命中）" }
+                        },
+                        "required": ["old_string", "new_string"]
+                    },
+                    "description": "替换块列表（最多 20 块）"
+                }
+            },
+            "required": ["path", "edits"]
+        })
+    }
+    async fn execute(&self, args: Value) -> Result<Value, ToolError> {
+        self.execute_with_ctx(&ToolContext::default(), args).await
+    }
+    async fn execute_with_ctx(&self, ctx: &ToolContext, args: Value) -> Result<Value, ToolError> {
+        let path = args
+            .get("path")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::ArgsParse("缺少 path 参数".into()))?;
+        let edits = args
+            .get("edits")
+            .and_then(|v| v.as_array())
+            .ok_or_else(|| ToolError::ArgsParse("缺少 edits 参数".into()))?;
+        if edits.is_empty() || edits.len() > EDIT_DIFF_MAX_BLOCKS {
+            return Err(ToolError::ArgsParse(format!(
+                "edits 数量需在 1~{} 之间",
+                EDIT_DIFF_MAX_BLOCKS
+            )));
+        }
+        let resolved = resolve_fs_path(ctx, path);
+        ensure_within_workdir(ctx, &resolved)?;
+        ensure_not_protected(ctx, &resolved)?;
+        let content = std::fs::read_to_string(&resolved)
+            .map_err(|e| ToolError::Execution(format!("读取文件失败 {}: {e}", resolved.display())))?;
+
+        // 解析替换块
+        struct Block<'a> {
+            old: &'a str,
+            new: &'a str,
+            replace_all: bool,
+        }
+        let mut blocks: Vec<Block> = Vec::with_capacity(edits.len());
+        for (i, ed) in edits.iter().enumerate() {
+            let old = ed
+                .get("old_string")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| ToolError::ArgsParse(format!("edits[{i}] 缺少 old_string")))?;
+            let new = ed
+                .get("new_string")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| ToolError::ArgsParse(format!("edits[{i}] 缺少 new_string")))?;
+            let replace_all = ed
+                .get("replace_all")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            blocks.push(Block { old, new, replace_all });
+        }
+
+        // 第一遍校验（原子性：任一块不满足即拒写）
+        let mut replacements: Vec<Value> = Vec::new();
+        for (i, b) in blocks.iter().enumerate() {
+            let count = content.matches(b.old).count();
+            if count == 0 {
+                return Err(ToolError::Execution(format!(
+                    "edits[{i}] 的 old_string 未在文件 {} 中找到",
+                    resolved.display()
+                )));
+            }
+            if count > 1 && !b.replace_all {
+                return Err(ToolError::Execution(format!(
+                    "edits[{i}] 的 old_string 在文件 {} 中出现 {count} 次，请提供更精确的上下文或设置 replace_all=true",
+                    resolved.display()
+                )));
+            }
+            replacements.push(json!({ "index": i, "occurrences": count, "replace_all": b.replace_all }));
+        }
+
+        // 第二遍应用（顺序替换）
+        let mut new_content = content.clone();
+        for b in &blocks {
+            new_content = if b.replace_all {
+                new_content.replace(b.old, b.new)
+            } else {
+                new_content.replacen(b.old, b.new, 1)
+            };
+        }
+        std::fs::write(&resolved, new_content.as_bytes())
+            .map_err(|e| ToolError::Execution(format!("写入文件失败 {}: {e}", resolved.display())))?;
+        let path = resolved.to_string_lossy().to_string();
+        // 2026-09-02 文件变更流事件：edit_diff 成功后逐块推送绿红 diff（不进入 LLM 消息上下文）
+        if let Some(sink) = &ctx.tool_stream {
+            let hunks = blocks
+                .iter()
+                .map(|b| {
+                    serde_json::json!({
+                        "removed": b.old.lines().map(String::from).collect::<Vec<_>>(),
+                        "added": b.new.lines().map(String::from).collect::<Vec<_>>(),
+                    })
+                })
+                .collect::<Vec<_>>();
+            sink.file_change(path.clone(), "edit_diff".to_string(), serde_json::Value::Array(hunks));
+        }
+        Ok(with_meta(
+            json!({ "ok": true, "path": path.clone(), "blocks": blocks.len(), "replacements": replacements }),
+            json!({ "op": "edit_diff", "path": path, "blocks": blocks.len(), "replacements": replacements }),
         ))
     }
 }
@@ -584,6 +1081,10 @@ pub async fn register_fs_tools(bus: &dyn agent_runtime::tool::ToolBus) {
     bus.register(Arc::new(ListDirectoryTool)).await;
     bus.register(Arc::new(SearchFilesTool)).await;
     bus.register(Arc::new(EditFileTool)).await;
+    // 2026-09-02 系统工具（batc 1）：grep / find / edit_diff
+    bus.register(Arc::new(GrepTool)).await;
+    bus.register(Arc::new(FindTool)).await;
+    bus.register(Arc::new(EditDiffTool)).await;
 }
 
 #[cfg(test)]
@@ -596,6 +1097,7 @@ mod tests {
             workdir: Some(dir.to_path_buf()),
             project_id: None,
             workspace_id: None,
+            tool_stream: None,
         }
     }
 
@@ -851,5 +1353,159 @@ mod tests {
         assert!(s["matches"].as_array().unwrap().len() >= 1);
         assert_eq!(s["__meta"]["op"], "search");
         assert!(s["__meta"]["hits"].as_u64().unwrap() >= 1);
+    }
+
+    // ── 2026-09-02 系统工具（批 1）：read 分页 / grep / find / edit_diff ──
+
+    #[tokio::test]
+    async fn read_file_pagination_offset_limit() {
+        let dir = tempfile::tempdir().unwrap();
+        let ctx = ctx_for(dir.path());
+        // 10 行文件（行 0..9）
+        let content = (0..10).map(|i| format!("line-{i}")).collect::<Vec<_>>().join("\n");
+        WriteFileTool
+            .execute_with_ctx(&ctx, json!({ "path": "paged.txt", "content": content }))
+            .await
+            .unwrap();
+
+        // 无参全读：total_lines=10，不截断
+        let full = ReadFileTool
+            .execute_with_ctx(&ctx, json!({ "path": "paged.txt" }))
+            .await
+            .unwrap();
+        assert_eq!(full["total_lines"], 10);
+        assert_eq!(full["truncated"], false);
+
+        // offset=5 limit=3 → 行 5,6,7
+        let page = ReadFileTool
+            .execute_with_ctx(&ctx, json!({ "path": "paged.txt", "offset": 5, "limit": 3 }))
+            .await
+            .unwrap();
+        assert_eq!(page["offset"], 5);
+        assert_eq!(page["lines_returned"], 3);
+        assert_eq!(page["content"], "line-5\nline-6\nline-7");
+
+        // offset 越界 → 空页 + truncated=false
+        let over = ReadFileTool
+            .execute_with_ctx(&ctx, json!({ "path": "paged.txt", "offset": 100 }))
+            .await
+            .unwrap();
+        assert_eq!(over["content"], "");
+    }
+
+    #[tokio::test]
+    async fn grep_matches_content_with_include_filter() {
+        let dir = tempfile::tempdir().unwrap();
+        let ctx = ctx_for(dir.path());
+        WriteFileTool
+            .execute_with_ctx(&ctx, json!({ "path": "a.txt", "content": "Hello World\nsecond line" }))
+            .await
+            .unwrap();
+        WriteFileTool
+            .execute_with_ctx(&ctx, json!({ "path": "b.md", "content": "world is here" }))
+            .await
+            .unwrap();
+
+        // 默认大小写不敏感，matching_lines 命中两文件
+        let lines = GrepTool
+            .execute_with_ctx(&ctx, json!({ "pattern": "world", "output_mode": "matching_lines" }))
+            .await
+            .unwrap();
+        let arr = lines["matches"].as_array().unwrap();
+        assert_eq!(arr.len(), 2, "应命中 a.txt 与 b.md，实际: {arr:?}");
+        assert_eq!(arr[0]["line"], 1);
+
+        // include=*.txt 仅命中 a.txt（files 模式）
+        let files = GrepTool
+            .execute_with_ctx(&ctx, json!({ "pattern": "world", "include": ["*.txt"] }))
+            .await
+            .unwrap();
+        let arr2 = files["matches"].as_array().unwrap();
+        assert_eq!(arr2.len(), 1);
+        assert!(arr2[0]["path"].as_str().unwrap().ends_with("a.txt"));
+    }
+
+    #[tokio::test]
+    async fn find_by_name_and_type() {
+        let dir = tempfile::tempdir().unwrap();
+        let ctx = ctx_for(dir.path());
+        WriteFileTool
+            .execute_with_ctx(&ctx, json!({ "path": "src/main.rs", "content": "" }))
+            .await
+            .unwrap();
+        WriteFileTool
+            .execute_with_ctx(&ctx, json!({ "path": "notes.md", "content": "" }))
+            .await
+            .unwrap();
+
+        // 文件名 glob *.rs → src/main.rs（路径分隔符归一化后再断言，兼容 Windows 反斜杠）
+        let found = FindTool
+            .execute_with_ctx(&ctx, json!({ "pattern": "*.rs" }))
+            .await
+            .unwrap();
+        let arr = found["matches"].as_array().unwrap();
+        assert_eq!(arr.len(), 1);
+        let p = arr[0]["path"].as_str().unwrap().replace('\\', "/");
+        assert!(p.ends_with("src/main.rs"), "实际路径: {p}");
+        assert_eq!(arr[0]["type"], "file");
+
+        // type=dir 匹配 src 目录
+        let dirs = FindTool
+            .execute_with_ctx(&ctx, json!({ "pattern": "src", "type": "dir" }))
+            .await
+            .unwrap();
+        let darr = dirs["matches"].as_array().unwrap();
+        assert_eq!(darr.len(), 1);
+        assert_eq!(darr[0]["type"], "dir");
+    }
+
+    #[tokio::test]
+    async fn edit_diff_atomic_multiblock_and_uniqueness() {
+        let dir = tempfile::tempdir().unwrap();
+        let ctx = ctx_for(dir.path());
+        WriteFileTool
+            .execute_with_ctx(&ctx, json!({ "path": "d.txt", "content": "aa bb cc\ndd bb ee" }))
+            .await
+            .unwrap();
+
+        // 多块替换：aa→AA、cc→CC（各唯一）
+        let ok = EditDiffTool
+            .execute_with_ctx(&ctx, json!({
+                "path": "d.txt",
+                "edits": [
+                    { "old_string": "aa", "new_string": "AA" },
+                    { "old_string": "cc", "new_string": "CC" }
+                ]
+            }))
+            .await
+            .unwrap();
+        assert_eq!(ok["ok"], true);
+        assert_eq!(ok["blocks"], 2);
+        let after = std::fs::read_to_string(dir.path().join("d.txt")).unwrap();
+        assert_eq!(after, "AA bb CC\ndd bb ee");
+
+        // 多处命中且未 replace_all → 原子拒绝（不写盘）
+        let err = EditDiffTool
+            .execute_with_ctx(&ctx, json!({
+                "path": "d.txt",
+                "edits": [{ "old_string": "bb", "new_string": "BB" }]
+            }))
+            .await;
+        assert!(err.is_err(), "多处命中未 replace_all 应拒绝");
+        // 文件未被修改
+        let unchanged = std::fs::read_to_string(dir.path().join("d.txt")).unwrap();
+        assert_eq!(unchanged, "AA bb CC\ndd bb ee");
+
+        // replace_all=true 全部替换
+        let ok2 = EditDiffTool
+            .execute_with_ctx(&ctx, json!({
+                "path": "d.txt",
+                "edits": [{ "old_string": "bb", "new_string": "BB", "replace_all": true }]
+            }))
+            .await
+            .unwrap();
+        assert_eq!(ok2["ok"], true);
+        let after2 = std::fs::read_to_string(dir.path().join("d.txt")).unwrap();
+        assert_eq!(after2, "AA BB CC\ndd BB ee");
     }
 }

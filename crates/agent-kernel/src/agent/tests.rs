@@ -106,6 +106,61 @@
         assert_eq!(after.last().unwrap().content, "终稿");
     }
 
+    /// R6 第二部分：merge_last_assistant_meta 把事件序追加进最后 assistant 消息 meta.action_events，
+    /// 多次调用累计（追加语义），无 assistant 消息时忽略。
+    #[tokio::test]
+    async fn merge_last_assistant_meta_appends_action_events() {
+        use crate::types::{MessageRole, OrchestratorMessage};
+        let backend = Arc::new(MockBackend::new(vec![]));
+        let tool_bus = Arc::new(SimpleToolBus::new());
+        let agent = AgentLoop::new(backend, tool_bus);
+        agent
+            .append_messages(vec![
+                OrchestratorMessage {
+                    role: MessageRole::User,
+                    content: "问题".into(),
+                    tool_calls: Vec::new(),
+                    tool_call_id: None,
+                    meta: None,
+                },
+                OrchestratorMessage {
+                    role: MessageRole::Assistant,
+                    content: "回复".into(),
+                    tool_calls: Vec::new(),
+                    tool_call_id: None,
+                    meta: None,
+                },
+            ])
+            .await;
+
+        // 首次注入
+        agent
+            .merge_last_assistant_meta(
+                "action_events",
+                vec![serde_json::json!({ "seq": 0, "action": "phase" })],
+            )
+            .await;
+        // 追加注入（同一消息 meta 累计）
+        agent
+            .merge_last_assistant_meta(
+                "action_events",
+                vec![serde_json::json!({ "seq": 1, "action": "subagent" })],
+            )
+            .await;
+
+        let messages = agent.get_messages().await;
+        let last = messages.last().unwrap();
+        let events = last.meta.as_ref().unwrap()["action_events"].as_array().unwrap();
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[0]["action"], "phase");
+        assert_eq!(events[1]["action"], "subagent");
+
+        // 空值 no-op
+        agent.merge_last_assistant_meta("action_events", vec![]).await;
+        let messages = agent.get_messages().await;
+        assert_eq!(messages.last().unwrap().meta.as_ref().unwrap()["action_events"].as_array().unwrap().len(), 2);
+    }
+
     #[tokio::test]
     async fn run_dispatches_hooks_in_order_and_keeps_behavior() {
         // 验证织入点协议（matrix §8 里程碑 5）：
@@ -187,8 +242,8 @@
     }
 
     #[tokio::test]
-    async fn run_returns_error_when_max_iterations_exceeded() {
-        // 每轮都返回工具调用，永远不结束
+    async fn run_returns_error_when_total_steps_exceeded() {
+        // 每轮都返回工具调用，永远不结束 → 总步骤预算耗尽错误
         let infinite_tool_call = PromptResponse {
             text: "继续".into(),
             tool_calls: vec![ToolCall {
@@ -206,15 +261,15 @@
         tool_bus.register(Arc::new(EchoTool)).await;
 
         let agent = AgentLoop::new(backend, tool_bus).with_config(AgentLoopConfig {
-            max_iterations: 3,
+            total_steps: 3,
             ..Default::default()
         });
 
         let result = agent.run("无限循环".into()).await;
         assert!(result.is_err());
         match result {
-            Err(AgentError::MaxIterationsExceeded(3)) => {}
-            _ => panic!("应返回 MaxIterationsExceeded(3)"),
+            Err(AgentError::TotalStepsReached(3)) => {}
+            _ => panic!("应返回 TotalStepsReached(3)"),
         }
     }
 
@@ -290,7 +345,7 @@
         tool_bus.register(Arc::new(EchoTool)).await;
 
         let agent = AgentLoop::new(backend, tool_bus).with_config(AgentLoopConfig {
-            max_iterations: 3,
+            total_steps: 3, // 步骤预算 3 → 无限工具调用轮次撞预算
             ..Default::default()
         });
 
@@ -468,7 +523,7 @@
         let agent = AgentLoop::new(backend, tool_bus)
             .with_loop_control(Some(loop_config))
             .with_config(AgentLoopConfig {
-                max_iterations: 100, // 不触发超迭代，验证是速率限制停止而非超迭代
+                total_steps: 100, // 不触发预算熔断，验证是速率限制停止而非预算熔断
                 ..Default::default()
             });
 
@@ -494,7 +549,8 @@
     async fn default_lenient_config_does_not_stop_normal_loop() {
         // 回归保护：默认（宽松）配置下，正常对话任务不应被速率限制误停。
         // 覆盖待办"桌面端实测宽松配置默认不误停止"的单元级可重复验证——
-        // 以真实默认 LoopControlConfig（100 turns / 200 tools / 100k tokens / 6h）
+        // 以真实默认 LoopControlConfig（max_turns=None 已退役 / 200 tools / 100k tokens / 6h，
+        // 轮数预算由 AgentLoopConfig.total_steps=200 承担）
         // 运行一个"几轮工具调用后返回文本"的正常流，断言最终返回 Ok 且未广播速率限制事件。
         let tool_call = |id: &str| PromptResponse {
             text: "继续".into(),
@@ -508,7 +564,7 @@
             stop_reason: Some("tool_calls".into()),
                 reasoning: None,
         };
-        // 3 轮工具调用 + 1 轮最终文本 = 正常收敛，远低于默认 100 turns 上限
+        // 3 轮工具调用 + 1 轮最终文本 = 正常收敛，远低于默认 total_steps 200 预算
         let backend = Arc::new(MockBackend::new(vec![
             tool_call("call_1"),
             tool_call("call_2"),
@@ -520,7 +576,7 @@
 
         // 不显式 with_loop_control → 使用默认宽松配置（生产默认路径）
         let agent = AgentLoop::new(backend, tool_bus).with_config(AgentLoopConfig {
-            max_iterations: 100, // 不触发超迭代，验证是正常收敛而非被循环控制停止
+            total_steps: 100, // 不触发预算熔断，验证是正常收敛而非被循环控制停止
             ..Default::default()
         });
 
@@ -952,10 +1008,10 @@
         use crate::scenario::WorldbuildingScenario;
         use crate::tool::{ToolBus, ToolError};
 
-        // 工具总线：白名单内 entity_get + 系统基础工具 execute_command + 白名单外 secret_tool
+        // 工具总线：白名单内 entity_get + 系统基础工具 bash + 白名单外 secret_tool
         let tool_bus = Arc::new(SimpleToolBus::new());
         tool_bus.register(Arc::new(NamedEchoTool("entity_get"))).await;
-        tool_bus.register(Arc::new(NamedEchoTool("execute_command"))).await;
+        tool_bus.register(Arc::new(NamedEchoTool("bash"))).await;
         tool_bus.register(Arc::new(NamedEchoTool("secret_tool"))).await;
 
         let backend = Arc::new(MockBackend::new(vec![]));
@@ -968,7 +1024,7 @@
         let config = agent.config_snapshot();
         let eff = agent.effective_tool_bus(&config);
 
-        // 可见性：白名单外不可见，白名单内可见（含系统基础工具 execute_command）
+        // 可见性：白名单外不可见，白名单内可见（含系统基础工具 bash——execute_command 已退役）
         let names: Vec<String> = eff
             .list_all()
             .await
@@ -984,7 +1040,7 @@
             "场景 tool_ids 内工具应可见: {names:?}"
         );
         assert!(
-            names.contains(&"execute_command".to_string()),
+            names.contains(&"bash".to_string()),
             "系统基础工具应可见: {names:?}"
         );
 

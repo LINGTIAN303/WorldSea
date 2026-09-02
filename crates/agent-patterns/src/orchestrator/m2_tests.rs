@@ -351,3 +351,92 @@ async fn M2_ReAct_成功一次清零连续失败计数() {
     assert!(report.is_done(), "失败未连续成串 → 不触发 Fatal：{:?}", report.reason);
     assert_eq!(report.result_text().as_deref(), Some("答案"));
 }
+
+// ── 2026-09-02 步骤工具化：目标注入 + 每步独立循环 ────────────────────────
+
+/// 记录 react_step 收迹的脚本 LLM（验证目标注入 / 轨迹重置）
+struct TraceRecordingLlm {
+    seen: Mutex<Vec<String>>,
+}
+
+impl TraceRecordingLlm {
+    fn new() -> Self {
+        Self { seen: Mutex::new(Vec::new()) }
+    }
+    fn records(&self) -> Vec<String> {
+        self.seen.lock().unwrap().clone()
+    }
+}
+
+#[async_trait::async_trait]
+impl LlmHandle for TraceRecordingLlm {
+    async fn complete(&self, _req: &LlmRequest) -> Result<Response, LlmError> {
+        Ok(Response { text: String::new(), usage: Usage::default() })
+    }
+    async fn react_step(
+        &self,
+        trace: &[crate::orchestrator::tools::TraceEntry],
+        _tools: &ToolSpecSet,
+    ) -> Result<ReactStep, LlmError> {
+        let text: Vec<String> = trace
+            .iter()
+            .map(|e| match e {
+                crate::orchestrator::tools::TraceEntry::Thought { text } => format!("thought:{text}"),
+                crate::orchestrator::tools::TraceEntry::ActObs { call, observation } => {
+                    format!("act:{}:{}", call.name, observation.content)
+                }
+            })
+            .collect();
+        self.seen.lock().unwrap().push(text.join("|"));
+        Ok(ReactStep {
+            thought: Some("下一步".into()),
+            action: None,
+            final_answer: Some("完成".into()),
+            usage: Usage::of(1, 1),
+        })
+    }
+}
+
+#[tokio::test]
+async fn M2_ReAct_步骤目标注入_每步独立轨迹() {
+    // 自定义意图键模拟 PlanExecute 的 pne.step.current：ReAct 首轮 trace 必须能读到
+    let react = ReActLoopNode::new("m2node", fs_tools(), ScriptedTools::ok(&[]), 5)
+        .with_intent_key("pne.step.current");
+    // 复用 two_node_graph 的 IngressNode 会写 task.intent；此处单独构图以自定义意图键
+    struct StepIngress;
+    #[async_trait::async_trait]
+    impl OrchestratorNode for StepIngress {
+        fn id(&self) -> &str {
+            "ingress"
+        }
+        fn meta(&self) -> &NodeMeta {
+            static M: std::sync::OnceLock<NodeMeta> = std::sync::OnceLock::new();
+            M.get_or_init(|| NodeMeta::without_llm("ingress", "入口"))
+        }
+        fn outputs(&self) -> &[Port] {
+            static OUTS: std::sync::OnceLock<Vec<Port>> = std::sync::OnceLock::new();
+            OUTS.get_or_init(|| vec![Port::Out])
+        }
+        async fn execute(&self, ctx: &mut crate::orchestrator::context::NodeCtx<'_>) -> Result<NodeResult, NodeError> {
+            ctx.state.write("pne.step.current", "步骤一：读取配置");
+            Ok(NodeResult { port: Port::Out, usage: Usage::default(), progress: None })
+        }
+    }
+    let graph = Graph::build(
+        vec![Box::new(StepIngress), Box::new(react)],
+        vec![Edge::new("ingress", Port::Out, "m2node")],
+        "ingress",
+    ).unwrap();
+    let llm = Arc::new(TraceRecordingLlm::new());
+    let llm_dyn: Arc<dyn LlmHandle> = llm.clone();
+    let orch = DefaultOrchestrator::new(&graph, llm_dyn, Arc::new(NoopMemory), RunConfig::default());
+    let report = orch.run().await.unwrap();
+    assert!(report.is_done(), "{:?}", report.reason);
+    // 首轮轨迹须含注入的当前目标（工具化步骤的执行上下文）
+    let records = llm.records();
+    assert!(
+        records.iter().any(|r| r.contains("步骤一：读取配置")),
+        "目标注入缺失：{records:?}"
+    );
+    assert_eq!(report.result_text().as_deref(), Some("完成"));
+}

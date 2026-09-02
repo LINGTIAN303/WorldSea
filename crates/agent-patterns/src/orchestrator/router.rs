@@ -111,12 +111,20 @@ impl OrchestratorNode for RouterNode {
                 .collect();
             user.push_str(&format!("\n\n路由先例：\n{}", shots.join("\n")));
         }
-        let resp = ctx
-            .llm
-            .complete(&Request::new(self.classify_prompt.clone(), user))
-            .await?;
-        let cls: RouteChoice = serde_json::from_str(resp.text.trim())
-            .map_err(|e| NodeError::fatal("schema", format!("分类输出非约定 JSON：{e}")))?;
+        let req = Request::new(self.classify_prompt.clone(), user);
+        // 2026-09-02 B 类迁移试点：优先经决策工具强制调用（tool-use-as-JSON），
+        // 失败（句柄未实现/未返回 tool_call）时回退旧 complete + from_str 解析。
+        let mut usage = Usage::default();
+        let cls: RouteChoice = match ctx.llm.decide(&req, crate::orchestrator::decision::route_decision_tool()).await {
+            Ok(v) => serde_json::from_value(v)
+                .map_err(|e| NodeError::fatal("schema", format!("路由决策参数非约定结构：{e}")))?,
+            Err(_e) => {
+                let resp = ctx.llm.complete(&req).await?;
+                usage = resp.usage;
+                serde_json::from_str(resp.text.trim())
+                    .map_err(|e| NodeError::fatal("schema", format!("分类输出非约定 JSON：{e}")))?
+            }
+        };
         // 审计留痕（设计 6.5：路由决策全量记录）
         ctx.state.write("route.choice", &cls);
         let legal = self.labels.iter().any(|l| l == &cls.label);
@@ -126,7 +134,7 @@ impl OrchestratorNode for RouterNode {
             // 未知标签或低置信度 → fallback（设计 6.5：澄清或安全默认链路）
             Port::Branch("low-conf".into())
         };
-        Ok(NodeResult { port, usage: resp.usage, progress: None })
+        Ok(NodeResult { port, usage, progress: None })
     }
 }
 

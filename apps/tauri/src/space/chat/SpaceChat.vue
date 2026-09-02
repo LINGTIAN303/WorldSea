@@ -8,7 +8,7 @@
             class="chat-top-btn"
             :class="{ active: rightPanelOpen }"
             @click="emit('toggle-right-panel')"
-            title="右侧栏（执行/配置/创作/预览）"
+            title="右侧栏（执行/配置/创作/预览/用量）"
             :aria-pressed="rightPanelOpen"
           ><WsIcon :name="rightPanelOpen ? 'panel-right-close' : 'panel-right-open'" size="sm" /><span v-if="spaceStore.activityPinned" class="nav-badge"></span></button>
           <div
@@ -74,7 +74,7 @@ const emit = defineEmits<{
 const spaceStore = useSpaceStore()
 // 聊天模式按会话隔离（viewState 权威），渲染与发送均用当前会话的模式
 const sessionView = useSessionViewState()
-const sessionMode = computed(() => sessionView.activeState.value?.chatMode ?? 'deep')
+const sessionMode = computed(() => sessionView.activeState.value?.chatMode ?? 'normal')
 const {
   messages, isStreaming, sendMessage, steer,
   lastAssistantHasContent, lastAssistantHasThinking,

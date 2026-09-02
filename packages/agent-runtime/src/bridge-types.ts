@@ -7,7 +7,8 @@ export interface ImageAttachment {
   mimeType: string
 }
 
-export type ChatMode = 'deep' | 'explore' | 'task' | 'group-chat'
+// 会话模式（三模式移除后收敛，2026-08-31）：normal 统一普通会话 / group-chat 群聊标记
+export type ChatMode = 'normal' | 'group-chat'
 
 export interface PromptOptions {
   skillNames?: string[]

@@ -59,7 +59,7 @@ impl SubAgentManager {
     ) -> Self {
         Self {
             specs,
-            pool: SubAgentPool::new(backend, tool_bus, 25),
+            pool: SubAgentPool::new(backend, tool_bus, 100),
             delegate_timeout: std::time::Duration::from_secs(120),
             max_delegate_depth: 3,
             broadcaster: std::sync::RwLock::new(None),

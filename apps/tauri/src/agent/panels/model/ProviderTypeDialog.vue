@@ -179,9 +179,6 @@ const props = withDefaults(defineProps<{
   maxContextLength: number
   maxOutputTokens: number
   maxTemperature: number
-  chatMode: string
-  chatModes: Array<{ value: string; icon: string; label: string; desc: string }>
-  lockedChatMode: string | null
   cloudApiKey: string
   customApiKey: string
   fetchedModels: string[]
@@ -189,7 +186,6 @@ const props = withDefaults(defineProps<{
   fetchError: string
   canFetchModels: boolean
 }>(), {
-  lockedChatMode: null,
 })
 
 const emit = defineEmits<{

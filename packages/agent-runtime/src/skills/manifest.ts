@@ -19,7 +19,17 @@ interface FsEntry {
 
 /** Tauri invoke 缓存（与 fs-tools.ts 一致的模式，避免重复动态 import） */
 let _invoke: TauriInvoke | null = null
+/**
+ * 端注入覆盖（风险点② 补桥，2026-08-30）：app 层把 transport.invoke 注入进来，
+ * 使浏览器 HTTP 模式的 cmd_skills_get_dir / cmd_fs_* 路由到 /rpc 桥。
+ * 本包端无关、不能 import transport，故用注入而非直接依赖。
+ */
+let _override: TauriInvoke | null = null
+export function setSkillsManifestInvoke(fn: TauriInvoke | null): void {
+  _override = fn
+}
 async function getTauriInvoke(): Promise<TauriInvoke | null> {
+  if (_override) return _override
   if (_invoke) return _invoke
   if (!isTauri()) return null
   try {

@@ -10,8 +10,22 @@ use super::{AgentLoop, AgentLoopConfig};
 ///
 /// 对应 `agent-commands` 注册的 terminal/subagent 工具名。世界构建场景启用时，
 /// 白名单 = 本基础集 ∪ 场景 tool_ids，从而裁剪掉终端细节管理工具（shell_session_* 等）。
+/// 2026-09-02 系统工具集对齐：`execute_command` 已退役 → 换成 `bash`/`powershell`；
+/// 补上 fs 系统工具（read_file/write_file/edit_file/edit_diff/grep/find）——
+/// 否则场景白名单下模型看不到这些工具（实测：模型只见 shell_session_* 而无法调 bash/edit_diff）。
 const SYSTEM_BASE_TOOLS: &[&str] = &[
-    "execute_command",
+    // 终端执行（execute_command 退役后由 bash/powershell 取代）
+    "bash",
+    "powershell",
+    // 文件系统（read 分页/grep/find/edit_diff 原子替换，对齐 Claude Code 内置）
+    "read_file",
+    "write_file",
+    "edit_file",
+    "edit_diff",
+    "grep",
+    "find",
+    "list_directory",
+    "search_files",
     "delegate_to_sub_agent",
     "list_sub_agents",
     // A4 Plan-Exec：计划创建/状态推进/失败重规划（通用能力，任何场景可用）
@@ -130,10 +144,12 @@ impl AgentLoop {
             system_prompt_override,
             tools_override: None,
             tools,
+            force_tool: None,
             temperature: config.temperature,
             max_tokens: config.max_tokens,
             top_p: config.top_p,
             top_k: config.top_k,
+            silent: false,
             thinking_mode: config.thinking_mode,
             thinking_level: config.thinking_level,
             images: Vec::new(),

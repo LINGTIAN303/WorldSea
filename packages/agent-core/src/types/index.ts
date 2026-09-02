@@ -264,7 +264,12 @@ export interface SkillDeclaration {
 
 export type ThinkingLevel = 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
 
-export type ChatMode = 'normal' | 'deep' | 'explore' | 'group-chat'
+/**
+ * 会话模式（三模式移除后收敛，2026-08-31）：
+ * - `normal`：普通会话（统一模式，不再区分深度思考/知识探索/任务执行）
+ * - `group-chat`：群聊会话类型标记（保留）
+ */
+export type ChatMode = 'normal' | 'group-chat'
 
 export interface UsageData {
   inputTokens: number

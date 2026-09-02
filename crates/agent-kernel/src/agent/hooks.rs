@@ -30,7 +30,7 @@ pub enum RunPhase {
     /// 内置织入：无；供外部观察本轮输入侧上下文。
     AfterUserMessage,
     /// run_react_loop 每轮工具调用完成后。
-    /// 内置织入：DeepPhase 阶段切换事件 + long_task checkpoint 更新。
+    /// 内置织入：long_task checkpoint 更新（三模式移除后无 DeepPhase 阶段判定）。
     OnToolCall,
     /// ReAct 循环结束、终态事件（AgentEnd/Error）广播后，run 收尾前。
     /// 内置织入：无；供外部观察本轮成败（`HookContext::succeeded`）。

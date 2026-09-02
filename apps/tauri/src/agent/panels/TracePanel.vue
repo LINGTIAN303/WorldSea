@@ -36,7 +36,6 @@
  */
 import { computed } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
-import { useAgent } from '@/agent/composables/useAgent'
 import { useActivityLog } from '@/agent/composables/useActivityLog'
 
 export interface TraceRow {
@@ -49,14 +48,9 @@ export interface TraceRow {
   duration?: string
 }
 
-/** deepSegments 中 shape 工具的最小类型（避免隐式 any） */
-interface SegToolLike {
-  status?: string
-}
-
-const { deepSegments } = useAgent()
 const { logs } = useActivityLog()
 
+/** 阶段行 → 轨迹行（三模式移除 2026-08-31：deepSegments 阶段序列已移除，由活动日志派生） */
 function fmtDuration(start: number, end?: number): string {
   if (!start) return ''
   const ms = (end || Date.now()) - start
@@ -71,41 +65,20 @@ function fmtTime(ts?: number): string {
   return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`
 }
 
-/** 阶段行 → 轨迹行 */
 const rows = computed<TraceRow[]>(() => {
   const out: TraceRow[] = []
-  // 偏好：deepSegments 阶段序列（结构化、按序）
-  for (const seg of deepSegments.value) {
-    if (seg.type !== 'phase') continue
-    const done = seg.tools.filter((tc: SegToolLike) => tc.status === 'completed' || tc.status === 'failed').length
+  for (const log of logs.value.slice(-20)) {
+    if (log.type !== 'tool' && log.type !== 'knowledge' && log.type !== 'memory') continue
     out.push({
-      id: seg.id,
-      label: seg.label || `阶段 ${(seg.index ?? 0) + 1}`,
-      sub: seg.status === 'done'
-        ? `完成 · ${done}/${seg.tools.length} 工具`
-        : seg.status === 'active'
-          ? `${done}/${seg.tools.length} 工具`
-          : seg.tools.length > 0 ? `${seg.tools.length} 工具待执行` : '',
-      status: seg.status === 'done' ? 'done' : seg.status === 'active' ? 'active' : 'pending',
-      icon: 'wrench',
-      tools: seg.tools.length > 0 ? `⚒ ${done}/${seg.tools.length}` : undefined,
+      id: log.id,
+      label: log.message,
+      sub: fmtTime(log.timestamp),
+      status: 'done',
+      icon: log.type === 'tool' ? 'wrench' : log.type === 'knowledge' ? 'book' : 'memory',
+      duration: fmtDuration(log.timestamp),
     })
   }
-  // 活动日志兜底：若 deepSegments 空，用 tool/memory 类日志派生（含耗时）
-  if (out.length === 0) {
-    for (const log of logs.value.slice(-10)) {
-      if (log.type !== 'tool' && log.type !== 'knowledge' && log.type !== 'memory') continue
-      out.push({
-        id: log.id,
-        label: log.message,
-        sub: fmtTime(log.timestamp),
-        status: 'done',
-        icon: log.type === 'tool' ? 'wrench' : log.type === 'knowledge' ? 'book' : 'memory',
-        duration: fmtDuration(log.timestamp),
-      })
-    }
-  }
-  return out.slice(0, 20)
+  return out.reverse().slice(0, 20)
 })
 </script>
 

@@ -6,8 +6,17 @@ use crate::types::{MessageRole, OrchestratorMessage, PlanItem};
 pub struct AgentState {
     /// 消息历史（含 system/user/assistant/toolResult）
     pub messages: Vec<OrchestratorMessage>,
-    /// 当前迭代次数
+    /// 当前迭代次数（LLM 调用轮数，日志/checkpoint 用）
     pub current_iteration: u32,
+    /// 总步骤已用（工具调用轮数，口径对齐 Claude Code maxTurns：
+    /// 每轮含 ≥1 工具调用的 LLM 决策计 1 步；纯文本收尾轮不计）
+    pub total_steps_used: u32,
+    /// 80% 预算告警已通知（每任务一次，避免重复注入）
+    pub budget_warn_80_notified: bool,
+    /// 95% 预算告警已通知（每任务一次）
+    pub budget_warn_95_notified: bool,
+    /// 最终收尾步提示已注入（达到 100% 预算时一次）
+    pub budget_final_notified: bool,
     /// 是否被中断
     pub aborted: bool,
     /// 是否暂停
@@ -22,6 +31,10 @@ impl AgentState {
         Self {
             messages: Vec::new(),
             current_iteration: 0,
+            total_steps_used: 0,
+            budget_warn_80_notified: false,
+            budget_warn_95_notified: false,
+            budget_final_notified: false,
             aborted: false,
             paused: false,
             plan: None,

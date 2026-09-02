@@ -3,54 +3,20 @@
 import { ref } from 'vue'
 import type { MCPConnectionConfig, MCPConnectionState } from '@agent/index'
 
-const STORAGE_KEY = 'agent_mcp_connections'
 const connections = ref<MCPConnectionState[]>([])
 const loaded = ref(false)
-
-/** 内置默认 MCP 连接：开箱即用，用户可禁用/删除 */
-export const DEFAULT_MCP_CONNECTIONS: MCPConnectionConfig[] = [
-  {
-    id: 'firecrawl-keyless',
-    name: 'Firecrawl Keyless',
-    transport: 'streamable-http',
-    url: 'https://mcp.firecrawl.dev/v2/mcp',
-    enabled: true,
-  },
-]
+/** 本次进程内「启动自动重连失败」列表（enabled 但未连接；App 启动消费一次后清空，T09②） */
+const autoReconnectFailed = ref<Array<{ id: string; name: string }>>([])
 
 /**
- * 合并默认配置与用户存储配置。
- * - 默认配置作为基础层提供
- * - 用户存储配置按 id 覆盖默认配置（包括 enabled=false 的禁用状态）
- * - 被用户显式删除的默认服务，通过存储一个 enabled=false 的同 id 配置来保持移除
+ * useMcpConnections 选项
+ *
+ * 配置唯一事实源 = Rust 全局配置文件 mcp.json（H6-③ 配置化拍板 2026-08-30：
+ * `<app_data>/worldsmith/mcp.json`，用户与 Agent 均可编辑，官方预设全部移除）。
+ * 本层只维护 Vue 展示缓存与交互编排——**不再有 localStorage 镜像与内置默认
+ * 连接**（旧 agent_mcp_connections key 与 DEFAULT_MCP_CONNECTIONS 已废弃）；
+ * 启动重连由 Rust auto_connect_all 直接读配置文件完成，前端 ensureLoaded 只取状态。
  */
-function mergeWithDefaults(stored: MCPConnectionConfig[]): MCPConnectionConfig[] {
-  const map = new Map<string, MCPConnectionConfig>()
-  for (const cfg of DEFAULT_MCP_CONNECTIONS) {
-    map.set(cfg.id, { ...cfg })
-  }
-  for (const cfg of stored) {
-    if (!cfg?.id) continue
-    map.set(cfg.id, { ...cfg })
-  }
-  return Array.from(map.values())
-}
-
-function loadFromStorage(): MCPConnectionConfig[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    const stored = raw ? JSON.parse(raw) : []
-    return mergeWithDefaults(Array.isArray(stored) ? stored : [])
-  } catch { return [...DEFAULT_MCP_CONNECTIONS] }
-}
-
-function saveToStorage(configs: MCPConnectionConfig[]): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(configs))
-  } catch {}
-}
-
-/** useMcpConnections 选项 */
 export interface UseMcpConnectionsOptions {
   /** Agent 获取函数（注入式），未提供或抛错时降级为 null */
   getAgent?: () => any
@@ -73,22 +39,26 @@ export function useMcpConnections(options: UseMcpConnectionsOptions = {}) {
     const agent = getAgentMethods()
     if (!agent) return
     loaded.value = true
-    const configs = loadFromStorage()
-    for (const config of configs) {
-      if (config.enabled) {
-        try { await agent.addMCPConnection(config) } catch {}
-      }
-    }
+    // Rust 启动时已按配置文件 auto_connect_all，这里只取「配置+状态」合并视图
     connections.value = await agent.getMCPConnections()
+    // T09②（2026-09-01）：启动自动重连失败检测——enabled 但未连上即属于
+    // 启动重连失败（服务器未起/网络/鉴权等）。供应用根组件消费并提示一次。
+    autoReconnectFailed.value = connections.value
+      .filter((c) => c.config.enabled && c.status !== 'connected')
+      .map((c) => ({ id: c.id, name: c.config.name }))
+  }
+
+  /** 消费并清空「启动自动重连失败」列表（App 启动提示一次后置空，避免重复打扰） */
+  function takeAutoReconnectFailed(): Array<{ id: string; name: string }> {
+    const list = autoReconnectFailed.value
+    autoReconnectFailed.value = []
+    return list
   }
 
   async function addConnection(config: MCPConnectionConfig): Promise<void> {
     const agent = getAgentMethods()
     if (!agent) return
     await agent.addMCPConnection(config)
-    const configs = loadFromStorage().filter(c => c.id !== config.id)
-    configs.push(config)
-    saveToStorage(configs)
     connections.value = await agent.getMCPConnections()
   }
 
@@ -96,40 +66,26 @@ export function useMcpConnections(options: UseMcpConnectionsOptions = {}) {
     const agent = getAgentMethods()
     if (!agent) return
     await agent.removeMCPConnection(serverId)
-    const configs = loadFromStorage()
-    const idx = configs.findIndex(c => c.id === serverId)
-    if (idx !== -1) {
-      // 删除用户自己添加的配置
-      configs.splice(idx, 1)
-    }
-    // 对于默认配置，写入 enabled=false 占位，避免下次启动被合并回来
-    const isDefault = DEFAULT_MCP_CONNECTIONS.some(c => c.id === serverId)
-    if (isDefault && !configs.some(c => c.id === serverId)) {
-      const defaultCfg = DEFAULT_MCP_CONNECTIONS.find(c => c.id === serverId)!
-      configs.push({ ...defaultCfg, enabled: false })
-    }
-    saveToStorage(configs)
     connections.value = await agent.getMCPConnections()
   }
 
+  /** 启停切换：禁用=保存配置(enabled=false)+断开（配置保留）；启用=保存并连接 */
   async function toggleConnection(serverId: string): Promise<void> {
     const agent = getAgentMethods()
     if (!agent) return
-    const configs = loadFromStorage()
-    let cfg = configs.find(c => c.id === serverId)
-    if (!cfg) {
-      // 可能是默认配置尚未写入存储：基于默认配置创建条目
-      const defaultCfg = DEFAULT_MCP_CONNECTIONS.find(c => c.id === serverId)
-      if (!defaultCfg) return
-      cfg = { ...defaultCfg }
-      configs.push(cfg)
-    }
-    cfg.enabled = !cfg.enabled
-    saveToStorage(configs)
-    if (cfg.enabled) {
-      try { await agent.addMCPConnection(cfg) } catch {}
+    const current = connections.value.find((c) => c.id === serverId)
+    if (!current) return
+    const next: MCPConnectionConfig = { ...current.config, enabled: !current.config.enabled }
+    if (next.enabled) {
+      // 连接即持久化（cmd_mcp_connect 内 upsert），失败时回写禁用态保持一致
+      try {
+        await agent.addMCPConnection(next)
+      } catch {
+        await agent.saveMCPConnection({ ...next, enabled: false })
+      }
     } else {
-      await agent.removeMCPConnection(serverId)
+      await agent.saveMCPConnection(next)
+      try { await agent.disconnectMCPConnection(serverId) } catch {}
     }
     connections.value = await agent.getMCPConnections()
   }
@@ -143,6 +99,7 @@ export function useMcpConnections(options: UseMcpConnectionsOptions = {}) {
   return {
     connections,
     ensureLoaded,
+    takeAutoReconnectFailed,
     addConnection,
     removeConnection,
     toggleConnection,

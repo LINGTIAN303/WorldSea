@@ -45,7 +45,7 @@ export interface SessionViewState {
   lastSwitchAt: number
 }
 
-const VALID_EXEC_TABS: ExecTab[] = ['trace', 'activity', 'plan', 'router', 'tot', 'got', 'supervisor', 'multi', 'terminal', 'subagent', 'workspace']
+const VALID_EXEC_TABS: ExecTab[] = ['trace', 'activity', 'router', 'tot', 'got', 'supervisor', 'multi', 'terminal', 'subagent', 'workspace']
 
 const STORAGE_KEY = 'worldsmith_agent_session_views'
 export const LAST_SESSION_KEY = 'worldsmith_agent_last_session'
@@ -60,7 +60,8 @@ function defaultOrch(): SessionOrchView {
 function defaultState(partial?: Partial<SessionViewState>): SessionViewState {
   return {
     sceneId: 'worldbuilding',
-    chatMode: 'deep',
+    // 三模式移除（2026-08-31）：统一 normal
+    chatMode: 'normal',
     execTab: 'trace',
     openExecSections: [],
     rightPanel: 'exec',

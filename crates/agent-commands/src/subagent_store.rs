@@ -132,7 +132,7 @@ mod tests {
             name: name.into(),
             description: format!("{name} 专长"),
             system_prompt: format!("你是{name}专家"),
-            tools_whitelist: Some(vec!["execute_command".into()]),
+            tools_whitelist: Some(vec!["bash".into()]),
             max_iterations: Some(5),
         }
     }

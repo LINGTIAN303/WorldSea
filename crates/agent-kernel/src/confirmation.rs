@@ -461,6 +461,7 @@ mod tests {
             workdir: Some(PathBuf::from(wd)),
             project_id: None,
             workspace_id: None,
+            tool_stream: None,
         }
     }
 

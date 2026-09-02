@@ -252,9 +252,9 @@ fn build_weather_agent(
                 .into(),
         ),
         temperature: Some(0.0),
-        // max_iterations=15：给 deepseek-v4-flash 推理模型足够收敛机会（实测通常 9 轮内
-        // 收敛），同时避免默认 25 时偶发反复调用工具拖慢测试。工具调用链测试单独设更高值。
-        max_iterations: 15,
+        // total_steps=15：给 deepseek-v4-flash 推理模型足够收敛机会（实测通常 9 轮内
+        // 收敛），同时避免默认 200 时偶发反复调用工具拖慢测试。工具调用链测试单独设更高值。
+        total_steps: 15,
         ..Default::default()
     }));
     (agent, calls)

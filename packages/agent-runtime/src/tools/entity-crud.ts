@@ -112,7 +112,7 @@ export const entityCreateTool: ToolDefinition = {
     const id = await ctx.stores.entity.add(entity, 'agent')
     emitEntityCard(ctx, { ...entity, id })
     indexEntity({ ...entity, id }).catch(() => {})
-    return JSON.stringify({ success: true, id, name: entity.name })
+    return JSON.stringify({ success: true, id, name: entity.name, type: entityType })
   },
 }
 
@@ -147,7 +147,8 @@ export const entityUpdateTool: ToolDefinition = {
       emitEntityCard(ctx, updated)
       indexEntity(updated).catch(() => {})
     }
-    return JSON.stringify({ success: true, id: entityId })
+    // type 供 WORLD.md 节奏型注入计数（H5，2026-08-30）
+    return JSON.stringify({ success: true, id: entityId, type: existing.type })
   },
 }
 
@@ -180,7 +181,7 @@ export const entityDeleteTool: ToolDefinition = {
     await ctx.stores.entity.remove(entityId, 'agent')
     removeEntityIndex(entityId).catch(() => {})
     ctx.emitA2UI?.(`entity-${entityId}`, { version: 'v0.9', deleteSurface: { surfaceId: `entity-${entityId}` } })
-    return JSON.stringify({ success: true, id: args.id, name: entityName, deletedRelations: linkedRelations.length })
+    return JSON.stringify({ success: true, id: args.id, name: entityName, type: entity?.type, deletedRelations: linkedRelations.length })
   },
 }
 

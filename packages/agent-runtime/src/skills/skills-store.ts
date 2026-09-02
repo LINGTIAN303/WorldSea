@@ -8,7 +8,7 @@
  */
 
 import { isTauri } from '../execution'
-import { initSkillRegistry } from './registry'
+import { initSkillRegistry, notifySessionPromptDirty } from './registry'
 
 /** Tauri invoke 函数类型 */
 type TauriInvoke = (cmd: string, args?: Record<string, unknown>) => Promise<unknown>
@@ -53,7 +53,26 @@ export interface RemoteManifest {
 
 /** Tauri invoke 缓存 */
 let _invoke: TauriInvoke | null = null
+/**
+ * 端注入覆盖（风险点② 补桥，2026-08-30）：app 层把 transport.invoke 注入进来，
+ * 使浏览器 HTTP 模式的商城命令路由到 /rpc 桥（cmd_skills_* 六命令已注册）。
+ * 本包端无关、不能 import transport，故用注入而非直接依赖。
+ */
+let _override: TauriInvoke | null = null
+export function setSkillsStoreInvoke(fn: TauriInvoke | null): void {
+  _override = fn
+}
+/**
+ * 商城能力是否可用（T02 修复，2026-09-01）：true = 有可用的 invoke 通道——
+ * 桌面 Tauri（_invoke 惰性初始化 或 isTauri）或浏览器 HTTP 桥已注入（_override）。
+ * 供 useSkillsStore 等判定商城是否可用（替代只看 __TAURI_INTERNALS__ 的旧判断，
+ * 使浏览器 HTTP 模式的商城功能不再被「仅桌面端可用」占位挡住）。
+ */
+export function hasSkillsInvoke(): boolean {
+  return !!_override || !!_invoke || isTauri()
+}
 async function getTauriInvoke(): Promise<TauriInvoke | null> {
+  if (_override) return _override
   if (_invoke) return _invoke
   if (!isTauri()) return null
   try {
@@ -129,6 +148,7 @@ export async function installSkillAndReload(opts: InstallSkillOptions): Promise<
   const result = await installSkill(opts)
   if (result) {
     await initSkillRegistry()
+    notifySessionPromptDirty('skills-install')
   }
   return result
 }
@@ -159,6 +179,7 @@ export async function uninstallSkill(skillId: string): Promise<boolean | null> {
 export async function uninstallSkillAndReload(skillId: string): Promise<boolean | null> {
   const result = await uninstallSkill(skillId)
   await initSkillRegistry()
+  notifySessionPromptDirty('skills-uninstall')
   return result
 }
 
@@ -233,6 +254,7 @@ export async function importLocalSkillAndReload(opts: ImportLocalOptions): Promi
   const result = await importLocalSkill(opts)
   if (result) {
     await initSkillRegistry()
+    notifySessionPromptDirty('skills-import')
   }
   return result
 }

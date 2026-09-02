@@ -169,6 +169,13 @@ pub struct PromptCallOptions {
     /// - `tools_override`：工具名列表（用于服务端筛选）
     /// - `tools`：完整工具定义（含 JSON Schema），直接传给 LLM
     pub tools: Vec<crate::tool::ToolDefinition>,
+    /// 强制工具调用（2026-09-02 B 类迁移）：指定必须调用的工具名
+    ///
+    /// 对应 genai `ToolChoice::Tool{name}`（OpenAI tool_choice: {function} / Anthropic
+    /// tool_choice 同语义）。用于「编排决策」形态的 LLM 调用——把"请输出 JSON"的决策
+    /// 点改成强制调用一个决策工具，模型经 tool_call 返回结构化参数（structured
+    /// output 的 tool-use-as-JSON 形态）。None 时维持 Auto（模型自行决定是否调用）。
+    pub force_tool: Option<String>,
     /// 温度
     pub temperature: Option<f32>,
     /// 最大 token
@@ -183,6 +190,11 @@ pub struct PromptCallOptions {
     pub thinking_level: Option<ThinkingLevel>,
     /// 图片附件
     pub images: Vec<ImageAttachment>,
+    /// 静默调用（R6 第四部分·路由口径统一）：true 时抑制流式事件广播
+    /// （StreamStart/StreamDelta/ReasoningDelta/ToolCallStart/StreamEnd）——
+    /// 用于「过程内决策」型 LLM 调用（如路由判型），决策 JSON 等中间产物
+    /// 不再泄漏为对话流正文段；事件面改由 RouterDecisionMade 承载（router 动作段）。
+    pub silent: bool,
 }
 
 /// 思考级别（对应 pi-ai 的 thinking 配置）

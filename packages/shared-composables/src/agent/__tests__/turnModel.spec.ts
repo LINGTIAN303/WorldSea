@@ -20,6 +20,7 @@ import {
   turnActionCount,
   turnThinkCount,
   decideCollapse,
+  actionEventToTurnEvents,
   type RebuildMessage,
   type Segment,
   type Turn,
@@ -184,6 +185,196 @@ describe('turnModel 归约器', () => {
     // 摘要计数
     expect(turnActionCount(turn)).toBe(2)
     expect(turnThinkCount(turn)).toBe(2)
+  })
+
+  it('2026-09-02 tool_delta：bash/powershell 增量输出累积到对应工具段（按 refId 配对）', () => {
+    let turns = startTurn()
+    turns = reduceEvent(turns, {
+      type: 'action_start', turnId: 't1', id: 'a1', action: 'tool', label: 'bash', refId: 'call-9',
+    })
+    // 两条增量前后到达，累积顺序保持
+    turns = reduceEvent(turns, { type: 'tool_delta', turnId: 't1', toolCallId: 'call-9', delta: '构建中...' })
+    turns = reduceEvent(turns, { type: 'tool_delta', turnId: 't1', toolCallId: 'call-9', delta: '\n编译完成' })
+    const action = turns[0].segments.find((s) => s.kind === 'action' && s.refId === 'call-9')
+    expect(action).toMatchObject({ stream: '构建中...\n编译完成' })
+  })
+
+  it('2026-09-02 tool_delta 超上限：丢旧保新 + 置 streamTruncated', () => {
+    let turns = startTurn()
+    turns = reduceEvent(turns, {
+      type: 'action_start', turnId: 't1', id: 'a1', action: 'tool', label: 'bash', refId: 'call-10',
+    })
+    // 构造超限增量：旧头 + 大段 + 新尾；总长超过 TOOL_STREAM_LIMIT
+    const head = 'h'.repeat(10_000)
+    const big = 'X'.repeat(12_000)
+    const tail = '尾'.repeat(100)
+    turns = reduceEvent(turns, { type: 'tool_delta', turnId: 't1', toolCallId: 'call-10', delta: head })
+    turns = reduceEvent(turns, { type: 'tool_delta', turnId: 't1', toolCallId: 'call-10', delta: big })
+    turns = reduceEvent(turns, { type: 'tool_delta', turnId: 't1', toolCallId: 'call-10', delta: tail })
+
+    const action = turns[0].segments.find((s) => s.kind === 'action' && s.refId === 'call-10')
+    expect(action).toMatchObject({ streamTruncated: true })
+    // 只保留末尾 TOOL_STREAM_LIMIT 字符（丢旧保新：新尾在、旧头被丢弃）
+    const stream = (action as Segment & { stream?: string }).stream ?? ''
+    expect(stream.length).toBeLessThanOrEqual(20_000)
+    expect(stream.endsWith(tail)).toBe(true)
+    expect(stream.startsWith(head)).toBe(false)
+  })
+
+  it('2026-09-02 file_change：write/edit/edit_diff 的绿红 diff 写入对应工具段（含路径）', () => {
+    let turns = startTurn()
+    turns = reduceEvent(turns, {
+      type: 'action_start', turnId: 't1', id: 'a1', action: 'tool', label: 'edit_diff', refId: 'call-7',
+    })
+    turns = reduceEvent(turns, {
+      type: 'file_change',
+      turnId: 't1',
+      toolCallId: 'call-7',
+      path: 'src/lib.rs',
+      kind: 'edit_diff',
+      hunks: [{ removed: ['let a = 1;'], added: ['let a = 2;', 'let b = 3;'] }],
+    })
+    const action = turns[0].segments.find((s) => s.kind === 'action' && s.refId === 'call-7')
+    expect(action).toMatchObject({
+      fileChange: {
+        path: 'src/lib.rs',
+        kind: 'edit_diff',
+        hunks: [{ removed: ['let a = 1;'], added: ['let a = 2;', 'let b = 3;'] }],
+      },
+    })
+  })
+
+  it('2026-09-02 流式事件未命中工具段时安全忽略（不新建段）', () => {
+    const turns = startTurn()
+    const after = reduceEvent(turns, { type: 'tool_delta', turnId: 't1', toolCallId: '幽灵', delta: 'x' })
+    expect(after).toBe(turns)
+  })
+
+  it('2026-09-02 计划步骤：plan 动作段标记 isPlanStep + 初始 pending 折叠，状态流转驱动 running/收口', () => {
+    let turns = startTurn()
+    // 两个计划步骤（plan_created 一次性生成）
+    turns = reduceEvent(turns, {
+      type: 'action_start', turnId: 't1', id: 'p1', action: 'plan', label: '步骤一', refId: 's1',
+    })
+    turns = reduceEvent(turns, {
+      type: 'action_start', turnId: 't1', id: 'p2', action: 'plan', label: '步骤二', refId: 's2',
+    })
+    let steps = turns[0].segments.filter((s) => s.kind === 'action')
+    expect(steps.every((s) => (s as any).isPlanStep)).toBe(true)
+    expect(steps.every((s) => (s as any).stepCollapsed)).toBe(true) // 默认折叠
+    expect(steps.every((s) => s.status === 'pending')).toBe(true) // 初始 pending
+
+    // 步骤一激活 → running；此时工具动作应归为步骤一的子动作
+    turns = reduceEvent(turns, { type: 'plan_step_status', turnId: 't1', stepId: 's1', status: 'running' })
+    turns = reduceEvent(turns, {
+      type: 'action_start', turnId: 't1', id: 'tool-a', action: 'tool', label: 'read_file', refId: 'c1',
+    })
+    const s1 = turns[0].segments.find((s) => s.id === 'p1') as any
+    expect(s1.status).toBe('running')
+    expect(s1.childRefIds).toEqual(['tool-a']) // 工具归入激活步骤
+
+    // 步骤一完成收口 → 状态 completed；子动作保留
+    turns = reduceEvent(turns, { type: 'plan_step_status', turnId: 't1', stepId: 's1', status: 'completed', result: '产出x' })
+    const done = turns[0].segments.find((s) => s.id === 'p1') as any
+    expect(done.status).toBe('completed')
+    expect(done.result).toBe('产出x')
+
+    // 步骤二激活后，新工具归入步骤二而非步骤一
+    turns = reduceEvent(turns, { type: 'plan_step_status', turnId: 't1', stepId: 's2', status: 'running' })
+    turns = reduceEvent(turns, {
+      type: 'action_start', turnId: 't1', id: 'tool-b', action: 'tool', label: 'bash', refId: 'c2',
+    })
+    const s2 = turns[0].segments.find((s) => s.id === 'p2') as any
+    expect(s2.childRefIds).toEqual(['tool-b'])
+    expect((turns[0].segments.find((s) => s.id === 'p1') as any).childRefIds).toEqual(['tool-a'])
+  })
+
+  it('2026-09-02 计划步骤折叠切换：plan_step_toggle 翻转 stepCollapsed + 置 userEverExpanded', () => {
+    let turns = startTurn()
+    turns = reduceEvent(turns, {
+      type: 'action_start', turnId: 't1', id: 'p1', action: 'plan', label: '步骤', refId: 's1',
+    })
+    expect((turns[0].segments[0] as any).stepCollapsed).toBe(true)
+    turns = reduceEvent(turns, { type: 'plan_step_toggle', turnId: 't1', stepId: 'p1' })
+    expect((turns[0].segments[0] as any).stepCollapsed).toBe(false)
+    expect(turns[0].userEverExpanded).toBe(true)
+  })
+
+  it('2026-09-02 激进方案：步骤 running 自动展开 + 思维链/文本/工具全部归入激活步骤', () => {
+    let turns = startTurn()
+    turns = reduceEvent(turns, {
+      type: 'action_start', turnId: 't1', id: 'p1', action: 'plan', label: '步骤一', refId: 's1',
+    })
+    // running → 强制展开（stepCollapsed=false）
+    turns = reduceEvent(turns, { type: 'plan_step_status', turnId: 't1', stepId: 's1', status: 'running' })
+    let s1 = turns[0].segments.find((s) => s.id === 'p1') as any
+    expect(s1.stepCollapsed).toBe(false) // 自动展开
+    expect(turns[0].activePlanStepId).toBe('p1') // 激活步骤置位
+
+    // 步骤内思维链 → 归入步骤
+    turns = reduceEvent(turns, { type: 'reasoning', turnId: 't1', delta: '先分析需求' })
+    // 步骤内工具动作 → 归入步骤
+    turns = reduceEvent(turns, {
+      type: 'action_start', turnId: 't1', id: 'tool-a', action: 'tool', label: 'read_file', refId: 'c1',
+    })
+    s1 = turns[0].segments.find((s) => s.id === 'p1') as any
+    expect(s1.childRefIds.length).toBe(2) // think + tool 都归入
+    const thinkId = s1.childRefIds[0]
+    const thinkSeg = turns[0].segments.find((s) => s.id === thinkId)
+    expect(thinkSeg?.kind).toBe('think')
+    const toolSeg = turns[0].segments.find((s) => s.id === s1.childRefIds[1])
+    expect(toolSeg?.kind).toBe('action')
+
+    // 步骤收口 → activePlanStepId 清除；子动作保留（过程可查）
+    turns = reduceEvent(turns, { type: 'plan_step_status', turnId: 't1', stepId: 's1', status: 'completed' })
+    expect(turns[0].activePlanStepId).toBeUndefined()
+    s1 = turns[0].segments.find((s) => s.id === 'p1') as any
+    expect(s1.childRefIds.length).toBe(2)
+    expect(s1.stepCollapsed).toBe(false) // 收口后保持展开（可查过程）
+  })
+
+  it('2026-09-02 激进方案：步骤外输出不归入任何步骤（无激活步骤）', () => {
+    let turns = startTurn()
+    turns = reduceEvent(turns, {
+      type: 'action_start', turnId: 't1', id: 'p1', action: 'plan', label: '步骤一', refId: 's1',
+    })
+    // 未激活时产出 think/text/tool → 不归入
+    turns = reduceEvent(turns, { type: 'reasoning', turnId: 't1', delta: '开始前思考' })
+    turns = reduceEvent(turns, {
+      type: 'action_start', turnId: 't1', id: 'tool-x', action: 'tool', label: 'bash', refId: 'cx',
+    })
+    const s1 = turns[0].segments.find((s) => s.id === 'p1') as any
+    expect(s1.childRefIds ?? []).toEqual([])
+  })
+
+  it('2026-09-02 plan_update 工具行按 item_id 直配归入对应步骤（激活广播晚于工具行）', () => {
+    let turns = startTurn()
+    turns = reduceEvent(turns, {
+      type: 'action_start', turnId: 't1', id: 'p1', action: 'plan', label: '步骤一', refId: 'pi-1',
+    })
+    // plan_update(pi-1, in_progress) 工具行到达时步骤还没被激活（running 广播在工具执行完后）
+    turns = reduceEvent(turns, {
+      type: 'action_start', turnId: 't1', id: 'u1', action: 'tool', label: 'plan_update',
+      refId: 'cu', args: { item_id: 'pi-1', status: 'in_progress' },
+    })
+    const s1 = turns[0].segments.find((s) => s.id === 'p1') as any
+    expect(s1.childRefIds).toContain('u1') // 按 item_id 归入对应步骤
+  })
+
+  it('2026-09-02 round_end 去重：降级正文段与 round_end 之间隔着动作段时仍复用（防文本重复）', () => {
+    let turns = startTurn()
+    turns = reduceEvent(turns, { type: 'round_start', turnId: 't1' })
+    // 流式正文（候选）
+    turns = reduceEvent(turns, { type: 'text_delta', turnId: 't1', delta: '好的，我来创建计划。' })
+    // 动作出现 → 候选降级
+    turns = reduceEvent(turns, {
+      type: 'action_start', turnId: 't1', id: 'a1', action: 'tool', label: 'plan_create', refId: 'c1',
+    })
+    // round_end 权威文本与降级段一致 → 应复用而非新建（只 1 段文本）
+    turns = reduceEvent(turns, { type: 'round_end', turnId: 't1', fullText: '好的，我来创建计划。' })
+    const texts = turns[0].segments.filter((s) => s.kind === 'text')
+    expect(texts.length).toBe(1)
+    expect((texts[0] as any).text).toBe('好的，我来创建计划。')
   })
 })
 
@@ -558,5 +749,79 @@ describe('shell exit_code≠0 失败判定（观察项落地）', () => {
     const actions = turns[0].segments.filter((s) => s.kind === 'action')
     expect(actions[0]).toMatchObject({ status: 'completed' })
     expect(actions[1]).toMatchObject({ status: 'failed' })
+  })
+})
+
+describe('R6 第三部分：动作段事件翻译与回源重建', () => {
+  it.each([
+    ['subagent.start', 'subagent', { phase: 'start', subAgentId: 'sa-1', name: '写作助手', task: '写段落' }, 1, 'subagent'],
+    ['subagent.completed', 'subagent', { phase: 'completed', subAgentId: 'sa-1', outputChars: 120, durationMs: 1500 }, 1, ''],
+    ['subagent.error', 'subagent', { phase: 'error', subAgentId: 'sa-1' }, 1, ''],
+    ['phase.entered', 'phase', { event: 'entered', runId: 'r-1', phase: 'plan' }, 1, 'phase'],
+    ['phase.result-success', 'phase', { event: 'result', runId: 'r-1', phase: 'plan', status: 'Success', summary: '3 步' }, 1, ''],
+    ['phase.result-failed', 'phase', { event: 'result', runId: 'r-1', phase: 'plan', status: 'Failed', summary: '重规划' }, 1, ''],
+    ['phase.pipe-skeleton', 'phase', { event: 'pipe_started', runId: 'r-1' }, 0, ''],
+    ['router', 'router', { phase: 'decision', target: 'query' }, 2, 'router'],
+    ['reflection', 'reflection', { result: { score: 80 } }, 2, 'reflection'],
+    ['confirm.requested', 'confirm', { phase: 'requested', confirmId: 'cf-1', tool: 'entity_create' }, 1, 'confirm'],
+    ['confirm.resolved-approved', 'confirm', { phase: 'resolved', confirmId: 'cf-1', approved: true }, 1, ''],
+    ['unknown', 'unknown_action', { phase: 'x' }, 0, ''],
+  ])('%s → %i 条事件', (_name, action, payload, count, firstAction) => {
+    const events = actionEventToTurnEvents('t1', action as string, payload as Record<string, unknown>)
+    expect(events).toHaveLength(count)
+    if (firstAction && count > 0) {
+      expect(events[0]).toMatchObject({ type: 'action_start', action: firstAction, turnId: 't1' })
+    }
+  })
+
+  it('subagent 配对：start 段被 completed 收口，携带耗时', () => {
+    let turns = startTurn()
+    for (const te of actionEventToTurnEvents('t1', 'subagent', { phase: 'start', subAgentId: 'sa-1', name: '写作助手', task: '写段落' })) turns = reduceEvent(turns, te)
+    for (const te of actionEventToTurnEvents('t1', 'subagent', { phase: 'completed', subAgentId: 'sa-1', outputChars: 120, durationMs: 1500 })) turns = reduceEvent(turns, te)
+    const seg = turns[0].segments[0]
+    expect(seg).toMatchObject({ kind: 'action', action: 'subagent', label: '写作助手', status: 'completed', durationMs: 1500 })
+  })
+
+  it('phase entered/result 成段并在 Status 映射失败态', () => {
+    let turns = startTurn()
+    for (const te of actionEventToTurnEvents('t1', 'phase', { event: 'result', runId: 'r-1', phase: 'execute', status: 'Failed', summary: '重规划耗尽' })) turns = reduceEvent(turns, te)
+    // 无 entered 先行 → result 的 end 找不到配对（幂等忽略），不产生悬空段
+    expect(turns[0].segments.filter((s) => s.kind === 'action')).toHaveLength(0)
+  })
+
+  it('回源重建：assistant.meta.action_events → 动作段入过程层、正文保留结果层', () => {
+    const turns = rebuildFromMessages([
+      { role: 'user', content: '调研主题' } as never,
+      {
+        role: 'assistant',
+        content: '最终结论正文',
+        meta: {
+          action_events: [
+            { seq: 0, action: 'phase', event: 'entered', runId: 'r-1', phase: 'plan' },
+            { seq: 1, action: 'phase', event: 'result', runId: 'r-1', phase: 'plan', status: 'Success', summary: '3 步' },
+            { seq: 2, action: 'subagent', phase: 'start', subAgentId: 'sa-1', name: '写作助手', task: '写段落' },
+            { seq: 3, action: 'subagent', phase: 'completed', subAgentId: 'sa-1', outputChars: 120, durationMs: 1500 },
+            { seq: 4, action: 'router', phase: 'decision', target: 'query' },
+          ],
+        },
+      } as never,
+    ] as never)
+    const structure = structureOf(turns)
+    expect(structure[0].result).toBe('最终结论正文')
+    const actions = turns[0].segments.filter((s) => s.kind === 'action')
+    // phase 段 + subagent 段 + router 瞬时段
+    expect(actions).toHaveLength(3)
+    expect(actions[0]).toMatchObject({ action: 'phase', label: 'plan', status: 'completed' })
+    expect(actions[1]).toMatchObject({ action: 'subagent', label: '写作助手', status: 'completed', durationMs: 1500 })
+    expect(actions[2]).toMatchObject({ action: 'router', status: 'completed' })
+  })
+
+  it('回源重建：无动作段的事件序为空不动，正文仍正常（回归）', () => {
+    const turns = rebuildFromMessages([
+      { role: 'user', content: 'x' } as never,
+      { role: 'assistant', content: '回复', meta: {} } as never,
+    ] as never)
+    expect(turns[0].segments.length).toBeGreaterThan(0)
+    expect(resultSegment(turns[0])?.text).toBe('回复')
   })
 })

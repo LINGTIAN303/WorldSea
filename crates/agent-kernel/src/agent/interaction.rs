@@ -38,11 +38,15 @@ impl AgentLoop {
 
     /// 清空对话历史 — 对应前端 `IAgentBackend.clearHistory()`
     ///
-    /// 重置 state.messages 和 current_iteration，但保留 aborted 标志。
+    /// 重置 state.messages、current_iteration 与总步骤预算，但保留 aborted 标志。
     pub async fn clear_history(&self) {
         let mut state = self.state.lock().await;
         state.messages.clear();
         state.current_iteration = 0;
+        state.total_steps_used = 0;
+        state.budget_warn_80_notified = false;
+        state.budget_warn_95_notified = false;
+        state.budget_final_notified = false;
         debug!("AgentLoop clear_history: 已清空 messages");
     }
 
@@ -156,6 +160,7 @@ impl AgentLoop {
         top_p: Option<f32>,
         top_k: Option<u32>,
         thinking_mode: Option<bool>,
+        total_steps: Option<u32>,
     ) -> Result<(), AgentError> {
         // 1. 调用 backend.update_provider 热切换
         // clone provider/model_id 供下面日志使用，避免 move 后借用报错
@@ -164,12 +169,13 @@ impl AgentLoop {
             .await
             .map_err(AgentError::from)?;
 
-        // 2. 同步更新 config 的 temperature/max_tokens/top_p/top_k/thinking_mode（若传入）
+        // 2. 同步更新 config 的 temperature/max_tokens/top_p/top_k/thinking_mode/total_steps（若传入）
         if temperature.is_some()
             || max_tokens.is_some()
             || top_p.is_some()
             || top_k.is_some()
             || thinking_mode.is_some()
+            || total_steps.is_some()
         {
             if let Ok(mut guard) = self.config.write() {
                 if let Some(t) = temperature {
@@ -186,6 +192,10 @@ impl AgentLoop {
                 }
                 if let Some(tm) = thinking_mode {
                     guard.thinking_mode = Some(tm);
+                }
+                // 总步骤预算：clamp 到 1~500（与 AgentLoopConfig 范围约定一致）
+                if let Some(s) = total_steps {
+                    guard.total_steps = s.clamp(1, 500);
                 }
             }
         }

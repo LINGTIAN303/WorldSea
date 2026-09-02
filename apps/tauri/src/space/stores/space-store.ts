@@ -13,7 +13,7 @@ export type RightTab = 'exec' | 'config' | 'creation' | 'preview' | 'usage'
 /** 配置 Tab 内子切换：记忆 / 人格 / 档案（档案为占位，2026-08-29） */
 export type ConfigSubTab = 'memory' | 'persona' | 'profile'
 /** 执行面板 Tab：轨迹/活动/计划/终端/子Agent/工作区 + 编排 5 模式（Router/ToT/GoT/Supervisor/Multi-Agent） */
-export type ExecTab = 'trace' | 'activity' | 'plan' | 'router' | 'tot' | 'got' | 'supervisor' | 'multi' | 'terminal' | 'subagent' | 'workspace'
+export type ExecTab = 'trace' | 'activity' | 'router' | 'tot' | 'got' | 'supervisor' | 'multi' | 'terminal' | 'subagent' | 'workspace'
 export type AgentMood = 'active' | 'thinking' | 'focused' | 'idle'
 
 export interface AgentPersona {
@@ -83,7 +83,7 @@ export const useSpaceStore = defineStore('space', () => {
       else localStorage.removeItem(RIGHT_PANEL_WIDTH_CUSTOM_KEY)
     } catch {}
   }
-  const chatMode = ref<ChatMode>('deep')
+  const chatMode = ref<ChatMode>('normal')
   const groupChatMode = ref<GroupChatMode>('casual')
   const sessionSidebarOpen = ref(false)
   const sessionSidebarWidth = ref(260)

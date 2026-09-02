@@ -405,3 +405,234 @@
 
 /* 搜索段：查询词引号弱化为主文本的一部分（跟随现有 subject 样式，仅色带区分） */
 .ws-stream-tool-summary.kind-search .ws-stream-tool-subject { color: var(--agent-purple, #8b5cf6); }
+
+/* ===== 2026-09-02 系统工具流式：bash/powershell 增量输出（stream）===== */
+.ws-stream-tool-stream {
+  margin: 0 6px 6px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--agent-hover-bg);
+}
+.ws-stream-tool-stream-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--agent-text-tertiary);
+  margin-bottom: 4px;
+}
+.ws-stream-tool-stream-body {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  color: var(--agent-text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 220px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.ws-stream-tool-stream[data-follow-end] .ws-stream-tool-stream-body {
+  scroll-behavior: auto;
+}
+.ws-stream-tool-stream-trunc {
+  margin-top: 4px;
+  font-size: 10px;
+  color: var(--agent-text-tertiary);
+}
+
+/* ===== 2026-09-02 系统工具流式：文件变更 diff（绿红对比 + 路径）===== */
+.ws-stream-tool-filechange {
+  margin: 0 6px 6px;
+  border: 1px solid var(--agent-hover-bg);
+  border-radius: 6px;
+  overflow: hidden;
+}
+/* 头行：变更类型角标 + 被操作文件完整路径 */
+.ws-stream-tool-filechange-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: var(--agent-hover-bg);
+}
+.ws-stream-tool-filechange-badge {
+  flex-shrink: 0;
+  font-size: 10px;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+.ws-stream-tool-filechange-badge---new {
+  background: color-mix(in srgb, var(--agent-success) 14%, transparent);
+  color: var(--agent-success);
+}
+.ws-stream-tool-filechange-badge---mod {
+  background: color-mix(in srgb, var(--agent-warning, #e6a23c) 14%, transparent);
+  color: var(--agent-warning, #e6a23c);
+}
+.ws-stream-tool-filechange-badge---change {
+  color: var(--agent-text-secondary);
+  background: var(--agent-hover-bg);
+}
+.ws-stream-tool-filechange-path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 11px;
+  color: var(--agent-text-secondary);
+}
+.ws-stream-tool-filechange-body {
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+/* diff 行：绿（新增）/红（删除）对比，保持等宽对齐 */
+.ws-stream-tool-filechange-line {
+  display: flex;
+  align-items: baseline;
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  padding: 0 8px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.ws-stream-tool-filechange-sign {
+  flex-shrink: 0;
+  width: 14px;
+  text-align: center;
+  user-select: none;
+  opacity: 0.7;
+}
+.ws-stream-tool-filechange-code {
+  min-width: 0;
+  flex: 1;
+}
+.ws-stream-tool-filechange-line.add {
+  background: color-mix(in srgb, var(--agent-success) 12%, transparent);
+  color: color-mix(in srgb, var(--agent-success) 78%, transparent);
+}
+.ws-stream-tool-filechange-line.add .ws-stream-tool-filechange-sign { color: var(--agent-success); }
+.ws-stream-tool-filechange-line.del {
+  background: color-mix(in srgb, var(--agent-danger) 10%, transparent);
+  color: color-mix(in srgb, var(--agent-danger) 76%, transparent);
+}
+.ws-stream-tool-filechange-line.del .ws-stream-tool-filechange-sign { color: var(--agent-danger); }
+.ws-stream-tool-filechange-trunc {
+  padding: 2px 8px;
+  font-size: 10px;
+  color: var(--agent-text-tertiary);
+}
+
+/* ═══ 2026-09-02 计划步骤块（plan 步骤行 + 步骤内子动作，默认折叠可展开） ═══ */
+.ws-plan-step-block {
+  border-left: 2px solid var(--agent-primary, #3b82f6);
+  margin: 2px 0;
+  padding-left: 6px;
+}
+.ws-plan-step-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 6px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: inherit;
+  font-size: var(--font-size-sm);
+  text-align: left;
+  border-radius: 4px;
+  font-family: var(--agent-font);
+}
+.ws-plan-step-head:hover {
+  background: var(--agent-hover-bg);
+}
+.ws-plan-step-badge {
+  flex-shrink: 0;
+  font-size: 10px;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-weight: 600;
+  color: var(--agent-primary, #3b82f6);
+  background: color-mix(in srgb, var(--agent-primary, #3b82f6) 12%, transparent);
+}
+.ws-plan-step-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  color: var(--agent-text);
+}
+.ws-plan-step-status {
+  flex-shrink: 0;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+.ws-plan-step-status.running {
+  color: var(--agent-primary, #3b82f6);
+  background: color-mix(in srgb, var(--agent-primary, #3b82f6) 10%, transparent);
+}
+.ws-plan-step-status.done {
+  color: color-mix(in srgb, var(--agent-success) 70%, transparent);
+  background: color-mix(in srgb, var(--agent-success) 8%, transparent);
+}
+.ws-plan-step-status.fail {
+  color: color-mix(in srgb, var(--agent-danger) 70%, transparent);
+  background: color-mix(in srgb, var(--agent-danger) 8%, transparent);
+}
+.ws-plan-step-status.pending {
+  color: var(--agent-text-secondary);
+  background: var(--agent-hover-bg);
+}
+.ws-plan-step-count {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--agent-text-tertiary);
+}
+.ws-plan-step-children {
+  padding-left: 14px;
+  border-top: 1px solid var(--agent-hover-bg);
+  margin-top: 2px;
+  padding-top: 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ws-plan-step-result {
+  padding: 4px 6px;
+  margin: 2px 0;
+}
+.ws-plan-step-result.empty {
+  color: var(--agent-text-tertiary);
+  font-size: 11px;
+}
+.ws-plan-step-result-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--agent-text-tertiary);
+  margin-bottom: 2px;
+  display: block;
+}
+.ws-plan-step-result-code {
+  margin: 0;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: var(--agent-hover-bg);
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--agent-text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 220px;
+  overflow-y: auto;
+}

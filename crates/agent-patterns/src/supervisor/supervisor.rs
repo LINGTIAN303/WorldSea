@@ -462,7 +462,7 @@ impl SupervisorNode {
             pool: SubAgentPool::new(
                 backend,
                 tool_bus,
-                config.agent_loop_config.max_iterations,
+                config.agent_loop_config.total_steps,
             ),
             strategy,
             config,
@@ -666,14 +666,14 @@ impl OrchestratorNode for SupervisorNode {
             }
 
             let run_start = Instant::now();
-            // M5-RK2（2026-08-27 走查修复）：子 Agent 超限 = 正常收敛（B0-4 语义），
+            // M5-RK2（2026-08-27 走查修复）：子 Agent 预算耗尽 = 正常收敛（B0-4 语义），
             // 不中断 Supervisor——取已产出的部分结果作为子 Agent 输出收敛（limit_reached）。
             // 只有不可恢复故障（backend/工具/其他）才走 Error 中断。
             let sub_agent_output = match agent.run(assignment.task_description.clone()).await {
                 Ok(text) => text,
                 Err(e) => match &e {
-                    agent_kernel::agent::AgentError::MaxIterationsExceeded(_) => {
-                        // 子 Agent 迭代超限但可能已产出部分内容：取最后一条 assistant 消息
+                    agent_kernel::agent::AgentError::TotalStepsReached(_) => {
+                        // 子 Agent 总步骤预算耗尽但可能已产出部分内容：取最后一条 assistant 消息
                         // 作为部分结果（若无则退回错误提示原文），按 Done 收敛而非 Error 中断。
                         let partial = agent
                             .get_runtime_messages()

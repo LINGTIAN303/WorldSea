@@ -255,7 +255,10 @@ export class MCPManager {
       const url = state.config.url
       if (!url) throw new Error('HTTP/SSE transport requires "url" in config')
 
-      const transport = new MCPHttpTransport(url, state.config.headers)
+      // headers 数组 [键,值][] → Record（浏览器端 MCPHttpTransport 消费对象形式）
+      const headersRecord: Record<string, string> = {}
+      for (const [k, v] of state.config.headers ?? []) headersRecord[k] = v
+      const transport = new MCPHttpTransport(url, headersRecord)
       await transport.initialize()
 
       this.transports.set(serverId, transport)

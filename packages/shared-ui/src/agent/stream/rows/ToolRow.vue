@@ -62,16 +62,44 @@
           <pre class="ws-stream-tool-detail-code ws-stream-tool-detail-result">{{ formatResult(item.tc.result) }}</pre>
         </div>
       </div>
+      <!-- 2026-09-02 系统工具流式：bash/powershell 增量输出（实时累积，随流滚动跟随） -->
+      <div v-if="streamText" class="ws-stream-tool-stream" :data-follow-end="isStreaming" @click.stop>
+        <div class="ws-stream-tool-stream-label">输出</div>
+        <pre ref="streamEl" class="ws-stream-tool-stream-body">{{ streamText }}</pre>
+        <div v-if="item.streamTruncated" class="ws-stream-tool-stream-trunc">… 输出过长，已保留末尾 {{ streamLimitK }} 字符</div>
+      </div>
+      <!-- 2026-09-02 系统工具流式：文件变更 diff（绿红对比 + 被操作文件完整路径） -->
+      <div v-if="fc" class="ws-stream-tool-filechange" @click.stop>
+        <div class="ws-stream-tool-filechange-head">
+          <span class="ws-stream-tool-filechange-badge" :class="fcBadgeClass">{{ fcKindLabel }}</span>
+          <span class="ws-stream-tool-filechange-path" :title="fc.path">{{ fc.path }}</span>
+        </div>
+        <div class="ws-stream-tool-filechange-body">
+          <template v-for="(hunk, hi) in fc.hunks" :key="hi">
+            <div
+              v-for="(line, li) in hunk.removed ?? []"
+              :key="`r-${hi}-${li}`"
+              class="ws-stream-tool-filechange-line del"
+            ><span class="ws-stream-tool-filechange-sign">-</span><span class="ws-stream-tool-filechange-code">{{ line || ' ' }}</span></div>
+            <div
+              v-for="(line, li) in hunk.added ?? []"
+              :key="`a-${hi}-${li}`"
+              class="ws-stream-tool-filechange-line add"
+            ><span class="ws-stream-tool-filechange-sign">+</span><span class="ws-stream-tool-filechange-code">{{ line || ' ' }}</span></div>
+            <div v-if="hunk.truncated_at" class="ws-stream-tool-filechange-trunc">… 内容过长，已截断前 500 行</div>
+          </template>
+        </div>
+      </div>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch, nextTick } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
 import InteractiveToolCall from '../../blocks/InteractiveToolCall.vue'
 import { getToolLabel } from '../../bubbles/toolLabels'
-import { classifyActionRowKind } from '@worldsmith/shared-composables/agent/turnModel'
+import { classifyActionRowKind, TOOL_STREAM_LIMIT } from '@worldsmith/shared-composables/agent/turnModel'
 import {
   getOpKind,
   OP_VERB,
@@ -82,10 +110,20 @@ import {
 } from './toolSemantics'
 import type { ToolCallView, InteractiveToolType } from '@worldsmith/shared-composables/agent/useAgent'
 
-/** Tool 行的最小形参：只需 tc 字段 */
+/** 2026-09-02 系统工具流式：文件变更 diff 结构（对齐后端 fs_tools.rs hunks 载荷） */
+interface FileChangeInfo {
+  path: string
+  kind: string
+  hunks: Array<{ removed?: string[]; added?: string[]; truncated_at?: boolean }>
+}
+
+/** Tool 行的最小形参：tc + 流式增量（stream/fileChange） */
 interface ToolItem {
   id: string
   tc: ToolCallView
+  stream?: string
+  streamTruncated?: boolean
+  fileChange?: FileChangeInfo
 }
 
 const props = defineProps<{
@@ -215,4 +253,46 @@ function formatResult(result: string): string {
     return result.length > 2000 ? result.slice(0, 1997) + '...' : result
   }
 }
+
+// ===== 2026-09-02 系统工具流式：增量输出（stream）+ 文件变更（fileChange） =====
+
+/** bash/powershell 增量输出累积文本（tool_delta 事件按 refId=toolCallId 归约进段） */
+const streamText = computed(() => props.item.stream?.trim() ?? '')
+
+/** 截断提示：上限折算为 K 展示（20000 → 20K） */
+const streamLimitK = computed(() => `${Math.round(TOOL_STREAM_LIMIT / 1000)}K`)
+
+/** tool 调用是否仍在执行（running → 输出区滚动跟随末尾） */
+const isStreaming = computed(() => props.item.tc.status === 'running')
+
+/** 文件变更 diff 载荷 */
+const fc = computed(() => props.item.fileChange)
+
+/** 变更类型展示标签（对齐后端 sink.file_change 的 kind：write/edit/edit_diff） */
+const fcKindLabel = computed(() => {
+  switch (fc.value?.kind) {
+    case 'write': return '新增'
+    case 'edit': return '修改'
+    case 'edit_diff': return '修改'
+    default: return '变更'
+  }
+})
+
+/** 变更类型角标配色 class（新增绿 / 修改橙 / 变更灰） */
+const fcBadgeClass = computed(() => {
+  switch (fc.value?.kind) {
+    case 'write': return 'ws-stream-tool-filechange-badge---new'
+    case 'edit':
+    case 'edit_diff': return 'ws-stream-tool-filechange-badge---mod'
+    default: return 'ws-stream-tool-filechange-badge---change'
+  }
+})
+
+/** 输出区 DOM 引用：流式期间持续跟随末尾（sticky bottom） */
+const streamEl = ref<HTMLPreElement | null>(null)
+watch(streamText, async () => {
+  if (!isStreaming.value || !streamEl.value) return
+  await nextTick()
+  streamEl.value.scrollTop = streamEl.value.scrollHeight
+})
 </script>

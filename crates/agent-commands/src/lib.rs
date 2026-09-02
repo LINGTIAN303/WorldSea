@@ -6,6 +6,7 @@ mod long_task_store;
 mod loop_control;
 mod mock_backend;
 mod pattern_registry;
+mod pty;
 mod run_store;
 mod session_store;
 mod subagent;
@@ -39,11 +40,13 @@ use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use agent_memory::MemoryCenterAccessor;
+// B 轨统一骨架（S1 适配层：编排双轨收拢试点引擎；`b_rail` 前缀避免与 kernel 同名类型混淆）
+use agent_patterns::orchestrator as b_rail;
 use agent_runtime::agent::{AgentLoop, AgentLoopConfig, AgentState, AgentStateSnapshot};
 use agent_runtime::backend::{NodeBackendAccessor, PromptCallOptions, ThinkingLevel};
 use agent_runtime::confirmation::{ConfirmationBroker, ConfirmationPolicy};
 use agent_runtime::event::{
-    EventBroadcaster, EventListener, OrchestratorEndStatus, OrchestratorEvent,
+    EventBroadcaster, EventListener, OrchestratorEndStatus, OrchestratorEvent, TracePhaseStatus,
 };
 use agent_runtime::llm::config::ProviderConfig as RuntimeProviderConfig;
 use agent_runtime::llm::GenaiBackend;
@@ -57,12 +60,13 @@ use agent_runtime::orchestrator::{
     DefaultOrchestrator, Orchestrator, OrchestratorError, OrchestratorResult,
     OrchestratorRunOptions,
 };
-use agent_runtime::plan::{ExecuteNode, ExecuteNodeConfig, PlanNode, PlanNodeConfig};
-use agent_runtime::reflection::{ReflectionNode, ReflectionNodeConfig, RefineNode, RefineNodeConfig};
 use agent_runtime::scenario::{
     Scenario, ScenarioEntityProvider, ScenarioRegistry, WorldbuildingScenario,
 };
 use agent_runtime::router::{Pipeline, RouterConfig, RouterNode};
+use agent_runtime::types::{
+    ArtifactKind, ExecStatus, OrchestratorState, PlanItem, PlanItemStatus, StepResult, StepStatus,
+};
 // 编排 4 模式 UI 下沉：ToT / GoT / Supervisor 节点，用于构单节点编排图跑通前端口令
 use agent_runtime::graph_of_thoughts::{GoTConfig, GoTNode};
 use agent_runtime::multi_agent::{AgentSpec, MultiAgentConfig, MultiAgentNode, Topology};
@@ -217,6 +221,309 @@ impl EventListener for ForwardToAgentBroadcaster {
     }
 }
 
+// ═══ B 轨（统一骨架）Plan-and-Execute 试点引擎辅助层（S1 适配层）═══
+// 编排双轨收拢试点：A/B 同契约（事件族 / run_store / 交接物），引擎切到
+// `agent_patterns::orchestrator` 自持执行器。详见 04-方案「编排双轨收拢施工计划」。
+
+/// B 轨计划生成提示（PlanExecuteNode.make_plan）
+const B_RAIL_PLAN_PROMPT: &str = "你是任务规划者。请把用户任务拆解为可独立执行、结果可验收的步骤列表。";
+
+/// 2026-09-02 统一待办：复杂任务引导提示（/plan 前缀与研究判型共用）——
+/// 注入用户输入尾部走主 Agent react 链，模型用 plan_create 建待办并严格串行执行。
+/// B 轨独立管线（run_plan_execute）自此退役不再触发（代码保留待后续清理）。
+const PLAN_TODO_GUIDANCE: &str = "[执行方式] 这是一个复杂任务：请先用 plan_create 工具创建待办计划（把任务拆解为可独立验收的步骤），然后严格按串行规范推进——每步先 plan_update 设为 in_progress，执行该步骤的真实工作（调用 read_file/execute_command 等工具），完成后才设为 completed，再进行下一步；全部步骤完成后输出最终总结。";
+
+/// B 轨步骤执行器工具化（2026-09-02）：
+/// `BusToolHandle` 把 orchestrator 的 `ToolHandle`（ReAct 循环调用入口）桥接到
+/// 会话的 kernel `ToolBus`，使计划步骤内真实执行工具（bash/read_file/write 等），
+/// 并把工具调用广播为 kernel `ToolCallStart` / `ToolCallEnd` 事件——前端 turnModel
+/// 据此把工具动作段归入当前激活的计划步骤（childRefIds），实现「步骤下跟动作行」。
+struct BusToolHandle {
+    /// 会话 ToolBus（与主 Agent 共享同一批工具）
+    bus: Arc<dyn ToolBus>,
+    /// 工具执行上下文（workdir 边界 / workspace_id / 流式 sink）
+    ctx: agent_runtime::ToolContext,
+    /// kernel 事件广播器（广播 ToolCallStart/End 供前端归入步骤）
+    broadcaster: Arc<RwLock<EventBroadcaster>>,
+}
+
+#[async_trait::async_trait]
+impl b_rail::ToolHandle for BusToolHandle {
+    async fn invoke(&self, call: &b_rail::ToolCall) -> Result<b_rail::Observation, b_rail::NodeError> {
+        let started = std::time::Instant::now();
+        // 广播工具调用开始（前端据此建立工具动作段并入激活步骤的 childRefIds）
+        if let Ok(b) = self.broadcaster.try_read() {
+            b.broadcast(&OrchestratorEvent::Agent(agent_runtime::event::AgentEvent::ToolCallStart {
+                tool_call_id: call.id.clone(),
+                name: call.name.clone(),
+                args: call.arguments.clone(),
+            }));
+        }
+        let result = self.bus.call_tool_with_ctx(&call.name, &self.ctx, call.arguments.clone()).await;
+        let duration_ms = started.elapsed().as_millis() as u64;
+        match result {
+            Ok(value) => {
+                let content = if value.is_null() {
+                    "完成".to_string()
+                } else {
+                    value.to_string()
+                };
+                if let Ok(b) = self.broadcaster.try_read() {
+                    b.broadcast(&OrchestratorEvent::Agent(agent_runtime::event::AgentEvent::ToolCallEnd {
+                        tool_call_id: call.id.clone(),
+                        result: value.clone(),
+                        status: "success".to_string(),
+                        duration_ms,
+                        error: None,
+                    }));
+                }
+                Ok(b_rail::Observation::ok(content))
+            }
+            Err(e) => {
+                let message = e.to_string();
+                if let Ok(b) = self.broadcaster.try_read() {
+                    b.broadcast(&OrchestratorEvent::Agent(agent_runtime::event::AgentEvent::ToolCallEnd {
+                        tool_call_id: call.id.clone(),
+                        result: serde_json::json!({ "error": message }),
+                        status: "failed".to_string(),
+                        duration_ms,
+                        error: Some(message.clone()),
+                    }));
+                }
+                Ok(b_rail::Observation::failed(message))
+            }
+        }
+    }
+}
+
+/// B 轨阶段状态 → kernel TracePhaseStatus（事件桥映射）
+fn b_rail_phase_status_to_kernel(s: b_rail::PhaseStatus) -> TracePhaseStatus {
+    match s {
+        b_rail::PhaseStatus::Success => TracePhaseStatus::Success,
+        b_rail::PhaseStatus::Degraded => TracePhaseStatus::Degraded,
+        b_rail::PhaseStatus::Failed => TracePhaseStatus::Failed,
+    }
+}
+
+/// B 轨 RunObserver → kernel Trace 事件族桥（S1 适配层）
+///
+/// 阶段进入/结果 → `TracePhaseEntered` / `TracePhaseResult`；
+/// 终局 `TracePipeFinished` 由命令层收口时统一发（避免双发）。
+struct BRailTraceBridge {
+    target: Arc<RwLock<EventBroadcaster>>,
+    run_id: String,
+}
+
+impl b_rail::RunObserver for BRailTraceBridge {
+    fn on_phase(
+        &self,
+        _node_id: &str,
+        phase: &str,
+        status: Option<b_rail::PhaseStatus>,
+        summary: &str,
+    ) {
+        if let Ok(b) = self.target.try_read() {
+            match status {
+                None => b.broadcast(&OrchestratorEvent::TracePhaseEntered {
+                    run_id: self.run_id.clone(),
+                    phase: phase.to_string(),
+                    reason: None,
+                }),
+                Some(s) => b.broadcast(&OrchestratorEvent::TracePhaseResult {
+                    run_id: self.run_id.clone(),
+                    phase: phase.to_string(),
+                    status: b_rail_phase_status_to_kernel(s),
+                    summary: summary.to_string(),
+                    artifact_id: None,
+                }),
+            }
+        }
+    }
+}
+
+/// B 轨终局 → kernel 收口三件（status / converge_reason / error + final_message）
+fn b_rail_terminal(
+    report: &b_rail::RunReport,
+) -> (
+    OrchestratorEndStatus,
+    Option<ConvergeReason>,
+    Option<String>,
+    Option<String>,
+) {
+    match &report.reason {
+        b_rail::TerminalReason::Done => (
+            OrchestratorEndStatus::Completed,
+            Some(ConvergeReason::GoalReached),
+            report.result_text(),
+            None,
+        ),
+        b_rail::TerminalReason::Fatal(e) => (
+            OrchestratorEndStatus::Error,
+            None,
+            report.result_text(),
+            Some(format!("{e}")),
+        ),
+        b_rail::TerminalReason::Governed(msg) => (
+            OrchestratorEndStatus::Aborted,
+            Some(ConvergeReason::Aborted),
+            report.result_text(),
+            Some(msg.clone()),
+        ),
+    }
+}
+
+/// B 轨终局黑板快照 → HandoverArtifact 翻译（S1 映射 Plan 物 + Execution 物，
+/// 与 A 轨 FIX-1 闭环同语义：事件轻、物权威，get_artifact 可回查）
+fn b_rail_artifacts(run_id: &str, report: &b_rail::RunReport) -> Vec<HandoverArtifact> {
+    let mut artifacts = Vec::new();
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0);
+    // Plan 物：黑板 pne.plan（追加语义 → 末元素为当前值）→ kernel PlanItem 列表
+    if let Some(plan) = report
+        .blackboard
+        .get("pne.plan")
+        .and_then(|v| v.as_array())
+        .and_then(|a| a.last())
+        .cloned()
+    {
+        if let Ok(plan) = serde_json::from_value::<b_rail::Plan>(plan) {
+            let items: Vec<PlanItem> = plan
+                .steps
+                .iter()
+                .enumerate()
+                .map(|(i, step)| PlanItem {
+                    id: format!("step-{i}"),
+                    title: step.clone(),
+                    description: None,
+                    status: PlanItemStatus::Completed,
+                    order: i as i32,
+                    output: None,
+                })
+                .collect();
+            let summary = format!("计划：{} 个步骤", items.len());
+            artifacts.push(HandoverArtifact {
+                artifact_id: format!("{run_id}-plan"),
+                run_id: run_id.to_string(),
+                from_node: "plan_execute".into(),
+                kind: ArtifactKind::Plan(items),
+                summary,
+                produced_at: now,
+            });
+        }
+    }
+    // Execution 物：result.draft → 聚合单步骤（Fatal 时标 Failed）
+    if let Some(draft) = report.result_text() {
+        let failed = matches!(report.reason, b_rail::TerminalReason::Fatal(_));
+        artifacts.push(HandoverArtifact {
+            artifact_id: format!("{run_id}-execution"),
+            run_id: run_id.to_string(),
+            from_node: "execute".into(),
+            kind: ArtifactKind::Execution {
+                step_results: vec![StepResult {
+                    step_id: "execute".into(),
+                    title: "执行".into(),
+                    output: Some(draft.clone()),
+                    status: if failed { StepStatus::Failed } else { StepStatus::Completed },
+                }],
+                status: if failed { ExecStatus::Failed } else { ExecStatus::Completed },
+            },
+            summary: draft.chars().take(80).collect(),
+            produced_at: now,
+        });
+    }
+    artifacts
+}
+
+/// 归一化指定 run 的 Trace 事件序列（S2 对齐口径①；run_id 过滤 + 事件族降维）
+///
+/// 对齐语义 = **管线骨架形状**（用户拍板，2026-09-01）：LLM 拆分步骤数不同导致
+/// execute 等阶段重复进入/退出属模型非确定性噪音，归一化时**折叠重复 phase**——
+/// 每个 phase 只保留首次 `enter` 与末次 `result`，pipe_started/pipe_finished 恒保留。
+/// 这样 A/B 轨只比对「管线走了哪些阶段、各自成败」，而非步骤轮次数。
+#[cfg(test)]
+fn normalize_trace_sequence(events: &[OrchestratorEvent], run_id: &str) -> Vec<String> {
+    use std::collections::HashSet;
+    let mut out: Vec<String> = Vec::new();
+    let mut seen_enter: HashSet<String> = HashSet::new();
+    // 末次 result 位置（phase → 索引），遍历后覆盖为同 phase 最后一次
+    let mut last_result_idx: std::collections::HashMap<String, usize> =
+        std::collections::HashMap::new();
+    let mut result_phases: Vec<(String, String)> = Vec::new(); // (phase, status)
+    let mut seen_pipe_started = false;
+    let mut seen_pipe_finished = false;
+
+    for e in events.iter() {
+        match e {
+            OrchestratorEvent::TracePipeStarted { run_id: rid, .. } if rid == run_id => {
+                if !seen_pipe_started {
+                    out.push("pipe_started".to_string());
+                    seen_pipe_started = true;
+                }
+            }
+            OrchestratorEvent::TracePhaseEntered { run_id: rid, phase, .. } if rid == run_id => {
+                // 首次进入才保留（重复进入折叠）
+                if seen_enter.insert(phase.clone()) {
+                    out.push(format!("enter:{phase}"));
+                }
+            }
+            OrchestratorEvent::TracePhaseResult { run_id: rid, phase, status, .. }
+                if rid == run_id =>
+            {
+                // 同 phase 只保留末次 result（记录位置，结束后统一回填）
+                let entry = format!("result:{phase}:{status:?}");
+                match last_result_idx.get(phase) {
+                    Some(&idx) => {
+                        result_phases[idx] = (phase.clone(), entry);
+                    }
+                    None => {
+                        last_result_idx.insert(phase.clone(), result_phases.len());
+                        result_phases.push((phase.clone(), entry));
+                    }
+                }
+            }
+            OrchestratorEvent::TracePipeFinished { run_id: rid, .. } if rid == run_id => {
+                if !seen_pipe_finished {
+                    seen_pipe_finished = true;
+                }
+            }
+            _ => {}
+        }
+    }
+    // 把末次 result 插到对应 enter 之后（骨架顺序：enter 后跟该 phase 的末次 result）；
+    // 无对应 enter 的 result（如测试构造的 execute 只有 result 无 enter）追加到 pipe_finished 前
+    let mut result_by_phase: std::collections::HashMap<String, String> =
+        result_phases.clone().into_iter().collect();
+    let mut merged: Vec<String> = Vec::new();
+    for item in &out {
+        merged.push(item.clone());
+        if let Some(rest) = item.strip_prefix("enter:") {
+            if let Some(r) = result_by_phase.remove(rest) {
+                merged.push(r);
+            }
+        }
+    }
+    // 残留 result（无 enter）按原 result 顺序追加（保留：result_phases 已按出现序）
+    if !result_by_phase.is_empty() {
+        for (phase, _) in result_phases {
+            if let Some(r) = result_by_phase.remove(&phase) {
+                merged.push(r);
+            }
+        }
+    }
+    if seen_pipe_finished {
+        merged.push("pipe_finished".to_string());
+    }
+    merged
+}
+
+/// 产物类型名列表（S2 对齐口径②；按产出顺序）
+#[cfg(test)]
+fn artifact_kind_names(artifacts: &[HandoverArtifact]) -> Vec<String> {
+    artifacts.iter().map(|a| format!("{:?}", a.kind.tag())).collect()
+}
+
 /// 会话信息（列表项）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionInfo {
@@ -337,6 +644,9 @@ pub struct UpdateModelParams {
     /// 思考模式开关
     #[serde(default)]
     pub thinking_mode: Option<bool>,
+    /// 总步骤预算（工具调用轮数上限，1~500，None=不更新；语义见 AgentLoopConfig.total_steps）
+    #[serde(default)]
+    pub total_steps: Option<u32>,
 }
 
 /// Provider 配置（`get_provider_config` 回显的简化视图）
@@ -744,14 +1054,36 @@ impl AgentCommandService {
         self.mcp_tools_provider = Some(provider);
     }
 
+    /// 把指定 agent 的 tool_bus 用 MCP 工具快照做「分组注册」（T09①，2026-09-01）
+    ///
+    /// 按工具名前缀 `mcp_{server_id}_` 分组调用 `register_mcp_tools`，使
+    /// SimpleToolBus 记录 server_id → 工具名归属（供 `unregister_mcp_server` 按服务器注销）。
+    /// `new_agent` / `hot_inject_mcp_tools` 共用，保证两条注入路径归属一致。
+    async fn register_mcp_bus(&self, bus: &dyn ToolBus, tools: &[Arc<dyn Tool>]) {
+        let mut grouped: std::collections::BTreeMap<String, Vec<Arc<dyn Tool>>> = Default::default();
+        for t in tools {
+            // 名字契约：mcp_{server_id}_{tool_name}（server_id 不含下划线）
+            if let Some(rest) = t.name().strip_prefix("mcp_") {
+                if let Some(pos) = rest.find('_') {
+                    grouped.entry(rest[..pos].to_string()).or_default().push(t.clone());
+                    continue;
+                }
+            }
+            // 非标 MCP 命名兜底：单工具组（服务器 id 取名字符串，可被按名注销）
+            grouped.entry("misc".to_string()).or_default().push(t.clone());
+        }
+        for (server_id, tools) in grouped {
+            bus.register_mcp_tools(server_id, tools).await;
+        }
+    }
+
     /// MCP 工具热注入（2026-08-30）：把当前快照注册进**所有活跃会话**的 tool_bus
     ///
     /// v1 冷策略（仅新会话生效）导致用户连接 MCP 后在当前会话看不到工具——
-    /// 本方法在 cmd_mcp_connect 成功后调用，弥补已有会话。register 同名覆盖
-    /// 幂等，重复调用无副作用。返回本次注入的工具数（0 = 无 provider 或无工具）。
-    ///
-    /// 注：仅做「增」不做「删」——断开/删除连接后旧工具仍留在已建会话的
-    /// tool_bus 中（SimpleToolBus 无注销能力），重启或新建会话后消失（v1 取舍）。
+    /// 本方法在 cmd_mcp_connect 成功后调用，弥补已有会话。分组注册（见
+    /// [`Self::register_mcp_bus`]）同名覆盖幂等，重复调用无副作用——同时记录
+    /// server_id 归属，使断开后可按服务器注销（T09①）。返回本次注入的工具数
+    /// （0 = 无 provider 或无工具）。
     pub async fn hot_inject_mcp_tools(&self) -> usize {
         let Some(provider) = &self.mcp_tools_provider else {
             return 0;
@@ -763,11 +1095,35 @@ impl AgentCommandService {
         let sessions = self.sessions.lock().await;
         for agent in sessions.values() {
             let bus = agent.tool_bus();
-            for tool in &tools {
-                bus.register(tool.clone()).await;
-            }
+            self.register_mcp_bus(bus.as_ref(), &tools).await;
         }
         tools.len()
+    }
+
+    /// 从**所有活跃会话**注销指定 MCP 服务器的工具（T09①，2026-09-01）
+    ///
+    /// 与 `hot_inject_mcp_tools` 对称的「删」操作：`cmd_mcp_disconnect` / `cmd_mcp_delete`
+    /// 在断开连接后调用，把该 server 的工具从已建会话 tool_bus 移除（此前 v1 取舍：
+    /// 断开后旧工具留存至重启/新建会话）。基于 `register_mcp_tools` 记录的归属关系，
+    /// 按 `server_id` 批量注销。返回受影响会话数（0 = 无活跃会话含该服务器工具）。
+    pub async fn remove_mcp_server_tools(&self, server_id: &str) -> usize {
+        let sessions = self.sessions.lock().await;
+        let mut affected = 0usize;
+        for agent in sessions.values() {
+            let bus = agent.tool_bus();
+            // 仅当该服务器的工具确实存在于会话总线才注销（避免无谓遍历）
+            let prefix = format!("mcp_{server_id}_");
+            let exists = bus
+                .list_all()
+                .await
+                .into_iter()
+                .any(|d| d.name.starts_with(&prefix));
+            if exists {
+                bus.unregister_mcp_server(server_id).await;
+                affected += 1;
+            }
+        }
+        affected
     }
 
     /// 注入会话级实体读取工厂（任务29/M4 数据源收敛；Tauri 层 setup 时调用）
@@ -903,9 +1259,7 @@ impl AgentCommandService {
                     list.join("、")
                 );
             }
-            for tool in mcp_tools {
-                tool_bus.register(tool).await;
-            }
+            self.register_mcp_bus(tool_bus.as_ref(), &mcp_tools).await;
         }
         // 任务29/M4 数据源收敛：有 workdir 的会话用文件版实体工具覆盖注册
         // （ToolBus 同名覆盖），使 Agent 读到项目目录 entities/ 的真身数据；
@@ -1204,7 +1558,24 @@ impl AgentCommandService {
     ///
     /// 链路（refine=false）：Plan → Execute（内部循环逐步骤执行）
     /// 链路（refine=true）：Plan → Execute → Reflection ⇄ Refine（直至收敛）
+    ///
+    /// S3 切换（2026-09-01，T10 双跑对齐通过后）：内部切换到 B 轨引擎
+    /// （`agent_patterns::orchestrator` 统一骨架），A 轨旧组图实现由本引擎取代，
+    /// 对外契约不变（前端迹线/run_store/交接物零感知）。
     pub async fn run_plan_execute(
+        &self,
+        session_id: &str,
+        input: String,
+        options: PlanExecuteOptions,
+    ) -> Result<OrchestratorResult, CommandError> {
+        self.run_plan_execute_b_engine(session_id, input, options).await
+    }
+
+    /// B 轨（统一骨架）Plan-and-Execute 引擎实现
+    ///
+    /// 执行引擎为 `agent_patterns::orchestrator` 自持执行器，S3 起作为
+    /// [`Self::run_plan_execute`] 的内部实现（原 A 轨组图由本引擎取代）。
+    async fn run_plan_execute_b_engine(
         &self,
         session_id: &str,
         input: String,
@@ -1212,133 +1583,143 @@ impl AgentCommandService {
     ) -> Result<OrchestratorResult, CommandError> {
         let agent = self.get_agent(session_id).await?;
         let backend = agent.node_backend();
-        // B22：登记 run（run_id 贯穿轨迹事件；管线名 = 链族预设语义）
+        // B22：登记 run（管线名与 A 轨一致，前端迹线零感知）
         let pipeline = if options.refine { "research-plan" } else { "quick-plan" };
         let run_id = self
             .runs
             .create(session_id, None, Some(pipeline.to_string()))
             .await;
-
-        let mut orch = DefaultOrchestrator::new().with_backend(backend);
-
-        // M1-7 构图期硬校验（D23 硬层 / D0-1/2/3）：
-        // 先声明管线（节点/边/入口 + kind），非法组合在构图期拒绝（每条非法组合一条用例，见 kernel pipeline.rs tests）
-        {
-            use agent_runtime::pipeline::{PipelineDecl, PipelineEdgeDecl, PipelineNodeDecl};
-            use agent_runtime::types::ArtifactKindTag;
-            use agent_runtime::node::NodeType;
-
-            let mut nodes = vec![
-                PipelineNodeDecl {
-                    id: "plan".into(),
-                    node_type: NodeType::Plan,
-                    output_kind: Some(ArtifactKindTag::Plan),
-                },
-                PipelineNodeDecl {
-                    id: "execute".into(),
-                    node_type: NodeType::Execute,
-                    output_kind: Some(ArtifactKindTag::Execution),
-                },
-            ];
-            let mut edges = vec![PipelineEdgeDecl {
-                from: "plan".into(),
-                to: "execute".into(),
-                accepts: vec![ArtifactKindTag::Plan],
-            }];
-            if options.refine {
-                nodes.push(PipelineNodeDecl {
-                    id: "reflection".into(),
-                    node_type: NodeType::Reflection,
-                    output_kind: Some(ArtifactKindTag::Reflection),
-                });
-                nodes.push(PipelineNodeDecl {
-                    id: "refine".into(),
-                    node_type: NodeType::Refine,
-                    output_kind: Some(ArtifactKindTag::Plan),
-                });
-                edges.push(PipelineEdgeDecl {
-                    from: "execute".into(),
-                    to: "reflection".into(),
-                    accepts: vec![ArtifactKindTag::Execution],
-                });
-                edges.push(PipelineEdgeDecl {
-                    from: "reflection".into(),
-                    to: "refine".into(),
-                    accepts: vec![ArtifactKindTag::Reflection],
+        // TracePipeStarted（run 形状确定；前端据此建编排段）
+        if let Ok(b) = agent.broadcaster_ref().try_read() {
+            b.broadcast(&OrchestratorEvent::TracePipeStarted {
+                run_id: run_id.clone(),
+                pipeline: pipeline.to_string(),
+                reason: None,
+            });
+        }
+        // B 轨依赖注入：复用会话 backend；记忆 S1 占位（NoopMemory）
+        let llm: Arc<dyn b_rail::LlmHandle> = Arc::new(b_rail::KernelBackendLlm::new(backend));
+        let memory: Arc<dyn b_rail::MemoryHandle> = Arc::new(b_rail::NoopMemory);
+        // 2026-09-02 步骤工具化：inner 换为 ReActLoopNode（工具循环），经 BusToolHandle
+        // 桥接会话 ToolBus，使计划步骤内真实执行工具并广播 ToolCallStart/End（前端归入步骤）。
+        // 工具集取自会话 ToolBus 当前注册面（与主 Agent 一致）；intent_key 指向
+        // `pne.step.current`——每步 ReAct 循环都能看到当前计划的步骤文本。
+        let tool_bus = agent.tool_bus();
+        let tool_specs: Vec<b_rail::ToolSpec> = tool_bus
+            .list_all()
+            .await
+            .into_iter()
+            .map(|def| b_rail::ToolSpec {
+                name: def.name,
+                description: def.description,
+                parameters: def.parameters,
+            })
+            .collect();
+        let tool_ctx = agent_runtime::ToolContext {
+            workdir: agent.workdir(),
+            project_id: None,
+            workspace_id: agent.workspace_id(),
+            tool_stream: None,
+        };
+        let tool_handle: Arc<dyn b_rail::ToolHandle> = Arc::new(BusToolHandle {
+            bus: Arc::clone(&tool_bus),
+            ctx: tool_ctx,
+            broadcaster: agent.broadcaster_ref(),
+        });
+        let inner: Arc<dyn b_rail::OrchestratorNode> = Arc::new(
+            b_rail::ReActLoopNode::new(
+                "step",
+                b_rail::ToolSpecSet::new(tool_specs),
+                tool_handle,
+                5, // 每步工具循环轮次上限（治理：防步骤原地打转）
+            )
+            .with_intent_key("pne.step.current"),
+        );
+        let plan_prompt = format!(
+            "{B_RAIL_PLAN_PROMPT}\n最多拆分 {max} 个步骤。",
+            max = options.max_items
+        );
+        // 2026-09-02 步骤进度 → PlanStepUpdate 广播：每步开工 in_progress、收工 completed。
+        // 前端 setupPlanListener 消费 plan_update 通道 → 计划步骤行状态推进 + settlePlanStep 收口。
+        let broadcaster = agent.broadcaster_ref();
+        let step_cb = Arc::new(move |cursor: usize, step: &str, in_progress: bool| {
+            if let Ok(b) = broadcaster.try_read() {
+                b.broadcast(&OrchestratorEvent::PlanStepUpdate {
+                    step_id: format!("step-{cursor}"),
+                    status: if in_progress {
+                        PlanItemStatus::InProgress
+                    } else {
+                        PlanItemStatus::Completed
+                    },
+                    output: if in_progress { None } else { Some(step.to_string()) },
                 });
             }
-            agent_runtime::pipeline::validate_pipeline(&PipelineDecl {
-                nodes,
-                edges,
-                entry: "plan".into(),
-            })
-            .map_err(|e| CommandError::Agent(format!("管线定义非法，构图期拒绝: {e}")))?;
-        }
-
-        // Plan → Execute
-        let plan_node = PlanNode::new(PlanNodeConfig {
-            id: "plan".into(),
-            max_items: options.max_items,
-            next_node_id: Some("execute".into()),
-            ..Default::default()
         });
-        let execute_node = ExecuteNode::new(ExecuteNodeConfig {
-            id: "execute".into(),
-            next_node_id: if options.refine {
-                Some("reflection".into())
-            } else {
-                None
-            },
-            ..Default::default()
+        // 2026-09-02 计划生成 → PlanCreated 广播（前端据此生成 plan 步骤行）
+        let broadcaster2 = agent.broadcaster_ref();
+        let plan_cb = Arc::new(move |steps: Vec<String>| {
+            if let Ok(b) = broadcaster2.try_read() {
+                let items: Vec<PlanItem> = steps
+                    .into_iter()
+                    .enumerate()
+                    .map(|(i, title)| PlanItem {
+                        id: format!("step-{i}"),
+                        title,
+                        description: None,
+                        status: PlanItemStatus::Pending,
+                        order: i as i32,
+                        output: None,
+                    })
+                    .collect();
+                b.broadcast(&OrchestratorEvent::PlanCreated { items });
+            }
         });
-        orch.add_node(Box::new(plan_node));
-        orch.add_node(Box::new(execute_node));
-
-        // 可选：Reflection → Refine 循环
-        if options.refine {
-            let reflection_node = ReflectionNode::new(ReflectionNodeConfig {
-                id: "reflection".into(),
-                next_node_id: Some("refine".into()),
-                ..Default::default()
-            });
-            let refine_node = RefineNode::new(RefineNodeConfig {
-                id: "refine".into(),
-                max_iterations: options.max_refine_iterations,
-                reflection_node_id: "reflection".into(),
-                ..Default::default()
-            });
-            orch.add_node(Box::new(reflection_node));
-            orch.add_node(Box::new(refine_node));
-        }
-        orch.set_entry("plan");
-
-        // M4-6 插话门：构图完成 → 包 Arc（subscribe &self）→ 注册为当前活跃编排器后 run
-        let orch = Arc::new(orch);
-
-        // 事件转发：编排事件 → 会话广播器 → Tauri 事件桥 → 前端
-        let forward = ForwardToAgentBroadcaster {
-            target: agent.broadcaster_ref(),
-        };
-        orch.subscribe(Arc::new(forward));
-
-        let result = self
-            .run_with_active_orchestrator(
-                Arc::clone(&orch),
-                orch.run(
-                    input,
-                    Some(OrchestratorRunOptions {
-                        run_id: Some(run_id.clone()),
-                        pipeline: Some(pipeline.to_string()),
-                        ..Default::default()
-                    }),
-                ),
-            )
+        let plan_node = b_rail::PlanExecuteNode::new(
+            "plan_execute",
+            inner,
+            plan_prompt,
+            "你是验收者。请判断给定步骤是否已被「步骤产出」文本完成，输出 JSON。",
+            options.max_refine_iterations,
+        )
+        .with_on_step(step_cb)
+        .with_on_plan(plan_cb);
+        let graph = b_rail::Graph::build(vec![Box::new(plan_node)], vec![], "plan_execute")
+            .map_err(|e| CommandError::Agent(format!("B 轨构图失败: {e}")))?;
+        let orch = b_rail::DefaultOrchestrator::new(&graph, llm, memory, b_rail::RunConfig::default())
+            .with_seed(serde_json::json!({ "task.intent": input }))
+            .with_observer(Arc::new(BRailTraceBridge {
+                target: agent.broadcaster_ref(),
+                run_id: run_id.clone(),
+            }));
+        let report = orch
+            .run()
             .await
-            .map_err(|e| CommandError::Agent(format!("编排图执行失败: {e}")))?;
-        // FIX-1 闭环（M5-RK3 补验修复）：run 结束前把交接物全文写入 RunStore（get_artifact 查询源）
-        for artifact in &result.artifacts {
+            .map_err(|e| CommandError::Agent(format!("B 轨执行失败: {e}")))?;
+        // 产物映射（黑板快照 → HandoverArtifact）→ RunStore（get_artifact 可回查）
+        let artifacts = b_rail_artifacts(&run_id, &report);
+        for artifact in &artifacts {
             self.runs.add_artifact(&run_id, artifact.clone()).await;
         }
+        let (status, reason, final_message, error) = b_rail_terminal(&report);
+        // TracePipeFinished（管线结束）
+        if let Ok(b) = agent.broadcaster_ref().try_read() {
+            b.broadcast(&OrchestratorEvent::TracePipeFinished {
+                run_id: run_id.clone(),
+                status,
+                reason,
+                final_message: final_message.clone(),
+            });
+        }
+        let result = OrchestratorResult {
+            status,
+            converge_reason: reason,
+            run_id: Some(run_id.clone()),
+            final_message: final_message.clone(),
+            iterations: report.steps.len() as u32,
+            error,
+            final_state: OrchestratorState::new(final_message.clone().unwrap_or_default()),
+            artifacts,
+        };
         // B22：run 收口（状态 + 收敛原因 + 终局结论）
         self.runs
             .finish(
@@ -1742,6 +2123,10 @@ impl AgentCommandService {
                 .restore_state(AgentState {
                     messages,
                     current_iteration: 0,
+                    total_steps_used: 0,
+                    budget_warn_80_notified: false,
+                    budget_warn_95_notified: false,
+                    budget_final_notified: false,
                     aborted: false,
                     paused: false,
                     plan,
@@ -1917,6 +2302,26 @@ impl AgentCommandService {
                 .update_workdir(session_id, workdir.as_deref())
                 .await
                 .map_err(|e| CommandError::Internal(format!("更新会话工作区目录失败: {e}")))?;
+        }
+        Ok(())
+    }
+
+    /// 更新会话 system prompt（H5 风险点③ 动态刷新，2026-08-30）
+    ///
+    /// 技能索引/规则文件中途变更时由前端调用：重建后的完整 system prompt 推送到
+    /// 该会话 AgentLoop（下一轮 build_prompt_options 即生效）并写穿持久化
+    /// （sessions.system_prompt，重启后 restore_sessions 用新值重建）。
+    pub async fn update_session_system_prompt(
+        &self,
+        session_id: &str,
+        system_prompt: Option<String>,
+    ) -> Result<(), CommandError> {
+        let agent = self.get_agent(session_id).await?;
+        agent.set_system_prompt(system_prompt.clone()).await;
+        if let Some(store) = &self.session_store {
+            store
+                .update_system_prompt(session_id, system_prompt.as_deref())
+                .await?;
         }
         Ok(())
     }
@@ -2173,9 +2578,10 @@ impl AgentCommandService {
     /// 发送消息（ReAct 循环执行）
     pub async fn send_message(&self, params: SendMessageParams) -> Result<SendMessageResult, CommandError> {
         let agent = self.get_agent(&params.session_id).await?;
-        // M5-RK1（2026-08-27 走查修复）：探索/委派/规划族命令前缀直通专属 run_* 编排。
-        // 修复 /plan /tot /got /supervisor /multi 此前被当普通文本走 plan_execute 的链路断裂
-        // （E19 任务④探索入口卡 / 任务⑤降级路径受阻的根因）。
+        // 2026-09-02 统一待办：/plan 前缀与研究判型不再进 B 轨独立管线（run_plan_execute 退役不触发），
+        // 统一注入待办引导走主 Agent react 链——模型用 plan_create 建待办、严格串行执行。
+        // M5-RK1：其余命令前缀（/tot /got /supervisor /multi）仍直通专属 run_* 编排。
+        let mut react_text = params.text.clone();
         if let Some(mode) = extract_mode_prefix(&params.text) {
             let text = strip_first_token(&params.text);
             if text.is_empty() {
@@ -2183,26 +2589,31 @@ impl AgentCommandService {
                     "模式前缀后缺少任务描述（如 /tot 你的问题）".into(),
                 ));
             }
-            let result = self.run_mode_prefix(&params.session_id, mode, text).await?;
-            // X1 修复：编排路径收口——用户消息+终稿入环、message_count 回写、写穿持久化
-            // （此前仅 react 路径持久化，run_mode_prefix 编排消息零落库 → 刷新即丢历史）
-            self.finalize_orchestration_turn(
-                &params.session_id,
-                &params.text,
-                result.final_message.as_deref(),
-            )
-            .await;
-            let usage = agent.get_usage().await;
-            let state = agent.get_state_snapshot().await;
-            return Ok(SendMessageResult {
-                session_id: params.session_id,
-                reply: result.final_message.unwrap_or_default(),
-                state,
-                usage: SessionUsageSummary {
-                    input_tokens: usage.input_tokens,
-                    output_tokens: usage.output_tokens,
-                },
-            });
+            if mode == ModePrefix::Plan {
+                // 统一待办：/plan → 待办引导 + react 链（跳过下方判型）
+                react_text = format!("{text}\n\n{PLAN_TODO_GUIDANCE}");
+            } else {
+                let result = self.run_mode_prefix(&params.session_id, mode, text).await?;
+                // X1 修复：编排路径收口——用户消息+终稿入环、message_count 回写、写穿持久化
+                // （此前仅 react 路径持久化，run_mode_prefix 编排消息零落库 → 刷新即丢历史）
+                self.finalize_orchestration_turn(
+                    &params.session_id,
+                    &params.text,
+                    result.final_message.as_deref(),
+                )
+                .await;
+                let usage = agent.get_usage().await;
+                let state = agent.get_state_snapshot().await;
+                return Ok(SendMessageResult {
+                    session_id: params.session_id,
+                    reply: result.final_message.unwrap_or_default(),
+                    state,
+                    usage: SessionUsageSummary {
+                        input_tokens: usage.input_tokens,
+                        output_tokens: usage.output_tokens,
+                    },
+                });
+            }
         }
         // M4-2/M4-5（A1 自动为主 + B10 缓存）：判型 = force_pipeline 前缀 → 请求级缓存 → LLM 预判型。
         // 非 query（研究/实验/创作）自动进编排：转 run_plan_execute（编排 run 发 orchestration_trace
@@ -2240,42 +2651,17 @@ impl AgentCommandService {
             Pipeline::Research | Pipeline::Experiment | Pipeline::Compose
         );
         if is_complex {
-            // 有前缀（/调研 等 Chip）才剥离首 token 进规划提示；预判型（无前缀）原文直入
-            let text = if forced.is_some() {
-                strip_first_token(&params.text)
-            } else {
-                params.text.clone()
-            };
-            if !text.is_empty() {
-                let result = self
-                    .run_plan_execute(
-                        &params.session_id,
-                        text,
-                        PlanExecuteOptions {
-                            refine: true,
-                            ..Default::default()
-                        },
-                    )
-                    .await?;
-                // X1 修复：判型编排路径同样收口入环 + 持久化（与 run_mode_prefix / react 路径一致）
-                self.finalize_orchestration_turn(
-                    &params.session_id,
-                    &params.text,
-                    result.final_message.as_deref(),
-                )
-                .await;
-                let usage = agent.get_usage().await;
-                // state 用 AgentLoop 会话快照（与 react 路径一致；编排过程经 trace 事件呈现）
-                let state = agent.get_state_snapshot().await;
-                return Ok(SendMessageResult {
-                    session_id: params.session_id,
-                    reply: result.final_message.unwrap_or_default(),
-                    state,
-                    usage: SessionUsageSummary {
-                        input_tokens: usage.input_tokens,
-                        output_tokens: usage.output_tokens,
-                    },
-                });
+            // 2026-09-02 统一待办：复杂判型不再进 B 轨独立管线，注入待办引导落 react 链。
+            // 有前缀（/调研 等 Chip）才剥离首 token；/plan 前缀已在上方注入过引导（防重复）。
+            if !react_text.contains(PLAN_TODO_GUIDANCE) {
+                let text = if forced.is_some() {
+                    strip_first_token(&params.text)
+                } else {
+                    params.text.clone()
+                };
+                if !text.is_empty() {
+                    react_text = format!("{text}\n\n{PLAN_TODO_GUIDANCE}");
+                }
             }
         }
 
@@ -2294,7 +2680,7 @@ impl AgentCommandService {
                 return Err(e);
             }
         };
-        let reply = match agent.run(params.text).await {
+        let reply = match agent.run(react_text).await {
             Ok(r) => r,
             Err(e) => {
                 let msg = e.to_string();
@@ -2470,6 +2856,23 @@ impl AgentCommandService {
         if let Err(e) = store.save_plan(session_id, &plan).await {
             tracing::warn!("持久化会话 {session_id} 计划失败: {e}");
         }
+    }
+
+    /// R6 第二部分：动作段事件持久化收口——把本会话累积的动作段事件（tauri emitter 缓冲）
+    /// merge 进「最后一条 assistant 消息」的 meta.action_events（零迁移：`OrchestratorMessage.meta`
+    /// 已有 HashMap 槽；追加语义，重复调用累计在同一消息），随后写穿持久化。
+    /// 回源时按数组序重建（事件序 = 时间序，与实时流严格对齐）。
+    pub async fn flush_action_events(&self, session_id: &str, events: Vec<serde_json::Value>) {
+        let agent = match self.sessions.lock().await.get(session_id).cloned() {
+            Some(a) => a,
+            None => return,
+        };
+        agent.merge_last_assistant_meta("action_events", events).await;
+        let count = agent.get_messages().await.len() as u32;
+        if let Some(meta) = self.meta.lock().await.get_mut(session_id) {
+            meta.message_count = count;
+        }
+        self.persist_messages(session_id).await;
     }
 
     // ── 目录实体（Workdir）──────────────────────────────────
@@ -2686,6 +3089,7 @@ impl AgentCommandService {
                 params.top_p,
                 params.top_k,
                 params.thinking_mode,
+                params.total_steps,
             )
             .await
             .map_err(CommandError::from)

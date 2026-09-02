@@ -14,6 +14,8 @@ crate-type = ["rlib"]
 # ── 本地 crate ──
 # 启用 llm-genai：使 agent-runtime 的 GenaiBackend 可用（5.4 真实 LLM 接入）
 agent-runtime = { path = "../agent-runtime", features = ["llm-genai"] }
+# B 轨统一骨架（S1 适配层：编排双轨收拢试点 Plan-and-Execute 的直接执行引擎，经 agent_patterns::orchestrator）
+agent-patterns = { path = "../agent-patterns" }
 # MemoryAccessor 适配层（阶段 2：为会话注入 MemoryCenterAccessor）
 agent-memory = { path = "../agent-memory" }
 # MemoryCenter 核心（ArchiveConfig 归档阈值配置）
@@ -26,6 +28,23 @@ serde_json = "1"
 # ── 异步运行时 ──
 tokio = { version = "1", features = ["process", "sync", "macros", "rt", "time", "io-util"] }
 async-trait = "0.1"
+
+# ── PTY（P0 系统触达面：持久化 Shell 升级为真伪终端）──
+portable-pty = "0.9"
+anyhow = "1"
+
+# ── PTY Windows passthrough（P2-1：PSEUDOCONSOLE_PASSTHROUGH_MODE 0x8 自研 backend）──
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_Storage_FileSystem",
+  "Win32_System_Console",
+  "Win32_System_Pipes",
+  "Win32_System_Threading",
+  "Win32_System_Diagnostics_Debug",
+] }
+downcast-rs = "1"
 
 # ── 工具链 ──
 thiserror = "2"

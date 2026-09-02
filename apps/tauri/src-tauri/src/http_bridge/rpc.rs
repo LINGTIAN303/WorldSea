@@ -399,6 +399,21 @@ pub fn register_core(reg: &mut Registry) {
             c::cmd_agent_tool_names(st, a.session_id).await.map(|r| to_value(r).unwrap_or(Value::Null))
         })
     }));
+    // 动态刷新会话 system prompt（H5 风险点③，2026-08-30 · 硬约束：新命令必须同步桥接层）
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct UpdateSystemPromptArgs {
+        session_id: String,
+        system_prompt: Option<String>,
+    }
+    reg.register("cmd_agent_update_system_prompt", Arc::new(move |app, args| {
+        let app = app.clone();
+        Box::pin(async move {
+            let a: UpdateSystemPromptArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
+            let st = app.state::<agent_commands::AgentCommandService>();
+            c::cmd_agent_update_system_prompt(st, a.session_id, a.system_prompt).await.map(|_| Value::Null)
+        })
+    }));
 
     // ── MCP（H2 重建 2026-08-30 · 硬约束：新命令必须同步桥接层）──
     #[derive(Deserialize)]
@@ -437,7 +452,8 @@ pub fn register_core(reg: &mut Registry) {
         Box::pin(async move {
             let a: McpIdArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
             let st = app.state::<crate::mcp_commands::McpState>();
-            crate::mcp_commands::cmd_mcp_disconnect(st, a.id).await.map(|_| Value::Null)
+            let svc = app.state::<agent_commands::AgentCommandService>();
+            crate::mcp_commands::cmd_mcp_disconnect(st, svc, a.id).await.map(|_| Value::Null)
         })
     }));
     reg.register("cmd_mcp_list_tools", Arc::new(move |app, args| {
@@ -461,7 +477,118 @@ pub fn register_core(reg: &mut Registry) {
         Box::pin(async move {
             let a: McpIdArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
             let st = app.state::<crate::mcp_commands::McpState>();
-            crate::mcp_commands::cmd_mcp_delete(st, a.id).await.map(|_| Value::Null)
+            let svc = app.state::<agent_commands::AgentCommandService>();
+            crate::mcp_commands::cmd_mcp_delete(st, svc, a.id).await.map(|_| Value::Null)
+        })
+    }));
+
+    // ── Skills Store（商城六命令 · 风险点② 补桥 2026-08-30）──
+    // 全部为同步 fn（含 reqwest::blocking 下载与 fs IO）——不可在 tokio 上下文直呼，
+    // 统一 spawn_blocking 到阻塞线程池（download_manifest/install 尤其必须，否则 panic）。
+    #[derive(Deserialize)]
+    struct SkillsUrlArgs {
+        url: String,
+    }
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct SkillsInstallArgs {
+        download_url: String,
+        #[serde(default)]
+        path_in_archive: String,
+        #[serde(default)]
+        sha256_expected: String,
+        skill_id: String,
+    }
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct SkillsIdArgs {
+        skill_id: String,
+    }
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct SkillsImportArgs {
+        skill_id: String,
+        skill_yaml: String,
+        skill_md: Option<String>,
+    }
+    reg.register("cmd_skills_download_manifest", Arc::new(move |_app, args| {
+        Box::pin(async move {
+            let a: SkillsUrlArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
+            tauri::async_runtime::spawn_blocking(move || {
+                crate::skills_store::cmd_skills_download_manifest(a.url)
+            })
+            .await
+            .map_err(|e| format!("spawn_blocking 失败: {e}"))?
+            .map(|r| to_value(r).unwrap_or(Value::Null))
+        })
+    }));
+    reg.register("cmd_skills_install", Arc::new(move |app, args| {
+        let app = app.clone();
+        Box::pin(async move {
+            let a: SkillsInstallArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
+            let app2 = app.clone();
+            tauri::async_runtime::spawn_blocking(move || {
+                crate::skills_store::cmd_skills_install(
+                    app2,
+                    a.download_url,
+                    a.path_in_archive,
+                    a.sha256_expected,
+                    a.skill_id,
+                )
+            })
+            .await
+            .map_err(|e| format!("spawn_blocking 失败: {e}"))?
+            .map(|r| to_value(r).unwrap_or(Value::Null))
+        })
+    }));
+    reg.register("cmd_skills_uninstall", Arc::new(move |app, args| {
+        let app = app.clone();
+        Box::pin(async move {
+            let a: SkillsIdArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
+            let app2 = app.clone();
+            tauri::async_runtime::spawn_blocking(move || {
+                crate::skills_store::cmd_skills_uninstall(app2, a.skill_id)
+            })
+            .await
+            .map_err(|e| format!("spawn_blocking 失败: {e}"))?
+            .map(|r| to_value(r).unwrap_or(Value::Null))
+        })
+    }));
+    reg.register("cmd_skills_get_installed_versions", Arc::new(move |app, _args| {
+        let app = app.clone();
+        Box::pin(async move {
+            let app2 = app.clone();
+            tauri::async_runtime::spawn_blocking(move || {
+                crate::skills_store::cmd_skills_get_installed_versions(app2)
+            })
+            .await
+            .map_err(|e| format!("spawn_blocking 失败: {e}"))?
+            .map(|r| to_value(r).unwrap_or(Value::Null))
+        })
+    }));
+    reg.register("cmd_skills_import_local", Arc::new(move |app, args| {
+        let app = app.clone();
+        Box::pin(async move {
+            let a: SkillsImportArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
+            let app2 = app.clone();
+            tauri::async_runtime::spawn_blocking(move || {
+                crate::skills_store::cmd_skills_import_local(app2, a.skill_id, a.skill_yaml, a.skill_md)
+            })
+            .await
+            .map_err(|e| format!("spawn_blocking 失败: {e}"))?
+            .map(|r| to_value(r).unwrap_or(Value::Null))
+        })
+    }));
+    reg.register("cmd_skills_get_dir", Arc::new(move |app, _args| {
+        let app = app.clone();
+        Box::pin(async move {
+            let app2 = app.clone();
+            tauri::async_runtime::spawn_blocking(move || {
+                crate::skills_store::cmd_skills_get_dir(app2)
+            })
+            .await
+            .map_err(|e| format!("spawn_blocking 失败: {e}"))?
+            .map(|r| to_value(r).unwrap_or(Value::Null))
         })
     }));
 
@@ -612,6 +739,22 @@ pub fn register_core(reg: &mut Registry) {
         Box::pin(async move {
             let st = app.state::<agent_commands::TerminalService>();
             c::terminal_list_sessions(st).await.map(|r| to_value(r).unwrap_or(Value::Null))
+        })
+    }));
+
+    // 7.1 真终端：增量拉取 / resize（浏览器端与桌面端一致）
+    reg.register("terminal_poll_output", Arc::new(move |app, args| {
+        let app = app.clone();
+        Box::pin(async move {
+            let st = app.state::<agent_commands::TerminalService>();
+            c::terminal_poll_output(st, unwrap_args(args)).await.map(|r| to_value(r).unwrap_or(Value::Null))
+        })
+    }));
+    reg.register("terminal_resize", Arc::new(move |app, args| {
+        let app = app.clone();
+        Box::pin(async move {
+            let st = app.state::<agent_commands::TerminalService>();
+            c::terminal_resize(st, unwrap_args(args)).await.map(|r| to_value(r).unwrap_or(Value::Null))
         })
     }));
 

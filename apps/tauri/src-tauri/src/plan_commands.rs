@@ -118,7 +118,17 @@ impl Tool for PlanCreateTool {
             return Err(ToolError::ArgsParse("计划至少包含一个有效步骤".into()));
         }
 
-        Ok(serde_json::json!({ "items": items }))
+        // 2026-09-02 待办串行执行规范：随工具结果回传给模型（最强引导位置）——
+        // 步骤代表实际工作任务；严格「in_progress → 执行真实工具 → completed」逐条推进。
+        let usage = concat!(
+            "执行规范（必须遵守）：\n",
+            "1. 每个步骤代表一项实际工作任务，禁止把「创建计划」本身当作步骤完成。\n",
+            "2. 严格串行：立即将第 1 个步骤设为 in_progress，然后执行该步骤的真实工作（调用 read_file/execute_command 等工具），",
+            "完成后才将其设为 completed；随后再将下一个步骤设为 in_progress，重复此过程。\n",
+            "3. 任何时刻只允许一个步骤处于 in_progress；禁止跳过执行直接把步骤标为 completed。\n",
+            "4. 全部步骤完成后，才输出最终总结。"
+        );
+        Ok(serde_json::json!({ "items": items, "usage": usage }))
     }
 }
 
@@ -135,7 +145,10 @@ impl Tool for PlanUpdateTool {
 
     fn description(&self) -> &str {
         "更新任务计划中某项的状态。传入由 plan_create 返回的 item_id 与目标状态 \
-         (pending / in_progress / completed / skipped / failed)。"
+         (pending / in_progress / completed / skipped / failed)。\
+         严格串行推进：先把当前步骤设为 in_progress，执行其真实工作（调用其他工具），\
+         完成后才设为 completed；任何时刻只有一个步骤处于 in_progress，\
+         禁止跳过执行直接标记 completed。"
     }
 
     fn parameters(&self) -> serde_json::Value {

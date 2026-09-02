@@ -103,8 +103,6 @@ pub struct AgentLoop {
     /// 选用 `std::sync::Mutex` 而非 `tokio::sync::Mutex` 的原因：
     /// 临界区极短（仅读写一个 `Option<Instant>`），不涉及 await，同步锁开销更低。
     last_llm_call_time: Arc<std::sync::Mutex<Option<Instant>>>,
-    /// 最近一次 Deep Mode 阶段标签，详细见 docs/details/注释/agent-runtime/agent.md
-    last_phase_label: Arc<StdRwLock<Option<String>>>,
     /// 内建 LoopController（Loop Engineering 批次5 新增）
     ///
     /// 聚合 RateLimiter/RetryPolicy/SoftTimeout/Watchdog，在 ReAct 循环内部自动驱动。
@@ -176,7 +174,6 @@ impl AgentLoop {
         let long_task_manager = Arc::new(LongTaskManager::new());
         let last_user_text = Arc::new(StdRwLock::new(String::new()));
         let last_llm_call_time = Arc::new(std::sync::Mutex::new(None));
-        let last_phase_label = Arc::new(StdRwLock::new(None));
         // 默认配置启用内建 LoopController（宽松配置），后续 with_loop_control 可覆盖
         let loop_controller = Arc::new(LoopController::new(LoopControlConfig::default()));
         let loop_control_warned = Arc::new(AtomicBool::new(false));
@@ -205,7 +202,6 @@ impl AgentLoop {
             long_task_manager,
             last_user_text,
             last_llm_call_time,
-            last_phase_label,
             loop_controller,
             loop_control_warned,
             usage,
@@ -382,6 +378,17 @@ impl AgentLoop {
         }
     }
 
+    /// 运行时更新会话 system prompt（H5 风险点③ 动态刷新，2026-08-30）：
+    /// 技能索引/规则文件中途变更时由命令层调用，下一轮 build_prompt_options
+    /// 即从 config.system_prompt 构建新的 system_prompt_override——旧会话立即生效。
+    pub async fn set_system_prompt(&self, system_prompt: Option<String>) {
+        if let Ok(mut guard) = self.config.write() {
+            guard.system_prompt = system_prompt;
+        } else {
+            warn!("set_system_prompt: config RwLock poisoned, 未更新");
+        }
+    }
+
     /// 读取配置快照
     fn config_snapshot(&self) -> AgentLoopConfig {
         self.config
@@ -411,6 +418,16 @@ impl AgentLoop {
     /// 会话使用同一个 LLM Provider 配置。
     pub fn node_backend(&self) -> Arc<dyn NodeBackendAccessor> {
         Arc::clone(&self.backend)
+    }
+
+    /// 获取会话绑定的工作区根目录（构造 ToolContext 注入工具执行，FS 边界用）
+    pub fn workdir(&self) -> Option<std::path::PathBuf> {
+        self.workdir.read().ok().and_then(|g| g.clone())
+    }
+
+    /// 获取会话绑定的 Workspace 实体 id（构造 ToolContext 注入工具执行，Phase A）
+    pub fn workspace_id(&self) -> Option<String> {
+        self.workspace_id.read().ok().and_then(|g| g.clone())
     }
 
     /// 获取内部 ToolBus 访问器（供 Supervisor 编排节点为子 Agent 提供共享工具）
@@ -451,6 +468,29 @@ impl AgentLoop {
     /// 追加消息到会话历史（不触发执行；命令层编排路径收口入环用——X1 持久化缺口修复）
     pub async fn append_messages(&self, msgs: Vec<OrchestratorMessage>) {
         self.state.lock().await.messages.extend(msgs);
+    }
+
+    /// R6 第二部分：把值按追加语义 merge 进「最后一条 assistant 消息」的 meta[key]
+    /// （无 assistant 消息则忽略；meta 槽不存在则新建数组）——动作段事件持久化零迁移载体。
+    pub async fn merge_last_assistant_meta(&self, key: &str, values: Vec<serde_json::Value>) {
+        if values.is_empty() {
+            return;
+        }
+        let mut state = self.state.lock().await;
+        if let Some(m) = state
+            .messages
+            .iter_mut()
+            .rev()
+            .find(|m| m.role == crate::types::MessageRole::Assistant)
+        {
+            let meta = m.meta.get_or_insert_with(std::collections::HashMap::new);
+            let entry = meta
+                .entry(key.to_string())
+                .or_insert_with(|| serde_json::Value::Array(Vec::new()));
+            if let Some(arr) = entry.as_array_mut() {
+                arr.extend(values);
+            }
+        }
     }
 
     /// A4 Plan-Exec：获取当前任务计划（None=无计划）
@@ -505,15 +545,6 @@ impl AgentLoop {
         }))
         .await;
 
-        // P2 Deep Mode：每轮重置阶段缓存，确保新一轮首个工具必定触发
-        // DeepPhaseChanged 事件（None → 当前阶段），与前端 agent_start 重置
-        // deepSegments 对齐。否则同阶段的连续轮次不会发事件，前端 UI 缺失首工具。
-        {
-            if let Ok(mut guard) = self.last_phase_label.write() {
-                *guard = None;
-            }
-        }
-
         // [RunPhase::BeforeReact] 内置织入（组织化内部方法）+ 钩子调度
         // 1. 记忆闭环（recall → inject → memory_context）见 run_recall_memory
         // 2. 四管线路由决策（decide → pipeline_context + RouterDecisionMade）见 run_router_decision
@@ -559,6 +590,11 @@ impl AgentLoop {
                 meta: None,
             });
             state.current_iteration = 0;
+            // 新用户消息 = 新任务周期：重置总步骤预算计数与预算通知标志
+            state.total_steps_used = 0;
+            state.budget_warn_80_notified = false;
+            state.budget_warn_95_notified = false;
+            state.budget_final_notified = false;
         }
 
         // 广播 UserMessage
@@ -803,23 +839,24 @@ impl AgentLoop {
                 return Err(AgentError::Aborted);
             }
 
-            // 检查迭代次数
-            {
+            // 总步骤预算检查：软提醒（80%/95%/100% 收尾提示 + StepBudgetWarning 事件），
+            // 超过预算（最终收尾步后仍未收敛）→ 熔断返回（错误类型与崩溃/超时可区分）。
+            // 计数口径 = 工具调用轮数（Claude Code maxTurns 同款）——每轮含工具调用计 1 步。
+            let (used_steps, step_limit) = {
                 let mut state = self.state.lock().await;
                 state.current_iteration += 1;
-                if state.current_iteration > config_snapshot.max_iterations {
-                    error!(
-                        "超过最大迭代次数: {}",
-                        config_snapshot.max_iterations
-                    );
-                    return Err(AgentError::MaxIterationsExceeded(
-                        config_snapshot.max_iterations,
-                    ));
-                }
                 debug!(
                     "ReAct 循环第 {} 轮",
                     state.current_iteration
                 );
+                (
+                    state.total_steps_used,
+                    config_snapshot.total_steps.max(1),
+                )
+            };
+            if let Some(exhausted) = self.apply_step_budget(used_steps, step_limit).await {
+                error!("总步骤预算耗尽: {used_steps}/{step_limit}");
+                return Err(AgentError::TotalStepsReached(exhausted));
             }
 
             // 内建 LoopController 驱动（批次5），详细见 docs/details/注释/agent-runtime/agent.md
@@ -932,94 +969,15 @@ impl AgentLoop {
             // 执行工具
             let tool_results = self.execute_tool_calls(tool_calls).await?;
 
-            // 捕获主工具执行状态（阶段 P2 扩展：DeepPhaseChanged 事件补充 tool_status）
-            // tool_results 顺序与 tool_calls 一致（串行/并行均按原索引），第一个即主工具。
-            // 失败判定（结构化解析）：工具结果 content 是 JSON 字符串，顶层含非 null 的
-            // "error" 键即视为失败（execute_tool_calls_serial/parallel 失败时写入
-            // `{"error": ..., "tool": ...}`）。替代原先的字符串 contains 匹配，避免误判
-            // 成功数据中恰好出现的 "error" 文本。
-            let main_tool_status = tool_results.first().map(|r| {
-                // 注意：闭包内完成布尔计算，避免返回对临时 Value 的引用（借用生命周期问题）
-                let is_failed = serde_json::from_str::<serde_json::Value>(&r.content)
-                    .ok()
-                    .map(|v| v.get("error").map(|e| !e.is_null()).unwrap_or(false))
-                    .unwrap_or(false);
-                if is_failed {
-                    crate::event::ToolStatus::Failed
-                } else {
-                    crate::event::ToolStatus::Completed
-                }
-            });
-
             // 推入 toolResult 消息
             let current_turn_count = {
                 let mut state = self.state.lock().await;
                 for result in tool_results {
                     state.messages.push(result);
                 }
+                state.total_steps_used += 1; // 本轮含工具调用 → 计 1 步（工具调用轮数口径）
                 state.current_iteration
             };
-
-            // 事件驱动 checkpoint 更新（批次3.3 + P2 阶段判定），详细见 docs/details/注释/agent-runtime/agent.md
-            let current_phase_label = tool_name_for_checkpoint
-                .as_ref()
-                .map(|tool_name| crate::deep_phases::classify_tool(tool_name).0.to_string());
-
-            // 阶段切换检测：当前阶段与缓存不同则广播事件
-            //
-            // 风险点1处理（阶段完成标记精确化）：切换时广播"双事件"——
-            //   1. 若存在旧阶段，先广播"旧阶段完成"事件（phase_completed=true），
-            //      前端据此把对应 phase 段标记为 done；
-            //   2. 再广播"新阶段进入"事件（phase_completed=false），前端据此新建/激活阶段段。
-            // 这样 `phase_completed` 不再是恒 false，而具有真实语义。
-            {
-                let prev_phase = self
-                    .last_phase_label
-                    .read()
-                    .map(|g| g.clone())
-                    .unwrap_or(None);
-                if current_phase_label.as_deref() != prev_phase.as_deref() {
-                    if let Some(tool_name) = &tool_name_for_checkpoint {
-                        let (label, idx) = crate::deep_phases::classify_tool(tool_name);
-                        let tool_status =
-                            main_tool_status.unwrap_or(crate::event::ToolStatus::Completed);
-                        debug!(
-                            "Deep Mode 阶段切换：{:?} → {:?}（触发工具: {}）",
-                            prev_phase, label, tool_name
-                        );
-
-                        // 1. 旧阶段完成事件（若存在旧阶段）
-                        if let Some(prev_label) = &prev_phase {
-                            let prev_idx = crate::deep_phases::phase_index_by_label(prev_label)
-                                .unwrap_or(crate::deep_phases::OTHER_PHASE_INDEX);
-                            self.broadcast(OrchestratorEvent::DeepPhaseChanged {
-                                node_id: String::new(), // 由 Tauri 端按 session 填充
-                                phase_label: prev_label.clone(),
-                                phase_index: prev_idx,
-                                trigger_tool: tool_name.clone(),
-                                tool_status,
-                                phase_completed: true, // 旧阶段已完成
-                            })
-                            .await;
-                        }
-
-                        // 2. 新阶段进入事件
-                        self.broadcast(OrchestratorEvent::DeepPhaseChanged {
-                            node_id: String::new(), // 由 Tauri 端按 session 填充
-                            phase_label: label.to_string(),
-                            phase_index: idx,
-                            trigger_tool: tool_name.clone(),
-                            tool_status,
-                            phase_completed: false, // 新阶段刚激活，尚未完成
-                        })
-                        .await;
-                    }
-                    // 更新缓存（不跨 await 持锁）
-                    if let Ok(mut guard) = self.last_phase_label.write() {
-                        *guard = current_phase_label.clone();
-                    }
-                }
-            }
 
             // [RunPhase::OnToolCall] 钩子调度（观察每轮工具调用；tool_name 由本循环暂存）
             if !self.hooks.is_empty() {
@@ -1039,7 +997,7 @@ impl AgentLoop {
                     .checkpoint(
                         Some(current_turn_count),
                         tool_name_for_checkpoint,
-                        current_phase_label,
+                        None, // 三模式移除（2026-08-31）：无 DeepPhase 当前阶段语义
                         new_checkpoint,
                     )
                     .await;
@@ -1068,6 +1026,10 @@ impl AgentLoop {
         let mut state = self.state.lock().await;
         state.messages.clear();
         state.current_iteration = 0;
+        state.total_steps_used = 0;
+        state.budget_warn_80_notified = false;
+        state.budget_warn_95_notified = false;
+        state.budget_final_notified = false;
         state.aborted = true; // 标记为已销毁，防止后续 run
         self.is_streaming.store(false, Ordering::SeqCst);
         // 同步停止长任务心跳定时器，避免泄漏

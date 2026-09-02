@@ -70,7 +70,9 @@ export function isProtectedProjectPath(workdir: string, path: string): boolean {
  * - 无 workdir（未绑定工作区）→ 返回原路径 ok:true（显式未加固，写类由调用方额外拦截）
  * - 相对路径 → join workdir（归一分隔符）
  * - 绝对路径且在 workdir 内 → 原样返回
- * - 绝对路径且越出 workdir → ok:false + reason（拒绝：路径在 workspace 之外）
+ * - 绝对路径在 workdir 外但命中 extraWritablePaths 白名单（精确整路径匹配，
+ *   2026-08-30 拍板：MCP 配置文件 mcp.json 全局单份、Agent 可编辑）→ 原样返回
+ * - 其余绝对路径越出 workdir → ok:false + reason（拒绝：路径在 workspace 之外）
  */
 export function resolveWithinWorkspace(ctx: IToolContext, path: string): { path: string; ok: boolean; reason?: string } {
   const workdir = ctx.workspace?.workdir
@@ -81,7 +83,20 @@ export function resolveWithinWorkspace(ctx: IToolContext, path: string): { path:
   if (isWithinDirectory(workdir, path)) {
     return { path, ok: true }
   }
+  if (isExtraWritablePath(ctx.workspace?.extraWritablePaths, path)) {
+    return { path, ok: true }
+  }
   return { path, ok: false, reason: '拒绝：路径在 workspace 之外' }
+}
+
+/**
+ * extraWritablePaths 判定：path 是否精确命中放行文件（词法归一 + 小写，
+ * 兼容 Windows 大小写差异）。仅整路径匹配文件本身，不做目录前缀放行。
+ */
+export function isExtraWritablePath(extras: readonly string[] | undefined, path: string): boolean {
+  if (!extras || extras.length === 0) return false
+  const n = normalizeFsPath(path).toLowerCase()
+  return extras.some((e) => normalizeFsPath(e).toLowerCase() === n)
 }
 
 /**

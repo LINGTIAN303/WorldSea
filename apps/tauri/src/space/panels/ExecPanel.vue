@@ -55,15 +55,11 @@
           <div class="exec-card-body">
             <template v-if="sec === 'trace'">
               <TracePanel />
-              <PhaseSection :segments="deepSegments" />
               <SubAgentSection />
               <RunTreeSection />
             </template>
             <template v-else-if="sec === 'activity'">
               <ActivityLog />
-            </template>
-            <template v-else-if="sec === 'plan'">
-              <PlanPanel />
             </template>
             <template v-else-if="sec === 'router'">
               <RouterPanel />
@@ -146,33 +142,29 @@
 <script setup lang="ts">
 /**
  * ExecPanel：Agent 空间右侧执行面板（宫格首页 + 加号新增式多面板，2026-08-29）。
- * 11 个执行区（轨迹/活动/计划/Router/子Agent/ToT/GoT/委派/多Agent/终端/工作区）不再以
+ * 10 个执行区（轨迹/活动/Router/子Agent/ToT/GoT/委派/多Agent/终端/工作区；计划已移入消息流过程层内联展示）不再以
  * tab 展示，改为：无区打开时内容区显示四列宫格首页；点选/点 + 号「新增」打开，卡片纵向堆叠；
  * 已打开的区从 + 号菜单中消失；关闭某卡片即移除。状态与会话绑定（useSessionViewState）。
  */
 import { ref, computed } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
-import PhaseSection from '@/agent/components/PhaseSection.vue'
 import SubAgentSection from '@/agent/components/SubAgentSection.vue'
 import RunTreeSection from '@/agent/components/RunTreeSection.vue'
 import ActivityLog from '@/agent/panels/ActivityLog.vue'
 import TracePanel from '@/agent/panels/TracePanel.vue'
-import PlanPanel from '@/agent/panels/PlanPanel.vue'
 import RouterPanel from '@/agent/panels/RouterPanel.vue'
 import OrchestratorPanel from '@/agent/panels/OrchestratorPanel.vue'
 import MultiAgentPanel from '@/agent/panels/MultiAgentPanel.vue'
 import TerminalView from '@/terminal/components/TerminalView.vue'
 import SubAgentView from '@/subagent/components/SubAgentView.vue'
 import WorkspacePanel from '@/space/panels/WorkspacePanel.vue'
-import { useAgent } from '@/agent/composables/useAgent'
 import { useSessionViewState } from '@/agent/composables/useSessionViewState'
 import type { ExecTab } from '../stores/space-store'
 
-/** 11 个执行区元数据（宫格首页 / 卡片标题 / + 号菜单共用） */
+/** 10 个执行区元数据（宫格首页 / 卡片标题 / + 号菜单共用） */
 const EXEC_META: { id: ExecTab; label: string; icon: string }[] = [
   { id: 'trace', label: '轨迹', icon: 'activity' },
   { id: 'activity', label: '活动', icon: 'chart' },
-  { id: 'plan', label: '计划', icon: 'task' },
   { id: 'router', label: 'Router', icon: 'workflow' },
   { id: 'subagent', label: '子Agent', icon: 'user' },
   { id: 'tot', label: 'ToT', icon: 'workflow' },
@@ -184,8 +176,6 @@ const EXEC_META: { id: ExecTab; label: string; icon: string }[] = [
 ]
 
 const sessionView = useSessionViewState()
-// 执行轨迹数据（useAgentRust 模块级单例，与 AgentWorkspace 同一数据源）
-const { deepSegments } = useAgent()
 
 const openExecSections = computed<ExecTab[]>(() => sessionView.activeState.value?.openExecSections ?? [])
 

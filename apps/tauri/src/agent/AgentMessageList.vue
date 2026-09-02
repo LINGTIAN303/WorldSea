@@ -42,6 +42,7 @@
         @tool-confirm="onToolConfirm"
         @expand="onExpandProcess"
         @segment-expand="onSegmentExpand"
+        @plan-step-toggle="onPlanStepToggle"
         @scroll-to-message="scrollToMessage"
       />
 
@@ -95,6 +96,17 @@
 
       <!-- [⑥] 会话错误行：由 activity log error 项派生 -->
       <ErrorRows :error="turnError" />
+
+      <!-- total_steps 预算满额横幅：模型工具调用轮数达到上限，可「继续」（接续机制占位，见 docs 记录） -->
+      <Transition name="fade">
+        <div v-if="budgetBannerVisible" class="step-budget-banner" role="status">
+          <span class="banner-text">
+            模型调用工具轮数达到 {{ latestStepBudget?.limit }} 上限
+            （已用 {{ latestStepBudget?.used }} 轮）
+          </span>
+          <button class="banner-continue" @click="onBudgetContinue">继续↗</button>
+        </div>
+      </Transition>
     </div>
 
     <!-- 用户消息点状导航（保留为可选，不再按模式隐藏） -->
@@ -124,23 +136,46 @@ import { useActivityLog } from './composables/useActivityLog'
 import { useArchiveStore } from '../stores/archiveStore'
 import { watchDebounced } from '@worldsmith/perf-kit/render'
 import type { AgentMessage } from '@agent/index'
-import type { AgentStreamItem } from '@worldsmith/shared-composables/agent/useAgent'
+import type { AgentStreamItem, ChatMode } from '@worldsmith/shared-composables/agent/useAgent'
 import { useDotAnimation, useMessageWindowing, useProcessCollapse, MessageListEmpty, ArchivedSection, StreamingPlaceholder, ScrollToBottomButton, DotNav, TurnStatus, ErrorRows } from '@worldsmith/shared-ui/agent/message-list'
 // M2：编排迹线（useOrchestrationTrace 聚合 + 编排段渲染）
 import OrchestrationSegment from './components/OrchestrationSegment.vue'
 import { useOrchestrationTrace } from './composables/useOrchestrationTrace'
 import { useSessionViewState } from './composables/useSessionViewState'
 import { invoke } from './composables/transport'
+import { useAgentRust } from './composables/useAgentRust'
 import type { ExecTab } from '@/space/stores/space-store'
 import WorldSmithLogo from '@/components/brand/WorldSmithLogo.vue'
 
 const { enterAnimation } = usePersonaFont()
-const { agentStream, isStreaming: agentIsStreaming, resolveToolConfirmation, sessionTitlePending, currentSessionId, setProcessCollapsed, markTurnExpanded, autoCollapseProcess, turns } = useAgent()
+const { agentStream, isStreaming: agentIsStreaming, resolveToolConfirmation, sessionTitlePending, currentSessionId, setProcessCollapsed, markTurnExpanded, autoCollapseProcess, turns, applyTurnEvent } = useAgent()
 const archiveStore = useArchiveStore()
 const { logs: activityLogs } = useActivityLog()
+// total_steps 预算横幅：latestStepBudget 由 event bridge 流通道 step_budget_warning 刷新
+const agentRust = useAgentRust()
+const { latestStepBudget, clearStepBudgetHint, sendMessage: sendAgentMessage } = agentRust
 // M2：编排迹线（状态由 useAgentRust 会话生命周期统一维护，本组件纯消费）+ 中止处理
 const { activeRun, finishedRuns } = useOrchestrationTrace()
 const sessionViewState = useSessionViewState()
+
+/** 预算横幅可见：满额（percent≥100）+ 当前会话（避免历史会话残留横幅） */
+const budgetBannerVisible = computed(() => {
+  const b = latestStepBudget.value
+  if (!b || b.percent < 100) return false
+  if (!currentSessionId.value) return false
+  return true
+})
+
+/**
+ * 「继续↗」占位实现（2026-09-01）：
+ * 直接发送「继续执行」推进任务——新用户消息会重置 total_steps 计数（agent/mod.rs 新用户消息重置），
+ * 模型在既有上下文中继续行动。语义=接续，但更完善的接续机制（预算续期/上下文裁剪/子任务续跑）
+ * 记入待办——docs/plans/2026-09-01-系统触达面补齐调研.md §七 7.2「接续机制完善」。
+ */
+async function onBudgetContinue(): Promise<void> {
+  clearStepBudgetHint()
+  await sendAgentMessage('继续执行')
+}
 
 /** M3 详图驱动：点击编排段入口卡 → 右栏 ExecPanel 切到对应详图 tab（A4）；tab 来自组件内固定映射，运行时安全 */
 function onOpenDetail(tab: string): void {
@@ -208,6 +243,15 @@ function onSegmentExpand(turnId: string): void {
   markTurnExpanded(turnId)
 }
 
+/** 2026-09-02 计划步骤折叠切换：归约驱动 turnModel plan_step_toggle（翻转 stepCollapsed） */
+function onPlanStepToggle(payload: { turnId: string; stepId: string }): void {
+  applyTurnEvent(currentSessionId.value, {
+    type: 'plan_step_toggle',
+    turnId: payload.turnId,
+    stepId: payload.stepId,
+  })
+}
+
 const props = withDefaults(defineProps<{
   messages: Array<AgentMessage>
   isStreaming: boolean
@@ -216,7 +260,7 @@ const props = withDefaults(defineProps<{
   a2uiSurfaces: Record<string, any>
   resolveDataBinding: (binding: any, dataModel: Record<string, unknown>) => any
   /** @deprecated legacy：不再驱动渲染形态（列表层已全面用 agentStream 事件行流） */
-  chatMode?: 'deep' | 'explore' | 'task' | 'group-chat'
+  chatMode?: ChatMode
   /** @deprecated legacy：不再驱动渲染形态 */
   useDeepLayout?: boolean
 }>(), {
@@ -399,6 +443,36 @@ defineExpose({
   width: 100%;
   flex-shrink: 0;
   pointer-events: none;
+}
+
+/* total_steps 预算满额横幅：弱化警示条（非报错红），强调「继续」动作。fade 过渡与全局一致 */
+.step-budget-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 6px 0;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm, 6px);
+  border: 1px solid var(--color-border, var(--border));
+  background: var(--bg-muted, var(--color-surface-elevated));
+  font-size: var(--font-size-xs, 12px);
+  color: var(--color-text-secondary);
+}
+.banner-continue {
+  flex-shrink: 0;
+  padding: 3px 12px;
+  border-radius: var(--radius-pill, 14px);
+  border: 1px solid var(--color-primary);
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  font-size: var(--font-size-xs, 12px);
+  font-family: inherit;
+  cursor: pointer;
+  transition: background var(--dur-fast, 0.15s);
+}
+.banner-continue:hover {
+  background: color-mix(in srgb, var(--color-primary) 18%, transparent);
 }
 
 /* Phase 5：会话标题生成中等候动画 */

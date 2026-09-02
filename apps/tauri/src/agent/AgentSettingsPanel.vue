@@ -7,7 +7,7 @@
       @mousedown.left="!embedded && onDragStart($event)"
     >
       <div v-if="!embedded" class="settings-drag-handle">
-        <span class="menu-title"><WsIcon name="settings" size="sm" /> AI 助手设置</span>
+        <span class="menu-title"><WsIcon name="settings" size="sm" /> Agent 设置</span>
         <button class="menu-close-btn" title="关闭" aria-label="关闭" @click="emit('close')">
           <WsIcon name="close" :size="13" :stroke-width="1.7" />
         </button>
@@ -125,10 +125,10 @@
                   @remove-mcp="(serverId) => emit('remove-mcp', serverId)"
                 />
               </template>
-              <!-- 规则卡片（H5 规则工程 P2：WORLDSMITH.md 项目规则，新会话自动注入） -->
+              <!-- 规则卡片（H5 八文件体系 2026-08-30：规则卡片面板，八文件统一编辑入口） -->
               <template v-else-if="idx === 3">
                 <div class="agent-set-head">规则</div>
-                <ProjectRulesEditor />
+                <RulesPanel />
               </template>
               </div>
             </template>
@@ -147,9 +147,6 @@
             :max-context-length="maxContextLength"
             :max-output-tokens="maxOutputTokens"
             :max-temperature="maxTemperature"
-            :chat-mode="chatMode"
-            :chat-modes="[...chatModes]"
-            :locked-chat-mode="lockedChatMode"
             :cloud-api-key="cloudApiKey"
             :custom-api-key="customApiKey"
             :fetched-models="fetchedModels"
@@ -162,7 +159,6 @@
             @update:cloud-api-key="cloudApiKey = $event"
             @update:custom-api-key="customApiKey = $event"
             @model-change="(provider, modelId) => emit('model-change', provider, modelId)"
-            @chat-mode-change="(mode) => emit('chat-mode-change', mode)"
             @provider-change="(provider, modelId) => emit('provider-change', provider, modelId)"
             @fetch-models="onFetchModels"
           />
@@ -187,7 +183,7 @@
                 <span class="settings-row-label">危险操作确认</span>
                 <label class="settings-toggle"><input type="checkbox" v-model="settingsStore.aiDangerConfirm" /><span class="settings-toggle-slider"></span></label>
               </div>
-              <div class="settings-hint">开启后 AI 删除实体/关系时需用户确认</div>
+              <div class="settings-hint">开启后 Agent 删除实体/关系时需用户确认</div>
             </div>
             <!-- A7：工具安全级别（三档，运行时切换 Rust 侧确认策略） -->
             <div class="settings-section">
@@ -199,9 +195,9 @@
           <!-- 人格预设面板（内联，对应视觉稿边界与个性组） -->
           <div v-else-if="settingsSubPanel === 'persona'" key="persona" class="sub-panel">
             <div class="settings-section">
-              <div class="settings-label">AI 人格预设</div>
+              <div class="settings-label">Agent 人格预设</div>
               <TuiSelect :model-value="personaPreset" :options="personaOptions" @update:model-value="onPersonaPresetChange" />
-              <div class="settings-hint">定义 AI 的表达风格与角色倾向，切换后后续对话生效</div>
+              <div class="settings-hint">定义 Agent 的表达风格与角色倾向，切换后后续对话生效</div>
             </div>
           </div>
           <!-- 用量面板 -->
@@ -230,8 +226,8 @@
           <!-- 多模态面板 -->
           <VisionPanel v-else-if="settingsSubPanel === 'vision'" key="vision" />
           <!-- Skills 面板（短子面板，内联） -->
-          <!-- H5 规则工程（P2）：项目规则编辑（WORLDSMITH.md，新会话自动注入） -->
-          <ProjectRulesEditor v-else-if="settingsSubPanel === 'rules'" key="rules" />
+          <!-- H5 八文件体系（2026-08-30）：规则卡片面板（rules 子面板入口） -->
+          <RulesPanel v-else-if="settingsSubPanel === 'rules'" key="rules" />
           <div v-else-if="settingsSubPanel === 'skills'" key="skills" class="sub-panel">
             <div class="skills-list">
               <div v-for="skill in skills" :key="skill.id" class="skill-item" :class="{ disabled: !skill.enabled }">
@@ -275,9 +271,6 @@
     :max-context-length="maxContextLength"
     :max-output-tokens="maxOutputTokens"
     :max-temperature="maxTemperature"
-    :chat-mode="chatMode"
-    :chat-modes="[...chatModes]"
-    :locked-chat-mode="lockedChatMode"
     :cloud-api-key="cloudApiKey"
     :custom-api-key="customApiKey"
     :fetched-models="fetchedModels"
@@ -310,7 +303,7 @@
 import { ref, computed } from 'vue'
 import { WsIcon, CardDeck } from '@worldsmith/ui-kit'
 import TuiSelect from '../components/ui/TuiSelect.vue'
-import ProjectRulesEditor from '@/space/panels/ProjectRulesEditor.vue'
+import RulesPanel from '@/space/panels/RulesPanel.vue'
 import { usePanelDrag } from './composables/usePanelDrag'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useModelApiKeyConfig } from './composables/useModelApiKeyConfig'
@@ -328,8 +321,10 @@ import ModelsSection from './panels/model/ModelsSection.vue'
 import ProviderTypeDialog from './panels/model/ProviderTypeDialog.vue'
 import ModelParamsDialog from './panels/model/ModelParamsDialog.vue'
 import { getModelInfo } from '@worldsmith/agent-runtime'
+import { useAgentRust } from './composables/useAgentRust'
 
 const settingsStore = useSettingsStore()
+const { updateModel } = useAgentRust()
 
 const props = withDefaults(defineProps<{
   visible: boolean
@@ -346,9 +341,6 @@ const props = withDefaults(defineProps<{
   personaPreset: string
   thinkingLevel: string
   thinkingLevels: Array<{ value: string; label: string; desc: string }>
-  chatMode: string
-  chatModes: ReadonlyArray<{ value: string; icon: string; label: string; desc: string }>
-  lockedChatMode: string | null
   totalUsage: { requestCount: number; inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number; totalCost: number; savedByCache: number }
   calculatedCost: { inputCost: number; outputCost: number; cacheReadCost: number; cacheWriteCost: number; total: number; savedByCache: number }
   cumulativeUsage: { requestCount: number; inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number; totalCost: number; savedByCache: number }
@@ -360,7 +352,6 @@ const props = withDefaults(defineProps<{
   embedded?: boolean
 }>(), {
   embedded: false,
-  lockedChatMode: null,
 })
 
 const emit = defineEmits<{
@@ -372,7 +363,6 @@ const emit = defineEmits<{
   'update:personaPreset': [value: string]
   'model-change': [provider: string, modelId: string]
   'thinking-level-change': [level: string]
-  'chat-mode-change': [mode: string]
   'search-engine-change': [engine: string]
   'search-apikey-change': [key: string]
   'toggle-skill': [skillId: string]
@@ -471,9 +461,28 @@ const dialogModelInfo = computed(() => {
   if (modelDialog.value?.kind !== 'model') return null
   return getModelInfo(modelDialog.value.model.id) ?? null
 })
-/** 模型参数保存：模型级预设已写 localStorage；TopP/TopK/思考模式/图片输入经此透出，待后端传导（里程碑 A 契约） */
-function onModelParamsSave(_params: { contextLength: number; maxTokens: number; temperature: number; topP: number; topK: number; thinking: boolean; inputImage: boolean }): void {
-  // 目前仅落 localStorage（ModelParamsDialog 内已写）；后端传导在 CONTRACT 阶段接入
+/** 模型参数保存：模型级预设已写 localStorage + 传导 Rust 会话（采样参数 + 总步骤预算） */
+function onModelParamsSave(params: { contextLength: number; maxTokens: number; temperature: number; topP: number; topK: number; totalSteps: number; thinking: boolean; inputImage: boolean }): void {
+  // 模型参数保存链（2026-09-01 接通 CONTRACT 缺口）：
+  // - localStorage 已在 ModelParamsDialog 内写入（按模型 id 键存，表单重建时读回）
+  // - 此处向 Rust 会话传导采样参数 + 总步骤预算（temperature/topP/topK/maxTokens/totalSteps）
+  //   updateModel 会写 AgentLoopConfig（topP 内部 ÷100；totalSteps clamp 1~500）
+  const provider = props.currentProvider
+  const modelId = props.currentModelId
+  if (!provider || !modelId) return
+  void updateModel(
+    provider,
+    modelId,
+    undefined,
+    undefined,
+    undefined,
+    params.maxTokens,
+    params.temperature,
+    params.topP,
+    params.topK,
+    params.thinking,
+    params.totalSteps,
+  )
 }
 
 /** 子面板纵向分组导航（模型与推理 / 能力与工具 / 边界与个性） */
@@ -1015,14 +1024,7 @@ const securityOptions: Array<{ value: string; label: string }> = [
 .mcp-add-actions { display: flex; gap: 6px; justify-content: flex-end; }
 .mcp-delete-btn { background: none; border: none; cursor: pointer; font-size: var(--font-size-xs); padding: 2px 4px; opacity: 0.4; transition: opacity 0.15s; }
 .mcp-delete-btn:hover { opacity: 1; }
-.mcp-presets { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--agent-border); }
-.mcp-presets-title { font-size: var(--font-size-xs); color: var(--agent-text-tertiary); margin-bottom: 6px; font-family: var(--agent-font); }
-.mcp-presets-grid { display: flex; flex-wrap: wrap; gap: 4px; }
-.preset-btn { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 5px 8px; border-radius: var(--radius-sm); border: 1px solid var(--agent-border); background: var(--agent-hover-bg); cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s; min-width: 90px; }
-.preset-btn:hover:not(:disabled) { border-color: var(--agent-accent); background: color-mix(in srgb, var(--agent-primary) 8%, transparent); }
-.preset-btn.added { opacity: 0.4; cursor: default; }
-.preset-name { font-size: var(--font-size-xs); font-weight: var(--font-weight-medium); color: var(--agent-text); font-family: var(--agent-font); }
-.preset-desc { font-size: var(--text-micro-font-size); color: var(--agent-text-tertiary); font-family: var(--agent-font); }
+
 
 .chat-mode-grid {
   display: grid;

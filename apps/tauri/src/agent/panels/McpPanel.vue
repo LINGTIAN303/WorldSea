@@ -45,32 +45,31 @@
           <input type="text" class="settings-input" v-model="mcpForm.argsStr" placeholder="-y @mcp/server-filesystem /tmp" />
         </div>
       </template>
+      <div v-if="mcpForm.transport !== 'stdio'" class="settings-row">
+        <span class="sp-row-label">Headers</span>
+        <input type="text" class="settings-input" v-model="mcpForm.headersStr" placeholder="每行一个，如 Authorization: Bearer xxx 或 X-API-Key: abc" />
+      </div>
       <div class="mcp-add-actions">
         <button class="sub-panel-btn" @click="emit('add-mcp', mcpFormData)">确认</button>
         <button class="sub-panel-btn" @click="mcpAdding = false">取消</button>
       </div>
     </div>
     <button v-else class="sub-panel-btn" @click="mcpAdding = true" style="width:100%">+ 手动添加</button>
-    <div class="mcp-presets">
-      <div class="mcp-presets-title">官方预设</div>
-      <div class="mcp-presets-grid">
-        <button v-for="(preset, idx) in MCP_PRESETS" :key="preset.name"
-          class="preset-btn" :class="{ added: mcpPresetAdded[idx] }"
-          @click="addPreset(preset)" :disabled="mcpPresetAdded[idx]">
-          <span class="preset-name">{{ preset.name }}</span>
-          <span class="preset-desc">{{ preset.desc }}</span>
-        </button>
-      </div>
+    <div class="settings-hint">
+      MCP 服务扩展 AI 助手的外部工具能力
+      <template v-if="configPath">
+        <br />配置文件（用户与 Agent 均可直接编辑，改动保存后需重连生效）：<br />
+        <code class="mcp-config-path" :title="configPath">{{ configPath }}</code>
+      </template>
     </div>
-    <div class="settings-hint">MCP 服务扩展 AI 助手的外部工具能力</div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
 import TuiSelect from '../../components/ui/TuiSelect.vue'
-import type { MCPConnectionConfig } from '@agent/index'
+import { invokeRpc } from '../composables/transport'
 
 const props = defineProps<{
   mcpConnections: Array<{ id: string; config: { id: string; name: string; transport: string; url?: string; command?: string; args?: string[]; enabled: boolean }; status: string; tools: unknown[]; error?: string }>
@@ -118,58 +117,46 @@ const mcpForm = ref({
   url: '',
   command: '',
   argsStr: '',
+  headersStr: '',
 })
 
-// MCP 官方预设列表
-const MCP_PRESETS = [
-  { id: 'firecrawl-keyless', name: 'Firecrawl Keyless', transport: 'streamable-http' as const, url: 'https://mcp.firecrawl.dev/v2/mcp', argsStr: '', desc: '免 Key 网页搜索/抓取/爬取（每月 1000 credits）' },
-  { name: 'Filesystem', transport: 'stdio' as const, command: 'npx', argsStr: '-y @modelcontextprotocol/server-filesystem C:\\Users', desc: '安全文件操作' },
-  { name: 'Git', transport: 'stdio' as const, command: 'uvx', argsStr: 'mcp-server-git', desc: 'Git 仓库操作' },
-  { name: 'Fetch', transport: 'stdio' as const, command: 'npx', argsStr: '-y @modelcontextprotocol/server-fetch', desc: '网页内容抓取' },
-  { name: 'Memory', transport: 'stdio' as const, command: 'npx', argsStr: '-y @modelcontextprotocol/server-memory', desc: '知识图谱持久记忆' },
-  { name: 'Sequential Thinking', transport: 'stdio' as const, command: 'npx', argsStr: '-y @modelcontextprotocol/server-sequentialthinking', desc: '动态反思推理' },
-  { name: 'Time', transport: 'stdio' as const, command: 'npx', argsStr: '-y @modelcontextprotocol/server-time', desc: '时间与时区转换' },
-  { name: 'Brave Search', transport: 'stdio' as const, command: 'npx', argsStr: '-y @brave/brave-search-mcp-server', desc: 'Brave 搜索引擎' },
-  { name: 'SQLite', transport: 'stdio' as const, command: 'uvx', argsStr: 'mcp-server-sqlite', desc: 'SQLite 数据库' },
-  { name: 'Puppeteer', transport: 'stdio' as const, command: 'npx', argsStr: '-y @modelcontextprotocol/server-puppeteer', desc: '浏览器自动化' },
-]
-
-const mcpPresetAdded = computed(() => {
-  const ids = new Set(props.mcpConnections.map(c => c.config.id))
-  const names = new Set(props.mcpConnections.map(c => c.config.name))
-  return MCP_PRESETS.map(p => (p.id ? ids.has(p.id) : names.has(p.name)))
+// H6-③ 配置化拍板（2026-08-30）：官方预设已全部移除，MCP 不再拥有官方预设——
+// 配置唯一事实源 = 全局单份 mcp.json（用户与 Agent 均可直接编辑）。
+// 本面板仅展示配置文件路径（改动保存后需重连生效）；增删改经 cmd_mcp_* 命令写同一文件。
+const configPath = ref('')
+onMounted(async () => {
+  try {
+    const dataDir = await invokeRpc<string>('cmd_get_app_data_dir')
+    if (dataDir) configPath.value = `${dataDir.replace(/[\\/]+$/, '')}/worldsmith/mcp.json`
+  } catch { /* 路径不可得时隐藏提示 */ }
 })
 
-function addPreset(preset: typeof MCP_PRESETS[number]): void {
-  const id = preset.id || `mcp-preset-${preset.name.toLowerCase().replace(/\s+/g, '-')}`
-  const config: MCPConnectionConfig = {
-    id,
-    name: preset.name,
-    transport: preset.transport,
+const mcpFormData = computed(() => {
+  // Headers 输入解析：每行 `Key: Value` → [键, 值] 数组（对齐 Rust Vec<(String,String)>）
+  const headers: Array<[string, string]> = []
+  for (const line of mcpForm.value.headersStr.split(/\r?\n/)) {
+    const idx = line.indexOf(':')
+    if (idx <= 0) continue
+    const key = line.slice(0, idx).trim()
+    const val = line.slice(idx + 1).trim()
+    if (key) headers.push([key, val])
+  }
+  return {
+    id: `mcp-${Date.now()}`,
+    name: mcpForm.value.name,
+    transport: mcpForm.value.transport,
+    url: mcpForm.value.transport !== 'stdio' ? mcpForm.value.url : undefined,
+    command: mcpForm.value.transport === 'stdio' ? mcpForm.value.command : undefined,
+    args: mcpForm.value.transport === 'stdio' ? mcpForm.value.argsStr.split(/\s+/).filter(Boolean) : undefined,
+    headers: mcpForm.value.transport !== 'stdio' && headers.length > 0 ? headers : undefined,
     enabled: true,
   }
-  if (preset.transport === 'stdio') {
-    config.command = preset.command
-    config.args = preset.argsStr.split(/\s+/).filter(Boolean)
-  } else {
-    config.url = preset.url
-  }
-  emit('add-mcp', config)
-}
-
-const mcpFormData = computed(() => ({
-  id: `mcp-${Date.now()}`,
-  name: mcpForm.value.name,
-  transport: mcpForm.value.transport,
-  url: mcpForm.value.transport !== 'stdio' ? mcpForm.value.url : undefined,
-  command: mcpForm.value.transport === 'stdio' ? mcpForm.value.command : undefined,
-  args: mcpForm.value.transport === 'stdio' ? mcpForm.value.argsStr.split(/\s+/).filter(Boolean) : undefined,
-  enabled: true,
-}))
+})
 </script>
 
 <style scoped>
 .ms-cat-bar { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
+.mcp-config-path { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; padding: 1px 6px; border-radius: var(--radius-sm, 4px); border: 1px solid var(--agent-border); background: var(--agent-hover-bg); font-size: var(--font-size-2xs, 10px); color: var(--agent-text-secondary); }
 .ms-cat {
   display: inline-flex; align-items: center; gap: 5px;
   padding: 4px 10px; border-radius: var(--radius-pill, 999px);

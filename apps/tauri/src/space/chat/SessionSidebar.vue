@@ -1,13 +1,7 @@
 <template>
   <div class="session-sidebar">
-    <!-- [A5][B] 顶部：模式选择器 + 场景选择器（自顶栏移入；会话级，切换会话自动跟随） -->
+    <!-- [A5][B] 顶部：场景选择器（模式选择器已随三模式移除删除，2026-09-01 补 T15） -->
     <div class="sidebar-top">
-      <TuiSegmented
-        v-model="modeModel"
-        :options="modeOptions"
-        icon-mode
-        class="mode-segmented"
-      />
       <div class="scene-select" title="Agent 场景（决定身份与工具集，切换将新建对应场景会话）">
         <WsIcon name="globe" size="xs" class="scene-icon" />
         <TuiSelect
@@ -184,7 +178,7 @@ import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick, type Ref } 
 import { useAgent } from '@/agent/composables/useAgent'
 import { WsIcon, useConfirm } from '@worldsmith/ui-kit'
 import KnowledgeWall from '@/agent/panels/KnowledgeWall.vue'
-import { useSpaceStore, type ChatMode } from '../stores/space-store'
+import { useSpaceStore } from '../stores/space-store'
 import { useSessionViewState, LAST_SESSION_KEY } from '@/agent/composables/useSessionViewState'
 import { useAgentPersona } from '../composables/useAgentPersona'
 import { usePersonaFont } from '../composables/usePersonaFont'
@@ -192,7 +186,6 @@ import { useFontStore } from '@/stores/fontStore'
 import PersonaMirror from '../panels/PersonaMirror.vue'
 import AvatarBadge from '@/ui/AvatarBadge.vue'
 import WorldSmithLogo from '@/components/brand/WorldSmithLogo.vue'
-import TuiSegmented from '@/components/ui/TuiSegmented.vue'
 import TuiSelect from '@/components/ui/TuiSelect.vue'
 import { useSessionTree, type WorkdirRecord } from './useSessionTree'
 import { resolveWorkspaceDir } from '../workspace'
@@ -387,17 +380,8 @@ async function onDelete() {
   await deleteSession(id)
 }
 
-// ── [A5] 模式 + 场景（会话级，自 SpaceNavbar 移入）──
+// ── [A5] 场景（会话级，自 SpaceNavbar 移入；模式选择器已随三模式移除删除，2026-09-01 补 T15）──
 const sessionView = useSessionViewState()
-const modeOptions = [
-  { value: 'deep' as const, label: '深度思考', icon: 'bulb' },
-  { value: 'explore' as const, label: '知识探索', icon: 'book' },
-  { value: 'task' as const, label: '任务执行', icon: 'task' },
-]
-const modeModel = computed({
-  get: () => sessionView.activeState.value?.chatMode ?? 'deep',
-  set: (v: string) => sessionView.setMode(v as ChatMode),
-})
 
 /** 可用场景列表（源自 Rust list_scenarios） */
 const scenarioOptions = ref<{ value: string; label: string }[]>([])
@@ -516,7 +500,7 @@ watch(currentSessionId, () => {
   /* 与其他大区域面板同色：背景交给外层 .session-panel（--color-surface-elevated） */
 }
 
-/* [A5] 顶部：模式/场景 */
+/* [A5] 顶部：场景（模式选择器已随三模式移除删除，2026-09-01 补 T15） */
 .sidebar-top {
   display: flex;
   align-items: center;
@@ -524,17 +508,6 @@ watch(currentSessionId, () => {
   padding: 10px 10px 6px;
   border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
-}
-.mode-segmented {
-  flex: 1;
-  min-width: 0;
-}
-.mode-segmented :deep(.tui-seg__item) {
-  padding: 4px 8px;
-  font-size: var(--font-size-xs);
-}
-.mode-segmented :deep(.tui-seg.is-icon-mode .tui-seg__item) {
-  gap: 4px;
 }
 .scene-select {
   display: inline-flex;

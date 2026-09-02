@@ -9,6 +9,7 @@ import {
   importLocalSkillAndReload,
   autoImportSkill,
   exportToSkillYaml,
+  hasSkillsInvoke,
   type RemoteSkillEntry,
   type InstalledMeta,
 } from '@agent/index'
@@ -21,13 +22,6 @@ export interface SkillSource {
 }
 
 const STORAGE_KEY_SKILL_SOURCES = 'worldsmith_skill_sources'
-
-/** 检测 Tauri 环境（Tauri 2 标准检测方式） */
-function detectTauri(): boolean {
-  // 使用宽松类型访问，避免依赖端特定全局声明
-  // Tauri 端入口会在 global.d.ts 中声明 __TAURI_INTERNALS__
-  return typeof window !== 'undefined' && !!(window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__
-}
 
 /** 从 localStorage 加载技能源配置 */
 function loadSources(): SkillSource[] {
@@ -42,7 +36,9 @@ function loadSources(): SkillSource[] {
 }
 
 // ── 全局共享状态（模块级，多组件复用）──
-const isTauri = detectTauri()
+// T02 修复（2026-09-01）：商城可用性 = hasSkillsInvoke()（桌面 Tauri 或浏览器 HTTP 桥已注入），
+// 不再只看 __TAURI_INTERNALS__——浏览器 HTTP 模式商城功能已可通桥。
+const isTauri = computed(() => hasSkillsInvoke())
 const skillSources = ref<SkillSource[]>(loadSources())
 const remoteSkills = ref<RemoteSkillEntry[]>([])
 const installedVersions = ref<InstalledMeta[]>([])
@@ -91,7 +87,7 @@ export function useSkillsStore() {
 
   /** 刷新远程技能列表（下载所有启用源的 manifest，合并去重） */
   async function refreshRemote(): Promise<void> {
-    if (!isTauri) {
+    if (!isTauri.value) {
       error.value = '商城功能仅在桌面端可用'
       return
     }
@@ -122,13 +118,13 @@ export function useSkillsStore() {
 
   /** 刷新已安装技能版本 */
   async function refreshInstalled(): Promise<void> {
-    if (!isTauri) return
+    if (!isTauri.value) return
     installedVersions.value = await getInstalledVersions()
   }
 
   /** 安装技能（成功后刷新已安装列表） */
   async function installSkill(skill: RemoteSkillEntry): Promise<boolean> {
-    if (!isTauri) return false
+    if (!isTauri.value) return false
     installing.value = skill.id
     error.value = null
     try {
@@ -154,7 +150,7 @@ export function useSkillsStore() {
 
   /** 卸载技能（成功后刷新已安装列表） */
   async function uninstallSkill(skillId: string): Promise<boolean> {
-    if (!isTauri) return false
+    if (!isTauri.value) return false
     installing.value = skillId
     error.value = null
     try {
@@ -182,7 +178,7 @@ export function useSkillsStore() {
 
   /** 本地导入技能（多平台互通：自动检测外部格式解析为标准 skill），详细见 docs/details/注释/packages/shared-composables/agent/useSkillsStore.md */
   async function importLocal(raw: string, fallbackId: string): Promise<{ success: boolean; warnings: string[]; platform: string }> {
-    if (!isTauri) {
+    if (!isTauri.value) {
       return { success: false, warnings: ['商城功能仅在桌面端可用'], platform: 'unknown' }
     }
     error.value = null

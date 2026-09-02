@@ -10,8 +10,20 @@ use crate::scenario::{Scenario, ScenarioEntityProvider};
 /// AgentLoop 配置
 #[derive(Debug, Clone)]
 pub struct AgentLoopConfig {
-    /// 最大迭代次数（防止无限循环，默认 25）
-    pub max_iterations: u32,
+    /// 总步骤预算（工具调用轮数上限，默认 200，建议 1~500）
+    ///
+    /// **计数口径对齐 Claude Code maxTurns**：每轮含 ≥1 工具调用的 LLM 决策计 1 步
+    /// （一轮内多个工具调用也只计 1 步）；纯文本收尾轮不计——Agent 以「无工具调用即收敛」
+    /// 自然收口（见 agent/mod.rs 空工具调用分支），本预算仅在模型异常打转时兜底。
+    ///
+    /// **触发行为（预算感知，对齐 OpenHands #2406 共识方案，不硬切浪费已做工作）**：
+    /// - 80% / 95%：向模型注入「剩余 N 步，开始收尾」提示 + 广播 `StepBudgetWarning` 事件
+    /// - 100%：给「最终收尾步」机会（注入 final 提示并放行最后一轮）
+    /// - 超过 100%：返回 `AgentError::TotalStepsReached`（与崩溃/超时错误类型可区分）
+    ///
+    /// 与 LoopController 分层：`rate_limit.max_turns` 已退役（默认 None，不再限轮数）；
+    /// `max_tool_calls`（动作数）/ `max_tokens` / `max_duration` 仍为系统级资源兜底。
+    pub total_steps: u32,
     /// 系统提示词（每次 prompt 都会附加）
     pub system_prompt: Option<String>,
     /// 温度（None=使用 Provider 默认）
@@ -107,7 +119,8 @@ pub struct AgentLoopConfig {
 impl Default for AgentLoopConfig {
     fn default() -> Self {
         Self {
-            max_iterations: 25,
+            // 总步骤预算默认 200（1~500 范围内，对齐主流 wrap 上限）；收敛由空工具调用判定，本值为哨兵
+            total_steps: 200,
             system_prompt: None,
             temperature: None,
             max_tokens: None,

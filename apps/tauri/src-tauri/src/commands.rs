@@ -14,7 +14,7 @@ use agent_runtime::supervisor::SubAgentSpec;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex as StdMutex, OnceLock};
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use serde_json::json;
 
 /// [HTTP-BRIDGE] 事件双路发射：桌面 IPC（app.emit）+ 全局广播 hub（浏览器 SSE 订阅）。
@@ -34,6 +34,11 @@ struct TauriAgentEventEmitter {
     session_id: String,
     /// A1 全链路事件流可观测：trace 事件全局序号（每会话递增，前端据此还原时序）
     trace_seq: AtomicU64,
+    /// R6 第二部分：本会话动作段事件缓冲（`{seq, action, ...payload}` 事件序），
+    /// AgentEnd 时经命令层收口到最后一条 assistant 消息的 meta.action_events（零迁移持久化）
+    action_events: StdMutex<Vec<serde_json::Value>>,
+    /// 动作段事件序号（独立于 trace_seq；回源重建 order 依据）
+    action_seq: AtomicU64,
 }
 
 impl TauriAgentEventEmitter {
@@ -63,19 +68,21 @@ impl TauriAgentEventEmitter {
                 Some(("subagent", serde_json::json!({ "phase": "error", "subAgentId": sub_agent_id, "name": sub_agent_name })))
             }
             OrchestratorEvent::TracePipeStarted { run_id, pipeline, reason } => {
-                Some(("phase", serde_json::json!({ "phase": "pipe_started", "runId": run_id, "pipeline": pipeline, "reason": reason })))
+                Some(("phase", serde_json::json!({ "event": "pipe_started", "runId": run_id, "pipeline": pipeline, "reason": reason })))
             }
             OrchestratorEvent::TracePhaseEntered { run_id, phase, reason } => {
-                Some(("phase", serde_json::json!({ "phase": "entered", "runId": run_id, "phase": phase, "reason": reason })))
+                Some(("phase", serde_json::json!({ "event": "entered", "runId": run_id, "phase": phase, "reason": reason })))
             }
             OrchestratorEvent::TracePhaseResult { run_id, phase, status, summary, .. } => {
                 Some((
                     "phase",
-                    serde_json::json!({ "phase": "result", "runId": run_id, "phase": phase, "status": format!("{status:?}"), "summary": summary }),
+                    // `event` 为 pipe 子阶段标识（R6 第三部分配对依据）——phase 键专留给阶段名，
+                    // 避免 json! 重复键覆盖（原实现 "phase":"entered" 与 "phase":阶段名 互相覆盖致子阶段丢失）
+                    serde_json::json!({ "event": "result", "runId": run_id, "phase": phase, "status": format!("{status:?}"), "summary": summary }),
                 ))
             }
             OrchestratorEvent::TracePipeFinished { run_id, status, .. } => {
-                Some(("phase", serde_json::json!({ "phase": "pipe_finished", "runId": run_id, "status": format!("{status:?}") })))
+                Some(("phase", serde_json::json!({ "event": "pipe_finished", "runId": run_id, "status": format!("{status:?}") })))
             }
             OrchestratorEvent::RouterDecisionMade { target_name, .. } => {
                 Some(("router", serde_json::json!({ "phase": "decision", "target": target_name })))
@@ -108,6 +115,27 @@ impl TauriAgentEventEmitter {
         }
     }
 
+    /// R6 第二部分：缓冲动作段收口——取出本会话累积的事件，经命令层
+    /// `flush_action_events` 持久化到最后一条 assistant 消息的 meta.action_events
+    /// （EventListener 回调为同步，异步持久化走 tauri async runtime）
+    fn flush_buffered_action_events(&self) {
+        let events = {
+            let Ok(mut buf) = self.action_events.lock() else {
+                return;
+            };
+            std::mem::take(&mut *buf)
+        };
+        if events.is_empty() {
+            return;
+        }
+        let app = self.app.clone();
+        let session_id = self.session_id.clone();
+        tauri::async_runtime::spawn(async move {
+            let svc = app.state::<AgentCommandService>();
+            svc.flush_action_events(&session_id, events).await;
+        });
+    }
+
     fn trace_summary(event: &OrchestratorEvent) -> Option<(&'static str, String)> {
         match event {
             OrchestratorEvent::Agent(AgentEvent::AgentStart { model }) => {
@@ -137,9 +165,6 @@ impl TauriAgentEventEmitter {
             }
             OrchestratorEvent::Agent(AgentEvent::AgentEnd) => {
                 Some(("agent_end", "Agent 执行结束".to_string()))
-            }
-            OrchestratorEvent::DeepPhaseChanged { phase_label, .. } => {
-                Some(("phase_changed", format!("进入阶段：{phase_label}")))
             }
             OrchestratorEvent::RouterDecisionMade { target_name, .. } => {
                 Some(("router_decision", format!("路由决策 → {target_name}")))
@@ -229,7 +254,75 @@ impl EventListener for TauriAgentEventEmitter {
         // R6 第一部分：六类动作段事件（subagent/a2ui/phase/router/reflection/confirm）
         // 注入流通道（此前仅 trace/orch 专用通道，行段模型拿不到——回源即失的转发缺口）
         if let Some((action, payload)) = Self::action_event_payload(event) {
+            // R6 第二部分：同事件缓冲留档（AgentEnd 收口持久化到 meta.action_events）
+            let seq = self.action_seq.fetch_add(1, Ordering::SeqCst);
+            let mut entry = serde_json::json!({ "seq": seq, "action": action });
+            if let (Some(obj), Some(extra)) = (entry.as_object_mut(), payload.as_object()) {
+                for (k, v) in extra {
+                    obj.insert(k.clone(), v.clone());
+                }
+            }
+            if let Ok(mut buf) = self.action_events.lock() {
+                buf.push(entry);
+            }
             self.emit_stream_action(action, payload);
+        }
+        // 总步骤预算警示（total_steps 80%/95%/100%）：直推流通道供横幅展示
+        //（独立消息不持久化——横幅由前端状态驱动，非动作段语义）
+        if let OrchestratorEvent::StepBudgetWarning {
+            task_id: _,
+            used,
+            limit,
+            percent,
+        } = event
+        {
+            let event_name = format!("agent:event:stream:{}", self.session_id);
+            let payload = serde_json::json!({
+                "type": "step_budget_warning",
+                "used": used,
+                "limit": limit,
+                "percent": percent,
+            });
+            if let Err(err) = emit_dual(&self.app, &event_name, payload) {
+                tracing::warn!("Failed to emit step_budget_warning: {}", err);
+            }
+        }
+        // 2026-09-02 系统工具流式事件：直推流通道（实时渲染，不持久化）
+        // - ToolCallDelta：bash/powershell 增量输出 → type=tool_delta
+        // - FileChange：write/edit/edit_diff 绿红 diff → type=file_change（含路径渲染）
+        if let OrchestratorEvent::ToolCallDelta { tool_call_id, delta } = event {
+            let event_name = format!("agent:event:stream:{}", self.session_id);
+            let payload = serde_json::json!({
+                "type": "tool_delta",
+                "tool_call_id": tool_call_id,
+                "delta": delta,
+            });
+            if let Err(err) = emit_dual(&self.app, &event_name, payload) {
+                tracing::warn!("Failed to emit tool_delta: {}", err);
+            }
+        }
+        if let OrchestratorEvent::FileChange {
+            tool_call_id,
+            path,
+            kind,
+            hunks,
+        } = event
+        {
+            let event_name = format!("agent:event:stream:{}", self.session_id);
+            let payload = serde_json::json!({
+                "type": "file_change",
+                "tool_call_id": tool_call_id,
+                "path": path,
+                "kind": kind,
+                "hunks": hunks,
+            });
+            if let Err(err) = emit_dual(&self.app, &event_name, payload) {
+                tracing::warn!("Failed to emit file_change: {}", err);
+            }
+        }
+        // R6 第二部分：Agent 轮结束 → 缓冲动作段收口持久化（meta.action_events）
+        if let OrchestratorEvent::Agent(AgentEvent::AgentEnd) = event {
+            self.flush_buffered_action_events();
         }
         // A1 全链路事件流可观测：非高频事件按序投递到 trace 通道（保留原分散通道）
         self.emit_trace(event);
@@ -300,33 +393,6 @@ impl EventListener for TauriAgentEventEmitter {
                     "finalMessage": final_message,
                 })) {
                     tracing::warn!("Failed to emit TracePipeFinished: {}", err);
-                }
-            }
-            OrchestratorEvent::DeepPhaseChanged {
-                phase_label,
-                phase_index,
-                trigger_tool,
-                tool_status,
-                phase_completed,
-                ..
-            } => {
-                // 转发到前端：事件名 `agent:event:deep_phase_changed:{session_id}`
-                // payload: { phaseLabel, phaseIndex, triggerTool, toolStatus, phaseCompleted }
-                let event_name = format!("agent:event:deep_phase_changed:{}", self.session_id);
-                if let Err(err) = emit_dual(&self.app, 
-                    &event_name,
-                    serde_json::json!({
-                        "phaseLabel": phase_label,
-                        "phaseIndex": phase_index,
-                        "triggerTool": trigger_tool,
-                        "toolStatus": tool_status,
-                        "phaseCompleted": phase_completed,
-                    }),
-                ) {
-                    tracing::warn!(
-                        "Failed to emit DeepPhaseChanged event to frontend: {}",
-                        err
-                    );
                 }
             }
             OrchestratorEvent::A2UIEvent {
@@ -729,6 +795,8 @@ async fn ensure_emitter_registered(
             app: app.clone(),
             session_id: session_id.to_string(),
             trace_seq: AtomicU64::new(0),
+            action_events: StdMutex::new(Vec::new()),
+            action_seq: AtomicU64::new(0),
         });
         agent.subscribe(emitter.clone()).await;
         let mut registry = emitter_registry().lock().unwrap();
@@ -1213,6 +1281,20 @@ pub async fn cmd_agent_tool_names(
         .map_err(|e| e.to_string())
 }
 
+/// 动态刷新会话 system prompt（H5 风险点③，2026-08-30）：
+/// 技能索引/规则文件中途变更时，前端重建完整 prompt 推送到当前会话并写穿持久化
+#[tauri::command]
+pub async fn cmd_agent_update_system_prompt(
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+    system_prompt: Option<String>,
+) -> Result<(), String> {
+    state
+        .update_session_system_prompt(&session_id, system_prompt)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// 解析安全级别字符串 → `SecurityLevel`（非法返回错误，供前端开关映射）
 fn parse_security_level(s: &str) -> Result<SecurityLevel, String> {
     match s.to_lowercase().as_str() {
@@ -1440,6 +1522,43 @@ pub async fn terminal_list_sessions(
     state: State<'_, TerminalService>,
 ) -> Result<serde_json::Value, String> {
     state.list_sessions().await.map_err(|e| e.to_string())
+}
+
+/// 增量拉取会话输出（真终端轮询，7.1）
+#[tauri::command]
+pub async fn terminal_poll_output(
+    state: State<'_, TerminalService>,
+    args: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    let session_id = args
+        .get("session_id")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| "缺少 session_id 参数".to_string())?
+        .to_string();
+    let offset = args.get("offset").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+    state
+        .poll_output(&session_id, offset)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 调整会话终端尺寸（真终端窗口 resize，7.1）
+#[tauri::command]
+pub async fn terminal_resize(
+    state: State<'_, TerminalService>,
+    args: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    let session_id = args
+        .get("session_id")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| "缺少 session_id 参数".to_string())?
+        .to_string();
+    let cols = args.get("cols").and_then(|v| v.as_u64()).unwrap_or(80) as u16;
+    let rows = args.get("rows").and_then(|v| v.as_u64()).unwrap_or(24) as u16;
+    state
+        .resize(&session_id, cols, rows)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 // ─── 子 Agent（subagent）命令 ───────────────────────────────────

@@ -152,7 +152,6 @@ import UsagePanel from '@/agent/panels/UsagePanel.vue'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { calculateCost } from '@worldsmith/agent-runtime'
 import { useGenerationProgress } from '@worldsmith/shared-composables/agent/useGenerationProgress'
-import { usePlanStore } from '@worldsmith/shared-composables/agent/usePlanStore'
 import { useSessionViewState } from '@/agent/composables/useSessionViewState'
 import { provideMessageSpeakerContext } from '@worldsmith/shared-composables/agent/useMessageSpeaker'
 import { usePersonaFont } from './composables/usePersonaFont'
@@ -170,7 +169,6 @@ const PANEL_META: { id: RightTab; label: string; icon: string; title: string }[]
 const spaceStore = useSpaceStore()
 const userProfileStore = useUserProfileStore()
 const { hasActive } = useGenerationProgress()
-const planStore = usePlanStore()
 const { restoreLastSession, totalUsage } = useAgent()
 const personaFont = usePersonaFont()
 
@@ -293,14 +291,6 @@ watch(hasActive, (active) => {
     spaceStore.activityPinned = true
   } else {
     spaceStore.activityPinned = false
-  }
-})
-
-// Plan 创建时自动打开右侧面板（执行 Tab · 计划区，新增式）
-watch(() => planStore.hasPlan, (has) => {
-  if (has) {
-    setRightTab('exec')
-    sessionView.addExecSection('plan')
   }
 })
 

@@ -1,14 +1,51 @@
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::Value;
+use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 
-use crate::event::{AgentEvent, OrchestratorEvent};
+use crate::event::{AgentEvent, EventBroadcaster, OrchestratorEvent};
 use crate::tool::ToolError;
+use crate::tool_context::ToolStreamSink;
 use crate::tool_hook::ToolHookAction;
 use crate::types::{MessageRole, OrchestratorMessage, PlanItem, PlanItemStatus, ToolCall};
 
 use super::{AgentError, AgentLoop};
+
+/// 工具流式输出接收器（2026-09-02）
+///
+/// 捕获会话 broadcaster + 当前工具调用 ID；同步推 `ToolCallDelta` / `FileChange`
+/// 事件（只进流通道，不进入 LLM 消息上下文）。`try_read` 失败（锁竞争/已释放）
+/// 时静默丢弃——流式事件属增强展示，droppable。
+struct AgentToolStream {
+    broadcaster: Arc<RwLock<EventBroadcaster>>,
+    tool_call_id: String,
+}
+
+impl ToolStreamSink for AgentToolStream {
+    fn delta(&self, text: String) {
+        let Ok(guard) = self.broadcaster.try_read() else {
+            return;
+        };
+        guard.broadcast(&OrchestratorEvent::ToolCallDelta {
+            tool_call_id: self.tool_call_id.clone(),
+            delta: text,
+        });
+    }
+
+    fn file_change(&self, path: String, kind: String, hunks: serde_json::Value) {
+        let Ok(guard) = self.broadcaster.try_read() else {
+            return;
+        };
+        guard.broadcast(&OrchestratorEvent::FileChange {
+            tool_call_id: self.tool_call_id.clone(),
+            path,
+            kind,
+            hunks,
+        });
+    }
+}
 
 /// H1 修复（P1.5，2026-08-30）：工具结果统一裁剪——单个字符串值超限截断（保留头部），
 /// 防止 terminal 大输出 / 大文件读取把消息历史与 LLM 上下文撑爆。
@@ -163,6 +200,7 @@ impl AgentLoop {
     /// 执行单个工具调用，含超时/重试（批次4），详细见 docs/details/注释/agent-runtime/agent.md
     async fn execute_tool_with_retry(
         &self,
+        tool_call_id: &str,
         name: &str,
         args: serde_json::Value,
     ) -> Result<serde_json::Value, ToolError> {
@@ -182,6 +220,11 @@ impl AgentLoop {
             workdir,
             project_id: None,
             workspace_id,
+            // 逐工具调用注入流式 sink（bash/powershell 增量输出、文件变更 diff）
+            tool_stream: Some(Arc::new(AgentToolStream {
+                broadcaster: Arc::clone(&self.broadcaster),
+                tool_call_id: tool_call_id.to_string(),
+            })),
         };
 
         // A6 工具生命周期钩子：pre 阶段（可改 args / 拒绝）
@@ -279,6 +322,7 @@ impl AgentLoop {
             workdir,
             project_id: None,
             workspace_id,
+            tool_stream: None,
         };
         // A5 HITL：若任一工具需确认（策略命中 / 敏感目录拒绝 / 越界确认），强制走串行
         // 确认需逐次暂停等待；敏感目录拒绝/越界确认若走并行会被绕过，故一并纳入。
@@ -394,6 +438,7 @@ impl AgentLoop {
             workdir,
             project_id: None,
             workspace_id,
+            tool_stream: None,
         };
 
         for tc in tool_calls {
@@ -420,7 +465,7 @@ impl AgentLoop {
                 .await
             {
                 Some(denied) => Ok(denied),
-                None => self.execute_tool_with_retry(&tc.name, tc.args.clone()).await,
+                None => self.execute_tool_with_retry(&tc.id, &tc.name, tc.args.clone()).await,
             };
 
             let duration_ms = exec_started.elapsed().as_millis() as u64;
@@ -509,11 +554,17 @@ impl AgentLoop {
             workdir,
             project_id: None,
             workspace_id,
+            tool_stream: None,
         };
 
         for (idx, tc) in tool_calls.into_iter().enumerate() {
             let tool_bus = bus.clone();
-            let ctx = self_tool_ctx.clone();
+            // 并行：每个 task 注入独立 sink（tool_call_id 不同，流事件归位到各自工具段）
+            let mut ctx = self_tool_ctx.clone();
+            ctx.tool_stream = Some(Arc::new(AgentToolStream {
+                broadcaster: Arc::clone(&self.broadcaster),
+                tool_call_id: tc.id.clone(),
+            }));
             let call_id = tc.id.clone();
             let tool_name = tc.name.clone();
             let args = tc.args.clone();

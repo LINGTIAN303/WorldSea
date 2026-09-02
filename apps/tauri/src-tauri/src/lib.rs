@@ -126,6 +126,7 @@ pub fn run() {
             commands::cmd_agent_set_security_level,
             // 诊断：会话工具名清单（MCP 注入链路验证）
             commands::cmd_agent_tool_names,
+            commands::cmd_agent_update_system_prompt,
             // FrontendToolBridge：前端执行桥工具后按 callId 回传结果
             commands::cmd_agent_tool_result,
             // Skills Store（H3 点火 2026-08-30 重建）：商城安装/卸载/版本/本地导入/目录
@@ -165,6 +166,8 @@ pub fn run() {
             commands::terminal_input_session,
             commands::terminal_destroy_session,
             commands::terminal_list_sessions,
+            commands::terminal_poll_output,
+            commands::terminal_resize,
             commands::subagent_list_specs,
             commands::subagent_register_spec,
             commands::subagent_remove_spec,

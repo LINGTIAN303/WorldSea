@@ -67,6 +67,20 @@ pub trait LlmHandle: Send + Sync {
     ) -> Result<crate::orchestrator::tools::ReactStep, LlmError> {
         Err(LlmError::Fatal("该 LlmHandle 未实现 react_step".into()))
     }
+
+    /// 结构化决策调用（2026-09-02 B 类 JSON 决策点迁移试点）
+    ///
+    /// 携带「决策工具」定义（参数 JSON Schema）+ 强制该工具调用（genai
+    /// `ToolChoice::Tool`，即 structured output 的 tool-use-as-JSON 形态），
+    /// 返回模型填入 tool_call 的参数（已解析 Value）。
+    /// 取代旧的「提示词要求输出 JSON + 手解析」模式；调用方失败时回退旧路径。
+    async fn decide(
+        &self,
+        _req: &Request,
+        _tool: agent_kernel::tool::ToolDefinition,
+    ) -> Result<serde_json::Value, LlmError> {
+        Err(LlmError::Fatal("该 LlmHandle 未实现 decide".into()))
+    }
 }
 
 /// 四层记忆的层标识（设计 §7.2 表 7-1：按生命周期从短到长、抽象度从低到高）

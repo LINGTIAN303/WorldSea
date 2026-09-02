@@ -40,7 +40,7 @@ status: 执行中
 
 0. **M4 横切**（下一片首选）：MemoryHandle 四层记忆（工作/情景/语义/程序性）存储实现 + before 钩子召回注入 + 任务终局归档点（设计 §7）；Router 的 few-shot 从程序性记忆加载（router.rs 已留 with_few_shot 槽位）
 1. **M5 通信层**：GenaiAdapter（agent-kernel Backend → orchestrator LlmHandle 适配器，Provider 矩阵/降级链/计量）
-2. **R6 已立项**：[2026-08-30-R6动作段持久化计划.md](./2026-08-30-R6动作段持久化计划.md)（待启动——后端转发/持久化载体/前端回源/路由 JSON 口径统一四部分）；旧 kernel 7 模块双轨收口仍待用户
+2. **R6 已立项**：[2026-08-30-R6动作段持久化计划.md](./2026-08-30-R6动作段持久化计划.md)（待启动——后端转发/持久化载体/前端回源/路由 JSON 口径统一四部分）；**旧 kernel 7 模块双轨收口——含义已还原（2026-08-30 Harness 会话分析）**：M3 的"统一改造（适配为 OrchestratorNode）属 M3"实际执行变为骨架内重写 → patterns **顶层旧 7 模块**（got/supervisor/tot/multi_agent/plan_execute/reflective/router + shared，投放线 5 编排命令在用）与 **orchestrator/ 骨架原生 13 模式**（未接命令层）并行双轨。**终局已拍板**（Harness 调研 2026-08-30：渐进收拢到骨架、切一个废一个）；旧模块保留至骨架接命令层完成（物理约束，非拍板项）；施工计划见 [04-方案.md](./编排模式投放设计/04-方案.md) 尾部「编排双轨收拢施工计划」（S1 骨架接投放契约适配层 → S2 双跑对齐 → S3 逐命令切换 → S4 废弃旧模块）。**S1 执行时机已拍板（2026-08-31 用户确认开工）**：试点 = Plan-and-Execute；S2 观测口径 = 事件序列/产物/run_store 三项全对齐；M3-RK1 口径矛盾已核实（见 04-方案，05 台账「已解决」为正确口径）。**进度（2026-08-31）**：S1 ✅ 完成（B 轨 observer/seed/黑板快照 + 命令层 run_plan_execute_b + 事件桥 + 产物翻译；patterns 164 + commands 109 全绿）；S2 代码 ✅ 完成（内部方法 run_plan_execute_dual + DualRunComparison 报告；真机双跑待桌面实例+Key → 待测清单 T10）；S3/S4 待 T10 对齐通过后实施
 3. 冒烟环境：温度参数 R15 已临时绕过（localStorage 0.7/0.9/8192）；测试用新会话
 1. M4 横切（MemoryHandle 四层记忆）、M5 通信层（kernel Backend → LlmHandle 适配器）
 2. 观察项（冒烟发现，待用户决定）：① shell 工具 `exit_code≠0` 目前判 completed（后端约定只认顶层 error 键），`head` exit 1 显示 ✓+exit 1 徽标组合略矛盾，建议 parseToolResult 增 exit_code≠0 → failed；② 浏览器模式路由后偶发静默停走（R4 SSE 范畴，桌面端待复验）

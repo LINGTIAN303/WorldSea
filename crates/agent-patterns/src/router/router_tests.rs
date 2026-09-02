@@ -1,4 +1,4 @@
-﻿// ─── 单元测试 ────────────────────────────────────────────
+// ─── 单元测试 ────────────────────────────────────────────
 
     use super::*;
     use agent_kernel::backend::{BackendError, PromptResponse};
@@ -13,6 +13,8 @@
     struct StubBackend {
         response_text: String,
         prompt_count: Mutex<usize>,
+        /// R6 第四部分：最近一次 prompt 的 silent 标志（路由判型应静默调用）
+        last_silent: Mutex<bool>,
     }
 
     impl StubBackend {
@@ -20,11 +22,16 @@
             Self {
                 response_text: response_text.into(),
                 prompt_count: Mutex::new(0),
+                last_silent: Mutex::new(false),
             }
         }
 
         fn prompt_count(&self) -> usize {
             *self.prompt_count.lock().unwrap()
+        }
+
+        fn last_silent(&self) -> bool {
+            *self.last_silent.lock().unwrap()
         }
     }
 
@@ -33,9 +40,10 @@
         async fn prompt(
             &self,
             _prompt: String,
-            _options: Option<PromptCallOptions>,
+            options: Option<PromptCallOptions>,
         ) -> Result<PromptResponse, BackendError> {
             *self.prompt_count.lock().unwrap() += 1;
+            *self.last_silent.lock().unwrap() = options.map(|o| o.silent).unwrap_or(false);
             Ok(PromptResponse::text_only(self.response_text.clone()))
         }
 
@@ -141,6 +149,8 @@
         assert_eq!(result.target_id, "coder");
         assert_eq!(result.reason.as_deref(), Some("代码任务"));
         assert_eq!(backend.prompt_count(), 1);
+        // R6 第四部分：路由判型 = 静默调用（决策 JSON 不泄漏为对话流正文段）
+        assert!(backend.last_silent(), "路由决策 prompt 应为 silent 调用");
     }
 
     #[tokio::test]

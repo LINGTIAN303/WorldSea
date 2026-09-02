@@ -35,8 +35,8 @@ export type ActionKind =
   | 'router'
   | 'reflection'
 
-/** 动作执行状态 */
-export type ActionStatus = 'running' | 'completed' | 'failed' | 'skipped'
+/** 动作执行状态（'pending' 供计划步骤初始态：plan_created 生成后未开始执行） */
+export type ActionStatus = 'running' | 'completed' | 'failed' | 'skipped' | 'pending'
 
 // ─── 行段 ────────────────────────────────────────────
 
@@ -69,7 +69,33 @@ export interface ActionSegment extends SegmentBase {
   error?: string
   /** 执行耗时（毫秒，H7 P0.5 事件权威字段）；旧事件/历史回源无此字段则不显示 */
   durationMs?: number
+  /**
+   * 2026-09-02 计划步骤行（plan 类动作段）：计划步骤并入过程层行段。
+   * 该步骤执行期间的工具动作段 id 记入 `childRefIds`，渲染层据此把子动作行包进
+   * 可折叠容器（默认折叠可展开，用户确认的骨架形态）。仅实时流归约维护；回源不重建。
+   */
+  isPlanStep?: boolean
+  childRefIds?: string[]
+  /** 2026-09-02 计划步骤默认折叠态（新增步骤折叠；渲染层经 plan_step_toggle 事件驱动） */
+  stepCollapsed?: boolean
+  /** 2026-09-02 系统工具流式：bash/powershell 增量输出累积（tool_delta 事件追加） */
+  stream?: string
+  /** 2026-09-02 系统工具流式：stream 达到字符上限后丢弃旧内容（丢旧保新），置真供渲染层提示 */
+  streamTruncated?: boolean
+  /** 2026-09-02 系统工具流式：文件变更 diff（file_change 事件；绿红对比 + 路径渲染） */
+  fileChange?: {
+    path: string
+    kind: string
+    hunks: Array<{ removed?: string[]; added?: string[]; truncated_at?: boolean }>
+  }
 }
+
+/**
+ * 2026-09-02 系统工具流式：stream 字符上限（UTF-16 code unit）。
+ * bash/powershell 长输出只保留末尾，丢旧保新（对齐 SessionOutputBuf 64KiB 语义），
+ * 超限后置 `streamTruncated`。防大输出在段上无限累积撑爆内存/渲染。
+ */
+export const TOOL_STREAM_LIMIT = 20_000
 
 /**
  * 行段种类（行段模型 v2）：动作行段的视觉容器类型（数据层分类，与 UI 层
@@ -146,6 +172,13 @@ export interface Turn {
   /** ② 过程层折叠态（由自动折叠控制器与用户手动操作共同驱动） */
   processCollapsed: boolean
   /**
+   * 2026-09-02 计划步骤串行执行（激进方案）：当前「激活」的计划步骤段 id。
+   * 由 plan_step_status(running) 置位、completed/skipped/failed 清除。
+   * 该步骤运行期间产生的所有输出（思维链/文本/工具动作）归入其 childRefIds——
+   * 实现「步骤内包含该步骤的完整执行过程」，Agent 显式串行推进步骤。
+   */
+  activePlanStepId?: string
+  /**
    * 用户是否从折叠态手动展开过过程层（常驻折叠行标记，2026-08-30）
    * 为真时展开态在过程行段上方渲染一条「收起」头行，用户可再次折叠——
    * 否则展开后摘要行消失、无法收回。仅影响渲染，不参与折叠判定。
@@ -203,6 +236,27 @@ export type TurnEvent =
   | { type: 'turn_expanded'; turnId: string }
   /** 自动折叠执行（latch：置 processCollapsed + hasAutoCollapsed，每轮次只自动折叠一次） */
   | { type: 'auto_collapse'; turnId: string }
+  /** 2026-09-02 用户展开/收起某个计划步骤（plan 步骤行的折叠态；基于 id 定位历史轮次） */
+  | { type: 'plan_step_toggle'; turnId: string; stepId: string }
+  /** 2026-09-02 计划步骤状态流转（plan_update：in_progress→激活 running；completed/skipped/failed→收口）。仅实时流。 */
+  | {
+      type: 'plan_step_status'
+      turnId: string
+      stepId: string
+      status: Extract<ActionStatus, 'running' | 'completed' | 'failed' | 'skipped'>
+      result?: unknown
+    }
+  /** 2026-09-02 系统工具流式：工具增量输出（bash/powershell 逐行） */
+  | { type: 'tool_delta'; turnId: string; toolCallId: string; delta: string }
+  /** 2026-09-02 系统工具流式：文件变更 diff（write/edit/edit_diff） */
+  | {
+      type: 'file_change'
+      turnId: string
+      toolCallId: string
+      path: string
+      kind: string
+      hunks: Array<{ removed?: string[]; added?: string[]; truncated_at?: boolean }>
+    }
   /** 轮次结束（AgentEnd / send_message 返回） */
   | {
       type: 'turn_end'
@@ -244,6 +298,26 @@ function replaceSegment(turn: Turn, index: number, next: Segment): Turn {
 }
 
 /**
+ * 2026-09-02 激进方案辅助：把新产生段的 id 归入当前激活计划步骤的 childRefIds。
+ *
+ * 步骤 running 期间的所有输出（思维链/文本/动作）都应「塞进」该步骤——渲染层
+ * 据 childRefIds 把步骤内容折叠展示。段 id 入步骤、步骤入轮次（引用式更新）。
+ * 无激活步骤时原样返回（步骤外内容正常展示）。
+ */
+function claimIntoActiveStep(turn: Turn, segId: string): Turn {
+  if (!turn.activePlanStepId) return turn
+  const aid = turn.activePlanStepId
+  const idx = turn.segments.findIndex(
+    (s) => s.kind === 'action' && (s as ActionSegment).isPlanStep && s.id === aid,
+  )
+  if (idx < 0) return turn
+  const step = turn.segments[idx] as ActionSegment
+  const refs = [...(step.childRefIds ?? [])]
+  if (!refs.includes(segId)) refs.push(segId)
+  return replaceSegment(turn, idx, { ...step, childRefIds: refs })
+}
+
+/**
  * 写入或校正一段文本：有结果层候选则就地校正，否则新建文本段
  *
  * 覆盖两种真实情形：模型一次性输出（无 StreamDelta，正文只在 StreamEnd.fullText）、
@@ -259,6 +333,23 @@ function upsertTextSegment(
   const seg = idx >= 0 ? turn.segments[idx] : undefined
   if (seg && seg.kind === 'text') {
     return replaceSegment(turn, idx, { ...seg, text, status })
+  }
+  // 2026-09-02 去重：无候选时，向前找最近的被动作降级的正文段
+  // （resultCandidate=false 且与权威文本重合），复用校正而非新建——
+  // 否则「流式段（被降级）+ round_end 段」会渲染出两段重复文本。
+  // 注意从后向前扫：降级段与 round_end 之间可能隔着 think/动作段（只看末段会漏配）。
+  if (!turn.candidateId) {
+    for (let i = turn.segments.length - 1; i >= 0 && i >= turn.segments.length - 10; i--) {
+      const s = turn.segments[i]
+      if (!s || s.kind !== 'text') continue
+      if (s.resultCandidate !== false) break
+      const overlap =
+        s.text === text || text.startsWith(s.text) || s.text.startsWith(text)
+      if (overlap) {
+        return replaceSegment(turn, i, { ...s, text, status })
+      }
+      break
+    }
   }
   const next: TextSegment = {
     // 回源时可指定 id（复用持久化消息 id），使回源态与实时态的行 id 对齐
@@ -339,7 +430,8 @@ export function reduceEvent(turns: Turn[], event: TurnEvent): Turn[] {
         status: 'streaming',
         timestamp: Date.now(),
       }
-      return replaceTurn(turns, ti, { ...turn, segments: [...turn.segments, seg] })
+      // 2026-09-02 激进方案：激活步骤运行期间的思维链归入该步
+      return replaceTurn(turns, ti, claimIntoActiveStep({ ...turn, segments: [...turn.segments, seg] }, seg.id))
     }
 
     case 'text_delta': {
@@ -364,11 +456,13 @@ export function reduceEvent(turns: Turn[], event: TurnEvent): Turn[] {
         resultCandidate: true,
         timestamp: Date.now(),
       }
-      return replaceTurn(turns, ti, {
-        ...turn,
-        segments: [...turn.segments, seg],
-        candidateId: seg.id,
-      })
+      // 2026-09-02 激进方案：步骤内文本归入该步（不设结果层候选——是过程内容）；
+      // 步骤外照旧作为结果层候选流式展示
+      const withSeg = { ...turn, segments: [...turn.segments, seg] }
+      if (turn.activePlanStepId) {
+        return replaceTurn(turns, ti, claimIntoActiveStep(withSeg, seg.id))
+      }
+      return replaceTurn(turns, ti, { ...withSeg, candidateId: seg.id })
     }
 
     case 'action_start': {
@@ -379,18 +473,110 @@ export function reduceEvent(turns: Turn[], event: TurnEvent): Turn[] {
       if (turn.segments.some((s) => s.id === event.id)) return turns
       // 新动作出现 → 降级候选（前面的文本是过程说明，不是答案）
       turn = demoteCandidate(turn)
+      // 2026-09-02 计划步骤并入过程层：plan 类动作段标记为计划步骤行。
+      // 初始 status=pending（plan_created 一次性生成全部步骤，未开始执行）；
+      // plan_update(in_progress) 经 plan_step_status 置 running 后，该步的工具才归为子动作。
+      const isPlanStep = event.action === 'plan'
       const seg: ActionSegment = {
         id: event.id,
         kind: 'action',
         action: event.action,
         rowKind: classifyActionRowKind(event.label),
-        status: 'running',
+        status: isPlanStep ? 'pending' : 'running',
         label: event.label,
         refId: event.refId,
         args: event.args,
         timestamp: Date.now(),
+        ...(isPlanStep ? { isPlanStep: true, stepCollapsed: true, childRefIds: [] } : {}),
       }
-      return replaceTurn(turns, ti, { ...turn, segments: [...turn.segments, seg] })
+      const segments = [...turn.segments, seg]
+      // 2026-09-02 激进方案：子动作归属统一经 activePlanStepId——
+      // 激活步骤 running 期间产生的所有动作段归入该步 childRefIds（含工具/委派等）。
+      let claimed = false
+      if (!isPlanStep && turn.activePlanStepId) {
+        const aid = turn.activePlanStepId
+        for (let i = segments.length - 2; i >= 0; i--) {
+          const s = segments[i]
+          if (s.kind !== 'action') continue
+          const a = s as ActionSegment
+          if (a.isPlanStep && a.id === aid) {
+            const newRefs = [...(a.childRefIds ?? []), seg.id]
+            if (newRefs[newRefs.length - 1] !== a.id) {
+              segments[i] = { ...a, childRefIds: newRefs }
+            }
+            claimed = true
+            break
+          }
+        }
+      }
+      // 2026-09-02 plan_update 工具行按 item_id 直配归入对应步骤——
+      // PlanStepUpdate(running) 广播晚于该工具行本身（apply_plan_result 在 ToolCallEnd 后），
+      // 激活机制接不住「激活第一个步骤的那次 plan_update」，按参数 item_id 匹配步骤 refId。
+      if (!claimed && !isPlanStep && event.label === 'plan_update') {
+        const itemId =
+          (event.args?.['item_id'] as string) ?? (event.args?.['itemId'] as string) ?? ''
+        if (itemId) {
+          for (let i = segments.length - 2; i >= 0; i--) {
+            const s = segments[i]
+            if (s.kind !== 'action') continue
+            const a = s as ActionSegment
+            if (a.isPlanStep && a.refId === itemId) {
+              const newRefs = [...(a.childRefIds ?? []), seg.id]
+              if (newRefs[newRefs.length - 1] !== a.id) {
+                segments[i] = { ...a, childRefIds: newRefs }
+              }
+              break
+            }
+          }
+        }
+      }
+      return replaceTurn(turns, ti, { ...turn, segments })
+    }
+
+    case 'plan_step_status': {
+      const ti = lastTurnIndex(turns)
+      if (ti < 0 || turns[ti].id !== event.turnId) return turns
+      const turn = turns[ti]
+      const idx = turn.segments.findIndex(
+        (s) => s.kind === 'action' && s.refId === event.stepId,
+      )
+      if (idx < 0) return turns
+      const seg = turn.segments[idx]
+      if (seg.kind !== 'action' || !seg.isPlanStep) return turns
+      const nextSeg = {
+        ...seg,
+        status: event.status,
+        result: event.result ?? seg.result,
+        // 2026-09-02 激进方案：步骤 running 时强制展开（其内输出可见）；
+        // 收口后保持展开（执行过程保留可查），仅重置 activePlanStepId
+        stepCollapsed: event.status === 'running' ? false : seg.stepCollapsed,
+      }
+      const segments = turn.segments.map((s, i) => (i === idx ? nextSeg : s))
+      const activePlanStepId =
+        event.status === 'running'
+          ? seg.id
+          : turn.activePlanStepId === seg.id
+            ? undefined
+            : turn.activePlanStepId
+      return replaceTurn(turns, ti, { ...turn, segments, activePlanStepId })
+    }
+
+    case 'plan_step_toggle': {
+      const ti = turns.findIndex((t) => t.id === event.turnId)
+      if (ti < 0) return turns
+      const turn = turns[ti]
+      const idx = turn.segments.findIndex((s) => s.id === event.stepId)
+      if (idx < 0) return turns
+      const seg = turn.segments[idx]
+      if (seg.kind !== 'action' || !seg.isPlanStep) return turns
+      // 切折叠态 + 置 userEverExpanded（计划步骤展开也算用户接触过：折叠判定不再自动收起该轮）
+      return replaceTurn(turns, ti, {
+        ...turn,
+        userEverExpanded: true,
+        segments: turn.segments.map((s, i) =>
+          i === idx ? { ...seg, stepCollapsed: !seg.stepCollapsed } : s,
+        ),
+      })
     }
 
     case 'action_end': {
@@ -430,6 +616,51 @@ export function reduceEvent(turns: Turn[], event: TurnEvent): Turn[] {
       const turn = turns[ti]
       if (!turn.segments.some((s) => s.kind === 'action' && s.status === 'running')) return turns
       return replaceTurn(turns, ti, settleRunningActions(turn))
+    }
+
+    // 2026-09-02 系统工具流式：tool_delta 增量输出追加到动作段（按 refId=toolCallId 配对）
+    case 'tool_delta': {
+      const ti = lastTurnIndex(turns)
+      if (ti < 0 || turns[ti].id !== event.turnId) return turns
+      const turn = turns[ti]
+      const idx = turn.segments.findIndex(
+        (s) => s.kind === 'action' && s.refId === event.toolCallId,
+      )
+      if (idx < 0) return turns
+      const seg = turn.segments[idx]
+      if (seg.kind !== 'action') return turns
+      // 字符上限截断（丢旧保新）：超限只保留末尾 TOOL_STREAM_LIMIT，置 streamTruncated。
+      // 截断发生在归约层而非渲染层，避免段上无限累积占内存。
+      const combined = (seg.stream ?? '') + event.delta
+      if (combined.length <= TOOL_STREAM_LIMIT) {
+        return replaceTurn(turns, ti, replaceSegment(turn, idx, { ...seg, stream: combined }))
+      }
+      return replaceTurn(turns, ti, replaceSegment(turn, idx, {
+        ...seg,
+        stream: combined.slice(-TOOL_STREAM_LIMIT),
+        streamTruncated: true,
+      }))
+    }
+
+    // 2026-09-02 系统工具流式：file_change diff 写入动作段（绿红对比 + 路径渲染）
+    case 'file_change': {
+      const ti = lastTurnIndex(turns)
+      if (ti < 0 || turns[ti].id !== event.turnId) return turns
+      const turn = turns[ti]
+      const idx = turn.segments.findIndex(
+        (s) => s.kind === 'action' && s.refId === event.toolCallId,
+      )
+      if (idx < 0) return turns
+      const seg = turn.segments[idx]
+      if (seg.kind !== 'action') return turns
+      return replaceTurn(turns, ti, replaceSegment(turn, idx, {
+        ...seg,
+        fileChange: {
+          path: event.path,
+          kind: event.kind,
+          hunks: event.hunks,
+        },
+      }))
     }
 
     // 以下两个事件按 id 定位而非取最后一个轮次：用户可能展开/折叠的是历史轮次
@@ -566,6 +797,133 @@ export function parseToolResult(raw: unknown): {
   return { status: 'completed', result: String(v) }
 }
 
+// ─── R6 第三部分：动作段事件 → TurnEvent 翻译（实时/回源共用）───────────
+
+/** refId 稳定键前缀（动作段 start/end 配对；id=refId 保证幂等去重） */
+const R6_REF_PREFIX = 'r6:'
+
+/**
+ * 把一条动作段事件（`type:"action_event"` 的 payload：`{ action, ...明细 }` 平铺）
+ * 翻译成 TurnEvent 序列（瞬时决策类成对 start/end；进入/结果类按阶段命名成段）。
+ *
+ * 实时与回源共用：useAgentRust 实时路径（handleStreamEvent）与
+ * rebuildFromMessages（assistant.meta.action_events 数组）据此驱动**同一个归约器**，
+ * 保证刷新前后动作行段结构一致（R6 第三部分）。
+ * 配对规则（与后端 action_event_payload 六类对齐）：
+ * - subagent（start/completed/error）：按 subAgentId 配对
+ * - phase（entered/result）：按 `runId:phase` 配对；pipe_started/pipe_finished 骨架事件不建段（避免悬空段）
+ * - router / reflection：瞬时段 start+end 同刻
+ * - confirm（requested/resolved）：按 confirmId 配对
+ */
+export function actionEventToTurnEvents(
+  turnId: string,
+  action: string,
+  payload: Record<string, unknown>,
+): TurnEvent[] {
+  const str = (v: unknown): string => (typeof v === 'string' ? v : '')
+
+  switch (action) {
+    case 'subagent': {
+      const subId = str(payload.subAgentId)
+      if (!subId) return []
+      const refId = `${R6_REF_PREFIX}subagent:${subId}`
+      const phase = payload.phase
+      if (phase === 'completed') {
+        return [
+          {
+            type: 'action_end',
+            turnId,
+            refId,
+            status: 'completed',
+            durationMs: typeof payload.durationMs === 'number' ? payload.durationMs : undefined,
+            result: payload.outputChars,
+          },
+        ]
+      }
+      if (phase === 'error') {
+        return [{ type: 'action_end', turnId, refId, status: 'failed' }]
+      }
+      return [
+        {
+          type: 'action_start',
+          turnId,
+          id: refId,
+          action: 'subagent',
+          label: str(payload.name) || '子 Agent',
+          refId,
+          args: payload.task ? { task: payload.task } : undefined,
+        },
+      ]
+    }
+    case 'phase': {
+      const runId = str(payload.runId)
+      const phaseName = str(payload.phase)
+      // pipe 子阶段标识（后端 `event` 键：pipe_started/entered/result/pipe_finished）
+      const sub = payload.event
+      if (sub === 'entered') {
+        if (!runId || !phaseName) return []
+        const refId = `${R6_REF_PREFIX}phase:${runId}:${phaseName}`
+        return [{ type: 'action_start', turnId, id: refId, action: 'phase', label: phaseName, refId }]
+      }
+      if (sub === 'result') {
+        if (!runId || !phaseName) return []
+        const refId = `${R6_REF_PREFIX}phase:${runId}:${phaseName}`
+        const status =
+          payload.status === 'Success' ? 'completed'
+          : payload.status === 'Failed' || payload.status === 'Degraded' ? 'failed'
+          : 'completed'
+        return [
+          {
+            type: 'action_end',
+            turnId,
+            refId,
+            status,
+            result: str(payload.summary) || undefined,
+          },
+        ]
+      }
+      return []
+    }
+    case 'router': {
+      const refId = `${R6_REF_PREFIX}router:${str(payload.phase) || 'decision'}`
+      const target = str(payload.target)
+      return [
+        { type: 'action_start', turnId, id: refId, action: 'router', label: target ? `路由：${target}` : '路由决策', refId },
+        { type: 'action_end', turnId, refId, status: 'completed' },
+      ]
+    }
+    case 'reflection': {
+      const refId = `${R6_REF_PREFIX}reflection`
+      return [
+        { type: 'action_start', turnId, id: refId, action: 'reflection', label: '评审', refId },
+        { type: 'action_end', turnId, refId, status: 'completed', result: payload.result },
+      ]
+    }
+    case 'confirm': {
+      const confirmId = str(payload.confirmId)
+      if (!confirmId) return []
+      const refId = `${R6_REF_PREFIX}confirm:${confirmId}`
+      if (payload.phase === 'resolved') {
+        return [
+          { type: 'action_end', turnId, refId, status: payload.approved ? 'completed' : 'failed' },
+        ]
+      }
+      return [
+        {
+          type: 'action_start',
+          turnId,
+          id: refId,
+          action: 'confirm',
+          label: `等待确认：${str(payload.tool) || '工具调用'}`,
+          refId,
+        },
+      ]
+    }
+    default:
+      return []
+  }
+}
+
 /**
  * 回源重建：把持久化消息翻译成事件序列，喂给**同一个**归约器
  *
@@ -598,6 +956,19 @@ export function rebuildFromMessages(msgs: RebuildMessage[]): Turn[] {
       turns = reduceEvent(turns, { type: 'round_start', turnId })
       const thinking = readThinking(m)
       if (thinking) turns = reduceEvent(turns, { type: 'reasoning', turnId, delta: thinking })
+      // R6 第三部分：动作段回源——assistant.meta.action_events（事件序）经同一归约器重建
+      // （置于正文之前：动作段入过程层，正文保持结果层候选，回源态与实时态结构一致）
+      const rawEvents = m.meta?.action_events
+      if (Array.isArray(rawEvents)) {
+        for (const ev of rawEvents) {
+          if (!ev || typeof ev !== 'object') continue
+          const ae = ev as Record<string, unknown>
+          if (typeof ae.action !== 'string') continue
+          for (const te of actionEventToTurnEvents(turnId, ae.action, ae)) {
+            turns = reduceEvent(turns, te)
+          }
+        }
+      }
       // 本轮正文（空串不建段）；其后若有工具调用，会被 action_start 自动降级为过程文本
       turns = reduceEvent(turns, { type: 'round_end', turnId, fullText: m.content, textId: m.id })
       for (const tc of m.tool_calls ?? []) {
@@ -726,6 +1097,16 @@ export type FlatRow =
       error?: string
       /** 执行耗时（毫秒，H7 P0.5）；回源无此字段则不显示 */
       durationMs?: number
+      /** 2026-09-02 系统工具流式：bash/powershell 增量输出累积（随流透传渲染） */
+      stream?: string
+      /** 2026-09-02 系统工具流式：stream 超限已丢旧保新（渲染层提示） */
+      streamTruncated?: boolean
+      /** 2026-09-02 系统工具流式：文件变更 diff（绿红对比 + 路径渲染） */
+      fileChange?: ActionSegment['fileChange']
+      /** 2026-09-02 计划步骤行：plan 类动作段标记 + 子动作 id 列表 + 折叠态 */
+      isPlanStep?: boolean
+      childRefIds?: string[]
+      stepCollapsed?: boolean
       timestamp: number
     }
   | { id: string; turnId: string; type: 'text'; text: string; isResult: boolean; timestamp: number }
@@ -767,6 +1148,12 @@ function segmentToRow(s: Segment, turnId: string, isResult: boolean): FlatRow {
         result: s.result,
         error: s.error,
         durationMs: s.durationMs,
+        stream: s.stream,
+        streamTruncated: s.streamTruncated,
+        fileChange: s.fileChange,
+        isPlanStep: s.isPlanStep,
+        childRefIds: s.childRefIds,
+        stepCollapsed: s.stepCollapsed,
         timestamp: s.timestamp,
       }
     case 'text':

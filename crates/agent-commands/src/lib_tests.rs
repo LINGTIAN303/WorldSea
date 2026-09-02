@@ -1,6 +1,8 @@
 // ─── 单元测试 ────────────────────────────────────────────
 
     use super::*;
+    // S1 适配层：Bring RunObserver trait 进作用域以调用桥上方法
+    use agent_patterns::orchestrator::RunObserver;
 
     fn cloud_config(api_key: &str) -> RuntimeProviderConfig {
         RuntimeProviderConfig::Cloud {
@@ -463,12 +465,18 @@
         entry.controller.rate_limiter.inc_turns();
         assert_eq!(builtin.rate_limiter.turns(), 1, "共享实例的状态应同步");
 
-        // 配置重建：从共享控制器重建的配置应保留默认速率限制（宽松默认 max_turns=100）
+        // 配置重建：从共享控制器重建的配置应保留默认速率限制
+        // （max_turns 已退役=None，轮数预算职责移交 AgentLoopConfig.total_steps；其余维度保留宽松默认）
         let config = entry.controller.config();
         assert_eq!(
             config.rate_limit.max_turns,
-            Some(100),
-            "默认配置应保留宽松 turns 上限"
+            None,
+            "默认配置应关闭轮数限制（职责移交 total_steps）"
+        );
+        assert_eq!(
+            config.rate_limit.max_tool_calls,
+            Some(200),
+            "默认配置应保留工具调用次数兜底"
         );
     }
 
@@ -660,4 +668,347 @@
         let sub2_run = store.get(&sub2).await.unwrap();
         assert_eq!(sub2_run.status, RunStatus::Error);
         assert_eq!(sub2_run.converge_reason, None);
+    }
+
+    // ═══ S1 适配层：B 轨命令层契约辅助（编排双轨收拢试点）═══
+
+    /// 构造 B 轨终局报告（blackboard 为追加语义快照：v 数组[当前值]）
+    fn b_rail_report(reason: b_rail::TerminalReason, blackboard: serde_json::Value) -> b_rail::RunReport {
+        let result = blackboard
+            .get("result.draft")
+            .and_then(|v| v.as_array())
+            .and_then(|a| a.last())
+            .cloned();
+        b_rail::RunReport {
+            reason,
+            steps: vec![],
+            usage: b_rail::Usage::default(),
+            result,
+            blackboard,
+            elapsed: std::time::Duration::from_millis(1),
+        }
+    }
+
+    #[test]
+    fn b_rail_terminal_maps_kernel_contract() {
+        // Done → Completed + GoalReached + final_message
+        let done = b_rail_report(
+            b_rail::TerminalReason::Done,
+            serde_json::json!({ "result.draft": ["最终结论"] }),
+        );
+        let (s, r, m, e) = b_rail_terminal(&done);
+        assert_eq!(s, OrchestratorEndStatus::Completed);
+        assert_eq!(r, Some(ConvergeReason::GoalReached));
+        assert_eq!(m.as_deref(), Some("最终结论"));
+        assert!(e.is_none());
+
+        // Fatal → Error
+        let fatal = b_rail_report(
+            b_rail::TerminalReason::Fatal(b_rail::NodeError::fatal("replan", "重规划耗尽")),
+            serde_json::json!({ "result.draft": ["部分结果"] }),
+        );
+        let (s, r, m, e) = b_rail_terminal(&fatal);
+        assert_eq!(s, OrchestratorEndStatus::Error);
+        assert_eq!(r, None);
+        assert_eq!(m.as_deref(), Some("部分结果"));
+        assert!(e.unwrap().contains("重规划耗尽"));
+
+        // Governed → Aborted
+        let governed = b_rail_report(
+            b_rail::TerminalReason::Governed("用户取消".into()),
+            serde_json::json!({ "result.draft": ["退出前结果"] }),
+        );
+        let (s, r, _, e) = b_rail_terminal(&governed);
+        assert_eq!(s, OrchestratorEndStatus::Aborted);
+        assert_eq!(r, Some(ConvergeReason::Aborted));
+        assert!(e.is_some());
+    }
+
+    #[test]
+    fn b_rail_artifacts_translate_plan_and_execution() {
+        let report = b_rail_report(
+            b_rail::TerminalReason::Done,
+            serde_json::json!({
+                "pne.plan": [{ "steps": ["步骤1", "步骤2"] }],
+                "result.draft": ["执行完毕的成稿"]
+            }),
+        );
+        let artifacts = b_rail_artifacts("run-1", &report);
+        // 两类物齐全 + 归属 run
+        assert_eq!(artifacts.len(), 2);
+        assert!(artifacts.iter().all(|a| a.run_id == "run-1"));
+        // Plan 物：2 个步骤映射 2 个 PlanItem，id/order 顺序正确
+        let plan = artifacts.iter().find(|a| matches!(a.kind, ArtifactKind::Plan(_))).unwrap();
+        assert!(plan.artifact_id.starts_with("run-1-"));
+        match &plan.kind {
+            ArtifactKind::Plan(items) => {
+                assert_eq!(items.len(), 2);
+                assert_eq!(items[0].title, "步骤1");
+                assert_eq!(items[0].order, 0);
+                assert_eq!(items[1].title, "步骤2");
+                assert_eq!(items[1].order, 1);
+            }
+            _ => panic!("应为 Plan 物"),
+        }
+        // Execution 物：result.draft 正文 + Completed
+        let exec = artifacts.iter().find(|a| matches!(a.kind, ArtifactKind::Execution { .. })).unwrap();
+        match &exec.kind {
+            ArtifactKind::Execution { step_results, status } => {
+                assert_eq!(*status, ExecStatus::Completed);
+                assert_eq!(step_results.len(), 1);
+                assert_eq!(step_results[0].output.as_deref(), Some("执行完毕的成稿"));
+            }
+            _ => panic!("应为 Execution 物"),
+        }
+    }
+
+    #[test]
+    fn b_rail_trace_bridge_dispatches_kernel_trace_events() {
+        // 收集器 + 订阅到广播器
+        let collected: Arc<tokio::sync::Mutex<Vec<OrchestratorEvent>>> = Arc::new(tokio::sync::Mutex::new(Vec::new()));
+        let collector = TraceCollect { events: Arc::clone(&collected) };
+        let broadcaster = Arc::new(tokio::sync::RwLock::new(EventBroadcaster::new()));
+        {
+            let mut b = broadcaster.try_write().unwrap();
+            b.subscribe(Arc::new(collector));
+        }
+        let bridge = BRailTraceBridge { target: broadcaster, run_id: "r-1".into() };
+
+        // 阶段进入 → TracePhaseEntered
+        bridge.on_phase("plan_execute", "plan", None, "生成执行计划");
+        // 阶段结果 → TracePhaseResult（Success + 摘要）
+        bridge.on_phase("plan_execute", "plan", Some(b_rail::PhaseStatus::Success), "生成 2 个步骤");
+
+        let events = collected.try_lock().unwrap().clone();
+        assert_eq!(events.len(), 2);
+        match &events[0] {
+            OrchestratorEvent::TracePhaseEntered { run_id, phase, .. } => {
+                assert_eq!(run_id, "r-1");
+                assert_eq!(phase, "plan");
+            }
+            _ => panic!("应为 TracePhaseEntered"),
+        }
+        match &events[1] {
+            OrchestratorEvent::TracePhaseResult { run_id, phase, status, summary, .. } => {
+                assert_eq!(run_id, "r-1");
+                assert_eq!(phase, "plan");
+                assert_eq!(*status, TracePhaseStatus::Success);
+                assert_eq!(summary, "生成 2 个步骤");
+            }
+            _ => panic!("应为 TracePhaseResult"),
+        }
+    }
+
+    /// 事件收集器（BRailTraceBridge 断言用）
+    struct TraceCollect {
+        events: Arc<tokio::sync::Mutex<Vec<OrchestratorEvent>>>,
+    }
+
+    impl EventListener for TraceCollect {
+        fn on_event(&self, event: &OrchestratorEvent) {
+            self.events.try_lock().unwrap().push(event.clone());
+        }
+    }
+
+    // ═══ 2026-09-02 B 轨步骤工具化：BusToolHandle 桥接 ToolBus + 事件广播 ═══
+
+    // invoke 是 b_rail::ToolHandle trait 方法——比 impl 声明晚的模块内方法调用需 trait 在作用域
+    use agent_patterns::orchestrator::ToolHandle as _;
+
+    /// 测试用固定工具（回显参数），避免依赖外部工具注册面
+    struct FixedEchoTool;
+    #[async_trait::async_trait]
+    impl Tool for FixedEchoTool {
+        fn name(&self) -> &str {
+            "echo"
+        }
+        fn description(&self) -> &str {
+            "回显（测试用）"
+        }
+        fn parameters(&self) -> serde_json::Value {
+            serde_json::json!({ "type": "object" })
+        }
+        async fn execute(&self, args: serde_json::Value) -> Result<serde_json::Value, agent_runtime::ToolError> {
+            Ok(args)
+        }
+    }
+
+    /// BusToolHandle 工具总线桥：成功路径广播 ToolCallStart/End（前端归入计划步骤）
+    #[tokio::test]
+    async fn bus_tool_handle_success_broadcasts_call_events() {
+        // 注册一个真实工具（echo 测试工具），走完整 ToolBus 执行
+        let bus = Arc::new(SimpleToolBus::new());
+        bus.register(Arc::new(FixedEchoTool)).await;
+
+        let collected: Arc<tokio::sync::Mutex<Vec<OrchestratorEvent>>> =
+            Arc::new(tokio::sync::Mutex::new(Vec::new()));
+        let collector = TraceCollect { events: Arc::clone(&collected) };
+        let broadcaster = Arc::new(RwLock::new(EventBroadcaster::new()));
+        {
+            let mut b = broadcaster.try_write().unwrap();
+            b.subscribe(Arc::new(collector));
+        }
+        let handle = BusToolHandle {
+            bus,
+            ctx: agent_runtime::ToolContext::default(),
+            broadcaster,
+        };
+        let call = b_rail::ToolCall::new("c1", "echo", serde_json::json!({ "message": "hi" }));
+        let obs = handle.invoke(&call).await.unwrap();
+        assert!(obs.ok, "echo 工具成功");
+
+        let events = collected.try_lock().unwrap().clone();
+        assert_eq!(events.len(), 2, "应广播 ToolCallStart + ToolCallEnd");
+        match &events[0] {
+            OrchestratorEvent::Agent(agent_runtime::event::AgentEvent::ToolCallStart {
+                tool_call_id,
+                name,
+                ..
+            }) => {
+                assert_eq!(tool_call_id, "c1");
+                assert_eq!(name, "echo");
+            }
+            _ => panic!("首事件应为 ToolCallStart"),
+        }
+        match &events[1] {
+            OrchestratorEvent::Agent(agent_runtime::event::AgentEvent::ToolCallEnd {
+                tool_call_id,
+                status,
+                ..
+            }) => {
+                assert_eq!(tool_call_id, "c1");
+                assert_eq!(status, "success");
+            }
+            _ => panic!("次事件应为 ToolCallEnd"),
+        }
+    }
+
+    /// BusToolHandle 失败路径：广播 failed 状态，观察非 ok
+    #[tokio::test]
+    async fn bus_tool_handle_failure_broadcasts_failed() {
+        let bus = Arc::new(SimpleToolBus::new()); // 未注册 echo → 工具不存在
+        let collected: Arc<tokio::sync::Mutex<Vec<OrchestratorEvent>>> =
+            Arc::new(tokio::sync::Mutex::new(Vec::new()));
+        let collector = TraceCollect { events: Arc::clone(&collected) };
+        let broadcaster = Arc::new(RwLock::new(EventBroadcaster::new()));
+        {
+            let mut b = broadcaster.try_write().unwrap();
+            b.subscribe(Arc::new(collector));
+        }
+        let handle = BusToolHandle {
+            bus,
+            ctx: agent_runtime::ToolContext::default(),
+            broadcaster,
+        };
+        let call = b_rail::ToolCall::new("c1", "echo", serde_json::json!({}));
+        let obs = handle.invoke(&call).await.unwrap();
+        assert!(!obs.ok, "工具不存在应失败");
+
+        let events = collected.try_lock().unwrap().clone();
+        assert_eq!(events.len(), 2);
+        match &events[1] {
+            OrchestratorEvent::Agent(agent_runtime::event::AgentEvent::ToolCallEnd {
+                status,
+                error,
+                ..
+            }) => {
+                assert_eq!(status, "failed");
+                assert!(error.is_some(), "失败应携带错误摘要");
+            }
+            _ => panic!("次事件应为 ToolCallEnd(failed)"),
+        }
+    }
+
+    // ═══ S2 双跑对齐：归一化口径 ═══
+
+    #[test]
+    fn normalize_trace_sequence_filters_by_run_and_shapes() {
+        let events = vec![
+            OrchestratorEvent::TracePipeStarted { run_id: "r1".into(), pipeline: "quick-plan".into(), reason: None },
+            OrchestratorEvent::TracePhaseEntered { run_id: "r1".into(), phase: "plan".into(), reason: None },
+            OrchestratorEvent::TracePhaseResult { run_id: "r1".into(), phase: "plan".into(), status: TracePhaseStatus::Success, summary: "2 步".into(), artifact_id: None },
+            OrchestratorEvent::TracePhaseEntered { run_id: "r2".into(), phase: "plan".into(), reason: None },
+            OrchestratorEvent::TracePhaseResult { run_id: "r1".into(), phase: "execute".into(), status: TracePhaseStatus::Success, summary: "ok".into(), artifact_id: None },
+            OrchestratorEvent::TracePipeFinished { run_id: "r1".into(), status: OrchestratorEndStatus::Completed, reason: Some(ConvergeReason::GoalReached), final_message: Some("结论".into()) },
+            OrchestratorEvent::TracePipeFinished { run_id: "r2".into(), status: OrchestratorEndStatus::Completed, reason: None, final_message: None },
+        ];
+        // r1：完整五元序列 + 事件族降维 + 带状态
+        let seq = normalize_trace_sequence(&events, "r1");
+        assert_eq!(
+            seq,
+            vec![
+                "pipe_started".to_string(),
+                "enter:plan".to_string(),
+                "result:plan:Success".to_string(),
+                "result:execute:Success".to_string(),
+                "pipe_finished".to_string(),
+            ]
+        );
+        // r2：仅自身事件（与 r1 隔离）
+        let seq_r2 = normalize_trace_sequence(&events, "r2");
+        assert_eq!(seq_r2, vec!["enter:plan".to_string(), "pipe_finished".to_string()]);
+    }
+
+    #[test]
+    fn normalize_trace_sequence_folds_repeated_phase() {
+        // S2 骨架形状对齐（2026-09-01 用户拍板）：execute 重复进入/退出（LLM 拆多步）
+        // 折叠为首次 enter + 末次 result，A/B 只比对管线骨架而非步骤轮次。
+        let events = vec![
+            OrchestratorEvent::TracePipeStarted { run_id: "r1".into(), pipeline: "quick-plan".into(), reason: None },
+            OrchestratorEvent::TracePhaseEntered { run_id: "r1".into(), phase: "plan".into(), reason: None },
+            OrchestratorEvent::TracePhaseResult { run_id: "r1".into(), phase: "plan".into(), status: TracePhaseStatus::Success, summary: "2 步".into(), artifact_id: None },
+            OrchestratorEvent::TracePhaseEntered { run_id: "r1".into(), phase: "execute".into(), reason: None },
+            OrchestratorEvent::TracePhaseResult { run_id: "r1".into(), phase: "execute".into(), status: TracePhaseStatus::Success, summary: "步1".into(), artifact_id: None },
+            // 第二轮的 execute enter/result（应被折叠：enter 不再重复，result 取末次）
+            OrchestratorEvent::TracePhaseEntered { run_id: "r1".into(), phase: "execute".into(), reason: None },
+            OrchestratorEvent::TracePhaseResult { run_id: "r1".into(), phase: "execute".into(), status: TracePhaseStatus::Success, summary: "步2".into(), artifact_id: None },
+            OrchestratorEvent::TracePipeFinished { run_id: "r1".into(), status: OrchestratorEndStatus::Completed, reason: Some(ConvergeReason::GoalReached), final_message: Some("结论".into()) },
+        ];
+        let seq = normalize_trace_sequence(&events, "r1");
+        assert_eq!(
+            seq,
+            vec![
+                "pipe_started".to_string(),
+                "enter:plan".to_string(),
+                "result:plan:Success".to_string(),
+                "enter:execute".to_string(),
+                "result:execute:Success".to_string(),
+                "pipe_finished".to_string(),
+            ],
+            "重复 execute phase 应折叠为骨架（首次 enter + 末次 result）"
+        );
+    }
+
+    #[test]
+    fn artifact_kind_names_lists_in_order() {
+        let artifacts = vec![
+            HandoverArtifact {
+                artifact_id: "a".into(),
+                run_id: "r".into(),
+                from_node: "plan".into(),
+                kind: ArtifactKind::Plan(vec![]),
+                summary: "".into(),
+                produced_at: 0,
+            },
+            HandoverArtifact {
+                artifact_id: "b".into(),
+                run_id: "r".into(),
+                from_node: "exec".into(),
+                kind: ArtifactKind::Execution { step_results: vec![], status: ExecStatus::Completed },
+                summary: "".into(),
+                produced_at: 0,
+            },
+            HandoverArtifact {
+                artifact_id: "c".into(),
+                run_id: "r".into(),
+                from_node: "explore".into(),
+                kind: ArtifactKind::Exploration { best_path: "p".into(), score: 80, explored: 3, term_reason: "t".into() },
+                summary: "".into(),
+                produced_at: 0,
+            },
+        ];
+        assert_eq!(
+            artifact_kind_names(&artifacts),
+            vec!["Plan".to_string(), "Execution".to_string(), "Exploration".to_string()]
+        );
     }

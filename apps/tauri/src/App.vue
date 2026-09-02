@@ -14,6 +14,9 @@ import { useGlobalEvents, setActiveViewId } from '@worldsmith/ui-kit'
 import { bootstrapPlugins } from './plugins/bootstrap'
 import { useProjectSwitcher } from './composables/useProjectSwitcher'
 import { useSystemBridge } from './composables/useSystemBridge'
+import { useMcpConnections } from '@worldsmith/shared-composables/agent/useMcpConnections'
+import { useAgent } from './agent/composables/useAgent'
+import { toastWarn } from '@/composables/useToast'
 import SplashScreen from './ui/boot/SplashScreen.vue'
 import BootErrorScreen from './ui/boot/BootErrorScreen.vue'
 
@@ -126,6 +129,19 @@ onMounted(async () => {
   await bootstrapPlugins()
   // 系统层桥初始化：托盘事件监听 + 最近项目同步（异步，不阻塞启动）
   void setupSystemBridge()
+  // T09②（2026-09-01）：MCP 启动自动重连失败提示——启动拉取配置+状态合并视图，
+  // 已启用但未连上的连接（服务器未起/网络/鉴权）toast 提示一次，便于用户排查。
+  try {
+    const { ensureLoaded: ensureMcpLoaded, takeAutoReconnectFailed } = useMcpConnections({ getAgent: () => useAgent() })
+    await ensureMcpLoaded()
+    const failed = takeAutoReconnectFailed()
+    if (failed.length > 0) {
+      const names = failed.map((f) => f.name).join('、')
+      toastWarn(`MCP 自动重连失败：${names}（请检查服务器是否启动或配置是否正确）`)
+    }
+  } catch (err) {
+    console.error('[App] MCP 启动状态检测失败:', err)
+  }
   // 核心启动完成 → 通知 SplashScreen 淡出（bootState: 'booting' → 'ready'）
   uiStore.markReady()
 })

@@ -282,9 +282,15 @@ impl GenaiBackend {
         if options.thinking_mode == Some(true) {
             chat_opts = chat_opts.with_reasoning_effort(ReasoningEffort::Medium);
         }
-        // 存在工具时显式设置 tool_choice = auto（部分 provider 未收到该字段不触发工具调用）
+        // 存在工具时显式设置 tool_choice（部分 provider 未收到该字段不触发工具调用）。
+        // force_tool 指定时用 ToolChoice::Tool（强制调用该工具）——编排决策形态
+        // （structured output 的 tool-use-as-JSON），否则维持 Auto。
         if !options.tools.is_empty() {
-            chat_opts = chat_opts.with_tool_choice(ToolChoice::Auto);
+            let tc = match &options.force_tool {
+                Some(name) => ToolChoice::Tool { name: name.clone() },
+                None => ToolChoice::Auto,
+            };
+            chat_opts = chat_opts.with_tool_choice(tc);
         }
         // 启用捕获（用于 StreamEnd 提取完整内容与用量，以及原始请求体诊断）
         //
@@ -309,11 +315,14 @@ impl GenaiBackend {
     }
 
     /// 用指定 ServiceTarget 执行一次流式调用并聚合结果（A2 多 Key 降级的单次尝试）
+    ///
+    /// `silent`（R6 第四部分）：抑制流式事件广播（过程内决策调用，如路由判型）
     async fn exec_stream_once(
         &self,
         service_target: ServiceTarget,
         chat_req: genai::chat::ChatRequest,
         chat_opts: &genai::chat::ChatOptions,
+        silent: bool,
     ) -> Result<PromptResponse, BackendError> {
         use futures_util::StreamExt;
 
@@ -344,26 +353,30 @@ impl GenaiBackend {
                     // genai 0.7 StreamChunk.content 直接是 String
                     let text = chunk.content.as_str();
                     full_text.push_str(text);
-                    // 广播 StreamDelta
-                    let _ = self
-                        .broadcast(OrchestratorEvent::Agent(
-                            crate::event::AgentEvent::StreamDelta {
-                                delta: text.to_string(),
-                            },
-                        ))
-                        .await;
+                    // 广播 StreamDelta（silent 时抑制——过程内决策调用不泄漏为正文段）
+                    if !silent {
+                        let _ = self
+                            .broadcast(OrchestratorEvent::Agent(
+                                crate::event::AgentEvent::StreamDelta {
+                                    delta: text.to_string(),
+                                },
+                            ))
+                            .await;
+                    }
                 }
                 ChatStreamEvent::ReasoningChunk(chunk) => {
                     reasoning_text.push_str(chunk.content.as_str());
-                    // [链逐条] 广播推理增量，供前端逐条追加到助理消息 thinking 字段实时渲染
-                    let reasoning = chunk.content.as_str();
-                    let _ = self
-                        .broadcast(OrchestratorEvent::Agent(
-                            crate::event::AgentEvent::ReasoningDelta {
-                                delta: reasoning.to_string(),
-                            },
-                        ))
-                        .await;
+                    // [链逐条] 广播推理增量（silent 时抑制），供前端逐条追加到助理消息 thinking 字段实时渲染
+                    if !silent {
+                        let reasoning = chunk.content.as_str();
+                        let _ = self
+                            .broadcast(OrchestratorEvent::Agent(
+                                crate::event::AgentEvent::ReasoningDelta {
+                                    delta: reasoning.to_string(),
+                                },
+                            ))
+                            .await;
+                    }
                 }
                 ChatStreamEvent::ThoughtSignatureChunk(_) => {
                     // 暂不处理 thought signature
@@ -377,16 +390,18 @@ impl GenaiBackend {
                     // 每次到达的 ToolCall 通常是完整的（非增量），用 HashMap 合并去重
                     let tc = tool_chunk.tool_call;
                     let call_id = tc.call_id.clone();
-                    // 广播 ToolCallStart（携带工具名，便于前端展示）
-                    let _ = self
-                        .broadcast(OrchestratorEvent::Agent(
-                            crate::event::AgentEvent::ToolCallStart {
-                                tool_call_id: call_id.clone(),
-                                name: tc.fn_name.clone(),
-                                args: tc.fn_arguments.clone(),
-                            },
-                        ))
-                        .await;
+                    // 广播 ToolCallStart（silent 时抑制），携带工具名，便于前端展示
+                    if !silent {
+                        let _ = self
+                            .broadcast(OrchestratorEvent::Agent(
+                                crate::event::AgentEvent::ToolCallStart {
+                                    tool_call_id: call_id.clone(),
+                                    name: tc.fn_name.clone(),
+                                    args: tc.fn_arguments.clone(),
+                                },
+                            ))
+                            .await;
+                    }
                     // 覆盖式更新（后到的 chunk 字段更完整）
                     pending_tool_calls.insert(call_id, tc);
                 }
@@ -484,7 +499,11 @@ impl GenaiBackend {
     }
 
     /// 处理一次成功响应：推入 assistant 消息并广播 StreamEnd（A2 降级成功后的收尾）
-    async fn finish_prompt(&self, response: PromptResponse) -> Result<PromptResponse, BackendError> {
+    async fn finish_prompt(
+        &self,
+        response: PromptResponse,
+        silent: bool,
+    ) -> Result<PromptResponse, BackendError> {
         // 推入 assistant 消息（含 tool_calls，供下一轮 LLM 上下文使用）
         let mut messages = self.messages.write().await;
         messages.push(OrchestratorMessage {
@@ -495,14 +514,16 @@ impl GenaiBackend {
             meta: None,
         });
 
-        // 广播 StreamEnd
-        let _ = self
-            .broadcast(OrchestratorEvent::Agent(
-                crate::event::AgentEvent::StreamEnd {
-                    full_text: response.text.clone(),
-                },
-            ))
-            .await;
+        // 广播 StreamEnd（silent 时抑制——过程内决策调用不泄漏为正文段）
+        if !silent {
+            let _ = self
+                .broadcast(OrchestratorEvent::Agent(
+                    crate::event::AgentEvent::StreamEnd {
+                        full_text: response.text.clone(),
+                    },
+                ))
+                .await;
+        }
 
         Ok(response)
     }
@@ -516,6 +537,8 @@ impl NodeBackendAccessor for GenaiBackend {
         options: Option<PromptCallOptions>,
     ) -> Result<PromptResponse, BackendError> {
         let opts = options.unwrap_or_default();
+        // R6 第四部分：静默调用（过程内决策，如路由判型）→ 抑制流式事件广播
+        let silent = opts.silent;
         let config = self.config.read().await.clone();
 
         // 1. 校验 API Key（cloud/custom 模式）
@@ -576,15 +599,17 @@ impl NodeBackendAccessor for GenaiBackend {
             }
             let service_target =
                 Self::resolve_service_target(&attempt_config).map_err(BackendError::from)?;
-            self.broadcast(OrchestratorEvent::Agent(crate::event::AgentEvent::StreamStart {
-                model: attempt_config.model_id().to_string(),
-            }))
-            .await;
+            if !silent {
+                self.broadcast(OrchestratorEvent::Agent(crate::event::AgentEvent::StreamStart {
+                    model: attempt_config.model_id().to_string(),
+                }))
+                .await;
+            }
             let stream_result = self
-                .exec_stream_once(service_target, chat_req.clone(), &chat_opts)
+                .exec_stream_once(service_target, chat_req.clone(), &chat_opts, silent)
                 .await;
             match stream_result {
-                Ok(resp) => return self.finish_prompt(resp).await,
+                Ok(resp) => return self.finish_prompt(resp, silent).await,
                 Err(e) => {
                     if is_retryable_error(&e) && last_error.is_none() {
                         last_error = Some(e);

@@ -11,6 +11,7 @@ use std::sync::Arc;
 use crate::orchestrator::blackboard::Blackboard;
 use crate::orchestrator::error::MemoryError;
 use crate::orchestrator::handles::{LlmHandle, MemEntry, MemoryHandle};
+use crate::orchestrator::observer::{PhaseStatus, RunObserver};
 use crate::orchestrator::types::{NodeId, Usage};
 
 /// 取消信号：治理层或用户中止时置位（设计 §3.2）。
@@ -98,6 +99,8 @@ pub struct NodeCtx<'a> {
     pub pending: Option<SubgraphRequest>,
     /// before 钩子取回的记忆条目（执行器在 execute 前注入，节点可直接读）
     pub recalled: Vec<MemEntry>,
+    /// 运行观察者（S1 适配层：节点内阶段事件经此透出；执行器注入，None 零开销）
+    observer: Option<Arc<dyn RunObserver>>,
 }
 
 impl<'a> NodeCtx<'a> {
@@ -109,7 +112,27 @@ impl<'a> NodeCtx<'a> {
         budget: BudgetView,
         cancel: CancelToken,
     ) -> Self {
-        Self { state, llm, memory, budget, cancel, pending: None, recalled: Vec::new() }
+        Self { state, llm, memory, budget, cancel, pending: None, recalled: Vec::new(), observer: None }
+    }
+
+    /// 注入运行观察者（S1 适配层；执行器在 execute 前调用）
+    pub fn with_observer(mut self, observer: Arc<dyn RunObserver>) -> Self {
+        self.observer = Some(observer);
+        self
+    }
+
+    /// 阶段事件透出（S1 适配层）：status = None 表示进入，Some 表示结果。
+    /// 无观察者时为空操作（骨架既有场景零开销）。
+    pub fn observe_phase(
+        &self,
+        node_id: &str,
+        phase: &str,
+        status: Option<PhaseStatus>,
+        summary: impl Into<String>,
+    ) {
+        if let Some(o) = &self.observer {
+            o.on_phase(node_id, phase, status, &summary.into());
+        }
     }
 
     /// 节点内主动检索记忆（集成纪律：主动读写走 recall/store，不自调钩子）

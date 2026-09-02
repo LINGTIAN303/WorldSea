@@ -104,8 +104,8 @@ pub struct SubAgentPool {
     backend: Arc<dyn NodeBackendAccessor>,
     /// 共享工具总线（与派发方同一个）
     tool_bus: Arc<dyn ToolBus>,
-    /// spec 未指定 max_iterations 时的默认值
-    default_max_iterations: u32,
+    /// spec 未指定 max_iterations 时的默认步数预算（语义=子 Agent 的工具调用轮数上限）
+    default_total_steps: u32,
     /// 实例池（按 sub_agent_id 懒加载缓存，含来源规格）
     agents: Arc<RwLock<HashMap<String, CachedSubAgent>>>,
 }
@@ -115,12 +115,12 @@ impl SubAgentPool {
     pub fn new(
         backend: Arc<dyn NodeBackendAccessor>,
         tool_bus: Arc<dyn ToolBus>,
-        default_max_iterations: u32,
+        default_total_steps: u32,
     ) -> Self {
         Self {
             backend,
             tool_bus,
-            default_max_iterations,
+            default_total_steps,
             agents: Arc::new(RwLock::new(HashMap::new())),
         }
     }
@@ -157,7 +157,10 @@ impl SubAgentPool {
 
         let mut child_config = base_config;
         child_config.system_prompt = Some(spec.system_prompt.clone());
-        child_config.max_iterations = spec.max_iterations.unwrap_or(self.default_max_iterations);
+        // 子 Agent 步数预算（语义=工具调用轮数上限）：spec.max_iterations 保留字段名，
+        // 取值映射到 AgentLoopConfig.total_steps
+        child_config.total_steps =
+            spec.max_iterations.unwrap_or(self.default_total_steps).max(1);
 
         // 子 Agent 工具总线：规格指定白名单时用 WhitelistToolBus 包装（工具隔离）
         let child_tool_bus: Arc<dyn ToolBus> = match &spec.tools_whitelist {

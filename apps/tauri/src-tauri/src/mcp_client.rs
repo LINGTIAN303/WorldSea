@@ -12,9 +12,13 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+use http::header::{HeaderName, HeaderValue};
 use rmcp::model::{CallToolRequestParams, ContentBlock};
 use rmcp::service::{RunningService, RoleClient};
-use rmcp::transport::{ConfigureCommandExt, StreamableHttpClientTransport, TokioChildProcess};
+use rmcp::transport::{
+    streamable_http_client::StreamableHttpClientTransportConfig, ConfigureCommandExt,
+    StreamableHttpClientTransport, TokioChildProcess,
+};
 use rmcp::ServiceExt;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -205,11 +209,50 @@ impl McpHub {
                     .as_ref()
                     .ok_or("http 传输缺少 url 字段")?
                     .clone();
-                // TODO(待续)：自定义 headers（鉴权）——rmcp 3.1 的 Config 需要 reqwest
-                // client 构造路径，v1 先用便捷 from_uri（无 headers），McpPanel 已保存
-                // headers 配置待后续版本注入
-                let _ = &config.headers;
-                let transport = StreamableHttpClientTransport::from_uri(url);
+                // T09③（2026-09-01）：headers 鉴权注入——rmcp 3.1 经 Config 构造
+                // （auth_header 单 Authorization + custom_headers 多自定义头）。
+                // 约定：headers 中键名大小写不敏感（HeaderName 规范化）；值为 Authorization
+                // 时由 auth_header 承载（rmcp 会带 Bearer 前缀归一），其余进 custom_headers。
+                let mut custom = HashMap::new();
+                let mut auth_header: Option<String> = None;
+                for (k, v) in &config.headers {
+                    let name = k.trim();
+                    if name.is_empty() {
+                        continue;
+                    }
+                    if name.eq_ignore_ascii_case("Authorization")
+                        || name.eq_ignore_ascii_case("authorization")
+                    {
+                        if auth_header.is_none() {
+                            // rmcp 语义：作为 bearer token（不带 "Bearer " 前缀）
+                            let token = match v.strip_prefix("Bearer ") {
+                                Some(rest) => rest.trim().to_string(),
+                                None => v
+                                    .strip_prefix("bearer ")
+                                    .map(|rest| rest.trim().to_string())
+                                    .unwrap_or_else(|| v.clone()),
+                            };
+                            auth_header = Some(token);
+                        }
+                        continue;
+                    }
+                    if let Ok(hn) = name.parse::<HeaderName>() {
+                        let hval = HeaderValue::from_str(v.trim())
+                            .unwrap_or_else(|_| HeaderValue::from_static(""));
+                        custom.insert(hn, hval);
+                    }
+                }
+                let cfg = StreamableHttpClientTransportConfig::with_uri(url);
+                let cfg = match auth_header {
+                    Some(auth) => cfg.auth_header(auth),
+                    None => cfg,
+                };
+                let cfg = if !custom.is_empty() {
+                    cfg.custom_headers(custom)
+                } else {
+                    cfg
+                };
+                let transport = StreamableHttpClientTransport::from_config(cfg);
                 Arc::new(
                     ()
                         .serve(transport)
@@ -314,4 +357,174 @@ pub struct McpStatusEntry {
     pub name: String,
     pub connected: bool,
     pub tool_count: u32,
+}
+
+// ─── e2e：连接真实 MCP 服务器闭环验证（2026-09-01） ──────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+    use tokio::net::TcpStream;
+
+    /// 本地真实 MCP 服务器端口（与手动起的验证服务器错开，避免冲突）
+    const E2E_PORT: &str = "18432";
+    const E2E_ADDR: &str = "127.0.0.1:18432";
+    const E2E_URL: &str = "http://127.0.0.1:18432/mcp";
+
+    /// 本地服务器脚本路径：<项目根>/.trae/mcp-e2e/server.mjs（gitignore，不入库）
+    fn server_script_path() -> std::path::PathBuf {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("..")
+            .join("..")
+            .join(".trae")
+            .join("mcp-e2e")
+            .join("server.mjs")
+    }
+
+    /// 轮询等待 TCP 端口就绪（服务器启动握手前不可连接）
+    async fn wait_port_ready(tries: usize) -> bool {
+        for _ in 0..tries {
+            if TcpStream::connect(E2E_ADDR).await.is_ok() {
+                return true;
+            }
+            tokio::time::sleep(Duration::from_millis(200)).await;
+        }
+        false
+    }
+
+    /// Drop guard：panic 时也强制清理 node 子进程，避免端口残留
+    struct KillGuard(tokio::process::Child);
+    impl Drop for KillGuard {
+        fn drop(&mut self) {
+            let _ = self.0.start_kill();
+        }
+    }
+
+    /// MCP 真实服务器闭环：连接 → 工具发现 → 快照注入 → 工具调用
+    ///
+    /// 运行方式：
+    ///   `cargo test -p worldsmith-tauri-app --lib -- --ignored mcp_e2e`
+    /// 前置：node 在 PATH；本地服务器由本测试自动 spawn（node + 官方 SDK）。
+    #[tokio::test]
+    #[ignore = "需要 node + 官方 MCP SDK 与本地服务器，按需显式运行"]
+    async fn mcp_e2e_connect_real_http_server() {
+        let script = server_script_path();
+        assert!(script.exists(), "缺少本地 MCP 服务器脚本: {}", script.display());
+
+        // 1) spawn 本地真实 MCP 服务器（streamable-http，官方 SDK 实现）
+        let child = tokio::process::Command::new("node")
+            .arg(&script)
+            .arg(E2E_PORT)
+            .spawn()
+            .expect("spawn node MCP 服务器失败（node 是否在 PATH？）");
+        let _guard = KillGuard(child);
+        assert!(
+            wait_port_ready(50).await,
+            "本地 MCP 服务器未在超时内就绪"
+        );
+
+        // 2) McpHub 真实连接 → 工具发现
+        let hub = Arc::new(McpHub::new());
+        let cfg = McpConnectionConfig {
+            id: "local".into(),
+            name: "本地真实测试服务器".into(),
+            transport: "http".into(),
+            command: None,
+            args: Vec::new(),
+            url: Some(E2E_URL.into()),
+            // T09③ headers 鉴权注入验证：自定义头 + Authorization 两种形态都应被接受
+            headers: vec![
+                ("X-Test-Header".to_string(), "hello".to_string()),
+                ("Authorization".to_string(), "Bearer test-token-123".to_string()),
+            ],
+            enabled: true,
+        };
+        let tools = hub
+            .connect(cfg)
+            .await
+            .expect("连接真实 MCP 服务器应成功");
+        assert_eq!(tools.len(), 3, "应发现 3 个工具");
+        let names: Vec<&str> = tools.iter().map(|t| t.name.as_str()).collect();
+        assert!(names.contains(&"echo"), "缺 echo 工具: {names:?}");
+        assert!(names.contains(&"add"), "缺 add 工具: {names:?}");
+        assert!(names.contains(&"get_env"), "缺 get_env 工具: {names:?}");
+
+        // 3) 快照注入：tools_for_bus 得到带 mcp_{server_id}_ 前缀的工具
+        let bus_tools = hub.tools_for_bus();
+        assert_eq!(bus_tools.len(), 3, "快照应有 3 个工具");
+        let bus_names: Vec<String> = bus_tools.iter().map(|t| t.name().to_string()).collect();
+        for expected in ["mcp_local_echo", "mcp_local_add", "mcp_local_get_env"] {
+            assert!(bus_names.iter().any(|n| n == expected), "缺 {expected}: {bus_names:?}");
+        }
+
+        // 4) 工具调用：add(2,3) → 结构化结果 {sum:5}（RmcpCaller 结构化返回优先）
+        let add_tool = bus_tools
+            .iter()
+            .find(|t| t.name() == "mcp_local_add")
+            .expect("add 工具应在快照中");
+        let result = add_tool
+            .execute(serde_json::json!({ "a": 2, "b": 3 }))
+            .await
+            .expect("调用 add 工具应成功");
+        assert_eq!(result["sum"], 5, "add 结构化结果应为 5，实得 {result}");
+        // echo 文本返回验证
+        let echo_tool = bus_tools
+            .iter()
+            .find(|t| t.name() == "mcp_local_echo")
+            .expect("echo 工具应在快照中");
+        let echo_result = echo_tool
+            .execute(serde_json::json!({ "text": "闭环" }))
+            .await
+            .expect("调用 echo 工具应成功");
+        assert!(
+            echo_result.to_string().contains("echo: 闭环"),
+            "echo 应回显输入: {echo_result}"
+        );
+
+        // 5) 注入会话 tool_bus：AgentCommandService + 快照 provider → new_session →
+        //    tool_names 断言会话拿到带 mcp_{server_id}_ 前缀的 MCP 工具（产品闭环收口）
+        let mut svc = agent_commands::AgentCommandService::new();
+        svc.set_mcp_tools_provider(Arc::new({
+            let hub = hub.clone();
+            move || hub.tools_for_bus()
+        }));
+        let info = svc
+            .new_session(None, None, None, None, None)
+            .await
+            .expect("new_session 应成功");
+        let session_tools = svc
+            .tool_names(&info.id)
+            .await
+            .expect("tool_names 应成功");
+        for expected in ["mcp_local_echo", "mcp_local_add", "mcp_local_get_env"] {
+            assert!(
+                session_tools.iter().any(|n| n == expected),
+                "会话 tool_bus 缺 {expected}: {session_tools:?}"
+            );
+        }
+
+        // 5.5) T09① 工具注销：remove_mcp_server_tools 移除会话中该服务器全部工具
+        //      （命令层按 server 分组记录归属 → unregister_mcp_server 批量注销）
+        let affected = svc.remove_mcp_server_tools("local").await;
+        assert_eq!(affected, 1, "应正好影响 1 个会话，实得 {affected}");
+        let after = svc
+            .tool_names(&info.id)
+            .await
+            .expect("注销后 tool_names 应成功");
+        for expected in ["mcp_local_echo", "mcp_local_add", "mcp_local_get_env"] {
+            assert!(
+                !after.iter().any(|n| n == expected),
+                "注销后会话仍含 {expected}: {after:?}"
+            );
+        }
+        assert!(
+            after.iter().any(|n| n == "bash"),
+            "注销不应影响非 MCP 基础工具: {after:?}"
+        );
+
+        // 6) 清理：断开连接（子进程由 _guard Drop 回收）
+        let _ = hub.disconnect("local").await;
+    }
 }

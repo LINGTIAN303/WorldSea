@@ -68,7 +68,8 @@ export async function runModerator(
     // 清理调度历史，确保每次决策独立
     backend.clearHistory()
 
-    await backend.prompt(prompt, { contextOverride: systemPrompt, chatMode: 'deep' })
+    // 三模式移除（2026-08-31）：不再传 chatMode（主持人决策为内部调用，无模式语义）
+    await backend.prompt(prompt, { contextOverride: systemPrompt })
 
     const state = backend.state
     const lastAssistant = [...state.messages].reverse().find(m => m.role === 'assistant')

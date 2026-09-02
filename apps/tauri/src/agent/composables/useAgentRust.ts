@@ -6,7 +6,6 @@ export type {
   InteractiveToolType,
   ToolCallView,
   PhaseOutput,
-  DeepSegment,
   AgentStreamItem,
 } from '@worldsmith/shared-composables/agent/useAgent'
 
@@ -19,7 +18,7 @@ export {
 
 import { ref, computed, readonly } from 'vue'
 import { invoke as tauriInvoke } from '@tauri-apps/api/core'
-import { listen, type UnlistenFn, isHttpBackend, invokeRpc } from './transport'
+import { listen, type UnlistenFn, isHttpBackend, invokeRpc, invoke } from './transport'
 import { useConfirm } from '@worldsmith/ui-kit'
 import { useOrchEvents } from './useOrchEvents'
 import { ALL_TOOLS_MAP, loadApiKey, type IToolContext } from '@agent/index'
@@ -40,7 +39,7 @@ import type {
   MCPConnectionConfig,
   MCPConnectionState,
 } from '@agent/index'
-import type { DeepSegment, AgentStreamItem } from '@worldsmith/shared-composables/agent/useAgent'
+import type { AgentStreamItem } from '@worldsmith/shared-composables/agent/useAgent'
 import { usePlanStore } from '@worldsmith/shared-composables/agent/usePlanStore'
 // 轮次模型：回源重建与实时流共用同一套归约规则
 import {
@@ -48,6 +47,7 @@ import {
   flattenTurn,
   reduceEvent,
   parseToolResult,
+  actionEventToTurnEvents,
   type FlatRow,
   type Turn,
   type TurnEvent,
@@ -56,12 +56,49 @@ import { useActivityLog, type ActivityLogEntry } from './useActivityLog'
 import { useSessionViewState, LAST_SESSION_KEY } from './useSessionViewState'
 import { useOrchestrationTrace } from './useOrchestrationTrace'
 import { resolveWorkspaceDir, ensureWorkspaceDir } from '@/space/workspace'
+// H5 规则体系（2026-08-30 拍板）：WORLDSMITH.md 转应用内置资源（?raw 显式 import——
+// Vite8 glob 模块相对模式静默失配教训，勿用 import.meta.glob）
+import BUILTIN_WORLDSMITH_MD from '../rules/WORLDSMITH.md?raw'
+// WORLD.md 节奏型注入（H5 排序第 4）：实体写工具出口的计数+附加包装
+import { attachWorldRulesIfTriggered } from './worldRulesInjector'
+// 风险点② 补桥（2026-08-30）：skills 商城/manifest 命令改走 transport——浏览器 HTTP
+// 模式路由到 /rpc 桥（cmd_skills_* 六命令已注册，spawn_blocking 包装），桌面模式走原生 IPC
+import { setSkillsStoreInvoke } from '@agent/skills/skills-store'
+import { setSkillsManifestInvoke } from '@agent/skills/manifest'
+setSkillsStoreInvoke(invoke)
+setSkillsManifestInvoke(invoke)
 
 // ToT/GoT/Supervisor 实时事件监听：模块级单例解构（供会话生命周期注册/清理）
 const { setupOrchListener, teardownOrchListener, setupOrchSupervisorListener, teardownOrchSupervisorListener } = useOrchEvents()
 // M2 编排迹线（NIT-3 双轨收口）：监听并入 useAgentRust 会话生命周期统一管理，
 // 组件仅消费状态（单一状态源），不再各自实例化监听。
 const { activeRun, finishedRuns, resetOrchestrationTrace, setupOrchestrationTraceListener, teardownOrchestrationTraceListener } = useOrchestrationTrace()
+
+// ── app 数据目录缓存（H6-③ MCP 配置 + H5 全局规则共用；拍板 2026-08-30）──
+// 同步镜像 + 异步获取缓存：buildBridgeContext 为同步函数，白名单注入读镜像值；
+// 异步获取完成后回填，后续工具调用即带上（首次调用可能缺省，下一次补齐）。
+let appDataDirSync: string | undefined
+async function getAppDataDirCached(): Promise<string | undefined> {
+  if (appDataDirSync) return appDataDirSync
+  try {
+    const dataDir = await safeInvoke<string>('cmd_get_app_data_dir', {})
+    if (dataDir) appDataDirSync = dataDir.replace(/[\\/]+$/, '')
+  } catch { /* 浏览器 preview 或命令失败：白名单缺省 */ }
+  return appDataDirSync
+}
+
+/** MCP 配置文件路径（<app_data>/worldsmith/mcp.json，全局单份；H6-③ 配置化拍板） */
+async function getMcpConfigPath(): Promise<string | undefined> {
+  const base = await getAppDataDirCached()
+  return base ? `${base}/worldsmith/mcp.json` : undefined
+}
+
+/** 写边界白名单（workdir 外精确放行文件）：MCP 配置 + 全局规则目录六件（用户与 Agent 均可编辑——拍板「共同维护」） */
+function extraWritablePathsFor(base?: string): string[] | undefined {
+  if (!base) return undefined
+  const rulesDir = `${base}/worldsmith/rules`
+  return [`${base}/worldsmith/mcp.json`, ...GLOBAL_RULES_FILES.map((f) => `${rulesDir}/${f}`)]
+}
 
 // ── 浏览器 preview 兼容：非 Tauri 环境（window.__TAURI_INTERNALS__ 缺失）下
 //    @tauri-apps/api/core 的 invoke 为 undefined。这里用 safeInvoke 兜底，
@@ -95,17 +132,6 @@ async function safeInvoke<T>(cmd: string, args?: Record<string, unknown>): Promi
     return Promise.resolve(mockInvoke(cmd) as unknown as T)
   }
   return tauriInvoke<T>(cmd, args)
-}
-
-// ─── Rust DeepPhaseChanged 事件 Payload ──────────────────────────────
-interface RustDeepPhaseChangedPayload {
-  phaseLabel: string
-  phaseIndex: number
-  triggerTool: string
-  /** 触发工具执行状态（running/completed/failed），自 Rust ToolStatus 序列化 */
-  toolStatus: 'running' | 'completed' | 'failed'
-  /** 阶段完成标记（true=已完成，false=进行中） */
-  phaseCompleted: boolean
 }
 
 // ─── Rust 子 Agent 委派事件 Payload ──────────────────────────────
@@ -165,6 +191,28 @@ type RustStreamPayload =
     }
   | { type: 'error'; message: string }
   | { type: 'agent_end' }
+  // R6 第一部分转发补齐的六类动作段事件（tauri emitter 注入流通道）：
+  // payload 平铺 { action, seq, ...动作段明细 }（action_event_payload 映射的 camelCase 明细）
+  | {
+      type: 'action_event'
+      action: string
+      seq?: number
+      [key: string]: unknown
+    }
+  // total_steps 总步骤预算警示（tauri emitter 独立推送，非动作段语义）：
+  // 80%/95%/100% 各一次，前端据此在流区底部展示「继续」横幅（满额时）
+  | { type: 'step_budget_warning'; used: number; limit: number; percent: number }
+  // 2026-09-02 系统工具流式（tauri emitter 独立推送，非动作段语义）：
+  // - tool_delta：bash/powershell 增量输出（工具段内容区实时显示）
+  // - file_change：write/edit/edit_diff 绿红 diff（含路径渲染）
+  | { type: 'tool_delta'; tool_call_id: string; delta: string }
+  | {
+      type: 'file_change'
+      tool_call_id: string
+      path: string
+      kind: string
+      hunks: Array<{ removed?: string[]; added?: string[]; truncated_at?: boolean }>
+    }
 
 // ─── Rust 端类型镜像（snake_case，与 agent-runtime 序列化一致）──────────────
 
@@ -478,14 +526,26 @@ function autoCollapseProcess(turnId: string): void {
 /** 当前进行中的轮次 id（流式事件归属用；null=无进行中轮次） */
 const currentTurnId = ref<string | null>(null)
 
-/** 深度模式段（thinking | phase），由 Rust DeepPhaseChanged 事件驱动构建 */
-const deepSegments = ref<DeepSegment[]>([])
+/** total_steps 总步骤预算最新警示（step_budget_warning 事件刷新；null=本会话未触发预算警示） */
+export interface StepBudgetInfo {
+  /** 已使用步骤（工具调用轮数） */
+  used: number
+  /** 总步骤预算 */
+  limit: number
+  /** 阈值百分比（80 / 95 / 100） */
+  percent: number
+}
+
+/** 模块级单例：最近一次预算警示（供流区横幅消费；新会话未触发前为 null） */
+const latestStepBudget = ref<StepBudgetInfo | null>(null)
+
+/** 清除预算警示（横幅「继续」触发后调用，避免残留横幅条件） */
+function clearStepBudgetHint(): void {
+  latestStepBudget.value = null
+}
 
 /** 工具确认（占位：Rust 端工具调用自动执行，无需前端确认） */
 function resolveToolConfirmation(): void {}
-
-/** 深度阶段事件监听器清理函数（按 sessionId 索引，切换/删除会话时清理） */
-const deepPhaseUnlistenFns = new Map<string, UnlistenFn>()
 
 // ─── A2UI 状态 ────────────────────────────────────────────
 
@@ -626,6 +686,14 @@ function flatRowToStreamItem(row: FlatRow): AgentStreamItem {
           // ToolRow 期望字符串结果；回源携带的是原始结果文本，原样透传
           result: typeof row.result === 'string' ? row.result : undefined,
         },
+        // 2026-09-02 系统工具流式：stream/fileChange 随 FlatRow 透传（工具段内容区渲染）
+        stream: row.stream,
+        streamTruncated: row.streamTruncated,
+        fileChange: row.fileChange,
+        // 2026-09-02 计划步骤行：isPlanStep + 子动作 id + 折叠态随 FlatRow 透传
+        isPlanStep: row.isPlanStep,
+        childRefIds: row.childRefIds,
+        stepCollapsed: row.stepCollapsed,
         timestamp: row.timestamp,
       }
     case 'text':
@@ -649,89 +717,6 @@ function flatRowToStreamItem(row: FlatRow): AgentStreamItem {
         expanded: row.expanded,
         timestamp: row.timestamp,
       }
-  }
-}
-
-// ─── 深度阶段事件监听（DeepPhaseChanged）────────────────────────────
-
-/** 设置 DeepPhaseChanged 事件监听（双写：驱动 tool 事件行 + 维护 deepSegments 供右侧阶段轨迹），详细见 docs/details/注释/tauri/useAgentRust.md */
-async function setupDeepPhaseListener(sessionId: string): Promise<void> {
-  if (deepPhaseUnlistenFns.has(sessionId)) return
-
-  const eventName = `agent:event:deep_phase_changed:${sessionId}`
-  try {
-    const unlisten = await listen<RustDeepPhaseChangedPayload>(eventName, (e) => {
-      const payload = e.payload
-      const now = Date.now()
-      // 命令段不再由此驱动：DeepPhaseChanged 是「阶段切换」的副产物，同阶段内连续调用不发事件，
-      // 用它当命令段源会导致段缺失。权威命令段已接通 ToolCallStart/End（tools.rs 真实执行前后广播），
-      // 由 handleStreamEvent 消费并按 toolCallId 幂等收敛。此处仅维护右侧阶段轨迹。
-
-      // ── 右侧阶段轨迹（PhaseSection/TracePanel 消费）：维护 deepSegments phase 段 ──
-      // 去重：同一 phaseIndex 已存在则更新其工具/状态，不重复追加
-      const existingSeg = deepSegments.value.find((s) => s.type === 'phase' && s.index === payload.phaseIndex)
-      if (existingSeg && existingSeg.type === 'phase') {
-        // 阶段完成事件：仅更新已存在工具的状态并标记完成，不把下一阶段的新工具塞入旧阶段
-        if (payload.phaseCompleted) {
-          const ti = existingSeg.tools.findIndex((t) => t.name === payload.triggerTool)
-          if (ti >= 0) {
-            existingSeg.tools[ti].status = payload.toolStatus
-            if (payload.toolStatus !== 'running') existingSeg.tools[ti].endedAt = now
-          }
-          existingSeg.status = 'done'
-        } else {
-          // 同阶段内工具状态更新：更新/新增触发工具
-          const ti = existingSeg.tools.findIndex((t) => t.name === payload.triggerTool)
-          if (ti >= 0) {
-            existingSeg.tools[ti].status = payload.toolStatus
-            if (payload.toolStatus !== 'running') existingSeg.tools[ti].endedAt = now
-          } else {
-            existingSeg.tools.push({
-              id: `phase-tool-${now}`,
-              name: payload.triggerTool,
-              args: {},
-              status: payload.toolStatus,
-              startedAt: now,
-              endedAt: payload.toolStatus !== 'running' ? now : undefined,
-            })
-          }
-        }
-        return
-      }
-      // 新阶段：先把之前所有 active 阶段标记为 done，再追加新 phase 段
-      for (const seg of deepSegments.value) {
-        if (seg.type === 'phase' && seg.status === 'active') seg.status = 'done'
-      }
-      deepSegments.value.push({
-        id: `phase-${payload.phaseIndex}-${now}`,
-        type: 'phase',
-        label: payload.phaseLabel,
-        index: payload.phaseIndex,
-        timestamp: now,
-        tools: [{
-          id: `phase-${payload.phaseIndex}-tool-${now}`,
-          name: payload.triggerTool,
-          args: {},
-          status: payload.toolStatus,
-          startedAt: now,
-          endedAt: payload.toolStatus !== 'running' ? now : undefined,
-        }],
-        outputs: [],
-        status: payload.phaseCompleted ? 'done' : 'active',
-      })
-    })
-    deepPhaseUnlistenFns.set(sessionId, unlisten)
-  } catch (err) {
-    console.error(`[useAgentRust] listen ${eventName} 失败:`, err)
-  }
-}
-
-/** 清理指定会话的深度阶段事件监听 */
-function teardownDeepPhaseListener(sessionId: string): void {
-  const unlisten = deepPhaseUnlistenFns.get(sessionId)
-  if (unlisten) {
-    unlisten()
-    deepPhaseUnlistenFns.delete(sessionId)
   }
 }
 
@@ -974,6 +959,45 @@ function handleStreamEvent(sessionId: string, payload: RustStreamPayload): void 
   // 轮次归属：turnId 为空（编排路径未开轮）时仅维护消息状态，不写轮次树
   const turnId = currentTurnId.value
 
+  // total_steps 预算警示（80%/95%/100%）：刷新横幅状态（不做轮次树/消息写入，
+  // 非动作段语义；横幅组件消费 latestStepBudget）
+  if (payload.type === 'step_budget_warning') {
+    latestStepBudget.value = {
+      used: payload.used,
+      limit: payload.limit,
+      percent: payload.percent,
+    }
+    return
+  }
+
+  // 2026-09-02 系统工具流式事件：进轮次树工具段（实时渲染；回源无此事件，实时专属）
+  // - tool_delta：bash/powershell 增量输出 → 归并到正在执行/刚完成的工具段内容区
+  // - file_change：write/edit/edit_diff 绿红 diff → 归并到工具段（含路径渲染）
+  if (payload.type === 'tool_delta' || payload.type === 'file_change') {
+    const turnId = currentTurnId.value
+    if (turnId) {
+      // 拆两分支写 TurnEvent：判别联合在对象字面量上收敛，避免展开后类型过宽
+      if (payload.type === 'tool_delta') {
+        applyTurnEvent(sessionId, {
+          type: 'tool_delta',
+          turnId,
+          toolCallId: payload.tool_call_id ?? '',
+          delta: payload.delta ?? '',
+        })
+      } else {
+        applyTurnEvent(sessionId, {
+          type: 'file_change',
+          turnId,
+          toolCallId: payload.tool_call_id ?? '',
+          path: payload.path ?? '',
+          kind: payload.kind ?? '',
+          hunks: payload.hunks ?? [],
+        })
+      }
+    }
+    return
+  }
+
   if (payload.type === 'start') {
     // 新流开始：创建空助手消息承载后续增量（messages 仍维护，供 lastAssistantHas* 等消费）
     const msg: AgentMessage = {
@@ -1028,6 +1052,22 @@ function handleStreamEvent(sessionId: string, payload: RustStreamPayload): void 
     }
     // fullText 为权威：校正增量丢失，亦覆盖「无 delta 只有 fullText」的一次性输出
     if (turnId) applyTurnEvent(sessionId, { type: 'round_end', turnId, fullText: payload.fullText })
+    return
+  }
+
+  // R6 第三部分：动作段事件 → 轮次树过程层（subagent/phase/router/reflection/confirm 六类行段）
+  // 与回源共用同一翻译器（actionEventToTurnEvents），实时态与刷新态结构一致；
+  // 瞬时段成对 start/end、进入/结果类按阶段命名成段，pair 由归约器幂等保证。
+  if (payload.type === 'action_event') {
+    if (turnId) {
+      for (const te of actionEventToTurnEvents(
+        turnId,
+        (payload.action as string) ?? '',
+        payload as unknown as Record<string, unknown>,
+      )) {
+        applyTurnEvent(sessionId, te)
+      }
+    }
     return
   }
 
@@ -1253,11 +1293,17 @@ let toolBridgeContext: IToolContext | null = null
  * stores 构造上下文，与 useGroupChat 的 buildToolContext 同构。惰性构造避免首屏开销。
  */
 function buildBridgeContext(): IToolContext {
+  // H6-③ 配置化 + H5 规则体系（2026-08-30）：fire-and-forget 预取 app 数据目录，
+  // 回填 appDataDirSync 后随 workspace.extraWritablePaths 注入白名单（缓存幂等）
+  void getAppDataDirCached()
   // 已缓存则仅动态刷新 workdir（会话切换后 dirPath 保持最新），复用 stores 避免重复构造
   if (toolBridgeContext) {
     toolBridgeContext.projectInfo.dirPath = currentWorkdir.value ?? null
     // Phase B 边界加固：同步注入工作区 workdir（供 coding 工具链边界 resolver 使用）
-    toolBridgeContext.workspace = { workdir: currentWorkdir.value ?? undefined }
+    toolBridgeContext.workspace = {
+      workdir: currentWorkdir.value ?? undefined,
+      extraWritablePaths: extraWritablePathsFor(appDataDirSync),
+    }
     return toolBridgeContext
   }
   const entityStore = useEntityStore()
@@ -1287,8 +1333,13 @@ function buildBridgeContext(): IToolContext {
       dirPath: currentWorkdir.value ?? null,
     },
     // Phase B 边界加固：注入工作区 workdir（供 coding 工具链边界 resolver 使用；
-    // 无 workdir 时 workdir 为 undefined = 未绑定工作区、写边界未启用）
-    workspace: { workdir: currentWorkdir.value ?? undefined },
+    // 无 workdir 时 workdir 为 undefined = 未绑定工作区、写边界未启用）。
+    // H6-③ 配置化 + H5 规则体系（2026-08-30）：extraWritablePaths 精确放行
+    // MCP 配置 mcp.json 与全局规则 RULES.md，实现「用户与 Agent 均可编辑」
+    workspace: {
+      workdir: currentWorkdir.value ?? undefined,
+      extraWritablePaths: extraWritablePathsFor(appDataDirSync),
+    },
     platform: 'web' as const,
     currentSessionId: currentSessionId.value ?? undefined,
   }
@@ -1313,12 +1364,22 @@ async function handleToolCall(payload: RustToolCallPayload): Promise<void> {
     return
   }
   try {
-    const out = await tool.execute(args, buildBridgeContext())
+    const bridgeCtx = buildBridgeContext()
+    const out = await tool.execute(args, bridgeCtx)
+    // H5 WORLD.md 节奏型注入（2026-08-30 拍板）：实体写工具成功 → 全局计数 →
+    // 满阈值把 WORLD.md 相关分节附加为 __world_rules（随结果进历史，LLM 下轮可见）
+    const enriched = await attachWorldRulesIfTriggered(toolName, out, {
+      sessionId: bridgeCtx.currentSessionId,
+      workdir: currentWorkdir.value,
+      rulesDir: appDataDirSync ? `${appDataDirSync}/worldsmith/rules` : null,
+      // typeKey → 显示名（WORLD.md 分节标题匹配；entityStore.types 为 EntityTypeSchema[]，含 label）
+      typeLabels: Object.fromEntries(useEntityStore().types.map((t) => [t.typeKey, t.label])),
+    })
     // tool.execute 返回 JSON 字符串；原样回传给 Rust（转 Value 保持结构）
     await safeInvoke('cmd_agent_tool_result', {
       callId,
       ok: true,
-      result: parseMaybeJson(out),
+      result: parseMaybeJson(enriched),
     })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
@@ -1387,17 +1448,66 @@ interface RustPlanUpdatePayload {
 
 /** Rust `PlanReplanned` 事件 payload：`{ items: PlanItem[] }`（整体替换后的完整计划） */
 interface RustPlanReplannedPayload {
-  items: RustPlanItem[]
+  items: Array<{
+    id: string
+    title: string
+    status: 'pending' | 'in_progress' | 'completed' | 'skipped' | 'failed'
+    description?: string | null
+    order: number
+    output?: string | null
+    reason?: string | null
+  }>
 }
 
 /** 计划事件监听器清理函数（按 sessionId 索引） */
 const planUnlistenFns = new Map<string, UnlistenFn>()
 
 /**
+ * 2026-09-02 计划步骤并入过程层：plan 已创建 → 为每个步骤生成 plan 动作段进轮次树。
+ * 步骤 id 沿用 StableRef（plan-xxx），与 usePlanStore items.id 对齐，供 settlePlanStep 配对收口。
+ * 归约器侧 action_start(action='plan') 会标记 isPlanStep + 默认折叠，后续工具动作自动归为该步子动作。
+ */
+function emitPlanStepsIntoFlow(sessionId: string, items: Array<{ id: string; title: string; status?: string }>): void {
+  const turnId = currentTurnId.value
+  if (!turnId) return
+  for (const item of items) {
+    applyTurnEvent(sessionId, {
+      type: 'action_start',
+      turnId,
+      id: `plan-${item.id}`,
+      action: 'plan',
+      label: item.title,
+      refId: item.id,
+    })
+  }
+}
+
+/** 2026-09-02 计划步骤并入过程层：plan_update 步骤状态流转 → 驱动 plan 动作段（in_progress 激活 / 完成收口） */
+function settlePlanStep(
+  sessionId: string,
+  itemId: string,
+  status: 'pending' | 'in_progress' | 'completed' | 'skipped' | 'failed',
+  output?: unknown,
+): void {
+  const turnId = currentTurnId.value
+  if (!turnId) return
+  if (status === 'pending') return
+  const flowStatus =
+    status === 'in_progress' ? 'running' : status === 'completed' ? 'completed' : status === 'skipped' ? 'skipped' : 'failed'
+  applyTurnEvent(sessionId, {
+    type: 'plan_step_status',
+    turnId,
+    stepId: itemId,
+    status: flowStatus,
+    result: output ? String(output) : undefined,
+  })
+}
+
+/**
  * 为指定会话设置计划事件监听
  *
  * 监听 `agent:event:plan_created:{session_id}` / `agent:event:plan_update:{session_id}`，
- * 收到 Rust payload 后更新 `usePlanStore`，驱动 PlanPanel 展示。幂等：已存在监听器则直接返回。
+ * 收到 Rust payload 后更新 `usePlanStore`（计划数据源），供 OrchestrationSegment 内联计划卡展示。幂等：已存在监听器则直接返回。
  */
 async function setupPlanListener(sessionId: string): Promise<void> {
   if (planUnlistenFns.has(sessionId)) return
@@ -1408,9 +1518,15 @@ async function setupPlanListener(sessionId: string): Promise<void> {
   try {
     const unlistenCreated = await listen<RustPlanCreatedPayload>(createdEvent, (e) => {
       usePlanStore().createPlan(e.payload.items)
+      // 2026-09-02 计划步骤并入过程层：plan 已创建 → 为每个步骤生成 plan 动作段进轮次树
+      emitPlanStepsIntoFlow(sessionId, e.payload.items)
     })
     const unlistenUpdate = await listen<RustPlanUpdatePayload>(updateEvent, (e) => {
-      usePlanStore().updateItem(e.payload.itemId, e.payload.status)
+      usePlanStore().updateItem(e.payload.itemId, e.payload.status, {
+        output: e.payload.output ? String(e.payload.output) : null,
+      })
+      // 2026-09-02 计划步骤并入过程层：步骤状态流转 → 收口对应 plan 动作段
+      settlePlanStep(sessionId, e.payload.itemId, e.payload.status, e.payload.output)
     })
     const unlistenReplanned = await listen<RustPlanReplannedPayload>(replannedEvent, (e) => {
       // Replanner：整体替换为重规划后的完整计划（保留失败项及之前已完成进度）
@@ -1421,6 +1537,8 @@ async function setupPlanListener(sessionId: string): Promise<void> {
           status: p.status,
           description: p.description ?? undefined,
           order: p.order,
+          output: p.output ?? null,
+          reason: p.reason ?? null,
         })),
       )
     })
@@ -1547,7 +1665,7 @@ async function newSession(
   // 先清理当前会话的旧监听器（避免旧会话残留事件污染全局状态）
   const oldSessionId = currentSessionId.value
   if (oldSessionId && oldSessionId !== info.id) {
-    teardownDeepPhaseListener(oldSessionId)
+    
     teardownA2UIListener(oldSessionId)
     teardownSubAgentListener(oldSessionId)
     teardownStreamListener(oldSessionId)
@@ -1574,7 +1692,7 @@ async function newSession(
   streamingAssistant.value = null
   lastStreamedMsg.value = null
   // 新会话：清空深度模式段与 A2UI 画布，并建立事件监听
-  deepSegments.value = []
+  
   a2uiSurfaces.value = {}
   subAgents.value = []
   // M2 编排迹线：新会话重置（跨会话不残留 run）
@@ -1586,7 +1704,6 @@ async function newSession(
   turns.value = []
   sessionTurnsCache.set(info.id, [])
   currentTurnId.value = null
-  await setupDeepPhaseListener(info.id)
   await setupA2UIListener(info.id)
   await setupSubAgentListener(info.id)
   await setupStreamListener(info.id)
@@ -1623,7 +1740,7 @@ async function newDraftSession(): Promise<void> {
   draftSessionActive.value = true
   const oldSessionId = currentSessionId.value
   if (oldSessionId) {
-    teardownDeepPhaseListener(oldSessionId)
+    
     teardownA2UIListener(oldSessionId)
     teardownSubAgentListener(oldSessionId)
     teardownStreamListener(oldSessionId)
@@ -1640,7 +1757,7 @@ async function newDraftSession(): Promise<void> {
   isStreaming.value = false
   streamingAssistant.value = null
   lastStreamedMsg.value = null
-  deepSegments.value = []
+  
   a2uiSurfaces.value = {}
   subAgents.value = []
   resetOrchestrationTrace()
@@ -1720,7 +1837,6 @@ async function deleteSession(sessionId: string): Promise<void> {
   sessionTurnsCache.delete(sessionId)
   // 级联清理该会话的视图状态（场景/模式/execTab/活动/编排）
   useSessionViewState().removeSession(sessionId)
-  teardownDeepPhaseListener(sessionId)
   teardownA2UIListener(sessionId)
   teardownSubAgentListener(sessionId)
   teardownStreamListener(sessionId)
@@ -1734,7 +1850,7 @@ async function deleteSession(sessionId: string): Promise<void> {
     messages.value = []
     turns.value = []
     currentTurnId.value = null
-    deepSegments.value = []
+    
     a2uiSurfaces.value = {}
     subAgents.value = []
     // M2 编排迹线：删除当前会话时清空 run 状态
@@ -1762,8 +1878,8 @@ async function setSessionPinned(sessionId: string, pinned: boolean): Promise<voi
 }
 
 // ─── MCP 连接（H2 重建 P2，2026-08-30 · Rust 原生 rmcp 后端真实接线）───
-// 配置持久化（SQLite mcp.db）与连接生命周期（应用级）全在 Rust 侧；
-// 本层只做 invoke 转发。旧 localStorage 伪状态已废弃（agent_mcp_connections key 不再读写）。
+// 配置持久化（H6-③ 配置化拍板 2026-08-30）：全局单份 mcp.json 文件（Rust 侧读写），
+// 用户与 Agent 均可直接编辑；官方预设已全部移除。本层只做 invoke 转发。
 
 /** 已保存配置 + 活跃状态合并视图（面板列表数据源） */
 async function getMCPConnections(): Promise<MCPConnectionState[]> {
@@ -1790,9 +1906,19 @@ async function addMCPConnection(config: MCPConnectionConfig): Promise<void> {
   await safeInvoke('cmd_mcp_connect', { config })
 }
 
-/** 删除配置并断开（连接保留语义由 toggle 组合表达） */
+/** 保存配置但不连接（禁用/预配置场景——配置写文件，连接状态不变） */
+async function saveMCPConnection(config: MCPConnectionConfig): Promise<void> {
+  await safeInvoke('cmd_mcp_save', { config })
+}
+
+/** 断开连接（配置保留，便于重连） */
+async function disconnectMCPConnection(serverId: string): Promise<void> {
+  await safeInvoke('cmd_mcp_disconnect', { id: serverId })
+}
+
+/** 删除配置并断开（Rust 命令参数名为 id） */
 async function removeMCPConnection(serverId: string): Promise<void> {
-  await safeInvoke('cmd_mcp_delete', { serverId })
+  await safeInvoke('cmd_mcp_delete', { id: serverId })
 }
 
 /** 切换会话（加载该会话的消息历史） */
@@ -1800,7 +1926,7 @@ async function switchSession(sessionId: string): Promise<void> {
   // 清理旧会话的深度阶段与 A2UI 监听，切换到新会话
   const oldSessionId = currentSessionId.value
   if (oldSessionId && oldSessionId !== sessionId) {
-    teardownDeepPhaseListener(oldSessionId)
+    
     teardownA2UIListener(oldSessionId)
     teardownSubAgentListener(oldSessionId)
     teardownStreamListener(oldSessionId)
@@ -1816,12 +1942,11 @@ async function switchSession(sessionId: string): Promise<void> {
   currentWorkdir.value = sessionList.value.find((s) => s.id === sessionId)?.workdir ?? null
   // 会话级视图状态：水合该会话的场景/模式/execTab/活动日志/编排现场（切换即恢复）
   useSessionViewState().setActiveSession(sessionId)
-  deepSegments.value = []
+  
   a2uiSurfaces.value = {}
   subAgents.value = []
   // M2 编排迹线：切会话重置 run 状态（run 挂会话，不跨会话残留）
   resetOrchestrationTrace()
-  await setupDeepPhaseListener(sessionId)
   await setupA2UIListener(sessionId)
   await setupSubAgentListener(sessionId)
   await setupStreamListener(sessionId)
@@ -1889,49 +2014,134 @@ async function switchSession(sessionId: string): Promise<void> {
 
 // ─── 命令封装：对话主链路 ────────────────────────────────────
 
-/** H5 规则工程（P2，2026-08-30）：项目规则文件名（workdir 根，随项目走，类比 AGENTS.md）
- *  导出供 ProjectRulesEditor（编辑侧）共用，保证读写文件名单一来源 */
-export const PROJECT_RULES_FILE = 'WORLDSMITH.md'
+// ── H5 规则文件体系（2026-08-30 拍板：八文件；常驻类六件注入 ✅）──
+// 命名单一来源（编辑侧 RulesPanel 共用，保证读写文件名一致）：
+export const AGENTS_RULES_FILE = 'AGENTS.md'   // 仅项目级：<workdir>/AGENTS.md（Agent↔用户协作规则，大部分操作注入）
+export const RULES_RULES_FILE = 'RULES.md'     // 仅全局级：rules/RULES.md（定义同 AGENTS+扩展，优先级低 AGENTS 一级）
+export const WORLD_RULES_FILE = 'WORLD.md'     // 项目级+全局级：世界观固定规则（注入=节奏型，实体操作触发——排序第 4 项施工）
+export const WRITING_RULES_FILE = 'WRITING.md' // 项目级+全局级：写作规则（常驻注入）
+export const DESIGN_RULES_FILE = 'DESIGN.md'   // 项目级+全局级：设计规则（常驻注入）
+export const TOOLS_RULES_FILE = 'TOOLS.md'     // 项目级+全局级：工具规则（常驻注入）
+export const MEMORY_RULES_FILE = 'MEMORY.md'   // 仅全局级：记忆文档（用户不可直接编辑，Agent 可改；记忆系统承接）
+// v1 遗留废弃：PROJECT_RULES_FILE='WORLDSMITH.md'（workdir 项目规则）——WORLDSMITH.md 已转应用内置资源
+// （./rules/WORLDSMITH.md，唯一不可被 Agent/用户编辑，随版本维护）；旧 workdir/WORLDSMITH.md
+// 由 ensureProjectAgentsFile 一次性改名迁移为 AGENTS.md（内容不动）。
 
-/**
- * 读取项目规则文本（workdir/WORLDSMITH.md）
- *
- * 未绑定 workdir 或文件不存在时返回 null（无规则不注入）。
- * 规则内容经 new_session(system_prompt) 的 static_p 段注入（与场景 prompt 拼接非覆盖）。
- */
-async function loadProjectRules(): Promise<string | null> {
-  const dir = currentWorkdir.value
-  if (!dir) return null
+/** 全局规则文件清单（<app_data>/worldsmith/rules/ 下，用户与 Agent 均可编辑——拍板「共同维护」） */
+const GLOBAL_RULES_FILES = [
+  WORLD_RULES_FILE,
+  WRITING_RULES_FILE,
+  RULES_RULES_FILE,
+  DESIGN_RULES_FILE,
+  TOOLS_RULES_FILE,
+  MEMORY_RULES_FILE,
+] as const
+
+/** 全局规则目录（<app_data>/worldsmith/rules/；WRITING/DESIGN/TOOLS 等全局份未来同放） */
+function globalRulesDirSync(): string | undefined {
+  return appDataDirSync ? `${appDataDirSync}/worldsmith/rules` : undefined
+}
+
+/** 读文本文件（不存在/空 → null；容错不抛——规则缺省即不注入） */
+async function readTextOrNull(path: string): Promise<string | null> {
   try {
-    const content = await tauriInvoke<string>('cmd_fs_read', { path: `${dir}/${PROJECT_RULES_FILE}` })
+    const content = await safeInvoke<string>('cmd_fs_read', { path })
     return content?.trim() ? content : null
   } catch {
-    return null // 文件不存在（首次使用）视为无规则
+    return null
   }
 }
 
 /**
+ * 一次性迁移（v1 → 八文件体系）：<workdir>/WORLDSMITH.md → AGENTS.md（改名不改内容）。
+ * AGENTS.md 已存在或两文件均不存在时为 no-op；规则注入路径（buildSessionSystemPrompt）
+ * 与 ProjectRulesEditor 编辑路径共用，保证两侧看到一致状态。
+ */
+export async function ensureProjectAgentsFile(): Promise<void> {
+  const dir = currentWorkdir.value
+  if (!dir) return
+  const agentsPath = `${dir}/${AGENTS_RULES_FILE}`
+  try {
+    await safeInvoke('cmd_fs_read', { path: agentsPath })
+    return // AGENTS.md 已存在：无需迁移
+  } catch { /* 不存在 → 尝试迁移旧文件 */ }
+  try {
+    await safeInvoke('cmd_fs_read', { path: `${dir}/WORLDSMITH.md` })
+    await safeInvoke('cmd_fs_rename', { src: `${dir}/WORLDSMITH.md`, dest: agentsPath })
+    console.info('[useAgentRust] 已将 v1 规则文件 WORLDSMITH.md 迁移为 AGENTS.md')
+  } catch { /* 旧文件也不存在：首次使用，无需处理 */ }
+}
+
+/** AGENTS.md/RULES.md 等常驻类的读取已并入 buildSessionSystemPrompt 的全局组/项目组循环（readTextOrNull + 文件常量）。 */
+
+/**
  * 构建会话级 system prompt 注入段（ensureSession → newSession 用）。
  *
- * 组成（按序拼接，空段跳过）：
- * ① 项目规则（H5 P2：workdir/WORLDSMITH.md，用户自写的强制约束）；
- * ② 技能索引（H3 P1：initSkillRegistry 每次建会话重扫 + buildSkillIndexPrompt 启停过滤）。
+ * 组成（按序拼接，空段跳过）——H5 常驻类六件（2026-08-30 拍板八文件体系）：
+ * ① WORLDSMITH.md（系统级内置资源）：Agent 认知 WorldSmith 本身；不可编辑，随版本维护
+ * ② 全局规则组：rules/{RULES,WRITING,DESIGN,TOOLS}.md——优先级低于项目级（拍板「RULES 低 AGENTS 一级」，同组同理）
+ * ③ 项目规则组：<workdir>/{AGENTS,WRITING,DESIGN,TOOLS}.md——优先级最高，最后注入
+ * ④ 技能索引（H3 P1：initSkillRegistry 每次建会话重扫 + buildSkillIndexPrompt 启停过滤）
  *
  * 注入契约：new_session(system_prompt) → AgentLoopConfig.system_prompt →
- * build_prompt_options 的 static_p 段与场景 prompt **拼接**（非覆盖，
- * 见 agent-kernel memory.rs）；LLM 据此遵守规则并调用 load_skill 激活技能。
+ * build_prompt_options 的 static_p 段与场景 prompt **拼接**（非覆盖，见 agent-kernel memory.rs）。
+ * WORLD.md 不在本函数（节奏型注入=实体操作触发重注入，排序第 4 项施工）；MEMORY.md 待记忆系统。
  *
- * ⚠ TODO(await-user · 2026-08-30)：H5 规则工程的设计点已标记待用户说明——
- * 注入措辞（「强制严格遵守」）、生效时机（仅新会话）、单文件格式（WORLDSMITH.md）。
- * 用户后续说明后按其要求调整；调整前请勿视为最终设计。
+ * 设计说明（原 await-user 点收敛）：
+ * - 生效时机 v1 = 仅新会话（已存在会话 system_prompt 固定）；规则变更对旧会话生效待后续（watcher/事件）。
+ * - 措辞：认知段用「认知」，规则段用「遵循」+ 显式优先级声明；如需更强措辞仅改各段头文案。
+ * - 「AGENTS.md 大部分操作注入」v1 表达 = system prompt 常驻（会话生命周期内每轮可见）。
  */
 async function buildSessionSystemPrompt(): Promise<string | undefined> {
   const sections: string[] = []
 
-  // ⚠ TODO(await-user)：规则注入段（措辞/生效时机待用户说明，见函数头标记）
-  const rules = await loadProjectRules()
-  if (rules) {
-    sections.push('## 项目规则（Project Rules）\n\n以下是本项目的强制规则，必须严格遵守：\n\n' + rules.trim())
+  // ① WORLDSMITH.md（内置系统说明——始终存在，认知性非约束性）
+  sections.push(
+    '## WorldSmith 系统说明（WORLDSMITH.md）\n\n' +
+    '以下为应用内置系统文档，帮助你认知本平台与你的角色：\n\n' +
+    BUILTIN_WORLDSMITH_MD.trim(),
+  )
+
+  // ② 全局规则组（存在才注入；优先级低于项目级——拍板）
+  const rulesDir = globalRulesDirSync()
+  if (rulesDir) {
+    const globalGroup: Array<[string, string]> = [
+      [RULES_RULES_FILE, '全局规则'],
+      [WRITING_RULES_FILE, '写作规则'],
+      [DESIGN_RULES_FILE, '设计规则'],
+      [TOOLS_RULES_FILE, '工具规则'],
+    ]
+    for (const [file, label] of globalGroup) {
+      const content = await readTextOrNull(`${rulesDir}/${file}`)
+      if (content) {
+        sections.push(
+          `## ${label}（全局 · ${file}）\n\n以下是全局${label}（用户与 Agent 共同维护），请遵循执行；` +
+          '与项目级规则冲突时，以项目级为准：\n\n' +
+          content.trim(),
+        )
+      }
+    }
+  }
+
+  // ③ 项目规则组（存在才注入；优先级最高——最后注入；v1 旧文件自动迁移）
+  await ensureProjectAgentsFile()
+  const workdir = currentWorkdir.value
+  if (workdir) {
+    const projectGroup: Array<[string, string]> = [
+      [AGENTS_RULES_FILE, '项目协作规则'],
+      [WRITING_RULES_FILE, '写作规则'],
+      [DESIGN_RULES_FILE, '设计规则'],
+      [TOOLS_RULES_FILE, '工具规则'],
+    ]
+    for (const [file, label] of projectGroup) {
+      const content = await readTextOrNull(`${workdir}/${file}`)
+      if (content) {
+        sections.push(
+          `## ${label}（项目 · ${file}）\n\n以下是本项目的${label}（用户与 Agent 共同维护），请遵循执行：\n\n` +
+          content.trim(),
+        )
+      }
+    }
   }
 
   try {
@@ -1952,6 +2162,35 @@ async function ensureSession(): Promise<string> {
   if (currentSessionId.value) return currentSessionId.value
   const info = await newSession(await buildSessionSystemPrompt())
   return info.id
+}
+
+// ─── 会话 system prompt 动态刷新（H5 风险点③，2026-08-30）──────────────
+// 触发源（都发 window 事件 `ws-session-prompt-dirty`）：
+// - 技能启停 toggleSkill / 安装 installSkillAndReload / 卸载 uninstallSkillAndReload /
+//   导入 importLocalSkillAndReload（registry/skills-store）
+// - 规则文件保存（RulesPanel onSave，source='rules'）
+// 动作：重建当前会话完整 system prompt（技能索引 + 规则文件）→ cmd_agent_update_system_prompt
+// 推送 kernel（下一轮 build_prompt_options 即生效）+ 写穿 sessions.system_prompt。
+// ⚠ initSkillRegistry / 重建流程绝不发事件（只允许变更操作发），否则死循环。
+let sessionPromptRefreshing = false
+async function refreshSessionPrompt(): Promise<void> {
+  if (sessionPromptRefreshing || !currentSessionId.value) return
+  sessionPromptRefreshing = true
+  try {
+    const prompt = await buildSessionSystemPrompt()
+    await safeInvoke('cmd_agent_update_system_prompt', {
+      sessionId: currentSessionId.value,
+      systemPrompt: prompt ?? null,
+    })
+  } catch (e) {
+    // 失败不阻断用户操作；下次变更事件重试
+    console.warn('[useAgentRust] 会话 system prompt 动态刷新失败:', e)
+  } finally {
+    sessionPromptRefreshing = false
+  }
+}
+if (typeof window !== 'undefined') {
+  window.addEventListener('ws-session-prompt-dirty', () => { void refreshSessionPrompt() })
 }
 
 /** 发送消息（send_message ReAct 循环执行，实现 IAgentBackend.prompt），详细见 docs/details/注释/tauri/useAgentRust.md */
@@ -1982,8 +2221,6 @@ async function prompt(text: string, options?: PromptOptions): Promise<void> {
   const effective = options?.hiddenText ? `${textContent}\n\n${options.hiddenText}` : textContent
   if (!effective.trim()) return
 
-  // 深度模式：为当前会话建立 DeepPhaseChanged 事件监听（幂等）
-  await setupDeepPhaseListener(sessionId)
   // 流式监听：支持打字机效果（幂等）
   await setupStreamListener(sessionId)
 
@@ -2013,7 +2250,7 @@ async function prompt(text: string, options?: PromptOptions): Promise<void> {
     },
   })
 
-  emit({ type: 'agent_start', sessionId, chatMode: options?.chatMode ?? 'deep' })
+  emit({ type: 'agent_start', sessionId, chatMode: options?.chatMode ?? 'normal' })
 
   isStreaming.value = true
   try {
@@ -2203,6 +2440,7 @@ async function updateModel(
   topP?: number,
   topK?: number,
   thinkingMode?: boolean,
+  totalSteps?: number,
 ): Promise<void> {
   const sessionId = await ensureSession()
   await safeInvoke('update_model', {
@@ -2218,6 +2456,7 @@ async function updateModel(
       topP: topP != null ? topP / 100 : null,
       topK: topK ?? null,
       thinkingMode: thinkingMode ?? null,
+      totalSteps: totalSteps ?? null,
     },
   })
 }
@@ -2380,11 +2619,6 @@ function subscribe(listener: AgentEventListener): () => void {
 /** 释放后端资源（实现 IAgentBackend.dispose） */
 function dispose(): void {
   listeners.clear()
-  // 清理所有深度阶段事件监听器
-  for (const unlisten of deepPhaseUnlistenFns.values()) {
-    unlisten()
-  }
-  deepPhaseUnlistenFns.clear()
   // 清理所有 A2UI 事件监听器
   for (const unlisten of a2uiUnlistenFns.values()) {
     unlisten()
@@ -2471,6 +2705,9 @@ export function useAgentRust() {
     abort,
     setSecurityLevel,
     updateModel,
+    // total_steps 预算警示（只读；流区横幅消费）
+    latestStepBudget: readonly(latestStepBudget),
+    clearStepBudgetHint,
     updateThinkingLevel,
     clearHistory,
     subscribe,
@@ -2504,7 +2741,10 @@ export function useAgentRust() {
     // ── MCP 连接（本地管理，供设置面板 McpPanel 使用）──
     getMCPConnections,
     addMCPConnection,
+    saveMCPConnection,
+    disconnectMCPConnection,
     removeMCPConnection,
+    getMcpConfigPath,
 
     // ── 用量（设置面板 UsagePanel 依赖）──
     totalUsage,
@@ -2521,12 +2761,11 @@ export function useAgentRust() {
     setProcessCollapsed,
     markTurnExpanded,
     autoCollapseProcess,
+    // 2026-09-02 计划步骤折叠切换（AgentMessageList → turnModel plan_step_toggle）
+    applyTurnEvent,
     // 轮次树（折叠控制器与视口判定消费）
     turns,
 
-    // ── 深度模式段（DeepProcessPanel 依赖）──
-    /** @deprecated 待后续清理，改用 agentStream */
-    deepSegments,
     resolveToolConfirmation,
 
     // ── A2UI（A2UIRenderer 依赖）──

@@ -43,9 +43,6 @@ export interface SummonItem {
 /** 召唤符号集合（！兼容英文 ! 输入，统一归一化为中文 ！） */
 export const SUMMON_PREFIXES = ['#', '/', '！', '!', '~', '@'] as const
 
-/** 对话模式枚举（与 space-store ChatMode 对齐，供 /模式 二级菜单） */
-export const CHAT_MODE_ENUM: ChatMode[] = ['deep', 'explore', 'task']
-
 /**
  * 应用层面板（#）——静态定义，打开国际化控制器面板。
  * payload 与 space-store 右侧面板/侧边栏操作对齐。
@@ -65,18 +62,8 @@ export const AGENT_ASSETS: SummonItem[] = [
   { id: 'asset-memory', prefix: '~', name: '记忆架', description: '打开记忆架（配置面板）', icon: 'brain', kind: 'asset', payload: 'memory' },
 ]
 
-/** 指令（/ 立即执行）——模式切换 / 帮助 */
+/** 指令（/ 立即执行）——帮助（三模式移除后 /模式 命令同步移除，2026-08-31） */
 export const COMMAND_ITEMS: SummonItem[] = [
-  {
-    id: 'cmd-mode',
-    prefix: '/',
-    name: '模式',
-    description: '切换对话模式（深度/探索/任务）',
-    icon: 'chat',
-    kind: 'command',
-    payload: 'chatMode',
-    params: [{ type: 'enum', enum_values: [...CHAT_MODE_ENUM] }],
-  },
   {
     id: 'cmd-help',
     prefix: '/',

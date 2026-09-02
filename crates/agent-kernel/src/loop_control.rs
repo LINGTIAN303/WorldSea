@@ -42,10 +42,15 @@ impl Default for LoopControlConfig {
 ///
 /// 任意一项超限即触发 `should_stop = true`。
 /// 设为 `None` 表示不限制该维度。
+///
+/// # 轮数限制已退役（2026-09-01）
+/// `max_turns` 默认改为 `None`（不再限制轮次）——轮数/步骤维度的预算职责已移交
+/// `AgentLoopConfig.total_steps`（工具调用轮数口径 + 预算感知软提醒，见 agent/config.rs）。
+/// 配置显式设置 `max_turns` 时仍可生效（向下兼容），但默认不再双轨数轮数。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RateLimitConfig {
-    /// 最大轮次限制（None=不限）
+    /// 最大轮次限制（None=不限；默认 None——职责移交 AgentLoopConfig.total_steps）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_turns: Option<u32>,
     /// 最大工具调用次数（None=不限）
@@ -61,9 +66,10 @@ pub struct RateLimitConfig {
 
 impl Default for RateLimitConfig {
     fn default() -> Self {
-        // 默认较宽松，对应"长任务最多 6 小时"约束
+        // 默认较宽松，对应"长任务最多 6 小时"约束；
+        // 轮数维度已退役（max_turns=None，职责移交 AgentLoopConfig.total_steps）。
         Self {
-            max_turns: Some(100),
+            max_turns: None,
             max_tool_calls: Some(200),
             max_tokens: Some(100_000),
             max_duration: Some(Duration::from_secs(6 * 60 * 60)), // 6h

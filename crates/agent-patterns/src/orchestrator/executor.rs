@@ -18,6 +18,7 @@ use crate::orchestrator::context::{latest_mem_note, BudgetView, CancelToken, Nod
 use crate::orchestrator::error::NodeError;
 use crate::orchestrator::graph::Graph;
 use crate::orchestrator::handles::{LlmHandle, MemEntry, MemLayer, MemoryHandle};
+use crate::orchestrator::observer::RunObserver;
 use crate::orchestrator::types::{NodeSnapshot, NodeId, Port, Usage};
 
 /// 全链路执行配置（设计 4.1 `RunConfig`）
@@ -73,6 +74,8 @@ pub struct RunReport {
     pub usage: Usage,
     /// 终局时黑板结果键（约定键 `result.draft`）的当前值
     pub result: Option<serde_json::Value>,
+    /// 终局黑板全量快照（S1 适配层：命令层据此做产物→契约翻译，不侵入 NodeResult）
+    pub blackboard: serde_json::Value,
     /// 墙钟耗时
     pub elapsed: std::time::Duration,
 }
@@ -102,8 +105,8 @@ pub struct Checkpoint {
 
 /// 车道 future 输出：(黑板分身, 终局(端口, 用量, 步) | Fatal)
 type LaneOutput = (Blackboard, Result<(Port, Usage, Vec<StepRecord>), NodeError>);
-/// 车道 future（借用执行器与取消令牌，不跨线程）
-type LaneFuture<'a> = std::pin::Pin<Box<dyn std::future::Future<Output = LaneOutput> + 'a>>;
+/// 车道 future（借用执行器与取消令牌；`Send` 约束保证整条 run() Future 可跨线程——tauri 命令要求 Send）
+type LaneFuture<'a> = std::pin::Pin<Box<dyn std::future::Future<Output = LaneOutput> + Send + 'a>>;
 
 /// Spawn 挂接的作用域：一张子图 + 它在父图的回接点（设计 §4.4）
 struct Scope {
@@ -132,6 +135,10 @@ pub struct DefaultOrchestrator<'g> {
     run_config: RunConfig,
     /// 取消信号：治理层或用户置位后，调度循环在下一步边界终止（设计 §3.2）
     cancel: CancelToken,
+    /// 运行观察者（S1 适配层；可选，None 时零开销）
+    observer: Option<Arc<dyn RunObserver>>,
+    /// 初始黑板种子（S1 适配层：`run()` 入口的输入注入，如 `task.intent`）
+    seed: Option<serde_json::Value>,
 }
 
 impl<'g> DefaultOrchestrator<'g> {
@@ -141,7 +148,7 @@ impl<'g> DefaultOrchestrator<'g> {
         memory: Arc<dyn MemoryHandle>,
         run_config: RunConfig,
     ) -> Self {
-        Self { graph, llm, memory, run_config, cancel: CancelToken::new() }
+        Self { graph, llm, memory, run_config, cancel: CancelToken::new(), observer: None, seed: None }
     }
 
     /// 注入取消令牌（与节点共享同一份；默认内部新建=不可取消）
@@ -150,9 +157,25 @@ impl<'g> DefaultOrchestrator<'g> {
         self
     }
 
+    /// 注入运行观察者（S1 适配层：阶段事件 + 终局回调，供命令层桥到迹线通道）
+    pub fn with_observer(mut self, observer: Arc<dyn RunObserver>) -> Self {
+        self.observer = Some(observer);
+        self
+    }
+
+    /// 注入初始黑板种子（S1 适配层：`run()` 前预写入，如 `{"task.intent": "…"}`）
+    pub fn with_seed(mut self, seed: serde_json::Value) -> Self {
+        self.seed = Some(seed);
+        self
+    }
+
     /// 跑完整张图：从 entry 推进到 Done/Fatal 或治理终止（设计 §4.2）。
     pub async fn run(&self) -> Result<RunReport, NodeError> {
         let entry = self.graph.entry().to_string();
+        let mut bb = Blackboard::new();
+        if let Some(seed) = &self.seed {
+            bb.restore(seed.clone());
+        }
         let rs = RunState {
             used: Usage::default(),
             steps: Vec::new(),
@@ -160,7 +183,11 @@ impl<'g> DefaultOrchestrator<'g> {
             ready: vec![entry],
             join_arrivals: HashMap::new(),
         };
-        self.drive(Blackboard::new(), rs, self.cancel.clone()).await.map(|(r, _)| r)
+        let rep = self
+            .drive(bb, rs, self.cancel.clone())
+            .await
+            .map(|(r, _)| r)?;
+        Ok(self.notify_finished(rep))
     }
 
     /// 跑完整张图并透出最近一次快照（供外部持久化 / 后续 resume，设计 4.6）。
@@ -168,6 +195,10 @@ impl<'g> DefaultOrchestrator<'g> {
         &self,
     ) -> Result<(RunReport, Option<Checkpoint>), NodeError> {
         let entry = self.graph.entry().to_string();
+        let mut bb = Blackboard::new();
+        if let Some(seed) = &self.seed {
+            bb.restore(seed.clone());
+        }
         let rs = RunState {
             used: Usage::default(),
             steps: Vec::new(),
@@ -175,7 +206,8 @@ impl<'g> DefaultOrchestrator<'g> {
             ready: vec![entry],
             join_arrivals: HashMap::new(),
         };
-        self.drive(Blackboard::new(), rs, self.cancel.clone()).await
+        let (rep, ckpt) = self.drive(bb, rs, self.cancel.clone()).await?;
+        Ok((self.notify_finished(rep), ckpt))
     }
 
     /// 从快照恢复整链（设计 §4.6：restore 节点 → 定位断点 → 继续调度）。
@@ -196,7 +228,16 @@ impl<'g> DefaultOrchestrator<'g> {
             ready: ckpt.ready,
             join_arrivals: HashMap::new(),
         };
-        self.drive(bb, rs, self.cancel.clone()).await.map(|(r, _)| r)
+        let rep = self.drive(bb, rs, self.cancel.clone()).await.map(|(r, _)| r)?;
+        Ok(self.notify_finished(rep))
+    }
+
+    /// 终局统一触发观察者（S1 适配层：on_finished 在三个入口各自收尾时调用一次）
+    fn notify_finished(&self, report: RunReport) -> RunReport {
+        if let Some(o) = &self.observer {
+            o.on_finished(&report);
+        }
+        report
     }
 
     // ── 调度循环核心（设计 4.2 九步伪代码的落地）────────
@@ -244,6 +285,10 @@ impl<'g> DefaultOrchestrator<'g> {
                 let budget = BudgetView { used: rs.used, cap: self.run_config.budget_cap };
                 let mut ctx =
                     NodeCtx::new(&mut bb, self.llm.as_ref(), self.memory.as_ref(), budget, cancel.clone());
+                // S1 适配层：注入运行观察者（节点内阶段事件经此透出，None 时零开销）
+                if let Some(o) = &self.observer {
+                    ctx = ctx.with_observer(Arc::clone(o));
+                }
                 ctx.recalled = recalled.clone();
                 match node.execute(&mut ctx).await {
                     Ok(r) => break (r, ctx.pending.take()),
@@ -690,6 +735,7 @@ impl<'g> DefaultOrchestrator<'g> {
             steps: rs.steps.clone(),
             usage: rs.used,
             result: bb.read("result.draft").cloned(),
+            blackboard: bb.snapshot(),
             elapsed: started.elapsed(),
         }
     }

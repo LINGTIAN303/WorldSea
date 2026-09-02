@@ -78,8 +78,10 @@ async function detectShells(): Promise<ShellInfo[]> {
 }
 
 /** 创建持久化 Shell 会话 */
-async function createSession(opts: { shell?: string; cwd?: string } = {}): Promise<{ session_id: string }> {
-  const res = await invoke<{ session_id: string }>('terminal_create_session', {
+async function createSession(
+  opts: { shell?: string; cwd?: string } = {},
+): Promise<{ session_id: string; shell_path?: string; cwd?: string; pty?: boolean }> {
+  const res = await invoke<{ session_id: string; shell_path?: string; cwd?: string; pty?: boolean }>('terminal_create_session', {
     args: {
       ...(opts.shell ? { shell: opts.shell } : {}),
       ...(opts.cwd ? { cwd: opts.cwd } : {}),
@@ -104,10 +106,36 @@ async function execSession(
   })
 }
 
-/** 向持久化会话发送交互输入 */
-async function inputSession(sessionId: string, data: string): Promise<{ ok: boolean }> {
+/** 向持久化会话发送交互输入（appendReturn=false=真终端原始按键流，@xterm onData） */
+async function inputSession(
+  sessionId: string,
+  data: string,
+  appendReturn = true,
+): Promise<{ ok: boolean }> {
   return invoke<{ ok: boolean }>('terminal_input_session', {
-    args: { session_id: sessionId, data },
+    args: { session_id: sessionId, data, append_return: appendReturn },
+  })
+}
+
+/**
+ * 增量拉取会话输出（真终端轮询，7.1）
+ *
+ * 客户端携带上次 `offset`，返回其后的新字节流（含 ANSI/VT 序列）。`truncated=true`
+ * 表示 offset 已被缓冲裁剪（从最旧重读），调用方应重置偏移。
+ */
+async function pollOutput(
+  sessionId: string,
+  offset: number,
+): Promise<{ output: string; offset: number; truncated: boolean }> {
+  return invoke('terminal_poll_output', {
+    args: { session_id: sessionId, offset },
+  })
+}
+
+/** 调整会话终端尺寸（真终端窗口 resize，7.1）：前端容器尺寸变化时下发 */
+async function resizeSession(sessionId: string, cols: number, rows: number): Promise<{ ok: boolean }> {
+  return invoke('terminal_resize', {
+    args: { session_id: sessionId, cols, rows },
   })
 }
 
@@ -135,6 +163,8 @@ export function useTerminalRust() {
     createSession,
     execSession,
     inputSession,
+    pollOutput,
+    resizeSession,
     destroySession,
     refreshSessions,
   }

@@ -5,7 +5,7 @@
  * - invoke → POST http://127.0.0.1:8787/rpc { cmd, args }
  * - listen → 单个 EventSource 订阅 /events（SSE），按事件名过滤分发
  * 否则回退原 mock（safeInvoke 的 mockInvoke）/ 真实 Tauri IPC。桌面端零改动。
- * 移除：删除本文件，还原 useAgentRust/useOrchEvents/usePlanRust/useMultiAgentRust/useLoopControlRust 的 listen 导入。
+ * 移除：删除本文件，还原 useAgentRust/useOrchEvents/useMultiAgentRust/useLoopControlRust 的 listen 导入。
  */
 import { listen as tauriListen, type UnlistenFn } from '@tauri-apps/api/event'
 import { invoke as tauriInvoke } from '@tauri-apps/api/core'

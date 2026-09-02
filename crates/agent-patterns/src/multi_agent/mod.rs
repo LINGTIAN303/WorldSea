@@ -145,8 +145,9 @@ impl MultiAgentNode {
 
         let mut child_config = self.config.agent_loop_config.clone();
         child_config.system_prompt = Some(spec.system_prompt.clone());
+        // 子 Agent 步数预算：spec.max_iterations 字段名保留，映射到 total_steps
         if let Some(max_iter) = spec.max_iterations {
-            child_config.max_iterations = max_iter;
+            child_config.total_steps = max_iter;
         }
 
         let agent = Arc::new(

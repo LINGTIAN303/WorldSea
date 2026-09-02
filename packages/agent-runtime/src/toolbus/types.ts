@@ -76,8 +76,11 @@ export interface IToolContext {
    * - id：Workspace 实体 id（Rust 侧）
    * - workdir：工作区根目录，供 coding 工具链边界 resolver 使用；
    *   为空/无会话时 undefined，表示「未绑定工作区、写边界未启用」
+   * - extraWritablePaths：workdir 边界外的**精确放行文件**（词法归一后整路径
+   *   匹配，2026-08-30 拍板 H6-③：MCP 配置文件全局单份、Agent 可编辑）。
+   *   读写均放行；仅精确匹配该文件本身，不放行其所在目录。
    */
-  workspace?: { id?: string; workdir?: string }
+  workspace?: { id?: string; workdir?: string; extraWritablePaths?: string[] }
   emitA2UI?: (surfaceId: string, message: A2UIMessage) => void
   platform?: import('./capability-types').Platform
   appendBlock?: (block: import('../bridge-types').MessageBlock) => void

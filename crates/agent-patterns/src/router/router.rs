@@ -220,10 +220,15 @@ impl RoutingStrategy for LlmRoutingStrategy {
             });
         }
 
-        // 构造调用选项（覆盖 system_prompt，禁用工具调用）
+        // 构造调用选项（覆盖 system_prompt；R6 第四部分：静默调用——决策 JSON 等
+        // 中间产物不泄漏为对话流正文段）。
+        // 2026-09-02 B 类迁移：优先用决策工具强制调用（tool-use-as-JSON，force_tool），
+        // 模型经 tool_call 返回结构化参数；未返回 tool_call 时回退旧 parse_response。
         let options = PromptCallOptions {
             system_prompt_override: Some(self.prompt_template.system.clone()),
-            tools_override: Some(Vec::new()), // 路由决策不需要工具
+            tools: vec![crate::orchestrator::decision::route_target_decision_tool()],
+            force_tool: Some("route_target_decision".into()),
+            silent: true,
             ..Default::default()
         };
 
@@ -237,7 +242,20 @@ impl RoutingStrategy for LlmRoutingStrategy {
             response.text.len()
         );
 
-        // 解析响应
+        // 优先取强制决策工具的 tool_call 参数（结构化输出形态）
+        if let Some(tc) = response.tool_calls.into_iter().next() {
+            let result: RouteResult = serde_json::from_value(tc.args)
+                .map_err(|e| RoutingError::Parse(format!("路由决策参数非约定结构: {e}")))?;
+            if !targets.iter().any(|t| t.id == result.target_id) {
+                return Err(RoutingError::Parse(format!(
+                    "LLM 返回的 target_id '{}' 不在候选列表中",
+                    result.target_id
+                )));
+            }
+            return Ok(result);
+        }
+
+        // 回退：旧响应文本 JSON 解析（`tools_override` 不再禁用工具，仅兜底用）
         let result = Self::parse_response(&response.text)?;
 
         // 校验返回的 target_id 存在

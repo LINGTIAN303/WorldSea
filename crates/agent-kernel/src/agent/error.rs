@@ -12,8 +12,8 @@ pub enum AgentError {
     #[error("工具执行错误: {0}")]
     Tool(#[from] ToolError),
 
-    #[error("超过最大迭代次数: {0}")]
-    MaxIterationsExceeded(u32),
+    #[error("总步骤预算耗尽（已达 {0} 步，仍未收敛）")]
+    TotalStepsReached(u32),
 
     #[error("Loop Engineering 速率限制超限: {0}")]
     RateLimitExceeded(String),

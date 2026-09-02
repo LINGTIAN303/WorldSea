@@ -79,6 +79,8 @@ tokio-stream = { version = "0.1", features = ["sync"] }
 # [HTTP-BRIDGE] 图布局/图分析算法（cmd_algo_*）：mindmap Rust 布局/分析真实后端（默认 features，无 wasm 依赖）
 worldsmith-core = { path = "../../../worldsmith-core" }
 rmcp = { version = "3.1.4", features = ["client", "transport-child-process", "transport-streamable-http-client-reqwest", "reqwest-native-tls"] }
+# T09③ headers 鉴权注入：rmcp Config.custom_headers 用 http::HeaderName/HeaderValue 类型
+http = "1"
 
 [dev-dependencies]
 # 实体只读工具单测：#[tokio::test] 需要 tokio 宏与运行时（sqlx 也依赖 tokio 做异步）

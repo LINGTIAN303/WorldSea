@@ -145,28 +145,6 @@
       </div>
       <div class="settings-hint">最大 {{ formatTokens(maxContextLength) }}</div>
     </div>
-    <div v-if="!embedded" class="settings-section">
-      <div class="settings-label">回答模式</div>
-      <div class="chat-mode-grid">
-        <button
-          v-for="m in chatModes"
-          :key="m.value"
-          type="button"
-          class="chat-mode-card"
-          :class="{ active: chatMode === m.value, locked: lockedChatMode !== null }"
-          :disabled="lockedChatMode !== null"
-          @click="onChatModeClick(m.value)"
-        >
-          <span class="chat-mode-icon"><WsIcon :name="m.icon" size="sm" /></span>
-          <span class="chat-mode-text">
-            <span class="chat-mode-label">{{ m.label }}</span>
-            <span class="chat-mode-desc">{{ m.desc }}</span>
-          </span>
-        </button>
-      </div>
-      <div v-if="lockedChatMode !== null" class="settings-hint"><WsIcon name="lock" size="xs" /> 当前会话已锁定为「{{ chatModes?.find(m => m.value === lockedChatMode)?.label || lockedChatMode }}」模式，新建会话后可切换</div>
-      <div v-else class="settings-hint">每次发送消息时使用的回答模式，与顶栏下拉框一致</div>
-    </div>
   </div>
 </template>
 
@@ -188,9 +166,7 @@ const props = defineProps<{
   maxContextLength: number
   maxOutputTokens: number
   maxTemperature: number
-  chatMode: string
-  chatModes: Array<{ value: string; icon: string; label: string; desc: string }>
-  lockedChatMode: string | null
+  // 三模式移除（2026-08-31）：模式卡移除，chatMode/chatModes/lockedChatMode 不再需要
   cloudApiKey: string
   customApiKey: string
   fetchedModels: string[]
@@ -206,7 +182,6 @@ const emit = defineEmits<{
   'update:cloudApiKey': [value: string]
   'update:customApiKey': [value: string]
   'model-change': [provider: string, modelId: string]
-  'chat-mode-change': [mode: string]
   'provider-change': [provider: string, modelId: string]
   'fetch-models': []
 }>()
@@ -304,10 +279,6 @@ function onMaxTokensChange(e: Event): void {
 
 function onContextLengthChange(e: Event): void {
   emit('update:contextLength', Number((e.target as HTMLInputElement).value))
-}
-
-function onChatModeClick(mode: string): void {
-  emit('chat-mode-change', mode)
 }
 
 function isCustomProviderActive(cp: { baseUrl: string; apiType: string; modelId: string }): boolean {

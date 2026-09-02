@@ -1,12 +1,90 @@
-﻿    use super::*;
+    use super::*;
     use super::node::make_msg;
-    use agent_kernel::event::OrchestratorEvent;
-    use agent_kernel::node::{EventEmitter, NodeStatus, OrchestratorNode};
-    use crate::plan_execute::tests::{make_ctx, ScriptedBackend, TestEmitter};
+    use agent_kernel::backend::{BackendError, NodeBackendAccessor, PromptCallOptions, PromptResponse};
+    use agent_kernel::event::{OrchestratorEvent};
+    use agent_kernel::node::{AbortCheck, EventEmitter, NodeContext, NodeStatus, OrchestratorNode};
     use agent_kernel::types::{
-        MessageRole, OrchestratorState, ReflectionIssue, ReflectionResult, ReflectionSeverity,
+        MessageRole, OrchestratorMessage, OrchestratorState, ReflectionIssue, ReflectionResult,
+        ReflectionSeverity,
     };
-    use std::sync::Mutex;
+    use async_trait::async_trait;
+    use std::collections::VecDeque;
+    use std::sync::{Arc, Mutex};
+
+    // ─── 共享测试桩（S4 迁移自 plan_execute::tests，2026-09-01）─────────────
+
+    /// 测试桩后端 — 每次 prompt 弹出队列中的下一条响应
+    pub struct ScriptedBackend(pub Mutex<VecDeque<String>>);
+
+    impl ScriptedBackend {
+        pub fn new(responses: Vec<String>) -> Self {
+            Self(Mutex::new(responses.into_iter().collect()))
+        }
+        pub fn push(&self, s: impl Into<String>) {
+            self.0.lock().unwrap().push_back(s.into());
+        }
+    }
+
+    #[async_trait]
+    impl NodeBackendAccessor for ScriptedBackend {
+        async fn prompt(
+            &self,
+            _prompt: String,
+            _options: Option<PromptCallOptions>,
+        ) -> Result<PromptResponse, BackendError> {
+            match self.0.lock().unwrap().pop_front() {
+                Some(text) => Ok(PromptResponse::text_only(text)),
+                // 队列耗尽 = 模拟 LLM 调用失败（走 execute 失败分支）
+                None => Err(BackendError::Network("测试队列耗尽（模拟 LLM 调用失败）".into())),
+            }
+        }
+        async fn steer(&self, _text: String) -> Result<(), BackendError> {
+            Ok(())
+        }
+        async fn get_messages(&self) -> Vec<OrchestratorMessage> {
+            Vec::new()
+        }
+        async fn set_messages(&self, _m: Vec<OrchestratorMessage>) -> Result<(), BackendError> {
+            Ok(())
+        }
+        async fn trim_context(&self, _i: usize) -> Result<(), BackendError> {
+            Ok(())
+        }
+    }
+
+    /// 测试用事件收集器
+    pub struct TestEmitter(pub Mutex<Vec<OrchestratorEvent>>);
+
+    impl EventEmitter for TestEmitter {
+        fn emit(&self, event: OrchestratorEvent) {
+            self.0.lock().unwrap().push(event);
+        }
+    }
+
+    pub struct TestAbort;
+
+    #[async_trait]
+    impl AbortCheck for TestAbort {
+        fn is_aborted(&self) -> bool {
+            false
+        }
+        async fn wait_if_paused(&self) {}
+    }
+
+    /// 构造 NodeContext（供单测直接调 execute）
+    pub fn make_ctx<'a>(
+        state: &'a mut OrchestratorState,
+        backend: &'a dyn NodeBackendAccessor,
+        emitter: &'a dyn EventEmitter,
+    ) -> NodeContext<'a> {
+        NodeContext {
+            state,
+            backend,
+            memory: None,
+            emitter,
+            abort_check: &TestAbort,
+        }
+    }
 
     /// 造一个"已有一条 assistant 输出"的状态
     fn state_with_output(input: &str, output: &str) -> OrchestratorState {

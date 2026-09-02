@@ -108,7 +108,26 @@ export type AgentStreamItem =
       isResult?: boolean
     }
   | { type: 'think'; id: string; text: string; status: 'streaming' | 'complete'; timestamp: number }
-  | { type: 'tool'; tc: ToolCallView; id: string; timestamp: number }
+  | {
+      type: 'tool'
+      tc: ToolCallView
+      id: string
+      timestamp: number
+      /** 2026-09-02 系统工具流式：bash/powershell 增量输出累积（tool_delta 事件） */
+      stream?: string
+      /** 2026-09-02 系统工具流式：stream 超限已丢旧保新（渲染层提示） */
+      streamTruncated?: boolean
+      /** 2026-09-02 系统工具流式：文件变更 diff（write/edit/edit_diff；绿红对比 + 路径渲染） */
+      fileChange?: {
+        path: string
+        kind: string
+        hunks: Array<{ removed?: string[]; added?: string[]; truncated_at?: boolean }>
+      }
+      /** 2026-09-02 计划步骤行：plan 类动作段标记 + 子动作 id 列表 + 折叠态（渲染层包可折叠容器） */
+      isPlanStep?: boolean
+      childRefIds?: string[]
+      stepCollapsed?: boolean
+    }
   | { type: 'divider'; id: string; dividerText: string; timestamp: number }
   /** 过程层折叠摘要行：过程层折叠时替代全部过程行段（点击展开）；
    *  expanded=true 为展开态的常驻折叠头行（点击收起） */

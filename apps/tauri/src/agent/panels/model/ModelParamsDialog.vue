@@ -42,6 +42,15 @@
     </div>
 
     <div class="mp-section">
+      <div class="sp-row-label">工具调用轮数上限 (Total Steps)</div>
+      <div class="settings-row">
+        <input type="range" min="1" max="500" step="1" v-model.number="params.totalSteps" class="settings-slider" />
+        <span class="settings-value">{{ params.totalSteps }}</span>
+      </div>
+      <div class="settings-hint">模型可执行的工具调用轮数上限（1~500，默认 200）；达到上限前会提示收尾</div>
+    </div>
+
+    <div class="mp-section">
       <div class="settings-row">
         <span class="settings-row-label">思考模式</span>
         <label class="settings-toggle"><input type="checkbox" v-model="params.thinking" /><span class="settings-toggle-slider"></span></label>
@@ -89,6 +98,8 @@ export interface ModelParams {
   temperature: number
   topP: number
   topK: number
+  /** 总步骤预算：工具调用轮数上限（1~500） */
+  totalSteps: number
   thinking: boolean
   inputImage: boolean
 }
@@ -102,6 +113,7 @@ function loadParams(): ModelParams {
     temperature: 70,
     topP: 100,
     topK: 40,
+    totalSteps: 200,
     thinking: false,
     inputImage: props.modelSupportsVision,
   }

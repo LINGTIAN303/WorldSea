@@ -11,7 +11,6 @@
 pub mod got;
 pub mod multi_agent;
 pub mod orchestrator;
-pub mod plan_execute;
 pub mod reflective;
 pub mod router;
 pub mod shared;

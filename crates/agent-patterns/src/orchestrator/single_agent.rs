@@ -13,26 +13,34 @@ use crate::orchestrator::node::OrchestratorNode;
 use crate::orchestrator::types::{NodeMeta, NodeResult, Port, Usage};
 
 /// Prompt 模板的最小形态（设计 §5.1 `PromptSpec`）：
-/// system 固定 + user 从黑板约定键 `task.intent` 取当前值渲染。
+/// system 固定 + user 从黑板约定键渲染（默认 `task.intent`，可自定义——S1 适配层：
+/// 供 PlanExecuteNode 的 inner 步骤执行器读 `pne.step.current`）。
 #[derive(Debug, Clone)]
 pub struct PromptSpec {
     pub system: String,
+    /// user 输入取的黑板键（默认 `task.intent`）
+    intent_key: String,
     /// 是否把黑板召回记忆（`ctx.recalled`）拼进 user 输入（M4 打开后生效）
     pub include_recalled: bool,
 }
 
 impl PromptSpec {
     pub fn new(system: impl Into<String>) -> Self {
-        Self { system: system.into(), include_recalled: false }
+        Self { system: system.into(), intent_key: "task.intent".into(), include_recalled: false }
     }
 
-    /// 渲染：意图取自黑板约定键 `task.intent`（设计 表 3-1）
+    /// 自定义 user 输入读取的黑板键（S1 适配层：如 inner 步骤执行器读 `pne.step.current`）
+    pub fn for_key(system: impl Into<String>, key: impl Into<String>) -> Self {
+        Self { system: system.into(), intent_key: key.into(), include_recalled: false }
+    }
+
+    /// 渲染：意图取自黑板约定键（设计 表 3-1）
     fn render(&self, ctx: &NodeCtx<'_>) -> Result<Request, NodeError> {
         let intent = ctx
             .state
-            .read("task.intent")
+            .read(&self.intent_key)
             .and_then(|v| v.as_str().map(|s| s.to_string()))
-            .ok_or_else(|| NodeError::fatal("prompt", "黑板缺少 task.intent（ingress 未写入）"))?;
+            .ok_or_else(|| NodeError::fatal("prompt", format!("黑板缺少 {}（ingress 未写入）", self.intent_key)))?;
         let mut user = intent;
         if self.include_recalled && !ctx.recalled.is_empty() {
             let notes: Vec<String> =

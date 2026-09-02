@@ -4,6 +4,7 @@ use tracing::info;
 
 use crate::event::OrchestratorEvent;
 use crate::loop_control::{LoopControlCheck, RateLimitExceeded, SoftTimeoutLevel, WatchdogAlert};
+use crate::types::{MessageRole, OrchestratorMessage};
 
 use super::AgentLoop;
 
@@ -160,5 +161,91 @@ impl AgentLoop {
             final_error: final_error.to_string(),
         })
         .await;
+    }
+
+    /// 总步骤预算软提醒与熔断判定（工具调用轮数口径，对齐 Claude Code maxTurns）
+    ///
+    /// 每轮迭代开始、LLM 调用之前调用一次。内部完成预算感知（对齐 OpenHands #2406 共识方案）：
+    /// - 80%：注入「剩余 N 步，开始收尾」提示 + 广播 `StepBudgetWarning(80)`
+    /// - 95%：注入「1-2 步内完成」提示 + 广播 `StepBudgetWarning(95)`
+    /// - 100%：注入「最终收尾步」提示 + 广播 `StepBudgetWarning(100)`（本轮放行，给模型收尾机会）
+    /// - \>100%：最终步仍未收口 → 返回 `Some(limit)`，调用方熔断为 `AgentError::TotalStepsReached`
+    ///
+    /// 通知标志（state.budget_warn_80/95/final_notified）保证各级仅触发一次；
+    /// 新用户消息 / clear_history / dispose 时由调用方重置。
+    pub(super) async fn apply_step_budget(&self, used: u32, limit: u32) -> Option<u32> {
+        if used > limit {
+            return Some(limit);
+        }
+        let pct = used.saturating_mul(100) / limit.max(1);
+
+        // 决策（统一在一把锁内读状态 + 置通知标志，避免重复注入/广播）
+        enum Decision {
+            None,
+            Warn80,
+            Warn95,
+            Final,
+        }
+        let decision = {
+            let mut state = self.state.lock().await;
+            if used == limit && !state.budget_final_notified {
+                state.budget_final_notified = true;
+                Decision::Final
+            } else if pct >= 95 && !state.budget_warn_95_notified {
+                state.budget_warn_95_notified = true;
+                Decision::Warn95
+            } else if pct >= 80 && !state.budget_warn_80_notified {
+                state.budget_warn_80_notified = true;
+                Decision::Warn80
+            } else {
+                Decision::None
+            }
+        };
+
+        let (msg, percent) = match decision {
+            Decision::None => return None,
+            Decision::Warn80 => (
+                format!(
+                    "[SYSTEM] 步骤预算提醒：已使用 {used}/{limit} 步（80%）。请开始收尾，优先完成最关键部分，避免开启新的大任务。"
+                ),
+                80,
+            ),
+            Decision::Warn95 => (
+                format!(
+                    "[SYSTEM] 步骤预算接近耗尽：已使用 {used}/{limit} 步（95%）。请在 1-2 步内完成并给出最佳答案。"
+                ),
+                95,
+            ),
+            Decision::Final => (
+                format!(
+                    "[SYSTEM] 这是本任务允许的最后一步（预算 {limit} 步已用完）。你必须在本次回复中完成工作并给出最终答案。"
+                ),
+                100,
+            ),
+        };
+
+        // 注入系统提示（push 到消息历史末尾，随 set_messages 同步给 backend，本轮 LLM 即可感知）
+        self.inject_budget_nudge(msg).await;
+        let task_id = self.loop_task_id().await;
+        self.broadcast(OrchestratorEvent::StepBudgetWarning {
+            task_id,
+            used,
+            limit,
+            percent,
+        })
+        .await;
+        None
+    }
+
+    /// 注入一条系统级提示到消息历史末尾（预算提醒等；须在 set_messages 同步 backend 之前调用）
+    async fn inject_budget_nudge(&self, text: String) {
+        let mut state = self.state.lock().await;
+        state.messages.push(OrchestratorMessage {
+            role: MessageRole::System,
+            content: text,
+            tool_calls: Vec::new(),
+            tool_call_id: None,
+            meta: None,
+        });
     }
 }

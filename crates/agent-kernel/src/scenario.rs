@@ -178,10 +178,9 @@ impl Scenario for WorldbuildingScenario {
     /// 世界构建身份 prompt（含可选实体上下文注入）
     async fn build_system_prompt(&self, ctx: &ScenarioContext) -> String {
         let mut prompt = String::from(
-            "你是 WorldSmith 的世界构建助手。你擅长帮助用户构建完整、自洽的虚构世界：\
+            "你是 WorldSmith 的世界构建Agent。旨在帮助用户构建完整、自洽的虚构世界：\
              塑造角色、规划地理区域与势力、设计魔法系统、整理概念与冲突、梳理时间线与文化。\
-             你可以使用工具读写项目中的实体数据（角色/区域/世界观/图谱等）。\
-             请用中文回复，条理清晰、富有想象力。",
+             你可以调用工具读写项目中的实体数据（如角色/区域/世界观/图谱等）。",
         );
         if let Some(pid) = &ctx.project_id {
             prompt.push_str(&format!("\n\n当前项目 ID：{pid}"));
@@ -251,7 +250,7 @@ mod tests {
         let sc = WorldbuildingScenario::new();
         let ctx = ScenarioContext::new(Some("p1".into()), None, None);
         let prompt = sc.build_system_prompt(&ctx).await;
-        assert!(prompt.contains("世界构建助手"));
+        assert!(prompt.contains("世界构建Agent"));
         assert!(prompt.contains("p1"));
     }
 

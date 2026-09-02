@@ -606,36 +606,44 @@ pub enum OrchestratorEvent {
         /// 恢复方式（"manual" / "auto"）
         recovery_method: String,
     },
-
-    // Deep Mode 事件（阶段切换过程），详细见 docs/details/注释/agent-runtime/event.md
-    /// Deep Mode 阶段切换
+    /// 总步骤预算告警（80%/95% 阈值，对齐 Claude Code maxTurns 的预算感知）
+    /// 在 `total_steps_used` 首次跨过 80%/95% 阈值时触发（各自只触发一次）。
+    /// 不强制终止——同一时刻会向模型注入「剩余 N 步，开始收尾」提示；
+    /// 前端可据此展示"步骤预算 160/200，即将耗尽"。
+    StepBudgetWarning {
+        /// 任务 ID
+        task_id: String,
+        /// 已使用步骤（工具调用轮数）
+        used: u32,
+        /// 总步骤预算
+        limit: u32,
+        /// 阈值百分比（80 / 95）
+        percent: u8,
+    },
+    /// 工具执行增量输出（2026-09-02，bash/powershell 流式）
     ///
-    /// 在工具执行后判定阶段变化时触发，携带阶段标签、索引与触发工具名。
-    /// 前端监听此事件，更新 `deepSegments` 状态以激活 Deep Mode UI。
-    DeepPhaseChanged {
-        /// 会话 ID（与触发工具的 session 一致）
-        ///
-        /// 注意：此字段不参与 `from_orchestrator_event` 的转换逻辑，
-        /// 因为 OrchestratorEvent 不携带 session_id（由调用方注入）。
-        /// 这里保留是为了与 AgentEvent 的事件流对齐，Tauri 端会覆盖。
-        node_id: String,
-        /// 阶段标签（"问题拆解" / "证据收集" / "推理分析" / "创作操作" / "结论输出" / "其他操作"）
-        phase_label: String,
-        /// 阶段索引（0..4 对应五阶段，-1 为"其他操作"）
-        phase_index: i8,
-        /// 触发本次阶段判定的工具名
-        trigger_tool: String,
-        /// 触发工具执行状态（running/completed/failed）
-        ///
-        /// 阶段 P2 扩展：工具执行后广播，据此标注触发工具是成功还是失败。
-        /// 前端据此更新 `deepSegments` 内对应 `ToolCallView.status`。
-        tool_status: ToolStatus,
-        /// 阶段完成标记（true=该阶段已完成，false=仍在进行）
-        ///
-        /// 阶段 P2 扩展：当前广播发生在"进入新阶段"时，新阶段刚激活，
-        /// 故此处恒为 `false`；前端收到不同 `phase_index` 时，负责把旧阶段
-        /// 标记为 `done`。保留该字段以便未来支持"阶段内全部工具完成"的精确判定。
-        phase_completed: bool,
+    /// 工具执行过程中（如 bash/powershell 逐行输出）经 ToolStreamSink 推送。
+    /// 只进流通道供前端实时渲染，不进入 LLM 消息上下文。
+    ToolCallDelta {
+        /// 工具调用 ID（与 ToolCallStart 的 tool_call_id 对齐）
+        tool_call_id: String,
+        /// 增量文本（已 clean_ansi；前端直接展示）
+        delta: String,
+    },
+    /// 文件变更（2026-09-02，green/red diff 渲染）
+    ///
+    /// write/edit/edit_diff 工具执行成功后经 ToolStreamSink 推送一次。
+    /// 携带被操作文件路径 + 变更 hunk（before/removed/added 行组），
+    /// 前端据此在工具段渲染绿红对比；不进入 LLM 消息上下文。
+    FileChange {
+        /// 工具调用 ID（与 ToolCallStart 的 tool_call_id 对齐）
+        tool_call_id: String,
+        /// 被操作文件路径（路径渲染）
+        path: String,
+        /// 变更类型（"write" / "edit" / "edit_diff"）
+        kind: String,
+        /// 变更 hunks：[{ "context_before": [...], "removed": [...], "added": [...] }]
+        hunks: serde_json::Value,
     },
 
     // A2UI 事件（画布操作），详细见 docs/details/注释/agent-runtime/event.md
@@ -675,20 +683,6 @@ pub enum OrchestratorEvent {
         /// 用户审批结果
         approved: bool,
     },
-}
-
-/// 工具执行状态（DeepPhaseChanged 事件扩展字段）
-///
-/// 序列化为小写（running/completed/failed），与前端 `ToolCallView.status` 一致。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum ToolStatus {
-    /// 正在执行
-    Running,
-    /// 执行成功
-    Completed,
-    /// 执行失败
-    Failed,
 }
 
 /// 编排器结束结果（简化版，避免与 `OrchestratorResult` 循环引用）

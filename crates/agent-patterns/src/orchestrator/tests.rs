@@ -4,6 +4,7 @@
 //! 同时覆盖调度循环各机制：端口路由 / Branch 谓词 / Loop 回边 / 预算门 /
 //! 取消 / Retryable 重试 / Spawn 挂接回接 / 快照恢复。
 
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use crate::orchestrator::context::NodeCtx;
@@ -11,7 +12,7 @@ use crate::orchestrator::error::{LlmError, NodeError};
 use crate::orchestrator::executor::{DefaultOrchestrator, RunConfig, TerminalReason};
 use crate::orchestrator::graph::{Condition, Edge, Graph};
 use crate::orchestrator::handles::test_support::ScriptedLlm;
-use crate::orchestrator::handles::{NoopMemory, Response};
+use crate::orchestrator::handles::{LlmHandle, NoopMemory, Response};
 use crate::orchestrator::node::OrchestratorNode;
 use crate::orchestrator::single_agent::{PromptSpec, SingleAgentNode};
 use crate::orchestrator::types::{NodeMeta, NodeResult, Port, Usage};
@@ -524,4 +525,76 @@ async fn 记忆前后钩子由执行器统一挂() {
     assert!(report.is_done());
     assert_eq!(*mem.befores.lock().unwrap(), vec!["ingress".to_string(), "solve".to_string()]);
     assert_eq!(*mem.afters.lock().unwrap(), vec!["ingress".to_string(), "solve".to_string()]);
+}
+
+// ── B 类迁移试点：决策工具调用（decide 优先 + 失败回退）────────────────
+
+/// 可编程决策 LLM：decide 按 decide_reply 返回（None=Err 触发回退）；complete 返回 complete_reply。
+struct DecideLlm {
+    decide_reply: Option<serde_json::Value>,
+    complete_reply: String,
+    decide_called: AtomicUsize,
+    complete_called: AtomicUsize,
+}
+
+impl DecideLlm {
+    fn new(decide_reply: Option<serde_json::Value>, complete_reply: impl Into<String>) -> Arc<Self> {
+        Arc::new(Self {
+            decide_reply,
+            complete_reply: complete_reply.into(),
+            decide_called: AtomicUsize::new(0),
+            complete_called: AtomicUsize::new(0),
+        })
+    }
+}
+
+#[async_trait::async_trait]
+impl LlmHandle for DecideLlm {
+    async fn complete(&self, _req: &crate::orchestrator::handles::Request) -> Result<Response, LlmError> {
+        self.complete_called.fetch_add(1, Ordering::SeqCst);
+        Ok(Response { text: self.complete_reply.clone(), usage: Usage::of(1, 1) })
+    }
+    async fn decide(
+        &self,
+        _req: &crate::orchestrator::handles::Request,
+        _tool: agent_kernel::tool::ToolDefinition,
+    ) -> Result<serde_json::Value, LlmError> {
+        self.decide_called.fetch_add(1, Ordering::SeqCst);
+        match &self.decide_reply {
+            Some(v) => Ok(v.clone()),
+            None => Err(LlmError::Fatal("mock decide 失败".into())),
+        }
+    }
+}
+
+async fn run_router(llm: &dyn LlmHandle) -> NodeResult {
+    use crate::orchestrator::blackboard::Blackboard;
+    use crate::orchestrator::context::{BudgetView, CancelToken};
+    use crate::orchestrator::router::RouterNode;
+    let node = RouterNode::new("r", "你是路由分类器", vec!["query".into(), "research".into()], 0.6);
+    let mut state = Blackboard::new();
+    state.write("task.intent", &serde_json::json!("找资料"));
+    let mut ctx = NodeCtx::new(&mut state, llm, &NoopMemory, BudgetView::default(), CancelToken::default());
+    node.execute(&mut ctx).await.unwrap()
+}
+
+#[tokio::test]
+async fn 路由决策优先走决策工具调用() {
+    let llm = DecideLlm::new(
+        Some(serde_json::json!({"label": "query", "confidence": 0.9, "reason": "意图明确"})),
+        "不应回退到 complete",
+    );
+    let result = run_router(llm.as_ref()).await;
+    assert!(matches!(result.port, Port::Branch(ref l) if l == "query"));
+    assert_eq!(llm.decide_called.load(Ordering::SeqCst), 1, "应优先调 decide");
+    assert_eq!(llm.complete_called.load(Ordering::SeqCst), 0, "decide 成功不应回退");
+}
+
+#[tokio::test]
+async fn 路由决策decide失败时回退旧JSON解析() {
+    let llm = DecideLlm::new(None, r#"{"label":"research","confidence":0.7,"reason":"回退"}"#);
+    let result = run_router(llm.as_ref()).await;
+    assert!(matches!(result.port, Port::Branch(ref l) if l == "research"));
+    assert_eq!(llm.decide_called.load(Ordering::SeqCst), 1);
+    assert_eq!(llm.complete_called.load(Ordering::SeqCst), 1, "decide 失败应回退 complete");
 }

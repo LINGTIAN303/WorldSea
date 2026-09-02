@@ -112,6 +112,12 @@ pub trait SessionRepository: Send + Sync {
     async fn set_pinned(&self, session_id: &str, pinned: bool) -> Result<(), CommandError>;
     /// 更新会话绑定的工作区根目录（写穿；None=不限定）。目录选择器切换工作区时同步当前会话归属
     async fn update_workdir(&self, session_id: &str, workdir: Option<&str>) -> Result<(), CommandError>;
+    /// 更新会话 system prompt（写穿；H5 风险点③ 动态刷新——技能/规则中途变更旧会话生效）
+    async fn update_system_prompt(
+        &self,
+        session_id: &str,
+        system_prompt: Option<&str>,
+    ) -> Result<(), CommandError>;
     /// 保存群聊参与者会话映射（写穿；group_id+participant_id 走 upsert）
     async fn save_group_participant(
         &self,
@@ -469,6 +475,20 @@ impl SessionRepository for SqliteSessionRepository {
             .execute(&self.pool)
             .await
             .map_err(|e| CommandError::Internal(format!("更新会话工作区目录失败: {e}")))?;
+        Ok(())
+    }
+
+    async fn update_system_prompt(
+        &self,
+        session_id: &str,
+        system_prompt: Option<&str>,
+    ) -> Result<(), CommandError> {
+        sqlx::query("UPDATE sessions SET system_prompt = ?1 WHERE id = ?2")
+            .bind(system_prompt)
+            .bind(session_id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| CommandError::Internal(format!("更新会话 system prompt 失败: {e}")))?;
         Ok(())
     }
 

@@ -21,9 +21,6 @@
         :persona-preset="personaPreset"
         :thinking-level="thinkingLevel"
         :thinking-levels="THINKING_LEVELS"
-        :chat-mode="activeChatMode"
-        :chat-modes="CHAT_MODES"
-        :locked-chat-mode="lockedChatMode"
         :total-usage="totalUsage"
         :calculated-cost="calculatedCost"
         :cumulative-usage="cumulativeUsage"
@@ -40,7 +37,6 @@
         @update:persona-preset="onPersonaChange"
         @model-change="onModelChange"
         @thinking-level-change="onThinkingLevelChange"
-        @chat-mode-change="onChatModeChange"
         @search-engine-change="onSearchEngineChange"
         @search-apikey-change="onSearchApiKeyChange"
         @toggle-skill="onToggleSkill"
@@ -53,8 +49,8 @@
         @security-level-change="onSecurityLevelChange"
         @card-change="(i) => emit('card-change', i)"
       />
-      <!-- H5 规则工程（P2，2026-08-30）：项目规则编辑（WORLDSMITH.md，新会话自动注入） -->
-      <ProjectRulesEditor />
+      <!-- H5 八文件体系（2026-08-30 拍板）：规则卡片面板——八文件统一编辑入口（WORLDSMITH 只读/MEMORY 说明卡） -->
+      <RulesPanel />
     </div>
   </div>
 </template>
@@ -63,15 +59,13 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
 import { useAgent } from '@/agent/composables/useAgent'
-import type { ChatMode } from '@/agent/composables/useAgent'
 import { useSettingsStore } from '@/stores/settingsStore'
-import { useSessionViewState } from '@/agent/composables/useSessionViewState'
 import { useMcpConnections } from '@worldsmith/shared-composables/agent/useMcpConnections'
 import { toastError } from '@/composables/useToast'
 import { getAllSkills, toggleSkill, storeApiKey, loadApiKey, removeApiKey } from '@agent/index'
 import { getModelInfo, calculateCost, getThinkingLevels } from '@worldsmith/agent-runtime'
 import AgentSettingsPanel from '@/agent/AgentSettingsPanel.vue'
-import ProjectRulesEditor from './ProjectRulesEditor.vue'
+import RulesPanel from './RulesPanel.vue'
 import type { ThinkingLevel, MCPConnectionConfig, SkillMeta } from '@agent/index'
 
 const emit = defineEmits<{ close: []; 'card-change': [index: number] }>()
@@ -91,8 +85,6 @@ const {
 } = useAgent()
 
 const settingsStore = useSettingsStore()
-// 聊天模式按会话隔离（viewState 权威）
-const sessionView = useSessionViewState()
 // 注入 useAgentRust（提供 getMCPConnections/addMCPConnection/removeMCPConnection 本地管理）
 const { connections: mcpConnections, addConnection, removeConnection, toggleConnection, ensureLoaded: ensureMcpLoaded } = useMcpConnections({ getAgent: () => useAgent() })
 
@@ -112,20 +104,8 @@ const skills = ref<SkillMeta[]>(getAllSkills())
 
 const THINKING_LEVELS = computed(() => getThinkingLevels(currentModelId.value))
 
-const CHAT_MODES = [
-  { value: 'deep', icon: 'brain', label: '深度思考', desc: '深度推理 + 工具验证 + 结构化推理链' },
-  { value: 'explore', icon: 'search', label: '知识探索', desc: '知识库 → 联网搜索 → 项目数据 → 模型知识' },
-  { value: 'task', icon: 'play', label: '任务执行', desc: '自主规划 + 连续执行 + 验证重试，动手把事做完' },
-]
-
+// 三模式移除（2026-08-31）：无模式选择器，普通会话统一 normal；group-chat 由会话类型承载
 // Tauri 端聊天模式按会话隔离（viewState 权威）；Rust 端无锁定概念，lockedChatMode 恒为 null
-const activeChatMode = computed(() => sessionView.activeState.value?.chatMode ?? 'deep')
-const lockedChatMode = computed(() => null)
-
-function onChatModeChange(mode: string): void {
-  if (lockedChatMode.value !== null) return
-  sessionView.setMode(mode as ChatMode)
-}
 
 const maxOutputTokensForModel = computed(() => {
   const info = getModelInfo(currentModelId.value)

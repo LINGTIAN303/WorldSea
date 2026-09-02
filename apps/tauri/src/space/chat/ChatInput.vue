@@ -145,7 +145,6 @@
           </div>
         </div>
         <div class="toolbar-center">
-          <span class="mode-label">{{ modeLabel }}</span>
         </div>
         <div class="toolbar-right">
           <WorkdirSelect />
@@ -227,7 +226,7 @@ const emit = defineEmits<{
 const spaceStore = useSpaceStore()
 // 聊天模式按会话隔离（viewState 权威）：占位符轮播 / 模式标签 / 模型参数弹窗回写均用当前会话模式
 const sessionView = useSessionViewState()
-const sessionMode = computed(() => sessionView.activeState.value?.chatMode ?? 'deep')
+const sessionMode = computed(() => sessionView.activeState.value?.chatMode ?? 'normal')
 const settingsStore = useSettingsStore()
 const pluginStore = usePluginStore()
 const uiStore = useUIStore()
@@ -319,27 +318,16 @@ const referenceEmptyHint = ref('')
 
 /* ── 占位符轮播 ── */
 const placeholderByMode: Record<ChatMode, string[]> = {
-  // N3 修复：deep 第二条原「适合长任务与复杂推理」与 task 模式语义重叠易误读，改为深度模式独有语义
-  deep: ['深度思考：问题越具体，洞察越深刻…', '多轮推理：层层推演，深挖本质'],
-  explore: ['知识探索：探索世界的设定与脉络…', '输入 @ 可引用世界设定实体'],
-  task: ['任务执行：拆解并分步完成…', '描述目标，我来规划执行'],
+  // 三模式移除（2026-08-31）：统一 normal 占位，group-chat 保留群聊占位
+  normal: ['问题越具体，洞察越深刻…', '多轮推理：层层推演，深挖本质'],
   'group-chat': ['群聊模式…', '邀请 Agent 参与讨论'],
 }
-const placeholderList = computed(() => placeholderByMode[sessionMode.value] ?? placeholderByMode.deep)
+const placeholderList = computed(() => placeholderByMode[sessionMode.value] ?? placeholderByMode.normal)
 const placeholderIndex = ref(0)
 let placeholderTimer: ReturnType<typeof setInterval> | null = null
 const currentPlaceholder = computed(
   () => placeholderList.value[placeholderIndex.value % placeholderList.value.length],
 )
-
-const modeLabel = computed(() => {
-  switch (sessionMode.value) {
-    case 'deep': return '深度思考'
-    case 'explore': return '知识探索'
-    case 'task': return '任务执行'
-    default: return '深度思考'
-  }
-})
 
 /* ── 召唤菜单可选项（按模式） ── */
 
@@ -559,11 +547,7 @@ function handleSummonSelect(item: SummonItem) {
   }
 }
 
-function executeCommand(item: SummonItem, paramValue?: string) {
-  if (item.payload === 'chatMode') {
-    sessionView.setMode((paramValue ?? 'deep') as ChatMode)
-    return
-  }
+function executeCommand(item: SummonItem, _paramValue?: string) {
   if (item.payload === 'help') {
     const summary = allSummonItems.value.map((i) => `${i.prefix}${i.name}`).join('  ')
     toastInfo(`召唤指令：${summary}；输入 @ 可引用世界设定实体`)

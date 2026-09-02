@@ -114,7 +114,24 @@ export function toggleSkill(skillId: string): boolean {
     disabled.push(skillId)
   }
   saveDisabledSkills(disabled)
+  notifySessionPromptDirty('skills-toggle')
   return idx < 0
+}
+
+/**
+ * 会话上下文变更通知（H5 风险点③ 动态刷新，2026-08-30）
+ *
+ * 技能启停/安装/卸载后调用：useAgentRust 模块级监听 `ws-session-prompt-dirty`，
+ * 重建当前会话完整 system prompt（技能索引 + 规则文件）并推送 kernel + 写穿持久化——
+ * 旧会话下一轮立即生效（v1 仅 newSession 生效问题的修复）。
+ *
+ * ⚠ 只允许「变更操作」调用；initSkillRegistry（重扫，ensureSession 与重建流程都会调）
+ * 绝不调用——否则 重建→扫描→事件→重建 死循环。
+ */
+export function notifySessionPromptDirty(source: string): void {
+  try {
+    window.dispatchEvent(new CustomEvent('ws-session-prompt-dirty', { detail: { source } }))
+  } catch { /* 非 DOM 环境（单测）忽略 */ }
 }
 
 function loadDisabledSkills(): string[] {

@@ -5,7 +5,7 @@
 
 ## 1. 项目定位
 
-WorldSmith 是一个 AI 驱动的世界构建（worldbuilding）平台，帮助用户构建丰富、互相关联的虚构世界。
+WorldSmith 是一个 Agent 驱动的世界构建（worldbuilding）平台，帮助用户构建丰富、互相关联的虚构世界。
 
 - **唯一 GUI**：`apps/tauri`（Tauri 2 桌面应用，原 `apps/web` 已于 2026-08-08 迁移后删除）
 - **CLI**：已移除（原 Rust binary `crates/cli` 已于 2026-08-08 删除，能力由 Tauri 端 `agent-commands` 覆盖）

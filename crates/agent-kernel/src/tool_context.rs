@@ -9,6 +9,24 @@
 //! FS 类工具）能基于 `workdir` 解析相对路径，而旧工具零改动（默认回落）。
 
 use std::path::{Component, Path, PathBuf};
+use std::sync::Arc;
+
+/// 工具流式输出接收器（2026-09-02 系统工具流式事件）
+///
+/// 由 AgentLoop 在构造 [`ToolContext`] 时注入（捕获 broadcaster + tool_call_id）。
+/// 工具执行中可经 `delta` 推送增量输出、经 `file_change` 推送文件变更 diff，
+/// 两者都只发事件（进流通道供前端渲染），**不进入 LLM 消息上下文**。
+pub trait ToolStreamSink: Send + Sync {
+    /// 推送一段增量文本（如 bash/powershell 的逐行输出）
+    fn delta(&self, text: String);
+    /// 推送一次文件变更（绿红 diff 渲染；write/edit/edit_diff 成功后调用）
+    fn file_change(
+        &self,
+        path: String,
+        kind: String,
+        hunks: serde_json::Value,
+    );
+}
 
 /// 工具上下文 — 每次工具执行时注入的会话级信息
 ///
@@ -16,10 +34,11 @@ use std::path::{Component, Path, PathBuf};
 /// - `workdir`：会话绑定的工作区根目录（`None`=无约束，相对路径原样返回）
 /// - `project_id`：关联项目 ID（可选，供多项目/多工作区场景区分）
 /// - `workspace_id`：关联 Workspace 实体 id（Phase A，`None`=旧数据缺省）
+/// - `tool_stream`：工具流式输出接收器（`None`=无流通道；注入者见 AgentLoop）
 ///
 /// # 约束
 /// 需满足 `Clone + Send + Sync`（并行工具执行时 `JoinSet::spawn` 需 clone 进每个 task）。
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Default)]
 pub struct ToolContext {
     /// 会话工作区根目录（`None`=不限定工作区）
     pub workdir: Option<PathBuf>,
@@ -27,6 +46,19 @@ pub struct ToolContext {
     pub project_id: Option<String>,
     /// Workspace 实体 id（可选；Phase A，供工具/后续边界感知实体归属）
     pub workspace_id: Option<String>,
+    /// 工具流式输出接收器（`None`=无流通道）
+    pub tool_stream: Option<Arc<dyn ToolStreamSink>>,
+}
+
+impl std::fmt::Debug for ToolContext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ToolContext")
+            .field("workdir", &self.workdir)
+            .field("project_id", &self.project_id)
+            .field("workspace_id", &self.workspace_id)
+            .field("tool_stream", &self.tool_stream.as_ref().map(|_| "<ToolStreamSink>"))
+            .finish()
+    }
 }
 
 impl ToolContext {
@@ -95,6 +127,7 @@ mod tests {
             workdir: Some(PathBuf::from("/workspace")),
             project_id: None,
             workspace_id: None,
+            tool_stream: None,
         };
         let resolved = ctx.resolve_path("src/a.md");
         assert_eq!(resolved, PathBuf::from("/workspace/src/a.md"));
@@ -106,6 +139,7 @@ mod tests {
             workdir: Some(PathBuf::from("/workspace")),
             project_id: None,
             workspace_id: None,
+            tool_stream: None,
         };
         let resolved = ctx.resolve_path("/etc/passwd");
         assert_eq!(resolved, PathBuf::from("/etc/passwd"));
@@ -124,6 +158,7 @@ mod tests {
             workdir: Some(PathBuf::from("/workspace")),
             project_id: None,
             workspace_id: None,
+            tool_stream: None,
         };
         assert!(ctx.is_within_workdir("src/a.md"));
         assert!(ctx.is_within_workdir("/workspace/src/a.md"));
@@ -135,6 +170,7 @@ mod tests {
             workdir: Some(PathBuf::from("/workspace")),
             project_id: None,
             workspace_id: None,
+            tool_stream: None,
         };
         assert!(!ctx.is_within_workdir("/etc/passwd"));
         assert!(!ctx.is_within_workdir("../outside.md"));

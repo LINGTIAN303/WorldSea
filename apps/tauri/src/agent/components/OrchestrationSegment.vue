@@ -54,6 +54,47 @@
         </span>
       </div>
 
+      <!-- 2026-09-02 内联计划卡：plan_execute run 的计划步骤列表（每步可展开查看执行产出/原因） -->
+      <div v-if="planItems.length" class="orch-plan-steps">
+        <div class="orch-plan-head">
+          <span class="orch-plan-title">执行计划</span>
+          <span v-if="planProgress.total > 0" class="orch-plan-meta">
+            {{ planProgress.done }}/{{ planProgress.total }}
+          </span>
+        </div>
+        <div
+          v-for="(item, idx) in planItems"
+          :key="item.id"
+          class="orch-plan-step"
+          :class="`ps-${item.status}`"
+        >
+          <button
+            type="button"
+            class="orch-plan-step-toggle"
+            role="button"
+            :aria-expanded="openSteps.has(idx)"
+            @click="toggleStep(idx)"
+            @keydown.enter.prevent="toggleStep(idx)"
+            @keydown.space.prevent="toggleStep(idx)"
+          >
+            <span class="orch-plan-step-num" :class="`num-${item.status}`">
+              <WsIcon v-if="item.status === 'completed'" name="check" size="xs" />
+              <template v-else>{{ idx + 1 }}</template>
+            </span>
+            <span class="orch-plan-step-title" :class="{ 'step-done': stepDone(item) }">{{ item.title }}</span>
+            <WsIcon name="chevron-down" size="xs" class="orch-plan-step-chevron" :class="{ collapsed: !openSteps.has(idx) }" />
+          </button>
+          <div v-show="openSteps.has(idx)" class="orch-plan-step-body">
+            <div v-if="item.description" class="orch-plan-step-desc">{{ item.description }}</div>
+            <div v-if="item.output" class="orch-plan-step-output">
+              <div class="orch-plan-step-label">产出</div>
+              <pre class="orch-plan-step-code">{{ item.output }}</pre>
+            </div>
+            <div v-if="item.reason" class="orch-plan-step-reason">{{ item.reason }}</div>
+          </div>
+        </div>
+      </div>
+
       <!-- M3 详图入口卡（A4）：深水区模式 → 点击驱动右栏切对应详图（ToT/GoT/Supervisor/MultiAgent 入口） -->
       <div v-if="detailEntry" class="orch-detail-entry">
         <button
@@ -87,6 +128,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
+import { usePlanStore } from '@worldsmith/shared-composables/agent/usePlanStore'
 import type { OrchestrationRunView, TracePhaseView } from '../composables/useOrchestrationTrace'
 
 const props = defineProps<{ run: OrchestrationRunView }>()
@@ -114,6 +156,28 @@ onMounted(() => {
     /* localStorage 不可用时静默跳过 */
   }
 })
+
+// ─── 2026-09-02 内联计划卡（B 类迁移配套）：plan_execute run 在过程层内联计划步骤 ───
+// 步骤数据来自 usePlanStore（plan_created/plan_update 事件驱动，PlanStepUpdate.output 已透传）。
+const planStore = usePlanStore()
+const isPlanRun = computed(() => props.run.pipeline === 'research-plan' || props.run.pipeline === 'quick-plan')
+const planItems = computed(() => (isPlanRun.value ? planStore.items.value : []))
+const planProgress = computed(() => {
+  const total = planItems.value.length
+  const done = planItems.value.filter(i => i.status === 'completed' || i.status === 'skipped').length
+  return { total, done }
+})
+/** 每步展开态（点击步骤头切换） */
+const openSteps = ref<Set<number>>(new Set())
+function toggleStep(idx: number): void {
+  const next = new Set(openSteps.value)
+  if (next.has(idx)) next.delete(idx)
+  else next.add(idx)
+  openSteps.value = next
+}
+function stepDone(item: { status: string }): boolean {
+  return item.status === 'completed' || item.status === 'skipped'
+}
 
 const pipelineLabel = computed(() => {
   const map: Record<string, string> = {
@@ -143,8 +207,7 @@ const detailEntry = computed<{ tab: string; label: string } | null>(() => {
     phases.find((p) => p.phase === 'tot' || p.phase === 'thought') ??
     phases.find((p) => p.phase === 'got' || p.phase === 'graph') ??
     phases.find((p) => p.phase === 'supervisor') ??
-    phases.find((p) => p.phase === 'multi_agent') ??
-    phases.find((p) => p.phase === 'plan')
+    phases.find((p) => p.phase === 'multi_agent')
   if (!hit) return null
   const map: Record<string, { tab: string; label: string }> = {
     tot: { tab: 'tot', label: '查看思维树' },
@@ -153,7 +216,6 @@ const detailEntry = computed<{ tab: string; label: string } | null>(() => {
     graph: { tab: 'got', label: '查看聚合图' },
     supervisor: { tab: 'supervisor', label: '查看委派现场' },
     multi_agent: { tab: 'multi', label: '查看协作黑板' },
-    plan: { tab: 'plan', label: '查看执行计划' },
   }
   return map[hit.phase] ?? null
 })
@@ -315,6 +377,129 @@ const finishedReasonText = computed(() => {
   font-size: 12px;
   color: var(--ws-text, #111827);
   white-space: pre-wrap;
+}
+
+/* ═══ 2026-09-02 内联计划卡（plan_execute 步骤列表） ═══ */
+.orch-plan-steps {
+  margin-top: 8px;
+  border-top: 1px solid var(--ws-border, #e5e7eb);
+  padding-top: 6px;
+}
+.orch-plan-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+.orch-plan-title {
+  font-weight: 600;
+}
+.orch-plan-meta {
+  color: var(--ws-primary, #3b82f6);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.orch-plan-step {
+  border-radius: 4px;
+  margin-bottom: 2px;
+}
+.orch-plan-step-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 3px 6px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: inherit;
+  font-size: 12px;
+  text-align: left;
+  border-radius: 4px;
+}
+.orch-plan-step-toggle:hover {
+  background: var(--ws-hover-bg, rgba(0, 0, 0, 0.04));
+}
+.orch-plan-step-num {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ws-text-secondary, #6b7280);
+  border: 1px solid var(--ws-border, #e5e7eb);
+}
+.orch-plan-step-num.num-in_progress {
+  background: var(--ws-primary, #3b82f6);
+  color: #fff;
+  border-color: transparent;
+}
+.orch-plan-step-num.num-completed {
+  background: var(--ws-success, #22c55e);
+  color: #fff;
+  border-color: transparent;
+}
+.orch-plan-step-num.num-failed {
+  background: var(--ws-danger, #dc2626);
+  color: #fff;
+  border-color: transparent;
+}
+.orch-plan-step-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.orch-plan-step-title.step-done {
+  color: var(--ws-text-tertiary, #9ca3af);
+  text-decoration: line-through;
+}
+.orch-plan-step-chevron {
+  color: var(--ws-text-tertiary, #9ca3af);
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+.orch-plan-step-chevron.collapsed {
+  transform: rotate(-90deg);
+}
+.orch-plan-step-body {
+  padding: 4px 8px 6px 28px;
+}
+.orch-plan-step-desc {
+  color: var(--ws-text-secondary, #6b7280);
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+.orch-plan-step-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ws-text-tertiary, #9ca3af);
+  margin-bottom: 2px;
+}
+.orch-plan-step-code {
+  margin: 0;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: var(--ws-hover-bg, rgba(0, 0, 0, 0.04));
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ws-text-secondary, #6b7280);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.orch-plan-step-reason {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--ws-danger, #dc2626);
 }
 .orch-degraded {
   color: var(--ws-text-secondary, #6b7280);

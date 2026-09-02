@@ -34,6 +34,10 @@ pub struct ReActLoopNode {
     round: Mutex<u32>,
     /// 工具连续失败计数（成功一次即清零）
     consecutive_failures: Mutex<u32>,
+    /// 2026-09-02 目标注入：读黑板此键写入轨迹首条「目标」思考条目
+    /// （默认 `task.intent`；PlanExecute 的内衬步骤传 `pne.step.current`，
+    /// 使 ReAct 每轮都能看到当前正在执行的计划步骤）
+    intent_key: String,
 }
 
 impl ReActLoopNode {
@@ -51,7 +55,14 @@ impl ReActLoopNode {
             tool_handle,
             round: Mutex::new(0),
             consecutive_failures: Mutex::new(0),
+            intent_key: "task.intent".to_string(),
         }
+    }
+
+    /// 2026-09-02 指定目标读取的黑板键（PlanExecute 内衬步骤用 `pne.step.current`）
+    pub fn with_intent_key(mut self, key: impl Into<String>) -> Self {
+        self.intent_key = key.into();
+        self
     }
 
     /// 读黑板轨迹（只追加序列反序列化；坏条目跳过——审计可回放优先于强一致）
@@ -81,6 +92,26 @@ impl OrchestratorNode for ReActLoopNode {
 
     async fn execute(&self, ctx: &mut NodeCtx<'_>) -> Result<NodeResult, NodeError> {
         let mut usage = Usage::default();
+
+        // 2026-09-02 每步独立执行循环：单 inner 节点在 PlanExecute 里每步 execute 一次，
+        // 若不清零会导致轮次计数/轨迹跨步累积（第二步起 round>=max 直接治理终止）。
+        { *self.round.lock().unwrap() = 0; }
+        { *self.consecutive_failures.lock().unwrap() = 0; }
+        ctx.state.remove("react.trace");
+
+        // 2026-09-02 目标注入：读黑板 intent_key（当前任务/计划步骤）写入轨迹首条
+        // 思考条目——ReAct 每轮 history 都携带当前目标（PlanExecute 内衬时即时序正确：
+        // 每步 inner.execute 读的是当步 pne.step.current）
+        if let Some(intent) = ctx
+            .state
+            .read(&self.intent_key)
+            .and_then(|v| v.as_str().map(|s| s.to_string()))
+        {
+            ctx.state.append(
+                "react.trace",
+                &TraceEntry::Thought { text: format!("[当前目标] {intent}") },
+            );
+        }
 
         loop {
             let round = { *self.round.lock().unwrap() };

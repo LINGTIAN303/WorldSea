@@ -14,6 +14,7 @@
 pub mod blackboard;
 pub mod composite;
 pub mod context;
+pub mod decision;
 pub mod error;
 pub mod executor;
 pub mod got;
@@ -30,10 +31,13 @@ mod m3_tests;
 mod m3c_tests;
 #[cfg(test)]
 mod m4_tests;
+#[cfg(test)]
+mod s1_adapter_tests;
 pub mod multi_agent;
 pub mod loop_engineering;
 pub mod memory_store;
 pub mod node;
+pub mod observer;
 pub mod plan_execute;
 pub mod react;
 pub mod reflection;
@@ -61,6 +65,7 @@ pub use loop_engineering::{ConvergePolicy, LoopEngineeringNode};
 pub use memory_store::LayeredMemoryStore;
 pub use multi_agent::MultiAgentNode;
 pub use node::OrchestratorNode;
+pub use observer::{PhaseStatus, RunObserver};
 pub use plan_execute::{Plan, PlanExecuteNode};
 pub use router::{AggregateNode, RouteChoice, RouterNode};
 pub use supervisor::{SupervisorNode, TaskItem};

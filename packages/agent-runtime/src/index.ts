@@ -80,7 +80,7 @@ export { checkRateLimit, recordRequest, recordUsage, getUsageSummary } from './u
 export { SKILL_REGISTRY, getEnabledSkills, getAllSkills, toggleSkill, resolveToolNames, ALWAYS_AVAILABLE_TOOLS } from './skills/registry'
 export type { SkillMeta } from './skills/registry'
 // Skills Store：远程技能源下载/安装/卸载/更新 + 本地导入
-export { downloadRemoteManifest, installSkill, installSkillAndReload, uninstallSkill, uninstallSkillAndReload, getInstalledVersions, checkUpdates, importLocalSkill, importLocalSkillAndReload } from './skills/skills-store'
+export { downloadRemoteManifest, installSkill, installSkillAndReload, uninstallSkill, uninstallSkillAndReload, getInstalledVersions, checkUpdates, importLocalSkill, importLocalSkillAndReload, hasSkillsInvoke } from './skills/skills-store'
 export type { InstallResult, InstalledMeta, RemoteSkillEntry, RemoteManifest, InstallSkillOptions, ImportLocalOptions } from './skills/skills-store'
 // 多平台互通：Claude Code / Cursor / WorldSmith 格式双向转换
 export { detectPlatform, importClaudeCodeSkill, importCursorRule, importWorldSmithYaml, autoImportSkill, exportToClaudeCodeSkill, exportToCursorRule, exportToSkillYaml } from './skills/platform-adapters'
