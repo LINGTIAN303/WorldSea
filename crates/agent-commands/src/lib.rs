@@ -2,6 +2,7 @@
 
 mod error;
 mod fs_tools;
+mod job;
 mod long_task_store;
 mod loop_control;
 mod mock_backend;

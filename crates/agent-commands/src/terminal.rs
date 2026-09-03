@@ -87,6 +87,9 @@ fn build_command(
             }
         }
     }
+    // P1：execute_command 改 spawn + wait_with_output（Job 整树回收），需显式 piped
+    cmd.stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
     cmd
 }
 
@@ -97,6 +100,21 @@ fn parse_env(args: &serde_json::Value) -> Option<Vec<(String, String)>> {
             .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
             .collect()
     })
+}
+
+/// 受限执行（P1，2026-09-04，方向 3 沙箱主业）：
+/// 子进程挂入 `KILL_ON_JOB_CLOSE` Job——工具结束（正常/超时/取消）Drop Job 时
+/// Windows 自动终止残留子进程树（`cmd.exe` 派生进程、`wsl.exe` 内部 bash 等）。
+/// 非 Windows 为空操作（保持原 kill 行为）。Job 挂接失败不阻塞执行（尽力而为）。
+fn spawn_with_job(
+    cmd: &mut tokio::process::Command,
+) -> Result<(tokio::process::Child, crate::job::WinJob), std::io::Error> {
+    let job = crate::job::WinJob::new().map_err(std::io::Error::other)?;
+    let child = cmd.spawn()?;
+    if let Err(e) = job.assign(child.id().unwrap_or(0)) {
+        tracing::warn!("Job object 挂接失败（残留子进程可能无法整树回收）: {e}");
+    }
+    Ok((child, job))
 }
 
 // ─── 会话管理器 ────────────────────────────────────────────
@@ -331,16 +349,41 @@ impl ExecuteCommandTool {
         }
 
         let started = Instant::now();
-        let output = match tokio::time::timeout(Duration::from_millis(timeout_ms), cmd.output()).await {
-            Ok(Ok(o)) => o,
-            Ok(Err(e)) => return Err(ToolError::Execution(format!("命令启动失败: {e}"))),
-            Err(_) => return Err(ToolError::Execution("命令执行超时".into())),
+        // 受限执行（P1）：spawn 挂 Job（KILL_ON_JOB_CLOSE），超时 kill 主进程 + Drop 整树回收
+        let (mut child, _job) = spawn_with_job(&mut cmd)
+            .map_err(|e| ToolError::Execution(format!("命令启动失败: {e}")))?;
+        // execute_command 非流式：take 管道后后台收集，主进程 wait/kill（&mut）不 move
+        let stdout_pipe = child.stdout.take().ok_or_else(|| ToolError::Execution("无法获取 stdout 管道".into()))?;
+        let stderr_pipe = child.stderr.take().ok_or_else(|| ToolError::Execution("无法获取 stderr 管道".into()))?;
+        let out_task = tokio::task::spawn(async move {
+            let mut r = tokio::io::BufReader::new(stdout_pipe).lines();
+            let mut buf = Vec::new();
+            while let Ok(Some(line)) = r.next_line().await {
+                buf.push(line);
+            }
+            buf
+        });
+        let err_task = tokio::task::spawn(async move {
+            let mut r = tokio::io::BufReader::new(stderr_pipe).lines();
+            let mut buf = Vec::new();
+            while let Ok(Some(line)) = r.next_line().await {
+                buf.push(line);
+            }
+            buf
+        });
+        let wait = tokio::time::timeout(Duration::from_millis(timeout_ms), child.wait()).await;
+        let status = match wait {
+            Ok(Ok(st)) => st,
+            Ok(Err(e)) => return Err(ToolError::Execution(format!("命令等待失败: {e}"))),
+            Err(_) => {
+                let _ = child.kill().await; // 超时终止主进程；残留子进程由 _job Drop 整树回收
+                return Err(ToolError::Execution("命令执行超时".into()));
+            }
         };
         let duration_ms = started.elapsed().as_millis() as u64;
-
-        let stdout = clean_ansi(&String::from_utf8_lossy(&output.stdout));
-        let stderr = clean_ansi(&String::from_utf8_lossy(&output.stderr));
-        let exit_code = output.status.code();
+        let stdout = clean_ansi(&out_task.await.unwrap_or_default().join("\n"));
+        let stderr = clean_ansi(&err_task.await.unwrap_or_default().join("\n"));
+        let exit_code = status.code();
         Ok(with_meta(
             serde_json::json!({
                 "stdout": if stdout.is_empty() { "(命令已执行，无输出)" } else { &stdout },
@@ -542,10 +585,10 @@ impl ShellExecTool {
         // 取消：工具 future 被 drop（AgentLoop 中止）→ tokio Command 自动 kill 子进程；
         // 超时：下面 timeout(child.wait()) 触发 kill。
         // 子进程因 cmd.output() 不可用（stdout 被接管），改用 spawn + 双读任务。
-        let mut child = match cmd.spawn() {
-            Ok(c) => c,
-            Err(e) => return Err(ToolError::Execution(format!("命令启动失败: {e}"))),
-        };
+        // 受限执行（P1，2026-09-04）：挂 Job（KILL_ON_JOB_CLOSE）——取消（future drop）/
+        // 超时 kill 主进程后，Drop 时自动整树回收残留子进程。
+        let (mut child, _job) = spawn_with_job(&mut cmd)
+            .map_err(|e| ToolError::Execution(format!("命令启动失败: {e}")))?;
         let stdout = child.stdout.take().ok_or_else(|| ToolError::Execution("无法获取 stdout 管道".into()))?;
         let stderr = child.stderr.take().ok_or_else(|| ToolError::Execution("无法获取 stderr 管道".into()))?;
         let sink = ctx.tool_stream.clone();
