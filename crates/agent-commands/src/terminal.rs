@@ -80,6 +80,8 @@ fn build_command(
     if let Some(d) = cwd {
         cmd.current_dir(d);
     }
+    // P1：先剔除继承密钥（sanitize），再应用显式 env 注入（显式传入可覆盖）
+    sanitize_env(&mut cmd);
     if let Some(map) = env {
         for (k, v) in map {
             if let Some(v) = v.as_str() {
@@ -100,6 +102,33 @@ fn parse_env(args: &serde_json::Value) -> Option<Vec<(String, String)>> {
             .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
             .collect()
     })
+}
+
+/// 受限执行（P1 补充，2026-09-04）：剔除继承自宿主 shell 的密钥环境变量——
+/// 防 Agent 命令把宿主凭证带入/泄漏（如 `gh` 读 GH_TOKEN、`aws` 读 AWS_*）。
+/// 显式注入（`env` 参数 / cmd.env）在 sanitize **之后**执行，仍可覆盖（调用方显式传入的 key 不受影响）。
+const SENSITIVE_ENV_KEYS: &[&str] = &[
+    "AWS_ACCESS_KEY_ID",
+    "AWS_SECRET_ACCESS_KEY",
+    "AWS_SESSION_TOKEN",
+    "GH_TOKEN",
+    "GITHUB_TOKEN",
+    "OPENAI_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_AUTH_TOKEN",
+    "DEEPSEEK_API_KEY",
+    "AZURE_OPENAI_API_KEY",
+    "GOOGLE_API_KEY",
+    "GEMINI_API_KEY",
+    "HUGGING_FACE_HUB_TOKEN",
+    "HF_TOKEN",
+    "REPLICATE_API_TOKEN",
+];
+
+fn sanitize_env(cmd: &mut tokio::process::Command) {
+    for k in SENSITIVE_ENV_KEYS {
+        cmd.env_remove(k);
+    }
 }
 
 /// 受限执行（P1，2026-09-04，方向 3 沙箱主业）：
@@ -162,6 +191,9 @@ struct ShellSession {
     writer: Box<dyn std::io::Write + Send>,
     /// 会话输出缓冲（原始 ANSI/VT 字节流；exec 与 poll 共用）
     buf: Arc<SessionOutputBuf>,
+    /// 受限进程（P1，2026-09-04）：PTY 会话 Job——会话销毁/超时 Drop 时整树回收残留
+    #[allow(dead_code)]
+    _job: crate::job::WinJob,
     shell_path: String,
     cwd: String,
 }
@@ -544,6 +576,8 @@ impl ShellExecTool {
             if let Some(d) = cwd {
                 c.current_dir(d);
             }
+            // P1：剔除继承密钥（bash/powershell 无显式 env 注入，全量 sanitize）
+            sanitize_env(&mut c);
             c.stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
             c
         }
@@ -755,6 +789,12 @@ impl Tool for ShellSessionCreateTool {
             };
 
         let session_id = format!("session-{}", uuid::Uuid::new_v4().simple());
+        // 受限进程（P1，2026-09-04）：PTY 会话挂 Job（KILL_ON_JOB_CLOSE）——会话销毁时
+        // Drop 整树回收（ConPTY 子进程、wsl 内进程等）；挂接失败仅告警不阻塞。
+        let job = crate::job::WinJob::new().map_err(|e| ToolError::Execution(format!("Job 创建失败: {e}")))?;
+        if let Err(e) = job.assign(child.process_id().unwrap_or(0)) {
+            tracing::warn!("PTY 会话 Job 挂接失败（残留子进程可能无法整树回收）: {e}");
+        }
         // 7.1：输出缓冲化——spawn 转发 task 消费 out_rx → 写入 buf；
         // exec（游标窗口）与前端 poll（增量拉取）双读同一缓冲，互不干扰。
         let buf = Arc::new(SessionOutputBuf::new(SESSION_OUTPUT_BUF_MAX));
@@ -769,6 +809,7 @@ impl Tool for ShellSessionCreateTool {
             master,
             writer,
             buf,
+            _job: job,
             shell_path: shell.clone(),
             cwd: cwd.clone(),
         };
