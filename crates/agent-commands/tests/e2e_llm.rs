@@ -615,6 +615,7 @@ async fn e2e_supervisor_orchestration_deepseek() {
             system_prompt: "你是一个专业的代码工程师。请用中文简洁回答，不要调用任何工具。".into(),
             tools_whitelist: None,
             max_iterations: Some(5),
+        temp_dir: None,
         },
         SubAgentSpec {
             id: "writer".into(),
@@ -623,6 +624,7 @@ async fn e2e_supervisor_orchestration_deepseek() {
             system_prompt: "你是一个专业的技术文档工程师。请用中文简洁回答，不要调用任何工具。".into(),
             tools_whitelist: None,
             max_iterations: Some(5),
+        temp_dir: None,
         },
     ];
 
@@ -1598,6 +1600,7 @@ async fn e2e_subagent_orchestration_deepseek() {
         system_prompt: "你是一个严谨的 Rust 代码工程师。请直接给出简洁、正确的代码实现，不做多余解释。".into(),
         tools_whitelist: None,
         max_iterations: Some(5),
+    temp_dir: None,
     })
     .await;
     assert_eq!(svc.list_subagent_specs().await.len(), 1);
@@ -1727,6 +1730,7 @@ async fn e2e_subagent_terminal_whitelist_deepseek() {
         system_prompt: "你是一个受沙箱约束的终端操作员。你只能使用 execute_command 工具执行用户要求的 shell 命令，并返回命令的真实输出。不要调用其他工具，不要编造输出。".into(),
         tools_whitelist: Some(vec!["execute_command".into()]),
         max_iterations: Some(5),
+    temp_dir: None,
     })
     .await;
     assert_eq!(svc.list_subagent_specs().await.len(), 1);
@@ -1834,6 +1838,7 @@ async fn e2e_subagent_multi_dispatch_deepseek() {
         system_prompt: "你是一个严谨的 Rust 代码工程师。直接给出简洁正确的代码实现，不做多余解释。".into(),
         tools_whitelist: None,
         max_iterations: Some(5),
+    temp_dir: None,
     })
     .await;
     svc.register_subagent_spec(SubAgentSpec {
@@ -1843,6 +1848,7 @@ async fn e2e_subagent_multi_dispatch_deepseek() {
         system_prompt: "你是一个中文写作专家。产出通顺、有文采的文字。".into(),
         tools_whitelist: None,
         max_iterations: Some(5),
+    temp_dir: None,
     })
     .await;
     assert_eq!(svc.list_subagent_specs().await.len(), 2);
@@ -1961,6 +1967,7 @@ async fn e2e_subagent_spec_hot_update_deepseek() {
                 .into(),
         tools_whitelist: None,
         max_iterations: Some(5),
+    temp_dir: None,
     })
     .await;
 
@@ -2022,6 +2029,7 @@ async fn e2e_subagent_spec_hot_update_deepseek() {
                 .into(),
         tools_whitelist: None,
         max_iterations: Some(5),
+    temp_dir: None,
     })
     .await;
 

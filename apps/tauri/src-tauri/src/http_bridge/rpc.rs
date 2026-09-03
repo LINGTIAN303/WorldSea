@@ -1235,6 +1235,14 @@ fn register_extra(reg: &mut Registry) {
                 .map(|_| Value::Null)
         })
     }));
+    reg.register("cmd_open_in_explorer", Arc::new(move |_app, args| {
+        Box::pin(async move {
+            let a: FsPathArg = from_value(args).map_err(|e| e.to_string())?;
+            fs_commands::cmd_open_in_explorer(a.path)
+                .await
+                .map(|_| Value::Null)
+        })
+    }));
     reg.register("cmd_fs_stat", Arc::new(move |_app, args| {
         Box::pin(async move {
             let a: FsPathArg = from_value(args).map_err(|e| e.to_string())?;
@@ -1289,6 +1297,14 @@ fn register_extra(reg: &mut Registry) {
         let app = app.clone();
         Box::pin(async move {
             project_commands::cmd_get_app_data_dir(app)
+                .await
+                .map(|r| to_value(r).unwrap_or(Value::Null))
+        })
+    }));
+    reg.register("cmd_get_home_dir", Arc::new(move |app, _args| {
+        let app = app.clone();
+        Box::pin(async move {
+            project_commands::cmd_get_home_dir(app)
                 .await
                 .map(|r| to_value(r).unwrap_or(Value::Null))
         })

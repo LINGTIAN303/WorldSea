@@ -6,6 +6,10 @@
         <template #icon>
           <WorldSmithLogo :size="48" :radius="14" />
         </template>
+        <!-- 项目=目录（2026-09-03）：空态内嵌项目选择器 pill，替代原输入栏 WorkdirSelect -->
+        <template #hint>
+          我可以帮你管理 <ProjectSwitcher variant="pill" /> 世界观实体和关系。试试输入 / 查看可用命令
+        </template>
       </MessageListEmpty>
 
       <!-- P12 决策：已归档消息折叠区（设计文档 5.5 节） -->
@@ -146,6 +150,7 @@ import { invoke } from './composables/transport'
 import { useAgentRust } from './composables/useAgentRust'
 import type { ExecTab } from '@/space/stores/space-store'
 import WorldSmithLogo from '@/components/brand/WorldSmithLogo.vue'
+import ProjectSwitcher from '@/ui/project/ProjectSwitcher.vue'
 
 const { enterAnimation } = usePersonaFont()
 const { agentStream, isStreaming: agentIsStreaming, resolveToolConfirmation, sessionTitlePending, currentSessionId, setProcessCollapsed, markTurnExpanded, autoCollapseProcess, turns, applyTurnEvent } = useAgent()

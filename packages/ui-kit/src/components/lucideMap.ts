@@ -23,6 +23,7 @@ import {
   ArrowLeftRight, ListChecks, SkipForward, Square, Bot, VolumeOff, Volume2,
   PanelLeft, PanelLeftOpen, PanelLeftClose,
   PanelRight, PanelRightOpen, PanelRightClose,
+  FolderTree, Files,
 } from 'lucide-vue-next'
 
 const LUCIDE_MAP: Record<string, Component> = {
@@ -113,6 +114,8 @@ const LUCIDE_MAP: Record<string, Component> = {
   eye: Eye,
   folder: Folder,
   'folder-open': FolderOpen,
+  'folder-tree': FolderTree,
+  files: Files,
   'chevron-down': ChevronDown,
   'chevron-right': ChevronRight,
   'chevron-up': ChevronUp,

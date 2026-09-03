@@ -100,9 +100,10 @@ impl ToolContext {
 
 /// 词法归一化路径：移除 `.` 与 `..`（纯路径运算，不访问文件系统）
 ///
-/// 用于 `is_within_workdir` 的越界判定，避免 `Path::starts_with` 的
+/// 用于 `is_within_workdir` 的越界判定与工作区分区判定
+/// （`workspace_partition::is_within_agent_tmp`），避免 `Path::starts_with` 的
 /// 词法前缀误判（如 `/workspace/../outside.md` 实际越界但前缀匹配为真）。
-fn normalize_path(p: &Path) -> PathBuf {
+pub(crate) fn normalize_path(p: &Path) -> PathBuf {
     let mut result = PathBuf::new();
     for comp in p.components() {
         match comp {

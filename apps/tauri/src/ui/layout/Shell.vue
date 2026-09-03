@@ -26,7 +26,6 @@
     <ThemeEditor :show="themeEditorOpen" @close="themeEditorOpen = false" />
     <CustomRelationTypeDialog :show="customRelTypeOpen" @close="customRelTypeOpen = false" />
     <EntityTemplateDialog :show="entityTemplateOpen" @close="entityTemplateOpen = false" />
-    <ProjectSwitcherDialog :show="projectManagerOpen" @close="projectManagerOpen = false" />
     <CompanionNotification :notifications="companionNotifications" :session-memory="companionSessionMemory" @dismiss="dismissNotification" @pin="pinNotification" @unpin="unpinNotification" />
   </div>
 </template>
@@ -52,6 +51,7 @@ const InfoPanel = defineAsyncComponent(() => import('@worldsmith/ui-kit').then(m
 import { useShortcuts, useUndoRedo, useGlobalEvents } from '@worldsmith/ui-kit'
 import { usePluginStore, useDirtyTracker, useEntityStore, useRelationStore, entitySchemaRegistry, relationshipRegistry, useUIStore, useSettingsStore } from '@worldsmith/entity-core'
 import { useFileSystemProject } from '@worldsmith/entity-core/composables'
+import { useProjectSwitcher } from '@/composables/useProjectSwitcher'
 import CompanionNotification from '../companion/CompanionNotification.vue'
 import { useCompanionMode } from '@worldsmith/shared-composables/companion/useCompanionMode'
 
@@ -66,14 +66,13 @@ const shortcutHelpOpen = ref(false)
 const undoHistoryOpen = ref(false)
 
 // P3-W4 续：恢复业务弹窗（TrashPanel / ConsistencyReportPanel / SettingsDialog /
-// CustomRelationTypeDialog / EntityTemplateDialog / ProjectSwitcherDialog）
+// CustomRelationTypeDialog / EntityTemplateDialog）
 const trashOpen = ref(false)
 const artifactsOpen = ref(false)
 const consistencyOpen = ref(false)
 const settingsOpen = ref(false)
 const customRelTypeOpen = ref(false)
 const entityTemplateOpen = ref(false)
-const projectManagerOpen = ref(false)
 const themeEditorOpen = ref(false)
 
 const TrashPanel = defineAsyncComponent(() => import('@/ui/data/TrashPanel.vue'))
@@ -83,7 +82,6 @@ const SettingsDialog = defineAsyncComponent(() => import('@/ui/settings/Settings
 const ThemeEditor = defineAsyncComponent(() => import('@/components/theme-editor/ThemeEditor.vue'))
 const CustomRelationTypeDialog = defineAsyncComponent(() => import('@/ui/entity/CustomRelationTypeDialog.vue'))
 const EntityTemplateDialog = defineAsyncComponent(() => import('@/ui/entity/EntityTemplateDialog.vue'))
-const ProjectSwitcherDialog = defineAsyncComponent(() => import('@/ui/project/ProjectSwitcherDialog.vue'))
 
 function onOpenSearch() { searchOpen.value = true }
 function onOpenImportExport() { importExportOpen.value = true }
@@ -99,6 +97,11 @@ function onOpenSettings() { settingsOpen.value = true }
 function onOpenThemeEditor() { themeEditorOpen.value = true }
 function onOpenCustomRelType() { customRelTypeOpen.value = true }
 function onOpenEntityTemplate() { entityTemplateOpen.value = true }
+/** 项目=目录（2026-09-03）：打开文件夹即打开项目（替代原项目管理弹窗 / ws-open-project-manager 事件 / Ctrl+Shift+P） */
+function openProjectFolderDialog() {
+  const { openProjectFromDialog } = useProjectSwitcher()
+  return openProjectFromDialog()
+}
 
 const pluginStore = usePluginStore()
 const uiStore = useUIStore()
@@ -148,7 +151,7 @@ onGlobalEvent('ws-open-settings', onOpenSettings)
 onGlobalEvent('ws-open-theme-editor', onOpenThemeEditor)
 onGlobalEvent('ws-open-custom-rel-type', onOpenCustomRelType)
 onGlobalEvent('ws-open-entity-template', onOpenEntityTemplate)
-onGlobalEvent('ws-open-project-manager', () => { projectManagerOpen.value = true })
+onGlobalEvent('ws-open-project-manager', () => { void openProjectFolderDialog() })
 onGlobalEvent('ws-navigate', onWsNavigate)
 
 onMounted(() => {
@@ -166,7 +169,7 @@ onMounted(() => {
   register({ id: 'sidebar.toggle', keys: ['ctrl', 'b'], description: '切换侧边栏', scope: 'global', handler: () => uiStore.toggleSidebar() })
   register({ id: 'search.open', keys: ['ctrl', 'k'], description: '全局搜索', scope: 'global', handler: () => { searchOpen.value = true } })
   register({ id: 'settings.open', keys: ['ctrl', ','], description: '打开设置', scope: 'global', handler: () => { settingsOpen.value = true } })
-  register({ id: 'project.manager', keys: ['ctrl', 'shift', 'p'], description: '项目管理', scope: 'global', handler: () => { projectManagerOpen.value = true } })
+  register({ id: 'project.manager', keys: ['ctrl', 'shift', 'p'], description: '打开项目（选择目录）', scope: 'global', handler: () => { void openProjectFolderDialog() } })
   register({ id: 'global.undo', keys: ['ctrl', 'z'], description: '撤销', scope: 'global', handler: () => undo(entityStore, relationStore), preventDefault: true })
   register({ id: 'global.redo', keys: ['ctrl', 'y'], description: '重做', scope: 'global', handler: () => redo(entityStore, relationStore), preventDefault: true })
   register({ id: 'global.redo-alt', keys: ['ctrl', 'shift', 'z'], description: '重做(备选)', scope: 'global', handler: () => redo(entityStore, relationStore), preventDefault: true })

@@ -147,7 +147,6 @@
         <div class="toolbar-center">
         </div>
         <div class="toolbar-right">
-          <WorkdirSelect />
           <ModelSwitcher :is-expanded="isExpanded" @change="onModelChange" />
           <button
             class="send-btn"
@@ -187,7 +186,6 @@ import { usePluginStore, useEntityStore } from '@worldsmith/entity-core'
 import { useUIStore } from '@/stores/uiStore'
 import { extractDocumentText } from '@/composables/useFileExtract'
 import ModelSwitcher from './ModelSwitcher.vue'
-import WorkdirSelect from './WorkdirSelect.vue'
 import SummonMenu from './SummonMenu.vue'
 import {
   buildSummonItems, filterByPrefix, getReferenceEntries, matchesFilter,
@@ -244,7 +242,7 @@ const permOpen = ref(false)
 const permRef = ref<HTMLElement>()
 const permMenuStyle = ref<Record<string, string>>({})
 const permLabel = computed(() => PERMISSION_LEVELS.find((p) => p.value === permissionLevel.value)?.label || '权限分级')
-/** I1 修复：向上弹出的固定定位（底边对齐触发器顶边 + 6px，与 WorkdirSelect 同模式） */
+/** I1 修复：向上弹出的固定定位（底边对齐触发器顶边 + 6px） */
 function updatePermMenuPosition(): void {
   const el = permRef.value
   if (!el) return

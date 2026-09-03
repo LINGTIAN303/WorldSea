@@ -46,20 +46,10 @@ async function resolveKbPath(scope: KBScope): Promise<string> {
   if (scope === 'global') {
     return `${dataDir}/.worldsmith/kb.json`
   }
-  // project scope：优先 FileStorageBackend 绑定目录
+  // project scope：项目=目录（2026-09-03）——目录即项目，无独立绑定。
+  // FileStorageBackend 绑定目录在项目 initialize/切换时已设置（无目录项目归 ~/.WorldSmith/worlddata）。
   const backend = getStorageBackend() as { projectDir?: string | null }
-  let projectDir = backend.projectDir ?? null
-  // 未绑定时兜底：用当前项目 id 拼 dataDir/projects/{id}
-  // （与 useProjectSwitcher 自动绑定逻辑一致；绑定发生在项目初始化/切换时，agent 默认视图下可能未绑定）
-  if (!projectDir) {
-    try {
-      const { getProjectManager } = await import('@worldsmith/entity-core/core')
-      const projectId = getProjectManager().getCurrentProjectId()
-      if (projectId) projectDir = `${dataDir}/projects/${projectId}`
-    } catch {
-      // 拿不到项目管理器：继续走未绑定错误
-    }
-  }
+  const projectDir = backend.projectDir ?? null
   if (!projectDir) throw new Error('未绑定项目目录，无法访问项目知识库')
   return `${projectDir}/.worldsmith/kb.json`
 }

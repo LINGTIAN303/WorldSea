@@ -134,6 +134,7 @@ mod tests {
             system_prompt: format!("你是{name}专家"),
             tools_whitelist: Some(vec!["bash".into()]),
             max_iterations: Some(5),
+        temp_dir: None,
         }
     }
 

@@ -20,6 +20,8 @@ export interface ProjectInfo {
   lastOpenedAt: string
   /** 项目关联的本地目录路径（Phase 2：文件系统主存储） */
   dirPath?: string
+  /** 系统默认项目（无项目/未选目录时的全局兜底，2026-09-03）：不可移除，dirPath 恒为全局实体目录 */
+  isDefault?: boolean
 }
 
 interface AppState {
@@ -90,8 +92,8 @@ class ProjectManager {
     // 检查是否有项目
     const projects = await db.projects.toArray()
     if (projects.length === 0) {
-      // 首次启动（或迁移后）：创建默认项目
-      const defaultProject = await this.createProject('默认项目', '自动创建的默认项目空间')
+      // 首次启动（或迁移后）：创建默认项目（系统兜底，isDefault=true 不可移除）
+      const defaultProject = await this.createProject('默认工作区', '自动创建的默认项目空间', undefined, true)
       this.currentProjectId = defaultProject.id
     } else {
       // 恢复上次打开的项目
@@ -124,7 +126,7 @@ class ProjectManager {
     return db.projects.get(id)
   }
 
-  async createProject(name: string, description?: string, dirPath?: string): Promise<ProjectInfo> {
+  async createProject(name: string, description?: string, dirPath?: string, isDefault?: boolean): Promise<ProjectInfo> {
     const db = getMetaDb()
     const now = new Date().toISOString()
     const project: ProjectInfo = {
@@ -134,6 +136,7 @@ class ProjectManager {
       createdAt: now,
       lastOpenedAt: now,
       dirPath,
+      isDefault: isDefault ?? false,
     }
     await db.projects.put(project)
     return project
@@ -142,6 +145,14 @@ class ProjectManager {
   async renameProject(id: string, name: string): Promise<void> {
     const db = getMetaDb()
     await db.projects.update(id, { name })
+  }
+
+  /**
+   * 将既有项目标记为系统默认项目（一次性迁移用：旧「默认项目」补 isDefault 标记）。
+   */
+  async markAsDefaultProject(id: string): Promise<void> {
+    const db = getMetaDb()
+    await db.projects.update(id, { isDefault: true })
   }
 
   async updateProjectDescription(id: string, description: string): Promise<void> {
@@ -153,8 +164,11 @@ class ProjectManager {
     if (id === this.currentProjectId) {
       throw new Error('不能删除当前活跃项目，请先切换到其他项目')
     }
-
     const db = getMetaDb()
+    const project = await db.projects.get(id)
+    if (project?.isDefault) {
+      throw new Error('默认项目为系统的全局兜底项目，不可删除')
+    }
 
     // 删除项目元数据
     await db.projects.delete(id)
@@ -166,6 +180,29 @@ class ProjectManager {
     await this.deleteProjectDatabase(id)
 
     // 从最近列表中移除
+    const recentIds = await this.getRecentProjectIds()
+    if (recentIds.includes(id)) {
+      await this.setAppState(
+        'recentProjectIds',
+        JSON.stringify(recentIds.filter(rid => rid !== id)),
+      )
+    }
+  }
+
+  /**
+   * 移除最近项目记录（项目=目录语义，2026-09-03）：仅删 IndexedDB 元数据 + 最近列表剔除，
+   * **不关闭/不删项目 DB、不删目录/实体文件**——目录数据与会话（按 workdir）均保留可回。
+   */
+  async removeProjectRecord(id: string): Promise<void> {
+    if (id === this.currentProjectId) {
+      throw new Error('不能移除当前活跃项目，请先切换到其他项目')
+    }
+    const db = getMetaDb()
+    const project = await db.projects.get(id)
+    if (project?.isDefault) {
+      throw new Error('默认项目为系统的全局兜底项目，不可移除')
+    }
+    await db.projects.delete(id)
     const recentIds = await this.getRecentProjectIds()
     if (recentIds.includes(id)) {
       await this.setAppState(

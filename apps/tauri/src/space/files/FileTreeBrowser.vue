@@ -1,92 +1,90 @@
 <template>
-  <div class="workspace-panel">
+  <div class="ftb">
     <!-- 顶部：标题 + 刷新 + 面包屑 -->
-    <div class="wp-header">
-      <div class="wp-title-row">
-        <!-- 任务29/术语统一：「工作区」→「项目目录」（统一根口径，见 workspace-unification-plan.md） -->
-        <span class="wp-title"><WsIcon name="folder" size="sm" /> 项目目录</span>
-        <button class="wp-action-btn" title="刷新" @click="refresh"><WsIcon name="refresh" size="sm" /></button>
+    <div class="ftb-header">
+      <div class="ftb-title-row">
+        <span class="ftb-title"><WsIcon name="folder" size="sm" /> {{ title }}</span>
+        <div class="ftb-title-actions">
+          <button class="ftb-action-btn" title="在系统文件资源管理器中打开项目目录" :disabled="!resolvedRoot" @click="openInExplorer"><WsIcon name="folder-open" size="sm" /></button>
+          <button class="ftb-action-btn" title="刷新" @click="refresh"><WsIcon name="refresh" size="sm" /></button>
+        </div>
       </div>
-      <div v-if="rootPath" class="wp-breadcrumb">
-        <button class="wp-crumb" :class="{ on: breadcrumbs.length === 0 }" title="工作区根目录" @click="openDir(rootPath)">
+      <div v-if="rootPath" class="ftb-breadcrumb">
+        <button class="ftb-crumb" :class="{ on: breadcrumbs.length === 0 }" title="工作区根目录" @click="openDir(rootPath)">
           <WsIcon name="home" size="xs" />
         </button>
         <template v-for="(seg, i) in breadcrumbs" :key="i">
-          <span class="wp-crumb-sep">/</span>
-          <button class="wp-crumb" :class="{ on: i === breadcrumbs.length - 1 }" @click="openDir(breadcrumbPath(i))">
+          <span class="ftb-crumb-sep">/</span>
+          <button class="ftb-crumb" :class="{ on: i === breadcrumbs.length - 1 }" @click="openDir(breadcrumbPath(i))">
             {{ seg }}
           </button>
         </template>
       </div>
-      <div v-else class="wp-no-dir">未绑定项目目录</div>
+      <div v-else class="ftb-no-dir">未绑定项目目录</div>
     </div>
 
-    <!-- 工具栏：新建文件/文件夹/上传 -->
-    <div v-if="currentPath" class="wp-toolbar">
-      <button class="wp-tool-btn" @click="openInput('newFile', currentPath)"><WsIcon name="file" size="xs" />新建文件</button>
-      <button class="wp-tool-btn" @click="openInput('newFolder', currentPath)"><WsIcon name="folder" size="xs" />新建文件夹</button>
-      <button class="wp-tool-btn" @click="onUpload"><WsIcon name="upload" size="xs" />上传</button>
-      <input ref="fileInput" type="file" class="wp-file-input" @change="onFilePicked" />
+    <!-- 工具栏：新建文件/文件夹/上传（compact 时压缩为图标） -->
+    <div v-if="currentPath" class="ftb-toolbar">
+      <button class="ftb-tool-btn" @click="openInput('newFile', currentPath)" :title="'新建文件'"><WsIcon name="file" size="xs" /><span v-if="!compact">新建文件</span></button>
+      <button class="ftb-tool-btn" @click="openInput('newFolder', currentPath)" :title="'新建文件夹'"><WsIcon name="folder" size="xs" /><span v-if="!compact">新建文件夹</span></button>
+      <button class="ftb-tool-btn" @click="onUpload" :title="'上传'"><WsIcon name="upload" size="xs" /><span v-if="!compact">上传</span></button>
+      <button v-if="isInsideTmp" class="ftb-tool-btn danger" @click="onClearTmp" title="删除临时区全部内容（含子 Agent 临时目录 sub-*），Agent 下次使用会自动重建"><WsIcon name="trash" size="xs" /><span v-if="!compact">清空临时区</span></button>
+      <input ref="fileInput" type="file" class="ftb-file-input" @change="onFilePicked" />
     </div>
 
     <!-- 目录树 -->
-    <div class="wp-body">
-      <div v-if="loading" class="wp-empty">加载中…</div>
-      <div v-else-if="flatNodes.length === 0" class="wp-empty">工作区为空</div>
+    <div class="ftb-body">
+      <div v-if="loading" class="ftb-empty">加载中…</div>
+      <div v-else-if="flatNodes.length === 0" class="ftb-empty">工作区为空</div>
       <div
         v-for="fn in flatNodes"
         :key="fn.node.path"
-        class="wp-row"
+        class="ftb-row"
         :class="{ dir: fn.node.isDir, active: fn.node.path === currentPath }"
         :style="{ paddingLeft: fn.depth * 14 + 8 + 'px' }"
       >
         <button
           v-if="fn.node.isDir"
-          class="wp-toggle"
+          class="ftb-toggle"
           :class="{ open: fn.node.expanded }"
           :aria-label="fn.node.expanded ? '折叠' : '展开'"
           @click.stop="toggleNode(fn.node)"
         ><WsIcon name="chevron-right" size="xs" /></button>
-        <span v-else class="wp-toggle-spacer"></span>
+        <span v-else class="ftb-toggle-spacer"></span>
         <WsIcon :name="fn.node.isDir ? 'folder' : 'file'" size="xs" :class="fn.node.isDir ? 'icon-folder' : 'icon-file'" />
-        <button class="wp-name" :title="fn.node.path" @click="fn.node.isDir ? toggleNode(fn.node) : previewFile(fn.node)">
+        <button class="ftb-name" :title="fn.node.path" @click="fn.node.isDir ? toggleNode(fn.node) : emit('select', fn.node)">
           {{ fn.node.name }}
         </button>
-        <span v-if="!fn.node.isDir" class="wp-size">{{ formatSize(fn.node.size) }}</span>
-        <div class="wp-row-actions">
-          <button v-if="fn.node.isDir" class="wp-row-btn" title="在此新建文件" @click.stop="openInput('newFile', fn.node.path)"><WsIcon name="file" size="xs" /></button>
-          <button class="wp-row-btn" title="重命名" @click.stop="openInput('rename', undefined, fn.node)"><WsIcon name="edit" size="xs" /></button>
-          <button class="wp-row-btn danger" title="删除" @click.stop="onDelete(fn.node)"><WsIcon name="trash" size="xs" /></button>
+        <span
+          v-if="fn.partition"
+          class="ftb-part-chip"
+          :class="fn.partition === 'tmp' ? 'p-tmp' : 'p-out'"
+          :title="fn.partition === 'tmp' ? '临时区：Agent 全权，可自由创建与清理' : '成果区：收官产物'"
+        >{{ fn.partition === 'tmp' ? '临时区' : '成果区' }}</span>
+        <span v-if="!fn.node.isDir" class="ftb-size">{{ formatSize(fn.node.size) }}</span>
+        <div class="ftb-row-actions">
+          <button v-if="fn.node.isDir" class="ftb-row-btn" title="在此新建文件" @click.stop="openInput('newFile', fn.node.path)"><WsIcon name="file" size="xs" /></button>
+          <button class="ftb-row-btn" title="重命名" @click.stop="openInput('rename', undefined, fn.node)"><WsIcon name="edit" size="xs" /></button>
+          <button class="ftb-row-btn danger" title="删除" @click.stop="onDelete(fn.node)"><WsIcon name="trash" size="xs" /></button>
         </div>
       </div>
     </div>
 
     <!-- 输入弹窗（新建文件/文件夹/重命名） -->
-    <div v-if="inputDialog" class="wp-modal-backdrop" @click.self="inputDialog = null">
-      <div class="wp-modal">
-        <div class="wp-modal-header">
-          <span class="wp-modal-title">{{ inputDialog.title }}</span>
-          <button class="wp-modal-close" @click="inputDialog = null" title="关闭"><WsIcon name="close" size="sm" /></button>
+    <div v-if="inputDialog" class="ftb-modal-backdrop" @click.self="inputDialog = null">
+      <div class="ftb-modal">
+        <div class="ftb-modal-header">
+          <span class="ftb-modal-title">{{ inputDialog.title }}</span>
+          <button class="ftb-modal-close" @click="inputDialog = null" title="关闭"><WsIcon name="close" size="sm" /></button>
         </div>
-        <div class="wp-modal-body">
-          <label class="wp-input-label">{{ inputDialog.label }}</label>
-          <input v-model="inputDialog.value" class="wp-input" :placeholder="inputDialog.placeholder" @keydown.enter="confirmInput" autofocus />
+        <div class="ftb-modal-body">
+          <label class="ftb-input-label">{{ inputDialog.label }}</label>
+          <input v-model="inputDialog.value" class="ftb-input" :placeholder="inputDialog.placeholder" @keydown.enter="confirmInput" autofocus />
         </div>
-        <div class="wp-modal-footer">
-          <button class="wp-modal-btn" @click="inputDialog = null">取消</button>
-          <button class="wp-modal-btn primary" @click="confirmInput">确定</button>
+        <div class="ftb-modal-footer">
+          <button class="ftb-modal-btn" @click="inputDialog = null">取消</button>
+          <button class="ftb-modal-btn primary" @click="confirmInput">确定</button>
         </div>
-      </div>
-    </div>
-
-    <!-- 文件预览弹窗 -->
-    <div v-if="preview" class="wp-modal-backdrop" @click.self="preview = null">
-      <div class="wp-modal">
-        <div class="wp-modal-header">
-          <span class="wp-modal-title">{{ preview.name }}</span>
-          <button class="wp-modal-close" @click="preview = null" title="关闭"><WsIcon name="close" size="sm" /></button>
-        </div>
-        <textarea class="wp-modal-content" :value="preview.content" readonly spellcheck="false"></textarea>
       </div>
     </div>
   </div>
@@ -97,10 +95,10 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { WsIcon, useConfirm } from '@worldsmith/ui-kit'
 import { invoke } from '@/agent/composables/transport'
 import { useAgent } from '@/agent/composables/useAgent'
-import { resolveWorkspaceDir } from '../workspace'
+import { resolveWorkspaceDir, ensureWorkspaceDir } from '../workspace'
 
 /** 目录树节点（对应 cmd_fs_list 返回的 FsEntry camelCase 结构） */
-interface FsNode {
+export interface FsNode {
   name: string
   path: string
   isDir: boolean
@@ -112,10 +110,12 @@ interface FsNode {
   children?: FsNode[]
 }
 
-/** 扁平化后的树节点（带缩进深度） */
+/** 扁平化后的树节点（带缩进深度与工作区分区标记） */
 interface FlatNode {
   node: FsNode
   depth: number
+  /** 工作区分区（agent-tmp=临时区 / agent-out=成果区；其余为 undefined） */
+  partition?: 'tmp' | 'out'
 }
 
 /** 输入弹窗状态：新建文件/文件夹/重命名 */
@@ -129,16 +129,28 @@ interface InputDialog {
   target?: string
 }
 
+const props = withDefaults(
+  defineProps<{
+    /** 显式根目录；缺省回退 currentWorkdir → resolveWorkspaceDir() */
+    rootPath?: string | null
+    /** 是否窄栏压缩（左栏会话侧边栏内嵌时） */
+    compact?: boolean
+    /** 面板标题（右栏/左栏可自定义） */
+    title?: string
+  }>(),
+  { rootPath: null, compact: false, title: '项目目录' },
+)
+const emit = defineEmits<{ select: [node: FsNode] }>()
+
 const { currentWorkdir } = useAgent()
 const { confirm } = useConfirm()
 
-const rootPath = ref<string | null>(null)
 const currentPath = ref<string | null>(null)
 const rootChildren = ref<FsNode[]>([])
 const loading = ref(false)
 const fileInput = ref<HTMLInputElement>()
 const inputDialog = ref<InputDialog | null>(null)
-const preview = ref<{ name: string; content: string } | null>(null)
+const resolvedRoot = ref<string | null>(props.rootPath)
 
 /** 归一化路径分隔符为 '/'（Rust cmd_fs_list 返回也用 '/'，保证一致） */
 function norm(p: string): string {
@@ -153,23 +165,31 @@ function joinPath(...parts: string[]): string {
 
 /** 当前路径相对根路径的面包屑段（空数组=位于根目录） */
 const breadcrumbs = computed<string[]>(() => {
-  if (!rootPath.value || !currentPath.value) return []
-  const rel = norm(currentPath.value).slice(norm(rootPath.value).length).replace(/^\/+/, '')
+  if (!resolvedRoot.value || !currentPath.value) return []
+  const rel = norm(currentPath.value).slice(norm(resolvedRoot.value).length).replace(/^\/+/, '')
   return rel ? rel.split('/').filter(Boolean) : []
 })
 
 /** 生成第 index 个面包屑对应的完整路径 */
 function breadcrumbPath(index: number): string {
   const segs = breadcrumbs.value.slice(0, index + 1)
-  return joinPath(rootPath.value!, ...segs)
+  return joinPath(resolvedRoot.value!, ...segs)
 }
 
 /** 扁平化目录树（仅展示已展开节点的子孙） */
 const flatNodes = computed<FlatNode[]>(() => {
   const out: FlatNode[] = []
+  const root = resolvedRoot.value
   const walk = (nodes: FsNode[], depth: number): void => {
     for (const node of nodes) {
-      out.push({ node, depth })
+      // 工作区分区标记（M3：agent-tmp/agent-out 一级目录 chip 标注）
+      let partition: 'tmp' | 'out' | undefined
+      if (root) {
+        const rel = norm(node.path).slice(norm(root).length).replace(/^\/+/, '')
+        const first = rel.split('/').filter(Boolean)[0]?.toLowerCase()
+        partition = first === 'agent-tmp' ? 'tmp' : first === 'agent-out' ? 'out' : undefined
+      }
+      out.push({ node, depth, partition })
       if (node.isDir && node.expanded && node.children) {
         walk(node.children, depth + 1)
       }
@@ -187,7 +207,7 @@ async function loadDir(path: string): Promise<FsNode[]> {
       a.isDir === b.isDir ? a.name.localeCompare(b.name) : a.isDir ? -1 : 1,
     )
   } catch (err) {
-    console.warn('[WorkspacePanel] 列出目录失败:', err)
+    console.warn('[FileTreeBrowser] 列出目录失败:', err)
     return []
   }
 }
@@ -219,22 +239,33 @@ async function toggleNode(node: FsNode): Promise<void> {
 
 /** 刷新当前目录（保留展开状态需重建根，简单起见重新加载当前路径） */
 async function refresh(): Promise<void> {
-  if (!rootPath.value) return
-  await openDir(currentPath.value ?? rootPath.value)
+  if (!resolvedRoot.value) return
+  await openDir(currentPath.value ?? resolvedRoot.value)
 }
 
-/** 初始化：解析空间级根（任务29/C1：会话 workdir 优先；无会话回落统一根 = 当前项目目录，
- *  浏览器 preview 为可读假路径，列表失败时呈空态），不再要求"先创建会话"才能浏览 */
+/** 在系统文件资源管理器中打开项目目录（2026-09-03 额外建议）
+ *  注意：explorer.exe 对 `/` 分隔路径解析异常，需转回反斜杠（前端 norm 为 `/` 存储） */
+async function openInExplorer(): Promise<void> {
+  if (!resolvedRoot.value) return
+  try {
+    const nativePath = resolvedRoot.value.replace(/\//g, '\\')
+    await invoke('cmd_open_in_explorer', { path: nativePath })
+  } catch (err) {
+    console.warn('[FileTreeBrowser] 打开系统文件夹失败:', err)
+  }
+}
+
+/** 初始化：解析根路径（props 显式根优先；缺省回落 currentWorkdir → 统一根/默认工作区） */
 async function init(): Promise<void> {
-  const wd = currentWorkdir.value ?? (await resolveWorkspaceDir())
+  const wd = props.rootPath ?? currentWorkdir.value ?? (await resolveWorkspaceDir())
   if (!wd) {
-    rootPath.value = null
+    resolvedRoot.value = null
     currentPath.value = null
     rootChildren.value = []
     return
   }
-  rootPath.value = norm(wd)
-  await openDir(rootPath.value)
+  resolvedRoot.value = norm(wd)
+  await openDir(resolvedRoot.value)
 }
 
 /** 打开输入弹窗（新建文件/文件夹/重命名） */
@@ -259,11 +290,11 @@ function openInput(mode: InputDialog['mode'], base?: string, target?: FsNode): v
     placeholder: mode === 'newFile' ? '例如 notes.md' : '例如 src',
     value: '',
     mode,
-    base: norm(dir),
+    base: dir,
   }
 }
 
-/** 确认输入弹窗：按模式执行新建/重命名 */
+/** 输入弹窗确认（新建文件/文件夹/重命名） */
 async function confirmInput(): Promise<void> {
   const d = inputDialog.value
   if (!d) return
@@ -271,20 +302,17 @@ async function confirmInput(): Promise<void> {
   if (!name) return
   try {
     if (d.mode === 'newFile') {
-      if (!d.base) return
-      await invoke('cmd_fs_write', { path: joinPath(d.base, name), content: '', createDirs: false })
+      await invoke('cmd_fs_write', { path: joinPath(d.base!, name), content: '', createDirs: false })
     } else if (d.mode === 'newFolder') {
-      if (!d.base) return
-      await invoke('cmd_fs_mkdir', { path: joinPath(d.base, name) })
-    } else if (d.mode === 'rename') {
-      if (!d.target) return
+      await invoke('cmd_fs_mkdir', { path: joinPath(d.base!, name) })
+    } else if (d.mode === 'rename' && d.target) {
       const dir = d.target.slice(0, d.target.lastIndexOf('/'))
       await invoke('cmd_fs_rename', { src: d.target, dest: joinPath(dir, name) })
     }
     inputDialog.value = null
     await refresh()
   } catch (err) {
-    console.warn('[WorkspacePanel] 操作失败:', err)
+    console.warn('[FileTreeBrowser] 操作失败:', err)
   }
 }
 
@@ -300,7 +328,36 @@ async function onDelete(node: FsNode): Promise<void> {
     await invoke('cmd_fs_delete', { path: node.path })
     await refresh()
   } catch (err) {
-    console.warn('[WorkspacePanel] 删除失败:', err)
+    console.warn('[FileTreeBrowser] 删除失败:', err)
+  }
+}
+
+/** 当前浏览路径是否位于 agent-tmp 临时区内（含其本身与子级）——决定「清空临时区」入口可见性 */
+const isInsideTmp = computed<boolean>(() => {
+  if (!resolvedRoot.value || !currentPath.value) return false
+  const rel = norm(currentPath.value).slice(norm(resolvedRoot.value).length).replace(/^\/+/, '')
+  const first = rel.split('/').filter(Boolean)[0]?.toLowerCase()
+  return first === 'agent-tmp'
+})
+
+/** 清空临时区：确认后递归删除 {workdir}/agent-tmp 并重建空目录（Agent/子 Agent 下次使用自动写入） */
+async function onClearTmp(): Promise<void> {
+  if (!resolvedRoot.value) return
+  const tmpPath = joinPath(resolvedRoot.value, 'agent-tmp')
+  const ok = await confirm({
+    type: 'warning',
+    title: '清空临时区',
+    description: `将删除 ${tmpPath} 下的全部内容（含子 Agent 临时目录 sub-*），并重建空临时区。确定继续？`,
+  })
+  if (!ok) return
+  try {
+    await invoke('cmd_fs_delete', { path: tmpPath })
+    await ensureWorkspaceDir(tmpPath) // 重建空目录，保持临时区可见
+    // 删除后当前路径可能已不存在：回到根目录刷新
+    if (!/agent-tmp$/i.test(norm(currentPath.value ?? ''))) currentPath.value = resolvedRoot.value
+    await refresh()
+  } catch (err) {
+    console.warn('[FileTreeBrowser] 清空临时区失败:', err)
   }
 }
 
@@ -319,19 +376,9 @@ async function onFilePicked(e: Event): Promise<void> {
     await invoke('cmd_fs_write', { path: joinPath(currentPath.value, file.name), content, createDirs: false })
     await refresh()
   } catch (err) {
-    console.warn('[WorkspacePanel] 上传失败:', err)
+    console.warn('[FileTreeBrowser] 上传失败:', err)
   } finally {
     input.value = ''
-  }
-}
-
-/** 预览文件内容（只读） */
-async function previewFile(node: FsNode): Promise<void> {
-  try {
-    const content = await invoke<string>('cmd_fs_read', { path: node.path, encoding: 'utf-8' })
-    preview.value = { name: node.name, content }
-  } catch (err) {
-    console.warn('[WorkspacePanel] 读取文件失败:', err)
   }
 }
 
@@ -343,14 +390,18 @@ function formatSize(bytes: number): string {
 }
 
 onMounted(init)
-// 会话切换（currentWorkdir 变化）时重新初始化工作区
+// 根/会话切换（workdir 变化）时重新初始化
+watch(
+  () => props.rootPath,
+  () => void init(),
+)
 watch(currentWorkdir, () => {
-  void init()
+  if (!props.rootPath) void init()
 })
 </script>
 
 <style scoped>
-.workspace-panel {
+.ftb {
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -358,22 +409,20 @@ watch(currentWorkdir, () => {
   background: var(--color-surface-elevated);
 }
 
-.wp-header {
+.ftb-header {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 10px;
+  padding: 10px 10px 6px;
   border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
 }
-
-.wp-title-row {
+.ftb-title-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
-
-.wp-title {
+.ftb-title {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -381,8 +430,16 @@ watch(currentWorkdir, () => {
   font-weight: 600;
   color: var(--color-text);
 }
-
-.wp-action-btn {
+.ftb-title-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.ftb-action-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.ftb-action-btn {
   width: 24px;
   height: 24px;
   border: none;
@@ -395,12 +452,11 @@ watch(currentWorkdir, () => {
   justify-content: center;
   transition: background 0.15s, color 0.15s;
 }
-.wp-action-btn:hover {
+.ftb-action-btn:hover {
   background: var(--color-surface);
   color: var(--color-text);
 }
-
-.wp-breadcrumb {
+.ftb-breadcrumb {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -409,11 +465,10 @@ watch(currentWorkdir, () => {
   overflow-x: auto;
   scrollbar-width: none;
 }
-.wp-breadcrumb::-webkit-scrollbar {
+.ftb-breadcrumb::-webkit-scrollbar {
   display: none;
 }
-
-.wp-crumb {
+.ftb-crumb {
   display: inline-flex;
   align-items: center;
   gap: 2px;
@@ -426,34 +481,32 @@ watch(currentWorkdir, () => {
   white-space: nowrap;
   transition: color 0.15s, background 0.15s;
 }
-.wp-crumb:hover {
+.ftb-crumb:hover {
   color: var(--color-text);
   background: var(--color-surface);
 }
-.wp-crumb.on {
+.ftb-crumb.on {
   color: var(--color-primary);
   font-weight: 600;
 }
-
-.wp-crumb-sep {
+.ftb-crumb-sep {
   color: var(--color-text-tertiary);
   opacity: 0.6;
 }
-
-.wp-no-dir {
+.ftb-no-dir {
   font-size: var(--font-size-xs);
   color: var(--color-text-tertiary);
 }
 
-.wp-toolbar {
+.ftb-toolbar {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   padding: 8px 10px;
   border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
 }
-
-.wp-tool-btn {
+.ftb-tool-btn {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -466,79 +519,77 @@ watch(currentWorkdir, () => {
   cursor: pointer;
   transition: border-color 0.15s, color 0.15s;
 }
-.wp-tool-btn:hover {
+.ftb-tool-btn:hover {
   border-color: var(--color-primary);
   color: var(--color-text);
 }
-
-.wp-file-input {
+/* 危险操作（清空临时区）：红色描边/文字 */
+.ftb-tool-btn.danger {
+  color: #e5484d;
+  border-color: rgba(229, 72, 77, 0.4);
+}
+.ftb-tool-btn.danger:hover {
+  border-color: #e5484d;
+  color: #e5484d;
+}
+.ftb-file-input {
   display: none;
 }
 
-.wp-body {
+.ftb-body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 4px 6px;
+  padding: 4px 6px 8px;
 }
-
-.wp-empty {
+.ftb-empty {
+  padding: 16px 8px;
   text-align: center;
-  color: var(--color-text-tertiary);
-  padding: 24px;
   font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
 }
-
-.wp-row {
+.ftb-row {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 3px 8px;
+  gap: 4px;
+  padding: 4px 6px;
   border-radius: var(--radius-sm);
-  font-size: var(--font-size-xs);
-  color: var(--color-text-secondary);
   cursor: default;
-  transition: background 0.1s;
 }
-.wp-row:hover {
+.ftb-row:hover {
   background: var(--color-surface);
 }
-.wp-row.active {
+.ftb-row.active {
   background: var(--color-primary-muted);
 }
-
-.wp-toggle {
+.ftb-toggle {
   width: 16px;
   height: 16px;
-  flex-shrink: 0;
   border: none;
   background: transparent;
+  padding: 0;
   color: var(--color-text-tertiary);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
   transition: transform 0.15s;
 }
-.wp-toggle.open {
+.ftb-toggle.open {
   transform: rotate(90deg);
 }
-
-.wp-toggle-spacer {
+.ftb-toggle-spacer {
   width: 16px;
   flex-shrink: 0;
 }
-
 .icon-folder {
-  color: var(--color-primary);
-  flex-shrink: 0;
+  color: var(--color-text-secondary);
 }
 .icon-file {
   color: var(--color-text-tertiary);
-  flex-shrink: 0;
 }
-
-.wp-name {
+.ftb-name {
   flex: 1;
   min-width: 0;
   text-align: left;
@@ -552,29 +603,49 @@ watch(currentWorkdir, () => {
   white-space: nowrap;
   padding: 0;
 }
-.wp-name:hover {
+.ftb-name:hover {
   color: var(--color-text);
 }
 
-.wp-size {
+/* 工作区分区 chip */
+.ftb-part-chip {
+  flex-shrink: 0;
+  margin-left: 2px;
+  padding: 0 6px;
+  font-size: var(--font-size-2xs);
+  line-height: 16px;
+  border-radius: 3px;
+  white-space: nowrap;
+  user-select: none;
+}
+.ftb-part-chip.p-tmp {
+  color: #6a9955;
+  background: rgba(106, 153, 85, 0.12);
+  border: 1px solid rgba(106, 153, 85, 0.35);
+}
+.ftb-part-chip.p-out {
+  color: #e8a33d;
+  background: rgba(232, 163, 61, 0.12);
+  border: 1px solid rgba(232, 163, 61, 0.35);
+}
+
+.ftb-size {
   flex-shrink: 0;
   font-size: var(--font-size-2xs);
   color: var(--color-text-tertiary);
   font-variant-numeric: tabular-nums;
 }
-
-.wp-row-actions {
+.ftb-row-actions {
   display: flex;
   gap: 2px;
   flex-shrink: 0;
   opacity: 0;
   transition: opacity 0.12s;
 }
-.wp-row:hover .wp-row-actions {
+.ftb-row:hover .ftb-row-actions {
   opacity: 1;
 }
-
-.wp-row-btn {
+.ftb-row-btn {
   width: 20px;
   height: 20px;
   border: none;
@@ -585,83 +656,70 @@ watch(currentWorkdir, () => {
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 0;
 }
-.wp-row-btn:hover {
+.ftb-row-btn:hover {
   background: var(--color-surface-elevated);
   color: var(--color-text);
 }
-.wp-row-btn.danger:hover {
-  color: var(--danger);
+.ftb-row-btn.danger:hover {
+  color: #e5484d;
 }
 
-/* ── 弹窗 ── */
-.wp-modal-backdrop {
-  position: fixed;
+/* 输入弹窗 */
+.ftb-modal-backdrop {
+  position: absolute;
   inset: 0;
-  z-index: 10001;
-  background: rgba(0, 0, 0, 0.4);
+  z-index: 20;
   display: flex;
   align-items: center;
   justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
 }
-
-.wp-modal {
-  width: 360px;
-  max-width: 90vw;
+.ftb-modal {
+  width: 280px;
   background: var(--color-surface-elevated);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
-  display: flex;
-  flex-direction: column;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
   overflow: hidden;
 }
-
-.wp-modal-header {
+.ftb-modal-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 10px 14px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--color-border);
 }
-
-.wp-modal-title {
-  font-size: var(--font-size-sm);
+.ftb-modal-title {
+  flex: 1;
+  font-size: var(--font-size-xs);
   font-weight: 600;
-  color: var(--color-text);
 }
-
-.wp-modal-close {
-  width: 24px;
-  height: 24px;
+.ftb-modal-close {
+  width: 22px;
+  height: 22px;
   border: none;
   background: transparent;
+  color: var(--color-text-tertiary);
   border-radius: var(--radius-xs);
   cursor: pointer;
-  color: var(--color-text-tertiary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
-.wp-modal-close:hover {
-  background: var(--color-surface);
+.ftb-modal-close:hover {
   color: var(--color-text);
 }
-
-.wp-modal-body {
+.ftb-modal-body {
+  padding: 12px;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 14px;
 }
-
-.wp-input-label {
-  font-size: var(--font-size-xs);
-  color: var(--color-text-secondary);
+.ftb-input-label {
+  font-size: var(--font-size-2xs);
+  color: var(--color-text-tertiary);
 }
-
-.wp-input {
-  padding: 6px 10px;
+.ftb-input {
+  width: 100%;
+  padding: 6px 8px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-surface);
@@ -669,19 +727,17 @@ watch(currentWorkdir, () => {
   font-size: var(--font-size-xs);
   outline: none;
 }
-.wp-input:focus {
+.ftb-input:focus {
   border-color: var(--color-primary);
 }
-
-.wp-modal-footer {
+.ftb-modal-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
-  padding: 10px 14px;
+  gap: 6px;
+  padding: 10px 12px;
   border-top: 1px solid var(--color-border);
 }
-
-.wp-modal-btn {
+.ftb-modal-btn {
   padding: 5px 14px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
@@ -689,32 +745,13 @@ watch(currentWorkdir, () => {
   color: var(--color-text-secondary);
   font-size: var(--font-size-xs);
   cursor: pointer;
-  transition: border-color 0.15s, color 0.15s;
 }
-.wp-modal-btn:hover {
+.ftb-modal-btn.primary {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+.ftb-modal-btn:hover {
   border-color: var(--color-primary);
   color: var(--color-text);
-}
-.wp-modal-btn.primary {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-  color: var(--color-surface);
-}
-.wp-modal-btn.primary:hover {
-  opacity: 0.9;
-}
-
-.wp-modal-content {
-  width: 100%;
-  height: 260px;
-  padding: 10px;
-  border: none;
-  background: var(--color-surface);
-  color: var(--color-text);
-  font-family: var(--font-family-mono, monospace);
-  font-size: var(--font-size-xs);
-  line-height: 1.5;
-  resize: none;
-  outline: none;
 }
 </style>

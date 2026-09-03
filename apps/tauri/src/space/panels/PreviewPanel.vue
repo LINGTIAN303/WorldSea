@@ -1,218 +1,217 @@
 <template>
-  <div class="preview-panel">
-    <!-- ① 项目产物渲染（实体/场景/知识条目）—— 主 -->
-    <div class="preview-section">
-      <div class="section-header">
-        <WsIcon name="globe" size="sm" /><span>项目产物</span>
+  <div class="file-panel">
+    <!-- 头部：标题 + 刷新 + 目录树图标（hover 浮层 / click 双栏切换） -->
+    <div class="fp-header">
+      <span class="fp-title"><WsIcon name="files" size="sm" /> 文件</span>
+      <div class="fp-header-actions">
+        <button class="fp-action-btn" title="刷新" @click="refreshKey++"><WsIcon name="refresh" size="sm" /></button>
+        <button
+          ref="treeBtnRef"
+          class="fp-action-btn"
+          :class="{ active: docked }"
+          :title="docked ? '收起目录树' : '展开目录树'"
+          @click="toggleDocked"
+          @mouseenter="overlayOpen = !docked"
+          @mouseleave="overlayOpen = false"
+        ><WsIcon name="folder-tree" size="sm" /></button>
       </div>
-      <div v-if="entityGroups.length === 0" class="section-empty">
-        暂无实体产物。可在对话中创建角色 / 地点 / 物品等。
-      </div>
-      <div v-else class="entity-list">
-        <div v-for="g in entityGroups" :key="g.type" class="entity-group">
-          <div class="entity-group-label">{{ g.label }}（{{ g.items.length }}）</div>
-          <button
-            v-for="e in g.items"
-            :key="e.id"
-            class="entity-item"
-            :class="{ active: selected?.id === e.id }"
-            @click="selected = e"
-          >{{ e.name || '未命名' }}</button>
+    </div>
+
+    <!-- 主体：文件浏览器（browser 树铺满 / docked 左预览+右树） -->
+    <div class="fp-body">
+      <ProjectFilesPanel
+        :key="refreshKey"
+        :layout="docked ? 'docked' : 'browser'"
+        :root-path="root"
+        :selected="selected"
+        :title="'项目目录'"
+        @select="onSelect"
+      />
+    </div>
+
+    <!-- hover 浮层目录树（仅未展开时） -->
+    <Teleport to="body">
+      <Transition name="dropdown">
+        <div
+          v-if="overlayOpen && !docked"
+          class="fp-overlay"
+          :style="overlayStyle"
+          @mouseenter="overlayOpen = true"
+          @mouseleave="overlayOpen = false"
+        >
+          <FileTreeBrowser
+            :root-path="root"
+            compact
+            title="目录"
+            @select="onOverlaySelect"
+          />
         </div>
-      </div>
-    </div>
-
-    <!-- 选中实体详情预览 -->
-    <div v-if="selected" class="preview-detail">
-      <div class="detail-header">
-        <span class="detail-name">{{ selected.name }}</span>
-        <span class="detail-type">{{ selected.type }}</span>
-        <button class="detail-close" @click="selected = null" title="关闭预览"><WsIcon name="x" size="xs" /></button>
-      </div>
-      <div class="detail-body">
-        <template v-for="(v, k) in previewFields" :key="k">
-          <div class="detail-row"><span class="detail-key">{{ k }}</span><span class="detail-val">{{ v }}</span></div>
-        </template>
-        <div v-if="previewFields.length === 0" class="detail-empty">该实体无可见字段</div>
-      </div>
-    </div>
-
-    <!-- ② 素材/文件预览 —— 辅（骨架，TODO：接入 useFileStore） -->
-    <div class="preview-section preview-section-files">
-      <div class="section-header">
-        <WsIcon name="file" size="sm" /><span>素材 / 文件</span>
-      </div>
-      <div class="section-empty">素材与文件预览即将支持</div>
-    </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
-import { useEntityStore } from '@worldsmith/entity-core'
+import { useAgent } from '@/agent/composables/useAgent'
+import { resolveWorkspaceDir } from '../workspace'
+import ProjectFilesPanel from '../files/ProjectFilesPanel.vue'
+import FileTreeBrowser, { type FsNode } from '../files/FileTreeBrowser.vue'
+import { takePendingFile } from '../files/pendingOpen'
 
-const entityStore = useEntityStore()
-const selected = ref<any>(null)
+const { currentWorkdir } = useAgent()
 
-onMounted(() => {
-  if (!entityStore.entities.length) entityStore.loadAll()
-})
+const docked = ref(false)
+const overlayOpen = ref(false)
+const refreshKey = ref(0)
+const root = ref<string | null>(null)
+const treeBtnRef = ref<HTMLElement>()
+const overlayStyle = ref<Record<string, string>>({})
 
-const entityGroups = computed(() => {
-  const map = new Map<string, any[]>()
-  for (const e of entityStore.entities) {
-    const t = e.type || 'other'
-    if (!map.has(t)) map.set(t, [])
-    map.get(t)!.push(e)
+/** 选中文件：用于右栏选中联动（当前仅驱动 FilePreview，无需额外状态） */
+const selected = ref<FsNode | null>(null)
+
+function onSelect(node: FsNode): void {
+  selected.value = node
+}
+
+/** 浮层选择：切换预览并关闭浮层 */
+function onOverlaySelect(node: FsNode): void {
+  selected.value = node
+  overlayOpen.value = false
+}
+
+/** click 图标：切换 docked 双栏（目录树从右缘滑出/收起） */
+function toggleDocked(): void {
+  docked.value = !docked.value
+  overlayOpen.value = false
+}
+
+/** 锚定浮层到图标位置（右下/左下） */
+function positionOverlay(): void {
+  const el = treeBtnRef.value
+  if (!el) return
+  const rect = el.getBoundingClientRect()
+  overlayStyle.value = {
+    top: `${Math.max(8, rect.bottom + 6)}px`,
+    right: `${Math.max(8, window.innerWidth - rect.right)}px`,
   }
-  return [...map.entries()].map(([type, items]) => ({ type, label: type, items }))
+}
+
+async function initRoot(): Promise<void> {
+  root.value = currentWorkdir.value ?? (await resolveWorkspaceDir()) ?? null
+}
+
+/** 左栏「项目目录」视图点击文件（ws-open-file-preview 事件）→ 本面板预览（T14） */
+function onOpenFilePreview(e: Event): void {
+  const node = (e as CustomEvent<FsNode>).detail
+  if (node) selected.value = node
+}
+
+onMounted(async () => {
+  await initRoot()
+  await nextTick()
+  positionOverlay()
+  window.addEventListener('ws-open-file-preview', onOpenFilePreview)
+  // 挂载前暂存的选择（右栏此前未打开/非 preview tab）：取出即预览（T14 兜底）
+  const pending = takePendingFile()
+  if (pending) selected.value = pending
+})
+onBeforeUnmount(() => {
+  overlayOpen.value = false
+  window.removeEventListener('ws-open-file-preview', onOpenFilePreview)
 })
 
-const previewFields = computed(() => {
-  const e = selected.value
-  if (!e) return []
-  const skip = new Set(['id', 'type', 'name', 'createdAt', 'updatedAt', 'content'])
-  return Object.entries(e).filter(([k, v]) => !skip.has(k) && v !== undefined && v !== null && v !== '').slice(0, 8)
+// 会话切换（workdir 变化）时刷新根目录
+watch(currentWorkdir, () => {
+  void initRoot()
 })
 </script>
 
 <style scoped>
-.preview-panel {
+.file-panel {
   display: flex;
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  gap: 10px;
+  min-width: 0;
+  background: var(--color-surface-elevated);
 }
-.preview-section {
+.fp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
 }
-.preview-section-files {
-  margin-top: 4px;
-}
-.section-header {
+.fp-title {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 8px;
   font-size: var(--font-size-xs);
   font-weight: 600;
-  color: var(--color-text-secondary);
-  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text);
 }
-.section-empty {
-  padding: 14px 10px;
-  font-size: var(--font-size-xs);
-  color: var(--color-text-tertiary);
-  text-align: center;
+.fp-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
-.entity-list {
-  padding: 6px 4px;
-  max-height: 240px;
-  overflow-y: auto;
-}
-.entity-group {
-  margin-bottom: 6px;
-}
-.entity-group-label {
-  padding: 4px 8px 2px;
-  font-size: var(--font-size-2xs);
-  color: var(--color-text-tertiary);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.entity-item {
-  display: block;
-  width: 100%;
-  padding: 5px 8px;
+.fp-action-btn {
+  width: 24px;
+  height: 24px;
   border: none;
   background: transparent;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-xs);
   cursor: pointer;
-  text-align: left;
-  font-size: var(--font-size-xs);
-  color: var(--color-text-secondary);
-  transition: background 0.12s;
+  color: var(--color-text-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
 }
-.entity-item:hover {
+.fp-action-btn:hover {
   background: var(--color-surface);
   color: var(--color-text);
 }
-.entity-item.active {
+.fp-action-btn.active {
   background: var(--color-primary-muted);
-  color: var(--color-text-primary);
+  color: var(--color-primary);
 }
-.preview-detail {
+.fp-body {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
   overflow: hidden;
 }
-.detail-header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-surface);
-}
-.detail-name {
-  flex: 1;
-  font-size: var(--font-size-xs);
-  font-weight: 600;
-  color: var(--color-text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.detail-type {
-  font-size: var(--font-size-2xs);
-  color: var(--color-primary);
-}
-.detail-close {
-  width: 20px;
-  height: 20px;
-  border: none;
-  background: transparent;
-  color: var(--color-text-tertiary);
-  border-radius: var(--radius-xs);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.detail-close:hover {
-  color: var(--color-text);
+
+/* hover 浮层 */
+.fp-overlay {
+  position: fixed;
+  width: 260px;
+  max-height: 60vh;
   background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  z-index: 10001;
 }
-.detail-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 8px;
+.dropdown-enter-active {
+  transition: opacity 0.12s ease, transform 0.12s ease;
 }
-.detail-row {
-  display: flex;
-  gap: 8px;
-  padding: 3px 0;
-  font-size: var(--font-size-xs);
+.dropdown-leave-active {
+  transition: opacity 0.08s ease, transform 0.08s ease;
 }
-.detail-key {
-  flex-shrink: 0;
-  color: var(--color-text-tertiary);
-  min-width: 60px;
+.dropdown-enter-from {
+  opacity: 0;
+  transform: translateY(-4px);
 }
-.detail-val {
-  color: var(--color-text-secondary);
-  word-break: break-all;
-}
-.detail-empty {
-  padding: 12px;
-  text-align: center;
-  font-size: var(--font-size-xs);
-  color: var(--color-text-tertiary);
+.dropdown-leave-to {
+  opacity: 0;
+  transform: translateY(-2px);
 }
 </style>

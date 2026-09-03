@@ -327,6 +327,10 @@ impl AgentLoop {
         // A5 HITL：若任一工具需确认（策略命中 / 敏感目录拒绝 / 越界确认），强制走串行
         // 确认需逐次暂停等待；敏感目录拒绝/越界确认若走并行会被绕过，故一并纳入。
         let any_needs_confirm = tool_calls.iter().any(|t| {
+            // agent-tmp 全权免确认：命中分区临时区的工具不进入确认预检（放行可并行）
+            if crate::confirmation::should_bypass_confirmation(&t.name, &t.args, &self_tool_ctx) {
+                return false;
+            }
             let allow_sensitive =
                 config_snapshot
                     .confirmation_policy
@@ -389,6 +393,11 @@ impl AgentLoop {
                 "error": reason,
                 "tool": name,
             }));
+        }
+        // 0.5) agent-tmp 全权免确认：写/搜索工具解析落 workdir/agent-tmp 子树 → 直接放行。
+        // 敏感目录 Deny 已在上方拦截（agent-tmp 与敏感目录互斥），无需重复判定。
+        if crate::confirmation::should_bypass_confirmation(name, args, ctx) {
+            return None;
         }
         // 未启用确认（无 broker / 无 policy）→ 放行（敏感目录已在上面拦截，
         // 越界写入由 FS 工具执行时的 `ensure_within_workdir` 兜底拒绝）

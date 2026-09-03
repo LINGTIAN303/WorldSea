@@ -27,6 +27,19 @@ pub async fn cmd_get_app_data_dir(app: tauri::AppHandle) -> Result<String, Strin
     Ok(dir.to_string_lossy().replace('\\', "/"))
 }
 
+/// 获取用户主目录路径（§六 全局层迁移 ~/.WorldSmith）
+///
+/// 全局规则（~/.WorldSmith/rules）与个人技能导入区（~/.WorldSmith/skills）的载体根。
+/// 前端 `getHomeDirCached` 缓存后供 globalRulesDirSync / RulesPanel 使用（双端一致）。
+#[tauri::command]
+pub async fn cmd_get_home_dir(app: tauri::AppHandle) -> Result<String, String> {
+    let dir = app
+        .path()
+        .home_dir()
+        .map_err(|e| format!("无法定位用户主目录: {e}"))?;
+    Ok(dir.to_string_lossy().replace('\\', "/"))
+}
+
 /// 删除项目关联的数据目录（前端 useProjectSwitcher.deleteProject 的 Tauri 分支）
 ///
 /// 项目目录由 cmd_get_app_data_dir 返回的应用数据目录下 {dataDir}/projects/{project_id}

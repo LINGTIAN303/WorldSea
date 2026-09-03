@@ -94,6 +94,7 @@
             system_prompt: "你是代码专家".into(),
             tools_whitelist: None,
             max_iterations: Some(3),
+        temp_dir: None,
         })
         .await;
         let s1 = svc.new_session(None, None, None, None, None).await.unwrap();
@@ -115,6 +116,7 @@
             system_prompt: "你是代码专家".into(),
             tools_whitelist: None,
             max_iterations: Some(3),
+        temp_dir: None,
         };
         svc.register_subagent_spec(spec.clone()).await;
         // 同名 id 覆盖，不产生重复项
@@ -135,6 +137,7 @@
             system_prompt: "你是代码专家".into(),
             tools_whitelist: None,
             max_iterations: Some(3),
+        temp_dir: None,
         })
         .await;
         // 删除存在的规格返回 true
@@ -160,6 +163,7 @@
             system_prompt: "你是代码专家".into(),
             tools_whitelist: Some(vec!["execute_command".into()]),
             max_iterations: Some(3),
+        temp_dir: None,
         })
         .await;
         assert_eq!(svc.list_subagent_specs().await.len(), 1);
@@ -191,6 +195,7 @@
             system_prompt: "你是代码专家".into(),
             tools_whitelist: None,
             max_iterations: Some(3),
+        temp_dir: None,
         })
         .await;
         svc.register_subagent_spec(SubAgentSpec {
@@ -200,6 +205,7 @@
             system_prompt: "你是写作专家".into(),
             tools_whitelist: None,
             max_iterations: Some(3),
+        temp_dir: None,
         })
         .await;
         assert!(svc.remove_subagent_spec("coder").await);
@@ -223,6 +229,7 @@
             system_prompt: "你是代码专家".into(),
             tools_whitelist: Some(vec!["execute_command".into()]),
             max_iterations: Some(3),
+        temp_dir: None,
         })
         .await;
         svc.register_subagent_spec(SubAgentSpec {
@@ -232,6 +239,7 @@
             system_prompt: "你是写作专家".into(),
             tools_whitelist: None,
             max_iterations: None,
+        temp_dir: None,
         })
         .await;
 
@@ -263,6 +271,7 @@
             system_prompt: "旧提示词".into(),
             tools_whitelist: None,
             max_iterations: None,
+        temp_dir: None,
         })
         .await;
 
@@ -296,6 +305,7 @@
             system_prompt: "你是代码专家".into(),
             tools_whitelist: Some(vec!["execute_command".into()]),
             max_iterations: Some(3),
+        temp_dir: None,
         };
         assert!(validate_subagent_spec(&spec).is_ok());
         // 白名单与 max_iterations 均可省略
@@ -306,6 +316,7 @@
             system_prompt: "写作专家".into(),
             tools_whitelist: None,
             max_iterations: None,
+        temp_dir: None,
         };
         assert!(validate_subagent_spec(&minimal).is_ok());
     }
@@ -319,6 +330,7 @@
             system_prompt: "你是代码专家".into(),
             tools_whitelist: None,
             max_iterations: None,
+        temp_dir: None,
         };
         // 空 id
         assert!(validate_subagent_spec(&SubAgentSpec { id: "".into(), ..base.clone() }).is_err());

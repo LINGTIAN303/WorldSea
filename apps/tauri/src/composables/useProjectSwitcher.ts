@@ -27,6 +27,93 @@ export function useProjectSwitcher() {
     return projectList.value
   }
 
+  /** 路径归一化：去掉尾部分隔符；Windows 大小写不敏感 */
+  function normalizeDir(p: string): string {
+    const norm = (p || '').replace(/[\\/]+$/g, '')
+    return /^win/i.test(navigator.platform) ? norm.toLowerCase() : norm
+  }
+
+  /** 目录基名（兼容 / 与 \） */
+  function baseNameOf(p: string): string {
+    const segs = p.split(/[\\/]/).filter(Boolean)
+    return segs[segs.length - 1] ?? p
+  }
+
+  /**
+   * 工作台实体存储根解析（2026-09-03 拍板，默认项目三层分离）：
+   * - 默认项目 dirPath = `~/.WorldSmith` 根（显示/定位基准）→ 实体落 `根/worlddata`
+   * - 普通项目 = dirPath 本身（打开目录即两边同源）
+   * 防御性剥离历史残留的 worldentity/worlddata 段，避免双重嵌套路径（worldentity/worldentity）。
+   */
+  function entityDirOf(p: ProjectInfo | null | undefined, dirPath: string | null): string | null {
+    if (!dirPath) return null
+    if (!p?.isDefault) return dirPath
+    let root = dirPath
+    while (/(worldentity|worlddata)$/i.test(root)) {
+      root = root.replace(/[\\/]+(worldentity|worlddata)$/i, '')
+    }
+    return `${root.replace(/[\\/]+$/, '')}/worlddata`
+  }
+
+  /**
+   * 打开目录即打开项目（项目=目录语义，2026-09-03）：
+   * 目录 → 若已有 dirPath 匹配的项目则切换，否则按目录基名新建项目并切换。
+   * 切换经 switchProject 触发 `project:switched` → Agent 空间联动新建会话。
+   */
+  async function openProjectDir(dir: string): Promise<ProjectInfo | null> {
+    const norm = normalizeDir(dir)
+    const all = await pm.listProjects()
+    const existing = all.find(p => p.dirPath && normalizeDir(p.dirPath) === norm)
+    if (existing) {
+      const switched = await switchProject(existing.id)
+      return switched ? existing : null
+    }
+    const project = await pm.createProject(baseNameOf(dir), undefined, dir)
+    const switched = await switchProject(project.id)
+    return switched ? project : null
+  }
+
+  /**
+   * 唯一目录选择入口：Tauri 系统目录选择器 → openProjectDir。
+   * 非 Tauri（浏览器 preview）降级提示并返回 false。
+   */
+  async function openProjectFromDialog(): Promise<boolean> {
+    if (!(isTauri() && hasTauriInvoke())) {
+      console.warn('[ProjectSwitcher] 目录选择需要 Tauri 桌面端环境')
+      return false
+    }
+    try {
+      const { open } = await import('@tauri-apps/plugin-dialog')
+      // 打开文件夹定位基准 = 全局根 ~/.WorldSmith（2026-09-03 拍板）
+      let defaultPath: string | undefined
+      try {
+        const { homeDir } = await import('@tauri-apps/api/path')
+        const home = await homeDir()
+        if (home) defaultPath = `${home.replace(/[\\/]+$/, '')}/.WorldSmith`
+      } catch { /* 定位失败仅回到系统默认位置 */ }
+      const selected = await open({ directory: true, title: '打开项目目录', multiple: false, defaultPath })
+      if (!selected) return false
+      return !!(await openProjectDir(selected as string))
+    } catch (err) {
+      console.error('[ProjectSwitcher] 打开项目目录失败:', err)
+      return false
+    }
+  }
+
+  /**
+   * 移除最近项目记录（仅删 IndexedDB 记录，不删目录/项目 DB/SQLite——会话按 workdir 可回）。
+   */
+  async function removeRecentProject(id: string): Promise<boolean> {
+    try {
+      await pm.removeProjectRecord(id)
+      await refreshProjectList()
+      return true
+    } catch (err) {
+      console.warn('[ProjectSwitcher] 移除最近项目失败:', err)
+      return false
+    }
+  }
+
   /**
    * 初始化项目系统。
    * 应用启动时调用一次。
@@ -49,18 +136,34 @@ export function useProjectSwitcher() {
       }
     }
 
-    // 2.5 设置 FileStorageBackend 目录绑定
+    // 2.5 默认项目兜底归位（无项目/未选目录 = 全局根，2026-09-03 拍板）
+    //    · 系统默认项目（isDefault，或旧「默认项目」名——一次性补标记）不可移除；
+    //    · 其 dirPath 恒为全局根 ~/.WorldSmith（选择器显示 / 打开文件夹定位基准；
+    //      修历史残留 dirPath 如 worldentity / tream_test）；
+    //    · 默认项目数据分落子目录：工作台实体 → dirPath/worlddata（entityDirOf），
+    //      Agent 工作路径 → dirPath/agent（workspace.ts resolveWorkspaceDir 特判）；
+    //    · 非默认无目录项目不自动绑定（遗留 SQLite 降级，保持现状）
     let dirPath = await pm.getProjectDir(projectId)
-    // Tauri 兜底：旧项目无目录时自动绑定应用数据目录下的子目录，避免降级到不可用的 TauriStorageBackend
-    if (!dirPath && isTauri() && hasTauriInvoke()) {
-      const dataDir = await getTauriDataDir()
-      if (dataDir) {
-        const autoDir = `${dataDir}/projects/${projectId}`
-        await pm.setProjectDir(projectId, autoDir)
-        dirPath = autoDir
-      }
+    const currentProj = await pm.getCurrentProject()
+    const isDefaultProj = !!(currentProj?.isDefault || currentProj?.name === '默认项目')
+    if (isDefaultProj && !currentProj?.isDefault) {
+      try { await pm.markAsDefaultProject(projectId) } catch { /* 标记失败不阻塞 */ }
     }
-    await setStorageProjectDir(dirPath)
+    if (isDefaultProj && isTauri() && hasTauriInvoke()) {
+      try {
+        const { homeDir } = await import('@tauri-apps/api/path')
+        const home = await homeDir()
+        if (home) {
+          const rootDir = `${home.replace(/[\\/]+$/, '')}/.WorldSmith`
+          if (normalizeDir(dirPath ?? '') !== normalizeDir(rootDir)) {
+            await pm.setProjectDir(projectId, rootDir)
+            dirPath = rootDir
+          }
+        }
+      } catch { /* home 不可得：保持现状（SQLite 兜底，仅浏览器/边缘态） */ }
+    }
+    // 工作台实体采集根：默认项目特判到根下 worlddata 子目录
+    await setStorageProjectDir(entityDirOf(currentProj, dirPath))
 
     // 2.6 启动文件监听（有目录绑定时）
     if (dirPath) {
@@ -115,18 +218,11 @@ export function useProjectSwitcher() {
         }
       }
 
-      // 2. 设置 FileStorageBackend 目录绑定
+      // 2. 设置 FileStorageBackend 目录绑定（默认项目特判到根/worlddata；
+        //    no-dir 项目保持 null/既有 dirPath）
       let dirPath = await pm.getProjectDir(targetProjectId)
-      // Tauri 兜底：旧项目无目录时自动绑定应用数据目录下的子目录
-      if (!dirPath && isTauri() && hasTauriInvoke()) {
-        const dataDir = await getTauriDataDir()
-        if (dataDir) {
-          const autoDir = `${dataDir}/projects/${targetProjectId}`
-          await pm.setProjectDir(targetProjectId, autoDir)
-          dirPath = autoDir
-        }
-      }
-      await setStorageProjectDir(dirPath)
+      const targetProj = await pm.getProject(targetProjectId)
+      await setStorageProjectDir(entityDirOf(targetProj, dirPath))
 
       // 2.5 停止旧监听 + 启动新监听
       await stopWatching()
@@ -223,36 +319,6 @@ export function useProjectSwitcher() {
   }
 
   /**
-   * Tauri 环境：获取应用数据目录，用于自动绑定项目存储目录。
-   * 仅在 isTauri() 且命令存在时返回目录路径，否则返回 null。
-   */
-  async function getTauriDataDir(): Promise<string | null> {
-    if (!(isTauri() && hasTauriInvoke())) return null
-    try {
-      const { invoke } = await import('@tauri-apps/api/core')
-      return (await invoke('cmd_get_app_data_dir')) as string
-    } catch (err) {
-      console.error('[ProjectSwitcher] Tauri cmd_get_app_data_dir 失败:', err)
-      return null
-    }
-  }
-
-  /**
-   * 创建新项目并切换到它。
-   * Tauri 环境：自动绑定应用数据目录下的项目子目录，使 FileStorageBackend 以文件系统为主存储。
-   */
-  async function createAndSwitch(name: string, description?: string): Promise<ProjectInfo | null> {
-    const project = await pm.createProject(name, description)
-    // Tauri 环境：用项目 id 作为子目录名，绑定到应用数据目录下，避免降级到不可用的 TauriStorageBackend
-    const dataDir = await getTauriDataDir()
-    if (dataDir && project) {
-      await pm.setProjectDir(project.id, `${dataDir}/projects/${project.id}`)
-    }
-    const switched = await switchProject(project.id)
-    return switched ? project : null
-  }
-
-  /**
    * 删除指定项目（不能删除当前项目）。
    */
   async function deleteProject(id: string): Promise<void> {
@@ -294,7 +360,9 @@ export function useProjectSwitcher() {
     projectList,
     initialize,
     switchProject,
-    createAndSwitch,
+    openProjectDir,
+    openProjectFromDialog,
+    removeRecentProject,
     deleteProject,
     renameProject,
     listProjects,

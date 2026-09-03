@@ -31,7 +31,7 @@
             <span class="menu-item-label">搜索</span>
             <span class="menu-item-shortcut">{{ formatKeysForDisplay(['ctrl', 'k']) }}</span>
           </button>
-          <!-- 任务29：项目目录绑定入口已迁移至 Agent 输入栏 WorkdirSelect（唯一入口源） -->
+          <!-- 项目=目录（2026-09-03）：打开/切换项目走 ProjectSwitcher（TitleBar/空态/Ctrl+Shift+P）；导出到文件夹保留 -->
           <button class="menu-item" role="menuitem" @click="saveFolder" :disabled="saving">
             <WsIcon name="save" size="sm" class="menu-item-icon" />
             <span class="menu-item-label">{{ saving ? '导出中...' : '导出到文件夹' }}</span>
@@ -102,7 +102,7 @@ import { WsIcon } from '@worldsmith/ui-kit'
 
 const settingsStore = useSettingsStore()
 const { register } = useShortcuts()
-// 任务29：openFolder/isProjectOpen/dirName 已随入口迁移移除——项目目录绑定唯一入口 = Agent 输入栏 WorkdirSelect
+// 项目=目录（2026-09-03）：绑定入口已移除（目录即项目，走 ProjectSwitcher）；导出能力保留
 const { saving, saveToFolder, lastError } = useFileSystemProject()
 const { toastSuccess, toastWarn } = useToast()
 

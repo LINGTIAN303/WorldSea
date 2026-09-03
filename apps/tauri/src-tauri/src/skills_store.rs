@@ -31,14 +31,68 @@ use worldsmith_skills_store::{
     InstallResult, InstalledMeta,
 };
 
-/** 获取 skills 根目录（app_data_dir/skills），确保目录存在 */
+/**
+ * 获取 skills 根目录（§六 迁移后：~/.WorldSmith/skills），确保目录存在。
+ *
+ * 2026-09-03 迁移：个人技能导入区从 app_data/skills 迁至用户主目录 ~/.WorldSmith/skills
+ * （跟随用户跨项目）。首次进入时若旧 app_data/skills 有存量则一次性复制（幂等），
+ * 旧目录保留留痕不删除。install/import_local/list/uninstall/注册表扫描的唯一目录来源。
+ */
 fn skills_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
-    let data_dir = app.path().app_data_dir()
-        .map_err(|e| format!("获取 app data 目录失败: {e}"))?;
-    let dir = data_dir.join("skills");
+    let home = app
+        .path()
+        .home_dir()
+        .map_err(|e| format!("无法定位用户主目录: {e}"))?;
+    let dir = home.join(".WorldSmith").join("skills");
+    ensure_home_skills_migrated(app, &dir)?;
     std::fs::create_dir_all(&dir)
         .map_err(|e| format!("创建 skills 目录失败: {e}"))?;
     Ok(dir)
+}
+
+/** 幂等迁移：旧 app_data/skills 有存量且目标不存在时，递归复制到 ~/.WorldSmith/skills */
+fn ensure_home_skills_migrated(app: &AppHandle, home_skills: &std::path::Path) -> Result<(), String> {
+    let legacy = app
+        .path()
+        .app_data_dir()
+        .map(|d| d.join("skills"))
+        .unwrap_or_default();
+    if !legacy.is_dir() || home_skills.exists() {
+        return Ok(()); // 无存量 / 已迁移：no-op
+    }
+    std::fs::create_dir_all(home_skills)
+        .map_err(|e| format!("创建技能目录失败: {e}"))?;
+    for entry in std::fs::read_dir(&legacy).map_err(|e| format!("读取旧技能目录失败: {e}"))? {
+        let e = entry.map_err(|e| format!("读取旧技能条目失败: {e}"))?.path();
+        let Some(name) = e.file_name() else { continue };
+        let tgt = home_skills.join(name);
+        if tgt.exists() {
+            continue;
+        }
+        if e.is_dir() {
+            copy_dir_all(&e, &tgt).map_err(|e| format!("迁移技能目录失败: {e}"))?;
+        } else if let Err(e) = std::fs::copy(&e, &tgt) {
+            tracing::warn!("[skills] 迁移技能文件失败（跳过）: {e}");
+        }
+    }
+    // T20 清理（2026-09-03 用户拍板）：迁移确认完成 → 移除旧路径痕迹（幂等）
+    let _ = std::fs::remove_dir_all(&legacy);
+    Ok(())
+}
+
+/** 递归复制目录（std 无内置，仅复制普通文件与目录结构） */
+fn copy_dir_all(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(dst)?;
+    for entry in std::fs::read_dir(src)? {
+        let e = entry?;
+        let tgt = dst.join(e.file_name());
+        if e.file_type()?.is_dir() {
+            copy_dir_all(&e.path(), &tgt)?;
+        } else {
+            std::fs::copy(e.path(), tgt)?;
+        }
+    }
+    Ok(())
 }
 
 /**

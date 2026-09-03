@@ -14,6 +14,7 @@
 //! 本层仅保留敏感目录写防护（sensitive_dir_reason / ensure_write_allowed）作为
 //! 全链路最后兜底。已知限制：shell 类工具的内容级写入无法词法拦截（记录于方案文档）。
 
+use base64::Engine;
 use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -91,13 +92,53 @@ pub async fn cmd_fs_write(
     fs::write(&path, content).map_err(|e| e.to_string())
 }
 
-/// 读取文本文件（utf-8）
+/// 读取文件内容
+///
+/// `encoding`：
+/// - `None` / `"utf-8"`：读为文本（`read_to_string`，非法 UTF-8 报错 → 前端判定二进制）
+/// - `"base64"`：读为裸 base64 字符串（前端按扩展名拼 `data:{mime};base64,...` 展示图片/二进制）
 #[tauri::command]
 pub async fn cmd_fs_read(
     path: String,
-    _encoding: Option<String>,
+    encoding: Option<String>,
 ) -> Result<String, String> {
-    fs::read_to_string(&path).map_err(|e| e.to_string())
+    if encoding.as_deref() == Some("base64") {
+        let bytes = fs::read(&path).map_err(|e| e.to_string())?;
+        Ok(base64::engine::general_purpose::STANDARD.encode(bytes))
+    } else {
+        fs::read_to_string(&path).map_err(|e| e.to_string())
+    }
+}
+
+/// 在系统文件资源管理器中打开指定目录（2026-09-03 文件面板「打开项目文件夹」）
+///
+/// Windows 用 `explorer`（无需等待退出）；macOS 用 `open`；Linux 用 `xdg-open`。
+#[tauri::command]
+pub async fn cmd_open_in_explorer(path: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("打开系统文件夹失败: {e}"))?;
+        Ok(())
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("打开系统文件夹失败: {e}"))?;
+        Ok(())
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("打开系统文件夹失败: {e}"))?;
+        Ok(())
+    }
 }
 
 /// 列出目录内容（支持递归）

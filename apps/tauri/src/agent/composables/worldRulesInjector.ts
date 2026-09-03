@@ -6,7 +6,7 @@
  *   混合操作场景有永不触发盲区，评估结论见设计文档 §2.8）
  * - 阈值 = 默认 **20**，用户可配置 1-150（localStorage `ws_world_rules_threshold`，
  *   RulesPanel WORLD 卡提供输入）
- * - 触发 → 读取双层 WORLD.md（全局 rules/ + 项目 workdir，全局在前标注来源）→
+ * - 触发 → 读取双层 WORLD.md（全局 ~/.WorldSmith/rules/ + 项目 workdir，全局在前标注来源）→
  *   按「窗口内操作过的实体类型」提取相关分节（`## 标题` 匹配 typeKey/显示名，
  *   无匹配兜底全文）→ 以 `__world_rules` 字段附加进该次工具结果 JSON →
  *   随 cmd_agent_tool_result 进历史（LLM 下一轮立即可见），计数与窗口归零

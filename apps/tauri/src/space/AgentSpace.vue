@@ -131,7 +131,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed, onMounted } from 'vue'
+import { ref, watch, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useSpaceStore } from './stores/space-store'
 import { useUserProfileStore } from './stores/user-profile-store'
 import TitleBar from '@/ui/layout/TitleBar.vue'
@@ -162,7 +162,7 @@ const PANEL_META: { id: RightTab; label: string; icon: string; title: string }[]
   { id: 'exec', label: '执行', icon: 'chart', title: '执行（轨迹/活动/计划）' },
   { id: 'config', label: '配置', icon: 'settings', title: '配置（记忆/人格）' },
   { id: 'creation', label: '创作', icon: 'palette', title: '创作（插件创作视图）' },
-  { id: 'preview', label: '预览', icon: 'eye', title: '预览（项目产物）' },
+  { id: 'preview', label: '文件', icon: 'files', title: '文件（浏览器 + 内联预览）' },
   { id: 'usage', label: '用量', icon: 'dashboard', title: '用量（请求/token/费用）' },
 ]
 
@@ -216,11 +216,24 @@ const rightTab = computed<RightTab>(() => sessionView.activeState.value?.rightPa
 
 /** [1] 右栏目标宽（不含左栏）：默认 70vw（未自定义）→ 目标=70vw；自定义 → 目标=存储宽。
       store.rightPanelWidth 恒为该目标宽；实际呈现宽 = 目标宽 - 左栏宽（computed rightPanelWidthRendered），
-      使左栏开启时右栏真正收缩、内容随左栏变化，且不压缩主对话区（主区 min-width:30% 兜底）。 */
+      使左栏开启时右栏真正收缩、内容随左栏变化，且不压缩主对话区（主区 min-width:30% 兜底）。
+      右缘不出界（2026-09-03 修复二）：上限按「可用横向空间 - 主区保底 30% - 左栏占用」计算，
+      仅钳到视口宽不够——左栏+主区最小宽也占空间，三者总和会超视口导致右栏右侧被裁。 */
 const MIN_RIGHT_PANEL = 240
+/** 视口尺寸 tick：窗口 resize 时自增，驱动右栏宽度计算重算（window 非响应式） */
+const viewportTick = ref(0)
+/** 右栏呈现宽上限（已左栏/主区保底扣除）：返回右栏可用的最大呈现宽 */
+function calcRightPanelCap(): number {
+  const leftW = spaceStore.sessionSidebarOpen ? spaceStore.sessionSidebarWidth : 0
+  const avail = Math.floor(window.innerWidth) - 24 // 16 = space-body 左右 padding，8 = main 与 right 间隙
+  const mainMin = Math.floor(avail * 0.3) // 主对话区保底 30% 内容宽
+  return Math.max(MIN_RIGHT_PANEL, avail - mainMin - leftW)
+}
 const rightPanelWidthRendered = computed(() => {
   const leftW = spaceStore.sessionSidebarOpen ? spaceStore.sessionSidebarWidth : 0
-  return Math.max(MIN_RIGHT_PANEL, spaceStore.rightPanelWidth - leftW)
+  const target = Math.max(MIN_RIGHT_PANEL, spaceStore.rightPanelWidth - leftW)
+  void viewportTick.value // 依赖：窗口 resize 时重算
+  return Math.min(calcRightPanelCap(), target)
 })
 
 /** 打开右栏/左栏变化时，将 store.rightPanelWidth（目标宽）重置为 70vw 或保持自定义存储宽 */
@@ -306,7 +319,16 @@ watch(
 // 进入空间即恢复上次会话（chat 模式），使右侧执行面板 tab 加载后立即可用
 onMounted(() => {
   if (spaceStore.mode === 'chat') restoreLastSession()
+  window.addEventListener('resize', onViewportResize)
 })
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', onViewportResize)
+})
+
+/** 窗口尺寸变化：自增 tick，驱动右栏宽度/浮层位置重算 */
+function onViewportResize(): void {
+  viewportTick.value++
+}
 
 // Agent 设置已迁入主设置弹窗（2026-08-09）
 function onOpenSettings() {
@@ -376,7 +398,12 @@ function onSessionResizeStart(e: MouseEvent) {
 }
 
 function onExecResizeStart(e: MouseEvent) {
-  startResize(e, spaceStore.rightPanelWidth, ev => e.clientX - ev.clientX, spaceStore.setRightPanelWidth, () => {
+  startResize(e, spaceStore.rightPanelWidth, ev => e.clientX - ev.clientX, w => {
+    // 拖拽上限（2026-09-03 修复二）：目标宽容忍左栏占用后，呈现宽仍 ≤ calcRightPanelCap
+    const cap =
+      calcRightPanelCap() + (spaceStore.sessionSidebarOpen ? spaceStore.sessionSidebarWidth : 0)
+    spaceStore.setRightPanelWidth(Math.min(cap, w))
+  }, () => {
     // [3] 用户拖拽右栏结束：标记为自定义宽度，持久保持、不再被默认 70% 弹回
     spaceStore.markRightPanelWidthCustom()
   })

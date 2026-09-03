@@ -117,6 +117,7 @@
                 system_prompt: "你是代码工程师".into(),
                 tools_whitelist: None,
                 max_iterations: Some(5),
+            temp_dir: None,
             },
             SubAgentSpec {
                 id: "writer".into(),
@@ -125,6 +126,7 @@
                 system_prompt: "你是文档工程师".into(),
                 tools_whitelist: None,
                 max_iterations: Some(5),
+            temp_dir: None,
             },
         ]
     }
@@ -178,6 +180,7 @@
             system_prompt: "你是唯一".into(),
             tools_whitelist: None,
             max_iterations: None,
+        temp_dir: None,
         };
         let strategy = LlmAssignmentStrategy::new();
         let r = strategy
@@ -609,6 +612,7 @@
             system_prompt: "你是唯一".into(),
             tools_whitelist: None,
             max_iterations: None,
+        temp_dir: None,
         };
         let strategy = LoadBasedAssignmentStrategy::new();
 
@@ -699,6 +703,7 @@
             system_prompt: "你是执行者".into(),
             tools_whitelist: None,
             max_iterations: Some(1),
+        temp_dir: None,
         }];
 
         let node = SupervisorNode::with_default_strategy(

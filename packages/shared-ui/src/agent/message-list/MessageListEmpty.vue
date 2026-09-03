@@ -6,7 +6,8 @@
       <slot name="icon"><WsIcon name="profile" size="lg" /></slot>
     </div>
     <div class="empty-title">WorldSmith 助手</div>
-    <div class="empty-hint">我可以帮你管理世界观实体和关系。试试输入 / 查看可用命令</div>
+    <!-- #hint 插槽：宿主可注入项目选择器（项目=目录，2026-09-03）；默认保留原文案 -->
+    <div class="empty-hint"><slot name="hint">我可以帮你管理世界观实体和关系。试试输入 / 查看可用命令</slot></div>
   </div>
 </template>
 

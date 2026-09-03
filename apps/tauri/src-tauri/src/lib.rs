@@ -201,6 +201,7 @@ pub fn run() {
             fs_commands::cmd_fs_read,
             fs_commands::cmd_fs_list,
             fs_commands::cmd_fs_delete,
+            fs_commands::cmd_open_in_explorer,
             // Phase 4 工作区：文件系统元数据/目录/复制/重命名/搜索命令（WorkspacePanel 依赖）
             fs_commands::cmd_fs_stat,
             fs_commands::cmd_fs_mkdir,
@@ -211,6 +212,8 @@ pub fn run() {
             project_commands::cmd_switch_project,
             // Phase B 迁移：获取应用数据目录（自动绑定项目存储目录）
             project_commands::cmd_get_app_data_dir,
+            // §六 全局层迁移：获取用户主目录（~/.WorldSmith 载体根）
+            project_commands::cmd_get_home_dir,
             // Phase B 迁移：删除项目数据目录（deleteProject Tauri 分支）
             project_commands::cmd_delete_project_db,
             // Phase C 收尾：文件系统监听（useFsWatcher）

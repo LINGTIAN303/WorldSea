@@ -45,7 +45,7 @@ export interface SessionViewState {
   lastSwitchAt: number
 }
 
-const VALID_EXEC_TABS: ExecTab[] = ['trace', 'activity', 'router', 'tot', 'got', 'supervisor', 'multi', 'terminal', 'subagent', 'workspace']
+const VALID_EXEC_TABS: ExecTab[] = ['trace', 'activity', 'router', 'tot', 'got', 'supervisor', 'multi', 'terminal', 'subagent']
 
 const STORAGE_KEY = 'worldsmith_agent_session_views'
 export const LAST_SESSION_KEY = 'worldsmith_agent_last_session'

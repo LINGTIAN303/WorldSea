@@ -74,7 +74,7 @@ const { setupOrchListener, teardownOrchListener, setupOrchSupervisorListener, te
 // 组件仅消费状态（单一状态源），不再各自实例化监听。
 const { activeRun, finishedRuns, resetOrchestrationTrace, setupOrchestrationTraceListener, teardownOrchestrationTraceListener } = useOrchestrationTrace()
 
-// ── app 数据目录缓存（H6-③ MCP 配置 + H5 全局规则共用；拍板 2026-08-30）──
+// ── app 数据目录 + 用户主目录缓存（H6-③ MCP 配置 + H5 全局规则共用；§六 ~/.WorldSmith）──
 // 同步镜像 + 异步获取缓存：buildBridgeContext 为同步函数，白名单注入读镜像值；
 // 异步获取完成后回填，后续工具调用即带上（首次调用可能缺省，下一次补齐）。
 let appDataDirSync: string | undefined
@@ -87,17 +87,32 @@ async function getAppDataDirCached(): Promise<string | undefined> {
   return appDataDirSync
 }
 
+/** 用户主目录缓存（§六 全局层载体 ~/.WorldSmith 的根；globalRulesDirSync/RulesPanel 共用） */
+let homeDirSync: string | undefined
+async function getHomeDirCached(): Promise<string | undefined> {
+  if (homeDirSync) return homeDirSync
+  try {
+    const home = await safeInvoke<string>('cmd_get_home_dir', {})
+    if (home) homeDirSync = home.replace(/[\\/]+$/, '')
+  } catch { /* 浏览器 preview 或命令失败：回退旧路径 */ }
+  return homeDirSync
+}
+
 /** MCP 配置文件路径（<app_data>/worldsmith/mcp.json，全局单份；H6-③ 配置化拍板） */
 async function getMcpConfigPath(): Promise<string | undefined> {
   const base = await getAppDataDirCached()
   return base ? `${base}/worldsmith/mcp.json` : undefined
 }
 
-/** 写边界白名单（workdir 外精确放行文件）：MCP 配置 + 全局规则目录六件（用户与 Agent 均可编辑——拍板「共同维护」） */
+/** 写边界白名单（workdir 外精确放行文件）：MCP 配置 + 全局规则目录六件（用户与 Agent 均可编辑——拍板「共同维护」）
+ *  §六 2026-09-03：放行 ~/.WorldSmith/rules 六件（新载体，Agent 可直编）；旧 appData 路径已移除（T20 清理） */
 function extraWritablePathsFor(base?: string): string[] | undefined {
   if (!base) return undefined
-  const rulesDir = `${base}/worldsmith/rules`
-  return [`${base}/worldsmith/mcp.json`, ...GLOBAL_RULES_FILES.map((f) => `${rulesDir}/${f}`)]
+  const homeRulesDir = homeDirSync ? `${homeDirSync}/.WorldSmith/rules` : undefined
+  return [
+    `${base}/worldsmith/mcp.json`,
+    ...(homeRulesDir ? GLOBAL_RULES_FILES.map((f) => `${homeRulesDir}/${f}`) : []),
+  ]
 }
 
 // ── 浏览器 preview 兼容：非 Tauri 环境（window.__TAURI_INTERNALS__ 缺失）下
@@ -362,7 +377,7 @@ const currentSessionId = ref<string | null>(null)
  *  首条消息 newSession 或切换会话时清除。供自动恢复逻辑（restoreLastSession /
  *  SessionSidebar.refresh）识别草稿态并跳过「无会话自动切回」，否则 draft 被瞬间覆盖。 */
 const draftSessionActive = ref(false)
-/** 当前会话绑定的工作区根目录（Phase 4 接入本地文件系统；供 WorkspacePanel 展示） */
+/** 当前会话绑定的工作区根目录（Phase 4 接入本地文件系统；供文件面板/文件浏览器展示） */
 const currentWorkdir = ref<string | null>(null)
 /** 当前会话消息列表 */
 const messages = ref<AgentMessage[]>([])
@@ -1294,8 +1309,11 @@ let toolBridgeContext: IToolContext | null = null
  */
 function buildBridgeContext(): IToolContext {
   // H6-③ 配置化 + H5 规则体系（2026-08-30）：fire-and-forget 预取 app 数据目录，
-  // 回填 appDataDirSync 后随 workspace.extraWritablePaths 注入白名单（缓存幂等）
+  // 回填 appDataDirSync 后随 workspace.extraWritablePaths 注入白名单（缓存幂等）。
+  // §六（2026-09-03）：并行预取 home 目录 + 迁移 ~/.WorldSmith 全局层
   void getAppDataDirCached()
+  void getHomeDirCached()
+  void ensureGlobalHomeOnce()
   // 已缓存则仅动态刷新 workdir（会话切换后 dirPath 保持最新），复用 stores 避免重复构造
   if (toolBridgeContext) {
     toolBridgeContext.projectInfo.dirPath = currentWorkdir.value ?? null
@@ -1646,9 +1664,9 @@ async function newSession(
   providerConfig?: RustProviderConfigFull,
   scenarioId?: string,
 ): Promise<RustSessionInfo> {
-  // 任务29/A1 统一根：workdir 来源 = 输入栏 WorkdirSelect 选中的目录（currentWorkdir）；
-  // 未手动选择则回退当前默认根（resolveWorkspaceDir() 无参 = 当前项目目录优先，
-  // 无绑定项目时兜底 ~/.worldsmith/workspace）——见 docs/plans/workspace-unification-plan.md
+  // 任务29/A1 统一根 + 项目=目录（2026-09-03）：workdir = currentWorkdir（project:switched 处理器/切会话恢复），
+  // 未设置则回退当前默认根（resolveWorkspaceDir() 无参 = 当前项目目录优先 /
+  // 默认项目特判 ~/.WorldSmith/agent，无项目兜底同 agent）——见 docs/plans/workspace-unification-plan.md
   const workdir = currentWorkdir.value ?? (await resolveWorkspaceDir())
   await ensureWorkspaceDir(workdir)
   // 任务29/D1 锚点：会话归属当前项目（弱引用前端 ProjectManager 的项目 UUID）
@@ -1738,6 +1756,9 @@ async function listScenarios(): Promise<RustScenarioInfo[]> {
 async function newDraftSession(): Promise<void> {
   // L3：进入草稿态（先置标志再清 currentSessionId，避免 watch/refresh 自动恢复旧会话）
   draftSessionActive.value = true
+  // 项目=目录语义（2026-09-03）：新建草稿会话兜底 workdir——
+  // currentWorkdir 可能为空（无项目/未选目录）→ 回落默认工作区，防陈旧值残留
+  if (!currentWorkdir.value) currentWorkdir.value = await resolveWorkspaceDir()
   const oldSessionId = currentSessionId.value
   if (oldSessionId) {
     
@@ -1764,6 +1785,28 @@ async function newDraftSession(): Promise<void> {
   usePlanStore().clearPlan()
   turns.value = []
   currentTurnId.value = null
+}
+
+// ── 项目=目录 会话联动（2026-09-03）──
+// 切换项目（工作台下拉 / 空态选择器 / Ctrl+P / tray）经 useProjectSwitcher.switchProject
+// 统一派发 `project:switched`；此处集中监听 → 更新会话 workdir → 新建草稿会话（会话跟随项目）。
+// 单例注册（模块级 latch），启动时由 App.vue 调一次。
+let projectSwitchRegistered = false
+/** 注册项目切换 → 会话联动监听（幂等；App 启动时调用一次） */
+export function registerProjectSwitchListener(): void {
+  if (projectSwitchRegistered) return
+  projectSwitchRegistered = true
+  window.addEventListener('project:switched', (e) => {
+    const projectId = (e as CustomEvent<{ projectId: string }>).detail?.projectId
+    if (!projectId) return
+    void (async () => {
+      // 项目=目录：workdir 统一走 resolveWorkspaceDir（默认项目特判 → ~/.WorldSmith/agent；
+      // 普通项目 → dirPath；边缘无项目 → 兜底 agent）
+      currentWorkdir.value = await resolveWorkspaceDir()
+      await newDraftSession()
+    })()
+  })
+  console.info('[useAgentRust] 已注册 project:switched → 新会话联动')
 }
 
 /**
@@ -2027,7 +2070,7 @@ export const MEMORY_RULES_FILE = 'MEMORY.md'   // 仅全局级：记忆文档（
 // （./rules/WORLDSMITH.md，唯一不可被 Agent/用户编辑，随版本维护）；旧 workdir/WORLDSMITH.md
 // 由 ensureProjectAgentsFile 一次性改名迁移为 AGENTS.md（内容不动）。
 
-/** 全局规则文件清单（<app_data>/worldsmith/rules/ 下，用户与 Agent 均可编辑——拍板「共同维护」） */
+/** 全局规则文件清单（§六 2026-09-03 迁至 ~/.WorldSmith/rules/ 下；用户与 Agent 均可编辑——拍板「共同维护」） */
 const GLOBAL_RULES_FILES = [
   WORLD_RULES_FILE,
   WRITING_RULES_FILE,
@@ -2037,9 +2080,53 @@ const GLOBAL_RULES_FILES = [
   MEMORY_RULES_FILE,
 ] as const
 
-/** 全局规则目录（<app_data>/worldsmith/rules/；WRITING/DESIGN/TOOLS 等全局份未来同放） */
+/** 全局规则目录（§六 迁移后 ~/.WorldSmith/rules；home 未就绪时回退旧 <app_data>/worldsmith/rules）
+ *  WRITING/DESIGN/TOOLS 等全局份同放；MEMORY.md 由记忆系统承接 */
 function globalRulesDirSync(): string | undefined {
+  if (homeDirSync) return `${homeDirSync}/.WorldSmith/rules`
   return appDataDirSync ? `${appDataDirSync}/worldsmith/rules` : undefined
+}
+
+/**
+ * 一次性迁移（§六 2026-09-03）：确保 ~/.WorldSmith/{rules,skills} 存在；
+ * 旧 <app_data>/worldsmith/rules 若有存量规则文件且目标无同名 → 逐文件复制（cmd_fs_copy 仅文件）。
+ * 幂等 no-op；旧目录保留留痕不删除。
+ */
+export async function ensureGlobalHomeOnce(): Promise<void> {
+  const home = await getHomeDirCached()
+  const data = await getAppDataDirCached()
+  if (!home) return
+  const homeRoot = `${home}/.WorldSmith`
+  const rulesDir = `${homeRoot}/rules`
+  try { await safeInvoke('cmd_fs_mkdir', { path: rulesDir }) } catch { /* 已存在则幂等 */ }
+  try { await safeInvoke('cmd_fs_mkdir', { path: `${homeRoot}/skills` }) } catch { /* 幂等 */ }
+  if (!data) return
+  const legacyDir = `${data}/worldsmith/rules`
+  for (const f of GLOBAL_RULES_FILES) {
+    const src = `${legacyDir}/${f}`
+    const dest = `${rulesDir}/${f}`
+    try {
+      await safeInvoke('cmd_fs_read', { path: dest })
+      continue // 目标已存在：跳过（幂等）
+    } catch { /* 目标不存在 → 尝试复制 */ }
+    try {
+      await safeInvoke('cmd_fs_read', { path: src })
+      await safeInvoke('cmd_fs_copy', { src, dest })
+      console.info(`[useAgentRust] 已迁移全局规则 ${f} → ~/.WorldSmith/rules`)
+    } catch { /* 源不存在或复制失败均静默（幂等 no-op） */ }
+  }
+  // T20 清理（2026-09-03 用户拍板）：迁移确认完成 → 移除旧路径痕迹（幂等；目录不存在/删除失败均静默）
+  try {
+    await safeInvoke('cmd_fs_delete', { path: legacyDir })
+  } catch { /* 旧目录不存在或删除失败：静默 */ }
+}
+
+/** 全局规则目录（异步；home 就绪优先，否则回退旧 appData 路径）——RulesPanel 等共享来源 */
+export async function getGlobalRulesDir(): Promise<string | null> {
+  const home = await getHomeDirCached()
+  if (home) return `${home}/.WorldSmith/rules`
+  const data = await getAppDataDirCached()
+  return data ? `${data}/worldsmith/rules` : null
 }
 
 /** 读文本文件（不存在/空 → null；容错不抛——规则缺省即不注入） */
@@ -2095,6 +2182,11 @@ export async function ensureProjectAgentsFile(): Promise<void> {
 async function buildSessionSystemPrompt(): Promise<string | undefined> {
   const sections: string[] = []
 
+  // §六 全局层迁移前置：确保 home 规则目录就绪（homeDirSync 回填 + 目录创建/存量迁移），
+  // 使 ② 全局规则组读到新载体 ~/.WorldSmith/rules（消除首启竞态）
+  await getHomeDirCached()
+  await ensureGlobalHomeOnce()
+
   // ① WORLDSMITH.md（内置系统说明——始终存在，认知性非约束性）
   sections.push(
     '## WorldSmith 系统说明（WORLDSMITH.md）\n\n' +
@@ -2142,6 +2234,16 @@ async function buildSessionSystemPrompt(): Promise<string | undefined> {
         )
       }
     }
+
+    // ③.5 工作区分区（实时路径认知段，workdir 存在才注入——分区约定 + 当前真实路径）
+    sections.push(
+      '## 工作区分区\n\n' +
+      `当前工作区根目录：${workdir}\n\n` +
+      `- 临时产物（草稿/中间文件）请写入 ${workdir}/agent-tmp/（Agent 全权，可自由创建与清理，写操作免确认）\n` +
+      `- 收官成果请放入 ${workdir}/agent-out/\n` +
+      `- ${workdir}/entities/、${workdir}/.worldsmith/ 为项目数据区，受写保护，请用实体语义工具（entity_* / content_search）操作\n` +
+      `- 未绑定项目时兜底草稿目录为 ~/.WorldSmith/agent`,
+    )
   }
 
   try {
@@ -2728,7 +2830,7 @@ export function useAgentRust() {
     restoreLastSession,
     sessionTitle,
     currentSessionId,
-    // Phase 4 工作区：当前会话绑定的工作区根目录（WorkspacePanel 消费）
+    // Phase 4 工作区：当前会话绑定的工作区根目录（文件面板/文件浏览器消费）
     currentWorkdir,
     sessionList,
     // Phase 5：待激活会话（SessionSidebar 过滤）+ 标题生成中等候动画（消息区）

@@ -54,6 +54,7 @@
             system_prompt: system_prompt.into(),
             tools_whitelist: None,
             max_iterations: Some(3),
+        temp_dir: None,
         }
     }
 

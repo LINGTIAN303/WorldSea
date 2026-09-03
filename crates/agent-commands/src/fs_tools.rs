@@ -1153,6 +1153,16 @@ mod tests {
     }
 
     #[test]
+    fn partition_dirs_not_protected() {
+        // 工作区分区（agent-tmp/agent-out，2026-09-03 方向2）不受 E1 保护——
+        // 免确认只跳过 HITL 审批，E1 保护不误拦临时区/成果区
+        let wd = Path::new("C:/proj");
+        assert!(!is_protected_project_path(wd, Path::new("C:/proj/agent-tmp/draft.md")));
+        assert!(!is_protected_project_path(wd, Path::new("C:/proj/agent-tmp/sub-coder/out.md")));
+        assert!(!is_protected_project_path(wd, Path::new("C:/proj/agent-out/report.md")));
+    }
+
+    #[test]
     fn shell_guard_detection() {
         let wd = Path::new("C:/proj");
         // 写操作词 × 相对保护目录

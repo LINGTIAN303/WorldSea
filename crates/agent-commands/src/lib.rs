@@ -812,6 +812,15 @@ pub fn validate_subagent_spec(spec: &SubAgentSpec) -> Result<(), String> {
         }
     }
 
+    // 强隔离（temp_dir）：必须为绝对路径（避免把任意相对路径注入 workdir）
+    if let Some(td) = &spec.temp_dir {
+        if !td.is_absolute() {
+            return Err(format!(
+                "子 Agent [{id}] 的 temp_dir 必须是绝对路径（强隔离目录）"
+            ));
+        }
+    }
+
     Ok(())
 }
 

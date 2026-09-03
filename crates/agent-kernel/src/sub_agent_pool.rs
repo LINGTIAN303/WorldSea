@@ -12,6 +12,7 @@
 //! 委派深度/超时）——后两者分别留在 SupervisorNode 与 SubAgentManager。
 
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
@@ -45,6 +46,12 @@ pub struct SubAgentSpec {
     /// 子 Agent 最大迭代次数（None=用基础配置的默认值）
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub max_iterations: Option<u32>,
+    /// 强隔离可选字段：该子 Agent 的 workdir 迁移到独立临时区（cwd 天然落在区内）。
+    ///
+    /// 适用于不依赖项目代码的纯子任务（如总结/分析/独立产出）；要求绝对路径；
+    /// 缺省 = 目录引导模式（workdir 保持项目根，仅注入「产物写入 agent-tmp/sub-{id}」指引）。
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub temp_dir: Option<PathBuf>,
 }
 
 /// 缓存子 Agent — 记录实例及其来源规格
@@ -162,6 +169,27 @@ impl SubAgentPool {
         child_config.total_steps =
             spec.max_iterations.unwrap_or(self.default_total_steps).max(1);
 
+        // 工作区分区（方向2 M1/M2，2026-09-03）：
+        // 1) 强隔离：spec.temp_dir 存在 → workdir 迁移到独立临时区（cwd 天然落在区内，
+        //    fs/shell 边界自动以新 workdir 为准；写回项目根会触发越界确认）
+        if let Some(td) = &spec.temp_dir {
+            let _ = std::fs::create_dir_all(td);
+            child_config.workdir = Some(td.clone());
+        }
+        // 2) 目录引导：workdir 存在 → 预建子 Agent 个人临时目录 + system_prompt 注入分区指引。
+        //    规格变更重建时 system_prompt 每次重算，幂等。
+        if let Some(wd) = &child_config.workdir {
+            let tmp = crate::workspace_partition::sub_agent_tmp_dir(wd, &spec.id);
+            let _ = std::fs::create_dir_all(&tmp); // 最佳努力预建，失败静默（模型写时会补建）
+            let base = child_config.system_prompt.unwrap_or_default();
+            child_config.system_prompt = Some(format!(
+                "{base}\n\n[工作区分区]\n\
+                 任务产物（草稿/中间文件）请写入 {}（该目录专属本 Agent，可自由创建与清理）。\n\
+                 entities/ 与 .worldsmith/ 为项目数据区，受写保护，请使用实体语义工具操作。",
+                tmp.display()
+            ));
+        }
+
         // 子 Agent 工具总线：规格指定白名单时用 WhitelistToolBus 包装（工具隔离）
         let child_tool_bus: Arc<dyn ToolBus> = match &spec.tools_whitelist {
             Some(list) if !list.is_empty() => {
@@ -249,5 +277,123 @@ impl SubAgentPool {
         }
         list.sort_by(|a, b| a.sub_agent_id.cmp(&b.sub_agent_id));
         list
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use async_trait::async_trait;
+    use tokio::sync::Mutex as TokioMutex;
+
+    use crate::agent::AgentLoopConfig;
+    use crate::backend::{BackendError, NodeBackendAccessor, PromptCallOptions, PromptResponse};
+    use crate::tool::SimpleToolBus;
+    use crate::types::OrchestratorMessage;
+
+    /// 捕获 system_prompt_override 的最小 mock backend（对齐 agent/tests.rs MockBackend 模式）
+    #[derive(Default)]
+    struct CaptureBackend {
+        last_prompt: TokioMutex<Option<String>>,
+    }
+
+    #[async_trait]
+    impl NodeBackendAccessor for CaptureBackend {
+        async fn prompt(
+            &self,
+            _prompt: String,
+            options: Option<PromptCallOptions>,
+        ) -> Result<PromptResponse, BackendError> {
+            *self.last_prompt.lock().await = options.and_then(|o| o.system_prompt_override);
+            Ok(PromptResponse::text_only("完成"))
+        }
+        async fn steer(&self, _text: String) -> Result<(), BackendError> {
+            Ok(())
+        }
+        async fn get_messages(&self) -> Vec<OrchestratorMessage> {
+            Vec::new()
+        }
+        async fn set_messages(&self, _m: Vec<OrchestratorMessage>) -> Result<(), BackendError> {
+            Ok(())
+        }
+        async fn trim_context(&self, _i: usize) -> Result<(), BackendError> {
+            Ok(())
+        }
+    }
+
+    fn spec_with_temp(id: &str, temp_dir: Option<PathBuf>) -> SubAgentSpec {
+        SubAgentSpec {
+            id: id.into(),
+            name: format!("{id}-助手"),
+            description: format!("{id} 专长"),
+            system_prompt: format!("你是{id}专家"),
+            tools_whitelist: None,
+            max_iterations: Some(3),
+            temp_dir,
+        }
+    }
+
+    fn project_dir() -> PathBuf {
+        std::env::temp_dir().join(format!("ws-part-test-{}", std::process::id()))
+    }
+
+    #[tokio::test]
+    async fn guidance_prebuilds_sub_tmp_dir_and_injects_prompt() {
+        let proj = project_dir();
+        std::fs::create_dir_all(&proj).unwrap();
+        let backend = Arc::new(CaptureBackend::default());
+        let bus = Arc::new(SimpleToolBus::new());
+        let pool = SubAgentPool::new(backend.clone(), bus, 200);
+
+        let base = AgentLoopConfig {
+            workdir: Some(proj.clone()),
+            ..Default::default()
+        };
+        let agent = pool.get_or_create(&spec_with_temp("coder", None), base).await;
+
+        // ① 预建子 Agent 个人临时目录
+        let sub_tmp = crate::workspace_partition::sub_agent_tmp_dir(&proj, "coder");
+        assert!(sub_tmp.exists(), "应预建子 Agent 临时目录: {sub_tmp:?}");
+
+        // ② workdir 保持项目根（目录引导不动 workdir）
+        assert_eq!(agent.workdir(), Some(proj.clone()));
+
+        // ③ system_prompt 注入分区指引（含真实 sub-tmp 路径）
+        let _ = agent.run("hi".into()).await;
+        let sp = backend.last_prompt.lock().await.clone();
+        let sp = sp.expect("应收到 system_prompt_override");
+        assert!(sp.contains(sub_tmp.to_string_lossy().as_ref()), "应注入 sub-tmp 路径: {sp}");
+        assert!(sp.contains("工作区分区"), "应注入分区指引");
+
+        let _ = std::fs::remove_dir_all(&proj);
+    }
+
+    #[tokio::test]
+    async fn strong_isolation_overrides_workdir() {
+        let proj = project_dir();
+        std::fs::create_dir_all(&proj).unwrap();
+        let backend = Arc::new(CaptureBackend::default());
+        let bus = Arc::new(SimpleToolBus::new());
+        let pool = SubAgentPool::new(backend.clone(), bus, 200);
+
+        let isolated = proj.join("agent-tmp").join("sub-analysis");
+        let base = AgentLoopConfig {
+            workdir: Some(proj.clone()),
+            ..Default::default()
+        };
+        let agent = pool
+            .get_or_create(&spec_with_temp("analysis", Some(isolated.clone())), base)
+            .await;
+
+        // ① workdir 迁移到隔离目录（cwd 天然落在区内）
+        assert_eq!(agent.workdir(), Some(isolated.clone()));
+        // ② 隔离目录已创建
+        assert!(isolated.exists(), "应创建强隔离目录: {isolated:?}");
+        // ③ 引导注入的是隔离目录路径（而非项目根 sub-{id}）
+        let _ = agent.run("hi".into()).await;
+        let sp = backend.last_prompt.lock().await.clone().unwrap_or_default();
+        assert!(sp.contains(isolated.to_string_lossy().as_ref()), "应注入隔离目录路径: {sp}");
+
+        let _ = std::fs::remove_dir_all(&proj);
     }
 }

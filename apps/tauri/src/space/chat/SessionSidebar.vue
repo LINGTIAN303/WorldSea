@@ -28,57 +28,87 @@
     </div>
 
     <div class="sidebar-body">
-      <div v-if="loading" class="sidebar-empty">加载中...</div>
-      <div v-else-if="filteredItems.length === 0" class="sidebar-empty">
-        {{ searchQuery ? '未找到匹配的会话' : '暂无会话' }}
-      </div>
+      <!-- 视图舞台：会话列表树 ⇄ 项目目录树（position:absolute 双 pane 切换） -->
+      <div class="sidebar-stage">
+        <Transition name="view-swap" mode="out-in">
+          <!-- 会话列表视图 -->
+          <div v-if="sidebarView === 'sessions'" key="sessions" class="sb-pane">
+            <div v-if="loading" class="sidebar-empty">加载中...</div>
+            <div v-else-if="filteredItems.length === 0" class="sidebar-empty">
+              {{ searchQuery ? '未找到匹配的会话' : '暂无会话' }}
+            </div>
 
-      <!-- Phase 3：两级树 —— 外层目录组，内层该组会话条目 -->
-      <div v-for="group in sessionGroups" :key="group.workdir" class="session-group">
-        <div
-          class="tree-group-header"
-          role="button"
-          :aria-expanded="!group.collapsed.value"
-          :tabindex="0"
-          title="折叠 / 展开目录"
-          @click="toggleGroup(group)"
-          @keydown.enter.prevent="toggleGroup(group)"
-          @keydown.space.prevent="toggleGroup(group)"
-        >
-          <WsIcon :name="group.collapsed.value ? 'folder' : 'folder-open'" size="xs" class="tree-group-icon" />
-          <span class="tree-group-label">{{ group.label }}</span>
-          <span class="tree-group-count">{{ group.sessions.length }}</span>
-          <WsIcon name="chevron-down" size="xs" class="group-caret" :class="{ open: !group.collapsed.value }" />
-        </div>
-        <!-- 搜索态忽略折叠，扁平展示命中会话；非搜索态按折叠状态显隐 -->
-        <div v-show="!group.collapsed.value || !!searchQuery" class="tree-group-sessions">
-          <div
-            v-for="s in group.sessions"
-            :key="s.id"
-            class="session-item"
-            :class="{ active: s.id === currentSessionId }"
-            role="button"
-            :tabindex="renamingId === s.id ? -1 : 0"
-            :aria-current="s.id === currentSessionId ? 'true' : undefined"
-            @click="onSelect(s.id)"
-            @keydown.enter.prevent="onSelect(s.id)"
-            @keydown.space.prevent="onSelect(s.id)"
-            @contextmenu.prevent="onContextMenu($event, s)"
-          >
-            <div v-if="renamingId === s.id" class="session-name">
-              <input :ref="captureRenameInput" class="session-name-input" :value="s.name" @click.stop @keyup.enter="submitRename(s.id)" @keyup.esc="cancelRename" @blur="submitRename(s.id)" />
-            </div>
-            <div v-else class="session-name" @dblclick="startRename(s.id)">
-              <!-- N6 修复：固定会话图钉标识（固定后无任何视觉反馈，用户看不出变化） -->
-              <WsIcon v-if="s.pinned" name="pin" size="xs" class="session-pin" />
-              {{ s.name }}
-            </div>
-            <div class="session-meta">
-              <span class="session-time">{{ formatTime(s.createdAt) }}</span>
-              <span class="session-count">{{ s.messageCount }} 条</span>
+            <!-- Phase 3：两级树 —— 外层目录组，内层该组会话条目 -->
+            <div v-for="group in sessionGroups" :key="group.workdir" class="session-group">
+              <div
+                class="tree-group-header"
+                role="button"
+                :aria-expanded="!group.collapsed.value"
+                :tabindex="0"
+                title="折叠 / 展开目录"
+                @click="toggleGroup(group)"
+                @keydown.enter.prevent="toggleGroup(group)"
+                @keydown.space.prevent="toggleGroup(group)"
+              >
+                <WsIcon :name="group.collapsed.value ? 'folder' : 'folder-open'" size="xs" class="tree-group-icon" />
+                <span class="tree-group-label">{{ group.label }}</span>
+                <span class="tree-group-count">{{ group.sessions.length }}</span>
+                <button
+                  class="tree-group-files"
+                  :class="{ active: activeFilesRoot === (group.workdir || defaultDir) }"
+                  title="浏览项目目录"
+                  @click.stop="openFiles(group)"
+                ><WsIcon name="folder-tree" size="xs" /></button>
+                <WsIcon name="chevron-down" size="xs" class="group-caret" :class="{ open: !group.collapsed.value }" />
+              </div>
+              <!-- 搜索态忽略折叠，扁平展示命中会话；非搜索态按折叠状态显隐 -->
+              <div v-show="!group.collapsed.value || !!searchQuery" class="tree-group-sessions">
+                <div
+                  v-for="s in group.sessions"
+                  :key="s.id"
+                  class="session-item"
+                  :class="{ active: s.id === currentSessionId }"
+                  role="button"
+                  :tabindex="renamingId === s.id ? -1 : 0"
+                  :aria-current="s.id === currentSessionId ? 'true' : undefined"
+                  @click="onSelect(s.id)"
+                  @keydown.enter.prevent="onSelect(s.id)"
+                  @keydown.space.prevent="onSelect(s.id)"
+                  @contextmenu.prevent="onContextMenu($event, s)"
+                >
+                  <div v-if="renamingId === s.id" class="session-name">
+                    <input :ref="captureRenameInput" class="session-name-input" :value="s.name" @click.stop @keyup.enter="submitRename(s.id)" @keyup.esc="cancelRename" @blur="submitRename(s.id)" />
+                  </div>
+                  <div v-else class="session-name" @dblclick="startRename(s.id)">
+                    <!-- N6 修复：固定会话图钉标识（固定后无任何视觉反馈，用户看不出变化） -->
+                    <WsIcon v-if="s.pinned" name="pin" size="xs" class="session-pin" />
+                    {{ s.name }}
+                  </div>
+                  <div class="session-meta">
+                    <span class="session-time">{{ formatTime(s.createdAt) }}</span>
+                    <span class="session-count">{{ s.messageCount }} 条</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
+
+          <!-- 项目目录树视图 -->
+          <div v-else key="files" class="sb-pane">
+            <div class="files-view-header">
+              <button class="files-back-btn" @click="sidebarView = 'sessions'" title="返回会话列表"><WsIcon name="arrow-left" size="xs" />会话列表</button>
+              <span class="files-view-dir" :title="activeFilesRoot ?? ''">{{ activeFilesRoot ? baseNameOf(activeFilesRoot) : '项目目录' }}</span>
+            </div>
+            <ProjectFilesPanel
+              v-if="activeFilesRoot"
+              :root-path="activeFilesRoot"
+              compact
+              preview-mode="external"
+              title="项目目录"
+              @select="onLeftFileSelect"
+            />
+          </div>
+        </Transition>
       </div>
     </div>
 
@@ -189,6 +219,9 @@ import WorldSmithLogo from '@/components/brand/WorldSmithLogo.vue'
 import TuiSelect from '@/components/ui/TuiSelect.vue'
 import { useSessionTree, type WorkdirRecord } from './useSessionTree'
 import { resolveWorkspaceDir } from '../workspace'
+import ProjectFilesPanel from '../files/ProjectFilesPanel.vue'
+import type { FsNode } from '../files/FileTreeBrowser.vue'
+import { setPendingFile } from '../files/pendingOpen'
 
 declare const __APP_VERSION__: string
 const appVersion = __APP_VERSION__
@@ -254,6 +287,38 @@ async function loadDefaultDir(): Promise<void> {
   try {
     defaultDir.value = await resolveWorkspaceDir()
   } catch {}
+}
+
+// ── 文件浏览器视图（2026-09-03 方向2 第2项：会话列表树 ⇄ 项目目录树）──
+const sidebarView = ref<'sessions' | 'files'>('sessions')
+const activeFilesRoot = ref<string | null>(null)
+
+/** 项目组头图标点击：切到该项目目录树视图（未限定目录组兜底默认根） */
+async function openFiles(group: { workdir: string }): Promise<void> {
+  if (sidebarView.value === 'files' && activeFilesRoot.value === (group.workdir || defaultDir.value)) {
+    // 再点已激活组 → 返回会话列表
+    sidebarView.value = 'sessions'
+    return
+  }
+  activeFilesRoot.value = group.workdir || defaultDir.value || null
+  sidebarView.value = 'files'
+}
+
+/** 路径基名（兼容 / 与 \） */
+function baseNameOf(p: string): string {
+  const segs = p.split(/[\\/]/).filter(Boolean)
+  return segs[segs.length - 1] ?? p
+}
+
+/** 左栏目录树点击文件（external 模式）：打开右栏「文件」面板并在其中预览（T14） */
+function onLeftFileSelect(node: FsNode): void {
+  // 0) 先写 pending（PreviewPanel 未挂载时挂载后兜底消费）
+  setPendingFile(node)
+  // 1) 打开右栏文件面板（切 preview tab + 持久化）
+  spaceStore.openRightPanel('preview')
+  sessionView.setRightPanel('preview')
+  // 2) 广播选中文件 → PreviewPanel 监听并驱动预览
+  window.dispatchEvent(new CustomEvent('ws-open-file-preview', { detail: node }))
 }
 
 // ── Phase 3：目录组 → 会话两级树（固定会话并入对应组内置顶）──
@@ -594,8 +659,73 @@ watch(currentSessionId, () => {
 .sidebar-body {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
+  overflow: hidden;
   padding: 4px 8px 8px;
+  position: relative;
+}
+/* 视图舞台：sessions/files 双 pane 绝对定位切换 */
+.sidebar-stage {
+  position: absolute;
+  inset: 0;
+}
+.sb-pane {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+}
+/* 视图切换动画：会话左移隐藏（-24%），目录树从右（+24%）进入 */
+.view-swap-enter-active,
+.view-swap-leave-active {
+  transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.22s ease;
+}
+.view-swap-enter-from {
+  transform: translateX(24%);
+  opacity: 0;
+}
+.view-swap-leave-to {
+  transform: translateX(-24%);
+  opacity: 0;
+}
+:root[data-anim-panels='off'] .view-swap-enter-from,
+:root[data-anim-panels='off'] .view-swap-leave-to {
+  transform: none;
+}
+
+/* 文件浏览器视图头部 */
+.files-view-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 2px 8px;
+  flex-shrink: 0;
+}
+.files-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: border-color 0.15s, color 0.15s;
+}
+.files-back-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-text);
+}
+.files-view-dir {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-size-2xs);
+  color: var(--color-text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
 }
 .sidebar-empty {
   padding: 16px 8px;
@@ -646,6 +776,32 @@ watch(currentSessionId, () => {
   font-size: var(--font-size-2xs);
   color: var(--color-text-tertiary);
   flex-shrink: 0;
+}
+/* 项目组头右端「浏览项目目录」图标（2026-09-03 方向2 第2项） */
+.tree-group-files {
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  color: var(--color-text-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0;
+  opacity: 0;
+  transition: opacity 0.12s, color 0.12s, background 0.12s;
+}
+.tree-group-header:hover .tree-group-files {
+  opacity: 1;
+}
+.tree-group-files:hover,
+.tree-group-files.active {
+  color: var(--color-primary);
+  background: var(--color-primary-muted);
+  opacity: 1;
 }
 .group-caret {
   transition: transform 0.2s;

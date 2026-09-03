@@ -106,9 +106,6 @@
             <template v-else-if="sec === 'subagent'">
               <SubAgentView />
             </template>
-            <template v-else-if="sec === 'workspace'">
-              <WorkspacePanel />
-            </template>
           </div>
         </div>
       </template>
@@ -142,7 +139,7 @@
 <script setup lang="ts">
 /**
  * ExecPanel：Agent 空间右侧执行面板（宫格首页 + 加号新增式多面板，2026-08-29）。
- * 10 个执行区（轨迹/活动/Router/子Agent/ToT/GoT/委派/多Agent/终端/工作区；计划已移入消息流过程层内联展示）不再以
+ * 9 个执行区（轨迹/活动/Router/子Agent/ToT/GoT/委派/多Agent/终端；计划已移入消息流过程层内联展示；工作区已迁出至文件面板）不再以
  * tab 展示，改为：无区打开时内容区显示四列宫格首页；点选/点 + 号「新增」打开，卡片纵向堆叠；
  * 已打开的区从 + 号菜单中消失；关闭某卡片即移除。状态与会话绑定（useSessionViewState）。
  */
@@ -157,11 +154,10 @@ import OrchestratorPanel from '@/agent/panels/OrchestratorPanel.vue'
 import MultiAgentPanel from '@/agent/panels/MultiAgentPanel.vue'
 import TerminalView from '@/terminal/components/TerminalView.vue'
 import SubAgentView from '@/subagent/components/SubAgentView.vue'
-import WorkspacePanel from '@/space/panels/WorkspacePanel.vue'
 import { useSessionViewState } from '@/agent/composables/useSessionViewState'
 import type { ExecTab } from '../stores/space-store'
 
-/** 10 个执行区元数据（宫格首页 / 卡片标题 / + 号菜单共用） */
+/** 9 个执行区元数据（宫格首页 / 卡片标题 / + 号菜单共用） */
 const EXEC_META: { id: ExecTab; label: string; icon: string }[] = [
   { id: 'trace', label: '轨迹', icon: 'activity' },
   { id: 'activity', label: '活动', icon: 'chart' },
@@ -172,7 +168,6 @@ const EXEC_META: { id: ExecTab; label: string; icon: string }[] = [
   { id: 'supervisor', label: '委派', icon: 'handshake' },
   { id: 'multi', label: '多Agent', icon: 'workflow' },
   { id: 'terminal', label: '终端', icon: 'terminal' },
-  { id: 'workspace', label: '工作区', icon: 'folder' },
 ]
 
 const sessionView = useSessionViewState()

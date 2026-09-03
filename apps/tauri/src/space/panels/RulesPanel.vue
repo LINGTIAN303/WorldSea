@@ -105,7 +105,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { resolveWorkspaceDir } from '@/space/workspace'
-import { invoke, invokeRpc } from '@/agent/composables/transport'
+import { invoke } from '@/agent/composables/transport'
 import {
   getWorldRulesThreshold,
   setWorldRulesThreshold,
@@ -118,6 +118,7 @@ import {
   TOOLS_RULES_FILE,
   WORLD_RULES_FILE,
   WRITING_RULES_FILE,
+  getGlobalRulesDir,
 } from '@/agent/composables/useAgentRust'
 import BUILTIN_WORLDSMITH_MD from '../../agent/rules/WORLDSMITH.md?raw'
 
@@ -260,8 +261,8 @@ onMounted(async () => {
     workdir.value = await resolveWorkspaceDir()
   } catch { workdir.value = null }
   try {
-    const dataDir = await invokeRpc<string>('cmd_get_app_data_dir')
-    rulesDir.value = dataDir ? `${dataDir.replace(/[\\/]+$/, '')}/worldsmith/rules` : null
+    // §六 2026-09-03：全局规则目录取共享来源（~/.WorldSmith/rules 优先，回退旧 appData 路径）
+    rulesDir.value = await getGlobalRulesDir()
   } catch { rulesDir.value = null }
   // 全量探测存在性（卡片状态点；异步尽力而为）
   for (const m of FILE_METAS) {

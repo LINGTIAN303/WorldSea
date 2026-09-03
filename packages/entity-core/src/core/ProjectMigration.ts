@@ -78,8 +78,8 @@ async function performMigration(): Promise<MigrationResult> {
     groupSessionsMigrated: 0,
   }
 
-  // 1. 创建默认项目
-  const defaultProject = await pm.createProject('默认项目', '从旧数据自动迁移的默认项目空间')
+  // 1. 创建默认项目（系统兜底，isDefault=true 不可移除）
+  const defaultProject = await pm.createProject('默认工作区', '从旧数据自动迁移的默认项目空间', undefined, true)
   result.projectId = defaultProject.id
 
   // 2. 迁移 WorldSmith 数据库

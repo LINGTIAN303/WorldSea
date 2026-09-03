@@ -300,6 +300,35 @@ pub fn guard_fs_path(
     PathGuard::Allow
 }
 
+/// agent-tmp 全权免确认：写/搜索工具解析（归一化）后落 workdir/agent-tmp 子树 → 放行
+///
+/// 与 [`guard_fs_path`] 同源路径解析（`fs_path_arg` → `expand_home` → `ctx.resolve_path`），
+/// 额外做词法归一化以拦截 `agent-tmp/../entities/...` 逃逸（与 `is_within_workdir` 同源）。
+///
+/// # 语义
+/// - `agent-tmp` 全权免确认（2026-09-03 用户拍板，跳过 HITL 审批）；
+/// - E1 写保护（`agent_commands::fs_tools::ensure_not_protected`）在真实写入链路
+///   独立执行，不受本函数影响（agent-tmp 与 entities/.worldsmith 是一级目录互斥）。
+pub fn should_bypass_confirmation(
+    tool_name: &str,
+    args: &serde_json::Value,
+    ctx: &ToolContext,
+) -> bool {
+    if !is_write_or_search_tool(tool_name) {
+        return false;
+    }
+    let Some(workdir) = &ctx.workdir else {
+        return false;
+    };
+    let Some(raw) = fs_path_arg(tool_name, args) else {
+        return false;
+    };
+    let expanded = expand_home(&raw);
+    let resolved = ctx.resolve_path(&expanded);
+    let normalized = crate::tool_context::normalize_path(&resolved);
+    crate::workspace_partition::is_within_agent_tmp(workdir, &normalized)
+}
+
 // ─── ConfirmationBroker ────────────────────────────────────
 
 /// HITL 确认协调器：发起确认请求 → 等待前端回传 → 放行/拒绝
@@ -576,5 +605,84 @@ mod tests {
         assert_eq!(tool_permission("search_files"), ToolPermission::Safe);
         assert_eq!(tool_permission("write_file"), ToolPermission::Moderate);
         assert_eq!(tool_permission("edit_file"), ToolPermission::Moderate);
+    }
+
+    // ─── 工作区分区免确认测试（M1，2026-09-03）──────────────────────
+
+    #[test]
+    fn bypass_true_for_agent_tmp_write() {
+        // write_file 落 workdir/agent-tmp 子树 → 免确认
+        let ctx = ctx_for("/workspace");
+        assert!(should_bypass_confirmation(
+            "write_file",
+            &serde_json::json!({ "path": "agent-tmp/draft.md", "content": "x" }),
+            &ctx,
+        ));
+        // 绝对路径同命中；大小写不敏感
+        assert!(should_bypass_confirmation(
+            "write_file",
+            &serde_json::json!({ "path": "/workspace/AGENT-TMP/sub-coder/out.md" }),
+            &ctx,
+        ));
+    }
+
+    #[test]
+    fn bypass_false_for_parent_dir_escape() {
+        // agent-tmp/../entities/... 归一化后不命中 agent-tmp → 不豁免（走原确认逻辑）
+        let ctx = ctx_for("/workspace");
+        assert!(!should_bypass_confirmation(
+            "write_file",
+            &serde_json::json!({ "path": "agent-tmp/../entities/x.json" }),
+            &ctx,
+        ));
+        // 越出 workdir 的 agent-tmp 字面路径 → 不豁免
+        assert!(!should_bypass_confirmation(
+            "write_file",
+            &serde_json::json!({ "path": "/other/agent-tmp/x.md" }),
+            &ctx,
+        ));
+    }
+
+    #[test]
+    fn bypass_false_for_non_agent_tmp_paths() {
+        // 普通项目路径 / agent-out / entities → 不豁免（沿用现有权限）
+        let ctx = ctx_for("/workspace");
+        assert!(!should_bypass_confirmation(
+            "write_file",
+            &serde_json::json!({ "path": "src/main.rs" }),
+            &ctx,
+        ));
+        assert!(!should_bypass_confirmation(
+            "write_file",
+            &serde_json::json!({ "path": "agent-out/report.md" }),
+            &ctx,
+        ));
+        assert!(!should_bypass_confirmation(
+            "write_file",
+            &serde_json::json!({ "path": "entities/cast.json" }),
+            &ctx,
+        ));
+    }
+
+    #[test]
+    fn bypass_false_for_non_write_tools() {
+        // read_file（非写/搜索）不豁免——行为不变
+        let ctx = ctx_for("/workspace");
+        assert!(!should_bypass_confirmation(
+            "read_file",
+            &serde_json::json!({ "path": "agent-tmp/draft.md" }),
+            &ctx,
+        ));
+    }
+
+    #[test]
+    fn bypass_false_without_workdir() {
+        // workdir 为 None → 无分区锚点，不豁免
+        let ctx = ToolContext::default();
+        assert!(!should_bypass_confirmation(
+            "write_file",
+            &serde_json::json!({ "path": "agent-tmp/draft.md" }),
+            &ctx,
+        ));
     }
 }

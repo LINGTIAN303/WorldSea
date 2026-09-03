@@ -13,6 +13,7 @@ import { useTheme as useEntityTheme, useSettingsStore } from '@worldsmith/entity
 import { useGlobalEvents, setActiveViewId } from '@worldsmith/ui-kit'
 import { bootstrapPlugins } from './plugins/bootstrap'
 import { useProjectSwitcher } from './composables/useProjectSwitcher'
+import { registerProjectSwitchListener } from './agent/composables/useAgentRust'
 import { useSystemBridge } from './composables/useSystemBridge'
 import { useMcpConnections } from '@worldsmith/shared-composables/agent/useMcpConnections'
 import { useAgent } from './agent/composables/useAgent'
@@ -122,6 +123,13 @@ onMounted(async () => {
     await projectSwitcher.initialize()
   } catch (err) {
     console.error('[App] 项目系统初始化失败:', err)
+  }
+  // 项目=目录（2026-09-03）：注册「项目切换 → Agent 新会话」联动（幂等单例；init 之后再监听，
+  // 避免启动时无项目也触发草稿会话）
+  try {
+    await registerProjectSwitchListener()
+  } catch (err) {
+    console.warn('[App] 注册项目切换联动失败:', err)
   }
   // Agent 工作台视图已退役（2026-08-09）：能力迁入 AgentSpace 执行面板，
   // Shell 仅承载官方插件视图；默认进入 AgentSpace（currentShell 持久化）

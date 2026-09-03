@@ -21,12 +21,7 @@
     </div>
     <template v-if="variant === 'workbench'">
       <div class="titlebar-left" data-tauri-drag-region>
-        <button class="titlebar-switcher" title="切换项目" @click="openProjectManager">
-          <WorldSmithLogo :size="15" :radius="4" class="titlebar-logo" />
-          <span class="titlebar-title">WorldSmith</span>
-          <span v-if="projectName" class="titlebar-project">{{ projectName }}</span>
-          <span class="titlebar-chevron">▾</span>
-        </button>
+        <ProjectSwitcher variant="titlebar" />
         <span v-if="dirName" class="titlebar-dir" :title="dirName">{{ dirName }}</span>
       </div>
       <div class="titlebar-spacer" data-tauri-drag-region></div>
@@ -68,12 +63,11 @@
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { getCurrentWindow, type Window } from '@tauri-apps/api/window'
 import { isTauri } from '@worldsmith/entity-core/core'
-import { useProjectSwitcher } from '@/composables/useProjectSwitcher'
 import { useFileSystemProject } from '@/composables/useFileSystemProject'
 import { useUIStore } from '@/stores/uiStore'
 import { usePluginStore } from '@worldsmith/entity-core'
 import { WsIcon } from '@worldsmith/ui-kit'
-import WorldSmithLogo from '@/components/brand/WorldSmithLogo.vue'
+import ProjectSwitcher from '@/ui/project/ProjectSwitcher.vue'
 
 // 变体：workbench=工作台完整窗口栏 / space=Agent 空间精简窗口栏（2026-08-09）
 const props = withDefaults(defineProps<{
@@ -92,12 +86,10 @@ try {
 } catch {
   appWindow = null
 }
-const { currentProject } = useProjectSwitcher()
 const { dirName } = useFileSystemProject()
 const uiStore = useUIStore()
 const pluginStore = usePluginStore()
 
-const projectName = computed(() => currentProject.value?.name ?? '')
 const currentViewLabel = computed(() => {
   const view = pluginStore.views.find((v) => v.id === uiStore.currentView)
   return view?.label ?? ''
@@ -109,11 +101,6 @@ const shellToggleIcon = computed(() => uiStore.currentShell === 'space' ? 'chat'
 const shellToggleTitle = computed(() => uiStore.currentShell === 'space' ? '切换到工作台' : '进入 Agent 空间')
 function toggleShell() {
   uiStore.setShell(uiStore.currentShell === 'workbench' ? 'space' : 'workbench')
-}
-
-function openProjectManager() {
-  // 与 MenuBar 项目切换器一致：通过全局事件打开项目管理弹窗
-  window.dispatchEvent(new CustomEvent('ws-open-project-manager'))
 }
 
 function minimize() {
