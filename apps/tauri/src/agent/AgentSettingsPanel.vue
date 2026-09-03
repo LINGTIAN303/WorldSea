@@ -32,7 +32,7 @@
         <!-- 设置内嵌（embedded）：卡片式全展开，无左侧导航 -->
         <template v-if="embedded">
           <!-- 显式轮转（叠放翻卡）：复用通用 CardDeck，当前卡完全显示，上/下一张各露一截边；滚轮边界续页 + 左列标题翻卡 -->
-          <CardDeck ref="deckRef" :count="4" @change="(i) => emit('card-change', i)">
+          <CardDeck ref="deckRef" :count="5" @change="(i) => emit('card-change', i)">
             <template #card="{ idx, cls }">
               <div class="agent-set-card deck-card" :class="cls" :data-index="idx">
               <!-- 模型卡片：收缩为「供应商类型 + 可用模型」，二级/三级弹窗承载详情（重构 2026-08-23） -->
@@ -129,6 +129,73 @@
               <template v-else-if="idx === 3">
                 <div class="agent-set-head">规则</div>
                 <RulesPanel />
+              </template>
+              <!-- 安全卡片（v2 权限分级 2026-09-04：安全级别 + 权限规则管理，嵌入式可见） -->
+              <template v-else-if="idx === 4">
+                <div class="agent-set-head">安全</div>
+                <div class="settings-section">
+                  <div class="settings-row">
+                    <span class="settings-row-label">危险操作确认</span>
+                    <label class="settings-toggle"><input type="checkbox" v-model="settingsStore.aiDangerConfirm" /><span class="settings-toggle-slider"></span></label>
+                  </div>
+                  <div class="settings-hint">开启后 Agent 删除实体/关系时需用户确认</div>
+                </div>
+                <div class="settings-section">
+                  <div class="settings-label">工具安全级别</div>
+                  <TuiSelect :model-value="securityLevel" :options="securityOptions" @update:model-value="onSecurityLevelChange" />
+                  <div class="settings-hint">控制 Agent 执行工具前的确认程度，需对当前会话生效</div>
+                </div>
+                <div class="settings-section perm-rules">
+                  <div class="settings-label">权限规则</div>
+                  <div class="settings-hint">白名单=放行例外（受锁覆盖）；上锁名单=硬约束（read/command/write 三维）</div>
+                  <div class="perm-sub">
+                    <div class="perm-sub-label">命令白名单</div>
+                    <div class="perm-add-row">
+                      <input class="perm-input" v-model="allowCmdDraft" placeholder="命令子串，如 pip install" @keyup.enter="addAllowCommand" />
+                      <TuiButton size="sm" variant="ghost" @click="addAllowCommand">添加</TuiButton>
+                    </div>
+                    <ul class="perm-list">
+                      <li v-for="c in permRules.allowCommands" :key="c">
+                        <code class="perm-code">{{ c }}</code>
+                        <button class="perm-del" title="移除" @click="removeAllowCommand(c)"><WsIcon name="x" size="xs" /></button>
+                      </li>
+                      <li v-if="!permRules.allowCommands.length" class="perm-empty">暂无</li>
+                    </ul>
+                  </div>
+                  <div class="perm-sub">
+                    <div class="perm-sub-label">路径白名单</div>
+                    <div class="perm-add-row">
+                      <input class="perm-input" v-model="allowPathDraft" placeholder="目录或文件绝对路径" @keyup.enter="addAllowPath" />
+                      <TuiButton size="sm" variant="ghost" @click="addAllowPath">添加</TuiButton>
+                    </div>
+                    <ul class="perm-list">
+                      <li v-for="p in permRules.allowPaths" :key="p">
+                        <code class="perm-code">{{ p }}</code>
+                        <button class="perm-del" title="移除" @click="removeAllowPath(p)"><WsIcon name="x" size="xs" /></button>
+                      </li>
+                      <li v-if="!permRules.allowPaths.length" class="perm-empty">暂无</li>
+                    </ul>
+                  </div>
+                  <div class="perm-sub">
+                    <div class="perm-sub-label">上锁名单（勾选=允许）</div>
+                    <div class="perm-add-row">
+                      <input class="perm-input" v-model="lockPathDraft" placeholder="目录或文件绝对路径" @keyup.enter="addLock" />
+                      <label class="perm-lock-dim"><input type="checkbox" v-model="lockReadOk" />读</label>
+                      <label class="perm-lock-dim"><input type="checkbox" v-model="lockCmdOk" />命令</label>
+                      <label class="perm-lock-dim"><input type="checkbox" v-model="lockWriteOk" />写</label>
+                      <TuiButton size="sm" variant="ghost" @click="addLock">上锁</TuiButton>
+                    </div>
+                    <div class="settings-hint">默认 读√ 命令× 写×（仅挡写/命令，读不受限）</div>
+                    <ul class="perm-list">
+                      <li v-for="l in permRules.locks" :key="l.path">
+                        <code class="perm-code">{{ l.path }}</code>
+                        <span class="perm-lock-tags">读{{ l.read_ok ? '√' : '×' }} 命令{{ l.command_ok ? '√' : '×' }} 写{{ l.write_ok ? '√' : '×' }}</span>
+                        <button class="perm-del" title="移除" @click="removeLock(l.path)"><WsIcon name="x" size="xs" /></button>
+                      </li>
+                      <li v-if="!permRules.locks.length" class="perm-empty">暂无</li>
+                    </ul>
+                  </div>
+                </div>
               </template>
               </div>
             </template>
