@@ -12,14 +12,14 @@ import { useCardDeck } from '../../composables/useCardDeck'
 const props = withDefaults(defineProps<{ count: number; flat?: boolean }>(), { count: 1, flat: false })
 const emit = defineEmits<{ change: [index: number] }>()
 
-const { activeCard, cardAnim, deckCardClass, goToCard, onDeckWheel } = useCardDeck(props.count, (i) => emit('change', i))
+const { cardAnim, deckCardClass, goToCard, onDeckWheel } = useCardDeck(props.count, (i) => emit('change', i))
 
 /** 平铺模式（搜索）不响应滚轮翻卡，仅叠放模式响应 */
 function onWheelHandler(e: WheelEvent): void {
   if (!props.flat) onDeckWheel(e)
 }
 
-defineExpose({ goToCard, activeCard })
+defineExpose({ goToCard })
 </script>
 
 <style>
