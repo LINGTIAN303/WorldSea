@@ -27,13 +27,38 @@
       <div v-else class="fpv-loading">加载中…</div>
     </div>
 
-    <!-- Markdown 渲染预览（复用消息流渲染管线：marked + DOMPurify + Prism 代码块；ws-agent-md 提供样式与复制委托） -->
-    <div
-      v-else-if="kind === 'markdown'"
-      class="fpv-md ws-agent-md"
-      @click="onMdClick"
-      v-html="mdHtml"
-    />
+    <!-- Markdown 渲染预览（复用消息流渲染管线：marked + DOMPurify + Prism 代码块；ws-agent-md 提供样式与复制委托）。
+         2026-09-03 二期：内容区左右各留 10% 边距，左侧空白放标题目录树——顶部下拉显示当前可见标题（scrollspy 滚动联动），点开浮层跳转 -->
+    <div v-else-if="kind === 'markdown'" class="fpv-md-stage">
+      <aside class="fpv-toc">
+        <button
+          class="fpv-toc-trigger"
+          :class="{ open: tocOpen }"
+          :title="activeTitle ? `当前标题：${activeTitle}` : '标题目录'"
+          @click="tocOpen = !tocOpen"
+        >
+          <WsIcon name="list" size="xs" />
+          <span class="fpv-toc-current">{{ activeTitle || '目录' }}</span>
+          <WsIcon name="chevron-down" size="xs" class="fpv-toc-caret" :class="{ open: tocOpen }" />
+        </button>
+        <Transition name="dropdown">
+          <div v-if="tocOpen" class="fpv-toc-menu">
+            <button
+              v-for="item in tocItems"
+              :key="item.id"
+              class="fpv-toc-item"
+              :class="{ on: item.id === activeId }"
+              :style="{ paddingLeft: (item.level - 1) * 9 + 8 + 'px' }"
+              :title="item.text"
+              @click="jumpTo(item.id)"
+            >{{ item.text }}</button>
+            <div v-if="tocItems.length === 0" class="fpv-toc-empty">文档无标题</div>
+          </div>
+        </Transition>
+      </aside>
+
+      <div ref="mdEl" class="fpv-md ws-agent-md" @click="onMdClick" @scroll="onMdScroll" v-html="mdHtml"></div>
+    </div>
 
     <!-- HTML 预览：渲染（iframe，脚本禁用）/ 源码（markup 高亮）切换 -->
     <template v-else-if="kind === 'html'">
@@ -61,7 +86,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
 import { invoke } from '@/agent/composables/transport'
 import { renderMarkdownHtml, handleCodeCopyClick, highlightCode } from '@worldsmith/shared-ui/agent/bubbles'
@@ -122,6 +147,50 @@ const highlightedCode = ref('')
 const htmlView = ref<'render' | 'source'>('render')
 /** 当前代码语言（模板 language-* 类用） */
 const codeLangName = ref('text')
+
+// ── Markdown 标题目录树（2026-09-03 二期）：提取 → scrollspy 滚动联动 → 浮层跳转 ──
+interface TocItem { id: string; text: string; level: number }
+const mdEl = ref<HTMLElement | null>(null)
+const tocItems = ref<TocItem[]>([])
+const activeId = ref('')
+const activeTitle = computed(() => tocItems.value.find(t => t.id === activeId.value)?.text ?? '')
+const tocOpen = ref(false)
+
+/** v-html 渲染后从 DOM 提取 h1-h4：注入锚点 id + 收集目录项 */
+function extractHeadings(): void {
+  const el = mdEl.value
+  if (!el) return
+  const heads = el.querySelectorAll('h1, h2, h3, h4')
+  const items: TocItem[] = []
+  heads.forEach((h, i) => {
+    const id = `fpv-h-${i}`
+    h.id = id
+    items.push({ id, text: (h.textContent ?? '').trim(), level: Number(h.tagName[1]) })
+  })
+  tocItems.value = items
+  activeId.value = items[0]?.id ?? ''
+}
+
+/** 滚动联动：以「视口顶部附近最后一个越过阈值的标题」为当前标题 */
+function onMdScroll(): void {
+  const el = mdEl.value
+  if (!el || tocItems.value.length === 0) return
+  const threshold = el.scrollTop + 64
+  let current = tocItems.value[0]?.id ?? ''
+  el.querySelectorAll('h1, h2, h3, h4').forEach((h) => {
+    if ((h as HTMLElement).offsetTop <= threshold) current = h.id
+  })
+  activeId.value = current
+}
+
+/** 目录点击：平滑滚到对应标题并收起浮层 */
+function jumpTo(id: string): void {
+  tocOpen.value = false
+  const el = mdEl.value?.querySelector(`#${CSS.escape(id)}`)
+  el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+watch(mdHtml, () => nextTick(extractHeadings))
 
 function ext(): string {
   const i = props.name.lastIndexOf('.')
@@ -379,14 +448,121 @@ watch(
   color: var(--color-text-tertiary);
 }
 
-/* Markdown 渲染容器：ws-agent-md（全局样式）提供排版/代码块/表格配色 */
-.fpv-md {
+/* Markdown 渲染：stage 左右各留 10% 边距（右 10% 由 ::after 占位），左空白放标题目录树 */
+.fpv-md-stage {
   flex: 1;
   min-height: 0;
-  overflow: auto;
-  padding: 12px 16px;
+  display: flex;
+  gap: 6px;
+}
+.fpv-md-stage::after {
+  content: '';
+  display: block;
+  width: 10%;
+  flex-shrink: 0;
+}
+.fpv-md {
+  flex: 1;
+  min-width: 0;
+  position: relative; /* 标题 offsetTop 的 offsetParent，scrollspy 依赖 */
+  overflow-y: auto;
+  padding: 12px 8px;
   color: var(--color-text);
   user-select: text;
+}
+/* 标题目录树（左 10% 空白内）：顶部触发钮显示当前可见标题，点开浮层 */
+.fpv-toc {
+  width: 10%;
+  min-width: 44px;
+  flex-shrink: 0;
+  align-self: flex-start;
+  position: sticky;
+  top: 0;
+  padding-top: 12px;
+}
+.fpv-toc-trigger {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-2xs);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.fpv-toc-trigger:hover,
+.fpv-toc-trigger.open {
+  border-color: var(--color-primary);
+  color: var(--color-text);
+}
+.fpv-toc-current {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fpv-toc-caret {
+  flex-shrink: 0;
+  transition: transform 0.2s;
+}
+.fpv-toc-caret.open {
+  transform: rotate(180deg);
+}
+/* 目录浮层：不受窄栏限制，覆盖在内容区上方 */
+.fpv-toc-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 200px;
+  max-width: 260px;
+  max-height: 55vh;
+  overflow-y: auto;
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  padding: 4px;
+  z-index: 20;
+}
+.fpv-toc-item {
+  display: block;
+  width: 100%;
+  padding: 5px 8px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-xs);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-2xs);
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background 0.12s, color 0.12s;
+}
+.fpv-toc-item:hover {
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+.fpv-toc-item.on {
+  color: var(--color-primary);
+  background: var(--color-primary-muted);
+  font-weight: 600;
+}
+.fpv-toc-empty {
+  padding: 12px;
+  text-align: center;
+  font-size: var(--font-size-2xs);
+  color: var(--color-text-tertiary);
+}
+:root[data-anim-panels='off'] .fpv-toc-caret {
+  transition: none;
 }
 
 /* HTML 预览：视图切换条 + iframe 渲染区 */
@@ -425,7 +601,8 @@ watch(
 .fpv-html-frame {
   flex: 1;
   min-height: 0;
-  width: 100%;
+  width: 80%;
+  margin: 0 auto 12px; /* 渲染视图与 md 一致左右各留 10% */
   border: none;
   background: #fff;
 }
