@@ -54,6 +54,8 @@ My-Data-Project/
 worldsmith-data/
 .worldsmith-data/
 .public/
+# 会话归档（daily/index，运行期自动生成）
+data/sessions/
 *.sqlite
 *.sqlite3
 *.db
