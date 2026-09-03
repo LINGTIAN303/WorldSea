@@ -11,6 +11,7 @@ export { default as MessageBlocks } from './MessageBlocks.vue'
 // 代码语法高亮（Prism 轻量）：副作用 import 注入高亮器，须在使用前加载
 import './codeHighlight'
 export { useMarkdownRender, handleCodeCopyClick, renderMarkdownHtml, stripJsonBlocks } from './useMarkdownRender'
+export { highlightCode } from './codeHighlight'
 export { useMessageExport } from './useMessageExport'
 export { useThinkingFold } from './useThinkingFold'
 export { useMessageActions } from './useMessageActions'

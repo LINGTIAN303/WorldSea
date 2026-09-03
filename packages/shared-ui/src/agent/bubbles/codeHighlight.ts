@@ -17,6 +17,7 @@ import 'prismjs/components/prism-bash'
 import 'prismjs/components/prism-markup'
 import 'prismjs/components/prism-css'
 import 'prismjs/components/prism-markdown'
+import 'prismjs/components/prism-yaml'
 import 'prismjs/components/prism-sql'
 import 'prismjs/components/prism-go'
 import 'prismjs/components/prism-java'
@@ -45,7 +46,7 @@ const LANG_ALIAS: Record<string, string> = {
 /**
  * Prism 高亮入口：返回高亮后的 <code> 内部 HTML；语言不支持或高亮失败返回 null（降级转义原文）。
  */
-function highlightCode(code: string, lang: string): string | null {
+export function highlightCode(code: string, lang: string): string | null {
   const normalized = (LANG_ALIAS[lang] ?? lang ?? '').toLowerCase()
   if (!normalized) return null
   const grammar = Prism.languages[normalized] as Prism.Grammar | undefined
