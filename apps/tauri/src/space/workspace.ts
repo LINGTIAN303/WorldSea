@@ -60,6 +60,29 @@ export async function resolveWorkspaceDir(customPath?: string): Promise<string> 
 }
 
 /**
+ * 解析工作台实体存储根（2026-09-03 拍板，与 useProjectSwitcher.entityDirOf 同语义）：
+ * - 默认项目（无项目/未选目录兜底）→ `~/.WorldSmith/worlddata`（工作台实体落此）
+ * - 普通项目（项目=目录）→ dirPath 本身（Agent 会话 workdir 与工作台实体同源 `{dirPath}/entities`）
+ * 浏览器 preview / 项目系统未就绪 → null（调用方回退到会话 workdir 语义，不特判）。
+ * 默认项目 dirPath 由 useProjectSwitcher 启动时恒归位根 `~/.WorldSmith`，故此处直接拼子目录；
+ * 与 entityDirOf 的防御性剥离（历史 worldentity/worlddata 段）在归位后等价。
+ */
+export async function resolveEntityDataDir(): Promise<string | null> {
+  if (!isTauriRuntime()) return null
+  try {
+    const { getProjectManager } = await import('@worldsmith/entity-core/core')
+    const pm = getProjectManager()
+    const project = pm.getCurrentProjectId() ? await pm.getCurrentProject() : undefined
+    if (project?.isDefault) {
+      return await homeRootSub('worlddata')
+    }
+    return await pm.getCurrentProjectDir()
+  } catch {
+    return null
+  }
+}
+
+/**
  * 确保工作区目录存在（不存在则创建；已存在则幂等成功）
  *
  * 复用 cmd_fs_mkdir（Rust 侧 create_dir_all），失败静默忽略——

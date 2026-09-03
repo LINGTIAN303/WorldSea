@@ -1216,6 +1216,7 @@ impl AgentCommandService {
         provider_config: Option<RuntimeProviderConfig>,
         scenario: Option<Arc<dyn Scenario>>,
         workdir: Option<PathBuf>,
+        entity_storage_root: Option<PathBuf>,
         workspace_id: Option<String>,
     ) -> (Arc<AgentLoop>, Arc<SubAgentManager>) {
         let config = provider_config.unwrap_or_else(Self::default_provider_config);
@@ -1270,19 +1271,23 @@ impl AgentCommandService {
             }
             self.register_mcp_bus(tool_bus.as_ref(), &mcp_tools).await;
         }
-        // 任务29/M4 数据源收敛：有 workdir 的会话用文件版实体工具覆盖注册
-        // （ToolBus 同名覆盖），使 Agent 读到项目目录 entities/ 的真身数据；
-        // 无 workdir 或未注入工厂时保持 extra_tools 的 SQLite 兜底（旧行为）。
-        let session_entity_provider: Option<Arc<dyn ScenarioEntityProvider>> = match workdir.as_ref()
-        {
-            Some(wd) => {
+        // 任务29/M4 数据源收敛：实体读取根 = entity_storage_root（默认项目=workdata，前端方案A传）
+        // 优先，否则 workdir（普通项目「项目=目录」同源）；有根的会话用文件版实体工具覆盖注册
+        // （ToolBus 同名覆盖），使 Agent 读到实体根 entities/ 的真身数据；
+        // 无根或未注入工厂时保持 extra_tools 的 SQLite 兜底（旧行为）。
+        // 注意：entity_storage_root 与 workdir 解耦——默认项目 Agent 工作区在 ~/.WorldSmith/agent，
+        // 工作台实体在 ~/.WorldSmith/worlddata（三分层拍板），实体读必须指向后者才与写入侧同源。
+        let entity_read_root: Option<&std::path::Path> =
+            entity_storage_root.as_deref().or(workdir.as_deref());
+        let session_entity_provider: Option<Arc<dyn ScenarioEntityProvider>> = match entity_read_root {
+            Some(root) => {
                 if let Some(factory) = &self.session_entity_tools_factory {
-                    for tool in factory(wd) {
+                    for tool in factory(root) {
                         tool_bus.register(tool).await;
                     }
                 }
                 match &self.session_entity_provider_factory {
-                    Some(f) => Some(f(wd)),
+                    Some(f) => Some(f(root)),
                     None => self.entity_provider.clone(),
                 }
             }
@@ -1400,6 +1405,11 @@ impl AgentCommandService {
     /// - `provider_config`：Provider 配置（可选，缺省用默认 Cloud 占位，
     ///   随后可调用 [`Self::set_provider_config`] 写入真实配置）
     /// - `workdir`：会话绑定的工作区根目录（`None`=不限定，向后兼容；Phase 3）
+    /// - `entity_storage_root`：实体读取根（方案A 2026-09-03；`None`=回退 workdir）
+    ///   - 普通项目与 workdir 同源（`{dirPath}/entities`）；默认项目 Agent 工作区在
+    ///     `~/.WorldSmith/agent`、工作台实体在 `~/.WorldSmith/worlddata`，必须显式传后者，
+    ///     否则 Rust 文件版 entity_list/entity_get 扫 workdir/entities（空白），与写入侧
+    ///     （FileStorageBackend → worlddata/entities）分裂，模型创建实体后读不到。
     /// - `project_id`：会话归属项目 id（任务29/D1 锚点，可选；弱引用前端 ProjectManager）
     pub async fn new_session(
         &self,
@@ -1407,10 +1417,19 @@ impl AgentCommandService {
         provider_config: Option<RuntimeProviderConfig>,
         scenario_id: Option<String>,
         workdir: Option<PathBuf>,
+        entity_storage_root: Option<PathBuf>,
         project_id: Option<String>,
     ) -> Result<SessionInfo, CommandError> {
-        self.new_session_with_kind(system_prompt, provider_config, SessionKind::Chat, scenario_id, workdir, project_id)
-            .await
+        self.new_session_with_kind(
+            system_prompt,
+            provider_config,
+            SessionKind::Chat,
+            scenario_id,
+            workdir,
+            entity_storage_root,
+            project_id,
+        )
+        .await
     }
 
     // ── WorkspaceManager（Phase A：Workspace 实体化）──────────────
@@ -1464,6 +1483,7 @@ impl AgentCommandService {
         kind: SessionKind,
         scenario_id: Option<String>,
         workdir: Option<PathBuf>,
+        entity_storage_root: Option<PathBuf>,
         project_id: Option<String>,
     ) -> Result<SessionInfo, CommandError> {
         // 先生成会话 ID，作为记忆隔离依据传入 new_agent（构造 MemoryCenterAccessor）
@@ -1492,7 +1512,7 @@ impl AgentCommandService {
         };
         let scenario = self.resolve_scenario(scenario_id.as_deref());
         let (agent, sub_agent_manager) = self
-            .new_agent(&id, system_prompt, provider_config, scenario, workdir, workspace_id.clone())
+            .new_agent(&id, system_prompt, provider_config, scenario, workdir, entity_storage_root, workspace_id.clone())
             .await;
         let info = SessionInfo {
             id: id.clone(),
@@ -2118,6 +2138,10 @@ impl AgentCommandService {
                     None,
                     None,
                     workdir,
+                    // 方案A（2026-09-03）：恢复路径未持久化 entity_storage_root（SessionRecord 无此列），
+                    // 传 None 回退 workdir——与创建时默认项目显式传 worlddata 的会话在重启后读侧
+                    // 回落到 workdir/entities（与改造前行为一致，不新增缺陷）；普通项目 workdir 即同源。
+                    None,
                     workspace_id.clone(),
                 )
                 .await;
@@ -2178,7 +2202,7 @@ impl AgentCommandService {
         provider_config: Option<RuntimeProviderConfig>,
     ) -> Result<GroupParticipantSessionInfo, CommandError> {
         let info = self
-            .new_session_with_kind(system_prompt, provider_config, SessionKind::Group, None, None, None)
+            .new_session_with_kind(system_prompt, provider_config, SessionKind::Group, None, None, None, None)
             .await?;
         // 写映射（持久化；失败弱提示——会话仍可用，仅重启后无法恢复定位）
         if let Some(store) = &self.session_store {

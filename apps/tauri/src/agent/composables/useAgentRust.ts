@@ -55,7 +55,7 @@ import {
 import { useActivityLog, type ActivityLogEntry } from './useActivityLog'
 import { useSessionViewState, LAST_SESSION_KEY } from './useSessionViewState'
 import { useOrchestrationTrace } from './useOrchestrationTrace'
-import { resolveWorkspaceDir, ensureWorkspaceDir } from '@/space/workspace'
+import { resolveWorkspaceDir, ensureWorkspaceDir, resolveEntityDataDir } from '@/space/workspace'
 // H5 规则体系（2026-08-30 拍板）：WORLDSMITH.md 转应用内置资源（?raw 显式 import——
 // Vite8 glob 模块相对模式静默失配教训，勿用 import.meta.glob）
 import BUILTIN_WORLDSMITH_MD from '../rules/WORLDSMITH.md?raw'
@@ -1669,6 +1669,14 @@ async function newSession(
   // 默认项目特判 ~/.WorldSmith/agent，无项目兜底同 agent）——见 docs/plans/workspace-unification-plan.md
   const workdir = currentWorkdir.value ?? (await resolveWorkspaceDir())
   await ensureWorkspaceDir(workdir)
+  // 方案A（2026-09-03）：实体存储根与工作区根解耦——默认项目（未开目录）Agent 工作区在
+  // ~/.WorldSmith/agent、工作台实体在 ~/.WorldSmith/worlddata（resolveEntityDataDir 特判），
+  // 必须把后者作为 entityStorageRoot 传给后端实体读工具，否则读侧扫 agent/entities（空白）
+  // 与写入侧（FileStorageBackend → worlddata/entities）分裂，模型创建实体后读不到。
+  // 普通项目 resolveEntityDataDir()=dirPath=workdir（同源）→ 传 null 由后端回退 workdir。
+  const entityDataDir = await resolveEntityDataDir()
+  const norm = (p: string) => p.replace(/[\\/]+$/, '').toLowerCase()
+  const entityStorageRoot = entityDataDir && norm(entityDataDir) !== norm(workdir) ? entityDataDir : null
   // 任务29/D1 锚点：会话归属当前项目（弱引用前端 ProjectManager 的项目 UUID）
   const projectId = await getCurrentProjectIdSafe()
   const info = await safeInvoke<RustSessionInfo>('new_session', {
@@ -1676,6 +1684,7 @@ async function newSession(
     providerConfig: providerConfig ?? null,
     scenarioId: scenarioId ?? null,
     workdir,
+    entityStorageRoot,
     projectId: projectId ?? null,
   })
   // L3：真正创建后退出草稿态
@@ -2236,12 +2245,24 @@ async function buildSessionSystemPrompt(): Promise<string | undefined> {
     }
 
     // ③.5 工作区分区（实时路径认知段，workdir 存在才注入——分区约定 + 当前真实路径）
+    // 实体数据区按 entityDirOf 语义特判（2026-09-03 修复遗留小项）：默认项目 workdir=~/.WorldSmith/agent，
+    // 工作台实体真实落 ~/.WorldSmith/worlddata（resolveEntityDataDir），与普通项目「{workdir}/entities 即数据区」
+    // 语义不同——文案如实区分「会话侧（Agent 实体工具落点）」与「平台侧（工作台实体目录）」，不做同源假设。
+    const entityDataDir = await resolveEntityDataDir()
+    // 路径归一比较（去尾分隔符 + 小写，Windows 大小写不敏感）
+    const cleanPath = (p: string) => p.replace(/[\\/]+$/, '').toLowerCase()
+    const dataDirLine =
+      entityDataDir && cleanPath(entityDataDir) !== cleanPath(workdir)
+        ? // 默认项目：workdir=agent，实体平台目录独立于会话目录
+          `- 实体数据受 E1 写保护，请用实体语义工具（entity_* / content_search）操作——会话侧 ${workdir}/entities；平台实体目录 ${entityDataDir}\n`
+        : // 普通项目：workdir 即项目根，实体目录同源
+          `- ${workdir}/entities/、${workdir}/.worldsmith/ 为项目数据区，受写保护，请用实体语义工具（entity_* / content_search）操作\n`
     sections.push(
       '## 工作区分区\n\n' +
       `当前工作区根目录：${workdir}\n\n` +
       `- 临时产物（草稿/中间文件）请写入 ${workdir}/agent-tmp/（Agent 全权，可自由创建与清理，写操作免确认）\n` +
       `- 收官成果请放入 ${workdir}/agent-out/\n` +
-      `- ${workdir}/entities/、${workdir}/.worldsmith/ 为项目数据区，受写保护，请用实体语义工具（entity_* / content_search）操作\n` +
+      dataDirLine +
       `- 未绑定项目时兜底草稿目录为 ~/.WorldSmith/agent`,
     )
   }

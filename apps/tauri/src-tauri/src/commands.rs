@@ -811,6 +811,9 @@ async fn ensure_emitter_registered(
 /// - `provider_config`：Provider 配置（可选，缺省用默认 Cloud 占位，
 ///   随后可调用 `set_provider_config` 写入真实配置）
 /// - `workdir`：会话绑定的工作区根目录（可选，None=不限定；Phase 3 接入本地文件系统）
+/// - `entity_storage_root`：实体读取根目录（方案A 2026-09-03；None=回退 workdir）；默认项目传 `~/.WorldSmith/worlddata`（工作台实体真实落点），
+///   普通项目不填默认和 workdir 同源（`{dirPath}/entities`），和写入侧 FileStorageBackend 同源一致，
+///   否则 Rust 文件版 entity_list/entity_get 扫错目录（空白），模型创建实体后读不到。
 /// - `project_id`：会话归属项目 id（可选，None=未归属；任务29/D1 锚点，弱引用前端 ProjectManager）
 #[tauri::command]
 pub async fn new_session(
@@ -819,6 +822,7 @@ pub async fn new_session(
     provider_config: Option<ProviderConfig>,
     scenario_id: Option<String>,
     workdir: Option<String>,
+    entity_storage_root: Option<String>,
     project_id: Option<String>,
 ) -> Result<agent_commands::SessionInfo, String> {
     state
@@ -827,6 +831,7 @@ pub async fn new_session(
             provider_config,
             scenario_id,
             workdir.map(std::path::PathBuf::from),
+            entity_storage_root.map(std::path::PathBuf::from),
             project_id,
         )
         .await

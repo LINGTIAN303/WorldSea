@@ -16,7 +16,7 @@
     async fn new_session_and_provider_config_roundtrip() {
         let svc = AgentCommandService::new();
         let info = svc
-            .new_session(Some("测试助手".into()), Some(cloud_config("sk-test")), None, None, None)
+            .new_session(Some("测试助手".into()), Some(cloud_config("sk-test")), None, None, None, None)
             .await
             .unwrap();
         let cfg = svc.get_provider_config(&info.id).await.unwrap();
@@ -27,11 +27,33 @@
     }
 
     #[tokio::test]
+    async fn new_session_with_entity_storage_root_ok() {
+        // 方案A（2026-09-03）：显式实体存储根（默认项目 worlddata 语义）建会话不报错，
+        // 且 workdir（Agent 工作区根）与会话归属保持独立——实体根不污染会话工作区字段。
+        let svc = AgentCommandService::new();
+        let info = svc
+            .new_session(
+                Some("测试".into()),
+                None,
+                None,
+                Some(std::path::PathBuf::from("C:\\ws\\agent")),
+                Some(std::path::PathBuf::from("C:\\ws\\worlddata")),
+                None,
+            )
+            .await
+            .unwrap();
+        assert_eq!(info.workdir.as_deref(), Some("C:\\ws\\agent"));
+        // 会话可正常查询（Provider 为默认占位回显）
+        let cfg = svc.get_provider_config(&info.id).await.unwrap();
+        assert_eq!(cfg.provider, "deepseek");
+    }
+
+    #[tokio::test]
     async fn send_message_without_api_key_fails() {
         let svc = AgentCommandService::new();
         // 空 API Key 的 Cloud 配置 → 发送消息应报 Auth 错误（而非回显 mock）
         let info = svc
-            .new_session(Some("测试助手".into()), Some(cloud_config("")), None, None, None)
+            .new_session(Some("测试助手".into()), Some(cloud_config("")), None, None, None, None)
             .await
             .unwrap();
         let err = svc
@@ -50,7 +72,7 @@
     async fn set_provider_config_updates_backend() {
         let svc = AgentCommandService::new();
         // 创建会话时不注入配置（用默认占位）
-        let info = svc.new_session(None, None, None, None, None).await.unwrap();
+        let info = svc.new_session(None, None, None, None, None, None).await.unwrap();
         // 前端写入真实配置（含 API Key）
         svc.set_provider_config(&info.id, cloud_config("sk-real")).await.unwrap();
         let cfg = svc.get_provider_config(&info.id).await.unwrap();
@@ -76,7 +98,7 @@
     #[tokio::test]
     async fn list_and_delete_session() {
         let svc = AgentCommandService::new();
-        let info = svc.new_session(None, None, None, None, None).await.unwrap();
+        let info = svc.new_session(None, None, None, None, None, None).await.unwrap();
         let list = svc.list_sessions(None).await.unwrap();
         assert_eq!(list.len(), 1);
         svc.delete_session(&info.id).await.unwrap();
@@ -97,8 +119,8 @@
         temp_dir: None,
         })
         .await;
-        let s1 = svc.new_session(None, None, None, None, None).await.unwrap();
-        let s2 = svc.new_session(None, None, None, None, None).await.unwrap();
+        let s1 = svc.new_session(None, None, None, None, None, None).await.unwrap();
+        let s2 = svc.new_session(None, None, None, None, None, None).await.unwrap();
         // 服务级注册表可见
         assert_eq!(svc.list_subagent_specs().await.len(), 1);
         // 两个会话共享同一注册表（各自 Agent 的 SubAgentManager 持同一 Arc）
@@ -408,7 +430,7 @@
     #[tokio::test]
     async fn subagent_instances_empty_until_delegation() {
         let svc = AgentCommandService::new();
-        let info = svc.new_session(None, None, None, None, None).await.unwrap();
+        let info = svc.new_session(None, None, None, None, None, None).await.unwrap();
         // 未委派任何子 Agent 前，实例池为空
         let instances = svc.list_subagent_instances(&info.id).await.unwrap();
         assert!(instances.is_empty(), "未委派前实例池应为空");
@@ -428,7 +450,7 @@
             "清空不存在的会话应报 session_not_found，实际: {err}"
         );
         // 会话存在但实例从未创建 → 返回 false（不报错）
-        let info = svc.new_session(None, None, None, None, None).await.unwrap();
+        let info = svc.new_session(None, None, None, None, None, None).await.unwrap();
         let removed = svc.clear_subagent_instance(&info.id, "coder").await.unwrap();
         assert!(!removed, "实例池中无该实例时清空应返回 false");
     }
@@ -437,7 +459,7 @@
     #[tokio::test]
     async fn delete_session_removes_subagent_manager() {
         let svc = AgentCommandService::new();
-        let info = svc.new_session(None, None, None, None, None).await.unwrap();
+        let info = svc.new_session(None, None, None, None, None, None).await.unwrap();
         svc.delete_session(&info.id).await.unwrap();
         let err = svc.list_subagent_instances(&info.id).await.unwrap_err();
         assert!(
@@ -453,7 +475,7 @@
     #[tokio::test]
     async fn register_session_loop_control_shares_builtin_controller() {
         let svc = AgentCommandService::new();
-        let info = svc.new_session(None, None, None, None, None).await.unwrap();
+        let info = svc.new_session(None, None, None, None, None, None).await.unwrap();
 
         // 注册该会话的内建控制器为 task_id = "task-main"
         svc.register_session_loop_control("task-main", &info.id)
@@ -510,7 +532,7 @@
     #[tokio::test]
     async fn register_session_loop_control_rejects_duplicate_task() {
         let svc = AgentCommandService::new();
-        let info = svc.new_session(None, None, None, None, None).await.unwrap();
+        let info = svc.new_session(None, None, None, None, None, None).await.unwrap();
         svc.register_session_loop_control("task-main", &info.id)
             .await
             .unwrap();
@@ -553,7 +575,7 @@
     #[tokio::test]
     async fn send_message_mode_prefix_without_task_fails() {
         let svc = AgentCommandService::new();
-        let info = svc.new_session(None, None, None, None, None).await.unwrap();
+        let info = svc.new_session(None, None, None, None, None, None).await.unwrap();
         let err = svc
             .send_message(SendMessageParams {
                 session_id: info.id.clone(),
@@ -573,7 +595,7 @@
     #[tokio::test]
     async fn send_message_multi_prefix_guides_to_panel() {
         let svc = AgentCommandService::new();
-        let info = svc.new_session(None, None, None, None, None).await.unwrap();
+        let info = svc.new_session(None, None, None, None, None, None).await.unwrap();
         let err = svc
             .send_message(SendMessageParams {
                 session_id: info.id.clone(),
@@ -593,7 +615,7 @@
     #[tokio::test]
     async fn send_message_supervisor_prefix_requires_specs() {
         let svc = AgentCommandService::new();
-        let info = svc.new_session(None, None, None, None, None).await.unwrap();
+        let info = svc.new_session(None, None, None, None, None, None).await.unwrap();
         let err = svc
             .send_message(SendMessageParams {
                 session_id: info.id.clone(),
@@ -618,7 +640,7 @@
         let store: Arc<dyn SessionRepository> =
             SqliteSessionRepository::new_in_memory().await.unwrap();
         let svc = AgentCommandService::new().with_session_store(Arc::clone(&store));
-        let info = svc.new_session(None, None, None, None, None).await.unwrap();
+        let info = svc.new_session(None, None, None, None, None, None).await.unwrap();
 
         svc.finalize_orchestration_turn(&info.id, "/plan 写文档", Some("终稿内容"))
             .await;
