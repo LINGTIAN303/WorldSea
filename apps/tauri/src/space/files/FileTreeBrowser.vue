@@ -1,8 +1,8 @@
 <template>
   <div class="ftb">
-    <!-- 顶部：标题 + 刷新 + 面包屑 -->
-    <div class="ftb-header">
-      <div class="ftb-title-row">
+    <!-- 头部：经典模式=标题行+面包屑（左栏/浮层，含资源管理器/刷新）；合并模式=面包屑+工具同一行（右栏两层头，2026-09-03 UI 改造，资源管理器/刷新上移面板头） -->
+    <div class="ftb-header" :class="{ 'ftb-header--merged': mergedHeader }">
+      <div v-if="!mergedHeader" class="ftb-title-row">
         <span class="ftb-title"><WsIcon name="folder" size="sm" /> {{ title }}</span>
         <div class="ftb-title-actions">
           <button class="ftb-action-btn" title="在系统文件资源管理器中打开项目目录" :disabled="!resolvedRoot" @click="openInExplorer"><WsIcon name="folder-open" size="sm" /></button>
@@ -12,6 +12,7 @@
       <div v-if="rootPath" class="ftb-breadcrumb">
         <button class="ftb-crumb" :class="{ on: breadcrumbs.length === 0 }" title="工作区根目录" @click="openDir(rootPath)">
           <WsIcon name="home" size="xs" />
+          <span v-if="rootBaseName">{{ rootBaseName }}</span>
         </button>
         <template v-for="(seg, i) in breadcrumbs" :key="i">
           <span class="ftb-crumb-sep">/</span>
@@ -21,10 +22,18 @@
         </template>
       </div>
       <div v-else class="ftb-no-dir">未绑定项目目录</div>
+      <!-- 合并模式：工具按钮收入头行右侧 -->
+      <div v-if="currentPath && mergedHeader" class="ftb-toolbar">
+        <button class="ftb-tool-btn" @click="openInput('newFile', currentPath)" :title="'新建文件'"><WsIcon name="file" size="xs" /><span>新建文件</span></button>
+        <button class="ftb-tool-btn" @click="openInput('newFolder', currentPath)" :title="'新建文件夹'"><WsIcon name="folder" size="xs" /><span>新建文件夹</span></button>
+        <button class="ftb-tool-btn" @click="onUpload" :title="'上传'"><WsIcon name="upload" size="xs" /><span>上传</span></button>
+        <button v-if="isInsideTmp" class="ftb-tool-btn danger" @click="onClearTmp" title="删除临时区全部内容（含子 Agent 临时目录 sub-*），Agent 下次使用会自动重建"><WsIcon name="trash" size="xs" /><span>清空临时区</span></button>
+        <input ref="fileInput" type="file" class="ftb-file-input" @change="onFilePicked" />
+      </div>
     </div>
 
-    <!-- 工具栏：新建文件/文件夹/上传（compact 时压缩为图标） -->
-    <div v-if="currentPath" class="ftb-toolbar">
+    <!-- 工具栏（经典模式独立行）：新建文件/文件夹/上传（compact 时压缩为图标） -->
+    <div v-if="currentPath && !mergedHeader" class="ftb-toolbar">
       <button class="ftb-tool-btn" @click="openInput('newFile', currentPath)" :title="'新建文件'"><WsIcon name="file" size="xs" /><span v-if="!compact">新建文件</span></button>
       <button class="ftb-tool-btn" @click="openInput('newFolder', currentPath)" :title="'新建文件夹'"><WsIcon name="folder" size="xs" /><span v-if="!compact">新建文件夹</span></button>
       <button class="ftb-tool-btn" @click="onUpload" :title="'上传'"><WsIcon name="upload" size="xs" /><span v-if="!compact">上传</span></button>
@@ -51,8 +60,19 @@
           @click.stop="toggleNode(fn.node)"
         ><WsIcon name="chevron-right" size="xs" /></button>
         <span v-else class="ftb-toggle-spacer"></span>
-        <WsIcon :name="fn.node.isDir ? 'folder' : 'file'" size="xs" :class="fn.node.isDir ? 'icon-folder' : 'icon-file'" />
-        <button class="ftb-name" :title="fn.node.path" @click="fn.node.isDir ? toggleNode(fn.node) : emit('select', fn.node)">
+        <WsIcon :name="fn.node.isDir ? 'folder' : fileTypeIcon(fn.node.name)" size="xs" :class="fn.node.isDir ? 'icon-folder' : 'icon-file'" />
+        <!-- 行内重命名（2026-09-03 UI 改造：弹窗→树行内编辑框，回车确认/Esc 或失焦提交取消逻辑见 confirmRename） -->
+        <input
+          v-if="renamingPath === fn.node.path"
+          :ref="focusRenameInput"
+          v-model="renameValue"
+          class="ftb-rename-input"
+          @click.stop
+          @keydown.enter.prevent="confirmRename"
+          @keydown.esc.prevent="cancelRename"
+          @blur="confirmRename"
+        />
+        <button v-else class="ftb-name" :title="fn.node.path" @click="fn.node.isDir ? toggleNode(fn.node) : emit('select', fn.node)">
           {{ fn.node.name }}
         </button>
         <span
@@ -64,35 +84,31 @@
         <span v-if="!fn.node.isDir" class="ftb-size">{{ formatSize(fn.node.size) }}</span>
         <div class="ftb-row-actions">
           <button v-if="fn.node.isDir" class="ftb-row-btn" title="在此新建文件" @click.stop="openInput('newFile', fn.node.path)"><WsIcon name="file" size="xs" /></button>
-          <button class="ftb-row-btn" title="重命名" @click.stop="openInput('rename', undefined, fn.node)"><WsIcon name="edit" size="xs" /></button>
+          <button class="ftb-row-btn" title="重命名" @click.stop="renameInline(fn.node)"><WsIcon name="edit" size="xs" /></button>
           <button class="ftb-row-btn danger" title="删除" @click.stop="onDelete(fn.node)"><WsIcon name="trash" size="xs" /></button>
         </div>
       </div>
     </div>
 
-    <!-- 输入弹窗（新建文件/文件夹/重命名） -->
-    <div v-if="inputDialog" class="ftb-modal-backdrop" @click.self="inputDialog = null">
-      <div class="ftb-modal">
-        <div class="ftb-modal-header">
-          <span class="ftb-modal-title">{{ inputDialog.title }}</span>
-          <button class="ftb-modal-close" @click="inputDialog = null" title="关闭"><WsIcon name="close" size="sm" /></button>
-        </div>
-        <div class="ftb-modal-body">
-          <label class="ftb-input-label">{{ inputDialog.label }}</label>
-          <input v-model="inputDialog.value" class="ftb-input" :placeholder="inputDialog.placeholder" @keydown.enter="confirmInput" autofocus />
-        </div>
-        <div class="ftb-modal-footer">
-          <button class="ftb-modal-btn" @click="inputDialog = null">取消</button>
-          <button class="ftb-modal-btn primary" @click="confirmInput">确定</button>
-        </div>
-      </div>
-    </div>
+    <!-- 输入弹窗（新建文件/文件夹/重命名）：统一 TuiModal 基座（2026-09-03 UI 改造，替换自绘模态） -->
+    <TuiModal :show="!!inputDialog" :title="inputDialog?.title ?? ''" size="sm" @close="inputDialog = null">
+      <template v-if="inputDialog">
+        <label class="ftb-input-label">{{ inputDialog.label }}</label>
+        <input v-model="inputDialog.value" class="ftb-input" :placeholder="inputDialog.placeholder" @keydown.enter="confirmInput" autofocus />
+      </template>
+      <template #footer>
+        <TuiButton variant="ghost" @click="inputDialog = null">取消</TuiButton>
+        <TuiButton variant="primary" @click="confirmInput">确定</TuiButton>
+      </template>
+    </TuiModal>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { WsIcon, useConfirm } from '@worldsmith/ui-kit'
+import TuiModal from '../../components/ui/TuiModal.vue'
+import TuiButton from '../../components/ui/TuiButton.vue'
 import { invoke } from '@/agent/composables/transport'
 import { useAgent } from '@/agent/composables/useAgent'
 import { resolveWorkspaceDir, ensureWorkspaceDir } from '../workspace'
@@ -118,15 +134,14 @@ interface FlatNode {
   partition?: 'tmp' | 'out'
 }
 
-/** 输入弹窗状态：新建文件/文件夹/重命名 */
+/** 输入弹窗状态：新建文件/文件夹（重命名已改为树行内编辑，不走弹窗） */
 interface InputDialog {
   title: string
   label: string
   placeholder: string
   value: string
-  mode: 'newFile' | 'newFolder' | 'rename'
+  mode: 'newFile' | 'newFolder'
   base?: string
-  target?: string
 }
 
 const props = withDefaults(
@@ -137,10 +152,15 @@ const props = withDefaults(
     compact?: boolean
     /** 面板标题（右栏/左栏可自定义） */
     title?: string
+    /** 合并头部模式：面包屑+工具同一行、无标题行（右栏两层头）；缺省经典模式（标题行+面包屑+独立工具行，左栏/浮层） */
+    mergedHeader?: boolean
   }>(),
-  { rootPath: null, compact: false, title: '项目目录' },
+  { rootPath: null, compact: false, title: '项目目录', mergedHeader: false },
 )
 const emit = defineEmits<{ select: [node: FsNode] }>()
+
+/** 暴露刷新（父级面板头刷新按钮调用；保留展开状态） */
+defineExpose({ refresh })
 
 const { currentWorkdir } = useAgent()
 const { confirm } = useConfirm()
@@ -237,10 +257,60 @@ async function toggleNode(node: FsNode): Promise<void> {
   }
 }
 
-/** 刷新当前目录（保留展开状态需重建根，简单起见重新加载当前路径） */
+/** 刷新当前目录：保留已展开目录的状态（2026-09-03 UI 改造，此前刷新会折叠整棵树） */
 async function refresh(): Promise<void> {
   if (!resolvedRoot.value) return
-  await openDir(currentPath.value ?? resolvedRoot.value)
+  const expandedPaths = new Set<string>()
+  collectExpanded(rootChildren.value, expandedPaths)
+  rootChildren.value = await loadDir(currentPath.value ?? resolvedRoot.value)
+  await restoreExpanded(rootChildren.value, expandedPaths)
+}
+
+/** 收集当前已展开目录的路径集合 */
+function collectExpanded(nodes: FsNode[], acc: Set<string>): void {
+  for (const n of nodes) {
+    if (n.isDir && n.expanded) {
+      acc.add(norm(n.path))
+      if (n.children) collectExpanded(n.children, acc)
+    }
+  }
+}
+
+/** 恢复展开状态：逐层重载已展开目录的子条目（懒加载目录需重新拉取） */
+async function restoreExpanded(nodes: FsNode[], expandedPaths: Set<string>): Promise<void> {
+  for (const n of nodes) {
+    if (!n.isDir || !expandedPaths.has(norm(n.path))) continue
+    n.expanded = true
+    if (!n.loaded) {
+      n.loading = true
+      n.children = await loadDir(n.path)
+      n.loading = false
+      n.loaded = true
+    }
+    if (n.children) await restoreExpanded(n.children, expandedPaths)
+  }
+}
+
+/** 根目录基名（面包屑根节点显示，替代纯 home 图标） */
+const rootBaseName = computed<string>(() => {
+  if (!resolvedRoot.value) return ''
+  const segs = norm(resolvedRoot.value).split('/').filter(Boolean)
+  return segs[segs.length - 1] ?? ''
+})
+
+/** 文件扩展名 → 图标映射（图片/音视频/压缩包/文档；其余默认 file） */
+const FILE_TYPE_ICONS: Record<string, string> = {
+  png: 'image', jpg: 'image', jpeg: 'image', gif: 'image', svg: 'image', webp: 'image', bmp: 'image', ico: 'image',
+  mp3: 'music', wav: 'music', ogg: 'music', flac: 'music', m4a: 'music',
+  mp4: 'video', mkv: 'video', avi: 'video', mov: 'video', webm: 'video',
+  zip: 'package', rar: 'package', '7z': 'package', tar: 'package', gz: 'package',
+  md: 'book', pdf: 'book', doc: 'book', docx: 'book',
+}
+
+/** 按文件扩展名取图标（目录不经过此函数） */
+function fileTypeIcon(name: string): string {
+  const ext = name.includes('.') ? name.split('.').pop()!.toLowerCase() : ''
+  return FILE_TYPE_ICONS[ext] ?? 'file'
 }
 
 /** 在系统文件资源管理器中打开项目目录（2026-09-03 额外建议）
@@ -268,20 +338,8 @@ async function init(): Promise<void> {
   await openDir(resolvedRoot.value)
 }
 
-/** 打开输入弹窗（新建文件/文件夹/重命名） */
-function openInput(mode: InputDialog['mode'], base?: string, target?: FsNode): void {
-  if (mode === 'rename') {
-    if (!target) return
-    inputDialog.value = {
-      title: '重命名',
-      label: '新名称',
-      placeholder: target.name,
-      value: target.name,
-      mode,
-      target: norm(target.path),
-    }
-    return
-  }
+/** 打开输入弹窗（新建文件/文件夹）；重命名走树行内编辑（renameInline） */
+function openInput(mode: 'newFile' | 'newFolder', base?: string): void {
   const dir = base ?? currentPath.value
   if (!dir) return
   inputDialog.value = {
@@ -294,7 +352,50 @@ function openInput(mode: InputDialog['mode'], base?: string, target?: FsNode): v
   }
 }
 
-/** 输入弹窗确认（新建文件/文件夹/重命名） */
+// ── 行内重命名（2026-09-03 UI 改造：弹窗→树行内编辑框） ──
+const renamingPath = ref<string | null>(null)
+const renameValue = ref('')
+const renameOriginal = ref('')
+
+/** 进入行内重命名：记录目标路径与原名，聚焦全选 */
+function renameInline(target: FsNode): void {
+  renamingPath.value = norm(target.path)
+  renameValue.value = target.name
+  renameOriginal.value = target.name
+}
+
+/** 函数 ref：重命名输入框渲染后聚焦并全选 */
+function focusRenameInput(el: unknown): void {
+  if (el) {
+    const input = el as HTMLInputElement
+    input.focus()
+    input.select()
+  }
+}
+
+/** 提交重命名（回车/失焦触发；Esc 先置空目标故此处自动跳过） */
+async function confirmRename(): Promise<void> {
+  const path = renamingPath.value
+  if (!path) return
+  const name = renameValue.value.trim()
+  renamingPath.value = null
+  if (!name || name === renameOriginal.value) return
+  const dir = path.slice(0, path.lastIndexOf('/'))
+  try {
+    await invoke('cmd_fs_rename', { src: path, dest: joinPath(dir, name) })
+    await refresh()
+  } catch (err) {
+    console.warn('[FileTreeBrowser] 重命名失败:', err)
+  }
+}
+
+/** 取消行内重命名 */
+function cancelRename(): void {
+  renamingPath.value = null
+  renameValue.value = ''
+}
+
+/** 输入弹窗确认（新建文件/文件夹） */
 async function confirmInput(): Promise<void> {
   const d = inputDialog.value
   if (!d) return
@@ -305,9 +406,6 @@ async function confirmInput(): Promise<void> {
       await invoke('cmd_fs_write', { path: joinPath(d.base!, name), content: '', createDirs: false })
     } else if (d.mode === 'newFolder') {
       await invoke('cmd_fs_mkdir', { path: joinPath(d.base!, name) })
-    } else if (d.mode === 'rename' && d.target) {
-      const dir = d.target.slice(0, d.target.lastIndexOf('/'))
-      await invoke('cmd_fs_rename', { src: d.target, dest: joinPath(dir, name) })
     }
     inputDialog.value = null
     await refresh()
@@ -415,6 +513,23 @@ watch(currentWorkdir, () => {
   gap: 6px;
   padding: 10px 10px 6px;
   border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+/* 合并头部（右栏两层头）：面包屑与工具同一行，窄时工具换行 */
+.ftb-header--merged {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ftb-header--merged .ftb-breadcrumb {
+  flex: 1;
+  min-width: 0;
+}
+.ftb-header--merged .ftb-toolbar {
+  padding: 0;
+  border-bottom: none;
   flex-shrink: 0;
 }
 .ftb-title-row {
@@ -534,6 +649,18 @@ watch(currentWorkdir, () => {
 }
 .ftb-file-input {
   display: none;
+}
+/* 行内重命名输入框（嵌在树行名称位置） */
+.ftb-rename-input {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 6px;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-xs);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--font-size-xs);
+  outline: none;
 }
 
 .ftb-body {
@@ -666,56 +793,12 @@ watch(currentWorkdir, () => {
   color: #e5484d;
 }
 
-/* 输入弹窗 */
-.ftb-modal-backdrop {
-  position: absolute;
-  inset: 0;
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.35);
-}
-.ftb-modal {
-  width: 280px;
-  background: var(--color-surface-elevated);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
-  overflow: hidden;
-}
-.ftb-modal-header {
-  display: flex;
-  align-items: center;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--color-border);
-}
-.ftb-modal-title {
-  flex: 1;
-  font-size: var(--font-size-xs);
-  font-weight: 600;
-}
-.ftb-modal-close {
-  width: 22px;
-  height: 22px;
-  border: none;
-  background: transparent;
-  color: var(--color-text-tertiary);
-  border-radius: var(--radius-xs);
-  cursor: pointer;
-}
-.ftb-modal-close:hover {
-  color: var(--color-text);
-}
-.ftb-modal-body {
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
+/* 输入弹窗内容（弹窗基座由 TuiModal 提供，2026-09-03 替换自绘模态） */
 .ftb-input-label {
+  display: block;
   font-size: var(--font-size-2xs);
   color: var(--color-text-tertiary);
+  margin-bottom: 6px;
 }
 .ftb-input {
   width: 100%;
@@ -726,32 +809,9 @@ watch(currentWorkdir, () => {
   color: var(--color-text);
   font-size: var(--font-size-xs);
   outline: none;
+  box-sizing: border-box;
 }
 .ftb-input:focus {
   border-color: var(--color-primary);
-}
-.ftb-modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 6px;
-  padding: 10px 12px;
-  border-top: 1px solid var(--color-border);
-}
-.ftb-modal-btn {
-  padding: 5px 14px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-xs);
-  cursor: pointer;
-}
-.ftb-modal-btn.primary {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-}
-.ftb-modal-btn:hover {
-  border-color: var(--color-primary);
-  color: var(--color-text);
 }
 </style>

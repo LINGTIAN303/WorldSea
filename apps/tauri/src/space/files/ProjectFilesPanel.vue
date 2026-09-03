@@ -5,9 +5,11 @@
       <!-- browser 布局：树铺满；选中文件后预览覆盖 -->
       <template v-if="layout !== 'docked'">
         <FileTreeBrowser
+          ref="treeRef"
           :root-path="rootPath"
           :compact="compact"
           :title="title"
+          :merged-header="mergedHeader"
           class="pfp-tree"
           @select="onSelect"
         />
@@ -30,9 +32,11 @@
         <div class="pfp-dock-handle" @mousedown.prevent="onDragStart" title="拖拽调整目录树宽度"></div>
         <div class="pfp-dock-tree" :style="{ width: treeWidth + 'px' }">
           <FileTreeBrowser
+            ref="treeRef"
             :root-path="rootPath"
             :compact="compact"
-            title="目录"
+            :title="title"
+            :merged-header="mergedHeader"
             class="pfp-tree"
             @select="onSelect"
           />
@@ -59,11 +63,23 @@ const props = withDefaults(
     selected?: FsNode | null
     /** inline=点击文件内联预览；external=仅 emit select（左栏，由外部唤起右栏预览） */
     previewMode?: 'inline' | 'external'
+    /** 合并头部模式（右栏两层头）：透传内部 FileTreeBrowser，面包屑+工具同一行 */
+    mergedHeader?: boolean
   }>(),
-  { rootPath: null, layout: 'browser', compact: false, title: '项目目录', selected: null, previewMode: 'inline' },
+  { rootPath: null, layout: 'browser', compact: false, title: '项目目录', selected: null, previewMode: 'inline', mergedHeader: false },
 )
 
 const emit = defineEmits<{ select: [node: FsNode] }>()
+
+/** 内部目录树实例（browser/docked 两分支互斥，同一 ref 指向当前渲染者） */
+const treeRef = ref<InstanceType<typeof FileTreeBrowser> | null>(null)
+
+/** 转发内部目录树刷新（右栏面板头刷新按钮调用；保留展开状态） */
+function refresh(): Promise<void> | undefined {
+  return treeRef.value?.refresh()
+}
+
+defineExpose({ refresh })
 
 /** 当前预览文件（树与预览状态跨布局保持——单实例，仅 CSS 排布切换） */
 const current = ref<FsNode | null>(null)

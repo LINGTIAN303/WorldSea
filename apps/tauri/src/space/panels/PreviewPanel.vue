@@ -1,10 +1,11 @@
 <template>
   <div class="file-panel">
-    <!-- 头部：标题 + 刷新 + 目录树图标（hover 浮层 / click 双栏切换） -->
+    <!-- 头部：标题 + 资源管理器/刷新/目录树开关（2026-09-03 两层头改造：资源管理器与刷新自树头上移至此） -->
     <div class="fp-header">
       <span class="fp-title"><WsIcon name="files" size="sm" /> 文件</span>
       <div class="fp-header-actions">
-        <button class="fp-action-btn" title="刷新" @click="refreshKey++"><WsIcon name="refresh" size="sm" /></button>
+        <button class="fp-action-btn" title="在系统文件资源管理器中打开项目目录" :disabled="!root" @click="openInExplorer"><WsIcon name="folder-open" size="sm" /></button>
+        <button class="fp-action-btn" title="刷新" @click="refreshTree"><WsIcon name="refresh" size="sm" /></button>
         <button
           ref="treeBtnRef"
           class="fp-action-btn"
@@ -17,14 +18,16 @@
       </div>
     </div>
 
-    <!-- 主体：文件浏览器（browser 树铺满 / docked 左预览+右树） -->
+    <!-- 主体：文件浏览器（browser 树铺满 / docked 左预览+右树）；merged-header 两层头 -->
     <div class="fp-body">
       <ProjectFilesPanel
+        ref="pfpRef"
         :key="refreshKey"
         :layout="docked ? 'docked' : 'browser'"
         :root-path="root"
         :selected="selected"
         :title="'项目目录'"
+        :merged-header="true"
         @select="onSelect"
       />
     </div>
@@ -54,6 +57,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
+import { invoke } from '@/agent/composables/transport'
 import { useAgent } from '@/agent/composables/useAgent'
 import { resolveWorkspaceDir } from '../workspace'
 import ProjectFilesPanel from '../files/ProjectFilesPanel.vue'
@@ -68,6 +72,24 @@ const refreshKey = ref(0)
 const root = ref<string | null>(null)
 const treeBtnRef = ref<HTMLElement>()
 const overlayStyle = ref<Record<string, string>>({})
+
+/** 内部文件面板实例（转发目录树刷新） */
+const pfpRef = ref<{ refresh: () => Promise<void> } | null>(null)
+
+/** 在系统文件资源管理器中打开项目目录（explorer.exe 对 '/' 分隔路径解析异常，转回反斜杠） */
+async function openInExplorer(): Promise<void> {
+  if (!root.value) return
+  try {
+    await invoke('cmd_open_in_explorer', { path: root.value.replace(/\//g, '\\') })
+  } catch (err) {
+    console.warn('[PreviewPanel] 打开系统文件夹失败:', err)
+  }
+}
+
+/** 刷新目录树（转发内部 FileTreeBrowser，保留展开状态） */
+function refreshTree(): void {
+  void pfpRef.value?.refresh()
+}
 
 /** 选中文件：用于右栏选中联动（当前仅驱动 FilePreview，无需额外状态） */
 const selected = ref<FsNode | null>(null)

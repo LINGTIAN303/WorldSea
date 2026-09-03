@@ -63,9 +63,7 @@
               @click="setRightTab(p.id)"
               :title="p.title"
             ><WsIcon :name="p.icon" size="sm" />{{ p.label }}</button>
-            <div class="panel-add-wrap" ref="addWrapRef">
-              <button class="panel-add-btn" :class="{ active: addMenuOpen }" @click="toggleAddMenu" title="添加面板" :aria-label="'添加面板'"><WsIcon name="plus" size="sm" /></button>
-            </div>
+            <!-- Level-1 Tab 栏右侧 + 号（添加面板浮窗）已移除（2026-09-03 二轮反馈）：各面板均有 Tab 直达，浮窗冗余 -->
             <button class="right-panel-close" @click="spaceStore.closeRightPanel()" title="关闭"><WsIcon name="close" size="sm" /></button>
           </div>
           <div class="right-panel-body">
@@ -73,7 +71,7 @@
             <div v-if="!hasActiveSession" class="right-empty">
               <WsIcon name="layout-grid" size="lg" class="right-empty-icon" />
               <p class="right-empty-text">创建或打开一个会话以使用面板</p>
-              <button class="right-empty-add" @click="toggleAddMenu"><WsIcon name="plus" size="sm" />添加面板</button>
+              <button class="right-empty-add" @click="setRightTab('exec')"><WsIcon name="plus" size="sm" />打开执行面板</button>
             </div>
             <template v-else>
               <ExecPanel v-if="rightTab === 'exec'" />
@@ -107,18 +105,6 @@
               </div>
             </template>
           </div>
-
-          <!-- + 号浮窗：选择面板类型 -->
-          <Teleport to="body">
-            <div v-if="addMenuOpen" class="add-backdrop" @click="addMenuOpen = false"></div>
-            <Transition name="dropdown">
-              <div v-if="addMenuOpen" class="add-menu" :style="addMenuStyle">
-                <button v-for="p in PANEL_META" :key="p.id" class="add-item" @click="addPanel(p.id)">
-                  <WsIcon :name="p.icon" size="sm" /><span>{{ p.label }}</span>
-                </button>
-              </div>
-            </Transition>
-          </Teleport>
         </div>
       </Transition>
     </div>
@@ -255,27 +241,7 @@ function onToggleRightPanel() {
   if (spaceStore.rightPanelOpen) applyRightPanelWidth()
 }
 
-// [C] + 号浮窗：添加/切换面板
-const addMenuOpen = ref(false)
-const addWrapRef = ref<HTMLElement>()
-const addMenuStyle = ref<Record<string, string>>({ bottom: '8px', right: '8px' })
-function toggleAddMenu() {
-  addMenuOpen.value = !addMenuOpen.value
-  if (addMenuOpen.value) {
-    const el = addWrapRef.value
-    if (el) {
-      const rect = el.getBoundingClientRect()
-      addMenuStyle.value = {
-        bottom: `${Math.max(8, window.innerHeight - rect.top + 6)}px`,
-        right: `${Math.max(8, window.innerWidth - rect.right)}px`,
-      }
-    }
-  }
-}
-function addPanel(t: RightTab) {
-  addMenuOpen.value = false
-  setRightTab(t)
-}
+// [C] Level-1 Tab 栏右侧 + 号浮窗已移除（2026-09-03 二轮反馈）：各面板 Tab 直达，浮窗冗余
 
 // 窗口栏标题（space 变体，2026-08-09）：随单聊/群聊模式动态显示
 const windowBarTitle = computed(() =>
@@ -610,69 +576,6 @@ function onExecResizeStart(e: MouseEvent) {
 }
 .right-panel-tabs::-webkit-scrollbar {
   display: none;
-}
-.panel-add-wrap {
-  position: relative;
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-}
-.panel-add-btn {
-  width: 26px;
-  height: 26px;
-  border: none;
-  background: transparent;
-  color: var(--color-text-tertiary);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.15s, color 0.15s;
-}
-.panel-add-btn:hover {
-  background: var(--color-surface);
-  color: var(--color-text);
-}
-.panel-add-btn.active {
-  background: var(--color-primary-muted);
-  color: var(--color-primary);
-}
-.add-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 10000;
-}
-.add-menu {
-  position: fixed;
-  min-width: 140px;
-  background: var(--color-surface-elevated);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-  padding: 4px;
-  z-index: 10001;
-}
-.add-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 7px 10px;
-  border: none;
-  background: transparent;
-  border-radius: var(--radius-mid);
-  cursor: pointer;
-  text-align: left;
-  font-size: var(--font-size-xs);
-  color: var(--color-text-secondary);
-  transition: background 0.12s;
-}
-.add-item:hover {
-  background: var(--color-surface);
-  color: var(--color-text);
 }
 
 /* 配置内子切换（记忆 / 人格）：次级下划线，字号更小以区分层级 */

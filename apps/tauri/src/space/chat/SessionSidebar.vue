@@ -1,23 +1,47 @@
 <template>
   <div class="session-sidebar">
-    <!-- [A5][B] 顶部：场景选择器（模式选择器已随三模式移除删除，2026-09-01 补 T15） -->
+    <!-- [A5][B] 顶部：场景滑块（2026-09-03 UI 视觉改造：下拉→分段滑块；世界=默认，后四项占位） -->
     <div class="sidebar-top">
-      <div class="scene-select" title="Agent 场景（决定身份与工具集，切换将新建对应场景会话）">
-        <WsIcon name="globe" size="xs" class="scene-icon" />
-        <TuiSelect
-          :model-value="currentScenarioId"
-          size="sm"
-          :options="scenarioOptions"
-          @update:model-value="onScenarioChange"
-        />
+      <div
+        class="scene-slider"
+        role="tablist"
+        aria-label="Agent 场景（决定身份与工具集，切换将新建对应场景会话）"
+      >
+        <div class="scene-slider-thumb" :style="sceneThumbStyle" aria-hidden="true"></div>
+        <button
+          v-for="(s, i) in SCENE_SLIDER_OPTIONS"
+          :key="s.id"
+          class="scene-slider-item"
+          :class="{ active: i === activeSceneIndex }"
+          role="tab"
+          :aria-selected="i === activeSceneIndex"
+          :title="s.placeholder ? `${s.label}（占位：能力暂同默认场景）` : s.label"
+          @click="onSceneSlide(s.id)"
+        >{{ s.label }}</button>
       </div>
     </div>
 
-    <!-- 中部：会话列表（主视图，去 Tab 化） -->
+    <!-- 中部：新建会话长条（2026-09-03 UI 视觉改造：+按钮→输入框式长条；关闭入口在窗口栏侧边栏开关，2026-09-03 二轮反馈移除面板内✕） -->
     <div class="sidebar-new-row">
-      <button class="new-session-btn" @click="onNewSession" title="新建会话"><WsIcon name="plus" size="xs" /></button>
-      <span class="sidebar-section-title">会话</span>
-      <button class="sidebar-close-btn" @click="emit('close')" title="关闭"><WsIcon name="close" size="sm" /></button>
+      <button class="new-session-bar" @click="onNewSession" title="新建会话">
+        <WsIcon name="plus" size="xs" />
+        <span>新建会话</span>
+      </button>
+    </div>
+
+    <!-- [B5] 知识库入口行（2026-09-03 UI 视觉改造：底部折叠区块→搜索框上方入口，主体区视图承载） -->
+    <div class="sidebar-kb-row">
+      <button
+        class="kb-entry-btn"
+        :class="{ active: sidebarView === 'kb' }"
+        :aria-expanded="sidebarView === 'kb'"
+        title="打开知识库"
+        @click="toggleKbView"
+      >
+        <WsIcon name="book" size="xs" />
+        <span class="kb-entry-label">知识库</span>
+        <WsIcon name="chevron-right" size="xs" class="kb-entry-caret" :class="{ open: sidebarView === 'kb' }" />
+      </button>
     </div>
     <div class="sidebar-search">
       <input
@@ -28,7 +52,7 @@
     </div>
 
     <div class="sidebar-body">
-      <!-- 视图舞台：会话列表树 ⇄ 项目目录树（position:absolute 双 pane 切换） -->
+      <!-- 视图舞台：会话列表树 ⇄ 项目目录树 ⇄ 知识库（position:absolute 三 pane 切换） -->
       <div class="sidebar-stage">
         <Transition name="view-swap" mode="out-in">
           <!-- 会话列表视图 -->
@@ -84,7 +108,12 @@
                     <WsIcon v-if="s.pinned" name="pin" size="xs" class="session-pin" />
                     {{ s.name }}
                   </div>
-                  <div class="session-meta">
+                  <!-- 删除行内确认（2026-09-03 UI 改造：弹窗→条目右侧 确认/取消） -->
+                  <div v-if="confirmingDeleteId === s.id" class="session-confirm" @click.stop>
+                    <button class="confirm-btn confirm-yes" title="确认删除（不可恢复）" @click.stop="confirmDelete(s.id)"><WsIcon name="check" size="xs" /></button>
+                    <button class="confirm-btn confirm-no" title="取消" @click.stop="confirmingDeleteId = null"><WsIcon name="close" size="xs" /></button>
+                  </div>
+                  <div v-else class="session-meta">
                     <span class="session-time">{{ formatTime(s.createdAt) }}</span>
                     <span class="session-count">{{ s.messageCount }} 条</span>
                   </div>
@@ -94,7 +123,7 @@
           </div>
 
           <!-- 项目目录树视图 -->
-          <div v-else key="files" class="sb-pane">
+          <div v-else-if="sidebarView === 'files'" key="files" class="sb-pane">
             <div class="files-view-header">
               <button class="files-back-btn" @click="sidebarView = 'sessions'" title="返回会话列表"><WsIcon name="arrow-left" size="xs" />会话列表</button>
               <span class="files-view-dir" :title="activeFilesRoot ?? ''">{{ activeFilesRoot ? baseNameOf(activeFilesRoot) : '项目目录' }}</span>
@@ -108,22 +137,22 @@
               @select="onLeftFileSelect"
             />
           </div>
+
+          <!-- 知识库视图（2026-09-03 UI 视觉改造：由底部折叠区块升级为主体视图） -->
+          <div v-else key="kb" class="sb-pane sb-pane-flex">
+            <div class="files-view-header">
+              <button class="files-back-btn" @click="sidebarView = 'sessions'" title="返回会话列表"><WsIcon name="arrow-left" size="xs" />会话列表</button>
+              <span class="files-view-dir">知识库</span>
+            </div>
+            <div class="kb-view-body">
+              <KnowledgeWall embedded @close="sidebarView = 'sessions'" />
+            </div>
+          </div>
         </Transition>
       </div>
     </div>
 
-    <!-- [B5] 知识库：独立控件，会话列表下方常驻折叠区块 -->
-    <div class="sidebar-kb-section">
-      <button class="kb-toggle" :aria-expanded="kbOpen" @click="kbOpen = !kbOpen">
-        <WsIcon name="book" size="sm" /><span class="kb-toggle-label">知识库</span>
-        <WsIcon name="chevron-down" size="xs" class="kb-caret" :class="{ open: kbOpen }" />
-      </button>
-      <div v-show="kbOpen" class="kb-body">
-        <KnowledgeWall embedded @close="kbOpen = false" />
-      </div>
-    </div>
-
-    <!-- [A3][A4] 底部：头像信息（Agent 身份/persona）+ 更多菜单（精简：全局设置/关于） -->
+    <!-- [A3][A4] 底部：头像信息（Agent 身份/persona）+ 更多菜单（精简：全局设置/关于）；知识库区块已上移为主体视图（2026-09-03） -->
     <div class="sidebar-bottom">
       <div class="agent-identity" ref="identityRef">
         <AvatarBadge
@@ -197,7 +226,7 @@
         <button class="ctx-item" @click="onRename">重命名</button>
         <button v-if="!contextMenu.pinned" class="ctx-item" @click="onPin">固定</button>
         <button v-else class="ctx-item" @click="onUnpin">取消固定</button>
-        <button class="ctx-item ctx-danger" @click="onDelete">删除</button>
+        <button class="ctx-item ctx-danger" @click.stop="onDelete($event)">删除</button>
       </div>
     </Teleport>
   </div>
@@ -206,7 +235,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick, type Ref } from 'vue'
 import { useAgent } from '@/agent/composables/useAgent'
-import { WsIcon, useConfirm } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsmith/ui-kit'
 import KnowledgeWall from '@/agent/panels/KnowledgeWall.vue'
 import { useSpaceStore } from '../stores/space-store'
 import { useSessionViewState, LAST_SESSION_KEY } from '@/agent/composables/useSessionViewState'
@@ -216,7 +245,6 @@ import { useFontStore } from '@/stores/fontStore'
 import PersonaMirror from '../panels/PersonaMirror.vue'
 import AvatarBadge from '@/ui/AvatarBadge.vue'
 import WorldSmithLogo from '@/components/brand/WorldSmithLogo.vue'
-import TuiSelect from '@/components/ui/TuiSelect.vue'
 import { useSessionTree, type WorkdirRecord } from './useSessionTree'
 import { resolveWorkspaceDir } from '../workspace'
 import ProjectFilesPanel from '../files/ProjectFilesPanel.vue'
@@ -243,7 +271,7 @@ interface RustSessionInfo {
 
 // useAgentRust：会话列表/切换/删除/重命名/固定均由 Rust 后端管理
 const backend = useAgent()
-const { currentSessionId, newSession, newDraftSession, draftSessionActive, switchSession, deleteSession, listSessions, listScenarios, sessionTitle, updateSessionTitle, setSessionPinned, loadWorkdirs } = backend
+const { currentSessionId, newSession, newDraftSession, draftSessionActive, switchSession, deleteSession, listSessions, sessionTitle, updateSessionTitle, setSessionPinned, loadWorkdirs } = backend
 const sessionList = backend.sessionList as unknown as Ref<RustSessionInfo[]>
 const workdirs = backend.workdirs as unknown as Ref<WorkdirRecord[]>
 /** Phase 5：待激活会话 id（newSession 后延迟展示，首条消息后才展示条目） */
@@ -289,8 +317,8 @@ async function loadDefaultDir(): Promise<void> {
   } catch {}
 }
 
-// ── 文件浏览器视图（2026-09-03 方向2 第2项：会话列表树 ⇄ 项目目录树）──
-const sidebarView = ref<'sessions' | 'files'>('sessions')
+// ── 文件浏览器 / 知识库视图（2026-09-03：会话列表树 ⇄ 项目目录树 ⇄ 知识库）──
+const sidebarView = ref<'sessions' | 'files' | 'kb'>('sessions')
 const activeFilesRoot = ref<string | null>(null)
 
 /** 项目组头图标点击：切到该项目目录树视图（未限定目录组兜底默认根） */
@@ -428,44 +456,56 @@ async function onUnpin() {
   await refresh()
 }
 
-async function onDelete() {
-  const id = contextMenu.value.sessionId
-  const pinned = contextMenu.value.pinned
+// ── 删除（2026-09-03 UI 改造：弹窗确认→条目右侧行内确认；点面板其他处取消）──
+/** 待确认删除的会话 id（非空时该条目右侧显示 确认/取消 UI） */
+const confirmingDeleteId = ref<string | null>(null)
+
+function onDelete(e: MouseEvent) {
+  // stopPropagation：同一此点击若冒泡到 document 的 onClickOutside，会立刻清空确认态（bug 修复）
+  e.stopPropagation()
+  confirmingDeleteId.value = contextMenu.value.sessionId
   contextMenu.value.visible = false
-  // N7 修复：删除二次确认（消息不可恢复）；固定会话跳过确认（用户明确要删）
-  if (!pinned) {
-    const { confirm } = useConfirm()
-    const ok = await confirm({
-      type: 'danger',
-      title: '删除会话',
-      description: '删除后该会话的全部对话记录将不可恢复，确定删除？',
-    })
-    if (!ok) return
-  }
+}
+
+/** 行内确认删除（消息不可恢复；列表刷新由 deleteSession 内部处理） */
+async function confirmDelete(id: string) {
+  confirmingDeleteId.value = null
   await deleteSession(id)
 }
 
-// ── [A5] 场景（会话级，自 SpaceNavbar 移入；模式选择器已随三模式移除删除，2026-09-01 补 T15）──
+// ── [A5] 场景（2026-09-03 UI 视觉改造：下拉→分段滑块，固定 5 段；世界=默认，后四项占位）──
 const sessionView = useSessionViewState()
 
-/** 可用场景列表（源自 Rust list_scenarios） */
-const scenarioOptions = ref<{ value: string; label: string }[]>([])
+/** 场景滑块固定选项。占位四项尚无专属场景插件：Rust resolve_scenario 对未知 id
+ *  回退默认场景（worldbuilding），故选中占位项可正常新建会话、能力暂同默认 */
+const SCENE_SLIDER_OPTIONS: { id: string; label: string; placeholder?: boolean }[] = [
+  { id: 'worldbuilding', label: '世界' },
+  { id: 'novel', label: '小说', placeholder: true },
+  { id: 'general', label: '通用', placeholder: true },
+  { id: 'coding', label: '编程', placeholder: true },
+  { id: 'design', label: '设计', placeholder: true },
+]
+
 /** 当前会话场景 ID（会话级，缺省 worldbuilding） */
 const currentScenarioId = computed(() => sessionView.activeState.value?.sceneId ?? 'worldbuilding')
 
-async function loadScenarios() {
-  try {
-    const list: { id: string; display_name: string }[] = await listScenarios()
-    scenarioOptions.value = list.map((s) => ({ value: s.id, label: s.display_name }))
-  } catch (err) {
-    console.warn('[scenario] 加载场景失败，保持默认 worldbuilding:', err)
-  }
-}
+/** 滑块选中段 index（未知场景 id 归位默认段） */
+const activeSceneIndex = computed(() => {
+  const i = SCENE_SLIDER_OPTIONS.findIndex((s) => s.id === currentScenarioId.value)
+  return i >= 0 ? i : 0
+})
 
-async function onScenarioChange(scenarioId: string) {
+/** 滑块 thumb：等宽分段（扣除轨道左右内边距 4px），按选中 index 平移整数段 */
+const sceneThumbStyle = computed(() => ({
+  width: `calc((100% - 4px) / ${SCENE_SLIDER_OPTIONS.length})`,
+  transform: `translateX(${activeSceneIndex.value * 100}%)`,
+}))
+
+async function onSceneSlide(scenarioId: string) {
+  if (scenarioId === currentScenarioId.value) return
   try {
     await newSession('新会话', undefined, scenarioId)
-    const label = scenarioOptions.value.find((o) => o.value === scenarioId)?.label ?? scenarioId
+    const label = SCENE_SLIDER_OPTIONS.find((o) => o.id === scenarioId)?.label ?? scenarioId
     window.dispatchEvent(new CustomEvent('ws-scenario-changed', { detail: { id: scenarioId, label } }))
   } catch (err) {
     console.warn('[scenario] 切换场景失败:', err)
@@ -527,8 +567,10 @@ function onMore(action: 'settings' | 'about') {
   else aboutOpen.value = true
 }
 
-// ── [B5] 知识库常驻折叠区块 ──
-const kbOpen = ref(false)
+// ── [B5] 知识库（2026-09-03 改造：底部折叠区块→主体视图，入口行在搜索框上方）──
+function toggleKbView() {
+  sidebarView.value = sidebarView.value === 'kb' ? 'sessions' : 'kb'
+}
 
 // ── 关于弹窗 ──
 const aboutOpen = ref(false)
@@ -537,13 +579,13 @@ function onClickOutside() {
   contextMenu.value.visible = false
   moreMenuOpen.value = false
   personaPopoverOpen.value = false
+  confirmingDeleteId.value = null
 }
 
 onMounted(() => {
   refresh()
   document.addEventListener('click', onClickOutside)
   window.addEventListener('ws-session-title-updated', refresh)
-  loadScenarios()
 })
 
 onBeforeUnmount(() => {
@@ -565,75 +607,119 @@ watch(currentSessionId, () => {
   /* 与其他大区域面板同色：背景交给外层 .session-panel（--color-surface-elevated） */
 }
 
-/* [A5] 顶部：场景（模式选择器已随三模式移除删除，2026-09-01 补 T15） */
+/* [A5] 顶部：场景滑块（2026-09-03 改造：下拉→分段滑块，iOS segmented 风） */
 .sidebar-top {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 10px 10px 6px;
+  padding: 10px 10px 8px;
   border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
 }
-.scene-select {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
+.scene-slider {
+  position: relative;
+  display: flex;
+  width: 100%;
+  padding: 2px;
+  background: var(--color-surface);
+  border-radius: var(--radius-sm);
 }
-.scene-icon {
+/* 滑块 thumb：绝对定位色块，宽度/位移由内联 style 按选中段计算 */
+.scene-slider-thumb {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  background: var(--color-surface-elevated);
+  border-radius: calc(var(--radius-sm) - 2px);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+  transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.scene-slider-item {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  padding: 4px 0;
+  font-size: var(--font-size-2xs);
   color: var(--color-text-secondary);
+  white-space: nowrap;
+  border-radius: calc(var(--radius-sm) - 2px);
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.scene-slider-item:hover {
+  color: var(--color-text);
+}
+.scene-slider-item.active {
+  color: var(--color-text);
+  font-weight: 600;
 }
 
-/* 新建行 */
+/* 新建行：输入框式长条（2026-09-03 改造：+按钮→长条「新建会话」） */
 .sidebar-new-row {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 10px 0;
+  padding: 10px 10px 0;
   flex-shrink: 0;
 }
-.new-session-btn {
-  width: 22px;
-  height: 22px;
-  border: none;
-  background: transparent;
-  border-radius: var(--radius-xs);
+.new-session-bar {
+  flex: 1;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-xs);
   cursor: pointer;
-  font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
+  transition: border-color 0.15s, color 0.15s;
+}
+.new-session-bar:hover {
+  border-color: var(--color-primary);
+  color: var(--color-text);
+}
+
+/* [B5] 知识库入口行（搜索框上方，2026-09-03 改造：底部折叠区块→入口行 + 主体视图） */
+.sidebar-kb-row {
+  padding: 6px 10px 0;
+  flex-shrink: 0;
+}
+.kb-entry-btn {
   display: flex;
   align-items: center;
-  justify-content: center;
-  transition: background 0.15s, color 0.15s;
-  padding: 0;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  transition: background 0.12s, color 0.12s;
 }
-.new-session-btn:hover {
+.kb-entry-btn:hover {
   background: var(--color-surface);
   color: var(--color-text);
 }
-.sidebar-section-title {
-  font-size: var(--font-size-2xs);
-  font-weight: 600;
-  color: var(--color-text-tertiary);
-  letter-spacing: 0.04em;
+.kb-entry-btn.active {
+  color: var(--color-primary);
 }
-.sidebar-close-btn {
-  align-self: center;
-  margin-left: auto;
-  width: 24px;
-  height: 24px;
-  border: none;
-  background: transparent;
-  border-radius: var(--radius-xs);
-  cursor: pointer;
-  color: var(--color-text-tertiary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.kb-entry-label {
+  flex: 1;
+  text-align: left;
 }
-.sidebar-close-btn:hover {
-  background: var(--color-surface-elevated);
-  color: var(--color-text);
+.kb-entry-caret {
+  color: var(--color-text-tertiary);
+  transition: transform 0.2s;
+}
+.kb-entry-caret.open {
+  transform: rotate(90deg);
 }
 
 /* 搜索 */
@@ -727,6 +813,10 @@ watch(currentSessionId, () => {
   text-overflow: ellipsis;
   text-align: right;
 }
+/* files 视图提升（2026-09-03，scoped deep 仅侧栏生效）：header 已示目录名，隐藏树内重复大标题 */
+.sb-pane :deep(.ftb-title) {
+  display: none;
+}
 .sidebar-empty {
   padding: 16px 8px;
   text-align: center;
@@ -735,13 +825,6 @@ watch(currentSessionId, () => {
 }
 .session-group {
   margin-bottom: 4px;
-}
-.group-label {
-  padding: 6px 8px 2px;
-  font-size: var(--font-size-2xs);
-  color: var(--color-text-tertiary);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
 }
 
 /* Phase 3：目录组（两级树外层条目） */
@@ -775,6 +858,10 @@ watch(currentSessionId, () => {
 .tree-group-count {
   font-size: var(--font-size-2xs);
   color: var(--color-text-tertiary);
+  background: var(--color-surface);
+  border-radius: 999px;
+  padding: 0 6px;
+  line-height: 15px;
   flex-shrink: 0;
 }
 /* 项目组头右端「浏览项目目录」图标（2026-09-03 方向2 第2项） */
@@ -815,10 +902,12 @@ watch(currentSessionId, () => {
   padding-left: 10px;
 }
 .session-item {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  margin: 0 6px;
   padding: 6px 8px;
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -829,6 +918,18 @@ watch(currentSessionId, () => {
 }
 .session-item.active {
   background: var(--color-primary-muted);
+}
+/* active 左缘指示条：主色细条强化当前会话定位 */
+.session-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2px;
+  height: 60%;
+  border-radius: 1px;
+  background: var(--color-primary);
 }
 .session-name {
   flex: 1;
@@ -864,48 +965,49 @@ watch(currentSessionId, () => {
   color: var(--color-text-tertiary);
 }
 
-/* [B5] 知识库常驻折叠区块 */
-.sidebar-kb-section {
+/* 删除行内确认（2026-09-03 改造：弹窗→条目右侧 确认/取消） */
+.session-confirm {
+  display: flex;
+  gap: 4px;
   flex-shrink: 0;
-  border-top: 1px solid var(--color-border);
-  max-height: 40%;
+}
+.confirm-btn {
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 0.12s, color 0.12s;
+}
+.confirm-yes {
+  background: color-mix(in srgb, var(--danger, #ef4444) 14%, transparent);
+  color: var(--danger, #ef4444);
+}
+.confirm-yes:hover {
+  background: var(--danger, #ef4444);
+  color: #fff;
+}
+.confirm-no {
+  background: var(--color-surface);
+  color: var(--color-text-tertiary);
+}
+.confirm-no:hover {
+  background: var(--color-surface-elevated);
+  color: var(--color-text);
+}
+
+/* [B5] 知识库视图（主体三视图之一，2026-09-03）：header 复用 files-view-header，本体由 KnowledgeWall 自滚动 */
+.sb-pane-flex {
   display: flex;
   flex-direction: column;
 }
-.kb-toggle {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  padding: 8px 10px;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-xs);
-  font-weight: 600;
-  transition: background 0.12s, color 0.12s;
-}
-.kb-toggle:hover {
-  background: var(--color-surface);
-  color: var(--color-text);
-}
-.kb-toggle-label {
-  flex: 1;
-  text-align: left;
-}
-.kb-caret {
-  transition: transform 0.2s;
-  color: var(--color-text-tertiary);
-}
-.kb-caret.open {
-  transform: rotate(180deg);
-}
-.kb-body {
+.kb-view-body {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
-  border-top: 1px solid var(--color-border);
 }
 
 /* [A3][A4] 底部：头像 + 更多 */
@@ -1151,8 +1253,9 @@ watch(currentSessionId, () => {
 :root[data-anim-panels='off'] .agent-avatar:hover {
   transform: none;
 }
-:root[data-anim-panels='off'] .kb-caret,
-:root[data-anim-panels='off'] .group-caret {
+:root[data-anim-panels='off'] .kb-entry-caret,
+:root[data-anim-panels='off'] .group-caret,
+:root[data-anim-panels='off'] .scene-slider-thumb {
   transition: none;
 }
 </style>

@@ -20,23 +20,25 @@
       </div>
     </template>
 
-    <!-- [③] 视图选择浮窗菜单（2026-08-29 由居中弹窗改为锚定触发按钮的浮窗菜单） -->
+    <!-- [③] 视图选择浮窗菜单（2026-09-03 改造：双列 + 列表独立滚动 + 定位边缘检测，不再超出视口） -->
     <Teleport to="body">
       <div v-if="showPicker" class="picker-backdrop" @click="showPicker = false"></div>
       <Transition name="dropdown">
         <div v-if="showPicker" class="picker-menu" :style="pickerStyle">
           <div class="picker-header">选择创作视图</div>
-          <button
-            v-for="v in viewOptions"
-            :key="v.id"
-            class="picker-item"
-            :class="{ active: v.id === activeViewId }"
-            @click="selectView(v.id)"
-          >
-            <WsIcon :name="v.icon || 'palette'" size="sm" />
-            <span class="picker-item-label">{{ v.label }}</span>
-          </button>
-          <div v-if="viewOptions.length === 0" class="picker-empty">暂无可用创作视图</div>
+          <div v-if="viewOptions.length" class="picker-list">
+            <button
+              v-for="v in viewOptions"
+              :key="v.id"
+              class="picker-item"
+              :class="{ active: v.id === activeViewId }"
+              @click="selectView(v.id)"
+            >
+              <WsIcon :name="v.icon || 'palette'" size="sm" />
+              <span class="picker-item-label">{{ v.label }}</span>
+            </button>
+          </div>
+          <div v-else class="picker-empty">暂无可用创作视图</div>
         </div>
       </Transition>
     </Teleport>
@@ -50,7 +52,7 @@ import { usePluginStore } from '@worldsmith/entity-core'
 
 const pluginStore = usePluginStore()
 const showPicker = ref(false)
-const pickerStyle = ref<Record<string, string>>({ bottom: '8px', right: '8px' })
+const pickerStyle = ref<Record<string, string>>({ top: '0px', left: '0px' })
 const activeViewId = ref('')
 
 /** 可用的插件创作视图（排除空间/主视图 `custom` 等非创作视图） */
@@ -68,14 +70,20 @@ const activeViewComponent = computed(() => {
   return v?.component ?? null
 })
 
-/** 打开浮窗菜单：锚定触发按钮（右下角） */
+/** 打开浮窗：优先按钮下方展开，下方空间不足改向上，均不足钳制视口内；左右边缘检测
+ *  （修复原 bottom 定位：列表长时浮窗向上溢出视口顶部被裁剪） */
 function openPicker(ev: MouseEvent) {
   const el = ev.currentTarget as HTMLElement
   const rect = el.getBoundingClientRect()
-  pickerStyle.value = {
-    bottom: `${Math.max(8, window.innerHeight - rect.top + 6)}px`,
-    right: `${Math.max(8, window.innerWidth - rect.right)}px`,
-  }
+  const MENU_W = 340
+  const MENU_H = 400 // 上限估算：列表 max-height(≤360) + 头部/内边距
+  let left = rect.right - MENU_W
+  if (left < 8) left = 8
+  if (left + MENU_W > window.innerWidth - 8) left = window.innerWidth - MENU_W - 8
+  let top = rect.bottom + 6
+  if (top + MENU_H > window.innerHeight - 8) top = Math.max(8, rect.top - MENU_H - 6)
+  if (top < 8) top = 8
+  pickerStyle.value = { top: `${top}px`, left: `${left}px` }
   showPicker.value = true
 }
 
@@ -188,10 +196,10 @@ onBeforeUnmount(() => {
 }
 .picker-menu {
   position: fixed;
-  min-width: 220px;
-  max-width: 280px;
-  max-height: 60vh;
-  overflow-y: auto;
+  min-width: 320px;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
   background: var(--color-surface-elevated);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
@@ -202,6 +210,7 @@ onBeforeUnmount(() => {
   z-index: 10001;
 }
 .picker-header {
+  flex-shrink: 0;
   padding: 6px 10px 4px;
   font-size: var(--font-size-xs);
   font-weight: 600;
@@ -209,11 +218,19 @@ onBeforeUnmount(() => {
   border-bottom: 1px solid var(--color-border);
   margin-bottom: 4px;
 }
+/* 列表区：双列网格 + 独立滚动（header 固定不随滚） */
+.picker-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  max-height: min(46vh, 360px);
+  overflow-y: auto;
+}
 .picker-item {
   display: flex;
   align-items: center;
   gap: 8px;
-  width: 100%;
+  min-width: 0;
   padding: 7px 10px;
   border: none;
   background: transparent;
@@ -234,6 +251,9 @@ onBeforeUnmount(() => {
 }
 .picker-item-label {
   flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .picker-empty {
   padding: 16px;
@@ -254,5 +274,9 @@ onBeforeUnmount(() => {
 .dropdown-leave-to {
   opacity: 0;
   transform: translateY(2px);
+}
+:root[data-anim-panels='off'] .dropdown-enter-from,
+:root[data-anim-panels='off'] .dropdown-leave-to {
+  transform: none;
 }
 </style>

@@ -231,13 +231,28 @@ function addExecSection(t: ExecTab): void {
   scheduleSave()
 }
 
-/** [2026-08-29] 关闭一个执行区（卡片 ×）；关闭当前 execTab 时回退到最后一个剩余区 */
+/** [2026-08-29] 关闭一个执行区（标签 ✕）；关闭当前 execTab 时回退到最后一个剩余区 */
 function removeExecSection(t: ExecTab): void {
   const id = activeSessionId.value
   if (!id) return
   const s = getOrCreate(id)
   s.openExecSections = s.openExecSections.filter(x => x !== t)
   if (s.execTab === t) s.execTab = s.openExecSections[s.openExecSections.length - 1] ?? 'trace'
+  scheduleSave()
+}
+
+/** [2026-09-03] 标签拖拽排序：把 from 移到 to 的位置（其余顺移），会话级持久化 */
+function reorderExecSections(from: ExecTab, to: ExecTab): void {
+  const id = activeSessionId.value
+  if (!id || from === to) return
+  const s = getOrCreate(id)
+  const list = [...s.openExecSections]
+  const fromIdx = list.indexOf(from)
+  const toIdx = list.indexOf(to)
+  if (fromIdx < 0 || toIdx < 0) return
+  list.splice(fromIdx, 1)
+  list.splice(toIdx, 0, from)
+  s.openExecSections = list
   scheduleSave()
 }
 
@@ -277,6 +292,7 @@ export function useSessionViewState() {
     setExecTab,
     addExecSection,
     removeExecSection,
+    reorderExecSections,
     setRightPanel,
     setModel,
     setMultiSummary,
