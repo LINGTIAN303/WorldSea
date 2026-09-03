@@ -31,6 +31,16 @@
         <div class="settings-content">
         <!-- 设置内嵌（embedded）：卡片式全展开，无左侧导航 -->
         <template v-if="embedded">
+          <!-- 卡片 tab（2026-09-04）：显式翻卡入口——滚轮边界续页在嵌套滚动容器下不可靠（安全卡翻不动），tab 直翻 -->
+          <div class="agent-set-deck-tabs">
+            <button
+              v-for="(t, i) in EMBEDDED_CARD_TABS"
+              :key="t"
+              class="agent-set-deck-tab"
+              :class="{ on: deckRef?.activeCard === i }"
+              @click="deckRef?.goToCard(i)"
+            >{{ t }}</button>
+          </div>
           <!-- 显式轮转（叠放翻卡）：复用通用 CardDeck，当前卡完全显示，上/下一张各露一截边；滚轮边界续页 + 左列标题翻卡 -->
           <CardDeck ref="deckRef" :count="5" @change="(i) => emit('card-change', i)">
             <template #card="{ idx, cls }">
@@ -519,6 +529,9 @@ const settingsSubPanel = ref('')
 const deckRef = ref<InstanceType<typeof CardDeck> | null>(null)
 defineExpose({ goToCard: (i: number) => deckRef.value?.goToCard(i) })
 
+/** 嵌入式设置卡片 tab（2026-09-04）：显式翻卡入口（模型/Skills/MCP/规则/安全） */
+const EMBEDDED_CARD_TABS = ['模型', 'Skills', 'MCP', '规则', '安全']
+
 // ── C 批：能力工具并入 Skills（搜索/视觉分析/图像生成/视频生成） ──
 const CAPABILITY_TOOL_META = [
   { id: 'search', icon: 'search', name: '搜索', description: 'web_search 联网检索' },
@@ -766,6 +779,33 @@ onMounted(() => {
 </script>
 
 <style>
+/* ── 嵌入式设置卡片 tab（2026-09-04）：显式翻卡入口 ── */
+.agent-set-deck-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 0 4px 10px;
+  overflow-x: auto;
+}
+.agent-set-deck-tab {
+  flex-shrink: 0;
+  padding: 4px 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: var(--bg-subtle);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.agent-set-deck-tab:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover, var(--bg-subtle));
+}
+.agent-set-deck-tab.on {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
 .agent-settings {
   position: fixed;
   width: 280px;
