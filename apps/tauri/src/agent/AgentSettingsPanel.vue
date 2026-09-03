@@ -134,13 +134,6 @@
               <template v-else-if="idx === 4">
                 <div class="agent-set-head">安全</div>
                 <div class="settings-section">
-                  <div class="settings-row">
-                    <span class="settings-row-label">危险操作确认</span>
-                    <label class="settings-toggle"><input type="checkbox" v-model="settingsStore.aiDangerConfirm" /><span class="settings-toggle-slider"></span></label>
-                  </div>
-                  <div class="settings-hint">开启后 Agent 删除实体/关系时需用户确认</div>
-                </div>
-                <div class="settings-section">
                   <div class="settings-label">工具安全级别</div>
                   <TuiSelect :model-value="securityLevel" :options="securityOptions" @update:model-value="onSecurityLevelChange" />
                   <div class="settings-hint">控制 Agent 执行工具前的确认程度，需对当前会话生效</div>
@@ -245,13 +238,6 @@
           />
           <!-- 安全面板（短子面板，内联） -->
           <div v-else-if="settingsSubPanel === 'safety'" key="safety" class="sub-panel">
-            <div class="settings-section">
-              <div class="settings-row">
-                <span class="settings-row-label">危险操作确认</span>
-                <label class="settings-toggle"><input type="checkbox" v-model="settingsStore.aiDangerConfirm" /><span class="settings-toggle-slider"></span></label>
-              </div>
-              <div class="settings-hint">开启后 Agent 删除实体/关系时需用户确认</div>
-            </div>
             <!-- A7：工具安全级别（三档，运行时切换 Rust 侧确认策略） -->
             <div class="settings-section">
               <div class="settings-label">工具安全级别</div>
