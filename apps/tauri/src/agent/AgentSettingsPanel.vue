@@ -155,11 +155,11 @@
                       <TuiButton size="sm" variant="ghost" @click="addAllowCommand">添加</TuiButton>
                     </div>
                     <ul class="perm-list">
-                      <li v-for="c in permRules.allowCommands" :key="c">
+                      <li v-for="c in permRules.allow_commands" :key="c">
                         <code class="perm-code">{{ c }}</code>
                         <button class="perm-del" title="移除" @click="removeAllowCommand(c)"><WsIcon name="x" size="xs" /></button>
                       </li>
-                      <li v-if="!permRules.allowCommands.length" class="perm-empty">暂无</li>
+                      <li v-if="!permRules.allow_commands.length" class="perm-empty">暂无</li>
                     </ul>
                   </div>
                   <div class="perm-sub">
@@ -169,11 +169,11 @@
                       <TuiButton size="sm" variant="ghost" @click="addAllowPath">添加</TuiButton>
                     </div>
                     <ul class="perm-list">
-                      <li v-for="p in permRules.allowPaths" :key="p">
+                      <li v-for="p in permRules.allow_paths" :key="p">
                         <code class="perm-code">{{ p }}</code>
                         <button class="perm-del" title="移除" @click="removeAllowPath(p)"><WsIcon name="x" size="xs" /></button>
                       </li>
-                      <li v-if="!permRules.allowPaths.length" class="perm-empty">暂无</li>
+                      <li v-if="!permRules.allow_paths.length" class="perm-empty">暂无</li>
                     </ul>
                   </div>
                   <div class="perm-sub">
@@ -270,11 +270,11 @@
                   <TuiButton size="sm" variant="ghost" @click="addAllowCommand">添加</TuiButton>
                 </div>
                 <ul class="perm-list">
-                  <li v-for="c in permRules.allowCommands" :key="c">
+                  <li v-for="c in permRules.allow_commands" :key="c">
                     <code class="perm-code">{{ c }}</code>
                     <button class="perm-del" title="移除" @click="removeAllowCommand(c)"><WsIcon name="x" size="xs" /></button>
                   </li>
-                  <li v-if="!permRules.allowCommands.length" class="perm-empty">暂无</li>
+                  <li v-if="!permRules.allow_commands.length" class="perm-empty">暂无</li>
                 </ul>
               </div>
 
@@ -285,11 +285,11 @@
                   <TuiButton size="sm" variant="ghost" @click="addAllowPath">添加</TuiButton>
                 </div>
                 <ul class="perm-list">
-                  <li v-for="p in permRules.allowPaths" :key="p">
+                  <li v-for="p in permRules.allow_paths" :key="p">
                     <code class="perm-code">{{ p }}</code>
                     <button class="perm-del" title="移除" @click="removeAllowPath(p)"><WsIcon name="x" size="xs" /></button>
                   </li>
-                  <li v-if="!permRules.allowPaths.length" class="perm-empty">暂无</li>
+                  <li v-if="!permRules.allow_paths.length" class="perm-empty">暂无</li>
                 </ul>
               </div>
 
@@ -677,7 +677,7 @@ function onPersonaPresetChange(v: string): void {
 }
 
 // A7 工具安全级别：加载 settingsStore 持久值，切换时 emit（SpaceAgentSettingsPanel 转发到 useAgentRust.setSecurityLevel）
-const securityLevel = ref(settingsStore.agentSecurityLevel || 'dangerous_only')
+const securityLevel = ref(settingsStore.agentSecurityLevel || 'interact')
 
 function onSecurityLevelChange(v: string): void {
   settingsStore.agentSecurityLevel = v
@@ -704,11 +704,11 @@ const securityOptions: Array<{ value: string; label: string }> = [
 
 // ── v2 权限规则（2026-09-03）：白名单 + 上锁名单 CRUD ──
 interface PermRules {
-  allowCommands: string[]
-  allowPaths: string[]
+  allow_commands: string[]
+  allow_paths: string[]
   locks: Array<{ path: string; read_ok: boolean; command_ok: boolean; write_ok: boolean }>
 }
-const permRules = ref<PermRules>({ allowCommands: [], allowPaths: [], locks: [] })
+const permRules = ref<PermRules>({ allow_commands: [], allow_paths: [], locks: [] })
 const allowCmdDraft = ref('')
 const allowPathDraft = ref('')
 const lockPathDraft = ref('')
@@ -718,7 +718,13 @@ const lockWriteOk = ref(false)
 
 async function loadPermRules(): Promise<void> {
   try {
-    permRules.value = (await invoke<PermRules>('cmd_perm_rules_get')) ?? { allowCommands: [], allowPaths: [], locks: [] }
+    const r = await invoke<PermRules | null>('cmd_perm_rules_get')
+    // 防御：Rust 返回字段缺省/null 时兜底空数组（防渲染 .length 抛错）
+    permRules.value = {
+      allow_commands: r?.allow_commands ?? [],
+      allow_paths: r?.allow_paths ?? [],
+      locks: r?.locks ?? [],
+    }
   } catch (e) {
     console.warn('[AgentSettings] 加载权限规则失败:', e)
   }
