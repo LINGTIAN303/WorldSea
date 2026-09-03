@@ -49,9 +49,7 @@
           :title="activeTitle ? `当前标题：${activeTitle}` : '标题目录'"
           @click="toggleTocPin"
         >
-          <WsIcon name="list" size="xs" />
           <span class="fpv-toc-current">{{ activeTitle || '目录' }}</span>
-          <WsIcon name="chevron-down" size="xs" class="fpv-toc-caret" :class="{ open: tocOpen }" />
         </button>
         <Transition name="dropdown">
           <div v-if="tocOpen" class="fpv-toc-menu">
@@ -534,46 +532,34 @@ watch(
   top: 0;
   padding-top: 12px;
 }
+/* 触发框：无框无底，仅标题文字本身承担高亮（hover/开启/固定 → 主色） */
 .fpv-toc-trigger {
   display: flex;
   align-items: center;
-  gap: 4px;
   width: 100%;
-  padding: 4px 6px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
+  padding: 3px 4px;
+  border: none;
+  background: transparent;
   color: var(--color-text-tertiary);
   font-size: var(--font-size-2xs);
   cursor: pointer;
-  transition: border-color 0.15s, color 0.15s;
+  text-align: left;
 }
-.fpv-toc-trigger:hover,
-.fpv-toc-trigger.open {
-  border-color: var(--color-primary);
-  color: var(--color-text);
+.fpv-toc-trigger:hover .fpv-toc-current,
+.fpv-toc-trigger.open .fpv-toc-current,
+.fpv-toc-trigger.pinned .fpv-toc-current {
+  color: var(--color-primary);
 }
 .fpv-toc-current {
   flex: 1;
   min-width: 0;
-  text-align: left;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-weight: 600;
+  transition: color 0.15s;
 }
-.fpv-toc-caret {
-  flex-shrink: 0;
-  transition: transform 0.2s;
-}
-.fpv-toc-caret.open {
-  transform: rotate(180deg);
-}
-.fpv-toc-trigger.pinned {
-  border-color: var(--color-primary);
-  background: var(--color-primary-muted);
-  color: var(--color-primary);
-}
-/* 目录浮层：模糊半透底（毛玻璃），与内容区内容视觉隔离 */
+/* 目录浮层：实色底（--color-surface-elevated 为不透明令牌），与内容区视觉隔离 */
 .fpv-toc-menu {
   position: absolute;
   top: calc(100% + 6px);
@@ -582,9 +568,7 @@ watch(
   max-width: 260px;
   max-height: 55vh;
   overflow-y: auto;
-  background: color-mix(in srgb, var(--color-surface-elevated) 88%, transparent);
-  backdrop-filter: blur(16px) saturate(1.2);
-  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  background: var(--color-surface-elevated);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
@@ -621,9 +605,6 @@ watch(
   text-align: center;
   font-size: var(--font-size-2xs);
   color: var(--color-text-tertiary);
-}
-:root[data-anim-panels='off'] .fpv-toc-caret {
-  transition: none;
 }
 
 /* HTML 预览：视图切换条 + iframe 渲染区 */
