@@ -1235,9 +1235,9 @@ interface RustConfirmPayload {
 const confirmUnlistenFns = new Map<string, UnlistenFn>()
 
 /**
- * 为指定会话设置 HITL 工具确认监听（A5）
+ * 为指定会话设置 HITL 工具确认监听（A5；v2 2026-09-03：底部弹出 + 可添加白名单并放行）
  *
- * 监听 `agent:confirm:{session_id}`，收到 `ConfirmationRequested` 后弹确认框，
+ * 监听 `agent:confirm:{session_id}`，收到 `ConfirmationRequested` 后在对话区底部弹确认框，
  * 用户选择后经 `cmd_agent_confirm` 回传放行/拒绝。幂等：已存在监听器则直接返回。
  */
 async function setupConfirmListener(sessionId: string): Promise<void> {
@@ -1251,6 +1251,8 @@ async function setupConfirmListener(sessionId: string): Promise<void> {
       if (payload.type === 'resolved') return
       const { confirm } = useConfirm()
       const argSummary = payload.args ? JSON.stringify(payload.args).slice(0, 200) : ''
+      // v2 白名单附加动作（方向3 P0，2026-09-03）：命令工具 → 命令白名单；FS 写/搜索 → 路径白名单
+      const allowAction = buildAllowAction(payload.toolName, payload.args)
       // 三键确认（2026-08-30）：通过 / 取消(跳过) / 拒绝——此前只有 取消+确认(文案"删除"，
       // 被读成"拒绝")，没有「通过」入口。kernel v1 仅 bool：跳过与拒绝均按 false（不执行）处理
       const approved = await confirm({
@@ -1260,6 +1262,8 @@ async function setupConfirmListener(sessionId: string): Promise<void> {
         confirmText: '通过',
         cancelText: '拒绝',
         neutralText: '取消(跳过)',
+        position: 'bottom',
+        extraActions: allowAction ? [allowAction] : [],
       })
       await safeInvoke('cmd_agent_confirm', {
         sessionId,
@@ -1271,6 +1275,50 @@ async function setupConfirmListener(sessionId: string): Promise<void> {
   } catch (err) {
     console.error(`[useAgentRust] listen ${eventName} 失败:`, err)
   }
+}
+
+/** 命令类工具名（白名单「命令」维度；对齐 kernel confirmation::is_command_tool） */
+const ALLOWABLE_COMMAND_TOOLS = new Set([
+  'bash',
+  'powershell',
+  'execute_command',
+  'shell_session',
+  'shell_session_exec',
+  'shell_session_create',
+  'shell_session_write',
+])
+
+/** FS 写/搜索工具名（白名单「路径」维度；read 不触发确认，无需白名单） */
+const ALLOWABLE_PATH_TOOLS = new Set(['write_file', 'edit_file', 'search_files'])
+
+/**
+ * 构造「添加白名单并放行」附加动作（v2，2026-09-03）
+ * - 命令工具：args.command → cmd_perm_rule_add_allow_command（小写子串，命中即放行）
+ * - FS 写/搜索工具：args.path → cmd_perm_rule_add_allow_path（归一化绝对路径）
+ * - 其他工具 / 缺参数：返回 undefined（不渲染附加按钮）
+ */
+function buildAllowAction(
+  toolName: string,
+  args?: Record<string, unknown>,
+): { label: string; run: () => Promise<void> } | undefined {
+  if (!args) return undefined
+  if (ALLOWABLE_COMMAND_TOOLS.has(toolName)) {
+    const command = typeof args.command === 'string' ? args.command : undefined
+    if (!command) return undefined
+    return {
+      label: '添加白名单并放行',
+      run: () => safeInvoke('cmd_perm_rule_add_allow_command', { pattern: command }).then(() => undefined),
+    }
+  }
+  if (ALLOWABLE_PATH_TOOLS.has(toolName)) {
+    const path = typeof args.path === 'string' ? args.path : undefined
+    if (!path) return undefined
+    return {
+      label: '添加白名单并放行',
+      run: () => safeInvoke('cmd_perm_rule_add_allow_path', { path }).then(() => undefined),
+    }
+  }
+  return undefined
 }
 
 /** 清理指定会话的 HITL 确认事件监听 */

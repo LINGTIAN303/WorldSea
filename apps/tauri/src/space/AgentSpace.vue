@@ -113,6 +113,7 @@
     <SettingsDialog :show="settingsOpen" @close="settingsOpen = false" />
     <DialogContainer />
     <WsConfirmDialog />
+    <WsAskDialog />
   </div>
 </template>
 
@@ -133,6 +134,7 @@ import PreviewPanel from './panels/PreviewPanel.vue'
 import SettingsDialog from '@/ui/settings/SettingsDialog.vue'
 import { DialogContainer, WsIcon } from '@worldsmith/ui-kit'
 import WsConfirmDialog from '@/ui/WsConfirmDialog.vue'
+import WsAskDialog from '@/ui/WsAskDialog.vue'
 import { useAgent } from '@/agent/composables/useAgent'
 import UsagePanel from '@/agent/panels/UsagePanel.vue'
 import { useSettingsStore } from '@/stores/settingsStore'

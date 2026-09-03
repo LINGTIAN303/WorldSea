@@ -1,6 +1,13 @@
 import { ref } from 'vue'
 
 export type ConfirmType = 'info' | 'warning' | 'danger'
+export type ConfirmPosition = 'center' | 'bottom'
+
+/** 附加动作（如「添加白名单并放行」）：点击先执行 run()，随后按放行处理（关闭并 resolve true） */
+export interface ConfirmExtraAction {
+  label: string
+  run: () => Promise<void> | void
+}
 
 interface ConfirmOptions {
   type?: ConfirmType
@@ -10,6 +17,10 @@ interface ConfirmOptions {
   cancelText?: string
   /** 可选第三键文案（如「取消(跳过)」）；空/缺省则不渲染。点击按 cancel（false）解析 */
   neutralText?: string
+  /** 弹出位置：center=中央 modal（默认）；bottom=对话区底部（输入栏上方，可遮住不阻断其他区域） */
+  position?: ConfirmPosition
+  /** 附加动作按钮（渲染在 actions 区） */
+  extraActions?: ConfirmExtraAction[]
 }
 
 interface ConfirmState {
@@ -20,6 +31,8 @@ interface ConfirmState {
   confirmText: string
   cancelText: string
   neutralText: string
+  position: ConfirmPosition
+  extraActions: ConfirmExtraAction[]
   resolve: ((value: boolean) => void) | null
 }
 
@@ -31,6 +44,8 @@ const state = ref<ConfirmState>({
   confirmText: '确定',
   cancelText: '取消',
   neutralText: '',
+  position: 'center',
+  extraActions: [],
   resolve: null,
 })
 
@@ -53,6 +68,8 @@ export function useConfirm() {
         confirmText: options.confirmText || defaults.confirmText,
         cancelText: options.cancelText || defaults.cancelText,
         neutralText: options.neutralText || '',
+        position: options.position || 'center',
+        extraActions: options.extraActions || [],
         resolve,
       }
     })

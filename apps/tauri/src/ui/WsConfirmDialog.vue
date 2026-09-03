@@ -1,8 +1,22 @@
 <template>
   <Teleport to="body">
     <Transition name="ws-confirm">
-      <div v-if="state.show" class="ws-confirm-overlay" @click.self="doCancel">
-        <div class="ws-confirm" ref="confirmRef" role="alertdialog" aria-modal="true" :aria-labelledby="titleId" :aria-describedby="descId">
+      <!-- center：全屏遮罩 + 居中；bottom：对话区底部输入栏上方（可遮住输入栏，不阻断其他区域） -->
+      <div
+        v-if="state.show"
+        class="ws-confirm-overlay"
+        :class="`ws-confirm-overlay--${state.position}`"
+        @click.self="doCancel"
+      >
+        <div
+          class="ws-confirm"
+          :class="`ws-confirm--${state.position}`"
+          ref="confirmRef"
+          role="alertdialog"
+          aria-modal="true"
+          :aria-labelledby="titleId"
+          :aria-describedby="descId"
+        >
           <div class="ws-confirm__icon" :class="`ws-confirm__icon--${state.type}`">
             <WsIcon :name="iconName" size="md" />
           </div>
@@ -12,6 +26,14 @@
             <TuiButton variant="ghost" size="sm" @click="doCancel">{{ state.cancelText }}</TuiButton>
             <!-- 可选第三键（中性选项，如「取消(跳过)」）：仅 HITL 等三选场景渲染 -->
             <TuiButton v-if="state.neutralText" variant="ghost" size="sm" @click="doNeutral">{{ state.neutralText }}</TuiButton>
+            <!-- 附加动作（如「添加白名单并放行」）：点击先执行 run()，随后按放行处理 -->
+            <TuiButton
+              v-for="(a, i) in state.extraActions"
+              :key="i"
+              variant="ghost"
+              size="sm"
+              @click="runExtraAction(a)"
+            >{{ a.label }}</TuiButton>
             <TuiButton :variant="state.type === 'danger' ? 'danger' : 'primary'" size="sm" @click="doConfirm">{{ state.confirmText }}</TuiButton>
           </div>
         </div>
@@ -23,6 +45,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
 import { useConfirm } from '@worldsmith/plugin-sdk'
+import type { ConfirmExtraAction } from '@worldsmith/ui-kit'
 import { useFocusTrap } from '@/composables/useFocusTrap'
 import { WsIcon } from '@worldsmith/ui-kit'
 import TuiButton from '@/components/ui/TuiButton.vue'
@@ -37,6 +60,15 @@ const iconName = computed(() => {
   const map: Record<string, string> = { info: 'search', warning: 'warning', danger: 'close' }
   return map[state.value.type] || 'search'
 })
+
+/** 附加动作：先执行 run()（如写入白名单），随后按「放行」关闭并 resolve true */
+async function runExtraAction(action: ConfirmExtraAction): Promise<void> {
+  try {
+    await action.run()
+  } finally {
+    doConfirm()
+  }
+}
 
 const { activate, deactivate } = useFocusTrap(confirmRef, {
   active: computed(() => state.value.show),
@@ -65,6 +97,17 @@ watch(() => state.value.show, (v) => {
   padding: 24px;
 }
 
+/* bottom 模式：对话区底部输入栏上方弹出——无遮罩/不拦截其他区域，仅面板浮于输入栏位置 */
+.ws-confirm-overlay--bottom {
+  background: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  pointer-events: none; /* 允许点击穿透，不阻挡消息区/侧栏等其他区域操作 */
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0 16px 104px; /* 底部留白 ≈ 输入栏高度，面板盖住输入栏 */
+}
+
 .ws-confirm {
   background: var(--bg-surface);
   border: 1px solid var(--border);
@@ -74,6 +117,10 @@ watch(() => state.value.show, (v) => {
   min-width: 320px;
   max-width: 420px;
   text-align: center;
+}
+
+.ws-confirm--bottom {
+  pointer-events: auto; /* 面板本身可交互 */
 }
 
 .ws-confirm__icon {

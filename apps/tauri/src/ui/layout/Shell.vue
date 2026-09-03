@@ -11,6 +11,7 @@
     <Toast />
     <DialogContainer />
     <WsConfirmDialog />
+    <WsAskDialog />
     <BatchEditModal :show="batchEditOpen" @close="batchEditOpen = false" />
     <TemplateManager :show="templateOpen" @close="templateOpen = false" />
     <VersionHistory :show="versionOpen" @close="versionOpen = false" />
@@ -36,6 +37,7 @@ import TitleBar from './TitleBar.vue'
 import Sidebar from './sidebar/SidebarV2.vue'
 import { Toast, DialogContainer, ViewContainer } from '@worldsmith/ui-kit'
 import WsConfirmDialog from '../WsConfirmDialog.vue'
+import WsAskDialog from '../WsAskDialog.vue'
 
 const WelcomeOverlay = defineAsyncComponent(() => import('@worldsmith/ui-kit').then(m => m.WelcomeOverlay))
 const GlobalSearch = defineAsyncComponent(() => import('@worldsmith/ui-kit').then(m => m.GlobalSearch))

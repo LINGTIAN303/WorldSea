@@ -133,7 +133,7 @@
                     v-for="p in PERMISSION_LEVELS"
                     :key="p.value"
                     class="perm-dd-item"
-                    :class="{ on: permissionLevel === p.value, warn: p.value === 'off' }"
+                    :class="{ on: permissionLevel === p.value, warn: p.value === 'autopilot' }"
                     @click="pickPermission(p.value)"
                   >
                     <span class="perm-dd-label">{{ p.label }}</span>
@@ -230,14 +230,14 @@ const pluginStore = usePluginStore()
 const uiStore = useUIStore()
 const { isStreaming, abort, setSecurityLevel } = useAgent()
 
-// P0-4 迭代：权限分级图标下拉（危险操作分级三档）；value=后端 security level
-// 完全通过=off｜自动判断=dangerous_only｜手动确认=moderate_and_dangerous
+// P0-4 迭代：权限分级图标下拉（v2 三档 2026-09-03：plan/interact/autopilot）；value=后端 security level
+// 只读研究=plan｜交互确认=interact（默认，含危险三键 + 可学习白名单）｜自动巡航=autopilot
 const PERMISSION_LEVELS = [
-  { value: 'moderate_and_dangerous', label: '手动确认', desc: '写操作/命令一律确认' },
-  { value: 'dangerous_only', label: '自动判断', desc: '仅危险操作需确认' },
-  { value: 'off', label: '完全通过', desc: '放开全部权限' },
+  { value: 'plan', label: '只读研究', desc: '仅研究分析，禁用写/命令操作' },
+  { value: 'interact', label: '交互确认', desc: '危险操作需确认，可添加白名单自动放行' },
+  { value: 'autopilot', label: '自动巡航', desc: '白名单放行 + 上锁名单拦截，不逐条确认' },
 ]
-const permissionLevel = ref(settingsStore.agentSecurityLevel || 'dangerous_only')
+const permissionLevel = ref(settingsStore.agentSecurityLevel || 'interact')
 const permOpen = ref(false)
 const permRef = ref<HTMLElement>()
 const permMenuStyle = ref<Record<string, string>>({})

@@ -191,6 +191,61 @@
               <TuiSelect :model-value="securityLevel" :options="securityOptions" @update:model-value="onSecurityLevelChange" />
               <div class="settings-hint">控制 Agent 执行工具前的确认程度，需对当前会话生效</div>
             </div>
+            <!-- 权限规则（v2，2026-09-03）：白名单 + 上锁名单；优先级 上锁>白名单>档位 -->
+            <div class="settings-section perm-rules">
+              <div class="settings-label">权限规则</div>
+              <div class="settings-hint">白名单=放行例外（受锁覆盖）；上锁名单=硬约束（read/command/write 三维）</div>
+
+              <div class="perm-sub">
+                <div class="perm-sub-label">命令白名单</div>
+                <div class="perm-add-row">
+                  <input class="perm-input" v-model="allowCmdDraft" placeholder="命令子串，如 pip install" @keyup.enter="addAllowCommand" />
+                  <TuiButton size="sm" variant="ghost" @click="addAllowCommand">添加</TuiButton>
+                </div>
+                <ul class="perm-list">
+                  <li v-for="c in permRules.allowCommands" :key="c">
+                    <code class="perm-code">{{ c }}</code>
+                    <button class="perm-del" title="移除" @click="removeAllowCommand(c)"><WsIcon name="x" size="xs" /></button>
+                  </li>
+                  <li v-if="!permRules.allowCommands.length" class="perm-empty">暂无</li>
+                </ul>
+              </div>
+
+              <div class="perm-sub">
+                <div class="perm-sub-label">路径白名单</div>
+                <div class="perm-add-row">
+                  <input class="perm-input" v-model="allowPathDraft" placeholder="目录或文件绝对路径" @keyup.enter="addAllowPath" />
+                  <TuiButton size="sm" variant="ghost" @click="addAllowPath">添加</TuiButton>
+                </div>
+                <ul class="perm-list">
+                  <li v-for="p in permRules.allowPaths" :key="p">
+                    <code class="perm-code">{{ p }}</code>
+                    <button class="perm-del" title="移除" @click="removeAllowPath(p)"><WsIcon name="x" size="xs" /></button>
+                  </li>
+                  <li v-if="!permRules.allowPaths.length" class="perm-empty">暂无</li>
+                </ul>
+              </div>
+
+              <div class="perm-sub">
+                <div class="perm-sub-label">上锁名单（勾选=允许）</div>
+                <div class="perm-add-row">
+                  <input class="perm-input" v-model="lockPathDraft" placeholder="目录或文件绝对路径" @keyup.enter="addLock" />
+                  <label class="perm-lock-dim"><input type="checkbox" v-model="lockReadOk" />读</label>
+                  <label class="perm-lock-dim"><input type="checkbox" v-model="lockCmdOk" />命令</label>
+                  <label class="perm-lock-dim"><input type="checkbox" v-model="lockWriteOk" />写</label>
+                  <TuiButton size="sm" variant="ghost" @click="addLock">上锁</TuiButton>
+                </div>
+                <div class="settings-hint">默认 读√ 命令× 写×（仅挡写/命令，读不受限）</div>
+                <ul class="perm-list">
+                  <li v-for="l in permRules.locks" :key="l.path">
+                    <code class="perm-code">{{ l.path }}</code>
+                    <span class="perm-lock-tags">读{{ l.read_ok ? '√' : '×' }} 命令{{ l.command_ok ? '√' : '×' }} 写{{ l.write_ok ? '√' : '×' }}</span>
+                    <button class="perm-del" title="移除" @click="removeLock(l.path)"><WsIcon name="x" size="xs" /></button>
+                  </li>
+                  <li v-if="!permRules.locks.length" class="perm-empty">暂无</li>
+                </ul>
+              </div>
+            </div>
           </div>
           <!-- 人格预设面板（内联，对应视觉稿边界与个性组） -->
           <div v-else-if="settingsSubPanel === 'persona'" key="persona" class="sub-panel">
@@ -300,14 +355,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { WsIcon, CardDeck } from '@worldsmith/ui-kit'
 import TuiSelect from '../components/ui/TuiSelect.vue'
+import TuiButton from '../components/ui/TuiButton.vue'
 import RulesPanel from '@/space/panels/RulesPanel.vue'
 import { usePanelDrag } from './composables/usePanelDrag'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useModelApiKeyConfig } from './composables/useModelApiKeyConfig'
 import { useCustomModelFetch } from './composables/useCustomModelFetch'
+import { invoke } from '@/agent/composables/transport'
 import SkillsStorePanel from './SkillsStorePanel.vue'
 // 拆分出的子面板
 import ModelPanel from './panels/ModelPanel.vue'
@@ -573,10 +630,72 @@ const personaOptions: Array<{ value: string; label: string }> = [
   { value: 'storyteller', label: '故事叙述者' },
 ]
 const securityOptions: Array<{ value: string; label: string }> = [
-  { value: 'off', label: '宽松（关闭确认）' },
-  { value: 'dangerous_only', label: '推荐（仅危险操作确认）' },
-  { value: 'moderate_and_dangerous', label: '严格（写操作/命令一律确认）' },
+  { value: 'plan', label: '只读研究（禁用写/命令）' },
+  { value: 'interact', label: '交互确认（默认，危险操作确认+可加白名单）' },
+  { value: 'autopilot', label: '自动巡航（白名单放行+上锁名单拦截）' },
 ]
+
+// ── v2 权限规则（2026-09-03）：白名单 + 上锁名单 CRUD ──
+interface PermRules {
+  allowCommands: string[]
+  allowPaths: string[]
+  locks: Array<{ path: string; read_ok: boolean; command_ok: boolean; write_ok: boolean }>
+}
+const permRules = ref<PermRules>({ allowCommands: [], allowPaths: [], locks: [] })
+const allowCmdDraft = ref('')
+const allowPathDraft = ref('')
+const lockPathDraft = ref('')
+const lockReadOk = ref(true)
+const lockCmdOk = ref(false)
+const lockWriteOk = ref(false)
+
+async function loadPermRules(): Promise<void> {
+  try {
+    permRules.value = (await invoke<PermRules>('cmd_perm_rules_get')) ?? { allowCommands: [], allowPaths: [], locks: [] }
+  } catch (e) {
+    console.warn('[AgentSettings] 加载权限规则失败:', e)
+  }
+}
+async function refreshAfter(act: () => Promise<unknown>): Promise<void> {
+  try {
+    await act()
+  } catch (e) {
+    console.warn('[AgentSettings] 权限规则操作失败:', e)
+  }
+  await loadPermRules()
+}
+function addAllowCommand(): void {
+  const v = allowCmdDraft.value.trim()
+  if (!v) return
+  allowCmdDraft.value = ''
+  void refreshAfter(() => invoke('cmd_perm_rule_add_allow_command', { pattern: v }))
+}
+function removeAllowCommand(v: string): void {
+  void refreshAfter(() => invoke('cmd_perm_rule_remove_allow_command', { pattern: v }))
+}
+function addAllowPath(): void {
+  const v = allowPathDraft.value.trim()
+  if (!v) return
+  allowPathDraft.value = ''
+  void refreshAfter(() => invoke('cmd_perm_rule_add_allow_path', { path: v }))
+}
+function removeAllowPath(v: string): void {
+  void refreshAfter(() => invoke('cmd_perm_rule_remove_allow_path', { path: v }))
+}
+function addLock(): void {
+  const v = lockPathDraft.value.trim()
+  if (!v) return
+  lockPathDraft.value = ''
+  void refreshAfter(() =>
+    invoke('cmd_perm_rule_add_lock', { path: v, readOk: lockReadOk.value, commandOk: lockCmdOk.value, writeOk: lockWriteOk.value }),
+  )
+}
+function removeLock(v: string): void {
+  void refreshAfter(() => invoke('cmd_perm_rule_remove_lock', { path: v }))
+}
+onMounted(() => {
+  void loadPermRules()
+})
 </script>
 
 <style>
@@ -1431,5 +1550,101 @@ const securityOptions: Array<{ value: string; label: string }> = [
 
 .provider-list-label {
   line-height: 1;
+}
+
+/* ── v2 权限规则（2026-09-03）：白名单 / 上锁名单 ── */
+.perm-sub {
+  margin-top: 10px;
+}
+.perm-sub-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+.perm-add-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.perm-input {
+  flex: 1;
+  min-width: 120px;
+  background: var(--bg-input, var(--bg-subtle));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  font-size: 12px;
+  color: var(--text-primary);
+  outline: none;
+}
+.perm-input:focus {
+  border-color: var(--accent);
+}
+.perm-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 140px;
+  overflow-y: auto;
+}
+.perm-list li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  background: var(--bg-subtle);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+.perm-code {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono, monospace);
+  color: var(--text-primary);
+}
+.perm-lock-tags {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+.perm-del {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.perm-del:hover {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+.perm-lock-dim {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.perm-lock-dim input {
+  accent-color: var(--accent);
+}
+.perm-empty {
+  color: var(--text-tertiary);
+  font-size: 12px;
 }
 </style>
