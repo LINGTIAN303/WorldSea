@@ -1,8 +1,16 @@
 <template>
   <div class="fpv">
-    <!-- 头部：文件名 + 大小 + 返回 -->
+    <!-- 头部：文件名 + 大小 + 返回；HTML 渲染视图例外提供「居中显示」切换（默认全宽，2026-09-03） -->
     <div class="fpv-header">
       <span class="fpv-name" :title="path">{{ name }}</span>
+      <button
+        v-if="kind === 'html'"
+        class="fpv-close"
+        :class="{ active: htmlCentered }"
+        :title="htmlCentered ? '取消居中（全宽渲染）' : '居中显示（左右各留 10%）'"
+        :aria-pressed="htmlCentered"
+        @click="htmlCentered = !htmlCentered"
+      ><WsIcon name="grid" size="xs" /></button>
       <span class="fpv-size">{{ formatSize(size) }}</span>
       <button class="fpv-close" title="返回目录" @click="emit('close')"><WsIcon name="arrow-left" size="xs" /></button>
     </div>
@@ -30,12 +38,16 @@
     <!-- Markdown 渲染预览（复用消息流渲染管线：marked + DOMPurify + Prism 代码块；ws-agent-md 提供样式与复制委托）。
          2026-09-03 二期：内容区左右各留 10% 边距，左侧空白放标题目录树——顶部下拉显示当前可见标题（scrollspy 滚动联动），点开浮层跳转 -->
     <div v-else-if="kind === 'markdown'" class="fpv-md-stage">
-      <aside class="fpv-toc">
+      <aside
+        class="fpv-toc"
+        @mouseenter="onTocEnter"
+        @mouseleave="onTocLeave"
+      >
         <button
           class="fpv-toc-trigger"
-          :class="{ open: tocOpen }"
+          :class="{ open: tocOpen, pinned: tocPinned }"
           :title="activeTitle ? `当前标题：${activeTitle}` : '标题目录'"
-          @click="tocOpen = !tocOpen"
+          @click="toggleTocPin"
         >
           <WsIcon name="list" size="xs" />
           <span class="fpv-toc-current">{{ activeTitle || '目录' }}</span>
@@ -70,6 +82,7 @@
       <iframe
         v-if="htmlView === 'render'"
         class="fpv-html-frame"
+        :class="{ centered: htmlCentered }"
         sandbox=""
         :srcdoc="text ?? ''"
         title="HTML 预览"
@@ -145,6 +158,8 @@ const mdHtml = ref('')
 const highlightedCode = ref('')
 /** HTML 预览视图：渲染（iframe）/ 源码 */
 const htmlView = ref<'render' | 'source'>('render')
+/** HTML 渲染视图居中开关（默认关=全宽；文件名旁图标切换） */
+const htmlCentered = ref(false)
 /** 当前代码语言（模板 language-* 类用） */
 const codeLangName = ref('text')
 
@@ -154,7 +169,36 @@ const mdEl = ref<HTMLElement | null>(null)
 const tocItems = ref<TocItem[]>([])
 const activeId = ref('')
 const activeTitle = computed(() => tocItems.value.find(t => t.id === activeId.value)?.text ?? '')
+/** 浮层可见性（悬停临时 / 点击固定常驻） */
 const tocOpen = ref(false)
+/** 点击触发框后的固定态：移出不关闭，再次点击解除 */
+const tocPinned = ref(false)
+let tocLeaveTimer: number | null = null
+
+/** 悬停进入：出现浮层（清除延迟关闭计时） */
+function onTocEnter(): void {
+  if (tocLeaveTimer !== null) {
+    clearTimeout(tocLeaveTimer)
+    tocLeaveTimer = null
+  }
+  tocOpen.value = true
+}
+
+/** 悬停移出：固定态保持常驻；非固定态延迟 150ms 关闭（留出移入浮层的间隙） */
+function onTocLeave(): void {
+  if (tocPinned.value) return
+  if (tocLeaveTimer !== null) clearTimeout(tocLeaveTimer)
+  tocLeaveTimer = window.setTimeout(() => {
+    tocOpen.value = false
+    tocLeaveTimer = null
+  }, 150)
+}
+
+/** 点击触发框：切换固定态（固定=浮层持续；解除=关闭） */
+function toggleTocPin(): void {
+  tocPinned.value = !tocPinned.value
+  tocOpen.value = tocPinned.value
+}
 
 /** v-html 渲染后从 DOM 提取 h1-h4：注入锚点 id + 收集目录项 */
 function extractHeadings(): void {
@@ -183,9 +227,14 @@ function onMdScroll(): void {
   activeId.value = current
 }
 
-/** 目录点击：平滑滚到对应标题并收起浮层 */
+/** 目录点击：平滑滚到对应标题，浮层收起并解除固定 */
 function jumpTo(id: string): void {
   tocOpen.value = false
+  tocPinned.value = false
+  if (tocLeaveTimer !== null) {
+    clearTimeout(tocLeaveTimer)
+    tocLeaveTimer = null
+  }
   const el = mdEl.value?.querySelector(`#${CSS.escape(id)}`)
   el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
@@ -365,6 +414,11 @@ watch(
   color: var(--color-text);
   background: var(--color-surface);
 }
+/* 居中切换开启态（HTML 渲染视图） */
+.fpv-close.active {
+  color: var(--color-primary);
+  background: var(--color-primary-muted);
+}
 
 .fpv-guard {
   flex: 1;
@@ -458,7 +512,7 @@ watch(
 .fpv-md-stage::after {
   content: '';
   display: block;
-  width: 10%;
+  width: 12.5%;
   flex-shrink: 0;
 }
 .fpv-md {
@@ -472,8 +526,8 @@ watch(
 }
 /* 标题目录树（左 10% 空白内）：顶部触发钮显示当前可见标题，点开浮层 */
 .fpv-toc {
-  width: 10%;
-  min-width: 44px;
+  width: 12.5%;
+  min-width: 52px;
   flex-shrink: 0;
   align-self: flex-start;
   position: sticky;
@@ -514,7 +568,12 @@ watch(
 .fpv-toc-caret.open {
   transform: rotate(180deg);
 }
-/* 目录浮层：不受窄栏限制，覆盖在内容区上方 */
+.fpv-toc-trigger.pinned {
+  border-color: var(--color-primary);
+  background: var(--color-primary-muted);
+  color: var(--color-primary);
+}
+/* 目录浮层：模糊半透底（毛玻璃），与内容区内容视觉隔离 */
 .fpv-toc-menu {
   position: absolute;
   top: calc(100% + 6px);
@@ -523,10 +582,12 @@ watch(
   max-width: 260px;
   max-height: 55vh;
   overflow-y: auto;
-  background: var(--color-surface-elevated);
+  background: color-mix(in srgb, var(--color-surface-elevated) 88%, transparent);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
   padding: 4px;
   z-index: 20;
 }
@@ -601,10 +662,14 @@ watch(
 .fpv-html-frame {
   flex: 1;
   min-height: 0;
-  width: 80%;
-  margin: 0 auto 12px; /* 渲染视图与 md 一致左右各留 10% */
+  width: 100%;
   border: none;
   background: #fff;
+}
+/* 居中开关开启：左右各留 10%（文件名旁图标切换，默认关） */
+.fpv-html-frame.centered {
+  width: 80%;
+  margin: 0 auto 12px;
 }
 .fpv-code {
   flex: 1;
