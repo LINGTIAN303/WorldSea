@@ -14,7 +14,6 @@
 pub mod conpty_passthrough;
 
 use std::io::Read;
-use std::time::{Duration, Instant};
 
 use tokio::sync::mpsc;
 

@@ -13,7 +13,7 @@ use agent_runtime::router::{
     RoutingStrategy,
 };
 use serde::Serialize;
-use tauri::{AppHandle, Manager, State};
+use tauri::State;
 
 // ─── 注册表 ────────────────────────────────────────────────────────────
 
