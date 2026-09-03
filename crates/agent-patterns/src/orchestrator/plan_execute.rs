@@ -244,7 +244,7 @@ impl OrchestratorNode for PlanExecuteNode {
                         return Ok(NodeResult {
                             port: Port::Fatal("replan".into()),
                             usage,
-                            progress: Some(ProgressNote_note(replans, &reason)),
+                            progress: Some(progress_note_note(replans, &reason)),
                         });
                     }
                     { *self.replans.lock().unwrap() = replans + 1; }
@@ -291,7 +291,7 @@ impl OrchestratorNode for PlanExecuteNode {
 
 // ── 内部辅助 ────────────────────────────────────────────
 
-fn ProgressNote_note(replans: u32, reason: &str) -> crate::orchestrator::types::ProgressNote {
+fn progress_note_note(replans: u32, reason: &str) -> crate::orchestrator::types::ProgressNote {
     crate::orchestrator::types::ProgressNote::Note(format!(
         "重规划 {replans} 次仍失败：{reason}"
     ))

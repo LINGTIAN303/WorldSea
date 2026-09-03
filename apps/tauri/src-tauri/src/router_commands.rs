@@ -19,7 +19,7 @@ use tauri::{AppHandle, Manager, State};
 
 /// 每个会话一份 Router 配置（targets + 策略 + fallback）
 #[derive(Clone)]
-struct RouterEntry {
+pub(crate) struct RouterEntry {
     targets: Vec<RouteTarget>,
     /// true = LLM 意图分类；false = 关键词匹配
     use_llm: bool,

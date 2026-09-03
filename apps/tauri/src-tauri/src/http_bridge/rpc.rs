@@ -36,19 +36,6 @@ impl Registry {
     pub fn get(&self, name: &str) -> Option<&Handler> {
         self.map.get(name)
     }
-    pub fn names(&self) -> Vec<&'static str> {
-        self.map.keys().copied().collect()
-    }
-}
-
-/// 反序列化 args（前端 camelCase）→ 调用原命令函数 → 序列化结果
-fn call<T, R>(args: Value, f: impl FnOnce(T) -> Result<R, String>) -> RpcResult
-where
-    T: DeserializeOwned,
-    R: Serialize,
-{
-    let p: T = from_value(args).map_err(|e| format!("args 反序列化失败: {e}"))?;
-    f(p).map(|r| to_value(r).unwrap_or(Value::Null))
 }
 
 /// 参数包装：sessionId / 名称等（与前端 invoke 参数 camelCase 对齐）

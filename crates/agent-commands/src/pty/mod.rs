@@ -141,20 +141,3 @@ async fn spawn_portable(
         out_rx: rx,
     })
 }
-
-/// 收集 PTY 输出直到超时（PTY 单通道：无 stdout/stderr 分列，ConPTY 单一 VT 字节流）
-pub async fn collect_output(rx: &mut mpsc::Receiver<Vec<u8>>, timeout: Duration) -> String {
-    let mut out = String::new();
-    let deadline = Instant::now() + timeout;
-    loop {
-        let remaining = deadline.saturating_duration_since(Instant::now());
-        if remaining.is_zero() {
-            break;
-        }
-        match tokio::time::timeout(remaining, rx.recv()).await {
-            Ok(Some(bytes)) => out.push_str(&String::from_utf8_lossy(&bytes)),
-            Ok(None) | Err(_) => break,
-        }
-    }
-    out
-}

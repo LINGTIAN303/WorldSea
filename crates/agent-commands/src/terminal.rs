@@ -5,7 +5,6 @@
 //! 实现不变（零回归）；shell_session_* 会话族使用 PTY——可运行 vim/REPL/TUI 等交互式程序。
 
 use std::collections::HashMap;
-use std::io::Write;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 

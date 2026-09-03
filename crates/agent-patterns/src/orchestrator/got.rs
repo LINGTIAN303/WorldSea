@@ -150,7 +150,7 @@ impl OrchestratorNode for GotNode {
             .read("task.intent")
             .and_then(|v| v.as_str().map(|s| s.to_string()))
             .unwrap_or_default();
-        let mut usage = Usage::default();
+        let usage = Usage::default();
         let round = { *self.round.lock().unwrap() };
 
         // phase 分派：车道完成后的环回轮进入融合 / 评估态（父图 Out→本节点环回边）
