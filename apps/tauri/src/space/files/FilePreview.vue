@@ -530,6 +530,9 @@ watch(
   align-self: flex-start;
   position: sticky;
   top: 0;
+  /* sticky 必创建堆叠上下文：不给显式 z-index 时，DOM 靠后的 .fpv-md 会整块画在浮层之上
+     （即“浮层全透明”的真因）。提到 md 之上，浮层实色底/阴影才能正常呈现 */
+  z-index: 30;
   padding-top: 12px;
 }
 /* 触发框：无框无底，仅标题文字本身承担高亮（hover/开启/固定 → 主色） */
