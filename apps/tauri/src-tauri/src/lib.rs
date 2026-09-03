@@ -219,6 +219,14 @@ pub fn run() {
             // Phase C 收尾：文件系统监听（useFsWatcher）
             fs_watch_commands::cmd_fs_watch_start,
             fs_watch_commands::cmd_fs_watch_stop,
+            // v2 权限规则引擎（方向3 P0，2026-09-03）：白名单/上锁名单 CRUD
+            commands::cmd_perm_rules_get,
+            commands::cmd_perm_rule_add_allow_command,
+            commands::cmd_perm_rule_remove_allow_command,
+            commands::cmd_perm_rule_add_allow_path,
+            commands::cmd_perm_rule_remove_allow_path,
+            commands::cmd_perm_rule_add_lock,
+            commands::cmd_perm_rule_remove_lock,
             // 实体/关系/KV/文件命令（TauriStorageBackend fallback）
             entity_commands::cmd_get_all_entities,
             entity_commands::cmd_get_entity,
@@ -309,6 +317,8 @@ pub fn run() {
                 .app_data_dir()
                 .expect("无法定位应用数据目录");
             std::fs::create_dir_all(&app_data).ok();
+            // v2 权限规则引擎（方向3 P0，2026-09-03）：白名单/上锁名单 JSON 持久化
+            agent_commands::permission_rules::init_rules(app_data.join("permission_rules.json"));
             let db_path = app_data.join("subagent_specs.db");
             let session_db_path = app_data.join("sessions.db");
             // 实体/关系/KV/文件全局库（entities.db）：TauriStorageBackend fallback 用，

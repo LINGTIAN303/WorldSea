@@ -1258,9 +1258,10 @@ pub fn cmd_diag_log(label: String, payload: serde_json::Value) -> Result<(), Str
     Ok(())
 }
 
-/// A7：设置会话安全级别（运行时切换确认策略）
+/// A7：设置会话安全级别（运行时切换确认策略；v2 三档）
 ///
-/// `level`：`off` / `dangerous_only`(默认) / `moderate_and_dangerous`。
+/// `level`：`plan` / `interact`（默认）/ `autopilot`（兼容旧值 off→autopilot、
+/// dangerous_only / moderate_and_dangerous→interact）。
 #[tauri::command]
 pub async fn cmd_agent_set_security_level(
     state: State<'_, AgentCommandService>,
@@ -1300,14 +1301,94 @@ pub async fn cmd_agent_update_system_prompt(
         .map_err(|e| e.to_string())
 }
 
-/// 解析安全级别字符串 → `SecurityLevel`（非法返回错误，供前端开关映射）
+/// 解析安全级别字符串 → `SecurityLevel`（未知值归入默认 interact，兼容旧档位）
 fn parse_security_level(s: &str) -> Result<SecurityLevel, String> {
-    match s.to_lowercase().as_str() {
-        "off" => Ok(SecurityLevel::Off),
-        "dangerous_only" => Ok(SecurityLevel::DangerousOnly),
-        "moderate_and_dangerous" => Ok(SecurityLevel::ModerateAndDangerous),
-        _ => Err(format!("未知安全级别: {s}")),
+    Ok(SecurityLevel::parse(s))
+}
+
+// ─── v2 权限规则引擎（方向3 P0，2026-09-03）：白名单 / 上锁名单 CRUD ─────
+
+/// 读取规则全集（allow 命令/路径 + 上锁名单）
+#[tauri::command]
+pub fn cmd_perm_rules_get() -> Result<serde_json::Value, String> {
+    let rules = agent_commands::permission_rules::export_rules();
+    serde_json::to_value(&rules).map_err(|e| e.to_string())
+}
+
+/// 添加命令白名单（小写子串匹配，命中即放行；受锁覆盖）
+#[tauri::command]
+pub fn cmd_perm_rule_add_allow_command(pattern: String) -> Result<(), String> {
+    let p = pattern.trim().to_ascii_lowercase();
+    if p.is_empty() {
+        return Err("命令白名单不能为空".into());
     }
+    agent_commands::permission_rules::update_rules(|r| {
+        if !r.allow_commands.iter().any(|x| x == &p) {
+            r.allow_commands.push(p);
+        }
+    })
+}
+
+/// 移除命令白名单
+#[tauri::command]
+pub fn cmd_perm_rule_remove_allow_command(pattern: String) -> Result<(), String> {
+    let p = pattern.trim().to_ascii_lowercase();
+    agent_commands::permission_rules::update_rules(|r| {
+        r.allow_commands.retain(|x| x != &p);
+    })
+}
+
+/// 添加路径白名单（归一化为绝对路径；命中即放行写/读，受锁覆盖）
+#[tauri::command]
+pub fn cmd_perm_rule_add_allow_path(path: String) -> Result<(), String> {
+    let norm = agent_commands::permission_rules::normalize_rule_path(&path, None);
+    if norm.is_empty() {
+        return Err("路径白名单不能为空".into());
+    }
+    agent_commands::permission_rules::update_rules(|r| {
+        if !r.allow_paths.iter().any(|x| x == &norm) {
+            r.allow_paths.push(norm);
+        }
+    })
+}
+
+/// 移除路径白名单
+#[tauri::command]
+pub fn cmd_perm_rule_remove_allow_path(path: String) -> Result<(), String> {
+    agent_commands::permission_rules::update_rules(|r| {
+        r.allow_paths.retain(|x| x != &path);
+    })
+}
+
+/// 添加/更新上锁规则（read/command/write 三维；已存在同路径则覆盖）
+#[tauri::command]
+pub fn cmd_perm_rule_add_lock(
+    path: String,
+    read_ok: bool,
+    command_ok: bool,
+    write_ok: bool,
+) -> Result<(), String> {
+    let norm = agent_commands::permission_rules::normalize_rule_path(&path, None);
+    if norm.is_empty() {
+        return Err("上锁路径不能为空".into());
+    }
+    agent_commands::permission_rules::update_rules(|r| {
+        r.locks.retain(|l| l.path != norm);
+        r.locks.push(agent_commands::permission_rules::LockRule {
+            path: norm,
+            read_ok,
+            command_ok,
+            write_ok,
+        });
+    })
+}
+
+/// 移除上锁规则
+#[tauri::command]
+pub fn cmd_perm_rule_remove_lock(path: String) -> Result<(), String> {
+    agent_commands::permission_rules::update_rules(|r| {
+        r.locks.retain(|l| l.path != path);
+    })
 }
 
 /// 中断当前运行

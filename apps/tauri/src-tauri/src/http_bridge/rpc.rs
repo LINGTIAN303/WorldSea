@@ -1726,6 +1726,62 @@ fn register_extra(reg: &mut Registry) {
             algo_commands::cmd_algo_community_detection(a.graph_json)
         })
     }));
+
+    // ── v2 权限规则引擎（方向3 P0，2026-09-03）：白名单 / 上锁名单（无 state，纯文件） ──
+    reg.register("cmd_perm_rules_get", Arc::new(move |_app, _args| {
+        Box::pin(async move {
+            c::cmd_perm_rules_get().map(|r| to_value(r).unwrap_or(Value::Null))
+        })
+    }));
+    reg.register("cmd_perm_rule_add_allow_command", Arc::new(move |_app, args| {
+        Box::pin(async move {
+            let p = args.get("pattern").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            c::cmd_perm_rule_add_allow_command(p).map(|_| Value::Null)
+        })
+    }));
+    reg.register("cmd_perm_rule_remove_allow_command", Arc::new(move |_app, args| {
+        Box::pin(async move {
+            let p = args.get("pattern").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            c::cmd_perm_rule_remove_allow_command(p).map(|_| Value::Null)
+        })
+    }));
+    reg.register("cmd_perm_rule_add_allow_path", Arc::new(move |_app, args| {
+        Box::pin(async move {
+            let p = args.get("path").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            c::cmd_perm_rule_add_allow_path(p).map(|_| Value::Null)
+        })
+    }));
+    reg.register("cmd_perm_rule_remove_allow_path", Arc::new(move |_app, args| {
+        Box::pin(async move {
+            let p = args.get("path").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            c::cmd_perm_rule_remove_allow_path(p).map(|_| Value::Null)
+        })
+    }));
+    reg.register("cmd_perm_rule_add_lock", Arc::new(move |_app, args| {
+        Box::pin(async move {
+            let path = args.get("path").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let read_ok = args.get("readOk").and_then(|v| v.as_bool()).unwrap_or(true);
+            let command_ok = args.get("commandOk").and_then(|v| v.as_bool()).unwrap_or(false);
+            let write_ok = args.get("writeOk").and_then(|v| v.as_bool()).unwrap_or(false);
+            c::cmd_perm_rule_add_lock(path, read_ok, command_ok, write_ok).map(|_| Value::Null)
+        })
+    }));
+    reg.register("cmd_perm_rule_remove_lock", Arc::new(move |_app, args| {
+        Box::pin(async move {
+            let p = args.get("path").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            c::cmd_perm_rule_remove_lock(p).map(|_| Value::Null)
+        })
+    }));
+    // A7 安全级别（补齐桥接：旧有命令行存在但 rpc 未注册）
+    reg.register("cmd_agent_set_security_level", Arc::new(move |app, args| {
+        let app = app.clone();
+        Box::pin(async move {
+            let sid = args.get("sessionId").or_else(|| args.get("session_id")).and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let level = args.get("level").and_then(|v| v.as_str()).unwrap_or("interact").to_string();
+            let st = app.state::<agent_commands::AgentCommandService>();
+            c::cmd_agent_set_security_level(st, sid, level).await.map(|_| Value::Null)
+        })
+    }));
 }
 
 /// 兼容 Tauri IPC 命名参数：命令签名是 `params: SomeStruct`，桌面 invoke 用 `{ params: {...} }`

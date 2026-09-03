@@ -28,3 +28,4 @@ pub mod tool_context;
 pub mod tool_hook;
 pub mod types;
 pub mod workspace_partition;
+pub mod permission_rules;

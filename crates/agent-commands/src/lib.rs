@@ -15,6 +15,8 @@ mod terminal;
 
 pub use error::CommandError;
 pub use fs_tools::register_fs_tools;
+// v2 权限规则引擎（方向3 P0，2026-09-03）：白名单/上锁名单与三档——透传给 Tauri 命令层
+pub use agent_runtime::permission_rules;
 pub use long_task_store::LongTaskRepository;
 pub use loop_control::{
     LoopControlCheckResult, LoopControlEntry, LoopControlRegistry, LoopControlRegistryError,
@@ -603,16 +605,36 @@ pub struct SessionUsageSummary {
     pub output_tokens: u64,
 }
 
-/// A7 安全级别（前端设置开关，运行时切换确认策略）
+/// A7 安全级别（前端设置开关，运行时切换确认策略；v2 三档，2026-09-03）
 ///
-/// - `Off`：关闭确认，所有工具直接执行
-/// - `DangerousOnly`：仅危险操作确认（默认，对应 `ConfirmationPolicy::dangerous_only`）
-/// - `ModerateAndDangerous`：危险 + 中等（写操作/命令）一律确认
+/// - `Plan`：只读研究（写/命令禁用，锁仍生效）
+/// - `Interact`（默认）：交互确认（危险三键 + 可学习白名单）
+/// - `Autopilot`：免逐条确认（白名单放行 + 锁拦截；策略层不确认）
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum SecurityLevel {
-    Off,
-    DangerousOnly,
-    ModerateAndDangerous,
+    Plan,
+    Interact,
+    Autopilot,
+}
+
+impl SecurityLevel {
+    /// 解析（兼容旧档位：off→autopilot，dangerous_only/moderate_and_dangerous→interact）
+    pub fn parse(s: &str) -> Self {
+        match s.to_ascii_lowercase().as_str() {
+            "plan" => SecurityLevel::Plan,
+            "autopilot" | "off" | "bypass" => SecurityLevel::Autopilot,
+            _ => SecurityLevel::Interact,
+        }
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            SecurityLevel::Plan => "plan",
+            SecurityLevel::Interact => "interact",
+            SecurityLevel::Autopilot => "autopilot",
+        }
+    }
 }
 
 /// 更新模型参数
@@ -2754,7 +2776,7 @@ impl AgentCommandService {
 
     /// A7 安全级别（前端设置开关，运行时切换确认策略）
     ///
-    /// 对应 `ConfirmationPolicy` 三档：`Off`/`DangerousOnly`(默认)/`ModerateAndDangerous`。
+    /// 对应 `ConfirmationPolicy` v2 三档：`Plan`/`Interact`(默认)/`Autopilot`。
     pub async fn set_security_level(
         &self,
         session_id: &str,
@@ -2762,11 +2784,9 @@ impl AgentCommandService {
     ) -> Result<(), CommandError> {
         let agent = self.get_agent(session_id).await?;
         let policy = match level {
-            SecurityLevel::Off => None,
-            SecurityLevel::DangerousOnly => Some(ConfirmationPolicy::dangerous_only()),
-            SecurityLevel::ModerateAndDangerous => {
-                Some(ConfirmationPolicy::moderate_and_dangerous())
-            }
+            SecurityLevel::Plan => Some(ConfirmationPolicy::plan()),
+            SecurityLevel::Interact => Some(ConfirmationPolicy::dangerous_only()),
+            SecurityLevel::Autopilot => Some(ConfirmationPolicy::autopilot()),
         };
         agent.set_confirmation_policy(policy);
         Ok(())

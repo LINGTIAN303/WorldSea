@@ -331,18 +331,22 @@ impl AgentLoop {
             if crate::confirmation::should_bypass_confirmation(&t.name, &t.args, &self_tool_ctx) {
                 return false;
             }
-            let allow_sensitive =
-                config_snapshot
-                    .confirmation_policy
-                    .as_ref()
-                    .map(|p| p.allow_sensitive_with_confirm)
-                    .unwrap_or(false);
-            let guard = crate::confirmation::guard_fs_path(
-                &t.name,
-                &t.args,
-                &self_tool_ctx,
-                allow_sensitive,
-            );
+            // v2 规则引擎（2026-09-03 P0）：用户锁命中 / Plan 档写命令 → 强制串行
+            let rule_locked =
+                crate::confirmation::rule_engine_verdict(&t.name, &t.args, &self_tool_ctx).is_err();
+            let plan_block = config_snapshot
+                .confirmation_policy
+                .as_ref()
+                .map(|p| {
+                    p.security_level == crate::permission_rules::SecurityLevel::Plan
+                        && (crate::confirmation::is_write_tool(&t.name)
+                            || crate::confirmation::is_command_tool(&t.name))
+                })
+                .unwrap_or(false);
+            if rule_locked || plan_block {
+                return true;
+            }
+            let guard = crate::confirmation::guard_fs_path(&t.name, &t.args, &self_tool_ctx, false);
             let needs_guard = matches!(
                 guard,
                 crate::confirmation::PathGuard::Deny(_) | crate::confirmation::PathGuard::Confirm
@@ -380,22 +384,41 @@ impl AgentLoop {
         ctx: &crate::tool_context::ToolContext,
     ) -> Option<serde_json::Value> {
         let config = self.config_snapshot();
-        let allow_sensitive = config
-            .confirmation_policy
-            .as_ref()
-            .map(|p| p.allow_sensitive_with_confirm)
-            .unwrap_or(false);
-        // 动态路径守卫：命中敏感目录（未开启确认开关）/ 越界，统一做一次裁决
-        let guard = crate::confirmation::guard_fs_path(name, args, ctx, allow_sensitive);
-        // 0) 敏感目录守卫：未开启确认开关时命中即拒绝（安全底线）
+        // 敏感目录开关已删除（2026-09-03 v2：五档统一硬 Deny，锁为预置维度）
+        let guard = crate::confirmation::guard_fs_path(name, args, ctx, false);
+        // 0) 敏感目录守卫：命中即拒绝（安全底线，内置预置锁）
         if let crate::confirmation::PathGuard::Deny(reason) = guard {
             return Some(serde_json::json!({
                 "error": reason,
                 "tool": name,
             }));
         }
-        // 0.5) agent-tmp 全权免确认：写/搜索工具解析落 workdir/agent-tmp 子树 → 直接放行。
-        // 敏感目录 Deny 已在上方拦截（agent-tmp 与敏感目录互斥），无需重复判定。
+        // 0.5) v2 规则引擎裁决（用户锁 > 白名单 > 档位）：
+        //      命中用户锁 → 拒绝；命中白名单 → 直接放行（跳过档位确认）
+        match crate::confirmation::rule_engine_verdict(name, args, ctx) {
+            Err(msg) => {
+                return Some(serde_json::json!({
+                    "error": msg,
+                    "tool": name,
+                }))
+            }
+            Ok(true) => return None,
+            Ok(false) => {}
+        }
+        // 0.6) Plan 只读档：写/命令操作直接拒绝（锁不依赖确认流程）
+        if let Some(policy) = &config.confirmation_policy {
+            if policy.security_level == crate::permission_rules::SecurityLevel::Plan
+                && (crate::confirmation::is_write_tool(name)
+                    || crate::confirmation::is_command_tool(name))
+            {
+                return Some(serde_json::json!({
+                    "error": "Plan 只读档：写/命令操作已禁用",
+                    "tool": name,
+                }));
+            }
+        }
+        // 0.7) agent-tmp 全权免确认：写/搜索工具解析落 workdir/agent-tmp 子树 → 直接放行。
+        // 敏感目录 Deny 与用户锁已在上方拦截（agent-tmp 与二者互斥），此处仅剩隐式白名单语义。
         if crate::confirmation::should_bypass_confirmation(name, args, ctx) {
             return None;
         }

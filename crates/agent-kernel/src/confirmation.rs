@@ -16,6 +16,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::{oneshot, Mutex, RwLock};
 
 use crate::event::{EventBroadcaster, OrchestratorEvent};
+use crate::permission_rules::SecurityLevel;
 use crate::tool_context::ToolContext;
 
 /// 默认确认超时（60s），超时按拒绝处理，避免 Agent 无限等待
@@ -78,14 +79,14 @@ pub struct ConfirmationPolicy {
     pub dangerous_command_patterns: Vec<String>,
     /// A7：是否需要确认 Moderate 级工具（默认 false = 仅确认 Dangerous）
     pub confirm_moderate: bool,
-    /// 是否允许「确认放行」敏感目录（默认 false = 敏感目录无条件拒绝）
-    ///
-    /// 为 true 时命中敏感目录由 拒绝 改为 需确认（用户可在确认弹窗放行/拒绝）。
-    pub allow_sensitive_with_confirm: bool,
+    /// 安全档位（v2 三档，2026-09-03）：Plan/Interact/Autopilot。
+    /// Autopilot 恒不确认（规则引擎锁/白名单在更上层），Plan 恒确认（写/命令由
+    /// `maybe_require_confirmation` 直接拒绝）。
+    pub security_level: SecurityLevel,
 }
 
 impl ConfirmationPolicy {
-    /// 推荐的宽松默认策略：仅危险操作确认（A7 分级的 Dangerous 档）
+    /// 推荐的宽松默认策略：仅危险操作确认（Interact 档，A7 分级的 Dangerous 档）
     ///
     /// - `Dangerous` 级工具（委派子 Agent、删除等）无条件确认
     /// - `execute_command`/`shell_session` 命中危险命令模式时确认
@@ -96,6 +97,20 @@ impl ConfirmationPolicy {
     /// 严格策略：确认 Dangerous + Moderate 级工具（写操作 / 命令执行一律确认）
     pub fn moderate_and_dangerous() -> Self {
         Self::new(true)
+    }
+
+    /// 只读档：Plan（写/命令由 maybe_require_confirmation 直接拒绝）
+    pub fn plan() -> Self {
+        let mut p = Self::new(false);
+        p.security_level = SecurityLevel::Plan;
+        p
+    }
+
+    /// 免逐条确认档：Autopilot（白名单/锁由规则引擎裁决，本策略恒不确认）
+    pub fn autopilot() -> Self {
+        let mut p = Self::new(false);
+        p.security_level = SecurityLevel::Autopilot;
+        p
     }
 
     /// 统一构造：`confirm_moderate` 决定 Moderate 级是否确认，危险命令模式固化
@@ -117,13 +132,19 @@ impl ConfirmationPolicy {
                 "npm uninstall -g".into(),
             ],
             confirm_moderate,
-            // 默认 false：敏感目录仍无条件拒绝（保持既有安全底线）
-            allow_sensitive_with_confirm: false,
+            // 默认档：Interact（交互确认）
+            security_level: SecurityLevel::Interact,
         }
     }
 
-    /// 判断某工具调用是否需要确认（A7 三分级裁决）
+    /// 判断某工具调用是否需要确认（A7 三分级裁决，档位短路优先）
     pub fn needs_confirmation(&self, tool_name: &str, args: &serde_json::Value) -> bool {
+        // 档位短路（v2，2026-09-03）：Autopilot 恒不确认；Plan 恒确认
+        match self.security_level {
+            SecurityLevel::Autopilot => return false,
+            SecurityLevel::Plan => return true,
+            SecurityLevel::Interact => {}
+        }
         // 兼容 A5：显式工具名白名单命中即确认（最高优先级）
         if self.confirm_tools.iter().any(|t| t == tool_name) {
             return true;
@@ -327,6 +348,71 @@ pub fn should_bypass_confirmation(
     let resolved = ctx.resolve_path(&expanded);
     let normalized = crate::tool_context::normalize_path(&resolved);
     crate::workspace_partition::is_within_agent_tmp(workdir, &normalized)
+}
+
+// ─── v2 规则引擎裁决（用户锁 > 白名单 > 档位，2026-09-03 P0） ─────────────
+
+/// 命令类工具（Plan 档禁写/命令 / 命令锁判定用）
+pub fn is_command_tool(tool_name: &str) -> bool {
+    matches!(
+        tool_name,
+        "bash" | "powershell" | "execute_command" | "shell_session" | "shell_session_exec"
+            | "shell_session_create" | "shell_session_write"
+    )
+}
+
+/// 写类 FS 工具（Plan 档禁写用）
+pub fn is_write_tool(tool_name: &str) -> bool {
+    matches!(tool_name, "write_file" | "edit_file")
+}
+
+/// 规则引擎统一裁决（锁 > 白名单）：
+/// - `Err`：命中用户锁（按 read/command/write 维度）——调用方按拒绝处理
+/// - `Ok(true)`：命中白名单（命令/路径）——调用方直接放行，跳过档位确认
+/// - `Ok(false)`：未覆盖——交给档位默认策略
+pub fn rule_engine_verdict(
+    tool_name: &str,
+    args: &serde_json::Value,
+    ctx: &ToolContext,
+) -> Result<bool, String> {
+    let rules = crate::permission_rules::rules();
+    // 命令工具：以会话 workdir（命令执行 cwd）判定 command 锁；命令白名单命中即放行
+    if is_command_tool(tool_name) {
+        if let Some(wd) = &ctx.workdir {
+            let norm = crate::tool_context::normalize_path(wd);
+            if rules.command_locked(&norm) {
+                return Err(format!(
+                    "上锁名单拦截命令执行（工作区 {} 已锁 command，command_ok=false）",
+                    norm.display()
+                ));
+            }
+        }
+        let cmd = args
+            .get("command")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        if !cmd.is_empty() && rules.is_command_allowed(cmd) {
+            return Ok(true);
+        }
+        return Ok(false);
+    }
+    // FS 工具：解析目标路径做 read/write 锁与路径白名单判定
+    if is_fs_tool(tool_name) {
+        let Some(raw) = fs_path_arg(tool_name, args) else {
+            return Ok(false);
+        };
+        let expanded = expand_home(&raw);
+        let resolved = ctx.resolve_path(&expanded);
+        let norm = crate::tool_context::normalize_path(&resolved);
+        return crate::permission_rules::verdict_for_path(
+            &rules,
+            &norm,
+            false,
+            is_write_or_search_tool(tool_name),
+            tool_name == "read_file",
+        );
+    }
+    Ok(false)
 }
 
 // ─── ConfirmationBroker ────────────────────────────────────
