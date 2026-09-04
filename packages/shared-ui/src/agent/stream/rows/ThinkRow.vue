@@ -19,13 +19,18 @@
     @mouseenter="emit('hover', item.id)"
     @mouseleave="emit('leave')"
   >
-    <span class="ws-stream-think-title">
-      <WsIcon name="chevron-right" size="xs" class="ws-stream-think-chevron" />{{ label }}
-    </span>
-    <!-- 折叠态：单行摘要 -->
-    <span v-if="!isOpen" class="ws-stream-think-summary">{{ summary }}</span>
-    <!-- 展开态：正文（运行中自动跟随末尾，点击 stop 避免误塌缩） -->
-    <div v-else ref="bodyEl" class="ws-stream-think-body" @click.stop>{{ item.text }}</div>
+    <div class="ws-stream-think-head">
+      <span class="ws-stream-think-title">
+        <WsIcon name="chevron-right" size="xs" class="ws-stream-think-chevron" />{{ label }}
+      </span>
+      <!-- 折叠态：单行摘要（标题行常驻；展开时摘要隐藏，正文接管空间） -->
+      <span v-if="!isOpen" class="ws-stream-think-summary">{{ summary }}</span>
+    </div>
+    <!-- 展开态：可折叠容器（grid-rows 0fr→1fr 高度动画 + 内容虚化→凝实）。
+         标题行位置不动，下方内容被展开高度顺滑推下（accordion 语义）。 -->
+    <div class="ws-stream-think-collapse" :class="{ open: isOpen }" :aria-hidden="!isOpen">
+      <div ref="bodyEl" class="ws-stream-think-body" @click.stop>{{ item.text }}</div>
+    </div>
   </div>
 </template>
 

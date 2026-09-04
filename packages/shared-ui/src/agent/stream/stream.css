@@ -65,6 +65,14 @@
 .ws-stream-think:hover {
   background: var(--agent-hover-bg);
 }
+/* 标题行常驻：点击展开/收起时自身位置不动（accordion 语义），下方内容被推下 */
+.ws-stream-think-head {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  min-width: 0;
+  width: 100%;
+}
 .ws-stream-think-title {
   display: inline-flex;
   align-items: center;
@@ -72,6 +80,7 @@
   font-weight: 600;
   color: var(--agent-text-secondary);
   margin-right: 6px;
+  flex-shrink: 0;
 }
 .ws-stream-think-chevron {
   font-size: 10px;
@@ -81,15 +90,33 @@
 .ws-stream-think.open .ws-stream-think-chevron {
   transform: rotate(90deg);
 }
-/* 折叠态的摘要（首行/末行） */
+/* 折叠态的摘要（首行/末行）；展开时因无 v-else 原文案只在折叠态渲染，宽度占满 */
 .ws-stream-think-summary {
   color: var(--agent-text-tertiary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   vertical-align: bottom;
+  flex: 1;
+  min-width: 0;
 }
-/* 展开的正文（服务端流式滚动跟随） */
+/* 展开态可折叠容器：grid-rows 0fr→1fr 高度动画（浏览器原生，无需 JS 测高）。
+   折叠态 rows=0fr + overflow hidden → 无高度；展开态 1fr → 平滑撑开。 */
+.ws-stream-think-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.2s ease;
+}
+.ws-stream-think-collapse.open {
+  grid-template-rows: 1fr;
+}
+.ws-stream-think-collapse > .ws-stream-think-body {
+  overflow: hidden;
+  min-height: 0;
+}
+/* 展开的正文（服务端流式滚动跟随）。
+   虚化→凝实：折叠→展开时 opacity 0.4 + 上移 8px 入场（delay 80ms 等高度先展开腾位），
+   配合「先让下方内容下移、再让正文显出」的时序；收起时同步淡出。 */
 .ws-stream-think-body {
   margin-top: 4px;
   max-height: 220px;
@@ -103,6 +130,15 @@
   padding: 6px 8px;
   background: var(--agent-hover-bg);
   border-radius: 6px;
+  opacity: 0;
+  transform: translateY(8px);
+  transition:
+    opacity 0.2s ease 80ms,
+    transform 0.2s ease 80ms;
+}
+.ws-stream-think-collapse.open .ws-stream-think-body {
+  opacity: 1;
+  transform: translateY(0);
 }
 /* running 态的「跟随末尾」点位：可被外部用于感知当前行是否在流式 */
 .ws-stream-think[data-follow-end] .ws-stream-think-body {
@@ -256,11 +292,33 @@
 .ws-stream-tool-chevron.open {
   transform: rotate(90deg);
 }
-/* 展开详情（参数 JSON + 结果），无卡片装饰 */
+/* 展开详情 collapse 容器（0fr→1fr 高度动画 + 内容虚化→凝实，与 ThinkRow 同模式） */
+.ws-stream-tool-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.2s ease;
+}
+.ws-stream-tool-collapse.open {
+  grid-template-rows: 1fr;
+}
+.ws-stream-tool-collapse > .ws-stream-tool-detail {
+  overflow: hidden;
+  min-height: 0;
+}
+/* 展开详情（参数 JSON + 结果），无卡片装饰；内容入场 opacity+位移，delay 80ms 等高度先展开 */
 .ws-stream-tool-detail {
   border-top: 1px solid var(--agent-hover-bg);
   margin: 0 6px;
   padding: 6px 4px;
+  opacity: 0;
+  transform: translateY(8px);
+  transition:
+    opacity 0.2s ease 80ms,
+    transform 0.2s ease 80ms;
+}
+.ws-stream-tool-collapse.open .ws-stream-tool-detail {
+  opacity: 1;
+  transform: translateY(0);
 }
 .ws-stream-tool-detail-sec { margin-bottom: 6px; }
 .ws-stream-tool-detail-sec:last-child { margin-bottom: 0; }

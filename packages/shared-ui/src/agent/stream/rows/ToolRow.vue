@@ -51,15 +51,18 @@
         <span v-if="isFailed" class="ws-stream-tool-failed-hint">已失败</span>
         <WsIcon v-else name="chevron-right" size="xs" class="ws-stream-tool-chevron" :class="{ open: isExpanded }" />
       </div>
-      <!-- 展开详情（参数 JSON + 结果；失败直显、不展开） -->
-      <div v-if="isExpanded && !isFailed" class="ws-stream-tool-detail" @click.stop>
-        <div v-if="hasArgs" class="ws-stream-tool-detail-sec">
-          <div class="ws-stream-tool-detail-label">参数</div>
-          <pre class="ws-stream-tool-detail-code">{{ formatJson(item.tc.args) }}</pre>
-        </div>
-        <div v-if="item.tc.result" class="ws-stream-tool-detail-sec">
-          <div class="ws-stream-tool-detail-label">结果</div>
-          <pre class="ws-stream-tool-detail-code ws-stream-tool-detail-result">{{ formatResult(item.tc.result) }}</pre>
+      <!-- 展开详情（参数 JSON + 结果；失败直显、不展开）。collapse 动画：摘要行位置不动，
+           详情 0fr→1fr 平滑展开，内容 opacity+位移 虚化→凝实（与 ThinkRow 时序一致） -->
+      <div v-if="!isFailed" class="ws-stream-tool-collapse" :class="{ open: isExpanded }" :aria-hidden="!isExpanded">
+        <div class="ws-stream-tool-detail" @click.stop>
+          <div v-if="hasArgs" class="ws-stream-tool-detail-sec">
+            <div class="ws-stream-tool-detail-label">参数</div>
+            <pre class="ws-stream-tool-detail-code">{{ formatJson(item.tc.args) }}</pre>
+          </div>
+          <div v-if="item.tc.result" class="ws-stream-tool-detail-sec">
+            <div class="ws-stream-tool-detail-label">结果</div>
+            <pre class="ws-stream-tool-detail-code ws-stream-tool-detail-result">{{ formatResult(item.tc.result) }}</pre>
+          </div>
         </div>
       </div>
       <!-- 2026-09-02 系统工具流式：bash/powershell 增量输出（实时累积，随流滚动跟随） -->
