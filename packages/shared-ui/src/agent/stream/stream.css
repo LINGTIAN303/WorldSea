@@ -409,11 +409,11 @@
 }
 
 /* ② 过程层：内部行纵向扁平流，间距同层内。
-   2026-09-04 用户建议二次修正：非文本段行段垂直间距极力贴近（gap 4px→1px） */
+   2026-09-04 用户建议三次修正：行段垂直间距贴合到 0（行段间仅剩各自 padding） */
 .ws-turn-process {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 0;
   min-width: 0;
 }
 
