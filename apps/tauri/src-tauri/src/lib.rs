@@ -101,7 +101,6 @@ pub fn run() {
             commands::cmd_list_workdirs,
             commands::cmd_save_workdir,
             commands::cmd_delete_workdir,
-            commands::orchestrator_run_plan,
             commands::orchestrator_run_tot,
             commands::orchestrator_run_got,
             commands::orchestrator_run_supervisor,

@@ -13,6 +13,7 @@ export default defineConfig({
       'packages/entity-core/**/__tests__/**/*.spec.ts',
       'packages/agent-runtime/src/tools/__tests__/**/*.spec.ts',
       'packages/shared-composables/**/__tests__/**/*.spec.ts',
+      'packages/shared-ui/**/__tests__/**/*.spec.ts',
     ],
     coverage: {
       provider: 'v8',

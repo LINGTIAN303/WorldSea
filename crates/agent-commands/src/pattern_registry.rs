@@ -70,21 +70,6 @@ pub struct PatternConfig {
 /// 静态注册表（每模式一条；新增模式在此追加一条 + 模式实现，共 2 处）
 static PATTERN_REGISTRY: &[PatternRegistryEntry] = &[
         PatternRegistryEntry {
-            pattern_id: "plan",
-            name: "规划执行",
-            capability: CapabilityGroup::Plan,
-            entry_command: Some("/plan"),
-            run_command: "orchestrator_run_plan",
-            event_family: &["plan_created", "plan_step_update", "plan_replanned", "reflection"],
-            artifact_kind: ArtifactKindTag::Plan,
-            config_defaults: PatternConfig {
-                max_iterations: Some(50),
-                beam_width: None,
-                max_rounds: None,
-            },
-            detail_component: None,
-        },
-        PatternRegistryEntry {
             pattern_id: "tot",
             name: "思维树探索",
             capability: CapabilityGroup::Explore,
@@ -198,9 +183,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn registry_contains_five_patterns_with_unique_ids() {
+    fn registry_contains_four_patterns_with_unique_ids() {
+        // 2026-09-04：plan 模式随 B 轨退役移除，注册表现有 4 个可触发模式（tot/got/supervisor/multi_agent）
         let all = pattern_registry();
-        assert_eq!(all.len(), 5, "M1-8 注册 5 个可触发模式");
+        assert_eq!(all.len(), 4, "M1-8 注册 4 个可触发模式");
         let mut seen = std::collections::HashSet::new();
         for e in all {
             assert!(seen.insert(e.pattern_id), "id 必须唯一，重复: {}", e.pattern_id);
@@ -233,6 +219,7 @@ mod tests {
             .collect();
         assert!(groups.contains(&CapabilityGroup::Explore));
         assert!(groups.contains(&CapabilityGroup::Collaborate));
-        assert!(groups.contains(&CapabilityGroup::Plan));
+        // plan 模式已随 B 轨退役移除（2026-09-04）：不再出现在编排模式注册表
+        assert!(!groups.contains(&CapabilityGroup::Plan));
     }
 }

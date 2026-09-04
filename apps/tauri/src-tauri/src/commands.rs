@@ -999,32 +999,6 @@ pub async fn cmd_delete_workdir(
     state.delete_workdir(id).await.map_err(|e| e.to_string())
 }
 
-/// 运行 Plan-and-Execute 编排图（3/4/5 编排模式命令入口）
-///
-/// - `options.refine = false`：链路 Plan → Execute（计划生成 → 逐步执行）
-/// - `options.refine = true`：链路 Plan → Execute → Reflection ⇄ Refine（自我评审迭代优化）
-///
-/// 复用会话的 LLM 后端；编排进度（PlanCreated / PlanStepUpdate / ReflectionResult）
-/// 经会话事件通道转发到前端 `agent:event:trace:{session_id}`。
-#[tauri::command]
-pub async fn orchestrator_run_plan(
-    app: AppHandle,
-    state: State<'_, AgentCommandService>,
-    session_id: String,
-    input: String,
-    options: Option<agent_commands::PlanExecuteOptions>,
-) -> Result<agent_runtime::orchestrator::OrchestratorResult, String> {
-    // 与 send_message 同路：确保 emitter 已订阅，使编排事件（PlanCreated/ReflectionResult）
-    // 能桥接前端（新建会话未发消息时也能收到）
-    if let Ok(agent) = state.get_agent(&session_id).await {
-        ensure_emitter_registered(&app, &agent, &session_id).await;
-    }
-    state
-        .run_plan_execute(&session_id, input, options.unwrap_or_default())
-        .await
-        .map_err(|e| e.to_string())
-}
-
 /// 运行 ToT（Tree of Thoughts）编排图；思维树进度经会话事件通道转发前端
 #[tauri::command]
 pub async fn orchestrator_run_tot(

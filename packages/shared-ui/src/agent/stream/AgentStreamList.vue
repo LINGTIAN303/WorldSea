@@ -133,6 +133,7 @@
 import { computed, ref, watch } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
 import type { AgentStreamItem } from '@worldsmith/shared-composables/agent/useAgent'
+import { aggregatePlanBlocks } from './aggregatePlanBlocks'
 import StreamRow from './rows/StreamRow.vue'
 import type { AgentMessage, BlockActionEvent } from '../bubbles/types'
 import './stream.css'
@@ -196,34 +197,10 @@ const groups = computed<TurnGroup[]>(() => {
   // 计划步骤块聚合：把 process 扁平行 → 块序列（plan step + 子动作 / 普通行）
   for (const g of out) {
     if (!g.process.length) continue
-    const blocks: ProcessBlock[] = []
-    let openStep: (AgentStreamItem & { isPlanStep?: boolean; childRefIds?: string[] }) | null = null
-    const childSet = new Set<string>()
-    for (const row of g.process) {
-      if (row.type === 'tool' && (row as { isPlanStep?: boolean }).isPlanStep) {
-        // 新断言：上一块收口（无悬空子动作）
-        openStep = row as AgentStreamItem & { isPlanStep?: boolean; childRefIds?: string[] }
-        childSet.clear()
-        ;(openStep.childRefIds ?? []).forEach((id) => childSet.add(id))
-        blocks.push({ id: `step-${openStep.id}`, _step: openStep, _children: [] })
-        continue
-      }
-      if (openStep && childSet.has(row.id)) {
-        // 属于当前计划步骤的子动作 → 收进块
-        const last = blocks[blocks.length - 1]
-        if (last && (last as { _step?: unknown })._step) (last as { _children: unknown[] })._children.push(row)
-        continue
-      }
-      // 普通行
-      blocks.push(row as unknown as ProcessBlock)
-    }
-    g.process = blocks as unknown as AgentStreamItem[]
+    g.process = aggregatePlanBlocks(g.process) as unknown as AgentStreamItem[]
   }
   return out
 })
-
-/** 过程层块：普通行 或 计划步骤块（_step=步骤头行，_children=步骤内子动作） */
-type ProcessBlock = AgentStreamItem | { id: string; _step: AgentStreamItem; _children: AgentStreamItem[] }
 
 /** 组 id 即 turnId（分组以 user 行建组，cur.id=turnId）；供 plan_step_toggle 定位轮次 */
 function sessionTurnIdFor(_group: TurnGroup): string {

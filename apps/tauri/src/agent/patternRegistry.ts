@@ -29,17 +29,6 @@ export interface PatternRegistryEntry {
 
 export const patternRegistry: PatternRegistryEntry[] = [
   {
-    patternId: 'plan',
-    name: '规划执行',
-    capability: 'plan',
-    entryCommand: '/plan',
-    runCommand: 'orchestrator_run_plan',
-    eventFamily: ['plan_created', 'plan_step_update', 'plan_replanned', 'reflection'],
-    artifactKind: 'plan',
-    configDefaults: { maxIterations: 50 },
-    detailComponent: null,
-  },
-  {
     patternId: 'tot',
     name: '思维树探索',
     capability: 'explore',

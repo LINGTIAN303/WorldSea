@@ -580,18 +580,7 @@ pub fn register_core(reg: &mut Registry) {
         })
     }));
 
-    // ── 编排：plan / tot / got / supervisor / multi ──
-    reg.register("orchestrator_run_plan", Arc::new(move |app, args| {
-        let app = app.clone();
-        Box::pin(async move {
-            let a: OrchRunArgs = match from_value(args.clone()) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
-            let opt: Option<agent_commands::PlanExecuteOptions> = args_opt_field(args, "options");
-            let app_cmd = app.clone();
-            let app_state = app.clone();
-            let st = app_state.state::<agent_commands::AgentCommandService>();
-            c::orchestrator_run_plan(app_cmd, st, a.session_id, a.input, opt).await.map(|r| to_value(r).unwrap_or(Value::Null))
-        })
-    }));
+    // ── 编排：tot / got / supervisor / multi（plan 已随 B 轨退役移除，2026-09-04）──
     reg.register("orchestrator_run_tot", Arc::new(move |app, args| {
         let app = app.clone();
         Box::pin(async move {
