@@ -234,6 +234,8 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
     let anchorId: string | null = null
     let anchorOffset = 0
     for (const el of scroll.querySelectorAll<HTMLElement>('[data-msg-id]')) {
+      // 抖动修复⑮-d：v-show 隐藏行（计划步骤折叠子动作）rect 为 0，锚定会算出荒谬偏移
+      if (el.offsetParent === null) continue
       const r = el.getBoundingClientRect()
       if (r.bottom >= topY) {
         anchorId = el.dataset.msgId ?? null
@@ -499,7 +501,24 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
   // 抖动修复⑨/⑩：结构突变（展开/折叠过程层等 items 增减）不锚定——scrollTop 稳定由宿主补偿负责；
   // flush:sync 让前缀和在 windowedDisplayItems computed 读取前完成重建，避免旧长度越界 (NaN 占位)。
   let lastStructuralChangeAt = 0
-  watch(() => items.value.length, () => {
+  // 抖动修复⑮（2026-09-04）：结构签名 watch——原 length watch 只在行数增减时重建，
+  // 计划步骤折叠/展开（stepCollapsed 翻转，v-show 切换）与行段折叠不改变行数，
+  // 前缀和与 DOM 布局脱节 → 滚动/切窗抖动。签名只编码「影响布局结构」的字段
+  //（行类型 + stepCollapsed），文本内容增长（流式 delta）不触发重建。
+  const structuralSignature = computed(() => {
+    const arr = items.value
+    if (arr.length === 0) return ''
+    let sig = arr.length + ';'
+    for (let i = 0; i < arr.length; i++) {
+      const it = arr[i] as { type?: string; stepCollapsed?: boolean }
+      const st = it.stepCollapsed === true
+      const typ = it.type
+      sig += (typ === 'tool' ? 't' : typ === 'think' ? 'h' : typ === 'assistant' ? 'a' : 'o') + (st ? '1' : '0')
+    }
+    return sig
+  })
+  watch(() => structuralSignature.value, (_sig, oldSig) => {
+    if (_sig === oldSig) return
     lastStructuralChangeAt = Date.now()
     rebuildPrefixSums(false)
     // 抖动修复⑫-b（2026-09-04）：结构突变后等 Vue 渲染出新行，立即按 DOM 实测高度
@@ -515,6 +534,16 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
         if (el.hasAttribute('data-animating')) continue
         const id = el.dataset.msgId
         if (!id) continue
+        // 抖动修复⑮-b：v-show 隐藏行（计划步骤折叠的子动作等）布局高度为 0——
+        // 缓存同步置 0 使前缀和与 DOM 布局一致（否则残留旧高度 → 切窗占位错位 → 抖动）；
+        // 展开时 RO/预热会回写真实高度。
+        if (el.offsetParent === null) {
+          if (measuredHeights.get(id) !== 0) {
+            measuredHeights.set(id, 0)
+            changed = true
+          }
+          continue
+        }
         const h = el.offsetHeight
         if (h > 0 && measuredHeights.get(id) !== h) {
           measuredHeights.set(id, h)
@@ -564,9 +593,14 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
             // 止血包②：按行 id 直写高度缓存（原按 index 写入需 findIndex 反查，
             // 且行序变化后错位；id 键天然免疫行序变化，还省一次 O(n) 查找）
             if (msgId) {
-              const h = entry.contentRect.height
-              // 零高（detached / display:none 行）不写缓存，防前缀和崩坏
-              if (h > 0) measuredHeights.set(msgId, h)
+              // 抖动修复⑮-c：v-show 隐藏行（计划步骤折叠子动作等）缓存置 0——与预热 walk
+              // 同规则，保证前缀和随布局切换即时一致（否则残留旧高度 → 切窗占位错位 → 抖动）。
+              if (el.offsetParent === null) {
+                measuredHeights.set(msgId, 0)
+              } else {
+                const h = entry.contentRect.height
+                if (h > 0) measuredHeights.set(msgId, h)
+              }
             }
           }
           // 测量到新高度后，重建前缀和（rAF 合并，避免过度重建）。
