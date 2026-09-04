@@ -423,7 +423,18 @@ function estimateRowHeight(row: AgentStreamItem): number | undefined {
     case 'tool': return 32       // 扁平工具单行（padding 4*2 + 行高 ~24）
     case 'divider': return 33    // margin 8*2 + 文本行 ~17
     case 'think': return 60      // 折叠态单行 + 标题；流式展开态由 ResizeObserver 实测覆盖
-    default: return undefined    // user / assistant 回落全局测量平均
+    case 'assistant': {
+      // 走查 S1（2026-09-05）：结果层 markdown 按内容长度估算——原回落全局平均 80px，
+      // 长文（实际数千 px）严重低估 → 窗口切片边界/占位失真、收敛期抖动的最大误差源。
+      // 系数为经验值：行宽 ~640px ≈ 42 中文字/行 × 行高 24px ≈ 0.57px/字符 + 基础 48px。
+      const len = row.msg.content.length
+      return 48 + len * 0.57
+    }
+    case 'user': {
+      const len = row.msg.content.length
+      return 44 + len * 0.57
+    }
+    default: return undefined    // 其余回落全局测量平均
   }
 }
 

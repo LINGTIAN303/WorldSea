@@ -15,7 +15,14 @@
 -->
 <template>
   <div class="ws-stream-list">
-    <template v-for="group in groups" :key="group.id">
+    <!-- 2026-09-05 视口走查 S5 阶段 A：轮次包裹层（data-turn-root）——
+         为轮次级窗口化准备测量单元（后续 RO 挂轮次根）；本阶段纯结构，行为不变 -->
+    <div
+      v-for="group in groups"
+      :key="group.id"
+      class="ws-turn-root"
+      :data-turn-root="group.id"
+    >
       <!-- ① 用户消息层 -->
       <StreamRow
         v-if="group.user"
@@ -79,7 +86,7 @@
         @tool-confirm="(e) => emit('tool-confirm', e)"
         @expand="() => emit('segment-expand', group.id)"
       />
-    </template>
+    </div>
   </div>
 </template>
 

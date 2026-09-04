@@ -6,13 +6,14 @@ import type { AgentMessage } from '@worldsmith/agent-runtime'
 const WINDOW_BUFFER = 20          // 视口上下各保留 20 条缓冲，减少滚动时频繁切换
 const INITIAL_RENDER_COUNT = 50   // 初始渲染最近 50 条（覆盖大多数对话首屏）
 const ESTIMATED_ITEM_HEIGHT = 80  // 未测量过的 item 估算高度（px）
-/** 结构突变抑制期（ms）：items 长度变化（展开/折叠过程层等）后，测量收敛产生的
- *  前缀和重建在一段窗口内**不做 scrollTop 锚定补偿**——结构突变瞬间新行未测、前缀和
- *  含估算误差，且 ResizeObserver 链式测量逐帧改前缀和，用「突变前布局采集的 offset」
- *  补偿会算出荒谬目标值（实测曾把 scrollTop 设成负数 → clamp → 回顶）。
- *  抑制期内滚动稳定完全交由宿主 withProcessAnchor（DOM 元素级 delta 补偿）负责；
- *  抑制期后测量已收敛，锚定补偿恢复安全。 */
+/** 结构突变保底抑制期（ms）：突变瞬间新行未测、前缀和含估算误差，此窗口内 RO 重建
+ *  **不做 scrollTop 锚定补偿**——结构突变瞬间用「突变前布局采集的 offset」补偿会算出
+ *  荒谬目标值（实测曾把 scrollTop 设成负数 → clamp → 回顶）。 */
 const REBUILD_ANCHOR_SUPPRESS_MS = 380
+/** 走查 S2（2026-09-05）测量静默判定（收敛信号）：RO 回调静默超此时长视为测量收敛——
+ *  保底期（380ms）之外，测量若仍活跃（静默 < 120ms，即仍在逐帧收敛）则继续抑制，
+ *  收敛后提前解除。原固定 380ms 在慢机器/长会话上不够（抖动回归），此为自适应补丁。 */
+const MEASURE_QUIET_MS = 120
 
 /**
  * 判底阈值：视口高度的 15%，下限 60px。
@@ -66,6 +67,34 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
   const lastSeenLength = ref(0)
   /** [③] 滚动归属账本：记录程序化写入的 scrollTop，区分读者滚动 vs 程序化滚动（对齐 Harness observedTopRef）；非响应式普通变量 */
   let observedTop = 0
+  /** 走查 S2：最近一次 RO 测量批次时刻（收敛信号判定用） */
+  let lastMeasurementAt = 0
+
+  /** 抑制判定（走查 S2）：突变保底期内，或测量仍在活跃收敛（静默 < 120ms）时为真 */
+  function isMeasureSuppressActive(): boolean {
+    return (
+      Date.now() - lastStructuralChangeAt < REBUILD_ANCHOR_SUPPRESS_MS ||
+      Date.now() - lastMeasurementAt < MEASURE_QUIET_MS
+    )
+  }
+
+  /**
+   * 走查 S3（2026-09-05）视口顶部基准行采集——锚定补偿共用工具：
+   * 返回首个 bottom 越过视口顶的可见行（id + 相对视口顶偏移）。过滤 v-show 隐藏行
+   * （rect 全 0，满足 bottom>=topY，会被误选为锚 → 抖动修复⑯ 同规则）。
+   * 此前 rebuild 锚定 / 切窗锚定两处各自实现，曾因只改一处漏掉另一处出过回归。
+   */
+  function collectTopAnchorRow(scroll: HTMLElement): { id: string | null; offset: number } {
+    const topY = scroll.getBoundingClientRect().top
+    for (const el of scroll.querySelectorAll('[data-msg-id]')) {
+      if ((el as HTMLElement).offsetParent === null) continue
+      const r = el.getBoundingClientRect()
+      if (r.bottom >= topY) {
+        return { id: el.getAttribute('data-msg-id'), offset: r.top - topY }
+      }
+    }
+    return { id: null, offset: 0 }
+  }
 
   // ===== 可见消息 ID 集合（供点状导航/深度用户条高亮） =====
   const visibleMsgIds = ref<Set<string>>(new Set())
@@ -106,20 +135,9 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
     let anchorRowId: string | null = null
     let anchorDomOffset = 0 // 视口顶到该行 top 的真实像素偏移（补偿基准）
     if (anchor && scroll) {
-      const topY = scroll.getBoundingClientRect().top
-      for (const el of scroll.querySelectorAll('[data-msg-id]')) {
-        // 抖动修复⑯（2026-09-05）：v-show 隐藏行（计划折叠区/待办项体）rect 全为 0——
-        // 容器顶与视口顶重合（topY=0）时 bottom=0 满足条件，DOM 序在真锚点之前的隐藏行
-        // 被误选为锚 → 补偿 target=sums[隐藏行] → 区级折叠时跳顶。与 updateVisibleRange
-        // 的锚定收集（⑮-d）同规则过滤。
-        if ((el as HTMLElement).offsetParent === null) continue
-        const r = el.getBoundingClientRect()
-        if (r.bottom >= topY) {
-          anchorRowId = el.getAttribute('data-msg-id')
-          anchorDomOffset = r.top - topY
-          break
-        }
-      }
+      const collected = collectTopAnchorRow(scroll)
+      anchorRowId = collected.id
+      anchorDomOffset = collected.offset
     }
     // 计算已测量 item 的平均高度，作为未测量 item 的估算值（比固定 80px 更精准）
     let measuredTotal = 0
@@ -228,6 +246,7 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
       const navTopY = scroll.getBoundingClientRect().top
       let found = ''
       for (const el of scroll.querySelectorAll('[data-msg-id]')) {
+        if ((el as HTMLElement).offsetParent === null) continue
         const id = el.getAttribute('data-msg-id') ?? ''
         if (!userMsgIds.value.has(id)) continue
         if (el.getBoundingClientRect().top <= navTopY + 40) found = id
@@ -255,19 +274,9 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
     // 底部跟随断流。切窗前记录「视口首行」（DOM 实测 id + 视口偏移），切窗渲染后按实测
     // 位置补偿 scrollTop，让重排对用户无感。底部跟随态直接顺延贴底（优先级高于锚定）。
     // 非法目标值（<0 或超出滚动范围）丢弃，防 clamp 反馈链。
+    // 走查 S3：视口首行采集归一到 collectTopAnchorRow（含 v-show 隐藏行过滤，原⑮-d/⑯）。
     const topY = scroll.getBoundingClientRect().top
-    let anchorId: string | null = null
-    let anchorOffset = 0
-    for (const el of scroll.querySelectorAll<HTMLElement>('[data-msg-id]')) {
-      // 抖动修复⑮-d：v-show 隐藏行（计划步骤折叠子动作）rect 为 0，锚定会算出荒谬偏移
-      if (el.offsetParent === null) continue
-      const r = el.getBoundingClientRect()
-      if (r.bottom >= topY) {
-        anchorId = el.dataset.msgId ?? null
-        anchorOffset = r.top - topY
-        break
-      }
-    }
+    const { id: anchorId, offset: anchorOffset } = collectTopAnchorRow(scroll)
 
     visibleStart.value = newStart
     visibleEnd.value = newEnd
@@ -600,7 +609,7 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
   watch(() => windowedDisplayItems.value.bottomPlaceholderHeight, (newH, oldH) => {
     if (oldH === newH) return
     if (!isAtBottom.value) return
-    if (Date.now() - lastStructuralChangeAt < REBUILD_ANCHOR_SUPPRESS_MS) return
+    if (isMeasureSuppressActive()) return
     scheduleScrollToBottom()
   })
 
@@ -670,8 +679,13 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
           // 但**关闭锚定补偿**——突变期新行逐个被测、前缀和逐帧漂移，锚定 target 不可靠
           // （实测会算出负数 scrollTop → clamp → 回顶）。
           if (!skipAll) {
-            const withinSuppress = Date.now() - lastStructuralChangeAt < REBUILD_ANCHOR_SUPPRESS_MS
-            scheduleRebuildPrefixSums(!withinSuppress)
+            // 走查 S2：突变保底期 + 测量活跃期（静默 < 120ms）内抑制锚定补偿
+            lastMeasurementAt = Date.now()
+            if (isMeasureSuppressActive()) {
+              scheduleRebuildPrefixSums(false)
+            } else {
+              scheduleRebuildPrefixSums(true)
+            }
           }
         })
         // 对当前已渲染的消息节点 observe（后续新节点由 MutationObserver 增量 observe）

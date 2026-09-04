@@ -405,10 +405,21 @@
  *  - 结果层与过程文本段仅做字重/字级弱化区分，不靠颜色/边框/卡片；
  *  - 只有结果层带操作栏（由 AssistantRow 的 isResult 控制渲染，见组件）。
  * 分组用 <template v-for> 不产生 DOM 节点，故各层容器是 .ws-stream-list 的直接子元素，
- * 层内间距沿用容器 gap(4px)，轮次/层间用 margin-top 叠加补足。 */
+ * 层内间距沿用容器 gap(4px)，轮次/层间用 margin-top 叠加补足。
+ * 2026-09-05 S5 阶段 A：分组改实体 .ws-turn-root 包裹层（为轮次级窗口化准备测量单元），
+ * 层内布局语义（gap 4px / 边界 margin）迁移到 turn-root 内部，视觉零变化。 */
 
-/* 轮次边界：前面有兄弟元素的用户行即为非首轮 → 4px(gap) + 4px = 8px */
-.ws-stream-list > * + .ws-user-row {
+/* 轮次包裹层：承接原 .ws-stream-list 的层内布局（flex column + gap 4px） */
+.ws-turn-root {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* 轮次边界：前面有兄弟轮次的用户行即为非首轮 → 4px(gap) + 4px = 8px
+   （原 .ws-stream-list > * + .ws-user-row） */
+.ws-turn-root + .ws-turn-root > .ws-user-row {
   margin-top: 4px;
 }
 
@@ -428,8 +439,9 @@
   min-width: 0;
   margin-top: 4px;
 }
-/* 结果层过后才落地时（无过程层），首个元素不该有额外上边距 */
-.ws-stream-list > .ws-turn-result:first-child {
+/* 结果层过后才落地时（无过程层），首个元素不该有额外上边距
+   （原 .ws-stream-list > .ws-turn-result:first-child，S5 阶段 A 迁移到 turn-root 内） */
+.ws-turn-root > .ws-turn-result:first-child {
   margin-top: 0;
 }
 
