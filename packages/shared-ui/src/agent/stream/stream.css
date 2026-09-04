@@ -728,10 +728,17 @@
   opacity: 0.85;
 }
 .ws-combo-text {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+/* 组合头摘要（2026-09-05 默认折叠配套）：段类型串联，可收缩截断，弱于主文字 */
+.ws-combo-summary {
+  flex: 1;
   min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  opacity: 0.72;
 }
 .ws-combination-body {
   padding-left: 8px;

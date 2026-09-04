@@ -364,6 +364,124 @@ describe('turnModel 归约器', () => {
     expect(s1.childRefIds).toContain('u1') // 按 item_id 归入对应步骤
   })
 
+  it('2026-09-05 重演：3 步串行全时序——每个 plan_update 行都归入对应待办项，不游离顶层', () => {
+    let turns = startTurn()
+    const planStep = (id: string, label: string, refId: string) =>
+      (turns = reduceEvent(turns, {
+        type: 'action_start', turnId: 't1', id, action: 'plan', label, refId,
+      }))
+    const tool = (id: string, label: string, args?: Record<string, unknown>) =>
+      (turns = reduceEvent(turns, {
+        type: 'action_start', turnId: 't1', id, action: 'tool', label, refId: `c-${id}`,
+        ...(args ? { args } : {}),
+      }))
+    const st = (stepId: string, status: 'running' | 'completed') =>
+      (turns = reduceEvent(turns, { type: 'plan_step_status', turnId: 't1', stepId, status }))
+
+    // plan_create → 3 个步骤行（plan_created 广播）
+    tool('pc', 'plan_create')
+    planStep('p1', '步骤一', 'pi-1')
+    planStep('p2', '步骤二', 'pi-2')
+    planStep('p3', '步骤三', 'pi-3')
+    // 步骤 1：in_progress（激活广播晚于工具行）→ 真实工作 → completed（激活中，走 claim）
+    tool('u1', 'plan_update', { item_id: 'pi-1', status: 'in_progress' })
+    st('pi-1', 'running')
+    tool('w1', 'write_file')
+    tool('u2', 'plan_update', { item_id: 'pi-1', status: 'completed' })
+    st('pi-1', 'completed')
+    // 步骤 2：completed 收口已清激活 → in_progress 再走直配
+    tool('u3', 'plan_update', { item_id: 'pi-2', status: 'in_progress' })
+    st('pi-2', 'running')
+    tool('u4', 'plan_update', { item_id: 'pi-2', status: 'completed' })
+    st('pi-2', 'completed')
+    // 步骤 3
+    tool('u5', 'plan_update', { item_id: 'pi-3', status: 'in_progress' })
+    st('pi-3', 'running')
+    tool('r1', 'read_file')
+    tool('u6', 'plan_update', { item_id: 'pi-3', status: 'completed' })
+    st('pi-3', 'completed')
+
+    const refsOf = (id: string) =>
+      (turns[0].segments.find((s) => s.id === id) as any)?.childRefIds ?? []
+    expect(refsOf('p1')).toEqual(expect.arrayContaining(['u1', 'w1', 'u2']))
+    expect(refsOf('p2')).toEqual(expect.arrayContaining(['u3', 'u4']))
+    expect(refsOf('p3')).toEqual(expect.arrayContaining(['u5', 'r1', 'u6']))
+  })
+
+  it('2026-09-05 重演：流式期 ToolCallStart 无 args——plan_update(in_progress) 行经 plan_step_status 回补归组', () => {
+    let turns = startTurn()
+    turns = reduceEvent(turns, {
+      type: 'action_start', turnId: 't1', id: 'p1', action: 'plan', label: '步骤一', refId: 'pi-1',
+    })
+    // 流式期广播不带 args（完整参数在 ToolCallEnd）→ 直配扑空；步骤未激活 → claim 扑空
+    turns = reduceEvent(turns, {
+      type: 'action_start', turnId: 't1', id: 'u1', action: 'tool', label: 'plan_update',
+      refId: 'cu1', args: {},
+    })
+    let s1 = turns[0].segments.find((s) => s.id === 'p1') as any
+    expect(s1.childRefIds ?? []).not.toContain('u1') // 修复前：游离
+    // PlanStepUpdate(running) 广播 = 该次 plan_update 调用的结果 → 回补归组
+    turns = reduceEvent(turns, { type: 'plan_step_status', turnId: 't1', stepId: 'pi-1', status: 'running' })
+    s1 = turns[0].segments.find((s) => s.id === 'p1') as any
+    expect(s1.childRefIds).toContain('u1')
+  })
+
+  it('2026-09-05 重演：回源重归组——步骤行后置重建后 plan_restore_regroup 恢复实时态归属', () => {
+    let turns = startTurn()
+    // 回源：消息重建阶段动作行先到（步骤行不存在）→ 全部游离
+    // assistant#1：plan_create + plan_update(pi-1, in_progress) + write_file + plan_update(pi-1, completed)
+    turns = reduceEvent(turns, {
+      type: 'action_start', turnId: 't1', id: 'pc', action: 'tool', label: 'plan_create', refId: 'c-pc', args: {},
+    })
+    turns = reduceEvent(turns, {
+      type: 'action_start', turnId: 't1', id: 'u1', action: 'tool', label: 'plan_update', refId: 'c-u1',
+      args: { item_id: 'pi-1', status: 'in_progress' },
+    })
+    turns = reduceEvent(turns, {
+      type: 'action_start', turnId: 't1', id: 'w1', action: 'tool', label: 'write_file', refId: 'c-w1', args: {},
+    })
+    // in_progress 区间内的 think/text：实时态经 claim 归组 → 回源重归组应同样收进
+    turns = reduceEvent(turns, { type: 'reasoning', turnId: 't1', delta: '验证文件夹' })
+    turns = reduceEvent(turns, { type: 'text_delta', turnId: 't1', delta: '文件写入成功。' })
+    turns = reduceEvent(turns, {
+      type: 'action_start', turnId: 't1', id: 'u2', action: 'tool', label: 'plan_update', refId: 'c-u2',
+      args: { item_id: 'pi-1', status: 'completed' },
+    })
+    // completed 后、下一 in_progress 前的动作行：与实时 active 生命周期一致 → 保持游离
+    turns = reduceEvent(turns, {
+      type: 'action_start', turnId: 't1', id: 'u3', action: 'tool', label: 'plan_update', refId: 'c-u3',
+      args: { item_id: 'pi-2', status: 'in_progress' },
+    })
+    // 步骤行后置重建（restorePlanStepsIntoFlow：先建行再收口）
+    turns = reduceEvent(turns, {
+      type: 'action_start', turnId: 't1', id: 'p1', action: 'plan', label: '步骤一', refId: 'pi-1',
+    })
+    turns = reduceEvent(turns, {
+      type: 'action_start', turnId: 't1', id: 'p2', action: 'plan', label: '步骤二', refId: 'pi-2',
+    })
+    turns = reduceEvent(turns, { type: 'plan_step_status', turnId: 't1', stepId: 'pi-1', status: 'completed', autoCollapse: true })
+    turns = reduceEvent(turns, { type: 'plan_step_status', turnId: 't1', stepId: 'pi-2', status: 'completed', autoCollapse: true })
+    // 回源重归组
+    turns = reduceEvent(turns, { type: 'plan_restore_regroup', turnId: 't1' })
+
+    const refsOf = (id: string) =>
+      (turns[0].segments.find((s) => s.id === id) as any)?.childRefIds ?? []
+    // plan_update 行按 item_id 直配；write_file/think/text 落在 pi-1 的 in_progress 区间 → 归 pi-1
+    expect(refsOf('p1')).toEqual(expect.arrayContaining(['u1', 'w1', 'u2']))
+    expect(refsOf('p1')).toEqual(
+      expect.arrayContaining(turns[0].segments.filter((s) => s.kind === 'think').map((s) => s.id)),
+    )
+    expect(refsOf('p1')).toEqual(
+      expect.arrayContaining(
+        turns[0].segments.filter((s) => s.kind === 'text' && !(s as any).resultCandidate).map((s) => s.id),
+      ),
+    )
+    expect(refsOf('p2')).toContain('u3')
+    // plan_create 无归属区间（先于任何 plan_update）→ 保持游离顶层
+    expect(refsOf('p1')).not.toContain('pc')
+    expect(refsOf('p2')).not.toContain('pc')
+  })
+
   it('2026-09-02 round_end 去重：降级正文段与 round_end 之间隔着动作段时仍复用（防文本重复）', () => {
     let turns = startTurn()
     turns = reduceEvent(turns, { type: 'round_start', turnId: 't1' })

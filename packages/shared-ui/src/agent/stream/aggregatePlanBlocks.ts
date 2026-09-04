@@ -62,7 +62,12 @@ function combineSequence(rows: AgentStreamItem[]): ProcessBlock[] {
   let temp: AgentStreamItem[] = []
   const flush = () => {
     if (temp.length === 0) return
-    out.push({ kind: 'combination', col: temp[0], rows: temp })
+    // 2026-09-05 组合行段调整：单行不包组合头（消除「1 段执行」包一行的冗余头），≥2 段才组合
+    if (temp.length === 1) {
+      out.push(temp[0])
+    } else {
+      out.push({ kind: 'combination', col: temp[0], rows: temp })
+    }
     temp = []
   }
   for (const row of rows) {
@@ -103,7 +108,12 @@ export function aggregatePlanBlocks(process: AgentStreamItem[]): ProcessBlock[] 
   let temp: AgentStreamItem[] = []
   const flushTemp = () => {
     if (temp.length === 0) return
-    out.push({ kind: 'combination', col: temp[0], rows: temp })
+    // 与 combineSequence 同规则：单行不包组合头（2026-09-05）
+    if (temp.length === 1) {
+      out.push(temp[0])
+    } else {
+      out.push({ kind: 'combination', col: temp[0], rows: temp })
+    }
     temp = []
   }
   for (const row of process) {

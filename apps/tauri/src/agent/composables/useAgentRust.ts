@@ -1623,6 +1623,9 @@ function restorePlanStepsIntoFlow(plan: RustPlanItem[]): void {
       result: item.output ?? undefined,
     })
   }
+  // 2026-09-05 回源重归组：步骤行后置重建（晚于消息重建）导致 claim/直配全程扑空，
+  // 子动作（plan_update/write_file 等）游离顶层。步骤行与收口就位后跑一次归属重算。
+  applyTurnEvent(sid, { type: 'plan_restore_regroup', turnId })
 }
 
 /** 2026-09-02 计划步骤并入过程层：plan_update 步骤状态流转 → 驱动 plan 动作段（in_progress 激活 / 完成收口） */

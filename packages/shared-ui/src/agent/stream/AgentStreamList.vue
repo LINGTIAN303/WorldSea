@@ -33,7 +33,7 @@
         <ProcessBlocks
           :blocks="group.process"
           :turn-id="group.id"
-          :combo-collapsed="comboCollapsed"
+          :combo-expanded="comboExpanded"
           :zone-collapsed-map="planZonesCollapsed ?? {}"
           :animated-ids="animatedIds"
           :hovered-id="hoveredId"
@@ -47,6 +47,7 @@
           @manuscript-local-action="(e) => emit('manuscript-local-action', e)"
           @tool-confirm="(e) => emit('tool-confirm', e)"
           @segment-expand="(tid) => emit('segment-expand', tid)"
+          @expand="(tid) => emit('expand', tid)"
         />
       </div>
       <!-- ③ LLM 结果层（唯一带操作栏，由 AssistantRow 的 isResult 驱动）
@@ -157,13 +158,14 @@ const groups = computed<TurnGroup[]>(() => {
   return out
 })
 
-// ===== 组合行段本地折叠态（组件内 ref：仅组合块使用；切窗重挂与 think 行一样重置为展开，不持久化）=====
-const comboCollapsed = ref<Set<string>>(new Set())
+// ===== 组合行段本地展开态（组件内 ref；2026-09-05 调整为默认折叠：集合含 id=展开，
+// 切窗重挂与 think 行一样重置——重置后为默认折叠态）=====
+const comboExpanded = ref<Set<string>>(new Set())
 function toggleCombo(id: string): void {
-  const next = new Set(comboCollapsed.value)
+  const next = new Set(comboExpanded.value)
   if (next.has(id)) next.delete(id)
   else next.add(id)
-  comboCollapsed.value = next
+  comboExpanded.value = next
 }
 
 // ===== 入场动画治理（止血包⑤）=====

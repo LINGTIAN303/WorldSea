@@ -1,7 +1,8 @@
 <!--
   ProcessBlocks：过程层多级折叠树块的递归渲染（2026-09-04 待办项升级）
   块类型（aggregatePlanBlocks 产出）：
-    combination（组合行段 · 二级小折叠条）：兜连续非文本行段（think/tool），点击头折叠/展开
+    combination（组合行段 · 二级小折叠条）：兜连续非文本行段（think/tool），单行不包组合头
+              （聚合层直出）；默认折叠，头行带段类型摘要，点击头展开/收起
     plan_zone（计划折叠区 · 区级折叠头）：与过程层总折叠条同级但职责=待办项；折叠态在数据层
               （turn.planCollapsed，跨切窗持久），点击头 → 上抛 plan-zone-toggle
     plan_item（待办项 · 文字折叠条）：pending 无子动作时隐藏（串行时序）；折叠态在数据层
@@ -12,13 +13,14 @@
 -->
 <template>
   <template v-for="block in visibleBlocks" :key="blockKey(block)">
-    <!-- 组合行段（二级小折叠条）：连续非文本行段 -->
+    <!-- 组合行段（二级小折叠条）：连续非文本行段；单行已在聚合层直出，此处必为 ≥2 段 -->
     <div v-if="isCombinationBlock(block)" class="ws-combination">
       <div class="ws-combination-head" role="button" tabindex="0" @click="toggleCombo(block)" @keydown.enter="toggleCombo(block)">
-        <WsIcon :name="comboCollapsed.has(combKey(block)) ? 'chevron-right' : 'chevron-down'" size="xs" class="ws-combo-chevron" />
+        <WsIcon :name="comboExpanded.has(combKey(block)) ? 'chevron-down' : 'chevron-right'" size="xs" class="ws-combo-chevron" />
         <span class="ws-combo-text">{{ block.rows.length }} 段执行</span>
+        <span v-if="comboSummary(block)" class="ws-combo-summary">· {{ comboSummary(block) }}</span>
       </div>
-      <div v-show="!comboCollapsed.has(combKey(block))" class="ws-combination-body">
+      <div v-show="comboExpanded.has(combKey(block))" class="ws-combination-body">
         <StreamRow
           v-for="row in block.rows"
           :key="row.id"
@@ -53,7 +55,7 @@
         <ProcessBlocks
           :blocks="block.items"
           :turn-id="turnId"
-          :combo-collapsed="comboCollapsed"
+          :combo-expanded="comboExpanded"
           :zone-collapsed-map="zoneCollapsedMap"
           :animated-ids="animatedIds"
           :hovered-id="hoveredId"
@@ -95,7 +97,7 @@
         <ProcessBlocks
           :blocks="block.rows"
           :turn-id="turnId"
-          :combo-collapsed="comboCollapsed"
+          :combo-expanded="comboExpanded"
           :zone-collapsed-map="zoneCollapsedMap"
           :animated-ids="animatedIds"
           :hovered-id="hoveredId"
@@ -148,14 +150,15 @@ import { WsIcon } from '@worldsmith/ui-kit'
 import type { AgentStreamItem } from '@worldsmith/shared-composables/agent/useAgent'
 import type { ProcessBlock, CombinationBlock, PlanItemBlock, PlanZoneBlock } from './aggregatePlanBlocks'
 import StreamRow from './rows/StreamRow.vue'
+import { TOOL_LABELS } from '../bubbles/toolLabels'
 import type { AgentMessage, BlockActionEvent } from '../bubbles/types'
 
 const props = defineProps<{
   blocks: ProcessBlock[]
   /** 所属轮次 id（折叠 toggle 上抛用） */
   turnId: string
-  /** 组合行段本地折叠态（组件内 ref 由 AgentStreamList 持有，切窗重挂重置为展开） */
-  comboCollapsed: Set<string>
+  /** 组合行段本地展开态（组件内 ref 由 AgentStreamList 持有；默认折叠，切窗重挂重置为折叠） */
+  comboExpanded: Set<string>
   /** 区级折叠态（turnId → planCollapsed，数据层持久，跨切窗保留） */
   zoneCollapsedMap: Record<string, boolean>
   animatedIds: Set<string>
@@ -209,6 +212,21 @@ const visibleBlocks = computed<ProcessBlock[]>(() =>
 
 function toggleCombo(block: CombinationBlock): void {
   emit('combo-toggle', combKey(block))
+}
+
+/** 组合头摘要（2026-09-05 默认折叠配套）：段类型 label 串联，超 2 段截断为「…等 N 段」 */
+function comboSummary(block: CombinationBlock): string {
+  const labels = block.rows.map((r) => {
+    if (r.type === 'think') return '模型推理'
+    if (r.type === 'tool') {
+      const name = (r as { tc?: { name?: string } }).tc?.name ?? ''
+      return TOOL_LABELS[name] ?? name
+    }
+    return ''
+  })
+  const shown = labels.filter(Boolean).slice(0, 2).join('、')
+  if (!shown) return ''
+  return labels.length > 2 ? `${shown} 等 ${labels.length} 段` : shown
 }
 
 /** 区级折叠态：数据层 planCollapsed（默认 false 展开） */

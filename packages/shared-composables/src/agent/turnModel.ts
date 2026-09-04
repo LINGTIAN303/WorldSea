@@ -278,6 +278,15 @@ export type TurnEvent =
         result?: unknown
       }>
     }
+  /**
+   * 2026-09-05 回源重归组：步骤行后置重建（restorePlanStepsIntoFlow 晚于消息重建）导致
+   * 子动作归组的 claim/直配全程扑空（childRefIds 全空、子动作游离顶层）。本事件在步骤行
+   * 建好后跑一次归属重算，规则与实时态对齐：
+   *   plan_update 行 → args.item_id 直配（回源 args 完整）；
+   *   其余动作行 → 向前最近 plan_update 行处于 in_progress 区间才归组（completed 后保持游离，
+   *   与实时 activePlanStepId 生命周期一致）。
+   */
+  | { type: 'plan_restore_regroup'; turnId: string }
   /** 2026-09-02 系统工具流式：工具增量输出（bash/powershell 逐行） */
   | { type: 'tool_delta'; turnId: string; toolCallId: string; delta: string }
   /** 2026-09-02 系统工具流式：文件变更 diff（write/edit/edit_diff） */
@@ -602,6 +611,30 @@ export function reduceEvent(turns: Turn[], event: TurnEvent): Turn[] {
         ...(event.description !== undefined ? { planDescription: event.description } : {}),
       }
       const segments = turn.segments.map((s, i) => (i === idx ? nextSeg : s))
+      // 2026-09-05 游离 plan_update 行回补：流式期 ToolCallStart 不携带 args（完整参数在
+      // ToolCallEnd 才广播）+ in_progress 行到达时步骤尚未激活 → claim/直配双扑空、行游离顶层。
+      // PlanStepUpdate 广播即该次 plan_update 调用的结果：把当前游离的 plan_update 行归入本次
+      // 流转的步骤（串行时序下至多一个游离行；已被收编的行由 claimed 集合幂等跳过）。
+      // 仅实时态执行——回源注入（autoCollapse）时游离行可能有多个（步骤行后置重建所致），
+      // 全量误收进首个收口步骤，归属重算统一交 plan_restore_regroup。
+      if (!event.autoCollapse) {
+        const claimedIds = new Set<string>()
+        for (const s of turn.segments) {
+          if (s.kind !== 'action' || !(s as ActionSegment).isPlanStep) continue
+          for (const c of (s as ActionSegment).childRefIds ?? []) claimedIds.add(c)
+        }
+        const strayUpdateIds = turn.segments
+          .filter((s) => {
+            if (s.kind !== 'action') return false
+            const a = s as ActionSegment
+            return !a.isPlanStep && a.label === 'plan_update' && !claimedIds.has(a.id)
+          })
+          .map((s) => s.id)
+        if (strayUpdateIds.length > 0) {
+          const target = segments[idx] as ActionSegment
+          segments[idx] = { ...target, childRefIds: [...(target.childRefIds ?? []), ...strayUpdateIds] }
+        }
+      }
       const activePlanStepId =
         event.status === 'running'
           ? seg.id
@@ -669,6 +702,74 @@ export function reduceEvent(turns: Turn[], event: TurnEvent): Turn[] {
         segments: [...keep, ...planSegs],
         activePlanStepId: undefined,
       })
+    }
+
+    /** 2026-09-05 回源重归组：见 TurnEvent plan_restore_regroup 注释 */
+    case 'plan_restore_regroup': {
+      const ti = lastTurnIndex(turns)
+      if (ti < 0) return turns
+      const turn = turns[ti]
+      const stepIdxByRef = new Map<string, number>()
+      const claimed = new Set<string>()
+      for (let i = 0; i < turn.segments.length; i++) {
+        const s = turn.segments[i]
+        if (s.kind !== 'action' || !(s as ActionSegment).isPlanStep) continue
+        stepIdxByRef.set((s as ActionSegment).refId ?? '', i)
+        for (const c of (s as ActionSegment).childRefIds ?? []) claimed.add(c)
+      }
+      // stepIdx → 追加的子动作 id（按原 segment 序累积，保持块内相对顺序）
+      const appended = new Map<number, string[]>()
+      let lastUpdate: { status: string; refId: string } | null = null
+      for (let i = 0; i < turn.segments.length; i++) {
+        const s = turn.segments[i]
+        if (s.kind === 'action') {
+          const a = s as ActionSegment
+          if (a.isPlanStep) continue
+          const args = (a.args ?? {}) as Record<string, unknown>
+          if (a.label === 'plan_update') {
+            // plan_update 行：按 item_id 直配（回源 args 完整；与实时直配同规则）
+            const itemId = (args['item_id'] as string) ?? (args['itemId'] as string) ?? ''
+            const si = stepIdxByRef.get(itemId)
+            if (si !== undefined && !claimed.has(a.id)) {
+              appended.set(si, [...(appended.get(si) ?? []), a.id])
+              claimed.add(a.id)
+            }
+            lastUpdate = { status: String(args['status'] ?? ''), refId: itemId }
+            continue
+          }
+          if (claimed.has(s.id)) continue
+          // 其余动作行：仅 in_progress 区间内归组（completed 后保持游离，对齐实时 active 生命周期）
+          if (lastUpdate?.status === 'in_progress') {
+            const si = stepIdxByRef.get(lastUpdate.refId)
+            if (si !== undefined) {
+              appended.set(si, [...(appended.get(si) ?? []), s.id])
+              claimed.add(s.id)
+            }
+          }
+          continue
+        }
+        // think/text 段（2026-09-05 风险点纳入）：实时态在激活区间内经 claimIntoActiveStep 归组，
+        // 回源态按同一区间规则重算；结果层候选（resultCandidate）永不归组——实时态激活区间内
+        // 的文本不设候选，二者判定一致。
+        if (s.kind !== 'think' && s.kind !== 'text') continue
+        if (s.kind === 'text' && (s as TextSegment).resultCandidate) continue
+        if (claimed.has(s.id)) continue
+        if (lastUpdate?.status === 'in_progress') {
+          const si = stepIdxByRef.get(lastUpdate.refId)
+          if (si !== undefined) {
+            appended.set(si, [...(appended.get(si) ?? []), s.id])
+            claimed.add(s.id)
+          }
+        }
+      }
+      if (appended.size === 0) return turns
+      const segments = turn.segments.map((s, i) => {
+        const ids = appended.get(i)
+        if (!ids) return s
+        const a = s as ActionSegment
+        return { ...a, childRefIds: [...(a.childRefIds ?? []), ...ids] }
+      })
+      return replaceTurn(turns, ti, { ...turn, segments })
     }
 
     case 'action_end': {

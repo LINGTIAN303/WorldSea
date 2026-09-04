@@ -92,10 +92,9 @@ describe('aggregatePlanBlocks', () => {
     expect((blocks[0] as PlanZoneBlock).kind).toBe('plan_zone')
     const items = planItemsOf(blocks)
     expect(items.map((i) => i.item.id)).toEqual(['p1', 'p2'])
-    // 子动作行收进待办项的组合行段
-    const combos = combinationsOf(blocks)
-    expect(combos[0].rows.map((r) => r.id)).toEqual(['t1'])
-    expect(combos[1].rows.map((r) => r.id)).toEqual(['t2'])
+    // 2026-09-05 单行不包组合头：单子动作直出为普通行（仍在待办项内）
+    expect(items[0].rows.map((r) => r.id)).toEqual(['t1'])
+    expect(items[1].rows.map((r) => r.id)).toEqual(['t2'])
   })
 
   it('乱序：子动作先于步骤行到达 → 仍归入块（不平铺）', () => {
@@ -124,9 +123,11 @@ describe('aggregatePlanBlocks', () => {
     const blocks = aggregatePlanBlocks(process)
     const items = planItemsOf(blocks)
     expect(items.map((i) => i.item.id)).toEqual(['p1', 'p2'])
+    // 2026-09-05 单行不包组合头：t1 单行直出；t2+t3 两段仍包块
+    expect(items[0].rows.map((r) => r.id)).toEqual(['t1'])
     const combos = combinationsOf(blocks)
-    expect(combos[0].rows.map((r) => r.id)).toEqual(['t1'])
-    expect(combos[1].rows.map((r) => r.id)).toEqual(['t2', 't3'])
+    expect(combos).toHaveLength(1)
+    expect(combos[0].rows.map((r) => r.id)).toEqual(['t2', 't3'])
   })
 
   it('普通行不入组合：text 行独立，前后 think/tool 各成组合；计划区从首待办项原位包裹', () => {
@@ -146,15 +147,13 @@ describe('aggregatePlanBlocks', () => {
     expect(zone.kind).toBe('plan_zone')
     const items = planItemsOf(blocks)
     expect(items.map((i) => i.item.id)).toEqual(['p1'])
-    // 首待办项之前的 think(y1)/tool(y2) 组合块
+    // 首待办项之前的 think(y1)/tool(y2) 两段组合块
     const preCombos = combinationsOf([blocks[1]])
     expect(preCombos[0].rows.map((r) => r.id)).toEqual(['y1', 'y2'])
-    // 待办项之后的 think(y3) 在 zone 内（组合行段）
-    const zoneCombos = combinationsOf([zone])
-    expect(zoneCombos.map((c) => c.rows.map((r) => r.id))).toEqual([
-      ['t1'],
-      ['y3'],
-    ])
+    // 2026-09-05 单行不包组合头：t1 在待办项内、y3 在 zone 内，均单行直出为普通行
+    expect(items[0].rows.map((r) => r.id)).toEqual(['t1'])
+    const zoneTail = zone.items[zone.items.length - 1] as AgentStreamItem
+    expect((zoneTail as { kind?: string }).kind ?? zoneTail.id).toBe('y3')
   })
 
   it('孤儿行直出：子动作 id 未在 childRefIds → 不归属任何待办项（顶层组合）', () => {
@@ -166,10 +165,20 @@ describe('aggregatePlanBlocks', () => {
     const blocks = aggregatePlanBlocks(process)
     const items = planItemsOf(blocks)
     expect(items).toHaveLength(1)
-    // 孤儿行在组合行段中直出（不在待办项内）
-    const combos = combinationsOf(blocks)
-    expect(combos[0].rows.map((r) => r.id)).toEqual(['orphan'])
-    expect(combos[1].rows.map((r) => r.id)).toEqual(['t1'])
+    // 2026-09-05 组合调整：单行不包组合头 → 孤儿行/待办项内单子动作均直出为普通行
+    expect((blocks[0] as AgentStreamItem).id).toBe('orphan')
+    expect(items[0].rows.map((r) => r.id)).toEqual(['t1'])
+  })
+
+  it('2026-09-05 组合调整：单行不包组合头（1 段直出），≥2 段才包块', () => {
+    const process = [toolRow('a', 'bash'), textRow('t'), toolRow('b', 'read_file'), toolRow('c', 'write_file')]
+    const blocks = aggregatePlanBlocks(process)
+    // 单行 a 直出；t 断开；b+c 两段包块
+    expect((blocks[0] as AgentStreamItem).id).toBe('a')
+    expect((blocks[1] as AgentStreamItem).id).toBe('t')
+    const combo = blocks[2] as CombinationBlock
+    expect(combo.kind).toBe('combination')
+    expect(combo.rows.map((r) => r.id)).toEqual(['b', 'c'])
   })
 
   it('无步骤：连续非文本行段收进组合行段，text 直出', () => {
