@@ -8,7 +8,6 @@
       aria-label="回到底部"
     >
       <WsIcon name="chevron-down" size="sm" />
-      <span v-if="newMsgCountWhileAway > 0" class="new-msg-badge">{{ newMsgCountWhileAway > 99 ? '99+' : newMsgCountWhileAway }}</span>
     </button>
   </Transition>
 </template>
@@ -16,9 +15,9 @@
 <script setup lang="ts">
 import { WsIcon } from '@worldsmith/ui-kit'
 
+// 2026-09-05 改为纯回底作用：移除未读计数徽标（计数在跨会话场景语义模糊，用户拍板去掉）
 defineProps<{
   visible: boolean
-  newMsgCountWhileAway: number
 }>()
 
 const emit = defineEmits<{
@@ -55,24 +54,6 @@ const emit = defineEmits<{
 
 .scroll-to-bottom-btn:active {
   transform: translateY(0);
-}
-
-.new-msg-badge {
-  position: absolute;
-  top: -4px;
-  right: -4px;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 9px;
-  background: var(--agent-primary, #3b82f6);
-  color: var(--on-accent);
-  font-size: 10px;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 0 0 2px var(--agent-bg, rgba(30, 30, 30, 0.9));
 }
 
 /* 回到底部按钮淡入淡出 */

@@ -35,8 +35,10 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
    * 全局平均两头失真；调用方按行类型分桶可显著提升窗口切片与占位高度准确性。
    */
   estimateHeight?: (row: Row) => number | undefined
+  /** 2026-09-05 导航点激活推导：用户消息 id 集合（AgentMessageList 由 userMessages 派生） */
+  userMsgIds?: Ref<Set<string>>
 }) {
-  const { container, items, messages, estimateHeight } = options
+  const { container, items, messages, estimateHeight, userMsgIds } = options
 
   // ===== 窗口化状态 =====
   const visibleStart = ref(0)
@@ -57,6 +59,8 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
 
   // ===== 滚动锚定状态 =====
   const isAtBottom = ref(true)
+  /** 2026-09-05 导航点端点高亮：视口贴顶判定（scrollTop ≤ 2px），供 DotNav 亮首条用户消息 */
+  const atTop = ref(true)
   const showScrollToBottomBtn = ref(false)
   const newMsgCountWhileAway = ref(0)
   const lastSeenLength = ref(0)
@@ -65,6 +69,8 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
 
   // ===== 可见消息 ID 集合（供点状导航/深度用户条高亮） =====
   const visibleMsgIds = ref<Set<string>>(new Set())
+  /** 2026-09-05 导航点激活推导：视口顶基准线之上最后一条用户消息（目录高亮语义，滚动无缝交接） */
+  const activeUserMsgId = ref('')
 
   interface WindowedItems {
     items: Row[]
@@ -102,6 +108,11 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
     if (anchor && scroll) {
       const topY = scroll.getBoundingClientRect().top
       for (const el of scroll.querySelectorAll('[data-msg-id]')) {
+        // 抖动修复⑯（2026-09-05）：v-show 隐藏行（计划折叠区/待办项体）rect 全为 0——
+        // 容器顶与视口顶重合（topY=0）时 bottom=0 满足条件，DOM 序在真锚点之前的隐藏行
+        // 被误选为锚 → 补偿 target=sums[隐藏行] → 区级折叠时跳顶。与 updateVisibleRange
+        // 的锚定收集（⑮-d）同规则过滤。
+        if ((el as HTMLElement).offsetParent === null) continue
         const r = el.getBoundingClientRect()
         if (r.bottom >= topY) {
           anchorRowId = el.getAttribute('data-msg-id')
@@ -210,6 +221,20 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
     const total = all.length
     if (total === 0) return
 
+    // 2026-09-05 导航点激活推导（放早退之前：纯滚动不切窗时也要更新）——视口顶基准线
+    //（top+40px，贴近阅读位）之上最后一条用户消息。目录高亮语义：激活点随基准线跨越
+    // 无缝交接，任意时刻恰一条；不依赖 IO 可见性（阈值判定在相邻消息交替处有空档）。
+    if (userMsgIds && userMsgIds.value.size > 0) {
+      const navTopY = scroll.getBoundingClientRect().top
+      let found = ''
+      for (const el of scroll.querySelectorAll('[data-msg-id]')) {
+        const id = el.getAttribute('data-msg-id') ?? ''
+        if (!userMsgIds.value.has(id)) continue
+        if (el.getBoundingClientRect().top <= navTopY + 40) found = id
+      }
+      activeUserMsgId.value = found
+    }
+
     const sums = prefixSums.value
     if (!sums) return
 
@@ -296,6 +321,7 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
         : wasAtBottom
     lastScrollHeight = scroll.scrollHeight
     isAtBottom.value = isAtBottomNow
+    atTop.value = scroll.scrollTop <= 2
     // 从底部离开时，显示"回到底部"按钮
     if (wasAtBottom && !isAtBottomNow) {
       showScrollToBottomBtn.value = true
@@ -501,6 +527,16 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
   // 抖动修复⑨/⑩：结构突变（展开/折叠过程层等 items 增减）不锚定——scrollTop 稳定由宿主补偿负责；
   // flush:sync 让前缀和在 windowedDisplayItems computed 读取前完成重建，避免旧长度越界 (NaN 占位)。
   let lastStructuralChangeAt = 0
+  // 抖动修复⑰（2026-09-05）：行数增长时同步扩展窗口尾——过程层展开（总折叠头：摘要行 ⇄ N 行段）
+  // 的新行插在中部，原 [visibleStart, visibleEnd] 按索引切片会把窗口尾部既有行（结果层等）挤出
+  // 窗口（索引后移），且展开不产生 scroll 事件、updateVisibleRange 不重算 → 行「丢失」，滚动
+  // 一下才回来。新增多少行就扩多少窗口尾，保证原窗口覆盖的行保持覆盖；收缩方向无需处理
+  //（slice 对越界 end 自动 clamp）。窗口回收交由滚动时的 updateVisibleRange 常规重算。
+  watch(() => items.value.length, (newLen, oldLen) => {
+    if (newLen > oldLen && !isAtBottom.value) {
+      visibleEnd.value = Math.min(newLen, visibleEnd.value + (newLen - oldLen))
+    }
+  })
   // 抖动修复⑮（2026-09-04）：结构签名 watch——原 length watch 只在行数增减时重建，
   // 计划步骤折叠/展开（stepCollapsed 翻转，v-show 切换）与行段折叠不改变行数，
   // 前缀和与 DOM 布局脱节 → 滚动/切窗抖动。签名只编码「影响布局结构」的字段
@@ -557,9 +593,25 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
   // 抖动修复⑤（2026-09-04）：底部占位高度改变（估算转实测 / 折叠升降）且用户在底部跟随态
   // → 顺延滚动贴底。旧实现只在 items.length 变化时跟随，占位高度单独变化（不增删行）
   // 会导致视口停在旧位置、新行未达底部却已无处贴 → 跳动。
+  // 抖动修复⑳（2026-09-05）：结构突变抑制期内跳过占位驱动的贴底——底部展开总折叠头时
+  // 大量新行未测、前缀和逐帧漂移 → 占位逐帧变 → 逐帧贴底写 scrollTop = 抖动闪烁；且用户
+  // 点击展开想看的是过程层本身，视口应停在原位。流式跟随不受影响：调用方在消息/段落变化
+  // 时的 scheduleScrollToBottom 触发路径保留，仅抑制占位驱动这一路。
   watch(() => windowedDisplayItems.value.bottomPlaceholderHeight, (newH, oldH) => {
     if (oldH === newH) return
-    if (isAtBottom.value) scheduleScrollToBottom()
+    if (!isAtBottom.value) return
+    if (Date.now() - lastStructuralChangeAt < REBUILD_ANCHOR_SUPPRESS_MS) return
+    scheduleScrollToBottom()
+  })
+
+  // 计数账本修复（2026-09-05 额外 E）：以首条消息 id 作会话标识——切会话时重置
+  // lastSeenLength/newMsgCountWhileAway（旧会话的长度账对新会话无意义，newCount 乱算
+  // = 回到底部按钮计数串会话）与 visibleMsgIds（旧会话残留 → 导航点高亮错乱）。
+  // 流式追加不改变首条 id，不误触发。
+  watch(() => messages.value[0]?.id, () => {
+    lastSeenLength.value = messages.value.length
+    newMsgCountWhileAway.value = 0
+    visibleMsgIds.value = new Set()
   })
 
   onMounted(() => {
@@ -596,10 +648,18 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
               // 抖动修复⑮-c：v-show 隐藏行（计划步骤折叠子动作等）缓存置 0——与预热 walk
               // 同规则，保证前缀和随布局切换即时一致（否则残留旧高度 → 切窗占位错位 → 抖动）。
               if (el.offsetParent === null) {
+                // 抖动修复⑲（2026-09-05）：隐藏（高度→0）是折叠操作信号——刷新抑制窗口，
+                // 抑制期内 RO 重建不带锚定补偿（测量混合态下补偿 target 不可靠，区级折叠
+                // 逐行隐藏 + 逐帧补偿 = 抖动跳顶）。折叠期滚动稳定交宿主 withProcessAnchor。
+                if ((measuredHeights.get(msgId) ?? 0) > 0) lastStructuralChangeAt = Date.now()
                 measuredHeights.set(msgId, 0)
               } else {
                 const h = entry.contentRect.height
-                if (h > 0) measuredHeights.set(msgId, h)
+                if (h > 0) {
+                  // 展开（0 → 有高度）同为结构突变信号，刷新抑制窗口
+                  if (measuredHeights.get(msgId) === 0) lastStructuralChangeAt = Date.now()
+                  measuredHeights.set(msgId, h)
+                }
               }
             }
           }
@@ -638,6 +698,9 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
     windowedDisplayItems,
     // 滚动锚定
     isAtBottom,
+    atTop,
+    /** 2026-09-05 导航点激活：视口顶基准线之上最后一条用户消息（供 DotNav 连贯高亮） */
+    activeUserMsgId,
     showScrollToBottomBtn,
     newMsgCountWhileAway,
     // 可见性

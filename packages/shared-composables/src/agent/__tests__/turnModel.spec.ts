@@ -426,6 +426,28 @@ describe('turnModel 归约器', () => {
     expect(s1.childRefIds).toContain('u1')
   })
 
+  it('2026-09-05 间隙旁白向后跟随：游离 plan_update 前方紧邻的 text/think 随行归组（实时回补）', () => {
+    let turns = startTurn()
+    turns = reduceEvent(turns, {
+      type: 'action_start', turnId: 't1', id: 'p1', action: 'plan', label: '步骤一', refId: 'pi-1',
+    })
+    // 步骤间隙旁白（active 已清空）：think + text 游离
+    turns = reduceEvent(turns, { type: 'reasoning', turnId: 't1', delta: '第一步完成，更新状态' })
+    turns = reduceEvent(turns, { type: 'text_delta', turnId: 't1', delta: '文件夹已创建成功。更新第 1 步状态。' })
+    turns = reduceEvent(turns, {
+      type: 'action_start', turnId: 't1', id: 'u2', action: 'tool', label: 'plan_update',
+      refId: 'cu2', args: {},
+    })
+    // plan_update(completed) 的状态流转到达 → 旁白随行归组
+    turns = reduceEvent(turns, { type: 'plan_step_status', turnId: 't1', stepId: 'pi-1', status: 'completed' })
+    const s1 = turns[0].segments.find((s) => s.id === 'p1') as any
+    expect(s1.childRefIds).toContain('u2')
+    const thinkId = turns[0].segments.find((s) => s.kind === 'think')!.id
+    const textId = turns[0].segments.find((s) => s.kind === 'text')!.id
+    expect(s1.childRefIds).toContain(thinkId)
+    expect(s1.childRefIds).toContain(textId)
+  })
+
   it('2026-09-05 重演：回源重归组——步骤行后置重建后 plan_restore_regroup 恢复实时态归属', () => {
     let turns = startTurn()
     // 回源：消息重建阶段动作行先到（步骤行不存在）→ 全部游离
@@ -452,6 +474,22 @@ describe('turnModel 归约器', () => {
       type: 'action_start', turnId: 't1', id: 'u3', action: 'tool', label: 'plan_update', refId: 'c-u3',
       args: { item_id: 'pi-2', status: 'in_progress' },
     })
+    turns = reduceEvent(turns, {
+      type: 'action_start', turnId: 't1', id: 'u4', action: 'tool', label: 'plan_update', refId: 'c-u4',
+      args: { item_id: 'pi-2', status: 'completed' },
+    })
+    // 间隙旁白（completed 后总结）：第一遍区间规则不归组（向前最近为 completed），
+    // 向后跟随下一周期的 u5 → pi-3（与实时回补的旁白收集同语义）
+    turns = reduceEvent(turns, { type: 'text_delta', turnId: 't1', delta: '第 2 步完成，开始第 3 步。' })
+    turns = reduceEvent(turns, {
+      type: 'action_start', turnId: 't1', id: 'u5', action: 'tool', label: 'plan_update', refId: 'c-u5',
+      args: { item_id: 'pi-3', status: 'in_progress' },
+    })
+    // 步骤行 p3 后置重建 + 收口
+    turns = reduceEvent(turns, {
+      type: 'action_start', turnId: 't1', id: 'p3', action: 'plan', label: '步骤三', refId: 'pi-3',
+    })
+    turns = reduceEvent(turns, { type: 'plan_step_status', turnId: 't1', stepId: 'pi-3', status: 'completed', autoCollapse: true })
     // 步骤行后置重建（restorePlanStepsIntoFlow：先建行再收口）
     turns = reduceEvent(turns, {
       type: 'action_start', turnId: 't1', id: 'p1', action: 'plan', label: '步骤一', refId: 'pi-1',
@@ -468,15 +506,15 @@ describe('turnModel 归约器', () => {
       (turns[0].segments.find((s) => s.id === id) as any)?.childRefIds ?? []
     // plan_update 行按 item_id 直配；write_file/think/text 落在 pi-1 的 in_progress 区间 → 归 pi-1
     expect(refsOf('p1')).toEqual(expect.arrayContaining(['u1', 'w1', 'u2']))
-    expect(refsOf('p1')).toEqual(
-      expect.arrayContaining(turns[0].segments.filter((s) => s.kind === 'think').map((s) => s.id)),
-    )
-    expect(refsOf('p1')).toEqual(
-      expect.arrayContaining(
-        turns[0].segments.filter((s) => s.kind === 'text' && !(s as any).resultCandidate).map((s) => s.id),
-      ),
-    )
+    const inStepThink = turns[0].segments.find((s) => s.kind === 'think')!
+    const inStepText = turns[0].segments.find((s) => s.kind === 'text' && (s as any).text === '文件写入成功。')!
+    expect(refsOf('p1')).toContain(inStepThink.id)
+    expect(refsOf('p1')).toContain(inStepText.id)
     expect(refsOf('p2')).toContain('u3')
+    // 间隙旁白向后跟随：文本归入其后最近 plan_update（u5）所指的 pi-3
+    const gapText = turns[0].segments.find((s) => s.kind === 'text' && (s as any).text === '第 2 步完成，开始第 3 步。')!
+    expect(refsOf('p3')).toContain(gapText.id)
+    expect(refsOf('p3')).toContain('u5')
     // plan_create 无归属区间（先于任何 plan_update）→ 保持游离顶层
     expect(refsOf('p1')).not.toContain('pc')
     expect(refsOf('p2')).not.toContain('pc')

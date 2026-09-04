@@ -120,13 +120,15 @@
       v-if="userMessages.length"
       :user-messages="userMessages"
       :visible-msg-ids="visibleMsgIds"
+      :active-user-id="activeUserMsgId"
+      :at-top="atTop"
+      :at-bottom="isAtBottom"
       @scroll-to-message="scrollToMessage"
     />
 
-    <!-- 回到底部按钮 -->
+    <!-- 回到底部按钮（纯回底作用，无未读计数） -->
     <ScrollToBottomButton
       :visible="showScrollToBottomBtn"
-      :new-msg-count-while-away="newMsgCountWhileAway"
       @click="jumpToBottom"
     />
   </div>
@@ -429,19 +431,22 @@ function estimateRowHeight(row: AgentStreamItem): number | undefined {
 const {
   windowedDisplayItems,
   showScrollToBottomBtn,
-  newMsgCountWhileAway,
   visibleMsgIds,
+  activeUserMsgId,
   jumpToBottom,
   scrollToBottom,
   scrollToMessage,
   scheduleScrollToBottom,
   syncObservedTop,
   isAtBottom,
+  atTop,
 } = useMessageWindowing<AgentStreamItem>({
   container: messagesContainer,
   items: computed(() => agentStream.value),
   messages: computed(() => props.messages),
   estimateHeight: estimateRowHeight,
+  // 导航点激活推导：用户消息 id 集合（userMessages 由消息流派生）
+  userMsgIds: computed(() => new Set(userMessages.value.map((m) => m.id))),
 })
 
 /** 是否存在 A2UI 界面 */
@@ -513,6 +518,9 @@ defineExpose({
   /* 止血包：禁用浏览器原生 scroll anchoring——流式内容增长时原生锚定会自动调整 scrollTop，
      与自制锚定（observedTop 账本 + 程序化 scrollToBottom）互相打架，是视口跳动的来源之一 */
   overflow-anchor: none;
+  /* 抖动修复㉑（2026-09-05）：阻断顶/底边界的滚动链传递——滚到边界继续滚时滚轮事件
+     不再穿透祖先滚动容器，避免外层布局随动造成的边界闪烁 */
+  overscroll-behavior: contain;
 }
 
 .messages-scroll > * {

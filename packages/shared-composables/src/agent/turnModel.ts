@@ -631,8 +631,24 @@ export function reduceEvent(turns: Turn[], event: TurnEvent): Turn[] {
           })
           .map((s) => s.id)
         if (strayUpdateIds.length > 0) {
+          // 间隙旁白跟随（2026-09-05）：游离 plan_update 行前方紧邻的连续游离 text/think 段
+          // （步骤间隙的「总结上一步/预告下一步」旁白，激活态已清空故 claim 接不住）随该行
+          // 一并归入——模型话术「更新第 N 步状态」即向后跟随的归属依据。
+          const firstStrayIdx = turn.segments.findIndex((s) => strayUpdateIds.includes(s.id))
+          const narrationIds: string[] = []
+          for (let i = firstStrayIdx - 1; i >= 0; i--) {
+            const s = turn.segments[i]
+            if ((s.kind === 'text' || s.kind === 'think') && !claimedIds.has(s.id)) {
+              narrationIds.push(s.id)
+              continue
+            }
+            break
+          }
           const target = segments[idx] as ActionSegment
-          segments[idx] = { ...target, childRefIds: [...(target.childRefIds ?? []), ...strayUpdateIds] }
+          segments[idx] = {
+            ...target,
+            childRefIds: [...(target.childRefIds ?? []), ...strayUpdateIds, ...narrationIds],
+          }
         }
       }
       const activePlanStepId =
@@ -760,6 +776,34 @@ export function reduceEvent(turns: Turn[], event: TurnEvent): Turn[] {
             appended.set(si, [...(appended.get(si) ?? []), s.id])
             claimed.add(s.id)
           }
+        }
+      }
+      // 第二遍（2026-09-05 间隙旁白向后跟随）：步骤间隙（completed 后、下一 in_progress 前）的
+      // text/think 旁白在第一遍区间规则下保持游离——与实时 claim 的 active 生命周期一致；但模型
+      // 话术「更新第 N 步状态」指向明确，向后找紧邻的 plan_update 行（跳过连续 text/think）跟随
+      // 其归属，与实时回补的旁白收集同语义。结果层候选已在上跳过（其后无 plan_update，天然游离）。
+      for (let i = 0; i < turn.segments.length; i++) {
+        const s = turn.segments[i]
+        if (s.kind !== 'think' && s.kind !== 'text') continue
+        if (claimed.has(s.id)) continue
+        if (s.kind === 'text' && (s as TextSegment).resultCandidate) continue
+        for (let j = i + 1; j < turn.segments.length; j++) {
+          const n = turn.segments[j]
+          if (n.kind === 'think' || n.kind === 'text') continue
+          if (n.kind === 'action') {
+            const na = n as ActionSegment
+            if (!na.isPlanStep && na.label === 'plan_update') {
+              const naArgs = (na.args ?? {}) as Record<string, unknown>
+              const itemId =
+                (naArgs['item_id'] as string) ?? (naArgs['itemId'] as string) ?? ''
+              const si = stepIdxByRef.get(itemId)
+              if (si !== undefined) {
+                appended.set(si, [...(appended.get(si) ?? []), s.id])
+                claimed.add(s.id)
+              }
+            }
+          }
+          break
         }
       }
       if (appended.size === 0) return turns
