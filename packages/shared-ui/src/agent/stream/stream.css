@@ -57,9 +57,11 @@
   user-select: none;
   font-size: var(--font-size-sm);
   color: var(--agent-text-secondary);
-  padding: 2px 4px;
+  /* 2026-09-04 行距贴近：padding 1px + line-height 1.3 压缩行盒上下留白 */
+  padding: 1px 4px;
   margin: 0;
   border-radius: 4px;
+  line-height: 1.3;
 }
 /* 标题行常驻：点击展开/收起时自身位置不动（accordion 语义），下方内容被推下。
    2026-09-04 折叠条文字化 v2：点击/光标仅挂在前缀文字（title），整行与摘要不可点、无 hover 高亮 */
@@ -156,6 +158,8 @@
   font-size: var(--font-size-sm);
   color: var(--agent-text-secondary);
   transition: background 0.15s;
+  /* 2026-09-04 行距贴近：压缩行盒上下留白 */
+  line-height: 1.3;
 }
 .ws-stream-tool-summary {
   display: flex;
@@ -327,7 +331,7 @@
 .ws-stream-tool-detail {
   border-top: 1px solid var(--agent-hover-bg);
   margin: 0 6px;
-  padding: 6px 4px;
+  padding: 4px 4px;
   opacity: 0;
   transform: translateY(8px);
   transition:
@@ -338,7 +342,7 @@
   opacity: 1;
   transform: translateY(0);
 }
-.ws-stream-tool-detail-sec { margin-bottom: 6px; }
+.ws-stream-tool-detail-sec { margin-bottom: 4px; }
 .ws-stream-tool-detail-sec:last-child { margin-bottom: 0; }
 .ws-stream-tool-detail-label {
   font-size: 10px;
@@ -587,14 +591,14 @@
   scroll-behavior: auto;
 }
 .ws-stream-tool-stream-trunc {
-  margin-top: 4px;
+  margin-top: 2px;
   font-size: 10px;
   color: var(--agent-text-tertiary);
 }
 
 /* ===== 2026-09-02 系统工具流式：文件变更 diff（绿红对比 + 路径）===== */
 .ws-stream-tool-filechange {
-  margin: 0 6px 6px;
+  margin: 0 6px 2px;
   border: 1px solid var(--agent-hover-bg);
   border-radius: 6px;
   overflow: hidden;
