@@ -58,7 +58,7 @@
   font-size: var(--font-size-sm);
   color: var(--agent-text-secondary);
   padding: 2px 4px;
-  margin: 1px 0;
+  margin: 0;
   border-radius: 4px;
 }
 /* 标题行常驻：点击展开/收起时自身位置不动（accordion 语义），下方内容被推下。
@@ -516,7 +516,12 @@
   to { opacity: 1; transform: translateY(0); }
 }
 .ws-stream-row-enter {
-  animation: ws-stream-row-in 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  /* 2026-09-04 延迟满足机制：新追加行段先让底部等候动画出现（delay 0.4s），
+     行段再淡入——避免运行中行段瞬时闪现，使流区输出更稳定。
+     fill-mode both 保证延迟期间保持动画起点（opacity 0）不可见。
+     仅「真正新追加」的行挂本 class（AgentStreamList animatedIds 治理），
+     窗口切片滚回的旧行/首屏水合行不受影响。 */
+  animation: ws-stream-row-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) 0.4s both;
 }
 /* ═══ 行段模型 v2：按行段种类（rowKind）的差异化行卡 ═══
    对齐市面 Harness 过程流范式（Claude Code / Cursor）：终端与命令段等宽命令主显，
@@ -675,7 +680,7 @@
 /* ═══ 2026-09-02 计划步骤块（plan 步骤行 + 步骤内子动作，默认折叠可展开） ═══ */
 .ws-plan-step-block {
   border-left: 2px solid var(--agent-primary, #3b82f6);
-  margin: 2px 0;
+  margin: 0;
   padding-left: 6px;
 }
 .ws-plan-step-head {

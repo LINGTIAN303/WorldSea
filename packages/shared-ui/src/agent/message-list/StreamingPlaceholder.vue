@@ -65,26 +65,27 @@ onBeforeUnmount(() => {
 .wait-hint {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 0;
-  font-size: var(--font-size-base);
-  line-height: 1.6;
-  color: var(--agent-text);
+  gap: 6px;
+  /* 2026-09-04 用户建议：等候动画再小一些（缩小字号/图标/内边距） */
+  padding: 3px 0;
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  color: var(--agent-text-secondary);
   font-family: var(--agent-font);
 }
 .wait-hint.compact {
-  font-size: var(--font-size-sm);
-  color: var(--agent-text-secondary);
+  font-size: var(--font-size-xs);
+  color: var(--agent-text-tertiary);
   padding: 2px 4px;
 }
 .wait-hint-icon {
   flex-shrink: 0;
-  width: 24px;
-  height: 24px;
+  width: 18px;
+  height: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-xs);
   border-radius: 50%;
   background: var(--agent-hover-bg);
 }
