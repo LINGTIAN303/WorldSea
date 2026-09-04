@@ -75,10 +75,12 @@
       />
 
       <!-- 统一等候动画（2026-09-04）：高亮平移文字，运行时（isStreaming）常驻；
+           文字跟随当前活动行段（正在思考 / 正在读取 / 正在执行命令 …）；
            O5：编排 run 活跃时不显示（编排段已承载运行态）
            —— 替代原 StreamingPlaceholder scanner/思考中 + TurnStatus 三态分叉 -->
       <StreamingPlaceholder
         v-if="!activeRun && isStreaming"
+        :text="awaitingActionText"
         :start-time="turnStartTime"
       >
         <template #icon>
@@ -138,6 +140,8 @@ import { watchDebounced } from '@worldsmith/perf-kit/render'
 import type { AgentMessage } from '@agent/index'
 import type { AgentStreamItem, ChatMode } from '@worldsmith/shared-composables/agent/useAgent'
 import { useMessageWindowing, useProcessCollapse, MessageListEmpty, ArchivedSection, StreamingPlaceholder, ScrollToBottomButton, DotNav, ErrorRows } from '@worldsmith/shared-ui/agent/message-list'
+// 2026-09-04 等候动画文字流转：复用行段前缀动词（与 ToolRow 语义一致）
+import { getOpKind, OP_VERB } from '@worldsmith/shared-ui/agent/stream/rows/toolSemantics'
 // M2：编排迹线（useOrchestrationTrace 聚合 + 编排段渲染）
 import OrchestrationSegment from './components/OrchestrationSegment.vue'
 import { useOrchestrationTrace } from './composables/useOrchestrationTrace'
@@ -324,6 +328,20 @@ const turnStartTime = ref<number | null>(null)
 watch(() => props.isStreaming, (streaming, was) => {
   if (streaming && !was) turnStartTime.value = Date.now()
   else if (!streaming) turnStartTime.value = null
+})
+
+/** 2026-09-04 等候动画文字流转：跟随当前正在执行的动作行段前缀文字
+ *  （think → 「正在思考」；tool running → 「正在{动词}」；无活动行段 → 「正在处理」） */
+const awaitingActionText = computed(() => {
+  const rows = agentStream.value
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const r = rows[i]
+    if (r.type === 'think' && r.status === 'streaming') return '正在思考'
+    if (r.type === 'tool' && r.tc.status === 'running') {
+      return `正在${OP_VERB[getOpKind(r.tc.name)] ?? '处理'}`
+    }
+  }
+  return '正在处理'
 })
 
 // [⑥] 会话错误行：取 activity log 最近的 error 项派生

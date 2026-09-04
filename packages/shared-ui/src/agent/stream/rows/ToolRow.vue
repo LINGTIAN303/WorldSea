@@ -22,7 +22,8 @@
     />
     <!-- 普通工具：扁平单行 -->
     <template v-else>
-      <!-- 2026-09-04 折叠条文字化：整行不再可点/高亮，点击与 hover 高亮收窄到文字主体（main span） -->
+      <!-- 2026-09-04 折叠条文字化 v2：仅前缀文字（verb+subject+name）可点击展开，其余元素
+           只读展示；无 hover 背景高亮；仅 running 时前缀文字字形内流光（ws-shine-text） -->
       <div
         class="ws-stream-tool-summary"
         :class="[`kind-${rowKind}`, { 'is-failed': isFailed }]"
@@ -33,10 +34,10 @@
         <WsIcon v-else name="x" size="xs" class="ws-stream-tool-icon-fail" />
         <!-- 操作分类单字角标（弱提示分级，无卡片盒子） -->
         <span class="ws-stream-tool-mark" :class="op">{{ mark }}</span>
-        <!-- 文字主体：语义动词 + 操作对象 + 工具名 + 效果/耗时/参数摘要；点击展开详情 -->
+        <!-- 前缀文字（点击区）：语义动词 + 操作对象 + 工具名；点击展开详情，running 时流光 -->
         <span
-          class="ws-stream-tool-summary-main ws-fold-text"
-          :class="{ 'is-failed': isFailed }"
+          class="ws-stream-tool-prefix"
+          :class="{ 'ws-shine-text': isStreaming }"
           role="button"
           tabindex="0"
           :aria-expanded="isExpanded"
@@ -47,29 +48,29 @@
           <span class="ws-stream-tool-verb">{{ verb }}</span>
           <span v-if="subject" class="ws-stream-tool-subject">{{ subject }}</span>
           <span class="ws-stream-tool-name">({{ label }})</span>
-          <!-- 失败直显错误摘要（不展开）；成功展示效果标签 -->
-          <span v-if="!isFailed && effect" class="ws-stream-tool-effect">{{ effect }}</span>
-          <!-- 执行耗时（H7 P0.5 事件权威字段；shell 类 effect 已含时长则不重复显示） -->
-          <span v-if="durationText" class="ws-stream-tool-duration">{{ durationText }}</span>
-          <span v-if="isFailed" class="ws-stream-tool-error">{{ errorText }}</span>
-          <span v-else-if="argsPreview" class="ws-stream-tool-args">{{ argsPreview }}</span>
         </span>
+        <!-- 只读信息：效果标签 / 执行耗时 / 错误摘要 / 参数预览（不可点击） -->
+        <span v-if="!isFailed && effect" class="ws-stream-tool-effect">{{ effect }}</span>
+        <span v-if="durationText" class="ws-stream-tool-duration">{{ durationText }}</span>
+        <span v-if="isFailed" class="ws-stream-tool-error">{{ errorText }}</span>
+        <span v-else-if="argsPreview" class="ws-stream-tool-args">{{ argsPreview }}</span>
         <!-- 失败直显提示（不可展开）；成功显示可展开 chevron -->
         <span v-if="isFailed" class="ws-stream-tool-failed-hint">已失败</span>
         <WsIcon v-else name="chevron-right" size="xs" class="ws-stream-tool-chevron" :class="{ open: isExpanded }" />
       </div>
       <!-- 展开详情（参数 JSON + 结果；失败直显、不展开）。collapse 动画：摘要行位置不动，
            详情 0fr→1fr 平滑展开，内容 opacity+位移 虚化→凝实（与 ThinkRow 时序一致）。
-           2026-09-04 结构化渲染：参数/结果 JSON 走 Prism 语法高亮（v-html，token 配色见 stream.css） -->
+           2026-09-04 结构化渲染：参数/结果 JSON 走 Prism 语法高亮（v-html 内 <code> 承载 token，
+           token 配色见 stream.css .ws-stream-tool-detail code 规则） -->
       <div v-if="!isFailed" class="ws-stream-tool-collapse" :class="{ open: isExpanded }" :aria-hidden="!isExpanded">
         <div class="ws-stream-tool-detail" @click.stop>
           <div v-if="hasArgs" class="ws-stream-tool-detail-sec">
             <div class="ws-stream-tool-detail-label">参数</div>
-            <pre class="ws-stream-tool-detail-code" v-html="argsHtml"></pre>
+            <pre class="ws-stream-tool-detail-code"><code v-html="argsHtml"></code></pre>
           </div>
           <div v-if="item.tc.result" class="ws-stream-tool-detail-sec">
             <div class="ws-stream-tool-detail-label">结果</div>
-            <pre class="ws-stream-tool-detail-code ws-stream-tool-detail-result" v-html="resultHtml"></pre>
+            <pre class="ws-stream-tool-detail-code ws-stream-tool-detail-result"><code v-html="resultHtml"></code></pre>
           </div>
         </div>
       </div>

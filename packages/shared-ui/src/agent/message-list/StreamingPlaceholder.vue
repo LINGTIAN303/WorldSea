@@ -7,7 +7,7 @@
     <span v-if="(compact && $slots.icon) || !compact" class="wait-hint-icon">
       <slot name="icon"><WsIcon name="profile" size="xs" /></slot>
     </span>
-    <span class="ws-shine-text">{{ text }}<span v-if="showClock" class="wait-hint-clock">{{ elapsedLabel }}</span></span>
+    <span class="ws-shine-text">{{ text }}</span><span v-if="showClock" class="wait-hint-clock">{{ elapsedLabel }}</span>
   </div>
 </template>
 
