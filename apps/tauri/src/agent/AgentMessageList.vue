@@ -212,17 +212,30 @@ function findResultAnchor(scroll: HTMLElement, turnId: string): HTMLElement | nu
  * 过程层展开/收起会让高度骤变数百 px：不补偿的话视口内容整体位移，
  * 用户正在读的内容会突然跑掉——这正是要消除的"不稳定"。
  * 以结果层顶部为锚点而非过程层：折叠后过程层只剩一行摘要，其位置本身就在变。
+ * 抖动修复②（2026-09-04）：补偿写入 scrollTop 后同步窗口化账本（syncObservedTop），
+ * 避免 onScroll 误判为「读者离开底部」→ isAtBottom 被打回 false → 自动跟随断流；
+ * 且若折叠/展开前正在底部跟随态，补偿后顺延跟随到底（防止锚点补偿把视口拉离底部）。
  */
 function withProcessAnchor(turnId: string, mutate: () => void): void {
   const scroll = messagesContainer.value?.querySelector<HTMLElement>('.messages-scroll') ?? null
   const anchor = scroll ? findResultAnchor(scroll, turnId) : null
   const beforeTop = anchor ? anchor.getBoundingClientRect().top : null
+  const wasAtBottom = isAtBottom.value
   mutate()
   if (!scroll || !anchor || beforeTop === null) return
-  nextTick(() => {
+  const compensate = () => {
     const delta = anchor.getBoundingClientRect().top - beforeTop
     // delta<0：锚点上移（高度减少）→ 同步下移 scrollTop，使其回到原视口位置
     if (Math.abs(delta) > 0.5) scroll.scrollTop += delta
+    // 程序化位移记账：避免被 onScroll 误判为读者离开底部
+    syncObservedTop()
+    // 折叠/展开前在底部跟随态 → 补偿后仍应贴底（不给 wasAtBottom 时锚点补偿反把视口拉离底部）
+    if (wasAtBottom) scheduleScrollToBottom()
+  }
+  // 双帧：折叠/展开会连锁改变邻近行高度，单次 nextTick 补偿在首帧可能不完整
+  nextTick(() => {
+    compensate()
+    requestAnimationFrame(compensate)
   })
 }
 
@@ -357,6 +370,8 @@ const {
   scrollToBottom,
   scrollToMessage,
   scheduleScrollToBottom,
+  syncObservedTop,
+  isAtBottom,
 } = useMessageWindowing<AgentStreamItem>({
   container: messagesContainer,
   items: computed(() => agentStream.value),

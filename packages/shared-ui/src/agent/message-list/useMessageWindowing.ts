@@ -75,6 +75,8 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
    * 重建前缀和数组 + 计算已测量 item 平均高度。
    * 调用时机：ResizeObserver 测量到新高度后、items 长度变化后。
    * 复杂度 O(n)，但 Float64Array 数组运算极快（1000 项 < 0.1ms）。
+   * 抖动修复④：重建前锚定视口首行（DOM 实测位置），重建后按新前缀和补偿 scrollTop，
+   * 使估算转实测的前缀和偏移不再让正在阅读的视口漂移。
    */
   function rebuildPrefixSums(): void {
     rebuildRafId = null
@@ -83,6 +85,21 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
       prefixSums.value = null
       avgMeasuredHeight = ESTIMATED_ITEM_HEIGHT
       return
+    }
+    // 重建前：记录视口顶部对应的行（DOM 锚定，比前缀和索引稳定）
+    const scroll = getScrollEl()
+    let anchorRowId: string | null = null
+    let anchorDomOffset = 0 // 视口顶到该行 top 的真实像素偏移（补偿基准）
+    if (scroll) {
+      const topY = scroll.getBoundingClientRect().top
+      for (const el of scroll.querySelectorAll('[data-msg-id]')) {
+        const r = el.getBoundingClientRect()
+        if (r.bottom >= topY) {
+          anchorRowId = el.getAttribute('data-msg-id')
+          anchorDomOffset = r.top - topY
+          break
+        }
+      }
     }
     // 计算已测量 item 的平均高度，作为未测量 item 的估算值（比固定 80px 更精准）
     let measuredTotal = 0
@@ -111,6 +128,19 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
       }
     }
     prefixSums.value = sums
+    // 重建后：按新前缀和补偿 scrollTop，锚定视口首行回原位（仅在非底部跟随态有意义；
+    // 底部跟随由 scrollToBottom 直接贴底，不做锚定补偿，避免与跟随竞争）
+    if (scroll && anchorRowId && !isAtBottom.value) {
+      const idx = all.findIndex((r) => r.id === anchorRowId)
+      if (idx >= 0) {
+        const newTopOfAnchor = sums[idx]
+        const target = newTopOfAnchor + anchorDomOffset
+        if (Math.abs(scroll.scrollTop - target) > 0.5) {
+          scroll.scrollTop = target
+          observedTop = target // 程序化位移记账
+        }
+      }
+    }
   }
 
   /** rAF 合并重建：同一帧内多次测量变化只重建一次前缀和 */
@@ -186,6 +216,9 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
     return c.querySelector('.messages-scroll') as HTMLElement | null
   }
 
+  // 内容总高（用于检测折叠/流式收缩引起的收缩型 clamp，2026-09-04 抖动修复③）
+  let lastScrollHeight = 0
+
   function onScroll(): void {
     const scroll = getScrollEl()
     if (!scroll) return
@@ -195,11 +228,15 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
     const floor = Math.max(0, scroll.scrollHeight - scroll.clientHeight)
     const movedByReader = Math.abs(scroll.scrollTop - Math.min(observedTop, floor)) > 0.5
     const wasAtBottom = isAtBottom.value
-    // 止血包①：判底阈值按视口高度动态化，替代固定 60px（流式块级展开时跟随延迟
-    // 窗口内差值可远超 60px，固定值会误判离开底部 → 跟随断流 + 占位高度跳变）
-    const isAtBottomNow = movedByReader
-      ? floor - scroll.scrollTop <= bottomThreshold(scroll.clientHeight)
-      : wasAtBottom
+    // 抖动修复③（2026-09-04）：折叠过程层/flow 收缩致 scrollHeight 骤减 → 浏览器 clamp scrollTop，
+    // 账本陈旧时误判「读者离开底部」→ 跟随断流。检测高度收缩 + 原本在底部 → 保持跟随态。
+    const heightShrunk = lastScrollHeight > 0 && scroll.scrollHeight < lastScrollHeight - 1
+    const isAtBottomNow = heightShrunk && wasAtBottom
+      ? true // 内容收缩型 clamp：非读者意图，保持跟随
+      : movedByReader
+        ? floor - scroll.scrollTop <= bottomThreshold(scroll.clientHeight)
+        : wasAtBottom
+    lastScrollHeight = scroll.scrollHeight
     isAtBottom.value = isAtBottomNow
     // 从底部离开时，显示"回到底部"按钮
     if (wasAtBottom && !isAtBottomNow) {
@@ -229,13 +266,32 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
     }
   }
 
+  /**
+   * 外部程序化滚动后同步账本（抖动修复②，2026-09-04）：
+   * 折叠/展开补偿等外部写入 scrollTop 的路径，若不记账会被 onScroll 视为「读者离开底部」，
+   * 导致 isAtBottom 误判为 false → 自动跟随断流（流式输出时表现为卡住/往复跳动）。
+   * 调用方在补偿写入后调用 `syncObservedTop()` 即可告知账本「这是程序化位移，非读者滚动」。
+   */
+  function syncObservedTop(): void {
+    const scroll = getScrollEl()
+    if (scroll) observedTop = scroll.scrollTop
+  }
+
   function jumpToBottom(): void {
-    scrollToBottom() // 内部已同步记账 observedTopRef
+    // 抖动修复①（2026-09-04）：先置跟随态 + 扩展窗口覆盖到底部，再等 DOM 渲染后滚动。
+    // 旧实现先滚后扩窗——首次滚到的是扩展前的旧 scrollHeight（新行未渲染 → 不满屏），
+    // 需二次点击才到底。顺序修正 + nextTick/rAF 双帧：让新行真实落 DOM 后再滚到底。
     isAtBottom.value = true
     showScrollToBottomBtn.value = false
     newMsgCountWhileAway.value = 0
-    // 跳到底部时扩展窗口覆盖到底部
     visibleEnd.value = items.value.length
+    // 双帧：nextTick 等 Vue 渲染出扩展窗口的新行，rAF 再校正一次高度（图片/字体异步布局兜底）
+    nextTick(() => {
+      scrollToBottom()
+      requestAnimationFrame(() => {
+        scrollToBottom()
+      })
+    })
   }
 
   /**
@@ -376,6 +432,14 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
     scheduleRebuildPrefixSums()
   }, { immediate: true })
 
+  // 抖动修复⑤（2026-09-04）：底部占位高度改变（估算转实测 / 折叠升降）且用户在底部跟随态
+  // → 顺延滚动贴底。旧实现只在 items.length 变化时跟随，占位高度单独变化（不增删行）
+  // 会导致视口停在旧位置、新行未达底部却已无处贴 → 跳动。
+  watch(() => windowedDisplayItems.value.bottomPlaceholderHeight, (newH, oldH) => {
+    if (oldH === newH) return
+    if (isAtBottom.value) scheduleScrollToBottom()
+  })
+
   onMounted(() => {
     nextTick(() => {
       setupScrollObserver()
@@ -432,5 +496,6 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
     scrollToBottom,
     scrollToMessage,
     scheduleScrollToBottom,
+    syncObservedTop,
   }
 }
