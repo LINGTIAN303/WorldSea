@@ -224,6 +224,10 @@ function withProcessAnchor(turnId: string, mutate: () => void): void {
   mutate()
   if (!scroll || !anchor || beforeTop === null) return
   const compensate = () => {
+    // 强制同步布局：读取最终高度（offsetHeight 触发 reflow），在浏览器绘制前完成补偿，
+    // 避免「渲染-补偿-再渲染」两帧闪现（这是点击折叠条视口「抖一下」的来源）
+    void scroll.offsetHeight
+    void anchor.offsetHeight
     const delta = anchor.getBoundingClientRect().top - beforeTop
     // delta<0：锚点上移（高度减少）→ 同步下移 scrollTop，使其回到原视口位置
     if (Math.abs(delta) > 0.5) scroll.scrollTop += delta
@@ -263,10 +267,14 @@ function onSegmentExpand(turnId: string): void {
 
 /** 2026-09-02 计划步骤折叠切换：归约驱动 turnModel plan_step_toggle（翻转 stepCollapsed） */
 function onPlanStepToggle(payload: { turnId: string; stepId: string }): void {
-  applyTurnEvent(currentSessionId.value, {
-    type: 'plan_step_toggle',
-    turnId: payload.turnId,
-    stepId: payload.stepId,
+  // 防抖修复（2026-09-04）：计划步骤展开/收起同样造成高度骤变，需锚定补偿
+  // （此前仅 onExpandProcess/onCollapseProcess 走 withProcessAnchor，计划步骤 toggle 无补偿 → 视口抖动）
+  withProcessAnchor(payload.turnId, () => {
+    applyTurnEvent(currentSessionId.value, {
+      type: 'plan_step_toggle',
+      turnId: payload.turnId,
+      stepId: payload.stepId,
+    })
   })
 }
 
