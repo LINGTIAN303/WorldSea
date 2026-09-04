@@ -9,6 +9,7 @@
   <div
     class="ws-stream-row ws-stream-tool"
     :data-msg-id="item.id"
+    :data-animating="animating ? '' : undefined"
     @mouseenter="emit('hover', item.id)"
     @mouseleave="emit('leave')"
   >
@@ -98,7 +99,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, nextTick } from 'vue'
+import { computed, ref, watch, nextTick, onBeforeUnmount } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
 import InteractiveToolCall from '../../blocks/InteractiveToolCall.vue'
 import { getToolLabel } from '../../bubbles/toolLabels'
@@ -208,9 +209,24 @@ const errorText = computed(() => {
 
 // ===== 展开态（失败不展开） =====
 const isExpanded = ref(false)
+/**
+ * 展开/收起动画进行中标记：详情 0fr→1fr 高度渐变期间，窗口化 ResizeObserver 每帧测中间高度
+ * → 前缀和每帧重建 → 切片可能卸载重挂 → 动画重跑 = 疯狂闪烁反馈环。动画期置 data-animating 跳过测高。
+ */
+const animating = ref(false)
+let animTimer: number | null = null
+function markAnimating(): void {
+  animating.value = true
+  if (animTimer !== null) window.clearTimeout(animTimer)
+  animTimer = window.setTimeout(() => {
+    animating.value = false
+    animTimer = null
+  }, 320)
+}
 function toggleExpand() {
   if (isFailed.value) return
   isExpanded.value = !isExpanded.value
+  markAnimating() // 折叠/展开都有高度动画，标记防窗口化测高反馈环
   if (isExpanded.value) emit('expand')
 }
 
@@ -297,5 +313,12 @@ watch(streamText, async () => {
   if (!isStreaming.value || !streamEl.value) return
   await nextTick()
   streamEl.value.scrollTop = streamEl.value.scrollHeight
+})
+
+onBeforeUnmount(() => {
+  if (animTimer !== null) {
+    window.clearTimeout(animTimer)
+    animTimer = null
+  }
 })
 </script>

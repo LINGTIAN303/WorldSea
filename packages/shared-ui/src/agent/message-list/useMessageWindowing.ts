@@ -450,8 +450,17 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
         // 初始化 ResizeObserver：测量已渲染 item 的真实高度，缓存到 measuredHeights
         // 用于提升窗口化滚动估算的准确性，减少跳屏
         resizeObserver = new ResizeObserver((entries) => {
+          let skipAll = false // 本轮是否全是动画行（动画行不写缓存也不重建，防闪烁反馈环）
           for (const entry of entries) {
             const el = entry.target as HTMLElement
+            // 抖动修复⑥（2026-09-04）：行段展开/收起动画（grid-rows 0fr→1fr）期间
+            // 每帧测到中间高度——若写入缓存会触发前缀和每帧重建 → 切片重算 → 行卸载重挂
+            // → 动画重跑 = 疯狂闪烁反馈环。动画行（data-animating）跳过测高，动画结束
+            // 后有一次性测量收敛，配合④锚定兜底。
+            if (el.hasAttribute('data-animating')) {
+              skipAll = true
+              continue
+            }
             const msgId = el.dataset?.msgId
             // 止血包②：按行 id 直写高度缓存（原按 index 写入需 findIndex 反查，
             // 且行序变化后错位；id 键天然免疫行序变化，还省一次 O(n) 查找）
@@ -459,8 +468,9 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
               measuredHeights.set(msgId, entry.contentRect.height)
             }
           }
-          // 测量到新高度后，重建前缀和（rAF 合并，避免过度重建）
-          scheduleRebuildPrefixSums()
+          // 测量到新高度后，重建前缀和（rAF 合并，避免过度重建）。
+          // 全部是动画行的批次跳过重建——避免动画中前缀和随中间高度漂移。
+          if (!skipAll) scheduleRebuildPrefixSums()
         })
         // 对当前已渲染的消息节点 observe（后续新节点由 MutationObserver 增量 observe）
         for (const el of scroll.querySelectorAll('[data-msg-id]')) {

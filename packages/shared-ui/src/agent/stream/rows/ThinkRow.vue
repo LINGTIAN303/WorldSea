@@ -9,6 +9,7 @@
     class="ws-stream-row ws-stream-think"
     :class="{ open: isOpen }"
     :data-msg-id="item.id"
+    :data-animating="animating ? '' : undefined"
     :data-follow-end="isStreaming ? '' : undefined"
     role="button"
     tabindex="0"
@@ -59,6 +60,22 @@ const emit = defineEmits<{
 /** streaming 视为 running（默认展开），complete 折叠 */
 const isStreaming = computed(() => props.item.status === 'streaming')
 
+/**
+ * 展开/收起动画进行中标记：grid-rows 高度渐变期间 ResizeObserver 会每帧测到中间高度，
+ * 若写入窗口化高度缓存 → 前缀和每帧重建 → 占位高度变化 → 切片可能卸载重挂 → 动画重跑 =
+ * 疯狂闪烁反馈环。动画期间置 data-animating，窗口化测量跳过该行；动画结束（窗口化一次到位，④锚定兜底）。
+ */
+const animating = ref(false)
+let animTimer: number | null = null
+function markAnimating(): void {
+  animating.value = true
+  if (animTimer !== null) window.clearTimeout(animTimer)
+  animTimer = window.setTimeout(() => {
+    animating.value = false
+    animTimer = null
+  }, 320) // 展开 200ms + 内容 delay 80ms + 余量
+}
+
 // ===== 思维折叠（label='模型推理'，defaultOpen=running）；N5：标题统一「模型推理」——
 // 判型/回答阶段推理块语言可能混排（中英），统一标题弱化观感差异 =====
 const { label, isOpen, toggle: toggleFold } = useThinkingFold(
@@ -74,6 +91,7 @@ const { label, isOpen, toggle: toggleFold } = useThinkingFold(
 function toggle() {
   const wasOpen = isOpen.value
   toggleFold()
+  markAnimating() // 折叠/展开都有高度动画，标记防窗口化测高反馈环
   if (!wasOpen && isOpen.value) emit('expand')
 }
 
@@ -107,5 +125,9 @@ watch(isOpen, () => {
 })
 onBeforeUnmount(() => {
   bodyEl.value = null
+  if (animTimer !== null) {
+    window.clearTimeout(animTimer)
+    animTimer = null
+  }
 })
 </script>
