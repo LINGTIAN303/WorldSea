@@ -73,12 +73,14 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
 
   /**
    * 重建前缀和数组 + 计算已测量 item 平均高度。
-   * 调用时机：ResizeObserver 测量到新高度后、items 长度变化后。
+   * 调用时机：ResizeObserver 测量到新高度后（anchor=true）、items 长度变化后（anchor=false）。
    * 复杂度 O(n)，但 Float64Array 数组运算极快（1000 项 < 0.1ms）。
-   * 抖动修复④：重建前锚定视口首行（DOM 实测位置），重建后按新前缀和补偿 scrollTop，
-   * 使估算转实测的前缀和偏移不再让正在阅读的视口漂移。
+   * 抖动修复⑨（2026-09-04）：锚定补偿只在「测量收敛」（同一行高度从估算转实测）时生效——
+   * 结构突变（items 长度变化，如过程层折叠/展开：摘要行 ⇄ N 条内容行）时**不锚定**：
+   * 该场景视口首行本应随插入/移除内容自然上下移位，强行锚定回原位会把视口硬拽（回顶/跳变）。
+   * 结构突变的滚动稳定由宿主的 withProcessAnchor（结果层锚定）负责。
    */
-  function rebuildPrefixSums(): void {
+  function rebuildPrefixSums(anchor: boolean): void {
     rebuildRafId = null
     const total = items.value.length
     if (total === 0) {
@@ -86,11 +88,11 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
       avgMeasuredHeight = ESTIMATED_ITEM_HEIGHT
       return
     }
-    // 重建前：记录视口顶部对应的行（DOM 锚定，比前缀和索引稳定）
+    // 重建前：记录视口顶部对应的行（DOM 锚定，比前缀和索引稳定）——仅 anchor=true 时收集
     const scroll = getScrollEl()
     let anchorRowId: string | null = null
     let anchorDomOffset = 0 // 视口顶到该行 top 的真实像素偏移（补偿基准）
-    if (scroll) {
+    if (anchor && scroll) {
       const topY = scroll.getBoundingClientRect().top
       for (const el of scroll.querySelectorAll('[data-msg-id]')) {
         const r = el.getBoundingClientRect()
@@ -143,10 +145,15 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
     }
   }
 
-  /** rAF 合并重建：同一帧内多次测量变化只重建一次前缀和 */
-  function scheduleRebuildPrefixSums(): void {
+  /** rAF 合并重建：同一帧内多次测量变化只重建一次前缀和。anchor=true 时重建带视口首行锚定补偿。
+   *  并发时序：结构突变（false）与测量收敛（true）可能同一帧到达，后者覆盖前者——以最近一次请求为准。 */
+  let rebuildAnchorPending = true
+  function scheduleRebuildPrefixSums(anchor: boolean): void {
+    rebuildAnchorPending = anchor
     if (rebuildRafId !== null) return
-    rebuildRafId = requestAnimationFrame(rebuildPrefixSums)
+    rebuildRafId = requestAnimationFrame(() => {
+      rebuildPrefixSums(rebuildAnchorPending)
+    })
   }
 
   /**
@@ -428,8 +435,9 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
 
   // 事件行数组长度变化时（新行到来/切换筛选），重建前缀和
   // immediate: true 保证组件初始化时就构建一次前缀和
+  // 抖动修复⑨：结构突变（展开/折叠过程层等 items 增减）不锚定——scrollTop 稳定由宿主补偿负责
   watch(() => items.value.length, () => {
-    scheduleRebuildPrefixSums()
+    scheduleRebuildPrefixSums(false)
   }, { immediate: true })
 
   // 抖动修复⑤（2026-09-04）：底部占位高度改变（估算转实测 / 折叠升降）且用户在底部跟随态
@@ -470,7 +478,8 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
           }
           // 测量到新高度后，重建前缀和（rAF 合并，避免过度重建）。
           // 全部是动画行的批次跳过重建——避免动画中前缀和随中间高度漂移。
-          if (!skipAll) scheduleRebuildPrefixSums()
+          // 非结构突变（纯测量收敛）→ 带锚定补偿（④），保持视口首行原位。
+          if (!skipAll) scheduleRebuildPrefixSums(true)
         })
         // 对当前已渲染的消息节点 observe（后续新节点由 MutationObserver 增量 observe）
         for (const el of scroll.querySelectorAll('[data-msg-id]')) {
