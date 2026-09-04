@@ -6,6 +6,13 @@ import type { AgentMessage } from '@worldsmith/agent-runtime'
 const WINDOW_BUFFER = 20          // 视口上下各保留 20 条缓冲，减少滚动时频繁切换
 const INITIAL_RENDER_COUNT = 50   // 初始渲染最近 50 条（覆盖大多数对话首屏）
 const ESTIMATED_ITEM_HEIGHT = 80  // 未测量过的 item 估算高度（px）
+/** 结构突变抑制期（ms）：items 长度变化（展开/折叠过程层等）后，测量收敛产生的
+ *  前缀和重建在一段窗口内**不做 scrollTop 锚定补偿**——结构突变瞬间新行未测、前缀和
+ *  含估算误差，且 ResizeObserver 链式测量逐帧改前缀和，用「突变前布局采集的 offset」
+ *  补偿会算出荒谬目标值（实测曾把 scrollTop 设成负数 → clamp → 回顶）。
+ *  抑制期内滚动稳定完全交由宿主 withProcessAnchor（DOM 元素级 delta 补偿）负责；
+ *  抑制期后测量已收敛，锚定补偿恢复安全。 */
+const REBUILD_ANCHOR_SUPPRESS_MS = 380
 
 /**
  * 判底阈值：视口高度的 15%，下限 60px。
@@ -209,14 +216,23 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
     // 二分查找 O(log n) 定位 scrollTop 和视口底部对应的 item 索引
     const estimatedStart = findIndexAtScroll(scrollTop)
     const estimatedEnd = findIndexAtScroll(scrollTop + viewportH)
-
-    const newStart = Math.max(0, estimatedStart - WINDOW_BUFFER)
-    let newEnd = Math.min(total, estimatedEnd + WINDOW_BUFFER)
+    // 抖动修复⑫-b：窗口边界加保守垫——二分基于前缀和估算，未测行（窗口外）低估会让
+    // 边界偏前，把视口底部真实行切到占位 → 一帧收缩 + clamp。上/下各多留一个屏幕
+    //（BUFFER * 2）吸收估算误差，宁可多渲染一行也不切掉视口边缘。
+    const newStart = Math.max(0, estimatedStart - WINDOW_BUFFER * 2)
+    let newEnd = Math.min(total, estimatedEnd + WINDOW_BUFFER * 2)
     // 流式跟随状态：确保窗口覆盖到底部
     if (isAtBottom.value) newEnd = total
-    if (newStart !== visibleStart.value || newEnd !== visibleEnd.value) {
-      visibleStart.value = newStart
-      visibleEnd.value = newEnd
+    if (newStart === visibleStart.value && newEnd === visibleEnd.value) return
+    visibleStart.value = newStart
+    visibleEnd.value = newEnd
+
+    // 窗口切片重排瞬间的滚动稳定（抖动修复⑫，2026-09-04）：
+    // 顶部/底部占位基于前缀和估算，重排切换真实行 ⇄ 占位时 scrollHeight 可能一帧骤变，
+    // 浏览器随后 clamp scrollTop → 滚动深处"回顶/跳闪"、底部跟随断流。
+    // 窗口重排前用户若正在底部跟随态 → 直接顺延贴底，防止被收缩型 clamp 拽离底部。
+    if (isAtBottom.value) {
+      scheduleScrollToBottom()
     }
   }
 
@@ -440,8 +456,31 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
   // immediate: true 保证组件初始化时就构建一次前缀和
   // 抖动修复⑨/⑩：结构突变（展开/折叠过程层等 items 增减）不锚定——scrollTop 稳定由宿主补偿负责；
   // flush:sync 让前缀和在 windowedDisplayItems computed 读取前完成重建，避免旧长度越界 (NaN 占位)。
+  let lastStructuralChangeAt = 0
   watch(() => items.value.length, () => {
+    lastStructuralChangeAt = Date.now()
     rebuildPrefixSums(false)
+    // 抖动修复⑫-b（2026-09-04）：结构突变后等 Vue 渲染出新行，立即按 DOM 实测高度
+    // 回填缓存并重建前缀和——让「估算行」最短生命周期转实测。否则后续窗口切片按
+    // 低估估算做二分会切错窗口边界 → 占位收缩 → scrollHeight 骤降 → scrollTop clamp
+    //（滚到底被回拽、滚动深处跳闪）。ResizeObserver 也会收敛，但它是异步逐帧的，
+    // 预热测量在用户可感知的下一帧前一次到位。
+    nextTick(() => {
+      const sc = getScrollEl()
+      if (!sc) return
+      let changed = false
+      for (const el of sc.querySelectorAll<HTMLElement>('[data-msg-id]')) {
+        if (el.hasAttribute('data-animating')) continue
+        const id = el.dataset.msgId
+        if (!id) continue
+        const h = el.offsetHeight
+        if (h > 0 && measuredHeights.get(id) !== h) {
+          measuredHeights.set(id, h)
+          changed = true
+        }
+      }
+      if (changed) rebuildPrefixSums(false)
+    })
   }, { immediate: true, flush: 'sync' })
 
   // 抖动修复⑤（2026-09-04）：底部占位高度改变（估算转实测 / 折叠升降）且用户在底部跟随态
@@ -483,7 +522,13 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
           // 测量到新高度后，重建前缀和（rAF 合并，避免过度重建）。
           // 全部是动画行的批次跳过重建——避免动画中前缀和随中间高度漂移。
           // 非结构突变（纯测量收敛）→ 带锚定补偿（④），保持视口首行原位。
-          if (!skipAll) scheduleRebuildPrefixSums(true)
+          // 抖动修复⑪（2026-09-04）：结构突变后抑制期内仍重建（前缀和要跟上新布局），
+          // 但**关闭锚定补偿**——突变期新行逐个被测、前缀和逐帧漂移，锚定 target 不可靠
+          // （实测会算出负数 scrollTop → clamp → 回顶）。
+          if (!skipAll) {
+            const withinSuppress = Date.now() - lastStructuralChangeAt < REBUILD_ANCHOR_SUPPRESS_MS
+            scheduleRebuildPrefixSums(!withinSuppress)
+          }
         })
         // 对当前已渲染的消息节点 observe（后续新节点由 MutationObserver 增量 observe）
         for (const el of scroll.querySelectorAll('[data-msg-id]')) {
