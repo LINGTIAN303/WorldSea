@@ -74,19 +74,20 @@
         @open-detail="onOpenDetail"
       />
 
-      <!-- 统一等候动画（2026-09-04）：高亮平移文字，运行时（isStreaming）常驻；
-           文字跟随当前活动行段（正在思考 / 正在读取 / 正在执行命令 …）；
-           O5：编排 run 活跃时不显示（编排段已承载运行态）
-           —— 替代原 StreamingPlaceholder scanner/思考中 + TurnStatus 三态分叉 -->
-      <StreamingPlaceholder
-        v-if="!activeRun && isStreaming"
-        :text="awaitingActionText"
-        :start-time="turnStartTime"
-      >
-        <template #icon>
-          <WorldSmithLogo :size="15" :radius="4" />
-        </template>
-      </StreamingPlaceholder>
+      <!-- 统一等候动画（2026-09-04）：运行时无运行中行段时显示（行段承载运行态）；
+           行段出现后淡出（leave 延迟 0.4s 与行段淡入衔接 → 两者交叉）；
+           文字为当前处理阶段（正在思考/读取…）；O5：编排 run 活跃时不显示 -->
+      <Transition name="wait-cross">
+        <StreamingPlaceholder
+          v-if="!activeRun && isStreaming && !hasRunningSegment"
+          :text="awaitingActionText"
+          :start-time="turnStartTime"
+        >
+          <template #icon>
+            <WorldSmithLogo :size="15" :radius="4" />
+          </template>
+        </StreamingPlaceholder>
+      </Transition>
 
       <!-- 会话标题生成中等候（首条消息后、标题落地前显示；纳入统一形态的 compact 小号版） -->
       <Transition name="fade">
@@ -344,6 +345,18 @@ const awaitingActionText = computed(() => {
   return '正在处理'
 })
 
+/** 2026-09-04 交叉显示：是否有运行中的行段（推理 streaming / 工具 running）。
+ *  有 → 行段承载运行态（前缀流光），等候动画淡出；无 → 等候动画淡入（等待下一行段/正文）。 */
+const hasRunningSegment = computed(() => {
+  const rows = agentStream.value
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const r = rows[i]
+    if (r.type === 'think' && r.status === 'streaming') return true
+    if (r.type === 'tool' && r.tc.status === 'running') return true
+  }
+  return false
+})
+
 // [⑥] 会话错误行：取 activity log 最近的 error 项派生
 const turnError = computed<{ message: string; code?: string } | null>(() => {
   const last = [...activityLogs.value].reverse().find(l => l.type === 'error')
@@ -528,4 +541,12 @@ defineExpose({
 .banner-continue:hover {
   background: color-mix(in srgb, var(--color-primary) 18%, transparent);
 }
+
+/* 等候动画 ↔ 运行行段交叉过渡：
+ * enter 立即淡入（行段间隙时尽快出现）；leave 延迟 0.4s 淡出——与行段入场
+ * delay 0.4s（流区 ws-stream-row-enter）对齐，行段淡入时等候动画同步淡出 */
+.wait-cross-enter-active { transition: opacity 0.22s ease; }
+.wait-cross-enter-from,
+.wait-cross-leave-to { opacity: 0; }
+.wait-cross-leave-active { transition: opacity 0.22s ease 0.4s; }
 </style>

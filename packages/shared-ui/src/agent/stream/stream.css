@@ -161,7 +161,8 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 6px;
+  /* 2026-09-04 行距贴近：padding 上下 4px→2px */
+  padding: 2px 6px;
 }
 /* 前缀文字（点击区）：内容宽度展示语义动词+对象+工具名；ellipsis 在子 span；focus-visible 焦点环。
    2026-09-04 折叠条文字化 v2：点击仅挂在此前缀文字上，其余只读信息不可点 */
@@ -407,11 +408,12 @@
   margin-top: 4px;
 }
 
-/* ② 过程层：内部行纵向扁平流，间距同层内 */
+/* ② 过程层：内部行纵向扁平流，间距同层内。
+   2026-09-04 用户建议二次修正：非文本段行段垂直间距极力贴近（gap 4px→1px） */
 .ws-turn-process {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 1px;
   min-width: 0;
 }
 
@@ -751,15 +753,15 @@
 .ws-plan-step-children {
   padding-left: 14px;
   border-top: 1px solid var(--agent-hover-bg);
-  margin-top: 2px;
-  padding-top: 2px;
+  margin-top: 1px;
+  padding-top: 1px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 .ws-plan-step-result {
-  padding: 4px 6px;
-  margin: 2px 0;
+  padding: 2px 6px;
+  margin: 1px 0;
 }
 .ws-plan-step-result.empty {
   color: var(--agent-text-tertiary);
