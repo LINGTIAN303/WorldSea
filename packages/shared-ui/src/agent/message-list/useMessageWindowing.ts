@@ -183,11 +183,14 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
     const start = Math.min(visibleStart.value, end)
     // 原样切片（不做展开/注入 _windowIndex），保留判定联合类型，由调用方行渲染器按 item.type 收敛
     const windowed = all.slice(start, end)
-    // O(1) 占位高度：前缀和直接取值，替代原 O(n) 遍历累加
+    // 抖动修复⑩（2026-09-04）：items 突变瞬间前缀和尚未重建时（旧长度不匹配），
+    // sums[total]/sums[end] 会越界取 undefined → NaN 占位高度 → 布局错乱闪烁。
+    // 长度不匹配时回退 0 占位（等 flush-sync 重建完成即正确）。
     const sums = prefixSums.value
-    const topPlaceholderHeight = sums ? sums[start] : 0
-    const bottomPlaceholderHeight = sums ? sums[total] - sums[end] : 0
-    return { items: windowed, topPlaceholderHeight, bottomPlaceholderHeight }
+    const sumsValid = sums && sums.length - 1 === total
+    const topPlaceholderHeight = sumsValid ? sums[start] : 0
+    const bottomPlaceholderHeight = sumsValid ? sums[total] - sums[end] : 0
+    return { items: windowed, topPlaceholderHeight: topPlaceholderHeight as number, bottomPlaceholderHeight: bottomPlaceholderHeight as number }
   })
 
   /** 根据滚动位置更新可见窗口。性能：rAF 节流 + 二分查找 O(log n)。 */
@@ -435,10 +438,11 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
 
   // 事件行数组长度变化时（新行到来/切换筛选），重建前缀和
   // immediate: true 保证组件初始化时就构建一次前缀和
-  // 抖动修复⑨：结构突变（展开/折叠过程层等 items 增减）不锚定——scrollTop 稳定由宿主补偿负责
+  // 抖动修复⑨/⑩：结构突变（展开/折叠过程层等 items 增减）不锚定——scrollTop 稳定由宿主补偿负责；
+  // flush:sync 让前缀和在 windowedDisplayItems computed 读取前完成重建，避免旧长度越界 (NaN 占位)。
   watch(() => items.value.length, () => {
-    scheduleRebuildPrefixSums(false)
-  }, { immediate: true })
+    rebuildPrefixSums(false)
+  }, { immediate: true, flush: 'sync' })
 
   // 抖动修复⑤（2026-09-04）：底部占位高度改变（估算转实测 / 折叠升降）且用户在底部跟随态
   // → 顺延滚动贴底。旧实现只在 items.length 变化时跟随，占位高度单独变化（不增删行）

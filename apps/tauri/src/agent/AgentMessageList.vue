@@ -198,7 +198,22 @@ async function onAbortOrchestration(): Promise<void> {
   }
 }
 
-/** 定位某轮次的结果层元素（滚动锚点；按 dataset 遍历比对，避免属性选择器转义问题） */
+/**
+ * 过程层折叠/展开的滚动锚点：优先锚定该轮次的过程层头行（process_summary，data-msg-id={turnId}-process），
+ * 折叠态=摘要行 / 展开态=常驻折叠头行，二者 DOM 元素稳定（同 id），其顶部位置在展开/折叠时不动——
+ * 正是「折叠条位置不动、下方内容下移」的正确锚定。
+ * 无过程头行（该轮次无过程内容）时退回结果层锚点（data-result-turn-id）。
+ *
+ * 修复⑦-b（2026-09-04）：原以结果层为锚，当用户正处于过程层中部（结果层在视口外下方）时，
+ * 展开会把视口拽向结果层 → 视觉回顶/跳动。改用过程层头行锚定解决。
+ */
+function findProcessAnchor(scroll: HTMLElement, turnId: string): HTMLElement | null {
+  const processId = `${turnId}-process`
+  for (const el of scroll.querySelectorAll<HTMLElement>('[data-msg-id]')) {
+    if (el.dataset.msgId === processId) return el
+  }
+  return null
+}
 function findResultAnchor(scroll: HTMLElement, turnId: string): HTMLElement | null {
   for (const el of scroll.querySelectorAll<HTMLElement>('[data-result-turn-id]')) {
     if (el.dataset.resultTurnId === turnId) return el
@@ -207,22 +222,21 @@ function findResultAnchor(scroll: HTMLElement, turnId: string): HTMLElement | nu
 }
 
 /**
- * 在改变过程层折叠态前后保持锚点（结果层顶部）的视口位置不变
+ * 在改变过程层折叠态前后保持锚点（过程层头行优先，结果层兜底）的视口位置不变
  *
  * 过程层展开/收起会让高度骤变数百 px：不补偿的话视口内容整体位移，
  * 用户正在读的内容会突然跑掉——这正是要消除的"不稳定"。
- * 以结果层顶部为锚点而非过程层：折叠后过程层只剩一行摘要，其位置本身就在变。
  * 抖动修复②（2026-09-04）：补偿写入 scrollTop 后同步窗口化账本（syncObservedTop），
  * 避免 onScroll 误判为「读者离开底部」→ isAtBottom 被打回 false → 自动跟随断流；
  * 且若折叠/展开前正在底部跟随态，补偿后顺延跟随到底（防止锚点补偿把视口拉离底部）。
  */
 function withProcessAnchor(turnId: string, mutate: () => void): void {
   const scroll = messagesContainer.value?.querySelector<HTMLElement>('.messages-scroll') ?? null
-  const anchor = scroll ? findResultAnchor(scroll, turnId) : null
+  const anchor = scroll ? (findProcessAnchor(scroll, turnId) ?? findResultAnchor(scroll, turnId)) : null
   const beforeTop = anchor ? anchor.getBoundingClientRect().top : null
   const wasAtBottom = isAtBottom.value
   mutate()
-  // 抖动修复⑦（2026-09-04）补充：无结果层锚点（执行中轮次/结果层在窗口外）时不做增量补偿；
+  // 抖动修复⑦（2026-09-04）补充：无过程头行/结果层锚点（执行中轮次/锚点在窗口外）时不补偿；
   // 但若折叠/展开前在底部跟随态，必须保持贴底（防止结构突变把视口顶回顶部）。
   if (!scroll) return
   if (wasAtBottom) {
