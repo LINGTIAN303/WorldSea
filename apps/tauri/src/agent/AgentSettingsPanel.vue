@@ -414,7 +414,6 @@ import TuiSelect from '../components/ui/TuiSelect.vue'
 import TuiButton from '../components/ui/TuiButton.vue'
 import RulesPanel from '@/space/panels/RulesPanel.vue'
 import { usePanelDrag } from './composables/usePanelDrag'
-import { useSettingsStore } from '@/stores/settingsStore'
 import { useModelApiKeyConfig } from './composables/useModelApiKeyConfig'
 import { useCustomModelFetch } from './composables/useCustomModelFetch'
 import { invoke } from '@/agent/composables/transport'
@@ -433,8 +432,7 @@ import ModelParamsDialog from './panels/model/ModelParamsDialog.vue'
 import { getModelInfo } from '@worldsmith/agent-runtime'
 import { useAgentRust } from './composables/useAgentRust'
 
-const settingsStore = useSettingsStore()
-const { updateModel } = useAgentRust()
+const { updateModel, securityLevel, setSecurityLevel } = useAgentRust()
 
 const props = withDefaults(defineProps<{
   visible: boolean
@@ -484,7 +482,6 @@ const emit = defineEmits<{
   'open-terminal': []
   'api-key-change': [provider: string, apiKey: string]
   'provider-change': [provider: string, modelId: string]
-  'security-level-change': [level: string]
   'card-change': [index: number]
 }>()
 
@@ -662,12 +659,11 @@ function onPersonaPresetChange(v: string): void {
   emit('update:personaPreset', v)
 }
 
-// A7 工具安全级别：加载 settingsStore 持久值，切换时 emit（SpaceAgentSettingsPanel 转发到 useAgentRust.setSecurityLevel）
-const securityLevel = ref(settingsStore.agentSecurityLevel || 'interact')
-
+// A7 工具安全级别：会话级状态（useAgentRust，新会话初始 interact 不继承）；切换直接调后端
 function onSecurityLevelChange(v: string): void {
-  settingsStore.agentSecurityLevel = v
-  emit('security-level-change', v)
+  void setSecurityLevel(v).catch((e: unknown) => {
+    console.warn('[AgentSettings] 设置安全级别失败:', e)
+  })
 }
 
 // ── TuiSelect 选项集（替代原生 select；thinkingLevels 用 props 直传，值/label 对齐） ──

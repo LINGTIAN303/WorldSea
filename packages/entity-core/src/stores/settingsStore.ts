@@ -62,7 +62,6 @@ const STORAGE_KEY_AI_CUSTOM_BASE_URL = 'worldsmith_ai_custom_base_url'
 const STORAGE_KEY_AI_CUSTOM_TYPE = 'worldsmith_ai_custom_type'
 const STORAGE_KEY_AI_CUSTOM_MODEL = 'worldsmith_ai_custom_model'
 const STORAGE_KEY_AI_CUSTOM_PROVIDERS = 'worldsmith_ai_custom_providers'
-const STORAGE_KEY_AGENT_SECURITY_LEVEL = 'worldsmith_agent_security_level'
 const STORAGE_KEY_AGENT_BACKEND = 'worldsmith_agent_backend'
 const STORAGE_KEY_VISION_SUB_AGENT_PROVIDER = 'worldsmith_vision_sub_agent_provider'
 const STORAGE_KEY_VISION_SUB_AGENT_MODEL = 'worldsmith_vision_sub_agent_model'
@@ -335,8 +334,6 @@ export const useSettingsStore = defineStore('settings', () => {
   const aiCustomType = persistedRef(STORAGE_KEY_AI_CUSTOM_TYPE, 'openai-compatible')
   const aiCustomModel = persistedRef(STORAGE_KEY_AI_CUSTOM_MODEL, '')
   const customProviders = ref<CustomProviderEntry[]>(loadCustomProviders())
-    // A7 工具安全级别：off / dangerous_only / moderate_and_dangerous（默认仅危险操作确认）
-  const agentSecurityLevel = persistedRef(STORAGE_KEY_AGENT_SECURITY_LEVEL, 'dangerous_only')
   // Agent 后端类型：'ts'（TS Agent）或 'rust'（Rust Agent，P1-5 起为默认）
   // 注意：已有用户的 localStorage 中若存储了 'ts'，仍保持 'ts'；
   //       仅新用户或清除存储的用户会默认使用 'rust'
@@ -473,7 +470,7 @@ export const useSettingsStore = defineStore('settings', () => {
            autoCreateEntityEnabled, autoCreateSelectorEnabled, autoCreateEntityRefEnabled, autoCreateGraphEnabled,
            highlight_pulseEnabled, highlight_dimmingEnabled, highlight_dimmingMode, highlight_dimOpacity, highlight_spreadHops,
            aiProviderMode, aiCloudProvider, aiCloudModel, aiLocalEndpoint, aiLocalType, aiLocalModel,
-           aiCustomBaseUrl, aiCustomType, aiCustomModel, agentSecurityLevel, agentBackend,
+           aiCustomBaseUrl, aiCustomType, aiCustomModel, agentBackend,
            customProviders, addCustomProvider, removeCustomProvider, getCustomKeyStoreId,
            visionSubAgentProvider, visionSubAgentModel,
            outlineInlineEdit,

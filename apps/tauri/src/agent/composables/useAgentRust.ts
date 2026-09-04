@@ -16,7 +16,7 @@ export {
   AGENT_BACKEND_INJECTION_KEY,
 } from '@worldsmith/shared-composables/agent/useAgent'
 
-import { ref, computed, readonly } from 'vue'
+import { ref, computed, reactive, readonly } from 'vue'
 import { invoke as tauriInvoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn, isHttpBackend, invokeRpc, invoke } from './transport'
 import { useConfirm } from '@worldsmith/ui-kit'
@@ -381,6 +381,19 @@ const draftSessionActive = ref(false)
 const currentWorkdir = ref<string | null>(null)
 /** 当前会话消息列表 */
 const messages = ref<AgentMessage[]>([])
+/** A7 安全档位（v2 三档，2026-09-03）：
+ *  - 按会话映射（sessionId → 档位），会话级意图隔离；新会话默认 interact（后端同默认）
+ *  - 草稿态（无会话）切档存 pending，newSession 后应用到新会话（用户对新会话的意图，非继承）
+ *  - 切回已存在会话从映射恢复档位（后端 policy 已按会话持久） */
+const securityLevels = reactive(new Map<string, string>())
+/** 草稿态待应用档位（null=无；newSession 时消费） */
+const pendingSecurityLevel = ref<string | null>(null)
+/** 当前会话档位视图：无会话（草稿）→ pending 或 interact；有会话 → 映射值（缺省 interact） */
+const securityLevel = computed<string>(() => {
+  const sid = currentSessionId.value
+  if (sid) return securityLevels.get(sid) ?? 'interact'
+  return pendingSecurityLevel.value ?? 'interact'
+})
 /** 是否正在流式输出 */
 const isStreaming = ref(false)
 /** 会话列表（listSessions 结果） */
@@ -1752,6 +1765,19 @@ async function newSession(
     teardownOrchestrationTraceListener(oldSessionId)
   }
   currentSessionId.value = info.id
+  // A7 档位：消费草稿态 pending（用户对新会话的意图，非继承旧会话）→ 应用并推后端；
+  // 无 pending → 默认 interact（后端新会话同默认，UI 与后端一致）
+  {
+    const desired = pendingSecurityLevel.value
+    pendingSecurityLevel.value = null
+    securityLevels.set(info.id, desired ?? 'interact')
+    if (desired && desired !== 'interact') {
+      void safeInvoke('cmd_agent_set_security_level', { sessionId: info.id, level: desired }).catch(() => {
+        // 应用失败仅降级显示为 interact（后端命令失败不阻断会话创建）
+        securityLevels.set(info.id, 'interact')
+      })
+    }
+  }
   // Phase 5：新建会话标记为「待激活」→ 列表延迟展示（首条消息后才移除并展示条目）
   pendingSessionIds.value = [...pendingSessionIds.value.filter((id) => id !== info.id), info.id]
   // Phase 5：新会话暂无标题生成中状态（重置按会话标记，避免旧会话残留）
@@ -1833,6 +1859,8 @@ async function newDraftSession(): Promise<void> {
   sessionTitlePending.value = {}
   messages.value = []
   isStreaming.value = false
+  // A7 档位：草稿态不继承旧会话档位（pending 清空 → 新会话默认 interact，除非用户主动重选）
+  pendingSecurityLevel.value = null
   streamingAssistant.value = null
   lastStreamedMsg.value = null
   
@@ -2558,11 +2586,23 @@ async function abort(): Promise<void> {
   }
 }
 
-/** A7：设置当前会话安全级别（off / dangerous_only / moderate_and_dangerous，运行时生效） */
+/** A7：设置当前会话安全级别（v2 三档 plan/interact/autopilot，运行时生效）
+ *  有会话 → 写会话映射 + 调后端；无会话（草稿态）→ 存 pending，待 newSession 应用到新会话 */
 async function setSecurityLevel(level: string): Promise<void> {
   const sessionId = currentSessionId.value
-  if (!sessionId) return
-  await safeInvoke('cmd_agent_set_security_level', { sessionId, level })
+  if (sessionId) {
+    securityLevels.set(sessionId, level)
+    try {
+      await safeInvoke('cmd_agent_set_security_level', { sessionId, level })
+    } catch (e) {
+      // 后端失败：回滚映射（UI 回到原档位），再抛出
+      securityLevels.set(sessionId, 'interact')
+      throw e
+    }
+  } else {
+    // 草稿态无会话：暂存待应用（newSession 后写到新会话并推后端）
+    pendingSecurityLevel.value = level
+  }
 }
 
 /** 清空历史（对应 Rust `clear_history`） */
@@ -2875,6 +2915,7 @@ export function useAgentRust() {
     followUp,
     abort,
     setSecurityLevel,
+    securityLevel,
     updateModel,
     // total_steps 预算警示（只读；流区横幅消费）
     latestStepBudget: readonly(latestStepBudget),

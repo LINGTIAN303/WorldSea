@@ -46,7 +46,6 @@
         @open-terminal="openTerminal"
         @api-key-change="onApiKeyChange"
         @provider-change="onProviderChange"
-        @security-level-change="onSecurityLevelChange"
         @card-change="(i) => emit('card-change', i)"
       />
       <!-- H5 八文件体系（2026-08-30 拍板）：规则卡片面板——八文件统一编辑入口（WORLDSMITH 只读/MEMORY 说明卡） -->
@@ -81,7 +80,6 @@ const {
   totalUsage,
   updateThinkingLevel,
   updateModel,
-  setSecurityLevel,
 } = useAgent()
 
 const settingsStore = useSettingsStore()
@@ -226,12 +224,8 @@ function onThinkingLevelChange(level: string): void {
   try { localStorage.setItem('agent_thinking_level', level) } catch {}
 }
 
-// A7：切换工具安全级别 → 调用 Rust 后端（setSecurityLevel），对当前会话运行时生效
-function onSecurityLevelChange(level: string): void {
-  setSecurityLevel(level).catch((err: unknown) => {
-    console.warn('[SpaceAgentSettings] 设置安全级别失败:', err)
-  })
-}
+// A7：工具安全级别切换已下沉到 AgentSettingsPanel 内部（useAgentRust.setSecurityLevel 直接调后端），
+// 本层不再转发；会话级档位状态（新旧会话不继承）由 useAgentRust.securityLevel 持有。
 
 async function onSearchEngineChange(engine: string): Promise<void> {
   const oldEngine = searchEngine.value

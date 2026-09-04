@@ -54,7 +54,7 @@ pub fn tool_permission(tool_name: &str) -> ToolPermission {
         | "web_search" | "list_sub_agents" => ToolPermission::Safe,
         // 文件系统工具（Phase 5）：只读放行（Safe）；写入/编辑 → Moderate（默认不确认，可按策略开启）
         "read_file" | "list_directory" | "search_files" => ToolPermission::Safe,
-        "write_file" | "edit_file" => ToolPermission::Moderate,
+        "write_file" | "edit_file" | "edit_diff" => ToolPermission::Moderate,
         // 其余未登记工具按 Moderate 兜底（策略默认不确认，行为不变）
         _ => ToolPermission::Moderate,
     }
@@ -197,13 +197,13 @@ pub enum PathGuard {
 fn is_fs_tool(tool_name: &str) -> bool {
     matches!(
         tool_name,
-        "read_file" | "write_file" | "edit_file" | "list_directory" | "search_files"
+        "read_file" | "write_file" | "edit_file" | "edit_diff" | "list_directory" | "search_files"
     )
 }
 
 /// 是否为写/搜索类工具（越出 workdir 需确认；读类越界放行，对齐「绝对路径读允许」）
 fn is_write_or_search_tool(tool_name: &str) -> bool {
-    matches!(tool_name, "write_file" | "edit_file" | "search_files")
+    matches!(tool_name, "write_file" | "edit_file" | "edit_diff" | "search_files")
 }
 
 /// 提取 FS 工具的目标路径参数（read/write/edit 用 `path`；list/search 缺省 `.`）
@@ -211,7 +211,7 @@ fn is_write_or_search_tool(tool_name: &str) -> bool {
 /// 返回 `None` 表示该工具无路径参数（如参数缺失），守卫按放行处理。
 fn fs_path_arg(tool_name: &str, args: &serde_json::Value) -> Option<String> {
     match tool_name {
-        "read_file" | "write_file" | "edit_file" => args
+        "read_file" | "write_file" | "edit_file" | "edit_diff" => args
             .get("path")
             .and_then(|v| v.as_str())
             .map(String::from),
@@ -363,7 +363,7 @@ pub fn is_command_tool(tool_name: &str) -> bool {
 
 /// 写类 FS 工具（Plan 档禁写用）
 pub fn is_write_tool(tool_name: &str) -> bool {
-    matches!(tool_name, "write_file" | "edit_file")
+    matches!(tool_name, "write_file" | "edit_file" | "edit_diff")
 }
 
 /// 规则引擎统一裁决（锁 > 白名单）：
@@ -691,6 +691,57 @@ mod tests {
         assert_eq!(tool_permission("search_files"), ToolPermission::Safe);
         assert_eq!(tool_permission("write_file"), ToolPermission::Moderate);
         assert_eq!(tool_permission("edit_file"), ToolPermission::Moderate);
+        assert_eq!(tool_permission("edit_diff"), ToolPermission::Moderate);
+    }
+
+    #[test]
+    fn is_write_tool_covers_edit_diff() {
+        // edit_diff（2026-09-02 系统工具）须纳入写工具判定（Plan 档禁写 / 路径守卫）
+        assert!(is_write_tool("edit_diff"));
+        assert!(is_write_tool("write_file"));
+        assert!(is_write_tool("edit_file"));
+        assert!(!is_write_tool("read_file"));
+        assert!(!is_write_tool("execute_command"));
+    }
+
+    #[test]
+    fn guard_edit_diff_outside_workdir_confirms() {
+        // edit_diff 越出 workdir → 需确认（与 write_file 同守卫）
+        let ctx = ctx_for("/workspace");
+        let guard = guard_fs_path(
+            "edit_diff",
+            &serde_json::json!({ "path": "/tmp/out.rs", "edits": [{ "old_string": "a", "new_string": "b" }] }),
+            &ctx,
+            false,
+        );
+        assert_eq!(guard, PathGuard::Confirm);
+    }
+
+    #[test]
+    fn rule_engine_locks_edit_diff_write() {
+        // edit_diff 写入命中锁（write_ok=false）→ 规则引擎应拦 Err
+        // 临时在全局规则加锁（单测进程 RULES_PATH 未初始化，仅内存不落盘），用后移除
+        crate::permission_rules::update_rules(|r| {
+            r.locks.retain(|l| l.path != "/workspace/secret");
+            r.locks.push(crate::permission_rules::LockRule {
+                path: "/workspace/secret".into(),
+                read_ok: true,
+                command_ok: false,
+                write_ok: false,
+            });
+        })
+        .unwrap();
+        let ctx = ctx_for("/workspace");
+        let res = crate::confirmation::rule_engine_verdict(
+            "edit_diff",
+            &serde_json::json!({ "path": "secret/x.rs", "edits": [] }),
+            &ctx,
+        );
+        assert!(res.is_err(), "edit_diff 写命中锁应被拦: {res:?}");
+        crate::permission_rules::update_rules(|r| {
+            r.locks.retain(|l| l.path != "/workspace/secret");
+        })
+        .unwrap();
     }
 
     // ─── 工作区分区免确认测试（M1，2026-09-03）──────────────────────

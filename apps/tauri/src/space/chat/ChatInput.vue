@@ -228,7 +228,7 @@ const sessionMode = computed(() => sessionView.activeState.value?.chatMode ?? 'n
 const settingsStore = useSettingsStore()
 const pluginStore = usePluginStore()
 const uiStore = useUIStore()
-const { isStreaming, abort, setSecurityLevel } = useAgent()
+const { isStreaming, abort, setSecurityLevel, securityLevel: sessionSecurityLevel } = useAgent()
 
 // P0-4 迭代：权限分级图标下拉（v2 三档 2026-09-03：plan/interact/autopilot）；value=后端 security level
 // 只读研究=plan｜交互确认=interact（默认，含危险三键 + 可学习白名单）｜自动巡航=autopilot
@@ -237,7 +237,8 @@ const PERMISSION_LEVELS = [
   { value: 'interact', label: '交互确认', desc: '危险操作需确认，可添加白名单自动放行' },
   { value: 'autopilot', label: '自动巡航', desc: '白名单放行 + 上锁名单拦截，不逐条确认' },
 ]
-const permissionLevel = ref(settingsStore.agentSecurityLevel || 'interact')
+// A7 档位：会话级运行时状态（useAgentRust；新会话初始 interact，不继承）——UI 与后端强一致
+const permissionLevel = computed(() => sessionSecurityLevel.value)
 const permOpen = ref(false)
 const permRef = ref<HTMLElement>()
 const permMenuStyle = ref<Record<string, string>>({})
@@ -267,8 +268,6 @@ watch(permOpen, (open) => {
 })
 async function pickPermission(v: string): Promise<void> {
   if (permissionLevel.value === v) { permOpen.value = false; return }
-  permissionLevel.value = v
-  settingsStore.agentSecurityLevel = v
   permOpen.value = false
   try {
     await setSecurityLevel(v)
