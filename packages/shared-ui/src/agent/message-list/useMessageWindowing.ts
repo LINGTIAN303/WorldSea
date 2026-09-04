@@ -224,15 +224,45 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
     // 流式跟随状态：确保窗口覆盖到底部
     if (isAtBottom.value) newEnd = total
     if (newStart === visibleStart.value && newEnd === visibleEnd.value) return
+
+    // 抖动修复⑬-b（2026-09-04）：切窗锚定——窗口切片重排会把窗口外真实行卸载换成占位，
+    // DOM 高度一帧骤变（实测 7826→~1665）→ 浏览器 clamp scrollTop → 滚动深处"回顶/跳闪"、
+    // 底部跟随断流。切窗前记录「视口首行」（DOM 实测 id + 视口偏移），切窗渲染后按实测
+    // 位置补偿 scrollTop，让重排对用户无感。底部跟随态直接顺延贴底（优先级高于锚定）。
+    // 非法目标值（<0 或超出滚动范围）丢弃，防 clamp 反馈链。
+    const topY = scroll.getBoundingClientRect().top
+    let anchorId: string | null = null
+    let anchorOffset = 0
+    for (const el of scroll.querySelectorAll<HTMLElement>('[data-msg-id]')) {
+      const r = el.getBoundingClientRect()
+      if (r.bottom >= topY) {
+        anchorId = el.dataset.msgId ?? null
+        anchorOffset = r.top - topY
+        break
+      }
+    }
+
     visibleStart.value = newStart
     visibleEnd.value = newEnd
 
-    // 窗口切片重排瞬间的滚动稳定（抖动修复⑫，2026-09-04）：
-    // 顶部/底部占位基于前缀和估算，重排切换真实行 ⇄ 占位时 scrollHeight 可能一帧骤变，
-    // 浏览器随后 clamp scrollTop → 滚动深处"回顶/跳闪"、底部跟随断流。
-    // 窗口重排前用户若正在底部跟随态 → 直接顺延贴底，防止被收缩型 clamp 拽离底部。
     if (isAtBottom.value) {
-      scheduleScrollToBottom()
+      // 抖动修复⑬-c（2026-09-04）：切窗后行重挂载首帧高度未收敛（实测文本行塌缩 4px→sh 骤降
+      // → clamp）。单帧 nextTick 贴底可能在未稳帧把底部设到错误位置。双帧 + 执行时刻校验
+      // 是否仍在底部附近，等行高收敛后再贴底，且不误拉已离开底部的读者。
+      nextTick(() => { scrollToBottomIfNear(); })
+      requestAnimationFrame(() => { scrollToBottomIfNear(); })
+    } else if (anchorId) {
+      nextTick(() => {
+        const target = scroll.querySelector<HTMLElement>(`[data-msg-id="${CSS.escape(anchorId!)}"]`)
+        if (!target) return
+        const d = target.getBoundingClientRect().top - topY - anchorOffset
+        const nxt = scroll.scrollTop + d
+        const maxTop = scroll.scrollHeight - scroll.clientHeight
+        if (Math.abs(d) > 0.5 && nxt >= 0 && nxt <= maxTop + 1) {
+          scroll.scrollTop = nxt
+          observedTop = scroll.scrollTop
+        }
+      })
     }
   }
 
@@ -281,6 +311,18 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
       scrollRafId = null
       updateVisibleRange()
     })
+  }
+
+  /** 仅在仍处于底部附近时贴底（抖动修复⑬-d，2026-09-04）：
+   *  程序化 set scrollTop 后 scroll 事件是异步任务，isAtBottom 账本在一帧内仍为旧值 true，
+   *  windowedDisplayItems 的底部占位 watch / 切窗贴底会误把读者拽回底部。执行时刻再校验
+   *  一次「此刻是否仍在底部」：读者已经离开则放弃贴底。 */
+  function scrollToBottomIfNear(): void {
+    const scroll = getScrollEl()
+    if (!scroll) return
+    const floor = scroll.scrollHeight - scroll.clientHeight
+    if (floor - scroll.scrollTop > bottomThreshold(scroll.clientHeight)) return
+    scrollToBottom()
   }
 
   function scrollToBottom(): void {
@@ -512,11 +554,19 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
               skipAll = true
               continue
             }
+            // 抖动修复⑬（2026-09-04）：窗口化切窗会把部分行从 DOM 卸载（detached），
+            // ResizeObserver 对脱离文档的元素仍会回调一次且 contentRect 为 0——若把 0
+            // 写进高度缓存，前缀和 sumTotal 会崩到接近 0（实测 7489→1002），占位/切片
+            // 全错 → scrollHeight 骤降 → scrollTop clamp（滚到底被回拽）。detached 行
+            // 跳过不写；窗口切回时元素重新挂载，RO 会再回调恢复真实高度。
+            if (!el.isConnected) continue
             const msgId = el.dataset?.msgId
             // 止血包②：按行 id 直写高度缓存（原按 index 写入需 findIndex 反查，
             // 且行序变化后错位；id 键天然免疫行序变化，还省一次 O(n) 查找）
             if (msgId) {
-              measuredHeights.set(msgId, entry.contentRect.height)
+              const h = entry.contentRect.height
+              // 零高（detached / display:none 行）不写缓存，防前缀和崩坏
+              if (h > 0) measuredHeights.set(msgId, h)
             }
           }
           // 测量到新高度后，重建前缀和（rAF 合并，避免过度重建）。
