@@ -39,6 +39,7 @@
            窗口化由本层支配，AgentStreamList 只做纯行渲染 + 事件透传。 -->
       <AgentStreamList
         :items="windowedDisplayItems.items"
+        :plan-zones-collapsed="planZonesCollapsed"
         @block-action="emit('block-action', $event)"
         @manuscript-local-action="emit('manuscript-local-action', $event)"
         @copy="emit('copy', $event)"
@@ -47,6 +48,7 @@
         @expand="onExpandProcess"
         @segment-expand="onSegmentExpand"
         @plan-step-toggle="onPlanStepToggle"
+        @plan-zone-toggle="onPlanZoneToggle"
         @scroll-to-message="scrollToMessage"
       />
 
@@ -297,6 +299,22 @@ function onPlanStepToggle(payload: { turnId: string; stepId: string }): void {
       turnId: payload.turnId,
       stepId: payload.stepId,
     })
+  })
+}
+
+/** 2026-09-04 待办项升级：计划折叠区区级折叠态映射（turnId → planCollapsed；跨切窗持久） */
+const planZonesCollapsed = computed<Record<string, boolean>>(() => {
+  const map: Record<string, boolean> = {}
+  for (const t of turns.value) {
+    if ((t as { planCollapsed?: boolean }).planCollapsed) map[(t as { id: string }).id] = true
+  }
+  return map
+})
+
+/** 2026-09-04 待办项升级：区级折叠头切换（翻转 turn.planCollapsed），锚定补偿高度骤变 */
+function onPlanZoneToggle(turnId: string): void {
+  withProcessAnchor(turnId, () => {
+    applyTurnEvent(currentSessionId.value, { type: 'plan_zone_toggle', turnId })
   })
 }
 

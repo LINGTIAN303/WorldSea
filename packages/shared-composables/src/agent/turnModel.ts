@@ -78,6 +78,12 @@ export interface ActionSegment extends SegmentBase {
   childRefIds?: string[]
   /** 2026-09-02 计划步骤默认折叠态（新增步骤折叠；渲染层经 plan_step_toggle 事件驱动） */
   stepCollapsed?: boolean
+  /** 2026-09-04 待办项升级：计划步骤(PlanItem) 序号（串行排序依据，来自后端 plan.order） */
+  planOrder?: number
+  /** 2026-09-04 待办项升级：计划步骤描述（PlanItem.description 透传，产出区展示） */
+  planDescription?: string
+  /** 2026-09-04 待办项升级：计划步骤失败原因（PlanItem.reason 透传） */
+  planReason?: string
   /** 2026-09-02 系统工具流式：bash/powershell 增量输出累积（tool_delta 事件追加） */
   stream?: string
   /** 2026-09-02 系统工具流式：stream 达到字符上限后丢弃旧内容（丢旧保新），置真供渲染层提示 */
@@ -171,6 +177,8 @@ export interface Turn {
   status: TurnStatus
   /** ② 过程层折叠态（由自动折叠控制器与用户手动操作共同驱动） */
   processCollapsed: boolean
+  /** 2026-09-04 待办项升级：计划步骤折叠区（区级折叠头）折叠态，跨切窗持久；默认展开 */
+  planCollapsed?: boolean
   /**
    * 2026-09-02 计划步骤串行执行（激进方案）：当前「激活」的计划步骤段 id。
    * 由 plan_step_status(running) 置位、completed/skipped/failed 清除。
@@ -215,6 +223,9 @@ export type TurnEvent =
       label: string
       refId?: string
       args?: Record<string, unknown>
+      /** 2026-09-04 待办项升级：plan 类动作段携带 PlanItem 序号/描述（前端透传） */
+      planOrder?: number
+      planDescription?: string
     }
   /** 动作结束（ToolCallEnd / SubAgentCompleted / PlanStepUpdate ...） */
   | {
@@ -238,6 +249,8 @@ export type TurnEvent =
   | { type: 'auto_collapse'; turnId: string }
   /** 2026-09-02 用户展开/收起某个计划步骤（plan 步骤行的折叠态；基于 id 定位历史轮次） */
   | { type: 'plan_step_toggle'; turnId: string; stepId: string }
+  /** 2026-09-04 用户展开/收起计划步骤折叠区（区级折叠头 → 翻 Turn.planCollapsed） */
+  | { type: 'plan_zone_toggle'; turnId: string }
   /** 2026-09-02 计划步骤状态流转（plan_update：in_progress→激活 running；completed/skipped/failed→收口）。仅实时流。 */
   | {
       type: 'plan_step_status'
@@ -245,6 +258,25 @@ export type TurnEvent =
       stepId: string
       status: Extract<ActionStatus, 'running' | 'completed' | 'failed' | 'skipped'>
       result?: unknown
+      /** 2026-09-04 待办项升级：回源注入时置真 —— 非运行态收口一律折叠（对齐实时"运行中完成自动折叠"语义） */
+      autoCollapse?: boolean
+      /** 2026-09-04 待办项升级：随状态流转携带序号/描述（replanned/回源注入用） */
+      order?: number
+      description?: string
+    }
+  /** 2026-09-04 待办项升级：plan_replanned 全量替换 —— 删除旧 plan 段并按新 items 重建 */
+  | {
+      type: 'plan_replanned'
+      turnId: string
+      items: Array<{
+        stepId: string
+        order: number
+        status: Extract<ActionStatus, 'running' | 'completed' | 'failed' | 'skipped' | 'pending'>
+        title?: string
+        description?: string
+        reason?: string
+        result?: unknown
+      }>
     }
   /** 2026-09-02 系统工具流式：工具增量输出（bash/powershell 逐行） */
   | { type: 'tool_delta'; turnId: string; toolCallId: string; delta: string }
@@ -487,7 +519,16 @@ export function reduceEvent(turns: Turn[], event: TurnEvent): Turn[] {
         refId: event.refId,
         args: event.args,
         timestamp: Date.now(),
-        ...(isPlanStep ? { isPlanStep: true, stepCollapsed: true, childRefIds: [] } : {}),
+        ...(isPlanStep
+          ? {
+              isPlanStep: true,
+              childRefIds: [],
+              // 2026-09-04 待办项升级：初始折叠态不预置（pending 项由渲染层隐藏；
+              // running 进入时经 ?? false 展开，运行中完成自动折叠）
+              planOrder: event.planOrder,
+              planDescription: event.planDescription,
+            }
+          : {}),
       }
       const segments = [...turn.segments, seg]
       // 2026-09-02 激进方案：子动作归属统一经 activePlanStepId——
@@ -543,13 +584,22 @@ export function reduceEvent(turns: Turn[], event: TurnEvent): Turn[] {
       if (idx < 0) return turns
       const seg = turn.segments[idx]
       if (seg.kind !== 'action' || !seg.isPlanStep) return turns
+      const wasActive = turn.activePlanStepId === seg.id
       const nextSeg = {
         ...seg,
         status: event.status,
         result: event.result ?? seg.result,
-        // 2026-09-02 激进方案：步骤 running 时强制展开（其内输出可见）；
-        // 收口后保持展开（执行过程保留可查），仅重置 activePlanStepId
-        stepCollapsed: event.status === 'running' ? false : seg.stepCollapsed,
+        // 2026-09-04 待办项升级：stepCollapsed 语义——running 首次进入保持展开（用户手动折叠不
+        // 强制弹开）；运行中激活完成 → 自动折叠（串行待办项：前一项收起才出现下一项）；
+        // 回源注入（autoCollapse）非运行态收口一律折叠；其余路径保持原态。
+        stepCollapsed: event.status === 'running'
+          ? (seg.stepCollapsed ?? false)
+          : wasActive || event.autoCollapse
+            ? true
+            : seg.stepCollapsed,
+        // 2026-09-04 待办项升级：序号/描述随状态流转注入
+        ...(event.order !== undefined ? { planOrder: event.order } : {}),
+        ...(event.description !== undefined ? { planDescription: event.description } : {}),
       }
       const segments = turn.segments.map((s, i) => (i === idx ? nextSeg : s))
       const activePlanStepId =
@@ -576,6 +626,48 @@ export function reduceEvent(turns: Turn[], event: TurnEvent): Turn[] {
         segments: turn.segments.map((s, i) =>
           i === idx ? { ...seg, stepCollapsed: !seg.stepCollapsed } : s,
         ),
+      })
+    }
+
+    /** 2026-09-04 待办项升级：区级折叠头翻转（展开/收起整个计划步骤折叠区） */
+    case 'plan_zone_toggle': {
+      const ti = turns.findIndex((t) => t.id === event.turnId)
+      if (ti < 0) return turns
+      const turn = turns[ti]
+      return replaceTurn(turns, ti, { ...turn, planCollapsed: !turn.planCollapsed })
+    }
+
+    /** 2026-09-04 待办项升级：plan_replanned 全量替换 —— 删除旧 plan 段，按新 items 重建 */
+    case 'plan_replanned': {
+      const ti = turns.findIndex((t) => t.id === event.turnId)
+      if (ti < 0) return turns
+      const turn = turns[ti]
+      const keep = turn.segments.filter(
+        (s) => !(s.kind === 'action' && (s as ActionSegment).isPlanStep),
+      )
+      const planSegs: ActionSegment[] = event.items.map((it) => ({
+        id: nextSegmentId('plan'),
+        kind: 'action',
+        action: 'plan',
+        rowKind: classifyActionRowKind('plan'),
+        status: it.status,
+        label: it.title ?? `计划步骤 ${it.order + 1}`,
+        refId: it.stepId,
+        args: {},
+        timestamp: Date.now(),
+        isPlanStep: true,
+        stepCollapsed: true,
+        childRefIds: [],
+        planOrder: it.order,
+        ...(it.description !== undefined ? { planDescription: it.description } : {}),
+        ...(it.reason !== undefined ? { planReason: it.reason } : {}),
+        ...(it.result !== undefined ? { result: it.result } : {}),
+      }))
+      // 整体替换后无活动步骤；重新规划后待办项全部折叠、完成项可展开查看
+      return replaceTurn(turns, ti, {
+        ...turn,
+        segments: [...keep, ...planSegs],
+        activePlanStepId: undefined,
       })
     }
 
@@ -1120,6 +1212,10 @@ export type FlatRow =
       isPlanStep?: boolean
       childRefIds?: string[]
       stepCollapsed?: boolean
+      /** 2026-09-04 待办项升级：序号/描述/原因透传给渲染层（待办项头与产出区展示） */
+      planOrder?: number
+      planDescription?: string
+      planReason?: string
       timestamp: number
     }
   | { id: string; turnId: string; type: 'text'; text: string; isResult: boolean; timestamp: number }
@@ -1167,6 +1263,9 @@ function segmentToRow(s: Segment, turnId: string, isResult: boolean): FlatRow {
         isPlanStep: s.isPlanStep,
         childRefIds: s.childRefIds,
         stepCollapsed: s.stepCollapsed,
+        planOrder: s.planOrder,
+        planDescription: s.planDescription,
+        planReason: s.planReason,
         timestamp: s.timestamp,
       }
     case 'text':

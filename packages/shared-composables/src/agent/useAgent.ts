@@ -127,6 +127,13 @@ export type AgentStreamItem =
       isPlanStep?: boolean
       childRefIds?: string[]
       stepCollapsed?: boolean
+      /** 2026-09-04 待办项升级：plan 步骤行真实状态（tc.status 仅三态无 pending/skipped——
+       *  扁平透传 ActionStatus，供渲染层串行时序隐藏 pending 项与显示已跳过） */
+      planStatus?: import('./turnModel').ActionStatus
+      /** 2026-09-04 待办项升级：序号/描述/原因（待办项头与产出区展示） */
+      planOrder?: number
+      planDescription?: string
+      planReason?: string
     }
   | { type: 'divider'; id: string; dividerText: string; timestamp: number }
   /** 过程层折叠摘要行：过程层折叠时替代全部过程行段（点击展开）；

@@ -48,6 +48,7 @@ import {
   reduceEvent,
   parseToolResult,
   actionEventToTurnEvents,
+  type ActionStatus,
   type FlatRow,
   type Turn,
   type TurnEvent,
@@ -722,6 +723,11 @@ function flatRowToStreamItem(row: FlatRow): AgentStreamItem {
         isPlanStep: row.isPlanStep,
         childRefIds: row.childRefIds,
         stepCollapsed: row.stepCollapsed,
+        // 2026-09-04 待办项升级：plan 步骤行真实状态（tc.status 仅三态；pending 驱动串行隐藏）
+        ...(row.isPlanStep ? { planStatus: row.status } : {}),
+        planOrder: row.planOrder,
+        planDescription: row.planDescription,
+        planReason: row.planReason,
         timestamp: row.timestamp,
       }
     case 'text':
@@ -1545,8 +1551,12 @@ const planUnlistenFns = new Map<string, UnlistenFn>()
  * 2026-09-02 计划步骤并入过程层：plan 已创建 → 为每个步骤生成 plan 动作段进轮次树。
  * 步骤 id 沿用 StableRef（plan-xxx），与 usePlanStore items.id 对齐，供 settlePlanStep 配对收口。
  * 归约器侧 action_start(action='plan') 会标记 isPlanStep + 默认折叠，后续工具动作自动归为该步子动作。
+ * 2026-09-04 待办项升级：补传 order/description → plan 段透传 planOrder/planDescription（待办项头与产出区展示）。
  */
-function emitPlanStepsIntoFlow(sessionId: string, items: Array<{ id: string; title: string; status?: string }>): void {
+function emitPlanStepsIntoFlow(
+  sessionId: string,
+  items: Array<{ id: string; title: string; status?: string; description?: string; order?: number }>,
+): void {
   const turnId = currentTurnId.value
   if (!turnId) return
   for (const item of items) {
@@ -1557,6 +1567,60 @@ function emitPlanStepsIntoFlow(sessionId: string, items: Array<{ id: string; tit
       action: 'plan',
       label: item.title,
       refId: item.id,
+      planOrder: item.order,
+      planDescription: item.description,
+    })
+  }
+}
+
+/** Rust PlanItem status → Turn 计划段 status 映射（in_progress 按 completed 处理——后端无持久 running） */
+const planRustStatusToFlowStatus: Record<
+  RustPlanItem['status'],
+  Extract<ActionStatus, 'completed' | 'skipped' | 'failed'> | 'pending'
+> = {
+  pending: 'pending',
+  in_progress: 'completed',
+  completed: 'completed',
+  skipped: 'skipped',
+  failed: 'failed',
+}
+
+/**
+ * 2026-09-04 待办项升级：回源从 snapshot.plan 重建计划段（action_start + plan_step_status 驱动同一归约器）。
+ * 与实时 emitPlanStepsIntoFlow 同构：逐项建段（order/description 透传），再按状态收口——
+ * completed/skipped/failed 折叠（autoCollapse 对齐实时"完成自动折叠"），pending 保持初始隐藏。
+ * 幂等：action_start 按 id 去重，重复切换会话不会叠加 plan 段。
+ */
+function restorePlanStepsIntoFlow(plan: RustPlanItem[]): void {
+  const sid = currentSessionId.value
+  if (!sid || plan.length === 0) return
+  const lastTurn = turns.value[turns.value.length - 1]
+  if (!lastTurn) return
+  const turnId = lastTurn.id
+  for (const item of plan) {
+    applyTurnEvent(sid, {
+      type: 'action_start',
+      turnId,
+      id: `plan-${item.id}`,
+      action: 'plan',
+      label: item.title,
+      refId: item.id,
+      planOrder: item.order,
+      planDescription: item.description ?? undefined,
+    })
+  }
+  for (const item of plan) {
+    const st = planRustStatusToFlowStatus[item.status]
+    if (st === 'pending') continue
+    applyTurnEvent(sid, {
+      type: 'plan_step_status',
+      turnId,
+      stepId: item.id,
+      status: st,
+      autoCollapse: true,
+      order: item.order,
+      description: item.description ?? undefined,
+      result: item.output ?? undefined,
     })
   }
 }
@@ -1573,11 +1637,15 @@ function settlePlanStep(
   if (status === 'pending') return
   const flowStatus =
     status === 'in_progress' ? 'running' : status === 'completed' ? 'completed' : status === 'skipped' ? 'skipped' : 'failed'
+  // 2026-09-04 待办项升级：order/description 随状态流转透传（replanned/回源排序与产出区展示）
+  const storeItem = usePlanStore().items.value.find((i) => i.id === itemId)
   applyTurnEvent(sessionId, {
     type: 'plan_step_status',
     turnId,
     stepId: itemId,
     status: flowStatus,
+    ...(storeItem && storeItem.order !== undefined ? { order: storeItem.order } : {}),
+    ...(storeItem?.description ? { description: storeItem.description } : {}),
     result: output ? String(output) : undefined,
   })
 }
@@ -1620,6 +1688,24 @@ async function setupPlanListener(sessionId: string): Promise<void> {
           reason: p.reason ?? null,
         })),
       )
+      // 2026-09-04 待办项升级：对齐 turnModel —— 删除旧 plan 段，按新 items 全量重建
+      const turnId = currentTurnId.value
+      if (turnId) {
+        applyTurnEvent(sessionId, {
+          type: 'plan_replanned',
+          turnId,
+          items: e.payload.items.map((it) => ({
+            stepId: it.id,
+            order: it.order,
+            // Rust in_progress → 前端 running（重规划后新激活的步骤进入运行态展开）
+            status: it.status === 'in_progress' ? 'running' : it.status,
+            title: it.title,
+            description: it.description ?? undefined,
+            reason: it.reason ?? undefined,
+            result: it.output ?? undefined,
+          })),
+        })
+      }
     })
     // 统一清理：dispose/teardown 时按 sessionId 释放三个监听
     planUnlistenFns.set(sessionId, () => {
@@ -2132,6 +2218,9 @@ async function switchSession(sessionId: string): Promise<void> {
           order: p.order,
         })),
       )
+      // 2026-09-04 待办项升级：回源从 snapshot.plan 重建计划段（与实时 emitPlanStepsIntoFlow 同构），
+      // 恢复区级+项级结构：项头、子动作、产出、顺序完整还原
+      restorePlanStepsIntoFlow(plan)
     } else {
       usePlanStore().clearPlan()
     }

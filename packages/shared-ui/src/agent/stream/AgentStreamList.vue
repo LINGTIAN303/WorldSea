@@ -29,72 +29,25 @@
       />
       <!-- ② LLM 过程层（data-turn-id 供折叠控制器做视口判定） -->
       <div v-if="group.process.length > 0" class="ws-turn-process" :data-turn-id="group.id">
-        <template v-for="block in group.process" :key="block.id">
-          <!-- 2026-09-02 计划步骤块：步骤头行 + 子动作（默认折叠，可展开） -->
-          <div
-            v-if="(block as any)._step"
-            class="ws-plan-step-block"
-          >
-            <button
-              type="button"
-              class="ws-plan-step-head"
-              role="button"
-              :aria-expanded="!((block as any)._step as any).stepCollapsed"
-              @click="emitPlanStepToggle(sessionTurnIdFor(group), (block as any)._step.id)"
-            >
-              <WsIcon :name="(block as any)._step.stepCollapsed ? 'chevron-right' : 'chevron-down'" size="xs" />
-              <span class="ws-plan-step-badge">计划步骤</span>
-              <span class="ws-plan-step-title">{{ (block as any)._step.tc.label }}</span>
-              <span v-if="(block as any)._step.tc.status === 'running'" class="ws-plan-step-status running">执行中</span>
-              <span v-else-if="(block as any)._step.tc.status === 'completed'" class="ws-plan-step-status done">已完成</span>
-              <span v-else-if="(block as any)._step.tc.status === 'failed'" class="ws-plan-step-status fail">失败</span>
-              <span v-else class="ws-plan-step-status pending">待执行</span>
-              <span v-if="((block as any)._children as any[]).length" class="ws-plan-step-count">
-                {{ (block as any)._children.length }} 个动作
-              </span>
-            </button>
-            <div v-show="!((block as any)._step as any).stepCollapsed" class="ws-plan-step-children">
-              <!-- 步骤执行结果（骨架：步骤当前为 LLM 直出，展示产出文本；子动作可用时两者并存） -->
-              <div v-if="(block as any)._step.tc && (block as any)._step.tc.result" class="ws-plan-step-result">
-                <span class="ws-plan-step-result-label">步骤产出</span>
-                <pre class="ws-plan-step-result-code">{{ (block as any)._step.tc.result }}</pre>
-              </div>
-              <StreamRow
-                v-for="child in (block as any)._children"
-                :key="child.id"
-                :item="child"
-                :animated="animatedIds.has(child.id)"
-                :is-hovered="hoveredId === child.id"
-                @hover="onHover"
-                @leave="onLeave"
-                @copy="(m) => emit('copy', m)"
-                @block-action="(e) => emit('block-action', e)"
-                @manuscript-local-action="(e) => emit('manuscript-local-action', e)"
-                @tool-confirm="(e) => emit('tool-confirm', e)"
-                @expand="() => emit('segment-expand', group.id)"
-              />
-              <div v-if="!((block as any)._step.tc && (block as any)._step.tc.result) && !((block as any)._children as any[]).length" class="ws-plan-step-result empty">
-                该步骤暂无动作与产出
-              </div>
-            </div>
-          </div>
-          <!-- 普通行段 -->
-          <StreamRow
-            v-else
-            :key="block.id"
-            :item="block"
-            :animated="animatedIds.has(block.id)"
-            :is-hovered="hoveredId === block.id"
-            @hover="onHover"
-            @leave="onLeave"
-            @copy="(m) => emit('copy', m)"
-            @block-action="(e) => emit('block-action', e)"
-            @manuscript-local-action="(e) => emit('manuscript-local-action', e)"
-            @tool-confirm="(e) => emit('tool-confirm', e)"
-            @expand="() => emit('segment-expand', group.id)"
-            @expand-process="() => emit('expand', group.id)"
-          />
-        </template>
+        <!-- 2026-09-04 多级折叠树渲染：组合行段 / 计划折叠区 / 待办项 / 普通行 由 ProcessBlocks 递归渲染 -->
+        <ProcessBlocks
+          :blocks="group.process"
+          :turn-id="group.id"
+          :combo-collapsed="comboCollapsed"
+          :zone-collapsed-map="planZonesCollapsed ?? {}"
+          :animated-ids="animatedIds"
+          :hovered-id="hoveredId"
+          @combo-toggle="toggleCombo"
+          @plan-zone-toggle="(tid) => emit('plan-zone-toggle', tid)"
+          @plan-step-toggle="(p) => emit('plan-step-toggle', p)"
+          @hover="onHover"
+          @leave="onLeave"
+          @copy="(m) => emit('copy', m)"
+          @block-action="(e) => emit('block-action', e)"
+          @manuscript-local-action="(e) => emit('manuscript-local-action', e)"
+          @tool-confirm="(e) => emit('tool-confirm', e)"
+          @segment-expand="(tid) => emit('segment-expand', tid)"
+        />
       </div>
       <!-- ③ LLM 结果层（唯一带操作栏，由 AssistantRow 的 isResult 驱动）
            data-result-turn-id：折叠/展开过程层时作为滚动锚点，避免高度骤变导致视口跳动 -->
@@ -131,9 +84,9 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
 import type { AgentStreamItem } from '@worldsmith/shared-composables/agent/useAgent'
-import { aggregatePlanBlocks } from './aggregatePlanBlocks'
+import { aggregatePlanBlocks, type ProcessBlock } from './aggregatePlanBlocks'
+import ProcessBlocks from './ProcessBlocks.vue'
 import StreamRow from './rows/StreamRow.vue'
 import type { AgentMessage, BlockActionEvent } from '../bubbles/types'
 import './stream.css'
@@ -146,8 +99,8 @@ interface TurnGroup {
   id: string
   /** ① 用户消息层；窗口切片从轮次中间开始时为 null */
   user: UserItem | null
-  /** ② 过程层行段（推理 / 过程文本 / 动作 / 折叠摘要） */
-  process: AgentStreamItem[]
+  /** ② 过程层（扁平输入行；聚合后为块序列 ProcessBlock[]，供 ProcessBlocks 树渲染） */
+  process: ProcessBlock[]
   /** ③ 结果层；结果层未落地时为 null */
   result: AssistantItem | null
   /** 结果层之后仍属于本轮次的行（如中止分隔行） */
@@ -157,6 +110,8 @@ interface TurnGroup {
 /** 事件行流 items */
 const props = defineProps<{
   items: AgentStreamItem[]
+  /** 2026-09-04 待办项升级：计划步骤折叠区的区级折叠态（turnId → planCollapsed，数据层持久） */
+  planZonesCollapsed?: Record<string, boolean>
 }>()
 
 /**
@@ -194,17 +149,21 @@ const groups = computed<TurnGroup[]>(() => {
       cur.process.push(it)
     }
   }
-  // 计划步骤块聚合：把 process 扁平行 → 块序列（plan step + 子动作 / 普通行）
+  // 2026-09-04 多级折叠树聚合：把 process 扁平行 → 嵌套块序列（组合行段 / 待办项 / 计划折叠区）
   for (const g of out) {
     if (!g.process.length) continue
-    g.process = aggregatePlanBlocks(g.process) as unknown as AgentStreamItem[]
+    g.process = aggregatePlanBlocks(g.process as unknown as AgentStreamItem[])
   }
   return out
 })
 
-/** 组 id 即 turnId（分组以 user 行建组，cur.id=turnId）；供 plan_step_toggle 定位轮次 */
-function sessionTurnIdFor(_group: TurnGroup): string {
-  return _group.id
+// ===== 组合行段本地折叠态（组件内 ref：仅组合块使用；切窗重挂与 think 行一样重置为展开，不持久化）=====
+const comboCollapsed = ref<Set<string>>(new Set())
+function toggleCombo(id: string): void {
+  const next = new Set(comboCollapsed.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  comboCollapsed.value = next
 }
 
 // ===== 入场动画治理（止血包⑤）=====
@@ -271,10 +230,7 @@ const emit = defineEmits<{
   (e: 'scroll-to-message', msgId: string): void
   /** 2026-09-02 用户展开/收起计划步骤 → 驱动 turnModel plan_step_toggle */
   (e: 'plan-step-toggle', payload: { turnId: string; stepId: string }): void
+  /** 2026-09-04 用户展开/收起计划折叠区 → 驱动 turnModel plan_zone_toggle（翻转 turn.planCollapsed） */
+  (e: 'plan-zone-toggle', turnId: string): void
 }>()
-
-/** 2026-09-02 计划步骤折叠切换：上抛给列表层 → useAgentRust 归约（stepCollapsed 翻转） */
-function emitPlanStepToggle(turnId: string, stepId: string): void {
-  emit('plan-step-toggle', { turnId, stepId })
-}
 </script>

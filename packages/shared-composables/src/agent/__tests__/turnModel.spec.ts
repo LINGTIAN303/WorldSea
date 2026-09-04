@@ -261,7 +261,7 @@ describe('turnModel 归约器', () => {
     })
     let steps = turns[0].segments.filter((s) => s.kind === 'action')
     expect(steps.every((s) => (s as any).isPlanStep)).toBe(true)
-    expect(steps.every((s) => (s as any).stepCollapsed)).toBe(true) // 默认折叠
+    expect(steps.every((s) => (s as any).stepCollapsed === undefined)).toBe(true) // 2026-09-04：初始不预置折叠态（pending 项由渲染层隐藏）
     expect(steps.every((s) => s.status === 'pending')).toBe(true) // 初始 pending
 
     // 步骤一激活 → running；此时工具动作应归为步骤一的子动作
@@ -294,6 +294,9 @@ describe('turnModel 归约器', () => {
     turns = reduceEvent(turns, {
       type: 'action_start', turnId: 't1', id: 'p1', action: 'plan', label: '步骤', refId: 's1',
     })
+    // 2026-09-04：初始不预置折叠态（undefined）；首次 toggle → 折叠（true）
+    expect((turns[0].segments[0] as any).stepCollapsed).toBeUndefined()
+    turns = reduceEvent(turns, { type: 'plan_step_toggle', turnId: 't1', stepId: 'p1' })
     expect((turns[0].segments[0] as any).stepCollapsed).toBe(true)
     turns = reduceEvent(turns, { type: 'plan_step_toggle', turnId: 't1', stepId: 'p1' })
     expect((turns[0].segments[0] as any).stepCollapsed).toBe(false)
@@ -325,12 +328,12 @@ describe('turnModel 归约器', () => {
     const toolSeg = turns[0].segments.find((s) => s.id === s1.childRefIds[1])
     expect(toolSeg?.kind).toBe('action')
 
-    // 步骤收口 → activePlanStepId 清除；子动作保留（过程可查）
+    // 步骤收口 → activePlanStepId 清除；子动作保留（可查）；运行中完成自动折叠
     turns = reduceEvent(turns, { type: 'plan_step_status', turnId: 't1', stepId: 's1', status: 'completed' })
     expect(turns[0].activePlanStepId).toBeUndefined()
     s1 = turns[0].segments.find((s) => s.id === 'p1') as any
     expect(s1.childRefIds.length).toBe(2)
-    expect(s1.stepCollapsed).toBe(false) // 收口后保持展开（可查过程）
+    expect(s1.stepCollapsed).toBe(true) // 串行：完成自动折叠，下一待办项才出现
   })
 
   it('2026-09-02 激进方案：步骤外输出不归入任何步骤（无激活步骤）', () => {
@@ -375,6 +378,79 @@ describe('turnModel 归约器', () => {
     const texts = turns[0].segments.filter((s) => s.kind === 'text')
     expect(texts.length).toBe(1)
     expect((texts[0] as any).text).toBe('好的，我来创建计划。')
+  })
+
+  it('2026-09-04 待办项升级：plan_zone_toggle 翻转区级折叠态（默认展开）', () => {
+    let turns = startTurn()
+    expect((turns[0] as any).planCollapsed).toBeUndefined() // 默认展开
+    turns = reduceEvent(turns, { type: 'plan_zone_toggle', turnId: 't1' })
+    expect(turns[0].planCollapsed).toBe(true)
+    turns = reduceEvent(turns, { type: 'plan_zone_toggle', turnId: 't1' })
+    expect(turns[0].planCollapsed).toBe(false)
+  })
+
+  it('2026-09-04 待办项升级：plan_replanned 全量重建（删旧 plan 段，按 items 序重建）', () => {
+    let turns = startTurn()
+    // 旧计划：一个步骤已激活并收拢子动作
+    turns = reduceEvent(turns, {
+      type: 'action_start', turnId: 't1', id: 'p1', action: 'plan', label: '旧步骤', refId: 's1', planOrder: 0,
+    })
+    turns = reduceEvent(turns, { type: 'plan_step_status', turnId: 't1', stepId: 's1', status: 'running' })
+    turns = reduceEvent(turns, {
+      type: 'action_start', turnId: 't1', id: 'tool-old', action: 'tool', label: 'read_file', refId: 'cold',
+    })
+    // 重规划：整体替换为新计划（3 项，不同 stepId）
+    turns = reduceEvent(turns, {
+      type: 'plan_replanned',
+      turnId: 't1',
+      items: [
+        { stepId: 'n1', order: 0, status: 'completed', title: '新步骤一', description: '第一项', result: '产出1' },
+        { stepId: 'n2', order: 1, status: 'running', title: '新步骤二' },
+        { stepId: 'n3', order: 2, status: 'pending', title: '新步骤三' },
+      ],
+    })
+    const planSegs = turns[0].segments.filter(
+      (s) => s.kind === 'action' && (s as any).isPlanStep,
+    ) as any[]
+    expect(planSegs).toHaveLength(3) // 旧 plan 段删除，仅新 3 项
+    expect(turns[0].segments.some((s) => s.id === 'tool-old')).toBe(true) // 旧子动作段保留（引用作废成游离行）
+    // 新计划：顺序/描述/结果/状态 注入
+    expect(planSegs[0]).toMatchObject({
+      planOrder: 0, label: '新步骤一', status: 'completed',
+      planDescription: '第一项', result: '产出1', stepCollapsed: true,
+    })
+    expect(planSegs[1]).toMatchObject({ planOrder: 1, label: '新步骤二', status: 'running', stepCollapsed: true })
+    expect(planSegs[2]).toMatchObject({ planOrder: 2, label: '新步骤三', status: 'pending' })
+    // 整体替换后无活动步骤（重规划不认定进行中的项）
+    expect(turns[0].activePlanStepId).toBeUndefined()
+  })
+
+  it('2026-09-04 待办项升级：action_start 带 planOrder/planDescription → FlatRow 透传', () => {
+    const turns = reduceEvent(startTurn(), {
+      type: 'action_start', turnId: 't1', id: 'p1', action: 'plan', label: '步骤', refId: 's1',
+      planOrder: 2, planDescription: '第三项说明',
+    })
+    const actionRow = flattenTurn(turns[0]).find((r) => r.type === 'action') as any
+    expect(actionRow.planOrder).toBe(2)
+    expect(actionRow.planDescription).toBe('第三项说明')
+  })
+
+  it('2026-09-04 待办项升级：plan_step_status autoCollapse 只作用于回源注入路径', () => {
+    let turns = startTurn()
+    turns = reduceEvent(turns, { type: 'action_start', turnId: 't1', id: 'p1', action: 'plan', label: '步骤一', refId: 's1' })
+    turns = reduceEvent(turns, { type: 'action_start', turnId: 't1', id: 'p2', action: 'plan', label: '步骤二', refId: 's2' })
+    // s1 激活（running 展开 stepCollapsed=false）
+    turns = reduceEvent(turns, { type: 'plan_step_status', turnId: 't1', stepId: 's1', status: 'running' })
+    expect((turns[0].segments.find((s) => s.id === 'p1') as any).stepCollapsed).toBe(false)
+    // 无 autoCollapse + 非激活（s1 在跑，s2 收口）→ 保持原态（undefined）
+    turns = reduceEvent(turns, { type: 'plan_step_status', turnId: 't1', stepId: 's2', status: 'completed' })
+    expect((turns[0].segments.find((s) => s.id === 'p2') as any).stepCollapsed).toBeUndefined()
+    // s1 运行中完成 → 自动折叠（wasActive）
+    turns = reduceEvent(turns, { type: 'plan_step_status', turnId: 't1', stepId: 's1', status: 'completed' })
+    expect((turns[0].segments.find((s) => s.id === 'p1') as any).stepCollapsed).toBe(true)
+    // 回源注入：无激活步骤 + autoCollapse → 一律折叠
+    turns = reduceEvent(turns, { type: 'plan_step_status', turnId: 't1', stepId: 's1', status: 'completed', autoCollapse: true })
+    expect((turns[0].segments.find((s) => s.id === 'p1') as any).stepCollapsed).toBe(true)
   })
 })
 
