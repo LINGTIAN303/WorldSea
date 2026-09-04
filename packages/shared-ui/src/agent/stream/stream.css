@@ -49,21 +49,17 @@
   background: var(--agent-hover-bg);
 }
 
-/* ===== Think 行（动态折叠推理流） ===== */
+/* ===== Think 行（动态折叠推理流） =====
+   2026-09-04 折叠条文字化：整行不再 hover 背景高亮，光标/高亮收窄到标题文字行（head） */
 .ws-stream-think {
   /* 纯文本/浅底单行扁平样式，无卡片边框 */
   width: 100%;
-  cursor: pointer;
   user-select: none;
   font-size: var(--font-size-sm);
   color: var(--agent-text-secondary);
   padding: 2px 4px;
   margin: 1px 0;
   border-radius: 4px;
-  transition: background 0.15s;
-}
-.ws-stream-think:hover {
-  background: var(--agent-hover-bg);
 }
 /* 标题行常驻：点击展开/收起时自身位置不动（accordion 语义），下方内容被推下 */
 .ws-stream-think-head {
@@ -72,6 +68,17 @@
   flex-wrap: nowrap;
   min-width: 0;
   width: 100%;
+  border-radius: 4px;
+  cursor: pointer;
+  outline: none;
+}
+.ws-stream-think-head:focus-visible {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--agent-primary) 45%, transparent);
+}
+/* hover 高亮在文字上：标题淡底 + 摘要走 ws-fold-text 平移扫过（见全局动画节） */
+.ws-stream-think-head:hover .ws-stream-think-title {
+  background: color-mix(in srgb, var(--agent-primary) 10%, transparent);
+  border-radius: 3px;
 }
 .ws-stream-think-title {
   display: inline-flex;
@@ -145,7 +152,8 @@
   scroll-behavior: auto;
 }
 
-/* ===== Tool 行（扁平单行） ===== */
+/* ===== Tool 行（扁平单行） =====
+   2026-09-04 折叠条文字化：整行不再 hover 背景高亮，光标/高亮收窄到文字主体（main span） */
 .ws-stream-tool {
   width: 100%;
   border-radius: 6px;
@@ -158,10 +166,22 @@
   align-items: center;
   gap: 6px;
   padding: 4px 6px;
-  cursor: pointer;
 }
-.ws-stream-tool-summary:hover {
-  background: var(--agent-hover-bg);
+/* 文字主体（点击区）：占用剩余宽度，ellipsis 在子 span 上；focus-visible 焦点环 */
+.ws-stream-tool-summary-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  border-radius: 4px;
+  outline: none;
+}
+.ws-stream-tool-summary-main:focus-visible {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--agent-primary) 45%, transparent);
+}
+.ws-stream-tool-summary-main.is-failed {
+  cursor: default;
 }
 /* 状态点：running 主色脉冲；completed/failed 用 ✓/✗ 图标 */
 .ws-stream-tool-dot {
@@ -348,6 +368,30 @@
 }
 .ws-stream-tool-detail-result { max-height: 300px; }
 
+/* 2026-09-04 结果/输出块结构化渲染：工具详情参数/结果 JSON 的 Prism token 配色。
+   与 agent-markdown.css 同源（同 --agent-* 语义），覆盖非 md 容器内的 code。 */
+.ws-stream-tool-detail code .token.comment,
+.ws-stream-tool-detail code .token.prolog,
+.ws-stream-tool-detail code .token.doctype,
+.ws-stream-tool-detail code .token.cdata {
+  color: var(--agent-text-tertiary, #888);
+  font-style: italic;
+}
+.ws-stream-tool-detail code .token.punctuation { color: var(--agent-text-secondary, #aaa); }
+.ws-stream-tool-detail code .token.keyword,
+.ws-stream-tool-detail code .token.selector,
+.ws-stream-tool-detail code .token.tag { color: var(--agent-info, #3b82f6); }
+.ws-stream-tool-detail code .token.string,
+.ws-stream-tool-detail code .token.attr-value { color: var(--agent-success, #22c55e); }
+.ws-stream-tool-detail code .token.number,
+.ws-stream-tool-detail code .token.boolean,
+.ws-stream-tool-detail code .token.constant { color: var(--agent-warning, #eab308); }
+.ws-stream-tool-detail code .token.function,
+.ws-stream-tool-detail code .token.class-name { color: var(--agent-primary, #8b87f8); }
+.ws-stream-tool-detail code .token.operator { color: var(--agent-text-secondary, #aaa); }
+.ws-stream-tool-detail code .token.property,
+.ws-stream-tool-detail code .token.variable { color: var(--agent-segment-thinking, #a78bfa); }
+
 /* ===== 轮次三层结构（① 用户层 / ② 过程层 / ③ 结果层）=====
  * 设计约束（用户拍板）：
  *  - 轮次之间仅 8px gap，不加分隔线（靠用户消息气泡天然分界）；
@@ -381,12 +425,14 @@
   margin-top: 0;
 }
 
-/* 结果层与过程文本段的视觉区分：仅字重微调 + 过程段弱化
+/* 结果层与过程文本段的视觉区分：文字颜色统一（用户拍板，2026-09-04）
+ * ——过程文本段颜色提升为与结果层一致的 --agent-text，仅保留字重微调区分。
+ * md 渲染已由 AssistantRow 的 useMarkdownRender（ws-agent-md + Prism 高亮）承担。
  * 注意：不在此处改 font-size——ws-assistant-text 上的 agentFontStyle 是 inline style，
  * CSS 覆盖不生效，字号差异需由 persona 字体体系统一处理。 */
 .ws-turn-process .ws-assistant-row .ws-assistant-text {
   font-weight: 400;
-  color: var(--agent-text-secondary);
+  color: var(--agent-text);
 }
 .ws-turn-result .ws-assistant-row.is-result .ws-assistant-text {
   font-weight: 500;
@@ -431,6 +477,83 @@
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }
 }
+
+/* ═══ 统一等候动画（2026-09-04 用户拍板）：高亮平移文字 ═══
+   一行文字上方一道主色高亮带从右——左向右循环平移扫过。
+   同时作为行段折叠条「文字内联高亮」的动效源（hover 一次性涂入时用 .ws-shine-text-offhov 关闭循环，
+   见 ThinkRow/ToolRow scoped 样式）。流区全局类：StreamingPlaceholder 与行段组件共用。 */
+.ws-shine-text {
+  position: relative;
+  display: inline-block;
+  overflow: hidden;
+  border-radius: 2px;
+}
+.ws-shine-text::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(100deg,
+      transparent 20%,
+      color-mix(in srgb, var(--agent-primary) 13%, transparent) 42%,
+      color-mix(in srgb, var(--agent-primary) 30%, transparent) 50%,
+      color-mix(in srgb, var(--agent-primary) 13%, transparent) 58%,
+      transparent 80%);
+  background-size: 45% 100%;
+  background-repeat: no-repeat;
+  animation: ws-shine-sweep 1.8s ease-in-out infinite;
+}
+@keyframes ws-shine-sweep {
+  0% { background-position: -45% 0; }
+  55%, 100% { background-position: 145% 0; }
+}
+:root[data-anim-messages='off'] .ws-shine-text::after {
+  animation: none;
+  display: none;
+}
+
+/* ═══ 折叠条文字内联高亮（2026-09-04）：高亮行条 → 高亮平移过渡文字 ═══
+   hover 时一道主色高亮带从文字左缘向右平移扫过（0.5s 一次），并驻留淡底；
+   与等候动画（ws-shine-text）同一视觉语言，running 态行段标题走循环版。 */
+.ws-fold-text {
+  position: relative;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 0.22s ease;
+}
+.ws-fold-text::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 3px;
+  pointer-events: none;
+  background: linear-gradient(90deg,
+    transparent,
+    color-mix(in srgb, var(--agent-primary) 9%, transparent) 40%,
+    color-mix(in srgb, var(--agent-primary) 26%, transparent) 50%,
+    color-mix(in srgb, var(--agent-primary) 9%, transparent) 60%,
+    transparent);
+  transform: translateX(-110%);
+}
+@keyframes ws-fold-sweep {
+  0% { transform: translateX(-110%); }
+  100% { transform: translateX(110%); }
+}
+.ws-stream-think-head:hover .ws-fold-text,
+.ws-stream-tool-summary:hover .ws-fold-text,
+.ws-fold-text:hover {
+  background: color-mix(in srgb, var(--agent-primary) 10%, transparent);
+}
+.ws-stream-think-head:hover .ws-fold-text::after,
+.ws-stream-tool-summary:hover .ws-fold-text::after,
+.ws-fold-text:hover::after {
+  animation: ws-fold-sweep 0.5s ease-out;
+}
+:root[data-anim-messages='off'] .ws-fold-text::after {
+  animation: none !important;
+}
+
 @keyframes ws-stream-row-in {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }

@@ -74,29 +74,26 @@
         @open-detail="onOpenDetail"
       />
 
-      <!-- 流式输出占位符 + 思考中提示；O5：编排 run 活跃时不显示（编排段已承载运行态，避免三处运行态并存） -->
+      <!-- 统一等候动画（2026-09-04）：高亮平移文字，运行时（isStreaming）常驻；
+           O5：编排 run 活跃时不显示（编排段已承载运行态）
+           —— 替代原 StreamingPlaceholder scanner/思考中 + TurnStatus 三态分叉 -->
       <StreamingPlaceholder
-        v-if="!activeRun"
-        :is-streaming="isStreaming"
-        :last-assistant-has-content="lastAssistantHasContent"
-        :last-assistant-has-thinking="lastAssistantHasThinking"
-        :enter-animation="enterAnimation"
-        :dot-text="dotText"
+        v-if="!activeRun && isStreaming"
+        :start-time="turnStartTime"
       >
         <template #icon>
           <WorldSmithLogo :size="15" :radius="4" />
         </template>
       </StreamingPlaceholder>
 
-      <!-- Phase 5：会话标题生成中等候动画（首条消息后、LLM 标题落地前显示，复用思考中省略号） -->
-      <Transition name="title-pending">
-        <div v-if="sessionTitlePending?.[currentSessionId] && !isStreaming" class="title-pending">
-          <span class="title-pending-label">正在生成会话标题</span><span class="title-pending-dots">{{ titleDotText }}</span>
-        </div>
+      <!-- 会话标题生成中等候（首条消息后、标题落地前显示；纳入统一形态的 compact 小号版） -->
+      <Transition name="fade">
+        <StreamingPlaceholder
+          v-if="sessionTitlePending?.[currentSessionId] && !isStreaming"
+          :text="'正在生成会话标题'"
+          compact
+        />
       </Transition>
-
-      <!-- [④] Turn 状态：整 running turn 常驻 + 耗时（≥15s 显示） -->
-      <TurnStatus :running="isStreaming" :start-time="turnStartTime" />
 
       <!-- [⑥] 会话错误行：由 activity log error 项派生 -->
       <ErrorRows :error="turnError" />
@@ -134,14 +131,13 @@
 import { ref, computed, watch, nextTick } from 'vue'
 import AgentStreamList from '@worldsmith/shared-ui/agent/stream/AgentStreamList.vue'
 import A2UIRenderer from '@worldsmith/shared-ui/agent/a2ui/A2UIRenderer.vue'
-import { usePersonaFont } from '../space/composables/usePersonaFont'
 import { useAgent } from './composables/useAgent'
 import { useActivityLog } from './composables/useActivityLog'
 import { useArchiveStore } from '../stores/archiveStore'
 import { watchDebounced } from '@worldsmith/perf-kit/render'
 import type { AgentMessage } from '@agent/index'
 import type { AgentStreamItem, ChatMode } from '@worldsmith/shared-composables/agent/useAgent'
-import { useDotAnimation, useMessageWindowing, useProcessCollapse, MessageListEmpty, ArchivedSection, StreamingPlaceholder, ScrollToBottomButton, DotNav, TurnStatus, ErrorRows } from '@worldsmith/shared-ui/agent/message-list'
+import { useMessageWindowing, useProcessCollapse, MessageListEmpty, ArchivedSection, StreamingPlaceholder, ScrollToBottomButton, DotNav, ErrorRows } from '@worldsmith/shared-ui/agent/message-list'
 // M2：编排迹线（useOrchestrationTrace 聚合 + 编排段渲染）
 import OrchestrationSegment from './components/OrchestrationSegment.vue'
 import { useOrchestrationTrace } from './composables/useOrchestrationTrace'
@@ -152,8 +148,7 @@ import type { ExecTab } from '@/space/stores/space-store'
 import WorldSmithLogo from '@/components/brand/WorldSmithLogo.vue'
 import ProjectSwitcher from '@/ui/project/ProjectSwitcher.vue'
 
-const { enterAnimation } = usePersonaFont()
-const { agentStream, isStreaming: agentIsStreaming, resolveToolConfirmation, sessionTitlePending, currentSessionId, setProcessCollapsed, markTurnExpanded, autoCollapseProcess, turns, applyTurnEvent } = useAgent()
+const { agentStream, resolveToolConfirmation, sessionTitlePending, currentSessionId, setProcessCollapsed, markTurnExpanded, autoCollapseProcess, turns, applyTurnEvent } = useAgent()
 const archiveStore = useArchiveStore()
 const { logs: activityLogs } = useActivityLog()
 // total_steps 预算横幅：latestStepBudget 由 event bridge 流通道 step_budget_warning 刷新
@@ -370,15 +365,6 @@ const archiveSummaryText = computed(() => {
 /** 所有用户消息（供点状导航使用，锚定 id 与事件流中 user 行 id 一致） */
 const userMessages = computed(() => props.messages.filter(m => m.role === 'user'))
 
-/** 思考中省略号动画（isStreaming 变化时自动启停） */
-const { dotText } = useDotAnimation(agentIsStreaming)
-
-/** Phase 5：会话标题生成中等候动画开关（当前会话首条消息后标题落地前，且不在流式输出时）。
- *  按 currentSessionId 取隔离标记，避免切会话后串扰到其他会话。 */
-const titleDotOn = computed(() => Boolean(sessionTitlePending?.value?.[currentSessionId.value]) && !props.isStreaming)
-/** 标题生成中等候省略号动画（与思考中动画同源 useDotAnimation 复用「思考中」占位形态） */
-const { dotText: titleDotText } = useDotAnimation(titleDotOn)
-
 /** 行级高度分桶估算（止血包③）：事件行高度分布极端不均（tool 行 ~32px vs 长 markdown 行数千 px），
  *  全局平均估算两头失真导致窗口切片/占位高度大幅偏差；按行类型给矮行固定估值，高行回落测量平均 */
 function estimateRowHeight(row: AgentStreamItem): number | undefined {
@@ -523,29 +509,5 @@ defineExpose({
 }
 .banner-continue:hover {
   background: color-mix(in srgb, var(--color-primary) 18%, transparent);
-}
-
-/* Phase 5：会话标题生成中等候动画 */
-.title-pending {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  font-size: var(--font-size-2xs);
-  color: var(--color-text-tertiary);
-  padding: 2px 4px;
-}
-.title-pending-dots {
-  color: var(--color-text-tertiary);
-  letter-spacing: 1px;
-}
-.title-pending-enter-active {
-  transition: opacity 0.2s ease;
-}
-.title-pending-leave-active {
-  transition: opacity 0.15s ease;
-}
-.title-pending-enter-from,
-.title-pending-leave-to {
-  opacity: 0;
 }
 </style>

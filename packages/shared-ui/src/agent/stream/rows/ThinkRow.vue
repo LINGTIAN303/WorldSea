@@ -11,21 +11,25 @@
     :data-msg-id="item.id"
     :data-animating="animating ? '' : undefined"
     :data-follow-end="isStreaming ? '' : undefined"
-    role="button"
-    tabindex="0"
-    :aria-expanded="isOpen"
-    @click="toggle"
-    @keydown.enter.prevent="toggle"
-    @keydown.space.prevent="toggle"
     @mouseenter="emit('hover', item.id)"
     @mouseleave="emit('leave')"
   >
-    <div class="ws-stream-think-head">
-      <span class="ws-stream-think-title">
+    <!-- 2026-09-04 折叠条文字化：点击/焦点收窄到标题文字行（head）；
+         hover 高亮从整行背景改为文字内联高亮（ws-fold-text 平移涂入 + 常驻淡底） -->
+    <div
+      class="ws-stream-think-head"
+      role="button"
+      tabindex="0"
+      :aria-expanded="isOpen"
+      @click="toggle"
+      @keydown.enter.prevent="toggle"
+      @keydown.space.prevent="toggle"
+    >
+      <span class="ws-stream-think-title" :class="{ 'ws-shine-text': isStreaming }">
         <WsIcon name="chevron-right" size="xs" class="ws-stream-think-chevron" />{{ label }}
       </span>
       <!-- 折叠态：单行摘要（标题行常驻；展开时摘要隐藏，正文接管空间） -->
-      <span v-if="!isOpen" class="ws-stream-think-summary">{{ summary }}</span>
+      <span v-if="!isOpen" class="ws-stream-think-summary ws-fold-text">{{ summary }}</span>
     </div>
     <!-- 展开态：可折叠容器（grid-rows 0fr→1fr 高度动画 + 内容虚化→凝实）。
          标题行位置不动，下方内容被展开高度顺滑推下（accordion 语义）。 -->

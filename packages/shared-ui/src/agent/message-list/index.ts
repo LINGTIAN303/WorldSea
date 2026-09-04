@@ -9,7 +9,6 @@ export { default as MessageListEmpty } from './MessageListEmpty.vue'
 export { default as ArchivedSection } from './ArchivedSection.vue'
 export { default as DotNav } from './DotNav.vue'
 export { default as DeepUserBar } from './DeepUserBar.vue'
-export { default as TurnStatus } from './TurnStatus.vue'
 export { default as ErrorRows, type ErrorRowItem } from './ErrorRows.vue'
 export {
   formatDividerTime,
@@ -20,7 +19,6 @@ export {
   type DisplayItem,
 } from './utils'
 export { useMessageWindowing } from './useMessageWindowing'
-export { useDotAnimation } from './useDotAnimation'
 export {
   useProcessCollapse,
   decideCollapse,

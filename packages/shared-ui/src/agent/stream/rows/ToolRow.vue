@@ -22,15 +22,10 @@
     />
     <!-- 普通工具：扁平单行 -->
     <template v-else>
+      <!-- 2026-09-04 折叠条文字化：整行不再可点/高亮，点击与 hover 高亮收窄到文字主体（main span） -->
       <div
         class="ws-stream-tool-summary"
         :class="[`kind-${rowKind}`, { 'is-failed': isFailed }]"
-        role="button"
-        tabindex="0"
-        :aria-expanded="isExpanded"
-        @click="toggleExpand"
-        @keydown.enter.prevent="toggleExpand"
-        @keydown.space.prevent="toggleExpand"
       >
         <!-- 状态点：running 脉冲点；completed/failed 用 ✓/✗ 图标 -->
         <span class="ws-stream-tool-dot" :class="item.tc.status" v-if="item.tc.status === 'running'"></span>
@@ -38,31 +33,43 @@
         <WsIcon v-else name="x" size="xs" class="ws-stream-tool-icon-fail" />
         <!-- 操作分类单字角标（弱提示分级，无卡片盒子） -->
         <span class="ws-stream-tool-mark" :class="op">{{ mark }}</span>
-        <!-- 语义动词 + 操作对象名（操作行段主体） -->
-        <span class="ws-stream-tool-verb">{{ verb }}</span>
-        <span v-if="subject" class="ws-stream-tool-subject">{{ subject }}</span>
-        <span class="ws-stream-tool-name">({{ label }})</span>
-        <!-- 失败直显错误摘要（不展开）；成功展示效果标签 -->
-        <span v-if="!isFailed && effect" class="ws-stream-tool-effect">{{ effect }}</span>
-        <!-- 执行耗时（H7 P0.5 事件权威字段；shell 类 effect 已含时长则不重复显示） -->
-        <span v-if="durationText" class="ws-stream-tool-duration">{{ durationText }}</span>
-        <span v-if="isFailed" class="ws-stream-tool-error">{{ errorText }}</span>
-        <span v-else-if="argsPreview" class="ws-stream-tool-args">{{ argsPreview }}</span>
-        <!-- 成功才渲染可展开的 chevron；失败显示提示（不可展开） -->
+        <!-- 文字主体：语义动词 + 操作对象 + 工具名 + 效果/耗时/参数摘要；点击展开详情 -->
+        <span
+          class="ws-stream-tool-summary-main ws-fold-text"
+          :class="{ 'is-failed': isFailed }"
+          role="button"
+          tabindex="0"
+          :aria-expanded="isExpanded"
+          @click="toggleExpand"
+          @keydown.enter.prevent="toggleExpand"
+          @keydown.space.prevent="toggleExpand"
+        >
+          <span class="ws-stream-tool-verb">{{ verb }}</span>
+          <span v-if="subject" class="ws-stream-tool-subject">{{ subject }}</span>
+          <span class="ws-stream-tool-name">({{ label }})</span>
+          <!-- 失败直显错误摘要（不展开）；成功展示效果标签 -->
+          <span v-if="!isFailed && effect" class="ws-stream-tool-effect">{{ effect }}</span>
+          <!-- 执行耗时（H7 P0.5 事件权威字段；shell 类 effect 已含时长则不重复显示） -->
+          <span v-if="durationText" class="ws-stream-tool-duration">{{ durationText }}</span>
+          <span v-if="isFailed" class="ws-stream-tool-error">{{ errorText }}</span>
+          <span v-else-if="argsPreview" class="ws-stream-tool-args">{{ argsPreview }}</span>
+        </span>
+        <!-- 失败直显提示（不可展开）；成功显示可展开 chevron -->
         <span v-if="isFailed" class="ws-stream-tool-failed-hint">已失败</span>
         <WsIcon v-else name="chevron-right" size="xs" class="ws-stream-tool-chevron" :class="{ open: isExpanded }" />
       </div>
       <!-- 展开详情（参数 JSON + 结果；失败直显、不展开）。collapse 动画：摘要行位置不动，
-           详情 0fr→1fr 平滑展开，内容 opacity+位移 虚化→凝实（与 ThinkRow 时序一致） -->
+           详情 0fr→1fr 平滑展开，内容 opacity+位移 虚化→凝实（与 ThinkRow 时序一致）。
+           2026-09-04 结构化渲染：参数/结果 JSON 走 Prism 语法高亮（v-html，token 配色见 stream.css） -->
       <div v-if="!isFailed" class="ws-stream-tool-collapse" :class="{ open: isExpanded }" :aria-hidden="!isExpanded">
         <div class="ws-stream-tool-detail" @click.stop>
           <div v-if="hasArgs" class="ws-stream-tool-detail-sec">
             <div class="ws-stream-tool-detail-label">参数</div>
-            <pre class="ws-stream-tool-detail-code">{{ formatJson(item.tc.args) }}</pre>
+            <pre class="ws-stream-tool-detail-code" v-html="argsHtml"></pre>
           </div>
           <div v-if="item.tc.result" class="ws-stream-tool-detail-sec">
             <div class="ws-stream-tool-detail-label">结果</div>
-            <pre class="ws-stream-tool-detail-code ws-stream-tool-detail-result">{{ formatResult(item.tc.result) }}</pre>
+            <pre class="ws-stream-tool-detail-code ws-stream-tool-detail-result" v-html="resultHtml"></pre>
           </div>
         </div>
       </div>
@@ -103,6 +110,7 @@ import { computed, ref, watch, nextTick, onBeforeUnmount } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
 import InteractiveToolCall from '../../blocks/InteractiveToolCall.vue'
 import { getToolLabel } from '../../bubbles/toolLabels'
+import { highlightCode } from '../../bubbles/codeHighlight'
 import { classifyActionRowKind, TOOL_STREAM_LIMIT } from '@worldsmith/shared-composables/agent/turnModel'
 import {
   getOpKind,
@@ -230,8 +238,37 @@ function toggleExpand() {
   if (isExpanded.value) emit('expand')
 }
 
-// ===== 参数/结果格式化（复用 InlineToolCall 逻辑代码） =====
+// ===== 参数/结果 JSON 结构化渲染（2026-09-04）：Prism 语法高亮，失败回退转义文本 =====
 const hasArgs = computed(() => Object.keys(props.item.tc.args).length > 0)
+
+/** 代码块文本转义回退（高亮器返回 null 时用；Prism 输出已自行转义） */
+function escapeHtmlForCode(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
+/** 参数 JSON 高亮（保留原无截断展示语义） */
+const argsHtml = computed(() => {
+  const args = props.item.tc.args
+  if (Object.keys(args).length === 0) return ''
+  const json = JSON.stringify(args, null, 2)
+  return highlightCode(json, 'json') ?? escapeHtmlForCode(json)
+})
+
+/** 结果区：JSON 可解析 → prettify + 高亮；纯文本 → 转义原文（沿用原 2000 字符截断） */
+const resultHtml = computed(() => {
+  const r = props.item.tc.result
+  if (!r) return ''
+  let parsed: unknown = null
+  try {
+    parsed = JSON.parse(r)
+  } catch {
+    parsed = null
+  }
+  const text = parsed !== null ? JSON.stringify(parsed, null, 2) : r
+  const short = text.length > 2000 ? text.slice(0, 1997) + '...' : text
+  if (parsed !== null) return highlightCode(short, 'json') ?? escapeHtmlForCode(short)
+  return escapeHtmlForCode(short)
+})
 
 /** 参数摘要：优先关键参数的一行预览 */
 const argsPreview = computed(() => {
@@ -253,25 +290,6 @@ const argsPreview = computed(() => {
   }
   return keys.slice(0, 3).map(k => `${k}=${JSON.stringify(args[k])}`).join(', ')
 })
-
-function formatJson(obj: Record<string, unknown>): string {
-  try {
-    return JSON.stringify(obj, null, 2)
-  } catch {
-    return String(obj)
-  }
-}
-
-function formatResult(result: string): string {
-  if (!result) return ''
-  try {
-    const parsed = JSON.parse(result)
-    const str = JSON.stringify(parsed, null, 2)
-    return str.length > 2000 ? str.slice(0, 1997) + '...' : str
-  } catch {
-    return result.length > 2000 ? result.slice(0, 1997) + '...' : result
-  }
-}
 
 // ===== 2026-09-02 系统工具流式：增量输出（stream）+ 文件变更（fileChange） =====
 
