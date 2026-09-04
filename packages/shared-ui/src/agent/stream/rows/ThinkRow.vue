@@ -82,11 +82,13 @@ function markAnimating(): void {
   }, 320) // 展开 200ms + 内容 delay 80ms + 余量
 }
 
-// ===== 思维折叠（label='模型推理'，defaultOpen=running）；N5：标题统一「模型推理」——
-// 判型/回答阶段推理块语言可能混排（中英），统一标题弱化观感差异 =====
+/**
+ * 2026-09-04 用户拍板：运行中的行段默认折叠（流式输出与结束都不展开，仅手动展开）。
+ * defaultOpen 恒定 false——推理段运行中也不展开，折叠条前缀「模型推理」+ 流光即可传达运行态。
+ */
 const { label, isOpen, toggle: toggleFold } = useThinkingFold(
   () => '模型推理',
-  () => isStreaming.value,
+  () => false,
 )
 
 /**

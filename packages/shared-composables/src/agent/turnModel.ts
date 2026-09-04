@@ -406,7 +406,7 @@ export function reduceEvent(turns: Turn[], event: TurnEvent): Turn[] {
       // 子轮开始：闭合上一段，使新一轮的推理/文本各自起新段
       const ti = lastTurnIndex(turns)
       if (ti < 0 || turns[ti].id !== event.turnId) return turns
-      return replaceTurn(turns, ti, closeLastSegment(turns[ti]))
+      return replaceTurn(turns, ti, closeStreamingSegments(turns[ti]))
     }
 
     case 'reasoning': {
@@ -603,7 +603,7 @@ export function reduceEvent(turns: Turn[], event: TurnEvent): Turn[] {
     case 'round_end': {
       const ti = lastTurnIndex(turns)
       if (ti < 0 || turns[ti].id !== event.turnId) return turns
-      let turn = closeLastSegment(turns[ti])
+      let turn = closeStreamingSegments(turns[ti])
       // fullText 为权威文本：校正增量累积的丢失/截断；无候选时新建段
       // （空串表示本轮无正文，如纯工具调用轮，不建段）
       if (event.fullText) turn = upsertTextSegment(turn, event.fullText, 'complete', event.textId)
@@ -682,7 +682,7 @@ export function reduceEvent(turns: Turn[], event: TurnEvent): Turn[] {
     case 'turn_end': {
       const ti = lastTurnIndex(turns)
       if (ti < 0 || turns[ti].id !== event.turnId) return turns
-      let turn = closeLastSegment(turns[ti])
+      let turn = closeStreamingSegments(turns[ti])
       // finalText 为权威结果层内容
       if (event.finalText) turn = upsertTextSegment(turn, event.finalText, 'complete')
       // 收口未完成的动作段：轮次已结束而动作仍 running → 中断或异常终止，避免命令段永久转圈
@@ -713,14 +713,27 @@ function settleRunningActions(turn: Turn): Turn {
   }
 }
 
-/** 闭合最后一个流式中行段（置为 complete） */
-function closeLastSegment(turn: Turn): Turn {
-  const li = turn.segments.length - 1
-  if (li < 0) return turn
-  const seg = turn.segments[li]
-  if (seg.kind === 'action') return turn // 动作段由 action_end 收口
-  if (seg.status === 'complete') return turn
-  return replaceSegment(turn, li, { ...seg, status: 'complete' })
+/**
+ * 收口未完成的流式段（think/text 置 complete）
+ *
+ * 2026-09-04 修复：原 closeLastSegment 只闭最后一个段，计划步骤串行推进时
+ * （claimIntoActiveStep 归集子段）中间推理段可能永不被关 → 永久 streaming →
+ * 渲染层永久流光（用户反馈「模型推理段全部流光」）。轮次推进（round_start/
+ * round_end/turn_end）时收口所有流式段：一轮内只允许一个活动 think/text 段
+ * （reasoning/text_delta 仅在最后一段仍 streaming 时 append），批量关闭无副作用。
+ */
+function closeStreamingSegments(turn: Turn): Turn {
+  if (!turn.segments.some((s) => (s.kind === 'think' || s.kind === 'text') && s.status === 'streaming')) {
+    return turn
+  }
+  return {
+    ...turn,
+    segments: turn.segments.map((s) =>
+      (s.kind === 'think' || s.kind === 'text') && s.status === 'streaming'
+        ? { ...s, status: 'complete' as const }
+        : s,
+    ),
+  }
 }
 
 /** 批量归约：按序应用事件列表 */

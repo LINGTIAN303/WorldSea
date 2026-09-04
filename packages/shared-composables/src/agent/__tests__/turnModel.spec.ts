@@ -824,4 +824,37 @@ describe('R6 第三部分：动作段事件翻译与回源重建', () => {
     expect(turns[0].segments.length).toBeGreaterThan(0)
     expect(resultSegment(turns[0])?.text).toBe('回复')
   })
+
+  it('2026-09-04：轮次推进时收口所有流式段——中间推理段不再永久 streaming（流光根因回归）', () => {
+    // 两段推理之间插入工具动作；第二轮 round_start 应把第一轮推理段也收口为 complete
+    const turns = reduceEvents([], [
+      { type: 'turn_start', turnId: 't1', userMessage: { id: 'u1', text: '任务', timestamp: 1 } },
+      { type: 'round_start', turnId: 't1' },
+      { type: 'reasoning', turnId: 't1', delta: '第一步思考' },
+      { type: 'action_start', turnId: 't1', id: 'a1', action: 'tool' as const, label: 'read_file', refId: 'r1', args: {} },
+      { type: 'round_start', turnId: 't1' },
+      { type: 'reasoning', turnId: 't1', delta: '第二步思考' },
+      { type: 'round_end', turnId: 't1' },
+      { type: 'turn_end', turnId: 't1', status: 'complete' },
+    ])
+    const thinks = turns[0].segments
+      .filter((s) => s.kind === 'think')
+      .map((s) => (s as { status: string }).status)
+    expect(thinks.length).toBe(2)
+    expect(thinks.every((s) => s === 'complete')).toBe(true)
+  })
+
+  it('2026-09-04：回源重建后推理段全部收口为 complete（不可能在渲染层永久流光）', () => {
+    const rebuilt = rebuildFromMessages([
+      { role: 'user', content: '第一问' } as never,
+      { role: 'assistant', content: '答一', meta: { thinking: '推理一' } } as never,
+      { role: 'user', content: '第二问' } as never,
+      { role: 'assistant', content: '答二', meta: { thinking: '推理二' } } as never,
+    ] as never)
+    const thinks = rebuilt.flatMap((t) =>
+      t.segments.filter((s) => s.kind === 'think').map((s) => (s as { status: string }).status),
+    )
+    expect(thinks.length).toBe(2)
+    expect(thinks.every((s) => s === 'complete')).toBe(true)
+  })
 })
