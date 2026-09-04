@@ -274,6 +274,11 @@ function withProcessAnchor(turnId: string, mutate: () => void): void {
  * 折叠态写在 Turn 上（含 processPeeked 常驻头行标记），切会话后仍一致
  */
 function onExpandProcess(turnId: string): void {
+  // 底部展开补丁（2026-09-05 用户建议）：底部跟随态下点击总折叠头是主动交互——
+  // 先解除跟随，让 withProcessAnchor 的锚定补偿生效（视口停住看展开的过程层，
+  // 结果层随内容下移）。否则补偿后 50ms 内流式跟随（watchDebounced）会把视口
+  // 贴回底部，结果层被钉在最底部、展开内容全部顶在视口上方看不见。
+  isAtBottom.value = false
   const turn = turns.value.find(
     (t: { id: string; processCollapsed: boolean }) => t.id === turnId,
   )

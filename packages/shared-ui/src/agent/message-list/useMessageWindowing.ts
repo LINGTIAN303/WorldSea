@@ -2,17 +2,13 @@
 import { ref, computed, shallowRef, watch, nextTick, onMounted, onBeforeUnmount, type Ref } from 'vue'
 import type { AgentMessage } from '@worldsmith/agent-runtime'
 
-// 窗口化常量
-const WINDOW_BUFFER = 20          // 视口上下各保留 20 条缓冲，减少滚动时频繁切换
-const INITIAL_RENDER_COUNT = 50   // 初始渲染最近 50 条（覆盖大多数对话首屏）
-const ESTIMATED_ITEM_HEIGHT = 80  // 未测量过的 item 估算高度（px）
-/** 结构突变保底抑制期（ms）：突变瞬间新行未测、前缀和含估算误差，此窗口内 RO 重建
- *  **不做 scrollTop 锚定补偿**——结构突变瞬间用「突变前布局采集的 offset」补偿会算出
- *  荒谬目标值（实测曾把 scrollTop 设成负数 → clamp → 回顶）。 */
-const REBUILD_ANCHOR_SUPPRESS_MS = 380
+// 窗口化常量（2026-09-05 S5 阶段 B：粒度切换为轮次级——测量/切片/占位单元从行改为轮次）
+const WINDOW_BUFFER = 2             // 视口上下各保留 2 个轮次缓冲
+const INITIAL_RENDER_TURNS = 30     // 初始渲染最近 30 个轮次
+const ESTIMATED_ITEM_HEIGHT = 80    // 未估算过的行回退高度（px，行求和兜底用）
 /** 走查 S2（2026-09-05）测量静默判定（收敛信号）：RO 回调静默超此时长视为测量收敛——
- *  保底期（380ms）之外，测量若仍活跃（静默 < 120ms，即仍在逐帧收敛）则继续抑制，
- *  收敛后提前解除。原固定 380ms 在慢机器/长会话上不够（抖动回归），此为自适应补丁。 */
+ *  收敛前（测量活跃）锚定补偿关闭，滚动稳定交宿主 withProcessAnchor；静默后恢复。
+ *  S5 阶段 B 起为唯一抑制信号：轮次级 RO 对布局突变（折叠/新行）自然回调刷新活跃时刻。 */
 const MEASURE_QUIET_MS = 120
 
 /**
@@ -41,22 +37,38 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
 }) {
   const { container, items, messages, estimateHeight, userMsgIds } = options
 
-  // ===== 窗口化状态 =====
+  // ===== 窗口化状态（S5 阶段 B：轮次级）=====
+  /** 可见轮次范围 [visibleStart, visibleEnd)（轮次索引；切片边界强制对齐轮次边界） */
   const visibleStart = ref(0)
-  const visibleEnd = ref(INITIAL_RENDER_COUNT)
-  // 已测量的 item 高度缓存（Map<id, height>），首次渲染后由 ResizeObserver 填充。
-  // 止血包②：以行 id 作 key（原为数组下标——回源重建/切会话后行序变化会导致高度张冠李戴，
-  // 前缀和与占位高度随之错位，滚动位置跳变）。
-  const measuredHeights = new Map<string, number>()
+  const visibleEnd = ref(INITIAL_RENDER_TURNS)
+  /** 轮次高度缓存：WeakMap 以 turn-root 元素为键——turnId 跨会话重复（回源 turn-N 每会话
+   *  从 0 计数），字符串键会张冠李戴；元素键天然免疫。RO 直写。 */
+  const measuredTurnHeights = new WeakMap<Element, number>()
+  /** turnId → turn-root 元素登记（MutationObserver 增量挂载；会话切换时清空） */
+  const turnRootEls = new Map<string, Element>()
   let resizeObserver: ResizeObserver | null = null
   let scrollRafId: number | null = null
 
-  // 前缀和数组 + 动态平均高度：O(log n) 二分查找 + O(1) 占位高度计算
-  // prefixSums[i] = 前 i 个 item 的累计高度；item i 的顶部位置 = prefixSums[i]
+  /** 轮次前缀和数组 + O(1) 占位高度：turnPrefixSums[i] = 前 i 个轮次的累计高度 */
   const prefixSums = shallowRef<Float64Array | null>(null)
-  // 已测量 item 的平均高度（非响应式，仅 rebuildPrefixSums 内部使用）
-  let avgMeasuredHeight = ESTIMATED_ITEM_HEIGHT
   let rebuildRafId: number | null = null
+
+  /** 行按 turnId 分组的轮次边界 [start, end)——切片边界对齐轮次的依据（items 序即文档序） */
+  const turnSegments = computed<{ turnId: string; start: number; end: number }[]>(() => {
+    const all = items.value
+    const out: { turnId: string; start: number; end: number }[] = []
+    let cur: { turnId: string; start: number; end: number } | null = null
+    for (let i = 0; i < all.length; i++) {
+      const tid: string = (all[i] as { turnId?: string }).turnId ?? cur?.turnId ?? `__anon-${i}`
+      if (!cur || cur.turnId !== tid) {
+        cur = { turnId: tid, start: i, end: i + 1 }
+        out.push(cur)
+        continue
+      }
+      cur.end = i + 1
+    }
+    return out
+  })
 
   // ===== 滚动锚定状态 =====
   const isAtBottom = ref(true)
@@ -70,27 +82,24 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
   /** 走查 S2：最近一次 RO 测量批次时刻（收敛信号判定用） */
   let lastMeasurementAt = 0
 
-  /** 抑制判定（走查 S2）：突变保底期内，或测量仍在活跃收敛（静默 < 120ms）时为真 */
+  /** 抑制判定（走查 S2/S5）：测量仍在活跃收敛（静默 < 120ms）时为真——轮次级 RO 对
+   *  布局突变（折叠/新行）自然回调刷新 lastMeasurementAt，无需结构突变单独标记 */
   function isMeasureSuppressActive(): boolean {
-    return (
-      Date.now() - lastStructuralChangeAt < REBUILD_ANCHOR_SUPPRESS_MS ||
-      Date.now() - lastMeasurementAt < MEASURE_QUIET_MS
-    )
+    return Date.now() - lastMeasurementAt < MEASURE_QUIET_MS
   }
 
   /**
-   * 走查 S3（2026-09-05）视口顶部基准行采集——锚定补偿共用工具：
-   * 返回首个 bottom 越过视口顶的可见行（id + 相对视口顶偏移）。过滤 v-show 隐藏行
-   * （rect 全 0，满足 bottom>=topY，会被误选为锚 → 抖动修复⑯ 同规则）。
-   * 此前 rebuild 锚定 / 切窗锚定两处各自实现，曾因只改一处漏掉另一处出过回归。
+   * 走查 S3/S5：视口顶部基准**轮次**采集——切窗/重建锚定共用。
+   * 返回首个 bottom 越过视口顶的轮次（turnId + 相对视口顶偏移）。
+   * 过滤 v-show 隐藏元素（rect 全 0 会被误选为锚，抖动修复⑯/⑮-d 同规则）。
    */
-  function collectTopAnchorRow(scroll: HTMLElement): { id: string | null; offset: number } {
+  function collectTopAnchorTurn(scroll: HTMLElement): { id: string | null; offset: number } {
     const topY = scroll.getBoundingClientRect().top
-    for (const el of scroll.querySelectorAll('[data-msg-id]')) {
+    for (const el of scroll.querySelectorAll('[data-turn-root]')) {
       if ((el as HTMLElement).offsetParent === null) continue
       const r = el.getBoundingClientRect()
       if (r.bottom >= topY) {
-        return { id: el.getAttribute('data-msg-id'), offset: r.top - topY }
+        return { id: el.getAttribute('data-turn-root'), offset: r.top - topY }
       }
     }
     return { id: null, offset: 0 }
@@ -114,65 +123,52 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
   const observedMsgEls = new WeakSet<Element>()
 
   /**
-   * 重建前缀和数组 + 计算已测量 item 平均高度。
-   * 调用时机：ResizeObserver 测量到新高度后（anchor=true）、items 长度变化后（anchor=false）。
-   * 复杂度 O(n)，但 Float64Array 数组运算极快（1000 项 < 0.1ms）。
-   * 抖动修复⑨（2026-09-04）：锚定补偿只在「测量收敛」（同一行高度从估算转实测）时生效——
-   * 结构突变（items 长度变化，如过程层折叠/展开：摘要行 ⇄ N 条内容行）时**不锚定**：
-   * 该场景视口首行本应随插入/移除内容自然上下移位，强行锚定回原位会把视口硬拽（回顶/跳变）。
-   * 结构突变的滚动稳定由宿主的 withProcessAnchor（结果层锚定）负责。
+   * 重建轮次前缀和（S5 阶段 B：粒度=轮次）。
+   * 轮次高度：turn-root 实测（WeakMap 元素键，RO 直写）优先；未测轮次按行分桶估算求和。
+   * 调用时机：RO 测量回调后（anchor=true/non）、items/轮次结构变化后（anchor=false）。
+   * 行级时代的结构签名 watch 退役：轮次级 RO 对布局突变（折叠 v-show/新行）自然回调，
+   * 测量活跃度（静默期）即收敛信号。
    */
   function rebuildPrefixSums(anchor: boolean): void {
     rebuildRafId = null
-    const total = items.value.length
-    if (total === 0) {
+    const segs = turnSegments.value
+    const totalTurns = segs.length
+    if (totalTurns === 0 || items.value.length === 0) {
       prefixSums.value = null
-      avgMeasuredHeight = ESTIMATED_ITEM_HEIGHT
       return
     }
-    // 重建前：记录视口顶部对应的行（DOM 锚定，比前缀和索引稳定）——仅 anchor=true 时收集
+    // 重建前：记录视口顶部对应的轮次（DOM 锚定）——仅 anchor=true 时收集
     const scroll = getScrollEl()
-    let anchorRowId: string | null = null
-    let anchorDomOffset = 0 // 视口顶到该行 top 的真实像素偏移（补偿基准）
+    let anchorTurnId: string | null = null
+    let anchorDomOffset = 0
     if (anchor && scroll) {
-      const collected = collectTopAnchorRow(scroll)
-      anchorRowId = collected.id
+      const collected = collectTopAnchorTurn(scroll)
+      anchorTurnId = collected.id
       anchorDomOffset = collected.offset
     }
-    // 计算已测量 item 的平均高度，作为未测量 item 的估算值（比固定 80px 更精准）
-    let measuredTotal = 0
-    let measuredCount = 0
-    measuredHeights.forEach((h) => {
-      measuredTotal += h
-      measuredCount++
-    })
-    avgMeasuredHeight = measuredCount > 0
-      ? measuredTotal / measuredCount
-      : ESTIMATED_ITEM_HEIGHT
-
-    // 构建前缀和：prefixSums[i] = sum of height(item[0..i-1])
-    // 优先级：测量值 > 行级分桶估算 > 全局测量平均
-    const sums = new Float64Array(total + 1)
+    // 轮次前缀和：实测优先，未测按行估算求和
+    const sums = new Float64Array(totalTurns + 1)
     sums[0] = 0
-    const avg = avgMeasuredHeight
     const all = items.value
-    for (let i = 0; i < total; i++) {
-      const measured = measuredHeights.get(all[i].id)
-      if (measured !== undefined) {
-        sums[i + 1] = sums[i] + measured
-      } else {
-        const estimated = estimateHeight?.(all[i])
-        sums[i + 1] = sums[i] + (estimated !== undefined ? estimated : avg)
+    for (let t = 0; t < totalTurns; t++) {
+      const seg = segs[t]
+      const el = turnRootEls.get(seg.turnId)
+      const measured = el ? measuredTurnHeights.get(el) : undefined
+      let h = measured
+      if (h === undefined || h <= 0) {
+        h = 0
+        for (let i = seg.start; i < seg.end; i++) {
+          h += estimateHeight?.(all[i]) ?? ESTIMATED_ITEM_HEIGHT
+        }
       }
+      sums[t + 1] = sums[t] + h
     }
     prefixSums.value = sums
-    // 重建后：按新前缀和补偿 scrollTop，锚定视口首行回原位（仅在非底部跟随态有意义；
-    // 底部跟随由 scrollToBottom 直接贴底，不做锚定补偿，避免与跟随竞争）
-    if (scroll && anchorRowId && !isAtBottom.value) {
-      const idx = all.findIndex((r) => r.id === anchorRowId)
-      if (idx >= 0) {
-        const newTopOfAnchor = sums[idx]
-        const target = newTopOfAnchor + anchorDomOffset
+    // 重建后锚定补偿：锚轮次顶部回原位（非底部跟随态；底部由贴底主导）
+    if (scroll && anchorTurnId && !isAtBottom.value) {
+      const tIdx = segs.findIndex((s) => s.turnId === anchorTurnId)
+      if (tIdx >= 0) {
+        const target = sums[tIdx] + anchorDomOffset
         if (Math.abs(scroll.scrollTop - target) > 0.5) {
           scroll.scrollTop = target
           observedTop = target // 程序化位移记账
@@ -193,7 +189,7 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
   }
 
   /**
-   * 二分查找：定位 scrollTop 对应的 item 索引。
+   * 二分查找：定位 scrollTop 对应的轮次索引（轮次前缀和）。
    * 找到最大的 i 使得 prefixSums[i] <= scrollTop。复杂度 O(log n)。
    */
   function findIndexAtScroll(scrollTop: number): number {
@@ -211,33 +207,37 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
 
   const windowedDisplayItems = computed<WindowedItems>(() => {
     const all = items.value
-    const total = all.length
-    // 流式输出期间，最后一条（正在生成）必须始终在窗口内，确保用户可见
-    let end = Math.min(visibleEnd.value, total)
-    // 若在底部跟随状态，强制 end 覆盖到最后一条
-    if (isAtBottom.value && end < total) end = total
-    const start = Math.min(visibleStart.value, end)
-    // 原样切片（不做展开/注入 _windowIndex），保留判定联合类型，由调用方行渲染器按 item.type 收敛
-    const windowed = all.slice(start, end)
-    // 抖动修复⑩（2026-09-04）：items 突变瞬间前缀和尚未重建时（旧长度不匹配），
-    // sums[total]/sums[end] 会越界取 undefined → NaN 占位高度 → 布局错乱闪烁。
-    // 长度不匹配时回退 0 占位（等 flush-sync 重建完成即正确）。
+    const segs = turnSegments.value
+    const totalTurns = segs.length
+    // 流式跟随态：末轮（正在生成）强制在窗口内
+    let endTurn = Math.min(visibleEnd.value, totalTurns)
+    if (isAtBottom.value && endTurn < totalTurns) endTurn = totalTurns
+    const startTurn = Math.min(visibleStart.value, endTurn)
+    // 切片边界对齐轮次边界：窗口内轮次的行全量渲染
+    const startRow = startTurn < totalTurns ? segs[startTurn].start : all.length
+    const endRow = endTurn > startTurn ? segs[endTurn - 1].end : startRow
+    const windowed = all.slice(startRow, endRow)
+    // 抖动修复⑩语义保留：前缀和与轮次数不匹配时（突变瞬间未重建）回退 0 占位
     const sums = prefixSums.value
-    const sumsValid = sums && sums.length - 1 === total
-    const topPlaceholderHeight = sumsValid ? sums[start] : 0
-    const bottomPlaceholderHeight = sumsValid ? sums[total] - sums[end] : 0
-    return { items: windowed, topPlaceholderHeight: topPlaceholderHeight as number, bottomPlaceholderHeight: bottomPlaceholderHeight as number }
+    const sumsValid = sums && sums.length - 1 === totalTurns
+    const topPlaceholderHeight = sumsValid ? sums[startTurn] : 0
+    const bottomPlaceholderHeight = sumsValid ? sums[totalTurns] - sums[endTurn] : 0
+    return {
+      items: windowed,
+      topPlaceholderHeight: topPlaceholderHeight as number,
+      bottomPlaceholderHeight: bottomPlaceholderHeight as number,
+    }
   })
 
-  /** 根据滚动位置更新可见窗口。性能：rAF 节流 + 二分查找 O(log n)。 */
+  /** 根据滚动位置更新可见窗口（S5：轮次级切片）。性能：rAF 节流 + 二分查找 O(log n)。 */
   function updateVisibleRange(): void {
     const scroll = getScrollEl()
     if (!scroll) return
     const scrollTop = scroll.scrollTop
     const viewportH = scroll.clientHeight
-    const all = items.value
-    const total = all.length
-    if (total === 0) return
+    const segs = turnSegments.value
+    const totalTurns = segs.length
+    if (totalTurns === 0) return
 
     // 2026-09-05 导航点激活推导（放早退之前：纯滚动不切窗时也要更新）——视口顶基准线
     //（top+40px，贴近阅读位）之上最后一条用户消息。目录高亮语义：激活点随基准线跨越
@@ -257,45 +257,35 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
     const sums = prefixSums.value
     if (!sums) return
 
-    // 二分查找 O(log n) 定位 scrollTop 和视口底部对应的 item 索引
+    // 二分 O(log n) 定位 scrollTop 和视口底部对应的轮次索引
     const estimatedStart = findIndexAtScroll(scrollTop)
     const estimatedEnd = findIndexAtScroll(scrollTop + viewportH)
-    // 抖动修复⑫-b：窗口边界加保守垫——二分基于前缀和估算，未测行（窗口外）低估会让
-    // 边界偏前，把视口底部真实行切到占位 → 一帧收缩 + clamp。上/下各多留一个屏幕
-    //（BUFFER * 2）吸收估算误差，宁可多渲染一行也不切掉视口边缘。
-    const newStart = Math.max(0, estimatedStart - WINDOW_BUFFER * 2)
-    let newEnd = Math.min(total, estimatedEnd + WINDOW_BUFFER * 2)
-    // 流式跟随状态：确保窗口覆盖到底部
-    if (isAtBottom.value) newEnd = total
+    // 窗口边界加轮次缓冲：上下各 WINDOW_BUFFER 个轮次吸收占位估算误差
+    const newStart = Math.max(0, estimatedStart - WINDOW_BUFFER)
+    let newEnd = Math.min(totalTurns, estimatedEnd + 1 + WINDOW_BUFFER)
+    // 底部跟随态：确保窗口覆盖到末轮
+    if (isAtBottom.value) newEnd = totalTurns
     if (newStart === visibleStart.value && newEnd === visibleEnd.value) return
 
-    // 抖动修复⑬-b（2026-09-04）：切窗锚定——窗口切片重排会把窗口外真实行卸载换成占位，
-    // DOM 高度一帧骤变（实测 7826→~1665）→ 浏览器 clamp scrollTop → 滚动深处"回顶/跳闪"、
-    // 底部跟随断流。切窗前记录「视口首行」（DOM 实测 id + 视口偏移），切窗渲染后按实测
-    // 位置补偿 scrollTop，让重排对用户无感。底部跟随态直接顺延贴底（优先级高于锚定）。
-    // 非法目标值（<0 或超出滚动范围）丢弃，防 clamp 反馈链。
-    // 走查 S3：视口首行采集归一到 collectTopAnchorRow（含 v-show 隐藏行过滤，原⑮-d/⑯）。
-    const topY = scroll.getBoundingClientRect().top
-    const { id: anchorId, offset: anchorOffset } = collectTopAnchorRow(scroll)
+    // 抖动修复⑬语义（S5 轮次化）：切窗锚定——切窗前记录视口顶部基准**轮次**，
+    // 切窗渲染后按实测位置补偿 scrollTop（collectTopAnchorTurn 含隐藏元素过滤）。
+    const { id: anchorTurnId, offset: anchorOffset } = collectTopAnchorTurn(scroll)
 
     visibleStart.value = newStart
     visibleEnd.value = newEnd
 
     if (isAtBottom.value) {
-      // 抖动修复⑬-c（2026-09-04）：切窗后行重挂载首帧高度未收敛（实测文本行塌缩 4px→sh 骤降
-      // → clamp）。单帧 nextTick 贴底可能在未稳帧把底部设到错误位置。双帧 + 执行时刻校验
-      // 是否仍在底部附近，等行高收敛后再贴底，且不误拉已离开底部的读者。
+      // 抖动修复⑬-c：切窗后行重挂载首帧高度未收敛，双帧贴底 + 执行时刻校验
       nextTick(() => { scrollToBottomIfNear(); })
       requestAnimationFrame(() => { scrollToBottomIfNear(); })
-    } else if (anchorId) {
+    } else if (anchorTurnId) {
       nextTick(() => {
-        const target = scroll.querySelector<HTMLElement>(`[data-msg-id="${CSS.escape(anchorId!)}"]`)
+        const target = scroll.querySelector<HTMLElement>(`[data-turn-root="${CSS.escape(anchorTurnId!)}"]`)
         if (!target) return
-        const d = target.getBoundingClientRect().top - topY - anchorOffset
-        const nxt = scroll.scrollTop + d
+        const d = target.getBoundingClientRect().top - scroll.getBoundingClientRect().top - anchorOffset
         const maxTop = scroll.scrollHeight - scroll.clientHeight
-        if (Math.abs(d) > 0.5 && nxt >= 0 && nxt <= maxTop + 1) {
-          scroll.scrollTop = nxt
+        if (Math.abs(d) > 0.5 && scroll.scrollTop + d >= 0 && scroll.scrollTop + d <= maxTop + 1) {
+          scroll.scrollTop += d
           observedTop = scroll.scrollTop
         }
       })
@@ -389,7 +379,7 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
     isAtBottom.value = true
     showScrollToBottomBtn.value = false
     newMsgCountWhileAway.value = 0
-    visibleEnd.value = items.value.length
+    visibleEnd.value = turnSegments.value.length
     // 双帧：nextTick 等 Vue 渲染出扩展窗口的新行，rAF 再校正一次高度（图片/字体异步布局兜底）
     nextTick(() => {
       scrollToBottom()
@@ -427,10 +417,13 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
     if (!containerEl) return
     const all = items.value
     const targetIndex = all.findIndex(item => item.id === id)
-    if (targetIndex >= 0 && (targetIndex < visibleStart.value || targetIndex >= visibleEnd.value)) {
+    // S5 轮次化：行索引换算为所属轮次索引（visibleStart/End 语义=轮次）
+    const segs = turnSegments.value
+    const targetTurn = segs.findIndex(s => targetIndex >= s.start && targetIndex < s.end)
+    if (targetTurn >= 0 && (targetTurn < visibleStart.value || targetTurn >= visibleEnd.value)) {
       // 目标在窗口外，扩展窗口覆盖目标附近
-      visibleStart.value = Math.max(0, targetIndex - WINDOW_BUFFER)
-      visibleEnd.value = Math.min(all.length, targetIndex + WINDOW_BUFFER * 2)
+      visibleStart.value = Math.max(0, targetTurn - WINDOW_BUFFER)
+      visibleEnd.value = Math.min(segs.length, targetTurn + 1 + WINDOW_BUFFER)
       // 等待 DOM 更新后再滚动
       nextTick(() => {
         const el = containerEl.querySelector(`[data-msg-id="${id}"]`) as HTMLElement | null
@@ -501,8 +494,14 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
             if (!observedMsgEls.has(el)) {
               scrollObserver.observe(el)
               observedMsgEls.add(el)
-              // 同时 observe 高度变化，用于窗口化高度缓存
-              if (resizeObserver) resizeObserver.observe(el)
+            }
+          }
+          // S5：新增轮次根 → 登记 + RO 观察（轮次高度测量单元）
+          if (el.hasAttribute && el.hasAttribute('data-turn-root')) {
+            const tid = el.getAttribute('data-turn-root')
+            if (tid && !turnRootEls.has(tid)) {
+              turnRootEls.set(tid, el)
+              resizeObserver?.observe(el)
             }
           }
           // 也观察后代中的消息节点
@@ -511,7 +510,13 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
               if (!observedMsgEls.has(child)) {
                 scrollObserver.observe(child)
                 observedMsgEls.add(child)
-                if (resizeObserver) resizeObserver.observe(child)
+              }
+            }
+            for (const child of el.querySelectorAll('[data-turn-root]')) {
+              const tid = child.getAttribute('data-turn-root')
+              if (tid && !turnRootEls.has(tid)) {
+                turnRootEls.set(tid, child)
+                resizeObserver?.observe(child)
               }
             }
           }
@@ -531,73 +536,21 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
     // 其他情况由 MutationObserver 增量处理，无需手动干预
   })
 
-  // 事件行数组长度变化时（新行到来/切换筛选），重建前缀和
-  // immediate: true 保证组件初始化时就构建一次前缀和
-  // 抖动修复⑨/⑩：结构突变（展开/折叠过程层等 items 增减）不锚定——scrollTop 稳定由宿主补偿负责；
-  // flush:sync 让前缀和在 windowedDisplayItems computed 读取前完成重建，避免旧长度越界 (NaN 占位)。
-  let lastStructuralChangeAt = 0
-  // 抖动修复⑰（2026-09-05）：行数增长时同步扩展窗口尾——过程层展开（总折叠头：摘要行 ⇄ N 行段）
-  // 的新行插在中部，原 [visibleStart, visibleEnd] 按索引切片会把窗口尾部既有行（结果层等）挤出
-  // 窗口（索引后移），且展开不产生 scroll 事件、updateVisibleRange 不重算 → 行「丢失」，滚动
-  // 一下才回来。新增多少行就扩多少窗口尾，保证原窗口覆盖的行保持覆盖；收缩方向无需处理
-  //（slice 对越界 end 自动 clamp）。窗口回收交由滚动时的 updateVisibleRange 常规重算。
-  watch(() => items.value.length, (newLen, oldLen) => {
-    if (newLen > oldLen && !isAtBottom.value) {
-      visibleEnd.value = Math.min(newLen, visibleEnd.value + (newLen - oldLen))
-    }
-  })
-  // 抖动修复⑮（2026-09-04）：结构签名 watch——原 length watch 只在行数增减时重建，
-  // 计划步骤折叠/展开（stepCollapsed 翻转，v-show 切换）与行段折叠不改变行数，
-  // 前缀和与 DOM 布局脱节 → 滚动/切窗抖动。签名只编码「影响布局结构」的字段
-  //（行类型 + stepCollapsed），文本内容增长（流式 delta）不触发重建。
-  const structuralSignature = computed(() => {
-    const arr = items.value
-    if (arr.length === 0) return ''
-    let sig = arr.length + ';'
-    for (let i = 0; i < arr.length; i++) {
-      const it = arr[i] as { type?: string; stepCollapsed?: boolean }
-      const st = it.stepCollapsed === true
-      const typ = it.type
-      sig += (typ === 'tool' ? 't' : typ === 'think' ? 'h' : typ === 'assistant' ? 'a' : 'o') + (st ? '1' : '0')
-    }
-    return sig
-  })
-  watch(() => structuralSignature.value, (_sig, oldSig) => {
-    if (_sig === oldSig) return
-    lastStructuralChangeAt = Date.now()
+  // S5 阶段 B：行级结构签名 watch（flush:sync 行级前缀和重建 + 预热测量 walk）退役——
+  // 轮次级 RO 对布局突变（折叠 v-show / 行增删）自然回调，测量活跃度即收敛信号。
+  // 抖动修复⑰（轮次版）：轮次数增长时同步扩展窗口尾（新轮次落在尾部，原索引窗口会把
+  // 既有轮次挤出）；flush:sync 在 computed 读取前同步重建前缀和——新轮次未挂 DOM 时
+  // 走行估算求和分支，避免一帧 0 占位塌缩（原⑩语义）。
+  watch(() => turnSegments.value.length, (newN, oldN) => {
+    if (newN === oldN) return
     rebuildPrefixSums(false)
-    // 抖动修复⑫-b（2026-09-04）：结构突变后等 Vue 渲染出新行，立即按 DOM 实测高度
-    // 回填缓存并重建前缀和——让「估算行」最短生命周期转实测。否则后续窗口切片按
-    // 低估估算做二分会切错窗口边界 → 占位收缩 → scrollHeight 骤降 → scrollTop clamp
-    //（滚到底被回拽、滚动深处跳闪）。ResizeObserver 也会收敛，但它是异步逐帧的，
-    // 预热测量在用户可感知的下一帧前一次到位。
-    nextTick(() => {
-      const sc = getScrollEl()
-      if (!sc) return
-      let changed = false
-      for (const el of sc.querySelectorAll<HTMLElement>('[data-msg-id]')) {
-        if (el.hasAttribute('data-animating')) continue
-        const id = el.dataset.msgId
-        if (!id) continue
-        // 抖动修复⑮-b：v-show 隐藏行（计划步骤折叠的子动作等）布局高度为 0——
-        // 缓存同步置 0 使前缀和与 DOM 布局一致（否则残留旧高度 → 切窗占位错位 → 抖动）；
-        // 展开时 RO/预热会回写真实高度。
-        if (el.offsetParent === null) {
-          if (measuredHeights.get(id) !== 0) {
-            measuredHeights.set(id, 0)
-            changed = true
-          }
-          continue
-        }
-        const h = el.offsetHeight
-        if (h > 0 && measuredHeights.get(id) !== h) {
-          measuredHeights.set(id, h)
-          changed = true
-        }
-      }
-      if (changed) rebuildPrefixSums(false)
-    })
-  }, { immediate: true, flush: 'sync' })
+    if (newN > oldN && !isAtBottom.value) {
+      visibleEnd.value = Math.min(newN, visibleEnd.value + (newN - oldN))
+    }
+  }, { flush: 'sync' })
+  // 抖动修复⑮/⑫-b（2026-09-04）结构签名 watch + 预热测量 walk 已随 S5 轮次化退役：
+  // 轮次根 RO 对 v-show 切换/行增删自然回调（测量即布局事实），预热收敛由 RO 逐帧完成，
+  // 测量活跃度（静默期）即收敛信号——行级「签名编码 + 隐藏行置 0 + DOM 预热」整类补丁不再需要。
 
   // 抖动修复⑤（2026-09-04）：底部占位高度改变（估算转实测 / 折叠升降）且用户在底部跟随态
   // → 顺延滚动贴底。旧实现只在 items.length 变化时跟随，占位高度单独变化（不增删行）
@@ -617,10 +570,16 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
   // lastSeenLength/newMsgCountWhileAway（旧会话的长度账对新会话无意义，newCount 乱算
   // = 回到底部按钮计数串会话）与 visibleMsgIds（旧会话残留 → 导航点高亮错乱）。
   // 流式追加不改变首条 id，不误触发。
+  // S5：轮次测量登记（turnRootEls）与可见范围一并重置；高度 WeakMap 随元素卸载自然回收。
   watch(() => messages.value[0]?.id, () => {
     lastSeenLength.value = messages.value.length
     newMsgCountWhileAway.value = 0
     visibleMsgIds.value = new Set()
+    turnRootEls.clear()
+    activeUserMsgId.value = ''
+    visibleStart.value = 0
+    visibleEnd.value = INITIAL_RENDER_TURNS
+    rebuildPrefixSums(false)
   })
 
   onMounted(() => {
@@ -630,67 +589,29 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
       const scroll = getScrollEl()
       if (scroll) {
         scroll.addEventListener('scroll', onScroll, { passive: true })
-        // 初始化 ResizeObserver：测量已渲染 item 的真实高度，缓存到 measuredHeights
+        // 初始化 ResizeObserver（S5 轮次级）：观察轮次根元素，实测高度写入轮次缓存
         // 用于提升窗口化滚动估算的准确性，减少跳屏
+        // 初始化 ResizeObserver（S5 轮次级）：观察轮次根元素，高度直写轮次缓存。
+        // 行级时代的隐藏行置 0 / 动画行跳过 / 结构突变检测整类补丁退役——轮次根高度
+        // 对内部 v-show 切换/行增删/动画自然敏感，测量即布局事实。
         resizeObserver = new ResizeObserver((entries) => {
-          let skipAll = false // 本轮是否全是动画行（动画行不写缓存也不重建，防闪烁反馈环）
           for (const entry of entries) {
             const el = entry.target as HTMLElement
-            // 抖动修复⑥（2026-09-04）：行段展开/收起动画（grid-rows 0fr→1fr）期间
-            // 每帧测到中间高度——若写入缓存会触发前缀和每帧重建 → 切片重算 → 行卸载重挂
-            // → 动画重跑 = 疯狂闪烁反馈环。动画行（data-animating）跳过测高，动画结束
-            // 后有一次性测量收敛，配合④锚定兜底。
-            if (el.hasAttribute('data-animating')) {
-              skipAll = true
-              continue
-            }
-            // 抖动修复⑬（2026-09-04）：窗口化切窗会把部分行从 DOM 卸载（detached），
-            // ResizeObserver 对脱离文档的元素仍会回调一次且 contentRect 为 0——若把 0
-            // 写进高度缓存，前缀和 sumTotal 会崩到接近 0（实测 7489→1002），占位/切片
-            // 全错 → scrollHeight 骤降 → scrollTop clamp（滚到底被回拽）。detached 行
-            // 跳过不写；窗口切回时元素重新挂载，RO 会再回调恢复真实高度。
+            // 切窗卸载的轮次跳过（脱离文档仍会回调一次且高度为 0——写入会崩塌前缀和，
+            // 抖动修复⑬语义保留；窗口切回重挂时 RO 会再回调恢复真实高度）
             if (!el.isConnected) continue
-            const msgId = el.dataset?.msgId
-            // 止血包②：按行 id 直写高度缓存（原按 index 写入需 findIndex 反查，
-            // 且行序变化后错位；id 键天然免疫行序变化，还省一次 O(n) 查找）
-            if (msgId) {
-              // 抖动修复⑮-c：v-show 隐藏行（计划步骤折叠子动作等）缓存置 0——与预热 walk
-              // 同规则，保证前缀和随布局切换即时一致（否则残留旧高度 → 切窗占位错位 → 抖动）。
-              if (el.offsetParent === null) {
-                // 抖动修复⑲（2026-09-05）：隐藏（高度→0）是折叠操作信号——刷新抑制窗口，
-                // 抑制期内 RO 重建不带锚定补偿（测量混合态下补偿 target 不可靠，区级折叠
-                // 逐行隐藏 + 逐帧补偿 = 抖动跳顶）。折叠期滚动稳定交宿主 withProcessAnchor。
-                if ((measuredHeights.get(msgId) ?? 0) > 0) lastStructuralChangeAt = Date.now()
-                measuredHeights.set(msgId, 0)
-              } else {
-                const h = entry.contentRect.height
-                if (h > 0) {
-                  // 展开（0 → 有高度）同为结构突变信号，刷新抑制窗口
-                  if (measuredHeights.get(msgId) === 0) lastStructuralChangeAt = Date.now()
-                  measuredHeights.set(msgId, h)
-                }
-              }
-            }
+            measuredTurnHeights.set(el, entry.contentRect.height)
           }
-          // 测量到新高度后，重建前缀和（rAF 合并，避免过度重建）。
-          // 全部是动画行的批次跳过重建——避免动画中前缀和随中间高度漂移。
-          // 非结构突变（纯测量收敛）→ 带锚定补偿（④），保持视口首行原位。
-          // 抖动修复⑪（2026-09-04）：结构突变后抑制期内仍重建（前缀和要跟上新布局），
-          // 但**关闭锚定补偿**——突变期新行逐个被测、前缀和逐帧漂移，锚定 target 不可靠
-          // （实测会算出负数 scrollTop → clamp → 回顶）。
-          if (!skipAll) {
-            // 走查 S2：突变保底期 + 测量活跃期（静默 < 120ms）内抑制锚定补偿
-            lastMeasurementAt = Date.now()
-            if (isMeasureSuppressActive()) {
-              scheduleRebuildPrefixSums(false)
-            } else {
-              scheduleRebuildPrefixSums(true)
-            }
-          }
+          lastMeasurementAt = Date.now()
+          // 测量活跃（静默期）内不带锚定补偿（收敛中 target 不可靠）；静默后恢复
+          if (isMeasureSuppressActive()) scheduleRebuildPrefixSums(false)
+          else scheduleRebuildPrefixSums(true)
         })
-        // 对当前已渲染的消息节点 observe（后续新节点由 MutationObserver 增量 observe）
-        for (const el of scroll.querySelectorAll('[data-msg-id]')) {
+        // 对当前已渲染的轮次根 observe（后续新轮次由 MutationObserver 增量 observe）
+        for (const el of scroll.querySelectorAll('[data-turn-root]')) {
           resizeObserver.observe(el)
+          const tid = el.getAttribute('data-turn-root')
+          if (tid) turnRootEls.set(tid, el)
         }
       }
     })
