@@ -342,6 +342,9 @@
   white-space: pre-wrap;
   word-break: break-all;
   font-family: 'Consolas', 'Monaco', monospace;
+  /* 抖动修复⑧：滚动条隐现致宽度变化 → 重排闪烁，预留槽位稳定 */
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
 }
 .ws-stream-tool-detail-result { max-height: 300px; }
 
@@ -488,6 +491,10 @@
   max-height: 220px;
   overflow-y: auto;
   overflow-x: hidden;
+  /* 抖动修复⑧（2026-09-04）：滚动条出现/消失改变内容宽度 → pre-wrap 文本重排 → 行高微变
+     → ResizeObserver 触发 prefrix 重建 → 滚动时输出块轻微闪烁。预留槽位稳定内容宽度。 */
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
 }
 .ws-stream-tool-stream[data-follow-end] .ws-stream-tool-stream-body {
   scroll-behavior: auto;

@@ -222,8 +222,18 @@ function withProcessAnchor(turnId: string, mutate: () => void): void {
   const beforeTop = anchor ? anchor.getBoundingClientRect().top : null
   const wasAtBottom = isAtBottom.value
   mutate()
-  if (!scroll || !anchor || beforeTop === null) return
+  // 抖动修复⑦（2026-09-04）补充：无结果层锚点（执行中轮次/结果层在窗口外）时不做增量补偿；
+  // 但若折叠/展开前在底部跟随态，必须保持贴底（防止结构突变把视口顶回顶部）。
+  if (!scroll) return
+  if (wasAtBottom) {
+    scheduleScrollToBottom()
+  }
+  if (!anchor || beforeTop === null) return
   const compensate = () => {
+    // 抖动修复⑦（2026-09-04）：展开过程层 → items 重排，若锚点（结果层）被窗口化切片卸载
+    //（detached），getBoundingClientRect() 返回 (0,0) → delta 巨大负值 → scrollTop 被 clamp 到 0
+    // =「页面自动回到最顶部」。detached 时跳过补偿，交给窗口化锚定/占位兜底。
+    if (!anchor.isConnected) return
     // 强制同步布局：读取最终高度（offsetHeight 触发 reflow），在浏览器绘制前完成补偿，
     // 避免「渲染-补偿-再渲染」两帧闪现（这是点击折叠条视口「抖一下」的来源）
     void scroll.offsetHeight
@@ -233,8 +243,6 @@ function withProcessAnchor(turnId: string, mutate: () => void): void {
     if (Math.abs(delta) > 0.5) scroll.scrollTop += delta
     // 程序化位移记账：避免被 onScroll 误判为读者离开底部
     syncObservedTop()
-    // 折叠/展开前在底部跟随态 → 补偿后仍应贴底（不给 wasAtBottom 时锚点补偿反把视口拉离底部）
-    if (wasAtBottom) scheduleScrollToBottom()
   }
   // 双帧：折叠/展开会连锁改变邻近行高度，单次 nextTick 补偿在首帧可能不完整
   nextTick(() => {
