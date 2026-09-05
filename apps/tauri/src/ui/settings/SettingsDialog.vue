@@ -49,7 +49,7 @@
             <AccessibilityPanel v-if="cat.id === 'accessibility'" :search-query="searchQuery" />
             <StorageManagementTab v-if="cat.id === 'storage'" :search-query="searchQuery" @card-change="onPanelCardChange" />
             <AboutPanel v-if="cat.id === 'about'" :search-query="searchQuery" @card-change="onPanelCardChange" />
-            <div v-if="cat.id === 'agent'" class="agent-set-embed"><SpaceAgentSettingsPanel @close="close" /></div>
+            <div v-if="cat.id === 'agent'" class="agent-set-embed"><SpaceAgentSettingsPanel :search-query="searchQuery" @close="close" @dirty="onDirty" /></div>
           </template>
           <div v-if="matchedCategories.length === 0" class="set-empty">未找到匹配的设置项</div>
         </template>
@@ -69,7 +69,7 @@
           <template v-else-if="activeSection === 'storage'">
             <StorageManagementTab ref="storageRef" :search-query="searchQuery" @card-change="onPanelCardChange" />
           </template>
-          <div v-else-if="activeSection === 'agent'" class="agent-set-embed"><SpaceAgentSettingsPanel ref="agentSetRef" @close="close" @card-change="onPanelCardChange" /></div>
+          <div v-else-if="activeSection === 'agent'" class="agent-set-embed"><SpaceAgentSettingsPanel ref="agentSetRef" :search-query="searchQuery" @close="close" @dirty="onDirty" @card-change="onPanelCardChange" /></div>
         </template>
       </div>
 
@@ -273,9 +273,9 @@ function updateRailLayout(): void {
   }
 }
 
-/** 各面板分节标题选择器与其所属卡片的选择器（2026-09-06 归一后：标准 .sc-head/.set-card；Agent 面板待步4归一） */
-const HEADING_SELECTOR = '.sc-head, .agent-set-head'
-const SECTION_SELECTOR = '.set-card, .agent-set-card'
+/** 各面板分节标题选择器与其所属卡片的选择器（2026-09-06 归一完成：全部面板统一 .sc-head/.set-card） */
+const HEADING_SELECTOR = '.sc-head'
+const SECTION_SELECTOR = '.set-card'
 
 /** 提取分节标题主文本：部分 .sc-head 内含多个元素（如插件面板含筛选标签），只取首个文字子节点 */
 function headText(h: HTMLElement): string {

@@ -10,6 +10,7 @@
         :visible="true"
         :position="{ x: 0, y: 0 }"
         :dragged="false"
+        :search-query="searchQuery"
         :current-provider="currentProvider"
         :current-model-id="currentModelId"
         :temperature="temperature"
@@ -67,7 +68,8 @@ import AgentSettingsPanel from '@/agent/AgentSettingsPanel.vue'
 import RulesPanel from './RulesPanel.vue'
 import type { ThinkingLevel, MCPConnectionConfig, SkillMeta } from '@agent/index'
 
-const emit = defineEmits<{ close: []; 'card-change': [index: number] }>()
+const props = withDefaults(defineProps<{ searchQuery?: string }>(), { searchQuery: '' })
+const emit = defineEmits<{ close: []; dirty: []; 'card-change': [index: number] }>()
 
 // 透传叠放翻卡：供主设置左列标题点击翻卡（SettingsDialog 调用）
 const agentSettingsRef = ref<InstanceType<typeof AgentSettingsPanel> | null>(null)
@@ -99,6 +101,16 @@ const thinkingLevel = ref<ThinkingLevel>('off')
 const searchEngine = ref('tavily')
 const searchApiKey = ref('')
 const skills = ref<SkillMeta[]>(getAllSkills())
+
+// Agent 设置项变更 → dirty 上报（面板三契约；各项为即时应用型，上报供设置弹窗关闭时刷新）
+// ⚠️ 必须置于全部被监听 ref 声明之后：watch 初始化即求值 getter，前置会撞 TDZ
+watch(
+  () => [
+    temperature.value, maxTokens.value, contextLength.value, personaPreset.value,
+    thinkingLevel.value, searchEngine.value, searchApiKey.value, skills.value, mcpConnectionsList.value,
+  ] as const,
+  () => emit('dirty'),
+)
 
 const THINKING_LEVELS = computed(() => getThinkingLevels(currentModelId.value))
 

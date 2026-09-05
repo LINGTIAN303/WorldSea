@@ -32,12 +32,12 @@
         <!-- 设置内嵌（embedded）：卡片式全展开，无左侧导航 -->
         <template v-if="embedded">
           <!-- 显式轮转（叠放翻卡）：复用通用 CardDeck，当前卡完全显示，上/下一张各露一截边；滚轮边界续页 + 左列标题翻卡 -->
-          <CardDeck ref="deckRef" :count="5" @change="(i) => emit('card-change', i)">
+          <CardDeck ref="deckRef" :count="5" :flat="!!searchQuery" @change="(i) => emit('card-change', i)">
             <template #card="{ idx, cls }">
-              <div class="agent-set-card deck-card" :class="cls" :data-index="idx">
+              <div class="set-card deck-card" :class="cls" :data-index="idx" v-show="cardMatch(idx)">
               <!-- 模型卡片：收缩为「供应商类型 + 可用模型」，二级/三级弹窗承载详情（重构 2026-08-23） -->
               <template v-if="idx === 0">
-                <div class="agent-set-head">模型</div>
+                <div class="sc-head">模型</div>
                 <ModelsSection
                   @open-type="openTypeDialog"
                   @open-model="openModelDialog"
@@ -45,7 +45,7 @@
               </template>
               <!-- Skills 卡片（含「工具」区块：搜索/视觉/图像/视频 并入，C 批 2026-08-23） -->
               <template v-else-if="idx === 1">
-                <div class="agent-set-head">Skills</div>
+                <div class="sc-head">Skills</div>
 
             <!-- 工具（原「能力与工具」并入 Skills） -->
             <div class="agent-set-sub">工具</div>
@@ -117,7 +117,7 @@
               </template>
               <!-- MCP 卡片 -->
               <template v-else-if="idx === 2">
-                <div class="agent-set-head">MCP</div>
+                <div class="sc-head">MCP</div>
                 <McpPanel
                   :mcp-connections="mcpConnections"
                   @toggle-mcp="(serverId) => emit('toggle-mcp', serverId)"
@@ -127,12 +127,12 @@
               </template>
               <!-- 规则卡片（H5 八文件体系 2026-08-30：规则卡片面板，八文件统一编辑入口） -->
               <template v-else-if="idx === 3">
-                <div class="agent-set-head">规则</div>
+                <div class="sc-head">规则</div>
                 <RulesPanel />
               </template>
               <!-- 安全卡片（v2 权限分级 2026-09-04：安全级别 + 权限规则管理，嵌入式可见） -->
               <template v-else-if="idx === 4">
-                <div class="agent-set-head">安全</div>
+                <div class="sc-head">安全</div>
                 <div class="settings-section">
                   <div class="settings-label">工具安全级别</div>
                   <TuiSelect :model-value="securityLevel" :options="securityOptions" @update:model-value="onSecurityLevelChange" />
@@ -458,9 +458,26 @@ const props = withDefaults(defineProps<{
   skills: Array<{ id: string; icon: string; name: string; description: string; enabled: boolean; category?: 'domain' | 'action' | 'persona' }>
   mcpConnections: Array<{ id: string; config: { id: string; name: string; transport: string; url?: string; command?: string; args?: string[]; enabled: boolean }; status: string; tools: unknown[]; error?: string }>
   embedded?: boolean
+  searchQuery?: string
 }>(), {
   embedded: false,
+  searchQuery: '',
 })
+
+/** 五张卡的搜索关键词（设置搜索过滤用，与 settings-panels.css 类名归一配套） */
+const CARD_KEYWORDS = [
+  '模型 供应商 密钥 api key 思考 thinking model provider',
+  'Skills 技能 工具 搜索 视觉 图像 视频 skill search vision',
+  'MCP 服务器 连接 mcp server',
+  '规则 规则文件 world memory rules',
+  '安全 权限 白名单 上锁 确认 safety security',
+]
+
+function cardMatch(idx: number): boolean {
+  if (!props.searchQuery) return true
+  const q = props.searchQuery.toLowerCase()
+  return (CARD_KEYWORDS[idx] ?? '').toLowerCase().split(/\s+/).some((k) => q.includes(k))
+}
 
 const emit = defineEmits<{
   close: []
@@ -793,25 +810,10 @@ onMounted(() => {
   min-height: 0;
 }
 
-/* 设置内嵌卡片（与其它设置面板的 set-card 视觉一致）；背景用统一 surface token（原引用未定义的 --color-bg-surface 致卡片背景失效） */
-.agent-set-card {
-  background: var(--bg-surface);
-  border-radius: var(--radius-md, 8px);
-  padding: 14px 16px;
-  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.06), 0 0 0 1px var(--border, var(--color-border));
-  flex-shrink: 0;
-}
+/* 设置内嵌卡片基座（.set-card/.sc-head）已收敛至 ui-kit settings-panels.css（2026-09-06 类名归一），
+   此处仅保留 Agent 面板私有样式 */
 
-/* 叠放翻卡（card-deck / deck-card / anim-* 三态 + 翻转动画 + data-reduce-motion 降级）
-   共享样式已下沉至 ui-kit 的 CardDeck.vue，此处不再重复定义（2026-08-23） */
-.agent-set-head {
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-tertiary, var(--color-text-tertiary));
-  margin-bottom: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
+/* 小节小标题（Skills 卡内「工具/技能」分组线） */
 .agent-set-sub {
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
