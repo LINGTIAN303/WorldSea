@@ -557,8 +557,8 @@ watch(currentSessionId, () => {
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  /* 2026-09-06 三批：左栏改浅灰底（bg-muted），与列表卡（color-mix 加深一档）、白色入口卡构成三层色阶 */
-  background: var(--bg-muted);
+  /* 2026-09-06：左栏底色较 bg-muted 再深一档（color-mix 向黑混 6%，明暗主题各自微深），分层更清晰 */
+  background: color-mix(in srgb, var(--bg-muted) 94%, #000);
 }
 
 /* [A5] 顶部：场景滑块（2026-09-03 改造：下拉→分段滑块，iOS segmented 风）；2026-09-06 去底部分割线（下方入口卡边缘替代） */

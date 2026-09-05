@@ -21,6 +21,7 @@
         v-for="m in FILE_METAS" :key="m.id"
         class="rp-card" :class="{ on: activeId === m.id, special: m.readonly || m.disabled }"
         :title="m.title"
+        v-show="cardMatch(m)"
         @click="selectCard(m)"
       >
         <span class="rp-card-file">{{ m.file }}</span>
@@ -104,6 +105,14 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+
+// 设置搜索过滤（面板三契约之 searchQuery）：规则卡按文件名/标题子串匹配
+const props = withDefaults(defineProps<{ searchQuery?: string }>(), { searchQuery: '' })
+function cardMatch(m: { file: string; title: string }): boolean {
+  if (!props.searchQuery) return true
+  return `${m.file} ${m.title}`.toLowerCase().includes(props.searchQuery.toLowerCase())
+}
+
 import { resolveWorkspaceDir } from '@/space/workspace'
 import { invoke } from '@/agent/composables/transport'
 import {

@@ -128,7 +128,7 @@
               <!-- 规则卡片（H5 八文件体系 2026-08-30：规则卡片面板，八文件统一编辑入口） -->
               <template v-else-if="idx === 3">
                 <div class="sc-head">规则</div>
-                <RulesPanel />
+                <RulesPanel :search-query="searchQuery" />
               </template>
               <!-- 安全卡片（v2 权限分级 2026-09-04：安全级别 + 权限规则管理，嵌入式可见） -->
               <template v-else-if="idx === 4">

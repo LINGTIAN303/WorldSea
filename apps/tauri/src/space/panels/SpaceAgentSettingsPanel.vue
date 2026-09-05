@@ -50,7 +50,7 @@
         @card-change="(i) => emit('card-change', i)"
       />
       <!-- H5 八文件体系（2026-08-30 拍板）：规则卡片面板——八文件统一编辑入口（WORLDSMITH 只读/MEMORY 说明卡） -->
-      <RulesPanel />
+      <RulesPanel :search-query="searchQuery" />
     </div>
   </div>
 </template>

@@ -331,6 +331,12 @@ function railItemClass(i: number): Record<string, boolean | string> {
   }
 }
 
+// 切换分类或搜索时重置卡片区滚动：长面板（如 Agent）滚动后切短面板，scrollTop 残留会把
+// 短面板内容卷出视口——表现为「面板丢失」（2026-09-06 修复）
+watch([activeSection, searchQuery], () => {
+  if (cardsRef.value) cardsRef.value.scrollTop = 0
+})
+
 // 切换分类或退出搜索后重建左列（此时面板已渲染）
 watch(activeSection, () => { if (!searchQuery.value) nextTick(rebuildRail) })
 watch(searchQuery, (q) => { if (!q) nextTick(rebuildRail) })
@@ -347,7 +353,7 @@ const CATEGORY_KEYWORDS: Record<string, string> = {
   shortcuts: '快捷键 键盘 快捷 绑定 shortcut keyboard',
   voice: '语音 识别 输入 麦克风 连续 语言 voice',
   storage: '存储 清理 孤立 文件 诊断 缓存 空间 配额 storage cleanup orphan diagnostic',
-  agent: 'Agent 模型 供应商 用量 Skills MCP 搜索 多模态 终端 安全 人格预设 思考级别 危险操作 确认 agent model provider usage skill mcp search vision terminal safety persona thinking',
+  agent: 'Agent 模型 供应商 用量 Skills MCP 搜索 多模态 终端 安全 人格预设 思考级别 危险操作 确认 规则 规则文件 agent model provider usage skill mcp search vision terminal safety persona thinking',
   accessibility: '动画效果 减弱动态 动画 动效 消息 脉冲 状态 面板 侧边栏 弹窗 控件 启动 眩晕 降低 可访问 reduce motion accessibility',
   about: '关于 版本 产品 WorldSmith about version',
 }
