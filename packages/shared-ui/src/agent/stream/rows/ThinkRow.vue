@@ -27,6 +27,8 @@
         @keydown.space.prevent="toggle"
       >
         <WsIcon name="chevron-right" size="xs" class="ws-stream-think-chevron" />
+        <!-- 推理段类型图标（2026-09-05）：跟随标题文字色 -->
+        <IconBrain size="12" stroke="1.75" class="ws-stream-think-icon" />
         <!-- 流光只挂文字本身（图标不受 background-clip:text 影响） -->
         <span :class="{ 'ws-shine-text': isStreaming }">{{ label }}</span>
       </span>
@@ -44,6 +46,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
+import { IconBrain } from '@tabler/icons-vue'
 import { useThinkingFold } from '../../bubbles/useThinkingFold'
 
 /** Think 行的最小形参与事件流项一致 */

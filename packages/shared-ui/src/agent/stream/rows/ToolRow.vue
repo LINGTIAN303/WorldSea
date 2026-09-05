@@ -29,10 +29,10 @@
         :class="[`kind-${rowKind}`, { 'is-failed': isFailed }]"
       >
         <!-- 2026-09-05 箭头移前缀（用户拍板）：详情展开 chevron 放行首（open 旋转语义保留）；
-             失败行不可展开 → 无 chevron -->
-        <WsIcon v-if="!isFailed" name="chevron-right" size="xs" class="ws-stream-tool-chevron" :class="{ open: isExpanded }" />
-        <!-- 操作分类单字角标（弱提示分级，无卡片盒子） -->
-        <span class="ws-stream-tool-mark" :class="op">{{ mark }}</span>
+             2026-09-05 二轮：失败行恢复可展开（与其他行一致），chevron 悬停显示推广至全部行段 -->
+        <WsIcon name="chevron-right" size="xs" class="ws-stream-tool-chevron" :class="{ open: isExpanded }" />
+        <!-- 操作分类图标（2026-09-05 全面铺开：七类 tabler 图标，无背景无彩色，跟随主题文字色） -->
+        <component :is="OP_ICONS[op]" size="14" stroke="1.75" class="ws-stream-tool-mark-icon" />
         <!-- 前缀文字（点击区）：语义动词 + 操作对象 + 工具名；点击展开详情，running 时流光 -->
         <span
           class="ws-stream-tool-prefix"
@@ -57,14 +57,11 @@
         <span v-if="durationText" class="ws-stream-tool-duration">{{ durationText }}</span>
         <span v-if="isFailed" class="ws-stream-tool-error">{{ errorText }}</span>
         <span v-else-if="argsPreview" class="ws-stream-tool-args">{{ argsPreview }}</span>
-        <!-- 失败直显提示（不可展开） -->
-        <span v-if="isFailed" class="ws-stream-tool-failed-hint">已失败</span>
       </div>
-      <!-- 展开详情（参数 JSON + 结果；失败直显、不展开）。collapse 动画：摘要行位置不动，
-           详情 0fr→1fr 平滑展开，内容 opacity+位移 虚化→凝实（与 ThinkRow 时序一致）。
-           2026-09-04 结构化渲染：参数/结果 JSON 走 Prism 语法高亮（v-html 内 <code> 承载 token，
-           token 配色见 stream.css .ws-stream-tool-detail code 规则） -->
-      <div v-if="!isFailed" class="ws-stream-tool-collapse" :class="{ open: isExpanded }" :aria-hidden="!isExpanded">
+      <!-- 展开详情（参数 JSON + 结果；2026-09-05 二轮：失败行同样渲染，不再消除）。
+           collapse 动画：摘要行位置不动，详情 0fr→1fr 平滑展开，内容 opacity+位移 虚化→凝实
+           （与 ThinkRow 时序一致）。结构化渲染：参数/结果 JSON 走 Prism 语法高亮 -->
+      <div class="ws-stream-tool-collapse" :class="{ open: isExpanded }" :aria-hidden="!isExpanded">
         <div class="ws-stream-tool-detail" @click.stop>
           <div v-if="hasArgs" class="ws-stream-tool-detail-sec">
             <div class="ws-stream-tool-detail-label">参数</div>
@@ -109,7 +106,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, nextTick, onBeforeUnmount } from 'vue'
+import { computed, ref, watch, nextTick, onBeforeUnmount, type Component } from 'vue'
+import {
+  IconEdit, IconPencilPlus, IconTextScan2, IconTrash, IconSearch, IconTerminal, IconTool,
+} from '@tabler/icons-vue'
 import { WsIcon } from '@worldsmith/ui-kit'
 import InteractiveToolCall from '../../blocks/InteractiveToolCall.vue'
 import { getToolLabel } from '../../bubbles/toolLabels'
@@ -118,7 +118,6 @@ import { classifyActionRowKind, TOOL_STREAM_LIMIT } from '@worldsmith/shared-com
 import {
   getOpKind,
   OP_VERB,
-  OP_MARK,
   extractOperationSubject,
   extractEffectLabel,
   type ToolMeta,
@@ -169,7 +168,17 @@ const rowKind = computed(() => props.item.tc.rowKind ?? classifyActionRowKind(pr
 // ===== 操作语义（按工具名分类 + args 提取对象名） =====
 const op = computed(() => getOpKind(props.item.tc.name))
 const verb = computed(() => OP_VERB[op.value])
-const mark = computed(() => OP_MARK[op.value])
+
+/** 操作分类 → tabler 图标组件（2026-09-05 用户指定映射，替代原单字角标） */
+const OP_ICONS: Record<ReturnType<typeof getOpKind>, Component> = {
+  create: IconPencilPlus,
+  read: IconTextScan2,
+  edit: IconEdit,
+  delete: IconTrash,
+  search: IconSearch,
+  cmd: IconTerminal,
+  tool: IconTool,
+}
 const subject = computed(() =>
   extractOperationSubject(op.value, props.item.tc.name, props.item.tc.args),
 )
@@ -235,7 +244,7 @@ function markAnimating(): void {
   }, 320)
 }
 function toggleExpand() {
-  if (isFailed.value) return
+  // 2026-09-05 二轮：失败行恢复可展开（参数/结果同样渲染），不再拦截
   isExpanded.value = !isExpanded.value
   markAnimating() // 折叠/展开都有高度动画，标记防窗口化测高反馈环
   if (isExpanded.value) emit('expand')

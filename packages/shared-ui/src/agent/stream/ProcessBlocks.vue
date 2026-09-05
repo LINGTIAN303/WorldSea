@@ -16,14 +16,17 @@
     <!-- 组合行段（二级小折叠条）：连续非文本行段；单行已在聚合层直出，此处必为 ≥2 段 -->
     <div v-if="isCombinationBlock(block)" class="ws-combination">
       <div class="ws-combination-head" :class="{ open: comboExpanded.has(combKey(block)) }" role="button" tabindex="0" @click="toggleCombo(block)" @keydown.enter="toggleCombo(block)">
-        <!-- 前缀 chevron（open 旋转 90°，用户拍板恢复）；运行中 spinner 紧随其后——
+        <!-- 前缀 chevron（open 旋转 90°，用户拍板恢复；悬停显示推广至全部行段）；运行中 spinner 紧随其后——
              默认折叠时内部行段的运行态不可见，spinner 表达「正在执行」（结束即停） -->
         <WsIcon name="chevron-right" size="xs" class="ws-combo-chevron" />
+        <IconAutomaticGearboxFilled size="12" class="ws-combo-icon" />
         <span v-if="comboRunning(block)" class="ws-combo-running" aria-label="执行中" />
         <span class="ws-combo-text">{{ block.rows.length }} 段执行</span>
         <span v-if="comboSummary(block)" class="ws-combo-summary">· {{ comboSummary(block) }}</span>
       </div>
-      <div v-show="comboExpanded.has(combKey(block))" class="ws-combination-body">
+      <!-- 2026-09-05 展开折叠加淡入淡出（复用推理段 grid-collapse 配方）：v-show → 0fr/1fr 高度动画 -->
+      <div class="ws-collapse" :class="{ open: comboExpanded.has(combKey(block)) }">
+      <div class="ws-combination-body">
         <StreamRow
           v-for="row in block.rows"
           :key="row.id"
@@ -39,22 +42,27 @@
           @expand="() => emit('segment-expand', turnId)"
         />
       </div>
+      </div>
     </div>
 
     <!-- 计划步骤折叠区（区级折叠头）；箭头后缀 + 图标切换（样式统一 2026-09-05） -->
     <div v-else-if="isPlanZoneBlock(block)" class="ws-plan-zone">
       <div
         class="ws-plan-zone-head"
+        :class="{ open: !zoneCollapsed }"
         role="button"
         tabindex="0"
         :aria-expanded="!zoneCollapsed"
         @click="emit('plan-zone-toggle', turnId)"
         @keydown.enter="emit('plan-zone-toggle', turnId)"
       >
+        <IconMenuDeep size="12" stroke="1.75" class="ws-zone-icon" />
         <span class="ws-zone-text">{{ planItemCount(block) }} 待办</span>
-        <WsIcon :name="zoneCollapsed ? 'chevron-right' : 'chevron-down'" size="xs" class="ws-zone-chevron" />
+        <!-- 2026-09-05 后缀箭头统一旋转方案（chevron-right + open 旋转 90°，与推理段一致），悬停显示 -->
+        <WsIcon name="chevron-right" size="xs" class="ws-zone-chevron" />
       </div>
-      <div v-show="!zoneCollapsed" class="ws-plan-zone-body">
+      <div class="ws-collapse" :class="{ open: !zoneCollapsed }">
+      <div class="ws-plan-zone-body">
         <ProcessBlocks
           :blocks="block.items"
           :turn-id="turnId"
@@ -75,18 +83,21 @@
           @expand="emit('expand', $event)"
         />
       </div>
+      </div>
     </div>
 
     <!-- 待办项（项级文字折叠条）；pending 且无子动作 → 串行时序隐藏（visibleBlocks 已过滤） -->
     <div v-else-if="isPlanItemBlock(block)" class="ws-plan-item">
       <div
         class="ws-plan-item-head"
+        :class="{ open: !stepCollapsed(block) }"
         role="button"
         tabindex="0"
         :aria-expanded="!stepCollapsed(block)"
         @click="emit('plan-step-toggle', { turnId, stepId: block.item.id })"
         @keydown.enter="emit('plan-step-toggle', { turnId, stepId: block.item.id })"
       >
+        <IconListNumbers size="12" stroke="1.75" class="ws-item-icon" />
         <span class="ws-plan-item-order">待办项 {{ orderOf(block) }}</span>
         <span class="ws-plan-item-title" :class="{ 'ws-shine-text': isRunning(block) }">{{ block.item.tc.name }}</span>
         <span v-if="isRunning(block)" class="ws-plan-item-status running">执行中</span>
@@ -94,9 +105,10 @@
         <span v-else-if="planStatusOf(block) === 'failed'" class="ws-plan-item-status fail">失败</span>
         <span v-else-if="planStatusOf(block) === 'skipped'" class="ws-plan-item-status skip">已跳过</span>
         <span v-else class="ws-plan-item-status pending">待执行</span>
-        <WsIcon :name="stepCollapsed(block) ? 'chevron-right' : 'chevron-down'" size="xs" class="ws-item-chevron" />
+        <WsIcon name="chevron-right" size="xs" class="ws-item-chevron" />
       </div>
-      <div v-show="!stepCollapsed(block)" class="ws-plan-item-body">
+      <div class="ws-collapse" :class="{ open: !stepCollapsed(block) }">
+      <div class="ws-plan-item-body">
         <ProcessBlocks
           :blocks="block.rows"
           :turn-id="turnId"
@@ -126,6 +138,7 @@
           <div v-if="block.item.planReason" class="ws-plan-item-output-reason">原因：{{ block.item.planReason }}</div>
         </div>
       </div>
+      </div>
     </div>
 
     <!-- 普通行段 -->
@@ -150,6 +163,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
+import { IconAutomaticGearboxFilled, IconMenuDeep, IconListNumbers } from '@tabler/icons-vue'
 import type { AgentStreamItem } from '@worldsmith/shared-composables/agent/useAgent'
 import type { ProcessBlock, CombinationBlock, PlanItemBlock, PlanZoneBlock } from './aggregatePlanBlocks'
 import StreamRow from './rows/StreamRow.vue'

@@ -63,9 +63,9 @@ export const TOOL_OP: Record<string, OpKind> = {
   git_branch: 'cmd', code_execute: 'cmd', notebook_execute_code: 'cmd', start_server: 'cmd', sys_info: 'cmd',
 }
 
-/** 操作分类 → 语义动词（行内主文案） */
+/** 操作分类 → 语义动词（行内主文案；2026-09-05 cmd/tool 改短词，与图标角标配「命令/工具」） */
 export const OP_VERB: Record<OpKind, string> = {
-  create: '创建', read: '读取', edit: '编辑', delete: '删除', search: '搜索', cmd: '执行命令', tool: '调用工具',
+  create: '创建', read: '读取', edit: '编辑', delete: '删除', search: '搜索', cmd: '命令', tool: '工具',
 }
 
 /** 操作分类 → 单字角标（行首弱提示标记） */

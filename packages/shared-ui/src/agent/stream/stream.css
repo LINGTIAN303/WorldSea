@@ -57,11 +57,11 @@
   user-select: none;
   font-size: var(--font-size-sm);
   color: var(--agent-text-secondary);
-  /* 2026-09-04 行距贴近：padding 1px + line-height 1.3 压缩行盒上下留白 */
-  padding: 1px 4px;
+  /* 2026-09-05 二轮间距统一：padding 垂直归零（gap 4px 成唯一行距），行高对齐 1.45 */
+  padding: 0 4px;
   margin: 0;
   border-radius: 4px;
-  line-height: 1.3;
+  line-height: 1.45;
 }
 /* 标题行常驻：点击展开/收起时自身位置不动（accordion 语义），下方内容被推下。
    2026-09-04 折叠条文字化 v2：点击/光标仅挂在前缀文字（title），整行与摘要不可点、无 hover 高亮 */
@@ -119,11 +119,18 @@
   overflow: hidden;
   min-height: 0;
 }
+/* 展开态恢复纵向滚动（2026-09-05 用户反馈）：上条压制规则 overflow:hidden 特异性 (0,2,0)
+   盖过 body 自身 overflow-y:auto，长推理被静默裁剪无法滚动；展开完成（.open）后交还滚动 */
+.ws-stream-think-collapse.open > .ws-stream-think-body {
+  overflow-y: auto;
+}
 /* 展开的正文（服务端流式滚动跟随）。
    虚化→凝实：折叠→展开时 opacity 0.4 + 上移 8px 入场（delay 80ms 等高度先展开腾位），
    配合「先让下方内容下移、再让正文显出」的时序；收起时同步淡出。 */
 .ws-stream-think-body {
-  margin-top: 4px;
+  /* 2026-09-05 三轮（用户拍板）：内部底色块 → 缩进线，与组合段竖线同语言；
+     注意 grid 0fr 折叠下 margin 会残留幽灵高度（stretch 压不平 margin），
+     本块 margin 全零，缩进/间距全部走 padding + border-left */
   max-height: 220px;
   overflow-y: auto;
   overflow-x: auto;
@@ -132,9 +139,11 @@
   color: var(--agent-text-tertiary);
   font-size: var(--font-size-sm);
   line-height: 1.6;
-  padding: 6px 8px;
-  background: var(--agent-hover-bg);
-  border-radius: 6px;
+  margin: 0 0 0 24px;
+  /* 缩进对齐（2026-09-05 四轮）：线对齐推理段图标列中心 x=28（think padding 4 + chevron 14 + gap 4 + icon/2 6），
+     文字对齐标题首字 x=38（24+1+9+4=38） */
+  padding: 2px 4px 2px 9px;
+  border-left: 1px solid color-mix(in srgb, var(--agent-text-tertiary) 55%, transparent);
   opacity: 0;
   transform: translateY(8px);
   transition:
@@ -142,6 +151,32 @@
     transform 0.2s ease 80ms;
 }
 .ws-stream-think-collapse.open .ws-stream-think-body {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ── 通用折叠动画容器（2026-09-05）：组合段/待办区/待办项 body 复用推理段配方
+   （grid-rows 0fr→1fr 高度动画 + 内容虚化→凝实），结构与 .ws-stream-think-collapse 一致 ── */
+.ws-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.2s ease;
+}
+.ws-collapse.open {
+  grid-template-rows: 1fr;
+}
+.ws-collapse > * {
+  overflow: hidden;
+  min-height: 0;
+}
+.ws-collapse > * {
+  opacity: 0;
+  transform: translateY(8px);
+  transition:
+    opacity 0.2s ease 80ms,
+    transform 0.2s ease 80ms;
+}
+.ws-collapse.open > * {
   opacity: 1;
   transform: translateY(0);
 }
@@ -158,15 +193,15 @@
   font-size: var(--font-size-sm);
   color: var(--agent-text-secondary);
   transition: background 0.15s;
-  /* 2026-09-04 行距贴近：压缩行盒上下留白 */
-  line-height: 1.3;
+  /* 2026-09-05 二轮间距统一：行高对齐 1.45（原 1.3） */
+  line-height: 1.45;
 }
 .ws-stream-tool-summary {
   display: flex;
   align-items: center;
   gap: 6px;
-  /* 2026-09-04 行距贴近：padding 上下 4px→2px */
-  padding: 2px 6px;
+  /* 2026-09-05 二轮间距统一：padding 垂直归零 */
+  padding: 0 6px;
 }
 /* 前缀文字（点击区）：内容宽度展示语义动词+对象+工具名；ellipsis 在子 span；focus-visible 焦点环。
    2026-09-04 折叠条文字化 v2：点击仅挂在此前缀文字上，其余只读信息不可点 */
@@ -182,9 +217,6 @@
 .ws-stream-tool-prefix:focus-visible {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--agent-primary) 45%, transparent);
 }
-.ws-stream-tool-summary.is-failed .ws-stream-tool-prefix {
-  cursor: default;
-}
 /* 状态点：running 主色脉冲；completed/failed 用 ✓/✗ 图标 */
 .ws-stream-tool-dot {
   width: 6px;
@@ -199,11 +231,6 @@
 }
 .ws-stream-tool-icon-success { color: var(--agent-success); flex-shrink: 0; display: inline-flex; }
 .ws-stream-tool-icon-fail { color: var(--agent-danger); flex-shrink: 0; display: inline-flex; }
-.ws-stream-tool-name {
-  font-weight: 600;
-  color: var(--agent-text);
-  flex-shrink: 0;
-}
 .ws-stream-tool-status {
   font-size: 10px;
   padding: 1px 6px;
@@ -232,6 +259,11 @@
   color: var(--agent-text-secondary);
   background: var(--agent-hover-bg);
 }
+/* 操作分类图标（2026-09-05 全面铺开）：无背景无彩色，跟随主题文字反向色（亮暗自动切换） */
+.ws-stream-tool-mark-icon {
+  flex-shrink: 0;
+  color: var(--agent-text);
+}
 .ws-stream-tool-mark.create { color: var(--agent-success); background: color-mix(in srgb, var(--agent-success) 12%, transparent); }
 .ws-stream-tool-mark.read { color: var(--agent-primary); background: color-mix(in srgb, var(--agent-primary) 12%, transparent); }
 .ws-stream-tool-mark.edit { color: var(--agent-warning, #e6a23c); background: color-mix(in srgb, var(--agent-warning, #e6a23c) 12%, transparent); }
@@ -253,7 +285,8 @@
   max-width: 40%;
   flex-shrink: 0;
 }
-/* 工具名弱化（括号后置） */
+/* 工具行名弱化态（2026-09-05 括号后置重排定稿）：400 + tertiary + 11px；
+   注意本类无 600 主态——曾有的 600 定义已删除（弱化版为唯一定义，勿在前面再加高权重同名规则） */
 .ws-stream-tool-name {
   font-weight: 400;
   color: var(--agent-text-tertiary);
@@ -285,17 +318,6 @@
   white-space: nowrap;
   color: var(--agent-danger);
 }
-.ws-stream-tool-failed-hint {
-  flex-shrink: 0;
-  font-size: 10px;
-  color: var(--agent-danger);
-  border: 1px solid color-mix(in srgb, var(--agent-danger) 40%, transparent);
-  border-radius: 6px;
-  padding: 0 5px;
-}
-.ws-stream-tool-summary.is-failed {
-  cursor: default;
-}
 .ws-stream-tool-args {
   flex: 1;
   min-width: 0;
@@ -309,10 +331,48 @@
      前缀区元素（箭头/角标/文字/状态/耗时/参数）全部紧凑左对齐 */
   font-size: 10px;
   color: var(--agent-text-tertiary);
-  transition: transform 0.2s;
+  transition: transform 0.2s, opacity 0.15s;
   flex-shrink: 0;
 }
 .ws-stream-tool-chevron.open {
+  transform: rotate(90deg);
+}
+/* ── 折叠箭头统一悬停显示（2026-09-05 推广至全部行段）：
+   折叠态箭头常隐，行 hover 或展开态才显示；过渡统一 opacity+transform ── */
+.ws-stream-tool-chevron,
+.ws-stream-think-chevron,
+.ws-combo-chevron,
+.ws-zone-chevron,
+.ws-item-chevron,
+.ws-process-summary-chevron {
+  transition: transform 0.2s, opacity 0.15s;
+}
+.ws-stream-tool-summary:hover .ws-stream-tool-chevron,
+.ws-stream-think:hover .ws-stream-think-chevron,
+.ws-combination-head:hover .ws-combo-chevron,
+.ws-plan-zone-head:hover .ws-zone-chevron,
+.ws-plan-item-head:hover .ws-item-chevron,
+.ws-process-summary:hover .ws-process-summary-chevron,
+.ws-stream-tool-chevron.open,
+.ws-stream-think.open .ws-stream-think-chevron,
+.ws-combination-head.open .ws-combo-chevron,
+.ws-plan-zone-head.open .ws-zone-chevron,
+.ws-plan-item-head.open .ws-item-chevron,
+.ws-process-summary-chevron.open {
+  opacity: 1;
+}
+.ws-stream-tool-chevron:not(.open),
+.ws-stream-think:not(.open) .ws-stream-think-chevron,
+.ws-combination-head:not(.open) .ws-combo-chevron,
+.ws-plan-zone-head:not(.open) .ws-zone-chevron,
+.ws-plan-item-head:not(.open) .ws-item-chevron,
+.ws-process-summary-chevron:not(.open) {
+  opacity: 0;
+}
+/* 后缀箭头统一旋转方案（与推理段一致）：open 旋转 90° 表达展开态 */
+.ws-zone-chevron.open,
+.ws-item-chevron.open,
+.ws-process-summary-chevron.open {
   transform: rotate(90deg);
 }
 /* 展开详情 collapse 容器（0fr→1fr 高度动画 + 内容虚化→凝实，与 ThinkRow 同模式） */
@@ -328,11 +388,13 @@
   overflow: hidden;
   min-height: 0;
 }
-/* 展开详情（参数 JSON + 结果），无卡片装饰；内容入场 opacity+位移，delay 80ms 等高度先展开 */
+/* 展开详情（参数 JSON + 结果），2026-09-05 三轮（用户拍板）：块装饰 → 缩进线（与推理段/组合段统一）；
+   水平 margin-left 做缩进（0fr 只残留垂直 margin，水平安全）；边线用 border-left */
 .ws-stream-tool-detail {
-  border-top: 1px solid var(--agent-hover-bg);
-  margin: 0 6px;
-  padding: 4px 4px;
+  /* 缩进对齐（2026-09-05 四轮）：线与组合段竖线同位（分类图标列中心 x=33），文字对齐动词首字 x=46 */
+  border-left: 1px solid color-mix(in srgb, var(--agent-text-tertiary) 55%, transparent);
+  margin: 0 0 0 33px;
+  padding: 2px 4px 2px 12px;
   opacity: 0;
   transform: translateY(8px);
   transition:
@@ -425,21 +487,42 @@
   margin-top: 4px;
 }
 
-/* ② 过程层：内部行纵向扁平流，间距同层内。
-   2026-09-04 用户建议三次修正：行段垂直间距贴合到 0（行段间仅剩各自 padding） */
+/* ② 过程层：内部行纵向扁平流。
+   2026-09-05 三轮修正：对齐轮次体系基准 gap 3px（.ws-turn-root），
+   上轮误设 4px 造成与轮次其余部分不一致 */
 .ws-turn-process {
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: 3px;
   min-width: 0;
 }
+/* 过程行挂载淡入（2026-09-05 二轮升级：0.15s 单 opacity 观感无效 → 0.3s 带位移，
+   与推理段正文入场同款缓动；排除摘要行自身——它常驻不该闪） */
+@keyframes ws-proc-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.ws-turn-process > *:not(.ws-process-summary) {
+  animation: ws-proc-row-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+/* 收起两阶段淡出（2026-09-05）：摘要行点击收起时先挂此类淡出过程行，130ms 后数据层再卸载；
+   !important 压过入场动画的 fill-mode 保持态 */
+.ws-turn-process.ws-proc-fading > *:not(.ws-process-summary) {
+  opacity: 0 !important;
+  transform: translateY(-4px);
+  transition:
+    opacity 0.12s ease,
+    transform 0.12s ease;
+}
 
-/* ③ 结果层：与上方过程层留出 8px（4px gap + 4px） */
+/* ③ 结果层：层间距交给 turn-root gap（3px），不再额外 margin
+   （原 8px = 3px gap + 4px margin，与层内不一致——二轮间距反馈修正） */
 .ws-turn-result {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  margin-top: 4px;
 }
 /* 结果层过后才落地时（无过程层），首个元素不该有额外上边距
    （原 .ws-stream-list > .ws-turn-result:first-child，S5 阶段 A 迁移到 turn-root 内） */
@@ -472,9 +555,14 @@
   user-select: none;
   font-size: var(--font-size-sm);
   color: var(--agent-text-tertiary);
-  padding: 2px 4px;
-  margin: 1px 0;
-  border-radius: 4px;
+  /* 2026-09-05 二轮间距统一：padding 垂直归零 + 行高 1.45（底部 6px 为分割线留白）；
+     三轮：margin 归零，层距交给 gap */
+  padding: 0 4px;
+  line-height: 1.45;
+  border-radius: 4px 4px 0 0;
+  /* 2026-09-05 摘要行下方分割线（用户要求）：二轮反馈加深 */
+  padding-bottom: 6px;
+  border-bottom: 1px solid color-mix(in srgb, var(--agent-text-tertiary) 55%, transparent);
 }
 /* 2026-09-05 样式统一（对齐推理段）：点击/光标仅挂摘要文字（600 字重），整行不可点、无 hover 背景 */
 .ws-process-summary-text {
@@ -580,7 +668,8 @@
 
 /* ===== 2026-09-02 系统工具流式：bash/powershell 增量输出（stream）===== */
 .ws-stream-tool-stream {
-  margin: 0 6px 6px;
+  /* 2026-09-05 四轮：块左缘对齐动词首字 x=46（margin-bottom 已归零交给 gap） */
+  margin: 0 6px 0 46px;
   padding: 6px 8px;
   border-radius: 6px;
   background: var(--agent-hover-bg);
@@ -618,7 +707,8 @@
 
 /* ===== 2026-09-02 系统工具流式：文件变更 diff（绿红对比 + 路径）===== */
 .ws-stream-tool-filechange {
-  margin: 0 6px 2px;
+  /* 2026-09-05 四轮：块左缘对齐动词首字 x=46——组合段竖线（x=33）不再穿过块体 */
+  margin: 0 6px 0 46px;
   border: 1px solid var(--agent-hover-bg);
   border-radius: 6px;
   overflow: hidden;
@@ -712,8 +802,8 @@
   min-width: 0;
 }
 
+/* 组合头/待办项头：600 强调；计划区头不在此组——它有意 500 弱一层（见 .ws-plan-zone-head），勿并回来 */
 .ws-combination-head,
-.ws-plan-zone-head,
 .ws-plan-item-head {
   display: flex;
   align-items: center;
@@ -724,7 +814,9 @@
   font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--agent-text-secondary);
-  padding: 2px 4px;
+  /* 2026-09-05 二轮间距统一：padding 垂直归零 + 行高 1.45 */
+  padding: 0 4px;
+  line-height: 1.45;
   border-radius: 4px;
   /* 2026-09-05 样式统一（用户拍板）：与推理段折叠条一致——无 hover 背景高亮，
      折叠态切换由 chevron 旋转表达（见下） */
@@ -784,12 +876,36 @@
   opacity: 0.72;
 }
 .ws-combination-body {
-  padding-left: 8px;
-  border-left: 1px solid var(--agent-hover-bg);
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 0;
+  /* 2026-09-05 三轮修正：对齐轮次体系基准 gap 3px */
+  gap: 3px;
   min-width: 0;
+}
+/* 图标列连接线（2026-09-05）：组合段内行段以一条竖线串联，位于行首分类图标列中心
+   （chevron 14px + gap 6px + summary 左 padding 6px → 图标中心 x=33px）；
+   图标以面板底色遮线 → 视觉上「图标之间存在竖线，不贯穿图标本身」。
+   过程层行无 hover 背景变化，遮罩色恒定安全 */
+.ws-combination-body::before {
+  content: '';
+  position: absolute;
+  left: 33px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  /* 2026-09-05 二轮反馈：hover-bg 几乎不可见，加深为弱文字色调 */
+  background: color-mix(in srgb, var(--agent-text-tertiary) 55%, transparent);
+}
+/* 推理行的脑图标列略偏左（28px），组合段内缩进对齐连接线 */
+.ws-combination-body .ws-stream-think {
+  padding-left: 9px;
+}
+/* 图标遮线：面板同底色（主题跟随），线在图标处视觉断开 */
+.ws-combination-body .ws-stream-tool-mark-icon,
+.ws-combination-body .ws-stream-think-icon {
+  position: relative;
+  background: var(--bg-surface, transparent);
 }
 
 /* 计划折叠区（区级折叠头）：与过程层总折叠条同级视觉（一级强调色），职责=待办项 */
@@ -797,6 +913,18 @@
   margin-left: 0;
 }
 .ws-plan-zone-head {
+  /* 布局属性自 600 组拆出时随迁（display/cursor 等与组合头一致），色与字重独立：500 弱一层 */
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  cursor: pointer;
+  user-select: none;
+  font-size: var(--font-size-sm);
+  /* 2026-09-05 二轮间距统一：padding 垂直归零 + 行高 1.45 */
+  padding: 0 4px;
+  line-height: 1.45;
+  border-radius: 4px;
   color: var(--agent-text);
   font-weight: 500;
 }
@@ -811,10 +939,10 @@
 .ws-plan-zone-body {
   padding-left: 14px;
   border-left: 2px solid color-mix(in srgb, var(--agent-primary) 28%, transparent);
-  margin-top: 1px;
+  /* 2026-09-05 三轮：margin-top 1px 归零，层距交给 gap 3px */
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: 3px;
   min-width: 0;
 }
 .ws-plan-zone-body > .ws-plan-item {
@@ -875,17 +1003,17 @@
 .ws-plan-item-body {
   padding-left: 14px;
   border-left: 1px solid var(--agent-hover-bg);
-  margin-top: 1px;
-  padding-top: 1px;
+  /* 2026-09-05 三轮：margin-top/padding-top 1px 归零，层距交给 gap 3px */
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: 3px;
   min-width: 0;
 }
 /* 待办项产出区：description 说明 + result/output + reason */
 .ws-plan-item-output {
-  padding: 2px 6px;
-  margin: 1px 0;
+  /* 2026-09-05 四轮：内容对齐待办项前缀首字 x=20（head padding 4 + icon 12 + gap 4） */
+  padding: 2px 6px 2px 20px;
+  /* 2026-09-05 三轮：margin 归零，层距交给 gap */
   display: flex;
   flex-direction: column;
   gap: 2px;

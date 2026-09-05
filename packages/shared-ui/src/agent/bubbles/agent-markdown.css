@@ -22,6 +22,12 @@
 .ws-agent-md ol { margin: 5px 0; padding-left: 22px; }
 .ws-agent-md li { margin: 3px 0; }
 
+/* 首尾元素 margin 归零（2026-09-05 间距统一三轮）：正文行在事件流里是独立行段，
+   行段间距由容器 gap 统一供给；md 内容层的外沿 margin（p 5px / h 10px / 代码块 10px）
+   会让正文行与相邻行段的空隙远大于折叠条之间；段间语义间距保留 */
+.ws-agent-md > :first-child { margin-top: 0; }
+.ws-agent-md > :last-child { margin-bottom: 0; }
+
 .ws-agent-md code {
   background: var(--agent-hover-bg);
   padding: 1px 5px;
