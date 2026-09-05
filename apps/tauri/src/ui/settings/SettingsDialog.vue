@@ -47,6 +47,7 @@
             <ShortcutsPanel v-if="cat.id === 'shortcuts'" :search-query="searchQuery" @dirty="onDirty" />
             <VoicePanel v-if="cat.id === 'voice'" :search-query="searchQuery" @dirty="onDirty" />
             <AccessibilityPanel v-if="cat.id === 'accessibility'" :search-query="searchQuery" />
+            <StorageManagementTab v-if="cat.id === 'storage'" :search-query="searchQuery" @card-change="onPanelCardChange" />
             <AboutPanel v-if="cat.id === 'about'" :search-query="searchQuery" @card-change="onPanelCardChange" />
             <div v-if="cat.id === 'agent'" class="agent-set-embed"><SpaceAgentSettingsPanel @close="close" /></div>
           </template>
@@ -66,7 +67,7 @@
           <AccessibilityPanel v-else-if="activeSection === 'accessibility'" ref="accessibilityRef" @card-change="onPanelCardChange" />
           <AboutPanel v-else-if="activeSection === 'about'" ref="aboutRef" @card-change="onPanelCardChange" />
           <template v-else-if="activeSection === 'storage'">
-            <StorageManagementTab ref="storageRef" @card-change="onPanelCardChange" />
+            <StorageManagementTab ref="storageRef" :search-query="searchQuery" @card-change="onPanelCardChange" />
           </template>
           <div v-else-if="activeSection === 'agent'" class="agent-set-embed"><SpaceAgentSettingsPanel ref="agentSetRef" @close="close" @card-change="onPanelCardChange" /></div>
         </template>
@@ -272,9 +273,9 @@ function updateRailLayout(): void {
   }
 }
 
-/** 各面板分节标题选择器与其所属卡片的选择器（覆盖标准 .sc-head / 语音 .set-card-title / 存储 .sm-section-head / Agent .agent-set-head） */
-const HEADING_SELECTOR = '.sc-head, .set-card-title, .sm-section-head, .agent-set-head'
-const SECTION_SELECTOR = '.set-card, .sm-section, .agent-set-card'
+/** 各面板分节标题选择器与其所属卡片的选择器（2026-09-06 归一后：标准 .sc-head/.set-card；Agent 面板待步4归一） */
+const HEADING_SELECTOR = '.sc-head, .agent-set-head'
+const SECTION_SELECTOR = '.set-card, .agent-set-card'
 
 /** 提取分节标题主文本：部分 .sc-head 内含多个元素（如插件面板含筛选标签），只取首个文字子节点 */
 function headText(h: HTMLElement): string {

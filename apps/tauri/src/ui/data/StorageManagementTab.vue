@@ -27,6 +27,15 @@ const emit = defineEmits<{ 'card-change': [index: number] }>()
 const deckRef = ref<InstanceType<typeof CardDeck> | null>(null)
 defineExpose({ goToCard: (i: number) => deckRef.value?.goToCard(i) })
 
+// ── 设置搜索：按关键词过滤五张功能卡（面板三契约之一；存储为即时操作型面板，dirty 豁免） ──
+const props = withDefaults(defineProps<{ searchQuery?: string }>(), { searchQuery: '' })
+
+function match(keywords: string): boolean {
+  if (!props.searchQuery) return true
+  const q = props.searchQuery.toLowerCase()
+  return keywords.toLowerCase().split(/\s+/).some((k) => q.includes(k))
+}
+
 const selectedCount = computed(() => selectedIds.value.size)
 const selectedSize = computed(() => {
   const ids = selectedIds.value
@@ -95,23 +104,23 @@ onMounted(async () => {
   <div class="sm-tab">
     <CardDeck :count="5" @change="(i) => emit('card-change', i)" ref="deckRef">
       <template #card="{ idx, cls }">
-        <div v-if="idx === 0" class="sm-section sm-section--auto deck-card" :class="cls" :data-index="0">
-          <div class="sm-section-head">
+        <div v-if="idx === 0" class="set-card deck-card" :class="cls" :data-index="0" v-show="match('系统集成 自启 开机 autostart settings')">
+          <div class="sc-head">
             <WsIcon name="settings" size="xs" />
             <span>系统集成</span>
           </div>
-          <div class="sm-row">
-            <span class="sm-row-label">开机自启</span>
-            <label class="sm-toggle">
+          <div class="set-row">
+            <span>开机自启</span>
+            <label class="set-toggle">
               <input type="checkbox" :checked="autostartOn" @change="onToggleAutostart" />
-              <span class="sm-toggle-slider"></span>
+              <span class="set-toggle-slider"></span>
             </label>
             <span class="sm-row-hint">登录系统后自动启动 WorldSmith</span>
           </div>
         </div>
 
-        <div v-else-if="idx === 1" class="sm-section deck-card" :class="cls" :data-index="1">
-          <div class="sm-section-head">
+        <div v-else-if="idx === 1" class="set-card deck-card" :class="cls" :data-index="1" v-show="match('存储 概览 空间 配额 实体 关系 文件 会话 stats storage')">
+          <div class="sc-head">
             <WsIcon name="dashboard" size="xs" />
             <span>存储概览</span>
             <TuiButton size="sm" variant="ghost" @click="onRefreshStats" :disabled="statsScanning">
@@ -150,8 +159,8 @@ onMounted(async () => {
           </div>
         </div>
 
-        <div v-else-if="idx === 2" class="sm-section deck-card" :class="cls" :data-index="2">
-          <div class="sm-section-head">
+        <div v-else-if="idx === 2" class="set-card deck-card" :class="cls" :data-index="2" v-show="match('孤立 文件 清理 扫描 orphan cleanup')">
+          <div class="sc-head">
             <WsIcon name="delete" size="xs" />
             <span>孤立文件清理</span>
             <TuiButton size="sm" variant="ghost" @click="onScanOrphans" :disabled="orphanScanning">
@@ -183,8 +192,8 @@ onMounted(async () => {
           </div>
         </div>
 
-        <div v-else-if="idx === 3" class="sm-section deck-card" :class="cls" :data-index="3">
-          <div class="sm-section-head">
+        <div v-else-if="idx === 3" class="set-card deck-card" :class="cls" :data-index="3" v-show="match('数据 诊断 实体 关系 重名 类型 diagnose diagnostic')">
+          <div class="sc-head">
             <WsIcon name="search" size="xs" />
             <span>数据诊断</span>
           </div>
@@ -220,8 +229,8 @@ onMounted(async () => {
           </div>
         </div>
 
-        <div v-else class="sm-section deck-card" :class="cls" :data-index="4">
-          <div class="sm-section-head">
+        <div v-else class="set-card deck-card" :class="cls" :data-index="4" v-show="match('自动 清理 缓存 临时 autoclean cache')">
+          <div class="sc-head">
             <WsIcon name="refresh" size="xs" />
             <span>自动清理</span>
           </div>
@@ -240,35 +249,25 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+/* 基座样式（.set-card/.sc-head/.set-row/.set-toggle）见 ui-kit settings-panels.css。
+   本面板私有：布局类（sm-*）与 sc-head 的 flex 覆盖（标题行右侧带操作按钮，同 Plugins 特例） */
 .sm-tab {
-  width: 616px;
-  height: 699px;
-  padding: 10px;
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 20px;
 }
-.sm-section {
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-md);
-  height: 212px;
-  padding: 16px;
-  background: var(--color-bg-surface);
-}
-.sm-section-head {
+.sc-head {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 12px;
-  font-size: var(--text-subheading-font-size);
 }
-/* 系统集成区：高度自适应（区别于固定高度的存储概览区） */
-.sm-section--auto { height: auto; }
-.sm-row { display: flex; align-items: center; gap: 10px; padding: 4px 2px; }
-.sm-row-label { font-size: var(--font-size-sm); color: var(--color-text-primary); }
-.sm-row-hint { font-size: var(--font-size-xs); color: var(--color-text-tertiary); }
-.sm-toggle { display: inline-flex; cursor: pointer; }
-.sm-toggle input { accent-color: var(--color-primary); width: 14px; height: 14px; cursor: pointer; }
+.sc-head > span {
+  flex: 1;
+  min-width: 0;
+}
+.set-row .set-toggle { margin-left: auto; }
+.sm-row-hint { margin-left: 12px; font-size: var(--font-size-xs); color: var(--color-text-tertiary); }
 .sm-stats-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -370,9 +369,4 @@ onMounted(async () => {
   gap: 4px;
   margin-bottom: 8px;
 }
-/* 叠放翻卡上下文（CardDeck 注入 deck-card）：覆盖 .sm-section 固定高度 212px，
-   让卡片随叠放位撑满/收缩（与参考 Agent 面板一致）；非 deck 场景保持原 212px 堆叠布局 */
-.sm-section.deck-card--mid { height: calc(100% - 2 * var(--deck-peek)); }
-.sm-section.deck-card--up,
-.sm-section.deck-card--down { height: var(--deck-peek); }
 </style>
