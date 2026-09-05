@@ -1085,7 +1085,7 @@ onBeforeUnmount(() => {
   position: relative;
 }
 
-/* ── 双层输入框（[C] 宽度联动：以 W=55vw 为上限；主区被左栏/右栏挤窄时收缩到主区-2vw，左右各留 1vw 缝） ── */
+/* ── 双层输入框（[C] 宽度联动：以 W=75vw 为上限（原55vw向左右各扩10%）；主区被左栏/右栏挤窄时收缩到主区-2vw，左右各留 1vw 缝） ── */
 .chat-input-box {
   width: min(var(--conv-w), calc(100% - 2vw));
   max-width: min(var(--conv-w), calc(100% - 2vw));

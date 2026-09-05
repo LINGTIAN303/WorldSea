@@ -1,6 +1,7 @@
 <!--
-  UserRow：用户行（右对齐气泡 + 头像 + chips + 操作栏）
+  UserRow：用户行（右对齐气泡 + chips + 操作栏）
   从 AgentMessageBody 的 user 分支迁移（去掉 assistant 内容），保留对话锚点。
+  2026-09-05 移除用户头像（用户要求）：右侧仅保留气泡本体。
   emits：hover / leave / copy / retry。
 -->
 <template>
@@ -11,14 +12,6 @@
     @mouseenter="emit('hover', msg.id)"
     @mouseleave="emit('leave')"
   >
-    <AvatarBadge
-      class="ws-avatar"
-      :avatar="speaker.avatar"
-      :name="speaker.name"
-      :color="speaker.color"
-      :size="24"
-      shape="rounded"
-    />
     <div class="ws-user-inner">
       <!-- 用户文本：chips（@path 引用）+ 正文（Markdown 渲染，2026-09-03——仅显示层，消息原文/发送内容不动）；
            超阈值折叠：截断 + 渐隐 + 「展开全文」（方案2，2026-09-03） -->
@@ -45,8 +38,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
-import { useMessageSpeaker } from '@worldsmith/shared-composables/agent/useMessageSpeaker'
-import { useAgentUiDeps } from '@worldsmith/shared-composables/agent/deps'
 import { useMessageActions } from '../../bubbles/useMessageActions'
 import { renderMarkdownHtml } from '../../bubbles/useMarkdownRender'
 import '../../bubbles/agent-markdown.css'
@@ -64,12 +55,6 @@ const emit = defineEmits<{
   (e: 'copy', msg: AgentMessage): void
   (e: 'retry', msg: AgentMessage): void
 }>()
-
-// ===== 发言者信息（头像/名称/颜色） =====
-const speaker = useMessageSpeaker(() => props.msg)
-
-// ===== 头像组件（注入式获取，复用端实现） =====
-const { AvatarBadge } = useAgentUiDeps()
 
 // ===== 操作栏（时间 + 导出能力，仅用 timeLabel） =====
 const actions = useMessageActions(
@@ -136,14 +121,8 @@ watch(
   display: flex;
   align-items: flex-start;
   justify-content: flex-end;
-  gap: 8px;
   margin-left: auto;
   max-width: 85%;
-  /* 右对齐气泡 + 头像（row-reverse 让头像在右） */
-  flex-direction: row-reverse;
-}
-.ws-user-row > :not(.ws-avatar) {
-  min-width: 0;
 }
 .ws-user-inner {
   display: flex;
