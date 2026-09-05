@@ -222,6 +222,9 @@ importers:
       '@lobehub/icons-static-svg':
         specifier: ^1.94.0
         version: 1.94.0
+      '@tabler/icons-vue':
+        specifier: ^3.46.0
+        version: 3.46.0(vue@3.5.40(typescript@6.0.3))
       '@tauri-apps/api':
         specifier: ^2.11.0
         version: 2.11.1

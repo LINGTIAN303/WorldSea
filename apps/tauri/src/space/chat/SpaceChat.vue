@@ -1,32 +1,32 @@
 <template>
   <div class="space-chat agent-panel">
     <template v-if="spaceStore.mode === 'chat'">
-      <!-- [A2] 顶栏移除后：主对话区右上角工具行（右侧栏开关 + 单聊/群聊切换） -->
-      <div class="chat-topbar">
-        <div class="chat-topbar-right">
-          <button
-            class="chat-top-btn"
-            :class="{ active: rightPanelOpen }"
-            @click="emit('toggle-right-panel')"
-            title="右侧栏（执行/配置/创作/预览/用量）"
-            :aria-pressed="rightPanelOpen"
-          ><WsIcon :name="rightPanelOpen ? 'panel-right-close' : 'panel-right-open'" size="sm" /><span v-if="spaceStore.activityPinned" class="nav-badge"></span></button>
-          <div
-            class="mode-switch"
-            role="button"
-            tabindex="0"
-            title="切换群聊"
-            @click="emit('toggle-mode')"
-            @keydown.enter.prevent="emit('toggle-mode')"
-            @keydown.space.prevent="emit('toggle-mode')"
-          >
-            <span class="mode-switch-label">
-              <WsIcon name="chat" size="xs" />
-              单聊
-            </span>
+        <!-- [A2] 顶栏移除后：主对话区右上角工具行（单聊/群聊切换 + 右侧栏开关；2026-09-06 二者换位：单聊在前） -->
+        <div class="chat-topbar">
+          <div class="chat-topbar-right">
+            <div
+              class="mode-switch"
+              role="button"
+              tabindex="0"
+              title="切换群聊"
+              @click="emit('toggle-mode')"
+              @keydown.enter.prevent="emit('toggle-mode')"
+              @keydown.space.prevent="emit('toggle-mode')"
+            >
+              <span class="mode-switch-label">
+                <WsIcon name="chat" size="xs" />
+                单聊
+              </span>
+            </div>
+            <button
+              class="chat-top-btn"
+              :class="{ active: rightPanelOpen }"
+              @click="emit('toggle-right-panel')"
+              title="右侧栏（执行/配置/创作/预览/用量）"
+              :aria-pressed="rightPanelOpen"
+            ><WsIcon :name="rightPanelOpen ? 'panel-right-close' : 'panel-right-open'" size="sm" /><span v-if="spaceStore.activityPinned" class="nav-badge"></span></button>
           </div>
         </div>
-      </div>
       <!-- 读屏直播区：告知 Agent 生成开始/完成（视觉隐藏，WCAG 4.1.3） -->
       <div class="sr-only" role="status" aria-live="polite">{{ srStatus }}</div>
       <div class="chat-messages" :aria-busy="isStreaming">

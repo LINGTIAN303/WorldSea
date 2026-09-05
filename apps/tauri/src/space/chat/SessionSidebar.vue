@@ -21,41 +21,45 @@
       </div>
     </div>
 
-    <!-- 中部：新建会话长条（2026-09-05 改造：去模态线框→透明块，图标+文字居中放大；关闭入口在窗口栏侧边栏开关） -->
-    <div class="sidebar-new-row">
-      <button class="new-session-bar" @click="onNewSession" title="新建会话">
-        <WsIcon name="chat" size="sm" />
-        <span>新建会话</span>
-      </button>
-    </div>
-
-    <!-- [B5] 知识库入口行（2026-09-05 改造：去右端箭头，图标+文字居中放大） -->
-    <div class="sidebar-kb-row">
-      <button
-        class="kb-entry-btn"
-        :class="{ active: sidebarView === 'kb' }"
-        :aria-expanded="sidebarView === 'kb'"
-        title="打开知识库"
-        @click="toggleKbView"
-      >
-        <WsIcon name="book" size="sm" />
-        <span class="kb-entry-label">知识库</span>
-      </button>
-    </div>
-    <div class="sidebar-search">
-      <!-- 2026-09-05 改造：线框→下横线，加搜索图标，输入文字居中 -->
-      <div class="search-box">
-        <WsIcon name="search" size="sm" class="search-icon" />
-        <input
-          v-model="searchQuery"
-          class="search-input"
-          placeholder="搜索会话..."
-        />
-      </div>
-    </div>
-
+    <!-- 中部：列表卡（2026-09-06 三批层级：左栏浅灰底 → 列表卡(另一种颜色) → 白色入口卡内嵌；
+         列表卡全宽贴右缘、顶部小圆角、底部无缝贴身份条） -->
     <div class="sidebar-body">
-      <!-- 视图舞台：会话列表树 ⇄ 项目目录树 ⇄ 知识库（position:absolute 三 pane 切换） -->
+      <!-- 入口卡：白底内嵌，左圆角、右缘贴边（与列表卡同语言） -->
+      <div class="sidebar-entries">
+        <div class="sidebar-new-row">
+          <button class="new-session-bar" @click="onNewSession" title="新建会话">
+            <WsIcon name="chat-plus" size="sm" />
+            <span>新建会话</span>
+          </button>
+        </div>
+
+        <!-- [B5] 知识库入口行 -->
+        <div class="sidebar-kb-row">
+          <button
+            class="kb-entry-btn"
+            :class="{ active: sidebarView === 'kb' }"
+            :aria-expanded="sidebarView === 'kb'"
+            title="打开知识库"
+            @click="toggleKbView"
+          >
+            <WsIcon name="book" size="sm" />
+            <span class="kb-entry-label">知识库</span>
+          </button>
+        </div>
+        <div class="sidebar-search">
+          <div class="search-box">
+            <WsIcon name="search" size="sm" class="search-icon" />
+            <input
+              v-model="searchQuery"
+              class="search-input"
+              placeholder="搜索会话..."
+            />
+          </div>
+        </div>
+      </div>
+
+      <!-- 视图舞台：会话列表树 ⇄ 项目目录树 ⇄ 知识库（2026-09-06 由 abspos 改流式 flex:1，
+           入口卡得以纳入同一卡片；三 pane 切换动画不变） -->
       <div class="sidebar-stage">
         <Transition name="view-swap" mode="out-in">
           <!-- 会话列表视图 -->
@@ -79,14 +83,12 @@
               >
                 <WsIcon :name="group.collapsed.value ? 'folder' : 'folder-open'" size="xs" class="tree-group-icon" />
                 <span class="tree-group-label">{{ group.label }}</span>
-                <span class="tree-group-count">{{ group.sessions.length }}</span>
                 <button
                   class="tree-group-files"
                   :class="{ active: activeFilesRoot === (group.workdir || defaultDir) }"
                   title="浏览项目目录"
                   @click.stop="openFiles(group)"
                 ><WsIcon name="folder-tree" size="xs" /></button>
-                <WsIcon name="chevron-down" size="xs" class="group-caret" :class="{ open: !group.collapsed.value }" />
               </div>
               <!-- 搜索态忽略折叠，扁平展示命中会话；非搜索态按折叠状态显隐 -->
               <div v-show="!group.collapsed.value || !!searchQuery" class="tree-group-sessions">
@@ -118,7 +120,6 @@
                   </div>
                   <div v-else class="session-meta">
                     <span class="session-time">{{ formatTime(s.createdAt) }}</span>
-                    <span class="session-count">{{ s.messageCount }} 条</span>
                   </div>
                 </div>
               </div>
@@ -155,9 +156,19 @@
       </div>
     </div>
 
-    <!-- [A3][A4] 底部：头像信息（Agent 身份/persona）+ 更多菜单（精简：全局设置/关于）；知识库区块已上移为主体视图（2026-09-03） -->
+    <!-- [A3][A4] 底部：头像+名称+状态 整体可点击（2026-09-06：原仅头像可点，整行扩为身份区入口）+ 全局设置直开按钮（图标放大 18） -->
     <div class="sidebar-bottom">
-      <div class="agent-identity" ref="identityRef">
+      <div
+        class="agent-identity"
+        ref="identityRef"
+        role="button"
+        tabindex="0"
+        title="Agent 人格"
+        aria-label="Agent 人格"
+        @click.stop="togglePersonaPopover"
+        @keydown.enter.prevent="togglePersonaPopover"
+        @keydown.space.prevent="togglePersonaPopover"
+      >
         <AvatarBadge
           class="agent-avatar"
           brand
@@ -166,21 +177,19 @@
           :color="profile.accentColor"
           :font-family="fontFamily"
           :size="32"
-          @click.stop="togglePersonaPopover"
         />
         <div class="agent-info">
           <span class="agent-name" :style="{ fontFamily: fontStore.prefs.agent.family || fontFamily || undefined }">{{ agentName }}</span>
           <span class="agent-status"><WsIcon v-if="moodIcon" :name="moodIcon" size="xs" /> {{ moodLabel }}</span>
         </div>
       </div>
-      <div class="more-wrap" ref="moreWrapRef">
+      <div class="more-wrap">
         <button
           class="more-btn"
-          :class="{ active: moreMenuOpen }"
-          @click.stop="toggleMoreMenu"
-          title="更多"
-          :aria-label="'更多菜单'"
-        ><WsIcon name="more-horizontal" size="sm" /></button>
+          @click.stop="emit('open-settings')"
+          title="全局设置"
+          aria-label="全局设置"
+        ><IconSettings :size="18" :stroke-width="1.5" /></button>
       </div>
     </div>
 
@@ -189,31 +198,6 @@
         <div v-if="personaPopoverOpen" class="persona-popover-overlay" @click.self="personaPopoverOpen = false">
           <div class="persona-popover" :style="popoverStyle" @click.stop>
             <PersonaMirror @close="personaPopoverOpen = false" />
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
-
-    <Teleport to="body">
-      <div v-if="moreMenuOpen" class="more-backdrop" @click="moreMenuOpen = false"></div>
-    </Teleport>
-    <Teleport to="body">
-      <Transition name="dropdown">
-        <div v-if="moreMenuOpen" class="more-menu" :style="moreMenuStyle">
-          <button class="more-item" @click="onMore('settings')"><WsIcon name="settings" size="sm" /><span>全局设置</span></button>
-          <button class="more-item" @click="onMore('about')"><WsIcon name="info" size="sm" /><span>关于</span></button>
-        </div>
-      </Transition>
-    </Teleport>
-
-    <Teleport to="body">
-      <Transition name="popover">
-        <div v-if="aboutOpen" class="about-overlay" @click.self="aboutOpen = false">
-          <div class="about-dialog">
-            <WorldSmithLogo :size="56" :radius="14" tone="white" class="about-logo" />
-            <h3 class="about-title">WorldSmith Agent</h3>
-            <p class="about-version">版本 {{ appVersion }}</p>
-            <button class="about-close" @click="aboutOpen = false">关闭</button>
           </div>
         </div>
       </Transition>
@@ -237,6 +221,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick, type Ref } from 'vue'
+import { IconSettings } from '@tabler/icons-vue'
 import { useAgent } from '@/agent/composables/useAgent'
 import { WsIcon } from '@worldsmith/ui-kit'
 import KnowledgeWall from '@/agent/panels/KnowledgeWall.vue'
@@ -247,15 +232,11 @@ import { usePersonaFont } from '../composables/usePersonaFont'
 import { useFontStore } from '@/stores/fontStore'
 import PersonaMirror from '../panels/PersonaMirror.vue'
 import AvatarBadge from '@/ui/AvatarBadge.vue'
-import WorldSmithLogo from '@/components/brand/WorldSmithLogo.vue'
 import { useSessionTree, type WorkdirRecord } from './useSessionTree'
 import { resolveWorkspaceDir } from '../workspace'
 import ProjectFilesPanel from '../files/ProjectFilesPanel.vue'
 import type { FsNode } from '../files/FileTreeBrowser.vue'
 import { setPendingFile } from '../files/pendingOpen'
-
-declare const __APP_VERSION__: string
-const appVersion = __APP_VERSION__
 
 const emit = defineEmits<{ close: []; 'open-settings': [] }>()
 
@@ -540,34 +521,7 @@ function updatePopoverPosition() {
 
 function togglePersonaPopover() {
   personaPopoverOpen.value = !personaPopoverOpen.value
-  moreMenuOpen.value = false
   if (personaPopoverOpen.value) updatePopoverPosition()
-}
-
-// ── [A4] 更多菜单（精简：全局设置/关于）──
-const moreMenuOpen = ref(false)
-const moreWrapRef = ref<HTMLElement>()
-const moreMenuStyle = ref<Record<string, string>>({ bottom: '8px', left: '16px' })
-
-function toggleMoreMenu() {
-  moreMenuOpen.value = !moreMenuOpen.value
-  personaPopoverOpen.value = false
-  if (moreMenuOpen.value) {
-    const el = moreWrapRef.value
-    if (el) {
-      const rect = el.getBoundingClientRect()
-      moreMenuStyle.value = {
-        bottom: `${Math.max(8, window.innerHeight - rect.top + 6)}px`,
-        left: `${Math.max(8, rect.left)}px`,
-      }
-    }
-  }
-}
-
-function onMore(action: 'settings' | 'about') {
-  moreMenuOpen.value = false
-  if (action === 'settings') emit('open-settings')
-  else aboutOpen.value = true
 }
 
 // ── [B5] 知识库（2026-09-03 改造：底部折叠区块→主体视图，入口行在搜索框上方）──
@@ -575,12 +529,8 @@ function toggleKbView() {
   sidebarView.value = sidebarView.value === 'kb' ? 'sessions' : 'kb'
 }
 
-// ── 关于弹窗 ──
-const aboutOpen = ref(false)
-
 function onClickOutside() {
   contextMenu.value.visible = false
-  moreMenuOpen.value = false
   personaPopoverOpen.value = false
   confirmingDeleteId.value = null
 }
@@ -607,13 +557,13 @@ watch(currentSessionId, () => {
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  /* 与其他大区域面板同色：背景交给外层 .session-panel（--color-surface-elevated） */
+  /* 2026-09-06 三批：左栏改浅灰底（bg-muted），与列表卡（color-mix 加深一档）、白色入口卡构成三层色阶 */
+  background: var(--bg-muted);
 }
 
-/* [A5] 顶部：场景滑块（2026-09-03 改造：下拉→分段滑块，iOS segmented 风） */
+/* [A5] 顶部：场景滑块（2026-09-03 改造：下拉→分段滑块，iOS segmented 风）；2026-09-06 去底部分割线（下方入口卡边缘替代） */
 .sidebar-top {
   padding: 10px 10px 8px;
-  border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
 }
 .scene-slider {
@@ -624,13 +574,13 @@ watch(currentSessionId, () => {
   background: var(--color-surface);
   border-radius: var(--radius-sm);
 }
-/* 滑块 thumb：绝对定位色块，宽度/位移由内联 style 按选中段计算 */
+/* 滑块 thumb：绝对定位色块（灰底浮于白色轨道上，与浅色面板层级区分） */
 .scene-slider-thumb {
   position: absolute;
   top: 2px;
   bottom: 2px;
   left: 2px;
-  background: var(--color-surface-elevated);
+  background: var(--bg-muted);
   border-radius: calc(var(--radius-sm) - 2px);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
   transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
@@ -658,8 +608,32 @@ watch(currentSessionId, () => {
   font-weight: 600;
 }
 
-/* ── 左栏三入口（2026-09-05 二轮：改回左对齐+集体缩进（左 16px），文字色统一 secondary） ── */
-/* 新建行：去模态线框→透明块（hover 浮现 surface），图标+文字左对齐 */
+/* ── 左栏卡片层级（2026-09-06 四轮）：面板灰 → 列表卡白（全宽贴边、radius 12px 四角、底部无缝贴身份条）
+   → 入口卡白底+框线（radius 12px 四角，靠框线与列表卡区分）。
+   ⚠️ surface 与 surface-elevated 同映射 bg-surface（勿当两色用）；白卡上 hover 翻 bg-muted 灰才可见 ── */
+.sidebar-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  margin: 4px 0 0;
+  background: var(--color-surface);
+  border-radius: 12px;
+  position: relative;
+}
+/* 入口卡：白底+框线（与列表卡靠框线区分），四角 12px 圆角 */
+.sidebar-entries {
+  margin: 0 0 6px;
+  padding: 2px 0 4px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+/* 新建行：透明块（hover 浮现），图标+文字左对齐；
+   行左缩进 16（入口卡贴列表卡边缘 + 16 + 按钮内 8 = 图标 24px，与组头同列） */
 .sidebar-new-row {
   display: flex;
   align-items: center;
@@ -676,14 +650,14 @@ watch(currentSessionId, () => {
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--color-text-secondary);
+  color: var(--color-text);
   font-size: var(--font-size-base);
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
 .new-session-bar:hover {
-  background: var(--color-surface);
+  background: var(--bg-muted);
   color: var(--color-text);
 }
 
@@ -702,34 +676,30 @@ watch(currentSessionId, () => {
   background: transparent;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  color: var(--color-text-secondary);
+  color: var(--color-text);
   font-size: var(--font-size-base);
-  font-weight: 600;
+  font-weight: 500;
   transition: background 0.12s, color 0.12s;
 }
 .kb-entry-btn:hover {
-  background: var(--color-surface);
+  background: var(--bg-muted);
   color: var(--color-text);
 }
 .kb-entry-btn.active {
   color: var(--color-primary);
 }
 
-/* 搜索：线框→下横线，图标+输入文字左对齐（与上两行同起点缩进） */
+/* 搜索：下横线，图标+输入文字左对齐（与上两行同起点缩进） */
 .sidebar-search {
   padding: 6px 10px 4px 16px;
   flex-shrink: 0;
 }
+/* 搜索：下横线从输入框元素起笔（缩进对齐"搜索会话"首字=48px），不再压在图标下方 */
 .search-box {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 5px 8px;
-  border-bottom: 1px solid var(--color-border);
-  transition: border-color 0.15s;
-}
-.search-box:focus-within {
-  border-bottom-color: var(--color-primary);
 }
 .search-icon {
   flex-shrink: 0;
@@ -738,13 +708,18 @@ watch(currentSessionId, () => {
 .search-input {
   flex: 1;
   min-width: 0;
-  padding: 0;
+  padding: 0 0 3px;
   border: none;
+  border-bottom: 1px solid var(--color-border);
   background: transparent;
-  color: var(--color-text-secondary);
+  color: var(--color-text);
   font-size: var(--font-size-base);
-  font-weight: 600;
+  font-weight: 500;
   outline: none;
+  transition: border-color 0.15s;
+}
+.search-input:focus {
+  border-bottom-color: var(--color-primary);
 }
 /* 局部豁免全局聚焦光环（theme.css 全局兜底）：全局选择器带 3 个 :not(属性) 特异性达 (0,4,1)，
    普通类规则 (.search-input:focus = 0,2,0) 压不过，须镜像同款 :not 结构拉到 (0,5,0) 才能覆盖；
@@ -756,18 +731,12 @@ watch(currentSessionId, () => {
   color: var(--color-text-secondary);
 }
 
-/* 会话列表主体（滚动） */
-.sidebar-body {
+/* 视图舞台：2026-09-06 由 abspos inset:0 改为流式 flex:1（入口卡纳入列表卡文档流）；
+   三 pane 仍 absolute 填充舞台做切换动画 */
+.sidebar-stage {
+  position: relative;
   flex: 1;
   min-height: 0;
-  overflow: hidden;
-  padding: 4px 8px 8px;
-  position: relative;
-}
-/* 视图舞台：sessions/files 双 pane 绝对定位切换 */
-.sidebar-stage {
-  position: absolute;
-  inset: 0;
 }
 .sb-pane {
   position: absolute;
@@ -807,7 +776,7 @@ watch(currentSessionId, () => {
   padding: 4px 8px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  background: var(--color-surface);
+  background: var(--color-surface-elevated);
   color: var(--color-text-secondary);
   font-size: var(--font-size-xs);
   cursor: pointer;
@@ -842,19 +811,21 @@ watch(currentSessionId, () => {
   margin-bottom: 4px;
 }
 
-/* Phase 3：目录组（两级树外层条目） */
+/* Phase 3：目录组（两级树外层条目）——图标对齐入口卡图标。
+   舞台流式布局，坐标基准=列表卡内容盒：组头 padding-left 24 → 图标 24px；
+   入口卡图标 = 行内缩进 16 + 按钮内 8 = 24px 同列 */
 .tree-group-header {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 8px;
+  padding: 5px 8px 5px 24px;
   border-radius: var(--radius-sm);
   cursor: pointer;
   user-select: none;
   transition: background 0.12s;
 }
 .tree-group-header:hover {
-  background: var(--color-surface);
+  background: var(--bg-muted);
 }
 .tree-group-icon {
   color: var(--color-text-secondary);
@@ -870,16 +841,6 @@ watch(currentSessionId, () => {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.tree-group-count {
-  font-size: var(--font-size-2xs);
-  color: var(--color-text-tertiary);
-  background: var(--color-surface);
-  border-radius: 999px;
-  padding: 0 6px;
-  line-height: 15px;
-  flex-shrink: 0;
-}
-/* 项目组头右端「浏览项目目录」图标（2026-09-03 方向2 第2项） */
 .tree-group-files {
   width: 18px;
   height: 18px;
@@ -905,16 +866,9 @@ watch(currentSessionId, () => {
   background: var(--color-primary-muted);
   opacity: 1;
 }
-.group-caret {
-  transition: transform 0.2s;
-  color: var(--color-text-tertiary);
-  flex-shrink: 0;
-}
-.group-caret.open {
-  transform: rotate(180deg);
-}
 .tree-group-sessions {
-  padding-left: 10px;
+  /* 会话条目文本对齐项目名首字：0 + 30 + margin 6 + padding 8 = 44px（= 图标24 + 图标14 + gap 6） */
+  padding-left: 30px;
 }
 .session-item {
   position: relative;
@@ -929,7 +883,7 @@ watch(currentSessionId, () => {
   transition: background 0.12s;
 }
 .session-item:hover {
-  background: var(--color-surface);
+  background: var(--bg-muted);
 }
 .session-item.active {
   background: var(--color-primary-muted);
@@ -949,7 +903,7 @@ watch(currentSessionId, () => {
 .session-name {
   flex: 1;
   min-width: 0;
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
   color: var(--color-text);
   white-space: nowrap;
   overflow: hidden;
@@ -967,7 +921,7 @@ watch(currentSessionId, () => {
   padding: 2px 4px;
   border: 1px solid var(--color-primary);
   border-radius: var(--radius-xs);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
   background: var(--color-surface);
   color: var(--color-text);
   outline: none;
@@ -1007,11 +961,11 @@ watch(currentSessionId, () => {
   color: #fff;
 }
 .confirm-no {
-  background: var(--color-surface);
+  background: var(--bg-muted);
   color: var(--color-text-tertiary);
 }
 .confirm-no:hover {
-  background: var(--color-surface-elevated);
+  background: var(--bg-muted);
   color: var(--color-text);
 }
 
@@ -1025,15 +979,15 @@ watch(currentSessionId, () => {
   min-height: 0;
 }
 
-/* [A3][A4] 底部：头像 + 更多 */
+/* [A3][A4] 底部：头像+名称+状态 + 全局设置；2026-09-06 去顶部分割线（列表卡底缘无缝贴本区） */
 .sidebar-bottom {
   display: flex;
   align-items: center;
   gap: 4px;
   padding: 8px 10px;
-  border-top: 1px solid var(--color-border);
   flex-shrink: 0;
 }
+/* 身份区整体可点击（2026-09-06）：hover 浮现 surface 底，与列表行语言一致 */
 .agent-identity {
   display: flex;
   align-items: center;
@@ -1042,6 +996,14 @@ watch(currentSessionId, () => {
   border-radius: var(--radius-mid);
   flex: 1;
   min-width: 0;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  text-align: left;
+  transition: background 0.12s;
+}
+.agent-identity:hover {
+  background: var(--color-surface);
 }
 .agent-avatar {
   cursor: pointer;
@@ -1095,44 +1057,7 @@ watch(currentSessionId, () => {
   color: var(--color-text-primary);
 }
 
-/* 浮层 */
-.more-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 10000;
-}
-.more-menu {
-  position: fixed;
-  min-width: 160px;
-  background: var(--color-surface-elevated);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-  padding: 4px;
-  z-index: 10001;
-}
-.more-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 7px 10px;
-  border: none;
-  background: transparent;
-  border-radius: var(--radius-mid);
-  cursor: pointer;
-  text-align: left;
-  font-size: var(--font-size-xs);
-  color: var(--color-text-secondary);
-  transition: background 0.12s;
-}
-.more-item:hover {
-  background: var(--color-surface);
-  color: var(--color-text);
-}
-
+/* 浮层：persona popover（全局设置已改底部直开，菜单浮层移除 2026-09-05） */
 .persona-popover-overlay {
   position: fixed;
   inset: 0;
@@ -1152,52 +1077,6 @@ watch(currentSessionId, () => {
   z-index: 10000;
 }
 
-.about-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 10000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.4);
-}
-.about-dialog {
-  min-width: 240px;
-  padding: 20px;
-  background: var(--color-surface-elevated);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
-  text-align: center;
-}
-.about-title {
-  margin: 12px 0 8px;
-  font-size: var(--font-size-base);
-  color: var(--color-text);
-}
-.about-logo {
-  display: block;
-  margin: 0 auto;
-}
-.about-version {
-  margin: 0 0 16px;
-  font-size: var(--font-size-xs);
-  color: var(--color-text-secondary);
-}
-.about-close {
-  padding: 6px 16px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
-  color: var(--color-text);
-  font-size: var(--font-size-xs);
-  cursor: pointer;
-}
-.about-close:hover {
-  border-color: var(--color-primary);
-  color: var(--color-text-primary);
-}
-
 .popover-enter-active {
   transition: opacity 0.15s ease, transform 0.15s ease;
 }
@@ -1211,21 +1090,6 @@ watch(currentSessionId, () => {
 .popover-leave-to {
   opacity: 0;
   transform: translateY(-4px) scale(0.99);
-}
-
-.dropdown-enter-active {
-  transition: opacity 0.12s ease, transform 0.12s ease;
-}
-.dropdown-leave-active {
-  transition: opacity 0.08s ease, transform 0.08s ease;
-}
-.dropdown-enter-from {
-  opacity: 0;
-  transform: translateY(-4px);
-}
-.dropdown-leave-to {
-  opacity: 0;
-  transform: translateY(-2px);
 }
 
 /* 右键菜单 */
@@ -1268,7 +1132,6 @@ watch(currentSessionId, () => {
 :root[data-anim-panels='off'] .agent-avatar:hover {
   transform: none;
 }
-:root[data-anim-panels='off'] .group-caret,
 :root[data-anim-panels='off'] .scene-slider-thumb {
   transition: none;
 }

@@ -106,12 +106,9 @@
       <!-- ── 下层：常驻工具栏 ── -->
       <div class="input-toolbar">
         <div class="toolbar-left">
-          <!-- [E1] 左侧控件收缩到 附件 + 语音；@//!/~/# 符号入口移除（功能保留：可直接输入符号触发召唤系统） -->
+          <!-- [E1] 左侧控件收缩到 附件；语音键已移至右区发送键旁（2026-09-06）；@//!/~/# 符号入口移除（功能保留：可直接输入符号触发召唤系统） -->
           <button class="tool-btn" type="button" title="附件（图片/文件）" aria-label="添加附件" @click="triggerFileInput">
             <WsIcon name="paperclip" size="sm" />
-          </button>
-          <button class="tool-btn" :class="{ 'voice-active': isListening }" type="button" title="语音输入（麦克风转文字）" aria-label="语音输入" @click="toggleVoice">
-            <WsIcon name="volume-on" size="sm" />
           </button>
           <!-- P0-4 迭代：权限分级改为图标下拉（手动确认/自动判断/完全通过），外部点击关闭 -->
           <!-- I1 修复：菜单 Teleport 到 body + 固定定位（原非传送被输入区层叠/裁剪，三选项仅残影不可点） -->
@@ -148,6 +145,10 @@
         </div>
         <div class="toolbar-right">
           <ModelSwitcher :is-expanded="isExpanded" @change="onModelChange" />
+          <!-- 语音输入（2026-09-06 移至发送键旁；tabler IconMicrophone 替换原 volume-on） -->
+          <button class="tool-btn" :class="{ 'voice-active': isListening }" type="button" title="语音输入（麦克风转文字）" aria-label="语音输入" @click="toggleVoice">
+            <IconMicrophone :size="16" :stroke-width="1.5" />
+          </button>
           <button
             class="send-btn"
             type="button"
@@ -156,8 +157,8 @@
             :aria-label="isStreaming ? '停止生成' : '发送消息'"
             @click="isStreaming ? onStop() : onSend()"
           >
-            <WsIcon v-if="isStreaming" name="square" size="sm" />
-            <WsIcon v-else name="send" size="sm" />
+            <!-- 2026-09-05 改造：发送/停止统一 tabler 虚线箭头（原 send 实心 + square 停止 retired） -->
+            <IconArrowNarrowUpDashed class="send-icon" :class="{ spinning: isStreaming }" :size="16" :stroke-width="1.6" />
           </button>
         </div>
       </div>
@@ -176,6 +177,7 @@
 import { ref, computed, nextTick, watch, onMounted, onBeforeUnmount } from 'vue'
 import { invoke } from '@/agent/composables/transport'
 import { isTauri, hasTauriInvoke } from '@worldsmith/entity-core/core'
+import { IconArrowNarrowUpDashed, IconMicrophone } from '@tabler/icons-vue'
 import { WsIcon, toastInfo, toastWarn } from '@worldsmith/ui-kit'
 import { useSpaceStore, type InputInjectionChip } from '../stores/space-store'
 import { useSessionViewState } from '@/agent/composables/useSessionViewState'
@@ -1093,8 +1095,16 @@ onBeforeUnmount(() => {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-2xl);
   overflow: hidden;
-  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s,
+              width 0.35s cubic-bezier(0.4, 0, 0.2, 1), max-width 0.35s cubic-bezier(0.4, 0, 0.2, 1);
   contain: layout paint style;
+}
+
+/* 任务1（2026-09-05）：空会话居中态左右外边距各扩大10%（75vw→55vw，与 55→75 扩宽口径对称）；
+   首条消息发送进入下沉态后移除本覆盖，恢复 75vw（.docked 由 SpaceChat 按消息数驱动） */
+.chat-input-area:not(.docked) .chat-input-box {
+  width: min(55vw, calc(100% - 2vw));
+  max-width: min(55vw, calc(100% - 2vw));
 }
 
 .chat-input-box.focused {
@@ -1436,19 +1446,21 @@ onBeforeUnmount(() => {
   color: var(--color-primary);
 }
 
+/* 发送按钮（2026-09-05 改造）：原实底方框移除，改描边图标态——
+   待发=主色虚线箭头，悬停浮出 surface 高亮底；运行态=红色箭头以自身中心八角步进旋转（steps(8)，45°/步） */
 .send-btn {
   flex-shrink: 0;
   width: 28px;
   height: 28px;
   border: none;
-  background: var(--color-primary);
-  color: var(--color-text-inverse);
+  background: transparent;
+  color: var(--color-primary);
   border-radius: var(--radius-md);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.15s, opacity 0.2s;
+  transition: background 0.15s, color 0.15s, opacity 0.2s;
 }
 
 .send-btn:disabled {
@@ -1457,17 +1469,24 @@ onBeforeUnmount(() => {
 }
 
 .send-btn:not(:disabled):hover {
-  opacity: 0.85;
+  background: var(--color-surface);
 }
 
 .send-btn.stop-btn {
-  background: var(--color-danger);
-  animation: stop-pulse 1.5s ease-in-out infinite;
+  color: var(--color-danger);
 }
 
-@keyframes stop-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
+.send-icon {
+  transform-origin: center;
+}
+
+.send-icon.spinning {
+  animation: send-octo-spin 1.6s steps(8) infinite;
+}
+
+@keyframes send-octo-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .hidden-file-input {
@@ -1501,7 +1520,7 @@ onBeforeUnmount(() => {
   transform: translateY(-4px);
 }
 
-:root[data-anim-messages='off'] .send-btn.stop-btn {
+:root[data-anim-messages='off'] .send-icon.spinning {
   animation: none;
 }
 :root[data-anim-messages='off'] .ph-enter-from,

@@ -47,6 +47,7 @@
             <ShortcutsPanel v-if="cat.id === 'shortcuts'" :search-query="searchQuery" @dirty="onDirty" />
             <VoicePanel v-if="cat.id === 'voice'" :search-query="searchQuery" @dirty="onDirty" />
             <AccessibilityPanel v-if="cat.id === 'accessibility'" :search-query="searchQuery" />
+            <AboutPanel v-if="cat.id === 'about'" :search-query="searchQuery" @card-change="onPanelCardChange" />
             <div v-if="cat.id === 'agent'" class="agent-set-embed"><SpaceAgentSettingsPanel @close="close" /></div>
           </template>
           <div v-if="matchedCategories.length === 0" class="set-empty">未找到匹配的设置项</div>
@@ -63,6 +64,7 @@
           <ShortcutsPanel v-else-if="activeSection === 'shortcuts'" ref="shortcutsRef" @dirty="onDirty" @card-change="onPanelCardChange" />
           <VoicePanel v-else-if="activeSection === 'voice'" ref="voiceRef" @dirty="onDirty" @card-change="onPanelCardChange" />
           <AccessibilityPanel v-else-if="activeSection === 'accessibility'" ref="accessibilityRef" @card-change="onPanelCardChange" />
+          <AboutPanel v-else-if="activeSection === 'about'" ref="aboutRef" @card-change="onPanelCardChange" />
           <template v-else-if="activeSection === 'storage'">
             <StorageManagementTab ref="storageRef" @card-change="onPanelCardChange" />
           </template>
@@ -93,6 +95,8 @@ import VoicePanel from './panels/VoicePanel.vue'
 import AccessibilityPanel from './panels/AccessibilityPanel.vue'
 // Agent 设置面板（embedded 封装，2026-08-09 迁入主设置）
 import SpaceAgentSettingsPanel from '@/space/panels/SpaceAgentSettingsPanel.vue'
+// 关于面板（2026-09-05 自左栏底部更多菜单迁入为独立 Tab）
+import AboutPanel from './panels/AboutPanel.vue'
 
 const props = defineProps<{ show: boolean }>()
 const emit = defineEmits<{ close: [] }>()
@@ -139,6 +143,7 @@ const categories = [
   { id: 'storage', icon: 'cat-storage', label: '存储' },
   { id: 'agent', icon: 'bot', label: 'Agent' },
   { id: 'accessibility', icon: 'motion', label: '无障碍' },
+  { id: 'about', icon: 'info', label: '关于' },
 ]
 
 const activeSection = ref<string | null>(null)
@@ -229,6 +234,7 @@ const voiceRef = ref<InstanceType<typeof VoicePanel> | null>(null)
 const storageRef = ref<InstanceType<typeof StorageManagementTab> | null>(null)
 const accessibilityRef = ref<InstanceType<typeof AccessibilityPanel> | null>(null)
 const agentSetRef = ref<InstanceType<typeof SpaceAgentSettingsPanel> | null>(null)
+const aboutRef = ref<InstanceType<typeof AboutPanel> | null>(null)
 const panelRefs: Record<string, { value: any }> = {
   appearance: appearanceRef,
   plugins: pluginsRef,
@@ -241,6 +247,7 @@ const panelRefs: Record<string, { value: any }> = {
   storage: storageRef,
   accessibility: accessibilityRef,
   agent: agentSetRef,
+  about: aboutRef,
 }
 /** 叠放翻卡上报：左列高亮跟随当前卡片 */
 function onPanelCardChange(i: number): void {
@@ -339,6 +346,7 @@ const CATEGORY_KEYWORDS: Record<string, string> = {
   storage: '存储 清理 孤立 文件 诊断 缓存 空间 配额 storage cleanup orphan diagnostic',
   agent: 'Agent 模型 供应商 用量 Skills MCP 搜索 多模态 终端 安全 人格预设 思考级别 危险操作 确认 agent model provider usage skill mcp search vision terminal safety persona thinking',
   accessibility: '动画效果 减弱动态 动画 动效 消息 脉冲 状态 面板 侧边栏 弹窗 控件 启动 眩晕 降低 可访问 reduce motion accessibility',
+  about: '关于 版本 产品 WorldSmith about version',
 }
 
 const matchedCategories = computed(() => {
