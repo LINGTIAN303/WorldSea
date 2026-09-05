@@ -28,10 +28,9 @@
         class="ws-stream-tool-summary"
         :class="[`kind-${rowKind}`, { 'is-failed': isFailed }]"
       >
-        <!-- 状态点：running 脉冲点；completed/failed 用 ✓/✗ 图标 -->
-        <span class="ws-stream-tool-dot" :class="item.tc.status" v-if="item.tc.status === 'running'"></span>
-        <WsIcon v-else-if="item.tc.status === 'completed'" name="check" size="xs" class="ws-stream-tool-icon-success" />
-        <WsIcon v-else name="x" size="xs" class="ws-stream-tool-icon-fail" />
+        <!-- 2026-09-05 箭头移前缀（用户拍板）：详情展开 chevron 放行首（open 旋转语义保留）；
+             失败行不可展开 → 无 chevron -->
+        <WsIcon v-if="!isFailed" name="chevron-right" size="xs" class="ws-stream-tool-chevron" :class="{ open: isExpanded }" />
         <!-- 操作分类单字角标（弱提示分级，无卡片盒子） -->
         <span class="ws-stream-tool-mark" :class="op">{{ mark }}</span>
         <!-- 前缀文字（点击区）：语义动词 + 操作对象 + 工具名；点击展开详情，running 时流光 -->
@@ -49,14 +48,17 @@
           <span v-if="subject" class="ws-stream-tool-subject">{{ subject }}</span>
           <span class="ws-stream-tool-name">({{ label }})</span>
         </span>
+        <!-- 状态标识在前缀右侧（2026-09-05 用户拍板）：running 脉冲点；completed/failed 用 ✓/✗ -->
+        <span class="ws-stream-tool-dot" :class="item.tc.status" v-if="item.tc.status === 'running'"></span>
+        <WsIcon v-else-if="item.tc.status === 'completed'" name="check" size="xs" class="ws-stream-tool-icon-success" />
+        <WsIcon v-else name="x" size="xs" class="ws-stream-tool-icon-fail" />
         <!-- 只读信息：效果标签 / 执行耗时 / 错误摘要 / 参数预览（不可点击） -->
         <span v-if="!isFailed && effect" class="ws-stream-tool-effect">{{ effect }}</span>
         <span v-if="durationText" class="ws-stream-tool-duration">{{ durationText }}</span>
         <span v-if="isFailed" class="ws-stream-tool-error">{{ errorText }}</span>
         <span v-else-if="argsPreview" class="ws-stream-tool-args">{{ argsPreview }}</span>
-        <!-- 失败直显提示（不可展开）；成功显示可展开 chevron -->
+        <!-- 失败直显提示（不可展开） -->
         <span v-if="isFailed" class="ws-stream-tool-failed-hint">已失败</span>
-        <WsIcon v-else name="chevron-right" size="xs" class="ws-stream-tool-chevron" :class="{ open: isExpanded }" />
       </div>
       <!-- 展开详情（参数 JSON + 结果；失败直显、不展开）。collapse 动画：摘要行位置不动，
            详情 0fr→1fr 平滑展开，内容 opacity+位移 虚化→凝实（与 ThinkRow 时序一致）。

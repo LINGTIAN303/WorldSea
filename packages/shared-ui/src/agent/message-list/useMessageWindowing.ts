@@ -3,7 +3,7 @@ import { ref, computed, shallowRef, watch, nextTick, onMounted, onBeforeUnmount,
 import type { AgentMessage } from '@worldsmith/agent-runtime'
 
 // 窗口化常量（2026-09-05 S5 阶段 B：粒度切换为轮次级——测量/切片/占位单元从行改为轮次）
-const WINDOW_BUFFER = 2             // 视口上下各保留 2 个轮次缓冲
+const WINDOW_BUFFER = 3             // 视口上下各保留 3 个轮次缓冲（轮次级切窗块大，缓冲稍宽降低切窗频率）
 const INITIAL_RENDER_TURNS = 30     // 初始渲染最近 30 个轮次
 const ESTIMATED_ITEM_HEIGHT = 80    // 未估算过的行回退高度（px，行求和兜底用）
 /** 走查 S2（2026-09-05）测量静默判定（收敛信号）：RO 回调静默超此时长视为测量收敛——
@@ -88,6 +88,63 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
     return Date.now() - lastMeasurementAt < MEASURE_QUIET_MS
   }
 
+  // ===== S4 滚动调度器（阶段 C）：scrollTop 写入的统一仲裁 =====
+  // 两层仲裁：
+  //   ① 同帧优先级——16ms 时间窗内已有更高/同优先级写入时，低优先级请求丢弃
+  //     （根治「锚定补偿与贴底同帧互相覆盖」）；后到的高优先级覆盖先到的低优先级。
+  //   ② 折叠补偿保护期——fold-compensate 写入后 300ms 内 bottom-follow 降级丢弃
+  //     （根治「补偿刚把视口拉回锚点，随后的流式跟随又贴底覆盖」的跨帧竞争；
+  //     等价语义此前由「底部展开解除跟随」补丁在语义层实现，此处收拢为机制）。
+  // 所有写入统一做目标合法性 clamp 与 observedTop 记账。
+
+  /** 滚动写入来源（数值越小优先级越高）；经 requestScroll 签名对宿主可见 */
+  type ScrollWriteSource = 'fold-compensate' | 'bottom-follow' | 'measure-anchor'
+  const SOURCE_PRIORITY: Record<ScrollWriteSource, number> = {
+    'fold-compensate': 1,
+    'bottom-follow': 2,
+    'measure-anchor': 3,
+  }
+  const FOLD_COMPENSATE_GUARD_MS = 300
+  const FRAME_WINDOW_MS = 16
+
+  let lastFrameSource: ScrollWriteSource | null = null
+  let lastFrameWriteAt = 0
+  let lastFoldCompensateAt = 0
+
+  /** 调度写入：仲裁通过则写 scrollTop 并记账；被仲裁丢弃返回 false */
+  function writeScroll(scroll: HTMLElement, target: number, source: ScrollWriteSource): boolean {
+    const now = performance.now()
+    // ① 同帧优先级仲裁
+    if (
+      lastFrameSource &&
+      now - lastFrameWriteAt < FRAME_WINDOW_MS &&
+      SOURCE_PRIORITY[source] >= SOURCE_PRIORITY[lastFrameSource]
+    ) {
+      return false
+    }
+    // ② 折叠补偿保护期：贴底跟随降级
+    if (source === 'bottom-follow' && Date.now() - lastFoldCompensateAt < FOLD_COMPENSATE_GUARD_MS) {
+      return false
+    }
+    const floor = Math.max(0, scroll.scrollHeight - scroll.clientHeight)
+    const clamped = Math.max(0, Math.min(target, floor))
+    if (Math.abs(scroll.scrollTop - clamped) <= 0.5) {
+      observedTop = scroll.scrollTop
+      return false
+    }
+    scroll.scrollTop = clamped
+    observedTop = scroll.scrollTop
+    if (source === 'fold-compensate') lastFoldCompensateAt = Date.now()
+    lastFrameSource = source
+    lastFrameWriteAt = now
+    return true
+  }
+
+  /** 供宿主（withProcessAnchor）接入的调度接口 */
+  function requestScroll(scroll: HTMLElement, target: number, source: ScrollWriteSource): void {
+    writeScroll(scroll, target, source)
+  }
+
   /**
    * 走查 S3/S5：视口顶部基准**轮次**采集——切窗/重建锚定共用。
    * 返回首个 bottom 越过视口顶的轮次（turnId + 相对视口顶偏移）。
@@ -168,11 +225,7 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
     if (scroll && anchorTurnId && !isAtBottom.value) {
       const tIdx = segs.findIndex((s) => s.turnId === anchorTurnId)
       if (tIdx >= 0) {
-        const target = sums[tIdx] + anchorDomOffset
-        if (Math.abs(scroll.scrollTop - target) > 0.5) {
-          scroll.scrollTop = target
-          observedTop = target // 程序化位移记账
-        }
+        writeScroll(scroll, sums[tIdx] + anchorDomOffset, 'measure-anchor')
       }
     }
   }
@@ -283,11 +336,8 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
         const target = scroll.querySelector<HTMLElement>(`[data-turn-root="${CSS.escape(anchorTurnId!)}"]`)
         if (!target) return
         const d = target.getBoundingClientRect().top - scroll.getBoundingClientRect().top - anchorOffset
-        const maxTop = scroll.scrollHeight - scroll.clientHeight
-        if (Math.abs(d) > 0.5 && scroll.scrollTop + d >= 0 && scroll.scrollTop + d <= maxTop + 1) {
-          scroll.scrollTop += d
-          observedTop = scroll.scrollTop
-        }
+        // S4：切窗锚定走调度器（合法性 clamp 与 observedTop 记账内置）
+        writeScroll(scroll, scroll.scrollTop + d, 'measure-anchor')
       })
     }
   }
@@ -352,13 +402,16 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
     scrollToBottom()
   }
 
-  function scrollToBottom(): void {
+  function scrollToBottom(force = false): void {
     const scroll = getScrollEl()
-    if (scroll) {
-      scroll.scrollTop = scroll.scrollHeight
-      // [③] 程序化写入同步记账，避免 onScroll 误判为读者离开底部
-      observedTop = scroll.scrollTop
-    }
+    if (!scroll) return
+    // S4：贴底走调度器（bottom-follow，受折叠补偿保护期约束）；
+    // force=true 为用户明确意图（回底按钮），绕过仲裁直接贴底
+    const floor = Math.max(0, scroll.scrollHeight - scroll.clientHeight)
+    if (!force && !writeScroll(scroll, floor, 'bottom-follow')) return
+    scroll.scrollTop = floor
+    // [③] 程序化写入同步记账，避免 onScroll 误判为读者离开底部
+    observedTop = scroll.scrollTop
   }
 
   /**
@@ -382,9 +435,9 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
     visibleEnd.value = turnSegments.value.length
     // 双帧：nextTick 等 Vue 渲染出扩展窗口的新行，rAF 再校正一次高度（图片/字体异步布局兜底）
     nextTick(() => {
-      scrollToBottom()
+      scrollToBottom(true)
       requestAnimationFrame(() => {
-        scrollToBottom()
+        scrollToBottom(true)
       })
     })
   }
@@ -647,5 +700,7 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
     scrollToMessage,
     scheduleScrollToBottom,
     syncObservedTop,
+    /** S4 调度器接口：宿主（withProcessAnchor 折叠补偿）的 scrollTop 写入统一走仲裁 */
+    requestScroll,
   }
 }

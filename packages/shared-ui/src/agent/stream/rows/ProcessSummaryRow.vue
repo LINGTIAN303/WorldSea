@@ -8,26 +8,26 @@
   emits：expand（携带 turnId，上层按当前折叠态切换）。
 -->
 <template>
-  <div
-    class="ws-stream-row ws-process-summary"
-    :data-msg-id="item.id"
-    role="button"
-    tabindex="0"
-    :aria-expanded="item.expanded === true"
-    :aria-label="summary"
-    @click="emit('expand', item.turnId)"
-    @keydown.enter.prevent="emit('expand', item.turnId)"
-    @keydown.space.prevent="emit('expand', item.turnId)"
-  >
+  <div class="ws-stream-row ws-process-summary" :data-msg-id="item.id">
+    <!-- 2026-09-05 样式统一（对齐推理段）：点击/光标仅挂前缀摘要文字，整行不可点、无 hover 背景；
+         chevron 移后缀（图标切换表达折叠态） -->
+    <span
+      class="ws-process-summary-text"
+      role="button"
+      tabindex="0"
+      :aria-expanded="item.expanded === true"
+      :aria-label="summary"
+      @click="emit('expand', item.turnId)"
+      @keydown.enter.prevent="emit('expand', item.turnId)"
+      @keydown.space.prevent="emit('expand', item.turnId)"
+    >{{ summary }}</span>
     <WsIcon
       :name="item.expanded ? 'chevron-down' : 'chevron-right'"
       size="xs"
       class="ws-process-summary-chevron"
     />
-    <span class="ws-process-summary-text">{{ summary }}</span>
   </div>
 </template>
-
 <script setup lang="ts">
 import { computed } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'

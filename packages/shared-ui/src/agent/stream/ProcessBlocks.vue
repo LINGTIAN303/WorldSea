@@ -15,8 +15,11 @@
   <template v-for="block in visibleBlocks" :key="blockKey(block)">
     <!-- 组合行段（二级小折叠条）：连续非文本行段；单行已在聚合层直出，此处必为 ≥2 段 -->
     <div v-if="isCombinationBlock(block)" class="ws-combination">
-      <div class="ws-combination-head" role="button" tabindex="0" @click="toggleCombo(block)" @keydown.enter="toggleCombo(block)">
-        <WsIcon :name="comboExpanded.has(combKey(block)) ? 'chevron-down' : 'chevron-right'" size="xs" class="ws-combo-chevron" />
+      <div class="ws-combination-head" :class="{ open: comboExpanded.has(combKey(block)) }" role="button" tabindex="0" @click="toggleCombo(block)" @keydown.enter="toggleCombo(block)">
+        <!-- 前缀 chevron（open 旋转 90°，用户拍板恢复）；运行中 spinner 紧随其后——
+             默认折叠时内部行段的运行态不可见，spinner 表达「正在执行」（结束即停） -->
+        <WsIcon name="chevron-right" size="xs" class="ws-combo-chevron" />
+        <span v-if="comboRunning(block)" class="ws-combo-running" aria-label="执行中" />
         <span class="ws-combo-text">{{ block.rows.length }} 段执行</span>
         <span v-if="comboSummary(block)" class="ws-combo-summary">· {{ comboSummary(block) }}</span>
       </div>
@@ -38,7 +41,7 @@
       </div>
     </div>
 
-    <!-- 计划步骤折叠区（区级折叠头） -->
+    <!-- 计划步骤折叠区（区级折叠头）；箭头后缀 + 图标切换（样式统一 2026-09-05） -->
     <div v-else-if="isPlanZoneBlock(block)" class="ws-plan-zone">
       <div
         class="ws-plan-zone-head"
@@ -48,8 +51,8 @@
         @click="emit('plan-zone-toggle', turnId)"
         @keydown.enter="emit('plan-zone-toggle', turnId)"
       >
-        <WsIcon :name="zoneCollapsed ? 'chevron-right' : 'chevron-down'" size="xs" class="ws-zone-chevron" />
         <span class="ws-zone-text">{{ planItemCount(block) }} 待办</span>
+        <WsIcon :name="zoneCollapsed ? 'chevron-right' : 'chevron-down'" size="xs" class="ws-zone-chevron" />
       </div>
       <div v-show="!zoneCollapsed" class="ws-plan-zone-body">
         <ProcessBlocks
@@ -84,7 +87,6 @@
         @click="emit('plan-step-toggle', { turnId, stepId: block.item.id })"
         @keydown.enter="emit('plan-step-toggle', { turnId, stepId: block.item.id })"
       >
-        <WsIcon :name="stepCollapsed(block) ? 'chevron-right' : 'chevron-down'" size="xs" class="ws-item-chevron" />
         <span class="ws-plan-item-order">待办项 {{ orderOf(block) }}</span>
         <span class="ws-plan-item-title" :class="{ 'ws-shine-text': isRunning(block) }">{{ block.item.tc.name }}</span>
         <span v-if="isRunning(block)" class="ws-plan-item-status running">执行中</span>
@@ -92,6 +94,7 @@
         <span v-else-if="planStatusOf(block) === 'failed'" class="ws-plan-item-status fail">失败</span>
         <span v-else-if="planStatusOf(block) === 'skipped'" class="ws-plan-item-status skip">已跳过</span>
         <span v-else class="ws-plan-item-status pending">待执行</span>
+        <WsIcon :name="stepCollapsed(block) ? 'chevron-right' : 'chevron-down'" size="xs" class="ws-item-chevron" />
       </div>
       <div v-show="!stepCollapsed(block)" class="ws-plan-item-body">
         <ProcessBlocks
@@ -227,6 +230,16 @@ function comboSummary(block: CombinationBlock): string {
   const shown = labels.filter(Boolean).slice(0, 2).join('、')
   if (!shown) return ''
   return labels.length > 2 ? `${shown} 等 ${labels.length} 段` : shown
+}
+
+/** 组合头运行中：内部含 running 工具行 / streaming 推理行——默认折叠时运行态不可见，
+ *  前缀加载指示的判定源（运行结束即停） */
+function comboRunning(block: CombinationBlock): boolean {
+  return block.rows.some((r) => {
+    if (r.type === 'tool') return (r as { status?: string }).status === 'running'
+    if (r.type === 'think') return (r as { status?: string }).status === 'streaming'
+    return false
+  })
 }
 
 /** 区级折叠态：数据层 planCollapsed（默认 false 展开） */

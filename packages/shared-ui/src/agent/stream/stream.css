@@ -305,7 +305,8 @@
   white-space: nowrap;
 }
 .ws-stream-tool-chevron {
-  margin-left: auto;
+  /* 2026-09-05 箭头移前缀左侧（用户拍板）：去掉原行尾定位的 margin-left:auto——
+     前缀区元素（箭头/角标/文字/状态/耗时/参数）全部紧凑左对齐 */
   font-size: 10px;
   color: var(--agent-text-tertiary);
   transition: transform 0.2s;
@@ -409,11 +410,12 @@
  * 2026-09-05 S5 阶段 A：分组改实体 .ws-turn-root 包裹层（为轮次级窗口化准备测量单元），
  * 层内布局语义（gap 4px / 边界 margin）迁移到 turn-root 内部，视觉零变化。 */
 
-/* 轮次包裹层：承接原 .ws-stream-list 的层内布局（flex column + gap 4px） */
+/* 轮次包裹层：承接原 .ws-stream-list 的层内布局（flex column + gap 4px）
+   2026-09-05 用户反馈上下空隙偏长：层内行距 4px → 3px */
 .ws-turn-root {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
   min-width: 0;
 }
 
@@ -453,9 +455,12 @@
 .ws-turn-process .ws-assistant-row .ws-assistant-text {
   font-weight: 400;
   color: var(--agent-text);
+  /* 2026-09-05 用户反馈上下空隙偏长：文本行行盒 1.6 → 1.45（中文正文仍舒适） */
+  line-height: 1.45;
 }
 .ws-turn-result .ws-assistant-row.is-result .ws-assistant-text {
   font-weight: 500;
+  line-height: 1.45;
 }
 
 /* ===== 过程层折叠摘要行 ===== */
@@ -464,32 +469,35 @@
   align-items: center;
   gap: 4px;
   width: 100%;
-  cursor: pointer;
   user-select: none;
   font-size: var(--font-size-sm);
   color: var(--agent-text-tertiary);
   padding: 2px 4px;
   margin: 1px 0;
   border-radius: 4px;
-  transition: background 0.15s;
 }
-.ws-process-summary:hover {
-  background: var(--agent-hover-bg);
-}
-.ws-process-summary-chevron {
-  font-size: 10px;
-  color: var(--agent-text-tertiary);
-  transition: transform 0.2s;
-  flex-shrink: 0;
-}
-.ws-process-summary:hover .ws-process-summary-chevron {
-  transform: rotate(90deg);
-}
+/* 2026-09-05 样式统一（对齐推理段）：点击/光标仅挂摘要文字（600 字重），整行不可点、无 hover 背景 */
 .ws-process-summary-text {
+  display: inline-flex;
+  align-items: center;
+  font-weight: 600;
+  color: var(--agent-text-secondary);
+  cursor: pointer;
+  outline: none;
+  border-radius: 3px;
   min-width: 0;
-  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ws-process-summary-text:focus-visible {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--agent-primary) 45%, transparent);
+}
+.ws-process-summary-chevron {
+  /* 总折叠头：箭头紧跟摘要文字右侧（图标切换；旧 hover 旋转已弃——用户指出旋转不对劲即此处） */
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--agent-text-tertiary);
 }
 
 /* ===== 动画（统一 ws-stream- 前缀，reduced-motion 自动覆盖） ===== */
@@ -714,22 +722,45 @@
   cursor: pointer;
   user-select: none;
   font-size: var(--font-size-sm);
+  font-weight: 600;
   color: var(--agent-text-secondary);
   padding: 2px 4px;
   border-radius: 4px;
-  transition: background 0.15s;
+  /* 2026-09-05 样式统一（用户拍板）：与推理段折叠条一致——无 hover 背景高亮，
+     折叠态切换由 chevron 旋转表达（见下） */
 }
-.ws-combination-head:hover,
-.ws-plan-zone-head:hover,
-.ws-plan-item-head:hover {
-  background: var(--agent-hover-bg);
-}
-.ws-combo-chevron,
 .ws-zone-chevron,
 .ws-item-chevron {
+  /* 区头/待办项头：箭头后缀（图标切换表达折叠态，用户拍板） */
+  flex-shrink: 0;
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--agent-text-tertiary);
+}
+.ws-combo-chevron {
+  /* 组合头：箭头前缀（open 旋转 90°，用户拍板恢复） */
   flex-shrink: 0;
   font-size: 10px;
   color: var(--agent-text-tertiary);
+  transition: transform 0.2s;
+}
+.ws-combination-head.open .ws-combo-chevron {
+  transform: rotate(90deg);
+}
+
+/* 组合头运行中前缀（2026-09-05 用户建议）：默认折叠时内部行段运行态不可见，
+   12px spinner 表达「正在执行」——内部 running/streaming 行结束后随 comboRunning 消失 */
+.ws-combo-running {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--agent-primary) 30%, transparent);
+  border-top-color: var(--agent-primary);
+  animation: ws-combo-spin 0.8s linear infinite;
+}
+@keyframes ws-combo-spin {
+  to { transform: rotate(360deg); }
 }
 
 /* 组合行段（二级小号折叠条）：非文本行段容器，次级弱化色 + 左侧缩进 */

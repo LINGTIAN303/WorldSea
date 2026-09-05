@@ -258,8 +258,9 @@ function withProcessAnchor(turnId: string, mutate: () => void): void {
     void anchor.offsetHeight
     const delta = anchor.getBoundingClientRect().top - beforeTop
     // delta<0：锚点上移（高度减少）→ 同步下移 scrollTop，使其回到原视口位置
-    if (Math.abs(delta) > 0.5) scroll.scrollTop += delta
-    // 程序化位移记账：避免被 onScroll 误判为读者离开底部
+    // S4：折叠补偿走调度器（fold-compensate 最高优先级 + 300ms 贴底保护期）
+    if (Math.abs(delta) > 0.5) requestScroll(scroll, scroll.scrollTop + delta, 'fold-compensate')
+    // 程序化位移记账：避免被 onScroll 误判为读者离开底部（调度器内置记账，此处兜底同步）
     syncObservedTop()
   }
   // 双帧：折叠/展开会连锁改变邻近行高度，单次 nextTick 补偿在首帧可能不完整
@@ -456,6 +457,7 @@ const {
   syncObservedTop,
   isAtBottom,
   atTop,
+  requestScroll,
 } = useMessageWindowing<AgentStreamItem>({
   container: messagesContainer,
   items: computed(() => agentStream.value),
