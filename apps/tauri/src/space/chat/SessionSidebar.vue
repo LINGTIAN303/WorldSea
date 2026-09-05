@@ -21,15 +21,15 @@
       </div>
     </div>
 
-    <!-- 中部：新建会话长条（2026-09-03 UI 视觉改造：+按钮→输入框式长条；关闭入口在窗口栏侧边栏开关，2026-09-03 二轮反馈移除面板内✕） -->
+    <!-- 中部：新建会话长条（2026-09-05 改造：去模态线框→透明块，图标+文字居中放大；关闭入口在窗口栏侧边栏开关） -->
     <div class="sidebar-new-row">
       <button class="new-session-bar" @click="onNewSession" title="新建会话">
-        <WsIcon name="plus" size="xs" />
+        <WsIcon name="chat" size="sm" />
         <span>新建会话</span>
       </button>
     </div>
 
-    <!-- [B5] 知识库入口行（2026-09-03 UI 视觉改造：底部折叠区块→搜索框上方入口，主体区视图承载） -->
+    <!-- [B5] 知识库入口行（2026-09-05 改造：去右端箭头，图标+文字居中放大） -->
     <div class="sidebar-kb-row">
       <button
         class="kb-entry-btn"
@@ -38,17 +38,20 @@
         title="打开知识库"
         @click="toggleKbView"
       >
-        <WsIcon name="book" size="xs" />
+        <WsIcon name="book" size="sm" />
         <span class="kb-entry-label">知识库</span>
-        <WsIcon name="chevron-right" size="xs" class="kb-entry-caret" :class="{ open: sidebarView === 'kb' }" />
       </button>
     </div>
     <div class="sidebar-search">
-      <input
-        v-model="searchQuery"
-        class="search-input"
-        placeholder="搜索会话..."
-      />
+      <!-- 2026-09-05 改造：线框→下横线，加搜索图标，输入文字居中 -->
+      <div class="search-box">
+        <WsIcon name="search" size="sm" class="search-icon" />
+        <input
+          v-model="searchQuery"
+          class="search-input"
+          placeholder="搜索会话..."
+        />
+      </div>
     </div>
 
     <div class="sidebar-body">
@@ -655,12 +658,12 @@ watch(currentSessionId, () => {
   font-weight: 600;
 }
 
-/* 新建行：输入框式长条（2026-09-03 改造：+按钮→长条「新建会话」） */
+/* ── 左栏三入口（2026-09-05 二轮：改回左对齐+集体缩进（左 16px），文字色统一 secondary） ── */
+/* 新建行：去模态线框→透明块（hover 浮现 surface），图标+文字左对齐 */
 .sidebar-new-row {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 10px 10px 0;
+  padding: 10px 10px 0 16px;
   flex-shrink: 0;
 }
 .new-session-bar {
@@ -668,38 +671,39 @@ watch(currentSessionId, () => {
   min-width: 0;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  border: 1px solid var(--color-border);
+  gap: 8px;
+  padding: 7px 8px;
+  border: none;
   border-radius: var(--radius-sm);
-  background: var(--color-surface);
-  color: var(--color-text-tertiary);
-  font-size: var(--font-size-xs);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-base);
+  font-weight: 600;
   cursor: pointer;
-  transition: border-color 0.15s, color 0.15s;
+  transition: background 0.15s, color 0.15s;
 }
 .new-session-bar:hover {
-  border-color: var(--color-primary);
+  background: var(--color-surface);
   color: var(--color-text);
 }
 
-/* [B5] 知识库入口行（搜索框上方，2026-09-03 改造：底部折叠区块→入口行 + 主体视图） */
+/* [B5] 知识库入口行：图标+文字左对齐（与新建会话同语言） */
 .sidebar-kb-row {
-  padding: 6px 10px 0;
+  padding: 6px 10px 0 16px;
   flex-shrink: 0;
 }
 .kb-entry-btn {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   width: 100%;
-  padding: 6px 8px;
+  padding: 7px 8px;
   border: none;
   background: transparent;
   border-radius: var(--radius-sm);
   cursor: pointer;
   color: var(--color-text-secondary);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-base);
   font-weight: 600;
   transition: background 0.12s, color 0.12s;
 }
@@ -710,35 +714,46 @@ watch(currentSessionId, () => {
 .kb-entry-btn.active {
   color: var(--color-primary);
 }
-.kb-entry-label {
-  flex: 1;
-  text-align: left;
-}
-.kb-entry-caret {
-  color: var(--color-text-tertiary);
-  transition: transform 0.2s;
-}
-.kb-entry-caret.open {
-  transform: rotate(90deg);
-}
 
-/* 搜索 */
+/* 搜索：线框→下横线，图标+输入文字左对齐（与上两行同起点缩进） */
 .sidebar-search {
-  padding: 6px 10px 4px;
+  padding: 6px 10px 4px 16px;
   flex-shrink: 0;
 }
-.search-input {
-  width: 100%;
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 5px 8px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
-  color: var(--color-text);
-  font-size: var(--font-size-xs);
+  border-bottom: 1px solid var(--color-border);
+  transition: border-color 0.15s;
+}
+.search-box:focus-within {
+  border-bottom-color: var(--color-primary);
+}
+.search-icon {
+  flex-shrink: 0;
+  color: var(--color-text-tertiary);
+}
+.search-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-base);
+  font-weight: 600;
   outline: none;
 }
-.search-input:focus {
-  border-color: var(--color-primary);
+/* 局部豁免全局聚焦光环（theme.css 全局兜底）：全局选择器带 3 个 :not(属性) 特异性达 (0,4,1)，
+   普通类规则 (.search-input:focus = 0,2,0) 压不过，须镜像同款 :not 结构拉到 (0,5,0) 才能覆盖；
+   聚焦反馈由下横线变色（.search-box:focus-within）承担 */
+.search-input:focus:not([type='checkbox']):not([type='radio']):not([type='range']) {
+  box-shadow: none;
+}
+.search-input::placeholder {
+  color: var(--color-text-secondary);
 }
 
 /* 会话列表主体（滚动） */
@@ -1253,7 +1268,6 @@ watch(currentSessionId, () => {
 :root[data-anim-panels='off'] .agent-avatar:hover {
   transform: none;
 }
-:root[data-anim-panels='off'] .kb-entry-caret,
 :root[data-anim-panels='off'] .group-caret,
 :root[data-anim-panels='off'] .scene-slider-thumb {
   transition: none;
