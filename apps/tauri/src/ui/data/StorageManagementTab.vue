@@ -102,7 +102,7 @@ onMounted(async () => {
 
 <template>
   <div class="sm-tab">
-    <CardDeck :count="5" @change="(i) => emit('card-change', i)" ref="deckRef">
+    <CardDeck :count="5" :flat="!!searchQuery" @change="(i) => emit('card-change', i)" ref="deckRef">
       <template #card="{ idx, cls }">
         <div v-if="idx === 0" class="set-card deck-card" :class="cls" :data-index="0" v-show="match('系统集成 自启 开机 autostart settings')">
           <div class="sc-head">
