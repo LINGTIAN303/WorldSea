@@ -1,0 +1,31 @@
+/**
+ * settings-panels.css — 设置面板基座样式（唯一权威定义）
+ *
+ * 2026-09-06 收敛：此前 .set-card/.sc-head/.set-row/.set-toggle/.set-hint 在每个面板
+ * scoped 里各复制一份（10+ 份拷贝、已漂移出 4 种变体），本文件为唯一权威，
+ * 面板 scoped 内不得再复制基座规则；特殊变体以面板内一行覆盖显式保留
+ * （现有特例：PluginsPanel 的 .sc-head flex 布局——标题行右侧带控件）。
+ *
+ * 仅由 SettingsDialog 引入（设置面板类名的唯一宿主），请勿在设置上下文之外使用这些类名。
+ * 已知同映射陷阱：--color-surface 与 --color-surface-elevated 同值（web-tokens-bridge），
+ * 故此处背景取 --content-bg（映射 bg-surface）并用 ring 阴影描边与背景区分。
+ */
+
+.set-card { background: var(--content-bg, var(--color-bg-surface)); border-radius: var(--radius-md); padding: 14px 16px; box-shadow: 0 1px 6px rgba(0,0,0,0.06), 0 0 0 1px var(--border, var(--color-border)); }
+
+/* 分节标题（大写小字排版） */
+.sc-head { font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); color: var(--text-tertiary, var(--color-text-tertiary)); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+/* 标准行：左文案右控件 */
+.set-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; font-size: var(--font-size-sm); gap: 12px; }
+
+/* 标准开关（checkbox 视觉化） */
+.set-toggle { position: relative; display: inline-block; width: 36px; height: 20px; cursor: pointer; flex-shrink: 0; }
+.set-toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+.set-toggle-slider { position: absolute; inset: 0; background: var(--border, var(--color-border)); border-radius: 20px; transition: background 0.2s; }
+.set-toggle-slider::before { content: ''; position: absolute; width: 14px; height: 14px; left: 3px; top: 3px; background: var(--color-bg-surface); border-radius: 50%; transition: transform 0.2s; }
+.set-toggle input:checked + .set-toggle-slider { background: var(--primary, var(--color-primary)); }
+.set-toggle input:checked + .set-toggle-slider::before { transform: translateX(16px); }
+
+/* 说明文字（跟在行组/标题下方） */
+.set-hint { font-size: var(--font-size-xs); color: var(--text-tertiary, var(--color-text-tertiary)); margin: -2px 0 4px; }

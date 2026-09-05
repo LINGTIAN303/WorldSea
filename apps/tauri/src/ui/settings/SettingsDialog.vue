@@ -81,6 +81,8 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useSettingsStore, useUIStore, usePluginStore } from '@worldsmith/entity-core'
 import { useResizable, WsIcon } from '@worldsmith/ui-kit'
+// 设置面板基座样式（.set-card/.sc-head/.set-row/.set-toggle/.set-hint 唯一权威定义）
+import '@worldsmith/ui-kit/components/settings/settings-panels.css'
 import { useFocusTrap } from '@/composables/useFocusTrap'
 import StorageManagementTab from '../data/StorageManagementTab.vue'
 // 设置子面板（已迁移到 ui-kit，通过 re-export 兼容层导入）

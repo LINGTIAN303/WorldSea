@@ -126,7 +126,7 @@ defineExpose({ resetPluginSearch: () => { pluginSearch.value = '' }, goToCard: (
 </script>
 
 <style scoped>
-.set-card { background: var(--content-bg, var(--color-bg-surface)); border-radius: var(--radius-md); padding: 14px 16px; box-shadow: 0 1px 6px rgba(0,0,0,0.06), 0 0 0 1px var(--border, var(--color-border)); }
+/* 基座样式（.set-card/.sc-head/.set-row/.set-toggle/.set-hint）已收敛至 ui-kit settings-panels.css，此处仅保留面板私有样式 */
 .sc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); color: var(--text-tertiary, var(--color-text-tertiary)); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
 .sc-head > span { flex-shrink: 0; }
 

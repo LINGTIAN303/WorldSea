@@ -50,14 +50,5 @@ defineExpose({ goToCard: (i: number) => deckRef.value?.goToCard(i) })
 </script>
 
 <style scoped>
-.set-card { background: var(--content-bg, var(--color-bg-surface)); border-radius: var(--radius-md); padding: 14px 16px; box-shadow: 0 1px 6px rgba(0,0,0,0.06), 0 0 0 1px var(--border, var(--color-border)); }
-.sc-head { font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); color: var(--text-tertiary, var(--color-text-tertiary)); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
-.set-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; font-size: var(--font-size-sm); gap: 12px; }
-.set-toggle { position: relative; display: inline-block; width: 36px; height: 20px; cursor: pointer; flex-shrink: 0; }
-.set-toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
-.set-toggle-slider { position: absolute; inset: 0; background: var(--border, var(--color-border)); border-radius: 20px; transition: background 0.2s; }
-.set-toggle-slider::before { content: ''; position: absolute; width: 14px; height: 14px; left: 3px; top: 3px; background: var(--color-bg-surface); border-radius: 50%; transition: transform 0.2s; }
-.set-toggle input:checked + .set-toggle-slider { background: var(--primary, var(--color-primary)); }
-.set-toggle input:checked + .set-toggle-slider::before { transform: translateX(16px); }
-.set-hint { margin: 6px 0 0; font-size: var(--font-size-xs); color: var(--text-tertiary, var(--color-text-tertiary)); }
+/* 基座样式（.set-card/.sc-head/.set-row/.set-toggle/.set-hint）已收敛至 ui-kit settings-panels.css，此处仅保留面板私有样式 */
 </style>
