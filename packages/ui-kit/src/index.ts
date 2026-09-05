@@ -336,3 +336,8 @@ export {
 // Agent Descriptor — A2UI capabilities for the internal chain registry
 // ----------------------------------------------------------------------------
 export { uiKitDescriptor } from './agent-descriptor'
+
+// ----------------------------------------------------------------------------
+// Global Tooltip — 浏览器原生 title 提示统一接管（全局浮层）
+// ----------------------------------------------------------------------------
+export { enableGlobalTooltips, disableGlobalTooltips } from './components/tooltip/globalTooltip'

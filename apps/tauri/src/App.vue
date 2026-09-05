@@ -10,7 +10,7 @@ import { useActivityLog } from './agent/composables/useActivityLog'
 import { useUIStore } from './stores/uiStore'
 import { useTheme } from './components/ui/useTheme'
 import { useTheme as useEntityTheme, useSettingsStore } from '@worldsmith/entity-core'
-import { useGlobalEvents, setActiveViewId } from '@worldsmith/ui-kit'
+import { useGlobalEvents, setActiveViewId, enableGlobalTooltips } from '@worldsmith/ui-kit'
 import { bootstrapPlugins } from './plugins/bootstrap'
 import { useProjectSwitcher } from './composables/useProjectSwitcher'
 import { registerProjectSwitchListener } from './agent/composables/useAgentRust'
@@ -114,6 +114,8 @@ watch(
 )
 
 onMounted(async () => {
+  // 全局 Tooltip 接管：摘除全站原生 title，统一为自定义浮层（2026-09-06 方案A）
+  enableGlobalTooltips()
   // 应用初始主题（html data-theme 由此建立；apply 为同步函数，需传入当前主题模式）
   applyTheme(themeMode.value)
   // 项目系统初始化 + projectDir 绑定（必须在 bootstrapPlugins 之前：
