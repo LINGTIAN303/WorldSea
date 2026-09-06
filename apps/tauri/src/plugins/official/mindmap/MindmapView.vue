@@ -231,14 +231,13 @@
 import { ref, reactive, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
 import { useEntityStore, useRelationStore, relationSchemaRegistry } from '@worldsmith/entity-core'
-import { EmptyState, EntityFormModal, useShortcuts } from '@worldsmith/plugin-sdk'
+import { EmptyState, EntityFormModal, useShortcuts, currentSequence, type ShortcutDef } from '@worldsmith/plugin-sdk'
 import { useUndoRedo, useGraphData, useTypeMapping } from '@worldsmith/ui-kit'
 import MindmapToolbar from './components/MindmapToolbar.vue'
 import MindmapNodeTooltip from './components/MindmapNodeTooltip.vue'
 import { guessRelType, KEY_SEQUENCES } from './mindmapConfig'
 import { useMindmapStore } from './mindmapStore'
 import { useSection } from './composables/useSection'
-import { useKeySequence } from './composables/useKeySequence'
 import MindmapBreadcrumb from './MindmapBreadcrumb.vue'
 import MindmapDetailPanel from './MindmapDetailPanel.vue'
 import MindmapKeyHint from './MindmapKeyHint.vue'
@@ -379,18 +378,16 @@ const {
 } = ctxActions
 
 // ===== Keyboard Navigation =====
+// 仅方向键导航；Tab/Enter/Escape 已归 useShortcuts 注册表（见下方注册块）
 useMindmapKeyboardNav({
   selectedNodeId,
   canvasNodes,
   camera: renderer.camera as any,
-  onEnter: (id) => enterNestedNode(id),
   onFocus: (id) => {
     const n = canvasNodes.value.find(nn => nn.id === id)
     if (n) renderer.camera.value = { x: n.x, y: n.y, k: 1.2 }
     renderer.markDirty()
   },
-  onExit: () => exitNested(),
-  onClear: () => { selectedNodes.clear() },
 })
 
 // ===== Canvas Interaction =====
@@ -997,53 +994,70 @@ function handleKeySequence(seq: string) {
     case 'e n': ctxEditName(); break
     case 'e d': ctxEditDescription(); break
     case 'c l': startEdgeConnect(); break
-    case 'd n': ctxDeleteNode(); break
     case 'g s': createSectionFromSelection(); break
-    case 'f n': focusSelectedNode(); break
+    case 'g n': focusSelectedNode(); break
     case 'j i': enterSelectedNode(); break
   }
 }
 
-const { currentSequence, availableNext, isActive: keyHintActive } = useKeySequence({
-  sequences: KEY_SEQUENCES.map(ks => ({
-    sequence: ks.sequence,
-    description: ks.description,
-    action: () => handleKeySequence(ks.sequence),
-  })),
-  singleKeys: {
-    delete: () => deleteSelectedNodes(),
-    escape: () => { if (mindmapStore.currentRootId) exitNested(); ctxMenu.show = false },
-    i: () => mindmapStore.toggleDetailPanel(),
-    f: () => fitView(),
-  },
+// ===== Shortcuts =====
+// 序列提示：currentSequence 由注册表分发器维护（ui-kit 导出），候选下一键本地计算
+const keyHintActive = computed(() => currentSequence.value !== '')
+const availableNext = computed(() => {
+  if (!currentSequence.value) return []
+  const prefix = currentSequence.value + ' '
+  const nexts: { key: string; desc: string }[] = []
+  for (const ks of KEY_SEQUENCES) {
+    if (ks.sequence.startsWith(prefix)) {
+      const remainder = ks.sequence.slice(prefix.length)
+      if (!remainder.includes(' ')) nexts.push({ key: remainder, desc: ks.description })
+    }
+  }
+  return nexts
 })
 
-// ===== Shortcuts =====
 const shortcuts = useShortcuts()
+const registeredShortcutIds: string[] = []
+function reg(def: ShortcutDef) {
+  shortcuts.register(def)
+  registeredShortcutIds.push(def.id)
+}
 onMounted(() => {
-  shortcuts.register({ id: 'mindmap.toggleDetail', keys: ['i'], description: '切换详情侧栏', scope: 'view', handler: () => mindmapStore.toggleDetailPanel() })
-  shortcuts.register({ id: 'mindmap.fitView', keys: ['f'], description: '适应视图', scope: 'view', handler: () => fitView() })
-  shortcuts.register({ id: 'mindmap.exitNested', keys: ['escape'], description: '返回上层', scope: 'view', handler: () => { if (mindmapStore.currentRootId) exitNested(); ctxMenu.show = false } })
-  shortcuts.register({ id: 'mindmap.deleteNode', keys: ['delete'], description: '删除节点', scope: 'view', handler: () => deleteSelectedNodes() })
-  shortcuts.register({ id: 'mindmap.undo', keys: ['ctrl', 'z'], description: '撤销', scope: 'view', handler: () => undoRedo.undo(entityStore, relationStore) })
-  shortcuts.register({ id: 'mindmap.redo', keys: ['ctrl', 'y'], description: '重做', scope: 'view', handler: () => undoRedo.redo(entityStore, relationStore) })
-  shortcuts.register({ id: 'mindmap.freeDraw', keys: ['d'], description: '自由绘图', scope: 'view', handler: () => toggleFreeDrawMode() })
-  shortcuts.register({ id: 'mindmap.aiSuggest', keys: ['ctrl', 'j'], description: 'AI 关系建议', scope: 'view', handler: () => aiSuggestions.toggle() })
-  // 思维导图快捷创建
-  shortcuts.register({ id: 'mindmap.addChild', keys: ['tab'], description: '添加子主题', scope: 'view', handler: () => addChildNode() })
-  shortcuts.register({ id: 'mindmap.addSibling', keys: ['enter'], description: '添加同级主题', scope: 'view', handler: () => addSiblingNode() })
+  reg({ id: 'mindmap.toggleDetail', keys: ['i'], description: '思维导图：切换详情侧栏', scope: 'view', handler: () => mindmapStore.toggleDetailPanel() })
+  reg({ id: 'mindmap.fitView', keys: ['f'], description: '思维导图：适应视图', scope: 'view', handler: () => fitView() })
+  // Escape 统一语义：先关右键菜单 → 有选中取消选中 → 子图中返回上层
+  reg({ id: 'mindmap.exitNested', keys: ['escape'], description: '思维导图：取消选中/返回上层', scope: 'view', handler: () => {
+    ctxMenu.show = false
+    if (selectedNodeId.value || selectedNodes.size > 0) {
+      selectedNodeId.value = ''
+      selectedNodes.clear()
+    } else if (mindmapStore.currentRootId) {
+      exitNested()
+    }
+  } })
+  reg({ id: 'mindmap.deleteNode', keys: ['delete'], description: '思维导图：删除节点', scope: 'view', handler: () => deleteSelectedNodes() })
+  // Mac 键盘 Delete 位即退格，补一条等价注册
+  reg({ id: 'mindmap.deleteNode-bs', keys: ['backspace'], description: '思维导图：删除节点（退格）', scope: 'view', handler: () => deleteSelectedNodes() })
+  reg({ id: 'mindmap.undo', keys: ['ctrl', 'z'], description: '思维导图：撤销', scope: 'view', handler: () => undoRedo.undo(entityStore, relationStore) })
+  reg({ id: 'mindmap.redo', keys: ['ctrl', 'y'], description: '思维导图：重做', scope: 'view', handler: () => undoRedo.redo(entityStore, relationStore) })
+  reg({ id: 'mindmap.freeDraw', keys: ['d'], description: '思维导图：自由绘图', scope: 'view', handler: () => toggleFreeDrawMode() })
+  reg({ id: 'mindmap.aiSuggest', keys: ['ctrl', 'j'], description: '思维导图：AI 关系建议', scope: 'view', handler: () => aiSuggestions.toggle() })
+  reg({ id: 'mindmap.addChild', keys: ['tab'], description: '思维导图：添加子主题', scope: 'view', handler: () => addChildNode() })
+  reg({ id: 'mindmap.addSibling', keys: ['enter'], description: '思维导图：添加同级主题', scope: 'view', handler: () => addSiblingNode() })
+  // 连击序列（kind=sequence，如 n c=新建角色；序列首键不得与单键命令冲突，约束见 mindmapConfig）
+  for (const ks of KEY_SEQUENCES) {
+    reg({
+      id: `mindmap.seq.${ks.sequence.replace(' ', '')}`,
+      keys: ks.sequence.split(' '),
+      kind: 'sequence',
+      scope: 'view',
+      description: `思维导图：${ks.description}（${ks.sequence}）`,
+      handler: () => handleKeySequence(ks.sequence),
+    })
+  }
 })
 onBeforeUnmount(() => {
-  shortcuts.unregister('mindmap.toggleDetail')
-  shortcuts.unregister('mindmap.fitView')
-  shortcuts.unregister('mindmap.exitNested')
-  shortcuts.unregister('mindmap.deleteNode')
-  shortcuts.unregister('mindmap.undo')
-  shortcuts.unregister('mindmap.redo')
-  shortcuts.unregister('mindmap.freeDraw')
-  shortcuts.unregister('mindmap.aiSuggest')
-  shortcuts.unregister('mindmap.addChild')
-  shortcuts.unregister('mindmap.addSibling')
+  registeredShortcutIds.forEach(id => shortcuts.unregister(id))
 })
 
 // ===== Lifecycle =====

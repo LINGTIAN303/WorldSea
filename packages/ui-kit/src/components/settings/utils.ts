@@ -52,12 +52,24 @@ export const SHORTCUT_CATALOG: ShortcutItem[] = [
   { id: 'mindmap.redo', description: '思维导图：重做', keys: ['ctrl', 'y'], scope: 'view' },
   { id: 'mindmap.toggleDetail', description: '思维导图：切换详情侧栏', keys: ['i'], scope: 'view' },
   { id: 'mindmap.fitView', description: '思维导图：适应视图', keys: ['f'], scope: 'view' },
-  { id: 'mindmap.exitNested', description: '思维导图：返回上层', keys: ['escape'], scope: 'view' },
+  { id: 'mindmap.exitNested', description: '思维导图：取消选中/返回上层', keys: ['escape'], scope: 'view' },
   { id: 'mindmap.deleteNode', description: '思维导图：删除节点', keys: ['delete'], scope: 'view' },
+  { id: 'mindmap.deleteNode-bs', description: '思维导图：删除节点（退格）', keys: ['backspace'], scope: 'view' },
   { id: 'mindmap.freeDraw', description: '思维导图：自由绘图', keys: ['d'], scope: 'view' },
   { id: 'mindmap.aiSuggest', description: '思维导图：AI 关系建议', keys: ['ctrl', 'j'], scope: 'view' },
   { id: 'mindmap.addChild', description: '思维导图：添加子主题', keys: ['tab'], scope: 'view' },
   { id: 'mindmap.addSibling', description: '思维导图：添加同级主题', keys: ['enter'], scope: 'view' },
+  // ── 视图·连击序列（kind=sequence，500ms 内依次按下）──
+  { id: 'mindmap.seq.nc', description: '思维导图：新建角色（n c）', keys: ['n', 'c'], scope: 'view' },
+  { id: 'mindmap.seq.nr', description: '思维导图：新建区域（n r）', keys: ['n', 'r'], scope: 'view' },
+  { id: 'mindmap.seq.ne', description: '思维导图：新建事件（n e）', keys: ['n', 'e'], scope: 'view' },
+  { id: 'mindmap.seq.nt', description: '思维导图：新建文本框（n t）', keys: ['n', 't'], scope: 'view' },
+  { id: 'mindmap.seq.en', description: '思维导图：编辑名称（e n）', keys: ['e', 'n'], scope: 'view' },
+  { id: 'mindmap.seq.ed', description: '思维导图：编辑描述（e d）', keys: ['e', 'd'], scope: 'view' },
+  { id: 'mindmap.seq.cl', description: '思维导图：连接节点（c l）', keys: ['c', 'l'], scope: 'view' },
+  { id: 'mindmap.seq.gs', description: '思维导图：创建分组框（g s）', keys: ['g', 's'], scope: 'view' },
+  { id: 'mindmap.seq.gn', description: '思维导图：聚焦节点（g n）', keys: ['g', 'n'], scope: 'view' },
+  { id: 'mindmap.seq.ji', description: '思维导图：进入子图（j i）', keys: ['j', 'i'], scope: 'view' },
 ]
 
 /** 快捷键分组顺序 */

@@ -6,7 +6,7 @@
 export { useConfirm, type ConfirmType } from '@worldsmith/ui-kit'
 export { useDialog } from '@worldsmith/ui-kit'
 export { useResizable, getAllPanelWidths, resetPanelWidth, resetAllPanelWidths, PANEL_LABELS, type ResizableOptions } from '@worldsmith/ui-kit'
-export { useShortcuts, formatKeysForDisplay, formatKeyForDisplay, type ShortcutScope, type ShortcutDef, type ShortcutConflict } from '@worldsmith/ui-kit'
+export { useShortcuts, currentSequence, formatKeysForDisplay, formatKeyForDisplay, type ShortcutScope, type ShortcutKind, type ShortcutDef, type ShortcutConflict } from '@worldsmith/ui-kit'
 export { useSelection, SelectionKey, provideGlobalSelection, type SelectionState } from '@worldsmith/ui-kit'
 
 // ----------------------------------------------------------------------------

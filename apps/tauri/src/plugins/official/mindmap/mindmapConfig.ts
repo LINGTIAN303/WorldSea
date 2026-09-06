@@ -95,6 +95,11 @@ export interface KeySequenceDef {
   category: string
 }
 
+/**
+ * 连击序列键位（500ms 内依次按下；经 useShortcuts 注册表 kind='sequence' 分发）。
+ * 维护约束：序列首键不得与已有单键命令键相同（否则单键先触发、序列带副作用）——
+ * 原 'd n'（与 d=自由绘图冲突）已删，原 'f n' 与 f=适应视图冲突改为 'g n'。
+ */
 export const KEY_SEQUENCES: KeySequenceDef[] = [
   { sequence: 'n c', description: '新建角色', category: '新建' },
   { sequence: 'n r', description: '新建区域', category: '新建' },
@@ -103,15 +108,7 @@ export const KEY_SEQUENCES: KeySequenceDef[] = [
   { sequence: 'e n', description: '编辑名称', category: '编辑' },
   { sequence: 'e d', description: '编辑描述', category: '编辑' },
   { sequence: 'c l', description: '连接节点', category: '操作' },
-  { sequence: 'd n', description: '删除节点', category: '操作' },
   { sequence: 'g s', description: '创建分组框', category: '操作' },
-  { sequence: 'f n', description: '聚焦节点', category: '视图' },
+  { sequence: 'g n', description: '聚焦节点', category: '视图' },
   { sequence: 'j i', description: '进入子图', category: '导航' },
 ]
-
-export const SINGLE_KEYS: Record<string, string> = {
-  delete: '删除选中',
-  escape: '取消/返回',
-  i: '切换详情侧栏',
-  f: '适应视图',
-}
