@@ -8,7 +8,10 @@
  * 详细why请见 docs/details/注释/tauri/components/TuiModal.md
  */
 import { ref, watch, onBeforeUnmount, nextTick } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon, setShortcutModalActive } from '@worldsmith/ui-kit'
+
+// 注册表弹窗深度守卫标记（本实例是否已入栈，防重复/泄漏）
+let modalGuardActive = false
 
 const props = withDefaults(
   defineProps<{
@@ -90,6 +93,8 @@ watch(
       // 入栈：本实例成为栈顶
       if (!openStack.includes(instanceId)) openStack.push(instanceId)
       window.addEventListener('keydown', onKeydown)
+      // 注册表弹窗深度 +1：弹窗打开期间 view/global 层快捷键失效（modal 优先）
+      if (!modalGuardActive) { setShortcutModalActive(true); modalGuardActive = true }
       // 聚焦首个可交互控件（input/select/button）；无则聚焦面板（批次90 1.3）
       nextTick(() => {
         const first =
@@ -103,6 +108,7 @@ watch(
       // 出栈
       const i = openStack.indexOf(instanceId)
       if (i >= 0) openStack.splice(i, 1)
+      if (modalGuardActive) { setShortcutModalActive(false); modalGuardActive = false }
       // 关闭后还原焦点到打开前位置（Esc/遮罩/取消按钮等关闭路径统一还原）
       returnFocusEl?.focus?.({ preventScroll: true })
       returnFocusEl = null
@@ -111,7 +117,11 @@ watch(
   { immediate: true },
 )
 
-onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeydown)
+  // 卸载时若仍在弹窗态需出栈，防止注册表弹窗深度泄漏
+  if (modalGuardActive) { setShortcutModalActive(false); modalGuardActive = false }
+})
 </script>
 
 <template>

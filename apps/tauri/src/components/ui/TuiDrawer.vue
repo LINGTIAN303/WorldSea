@@ -8,7 +8,10 @@
  * 详细why请见 docs/details/注释/tauri/components/TuiDrawer.md
  */
 import { ref, watch, onBeforeUnmount, nextTick } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon, setShortcutModalActive } from '@worldsmith/ui-kit'
+
+// 注册表弹窗深度守卫标记（本实例是否已入栈，防重复/泄漏）
+let modalGuardActive = false
 
 const props = withDefaults(
   defineProps<{
@@ -75,6 +78,8 @@ watch(
       const ae = document.activeElement
       if (ae && !panelEl.value?.contains(ae)) returnFocusEl = ae as HTMLElement | null
       window.addEventListener('keydown', onKeydown)
+      // 注册表弹窗深度 +1：弹窗打开期间 view/global 层快捷键失效（modal 优先）
+      if (!modalGuardActive) { setShortcutModalActive(true); modalGuardActive = true }
       nextTick(() => {
         const first =
           panelEl.value?.querySelector<HTMLElement>(
@@ -84,6 +89,7 @@ watch(
       })
     } else {
       window.removeEventListener('keydown', onKeydown)
+      if (modalGuardActive) { setShortcutModalActive(false); modalGuardActive = false }
       returnFocusEl?.focus?.({ preventScroll: true })
       returnFocusEl = null
     }
@@ -91,7 +97,11 @@ watch(
   { immediate: true },
 )
 
-onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeydown)
+  // 卸载时若仍在弹窗态需出栈，防止注册表弹窗深度泄漏
+  if (modalGuardActive) { setShortcutModalActive(false); modalGuardActive = false }
+})
 </script>
 
 <template>

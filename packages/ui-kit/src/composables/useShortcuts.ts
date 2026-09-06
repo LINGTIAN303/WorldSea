@@ -171,6 +171,18 @@ function advanceSequences(pressed: string[]): ShortcutDef | null {
 
 let cachedOverrides: Record<string, string[]> | null = null
 
+// ── 弹窗激活深度 ──
+// 未收编浮层（TuiModal/TuiDrawer/useFocusTrap/DialogContainer 等自挂监听的基座）
+// show 时入栈、hide 时出栈。深度>0 时注册表跳过 modal 以外的 scope——弹窗优先：
+// view/global 键在弹窗打开期间失效，Esc 等按键交由浮层自身监听处理。
+let modalDepth = 0
+export function setShortcutModalActive(active: boolean): void {
+  modalDepth = Math.max(0, modalDepth + (active ? 1 : -1))
+}
+export function isShortcutModalActive(): boolean {
+  return modalDepth > 0
+}
+
 function loadOverrides(): Record<string, string[]> {
   if (cachedOverrides) return cachedOverrides
   try {
@@ -222,6 +234,8 @@ function attachGlobalListener() {
     }
 
     for (const scope of SCOPE_ORDER) {
+      // 弹窗打开期间（含未收编浮层）：modal 以外的 scope 全部失效
+      if (modalDepth > 0 && scope !== 'modal') continue
       if (isInput && scope !== 'modal') continue
       // N9：无视图上下文（Agent 空间）→ view scope 快捷键全部失效
       if (scope === 'view' && activeViewId === null) continue
@@ -234,11 +248,13 @@ function attachGlobalListener() {
         if (def.preventDefault || isPreventDefault(pressed)) {
           e.preventDefault()
         }
-        // N9 修复：不再 stopImmediatePropagation——原实现命中任意注册键位即吞掉传播，
-        // 同 document 节点后注册的监听（输入栏下拉/全局 Esc 处理器等）全部饿死。
-        // 快捷键只消费自身（命中首个即 return，单键只触发一个 handler）。
-        // 【批5 计划】全部命令型快捷键收编完成后，启用命中即消费（stopImmediatePropagation）
-        // 以消灭注册表外残留监听的双触发。
+        // 【消费策略（2026-09 批5）】view 层命令命中后阻断传播：document/window 级残留
+        // 监听（未收编的组件局部监听，如 InfoPanel 的 Delete）不再重复执行同键行为。
+        // modal/global 层暂不阻断——兼容存量浮层（TuiModal 等约 30 处）的 window Esc
+        // 监听，其收编按规范渐进（新代码一律 useScopedShortcuts）。
+        if (scope === 'view') {
+          e.stopImmediatePropagation()
+        }
         def.handler()
         return
       }

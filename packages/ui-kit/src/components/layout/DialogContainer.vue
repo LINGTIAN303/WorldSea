@@ -29,7 +29,10 @@
 
 <script setup lang="ts">
 import { watch, nextTick, ref, onBeforeUnmount } from 'vue'
-import { useDialog } from '@worldsmith/ui-kit'
+import { useDialog, setShortcutModalActive } from '@worldsmith/ui-kit'
+
+// 注册表弹窗深度守卫标记（本实例是否已入栈，防重复/泄漏）
+let modalGuardActive = false
 
 const { state, doResolve } = useDialog()
 const inputRef = ref<HTMLInputElement>()
@@ -79,6 +82,8 @@ watch(() => state.value.show, (v) => {
   if (v) {
     previousFocus = document.activeElement as HTMLElement
     window.addEventListener('keydown', onKeydown)
+    // 注册表弹窗深度 +1：弹窗打开期间 view/global 层快捷键失效（modal 优先）
+    if (!modalGuardActive) { setShortcutModalActive(true); modalGuardActive = true }
     nextTick(() => {
       if (state.value.mode === 'prompt') {
         inputRef.value?.focus()
@@ -92,6 +97,7 @@ watch(() => state.value.show, (v) => {
     })
   } else {
     window.removeEventListener('keydown', onKeydown)
+    if (modalGuardActive) { setShortcutModalActive(false); modalGuardActive = false }
     if (previousFocus) {
       previousFocus.focus()
       previousFocus = null
@@ -99,7 +105,11 @@ watch(() => state.value.show, (v) => {
   }
 })
 
-onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeydown)
+  // 卸载时若仍在弹窗态需出栈，防止注册表弹窗深度泄漏
+  if (modalGuardActive) { setShortcutModalActive(false); modalGuardActive = false }
+})
 </script>
 
 <style scoped>
