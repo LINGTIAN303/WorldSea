@@ -19,6 +19,7 @@ import { useMcpConnections } from '@worldsmith/shared-composables/agent/useMcpCo
 import { useAgent } from './agent/composables/useAgent'
 import { toastWarn } from '@/composables/useToast'
 import SplashScreen from './ui/boot/SplashScreen.vue'
+import GlobalEditMenu from './ui/GlobalEditMenu.vue'
 import BootErrorScreen from './ui/boot/BootErrorScreen.vue'
 
 // ── 无障碍：减弱动态效果（应用级配置） ──
@@ -119,7 +120,8 @@ onMounted(async () => {
   // 全局 Tooltip 接管：摘除全站原生 title，统一为自定义浮层（2026-09-06 方案A）
   enableGlobalTooltips()
   // 全局拦截浏览器原生右键菜单（2026-09-06 桌面应用惯例）：事件仍正常传播，
-  // 各组件自定义右键菜单（SessionSidebar/TerminalView 等）不受影响
+  // 各组件自定义右键菜单（SessionSidebar/TerminalView 等）不受影响；
+  // 输入元素的编辑菜单由 GlobalEditMenu 组件接管
   document.addEventListener('contextmenu', e => e.preventDefault())
   // 应用初始主题（html data-theme 由此建立；apply 为同步函数，需传入当前主题模式）
   applyTheme(themeMode.value)
@@ -172,6 +174,10 @@ onMounted(async () => {
        代价：两壳常驻内存增加（见项目记忆预估）。 -->
   <AgentSpace v-show="uiStore.currentShell === 'space'" />
   <Shell v-show="uiStore.currentShell === 'workbench'" />
+
+  <!-- 统一输入框右键菜单（撤销/重做/剪切/复制/粘贴/删除/全选）；
+       非输入元素的右键由 onMounted 的全局 contextmenu 拦截 -->
+  <GlobalEditMenu />
 
   <!-- 启动流程：bootState 驱动 Splash（booting）/ 错误页（error）。ready 后均卸载。 -->
   <SplashScreen v-if="uiStore.bootState === 'booting'" />

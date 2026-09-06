@@ -17,7 +17,8 @@
       v-if="uiStore.sidebarCollapsed"
       class="sidebar-toggle"
       aria-label="展开侧边栏"
-      title="展开侧边栏 (Ctrl+B)"
+      title="展开侧边栏"
+      data-ws-tip-keys="Ctrl+B"
       @pointerdown.stop
       @click="uiStore.toggleSidebar()"
     >
@@ -29,7 +30,8 @@
         <button
           class="sidebar-collapse"
           aria-label="收起侧边栏"
-          title="收起侧边栏 (Ctrl+B)"
+          title="收起侧边栏"
+          data-ws-tip-keys="Ctrl+B"
           @pointerdown.stop
           @click="uiStore.toggleSidebar()"
         >

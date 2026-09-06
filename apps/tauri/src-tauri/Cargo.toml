@@ -32,6 +32,12 @@ async-trait = "0.1"
 # 长任务命令参数（cmd_long_task_update_heartbeat / update_status 的 RFC3339 时间戳）
 chrono = { version = "0.4", features = ["serde"] }
 
+# ── 窗口控制键（F11）依赖：关闭 WebView2 浏览器加速键需要底层控件接口（版本须与
+# tauri 运行时所用一致——webview2-com 0.38 / windows 0.61，见 Cargo.lock）──
+[target.'cfg(windows)'.dependencies]
+webview2-com = "0.38"
+windows = "0.61"
+
 # ── Phase 5.1：Agent 命令层（纯逻辑，不依赖 tauri）──
 agent-commands = { path = "../../../crates/agent-commands" }
 # 命令签名中引用 agent-runtime 类型（AgentStateSnapshot / OrchestratorMessage / HeartbeatStatus）

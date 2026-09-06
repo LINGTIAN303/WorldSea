@@ -303,6 +303,27 @@ pub fn run() {
                 }
             }
 
+            // 窗口控制键 F11 修复：WebView2 默认开启浏览器加速键（AreBrowserAcceleratorKeysEnabled），
+            // F11/F12/Ctrl+F 等被壳层吞掉、页面 keydown 收不到——F11 绝对全屏（TitleBar
+            // onWindowKeydown）需要页面自己收到按键。tauri 未透传 wry 的
+            // browser_accelerator_keys 开关，只能经 with_webview 直接调 WebView2 设置。
+            // 副作用：F12 开发者工具快捷键失效——dev 模式已由上方 open_devtools() 兜底。
+            #[cfg(windows)]
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.with_webview(|webview| {
+                    use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Settings3;
+                    use windows::core::Interface;
+                    let controller = &webview.inner().controller;
+                    unsafe {
+                        if let Ok(settings) = controller.Settings() {
+                            if let Ok(settings3) = settings.cast::<ICoreWebView2Settings3>() {
+                                let _ = settings3.SetAreBrowserAcceleratorKeysEnabled(false);
+                            }
+                        }
+                    }
+                });
+            }
+
             // Loop Control 注册表：单独 manage 供 cmd_loop_control_* 命令使用，
             // 同时注入 AgentCommandService，使"绑定会话的 loop_control"复用
             // AgentLoop 内建 LoopController（共享单实例，消双轨）。

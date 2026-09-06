@@ -14,15 +14,15 @@
   <!-- 视图模式/状态 → 动作落点（势力/威胁/补给 + 阶段标签） -->
   <Teleport to="#view-toolbar-actions">
     <button class="tb-btn" :class="{ active: awarenessMode === 'influence' }"
-      @click="$emit('toggleAwareness', 'influence')" title="势力范围">
+      @click="$emit('toggleAwareness', 'influence')" title="势力范围" data-ws-tip-keys="1">
       <WsIcon name="target" size="xs" /> 势力
     </button>
     <button class="tb-btn" :class="{ active: awarenessMode === 'threat' }"
-      @click="$emit('toggleAwareness', 'threat')" title="威胁区域">
+      @click="$emit('toggleAwareness', 'threat')" title="威胁区域" data-ws-tip-keys="2">
       <WsIcon name="warning" size="xs" /> 威胁
     </button>
     <button class="tb-btn" :class="{ active: awarenessMode === 'supply' }"
-      @click="$emit('toggleAwareness', 'supply')" title="补给线">
+      @click="$emit('toggleAwareness', 'supply')" title="补给线" data-ws-tip-keys="3">
       <WsIcon name="arrow-left-right" size="xs" /> 补给
     </button>
     <span class="tb-phase" :class="'tb-phase-' + battlePhase">{{ phaseLabel }}</span>

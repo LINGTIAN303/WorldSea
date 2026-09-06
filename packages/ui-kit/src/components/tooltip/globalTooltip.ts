@@ -51,12 +51,13 @@ const TOOLTIP_CSS = `
   opacity: 0;
   transition: opacity 0.12s ease;
 }
-/* 键位块（data-ws-tip-keys）：与文字同行、右置弱化 */
+/* 键位块（data-ws-tip-keys）：与文字同行、右置灰色弱化 */
 .ws-global-tooltip .ws-tip-kbd {
   margin-left: auto;
   padding: 0 5px;
-  border: 1px solid rgb(255 255 255 / 0.35);
+  border: 1px solid color-mix(in srgb, currentColor 28%, transparent);
   border-radius: 4px;
+  color: color-mix(in srgb, currentColor 62%, transparent);
   font-family: inherit;
   font-size: 11px;
   line-height: 1.5;

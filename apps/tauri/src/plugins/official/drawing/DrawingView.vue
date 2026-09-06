@@ -84,14 +84,14 @@
           <span class="dv-label">{{ strokeWidth }}px</span>
 
           <span class="dv-sep">|</span>
-          <button class="dv-btn" @click="undo" :disabled="history.length <= 1">撤销</button>
-          <button class="dv-btn" @click="redo" :disabled="future.length === 0">重做</button>
+          <button class="dv-btn" @click="undo" :disabled="history.length <= 1" title="撤销" data-ws-tip-keys="Ctrl+Z">撤销</button>
+          <button class="dv-btn" @click="redo" :disabled="future.length === 0" title="重做" data-ws-tip-keys="Ctrl+Shift+Z">重做</button>
 
           <span class="dv-sep">|</span>
-          <button class="dv-btn" @click="zoomIn" title="放大">＋</button>
+          <button class="dv-btn" @click="zoomIn" title="放大" data-ws-tip-keys="Ctrl+=">＋</button>
           <span class="dv-zoom">{{ Math.round(scale * 100) }}%</span>
-          <button class="dv-btn" @click="zoomOut" title="缩小">－</button>
-          <button class="dv-btn" @click="fitView" title="适应视图">适应</button>
+          <button class="dv-btn" @click="zoomOut" title="缩小" data-ws-tip-keys="Ctrl+-">－</button>
+          <button class="dv-btn" @click="fitView" title="适应视图" data-ws-tip-keys="Ctrl+0">适应</button>
 
           <!-- 折叠菜单：清空 / 导出 等次要操作 -->
           <ToolbarOverflow label="更多操作">

@@ -16,25 +16,25 @@
       <!-- 常驻操作：视图导航 / 撤销重做 / 模式切换 / 缩放 -->
       <div class="toolbar-actions">
         <div class="action-group">
-          <button v-if="canGoBack" class="icon-btn" @click="$emit('go-back')" title="返回上层 (Esc)">←</button>
-          <button class="icon-btn" :class="{ active: detailPanelVisible }" @click="$emit('toggle-detail')" title="详情侧栏 (I)"><WsIcon name="outline" size="sm" /></button>
+          <button v-if="canGoBack" class="icon-btn" @click="$emit('go-back')" title="返回上层" data-ws-tip-keys="Esc">←</button>
+          <button class="icon-btn" :class="{ active: detailPanelVisible }" @click="$emit('toggle-detail')" title="详情侧栏" data-ws-tip-keys="I"><WsIcon name="outline" size="sm" /></button>
           <button class="icon-btn" :class="{ active: minimapVisible }" @click="$emit('toggle-minimap')" title="小地图 (M)"><WsIcon name="search" size="sm" /></button>
         </div>
 
         <div class="action-group">
-          <button class="icon-btn" :disabled="!canUndo" :class="{ disabled: !canUndo }" @click="$emit('undo')" title="撤销 (Ctrl+Z)"><WsIcon name="refresh" size="sm" /></button>
-          <button class="icon-btn" :disabled="!canRedo" :class="{ disabled: !canRedo }" @click="$emit('redo')" title="重做 (Ctrl+Y)"><WsIcon name="refresh" size="sm" /></button>
+          <button class="icon-btn" :disabled="!canUndo" :class="{ disabled: !canUndo }" @click="$emit('undo')" title="撤销" data-ws-tip-keys="Ctrl+Z"><WsIcon name="refresh" size="sm" /></button>
+          <button class="icon-btn" :disabled="!canRedo" :class="{ disabled: !canRedo }" @click="$emit('redo')" title="重做" data-ws-tip-keys="Ctrl+Y"><WsIcon name="refresh" size="sm" /></button>
         </div>
 
         <div class="action-group">
           <button class="icon-btn" :class="{ active: editMode }" @click="$emit('toggle-edit-mode')" title="编辑模式 (E)"><WsIcon name="edit" size="sm" /></button>
-          <button class="icon-btn" :class="{ active: freeDrawMode }" @click="$emit('toggle-free-draw')" title="自由绘图 (D)"><WsIcon name="brush" size="sm" /></button>
-          <button class="icon-btn" @click="$emit('toggle-ai-suggest')" title="AI 关系建议 (Ctrl+J)"><WsIcon name="concept" size="sm" /></button>
+          <button class="icon-btn" :class="{ active: freeDrawMode }" @click="$emit('toggle-free-draw')" title="自由绘图" data-ws-tip-keys="D"><WsIcon name="brush" size="sm" /></button>
+          <button class="icon-btn" @click="$emit('toggle-ai-suggest')" title="AI 关系建议" data-ws-tip-keys="Ctrl+J"><WsIcon name="concept" size="sm" /></button>
           <button class="icon-btn primary" @click="$emit('ai-organize')" title="AI 整理（让 Agent 帮你布局/找孤立/找环）"><WsIcon name="magic" size="sm" /> AI</button>
         </div>
 
         <div class="action-group">
-          <button class="icon-btn" @click="$emit('fit')" title="适应视图">⊞</button>
+          <button class="icon-btn" @click="$emit('fit')" title="适应视图" data-ws-tip-keys="F">⊞</button>
           <button class="icon-btn" @click="$emit('zoom-in')" title="放大">＋</button>
           <button class="icon-btn" @click="$emit('zoom-out')" title="缩小">－</button>
           <span class="zoom-level">{{ zoomLevel }}%</span>
