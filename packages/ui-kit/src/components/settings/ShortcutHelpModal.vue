@@ -11,7 +11,7 @@
           <div v-for="s in group.items" :key="s.id" class="sh-row">
             <span class="sh-desc">{{ s.description }}</span>
             <span class="sh-keys">
-              <kbd v-for="k in s.keys" :key="k" class="sh-kbd">{{ formatKey(k) }}</kbd>
+              <kbd v-for="k in displayKeys(s.keys)" :key="k" class="sh-kbd">{{ formatKey(k) }}</kbd>
             </span>
           </div>
         </div>
@@ -115,6 +115,11 @@ const grouped = computed(() => {
 
 function scopeLabel(scope: string): string {
   return { global: '全局', view: '当前视图', editor: '编辑器', modal: '弹窗' }[scope] || scope
+}
+
+/** '?' 物理上需 Shift，显示展开为两块（注册/匹配层仍为 ['?']） */
+function displayKeys(keys: string[]): string[] {
+  return keys.flatMap(k => (k === '?' ? ['shift', '?'] : [k]))
 }
 
 function formatKey(k: string): string {

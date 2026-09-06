@@ -65,11 +65,15 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue'
+import { useModalShortcuts } from '@worldsmith/ui-kit'
 import { useConsistencyChecker, type ConsistencyIssue } from '@worldsmith/entity-core'
 import { useRelationStore } from '@worldsmith/entity-core'
 
-defineProps<{ show: boolean }>()
+const props = defineProps<{ show: boolean }>()
 const emit = defineEmits<{ close: [] }>()
+
+// Esc 关闭收编 useModalShortcuts（此前该弹窗无 Esc，仅点遮罩关闭）
+useModalShortcuts(() => props.show, { id: 'consistency.close', onEscape: () => close() })
 
 const { checking, issues, runFullCheck, getIssueCountBySeverity } = useConsistencyChecker()
 const relationStore = useRelationStore()

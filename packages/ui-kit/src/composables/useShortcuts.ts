@@ -19,8 +19,6 @@ export const isMac = typeof navigator !== 'undefined'
 
 export function formatKeysForDisplay(keys: string[]): string {
   return keys.map(k => {
-    // '?' 物理上需 Shift 才能键出，显示层补 Shift（注册/匹配层仍为 ['?']，勿改）
-    if (k === '?') return isMac ? '⇧?' : 'Shift+?'
     if (isMac) {
       const macMap: Record<string, string> = {
         ctrl: '⌘', alt: '⌥', shift: '⇧',

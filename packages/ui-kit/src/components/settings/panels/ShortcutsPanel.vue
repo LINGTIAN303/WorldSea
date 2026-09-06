@@ -64,7 +64,9 @@ function fmt(k: string): string {
 }
 
 function getDisplayKeys(s: ShortcutItem): string[] {
-  return getRegisteredKeys(s.id) ?? s.keys
+  const keys = getRegisteredKeys(s.id) ?? s.keys
+  // '?' 物理上需 Shift 才能键出，显示为 Shift+? 两块（与其他组合键一致；注册/匹配层仍为 ['?']）
+  return keys.flatMap(k => (k === '?' ? ['shift', '?'] : [k]))
 }
 
 function hasOverride(id: string): boolean {
