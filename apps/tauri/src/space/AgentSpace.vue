@@ -111,6 +111,7 @@
 
     <!-- P3-W4 续：SettingsDialog 业务弹窗恢复 -->
     <SettingsDialog :show="settingsOpen" @close="settingsOpen = false" />
+    <ShortcutHelpModal :show="shortcutHelpOpen" @close="shortcutHelpOpen = false" />
     <DialogContainer />
     <WsConfirmDialog />
     <WsAskDialog />
@@ -118,7 +119,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, watch, computed, onMounted, onBeforeUnmount, defineAsyncComponent } from 'vue'
 import { useSpaceStore } from './stores/space-store'
 import { useUserProfileStore } from './stores/user-profile-store'
 import TitleBar from '@/ui/layout/TitleBar.vue'
@@ -132,7 +133,9 @@ import ExecPanel from './panels/ExecPanel.vue'
 import CreationPanel from './panels/CreationPanel.vue'
 import PreviewPanel from './panels/PreviewPanel.vue'
 import SettingsDialog from '@/ui/settings/SettingsDialog.vue'
-import { DialogContainer, WsIcon } from '@worldsmith/ui-kit'
+import { DialogContainer, WsIcon, useGlobalEvents } from '@worldsmith/ui-kit'
+/** 快捷键帮助弹窗：与 Shell 各挂一份（壳感知，见下方 ws-open-shortcut-help 监听） */
+const ShortcutHelpModal = defineAsyncComponent(() => import('@worldsmith/ui-kit').then(m => m.ShortcutHelpModal))
 import WsConfirmDialog from '@/ui/WsConfirmDialog.vue'
 import WsAskDialog from '@/ui/WsAskDialog.vue'
 import { useAgent } from '@/agent/composables/useAgent'
@@ -143,6 +146,7 @@ import { useGenerationProgress } from '@worldsmith/shared-composables/agent/useG
 import { useSessionViewState } from '@/agent/composables/useSessionViewState'
 import { provideMessageSpeakerContext } from '@worldsmith/shared-composables/agent/useMessageSpeaker'
 import { usePersonaFont } from './composables/usePersonaFont'
+import { useUIStore } from '@worldsmith/entity-core'
 import type { RightTab } from './stores/space-store'
 
 /** [C] 右侧面板工作台式：四类面板元数据（Tab 栏 + +号浮窗共用） */
@@ -252,6 +256,15 @@ const windowBarTitle = computed(() =>
 
 const sessionOpen = ref(false)
 const settingsOpen = ref(false)
+const shortcutHelpOpen = ref(false)
+const uiStore = useUIStore()
+
+// 壳感知弹窗事件（2026-09-06）：设置/帮助的快捷键（Shell 注册处）与托盘菜单统一 dispatch
+// 全局事件，Shell 与本组件各监听同名事件、仅在自己壳激活时打开——修复「Agent 空间按
+// ? / Ctrl+, 弹窗开在隐藏的 Shell 壳里」（按键看似无反应）。
+const { on: onSpaceGlobalEvent } = useGlobalEvents()
+onSpaceGlobalEvent('ws-open-settings', () => { if (uiStore.currentShell === 'space') settingsOpen.value = true })
+onSpaceGlobalEvent('ws-open-shortcut-help', () => { if (uiStore.currentShell === 'space') shortcutHelpOpen.value = true })
 
 // 顶栏左端「侧边栏」按钮：开关侧边栏（2026-08-12 由 会话/知识墙 轮转简化为单一开关）
 function onTogglePanelClick() {

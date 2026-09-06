@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 
-export type ShortcutScope = 'global' | 'view' | 'editor' | 'modal'
+export type ShortcutScope = 'global' | 'space' | 'view' | 'editor' | 'modal'
 export type ShortcutKind = 'chord' | 'sequence'
 
 export interface ShortcutDef {
@@ -53,6 +53,15 @@ export function setActiveViewId(id: string | null): void {
   activeViewId = id
 }
 
+// ── 壳上下文（2026-09-06 space scope）──
+// space scope 仅在 Agent 空间壳激活时生效（App.vue 按 currentShell 注入）。
+// AgentSpace 与 Shell 均 v-show 常驻挂载、注册不随壳切换注销，
+// 必须靠此上下文过滤，否则 Agent 空间快捷键会在 workbench 泄漏。
+let agentSpaceActive = false
+export function setAgentSpaceActive(active: boolean): void {
+  agentSpaceActive = active
+}
+
 const SPECIAL_KEY_ALIASES: Record<string, string> = {
   'escape': 'escape', 'enter': 'enter', ' ': 'space',
   'delete': 'delete', 'backspace': 'backspace', 'tab': 'tab',
@@ -85,7 +94,7 @@ function keysMatch(pressed: string[], def: string[]): boolean {
   return pa.every((k, i) => k === da[i])
 }
 
-const SCOPE_ORDER: ShortcutScope[] = ['modal', 'editor', 'view', 'global']
+const SCOPE_ORDER: ShortcutScope[] = ['modal', 'editor', 'view', 'space', 'global']
 
 const PREVENT_DEFAULT: Record<string, string[]> = {
   'ctrl+n': ['ctrl', 'n'],
@@ -132,6 +141,10 @@ function advanceSequences(pressed: string[]): ShortcutDef | null {
   let completed: ShortcutDef | null = null
   for (const [, def] of registry) {
     if (def.kind !== 'sequence') continue
+    // 序列上下文过滤：与 chord 分发同语义（view 需主视图上下文、space 需 Agent 空间激活），
+    // 否则导图连击（view 层）在 Agent 空间也会推进并触发（N9 修复时漏了序列路径）
+    if (def.scope === 'view' && activeViewId === null) continue
+    if (def.scope === 'space' && !agentSpaceActive) continue
     const prev = seqProgress.get(def.id) ?? 0
     if (def.keys[prev] === key) {
       const next = prev + 1
@@ -254,6 +267,8 @@ function attachGlobalListener() {
       if (isInput && scope !== 'modal') continue
       // N9：无视图上下文（Agent 空间）→ view scope 快捷键全部失效
       if (scope === 'view' && activeViewId === null) continue
+      // space scope：仅 Agent 空间壳激活时生效（两壳互斥，与 view 天然无同屏竞争）
+      if (scope === 'space' && !agentSpaceActive) continue
 
       for (const [, def] of registry) {
         if (def.scope !== scope) continue

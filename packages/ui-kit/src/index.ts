@@ -157,6 +157,7 @@ export { useSelection, SelectionKey, provideGlobalSelection, type SelectionState
 export {
   useShortcuts,
   setActiveViewId,
+  setAgentSpaceActive,
   setShortcutModalActive,
   isShortcutModalActive,
   normalizeKeys,

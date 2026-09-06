@@ -85,12 +85,12 @@ export const SHORTCUT_CATALOG: ShortcutItem[] = [
   { id: 'outline.close-detail', description: '大纲：取消选中节点', keys: ['escape'], scope: 'view' },
 ]
 
-/** 快捷键分组顺序 */
-export const SCOPE_ORDER = ['global', 'view', 'editor', 'modal']
+/** 快捷键分组顺序（低→高优先级，与 useShortcuts.SCOPE_ORDER 互补同步） */
+export const SCOPE_ORDER = ['global', 'view', 'space', 'editor', 'modal']
 
 /** 快捷键作用域文案 */
 export function scopeLabel(scope: string): string {
-  const m: Record<string, string> = { global: '全局', view: '当前视图', editor: '编辑器', modal: '弹窗' }
+  const m: Record<string, string> = { global: '全局', view: '当前视图', space: 'Agent 空间', editor: '编辑器', modal: '弹窗' }
   return m[scope] || scope
 }
 

@@ -149,7 +149,11 @@ onGlobalEvent('ws-open-layout-mgr', onOpenLayoutMgr)
 onGlobalEvent('ws-open-trash', onOpenTrash)
 onGlobalEvent('ws-open-artifacts', onOpenArtifacts)
 onGlobalEvent('ws-open-consistency', onOpenConsistency)
-onGlobalEvent('ws-open-settings', onOpenSettings)
+// 壳感知弹窗事件（2026-09-06）：设置/帮助来源（快捷键 handler / AppMenu / 托盘）统一 dispatch
+// 全局事件，两壳各监听同名事件、仅在自己壳激活时打开（AgentSpace 侧对称监听）——
+// 修复「Agent 空间按 ? / Ctrl+, 弹窗开在隐藏的 Shell 壳里」。
+onGlobalEvent('ws-open-settings', () => { if (uiStore.currentShell !== 'space') onOpenSettings() })
+onGlobalEvent('ws-open-shortcut-help', () => { if (uiStore.currentShell !== 'space') shortcutHelpOpen.value = true })
 onGlobalEvent('ws-open-theme-editor', onOpenThemeEditor)
 onGlobalEvent('ws-open-custom-rel-type', onOpenCustomRelType)
 onGlobalEvent('ws-open-entity-template', onOpenEntityTemplate)
@@ -167,10 +171,10 @@ onMounted(() => {
   const entityStore = useEntityStore()
   const relationStore = useRelationStore()
 
-  register({ id: 'help.shortcuts', keys: ['?'], description: '开启快捷键帮助', scope: 'global', handler: () => { shortcutHelpOpen.value = true } })
+  register({ id: 'help.shortcuts', keys: ['?'], description: '开启快捷键帮助', scope: 'global', handler: () => { window.dispatchEvent(new CustomEvent('ws-open-shortcut-help')) } })
   register({ id: 'sidebar.toggle', keys: ['ctrl', 'b'], description: '切换侧边栏', scope: 'global', handler: () => uiStore.toggleSidebar() })
   register({ id: 'search.open', keys: ['ctrl', 'k'], description: '全局搜索', scope: 'global', handler: () => { searchOpen.value = true } })
-  register({ id: 'settings.open', keys: ['ctrl', ','], description: '打开设置', scope: 'global', handler: () => { settingsOpen.value = true } })
+  register({ id: 'settings.open', keys: ['ctrl', ','], description: '打开设置', scope: 'global', handler: () => { window.dispatchEvent(new CustomEvent('ws-open-settings')) } })
   register({ id: 'project.manager', keys: ['ctrl', 'shift', 'p'], description: '打开项目（选择目录）', scope: 'global', handler: () => { void openProjectFolderDialog() } })
   register({ id: 'global.undo', keys: ['ctrl', 'z'], description: '撤销', scope: 'global', handler: () => undo(entityStore, relationStore), preventDefault: true })
   register({ id: 'global.redo', keys: ['ctrl', 'y'], description: '重做', scope: 'global', handler: () => redo(entityStore, relationStore), preventDefault: true })
@@ -188,6 +192,9 @@ onMounted(() => {
       description: `切换到 ${pluginStore.views[idx]?.label || '视图' + (idx+1)}`,
       scope: 'global',
       handler: () => {
+        // 壳感知（2026-09-06）：Agent 空间下数字键交给 space 层（右栏 Tab 切换），
+        // 不隐形切换被 v-show 隐藏的 workbench 视图
+        if (uiStore.currentShell === 'space') return
         const v = pluginStore.views[idx]
         if (v) { uiStore.setView(v.id); uiStore.viewComponent = v.component }
       },
