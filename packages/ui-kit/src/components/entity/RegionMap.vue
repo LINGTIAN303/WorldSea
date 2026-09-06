@@ -47,7 +47,6 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'
 import { useConfirm, useShortcuts } from '@worldsmith/ui-kit'
-import { useSettingsStore } from '@worldsmith/entity-core'
 import MapToolbar from './map/MapToolbar.vue'
 import MapTooltip from './map/MapTooltip.vue'
 import MapContextMenu from './map/MapContextMenu.vue'
@@ -66,7 +65,6 @@ const props = defineProps<{ regions: any[] }>()
 const entityStore = useEntityStore()
 const relationStore = useRelationStore()
 const { confirm } = useConfirm()
-const settingsStore = useSettingsStore()
 const { register: registerShortcut, unregister: unregisterShortcut } = useShortcuts()
 
 const mapRoot = ref<HTMLDivElement>()
@@ -596,8 +594,7 @@ watch(() => relationStore.relations.length, scheduleDraw)
 
 function onBorderlineKeyDown(e: KeyboardEvent) {
   if (mode.value !== 'draw') return
-  const keys = settingsStore.getShortcut('region.borderline')
-  if (keys.includes('alt') && e.altKey) {
+  if (e.altKey) {
     e.preventDefault()
     borderlineActive.value = true
     scheduleDraw()
@@ -617,7 +614,7 @@ function onBorderlineKeyUp(e: KeyboardEvent) {
 onMounted(() => {
   registerShortcut({
     id: 'region.borderline',
-    keys: settingsStore.getShortcut('region.borderline'),
+    keys: ['alt'],
     description: '边境线模式',
     scope: 'view',
     handler: () => {

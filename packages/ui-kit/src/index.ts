@@ -20,7 +20,7 @@ export type {
 // Phase 8d: settings 模块共用工具与类型（从根 src/ui/settings/utils.ts 下沉）
 export {
   matchKeywords,
-  DEFAULT_SHORTCUTS,
+  SHORTCUT_CATALOG,
   SCOPE_ORDER,
   scopeLabel,
   FONT_LAYERS,
@@ -157,12 +157,16 @@ export { useSelection, SelectionKey, provideGlobalSelection, type SelectionState
 export {
   useShortcuts,
   setActiveViewId,
+  normalizeKeys,
+  currentSequence,
   formatKeysForDisplay,
   formatKeyForDisplay,
   type ShortcutScope,
+  type ShortcutKind,
   type ShortcutDef,
   type ShortcutConflict,
 } from './composables/useShortcuts'
+export { useScopedShortcuts } from './composables/useScopedShortcuts'
 export { useFileSystemProject } from '@worldsmith/entity-core/composables'
 
 // ----------------------------------------------------------------------------

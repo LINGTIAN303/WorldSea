@@ -94,13 +94,11 @@
 
 <script setup lang="ts">
 import { computed, ref, watch, nextTick, onMounted } from 'vue'
-import { useSettingsStore } from '@/stores/settingsStore'
 import { useShortcuts, formatKeysForDisplay } from '@worldsmith/plugin-sdk'
 import { useFileSystemProject } from '@/composables/useFileSystemProject'
 import { useToast } from '@/composables/useToast'
 import { WsIcon } from '@worldsmith/ui-kit'
 
-const settingsStore = useSettingsStore()
 const { register } = useShortcuts()
 // 项目=目录（2026-09-03）：绑定入口已移除（目录即项目，走 ProjectSwitcher）；导出能力保留
 const { saving, saveToFolder, lastError } = useFileSystemProject()
@@ -178,7 +176,7 @@ function closeMenu() {
 onMounted(() => {
   register({
     id: 'menu.import-export',
-    keys: settingsStore.getShortcut('menu.import-export'),
+    keys: ['ctrl', 'shift', 's'],
     description: '导入/导出',
     scope: 'global',
     handler: () => { window.dispatchEvent(new CustomEvent('ws-open-import-export')) },

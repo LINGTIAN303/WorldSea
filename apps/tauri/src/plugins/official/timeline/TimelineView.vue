@@ -306,10 +306,10 @@ onMounted(async () => {
     console.warn('[TimelineView]', err)
   }
 
-  const undoKeys = settingsStore.getShortcut('global.undo') || ['ctrl', 'z']
-  const redoKeys = settingsStore.getShortcut('global.redo') || ['ctrl', 'y']
-  register({ id: 'global.undo', keys: undoKeys, scope: 'view', description: '撤销', handler: () => undo(entityStore, relationStore) })
-  register({ id: 'global.redo', keys: redoKeys, scope: 'view', description: '重做', handler: () => redo(entityStore, relationStore) })
+  // 原 id=global.undo/redo 会按 id 覆盖 Shell 的同名全局注册（registry 按 id 去重），
+  // 导致 Agent 空间下全局撤销失效；改用视图自有 id，与全局键在 scope 优先级下自然共存
+  register({ id: 'timeline.undo', keys: ['ctrl', 'z'], scope: 'view', description: '时间轴：撤销', handler: () => undo(entityStore, relationStore) })
+  register({ id: 'timeline.redo', keys: ['ctrl', 'y'], scope: 'view', description: '时间轴：重做', handler: () => redo(entityStore, relationStore) })
 })
 
 useAgentPluginBridge('timeline', async (event) => {

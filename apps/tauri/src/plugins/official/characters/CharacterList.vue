@@ -129,7 +129,6 @@ import CharacterExperience from './components/CharacterExperience.vue'
 
 import { GenericEntityView, EntityRelationSelector, CustomDropdown, useShortcuts, useUndoRedo } from '@worldsmith/plugin-sdk'
 import { toastSuccess } from '@worldsmith/ui-kit'
-import { useSettingsStore } from '@/stores/settingsStore'
 import WorldSmithLogo from '@/components/brand/WorldSmithLogo.vue'
 import { characterFields } from './characterConfig'
 import { characterTemplates } from './characterTemplates'
@@ -140,7 +139,6 @@ const relationStore = useRelationStore()
 const charSchema = computed(() => entitySchemaRegistry.get('character'))
 const { register, unregister } = useShortcuts()
 const { undo, redo } = useUndoRedo()
-const settingsStore = useSettingsStore()
 
 // ── GenericEntityView ref ──
 const gevRef = ref<InstanceType<typeof GenericEntityView> | null>(null)
@@ -260,10 +258,10 @@ function onWsSelectEntity(e: Event) {
 onMounted(() => {
   window.addEventListener('ws-select-entity', onWsSelectEntity)
 
-  const undoKeys = settingsStore.getShortcut('global.undo') || ['ctrl', 'z']
-  const redoKeys = settingsStore.getShortcut('global.redo') || ['ctrl', 'y']
-  register({ id: 'character.undo', keys: undoKeys, scope: 'view', description: '撤销', handler: () => undo(entityStore, relationStore) })
-  register({ id: 'character.redo', keys: redoKeys, scope: 'view', description: '重做', handler: () => redo(entityStore, relationStore) })
+  const undoKeys = ['ctrl', 'z']
+  const redoKeys = ['ctrl', 'y']
+  register({ id: 'character.undo', keys: undoKeys, scope: 'view', description: '角色：撤销', handler: () => undo(entityStore, relationStore) })
+  register({ id: 'character.redo', keys: redoKeys, scope: 'view', description: '角色：重做', handler: () => redo(entityStore, relationStore) })
 })
 
 onBeforeUnmount(() => {

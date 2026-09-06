@@ -247,56 +247,12 @@ function deriveKeyStoreId(baseUrl: string): string {
 }
 
 
-/* ─── 快捷键默认键位 ─── */
+/* ─── 快捷键默认键位 ───
+ * 已退役（2026-09 快捷键系统整顿）：默认键位以各注册处 register() 声明为准，
+ * 目录元数据见 ui-kit settings/utils.ts 的 SHORTCUT_CATALOG。 */
 
-const SHORTCUT_DEFAULTS: Record<string, string[]> = {
-  'help.shortcuts':   ['?'],
-  'sidebar.toggle':   ['ctrl', 'b'],
-  'search.open':      ['ctrl', 'k'],
-  'menu.import-export': ['ctrl', 'shift', 's'],
-  'settings.open':    ['ctrl', ','],
-  'global.undo':      ['ctrl', 'z'],
-  'global.redo':      ['ctrl', 'y'],
-  'global.redo-alt':  ['ctrl', 'shift', 'z'],
-  'global.undoHistory': ['ctrl', 'alt', 'z'],
-  'project.save':     ['ctrl', 's'],
-  'region.borderline': ['alt'],
-  'character.undo':   ['ctrl', 'z'],
-  'character.redo':   ['ctrl', 'y'],
-  'org.undo':         ['ctrl', 'z'],
-  'org.redo':         ['ctrl', 'y'],
-  'region.undo':      ['ctrl', 'z'],
-  'region.redo':      ['ctrl', 'y'],
-  'drawing.undo':     ['ctrl', 'z'],
-  'drawing.redo':     ['ctrl', 'shift', 'z'],
-  'drawing.zoomIn':   ['ctrl', '='],
-  'drawing.zoomOut':  ['ctrl', '-'],
-  'drawing.fitView':  ['ctrl', '0'],
-  'mindmap.undo':     ['ctrl', 'z'],
-  'mindmap.redo':     ['ctrl', 'y'],
-  'mindmap.toggleDetail': ['i'],
-  'mindmap.fitView':  ['f'],
-  'mindmap.exitNested': ['escape'],
-  'mindmap.deleteNode': ['delete'],
-  'mindmap.freeDraw': ['d'],
-  'mindmap.aiSuggest': ['ctrl', 'j'],
-}
-
-const STORAGE_KEY_SHORTCUTS = 'worldsmith_shortcuts'
-// 语音输入设置（Web Speech API）
 const STORAGE_KEY_VOICE_LANG = 'worldsmith_voice_lang'
 const STORAGE_KEY_VOICE_CONTINUOUS = 'worldsmith_voice_continuous'
-
-function loadShortcuts(): Record<string, string[]> {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY_SHORTCUTS)
-    return raw ? JSON.parse(raw) : {}
-  } catch { return {} }
-}
-
-function saveShortcuts(overrides: Record<string, string[]>) {
-  localStorage.setItem(STORAGE_KEY_SHORTCUTS, JSON.stringify(overrides))
-}
 
 export const useSettingsStore = defineStore('settings', () => {
   const { currentThemeId, setTheme: setThemeFromEngine } = useTheme()
@@ -425,27 +381,10 @@ export const useSettingsStore = defineStore('settings', () => {
     return plugins.value.filter(p => p.active).map(p => p.id)
   }
 
-  /* ─── 快捷键覆盖 ─── */
-  const shortcutOverrides = ref<Record<string, string[]>>(loadShortcuts())
-
-  function getShortcut(id: string): string[] {
-    return shortcutOverrides.value[id] || SHORTCUT_DEFAULTS[id] || []
-  }
-
-  function setShortcut(id: string, keys: string[]) {
-    shortcutOverrides.value[id] = keys
-    saveShortcuts(shortcutOverrides.value)
-  }
-
-  function resetShortcut(id: string) {
-    delete shortcutOverrides.value[id]
-    saveShortcuts(shortcutOverrides.value)
-  }
-
-  function resetAllShortcuts() {
-    shortcutOverrides.value = {}
-    localStorage.removeItem(STORAGE_KEY_SHORTCUTS)
-  }
+  /* ─── 快捷键 ───
+   * 已整体退役（2026-09 快捷键系统整顿）：键位权威在 ui-kit useShortcuts 注册表
+   * （注册处声明默认值 + localStorage['worldsmith_shortcuts'] 用户覆盖），设置面板
+   * 直接读写 registry。本 store 不再持有任何快捷键状态。 */
 
   function addCustomProvider(entry: Omit<CustomProviderEntry, 'id'>): CustomProviderEntry {
     const id = 'cp-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
@@ -464,8 +403,7 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   return { plugins, theme, togglePlugin, setTheme, isActive, getActivePluginIds, loadProjectPlugins,
-           shortcutOverrides, getShortcut, setShortcut, resetShortcut, resetAllShortcuts,
-           SHORTCUT_DEFAULTS, undoHistoryLimit, multiStepRedo, maxCenterNodes, panelLimitEnabled,
+           undoHistoryLimit, multiStepRedo, maxCenterNodes, panelLimitEnabled,
            smoothCaretEnabled, smoothCaretDuration, smoothCaretVariant,
            autoCreateEntityEnabled, autoCreateSelectorEnabled, autoCreateEntityRefEnabled, autoCreateGraphEnabled,
            highlight_pulseEnabled, highlight_dimmingEnabled, highlight_dimmingMode, highlight_dimOpacity, highlight_spreadHops,

@@ -158,7 +158,6 @@
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { useShortcuts, CreateButton } from '@worldsmith/plugin-sdk'
 import { useCanvas } from '@worldsmith/ui-kit'
-import { useSettingsStore } from '@/stores/settingsStore'
 import { WsIcon } from '@worldsmith/ui-kit'
 import { WsSpinner } from '@worldsmith/ui-kit'
 import ToolbarOverflow from '@/components/ui/ToolbarOverflow.vue'
@@ -696,9 +695,8 @@ onMounted(async () => {
   loading.value = false
 
   setupKeyboard()
-  const settingsStore = useSettingsStore()
-  register({ id: 'drawing.undo', keys: settingsStore.getShortcut('drawing.undo') || ['ctrl', 'z'], scope: 'view', description: '画板：撤销', handler: () => undo() })
-  register({ id: 'drawing.redo', keys: settingsStore.getShortcut('drawing.redo') || ['ctrl', 'shift', 'z'], scope: 'view', description: '画板：重做', handler: () => redo() })
+  register({ id: 'drawing.undo', keys: ['ctrl', 'z'], scope: 'view', description: '画板：撤销', handler: () => undo() })
+  register({ id: 'drawing.redo', keys: ['ctrl', 'shift', 'z'], scope: 'view', description: '画板：重做', handler: () => redo() })
   register({ id: 'drawing.zoomIn', keys: ['ctrl', '='], scope: 'view', description: '画板：放大', handler: () => zoomIn() })
   register({ id: 'drawing.zoomOut', keys: ['ctrl', '-'], scope: 'view', description: '画板：缩小', handler: () => zoomOut() })
   register({ id: 'drawing.fitView', keys: ['ctrl', '0'], scope: 'view', description: '画板：适应视图', handler: () => fitView() })

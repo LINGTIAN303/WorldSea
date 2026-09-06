@@ -3,7 +3,8 @@
     <template #card="{ idx, cls }">
       <div class="set-card deck-card" :class="cls" :data-index="idx" v-show="match('快捷键 keyboard shortcut 键盘')">
         <div class="sc-head">快捷键</div>
-        <div class="set-hint" style="margin-bottom:8px">点击快捷键开始记录，按下新的组合键即可修改</div>
+        <div class="set-hint" style="margin-bottom:8px">点击快捷键开始记录，按下新的组合键即可修改（Esc 取消录制）</div>
+        <div v-if="tip" class="ss-tip" :class="tip.type">{{ tip.text }}</div>
         <div v-for="grp in shortcutGroups" :key="grp.scope" v-show="match('快捷键 ' + scopeLabel(grp.scope))" class="ss-group">
           <h5 class="ss-scope">{{ scopeLabel(grp.scope) }}</h5>
           <div v-for="s in grp.items" :key="s.id" v-show="match(s.description + ' ' + s.id)" class="ss-row">
@@ -26,10 +27,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { CardDeck } from '@worldsmith/ui-kit'
-import { useSettingsStore } from '@worldsmith/entity-core'
-import { useShortcuts, formatKeyForDisplay } from '@worldsmith/ui-kit'
+import { useShortcuts, normalizeKeys, formatKeyForDisplay } from '@worldsmith/ui-kit'
 import WsIcon from '../../WsIcon.vue'
-import { matchKeywords, DEFAULT_SHORTCUTS, SCOPE_ORDER, scopeLabel, type ShortcutItem } from '../utils'
+import { matchKeywords, SHORTCUT_CATALOG, SCOPE_ORDER, scopeLabel, type ShortcutItem } from '../utils'
 
 const props = defineProps<{ searchQuery?: string }>()
 const emit = defineEmits<{ dirty: []; 'card-change': [index: number] }>()
@@ -37,14 +37,15 @@ const emit = defineEmits<{ dirty: []; 'card-change': [index: number] }>()
 const deckRef = ref<InstanceType<typeof CardDeck> | null>(null)
 defineExpose({ goToCard: (i: number) => deckRef.value?.goToCard(i) })
 
-const store = useSettingsStore()
-const { updateKeys } = useShortcuts()
+const { setShortcut, resetShortcut, getRegisteredKeys, getDefaultKeys } = useShortcuts()
 
 function match(keywords: string): boolean {
   return matchKeywords(props.searchQuery ?? '', keywords)
 }
 
-const allShortcuts = computed(() => DEFAULT_SHORTCUTS)
+/** 展示清单=目录（元数据）；键位权威在 registry（注册处声明 + 用户覆盖） */
+const allShortcuts = computed(() => SHORTCUT_CATALOG)
+const catalogById = new Map(SHORTCUT_CATALOG.map(s => [s.id, s]))
 
 const shortcutGroups = computed(() => {
   return SCOPE_ORDER
@@ -56,20 +57,30 @@ const shortcutGroups = computed(() => {
 })
 
 const recording = ref<string | null>(null)
+const tip = ref<{ type: 'error' | 'warn'; text: string } | null>(null)
 
 function fmt(k: string): string {
   return formatKeyForDisplay(k)
 }
 
 function getDisplayKeys(s: ShortcutItem): string[] {
-  return store.getShortcut(s.id)
+  return getRegisteredKeys(s.id) ?? s.keys
 }
 
 function hasOverride(id: string): boolean {
-  return id in store.shortcutOverrides
+  const reg = getRegisteredKeys(id)
+  const def = getDefaultKeys(id)
+  if (!reg || !def) return false
+  return JSON.stringify([...reg].sort()) !== JSON.stringify([...def].sort())
 }
 
 function startRecord(id: string) {
+  const s = catalogById.get(id)
+  if (s && getRegisteredKeys(s.id) === null) {
+    tip.value = { type: 'warn', text: `「${s.description}」所属视图未激活，激活该视图后才能修改` }
+    return
+  }
+  tip.value = null
   recording.value = id
 }
 
@@ -78,47 +89,49 @@ function cancelRecord() {
 }
 
 function resetKey(id: string) {
-  store.resetShortcut(id)
-  const defaults = store.SHORTCUT_DEFAULTS as Record<string, string[]>
-  if (defaults[id]) {
-    updateKeys(id, defaults[id])
-  }
+  resetShortcut(id)
+  tip.value = null
   emit('dirty')
 }
 
 function onRecordKeydown(e: KeyboardEvent) {
   if (!recording.value) return
+  // capture 阶段拦截：阻止按键流入 useShortcuts 的冒泡分发器，录制期间不触发已注册快捷键
   e.preventDefault()
   e.stopPropagation()
 
-  const keys: string[] = []
-  if (e.ctrlKey || e.metaKey) keys.push('ctrl')
-  if (e.altKey) keys.push('alt')
-  if (e.shiftKey) keys.push('shift')
-
-  const main = e.key.toLowerCase()
-  if (!['control', 'meta', 'alt', 'shift'].includes(main)) {
-    const special: Record<string, string> = {
-      'escape': 'escape', 'enter': 'enter', ' ': 'space',
-      'delete': 'delete', 'backspace': 'backspace', 'tab': 'tab',
-    }
-    keys.push(special[main] || main)
+  const keys = normalizeKeys(e)
+  // 修饰键单独按下不结束录制，等待完整组合
+  if (keys.length === 0) return
+  // Esc = 取消录制（同时避免把 Esc 误录为键位，破坏所在浮层的关闭行为）
+  if (keys.length === 1 && keys[0] === 'escape') {
+    cancelRecord()
+    return
   }
 
-  if (keys.length > 0) {
-    store.setShortcut(recording.value, keys)
-    updateKeys(recording.value, keys)
-    emit('dirty')
-    recording.value = null
+  const id = recording.value
+  const res = setShortcut(id, keys)
+  if (!res.ok) {
+    tip.value = res.conflict
+      ? { type: 'error', text: `与「${res.conflict.conflictWith.map(c => c.id).join('」「')}」冲突，请换一个组合键` }
+      : { type: 'error', text: '设置失败（条目不存在或不可修改）' }
+    return // 保持录制态，让用户继续按键
   }
+  if (res.shadowing) {
+    tip.value = { type: 'warn', text: `已保存，但被更高优先级${scopeLabel(res.shadowing[0].scope)}快捷键「${res.shadowing[0].id}」遮蔽，该键不会触发` }
+  } else {
+    tip.value = null
+  }
+  emit('dirty')
+  recording.value = null
 }
 
 onMounted(() => {
-  document.addEventListener('keydown', onRecordKeydown)
+  document.addEventListener('keydown', onRecordKeydown, true)
 })
 
 onBeforeUnmount(() => {
-  document.removeEventListener('keydown', onRecordKeydown)
+  document.removeEventListener('keydown', onRecordKeydown, true)
 })
 </script>
 
@@ -139,4 +152,7 @@ onBeforeUnmount(() => {
 .ss-recording { font-size: var(--font-size-sm); color: var(--primary, var(--color-primary)); font-weight: var(--font-weight-medium); padding: 2px 8px; animation: ws-pulse 0.8s infinite; cursor: pointer; }
 .ss-reset { font-size: var(--font-size-base); background: none; border: none; cursor: pointer; color: var(--text-tertiary, var(--color-text-tertiary)); padding: 2px; border-radius: 3px; }
 .ss-reset:hover { color: var(--danger, var(--color-danger)); background: var(--hover-bg); }
+.ss-tip { margin: 0 0 8px; padding: 6px 8px; border-radius: 4px; font-size: var(--font-size-xs); }
+.ss-tip.error { color: var(--danger, var(--color-danger)); background: color-mix(in srgb, var(--danger, var(--color-danger)) 10%, transparent); }
+.ss-tip.warn { color: var(--warning, var(--color-warning, #b8860b)); background: color-mix(in srgb, var(--warning, var(--color-warning, #b8860b)) 10%, transparent); }
 </style>

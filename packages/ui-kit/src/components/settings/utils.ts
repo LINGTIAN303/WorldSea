@@ -19,44 +19,45 @@ export interface ShortcutItem {
   scope: string
 }
 
-/** 默认快捷键列表（与 store.SHORTCUT_DEFAULTS 对应） */
-export const DEFAULT_SHORTCUTS: ShortcutItem[] = [
-  { id: 'help.shortcuts', description: '打开快捷键帮助', keys: ['?'], scope: 'global' },
+/**
+ * 快捷键目录（展示元数据）。权威键位以各注册处 register() 声明为准（registry
+ * 注册时自动应用用户覆盖），此处 keys 仅作视图未激活时的展示 fallback。
+ * 维护约束：新增/改 id 必须与注册处同步，此处不允许出现注册处没有的死条目。
+ */
+export const SHORTCUT_CATALOG: ShortcutItem[] = [
+  // ── 全局（Shell.vue / AppMenu.vue）──
+  { id: 'help.shortcuts', description: '开启快捷键帮助', keys: ['?'], scope: 'global' },
   { id: 'sidebar.toggle', description: '切换侧边栏', keys: ['ctrl', 'b'], scope: 'global' },
   { id: 'search.open', description: '全局搜索', keys: ['ctrl', 'k'], scope: 'global' },
-  { id: 'menu.import-export', description: '导入/导出', keys: ['ctrl', 'shift', 's'], scope: 'global' },
   { id: 'settings.open', description: '打开设置', keys: ['ctrl', ','], scope: 'global' },
-  { id: 'undo', description: '撤销', keys: ['ctrl', 'z'], scope: 'global' },
-  { id: 'redo', description: '重做', keys: ['ctrl', 'shift', 'z'], scope: 'global' },
-  { id: 'redo-alt', description: '重做（替代）', keys: ['ctrl', 'y'], scope: 'global' },
+  { id: 'project.manager', description: '打开项目（选择目录）', keys: ['ctrl', 'shift', 'p'], scope: 'global' },
+  { id: 'menu.import-export', description: '导入/导出', keys: ['ctrl', 'shift', 's'], scope: 'global' },
   { id: 'global.undo', description: '撤销', keys: ['ctrl', 'z'], scope: 'global' },
   { id: 'global.redo', description: '重做', keys: ['ctrl', 'y'], scope: 'global' },
-  { id: 'global.undoHistory', description: '撤销历史面板', keys: ['ctrl', 'shift', 'z'], scope: 'global' },
-  { id: 'entity.save', description: '保存实体', keys: ['ctrl', 's'], scope: 'view' },
-  { id: 'entity.delete', description: '删除实体', keys: ['delete'], scope: 'view' },
-  { id: 'panel.close', description: '关闭详情面板', keys: ['escape'], scope: 'view' },
-  { id: 'dialog.confirm', description: '确认弹窗', keys: ['enter'], scope: 'modal' },
-  { id: 'dialog.cancel', description: '取消弹窗', keys: ['escape'], scope: 'modal' },
+  { id: 'global.redo-alt', description: '重做（备选）', keys: ['ctrl', 'shift', 'z'], scope: 'global' },
+  { id: 'global.undoHistory', description: '撤销历史面板', keys: ['ctrl', 'alt', 'z'], scope: 'global' },
+  { id: 'project.save', description: '导出到文件夹', keys: ['ctrl', 's'], scope: 'global' },
+  // ── 视图（各插件视图挂载期间生效；Agent 空间自动失效）──
+  { id: 'character.undo', description: '角色：撤销', keys: ['ctrl', 'z'], scope: 'view' },
+  { id: 'character.redo', description: '角色：重做', keys: ['ctrl', 'y'], scope: 'view' },
+  { id: 'timeline.undo', description: '时间轴：撤销', keys: ['ctrl', 'z'], scope: 'view' },
+  { id: 'timeline.redo', description: '时间轴：重做', keys: ['ctrl', 'y'], scope: 'view' },
   { id: 'region.borderline', description: '区域图谱：边境线模式', keys: ['alt'], scope: 'view' },
   { id: 'drawing.undo', description: '画板：撤销', keys: ['ctrl', 'z'], scope: 'view' },
   { id: 'drawing.redo', description: '画板：重做', keys: ['ctrl', 'shift', 'z'], scope: 'view' },
   { id: 'drawing.zoomIn', description: '画板：放大', keys: ['ctrl', '='], scope: 'view' },
   { id: 'drawing.zoomOut', description: '画板：缩小', keys: ['ctrl', '-'], scope: 'view' },
   { id: 'drawing.fitView', description: '画板：适应视图', keys: ['ctrl', '0'], scope: 'view' },
-  { id: 'mindmap.newCharacter', description: '思维导图：新建角色', keys: ['n', 'c'], scope: 'view' },
-  { id: 'mindmap.newRegion', description: '思维导图：新建区域', keys: ['n', 'r'], scope: 'view' },
-  { id: 'mindmap.newEvent', description: '思维导图：新建事件', keys: ['n', 'e'], scope: 'view' },
-  { id: 'mindmap.newTextbox', description: '思维导图：新建文本框', keys: ['n', 't'], scope: 'view' },
-  { id: 'mindmap.editName', description: '思维导图：编辑名称', keys: ['e', 'n'], scope: 'view' },
-  { id: 'mindmap.editDesc', description: '思维导图：编辑描述', keys: ['e', 'd'], scope: 'view' },
-  { id: 'mindmap.connect', description: '思维导图：连接节点', keys: ['c', 'l'], scope: 'view' },
-  { id: 'mindmap.deleteNode', description: '思维导图：删除节点', keys: ['d', 'n'], scope: 'view' },
-  { id: 'mindmap.createSection', description: '思维导图：创建分组框', keys: ['g', 's'], scope: 'view' },
-  { id: 'mindmap.focusNode', description: '思维导图：聚焦节点', keys: ['f', 'n'], scope: 'view' },
-  { id: 'mindmap.jumpInto', description: '思维导图：进入子图', keys: ['j', 'i'], scope: 'view' },
+  { id: 'mindmap.undo', description: '思维导图：撤销', keys: ['ctrl', 'z'], scope: 'view' },
+  { id: 'mindmap.redo', description: '思维导图：重做', keys: ['ctrl', 'y'], scope: 'view' },
   { id: 'mindmap.toggleDetail', description: '思维导图：切换详情侧栏', keys: ['i'], scope: 'view' },
   { id: 'mindmap.fitView', description: '思维导图：适应视图', keys: ['f'], scope: 'view' },
   { id: 'mindmap.exitNested', description: '思维导图：返回上层', keys: ['escape'], scope: 'view' },
+  { id: 'mindmap.deleteNode', description: '思维导图：删除节点', keys: ['delete'], scope: 'view' },
+  { id: 'mindmap.freeDraw', description: '思维导图：自由绘图', keys: ['d'], scope: 'view' },
+  { id: 'mindmap.aiSuggest', description: '思维导图：AI 关系建议', keys: ['ctrl', 'j'], scope: 'view' },
+  { id: 'mindmap.addChild', description: '思维导图：添加子主题', keys: ['tab'], scope: 'view' },
+  { id: 'mindmap.addSibling', description: '思维导图：添加同级主题', keys: ['enter'], scope: 'view' },
 ]
 
 /** 快捷键分组顺序 */
