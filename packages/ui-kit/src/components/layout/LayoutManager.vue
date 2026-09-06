@@ -42,11 +42,15 @@ import { fieldRegistry, entitySchemaRegistry } from '@worldsmith/entity-core'
 import { useFieldOrderStore } from '@worldsmith/entity-core'
 import { useConfirm, useResizable } from '@worldsmith/ui-kit'
 import { toastSuccess } from '../../composables/useToast'
+import { useModalShortcuts } from '@worldsmith/ui-kit'
 import WsIcon from '../WsIcon.vue'
 import WsEmpty from '../WsEmpty.vue'
 
 const props = defineProps<{ show: boolean }>()
 const emit = defineEmits<{ close: [] }>()
+
+// Esc 关闭收编 useModalShortcuts（此前该弹窗没有 Esc 关闭，仅点遮罩）
+useModalShortcuts(() => props.show, { id: 'layout-manager.close', onEscape: () => emit('close') })
 
 const fieldOrderStore = useFieldOrderStore()
 const { confirm } = useConfirm()

@@ -56,6 +56,7 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick, onBeforeUnmount } from 'vue'
+import { useModalShortcuts } from '@worldsmith/ui-kit'
 import { WsIcon } from '@worldsmith/ui-kit'
 import type { ManuscriptBlock, ExportCorrectorConfig } from '@worldsmith/agent-runtime'
 import ExportControlPanel from './export-corrector/ExportControlPanel.vue'
@@ -112,13 +113,11 @@ const {
 const dialogRef = ref<HTMLElement | null>(null)
 let previousFocus: HTMLElement | null = null
 
+// Esc 关闭收编 useModalShortcuts（modal 层）
+useModalShortcuts(() => props.show, { id: 'export-corrector.close', onEscape: () => emit('close') })
+
 function onKeydown(e: KeyboardEvent) {
   if (!props.show) return
-  if (e.key === 'Escape') {
-    e.stopPropagation()
-    emit('close')
-    return
-  }
   if (e.key === 'Tab') {
     const box = dialogRef.value
     if (!box) return
@@ -142,7 +141,6 @@ function onKeydown(e: KeyboardEvent) {
 watch(() => props.show, (v) => {
   if (v) {
     previousFocus = document.activeElement as HTMLElement
-    window.addEventListener('keydown', onKeydown)
     nextTick(() => {
       const box = dialogRef.value
       if (box) {
@@ -151,7 +149,6 @@ watch(() => props.show, (v) => {
       }
     })
   } else {
-    window.removeEventListener('keydown', onKeydown)
     if (previousFocus) {
       previousFocus.focus()
       previousFocus = null

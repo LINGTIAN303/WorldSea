@@ -169,6 +169,7 @@ export {
   type ShortcutConflict,
 } from './composables/useShortcuts'
 export { useScopedShortcuts } from './composables/useScopedShortcuts'
+export { useModalShortcuts } from './composables/useModalShortcuts'
 export { useFileSystemProject } from '@worldsmith/entity-core/composables'
 
 // ----------------------------------------------------------------------------

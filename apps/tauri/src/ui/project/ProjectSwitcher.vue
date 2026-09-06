@@ -52,8 +52,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { WsIcon, useConfirm } from '@worldsmith/ui-kit'
+import { ref, computed, onBeforeUnmount, nextTick } from 'vue'
+import { WsIcon, useConfirm, useModalShortcuts } from '@worldsmith/ui-kit'
 import { useProjectSwitcher } from '@/composables/useProjectSwitcher'
 import WorldSmithLogo from '@/components/brand/WorldSmithLogo.vue'
 import type { ProjectInfo } from '@worldsmith/entity-core/core'
@@ -140,16 +140,11 @@ async function onRemove(p: ProjectInfo): Promise<void> {
   if (done) void refreshProjectList()
 }
 
-onMounted(() => {
-  document.addEventListener('keydown', onEsc)
-})
+// Esc 关闭收编 useModalShortcuts（modal 层，替代 document 常驻监听）
+useModalShortcuts(() => open.value, { id: 'project-switcher.close', onEscape: () => close() })
 onBeforeUnmount(() => {
-  document.removeEventListener('keydown', onEsc)
   open.value = false
 })
-function onEsc(e: KeyboardEvent): void {
-  if (e.key === 'Escape') close()
-}
 </script>
 
 <style scoped>

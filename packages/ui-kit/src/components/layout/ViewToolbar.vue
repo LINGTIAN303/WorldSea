@@ -112,16 +112,20 @@ function onDocClick(e: MouseEvent) {
   if (moreRef.value && !moreRef.value.contains(e.target as Node)) close()
 }
 function onDocKey(e: KeyboardEvent) {
-  if (e.key === 'Escape') close()
+  if (e.key === 'Escape') {
+    // capture 阶段消费：下拉打开时 Esc 归下拉（抢在注册表 view 层命中消费之前，
+    // 否则会被 entity.close 等视图键阻断）；未打开时放行给注册表
+    if (open.value) { e.stopPropagation(); close() }
+  }
 }
 
 onMounted(() => {
   document.addEventListener('click', onDocClick)
-  document.addEventListener('keydown', onDocKey)
+  document.addEventListener('keydown', onDocKey, true)
 })
 onBeforeUnmount(() => {
   document.removeEventListener('click', onDocClick)
-  document.removeEventListener('keydown', onDocKey)
+  document.removeEventListener('keydown', onDocKey, true)
 })
 </script>
 

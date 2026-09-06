@@ -131,7 +131,7 @@
 import { toastSuccess, toastWarn } from '@worldsmith/ui-kit'
 import { useDialog, useResizable } from '../composables'
 import { ref, watch, computed, reactive, nextTick, onBeforeUnmount, onUnmounted } from 'vue'
-import { RichTextEditor, WsIcon } from '@worldsmith/ui-kit'
+import { RichTextEditor, WsIcon, useModalShortcuts } from '@worldsmith/ui-kit'
 import CustomDropdown from './CustomDropdown.vue'
 import ImageField from './ImageField.vue'
 import SmartFillGhostText from './SmartFillGhostText.vue'
@@ -153,14 +153,12 @@ const boxRef = ref<HTMLElement>()
 /** 打开前的焦点元素：关闭后还原 */
 let returnFocusEl: HTMLElement | null = null
 
-// 焦点陷阱：Tab 仅在弹窗内循环 + Esc 关闭
+// Esc 关闭收编 useModalShortcuts（modal 层，批7 修复 view 层消费阻断弹窗 Esc）
+useModalShortcuts(() => props.modelValue, { id: 'entity-form.close', onEscape: () => close() })
+
+// 焦点陷阱：Tab 仅在弹窗内循环（Esc 已收编注册表）
 function onKeydown(e: KeyboardEvent) {
   if (!props.modelValue) return
-  if (e.key === 'Escape') {
-    e.stopPropagation()
-    close()
-    return
-  }
   if (e.key === 'Tab') {
     const box = boxRef.value
     if (!box) return
@@ -263,7 +261,6 @@ watch(() => props.modelValue, (v) => {
     initFormData()
     activePreset.value = fieldOrderStore.getActivePreset(resolvedEntityType.value)
     returnFocusEl = document.activeElement as HTMLElement
-    window.addEventListener('keydown', onKeydown)
     nextTick(() => {
       const first =
         boxRef.value?.querySelector<HTMLElement>(
@@ -272,7 +269,6 @@ watch(() => props.modelValue, (v) => {
       first?.focus({ preventScroll: true })
     })
   } else {
-    window.removeEventListener('keydown', onKeydown)
     returnFocusEl?.focus?.({ preventScroll: true })
     returnFocusEl = null
   }

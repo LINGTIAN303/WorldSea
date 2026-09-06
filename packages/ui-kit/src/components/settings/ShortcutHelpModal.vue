@@ -35,7 +35,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch, nextTick, onBeforeUnmount } from 'vue'
-import { useShortcuts, formatKeyForDisplay, useResizable } from '@worldsmith/ui-kit'
+import { useShortcuts, useModalShortcuts, formatKeyForDisplay, useResizable } from '@worldsmith/ui-kit'
 import WsIcon from '../WsIcon.vue'
 
 const props = defineProps<{ show: boolean }>()
@@ -48,11 +48,6 @@ let returnFocusEl: HTMLElement | null = null
 // 焦点陷阱：Tab 仅在弹窗内循环 + Esc 关闭
 function onKeydown(e: KeyboardEvent) {
   if (!props.show) return
-  if (e.key === 'Escape') {
-    e.stopPropagation()
-    emit('close')
-    return
-  }
   if (e.key === 'Tab') {
     const box = dialogRef.value
     if (!box) return
@@ -93,26 +88,12 @@ watch(() => props.show, (v) => {
 
 onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
-const { getAll, register, unregister } = useShortcuts()
+const { getAll } = useShortcuts()
 const modalResizable = useResizable({ panelId: 'modal-shortcut-help', defaultWidth: 480, minWidth: 320 })
 
-// I1 根因修复：注册跟随 show——本组件被 Shell 常驻挂载（:show 控显隐），常驻注册会让
-// modal-scope Esc 永久占用，经 useShortcuts 命中即 stopImmediatePropagation 吞掉全局 Esc，
-// 连带废掉输入栏下拉/TuiModal 的 Esc 关闭。仅弹窗可见时占用，关闭即释放。
-watch(() => props.show, (show) => {
-  if (show) {
-    register({ id: 'help.shortcuts.close', keys: ['?'], description: '关闭快捷键帮助', scope: 'modal', handler: () => emit('close') })
-    register({ id: 'help.shortcuts.close-esc', keys: ['escape'], description: '关闭快捷键帮助', scope: 'modal', handler: () => emit('close') })
-  } else {
-    unregister('help.shortcuts.close')
-    unregister('help.shortcuts.close-esc')
-  }
-}, { immediate: true })
-
-onBeforeUnmount(() => {
-  unregister('help.shortcuts.close')
-  unregister('help.shortcuts.close-esc')
-})
+// Esc 关闭收编 useModalShortcuts（modal 层 + 弹窗深度 + 叠层栈序），
+// 替代原先「window 监听 + registry 手动注册」双路径（I1 根因修复的演进版）。
+useModalShortcuts(() => props.show, { id: 'help.shortcuts.close-esc', onEscape: () => emit('close') })
 
 const SCOPE_ORDER = ['global', 'view', 'editor', 'modal']
 

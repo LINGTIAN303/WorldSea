@@ -44,16 +44,19 @@ function onDocClick(e: MouseEvent) {
   if (rootRef.value && !rootRef.value.contains(e.target as Node)) open.value = false
 }
 function onDocKey(e: KeyboardEvent) {
-  if (e.key === 'Escape') open.value = false
+  if (e.key === 'Escape') {
+    // capture 阶段消费：筛选下拉打开时 Esc 归下拉（抢在注册表 view 层命中消费之前）
+    if (open.value) { e.stopPropagation(); open.value = false }
+  }
 }
 
 onMounted(() => {
   document.addEventListener('click', onDocClick)
-  document.addEventListener('keydown', onDocKey)
+  document.addEventListener('keydown', onDocKey, true)
 })
 onBeforeUnmount(() => {
   document.removeEventListener('click', onDocClick)
-  document.removeEventListener('keydown', onDocKey)
+  document.removeEventListener('keydown', onDocKey, true)
 })
 </script>
 

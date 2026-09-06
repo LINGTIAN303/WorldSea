@@ -19,6 +19,8 @@ export const isMac = typeof navigator !== 'undefined'
 
 export function formatKeysForDisplay(keys: string[]): string {
   return keys.map(k => {
+    // '?' 物理上需 Shift 才能键出，显示层补 Shift（注册/匹配层仍为 ['?']，勿改）
+    if (k === '?') return isMac ? '⇧?' : 'Shift+?'
     if (isMac) {
       const macMap: Record<string, string> = {
         ctrl: '⌘', alt: '⌥', shift: '⇧',
@@ -183,6 +185,21 @@ export function isShortcutModalActive(): boolean {
   return modalDepth > 0
 }
 
+// ── 收编弹窗栈（叠层顺序）──
+// useModalShortcuts 收编的弹窗开/关时入栈/出栈。分发器在 modal 层只放行栈顶条目
+// ——弹窗叠层时 Esc 只关最后打开的那个，不再双关/错关。
+const modalStack: string[] = []
+export function pushModalShortcut(id: string): void {
+  if (!modalStack.includes(id)) modalStack.push(id)
+}
+export function popModalShortcut(id: string): void {
+  const i = modalStack.indexOf(id)
+  if (i >= 0) modalStack.splice(i, 1)
+}
+export function isTopModalShortcut(id: string): boolean {
+  return modalStack.length === 0 || modalStack[modalStack.length - 1] === id
+}
+
 function loadOverrides(): Record<string, string[]> {
   if (cachedOverrides) return cachedOverrides
   try {
@@ -243,6 +260,8 @@ function attachGlobalListener() {
       for (const [, def] of registry) {
         if (def.scope !== scope) continue
         if (def.kind === 'sequence') continue
+        // 收编弹窗叠层：modal 层仅栈顶条目响应（Esc 只关最后打开的弹窗）
+        if (scope === 'modal' && !isTopModalShortcut(def.id)) continue
         if (!keysMatch(pressed, def.keys)) continue
 
         if (def.preventDefault || isPreventDefault(pressed)) {

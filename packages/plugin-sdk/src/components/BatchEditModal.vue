@@ -100,7 +100,7 @@ import { useDialog, useUndoRedo, useResizable } from '../composables'
 import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
 import { useEntityStore, useRelationStore, entitySchemaRegistry } from '@worldsmith/entity-core'
 import { getEventBus } from '@worldsmith/entity-core'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon, useModalShortcuts } from '@worldsmith/ui-kit'
 import type { Entity } from '@worldsmith/entity-core'
 
 const modalResizable = useResizable({ panelId: 'modal-batch-edit', defaultWidth: 700, minWidth: 400, side: 'right' })
@@ -112,14 +112,13 @@ const boxRef = ref<HTMLElement>()
 /** 打开前的焦点元素：关闭后还原 */
 let returnFocusEl: HTMLElement | null = null
 
-// 焦点陷阱：Tab 仅在弹窗内循环 + Esc 关闭
+// Esc 关闭收编 useModalShortcuts（modal 层）
+useModalShortcuts(() => props.show, { id: 'batch-edit.close', onEscape: () => close() })
+onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
+
+// 焦点陷阱：Tab 仅在弹窗内循环（Esc 已收编注册表）
 function onKeydown(e: KeyboardEvent) {
   if (!props.show) return
-  if (e.key === 'Escape') {
-    e.stopPropagation()
-    close()
-    return
-  }
   if (e.key === 'Tab') {
     const box = boxRef.value
     if (!box) return
@@ -143,7 +142,7 @@ function onKeydown(e: KeyboardEvent) {
 watch(() => props.show, (v) => {
   if (v) {
     returnFocusEl = document.activeElement as HTMLElement
-    window.addEventListener('keydown', onKeydown)
+    window.addEventListener('keydown', onKeydown) // Tab 焦点陷阱（Esc 已收编注册表）
     nextTick(() => {
       const first =
         boxRef.value?.querySelector<HTMLElement>(
@@ -158,7 +157,6 @@ watch(() => props.show, (v) => {
   }
 })
 
-onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
 const entityStore = useEntityStore()
 const relationStore = useRelationStore()

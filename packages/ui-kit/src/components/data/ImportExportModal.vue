@@ -154,7 +154,7 @@ import {
   type ImportStrategy,
   type ImportReport,
 } from '@worldsmith/entity-core'
-import { useResizable } from '@worldsmith/ui-kit'
+import { useResizable, useModalShortcuts } from '@worldsmith/ui-kit'
 import WsIcon from '../WsIcon.vue'
 
 const props = defineProps<{ show: boolean }>()
@@ -164,14 +164,13 @@ const boxRef = ref<HTMLElement>()
 /** 打开前的焦点元素：关闭后还原 */
 let returnFocusEl: HTMLElement | null = null
 
-// 焦点陷阱：Tab 仅在弹窗内循环 + Esc 关闭
+// Esc 关闭收编 useModalShortcuts（modal 层）
+useModalShortcuts(() => props.show, { id: 'import-export.close', onEscape: () => close() })
+onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
+
+// 焦点陷阱：Tab 仅在弹窗内循环（Esc 已收编注册表）
 function onKeydown(e: KeyboardEvent) {
   if (!props.show) return
-  if (e.key === 'Escape') {
-    e.stopPropagation()
-    close()
-    return
-  }
   if (e.key === 'Tab') {
     const box = boxRef.value
     if (!box) return
@@ -195,7 +194,7 @@ function onKeydown(e: KeyboardEvent) {
 watch(() => props.show, (v) => {
   if (v) {
     returnFocusEl = document.activeElement as HTMLElement
-    window.addEventListener('keydown', onKeydown)
+    window.addEventListener('keydown', onKeydown) // Tab 焦点陷阱（Esc 已收编注册表）
     nextTick(() => {
       const first =
         boxRef.value?.querySelector<HTMLElement>(
@@ -210,7 +209,6 @@ watch(() => props.show, (v) => {
   }
 })
 
-onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
 const modalResizable = useResizable({ panelId: 'modal-import-export', defaultWidth: 600, minWidth: 360, side: 'right' })
 

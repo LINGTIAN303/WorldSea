@@ -32,11 +32,15 @@ import { ref, computed } from 'vue'
 import { useEntityStore } from '@worldsmith/entity-core'
 import { useResizable } from '@worldsmith/ui-kit'
 import { entitySchemaRegistry } from '@worldsmith/entity-core'
+import { useModalShortcuts } from '@worldsmith/ui-kit'
 import WsIcon from '../WsIcon.vue'
 import type { Entity } from '@worldsmith/entity-core'
 
-defineProps<{ show: boolean }>()
+const props = defineProps<{ show: boolean }>()
 const emit = defineEmits<{ close: [] }>()
+
+// Esc 关闭收编 useModalShortcuts（此前该弹窗没有 Esc 关闭，仅点遮罩）
+useModalShortcuts(() => props.show, { id: 'version-history.close', onEscape: () => emit('close') })
 
 const entityStore = useEntityStore()
 const modalResizable = useResizable({ panelId: 'modal-version-history', defaultWidth: 520, minWidth: 320 })

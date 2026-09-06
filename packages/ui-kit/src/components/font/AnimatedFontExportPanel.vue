@@ -116,6 +116,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
+import { useModalShortcuts } from '@worldsmith/ui-kit'
 import WsIcon from '../WsIcon.vue'
 import FontSelector from './FontSelector.vue'
 import {
@@ -139,14 +140,13 @@ const boxRef = ref<HTMLElement>()
 /** 打开前的焦点元素：关闭后还原 */
 let returnFocusEl: HTMLElement | null = null
 
-// 焦点陷阱：Tab 仅在面板内循环 + Esc 关闭
+// Esc 关闭收编 useModalShortcuts（modal 层）
+useModalShortcuts(() => props.visible, { id: 'font-export.close', onEscape: () => onClose() })
+onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
+
+// 焦点陷阱：Tab 仅在面板内循环（Esc 已收编注册表）
 function onKeydown(e: KeyboardEvent) {
   if (!props.visible) return
-  if (e.key === 'Escape') {
-    e.stopPropagation()
-    onClose()
-    return
-  }
   if (e.key === 'Tab') {
     const box = boxRef.value
     if (!box) return
@@ -170,7 +170,7 @@ function onKeydown(e: KeyboardEvent) {
 watch(() => props.visible, (v) => {
   if (v) {
     returnFocusEl = document.activeElement as HTMLElement
-    window.addEventListener('keydown', onKeydown)
+    window.addEventListener('keydown', onKeydown) // Tab 焦点陷阱（Esc 已收编注册表）
     nextTick(() => {
       const first =
         boxRef.value?.querySelector<HTMLElement>(
