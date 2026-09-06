@@ -83,6 +83,8 @@ export function useCanvas() {
   function zoomOut() { scale.value = Math.max(0.1, scale.value * 0.7) }
   function fitView() { scale.value = 1; panX.value = 0; panY.value = 0 }
 
+  // 【规范登记】Space 按住平移是「持续态键」（keydown 置位 / keyup 复位），
+  // 不进 useShortcuts 注册表（注册表只分发单次按键）。改动前见 docs 快捷键系统文档。
   function setupKeyboard() {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.code === 'Space' && !e.repeat) {

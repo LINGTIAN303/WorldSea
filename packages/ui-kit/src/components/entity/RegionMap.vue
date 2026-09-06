@@ -161,7 +161,7 @@ const {
   eraseMode, eraseBorderVertices, eraseBorderFixedIndices, eraseDraggingIdx,
   eraseRedrawPath, eraseCtxMenu,
   openEraseCtxMenu, closeEraseCtx, eraseMerge, eraseMoveLine,
-  finishRedraw, handleEraseKeyDown,
+  finishRedraw,
 } = borderErase
 const {
   adjoinSelectMode, adjoinSourceRegion, adjoinSelectedIds,
@@ -625,7 +625,6 @@ onMounted(() => {
   })
   document.addEventListener('keydown', onBorderlineKeyDown)
   document.addEventListener('keyup', onBorderlineKeyUp)
-  document.addEventListener('keydown', handleEraseKeyDown)
   fitAll()
   scheduleDraw()
 })
@@ -634,7 +633,6 @@ onBeforeUnmount(() => {
   unregisterShortcut('region.borderline')
   document.removeEventListener('keydown', onBorderlineKeyDown)
   document.removeEventListener('keyup', onBorderlineKeyUp)
-  document.removeEventListener('keydown', handleEraseKeyDown)
   cancelAnimationFrame(animFrame)
 })
 </script>

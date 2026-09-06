@@ -32,6 +32,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { useScopedShortcuts } from '@worldsmith/ui-kit'
 
 const props = defineProps<{
   visible: boolean
@@ -102,13 +103,18 @@ function onImageLoad() {
   resetZoom()
 }
 
+// Escape 关闭与 +/=/-/0 缩放收编 useScopedShortcuts（modal 层，visible 时注册、关闭即释放）
+useScopedShortcuts([
+  { id: 'lightbox.close', keys: ['escape'], description: '关闭图片查看', scope: 'modal', handler: () => close() },
+  { id: 'lightbox.zoomIn', keys: ['+'], description: '图片查看：放大', scope: 'modal', handler: () => zoomIn() },
+  { id: 'lightbox.zoomIn-eq', keys: ['='], description: '图片查看：放大（等号）', scope: 'modal', handler: () => zoomIn() },
+  { id: 'lightbox.zoomOut', keys: ['-'], description: '图片查看：缩小', scope: 'modal', handler: () => zoomOut() },
+  { id: 'lightbox.resetZoom', keys: ['0'], description: '图片查看：重置缩放', scope: 'modal', handler: () => resetZoom() },
+], () => props.visible)
+
 function onKeydown(e: KeyboardEvent) {
   if (!props.visible) return
-  if (e.key === 'Escape') close()
-  if (e.key === '+' || e.key === '=') zoomIn()
-  if (e.key === '-') zoomOut()
-  if (e.key === '0') resetZoom()
-  // 焦点陷阱：Tab 仅在 lightbox 内循环
+  // 焦点陷阱：Tab 仅在 lightbox 内循环（焦点管理非快捷键，保留独立监听）
   if (e.key === 'Tab') {
     const overlay = overlayRef.value
     if (!overlay) return

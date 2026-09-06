@@ -1,9 +1,8 @@
 /** 抹除/移动边境线 composable（融合/移线 + 偏移/重划模式），详细见 docs/details/注释/packages/ui-kit/components/entity/map/useBorderErase.md */
 
-import { ref } from 'vue'
+import { ref, onBeforeUnmount } from 'vue'
 import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'
-import { useDialog, useConfirm } from '@worldsmith/ui-kit'
-import { useUndoRedo } from '@worldsmith/ui-kit'
+import { useDialog, useConfirm, useUndoRedo, useShortcuts } from '@worldsmith/ui-kit'
 import { toastWarn } from '../../../composables/useToast'
 import {
   bridgeChaikinSmooth,
@@ -308,27 +307,35 @@ export function useBorderErase(options: UseBorderEraseOptions) {
     scheduleDraw()
   }
 
-  /** 处理抹除模式下的键盘事件（Enter/Esc） */
-  function handleEraseKeyDown(e: KeyboardEvent): void {
-    if (eraseMode.value === 'offset') {
-      if (e.key === 'Enter') {
-        e.preventDefault()
-        confirmOffset()
-      } else if (e.key === 'Escape') {
-        e.preventDefault()
+  /** 处理抹除模式下的键盘事件（Enter/Esc）：收编进 useShortcuts 注册表（view 层），模式条件在 handler 内判断 */
+  const { register: registerShortcut, unregister: unregisterShortcut } = useShortcuts()
+  registerShortcut({
+    id: 'region.erase-confirm',
+    keys: ['enter'],
+    scope: 'view',
+    description: '区域图谱：确认偏移边境线',
+    preventDefault: true,
+    handler: () => { if (eraseMode.value === 'offset') confirmOffset() },
+  })
+  registerShortcut({
+    id: 'region.erase-cancel',
+    keys: ['escape'],
+    scope: 'view',
+    description: '区域图谱：取消边境线编辑',
+    preventDefault: true,
+    handler: () => {
+      if (eraseMode.value === 'offset' || eraseMode.value === 'redraw') {
         eraseMode.value = null
         eraseBorderVertices.value = []
-        scheduleDraw()
-      }
-    } else if (eraseMode.value === 'redraw') {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        eraseMode.value = null
         eraseRedrawPath.value = []
         scheduleDraw()
       }
-    }
-  }
+    },
+  })
+  onBeforeUnmount(() => {
+    unregisterShortcut('region.erase-confirm')
+    unregisterShortcut('region.erase-cancel')
+  })
 
   /** 重置所有抹除状态 */
   function resetEraseState(): void {
@@ -362,7 +369,7 @@ export function useBorderErase(options: UseBorderEraseOptions) {
     startRedrawMode,
     confirmOffset,
     finishRedraw,
-    handleEraseKeyDown,
+
     resetEraseState,
   }
 }
