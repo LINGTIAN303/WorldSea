@@ -70,6 +70,17 @@ export const SHORTCUT_CATALOG: ShortcutItem[] = [
   { id: 'mindmap.seq.gs', description: '思维导图：创建分组框（g s）', keys: ['g', 's'], scope: 'view' },
   { id: 'mindmap.seq.gn', description: '思维导图：聚焦节点（g n）', keys: ['g', 'n'], scope: 'view' },
   { id: 'mindmap.seq.ji', description: '思维导图：进入子图（j i）', keys: ['j', 'i'], scope: 'view' },
+  // ── 视图·战术板（战斗阶段条件在 handler 内判断）──
+  { id: 'tactical.endTurn', description: '战术板：结束回合', keys: ['space'], scope: 'view' },
+  { id: 'tactical.move', description: '战术板：移动', keys: ['m'], scope: 'view' },
+  { id: 'tactical.attack', description: '战术板：攻击', keys: ['a'], scope: 'view' },
+  { id: 'tactical.wait', description: '战术板：等待', keys: ['w'], scope: 'view' },
+  { id: 'tactical.cancel', description: '战术板：取消行动', keys: ['escape'], scope: 'view' },
+  { id: 'tactical.awareness-influence', description: '战术板：势力态势感知', keys: ['1'], scope: 'view' },
+  { id: 'tactical.awareness-threat', description: '战术板：威胁态势感知', keys: ['2'], scope: 'view' },
+  { id: 'tactical.awareness-supply', description: '战术板：补给态势感知', keys: ['3'], scope: 'view' },
+  // ── 视图·大纲 ──
+  { id: 'outline.close-detail', description: '大纲：取消选中节点', keys: ['escape'], scope: 'view' },
 ]
 
 /** 快捷键分组顺序 */

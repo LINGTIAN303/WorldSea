@@ -188,7 +188,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { GenericEntityView, DetailField, CustomDropdown, DynamicFieldsAdder, UniversalRelationPanel, CreateButton } from '@worldsmith/plugin-sdk'
-import { GenericTreeView } from '@worldsmith/ui-kit'
+import { GenericTreeView, useShortcuts } from '@worldsmith/ui-kit'
 import type { FormFieldDef, FilterDef, CustomTabDef, RelationTabDef } from '@worldsmith/plugin-sdk'
 import { WsEmpty } from '@worldsmith/ui-kit'
 import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'
@@ -329,13 +329,18 @@ onMounted(async () => {
   }
 })
 
-function onDetailEsc(e: KeyboardEvent) {
-  if (e.key === 'Escape' && selectedNodeId.value) {
-    selectedNodeId.value = null
-  }
-}
-onMounted(() => window.addEventListener('keydown', onDetailEsc))
-onUnmounted(() => window.removeEventListener('keydown', onDetailEsc))
+// Escape 取消选中节点：收编进 useShortcuts 注册表（view 层），替代 window 常驻监听
+const { register: registerShortcut, unregister: unregisterShortcut } = useShortcuts()
+onMounted(() => {
+  registerShortcut({
+    id: 'outline.close-detail',
+    keys: ['escape'],
+    scope: 'view',
+    description: '大纲：取消选中节点',
+    handler: () => { if (selectedNodeId.value) selectedNodeId.value = null },
+  })
+})
+onUnmounted(() => unregisterShortcut('outline.close-detail'))
 
 useAgentPluginBridge('outline', async (event) => {
   const { action, payload } = event
