@@ -37,6 +37,7 @@ export const SHORTCUT_CATALOG: ShortcutItem[] = [
   { id: 'global.redo-alt', description: '重做（备选）', keys: ['ctrl', 'shift', 'z'], scope: 'global' },
   { id: 'global.undoHistory', description: '撤销历史面板', keys: ['ctrl', 'alt', 'z'], scope: 'global' },
   { id: 'project.save', description: '导出到文件夹', keys: ['ctrl', 's'], scope: 'global' },
+  { id: 'shell.toggle', description: '切换 Agent 空间 ⇄ 工作台', keys: ['ctrl', 'tab'], scope: 'global' },
   // ── 视图（各插件视图挂载期间生效；Agent 空间自动失效）──
   { id: 'character.undo', description: '角色：撤销', keys: ['ctrl', 'z'], scope: 'view' },
   { id: 'character.redo', description: '角色：重做', keys: ['ctrl', 'y'], scope: 'view' },
@@ -83,6 +84,16 @@ export const SHORTCUT_CATALOG: ShortcutItem[] = [
   { id: 'tactical.awareness-supply', description: '战术板：补给态势感知', keys: ['3'], scope: 'view' },
   // ── 视图·大纲 ──
   { id: 'outline.close-detail', description: '大纲：取消选中节点', keys: ['escape'], scope: 'view' },
+  // ── Agent 空间（AgentSpace.vue；仅 Agent 空间壳激活时生效，群聊模式左栏相关键空转）──
+  { id: 'space.session.new', description: '新建会话', keys: ['ctrl', 'n'], scope: 'space' },
+  { id: 'space.session.search', description: '聚焦会话搜索', keys: ['ctrl', 'f'], scope: 'space' },
+  { id: 'space.sidebar.toggle', description: '左栏开合', keys: ['ctrl', 'shift', 'b'], scope: 'space' },
+  { id: 'space.right.toggle', description: '右栏开合', keys: ['ctrl', 'j'], scope: 'space' },
+  { id: 'space.tab.exec', description: '右栏切到「执行」', keys: ['1'], scope: 'space' },
+  { id: 'space.tab.config', description: '右栏切到「配置」', keys: ['2'], scope: 'space' },
+  { id: 'space.tab.creation', description: '右栏切到「创作」', keys: ['3'], scope: 'space' },
+  { id: 'space.tab.preview', description: '右栏切到「文件」', keys: ['4'], scope: 'space' },
+  { id: 'space.tab.usage', description: '右栏切到「用量」', keys: ['5'], scope: 'space' },
 ]
 
 /** 快捷键分组顺序（低→高优先级，与 useShortcuts.SCOPE_ORDER 互补同步） */

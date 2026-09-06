@@ -175,6 +175,7 @@ onMounted(() => {
   register({ id: 'sidebar.toggle', keys: ['ctrl', 'b'], description: '切换侧边栏', scope: 'global', handler: () => uiStore.toggleSidebar() })
   register({ id: 'search.open', keys: ['ctrl', 'k'], description: '全局搜索', scope: 'global', handler: () => { searchOpen.value = true } })
   register({ id: 'settings.open', keys: ['ctrl', ','], description: '打开设置', scope: 'global', handler: () => { window.dispatchEvent(new CustomEvent('ws-open-settings')) } })
+  register({ id: 'shell.toggle', keys: ['ctrl', 'tab'], description: '切换 Agent 空间 ⇄ 工作台', scope: 'global', preventDefault: true, handler: () => { uiStore.setShell(uiStore.currentShell === 'workbench' ? 'space' : 'workbench') } })
   register({ id: 'project.manager', keys: ['ctrl', 'shift', 'p'], description: '打开项目（选择目录）', scope: 'global', handler: () => { void openProjectFolderDialog() } })
   register({ id: 'global.undo', keys: ['ctrl', 'z'], description: '撤销', scope: 'global', handler: () => undo(entityStore, relationStore), preventDefault: true })
   register({ id: 'global.redo', keys: ['ctrl', 'y'], description: '重做', scope: 'global', handler: () => redo(entityStore, relationStore), preventDefault: true })

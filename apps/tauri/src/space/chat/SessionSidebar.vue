@@ -51,6 +51,7 @@
             <WsIcon name="search" size="sm" class="search-icon" />
             <input
               v-model="searchQuery"
+              ref="searchInputRef"
               class="search-input"
               placeholder="搜索会话..."
             />
@@ -371,6 +372,16 @@ async function onNewSession() {
   // 未产生对话不生产会话条目，消除「孤儿空会话」「切走无入口可回」
   await newDraftSession()
 }
+
+// ── 快捷键入口（space scope，批B 2026-09-06）──
+// AgentSpace 注册 Ctrl+N / Ctrl+F 时经 defineExpose 调用；左栏开合由 AgentSpace 处理。
+const searchInputRef = ref<HTMLInputElement | null>(null)
+/** space.session.search：确保处于会话视图并聚焦搜索框 */
+function focusSearch() {
+  sidebarView.value = 'sessions'
+  nextTick(() => searchInputRef.value?.focus())
+}
+defineExpose({ focusSearch, newSession: onNewSession })
 
 async function onSelect(id: string) {
   if (id === currentSessionId.value) return

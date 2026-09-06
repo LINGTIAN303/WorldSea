@@ -17,6 +17,7 @@
           :style="{ width: spaceStore.sessionSidebarWidth + 'px' }"
         >
           <SessionSidebar
+            ref="sessionSidebarRef"
             @close="closeSession"
             @open-settings="onOpenSettings"
           />
@@ -119,7 +120,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed, onMounted, onBeforeUnmount, defineAsyncComponent } from 'vue'
+import { ref, watch, computed, onMounted, onBeforeUnmount, defineAsyncComponent, nextTick } from 'vue'
 import { useSpaceStore } from './stores/space-store'
 import { useUserProfileStore } from './stores/user-profile-store'
 import TitleBar from '@/ui/layout/TitleBar.vue'
@@ -133,7 +134,7 @@ import ExecPanel from './panels/ExecPanel.vue'
 import CreationPanel from './panels/CreationPanel.vue'
 import PreviewPanel from './panels/PreviewPanel.vue'
 import SettingsDialog from '@/ui/settings/SettingsDialog.vue'
-import { DialogContainer, WsIcon, useGlobalEvents } from '@worldsmith/ui-kit'
+import { DialogContainer, WsIcon, useGlobalEvents, useShortcuts, type ShortcutDef } from '@worldsmith/ui-kit'
 /** 快捷键帮助弹窗：与 Shell 各挂一份（壳感知，见下方 ws-open-shortcut-help 监听） */
 const ShortcutHelpModal = defineAsyncComponent(() => import('@worldsmith/ui-kit').then(m => m.ShortcutHelpModal))
 import WsConfirmDialog from '@/ui/WsConfirmDialog.vue'
@@ -265,6 +266,40 @@ const uiStore = useUIStore()
 const { on: onSpaceGlobalEvent } = useGlobalEvents()
 onSpaceGlobalEvent('ws-open-settings', () => { if (uiStore.currentShell === 'space') settingsOpen.value = true })
 onSpaceGlobalEvent('ws-open-shortcut-help', () => { if (uiStore.currentShell === 'space') shortcutHelpOpen.value = true })
+
+// ── Agent 空间命令层（space scope，批B 2026-09-06，键位总表见 docs/details/架构/快捷键系统.md §4）──
+// 仅 Agent 空间壳激活时生效（useShortcuts 按 setAgentSpaceActive 过滤，App.vue 注入）；
+// 输入框焦点时注册表自动跳过（聊天框打字按 1-5 为正常输入）。
+const sessionSidebarRef = ref<InstanceType<typeof SessionSidebar> | null>(null)
+
+/** 左栏依赖的快捷键统一入口：群聊模式无左栏 → 空转；左栏关闭时先开再等挂载（v-if 条件渲染） */
+function withSidebar(fn: (sb: { focusSearch(): void; newSession(): void }) => void) {
+  if (spaceStore.mode !== 'chat') return
+  if (!sessionOpen.value) {
+    sessionOpen.value = true
+    spaceStore.setSessionSidebarOpen(true)
+  }
+  nextTick(() => { if (sessionSidebarRef.value) fn(sessionSidebarRef.value) })
+}
+
+const spaceShortcutIds: string[] = []
+onMounted(() => {
+  const { register } = useShortcuts()
+  const reg = (def: ShortcutDef) => { register(def); spaceShortcutIds.push(def.id) }
+  reg({ id: 'space.session.new', keys: ['ctrl', 'n'], description: '新建会话', scope: 'space', preventDefault: true, handler: () => withSidebar(sb => sb.newSession()) })
+  reg({ id: 'space.session.search', keys: ['ctrl', 'f'], description: '聚焦会话搜索', scope: 'space', preventDefault: true, handler: () => withSidebar(sb => sb.focusSearch()) })
+  reg({ id: 'space.sidebar.toggle', keys: ['ctrl', 'shift', 'b'], description: '左栏开合', scope: 'space', preventDefault: true, handler: () => { if (spaceStore.mode === 'chat') onTogglePanelClick() } })
+  reg({ id: 'space.right.toggle', keys: ['ctrl', 'j'], description: '右栏开合', scope: 'space', preventDefault: true, handler: () => onToggleRightPanel() })
+  // 右栏五 Tab = 数字 1-5（PANEL_META 顺序同源）；space 层优先于 global，
+  // 消费掉数字键，不再触发 workbench 的视图切换
+  PANEL_META.forEach((m, i) => {
+    reg({ id: `space.tab.${m.id}`, keys: [String(i + 1)], description: `右栏切到「${m.label}」`, scope: 'space', handler: () => setRightTab(m.id) })
+  })
+})
+onBeforeUnmount(() => {
+  const { unregister } = useShortcuts()
+  spaceShortcutIds.forEach(unregister)
+})
 
 // 顶栏左端「侧边栏」按钮：开关侧边栏（2026-08-12 由 会话/知识墙 轮转简化为单一开关）
 function onTogglePanelClick() {
