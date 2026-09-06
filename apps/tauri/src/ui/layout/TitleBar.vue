@@ -14,6 +14,7 @@
         class="titlebar-shell-toggle"
         :title="shellToggleTitle"
         :aria-label="shellToggleTitle"
+        data-ws-tip-keys="Ctrl+Tab"
         @click="toggleShell"
       >
         <WsIcon :name="shellToggleIcon" size="sm" class="shell-toggle-icon" />
@@ -40,10 +41,10 @@
     </template>
     <div class="titlebar-right">
       <div class="titlebar-controls">
-      <button class="titlebar-btn" aria-label="最小化" title="最小化" @click="minimize">
+      <button class="titlebar-btn" aria-label="最小化" title="最小化" data-ws-tip-keys="Ctrl+M" @click="minimize">
         <svg width="10" height="10" viewBox="0 0 10 10"><path d="M0 5h10" stroke="currentColor" stroke-width="1"/></svg>
       </button>
-      <button class="titlebar-btn" :aria-label="maximized ? '还原' : '最大化'" :title="maximized ? '还原' : '最大化/还原'" @click="toggleMaximize">
+      <button class="titlebar-btn" :aria-label="maximized ? '还原' : '最大化'" :title="maximized ? '还原' : '最大化/还原'" data-ws-tip-keys="F10" @click="toggleMaximize">
         <!-- 还原图标：两层重叠窗口 -->
         <svg v-if="maximized" width="10" height="10" viewBox="0 0 10 10">
           <rect x="1" y="3" width="6" height="6" fill="none" stroke="currentColor" stroke-width="1"/>
@@ -52,7 +53,7 @@
         <!-- 最大化图标：单窗口 -->
         <svg v-else width="10" height="10" viewBox="0 0 10 10"><rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1"/></svg>
       </button>
-      <button class="titlebar-btn titlebar-btn--close" aria-label="关闭" title="关闭（最小化到托盘）" @click="close">
+      <button class="titlebar-btn titlebar-btn--close" aria-label="关闭" title="关闭（最小化到托盘）" data-ws-tip-keys="Ctrl+W" @click="close">
         <svg width="10" height="10" viewBox="0 0 10 10"><path d="M0 0l10 10M10 0L0 10" stroke="currentColor" stroke-width="1"/></svg>
       </button>
       </div>

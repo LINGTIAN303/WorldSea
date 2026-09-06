@@ -100,6 +100,8 @@ export const SHORTCUT_CATALOG: ShortcutItem[] = [
   { id: 'space.scene.general', description: '切换到「通用」场景', keys: ['ctrl', '3'], scope: 'space' },
   { id: 'space.scene.coding', description: '切换到「编程」场景', keys: ['ctrl', '4'], scope: 'space' },
   { id: 'space.scene.design', description: '切换到「设计」场景', keys: ['ctrl', '5'], scope: 'space' },
+  { id: 'chat.send', description: '发送消息（输入框内）', keys: ['enter'], scope: 'space' },
+  { id: 'chat.newline', description: '输入框换行', keys: ['shift', 'enter'], scope: 'space' },
 ]
 
 /** 快捷键分组顺序（低→高优先级，与 useShortcuts.SCOPE_ORDER 互补同步） */

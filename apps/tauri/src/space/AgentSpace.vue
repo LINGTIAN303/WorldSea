@@ -310,6 +310,11 @@ onMounted(() => {
   SCENE_KEYS.forEach((s, i) => {
     reg({ id: `space.scene.${s.id}`, keys: ['ctrl', String(i + 1)], description: `切换到「${s.label}」场景`, scope: 'space', preventDefault: true, handler: () => withSidebar(sb => sb.switchScenario(s.id)) })
   })
+  // 聊天发送/换行（2026-09-06 用户反馈开放改键）：注册表仅作键位存储与设置面板展示，
+  // 真正匹配在 ChatInput 组件内（textarea 输入焦点下注册表分发被 isInput 跳过，
+  // handler 不会经分发器执行，故 no-op）；AgentSpace 常驻注册保证面板不缺条目。
+  reg({ id: 'chat.send', keys: ['enter'], description: '发送消息', scope: 'space', handler: () => {} })
+  reg({ id: 'chat.newline', keys: ['shift', 'enter'], description: '输入框换行', scope: 'space', handler: () => {} })
 })
 onBeforeUnmount(() => {
   const { unregister } = useShortcuts()

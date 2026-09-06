@@ -118,6 +118,9 @@ watch(
 onMounted(async () => {
   // 全局 Tooltip 接管：摘除全站原生 title，统一为自定义浮层（2026-09-06 方案A）
   enableGlobalTooltips()
+  // 全局拦截浏览器原生右键菜单（2026-09-06 桌面应用惯例）：事件仍正常传播，
+  // 各组件自定义右键菜单（SessionSidebar/TerminalView 等）不受影响
+  document.addEventListener('contextmenu', e => e.preventDefault())
   // 应用初始主题（html data-theme 由此建立；apply 为同步函数，需传入当前主题模式）
   applyTheme(themeMode.value)
   // 项目系统初始化 + projectDir 绑定（必须在 bootstrapPlugins 之前：

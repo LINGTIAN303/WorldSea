@@ -4,6 +4,7 @@
     :class="{ active: open }"
     @click="emit('click')"
     :title="open ? '收起侧边栏' : '打开侧边栏'"
+    data-ws-tip-keys="Ctrl+B"
     :aria-label="open ? '收起侧边栏' : '打开侧边栏'"
     :aria-pressed="open"
   >

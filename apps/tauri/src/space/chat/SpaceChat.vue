@@ -9,6 +9,7 @@
               role="button"
               tabindex="0"
               title="切换群聊"
+              data-ws-tip-keys="Ctrl+T"
               @click="emit('toggle-mode')"
               @keydown.enter.prevent="emit('toggle-mode')"
               @keydown.space.prevent="emit('toggle-mode')"
@@ -23,6 +24,7 @@
               :class="{ active: rightPanelOpen }"
               @click="emit('toggle-right-panel')"
               title="右侧栏（执行/配置/创作/预览/用量）"
+              data-ws-tip-keys="Ctrl+Shift+B"
               :aria-pressed="rightPanelOpen"
             ><WsIcon :name="rightPanelOpen ? 'panel-right-close' : 'panel-right-open'" size="sm" /><span v-if="spaceStore.activityPinned" class="nav-badge"></span></button>
           </div>

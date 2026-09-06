@@ -155,6 +155,8 @@
             :class="{ 'stop-btn': isStreaming }"
             :disabled="sendDisabled"
             :aria-label="isStreaming ? '停止生成' : '发送消息'"
+            :title="isStreaming ? '停止生成' : '发送消息'"
+            :data-ws-tip-keys="sendKeysLabel"
             @click="isStreaming ? onStop() : onSend()"
           >
             <!-- 2026-09-05 改造：发送/停止统一 tabler 虚线箭头（原 send 实心 + square 停止 retired） -->
@@ -178,7 +180,7 @@ import { ref, computed, nextTick, watch, onMounted, onBeforeUnmount } from 'vue'
 import { invoke } from '@/agent/composables/transport'
 import { isTauri, hasTauriInvoke } from '@worldsmith/entity-core/core'
 import { IconArrowNarrowUpDashed, IconMicrophone } from '@tabler/icons-vue'
-import { WsIcon, toastInfo, toastWarn } from '@worldsmith/ui-kit'
+import { WsIcon, toastInfo, toastWarn, useShortcuts, normalizeKeys, formatKeysForDisplay } from '@worldsmith/ui-kit'
 import { useSpaceStore, type InputInjectionChip } from '../stores/space-store'
 import { useSessionViewState } from '@/agent/composables/useSessionViewState'
 import { useAgent } from '@/agent/composables/useAgent'
@@ -486,7 +488,21 @@ function keepDraftAndAppend(suffix: string) {
 }
 
 /* ── 键盘 ── */
+const { getRegisteredKeys } = useShortcuts()
+/** 发送按钮 Tooltip 的键位块（读注册表当前值，改键后自动同步） */
+const sendKeysLabel = computed(() => formatKeysForDisplay(getRegisteredKeys('chat.send') ?? ['enter']))
+/** 发送/换行键位匹配：读注册表（chat.send / chat.newline，AgentSpace 常驻注册、
+    设置面板可改键，默认 Enter / Shift+Enter），回退注册处默认值 */
+function matchesKeys(e: KeyboardEvent, id: string, fallback: string[]): boolean {
+  const keys = getRegisteredKeys(id) ?? fallback
+  const pressed = [...normalizeKeys(e)].sort()
+  const want = [...keys].sort()
+  return pressed.length === want.length && pressed.every((k, i) => k === want[i])
+}
+
 function onKeydown(e: KeyboardEvent) {
+  // IME 组合期（中文输入法确认候选词）不发送、不导航
+  if (e.isComposing || e.keyCode === 229) return
   // 菜单可见且有关键导航键时，交给菜单
   if (summonMenuVisible.value && hasSummonMatches.value
     && ['ArrowDown', 'ArrowUp', 'Enter'].includes(e.key)) {
@@ -498,8 +514,8 @@ function onKeydown(e: KeyboardEvent) {
     summonMenuRef.value?.handleKeydown(e)
     return
   }
-  // Enter 发送（Shift+Enter 换行）
-  if (e.key === 'Enter' && !e.shiftKey) {
+  // 发送（键位可配置，默认 Enter）；换行（默认 Shift+Enter）走 textarea 默认行为放行
+  if (matchesKeys(e, 'chat.send', ['enter'])) {
     e.preventDefault()
     onSend()
   }

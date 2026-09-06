@@ -16,6 +16,7 @@
           role="tab"
           :aria-selected="i === activeSceneIndex"
           :title="s.placeholder ? `${s.label}（占位：能力暂同默认场景）` : s.label"
+          :data-ws-tip-keys="`Ctrl+${i + 1}`"
           @click="onSceneSlide(s.id)"
         >{{ s.label }}</button>
       </div>
@@ -27,7 +28,7 @@
       <!-- 入口卡：白底内嵌，左圆角、右缘贴边（与列表卡同语言） -->
       <div class="sidebar-entries">
         <div class="sidebar-new-row">
-          <button class="new-session-bar" @click="onNewSession" title="新建会话（Ctrl+N）">
+          <button class="new-session-bar" @click="onNewSession" title="新建会话" data-ws-tip-keys="Ctrl+N">
             <WsIcon name="chat-plus" size="sm" />
             <span>新建会话</span>
             <kbd class="new-session-kbd">Ctrl+N</kbd>

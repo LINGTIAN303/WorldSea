@@ -15,6 +15,7 @@
  */
 
 const TIP_ATTR = 'data-ws-tip'
+const KEYS_ATTR = 'data-ws-tip-keys'
 const NATIVE_KEEP_ATTR = 'data-ws-tip-native'
 const TIP_ID = 'ws-global-tooltip'
 const STYLE_ID = 'ws-global-tooltip-style'
@@ -42,10 +43,24 @@ const TOOLTIP_CSS = `
   line-height: 1.45;
   white-space: pre-line;
   overflow-wrap: anywhere;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   pointer-events: none;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
   opacity: 0;
   transition: opacity 0.12s ease;
+}
+/* 键位块（data-ws-tip-keys）：与文字同行、右置弱化 */
+.ws-global-tooltip .ws-tip-kbd {
+  margin-left: auto;
+  padding: 0 5px;
+  border: 1px solid rgb(255 255 255 / 0.35);
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: nowrap;
 }
 .ws-global-tooltip.ws-show { opacity: 1; }
 @media (prefers-reduced-motion: reduce) {
@@ -105,7 +120,16 @@ function onMutation(muts: MutationRecord[]): void {
 
 function renderTip(el: Element): void {
   const tip = ensureTip()
-  tip.textContent = el.getAttribute(TIP_ATTR) || ''
+  // 文字 + 快捷键块（data-ws-tip-keys，如 "Ctrl+N"）：DOM 拼接而非 innerHTML，防注入
+  tip.textContent = ''
+  tip.append(document.createTextNode(el.getAttribute(TIP_ATTR) || ''))
+  const keys = el.getAttribute(KEYS_ATTR)
+  if (keys) {
+    const kbd = document.createElement('kbd')
+    kbd.className = 'ws-tip-kbd'
+    kbd.textContent = keys
+    tip.append(kbd)
+  }
   // 先置于原点测量，再按锚矩形定位：优先上方，空间不足翻下方，水平钳位视口
   tip.style.left = '0px'
   tip.style.top = '0px'
