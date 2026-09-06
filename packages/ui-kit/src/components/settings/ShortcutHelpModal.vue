@@ -103,7 +103,8 @@ const isTauriShell = typeof window !== 'undefined' && !!(window as unknown as { 
 const SYSTEM_SHORTCUTS = [
   { id: 'app.toggle-window', keys: ['ctrl', 'shift', 'w'], description: '唤起/隐藏主窗口' },
   { id: 'app.minimize', keys: ['ctrl', 'm'], description: '最小化窗口' },
-  { id: 'app.maximize', keys: ['ctrl', 'enter'], description: '最大化/还原窗口' },
+  { id: 'app.maximize', keys: ['f10'], description: '最大化/还原窗口' },
+  { id: 'app.fullscreen', keys: ['f11'], description: '绝对全屏切换' },
   { id: 'app.close', keys: ['ctrl', 'w'], description: '关闭窗口' },
 ]
 

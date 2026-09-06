@@ -111,6 +111,15 @@ function toggleMaximize() {
   // 切换后通过 onResized 事件同步 maximized 状态（异步，不在此处假设结果）
   appWindow?.toggleMaximize().catch(e => console.error('[TitleBar] toggleMaximize 失败:', e))
 }
+async function toggleFullscreen() {
+  // 绝对全屏（无边框真全屏，区别于最大化）：F11 浏览器惯例
+  if (!appWindow) return
+  try {
+    await appWindow.setFullscreen(!(await appWindow.isFullscreen()))
+  } catch (e) {
+    console.error('[TitleBar] toggleFullscreen 失败:', e)
+  }
+}
 
 /* ── 窗口控制快捷键（2026-09-06 系统级，固定键位不可配置）──
    刻意不进 useShortcuts 注册表：窗口管理独立于应用内容，与 OS 的 Alt+F4 同语义，
@@ -119,11 +128,13 @@ function toggleMaximize() {
    展示于帮助弹窗「系统级」分组（仅 Tauri 壳显示），登记于快捷键系统.md §3。 */
 function onWindowKeydown(e: KeyboardEvent) {
   if (e.isComposing || e.keyCode === 229) return
-  if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return
+  const mod = e.ctrlKey || e.metaKey
+  const anyMod = mod || e.altKey || e.shiftKey
   switch (e.key.toLowerCase()) {
-    case 'm': e.preventDefault(); minimize(); break
-    case 'enter': e.preventDefault(); toggleMaximize(); break
-    case 'w': e.preventDefault(); close(); break
+    case 'm': if (mod && !e.altKey && !e.shiftKey) { e.preventDefault(); minimize() } break
+    case 'f10': if (!anyMod) { e.preventDefault(); toggleMaximize() } break
+    case 'f11': if (!anyMod) { e.preventDefault(); toggleFullscreen() } break
+    case 'w': if (mod && !e.altKey && !e.shiftKey) { e.preventDefault(); close() } break
   }
 }
 onMounted(() => window.addEventListener('keydown', onWindowKeydown))
