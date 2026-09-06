@@ -273,7 +273,7 @@ onSpaceGlobalEvent('ws-open-shortcut-help', () => { if (uiStore.currentShell ===
 const sessionSidebarRef = ref<InstanceType<typeof SessionSidebar> | null>(null)
 
 /** 左栏依赖的快捷键统一入口：群聊模式无左栏 → 空转；左栏关闭时先开再等挂载（v-if 条件渲染） */
-function withSidebar(fn: (sb: { focusSearch(): void; newSession(): void }) => void) {
+function withSidebar(fn: (sb: { focusSearch(): void; newSession(): void; switchScenario(id: string): void }) => void) {
   if (spaceStore.mode !== 'chat') return
   if (!sessionOpen.value) {
     sessionOpen.value = true
@@ -288,12 +288,27 @@ onMounted(() => {
   const reg = (def: ShortcutDef) => { register(def); spaceShortcutIds.push(def.id) }
   reg({ id: 'space.session.new', keys: ['ctrl', 'n'], description: '新建会话', scope: 'space', preventDefault: true, handler: () => withSidebar(sb => sb.newSession()) })
   reg({ id: 'space.session.search', keys: ['ctrl', 'f'], description: '聚焦会话搜索', scope: 'space', preventDefault: true, handler: () => withSidebar(sb => sb.focusSearch()) })
-  reg({ id: 'space.sidebar.toggle', keys: ['ctrl', 'shift', 'b'], description: '左栏开合', scope: 'space', preventDefault: true, handler: () => { if (spaceStore.mode === 'chat') onTogglePanelClick() } })
-  reg({ id: 'space.right.toggle', keys: ['ctrl', 'j'], description: '右栏开合', scope: 'space', preventDefault: true, handler: () => onToggleRightPanel() })
+  // 左栏 Ctrl+B / 右栏 Ctrl+Shift+B（2026-09-06 用户反馈调换）：space 层优先于 global，
+  // Agent 空间下 Ctrl+B 消费掉 workbench 侧栏开关（两壳互斥同键两义）
+  reg({ id: 'space.sidebar.toggle', keys: ['ctrl', 'b'], description: '左栏开合', scope: 'space', preventDefault: true, handler: () => { if (spaceStore.mode === 'chat') onTogglePanelClick() } })
+  reg({ id: 'space.right.toggle', keys: ['ctrl', 'shift', 'b'], description: '右栏开合', scope: 'space', preventDefault: true, handler: () => onToggleRightPanel() })
+  // 单聊 ⇄ 群聊（Ctrl+T；PREVENT_DEFAULT 表已有 ctrl+t 兜底）
+  reg({ id: 'space.mode.toggle', keys: ['ctrl', 't'], description: '切换单聊/群聊', scope: 'space', preventDefault: true, handler: () => onToggleMode() })
   // 右栏五 Tab = 数字 1-5（PANEL_META 顺序同源）；space 层优先于 global，
   // 消费掉数字键，不再触发 workbench 的视图切换
   PANEL_META.forEach((m, i) => {
     reg({ id: `space.tab.${m.id}`, keys: [String(i + 1)], description: `右栏切到「${m.label}」`, scope: 'space', handler: () => setRightTab(m.id) })
+  })
+  // 场景切换 = 新建对应场景会话（Ctrl+1-5，SCENE_SLIDER_OPTIONS 顺序同源：世界/小说/通用/编程/设计）
+  const SCENE_KEYS: { id: string; label: string }[] = [
+    { id: 'worldbuilding', label: '世界' },
+    { id: 'novel', label: '小说' },
+    { id: 'general', label: '通用' },
+    { id: 'coding', label: '编程' },
+    { id: 'design', label: '设计' },
+  ]
+  SCENE_KEYS.forEach((s, i) => {
+    reg({ id: `space.scene.${s.id}`, keys: ['ctrl', String(i + 1)], description: `切换到「${s.label}」场景`, scope: 'space', preventDefault: true, handler: () => withSidebar(sb => sb.switchScenario(s.id)) })
   })
 })
 onBeforeUnmount(() => {

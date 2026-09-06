@@ -27,9 +27,10 @@
       <!-- 入口卡：白底内嵌，左圆角、右缘贴边（与列表卡同语言） -->
       <div class="sidebar-entries">
         <div class="sidebar-new-row">
-          <button class="new-session-bar" @click="onNewSession" title="新建会话">
+          <button class="new-session-bar" @click="onNewSession" title="新建会话（Ctrl+N）">
             <WsIcon name="chat-plus" size="sm" />
             <span>新建会话</span>
+            <kbd class="new-session-kbd">Ctrl+N</kbd>
           </button>
         </div>
 
@@ -381,7 +382,7 @@ function focusSearch() {
   sidebarView.value = 'sessions'
   nextTick(() => searchInputRef.value?.focus())
 }
-defineExpose({ focusSearch, newSession: onNewSession })
+defineExpose({ focusSearch, newSession: onNewSession, switchScenario: onSceneSlide })
 
 async function onSelect(id: string) {
   if (id === currentSessionId.value) return
@@ -670,6 +671,17 @@ watch(currentSessionId, () => {
 .new-session-bar:hover {
   background: var(--bg-muted);
   color: var(--color-text);
+}
+/* 快捷键标注（space.session.new 的 Ctrl+N，2026-09-06）：右端弱化小字 */
+.new-session-kbd {
+  margin-left: auto;
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-muted);
+  color: var(--color-text-tertiary, var(--text-tertiary));
+  font-family: inherit;
+  font-size: var(--font-size-xs);
+  line-height: 1.4;
 }
 
 /* [B5] 知识库入口行：图标+文字左对齐（与新建会话同语言） */

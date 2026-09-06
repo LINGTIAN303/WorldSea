@@ -87,13 +87,19 @@ export const SHORTCUT_CATALOG: ShortcutItem[] = [
   // ── Agent 空间（AgentSpace.vue；仅 Agent 空间壳激活时生效，群聊模式左栏相关键空转）──
   { id: 'space.session.new', description: '新建会话', keys: ['ctrl', 'n'], scope: 'space' },
   { id: 'space.session.search', description: '聚焦会话搜索', keys: ['ctrl', 'f'], scope: 'space' },
-  { id: 'space.sidebar.toggle', description: '左栏开合', keys: ['ctrl', 'shift', 'b'], scope: 'space' },
-  { id: 'space.right.toggle', description: '右栏开合', keys: ['ctrl', 'j'], scope: 'space' },
+  { id: 'space.sidebar.toggle', description: '左栏开合', keys: ['ctrl', 'b'], scope: 'space' },
+  { id: 'space.right.toggle', description: '右栏开合', keys: ['ctrl', 'shift', 'b'], scope: 'space' },
+  { id: 'space.mode.toggle', description: '切换单聊/群聊', keys: ['ctrl', 't'], scope: 'space' },
   { id: 'space.tab.exec', description: '右栏切到「执行」', keys: ['1'], scope: 'space' },
   { id: 'space.tab.config', description: '右栏切到「配置」', keys: ['2'], scope: 'space' },
   { id: 'space.tab.creation', description: '右栏切到「创作」', keys: ['3'], scope: 'space' },
   { id: 'space.tab.preview', description: '右栏切到「文件」', keys: ['4'], scope: 'space' },
   { id: 'space.tab.usage', description: '右栏切到「用量」', keys: ['5'], scope: 'space' },
+  { id: 'space.scene.worldbuilding', description: '切换到「世界」场景', keys: ['ctrl', '1'], scope: 'space' },
+  { id: 'space.scene.novel', description: '切换到「小说」场景', keys: ['ctrl', '2'], scope: 'space' },
+  { id: 'space.scene.general', description: '切换到「通用」场景', keys: ['ctrl', '3'], scope: 'space' },
+  { id: 'space.scene.coding', description: '切换到「编程」场景', keys: ['ctrl', '4'], scope: 'space' },
+  { id: 'space.scene.design', description: '切换到「设计」场景', keys: ['ctrl', '5'], scope: 'space' },
 ]
 
 /** 快捷键分组顺序（低→高优先级，与 useShortcuts.SCOPE_ORDER 互补同步） */
