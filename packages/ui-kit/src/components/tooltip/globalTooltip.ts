@@ -55,9 +55,11 @@ const TOOLTIP_CSS = `
 .ws-global-tooltip .ws-tip-kbd {
   margin-left: auto;
   padding: 0 5px;
-  border: 1px solid color-mix(in srgb, currentColor 28%, transparent);
+  /* 灰色键帽块：背景/边框/文字三处灰化，深浅主题均按 currentColor 比例适配 */
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  border: 1px solid color-mix(in srgb, currentColor 24%, transparent);
   border-radius: 4px;
-  color: color-mix(in srgb, currentColor 62%, transparent);
+  color: color-mix(in srgb, currentColor 66%, transparent);
   font-family: inherit;
   font-size: 11px;
   line-height: 1.5;
