@@ -153,9 +153,6 @@ const boxRef = ref<HTMLElement>()
 /** 打开前的焦点元素：关闭后还原 */
 let returnFocusEl: HTMLElement | null = null
 
-// Esc 关闭收编 useModalShortcuts（modal 层，批7 修复 view 层消费阻断弹窗 Esc）
-useModalShortcuts(() => props.modelValue, { id: 'entity-form.close', onEscape: () => close() })
-
 // 焦点陷阱：Tab 仅在弹窗内循环（Esc 已收编注册表）
 function onKeydown(e: KeyboardEvent) {
   if (!props.modelValue) return
@@ -191,6 +188,11 @@ const emit = defineEmits<{
   'update:modelValue': [value: boolean]
   'save': [data: { name: string; description: string; properties: Record<string, any>; tags: string[]; _entityRefFields?: FormFieldDef[]; _autoLinkFields?: FormFieldDef[]; _coverPosition?: string; _coverZoom?: number }]
 }>()
+
+// Esc 关闭收编 useModalShortcuts（modal 层，批7 修复 view 层消费阻断弹窗 Esc）。
+// 【顺序约束】必须在 props 声明之后——组合器的 watch immediate 会同步求值 getter，
+// 放在 props 前会触发 TDZ ReferenceError 使 setup 抛错、Vue 渲染树损坏（批7 复盘教训）。
+useModalShortcuts(() => props.modelValue, { id: 'entity-form.close', onEscape: () => close() })
 
 const fieldOrderStore = useFieldOrderStore()
 const dialog = useDialog()
@@ -261,6 +263,7 @@ watch(() => props.modelValue, (v) => {
     initFormData()
     activePreset.value = fieldOrderStore.getActivePreset(resolvedEntityType.value)
     returnFocusEl = document.activeElement as HTMLElement
+    window.addEventListener('keydown', onKeydown)
     nextTick(() => {
       const first =
         boxRef.value?.querySelector<HTMLElement>(
@@ -269,6 +272,7 @@ watch(() => props.modelValue, (v) => {
       first?.focus({ preventScroll: true })
     })
   } else {
+    window.removeEventListener('keydown', onKeydown)
     returnFocusEl?.focus?.({ preventScroll: true })
     returnFocusEl = null
   }
