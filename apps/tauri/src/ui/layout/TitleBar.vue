@@ -112,6 +112,23 @@ function toggleMaximize() {
   appWindow?.toggleMaximize().catch(e => console.error('[TitleBar] toggleMaximize 失败:', e))
 }
 
+/* ── 窗口控制快捷键（2026-09-06 系统级，固定键位不可配置）──
+   刻意不进 useShortcuts 注册表：窗口管理独立于应用内容，与 OS 的 Alt+F4 同语义，
+   弹窗打开/输入框聚焦期间照常可用（注册表的 isInput 跳过与弹窗深度屏蔽均不适用）。
+   仅桌面壳有实际效果（浏览器预览 appWindow 为 null 自然空转）；
+   展示于帮助弹窗「系统级」分组（仅 Tauri 壳显示），登记于快捷键系统.md §3。 */
+function onWindowKeydown(e: KeyboardEvent) {
+  if (e.isComposing || e.keyCode === 229) return
+  if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return
+  switch (e.key.toLowerCase()) {
+    case 'm': e.preventDefault(); minimize(); break
+    case 'enter': e.preventDefault(); toggleMaximize(); break
+    case 'w': e.preventDefault(); close(); break
+  }
+}
+onMounted(() => window.addEventListener('keydown', onWindowKeydown))
+onBeforeUnmount(() => window.removeEventListener('keydown', onWindowKeydown))
+
 /* ── 最大化状态跟踪：最大化时图标切换为还原 ── */
 const maximized = ref(false)
 let unlistenResized: (() => void) | null = null

@@ -97,10 +97,14 @@ useModalShortcuts(() => props.show, { id: 'help.shortcuts.close-esc', onEscape: 
 
 const SCOPE_ORDER = ['global', 'view', 'editor', 'modal']
 
-// 桌面壳系统级快捷键（Tauri global-shortcut，OS 层注册、不受注册表管理与改键影响）
+// 桌面壳系统级快捷键（Tauri global-shortcut / 窗口控制键，OS 层或 TitleBar 固定监听，
+// 不受注册表管理与改键影响）
 const isTauriShell = typeof window !== 'undefined' && !!(window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__
 const SYSTEM_SHORTCUTS = [
   { id: 'app.toggle-window', keys: ['ctrl', 'shift', 'w'], description: '唤起/隐藏主窗口' },
+  { id: 'app.minimize', keys: ['ctrl', 'm'], description: '最小化窗口' },
+  { id: 'app.maximize', keys: ['ctrl', 'enter'], description: '最大化/还原窗口' },
+  { id: 'app.close', keys: ['ctrl', 'w'], description: '关闭窗口' },
 ]
 
 const grouped = computed(() => {
