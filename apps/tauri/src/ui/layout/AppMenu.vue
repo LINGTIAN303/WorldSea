@@ -29,13 +29,13 @@
           <button class="menu-item" role="menuitem" @click="openSearch">
             <WsIcon name="search" size="sm" class="menu-item-icon" />
             <span class="menu-item-label">搜索</span>
-            <span class="menu-item-shortcut">{{ formatKeysForDisplay(['ctrl', 'k']) }}</span>
+            <span class="menu-item-shortcut">{{ formatKeysForDisplay(keysOf('search.open', ['ctrl', 'k'])) }}</span>
           </button>
           <!-- 项目=目录（2026-09-03）：打开/切换项目走 ProjectSwitcher（TitleBar/空态/Ctrl+Shift+P）；导出到文件夹保留 -->
           <button class="menu-item" role="menuitem" @click="saveFolder" :disabled="saving">
             <WsIcon name="save" size="sm" class="menu-item-icon" />
             <span class="menu-item-label">{{ saving ? '导出中...' : '导出到文件夹' }}</span>
-            <span class="menu-item-shortcut">{{ formatKeysForDisplay(['ctrl', 's']) }}</span>
+            <span class="menu-item-shortcut">{{ formatKeysForDisplay(keysOf('project.save', ['ctrl', 's'])) }}</span>
           </button>
           <button class="menu-item" role="menuitem" @click="openVersion">
             <WsIcon name="timeline" size="sm" class="menu-item-icon" />
@@ -67,7 +67,7 @@
         <button class="menu-item" role="menuitem" @click="openSettings">
           <span class="menu-item-icon"><WsIcon name="settings" size="sm" /></span>
           <span class="menu-item-label">设置</span>
-          <span class="menu-item-shortcut">{{ formatKeysForDisplay(['ctrl', ',']) }}</span>
+          <span class="menu-item-shortcut">{{ formatKeysForDisplay(keysOf('settings.open', ['ctrl', ','])) }}</span>
         </button>
         </div>
       </Transition>
@@ -99,7 +99,11 @@ import { useFileSystemProject } from '@/composables/useFileSystemProject'
 import { useToast } from '@/composables/useToast'
 import { WsIcon } from '@worldsmith/ui-kit'
 
-const { register } = useShortcuts()
+const { register, getRegisteredKeys } = useShortcuts()
+/** 菜单标注读注册表当前键位（用户改键后同步显示），fallback 为默认值 */
+function keysOf(id: string, fallback: string[]): string[] {
+  return getRegisteredKeys(id) ?? fallback
+}
 // 项目=目录（2026-09-03）：绑定入口已移除（目录即项目，走 ProjectSwitcher）；导出能力保留
 const { saving, saveToFolder, lastError } = useFileSystemProject()
 const { toastSuccess, toastWarn } = useToast()

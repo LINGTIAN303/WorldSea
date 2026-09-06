@@ -15,6 +15,15 @@
             </span>
           </div>
         </div>
+        <div v-if="isTauriShell" class="sh-group">
+          <h4 class="sh-scope-label">系统级（桌面壳，全局生效）</h4>
+          <div v-for="s in SYSTEM_SHORTCUTS" :key="s.id" class="sh-row">
+            <span class="sh-desc">{{ s.description }}</span>
+            <span class="sh-keys">
+              <kbd v-for="k in s.keys" :key="k" class="sh-kbd">{{ formatKey(k) }}</kbd>
+            </span>
+          </div>
+        </div>
       </div>
       <div class="sh-footer">
         <span class="sh-hint">按 <kbd class="sh-kbd">?</kbd> 再次打开此面板</span>
@@ -106,6 +115,12 @@ onBeforeUnmount(() => {
 })
 
 const SCOPE_ORDER = ['global', 'view', 'editor', 'modal']
+
+// 桌面壳系统级快捷键（Tauri global-shortcut，OS 层注册、不受注册表管理与改键影响）
+const isTauriShell = typeof window !== 'undefined' && !!(window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__
+const SYSTEM_SHORTCUTS = [
+  { id: 'app.toggle-window', keys: ['ctrl', 'shift', 'w'], description: '唤起/隐藏主窗口' },
+]
 
 const grouped = computed(() => {
   const all = getAll()
