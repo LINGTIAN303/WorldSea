@@ -54,7 +54,7 @@
         {{ actionHint }}
       </span>
       <button class="tb-btn" @click="$emit('cancelAction')" v-if="actionState">取消</button>
-      <button class="tb-btn tb-btn-end" @click="$emit('endTurn')">结束回合</button>
+      <button class="tb-btn tb-btn-end" @click="$emit('endTurn')" title="结束回合" data-ws-tip-keys="Space">结束回合</button>
     </template>
     <template v-else>
       <span class="tb-victory-text"><WsIcon name="star" size="xs" /> {{ victoryLabel }} 获胜！</span>

@@ -313,11 +313,14 @@ pub fn run() {
                 let _ = window.with_webview(|webview| {
                     use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Settings3;
                     use windows::core::Interface;
-                    let controller = &webview.inner().controller;
+                    // 链路：Controller → CoreWebView2 → Settings → Settings3（加速键开关在 Settings3）
+                    let controller = webview.controller();
                     unsafe {
-                        if let Ok(settings) = controller.Settings() {
-                            if let Ok(settings3) = settings.cast::<ICoreWebView2Settings3>() {
-                                let _ = settings3.SetAreBrowserAcceleratorKeysEnabled(false);
+                        if let Ok(core) = controller.CoreWebView2() {
+                            if let Ok(settings) = core.Settings() {
+                                if let Ok(settings3) = settings.cast::<ICoreWebView2Settings3>() {
+                                    let _ = settings3.SetAreBrowserAcceleratorKeysEnabled(false);
+                                }
                             }
                         }
                     }

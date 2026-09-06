@@ -1,5 +1,12 @@
 <template>
-  <button class="create-btn" :class="{ 'create-btn-sm': size === 'small' }" :disabled="disabled" @click="$emit('click')">
+  <button
+    class="create-btn"
+    :class="{ 'create-btn-sm': size === 'small' }"
+    :disabled="disabled"
+    :title="label"
+    data-ws-tip-keys="N"
+    @click="$emit('click')"
+  >
     <WsIcon name="plus" :size="14" :stroke-width="2" class="create-btn-icon" />
     <span class="create-btn-text">{{ label }}</span>
   </button>

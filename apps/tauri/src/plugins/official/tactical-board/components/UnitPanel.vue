@@ -32,9 +32,9 @@
       <div class="up-stat"><span class="up-stat-val">{{ unit.attack_range }}</span><span class="up-stat-label">射程</span></div>
     </div>
     <div class="up-actions" v-if="showActions">
-      <button class="up-btn up-btn-move" @click="$emit('move')" :disabled="disabled">移动</button>
-      <button class="up-btn up-btn-attack" @click="$emit('attack')" :disabled="disabled">攻击</button>
-      <button class="up-btn up-btn-wait" @click="$emit('wait')" :disabled="disabled">待机</button>
+      <button class="up-btn up-btn-move" @click="$emit('move')" :disabled="disabled" title="移动" data-ws-tip-keys="M">移动</button>
+      <button class="up-btn up-btn-attack" @click="$emit('attack')" :disabled="disabled" title="攻击" data-ws-tip-keys="A">攻击</button>
+      <button class="up-btn up-btn-wait" @click="$emit('wait')" :disabled="disabled" title="待机" data-ws-tip-keys="W">待机</button>
     </div>
     <div class="up-actions" v-if="showDeployActions">
       <button class="up-btn up-btn-remove" @click="$emit('remove')">移除</button>

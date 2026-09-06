@@ -26,7 +26,7 @@
       <div class="toolbar-actions">
         <slot name="toolbar-extra" />
         <template v-if="selectedIds.size > 0">
-          <button class="btn-danger btn-sm" @click="onBatchDel">删除 ({{ selectedIds.size }})</button>
+          <button class="btn-danger btn-sm" @click="onBatchDel" title="删除选中" data-ws-tip-keys="Del">删除 ({{ selectedIds.size }})</button>
           <button class="btn-ghost btn-sm" @click="clearSelection">取消选择</button>
         </template>
       </div>

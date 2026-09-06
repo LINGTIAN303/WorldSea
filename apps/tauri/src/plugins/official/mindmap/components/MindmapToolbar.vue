@@ -53,7 +53,7 @@
         </div>
 
         <div v-if="editMode" class="to-group">添加</div>
-        <button v-if="editMode" class="to-item" @click="$emit('add-textbox')"><WsIcon name="edit" size="sm" /> 添加文本框</button>
+        <button v-if="editMode" class="to-item" @click="$emit('add-textbox')" title="添加文本框" data-ws-tip-keys="N C"><WsIcon name="edit" size="sm" /> 添加文本框</button>
         <button v-if="editMode" class="to-item" @click="$emit('add-image')"><WsIcon name="image" size="sm" /> 添加图片</button>
         <button v-if="editMode" class="to-item" @click="$emit('add-note')"><WsIcon name="outline" size="sm" /> 添加备注</button>
         <button v-if="editMode" class="to-item" @click="$emit('add-link')"><WsIcon name="link" size="sm" /> 添加链接</button>

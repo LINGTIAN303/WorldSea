@@ -3,10 +3,10 @@
     <Transition name="lightbox">
       <div v-if="visible" ref="overlayRef" class="lightbox-overlay" role="dialog" aria-modal="true" aria-label="图片预览" tabindex="-1" @click.self="close" @keydown.escape="close">
         <div class="lightbox-toolbar">
-          <button class="lb-btn" @click="zoomIn" title="放大" aria-label="放大">🔍+</button>
-          <button class="lb-btn" @click="zoomOut" title="缩小" aria-label="缩小">🔍-</button>
-          <button class="lb-btn" @click="resetZoom" title="重置" aria-label="重置缩放">↺</button>
-          <button class="lb-btn lb-close" @click="close" title="关闭" aria-label="关闭预览">✕</button>
+          <button class="lb-btn" @click="zoomIn" title="放大" aria-label="放大" data-ws-tip-keys="+">🔍+</button>
+          <button class="lb-btn" @click="zoomOut" title="缩小" aria-label="缩小" data-ws-tip-keys="-">🔍-</button>
+          <button class="lb-btn" @click="resetZoom" title="重置" aria-label="重置缩放" data-ws-tip-keys="0">↺</button>
+          <button class="lb-btn lb-close" @click="close" title="关闭" aria-label="关闭预览" data-ws-tip-keys="Esc">✕</button>
         </div>
         <div
           class="lightbox-content"
