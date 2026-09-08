@@ -2,7 +2,18 @@
   <div class="fpv">
     <!-- 头部：文件名 + 大小 + 返回；HTML 渲染视图例外提供「居中显示」切换（默认全宽，2026-09-03） -->
     <div class="fpv-header">
-      <span class="fpv-name" :title="path">{{ name }}</span>
+      <span class="fpv-name" :title="path">
+        <FileIcon :name="name" class="fpv-file-icon" />
+        {{ name }}<span v-if="dirty" class="fpv-dirty" title="有未保存的修改"></span>
+      </span>
+      <!-- 编辑态工具：一键结构化（indentRange 语法树缩进重排，2026-09-07）+ 脏态对比审查 -->
+      <button v-if="mode === 'edit'" class="fpv-view-btn" title="按语法树重排全文缩进" @click="codeEditorRef?.formatIndent()">缩进</button>
+      <button v-if="mode !== 'preview' && dirty" class="fpv-view-btn" :class="{ on: mode === 'diff' }" title="对比磁盘基准与当前改动" @click="switchMode('diff')">对比</button>
+      <!-- 预览/编辑切换：仅保留有特殊渲染效果的 md/html（code/text 无预览价值，点开即编辑 2026-09-07） -->
+      <template v-if="editable && (kind === 'markdown' || kind === 'html')">
+        <button class="fpv-view-btn" :class="{ on: mode === 'preview' }" title="只读预览" @click="switchMode('preview')">预览</button>
+        <button class="fpv-view-btn" :class="{ on: mode === 'edit' }" title="切换到编辑" @click="switchMode('edit')">编辑</button>
+      </template>
       <button
         v-if="kind === 'html'"
         class="fpv-close"
@@ -12,7 +23,6 @@
         @click="htmlCentered = !htmlCentered"
       ><WsIcon name="grid" size="xs" /></button>
       <span class="fpv-size">{{ formatSize(size) }}</span>
-      <button class="fpv-close" title="返回目录" @click="emit('close')"><WsIcon name="arrow-left" size="xs" /></button>
     </div>
 
     <!-- 大文件守卫：先提示 + 仍要预览 -->
@@ -34,6 +44,26 @@
       <img v-if="imgSrc" :src="imgSrc" class="fpv-image" alt="预览" @error="binary = true; imgSrc = null" />
       <div v-else class="fpv-loading">加载中…</div>
     </div>
+
+    <!-- 编辑态（2026-09-06 编辑器内核一期）：CM6 源码编辑，Ctrl+S 落盘（CodeEditor 内 keymap）；
+         file-path 供 B1 LSP（语言服务器按真实路径工作，无路径时回落 tsAssist 单文件模式） -->
+    <CodeEditor
+      v-else-if="mode === 'edit'"
+      ref="codeEditorRef"
+      :model-value="editBuf"
+      :lang="editLang"
+      :file-path="props.path"
+      @update:model-value="onEditInput"
+      @save="saveFile"
+    />
+
+    <!-- 对比态（2026-09-07）：磁盘基准 vs 编辑缓冲，只读审查 -->
+    <CodeDiff
+      v-else-if="mode === 'diff'"
+      :original="text ?? ''"
+      :modified="editBuf"
+      :lang="editLang"
+    />
 
     <!-- Markdown 渲染预览（复用消息流渲染管线：marked + DOMPurify + Prism 代码块；ws-agent-md 提供样式与复制委托）。
          2026-09-03 二期：内容区左右各留 10% 边距，左侧空白放标题目录树——顶部下拉显示当前可见标题（scrollspy 滚动联动），点开浮层跳转 -->
@@ -70,7 +100,7 @@
       <div ref="mdEl" class="fpv-md ws-agent-md" @click="onMdClick" @scroll="onMdScroll" v-html="mdHtml"></div>
     </div>
 
-    <!-- HTML 预览：渲染（iframe，脚本禁用）/ 源码（markup 高亮）切换 -->
+    <!-- HTML 预览：渲染（iframe，脚本禁用）/ 源码（CM 只读渲染，语法着色与编辑态同源）切换 -->
     <template v-else-if="kind === 'html'">
       <div class="fpv-html-bar">
         <button class="fpv-view-btn" :class="{ on: htmlView === 'render' }" @click="htmlView = 'render'">渲染</button>
@@ -85,11 +115,11 @@
         :srcdoc="text ?? ''"
         title="HTML 预览"
       />
-      <pre v-else class="fpv-code ws-agent-md"><code class="language-markup" v-html="highlightedCode"></code></pre>
+      <CodeEditor v-else minimal :model-value="text ?? ''" :lang="ext()" class="fpv-code-cm" />
     </template>
 
-    <!-- 代码预览：Prism 语法高亮（ws-agent-md 提供 token 配色） -->
-    <pre v-else-if="kind === 'code'" class="fpv-code ws-agent-md"><code :class="`language-${codeLangName}`" v-html="highlightedCode"></code></pre>
+    <!-- 代码预览：CM 只读渲染（语法着色与编辑态同源；JSON 压缩文件 previewCode 重排） -->
+    <CodeEditor v-else-if="kind === 'code'" minimal :model-value="previewCode" :lang="ext()" class="fpv-code-cm" />
 
     <!-- 纯文本预览（txt/log/yaml 等兜底） -->
     <pre v-else class="fpv-text">{{ text ?? '加载中…' }}</pre>
@@ -97,14 +127,22 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { WsIcon, toastInfo, toastWarn } from '@worldsmith/ui-kit'
+import { useConfirm } from '@worldsmith/plugin-sdk'
 import { invoke } from '@/agent/composables/transport'
-import { renderMarkdownHtml, handleCodeCopyClick, highlightCode } from '@worldsmith/shared-ui/agent/bubbles'
+import { renderMarkdownHtml, handleCodeCopyClick } from '@worldsmith/shared-ui/agent/bubbles'
 import '@worldsmith/shared-ui/agent/bubbles/agent-markdown.css'
+import CodeEditor from './CodeEditor.vue'
+import CodeDiff from './CodeDiff.vue'
+import FileIcon from './FileIcon.vue'
+import { fileTabsState } from './fileTabsStore'
 
 const props = defineProps<{ path: string; name: string; size: number }>()
-const emit = defineEmits<{ close: [] }>()
+const emit = defineEmits<{ close: []; 'dirty-change': [v: boolean] }>()
+
+/** 编辑器实例（编辑态「缩进」按钮 → CodeEditor.formatIndent） */
+const codeEditorRef = ref<InstanceType<typeof CodeEditor> | null>(null)
 
 /** 大文件阈值（2026-09-03 用户建议）：文本与图片统一 >10MB 才守卫 */
 const TEXT_GUARD = 10 * 1024 * 1024
@@ -152,14 +190,24 @@ const text = ref<string | null>(null)
 const imgSrc = ref<string | null>(null)
 /** Markdown 渲染产物（v-html） */
 const mdHtml = ref('')
-/** 代码/HTML 源码的高亮产物（v-html） */
-const highlightedCode = ref('')
 /** HTML 预览视图：渲染（iframe）/ 源码 */
 const htmlView = ref<'render' | 'source'>('render')
 /** HTML 渲染视图居中开关（默认关=全宽；文件名旁图标切换） */
 const htmlCentered = ref(false)
-/** 当前代码语言（模板 language-* 类用） */
-const codeLangName = ref('text')
+
+/** code 预览文本：JSON 压缩单行文件先 parse → 2 空格重排（parse 失败保留原文，容错 jsonc/损坏） */
+const previewCode = computed(() => {
+  const src = text.value ?? ''
+  const e = ext()
+  if (e === 'json' || e === 'jsonc') {
+    try {
+      return JSON.stringify(JSON.parse(src), null, 2)
+    } catch {
+      return src
+    }
+  }
+  return src
+})
 
 // ── Markdown 标题目录树（2026-09-03 二期）：提取 → scrollspy 滚动联动 → 浮层跳转 ──
 interface TocItem { id: string; text: string; level: number }
@@ -239,6 +287,124 @@ function jumpTo(id: string): void {
 
 watch(mdHtml, () => nextTick(extractHeadings))
 
+// ── 预览 / 编辑切换（2026-09-06 编辑器内核一期）──
+const { confirm } = useConfirm()
+/** 编辑上限：>1MB 不提供编辑（预览守卫阈值 10MB 不变，两者不重叠） */
+const EDIT_MAX = 1024 * 1024
+/** 视图模式：预览（原五类渲染）/ 编辑（CM6 源码）/ 对比（磁盘基准 vs 编辑缓冲，只读审查） */
+const mode = ref<'preview' | 'edit' | 'diff'>('preview')
+/** 编辑缓冲（CodeEditor v-model；进入编辑时以磁盘内容为起点） */
+const editBuf = ref('')
+/** 内容有改动未保存：头部圆点提示 + 切换/关闭前确认 */
+const dirty = ref(false)
+const saving = ref(false)
+/** CM 语言扩展键（=扩展名，CodeEditor 内映射语言包；未收录=纯文本编辑） */
+const editLang = ref('')
+
+/** 可编辑条件：非图片、非二进制（含读取后判定）、非大文件守卫态、未超编辑上限 */
+const editable = computed(() => !binary.value && !guard.value && !isImage() && props.size <= EDIT_MAX)
+
+/** 进入编辑：秒点竞态防护——内容未加载完先等待（仍失败则不进编辑，防空起点覆盖）；
+ *  缓冲恢复：有未保存缓冲（右栏切 Tab 后重挂）优先于磁盘文本 */
+async function enterEdit(): Promise<void> {
+  if (text.value === null) {
+    await loadingPromise?.catch(() => {})
+    if (text.value === null) return
+  }
+  const buf = fileTabsState.buffers.get(props.path)
+  editBuf.value = buf ?? text.value
+  editLang.value = ext()
+  mode.value = 'edit'
+  dirty.value = editBuf.value !== text.value
+}
+
+/** 编辑内容回传：写持久缓冲（切 Tab 不丢）+ 与磁盘文本比对判定脏态 */
+function onEditInput(v: string): void {
+  editBuf.value = v
+  fileTabsState.buffers.set(props.path, v)
+  dirty.value = v !== (text.value ?? '')
+}
+
+/** 丢弃编辑缓冲（放弃修改/移除 tab 时）：持久缓冲与脏标记一并清理 */
+function discardBuffer(): void {
+  fileTabsState.buffers.delete(props.path)
+  dirty.value = false
+}
+
+/** 保存落盘：cmd_fs_write 现成链路（后端零改动）；成功后同步比对基准，返回是否成功 */
+async function saveFile(): Promise<boolean> {
+  if (saving.value) return false
+  saving.value = true
+  try {
+    await invoke('cmd_fs_write', { path: props.path, content: editBuf.value })
+    dirty.value = false
+    text.value = editBuf.value
+    fileTabsState.buffers.delete(props.path)
+    toastInfo('已保存')
+    return true
+  } catch (err) {
+    console.warn('[FilePreview] 保存失败:', err)
+    toastWarn(`保存失败：${err}`)
+    return false
+  } finally {
+    saving.value = false
+  }
+}
+
+/** 脏态离开确认（三键，主键=保存）：保存(主色) / 放弃修改 / 继续编辑；
+ *  返回 stay=留在编辑，discard=放弃修改，saved=保存成功（保存失败已提示并留在编辑） */
+async function confirmLeave(): Promise<'stay' | 'discard' | 'saved'> {
+  let discard = false
+  const proceed = await confirm({
+    type: 'warning',
+    title: '未保存的修改',
+    description: '是否保存当前修改后再继续？',
+    confirmText: '保存',
+    cancelText: '继续编辑',
+    extraActions: [{ label: '放弃修改', run: () => { discard = true } }],
+  })
+  if (!proceed) return 'stay'
+  return discard ? 'discard' : 'saved'
+}
+
+/** 切换视图；预览↔编辑的脏态离开走三键确认（对比为只读审查可自由进出）
+ *  （WsConfirmDialog——Tauri WebView2 禁用原生 confirm，不能用 window.confirm） */
+async function switchMode(m: 'preview' | 'edit' | 'diff'): Promise<void> {
+  if (m === mode.value) return
+  if (m === 'diff') {
+    mode.value = 'diff'
+    return
+  }
+  if (m === 'edit') {
+    if (mode.value === 'preview') enterEdit() // 预览态进编辑：以磁盘文本为起点
+    else mode.value = 'edit' // 对比态回编辑：缓冲保留
+    return
+  }
+  if (dirty.value) {
+    const d = await confirmLeave()
+    if (d === 'stay') return
+    if (d === 'discard') discardBuffer()
+    else if (!(await saveFile())) return // 保存失败：toast 已提示，留在原视图
+  }
+  mode.value = 'preview'
+  void load()
+}
+
+/** 关闭前检查（多文件栏 tab× 用）：脏态走三键确认（保存/放弃/继续编辑）；
+ *  返回是否可以关闭（保存成功或放弃 = 可关，继续编辑 = 不可关） */
+async function tryClose(): Promise<boolean> {
+  if (!dirty.value) return true
+  const d = await confirmLeave()
+  if (d === 'stay') return false
+  if (d === 'discard') discardBuffer()
+  return true
+}
+
+// 脏态变化上抛（父组件 tab 栏脏点数据源；内容编辑时置位，保存/放弃后复位）
+watch(dirty, (v) => emit('dirty-change', v))
+
+defineExpose({ tryClose })
+
 function ext(): string {
   const i = props.name.lastIndexOf('.')
   return i >= 0 ? props.name.slice(i + 1).toLowerCase() : ''
@@ -281,22 +447,25 @@ function isKnownBinary(): boolean {
   return BINARY_EXT.has(ext())
 }
 
-/** HTML 转义（高亮降级用） */
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-}
-
 /** Markdown 容器点击委托：代码块复制按钮（handleCodeCopyClick 返回是否已处理） */
 function onMdClick(e: MouseEvent): void {
   handleCodeCopyClick(e)
 }
 
-async function load(): Promise<void> {
+/** 当前读取任务（enterEdit 秒点竞态等待用） */
+let loadingPromise: Promise<void> | null = null
+
+/** 读取并按类别渲染（包装 doLoad 以留存进行中任务，供 enterEdit 等待） */
+function load(): Promise<void> {
+  loadingPromise = doLoad()
+  return loadingPromise
+}
+
+async function doLoad(): Promise<void> {
   binary.value = false
   text.value = null
   imgSrc.value = null
   mdHtml.value = ''
-  highlightedCode.value = ''
   // 已知二进制（exe/压缩包/office 等）：直接提示不可预览（T11）
   if (isKnownBinary()) {
     kind.value = 'text'
@@ -315,29 +484,16 @@ async function load(): Promise<void> {
     }
     return
   }
-  // 文本族（markdown/html/code/text）统一 utf-8 读取后按类别渲染
+  // 文本族统一 utf-8 读取后按类别渲染
+  // code/text 无特殊预览效果：点开即编辑（预览/编辑合并，2026-09-07）；
+  // markdown 走富文本渲染；html 默认渲染视图（源码视图模板直读 text 走 CM 只读）
   try {
     const content = await invoke<string>('cmd_fs_read', { path: props.path, encoding: 'utf-8' })
     text.value = content
     if (k === 'markdown') {
       mdHtml.value = renderMarkdownHtml(content)
-    } else if (k === 'html') {
-      // 预生成 markup 高亮（源码视图用；渲染视图走 iframe srcdoc）
-      highlightedCode.value = highlightCode(content, 'markup') ?? escapeHtml(content)
-      codeLangName.value = 'markup'
-    } else if (k === 'code') {
-      const lang = CODE_LANG_BY_EXT[ext()]
-      let src = content
-      // JSON 结构化：压缩单行文件先 parse → 2 空格缩进重排（parse 失败保留原文，容错 jsonc/损坏）
-      if (lang === 'json') {
-        try {
-          src = JSON.stringify(JSON.parse(content), null, 2)
-        } catch {
-          /* 保留原文 */
-        }
-      }
-      highlightedCode.value = highlightCode(src, lang) ?? escapeHtml(src)
-      codeLangName.value = lang
+    } else if (k === 'code' || k === 'text') {
+      void enterEdit()
     }
   } catch (err) {
     console.warn('[FilePreview] 文本读取失败（可能为二进制）:', err)
@@ -349,7 +505,20 @@ onMounted(() => {
   // 大文件守卫：每次打开先提示（除非本次已强制）
   guard.value = needsGuard() && !forced.value
   if (!guard.value) void load()
+  // 编辑态 Ctrl+S 兜底：焦点在编辑器外时，注册表分发（space.fileEditor.save）→
+  // AgentSpace handler dispatch 本事件 → 此处执行保存（同 §2-9 模式的事件总线触达，
+  // 先例 ws-open-settings；监听非命令注册，键位仍以注册表为唯一权威）
+  window.addEventListener('ws-file-editor-save', onEditorSaveRequest)
 })
+
+onBeforeUnmount(() => {
+  window.removeEventListener('ws-file-editor-save', onEditorSaveRequest)
+})
+
+/** 编辑器外保存请求：仅编辑态且有改动时响应（预览态忽略，无副作用） */
+function onEditorSaveRequest(): void {
+  if (mode.value === 'edit' && dirty.value) void saveFile()
+}
 
 // 路径变化时重置状态并重新判定
 watch(
@@ -358,6 +527,8 @@ watch(
     forced.value = false
     binary.value = false
     htmlView.value = 'render'
+    mode.value = 'preview'
+    dirty.value = false
     guard.value = needsGuard() && !forced.value
     if (!guard.value) void load()
   },
@@ -389,6 +560,26 @@ watch(
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* 头部文件类型图标：跟随名字基线，色取映射身份色 */
+.fpv-file-icon {
+  flex-shrink: 0;
+  margin-right: 4px;
+  vertical-align: -2px;
+}
+/* 脏态圆点：文件名后跟随的小圆点（有未保存修改时显示） */
+.fpv-dirty {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 5px;
+  border-radius: 50%;
+  background: var(--color-warning, #e8a33d);
+  vertical-align: middle;
+}
+/* 预览/编辑切换按钮（复用 HTML bar 的 fpv-view-btn 风格） */
+.fpv-header .fpv-view-btn {
+  flex-shrink: 0;
 }
 .fpv-size {
   flex-shrink: 0;

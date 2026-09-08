@@ -2,7 +2,21 @@
   <div class="file-panel">
     <!-- 头部：标题 + 资源管理器/刷新/目录树开关（2026-09-03 两层头改造：资源管理器与刷新自树头上移至此） -->
     <div class="fp-header">
-      <span class="fp-title"><WsIcon name="files" size="sm" /> 文件</span>
+      <!-- 标题可点击：回到文件区（仅切换视图，多文件栏保留；再点 tab 即回文件）（2026-09-07） -->
+      <button class="fp-title" title="回到文件区（保留已打开的文件）" @click="fileTabsState.activePath = null"><WsIcon name="files" size="sm" /> 文件区</button>
+      <!-- 多文件栏 tab 条（2026-09-07 迁移至此；状态读 fileTabsState 会话级单例，
+           与 ProjectFilesPanel 天然共享——曾用 Teleport 跨组件传送，渲染期报
+           __vnode null 使 Vue 更新队列死亡（点击文件无反应根因），改直渲染） -->
+      <div class="fp-header-tabs">
+        <FileTabBar
+          v-if="fileTabsState.tabs.length > 0"
+          :tabs="fileTabsState.tabs"
+          :active-path="fileTabsState.activePath"
+          :dirty-paths="fileTabsState.dirtyPaths"
+          @activate="fileTabsState.activePath = $event"
+          @close="pfpRef?.closeTab($event)"
+        />
+      </div>
       <div class="fp-header-actions">
         <button class="fp-action-btn" title="在系统文件资源管理器中打开项目目录" :disabled="!root" @click="openInExplorer"><WsIcon name="folder-open" size="sm" /></button>
         <button class="fp-action-btn" title="刷新" @click="refreshTree"><WsIcon name="refresh" size="sm" /></button>
@@ -28,11 +42,12 @@
         :selected="selected"
         :title="'项目目录'"
         :merged-header="true"
+        :owns-tabs="true"
         @select="onSelect"
       />
     </div>
 
-    <!-- hover 浮层目录树（仅未展开时） -->
+    <!-- 浮层目录树：hover 唤起（未展开时；「+」按钮已移除——目录树开关按钮同作用） -->
     <Teleport to="body">
       <Transition name="dropdown">
         <div
@@ -61,8 +76,10 @@ import { invoke } from '@/agent/composables/transport'
 import { useAgent } from '@/agent/composables/useAgent'
 import { resolveWorkspaceDir } from '../workspace'
 import ProjectFilesPanel from '../files/ProjectFilesPanel.vue'
+import FileTabBar from '../files/FileTabBar.vue'
 import FileTreeBrowser, { type FsNode } from '../files/FileTreeBrowser.vue'
 import { takePendingFile } from '../files/pendingOpen'
+import { fileTabsState } from '../files/fileTabsStore'
 
 const { currentWorkdir } = useAgent()
 
@@ -73,8 +90,8 @@ const root = ref<string | null>(null)
 const treeBtnRef = ref<HTMLElement>()
 const overlayStyle = ref<Record<string, string>>({})
 
-/** 内部文件面板实例（转发目录树刷新） */
-const pfpRef = ref<{ refresh: () => Promise<void> } | null>(null)
+/** 内部文件面板实例（转发目录树刷新 + tab 关闭确认链；closeTab 返回 false=用户取消） */
+const pfpRef = ref<{ refresh: () => Promise<void>; closeTab: (path: string) => Promise<boolean> } | null>(null)
 
 /** 在系统文件资源管理器中打开项目目录（explorer.exe 对 '/' 分隔路径解析异常，转回反斜杠） */
 async function openInExplorer(): Promise<void> {
@@ -110,7 +127,7 @@ function toggleDocked(): void {
   overlayOpen.value = false
 }
 
-/** 锚定浮层到图标位置（右下/左下） */
+/** 锚定浮层到目录树开关按钮位置（右下/左下） */
 function positionOverlay(): void {
   const el = treeBtnRef.value
   if (!el) return
@@ -163,8 +180,7 @@ watch(currentWorkdir, () => {
 .fp-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 8px 10px;
+  padding: 6px 10px;
   border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
 }
@@ -175,11 +191,32 @@ watch(currentWorkdir, () => {
   font-size: var(--font-size-xs);
   font-weight: 600;
   color: var(--color-text);
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  padding: 3px 8px;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.fp-title:hover {
+  background: var(--color-surface);
+  color: var(--color-primary);
+}
+/* 多文件栏 tab 条挂点：标题与操作区之间弹性占位（ProjectFilesPanel Teleport 进来） */
+.fp-header-tabs {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+  align-self: stretch;
+  margin: 0 8px;
 }
 .fp-header-actions {
   display: flex;
   align-items: center;
   gap: 2px;
+  flex-shrink: 0;
 }
 .fp-action-btn {
   width: 24px;
@@ -210,7 +247,7 @@ watch(currentWorkdir, () => {
   overflow: hidden;
 }
 
-/* hover 浮层 */
+/* hover 浮层（内部可滚动，长目录列表不被截断） */
 .fp-overlay {
   position: fixed;
   width: 260px;
@@ -219,7 +256,7 @@ watch(currentWorkdir, () => {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-  overflow: hidden;
+  overflow-y: auto;
   z-index: 10001;
 }
 .dropdown-enter-active {

@@ -2,7 +2,7 @@
   <div class="pfp" :class="{ 'pfp--docked': layout === 'docked', 'pfp--browser': layout !== 'docked' }">
     <!-- 主区：树（browser 铺满）或 预览（docked 左栏） -->
     <div class="pfp-main">
-      <!-- browser 布局：树铺满；选中文件后预览覆盖 -->
+      <!-- browser 布局：树铺满；有打开文件时预览覆盖（多实例 v-show 切换） -->
       <template v-if="layout !== 'docked'">
         <FileTreeBrowser
           ref="treeRef"
@@ -14,16 +14,40 @@
           @select="onSelect"
         />
         <Transition name="pfp-overlay">
-          <div v-if="current" class="pfp-overlay">
-            <FilePreview :path="current.path" :name="current.name" :size="current.size" @close="current = null" />
+          <div v-if="activePath" class="pfp-overlay">
+            <div class="pfp-tab-body">
+              <FilePreview
+                v-for="t in tabs"
+                v-show="t.path === activePath"
+                :key="t.path"
+                :ref="setPreviewRef(t.path)"
+                :path="t.path"
+                :name="t.name"
+                :size="t.size"
+                @close="removeTab(t.path)"
+                @dirty-change="v => onDirtyChange(t.path, v)"
+              />
+            </div>
           </div>
         </Transition>
       </template>
 
-      <!-- docked 布局：左预览 + 右树 -->
+      <!-- docked 布局：左预览（多实例 v-show 切换）+ 右树 -->
       <template v-else>
         <div class="pfp-dock-preview">
-          <FilePreview v-if="current" :path="current.path" :name="current.name" :size="current.size" @close="current = null" />
+          <div v-if="activePath" class="pfp-tab-body">
+            <FilePreview
+              v-for="t in tabs"
+              v-show="t.path === activePath"
+              :key="t.path"
+              :ref="setPreviewRef(t.path)"
+              :path="t.path"
+              :name="t.name"
+              :size="t.size"
+              @close="removeTab(t.path)"
+              @dirty-change="v => onDirtyChange(t.path, v)"
+            />
+          </div>
           <div v-else class="pfp-dock-empty">
             <WsIcon name="file" size="lg" class="pfp-dock-empty-icon" />
             <p class="pfp-dock-empty-text">选择左侧目录树中的文件以预览</p>
@@ -47,10 +71,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { WsIcon } from '@worldsmith/ui-kit'
 import FileTreeBrowser, { type FsNode } from './FileTreeBrowser.vue'
 import FilePreview from './FilePreview.vue'
+import { fileTabsState, resetFileTabs } from './fileTabsStore'
 
 const props = withDefaults(
   defineProps<{
@@ -65,8 +90,10 @@ const props = withDefaults(
     previewMode?: 'inline' | 'external'
     /** 合并头部模式（右栏两层头）：透传内部 FileTreeBrowser，面包屑+工具同一行 */
     mergedHeader?: boolean
+    /** 多文件栏拥有者（右栏主面板）：读写会话级 fileTabsState；左栏实例恒不写入 */
+    ownsTabs?: boolean
   }>(),
-  { rootPath: null, layout: 'browser', compact: false, title: '项目目录', selected: null, previewMode: 'inline', mergedHeader: false },
+  { rootPath: null, layout: 'browser', compact: false, title: '项目目录', selected: null, previewMode: 'inline', mergedHeader: false, ownsTabs: false },
 )
 
 const emit = defineEmits<{ select: [node: FsNode] }>()
@@ -79,23 +106,84 @@ function refresh(): Promise<void> | undefined {
   return treeRef.value?.refresh()
 }
 
-defineExpose({ refresh })
+defineExpose({ refresh, closeTab })
 
-/** 当前预览文件（树与预览状态跨布局保持——单实例，仅 CSS 排布切换） */
-const current = ref<FsNode | null>(null)
+/** 多文件栏状态：会话级单例（fileTabsState）——右栏五 Tab 切换（PreviewPanel 卸载重挂）后
+ *  tabs/activePath/脏标记/编辑缓冲全部保留（2026-09-07 修复「切 Tab 丢 tab」）。
+ *  非拥有者实例（左栏 external）只读且恒空。 */
+const tabs = computed(() => fileTabsState.tabs)
+const activePath = computed<string | null>({
+  get: () => fileTabsState.activePath,
+  set: (v) => { fileTabsState.activePath = v },
+})
+const dirtyPaths = fileTabsState.dirtyPaths
+/** 编辑缓冲存取（FilePreview 持久化用；非拥有者实例不会走到） */
+const buffers = fileTabsState.buffers
 
-/** 外部受控选中联动（T12：右栏浮层/左栏唤起 → 主面板预览） */
+/** FilePreview 实例表（tab× 关闭时调用 tryClose 三键确认防丢稿） */
+const previewRefs = new Map<string, InstanceType<typeof FilePreview> | null>()
+
+function setPreviewRef(path: string) {
+  return (el: unknown) => {
+    if (el) previewRefs.set(path, el as InstanceType<typeof FilePreview>)
+    else previewRefs.delete(path)
+  }
+}
+
+/** 打开/激活文件：已开则切过去，未开则入列 */
+function openTab(node: FsNode): void {
+  if (!fileTabsState.tabs.some(t => t.path === node.path)) fileTabsState.tabs.push({ ...node })
+  fileTabsState.activePath = node.path
+}
+
+/** tab× 关闭：先经 FilePreview 三键确认（保存/放弃/继续编辑），取消则留在原地；
+ *  返回 false=用户取消（标题「回到文件区」的批量关闭依赖此值中断流程） */
+async function closeTab(path: string): Promise<boolean> {
+  const inst = previewRefs.get(path)
+  if (inst && !(await inst.tryClose())) return false
+  removeTab(path)
+  return true
+}
+
+/** 已确认移除（FilePreview 返回按钮 close 事件）；关闭的是激活 tab 时激活邻位 */
+function removeTab(path: string): void {
+  const idx = fileTabsState.tabs.findIndex(t => t.path === path)
+  if (idx < 0) return
+  fileTabsState.tabs.splice(idx, 1)
+  dirtyPaths.delete(path)
+  buffers.delete(path)
+  if (fileTabsState.activePath === path) {
+    const next = fileTabsState.tabs[Math.min(idx, fileTabsState.tabs.length - 1)]
+    fileTabsState.activePath = next?.path ?? null
+  }
+}
+
+function onDirtyChange(path: string, v: boolean): void {
+  if (v) dirtyPaths.add(path)
+  else dirtyPaths.delete(path)
+}
+
+/** 外部受控选中联动（T12：右栏浮层/左栏唤起 → 主面板预览）。
+ *  以 path 为比较键（对象引用浅比较会被同引用重复点击静默跳过，2026-09-07 修复「点击无反应」） */
 watch(
-  () => props.selected,
-  (sel) => {
-    if (sel) current.value = sel
+  () => props.selected?.path ?? null,
+  (p) => {
+    if (p && props.selected) openTab(props.selected)
   },
 )
 
 /** 外部传入的初始选中（首次挂载即应用，兼容挂载时序） */
 onMounted(() => {
-  if (props.selected) current.value = props.selected
+  if (props.selected) openTab(props.selected)
 })
+
+/** 会话切换（rootPath 变化）时清空 tabs，避免串会话文件（仅拥有者有权清） */
+watch(
+  () => props.rootPath,
+  (p, old) => {
+    if (props.ownsTabs && p !== old) resetFileTabs()
+  },
+)
 
 /** 目录树栏宽度：默认 200，最小 140，最大 = 默认宽 +25%（≈250） */
 const DEFAULT_W = 200
@@ -104,7 +192,7 @@ const MAX_W = Math.round(DEFAULT_W * 1.25)
 const treeWidth = ref(DEFAULT_W)
 
 function onSelect(node: FsNode): void {
-  if (props.previewMode !== 'external') current.value = node
+  if (props.previewMode !== 'external') openTab(node)
   emit('select', node)
 }
 
@@ -165,12 +253,25 @@ onMounted(() => {
   height: 100%;
 }
 
-/* 预览覆盖层（browser 布局） */
+/* 预览覆盖层（browser 布局）：文件体（tab 条已迁移至面板头部行） */
 .pfp-overlay {
   position: absolute;
   inset: 0;
   z-index: 5;
   background: var(--color-surface-elevated);
+  display: flex;
+  flex-direction: column;
+}
+/* tab 下文件体：多实例 v-show 切换，每个占满 */
+.pfp-tab-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.pfp-tab-body > :deep(.fpv) {
+  flex: 1;
+  min-height: 0;
 }
 .pfp-overlay-enter-active,
 .pfp-overlay-leave-active {
@@ -185,12 +286,13 @@ onMounted(() => {
   opacity: 0;
 }
 
-/* docked 布局：左预览 + 右树 */
+/* docked 布局：左预览（tab 条 + 文件体竖排）+ 右树 */
 .pfp-dock-preview {
   flex: 1;
   min-width: 0;
   min-height: 0;
   display: flex;
+  flex-direction: column;
   overflow: hidden;
 }
 .pfp-dock-empty {

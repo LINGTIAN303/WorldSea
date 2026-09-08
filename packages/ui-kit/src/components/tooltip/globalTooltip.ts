@@ -133,16 +133,32 @@ function renderTip(el: Element): void {
     kbd.textContent = keys
     tip.append(kbd)
   }
-  // 先置于原点测量，再按锚矩形定位：优先上方，空间不足翻下方，水平钳位视口
+  // 定位后置：见 positionTip
+  positionTip(el)
+}
+
+/** 定位：跟随光标右下（2026-09-07 修「离鼠标远、不跟手」——原按锚矩形上方居中，
+ *  宽行元素时偏离光标过远）；空间不足翻转，钳位视口；键盘焦点唤起（无光标坐标）锚定元素上方 */
+function positionTip(el: Element): void {
+  const tip = ensureTip()
   tip.style.left = '0px'
   tip.style.top = '0px'
-  const rect = el.getBoundingClientRect()
   const tw = tip.offsetWidth
   const th = tip.offsetHeight
-  let left = rect.left + rect.width / 2 - tw / 2
+  let left: number
+  let top: number
+  if (lastPointer.x || lastPointer.y) {
+    left = lastPointer.x + 14
+    top = lastPointer.y + 18
+    if (left + tw > window.innerWidth - EDGE) left = lastPointer.x - tw - 10
+    if (top + th > window.innerHeight - EDGE) top = lastPointer.y - th - 10
+  } else {
+    const rect = el.getBoundingClientRect()
+    left = rect.left + rect.width / 2 - tw / 2
+    top = rect.top - th - 8
+  }
   left = Math.min(Math.max(EDGE, left), window.innerWidth - tw - EDGE)
-  let top = rect.top - th - 8
-  if (top < EDGE) top = rect.bottom + 8
+  top = Math.min(Math.max(EDGE, top), window.innerHeight - th - EDGE)
   tip.style.left = `${Math.round(left)}px`
   tip.style.top = `${Math.round(top)}px`
 }
@@ -191,13 +207,18 @@ function onPointerMove(e: PointerEvent): void {
   rafId = requestAnimationFrame(() => {
     rafId = null
     hitTestAt(lastPointer.x, lastPointer.y)
+    // 显示中持续跟随光标（不跟手修复的另一半）
+    if (anchor && tipEl?.classList.contains('ws-show')) positionTip(anchor)
   })
 }
 
 function onFocusIn(e: FocusEvent): void {
   const el = (e.target as Element | null)?.closest?.(`[${TIP_ATTR}]`) as Element | null
-  if (el) show(el, true)
-  else hide()
+  if (el) {
+    lastPointer.x = 0
+    lastPointer.y = 0
+    show(el, true)
+  } else hide()
 }
 
 /** 启用全局接管（幂等）。在应用根入口挂载一次即可覆盖两种壳与全部子树。 */

@@ -14,6 +14,8 @@ use agent_commands::{
 use tauri::Manager;
 
 mod commands;
+// LSP 外挂桥（智能提示三期 B1）：系统已装语言服务器检测 + stdio 帧 ↔ IPC
+mod lsp_commands;
 // Phase A 迁移：内容插件数据落盘（FileStorageBackend 依赖的 fs 命令）
 mod fs_commands;
 // Phase C 收尾：文件系统监听（useFsWatcher 依赖的 cmd_fs_watch_*）
@@ -143,6 +145,11 @@ pub fn run() {
             mcp_commands::cmd_mcp_save,
             mcp_commands::cmd_mcp_delete,
             mcp_commands::cmd_mcp_saved,
+            // LSP 外挂桥（智能提示三期 B1）：检测/启动/转发/停止
+            lsp_commands::cmd_lsp_detect,
+            lsp_commands::cmd_lsp_start,
+            lsp_commands::cmd_lsp_send,
+            lsp_commands::cmd_lsp_stop,
             // 诊断日志（临时，排障用）
             commands::cmd_diag_log,
             commands::abort,
@@ -491,8 +498,14 @@ pub fn run() {
                 }
             }
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|_app, event| {
+            // LSP server 常驻进程随 App 真退出统一回收（防孤儿，立项 B1 验收项）
+            if let tauri::RunEvent::Exit = event {
+                lsp_commands::kill_all();
+            }
+        });
 }
 
 /** 托盘是否激活：决定关闭窗口是「最小化到托盘」还是「直接退出」 */

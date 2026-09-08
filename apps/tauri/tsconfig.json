@@ -28,6 +28,8 @@
       "@worldsmith/plugin-sdk": ["../../packages/plugin-sdk/src/index.ts"],
       "@worldsmith/plugin-sdk/*": ["../../packages/plugin-sdk/src/*"],
       "@worldsmith/ui-kit": ["../../packages/ui-kit/src/index.ts"],
+      // 子路径映射：与 vite alias 的 '@worldsmith/ui-kit/' 前缀同口径（不依赖 node_modules 链接）
+      "@worldsmith/ui-kit/*": ["../../packages/ui-kit/src/*"],
       "@worldsmith/canvas-engine": ["../../packages/canvas-engine/src/index.ts"],
       "@worldsmith/canvas-engine/*": ["../../packages/canvas-engine/src/*"],
       "@worldsmith/motion-kit": ["../../packages/motion-kit/src/index.ts"],

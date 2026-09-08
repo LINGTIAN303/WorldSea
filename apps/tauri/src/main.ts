@@ -1,7 +1,9 @@
 /** Tauri 端入口（Phase 3 端分离：硬编码 IPC 后端），详细见 docs/details/注释/tauri/main.md */
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
+import VueCodemirror from 'vue-codemirror'
 import App from './App.vue'
+import { wsBasicSetup } from './space/files/cmBasicSetup'
 import './styles/theme.css'
 // Web 端变量名 → Tauri 令牌桥接（必须在 theme.css 之后，覆盖其 A2UI 区同名变量）
 import './styles/web-tokens-bridge.css'
@@ -47,6 +49,10 @@ async function initializeBackend() {
 const app = createApp(App)
 const pinia = createPinia()
 app.use(pinia)
+// vue-codemirror 全局默认扩展替换（2026-09-08）：官方 basicSetup 内置 autocompletion()，
+// 与各 assist 自建实例并存时 CM 补全互相干扰失效（键入/startCompletion 均不弹，真机实测）；
+// wsBasicSetup=等价基础集减 autocompletion，让 assist 的 override 实例成为唯一实例
+app.use(VueCodemirror, { extensions: [wsBasicSetup] })
 
 app.mount('#app')
 

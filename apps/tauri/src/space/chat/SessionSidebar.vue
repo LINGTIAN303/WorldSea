@@ -135,11 +135,12 @@
               <button class="files-back-btn" @click="sidebarView = 'sessions'" title="返回会话列表"><WsIcon name="arrow-left" size="xs" />会话列表</button>
               <span class="files-view-dir" :title="activeFilesRoot ?? ''">{{ activeFilesRoot ? baseNameOf(activeFilesRoot) : '项目目录' }}</span>
             </div>
-            <ProjectFilesPanel
+            <!-- 左栏目录树面板（2026-09-07 从 ProjectFilesPanel 拆开）：纯树展示，
+                 点击文件经 ws-open-file-preview 事件从右栏展示，左栏不显示内容 -->
+            <FileTreeBrowser
               v-if="activeFilesRoot"
               :root-path="activeFilesRoot"
               compact
-              preview-mode="external"
               title="项目目录"
               @select="onLeftFileSelect"
             />
@@ -237,7 +238,7 @@ import PersonaMirror from '../panels/PersonaMirror.vue'
 import AvatarBadge from '@/ui/AvatarBadge.vue'
 import { useSessionTree, type WorkdirRecord } from './useSessionTree'
 import { resolveWorkspaceDir } from '../workspace'
-import ProjectFilesPanel from '../files/ProjectFilesPanel.vue'
+import FileTreeBrowser from '../files/FileTreeBrowser.vue'
 import type { FsNode } from '../files/FileTreeBrowser.vue'
 import { setPendingFile } from '../files/pendingOpen'
 
@@ -305,8 +306,36 @@ async function loadDefaultDir(): Promise<void> {
 }
 
 // ── 文件浏览器 / 知识库视图（2026-09-03：会话列表树 ⇄ 项目目录树 ⇄ 知识库）──
-const sidebarView = ref<'sessions' | 'files' | 'kb'>('sessions')
+// 视图状态持久化（2026-09-07）：左栏折叠重挂后停在收起时的视图（「收起时什么样，展开时就什么样」）
+const SIDEBAR_VIEW_KEY = 'ws:sidebar-view'
+const sidebarView = ref<'sessions' | 'files' | 'kb'>(
+  ((): 'sessions' | 'files' | 'kb' => {
+    try {
+      const v = localStorage.getItem(SIDEBAR_VIEW_KEY)
+      if (v === 'sessions' || v === 'files' || v === 'kb') return v
+    } catch { /* 存储不可用走默认 */ }
+    return 'sessions'
+  })(),
+)
+watch(sidebarView, (v) => {
+  try { localStorage.setItem(SIDEBAR_VIEW_KEY, v) } catch { /* 忽略 */ }
+})
 const activeFilesRoot = ref<string | null>(null)
+
+/** 文件视图根持久化（2026-09-07）：左栏折叠重挂后 activeFilesRoot 不丢——
+ *  丢了会导致「项目目录视图停留但树不渲染」（v-if=activeFilesRoot 恒空） */
+const FILES_ROOT_KEY = 'ws:files-root'
+try {
+  const saved = localStorage.getItem(FILES_ROOT_KEY)
+  if (saved) activeFilesRoot.value = saved
+} catch { /* 存储不可用走默认 */ }
+watch(activeFilesRoot, (v) => {
+  try {
+    if (v) localStorage.setItem(FILES_ROOT_KEY, v)
+    else localStorage.removeItem(FILES_ROOT_KEY)
+  } catch { /* 忽略 */
+  }
+})
 
 /** 项目组头图标点击：切到该项目目录树视图（未限定目录组兜底默认根） */
 async function openFiles(group: { workdir: string }): Promise<void> {

@@ -55,7 +55,8 @@ worldsmith-data/
 .worldsmith-data/
 .public/
 # 会话归档（daily/index，运行期自动生成）
-data/sessions/
+# MemoryCenter 落盘数据（sessions 归档 + projects 索引，均本机维护，不入库）
+data/
 *.sqlite
 *.sqlite3
 *.db
@@ -91,6 +92,7 @@ package-lock.json
 .superpowers/
 .opencode/
 .omo/
+.zcode/
 
 # ── Test/debug artifacts ────────────────────────────────────────────────
 test-deep-mode-fix.png

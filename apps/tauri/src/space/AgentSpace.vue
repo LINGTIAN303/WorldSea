@@ -315,6 +315,17 @@ onMounted(() => {
   // handler 不会经分发器执行，故 no-op）；AgentSpace 常驻注册保证面板不缺条目。
   reg({ id: 'chat.send', keys: ['enter'], description: '发送消息', scope: 'space', handler: () => {} })
   reg({ id: 'chat.newline', keys: ['shift', 'enter'], description: '输入框换行', scope: 'space', handler: () => {} })
+  // 文件编辑保存（2026-09-06 编辑器内核一期）：同 §2-9 模式——CM6 contentEditable 焦点下
+  // 注册表分发跳过非 modal 层，焦点在编辑器内时保存由 CodeEditor keymap 匹配执行；
+  // 焦点在编辑器外时经此 handler 走事件总线触达（FilePreview 监听 ws-file-editor-save，
+  // 先例 ws-open-settings）。Agent 空间内此键优先于 global 层「导出到文件夹」。
+  reg({
+    id: 'space.fileEditor.save',
+    keys: ['ctrl', 's'],
+    description: '保存文件（编辑器内）',
+    scope: 'space',
+    handler: () => window.dispatchEvent(new CustomEvent('ws-file-editor-save')),
+  })
 })
 onBeforeUnmount(() => {
   const { unregister } = useShortcuts()

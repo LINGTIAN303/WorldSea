@@ -8663,6 +8663,8 @@ dependencies = [
  "tower-http 0.5.2",
  "tracing",
  "ureq",
+ "webview2-com",
+ "windows 0.61.3",
  "worldsmith-core",
  "worldsmith-skills-store",
 ]

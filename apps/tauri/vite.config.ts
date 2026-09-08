@@ -54,6 +54,9 @@ const aliases: Record<string, string> = {
   '@worldsmith/plugin-sdk/components': path.resolve(__dirname, '../../packages/plugin-sdk/src/components'),
   '@worldsmith/plugin-sdk/composables': path.resolve(__dirname, '../../packages/plugin-sdk/src/composables'),
   '@worldsmith/ui-kit$': path.resolve(__dirname, '../../packages/ui-kit/src'),
+  // ui-kit 子路径（components/* / composables/*）：带斜杠前缀 → 正则形式（见下方转换规则）。
+  // 与 node_modules 链接无关，直接指向源码，HMR 与构建同口径
+  '@worldsmith/ui-kit/': path.resolve(__dirname, '../../packages/ui-kit/src/'),
   '@worldsmith/canvas-engine$': path.resolve(__dirname, '../../packages/canvas-engine/src'),
   '@worldsmith/canvas-engine/core': path.resolve(__dirname, '../../packages/canvas-engine/src/core'),
   '@worldsmith/canvas-engine/tree': path.resolve(__dirname, '../../packages/canvas-engine/src/tree'),

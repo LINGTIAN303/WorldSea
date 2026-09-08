@@ -61,13 +61,16 @@ const iconName = computed(() => {
   return map[state.value.type] || 'search'
 })
 
-/** 附加动作：先执行 run()（如写入白名单），随后按「放行」关闭并 resolve true */
+/** 附加动作：先执行 run()，随后按「放行」关闭并 resolve true；run 抛错则保持弹窗
+ *  （由调用方负责提示，用户可重试/取消——失败不得被当作成功关闭，如「保存并继续」保存失败） */
 async function runExtraAction(action: ConfirmExtraAction): Promise<void> {
   try {
     await action.run()
-  } finally {
-    doConfirm()
+  } catch (err) {
+    console.warn('[WsConfirmDialog] 附加动作执行失败，保持弹窗:', err)
+    return
   }
+  doConfirm()
 }
 
 const { activate, deactivate } = useFocusTrap(confirmRef, {

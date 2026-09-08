@@ -60,7 +60,8 @@
           @click.stop="toggleNode(fn.node)"
         ><WsIcon name="chevron-right" size="xs" /></button>
         <span v-else class="ftb-toggle-spacer"></span>
-        <WsIcon :name="fn.node.isDir ? 'folder' : fileTypeIcon(fn.node.name)" size="xs" :class="fn.node.isDir ? 'icon-folder' : 'icon-file'" />
+        <WsIcon v-if="fn.node.isDir" name="folder" size="xs" class="icon-folder" />
+        <FileIcon v-else :name="fn.node.name" class="icon-file" />
         <!-- 行内重命名（2026-09-03 UI 改造：弹窗→树行内编辑框，回车确认/Esc 或失焦提交取消逻辑见 confirmRename） -->
         <input
           v-if="renamingPath === fn.node.path"
@@ -112,6 +113,7 @@ import TuiButton from '../../components/ui/TuiButton.vue'
 import { invoke } from '@/agent/composables/transport'
 import { useAgent } from '@/agent/composables/useAgent'
 import { resolveWorkspaceDir, ensureWorkspaceDir } from '../workspace'
+import FileIcon from './FileIcon.vue'
 
 /** 目录树节点（对应 cmd_fs_list 返回的 FsEntry camelCase 结构） */
 export interface FsNode {
@@ -240,20 +242,48 @@ async function openDir(path: string): Promise<void> {
   loading.value = false
 }
 
-/** 展开/折叠目录节点（懒加载子条目） */
+/** 展开/折叠目录节点（懒加载子条目）；展开状态按根路径持久化（面板折叠/重挂不丢，2026-09-07） */
 async function toggleNode(node: FsNode): Promise<void> {
   if (!node.isDir) return
   if (node.expanded) {
     node.expanded = false
+    persistExpanded(node.path, false)
     return
   }
   node.expanded = true
+  persistExpanded(node.path, true)
   currentPath.value = norm(node.path)
   if (!node.loaded && !node.loading) {
     node.loading = true
     node.children = await loadDir(node.path)
     node.loading = false
     node.loaded = true
+  }
+}
+
+/** 展开状态持久化（localStorage 按根路径隔离）：面板折叠/切 Tab 重挂后恢复展开记忆 */
+function expandedStoreKey(): string {
+  return `ws:tree-expanded:${resolvedRoot.value ?? ''}`
+}
+
+function persistExpanded(path: string, expanded: boolean): void {
+  try {
+    const key = expandedStoreKey()
+    const set = new Set<string>(JSON.parse(localStorage.getItem(key) ?? '[]') as string[])
+    const p = norm(path)
+    if (expanded) set.add(p)
+    else set.delete(p)
+    localStorage.setItem(key, JSON.stringify([...set]))
+  } catch {
+    /* localStorage 不可用时静默降级（仅当前会话内记忆） */
+  }
+}
+
+function readExpandedStore(): Set<string> {
+  try {
+    return new Set<string>(JSON.parse(localStorage.getItem(expandedStoreKey()) ?? '[]') as string[])
+  } catch {
+    return new Set<string>()
   }
 }
 
@@ -298,20 +328,7 @@ const rootBaseName = computed<string>(() => {
   return segs[segs.length - 1] ?? ''
 })
 
-/** 文件扩展名 → 图标映射（图片/音视频/压缩包/文档；其余默认 file） */
-const FILE_TYPE_ICONS: Record<string, string> = {
-  png: 'image', jpg: 'image', jpeg: 'image', gif: 'image', svg: 'image', webp: 'image', bmp: 'image', ico: 'image',
-  mp3: 'music', wav: 'music', ogg: 'music', flac: 'music', m4a: 'music',
-  mp4: 'video', mkv: 'video', avi: 'video', mov: 'video', webm: 'video',
-  zip: 'package', rar: 'package', '7z': 'package', tar: 'package', gz: 'package',
-  md: 'book', pdf: 'book', doc: 'book', docx: 'book',
-}
-
-/** 按文件扩展名取图标（目录不经过此函数） */
-function fileTypeIcon(name: string): string {
-  const ext = name.includes('.') ? name.split('.').pop()!.toLowerCase() : ''
-  return FILE_TYPE_ICONS[ext] ?? 'file'
-}
+/** 文件类型图标：共享映射（fileIcons.ts，目录树/tab/预览头三处同源；2026-09-07 抽出） */
 
 /** 在系统文件资源管理器中打开项目目录（2026-09-03 额外建议）
  *  注意：explorer.exe 对 `/` 分隔路径解析异常，需转回反斜杠（前端 norm 为 `/` 存储） */
@@ -336,6 +353,9 @@ async function init(): Promise<void> {
   }
   resolvedRoot.value = norm(wd)
   await openDir(resolvedRoot.value)
+  // 恢复持久化的展开状态（面板折叠/重挂后不丢；逐层懒加载，2026-09-07）
+  const saved = readExpandedStore()
+  if (saved.size > 0) await restoreExpanded(rootChildren.value, saved)
 }
 
 /** 打开输入弹窗（新建文件/文件夹）；重命名走树行内编辑（renameInline） */
