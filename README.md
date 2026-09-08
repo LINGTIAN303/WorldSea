@@ -1,6 +1,6 @@
 # WorldSea
 
-AI-powered worldbuilding platform — build rich, interconnected fictional worlds with intelligent assistance.
+Agent-powered worldbuilding platform — build rich, interconnected fictional worlds with intelligent assistance.
 
 > **第一要素（项目定位）**：WorldSea 不止是世界观构建的 Agent 产品与 Harness 工程，更兼顾着通用 Agent 的性质——**以通用 Agent 为基础、以通用 Harness 工程支撑的世界观构建产品**。
 
