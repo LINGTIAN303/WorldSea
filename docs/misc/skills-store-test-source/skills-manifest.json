@@ -9,8 +9,8 @@
       "description": "辅助快速创建角色实体，提供命名灵感、背景生成与属性平衡建议。适合需要批量生成 NPC 或主角的场景。",
       "version": "1.0.0",
       "author": "WorldSea",
-      "homepage": "https://github.com/LINGTIAN303/WorldSmith",
-      "downloadUrl": "https://raw.githubusercontent.com/LINGTIAN303/WorldSmith/main/docs/skills-store-test-source/skills/example-creator.zip",
+      "homepage": "https://github.com/LINGTIAN303/WorldSea",
+      "downloadUrl": "https://raw.githubusercontent.com/LINGTIAN303/WorldSea/main/docs/skills-store-test-source/skills/example-creator.zip",
       "pathInArchive": "example-creator",
       "sha256": "44986f18d6807faa966c5dbff2f170268ee60efa5fca6e3a09b449285dc23c5a"
     }

@@ -111,7 +111,7 @@ packages/
 
 ```bash
 # Clone the repository
-git clone https://github.com/LINGTIAN303/WorldSmith.git
+git clone https://github.com/LINGTIAN303/WorldSea.git
 cd WorldSea
 
 # Install dependencies (recommended)

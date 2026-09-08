@@ -103,13 +103,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/LINGTIAN303/WorldSmith.git"
+    "url": "git+https://github.com/LINGTIAN303/WorldSea.git"
   },
   "keywords": [],
   "author": "",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/LINGTIAN303/WorldSmith/issues"
+    "url": "https://github.com/LINGTIAN303/WorldSea/issues"
   },
-  "homepage": "https://github.com/LINGTIAN303/WorldSmith#readme"
+  "homepage": "https://github.com/LINGTIAN303/WorldSea#readme"
 }

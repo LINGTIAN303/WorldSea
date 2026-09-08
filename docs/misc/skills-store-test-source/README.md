@@ -77,7 +77,7 @@ https://raw.githubusercontent.com/<user>/<repo>/main/docs/skills-store-test-sour
       "description": "辅助快速创建角色实体...",
       "version": "1.0.0",
       "author": "WorldSea",
-      "downloadUrl": "https://raw.githubusercontent.com/LINGTIAN303/WorldSmith/main/docs/skills-store-test-source/skills/example-creator.zip",
+      "downloadUrl": "https://raw.githubusercontent.com/LINGTIAN303/WorldSea/main/docs/skills-store-test-source/skills/example-creator.zip",
       "pathInArchive": "example-creator",
       "sha256": "44986f18d6807faa966c5dbff2f170268ee60efa5fca6e3a09b449285dc23c5a"
     }
