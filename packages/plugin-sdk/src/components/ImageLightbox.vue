@@ -32,7 +32,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
-import { useScopedShortcuts } from '@worldsmith/ui-kit'
+import { useScopedShortcuts } from '@worldsea/ui-kit'
 
 const props = defineProps<{
   visible: boolean

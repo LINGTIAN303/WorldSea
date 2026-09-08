@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { useShallowArray, useShallowRefMap } from '@worldsmith/perf-kit/reactive'
+import { useShallowArray, useShallowRefMap } from '@worldsea/perf-kit/reactive'
 import { getProjectManager } from '../core/ProjectManager'
 import { getEventBus } from '../core/serviceProvider'
 import type { Artifact, ArtifactVersion } from '../types'

@@ -3,12 +3,12 @@
  *
  * 使用 int8 量化压缩向量存储空间（4x 压缩），
  * 搜索时直接在量化域计算余弦相似度，避免反量化开销。
- * 数据库名: worldsmith_vectors_v2, 存储对象: quantized_vectors
+ * 数据库名: worldsea_vectors_v2, 存储对象: quantized_vectors
  */
 
 import { quantizeInt8, cosineSimilarityInt8 } from './quantizer'
 
-const DB_NAME = 'worldsmith_vectors_v2'
+const DB_NAME = 'worldsea_vectors_v2'
 const DB_VERSION = 1
 const STORE_NAME = 'quantized_vectors'
 

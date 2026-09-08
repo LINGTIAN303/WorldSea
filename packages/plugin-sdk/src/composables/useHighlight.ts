@@ -1,6 +1,6 @@
 import { ref } from 'vue'
-import type { Relation } from '@worldsmith/entity-core'
-import { getSettingsApi } from '@worldsmith/entity-core'
+import type { Relation } from '@worldsea/entity-core'
+import { getSettingsApi } from '@worldsea/entity-core'
 
 export interface HighlightOptions {
   getRelations: () => Relation[]

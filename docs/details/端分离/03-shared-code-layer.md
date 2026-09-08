@@ -6,7 +6,7 @@
 
 ### 1.1 抽离范围
 
-**源路径**：`worldsmith-agent/src/`
+**源路径**：`worldsea-agent/src/`
 **目标路径**：`packages/agent-runtime/src/`
 
 | 源文件/目录 | 目标路径 | 是否端无关 | 说明 |
@@ -43,7 +43,7 @@
 
 ```json
 {
-  "name": "@worldsmith/agent-runtime",
+  "name": "@worldsea/agent-runtime",
   "version": "0.1.0",
   "type": "module",
   "main": "src/index.ts",
@@ -53,8 +53,8 @@
     "build": "tsc"
   },
   "dependencies": {
-    "@worldsmith/agent-core": "workspace:*",
-    "@worldsmith/governor-core": "workspace:*",
+    "@worldsea/agent-core": "workspace:*",
+    "@worldsea/governor-core": "workspace:*",
     "dexie": "^4.4.2"
   },
   "peerDependencies": {
@@ -176,7 +176,7 @@ export async function createExecutionAdapter(): Promise<ExecutionAdapter> {
 
 ```typescript
 // apps/cli/src/bootstrap.ts
-import { registerExecutionAdapterFactory } from '@worldsmith/agent-runtime'
+import { registerExecutionAdapterFactory } from '@worldsea/agent-runtime'
 import { NodeExecutionAdapter } from './execution/node-adapter'
 
 registerExecutionAdapterFactory({
@@ -186,7 +186,7 @@ registerExecutionAdapterFactory({
 
 ```typescript
 // apps/web/src/bootstrap.ts
-import { registerExecutionAdapterFactory } from '@worldsmith/agent-runtime'
+import { registerExecutionAdapterFactory } from '@worldsea/agent-runtime'
 import { WebSocketExecutionAdapter } from './execution/ws-adapter'
 
 registerExecutionAdapterFactory({
@@ -196,7 +196,7 @@ registerExecutionAdapterFactory({
 
 ```typescript
 // apps/tauri/src/bootstrap.ts
-import { registerExecutionAdapterFactory } from '@worldsmith/agent-runtime'
+import { registerExecutionAdapterFactory } from '@worldsea/agent-runtime'
 import { TauriExecutionAdapter } from './execution/tauri-adapter'
 
 registerExecutionAdapterFactory({
@@ -220,7 +220,7 @@ registerExecutionAdapterFactory({
 
 ### 1.5 测试策略
 
-- **单元测试**：保留 `worldsmith-agent/src/__tests__/` 与各模块的 `__tests__/`，迁到 `packages/agent-runtime/src/__tests__/`
+- **单元测试**：保留 `worldsea-agent/src/__tests__/` 与各模块的 `__tests__/`，迁到 `packages/agent-runtime/src/__tests__/`
 - **集成测试**：保留 `pipeline-integration.spec.ts` 等，使用 mock ExecutionAdapter
 - **端无关性验证**：CI 增加 lint 规则，禁止 `packages/agent-runtime/` 中出现端特定 import
 
@@ -255,7 +255,7 @@ registerExecutionAdapterFactory({
 
 ```json
 {
-  "name": "@worldsmith/shared-ui",
+  "name": "@worldsea/shared-ui",
   "version": "0.1.0",
   "type": "module",
   "main": "src/index.ts",
@@ -270,14 +270,14 @@ registerExecutionAdapterFactory({
     "naive-ui": "^2.44.1"
   },
   "dependencies": {
-    "@worldsmith/entity-core": "workspace:*",
-    "@worldsmith/canvas-engine": "workspace:*",
-    "@worldsmith/ui-kit": "workspace:*",
-    "@worldsmith/theme-kit": "workspace:*",
-    "@worldsmith/font-kit": "workspace:*",
-    "@worldsmith/plugin-sdk": "workspace:*",
-    "@worldsmith/agent-runtime": "workspace:*",
-    "@worldsmith/shared-composables": "workspace:*"
+    "@worldsea/entity-core": "workspace:*",
+    "@worldsea/canvas-engine": "workspace:*",
+    "@worldsea/ui-kit": "workspace:*",
+    "@worldsea/theme-kit": "workspace:*",
+    "@worldsea/font-kit": "workspace:*",
+    "@worldsea/plugin-sdk": "workspace:*",
+    "@worldsea/agent-runtime": "workspace:*",
+    "@worldsea/shared-composables": "workspace:*"
   }
 }
 ```
@@ -289,7 +289,7 @@ shared-ui 中的组件**不直接 import** 端特定后端，通过 provide/inje
 ```typescript
 // packages/shared-ui/src/agent/injectionKeys.ts
 import type { InjectionKey, Ref } from 'vue'
-import type { IAgentBackend } from '@worldsmith/agent-runtime'
+import type { IAgentBackend } from '@worldsea/agent-runtime'
 
 export const AgentBackendKey: InjectionKey<IAgentBackend> = Symbol('agent-backend')
 export const CoreBackendKey: InjectionKey<{
@@ -305,7 +305,7 @@ export const FileSystemKey: InjectionKey<{
 
 ```typescript
 // apps/web/src/main.ts
-import { AgentBackendKey, CoreBackendKey } from '@worldsmith/shared-ui'
+import { AgentBackendKey, CoreBackendKey } from '@worldsea/shared-ui'
 import { WsAgentBackend } from './agent/WsAgentBackend'
 import * as coreBackend from './core/coreBackend'
 
@@ -315,7 +315,7 @@ app.provide(CoreBackendKey, coreBackend)
 
 ```typescript
 // apps/tauri/src/main.ts
-import { AgentBackendKey, CoreBackendKey } from '@worldsmith/shared-ui'
+import { AgentBackendKey, CoreBackendKey } from '@worldsea/shared-ui'
 import { RustAgentBackend } from './agent/RustAgentBackend'
 import * as coreBackend from './core/coreBackend'
 
@@ -382,7 +382,7 @@ app.provide(CoreBackendKey, coreBackend)
 
 ```json
 {
-  "name": "@worldsmith/shared-composables",
+  "name": "@worldsea/shared-composables",
   "version": "0.1.0",
   "type": "module",
   "main": "src/index.ts",
@@ -396,9 +396,9 @@ app.provide(CoreBackendKey, coreBackend)
     "pinia": "^3.0.4"
   },
   "dependencies": {
-    "@worldsmith/agent-runtime": "workspace:*",
-    "@worldsmith/entity-core": "workspace:*",
-    "@worldsmith/memory-archive": "workspace:*",
+    "@worldsea/agent-runtime": "workspace:*",
+    "@worldsea/entity-core": "workspace:*",
+    "@worldsea/memory-archive": "workspace:*",
     "dexie": "^4.4.2"
   }
 }
@@ -408,7 +408,7 @@ app.provide(CoreBackendKey, coreBackend)
 
 ```typescript
 // packages/shared-composables/src/useAgent.ts
-import type { IAgentBackend } from '@worldsmith/agent-runtime'
+import type { IAgentBackend } from '@worldsea/agent-runtime'
 
 export interface UseAgentOptions {
   backend: IAgentBackend
@@ -440,7 +440,7 @@ export function useAgent(options: UseAgentOptions) {
 
 ```typescript
 // apps/web/src/agent/useAgentWs.ts
-import { useAgent } from '@worldsmith/shared-composables'
+import { useAgent } from '@worldsea/shared-composables'
 import { WsAgentBackend } from './WsAgentBackend'
 
 export function useAgentWs() {
@@ -451,7 +451,7 @@ export function useAgentWs() {
 
 ```typescript
 // apps/tauri/src/agent/useAgentTauri.ts
-import { useAgent } from '@worldsmith/shared-composables'
+import { useAgent } from '@worldsea/shared-composables'
 import { RustAgentBackend } from './RustAgentBackend'
 
 export function useAgentTauri() {
@@ -464,9 +464,9 @@ export function useAgentTauri() {
 
 ```
 Step 1.1: 创建 packages/agent-runtime/ 骨架（package.json/tsconfig.json/vite.config.ts）
-Step 1.2: 迁移 worldsmith-agent/src/ 端无关代码到 packages/agent-runtime/src/
+Step 1.2: 迁移 worldsea-agent/src/ 端无关代码到 packages/agent-runtime/src/
 Step 1.3: 迁移 execution/adapter.ts 接口到 agent-runtime，具体 adapter 留待 Phase 2 各端迁移
-Step 1.4: 更新 worldsmith-agent/package.json → 仅保留 CLI 依赖
+Step 1.4: 更新 worldsea-agent/package.json → 仅保留 CLI 依赖
 Step 1.5: 验证 packages/agent-runtime 独立 typecheck 通过
 Step 1.6: 创建 packages/shared-composables/ 骨架
 Step 1.7: 迁移 src/composables/ 与 src/agent/composables/ 端无关部分

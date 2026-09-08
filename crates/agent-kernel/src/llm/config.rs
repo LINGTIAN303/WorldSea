@@ -1,10 +1,10 @@
 //! # Provider 配置
 //!
-//! 对应 TS 版 `worldsmith-agent/src/providers/config.ts`。
+//! 对应 TS 版 `worldsea-agent/src/providers/config.ts`。
 //! 三种部署模式：cloud / local / custom。
 //!
 //! ## 存储策略
-//! worldsmith 没有 SQLite provider 表，配置在前端 localStorage。
+//! worldsea 没有 SQLite provider 表，配置在前端 localStorage。
 //! Rust 侧通过运行时注入 ProviderConfig（Tauri 命令从前端传入）。
 //! API Key 通过 keyring 或运行时传入，不在此结构中持久化。
 

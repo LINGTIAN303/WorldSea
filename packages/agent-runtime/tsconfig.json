@@ -19,17 +19,17 @@
     "paths": {
       "@agent": ["./src/index.ts"],
       "@agent/*": ["./src/*"],
-      "@worldsmith/agent-runtime": ["./src/index.ts"],
-      "@worldsmith/agent-runtime/*": ["./src/*"],
-      "@worldsmith/agent-core": ["../agent-core/src/index.ts"],
-      "@worldsmith/agent-core/*": ["../agent-core/src/*"],
-      "@worldsmith/core-api-types": ["../core-api-types/src/index.ts"],
-      "@worldsmith/governor-core": ["../governor-core/src/index.ts"],
-      "@worldsmith/governor-core/*": ["../governor-core/src/*"],
-      "@worldsmith/entity-core": ["../entity-core/src/index.ts"],
-      "@worldsmith/entity-core/*": ["../entity-core/src/*"],
-      "@worldsmith/canvas-engine": ["../canvas-engine/src/index.ts"],
-      "@worldsmith/canvas-engine/*": ["../canvas-engine/src/*"]
+      "@worldsea/agent-runtime": ["./src/index.ts"],
+      "@worldsea/agent-runtime/*": ["./src/*"],
+      "@worldsea/agent-core": ["../agent-core/src/index.ts"],
+      "@worldsea/agent-core/*": ["../agent-core/src/*"],
+      "@worldsea/core-api-types": ["../core-api-types/src/index.ts"],
+      "@worldsea/governor-core": ["../governor-core/src/index.ts"],
+      "@worldsea/governor-core/*": ["../governor-core/src/*"],
+      "@worldsea/entity-core": ["../entity-core/src/index.ts"],
+      "@worldsea/entity-core/*": ["../entity-core/src/*"],
+      "@worldsea/canvas-engine": ["../canvas-engine/src/index.ts"],
+      "@worldsea/canvas-engine/*": ["../canvas-engine/src/*"]
     }
   },
   "include": ["src/**/*.ts"]

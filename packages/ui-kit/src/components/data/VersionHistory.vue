@@ -29,12 +29,12 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useEntityStore } from '@worldsmith/entity-core'
-import { useResizable } from '@worldsmith/ui-kit'
-import { entitySchemaRegistry } from '@worldsmith/entity-core'
-import { useModalShortcuts } from '@worldsmith/ui-kit'
+import { useEntityStore } from '@worldsea/entity-core'
+import { useResizable } from '@worldsea/ui-kit'
+import { entitySchemaRegistry } from '@worldsea/entity-core'
+import { useModalShortcuts } from '@worldsea/ui-kit'
 import WsIcon from '../WsIcon.vue'
-import type { Entity } from '@worldsmith/entity-core'
+import type { Entity } from '@worldsea/entity-core'
 
 const props = defineProps<{ show: boolean }>()
 const emit = defineEmits<{ close: [] }>()

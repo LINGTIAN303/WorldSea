@@ -8,13 +8,13 @@
  */
 
 import type { ToolDefinition } from '../bridge-types'
-import type { ToolMeta } from '@worldsmith/agent-core'
+import type { ToolMeta } from '@worldsea/agent-core'
 import { createExecutionAdapter } from '../execution'
 
 /** 通用命令执行器 */
 async function runCommand(command: string, cwd?: string, timeout = 15000): Promise<string> {
   const adapter = await createExecutionAdapter()
-  if (!adapter.isAvailable()) return JSON.stringify({ ok: false, error: 'CLI 工具当前不可用。Tauri 桌面模式请确认环境正常，Web 模式请启动 worldsmith-server 服务。' })
+  if (!adapter.isAvailable()) return JSON.stringify({ ok: false, error: 'CLI 工具当前不可用。Tauri 桌面模式请确认环境正常，Web 模式请启动 worldsea-server 服务。' })
   try {
     const result = await adapter.executeCommand(command, { cwd, timeout })
     return result.stdout

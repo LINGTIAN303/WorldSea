@@ -69,11 +69,11 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
-import type { Entity, Relation } from '@worldsmith/entity-core'
-import { DetailField, DynamicFieldsAdder, UniversalRelationPanel, EntityRelationSelector, useEntityEdit, useResizable } from '@worldsmith/plugin-sdk'
+import { WsIcon } from '@worldsea/ui-kit'
+import type { Entity, Relation } from '@worldsea/entity-core'
+import { DetailField, DynamicFieldsAdder, UniversalRelationPanel, EntityRelationSelector, useEntityEdit, useResizable } from '@worldsea/plugin-sdk'
 import CausalGraph from './CausalGraph.vue'
-import { entitySchemaRegistry } from '@worldsmith/entity-core'
+import { entitySchemaRegistry } from '@worldsea/entity-core'
 import { useSettingsStore } from '@/stores/settingsStore'
 
 const props = defineProps<{

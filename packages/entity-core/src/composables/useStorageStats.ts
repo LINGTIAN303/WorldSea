@@ -57,7 +57,7 @@ export function useStorageStats() {
       const fileCount = fileStore.files.length || (await storage.getAllFiles()).length
       let sessionCount = 0
       try {
-        const { countSessions } = await import('@worldsmith/agent-runtime/session/manager')
+        const { countSessions } = await import('@worldsea/agent-runtime/session/manager')
         sessionCount = await countSessions()
       } catch {}
 

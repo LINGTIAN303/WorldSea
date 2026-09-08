@@ -17,7 +17,7 @@
  * - 添加面板按钮 + 布局方向选择器
  * - 布局方向通过 v-model 与父组件双向绑定
  */
-import { CustomDropdown, CreateButton } from '@worldsmith/plugin-sdk'
+import { CustomDropdown, CreateButton } from '@worldsea/plugin-sdk'
 
 defineProps<{
   // 与 CustomDropdown 的 modelValue 类型保持一致，避免 v-model 类型不兼容

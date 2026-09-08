@@ -1,4 +1,4 @@
-import type { PluginAPIType } from '@worldsmith/entity-core'
+import type { PluginAPIType } from '@worldsea/entity-core'
 import GlobalGraph from './GlobalGraph.vue'
 
 export const manifest = {
@@ -6,7 +6,7 @@ export const manifest = {
   name: '全局图谱',
   version: '1.0.0',
   description: '以关系图谱形式展示所有世界观实体',
-  author: 'WorldSmith',
+  author: 'WorldSea',
   agentSkills: ['graph-explorer'],
   agentCapabilities: [
     { action: 'get_nodes', description: '获取图谱节点列表', params: ['type', 'keyword'] },

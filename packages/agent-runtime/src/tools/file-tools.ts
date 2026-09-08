@@ -1,7 +1,7 @@
 /** 文件管理工具集：项目工作区文件完整生命周期，详细见 docs/details/注释/packages/agent-runtime/tools-file-tools.md */
 
 import type { ToolDefinition } from '../bridge-types'
-import type { ToolMeta } from '@worldsmith/agent-core'
+import type { ToolMeta } from '@worldsea/agent-core'
 
 /** file_list — 列出文件，支持路径前缀和实体关联两种筛选方式 */
 export const fileListTool: ToolDefinition = {

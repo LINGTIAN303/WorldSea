@@ -2,7 +2,7 @@
 
 > 调研日期：2026-08-30
 > 调研对象：https://github.com/bytedance/trae-agent（main 分支，289 commits，12.1k star，MIT）
-> 调研目的：为 WorldSmith 的**步骤摘要 / 轨迹记录 / 工具协议 / 任务收口**四个议题找外部参照
+> 调研目的：为 WorldSea 的**步骤摘要 / 轨迹记录 / 工具协议 / 任务收口**四个议题找外部参照
 > 关联文档：[Harness 工程差距调研](../plans/2026-08-30-Harness工程差距调研.md)（H1 三硬伤、H7 事件字段）
 
 ---
@@ -11,7 +11,7 @@
 
 **Trae Agent 是一个「单 Agent + 线性 step 循环」的 Python CLI 型 SWE Agent，核心代码很轻（主循环 13KB），研究友好是卖点而非产品化。**
 
-它在**循环控制**上明显弱于 WorldSmith（WorldSmith 有 `LoopController` 四件套 + 协作式取消 + 会话持久化），
+它在**循环控制**上明显弱于 WorldSea（WorldSea 有 `LoopController` 四件套 + 协作式取消 + 会话持久化），
 但在三个点上值得抄：**完成判定三重钩子**、**工具输出协议**、**Lakeview 步骤摘要的工程手法**。
 
 ---
@@ -98,7 +98,7 @@ else:
 | `AgentState` | `idle / running / completed / error` |
 
 **注意：扁平 step 列表，无轮次概念。** 一次 step = 一次 LLM 调用 + 其引发的工具调用。
-对比 WorldSmith 的 `Turn → segments` 三层（见 [turnModel.ts](../../packages/shared-composables/src/agent/turnModel.ts)），粒度粗一档。
+对比 WorldSea 的 `Turn → segments` 三层（见 [turnModel.ts](../../packages/shared-composables/src/agent/turnModel.ts)），粒度粗一档。
 
 LLM 层模型（`utils/llm_clients/llm_basics.py`）：
 
@@ -119,9 +119,9 @@ class LLMResponse:
     tool_calls: list[ToolCall] | None = None
 ```
 
-> 对比 WorldSmith `OrchestratorMessage`（`crates/agent-kernel/src/types.rs:74-88`）：
+> 对比 WorldSea `OrchestratorMessage`（`crates/agent-kernel/src/types.rs:74-88`）：
 > `role / content / tool_calls: Vec<ToolCall> / tool_call_id: Option<String> / meta: Option<HashMap>`。
-> WorldSmith 用**数组 + call_id 配对**，trae 用**单槽位**。数组模型支持并行工具调用，trae 的单槽位是其短板。
+> WorldSea 用**数组 + call_id 配对**，trae 用**单槽位**。数组模型支持并行工具调用，trae 的单槽位是其短板。
 
 ---
 
@@ -178,17 +178,17 @@ class LLMResponse:
 
 **每步 2 次额外 LLM 调用**。默认 `enable_lakeview: true`。
 对 SWE-bench 那种"一个任务 200 步、离线跑批"能接受；
-**对 WorldSmith 的交互式长会话（默认 `max_iterations=25`，可到 `max_turns=100`）不可接受**——延迟与成本翻倍。
+**对 WorldSea 的交互式长会话（默认 `max_iterations=25`，可到 `max_turns=100`）不可接受**——延迟与成本翻倍。
 
-### 2.5 对位 WorldSmith
+### 2.5 对位 WorldSea
 
-| 维度 | Trae Lakeview | WorldSmith 现状 |
+| 维度 | Trae Lakeview | WorldSea 现状 |
 |---|---|---|
 | 动作摘要 | LLM 生成自然语言 `task` + `details` | `ActionSegment.label` = 工具名（`turnModel.ts:62`），**无自然语言摘要** |
 | 分类 | LLM 打 8 类标签 | `ActionRowKind`（`search/terminal/file/command/tool/other`）——**由工具名在归约时静态推导**（`turnModel.ts:64`） |
 | 渲染 | CLI 一行文本 | 动作行段默认折叠，点击展开 args + result |
 
-**结论：WorldSmith 的 `rowKind` 静态推导比 LLM 打标更快更省，是对的。缺口在「自然语言任务摘要」——用户折叠状态下看到的是 `edit_file`，而不是「正在修复登录校验的空指针」。**
+**结论：WorldSea 的 `rowKind` 静态推导比 LLM 打标更快更省，是对的。缺口在「自然语言任务摘要」——用户折叠状态下看到的是 `edit_file`，而不是「正在修复登录校验的空指针」。**
 
 **建议（需拍板，见 §6）**：只抄 §2.3 的**工程手法**（prefill / 硬重试降级 / 长度闸门），
 不抄"每步都调 LLM"。落地形态：仅长任务 / 编排模式启用，且必须用独立小模型。
@@ -221,18 +221,18 @@ self.trajectory_data = {
 - 优点：进程崩溃不丢数据
 - 缺点：O(n²) 写盘，200 步任务要重写 200 次全量文件
 
-### 3.3 对位 WorldSmith
+### 3.3 对位 WorldSea
 
-| 维度 | Trae | WorldSmith |
+| 维度 | Trae | WorldSea |
 |---|---|---|
 | 载体 | 事后 JSON 文件（`trajectories/trajectory_YYYYMMDD_HHMMSS.json`） | SQLite `messages` 表 `(session_id, seq, msg_json)` |
-| 可恢复性 | **不可恢复**，仅事后分析 | **可回源重建**（这是 WorldSmith 的强项） |
+| 可恢复性 | **不可恢复**，仅事后分析 | **可回源重建**（这是 WorldSea 的强项） |
 | 记录粒度 | LLM 出入参 + step 状态双轨 | `OrchestratorMessage` + `meta`（`thinking` 等扩展位） |
 | 用途 | 调试 / 研究 / 消融实验 | 会话持久化 + 刷新后重建 |
 
-**结论：这块 WorldSmith 明显更强，无借鉴点。**
+**结论：这块 WorldSea 明显更强，无借鉴点。**
 唯一可提的：Trae 的 usage 统计细分到 `cache_creation / cache_read / reasoning` 三类 token，
-WorldSmith 目前只累 `input_tokens / output_tokens`（`crates/agent-kernel/src/agent/mod.rs:866-870`）。
+WorldSea 目前只累 `input_tokens / output_tokens`（`crates/agent-kernel/src/agent/mod.rs:866-870`）。
 若要上成本面板，可补这三类。
 
 ---
@@ -274,7 +274,7 @@ if self.model_provider == "openai":
 
 **`model_provider` 在工具构造时注入**（`tools_registry[name](model_provider=provider)`），每个工具自己感知目标 Provider。
 
-> **对位 WorldSmith**：`Tool::parameters()` 直接返回 `serde_json::Value`（`crates/agent-kernel/src/tool.rs:39`），
+> **对位 WorldSea**：`Tool::parameters()` 直接返回 `serde_json::Value`（`crates/agent-kernel/src/tool.rs:39`），
 > 在 `agent-kernel` 全库检索 `additionalProperties` / `strict` **零命中** → **未做 Provider 适配**。
 > 注：[Harness 调研](../plans/2026-08-30-Harness工程差距调研.md) §实证教训记有"桥工具 schema 严格模式"问题，
 > 说明此坑已踩过，但**修复未落到 `agent-kernel` 的 schema 生成层**。→ 列为待确认项（§6 R4）
@@ -293,7 +293,7 @@ def _normalize_name(self, name: str) -> str:
 error=f"Tool '{name}' not found. Available tools: {[t.name for t in self._tools]}"
 ```
 
-> **对位**：WorldSmith 有更强的 `resolve_alias`（`tool.rs:167`，如 `fs_read → read_file`），
+> **对位**：WorldSea 有更强的 `resolve_alias`（`tool.rs:167`，如 `fs_read → read_file`），
 > 但 `ToolError::NotFound(name)` 是否带可用清单需核对。
 
 ### 4.4 ⚠ 关键：工具输出协议三板斧
@@ -322,12 +322,12 @@ raise ToolError(f"No replacement was performed. Multiple occurrences of old_str 
 ```
 → 不只说"失败"，还说"怎么改"。
 
-> **对位 WorldSmith（`crates/agent-commands/src/fs_tools.rs`）**：
+> **对位 WorldSea（`crates/agent-commands/src/fs_tools.rs`）**：
 > - `read_file` 返回 `json!({content, path})` —— **无行号**（`fs_tools.rs:240-243`）
 > - `edit_file` 成功返回 `json!({ok, path, replacements})` —— **无 snippet 回显**（`fs_tools.rs:568-571`）
 > - `edit_file` 用 `content.replace(old_string, new_string)` **替换全部匹配**，
 >   而 Trae 在匹配数 > 1 时**直接拒绝并列出行号**（`fs_tools.rs:561-562`）
-> - WorldSmith 输出走 `with_meta(json, __meta)` —— `__meta` 供前端渲染用，content 部分序列化给 LLM
+> - WorldSea 输出走 `with_meta(json, __meta)` —— `__meta` 供前端渲染用，content 部分序列化给 LLM
 >
 > **→ 三处实质差异，见 §6 借鉴项 B1/B2/B3。**
 
@@ -354,19 +354,19 @@ class ThoughtData:
 - `total_thoughts` 可动态上调：`if thought_number > total_thoughts: total_thoughts = thought_number`
 - 返回极简状态 JSON（下一步只看到 `thought_number / total_thoughts / next_thought_needed / branches / thought_history_length`），**不回灌全部历史**，省 token
 
-> **对位 WorldSmith**：思考走 `OrchestratorMessage.meta.thinking`（`agent/mod.rs:883-888`），
+> **对位 WorldSea**：思考走 `OrchestratorMessage.meta.thinking`（`agent/mod.rs:883-888`），
 > 由模型原生 reasoning 产出，前端渲染为 `ThinkSegment`。
 > **两条路线的取舍**：
 > - Trae 路线（显式工具）：模型无关、结构化、可分支 —— 但**消耗轮次**，且模型不调用就没有思考
-> - WorldSmith 路线（meta 承载）：零额外轮次、原生 —— 但**依赖模型支持 reasoning**，无分支结构
+> - WorldSea 路线（meta 承载）：零额外轮次、原生 —— 但**依赖模型支持 reasoning**，无分支结构
 >
-> **结论：WorldSmith 的路线更适合交互式产品，不建议改。** 可借鉴的只有一点：
+> **结论：WorldSea 的路线更适合交互式产品，不建议改。** 可借鉴的只有一点：
 > `ThoughtData` 的**分支/修订语义**（`revises_thought` / `branch_from_thought`）可考虑加进 `ThinkSegment`，
-> 为将来的 Tree-of-Thought 呈现留位（WorldSmith 已有 `agent-patterns` 的 tot 模式）。
+> 为将来的 Tree-of-Thought 呈现留位（WorldSea 已有 `agent-patterns` 的 tot 模式）。
 
 ### 4.6 工具生态对位总表
 
-| 能力 | Trae Agent | WorldSmith |
+| 能力 | Trae Agent | WorldSea |
 |---|---|---|
 | 工具抽象 | `Tool` ABC（4 抽象方法 + close） | `Tool` trait（`name/description/parameters/execute/execute_with_ctx`） |
 | Schema 生成 | 结构体 → 编译，**按 Provider 适配** ⚠ | 直接返回 `serde_json::Value`，**未适配** ⚠ |
@@ -381,7 +381,7 @@ class ThoughtData:
 | 错误类型 | 通用 `ToolError` | `NotFound/ArgsParse/Execution/Timeout/Aborted/Other` |
 | 资源释放 | `Tool.close()`，`_close_tools` 在 finally 调用 | 需核对 |
 
-**→ 工具执行层 WorldSmith 全面领先**（超时/重试/钩子/裁剪/白名单/MCP 批量管理都是 Trae 没有的）。
+**→ 工具执行层 WorldSea 全面领先**（超时/重试/钩子/裁剪/白名单/MCP 批量管理都是 Trae 没有的）。
 **Trae 领先的只有两点：Provider 适配的 schema 生成、给 LLM 的输出文本协议。**
 
 ---
@@ -399,7 +399,7 @@ class ThoughtData:
 **设计精髓**：把「模型自报」和「客观验证」分离。模型说做完了不算，得有个外部判据。
 且驳回不是静默继续，而是**注入一条结构化的、说明具体哪里不合格的 user 消息**。
 
-### 5.2 WorldSmith 现状（代码事实）
+### 5.2 WorldSea 现状（代码事实）
 
 `crates/agent-kernel/src/agent/mod.rs:876-912`：
 
@@ -475,8 +475,8 @@ if tool_calls.is_empty() {
 | # | 风险 | 说明 | 建议 |
 |---|---|---|---|
 | **R1** | 驳回消耗轮次 | 驳回后 `continue` 会再次走 `state.current_iteration += 1`，吃掉 `max_iterations=25` 的预算，可能把正常对话卡死 | **驳回必须独立计数**（`rejections`），且不递增 `current_iteration`；配 `max_rejections` 熔断 |
-| **R2** | 交互式场景误判 | WorldSmith 不是 SWE 专用，用户闲聊/问问题时收口是正确行为，加校验会强行驳回 | **默认 `NoopVerifier`**，仅在长任务 / 编排模式 / 用户显式要求时启用 |
-| **R3** | 校验判据从哪来 | Trae 的 `git diff` 判据依赖"SWE 修 bug"这一特定场景，WorldSmith 是通用 Agent，没有普适判据 | 判据**必须由场景/编排模式提供**（如 Plan-and-Execute 校验计划项全勾选、Reflection 校验反思轮已过），框架只提供接口不提供默认判据 |
+| **R2** | 交互式场景误判 | WorldSea 不是 SWE 专用，用户闲聊/问问题时收口是正确行为，加校验会强行驳回 | **默认 `NoopVerifier`**，仅在长任务 / 编排模式 / 用户显式要求时启用 |
+| **R3** | 校验判据从哪来 | Trae 的 `git diff` 判据依赖"SWE 修 bug"这一特定场景，WorldSea 是通用 Agent，没有普适判据 | 判据**必须由场景/编排模式提供**（如 Plan-and-Execute 校验计划项全勾选、Reflection 校验反思轮已过），框架只提供接口不提供默认判据 |
 | **R4** | Provider schema 适配缺失 | 全库检索 `additionalProperties` / `strict` 零命中 | 需核对 [Harness 调研](../plans/2026-08-30-Harness工程差距调研.md) 所记"桥工具 schema 严格模式"问题的修复落点，确认是否真断线 |
 
 ---
@@ -498,12 +498,12 @@ if tool_calls.is_empty() {
 
 | 项 | 理由 |
 |---|---|
-| 轨迹记录写穿式落盘 | WorldSmith 的 SQLite 持久化 + 回源重建明显更强（§3.3） |
-| SequentialThinking 显式工具化 | 消耗轮次、依赖模型主动调用；WorldSmith 的 `meta.thinking` 路线更适合交互式产品（§4.5） |
+| 轨迹记录写穿式落盘 | WorldSea 的 SQLite 持久化 + 回源重建明显更强（§3.3） |
+| SequentialThinking 显式工具化 | 消耗轮次、依赖模型主动调用；WorldSea 的 `meta.thinking` 路线更适合交互式产品（§4.5） |
 | 每步 LLM 摘要 | 成本翻倍，交互式长会话不可接受（§2.4） |
-| Docker 双执行器 | WorldSmith 无容器化需求 |
-| CKG（代码知识图谱） | WorldSmith 有 `agent-memory` + MemoryCenter，路线不同 |
-| `reflect_on_result` 反思注入 | **Trae 自己在 TraeAgent 里 override 成 `None` 关掉了** —— 说明对 SWE 任务收益不足；且 WorldSmith 已有 `agent-patterns` 的 Reflection 模式，更完整 |
+| Docker 双执行器 | WorldSea 无容器化需求 |
+| CKG（代码知识图谱） | WorldSea 有 `agent-memory` + MemoryCenter，路线不同 |
+| `reflect_on_result` 反思注入 | **Trae 自己在 TraeAgent 里 override 成 `None` 关掉了** —— 说明对 SWE 任务收益不足；且 WorldSea 已有 `agent-patterns` 的 Reflection 模式，更完整 |
 
 ---
 

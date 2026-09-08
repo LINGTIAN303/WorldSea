@@ -9,7 +9,7 @@
 ````
 /**
  * 配置唯一事实源 = Rust 全局配置文件 mcp.json（H6-③ 配置化拍板 2026-08-30：
- * `<app_data>/worldsmith/mcp.json`，用户与 Agent 均可编辑，官方预设全部移除）。
+ * `<app_data>/worldsea/mcp.json`，用户与 Agent 均可编辑，官方预设全部移除）。
  * 本层只维护 Vue 展示缓存与交互编排——不再有 localStorage 镜像与内置默认
  * 连接；启动重连由 Rust auto_connect_all 直接读配置文件完成，前端 ensureLoaded 只取状态。
  */

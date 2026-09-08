@@ -1,6 +1,6 @@
 /** modules 注册表：Web 端迁移版核心调度器（激活/依赖解析/扩展注册），详细见 docs/details/注释/web/modules/registry.md */
 
-import { entitySchemaRegistry, relationSchemaRegistry, pluginAPI } from '@worldsmith/entity-core'
+import { entitySchemaRegistry, relationSchemaRegistry, pluginAPI } from '@worldsea/entity-core'
 import { moduleStore } from './store'
 import type {
   ModuleInstance,
@@ -8,7 +8,7 @@ import type {
   FieldExtension,
   ViewExtension,
 } from './types'
-import type { EntityTypeSchema, FieldSchema, RelationTypeSchema } from '@worldsmith/entity-core'
+import type { EntityTypeSchema, FieldSchema, RelationTypeSchema } from '@worldsea/entity-core'
 
 /* ════════════════════════════════════════
    扩展注册表
@@ -416,7 +416,7 @@ async function initialize(): Promise<void> {
   })
 
   // 注册 formula 自动重算
-  import('@worldsmith/entity-core').then(mod => {
+  import('@worldsea/entity-core').then(mod => {
     mod.registerFormulaAutoRecalc()
   })
 
@@ -465,7 +465,7 @@ async function initialize(): Promise<void> {
 function exportModuleWsm(manifest: ModuleManifest): Record<string, unknown> {
   return {
     formatVersion: 1,
-    type: 'worldsmith-module',
+    type: 'worldsea-module',
     manifest,
   }
 }

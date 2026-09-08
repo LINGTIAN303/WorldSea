@@ -7,7 +7,7 @@ import type { Sigma } from 'sigma'
 
 export type LayoutType = 'forceatlas2' | 'circular' | 'random'
 
-const CACHE_KEY = 'worldsmith-graph-layout-cache'
+const CACHE_KEY = 'worldsea-graph-layout-cache'
 const CACHE_TTL = 30 * 60 * 1000
 
 interface LayoutCacheEntry {

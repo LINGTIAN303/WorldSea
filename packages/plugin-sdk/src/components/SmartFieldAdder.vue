@@ -90,15 +90,15 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick, watch, onBeforeUnmount } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import {
   inferSemanticHintFromKey,
   inferDirectTargetFromKey,
   userFieldMappingStore,
   autoLinkStrategyRegistry,
   entitySchemaRegistryV2,
-} from '@worldsmith/entity-core'
-import type { FieldSchema, SemanticHintName, UserFieldMapping } from '@worldsmith/entity-core'
+} from '@worldsea/entity-core'
+import type { FieldSchema, SemanticHintName, UserFieldMapping } from '@worldsea/entity-core'
 
 const props = defineProps<{
   visible: boolean

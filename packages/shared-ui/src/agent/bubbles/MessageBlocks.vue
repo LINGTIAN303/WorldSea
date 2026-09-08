@@ -38,7 +38,7 @@ import type { BlockActionEvent } from './types'
 
 const props = defineProps<{
   /** 消息的全部 blocks（内部会按 type 过滤渲染，manuscript 由父组件处理） */
-  blocks?: import('@worldsmith/agent-runtime').MessageBlock[]
+  blocks?: import('@worldsea/agent-runtime').MessageBlock[]
 }>()
 
 const emit = defineEmits<{

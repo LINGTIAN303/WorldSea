@@ -26,7 +26,7 @@
 </template>
 
 <script setup lang="ts">
-import { useAsk } from '@worldsmith/ui-kit'
+import { useAsk } from '@worldsea/ui-kit'
 import TuiButton from '@/components/ui/TuiButton.vue'
 
 const { state, submit, cancel } = useAsk()

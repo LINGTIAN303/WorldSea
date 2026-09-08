@@ -21,7 +21,7 @@ import {
   decideCollapse,
   type CollapseDecision,
   type Turn,
-} from '@worldsmith/shared-composables/agent/turnModel'
+} from '@worldsea/shared-composables/agent/turnModel'
 
 // 折叠判定是纯函数，下沉在 turnModel（与归约器同源、便于单测），此处原样转出
 export { decideCollapse, type CollapseDecision }

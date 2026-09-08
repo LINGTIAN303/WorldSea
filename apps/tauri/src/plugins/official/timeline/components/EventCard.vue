@@ -32,8 +32,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { Entity } from '@worldsmith/entity-core'
-import { WsIcon } from '@worldsmith/ui-kit'
+import type { Entity } from '@worldsea/entity-core'
+import { WsIcon } from '@worldsea/ui-kit'
 
 const props = withDefaults(defineProps<{
   event: Entity

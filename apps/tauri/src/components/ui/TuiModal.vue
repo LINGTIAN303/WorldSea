@@ -8,7 +8,7 @@
  * 详细why请见 docs/details/注释/tauri/components/TuiModal.md
  */
 import { ref, watch, onBeforeUnmount, nextTick } from 'vue'
-import { WsIcon, setShortcutModalActive } from '@worldsmith/ui-kit'
+import { WsIcon, setShortcutModalActive } from '@worldsea/ui-kit'
 
 // 注册表弹窗深度守卫标记（本实例是否已入栈，防重复/泄漏）
 let modalGuardActive = false

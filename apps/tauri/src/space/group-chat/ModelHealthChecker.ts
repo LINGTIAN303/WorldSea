@@ -1,6 +1,6 @@
 import type { ProviderConfig } from '@agent/index'
 import type { ModelHealthResult, HealthStatus } from './types'
-import { getModelInfo } from '@worldsmith/agent-runtime'
+import { getModelInfo } from '@worldsea/agent-runtime'
 
 const CACHE_TTL = 5 * 60 * 1000
 const HEALTH_TIMEOUT = 10000

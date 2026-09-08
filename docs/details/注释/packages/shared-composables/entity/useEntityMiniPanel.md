@@ -19,6 +19,6 @@
  * - 单实例：同时只打开一个实体小窗（useFloatingPanel 是单例式 composable）
  * - triggerRect 来自触发元素（BlockEntityCard 按钮 / 消息内 mention），用于浮窗定位
  *
- * 端分离 Phase 3：迁移至 @worldsmith/shared-composables，三端共用。
+ * 端分离 Phase 3：迁移至 @worldsea/shared-composables，三端共用。
  */
 ````

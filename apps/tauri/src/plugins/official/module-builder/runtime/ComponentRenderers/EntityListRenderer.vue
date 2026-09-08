@@ -20,8 +20,8 @@
 <script setup lang="ts">
 import { computed, inject } from 'vue'
 import type { ModuleRuntimeContext } from '../ModuleRuntimeContext'
-import { WsIcon } from '@worldsmith/ui-kit'
-import { WsEmpty } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
+import { WsEmpty } from '@worldsea/ui-kit'
 
 const props = defineProps<{ config: Record<string, unknown>; componentId: string }>()
 const ctx = inject<ModuleRuntimeContext | null>('moduleRuntimeContext', null)

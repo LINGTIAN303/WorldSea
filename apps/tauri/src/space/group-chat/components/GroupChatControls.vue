@@ -46,7 +46,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 
 defineProps<{
   isRunning: boolean

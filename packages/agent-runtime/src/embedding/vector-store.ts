@@ -1,6 +1,6 @@
 import { cosineSimilarity } from './service'
 
-const DB_NAME = 'worldsmith_vectors'
+const DB_NAME = 'worldsea_vectors'
 const DB_VERSION = 1
 const STORE_NAME = 'vectors'
 

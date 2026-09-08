@@ -90,9 +90,9 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useEntityStore, entitySchemaRegistry } from '@worldsmith/entity-core'
-import { WsIcon } from '@worldsmith/ui-kit'
-import type { Entity, CustomModule, ModuleField, ModuleViewConfig } from '@worldsmith/entity-core'
+import { useEntityStore, entitySchemaRegistry } from '@worldsea/entity-core'
+import { WsIcon } from '@worldsea/ui-kit'
+import type { Entity, CustomModule, ModuleField, ModuleViewConfig } from '@worldsea/entity-core'
 
 const props = defineProps<{
   module: CustomModule

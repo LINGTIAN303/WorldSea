@@ -34,7 +34,7 @@
 </template>
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import { IconFootsteps } from '@tabler/icons-vue'
 
 /** 折叠摘要行的最小形参与事件流项一致 */

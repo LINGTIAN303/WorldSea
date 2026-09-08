@@ -51,7 +51,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import { useSettingsStore } from '@/stores/settingsStore'
 import ProviderLogo from './ProviderLogo.vue'
 import { MODALITY_LABELS, MODALITY_ORDER, getModelInfoById } from './model-classify'

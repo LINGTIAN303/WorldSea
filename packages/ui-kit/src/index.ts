@@ -73,7 +73,7 @@ export { default as FontPreviewPanel } from './components/font/FontPreviewPanel.
 export { default as AnimatedFontExportPanel } from './components/font/AnimatedFontExportPanel.vue'
 
 // ----------------------------------------------------------------------------
-// Data Composables — delegated to @worldsmith/entity-core
+// Data Composables — delegated to @worldsea/entity-core
 // Smart field links, auto-create entities, bidirectional relations, etc.
 // ----------------------------------------------------------------------------
 export {
@@ -87,23 +87,23 @@ export {
   isUndoing,
   setUndoHistoryProvider,
   useEntityImage,
-} from '@worldsmith/entity-core/composables'
+} from '@worldsea/entity-core/composables'
 
 // ----------------------------------------------------------------------------
-// Canvas Composables — delegated to @worldsmith/canvas-engine
+// Canvas Composables — delegated to @worldsea/canvas-engine
 // Canvas state, graph data, algorithms, geometry, etc.
 // ----------------------------------------------------------------------------
-export { useCanvas, type CanvasState } from '@worldsmith/canvas-engine/core'
+export { useCanvas, type CanvasState } from '@worldsea/canvas-engine/core'
 export {
   useSmallCanvasGraph,
   type SGNode,
   type SGEdge,
   type SGCamera,
   type SGCallbacks,
-} from '@worldsmith/canvas-engine/core'
-export { useGraphData, GRAPH_NODE_THRESHOLD, type GraphNode, type GraphEdge } from '@worldsmith/canvas-engine/graph'
-export { useGraphFilter, type FilterCriteria } from '@worldsmith/canvas-engine/graph'
-export { graphToWeightedGraph, useGraphAlgorithms } from '@worldsmith/canvas-engine/algorithms'
+} from '@worldsea/canvas-engine/core'
+export { useGraphData, GRAPH_NODE_THRESHOLD, type GraphNode, type GraphEdge } from '@worldsea/canvas-engine/graph'
+export { useGraphFilter, type FilterCriteria } from '@worldsea/canvas-engine/graph'
+export { graphToWeightedGraph, useGraphAlgorithms } from '@worldsea/canvas-engine/algorithms'
 export {
   bridgePointInPolygon,
   bridgeSegmentsIntersect,
@@ -115,13 +115,13 @@ export {
   bridgePolygonAugment,
   bridgeMergePolygons,
   bridgeFindSharedEdges,
-} from '@worldsmith/canvas-engine/geometry'
+} from '@worldsea/canvas-engine/geometry'
 
 // ----------------------------------------------------------------------------
 // App Composables — native to ui-kit
 // Toast notifications, floating panels, file system project management
 // - useToast / useFloatingPanel: 已迁移至本地 ./composables/
-// - useFileSystemProject: Phase 5a 已下沉到 @worldsmith/entity-core/composables
+// - useFileSystemProject: Phase 5a 已下沉到 @worldsea/entity-core/composables
 // ----------------------------------------------------------------------------
 export {
   toasts,
@@ -171,7 +171,7 @@ export {
 } from './composables/useShortcuts'
 export { useScopedShortcuts } from './composables/useScopedShortcuts'
 export { useModalShortcuts } from './composables/useModalShortcuts'
-export { useFileSystemProject } from '@worldsmith/entity-core/composables'
+export { useFileSystemProject } from '@worldsea/entity-core/composables'
 
 // ----------------------------------------------------------------------------
 // Phase 7 下沉的纯工具 composables（从 src/composables/ 迁入）
@@ -185,7 +185,7 @@ export {
 export { useSmartFillContextMenu } from './composables/useSmartFillContextMenu'
 
 // ----------------------------------------------------------------------------
-// Motion Composables — delegated to @worldsmith/motion-kit
+// Motion Composables — delegated to @worldsea/motion-kit
 // Animation tokens, keyframes, transitions, reduced-motion, text layout
 // ----------------------------------------------------------------------------
 export {
@@ -228,10 +228,10 @@ export {
   type TextLayoutResult,
   type UseTextLayoutReturn,
   motionKitDescriptor,
-} from '@worldsmith/motion-kit'
+} from '@worldsea/motion-kit'
 
 // ----------------------------------------------------------------------------
-// Font Composables — delegated to @worldsmith/font-kit
+// Font Composables — delegated to @worldsea/font-kit
 // Font tokens, registry, loader, renderer, text-to-image export
 // ----------------------------------------------------------------------------
 export {
@@ -317,10 +317,10 @@ export {
   type SystemFontInfo,
   type UseSystemFontsReturn,
   fontKitDescriptor,
-} from '@worldsmith/font-kit'
+} from '@worldsea/font-kit'
 
 // ----------------------------------------------------------------------------
-// Animation Capture — delegated to @worldsmith/motion-kit
+// Animation Capture — delegated to @worldsea/motion-kit
 // Frame capture, GIF encoding, animation capture composable
 // ----------------------------------------------------------------------------
 export {
@@ -338,7 +338,7 @@ export {
   type MotionCaptureOptions,
   type MotionCaptureResult,
   type UseAnimationCaptureReturn,
-} from '@worldsmith/motion-kit'
+} from '@worldsea/motion-kit'
 
 // ----------------------------------------------------------------------------
 // Agent Descriptor — A2UI capabilities for the internal chain registry

@@ -108,7 +108,7 @@ get_sub_agent_status(task_id="sub-terminal-worker-1700000000")
 
 在 Web 应用模式下，如果需要子 Agent 执行终端任务：
 
-1. 先确保 worldsmith-server 已运行（调用 `detect_terminal_mode` + `start_server`）
+1. 先确保 worldsea-server 已运行（调用 `detect_terminal_mode` + `start_server`）
 2. 然后调度 `terminal-worker` 子 Agent
 3. 子 Agent 会自动使用 `terminal-launcher` 工具识别模式并正确调用终端
 
@@ -125,4 +125,4 @@ cancel_sub_agent(task_id="sub-terminal-worker-1700000000")
 1. **子 Agent 调度失败**：检查类型是否正确，prompt 是否为空
 2. **子 Agent 执行失败**：分析错误原因，考虑简化任务或换一种方式
 3. **子 Agent 超时**：增加 timeout 参数或拆分任务为更小的子任务
-4. **终端不可用**：先启动 worldsmith-server，再调度 terminal-worker
+4. **终端不可用**：先启动 worldsea-server，再调度 terminal-worker

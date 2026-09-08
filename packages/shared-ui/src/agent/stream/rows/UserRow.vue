@@ -37,7 +37,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import { useMessageActions } from '../../bubbles/useMessageActions'
 import { renderMarkdownHtml } from '../../bubbles/useMarkdownRender'
 import '../../bubbles/agent-markdown.css'

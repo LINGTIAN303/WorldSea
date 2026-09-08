@@ -139,10 +139,10 @@
 
 <script setup lang="ts">
 import { ref, computed, reactive } from 'vue'
-import { GenericEntityView, type FormFieldDef, type FilterDef, type CardFieldDef, type CustomTabDef, type RelationTabDef } from '@worldsmith/plugin-sdk'
-import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'
-import { EntityRelationSelector } from '@worldsmith/plugin-sdk'
-import { RegionMap, WsIcon, WsEmpty } from '@worldsmith/ui-kit'
+import { GenericEntityView, type FormFieldDef, type FilterDef, type CardFieldDef, type CustomTabDef, type RelationTabDef } from '@worldsea/plugin-sdk'
+import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
+import { EntityRelationSelector } from '@worldsea/plugin-sdk'
+import { RegionMap, WsIcon, WsEmpty } from '@worldsea/ui-kit'
 import { typeIconMap } from './regionConfig'
 
 const entityStore = useEntityStore()

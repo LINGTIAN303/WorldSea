@@ -10,7 +10,7 @@ import { subagentTemplates, type SubAgentTemplate } from '../templates'
 import TuiModal from '../../components/ui/TuiModal.vue'
 import TuiConfirm from '../../components/ui/TuiConfirm.vue'
 import TuiButton from '../../components/ui/TuiButton.vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import TuiEmpty from '../../components/ui/TuiEmpty.vue'
 import { useTuiToast } from '../../components/ui/useTuiToast'
 

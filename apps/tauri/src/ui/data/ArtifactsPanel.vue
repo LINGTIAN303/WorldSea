@@ -90,8 +90,8 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { useArtifacts } from '@worldsmith/entity-core'
-import type { Artifact, ArtifactVersion } from '@worldsmith/entity-core'
+import { useArtifacts } from '@worldsea/entity-core'
+import type { Artifact, ArtifactVersion } from '@worldsea/entity-core'
 
 const props = defineProps<{ show: boolean }>()
 const emit = defineEmits<{ close: [] }>()

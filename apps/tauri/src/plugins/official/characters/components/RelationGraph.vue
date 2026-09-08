@@ -7,9 +7,9 @@
 
 <script setup lang="ts">
 import { ref, onMounted, nextTick, computed, watch } from 'vue'
-import { WsEmpty } from '@worldsmith/ui-kit'
-import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'
-import { deduplicateEdges, useSmallCanvasGraph, type SGNode, type SGEdge } from '@worldsmith/ui-kit'
+import { WsEmpty } from '@worldsea/ui-kit'
+import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
+import { deduplicateEdges, useSmallCanvasGraph, type SGNode, type SGEdge } from '@worldsea/ui-kit'
 
 const props = defineProps<{ characterId: string }>()
 const emit = defineEmits<{ navigate: [id: string] }>()

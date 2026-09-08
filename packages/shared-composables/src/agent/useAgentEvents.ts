@@ -2,7 +2,7 @@
 
 import { ref, readonly } from 'vue'
 import type { AgentEvent } from '@agent/index'
-import { useShallowArray } from '@worldsmith/perf-kit/reactive'
+import { useShallowArray } from '@worldsea/perf-kit/reactive'
 import { usePlanStore } from './usePlanStore'
 import { useGenerationProgress } from './useGenerationProgress'
 import type { ToolCallView } from './useAgent'

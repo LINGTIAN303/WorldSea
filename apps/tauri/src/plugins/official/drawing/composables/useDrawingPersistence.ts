@@ -1,6 +1,6 @@
 import { ref } from 'vue'
-import { useEntityStore } from '@worldsmith/entity-core'
-import type { Entity } from '@worldsmith/entity-core'
+import { useEntityStore } from '@worldsea/entity-core'
+import type { Entity } from '@worldsea/entity-core'
 import type { DrawingLayer } from '../types'
 import { DEFAULT_BG_COLOR, AUTOSAVE_DELAY } from '../drawingConfig'
 

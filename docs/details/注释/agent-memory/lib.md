@@ -8,7 +8,7 @@
 # MemoryAccessor 适配层（agent-memory）
 
 以 vendor 的 `memory-center-core` 实现 [`MemoryAccessor`] trait，
-让 WorldSmith Agent 通过统一接口访问 MemoryCenter 长期记忆系统。
+让 WorldSea Agent 通过统一接口访问 MemoryCenter 长期记忆系统。
 
 ## 映射关系
 

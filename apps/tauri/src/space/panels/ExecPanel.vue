@@ -151,7 +151,7 @@
  * addExecSection 打开即激活、removeExecSection 关闭当前区自动回退最后一个。
  */
 import { ref, computed } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import SubAgentSection from '@/agent/components/SubAgentSection.vue'
 import RunTreeSection from '@/agent/components/RunTreeSection.vue'
 import ActivityLog from '@/agent/panels/ActivityLog.vue'

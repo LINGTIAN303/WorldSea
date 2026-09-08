@@ -55,7 +55,7 @@ import MentionPopover from './MentionPopover.vue'
 import SlashCommandMenu from './SlashCommandMenu.vue'
 import { useNoteEditor } from '../composables/useNoteEditor'
 import type { SlashCommandItem } from '../composables/slashCommandExtension'
-import type { Entity } from '@worldsmith/entity-core'
+import type { Entity } from '@worldsea/entity-core'
 
 type SlashCommandPopoverApi = {
   open: (clientRect: (() => DOMRect | null) | null, items: SlashCommandItem[]) => void

@@ -8,7 +8,7 @@
 ```
 本地导入技能：写入 skill.yaml + SKILL.md 到 app_data_dir/skills/<skillId>/
 
-用于多平台互通：前端用 platform-adapters 解析 Claude Code/Cursor/WorldSmith 格式，
+用于多平台互通：前端用 platform-adapters 解析 Claude Code/Cursor/WorldSea 格式，
 生成标准 skill.yaml + SKILL.md 文本后调用本函数写入。已存在同名技能则覆盖。
 
 注意：此函数不触发重新扫描。导入后需调用 initSkillRegistry() 才能使技能生效。

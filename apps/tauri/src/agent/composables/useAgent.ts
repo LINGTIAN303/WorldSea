@@ -12,7 +12,7 @@ export type {
   ToolCallView,
   PhaseOutput,
   DeepSegment,
-} from '@worldsmith/shared-composables/agent/useAgent'
+} from '@worldsea/shared-composables/agent/useAgent'
 
 export function useAgent() {
   return useAgentRust()

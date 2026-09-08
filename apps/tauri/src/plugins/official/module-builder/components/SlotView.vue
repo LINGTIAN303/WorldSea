@@ -63,7 +63,7 @@
 
 <script setup lang="ts">
 import { computed, type Component } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import { getComponentType } from '../registry/componentTypeRegistry'
 import type { Slot, ComponentTypeId, SlotSize, SlotArrangement } from '../types/layoutSchema'
 
@@ -114,8 +114,8 @@ function labelFor(typeId: ComponentTypeId) { return getComponentType(typeId)?.la
 
 function onDrop(e: DragEvent, slotId: string) {
   e.stopPropagation()
-  const typeId = e.dataTransfer?.getData('application/worldsmith-component-type')
-  const entityName = e.dataTransfer?.getData('application/worldsmith-entity-type')
+  const typeId = e.dataTransfer?.getData('application/worldsea-component-type')
+  const entityName = e.dataTransfer?.getData('application/worldsea-entity-type')
   if (typeId) emit('add-component', { slotId, typeId: typeId as ComponentTypeId })
   else if (entityName) emit('add-component', { slotId, typeId: 'entity-list', config: { entityType: entityName } })
 }

@@ -134,20 +134,20 @@ import ExecPanel from './panels/ExecPanel.vue'
 import CreationPanel from './panels/CreationPanel.vue'
 import PreviewPanel from './panels/PreviewPanel.vue'
 import SettingsDialog from '@/ui/settings/SettingsDialog.vue'
-import { DialogContainer, WsIcon, useGlobalEvents, useShortcuts, type ShortcutDef } from '@worldsmith/ui-kit'
+import { DialogContainer, WsIcon, useGlobalEvents, useShortcuts, type ShortcutDef } from '@worldsea/ui-kit'
 /** 快捷键帮助弹窗：与 Shell 各挂一份（壳感知，见下方 ws-open-shortcut-help 监听） */
-const ShortcutHelpModal = defineAsyncComponent(() => import('@worldsmith/ui-kit').then(m => m.ShortcutHelpModal))
+const ShortcutHelpModal = defineAsyncComponent(() => import('@worldsea/ui-kit').then(m => m.ShortcutHelpModal))
 import WsConfirmDialog from '@/ui/WsConfirmDialog.vue'
 import WsAskDialog from '@/ui/WsAskDialog.vue'
 import { useAgent } from '@/agent/composables/useAgent'
 import UsagePanel from '@/agent/panels/UsagePanel.vue'
 import { useSettingsStore } from '@/stores/settingsStore'
-import { calculateCost } from '@worldsmith/agent-runtime'
-import { useGenerationProgress } from '@worldsmith/shared-composables/agent/useGenerationProgress'
+import { calculateCost } from '@worldsea/agent-runtime'
+import { useGenerationProgress } from '@worldsea/shared-composables/agent/useGenerationProgress'
 import { useSessionViewState } from '@/agent/composables/useSessionViewState'
-import { provideMessageSpeakerContext } from '@worldsmith/shared-composables/agent/useMessageSpeaker'
+import { provideMessageSpeakerContext } from '@worldsea/shared-composables/agent/useMessageSpeaker'
 import { usePersonaFont } from './composables/usePersonaFont'
-import { useUIStore } from '@worldsmith/entity-core'
+import { useUIStore } from '@worldsea/entity-core'
 import type { RightTab } from './stores/space-store'
 
 /** [C] 右侧面板工作台式：四类面板元数据（Tab 栏 + +号浮窗共用） */
@@ -252,7 +252,7 @@ function onToggleRightPanel() {
 
 // 窗口栏标题（space 变体，2026-08-09）：随单聊/群聊模式动态显示
 const windowBarTitle = computed(() =>
-  spaceStore.mode === 'group' ? 'WorldSmith — 群聊空间' : 'WorldSmith — Agent 空间',
+  spaceStore.mode === 'group' ? 'WorldSea — 群聊空间' : 'WorldSea — Agent 空间',
 )
 
 const sessionOpen = ref(false)

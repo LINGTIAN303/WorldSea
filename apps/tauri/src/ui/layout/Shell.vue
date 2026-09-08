@@ -35,27 +35,27 @@
 import { ref, defineAsyncComponent, onMounted, onUnmounted, watch } from 'vue'
 import TitleBar from './TitleBar.vue'
 import Sidebar from './sidebar/SidebarV2.vue'
-import { Toast, DialogContainer, ViewContainer } from '@worldsmith/ui-kit'
+import { Toast, DialogContainer, ViewContainer } from '@worldsea/ui-kit'
 import WsConfirmDialog from '../WsConfirmDialog.vue'
 import WsAskDialog from '../WsAskDialog.vue'
 
-const WelcomeOverlay = defineAsyncComponent(() => import('@worldsmith/ui-kit').then(m => m.WelcomeOverlay))
-const GlobalSearch = defineAsyncComponent(() => import('@worldsmith/ui-kit').then(m => m.GlobalSearch))
-const ImportExportModal = defineAsyncComponent(() => import('@worldsmith/ui-kit').then(m => m.ImportExportModal))
-import { BatchEditModal } from '@worldsmith/plugin-sdk'
-const TemplateManager = defineAsyncComponent(() => import('@worldsmith/ui-kit').then(m => m.TemplateManager))
-const VersionHistory = defineAsyncComponent(() => import('@worldsmith/ui-kit').then(m => m.VersionHistory))
-const DocExport = defineAsyncComponent(() => import('@worldsmith/ui-kit').then(m => m.DocExport))
-const LayoutManager = defineAsyncComponent(() => import('@worldsmith/ui-kit').then(m => m.LayoutManager))
-const ShortcutHelpModal = defineAsyncComponent(() => import('@worldsmith/ui-kit').then(m => m.ShortcutHelpModal))
-const UndoHistoryPanel = defineAsyncComponent(() => import('@worldsmith/ui-kit').then(m => m.UndoHistoryPanel))
-const InfoPanel = defineAsyncComponent(() => import('@worldsmith/ui-kit').then(m => m.InfoPanel))
-import { useShortcuts, useUndoRedo, useGlobalEvents } from '@worldsmith/ui-kit'
-import { usePluginStore, useDirtyTracker, useEntityStore, useRelationStore, entitySchemaRegistry, relationshipRegistry, useUIStore, useSettingsStore } from '@worldsmith/entity-core'
-import { useFileSystemProject } from '@worldsmith/entity-core/composables'
+const WelcomeOverlay = defineAsyncComponent(() => import('@worldsea/ui-kit').then(m => m.WelcomeOverlay))
+const GlobalSearch = defineAsyncComponent(() => import('@worldsea/ui-kit').then(m => m.GlobalSearch))
+const ImportExportModal = defineAsyncComponent(() => import('@worldsea/ui-kit').then(m => m.ImportExportModal))
+import { BatchEditModal } from '@worldsea/plugin-sdk'
+const TemplateManager = defineAsyncComponent(() => import('@worldsea/ui-kit').then(m => m.TemplateManager))
+const VersionHistory = defineAsyncComponent(() => import('@worldsea/ui-kit').then(m => m.VersionHistory))
+const DocExport = defineAsyncComponent(() => import('@worldsea/ui-kit').then(m => m.DocExport))
+const LayoutManager = defineAsyncComponent(() => import('@worldsea/ui-kit').then(m => m.LayoutManager))
+const ShortcutHelpModal = defineAsyncComponent(() => import('@worldsea/ui-kit').then(m => m.ShortcutHelpModal))
+const UndoHistoryPanel = defineAsyncComponent(() => import('@worldsea/ui-kit').then(m => m.UndoHistoryPanel))
+const InfoPanel = defineAsyncComponent(() => import('@worldsea/ui-kit').then(m => m.InfoPanel))
+import { useShortcuts, useUndoRedo, useGlobalEvents } from '@worldsea/ui-kit'
+import { usePluginStore, useDirtyTracker, useEntityStore, useRelationStore, entitySchemaRegistry, relationshipRegistry, useUIStore, useSettingsStore } from '@worldsea/entity-core'
+import { useFileSystemProject } from '@worldsea/entity-core/composables'
 import { useProjectSwitcher } from '@/composables/useProjectSwitcher'
 import CompanionNotification from '../companion/CompanionNotification.vue'
-import { useCompanionMode } from '@worldsmith/shared-composables/companion/useCompanionMode'
+import { useCompanionMode } from '@worldsea/shared-composables/companion/useCompanionMode'
 
 const searchOpen = ref(false)
 const importExportOpen = ref(false)

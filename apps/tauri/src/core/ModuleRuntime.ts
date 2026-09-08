@@ -2,8 +2,8 @@
  * ModuleRuntime — 自定义模块运行时
  * 将 CustomModule 定义转化为可用的插件系统注册项和视图组件
  */
-import type { CustomModule, ModuleField, EntityTypeSchema, FieldSchema, RelationTypeSchema } from '@worldsmith/entity-core'
-import { entitySchemaRegistry, relationSchemaRegistry } from '@worldsmith/entity-core/core'
+import type { CustomModule, ModuleField, EntityTypeSchema, FieldSchema, RelationTypeSchema } from '@worldsea/entity-core'
+import { entitySchemaRegistry, relationSchemaRegistry } from '@worldsea/entity-core/core'
 
 /**
  * 将 ModuleField 转为 FieldSchema

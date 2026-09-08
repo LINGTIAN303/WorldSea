@@ -26,9 +26,9 @@ export function useSidebarDragHandler(isDragMode: () => boolean) {
   function onDragStart(view: DragViewInfo, e: DragEvent) {
     if (!isDraggable.value) return
     if (!e.dataTransfer) return
-    e.dataTransfer.setData('application/worldsmith-view-id', view.id)
-    e.dataTransfer.setData('application/worldsmith-view-label', view.label)
-    e.dataTransfer.setData('application/worldsmith-view-icon', view.icon)
+    e.dataTransfer.setData('application/worldsea-view-id', view.id)
+    e.dataTransfer.setData('application/worldsea-view-label', view.label)
+    e.dataTransfer.setData('application/worldsea-view-icon', view.icon)
     e.dataTransfer.effectAllowed = 'copy'
   }
 

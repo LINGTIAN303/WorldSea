@@ -1,4 +1,4 @@
-import type { PluginAPIType } from '@worldsmith/entity-core'
+import type { PluginAPIType } from '@worldsea/entity-core'
 import PlantView from './PlantView.vue'
 
 export const manifest = {
@@ -6,7 +6,7 @@ export const manifest = {
   name: '植物/生态',
   version: '2.0.0',
   description: '管理世界观中的植物、药草、菌类、魔法植物',
-  author: 'WorldSmith',
+  author: 'WorldSea',
   agentSkills: ['worldbuilding'],
   agentCapabilities: [
     { action: 'create_entity', description: '创建植物', params: ['name', 'description'] },

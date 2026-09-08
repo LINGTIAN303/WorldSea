@@ -2,9 +2,9 @@
 import { computed } from 'vue'
 import { Marked } from 'marked'
 import DOMPurify from 'dompurify'
-import { useStreamingRenderer } from '@worldsmith/perf-kit/render'
-import { useEntityMentionIndex } from '@worldsmith/shared-composables/agent/useEntityMentionIndex'
-import { useAgentUiDeps } from '@worldsmith/shared-composables/agent/deps'
+import { useStreamingRenderer } from '@worldsea/perf-kit/render'
+import { useEntityMentionIndex } from '@worldsea/shared-composables/agent/useEntityMentionIndex'
+import { useAgentUiDeps } from '@worldsea/shared-composables/agent/deps'
 
 /** HTML 转义（代码块内嵌 / 纯文本回退用） */
 function escapeHtml(text: string): string {

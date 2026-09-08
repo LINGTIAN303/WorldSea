@@ -65,9 +65,9 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue'
-import { useModalShortcuts } from '@worldsmith/ui-kit'
-import { useConsistencyChecker, type ConsistencyIssue } from '@worldsmith/entity-core'
-import { useRelationStore } from '@worldsmith/entity-core'
+import { useModalShortcuts } from '@worldsea/ui-kit'
+import { useConsistencyChecker, type ConsistencyIssue } from '@worldsea/entity-core'
+import { useRelationStore } from '@worldsea/entity-core'
 
 const props = defineProps<{ show: boolean }>()
 const emit = defineEmits<{ close: [] }>()

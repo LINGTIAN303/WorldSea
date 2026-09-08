@@ -51,18 +51,18 @@ fn ensure_within_workdir(ctx: &ToolContext, path: &Path) -> Result<(), ToolError
 // ── 任务29/E1：项目数据区写保护（Rust 原生工具组版） ─────────────
 //
 // 背景：统一根后项目实体真身落盘 `{workdir}/entities/`，平台元数据在
-// `{workdir}/.worldsmith/`。Agent 裸写/删除这些文件会经 fs_watch 回流成真实
+// `{workdir}/.worldsea/`。Agent 裸写/删除这些文件会经 fs_watch 回流成真实
 // 数据丢失——实体变更必须走语义层（FrontendToolBridge 的 entity_* 工具）。
 // 注意：本模块与 terminal.rs 的防护是**运行时真实链路**（Rust 主循环的
 // FS/terminal 工具组）；packages/agent-runtime 的 TS 版 workspace-boundary
 // 仅服务 TS 工具时代/桥路径，两层语义保持对齐。
 
 /// E1 受保护一级子目录名（实体数据区 + 平台元数据区）
-pub const PROTECTED_DIR_NAMES: [&str; 2] = ["entities", ".worldsmith"];
+pub const PROTECTED_DIR_NAMES: [&str; 2] = ["entities", ".worldsea"];
 
 /// E1 拒绝消息（引导模型走实体语义层）
 pub const PROTECTED_WRITE_ERROR: &str =
-    "拒绝：该路径位于项目数据区（entities/ 或 .worldsmith/），Agent 不可直接写入、移动或删除。\
+    "拒绝：该路径位于项目数据区（entities/ 或 .worldsea/），Agent 不可直接写入、移动或删除。\
      实体数据请使用语义工具（entity_create / entity_update / entity_delete / content_search）操作。";
 
 /// E1 判定：解析后的路径是否落在 workdir 的受保护一级子目录内（大小写不敏感）
@@ -102,7 +102,7 @@ fn shell_has_write_hint(lower_command: &str) -> bool {
 
 /// shell 词法防护：命令串同现写操作词与受保护目录字样 → 判定触碰（E1 盲区收敛）
 ///
-/// - `workdir` 为 `Some`：规则一（相对字样）+ 规则二（`{workdir}/entities|.worldsmith` 子串）
+/// - `workdir` 为 `Some`：规则一（相对字样）+ 规则二（`{workdir}/entities|.worldsea` 子串）
 /// - `workdir` 为 `None`：仅规则一（无从锚定绝对路径）
 ///
 /// **非完备声明**：变量间接、别名、子串拼接可绕过——定位是拦截常见误操作并引导
@@ -115,16 +115,16 @@ pub fn shell_command_touches_protected_path(workdir: Option<&Path>, command: &st
     if !shell_has_write_hint(&lower) {
         return false;
     }
-    // 规则一：相对保护目录字样（entities/ 或 .worldsmith/，兼容双分隔符）
-    const PROTECTED_HINTS: [&str; 4] = ["entities/", "entities\\", ".worldsmith/", ".worldsmith\\"];
+    // 规则一：相对保护目录字样（entities/ 或 .worldsea/，兼容双分隔符）
+    const PROTECTED_HINTS: [&str; 4] = ["entities/", "entities\\", ".worldsea/", ".worldsea\\"];
     if PROTECTED_HINTS.iter().any(|h| lower.contains(h)) {
         return true;
     }
-    // 规则二：绝对保护路径（workdir 归一 + /entities|.worldsmith 子串）
+    // 规则二：绝对保护路径（workdir 归一 + /entities|.worldsea 子串）
     if let Some(workdir) = workdir {
         let w = workdir.to_string_lossy().replace('\\', "/").to_lowercase();
         let n = lower.replace('\\', "/");
-        if n.contains(&format!("{w}/entities")) || n.contains(&format!("{w}/.worldsmith")) {
+        if n.contains(&format!("{w}/entities")) || n.contains(&format!("{w}/.worldsea")) {
             return true;
         }
     }
@@ -314,7 +314,7 @@ impl Tool for WriteFileTool {
         let resolved = resolve_fs_path(ctx, path);
         // 写入越界直接拒绝（安全约束）
         ensure_within_workdir(ctx, &resolved)?;
-        // 任务29/E1：项目数据区（entities/.worldsmith）裸写拒绝，须经实体语义层
+        // 任务29/E1：项目数据区（entities/.worldsea）裸写拒绝，须经实体语义层
         ensure_not_protected(ctx, &resolved)?;
         // 自动创建父目录
         if let Some(parent) = resolved.parent() {
@@ -594,7 +594,7 @@ impl Tool for EditFileTool {
         let resolved = resolve_fs_path(ctx, path);
         // 写入越界直接拒绝（安全约束）
         ensure_within_workdir(ctx, &resolved)?;
-        // 任务29/E1：项目数据区（entities/.worldsmith）裸写拒绝，须经实体语义层
+        // 任务29/E1：项目数据区（entities/.worldsea）裸写拒绝，须经实体语义层
         ensure_not_protected(ctx, &resolved)?;
         let content = std::fs::read_to_string(&resolved)
             .map_err(|e| ToolError::Execution(format!("读取文件失败 {}: {e}", resolved.display())))?;
@@ -633,7 +633,7 @@ impl Tool for EditFileTool {
 // ─── grep（内容搜索，ripgrep 风格） ────────────────────────────
 
 /// grep/find 默认跳过目录（产物/隐藏，对齐 rg 默认语义）
-const GREP_SKIP_DIRS: [&str; 7] = [".git", "node_modules", "target", "dist", ".idea", ".vscode", ".worldsmith"];
+const GREP_SKIP_DIRS: [&str; 7] = [".git", "node_modules", "target", "dist", ".idea", ".vscode", ".worldsea"];
 
 /// 内容搜索工具（ripgrep 风格，2026-09-02 系统工具）
 ///
@@ -1145,7 +1145,7 @@ mod tests {
     fn protected_path_detection() {
         let wd = Path::new("C:/proj");
         assert!(is_protected_project_path(wd, Path::new("C:/proj/entities/a.json")));
-        assert!(is_protected_project_path(wd, Path::new("C:/proj/.worldsmith/kv.json")));
+        assert!(is_protected_project_path(wd, Path::new("C:/proj/.worldsea/kv.json")));
         assert!(is_protected_project_path(wd, Path::new("C:/proj/Entities/x.json")));
         assert!(is_protected_project_path(wd, Path::new("C:/proj/entities")));
         assert!(!is_protected_project_path(wd, Path::new("C:/proj/notes.md")));
@@ -1167,7 +1167,7 @@ mod tests {
         let wd = Path::new("C:/proj");
         // 写操作词 × 相对保护目录
         assert!(shell_command_touches_protected_path(Some(wd), "rm entities/a.json"));
-        assert!(shell_command_touches_protected_path(Some(wd), "echo x > .worldsmith/kv.json"));
+        assert!(shell_command_touches_protected_path(Some(wd), "echo x > .worldsea/kv.json"));
         // 写操作词 × 绝对保护路径
         assert!(shell_command_touches_protected_path(Some(wd), "rm C:/proj/entities/a.json"));
         // 纯读命令不拦（E1 只保护写）

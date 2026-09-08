@@ -1,7 +1,7 @@
 // 动态表单 composable：formData 状态、初始化、字段输入事件（含 name/text 事件总线与 ghost 500ms 防抖）。
 // 详细说明见 docs/details/注释/packages/plugin-sdk/entity-form-modal.md
 import { ref, watch, type Ref } from 'vue'
-import { getEventBus, type Entity } from '@worldsmith/entity-core'
+import { getEventBus, type Entity } from '@worldsea/entity-core'
 import type { FormFieldDef } from '../types'
 
 export interface UseDynamicFormOptions {
@@ -55,7 +55,7 @@ export function useDynamicForm(options: UseDynamicFormOptions) {
       }
       if (_ghostDebounceTimer) clearTimeout(_ghostDebounceTimer)
       _ghostDebounceTimer = setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('worldsmith:smart-fill:request', {
+        window.dispatchEvent(new CustomEvent('worldsea:smart-fill:request', {
           detail: {
             type: 'suggest_field',
             entityType: options.resolvedEntityType.value,

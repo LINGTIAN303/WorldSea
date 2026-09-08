@@ -1,5 +1,5 @@
 /** 启动预拉：应用挂载后，对所有支持 /v1/models 动态拉取的供应商后台刷新模型缓存（fire-and-forget，不阻塞首屏） */
-import { getAllProviderManifests, refreshModels, loadApiKey } from '@worldsmith/agent-runtime'
+import { getAllProviderManifests, refreshModels, loadApiKey } from '@worldsea/agent-runtime'
 
 /**
  * 预拉所有支持模型列表的供应商。仅在已配置 API Key 的供应商上发起请求，

@@ -71,7 +71,7 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import { invoke } from '@/agent/composables/transport'
 import { useAgent } from '@/agent/composables/useAgent'
 import { resolveWorkspaceDir } from '../workspace'

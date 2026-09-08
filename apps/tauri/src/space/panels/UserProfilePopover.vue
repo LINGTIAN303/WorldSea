@@ -69,7 +69,7 @@
 <script setup lang="ts">
 import { ref, nextTick } from 'vue'
 import { useUserProfileStore, STATUS_CONFIG, type UserStatus } from '../stores/user-profile-store'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import AvatarBadge from '@/ui/AvatarBadge.vue'
 import { isImageAvatar, isAvatarRef, getAvatarRefId } from '@/ui/avatar'
 import { uploadAvatarFromFile, deleteAvatar } from '@/composables/avatarStore'

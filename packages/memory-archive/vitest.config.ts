@@ -15,13 +15,13 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@worldsmith/memory-archive$': resolve(__dirname, 'src'),
-      '@worldsmith/memory-archive/types': resolve(__dirname, 'src/types'),
-      '@worldsmith/memory-archive/core': resolve(__dirname, 'src/core'),
-      '@worldsmith/memory-archive/adapters': resolve(__dirname, 'src/adapters'),
-      '@worldsmith/memory-archive/storage': resolve(__dirname, 'src/storage'),
-      '@worldsmith/memory-archive/embedding': resolve(__dirname, 'src/embedding'),
-      '@worldsmith/memory-archive/utils': resolve(__dirname, 'src/utils'),
+      '@worldsea/memory-archive$': resolve(__dirname, 'src'),
+      '@worldsea/memory-archive/types': resolve(__dirname, 'src/types'),
+      '@worldsea/memory-archive/core': resolve(__dirname, 'src/core'),
+      '@worldsea/memory-archive/adapters': resolve(__dirname, 'src/adapters'),
+      '@worldsea/memory-archive/storage': resolve(__dirname, 'src/storage'),
+      '@worldsea/memory-archive/embedding': resolve(__dirname, 'src/embedding'),
+      '@worldsea/memory-archive/utils': resolve(__dirname, 'src/utils'),
     },
   },
 })

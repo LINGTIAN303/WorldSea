@@ -1,5 +1,5 @@
 /**
- * @worldsmith/theme-kit - Type Definitions
+ * @worldsea/theme-kit - Type Definitions
  * 
  * ThemeManifest 声明式配置系统，支持多维度主题切换：
  * - 形态令牌（圆角、边框、阴影）

@@ -12,19 +12,19 @@ env:
 
 jobs:
   # ════════════════════════════════════════════════════════════════
-  # Rust 核心库检查（worldsmith-core）
+  # Rust 核心库检查（worldsea-core）
   # ════════════════════════════════════════════════════════════════
   rust-check:
-    name: Rust Check (worldsmith-core)
+    name: Rust Check (worldsea-core)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo check --all-features
-        working-directory: worldsmith-core
+        working-directory: worldsea-core
 
   rust-test:
-    name: Rust Test (worldsmith-core)
+    name: Rust Test (worldsea-core)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -32,7 +32,7 @@ jobs:
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
       - run: cargo test --features sqlite
-        working-directory: worldsmith-core
+        working-directory: worldsea-core
 
   rust-fmt:
     name: Rust Formatting
@@ -43,7 +43,7 @@ jobs:
         with:
           components: rustfmt
       - run: cargo fmt --all -- --check
-        working-directory: worldsmith-core
+        working-directory: worldsea-core
 
   rust-clippy:
     name: Rust Clippy
@@ -54,7 +54,7 @@ jobs:
         with:
           components: clippy
       - run: cargo clippy --all-features -- -D warnings
-        working-directory: worldsmith-core
+        working-directory: worldsea-core
 
   rust-doc:
     name: Rust Documentation
@@ -63,7 +63,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo doc --all-features --no-deps
-        working-directory: worldsmith-core
+        working-directory: worldsea-core
 
   # ════════════════════════════════════════════════════════════════
   # 前端构建（Tauri 唯一 GUI，apps/web 已于 Phase G 删除）
@@ -106,10 +106,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
       - name: Typecheck Tauri
-        run: pnpm --filter @worldsmith/tauri typecheck
+        run: pnpm --filter @worldsea/tauri typecheck
         continue-on-error: true # Phase 3 完成前可能有类型错误
       - name: Build Tauri (Frontend only)
-        run: pnpm --filter @worldsmith/tauri build
+        run: pnpm --filter @worldsea/tauri build
         continue-on-error: true # Phase 3 完成前 src/ 是骨架
       # 注：完整 Tauri app 构建（tauri build）在 release workflow 中执行
 

@@ -17,7 +17,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useEntityStore } from '@worldsmith/entity-core'
+import { useEntityStore } from '@worldsea/entity-core'
 
 const props = defineProps<{
   visible: boolean

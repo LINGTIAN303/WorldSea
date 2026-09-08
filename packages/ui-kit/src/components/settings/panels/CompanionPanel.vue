@@ -86,9 +86,9 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { useSettingsStore } from '@worldsmith/entity-core'
-import { getModelsByProvider, getDefaultModelId, MODEL_REGISTRY, getProviderLabelMap } from '@worldsmith/agent-runtime'
-import { CardDeck } from '@worldsmith/ui-kit'
+import { useSettingsStore } from '@worldsea/entity-core'
+import { getModelsByProvider, getDefaultModelId, MODEL_REGISTRY, getProviderLabelMap } from '@worldsea/agent-runtime'
+import { CardDeck } from '@worldsea/ui-kit'
 import WsIcon from '../../WsIcon.vue'
 import { matchKeywords, SCENE_PROB_ITEMS, type CompanionProviderEntry } from '../utils'
 

@@ -9,13 +9,13 @@
 终端启动器工具集
 
 智能检测运行模式（Tauri 桌面 / Web 应用），按正确模式调用终端能力。
-支持自动启动 worldsmith-server（Web 模式下的命令执行后端）。
+支持自动启动 worldsea-server（Web 模式下的命令执行后端）。
 
 工具：
 - detect_terminal_mode: 检测当前运行模式
-- start_server: 启动/检测 worldsmith-server 服务
+- start_server: 启动/检测 worldsea-server 服务
 - launch_terminal: 启动终端并可选执行命令
 - launch_terminal_script: 启动终端执行脚本文件
 
-Web 模式下的命令执行依赖 worldsmith-server，工具链会自动检测并启动服务。
+Web 模式下的命令执行依赖 worldsea-server，工具链会自动检测并启动服务。
 ```

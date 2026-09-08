@@ -294,7 +294,7 @@ export interface IAgentBackend {
   /**
    * 任务 4 P1 新增：获取 pi-ai agent 内部 messages（含完整 tool call/result）
    *
-   * 用于长任务 checkpoint 持久化，区别于 state.messages（WorldSmith UI 快照）。
+   * 用于长任务 checkpoint 持久化，区别于 state.messages（WorldSea UI 快照）。
    * 恢复时将此 messages 写回新 agent.state.messages，即可从断点续跑。
    */
   getRuntimeMessages?(): unknown[]
@@ -331,7 +331,7 @@ export interface ToolDefinition {
   description: string
   parameters: Record<string, ToolParameter>
   /** 声明式元数据（权限级别、分类、平台、别名等） */
-  meta?: import('@worldsmith/agent-core').ToolMeta
+  meta?: import('@worldsea/agent-core').ToolMeta
   execute: (args: Record<string, unknown>, ctx: IToolContext) => Promise<string>
 }
 

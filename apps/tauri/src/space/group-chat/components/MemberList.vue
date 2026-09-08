@@ -58,7 +58,7 @@ import { saveCasualGroupSession } from '../GroupSessionManager'
 import type { GroupMember } from '../types'
 import MemberActionMenu from './MemberActionMenu.vue'
 import MuteDialog from './MuteDialog.vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 
 const emit = defineEmits<{
   invite: []

@@ -1,11 +1,11 @@
-/** 多平台技能格式适配器：WorldSmith ↔ Claude Code/Cursor 双向转换，详细见 docs/details/注释/packages/agent-runtime/skills-platform-adapters.md */
+/** 多平台技能格式适配器：WorldSea ↔ Claude Code/Cursor 双向转换，详细见 docs/details/注释/packages/agent-runtime/skills-platform-adapters.md */
 
 import type { SkillMeta } from './registry'
 import { parseFrontmatter } from './parser'
 import type { ParsedSkillMd } from './parser'
 
 /** 平台标识 */
-export type SkillPlatform = 'worldsmith' | 'claude-code' | 'cursor'
+export type SkillPlatform = 'worldsea' | 'claude-code' | 'cursor'
 
 /** 导入结果 */
 export interface ImportResult {
@@ -23,23 +23,23 @@ export interface ImportResult {
  * 启发式判断：
  * - 含 frontmatter 且有 alwaysApply 或 globs → cursor
  * - 含 frontmatter 且有 allowed-tools 或 name → claude-code
- * - 含 frontmatter 且有 id 或 baseTools → worldsmith
+ * - 含 frontmatter 且有 id 或 baseTools → worldsea
  * - 无 frontmatter → 未知（按 claude-code 处理，最通用）
  */
 export function detectPlatform(raw: string): SkillPlatform {
   const match = raw.match(/^---\s*\n([\s\S]*?)\n---/)
   if (!match) {
-    // 无 frontmatter：可能是 WorldSmith skill.yaml（纯 YAML，无 --- 包裹）
-    // 检查 worldsmith 特有字段（baseTools 驼峰 / id: 开头）
-    if (/\bbaseTools\b/.test(raw) || /^\s*id\s*:/m.test(raw)) return 'worldsmith'
+    // 无 frontmatter：可能是 WorldSea skill.yaml（纯 YAML，无 --- 包裹）
+    // 检查 worldsea 特有字段（baseTools 驼峰 / id: 开头）
+    if (/\bbaseTools\b/.test(raw) || /^\s*id\s*:/m.test(raw)) return 'worldsea'
     return 'claude-code'
   }
   const yaml = match[1]
 
   // Cursor 特有字段优先检测（alwaysApply/globs 是 Cursor 独有）
   if (/\balwaysApply\b/.test(yaml) || /^\s*globs\s*:/m.test(yaml)) return 'cursor'
-  // WorldSmith 特有字段（baseTools 驼峰是 WorldSmith 独有）
-  if (/\bbaseTools\b/.test(yaml)) return 'worldsmith'
+  // WorldSea 特有字段（baseTools 驼峰是 WorldSea 独有）
+  if (/\bbaseTools\b/.test(yaml)) return 'worldsea'
   // Claude Code 特有字段
   if (/\ballowed-tools\b/.test(yaml) || /^\s*name\s*:/m.test(yaml)) return 'claude-code'
   return 'claude-code'
@@ -172,11 +172,11 @@ export function importCursorRule(raw: string, fallbackId: string): ImportResult 
 }
 
 /**
- * 导入 WorldSmith skill.yaml 格式（包装成 frontmatter 解析）
+ * 导入 WorldSea skill.yaml 格式（包装成 frontmatter 解析）
  *
  * 完整 manifest：id/name/icon/description/category/version/enabled/priority/baseTools/allowedTools 等
  */
-export function importWorldSmithYaml(raw: string, fallbackId: string): ImportResult {
+export function importWorldSeaYaml(raw: string, fallbackId: string): ImportResult {
   const warnings: string[] = []
   // skill.yaml 无 --- 分隔，包装后解析
   const wrapped = `---\n${raw}\n---\n`
@@ -188,7 +188,7 @@ export function importWorldSmithYaml(raw: string, fallbackId: string): ImportRes
 
   const meta = frontmatterToMeta(parsed.frontmatter, fallbackId, warnings)
   // skill.yaml 是 manifest，body 为空，提示词需单独从 SKILL.md 读取
-  return { meta, body: '', platform: 'worldsmith', warnings }
+  return { meta, body: '', platform: 'worldsea', warnings }
 }
 
 /**
@@ -200,22 +200,22 @@ export function importWorldSmithYaml(raw: string, fallbackId: string): ImportRes
 export function autoImportSkill(raw: string, fallbackId: string): ImportResult {
   // H3 冒烟修复（2026-08-30）：导入校验收紧——此前 default 分支把任何无特征文本
   // 兜底当 Claude Code 导入，任意 md（项目笔记等无 frontmatter 文档）都会"导入成功"，
-  // 无效技能既进不了列表（id 崩坏如 "WorldSmith-"）又会污染 Agent 技能索引。
-  // 现要求：必须有 YAML frontmatter（--- 包裹），或 WorldSmith skill.yaml 特征（id: / baseTools）。
+  // 无效技能既进不了列表（id 崩坏如 "WorldSea-"）又会污染 Agent 技能索引。
+  // 现要求：必须有 YAML frontmatter（--- 包裹），或 WorldSea skill.yaml 特征（id: / baseTools）。
   const hasFrontmatter = /^---\s*\n/.test(raw)
-  const isWorldsmithYaml = !hasFrontmatter && (/\bbaseTools\b/.test(raw) || /^\s*id\s*:/m.test(raw))
-  if (!hasFrontmatter && !isWorldsmithYaml) {
+  const isWorldseaYaml = !hasFrontmatter && (/\bbaseTools\b/.test(raw) || /^\s*id\s*:/m.test(raw))
+  if (!hasFrontmatter && !isWorldseaYaml) {
     throw new Error(
       '无法识别为技能文件：缺少 YAML frontmatter（--- 包裹的 name/description 等）。'
-      + '技能导入要求 Claude Code SKILL.md（含 frontmatter）、Cursor .mdc 或 WorldSmith skill.yaml 格式',
+      + '技能导入要求 Claude Code SKILL.md（含 frontmatter）、Cursor .mdc 或 WorldSea skill.yaml 格式',
     )
   }
   const platform = detectPlatform(raw)
   switch (platform) {
     case 'cursor':
       return importCursorRule(raw, fallbackId)
-    case 'worldsmith':
-      return importWorldSmithYaml(raw, fallbackId)
+    case 'worldsea':
+      return importWorldSeaYaml(raw, fallbackId)
     case 'claude-code':
     default: {
       const result = importClaudeCodeSkill(raw, fallbackId)
@@ -294,7 +294,7 @@ export function exportToCursorRule(meta: SkillMeta, body: string): string {
 }
 
 /**
- * 导出为 WorldSmith skill.yaml 格式
+ * 导出为 WorldSea skill.yaml 格式
  *
  * 完整 manifest（不含提示词，提示词单独存 SKILL.md）
  */

@@ -8,7 +8,7 @@ interface PresetData {
 }
 
 export const useFieldOrderStore = defineStore('fieldOrder', () => {
-  const STORAGE_KEY = 'worldsmith_field_orders'
+  const STORAGE_KEY = 'worldsea_field_orders'
 
   const orders = ref<Record<string, { active: string; presets: Record<string, PresetData> }>>({})
 

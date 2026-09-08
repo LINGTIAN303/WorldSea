@@ -332,7 +332,7 @@ export class FileStorageBackend implements StorageBackend {
 
     // 3. 加载 KV 存储
     try {
-      const kvText = await readTextFile(`${dir}/.worldsmith/kv_store.json`)
+      const kvText = await readTextFile(`${dir}/.worldsea/kv_store.json`)
       const kvPairs: [string, string][] = JSON.parse(kvText)
       for (const [k, v] of kvPairs) {
         this._kvCache.set(k, v)
@@ -344,7 +344,7 @@ export class FileStorageBackend implements StorageBackend {
 
     // 4. 加载文件元数据
     try {
-      const metaText = await readTextFile(`${dir}/.worldsmith/files_meta.json`)
+      const metaText = await readTextFile(`${dir}/.worldsea/files_meta.json`)
       this._filesMeta = JSON.parse(metaText)
       this._filesMetaLoaded = true
     } catch {
@@ -737,7 +737,7 @@ export class FileStorageBackend implements StorageBackend {
   private async flushKv(): Promise<void> {
     if (!this._projectDir) return
     const pairs = Array.from(this._kvCache.entries())
-    await writeTextFile(`${this._projectDir}/.worldsmith/kv_store.json`, JSON.stringify(pairs), true)
+    await writeTextFile(`${this._projectDir}/.worldsea/kv_store.json`, JSON.stringify(pairs), true)
   }
 
   /** 异步将 KV 存储持久化到文件（requestIdleCallback 防抖，避免主线程阻塞） */
@@ -767,7 +767,7 @@ export class FileStorageBackend implements StorageBackend {
   private async loadKv(): Promise<void> {
     if (!this._projectDir) return
     try {
-      const text = await readTextFile(`${this._projectDir}/.worldsmith/kv_store.json`)
+      const text = await readTextFile(`${this._projectDir}/.worldsea/kv_store.json`)
       const pairs: [string, string][] = JSON.parse(text)
       this._kvCache.clear()
       for (const [k, v] of pairs) {
@@ -831,7 +831,7 @@ export class FileStorageBackend implements StorageBackend {
     // 写文件内容（异步化），失败时回滚元数据
     this.trackWrite(
       writeTextFile(
-        `${this._projectDir}/.worldsmith/files_content/${file.id}.json`,
+        `${this._projectDir}/.worldsea/files_content/${file.id}.json`,
         JSON.stringify(content),
         true,
       ).catch(err => {
@@ -872,7 +872,7 @@ export class FileStorageBackend implements StorageBackend {
     const deletedFile = this._filesMeta.find(f => f.id === id) ?? null
     // 删除内容文件（异步化），失败时回滚元数据
     this.trackWrite(
-      deleteFile(`${this._projectDir}/.worldsmith/files_content/${id}.json`).catch(err => {
+      deleteFile(`${this._projectDir}/.worldsea/files_content/${id}.json`).catch(err => {
         console.error('[FileStorageBackend] deleteFile 内容删除失败，回滚元数据:', id, err)
         if (deletedFile && !this._filesMeta.some(f => f.id === id)) {
           this._filesMeta.push(deletedFile)
@@ -888,7 +888,7 @@ export class FileStorageBackend implements StorageBackend {
   async getFileContent(id: string): Promise<ProjectFileContent | undefined> {
     if (!this.isReady) return this._fallback!.getFileContent(id)
     try {
-      const text = await readTextFile(`${this._projectDir}/.worldsmith/files_content/${id}.json`)
+      const text = await readTextFile(`${this._projectDir}/.worldsea/files_content/${id}.json`)
       return JSON.parse(text)
     } catch {
       return undefined
@@ -898,7 +898,7 @@ export class FileStorageBackend implements StorageBackend {
   private async flushFilesMeta(): Promise<void> {
     if (!this._projectDir) return
     await writeTextFile(
-      `${this._projectDir}/.worldsmith/files_meta.json`,
+      `${this._projectDir}/.worldsea/files_meta.json`,
       JSON.stringify(this._filesMeta),
       true,
     )
@@ -931,7 +931,7 @@ export class FileStorageBackend implements StorageBackend {
   private async loadFilesMeta(): Promise<void> {
     if (!this._projectDir) return
     try {
-      const text = await readTextFile(`${this._projectDir}/.worldsmith/files_meta.json`)
+      const text = await readTextFile(`${this._projectDir}/.worldsea/files_meta.json`)
       this._filesMeta = JSON.parse(text)
     } catch {
       this._filesMeta = []

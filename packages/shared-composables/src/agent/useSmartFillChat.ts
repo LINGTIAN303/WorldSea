@@ -7,13 +7,13 @@
 
 import { ref, readonly, onUnmounted } from 'vue'
 import type { IAgentBackend, AgentEvent, A2UIMessage } from '@agent/index'
-import { createWorldSmithAgent, getToolsForSkills } from '@agent/index'
+import { createWorldSeaAgent, getToolsForSkills } from '@agent/index'
 import type { ProviderConfig } from '@agent/index'
-import { useEntityStore, useRelationStore, useFileStore, useSettingsStore } from '@worldsmith/entity-core'
+import { useEntityStore, useRelationStore, useFileStore, useSettingsStore } from '@worldsea/entity-core'
 import { loadApiKey } from '@agent/index'
 import type { CloudProvider } from '@agent/index'
-import { getModelInfo } from '@worldsmith/agent-runtime'
-import type { TextSelectionInfo } from '@worldsmith/ui-kit'
+import { getModelInfo } from '@worldsea/agent-runtime'
+import type { TextSelectionInfo } from '@worldsea/ui-kit'
 
 export interface SmartFillChatContext {
   entityType?: string
@@ -107,7 +107,7 @@ export function useSmartFillChat() {
         },
       },
       projectInfo: {
-        name: 'WorldSmith-SmartFill',
+        name: 'WorldSea-SmartFill',
         entityTypes: entityStore.types.map(t => t.typeKey),
         relationTypes: [],
         dirPath: null,
@@ -115,7 +115,7 @@ export function useSmartFillChat() {
       platform: 'web' as const,
       emitA2UI: (surfaceId: string, message: A2UIMessage) => {
         // 将 A2UI 事件通过 CustomEvent 分发给 SmartFillChat.vue
-        window.dispatchEvent(new CustomEvent('worldsmith:smart-fill:a2ui', {
+        window.dispatchEvent(new CustomEvent('worldsea:smart-fill:a2ui', {
           detail: { surfaceId, message },
         }))
       },
@@ -129,11 +129,11 @@ export function useSmartFillChat() {
 
     try {
       const tools = getToolsForSkills(['smart-fill'])
-      const agent = await createWorldSmithAgent({
+      const agent = await createWorldSeaAgent({
         providerConfig: _providerConfig,
         toolContext: _toolContext,
         tools,
-        projectName: 'WorldSmith-SmartFill',
+        projectName: 'WorldSea-SmartFill',
       })
 
       agent.subscribe((event: AgentEvent) => {
@@ -361,7 +361,7 @@ export function useSmartFillChat() {
   /** 回写字段值到 EntityFormModal */
   function writeBack(fieldKey: string, value: string) {
     if (!fieldKey) return
-    window.dispatchEvent(new CustomEvent('worldsmith:smart-fill:write-back', {
+    window.dispatchEvent(new CustomEvent('worldsea:smart-fill:write-back', {
       detail: { fieldKey, value },
     }))
   }

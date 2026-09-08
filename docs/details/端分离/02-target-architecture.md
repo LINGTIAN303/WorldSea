@@ -6,7 +6,7 @@
 ## 1. 目标目录结构
 
 ```
-worldsmith/
+worldsea/
 ├── apps/                                # 三端应用入口
 │   ├── web/                             # Web 端（浏览器应用）
 │   │   ├── public/                      # 静态资源
@@ -27,11 +27,11 @@ worldsmith/
 │   ├── cli/                             # CLI 端（命令行应用）
 │   │   ├── src/
 │   │   │   ├── bin/
-│   │   │   │   └── cli.mjs              # CLI 入口（从 worldsmith-agent/bin/ 迁移）
+│   │   │   │   └── cli.mjs              # CLI 入口（从 worldsea-agent/bin/ 迁移）
 │   │   │   ├── commands/                # commander 命令
 │   │   │   │   ├── chat.ts              # 交互式对话
 │   │   │   │   └── serve.ts             # HTTP+WS 服务器
-│   │   │   ├── stores/                  # CLI 版 stores（从 worldsmith-agent/src/cli/stores/ 迁移）
+│   │   │   ├── stores/                  # CLI 版 stores（从 worldsea-agent/src/cli/stores/ 迁移）
 │   │   │   ├── context/                 # CLI 工具上下文
 │   │   │   ├── safety-guard.ts          # 安全防护
 │   │   │   ├── session-store.ts         # 会话存储
@@ -164,16 +164,16 @@ worldsmith/
 **包含**：
 - Web 专属入口（main.ts / App.vue / index.html）
 - Web 专属 Vite 配置（无 Tauri 依赖）
-- WASM 后端（worldsmith-core / tactical-engine）作为算法层
+- WASM 后端（worldsea-core / tactical-engine）作为算法层
 - WebSocket 适配器（连接 CLI serve）
 - Web 专属 composables（无 Tauri invoke）
 
 **依赖**：
-- `@worldsmith/agent-runtime`（Agent 核心）
-- `@worldsmith/shared-ui`（共用 UI 组件）
-- `@worldsmith/shared-composables`（共用 composables）
-- `@worldsmith/*` 其他共享包
-- WASM 包（worldsmith-core / tactical-engine）
+- `@worldsea/agent-runtime`（Agent 核心）
+- `@worldsea/shared-ui`（共用 UI 组件）
+- `@worldsea/shared-composables`（共用 composables）
+- `@worldsea/*` 其他共享包
+- WASM 包（worldsea-core / tactical-engine）
 
 **不依赖**：
 - `@tauri-apps/api` / `@tauri-apps/cli` / `@tauri-apps/plugin-*`
@@ -192,7 +192,7 @@ worldsmith/
 - 工具上下文与安全防护
 
 **依赖**：
-- `@worldsmith/agent-runtime`（Agent 核心）
+- `@worldsea/agent-runtime`（Agent 核心）
 - `commander` / `ws` / `dexie`
 - Node.js 内置模块（child_process / fs / path / crypto）
 
@@ -214,15 +214,15 @@ worldsmith/
 - Tauri 环境执行适配器
 
 **依赖**：
-- `@worldsmith/agent-runtime`（Agent 核心）
-- `@worldsmith/shared-ui`（共用 UI 组件）
-- `@worldsmith/shared-composables`（共用 composables）
+- `@worldsea/agent-runtime`（Agent 核心）
+- `@worldsea/shared-ui`（共用 UI 组件）
+- `@worldsea/shared-composables`（共用 composables）
 - `@tauri-apps/api` / `@tauri-apps/cli`
 - Vue / Pinia / Naive UI
 
 **不依赖**：
 - WASM（Tauri 端用 Rust 命令替代）
-- `worldsmith-server`
+- `worldsea-server`
 - CLI serve
 
 ### 2.4 packages/agent-runtime（共享 Agent 核心）
@@ -239,8 +239,8 @@ worldsmith/
 - `execution/adapter.ts`（接口定义，不含具体实现）
 
 **依赖**：
-- `@worldsmith/agent-core`（声明式 ToolRegistry/SkillRegistry）
-- `@worldsmith/governor-core`
+- `@worldsea/agent-core`（声明式 ToolRegistry/SkillRegistry）
+- `@worldsea/governor-core`
 - `dexie`（IndexedDB 持久化）
 - `ws`（WebSocket 类型，仅类型不实际 import）
 
@@ -264,7 +264,7 @@ worldsmith/
 
 **依赖**：
 - Vue / Pinia / Naive UI
-- `@worldsmith/*` 其他共享包
+- `@worldsea/*` 其他共享包
 
 **API 契约**：
 - 通过 props/emit 接收 Agent 后端实现（不直接 import 具体后端）
@@ -311,7 +311,7 @@ export function useAgent(options: {
   │   │
   │   └─ coreBackend（apps/web）
   │       │
-  │       └─ WASM（worldsmith-core / tactical-engine）
+  │       └─ WASM（worldsea-core / tactical-engine）
   │
   └─ HTTP → CLI serve（爬虫/转换/向量搜索）
 ```
@@ -365,9 +365,9 @@ export function useAgent(options: {
 
 | 端 | dev 命令 | build 命令 | 产物 |
 |----|----------|------------|------|
-| Web | `pnpm --filter @worldsmith/web dev` | `pnpm --filter @worldsmith/web build` | `apps/web/dist/` |
-| CLI | `pnpm --filter @worldsmith/cli dev` | `pnpm --filter @worldsmith/cli build` | `apps/cli/dist/` |
-| Tauri | `pnpm --filter @worldsmith/tauri tauri:dev` | `pnpm --filter @worldsmith/tauri tauri:build` | Tauri 安装包 |
+| Web | `pnpm --filter @worldsea/web dev` | `pnpm --filter @worldsea/web build` | `apps/web/dist/` |
+| CLI | `pnpm --filter @worldsea/cli dev` | `pnpm --filter @worldsea/cli build` | `apps/cli/dist/` |
+| Tauri | `pnpm --filter @worldsea/tauri tauri:dev` | `pnpm --filter @worldsea/tauri tauri:build` | Tauri 安装包 |
 
 ### 4.2 Vite 配置独立性
 
@@ -381,10 +381,10 @@ export function useAgent(options: {
 // apps/web/package.json
 {
   "dependencies": {
-    "@worldsmith/agent-runtime": "workspace:*",
-    "@worldsmith/shared-ui": "workspace:*",
-    "@worldsmith/shared-composables": "workspace:*",
-    "@worldsmith/core": "file:../../worldsmith-core/pkg",  // WASM
+    "@worldsea/agent-runtime": "workspace:*",
+    "@worldsea/shared-ui": "workspace:*",
+    "@worldsea/shared-composables": "workspace:*",
+    "@worldsea/core": "file:../../worldsea-core/pkg",  // WASM
     "vue": "^3.5.32",
     "pinia": "^3.0.4"
     // 无 @tauri-apps/*
@@ -394,7 +394,7 @@ export function useAgent(options: {
 // apps/cli/package.json
 {
   "dependencies": {
-    "@worldsmith/agent-runtime": "workspace:*",
+    "@worldsea/agent-runtime": "workspace:*",
     "commander": "^14.0.3",
     "ws": "^8.18.0"
     // 无 vue, 无 @tauri-apps/*
@@ -404,9 +404,9 @@ export function useAgent(options: {
 // apps/tauri/package.json
 {
   "dependencies": {
-    "@worldsmith/agent-runtime": "workspace:*",
-    "@worldsmith/shared-ui": "workspace:*",
-    "@worldsmith/shared-composables": "workspace:*",
+    "@worldsea/agent-runtime": "workspace:*",
+    "@worldsea/shared-ui": "workspace:*",
+    "@worldsea/shared-composables": "workspace:*",
     "@tauri-apps/api": "^2.11.0",
     "vue": "^3.5.32"
     // 无 WASM
@@ -420,7 +420,7 @@ export function useAgent(options: {
 packages:
   - 'apps/*'           # 三端应用
   - 'packages/*'       # 共享包（含新增 agent-runtime / shared-ui / shared-composables）
-# 移除 worldsmith-agent（已拆分到 apps/cli 与 packages/agent-runtime）
+# 移除 worldsea-agent（已拆分到 apps/cli 与 packages/agent-runtime）
 allowBuilds:
   '@google/genai': true
   esbuild: true
@@ -434,10 +434,10 @@ overrides:
 
 | 维度 | 现有架构 | 目标架构 |
 |------|----------|----------|
-| 目录结构 | `src/` + `src-tauri/` + `worldsmith-agent/` + `worldsmith-server/` | `apps/{web,cli,tauri}/` + `packages/` |
+| 目录结构 | `src/` + `src-tauri/` + `worldsea-agent/` + `worldsea-server/` | `apps/{web,cli,tauri}/` + `packages/` |
 | 前端共用 | `src/` 被 Tauri+Web 共用 | `packages/shared-ui/` + `packages/shared-composables/` |
-| Agent 核心 | `worldsmith-agent/src/`（与 CLI 混杂） | `packages/agent-runtime/`（纯端无关） |
-| 后端服务 | `worldsmith-server` + CLI serve + Tauri 命令（三者重叠） | CLI serve + Tauri 命令（worldsmith-server 删除） |
+| Agent 核心 | `worldsea-agent/src/`（与 CLI 混杂） | `packages/agent-runtime/`（纯端无关） |
+| 后端服务 | `worldsea-server` + CLI serve + Tauri 命令（三者重叠） | CLI serve + Tauri 命令（worldsea-server 删除） |
 | 后端检测 | `coreBackend.ts` 运行时 `detectBackend()` | 端编译期决定，无运行时检测 |
 | Agent 后端 | `useAgent.ts` 路由 TS/Rust | 每端单一后端实现 |
 | 构建依赖 | Tauri 依赖 `build:web` | 三端独立构建 |

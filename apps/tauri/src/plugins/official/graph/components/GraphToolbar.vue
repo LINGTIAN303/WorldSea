@@ -31,8 +31,8 @@
 </template>
 
 <script setup lang="ts">
-import type { TypeInfo } from '@worldsmith/entity-core'
-import { WsIcon } from '@worldsmith/ui-kit'
+import type { TypeInfo } from '@worldsea/entity-core'
+import { WsIcon } from '@worldsea/ui-kit'
 
 defineProps<{
   layout: string

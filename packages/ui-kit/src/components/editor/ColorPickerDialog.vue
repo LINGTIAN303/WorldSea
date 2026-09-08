@@ -46,7 +46,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, nextTick, onBeforeUnmount } from 'vue'
-import { useResizable, useModalShortcuts } from '@worldsmith/ui-kit'
+import { useResizable, useModalShortcuts } from '@worldsea/ui-kit'
 import WsIcon from '../WsIcon.vue'
 
 const props = defineProps<{ show: boolean; initialColor?: string }>()

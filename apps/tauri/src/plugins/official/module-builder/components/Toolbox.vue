@@ -72,12 +72,12 @@
 
 <script setup lang="ts">
 import { computed, ref, inject } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import { getAllComponentTypes } from '../registry/componentTypeRegistry'
 import { fieldTypes } from '../moduleConfig'
 import { ARRANGEMENT_LABEL, ARRANGEMENT_ICON } from '../slotTree'
 import type { ComponentTypeDefinition, SlotArrangement } from '../types/layoutSchema'
-import type { CustomModule, ModuleEntityType } from '@worldsmith/entity-core'
+import type { CustomModule, ModuleEntityType } from '@worldsea/entity-core'
 
 const module = inject<CustomModule>('module', {
   id: '', name: '', icon: 'settings', description: '',
@@ -130,11 +130,11 @@ function removeRelationType(idx: number) { module.relationTypes.splice(idx, 1) }
 function removeField(fi: number, e: Event) { e.stopPropagation(); const idx = openEntityIdx.value; if (idx !== null) module.entityTypes[idx].fields.splice(fi, 1) }
 
 function onCompDrag(comp: ComponentTypeDefinition, e: DragEvent) {
-  e.dataTransfer!.setData('application/worldsmith-component-type', comp.typeId)
+  e.dataTransfer!.setData('application/worldsea-component-type', comp.typeId)
   e.dataTransfer!.effectAllowed = 'copy'
 }
 function onEntityDrag(et: ModuleEntityType, e: DragEvent) {
-  e.dataTransfer!.setData('application/worldsmith-entity-type', et.name)
+  e.dataTransfer!.setData('application/worldsea-entity-type', et.name)
   e.dataTransfer!.effectAllowed = 'copy'
 }
 </script>

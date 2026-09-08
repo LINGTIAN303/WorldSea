@@ -14,7 +14,7 @@ export interface Template {
   createdAt: string
 }
 
-const STORAGE_KEY = 'worldsmith-templates'
+const STORAGE_KEY = 'worldsea-templates'
 
 function loadFromStorage(): Template[] {
   try {

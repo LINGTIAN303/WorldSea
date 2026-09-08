@@ -136,7 +136,7 @@
 import { computed, ref } from 'vue'
 import { getEnabledSkills, TOOL_CATEGORIES, resolveToolNames, ALWAYS_AVAILABLE_TOOLS, type SkillMeta } from '@agent/index'
 import { type ToolSource } from '../types'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 
 const props = defineProps<{
   enabledSkills: string[]

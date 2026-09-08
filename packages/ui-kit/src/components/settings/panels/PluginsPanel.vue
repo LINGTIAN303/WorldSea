@@ -40,9 +40,9 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { useSettingsStore, useUIStore, usePluginStore, PLUGIN_CATEGORIES, type PluginCategory } from '@worldsmith/entity-core'
-import { hasIcon } from '@worldsmith/ui-kit'
-import { CardDeck } from '@worldsmith/ui-kit'
+import { useSettingsStore, useUIStore, usePluginStore, PLUGIN_CATEGORIES, type PluginCategory } from '@worldsea/entity-core'
+import { hasIcon } from '@worldsea/ui-kit'
+import { CardDeck } from '@worldsea/ui-kit'
 import WsIcon from '../../WsIcon.vue'
 import draggable from 'vuedraggable'
 import { matchKeywords } from '../utils'

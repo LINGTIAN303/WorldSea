@@ -136,7 +136,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import { kbList, kbSearchKeyword, kbWrite, kbReadById } from '../kb/useKbRust'
 import type { KBEntry, KBScope } from '@agent/kb/kb-store'
 import { useActivityLog } from '../composables/useActivityLog'

@@ -32,7 +32,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { type GraphNode } from '@worldsmith/ui-kit'
+import { type GraphNode } from '@worldsea/ui-kit'
 
 const props = defineProps<{
   visible: boolean

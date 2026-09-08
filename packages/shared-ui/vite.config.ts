@@ -4,10 +4,10 @@ import { resolve } from 'path'
 export default defineConfig({
   resolve: {
     alias: {
-      '@worldsmith/agent-runtime': resolve(__dirname, '../agent-runtime/src/index.ts'),
-      '@worldsmith/entity-core': resolve(__dirname, '../entity-core/src/index.ts'),
-      '@worldsmith/shared-composables': resolve(__dirname, '../shared-composables/src/index.ts'),
-      '@worldsmith/ui-kit': resolve(__dirname, '../ui-kit/src/index.ts'),
+      '@worldsea/agent-runtime': resolve(__dirname, '../agent-runtime/src/index.ts'),
+      '@worldsea/entity-core': resolve(__dirname, '../entity-core/src/index.ts'),
+      '@worldsea/shared-composables': resolve(__dirname, '../shared-composables/src/index.ts'),
+      '@worldsea/ui-kit': resolve(__dirname, '../ui-kit/src/index.ts'),
     },
   },
   build: {

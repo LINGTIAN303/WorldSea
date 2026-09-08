@@ -9,14 +9,14 @@
 | 模式 | 标识 | 终端调用方式 |
 |------|------|-------------|
 | **Tauri 桌面模式** | `tauri` | 通过本地 PTY 直接调用，无需额外服务 |
-| **Web 应用模式** | `web` | 通过 WebSocket 连接 worldsmith-server 代理调用 |
+| **Web 应用模式** | `web` | 通过 WebSocket 连接 worldsea-server 代理调用 |
 
 ## 工具一览
 
 | 工具 | 用途 | 使用时机 |
 |------|------|---------|
 | `detect_terminal_mode` | 检测当前模式和服务状态 | 执行任何终端操作前必须先调用 |
-| `start_server` | 启动 worldsmith-server | 仅 Web 模式，当终端不可用时 |
+| `start_server` | 启动 worldsea-server | 仅 Web 模式，当终端不可用时 |
 | `launch_terminal` | 执行单条命令 | 简单的 shell 命令 |
 | `launch_terminal_script` | 执行多行脚本 | 复杂命令序列、多行脚本 |
 
@@ -32,7 +32,7 @@ detect_terminal_mode() → { mode, modeLabel, available, serverHealthy, wsUrl, h
 
 - `mode`: "tauri" 或 "web"
 - `available`: 终端是否可用
-- `serverHealthy`: worldsmith-server 是否健康（仅 Web 模式有意义）
+- `serverHealthy`: worldsea-server 是否健康（仅 Web 模式有意义）
 - `hint`: 下一步操作建议
 
 ### 第二步：根据模式分支处理
@@ -45,7 +45,7 @@ detect_terminal_mode() → { mode, modeLabel, available, serverHealthy, wsUrl, h
 
 **如果 `available === true`**：终端可用，跳到第三步。
 
-**如果 `available === false`**：需要先启动 worldsmith-server：
+**如果 `available === false`**：需要先启动 worldsea-server：
 
 1. 调用 `start_server` 启动服务：
    ```
@@ -54,15 +54,15 @@ detect_terminal_mode() → { mode, modeLabel, available, serverHealthy, wsUrl, h
 
 2. **`start_server` 在 Web 模式下的行为**：
    - 先检查服务是否已在运行（健康检查），如果已运行则直接重建连接
-   - 如果服务未运行，调用 Vite 开发服务器的 `/api/launch-server` 端点，由 Vite（Node.js 进程）代为 spawn worldsmith-server
+   - 如果服务未运行，调用 Vite 开发服务器的 `/api/launch-server` 端点，由 Vite（Node.js 进程）代为 spawn worldsea-server
    - 如果 Vite 代理也失败，返回 `manualSteps` 对象，包含用户可执行的启动命令
 
 3. 如果 `start_server` 返回 `ok: true`，再次调用 `detect_terminal_mode` 确认终端可用
 
 4. 如果 `start_server` 返回 `ok: false` 且包含 `manualSteps`：
    - **将 `manualSteps` 中的命令展示给用户**，请用户在系统终端中执行
-   - 一键启动脚本：`start-worldsmith.bat`（Windows）或 `start-worldsmith.sh`（Unix）
-   - 手动启动：`cd <项目目录>\worldsmith-server && npm run dev`
+   - 一键启动脚本：`start-worldsea.bat`（Windows）或 `start-worldsea.sh`（Unix）
+   - 手动启动：`cd <项目目录>\worldsea-server && npm run dev`
    - 用户执行后，再次调用 `detect_terminal_mode` 确认终端可用
 
 ### 第三步：执行命令（带模式确认）
@@ -95,18 +95,18 @@ launch_terminal_script(script="...", mode_hint="tauri" 或 "web")
 - 但 Vite 开发服务器是 Node.js 进程，可以代为执行
 - `start_server` 会按以下优先级尝试：
   1. 健康检查 → 如果 server 已运行，直接重建连接
-  2. Vite 代理 → 调用 `/api/launch-server`，由 Vite 服务器 spawn worldsmith-server 进程
+  2. Vite 代理 → 调用 `/api/launch-server`，由 Vite 服务器 spawn worldsea-server 进程
   3. 返回 `manualSteps` → 提供用户可执行的命令和脚本路径（仅当 Vite 代理也失败时）
 
 ### Vite 代理启动机制
 
 Web 模式下，`start_server` 调用 `fetch('/api/launch-server', {method: 'POST'})`：
 - Vite 开发服务器（localhost:5173）是 Node.js 进程，可以 spawn 子进程
-- 它会启动 `worldsmith-server` 的 `npm run dev`
+- 它会启动 `worldsea-server` 的 `npm run dev`
 - 启动后自动进行健康检查（最多等待 20 秒）
 - 返回启动结果给 AI Agent
 
-这意味着：**在 Web 开发模式下，AI Agent 可以自动启动 worldsmith-server，无需用户手动操作！**
+这意味着：**在 Web 开发模式下，AI Agent 可以自动启动 worldsea-server，无需用户手动操作！**
 
 ## 安全规范
 
@@ -131,6 +131,6 @@ detect_terminal_mode
                                                   ├── server已运行 ──→ 重建连接 → launch_terminal
                                                   ├── Vite代理启动 ──→ launch_terminal
                                                   └── 返回manualSteps ──→ 请用户执行
-                                                                            ├── start-worldsmith.bat
-                                                                            └── cd worldsmith-server && npm run dev
+                                                                            ├── start-worldsea.bat
+                                                                            └── cd worldsea-server && npm run dev
 ```

@@ -1,14 +1,14 @@
-# memory-center-core-logic（WorldSmith vendor 版）
+# memory-center-core-logic（WorldSea vendor 版）
 # 来源：D:\本地化AI\MemoryCenter\crates\memory-center-core-logic
 # 纯逻辑 + Storage trait，与 MemoryCenter 项目分叉独立演进
-# 已扁平化 workspace 依赖（WorldSmith 无根 workspace，各 crate 独立编译）
+# 已扁平化 workspace 依赖（WorldSea 无根 workspace，各 crate 独立编译）
 
 [package]
 name = "memory-center-core-logic"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.88"
-description = "MemoryCenter 核心逻辑 - 纯逻辑 + Storage trait（WorldSmith vendor 复制版）"
+description = "MemoryCenter 核心逻辑 - 纯逻辑 + Storage trait（WorldSea vendor 复制版）"
 license = "MIT"
 
 [features]

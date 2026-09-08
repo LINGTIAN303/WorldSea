@@ -32,8 +32,8 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useSettingsStore } from '@worldsmith/entity-core'
-import { formatKeyForDisplay, CardDeck } from '@worldsmith/ui-kit'
+import { useSettingsStore } from '@worldsea/entity-core'
+import { formatKeyForDisplay, CardDeck } from '@worldsea/ui-kit'
 import { matchKeywords } from '../utils'
 
 const props = defineProps<{ searchQuery?: string }>()

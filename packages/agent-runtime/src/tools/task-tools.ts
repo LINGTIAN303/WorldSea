@@ -1,6 +1,6 @@
 import type { ToolDefinition } from '../bridge-types'
 import type { IToolContext } from '../toolbus/types'
-import type { ToolMeta } from '@worldsmith/agent-core'
+import type { ToolMeta } from '@worldsea/agent-core'
 
 /** task 模式专用控制工具 task_complete：显式声明任务完成并停止自主循环，详细见 docs/details/注释/packages/agent-runtime/tools-task-tools.md */
 const taskCompleteTool: ToolDefinition = {

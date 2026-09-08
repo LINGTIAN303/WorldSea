@@ -6,9 +6,9 @@ import {
   removeFontData,
   MAX_FONT_STORAGE,
 } from '../fontInstaller'
-import { useFontStore, type FontLayer } from '@worldsmith/entity-core'
+import { useFontStore, type FontLayer } from '@worldsea/entity-core'
 
-const STORAGE_KEY = 'worldsmith_font_library'
+const STORAGE_KEY = 'worldsea_font_library'
 
 function loadFromStorage(): FontLibraryEntry[] {
   try {

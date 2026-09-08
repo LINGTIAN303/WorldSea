@@ -1,5 +1,5 @@
 import { computed, ref, type ComputedRef } from 'vue'
-import type { Entity, Relation } from '@worldsmith/entity-core'
+import type { Entity, Relation } from '@worldsea/entity-core'
 import { parseDateRange, type ParsedDate } from './useDateParser'
 
 export type GroupMode = 'none' | 'character' | 'location' | 'era' | 'tag'

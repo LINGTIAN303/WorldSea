@@ -94,7 +94,7 @@
  * 视觉遵循 agent-ux-guidelines：克制弱提示、折叠收纳、错误/空态统一。
  */
 import { ref, reactive, computed, onMounted } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import TuiEmpty from '@/components/ui/TuiEmpty.vue'
 import { useRouterRust, type RouterTarget } from '../composables/useRouterRust'
 

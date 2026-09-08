@@ -1,5 +1,5 @@
 import { computed } from 'vue'
-import { useEntityStore } from '@worldsmith/entity-core'
+import { useEntityStore } from '@worldsea/entity-core'
 
 export interface RealmStep {
   id: string

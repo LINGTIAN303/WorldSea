@@ -1,5 +1,5 @@
 /**
- * @worldsmith/shared-ui — message-list 系列（消息列表展示组件）
+ * @worldsea/shared-ui — message-list 系列（消息列表展示组件）
  *
  * 从 `apps/web/src/agent/message-list` 迁移而来。
  */

@@ -11,7 +11,7 @@ export function useMindmapExport() {
   /**
    * 导出为 PNG（从现有 Canvas 元素）
    */
-  function exportPNG(canvasEl: HTMLCanvasElement | null, filename = 'worldsmith-mindmap.png'): void {
+  function exportPNG(canvasEl: HTMLCanvasElement | null, filename = 'worldsea-mindmap.png'): void {
     if (!canvasEl) return
     try {
       const url = canvasEl.toDataURL('image/png')
@@ -28,7 +28,7 @@ export function useMindmapExport() {
   function exportSVG(
     nodes: CanvasNode[],
     edges: CanvasEdge[],
-    filename = 'worldsmith-mindmap.svg',
+    filename = 'worldsea-mindmap.svg',
   ): void {
     if (nodes.length === 0) return
 

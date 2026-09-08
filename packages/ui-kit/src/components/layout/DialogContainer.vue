@@ -29,7 +29,7 @@
 
 <script setup lang="ts">
 import { watch, nextTick, ref, onBeforeUnmount } from 'vue'
-import { useDialog, setShortcutModalActive } from '@worldsmith/ui-kit'
+import { useDialog, setShortcutModalActive } from '@worldsea/ui-kit'
 
 // 注册表弹窗深度守卫标记（本实例是否已入栈，防重复/泄漏）
 let modalGuardActive = false

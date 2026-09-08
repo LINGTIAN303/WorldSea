@@ -360,7 +360,7 @@ const pluginRegionWrite: CapabilityDeclaration = {
 }
 
 export const pluginSdkDescriptor: LibraryDescriptor = {
-  id: '@worldsmith/plugin-sdk',
+  id: '@worldsea/plugin-sdk',
   name: 'Plugin SDK',
   version: '0.1.0',
   capabilities: [

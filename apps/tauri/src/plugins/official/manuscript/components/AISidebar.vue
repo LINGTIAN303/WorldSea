@@ -38,9 +38,9 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import { useAgent } from '@/agent/composables/useAgent'
-import { useEntityStore } from '@worldsmith/entity-core'
+import { useEntityStore } from '@worldsea/entity-core'
 
 const props = defineProps<{
   visible: boolean

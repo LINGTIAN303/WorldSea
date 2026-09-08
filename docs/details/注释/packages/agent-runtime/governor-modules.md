@@ -6,7 +6,7 @@
 ## 注释块 1（原文件第 1-19 行）
 
 ```
-worldsmith-agent/src/governor-modules.ts — Agent 包模块描述符
+worldsea-agent/src/governor-modules.ts — Agent 包模块描述符
 
 将 Agent 包的 toolbus/skills/tools 系统声明为 governor 模块，
 由 createAgentGovernor() 在 boot() 时按 priority + 依赖拓扑自动激活。

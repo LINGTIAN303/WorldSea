@@ -1,4 +1,4 @@
-import type { PluginAPIType } from '@worldsmith/entity-core'
+import type { PluginAPIType } from '@worldsea/entity-core'
 import LanguageView from './LanguageView.vue'
 
 export const manifest = {
@@ -6,7 +6,7 @@ export const manifest = {
   name: '语言/文字',
   version: '2.0.0',
   description: '管理世界观中的语言、文字系统',
-  author: 'WorldSmith',
+  author: 'WorldSea',
   agentSkills: ['worldbuilding'],
   agentCapabilities: [
     { action: 'create_entity', description: '创建语言', params: ['name', 'description'] },

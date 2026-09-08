@@ -44,8 +44,8 @@
 
 <script setup lang="ts">
 import type { Suggestion } from '../composables/useAISuggestions'
-import { WsIcon } from '@worldsmith/ui-kit'
-import { WsEmpty } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
+import { WsEmpty } from '@worldsea/ui-kit'
 
 defineProps<{
   visible: boolean

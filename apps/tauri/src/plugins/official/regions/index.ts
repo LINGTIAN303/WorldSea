@@ -1,4 +1,4 @@
-import type { PluginAPIType } from '@worldsmith/entity-core'
+import type { PluginAPIType } from '@worldsea/entity-core'
 import RegionList from './RegionList.vue'
 
 export const manifest = {
@@ -6,7 +6,7 @@ export const manifest = {
   name: '区域图谱',
   version: '2.0.0',
   description: '管理世界观中的大陆、国家、城市、地标等地理区域',
-  author: 'WorldSmith',
+  author: 'WorldSea',
   agentSkills: ['worldbuilding'],
   agentCapabilities: [
     { action: 'create_entity', description: '创建区域', params: ['name', 'description'] },

@@ -3,7 +3,7 @@
 import { smartFetch } from '../utils/smart-fetch'
 import { isTauri } from '../execution'
 
-const DB_NAME = 'worldsmith_images'
+const DB_NAME = 'worldsea_images'
 const DB_VERSION = 2
 const STORE_NAME = 'images'
 

@@ -6,7 +6,7 @@ function emitPluginEvent(pluginId: string, action: string, payload: unknown): st
   try {
     const detail = { pluginId, action, payload, timestamp: Date.now() }
     if (typeof window !== 'undefined' && window.dispatchEvent) {
-      window.dispatchEvent(new CustomEvent('worldsmith:agent:plugin-action', { detail }))
+      window.dispatchEvent(new CustomEvent('worldsea:agent:plugin-action', { detail }))
     }
     return JSON.stringify({ ok: true, pluginId, action, dispatched: true })
   } catch (e) {
@@ -18,7 +18,7 @@ function emitPluginQuery(pluginId: string, query: string, params?: unknown): str
   try {
     const detail = { pluginId, query, params, timestamp: Date.now() }
     if (typeof window !== 'undefined' && window.dispatchEvent) {
-      window.dispatchEvent(new CustomEvent('worldsmith:agent:plugin-query', { detail }))
+      window.dispatchEvent(new CustomEvent('worldsea:agent:plugin-query', { detail }))
     }
     return JSON.stringify({ ok: true, pluginId, query, dispatched: true, note: '需要通过UI状态读取查询结果' })
   } catch (e) {

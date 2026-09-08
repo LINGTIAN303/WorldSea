@@ -16,8 +16,8 @@
     "tsBuildInfoFile": "./dist/.tsbuildinfo",
     "types": [],
     "paths": {
-      "@worldsmith/entity-core": ["../entity-core/src/index.ts"],
-      "@worldsmith/entity-core/*": ["../entity-core/src/*"]
+      "@worldsea/entity-core": ["../entity-core/src/index.ts"],
+      "@worldsea/entity-core/*": ["../entity-core/src/*"]
     }
   },
   "include": ["src/**/*.ts"],

@@ -40,14 +40,14 @@ export interface CreateAgentOptions {
  * 创建 Agent 实例
  *
  * 此函数返回一个符合 IAgentBackend 接口的 Agent 实例。
- * 实际的 pi-agent-core 集成由消费方（worldsmith-agent）的 CoreBackend 实现，
+ * 实际的 pi-agent-core 集成由消费方（worldsea-agent）的 CoreBackend 实现，
  * 此处仅定义契约和辅助逻辑。
  */
 export async function createAgent(_options: CreateAgentOptions): Promise<IAgentBackend> {
   // Agent 实例的实际创建由消费方完成（需要 pi-agent-core 依赖）
   // 此处抛出错误提示消费方使用自己的工厂函数
   throw new Error(
-    'createAgent() is a contract function. Use createWorldSmithAgent() from worldsmith-agent instead, ' +
+    'createAgent() is a contract function. Use createWorldSeaAgent() from worldsea-agent instead, ' +
     'which implements the actual pi-agent-core integration.'
   )
 }

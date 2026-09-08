@@ -1,5 +1,5 @@
 import type { ContextStrategy } from './types'
-import { getModelInfo } from '@worldsmith/agent-runtime'
+import { getModelInfo } from '@worldsea/agent-runtime'
 
 /** 上下文管理所依赖的最小消息结构（AgentMessage 与 GroupChatMessage 均满足） */
 export interface ContextMessage {

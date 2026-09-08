@@ -1,6 +1,6 @@
 /** 视频持久化存储：IndexedDB 存储 AI 生成视频元数据与 Blob，详细见 docs/details/注释/packages/agent-runtime/stores-video-persistence.md */
 
-const DB_NAME = 'worldsmith_videos'
+const DB_NAME = 'worldsea_videos'
 const DB_VERSION = 1
 const STORE_NAME = 'videos'
 

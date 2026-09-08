@@ -34,9 +34,9 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
-import { WsEmpty } from '@worldsmith/ui-kit'
-import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'
+import { WsIcon } from '@worldsea/ui-kit'
+import { WsEmpty } from '@worldsea/ui-kit'
+import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
 import ExperienceNode from './ExperienceNode.vue'
 import type { CustomLifeEvent } from './ExperienceNode.vue'
 

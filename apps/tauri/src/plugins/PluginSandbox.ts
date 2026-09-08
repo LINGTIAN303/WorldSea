@@ -1,5 +1,5 @@
-import type { PluginPermission, PluginManifest } from '@worldsmith/entity-core/types'
-import { KNOWN_PERMISSIONS } from '@worldsmith/entity-core/types'
+import type { PluginPermission, PluginManifest } from '@worldsea/entity-core/types'
+import { KNOWN_PERMISSIONS } from '@worldsea/entity-core/types'
 import { OFFICIAL_PLUGIN_IDS } from './plugin-manifest'
 
 type PermissionName = string

@@ -7,7 +7,7 @@
  * 详细why请见 docs/details/注释/tauri/components/TuiToast.md
  */
 import { useTuiToast } from './useTuiToast'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 
 const { toasts, dismiss } = useTuiToast()
 

@@ -3,7 +3,7 @@
 > 调研开始：2026-09-01
 > 调研对象：https://github.com/deepseek-ai/deepseek-harness（master 分支，MIT，**开发者预览期**）
 > 调研方式：官方文档 + 关键源码（不克隆仓库，按需取文件）
-> 调研目的：为 WorldSmith 的**上下文压缩 / 会话持久化契约 / 回源一致性**三个议题找外部参照
+> 调研目的：为 WorldSea 的**上下文压缩 / 会话持久化契约 / 回源一致性**三个议题找外部参照
 > 关联文档：[Trae Agent 调研与借鉴方案](./trae-agent-调研与借鉴方案.md)
 
 > **本文档为「持续增长」形态**：每深挖一个子系统就往 [十、后续调研队列](#十后续调研队列) 之前追加一章，
@@ -15,14 +15,14 @@
 
 **Compaction 在 dsh 里不是"删历史"，而是"在不可变事件日志上追加一条 replace 记录"。**
 
-这个定性差异带来三个 dsh 有、而 WorldSmith 目前没有的性质：
+这个定性差异带来三个 dsh 有、而 WorldSea 目前没有的性质：
 
 1. **可回溯** —— 原文永远留在日志里，摘要只是遮蔽它；
 2. **可崩溃恢复** —— 事务状态写在日志里（`compaction/start` 无匹配 `compaction/end` = 检测到孤儿锁），不依赖进程内存；
 3. **可持久** —— 压缩结果本身就是一条普通消息事件，刷新/重启后回源天然生效。
 
-WorldSmith 当前的 `enforce_context_budget()` 是**内存态的头部硬丢弃**，三个性质全无，
-且存在**破坏 tool_call/tool_result 配对**的实际风险（见 [六、WorldSmith 现状盘点](#六worldsmith-现状盘点)）。
+WorldSea 当前的 `enforce_context_budget()` 是**内存态的头部硬丢弃**，三个性质全无，
+且存在**破坏 tool_call/tool_result 配对**的实际风险（见 [六、WorldSea 现状盘点](#六worldsea-现状盘点)）。
 
 ---
 
@@ -50,7 +50,7 @@ Human Consumer（人类入口）   →  dsh-command-compact   /compact 命令
 - name: '@deepseek-ai/dsh-command-compact'                 # 可选
 ```
 
-> **对 WorldSmith 的含义**：Cargo feature 或 trait 对象即可表达同样的缝隙（Rust 编译期装配 vs dsh 运行时装配，
+> **对 WorldSea 的含义**：Cargo feature 或 trait 对象即可表达同样的缝隙（Rust 编译期装配 vs dsh 运行时装配，
 > 是取舍而非优劣）。真正要抄的是**四个角色的边界划分**，尤其是「测量服务」独立于「压缩后端」这一点。
 
 ### 1.1 源码地图
@@ -179,7 +179,7 @@ compaction/start → [摘要] → compaction/summary → user/message(replace) �
 > **注意**：区间边界**保护工具调用配对，但不保护整轮**。
 > 一个超大轮次的早期已闭合 step 可以被单独压缩掉。
 
-### 4.4 工具配对边界（WorldSmith 最该抄的一条）
+### 4.4 工具配对边界（WorldSea 最该抄的一条）
 
 `dsh-compaction` 导出两个纯函数：
 
@@ -264,8 +264,8 @@ This is an automatically generated checkpoint condensing an earlier span of the 
 3. **不调模型** —— 裁剪本身零 LLM 调用；裁剪后重测若已低于阈值，**直接跳过摘要**。
 4. **只在触发后运行** —— 低于压力的对话永远不动。
 
-> **对 WorldSmith 的直接对照**：`clamp_tool_result` 是"入库前截断"，原文本丢失；
-> dsh 是"入库后替换"，原文保留可回放。见 [六、](#六worldsmith-现状盘点)。
+> **对 WorldSea 的直接对照**：`clamp_tool_result` 是"入库前截断"，原文本丢失；
+> dsh 是"入库后替换"，原文保留可回放。见 [六、](#六worldsea-现状盘点)。
 
 ### 4.8 shadow price 协议（一个巧妙的纯消费者设计）
 
@@ -276,7 +276,7 @@ This is an automatically generated checkpoint condensing an earlier span of the 
 
 `compaction/prune` 的 JSDoc 明确：**替换必须同步紧跟在该事件之后追加**（契约性相邻）。
 
-这对 WorldSmith 的前端很有价值：`turnModel.ts` 的归约器是纯函数折叠，
+这对 WorldSea 的前端很有价值：`turnModel.ts` 的归约器是纯函数折叠，
 若要做"已压缩掉多少 token"的展示，这个协议让归约器保持无状态。
 
 ### 4.9 溢出恢复
@@ -326,7 +326,7 @@ agent/pre-step (waterfall, 请求派生前)
 
 ---
 
-## 六、WorldSmith 现状盘点（实测证据，2026-09-01）
+## 六、WorldSea 现状盘点（实测证据，2026-09-01）
 
 ### 6.1 已有的东西
 
@@ -403,7 +403,7 @@ const HISTORY_KEEP_MESSAGES: usize = 12;      // ⚠ 占位待定
 
 ## 七、差距矩阵
 
-| 能力 | dsh | WorldSmith | 优先级 |
+| 能力 | dsh | WorldSea | 优先级 |
 |---|---|---|---|
 | 压缩语义 | 日志上的 `replace` 记录 | 内存 drain | **P0** |
 | 原文可回溯 | 是（append-only 日志） | 否 | **P0** |
@@ -492,7 +492,7 @@ msg.meta.insert("shadowed_by".into(), json!(summary_seq));
 
 | 子系统 | 为什么值得看 | 状态 |
 |---|---|---|
-| **tool 执行管线** | 工具调用/结果的权威事件源设计，WorldSmith 的 `tools.rs` 可对位 | 待启动 |
+| **tool 执行管线** | 工具调用/结果的权威事件源设计，WorldSea 的 `tools.rs` 可对位 | 待启动 |
 | **subagent** | 子 Agent 的会话隔离与结果回传 | 待启动 |
 | **agent-team** | 多 Agent 协作（experimental 包） | 待启动 |
 | **token-meter** | 独立测量服务，直接影响阶段 C | 待启动（建议与阶段 C 同步） |

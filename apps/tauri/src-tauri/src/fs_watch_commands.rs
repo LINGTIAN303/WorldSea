@@ -56,8 +56,8 @@ pub async fn cmd_fs_watch_start(
                 .iter()
                 .filter(|p| {
                     let s = p.to_string_lossy().replace('\\', "/");
-                    !s.ends_with("/.worldsmith/kv_store.json")
-                        && !s.ends_with("/.worldsmith/files_meta.json")
+                    !s.ends_with("/.worldsea/kv_store.json")
+                        && !s.ends_with("/.worldsea/files_meta.json")
                 })
                 .map(|p| p.to_string_lossy().replace('\\', "/"))
                 .collect();

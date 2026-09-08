@@ -26,8 +26,8 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { CardDeck } from '@worldsmith/ui-kit'
-import { useShortcuts, normalizeKeys, formatKeyForDisplay } from '@worldsmith/ui-kit'
+import { CardDeck } from '@worldsea/ui-kit'
+import { useShortcuts, normalizeKeys, formatKeyForDisplay } from '@worldsea/ui-kit'
 import WsIcon from '../../WsIcon.vue'
 import { matchKeywords, SHORTCUT_CATALOG, SCOPE_ORDER, scopeLabel, type ShortcutItem } from '../utils'
 

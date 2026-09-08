@@ -10,7 +10,7 @@ export interface UseImageResolverOptions {
   /**
    * 订阅"持久化已完成"事件；返回取消订阅的函数。
    * 命中事件时，resolver 会立即用当前 attempt 重新解析（绕过剩余退避）。
-   * 由 consumer 注入事件源（onImagePersisted / onFilePersisted），避免 entity-core 反向依赖 worldsmith-agent。
+   * 由 consumer 注入事件源（onImagePersisted / onFilePersisted），避免 entity-core 反向依赖 worldsea-agent。
    */
   subscribe: (listener: (event: ImagePersistedEvent) => void) => () => void
   /**

@@ -1,4 +1,4 @@
-import type { PluginAPIType } from '@worldsmith/entity-core'
+import type { PluginAPIType } from '@worldsea/entity-core'
 import SpeciesView from './SpeciesView.vue'
 
 export const manifest = {
@@ -6,7 +6,7 @@ export const manifest = {
   name: '种族/物种',
   version: '2.0.0',
   description: '管理世界观中的种族、物种及其群体属性',
-  author: 'WorldSmith',
+  author: 'WorldSea',
   agentSkills: ['worldbuilding'],
   agentCapabilities: [
     { action: 'create_entity', description: '创建物种', params: ['name', 'description'] },

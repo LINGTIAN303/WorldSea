@@ -77,7 +77,7 @@
 import { ref, computed } from 'vue'
 import { useSpaceStore, type GroupChatMode } from '../../stores/space-store'
 import { useUserProfileStore } from '../../stores/user-profile-store'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import AvatarBadge from '@/ui/AvatarBadge.vue'
 import TuiSegmented from '@/components/ui/TuiSegmented.vue'
 import UserProfilePopover from '../../panels/UserProfilePopover.vue'

@@ -65,8 +65,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
-import { CustomDropdown } from '@worldsmith/plugin-sdk'
+import { WsIcon } from '@worldsea/ui-kit'
+import { CustomDropdown } from '@worldsea/plugin-sdk'
 import type { AwarenessMode } from '../composables/useAwareness'
 import type { WasmBattleUnit } from '../composables/useTacticalEngine'
 import type { BattlePhase, ActionState } from '../composables/useBattleManager'

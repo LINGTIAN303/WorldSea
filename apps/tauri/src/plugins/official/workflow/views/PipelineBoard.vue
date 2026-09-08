@@ -99,7 +99,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { CreateButton } from '@worldsmith/plugin-sdk'
+import { CreateButton } from '@worldsea/plugin-sdk'
 import TuiSpinner from '@/components/ui/TuiSpinner.vue'
 import { usePipeline } from '../composables/usePipeline'
 import { usePipelineTemplates } from '../composables/usePipelineTemplates'

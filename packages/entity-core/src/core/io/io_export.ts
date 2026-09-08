@@ -9,7 +9,7 @@
 
 import { ExportController, defaultFormatEncoder } from './ExportController'
 import { ImportController } from './ImportController'
-import { serializerRegistry, type WorldSmithPack } from './WorldSmithPack'
+import { serializerRegistry, type WorldSeaPack } from './WorldSeaPack'
 import {
   entitySerializer,
   relationSerializer,
@@ -82,7 +82,7 @@ export async function exportData(
   initSerializers()
   // 用传入的 entities/relations 覆盖默认 Serializer 的行为
   // 这里直接构造一个简化的 pack
-  const pack: WorldSmithPack = {
+  const pack: WorldSeaPack = {
     manifest: {
       version: 2,
       exportedAt: new Date().toISOString(),

@@ -1,5 +1,5 @@
 import type { ToolDefinition } from '../bridge-types'
-import type { ToolMeta } from '@worldsmith/agent-core'
+import type { ToolMeta } from '@worldsea/agent-core'
 
 export const sessionInfo: ToolDefinition = {
   name: 'session_info',

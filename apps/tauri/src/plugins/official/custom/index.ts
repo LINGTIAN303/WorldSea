@@ -1,4 +1,4 @@
-import type { PluginAPIType } from '@worldsmith/entity-core'
+import type { PluginAPIType } from '@worldsea/entity-core'
 import CustomView from './CustomView.vue'
 
 export const manifest = {
@@ -6,7 +6,7 @@ export const manifest = {
   name: '自定义视窗',
   version: '1.0.0',
   description: '界面内多窗口，自由拼装视图面板',
-  author: 'WorldSmith',
+  author: 'WorldSea',
   agentSkills: ['module-builder'],
   agentCapabilities: [
     { action: 'create_entity', description: '创建自定义实体', params: ['name', 'type'] },

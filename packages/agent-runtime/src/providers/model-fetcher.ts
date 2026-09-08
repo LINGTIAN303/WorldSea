@@ -6,7 +6,7 @@ import { smartFetch } from '../utils/smart-fetch'
 import { isTauri } from '../execution'
 
 /** 缓存 key 前缀 */
-const CACHE_KEY_PREFIX = 'worldsmith_fetched_models_'
+const CACHE_KEY_PREFIX = 'worldsea_fetched_models_'
 /** 缓存过期时间：24 小时 */
 const CACHE_TTL = 24 * 60 * 60 * 1000
 
@@ -44,7 +44,7 @@ export async function fetchModelsFromProvider(providerId: string, apiKey?: strin
   const manifest = getProviderManifest(providerId)
   if (!manifest || manifest.supportsModelListing === false) return []
 
-  const key = apiKey || (await loadApiKey(`worldsmith_ak_${providerId}`)) || ''
+  const key = apiKey || (await loadApiKey(`worldsea_ak_${providerId}`)) || ''
   if (!key) return []
 
   // 鉴权方式：OpenAI/多数走 bearer；Anthropic 走 x-api-key 头；Google 走 URL query `key`

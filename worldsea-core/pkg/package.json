@@ -1,0 +1,30 @@
+{
+  "name": "@worldsea/worldsea-core",
+  "type": "module",
+  "description": "WorldSea core library — models, validation, migration, diagnostics, storage",
+  "version": "0.2.0",
+  "license": "MIT OR Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/user/worldsea"
+  },
+  "files": [
+    "index_bg.wasm",
+    "index.js",
+    "index_bg.js",
+    "index.d.ts"
+  ],
+  "main": "index.js",
+  "types": "index.d.ts",
+  "sideEffects": [
+    "./index.js",
+    "./snippets/*"
+  ],
+  "keywords": [
+    "worldbuilding",
+    "validation",
+    "migration",
+    "sqlite",
+    "wasm"
+  ]
+}

@@ -1,4 +1,4 @@
-import type { PluginAPIType } from '@worldsmith/entity-core'
+import type { PluginAPIType } from '@worldsea/entity-core'
 import NotebookView from './NotebookView.vue'
 
 export const manifest = {
@@ -6,7 +6,7 @@ export const manifest = {
   name: '笔记本',
   version: '2.0.0',
   description: '自由笔记与知识管理',
-  author: 'WorldSmith',
+  author: 'WorldSea',
   agentSkills: ['writing', 'worldbuilding'],
   agentCapabilities: [
     { action: 'create_entity', description: '创建笔记', params: ['title'] },

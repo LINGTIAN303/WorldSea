@@ -1,4 +1,4 @@
-import type { RelationTypeSchema as CoreRelationTypeSchema } from '@worldsmith/core-api-types'
+import type { RelationTypeSchema as CoreRelationTypeSchema } from '@worldsea/core-api-types'
 import type { FieldSchema } from './entity'
 
 /** 关系类型的注册表项（V1，继承契约层 RelationTypeSchema，扩展运行时字段） */

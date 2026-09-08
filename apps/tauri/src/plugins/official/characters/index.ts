@@ -1,4 +1,4 @@
-import type { PluginAPIType } from '@worldsmith/entity-core'
+import type { PluginAPIType } from '@worldsea/entity-core'
 import CharacterList from './CharacterList.vue'
 
 export const manifest = {
@@ -6,7 +6,7 @@ export const manifest = {
   name: '角色',
   version: '2.0.0',
   description: '管理世界观中的角色、NPC、主角等人物',
-  author: 'WorldSmith',
+  author: 'WorldSea',
   agentSkills: ['worldbuilding', 'roleplay'],
   agentCapabilities: [
     { action: 'create_entity', description: '创建角色', params: ['name', 'description'] },

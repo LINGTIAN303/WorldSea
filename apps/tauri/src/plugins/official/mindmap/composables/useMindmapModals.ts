@@ -5,7 +5,7 @@
  * 不含业务逻辑——业务逻辑仍保留在主文件中通过解构出的 ref 操作。
  */
 import { ref, reactive } from 'vue'
-import type { Entity } from '@worldsmith/entity-core'
+import type { Entity } from '@worldsea/entity-core'
 
 export function useMindmapModals() {
   // ===== 内联编辑（节点/边名称行内编辑）=====

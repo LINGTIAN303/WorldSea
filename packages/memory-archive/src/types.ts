@@ -1,5 +1,5 @@
 /**
- * @worldsmith/memory-archive 核心类型定义
+ * @worldsea/memory-archive 核心类型定义
  *
  * 包含所有公共类型，应用了 P4/P5/P6/P8/P9/P16 等决策结论。
  */
@@ -106,7 +106,7 @@ export interface Hook {
   source: 'threshold' | 'session_end' | 'manual'
   /** 钩子格式版本（P4 新增，便于未来迁移） */
   version: string // 默认 '1.0'
-  /** 宿主扩展字段（P4 新增，如 worldsmith 可存 entityIds） */
+  /** 宿主扩展字段（P4 新增，如 worldsea 可存 entityIds） */
   customMetadata?: Record<string, unknown>
 
   /** 索引归属（日/周汇总索引引用） */

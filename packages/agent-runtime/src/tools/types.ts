@@ -1,8 +1,8 @@
 /**
  * 工具上下文类型定义
  *
- * 定义 WorldSmith 工具执行时的上下文接口，包含：
- * - WorldSmithToolContext: 工具上下文（实体/关系/文件存储、项目信息、UI 发射等）
+ * 定义 WorldSea 工具执行时的上下文接口，包含：
+ * - WorldSeaToolContext: 工具上下文（实体/关系/文件存储、项目信息、UI 发射等）
  * - EntityLike / RelationLike / FileLike: 领域对象的通用形状
  * - unwrap: 解包辅助函数
  */
@@ -11,7 +11,7 @@ import type { IEntityStore, IRelationStore, IFileStore, ISettingsStore, IUIStore
 export type { IToolContext } from '../toolbus/types'
 
 /** 工具执行时注入的上下文对象，提供对项目存储和 UI 通道的访问 */
-export interface WorldSmithToolContext {
+export interface WorldSeaToolContext {
   stores: {
     entity: IEntityStore
     relation: IRelationStore

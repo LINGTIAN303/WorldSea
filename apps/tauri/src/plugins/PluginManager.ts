@@ -1,5 +1,5 @@
-import type { PluginInstance } from '@worldsmith/entity-core/types'
-import { pluginAPI, usePluginStore, entitySchemaRegistry, relationSchemaRegistry } from '@worldsmith/entity-core'
+import type { PluginInstance } from '@worldsea/entity-core/types'
+import { pluginAPI, usePluginStore, entitySchemaRegistry, relationSchemaRegistry } from '@worldsea/entity-core'
 import { PluginSandbox } from './PluginSandbox'
 
 interface PluginRegistration {

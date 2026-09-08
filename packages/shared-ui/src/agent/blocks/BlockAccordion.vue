@@ -19,8 +19,8 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import type { AccordionBlock } from '@worldsmith/agent-runtime'
-import { WsIcon } from '@worldsmith/ui-kit'
+import type { AccordionBlock } from '@worldsea/agent-runtime'
+import { WsIcon } from '@worldsea/ui-kit'
 
 defineProps<{ block: AccordionBlock }>()
 const expanded = ref(false)

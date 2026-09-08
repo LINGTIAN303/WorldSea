@@ -3,7 +3,7 @@
 > **创建时间**：2026-06-19
 > **状态**：已完成（ArchiveScheduler 已实现于 `packages/memory-archive/src/scheduler/ArchiveScheduler.ts`）
 > **依据**：设计文档第 6 节、7.4 节，待定问题清单 P15/P16/P17/P18
-> **前置条件**：Phase 1-3 已完成（框架核心 + worldsmith 集成 + UI 面板与优化）
+> **前置条件**：Phase 1-3 已完成（框架核心 + worldsea 集成 + UI 面板与优化）
 
 ---
 

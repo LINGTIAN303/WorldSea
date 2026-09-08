@@ -1,6 +1,6 @@
-import type { LibraryDescriptor, CapabilityDeclaration } from '@worldsmith/agent-runtime/toolbus/capability-types'
-import type { IToolContext } from '@worldsmith/agent-runtime/toolbus/types'
-import type { ToolParameter } from '@worldsmith/agent-runtime/bridge-types'
+import type { LibraryDescriptor, CapabilityDeclaration } from '@worldsea/agent-runtime/toolbus/capability-types'
+import type { IToolContext } from '@worldsea/agent-runtime/toolbus/types'
+import type { ToolParameter } from '@worldsea/agent-runtime/bridge-types'
 import {
   algoList,
   algoRun,
@@ -40,7 +40,7 @@ import {
   algoFindLinePolygonIntersections,
   algoPolygonSplit,
   algoPolygonAugment,
-} from '@worldsmith/agent-runtime/tools/algo-tools'
+} from '@worldsea/agent-runtime/tools/algo-tools'
 
 const WASM_AVAILABILITY: { platforms: ('web' | 'tauri')[]; chain: ('internal')[]; requiresWasm: boolean } = {
   platforms: ['web', 'tauri'],
@@ -340,7 +340,7 @@ const algoPolygonAdvancedCap: CapabilityDeclaration = {
 }
 
 export const canvasEngineDescriptor: LibraryDescriptor = {
-  id: '@worldsmith/canvas-engine',
+  id: '@worldsea/canvas-engine',
   name: 'Canvas Engine',
   version: '0.1.0',
   capabilities: [

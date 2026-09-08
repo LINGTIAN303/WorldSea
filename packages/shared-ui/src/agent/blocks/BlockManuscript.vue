@@ -71,14 +71,14 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onUnmounted } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
-import type { ManuscriptBlock } from '@worldsmith/agent-runtime'
-import { useManuscriptAnimation } from '@worldsmith/shared-composables/agent/useManuscriptAnimation'
-import { useAgentUiDeps } from '@worldsmith/shared-composables/agent/deps'
-import { useTheme } from '@worldsmith/entity-core/composables/useTheme'
-import { useFileStore, useImageResolver } from '@worldsmith/entity-core'
-import { getImage, getByPath, blobToDataUrl, onImagePersisted } from '@worldsmith/agent-runtime/stores/image-persistence'
-import type { ExportCorrectorConfig } from '@worldsmith/agent-runtime'
+import { WsIcon } from '@worldsea/ui-kit'
+import type { ManuscriptBlock } from '@worldsea/agent-runtime'
+import { useManuscriptAnimation } from '@worldsea/shared-composables/agent/useManuscriptAnimation'
+import { useAgentUiDeps } from '@worldsea/shared-composables/agent/deps'
+import { useTheme } from '@worldsea/entity-core/composables/useTheme'
+import { useFileStore, useImageResolver } from '@worldsea/entity-core'
+import { getImage, getByPath, blobToDataUrl, onImagePersisted } from '@worldsea/agent-runtime/stores/image-persistence'
+import type { ExportCorrectorConfig } from '@worldsea/agent-runtime'
 import ExportCorrectorDialog from './ExportCorrectorDialog.vue'
 
 const props = defineProps<{ block: ManuscriptBlock }>()

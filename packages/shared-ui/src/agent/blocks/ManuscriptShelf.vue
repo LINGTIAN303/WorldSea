@@ -30,8 +30,8 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
-import type { ManuscriptBlock, AgentMessage } from '@worldsmith/agent-runtime'
+import { WsIcon } from '@worldsea/ui-kit'
+import type { ManuscriptBlock, AgentMessage } from '@worldsea/agent-runtime'
 
 const props = defineProps<{ messages: AgentMessage[] }>()
 const expanded = ref(true)

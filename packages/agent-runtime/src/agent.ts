@@ -4,7 +4,7 @@ import type { CreateAgentOptions } from './bridge-types'
 import { findSkillById } from './skills/registry'
 import { SKILL_META_TOOLS } from './skills/meta-tools'
 import { initToolMetaRegistry } from './tools/tool-meta-registry'
-import { getGlobalSkillRegistry, getGlobalToolRegistry } from '@worldsmith/agent-core'
+import { getGlobalSkillRegistry, getGlobalToolRegistry } from '@worldsea/agent-core'
 import { entityCrudTools } from './tools/entity-crud'
 import { relationManageTools } from './tools/relation-manage'
 import { contentSearchTools } from './tools/content-search'
@@ -51,8 +51,8 @@ import { codingAgentTools, LEGACY_TO_CODING_MAP } from './tools/coding-agent-too
 import { LEGACY_ALGO_MAP } from './tools/algo-tools'
 import { PLUGIN_BACKEND_TOOLS, LEGACY_PLUGIN_MAP } from './tools/plugin-backend-tools'
 import { InternalChainRegistry } from './toolbus/internal-registry'
-import { entityCoreDescriptor } from '@worldsmith/entity-core'
-import { canvasEngineDescriptor } from '@worldsmith/canvas-engine'
+import { entityCoreDescriptor } from '@worldsea/entity-core'
+import { canvasEngineDescriptor } from '@worldsea/canvas-engine'
 
 /**
  * 全部工具的 Map（name → tool 定义），供：
@@ -151,13 +151,13 @@ registerAllTools()
 
 export const internalRegistry = new InternalChainRegistry()
 internalRegistry.register(entityCoreDescriptor)
-// pluginSdkDescriptor 延迟注册，避免 @worldsmith/plugin-sdk → @agent 循环依赖导致 TDZ
-import('@worldsmith/plugin-sdk').then(mod => {
+// pluginSdkDescriptor 延迟注册，避免 @worldsea/plugin-sdk → @agent 循环依赖导致 TDZ
+import('@worldsea/plugin-sdk').then(mod => {
   internalRegistry.register(mod.pluginSdkDescriptor)
 }).catch(() => {})
 internalRegistry.register(canvasEngineDescriptor)
-// uiKitDescriptor 延迟注册，避免 @worldsmith/ui-kit → @agent 循环依赖
-import('@worldsmith/ui-kit').then(mod => {
+// uiKitDescriptor 延迟注册，避免 @worldsea/ui-kit → @agent 循环依赖
+import('@worldsea/ui-kit').then(mod => {
   internalRegistry.register(mod.uiKitDescriptor)
 }).catch(() => {})
 
@@ -279,7 +279,7 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
  * 返回占位 backend：prompt() 时向订阅者 emit 一条提示消息，保证群聊 UI 全链路可走通。
  * 后续桥 Rust 会话时替换此实现（每参与者映射一个 Rust AgentLoop 会话）。
  */
-export async function createWorldSmithAgent(_options: CreateAgentOptions): Promise<IAgentBackend> {
+export async function createWorldSeaAgent(_options: CreateAgentOptions): Promise<IAgentBackend> {
   let disposed = false
   const listeners = new Set<AgentEventListener>()
   const sessionId = `group-stub-${Date.now()}`

@@ -113,14 +113,14 @@
 import { ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import type { GroupMember } from '../types'
 import { getToolLabel as getSharedToolLabel } from '../types'
-import { renderMarkdownHtml, handleCodeCopyClick } from '@worldsmith/shared-ui/agent/bubbles'
+import { renderMarkdownHtml, handleCodeCopyClick } from '@worldsea/shared-ui/agent/bubbles'
 import { useAgent } from '@/agent/composables/useAgent'
 import type { AgentEvent, IAgentBackend } from '@agent/index'
 import { buildSharedBaseLayer } from '@agent/index'
 import { createOrAttachRustGroupChatBackend } from '../rust/RustGroupChatBackend'
 import { useFontLibraryStore } from '@/stores/fontLibraryStore'
-import { getModelInfo } from '@worldsmith/agent-runtime'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { getModelInfo } from '@worldsea/agent-runtime'
+import { WsIcon } from '@worldsea/ui-kit'
 
 interface ToolCallInfo {
   id: string
@@ -229,7 +229,7 @@ function buildPrivateChatSystemPrompt(): string {
     if (toolContext) {
       const fontLibrary = useFontLibraryStore()
       parts.push(buildSharedBaseLayer({
-        projectName: 'WorldSmith-GroupChat',
+        projectName: 'WorldSea-GroupChat',
         entityTypes: toolContext.projectInfo.entityTypes,
         relationTypes: toolContext.projectInfo.relationTypes,
         platform: toolContext.platform,

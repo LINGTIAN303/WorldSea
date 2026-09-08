@@ -14,7 +14,7 @@ import type {
   CapabilityCatalog,
   PatchOperation,
   PatchDiffResult,
-} from '@worldsmith/core-api-types'
+} from '@worldsea/core-api-types'
 export type {
   SafetyReport,
   ConflictEntry,

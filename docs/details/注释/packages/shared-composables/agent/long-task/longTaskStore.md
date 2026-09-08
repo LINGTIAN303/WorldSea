@@ -20,6 +20,6 @@
  * 复用 workflow 引擎的"设计模式"而非存储后端：
  *   前端 Agent 在 Web/Tauri 模式下均无 SqliteStore，故用 IndexedDB。
  *
- * 端分离 Phase 3：迁移至 @worldsmith/shared-composables，三端共用。
+ * 端分离 Phase 3：迁移至 @worldsea/shared-composables，三端共用。
  */
 ````

@@ -20,20 +20,20 @@ apps/web/
 │   │   └── useCliAgent.ts              # CLI Agent 连接（从 src/agent/composables/ 迁移）
 │   ├── core/                            # Web 专属 core
 │   │   ├── coreBackend.ts              # 仅 WASM 后端，无 Tauri 分支
-│   │   ├── worldsmithCore.ts           # WASM 加载（从 src/core/ 迁移）
+│   │   ├── worldseaCore.ts           # WASM 加载（从 src/core/ 迁移）
 │   │   ├── wasmWorkerPool.ts           # WASM Worker 池（从 src/core/ 迁移）
 │   │   ├── wasm.worker.ts              # WASM Worker（从 src/core/ 迁移）
 │   │   └── io_export.ts                # 导出（从 src/core/ 迁移）
 │   ├── execution/                       # Web 专属执行适配器
-│   │   └── ws-adapter.ts               # WebSocket 适配器（从 worldsmith-agent 迁移）
+│   │   └── ws-adapter.ts               # WebSocket 适配器（从 worldsea-agent 迁移）
 │   ├── composables/                     # Web 专属 composables
 │   │   ├── useFileExtract.ts           # 文件提取（Web 版，用 File API）
 │   │   └── useFontPresets.ts           # 字体预设（Web 版）
 │   ├── api/                             # Web API 调用层
 │   │   ├── cliServe.ts                 # CLI serve HTTP 调用
-│   │   ├── crawl.ts                    # 爬虫（替代 worldsmith-server/crawl）
-│   │   ├── convert.ts                  # 文档转换（替代 worldsmith-server/convert）
-│   │   └── vectorSearch.ts             # 向量搜索（替代 worldsmith-server/vector-search）
+│   │   ├── crawl.ts                    # 爬虫（替代 worldsea-server/crawl）
+│   │   ├── convert.ts                  # 文档转换（替代 worldsea-server/convert）
+│   │   └── vectorSearch.ts             # 向量搜索（替代 worldsea-server/vector-search）
 │   └── types/                           # Web 专属类型
 │       └── global.d.ts                 # 全局类型声明
 ├── index.html                           # Web HTML 入口（从根 index.html 迁移）
@@ -47,34 +47,34 @@ apps/web/
 
 ```json
 {
-  "name": "@worldsmith/web",
+  "name": "@worldsea/web",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "npm run build:wasm && vue-tsc -b && vite build",
-    "build:wasm": "wasm-pack build ../../worldsmith-core --target bundler --out-dir pkg --scope worldsmith --out-name index -- --features wasm && wasm-pack build ../../tactical-engine --target bundler --out-dir pkg --scope worldsmith --out-name index",
+    "build:wasm": "wasm-pack build ../../worldsea-core --target bundler --out-dir pkg --scope worldsea --out-name index -- --features wasm && wasm-pack build ../../tactical-engine --target bundler --out-dir pkg --scope worldsea --out-name index",
     "preview": "vite preview",
     "typecheck": "vue-tsc --noEmit"
   },
   "dependencies": {
-    "@worldsmith/agent-runtime": "workspace:*",
-    "@worldsmith/shared-ui": "workspace:*",
-    "@worldsmith/shared-composables": "workspace:*",
-    "@worldsmith/agent-core": "workspace:*",
-    "@worldsmith/canvas-engine": "workspace:*",
-    "@worldsmith/core": "file:../../worldsmith-core/pkg",
-    "@worldsmith/entity-core": "workspace:*",
-    "@worldsmith/font-kit": "workspace:*",
-    "@worldsmith/governor-core": "workspace:*",
-    "@worldsmith/memory-archive": "workspace:*",
-    "@worldsmith/motion-kit": "workspace:*",
-    "@worldsmith/perf-kit": "workspace:*",
-    "@worldsmith/plugin-sdk": "workspace:*",
-    "@worldsmith/tactical-engine": "file:../../tactical-engine/pkg",
-    "@worldsmith/theme-kit": "workspace:*",
-    "@worldsmith/ui-kit": "workspace:*",
+    "@worldsea/agent-runtime": "workspace:*",
+    "@worldsea/shared-ui": "workspace:*",
+    "@worldsea/shared-composables": "workspace:*",
+    "@worldsea/agent-core": "workspace:*",
+    "@worldsea/canvas-engine": "workspace:*",
+    "@worldsea/core": "file:../../worldsea-core/pkg",
+    "@worldsea/entity-core": "workspace:*",
+    "@worldsea/font-kit": "workspace:*",
+    "@worldsea/governor-core": "workspace:*",
+    "@worldsea/memory-archive": "workspace:*",
+    "@worldsea/motion-kit": "workspace:*",
+    "@worldsea/perf-kit": "workspace:*",
+    "@worldsea/plugin-sdk": "workspace:*",
+    "@worldsea/tactical-engine": "file:../../tactical-engine/pkg",
+    "@worldsea/theme-kit": "workspace:*",
+    "@worldsea/ui-kit": "workspace:*",
     "@tiptap/core": "^3.26.1",
     "@tiptap/extension-mention": "^3.26.1",
     "@tiptap/starter-kit": "^3.26.1",
@@ -130,7 +130,7 @@ apps/web/
 - 无 `@tauri-apps/api` / `@tauri-apps/cli` / `@tauri-apps/plugin-*`
 - 无 `@chenglou/pretext`（如未使用）
 - 无 `@windfonts/chinese-fonts`（如未使用）
-- 依赖 `@worldsmith/agent-runtime` / `@worldsmith/shared-ui` / `@worldsmith/shared-composables`
+- 依赖 `@worldsea/agent-runtime` / `@worldsea/shared-ui` / `@worldsea/shared-composables`
 
 ## 3. vite.config.ts
 
@@ -152,13 +152,13 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, 'src'),
-      '@worldsmith/shared-ui': path.resolve(__dirname, '../../packages/shared-ui/src'),
-      '@worldsmith/shared-composables': path.resolve(__dirname, '../../packages/shared-composables/src'),
-      '@worldsmith/agent-runtime': path.resolve(__dirname, '../../packages/agent-runtime/src'),
+      '@worldsea/shared-ui': path.resolve(__dirname, '../../packages/shared-ui/src'),
+      '@worldsea/shared-composables': path.resolve(__dirname, '../../packages/shared-composables/src'),
+      '@worldsea/agent-runtime': path.resolve(__dirname, '../../packages/agent-runtime/src'),
     },
   },
   optimizeDeps: {
-    exclude: ['@worldsmith/core', '@worldsmith/tactical-engine'],  // WASM 包不预构建
+    exclude: ['@worldsea/core', '@worldsea/tactical-engine'],  // WASM 包不预构建
   },
   build: {
     target: 'es2022',
@@ -168,8 +168,8 @@ export default defineConfig({
       output: {
         manualChunks: {
           'vendor-vue': ['vue', 'pinia', 'naive-ui'],
-          'vendor-wasm': ['@worldsmith/core', '@worldsmith/tactical-engine'],
-          'vendor-agent': ['@worldsmith/agent-runtime', '@worldsmith/shared-composables'],
+          'vendor-wasm': ['@worldsea/core', '@worldsea/tactical-engine'],
+          'vendor-agent': ['@worldsea/agent-runtime', '@worldsea/shared-composables'],
         },
       },
     },
@@ -195,12 +195,12 @@ export default defineConfig({
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
-      "@worldsmith/shared-ui": ["../../packages/shared-ui/src"],
-      "@worldsmith/shared-ui/*": ["../../packages/shared-ui/src/*"],
-      "@worldsmith/shared-composables": ["../../packages/shared-composables/src"],
-      "@worldsmith/shared-composables/*": ["../../packages/shared-composables/src/*"],
-      "@worldsmith/agent-runtime": ["../../packages/agent-runtime/src"],
-      "@worldsmith/agent-runtime/*": ["../../packages/agent-runtime/src/*"]
+      "@worldsea/shared-ui": ["../../packages/shared-ui/src"],
+      "@worldsea/shared-ui/*": ["../../packages/shared-ui/src/*"],
+      "@worldsea/shared-composables": ["../../packages/shared-composables/src"],
+      "@worldsea/shared-composables/*": ["../../packages/shared-composables/src/*"],
+      "@worldsea/agent-runtime": ["../../packages/agent-runtime/src"],
+      "@worldsea/agent-runtime/*": ["../../packages/agent-runtime/src/*"]
     },
     "types": ["vite/client", "node"],
     "skipLibCheck": true
@@ -230,22 +230,22 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'
 
-import { fieldRegistry, setUndoHistoryProvider, registerEventBus, registerValidationApi, registerToastApi, registerConfirmApi, registerDialogApi, registerSettingsApi } from '@worldsmith/entity-core'
-import { registerBackend } from '@worldsmith/canvas-engine/core'
-import { useConfirm, useDialog } from '@worldsmith/plugin-sdk'
-import { injectAllKeyframes } from '@worldsmith/ui-kit'
-import { registerAllManifests } from '@worldsmith/theme-kit'
+import { fieldRegistry, setUndoHistoryProvider, registerEventBus, registerValidationApi, registerToastApi, registerConfirmApi, registerDialogApi, registerSettingsApi } from '@worldsea/entity-core'
+import { registerBackend } from '@worldsea/canvas-engine/core'
+import { useConfirm, useDialog } from '@worldsea/plugin-sdk'
+import { injectAllKeyframes } from '@worldsea/ui-kit'
+import { registerAllManifests } from '@worldsea/theme-kit'
 
 // Web 专属
 import * as coreBackend from './core/coreBackend'   // 仅 WASM 后端
-import { useSettingsStore } from '@worldsmith/shared-ui/stores/settingsStore'
-import { eventBus } from '@worldsmith/shared-ui/modules/runtime/events'
-import { toastSuccess, toastError, toastWarn, toastInfo } from '@worldsmith/shared-composables/useToast'
+import { useSettingsStore } from '@worldsea/shared-ui/stores/settingsStore'
+import { eventBus } from '@worldsea/shared-ui/modules/runtime/events'
+import { toastSuccess, toastError, toastWarn, toastInfo } from '@worldsea/shared-composables/useToast'
 
 // 端注册
-import { registerExecutionAdapterFactory } from '@worldsmith/agent-runtime'
+import { registerExecutionAdapterFactory } from '@worldsea/agent-runtime'
 import { WebSocketExecutionAdapter } from './execution/ws-adapter'
-import { AgentBackendKey, CoreBackendKey } from '@worldsmith/shared-ui'
+import { AgentBackendKey, CoreBackendKey } from '@worldsea/shared-ui'
 import { WsAgentBackend } from './agent/WsAgentBackend'
 
 // 注册 ExecutionAdapter 工厂
@@ -274,7 +274,7 @@ registerConfirmApi(useConfirm())
 registerDialogApi(useDialog())
 registerSettingsApi(useSettingsStore())
 
-document.documentElement.setAttribute('data-theme', localStorage.getItem('worldsmith-theme') || 'aurora-abyss')
+document.documentElement.setAttribute('data-theme', localStorage.getItem('worldsea-theme') || 'aurora-abyss')
 injectAllKeyframes()
 registerAllManifests()
 setUndoHistoryProvider(() => useSettingsStore().undoHistoryLimit || 20)
@@ -304,7 +304,7 @@ export async function validateEntity(...) {
 **改造后**（仅 WASM）：
 ```typescript
 // apps/web/src/core/coreBackend.ts
-import { getCore } from './worldsmithCore'
+import { getCore } from './worldseaCore'
 import { callViaWorker, isHeavyMethod } from './wasmWorkerPool'
 
 let _corePromise: Promise<unknown> | null = null
@@ -331,7 +331,7 @@ export async function validateEntity(entityJson: string, schemaJson?: string) {
 
 ```typescript
 // apps/web/src/agent/WsAgentBackend.ts
-import type { IAgentBackend, AgentEvent, AgentMessage, PromptOptions, ChatMode } from '@worldsmith/agent-runtime'
+import type { IAgentBackend, AgentEvent, AgentMessage, PromptOptions, ChatMode } from '@worldsea/agent-runtime'
 import { WebSocketExecutionAdapter } from '../execution/ws-adapter'
 
 export class WsAgentBackend implements IAgentBackend {
@@ -369,10 +369,10 @@ Step W1: 创建 apps/web/ 目录骨架与 package.json
 Step W2: 迁移 index.html 到 apps/web/index.html
 Step W3: 迁移 src/main.ts 到 apps/web/src/main.ts，改造入口（移除 Tauri 分支）
 Step W4: 迁移 src/core/coreBackend.ts，改造为仅 WASM 后端
-Step W5: 迁移 src/core/{worldsmithCore.ts, wasmWorkerPool.ts, wasm.worker.ts, io_export.ts}
-Step W6: 迁移 worldsmith-agent/src/execution/ws-adapter.ts 到 apps/web/src/execution/
+Step W5: 迁移 src/core/{worldseaCore.ts, wasmWorkerPool.ts, wasm.worker.ts, io_export.ts}
+Step W6: 迁移 worldsea-agent/src/execution/ws-adapter.ts 到 apps/web/src/execution/
 Step W7: 创建 WsAgentBackend.ts 与 useAgentWs.ts
-Step W8: 迁移 worldsmith-server 相关 API 调用到 apps/web/src/api/（指向 CLI serve）
+Step W8: 迁移 worldsea-server 相关 API 调用到 apps/web/src/api/（指向 CLI serve）
 Step W9: 配置 apps/web/vite.config.ts（无 Tauri 依赖，含 WASM 插件）
 Step W10: 配置 apps/web/tsconfig.json
 Step W11: 验证 apps/web 独立 dev 启动通过

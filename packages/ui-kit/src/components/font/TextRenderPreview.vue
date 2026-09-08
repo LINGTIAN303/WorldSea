@@ -16,7 +16,7 @@
 
 <script setup lang="ts">
 import { ref, watch, onBeforeUnmount } from 'vue'
-import { renderText, type TextRenderOptions, type RenderResult } from '@worldsmith/font-kit'
+import { renderText, type TextRenderOptions, type RenderResult } from '@worldsea/font-kit'
 
 const props = withDefaults(defineProps<{
   options: TextRenderOptions

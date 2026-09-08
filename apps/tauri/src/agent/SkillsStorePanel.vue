@@ -48,12 +48,12 @@
       <div class="store-section">
         <button class="store-section-toggle" @click="importPanelOpen = !importPanelOpen">
           <WsIcon name="plus" size="xs" />
-          本地导入（Claude Code / Cursor / WorldSmith）
+          本地导入（Claude Code / Cursor / WorldSea）
         </button>
         <Transition name="ws-slide-up">
           <div v-if="importPanelOpen" class="store-import-area">
             <p class="store-import-hint">
-              选择外部技能文件（SKILL.md / .mdc / skill.yaml），自动识别格式并导入为 WorldSmith 技能。已存在同名技能会覆盖。
+              选择外部技能文件（SKILL.md / .mdc / skill.yaml），自动识别格式并导入为 WorldSea 技能。已存在同名技能会覆盖。
             </p>
             <input
               ref="fileInputRef"
@@ -191,8 +191,8 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
-import { useSkillsStore } from '@worldsmith/shared-composables/agent/useSkillsStore'
+import { WsIcon } from '@worldsea/ui-kit'
+import { useSkillsStore } from '@worldsea/shared-composables/agent/useSkillsStore'
 import { getAllSkills, initSkillRegistry } from '@agent/skills/registry'
 import type { RemoteSkillEntry } from '@agent/index'
 

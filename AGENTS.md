@@ -20,13 +20,13 @@
 **示例**：
 - `catpaw-myapp-20260706`
 - `trae-MemoryCenter-20260706`
-- `claudecode-worldsmith-20260706`
-- `opencode-worldsmith-20260709`
+- `claudecode-worldsea-20260706`
+- `opencode-worldsea-20260709`
 
 > 一个 session_id 对应一个独立的记忆空间。同会话内复用同一 session_id，
 > 切换项目或日期时换新 session_id。
 >
-> **禁止使用 `项目名-session` 这种格式**（如 `worldsmith-session`），
+> **禁止使用 `项目名-session` 这种格式**（如 `worldsea-session`），
 > 会导致 retrieve 找不到记忆。若不确定用哪个 session_id，先调 `MemoryCenter_prompt` 工具
 > 查看可用 session 列表，或询问用户。
 
@@ -156,7 +156,7 @@
 - 针对 200K 窗口的 5 条策略：① 分阶段讨论，每次只聚焦一个主题；② 记忆文档兜底，压缩后也能找回；③ TodoWrite 跟踪进度；④ 外部资料即时查（WebSearch），不占用户脑容量；⑤ 用户只需做决策，Agent 负责信息收集与整理
 
 ### 部署流程
-> ⚠️ 仅限 MemoryCenter 项目（worldsmith 项目不上线、不推送）。
+> ⚠️ 仅限 MemoryCenter 项目（worldsea 项目不上线、不推送）。
 > 服务器/宝塔/SSH 凭证与密钥路径见 `.catpaw/rules/project-deployment.md`（已 gitignore，不入库），此处不重复明文。
 
 - 部署机制：`git push production main` → 服务器 post-receive hook → 构建 frontend (vite build) + 编译 Rust 后端 + 重启服务，无需手动 SSH/SFTP

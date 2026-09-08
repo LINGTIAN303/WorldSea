@@ -1,5 +1,5 @@
 import { ref, computed } from 'vue'
-import { useThemeManifest } from '@worldsmith/theme-kit'
+import { useThemeManifest } from '@worldsea/theme-kit'
 
 export interface ThemeDefinition {
   name: string
@@ -13,9 +13,9 @@ export interface ThemeDefinition {
   customCSS?: string
 }
 
-const STORAGE_KEY = 'worldsmith-theme'
-const CUSTOM_THEMES_KEY = 'worldsmith-custom-themes'
-const OVERRIDES_KEY = 'worldsmith-theme-overrides'
+const STORAGE_KEY = 'worldsea-theme'
+const CUSTOM_THEMES_KEY = 'worldsea-custom-themes'
+const OVERRIDES_KEY = 'worldsea-theme-overrides'
 
 const builtinThemeIds = ['aurora-abyss', 'light', 'forge-ember', 'ink-scroll', 'crystal-prism', 'cosmic']
 
@@ -72,7 +72,7 @@ function saveUserOverrides(overrides: Record<string, string>) {
 
 function loadComponentOverrides(): Record<string, Record<string, string>> {
   try {
-    const raw = ls.getItem('worldsmith-component-overrides')
+    const raw = ls.getItem('worldsea-component-overrides')
     return raw ? JSON.parse(raw) : {}
   } catch {
     return {}
@@ -80,7 +80,7 @@ function loadComponentOverrides(): Record<string, Record<string, string>> {
 }
 
 function saveComponentOverrides(overrides: Record<string, Record<string, string>>) {
-  ls.setItem('worldsmith-component-overrides', JSON.stringify(overrides))
+  ls.setItem('worldsea-component-overrides', JSON.stringify(overrides))
 }
 
 function applyTokens(tokens: Record<string, string>) {
@@ -111,7 +111,7 @@ export function useTheme() {
     const builtins = builtinThemeIds.map(id => ({
       id,
       name: getThemeName(id),
-      author: 'WorldSmith',
+      author: 'WorldSea',
       version: '1.0.0',
       mode: (['light', 'ink-scroll'].includes(id) ? 'light' : 'dark') as 'dark' | 'light',
       tokens: {},

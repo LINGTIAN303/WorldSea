@@ -21,7 +21,7 @@ export interface TuiSegmentedOption {
 }
 
 import { ref } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 
 const props = withDefaults(
   defineProps<{

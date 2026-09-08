@@ -1,4 +1,4 @@
-import type { CustomModule, ModuleViewConfig } from '@worldsmith/entity-core'
+import type { CustomModule, ModuleViewConfig } from '@worldsea/entity-core'
 
 /** 自定义模块视图数据注册表：viewId → { module, viewConfig } */
 const registry = new Map<string, { module: CustomModule; viewConfig: ModuleViewConfig }>()

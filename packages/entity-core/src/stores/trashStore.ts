@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed } from 'vue'
-import { useShallowArray } from '@worldsmith/perf-kit/reactive'
-import { createDebouncedStorage } from '@worldsmith/perf-kit/io'
+import { useShallowArray } from '@worldsea/perf-kit/reactive'
+import { createDebouncedStorage } from '@worldsea/perf-kit/io'
 import type { Entity, Relation } from '../types'
 
 export interface TrashItem {

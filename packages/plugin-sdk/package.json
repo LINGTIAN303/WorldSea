@@ -1,5 +1,5 @@
 {
-  "name": "@worldsmith/plugin-sdk",
+  "name": "@worldsea/plugin-sdk",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -15,8 +15,8 @@
     "typecheck": "vue-tsc --noEmit"
   },
   "dependencies": {
-    "@worldsmith/core-api-types": "link:../core-api-types",
-    "@worldsmith/entity-core": "link:../entity-core",
-    "@worldsmith/ui-kit": "link:../ui-kit"
+    "@worldsea/core-api-types": "link:../core-api-types",
+    "@worldsea/entity-core": "link:../entity-core",
+    "@worldsea/ui-kit": "link:../ui-kit"
   }
 }

@@ -6,4 +6,4 @@ export {
   type ProjectCache,
   type ExportProgressCallback,
   type ImportProgressCallback,
-} from '@worldsmith/entity-core/core'
+} from '@worldsea/entity-core/core'

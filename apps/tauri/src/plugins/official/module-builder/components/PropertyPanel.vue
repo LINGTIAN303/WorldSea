@@ -32,7 +32,7 @@
 import { reactive, computed, watch, inject } from 'vue'
 import { getComponentType } from '../registry/componentTypeRegistry'
 import type { PlacedComponent } from '../types/layoutSchema'
-import type { CustomModule } from '@worldsmith/entity-core'
+import type { CustomModule } from '@worldsea/entity-core'
 
 const props = defineProps<{ selectedComponent: PlacedComponent | null }>()
 const emit = defineEmits<{ 'update-config': [id: string, config: Record<string, unknown>] }>()

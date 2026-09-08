@@ -23,9 +23,9 @@ import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import { useTerminalRust } from '../composables/useTerminalRust'
 import { useTuiToast } from '../../components/ui/useTuiToast'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 // 当前打开目录（Agent 工作空间）读取：entity-core FileStorageBackend.projectDir
-import { getFileStorageBackend } from '@worldsmith/entity-core/core'
+import { getFileStorageBackend } from '@worldsea/entity-core/core'
 
 const term = useTerminalRust()
 const toast = useTuiToast()

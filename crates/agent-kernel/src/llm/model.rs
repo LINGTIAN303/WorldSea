@@ -1,7 +1,7 @@
 //! # 模型信息
 //!
 //! 对应 TS 版 pi-ai 的 `Model<TApi>` 结构。
-//! 简化版：只保留 worldsmith 实际使用的字段。
+//! 简化版：只保留 worldsea 实际使用的字段。
 
 use serde::{Deserialize, Serialize};
 

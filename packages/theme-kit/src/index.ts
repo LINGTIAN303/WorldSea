@@ -1,5 +1,5 @@
 /**
- * @worldsmith/theme-kit
+ * @worldsea/theme-kit
  * 
  * 多维度主题切换系统：
  * - 形态令牌（圆角、边框、阴影）

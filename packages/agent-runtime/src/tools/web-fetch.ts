@@ -6,7 +6,7 @@
  */
 
 import type { ToolDefinition } from '../bridge-types'
-import type { ToolMeta } from '@worldsmith/agent-core'
+import type { ToolMeta } from '@worldsea/agent-core'
 import { smartFetch } from '../utils/smart-fetch'
 
 /** 支持的 Jina Reader 输出格式 */
@@ -50,7 +50,7 @@ export async function fetchWithJina(
         headers: {
           'Accept': acceptHeader,
           'X-Return-Format': format,
-          'User-Agent': 'WorldSmith-Agent/1.0 (Jina-Reader-Proxy)',
+          'User-Agent': 'WorldSea-Agent/1.0 (Jina-Reader-Proxy)',
         },
         timeout,
       })

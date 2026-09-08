@@ -69,10 +69,10 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import DOMPurify from 'dompurify'
 import { useFontStore } from '@/stores/fontStore'
-import { useFontPresets } from '@worldsmith/font-kit'
+import { useFontPresets } from '@worldsea/font-kit'
 
 const props = defineProps<{
   visible: boolean

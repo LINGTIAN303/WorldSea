@@ -1,6 +1,6 @@
 import { ref, watch, type Ref } from 'vue'
-import { useEntityStore, type Entity, type FieldSchema } from '@worldsmith/entity-core'
-import { toastSuccess, toastError } from '@worldsmith/ui-kit'
+import { useEntityStore, type Entity, type FieldSchema } from '@worldsea/entity-core'
+import { toastSuccess, toastError } from '@worldsea/ui-kit'
 
 export interface EditFormValues {
   _name: string
@@ -88,7 +88,7 @@ export function useEntityEdit(selectedEntity: Ref<Entity | null>) {
 
       // 触发 AutoLink 索引（新架构）
       try {
-        const { indexPotentialLinks } = await import('@worldsmith/entity-core')
+        const { indexPotentialLinks } = await import('@worldsea/entity-core')
         await indexPotentialLinks(entity.id, entity.type, properties)
       } catch { /* AutoLink 索引失败不影响主流程 */ }
     } catch (err) {

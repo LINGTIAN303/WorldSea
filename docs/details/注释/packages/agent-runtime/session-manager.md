@@ -11,13 +11,13 @@
 基于 Dexie (IndexedDB) 实现 Agent 会话的持久化存储。
 提供会话的 CRUD 操作，以及在删除会话时级联清理 IndexedDB 中的图片数据。
 
-数据库: worldsmith-agent-${projectId} (v2)
+数据库: worldsea-agent-${projectId} (v2)
 表: sessions / agentProfiles / groupSessions
 
 改造说明：
 - AgentDB 构造函数接收 projectId，数据库名动态化
 - getDb() 从 AgentDbPool 获取当前项目的数据库实例
-- 旧的全局数据库 worldsmith-agent 保留用于数据迁移
+- 旧的全局数据库 worldsea-agent 保留用于数据迁移
 ```
 
 ## 注释块 2（原文件第 172-182 行）

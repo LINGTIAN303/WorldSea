@@ -191,7 +191,7 @@ export function buildSystemPrompt(params: SystemPromptParams): string {
   const parts: string[] = []
 
   // 人格层：身份声明 + 人格预设
-  parts.push(`你是 WorldSmith 的 AI 助手，服务于「${params.projectName}」世界观构建项目。`)
+  parts.push(`你是 WorldSea 的 AI 助手，服务于「${params.projectName}」世界观构建项目。`)
 
   const persona = PERSONA_PRESETS[params.personaPreset || 'default']
   if (persona && params.personaPreset && params.personaPreset !== 'default') {

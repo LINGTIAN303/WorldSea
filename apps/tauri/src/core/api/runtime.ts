@@ -11,7 +11,7 @@ type BackendType = 'wasm' | 'none'
 function detectBackend(): BackendType {
   try {
     if (typeof window !== 'undefined') {
-      const testKey = '__worldsmith_core_wasm_test__'
+      const testKey = '__worldsea_core_wasm_test__'
       const modules = (window as any)[testKey]
       if (modules && typeof modules === 'object') {
         return 'wasm'
@@ -25,7 +25,7 @@ export function setWasmAvailable(available: boolean): void {
   if (available) {
     try {
       if (typeof window !== 'undefined') {
-        ;(window as any).__worldsmith_core_wasm_test__ = { loaded: true }
+        ;(window as any).__worldsea_core_wasm_test__ = { loaded: true }
       }
     } catch {}
   }
@@ -43,7 +43,7 @@ let _corePromise: Promise<unknown> | null = null
 export async function getCoreCached(): Promise<{ [key: string]: (...args: any[]) => any } | null> {
   if (!_corePromise) {
     _corePromise = (async () => {
-      const { getCore } = await import('../worldsmithCore')
+      const { getCore } = await import('../worldseaCore')
       return getCore()
     })()
   }

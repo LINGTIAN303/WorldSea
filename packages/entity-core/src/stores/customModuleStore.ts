@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import type { CustomModule } from '../types'
 
-const STORAGE_KEY = 'worldsmith_custom_modules'
+const STORAGE_KEY = 'worldsea_custom_modules'
 
 function loadModules(): CustomModule[] {
   try {

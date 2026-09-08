@@ -16,8 +16,8 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
-import { SchemaRenderer, type RelationTabDef } from '@worldsmith/plugin-sdk'
+import { WsIcon } from '@worldsea/ui-kit'
+import { SchemaRenderer, type RelationTabDef } from '@worldsea/plugin-sdk'
 import WeaponLineageView from './WeaponLineageView.vue'
 import { schemaGetEntityType } from '@/core/coreBackend'
 

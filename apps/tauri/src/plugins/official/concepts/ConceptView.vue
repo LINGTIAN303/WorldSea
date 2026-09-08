@@ -40,11 +40,11 @@
 
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
-import { GenericEntityView, EntityRelationSelector, type FormFieldDef, type FilterDef, type CardFieldDef, type RelationTabDef } from '@worldsmith/plugin-sdk'
-import { WsIcon } from '@worldsmith/ui-kit'
-import { WsEmpty } from '@worldsmith/ui-kit'
-import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'
-import type { Entity } from '@worldsmith/entity-core'
+import { GenericEntityView, EntityRelationSelector, type FormFieldDef, type FilterDef, type CardFieldDef, type RelationTabDef } from '@worldsea/plugin-sdk'
+import { WsIcon } from '@worldsea/ui-kit'
+import { WsEmpty } from '@worldsea/ui-kit'
+import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
+import type { Entity } from '@worldsea/entity-core'
 import { useMindmapStore } from '../mindmap/mindmapStore'
 
 const entityStore = useEntityStore()

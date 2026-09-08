@@ -34,12 +34,12 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
-import { CreateButton } from '@worldsmith/plugin-sdk'
-import { useCustomModuleStore } from '@worldsmith/entity-core'
+import { WsIcon } from '@worldsea/ui-kit'
+import { CreateButton } from '@worldsea/plugin-sdk'
+import { useCustomModuleStore } from '@worldsea/entity-core'
 import { registerModule, unregisterModule, getCustomModuleViews } from '../../../core/ModuleRuntime'
 import { setModuleViewData, clearModuleViewData } from '../../../core/ModuleViewRegistry'
-import { pluginAPI, usePluginStore } from '@worldsmith/entity-core'
+import { pluginAPI, usePluginStore } from '@worldsea/entity-core'
 import { createEmptyLayoutSchema } from './types/layoutSchema'
 import ModuleRuntimeRenderer from './runtime/ModuleRuntimeRenderer.vue'
 import ModuleCard from './components/ModuleCard.vue'
@@ -47,7 +47,7 @@ import ModuleDeleteModal from './components/ModuleDeleteModal.vue'
 import ModulePublishModal from './components/ModulePublishModal.vue'
 import ModuleGuideModal from './components/ModuleGuideModal.vue'
 import PageEditor from './PageEditor.vue'
-import type { CustomModule, PluginView } from '@worldsmith/entity-core'
+import type { CustomModule, PluginView } from '@worldsea/entity-core'
 
 const customModuleStore = useCustomModuleStore()
 const pluginStore = usePluginStore()

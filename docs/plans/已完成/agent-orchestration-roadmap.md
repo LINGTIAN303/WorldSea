@@ -4,12 +4,12 @@
 > 创建日期：2026-07-24
 > **归档注记（2026-08-30 实况核对）**：阶段 3（pi-ai 移除）实际已完成（全 packages 无 `from 'pi-ai'`，e2e-closure 5.5 核实），正文"可选待定"过期；文内全部 `crates/agent-runtime/src/...` 路径已随 2026-08-25 crate 拆分迁移（实体在 agent-kernel / agent-patterns，旧路径经 `pub use` 转发兼容）；曾声称完成的 Loop Engineering 命令层经端分离迁移断裂后已由自迭代 23 恢复（`docs/执行中/self-iteration/23-loop-control-long-task.md`）；唯一未确认尾巴：failTask 终态闭环（2026-08-02 遗留）无后续记录。后续演进见 [orchestration-matrix.md](../../details/架构/orchestration-matrix.md) 与 [VibeCoding编排模式落地执行.md](../VibeCoding编排模式落地执行.md)。
 > 状态：**阶段 1（Rust Agent loop）+ 阶段 2（编排框架）已完成**（2026-07-28，cargo test 127/127）；阶段 0（TS 编排验证）未做完整，被 Rust 直接实现替代；阶段 3（自研 pi-ai）可选待定
-> 关联：替换 WorldSmith 的 TS pi-ai（详见 [project_memory.md](../../project_memory.md)）
+> 关联：替换 WorldSea 的 TS pi-ai（详见 [project_memory.md](../../project_memory.md)）
 > 2026-08-25：13 模式层级重划已产出权威矩阵 [orchestration-matrix.md](../../details/架构/orchestration-matrix.md)（纯文档，未动代码）；同日经两方方案裁定（[03-两方方案裁定纪要.md](./agent编排层架构重构/03-两方方案裁定纪要.md)）合并修正后，matrix 为唯一架构权威；本文档三层架构图保留为历史规划视角
 
 ## 一、目标
 
-为 WorldSmith 构建一套完整的 Agent 编排框架，支持 13 种主流 Agent 模式，并分阶段从 TypeScript（pi-ai）迁移到 Rust 原生实现。
+为 WorldSea 构建一套完整的 Agent 编排框架，支持 13 种主流 Agent 模式，并分阶段从 TypeScript（pi-ai）迁移到 Rust 原生实现。
 
 ## 二、13 种模式的三层架构
 
@@ -81,7 +81,7 @@
 | 优势 | 劣势 |
 |------|------|
 | 完全可控，无第三方框架依赖 | 工作量最大（底层+中层+上层全做） |
-| 可针对 worldsmith 需求精确设计 API | 需自行维护所有 Provider 协议更新 |
+| 可针对 worldsea 需求精确设计 API | 需自行维护所有 Provider 协议更新 |
 | 性能最优 | SSE 解析/重试/限流等基础设施需从零写 |
 
 ### 路径 2：genai + 自研 Agent loop
@@ -164,7 +164,7 @@
 - [ ] 工作记忆：ReAct 循环内的观察缓冲（推迟到阶段 0.7 实现，已在 0.7 完成）
 - [x] 长期记忆：通过 `MemoryAccessor.recall()` 检索跨会话记忆
 - [x] 事件扩展：`memory_recall` / `memory_inject` / `memory_archive` / `memory_trim` 4 类事件
-- [x] 类型检查验证：agent-core 0 errors，worldsmith-agent 无新错误
+- [x] 类型检查验证：agent-core 0 errors，worldsea-agent 无新错误
 - [ ] 验收：实现 `PiBackendMemoryAccessor` 适配器并浏览器实测（适配器已在 0.7 实现，浏览器实测推迟）
 
 ##### 0.7 工作记忆补全与 Memory 验收
@@ -178,12 +178,12 @@
   - `formatForPrompt`：格式化为可注入 prompt 的文本
 - [x] 扩展 `OrchestratorEvent` 添加 `working_memory_*` 4 类事件
   - `working_memory_push` / `working_memory_trim` / `working_memory_clear` / `working_memory_merge`
-- [x] 实现 `PiBackendMemoryAccessor` 适配器（worldsmith-agent）
+- [x] 实现 `PiBackendMemoryAccessor` 适配器（worldsea-agent）
   - 包装 `recallMemory` / `formatMemoryForPrompt`
   - KV 模型 → `MemoryRecallResult` 格式转换
   - `archive` 返回 null（KV 模型无归档概念，阶段 1 迁移到 memory-archive 后实现）
   - `outputTypes` 过滤基于原始 entry 推断（比 summary 推断更准确）
-- [x] 类型检查验证：agent-core 0 errors，worldsmith-agent 0 errors（无 orchestrator 相关错误）
+- [x] 类型检查验证：agent-core 0 errors，worldsea-agent 0 errors（无 orchestrator 相关错误）
 - [x] ReactNode 集成工作记忆 hook（阶段 0.7 完成）
   - `ReactNodeWorkingMemoryConfig`：enabled/options/captureFromMessages/mergeOnComplete/mergeFormat/mergeMaxTokens/autoInjectToPrompt/autoInjectMaxTokens
   - `workingMemoryHelper` 注入：支持外部 helper 复用（多节点共享工作记忆）
@@ -227,7 +227,7 @@
 ##### 1.2 实现 LLM 通信层
 - [x] 用 genai 封装 `stream_simple()`（等价 pi-ai 的 streamSimple）— `crates/agent-runtime/src/llm/stream.rs`
 - [x] 用 genai 封装 `get_model()`（等价 pi-ai 的 getModel）— `crates/agent-runtime/src/llm/stream.rs`
-- [x] Provider 配置方案：**调整为运行时注入 `ProviderConfig` + 静态 Manifest**（调研发现 worldsmith 无 SQLite provider 表，原方案不可行）
+- [x] Provider 配置方案：**调整为运行时注入 `ProviderConfig` + 静态 Manifest**（调研发现 worldsea 无 SQLite provider 表，原方案不可行）
   - `ProviderConfig` 支持 Cloud / Local / Custom 三种部署模式（`llm/config.rs`）
   - 16 个内置 Provider 静态元数据（`llm/manifest.rs`），含视觉/思考能力检测函数指针
   - `ModelInfo` / `ApiType` / `ModelInput` 类型定义（`llm/model.rs`）

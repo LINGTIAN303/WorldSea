@@ -1,5 +1,5 @@
-import { useEntityStore } from '@worldsmith/entity-core'
-import { useDialog, toastWarn } from '@worldsmith/ui-kit'
+import { useEntityStore } from '@worldsea/entity-core'
+import { useDialog, toastWarn } from '@worldsea/ui-kit'
 
 export function useDuplicateNameCheck() {
   const entityStore = useEntityStore()

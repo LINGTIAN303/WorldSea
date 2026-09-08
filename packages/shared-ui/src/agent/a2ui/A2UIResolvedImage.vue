@@ -14,7 +14,7 @@
 
 <script setup lang="ts">
 import { ref, watch, onUnmounted } from 'vue'
-import { useFileStore, useImageResolver, onFilePersisted } from '@worldsmith/entity-core'
+import { useFileStore, useImageResolver, onFilePersisted } from '@worldsea/entity-core'
 
 const props = defineProps<{
   src: string | undefined | null

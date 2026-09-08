@@ -1,4 +1,4 @@
-// @worldsmith/entity-core - Entity engine core package
+// @worldsea/entity-core - Entity engine core package
 export * from './types'
 export {
   WorldDatabase,
@@ -153,8 +153,8 @@ export type {
   EventHandler,
   Unsubscribe,
   // Phase 8a: io 模块类型
-  WorldSmithManifest,
-  WorldSmithPack,
+  WorldSeaManifest,
+  WorldSeaPack,
   ImportReport,
   PackageManifest,
   FormatEncoder,

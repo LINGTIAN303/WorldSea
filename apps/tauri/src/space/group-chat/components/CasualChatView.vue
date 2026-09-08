@@ -124,7 +124,7 @@ import FriendList from './FriendList.vue'
 import SidebarStrip from './SidebarStrip.vue'
 import type { PanelType } from './SidebarStrip.vue'
 import AgentPrivateChat from './AgentPrivateChat.vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import StreamingMessageList from './casual/StreamingMessageList.vue'
 import ContextMenu from './casual/ContextMenu.vue'
 

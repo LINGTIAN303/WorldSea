@@ -4,17 +4,17 @@
  * Phase 8a：io_export 链从根 src/core/ 下沉到 entity-core/core/io/
  */
 
-// WorldSmithPack 类型与注册表
+// WorldSeaPack 类型与注册表
 export {
   serializerRegistry,
   SerializerRegistry,
   PACK_VERSION,
-} from './WorldSmithPack'
+} from './WorldSeaPack'
 export type {
-  WorldSmithManifest,
-  WorldSmithPack,
+  WorldSeaManifest,
+  WorldSeaPack,
   ImportReport,
-} from './WorldSmithPack'
+} from './WorldSeaPack'
 
 // PackageBuilder
 export { PackageBuilder } from './PackageBuilder'

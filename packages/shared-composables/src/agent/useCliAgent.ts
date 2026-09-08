@@ -15,7 +15,7 @@ export interface CliAgentStatus {
   error: string | null
 }
 
-const STORAGE_KEY_CLI_URL = 'worldsmith_cli_agent_url'
+const STORAGE_KEY_CLI_URL = 'worldsea_cli_agent_url'
 const DEFAULT_CLI_URL = 'http://localhost:3100'
 
 // 重连与心跳配置

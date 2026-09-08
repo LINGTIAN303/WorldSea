@@ -85,11 +85,11 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
-import { useModalShortcuts } from '@worldsmith/ui-kit'
+import { useModalShortcuts } from '@worldsea/ui-kit'
 import WsIcon from '../WsIcon.vue'
 import FontSelector from './FontSelector.vue'
 import TextRenderPreview from './TextRenderPreview.vue'
-import { toBlob, type ImageFormat, type TextRenderOptions } from '@worldsmith/font-kit'
+import { toBlob, type ImageFormat, type TextRenderOptions } from '@worldsea/font-kit'
 
 const props = defineProps<{
   visible: boolean

@@ -1,11 +1,11 @@
 /** 端无关 Agent 运行时包入口（导出汇总与端特定代码注入说明），详细见 docs/details/注释/packages/agent-runtime/index.md */
 
 // ═══ Agent 核心 ═══
-export { createWorldSmithAgent, getToolsForSkills, ALL_TOOLS, ALL_TOOLS_MAP, TOOL_CATEGORIES, internalRegistry } from './agent'
+export { createWorldSeaAgent, getToolsForSkills, ALL_TOOLS, ALL_TOOLS_MAP, TOOL_CATEGORIES, internalRegistry } from './agent'
 export type { CreateAgentOptions } from './bridge-types'
 export type { IAgentBackend } from './bridge'
 export type { AgentEvent, AgentEventListener, AgentConfig, ToolDefinition, ToolParameter, PromptOptions, ImageAttachment, UsageData, ThinkingLevel, ChatMode, A2UIMessage, A2UIComponent, MessageBlock, TableBlock, ChoiceBlock, CodeBlockData, EntityCardBlock, AlertBlock, StatBlock, ListBlock, ProgressBlock, ComparisonBlock, TimelineBlock, ImageBlock, VideoBlock, AccordionBlock, ManuscriptBlock, ExportCorrectorConfig } from './bridge-types'
-export type { WorldSmithToolContext, EntityLike, RelationLike, FileLike, FileContentLike } from './tools/types'
+export type { WorldSeaToolContext, EntityLike, RelationLike, FileLike, FileContentLike } from './tools/types'
 
 // ═══ 工具总线 ═══
 export { DefaultToolBus } from './toolbus/toolbus'
@@ -82,8 +82,8 @@ export type { SkillMeta } from './skills/registry'
 // Skills Store：远程技能源下载/安装/卸载/更新 + 本地导入
 export { downloadRemoteManifest, installSkill, installSkillAndReload, uninstallSkill, uninstallSkillAndReload, getInstalledVersions, checkUpdates, importLocalSkill, importLocalSkillAndReload, hasSkillsInvoke } from './skills/skills-store'
 export type { InstallResult, InstalledMeta, RemoteSkillEntry, RemoteManifest, InstallSkillOptions, ImportLocalOptions } from './skills/skills-store'
-// 多平台互通：Claude Code / Cursor / WorldSmith 格式双向转换
-export { detectPlatform, importClaudeCodeSkill, importCursorRule, importWorldSmithYaml, autoImportSkill, exportToClaudeCodeSkill, exportToCursorRule, exportToSkillYaml } from './skills/platform-adapters'
+// 多平台互通：Claude Code / Cursor / WorldSea 格式双向转换
+export { detectPlatform, importClaudeCodeSkill, importCursorRule, importWorldSeaYaml, autoImportSkill, exportToClaudeCodeSkill, exportToCursorRule, exportToSkillYaml } from './skills/platform-adapters'
 export type { SkillPlatform, ImportResult } from './skills/platform-adapters'
 export { resolvePluginToolNames, buildPluginCapabilityPrompt, registerPluginCapability, getPluginCapability, getAllPluginCapabilities, resolveRelatedPlugins } from './skills/plugin-bridge'
 export type { PluginCapability } from './skills/plugin-bridge'

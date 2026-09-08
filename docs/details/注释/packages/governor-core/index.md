@@ -7,16 +7,16 @@
 
 ```
 /**
- * @worldsmith/governor-core — Barrel Exports
+ * @worldsea/governor-core — Barrel Exports
  *
  * 调控器核心包入口：纯逻辑、无 Vue/Pinia 依赖。
- * 主应用（apps/web/src/governor）与 Agent 运行时包（@worldsmith/agent-runtime）共享此包。
+ * 主应用（apps/web/src/governor）与 Agent 运行时包（@worldsea/agent-runtime）共享此包。
  *
  * 子路径导出：
- *   - @worldsmith/governor-core          → 本文件（全部导出）
- *   - @worldsmith/governor-core/types    → 类型定义
- *   - @worldsmith/governor-core/registry → 注册表与依赖解析
- *   - @worldsmith/governor-core/environment → 环境检测
- *   - @worldsmith/governor-core/governor → createGovernor 工厂
+ *   - @worldsea/governor-core          → 本文件（全部导出）
+ *   - @worldsea/governor-core/types    → 类型定义
+ *   - @worldsea/governor-core/registry → 注册表与依赖解析
+ *   - @worldsea/governor-core/environment → 环境检测
+ *   - @worldsea/governor-core/governor → createGovernor 工厂
  */
 ```

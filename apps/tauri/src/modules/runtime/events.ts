@@ -1,7 +1,7 @@
 /**
  * events — 事件总线（re-export）
  *
- * Phase 8a：实现已下沉到 @worldsmith/entity-core/core/events.ts
+ * Phase 8a：实现已下沉到 @worldsea/entity-core/core/events.ts
  * 本文件保留向后兼容的 re-export。
  */
 export {
@@ -19,4 +19,4 @@ export {
   type EventName,
   type EventHandler,
   type Unsubscribe,
-} from '@worldsmith/entity-core'
+} from '@worldsea/entity-core'

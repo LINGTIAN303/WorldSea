@@ -11,7 +11,7 @@
 - cloud：Provider（文本）+ model_id + api_key
 - local：endpoint + api_type（ollama/lm-studio/vllm/llama-cpp）+ model_id
 - custom：base_url + api_type（openai-compatible/anthropic-compatible）+ model_id + api_key + context_window + max_tokens
-`api_key` 因 Rust `skip_serializing` 不回显，前端用 `localStorage` 按 `worldsmith:api_key:{provider}` 键持久化，打开弹窗时回填。
+`api_key` 因 Rust `skip_serializing` 不回显，前端用 `localStorage` 按 `worldsea:api_key:{provider}` 键持久化，打开弹窗时回填。
 **理由**：`ProviderConfig` 是 tagged enum（`mode` 区分），字段必须按模式拼装 payload；`api_key` 反序列化必需但 Rust 不回显，只能前端本地存。
 
 ### 决策点 63：保存时按模式构造 `RustProviderConfigFull` 调 `setProviderConfig`；打开时用 `getProviderConfig` 回填当前

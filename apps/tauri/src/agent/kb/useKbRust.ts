@@ -3,14 +3,14 @@
  *
  * 与共享包 @agent/kb/kb-store 保持同形 API（web 端为 IndexedDB），
  * 存储改为 Rust fs 落盘（用户决策：改为 Rust fs 落盘）：
- * - global 作用域 → {dataDir}/.worldsmith/kb.json
- * - project 作用域 → {projectDir}/.worldsmith/kb.json（与 entity-core 数据同目录）
+ * - global 作用域 → {dataDir}/.worldsea/kb.json
+ * - project 作用域 → {projectDir}/.worldsea/kb.json（与 entity-core 数据同目录）
  *
  * 读写复用现有命令层 cmd_fs_read / cmd_fs_write / cmd_get_app_data_dir，
  * 无新增 Rust 命令。数据在内存缓存 + 每次变更整体落盘（条目量级小，文件读写成本可接受）。
  */
 import { invoke } from '../composables/transport'
-import { getStorageBackend } from '@worldsmith/entity-core'
+import { getStorageBackend } from '@worldsea/entity-core'
 import type { KBEntry, KBScope } from '@agent/kb/kb-store'
 
 export interface KBWriteOptions {
@@ -44,14 +44,14 @@ async function getDataDir(): Promise<string> {
 async function resolveKbPath(scope: KBScope): Promise<string> {
   const dataDir = await getDataDir()
   if (scope === 'global') {
-    return `${dataDir}/.worldsmith/kb.json`
+    return `${dataDir}/.worldsea/kb.json`
   }
   // project scope：项目=目录（2026-09-03）——目录即项目，无独立绑定。
-  // FileStorageBackend 绑定目录在项目 initialize/切换时已设置（无目录项目归 ~/.WorldSmith/worlddata）。
+  // FileStorageBackend 绑定目录在项目 initialize/切换时已设置（无目录项目归 ~/.WorldSea/worlddata）。
   const backend = getStorageBackend() as { projectDir?: string | null }
   const projectDir = backend.projectDir ?? null
   if (!projectDir) throw new Error('未绑定项目目录，无法访问项目知识库')
-  return `${projectDir}/.worldsmith/kb.json`
+  return `${projectDir}/.worldsea/kb.json`
 }
 
 /** 读取 kb.json（不存在返回空结构） */

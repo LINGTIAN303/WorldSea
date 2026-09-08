@@ -2,7 +2,7 @@
 //!
 //! - 连接管理走 [`McpHub`]（rmcp，连接生命周期 = 应用生命周期）
 //! - 配置持久化（2026-08-30 拍板 H6-③）：**全局单份 JSON 配置文件**
-//!   `<app_data>/worldsmith/mcp.json`——用户与 Agent 均可直接编辑，
+//!   `<app_data>/worldsea/mcp.json`——用户与 Agent 均可直接编辑，
 //!   官方预设已全部移除（配置文件是唯一事实源）；原 SQLite mcp.db 废弃
 //!   （仅冒烟数据，无迁移价值）。
 //! - 文件格式（Claude Code 生态兼容风格，id 为键）：
@@ -27,7 +27,7 @@ const CONFIG_FILE_NAME: &str = "mcp.json";
 /// MCP 全局状态（setup 时构造，tauri State 共享）
 pub struct McpState {
     pub hub: Arc<McpHub>,
-    /// 全局配置文件绝对路径（`<app_data>/worldsmith/mcp.json`）
+    /// 全局配置文件绝对路径（`<app_data>/worldsea/mcp.json`）
     pub config_path: PathBuf,
     /// 配置文件读改写串行锁（防并发命令的读-改-写交错覆盖）
     pub config_lock: Mutex<()>,
@@ -40,13 +40,13 @@ struct McpConfigFile {
     mcp_servers: BTreeMap<String, McpConnectionConfig>,
 }
 
-/// 计算全局配置文件路径（`<app_data>/worldsmith/mcp.json`；与旧 mcp.db 同目录）
+/// 计算全局配置文件路径（`<app_data>/worldsea/mcp.json`；与旧 mcp.db 同目录）
 pub fn config_path_of(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     let data_dir = app
         .path()
         .app_data_dir()
         .map_err(|e| format!("获取 app data 目录失败: {e}"))?;
-    Ok(data_dir.join("worldsmith").join(CONFIG_FILE_NAME))
+    Ok(data_dir.join("worldsea").join(CONFIG_FILE_NAME))
 }
 
 /// 初始化：确保配置目录存在并返回 State 给 lib.rs manage（无数据库）

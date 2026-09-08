@@ -33,9 +33,9 @@
 
 <script setup lang="ts">
 import { computed, ref, onBeforeUnmount, watch, nextTick } from 'vue'
-import { useUIStore, usePluginStore, useSettingsStore } from '@worldsmith/entity-core'
-import { useEntityStore, entitySchemaRegistry } from '@worldsmith/entity-core'
-import type { PluginView } from '@worldsmith/entity-core/types'
+import { useUIStore, usePluginStore, useSettingsStore } from '@worldsea/entity-core'
+import { useEntityStore, entitySchemaRegistry } from '@worldsea/entity-core'
+import type { PluginView } from '@worldsea/entity-core/types'
 import WsIcon from '../WsIcon.vue'
 import { hasIcon } from '../../assets/iconRegistry'
 
@@ -55,9 +55,9 @@ const isCustomView = computed(() => uiStore.currentView === 'custom')
 
 function onSidebarDragStart(view: { id: string; label: string; icon: string }, e: DragEvent) {
   if (!isCustomView.value) return
-  e.dataTransfer!.setData('application/worldsmith-view-id', view.id)
-  e.dataTransfer!.setData('application/worldsmith-view-label', view.label)
-  e.dataTransfer!.setData('application/worldsmith-view-icon', view.icon)
+  e.dataTransfer!.setData('application/worldsea-view-id', view.id)
+  e.dataTransfer!.setData('application/worldsea-view-label', view.label)
+  e.dataTransfer!.setData('application/worldsea-view-icon', view.icon)
   e.dataTransfer!.effectAllowed = 'copy'
 }
 

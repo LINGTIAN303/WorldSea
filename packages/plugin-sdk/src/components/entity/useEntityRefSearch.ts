@@ -1,7 +1,7 @@
 // 实体引用搜索 composable：entityRef 类型字段的搜索下拉状态与交互。
 // 详细说明见 docs/details/注释/packages/plugin-sdk/entity-form-modal.md
 import { ref, type Ref } from 'vue'
-import { entitySchemaRegistry, useEntityStore } from '@worldsmith/entity-core'
+import { entitySchemaRegistry, useEntityStore } from '@worldsea/entity-core'
 import type { FormFieldDef } from '../types'
 
 export interface EntityRefResult {

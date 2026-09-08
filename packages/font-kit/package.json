@@ -1,5 +1,5 @@
 {
-  "name": "@worldsmith/font-kit",
+  "name": "@worldsea/font-kit",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -23,7 +23,7 @@
     "typecheck": "tsc -p tsconfig.build.json --noEmit"
   },
   "dependencies": {
-    "@worldsmith/entity-core": "link:../entity-core",
+    "@worldsea/entity-core": "link:../entity-core",
     "jszip": "^3.10.1",
     "pinia": "^3.0.4",
     "vue": "^3.5.32"

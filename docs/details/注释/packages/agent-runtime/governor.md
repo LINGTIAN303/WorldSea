@@ -6,18 +6,18 @@
 ## 注释块 1（原文件第 1-15 行）
 
 ```
-@worldsmith/agent-runtime/src/governor.ts — Agent 运行时包轻量调控器入口
+@worldsea/agent-runtime/src/governor.ts — Agent 运行时包轻量调控器入口
 
 为 Agent 包（Web 端 + CLI 端）提供基于 governor 的模块编排。
 
 与主应用 governor 的关系：
-- 核心逻辑复用 @worldsmith/governor-core（createGovernor/ModuleRegistry/...）
+- 核心逻辑复用 @worldsea/governor-core（createGovernor/ModuleRegistry/...）
 - 主应用通过 apps/web/src/governor/governor.ts 包装 governor-core 并注入 createGovernorAPI
 - Agent 包直接使用 governor-core 的 createGovernor（默认空 apiFactory，无 UI 依赖）
 - 由此消除主应用 governor 与 Agent 运行时包 governor 的重复实现
 
 使用方式：
-  import { bootAgentGovernor } from '@worldsmith/agent-runtime'
+  import { bootAgentGovernor } from '@worldsea/agent-runtime'
   const governor = await bootAgentGovernor()
 ```
 

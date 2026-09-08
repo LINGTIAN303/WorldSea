@@ -37,8 +37,8 @@
 </template>
 
 <script setup lang="ts">
-import { useTrashStore } from '@worldsmith/entity-core'
-import { useTrash } from '@worldsmith/entity-core'
+import { useTrashStore } from '@worldsea/entity-core'
+import { useTrash } from '@worldsea/entity-core'
 
 defineProps<{ show: boolean }>()
 const emit = defineEmits<{ close: [] }>()
@@ -55,7 +55,7 @@ async function doRestore(trashItemId: string) {
   const ok = await restoreEntity(trashItemId)
   if (ok) {
     // 恢复成功后刷新数据
-    const { useEntityStore, useRelationStore } = await import('@worldsmith/entity-core')
+    const { useEntityStore, useRelationStore } = await import('@worldsea/entity-core')
     await useEntityStore().loadAll()
     await useRelationStore().loadAll()
   }

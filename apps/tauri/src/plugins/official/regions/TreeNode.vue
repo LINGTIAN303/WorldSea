@@ -20,8 +20,8 @@
 </template>
 
 <script setup lang="ts">
-import { GenericTreeView, type TreeNodeData } from '@worldsmith/ui-kit'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { GenericTreeView, type TreeNodeData } from '@worldsea/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 
 const props = defineProps<{
   node: TreeNodeData

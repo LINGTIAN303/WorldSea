@@ -41,9 +41,9 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useEntityStore } from '@worldsmith/entity-core'
-import { getRelationLabel } from '@worldsmith/entity-core'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { useEntityStore } from '@worldsea/entity-core'
+import { getRelationLabel } from '@worldsea/entity-core'
+import { WsIcon } from '@worldsea/ui-kit'
 
 export interface CustomLifeEvent {
   id: string

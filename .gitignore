@@ -51,9 +51,11 @@ apiKeys/
 
 # ── User / runtime data (never commit) ─────────────────────────────────
 My-Data-Project/
-worldsmith-data/
-.worldsmith-data/
+worldsea-data/
+.worldsea-data/
 .public/
+# 本机 MSVC 环境注入脚本（沙箱 PATH 适配，含机器特定路径，不入库）
+scripts/msvc_env.sh
 # 会话归档（daily/index，运行期自动生成）
 # MemoryCenter 落盘数据（sessions 归档 + projects 索引，均本机维护，不入库）
 data/

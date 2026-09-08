@@ -97,8 +97,8 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, watch, nextTick } from 'vue'
-import { relationshipRegistry, entitySchemaRegistry } from '@worldsmith/entity-core'
-import type { RelationTypeSchemaV2 } from '@worldsmith/entity-core'
+import { relationshipRegistry, entitySchemaRegistry } from '@worldsea/entity-core'
+import type { RelationTypeSchemaV2 } from '@worldsea/entity-core'
 import { useFocusTrap } from '@/composables/useFocusTrap'
 
 const props = defineProps<{ show: boolean }>()

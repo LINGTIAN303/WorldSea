@@ -70,10 +70,10 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useEntityStore, useRelationStore, entitySchemaRegistry, RelationTypes } from '@worldsmith/entity-core'
-import type { Entity } from '@worldsmith/entity-core'
-import { useBidirectional } from '@worldsmith/entity-core/composables'
-import { FloatingPanel, WsIcon } from '@worldsmith/ui-kit'
+import { useEntityStore, useRelationStore, entitySchemaRegistry, RelationTypes } from '@worldsea/entity-core'
+import type { Entity } from '@worldsea/entity-core'
+import { useBidirectional } from '@worldsea/entity-core/composables'
+import { FloatingPanel, WsIcon } from '@worldsea/ui-kit'
 
 const props = defineProps<{
   entityId: string
@@ -208,7 +208,7 @@ const emit = defineEmits<{
 }>()
 
 async function onCreateNewEntity() {
-  const { useAutoCreateEntity } = await import('@worldsmith/entity-core/composables')
+  const { useAutoCreateEntity } = await import('@worldsea/entity-core/composables')
   const { promptAndCreate } = useAutoCreateEntity()
   const entity = await promptAndCreate({
     name: query.value.trim(),

@@ -15,8 +15,8 @@ API Key 加密存储模块
   加密密钥派生自设备指纹（userAgent + hostname），因此密钥在不同设备/域名下无法解密。
 
 存储格式:
-- Tauri Keyring: service = "com.worldsmith.app:{provider}", username = "api_keys"
-- Tauri 降级 / Web: localStorage key = "worldsmith_ak_{provider}", value = Base64(iv || ciphertext)
+- Tauri Keyring: service = "com.worldsea.app:{provider}", username = "api_keys"
+- Tauri 降级 / Web: localStorage key = "worldsea_ak_{provider}", value = Base64(iv || ciphertext)
 
 使用流程:
   storeApiKey('openai', 'sk-xxx') → Tauri: Keyring(验证) / 降级: AES-GCM → localStorage

@@ -108,10 +108,10 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import TuiSelect from '../../components/ui/TuiSelect.vue'
 import { useSettingsStore } from '../../stores/settingsStore'
-import { getDefaultModelId, getModelInfo, getAllProviderManifests, getProviderManifest } from '@worldsmith/agent-runtime'
+import { getDefaultModelId, getModelInfo, getAllProviderManifests, getProviderManifest } from '@worldsea/agent-runtime'
 import { getProviderIconUrl } from '../../assets/providerIcons'
 import { useCloudModelFetch, formatModelFresh } from '../composables/useCloudModelFetch'
 

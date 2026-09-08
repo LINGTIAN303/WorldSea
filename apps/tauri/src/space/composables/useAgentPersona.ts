@@ -48,7 +48,7 @@ export function useAgentPersona() {
     _kbPersonaLoaded = true
     loadPersonaFromKB().then(kbPersona => {
       const patch: { name?: string; avatar?: string } = {}
-      if (kbPersona.name && spaceStore.persona.name === 'WorldSmith Agent') {
+      if (kbPersona.name && spaceStore.persona.name === 'WorldSea Agent') {
         patch.name = kbPersona.name
       }
       if (kbPersona.avatar && !spaceStore.persona.avatar) {

@@ -64,7 +64,7 @@ class LongTaskDB extends Dexie {
   tasks!: Table<LongTaskRecord, string>
 
   constructor() {
-    super('worldsmith-long-task')
+    super('worldsea-long-task')
     this.version(1).stores({
       tasks: 'taskId, status, type, startedAt, lastHeartbeatAt',
     })

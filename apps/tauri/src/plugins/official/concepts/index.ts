@@ -1,4 +1,4 @@
-import type { PluginAPIType } from '@worldsmith/entity-core'
+import type { PluginAPIType } from '@worldsea/entity-core'
 import ConceptView from './ConceptView.vue'
 
 export const manifest = {
@@ -6,7 +6,7 @@ export const manifest = {
   name: '概念/设定库',
   version: '2.0.0',
   description: '世界观中的概念、规则、百科条目',
-  author: 'WorldSmith',
+  author: 'WorldSea',
   agentSkills: ['worldbuilding'],
   agentCapabilities: [
     { action: 'create_entity', description: '创建概念', params: ['name', 'description'] },

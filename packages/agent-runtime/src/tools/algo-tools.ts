@@ -1,5 +1,5 @@
 import type { ToolDefinition } from '../bridge-types'
-import type { ToolMeta } from '@worldsmith/agent-core'
+import type { ToolMeta } from '@worldsea/agent-core'
 
 /** 算法工具集：Tauri 调用 Rust 算法引擎（空间/几何/图/CRDT/地形等），详细见 docs/details/注释/packages/agent-runtime/tools-algo-tools.md */
 

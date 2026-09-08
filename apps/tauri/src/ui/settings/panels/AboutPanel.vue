@@ -4,8 +4,8 @@
       <div class="set-card deck-card" :class="cls" :data-index="idx">
         <div class="sc-head">关于</div>
         <div class="about-body">
-          <WorldSmithLogo :size="56" :radius="14" tone="auto" class="about-logo" />
-          <h3 class="about-name">WorldSmith Agent</h3>
+          <WorldSeaLogo :size="56" :radius="14" tone="auto" class="about-logo" />
+          <h3 class="about-name">WorldSea Agent</h3>
           <p class="about-version">版本 {{ appVersion }}</p>
         </div>
       </div>
@@ -19,8 +19,8 @@
  * 仅展示 Logo + 产品名 + 版本号；版本号由 Vite define 注入（__APP_VERSION__）。
  */
 import { ref } from 'vue'
-import { CardDeck } from '@worldsmith/ui-kit'
-import WorldSmithLogo from '@/components/brand/WorldSmithLogo.vue'
+import { CardDeck } from '@worldsea/ui-kit'
+import WorldSeaLogo from '@/components/brand/WorldSeaLogo.vue'
 
 declare const __APP_VERSION__: string
 const appVersion = __APP_VERSION__

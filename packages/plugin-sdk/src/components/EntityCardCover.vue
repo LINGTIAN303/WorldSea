@@ -7,8 +7,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useEntityImage } from '@worldsmith/entity-core/composables'
-import type { Entity } from '@worldsmith/entity-core'
+import { useEntityImage } from '@worldsea/entity-core/composables'
+import type { Entity } from '@worldsea/entity-core'
 
 const props = defineProps<{
   entity: Entity

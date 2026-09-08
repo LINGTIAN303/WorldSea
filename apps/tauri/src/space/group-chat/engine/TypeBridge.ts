@@ -2,7 +2,7 @@
  * 群聊前后端类型桥接
  *
  * 前端使用 GroupMember / GroupChatMessage（src/space/group-chat/types.ts），
- * 后端模块使用 AgentProfile / GroupChatMessage（worldsmith-agent/src/group-chat/types.ts）。
+ * 后端模块使用 AgentProfile / GroupChatMessage（worldsea-agent/src/group-chat/types.ts）。
  * 本模块提供双向转换，使后端模块可无缝接入前端引擎。
  */
 

@@ -1,7 +1,7 @@
 /**
  * Skills Store Tauri 命令层（Task 24 阶段2/4）
  *
- * 纯逻辑（校验/解压/导入/版本读取）已迁移到 worldsmith-skills-store crate，
+ * 纯逻辑（校验/解压/导入/版本读取）已迁移到 worldsea-skills-store crate，
  * 可独立单元测试（解决 Tauri lib DLL 链接导致 cargo test 无法运行的问题）。
  * 本文件仅负责 Tauri 命令封装：AppHandle → 路径转换 + 调用纯逻辑函数。
  *
@@ -21,20 +21,20 @@
  *   }
  *
  * 安装流程：下载 zip → sha256 校验 → 解压 pathInArchive 子目录到 app_data_dir/skills/<id>/
- * 本地导入：前端解析 Claude Code/Cursor/WorldSmith 格式 → 生成 skill.yaml + SKILL.md → 写入 <id>/
+ * 本地导入：前端解析 Claude Code/Cursor/WorldSea 格式 → 生成 skill.yaml + SKILL.md → 写入 <id>/
  */
 
 use tauri::{AppHandle, Manager};
 // 纯逻辑函数与数据结构来自独立 crate（可独立 cargo test）
-use worldsmith_skills_store::{
+use worldsea_skills_store::{
     extract_skill_zip, read_skill_version, validate_skill_id, verify_sha256, write_skill_files,
     InstallResult, InstalledMeta,
 };
 
 /**
- * 获取 skills 根目录（§六 迁移后：~/.WorldSmith/skills），确保目录存在。
+ * 获取 skills 根目录（§六 迁移后：~/.WorldSea/skills），确保目录存在。
  *
- * 2026-09-03 迁移：个人技能导入区从 app_data/skills 迁至用户主目录 ~/.WorldSmith/skills
+ * 2026-09-03 迁移：个人技能导入区从 app_data/skills 迁至用户主目录 ~/.WorldSea/skills
  * （跟随用户跨项目）。首次进入时若旧 app_data/skills 有存量则一次性复制（幂等），
  * 旧目录保留留痕不删除。install/import_local/list/uninstall/注册表扫描的唯一目录来源。
  */
@@ -43,14 +43,14 @@ fn skills_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
         .path()
         .home_dir()
         .map_err(|e| format!("无法定位用户主目录: {e}"))?;
-    let dir = home.join(".WorldSmith").join("skills");
+    let dir = home.join(".WorldSea").join("skills");
     ensure_home_skills_migrated(app, &dir)?;
     std::fs::create_dir_all(&dir)
         .map_err(|e| format!("创建 skills 目录失败: {e}"))?;
     Ok(dir)
 }
 
-/** 幂等迁移：旧 app_data/skills 有存量且目标不存在时，递归复制到 ~/.WorldSmith/skills */
+/** 幂等迁移：旧 app_data/skills 有存量且目标不存在时，递归复制到 ~/.WorldSea/skills */
 fn ensure_home_skills_migrated(app: &AppHandle, home_skills: &std::path::Path) -> Result<(), String> {
     let legacy = app
         .path()
@@ -146,7 +146,7 @@ pub fn cmd_skills_install(
         .map_err(|e| format!("读取技能包内容失败: {e}"))?
         .to_vec();
 
-    // 2. sha256 校验（纯逻辑，来自 worldsmith-skills-store）
+    // 2. sha256 校验（纯逻辑，来自 worldsea-skills-store）
     verify_sha256(&bytes, &sha256_expected)?;
 
     // 3. 解压（纯逻辑，含 zip slip 防护）
@@ -212,7 +212,7 @@ pub fn cmd_skills_get_installed_versions(app: AppHandle) -> Result<Vec<Installed
 /**
  * 本地导入技能（Task 24 阶段4：多平台互通）
  *
- * 前端解析 Claude Code SKILL.md / Cursor .mdc / WorldSmith skill.yaml 后，
+ * 前端解析 Claude Code SKILL.md / Cursor .mdc / WorldSea skill.yaml 后，
  * 生成标准 skill.yaml（manifest）+ SKILL.md（提示词）文本，调用本命令写入技能目录。
  *
  * 已存在同名技能则覆盖（先删后写，支持更新场景）。

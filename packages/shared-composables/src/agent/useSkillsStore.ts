@@ -21,7 +21,7 @@ export interface SkillSource {
   enabled: boolean
 }
 
-const STORAGE_KEY_SKILL_SOURCES = 'worldsmith_skill_sources'
+const STORAGE_KEY_SKILL_SOURCES = 'worldsea_skill_sources'
 
 /** 从 localStorage 加载技能源配置 */
 function loadSources(): SkillSource[] {

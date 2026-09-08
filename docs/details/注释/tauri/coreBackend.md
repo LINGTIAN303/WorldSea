@@ -18,7 +18,7 @@ Tauri 端 coreBackend — Phase 3 端分离
 
 ## 2026-08-06 收敛改造（coreBackend → api/ 领域拆分）
 
-- coreBackend.ts 收敛为聚合 re-export（`export * from './api'`），全部内联类型（71 个）改为从 `@worldsmith/core-api-types` 共享包 import / re-export
+- coreBackend.ts 收敛为聚合 re-export（`export * from './api'`），全部内联类型（71 个）改为从 `@worldsea/core-api-types` 共享包 import / re-export
 - 函数按领域拆至 `apps/tauri/src/core/api/`：
   - runtime.ts：tauri 特有调用层（getTauriInvoke / backendCall / tauriCall / algoCall / detectBackend）+ setWasmAvailable（no-op）/ getBackendType
   - schema.ts：契约校验 validatePack + Schema API（schemaRegisterEntityType 等 7 个）

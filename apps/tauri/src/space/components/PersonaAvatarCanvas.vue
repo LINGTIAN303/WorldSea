@@ -9,7 +9,7 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
-import { renderText } from '@worldsmith/font-kit'
+import { renderText } from '@worldsea/font-kit'
 
 const props = withDefaults(defineProps<{
   character: string

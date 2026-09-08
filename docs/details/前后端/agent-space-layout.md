@@ -195,7 +195,7 @@ ChatInput 是唯一"胶囊→宽栏"动态形态（200px ↔ 80%-120px），按�
 ## 8. 本次改动（2026-08-09）
 
 - **移除 SpaceNavbar 顶栏分割线**：3 处 `nav-divider` 模板 + `.nav-divider` CSS 类全删，按钮组以 4px gap 直接相邻
-- **AgentSpace 补齐窗口栏**：`TitleBar.vue` 新增 `variant="workbench"|"space"`——space 变体仅拖拽区 + 居中标题 + 窗口控制（隐藏 ☰/项目切换器/AppMenu/视图名）；AgentSpace 顶部挂载，标题随模式显示「WorldSmith — Agent 空间 / 群聊空间」
+- **AgentSpace 补齐窗口栏**：`TitleBar.vue` 新增 `variant="workbench"|"space"`——space 变体仅拖拽区 + 居中标题 + 窗口控制（隐藏 ☰/项目切换器/AppMenu/视图名）；AgentSpace 顶部挂载，标题随模式显示「WorldSea — Agent 空间 / 群聊空间」
 - **移除孤儿组件 GroupSessionSidebar.vue**：职责被 GroupChatList 覆盖（后者按全部/闲聊/会议承载双模式会话）
 - **模式选择由下拉改分段滑块**：SpaceNavbar 左区 `mode-dropdown`（下拉菜单）→ `TuiSegmented` 滑块——单聊四模式（快问快答/深度思考/知识探索/任务执行）、群聊两模式（会议/闲聊）；`modeModel` 双向 computed 按 mode 分流写 store（groupChatMode/chatMode）；删除 mode-dropdown 全部模板/状态/CSS；滑块紧凑适配 48px 顶栏（item padding 4px 12px）
 - 验证：typecheck 0 错误；浏览器冒烟——单聊滑块 4 项渲染/点击切换（知识探索 on）/切群聊 2 项（会议 on）/切回单聊 4 项恢复（active 保留）/旧下拉 0 残留；截图 b91-mode-segmented.png

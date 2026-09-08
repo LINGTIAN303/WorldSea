@@ -11,10 +11,10 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
-import { useRelationStore, useEntityStore } from '@worldsmith/entity-core'
-import type { Relation } from '@worldsmith/entity-core'
-import { useSmallCanvasGraph, type SGNode, type SGEdge } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
+import { useRelationStore, useEntityStore } from '@worldsea/entity-core'
+import type { Relation } from '@worldsea/entity-core'
+import { useSmallCanvasGraph, type SGNode, type SGEdge } from '@worldsea/ui-kit'
 import type { NotebookEntity } from '../types'
 
 const props = defineProps<{ notes: NotebookEntity[] }>()

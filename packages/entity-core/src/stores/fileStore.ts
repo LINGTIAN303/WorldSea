@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
-import { useShallowArray } from '@worldsmith/perf-kit/reactive'
+import { useShallowArray } from '@worldsea/perf-kit/reactive'
 import { storage } from '../core/StorageBackend'
 import type { ProjectFile, ProjectFileContent } from '../types/file'
 

@@ -15,7 +15,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import { getComponentType } from '../registry/componentTypeRegistry'
 import { ARRANGEMENT_ICON } from '../slotTree'
 import type { Slot, ComponentTypeId } from '../types/layoutSchema'

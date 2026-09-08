@@ -5,7 +5,7 @@
  * 使用短期缓存（5 秒 TTL）避免频繁的摘要重建——同一批 tool calls 共享同一份摘要。
  */
 
-import type { WorldSmithToolContext } from '../tools/types'
+import type { WorldSeaToolContext } from '../tools/types'
 import { buildProjectSummary, formatSummaryForPrompt } from './summary'
 
 /** 上下文缓存有效期：5 秒 */
@@ -23,7 +23,7 @@ let cachedAt = 0
  * @param ctx 工具上下文，用于访问实体/关系/文件存储
  * @returns 格式化后的项目摘要字符串
  */
-export async function buildContextInjection(ctx: WorldSmithToolContext): Promise<string> {
+export async function buildContextInjection(ctx: WorldSeaToolContext): Promise<string> {
   const now = Date.now()
   if (cachedResult && (now - cachedAt) < CACHE_TTL_MS) {
     return cachedResult

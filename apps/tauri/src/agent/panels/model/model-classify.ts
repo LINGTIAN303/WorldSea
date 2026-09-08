@@ -5,8 +5,8 @@
  * 这里基于已有的 registry 能力 + 少量已知 ID 覆盖，给出可用的 UI 分类，后续可迭代完善。
  * 属于「展示层辅助」，不改变后端模型能力事实。
  */
-import { MODEL_REGISTRY, getModelInfo } from '@worldsmith/agent-runtime'
-import { getAllProviderManifests } from '@worldsmith/agent-runtime'
+import { MODEL_REGISTRY, getModelInfo } from '@worldsea/agent-runtime'
+import { getAllProviderManifests } from '@worldsea/agent-runtime'
 
 /** 可用模型分类（一级模型卡片） */
 export type ModelModality = 'multimodal' | 'text' | 'image' | 'video' | 'audio'

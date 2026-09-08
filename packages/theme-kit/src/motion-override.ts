@@ -1,5 +1,5 @@
 /**
- * @worldsmith/theme-kit - Motion Override Engine（动画风格覆盖：缓动/时长/motion-scale/关键帧/交互模式），详细见 docs/details/注释/packages/theme-kit/motion-override.md
+ * @worldsea/theme-kit - Motion Override Engine（动画风格覆盖：缓动/时长/motion-scale/关键帧/交互模式），详细见 docs/details/注释/packages/theme-kit/motion-override.md
  */
 
 import type { MotionStyleConfig } from './types'

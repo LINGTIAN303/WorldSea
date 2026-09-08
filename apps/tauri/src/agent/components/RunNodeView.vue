@@ -7,7 +7,7 @@
  * 状态点/标签颜色由 run.status 驱动（scoped 样式映射）。
  */
 import { computed } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import { pipelineLabel, runStatusLabel, type RunTreeNode, type RunRecord } from '../composables/useRunTree'
 
 const props = defineProps<{

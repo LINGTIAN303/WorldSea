@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { watchDebounced } from '@worldsmith/perf-kit/render'
+import { watchDebounced } from '@worldsea/perf-kit/render'
 
 export type FontLayer = 'chrome' | 'editorUi' | 'content' | 'preview' | 'canvas' | 'agent'
 
@@ -19,7 +19,7 @@ export interface FontPreferences {
   agent: FontLayerPref
 }
 
-const STORAGE_KEY = 'worldsmith_font_prefs'
+const STORAGE_KEY = 'worldsea_font_prefs'
 
 const LAYER_CSS_VAR: Record<FontLayer, string> = {
   chrome: '--font-family-chrome',

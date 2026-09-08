@@ -102,11 +102,11 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, shallowRef, watch } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
-import { WsEmpty } from '@worldsmith/ui-kit'
-import { usePluginStore } from '@worldsmith/entity-core'
+import { WsIcon } from '@worldsea/ui-kit'
+import { WsEmpty } from '@worldsea/ui-kit'
+import { usePluginStore } from '@worldsea/entity-core'
 import { useUIStore } from '@/stores/uiStore'
-import { toastWarn } from '@worldsmith/ui-kit'
+import { toastWarn } from '@worldsea/ui-kit'
 import { useSettingsStore } from '@/stores/settingsStore'
 import type { Component } from 'vue'
 import type { Panel, LayoutDirection } from './dashboard/types'
@@ -285,7 +285,7 @@ function redistributeWidth(newPanelWidth: number) {
 
 // ===== 外部拖拽（从视图列表拖入） =====
 function onExternalDragOver(e: DragEvent) {
-  if (e.dataTransfer?.types.includes('application/worldsmith-view-id')) {
+  if (e.dataTransfer?.types.includes('application/worldsea-view-id')) {
     isExternalDragOver.value = true
     e.dataTransfer.dropEffect = 'copy'
   }
@@ -297,10 +297,10 @@ function onExternalDragLeave() {
 
 function onExternalDrop(e: DragEvent) {
   isExternalDragOver.value = false
-  const viewId = e.dataTransfer?.getData('application/worldsmith-view-id')
+  const viewId = e.dataTransfer?.getData('application/worldsea-view-id')
   if (!viewId) return
-  const viewLabel = e.dataTransfer!.getData('application/worldsmith-view-label') || viewId
-  const viewIcon = e.dataTransfer!.getData('application/worldsmith-view-icon') || 'outline'
+  const viewLabel = e.dataTransfer!.getData('application/worldsea-view-label') || viewId
+  const viewIcon = e.dataTransfer!.getData('application/worldsea-view-icon') || 'outline'
   if (panels.value.some(p => p.viewId === viewId)) {
     toastWarn('该视图已在面板中')
     return

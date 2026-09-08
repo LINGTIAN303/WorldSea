@@ -2,15 +2,15 @@
 
 > Phase 3 核心文档：详细规划 `src/` 目录拆分与三端关联入口清理。
 >
-> **执行状态（2026-08-02）**：Step 1-10 已完成（共享 composables 下沉 + Tauri/Web 专用文件迁移 + coreBackend/useAgent/main.ts 硬编码后端 + `__TAURI__` 清理 + worldsmith-server 引用清理）；Step 11-12（业务 UI 迁入三端 + 删除原 src/）**暂停**，根 `src/` 仍是主应用。详见 【`[08-migration-phases.md](./08-migration-phases.md)`】 Phase 3 复核表。
+> **执行状态（2026-08-02）**：Step 1-10 已完成（共享 composables 下沉 + Tauri/Web 专用文件迁移 + coreBackend/useAgent/main.ts 硬编码后端 + `__TAURI__` 清理 + worldsea-server 引用清理）；Step 11-12（业务 UI 迁入三端 + 删除原 src/）**暂停**，根 `src/` 仍是主应用。详见 【`[08-migration-phases.md](./08-migration-phases.md)`】 Phase 3 复核表。
 
 ## 1. 清理目标与原则
 
 ### 目标
 将当前被 Web + Tauri 共用的 `src/` 目录彻底拆分，使三端前端入口完全独立：
 - **Web 端**：仅保留 WASM 后端路径，无 Tauri 分支、无 Rust composables
-- **Tauri 端**：仅保留 Tauri invoke 后端路径，无 WASM 回退、无 worldsmith-server 引用
-- **CLI 端**：前端无 UI（纯命令行），仅清理对 worldsmith-server 的引用
+- **Tauri 端**：仅保留 Tauri invoke 后端路径，无 WASM 回退、无 worldsea-server 引用
+- **CLI 端**：前端无 UI（纯命令行），仅清理对 worldsea-server 的引用
 
 ### 原则
 1. **端编译期决定**：后端类型在构建期硬编码，移除运行时检测
@@ -53,7 +53,7 @@
 | `src/plugins/official/mindmap/composables/useRustGraphAnalysis.ts` | 迁移到 Tauri 端，移除检测分支 |
 | `src/types/global.d.ts` | 拆分：Tauri 端保留 `__TAURI__` 声明，Web 端移除 |
 
-### 2.3 引用 `worldsmith-server` / WS 连接的文件
+### 2.3 引用 `worldsea-server` / WS 连接的文件
 
 | 文件路径 | 清理方式 |
 |----------|----------|
@@ -137,7 +137,7 @@ src/agent/
 ```
 src/core/
   ├── coreBackend.ts (WASM 分支) → apps/web/src/core/coreBackend.ts
-  ├── worldsmithCore.ts          → apps/web/src/core/
+  ├── worldseaCore.ts          → apps/web/src/core/
   └── wasmWorkerPool.ts          → apps/web/src/core/
 
 src/agent/
@@ -162,7 +162,7 @@ src/composables/
 // 移除 detectBackend()、tauriInvoke、tauriCall、backendCall 双路径
 // 仅保留 WASM 路径
 
-import { getCore } from './worldsmithCore'
+import { getCore } from './worldseaCore'
 import { callViaWorker, isHeavyMethod } from './wasmWorkerPool'
 
 let _corePromise: Promise<unknown> | null = null
@@ -217,7 +217,7 @@ export async function validateEntity(entityJson: string, schemaJson?: string) {
 
 **改造后**（`packages/shared-composables/src/useAgent.ts`）：
 ```typescript
-import type { IAgentBackend } from '@worldsmith/agent-runtime'
+import type { IAgentBackend } from '@worldsea/agent-runtime'
 
 export interface UseAgentOptions {
   backend: IAgentBackend  // 端入口注入
@@ -305,13 +305,13 @@ const backend = new RustAgentBackend()
 - 迁移到 Tauri 端后，移除检测，直接走 Tauri invoke
 - Web 端思维导图使用 JS 布局算法（d3-force 等）替代
 
-## 7. worldsmith-server 相关引用清理
+## 7. worldsea-server 相关引用清理
 
 ### 7.1 Web 端保留（连接 CLI serve）
 
 `TerminalPanel.vue` 与 `useTerminal.ts` 在 Web 端保留 WS 连接逻辑，但：
 - 移除 `ws://localhost:3100` 硬编码，改为从环境变量/配置读取
-- 连接目标改为 CLI serve 模式（`worldsmith serve`）
+- 连接目标改为 CLI serve 模式（`worldsea serve`）
 
 ### 7.2 Tauri 端移除
 
@@ -322,8 +322,8 @@ Tauri 端的 `TerminalPanel.vue` 与 `useTerminal.ts`：
 ### 7.3 CLI 端清理
 
 CLI 端无前端 UI，但需清理：
-- `worldsmith-agent/` 中对 `worldsmith-server` 的引用（如有）
-- 确保 CLI serve 模式独立运行，不依赖 worldsmith-server 包
+- `worldsea-agent/` 中对 `worldsea-server` 的引用（如有）
+- 确保 CLI serve 模式独立运行，不依赖 worldsea-server 包
 
 ## 8. 插件层清理
 
@@ -351,7 +351,7 @@ Step 2: 抽离共享层到 packages/shared-composables, packages/shared-ui
   ↓
 Step 3: 迁移 Tauri 专用文件到 apps/tauri/src/（8 个 Rust composables + ProjectFS + FsWatcher 等）
   ↓
-Step 4: 迁移 Web 专用文件到 apps/web/src/（coreBackend WASM 分支 + worldsmithCore + wasmWorkerPool）
+Step 4: 迁移 Web 专用文件到 apps/web/src/（coreBackend WASM 分支 + worldseaCore + wasmWorkerPool）
   ↓
 Step 5: 改造 coreBackend.ts（三端各保留单路径版本）
   ↓
@@ -363,7 +363,7 @@ Step 8: 清理 __TAURI__ 检测与 global.d.ts
   ↓
 Step 9: 清理插件层（mindmap Rust composables、workflow Rust API）
   ↓
-Step 10: 清理 worldsmith-server 引用（Tauri 移除、Web 改连 CLI serve）
+Step 10: 清理 worldsea-server 引用（Tauri 移除、Web 改连 CLI serve）
   ↓
 Step 11: 更新三端 Vite/tsconfig 配置，移除跨端 alias
   ↓
@@ -383,7 +383,7 @@ Step 12: 删除原 src/ 目录（确认无引用后）
 | 7 | 三端 `npm run dev` 可独立启动 |
 | 8 | `grep -r "__TAURI__" apps/web/` 返回空 |
 | 9 | 思维导图/工作流插件在三端可独立加载 |
-| 10 | `grep -r "worldsmith-server" apps/tauri/` 返回空 |
+| 10 | `grep -r "worldsea-server" apps/tauri/` 返回空 |
 | 11 | 三端 `npm run build` 产物互相独立 |
 | 12 | 原 `src/` 目录已删除，无残留引用 |
 
@@ -435,7 +435,7 @@ Step 12: 删除原 src/ 目录（确认无引用后）
 **4-3 潜在问题处理**：
 - 添加 `@agent/{context,group-chat,session,execution}/*` 精确 paths 映射（tsconfig.app.json），修复 16 个路径解析错误
 - 修复 `useAgentRust.ts` 的 11 个 `A2UIMessage` 类型错误：`if (message.xxx)` 改为 `if ('xxx' in message)` 做 discriminated union 类型收窄
-- 添加 `@worldsmith/shared-composables/{agent,long-task,entity,ui}/*` 精确 paths 映射，修复 `longTaskStore` 路径解析
+- 添加 `@worldsea/shared-composables/{agent,long-task,entity,ui}/*` 精确 paths 映射，修复 `longTaskStore` 路径解析
 
 **4-4 最终类型检查**：
 - `packages/shared-composables`：**0 错误**
@@ -453,7 +453,7 @@ Step 12: 删除原 src/ 目录（确认无引用后）
 **修复**：
 - 新建 `packages/shared-composables/src/agent/long-task/useLongTask.ts`（完整迁移，端无关，仅依赖 vue + longTaskStore）
 - 更新 `packages/shared-composables/src/agent/long-task/index.ts` 导出 useLongTask
-- `src/agent/composables/useLongTask.ts` 改为 re-export：`export { useLongTask } from '@worldsmith/shared-composables/long-task/useLongTask'`
+- `src/agent/composables/useLongTask.ts` 改为 re-export：`export { useLongTask } from '@worldsea/shared-composables/long-task/useLongTask'`
 
 **验证**：useLongTask 端无关（无 Tauri/Web 特定依赖），迁移后无类型错误。
 

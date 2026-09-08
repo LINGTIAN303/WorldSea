@@ -1,4 +1,4 @@
-import type { PluginAPIType } from '@worldsmith/entity-core'
+import type { PluginAPIType } from '@worldsea/entity-core'
 import WorkflowView from './WorkflowView.vue'
 
 export const manifest = {
@@ -6,7 +6,7 @@ export const manifest = {
   name: '创作编排',
   version: '2.0.0',
   description: '创作编排面板。将复杂创作目标拆解为有序步骤（Pipeline），支持 Agent 自动提议、逐步执行、用户审阅介入、模板复用。',
-  author: 'WorldSmith',
+  author: 'WorldSea',
   agentSkills: ['creation-orchestrator'],
   agentCapabilities: [
     { action: 'pipeline_create', description: '创建创作计划', params: ['name', 'description', 'steps', 'connections', 'tags'] },

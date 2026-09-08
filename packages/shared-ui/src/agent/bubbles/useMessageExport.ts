@@ -5,9 +5,9 @@
  * 端解耦：`persona`（字体细节）与 `enterAnimation`（入场动画）通过
  * `useAgentUiDeps()` 注入式获取，不再直接依赖 Web 端 usePersonaFont。
  */
-import { useAgentUiDeps } from '@worldsmith/shared-composables/agent/deps'
-import { renderText, toBlob, renderAnimatedText, type FontWeightToken, type TextAnimationEffect } from '@worldsmith/font-kit'
-import { encodeGif } from '@worldsmith/motion-kit'
+import { useAgentUiDeps } from '@worldsea/shared-composables/agent/deps'
+import { renderText, toBlob, renderAnimatedText, type FontWeightToken, type TextAnimationEffect } from '@worldsea/font-kit'
+import { encodeGif } from '@worldsea/motion-kit'
 import { stripJsonBlocks } from './useMarkdownRender'
 
 /**

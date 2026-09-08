@@ -11,8 +11,8 @@
  * # / ~ 面板为静态定义；！创作区由 buildSummonItems 从插件视图注册表动态生成；
  * @ 引用由 getReferenceEntries 从实体类型注册表动态生成。
  */
-import type { ChatMode } from '@worldsmith/shared-composables/agent/useAgent'
-import { entitySchemaRegistry } from '@worldsmith/entity-core'
+import type { ChatMode } from '@worldsea/shared-composables/agent/useAgent'
+import { entitySchemaRegistry } from '@worldsea/entity-core'
 
 export type { ChatMode }
 

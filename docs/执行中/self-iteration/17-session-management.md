@@ -2,7 +2,7 @@
 > 承接迭代主题 16 的"有 API 无入口"模式。`newSession`/`deleteSession` 命令与 `useAgentRust` 封装早已实现，但对话侧边栏**没有任何控件**能触发它们——会话只能由 `onMounted` 自动建一个，`deleteSession` 完全无法在 UI 触发。本轮补齐会话管理的用户侧入口。
 
 ### 决策点 56：侧边栏头部加「新建会话」按钮，接入 `newSession`
-**选择**：`sidebar` 顶部新增 `.sidebar-head`（标题 + 「＋ 新建」按钮），`onNewSession` 调 `backend.newSession('WorldSmith 桌面端测试助手')`（与 `onMounted` 自动建会话用同一签名）。
+**选择**：`sidebar` 顶部新增 `.sidebar-head`（标题 + 「＋ 新建」按钮），`onNewSession` 调 `backend.newSession('WorldSea 桌面端测试助手')`（与 `onMounted` 自动建会话用同一签名）。
 **理由**：会话是"多会话并行"的基础，必须能手动开新会话；复用既有 `newSession` 命令，零后端改动。
 
 ### 决策点 57：每条会话项改为「切换按钮撑满 + 删除按钮右对齐」，删除按钮悬浮显现

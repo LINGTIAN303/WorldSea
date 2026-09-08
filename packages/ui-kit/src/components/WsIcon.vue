@@ -30,7 +30,7 @@
 import { computed, type Component } from 'vue'
 import { getIcon } from '../assets/iconRegistry'
 import { resolveLucideIcon } from './lucideMap'
-import { getThemeIconOverride } from '@worldsmith/theme-kit'
+import { getThemeIconOverride } from '@worldsea/theme-kit'
 
 type IconSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl'
 

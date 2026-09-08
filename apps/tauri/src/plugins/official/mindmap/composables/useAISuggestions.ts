@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import { useEntityStore, useRelationStore, relationSchemaRegistry } from '@worldsmith/entity-core'
+import { useEntityStore, useRelationStore, relationSchemaRegistry } from '@worldsea/entity-core'
 import { useAgent } from '@/agent/composables/useAgent'
 import type { CanvasNode } from './canvasTypes'
 

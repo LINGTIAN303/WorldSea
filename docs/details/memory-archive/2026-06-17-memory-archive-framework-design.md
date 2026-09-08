@@ -1,6 +1,6 @@
 # 记忆库框架设计文档
 
-> **框架名称**：`@worldsmith/memory-archive`
+> **框架名称**：`@worldsea/memory-archive`
 > **版本**：1.0
 > **创建时间**：2026-06-17
 > **状态**：设计完成，待审核
@@ -14,7 +14,7 @@
 2. [架构设计与包结构](#2-架构设计与包结构)
 3. [数据模型与文件格式](#3-数据模型与文件格式)
 4. [归档流程与检索流程](#4-归档流程与检索流程)
-5. [worldsmith 集成方案](#5-worldsmith-集成方案)
+5. [worldsea 集成方案](#5-worldsea-集成方案)
 6. [周期管理](#6-周期管理)
 7. [实施计划与分阶段交付](#7-实施计划与分阶段交付)
 
@@ -24,7 +24,7 @@
 
 ### 1.1 框架名称
 
-`@worldsmith/memory-archive`（monorepo 子包，路径 `packages/memory-archive/`）
+`@worldsea/memory-archive`（monorepo 子包，路径 `packages/memory-archive/`）
 
 ### 1.2 定位
 
@@ -36,7 +36,7 @@
 - **对用户**：对话历史完整保留（前端不变），无感知地享受长期记忆
 - **对宿主项目**：纯逻辑层 API，存储/Embedding 内置默认实现，Agent 框架通过接口适配
 
-### 1.4 三层记忆职责划分（worldsmith 语境）
+### 1.4 三层记忆职责划分（worldsea 语境）
 
 | 层 | 现有/新增 | 职责 | 形态 |
 |----|-----------|------|------|
@@ -60,7 +60,7 @@
 
 ```
 packages/memory-archive/
-├── package.json                    # @worldsmith/memory-archive
+├── package.json                    # @worldsea/memory-archive
 ├── tsconfig.json
 ├── src/
 │   ├── index.ts                    # 公共 API 入口
@@ -212,7 +212,7 @@ export interface ConfigAdapter {
 **框架自身 `package.json`**：
 ```json
 {
-  "name": "@worldsmith/memory-archive",
+  "name": "@worldsea/memory-archive",
   "peerDependencies": {},
   "dependencies": {
     "nanoid": "^5.0.0"
@@ -220,21 +220,21 @@ export interface ConfigAdapter {
 }
 ```
 
-**worldsmith 引用方式**：
+**worldsea 引用方式**：
 ```json
 {
   "dependencies": {
-    "@worldsmith/memory-archive": "workspace:*"
+    "@worldsea/memory-archive": "workspace:*"
   }
 }
 ```
 
-### 2.6 worldsmith 侧适配器实现位置
+### 2.6 worldsea 侧适配器实现位置
 
 > **P3 决策**：PiAiAgentBridge 放在 archive/ 目录，初始化逻辑并入 bridge.ts
 
 ```
-worldsmith-agent/src/archive/
+worldsea-agent/src/archive/
 ├── PiAiAgentBridge.ts          # AgentBridge 的 pi-ai 实现
 ├── archive-tools.ts            # archive_recall/load_chunk/tag/now 工具定义
 └── index.ts                    # 导出
@@ -289,7 +289,7 @@ export interface Hook {
   source: 'threshold' | 'session_end' | 'manual'
   // 钩子格式版本（P4 新增，便于未来迁移）
   version: string                     // 默认 '1.0'
-  // 宿主扩展字段（P4 新增，如 worldsmith 可存 entityIds）
+  // 宿主扩展字段（P4 新增，如 worldsea 可存 entityIds）
   customMetadata?: Record<string, unknown>
   // 索引归属（日/周汇总索引引用）
   dailyIndexId?: string
@@ -430,7 +430,7 @@ export interface ArchiveConfig {
 > **P5 决策**：改用分块 JSON 文件，每个块独立文件
 
 ```
-{projectDir}/.worldsmith/memory-archive/
+{projectDir}/.worldsea/memory-archive/
 ├── hooks/                           # 索引钩子（JSON 文件，每个钩子一个文件）
 │   ├── {hookId}.json
 │   └── {hookId}.json
@@ -971,11 +971,11 @@ const archive_now = {
 
 ---
 
-## 5. worldsmith 集成方案
+## 5. worldsea 集成方案
 
 > **实现路径说明**（2026-06-19 更新）：
-> 设计文档预设集成层位于 `worldsmith-agent/src/archive/`，实际实现位于 `src/memory-archive/`。
-> 这是因为 `worldsmith-agent` 是独立的 Agent 框架包，记忆库集成层属于宿主应用层，
+> 设计文档预设集成层位于 `worldsea-agent/src/archive/`，实际实现位于 `src/memory-archive/`。
+> 这是因为 `worldsea-agent` 是独立的 Agent 框架包，记忆库集成层属于宿主应用层，
 > 放在 `src/memory-archive/` 更符合职责分离原则。
 > 功能等价，路径不同。以下章节中的代码示例路径为设计预设，实际实现路径见各文件注释。
 
@@ -983,7 +983,7 @@ const archive_now = {
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      worldsmith 应用层                       │
+│                      worldsea 应用层                       │
 │                                                              │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
 │  │  AgentChat   │  │ MemoryShelf  │  │ ArchivePanel     │  │
@@ -995,7 +995,7 @@ const archive_now = {
 │         │   - archivedBoundaryIndex            │            │
 │         │                                      │            │
 │  ┌──────▼──────────────────────────────────────▼────────┐  │
-│  │              worldsmith-agent 包                      │  │
+│  │              worldsea-agent 包                      │  │
 │  │                                                       │  │
 │  │  ┌─────────────────┐  ┌──────────────────────────┐  │  │
 │  │  │   bridge.ts     │  │  archive/  (新增)         │  │  │
@@ -1008,7 +1008,7 @@ const archive_now = {
 │  └───────────┼────────────────────────┼──────────────────┘  │
 │              │                        │                      │
 │  ┌───────────▼────────────────────────▼──────────────────┐  │
-│  │       @worldsmith/memory-archive (框架包)              │  │
+│  │       @worldsea/memory-archive (框架包)              │  │
 │  │                                                        │  │
 │  │  ArchiveManager ←── FsStorageAdapter (复用项目目录)    │  │
 │  │       ↑            OpenAIEmbeddingAdapter (复用配置)   │  │
@@ -1023,10 +1023,10 @@ const archive_now = {
 > **P11 决策**：增加流式检查、消息对完整性、快照同步
 
 ```typescript
-// worldsmith-agent/src/archive/PiAiAgentBridge.ts
-import type { AgentBridge, Hook, AgentMessageSnapshot } from '@worldsmith/memory-archive'
+// worldsea-agent/src/archive/PiAiAgentBridge.ts
+import type { AgentBridge, Hook, AgentMessageSnapshot } from '@worldsea/memory-archive'
 import type { Agent } from '@earendil-works/pi-agent-core'
-import { findSafeTruncatePoint } from '@worldsmith/memory-archive'
+import { findSafeTruncatePoint } from '@worldsea/memory-archive'
 
 export class PiAiAgentBridge implements AgentBridge {
   private agent: Agent
@@ -1215,12 +1215,12 @@ class CoreBackend implements IAgentBackend {
 
   async initArchive(projectId: string, projectDir: string | null) {
     const { ArchiveManager, FsStorageAdapter, OpenAIEmbeddingAdapter } =
-      await import('@worldsmith/memory-archive')
+      await import('@worldsea/memory-archive')
 
     this.agentBridge = new PiAiAgentBridge(this.agent)
 
     const storage = projectDir
-      ? new FsStorageAdapter({ basePath: `${projectDir}/.worldsmith/memory-archive` })
+      ? new FsStorageAdapter({ basePath: `${projectDir}/.worldsea/memory-archive` })
       : null
 
     this.archiveManager = new ArchiveManager({
@@ -1613,7 +1613,7 @@ export function calculateDecayScore(hook: Hook, now: number, params: DecayParams
 ```
 Phase 1: 框架核心（可独立测试）
     ↓
-Phase 2: worldsmith 集成（端到端可用）
+Phase 2: worldsea 集成（端到端可用）
     ↓
 Phase 3: 周期管理（自动化运维）
     ↓
@@ -1622,7 +1622,7 @@ Phase 4: UI 面板与优化（用户体验）
 
 ### 7.2 Phase 1：框架核心
 
-**目标**：完成 `@worldsmith/memory-archive` 框架包的核心逻辑
+**目标**：完成 `@worldsea/memory-archive` 框架包的核心逻辑
 
 **任务分解**：
 
@@ -1646,9 +1646,9 @@ Phase 4: UI 面板与优化（用户体验）
 | 1.16 | 实现 ArchiveManager（11 步归档，P7 并行） | 1.12-1.15 |
 | 1.17 | 编写单元测试 | 1.16 |
 
-### 7.3 Phase 2：worldsmith 集成
+### 7.3 Phase 2：worldsea 集成
 
-**目标**：将框架集成到 worldsmith，实现端到端归档与检索
+**目标**：将框架集成到 worldsea，实现端到端归档与检索
 
 **任务分解**：
 
@@ -1678,7 +1678,7 @@ Phase 4: UI 面板与优化（用户体验）
 | 3.4 | 实现 runMonthly（P15 调整后） | 3.1 |
 | 3.5 | 宿主事件注入 | 3.2-3.4 |
 | 3.6 | 失败恢复机制（P18） | 3.5 |
-| 3.7 | 集成到 worldsmith | Phase 2, 3.6 |
+| 3.7 | 集成到 worldsea | Phase 2, 3.6 |
 | 3.8 | 周期任务测试 | 3.7 |
 
 ### 7.5 Phase 4：UI 面板与优化

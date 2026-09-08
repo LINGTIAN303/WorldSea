@@ -1,14 +1,14 @@
 /** useProjectSwitcher：项目切换编排器（Web 端迁移版，完整流程见文档），详细见 docs/details/注释/web/composables/useProjectSwitcher.md */
 
 import { ref } from 'vue'
-import { getProjectManager, setStorageProjectDir } from '@worldsmith/entity-core/core'
-import type { ProjectInfo } from '@worldsmith/entity-core/core'
-import { entitySchemaRegistry, relationSchemaRegistry } from '@worldsmith/entity-core/core'
-import { usePluginStore, useEntityStore, useRelationStore, useFileStore } from '@worldsmith/entity-core/stores'
+import { getProjectManager, setStorageProjectDir } from '@worldsea/entity-core/core'
+import type { ProjectInfo } from '@worldsea/entity-core/core'
+import { entitySchemaRegistry, relationSchemaRegistry } from '@worldsea/entity-core/core'
+import { usePluginStore, useEntityStore, useRelationStore, useFileStore } from '@worldsea/entity-core/stores'
 import { setAgentCurrentProjectId } from '@agent/session/manager'
 import { moduleRegistry } from '@/modules/registry'
-import { pluginAPI } from '@worldsmith/entity-core'
-import { isTauri, hasTauriInvoke } from '@worldsmith/entity-core/core'
+import { pluginAPI } from '@worldsea/entity-core'
+import { isTauri, hasTauriInvoke } from '@worldsea/entity-core/core'
 import { useFsWatcher } from './useFsWatcher'
 
 const switching = ref(false)
@@ -41,7 +41,7 @@ export function useProjectSwitcher() {
 
   /**
    * 工作台实体存储根解析（2026-09-03 拍板，默认项目三层分离）：
-   * - 默认项目 dirPath = `~/.WorldSmith` 根（显示/定位基准）→ 实体落 `根/worlddata`
+   * - 默认项目 dirPath = `~/.WorldSea` 根（显示/定位基准）→ 实体落 `根/worlddata`
    * - 普通项目 = dirPath 本身（打开目录即两边同源）
    * 防御性剥离历史残留的 worldentity/worlddata 段，避免双重嵌套路径（worldentity/worldentity）。
    */
@@ -84,12 +84,12 @@ export function useProjectSwitcher() {
     }
     try {
       const { open } = await import('@tauri-apps/plugin-dialog')
-      // 打开文件夹定位基准 = 全局根 ~/.WorldSmith（2026-09-03 拍板）
+      // 打开文件夹定位基准 = 全局根 ~/.WorldSea（2026-09-03 拍板）
       let defaultPath: string | undefined
       try {
         const { homeDir } = await import('@tauri-apps/api/path')
         const home = await homeDir()
-        if (home) defaultPath = `${home.replace(/[\\/]+$/, '')}/.WorldSmith`
+        if (home) defaultPath = `${home.replace(/[\\/]+$/, '')}/.WorldSea`
       } catch { /* 定位失败仅回到系统默认位置 */ }
       const selected = await open({ directory: true, title: '打开项目目录', multiple: false, defaultPath })
       if (!selected) return false
@@ -120,7 +120,7 @@ export function useProjectSwitcher() {
    */
   async function initialize(): Promise<string> {
     // 1. 执行数据迁移（如果需要）
-    const { migrateIfNeeded } = await import('@worldsmith/entity-core/core')
+    const { migrateIfNeeded } = await import('@worldsea/entity-core/core')
     await migrateIfNeeded()
 
     // 2. 初始化 ProjectManager
@@ -138,7 +138,7 @@ export function useProjectSwitcher() {
 
     // 2.5 默认项目兜底归位（无项目/未选目录 = 全局根，2026-09-03 拍板）
     //    · 系统默认项目（isDefault，或旧「默认项目」名——一次性补标记）不可移除；
-    //    · 其 dirPath 恒为全局根 ~/.WorldSmith（选择器显示 / 打开文件夹定位基准；
+    //    · 其 dirPath 恒为全局根 ~/.WorldSea（选择器显示 / 打开文件夹定位基准；
     //      修历史残留 dirPath 如 worldentity / tream_test）；
     //    · 默认项目数据分落子目录：工作台实体 → dirPath/worlddata（entityDirOf），
     //      Agent 工作路径 → dirPath/agent（workspace.ts resolveWorkspaceDir 特判）；
@@ -154,7 +154,7 @@ export function useProjectSwitcher() {
         const { homeDir } = await import('@tauri-apps/api/path')
         const home = await homeDir()
         if (home) {
-          const rootDir = `${home.replace(/[\\/]+$/, '')}/.WorldSmith`
+          const rootDir = `${home.replace(/[\\/]+$/, '')}/.WorldSea`
           if (normalizeDir(dirPath ?? '') !== normalizeDir(rootDir)) {
             await pm.setProjectDir(projectId, rootDir)
             dirPath = rootDir

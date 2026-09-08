@@ -1,5 +1,5 @@
 /**
- * @worldsmith/governor-core — 调控器类型定义
+ * @worldsea/governor-core — 调控器类型定义
  *
  * 三维度环境模型 + 能力标签 + 模块描述符 + 调控器 API 契约。
  * 纯类型与逻辑，不依赖 Vue/Pinia，可供主应用和 Agent 包共享。

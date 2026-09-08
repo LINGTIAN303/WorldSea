@@ -165,7 +165,7 @@ export class PermissionGuard {
 /**
  * 创建 beforeToolCall 守卫函数
  *
- * 供 CoreBackend / createWorldSmithAgent 使用，
+ * 供 CoreBackend / createWorldSeaAgent 使用，
  * 统一前端和 CLI 的权限确认逻辑。
  */
 export function createBeforeToolCallGuard(

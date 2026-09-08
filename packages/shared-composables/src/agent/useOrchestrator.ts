@@ -129,7 +129,7 @@ export async function untrackSubAgentLongTask(
 
 function syncToWindow(): void {
   try {
-    ; (window as any).__worldsmith_sub_agents = subAgents
+    ; (window as any).__worldsea_sub_agents = subAgents
   } catch { }
 }
 
@@ -140,7 +140,7 @@ async function autoUpdatePipelineStep(
   output: string,
 ): Promise<void> {
   try {
-    const { useEntityStore } = await import('@worldsmith/entity-core')
+    const { useEntityStore } = await import('@worldsea/entity-core')
     const store = useEntityStore()
     const entity = await store.getById(ctx.pipelineId)
     if (!entity || entity.type !== 'pipeline') return
@@ -316,7 +316,7 @@ export function useOrchestrator() {
         await autoUpdatePipelineStep(pipelineContext, result.success, result.output)
         // 成功完成时通知前端自动继续下一个步骤
         if (result.success) {
-          window.dispatchEvent(new CustomEvent('worldsmith:pipeline-step-completed', {
+          window.dispatchEvent(new CustomEvent('worldsea:pipeline-step-completed', {
             detail: {
               pipelineId: pipelineContext.pipelineId,
               stepId: pipelineContext.stepId,
@@ -361,20 +361,20 @@ export function useOrchestrator() {
   function attachListeners(): void {
     if (listenersAttached) return
     listenersAttached = true
-    window.addEventListener('worldsmith:dispatch-sub-agent', handleDispatchEventWrapper)
-    window.addEventListener('worldsmith:cancel-sub-agent', handleCancelEvent as EventListener)
-    window.addEventListener('worldsmith:get-sub-agent-status', handleGetStatusEvent as EventListener)
+    window.addEventListener('worldsea:dispatch-sub-agent', handleDispatchEventWrapper)
+    window.addEventListener('worldsea:cancel-sub-agent', handleCancelEvent as EventListener)
+    window.addEventListener('worldsea:get-sub-agent-status', handleGetStatusEvent as EventListener)
     syncToWindow()
   }
 
   function detachListeners(): void {
     if (!listenersAttached) return
     listenersAttached = false
-    window.removeEventListener('worldsmith:dispatch-sub-agent', handleDispatchEventWrapper)
-    window.removeEventListener('worldsmith:cancel-sub-agent', handleCancelEvent as EventListener)
-    window.removeEventListener('worldsmith:get-sub-agent-status', handleGetStatusEvent as EventListener)
+    window.removeEventListener('worldsea:dispatch-sub-agent', handleDispatchEventWrapper)
+    window.removeEventListener('worldsea:cancel-sub-agent', handleCancelEvent as EventListener)
+    window.removeEventListener('worldsea:get-sub-agent-status', handleGetStatusEvent as EventListener)
     try {
-      delete (window as any).__worldsmith_sub_agents
+      delete (window as any).__worldsea_sub_agents
     } catch { }
   }
 

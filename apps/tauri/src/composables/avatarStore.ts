@@ -20,7 +20,7 @@ export interface AvatarRecord {
 class AvatarDB extends Dexie {
   avatars!: Table<AvatarRecord, string>
   constructor() {
-    super('worldsmith-avatars')
+    super('worldsea-avatars')
     this.version(1).stores({
       avatars: 'id, createdAt',
     })

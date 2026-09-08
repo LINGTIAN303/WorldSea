@@ -128,18 +128,18 @@
 </template>
 
 <script setup lang="ts">
-import { toastSuccess, toastWarn } from '@worldsmith/ui-kit'
+import { toastSuccess, toastWarn } from '@worldsea/ui-kit'
 import { useDialog, useResizable } from '../composables'
 import { ref, watch, computed, reactive, nextTick, onBeforeUnmount, onUnmounted } from 'vue'
-import { RichTextEditor, WsIcon, useModalShortcuts } from '@worldsmith/ui-kit'
+import { RichTextEditor, WsIcon, useModalShortcuts } from '@worldsea/ui-kit'
 import CustomDropdown from './CustomDropdown.vue'
 import ImageField from './ImageField.vue'
 import SmartFillGhostText from './SmartFillGhostText.vue'
 import SmartFillPreview from './SmartFillPreview.vue'
 import EmptyFieldHint from './EmptyFieldHint.vue'
 import FieldFocusTrigger from './FieldFocusTrigger.vue'
-import { useFieldOrderStore, useEntityStore } from '@worldsmith/entity-core'
-import type { Entity } from '@worldsmith/entity-core'
+import { useFieldOrderStore, useEntityStore } from '@worldsea/entity-core'
+import type { Entity } from '@worldsea/entity-core'
 
 import type { FormFieldDef } from './types'
 import { useFieldPresets } from './entity/useFieldPresets'
@@ -347,7 +347,7 @@ function onFieldFocusTriggerClick() {
   if (!focusTriggerFieldKey.value) return
   const field = sortedFields.value.find(f => f.key === focusTriggerFieldKey.value)
   if (!field) return
-  window.dispatchEvent(new CustomEvent('worldsmith:smart-fill:chat-open', {
+  window.dispatchEvent(new CustomEvent('worldsea:smart-fill:chat-open', {
     detail: {
       entityType: resolvedEntityType.value,
       entityId: props.entity?.id,
@@ -386,7 +386,7 @@ function onSmartFillClick(field: FormFieldDef) {
     mode: 'suggest' as const,
     isEditing: !!props.entity?.id,
   }
-  window.dispatchEvent(new CustomEvent('worldsmith:smart-fill:request', { detail }))
+  window.dispatchEvent(new CustomEvent('worldsea:smart-fill:request', { detail }))
 }
 
 /** "AI 智能填充"按钮：请求一键填充 */
@@ -412,7 +412,7 @@ function onSmartFillAll() {
     emptyFields: smartFillIncludeExisting.value ? [] : emptyFields,
     includeExisting: smartFillIncludeExisting.value,
   }
-  window.dispatchEvent(new CustomEvent('worldsmith:smart-fill:request', { detail }))
+  window.dispatchEvent(new CustomEvent('worldsea:smart-fill:request', { detail }))
 }
 
 // 监听 Smart Fill 结果
@@ -431,7 +431,7 @@ function handleSmartFillResult(e: Event) {
 }
 
 // 注册/清理事件监听
-window.addEventListener('worldsmith:smart-fill:result', handleSmartFillResult)
+window.addEventListener('worldsea:smart-fill:result', handleSmartFillResult)
 
 // ── Smart Fill Preview 状态 ──────────────────────────────────────────
 
@@ -508,7 +508,7 @@ function handleSmartFillPreviewResult(e: Event) {
   }
 }
 
-window.addEventListener('worldsmith:smart-fill:result', handleSmartFillPreviewResult)
+window.addEventListener('worldsea:smart-fill:result', handleSmartFillPreviewResult)
 
 // ── Smart Fill Write-Back 监听 ──────────────────────────────────────────
 function handleSmartFillWriteBack(e: Event) {
@@ -517,14 +517,14 @@ function handleSmartFillWriteBack(e: Event) {
   formData.value[detail.fieldKey] = detail.value
 }
 
-window.addEventListener('worldsmith:smart-fill:write-back', handleSmartFillWriteBack)
+window.addEventListener('worldsea:smart-fill:write-back', handleSmartFillWriteBack)
 
 onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
 onUnmounted(() => {
-  window.removeEventListener('worldsmith:smart-fill:result', handleSmartFillResult)
-  window.removeEventListener('worldsmith:smart-fill:result', handleSmartFillPreviewResult)
-  window.removeEventListener('worldsmith:smart-fill:write-back', handleSmartFillWriteBack)
+  window.removeEventListener('worldsea:smart-fill:result', handleSmartFillResult)
+  window.removeEventListener('worldsea:smart-fill:result', handleSmartFillPreviewResult)
+  window.removeEventListener('worldsea:smart-fill:write-back', handleSmartFillWriteBack)
 })
 </script>
 

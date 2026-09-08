@@ -92,7 +92,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import type { AgentStreamItem } from '@worldsmith/shared-composables/agent/useAgent'
+import type { AgentStreamItem } from '@worldsea/shared-composables/agent/useAgent'
 import { aggregatePlanBlocks, type ProcessBlock } from './aggregatePlanBlocks'
 import ProcessBlocks from './ProcessBlocks.vue'
 import StreamRow from './rows/StreamRow.vue'

@@ -114,7 +114,7 @@
  * 复用 useMultiAgentRust 单例：run 触发 orchestrator_run_multi，orch_multi 事件实时回传轮次/消息/黑板/收敛。
  */
 import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import TuiSelect from '@/components/ui/TuiSelect.vue'
 import { useMultiAgentRust, type RustAgentSpec, type MultiAgentEvent, type MultiAgentSessionState } from '../composables/useMultiAgentRust'
 import { useSessionViewState } from '@/agent/composables/useSessionViewState'

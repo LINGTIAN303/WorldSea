@@ -35,10 +35,10 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
-import { potentialLinkIndex, indexPotentialLinks, entitySchemaRegistryV2, relationshipRegistry } from '@worldsmith/entity-core'
-import type { PotentialLink } from '@worldsmith/entity-core'
-import { storage } from '@worldsmith/entity-core'
+import { WsIcon } from '@worldsea/ui-kit'
+import { potentialLinkIndex, indexPotentialLinks, entitySchemaRegistryV2, relationshipRegistry } from '@worldsea/entity-core'
+import type { PotentialLink } from '@worldsea/entity-core'
+import { storage } from '@worldsea/entity-core'
 
 const props = defineProps<{
   entityId: string

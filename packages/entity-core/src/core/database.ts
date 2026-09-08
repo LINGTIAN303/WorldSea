@@ -30,13 +30,13 @@ export class WorldDatabase extends Dexie {
   artifact_versions!: Table<ArtifactVersion, string>
 
   /**
-   * @param projectId 项目 ID。传入时数据库名为 `WorldSmith-Project-${projectId}`；
-   * 不传时使用旧的全局数据库名 `WorldSmith`（仅用于数据迁移）。
+   * @param projectId 项目 ID。传入时数据库名为 `WorldSea-Project-${projectId}`；
+   * 不传时使用旧的全局数据库名 `WorldSea`（仅用于数据迁移）。
    */
   constructor(projectId?: string) {
     const dbName = projectId
-      ? `WorldSmith-Project-${projectId}`
-      : 'WorldSmith'
+      ? `WorldSea-Project-${projectId}`
+      : 'WorldSea'
     super(dbName)
 
     this.version(1).stores({

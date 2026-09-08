@@ -4,12 +4,12 @@
 >
 > Task 24 阶段2 · 2026-07-07
 >
-> 定义 WorldSmith Skills Store 的技能源仓库格式、manifest schema、安装流程与安全模型。
+> 定义 WorldSea Skills Store 的技能源仓库格式、manifest schema、安装流程与安全模型。
 > 阶段3 前端商城 UI 基于本规范实现浏览/安装/卸载/更新。
 >
-> **当前状态（2026-08-02）**：Task 24 阶段 1-4 + 方向 2/3 已完成（动态加载 / 安装机制 / 商城 UI / 多平台互通 / 独立 Rust crate worldsmith-skills-store / 真实技能源上线）。本规范定义的 manifest schema 与安装安全模型仍为现行标准。待办：桌面端 UI 端到端实测。
+> **当前状态（2026-08-02）**：Task 24 阶段 1-4 + 方向 2/3 已完成（动态加载 / 安装机制 / 商城 UI / 多平台互通 / 独立 Rust crate worldsea-skills-store / 真实技能源上线）。本规范定义的 manifest schema 与安装安全模型仍为现行标准。待办：桌面端 UI 端到端实测。
 >
-> **⚠ 断线声明（2026-08-30 实况核对）→ ✅ 已重建（同日 Harness 调研 P1「Skills 点火」）**：2026-08 后端重组期间（980385c 端分离迁移），`apps/tauri/src-tauri/src/skills_store.rs` 与独立 crate `worldsmith-skills-store` 被删除，`cmd_skills_*` 六命令零注册，商城安装/卸载/导入/目录扫描链路全部必然失败。**2026-08-30 已从 git 历史重建**：crate 回归 `crates/worldsmith-skills-store/`（CoreError 本地化 + From→String 适配新结构，19 单元测试通过）、skills_store.rs 六命令恢复并注册（错误类型 String 化）。本文规范（manifest schema / skill.yaml / SKILL.md 双格式 / 安全模型 / platform-adapters）持续为现行标准。待桌面实例重启后真机验证；HTTP 桥 rpc.rs 未同步六命令（见 Harness 调研风险点②）。
+> **⚠ 断线声明（2026-08-30 实况核对）→ ✅ 已重建（同日 Harness 调研 P1「Skills 点火」）**：2026-08 后端重组期间（980385c 端分离迁移），`apps/tauri/src-tauri/src/skills_store.rs` 与独立 crate `worldsea-skills-store` 被删除，`cmd_skills_*` 六命令零注册，商城安装/卸载/导入/目录扫描链路全部必然失败。**2026-08-30 已从 git 历史重建**：crate 回归 `crates/worldsea-skills-store/`（CoreError 本地化 + From→String 适配新结构，19 单元测试通过）、skills_store.rs 六命令恢复并注册（错误类型 String 化）。本文规范（manifest schema / skill.yaml / SKILL.md 双格式 / 安全模型 / platform-adapters）持续为现行标准。待桌面实例重启后真机验证；HTTP 桥 rpc.rs 未同步六命令（见 Harness 调研风险点②）。
 
 ---
 
@@ -21,11 +21,11 @@
 ### 仓库目录结构示例
 
 ```
-worldsmith-skills/                    # 技能源仓库根
+worldsea-skills/                    # 技能源仓库根
 ├── skills-manifest.json              # 技能索引清单（必须）
 ├── skills/                           # 技能目录（推荐）
 │   ├── my-skill/
-│   │   ├── skill.yaml                # WorldSmith 原生 manifest
+│   │   ├── skill.yaml                # WorldSea 原生 manifest
 │   │   ├── SKILL.md                  # 提示词
 │   │   ├── references/               # 参考文档
 │   │   └── assets/                   # 资源文件
@@ -41,7 +41,7 @@ worldsmith-skills/                    # 技能源仓库根
 
 ```jsonc
 {
-  "name": "WorldSmith 官方精选技能集",      // 技能集名称（必须）
+  "name": "WorldSea 官方精选技能集",      // 技能集名称（必须）
   "version": "1.0.0",                      // 清单版本（可选）
   "updated": "2026-07-07",                 // 最后更新日期（可选）
   "skills": [                              // 技能列表（必须）
@@ -55,7 +55,7 @@ worldsmith-skills/                    # 技能源仓库根
 
       // 安装信息（必须）
       "downloadUrl": "https://github.com/xxx/yyy/archive/refs/heads/main.zip",
-      "pathInArchive": "worldsmith-skills-main/skills/my-skill",
+      "pathInArchive": "worldsea-skills-main/skills/my-skill",
       "sha256": "a1b2c3d4..."              // zip 的 sha256（小写十六进制）
     }
   ]
@@ -89,7 +89,7 @@ worldsmith-skills/                    # 技能源仓库根
 
 每个技能目录内支持两种 manifest 格式（阶段1 已实现解析）：
 
-### 1. skill.yaml（WorldSmith 原生格式，优先）
+### 1. skill.yaml（WorldSea 原生格式，优先）
 
 ```yaml
 id: my-skill
@@ -210,7 +210,7 @@ schema-context:
   "skillSources": [
     {
       "name": "官方精选",
-      "manifestUrl": "https://raw.githubusercontent.com/xxx/worldsmith-skills/main/skills-manifest.json"
+      "manifestUrl": "https://raw.githubusercontent.com/xxx/worldsea-skills/main/skills-manifest.json"
     },
     {
       "name": "社区技能",

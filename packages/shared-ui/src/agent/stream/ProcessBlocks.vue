@@ -162,9 +162,9 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import { IconAutomaticGearboxFilled, IconMenuDeep, IconListNumbers } from '@tabler/icons-vue'
-import type { AgentStreamItem } from '@worldsmith/shared-composables/agent/useAgent'
+import type { AgentStreamItem } from '@worldsea/shared-composables/agent/useAgent'
 import type { ProcessBlock, CombinationBlock, PlanItemBlock, PlanZoneBlock } from './aggregatePlanBlocks'
 import StreamRow from './rows/StreamRow.vue'
 import { TOOL_LABELS } from '../bubbles/toolLabels'

@@ -56,7 +56,7 @@ export function getBlockIcon(type: string): string {
  * - 图片: "标题/alt"
  * - 其他: 根据各自结构生成
  */
-export function getBlockSummary(block: import('@worldsmith/agent-runtime').MessageBlock): string {
+export function getBlockSummary(block: import('@worldsea/agent-runtime').MessageBlock): string {
   switch (block.type) {
     case 'table':
       return `${block.title || '表格'} (${block.rows.length}行 × ${block.columns.length}列)`

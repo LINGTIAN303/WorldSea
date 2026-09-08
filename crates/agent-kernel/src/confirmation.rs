@@ -1,6 +1,6 @@
 //! HITL 权限确认（A5）：工具调用前暂停征询用户确认，详细见 docs/details/注释/agent-runtime/agent.md
 //!
-//! 借鉴 OpenWorld `HITL 权限确认 / ask_user`，适配 WorldSmith 桌面端 Rust AgentLoop。
+//! 借鉴 OpenWorld `HITL 权限确认 / ask_user`，适配 WorldSea 桌面端 Rust AgentLoop。
 //! 机制：AgentLoop 执行「需确认」工具前，经 `ConfirmationBroker::request` 广播
 //! `ConfirmationRequested` 事件 → Tauri 端转发前端 `agent:confirm:{session_id}` →
 //! 前端弹窗后经 `cmd_agent_confirm` 回传 → `ConfirmationBroker::resolve` 放行/拒绝。
@@ -329,7 +329,7 @@ pub fn guard_fs_path(
 /// # 语义
 /// - `agent-tmp` 全权免确认（2026-09-03 用户拍板，跳过 HITL 审批）；
 /// - E1 写保护（`agent_commands::fs_tools::ensure_not_protected`）在真实写入链路
-///   独立执行，不受本函数影响（agent-tmp 与 entities/.worldsmith 是一级目录互斥）。
+///   独立执行，不受本函数影响（agent-tmp 与 entities/.worldsea 是一级目录互斥）。
 pub fn should_bypass_confirmation(
     tool_name: &str,
     args: &serde_json::Value,

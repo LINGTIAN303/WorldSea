@@ -10,10 +10,10 @@
 
 延续 Agent 空间走查后的视觉/交互收尾。本计划聚焦两处 UI：
 
-1. **输入栏模型选择器**（[ModelSwitcher.vue](file:///d:/本地化AI/DeepSeek_Home/worldsmith/apps/tauri/src/space/chat/ModelSwitcher.vue)）：下拉高度、分组标题、入口胶囊、供应商 Logo、思考档位悬停浮窗、AutoModel 入口图标。
-2. **右栏**（[AgentSpace.vue](file:///d:/本地化AI/DeepSeek_Home/worldsmith/apps/tauri/src/space/AgentSpace.vue) + [ExecPanel.vue](file:///d:/本地化AI/DeepSeek_Home/worldsmith/apps/tauri/src/space/panels/ExecPanel.vue)）：执行 tab 11 区改宫格、配置 tab 档案占位、创作 tab 图标 + 视图切换改浮窗菜单。
+1. **输入栏模型选择器**（[ModelSwitcher.vue](file:///d:/本地化AI/DeepSeek_Home/worldsea/apps/tauri/src/space/chat/ModelSwitcher.vue)）：下拉高度、分组标题、入口胶囊、供应商 Logo、思考档位悬停浮窗、AutoModel 入口图标。
+2. **右栏**（[AgentSpace.vue](file:///d:/本地化AI/DeepSeek_Home/worldsea/apps/tauri/src/space/AgentSpace.vue) + [ExecPanel.vue](file:///d:/本地化AI/DeepSeek_Home/worldsea/apps/tauri/src/space/panels/ExecPanel.vue)）：执行 tab 11 区改宫格、配置 tab 档案占位、创作 tab 图标 + 视图切换改浮窗菜单。
 
-数据修正涉及 [model-registry.ts](file:///d:/本地化AI/DeepSeek_Home/worldsmith/packages/agent-runtime/src/providers/model-registry.ts) 的 `thinkingModes` 三处（用户已确认）。
+数据修正涉及 [model-registry.ts](file:///d:/本地化AI/DeepSeek_Home/worldsea/packages/agent-runtime/src/providers/model-registry.ts) 的 `thinkingModes` 三处（用户已确认）。
 
 ---
 
@@ -56,9 +56,9 @@
 
 ### ⑦ AutoModel 条目：本次只做入口 UI（自动选型逻辑放下）
 - 用户决策：自动选型逻辑「先放下」。
-- 本次仅：AutoModel 条目（下拉内已有，L42-51）左侧加 **WorldSmith 品牌 Logo** 作图标（复用 `WorldSmithLogo` 组件，tone=auto 自适应主题，size=16）。
+- 本次仅：AutoModel 条目（下拉内已有，L42-51）左侧加 **WorldSea 品牌 Logo** 作图标（复用 `WorldSeaLogo` 组件，tone=auto 自适应主题，size=16）。
 - 保留现有「自动」tag + 选中态标记；`selectAutoModel` 维持占位（不真正切换）。已在代码标注 TODO 留待下轮。
-- 位置：WorldSmithLogo 组件 [WorldSmithLogo.vue](file:///d:/本地化AI/DeepSeek_Home/worldsmith/apps/tauri/src/components/brand/WorldSmithLogo.vue)（源图 `src-tauri/icons/WorldSmith.svg`，442KB base64 内嵌，组件按主题切换黑白形）。
+- 位置：WorldSeaLogo 组件 [WorldSeaLogo.vue](file:///d:/本地化AI/DeepSeek_Home/worldsea/apps/tauri/src/components/brand/WorldSeaLogo.vue)（源图 `src-tauri/icons/WorldSea.svg`，442KB base64 内嵌，组件按主题切换黑白形）。
 
 ---
 
@@ -115,7 +115,7 @@
 
 ## 五、风险点（需用户知晓，不自动处理）
 
-1. **思考档位粒度未传导到模型请求（既有缺口，非本次引入）**：Rust [genai_backend.rs](file:///d:/本地化AI/DeepSeek_Home/worldsmith/crates/agent-kernel/src/llm/genai_backend.rs) L277-279 目前仅 `thinking_mode == true` → 固定 `ReasoningEffort::Medium`；`thinking_level` 只存 config/state 未映射到 reasoning_effort。**本次实现的是选择器 UI + 存储链路**，档位暂不真正影响模型请求强度。若要让档位生效（如 low→Low、max→XMax），需另开后端任务（genai_backend 按 level 映射 + 各供应商 reasoning_effort 语义核对）。
+1. **思考档位粒度未传导到模型请求（既有缺口，非本次引入）**：Rust [genai_backend.rs](file:///d:/本地化AI/DeepSeek_Home/worldsea/crates/agent-kernel/src/llm/genai_backend.rs) L277-279 目前仅 `thinking_mode == true` → 固定 `ReasoningEffort::Medium`；`thinking_level` 只存 config/state 未映射到 reasoning_effort。**本次实现的是选择器 UI + 存储链路**，档位暂不真正影响模型请求强度。若要让档位生效（如 low→Low、max→XMax），需另开后端任务（genai_backend 按 level 映射 + 各供应商 reasoning_effort 语义核对）。
 2. **多面板堆叠的宽度/高度适配**：终端/子Agent/工作区面板原本「撑满面板」，改卡片堆叠后需给卡片设合理高度（如每卡片 `max-height: 45%` 内部滚动），避免 11 区全开时过度挤压。此为落地质量细节，执行时按实测量调。
 3. **'max' 档位下游兼容**：若个别供应商请求层遇到未知 reasoning_effort 值，可能被忽略或报错——需验证 DeepSeek/GLM 对 `max` 的接受度（矩阵文档已列 max 为其档位，风险低）。
 
@@ -127,7 +127,7 @@
 - [x] ② 列表无分组标题，模型仍按供应商顺序；aria-label 保留供应商信息（DOM 实测 groupLabels=0）
 - [x] ③ 入口无胶囊形态（实测 border-radius=0/透明/无边框）
 - [x] ④⑤⑥ 悬停条目弹出该模型档位浮窗（DeepSeek V4 Flash 关闭/低/中/高/最大）；Logo 全条目显示；选档写 localStorage + `update_thinking_level`；当前档位高亮
-- [x] ⑦ AutoModel 条目左侧 WorldSmith Logo；点选仍为占位不切换
+- [x] ⑦ AutoModel 条目左侧 WorldSea Logo；点选仍为占位不切换
 - [x] 右栏 ① 执行 tab：宫格首页 11 区四列；点选追加卡片；「+」菜单 10 项不含已开区；关闭卡片回首页；生成任务/有 plan 自动打开已接入（addExecSection）
 - [x] 右栏 ② 配置 tab 档案占位可点、内容为占位文案、状态持久
 - [x] 右栏 ③ 创作 tab 图标可见（palette）；切换视图为锚定浮窗菜单（Escape/外点关闭）

@@ -37,7 +37,7 @@ export interface DryRunResult {
 }
 
 /**
- * Run 记录摘要（镜像 worldsmith-core::storage::workflow::RunSummary）
+ * Run 记录摘要（镜像 worldsea-core::storage::workflow::RunSummary）
  *
  * 注意：Rust 端无 #[serde(rename_all = "camelCase")]，序列化后字段保持 snake_case。
  * Tauri 只转 invoke 参数名（camelCase→snake_case），不转返回值字段名。

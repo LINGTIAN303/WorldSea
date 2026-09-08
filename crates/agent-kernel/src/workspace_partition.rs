@@ -7,11 +7,11 @@
 //! - `agent-tmp/`：临时区，Agent 全权（写免确认、可随意清理；git 不入库约定）
 //!   - `agent-tmp/sub-{id}/`：子 Agent 个人临时目录（编排创建时预建 + 引导注入）
 //! - `agent-out/`：成果区，收官产物（写规则沿用现有 L1/L2/L3 permission 体系）
-//! - `entities/`、`.worldsmith/`：项目数据区（E1 写保护，见 agent-commands::fs_tools）
-//! - 未绑定项目时兜底草稿区：`~/.worldsmith/workspace`（既有，勿动）
+//! - `entities/`、`.worldsea/`：项目数据区（E1 写保护，见 agent-commands::fs_tools）
+//! - 未绑定项目时兜底草稿区：`~/.worldsea/workspace`（既有，勿动）
 //!
 //! # 与 E1 的关系
-//! E1 只保护 `entities`/`.worldsmith` 两个一级目录，与 `agent-tmp`（另一级目录）
+//! E1 只保护 `entities`/`.worldsea` 两个一级目录，与 `agent-tmp`（另一级目录）
 //! 天然互斥。`agent-tmp` 免确认仅跳过 HITL 审批；`ensure_not_protected` 在 FS
 //! 真实写入链路独立执行，本模块不削弱 E1。
 

@@ -2,7 +2,7 @@
 
 ## 状态
 `TuiIcon.vue` 已删除，其 30+ 个导航/工作台图标（chat、terminal、subagent、memory、sparkle、bulb、activity、chart、task 等）
-迁移至 `packages/ui-kit/src/assets/icons/nav.ts`（`category: 'nav'`），统一由 `WsIcon`（`@worldsmith/ui-kit`）消费。
+迁移至 `packages/ui-kit/src/assets/icons/nav.ts`（`category: 'nav'`），统一由 `WsIcon`（`@worldsea/ui-kit`）消费。
 
 ## 合并动机
 - 原存在两套并行图标系统：Tauri 端 `TuiIcon`（硬编码 path 映射）与 Web 端 `WsIcon`（注册表 + Lucide 兜底）。

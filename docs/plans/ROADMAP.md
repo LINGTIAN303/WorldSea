@@ -1,4 +1,4 @@
-# WorldSmith 任务路线计划
+# WorldSea 任务路线计划
 
 > status: 执行中
 >
@@ -17,14 +17,14 @@
 
 ### 3. Agent 的技能工具更新
 - **简述**：更新 Agent 的技能（Skills）工具体系，与 governor-modules.ts 的 toolMeta 模块对接
-- **涉及模块**：`worldsmith-agent/src/agent.ts`、`src/agent/`、`@worldsmith/agent-core`、`@worldsmith/governor-core`
+- **涉及模块**：`worldsea-agent/src/agent.ts`、`src/agent/`、`@worldsea/agent-core`、`@worldsea/governor-core`
 - **状态**：已完成（P1-P4 + 收尾切换，2026-07-08）
 - **优先级**：—
 - **备注**：P1-P3 让 agent-core 的 ToolRegistry/SkillRegistry 从死代码变为运行时可用（commit 88735cd）；P4 补全所有静态工具声明式 meta，淘汰 LEGACY_TOOL_META。收尾（2026-07-08）：alwaysAvailable meta 对齐（补 memory_delete/kb_delete，移除 43 个多出误标），agent.ts:154 切换到 SkillRegistry.resolveToolNames，toolbus resolveLegacyNames 清理冗余并集。声明式 registry 成为运行时唯一数据源。任务24 Skills 商城依赖本任务（已基本完成）
 
 ### 4. Agent 的长任务能力
 - **简述**：支持 Agent 长任务（最长 6 小时），无强制中断机制，优化在应用层
-- **涉及模块**：`src/agent/composables/useAgent.ts`、`src/agent/composables/useLongTask.ts`、`src/agent/composables/longTaskStore.ts`、`src/agent/composables/useOrchestrator.ts`、`src/agent/AgentChat.vue`、`src/agent/AgentOverlay.vue`、`worldsmith-agent/src/bridge.ts`、`worldsmith-agent/src/bridge-types.ts`、`src/space/group-chat/`
+- **涉及模块**：`src/agent/composables/useAgent.ts`、`src/agent/composables/useLongTask.ts`、`src/agent/composables/longTaskStore.ts`、`src/agent/composables/useOrchestrator.ts`、`src/agent/AgentChat.vue`、`src/agent/AgentOverlay.vue`、`worldsea-agent/src/bridge.ts`、`worldsea-agent/src/bridge-types.ts`、`src/space/group-chat/`
 - **状态**：已完成
 - **优先级**：—
 - **备注**：用户画像明确要求"无强制中断机制，支持长任务最长 6 小时"。P1 核心管理器（状态机+心跳5s+checkpoint+协作式取消）+ P2 断点恢复（detectAndOfferResume+横幅UI+setRuntimeMessages）+ P3 进度反馈 UI（输入框上方进度条：心跳脉冲+时长+轮次+当前tool+停止）+ P4 子 Agent 接入（去超时+checkpoint+心跳+多任务Map，复用 longTaskStore）。风险点修复：beforeToolCall id 类型、abort+waitForIdle 不重建。不做子 Agent 恢复（后台任务刷新后重跑即可）
@@ -61,7 +61,7 @@
 
 ### 14. 思维导图插件的真实实现
 - **简述**：将 `mindmap` 插件从占位实现替换为真实可用的思维导图
-- **涉及模块**：`src/plugins/official/mindmap/`（MindmapView.vue / mindmapStore.ts / index.ts）、`@worldsmith/canvas-engine`
+- **涉及模块**：`src/plugins/official/mindmap/`（MindmapView.vue / mindmapStore.ts / index.ts）、`@worldsea/canvas-engine`
 - **状态**：待启动
 - **优先级**：—
 - **备注**：canvas-engine 已提供 core/geometry/graph/tree 基础，可作为底层；当前 MindmapView 可能是简化实现
@@ -84,7 +84,7 @@
 
 ### 10. 个别插件的子插件视图
 - **简述**：为个别插件增加子插件视图（一个插件内嵌套子插件）
-- **涉及模块**：`src/plugins/PluginManager.ts`、`src/plugins/PluginSandbox.ts`、`src/plugins/plugin-manifest.ts`、`@worldsmith/plugin-sdk`
+- **涉及模块**：`src/plugins/PluginManager.ts`、`src/plugins/PluginSandbox.ts`、`src/plugins/plugin-manifest.ts`、`@worldsea/plugin-sdk`
 - **状态**：待启动
 - **优先级**：—
 - **备注**：需先确认哪些插件需要子插件视图，以及子插件的注册/渲染机制
@@ -93,7 +93,7 @@
 
 ### 6. AutoLink 的丰富与字段自更新
 - **简述**：丰富 AutoLink（实体自动链接）功能，支持字段自更新
-- **涉及模块**：`src/composables/useTextSelection.ts`、`src/agent/composables/useAgentPluginBridge.ts`、`@worldsmith/entity-core`（relations）
+- **涉及模块**：`src/composables/useTextSelection.ts`、`src/agent/composables/useAgentPluginBridge.ts`、`@worldsea/entity-core`（relations）
 - **状态**：待启动
 - **优先级**：—
 - **备注**：当前已有 useTextSelection / useAgentPluginBridge 基础；"字段自更新"指 AutoLink 触发后自动同步相关字段
@@ -116,14 +116,14 @@
 
 ### 18. 区域图谱的 map 视图迭代优化
 - **简述**：迭代 `regions` 插件的地图视图
-- **涉及模块**：`src/plugins/official/regions/`、`src/ui/entity/RegionMap.vue`、`@worldsmith/canvas-engine`
+- **涉及模块**：`src/plugins/official/regions/`、`src/ui/entity/RegionMap.vue`、`@worldsea/canvas-engine`
 - **状态**：待启动
 - **优先级**：—
 - **备注**：已有 RegionMap.vue，需明确迭代方向（地理坐标？层级缩放？标注？）
 
 ### 27. 交互式世界地图
 - **简述**：实现交互式世界地图功能
-- **涉及模块**：待定（可能复用 `@worldsmith/canvas-engine`、`src/ui/entity/RegionMap.vue`、`src/plugins/official/regions/`）
+- **涉及模块**：待定（可能复用 `@worldsea/canvas-engine`、`src/ui/entity/RegionMap.vue`、`src/plugins/official/regions/`）
 - **状态**：待启动
 - **优先级**：—
 - **备注**：与任务 18（区域图谱 map 视图）有关联，需确认是否同一功能或独立功能
@@ -132,7 +132,7 @@
 
 ### 5. 字体库的优化
 - **简述**：优化字体库系统
-- **涉及模块**：`@worldsmith/font-kit`、`src/stores/fontLibraryStore.ts`、`src/stores/fontStore.ts`、`src/composables/useFontBootstrap.ts`、`src/composables/useFontPresets.ts`、`src/composables/fontSpanParser.ts`、`src/ui/font/`
+- **涉及模块**：`@worldsea/font-kit`、`src/stores/fontLibraryStore.ts`、`src/stores/fontStore.ts`、`src/composables/useFontBootstrap.ts`、`src/composables/useFontPresets.ts`、`src/composables/fontSpanParser.ts`、`src/ui/font/`
 - **状态**：待启动
 - **优先级**：—
 - **备注**：font-kit 已有 FontLoader/FontRegistry/FontRenderer/TauriFontBridge/WsFontPack 完整体系，需明确优化方向
@@ -153,14 +153,14 @@
 
 ### 17. 图像系统的迭代升级
 - **简述**：迭代升级图像系统
-- **涉及模块**：待定（可能涉及 `src/agent/blocks/BlockImage.vue`、`src/agent/blocks/A2UIResolvedImage.vue`、`@worldsmith/motion-kit`）
+- **涉及模块**：待定（可能涉及 `src/agent/blocks/BlockImage.vue`、`src/agent/blocks/A2UIResolvedImage.vue`、`@worldsea/motion-kit`）
 - **状态**：待启动
 - **优先级**：—
 - **备注**：需明确"图像系统"范围（生成？管理？展示？编辑？）
 
 ### 26. 灯罩灯效变化系统
 - **简述**：实现灯罩灯效变化系统（视觉氛围系统）
-- **涉及模块**：待定（可能涉及 `@worldsmith/theme-kit`、`src/assets/themes.css`、`src/design-tokens/`）
+- **涉及模块**：待定（可能涉及 `@worldsea/theme-kit`、`src/assets/themes.css`、`src/design-tokens/`）
 - **状态**：待启动
 - **优先级**：—
 - **备注**：需明确产品定位（环境氛围灯？主题动态效果？）
@@ -183,17 +183,17 @@
 
 ### 23. 盲盒设定卡
 - **简述**：实现盲盒设定卡功能（随机生成实体设定）
-- **涉及模块**：`@worldsmith/entity-core`、`src/plugins/official/`、`src/agent/`
+- **涉及模块**：`@worldsea/entity-core`、`src/plugins/official/`、`src/agent/`
 - **状态**：待启动
 - **优先级**：—
 - **备注**：可结合 Agent 能力随机生成设定；需明确盲盒机制（稀有度？主题？）
 
 ### 24. Skills 商城
 - **简述**：实现 Skills 商城（Agent 技能的分发/安装）
-- **涉及模块**：`@worldsmith/agent-core`、`worldsmith-agent/`、`src/agent/`、`src-tauri/src/lib.rs`、`src-tauri/src/skills_store.rs`、`worldsmith-skills-store/`、`docs/plans/skills-store-spec.md`、待定的商城后端
-- **状态**：命令层已重建（2026-08-30，Harness 调研 P1「Skills 点火」：worldsmith-skills-store crate 回归 crates/ + skills_store.rs 六命令恢复 + lib.rs 注册；CoreError 本地化适配新结构）；待桌面实例重启后真机验证安装/卸载/导入全链路。历史断线记录：阶段 1-4 前端侧完成（2026-07-07），后端重组期间 Rust 命令层被删（980385c 端分离迁移）致商城必然失败，2026-08-30 核对发现并重建
+- **涉及模块**：`@worldsea/agent-core`、`worldsea-agent/`、`src/agent/`、`src-tauri/src/lib.rs`、`src-tauri/src/skills_store.rs`、`worldsea-skills-store/`、`docs/plans/skills-store-spec.md`、待定的商城后端
+- **状态**：命令层已重建（2026-08-30，Harness 调研 P1「Skills 点火」：worldsea-skills-store crate 回归 crates/ + skills_store.rs 六命令恢复 + lib.rs 注册；CoreError 本地化适配新结构）；待桌面实例重启后真机验证安装/卸载/导入全链路。历史断线记录：阶段 1-4 前端侧完成（2026-07-07），后端重组期间 Rust 命令层被删（980385c 端分离迁移）致商城必然失败，2026-08-30 核对发现并重建
 - **优先级**：—
-- **备注**：依赖任务 3（Agent 技能工具更新）的 Skills 体系完善。阶段1（动态加载基础设施）已完成：lib.rs cmd_skills_get_dir；manifest.ts 扫描+解析；registry.ts initSkillRegistry 合并视图；loader.ts fs 加载分支；agent.ts 接入。阶段2（安装机制）已完成：Rust skills_store.rs 实现 cmd_skills_download_manifest/cmd_skills_install（reqwest下载+sha256校验+zip解压+zip slip防护）/cmd_skills_uninstall/cmd_skills_get_installed_versions；Cargo.toml 新增 reqwest(blocking+rustls)+zip+sha2；前端 skills-store.ts 封装 invoke + installSkillAndReload/uninstallSkillAndReload（安装后自动重扫）+ checkUpdates；规范文档 skills-store-spec.md 定义 manifest schema/安装流程/安全模型。阶段3（商城 UI）已完成：index.ts 导出 skills-store API；useSkillsStore composable（全局共享状态+localStorage 持久化多源配置+非Tauri降级）；SkillsStorePanel.vue（技能源配置增删启禁+商城浏览搜索+安装/更新/卸载卡片）；AgentSettingsPanel skills 子面板嵌入+skills-changed emit；SpaceAgentSettingsPanel/AgentChat 监听刷新。阶段4（多平台互通）已完成：platform-adapters.ts 多平台格式双向转换（Claude Code SKILL.md / Cursor .mdc / WorldSmith skill.yaml），detectPlatform 自动识别 + autoImportSkill 导入 + exportToXxx 导出，18 单元测试覆盖（含往返一致性）；skills_store.rs 新增 cmd_skills_import_local 命令（写入 skill.yaml+SKILL.md，支持覆盖更新）；skills-store.ts 封装 importLocalSkill/importLocalSkillAndReload；useSkillsStore importLocal 方法；SkillsStorePanel.vue 本地导入 UI（文件选择+格式识别+警告提示）。方向3（Rust 测试迁移独立 crate）已完成：新建 worldsmith-skills-store crate（无 Tauri 依赖），迁移纯函数 verify_sha256/extract_skill_zip/read_skill_version/extract_field/dest_clean/sha256_hex + 新增 write_skill_files/validate_skill_id，19 单元测试可独立 cargo test 运行（解决 Tauri lib DLL 限制），并暴露修复 3 个隐藏 bug（extract_field 去引号顺序错误、dest_clean 接收完整路径导致 base 组件重复追加、测试用例 Windows 路径分隔符）；src-tauri 改为依赖新 crate，Tauri 命令仅做 AppHandle→Path 转换。方向2（真实技能源上线）已完成：生成标准 zip（正斜杠分隔符，规避 PS Compress-Archive 反斜杠坑）+ 真实 sha256，manifest.json 指向 GitHub raw URL，README 更新生成命令+多平台互通说明。风险点1（端到端实测）：已通过 Rust 19 测试 + 前端 231 测试覆盖，桌面端 UI 端到端验证待用户运行。风险点3（测试失败）：taskTools 未归类导致 TOOL_CATEGORIES 测试失败，归入 plan 分类修复（14/14）。待后续：桌面端 UI 端到端实测 + Task 3 跟进（resolveToolNames 切换用 SkillRegistry）
+- **备注**：依赖任务 3（Agent 技能工具更新）的 Skills 体系完善。阶段1（动态加载基础设施）已完成：lib.rs cmd_skills_get_dir；manifest.ts 扫描+解析；registry.ts initSkillRegistry 合并视图；loader.ts fs 加载分支；agent.ts 接入。阶段2（安装机制）已完成：Rust skills_store.rs 实现 cmd_skills_download_manifest/cmd_skills_install（reqwest下载+sha256校验+zip解压+zip slip防护）/cmd_skills_uninstall/cmd_skills_get_installed_versions；Cargo.toml 新增 reqwest(blocking+rustls)+zip+sha2；前端 skills-store.ts 封装 invoke + installSkillAndReload/uninstallSkillAndReload（安装后自动重扫）+ checkUpdates；规范文档 skills-store-spec.md 定义 manifest schema/安装流程/安全模型。阶段3（商城 UI）已完成：index.ts 导出 skills-store API；useSkillsStore composable（全局共享状态+localStorage 持久化多源配置+非Tauri降级）；SkillsStorePanel.vue（技能源配置增删启禁+商城浏览搜索+安装/更新/卸载卡片）；AgentSettingsPanel skills 子面板嵌入+skills-changed emit；SpaceAgentSettingsPanel/AgentChat 监听刷新。阶段4（多平台互通）已完成：platform-adapters.ts 多平台格式双向转换（Claude Code SKILL.md / Cursor .mdc / WorldSea skill.yaml），detectPlatform 自动识别 + autoImportSkill 导入 + exportToXxx 导出，18 单元测试覆盖（含往返一致性）；skills_store.rs 新增 cmd_skills_import_local 命令（写入 skill.yaml+SKILL.md，支持覆盖更新）；skills-store.ts 封装 importLocalSkill/importLocalSkillAndReload；useSkillsStore importLocal 方法；SkillsStorePanel.vue 本地导入 UI（文件选择+格式识别+警告提示）。方向3（Rust 测试迁移独立 crate）已完成：新建 worldsea-skills-store crate（无 Tauri 依赖），迁移纯函数 verify_sha256/extract_skill_zip/read_skill_version/extract_field/dest_clean/sha256_hex + 新增 write_skill_files/validate_skill_id，19 单元测试可独立 cargo test 运行（解决 Tauri lib DLL 限制），并暴露修复 3 个隐藏 bug（extract_field 去引号顺序错误、dest_clean 接收完整路径导致 base 组件重复追加、测试用例 Windows 路径分隔符）；src-tauri 改为依赖新 crate，Tauri 命令仅做 AppHandle→Path 转换。方向2（真实技能源上线）已完成：生成标准 zip（正斜杠分隔符，规避 PS Compress-Archive 反斜杠坑）+ 真实 sha256，manifest.json 指向 GitHub raw URL，README 更新生成命令+多平台互通说明。风险点1（端到端实测）：已通过 Rust 19 测试 + 前端 231 测试覆盖，桌面端 UI 端到端验证待用户运行。风险点3（测试失败）：taskTools 未归类导致 TOOL_CATEGORIES 测试失败，归入 plan 分类修复（14/14）。待后续：桌面端 UI 端到端实测 + Task 3 跟进（resolveToolNames 切换用 SkillRegistry）
 
 ### 25. MCP 商城
 - **简述**：实现 MCP 商城（MCP server 的分发/安装）
@@ -206,14 +206,14 @@
 
 ### 20. 分组分类系统
 - **简述**：实现实体/项目的分组分类系统
-- **涉及模块**：`@worldsmith/entity-core`、`src/modules/`、`src/stores/`
+- **涉及模块**：`@worldsea/entity-core`、`src/modules/`、`src/stores/`
 - **状态**：待启动
 - **优先级**：—
 - **备注**：需明确分组对象（实体？项目？插件？）和分类维度
 
 ### 28. 记忆库的迭代优化
 - **简述**：迭代优化记忆库（Memory Archive）系统
-- **涉及模块**：`@worldsmith/memory-archive`、`src/memory-archive/`、`src/agent/ArchivePanel.vue`、`src/agent/ArchiveConfigPanel.vue`、`src/agent/ChunkViewer.vue`
+- **涉及模块**：`@worldsea/memory-archive`、`src/memory-archive/`、`src/agent/ArchivePanel.vue`、`src/agent/ArchiveConfigPanel.vue`、`src/agent/ChunkViewer.vue`
 - **状态**：待启动
 - **优先级**：—
 - **备注**：记忆库三层架构已完整（框架包 + 宿主集成层 + UI 层），199 测试通过。迭代方向待定（用户视角体验？性能？检索质量？）
@@ -265,5 +265,5 @@
 - **2026-07-30**：端分离 Phase 5 三端独立构建验证通过
 - **2026-07-31**：端分离检查点 5c32c78（825 文件入库）；Phase 3 真实状态复核（部分完成，业务 UI 未迁入三端）；**决策：暂停业务 UI 大迁移，回到主应用开发**；任务 19 前置（图片头像）完成
 - **2026-08-01**：Rust 长任务前端生命周期接入（useAgentRust.ts，startTask/checkpoint/断点恢复复用 taskId）
-- **2026-08-02**：工作区收敛（@agent 统一到 packages/agent-runtime 单轨 c3856de，worldsmith-agent 冻结为适配器宿主）；Tauri 端到端链路打通（20a3933）；Rust 长任务 startTask/心跳/checkpoint/SQLite 持久化实测通过，failTask 终态待重测
+- **2026-08-02**：工作区收敛（@agent 统一到 packages/agent-runtime 单轨 c3856de，worldsea-agent 冻结为适配器宿主）；Tauri 端到端链路打通（20a3933）；Rust 长任务 startTask/心跳/checkpoint/SQLite 持久化实测通过，failTask 终态待重测
 - **2026-08-12**：新增 OpenWorld 可取点融入工作线（独立文档 `docs/plans/openworld-integration-plan.md`，含决策记录 001/002/003）——OpenWorld 已放弃，精华融入后删除；建议 P0 先做 HITL 权限确认 / 多场景插件 / 符号召唤分层 / @引用归属校验

@@ -23,7 +23,7 @@
 </template>
 
 <script setup lang="ts">
-import type { AgentMessage } from '@worldsmith/agent-runtime'
+import type { AgentMessage } from '@worldsea/agent-runtime'
 import { findAssistantAfterUserMsg, truncateText } from './utils'
 
 const props = defineProps<{

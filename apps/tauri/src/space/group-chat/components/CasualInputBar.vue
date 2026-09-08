@@ -39,7 +39,7 @@
 <script setup lang="ts">
 import { ref, computed, nextTick } from 'vue'
 import type { GroupMember } from '../types'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 
 const props = defineProps<{
   replyTarget?: { messageId: string; name: string; text: string } | null

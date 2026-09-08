@@ -8,7 +8,7 @@ const FONT_AVAILABILITY: { platforms: ('web' | 'tauri')[]; chain: ('internal')[]
 }
 
 export const fontKitDescriptor: LibraryDescriptor = {
-  id: '@worldsmith/font-kit',
+  id: '@worldsea/font-kit',
   name: 'Font Kit',
   version: '0.1.0',
   capabilities: [

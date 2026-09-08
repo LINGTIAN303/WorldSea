@@ -1,12 +1,12 @@
 import {
   serializerRegistry,
   PACK_VERSION,
-  type WorldSmithPack,
-} from './WorldSmithPack'
+  type WorldSeaPack,
+} from './WorldSeaPack'
 import { PackageBuilder } from './PackageBuilder'
 import { getDownloader, getAppVersionProvider } from './ioServices'
 
-/** 统一导出调度器（遍历注册的 Serializer 组装 WorldSmithPack，支持按 id 选择性导出），详细见 docs/details/注释/packages/entity-core/core/io/ExportController.md */
+/** 统一导出调度器（遍历注册的 Serializer 组装 WorldSeaPack，支持按 id 选择性导出），详细见 docs/details/注释/packages/entity-core/core/io/ExportController.md */
 export class ExportController {
   private formatEncoder: FormatEncoder
 
@@ -23,9 +23,9 @@ export class ExportController {
    */
   async collectAll(
     includeSerializers?: string[],
-  ): Promise<WorldSmithPack> {
+  ): Promise<WorldSeaPack> {
     const serializers = serializerRegistry.getSorted()
-    const pack: WorldSmithPack = {
+    const pack: WorldSeaPack = {
       manifest: {
         version: PACK_VERSION,
         exportedAt: new Date().toISOString(),
@@ -77,7 +77,7 @@ export class ExportController {
     const builder = new PackageBuilder()
     const blob = await builder.build(pack, entities)
 
-    const name = filename ?? `worldsmith-export-${new Date().toISOString().slice(0, 10)}.ws`
+    const name = filename ?? `worldsea-export-${new Date().toISOString().slice(0, 10)}.ws`
     getDownloader().download(name, blob)
   }
 
@@ -92,7 +92,7 @@ export class ExportController {
   ): Promise<void> {
     const text = await this.exportToString(format)
     const ext = format === 'yaml' ? 'yaml' : 'json'
-    const name = filename ?? `worldsmith-export-${new Date().toISOString().slice(0, 10)}.${ext}`
+    const name = filename ?? `worldsea-export-${new Date().toISOString().slice(0, 10)}.${ext}`
     const blob = new Blob([text], { type: 'text/plain' })
     getDownloader().download(name, blob)
   }
@@ -103,9 +103,9 @@ export class ExportController {
    ════════════════════════════════════════ */
 
 export interface FormatEncoder {
-  encode(pack: WorldSmithPack, format: 'json' | 'yaml'): Promise<string>
-  encodeHTML(pack: WorldSmithPack, opts?: HtmlExportOptions): string
-  encodeMarkdown(pack: WorldSmithPack, opts?: HtmlExportOptions): string
+  encode(pack: WorldSeaPack, format: 'json' | 'yaml'): Promise<string>
+  encodeHTML(pack: WorldSeaPack, opts?: HtmlExportOptions): string
+  encodeMarkdown(pack: WorldSeaPack, opts?: HtmlExportOptions): string
 }
 
 export interface HtmlExportOptions {
@@ -119,7 +119,7 @@ export interface HtmlExportOptions {
  * js-yaml 改为动态 import（避免进入首屏 bundle，仅 YAML 导出时才加载）。
  */
 export const defaultFormatEncoder: FormatEncoder = {
-  async encode(pack: WorldSmithPack, format: 'json' | 'yaml'): Promise<string> {
+  async encode(pack: WorldSeaPack, format: 'json' | 'yaml'): Promise<string> {
     if (format === 'yaml') {
       const yaml = await import('js-yaml')
       return yaml.dump(pack as unknown as Record<string, unknown>, { indent: 2, noRefs: true })
@@ -127,8 +127,8 @@ export const defaultFormatEncoder: FormatEncoder = {
     return JSON.stringify(pack, null, 2)
   },
 
-  encodeHTML(pack: WorldSmithPack, opts?: HtmlExportOptions): string {
-    const title = opts?.title ?? 'WorldSmith 设定文档'
+  encodeHTML(pack: WorldSeaPack, opts?: HtmlExportOptions): string {
+    const title = opts?.title ?? 'WorldSea 设定文档'
     const includeTimestamps = opts?.includeTimestamps ?? true
     let html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(title)}</title>`
       + '<style>body{font-family:system-ui,sans-serif;max-width:900px;margin:40px auto;padding:20px}'
@@ -169,8 +169,8 @@ export const defaultFormatEncoder: FormatEncoder = {
     return html
   },
 
-  encodeMarkdown(pack: WorldSmithPack, _opts?: HtmlExportOptions): string {
-    let md = `# WorldSmith 设定文档\n\n生成时间: ${new Date().toLocaleString('zh-CN')}\n\n---\n\n`
+  encodeMarkdown(pack: WorldSeaPack, _opts?: HtmlExportOptions): string {
+    let md = `# WorldSea 设定文档\n\n生成时间: ${new Date().toLocaleString('zh-CN')}\n\n---\n\n`
 
     const entityData = pack.serializers['entities'] as any
     if (entityData?.entities) {

@@ -7,7 +7,7 @@
 
 Rust 图分析算法桥接
 
-将前端图数据序列化后通过 Tauri invoke 调用 worldsmith-core 的图算法：
+将前端图数据序列化后通过 Tauri invoke 调用 worldsea-core 的图算法：
 - 最短路径 (Dijkstra)
 - 连通分量
 - PageRank

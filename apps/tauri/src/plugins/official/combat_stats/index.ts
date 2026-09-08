@@ -1,7 +1,7 @@
-import type { PluginAPIType } from '@worldsmith/entity-core'
+import type { PluginAPIType } from '@worldsea/entity-core'
 import CombatStatView from './CombatStatView.vue'
 
-export const manifest = { id: 'official.combat_stats', name: '战力', version: '2.0.0', description: '管理角色战斗力数据', author: 'WorldSmith',
+export const manifest = { id: 'official.combat_stats', name: '战力', version: '2.0.0', description: '管理角色战斗力数据', author: 'WorldSea',
   agentSkills: ['analysis-engine'],
   agentCapabilities: [
     { action: 'create_entity', description: '创建战斗属性', params: ['name', 'description'] },

@@ -8,7 +8,7 @@
  * 边界规则（方案见 docs/plans/workspace-unification-plan.md §四E1）：
  * - workdir 边界（Phase B 契约）：有 workdir 时相对路径 join、绝对路径越界拒绝；
  *   无 workdir（未绑定工作区）放行（显式未加固）
- * - E1 混居写保护：workdir 下的 `entities/`、`.worldsmith/` 为项目数据区，
+ * - E1 混居写保护：workdir 下的 `entities/`、`.worldsea/` 为项目数据区，
  *   Agent 裸写/删除拒绝，须经实体语义层（FrontendToolBridge 的 entity_* 工具）——
  *   防止裸 fs 误删实体文件经 fs_watch 回流造成数据丢失
  *
@@ -48,11 +48,11 @@ export function isWithinDirectory(parent: string, child: string): boolean {
 }
 
 /** E1 受保护目录名（workdir 一级子目录；实体数据区与平台元数据区） */
-export const PROTECTED_DIR_NAMES = ['entities', '.worldsmith'] as const
+export const PROTECTED_DIR_NAMES = ['entities', '.worldsea'] as const
 
 /** E1 拒绝消息（引导模型走实体语义层） */
 export const PROTECTED_WRITE_ERROR =
-  '拒绝：该路径位于项目数据区（entities/ 或 .worldsmith/），Agent 不可直接写入、移动或删除。' +
+  '拒绝：该路径位于项目数据区（entities/ 或 .worldsea/），Agent 不可直接写入、移动或删除。' +
   '实体数据请使用语义工具（entity_create / entity_update / entity_delete / content_search）操作。'
 
 /** E1 判定：path 是否落在 workdir 的受保护目录内（大小写不敏感，兼容 Windows） */
@@ -102,7 +102,7 @@ export function isExtraWritablePath(extras: readonly string[] | undefined, path:
 /**
  * 写类路径守卫（workdir 边界 + E1 受保护目录，写类工具统一入口）：
  * 先做 workdir 归一（越界拒绝），再对归一后的路径做 E1 判定
- * （落在 entities/、.worldsmith/ 内 → 拒绝并引导语义层）。
+ * （落在 entities/、.worldsea/ 内 → 拒绝并引导语义层）。
  * 读类工具请用 resolveWithinWorkspace（E1 只保护写）。
  */
 export function resolveWriteWithinWorkspace(ctx: IToolContext, path: string): { path: string; ok: boolean; reason?: string } {
@@ -119,7 +119,7 @@ export function resolveWriteWithinWorkspace(ctx: IToolContext, path: string): { 
 // ── shell 内容级写入的词法防护（任务29/M4：E1 盲区收敛） ─────────────
 //
 // execute_command / shell_session exec 的命令串是自由文本，E1 的路径级守卫拦不住
-// 重定向/删除类内容写入（如 `rm entities/x.json`、`echo x > .worldsmith/kv`）。
+// 重定向/删除类内容写入（如 `rm entities/x.json`、`echo x > .worldsea/kv`）。
 // 本函数做保守词法扫描：命令串**同现**写操作词与受保护目录字样 → 判定触碰。
 // 非完备声明：变量间接、别名、子串拼接可绕过——定位是拦截常见误操作 +
 // 提示模型走语义层，不能替代用户监督（方案文档 §六 已记录）。
@@ -128,8 +128,8 @@ export function resolveWriteWithinWorkspace(ctx: IToolContext, path: string): { 
 const SHELL_WRITE_HINT_RE =
   /(?:^|[\s|;&])(rm|del|erase|rd|rmdir|remove-item|move-item|rename-item|mv|set-content|add-content|out-file|new-item|copy-item|tee-object|echo)\b|\>{1,2}\s|\bcp\b/i
 
-/** 受保护目录的相对/任意位置字样（entities/ 或 .worldsmith/，兼容双分隔符） */
-const SHELL_PROTECTED_HINT_RE = /(^|[\s"'`(=\\/:])(entities|\.worldsmith)[\\/]/i
+/** 受保护目录的相对/任意位置字样（entities/ 或 .worldsea/，兼容双分隔符） */
+const SHELL_PROTECTED_HINT_RE = /(^|[\s"'`(=\\/:])(entities|\.worldsea)[\\/]/i
 
 /**
  * 判定 shell 命令串是否可能触碰 workdir 下的受保护目录（E1 盲区词法防护）。
@@ -138,15 +138,15 @@ const SHELL_PROTECTED_HINT_RE = /(^|[\s"'`(=\\/:])(entities|\.worldsmith)[\\/]/i
  */
 export function shellCommandTouchesProtectedPath(workdir: string, command: string): boolean {
   if (!command) return false
-  // 规则一：写操作词 + 相对保护目录字样（entities/ / .worldsmith/）
+  // 规则一：写操作词 + 相对保护目录字样（entities/ / .worldsea/）
   if (SHELL_WRITE_HINT_RE.test(command) && SHELL_PROTECTED_HINT_RE.test(command)) {
     return true
   }
-  // 规则二：写操作词 + 绝对保护路径（workdir + /entities|.worldsmith 子串）
+  // 规则二：写操作词 + 绝对保护路径（workdir + /entities|.worldsea 子串）
   const w = normalizeFsPath(workdir).toLowerCase()
   const n = normalizeFsPath(command).toLowerCase()
   if (SHELL_WRITE_HINT_RE.test(command) &&
-      (n.includes(`${w}/entities`) || n.includes(`${w}/.worldsmith`))) {
+      (n.includes(`${w}/entities`) || n.includes(`${w}/.worldsea`))) {
     return true
   }
   return false

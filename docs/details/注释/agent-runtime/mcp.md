@@ -7,7 +7,7 @@
 
 # MCP 工具适配器 — 把 MCP 服务器工具包装为 `Tool` trait
 
-对应 TS 版 `worldsmith-agent/src/mcp/mcp-adapter.ts` 的 `MCPToolAdapter`。
+对应 TS 版 `worldsea-agent/src/mcp/mcp-adapter.ts` 的 `MCPToolAdapter`。
 
 ## 设计
 - `McpCaller` trait：抽象 MCP 服务器调用入口（HTTP/SSE/stdio 等传输层由上层注入）

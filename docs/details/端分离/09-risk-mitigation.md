@@ -22,7 +22,7 @@
 | **描述** | `packages/agent-runtime` 抽离时，agent.ts / tools / skills / session 之间存在循环引用，导致 tsc 报错或运行时 `Cannot access before initialization` |
 | **触发信号** | tsc 报 `Circular dependency`；运行时 `ReferenceError` |
 | **缓解** | 1. 抽离前用 `madge` 检测循环依赖<br>2. 通过接口倒置（trait + DI）解耦<br>3. 公共类型独立到 `types.ts`，不依赖任何实现 |
-| **回滚** | git revert Phase 1 commit，恢复 worldsmith-agent 原结构 |
+| **回滚** | git revert Phase 1 commit，恢复 worldsea-agent 原结构 |
 
 ### R-02: IAgentBackend 接口设计不合理需返工
 
@@ -57,16 +57,16 @@
 | **缓解** | 1. Web 端 coreBackend.ts 从原文件复制后，仅删除 Tauri 分支<br>2. 保留 WASM 路径完整<br>3. 改造后立即在浏览器验证 |
 | **回滚** | git checkout 原 coreBackend.ts |
 
-### R-05: CLI serve 模式无法完全替代 worldsmith-server
+### R-05: CLI serve 模式无法完全替代 worldsea-server
 
 | 项 | 内容 |
 |----|------|
 | **等级** | P1 |
 | **阶段** | Phase 4 |
-| **描述** | worldsmith-server 某些端点（如 PTY 管理、文件监听）在 CLI serve 中实现不完整，导致 Web 端功能退化 |
+| **描述** | worldsea-server 某些端点（如 PTY 管理、文件监听）在 CLI serve 中实现不完整，导致 Web 端功能退化 |
 | **触发信号** | Web 端调用 CLI serve 返回 404；功能缺失 |
-| **缓解** | 1. Phase 4 前先做能力盘点（P4-T2）<br>2. 逐端点迁移，每个端点 curl 验证<br>3. 保留 worldsmith-server 直到 CLI serve 完全覆盖 |
-| **回滚** | Web 端 API 调用层切回 worldsmith-server |
+| **缓解** | 1. Phase 4 前先做能力盘点（P4-T2）<br>2. 逐端点迁移，每个端点 curl 验证<br>3. 保留 worldsea-server 直到 CLI serve 完全覆盖 |
+| **回滚** | Web 端 API 调用层切回 worldsea-server |
 
 ### R-06: 三端构建产物互相污染
 
@@ -74,7 +74,7 @@
 |----|------|
 | **等级** | P2 |
 | **阶段** | Phase 5 |
-| **描述** | Vite 配置未完全隔离，Web 端产物包含 Tauri 相关代码，或 Tauri 端产物包含 worldsmith-server 依赖 |
+| **描述** | Vite 配置未完全隔离，Web 端产物包含 Tauri 相关代码，或 Tauri 端产物包含 worldsea-server 依赖 |
 | **触发信号** | 产物体积异常；运行时加载非预期模块 |
 | **缓解** | 1. 三端 vite.config.ts 独立，alias 不跨端<br>2. 构建后检查产物 chunk 列表<br>3. 用 `rollup-plugin-visualizer` 分析产物 |
 | **回滚** | 恢复 vite.config.ts |
@@ -139,7 +139,7 @@
 | Phase 1 | 低 | git revert | 无 |
 | Phase 2 | 极低 | 删除 apps/ 目录 | 无 |
 | Phase 3 | 中 | git revert 多个 commit | 无 |
-| Phase 4 | 中 | 恢复 worldsmith-server，Web 切回 | 无 |
+| Phase 4 | 中 | 恢复 worldsea-server，Web 切回 | 无 |
 | Phase 5 | 低 | 恢复构建配置 | 无 |
 | Phase 6 | 高 | 从 git 历史恢复旧目录 | 需确认数据文件未删 |
 
@@ -164,11 +164,11 @@ cd apps/web && npx tsc --noEmit
 # 5. 修复后重新推进
 ```
 
-#### 场景 B: Phase 4 CLI serve 无法替代 worldsmith-server
+#### 场景 B: Phase 4 CLI serve 无法替代 worldsea-server
 
 ```bash
 # 1. 保留 CLI serve 代码，但不切换 Web 端
-# 2. Web 端 API 调用层保持调 worldsmith-server
+# 2. Web 端 API 调用层保持调 worldsea-server
 # 3. 标记 P4-T5 为 blocked
 # 4. 后续修复 CLI serve 缺失能力后重新推进
 ```
@@ -241,10 +241,10 @@ git tag -a pre-cleanup -m "清理旧目录前"
 |------|------|------|----------|
 | 三端 tsc 编译 | 0 error | 出现新 error | 每次 commit |
 | 三端 build 产物体积 | 与基线 ±10% | 显著增大 | 每个 Phase |
-| CLI serve 端点覆盖率 | = worldsmith-server | 有端点缺失 | Phase 4 |
+| CLI serve 端点覆盖率 | = worldsea-server | 有端点缺失 | Phase 4 |
 | `grep @tauri-apps/api apps/web/` | 空 | 有结果 | Phase 3 后 |
 | `grep __TAURI__ apps/web/` | 空 | 有结果 | Phase 3 后 |
-| `grep worldsmith-server apps/` | 仅 Web 端 | Tauri/CLI 端有 | Phase 4 后 |
+| `grep worldsea-server apps/` | 仅 Web 端 | Tauri/CLI 端有 | Phase 4 后 |
 | 浏览器 console 警告 | 无新增 | 出现 Tauri/WASM 相关警告 | 每个 Phase |
 
 ## 7. 应急联系人

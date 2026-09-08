@@ -66,8 +66,8 @@ describe('isProtectedProjectPath（E1 判定）', () => {
     expect(isProtectedProjectPath(WIN_WORKDIR, 'C:/proj/entities/角色_abc123.json')).toBe(true)
   })
 
-  it('workdir/.worldsmith/ 下 → 保护', () => {
-    expect(isProtectedProjectPath(WIN_WORKDIR, 'C:/proj/.worldsmith/kv_store.json')).toBe(true)
+  it('workdir/.worldsea/ 下 → 保护', () => {
+    expect(isProtectedProjectPath(WIN_WORKDIR, 'C:/proj/.worldsea/kv_store.json')).toBe(true)
   })
 
   it('大小写变体（Windows 语义）→ 保护', () => {
@@ -105,8 +105,8 @@ describe('resolveWriteWithinWorkspace（写类守卫）', () => {
     expect(r.ok).toBe(false)
   })
 
-  it('.worldsmith/ 下删除 → 拒绝', () => {
-    const r = resolveWriteWithinWorkspace(ctxWith(WIN_WORKDIR), 'C:/proj/.worldsmith/files_meta.json')
+  it('.worldsea/ 下删除 → 拒绝', () => {
+    const r = resolveWriteWithinWorkspace(ctxWith(WIN_WORKDIR), 'C:/proj/.worldsea/files_meta.json')
     expect(r.ok).toBe(false)
   })
 
@@ -128,8 +128,8 @@ describe('shellCommandTouchesProtectedPath（E1 盲区词法防护）', () => {
     expect(shellCommandTouchesProtectedPath(WIN_WORKDIR, 'rm entities/hero_abc.json')).toBe(true)
   })
 
-  it('重定向 + .worldsmith → 触碰', () => {
-    expect(shellCommandTouchesProtectedPath(WIN_WORKDIR, 'echo x > .worldsmith/kv_store.json')).toBe(true)
+  it('重定向 + .worldsea → 触碰', () => {
+    expect(shellCommandTouchesProtectedPath(WIN_WORKDIR, 'echo x > .worldsea/kv_store.json')).toBe(true)
   })
 
   it('绝对路径删除 → 触碰（规则二）', () => {
@@ -142,7 +142,7 @@ describe('shellCommandTouchesProtectedPath（E1 盲区词法防护）', () => {
 
   it('纯读命令（cat/ls entities/）→ 不触碰（E1 只保护写）', () => {
     expect(shellCommandTouchesProtectedPath(WIN_WORKDIR, 'cat entities/hero.json')).toBe(false)
-    expect(shellCommandTouchesProtectedPath(WIN_WORKDIR, 'ls .worldsmith/')).toBe(false)
+    expect(shellCommandTouchesProtectedPath(WIN_WORKDIR, 'ls .worldsea/')).toBe(false)
   })
 
   it('写操作但无保护目录字样 → 不触碰', () => {

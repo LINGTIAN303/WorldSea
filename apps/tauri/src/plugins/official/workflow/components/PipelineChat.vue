@@ -98,7 +98,7 @@ function handleSend() {
 
 function sendQuickAction(prompt: string) {
   // 通过 plugin-action 通道发送给 Agent，自动激活 creation-orchestrator Skill
-  window.dispatchEvent(new CustomEvent('worldsmith:agent:plugin-action', {
+  window.dispatchEvent(new CustomEvent('worldsea:agent:plugin-action', {
     detail: {
       payload: {
         prompt: `/skill:creation-orchestrator ${prompt}`,

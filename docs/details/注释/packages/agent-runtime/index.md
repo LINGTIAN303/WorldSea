@@ -6,7 +6,7 @@
 ## 注释块 1（原文件第 1-18 行）
 
 ```
-@worldsmith/agent-runtime 包入口
+@worldsea/agent-runtime 包入口
 
 端无关的 Agent 运行时，包含：
 - Agent 创建和配置

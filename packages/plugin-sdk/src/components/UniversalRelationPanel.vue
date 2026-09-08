@@ -169,16 +169,16 @@
 </template>
 
 <script setup lang="ts">
-import { toastSuccess } from '@worldsmith/ui-kit'
+import { toastSuccess } from '@worldsea/ui-kit'
 import { ref, watch, computed, onBeforeUnmount } from 'vue'
-import { useEntityStore, useRelationStore, entitySchemaRegistry, relationSchemaRegistry } from '@worldsmith/entity-core'
-import { RelationTypes } from '@worldsmith/entity-core'
-import { useUIStore } from '@worldsmith/entity-core/stores/uiStore'
-import { usePluginStore } from '@worldsmith/entity-core'
-import { useBidirectional } from '@worldsmith/entity-core/composables'
+import { useEntityStore, useRelationStore, entitySchemaRegistry, relationSchemaRegistry } from '@worldsea/entity-core'
+import { RelationTypes } from '@worldsea/entity-core'
+import { useUIStore } from '@worldsea/entity-core/stores/uiStore'
+import { usePluginStore } from '@worldsea/entity-core'
+import { useBidirectional } from '@worldsea/entity-core/composables'
 import EntityRelationSelector from './EntityRelationSelector.vue'
-import { FloatingPanel, WsIcon, WsEmpty } from '@worldsmith/ui-kit'
-import type { Relation } from '@worldsmith/entity-core'
+import { FloatingPanel, WsIcon, WsEmpty } from '@worldsea/ui-kit'
+import type { Relation } from '@worldsea/entity-core'
 
 const props = withDefaults(defineProps<{
   entityId: string

@@ -2,11 +2,11 @@
 
 ## 1. 项目背景
 
-WorldSmith 当前是一个 Tauri 桌面应用 + Web 应用 + CLI 工具的混合项目，三端代码高度耦合：
+WorldSea 当前是一个 Tauri 桌面应用 + Web 应用 + CLI 工具的混合项目，三端代码高度耦合：
 
 - **`src/` 目录**：被 Tauri 端与 Web 端共用，18 个文件直接 `import @tauri-apps/api`
-- **`worldsmith-agent/`**：作为 CLI 入口存在，但其内部 `tools/skills/agent.ts/session/orchestrator` 是端无关的纯 Agent 逻辑，被三端隐性依赖
-- **`worldsmith-server/`**：Node.js HTTP/WS 服务，与 CLI `serve` 模式、Tauri 命令三者能力重叠
+- **`worldsea-agent/`**：作为 CLI 入口存在，但其内部 `tools/skills/agent.ts/session/orchestrator` 是端无关的纯 Agent 逻辑，被三端隐性依赖
+- **`worldsea-server/`**：Node.js HTTP/WS 服务，与 CLI `serve` 模式、Tauri 命令三者能力重叠
 - **`src-tauri/`**：Rust 后端 150+ 命令，与 CLI 工具在 shell/git/file 等能力上重叠
 
 耦合导致：
@@ -52,7 +52,7 @@ WorldSmith 当前是一个 Tauri 桌面应用 + Web 应用 + CLI 工具的混合
 
 ### 3.2 共享代码层：抽离到 packages/agent-runtime
 
-**决策**：将 `worldsmith-agent/src/` 中的端无关部分抽离为 `packages/agent-runtime` 共享包。
+**决策**：将 `worldsea-agent/src/` 中的端无关部分抽离为 `packages/agent-runtime` 共享包。
 
 **抽离范围**：
 - `agent.ts` / `bridge.ts` / `bridge-types.ts` — Agent 主循环与桥接
@@ -83,18 +83,18 @@ WorldSmith 当前是一个 Tauri 桌面应用 + Web 应用 + CLI 工具的混合
 ### 3.3 后端能力重叠处理
 
 **决策**：
-- CLI `serve` 模式替代 `worldsmith-server`（Node.js HTTP/WS 服务）
+- CLI `serve` 模式替代 `worldsea-server`（Node.js HTTP/WS 服务）
 - Tauri 端保留原 Rust 命令
 - Web 端通过 HTTP/WS 连接 CLI serve 获取后端能力
 
 **实施**：
-- 将 `worldsmith-server/` 的能力（crawl/convert/vector-search/pty/terminal）迁移到 CLI serve
-- `worldsmith-server/` 目录在迁移完成后删除
-- Web 端 API 调用层从 `worldsmith-server` 切换到 CLI serve 的 HTTP/WS 端点
+- 将 `worldsea-server/` 的能力（crawl/convert/vector-search/pty/terminal）迁移到 CLI serve
+- `worldsea-server/` 目录在迁移完成后删除
+- Web 端 API 调用层从 `worldsea-server` 切换到 CLI serve 的 HTTP/WS 端点
 
 **理由**：
 - CLI serve 已实现 HTTP + WS 双协议，且支持工具调用与流式推送
-- 减少服务进程数量（原 worldsmith-server + CLI serve → 仅 CLI serve）
+- 减少服务进程数量（原 worldsea-server + CLI serve → 仅 CLI serve）
 - CLI serve 与 CLI 工具共享同一套工具注册表，避免重复实现
 
 ### 3.4 前端入口清理范围
@@ -116,8 +116,8 @@ WorldSmith 当前是一个 Tauri 桌面应用 + Web 应用 + CLI 工具的混合
    - `useSupervisorRust.ts` / `useMultiAgentRust.ts` / `useLoopControlRust.ts` / `useLongTaskRust.ts`
    - 这些文件从 Web 端移除，仅保留在 `apps/tauri/`
 
-4. **worldsmith-server 相关 API**（仅 Web 端使用）：
-   - `worldsmith-server` 的 API 调用从 Tauri/CLI 端移除
+4. **worldsea-server 相关 API**（仅 Web 端使用）：
+   - `worldsea-server` 的 API 调用从 Tauri/CLI 端移除
    - 迁移到 CLI serve 后，仅 Web 端保留 API 调用层
 
 ## 4. 整体路线
@@ -127,7 +127,7 @@ Phase 0: 调研与文档库搭建（当前）
   └─ 产出：docs/端分离/ 文档库
 
 Phase 1: 共享代码层抽离
-  └─ worldsmith-agent/src/ → packages/agent-runtime/
+  └─ worldsea-agent/src/ → packages/agent-runtime/
   └─ 三端 execution adapter 各归各位
 
 Phase 2: 三端目录骨架建立
@@ -139,7 +139,7 @@ Phase 3: 前端入口分离与清理
   └─ 后端切换逻辑、coreBackend 检测分支清理
 
 Phase 4: 后端能力整合
-  └─ worldsmith-server 能力迁移到 CLI serve
+  └─ worldsea-server 能力迁移到 CLI serve
   └─ Web 端 API 调用层切换
 
 Phase 5: 构建配置与 CI 独立
@@ -148,7 +148,7 @@ Phase 5: 构建配置与 CI 独立
 
 Phase 6: 端到端验收与清理
   └─ 三端独立 dev/build 验证
-  └─ 旧目录清理（worldsmith-server/、worldsmith-agent/ 残留）
+  └─ 旧目录清理（worldsea-server/、worldsea-agent/ 残留）
 ```
 
 详见 【`[08-migration-phases.md](./08-migration-phases.md)`】。

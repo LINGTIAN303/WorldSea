@@ -91,10 +91,10 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
-import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'
-import { useDuplicateNameCheck, CustomDropdown, CreateButton } from '@worldsmith/plugin-sdk'
-import { WsIcon } from '@worldsmith/ui-kit'
-import { WsEmpty } from '@worldsmith/ui-kit'
+import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
+import { useDuplicateNameCheck, CustomDropdown, CreateButton } from '@worldsea/plugin-sdk'
+import { WsIcon } from '@worldsea/ui-kit'
+import { WsEmpty } from '@worldsea/ui-kit'
 import ChapterEditor from './components/ChapterEditor.vue'
 import ChapterList from './components/ChapterList.vue'
 import PhonePreview from './components/PhonePreview.vue'
@@ -102,7 +102,7 @@ import AISidebar from './components/AISidebar.vue'
 import ExportDialog from './components/ExportDialog.vue'
 import { useChapterEditor } from './composables/useChapterEditor'
 import { useChapterSnapshots } from './composables/useChapterSnapshots'
-import type { Entity } from '@worldsmith/entity-core'
+import type { Entity } from '@worldsea/entity-core'
 import { useAgentPluginBridge } from '@/composables/useAgentPluginBridge'
 
 const es = useEntityStore()

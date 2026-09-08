@@ -63,9 +63,9 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import { useActivityLog } from '../composables/useActivityLog'
-import { useGenerationProgress } from '@worldsmith/shared-composables/agent/useGenerationProgress'
+import { useGenerationProgress } from '@worldsea/shared-composables/agent/useGenerationProgress'
 
 const emit = defineEmits<{ close: [] }>()
 

@@ -1,5 +1,5 @@
 import type { ToolDefinition } from '../bridge-types'
-import type { ToolMeta } from '@worldsmith/agent-core'
+import type { ToolMeta } from '@worldsea/agent-core'
 
 /** 安全改造工具集 (Retrofit)：Negotiate→Confirm→Apply→Verify→Complete 工作流，详细见 docs/details/注释/packages/agent-runtime/tools-retrofit-tools.md */
 

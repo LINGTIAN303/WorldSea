@@ -80,10 +80,10 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
-import { useSettingsStore, useUIStore, usePluginStore } from '@worldsmith/entity-core'
-import { useResizable, WsIcon } from '@worldsmith/ui-kit'
+import { useSettingsStore, useUIStore, usePluginStore } from '@worldsea/entity-core'
+import { useResizable, WsIcon } from '@worldsea/ui-kit'
 // 设置面板基座样式（.set-card/.sc-head/.set-row/.set-toggle/.set-hint 唯一权威定义）
-import '@worldsmith/ui-kit/components/settings/settings-panels.css'
+import '@worldsea/ui-kit/components/settings/settings-panels.css'
 import { useFocusTrap } from '@/composables/useFocusTrap'
 import StorageManagementTab from '../data/StorageManagementTab.vue'
 // 设置子面板（已迁移到 ui-kit，通过 re-export 兼容层导入）
@@ -355,7 +355,7 @@ const CATEGORY_KEYWORDS: Record<string, string> = {
   storage: '存储 清理 孤立 文件 诊断 缓存 空间 配额 storage cleanup orphan diagnostic',
   agent: 'Agent 模型 供应商 用量 Skills MCP 搜索 多模态 终端 安全 人格预设 思考级别 危险操作 确认 规则 规则文件 agent model provider usage skill mcp search vision terminal safety persona thinking',
   accessibility: '动画效果 减弱动态 动画 动效 消息 脉冲 状态 面板 侧边栏 弹窗 控件 启动 眩晕 降低 可访问 reduce motion accessibility',
-  about: '关于 版本 产品 WorldSmith about version',
+  about: '关于 版本 产品 WorldSea about version',
 }
 
 const matchedCategories = computed(() => {

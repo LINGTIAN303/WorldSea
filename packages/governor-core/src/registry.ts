@@ -1,5 +1,5 @@
 /**
- * @worldsmith/governor-core — 模块注册表
+ * @worldsea/governor-core — 模块注册表
  *
  * 模块注册与查询、环境过滤、依赖解析（拓扑排序 + semver 版本兼容性检查）。
  * 纯逻辑，无副作用，不依赖 Vue/Pinia。

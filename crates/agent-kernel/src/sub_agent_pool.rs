@@ -185,7 +185,7 @@ impl SubAgentPool {
             child_config.system_prompt = Some(format!(
                 "{base}\n\n[工作区分区]\n\
                  任务产物（草稿/中间文件）请写入 {}（该目录专属本 Agent，可自由创建与清理）。\n\
-                 entities/ 与 .worldsmith/ 为项目数据区，受写保护，请使用实体语义工具操作。",
+                 entities/ 与 .worldsea/ 为项目数据区，受写保护，请使用实体语义工具操作。",
                 tmp.display()
             ));
         }

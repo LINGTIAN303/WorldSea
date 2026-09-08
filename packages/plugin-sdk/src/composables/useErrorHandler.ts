@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import { toastError } from '@worldsmith/ui-kit'
+import { toastError } from '@worldsea/ui-kit'
 
 export type ErrorCategory = 'network' | 'data' | 'permission' | 'generic'
 

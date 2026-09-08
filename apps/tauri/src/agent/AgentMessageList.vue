@@ -4,7 +4,7 @@
       <!-- 空对话欢迎语 -->
       <MessageListEmpty v-if="messages.length === 0 && archivedBoundaryIndex === 0">
         <template #icon>
-          <WorldSmithLogo :size="48" :radius="14" />
+          <WorldSeaLogo :size="48" :radius="14" />
         </template>
         <!-- 项目=目录（2026-09-03）：空态内嵌项目选择器 pill，替代原输入栏 WorkdirSelect -->
         <template #hint>
@@ -86,7 +86,7 @@
           :start-time="turnStartTime"
         >
           <template #icon>
-            <WorldSmithLogo :size="15" :radius="4" />
+            <WorldSeaLogo :size="15" :radius="4" />
           </template>
         </StreamingPlaceholder>
       </Transition>
@@ -136,17 +136,17 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
-import AgentStreamList from '@worldsmith/shared-ui/agent/stream/AgentStreamList.vue'
-import A2UIRenderer from '@worldsmith/shared-ui/agent/a2ui/A2UIRenderer.vue'
+import AgentStreamList from '@worldsea/shared-ui/agent/stream/AgentStreamList.vue'
+import A2UIRenderer from '@worldsea/shared-ui/agent/a2ui/A2UIRenderer.vue'
 import { useAgent } from './composables/useAgent'
 import { useActivityLog } from './composables/useActivityLog'
 import { useArchiveStore } from '../stores/archiveStore'
-import { watchDebounced } from '@worldsmith/perf-kit/render'
+import { watchDebounced } from '@worldsea/perf-kit/render'
 import type { AgentMessage } from '@agent/index'
-import type { AgentStreamItem, ChatMode } from '@worldsmith/shared-composables/agent/useAgent'
-import { useMessageWindowing, useProcessCollapse, MessageListEmpty, ArchivedSection, StreamingPlaceholder, ScrollToBottomButton, DotNav, ErrorRows } from '@worldsmith/shared-ui/agent/message-list'
+import type { AgentStreamItem, ChatMode } from '@worldsea/shared-composables/agent/useAgent'
+import { useMessageWindowing, useProcessCollapse, MessageListEmpty, ArchivedSection, StreamingPlaceholder, ScrollToBottomButton, DotNav, ErrorRows } from '@worldsea/shared-ui/agent/message-list'
 // 2026-09-04 等候动画文字流转：复用行段前缀动词（与 ToolRow 语义一致）
-import { getOpKind, OP_VERB } from '@worldsmith/shared-ui/agent/stream/rows/toolSemantics'
+import { getOpKind, OP_VERB } from '@worldsea/shared-ui/agent/stream/rows/toolSemantics'
 // M2：编排迹线（useOrchestrationTrace 聚合 + 编排段渲染）
 import OrchestrationSegment from './components/OrchestrationSegment.vue'
 import { useOrchestrationTrace } from './composables/useOrchestrationTrace'
@@ -154,7 +154,7 @@ import { useSessionViewState } from './composables/useSessionViewState'
 import { invoke } from './composables/transport'
 import { useAgentRust } from './composables/useAgentRust'
 import type { ExecTab } from '@/space/stores/space-store'
-import WorldSmithLogo from '@/components/brand/WorldSmithLogo.vue'
+import WorldSeaLogo from '@/components/brand/WorldSeaLogo.vue'
 import ProjectSwitcher from '@/ui/project/ProjectSwitcher.vue'
 
 const { agentStream, resolveToolConfirmation, sessionTitlePending, currentSessionId, setProcessCollapsed, markTurnExpanded, autoCollapseProcess, turns, applyTurnEvent } = useAgent()

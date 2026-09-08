@@ -149,8 +149,8 @@
 <script setup lang="ts">
 import { ref, watch, reactive, nextTick, onMounted, onUnmounted } from 'vue'
 import draggable from 'vuedraggable'
-import { useEntityStore } from '@worldsmith/entity-core'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { useEntityStore } from '@worldsea/entity-core'
+import { WsIcon } from '@worldsea/ui-kit'
 import type { NotebookEntity } from '../types'
 
 interface NotebookFolder {

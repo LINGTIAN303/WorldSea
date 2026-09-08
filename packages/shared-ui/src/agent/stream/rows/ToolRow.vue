@@ -110,11 +110,11 @@ import { computed, ref, watch, nextTick, onBeforeUnmount, type Component } from 
 import {
   IconEdit, IconPencilPlus, IconTextScan2, IconTrash, IconSearch, IconTerminal, IconTool,
 } from '@tabler/icons-vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import InteractiveToolCall from '../../blocks/InteractiveToolCall.vue'
 import { getToolLabel } from '../../bubbles/toolLabels'
 import { highlightCode } from '../../bubbles/codeHighlight'
-import { classifyActionRowKind, TOOL_STREAM_LIMIT } from '@worldsmith/shared-composables/agent/turnModel'
+import { classifyActionRowKind, TOOL_STREAM_LIMIT } from '@worldsea/shared-composables/agent/turnModel'
 import {
   getOpKind,
   OP_VERB,
@@ -122,7 +122,7 @@ import {
   extractEffectLabel,
   type ToolMeta,
 } from './toolSemantics'
-import type { ToolCallView, InteractiveToolType } from '@worldsmith/shared-composables/agent/useAgent'
+import type { ToolCallView, InteractiveToolType } from '@worldsea/shared-composables/agent/useAgent'
 
 /** 2026-09-02 系统工具流式：文件变更 diff 结构（对齐后端 fs_tools.rs hunks 载荷） */
 interface FileChangeInfo {

@@ -51,7 +51,7 @@ export interface AgentUiDeps {
 
 /** Agent UI 依赖注入 Key */
 export const AGENT_UI_DEPS_KEY: InjectionKey<AgentUiDeps> = Symbol(
-  'worldsmith:agent-ui-deps',
+  'worldsea:agent-ui-deps',
 )
 
 /**

@@ -12,7 +12,7 @@ import { ref } from 'vue'
 
 export type ThemeMode = 'light' | 'dark'
 
-const STORAGE_KEY = 'worldsmith:theme'
+const STORAGE_KEY = 'worldsea:theme'
 
 /** 持久化值：显式选择或跟随系统 */
 type ThemePreference = ThemeMode | 'system'

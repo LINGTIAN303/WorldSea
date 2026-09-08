@@ -51,7 +51,7 @@ export interface SpeakerContext {
 
 /** Speaker 上下文注入 Key */
 export const SPEAKER_CONTEXT_INJECTION_KEY: InjectionKey<SpeakerContext> = Symbol(
-  'worldsmith:speaker-context',
+  'worldsea:speaker-context',
 )
 
 /**

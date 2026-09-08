@@ -1,7 +1,7 @@
 /** 知识库工具集：Agent 操作知识库的工具定义，详细见 docs/details/注释/packages/agent-runtime/tools-kb-tools.md */
 
 import type { ToolDefinition } from '../bridge-types'
-import type { ToolMeta } from '@worldsmith/agent-core'
+import type { ToolMeta } from '@worldsea/agent-core'
 import {
   kbWrite, kbRead, kbReadById, kbList, kbDelete, kbDeleteById,
   kbSearchKeyword, kbLinkEntity, kbUnlinkEntity,

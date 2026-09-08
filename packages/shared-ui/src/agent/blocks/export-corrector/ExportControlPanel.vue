@@ -121,7 +121,7 @@
 </template>
 
 <script setup lang="ts">
-import type { ExportCorrectorConfig } from '@worldsmith/agent-runtime'
+import type { ExportCorrectorConfig } from '@worldsea/agent-runtime'
 
 defineProps<{
   config: ExportCorrectorConfig

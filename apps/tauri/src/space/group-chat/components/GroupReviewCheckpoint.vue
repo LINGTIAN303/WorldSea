@@ -39,7 +39,7 @@
 import { ref, computed } from 'vue'
 import type { AgentMessage } from '@agent/index'
 import { hasUncertaintyMarkers } from '../HallucinationGuard'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 
 const props = defineProps<{
   round: number

@@ -1,8 +1,8 @@
 /** 思维导图右键菜单操作/内联编辑/边操作/实体表单（从 MindmapView 拆出），详细见 docs/details/注释/web/plugins/official/mindmap/composables/useMindmapContextActions.md */
 import { nextTick, type Ref } from 'vue'
-import { relationSchemaRegistry, getEdgeColor, useEntityStore, useRelationStore } from '@worldsmith/entity-core'
-import type { Entity, Relation } from '@worldsmith/entity-core'
-import type { FormFieldDef } from '@worldsmith/plugin-sdk'
+import { relationSchemaRegistry, getEdgeColor, useEntityStore, useRelationStore } from '@worldsea/entity-core'
+import type { Entity, Relation } from '@worldsea/entity-core'
+import type { FormFieldDef } from '@worldsea/plugin-sdk'
 import type { CanvasNode, CanvasEdge } from './canvasTypes'
 import { useMindmapStore } from '../mindmapStore'
 import type { useMindmapNodeOps } from './useMindmapNodeOps'

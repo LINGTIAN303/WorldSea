@@ -85,9 +85,9 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onBeforeUnmount, provide } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
-import { useCustomModuleStore } from '@worldsmith/entity-core'
-import type { CustomModule } from '@worldsmith/entity-core'
+import { WsIcon } from '@worldsea/ui-kit'
+import { useCustomModuleStore } from '@worldsea/entity-core'
+import type { CustomModule } from '@worldsea/entity-core'
 import type { Slot, PlacedComponent, ComponentTypeId, SlotArrangement, SlotSize } from './types/layoutSchema'
 import type { PageSchema } from './types/pageSchema'
 import { getComponentType } from './registry/componentTypeRegistry'

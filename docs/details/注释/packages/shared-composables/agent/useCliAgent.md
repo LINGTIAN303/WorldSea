@@ -15,7 +15,7 @@
  * 阶段 2.0 批次3：HybridBackend 已移除，本 composable 仅保留连接管理能力，
  * 不再将连接桥接到 Agent 后端（Agent 循环已由 Rust 端接管）。
  *
- * 端分离 Phase 3：迁移至 @worldsmith/shared-composables，三端共用。
+ * 端分离 Phase 3：迁移至 @worldsea/shared-composables，三端共用。
  * Tauri 端若不需要 CLI Agent 连接，可不调用此 composable。
  */
 ````

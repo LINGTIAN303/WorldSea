@@ -1,7 +1,7 @@
 /** API Key 加密存储：Tauri Keyring 优先 + localStorage AES-GCM 降级，详细见 docs/details/注释/packages/agent-runtime/providers-key-store.md */
 
 /** localStorage 键名前缀，用于区分 API Key 和其他存储数据 */
-const STORAGE_PREFIX = 'worldsmith_ak_'
+const STORAGE_PREFIX = 'worldsea_ak_'
 
 /** Keyring 是否可用（一次检测，全局缓存） */
 let _keyringAvailable: boolean | null = null
@@ -55,7 +55,7 @@ async function tauriDelete(key: string): Promise<void> {
 async function checkKeyringAvailable(): Promise<boolean> {
   if (_keyringAvailable !== null) return _keyringAvailable
   try {
-    const testKey = '__worldsmith_keyring_test__'
+    const testKey = '__worldsea_keyring_test__'
     const testValue = 'test_' + Date.now()
     await tauriStore(testKey, testValue)
     const readBack = await tauriLoad(testKey)
@@ -83,7 +83,7 @@ async function checkKeyringAvailable(): Promise<boolean> {
  */
 async function getDeviceKey(): Promise<CryptoKey> {
   const encoder = new TextEncoder()
-  const keyMaterial = encoder.encode(navigator.userAgent + location.hostname + 'worldsmith-key-v1')
+  const keyMaterial = encoder.encode(navigator.userAgent + location.hostname + 'worldsea-key-v1')
   const hash = await crypto.subtle.digest('SHA-256', keyMaterial)
   return crypto.subtle.importKey('raw', hash, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt'])
 }

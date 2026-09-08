@@ -1,6 +1,6 @@
 import { computed } from 'vue'
-import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'
-import { getNodeTypeInfo } from '@worldsmith/entity-core'
+import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
+import { getNodeTypeInfo } from '@worldsea/entity-core'
 
 export interface SkillNode {
   id: string

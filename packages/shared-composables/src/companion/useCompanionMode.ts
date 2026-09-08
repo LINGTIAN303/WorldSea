@@ -4,7 +4,7 @@
  * 监听实体增删改/关系变化/输入事件，通过场景识别 + 触发概率计算决定
  * 是否弹出陪伴式 AI 通知（Persona 快照 + LLM 生成内容）。
  *
- * 依赖注入：通过 @worldsmith/entity-core 的 stores（settings/persona/ui/entity/relation）
+ * 依赖注入：通过 @worldsea/entity-core 的 stores（settings/persona/ui/entity/relation）
  * 与事件总线（eventBus）协作，端无关，三端可复用。
  */
 
@@ -25,7 +25,7 @@ import {
   useSettingsStore,
   usePersonaStore,
   useUIStore,
-} from '@worldsmith/entity-core'
+} from '@worldsea/entity-core'
 import { buildCompanionModePrompt, type PersonaSnapshot, type CompanionModePromptInput, type CompanionModeContext } from './personaPrompt'
 import type { ProviderConfig } from '@agent/index'
 import { loadApiKey } from '@agent/index'

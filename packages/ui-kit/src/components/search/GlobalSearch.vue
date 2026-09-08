@@ -37,13 +37,13 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
-import { useRelationStore } from '@worldsmith/entity-core'
-import { useResizable } from '@worldsmith/ui-kit'
-import { entitySchemaRegistry } from '@worldsmith/entity-core'
-import { storage } from '@worldsmith/entity-core'
-import { watchDebounced } from '@worldsmith/perf-kit'
+import { useRelationStore } from '@worldsea/entity-core'
+import { useResizable } from '@worldsea/ui-kit'
+import { entitySchemaRegistry } from '@worldsea/entity-core'
+import { storage } from '@worldsea/entity-core'
+import { watchDebounced } from '@worldsea/perf-kit'
 import WsIcon from '../WsIcon.vue'
-import type { Entity } from '@worldsmith/entity-core'
+import type { Entity } from '@worldsea/entity-core'
 
 const props = defineProps<{ show: boolean }>()
 const emit = defineEmits<{ close: [] }>()

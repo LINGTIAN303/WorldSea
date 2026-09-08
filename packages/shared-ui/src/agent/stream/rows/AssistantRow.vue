@@ -59,11 +59,11 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import BlockManuscript from '../../blocks/BlockManuscript.vue'
 import MessageBlocks from '../../bubbles/MessageBlocks.vue'
-import { useAgentUiDeps } from '@worldsmith/shared-composables/agent/deps'
-import { useEntityMiniPanel } from '@worldsmith/shared-composables/entity/useEntityMiniPanel'
+import { useAgentUiDeps } from '@worldsea/shared-composables/agent/deps'
+import { useEntityMiniPanel } from '@worldsea/shared-composables/entity/useEntityMiniPanel'
 import { useMarkdownRender, handleCodeCopyClick } from '../../bubbles/useMarkdownRender'
 import { useMessageActions } from '../../bubbles/useMessageActions'
 import type { AgentMessage, BlockActionEvent } from '../../bubbles/types'
@@ -116,7 +116,7 @@ const files = computed(() => props.msg.files || [])
 
 // ===== manuscript blocks（贴顶）与其余 blocks =====
 const manuscriptBlocks = computed(() =>
-  (props.msg.blocks || []).filter((b): b is import('@worldsmith/agent-runtime').ManuscriptBlock => b.type === 'manuscript'),
+  (props.msg.blocks || []).filter((b): b is import('@worldsea/agent-runtime').ManuscriptBlock => b.type === 'manuscript'),
 )
 const blockBlocks = computed(() =>
   (props.msg.blocks || []).filter(b => b.type !== 'manuscript'),

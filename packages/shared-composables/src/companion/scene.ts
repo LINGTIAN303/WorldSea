@@ -4,7 +4,7 @@
  * 定义触发场景、触发方法、弹出位置等配置，
  * 以及从事件总线事件识别场景的工具函数。
  *
- * 事件类型从 @worldsmith/entity-core 导入（已下沉）。
+ * 事件类型从 @worldsea/entity-core 导入（已下沉）。
  */
 import type {
   EntityCreateEvent,
@@ -13,7 +13,7 @@ import type {
   FieldChangeEvent,
   RelationCreateEvent,
   RelationDeleteEvent,
-} from '@worldsmith/entity-core'
+} from '@worldsea/entity-core'
 
 export type TriggerMethod = 'immediate' | 'pause' | 'sentence' | 'charCount'
 export type PopupPosition = 'top-right' | 'bottom-right' | 'bottom-left' | 'top-center'

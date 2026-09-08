@@ -12,7 +12,7 @@
  * 封装远程技能源配置、远程技能列表、已安装版本、安装/卸载/更新操作。
  * 全局共享状态（模块级 ref），多组件实例复用。
  *
- * 技能源配置持久化到 localStorage（worldsmith_skill_sources）。
+ * 技能源配置持久化到 localStorage（worldsea_skill_sources）。
  * 非 Tauri 环境（Web 模式）安全降级：商城功能不可用，显示提示。
  *
  * 端分离批次2：从 src/agent/composables/useSkillsStore.ts 迁移至 shared-composables。
@@ -26,7 +26,7 @@
   /**
    * 本地导入技能（Task 24 阶段4：多平台互通）
    *
-   * 自动检测外部格式（Claude Code SKILL.md / Cursor .mdc / WorldSmith skill.yaml），
+   * 自动检测外部格式（Claude Code SKILL.md / Cursor .mdc / WorldSea skill.yaml），
    * 解析为 SkillMeta + body，生成标准 skill.yaml + SKILL.md，写入 skills 目录。
    *
    * @param raw 文件文本

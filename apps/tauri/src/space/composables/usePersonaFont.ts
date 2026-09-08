@@ -4,7 +4,7 @@ import {
   unregister,
   loadFont,
   type TextAnimationEffect,
-} from '@worldsmith/font-kit'
+} from '@worldsea/font-kit'
 import { usePersonaFontStore, type PersonaFontProfile } from '../stores/persona-font-store'
 
 interface TransitionConfig {
@@ -125,7 +125,7 @@ export function usePersonaFont() {
             libraryStore.addEntry(entry)
           }
         } else if (p.fontSource.type === 'system') {
-          const { scanSystemFonts, readFontFile } = await import('@worldsmith/font-kit')
+          const { scanSystemFonts, readFontFile } = await import('@worldsea/font-kit')
           const fonts = await scanSystemFonts()
           const match = fonts.find(f => f.family === p.fontFamily)
           if (match?.path) {

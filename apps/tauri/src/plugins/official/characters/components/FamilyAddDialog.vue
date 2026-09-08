@@ -35,8 +35,8 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
-import { useEntityStore } from '@worldsmith/entity-core'
-import type { Entity } from '@worldsmith/entity-core'
+import { useEntityStore } from '@worldsea/entity-core'
+import type { Entity } from '@worldsea/entity-core'
 import { useFocusTrap } from '@/composables/useFocusTrap'
 
 const props = defineProps<{

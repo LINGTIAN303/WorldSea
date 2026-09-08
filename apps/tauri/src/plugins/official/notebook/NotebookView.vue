@@ -80,9 +80,9 @@
 
 <script setup lang="ts">
 import { ref, computed, reactive, watch, onMounted } from 'vue'
-import { useEntityStore, useRelationStore, useBidirectional } from '@worldsmith/entity-core'
-import type { Relation } from '@worldsmith/entity-core'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { useEntityStore, useRelationStore, useBidirectional } from '@worldsea/entity-core'
+import type { Relation } from '@worldsea/entity-core'
+import { WsIcon } from '@worldsea/ui-kit'
 import NotebookEditor from './components/NotebookEditor.vue'
 import NotebookBoard from './components/NotebookBoard.vue'
 import NotebookGraph from './components/NotebookGraph.vue'
@@ -108,9 +108,9 @@ const sidebarOpen = ref(true)
 const folderToRename = ref<string | null>(null)
 const pendingDeleteFolderId = ref<string | null>(null)
 
-const STORAGE_KEY_FOLDERS = 'worldsmith-notebook-folders'
-const STORAGE_KEY_COLLAPSED = 'worldsmith-notebook-collapsed'
-const STORAGE_KEY_SIDEBAR = 'worldsmith-notebook-sidebar'
+const STORAGE_KEY_FOLDERS = 'worldsea-notebook-folders'
+const STORAGE_KEY_COLLAPSED = 'worldsea-notebook-collapsed'
+const STORAGE_KEY_SIDEBAR = 'worldsea-notebook-sidebar'
 
 const folders = ref<NotebookFolder[]>(loadFolders())
 collapsedFolders.clear()
@@ -399,7 +399,7 @@ useAgentPluginBridge('notebook', async (event) => {
         )
       }
       const summary = results.map((n) => ({ id: n.id, name: n.name, type: n.properties?.noteType }))
-      ;window.__worldsmith_notebook_list__ = summary
+      ;window.__worldsea_notebook_list__ = summary
       break
     }
 
@@ -412,7 +412,7 @@ useAgentPluginBridge('notebook', async (event) => {
         (n.properties?.content || '').toLowerCase().includes(q)
       )
       const summary = results.map((n) => ({ id: n.id, name: n.name, preview: (n.properties?.content || '').slice(0, 100) }))
-      ;window.__worldsmith_notebook_search__ = summary
+      ;window.__worldsea_notebook_search__ = summary
       break
     }
 

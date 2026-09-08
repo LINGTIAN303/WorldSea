@@ -20,11 +20,11 @@ export function useAgentPluginBridge(pluginId: string, handler: AgentPluginActio
   }
 
   onMounted(() => {
-    window.addEventListener('worldsmith:agent:plugin-action', listener)
+    window.addEventListener('worldsea:agent:plugin-action', listener)
   })
 
   onUnmounted(() => {
-    window.removeEventListener('worldsmith:agent:plugin-action', listener)
+    window.removeEventListener('worldsea:agent:plugin-action', listener)
   })
 
   return eventCount

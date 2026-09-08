@@ -33,8 +33,8 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import WsEmpty from '../WsEmpty.vue'
-import { useResizable } from '@worldsmith/ui-kit'
-import { useUndoRedo } from '@worldsmith/entity-core'
+import { useResizable } from '@worldsea/ui-kit'
+import { useUndoRedo } from '@worldsea/entity-core'
 
 const props = defineProps<{ show: boolean }>()
 const emit = defineEmits<{ close: []; redo: [indices: number[]] }>()

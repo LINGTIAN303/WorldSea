@@ -35,8 +35,8 @@ export async function migrateIfNeeded(): Promise<string | null> {
   }
 
   // 检查旧数据库是否存在
-  const oldDbExists = await databaseExists('WorldSmith')
-  const oldAgentDbExists = await databaseExists('worldsmith-agent')
+  const oldDbExists = await databaseExists('WorldSea')
+  const oldAgentDbExists = await databaseExists('worldsea-agent')
 
   if (!oldDbExists && !oldAgentDbExists) {
     // 没有旧数据，标记为已迁移
@@ -82,8 +82,8 @@ async function performMigration(): Promise<MigrationResult> {
   const defaultProject = await pm.createProject('默认工作区', '从旧数据自动迁移的默认项目空间', undefined, true)
   result.projectId = defaultProject.id
 
-  // 2. 迁移 WorldSmith 数据库
-  const oldDbExists = await databaseExists('WorldSmith')
+  // 2. 迁移 WorldSea 数据库
+  const oldDbExists = await databaseExists('WorldSea')
   if (oldDbExists) {
     const oldDb = new WorldDatabase() // 不传 projectId，使用旧的全局数据库名
     const newDb = pm.getProjectDb(defaultProject.id)
@@ -101,11 +101,11 @@ async function performMigration(): Promise<MigrationResult> {
     }
   }
 
-  // 3. 迁移 worldsmith-agent 数据库
-  const oldAgentDbExists = await databaseExists('worldsmith-agent')
+  // 3. 迁移 worldsea-agent 数据库
+  const oldAgentDbExists = await databaseExists('worldsea-agent')
   if (oldAgentDbExists) {
     // 使用 Dexie 直接打开旧数据库
-    const oldAgentDb = new Dexie('worldsmith-agent')
+    const oldAgentDb = new Dexie('worldsea-agent')
     try {
       // 声明已知的 schema 版本，Dexie 会自动检测并打开
       oldAgentDb.version(2).stores({
@@ -115,7 +115,7 @@ async function performMigration(): Promise<MigrationResult> {
       })
       await oldAgentDb.open()
 
-      const newAgentDbName = `worldsmith-agent-${defaultProject.id}`
+      const newAgentDbName = `worldsea-agent-${defaultProject.id}`
       const newAgentDb = new Dexie(newAgentDbName)
       newAgentDb.version(2).stores({
         sessions: 'id, name, updatedAt, providerMode',
@@ -194,7 +194,7 @@ async function copyTable(
  */
 async function migratePluginToggles(pm: ReturnType<typeof getProjectManager>, projectId: string): Promise<void> {
   try {
-    const raw = localStorage.getItem('worldsmith_plugin_toggles')
+    const raw = localStorage.getItem('worldsea_plugin_toggles')
     if (!raw) return
 
     const toggles = JSON.parse(raw)

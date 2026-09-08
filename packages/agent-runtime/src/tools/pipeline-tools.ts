@@ -1,7 +1,7 @@
 /** 创作编排工具集：Agent 管理创作 Pipeline（9 工具），详细见 docs/details/注释/packages/agent-runtime/tools-pipeline-tools.md */
 
 import type { ToolDefinition } from '../bridge-types'
-import type { ToolMeta } from '@worldsmith/agent-core'
+import type { ToolMeta } from '@worldsea/agent-core'
 import type { IToolContext } from '../toolbus/types'
 import type { IEntityStore } from '../toolbus/types'
 import type { AgentType } from '../orchestrator/types'
@@ -438,7 +438,7 @@ const pipelineRunStepTool: ToolDefinition = {
     // 派发创作子 Agent
     const taskId = `pipeline-${stepId}-${Date.now()}`
     try {
-      const event = new CustomEvent('worldsmith:dispatch-sub-agent', {
+      const event = new CustomEvent('worldsea:dispatch-sub-agent', {
         detail: {
           taskId,
           type: agentType,

@@ -6,7 +6,7 @@
  * 项目系统未初始化时回退到旧的全局数据库。
  */
 
-import { getProjectManager, db as legacyDb } from '@worldsmith/entity-core/core'
+import { getProjectManager, db as legacyDb } from '@worldsea/entity-core/core'
 import type { ModuleInstance } from './types'
 
 /**
@@ -57,7 +57,7 @@ async function clear(): Promise<void> {
 
 async function migrateFromLocalStorage() {
   try {
-    const raw = localStorage.getItem('worldsmith_custom_modules')
+    const raw = localStorage.getItem('worldsea_custom_modules')
     if (!raw) return { migrated: 0 }
     const oldModules = JSON.parse(raw)
     if (!Array.isArray(oldModules)) return { migrated: 0 }

@@ -68,9 +68,9 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import type { VideoBlock } from '@worldsmith/agent-runtime'
-import { getVideo, urlToBlob } from '@worldsmith/agent-runtime/stores/video-persistence'
-import { WsIcon } from '@worldsmith/ui-kit'
+import type { VideoBlock } from '@worldsea/agent-runtime'
+import { getVideo, urlToBlob } from '@worldsea/agent-runtime/stores/video-persistence'
+import { WsIcon } from '@worldsea/ui-kit'
 
 const props = defineProps<{ block: VideoBlock }>()
 

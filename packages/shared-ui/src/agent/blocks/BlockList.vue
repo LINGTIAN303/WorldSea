@@ -23,8 +23,8 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import type { ListBlock } from '@worldsmith/agent-runtime'
-import { WsIcon } from '@worldsmith/ui-kit'
+import type { ListBlock } from '@worldsea/agent-runtime'
+import { WsIcon } from '@worldsea/ui-kit'
 
 defineProps<{ block: ListBlock }>()
 const expanded = ref(false)

@@ -15,7 +15,7 @@
 
 ## 端分离策略
 
-- 共享层：`@worldsmith/shared-composables/agent/useAgent`（inject 模式 + 类型定义）
+- 共享层：`@worldsea/shared-composables/agent/useAgent`（inject 模式 + 类型定义）
 - Tauri 端：本文件（Rust IPC 适配器）
 - Web 端：`apps/web/src/agent/composables/useAgent.ts`（本地状态机 + 占位）
 

@@ -21,7 +21,7 @@
 </template>
 
 <script setup lang="ts">
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 
 export type PanelType = 'groups' | 'friends' | null
 

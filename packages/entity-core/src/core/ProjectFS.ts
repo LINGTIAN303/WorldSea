@@ -4,7 +4,7 @@ import { getProjectManager } from './ProjectManager'
 import { useEntityStore, useRelationStore, useSettingsStore } from '../stores'
 import { getModuleStoreApi } from './ModuleStoreApi'
 import { getProjectSwitcherApi } from './ProjectSwitcherApi'
-import { createBatchIpc } from '@worldsmith/perf-kit/io'
+import { createBatchIpc } from '@worldsea/perf-kit/io'
 
 /* ════════════════════════════════════════
    类型定义
@@ -28,7 +28,7 @@ export interface ProjectManifest {
   appVersion?: string
 }
 
-/** .worldsmith/cache.json 的结构 */
+/** .worldsea/cache.json 的结构 */
 export interface ProjectCache {
   formatVersion: 1
   entityCount: number
@@ -224,7 +224,7 @@ export async function exportProjectToDir(
     moduleCount: modules.length,
     checksums,
   }
-  batchWriter.add(`${projectDir}/.worldsmith/cache.json`, JSON.stringify(cache, null, 2))
+  batchWriter.add(`${projectDir}/.worldsea/cache.json`, JSON.stringify(cache, null, 2))
 
   // 8. 批量刷出所有文件
   await batchWriter.flush()

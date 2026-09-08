@@ -1,5 +1,5 @@
 /**
- * @worldsmith/memory-archive
+ * @worldsea/memory-archive
  *
  * 可复用的对话上下文归档与检索框架。
  * 为 LLM Agent 提供"滑动窗口 + 归档检索"的持久记忆能力。

@@ -1,5 +1,5 @@
 /**
- * @worldsmith/theme-kit - useThemeManifest Composable
+ * @worldsea/theme-kit - useThemeManifest Composable
  * 
  * 主题 Manifest 应用 composable：
  * - 在 setTheme() 后调用，应用纹理/图标/动画/组件覆盖

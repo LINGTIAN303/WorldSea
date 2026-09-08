@@ -29,7 +29,7 @@ import InteractiveDisplay from './interactive-tool/InteractiveDisplay.vue'
 import InteractiveWaiting from './interactive-tool/InteractiveWaiting.vue'
 import InteractiveConfirm from './interactive-tool/InteractiveConfirm.vue'
 import InteractiveNormal from './interactive-tool/InteractiveNormal.vue'
-import type { ToolCallView } from '@worldsmith/shared-composables/agent/useAgent'
+import type { ToolCallView } from '@worldsea/shared-composables/agent/useAgent'
 import type { BlockActionEvent } from './index'
 
 const props = defineProps<{

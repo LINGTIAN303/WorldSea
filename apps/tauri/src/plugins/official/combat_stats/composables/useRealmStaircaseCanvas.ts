@@ -5,7 +5,7 @@ import {
   hexToRgba,
   type TreeEdgeBase,
   type NodeState,
-} from '@worldsmith/canvas-engine/tree'
+} from '@worldsea/canvas-engine/tree'
 import type { RealmStep } from './useRealmStaircaseData'
 import { getRadarValues, RADAR_DIMS } from './useRealmStaircaseData'
 

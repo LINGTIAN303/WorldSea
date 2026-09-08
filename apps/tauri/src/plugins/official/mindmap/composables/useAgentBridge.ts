@@ -64,7 +64,7 @@ export function useAgentBridge(
     if (detail.query === 'get_structure') {
       const store = useMindmapStore()
       // 把当前结构塞回 window 供 agent 读取（简单实现，不阻塞）
-      ;window.__worldsmith_mindmap_structure__ = {
+      ;window.__worldsea_mindmap_structure__ = {
         sections: store.sections,
         customNodes: store.customNodes,
       }
@@ -72,11 +72,11 @@ export function useAgentBridge(
   }
 
   onMounted(() => {
-    window.addEventListener('worldsmith:agent:plugin-action', handle as EventListener)
-    window.addEventListener('worldsmith:agent:plugin-query', handleQuery as EventListener)
+    window.addEventListener('worldsea:agent:plugin-action', handle as EventListener)
+    window.addEventListener('worldsea:agent:plugin-query', handleQuery as EventListener)
   })
   onBeforeUnmount(() => {
-    window.removeEventListener('worldsmith:agent:plugin-action', handle as EventListener)
-    window.removeEventListener('worldsmith:agent:plugin-query', handleQuery as EventListener)
+    window.removeEventListener('worldsea:agent:plugin-action', handle as EventListener)
+    window.removeEventListener('worldsea:agent:plugin-query', handleQuery as EventListener)
   })
 }

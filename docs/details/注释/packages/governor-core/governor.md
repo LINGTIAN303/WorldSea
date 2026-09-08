@@ -7,7 +7,7 @@
 
 ```
 /**
- * @worldsmith/governor-core — 调控器核心实现
+ * @worldsea/governor-core — 调控器核心实现
  *
  * createGovernor() 工厂函数，实现 Governor 接口。
  *
@@ -21,7 +21,7 @@
  *   - 通过 options.apiFactory 注入 GovernorAPI 创建策略
  *   - 主应用传入 createGovernorAPI（依赖 Vue/Pinia）
  *   - Agent 包传入空 API 工厂（无 UI 依赖）
- *   - 由此消除主应用 governor 与 Agent 运行时包（@worldsmith/agent-runtime）的重复实现
+ *   - 由此消除主应用 governor 与 Agent 运行时包（@worldsea/agent-runtime）的重复实现
  *
  * 分级降级策略：
  *   - critical：失败则中止 boot()，hasCriticalFailure=true

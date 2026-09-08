@@ -19,7 +19,7 @@
       </template>
 
       <template #detail-header="{ entity }">
-        <span class="dp-avatar"><template v-if="entity?.avatar">{{ entity?.avatar }}</template><WorldSmithLogo v-else :size="22" :radius="6" /></span>
+        <span class="dp-avatar"><template v-if="entity?.avatar">{{ entity?.avatar }}</template><WorldSeaLogo v-else :size="22" :radius="6" /></span>
         <div class="dp-title-area">
           <h3>{{ entity?.name || '' }}</h3>
           <span class="dp-type-label">角色</span>
@@ -120,19 +120,19 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
-import { useEntityStore, useRelationStore, entitySchemaRegistry } from '@worldsmith/entity-core'
-import type { Entity } from '@worldsmith/entity-core'
+import { WsIcon } from '@worldsea/ui-kit'
+import { useEntityStore, useRelationStore, entitySchemaRegistry } from '@worldsea/entity-core'
+import type { Entity } from '@worldsea/entity-core'
 import FamilyTree from './components/FamilyTree.vue'
 import RelationGraph from './components/RelationGraph.vue'
 import CharacterExperience from './components/CharacterExperience.vue'
 
-import { GenericEntityView, EntityRelationSelector, CustomDropdown, useShortcuts, useUndoRedo } from '@worldsmith/plugin-sdk'
-import { toastSuccess } from '@worldsmith/ui-kit'
-import WorldSmithLogo from '@/components/brand/WorldSmithLogo.vue'
+import { GenericEntityView, EntityRelationSelector, CustomDropdown, useShortcuts, useUndoRedo } from '@worldsea/plugin-sdk'
+import { toastSuccess } from '@worldsea/ui-kit'
+import WorldSeaLogo from '@/components/brand/WorldSeaLogo.vue'
 import { characterFields } from './characterConfig'
 import { characterTemplates } from './characterTemplates'
-import type { FilterDef, CustomTabDef } from '@worldsmith/plugin-sdk'
+import type { FilterDef, CustomTabDef } from '@worldsea/plugin-sdk'
 
 const entityStore = useEntityStore()
 const relationStore = useRelationStore()

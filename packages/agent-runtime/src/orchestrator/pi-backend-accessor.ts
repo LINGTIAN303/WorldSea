@@ -4,7 +4,7 @@ import type {
   NodeBackendAccessor,
   PromptCallOptions,
   OrchestratorMessage,
-} from '@worldsmith/agent-core/orchestrator'
+} from '@worldsea/agent-core/orchestrator'
 import type { AgentEvent, IAgentBackend } from '../bridge-types'
 
 export type RelayFn = (event: AgentEvent) => void

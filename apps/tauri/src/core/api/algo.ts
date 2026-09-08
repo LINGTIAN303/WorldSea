@@ -46,7 +46,7 @@ import type {
   ViewshedResult,
   SharedEdge,
   LinePolygonIntersection,
-} from '@worldsmith/core-api-types'
+} from '@worldsea/core-api-types'
 export type {
   Point2D,
   Segment2D,

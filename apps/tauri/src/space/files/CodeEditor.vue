@@ -28,7 +28,7 @@ import { EditorView, keymap, ViewPlugin, Decoration, WidgetType, type Decoration
 import { type Extension, type Range, type EditorState } from '@codemirror/state'
 import { indentUnit, indentRange } from '@codemirror/language'
 import { showMinimap } from '@replit/codemirror-minimap'
-import { useShortcuts } from '@worldsmith/ui-kit'
+import { useShortcuts } from '@worldsea/ui-kit'
 import { cmLangOf } from './cmLangs'
 import { wsEditorTheme, wsSyntax } from './cmTheme'
 import { entityAssistExts } from './entitySchemaAssist'

@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue'
-import { useEntityStore } from '@worldsmith/entity-core'
-import type { Entity } from '@worldsmith/entity-core'
+import { useEntityStore } from '@worldsea/entity-core'
+import type { Entity } from '@worldsea/entity-core'
 import type {
   CreationPipeline,
   PipelineStep,

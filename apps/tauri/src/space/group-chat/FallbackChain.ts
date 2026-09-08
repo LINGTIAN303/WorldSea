@@ -1,4 +1,4 @@
-import { getModelInfo } from '@worldsmith/agent-runtime'
+import { getModelInfo } from '@worldsea/agent-runtime'
 
 const FALLBACK_CHAINS: Record<string, string[]> = {
   anthropic: [

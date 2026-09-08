@@ -20,7 +20,7 @@
 - [`stream`]：stream_simple 等价函数 + 事件映射（feature = "llm-genai"）
 
 ## 与 TS 版差异
-- worldsmith 没有 SQLite provider 表，配置在前端 localStorage
+- worldsea 没有 SQLite provider 表，配置在前端 localStorage
 - Rust 侧通过运行时注入 ProviderConfig（与 TS 版一致）
 - API Key 通过 keyring 或运行时传入，不持久化到 SQLite
 
@@ -64,7 +64,7 @@
 
 # Provider 静态清单
 
-对应 TS 版 `worldsmith-agent/src/providers/provider-registry.ts`。
+对应 TS 版 `worldsea-agent/src/providers/provider-registry.ts`。
 16 个内置 Provider 的元数据，用于解析云端 Provider 的 API 类型、BaseURL、
 视觉/思考能力检测等。
 

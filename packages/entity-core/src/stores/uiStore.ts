@@ -1,9 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref, shallowRef, watch } from 'vue'
 import type { Component } from 'vue'
-import { watchDebounced } from '@worldsmith/perf-kit/render'
+import { watchDebounced } from '@worldsea/perf-kit/render'
 
-const STORAGE_KEY = 'worldsmith_sidebar_order'
+const STORAGE_KEY = 'worldsea_sidebar_order'
 
 function loadOrder(): string[] {
   try {
@@ -30,11 +30,11 @@ export const useUIStore = defineStore('ui', () => {
   const _jumpBackViewId = ref<string | null>(null)
 
   const currentShell = ref<'space' | 'workbench'>(
-    (localStorage.getItem('worldsmith_shell') as 'space' | 'workbench') || 'space'
+    (localStorage.getItem('worldsea_shell') as 'space' | 'workbench') || 'space'
   )
 
   watch(currentShell, (val) => {
-    try { localStorage.setItem('worldsmith_shell', val) } catch {}
+    try { localStorage.setItem('worldsea_shell', val) } catch {}
   })
 
   const sidebarOrder = ref<string[]>(loadOrder())

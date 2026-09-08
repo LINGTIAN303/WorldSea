@@ -1,5 +1,5 @@
 {
-  "name": "@worldsmith/ui-kit",
+  "name": "@worldsea/ui-kit",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -15,10 +15,10 @@
     "typecheck": "vue-tsc --noEmit"
   },
   "dependencies": {
-    "@worldsmith/entity-core": "link:../entity-core",
-    "@worldsmith/canvas-engine": "link:../canvas-engine",
-    "@worldsmith/motion-kit": "link:../motion-kit",
-    "@worldsmith/font-kit": "link:../font-kit",
-    "@worldsmith/agent-runtime": "link:../agent-runtime"
+    "@worldsea/entity-core": "link:../entity-core",
+    "@worldsea/canvas-engine": "link:../canvas-engine",
+    "@worldsea/motion-kit": "link:../motion-kit",
+    "@worldsea/font-kit": "link:../font-kit",
+    "@worldsea/agent-runtime": "link:../agent-runtime"
   }
 }

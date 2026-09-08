@@ -9,9 +9,9 @@
     "forceConsistentCasingInFileNames": true,
     "types": [],
     "paths": {
-      "@worldsmith/agent-runtime": ["../agent-runtime/src/index.ts"],
-      "@worldsmith/agent-runtime/*": ["../agent-runtime/src/*"],
-      "@worldsmith/core-api-types": ["../core-api-types/src/index.ts"]
+      "@worldsea/agent-runtime": ["../agent-runtime/src/index.ts"],
+      "@worldsea/agent-runtime/*": ["../agent-runtime/src/*"],
+      "@worldsea/core-api-types": ["../core-api-types/src/index.ts"]
     }
   },
   "include": ["src/**/*.ts"],

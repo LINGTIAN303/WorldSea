@@ -1,14 +1,14 @@
 <template>
   <div class="ps-wrap" ref="wrapRef">
-    <!-- 触发按钮：titlebar=logo+WorldSmith+项目名；pill=轻量项目名 -->
+    <!-- 触发按钮：titlebar=logo+WorldSea+项目名；pill=轻量项目名 -->
     <button
       class="ps-trigger"
       :class="`ps--${variant}`"
       :title="currentLabel"
       @click="toggle"
     >
-      <WorldSmithLogo v-if="variant === 'titlebar'" :size="15" :radius="4" class="ps-logo" />
-      <span v-if="variant === 'titlebar'" class="ps-title">WorldSmith</span>
+      <WorldSeaLogo v-if="variant === 'titlebar'" :size="15" :radius="4" class="ps-logo" />
+      <span v-if="variant === 'titlebar'" class="ps-title">WorldSea</span>
       <span class="ps-label">{{ currentLabel }}</span>
       <span class="ps-chevron"><WsIcon name="chevron-down" size="xs" /></span>
     </button>
@@ -53,10 +53,10 @@
 
 <script setup lang="ts">
 import { ref, computed, onBeforeUnmount, nextTick } from 'vue'
-import { WsIcon, useConfirm, useModalShortcuts } from '@worldsmith/ui-kit'
+import { WsIcon, useConfirm, useModalShortcuts } from '@worldsea/ui-kit'
 import { useProjectSwitcher } from '@/composables/useProjectSwitcher'
-import WorldSmithLogo from '@/components/brand/WorldSmithLogo.vue'
-import type { ProjectInfo } from '@worldsmith/entity-core/core'
+import WorldSeaLogo from '@/components/brand/WorldSeaLogo.vue'
+import type { ProjectInfo } from '@worldsea/entity-core/core'
 
 const props = withDefaults(defineProps<{
   /** titlebar=工作台窗口栏内嵌（logo+项目名）；pill=Agent 空态内嵌轻量 */

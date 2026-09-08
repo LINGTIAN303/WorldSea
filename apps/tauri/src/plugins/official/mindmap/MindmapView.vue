@@ -229,10 +229,10 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
-import { useEntityStore, useRelationStore, relationSchemaRegistry } from '@worldsmith/entity-core'
-import { EmptyState, EntityFormModal, useShortcuts, currentSequence, type ShortcutDef } from '@worldsmith/plugin-sdk'
-import { useUndoRedo, useGraphData, useTypeMapping } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
+import { useEntityStore, useRelationStore, relationSchemaRegistry } from '@worldsea/entity-core'
+import { EmptyState, EntityFormModal, useShortcuts, currentSequence, type ShortcutDef } from '@worldsea/plugin-sdk'
+import { useUndoRedo, useGraphData, useTypeMapping } from '@worldsea/ui-kit'
 import MindmapToolbar from './components/MindmapToolbar.vue'
 import MindmapNodeTooltip from './components/MindmapNodeTooltip.vue'
 import { guessRelType, KEY_SEQUENCES } from './mindmapConfig'
@@ -870,7 +870,7 @@ function onAIOrganize(): void {
     cycleNodes: [...cycleNodes],
     suggestedAction: 'autoLayout + highlightIssues',
   }
-  window.dispatchEvent(new CustomEvent('worldsmith:agent:plugin-action', {
+  window.dispatchEvent(new CustomEvent('worldsea:agent:plugin-action', {
     detail: { pluginId: 'mindmap', action: 'ai_organize_result', payload: detail, timestamp: Date.now() },
   }))
   // 4. 弹 toast

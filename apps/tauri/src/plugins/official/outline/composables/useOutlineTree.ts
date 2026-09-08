@@ -1,8 +1,8 @@
 import { computed } from 'vue'
-import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'
-import type { Entity } from '@worldsmith/entity-core'
-import { useDuplicateNameCheck } from '@worldsmith/plugin-sdk'
-import { type TreeNodeData } from '@worldsmith/ui-kit'
+import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
+import type { Entity } from '@worldsea/entity-core'
+import { useDuplicateNameCheck } from '@worldsea/plugin-sdk'
+import { type TreeNodeData } from '@worldsea/ui-kit'
 
 export function useOutlineTree() {
   const es = useEntityStore()

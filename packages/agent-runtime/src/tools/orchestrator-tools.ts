@@ -1,7 +1,7 @@
 /** Agent 调度器工具集：CustomEvent 调度 9 种子 Agent，详细见 docs/details/注释/packages/agent-runtime/tools-orchestrator-tools.md */
 
 import type { ToolDefinition } from '../bridge-types'
-import type { ToolMeta } from '@worldsmith/agent-core'
+import type { ToolMeta } from '@worldsea/agent-core'
 import type { IToolContext } from '../toolbus/types'
 import type { AgentType } from '../orchestrator/types'
 import { AGENT_TYPE_CONFIG } from '../orchestrator/types'
@@ -48,7 +48,7 @@ const listSubAgentTypesTool: ToolDefinition = {
 
 /**
  * dispatch_sub_agent — 调度子 Agent
- * 通过 window.dispatchEvent('worldsmith:dispatch-sub-agent') 通知前端编排器,
+ * 通过 window.dispatchEvent('worldsea:dispatch-sub-agent') 通知前端编排器,
  * 前端编排器负责创建子 Agent 实例并管理其生命周期。
  */
 const dispatchSubAgentTool: ToolDefinition = {
@@ -104,7 +104,7 @@ const dispatchSubAgentTool: ToolDefinition = {
     const typeConfig = AGENT_TYPE_CONFIG[agentType]
 
     try {
-      const event = new CustomEvent('worldsmith:dispatch-sub-agent', {
+      const event = new CustomEvent('worldsea:dispatch-sub-agent', {
         detail: {
           taskId,
           type: agentType,
@@ -137,7 +137,7 @@ const dispatchSubAgentTool: ToolDefinition = {
 
 /**
  * get_sub_agent_status — 查询子 Agent 状态
- * 从全局 window.__worldsmith_sub_agents Map 中读取状态。
+ * 从全局 window.__worldsea_sub_agents Map 中读取状态。
  * 终端状态：completed / failed / timeout / cancelled
  */
 const getSubAgentStatusTool: ToolDefinition = {
@@ -158,7 +158,7 @@ const getSubAgentStatusTool: ToolDefinition = {
   execute: async (args: Record<string, unknown>, _ctx: IToolContext): Promise<string> => {
     const taskId = String(args.task_id)
 
-    const sharedAgents = (window as any).__worldsmith_sub_agents as Map<string, {
+    const sharedAgents = (window as any).__worldsea_sub_agents as Map<string, {
       id: string; type: string; icon: string; name: string; status: string
       result: string | null; startedAt: number | null; completedAt: number | null
       duration: number | null; error: string | null
@@ -216,7 +216,7 @@ const cancelSubAgentTool: ToolDefinition = {
     const taskId = String(args.task_id)
 
     try {
-      const event = new CustomEvent('worldsmith:cancel-sub-agent', {
+      const event = new CustomEvent('worldsea:cancel-sub-agent', {
         detail: { taskId },
       })
       window.dispatchEvent(event)

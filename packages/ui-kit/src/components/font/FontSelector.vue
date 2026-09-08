@@ -37,7 +37,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { list as listFonts } from '@worldsmith/font-kit'
+import { list as listFonts } from '@worldsea/font-kit'
 
 const props = withDefaults(defineProps<{
   modelValue?: string

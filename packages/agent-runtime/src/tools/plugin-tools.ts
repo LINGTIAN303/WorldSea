@@ -1,7 +1,7 @@
 /** 通用插件操作工具集：跨插件统一操作接口，详细见 docs/details/注释/packages/agent-runtime/tools-plugin-tools.md */
 
 import type { ToolDefinition } from '../bridge-types'
-import type { ToolMeta } from '@worldsmith/agent-core'
+import type { ToolMeta } from '@worldsea/agent-core'
 
 /** 所有支持的插件目标列表 */
 const SUPPORTED_PLUGIN_TARGETS = [
@@ -24,7 +24,7 @@ const SUPPORTED_PLUGIN_TARGETS = [
  */
 export const pluginWriteTool: ToolDefinition = {
   name: 'plugin_write',
-  description: '将内容写入指定插件的目标实体。支持所有 WorldSmith 插件: manuscript(正文)、notebook(笔记)、outline(大纲)、timeline(时间线)、graph(图谱)、mindmap(思维导图)、characters(角色)、regions(区域)、organizations(组织)、species(物种)、languages(语言)、culture(文化)、items(物品)、weapons(武器)、apparel(服装)、plants(植物)、buildings(建筑)、magic(魔法)、combat_stats(战斗属性)、tactical-board(战术面板)、concepts(概念)、inspiration(灵感)、drawing(绘图)、conflict(冲突)、custom(自定义)、module-builder(模块构建)。写入前需用户确认。',
+  description: '将内容写入指定插件的目标实体。支持所有 WorldSea 插件: manuscript(正文)、notebook(笔记)、outline(大纲)、timeline(时间线)、graph(图谱)、mindmap(思维导图)、characters(角色)、regions(区域)、organizations(组织)、species(物种)、languages(语言)、culture(文化)、items(物品)、weapons(武器)、apparel(服装)、plants(植物)、buildings(建筑)、magic(魔法)、combat_stats(战斗属性)、tactical-board(战术面板)、concepts(概念)、inspiration(灵感)、drawing(绘图)、conflict(冲突)、custom(自定义)、module-builder(模块构建)。写入前需用户确认。',
   parameters: {
     pluginId: { type: 'string', description: '目标插件ID: manuscript/notebook/outline', required: true },
     action: { type: 'string', description: 'create(新建)/update(更新)/append(追加)', required: true },

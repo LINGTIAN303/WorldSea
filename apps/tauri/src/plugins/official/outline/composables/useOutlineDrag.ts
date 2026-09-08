@@ -1,6 +1,6 @@
-import { useEntityStore } from '@worldsmith/entity-core'
-import type { Entity } from '@worldsmith/entity-core'
-import type { TreeNodeData } from '@worldsmith/ui-kit'
+import { useEntityStore } from '@worldsea/entity-core'
+import type { Entity } from '@worldsea/entity-core'
+import type { TreeNodeData } from '@worldsea/ui-kit'
 
 export function useOutlineDrag() {
   const es = useEntityStore()

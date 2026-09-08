@@ -1,6 +1,6 @@
-// @worldsmith/core-api-types — coreBackend 双端共享契约类型，见 docs/details/注释/packages/core-api-types/index.md
+// @worldsea/core-api-types — coreBackend 双端共享契约类型，见 docs/details/注释/packages/core-api-types/index.md
 
-// ── core（Tauri 端独有 Core 前缀类型，web 端同源定义见 apps/web/src/core/worldsmithCore.ts） ──
+// ── core（Tauri 端独有 Core 前缀类型，web 端同源定义见 apps/web/src/core/worldseaCore.ts） ──
 
 export interface CoreValidationError {
   path: string

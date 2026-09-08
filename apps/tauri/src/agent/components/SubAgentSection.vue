@@ -2,7 +2,7 @@
 /** SubAgentSection：子 Agent 委派过程展示（running/completed/error 三态），详细见 docs/details/注释/tauri/SubAgentSection.md */
 import { ref, computed } from 'vue'
 import { useAgentRust, type SubAgentState } from '../composables/useAgentRust'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import RunningDuration from './RunningDuration.vue'
 
 const backend = useAgentRust()

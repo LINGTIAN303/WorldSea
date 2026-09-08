@@ -14,7 +14,7 @@ SKILL.md / skill.yaml frontmatter 解析器
 - SKILL.md：`---\n<yaml>\n---\n<body>` 标准 frontmatter
 - skill.yaml：无 --- 分隔的纯 YAML（由调用方包装后传入）
 
-解析能力（覆盖 WorldSmith 原生 skill.yaml + Claude Code SKILL.md 两种格式）：
+解析能力（覆盖 WorldSea 原生 skill.yaml + Claude Code SKILL.md 两种格式）：
 - 标量字段：id/name/description/icon/category/priority/auto-activate/license/compatibility/enabled/version
 - 列表字段：allowed-tools/allowedTools、baseTools/base-tools、triggers、tags
 - 嵌套对象：capabilities.internal/cli/mcp、schema-context.entity-types

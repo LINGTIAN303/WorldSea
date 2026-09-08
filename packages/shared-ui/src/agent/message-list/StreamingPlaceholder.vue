@@ -13,7 +13,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 // ws-shine-text 高亮平移工具类定义在流区全局 stream.css（行段折叠条同用）
 import '../stream/stream.css'
 

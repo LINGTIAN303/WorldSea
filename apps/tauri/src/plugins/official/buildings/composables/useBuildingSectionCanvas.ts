@@ -5,7 +5,7 @@ import {
   hexToRgba,
   type TreeEdgeBase,
   type NodeState,
-} from '@worldsmith/canvas-engine/tree'
+} from '@worldsea/canvas-engine/tree'
 import type { BuildingNode, ConnectionEdge } from './useBuildingSectionData'
 import { parseFloors } from './useBuildingSectionData'
 

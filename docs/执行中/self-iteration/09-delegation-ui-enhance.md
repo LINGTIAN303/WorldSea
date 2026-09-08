@@ -27,5 +27,5 @@
 
 ## 验证方式（迭代主题 9）
 - `npm run typecheck`（apps/tauri）：vue-tsc 通过（修复 filter 回调参数隐式 any：补 `SubAgentState` 类型导入与标注）。
-- `cargo check -p worldsmith-tauri-app`（apps/tauri/src-tauri）：通过（承接迭代主题 8 的 Rust 改动，一并回归验证）。
+- `cargo check -p worldsea-tauri-app`（apps/tauri/src-tauri）：通过（承接迭代主题 8 的 Rust 改动，一并回归验证）。
 

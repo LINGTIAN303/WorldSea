@@ -11,7 +11,7 @@
     <div class="view-content">
       <div v-if="!hasView" class="view-empty">
         <WsIcon name="globe" :size="56" class="view-empty-icon" />
-        <h2>WorldSmith</h2>
+        <h2>WorldSea</h2>
         <p>选择一个视图开始管理你的世界观</p>
       </div>
       <div v-else-if="!viewComp" class="view-empty">
@@ -32,7 +32,7 @@
 
 <script setup lang="ts">
 import { computed, provide, toRef, reactive, onBeforeUnmount, watch } from 'vue'
-import { useUIStore, useSettingsStore, usePluginStore } from '@worldsmith/entity-core'
+import { useUIStore, useSettingsStore, usePluginStore } from '@worldsea/entity-core'
 import WsIcon from '../WsIcon.vue'
 import ViewToolbar from './ViewToolbar.vue'
 

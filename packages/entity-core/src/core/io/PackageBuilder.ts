@@ -1,7 +1,7 @@
-/** .ws 包构建器（WorldSmithPack 打包为 ZIP 归档并内嵌媒体文件），详细见 docs/details/注释/packages/entity-core/core/io/PackageBuilder.md */
+/** .ws 包构建器（WorldSeaPack 打包为 ZIP 归档并内嵌媒体文件），详细见 docs/details/注释/packages/entity-core/core/io/PackageBuilder.md */
 
 import JSZip from 'jszip'
-import type { WorldSmithPack } from './WorldSmithPack'
+import type { WorldSeaPack } from './WorldSeaPack'
 import type { Entity } from '../../types'
 
 export interface PackageManifest {
@@ -48,12 +48,12 @@ export class PackageBuilder {
   /**
    * 构建 .ws 包
    *
-   * @param pack  – WorldSmithPack 数据
+   * @param pack  – WorldSeaPack 数据
    * @param entities – 实体列表（用于扫描 avatar/properties 中的媒体引用）
    * @returns ZIP Blob（.ws 格式）
    */
   async build(
-    pack: WorldSmithPack,
+    pack: WorldSeaPack,
     entities?: Entity[],
   ): Promise<Blob> {
     this.zip = new JSZip()
@@ -198,10 +198,10 @@ export class PackageBuilder {
   }
 
   /**
-   * 从 .ws ZIP 中解析出 WorldSmithPack
+   * 从 .ws ZIP 中解析出 WorldSeaPack
    */
   static async extractPack(blob: Blob): Promise<{
-    pack: WorldSmithPack
+    pack: WorldSeaPack
     manifest?: PackageManifest
     mediaFiles?: Record<string, Blob>
   }> {
@@ -211,7 +211,7 @@ export class PackageBuilder {
     const packFile = zip.file('pack.json')
     if (!packFile) throw new Error('.ws 包中缺少 pack.json')
     const packText = await packFile.async('text')
-    let pack: WorldSmithPack
+    let pack: WorldSeaPack
 try { pack = JSON.parse(packText) } catch (e) { throw new Error('\u65e0\u6548\u7684 .wsm \u6587\u4ef6: ' + e) }
 
     // 读取 manifest.json（可选）

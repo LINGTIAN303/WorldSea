@@ -1,4 +1,4 @@
-import type { PluginAPIType } from '@worldsmith/entity-core'
+import type { PluginAPIType } from '@worldsea/entity-core'
 import ModuleBuilder from './ModuleBuilder.vue'
 import { initializeComponentTypes } from './moduleConfig'
 
@@ -7,7 +7,7 @@ export const manifest = {
   name: '自定义模块',
   version: '2.0.0',
   description: '图形化构建属于自己的世界观管理模块 — 槽位式拼装',
-  author: 'WorldSmith',
+  author: 'WorldSea',
   agentSkills: ['module-builder'],
   agentCapabilities: [
     { action: 'add_component', description: '添加组件', params: ['type', 'props'] },

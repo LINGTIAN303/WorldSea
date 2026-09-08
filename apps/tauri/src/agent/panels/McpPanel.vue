@@ -67,7 +67,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import TuiSelect from '../../components/ui/TuiSelect.vue'
 import { invokeRpc } from '../composables/transport'
 
@@ -127,7 +127,7 @@ const configPath = ref('')
 onMounted(async () => {
   try {
     const dataDir = await invokeRpc<string>('cmd_get_app_data_dir')
-    if (dataDir) configPath.value = `${dataDir.replace(/[\\/]+$/, '')}/worldsmith/mcp.json`
+    if (dataDir) configPath.value = `${dataDir.replace(/[\\/]+$/, '')}/worldsea/mcp.json`
   } catch { /* 路径不可得时隐藏提示 */ }
 })
 

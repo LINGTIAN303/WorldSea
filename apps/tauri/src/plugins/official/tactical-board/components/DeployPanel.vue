@@ -69,9 +69,9 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { WsEmpty } from '@worldsmith/ui-kit'
-import { WsIcon } from '@worldsmith/ui-kit'
-import type { Entity } from '@worldsmith/entity-core'
+import { WsEmpty } from '@worldsea/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
+import type { Entity } from '@worldsea/entity-core'
 
 const props = defineProps<{
   entities: Entity[]

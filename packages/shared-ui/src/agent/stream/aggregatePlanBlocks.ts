@@ -5,7 +5,7 @@
 // 嵌套结构（用户拍板的多级折叠树）：
 //   plan_zone（区级折叠头，跟随首个待办项原位）→ plan_item（待办项文字折叠条）→ combination（组合行段）
 //   combination（二级小折叠条）包裹连续非文本行段（think/tool）；text 行不入组合，独立直出。
-import type { AgentStreamItem } from '@worldsmith/shared-composables/agent/useAgent'
+import type { AgentStreamItem } from '@worldsea/shared-composables/agent/useAgent'
 
 /** 计划步骤行（plan 类 tool 行：isPlanStep=true + 子动作 id 列表 + 折叠态 + 待办项扩展字段） */
 export type PlanStepRow = AgentStreamItem & {

@@ -53,8 +53,8 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import type { FieldSchema } from '@worldsmith/entity-core'
-import { WsIcon } from '@worldsmith/ui-kit'
+import type { FieldSchema } from '@worldsea/entity-core'
+import { WsIcon } from '@worldsea/ui-kit'
 import SmartFieldAdder from './SmartFieldAdder.vue'
 
 const props = withDefaults(defineProps<{

@@ -15,7 +15,7 @@ pub async fn cmd_switch_project(project_id: String) -> Result<(), String> {
 /// 获取应用数据目录路径（用于自动绑定项目存储目录）
 ///
 /// FileStorageBackend 以文件系统为主存储时需要一个可用目录；
-/// 返回 Tauri 应用数据目录（如 %APPDATA%/com.worldsmith.app 或 ~/.local/share/...），
+/// 返回 Tauri 应用数据目录（如 %APPDATA%/com.worldsea.app 或 ~/.local/share/...），
 /// 前端在其下按项目 id 划分子目录。
 #[tauri::command]
 pub async fn cmd_get_app_data_dir(app: tauri::AppHandle) -> Result<String, String> {
@@ -27,9 +27,9 @@ pub async fn cmd_get_app_data_dir(app: tauri::AppHandle) -> Result<String, Strin
     Ok(dir.to_string_lossy().replace('\\', "/"))
 }
 
-/// 获取用户主目录路径（§六 全局层迁移 ~/.WorldSmith）
+/// 获取用户主目录路径（§六 全局层迁移 ~/.WorldSea）
 ///
-/// 全局规则（~/.WorldSmith/rules）与个人技能导入区（~/.WorldSmith/skills）的载体根。
+/// 全局规则（~/.WorldSea/rules）与个人技能导入区（~/.WorldSea/skills）的载体根。
 /// 前端 `getHomeDirCached` 缓存后供 globalRulesDirSync / RulesPanel 使用（双端一致）。
 #[tauri::command]
 pub async fn cmd_get_home_dir(app: tauri::AppHandle) -> Result<String, String> {

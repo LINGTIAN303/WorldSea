@@ -13,7 +13,7 @@
 </template>
 
 <script setup lang="ts">
-import { GenericEntityView, type FormFieldDef, type FilterDef, type CardFieldDef, type RelationTabDef } from '@worldsmith/plugin-sdk'
+import { GenericEntityView, type FormFieldDef, type FilterDef, type CardFieldDef, type RelationTabDef } from '@worldsea/plugin-sdk'
 
 const fields: FormFieldDef[] = [
   { key: 'name', label: '名称', type: 'text', required: true, placeholder: '冲突名称' },

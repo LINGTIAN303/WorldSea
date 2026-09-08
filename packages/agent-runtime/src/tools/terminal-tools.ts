@@ -17,7 +17,7 @@ const executeCommandTool: ToolDefinition = {
     if (!adapter.isAvailable()) {
       const connected = await adapter.tryConnect()
       if (!connected) {
-        return '终端功能当前不可用。Tauri 桌面模式请确认环境正常，Web 模式请启动 worldsmith-server 服务。'
+        return '终端功能当前不可用。Tauri 桌面模式请确认环境正常，Web 模式请启动 worldsea-server 服务。'
       }
     }
 

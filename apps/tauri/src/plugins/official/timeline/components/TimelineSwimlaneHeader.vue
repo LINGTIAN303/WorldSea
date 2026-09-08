@@ -11,7 +11,7 @@
 
 <script setup lang="ts">
 import type { Swimlane } from '../composables/useSwimlaneLayout'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 
 defineProps<{
   lane: Swimlane

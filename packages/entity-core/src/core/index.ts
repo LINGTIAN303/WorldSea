@@ -143,8 +143,8 @@ export {
   getAppVersionProvider,
 } from './io'
 export type {
-  WorldSmithManifest,
-  WorldSmithPack,
+  WorldSeaManifest,
+  WorldSeaPack,
   ImportReport,
   PackageManifest,
   FormatEncoder,

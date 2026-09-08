@@ -4,9 +4,9 @@ import StarterKit from '@tiptap/starter-kit'
 import Mention from '@tiptap/extension-mention'
 import SlashCommandExtension, { SLASH_COMMANDS } from './slashCommandExtension'
 import type { SlashCommandItem } from './slashCommandExtension'
-import { useEntityStore } from '@worldsmith/entity-core'
-import { entitySchemaRegistry } from '@worldsmith/entity-core'
-import type { Entity } from '@worldsmith/entity-core'
+import { useEntityStore } from '@worldsea/entity-core'
+import { entitySchemaRegistry } from '@worldsea/entity-core'
+import type { Entity } from '@worldsea/entity-core'
 import type { SuggestionProps, SuggestionKeyDownProps } from '@tiptap/suggestion'
 
 const AUTOSAVE_DELAY = 2000

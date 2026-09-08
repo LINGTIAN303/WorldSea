@@ -77,8 +77,8 @@ import { hasUncertaintyMarkers } from '../HallucinationGuard'
 import { useMessageRender } from '../composables/useMessageRender'
 import { useMessageTime } from '../composables/useMessageTime'
 import { getToolLabel, getToolIcon, getToolImportance } from '../types'
-import { WsIcon } from '@worldsmith/ui-kit'
-import { handleCodeCopyClick } from '@worldsmith/shared-ui/agent/bubbles'
+import { WsIcon } from '@worldsea/ui-kit'
+import { handleCodeCopyClick } from '@worldsea/shared-ui/agent/bubbles'
 import AvatarBadge from '@/ui/AvatarBadge.vue'
 
 const props = defineProps<{ msg: AgentMessage }>()

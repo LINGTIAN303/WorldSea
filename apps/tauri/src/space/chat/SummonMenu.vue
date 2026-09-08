@@ -37,7 +37,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import { matchesFilter, type SummonItem } from './summon-registry'
 
 const props = withDefaults(defineProps<{

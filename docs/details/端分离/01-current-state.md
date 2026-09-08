@@ -7,13 +7,13 @@
 > 实际迁移进展见 【`[08-migration-phases.md](./08-migration-phases.md)`】 与 【`[README.md](./README.md)`】。
 > 已变化的事实（截至 2026-08-02）：
 > - `packages/agent-runtime` 已建成并成为唯一运行时数据源（`@agent` 单轨）
-> - `worldsmith-agent/` 已冻结为端适配器宿主（仅 `src/index.ts` + `src/execution/`）
+> - `worldsea-agent/` 已冻结为端适配器宿主（仅 `src/index.ts` + `src/execution/`）
 > - `src/` 仍是主应用（Phase 3 业务 UI 迁移暂停）
 
 ## 1. 项目整体结构
 
 ```
-worldsmith/
+worldsea/
 ├── crates/                     # Rust crate（agent-runtime）
 ├── packages/                   # pnpm monorepo 子包（11 个）
 │   ├── agent-core/             # 工具总线 + 技能注册（声明式）
@@ -29,8 +29,8 @@ worldsmith/
 │   └── ui-kit/                 # UI 组件
 ├── src/                        # 前端 Vue 3 源码（Tauri + Web 共用）
 ├── src-tauri/                  # Tauri Rust 后端（150+ 命令）
-├── worldsmith-agent/           # CLI 入口 + Agent 核心逻辑（混杂）
-├── worldsmith-server/          # Node.js HTTP/WS 服务（7 端点）
+├── worldsea-agent/           # CLI 入口 + Agent 核心逻辑（混杂）
+├── worldsea-server/          # Node.js HTTP/WS 服务（7 端点）
 ├── docs/                       # 文档
 ├── public/                     # 静态资源
 ├── scripts/                    # 脚本
@@ -89,15 +89,15 @@ tauri:build → beforeBuildCommand: npm run build:web (WASM+vue-tsc+vite build) 
 - 构建：`npm run build:web`（先构建 WASM，再 vue-tsc + vite build）
 
 **后端依赖**：
-1. **WASM**（worldsmith-core、tactical-engine）— Tauri 不可用时的回退
+1. **WASM**（worldsea-core、tactical-engine）— Tauri 不可用时的回退
    - 构建：`npm run build:wasm-all`
-   - 加载：`src/core/worldsmithCore.ts` + `wasmWorkerPool.ts`
-2. **worldsmith-server**（Node.js）— 7 个 HTTP 端点
+   - 加载：`src/core/worldseaCore.ts` + `wasmWorkerPool.ts`
+2. **worldsea-server**（Node.js）— 7 个 HTTP 端点
    - 启动：`npm run server` / `npm run server:start`
    - 端点：crawl / convert / vector-search
-   - 目录：`worldsmith-server/`（含 python-services）
+   - 目录：`worldsea-server/`（含 python-services）
 3. **CLI serve**（HTTP+WS）— 通过 WS 连接 CLI Agent
-   - 启动：`worldsmith serve`
+   - 启动：`worldsea serve`
    - 端口：3100（默认）
    - 协议：HTTP（工具调用）+ WS（流式事件）
 
@@ -109,10 +109,10 @@ tauri:build → beforeBuildCommand: npm run build:web (WASM+vue-tsc+vite build) 
 ### 2.3 CLI 端（命令行应用）
 
 **入口**：
-- 二进制入口：`worldsmith-agent/bin/cli.mjs`
-- 主代码：`worldsmith-agent/src/cli/`
-- 启动：`worldsmith chat` / `worldsmith serve`
-- 配置：`worldsmith-agent/package.json` + `tsconfig.cli.json`
+- 二进制入口：`worldsea-agent/bin/cli.mjs`
+- 主代码：`worldsea-agent/src/cli/`
+- 启动：`worldsea chat` / `worldsea serve`
+- 配置：`worldsea-agent/package.json` + `tsconfig.cli.json`
 
 **CLI 子命令**：
 - `chat` — 交互式对话
@@ -120,7 +120,7 @@ tauri:build → beforeBuildCommand: npm run build:web (WASM+vue-tsc+vite build) 
 
 **CLI 内部结构**：
 ```
-worldsmith-agent/src/
+worldsea-agent/src/
 ├── cli/                        # CLI 专属
 │   ├── stores/                 # CLI 版 stores（替代 Vue Pinia）
 │   ├── cli-agent.ts            # CLI Agent 实现
@@ -189,9 +189,9 @@ worldsmith-agent/src/
 | `src/plugins/official/workflow/composables/useWorkflowEngineRun.ts` | Tauri invoke | 工作流引擎 |
 | `src/plugins/official/workflow/api/workflowApi.ts` | Tauri invoke | 工作流 API |
 
-### 3.2 `worldsmith-agent/` 职责混杂
+### 3.2 `worldsea-agent/` 职责混杂
 
-**问题**：`worldsmith-agent/` 既是 CLI 入口，又包含端无关的 Agent 核心逻辑。
+**问题**：`worldsea-agent/` 既是 CLI 入口，又包含端无关的 Agent 核心逻辑。
 
 **端无关部分**（应抽离到 `packages/agent-runtime`）：
 - `agent.ts` / `bridge.ts` / `bridge-types.ts`
@@ -216,7 +216,7 @@ worldsmith-agent/src/
 
 **重叠矩阵**：
 
-| 能力 | Tauri Rust 命令 | CLI 工具 | worldsmith-server |
+| 能力 | Tauri Rust 命令 | CLI 工具 | worldsea-server |
 |------|-----------------|----------|-------------------|
 | Shell 执行 | `shell_*` / `pty_*` | `shell_session_*` / `execute_command` | - |
 | 文件操作 | `fs_*` / `file_*` | `read_file` / `write_file` 等 | - |
@@ -248,8 +248,8 @@ worldsmith-agent/src/
 | Schema Seed | `schema_seed` | - | - |
 
 **重叠点**：
-1. **Shell/PTY**：Tauri Rust + CLI + worldsmith-server 三者都实现
-2. **爬虫/转换/向量搜索**：CLI 工具 + worldsmith-server 两者实现
+1. **Shell/PTY**：Tauri Rust + CLI + worldsea-server 三者都实现
+2. **爬虫/转换/向量搜索**：CLI 工具 + worldsea-server 两者实现
 3. **Agent**：Tauri Rust 命令 + CLI Agent 两者实现（前者调 Rust，后者调 TS）
 
 ## 4. 构建配置现状
@@ -259,8 +259,8 @@ worldsmith-agent/src/
 ```json
 {
   "dev": "vite",                                    // Web/Tauri 共用 Vite dev
-  "server": "cd worldsmith-server && npm run dev",  // worldsmith-server
-  "server:start": "cd worldsmith-server && npm run start",
+  "server": "cd worldsea-server && npm run dev",  // worldsea-server
+  "server:start": "cd worldsea-server && npm run start",
   "build:wasm": "...",                              // 构建 WASM
   "build:web": "build:wasm-all && vue-tsc -b && vite build",
   "build": "build:wasm-all && vue-tsc -b && vite build",
@@ -274,7 +274,7 @@ worldsmith-agent/src/
 ```yaml
 packages:
   - 'packages/*'
-  - 'worldsmith-agent'   # 注意：worldsmith-agent 作为 workspace 成员
+  - 'worldsea-agent'   # 注意：worldsea-agent 作为 workspace 成员
 ```
 
 ### 4.3 tauri.conf.json
@@ -300,8 +300,8 @@ packages:
 | 编号 | 技术债 | 影响范围 | 优先级 |
 |------|--------|----------|--------|
 | TD-01 | `src/` 被 Tauri+Web 共用，18 文件 import `@tauri-apps/api` | 前端 | P0 |
-| TD-02 | `worldsmith-agent/` 职责混杂（CLI 入口 + Agent 核心） | 全端 | P0 |
-| TD-03 | `worldsmith-server` 与 CLI serve 能力重叠 | Web/CLI | P1 |
+| TD-02 | `worldsea-agent/` 职责混杂（CLI 入口 + Agent 核心） | 全端 | P0 |
+| TD-03 | `worldsea-server` 与 CLI serve 能力重叠 | Web/CLI | P1 |
 | TD-04 | Tauri 命令与 CLI 工具在 shell/git/file 重叠 | Tauri/CLI | P2 |
 | TD-05 | `coreBackend.ts` 运行时检测 Tauri/WASM 三态 | Web/Tauri | P0 |
 | TD-06 | `useAgent.ts` TS/Rust 后端路由层 | 前端 | P0 |
@@ -312,8 +312,8 @@ packages:
 
 ## 6. 调研结论
 
-1. **三端分离的可行性高**：`worldsmith-agent/src/execution/` 已有端抽象层，`packages/` monorepo 基础设施完善
+1. **三端分离的可行性高**：`worldsea-agent/src/execution/` 已有端抽象层，`packages/` monorepo 基础设施完善
 2. **主要工作量在 `src/` 拆分**：18+ 文件耦合 Tauri API，需逐个迁移
-3. **后端整合可控**：worldsmith-server 能力可逐步迁移到 CLI serve
+3. **后端整合可控**：worldsea-server 能力可逐步迁移到 CLI serve
 4. **构建独立性需重新设计**：当前 Tauri 依赖 Web 构建，需改为 Tauri 独立 Vite 配置
-5. **共享代码层抽离是关键**：`worldsmith-agent/src/` 大部分代码端无关，抽离后三端均可复用
+5. **共享代码层抽离是关键**：`worldsea-agent/src/` 大部分代码端无关，抽离后三端均可复用

@@ -64,7 +64,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useAgentRegistryStore } from '../management/AgentRegistryStore'
 import type { ChatAgent } from '../types'
 import CreateAgentDialog from './CreateAgentDialog.vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 
 const props = defineProps<{
   visible: boolean

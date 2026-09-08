@@ -7,7 +7,7 @@
  * 详细why请见 docs/details/注释/tauri/components/TuiButton.md
  */
 import { computed } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 
 const props = withDefaults(
   defineProps<{

@@ -78,7 +78,7 @@ import { getAllGroupSessions, getGroupSession, getCasualGroupSession, deleteGrou
 import { deleteGroupParticipantSessions } from '../rust/RustGroupChatBackend'
 import type { GroupChatMode } from '../types'
 import CreateGroupDialog, { type AgentItem, type CreateGroupData } from './CreateGroupDialog.vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 
 defineProps<{}>()
 

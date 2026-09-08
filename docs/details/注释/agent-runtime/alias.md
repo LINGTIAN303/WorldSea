@@ -8,12 +8,12 @@
 # 别名系统 — 旧工具名到新工具名的映射
 
 对应 TS 版三张静态映射表：
-- `worldsmith-agent/src/tools/coding-agent-tools.ts` 的 `LEGACY_TO_CODING_MAP`
-- `worldsmith-agent/src/tools/algo-tools.ts` 的 `LEGACY_ALGO_MAP`
-- `worldsmith-agent/src/tools/plugin-backend-tools.ts` 的 `LEGACY_PLUGIN_MAP`
+- `worldsea-agent/src/tools/coding-agent-tools.ts` 的 `LEGACY_TO_CODING_MAP`
+- `worldsea-agent/src/tools/algo-tools.ts` 的 `LEGACY_ALGO_MAP`
+- `worldsea-agent/src/tools/plugin-backend-tools.ts` 的 `LEGACY_PLUGIN_MAP`
 
 ## 用途
-WorldSmith 历史版本中工具名多次迭代（如 `fs_read` → `read_file`），
+WorldSea 历史版本中工具名多次迭代（如 `fs_read` → `read_file`），
 旧 Agent 配置/技能元数据中仍引用旧名。别名系统在调用前透明映射，
 保证向后兼容。
 

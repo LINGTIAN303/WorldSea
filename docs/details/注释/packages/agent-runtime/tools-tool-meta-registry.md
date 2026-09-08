@@ -11,7 +11,7 @@
 为所有工具（含旧工具名）提供统一的元数据查询接口。
 
 数据源优先级（任务3 后续：LEGACY_TOOL_META 已淘汰）：
-1. 全局 ToolRegistry（@worldsmith/agent-core）—— 声明式首选源（含 meta.aliases）
+1. 全局 ToolRegistry（@worldsea/agent-core）—— 声明式首选源（含 meta.aliases）
 2. ALIAS_MAP / LEGACY_ALGO_MAP / LEGACY_PLUGIN_MAP —— 旧工具名别名解析
 3. 兜底：moderate 权限
 

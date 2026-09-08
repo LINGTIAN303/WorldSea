@@ -97,11 +97,11 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useSettingsStore, useTheme, useFontStore, type FontLayer } from '@worldsmith/entity-core'
-import { useFontPresets, useFontLibraryStore, type FontLibraryEntry, type FontVariantEntry } from '@worldsmith/font-kit'
-import { installFromWsfont, installFromRawFont, installFromZip } from '@worldsmith/font-kit'
+import { useSettingsStore, useTheme, useFontStore, type FontLayer } from '@worldsea/entity-core'
+import { useFontPresets, useFontLibraryStore, type FontLibraryEntry, type FontVariantEntry } from '@worldsea/font-kit'
+import { installFromWsfont, installFromRawFont, installFromZip } from '@worldsea/font-kit'
 import WsIcon from '../../WsIcon.vue'
-import { toastSuccess, CardDeck } from '@worldsmith/ui-kit'
+import { toastSuccess, CardDeck } from '@worldsea/ui-kit'
 import { matchKeywords, FONT_LAYERS, weightLabel, sourceLabel, formatSize } from '../utils'
 
 const props = defineProps<{ searchQuery?: string }>()

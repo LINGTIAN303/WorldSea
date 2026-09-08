@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { FontCategoryToken, FontWeightToken, LetterSpacingToken } from '@worldsmith/font-kit'
-import type { TextAnimationEffect } from '@worldsmith/font-kit'
+import type { FontCategoryToken, FontWeightToken, LetterSpacingToken } from '@worldsea/font-kit'
+import type { TextAnimationEffect } from '@worldsea/font-kit'
 
 export interface PersonaFontProfile {
   id: string
@@ -76,8 +76,8 @@ const BUILTIN_PROFILES: PersonaFontProfile[] = [
   },
 ]
 
-const STORAGE_KEY = 'worldsmith_persona_font_profile'
-const CUSTOM_PROFILES_KEY = 'worldsmith_persona_custom_profiles'
+const STORAGE_KEY = 'worldsea_persona_font_profile'
+const CUSTOM_PROFILES_KEY = 'worldsea_persona_custom_profiles'
 
 function loadProfileId(): string {
   try {

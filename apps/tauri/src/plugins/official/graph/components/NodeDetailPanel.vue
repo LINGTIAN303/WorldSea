@@ -18,7 +18,7 @@
 </template>
 
 <script setup lang="ts">
-import { type GraphNode } from '@worldsmith/ui-kit'
+import { type GraphNode } from '@worldsea/ui-kit'
 
 defineProps<{
   visible: boolean

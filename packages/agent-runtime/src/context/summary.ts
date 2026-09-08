@@ -6,7 +6,7 @@
  * 2. truncateMessages: 当消息数超过阈值时截断历史消息
  */
 
-import type { WorldSmithToolContext } from '../tools/types'
+import type { WorldSeaToolContext } from '../tools/types'
 
 /** 项目摘要数据结构 */
 export interface ProjectSummary {
@@ -22,7 +22,7 @@ export interface ProjectSummary {
  * 从工具上下文中读取项目数据并构建摘要
  * 统计实体总数、关系总数、文件总数、实体类型分布
  */
-export async function buildProjectSummary(ctx: WorldSmithToolContext): Promise<ProjectSummary> {
+export async function buildProjectSummary(ctx: WorldSeaToolContext): Promise<ProjectSummary> {
   const entities = await ctx.stores.entity.getAllEntities()
   const relations = await ctx.stores.relation.getAllRelations()
   const files = await ctx.stores.file.getAllFiles()

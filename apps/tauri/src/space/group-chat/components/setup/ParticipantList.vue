@@ -41,11 +41,11 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { getModelInfo } from '@worldsmith/agent-runtime'
+import { getModelInfo } from '@worldsea/agent-runtime'
 import { FallbackChainImpl } from '../../FallbackChain'
 import type { ModelHealthResult } from '../../types'
 import ModelFlyoutSelect from '../ModelFlyoutSelect.vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import { PARTICIPANT_COLOR_PALETTE, type ParticipantDraft } from './types'
 
 /**

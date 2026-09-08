@@ -7,7 +7,7 @@
  * 以本模块为权威桶，只暴露 active 桶给组件只读。
  */
 import { ref, computed, reactive } from 'vue'
-import type { ChatMode } from '@worldsmith/shared-composables/agent/useAgent'
+import type { ChatMode } from '@worldsea/shared-composables/agent/useAgent'
 import type { ExecTab, RightTab } from '@/space/stores/space-store'
 import type { ActivityLogEntry } from './useActivityLog'
 import type { OrchNode, OrchStatus, OrchTask } from './useOrchEvents'
@@ -47,8 +47,8 @@ export interface SessionViewState {
 
 const VALID_EXEC_TABS: ExecTab[] = ['trace', 'activity', 'router', 'tot', 'got', 'supervisor', 'multi', 'terminal', 'subagent']
 
-const STORAGE_KEY = 'worldsmith_agent_session_views'
-export const LAST_SESSION_KEY = 'worldsmith_agent_last_session'
+const STORAGE_KEY = 'worldsea_agent_session_views'
+export const LAST_SESSION_KEY = 'worldsea_agent_last_session'
 const MAX_SESSIONS = 30
 const MAX_ACTIVITY = 120
 const MAX_ORCH_NODES = 80

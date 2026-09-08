@@ -143,10 +143,10 @@
 <script setup lang="ts">
 import { ref, reactive, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import { useAgentProfileStore } from '@/stores/agentProfileStore'
-import { storeApiKey, getModelPresets, getModelInfo } from '@worldsmith/agent-runtime'
+import { storeApiKey, getModelPresets, getModelInfo } from '@worldsea/agent-runtime'
 import { getProviderIconUrl } from '@/assets/providerIcons'
 import type { LoadBalanceStrategy } from '@agent/group-chat/types'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 
 defineEmits<{ close: [] }>()
 

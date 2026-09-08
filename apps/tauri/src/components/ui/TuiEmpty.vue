@@ -4,7 +4,7 @@
  * 视觉语言与对话区空状态一致：bg-muted 圆角徽标 + accent 色弱化图标 + text-secondary 主文案 + text-muted 副文案。
  * 详细why请见 docs/details/注释/tauri/components/TuiEmpty.md
  */
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 
 withDefaults(
   defineProps<{

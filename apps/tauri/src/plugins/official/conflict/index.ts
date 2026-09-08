@@ -1,4 +1,4 @@
-import type { PluginAPIType } from '@worldsmith/entity-core'
+import type { PluginAPIType } from '@worldsea/entity-core'
 import ConflictView from './ConflictView.vue'
 
 export const manifest = {
@@ -6,7 +6,7 @@ export const manifest = {
   name: '冲突/战争',
   version: '2.0.0',
   description: '管理世界观中的战争、战役、冲突事件',
-  author: 'WorldSmith',
+  author: 'WorldSea',
   agentSkills: ['worldbuilding', 'roleplay'],
   agentCapabilities: [
     { action: 'create_entity', description: '创建冲突', params: ['name', 'description'] },

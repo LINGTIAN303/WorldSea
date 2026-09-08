@@ -1,5 +1,5 @@
 /**
- * @worldsmith/theme-kit - Icon Style Engine
+ * @worldsea/theme-kit - Icon Style Engine
  * 
  * 图标风格切换逻辑：
  * - 设置图标 CSS 变量（linecap/linejoin/stroke-width）

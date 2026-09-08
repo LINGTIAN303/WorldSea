@@ -44,10 +44,10 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
-import { useConfirm } from '@worldsmith/plugin-sdk'
-import type { ConfirmExtraAction } from '@worldsmith/ui-kit'
+import { useConfirm } from '@worldsea/plugin-sdk'
+import type { ConfirmExtraAction } from '@worldsea/ui-kit'
 import { useFocusTrap } from '@/composables/useFocusTrap'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import TuiButton from '@/components/ui/TuiButton.vue'
 
 const { state, doConfirm, doCancel, doNeutral } = useConfirm()

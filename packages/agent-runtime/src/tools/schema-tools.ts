@@ -1,7 +1,7 @@
 /** Schema 管理工具集：Tauri 后端管理实体类型 Schema 定义，详细见 docs/details/注释/packages/agent-runtime/tools-schema-tools.md */
 
 import type { ToolDefinition } from '../bridge-types'
-import type { ToolMeta } from '@worldsmith/agent-core'
+import type { ToolMeta } from '@worldsea/agent-core'
 
 /** 封装 Tauri invoke 调用，动态导入避免 Web 模式报错 */
 async function invokeTauri(command: string, args?: Record<string, unknown>): Promise<unknown> {

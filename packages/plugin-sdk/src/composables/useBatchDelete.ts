@@ -1,7 +1,7 @@
 import { ref } from 'vue'
-import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'
-import { useConfirm, toastSuccess, toastError, toastWarn } from '@worldsmith/ui-kit'
-import type { Entity } from '@worldsmith/entity-core'
+import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
+import { useConfirm, toastSuccess, toastError, toastWarn } from '@worldsea/ui-kit'
+import type { Entity } from '@worldsea/entity-core'
 
 export function useBatchDelete() {
   const selectedIds = ref<Set<string>>(new Set())

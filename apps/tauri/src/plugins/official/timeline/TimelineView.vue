@@ -80,12 +80,12 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'
-import type { Entity } from '@worldsmith/entity-core'
-import { CustomDropdown, EntityFormModal, CreateButton, type FormFieldDef, useDuplicateNameCheck, useShortcuts, useBatchDelete, useConfirm } from '@worldsmith/plugin-sdk'
-import { toastSuccess, toastWithUndo, useUndoRedo } from '@worldsmith/ui-kit'
+import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
+import type { Entity } from '@worldsea/entity-core'
+import { CustomDropdown, EntityFormModal, CreateButton, type FormFieldDef, useDuplicateNameCheck, useShortcuts, useBatchDelete, useConfirm } from '@worldsea/plugin-sdk'
+import { toastSuccess, toastWithUndo, useUndoRedo } from '@worldsea/ui-kit'
 import { useSettingsStore } from '@/stores/settingsStore'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 
 import TimelineChart from './components/TimelineChart.vue'
 import EventDetailPanel from './components/EventDetailPanel.vue'

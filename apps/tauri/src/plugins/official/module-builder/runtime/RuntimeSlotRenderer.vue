@@ -30,7 +30,7 @@
 
 <script setup lang="ts">
 import { computed, defineComponent, ref, onErrorCaptured } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import { getComponentType } from '../registry/componentTypeRegistry'
 import type { Slot, ComponentTypeId } from '../types/layoutSchema'
 import RuntimeSlotRenderer from './RuntimeSlotRenderer.vue'

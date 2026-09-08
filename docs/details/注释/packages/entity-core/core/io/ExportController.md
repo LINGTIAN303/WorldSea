@@ -9,7 +9,7 @@
 /**
  * ExportController — 统一导出调度器
  *
- * 遍历所有已注册的 Serializer，收集数据并组装为 WorldSmithPack。
+ * 遍历所有已注册的 Serializer，收集数据并组装为 WorldSeaPack。
  * 支持按 serializer id 选择性导出。
  *
  * Phase 8a 下沉改造：

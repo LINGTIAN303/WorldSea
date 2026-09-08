@@ -24,8 +24,8 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
-import type { TimelineBlock } from '@worldsmith/agent-runtime'
+import { WsIcon } from '@worldsea/ui-kit'
+import type { TimelineBlock } from '@worldsea/agent-runtime'
 
 defineProps<{ block: TimelineBlock }>()
 const expanded = ref(false)

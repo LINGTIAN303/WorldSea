@@ -10,7 +10,7 @@
 // Rust 原生菜单无法读取 Vue 状态，故前端在状态变化时调用命令，Rust 重建托盘菜单。
 
 import { invoke, listen, type UnlistenFn } from '../agent/composables/transport'
-import { isTauri, hasTauriInvoke } from '@worldsmith/entity-core/core'
+import { isTauri, hasTauriInvoke } from '@worldsea/entity-core/core'
 import { useProjectSwitcher } from './useProjectSwitcher'
 import { useUIStore } from '@/stores/uiStore'
 

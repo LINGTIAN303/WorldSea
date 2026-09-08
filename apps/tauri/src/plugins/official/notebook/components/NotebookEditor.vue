@@ -54,9 +54,9 @@
 
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
-import { useEntityStore, useRelationStore, useBidirectional } from '@worldsmith/entity-core'
-import type { Relation } from '@worldsmith/entity-core'
+import { WsIcon } from '@worldsea/ui-kit'
+import { useEntityStore, useRelationStore, useBidirectional } from '@worldsea/entity-core'
+import type { Relation } from '@worldsea/entity-core'
 import CodeCell from './CodeCell.vue'
 import ErrorBoundary from './ErrorBoundary.vue'
 import NotebookTipTapEditor from './NotebookTipTapEditor.vue'

@@ -29,7 +29,7 @@
  * - 由父组件控制显示位置与可见性
  * - 通过 emit 将动作委托回父组件执行
  */
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 
 defineProps<{
   show: boolean

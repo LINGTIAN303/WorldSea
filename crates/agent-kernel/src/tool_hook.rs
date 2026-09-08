@@ -1,7 +1,7 @@
 //! A6 工具生命周期钩子（PreToolUse / PostToolUse / OnError 护栏）
 //!
 //! 借鉴 OpenWorld 的 PreToolUse/PostToolUse/OnError 三阶段工具拦截，
-//! 适配 WorldSmith Rust AgentLoop。机制：
+//! 适配 WorldSea Rust AgentLoop。机制：
 //! - `on_pre_use`：工具执行前调用，可修改 args（返回 `Allow(new_args)`）或拒绝（`Deny`）。
 //!   多个钩子按注册顺序依次执行，后一个覆盖前一个的 args。
 //! - `on_post_use`：工具执行成功后调用，观察结果（不阻断）。

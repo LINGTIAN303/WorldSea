@@ -76,7 +76,7 @@ fn build_menu<R: Runtime>(app: &AppHandle<R>, state: &TrayState) -> tauri::Resul
     };
     let agent_status = MenuItem::with_id(app, "agent-status", status_label, false, None::<&str>)?;
 
-    let quit = MenuItem::with_id(app, "quit", "退出 WorldSmith", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "退出 WorldSea", true, None::<&str>)?;
     let sep1 = PredefinedMenuItem::separator(app)?;
     let sep2 = PredefinedMenuItem::separator(app)?;
 
@@ -105,7 +105,7 @@ pub fn build_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<TrayIcon<R>> 
         .expect("窗口默认图标缺失");
     TrayIconBuilder::<R>::with_id("main")
         .icon(icon)
-        .tooltip("WorldSmith — 世界观构建工具")
+        .tooltip("WorldSea — 世界观构建工具")
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_tray_icon_event(|tray, event| {

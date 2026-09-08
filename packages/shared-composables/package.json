@@ -1,5 +1,5 @@
 {
-  "name": "@worldsmith/shared-composables",
+  "name": "@worldsea/shared-composables",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -42,13 +42,13 @@
     "build": "tsc"
   },
   "dependencies": {
-    "@worldsmith/agent-core": "link:../agent-core",
-    "@worldsmith/agent-runtime": "link:../agent-runtime",
-    "@worldsmith/entity-core": "link:../entity-core",
-    "@worldsmith/motion-kit": "link:../motion-kit",
-    "@worldsmith/perf-kit": "link:../perf-kit",
-    "@worldsmith/plugin-sdk": "link:../plugin-sdk",
-    "@worldsmith/ui-kit": "link:../ui-kit",
+    "@worldsea/agent-core": "link:../agent-core",
+    "@worldsea/agent-runtime": "link:../agent-runtime",
+    "@worldsea/entity-core": "link:../entity-core",
+    "@worldsea/motion-kit": "link:../motion-kit",
+    "@worldsea/perf-kit": "link:../perf-kit",
+    "@worldsea/plugin-sdk": "link:../plugin-sdk",
+    "@worldsea/ui-kit": "link:../ui-kit",
     "dexie": "^4.4.2"
   },
   "peerDependencies": {

@@ -1,4 +1,4 @@
-import type { PluginAPIType } from '@worldsmith/entity-core'
+import type { PluginAPIType } from '@worldsea/entity-core'
 import InspirationView from './InspirationView.vue'
 
 export const manifest = {
@@ -6,7 +6,7 @@ export const manifest = {
   name: '灵感/素材库',
   version: '2.0.0',
   description: '收集创作灵感、参考图、摘抄、链接等素材',
-  author: 'WorldSmith',
+  author: 'WorldSea',
   agentSkills: [],
   agentCapabilities: [
     { action: 'get_inspiration', description: '获取灵感素材' },

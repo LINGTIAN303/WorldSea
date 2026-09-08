@@ -22,8 +22,8 @@
 ## 功能退化说明
 `CoreBackend` 类已删除。以下功能受影响：
 - 群聊（useGroupChat.ts 直接 `new CoreBackend(...)`）→ 运行时抛错
-- Smart Fill（useSmartFillChat.ts 通过 createWorldSmithAgent 间接依赖）→ 运行时抛错
-- Agent 私聊（AgentPrivateChat.vue 通过 createWorldSmithAgent）→ 运行时抛错
+- Smart Fill（useSmartFillChat.ts 通过 createWorldSeaAgent 间接依赖）→ 运行时抛错
+- Agent 私聊（AgentPrivateChat.vue 通过 createWorldSeaAgent）→ 运行时抛错
 
 这是"接受功能退化，直接删除"决策的预期行为。
 后续可在 Rust 端实现多 Agent 实例管理，恢复群聊等能力。

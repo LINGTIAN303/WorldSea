@@ -164,14 +164,14 @@ function processChanges() {
   for (const path of changes) {
     const normalizedPath = path.replace(/\\/g, '/')
     // kv_store.json / files_meta.json 由 Rust 端过滤，此处兜底跳过
-    if (normalizedPath.endsWith('/.worldsmith/kv_store.json')) continue
-    if (normalizedPath.endsWith('/.worldsmith/files_meta.json')) continue
+    if (normalizedPath.endsWith('/.worldsea/kv_store.json')) continue
+    if (normalizedPath.endsWith('/.worldsea/files_meta.json')) continue
     if (normalizedPath.startsWith(`${dir}/entities/`)) {
       entitiesChanged = true
       entityPaths.push(path)
     } else if (normalizedPath.startsWith(`${dir}/relations/`)) {
       relationsChanged = true
-    } else if (normalizedPath.startsWith(`${dir}/.worldsmith/files_content/`)) {
+    } else if (normalizedPath.startsWith(`${dir}/.worldsea/files_content/`)) {
       // 监听文件内容变更，支持外部编辑触发 fileStore reload
       filesChanged = true
     }

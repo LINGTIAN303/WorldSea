@@ -47,8 +47,8 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
-import { usePluginStore } from '@worldsmith/entity-core'
+import { WsIcon } from '@worldsea/ui-kit'
+import { usePluginStore } from '@worldsea/entity-core'
 
 const pluginStore = usePluginStore()
 const showPicker = ref(false)

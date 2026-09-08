@@ -62,7 +62,7 @@
 </template>
 
 <script setup lang="ts">
-import type { AgentStreamItem } from '@worldsmith/shared-composables/agent/useAgent'
+import type { AgentStreamItem } from '@worldsea/shared-composables/agent/useAgent'
 import type { AgentMessage, BlockActionEvent } from '../../bubbles/types'
 import UserRow from './UserRow.vue'
 import AssistantRow from './AssistantRow.vue'

@@ -98,10 +98,10 @@
 <script setup lang="ts">
 import { useDialog, useUndoRedo, useResizable } from '../composables'
 import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
-import { useEntityStore, useRelationStore, entitySchemaRegistry } from '@worldsmith/entity-core'
-import { getEventBus } from '@worldsmith/entity-core'
-import { WsIcon, useModalShortcuts } from '@worldsmith/ui-kit'
-import type { Entity } from '@worldsmith/entity-core'
+import { useEntityStore, useRelationStore, entitySchemaRegistry } from '@worldsea/entity-core'
+import { getEventBus } from '@worldsea/entity-core'
+import { WsIcon, useModalShortcuts } from '@worldsea/ui-kit'
+import type { Entity } from '@worldsea/entity-core'
 
 const modalResizable = useResizable({ panelId: 'modal-batch-edit', defaultWidth: 700, minWidth: 400, side: 'right' })
 

@@ -1,9 +1,9 @@
 import type { ToolDefinition } from '../bridge-types'
-import type { ToolMeta } from '@worldsmith/agent-core'
+import type { ToolMeta } from '@worldsea/agent-core'
 import type { IToolContext } from '../toolbus/types'
 import { isTauri, createExecutionAdapter, getWsUrl, resetExecutionAdapter } from '../execution'
 
-/** 终端启动器工具集：检测运行模式 + 自动启动 worldsmith-server，详细见 docs/details/注释/packages/agent-runtime/tools-terminal-launcher-tools.md */
+/** 终端启动器工具集：检测运行模式 + 自动启动 worldsea-server，详细见 docs/details/注释/packages/agent-runtime/tools-terminal-launcher-tools.md */
 
 const SERVER_HEALTH_TIMEOUT = 3000
 const SERVER_START_WAIT = 5000
@@ -34,8 +34,8 @@ async function trySpawnServer(projectRoot: string | undefined): Promise<boolean>
   try {
     const { spawn } = await import('child_process')
     const serverCmd = projectRoot
-      ? `cd "${projectRoot}/worldsmith-server" && npm run start`
-      : 'cd worldsmith-server && npm run start'
+      ? `cd "${projectRoot}/worldsea-server" && npm run start`
+      : 'cd worldsea-server && npm run start'
     const child = spawn(serverCmd, [], {
       shell: true,
       detached: true,
@@ -78,7 +78,7 @@ const detectTerminalModeTool: ToolDefinition = {
     } else if (serverHealthy) {
       hint = 'WebSocket 连接未建立，但 server 健康检查通过。请调用 start_server 重建连接'
     } else {
-      hint = '终端不可用，worldsmith-server 未运行。请调用 start_server 启动服务'
+      hint = '终端不可用，worldsea-server 未运行。请调用 start_server 启动服务'
     }
 
     return JSON.stringify({
@@ -89,7 +89,7 @@ const detectTerminalModeTool: ToolDefinition = {
       wsUrl,
       description: tauriMode
         ? '当前运行在 Tauri 桌面环境，终端通过本地 PTY 直接调用'
-        : '当前运行在 Web 浏览器环境，终端通过 WebSocket 连接 worldsmith-server 代理调用',
+        : '当前运行在 Web 浏览器环境，终端通过 WebSocket 连接 worldsea-server 代理调用',
       hint,
     })
   },
@@ -97,11 +97,11 @@ const detectTerminalModeTool: ToolDefinition = {
 
 const startServerTool: ToolDefinition = {
   name: 'start_server',
-  description: '启动 worldsmith-server 服务。Web 应用模式下会自动检测并安装依赖（npm install），然后通过 Vite 开发服务器拉起进程。启动后自动重建 WebSocket 连接。如果服务已在运行则跳过启动。首次启动可能需要较长时间（安装依赖 + 编译 node-pty）。',
+  description: '启动 worldsea-server 服务。Web 应用模式下会自动检测并安装依赖（npm install），然后通过 Vite 开发服务器拉起进程。启动后自动重建 WebSocket 连接。如果服务已在运行则跳过启动。首次启动可能需要较长时间（安装依赖 + 编译 node-pty）。',
   parameters: {
     project_root: {
       type: 'string',
-      description: '项目根目录路径（worldsmith-server 所在目录的父目录），用于定位 server 启动脚本',
+      description: '项目根目录路径（worldsea-server 所在目录的父目录），用于定位 server 启动脚本',
     },
   },
   meta: {
@@ -121,7 +121,7 @@ const startServerTool: ToolDefinition = {
         return JSON.stringify({
           ok: true,
           mode: isTauri() ? 'tauri' : 'web',
-          message: 'worldsmith-server 已在运行中',
+          message: 'worldsea-server 已在运行中',
           wsUrl,
           connected: tried,
           hint: tried
@@ -132,7 +132,7 @@ const startServerTool: ToolDefinition = {
       return JSON.stringify({
         ok: true,
         mode: isTauri() ? 'tauri' : 'web',
-        message: 'worldsmith-server 已在运行中',
+        message: 'worldsea-server 已在运行中',
         wsUrl,
         connected: true,
         hint: '服务正常且 WebSocket 已连接，可以直接调用 launch_terminal',
@@ -149,7 +149,7 @@ const startServerTool: ToolDefinition = {
         return JSON.stringify({
           ok: true,
           mode: 'tauri',
-          message: 'worldsmith-server 已通过本地进程启动',
+          message: 'worldsea-server 已通过本地进程启动',
           wsUrl,
           connected: adapter.isAvailable(),
         })
@@ -158,8 +158,8 @@ const startServerTool: ToolDefinition = {
       return JSON.stringify({
         ok: false,
         mode: 'tauri',
-        error: '无法启动 worldsmith-server',
-        hint: '请手动执行: cd worldsmith-server && npm run dev',
+        error: '无法启动 worldsea-server',
+        hint: '请手动执行: cd worldsea-server && npm run dev',
       })
     }
 
@@ -200,8 +200,8 @@ const startServerTool: ToolDefinition = {
           ok: true,
           mode: 'web',
           message: data.status === 'already_running'
-            ? 'worldsmith-server 已在运行中'
-            : 'worldsmith-server 已启动',
+            ? 'worldsea-server 已在运行中'
+            : 'worldsea-server 已启动',
           wsUrl,
           connected,
           hint: connected
@@ -219,11 +219,11 @@ const startServerTool: ToolDefinition = {
         mode: 'web',
         error: data.error || 'Vite 代理启动失败',
         status: data.status,
-        hint: data.hint || 'Vite 开发服务器无法启动 worldsmith-server，请手动启动',
+        hint: data.hint || 'Vite 开发服务器无法启动 worldsea-server，请手动启动',
         logs: data.logs,
         manualSteps: {
           step1: '打开一个新的终端窗口',
-          step2: `cd ${args.project_root || '<项目根目录>'}\\worldsmith-server`,
+          step2: `cd ${args.project_root || '<项目根目录>'}\\worldsea-server`,
           step3: 'npm install',
           step4: 'npm run dev',
         },
@@ -234,10 +234,10 @@ const startServerTool: ToolDefinition = {
         ok: false,
         mode: 'web',
         error: `Vite 代理调用失败: ${err instanceof Error ? err.message : String(err)}`,
-        hint: 'Vite 开发服务器可能未运行，或 /api/launch-server 端点不可用。请手动启动 worldsmith-server',
+        hint: 'Vite 开发服务器可能未运行，或 /api/launch-server 端点不可用。请手动启动 worldsea-server',
         manualSteps: {
           step1: '打开一个新的终端窗口',
-          step2: `cd ${args.project_root || '<项目根目录>'}\\worldsmith-server`,
+          step2: `cd ${args.project_root || '<项目根目录>'}\\worldsea-server`,
           step3: 'npm install',
           step4: 'npm run dev',
         },
@@ -298,7 +298,7 @@ const launchTerminalTool: ToolDefinition = {
           ok: false,
           error: actualMode === 'tauri'
             ? 'Tauri 桌面模式终端不可用，请检查桌面环境配置'
-            : 'Web 模式终端不可用，请先调用 start_server 启动 worldsmith-server',
+            : 'Web 模式终端不可用，请先调用 start_server 启动 worldsea-server',
           mode: actualMode,
         })
       }
@@ -381,7 +381,7 @@ const launchTerminalScriptTool: ToolDefinition = {
           ok: false,
           error: actualMode === 'tauri'
             ? 'Tauri 桌面模式终端不可用，请检查桌面环境配置'
-            : 'Web 模式终端不可用，请先调用 start_server 启动 worldsmith-server',
+            : 'Web 模式终端不可用，请先调用 start_server 启动 worldsea-server',
           mode: actualMode,
         })
       }

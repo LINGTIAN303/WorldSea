@@ -5,7 +5,7 @@
 
 ## 注释块 1（原文件第 1-10 行）
 
-# @worldsmith/theme-kit - Motion Override Engine
+# @worldsea/theme-kit - Motion Override Engine
 
 动画风格覆盖逻辑：
 

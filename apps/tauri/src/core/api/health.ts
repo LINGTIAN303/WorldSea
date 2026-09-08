@@ -4,7 +4,7 @@ import type {
   StorageHealthReport,
   ManifestValidationResult,
   PluginHealthReport,
-} from '@worldsmith/core-api-types'
+} from '@worldsea/core-api-types'
 export type {
   StorageHealthReport,
   ManifestValidationResult,

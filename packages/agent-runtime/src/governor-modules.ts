@@ -1,5 +1,5 @@
 /** Agent 包模块描述符：声明 toolbus/skills/tools 为 governor 模块并分层激活，详细见 docs/details/注释/packages/agent-runtime/governor-modules.md */
-import type { ModuleDescriptor } from '@worldsmith/governor-core/types'
+import type { ModuleDescriptor } from '@worldsea/governor-core/types'
 
 /* ════════════════════════════════════════
    critical 模块：基础设施

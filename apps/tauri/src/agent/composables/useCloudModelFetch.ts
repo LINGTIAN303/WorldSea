@@ -8,7 +8,7 @@ import {
   getLastModelFetchInfo,
   loadApiKey,
   type ModelFetchInfo,
-} from '@worldsmith/agent-runtime'
+} from '@worldsea/agent-runtime'
 import { useSettingsStore } from '../../stores/settingsStore'
 
 export function useCloudModelFetch() {

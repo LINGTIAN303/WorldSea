@@ -405,7 +405,7 @@ mod tests {
     /// MCP 真实服务器闭环：连接 → 工具发现 → 快照注入 → 工具调用
     ///
     /// 运行方式：
-    ///   `cargo test -p worldsmith-tauri-app --lib -- --ignored mcp_e2e`
+    ///   `cargo test -p worldsea-tauri-app --lib -- --ignored mcp_e2e`
     /// 前置：node 在 PATH；本地服务器由本测试自动 spawn（node + 官方 SDK）。
     #[tokio::test]
     #[ignore = "需要 node + 官方 MCP SDK 与本地服务器，按需显式运行"]

@@ -1,4 +1,4 @@
-import type { PluginAPIType } from '@worldsmith/entity-core'
+import type { PluginAPIType } from '@worldsea/entity-core'
 import OutlineView from './OutlineView.vue'
 
 export const manifest = {
@@ -6,7 +6,7 @@ export const manifest = {
   name: '大纲',
   version: '2.0.0',
   description: '大纲管理与章节规划',
-  author: 'WorldSmith',
+  author: 'WorldSea',
   agentSkills: ['writing'],
   agentCapabilities: [
     { action: 'create_entity', description: '创建大纲节点', params: ['title'] },

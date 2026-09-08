@@ -29,7 +29,7 @@
 
 <script setup lang="ts">
 import { computed, inject } from 'vue'
-import { WsEmpty } from '@worldsmith/ui-kit'
+import { WsEmpty } from '@worldsea/ui-kit'
 import type { ModuleRuntimeContext } from '../ModuleRuntimeContext'
 
 const props = defineProps<{ config: Record<string, unknown>; componentId: string }>()

@@ -64,7 +64,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import { workflowListRuns, workflowGetRun, type RunRecord } from '../api/workflowApi'
 
 const runs = ref<RunRecord[]>([])

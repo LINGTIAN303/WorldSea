@@ -10,7 +10,7 @@ export interface SavedPersona {
   savedAt: string
 }
 
-const STORAGE_KEY = 'worldsmith_saved_personas'
+const STORAGE_KEY = 'worldsea_saved_personas'
 
 function loadPersonas(): SavedPersona[] {
   try {

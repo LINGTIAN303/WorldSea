@@ -113,8 +113,8 @@
 
 <script setup lang="ts">
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
-import { WsEmpty } from '@worldsmith/ui-kit'
-import type { Entity } from '@worldsmith/entity-core'
+import { WsEmpty } from '@worldsea/ui-kit'
+import type { Entity } from '@worldsea/entity-core'
 import type { ParsedDate, EraInfo } from '../composables/useDateParser'
 import type { TreeNode as TreeNodeType } from '../composables/useEventTree'
 import { useTimelineScale } from '../composables/useTimelineScale'
@@ -150,7 +150,7 @@ const props = defineProps<{
     isDragging: { value: boolean }
     dragTarget: { value: string | null }
   }
-  relations: { value: import('@worldsmith/entity-core').Relation[] }
+  relations: { value: import('@worldsea/entity-core').Relation[] }
   entityMap: { value: Map<string, Entity> }
   groupMode: string
 }>()

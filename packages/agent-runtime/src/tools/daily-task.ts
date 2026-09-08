@@ -7,7 +7,7 @@
  */
 
 import type { ToolDefinition } from '../bridge-types'
-import type { ToolMeta } from '@worldsmith/agent-core'
+import type { ToolMeta } from '@worldsea/agent-core'
 
 /** daily_report — 生成项目每日统计报告 */
 export const dailyReportTool: ToolDefinition = {

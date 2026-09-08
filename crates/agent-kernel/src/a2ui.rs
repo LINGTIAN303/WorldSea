@@ -92,7 +92,7 @@ pub struct A2UIMessage {
 ///
 /// # 字段
 /// - `surface_id`：画布唯一标识（如 "entity-card-1"、"retrofit-xxx"）
-/// - `catalog_id`：组件目录 ID（默认 "https://worldsmith.app/catalog/v1"）
+/// - `catalog_id`：组件目录 ID（默认 "https://worldsea.app/catalog/v1"）
 /// - `theme`：主题配置（可选，前端按目录默认主题渲染）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -345,9 +345,9 @@ mod tests {
     }
 
     #[test]
-    fn message_should_be_backward_compatible_with_worldsmith_core() {
-        // 确保字段命名与 worldsmith-core/src/retrofit/a2ui.rs 一致
-        // （worldsmith-core 缺少 delete_surface，但其他字段名相同）
+    fn message_should_be_backward_compatible_with_worldsea_core() {
+        // 确保字段命名与 worldsea-core/src/retrofit/a2ui.rs 一致
+        // （worldsea-core 缺少 delete_surface，但其他字段名相同）
         let msg = A2UIMessage {
             version: "v0.9".to_string(),
             create_surface: Some(A2UICreateSurface {
@@ -360,7 +360,7 @@ mod tests {
             delete_surface: None,
         };
         let json = serde_json::to_string(&msg).unwrap();
-        // 与 worldsmith-core 序列化结果对比
+        // 与 worldsea-core 序列化结果对比
         assert!(json.contains("\"surfaceId\":\"s1\""));
         assert!(json.contains("\"catalogId\":\"c1\""));
     }

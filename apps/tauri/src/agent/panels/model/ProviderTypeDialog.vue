@@ -158,7 +158,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { WsIcon, toastInfo } from '@worldsmith/ui-kit'
+import { WsIcon, toastInfo } from '@worldsea/ui-kit'
 import TuiSelect from '../../../components/ui/TuiSelect.vue'
 import { useSettingsStore } from '@/stores/settingsStore'
 import SessionWindowForm, { type SessionWindow } from './SessionWindowForm.vue'
@@ -168,7 +168,7 @@ import {
   getCloudProviderViews, CATEGORY_LABELS, CATEGORY_ORDER,
   getAvailableModels, type ProviderCategory,
 } from './model-classify'
-import { modelSupportsVision, buildModelsEndpoint } from '@worldsmith/agent-runtime'
+import { modelSupportsVision, buildModelsEndpoint } from '@worldsea/agent-runtime'
 
 const props = withDefaults(defineProps<{
   mode: 'cloud' | 'local' | 'custom'

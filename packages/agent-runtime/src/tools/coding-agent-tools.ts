@@ -1,7 +1,7 @@
 /** 编码 Agent 标准工具集：对齐主流编码 Agent 工具接口，详细见 docs/details/注释/packages/agent-runtime/tools-coding-agent-tools.md */
 
 import type { ToolDefinition } from '../bridge-types'
-import type { ToolMeta } from '@worldsmith/agent-core'
+import type { ToolMeta } from '@worldsea/agent-core'
 import type { IToolContext } from '../toolbus/types'
 import { createExecutionAdapter, isTauri } from '../execution'
 // 任务29/M2：路径边界契约收敛到共享模块（kernel 级 resolver + E1 写保护），本文件不再本地实现
@@ -107,7 +107,7 @@ const writeFileTool: ToolDefinition = {
   } satisfies ToolMeta,
   execute: async (args, ctx) => {
     // 任务29/M2 边界：写类。无 workdir（旧会话/未绑定）→ 未加固，按计划放行（行为不变）；
-    //               有 workdir 时越界 + E1 受保护目录（entities/.worldsmith）由 resolveWriteWithinWorkspace 拒绝
+    //               有 workdir 时越界 + E1 受保护目录（entities/.worldsea）由 resolveWriteWithinWorkspace 拒绝
     const resolved = resolveWriteWithinWorkspace(ctx, String(args.path))
     if (!resolved.ok) return JSON.stringify({ ok: false, error: resolved.reason, path: String(args.path) })
     const path = resolved.path
@@ -374,7 +374,7 @@ const executeCommandTool: ToolDefinition = {
     if (!adapter.isAvailable()) {
       const connected = await adapter.tryConnect()
       if (!connected) {
-        return '终端功能当前不可用。Tauri 桌面模式请确认环境正常，Web 模式请启动 worldsmith-server 服务。'
+        return '终端功能当前不可用。Tauri 桌面模式请确认环境正常，Web 模式请启动 worldsea-server 服务。'
       }
     }
 

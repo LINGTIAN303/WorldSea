@@ -16,6 +16,6 @@
  * 导入路径调整：
  *   - ./events → ./events（包内相对）
  *   - ./formula → ./formula（包内相对）
- *   - @worldsmith/entity-core → ../stores + ./EntitySchema（包内相对）
+ *   - @worldsea/entity-core → ../stores + ./EntitySchema（包内相对）
  */
 ````

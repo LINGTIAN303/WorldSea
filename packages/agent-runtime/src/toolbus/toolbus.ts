@@ -4,7 +4,7 @@ import { InternalChainRegistry } from './internal-registry'
 import { findSkillById, resolveToolNames } from '../skills/registry'
 import { resolvePluginToolNames } from '../skills/plugin-bridge'
 import { SKILL_META_TOOLS } from '../skills/meta-tools'
-import { getGlobalToolRegistry, getGlobalSkillRegistry } from '@worldsmith/agent-core'
+import { getGlobalToolRegistry, getGlobalSkillRegistry } from '@worldsea/agent-core'
 
 export interface ToolBus {
   register(tool: ToolDefinition): void

@@ -4,7 +4,7 @@ import type {
   CoreReferenceCheckResult,
   CoreMigrationResult,
   CoreDiagnosticSummary,
-} from '@worldsmith/core-api-types'
+} from '@worldsea/core-api-types'
 import { backendCall } from './runtime'
 
 export async function validateEntity(

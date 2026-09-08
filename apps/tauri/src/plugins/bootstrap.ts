@@ -1,6 +1,6 @@
 // 轻量插件启动装配（Phase C 迁移：替代 web governor 编排）
 import { pluginManager } from './PluginManager'
-import { usePluginStore, pluginAPI } from '@worldsmith/entity-core'
+import { usePluginStore, pluginAPI } from '@worldsea/entity-core'
 import { useUIStore } from '../stores/uiStore'
 
 /** 已迁移插件（第一批：characters/regions/concepts/items；第二批：timeline/organizations/culture/conflict/inspiration/apparel/outline/manuscript/drawing/notebook；第三批：WASM 布局类 13 个） */

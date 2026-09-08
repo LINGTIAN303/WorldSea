@@ -49,7 +49,7 @@
         @provider-change="onProviderChange"
         @card-change="(i) => emit('card-change', i)"
       />
-      <!-- H5 八文件体系（2026-08-30 拍板）：规则卡片面板——八文件统一编辑入口（WORLDSMITH 只读/MEMORY 说明卡） -->
+      <!-- H5 八文件体系（2026-08-30 拍板）：规则卡片面板——八文件统一编辑入口（WORLDSEA 只读/MEMORY 说明卡） -->
       <RulesPanel :search-query="searchQuery" />
     </div>
   </div>
@@ -57,13 +57,13 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import { useAgent } from '@/agent/composables/useAgent'
 import { useSettingsStore } from '@/stores/settingsStore'
-import { useMcpConnections } from '@worldsmith/shared-composables/agent/useMcpConnections'
+import { useMcpConnections } from '@worldsea/shared-composables/agent/useMcpConnections'
 import { toastError } from '@/composables/useToast'
 import { getAllSkills, toggleSkill, storeApiKey, loadApiKey, removeApiKey } from '@agent/index'
-import { getModelInfo, calculateCost, getThinkingLevels } from '@worldsmith/agent-runtime'
+import { getModelInfo, calculateCost, getThinkingLevels } from '@worldsea/agent-runtime'
 import AgentSettingsPanel from '@/agent/AgentSettingsPanel.vue'
 import RulesPanel from './RulesPanel.vue'
 import type { ThinkingLevel, MCPConnectionConfig, SkillMeta } from '@agent/index'

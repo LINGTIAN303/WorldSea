@@ -1,5 +1,5 @@
 import { computed } from 'vue'
-import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'
+import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
 
 export interface LangNode {
   id: string

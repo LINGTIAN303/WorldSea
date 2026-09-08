@@ -45,8 +45,8 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
-import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'
-import { useConfirm, useShortcuts } from '@worldsmith/ui-kit'
+import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
+import { useConfirm, useShortcuts } from '@worldsea/ui-kit'
 import MapToolbar from './map/MapToolbar.vue'
 import MapTooltip from './map/MapTooltip.vue'
 import MapContextMenu from './map/MapContextMenu.vue'

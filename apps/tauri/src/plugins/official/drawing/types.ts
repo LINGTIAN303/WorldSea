@@ -1,4 +1,4 @@
-import type { Entity } from '@worldsmith/entity-core'
+import type { Entity } from '@worldsea/entity-core'
 
 /** 画板实体 */
 export interface DrawingEntity extends Entity {

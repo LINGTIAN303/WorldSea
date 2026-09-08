@@ -27,7 +27,7 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import { useCodeSandbox, type CodeLanguage } from '../composables/useCodeSandbox'
 
 const props = defineProps<{ code: string; language: string }>()

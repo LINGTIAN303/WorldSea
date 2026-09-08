@@ -59,8 +59,8 @@ import AgentMessageList from '@/agent/AgentMessageList.vue'
 import { useAgent } from '@/agent/composables/useAgent'
 import { useSpaceStore } from '../stores/space-store'
 import { useSessionViewState } from '@/agent/composables/useSessionViewState'
-import { useFileStore } from '@worldsmith/entity-core'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { useFileStore } from '@worldsea/entity-core'
+import { WsIcon } from '@worldsea/ui-kit'
 import type { ImageAttachment, FileAttachment } from '@agent/index'
 
 const props = defineProps<{

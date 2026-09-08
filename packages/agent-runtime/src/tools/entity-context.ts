@@ -1,7 +1,7 @@
 /** 实体上下文聚合工具：七种 scope 粒度一站式上下文获取，详细见 docs/details/注释/packages/agent-runtime/tools-entity-context.md */
 
 import type { ToolDefinition } from '../bridge-types'
-import type { ToolMeta } from '@worldsmith/agent-core'
+import type { ToolMeta } from '@worldsea/agent-core'
 import { semanticSearchEntities, isEmbeddingReady } from '../embedding/index'
 
 /** 关系遍历深度上限 */

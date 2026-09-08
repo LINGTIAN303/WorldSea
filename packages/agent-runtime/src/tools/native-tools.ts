@@ -1,7 +1,7 @@
 /** 桌面原生能力工具集：Tauri 插件提供原生能力，Web 降级，详细见 docs/details/注释/packages/agent-runtime/tools-native-tools.md */
 
 import type { ToolDefinition } from '../bridge-types'
-import type { ToolMeta } from '@worldsmith/agent-core'
+import type { ToolMeta } from '@worldsea/agent-core'
 import { isTauri } from '../execution'
 
 async function getTauriInvoke() {

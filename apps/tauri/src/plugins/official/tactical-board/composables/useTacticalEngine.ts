@@ -75,15 +75,15 @@ export interface TacticalEngineAPI {
   drain_events(): GameEvent[]
 }
 
-let wasmModule: typeof import('@worldsmith/tactical-engine') | null = null
+let wasmModule: typeof import('@worldsea/tactical-engine') | null = null
 let wasmLoadAttempted = false
 
-async function tryLoadWasm(): Promise<typeof import('@worldsmith/tactical-engine') | null> {
+async function tryLoadWasm(): Promise<typeof import('@worldsea/tactical-engine') | null> {
   if (wasmModule) return wasmModule
   if (wasmLoadAttempted) return null
   wasmLoadAttempted = true
   try {
-    wasmModule = await import('@worldsmith/tactical-engine')
+    wasmModule = await import('@worldsea/tactical-engine')
     console.log('[TacticalEngine] WASM 引擎加载成功')
     return wasmModule
   } catch (e) {

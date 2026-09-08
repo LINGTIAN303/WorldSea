@@ -1,7 +1,7 @@
 /** 输出块工具集：13 个交互式输出工具渲染 UI 组件，详细见 docs/details/注释/packages/agent-runtime/tools-output-tools.md */
 
 import type { ToolDefinition } from '../bridge-types'
-import type { ToolMeta } from '@worldsmith/agent-core'
+import type { ToolMeta } from '@worldsea/agent-core'
 import type { TableBlock, ChoiceBlock, CodeBlockData, EntityCardBlock, AlertBlock, StatBlock, ListBlock, ProgressBlock, ComparisonBlock, TimelineBlock, ImageBlock, AccordionBlock, ManuscriptBlock } from '../bridge-types'
 
 /** 全局 Block ID 计数器，确保每个 block 的 ID 全局唯一 */

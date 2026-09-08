@@ -23,7 +23,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { GroupMember } from '../types'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 
 const props = defineProps<{ member: GroupMember; anchorRect?: DOMRect | null }>()
 defineEmits<{ close: []; privateChat: [memberId: string]; setAdmin: [memberId: string]; mute: [memberId: string]; kick: [memberId: string] }>()

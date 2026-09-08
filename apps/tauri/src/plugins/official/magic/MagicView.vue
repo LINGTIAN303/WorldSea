@@ -16,10 +16,10 @@
 </template>
 <script setup lang="ts">
 import { ref } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
-import { SchemaRenderer, CustomDropdown, type RelationTabDef } from '@worldsmith/plugin-sdk'
+import { WsIcon } from '@worldsea/ui-kit'
+import { SchemaRenderer, CustomDropdown, type RelationTabDef } from '@worldsea/plugin-sdk'
 import SkillTreeView from './SkillTreeView.vue'
-import type { Entity } from '@worldsmith/entity-core'
+import type { Entity } from '@worldsea/entity-core'
 import { useAgentPluginBridge } from '@/composables/useAgentPluginBridge'
 import { schemaGetEntityType } from '@/core/coreBackend'
 

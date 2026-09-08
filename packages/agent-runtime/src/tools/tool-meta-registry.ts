@@ -1,7 +1,7 @@
 /** 工具元数据注册中心：统一查询接口（全局注册表 + 别名解析），详细见 docs/details/注释/packages/agent-runtime/tools-tool-meta-registry.md */
 
-import type { ToolMeta } from '@worldsmith/agent-core'
-import { getGlobalToolRegistry } from '@worldsmith/agent-core'
+import type { ToolMeta } from '@worldsea/agent-core'
+import { getGlobalToolRegistry } from '@worldsea/agent-core'
 import type { ToolDefinition } from '../bridge-types'
 import { LEGACY_ALGO_MAP } from './algo-tools'
 import { LEGACY_PLUGIN_MAP } from './plugin-backend-tools'
@@ -20,7 +20,7 @@ export function initToolMetaRegistry(tools: ToolDefinition[]): void {
   const registry = getGlobalToolRegistry()
   for (const tool of tools) {
     if (tool.meta) {
-      registry.register(tool as import('@worldsmith/agent-core').ToolDefinition)
+      registry.register(tool as import('@worldsea/agent-core').ToolDefinition)
     }
   }
 }

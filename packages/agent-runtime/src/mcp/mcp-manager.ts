@@ -133,7 +133,7 @@ class MCPHttpTransport {
       params: {
         protocolVersion: '2024-11-05',
         capabilities: {},
-        clientInfo: { name: 'worldsmith-agent', version: '1.0.0' },
+        clientInfo: { name: 'worldsea-agent', version: '1.0.0' },
       },
     })
     if (resp.error) throw new Error(`MCP init error: ${resp.error.message}`)

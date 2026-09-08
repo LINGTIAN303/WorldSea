@@ -62,7 +62,7 @@ export const PARTICIPANT_COLOR_PALETTE = [
 ]
 
 /** localStorage 存储键 */
-export const SAVED_CONFIGS_STORAGE_KEY = 'worldsmith-group-chat-saved-configs'
+export const SAVED_CONFIGS_STORAGE_KEY = 'worldsea-group-chat-saved-configs'
 
 /** 参与者数量限制 */
 export const MAX_PARTICIPANTS = 8

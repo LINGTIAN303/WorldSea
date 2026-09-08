@@ -1,7 +1,7 @@
 /** 实体 CRUD 工具集：实体全生命周期管理 + Embedding 索引同步，详细见 docs/details/注释/packages/agent-runtime/tools-entity-crud.md */
 
 import type { ToolDefinition } from '../bridge-types'
-import type { ToolMeta } from '@worldsmith/agent-core'
+import type { ToolMeta } from '@worldsea/agent-core'
 import { emitEntityCard, emitEntityList } from './a2ui-helpers'
 import { indexEntity, removeEntityIndex } from '../embedding/index'
 

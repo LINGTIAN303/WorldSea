@@ -1,7 +1,7 @@
 /** 实体名反向索引（端无关：实体名 → entityId[]，文本匹配），详细见 docs/details/注释/packages/shared-composables/agent/useEntityMentionIndex.md */
 
 import { computed, type ComputedRef } from 'vue'
-import { useEntityStore } from '@worldsmith/entity-core'
+import { useEntityStore } from '@worldsea/entity-core'
 
 export interface MentionMatch {
   /** 匹配的实体名 */

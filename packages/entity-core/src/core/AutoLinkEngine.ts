@@ -180,7 +180,7 @@ export function registerDefaultStrategies(): void {
 // 优先级高于启发式推断，低于 Schema 声明
 // ─────────────────────────────────────────────
 
-const USER_FIELD_MAPPING_KEY = 'worldsmith_user_field_mappings'
+const USER_FIELD_MAPPING_KEY = 'worldsea_user_field_mappings'
 
 /** 用户自定义字段映射条目 */
 export interface UserFieldMapping {

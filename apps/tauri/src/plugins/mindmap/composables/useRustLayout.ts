@@ -7,11 +7,11 @@
  * Rust 布局算法桥接
  *
  * 将前端 GraphNode/GraphEdge 数据序列化为 WeightedGraph JSON，
- * 通过 Tauri invoke 调用 worldsmith-core 的布局算法。
+ * 通过 Tauri invoke 调用 worldsea-core 的布局算法。
  * Web 环境下回退到 d3-force 纯 JS 实现。
  */
 import { invoke, isHttpBackend } from '../../../agent/composables/transport'
-import type { GraphNode, GraphEdge } from '@worldsmith/canvas-engine'
+import type { GraphNode, GraphEdge } from '@worldsea/canvas-engine'
 
 export interface LayoutNodeResult {
   id: string

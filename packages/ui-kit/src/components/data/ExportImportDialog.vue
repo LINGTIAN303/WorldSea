@@ -64,7 +64,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import WsIcon from '../WsIcon.vue'
-import { useEntityStore, useRelationStore, storage } from '@worldsmith/entity-core'
+import { useEntityStore, useRelationStore, storage } from '@worldsea/entity-core'
 
 const props = defineProps<{ mode: 'export' | 'import' }>()
 const visible = ref(false)
@@ -98,7 +98,7 @@ async function doExport() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `worldsmith-backup-${new Date().toISOString().slice(0, 10)}.json`
+    a.download = `worldsea-backup-${new Date().toISOString().slice(0, 10)}.json`
     a.click()
     URL.revokeObjectURL(url)
   } catch (e) {

@@ -9,7 +9,7 @@ import {
   type PlanZoneBlock,
   type CombinationBlock,
 } from '../aggregatePlanBlocks'
-import type { AgentStreamItem } from '@worldsmith/shared-composables/agent/useAgent'
+import type { AgentStreamItem } from '@worldsea/shared-composables/agent/useAgent'
 
 /** 构造工具行（工具/步骤通用） */
 function toolRow(id: string, label: string, extra: Record<string, unknown> = {}): AgentStreamItem {

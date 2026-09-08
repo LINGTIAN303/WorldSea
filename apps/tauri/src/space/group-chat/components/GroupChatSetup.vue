@@ -64,7 +64,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { assignAgentColor } from '../types'
-import { getModelInfo, calculateCost } from '@worldsmith/agent-runtime'
+import { getModelInfo, calculateCost } from '@worldsea/agent-runtime'
 import CollapsibleSection from './CollapsibleSection.vue'
 import TemplateSelector from './setup/TemplateSelector.vue'
 import SavedConfigsPanel from './setup/SavedConfigsPanel.vue'

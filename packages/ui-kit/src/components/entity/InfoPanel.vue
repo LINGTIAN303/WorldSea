@@ -161,11 +161,11 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
-import { useEntityStore, useRelationStore, entitySchemaRegistry } from '@worldsmith/entity-core'
-import { fieldRegistry, useFieldOrderStore, type RegisteredField } from '@worldsmith/entity-core'
+import { useEntityStore, useRelationStore, entitySchemaRegistry } from '@worldsea/entity-core'
+import { fieldRegistry, useFieldOrderStore, type RegisteredField } from '@worldsea/entity-core'
 import { toastSuccess, toastWarn, toastWithUndo } from '../../composables/useToast'
-import { useSelection, useDialog, useResizable } from '@worldsmith/ui-kit'
-import { useSettingsStore } from '@worldsmith/entity-core'
+import { useSelection, useDialog, useResizable } from '@worldsea/ui-kit'
+import { useSettingsStore } from '@worldsea/entity-core'
 import WsIcon from '../WsIcon.vue'
 import WsEmpty from '../WsEmpty.vue'
 

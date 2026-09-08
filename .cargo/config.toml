@@ -1,6 +1,6 @@
 # Cargo 镜像配置（workspace 级覆盖）
 # USTC 镜像在本机被劫持到 127.0.0.1:8080，改用字节 RsProxy
-# 对整个 worldsmith workspace 生效（含 src-tauri 与 crates/*）
+# 对整个 worldsea workspace 生效（含 src-tauri 与 crates/*）
 [source.crates-io]
 replace-with = "rsproxy-sparse"
 

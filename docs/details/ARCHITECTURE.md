@@ -1,11 +1,11 @@
-# WorldSmith 架构总览
+# WorldSea 架构总览
 
 > 本文档描述**当前实际代码状态**（2026-08-08 复核，web-to-tauri 迁移 + CLI 移除后），供新接手者快速定位代码。
 > 与 `docs/details/端分离/` 文档库区分：后者是端分离迁移的历史记录与目标架构设计。
 
 ## 1. 项目定位
 
-WorldSmith 是一个 Agent 驱动的世界构建（worldbuilding）平台，帮助用户构建丰富、互相关联的虚构世界。
+WorldSea 是一个 Agent 驱动的世界构建（worldbuilding）平台，帮助用户构建丰富、互相关联的虚构世界。
 
 - **唯一 GUI**：`apps/tauri`（Tauri 2 桌面应用，原 `apps/web` 已于 2026-08-08 迁移后删除）
 - **CLI**：已移除（原 Rust binary `crates/cli` 已于 2026-08-08 删除，能力由 Tauri 端 `agent-commands` 覆盖）
@@ -14,7 +14,7 @@ WorldSmith 是一个 Agent 驱动的世界构建（worldbuilding）平台，帮�
 ## 2. 顶层目录结构
 
 ```
-worldsmith/
+worldsea/
 ├── apps/                  # 应用入口
 │   └── tauri/             # ★ 唯一 GUI（Tauri 桌面端：独立 src-tauri + Rust 命令层）
 ├── packages/              # 共享 monorepo 子包（15 个，见 §4）
@@ -23,9 +23,9 @@ worldsmith/
 │   ├── agent-commands/    # 命令层（LoopControl/LongTask/SubAgent/Terminal 等）
 │   ├── agent-memory/      # Agent 记忆后端（MemoryCenter 适配）
 │   └── vendor/            # 三方 vendor 代码（memory-center-core）
-├── worldsmith-core/       # Rust WASM 核心（storage/validation/graph layout）
+├── worldsea-core/       # Rust WASM 核心（storage/validation/graph layout）
 ├── tactical-engine/       # Rust WASM 战术引擎（pathfinding）
-├── worldsmith-skills-store/ # Rust Skills Store 纯逻辑库（可独立 cargo test）
+├── worldsea-skills-store/ # Rust Skills Store 纯逻辑库（可独立 cargo test）
 ├── docs/                  # 文档（架构、路线图、按状态分类：已完成/执行中/未完成）
 └── scripts/               # 构建与工具脚本
 ```
@@ -36,7 +36,7 @@ worldsmith/
 |----|------|------|----------|
 | **Tauri（唯一 GUI）** | `apps/tauri` | 桌面应用，前端 Vue（Agent 对话、27 插件、Space 面板、设置）+ 后端 Rust 命令 | Rust 命令（src-tauri）+ `crates/agent-runtime` Agent 编排 + WASM 算法/校验 |
 
-**关键点**：web-to-tauri 迁移（2026-08-08）完成后，`apps/web`（原 Web 主应用）与 `apps/cli`（原 TS CLI）均已删除；随后 Rust CLI（`crates/cli`）亦于 2026-08-08 移除（其 chat / 文件读写 / 命令执行能力由 Tauri 端 `agent-commands` 工具集覆盖）。应用层收敛为 **Tauri 唯一 GUI + 共享 crates**；根级 `src/`、`src-tauri/`、`worldsmith-server/`、`worldsmith-agent/` 在更早的端分离中已迁移，根目录不存放应用源码。
+**关键点**：web-to-tauri 迁移（2026-08-08）完成后，`apps/web`（原 Web 主应用）与 `apps/cli`（原 TS CLI）均已删除；随后 Rust CLI（`crates/cli`）亦于 2026-08-08 移除（其 chat / 文件读写 / 命令执行能力由 Tauri 端 `agent-commands` 工具集覆盖）。应用层收敛为 **Tauri 唯一 GUI + 共享 crates**；根级 `src/`、`src-tauri/`、`worldsea-server/`、`worldsea-agent/` 在更早的端分离中已迁移，根目录不存放应用源码。
 
 ## 4. 共享包（`packages/`）
 
@@ -66,9 +66,9 @@ worldsmith/
 | `crates/agent-commands` | Tauri 命令层薄封装（Agent 主链路 / LoopControl / LongTask / SubAgent / Terminal） |
 | `crates/agent-memory` | Agent 记忆后端（MemoryCenterAccessor，实现 MemoryAccessor trait） |
 | `crates/vendor/memory-center-core` | 三方 vendor（MemoryCenter 核心，保持与上游一致） |
-| `worldsmith-core` | WASM 核心（serde、validation、migration、graph layout、sqlite） |
+| `worldsea-core` | WASM 核心（serde、validation、migration、graph layout、sqlite） |
 | `tactical-engine` | WASM 战术引擎（pathfinding） |
-| `worldsmith-skills-store` | Skills Store 纯逻辑库（zip 解压、sha256 校验、本地导入） |
+| `worldsea-skills-store` | Skills Store 纯逻辑库（zip 解压、sha256 校验、本地导入） |
 
 ## 6. 数据流
 
@@ -88,6 +88,6 @@ worldsmith/
 pnpm dev                 # 启动 Tauri 桌面端（唯一 GUI）
 pnpm typecheck:all       # Tauri 端类型检查
 pnpm test:run            # 单元测试（共享包）
-pnpm build:wasm-all      # 构建 WASM（worldsmith-core + tactical-engine）
+pnpm build:wasm-all      # 构建 WASM（worldsea-core + tactical-engine）
 cargo check -p agent-runtime  # 检查 Rust Agent 后端
 ```

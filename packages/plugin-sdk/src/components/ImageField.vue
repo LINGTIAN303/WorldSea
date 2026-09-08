@@ -66,9 +66,9 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { useEntityImage } from '@worldsmith/entity-core/composables'
-import { useFileStore } from '@worldsmith/entity-core'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { useEntityImage } from '@worldsea/entity-core/composables'
+import { useFileStore } from '@worldsea/entity-core'
+import { WsIcon } from '@worldsea/ui-kit'
 
 const props = defineProps<{
   value: unknown

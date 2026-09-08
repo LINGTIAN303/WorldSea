@@ -21,7 +21,7 @@ export type PermissionLevel = 'safe' | 'moderate' | 'dangerous'
  * 工具分类标识
  *
  * 用于 UI 分组展示和技能-工具映射。
- * 与 worldsmith-agent 的 TOOL_CATEGORIES 对齐。
+ * 与 worldsea-agent 的 TOOL_CATEGORIES 对齐。
  */
 export type ToolCategoryId =
   | 'entity'
@@ -114,7 +114,7 @@ export interface ToolMeta {
 /**
  * 扩展工具定义（含元数据）
  *
- * 在 worldsmith-agent 的 ToolDefinition 基础上增加 meta 字段，
+ * 在 worldsea-agent 的 ToolDefinition 基础上增加 meta 字段，
  * 使工具自描述其权限、分类和平台可用性。
  */
 export interface ToolDefinition {

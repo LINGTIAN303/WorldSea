@@ -36,8 +36,8 @@
  * - 支持多选并批量添加
  */
 import { reactive, watch, ref, nextTick } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
-import { CreateButton } from '@worldsmith/plugin-sdk'
+import { WsIcon } from '@worldsea/ui-kit'
+import { CreateButton } from '@worldsea/plugin-sdk'
 import { useFocusTrap } from '@/composables/useFocusTrap'
 
 /** 可选视图项的数据形状 */

@@ -38,11 +38,11 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { fieldRegistry, entitySchemaRegistry } from '@worldsmith/entity-core'
-import { useFieldOrderStore } from '@worldsmith/entity-core'
-import { useConfirm, useResizable } from '@worldsmith/ui-kit'
+import { fieldRegistry, entitySchemaRegistry } from '@worldsea/entity-core'
+import { useFieldOrderStore } from '@worldsea/entity-core'
+import { useConfirm, useResizable } from '@worldsea/ui-kit'
 import { toastSuccess } from '../../composables/useToast'
-import { useModalShortcuts } from '@worldsmith/ui-kit'
+import { useModalShortcuts } from '@worldsea/ui-kit'
 import WsIcon from '../WsIcon.vue'
 import WsEmpty from '../WsEmpty.vue'
 

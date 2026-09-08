@@ -65,13 +65,13 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
-import { useEntityStore } from '@worldsmith/entity-core'
-import { CustomDropdown } from '@worldsmith/plugin-sdk'
+import { WsIcon } from '@worldsea/ui-kit'
+import { useEntityStore } from '@worldsea/entity-core'
+import { CustomDropdown } from '@worldsea/plugin-sdk'
 import MoodboardCanvas from './components/MoodboardCanvas.vue'
 import type { CardData } from './composables/moodboardDraw'
 import { extractColorsFromUrl } from './composables/useColorExtractor'
-import type { Entity } from '@worldsmith/entity-core'
+import type { Entity } from '@worldsea/entity-core'
 
 defineEmits<{
   (e: 'back'): void

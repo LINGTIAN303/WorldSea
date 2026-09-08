@@ -2,9 +2,9 @@ import { ref, computed } from 'vue'
 import type { CreationTemplate, PipelineStep, StepConnection } from '../types'
 import { builtinTemplates } from '../templates'
 import { usePipeline } from './usePipeline'
-import { useEntityStore } from '@worldsmith/entity-core'
+import { useEntityStore } from '@worldsea/entity-core'
 
-const USER_TEMPLATES_KEY = 'worldsmith-pipeline-templates'
+const USER_TEMPLATES_KEY = 'worldsea-pipeline-templates'
 const TEMPLATE_ENTITY_TYPE = 'pipeline-template'
 
 /** 从 localStorage 加载用户自定义模板（兼容旧数据） */

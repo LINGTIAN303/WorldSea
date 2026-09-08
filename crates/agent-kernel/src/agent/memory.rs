@@ -38,7 +38,7 @@ const SYSTEM_BASE_TOOLS: &[&str] = &[
     "load_skill_asset",
 ];
 
-/// 世界构建场景注入的实体类型（对应 WorldSmith 实体类型规范，见 typeMappingRegistry.ts）
+/// 世界构建场景注入的实体类型（对应 WorldSea 实体类型规范，见 typeMappingRegistry.ts）
 ///
 /// 供 `entity_provider.entity_summary` 拉取项目核心实体的紧凑摘要，注入场景 system prompt。
 const WORLDBUILD_CONTEXT_TYPES: &[&str] = &[

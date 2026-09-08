@@ -1,4 +1,4 @@
-// WorldSmith Tauri App — Agent 端到端闭环（Phase 5.x）
+// WorldSea Tauri App — Agent 端到端闭环（Phase 5.x）
 //
 // Phase 5.1：注册 agent-commands 命令层，manage 一个 AgentCommandService 实例，
 // 供 WebView 前端 invoke 调用（newSession / sendMessage / abort / ... 14 主链路命令）。
@@ -49,7 +49,7 @@ mod skills_store;
 mod secure_store;
 // [HTTP-BRIDGE] 临时：浏览器直连真实后端的 HTTP 服务（axum RPC + SSE）；移除时删除本段与 http_bridge/ 目录
 mod http_bridge;
-// [HTTP-BRIDGE] 图布局/图分析算法命令（cmd_algo_*）：薄封装 worldsmith-core 算法，桌面 IPC + HTTP RPC 双端
+// [HTTP-BRIDGE] 图布局/图分析算法命令（cmd_algo_*）：薄封装 worldsea-core 算法，桌面 IPC + HTTP RPC 双端
 mod algo_commands;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -218,7 +218,7 @@ pub fn run() {
             project_commands::cmd_switch_project,
             // Phase B 迁移：获取应用数据目录（自动绑定项目存储目录）
             project_commands::cmd_get_app_data_dir,
-            // §六 全局层迁移：获取用户主目录（~/.WorldSmith 载体根）
+            // §六 全局层迁移：获取用户主目录（~/.WorldSea 载体根）
             project_commands::cmd_get_home_dir,
             // Phase B 迁移：删除项目数据目录（deleteProject Tauri 分支）
             project_commands::cmd_delete_project_db,
@@ -394,7 +394,7 @@ pub fn run() {
                     .with_loop_control_registry(loop_control_registry)
                     // 记忆后端：传入应用数据目录子路径，new_session 时为每个会话构造
                     // MemoryCenterAccessor 并注入 AgentLoop（阶段 2：让桌面生效）
-                    .with_memory_root(Some(app_data.join("worldsmith").join("memory")))
+                    .with_memory_root(Some(app_data.join("worldsea").join("memory")))
                     // 会话持久化：注入 SQLite 会话存储，会话变更写穿 + 启动恢复
                     .with_session_store(session_store)
                     // B1 场景上下文注入：注入实体访问器，场景 build_system_prompt 可感知项目已有实体
@@ -478,7 +478,7 @@ pub fn run() {
             {
                 let mut reg = http_bridge::rpc::Registry::new();
                 http_bridge::rpc::register_core(&mut reg);
-                let port = std::env::var("WORLDSMITH_HTTP_PORT")
+                let port = std::env::var("WORLDSEA_HTTP_PORT")
                     .ok()
                     .and_then(|s| s.parse::<u16>().ok())
                     .unwrap_or(8787);

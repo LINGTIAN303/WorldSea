@@ -1,5 +1,5 @@
 import type { ToolDefinition } from '../bridge-types'
-import type { ToolMeta } from '@worldsmith/agent-core'
+import type { ToolMeta } from '@worldsea/agent-core'
 import type { IToolContext } from '../toolbus/types'
 import { loadApiKey } from '../providers/key-store'
 import { persistImage, srcToBlob, getAllImages, getImage, blobToDataUrl, getImagesByPathPrefix } from '../stores/image-persistence'
@@ -29,9 +29,9 @@ const PROVIDER_BASE_URLS: Record<string, string> = (() => {
 const DALLE_MODELS = ['dall-e-2', 'dall-e-3']
 
 /** localStorage 键名常量，用于存储图像生成配置 */
-const IMAGE_GEN_PROVIDER_KEY = 'worldsmith_image_gen_provider'
-const IMAGE_GEN_MODEL_KEY = 'worldsmith_image_gen_model'
-const IMAGE_GEN_BASE_URL_KEY = 'worldsmith_image_gen_base_url'
+const IMAGE_GEN_PROVIDER_KEY = 'worldsea_image_gen_provider'
+const IMAGE_GEN_MODEL_KEY = 'worldsea_image_gen_model'
+const IMAGE_GEN_BASE_URL_KEY = 'worldsea_image_gen_base_url'
 
 /** 获取当前浏览器源的根 URL，用于拼接绝对路径的 API 请求 */
 function getOrigin(): string {

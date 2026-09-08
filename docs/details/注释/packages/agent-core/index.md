@@ -7,7 +7,7 @@
 
 ```
 /**
- * @worldsmith/agent-core — Agent 运行时核心库
+ * @worldsea/agent-core — Agent 运行时核心库
  *
  * 基于 PI 框架的 Agent 核心抽象层，提供：
  * - 声明式工具元数据系统（ToolMeta）

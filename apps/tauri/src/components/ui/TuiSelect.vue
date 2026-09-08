@@ -8,7 +8,7 @@
  * 详细why请见 docs/details/注释/tauri/components/TuiSelect.md
  */
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 
 export interface TuiSelectOption {
   value: string

@@ -94,10 +94,10 @@
 
 <script setup lang="ts">
 import { computed, ref, watch, nextTick, onMounted } from 'vue'
-import { useShortcuts, formatKeysForDisplay } from '@worldsmith/plugin-sdk'
+import { useShortcuts, formatKeysForDisplay } from '@worldsea/plugin-sdk'
 import { useFileSystemProject } from '@/composables/useFileSystemProject'
 import { useToast } from '@/composables/useToast'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 
 const { register, getRegisteredKeys } = useShortcuts()
 /** 菜单标注读注册表当前键位（用户改键后同步显示），fallback 为默认值 */

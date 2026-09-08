@@ -15,8 +15,8 @@
 </template>
 <script setup lang="ts">
 import { ref } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
-import { SchemaRenderer } from '@worldsmith/plugin-sdk'
+import { WsIcon } from '@worldsea/ui-kit'
+import { SchemaRenderer } from '@worldsea/plugin-sdk'
 import RealmStaircaseView from './RealmStaircaseView.vue'
 import { schemaGetEntityType } from '@/core/coreBackend'
 

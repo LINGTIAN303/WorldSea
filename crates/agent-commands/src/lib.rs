@@ -1041,7 +1041,7 @@ impl AgentCommandService {
 
     /// 设置记忆存储根目录（链式）
     ///
-    /// 传入应用数据目录子路径（如 `{app_data}/worldsmith/memory`）。设置后
+    /// 传入应用数据目录子路径（如 `{app_data}/worldsea/memory`）。设置后
     /// `new_session` 会为每个会话构造 `MemoryCenterAccessor` 并注入 AgentLoop。
     pub fn with_memory_root(mut self, root: Option<PathBuf>) -> Self {
         self.memory_root = root;
@@ -1298,8 +1298,8 @@ impl AgentCommandService {
         // 优先，否则 workdir（普通项目「项目=目录」同源）；有根的会话用文件版实体工具覆盖注册
         // （ToolBus 同名覆盖），使 Agent 读到实体根 entities/ 的真身数据；
         // 无根或未注入工厂时保持 extra_tools 的 SQLite 兜底（旧行为）。
-        // 注意：entity_storage_root 与 workdir 解耦——默认项目 Agent 工作区在 ~/.WorldSmith/agent，
-        // 工作台实体在 ~/.WorldSmith/worlddata（三分层拍板），实体读必须指向后者才与写入侧同源。
+        // 注意：entity_storage_root 与 workdir 解耦——默认项目 Agent 工作区在 ~/.WorldSea/agent，
+        // 工作台实体在 ~/.WorldSea/worlddata（三分层拍板），实体读必须指向后者才与写入侧同源。
         let entity_read_root: Option<&std::path::Path> =
             entity_storage_root.as_deref().or(workdir.as_deref());
         let session_entity_provider: Option<Arc<dyn ScenarioEntityProvider>> = match entity_read_root {
@@ -1430,7 +1430,7 @@ impl AgentCommandService {
     /// - `workdir`：会话绑定的工作区根目录（`None`=不限定，向后兼容；Phase 3）
     /// - `entity_storage_root`：实体读取根（方案A 2026-09-03；`None`=回退 workdir）
     ///   - 普通项目与 workdir 同源（`{dirPath}/entities`）；默认项目 Agent 工作区在
-    ///     `~/.WorldSmith/agent`、工作台实体在 `~/.WorldSmith/worlddata`，必须显式传后者，
+    ///     `~/.WorldSea/agent`、工作台实体在 `~/.WorldSea/worlddata`，必须显式传后者，
     ///     否则 Rust 文件版 entity_list/entity_get 扫 workdir/entities（空白），与写入侧
     ///     （FileStorageBackend → worlddata/entities）分裂，模型创建实体后读不到。
     /// - `project_id`：会话归属项目 id（任务29/D1 锚点，可选；弱引用前端 ProjectManager）

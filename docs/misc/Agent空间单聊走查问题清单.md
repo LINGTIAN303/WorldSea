@@ -115,7 +115,7 @@
 
 ## 八、第二轮走查补充（2026-08-28 凌晨，CatPaw 内置浏览器 + 截图视觉）
 
-> 环境：重启 debug 版 Tauri 桥（8787）+ 浏览器手动 `localStorage.setItem('worldsmith_backend_url','http://127.0.0.1:8787')` 后复测。
+> 环境：重启 debug 版 Tauri 桥（8787）+ 浏览器手动 `localStorage.setItem('worldsea_backend_url','http://127.0.0.1:8787')` 后复测。
 > 本轮聚焦：消息操作区 / 流式与停止 / 会话固定删除补测 / 知识库 / 右栏预览。时间显示 bug（L1）本轮持续复现。
 
 ### 新发现问题（N 系列）
@@ -156,6 +156,6 @@
 
 ### 走查环境备注（复测必读）
 
-1. 浏览器模式连接桥**必须手动配置** `localStorage.worldsmith_backend_url`——`transport.ts getBackendUrl()` 只读 localStorage 与 `VITE_BACKEND_URL`，无默认 8787（注释文档 http-bridge-scope.md 写的「默认 http://127.0.0.1:8787」与实现不符）；未配置时列表拉取失败被 `catch {}` 静默吞掉，仅表现「暂无会话」，无任何错误提示。建议：默认值兜底 + 失败时 UI 提示。
+1. 浏览器模式连接桥**必须手动配置** `localStorage.worldsea_backend_url`——`transport.ts getBackendUrl()` 只读 localStorage 与 `VITE_BACKEND_URL`，无默认 8787（注释文档 http-bridge-scope.md 写的「默认 http://127.0.0.1:8787」与实现不符）；未配置时列表拉取失败被 `catch {}` 静默吞掉，仅表现「暂无会话」，无任何错误提示。建议：默认值兜底 + 失败时 UI 提示。
 2. 自动化截图会重置鼠标导致 hover 态丢失：验证 hover 类交互需「hover → 读 DOM 状态」而非「hover → 截图」，否则会误判为渲染 bug（本轮已用 DOM 对照法排除假阳性）。
 3. cmd 层调用浏览器 CLI 时，脚本内含管道符/空格/逗号会被截断——走查脚本避免这些字符，或用「结果写入 document.title 再读 title」技巧。

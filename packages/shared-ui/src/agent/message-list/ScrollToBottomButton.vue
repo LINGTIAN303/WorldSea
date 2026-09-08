@@ -13,7 +13,7 @@
 </template>
 
 <script setup lang="ts">
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 
 // 2026-09-05 改为纯回底作用：移除未读计数徽标（计数在跨会话场景语义模糊，用户拍板去掉）
 defineProps<{

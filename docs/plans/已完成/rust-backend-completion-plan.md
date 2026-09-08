@@ -582,4 +582,4 @@ cd src-tauri && cargo check
 | `src/agent/composables/useAgentRust.ts` | 前端适配器（主要改动集中在此） |
 | `src/agent/composables/useTitleGen.ts` | generateTitle 函数（P1-1 复用） |
 | `src/stores/settingsStore.ts` | agentBackend 默认值（P1-5） |
-| `worldsmith-agent/src/bridge-types.ts` | IAgentBackend 接口定义（参考） |
+| `worldsea-agent/src/bridge-types.ts` | IAgentBackend 接口定义（参考） |

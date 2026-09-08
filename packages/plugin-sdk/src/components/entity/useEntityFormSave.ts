@@ -1,7 +1,7 @@
 // 保存 composable：save 校验/收集（properties/tags/entityRef/autoLink/封面）、实体引用关系同步。
 // autoLink 过滤逻辑仅出现在 save 内部，合并于此。详细说明见 docs/details/注释/packages/plugin-sdk/entity-form-modal.md
 import type { Ref } from 'vue'
-import { storage, useEntityStore, type Entity } from '@worldsmith/entity-core'
+import { storage, useEntityStore, type Entity } from '@worldsea/entity-core'
 import type { FormFieldDef } from '../types'
 
 export interface EntityFormSavePayload {

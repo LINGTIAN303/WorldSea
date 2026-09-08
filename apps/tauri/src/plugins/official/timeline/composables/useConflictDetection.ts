@@ -1,5 +1,5 @@
 import { computed, type ComputedRef } from 'vue'
-import type { Entity, Relation } from '@worldsmith/entity-core'
+import type { Entity, Relation } from '@worldsea/entity-core'
 import { parseDateRange, datesOverlap, type ParsedDate } from './useDateParser'
 
 export interface Conflict {

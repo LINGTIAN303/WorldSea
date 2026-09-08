@@ -56,8 +56,8 @@ import {
   serializerRegistry,
   entitySerializer,
   relationSerializer,
-} from '@worldsmith/entity-core'
-import { useResizable } from '@worldsmith/ui-kit'
+} from '@worldsea/entity-core'
+import { useResizable } from '@worldsea/ui-kit'
 import WsIcon from '../WsIcon.vue'
 
 defineProps<{ show: boolean }>()
@@ -106,7 +106,7 @@ async function generatePack() {
 
   const html = defaultFormatEncoder.encodeHTML(pack, {
     includeTimestamps: includeTimestamps.value,
-    title: 'WorldSmith 设定文档',
+    title: 'WorldSea 设定文档',
   })
   preview.value = html
 
@@ -123,7 +123,7 @@ function downloadHTML() {
   const blob = new Blob([html], { type: 'text/html' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
-  a.href = url; a.download = 'worldsmith-doc.html'; a.click()
+  a.href = url; a.download = 'worldsea-doc.html'; a.click()
   URL.revokeObjectURL(url)
 }
 
@@ -132,7 +132,7 @@ function downloadMarkdown() {
   const blob = new Blob([md], { type: 'text/markdown' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
-  a.href = url; a.download = 'worldsmith-doc.md'; a.click()
+  a.href = url; a.download = 'worldsea-doc.md'; a.click()
   URL.revokeObjectURL(url)
 }
 

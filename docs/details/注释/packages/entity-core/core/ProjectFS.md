@@ -28,7 +28,7 @@
  * │   └── custom-magic.json
  * ├── settings/
  * │   └── plugins.json           # 插件开关（当前仅此一项，视图排序/配置未落盘）
- * └── .worldsmith/               # 内部元数据
+ * └── .worldsea/               # 内部元数据
  *     └── cache.json             # 版本/校验信息
  * ```
  */

@@ -1,4 +1,4 @@
-import type { PluginAPIType } from '@worldsmith/entity-core'
+import type { PluginAPIType } from '@worldsea/entity-core'
 import TacticalBoardView from './TacticalBoardView.vue'
 
 export const manifest = {
@@ -6,7 +6,7 @@ export const manifest = {
   name: '战术棋盘',
   version: '1.0.0',
   description: '棋盘式战术推演，在网格上布置实体作为棋子',
-  author: 'WorldSmith',
+  author: 'WorldSea',
   agentSkills: ['tactical-planner'],
   agentCapabilities: [
     { action: 'deploy_unit', description: '部署单位', params: ['unitId', 'position', 'formation'] },

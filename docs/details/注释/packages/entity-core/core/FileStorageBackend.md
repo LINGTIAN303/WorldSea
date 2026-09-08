@@ -17,7 +17,7 @@
  * ProjectDir/
  * ├── entities/{type}/{name_id}.json   # 每个实体一个文件
  * ├── relations/_index.json            # 所有关系集中存储
- * ├── .worldsmith/
+ * ├── .worldsea/
  * │   ├── kv_store.json                # 键值对存储
  * │   ├── files_meta.json              # 文件元数据
  * │   └── files_content/               # 文件内容

@@ -40,23 +40,23 @@
 - **injectHookSummary 返回类型**：保持 string，足够使用
 - **新增 ConfigAdapter 接口**：管理配置持久化（load/save），宿主可选实现，框架内置默认 localStorage 实现
 
-**影响**：接口契约扩展，worldsmith 侧 PiAiAgentBridge 需实现 isStreaming()
+**影响**：接口契约扩展，worldsea 侧 PiAiAgentBridge 需实现 isStreaming()
 
 ---
 
-### P3 - worldsmith 侧适配器的位置是否合理？
+### P3 - worldsea 侧适配器的位置是否合理？
 
 **来源**：第 2 节确认时提出
 **状态**：✅ 已处理
 **结论**：调整位置，与现有代码组织一致
 
 **决策**：
-- **PiAiAgentBridge** 放在 `worldsmith-agent/src/archive/PiAiAgentBridge.ts`（保持原方案，因为它是归档专属逻辑，不属于通用 bridge）
-- **archive-tools.ts** 放在 `worldsmith-agent/src/archive/archive-tools.ts`（保持原方案）
+- **PiAiAgentBridge** 放在 `worldsea-agent/src/archive/PiAiAgentBridge.ts`（保持原方案，因为它是归档专属逻辑，不属于通用 bridge）
+- **archive-tools.ts** 放在 `worldsea-agent/src/archive/archive-tools.ts`（保持原方案）
 - **初始化逻辑** 集成到 `bridge.ts` 的 `initArchive()` 方法，而非独立 `archive-init.ts`（减少文件数量，与现有 ensureAgent 等初始化方法一致）
-- **不放在** `worldsmith-agent/src/tools/archive/`：因为 PiAiAgentBridge 不是工具，是适配器
+- **不放在** `worldsea-agent/src/tools/archive/`：因为 PiAiAgentBridge 不是工具，是适配器
 
-**影响**：worldsmith-agent/src/archive/ 下仅 3 个文件（PiAiAgentBridge.ts / archive-tools.ts / index.ts）
+**影响**：worldsea-agent/src/archive/ 下仅 3 个文件（PiAiAgentBridge.ts / archive-tools.ts / index.ts）
 
 ---
 
@@ -72,7 +72,7 @@
 - `relatedHookIds: string[]` — 关联钩子（周任务合并时建立），默认空数组
 - `source: 'threshold' | 'session_end' | 'manual'` — 归档触发源，用于审计
 - `version: string` — 钩子格式版本（默认 '1.0'），便于未来迁移
-- `customMetadata?: Record<string, unknown>` — 宿主扩展字段（如 worldsmith 可存 entityIds）
+- `customMetadata?: Record<string, unknown>` — 宿主扩展字段（如 worldsea 可存 entityIds）
 - `deprecatedAt?: number` — 标记 deprecated 的时间戳（月任务硬删除判定需要）
 - `summaryMethod: 'llm' | 'rule' | 'none'` — 摘要生成方式（P10 降级策略需要）
 
@@ -166,9 +166,9 @@ files/
   2. 其次使用 `msg.toolName`（有 toolName 则为 tool_call）
   3. 最后才用正则规则（降级方案）
 - **mergeSmallChunks 策略**：合并相邻同 outputType 的小块，合并后 title 取第一个块的 title（保持锚点连续性）
-- **worldsmith 侧**：PiAiAgentBridge.getCurrentMessages() 在 metadata 中携带 outputType，由 bridge.ts 在消息创建时标注
+- **worldsea 侧**：PiAiAgentBridge.getCurrentMessages() 在 metadata 中携带 outputType，由 bridge.ts 在消息创建时标注
 
-**影响**：分块质量提升，worldsmith 侧需在消息 metadata 中标注 outputType
+**影响**：分块质量提升，worldsea 侧需在消息 metadata 中标注 outputType
 
 ---
 
@@ -222,7 +222,7 @@ files/
 **状态**：✅ 已处理（已验证 pi-ai 源码使用模式）
 **结论**：基本安全，但需三个保护措施
 
-**验证结果**（基于 worldsmith-agent 代码库使用模式推断）：
+**验证结果**（基于 worldsea-agent 代码库使用模式推断）：
 - `state.messages` 是公开可变属性，项目已广泛使用直接赋值（clearHistory、abort 恢复、moderator 循环清空）
 - pi-agent-core 未提供官方消息重置 API，直接赋值是项目认可的操作
 - 但截断中间历史无先例（只有完全清空或完整恢复）
@@ -270,7 +270,7 @@ advanceBoundary(archivedUpToIndex: number): void {
 - **ensureAgent 重建后恢复边界**：ensureAgent() 末尾调用 `agentBridge.restoreBoundary()` 从持久化恢复
 
 **不处理**：
-- **多会话场景**：当前 worldsmith 不支持多会话并行，归档边界是会话级的，切换会话时重置
+- **多会话场景**：当前 worldsea 不支持多会话并行，归档边界是会话级的，切换会话时重置
 - **convertToLlm 感知边界**：不需要，convertToLlm 过滤的是 role，归档边界在 PiAiAgentBridge.getCurrentMessages 处理
 
 **影响**：bridge.ts 改造点增加 5 处，PiAiAgentBridge 需持久化边界索引

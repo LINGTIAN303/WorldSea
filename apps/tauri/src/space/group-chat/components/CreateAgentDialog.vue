@@ -238,13 +238,13 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
-import { useEntityStore, type Entity } from '@worldsmith/entity-core'
-import { getModelPresets, getModelInfo } from '@worldsmith/agent-runtime'
+import { useEntityStore, type Entity } from '@worldsea/entity-core'
+import { getModelPresets, getModelInfo } from '@worldsea/agent-runtime'
 import { getProviderIconUrl } from '@/assets/providerIcons'
 import { AGENT_COLORS, type BaseLayerMode, type ToolSource } from '../types'
 import type { ChatAgent } from '../types'
 import { getEnabledSkills, resolveToolNames, ALWAYS_AVAILABLE_TOOLS } from '@agent/index'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import AvatarBadge from '@/ui/AvatarBadge.vue'
 import { uploadAvatarFromFile, deleteAvatar } from '@/composables/avatarStore'
 import { isImageAvatar, isAvatarRef, getAvatarRefId } from '@/ui/avatar'

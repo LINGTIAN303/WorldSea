@@ -1,7 +1,7 @@
 //! Agent Runtime — 场景插件体系（B1 多场景插件，MVP）
 //!
 //! 借鉴 OpenWorld `ScenarioPlugin`（场景 = 身份 prompt + 专用工具 + 内置技能 + 可选消息钩子），
-//! 适配 WorldSmith 本地世界构建上下文。MVP 阶段只实现链路与 `worldbuilding` 场景。
+//! 适配 WorldSea 本地世界构建上下文。MVP 阶段只实现链路与 `worldbuilding` 场景。
 //!
 //! 设计原则：
 //! - Scenario trait 定义场景契约，将「场景能力」从 AgentLoop 通用执行逻辑中解耦
@@ -22,7 +22,7 @@ use async_trait::async_trait;
 /// `build_system_prompt` 拼入 system prompt。
 #[derive(Debug, Clone, Default)]
 pub struct ScenarioContext {
-    /// 当前项目 ID（WorldSmith 本地单用户，无归属校验需求）
+    /// 当前项目 ID（WorldSea 本地单用户，无归属校验需求）
     pub project_id: Option<String>,
     /// 当前用户消息文本（供 on_message / prompt 参考）
     pub query_text: Option<String>,
@@ -148,7 +148,7 @@ impl Default for ScenarioRegistry {
 
 /// 世界构建场景插件
 ///
-/// 面向 WorldSmith 核心领域（世界构建）：实体/角色/区域/图谱/记忆/知识库。
+/// 面向 WorldSea 核心领域（世界构建）：实体/角色/区域/图谱/记忆/知识库。
 /// MVP：身份 prompt + 工具意图 + 技能意图；实体上下文注入留待后续。
 #[derive(Debug)]
 pub struct WorldbuildingScenario;
@@ -178,7 +178,7 @@ impl Scenario for WorldbuildingScenario {
     /// 世界构建身份 prompt（含可选实体上下文注入）
     async fn build_system_prompt(&self, ctx: &ScenarioContext) -> String {
         let mut prompt = String::from(
-            "你是 WorldSmith 的世界构建Agent。旨在帮助用户构建完整、自洽的虚构世界：\
+            "你是 WorldSea 的世界构建Agent。旨在帮助用户构建完整、自洽的虚构世界：\
              塑造角色、规划地理区域与势力、设计魔法系统、整理概念与冲突、梳理时间线与文化。\
              你可以调用工具读写项目中的实体数据（如角色/区域/世界观/图谱等）。",
         );

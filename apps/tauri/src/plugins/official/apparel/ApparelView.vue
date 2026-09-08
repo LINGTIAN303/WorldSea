@@ -15,7 +15,7 @@
 </template>
 
 <script setup lang="ts">
-import { GenericEntityView, type FormFieldDef, type FilterDef, type CardFieldDef, type RelationTabDef } from '@worldsmith/plugin-sdk'
+import { GenericEntityView, type FormFieldDef, type FilterDef, type CardFieldDef, type RelationTabDef } from '@worldsea/plugin-sdk'
 
 /** 过滤出包含 apparel facet 的 item 实体 */
 function isApparelItem(entity: any): boolean {

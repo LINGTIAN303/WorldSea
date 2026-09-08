@@ -9,7 +9,7 @@ import { CostTrackerImpl } from '../CostTracker'
 import { ContextManagerImpl } from '../ContextManager'
 import { FallbackChainImpl } from '../FallbackChain'
 import { ModelHealthChecker } from '../ModelHealthChecker'
-import { getModelInfo } from '@worldsmith/agent-runtime'
+import { getModelInfo } from '@worldsea/agent-runtime'
 
 // 后端模块导入
 import { FlowController } from '@agent/group-chat/flow-control'
@@ -230,7 +230,7 @@ export class GroupChatEngine implements IGroupChatEngine {
     if (mode === 'shared') {
       const fontLibrary = useFontLibraryStore()
       parts.push(buildSharedBaseLayer({
-        projectName: 'WorldSmith-GroupChat',
+        projectName: 'WorldSea-GroupChat',
         entityTypes: toolContext.projectInfo.entityTypes,
         relationTypes: toolContext.projectInfo.relationTypes,
         platform: toolContext.platform,

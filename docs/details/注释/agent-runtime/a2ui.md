@@ -8,15 +8,15 @@
 # A2UI（Agent-to-UI）数据结构
 
 阶段 P2 高级能力新增。本模块定义 Rust 端 A2UI 平行类型，
-与 TS 端 `worldsmith-agent/src/bridge-types.ts` 的 `A2UIMessage` 联合类型对齐。
+与 TS 端 `worldsea-agent/src/bridge-types.ts` 的 `A2UIMessage` 联合类型对齐。
 
 ## 设计原则
-- **平行类型**：在 `agent-runtime` 内独立定义，不依赖 `worldsmith-core`，
+- **平行类型**：在 `agent-runtime` 内独立定义，不依赖 `worldsea-core`，
   避免违反架构分层约束（`agent-runtime` 是底层运行时，不应依赖业务核心层）
 - **序列化对齐**：使用 `#[serde(rename_all = "camelCase")]` 确保序列化结果
   与 TS 端 camelCase 字段一致，前端可零映射消费
 - **变体表示**：用单一结构体 + `Option` 字段表示 TS 端的 discriminated union
-  （与 `worldsmith-core/src/retrofit/a2ui.rs` 风格一致），
+  （与 `worldsea-core/src/retrofit/a2ui.rs` 风格一致），
   序列化时仅非 None 字段出现，匹配 TS 联合类型的"恰好一个变体"语义
 
 ## 与 TS 端的映射

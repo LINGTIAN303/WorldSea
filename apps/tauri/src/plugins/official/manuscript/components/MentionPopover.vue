@@ -30,9 +30,9 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
-import { useEntityStore } from '@worldsmith/entity-core'
-import { entitySchemaRegistry } from '@worldsmith/entity-core'
+import { WsIcon } from '@worldsea/ui-kit'
+import { useEntityStore } from '@worldsea/entity-core'
+import { entitySchemaRegistry } from '@worldsea/entity-core'
 
 interface MentionItem {
   id: string

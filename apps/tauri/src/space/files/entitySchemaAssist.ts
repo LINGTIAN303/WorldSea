@@ -11,7 +11,7 @@ import { autocompletion, type Completion, type CompletionContext, type Completio
 import { hoverTooltip } from '@codemirror/view'
 import { linter, lintGutter, type Diagnostic } from '@codemirror/lint'
 import type { Extension } from '@codemirror/state'
-import { entitySchemaRegistry, type EntityTypeSchema, type FieldSchema } from '@worldsmith/entity-core'
+import { entitySchemaRegistry, type EntityTypeSchema, type FieldSchema } from '@worldsea/entity-core'
 
 /** 顶层固定键（所有实体文件通用；字段级键由 schema fields 提供） */
 const TOP_KEYS: Completion[] = [

@@ -82,9 +82,9 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
-import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'
-import { CustomDropdown } from '@worldsmith/plugin-sdk'
+import { WsIcon } from '@worldsea/ui-kit'
+import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
+import { CustomDropdown } from '@worldsea/plugin-sdk'
 import { useLangFamilyTreeData, type LangNode, type LangRelation } from './composables/useLangFamilyTreeData'
 import { useLangFamilyTreeLayout, type LangLayoutMode } from './composables/useLangFamilyTreeLayout'
 import { useLangFamilyTreeCanvas } from './composables/useLangFamilyTreeCanvas'

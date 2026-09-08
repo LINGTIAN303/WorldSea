@@ -17,8 +17,8 @@
 </template>
 
 <script setup lang="ts">
-import type { CustomModule } from '@worldsmith/entity-core'
-import { WsIcon } from '@worldsmith/ui-kit'
+import type { CustomModule } from '@worldsea/entity-core'
+import { WsIcon } from '@worldsea/ui-kit'
 
 defineProps<{ module: CustomModule }>()
 defineEmits<{ edit: [id: string]; publish: [id: string]; delete: [id: string] }>()

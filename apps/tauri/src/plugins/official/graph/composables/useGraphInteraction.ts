@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import Graph from 'graphology'
-import { useGraphAlgorithms } from '@worldsmith/ui-kit'
+import { useGraphAlgorithms } from '@worldsea/ui-kit'
 
 export function useGraphInteraction() {
   const selectedNodeId = ref<string | null>(null)

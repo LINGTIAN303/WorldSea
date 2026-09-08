@@ -2,8 +2,8 @@
   RulesPanel：规则卡片面板（H5 八文件体系，2026-08-30 拍板）
   - 主设置 Agent 类下的规则统一编辑入口：八张文件卡（点击选中 → 下方编辑区）
   - 双层文件（WORLD/WRITING/DESIGN/TOOLS）卡内「项目级/全局级」作用域切换，
-    分别编辑 <workdir>/X.md 与 <app_data>/worldsmith/rules/X.md
-  - WORLDSMITH.md = 应用内置资源只读展示（唯一不可被 Agent/用户编辑，随版本维护）
+    分别编辑 <workdir>/X.md 与 <app_data>/worldsea/rules/X.md
+  - WORLDSEA.md = 应用内置资源只读展示（唯一不可被 Agent/用户编辑，随版本维护）
   - MEMORY.md = 说明卡（用户不可直接编辑，Agent 可改；记忆系统设计展开后启用）
   - WORLD.md 保存即落盘；注入 = 节奏型（实体操作触发重注入，机制上线后生效）
   - 生效时机：新建会话时由 useAgentRust.buildSessionSystemPrompt 读入并注入
@@ -49,9 +49,9 @@
         {{ activePath ?? (activeMeta.readonly ? '应用内置资源' : '路径不可用——项目级需绑定项目目录，全局级需应用数据目录') }}
       </div>
 
-      <!-- WORLDSMITH：只读展示 -->
+      <!-- WORLDSEA：只读展示 -->
       <template v-if="activeMeta.readonly">
-        <pre class="rp-readonly">{{ builtinWorldsmithMd }}</pre>
+        <pre class="rp-readonly">{{ builtinWorldseaMd }}</pre>
         <div class="rp-note">应用内置系统文档（随版本维护，不可编辑），Agent 新会话自动注入。</div>
       </template>
 
@@ -129,7 +129,7 @@ import {
   WRITING_RULES_FILE,
   getGlobalRulesDir,
 } from '@/agent/composables/useAgentRust'
-import BUILTIN_WORLDSMITH_MD from '../../agent/rules/WORLDSMITH.md?raw'
+import BUILTIN_WORLDSEA_MD from '../../agent/rules/WORLDSEA.md?raw'
 
 type Scope = 'project' | 'global'
 
@@ -147,7 +147,7 @@ interface RuleFileMeta {
 const FILE_METAS: RuleFileMeta[] = [
   { id: 'world', file: WORLD_RULES_FILE, title: '世界观固定规则', scopes: ['project', 'global'], note: '注入方式 = 节奏型：Agent 的实体写操作累计达到阈值时，自动把本文件相关分节重注入其上下文。' },
   { id: 'writing', file: WRITING_RULES_FILE, title: '写作规则', scopes: ['project', 'global'] },
-  { id: 'worldsmith', file: 'WORLDSMITH.md', title: '系统说明', scopes: [], readonly: true },
+  { id: 'worldsea', file: 'WORLDSEA.md', title: '系统说明', scopes: [], readonly: true },
   { id: 'agents', file: AGENTS_RULES_FILE, title: '协作规则', scopes: ['project'] },
   { id: 'rules', file: RULES_RULES_FILE, title: '全局规则', scopes: ['global'] },
   { id: 'design', file: DESIGN_RULES_FILE, title: '设计规则', scopes: ['project', 'global'] },
@@ -178,7 +178,7 @@ const activeMeta = computed(() => FILE_METAS.find((m) => m.id === activeId.value
 const activeKey = computed(() => (activeMeta.value ? `${activeMeta.value.id}:${activeScope.value}` : ''))
 const activePath = computed(() => (activeMeta.value ? pathFor(activeMeta.value, activeScope.value) : null))
 const activeDraft = computed(() => drafts[activeKey.value] ?? null)
-const builtinWorldsmithMd = BUILTIN_WORLDSMITH_MD
+const builtinWorldseaMd = BUILTIN_WORLDSEA_MD
 const placeholder = '每行一条规则；支持 Markdown 列表与小节'
 
 function pathFor(meta: RuleFileMeta, scope: Scope): string | null {
@@ -270,7 +270,7 @@ onMounted(async () => {
     workdir.value = await resolveWorkspaceDir()
   } catch { workdir.value = null }
   try {
-    // §六 2026-09-03：全局规则目录取共享来源（~/.WorldSmith/rules 优先，回退旧 appData 路径）
+    // §六 2026-09-03：全局规则目录取共享来源（~/.WorldSea/rules 优先，回退旧 appData 路径）
     rulesDir.value = await getGlobalRulesDir()
   } catch { rulesDir.value = null }
   // 全量探测存在性（卡片状态点；异步尽力而为）

@@ -3,7 +3,7 @@
  * 从 agent.ts 抽取，避免 toolbus → agent → plugin-sdk/entity-core 的 Vue 依赖链
  */
 import type { ToolDefinition } from '../bridge-types'
-import type { ToolMeta } from '@worldsmith/agent-core'
+import type { ToolMeta } from '@worldsea/agent-core'
 import type { IToolContext } from '../toolbus/types'
 import { findSkillById, getEnabledSkills, CAPABILITY_TO_TOOL } from './registry'
 import { loadSkillPrompt, loadSkillReference, loadSkillAsset } from './loader'

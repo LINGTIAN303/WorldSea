@@ -11,7 +11,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
-import { useSettingsStore } from '@worldsmith/entity-core'
+import { useSettingsStore } from '@worldsea/entity-core'
 
 const settingsStore = useSettingsStore()
 

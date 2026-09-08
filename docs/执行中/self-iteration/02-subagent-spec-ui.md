@@ -50,7 +50,7 @@
 - `cargo check --manifest-path crates/agent-commands/Cargo.toml` 通过。
 - `cargo check --manifest-path apps/tauri/src-tauri/Cargo.toml` 通过。
 - `cargo test -p agent-commands --lib` 16/16 通过（含 subagent 3 个用例 + 覆盖/删除/跨会话共享 3 个用例）。
-- `pnpm --filter @worldsmith/tauri typecheck` 通过。
+- `pnpm --filter @worldsea/tauri typecheck` 通过。
 - 修复：App.vue 初版仅 import `SubAgentView` 但模板未挂载 tab/视图，触发 `TS6133 SubAgentView declared but never used`；已补齐「子 Agent」tab 按钮 + `subagent` 视图分支 + `.subagent-holder` 样式，typecheck 复跑通过。
 
 ### 决策点 12：模块级 composable 禁止直接调用生命周期钩子（onMounted）

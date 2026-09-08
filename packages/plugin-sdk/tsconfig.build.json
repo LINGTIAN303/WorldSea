@@ -16,9 +16,9 @@
     "tsBuildInfoFile": "./dist/.tsbuildinfo",
     "types": [],
     "paths": {
-      "@worldsmith/core-api-types": ["../core-api-types/src/index.ts"],
-      "@worldsmith/entity-core": ["../entity-core/src/index.ts"],
-      "@worldsmith/entity-core/*": ["../entity-core/src/*"]
+      "@worldsea/core-api-types": ["../core-api-types/src/index.ts"],
+      "@worldsea/entity-core": ["../entity-core/src/index.ts"],
+      "@worldsea/entity-core/*": ["../entity-core/src/*"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.vue"],

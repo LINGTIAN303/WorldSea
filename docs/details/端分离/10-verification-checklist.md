@@ -19,7 +19,7 @@
 
 ### 2.1 包结构验证
 
-- [ ] `packages/agent-runtime/package.json` 存在，name 为 `@worldsmith/agent-runtime`
+- [ ] `packages/agent-runtime/package.json` 存在，name 为 `@worldsea/agent-runtime`
 - [ ] `packages/agent-runtime/tsconfig.json` 可独立 `tsc --noEmit` 通过
 - [ ] `packages/agent-runtime/src/index.ts` 导出完整公共 API
 - [ ] `pnpm-workspace.yaml` 包含 `packages/*`
@@ -34,9 +34,9 @@
 
 ### 2.3 功能不退化验证
 
-- [ ] `worldsmith-agent` 依赖 `@worldsmith/agent-runtime`，`pnpm install` 无报错
-- [ ] `worldsmith chat` 命令可正常启动对话（P0）
-- [ ] `worldsmith serve` 命令可正常启动服务（P0）
+- [ ] `worldsea-agent` 依赖 `@worldsea/agent-runtime`，`pnpm install` 无报错
+- [ ] `worldsea chat` 命令可正常启动对话（P0）
+- [ ] `worldsea serve` 命令可正常启动服务（P0）
 - [ ] CLI 工具执行（shell、git、file）功能正常（P0）
 - [ ] 单元测试全部通过（`pnpm test`）
 
@@ -57,21 +57,21 @@
 
 ### 3.2 包名验证
 
-- [ ] `apps/web/package.json` name 为 `@worldsmith/web`
-- [ ] `apps/cli/package.json` name 为 `@worldsmith/cli`
-- [ ] `apps/tauri/package.json` name 为 `@worldsmith/tauri`
+- [ ] `apps/web/package.json` name 为 `@worldsea/web`
+- [ ] `apps/cli/package.json` name 为 `@worldsea/cli`
+- [ ] `apps/tauri/package.json` name 为 `@worldsea/tauri`
 
 ### 3.3 独立启动验证
 
-- [ ] `pnpm --filter @worldsmith/web dev` 可启动 Vite，浏览器可见空白页（P0）
-- [ ] `pnpm --filter @worldsmith/cli start --help` 可输出帮助信息（P0）
-- [ ] `pnpm --filter @worldsmith/tauri dev` 可启动 Tauri 窗口（P0）
+- [ ] `pnpm --filter @worldsea/web dev` 可启动 Vite，浏览器可见空白页（P0）
+- [ ] `pnpm --filter @worldsea/cli start --help` 可输出帮助信息（P0）
+- [ ] `pnpm --filter @worldsea/tauri dev` 可启动 Tauri 窗口（P0）
 
 ### 3.4 依赖链接验证
 
-- [ ] 三端均可 `import { ... } from '@worldsmith/agent-runtime'` 无报错
-- [ ] 三端均可 `import { ... } from '@worldsmith/shared-composables'` 无报错
-- [ ] 三端均可 `import { ... } from '@worldsmith/shared-ui'` 无报错
+- [ ] 三端均可 `import { ... } from '@worldsea/agent-runtime'` 无报错
+- [ ] 三端均可 `import { ... } from '@worldsea/shared-composables'` 无报错
+- [ ] 三端均可 `import { ... } from '@worldsea/shared-ui'` 无报错
 
 ### 3.5 原 src/ 完整性验证
 
@@ -88,7 +88,7 @@
 - [ ] mindmap Rust composables（2 个）已迁移到 `apps/tauri/src/plugins/mindmap/`
 - [ ] workflow Rust 文件（2 个）已迁移到 `apps/tauri/src/plugins/workflow/`
 - [ ] `coreBackend.ts` WASM 版已迁移到 `apps/web/src/core/`
-- [ ] `worldsmithCore.ts` 已迁移到 `apps/web/src/core/`
+- [ ] `worldseaCore.ts` 已迁移到 `apps/web/src/core/`
 - [ ] `wasmWorkerPool.ts` 已迁移到 `apps/web/src/core/`
 - [ ] 共享 composables（18 个）已迁移到 `packages/shared-composables/src/`
 
@@ -116,10 +116,10 @@
 - [ ] Web 端 main.ts 注入 `WsAgentBackend`
 - [ ] Tauri 端 main.ts 注入 `RustAgentBackend`
 
-### 4.5 worldsmith-server 引用清理验证
+### 4.5 worldsea-server 引用清理验证
 
-- [ ] `grep -r "worldsmith-server" apps/tauri/` 返回空（P0）
-- [ ] `grep -r "worldsmith-server" apps/cli/` 返回空（P0）
+- [ ] `grep -r "worldsea-server" apps/tauri/` 返回空（P0）
+- [ ] `grep -r "worldsea-server" apps/cli/` 返回空（P0）
 - [ ] Web 端终端连接目标改为 CLI serve（`VITE_CLI_SERVE_URL` 环境变量）
 - [ ] Tauri 端终端无 WS 回退分支
 
@@ -147,16 +147,16 @@
 
 ### 5.1 CLI serve 能力验证
 
-- [ ] `apps/cli/src/commands/serve.ts` 存在，注册为 `worldsmith serve` 命令
-- [ ] `worldsmith serve` 启动后 `curl http://localhost:3100/health` 返回 200（P0）
+- [ ] `apps/cli/src/commands/serve.ts` 存在，注册为 `worldsea serve` 命令
+- [ ] `worldsea serve` 启动后 `curl http://localhost:3100/health` 返回 200（P0）
 - [ ] `curl http://localhost:3100/api/capabilities` 返回工具列表（P0）
 - [ ] `curl -X POST http://localhost:3100/api/tools/shell_session_exec` 可执行命令（P0）
 - [ ] WS 客户端连接 `ws://localhost:3100/ws` 可收到 `connected` 事件（P0）
 
 ### 5.2 端点覆盖验证
 
-- [ ] worldsmith-server 所有 HTTP 端点已在 CLI serve 中实现（逐个对比）
-- [ ] worldsmith-server 所有 WS 事件类型已在 CLI serve 中支持
+- [ ] worldsea-server 所有 HTTP 端点已在 CLI serve 中实现（逐个对比）
+- [ ] worldsea-server 所有 WS 事件类型已在 CLI serve 中支持
 - [ ] PTY 会话管理（spawn/write/resize/kill）在 CLI serve 中可用
 - [ ] 文件操作（read/write/list）在 CLI serve 中可用
 
@@ -165,26 +165,26 @@
 - [ ] Web 端 API 调用层已切换到 CLI serve 地址
 - [ ] Web 端终端可通过 CLI serve WS 执行命令（P0）
 - [ ] Web 端文件操作可通过 CLI serve HTTP 完成
-- [ ] Web 端无 `import` worldsmith-server 相关模块
+- [ ] Web 端无 `import` worldsea-server 相关模块
 
-### 5.4 worldsmith-server 废弃验证
+### 5.4 worldsea-server 废弃验证
 
-- [ ] `worldsmith-server/package.json` 添加 `deprecated: true` 标记
-- [ ] `worldsmith-server/` 目录仍在（保留作为回滚备份），但无端引用
-- [ ] `grep -r "worldsmith-server" apps/` 返回空
+- [ ] `worldsea-server/package.json` 添加 `deprecated: true` 标记
+- [ ] `worldsea-server/` 目录仍在（保留作为回滚备份），但无端引用
+- [ ] `grep -r "worldsea-server" apps/` 返回空
 
 ## 6. Phase 5 验证：构建配置与 CI 独立
 
 ### 6.1 构建独立性验证
 
-- [ ] `pnpm --filter @worldsmith/web build` 产物在 `apps/web/dist/`，可独立部署（P0）
-- [ ] `pnpm --filter @worldsmith/cli build` 产物在 `apps/cli/dist/`，可独立运行（P0）
-- [ ] `pnpm --filter @worldsmith/tauri build` 产物为安装包，可独立安装（P0）
+- [ ] `pnpm --filter @worldsea/web build` 产物在 `apps/web/dist/`，可独立部署（P0）
+- [ ] `pnpm --filter @worldsea/cli build` 产物在 `apps/cli/dist/`，可独立运行（P0）
+- [ ] `pnpm --filter @worldsea/tauri build` 产物为安装包，可独立安装（P0）
 
 ### 6.2 构建产物隔离验证
 
 - [ ] Web 端产物无 `@tauri-apps/api` 代码（`grep -r "tauri" apps/web/dist/` 为空）（P0）
-- [ ] Tauri 端产物无 worldsmith-server 代码
+- [ ] Tauri 端产物无 worldsea-server 代码
 - [ ] CLI 端产物无 Vue 组件代码
 
 ### 6.3 根 scripts 验证
@@ -213,9 +213,9 @@
 
 ### 7.2 CLI 端端到端验收
 
-- [ ] `worldsmith chat` 可启动交互式对话（P0）
-- [ ] `worldsmith serve` 可启动 HTTP+WS 服务（P0）
-- [ ] `worldsmith serve` 启动后 Web 端可连接
+- [ ] `worldsea chat` 可启动交互式对话（P0）
+- [ ] `worldsea serve` 可启动 HTTP+WS 服务（P0）
+- [ ] `worldsea serve` 启动后 Web 端可连接
 - [ ] CLI 工具执行正常（shell、git、file、lint、test、build）
 - [ ] 安全守卫功能正常
 
@@ -231,10 +231,10 @@
 
 ### 7.4 旧目录清理验证
 
-- [ ] `worldsmith-server/` 已删除（或标记 deprecated 并移到 `_archive/`）
-- [ ] `worldsmith-agent/` 残留已删除（核心已迁移到 packages/agent-runtime）
+- [ ] `worldsea-server/` 已删除（或标记 deprecated 并移到 `_archive/`）
+- [ ] `worldsea-agent/` 残留已删除（核心已迁移到 packages/agent-runtime）
 - [ ] 原 `src/` 目录已删除
-- [ ] `grep -r "worldsmith-server" .` 仅出现在文档中
+- [ ] `grep -r "worldsea-server" .` 仅出现在文档中
 - [ ] `grep -r "from '@/src/" .` 返回空
 - [ ] 数据文件（data/、*.db）未受影响（P0）
 
@@ -291,9 +291,9 @@ grep -r "__TAURI__" apps/web/src/ && echo "FAIL: Web 端有 __TAURI__ 检测" ||
 echo "=== 检查 detectBackend 已移除 ==="
 grep -r "detectBackend" apps/ && echo "FAIL: 仍有 detectBackend" || echo "PASS"
 
-echo "=== 检查 Tauri 端无 worldsmith-server 引用 ==="
-grep -r "worldsmith-server" apps/tauri/ && echo "FAIL: Tauri 端有 worldsmith-server" || echo "PASS"
-grep -r "worldsmith-server" apps/cli/ && echo "FAIL: CLI 端有 worldsmith-server" || echo "PASS"
+echo "=== 检查 Tauri 端无 worldsea-server 引用 ==="
+grep -r "worldsea-server" apps/tauri/ && echo "FAIL: Tauri 端有 worldsea-server" || echo "PASS"
+grep -r "worldsea-server" apps/cli/ && echo "FAIL: CLI 端有 worldsea-server" || echo "PASS"
 
 echo "=== 检查原 src/ 已删除 ==="
 test -d src/ && echo "FAIL: src/ 目录仍存在" || echo "PASS"

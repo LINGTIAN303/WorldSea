@@ -3,9 +3,9 @@
  * 端分离：Tauri 端专用（依赖 @tauri-apps/api）
  */
 
-/** Rust 图分析算法桥接（Tauri invoke → worldsmith-core，Web 回退 JS），详细见 docs/details/注释/tauri/useRustGraphAnalysis.md */
+/** Rust 图分析算法桥接（Tauri invoke → worldsea-core，Web 回退 JS），详细见 docs/details/注释/tauri/useRustGraphAnalysis.md */
 import { invoke, isHttpBackend } from '../../../agent/composables/transport'
-import type { GraphNode, GraphEdge } from '@worldsmith/canvas-engine'
+import type { GraphNode, GraphEdge } from '@worldsea/canvas-engine'
 
 function isTauriAvailable(): boolean {
   try {

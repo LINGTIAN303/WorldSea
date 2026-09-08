@@ -72,7 +72,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import FileTreeBrowser, { type FsNode } from './FileTreeBrowser.vue'
 import FilePreview from './FilePreview.vue'
 import { fileTabsState, resetFileTabs } from './fileTabsStore'

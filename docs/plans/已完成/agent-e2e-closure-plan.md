@@ -75,8 +75,8 @@
 > - 抽取 `packages/shared-ui/src/agent/`（bubbles / blocks / message-list 系列），统一由根 index 与子目录 index 导出。
 > - 定义注入式解耦契约 `AgentUiDeps`（`packages/shared-composables/src/agent/deps.ts`），注入字体配置、活动日志、头像组件等 Web 端特有依赖，组件不再直接依赖 Web 端实现。
 > - 修复类型问题：`useMessageExport.ts` 类型断言、`DeepMessageArea`/`NormalMessageBubble` 的 `pref.style` 非空判断、`BlockManuscript` 改用 `useAgentUiDeps`、Interactive 系列 `ToolCallView` 导入路径统一到共享层。
-> - Web 端 4 个消费文件（`AgentMessageBubble.vue`/`AgentMessageList.vue`/`AgentChat.vue`/`previewLabels.ts`）切换为 `@worldsmith/shared-ui` 导入，删除本地 `apps/web/src/agent/{bubbles,blocks,message-list}` 副本。
-> - 配置 Web 端 `tsconfig.json` + `vite.config.ts` 的 `@worldsmith/shared-ui` 路径映射，`pnpm typecheck:web` 通过。
+> - Web 端 4 个消费文件（`AgentMessageBubble.vue`/`AgentMessageList.vue`/`AgentChat.vue`/`previewLabels.ts`）切换为 `@worldsea/shared-ui` 导入，删除本地 `apps/web/src/agent/{bubbles,blocks,message-list}` 副本。
+> - 配置 Web 端 `tsconfig.json` + `vite.config.ts` 的 `@worldsea/shared-ui` 路径映射，`pnpm typecheck:web` 通过。
 > - 已知项：`shared-ui` 自身 typecheck 因 `tsconfig.build.json` 的 `rootDir` 指向 `shared-ui/src` 而 agent-runtime 外部类型越界，属项目级既有配置问题，留待统一处理。
 
 ### 5.4 端到端实测 + 收尾
@@ -172,9 +172,9 @@
 **验收**：项目中不再有 pi-ai / pi-agent-core 引用；三端编译与测试通过。
 
 > ✅ **已完成（2026-08-05）**
-> - 核实：`packages/agent-runtime`/`packages/agent-core` 的 pi-ai 依赖在**之前迭代（阶段 2.0 批次3）已移除**，`agent.ts` 注释明确记载"CoreBackend/HybridBackend 已移除（依赖 pi-ai）"、"createWorldSmithAgent 已废弃"。
+> - 核实：`packages/agent-runtime`/`packages/agent-core` 的 pi-ai 依赖在**之前迭代（阶段 2.0 批次3）已移除**，`agent.ts` 注释明确记载"CoreBackend/HybridBackend 已移除（依赖 pi-ai）"、"createWorldSeaAgent 已废弃"。
 > - 全库 grep 确认：**无任何实际 `import ... from 'pi-ai'` 代码**，残留的 `pi-ai` 字样均为注释历史文字，不影响编译与运行。
-> - `@worldsmith/agent-runtime`/`@worldsmith/agent-core` 是项目**自身** TS 包，属活跃使用，**不可删除**。（注：2026-08-05 记录"被三端引用"，web/cli 已于 2026-08-08 删除，现由 Tauri 端引用）
+> - `@worldsea/agent-runtime`/`@worldsea/agent-core` 是项目**自身** TS 包，属活跃使用，**不可删除**。（注：2026-08-05 记录"被三端引用"，web/cli 已于 2026-08-08 删除，现由 Tauri 端引用）
 > - 结论：5.5 技术栈收敛目标已达成，无需额外代码改动。
 
 ## 四、里程碑

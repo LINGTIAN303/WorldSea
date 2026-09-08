@@ -107,7 +107,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { WsIcon, useConfirm } from '@worldsmith/ui-kit'
+import { WsIcon, useConfirm } from '@worldsea/ui-kit'
 import TuiModal from '../../components/ui/TuiModal.vue'
 import TuiButton from '../../components/ui/TuiButton.vue'
 import { invoke } from '@/agent/composables/transport'

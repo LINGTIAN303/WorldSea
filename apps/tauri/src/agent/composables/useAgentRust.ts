@@ -7,24 +7,24 @@ export type {
   ToolCallView,
   PhaseOutput,
   AgentStreamItem,
-} from '@worldsmith/shared-composables/agent/useAgent'
+} from '@worldsea/shared-composables/agent/useAgent'
 
 // re-export 注入工具（供需要 provide/inject 的组件使用）
 export {
   provideAgentBackend,
   useAgentOptional,
   AGENT_BACKEND_INJECTION_KEY,
-} from '@worldsmith/shared-composables/agent/useAgent'
+} from '@worldsea/shared-composables/agent/useAgent'
 
 import { ref, computed, reactive, readonly } from 'vue'
 import { invoke as tauriInvoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn, isHttpBackend, invokeRpc, invoke } from './transport'
-import { useConfirm } from '@worldsmith/ui-kit'
+import { useConfirm } from '@worldsea/ui-kit'
 import { useOrchEvents } from './useOrchEvents'
 import { ALL_TOOLS_MAP, loadApiKey, type IToolContext } from '@agent/index'
 // H3 Skills 点火（P1，2026-08-30）：技能索引注入 + 已安装技能扫描合并
 import { buildSkillIndexPrompt, initSkillRegistry } from '@agent/skills/registry'
-import { useEntityStore, useRelationStore, useFileStore } from '@worldsmith/entity-core'
+import { useEntityStore, useRelationStore, useFileStore } from '@worldsea/entity-core'
 import { useSettingsStore } from '@/stores/settingsStore'
 import type {
   AgentMessage,
@@ -39,8 +39,8 @@ import type {
   MCPConnectionConfig,
   MCPConnectionState,
 } from '@agent/index'
-import type { AgentStreamItem } from '@worldsmith/shared-composables/agent/useAgent'
-import { usePlanStore } from '@worldsmith/shared-composables/agent/usePlanStore'
+import type { AgentStreamItem } from '@worldsea/shared-composables/agent/useAgent'
+import { usePlanStore } from '@worldsea/shared-composables/agent/usePlanStore'
 // 轮次模型：回源重建与实时流共用同一套归约规则
 import {
   rebuildFromMessages,
@@ -52,14 +52,14 @@ import {
   type FlatRow,
   type Turn,
   type TurnEvent,
-} from '@worldsmith/shared-composables/agent/turnModel'
+} from '@worldsea/shared-composables/agent/turnModel'
 import { useActivityLog, type ActivityLogEntry } from './useActivityLog'
 import { useSessionViewState, LAST_SESSION_KEY } from './useSessionViewState'
 import { useOrchestrationTrace } from './useOrchestrationTrace'
 import { resolveWorkspaceDir, ensureWorkspaceDir, resolveEntityDataDir } from '@/space/workspace'
-// H5 规则体系（2026-08-30 拍板）：WORLDSMITH.md 转应用内置资源（?raw 显式 import——
+// H5 规则体系（2026-08-30 拍板）：WORLDSEA.md 转应用内置资源（?raw 显式 import——
 // Vite8 glob 模块相对模式静默失配教训，勿用 import.meta.glob）
-import BUILTIN_WORLDSMITH_MD from '../rules/WORLDSMITH.md?raw'
+import BUILTIN_WORLDSEA_MD from '../rules/WORLDSEA.md?raw'
 // WORLD.md 节奏型注入（H5 排序第 4）：实体写工具出口的计数+附加包装
 import { attachWorldRulesIfTriggered } from './worldRulesInjector'
 // 风险点② 补桥（2026-08-30）：skills 商城/manifest 命令改走 transport——浏览器 HTTP
@@ -75,7 +75,7 @@ const { setupOrchListener, teardownOrchListener, setupOrchSupervisorListener, te
 // 组件仅消费状态（单一状态源），不再各自实例化监听。
 const { activeRun, finishedRuns, resetOrchestrationTrace, setupOrchestrationTraceListener, teardownOrchestrationTraceListener } = useOrchestrationTrace()
 
-// ── app 数据目录 + 用户主目录缓存（H6-③ MCP 配置 + H5 全局规则共用；§六 ~/.WorldSmith）──
+// ── app 数据目录 + 用户主目录缓存（H6-③ MCP 配置 + H5 全局规则共用；§六 ~/.WorldSea）──
 // 同步镜像 + 异步获取缓存：buildBridgeContext 为同步函数，白名单注入读镜像值；
 // 异步获取完成后回填，后续工具调用即带上（首次调用可能缺省，下一次补齐）。
 let appDataDirSync: string | undefined
@@ -88,7 +88,7 @@ async function getAppDataDirCached(): Promise<string | undefined> {
   return appDataDirSync
 }
 
-/** 用户主目录缓存（§六 全局层载体 ~/.WorldSmith 的根；globalRulesDirSync/RulesPanel 共用） */
+/** 用户主目录缓存（§六 全局层载体 ~/.WorldSea 的根；globalRulesDirSync/RulesPanel 共用） */
 let homeDirSync: string | undefined
 async function getHomeDirCached(): Promise<string | undefined> {
   if (homeDirSync) return homeDirSync
@@ -99,19 +99,19 @@ async function getHomeDirCached(): Promise<string | undefined> {
   return homeDirSync
 }
 
-/** MCP 配置文件路径（<app_data>/worldsmith/mcp.json，全局单份；H6-③ 配置化拍板） */
+/** MCP 配置文件路径（<app_data>/worldsea/mcp.json，全局单份；H6-③ 配置化拍板） */
 async function getMcpConfigPath(): Promise<string | undefined> {
   const base = await getAppDataDirCached()
-  return base ? `${base}/worldsmith/mcp.json` : undefined
+  return base ? `${base}/worldsea/mcp.json` : undefined
 }
 
 /** 写边界白名单（workdir 外精确放行文件）：MCP 配置 + 全局规则目录六件（用户与 Agent 均可编辑——拍板「共同维护」）
- *  §六 2026-09-03：放行 ~/.WorldSmith/rules 六件（新载体，Agent 可直编）；旧 appData 路径已移除（T20 清理） */
+ *  §六 2026-09-03：放行 ~/.WorldSea/rules 六件（新载体，Agent 可直编）；旧 appData 路径已移除（T20 清理） */
 function extraWritablePathsFor(base?: string): string[] | undefined {
   if (!base) return undefined
-  const homeRulesDir = homeDirSync ? `${homeDirSync}/.WorldSmith/rules` : undefined
+  const homeRulesDir = homeDirSync ? `${homeDirSync}/.WorldSea/rules` : undefined
   return [
-    `${base}/worldsmith/mcp.json`,
+    `${base}/worldsea/mcp.json`,
     ...(homeRulesDir ? GLOBAL_RULES_FILES.map((f) => `${homeRulesDir}/${f}`) : []),
   ]
 }
@@ -1371,13 +1371,13 @@ let toolBridgeContext: IToolContext | null = null
  *
  * Rust 端桥工具（entity_create/entity_update/content_search）在 Rust ToolBus 注册，
  * 但执行需前端 `ALL_TOOLS_MAP` 中对应 TS 实现，后者依赖 `IToolContext.stores`
- * （entity/relation/file 的 Dexie store）。本函数复用 `@worldsmith/entity-core` 的
+ * （entity/relation/file 的 Dexie store）。本函数复用 `@worldsea/entity-core` 的
  * stores 构造上下文，与 useGroupChat 的 buildToolContext 同构。惰性构造避免首屏开销。
  */
 function buildBridgeContext(): IToolContext {
   // H6-③ 配置化 + H5 规则体系（2026-08-30）：fire-and-forget 预取 app 数据目录，
   // 回填 appDataDirSync 后随 workspace.extraWritablePaths 注入白名单（缓存幂等）。
-  // §六（2026-09-03）：并行预取 home 目录 + 迁移 ~/.WorldSmith 全局层
+  // §六（2026-09-03）：并行预取 home 目录 + 迁移 ~/.WorldSea 全局层
   void getAppDataDirCached()
   void getHomeDirCached()
   void ensureGlobalHomeOnce()
@@ -1411,7 +1411,7 @@ function buildBridgeContext(): IToolContext {
       },
     },
     projectInfo: {
-      name: 'WorldSmith',
+      name: 'WorldSea',
       entityTypes: entityStore.types.map((t) => t.typeKey),
       relationTypes: [],
       // Phase 4 工作区：从当前会话 workdir 注入（原硬编码 null）
@@ -1456,7 +1456,7 @@ async function handleToolCall(payload: RustToolCallPayload): Promise<void> {
     const enriched = await attachWorldRulesIfTriggered(toolName, out, {
       sessionId: bridgeCtx.currentSessionId,
       workdir: currentWorkdir.value,
-      rulesDir: appDataDirSync ? `${appDataDirSync}/worldsmith/rules` : null,
+      rulesDir: appDataDirSync ? `${appDataDirSync}/worldsea/rules` : null,
       // typeKey → 显示名（WORLD.md 分节标题匹配；entityStore.types 为 EntityTypeSchema[]，含 label）
       typeLabels: Object.fromEntries(useEntityStore().types.map((t) => [t.typeKey, t.label])),
     })
@@ -1799,7 +1799,7 @@ function teardownTraceListener(sessionId: string): void {
 /** 任务29/D1：取当前项目 id（动态 import ProjectManager；项目系统未就绪/浏览器 preview 返回 null） */
 async function getCurrentProjectIdSafe(): Promise<string | null> {
   try {
-    const { getProjectManager } = await import('@worldsmith/entity-core/core')
+    const { getProjectManager } = await import('@worldsea/entity-core/core')
     return getProjectManager().getCurrentProjectId()
   } catch {
     return null
@@ -1816,11 +1816,11 @@ async function newSession(
 ): Promise<RustSessionInfo> {
   // 任务29/A1 统一根 + 项目=目录（2026-09-03）：workdir = currentWorkdir（project:switched 处理器/切会话恢复），
   // 未设置则回退当前默认根（resolveWorkspaceDir() 无参 = 当前项目目录优先 /
-  // 默认项目特判 ~/.WorldSmith/agent，无项目兜底同 agent）——见 docs/plans/workspace-unification-plan.md
+  // 默认项目特判 ~/.WorldSea/agent，无项目兜底同 agent）——见 docs/plans/workspace-unification-plan.md
   const workdir = currentWorkdir.value ?? (await resolveWorkspaceDir())
   await ensureWorkspaceDir(workdir)
   // 方案A（2026-09-03）：实体存储根与工作区根解耦——默认项目（未开目录）Agent 工作区在
-  // ~/.WorldSmith/agent、工作台实体在 ~/.WorldSmith/worlddata（resolveEntityDataDir 特判），
+  // ~/.WorldSea/agent、工作台实体在 ~/.WorldSea/worlddata（resolveEntityDataDir 特判），
   // 必须把后者作为 entityStorageRoot 传给后端实体读工具，否则读侧扫 agent/entities（空白）
   // 与写入侧（FileStorageBackend → worlddata/entities）分裂，模型创建实体后读不到。
   // 普通项目 resolveEntityDataDir()=dirPath=workdir（同源）→ 传 null 由后端回退 workdir。
@@ -1974,7 +1974,7 @@ export function registerProjectSwitchListener(): void {
     const projectId = (e as CustomEvent<{ projectId: string }>).detail?.projectId
     if (!projectId) return
     void (async () => {
-      // 项目=目录：workdir 统一走 resolveWorkspaceDir（默认项目特判 → ~/.WorldSmith/agent；
+      // 项目=目录：workdir 统一走 resolveWorkspaceDir（默认项目特判 → ~/.WorldSea/agent；
       // 普通项目 → dirPath；边缘无项目 → 兜底 agent）
       currentWorkdir.value = await resolveWorkspaceDir()
       await newDraftSession()
@@ -2243,11 +2243,11 @@ export const WRITING_RULES_FILE = 'WRITING.md' // 项目级+全局级：写作�
 export const DESIGN_RULES_FILE = 'DESIGN.md'   // 项目级+全局级：设计规则（常驻注入）
 export const TOOLS_RULES_FILE = 'TOOLS.md'     // 项目级+全局级：工具规则（常驻注入）
 export const MEMORY_RULES_FILE = 'MEMORY.md'   // 仅全局级：记忆文档（用户不可直接编辑，Agent 可改；记忆系统承接）
-// v1 遗留废弃：PROJECT_RULES_FILE='WORLDSMITH.md'（workdir 项目规则）——WORLDSMITH.md 已转应用内置资源
-// （./rules/WORLDSMITH.md，唯一不可被 Agent/用户编辑，随版本维护）；旧 workdir/WORLDSMITH.md
+// v1 遗留废弃：PROJECT_RULES_FILE='WORLDSEA.md'（workdir 项目规则）——WORLDSEA.md 已转应用内置资源
+// （./rules/WORLDSEA.md，唯一不可被 Agent/用户编辑，随版本维护）；旧 workdir/WORLDSEA.md
 // 由 ensureProjectAgentsFile 一次性改名迁移为 AGENTS.md（内容不动）。
 
-/** 全局规则文件清单（§六 2026-09-03 迁至 ~/.WorldSmith/rules/ 下；用户与 Agent 均可编辑——拍板「共同维护」） */
+/** 全局规则文件清单（§六 2026-09-03 迁至 ~/.WorldSea/rules/ 下；用户与 Agent 均可编辑——拍板「共同维护」） */
 const GLOBAL_RULES_FILES = [
   WORLD_RULES_FILE,
   WRITING_RULES_FILE,
@@ -2257,28 +2257,28 @@ const GLOBAL_RULES_FILES = [
   MEMORY_RULES_FILE,
 ] as const
 
-/** 全局规则目录（§六 迁移后 ~/.WorldSmith/rules；home 未就绪时回退旧 <app_data>/worldsmith/rules）
+/** 全局规则目录（§六 迁移后 ~/.WorldSea/rules；home 未就绪时回退旧 <app_data>/worldsea/rules）
  *  WRITING/DESIGN/TOOLS 等全局份同放；MEMORY.md 由记忆系统承接 */
 function globalRulesDirSync(): string | undefined {
-  if (homeDirSync) return `${homeDirSync}/.WorldSmith/rules`
-  return appDataDirSync ? `${appDataDirSync}/worldsmith/rules` : undefined
+  if (homeDirSync) return `${homeDirSync}/.WorldSea/rules`
+  return appDataDirSync ? `${appDataDirSync}/worldsea/rules` : undefined
 }
 
 /**
- * 一次性迁移（§六 2026-09-03）：确保 ~/.WorldSmith/{rules,skills} 存在；
- * 旧 <app_data>/worldsmith/rules 若有存量规则文件且目标无同名 → 逐文件复制（cmd_fs_copy 仅文件）。
+ * 一次性迁移（§六 2026-09-03）：确保 ~/.WorldSea/{rules,skills} 存在；
+ * 旧 <app_data>/worldsea/rules 若有存量规则文件且目标无同名 → 逐文件复制（cmd_fs_copy 仅文件）。
  * 幂等 no-op；旧目录保留留痕不删除。
  */
 export async function ensureGlobalHomeOnce(): Promise<void> {
   const home = await getHomeDirCached()
   const data = await getAppDataDirCached()
   if (!home) return
-  const homeRoot = `${home}/.WorldSmith`
+  const homeRoot = `${home}/.WorldSea`
   const rulesDir = `${homeRoot}/rules`
   try { await safeInvoke('cmd_fs_mkdir', { path: rulesDir }) } catch { /* 已存在则幂等 */ }
   try { await safeInvoke('cmd_fs_mkdir', { path: `${homeRoot}/skills` }) } catch { /* 幂等 */ }
   if (!data) return
-  const legacyDir = `${data}/worldsmith/rules`
+  const legacyDir = `${data}/worldsea/rules`
   for (const f of GLOBAL_RULES_FILES) {
     const src = `${legacyDir}/${f}`
     const dest = `${rulesDir}/${f}`
@@ -2289,7 +2289,7 @@ export async function ensureGlobalHomeOnce(): Promise<void> {
     try {
       await safeInvoke('cmd_fs_read', { path: src })
       await safeInvoke('cmd_fs_copy', { src, dest })
-      console.info(`[useAgentRust] 已迁移全局规则 ${f} → ~/.WorldSmith/rules`)
+      console.info(`[useAgentRust] 已迁移全局规则 ${f} → ~/.WorldSea/rules`)
     } catch { /* 源不存在或复制失败均静默（幂等 no-op） */ }
   }
   // T20 清理（2026-09-03 用户拍板）：迁移确认完成 → 移除旧路径痕迹（幂等；目录不存在/删除失败均静默）
@@ -2301,9 +2301,9 @@ export async function ensureGlobalHomeOnce(): Promise<void> {
 /** 全局规则目录（异步；home 就绪优先，否则回退旧 appData 路径）——RulesPanel 等共享来源 */
 export async function getGlobalRulesDir(): Promise<string | null> {
   const home = await getHomeDirCached()
-  if (home) return `${home}/.WorldSmith/rules`
+  if (home) return `${home}/.WorldSea/rules`
   const data = await getAppDataDirCached()
-  return data ? `${data}/worldsmith/rules` : null
+  return data ? `${data}/worldsea/rules` : null
 }
 
 /** 读文本文件（不存在/空 → null；容错不抛——规则缺省即不注入） */
@@ -2317,7 +2317,7 @@ async function readTextOrNull(path: string): Promise<string | null> {
 }
 
 /**
- * 一次性迁移（v1 → 八文件体系）：<workdir>/WORLDSMITH.md → AGENTS.md（改名不改内容）。
+ * 一次性迁移（v1 → 八文件体系）：<workdir>/WORLDSEA.md → AGENTS.md（改名不改内容）。
  * AGENTS.md 已存在或两文件均不存在时为 no-op；规则注入路径（buildSessionSystemPrompt）
  * 与 ProjectRulesEditor 编辑路径共用，保证两侧看到一致状态。
  */
@@ -2330,9 +2330,9 @@ export async function ensureProjectAgentsFile(): Promise<void> {
     return // AGENTS.md 已存在：无需迁移
   } catch { /* 不存在 → 尝试迁移旧文件 */ }
   try {
-    await safeInvoke('cmd_fs_read', { path: `${dir}/WORLDSMITH.md` })
-    await safeInvoke('cmd_fs_rename', { src: `${dir}/WORLDSMITH.md`, dest: agentsPath })
-    console.info('[useAgentRust] 已将 v1 规则文件 WORLDSMITH.md 迁移为 AGENTS.md')
+    await safeInvoke('cmd_fs_read', { path: `${dir}/WORLDSEA.md` })
+    await safeInvoke('cmd_fs_rename', { src: `${dir}/WORLDSEA.md`, dest: agentsPath })
+    console.info('[useAgentRust] 已将 v1 规则文件 WORLDSEA.md 迁移为 AGENTS.md')
   } catch { /* 旧文件也不存在：首次使用，无需处理 */ }
 }
 
@@ -2342,7 +2342,7 @@ export async function ensureProjectAgentsFile(): Promise<void> {
  * 构建会话级 system prompt 注入段（ensureSession → newSession 用）。
  *
  * 组成（按序拼接，空段跳过）——H5 常驻类六件（2026-08-30 拍板八文件体系）：
- * ① WORLDSMITH.md（系统级内置资源）：Agent 认知 WorldSmith 本身；不可编辑，随版本维护
+ * ① WORLDSEA.md（系统级内置资源）：Agent 认知 WorldSea 本身；不可编辑，随版本维护
  * ② 全局规则组：rules/{RULES,WRITING,DESIGN,TOOLS}.md——优先级低于项目级（拍板「RULES 低 AGENTS 一级」，同组同理）
  * ③ 项目规则组：<workdir>/{AGENTS,WRITING,DESIGN,TOOLS}.md——优先级最高，最后注入
  * ④ 技能索引（H3 P1：initSkillRegistry 每次建会话重扫 + buildSkillIndexPrompt 启停过滤）
@@ -2360,15 +2360,15 @@ async function buildSessionSystemPrompt(): Promise<string | undefined> {
   const sections: string[] = []
 
   // §六 全局层迁移前置：确保 home 规则目录就绪（homeDirSync 回填 + 目录创建/存量迁移），
-  // 使 ② 全局规则组读到新载体 ~/.WorldSmith/rules（消除首启竞态）
+  // 使 ② 全局规则组读到新载体 ~/.WorldSea/rules（消除首启竞态）
   await getHomeDirCached()
   await ensureGlobalHomeOnce()
 
-  // ① WORLDSMITH.md（内置系统说明——始终存在，认知性非约束性）
+  // ① WORLDSEA.md（内置系统说明——始终存在，认知性非约束性）
   sections.push(
-    '## WorldSmith 系统说明（WORLDSMITH.md）\n\n' +
+    '## WorldSea 系统说明（WORLDSEA.md）\n\n' +
     '以下为应用内置系统文档，帮助你认知本平台与你的角色：\n\n' +
-    BUILTIN_WORLDSMITH_MD.trim(),
+    BUILTIN_WORLDSEA_MD.trim(),
   )
 
   // ② 全局规则组（存在才注入；优先级低于项目级——拍板）
@@ -2413,8 +2413,8 @@ async function buildSessionSystemPrompt(): Promise<string | undefined> {
     }
 
     // ③.5 工作区分区（实时路径认知段，workdir 存在才注入——分区约定 + 当前真实路径）
-    // 实体数据区按 entityDirOf 语义特判（2026-09-03 修复遗留小项）：默认项目 workdir=~/.WorldSmith/agent，
-    // 工作台实体真实落 ~/.WorldSmith/worlddata（resolveEntityDataDir），与普通项目「{workdir}/entities 即数据区」
+    // 实体数据区按 entityDirOf 语义特判（2026-09-03 修复遗留小项）：默认项目 workdir=~/.WorldSea/agent，
+    // 工作台实体真实落 ~/.WorldSea/worlddata（resolveEntityDataDir），与普通项目「{workdir}/entities 即数据区」
     // 语义不同——文案如实区分「会话侧（Agent 实体工具落点）」与「平台侧（工作台实体目录）」，不做同源假设。
     const entityDataDir = await resolveEntityDataDir()
     // 路径归一比较（去尾分隔符 + 小写，Windows 大小写不敏感）
@@ -2424,14 +2424,14 @@ async function buildSessionSystemPrompt(): Promise<string | undefined> {
         ? // 默认项目：workdir=agent，实体平台目录独立于会话目录
           `- 实体数据受 E1 写保护，请用实体语义工具（entity_* / content_search）操作——会话侧 ${workdir}/entities；平台实体目录 ${entityDataDir}\n`
         : // 普通项目：workdir 即项目根，实体目录同源
-          `- ${workdir}/entities/、${workdir}/.worldsmith/ 为项目数据区，受写保护，请用实体语义工具（entity_* / content_search）操作\n`
+          `- ${workdir}/entities/、${workdir}/.worldsea/ 为项目数据区，受写保护，请用实体语义工具（entity_* / content_search）操作\n`
     sections.push(
       '## 工作区分区\n\n' +
       `当前工作区根目录：${workdir}\n\n` +
       `- 临时产物（草稿/中间文件）请写入 ${workdir}/agent-tmp/（Agent 全权，可自由创建与清理，写操作免确认）\n` +
       `- 收官成果请放入 ${workdir}/agent-out/\n` +
       dataDirLine +
-      `- 未绑定项目时兜底草稿目录为 ~/.WorldSmith/agent`,
+      `- 未绑定项目时兜底草稿目录为 ~/.WorldSea/agent`,
     )
   }
 
@@ -2780,7 +2780,7 @@ const modelKeyInjectedSessions = new Set<string>()
 /**
  * 确保当前会话的 Rust 端已注入模型 + API Key（幂等兜底，发送前调用）
  *
- * 数据源取 `settingsStore`（@worldsmith/entity-core，权威）：按 mode 分支读
+ * 数据源取 `settingsStore`（@worldsea/entity-core，权威）：按 mode 分支读
  * cloud（aiCloudProvider/aiCloudModel）/ local（endpoint/apiType/model）/
  * custom（baseUrl/apiType/model）。key 经 `loadApiKey(provider)` 读取。
  * 有 model 且该会话未经注入过 → 调 `update_model` 注入；否则保持现状

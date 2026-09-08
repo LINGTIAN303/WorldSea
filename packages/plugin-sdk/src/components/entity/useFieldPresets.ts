@@ -1,9 +1,9 @@
 // 字段与预设 composable：字段合并（SYSTEM_KEYS + fieldRegistry）、预设管理、拖拽排序、字段增删。
 // 详细说明见 docs/details/注释/packages/plugin-sdk/entity-form-modal.md
 import { ref, computed, watch } from 'vue'
-import { fieldRegistry, useFieldOrderStore, type Entity } from '@worldsmith/entity-core'
+import { fieldRegistry, useFieldOrderStore, type Entity } from '@worldsea/entity-core'
 import { useDialog } from '../../composables'
-import { toastSuccess, toastWarn } from '@worldsmith/ui-kit'
+import { toastSuccess, toastWarn } from '@worldsea/ui-kit'
 import type { FormFieldDef } from '../types'
 
 export interface UseFieldPresetsOptions {

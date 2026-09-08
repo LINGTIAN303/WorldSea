@@ -46,9 +46,9 @@
 
 <script setup lang="ts">
 import { ref, onMounted, nextTick } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import { useManuscriptExport } from '../composables/useManuscriptExport'
-import type { Entity } from '@worldsmith/entity-core'
+import type { Entity } from '@worldsea/entity-core'
 import { useFocusTrap } from '@/composables/useFocusTrap'
 
 const props = defineProps<{

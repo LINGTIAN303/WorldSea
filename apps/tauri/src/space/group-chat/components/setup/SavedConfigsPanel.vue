@@ -37,7 +37,7 @@
 
 <script setup lang="ts">
 import { ref, nextTick } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import type { SavedGroupConfig } from './types'
 
 defineProps<{

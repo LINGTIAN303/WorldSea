@@ -22,7 +22,7 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
-import { useTreeCanvas, type TreeCanvasCallbacks } from '@worldsmith/canvas-engine'
+import { useTreeCanvas, type TreeCanvasCallbacks } from '@worldsea/canvas-engine'
 import type { CanvasNode, CanvasEdge } from './composables/canvasTypes'
 import { invalidateThemeCache, drawGraph } from './composables/canvasDraw'
 

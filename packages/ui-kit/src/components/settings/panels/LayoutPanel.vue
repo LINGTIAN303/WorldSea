@@ -63,8 +63,8 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useSettingsStore, useFieldOrderStore, fieldRegistry } from '@worldsmith/entity-core'
-import { useConfirm, getAllPanelWidths, resetPanelWidth, resetAllPanelWidths, PANEL_LABELS, toastSuccess, CardDeck } from '@worldsmith/ui-kit'
+import { useSettingsStore, useFieldOrderStore, fieldRegistry } from '@worldsea/entity-core'
+import { useConfirm, getAllPanelWidths, resetPanelWidth, resetAllPanelWidths, PANEL_LABELS, toastSuccess, CardDeck } from '@worldsea/ui-kit'
 import { matchKeywords } from '../utils'
 
 const props = defineProps<{ searchQuery?: string }>()

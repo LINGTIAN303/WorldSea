@@ -28,8 +28,8 @@ export const EMBEDDING_PRESETS: Record<string, EmbeddingConfig> = {
   },
 }
 
-const STORAGE_KEY = 'worldsmith_embedding_config'
-const CACHE_KEY = 'worldsmith_embedding_cache'
+const STORAGE_KEY = 'worldsea_embedding_config'
+const CACHE_KEY = 'worldsea_embedding_cache'
 
 interface CacheEntry {
   hash: string

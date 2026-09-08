@@ -13,9 +13,9 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick, computed } from 'vue'
-import { WsEmpty } from '@worldsmith/ui-kit'
-import type { Entity, Relation } from '@worldsmith/entity-core'
-import { useSmallCanvasGraph, type SGNode, type SGEdge } from '@worldsmith/ui-kit'
+import { WsEmpty } from '@worldsea/ui-kit'
+import type { Entity, Relation } from '@worldsea/entity-core'
+import { useSmallCanvasGraph, type SGNode, type SGEdge } from '@worldsea/ui-kit'
 
 const props = defineProps<{
   event: Entity | null

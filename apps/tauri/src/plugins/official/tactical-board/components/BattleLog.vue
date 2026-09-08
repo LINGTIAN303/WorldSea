@@ -13,7 +13,7 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
-import { WsEmpty } from '@worldsmith/ui-kit'
+import { WsEmpty } from '@worldsea/ui-kit'
 import type { BattleLogEntry } from '../composables/useBattleManager'
 
 const props = defineProps<{

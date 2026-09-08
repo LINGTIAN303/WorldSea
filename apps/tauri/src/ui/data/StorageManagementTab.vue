@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { onMounted, computed, ref } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
-import { CardDeck } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
+import { CardDeck } from '@worldsea/ui-kit'
 import TuiButton from '@/components/ui/TuiButton.vue'
 import TuiCheckbox from '@/components/ui/TuiCheckbox.vue'
-import { useStorageStats } from '@worldsmith/entity-core/composables'
-import { useOrphanCleanup } from '@worldsmith/entity-core/composables'
-import { useDataDiagnostics } from '@worldsmith/entity-core/composables'
-import { useAutoCleanup } from '@worldsmith/entity-core/composables'
+import { useStorageStats } from '@worldsea/entity-core/composables'
+import { useOrphanCleanup } from '@worldsea/entity-core/composables'
+import { useDataDiagnostics } from '@worldsea/entity-core/composables'
+import { useAutoCleanup } from '@worldsea/entity-core/composables'
 import { useToast } from '../../composables/useToast'
 import { useSystemBridge } from '@/composables/useSystemBridge'
 
@@ -115,7 +115,7 @@ onMounted(async () => {
               <input type="checkbox" :checked="autostartOn" @change="onToggleAutostart" />
               <span class="set-toggle-slider"></span>
             </label>
-            <span class="sm-row-hint">登录系统后自动启动 WorldSmith</span>
+            <span class="sm-row-hint">登录系统后自动启动 WorldSea</span>
           </div>
         </div>
 

@@ -1,5 +1,5 @@
 /**
- * re-export 兼容层 — 实际实现已迁移到 @worldsmith/ui-kit
+ * re-export 兼容层 — 实际实现已迁移到 @worldsea/ui-kit
  * Phase 8c: useToast 统一状态源
  *
  * 之前根目录与 ui-kit 各有一份 useToast 实现，导致 toast 状态分裂。
@@ -16,4 +16,4 @@ export {
   toastWarn,
   toastWithUndo,
   type ToastType,
-} from '@worldsmith/ui-kit'
+} from '@worldsea/ui-kit'

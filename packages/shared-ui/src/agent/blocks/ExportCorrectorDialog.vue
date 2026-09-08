@@ -56,9 +56,9 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick, onBeforeUnmount } from 'vue'
-import { useModalShortcuts } from '@worldsmith/ui-kit'
-import { WsIcon } from '@worldsmith/ui-kit'
-import type { ManuscriptBlock, ExportCorrectorConfig } from '@worldsmith/agent-runtime'
+import { useModalShortcuts } from '@worldsea/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
+import type { ManuscriptBlock, ExportCorrectorConfig } from '@worldsea/agent-runtime'
 import ExportControlPanel from './export-corrector/ExportControlPanel.vue'
 import ExportActionBar from './export-corrector/ExportActionBar.vue'
 import { useExportCorrector, aspectRatios } from './export-corrector/useExportCorrector'

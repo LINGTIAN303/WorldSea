@@ -1,5 +1,5 @@
 /**
- * @worldsmith/theme-kit - Texture Engine
+ * @worldsea/theme-kit - Texture Engine
  * 
  * 纹理注入引擎：
  * - 通过 CSS 变量控制背景纹理

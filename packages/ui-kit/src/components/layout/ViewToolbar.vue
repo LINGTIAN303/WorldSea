@@ -76,7 +76,7 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
-import { useUIStore, usePluginStore } from '@worldsmith/entity-core'
+import { useUIStore, usePluginStore } from '@worldsea/entity-core'
 import WsIcon from '../WsIcon.vue'
 import ViewToolbarFilter from './ViewToolbarFilter.vue'
 

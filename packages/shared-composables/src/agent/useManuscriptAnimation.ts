@@ -2,7 +2,7 @@
 
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import type { ManuscriptBlock } from '@agent/index'
-import { useReducedMotion } from '@worldsmith/motion-kit'
+import { useReducedMotion } from '@worldsea/motion-kit'
 
 export function useManuscriptAnimation(block: ManuscriptBlock) {
   const { prefersReducedMotion } = useReducedMotion()

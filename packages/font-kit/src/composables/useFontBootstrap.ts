@@ -1,5 +1,5 @@
 import { useFontLibraryStore } from '../stores/fontLibraryStore'
-import { useFontStore } from '@worldsmith/entity-core'
+import { useFontStore } from '@worldsea/entity-core'
 import { useFontPresets, FONT_PRESETS } from './useFontPresets'
 import { installFromWsfont } from '../fontInstaller'
 

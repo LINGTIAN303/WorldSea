@@ -9,7 +9,7 @@
  */
 import { watch } from 'vue'
 import { useSettingsStore } from '../../stores/settingsStore'
-import { getProviderManifest, refreshModels, loadApiKey } from '@worldsmith/agent-runtime'
+import { getProviderManifest, refreshModels, loadApiKey } from '@worldsea/agent-runtime'
 
 /** 模块级安装标记：全局 watch 只允许安装一次，防止 HMR 或重复调用产生多份 watcher */
 let installed = false

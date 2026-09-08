@@ -1,9 +1,9 @@
 import { ref, computed, onBeforeUnmount, type Ref } from 'vue'
 
-const STORAGE_PREFIX = 'worldsmith_panel_width_'
+const STORAGE_PREFIX = 'worldsea_panel_width_'
 
-const EVENT_RESET = 'worldsmith:panel-width-reset'
-const EVENT_RESET_ALL = 'worldsmith:panel-width-reset-all'
+const EVENT_RESET = 'worldsea:panel-width-reset'
+const EVENT_RESET_ALL = 'worldsea:panel-width-reset-all'
 
 export interface ResizableOptions {
   panelId: string

@@ -1,7 +1,7 @@
 /**
  * fontInstaller — 字体安装器（re-export）
  *
- * 实现已下沉到 @worldsmith/font-kit，与根 src/composables/fontInstaller.ts 一致。
+ * 实现已下沉到 @worldsea/font-kit，与根 src/composables/fontInstaller.ts 一致。
  */
 export {
   MAX_FONT_STORAGE,
@@ -13,9 +13,9 @@ export {
   installFromZip,
   restoreFromDB,
   removeFontData,
-} from '@worldsmith/font-kit'
+} from '@worldsea/font-kit'
 export type {
   FontVariantEntry,
   FontLibraryEntry,
   CssFontFaceInfo,
-} from '@worldsmith/font-kit'
+} from '@worldsea/font-kit'

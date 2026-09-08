@@ -6,7 +6,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch, inject } from 'vue'
-import { WsEmpty } from '@worldsmith/ui-kit'
+import { WsEmpty } from '@worldsea/ui-kit'
 import Graph from 'graphology'
 import Sigma from 'sigma'
 import type { ModuleRuntimeContext } from '../ModuleRuntimeContext'

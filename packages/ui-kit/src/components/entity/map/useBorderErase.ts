@@ -1,14 +1,14 @@
 /** 抹除/移动边境线 composable（融合/移线 + 偏移/重划模式），详细见 docs/details/注释/packages/ui-kit/components/entity/map/useBorderErase.md */
 
 import { ref, onBeforeUnmount } from 'vue'
-import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'
-import { useDialog, useConfirm, useUndoRedo, useShortcuts } from '@worldsmith/ui-kit'
+import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
+import { useDialog, useConfirm, useUndoRedo, useShortcuts } from '@worldsea/ui-kit'
 import { toastWarn } from '../../../composables/useToast'
 import {
   bridgeChaikinSmooth,
   bridgeSimplifyPoints,
   bridgeMergePolygons,
-} from '@worldsmith/canvas-engine/geometry'
+} from '@worldsea/canvas-engine/geometry'
 import type { Point, RegionEntity, EraseCtxMenuState, SharedEdge } from './types'
 import { findSharedEdgeBetween, replaceEdgeWithLine } from './geometry'
 

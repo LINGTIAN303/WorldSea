@@ -1,10 +1,10 @@
 /** 绘制模式 composable（手绘疆域边界 + Alt 边境线模式），详细见 docs/details/注释/packages/ui-kit/components/entity/map/useDrawing.md */
 
 import { ref } from 'vue'
-import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'
-import { useDialog } from '@worldsmith/ui-kit'
-import { useDuplicateNameCheck } from '@worldsmith/plugin-sdk'
-import { useUndoRedo } from '@worldsmith/ui-kit'
+import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
+import { useDialog } from '@worldsea/ui-kit'
+import { useDuplicateNameCheck } from '@worldsea/plugin-sdk'
+import { useUndoRedo } from '@worldsea/ui-kit'
 import { toastWarn } from '../../../composables/useToast'
 import {
   bridgeChaikinSmooth,
@@ -12,7 +12,7 @@ import {
   bridgePointInPolygon,
   bridgePolygonSplit,
   bridgePolygonAugment,
-} from '@worldsmith/canvas-engine/geometry'
+} from '@worldsea/canvas-engine/geometry'
 import type { Point, RegionEntity, BorderlineMode } from './types'
 import { pointInPolygon, lineIntersectsPolygonEdges } from './geometry'
 

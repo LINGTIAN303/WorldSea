@@ -64,21 +64,21 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { getCurrentWindow, type Window } from '@tauri-apps/api/window'
-import { isTauri } from '@worldsmith/entity-core/core'
+import { isTauri } from '@worldsea/entity-core/core'
 import { useFileSystemProject } from '@/composables/useFileSystemProject'
 import { useUIStore } from '@/stores/uiStore'
-import { usePluginStore } from '@worldsmith/entity-core'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { usePluginStore } from '@worldsea/entity-core'
+import { WsIcon } from '@worldsea/ui-kit'
 import ProjectSwitcher from '@/ui/project/ProjectSwitcher.vue'
 
 // 变体：workbench=工作台完整窗口栏 / space=Agent 空间精简窗口栏（2026-08-09）
 const props = withDefaults(defineProps<{
   variant?: 'workbench' | 'space'
-  /** space 变体居中标题（缺省 "WorldSmith — Agent 空间"） */
+  /** space 变体居中标题（缺省 "WorldSea — Agent 空间"） */
   title?: string
 }>(), {
   variant: 'workbench',
-  title: 'WorldSmith — Agent 空间',
+  title: 'WorldSea — Agent 空间',
 })
 
 // 窗口控制仅在 Tauri 环境可用（浏览器预览 5175 时降级为 noop，避免顶层抛错）
@@ -269,7 +269,7 @@ function close() {
 .titlebar-shell-toggle:hover :deep(.shell-toggle-icon) {
   color: var(--text-primary);
 }
-/* 项目切换器：紫点 + WorldSmith + 项目名 + ▾，点击打开项目管理 */
+/* 项目切换器：紫点 + WorldSea + 项目名 + ▾，点击打开项目管理 */
 .titlebar-switcher {
   display: flex;
   align-items: center;

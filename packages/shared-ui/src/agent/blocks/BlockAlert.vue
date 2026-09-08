@@ -13,8 +13,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
-import type { AlertBlock } from '@worldsmith/agent-runtime'
+import { WsIcon } from '@worldsea/ui-kit'
+import type { AlertBlock } from '@worldsea/agent-runtime'
 
 const props = defineProps<{
   block: AlertBlock

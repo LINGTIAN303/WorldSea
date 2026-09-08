@@ -81,9 +81,9 @@ describe('buildSharedBaseLayer', () => {
 })
 
 describe('buildSystemPrompt', () => {
-  it('contains the default identity declaration ("WorldSmith 的 AI 助手")', () => {
+  it('contains the default identity declaration ("WorldSea 的 AI 助手")', () => {
     const result = buildSystemPrompt(baseParams)
-    expect(result).toContain('WorldSmith 的 AI 助手')
+    expect(result).toContain('WorldSea 的 AI 助手')
     expect(result).toContain('测试项目')
   })
 
@@ -113,7 +113,7 @@ describe('buildSystemPrompt', () => {
   it('backward compatible: same output structure as before the split', () => {
     const result = buildSystemPrompt(baseParams)
     // The full prompt should start with identity, then contain the base layer
-    const identityIndex = result.indexOf('WorldSmith 的 AI 助手')
+    const identityIndex = result.indexOf('WorldSea 的 AI 助手')
     const projectInfoIndex = result.indexOf('可用实体类型')
     const toolStrategyIndex = result.indexOf('工具使用策略')
     const outputIndex = result.indexOf('输出能力')

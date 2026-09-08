@@ -29,7 +29,7 @@
 <script setup lang="ts">
 import { useStreamingMessages } from '../../composables/useStreamingMessages'
 import { getToolLabel } from '../../types'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 
 // 流式消息显示：复用 composable，store 为 pinia 单例
 const {

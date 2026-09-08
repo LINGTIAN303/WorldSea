@@ -16,13 +16,13 @@ class AgentDB extends Dexie {
   groupSessions!: Table<GroupChatSession, string>
 
   /**
-   * @param projectId 项目 ID。传入时数据库名为 `worldsmith-agent-${projectId}`；
-   * 不传时使用旧的全局数据库名 `worldsmith-agent`（仅用于数据迁移）。
+   * @param projectId 项目 ID。传入时数据库名为 `worldsea-agent-${projectId}`；
+   * 不传时使用旧的全局数据库名 `worldsea-agent`（仅用于数据迁移）。
    */
   constructor(projectId?: string) {
     const dbName = projectId
-      ? `worldsmith-agent-${projectId}`
-      : 'worldsmith-agent'
+      ? `worldsea-agent-${projectId}`
+      : 'worldsea-agent'
     super(dbName)
     this.version(1).stores({
       sessions: 'id, name, updatedAt, providerMode',
@@ -60,7 +60,7 @@ export function setAgentCurrentProjectId(projectId: string | null): void {
 }
 
 /**
- * 获取当前项目 ID（供解析工作区根目录：`~/.worldsmith/workspaces/{projectId}`）。
+ * 获取当前项目 ID（供解析工作区根目录：`~/.worldsea/workspaces/{projectId}`）。
  * 未初始化项目系统时为 null（调用方回退到默认工作区）。
  */
 export function getAgentCurrentProjectId(): string | null {

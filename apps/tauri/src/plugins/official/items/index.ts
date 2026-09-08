@@ -1,13 +1,13 @@
-import type { PluginAPIType } from '@worldsmith/entity-core'
+import type { PluginAPIType } from '@worldsea/entity-core'
 import ItemView from './ItemView.vue'
-import { WeaponFacet, ApparelFacet } from '@worldsmith/entity-core/facets'
+import { WeaponFacet, ApparelFacet } from '@worldsea/entity-core/facets'
 
 export const manifest = {
   id: 'official.items',
   name: '道具',
   version: '2.0.0',
   description: '管理世界观中的道具、武器、装备等物品',
-  author: 'WorldSmith',
+  author: 'WorldSea',
   agentSkills: ['worldbuilding'],
   agentCapabilities: [
     { action: 'create_entity', description: '创建道具', params: ['name', 'description'] },

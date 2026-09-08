@@ -1,5 +1,5 @@
 /**
- * @worldsmith/governor-core — 环境检测
+ * @worldsea/governor-core — 环境检测
  *
  * 静态检测三维度环境（phase × host × backend）+ 能力集合。
  * 启动时一次性检测，运行期不变。
@@ -48,8 +48,8 @@ function detectPhase(): LifecyclePhase {
  * 检测宿主形态。
  *
  * 优先级：
- * 1. terminal：worldsmith-agent CLI 进程（typeof window === 'undefined' 或显式标志）
- * 2. cloud：环境变量 WORLDSMITH_CLOUD=1
+ * 1. terminal：worldsea-agent CLI 进程（typeof window === 'undefined' 或显式标志）
+ * 2. cloud：环境变量 WORLDSEA_CLOUD=1
  * 3. desktop：window.__TAURI_INTERNALS__ 或 window.__TAURI__ 存在
  * 4. browser：以上都不满足的兜底
  */
@@ -58,13 +58,13 @@ function detectHost(): RuntimeHost {
   try {
     if (typeof window === 'undefined') return 'terminal'
     // Agent 进程会设置显式标志
-    if ((globalThis as any).__WORLDSMITH_AGENT__ === true) return 'terminal'
+    if ((globalThis as any).__WORLDSEA_AGENT__ === true) return 'terminal'
   } catch {}
 
   // 2. cloud 检测
   try {
     const env = (globalThis as any).process?.env
-    if (env?.WORLDSMITH_CLOUD === '1') return 'cloud'
+    if (env?.WORLDSEA_CLOUD === '1') return 'cloud'
   } catch {}
 
   // 3. desktop 检测：Tauri 内部对象
@@ -88,7 +88,7 @@ function detectHost(): RuntimeHost {
  *
  * 优先级：
  * 1. tauri：宿主为 desktop 时优先
- * 2. wasm：window.__worldsmith_core_wasm_test__ 存在（由 worldsmithCore.ts 设置）
+ * 2. wasm：window.__worldsea_core_wasm_test__ 存在（由 worldseaCore.ts 设置）
  * 3. js-fallback：兜底
  */
 function detectBackend(host: RuntimeHost): CapabilityBackend {
@@ -103,7 +103,7 @@ function detectBackend(host: RuntimeHost): CapabilityBackend {
   // browser：检测 WASM 是否已加载
   try {
     if (typeof window !== 'undefined') {
-      const testKey = '__worldsmith_core_wasm_test__'
+      const testKey = '__worldsea_core_wasm_test__'
       const modules = (window as any)[testKey]
       if (modules && typeof modules === 'object') return 'wasm'
     }

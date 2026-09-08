@@ -1,5 +1,5 @@
 {
-  "name": "@worldsmith/agent-runtime",
+  "name": "@worldsea/agent-runtime",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -29,8 +29,8 @@
     "build": "tsc"
   },
   "dependencies": {
-    "@worldsmith/agent-core": "link:../agent-core",
-    "@worldsmith/governor-core": "link:../governor-core",
+    "@worldsea/agent-core": "link:../agent-core",
+    "@worldsea/governor-core": "link:../governor-core",
     "dexie": "^4.4.2"
   },
   "peerDependencies": {

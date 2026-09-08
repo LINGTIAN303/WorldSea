@@ -1,4 +1,4 @@
-import type { FormFieldDef } from '@worldsmith/plugin-sdk'
+import type { FormFieldDef } from '@worldsea/plugin-sdk'
 
 export const orgTypes = ['王国', '帝国', '共和国', '部落', '公会', '教团', '商会', '帮派', '军事组织', '秘密组织', '其他']
 

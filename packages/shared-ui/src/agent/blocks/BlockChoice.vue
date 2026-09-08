@@ -22,7 +22,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import type { ChoiceBlock } from '@worldsmith/agent-runtime'
+import type { ChoiceBlock } from '@worldsea/agent-runtime'
 import type { BlockActionEvent } from './index'
 
 const props = defineProps<{

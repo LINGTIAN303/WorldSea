@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { useShallowArray } from '@worldsmith/perf-kit/reactive'
+import { useShallowArray } from '@worldsea/perf-kit/reactive'
 import { storage } from '../core/StorageBackend'
 import { useUndoRedo, isUndoing } from '../composables/useUndoRedo'
 import type { Relation } from '../types/relation'

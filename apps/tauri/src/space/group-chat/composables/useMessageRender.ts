@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import { renderMarkdownHtml, stripJsonBlocks } from '@worldsmith/shared-ui/agent/bubbles'
+import { renderMarkdownHtml, stripJsonBlocks } from '@worldsea/shared-ui/agent/bubbles'
 
 /**
  * 群聊消息 Markdown 渲染（统一走 shared-ui 渲染链路：代码块外壳/复制/语法高亮/流式降级）。

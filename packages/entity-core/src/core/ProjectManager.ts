@@ -2,8 +2,8 @@
  * ProjectManager — 项目空间管理器
  *
  * 管理项目列表、当前活跃项目、项目级数据库实例池。
- * 全局元数据存储在 WorldSmith-Meta IndexedDB 中，
- * 每个项目数据存储在 WorldSmith-Project-${projectId} 中。
+ * 全局元数据存储在 WorldSea-Meta IndexedDB 中，
+ * 每个项目数据存储在 WorldSea-Project-${projectId} 中。
  */
 
 import Dexie, { type Table } from 'dexie'
@@ -38,7 +38,7 @@ class MetaDB extends Dexie {
   appState!: Table<AppState, string>
 
   constructor() {
-    super('WorldSmith-Meta')
+    super('WorldSea-Meta')
     this.version(1).stores({
       projects: 'id, name, createdAt, lastOpenedAt',
       appState: 'key',
@@ -387,14 +387,14 @@ class ProjectManager {
   }
 
   private async deleteProjectDatabase(projectId: string): Promise<void> {
-    const dbName = `WorldSmith-Project-${projectId}`
+    const dbName = `WorldSea-Project-${projectId}`
     try {
       await Dexie.delete(dbName)
     } catch (err) {
       console.warn(`[ProjectManager] 删除项目数据库失败: ${dbName}`, err)
     }
     // 同时删除 Agent 会话数据库
-    const agentDbName = `worldsmith-agent-${projectId}`
+    const agentDbName = `worldsea-agent-${projectId}`
     try {
       await Dexie.delete(agentDbName)
     } catch (err) {

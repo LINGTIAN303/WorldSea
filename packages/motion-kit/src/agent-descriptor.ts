@@ -8,7 +8,7 @@ const MOTION_AVAILABILITY: AvailabilitySpec = {
 }
 
 export const motionKitDescriptor: LibraryDescriptor = {
-  id: '@worldsmith/motion-kit',
+  id: '@worldsea/motion-kit',
   name: 'Motion Kit',
   version: '0.1.0',
   capabilities: [

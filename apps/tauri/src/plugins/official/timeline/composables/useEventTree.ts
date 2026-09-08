@@ -1,5 +1,5 @@
 import { computed, ref, type ComputedRef } from 'vue'
-import type { Entity } from '@worldsmith/entity-core'
+import type { Entity } from '@worldsea/entity-core'
 
 export interface TreeNode {
   entity: Entity

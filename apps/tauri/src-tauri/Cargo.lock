@@ -8603,7 +8603,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1ebf944e87a7c253233ad6766e082e3cd714b5d03812acc24c318f549614536e"
 
 [[package]]
-name = "worldsmith-core"
+name = "worldsea-core"
 version = "0.2.0"
 dependencies = [
  "dxf",
@@ -8617,7 +8617,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "worldsmith-skills-store"
+name = "worldsea-skills-store"
 version = "0.1.0"
 dependencies = [
  "serde",
@@ -8626,7 +8626,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "worldsmith-tauri-app"
+name = "worldsea-tauri-app"
 version = "0.1.0"
 dependencies = [
  "agent-commands",
@@ -8665,8 +8665,8 @@ dependencies = [
  "ureq",
  "webview2-com",
  "windows 0.61.3",
- "worldsmith-core",
- "worldsmith-skills-store",
+ "worldsea-core",
+ "worldsea-skills-store",
 ]
 
 [[package]]

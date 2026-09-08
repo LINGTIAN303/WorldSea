@@ -324,7 +324,7 @@ impl RoutingStrategy for KeywordRoutingStrategy {
 // ─── 四管线（A3）──────────────────────────────────────────────
 //
 // 参考 OpenWorld `IntentClassifier + Dispatcher` 的语义四管线设计，适配到
-// WorldSmith 现有的 `RoutingStrategy` / `RouteTarget` / `RouterNode` 架构。
+// WorldSea 现有的 `RoutingStrategy` / `RouteTarget` / `RouterNode` 架构。
 // 四管线：Query(查询) / Research(研究) / Experiment(实验) / Compose(创作)。
 // 意图分类策略：LLM 优先（3s 超时）→ 降级关键词 → RouterNode.fallback。
 // 支持 force_pipeline 强制管线（前端 Chip 注入 `/管线` 前缀）。

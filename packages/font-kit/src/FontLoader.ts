@@ -5,7 +5,7 @@ import {
   setFontFace,
 } from './FontRegistry'
 
-const DB_NAME = 'worldsmith-fonts'
+const DB_NAME = 'worldsea-fonts'
 const DB_VERSION = 1
 const STORE_NAME = 'fonts'
 

@@ -187,12 +187,12 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { GenericEntityView, DetailField, CustomDropdown, DynamicFieldsAdder, UniversalRelationPanel, CreateButton } from '@worldsmith/plugin-sdk'
-import { GenericTreeView, useShortcuts } from '@worldsmith/ui-kit'
-import type { FormFieldDef, FilterDef, CustomTabDef, RelationTabDef } from '@worldsmith/plugin-sdk'
-import { WsEmpty } from '@worldsmith/ui-kit'
-import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'
-import type { Entity } from '@worldsmith/entity-core'
+import { GenericEntityView, DetailField, CustomDropdown, DynamicFieldsAdder, UniversalRelationPanel, CreateButton } from '@worldsea/plugin-sdk'
+import { GenericTreeView, useShortcuts } from '@worldsea/ui-kit'
+import type { FormFieldDef, FilterDef, CustomTabDef, RelationTabDef } from '@worldsea/plugin-sdk'
+import { WsEmpty } from '@worldsea/ui-kit'
+import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
+import type { Entity } from '@worldsea/entity-core'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useOutlineTree } from './composables/useOutlineTree'
 import { useOutlineDrag } from './composables/useOutlineDrag'

@@ -1,5 +1,5 @@
-import { RelationTypes } from '@worldsmith/entity-core'
-import { getNodeColor, getNodeTypeInfo, getEdgeColor } from '@worldsmith/entity-core'
+import { RelationTypes } from '@worldsea/entity-core'
+import { getNodeColor, getNodeTypeInfo, getEdgeColor } from '@worldsea/entity-core'
 
 export const EMOJI_TO_ICON: Record<string, string> = {
   '📋': 'outline', '🏷️': 'tag', '📝': 'edit', '🎨': 'palette',

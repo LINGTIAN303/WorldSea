@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 // P3-W5 前置迁移：ChatMode 类型源从根 agent 入口改为共享包（根 useAgent 亦 re-export 自此处）
-import type { ChatMode } from '@worldsmith/shared-composables/agent/useAgent'
+import type { ChatMode } from '@worldsea/shared-composables/agent/useAgent'
 
 export type { ChatMode }
 export type SpaceMode = 'chat' | 'group'
@@ -28,7 +28,7 @@ export interface InputInjectionChip {
   ref: string
 }
 
-const PERSONA_STORAGE_KEY = 'worldsmith_agent_persona'
+const PERSONA_STORAGE_KEY = 'worldsea_agent_persona'
 
 function loadPersona(): AgentPersona {
   try {
@@ -36,7 +36,7 @@ function loadPersona(): AgentPersona {
     if (raw) return JSON.parse(raw)
   } catch {}
   return {
-    name: 'WorldSmith Agent',
+    name: 'WorldSea Agent',
     avatar: '',
     mood: 'active',
     statusMessage: '',
@@ -56,8 +56,8 @@ export const useSpaceStore = defineStore('space', () => {
   const rightTab = ref<RightTab>('exec')
   const configSubTab = ref<ConfigSubTab>('memory')
   // execTab（执行面板子页）已移入 useSessionViewState（按会话隔离，切换会话恢复），此处不再持有
-  const RIGHT_PANEL_WIDTH_KEY = 'worldsmith_right_panel_width'
-  const RIGHT_PANEL_WIDTH_CUSTOM_KEY = 'worldsmith_right_panel_width_custom'
+  const RIGHT_PANEL_WIDTH_KEY = 'worldsea_right_panel_width'
+  const RIGHT_PANEL_WIDTH_CUSTOM_KEY = 'worldsea_right_panel_width_custom'
   const rightPanelWidth = ref(loadRightPanelWidth())
   /** [3] 右栏宽度是否被用户拖拽过（区别于默认 70% 占比）：拖拽后持久保存，不再弹回默认 */
   const rightPanelWidthCustom = ref(loadRightPanelWidthCustom())

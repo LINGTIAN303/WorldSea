@@ -20,7 +20,7 @@ import type {
   LongTaskType,
   LongTaskStatus,
   LongTaskCheckpoint,
-} from '@worldsmith/shared-composables/long-task/longTaskStore'
+} from '@worldsea/shared-composables/long-task/longTaskStore'
 
 // ─── 常量 ─────────────────────────────────────────────────────────────────────
 

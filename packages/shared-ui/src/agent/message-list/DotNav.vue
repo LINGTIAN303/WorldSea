@@ -33,7 +33,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import type { AgentMessage } from '@worldsmith/agent-runtime'
+import type { AgentMessage } from '@worldsea/agent-runtime'
 import { truncateText } from './utils'
 
 const props = defineProps<{

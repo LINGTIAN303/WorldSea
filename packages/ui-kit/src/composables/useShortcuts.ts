@@ -214,7 +214,7 @@ export function isTopModalShortcut(id: string): boolean {
 function loadOverrides(): Record<string, string[]> {
   if (cachedOverrides) return cachedOverrides
   try {
-    const raw = localStorage.getItem('worldsmith_shortcuts')
+    const raw = localStorage.getItem('worldsea_shortcuts')
     cachedOverrides = raw ? JSON.parse(raw) : {}
   } catch {
     cachedOverrides = {}
@@ -224,7 +224,7 @@ function loadOverrides(): Record<string, string[]> {
 
 function saveOverrides(overrides: Record<string, string[]>) {
   try {
-    localStorage.setItem('worldsmith_shortcuts', JSON.stringify(overrides))
+    localStorage.setItem('worldsea_shortcuts', JSON.stringify(overrides))
   } catch {
     console.warn('[useShortcuts] 持久化快捷键覆盖失败')
   }

@@ -1,11 +1,11 @@
 /** 接壤模式 composable（多选目标区域 + borders 关系 + extend/be-extended 合并），详细见 docs/details/注释/packages/ui-kit/components/entity/map/useAdjoin.md */
 
 import { ref } from 'vue'
-import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'
-import { useDialog } from '@worldsmith/ui-kit'
-import { useUndoRedo } from '@worldsmith/ui-kit'
+import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
+import { useDialog } from '@worldsea/ui-kit'
+import { useUndoRedo } from '@worldsea/ui-kit'
 import { toastWarn } from '../../../composables/useToast'
-import { bridgeComputeMergedPolygon } from '@worldsmith/canvas-engine/geometry'
+import { bridgeComputeMergedPolygon } from '@worldsea/canvas-engine/geometry'
 import type { Point, RegionEntity } from './types'
 
 interface UseAdjoinOptions {

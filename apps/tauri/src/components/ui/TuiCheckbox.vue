@@ -6,7 +6,7 @@
  * --border-strong 描边、按压回弹）。支持 label / disabled。
  * 详细why请见 docs/details/注释/tauri/components/TuiCheckbox.md
  */
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 
 const props = withDefaults(
   defineProps<{

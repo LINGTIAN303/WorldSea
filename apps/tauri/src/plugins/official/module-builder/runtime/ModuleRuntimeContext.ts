@@ -1,6 +1,6 @@
 import { ref, computed, type Ref, type ComputedRef } from 'vue'
-import type { CustomModule, Entity } from '@worldsmith/entity-core'
-import { storage } from '@worldsmith/entity-core'
+import type { CustomModule, Entity } from '@worldsea/entity-core'
+import { storage } from '@worldsea/entity-core'
 
 export interface SearchFilter {
   field: string

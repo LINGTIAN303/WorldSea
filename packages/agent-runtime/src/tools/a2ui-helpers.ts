@@ -2,14 +2,14 @@
 
 import type { A2UIMessage, A2UIComponent } from '../bridge-types'
 import type { ToolDefinition } from '../bridge-types'
-import type { ToolMeta } from '@worldsmith/agent-core'
-import type { WorldSmithToolContext } from './types'
+import type { ToolMeta } from '@worldsea/agent-core'
+import type { WorldSeaToolContext } from './types'
 
-/** WorldSmith 应用组件目录 URL */
-const WS_CATALOG = 'https://worldsmith.app/catalog/v1'
+/** WorldSea 应用组件目录 URL */
+const WS_CATALOG = 'https://worldsea.app/catalog/v1'
 
 /** 向指定 Surface 发射 A2UI 消息的内部辅助 */
-function emit(ctx: WorldSmithToolContext, surfaceId: string, message: A2UIMessage): void {
+function emit(ctx: WorldSeaToolContext, surfaceId: string, message: A2UIMessage): void {
   ctx.emitA2UI?.(surfaceId, message)
 }
 
@@ -18,7 +18,7 @@ function emit(ctx: WorldSmithToolContext, surfaceId: string, message: A2UIMessag
  * 自动将数值属性渲染为 StatBar 组件，将 tags 渲染为 TagGroup
  */
 export function emitEntityCard(
-  ctx: WorldSmithToolContext,
+  ctx: WorldSeaToolContext,
   entity: { id: string; name: string; type: string; description?: string; properties?: Record<string, unknown>; tags?: string[]; coverImage?: string; coverPosition?: string; coverZoom?: number },
 ): void {
   const surfaceId = `entity-${entity.id}`
@@ -95,7 +95,7 @@ export function emitEntityCard(
 
 /** 发射实体列表到 A2UI 画布，最多展示 10 个 */
 export function emitEntityList(
-  ctx: WorldSmithToolContext,
+  ctx: WorldSeaToolContext,
   entities: { id: string; name: string; type: string; description?: string; tags?: string[]; properties?: Record<string, unknown>; coverImage?: string; coverPosition?: string; coverZoom?: number }[],
   title?: string,
 ): void {
@@ -141,7 +141,7 @@ export function emitEntityList(
 
 /** 发射确认栏（确认/取消按钮） */
 export function emitConfirmBar(
-  ctx: WorldSmithToolContext,
+  ctx: WorldSeaToolContext,
   message: string,
   _actionName: string,
 ): void {
@@ -160,7 +160,7 @@ export function emitConfirmBar(
 
 /** 发射改造协商界面（retrofit 工作流的第一步） */
 export function emitRetrofitNegotiate(
-  ctx: WorldSmithToolContext,
+  ctx: WorldSeaToolContext,
   sessionId: string,
   intents: { type: string; description: string; warnings?: string[] }[],
 ): void {
@@ -216,7 +216,7 @@ export function emitRetrofitNegotiate(
 
 /** 发射改造进度界面 */
 export function emitRetrofitProgress(
-  ctx: WorldSmithToolContext,
+  ctx: WorldSeaToolContext,
   sessionId: string,
   applied: number,
   total: number,
@@ -244,7 +244,7 @@ export function emitRetrofitProgress(
 
 /** 发射改造验收界面 */
 export function emitRetrofitVerify(
-  ctx: WorldSmithToolContext,
+  ctx: WorldSeaToolContext,
   sessionId: string,
   applied: number,
   rolledBack: number,
@@ -280,7 +280,7 @@ export function emitRetrofitVerify(
 
 /** 发射改造完成界面 */
 export function emitRetrofitCompleted(
-  ctx: WorldSmithToolContext,
+  ctx: WorldSeaToolContext,
   sessionId: string,
   applied: number,
   rolledBack: number,
@@ -381,7 +381,7 @@ export const a2uiShowRelation: ToolDefinition = {
 
 /** 发射可编辑表格到 A2UI 画布 */
 export function emitEditableTable(
-  ctx: WorldSmithToolContext,
+  ctx: WorldSeaToolContext,
   columns: { key: string; label: string; editable?: boolean }[],
   rows: Record<string, unknown>[],
   title?: string,
@@ -403,7 +403,7 @@ export function emitEditableTable(
 
 /** 发射图表到 A2UI 画布 */
 export function emitChartView(
-  ctx: WorldSmithToolContext,
+  ctx: WorldSeaToolContext,
   chartType: string,
   option: Record<string, unknown>,
   title?: string,
@@ -425,7 +425,7 @@ export function emitChartView(
 
 /** 发射 Mermaid 图表到 A2UI 画布 */
 export function emitMermaidRender(
-  ctx: WorldSmithToolContext,
+  ctx: WorldSeaToolContext,
   code: string,
   title?: string,
 ): void {
@@ -446,7 +446,7 @@ export function emitMermaidRender(
 
 /** 发射建议选择器到 A2UI 画布 */
 export function emitSuggestionPicker(
-  ctx: WorldSmithToolContext,
+  ctx: WorldSeaToolContext,
   title: string,
   options: { id: string; label: string; description?: string }[],
 ): void {
@@ -463,7 +463,7 @@ export function emitSuggestionPicker(
 
 /** 发射文件预览到 A2UI 画布 */
 export function emitFilePreview(
-  ctx: WorldSmithToolContext,
+  ctx: WorldSeaToolContext,
   file: { fileName: string; fileType: string; summary: string; fileId?: string },
   suggestions: { target: string; reason: string }[],
 ): void {
@@ -480,7 +480,7 @@ export function emitFilePreview(
 
 /** 发射代码块到 A2UI 画布 */
 export function emitCodeBlock(
-  ctx: WorldSmithToolContext,
+  ctx: WorldSeaToolContext,
   language: string,
   code: string,
   runnable: boolean = false,
@@ -499,7 +499,7 @@ export function emitCodeBlock(
 
 /** 发射实体链接到 A2UI 画布 */
 export function emitEntityLink(
-  ctx: WorldSmithToolContext,
+  ctx: WorldSeaToolContext,
   entityId: string,
   name: string,
   entityType: string,

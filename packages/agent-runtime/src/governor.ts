@@ -7,11 +7,11 @@ import type {
   BootReport,
   ActivationResult,
   Governor,
-} from '@worldsmith/governor-core/types'
+} from '@worldsea/governor-core/types'
 import {
   createGovernor as createGovernorCore,
-} from '@worldsmith/governor-core/governor'
-import { detectEnvironment as detectWebEnvironment } from '@worldsmith/governor-core/environment'
+} from '@worldsea/governor-core/governor'
+import { detectEnvironment as detectWebEnvironment } from '@worldsea/governor-core/environment'
 import { agentModules, cliAgentModules, webAgentModules } from './governor-modules'
 
 /* ════════════════════════════════════════
@@ -162,7 +162,7 @@ let globalAgentGovernorBooted = false
 /**
  * 初始化全局 Agent 调控器。
  *
- * 应在 createWorldSmithAgent / createCliAgent 中调用一次。
+ * 应在 createWorldSeaAgent / createCliAgent 中调用一次。
  * 重复调用会覆盖已有实例。
  */
 export function initAgentGovernor(options: {

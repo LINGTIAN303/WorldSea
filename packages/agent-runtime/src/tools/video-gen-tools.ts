@@ -1,5 +1,5 @@
 import type { ToolDefinition } from '../bridge-types'
-import type { ToolMeta } from '@worldsmith/agent-core'
+import type { ToolMeta } from '@worldsea/agent-core'
 import type { IToolContext } from '../toolbus/types'
 import { loadApiKey } from '../providers/key-store'
 import { persistVideo, getAllVideos, getVideo, getVideosByPathPrefix, urlToBlob } from '../stores/video-persistence'
@@ -144,8 +144,8 @@ const PROVIDERS: Record<string, ProviderProtocol> = {
   },
 }
 
-const VIDEO_GEN_PROVIDER_KEY = 'worldsmith_video_gen_provider'
-const VIDEO_GEN_MODEL_KEY = 'worldsmith_video_gen_model'
+const VIDEO_GEN_PROVIDER_KEY = 'worldsea_video_gen_provider'
+const VIDEO_GEN_MODEL_KEY = 'worldsea_video_gen_model'
 
 function getOrigin(): string {
   return typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173'

@@ -10,7 +10,7 @@ export interface RegisteredField extends FieldSchema {
   sharedFrom?: string
 }
 
-const STORAGE_KEY = 'worldsmith_field_registry'
+const STORAGE_KEY = 'worldsea_field_registry'
 
 class FieldRegistryClass {
   private fields = new Map<string, Map<string, RegisteredField>>()

@@ -409,7 +409,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { WsIcon, CardDeck } from '@worldsmith/ui-kit'
+import { WsIcon, CardDeck } from '@worldsea/ui-kit'
 import TuiSelect from '../components/ui/TuiSelect.vue'
 import TuiButton from '../components/ui/TuiButton.vue'
 import RulesPanel from '@/space/panels/RulesPanel.vue'
@@ -429,7 +429,7 @@ import TerminalPanel from './panels/TerminalPanel.vue'
 import ModelsSection from './panels/model/ModelsSection.vue'
 import ProviderTypeDialog from './panels/model/ProviderTypeDialog.vue'
 import ModelParamsDialog from './panels/model/ModelParamsDialog.vue'
-import { getModelInfo } from '@worldsmith/agent-runtime'
+import { getModelInfo } from '@worldsea/agent-runtime'
 import { useAgentRust } from './composables/useAgentRust'
 
 const { updateModel, securityLevel, setSecurityLevel } = useAgentRust()
@@ -526,7 +526,7 @@ const CAPABILITY_TOOL_META = [
   { id: 'image', icon: 'layout', name: '图像生成', description: 'image_generate 文生图' },
   { id: 'video', icon: 'play', name: '视频生成', description: 'video_generate 文生视频（异步）' },
 ]
-const CAP_TOOL_KEY = 'worldsmith_capability_tools'
+const CAP_TOOL_KEY = 'worldsea_capability_tools'
 const openCapConfig = ref('')
 function capEnabled(id: string): boolean {
   try {

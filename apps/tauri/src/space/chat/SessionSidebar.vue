@@ -227,7 +227,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick, type Ref } from 'vue'
 import { IconSettings } from '@tabler/icons-vue'
 import { useAgent } from '@/agent/composables/useAgent'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import KnowledgeWall from '@/agent/panels/KnowledgeWall.vue'
 import { useSpaceStore } from '../stores/space-store'
 import { useSessionViewState, LAST_SESSION_KEY } from '@/agent/composables/useSessionViewState'

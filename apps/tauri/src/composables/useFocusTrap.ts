@@ -1,5 +1,5 @@
 import { ref, watch, onBeforeUnmount, type Ref } from 'vue'
-import { setShortcutModalActive } from '@worldsmith/ui-kit'
+import { setShortcutModalActive } from '@worldsea/ui-kit'
 
 // 注册表弹窗深度守卫标记（本实例是否已入栈，防重复/泄漏）
 let modalGuardActive = false

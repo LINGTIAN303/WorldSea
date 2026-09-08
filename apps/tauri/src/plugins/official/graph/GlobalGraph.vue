@@ -78,10 +78,10 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
-import { WsIcon, WsEmpty } from '@worldsmith/ui-kit'
+import { WsIcon, WsEmpty } from '@worldsea/ui-kit'
 import Graph from 'graphology'
-import { useEntityStore, useRelationStore, entitySchemaRegistry, getNodeTypeInfo } from '@worldsmith/entity-core'
-import { useGraphData, type GraphNode, useTypeMapping, useGraphFilter, useGraphAlgorithms } from '@worldsmith/ui-kit'
+import { useEntityStore, useRelationStore, entitySchemaRegistry, getNodeTypeInfo } from '@worldsea/entity-core'
+import { useGraphData, type GraphNode, useTypeMapping, useGraphFilter, useGraphAlgorithms } from '@worldsea/ui-kit'
 import { useSigmaRenderer } from './composables/useSigmaRenderer'
 import { useGraphLayout, type LayoutType } from './composables/useGraphLayout'
 import { useGraphClustering } from './composables/useGraphClustering'

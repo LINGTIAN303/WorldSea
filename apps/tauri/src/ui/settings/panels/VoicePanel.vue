@@ -27,8 +27,8 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { CardDeck } from '@worldsmith/ui-kit'
-import { useSettingsStore } from '@worldsmith/entity-core'
+import { CardDeck } from '@worldsea/ui-kit'
+import { useSettingsStore } from '@worldsea/entity-core'
 
 const props = withDefaults(defineProps<{ searchQuery?: string }>(), { searchQuery: '' })
 const emit = defineEmits<{ 'card-change': [index: number] }>()

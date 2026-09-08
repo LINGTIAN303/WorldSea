@@ -54,7 +54,7 @@
 
   <!-- title -->
   <text class="title" x="40" y="30">MemoryCenter 召回集成架构</text>
-  <text class="subtitle" x="40" y="52">WorldSmith Agent 记忆后端 · MemoryAccessor 适配层方案</text>
+  <text class="subtitle" x="40" y="52">WorldSea Agent 记忆后端 · MemoryAccessor 适配层方案</text>
 
   <!-- ===== Layer 1: AgentLoop / Orchestrator ===== -->
   <g>
@@ -106,7 +106,7 @@
     <rect class="box" x="240" y="388" width="600" height="120"/>
     <rect class="boxhead" x="240" y="388" width="600" height="30"/>
     <text class="boxtitle" x="260" y="408">crates/vendor（vendor 复制 · 独立演进）</text>
-    <text class="text-dim" x="260" y="428">MemoryCenter 核心逻辑，从此随 WorldSmith 独立分叉</text>
+    <text class="text-dim" x="260" y="428">MemoryCenter 核心逻辑，从此随 WorldSea 独立分叉</text>
 
     <rect class="box" x="256" y="444" width="280" height="50"/>
     <circle cx="268" cy="466" r="5" class="violet"/>

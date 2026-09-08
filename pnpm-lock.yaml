@@ -41,49 +41,49 @@ importers:
       '@windfonts/chinese-fonts':
         specifier: ^1.0.22
         version: 1.0.22
-      '@worldsmith/agent-core':
+      '@worldsea/agent-core':
         specifier: link:./packages/agent-core
         version: link:packages/agent-core
-      '@worldsmith/canvas-engine':
+      '@worldsea/canvas-engine':
         specifier: link:./packages/canvas-engine
         version: link:packages/canvas-engine
-      '@worldsmith/core':
-        specifier: link:./worldsmith-core/pkg
-        version: link:worldsmith-core/pkg
-      '@worldsmith/entity-core':
+      '@worldsea/core':
+        specifier: link:./worldsea-core/pkg
+        version: link:worldsea-core/pkg
+      '@worldsea/entity-core':
         specifier: link:./packages/entity-core
         version: link:packages/entity-core
-      '@worldsmith/font-kit':
+      '@worldsea/font-kit':
         specifier: link:./packages/font-kit
         version: link:packages/font-kit
-      '@worldsmith/governor-core':
+      '@worldsea/governor-core':
         specifier: link:./packages/governor-core
         version: link:packages/governor-core
-      '@worldsmith/memory-archive':
+      '@worldsea/memory-archive':
         specifier: link:./packages/memory-archive
         version: link:packages/memory-archive
-      '@worldsmith/motion-kit':
+      '@worldsea/motion-kit':
         specifier: link:./packages/motion-kit
         version: link:packages/motion-kit
-      '@worldsmith/perf-kit':
+      '@worldsea/perf-kit':
         specifier: link:./packages/perf-kit
         version: link:packages/perf-kit
-      '@worldsmith/plugin-sdk':
+      '@worldsea/plugin-sdk':
         specifier: link:./packages/plugin-sdk
         version: link:packages/plugin-sdk
-      '@worldsmith/shared-composables':
+      '@worldsea/shared-composables':
         specifier: link:./packages/shared-composables
         version: link:packages/shared-composables
-      '@worldsmith/shared-ui':
+      '@worldsea/shared-ui':
         specifier: link:./packages/shared-ui
         version: link:packages/shared-ui
-      '@worldsmith/tactical-engine':
+      '@worldsea/tactical-engine':
         specifier: link:./tactical-engine/pkg
         version: link:tactical-engine/pkg
-      '@worldsmith/theme-kit':
+      '@worldsea/theme-kit':
         specifier: link:./packages/theme-kit
         version: link:packages/theme-kit
-      '@worldsmith/ui-kit':
+      '@worldsea/ui-kit':
         specifier: link:./packages/ui-kit
         version: link:packages/ui-kit
       '@xterm/addon-fit':
@@ -324,13 +324,13 @@ importers:
       '@tiptap/vue-3':
         specifier: ^3.29.1
         version: 3.29.1(@floating-ui/dom@1.8.0)(@tiptap/core@3.29.1(@tiptap/pm@3.29.1))(@tiptap/pm@3.29.1)(vue@3.5.40(typescript@6.0.3))
-      '@worldsmith/agent-runtime':
+      '@worldsea/agent-runtime':
         specifier: link:../../packages/agent-runtime
         version: link:../../packages/agent-runtime
-      '@worldsmith/core-api-types':
+      '@worldsea/core-api-types':
         specifier: link:../../packages/core-api-types
         version: link:../../packages/core-api-types
-      '@worldsmith/shared-ui':
+      '@worldsea/shared-ui':
         specifier: link:../../packages/shared-ui
         version: link:../../packages/shared-ui
       '@xterm/addon-fit':
@@ -414,10 +414,10 @@ importers:
 
   packages/agent-runtime:
     dependencies:
-      '@worldsmith/agent-core':
+      '@worldsea/agent-core':
         specifier: link:../agent-core
         version: link:../agent-core
-      '@worldsmith/governor-core':
+      '@worldsea/governor-core':
         specifier: link:../governor-core
         version: link:../governor-core
       dexie:
@@ -439,7 +439,7 @@ importers:
 
   packages/canvas-engine:
     dependencies:
-      '@worldsmith/entity-core':
+      '@worldsea/entity-core':
         specifier: link:../entity-core
         version: link:../entity-core
 
@@ -453,16 +453,16 @@ importers:
       '@tauri-apps/plugin-dialog':
         specifier: ^2.7.1
         version: 2.7.2
-      '@worldsmith/agent-runtime':
+      '@worldsea/agent-runtime':
         specifier: link:../agent-runtime
         version: link:../agent-runtime
-      '@worldsmith/core-api-types':
+      '@worldsea/core-api-types':
         specifier: link:../core-api-types
         version: link:../core-api-types
-      '@worldsmith/perf-kit':
+      '@worldsea/perf-kit':
         specifier: link:../perf-kit
         version: link:../perf-kit
-      '@worldsmith/theme-kit':
+      '@worldsea/theme-kit':
         specifier: link:../theme-kit
         version: link:../theme-kit
       jszip:
@@ -477,7 +477,7 @@ importers:
 
   packages/font-kit:
     dependencies:
-      '@worldsmith/entity-core':
+      '@worldsea/entity-core':
         specifier: link:../entity-core
         version: link:../entity-core
       jszip:
@@ -514,37 +514,37 @@ importers:
 
   packages/plugin-sdk:
     dependencies:
-      '@worldsmith/core-api-types':
+      '@worldsea/core-api-types':
         specifier: link:../core-api-types
         version: link:../core-api-types
-      '@worldsmith/entity-core':
+      '@worldsea/entity-core':
         specifier: link:../entity-core
         version: link:../entity-core
-      '@worldsmith/ui-kit':
+      '@worldsea/ui-kit':
         specifier: link:../ui-kit
         version: link:../ui-kit
 
   packages/shared-composables:
     dependencies:
-      '@worldsmith/agent-core':
+      '@worldsea/agent-core':
         specifier: link:../agent-core
         version: link:../agent-core
-      '@worldsmith/agent-runtime':
+      '@worldsea/agent-runtime':
         specifier: link:../agent-runtime
         version: link:../agent-runtime
-      '@worldsmith/entity-core':
+      '@worldsea/entity-core':
         specifier: link:../entity-core
         version: link:../entity-core
-      '@worldsmith/motion-kit':
+      '@worldsea/motion-kit':
         specifier: link:../motion-kit
         version: link:../motion-kit
-      '@worldsmith/perf-kit':
+      '@worldsea/perf-kit':
         specifier: link:../perf-kit
         version: link:../perf-kit
-      '@worldsmith/plugin-sdk':
+      '@worldsea/plugin-sdk':
         specifier: link:../plugin-sdk
         version: link:../plugin-sdk
-      '@worldsmith/ui-kit':
+      '@worldsea/ui-kit':
         specifier: link:../ui-kit
         version: link:../ui-kit
       dexie:
@@ -569,25 +569,25 @@ importers:
       '@tabler/icons-vue':
         specifier: ^3.46.0
         version: 3.46.0(vue@3.5.40(typescript@6.0.3))
-      '@worldsmith/agent-runtime':
+      '@worldsea/agent-runtime':
         specifier: link:../agent-runtime
         version: link:../agent-runtime
-      '@worldsmith/entity-core':
+      '@worldsea/entity-core':
         specifier: link:../entity-core
         version: link:../entity-core
-      '@worldsmith/font-kit':
+      '@worldsea/font-kit':
         specifier: link:../font-kit
         version: link:../font-kit
-      '@worldsmith/motion-kit':
+      '@worldsea/motion-kit':
         specifier: link:../motion-kit
         version: link:../motion-kit
-      '@worldsmith/perf-kit':
+      '@worldsea/perf-kit':
         specifier: link:../perf-kit
         version: link:../perf-kit
-      '@worldsmith/shared-composables':
+      '@worldsea/shared-composables':
         specifier: link:../shared-composables
         version: link:../shared-composables
-      '@worldsmith/ui-kit':
+      '@worldsea/ui-kit':
         specifier: link:../ui-kit
         version: link:../ui-kit
       dompurify:
@@ -627,19 +627,19 @@ importers:
 
   packages/ui-kit:
     dependencies:
-      '@worldsmith/agent-runtime':
+      '@worldsea/agent-runtime':
         specifier: link:../agent-runtime
         version: link:../agent-runtime
-      '@worldsmith/canvas-engine':
+      '@worldsea/canvas-engine':
         specifier: link:../canvas-engine
         version: link:../canvas-engine
-      '@worldsmith/entity-core':
+      '@worldsea/entity-core':
         specifier: link:../entity-core
         version: link:../entity-core
-      '@worldsmith/font-kit':
+      '@worldsea/font-kit':
         specifier: link:../font-kit
         version: link:../font-kit
-      '@worldsmith/motion-kit':
+      '@worldsea/motion-kit':
         specifier: link:../motion-kit
         version: link:../motion-kit
 

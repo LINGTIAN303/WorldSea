@@ -1,5 +1,5 @@
 import { ref, type Ref } from 'vue'
-import { useEntityStore } from '@worldsmith/entity-core'
+import { useEntityStore } from '@worldsea/entity-core'
 import type { TacticalEngineAPI, WasmBattleUnit } from './useTacticalEngine'
 import type { BattlePhase } from './useBattleManager'
 

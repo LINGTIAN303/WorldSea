@@ -1,7 +1,7 @@
-import type { LibraryDescriptor, CapabilityDeclaration, AvailabilitySpec } from '@worldsmith/agent-runtime/toolbus/capability-types.ts'
-import type { ToolParameter } from '@worldsmith/agent-runtime/bridge-types'
-import { a2uiCreateSurface, a2uiUpdateComponents, a2uiUpdateData, a2uiDeleteSurface } from '@worldsmith/agent-runtime/tools/a2ui-tools'
-import { a2uiShowEntity, a2uiShowRelation } from '@worldsmith/agent-runtime/tools/a2ui-helpers'
+import type { LibraryDescriptor, CapabilityDeclaration, AvailabilitySpec } from '@worldsea/agent-runtime/toolbus/capability-types.ts'
+import type { ToolParameter } from '@worldsea/agent-runtime/bridge-types'
+import { a2uiCreateSurface, a2uiUpdateComponents, a2uiUpdateData, a2uiDeleteSurface } from '@worldsea/agent-runtime/tools/a2ui-tools'
+import { a2uiShowEntity, a2uiShowRelation } from '@worldsea/agent-runtime/tools/a2ui-helpers'
 
 const A2UI_AVAILABILITY: AvailabilitySpec = {
   platforms: ['web', 'tauri'],
@@ -10,7 +10,7 @@ const A2UI_AVAILABILITY: AvailabilitySpec = {
 }
 
 export const uiKitDescriptor: LibraryDescriptor = {
-  id: '@worldsmith/ui-kit',
+  id: '@worldsea/ui-kit',
   name: 'A2UI Surface & Components',
   version: '0.1.0',
   capabilities: [
@@ -21,7 +21,7 @@ export const uiKitDescriptor: LibraryDescriptor = {
       category: 'render',
       parameters: {
         surfaceId: { type: 'string', description: '画布唯一标识，如 "entity-card-1"、"search-results"', required: true } satisfies ToolParameter,
-        catalogId: { type: 'string', description: '组件目录 ID，默认使用 WorldSmith 目录', required: false } satisfies ToolParameter,
+        catalogId: { type: 'string', description: '组件目录 ID，默认使用 WorldSea 目录', required: false } satisfies ToolParameter,
       },
       availability: A2UI_AVAILABILITY,
       execute: a2uiCreateSurface.execute,

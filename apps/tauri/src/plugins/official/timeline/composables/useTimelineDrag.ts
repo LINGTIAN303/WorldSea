@@ -1,5 +1,5 @@
 import { ref, type Ref } from 'vue'
-import type { Entity } from '@worldsmith/entity-core'
+import type { Entity } from '@worldsea/entity-core'
 import type { ParsedDate } from './useDateParser'
 
 export interface TimelineDragOptions {

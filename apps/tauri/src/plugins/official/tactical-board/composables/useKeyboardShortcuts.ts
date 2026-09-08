@@ -1,6 +1,6 @@
 import { onMounted, onBeforeUnmount } from 'vue'
 import type { Ref } from 'vue'
-import { useShortcuts, type ShortcutDef } from '@worldsmith/ui-kit'
+import { useShortcuts, type ShortcutDef } from '@worldsea/ui-kit'
 import type { BattlePhase } from './useBattleManager'
 import type { AwarenessMode } from './useAwareness'
 

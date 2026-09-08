@@ -7,7 +7,7 @@
  *
  * 任务29/M2（E1 写保护）：写类工具（fs_write/mkdir/copy/move/delete）统一经
  * workspace-boundary 的 resolveWriteWithinWorkspace 守卫——workdir 下的项目数据区
- * （entities/、.worldsmith/）裸写/移动/删除拒绝，须经实体语义层（entity_* 工具）。
+ * （entities/、.worldsea/）裸写/移动/删除拒绝，须经实体语义层（entity_* 工具）。
  * 读类工具（fs_read/list/stat/search）不受限。
  *
  * 工具: fs_read / fs_write / fs_list / fs_move / fs_delete / fs_search / fs_stat / fs_mkdir / fs_copy
@@ -34,7 +34,7 @@ async function getTauriInvoke() {
 /** 通用 Shell 命令执行器（Web 模式降级路径） */
 async function runCommand(command: string, cwd?: string, timeout = 15000): Promise<string> {
   const adapter = await createExecutionAdapter()
-  if (!adapter.isAvailable()) return JSON.stringify({ ok: false, error: 'CLI 工具当前不可用。Tauri 桌面模式请确认环境正常，Web 模式请启动 worldsmith-server 服务。' })
+  if (!adapter.isAvailable()) return JSON.stringify({ ok: false, error: 'CLI 工具当前不可用。Tauri 桌面模式请确认环境正常，Web 模式请启动 worldsea-server 服务。' })
   try {
     const result = await adapter.executeCommand(command, { cwd, timeout })
     return result.stdout
@@ -78,7 +78,7 @@ const fsReadTool: ToolDefinition = {
 
 const fsWriteTool: ToolDefinition = {
   name: 'fs_write',
-  description: '写入或创建本地文件。仅用于项目工作区外的文件操作，项目内文件请使用内驱工具。项目数据区（entities/、.worldsmith/）受保护，不可直接写入。',
+  description: '写入或创建本地文件。仅用于项目工作区外的文件操作，项目内文件请使用内驱工具。项目数据区（entities/、.worldsea/）受保护，不可直接写入。',
   parameters: {
     path: { type: 'string', description: '文件绝对路径', required: true },
     content: { type: 'string', description: '文件内容', required: true },
@@ -182,7 +182,7 @@ const fsStatTool: ToolDefinition = {
 
 const fsMkdirTool: ToolDefinition = {
   name: 'fs_mkdir',
-  description: '创建目录。支持递归创建父目录。项目数据区（entities/、.worldsmith/）受保护，不可在其中创建目录。',
+  description: '创建目录。支持递归创建父目录。项目数据区（entities/、.worldsea/）受保护，不可在其中创建目录。',
   parameters: {
     path: { type: 'string', description: '目录绝对路径', required: true },
     recursive: { type: 'boolean', description: '是否递归创建父目录（默认 true）' },
@@ -285,7 +285,7 @@ const fsMoveTool: ToolDefinition = {
 
 const fsDeleteTool: ToolDefinition = {
   name: 'fs_delete',
-  description: '删除本地文件或目录。此操作不可逆，请谨慎使用。项目数据区（entities/、.worldsmith/）受保护，不可删除；实体删除请使用 entity_delete。',
+  description: '删除本地文件或目录。此操作不可逆，请谨慎使用。项目数据区（entities/、.worldsea/）受保护，不可删除；实体删除请使用 entity_delete。',
   parameters: {
     path: { type: 'string', description: '要删除的文件/目录路径', required: true },
     recursive: { type: 'boolean', description: '是否递归删除目录' },

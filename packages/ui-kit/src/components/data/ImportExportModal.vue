@@ -150,11 +150,11 @@ import {
   getImportController,
   serializerRegistry,
   useAutoBackup,
-  type WorldSmithPack,
+  type WorldSeaPack,
   type ImportStrategy,
   type ImportReport,
-} from '@worldsmith/entity-core'
-import { useResizable, useModalShortcuts } from '@worldsmith/ui-kit'
+} from '@worldsea/entity-core'
+import { useResizable, useModalShortcuts } from '@worldsea/ui-kit'
 import WsIcon from '../WsIcon.vue'
 
 const props = defineProps<{ show: boolean }>()
@@ -230,7 +230,7 @@ const importReport = ref<ImportReport | null>(null)
 const overwriteConfirmed = ref(false)
 const backupInfo = ref<ReturnType<typeof getBackupInfo>>(null)
 
-const importPack = ref<WorldSmithPack | null>(null)
+const importPack = ref<WorldSeaPack | null>(null)
 const importFileName = ref('')
 const fileInput = ref<HTMLInputElement>()
 

@@ -1,19 +1,19 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "WorldSmith",
+  "productName": "WorldSea",
   "version": "0.1.0",
-  "identifier": "com.worldsmith.app",
+  "identifier": "com.worldsea.app",
   "build": {
-    "beforeDevCommand": "pnpm --filter @worldsmith/tauri dev",
+    "beforeDevCommand": "pnpm --filter @worldsea/tauri dev",
     "devUrl": "http://localhost:5175",
-    "beforeBuildCommand": "pnpm --filter @worldsmith/tauri build",
+    "beforeBuildCommand": "pnpm --filter @worldsea/tauri build",
     "frontendDist": "../dist"
   },
   "app": {
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "WorldSmith — 世界观构建工具",
+        "title": "WorldSea — 世界观构建工具",
         "width": 1280,
         "height": 800,
         "minWidth": 900,

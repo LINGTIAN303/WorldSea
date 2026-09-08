@@ -1,14 +1,14 @@
-# memory-center-core（WorldSmith vendor 版）
+# memory-center-core（WorldSea vendor 版）
 # 来源：D:\本地化AI\MemoryCenter\crates\memory-center-core
 # IO 实现层（SQLite / 文件树 / 缓存），与 MemoryCenter 项目分叉独立演进
-# 已扁平化 workspace 依赖（WorldSmith 无根 workspace，各 crate 独立编译）
+# 已扁平化 workspace 依赖（WorldSea 无根 workspace，各 crate 独立编译）
 
 [package]
 name = "memory-center-core"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.88"
-description = "MemoryCenter 核心库 - Agent 记忆库核心（WorldSmith vendor 复制版）"
+description = "MemoryCenter 核心库 - Agent 记忆库核心（WorldSea vendor 复制版）"
 license = "MIT"
 
 [dependencies]

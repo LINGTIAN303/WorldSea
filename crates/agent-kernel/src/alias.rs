@@ -7,7 +7,7 @@ use std::sync::OnceLock;
 
 /// 旧编码工具名 → 新编码工具名
 ///
-/// 来源：`worldsmith-agent/src/tools/coding-agent-tools.ts:585`
+/// 来源：`worldsea-agent/src/tools/coding-agent-tools.ts:585`
 pub const LEGACY_TO_CODING_MAP: &[(&str, &str)] = &[
     ("fs_read", "read_file"),
     ("fs_write", "write_file"),
@@ -33,7 +33,7 @@ pub const LEGACY_TO_CODING_MAP: &[(&str, &str)] = &[
 
 /// 旧算法工具名 → 新算法工具名（统一为 `algo_run`）
 ///
-/// 来源：`worldsmith-agent/src/tools/algo-tools.ts:1262`
+/// 来源：`worldsea-agent/src/tools/algo-tools.ts:1262`
 pub const LEGACY_ALGO_MAP: &[(&str, &str)] = &[
     ("algo_spatial_insert", "algo_run"),
     ("algo_spatial_query", "algo_run"),
@@ -54,7 +54,7 @@ pub const LEGACY_ALGO_MAP: &[(&str, &str)] = &[
 
 /// 旧插件工具名 → 新插件工具名（按模块聚合）
 ///
-/// 来源：`worldsmith-agent/src/tools/plugin-backend-tools.ts:967`
+/// 来源：`worldsea-agent/src/tools/plugin-backend-tools.ts:967`
 pub const LEGACY_PLUGIN_MAP: &[(&str, &str)] = &[
     // timeline 模块
     ("timeline_create_event", "timeline"),

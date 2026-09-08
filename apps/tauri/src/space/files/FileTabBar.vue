@@ -25,7 +25,7 @@
 -->
 <script setup lang="ts">
 import { ref } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import type { FsNode } from './FileTreeBrowser.vue'
 import FileIcon from './FileIcon.vue'
 

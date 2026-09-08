@@ -9,7 +9,7 @@
  * 架构：
  *   主线程 → postMessage({ method, args }) → Worker 加载 WASM 执行 → postMessage({ id, result/error })
  *
- * Worker 内部维持 WorldSmithCore 单例，首次调用时懒加载 WASM 模块。
+ * Worker 内部维持 WorldSeaCore 单例，首次调用时懒加载 WASM 模块。
  * 后续调用直接复用已初始化的实例，无重复初始化开销。
  */
 
@@ -35,7 +35,7 @@ const workerPost = (self as unknown as {
 
 /// WASM 模块类型声明（运行时动态导入，类型宽松处理）
 interface WasmModule {
-  WorldSmithCore: new () => {
+  WorldSeaCore: new () => {
     [method: string]: (...args: any[]) => any
   }
 }
@@ -54,12 +54,12 @@ async function ensureWasm(): Promise<{ [method: string]: (...args: any[]) => any
 
   try {
     // @ts-ignore — Vite/wasm-pack 动态导入
-    wasmModule = await import('@worldsmith/core')
-    if (!wasmModule?.WorldSmithCore) {
-      throw new Error('WASM 模块缺少 WorldSmithCore 导出')
+    wasmModule = await import('@worldsea/core')
+    if (!wasmModule?.WorldSeaCore) {
+      throw new Error('WASM 模块缺少 WorldSeaCore 导出')
     }
     // Proxy 包装：camelCase 调用自动转发到 snake_case 实际方法
-    const raw = new wasmModule.WorldSmithCore()
+    const raw = new wasmModule.WorldSeaCore()
     wasmInstance = new Proxy(raw, {
       get(target, prop, receiver) {
         if (typeof prop !== 'string') return Reflect.get(target, prop, receiver)

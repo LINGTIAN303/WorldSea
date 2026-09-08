@@ -1,18 +1,18 @@
 //! [HTTP-BRIDGE] 图布局 / 图分析算法命令（cmd_algo_*）
 //!
-//! 薄封装 worldsmith-core::algo::graph 的 Rust 算法，供前端 mindmap 布局/图分析
+//! 薄封装 worldsea-core::algo::graph 的 Rust 算法，供前端 mindmap 布局/图分析
 //! 在桌面（Tauri IPC）与浏览器（HTTP 桥 RPC）双端调用真实后端。此前这些命令从未在
 //! Rust 端注册，前端一直靠 JS 降级；本文件补齐真实实现。
 //! 移除：删除本文件，还原 lib.rs / rpc.rs 标记处。
 
 use serde_json::{json, Value};
-use worldsmith_core::algo::graph::community::{louvain_communities, pagerank};
-use worldsmith_core::algo::graph::layout::{
+use worldsea_core::algo::graph::community::{louvain_communities, pagerank};
+use worldsea_core::algo::graph::layout::{
     force_directed_layout, grid_layout, mindmap_tree_layout, radial_layout, tree_layout,
     ForceLayoutConfig, GridLayoutConfig, MindmapTreeConfig, RadialLayoutConfig, TreeLayoutConfig,
 };
-use worldsmith_core::algo::graph::pathfind::{dijkstra_path, WeightedGraph};
-use worldsmith_core::algo::graph::topology::connected_components;
+use worldsea_core::algo::graph::pathfind::{dijkstra_path, WeightedGraph};
+use worldsea_core::algo::graph::topology::connected_components;
 
 /// 解析前端传入的 graphJson（WeightedGraph 序列化）
 fn parse_graph(graph_json: &str) -> Result<WeightedGraph, String> {

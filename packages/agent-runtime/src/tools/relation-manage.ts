@@ -6,7 +6,7 @@
  */
 
 import type { ToolDefinition } from '../bridge-types'
-import type { ToolMeta } from '@worldsmith/agent-core'
+import type { ToolMeta } from '@worldsea/agent-core'
 import { unwrap } from './types'
 
 /** relation_list — 列出与指定实体相关的所有关系 */

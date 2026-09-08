@@ -1,4 +1,4 @@
-import type { PluginAPIType } from '@worldsmith/entity-core'
+import type { PluginAPIType } from '@worldsea/entity-core'
 import ManuscriptView from './ManuscriptView.vue'
 
 export const manifest = {
@@ -6,7 +6,7 @@ export const manifest = {
   name: '正文写作',
   version: '2.0.0',
   description: '正文写作与章节管理',
-  author: 'WorldSmith',
+  author: 'WorldSea',
   agentSkills: ['writing'],
   agentCapabilities: [
     { action: 'create_entity', description: '创建章节', params: ['title'] },

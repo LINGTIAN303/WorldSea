@@ -5,7 +5,7 @@
  * Web 端剥离 Tauri invoke 分支，直接使用纯 JS fallback 布局（random/grid/radial）。
  * 后续如需 Rust 算法，可经 apps/web 已有的 CLI serve /api 代理中转。
  */
-import type { GraphNode, GraphEdge } from '@worldsmith/canvas-engine'
+import type { GraphNode, GraphEdge } from '@worldsea/canvas-engine'
 
 export interface LayoutNodeResult {
   id: string

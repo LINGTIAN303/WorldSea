@@ -9,8 +9,8 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { getAvatarText, getAvatarColor } from './avatar'
 import { useAvatarImage } from '../composables/useAvatarImage'
-import blackLogoUrl from '@/assets/WorldSmithLogo.svg'
-import whiteLogoUrl from '@/assets/WorldSmithLogoWhite.svg'
+import blackLogoUrl from '@/assets/WorldSeaLogo.svg'
+import whiteLogoUrl from '@/assets/WorldSeaLogoWhite.svg'
 
 /** 统一头像组件（渲染规则与 avatar:// 解析见 ui/avatar.ts） */
 const props = withDefaults(defineProps<{
@@ -24,7 +24,7 @@ const props = withDefaults(defineProps<{
   color?: string | null
   /** 角色（决定默认背景色） */
   role?: 'agent' | 'user'
-  /** 品牌化：无真实头像图片时用 WorldSmith logo 作占位（自动黑白变体），保留 name 作标识 */
+  /** 品牌化：无真实头像图片时用 WorldSea logo 作占位（自动黑白变体），保留 name 作标识 */
   brand?: boolean
   /** 尺寸 px */
   size?: number

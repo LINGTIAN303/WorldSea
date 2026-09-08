@@ -20,7 +20,7 @@ Phase 0: 调研与文档库搭建 ───────────────�
   Phase 6: 端到端验收与清理 ────────────── ✅ 已完成（2026-08-03，端分离全部完成）
 ```
 
-> **2026-08-03 状态更新**：Phase 3 业务 UI 迁移（P3-W1~W5 + P3-W4 续批次，见 3.1~3.21 节）与 Phase 6 验收清理已全部完成，端分离 100% 收官。主应用入口 = apps/web，根 src/ 与旧目录（src-tauri/worldsmith-agent/worldsmith-server）均已删除。
+> **2026-08-03 状态更新**：Phase 3 业务 UI 迁移（P3-W1~W5 + P3-W4 续批次，见 3.1~3.21 节）与 Phase 6 验收清理已全部完成，端分离 100% 收官。主应用入口 = apps/web，根 src/ 与旧目录（src-tauri/worldsea-agent/worldsea-server）均已删除。
 
 ### 阶段依赖关系
 
@@ -45,7 +45,7 @@ Phase 0 ─→ Phase 1 ─→ Phase 2 ─→ Phase 3 ─→ Phase 4 ─→ Phase
 
 | 项 | 内容 |
 |----|------|
-| **目标** | 将 `worldsmith-agent/src/` 中端无关逻辑抽离到 `packages/agent-runtime`；定义 `IAgentBackend` 接口 |
+| **目标** | 将 `worldsea-agent/src/` 中端无关逻辑抽离到 `packages/agent-runtime`；定义 `IAgentBackend` 接口 |
 | **前置依赖** | Phase 0 |
 | **后置依赖** | Phase 2、Phase 3 |
 | **状态** | ✅ 已完成（2026-07-29） |
@@ -59,19 +59,19 @@ Phase 0 ─→ Phase 1 ─→ Phase 2 ─→ Phase 3 ─→ Phase 4 ─→ Phase
 | P1-T3 | 迁移 Agent 核心逻辑 | `packages/agent-runtime/src/agent.ts` | ✅ |
 | P1-T4 | 迁移 tools/skills/session/orchestrator | `packages/agent-runtime/src/{tools,skills,session,...}/` | ✅ |
 | P1-T5 | 迁移 ExecutionAdapter 接口 + 工厂注册模式 | `packages/agent-runtime/src/execution/{adapter,index,env}.ts` | ✅ |
-| P1-T6 | `worldsmith-agent` 改为依赖 `agent-runtime` | `worldsmith-agent/package.json` 添加 `@worldsmith/agent-runtime` 依赖 | ✅ |
+| P1-T6 | `worldsea-agent` 改为依赖 `agent-runtime` | `worldsea-agent/package.json` 添加 `@worldsea/agent-runtime` 依赖 | ✅ |
 | P1-T7 | 修复 vite.config + tsconfig 配置 | vite alias + 3 个 tsconfig 的 paths 映射 | ✅ |
-| P1-T8 | 修复 node-adapter.ts 断裂导入 | `'./adapter'` → `'@worldsmith/agent-runtime'` | ✅ |
-| P1-T9 | typecheck 验证 | agent-runtime 自身无错误；worldsmith-agent 重构错误已修复 | ✅ |
+| P1-T8 | 修复 node-adapter.ts 断裂导入 | `'./adapter'` → `'@worldsea/agent-runtime'` | ✅ |
+| P1-T9 | typecheck 验证 | agent-runtime 自身无错误；worldsea-agent 重构错误已修复 | ✅ |
 | P1-T10 | 更新文档和 project_memory.md | 本文件 + project_memory.md | ✅ |
 
 ### 1.2 关键决策点（已实施）
 
 - **ExecutionAdapter 注册机制**：改为工厂函数注册（`registerExecutionAdapterFactory`），三端在入口注册各自实现
   - `packages/agent-runtime/src/execution/index.ts`：工厂注册中心
-  - `worldsmith-agent/src/execution/index.ts`：向后兼容层，自动注册三端适配器
+  - `worldsea-agent/src/execution/index.ts`：向后兼容层，自动注册三端适配器
 - **IAgentBackend 接口设计**：定义在 `packages/agent-runtime/src/bridge.ts`，覆盖 `prompt()`、`subscribe()`、`abort()` 等核心方法
-- **向后兼容策略**：`worldsmith-agent/src/index.ts` 重导出 `@worldsmith/agent-runtime` 的全部端无关 API，现有调用方无需修改
+- **向后兼容策略**：`worldsea-agent/src/index.ts` 重导出 `@worldsea/agent-runtime` 的全部端无关 API，现有调用方无需修改
 
 ### 1.3 已知遗留问题（非 Phase 1 引入）
 
@@ -105,7 +105,7 @@ Phase 0 ─→ Phase 1 ─→ Phase 2 ─→ Phase 3 ─→ Phase 4 ─→ Phase
 | P2-T2 | 创建 `apps/cli/` 骨架 | package.json + tsconfig.json + bin/cli.mjs + src/index.ts | ✅ |
 | P2-T3 | 创建 `apps/tauri/` 骨架 | package.json + tauri.conf.json + vite.config.ts + src/{main.ts,App.vue} + src-tauri/{Cargo.toml,build.rs,src/{main.rs,lib.rs},capabilities/default.json} | ✅ |
 | P2-T4 | 更新 pnpm-workspace.yaml | 包含 `apps/*` | ✅ |
-| P2-T5 | 配置三端对 packages/ 的 alias | 三端 vite.config.ts + tsconfig.json 的 `@worldsmith/agent-runtime` alias | ✅ |
+| P2-T5 | 配置三端对 packages/ 的 alias | 三端 vite.config.ts + tsconfig.json 的 `@worldsea/agent-runtime` alias | ✅ |
 | P2-T6 | 验证 | pnpm workspace 识别三端包✅；JSON 配置语法✅；CLI --help✅ | ✅ |
 | P2-T7 | 更新文档和 project_memory.md | 本文件 + project_memory.md | ✅ |
 
@@ -128,7 +128,7 @@ Phase 0 ─→ Phase 1 ─→ Phase 2 ─→ Phase 3 ─→ Phase 4 ─→ Phase
 
 - ✅ 此阶段三端 src/ 仅为骨架，不迁移实际业务代码
 - ✅ 保持原 `src/` 目录不变，确保主分支仍可正常开发
-- ✅ 三端 package.json 的 name 分别为 `@worldsmith/web`、`@worldsmith/cli`、`@worldsmith/tauri`
+- ✅ 三端 package.json 的 name 分别为 `@worldsea/web`、`@worldsea/cli`、`@worldsea/tauri`
 
 ## 5. Phase 3: 前端入口分离与清理
 
@@ -148,13 +148,13 @@ Phase 0 ─→ Phase 1 ─→ Phase 2 ─→ Phase 3 ─→ Phase 4 ─→ Phase
 |---------|-----------|------|----------|
 | P3-T1 | Step 1-2 | 共享 composables 迁入 `packages/shared-composables` | ✅ 完成（agent/companion/entity/ui 四类；useSmartFillChat/useCompanionMode 已下沉，根 src/composables 保留 re-export） |
 | P3-T2 | Step 3 | Tauri 专用文件迁入 `apps/tauri/src/` | ✅ 完成（8 个 Rust composables + coreBackend + ProjectFS 等） |
-| P3-T3 | Step 4 | Web 专用文件迁入 `apps/web/src/`（coreBackend WASM + worldsmithCore 等） | ✅ 完成 |
+| P3-T3 | Step 4 | Web 专用文件迁入 `apps/web/src/`（coreBackend WASM + worldseaCore 等） | ✅ 完成 |
 | P3-T4 | Step 5 | 改造 `coreBackend.ts`（三端各保留单路径版本） | ✅ 完成 |
 | P3-T5 | Step 6 | 改造 `useAgent.ts`（接收 backend 注入） | ✅ 完成（TS/Rust 路由层保留在 src/，三端入口硬编码后端） |
 | P3-T6 | Step 7 | 改造 `main.ts`（端入口硬编码后端） | ✅ 完成（apps/web|tauri/src/main.ts 已硬编码 WASM/Rust 后端） |
 | P3-T7 | Step 8 | 清理 `__TAURI__` 检测与 global.d.ts | ✅ 完成 |
 | P3-T8 | Step 9 | 清理插件层（mindmap/workflow Rust 调用） | ✅ 完成 |
-| P3-T9 | Step 10 | 清理 worldsmith-server 引用 | ✅ 完成（CLI serve 替代） |
+| P3-T9 | Step 10 | 清理 worldsea-server 引用 | ✅ 完成（CLI serve 替代） |
 | P3-T10 | Step 11-12 | 更新构建配置，删除原 `src/` | ⏳ **进行中**（2026-08-03 启动渐进式迁移，第一批骨架完成，见 3.6；业务 UI 尚未全部迁入，删除仍会摧毁应用） |
 
 **关键结论**：根 `src/` 目前仍是主应用（根 `vite` dev 入口 + 全部业务 UI）。三端骨架仅完成"端初始化 + 后端硬编码"。**端分离剩余核心工作 = 把根 src/ 业务 UI 迁入 apps/web（数十万行级工程）**，2026-07-31 决策：暂停该大迁移，回到主应用开发（根 src/），后续按 ROADMAP 单独排期。
@@ -164,7 +164,7 @@ Phase 0 ─→ Phase 1 ─→ Phase 2 ─→ Phase 3 ─→ Phase 4 ─→ Phase
 ### 3.5 迁移启动条件复核 + 决策（2026-08-02）
 
 **前置条件复核**（grep/构建验证）：
-- ✅ ui-kit / shared-composables / worldsmith-agent 与根 `src/` 完全解耦（0 引用，08 文档 5.4.2 记录的"ui-kit 30+ 个 `../../../src/` 导入"遗留已解决）
+- ✅ ui-kit / shared-composables / worldsea-agent 与根 `src/` 完全解耦（0 引用，08 文档 5.4.2 记录的"ui-kit 30+ 个 `../../../src/` 导入"遗留已解决）
 - ✅ `@agent` 单轨收敛（c3856de）；三端独立构建通过（Phase 5）
 - ⚠️ 根 `src/` 733 文件（378 .vue + 355 .ts）待迁移；`shared-ui` 包不存在
 
@@ -190,7 +190,7 @@ Phase 0 ─→ Phase 1 ─→ Phase 2 ─→ Phase 3 ─→ Phase 4 ─→ Phase
 
 **验证结果（2026-08-03）**：
 - ✅ `pnpm install` 通过（期间处理 pnpm Windows EPERM：esbuild/file: 包 rename 碰撞，清理残留目录后一次通过）
-- ✅ `pnpm --filter @worldsmith/web dev` 启动（vite 8.1.5，端口 5174）
+- ✅ `pnpm --filter @worldsea/web dev` 启动（vite 8.1.5，端口 5174）
 - ✅ 浏览器验证骨架链路：Splash 淡出 → `markReady` → 占位页渲染（badge + 批次说明），无运行时错误
 - ⚠️ **typecheck 存量问题**（非本批引入，待决策处理）：apps/web coreBackend 13 处未用变量（TS6133）、entity-core 缺 `@types/js-yaml`、ui-kit RegionMap 未用变量、根 `src/core/*` 收敛桥（re-export apps/web）把根 coreBackend 的 `__TAURI_INTERNALS__` 引用带入 web 程序（TS2339）
 
@@ -268,8 +268,8 @@ Phase 0 ─→ Phase 1 ─→ Phase 2 ─→ Phase 3 ─→ Phase 4 ─→ Phase
 **迁移内容（apps/web/src/）**：
 - 复制 6 个插件目录 → `plugins/official/{characters,regions,organizations,concepts,items,languages}/`（14 个组件/配置文件）
 - 批量改造根相对路径导入（10 文件）：
-  - `import WsIcon from '(../)+ui/WsIcon.vue'` → `import { WsIcon } from '@worldsmith/ui-kit'`
-  - `import WsEmpty from '(../)+ui/WsEmpty.vue'` → `import { WsEmpty } from '@worldsmith/ui-kit'`
+  - `import WsIcon from '(../)+ui/WsIcon.vue'` → `import { WsIcon } from '@worldsea/ui-kit'`
+  - `import WsEmpty from '(../)+ui/WsEmpty.vue'` → `import { WsEmpty } from '@worldsea/ui-kit'`
   - `from '(../)+stores/settingsStore'` → `from '@/stores/settingsStore'`
 - `governor/bootstrap.ts`：恢复 `core.official-plugins` 模块（normal 级）：
   - **关键修正**：Web 端不能用 `@vite-ignore` + 模板字符串动态 import（浏览器无法解析 `@/` 别名）→ 改为**显式静态 import 映射表**（`pluginLoaders: Record<id, () => Promise>`），Vite 构建期静态分析
@@ -312,7 +312,7 @@ Phase 0 ─→ Phase 1 ─→ Phase 2 ─→ Phase 3 ─→ Phase 4 ─→ Phase
 **迁移内容（apps/web/src/）**：
 - **前置**：复制 `composables/useAgentPluginBridge.ts`（纯 Vue composable——onMounted/onUnmounted + CustomEvent 监听，**无 agent 依赖**）→ 解锁 9 个插件的 agent 事件桥接
 - 复制 6 插件目录 → `plugins/official/{timeline,magic,outline,custom,culture,inspiration}/`（44 文件，含 timeline 12 组件/7 composables、custom dashboard 9 文件、culture/inspiration canvas 类）
-- 批量改造根相对路径导入（14 文件）：WsIcon/WsEmpty → `@worldsmith/ui-kit` 具名；settingsStore/uiStore → `@/stores/*`；useAgentPluginBridge → `@/composables/useAgentPluginBridge`（正则覆盖 `../../../` 与 `../../../../` 两种深度变体）
+- 批量改造根相对路径导入（14 文件）：WsIcon/WsEmpty → `@worldsea/ui-kit` 具名；settingsStore/uiStore → `@/stores/*`；useAgentPluginBridge → `@/composables/useAgentPluginBridge`（正则覆盖 `../../../` 与 `../../../../` 两种深度变体）
 - `governor/bootstrap.ts`：MIGRATED_OFFICIAL_PLUGIN_IDS + pluginLoaders 追加 6 项
 
 **验证结果（2026-08-03）**：
@@ -343,7 +343,7 @@ Phase 0 ─→ Phase 1 ─→ Phase 2 ─→ Phase 3 ─→ Phase 4 ─→ Phase
 - 批量改根相对导入（20 文件）：WsIcon/WsEmpty/WsSpinner → ui-kit 具名；useAgentPluginBridge → `@/composables/`；graph useGraphClustering 的 coreBackend → `@/core/coreBackend`
 - **notebook 跨插件依赖裁剪**：NotebookTipTapEditor 引用 `../../manuscript/components/{MentionPopover,SlashCommandMenu}.vue`（manuscript 未迁）→ 连带复制 2 个轻量组件到 notebook/components/（MentionPopover 仅依赖 WsIcon+entity-core；SlashCommandMenu 依赖 `../composables/slashCommandExtension` 解析到 notebook 自有实现），改本地相对引用
 
-**依赖策略（重要）**：tiptap×5（@tiptap/core/extension-mention/starter-kit/suggestion/vue-3）+ marked + graphology×3 + sigma **均已在根 package.json 声明**——apps/web **不重复声明**，靠 pnpm workspace 根 node_modules 提升解析（与 entity-core/ui-kit 未声明同理）。首次尝试在 apps/web 声明触发 `pnpm install`，遇 Windows `importPackage EPERM`（worldsmith-core/tactical-engine 目录被 IDE 语言服务器占用，删除/重试/package-import-method=copy 均无效）→ 回滚依赖声明 + 恢复被污染的 pnpm-lock.yaml，最终不 install 直接运行成功。
+**依赖策略（重要）**：tiptap×5（@tiptap/core/extension-mention/starter-kit/suggestion/vue-3）+ marked + graphology×3 + sigma **均已在根 package.json 声明**——apps/web **不重复声明**，靠 pnpm workspace 根 node_modules 提升解析（与 entity-core/ui-kit 未声明同理）。首次尝试在 apps/web 声明触发 `pnpm install`，遇 Windows `importPackage EPERM`（worldsea-core/tactical-engine 目录被 IDE 语言服务器占用，删除/重试/package-import-method=copy 均无效）→ 回滚依赖声明 + 恢复被污染的 pnpm-lock.yaml，最终不 install 直接运行成功。
 
 **验证结果（2026-08-03）**：
 - ✅ `npx vue-tsc --noEmit`（apps/web）：仅剩根收敛桥 TS2339×2，第四批代码零类型错误
@@ -358,19 +358,19 @@ Phase 0 ─→ Phase 1 ─→ Phase 2 ─→ Phase 3 ─→ Phase 4 ─→ Phase
 
 **风险点处理（依赖声明）**：
 - apps/web/package.json 补 9 个依赖声明（@tiptap×5 + graphology×3 + sigma，版本与根一致）——此前靠 workspace 提升隐式解析
-- `pnpm install --lockfile-only --no-frozen-lockfile` 同步 pnpm-lock.yaml（+80/-39，tiptap 3.29.1 等入 lockfile）——**避开 Windows importPackage EPERM**（worldsmith-core 目录被 IDE 语言服务器占用，rename 失败）
+- `pnpm install --lockfile-only --no-frozen-lockfile` 同步 pnpm-lock.yaml（+80/-39，tiptap 3.29.1 等入 lockfile）——**避开 Windows importPackage EPERM**（worldsea-core 目录被 IDE 语言服务器占用，rename 失败）
 - ⚠️ 遗留：node_modules 物理重链需 IDE 重启后执行一次正式 `pnpm install`（运行时物理包已存在，dev/typecheck 不受影响）
 
 **bootstrap 模块级恢复**：
 - 迁入 `core/FacetMigrator.ts` → apps/web/src/core/（仅依赖 entity-core，零裁剪）
-- 新建 `composables/useFontBootstrap.ts` re-export 壳（@worldsmith/font-kit，与根一致）
+- 新建 `composables/useFontBootstrap.ts` re-export 壳（@worldsea/font-kit，与根一致）
 - bootstrap.ts 恢复 `core.facet-migration`（normal）+ `core.font-bootstrap`（lazy）模块；清理文件头裁剪点注释
 
 **验证**：vue-tsc 仅剩已知 TS2339×2；浏览器 `[Governor] 启动完成: 10 激活, 0 失败, 0 跳过`（8→10）；23 官方插件保持全激活
 
 **P3-W5 前置依赖发现（关键）**：src/agent/（137 文件）约 120 个纯前端可整体搬移，但依赖缺口：
 - `src/space/*`（usePersonaFont/useActivityLog/space-store/user-profile-store/persona-font-store）——blocks/bubbles 依赖，**space 目录未迁移**
-- `src/memory-archive/`（根实现）——archive 面板依赖，需改 @worldsmith/memory-archive 包或迁入
+- `src/memory-archive/`（根实现）——archive 面板依赖，需改 @worldsea/memory-archive 包或迁入
 - `src/stores/{archiveStore,fontLibraryStore,agentProfileStore}` —— apps/web 无
 - ui-kit 缺 AvatarBadge/getAvatarColor 导出
 - 外部包 xterm×2/marked/dompurify 根已有（提升可解析）
@@ -379,7 +379,7 @@ Phase 0 ─→ Phase 1 ─→ Phase 2 ─→ Phase 3 ─→ Phase 4 ─→ Phase
 ### 3.14 渐进式迁移 · P3-W5 AgentSpace 专项（2026-08-03）
 
 **前置依赖迁移（src/space/ + 补充文件）**：
-- `space/`：usePersonaFont / useActivityLog / space-store / user-profile-store / persona-font-store（5 文件）→ apps/web/src/space/；space-store 的 ChatMode 类型源改 `@worldsmith/shared-composables/agent/useAgent`
+- `space/`：usePersonaFont / useActivityLog / space-store / user-profile-store / persona-font-store（5 文件）→ apps/web/src/space/；space-store 的 ChatMode 类型源改 `@worldsea/shared-composables/agent/useAgent`
 - 补 re-export 壳：stores/fontStore（entity-core）、stores/fontLibraryStore、composables/fontInstaller（font-kit）
 - ui 补充：ui/avatar.ts、ui/AvatarBadge.vue、ui/font/FontInstallConfirm.vue（WsIcon→ui-kit）、composables/{useAvatarImage,avatarStore,fontSpanParser,useFileExtract}
 - stores：archiveStore（纯 pinia，零裁剪）、agentProfileStore（@agent 别名可解析）
@@ -387,7 +387,7 @@ Phase 0 ─→ Phase 1 ─→ Phase 2 ─→ Phase 3 ─→ Phase 4 ─→ Phase
 
 **agent 主体迁移（127 文件，~120 纯前端）**：
 - 整体复制 src/agent/ → apps/web/src/agent/，排除 8 个 `*Rust` composables + 顶层 TerminalPanel.vue
-- **WsIcon/WsEmpty 批量替换**（53 文件）：`../ui/WsIcon.vue` 三种深度 → `@worldsmith/ui-kit` 具名导入
+- **WsIcon/WsEmpty 批量替换**（53 文件）：`../ui/WsIcon.vue` 三种深度 → `@worldsea/ui-kit` 具名导入
 - **Web 端 useAgent 适配器**（重写 useAgent.ts）：本地消息状态机 + `@agent/execution` 终端桥接（复用 useTerminal 模式）+ Rust 字段空 ref/no-op（`as any` 兼容调用方字段子集）；re-export 共享类型 + provideAgentBackend/useAgentOptional
 - **6 个 Rust composables Web stub**（useToTRust/useGoTRust/useMultiAgentRust/useSupervisorRust/useRouterRust/useLoopControlRust）：具名类型宽松化（`[key: string]: any` + 关键字段对齐真实实现），返回空状态 + no-op 方法；AgentChat `isRustBackend=false` 不触发，状态栏 `sessions 恒空` v-if 隐藏——**AgentChat 零修改**
 - **顶层 TerminalPanel.vue 裁剪复制**：删 detectTauri 分支，保留 @agent/execution 分支
@@ -396,9 +396,9 @@ Phase 0 ─→ Phase 1 ─→ Phase 2 ─→ Phase 3 ─→ Phase 4 ─→ Phase
 **memory-archive 集成层迁移（Tauri → Web）**：
 - 整体复制 src/memory-archive/ → apps/web/src/memory-archive/，删 TauriFsOperations
 - 新增 `adapters/WebFsOperations.ts`：IndexedDB 路径→内容扁平存储（MetaStorage 调度器元数据持久化）
-- useMemoryArchive 改造：`isTauri` 守卫 → `typeof indexedDB === 'undefined'`；`FsStorageAdapter` → `IdbStorageAdapter`（@worldsmith/memory-archive 内置）；`createTauriFsOperations` → `createWebFsOperations`；dirPath 缺失用 `memory-archive/${projectInfo.id}` 命名空间兜底
+- useMemoryArchive 改造：`isTauri` 守卫 → `typeof indexedDB === 'undefined'`；`FsStorageAdapter` → `IdbStorageAdapter`（@worldsea/memory-archive 内置）；`createTauriFsOperations` → `createWebFsOperations`；dirPath 缺失用 `memory-archive/${projectInfo.id}` 命名空间兜底
 
-**依赖声明**：apps/web package.json 补 marked/dompurify/@xterm×2/dexie + 8 个 @worldsmith 共享包（file: 引用），`pnpm install --lockfile-only` 同步（避开 EPERM）
+**依赖声明**：apps/web package.json 补 marked/dompurify/@xterm×2/dexie + 8 个 @worldsea 共享包（file: 引用），`pnpm install --lockfile-only` 同步（避开 EPERM）
 
 **验证**：
 - vue-tsc 仅剩已知根收敛桥 TS2339×2（计划保留，Phase 6 删根 src/ 自然消失）
@@ -423,7 +423,7 @@ Phase 0 ─→ Phase 1 ─→ Phase 2 ─→ Phase 3 ─→ Phase 4 ─→ Phase
 - **SpaceNavbar 裁剪**：删群聊用户身份/mode-switch 切换/群聊专属按钮/UserProfilePopover/ProviderSlotEditor/AgentManagerPanel；chatModes/currentMode/onModeSelect 去 group 分支
 - **AgentSpace 裁剪**：删 GroupChatView/CasualChatView 分支（只留 SpaceChat）；SettingsDialog 挂载裁剪（P3-W4 续恢复）；DialogContainer 改 ui-kit 具名；onToggleNewSession 去 group 分支；groupChatStore/watch mode 删
 
-**App.vue 平级切换接入**：`<AgentSpace v-if="uiStore.currentShell === 'space'" />` + `<Shell v-else />`（与根版一致，entity-core uiStore 已具备 currentShell/setShell，localStorage `worldsmith_shell` 持久化）；governor 模块清单根/web 一致（10 模块），无需改动
+**App.vue 平级切换接入**：`<AgentSpace v-if="uiStore.currentShell === 'space'" />` + `<Shell v-else />`（与根版一致，entity-core uiStore 已具备 currentShell/setShell，localStorage `worldsea_shell` 持久化）；governor 模块清单根/web 一致（10 模块），无需改动
 
 **运行时修复（Web 版 useAgent 字段补齐，4 处）**：
 - `lastAssistantHasContent/lastAssistantHasThinking`：computed 由本地 messages 推导（AgentMessageList prop 校验）
@@ -473,7 +473,7 @@ Phase 0 ─→ Phase 1 ─→ Phase 2 ─→ Phase 3 ─→ Phase 4 ─→ Phase
 **决策**：迁移最后 3 个官方插件（官方插件计数 23/27 → 26/27），tauri 耦合文件以 Web stub 替代，剩 module-builder 待 core 依赖评估。
 
 **依赖边界结论（search 代理扫描）**：
-- 无跨插件组件依赖、无 `@agent/*` 导入、无 `@worldsmith/tauri` 导入
+- 无跨插件组件依赖、无 `@agent/*` 导入、无 `@worldsea/tauri` 导入
 - 三个真问题：(a) mindmap `useRustLayout` 是 re-export 壳指向 apps/tauri（自带纯 JS fallback，Web 版剥离 invoke 保留 fallback）；(b) workflow `api/workflowApi.ts` + `composables/useWorkflowEngineRun.ts` 纯 Tauri invoke 无 fallback（Web stub 空实现）；(c) `schemaListEntityTypes` 在 apps/web coreBackend 需确认导出（核对后已存在，无缺口）
 - 排除：各 `__tests__/`（vitest 根 devDependencies）、mindmap `composables/useRustGraphAnalysis.ts` 孤儿文件、workflow 两个 tauri 耦合文件（由 stub 替代）
 
@@ -481,7 +481,7 @@ Phase 0 ─→ Phase 1 ─→ Phase 2 ─→ Phase 3 ─→ Phase 4 ─→ Phase
 - manuscript 14 文件：拆分 components/（ChapterEditor/EditorToolbar/SlashCommandMenu）+ composables/（slashCommandExtension/useChapterEditor/useChapterSnapshots）+ 视图/弹窗/侧栏
 - mindmap 38 文件：排除 `__tests__/` + useRustGraphAnalysis 孤儿
 - workflow 28 文件：排除 `__tests__/` + 2 个 tauri 耦合文件
-- 批量替换：WsIcon/WsEmpty/WsSpinner → `@worldsmith/ui-kit` 具名；根相对路径 → `@/` 别名（useAgentPluginBridge/useAgent/useOrchestrator/fontStore/coreBackend）；`useFontPresets` → `@worldsmith/font-kit`
+- 批量替换：WsIcon/WsEmpty/WsSpinner → `@worldsea/ui-kit` 具名；根相对路径 → `@/` 别名（useAgentPluginBridge/useAgent/useOrchestrator/fontStore/coreBackend）；`useFontPresets` → `@worldsea/font-kit`
 - **新建 3 个 Web stub**：
   - `mindmap/composables/useRustLayout.ts`：保留全部类型 + `isTauriAvailable()` 恒 false + `applyLayout` 直接走纯 JS fallbackLayout（grid/radial/random/tree→radial）
   - `workflow/api/workflowApi.ts`：保留 28 函数完整类型签名 + 空实现（workflowList→`[]`、workflowGet→null、workflowDryRun→`{ok:false,...}`）
@@ -489,7 +489,7 @@ Phase 0 ─→ Phase 1 ─→ Phase 2 ─→ Phase 3 ─→ Phase 4 ─→ Phase
 - workflow StepConfigEditor 动态 `import('@/core/coreBackend')` 取 `schemaListEntityTypes`——apps/web coreBackend 已存在该导出（核实无缺口）
 
 **接线（bootstrap + package.json）**：
-- `apps/web/package.json` 补 4 声明：`@worldsmith/canvas-engine`（file:）+ `vuedraggable`/`turndown`/`docx`（版本对齐根）；`pnpm install --lockfile-only` 更新锁文件（dev server 占用 WASM 文件导致物理重链 EPERM，正式重链待 IDE 重启）
+- `apps/web/package.json` 补 4 声明：`@worldsea/canvas-engine`（file:）+ `vuedraggable`/`turndown`/`docx`（版本对齐根）；`pnpm install --lockfile-only` 更新锁文件（dev server 占用 WASM 文件导致物理重链 EPERM，正式重链待 IDE 重启）
 - `governor/bootstrap.ts`：MIGRATED_OFFICIAL_PLUGIN_IDS + pluginLoaders 追加 `official.manuscript`/`official.mindmap`/`official.workflow`
 
 **验证**：
@@ -511,9 +511,9 @@ Phase 0 ─→ Phase 1 ─→ Phase 2 ─→ Phase 3 ─→ Phase 4 ─→ Phase
 
 **真缺口 2 个（均已处理）**：
 1. apps/web/package.json 缺 `echarts`（ChartBar/Pie/Line 3 渲染器用）→ 已补 `^6.1.0`（与根一致，vite vendor-echarts chunk 已预留）
-2. apps/web/src/core/ 缺 `ModuleRuntime.ts` + `ModuleViewRegistry.ts` → 原样直拷（内部仅依赖 @worldsmith/entity-core，零二级缺口）
+2. apps/web/src/core/ 缺 `ModuleRuntime.ts` + `ModuleViewRegistry.ts` → 原样直拷（内部仅依赖 @worldsea/entity-core，零二级缺口）
 
-**需替换 24 处（已批量完成）**：WsIcon 17 处 + WsEmpty 5 处 → `@worldsmith/ui-kit` 具名；customModuleStore 2 处 → `@worldsmith/entity-core` 直引。3 个未注册渲染器（AiAssistant/AutoFill/SmartSuggest）随迁保留（无依赖缺口，事件桥由宿主提供）。
+**需替换 24 处（已批量完成）**：WsIcon 17 处 + WsEmpty 5 处 → `@worldsea/ui-kit` 具名；customModuleStore 2 处 → `@worldsea/entity-core` 直引。3 个未注册渲染器（AiAssistant/AutoFill/SmartSuggest）随迁保留（无依赖缺口，事件桥由宿主提供）。
 
 **接线**：bootstrap.ts 注册 `official.module-builder`（MIGRATED_OFFICIAL_PLUGIN_IDS + pluginLoaders）；`pnpm install --lockfile-only` 更新锁文件（echarts）。
 
@@ -539,7 +539,7 @@ Phase 0 ─→ Phase 1 ─→ Phase 2 ─→ Phase 3 ─→ Phase 4 ─→ Phase
 - **AgentOverlay**：文件已就位（P3-W5 迁移），仅 Shell 挂载
 
 **宿主接线**：
-- Shell.vue：template 插 11 组件（9 弹窗 + SmartFill 2/3）+ 8 ref + 11 defineAsyncComponent + 7 onOpen* + 7 onGlobalEvent（ws-open-trash/consistency/settings/theme-editor/custom-rel-type/entity-template/project-manager）+ 2 快捷键（settings.open ctrl+, / project.manager ctrl+shift+p）+ SmartFill 布线（useTextSelection/useSmartFillContextMenu from ui-kit + useSmartFillChat + worldsmith:smart-fill:chat-open 监听）
+- Shell.vue：template 插 11 组件（9 弹窗 + SmartFill 2/3）+ 8 ref + 11 defineAsyncComponent + 7 onOpen* + 7 onGlobalEvent（ws-open-trash/consistency/settings/theme-editor/custom-rel-type/entity-template/project-manager）+ 2 快捷键（settings.open ctrl+, / project.manager ctrl+shift+p）+ SmartFill 布线（useTextSelection/useSmartFillContextMenu from ui-kit + useSmartFillChat + worldsea:smart-fill:chat-open 监听）
 - AgentSpace.vue：SettingsDialog 挂载 + import + settingsOpen ref
 - registry.ts：恢复看板视图扩展（ViewExtension 'kanban-view' typeId 'kanban' + 动态 import('./runtime/KanbanView.vue')）
 
@@ -573,18 +573,18 @@ Phase 0 ─→ Phase 1 ─→ Phase 2 ─→ Phase 3 ─→ Phase 4 ─→ Phase
 **前置 1：EPERM 系统性根治（file: → link:）**
 - 根因：pnpm 对 `file:` 依赖在 Windows 用「物理复制 + rename 覆盖」，rename 覆盖非空目录被 Windows 拒绝 → 二次 install 必 EPERM
 - 正解：根 package.json 两处 WASM 依赖改 `link:` 协议（node_modules 直接 Junction 直连 pkg 源目录，不复制不 rename）
-- workspace 化方案弃用原因：wasm 包真实包名 `@worldsmith/worldsmith-core` 与依赖名/代码 import 的 `@worldsmith/core` 不一致，workspace 包必须按真实包名引用
+- workspace 化方案弃用原因：wasm 包真实包名 `@worldsea/worldsea-core` 与依赖名/代码 import 的 `@worldsea/core` 不一致，workspace 包必须按真实包名引用
 
 **前置 2：plugin-sdk 跨层依赖解耦（删根必修）**
 - 发现：`packages/plugin-sdk` 的 SchemaRenderer.vue / UniversalRelationPanel.vue 通过 `../../../../src/...` 硬编码引用根 src（coreBackend + uiStore），把根 coreBackend 拉进 apps/web 编译图（根 TS2339×2 的真正来源）
-- 修复：UniversalRelationPanel → `@worldsmith/entity-core/stores/uiStore`（根 uiStore 本就是其 re-export 层）；SchemaRenderer 加 `schemaLoader` prop 注入 + EntityTypeSchema/SchemaField 本地类型定义，8 个官方插件视图（building/combat_stat/magic/culture/language/plant/species/weapon）从 apps/web coreBackend 传 loader，行为完全保持
+- 修复：UniversalRelationPanel → `@worldsea/entity-core/stores/uiStore`（根 uiStore 本就是其 re-export 层）；SchemaRenderer 加 `schemaLoader` prop 注入 + EntityTypeSchema/SchemaField 本地类型定义，8 个官方插件视图（building/combat_stat/magic/culture/language/plant/species/weapon）从 apps/web coreBackend 传 loader，行为完全保持
 
 **前置 3：tauri/cli 存量 typecheck 修复**
 - tauri：coreBackend 未用参数加 `_` 前缀；main.ts 删除 9 个未用 import + registerBackend/registerValidationApi 入参对齐 BackendAlgoApi/ValidationApi 契约（移除 validateEntities/validatePack/migrate/runDiagnostics/algoAstar 等非契约字段）
 - cli：ui-kit/agent-descriptor.ts 去掉 2 处 `.ts` 扩展名 import（TS5097）
 
 **根级构建链同步清理**
-- 根 package.json scripts：dev/build/build:web/preview → `pnpm --filter @worldsmith/web ...`；tauri:dev/build → `@worldsmith/tauri`；移除 storybook/build-storybook
+- 根 package.json scripts：dev/build/build:web/preview → `pnpm --filter @worldsea/web ...`；tauri:dev/build → `@worldsea/tauri`；移除 storybook/build-storybook
 - 删除：根 vite.config.ts、index.html、vite-plugin-server-launcher.ts、.storybook/（旧主应用入口，随根 src 退役）
 - 更新：vitest.config.ts（setupFiles → apps/web/src/test-setup.ts，include 根 src → apps/web/src）、tsconfig.app.json（include 移除 src/**）
 
@@ -603,13 +603,13 @@ Phase 0 ─→ Phase 1 ─→ Phase 2 ─→ Phase 3 ─→ Phase 4 ─→ Phase
 |---------|-----------|------|------|
 | P3-T1 | Step 1-2 | 共享 composables 迁入 `packages/shared-composables` | tsc 通过 |
 | P3-T2 | Step 3 | Tauri 专用文件迁入 `apps/tauri/src/`（8 个 Rust composables + ProjectFS 等） | Tauri 端 tsc 通过 |
-| P3-T3 | Step 4 | Web 专用文件迁入 `apps/web/src/`（coreBackend WASM + worldsmithCore 等） | Web 端 tsc 通过 |
+| P3-T3 | Step 4 | Web 专用文件迁入 `apps/web/src/`（coreBackend WASM + worldseaCore 等） | Web 端 tsc 通过 |
 | P3-T4 | Step 5 | 改造 `coreBackend.ts`（三端各保留单路径版本） | `grep detectBackend apps/` 为空 |
 | P3-T5 | Step 6 | 改造 `useAgent.ts`（接收 backend 注入） | 三端 useAgent 可用 |
 | P3-T6 | Step 7 | 改造 `main.ts`（端入口硬编码后端） | 三端 dev 可启动 |
 | P3-T7 | Step 8 | 清理 `__TAURI__` 检测与 global.d.ts | `grep __TAURI__ apps/web/` 为空 |
 | P3-T8 | Step 9 | 清理插件层（mindmap/workflow Rust 调用） | 插件三端可加载 |
-| P3-T9 | Step 10 | 清理 worldsmith-server 引用 | Tauri 端无 WS 回退 |
+| P3-T9 | Step 10 | 清理 worldsea-server 引用 | Tauri 端无 WS 回退 |
 | P3-T10 | Step 11-12 | 更新构建配置，删除原 `src/` | 三端 build 独立 |
 
 ### 3.2 并行机会
@@ -621,7 +621,7 @@ Phase 0 ─→ Phase 1 ─→ Phase 2 ─→ Phase 3 ─→ Phase 4 ─→ Phase
 
 | 项 | 内容 |
 |----|------|
-| **目标** | worldsmith-server 能力迁移到 CLI serve；Web 端 API 调用层切换 |
+| **目标** | worldsea-server 能力迁移到 CLI serve；Web 端 API 调用层切换 |
 | **前置依赖** | Phase 1（agent-runtime）、可与 Phase 3 部分并行 |
 | **后置依赖** | Phase 5 |
 
@@ -629,12 +629,12 @@ Phase 0 ─→ Phase 1 ─→ Phase 2 ─→ Phase 3 ─→ Phase 4 ─→ Phase
 
 | 任务 ID | 任务 | 输入 | 输出 | 验证 | 状态 |
 |---------|------|------|------|------|------|
-| P4-T1 | CLI serve 模式完善 | `worldsmith-agent/src/cli/serve.ts` | `apps/cli/src/commands/serve.ts` | `worldsmith serve` 可启动 HTTP+WS | ✅ |
-| P4-T2 | worldsmith-server 能力盘点 | `worldsmith-server/` 全部端点 | 能力迁移清单 | 所有端点有归属 | ✅ |
-| P4-T3 | 迁移 HTTP 端点到 CLI serve | worldsmith-server 路由 | `apps/cli/src/serve/` | curl 验证各端点 | ✅ |
-| P4-T4 | 迁移 WS 事件到 CLI serve | worldsmith-server WS | `apps/cli/src/serve/ws.ts` | WS 客户端可连接 | ✅ |
-| P4-T5 | Web 端 API 调用层切换 | 原 worldsmith-server API 调用 | 改为调 CLI serve | Web 端功能正常 | ✅ |
-| P4-T6 | worldsmith-server 标记废弃 | worldsmith-server package.json | 添加 deprecation 标记 | 文档说明迁移路径 | ✅ |
+| P4-T1 | CLI serve 模式完善 | `worldsea-agent/src/cli/serve.ts` | `apps/cli/src/commands/serve.ts` | `worldsea serve` 可启动 HTTP+WS | ✅ |
+| P4-T2 | worldsea-server 能力盘点 | `worldsea-server/` 全部端点 | 能力迁移清单 | 所有端点有归属 | ✅ |
+| P4-T3 | 迁移 HTTP 端点到 CLI serve | worldsea-server 路由 | `apps/cli/src/serve/` | curl 验证各端点 | ✅ |
+| P4-T4 | 迁移 WS 事件到 CLI serve | worldsea-server WS | `apps/cli/src/serve/ws.ts` | WS 客户端可连接 | ✅ |
+| P4-T5 | Web 端 API 调用层切换 | 原 worldsea-server API 调用 | 改为调 CLI serve | Web 端功能正常 | ✅ |
+| P4-T6 | worldsea-server 标记废弃 | worldsea-server package.json | 添加 deprecation 标记 | 文档说明迁移路径 | ✅ |
 
 ### 4.3 完成情况（2026-07-29）
 
@@ -645,13 +645,13 @@ Phase 0 ─→ Phase 1 ─→ Phase 2 ─→ Phase 3 ─→ Phase 4 ─→ Phase
 | P4-T3 | ✅ | `apps/cli/src/serve/python-routes.ts`（200 行，原生 http） |
 | P4-T4 | ✅ | WS token 鉴权合并到 serve.ts |
 | P4-T5 | ✅ | `getWsUrl()` + `getWsToken()` 三级优先级 + `.env.example` |
-| P4-T6 | ✅ | worldsmith-server 标记 deprecated |
+| P4-T6 | ✅ | worldsea-server 标记 deprecated |
 
 详细执行记录见 【`[11-backend-consolidation.md](./11-backend-consolidation.md)`】
 
 ### 4.2 关键决策点
 
-- **CLI serve 端口**：默认 3100（与原 worldsmith-server 一致），可配置
+- **CLI serve 端口**：默认 3100（与原 worldsea-server 一致），可配置
 - **Web 端连接地址**：从 `localStorage.ws_server_url` 改为环境变量 `VITE_CLI_SERVE_URL`
 
 ## 7. Phase 5: 构建配置与 CI 独立
@@ -667,9 +667,9 @@ Phase 0 ─→ Phase 1 ─→ Phase 2 ─→ Phase 3 ─→ Phase 4 ─→ Phase
 
 | 任务 ID | 任务 | 验证 | 状态 |
 |---------|------|------|------|
-| P5-T1 | Web 端 vite.config.ts 独立（移除 Tauri 相关插件） | `pnpm --filter @worldsmith/web build` 产物独立 | ✅ |
-| P5-T2 | Tauri 端 vite.config.ts + tauri.conf.json 独立 | `pnpm --filter @worldsmith/tauri build` 产物独立 | ✅ |
-| P5-T3 | CLI 端 tsconfig.json + 构建脚本独立 | `pnpm --filter @worldsmith/cli build` 产物独立 | ✅ |
+| P5-T1 | Web 端 vite.config.ts 独立（移除 Tauri 相关插件） | `pnpm --filter @worldsea/web build` 产物独立 | ✅ |
+| P5-T2 | Tauri 端 vite.config.ts + tauri.conf.json 独立 | `pnpm --filter @worldsea/tauri build` 产物独立 | ✅ |
+| P5-T3 | CLI 端 tsconfig.json + 构建脚本独立 | `pnpm --filter @worldsea/cli build` 产物独立 | ✅ |
 | P5-T4 | 根 package.json scripts 更新（分端命令） | `pnpm dev:web` / `pnpm dev:cli` / `pnpm dev:tauri` 可用 | ✅ |
 | P5-T5 | CI workflow 分端构建（.github/workflows/） | 三端 CI 各自触发 | ✅ |
 | P5-T6 | 移除根目录 build:web 依赖（Tauri 不再依赖 build:web） | Tauri build 不触发 Web build | ✅（通过新增 standalone 命令实现） |
@@ -693,7 +693,7 @@ Phase 0 ─→ Phase 1 ─→ Phase 2 ─→ Phase 3 ─→ Phase 4 ─→ Phase
 
 **理由**：
 - CLI serve 内置 LLM 代理、文件代理、Python 微服务代理等，统一中转更清晰
-- Web 端构建配置真正"独立"，不依赖根目录的自定义插件（worldsmithServerLauncher / localFilePlugin / customProxyPlugin）
+- Web 端构建配置真正"独立"，不依赖根目录的自定义插件（worldseaServerLauncher / localFilePlugin / customProxyPlugin）
 - 减少配置重复，LLM API 端点变更只需改 CLI serve 一处
 
 #### 5.3.2 Tauri 端不需要 /api/* 代理
@@ -741,11 +741,11 @@ Phase 3 核心迁移完成后，启用三端独立构建验证。结果如下：
 - **修复**：扩展 alias 转换逻辑，让以 `/` 结尾的 key 生成前缀匹配正则（`^@agent/`），并在 replacement 末尾补斜杠
 - **影响文件**：`apps/web/vite.config.ts`、`apps/tauri/vite.config.ts`
 
-**问题 2：Tauri main.ts 引入 `@worldsmith/ui-kit` 导致根 src/ 耦合**
+**问题 2：Tauri main.ts 引入 `@worldsea/ui-kit` 导致根 src/ 耦合**
 
 - **现象**：Tauri 构建报 `Could not load src/composables/useProjectSwitcher` 等 9 个错误
-- **根因**：`@worldsmith/ui-kit` 包含 30+ 个 `../../../src/` 相对路径导入，将根 src/ 代码引入 Tauri 构建
-- **修复**：`apps/tauri/src/main.ts` 改为从 `@worldsmith/motion-kit` 导入 `injectAllKeyframes`，从 `@worldsmith/plugin-sdk/composables/useConfirm` 和 `useDialog` 具体文件导入（与 Web 端一致），绕过 ui-kit 的根 src/ 依赖
+- **根因**：`@worldsea/ui-kit` 包含 30+ 个 `../../../src/` 相对路径导入，将根 src/ 代码引入 Tauri 构建
+- **修复**：`apps/tauri/src/main.ts` 改为从 `@worldsea/motion-kit` 导入 `injectAllKeyframes`，从 `@worldsea/plugin-sdk/composables/useConfirm` 和 `useDialog` 具体文件导入（与 Web 端一致），绕过 ui-kit 的根 src/ 依赖
 - **影响文件**：`apps/tauri/src/main.ts`
 
 **问题 3：CLI tsx 运行报 `Cannot find package '@agent/tools'`**
@@ -758,9 +758,9 @@ Phase 3 核心迁移完成后，启用三端独立构建验证。结果如下：
 
 | 问题 | 影响范围 | 解决阶段 |
 |------|----------|----------|
-| `@worldsmith/ui-kit` 仍含 30+ 个 `../../../src/` 导入 | Web/Tauri 构建通过 main.ts bypass 绕过，但 ui-kit 本身未解耦 | Phase 6（shared-ui 迁移） |
-| CLI `tsc` 编译报 rootDir + ui-kit 错误 | CLI 实际用 `tsx` 运行不受影响；`tsc` 类型检查暂不可用 | Phase 4（worldsmith-agent 前端耦合清理） |
-| `worldsmith-agent` 引用根 src/ 代码（ProjectFS 等） | CLI tsx 运行通过 tsconfig paths 绕过 | Phase 4/6 |
+| `@worldsea/ui-kit` 仍含 30+ 个 `../../../src/` 导入 | Web/Tauri 构建通过 main.ts bypass 绕过，但 ui-kit 本身未解耦 | Phase 6（shared-ui 迁移） |
+| CLI `tsc` 编译报 rootDir + ui-kit 错误 | CLI 实际用 `tsx` 运行不受影响；`tsc` 类型检查暂不可用 | Phase 4（worldsea-agent 前端耦合清理） |
+| `worldsea-agent` 引用根 src/ 代码（ProjectFS 等） | CLI tsx 运行通过 tsconfig paths 绕过 | Phase 4/6 |
 
 #### 5.4.3 CI 容错策略更新
 
@@ -781,10 +781,10 @@ Phase 3 核心迁移完成后，启用三端独立构建验证。结果如下：
 | 任务 ID | 任务 | 验证 |
 |---------|------|------|
 | P6-T1 | Web 端端到端验收 | 浏览器打开，核心功能可用 |
-| P6-T2 | CLI 端端到端验收 | `worldsmith chat` / `worldsmith serve` 可用 |
+| P6-T2 | CLI 端端到端验收 | `worldsea chat` / `worldsea serve` 可用 |
 | P6-T3 | Tauri 端端到端验收 | 桌面应用启动，核心功能可用 |
-| P6-T4 | 删除 `worldsmith-server/` | `grep -r worldsmith-server` 无残留 |
-| P6-T5 | 删除 `worldsmith-agent/` 残留（已迁移部分） | 无残留 |
+| P6-T4 | 删除 `worldsea-server/` | `grep -r worldsea-server` 无残留 |
+| P6-T5 | 删除 `worldsea-agent/` 残留（已迁移部分） | 无残留 |
 | P6-T6 | 删除原 `src/` 目录 | 无残留引用 |
 | P6-T7 | 更新根 README 与 AGENTS.md | 文档反映新结构 |
 | P6-T8 | 更新 project_memory.md | 记录架构变更 |
@@ -807,10 +807,10 @@ Phase 3 核心迁移完成后，启用三端独立构建验证。结果如下：
 
 | 阶段 | 回滚方式 |
 |------|----------|
-| Phase 1 | git revert agent-runtime 抽离 commit，恢复 worldsmith-agent 原状 |
+| Phase 1 | git revert agent-runtime 抽离 commit，恢复 worldsea-agent 原状 |
 | Phase 2 | 删除 apps/ 目录，恢复原结构 |
 | Phase 3 | 恢复 src/ 目录（git checkout），回滚 coreBackend/useAgent 改造 |
-| Phase 4 | 恢复 worldsmith-server，Web 端切回原 API |
+| Phase 4 | 恢复 worldsea-server，Web 端切回原 API |
 | Phase 5 | 恢复原 vite.config.ts / CI workflow |
 | Phase 6 | 无法回滚（旧目录已删），需从 git 历史恢复 |
 
@@ -823,6 +823,6 @@ Phase 3 核心迁移完成后，启用三端独立构建验证。结果如下：
 | M1 | Phase 1 完成 ✅ | `packages/agent-runtime` 可独立编译，CLI 功能不退化 |
 | M2 | Phase 2 完成 ✅ | 三端骨架可独立启动空白页（注：Web/Tauri Vite 启动受网络问题阻碍，配置已验证正确） |
 | M3 | Phase 3 完成 | 三端 src/ 独立，原 src/ 可删除 |
-| M4 | Phase 4 完成 ✅ | CLI serve 替代 worldsmith-server，Web 端功能正常 |
+| M4 | Phase 4 完成 ✅ | CLI serve 替代 worldsea-server，Web 端功能正常 |
 | M5 | Phase 5 完成 ✅ | 三端独立 CI/CD |
 | M6 | Phase 6 完成 ✅ | 端分离全部完成，旧代码清理（根 src/ 已删） |

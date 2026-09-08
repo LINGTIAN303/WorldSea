@@ -1,8 +1,8 @@
 ﻿import { ref } from 'vue'
 import Graph from 'graphology'
 import { algoCommunityDetection } from '@/core/coreBackend'
-import { graphToWeightedGraph } from '@worldsmith/ui-kit'
-import type { CommunityDetectionResult } from '@worldsmith/canvas-engine/core'
+import { graphToWeightedGraph } from '@worldsea/ui-kit'
+import type { CommunityDetectionResult } from '@worldsea/canvas-engine/core'
 
 export interface ClusterInfo {
   id: string

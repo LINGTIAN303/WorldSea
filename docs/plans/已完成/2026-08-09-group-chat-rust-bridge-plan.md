@@ -3,7 +3,7 @@
 > status: 已完成
 > 日期：2026-08-09
 > 决策：用户已选 **方案 A（per-participant Rust session）**——每群聊参与者 = 一个独立 Rust AgentLoop 会话，TS 引擎继续负责轮次调度
-> 目标：替换 `createWorldSmithAgent` stub（packages/agent-runtime/src/agent.ts L278），让群聊参与者走真实 LLM
+> 目标：替换 `createWorldSeaAgent` stub（packages/agent-runtime/src/agent.ts L278），让群聊参与者走真实 LLM
 >
 > **完成记录（2026-08-09，commit 81e3a23）**：T1 新建 `apps/tauri/src/space/group-chat/rust/RustGroupChatBackend.ts`（per-participant 工厂，独立流式监听 delta→message_update 转发）；T2 替换 GroupChatCoordinator / GroupChatEngine / AgentPrivateChat 三处 stub import，删除零调用 resolveAgentTools；T3 providerConfig 回退逻辑已在 Coordinator L168 就位（`(p.providerConfig as any) || providerConfig`）；T4 typecheck 0 错误 + cargo check 通过（Rust 侧零改动）+ 浏览器冒烟（无 vite-error-overlay、.group-chat-layout 正常挂载不白屏）。工具桥 `cmd_agent_tool_result` 与真实 LLM 桌面冒烟列为二期。
 
@@ -14,7 +14,7 @@
 ### 1.1 现状（调研确认）
 
 - **TS 群聊引擎**（packages/agent-runtime/src/group-chat/ + apps/tauri/src/space/group-chat/GroupChatCoordinator.ts）是**纯调度层**：轮次调度靠自研 `SpeakerSelector`，对参与者的唯一消费是 `IAgentBackend` 四件事——`prompt()` 调用 / `subscribe()` 流式 / `state.messages` 读取（moderator）/ 生命周期（clearHistory/updateModel/dispose）
-- **stub 现状**：`createWorldSmithAgent` 只 emit `message_start` + `message_end`，**不发 `message_update`** → Coordinator 的 `currentContent` 恒空 → 会议模式全是"空回复"提示
+- **stub 现状**：`createWorldSeaAgent` 只 emit `message_start` + `message_end`，**不发 `message_update`** → Coordinator 的 `currentContent` 恒空 → 会议模式全是"空回复"提示
 - **Rust 侧命令层已就绪**（关键利好）：`new_session(system_prompt, provider_config)` / `send_message` / `abort` / `steer` / `clear_history` / `trim_context` / `update_model` / `update_thinking_level` / `get_messages` / `get_state` / `delete_session` 全部已存在（crates/agent-commands/src/lib.rs）；流式事件通道 `agent:event:stream:{session_id}`（start/delta/end/error/agent_end）已由 `TauriAgentEventEmitter` 转发（src-tauri/src/commands.rs L157，EMITTER_REGISTRY 按 sessionId 复用）
 - **Rust 侧唯一缺口**：`cmd_agent_tool_result`（工具桥回传）不存在——但**群聊首期可不启用工具**（参与者用纯文本对话），工具桥列为二期
 
@@ -29,7 +29,7 @@
 
 ```
 GroupChatCoordinator / GroupChatEngine / AgentPrivateChat
-   │  调 createRustGroupChatBackend(participant)   ← 替换 createWorldSmithAgent
+   │  调 createRustGroupChatBackend(participant)   ← 替换 createWorldSeaAgent
    ▼
 RustGroupChatBackend（新，apps/tauri/src/space/group-chat/rust/RustGroupChatBackend.ts）
    │  实现 IAgentBackend
@@ -76,11 +76,11 @@ RustGroupChatBackend（新，apps/tauri/src/space/group-chat/rust/RustGroupChatB
 
 | 文件 | 现状 | 改为 |
 |---|---|---|
-| `apps/tauri/src/space/group-chat/GroupChatCoordinator.ts` L163 | `createWorldSmithAgent({...})` | `RustGroupChatBackendFactory.create({ id, name, systemPrompt, providerConfig, modelId })` |
-| `apps/tauri/src/space/group-chat/engine/GroupChatEngine.ts` L167/L284（casual 参与者 + moderator） | `createWorldSmithAgent` | 同上工厂 |
-| `apps/tauri/src/space/group-chat/components/AgentPrivateChat.vue` L277（私聊 1v1） | `createWorldSmithAgent` | 同上工厂 |
+| `apps/tauri/src/space/group-chat/GroupChatCoordinator.ts` L163 | `createWorldSeaAgent({...})` | `RustGroupChatBackendFactory.create({ id, name, systemPrompt, providerConfig, modelId })` |
+| `apps/tauri/src/space/group-chat/engine/GroupChatEngine.ts` L167/L284（casual 参与者 + moderator） | `createWorldSeaAgent` | 同上工厂 |
+| `apps/tauri/src/space/group-chat/components/AgentPrivateChat.vue` L277（私聊 1v1） | `createWorldSeaAgent` | 同上工厂 |
 
-**保留 stub**：`packages/agent-runtime/src/agent.ts` 的 createWorldSmithAgent 不动（Web 端继续占位）。
+**保留 stub**：`packages/agent-runtime/src/agent.ts` 的 createWorldSeaAgent 不动（Web 端继续占位）。
 
 ### T3：GroupChatView 接入会话创建
 

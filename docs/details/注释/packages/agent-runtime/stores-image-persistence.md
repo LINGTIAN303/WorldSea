@@ -9,7 +9,7 @@
 图像持久化存储模块
 基于 IndexedDB 实现，用于存储通过 AI 生成的图片 Blob 数据
 
-数据库: worldsmith_images (v2)
+数据库: worldsea_images (v2)
 对象仓库: images (keyPath: id)
 索引: createdAt, provider, path
 

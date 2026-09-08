@@ -1,13 +1,13 @@
-# Agent Workspace 架构诊断 — WorldSmith 通往通用 Harness 的文件系统底座评估
+# Agent Workspace 架构诊断 — WorldSea 通往通用 Harness 的文件系统底座评估
 
 > 状态：已沉淀 · 2026-08-22
-> 定位：基于代码链路逐层走查（非 README）产出的架构诊断，回答「WorldSmith 的 Agent 文件系统作为通用 Harness 底座是否达标」，并记录随后落地的「实体 + 边界加固」。
+> 定位：基于代码链路逐层走查（非 README）产出的架构诊断，回答「WorldSea 的 Agent 文件系统作为通用 Harness 底座是否达标」，并记录随后落地的「实体 + 边界加固」。
 
 ---
 
 ## 一、核心结论
 
-> **WorldSmith 的 Agent 架构已具备「Agent + Workspace + Tool + Session + Execution」雏形，作为 Worldbuilding 产品的 Agent 文件系统：合格且相当不错。**
+> **WorldSea 的 Agent 架构已具备「Agent + Workspace + Tool + Session + Execution」雏形，作为 Worldbuilding 产品的 Agent 文件系统：合格且相当不错。**
 > **但作为通用 Harness 的文件系统底座：尚未完全达标。**
 >
 > 最大瓶颈不是「有没有文件系统」，而是 **Workspace 在架构中还不是一等公民。**
@@ -40,10 +40,10 @@
 
 ---
 
-## 三、WorldSmith 实际存在「三种文件系统」
+## 三、WorldSea 实际存在「三种文件系统」
 
 ```
-                    WorldSmith
+                    WorldSea
                         │
           ┌─────────────┼─────────────┐
           │             │             │

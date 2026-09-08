@@ -15,4 +15,4 @@ export interface Panel {
 export type LayoutDirection = 'row' | 'column' | 'grid'
 
 /** localStorage 持久化的根 key */
-export const STORAGE_KEY = 'worldsmith_dashboard'
+export const STORAGE_KEY = 'worldsea_dashboard'

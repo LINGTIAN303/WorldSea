@@ -36,7 +36,7 @@ export interface DryRunResult {
   edge_count: number
 }
 
-/** Run 记录摘要（镜像 worldsmith-core::storage::workflow::RunSummary，字段 snake_case） */
+/** Run 记录摘要（镜像 worldsea-core::storage::workflow::RunSummary，字段 snake_case） */
 export interface RunRecord {
   run_id: string
   workflow_id: string

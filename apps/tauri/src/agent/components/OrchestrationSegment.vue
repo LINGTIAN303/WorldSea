@@ -127,8 +127,8 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
-import { usePlanStore } from '@worldsmith/shared-composables/agent/usePlanStore'
+import { WsIcon } from '@worldsea/ui-kit'
+import { usePlanStore } from '@worldsea/shared-composables/agent/usePlanStore'
 import type { OrchestrationRunView, TracePhaseView } from '../composables/useOrchestrationTrace'
 
 const props = defineProps<{ run: OrchestrationRunView }>()
@@ -138,7 +138,7 @@ const emit = defineEmits<{
 }>()
 
 const FIRST_HINT = '这是你的请求被处理的过程，点击可展开'
-const FIRST_HINT_KEY = 'worldsmith.orchestration-trace.first-hint-dismissed'
+const FIRST_HINT_KEY = 'worldsea.orchestration-trace.first-hint-dismissed'
 
 const collapsed = ref(props.run.status === 'finished')
 const showFirstHint = ref(false)

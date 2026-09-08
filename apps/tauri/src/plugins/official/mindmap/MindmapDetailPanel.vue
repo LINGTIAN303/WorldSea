@@ -67,11 +67,11 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
-import { WsEmpty } from '@worldsmith/ui-kit'
-import { DynamicFieldsAdder } from '@worldsmith/plugin-sdk'
-import type { FieldSchema } from '@worldsmith/entity-core'
-import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'
+import { WsIcon } from '@worldsea/ui-kit'
+import { WsEmpty } from '@worldsea/ui-kit'
+import { DynamicFieldsAdder } from '@worldsea/plugin-sdk'
+import type { FieldSchema } from '@worldsea/entity-core'
+import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
 import { typeLabel, iconForType } from './mindmapConfig'
 
 const props = defineProps<{

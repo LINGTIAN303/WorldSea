@@ -10,7 +10,7 @@ export interface UserProfile {
   customStatus: string
 }
 
-const STORAGE_KEY = 'worldsmith_user_profile'
+const STORAGE_KEY = 'worldsea_user_profile'
 
 const DEFAULT_PROFILE: UserProfile = {
   nickname: '我',

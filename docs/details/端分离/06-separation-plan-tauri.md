@@ -30,13 +30,13 @@ apps/tauri/
 │   │   ├── ModuleRuntime.ts            # 模块运行时
 │   │   ├── ModuleViewRegistry.ts       # 模块视图注册
 │   │   ├── PackageBuilder.ts           # 包构建器
-│   │   ├── WorldSmithPack.ts           # WorldSmith 包
+│   │   ├── WorldSeaPack.ts           # WorldSea 包
 │   │   ├── ExportController.ts         # 导出控制器
 │   │   ├── ImportController.ts         # 导入控制器
 │   │   ├── CustomFields.ts             # 自定义字段
 │   │   └── coreBackend.ts              # Tauri 专属
 │   ├── execution/
-│   │   └── tauri-adapter.ts            # Tauri 环境适配器（从 worldsmith-agent 迁移）
+│   │   └── tauri-adapter.ts            # Tauri 环境适配器（从 worldsea-agent 迁移）
 │   ├── composables/                     # Tauri 专属 composables
 │   │   ├── useProjectSwitcher.ts       # 从 src/composables/ 迁移
 │   │   ├── useFsWatcher.ts             # 从 src/composables/ 迁移
@@ -128,7 +128,7 @@ apps/tauri/
 
 ```json
 {
-  "name": "@worldsmith/tauri",
+  "name": "@worldsea/tauri",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -140,20 +140,20 @@ apps/tauri/
     "typecheck": "vue-tsc --noEmit"
   },
   "dependencies": {
-    "@worldsmith/agent-runtime": "workspace:*",
-    "@worldsmith/shared-ui": "workspace:*",
-    "@worldsmith/shared-composables": "workspace:*",
-    "@worldsmith/agent-core": "workspace:*",
-    "@worldsmith/canvas-engine": "workspace:*",
-    "@worldsmith/entity-core": "workspace:*",
-    "@worldsmith/font-kit": "workspace:*",
-    "@worldsmith/governor-core": "workspace:*",
-    "@worldsmith/memory-archive": "workspace:*",
-    "@worldsmith/motion-kit": "workspace:*",
-    "@worldsmith/perf-kit": "workspace:*",
-    "@worldsmith/plugin-sdk": "workspace:*",
-    "@worldsmith/theme-kit": "workspace:*",
-    "@worldsmith/ui-kit": "workspace:*",
+    "@worldsea/agent-runtime": "workspace:*",
+    "@worldsea/shared-ui": "workspace:*",
+    "@worldsea/shared-composables": "workspace:*",
+    "@worldsea/agent-core": "workspace:*",
+    "@worldsea/canvas-engine": "workspace:*",
+    "@worldsea/entity-core": "workspace:*",
+    "@worldsea/font-kit": "workspace:*",
+    "@worldsea/governor-core": "workspace:*",
+    "@worldsea/memory-archive": "workspace:*",
+    "@worldsea/motion-kit": "workspace:*",
+    "@worldsea/perf-kit": "workspace:*",
+    "@worldsea/plugin-sdk": "workspace:*",
+    "@worldsea/theme-kit": "workspace:*",
+    "@worldsea/ui-kit": "workspace:*",
     "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "@tauri-apps/plugin-opener": "^2.5.4",
@@ -204,18 +204,18 @@ apps/tauri/
 
 **关键差异**：
 - 有 `@tauri-apps/api` / `@tauri-apps/cli` / `@tauri-apps/plugin-*`
-- 无 `@worldsmith/core` / `@worldsmith/tactical-engine`（WASM）
+- 无 `@worldsea/core` / `@worldsea/tactical-engine`（WASM）
 - 无 `vite-plugin-wasm`
-- 依赖 `@worldsmith/agent-runtime` / `@worldsmith/shared-ui` / `@worldsmith/shared-composables`
+- 依赖 `@worldsea/agent-runtime` / `@worldsea/shared-ui` / `@worldsea/shared-composables`
 
 ## 3. tauri.conf.json
 
 ```json
 {
   "$schema": "https://raw.githubusercontent.com/nicegram/nicegram-ios/refs/heads/NiceGram/Submodules/TelegramCore/tauri/tooling/cli/schema.json",
-  "productName": "WorldSmith",
+  "productName": "WorldSea",
   "version": "0.1.0",
-  "identifier": "com.worldsmith.app",
+  "identifier": "com.worldsea.app",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:5173",
@@ -226,7 +226,7 @@ apps/tauri/
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "WorldSmith — 世界观构建工具",
+        "title": "WorldSea — 世界观构建工具",
         "width": 1280,
         "height": 800,
         "minWidth": 900,
@@ -273,9 +273,9 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, 'src'),
-      '@worldsmith/shared-ui': path.resolve(__dirname, '../../packages/shared-ui/src'),
-      '@worldsmith/shared-composables': path.resolve(__dirname, '../../packages/shared-composables/src'),
-      '@worldsmith/agent-runtime': path.resolve(__dirname, '../../packages/agent-runtime/src'),
+      '@worldsea/shared-ui': path.resolve(__dirname, '../../packages/shared-ui/src'),
+      '@worldsea/shared-composables': path.resolve(__dirname, '../../packages/shared-composables/src'),
+      '@worldsea/agent-runtime': path.resolve(__dirname, '../../packages/agent-runtime/src'),
     },
   },
   build: {
@@ -283,12 +283,12 @@ export default defineConfig({
     outDir: 'dist',
     chunkSizeWarningLimit: 1500,
     rollupOptions: {
-      external: ['@worldsmith/core', '@worldsmith/tactical-engine'],  // 不打包 WASM
+      external: ['@worldsea/core', '@worldsea/tactical-engine'],  // 不打包 WASM
       output: {
         manualChunks: {
           'vendor-vue': ['vue', 'pinia', 'naive-ui'],
           'vendor-tauri': ['@tauri-apps/api', '@tauri-apps/plugin-dialog', '@tauri-apps/plugin-opener'],
-          'vendor-agent': ['@worldsmith/agent-runtime', '@worldsmith/shared-composables'],
+          'vendor-agent': ['@worldsea/agent-runtime', '@worldsea/shared-composables'],
         },
       },
     },
@@ -324,22 +324,22 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'
 
-import { fieldRegistry, setUndoHistoryProvider, registerEventBus, registerValidationApi, registerToastApi, registerConfirmApi, registerDialogApi, registerSettingsApi } from '@worldsmith/entity-core'
-import { registerBackend } from '@worldsmith/canvas-engine/core'
-import { useConfirm, useDialog } from '@worldsmith/plugin-sdk'
-import { injectAllKeyframes } from '@worldsmith/ui-kit'
-import { registerAllManifests } from '@worldsmith/theme-kit'
+import { fieldRegistry, setUndoHistoryProvider, registerEventBus, registerValidationApi, registerToastApi, registerConfirmApi, registerDialogApi, registerSettingsApi } from '@worldsea/entity-core'
+import { registerBackend } from '@worldsea/canvas-engine/core'
+import { useConfirm, useDialog } from '@worldsea/plugin-sdk'
+import { injectAllKeyframes } from '@worldsea/ui-kit'
+import { registerAllManifests } from '@worldsea/theme-kit'
 
 // Tauri 专属
 import * as coreBackend from './core/coreBackend'  // 仅 Tauri 后端
-import { useSettingsStore } from '@worldsmith/shared-ui/stores/settingsStore'
-import { eventBus } from '@worldsmith/shared-ui/modules/runtime/events'
-import { toastSuccess, toastError, toastWarn, toastInfo } from '@worldsmith/shared-composables/useToast'
+import { useSettingsStore } from '@worldsea/shared-ui/stores/settingsStore'
+import { eventBus } from '@worldsea/shared-ui/modules/runtime/events'
+import { toastSuccess, toastError, toastWarn, toastInfo } from '@worldsea/shared-composables/useToast'
 
 // 端注册
-import { registerExecutionAdapterFactory } from '@worldsmith/agent-runtime'
+import { registerExecutionAdapterFactory } from '@worldsea/agent-runtime'
 import { TauriExecutionAdapter } from './execution/tauri-adapter'
-import { AgentBackendKey, CoreBackendKey } from '@worldsmith/shared-ui'
+import { AgentBackendKey, CoreBackendKey } from '@worldsea/shared-ui'
 import { RustAgentBackend } from './agent/RustAgentBackend'
 
 // 注册 Tauri ExecutionAdapter
@@ -368,7 +368,7 @@ registerConfirmApi(useConfirm())
 registerDialogApi(useDialog())
 registerSettingsApi(useSettingsStore())
 
-document.documentElement.setAttribute('data-theme', localStorage.getItem('worldsmith-theme') || 'aurora-abyss')
+document.documentElement.setAttribute('data-theme', localStorage.getItem('worldsea-theme') || 'aurora-abyss')
 injectAllKeyframes()
 registerAllManifests()
 setUndoHistoryProvider(() => useSettingsStore().undoHistoryLimit || 20)
@@ -419,7 +419,7 @@ export async function validateEntity(entityJson: string, schemaJson?: string) {
 // apps/tauri/src/agent/RustAgentBackend.ts
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import type { IAgentBackend, AgentEvent, AgentMessage, PromptOptions } from '@worldsmith/agent-runtime'
+import type { IAgentBackend, AgentEvent, AgentMessage, PromptOptions } from '@worldsea/agent-runtime'
 
 export class RustAgentBackend implements IAgentBackend {
   private sessionId: string
@@ -481,7 +481,7 @@ Step T8: 迁移 src/composables/{useProjectSwitcher.ts, useFsWatcher.ts, useFile
 Step T9: 迁移 src/memory-archive/adapters/TauriFsOperations.ts 到 apps/tauri/src/memory-archive/adapters/
 Step T10: 迁移 src/plugins/official/mindmap/composables/{useRustLayout.ts, useRustGraphAnalysis.ts} 到 apps/tauri/src/plugins/
 Step T11: 迁移 src/plugins/official/workflow/{composables/useWorkflowEngineRun.ts, api/workflowApi.ts} 到 apps/tauri/src/plugins/
-Step T12: 迁移 worldsmith-agent/src/execution/tauri-adapter.ts 到 apps/tauri/src/execution/
+Step T12: 迁移 worldsea-agent/src/execution/tauri-adapter.ts 到 apps/tauri/src/execution/
 Step T13: 创建 RustAgentBackend.ts 与 useAgentTauri.ts
 Step T14: 配置 apps/tauri/vite.config.ts（无 WASM，有 Tauri）
 Step T15: 配置 apps/tauri/tsconfig.json
@@ -531,7 +531,7 @@ fn main() {
 ## 8. 验证清单
 
 - [ ] `apps/tauri/package.json` 有 `@tauri-apps/*` 依赖
-- [ ] `apps/tauri/package.json` 无 `@worldsmith/core` / `@worldsmith/tactical-engine`（WASM）
+- [ ] `apps/tauri/package.json` 无 `@worldsea/core` / `@worldsea/tactical-engine`（WASM）
 - [ ] `apps/tauri/src/` 中无 WASM import
 - [ ] `apps/tauri/src/core/coreBackend.ts` 仅走 Tauri invoke 路径
 - [ ] `apps/tauri/vite.config.ts` 无 `wasm()` 插件

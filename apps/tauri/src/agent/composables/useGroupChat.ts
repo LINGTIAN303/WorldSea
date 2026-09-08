@@ -3,9 +3,9 @@
 import { ref, reactive, readonly, type DeepReadonly, type Ref } from 'vue'
 import type { IAgentBackend, AgentEvent } from '@agent/index'
 import { invalidateContextCache } from '@agent/context/builder'
-import { useEntityStore, useRelationStore, useFileStore } from '@worldsmith/entity-core'
+import { useEntityStore, useRelationStore, useFileStore } from '@worldsea/entity-core'
 import { useAgentProfileStore } from '../../stores/agentProfileStore'
-import { useConfirm } from '@worldsmith/plugin-sdk'
+import { useConfirm } from '@worldsea/plugin-sdk'
 import type {
   AgentProfile,
   GroupChatMessage,
@@ -91,7 +91,7 @@ export function useGroupChat() {
         },
       },
       projectInfo: {
-        name: 'WorldSmith',
+        name: 'WorldSea',
         entityTypes: entityStore.types.map(t => t.typeKey),
         relationTypes: [],
         dirPath: null, // 异步获取，在 Agent 运行时通过 getFileStorageBackend 获取

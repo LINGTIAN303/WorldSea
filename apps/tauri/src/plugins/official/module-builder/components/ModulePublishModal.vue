@@ -19,7 +19,7 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import { useFocusTrap } from '@/composables/useFocusTrap'
 
 const props = defineProps<{ show: boolean; moduleName: string }>()

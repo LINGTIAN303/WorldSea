@@ -99,7 +99,7 @@ async function paste(): Promise<void> {
     close()
   } catch {
     close()
-    const { toastWarn } = await import('@worldsmith/ui-kit')
+    const { toastWarn } = await import('@worldsea/ui-kit')
     toastWarn('剪贴板不可用，请直接按 Ctrl+V 粘贴')
   }
 }

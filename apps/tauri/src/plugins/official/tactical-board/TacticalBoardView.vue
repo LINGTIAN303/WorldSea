@@ -141,8 +141,8 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useEntityStore } from '@worldsmith/entity-core'
-import { WsEmpty } from '@worldsmith/ui-kit'
+import { useEntityStore } from '@worldsea/entity-core'
+import { WsEmpty } from '@worldsea/ui-kit'
 import BoardCanvas from './components/BoardCanvas.vue'
 import UnitPanel from './components/UnitPanel.vue'
 import BattleLog from './components/BattleLog.vue'

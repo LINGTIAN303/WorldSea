@@ -1,7 +1,7 @@
 import { computed } from 'vue'
 import { useMindmapStore, type Section } from '../mindmapStore'
-import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'
-import type { Entity, Relation } from '@worldsmith/entity-core'
+import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
+import type { Entity, Relation } from '@worldsea/entity-core'
 import type { CanvasNode, CanvasEdge } from './canvasTypes'
 
 export function useSection(options: {

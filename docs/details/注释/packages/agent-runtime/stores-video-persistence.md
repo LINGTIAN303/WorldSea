@@ -9,7 +9,7 @@
 视频持久化存储模块
 基于 IndexedDB 实现，用于存储通过 AI 生成的视频元数据和 Blob
 
-数据库: worldsmith_videos (v1)
+数据库: worldsea_videos (v1)
 对象仓库: videos (keyPath: id)
 索引: createdAt, provider, path
 

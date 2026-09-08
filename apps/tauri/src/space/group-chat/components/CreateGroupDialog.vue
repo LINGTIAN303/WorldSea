@@ -57,7 +57,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import { useFocusTrap } from '@/composables/useFocusTrap'
 
 export interface AgentItem {

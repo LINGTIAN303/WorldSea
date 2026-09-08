@@ -34,10 +34,10 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import type { ImageBlock } from '@worldsmith/agent-runtime'
-import { getImage, downloadBlob, srcToBlob } from '@worldsmith/agent-runtime/stores/image-persistence'
+import type { ImageBlock } from '@worldsea/agent-runtime'
+import { getImage, downloadBlob, srcToBlob } from '@worldsea/agent-runtime/stores/image-persistence'
 import A2UIResolvedImage from '../a2ui/A2UIResolvedImage.vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 
 const props = defineProps<{ block: ImageBlock }>()
 

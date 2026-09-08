@@ -1,5 +1,5 @@
 {
-  "name": "WorldSmith 测试技能集",
+  "name": "WorldSea 测试技能集",
   "version": "1.0.0",
   "updated": "2026-07-07",
   "skills": [
@@ -8,7 +8,7 @@
       "name": "角色创建助手",
       "description": "辅助快速创建角色实体，提供命名灵感、背景生成与属性平衡建议。适合需要批量生成 NPC 或主角的场景。",
       "version": "1.0.0",
-      "author": "WorldSmith",
+      "author": "WorldSea",
       "homepage": "https://github.com/LINGTIAN303/WorldSmith",
       "downloadUrl": "https://raw.githubusercontent.com/LINGTIAN303/WorldSmith/main/docs/skills-store-test-source/skills/example-creator.zip",
       "pathInArchive": "example-creator",

@@ -238,11 +238,11 @@
 </template>
 
 <script setup lang="ts">
-import { toastSuccess, toastWithUndo } from '@worldsmith/ui-kit'
+import { toastSuccess, toastWithUndo } from '@worldsea/ui-kit'
 import { useEntityEdit, useBatchDelete, useDuplicateNameCheck, useShortcuts, useConfirm, useHighlight } from '../composables'
 import { ref, computed, onMounted, onBeforeUnmount, reactive, useSlots } from 'vue'
-import { useEntityStore, useRelationStore, entitySchemaRegistry } from '@worldsmith/entity-core'
-import type { Entity } from '@worldsmith/entity-core'
+import { useEntityStore, useRelationStore, entitySchemaRegistry } from '@worldsea/entity-core'
+import type { Entity } from '@worldsea/entity-core'
 import { NAlert } from 'naive-ui'
 import DetailField from './DetailField.vue'
 import CustomDropdown from './CustomDropdown.vue'
@@ -253,7 +253,7 @@ import EntityFormModal from './EntityFormModal.vue'
 import EntityDetailPanel from './EntityDetailPanel.vue'
 import EntityRelationSelector from './EntityRelationSelector.vue'
 import type { FormFieldDef, RelationTabDef, CardFieldDef, CustomTabDef, FilterDef } from './types'
-import { WsIcon, WsEmpty } from '@worldsmith/ui-kit'
+import { WsIcon, WsEmpty } from '@worldsea/ui-kit'
 import EntityCardCover from './EntityCardCover.vue'
 import EntityCardBack from './EntityCardBack.vue'
 import AutoLinkSuggestions from './AutoLinkSuggestions.vue'
@@ -501,7 +501,7 @@ async function onFormSave(data: { name: string; description: string; properties:
   }
 
   if (savedEntityId && data._autoLinkFields?.length) {
-    const { processAutoLinks } = await import('@worldsmith/entity-core/composables').then(m => m.useSmartFieldLink())
+    const { processAutoLinks } = await import('@worldsea/entity-core/composables').then(m => m.useSmartFieldLink())
     const result = await processAutoLinks(savedEntityId, data.properties, data._autoLinkFields)
     if (result.linked > 0 || result.created > 0) {
       const parts = []
@@ -521,7 +521,7 @@ async function onFormSave(data: { name: string; description: string; properties:
   // 触发 AutoLink 索引（新架构）
   if (savedEntityId) {
     try {
-      const { indexPotentialLinks } = await import('@worldsmith/entity-core')
+      const { indexPotentialLinks } = await import('@worldsea/entity-core')
       const savedEntity = entityStore.entities.find(e => e.id === savedEntityId)
       if (savedEntity) {
         await indexPotentialLinks(savedEntityId, savedEntity.type, savedEntity.properties ?? {})

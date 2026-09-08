@@ -57,8 +57,8 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, useSlots } from 'vue'
-import { entitySchemaRegistry } from '@worldsmith/entity-core'
-import type { EntityTypeSchema } from '@worldsmith/core-api-types'
+import { entitySchemaRegistry } from '@worldsea/entity-core'
+import type { EntityTypeSchema } from '@worldsea/core-api-types'
 import GenericEntityView from './GenericEntityView.vue'
 import type { FormFieldDef, RelationTabDef, CardFieldDef, CustomTabDef, FilterDef } from './types'
 

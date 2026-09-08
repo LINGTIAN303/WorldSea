@@ -4,7 +4,7 @@ import {
   hexToRgba,
   type TreeEdgeBase,
   type NodeState,
-} from '@worldsmith/canvas-engine/tree'
+} from '@worldsea/canvas-engine/tree'
 import type { FestivalNode } from './useFestivalCalendarData'
 import { monthToAngle } from './useFestivalCalendarData'
 

@@ -38,9 +38,9 @@
 </template>
 
 <script setup lang="ts">
-import type { CompanionNotificationData } from '@worldsmith/shared-composables/companion/useCompanionMode'
-import type { PopupPosition } from '@worldsmith/shared-composables/companion/scene'
-import { WsIcon } from '@worldsmith/ui-kit'
+import type { CompanionNotificationData } from '@worldsea/shared-composables/companion/useCompanionMode'
+import type { PopupPosition } from '@worldsea/shared-composables/companion/scene'
+import { WsIcon } from '@worldsea/ui-kit'
 
 const props = defineProps<{
   notifications: CompanionNotificationData[]

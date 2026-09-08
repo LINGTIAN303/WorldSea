@@ -329,7 +329,7 @@ SSE 用 `broadcast::channel(2048)`，`Lagged` 错误被 `.ok()` 静默吞掉：
 - [x] T6: 转发 `ToolCallStart/End`（只取 `tools.rs` 那份，处理双发去重）
   - files: `apps/tauri/src-tauri/src/commands.rs`、`apps/tauri/src/agent/composables/useAgentRust.ts`、
     `packages/shared-composables/src/agent/turnModel.ts`
-  - acceptance: ✅ `cargo check`（worldsmith-tauri-app lib）通过；单测 18/18；`vue-tsc --noEmit` exit=0
+  - acceptance: ✅ `cargo check`（worldsea-tauri-app lib）通过；单测 18/18；`vue-tsc --noEmit` exit=0
   - 实现要点：
     - **移除 `genai_backend.rs` 的 `ToolCallEnd` 广播**：其 `result` 实为 `fn_arguments`（参数而非结果），
       前端会把参数当结果显示、再被真实结果覆盖，表现为命令段内容闪变。权威 `ToolCallEnd` 仅由
@@ -429,7 +429,7 @@ SSE 用 `broadcast::channel(2048)`，`Lagged` 错误被 `.ok()` 静默吞掉：
 | R7 | 并行 Agent 同时在改其他模块（如 `model-registry.ts`、模型选择器右栏） | 改动前先 `git status` 同步；本计划触及 `vitest.config.ts` / `shared-composables/package.json` 等共享文件，需留意合并冲突。已确认对方动过 `crates/agent-kernel/src/backend.rs`（P1/T5 目标文件） |
 | R8 | **年龄分隔行功能移除**：原 `pushStreamItem` 在跨轮次 >30 分钟时插入时间分隔 | T4 未保留。根因是后端消息无 timestamp（`rustMsgToTsMsg` 用 `Date.now()`），回源后本就无法工作。若需恢复，须先让后端消息带 timestamp，再在 flattenTurns 层统一插入 |
 | R9 | `steer` / `followUp` 不经过 `prompt`，无 `currentTurnId` → 其流式事件被归约器忽略 | 后端 `steer` 只注入引导文本、不立即产生流（待确认）；当前选择静默忽略而非造畸形轮次。若实测有内容丢失，改为在 `turn_end` 后保留 turnId 至下次 prompt |
-| R10 | ~~P2/P1/P3 未做运行时验证~~ | ✅ **2026-08-29 浏览器模式冒烟通过**（HTTP 桥 localhost:5175 + DeepSeek V4 Flash）。详见 §八。静态验证仍全绿：单测 261/261 + `vue-tsc` exit=0 + cargo check（agent-kernel / agent-patterns / worldsmith-tauri-app）。桌面端 webview 路径与浏览器同构（差异仅传输层），风险低 |
+| R10 | ~~P2/P1/P3 未做运行时验证~~ | ✅ **2026-08-29 浏览器模式冒烟通过**（HTTP 桥 localhost:5175 + DeepSeek V4 Flash）。详见 §八。静态验证仍全绿：单测 261/261 + `vue-tsc` exit=0 + cargo check（agent-kernel / agent-patterns / worldsea-tauri-app）。桌面端 webview 路径与浏览器同构（差异仅传输层），风险低 |
 | R11 | 编排模式（`activeRun` 非空）下 `currentTurnId` 为空，命令段事件被守卫丢弃 | 编排路径未开轮，属 P1 之后的增量；`react` 退化 run（快问答）不受影响 |
 | R12 | ~~折叠三条件运行时未实测~~ | ✅ **三条件全部实测通过**（浏览器模式）：①未展开→结果落地立即折叠（多轮复验）；②落地前展开行段→落地后 5s 空闲折叠（时序吻合 7.5s 落地/12.5s 折叠）；③展开后滚出视口→立即折叠。`hasAutoCollapsed` latch 行为：手动展开摘要行后不再自动折叠、切会话往返保留折叠态，均符合 §3.4 设计。R12 原先担心的「窗口化卸载误判不可见」未观察到负面表现 |
 | R13 | 折叠使行数骤减，窗口化的占位高度需重算 | ⚠️ **条件3 触发正确，但锚定稳定性未能定论**：实测采样期间存在多处非脚本触发的滚动位置变化（用户同时在实机操作），resTop 读数被干扰。机制无异常、无报错、无永久错位；建议在无人工干扰环境下对 R2/R13 做一次干净复测（滚动锚定补偿 + 折叠瞬间高频采样） |

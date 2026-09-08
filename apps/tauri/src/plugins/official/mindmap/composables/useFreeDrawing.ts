@@ -14,7 +14,7 @@ export interface FreehandStroke {
   parentId: string | null
 }
 
-const STORAGE_KEY = 'worldsmith-mindmap-freehand'
+const STORAGE_KEY = 'worldsea-mindmap-freehand'
 
 export function useFreeDrawing() {
   const isFreeDrawMode = ref(false)

@@ -36,8 +36,8 @@ export interface AgentMessage {
   thinking?: string
   images?: MessageImage[]
   files?: MessageFile[]
-  /** Block 列表，类型来自 @worldsmith/agent-runtime */
-  blocks?: import('@worldsmith/agent-runtime').MessageBlock[]
+  /** Block 列表，类型来自 @worldsea/agent-runtime */
+  blocks?: import('@worldsea/agent-runtime').MessageBlock[]
   toolCalls?: ToolCallView[]
   timestamp: number
   metadata?: Record<string, unknown>

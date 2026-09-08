@@ -1,4 +1,4 @@
-import type { PluginAPIType } from '@worldsmith/entity-core'
+import type { PluginAPIType } from '@worldsea/entity-core'
 import MindmapView from './MindmapView.vue'
 
 export const manifest = {
@@ -6,7 +6,7 @@ export const manifest = {
   name: '思维导图',
   version: '1.0.0',
   description: '可视化全局关系图谱，自由探索世界观中的关联',
-  author: 'WorldSmith',
+  author: 'WorldSea',
   agentSkills: ['mindmap-builder'],
   agentCapabilities: [
     { action: 'create_node', description: '创建思维导图节点', params: ['parentId', 'label', 'style'] },

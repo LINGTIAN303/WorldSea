@@ -28,7 +28,7 @@
 2. **串行 I/O + 缺少批量接口**（7 个问题）：逐条 DB 操作、逐条 IPC、JS 层全量排序
 3. **缺少渲染节流**（3 个问题）：流式输出每 token 都 DOM 更新、RAF 不暂停
 
-目标：创建 `@worldsmith/perf-kit` 包，提供工具函数系统性解决上述问题。
+目标：创建 `@worldsea/perf-kit` 包，提供工具函数系统性解决上述问题。
 
 ## 二、包结构
 
@@ -345,7 +345,7 @@ entities.value = entities.value.filter((e) => e.id !== id)
 ### After
 
 ```ts
-import { useShallowArray, useShallowRefMap } from '@worldsmith/perf-kit'
+import { useShallowArray, useShallowRefMap } from '@worldsea/perf-kit'
 
 const { items: entities, setAll, push, removeById, updateById, findById } = useShallowArray<Entity>('id')
 const { map: entityMap, set: mapSet, delete: mapDel, replaceAll: mapReplaceAll } = useShallowRefMap<string, Entity>()
@@ -385,7 +385,7 @@ mapDel(id)
 
 ```json
 {
-  "name": "@worldsmith/perf-kit",
+  "name": "@worldsea/perf-kit",
   "version": "0.1.0",
   "private": true,
   "type": "module",

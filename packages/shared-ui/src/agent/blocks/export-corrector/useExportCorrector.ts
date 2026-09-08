@@ -1,8 +1,8 @@
 import { ref, reactive, computed, watch, onBeforeUnmount, type Ref } from 'vue'
-import { renderText, toBlob, renderAnimatedText, drawImageCover, drawImageContain } from '@worldsmith/font-kit'
-import type { TextAnimationEffect } from '@worldsmith/font-kit'
-import { encodeGif } from '@worldsmith/motion-kit'
-import type { ManuscriptBlock, ExportCorrectorConfig } from '@worldsmith/agent-runtime'
+import { renderText, toBlob, renderAnimatedText, drawImageCover, drawImageContain } from '@worldsea/font-kit'
+import type { TextAnimationEffect } from '@worldsea/font-kit'
+import { encodeGif } from '@worldsea/motion-kit'
+import type { ManuscriptBlock, ExportCorrectorConfig } from '@worldsea/agent-runtime'
 
 // 默认校正配置
 export const defaultConfig: ExportCorrectorConfig = {

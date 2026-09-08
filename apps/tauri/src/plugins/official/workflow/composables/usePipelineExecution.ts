@@ -174,7 +174,7 @@ export function usePipelineExecution() {
 
     // 派发下一个子 Agent
     const stepConfig = step.config as any
-    window.dispatchEvent(new CustomEvent('worldsmith:dispatch-sub-agent', {
+    window.dispatchEvent(new CustomEvent('worldsea:dispatch-sub-agent', {
       detail: {
         taskId: `pipeline-${pipelineId}-${step.id}-${Date.now()}`,
         type: 'creation',

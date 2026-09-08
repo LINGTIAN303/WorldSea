@@ -54,7 +54,7 @@ import { useGroupChatStore } from '../GroupChatStore'
 import { saveCasualGroupSession } from '../GroupSessionManager'
 import { assignAgentColor } from '../types'
 import type { ChatAgent, GroupMember } from '../types'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 
 const emit = defineEmits<{
   close: []

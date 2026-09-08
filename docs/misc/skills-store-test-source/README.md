@@ -1,4 +1,4 @@
-# WorldSmith 测试技能源仓库
+# WorldSea 测试技能源仓库
 
 > Task 24 阶段2/3 · 用于 Skills Store 端到端验证
 >
@@ -15,7 +15,7 @@ skills-store-test-source/
 ├── skills-manifest.json               # 技能索引清单（商城通过此文件发现技能）
 └── skills/                            # 技能目录
     └── example-creator/               # 示例技能：角色创建助手
-        ├── skill.yaml                 # WorldSmith 原生 manifest
+        ├── skill.yaml                 # WorldSea 原生 manifest
         ├── SKILL.md                   # 提示词（Claude Code 标准格式）
         └── references/
             └── naming-guide.md        # 参考文档
@@ -67,7 +67,7 @@ https://raw.githubusercontent.com/<user>/<repo>/main/docs/skills-store-test-sour
 
 ```jsonc
 {
-  "name": "WorldSmith 测试技能集",
+  "name": "WorldSea 测试技能集",
   "version": "1.0.0",
   "updated": "2026-07-07",
   "skills": [
@@ -76,7 +76,7 @@ https://raw.githubusercontent.com/<user>/<repo>/main/docs/skills-store-test-sour
       "name": "角色创建助手",
       "description": "辅助快速创建角色实体...",
       "version": "1.0.0",
-      "author": "WorldSmith",
+      "author": "WorldSea",
       "downloadUrl": "https://raw.githubusercontent.com/LINGTIAN303/WorldSmith/main/docs/skills-store-test-source/skills/example-creator.zip",
       "pathInArchive": "example-creator",
       "sha256": "44986f18d6807faa966c5dbff2f170268ee60efa5fca6e3a09b449285dc23c5a"
@@ -94,7 +94,7 @@ https://raw.githubusercontent.com/<user>/<repo>/main/docs/skills-store-test-sour
 
 1. 将本目录推送至 GitHub 仓库
 2. 生成 zip + sha256，更新 `skills-manifest.json` 中的 `downloadUrl`/`sha256`/`pathInArchive`
-3. 在 WorldSmith 设置中添加技能源：`https://raw.githubusercontent.com/<user>/<repo>/main/docs/skills-store-test-source/skills-manifest.json`
+3. 在 WorldSea 设置中添加技能源：`https://raw.githubusercontent.com/<user>/<repo>/main/docs/skills-store-test-source/skills-manifest.json`
 4. 商城页应显示"角色创建助手"技能
 5. 点击安装 → 验证 `app_data_dir/skills/example-creator/` 目录创建
 6. Agent 技能列表应出现"角色创建助手"，可激活使用
@@ -103,25 +103,25 @@ https://raw.githubusercontent.com/<user>/<repo>/main/docs/skills-store-test-sour
 ### Rust 单元测试（独立 crate，可独立运行）
 
 ```powershell
-cd worldsmith-skills-store
+cd worldsea-skills-store
 cargo test
 ```
 
 覆盖：zip 正常解压 / pathInArchive 子目录 / 更新场景 / zip slip 防护 / sha256 校验（成功/失败/大小写）/ 版本读取 / 字段提取 / 路径清理 / 本地导入写入（write_skill_files）/ skill_id 合法性校验。
 
-> 纯逻辑从 `src-tauri/skills_store.rs` 提取到独立 crate `worldsmith-skills-store`，
+> 纯逻辑从 `src-tauri/skills_store.rs` 提取到独立 crate `worldsea-skills-store`，
 > 解决 Tauri lib DLL 链接导致 `cargo test` 无法运行的问题（Task 24 方向3）。
 
 ---
 
 ## 五、多平台互通（Task 24 阶段4）
 
-Skills Store 支持导入外部格式的技能文件，自动识别并转为 WorldSmith 格式：
+Skills Store 支持导入外部格式的技能文件，自动识别并转为 WorldSea 格式：
 
 | 格式 | 识别特征 | 字段映射 |
 |------|----------|----------|
 | Claude Code (SKILL.md) | frontmatter 含 `name`/`allowed-tools` | allowed-tools → allowedTools |
 | Cursor (.mdc) | frontmatter 含 `alwaysApply`/`globs` | globs → tags（cursor-glob: 前缀）、alwaysApply → autoActivate |
-| WorldSmith (skill.yaml) | 含 `baseTools`/`id` | 完整 manifest |
+| WorldSea (skill.yaml) | 含 `baseTools`/`id` | 完整 manifest |
 
 在 Skills Store 面板点击「本地导入」选择文件即可。导入后自动生成标准 `skill.yaml` + `SKILL.md` 写入 `app_data_dir/skills/<id>/`。

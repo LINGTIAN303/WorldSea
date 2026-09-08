@@ -1,7 +1,7 @@
 /** 视觉分析工具集：跨供应商图片视觉分析（OpenAI/Anthropic/Gemini），详细见 docs/details/注释/packages/agent-runtime/tools-vision-tools.md */
 
 import type { ToolDefinition } from '../bridge-types'
-import type { ToolMeta } from '@worldsmith/agent-core'
+import type { ToolMeta } from '@worldsea/agent-core'
 import type { IToolContext } from '../toolbus/types'
 import { storeImages, getImages, removeImages, type StoredImage } from '../stores/image-store'
 import { loadApiKey } from '../providers/key-store'
@@ -11,8 +11,8 @@ import { smartFetch, resolveApiBaseUrl } from '../utils/smart-fetch'
 export { storeImages, getImages, removeImages, type StoredImage }
 
 /** localStorage 键名：视觉子 Agent 的供应商和模型配置 */
-const VISION_SUB_AGENT_PROVIDER_KEY = 'worldsmith_vision_sub_agent_provider'
-const VISION_SUB_AGENT_MODEL_KEY = 'worldsmith_vision_sub_agent_model'
+const VISION_SUB_AGENT_PROVIDER_KEY = 'worldsea_vision_sub_agent_provider'
+const VISION_SUB_AGENT_MODEL_KEY = 'worldsea_vision_sub_agent_model'
 
 /** 视觉 API 的供应商代理路径映射（从 provider-registry 统一读取） */
 const PROVIDER_BASE_URLS: Record<string, string> = (() => {

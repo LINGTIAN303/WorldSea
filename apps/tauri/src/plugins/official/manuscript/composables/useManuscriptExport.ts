@@ -1,4 +1,4 @@
-import type { Entity } from '@worldsmith/entity-core'
+import type { Entity } from '@worldsea/entity-core'
 import { useFontStore } from '@/stores/fontStore'
 
 function stripHTML(html: string): string {

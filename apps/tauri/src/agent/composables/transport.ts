@@ -10,7 +10,7 @@
 import { listen as tauriListen, type UnlistenFn } from '@tauri-apps/api/event'
 import { invoke as tauriInvoke } from '@tauri-apps/api/core'
 
-const BACKEND_KEY = 'worldsmith_backend_url'
+const BACKEND_KEY = 'worldsea_backend_url'
 
 export function getBackendUrl(): string | null {
   try {

@@ -106,7 +106,7 @@
 
 ### cli（apps/cli，已删除 2026-08-08）
 
-> TS 版 `apps/cli` 已随 web-to-tauri 迁移删除，由 `crates/cli`（Rust binary `worldsmith`）接管；**`crates/cli` 亦于 2026-08-08 移除**（chat / 文件读写 / 命令执行能力由 Tauri 端 `agent-commands` 覆盖）；原注释文档（serve / node-adapter / python-routes）已同步删除，git 历史可找回。
+> TS 版 `apps/cli` 已随 web-to-tauri 迁移删除，由 `crates/cli`（Rust binary `worldsea`）接管；**`crates/cli` 亦于 2026-08-08 移除**（chat / 文件读写 / 命令执行能力由 Tauri 端 `agent-commands` 覆盖）；原注释文档（serve / node-adapter / python-routes）已同步删除，git 历史可找回。
 
 ### tauri（apps/tauri）
 
@@ -130,7 +130,7 @@
 | src/plugins/workflow/api/workflowApi.ts | [workflowApi.md](tauri/workflowApi.md) | Workflow 引擎命令调用层：28 个命令镜像、设计要点 |
 | src/plugins/workflow/composables/useWorkflowEngineRun.ts | [useWorkflowEngineRun.md](tauri/useWorkflowEngineRun.md) | 直接 Dispatch 兜底通道运行控制器：工作机制与注意 |
 | src/plugins/mindmap/composables/useRustGraphAnalysis.ts | [useRustGraphAnalysis.md](tauri/useRustGraphAnalysis.md) | Rust 图分析算法桥接：算法清单与 Web 回退策略 |
-| 拆分记录（2026-08-06） | — | coreBackend.ts 按领域拆为 src/core/api/（schema / retrofit / entity / algo / health / runtime + index 聚合），coreBackend.ts 保留 `export * from './api'`，类型统一来自 @worldsmith/core-api-types，公共导出签名不变，原 import 处无需改动；各新文件无 ≥ 10 行连续注释块，未生成新文档 |
+| 拆分记录（2026-08-06） | — | coreBackend.ts 按领域拆为 src/core/api/（schema / retrofit / entity / algo / health / runtime + index 聚合），coreBackend.ts 保留 `export * from './api'`，类型统一来自 @worldsea/core-api-types，公共导出签名不变，原 import 处无需改动；各新文件无 ≥ 10 行连续注释块，未生成新文档 |
 
 ### web（apps/web，已删除 2026-08-08）
 
@@ -167,7 +167,7 @@
 | src/session/manager.ts | [session-manager.md](packages/agent-runtime/session-manager.md) | Dexie 会话持久化 + 删除时级联清理图片 |
 | src/skills/manifest.ts | [skills-manifest.md](packages/agent-runtime/skills-manifest.md) | 已安装技能 Manifest 解析器（skill.yaml 优先/SKILL.md 降级） |
 | src/skills/parser.ts | [skills-parser.md](packages/agent-runtime/skills-parser.md) | SKILL.md/skill.yaml frontmatter 行级解析器 |
-| src/skills/platform-adapters.ts | [skills-platform-adapters.md](packages/agent-runtime/skills-platform-adapters.md) | 多平台技能格式双向转换（Claude Code/Cursor/WorldSmith） |
+| src/skills/platform-adapters.ts | [skills-platform-adapters.md](packages/agent-runtime/skills-platform-adapters.md) | 多平台技能格式双向转换（Claude Code/Cursor/WorldSea） |
 | src/skills/plugin-bridge.ts | [skills-plugin-bridge.md](packages/agent-runtime/skills-plugin-bridge.md) | 插件能力桥接：Skill 系统 ↔ 插件系统 |
 | src/skills/registry.ts | [skills-registry.md](packages/agent-runtime/skills-registry.md) | Skill 注册中心：工具白名单/合并/提示词生成/一致性校验 |
 | src/skills/data/*.ts | （无独立注释文档，见 skills-registry.md 拆分记录） | SKILL_REGISTRY 静态数据按类别拆分：creation/analysis/development/communication/worldbuilding/other + visibility 辅助 |
@@ -198,7 +198,7 @@
 | src/tools/retrofit-tools.ts | [tools-retrofit-tools.md](packages/agent-runtime/tools-retrofit-tools.md) | 安全改造工具集：Negotiate→Apply 五阶段工作流 |
 | src/tools/schema-tools.ts | [tools-schema-tools.md](packages/agent-runtime/tools-schema-tools.md) | Schema 管理工具集（Tauri 后端，注册/验证/导出） |
 | src/tools/task-tools.ts | [tools-task-tools.md](packages/agent-runtime/tools-task-tools.md) | task_complete 工具：显式完成声明（Anthropic 三原则） |
-| src/tools/terminal-launcher-tools.ts | [tools-terminal-launcher-tools.md](packages/agent-runtime/tools-terminal-launcher-tools.md) | 终端启动器：模式检测 + worldsmith-server 自动启动 |
+| src/tools/terminal-launcher-tools.ts | [tools-terminal-launcher-tools.md](packages/agent-runtime/tools-terminal-launcher-tools.md) | 终端启动器：模式检测 + worldsea-server 自动启动 |
 | src/tools/tool-meta-registry.ts | [tools-tool-meta-registry.md](packages/agent-runtime/tools-tool-meta-registry.md) | 工具元数据注册中心：全局 ToolRegistry + 别名解析 |
 | src/tools/video-gen-tools.ts | [tools-video-gen-tools.md](packages/agent-runtime/tools-video-gen-tools.md) | 视频生成：供应商协议统一抽象（提交/轮询） |
 | src/tools/vision-tools.ts | [tools-vision-tools.md](packages/agent-runtime/tools-vision-tools.md) | 视觉分析：OpenAI/Anthropic/Gemini 三套 API 格式 |
@@ -220,7 +220,7 @@
 | src/core/events.ts | [events.md](packages/entity-core/core/events.md) | 事件总线 + 生命周期事件（跨模块通信基础设施） |
 | src/core/formula-auto.ts | [formula-auto.md](packages/entity-core/core/formula-auto.md) | Formula 自动重算（监听 field:change） |
 | src/core/formula.ts | [formula.md](packages/entity-core/core/formula.md) | 轻量公式引擎（四则/比较/逻辑/聚合，无 eval 沙箱） |
-| src/core/io/ExportController.ts | [ExportController.md](packages/entity-core/core/io/ExportController.md) | 统一导出调度器（Serializer 遍历组装 WorldSmithPack） |
+| src/core/io/ExportController.ts | [ExportController.md](packages/entity-core/core/io/ExportController.md) | 统一导出调度器（Serializer 遍历组装 WorldSeaPack） |
 | src/core/io/ImportController.ts | [ImportController.md](packages/entity-core/core/io/ImportController.md) | 统一导入调度器（拓扑排序恢复，overwrite/merge） |
 | src/core/io/PackageBuilder.ts | [PackageBuilder.md](packages/entity-core/core/io/PackageBuilder.md) | .ws 包构建器（ZIP 归档 + 媒体内嵌） |
 | src/relations/index.ts | [index.md](packages/entity-core/relations/index.md) | 全局关系定义 v1.0（20 插件提取/去重/合并） |

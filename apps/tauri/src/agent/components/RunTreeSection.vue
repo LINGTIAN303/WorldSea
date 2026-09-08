@@ -8,7 +8,7 @@
  * 遵循 SubAgentSection 区块风格（状态点 + 标签 + 折叠过渡 + 弱提示）。
  */
 import { ref, computed, watch, onMounted } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import { useRunTree, type RunTreeNode } from '../composables/useRunTree'
 import { useAgentRust } from '../composables/useAgentRust'
 import { useSessionViewState } from '../composables/useSessionViewState'

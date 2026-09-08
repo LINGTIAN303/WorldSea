@@ -1,4 +1,4 @@
-import type { PluginAPIType } from '@worldsmith/entity-core'
+import type { PluginAPIType } from '@worldsea/entity-core'
 import DrawingView from './DrawingView.vue'
 
 export const manifest = {
@@ -6,7 +6,7 @@ export const manifest = {
   name: '画板',
   version: '2.0.0',
   description: '自由绘画、植入世界观图示。支持多图层、形状工具、画板持久化。',
-  author: 'WorldSmith',
+  author: 'WorldSea',
   agentSkills: ['image-generation'],
   agentCapabilities: [
     { action: 'create_drawing', description: '创建画板', params: ['name', 'width', 'height'] },

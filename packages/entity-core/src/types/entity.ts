@@ -3,7 +3,7 @@ import type {
   EntityTypeSchema as CoreEntityTypeSchema,
   ViewDeclaration,
   ValidationRule,
-} from '@worldsmith/core-api-types'
+} from '@worldsea/core-api-types'
 import type { RelationTypeSchema } from './relation'
 
 /** 字段 schema：复用契约 FieldTypeSchema（fieldType/options 对象数组），扩展运行时 relationType */

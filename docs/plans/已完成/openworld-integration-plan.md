@@ -1,11 +1,11 @@
-# OpenWorld → WorldSmith 可取点融入规划
+# OpenWorld → WorldSea 可取点融入规划
 
 > status: 已完成（主体冻结归档 · 2026-08-30 核对）
 >
 > **归档注记（2026-08-30 实况核对）**：已完成 15 项均在代码中实证（scenario/tool_hook/confirmation/router_decider/frontend_tool_bridge/search_commands/plan_commands/secure_store 等，落点已随 2026-08-25 crate 重组迁至 agent-kernel/agent-commands，文内 `crates/agent-runtime` 路径锚点过期）。剩余 A8 配额/A9 可观测/B4 沙盒/C3 sqlite-vec/D2/D3 均为低价值待评估项，随 OpenWorld 转本地开发（2026-07-11）动机弱化，**冻结不再推进**；另 OpenWorld 目录（D:\本地化AI\OpenWorld）实际未删除，文档「删除前提」不成立。本文仅作决策史记录。
 >
-> 创建于 2026-08-12。本文件是 OpenWorld（已放弃）项目精华融入 WorldSmith 的**唯一权威决策记录**。
-> 目标：在 OpenWorld 彻底删除前，把其可圈可取点正确迁移/借鉴进 WorldSmith，并把每一次决策落盘，
+> 创建于 2026-08-12。本文件是 OpenWorld（已放弃）项目精华融入 WorldSea 的**唯一权威决策记录**。
+> 目标：在 OpenWorld 彻底删除前，把其可圈可取点正确迁移/借鉴进 WorldSea，并把每一次决策落盘，
 > 避免因任务推进、上下文压缩而丢失决策信息。
 >
 > 维护规则：
@@ -20,8 +20,8 @@
 
 - **OpenWorld**（`D:\本地化AI\OpenWorld`）：基于 Rust Axum + SQLite + Vue3 的 **Web 多用户** Agent 平台，
   从「文学创作助手」演化为通用 Agent 平台（区域编排 UI、符号系统、多场景、Plan-Exec、HITL、Hook、可观测性、Marketplace、工作区）。
-  项目已放弃，待精华融入 WorldSmith 后彻底删除。
-- **WorldSmith**（本仓库）：基于 **Tauri 2 桌面 + Rust 后端 + WASM + 13 个 TS packages** 的本地优先世界构建与 Agent 工作台，
+  项目已放弃，待精华融入 WorldSea 后彻底删除。
+- **WorldSea**（本仓库）：基于 **Tauri 2 桌面 + Rust 后端 + WASM + 13 个 TS packages** 的本地优先世界构建与 Agent 工作台，
   单用户、per-project 隔离数据库、实体/图谱/文稿/笔记本为核心，已有长任务、Skills 商城、记忆库、Rust 编排等成熟能力。
 
 **关键判断（决策 001）**：两项目技术栈同为 Rust+Vue，但架构范式不同（Web 多用户 C/S vs 桌面本地单用户）。
@@ -35,14 +35,14 @@ Nginx 部署、Marketplace 仓库同步、工作区多租户）不适用，不�
 ## 二、OpenWorld 可取点盘点（来源：2026-08-12 全项目探查）
 
 > 价值：A 高 / B 中 / C 低。可行性：高=可直接借鉴实现，中=需适配桌面端，低=需重构。
-> 落点指 WorldSmith 对应模块（`packages/*`、`crates/*`、`apps/tauri/src/*`），不适用标「—」。
+> 落点指 WorldSea 对应模块（`packages/*`、`crates/*`、`apps/tauri/src/*`），不适用标「—」。
 
 ### A. 工程实践类
 
-| # | 可取点 | OpenWorld 形态 | 价值 | 可行性 | WorldSmith 现状 | 落点 | 决策 |
+| # | 可取点 | OpenWorld 形态 | 价值 | 可行性 | WorldSea 现状 | 落点 | 决策 |
 |---|--------|---------------|------|--------|----------------|------|------|
 | A1 | 全链路事件流可观测 | AgentStart→RoutingStart→PipelineStart→PlanStepStart→…→AgentEnd 经 EventBus 广播，前端订阅还原全过程 | A | 高 | TS/Rust 已有 AgentEvent，但事件链未统一为「一次对话一条可追踪链」 | `packages/agent-runtime`、`packages/agent-core/bus` | 已完成 |
-| A2 | 统一 Provider 解析链 | `请求>会话>工作空间>用户>全局` 四级降级 + 17 家 base_url 预设 + 多 Provider Key 隔离 | A | 高 | WorldSmith 桌面端单用户，已有 ProviderPanel/ModelPanel、providerIcons | `crates/agent-runtime/llm`、`packages/agent-runtime` | 已完成 |
+| A2 | 统一 Provider 解析链 | `请求>会话>工作空间>用户>全局` 四级降级 + 17 家 base_url 预设 + 多 Provider Key 隔离 | A | 高 | WorldSea 桌面端单用户，已有 ProviderPanel/ModelPanel、providerIcons | `crates/agent-runtime/llm`、`packages/agent-runtime` | 已完成 |
 | A3 | Routing 意图分类 + 四管线 | IntentClassifier（LLM 3s 超时降级关键词）+ Query/Research/Experiment/Compose 四管线 + force_pipeline Chip 强制 | A | 中 | Rust 有 orchestrator/router，但无「语义四管线」与「前端 force_pipeline 强制」 | `crates/agent-runtime/router`、`apps/tauri/src/space/chat` | 已完成 |
 | A4 | Plan-Exec + Replanner + Checkpoint 回放 | 计划生成→持久化→逐步执行→重规划→checkpoint 时间旅行（分支回放） | A | 中 | Rust 有 PlanPanel、orchestrator、长任务 checkpoint；回放分支能力待对齐 | `crates/agent-runtime`、`apps/tauri/src/agent/panels/PlanPanel.vue` | 已完成（工具闭环+持久化+重规划；Checkpoint 回放暂缓，决策 016） |
 | A5 | HITL 权限确认 / 提问 | 工具调用前权限守卫弹窗 + ask_user 提问，oneshot 跨连接等待，超时可配 | A | 高 | 已有 PermissionGuard（packages/agent-core/guard）、WsConfirmDialog | `packages/agent-core/guard`、`apps/tauri` | 已完成（MVP） |
@@ -53,7 +53,7 @@ Nginx 部署、Marketplace 仓库同步、工作区多租户）不适用，不�
 
 ### B. 场景化插件类
 
-| # | 可取点 | OpenWorld 形态 | 价值 | 可行性 | WorldSmith 现状 | 落点 | 决策 |
+| # | 可取点 | OpenWorld 形态 | 价值 | 可行性 | WorldSea 现状 | 落点 | 决策 |
 |---|--------|---------------|------|--------|----------------|------|------|
 | B1 | 多场景插件体系 | ScenarioPlugin trait：身份 prompt + 工具集 + builtin_skills，8 场景（写作/科研3/杂项4） | A | 高 | 有 entity 插件体系；Agent 侧无「场景」抽象层 | `packages/agent-core`、`crates/agent-runtime` | 待评估 |
 | B2 | 场景工具过滤 | 只暴露当前场景工具 + 通用工具（tool_owner 映射） | B | 高 | 无 | `packages/agent-runtime/toolbus` | 已完成 |
@@ -62,7 +62,7 @@ Nginx 部署、Marketplace 仓库同步、工作区多租户）不适用，不�
 
 ### C. 产物与知识类
 
-| # | 可取点 | OpenWorld 形态 | 价值 | 可行性 | WorldSmith 现状 | 落点 | 决策 |
+| # | 可取点 | OpenWorld 形态 | 价值 | 可行性 | WorldSea 现状 | 落点 | 决策 |
 |---|--------|---------------|------|--------|----------------|------|------|
 | C1 | Artifacts 多版本控制 + 回滚 | 产物（文档/图表/代码）多版本 + revert | A | 中 | entity-core 有版本/回收站，Artifact 概念待引入 | `packages/entity-core/core/io`、`apps/tauri/src/ui/data/TrashPanel.vue` | 已完成 |
 | C2 | @ 引用 Chip + 归属安全校验 | 引用文档/角色/记忆，后端 object 归属校验防止越权读取 | A | 中 | 有实体链接/AutoLink，但无「引用归属校验」安全层 | `packages/agent-runtime/tools`、`crates/agent-runtime` | 已完成 |
@@ -70,7 +70,7 @@ Nginx 部署、Marketplace 仓库同步、工作区多租户）不适用，不�
 
 ### D. 前端交互类
 
-| # | 可取点 | OpenWorld 形态 | 价值 | 可行性 | WorldSmith 现状 | 落点 | 决策 |
+| # | 可取点 | OpenWorld 形态 | 价值 | 可行性 | WorldSea 现状 | 落点 | 决策 |
 |---|--------|---------------|------|--------|----------------|------|------|
 | D1 | 统一符号召唤分层 | `#`面板 / `~`资产 / `！`创作区 / `/`指令+技能 / `@`引用，区域命令后端动态生成 | A | 高 | 已有 SummonMenu + summon-registry，符号分层待对齐 | `apps/tauri/src/space/chat/SummonMenu.vue`、`summon-registry.ts` | 已完成 |
 | D2 | 输入框三态演化 | center→floating→docked（手动 DOM 迁移规避 Teleport bug） | B | 中 | 已有 ChatInput；三态演化待对齐 | `apps/tauri/src/space/chat/ChatInput.vue` | 待评估 |
@@ -116,7 +116,7 @@ Nginx 部署、Marketplace 仓库同步、工作区多租户）不适用，不�
 > 格式：`### 决策 NNN｜标题` + 日期 + 背景 + 结论 + 理由 + 影响。
 
 ### 决策 001｜迁移范式判定（2026-08-12）
-- **背景**：OpenWorld（Web 多用户）与 WorldSmith（桌面本地单用户）技术范式不同。
+- **背景**：OpenWorld（Web 多用户）与 WorldSea（桌面本地单用户）技术范式不同。
 - **结论**：只迁移设计理念/工程实践/Agent 能力；Web 专有物不迁移。
 - **理由**：避免把「多租户/C/S」这套与桌面端无益的复杂度搬进本地单用户架构。
 - **影响**：盘点表「不迁移」清单即出自此决策。
@@ -134,9 +134,9 @@ Nginx 部署、Marketplace 仓库同步、工作区多租户）不适用，不�
 - **影响**：本文件成为唯一权威决策记录。
 
 ### 决策 004｜B1 多场景插件体系 · 落点调研结论（2026-08-12）
-- **背景**：对 B1（多场景插件体系）做详细落点调研，比对 OpenWorld `ScenarioPlugin` trait 与 WorldSmith 现有 Agent 架构。
+- **背景**：对 B1（多场景插件体系）做详细落点调研，比对 OpenWorld `ScenarioPlugin` trait 与 WorldSea 现有 Agent 架构。
 - **结论**：B1 落点在 **Rust `crates/agent-runtime`**（新增 `scenario` 模块），而非 TS 侧。理由详见「七、B1 详细落点调研」。
-- **理由**：WorldSmith 主 Agent 后端已收敛到 Rust（TS `agent-runtime` 冻结为适配器宿主，`createWorldSmithAgent` 为 stub）；Rust `AgentLoop` 是实际 ReAct 执行循环，且已具备 B1 需要的两个挂载点。
+- **理由**：WorldSea 主 Agent 后端已收敛到 Rust（TS `agent-runtime` 冻结为适配器宿主，`createWorldSeaAgent` 为 stub）；Rust `AgentLoop` 是实际 ReAct 执行循环，且已具备 B1 需要的两个挂载点。
 - **影响**：B1 实施范围 = Rust trait + AgentLoop 接入 + 命令层 + 前端场景选择器。具体待用户确认范围后再实施。
 
 ### 决策 005｜B1 MVP 实施（2026-08-12）
@@ -146,19 +146,19 @@ Nginx 部署、Marketplace 仓库同步、工作区多租户）不适用，不�
 - **影响**：B1 盘点表状态由「待评估」→「实施中」（MVP 核心完成，UI 场景选择器待接入）。
 
 ### 决策 006｜D1 统一符号召唤分层（2026-08-12）
-- **背景**：将 WorldSmith 召唤系统对齐 OpenWorld 五符号分层设计。
+- **背景**：将 WorldSea 召唤系统对齐 OpenWorld 五符号分层设计。
 - **结论**：五符号分层 = `#`应用层面板（运行/配置/会话列表）/ `~`Agent 资产（知识墙/记忆架）/ `！`创作区（插件视图，动态生成）/ `/`指令+技能（模式/帮助 + 技能 Chip）/ `@`引用（实体，沿用）。`#`原「命令」职责并入 `/` 指令。
 - **理由**：符号职责语义化分离——面板、资产、创作区、指令、引用五类各司其职；`！`创作区从插件视图注册表动态生成，避免硬编码。
 - **影响**：`summon-registry.ts` 重构为 `buildSummonItems(creationViews)` 动态构建 + 分层常量（`APP_PANELS`/`AGENT_ASSETS`/`COMMAND_ITEMS`/`SKILL_ITEMS`）；`ChatInput.vue` 接入 `~` 符号、创作区视图切换（`pluginStore`+`uiStore`）。D1 盘点表状态 →「已完成」。
 
 ### 决策 007｜C2 引用有效性校验（2026-08-12）
-- **背景**：C2 原为 OpenWorld「object 归属校验」——针对多用户 Web 防止越权读取。WorldSmith 是桌面本地单用户，无越权威胁模型。
+- **背景**：C2 原为 OpenWorld「object 归属校验」——针对多用户 Web 防止越权读取。WorldSea 是桌面本地单用户，无越权威胁模型。
 - **结论**：适配为「引用有效性校验」——`entity_get` 工具支持可选 `expected_type`，读取前校验引用 id **存在**（防悬空）且**类型匹配**（防引用错配导致 LLM 用错上下文）；前端 `SpaceChat` 引用块明确指示 LLM 传 `expected_type`。
 - **理由**：用户确认此适配方向；本地单用户下「归属」无意义，真正有害的是悬空引用与类型错配。
 - **影响**：`entity_get` 工具增强 + 单元测试；`SpaceChat.vue` 引用块结构化。C2 盘点表状态 →「已完成」。
 
 ### 决策 008｜A2 多 Key 池 + 降级（2026-08-12）
-- **背景**：A2 原为「四级降级链 + 多 Provider Key 隔离」，针对多用户 Web。WorldSmith 桌面单用户无「工作空间/用户」层级。
+- **背景**：A2 原为「四级降级链 + 多 Provider Key 隔离」，针对多用户 Web。WorldSea 桌面单用户无「工作空间/用户」层级。
 - **结论**：用户确认做「多 Key 池 + 降级」——`GenaiBackend` 增加备用 key 池，主 key 请求命中可重试错误（认证/限流/网络）时逐把降级重试。四级配置覆盖（会话/项目/全局）留待后续。
 - **理由**：桌面单用户下真正有价值的是多 Key 容灾（key 失效/限流自动切换），而非多级配置覆盖。
 - **影响**：`backend.rs` trait 增 `set_api_key_pool` default 方法；`GenaiBackend` 增 `key_pool` 字段 + `exec_stream_once`/`finish_prompt` 重构 + `set_config_api_key`/`is_retryable_error` 辅助；命令层 `set_api_key_pool` 服务 + Tauri 命令 + 前端 `useAgentRust.setApiKeyPool`。agent-runtime 测试 204/204 通过（含 4 个新增 A2 测试）。A2 盘点表状态 →「已完成」。
@@ -179,7 +179,7 @@ Nginx 部署、Marketplace 仓库同步、工作区多租户）不适用，不�
 - **影响**：`database.ts` v9 迁移（`artifacts: 'id, title, artifact_type, project_id, version, updatedAt'`、`artifact_versions: 'id, artifact_id, version, createdAt, [artifact_id+version]'`）；`artifactStore` 追加 5 个单测（create/update 自动版本/无内容变更不增版本/rollback/remove 级联）全部通过；entity-core typecheck、tauri typecheck 通过。**风险点（用户知悉）**：产物存于 Dexie（IndexedDB），未走 FileStorageBackend 文件系统，桌面端「绑定项目目录」模式下产物不随目录导出；后续如需随目录持久化，再把 artifact 仓储桥接到 StorageBackend。C1 盘点表状态 →「已完成」。
 
 ### 决策 011｜B3 搜索 Provider 抽象 + 降级链（2026-08-13）
-- **背景**：B3 原为 OpenWorld「Exa/Firecrawl/Tavily/DuckDuckGo/Google CSE/Jina/SearXNG/Linkup 多 provider + 降级」。WorldSmith TS 侧 `web-search.ts` 已有 Tavily/SerpAPI/Bing + DuckDuckGo 降级，但主 Agent 后端已收敛到 Rust，原生 `web_search` 工具缺失（仅 `deep_phases.rs` 按名字引用）。
+- **背景**：B3 原为 OpenWorld「Exa/Firecrawl/Tavily/DuckDuckGo/Google CSE/Jina/SearXNG/Linkup 多 provider + 降级」。WorldSea TS 侧 `web-search.ts` 已有 Tavily/SerpAPI/Bing + DuckDuckGo 降级，但主 Agent 后端已收敛到 Rust，原生 `web_search` 工具缺失（仅 `deep_phases.rs` 按名字引用）。
 - **结论**：在 Tauri 层新增 `search_commands.rs` 落地「搜索 Provider 抽象 + 降级链」——`SearchProvider` trait（统一 `search(query,max,key)` 同步阻塞接口）；内置 Provider：Tavily（POST）/Bing（GET 头鉴权）/SerpAPI（GET 参数）需 API Key + DuckDuckGo（免 Key 兜底）；`SearchProviderChain` 按「有 Key 优先 → 免 Key 兜底」顺序逐个尝试，任一 Provider 出错（认证/限流/网络）或返回空结果即降级到下一个，全部失败返回末位错误；`WebSearchTool` 实现 `agent-runtime::tool::Tool`（`execute` 用 `spawn_blocking` 隔离阻塞网络），经 `with_extra_tools` 注册进每个会话 ToolBus，并加入 worldbuilding 场景 `tool_ids()` 白名单；`set_search_config` Tauri 命令运行时注入 API Key（global 管理 `SearchProviderChain`）。
 - **理由**：沿用 A2「适配桌面单用户」思路——真正价值是多 Provider 容灾（一个 Provider 失效自动切换），而非堆砌 provider 数量；DuckDuckGo 免 Key 兜底保证开箱即用。HTTP 复用 tauri 已有 `ureq`（开启 `json` feature），无需新增 crate。
 - **影响**：新增 `ureq = { version = "2", features = ["json"] }` + `tokio = { version = "1", features = ["rt"] }`（tauri Cargo.toml）；`search_commands.rs` 10 个单测（降级链首命中/错误降级/空结果降级/全失败末位错误/配置读写/DDG HTML 解析/urlencode 往返/工具缺参报错）全部通过；`cargo check --lib` + `cargo test --lib`（13 passed,1 ignored e2e）通过；agent-runtime scenario 4 测试通过。**风险点（用户知悉）**：搜索 API Key 仅存内存（`SearchProviderChain`），未持久化，重启后回到仅 DuckDuckGo；后续如需持久化可存 settings 表 + 前端设置面板。B3 盘点表状态 →「已完成」。
@@ -213,13 +213,13 @@ Nginx 部署、Marketplace 仓库同步、工作区多租户）不适用，不�
 - **影响**：A4 标记为「已完成（MVP + 持久化 + 重规划）」，Checkpoint 回放移出本轮。可复用底料：`get_state`/`restore_state`、`AgentState.plan` 持久化、messages 持久化。
 
 ### 决策 017｜A1 全链路事件流可观测（2026-08-13）
-- **背景**：A1 原为 OpenWorld「AgentStart→RoutingStart→PipelineStart→PlanStepStart→…→AgentEnd 经 EventBus 广播，前端订阅还原全过程」。WorldSmith 已有分散事件通道（deep_phase / a2ui / subagent / stream / plan / confirm），但彼此独立、无统一序号，无法还原「一次对话一条可追踪链」。
+- **背景**：A1 原为 OpenWorld「AgentStart→RoutingStart→PipelineStart→PlanStepStart→…→AgentEnd 经 EventBus 广播，前端订阅还原全过程」。WorldSea 已有分散事件通道（deep_phase / a2ui / subagent / stream / plan / confirm），但彼此独立、无统一序号，无法还原「一次对话一条可追踪链」。
 - **结论**：新增统一 trace 事件通道 `agent:event:trace:{session_id}`，把非高频阶段事件按 `seq` 序号转发，前端按序写入 ActivityLog，还原 AgentStart → … → AgentEnd 完整事件链。保留原分散通道（互不冲突）。
 - **理由**：沿用 OpenWorld「一次对话一条可追踪链」理念，用最小侵入补齐全链路可观测——只加一个聚合通道，前端复用既有 ActivityLog UI，不新增面板。
 - **影响**：`commands.rs` `TauriAgentEventEmitter` 加 `trace_seq: AtomicU64` + `trace_summary`（17 类事件映射，过滤高频 `StreamDelta`）+ `emit_trace`（payload `{seq,type,summary}`）；前端 `useActivityLog.ts` `ActivityLogEntry` 加 `traceType`、`addLog` 加可选第 4 参；`useAgentRust.ts` 新增 `setupTraceListener`/`teardownTraceListener`（按 trace 类型映射活动日志类目 error/tool/info），接入 newSession/switchSession/deleteSession/dispose 生命周期。验证：`cargo check` + tauri 22 tests + `vue-tsc --noEmit` 通过。A1 盘点表状态 →「已完成」。
 
 ### 决策 018｜C3 长期记忆加权融合排序（2026-08-13）
-- **背景**：C3 原为 OpenWorld「sqlite-vec 向量检索 + importance 混合排序」。探查发现 `@worldsmith/memory-archive` 框架**未接入实际运行**（仅设计文档引用，`RecallEngine` 改了不生效）；真正被 Agent 使用的是 `packages/agent-runtime` 的 `tools/memory.ts`（localStorage 长期记忆，`PiBackendMemoryAccessor` → `recallMemory`）。现有 hybrid 混合逻辑是**取最高分**（`Math.max(关键词分, 语义分×5)`），importance 未参与检索排序。
+- **背景**：C3 原为 OpenWorld「sqlite-vec 向量检索 + importance 混合排序」。探查发现 `@worldsea/memory-archive` 框架**未接入实际运行**（仅设计文档引用，`RecallEngine` 改了不生效）；真正被 Agent 使用的是 `packages/agent-runtime` 的 `tools/memory.ts`（localStorage 长期记忆，`PiBackendMemoryAccessor` → `recallMemory`）。现有 hybrid 混合逻辑是**取最高分**（`Math.max(关键词分, 语义分×5)`），importance 未参与检索排序。
 - **结论**：只做「加权融合排序（含 importance）」，**不引入 sqlite-vec**（记忆规模小——长期记忆上限 200 条，纯内存余弦扫描已够，sqlite-vec 属过度工程）。用户确认：importance 由**框架按 key 推断**（零侵入），融合公式用**归一化加权**。
 - **理由**：真正有价值的是提升检索质量——把「关键词命中 / 语义相关 / importance」三信号加权融合，`importance` 让「偏好/规则/决策」等高价值记忆在弱匹配时也能浮出；sqlite-vec 留待记忆量涨大再说。
 - **影响**：`tools/memory-internal.ts`：`MemoryEntry` 加 `importance` 字段 + `inferImportance(key)`（高价值词 0.8 / 中价值 0.65 / 默认 0.5）+ `loadMemory` 兼容旧数据（缺省 0.5）。`tools/memory.ts`：`memory_store` 存储时自动推断 importance、可选 `importance`(0-1) 显式覆盖；`recallMemory` 改归一化加权融合 `final = 0.45×词分归一 + 0.35×语义分 + 0.20×importance`（词分归一 = score/(score+3)；语义阈值从 0.25 放宽到 0，交综合分裁决；keyword/semantic 单模式分支不变）。`kb/kb-extractor.ts`、`orchestrator/pi-backend-memory-accessor.ts` 补齐 importance。验证：agent-runtime `vue-tsc --noEmit` 通过。C3 盘点表状态 →「已完成（加权融合排序；sqlite-vec 暂缓）」。
@@ -233,7 +233,7 @@ Nginx 部署、Marketplace 仓库同步、工作区多租户）不适用，不�
 - **风险点（用户知悉）**：默认仍 `dangerous_only`；`moderate_and_dangerous` 为需用户主动选择的严格模式。
 
 ### 决策 020｜A6 Hook 工具生命周期护栏（PreToolUse/PostToolUse/OnError，2026-08-13）
-- **背景**：A6 原为 OpenWorld「PreToolUse/PostToolUse/OnError 三处拦截，可 allow/deny/modify args」。WorldSmith Rust 侧无工具生命周期 hook（仅 A5/A7 的确认机制）。TS 侧 `agent-core` 也仅有权限元数据，无 hook 拦截实现。
+- **背景**：A6 原为 OpenWorld「PreToolUse/PostToolUse/OnError 三处拦截，可 allow/deny/modify args」。WorldSea Rust 侧无工具生命周期 hook（仅 A5/A7 的确认机制）。TS 侧 `agent-core` 也仅有权限元数据，无 hook 拦截实现。
 - **结论**：在 Rust `AgentLoop` 采**三阶段 hook 机制**（新 `tool_hook.rs` + `ToolLifecycleHook` trait + `ToolHookAction`），接入默认串行工具执行链。用户确认：pre hook 改 args 直接返回 `Allow(new_args)`，`on_error` 只记录不阻断流程。
 - **理由**：与 A5/A7 确认（阻断危险）互补，A6 是**可编程护栏**——pre 可改写参数/拒绝，post/on_error 供审计观测；机制解耦、零新依赖，注册若干 hook 即可扩展策略（内置 `AuditLifecycleHook` 作示例）。
 - **影响**：新增 `crates/agent-runtime/src/tool_hook.rs`（`ToolHookAction::{Allow(Value),Deny(String)}` + `ToolLifecycleHook::{on_pre_use,on_post_use,on_error}` + `AuditLifecycleHook`，2 单测）；`lib.rs` 导出；`AgentLoop` 加 `tool_hooks` 字段 + `with_tool_hook` builder（复用 A5 注入模式）；`execute_tool_with_retry` 接入——pre（循环跑、后一个 `Allow` 覆盖前一个；`Deny` 转 `ToolError::Execution` 并跑全部 on_error 后返回）→ `call_tool(effective_args)` → 成功 `on_post_use` → 最终失败 `on_error`。验证：`cargo test tool_hook` 4/4（2 单元 + 2 集成 `tool_hook_modifies_args_before_execution`/`tool_hook_denies_tool_execution`，实测改 args 生效、deny 进入 toolResult）+ 三 crate `cargo check` 通过。A6 盘点表状态 →「已完成」。
@@ -251,7 +251,7 @@ Nginx 部署、Marketplace 仓库同步、工作区多租户）不适用，不�
     - 前端：`useAgentRust.ts` 加 `buildBridgeContext()`（复用 entity-core stores 构造 `IToolContext`，与 useGroupChat 同构）+ `handleToolCall()` + `setup/teardownToolBridgeListener()`（幂等全局监听），接入 newSession/switchSession/dispose 生命周期；桥工具返回的 JSON 字符串经 `parseMaybeJson` 反序列化为结构化值回传
   - **首批桥接 3 工具**：`entity_create` / `entity_update` / `content_search`（工具定义 description/parameters 与前端口径完全对齐）
 - **理由**：把 B1 场景从「只读实体查询」扩展到「CRUD + 内容检索」，让 worldbuilding 场景 LLM 能真正创作/修改世界设定，而非只能查；机制复用 A5 成熟的 oneshot 跨进程等待模式，零新依赖，符合「桌面本地单用户 + 前端持有 TS store」的现实架构——TS 工具执行器本就有且随前端 store 一致，重复在 Rust 原生实现会双端维护成本高、且丢失前端口径。
-- **影响**：worldbuilding 场景声明但 Rust 未实现的工具，经桥完成「LLM 可见 → 前端执行 → 结果回填」全链路；`entity_get/entity_list` 仍走 Rust 原生（数据源全局 `EntityDb` SQLite，与前端 Dexie 项目库存在数据源差异——桥工具走前端 Dexie 项目库，后续若需统一可再评估）。验证：`cargo check`（worldsmith-tauri-app）干净、`cargo test --lib` 23 passed（含桥模块 1 单测）、前端 `vue-tsc --noEmit` typecheck 通过、dev server HMR 正常。
+- **影响**：worldbuilding 场景声明但 Rust 未实现的工具，经桥完成「LLM 可见 → 前端执行 → 结果回填」全链路；`entity_get/entity_list` 仍走 Rust 原生（数据源全局 `EntityDb` SQLite，与前端 Dexie 项目库存在数据源差异——桥工具走前端 Dexie 项目库，后续若需统一可再评估）。验证：`cargo check`（worldsea-tauri-app）干净、`cargo test --lib` 23 passed（含桥模块 1 单测）、前端 `vue-tsc --noEmit` typecheck 通过、dev server HMR 正常。
 - **风险点（用户知悉）**：① 端到端真实链路需 Tauri 桌面端运行验证（浏览器 preview 模式 `cmd_agent_tool_result` 在 mockInvoke 兜底返回空对象，不发真实 IPC）；② 桥工具结果回传依赖前端全局监听器已就绪（首次建会话时注册），若未注册会超时 120s；③ `entity_list/get`（Rust SQLite 兜底库）与桥工具（前端 Dexie 项目库）数据源不一致，同一会话混用时可能出现「Rust 读到 SQLite 旧实体、前端读到 Dexie 新实体」的视图分叉，需用户知悉并决定后续是否统一数据源。
 - **后续可扩展**：其余场景声明工具（`relation_create/memory_store/kb_*` 等）只需在 `bridge_tools()` 增加对应 `FrontendBridgeTool`（description/parameters 对齐前端）+ 前端确保该工具已注册进 `ALL_TOOLS_MAP` 即可；若需覆盖更多场景可参考决策 7.7 的完整 FrontendToolBridge 设想扩展。
 
@@ -262,7 +262,7 @@ Nginx 部署、Marketplace 仓库同步、工作区多租户）不适用，不�
 - **现象**：`send_message` 报 `LLM 后端错误: 认证失败: API Key 缺失: provider=deepseek`，即便前端确定已配置 key。
 - **根因**：`crates/agent-commands/src/lib.rs` 的 `UpdateModelParams` **漏了 `#[serde(rename_all = "camelCase")]`**。其字段是 `session_id/model_id/api_key`，而前端 `updateModel` 传 `sessionId/modelId/apiKey`（camelCase）→ Tauri 反序列化失败 `invalid args ... missing field 'session_id'`（此错误被 `ensureModelKey` 捕获静默）。**key 从未注入进 Rust 的 `GenaiBackend`**，发送时后端空 key →「API Key 缺失」。对照：`SendMessageParams` 一直有 camelCase 标注（故 `send_message` 只报 key 缺失而非参错）。
 - **修复**：给 `UpdateModelParams` 补 `#[serde(rename_all = "camelCase")]`（[lib.rs](crates/agent-commands/src/lib.rs)，与 `SendMessageParams` 对齐）。
-- **辅助**：前端 `useAgentRust.ts` 新增 `ensureModelKey()` 幂等兜底——发送（`prompt`）前从 `settingsStore`（`@worldsmith/entity-core`）读权威 provider/model（cloud/local/custom 三模式），经 `loadApiKey(provider)` 读 key，`update_model` 注入该会话；`modelKeyInjectedSessions` Set 记忆避免每轮重复。同时在发送失败时把诊断（session/mode/provider/model/key 注入态）拼进错误信息，便于 UI 直接定位。
+- **辅助**：前端 `useAgentRust.ts` 新增 `ensureModelKey()` 幂等兜底——发送（`prompt`）前从 `settingsStore`（`@worldsea/entity-core`）读权威 provider/model（cloud/local/custom 三模式），经 `loadApiKey(provider)` 读 key，`update_model` 注入该会话；`modelKeyInjectedSessions` Set 记忆避免每轮重复。同时在发送失败时把诊断（session/mode/provider/model/key 注入态）拼进错误信息，便于 UI 直接定位。
 - **经验**：Tauri v2 命令嵌套结构体参数必须显式 `serde(rename_all = "camelCase")`，否则前后端契约静默断裂。排查 API 注入类问题，先核对命令参数结构的 serde 声明。
 
 **排障 2：useAgentUiDeps 未注入（深度消息渲染崩溃）**
@@ -316,13 +316,13 @@ _（采纳并实施的项目移入此处并保留决策理由，详见对应实�
 ## 七、B1 多场景插件体系 · 详细落点调研（2026-08-12）
 
 > 目的：把 OpenWorld 的「场景插件」设计（场景 = 身份 prompt + 专用工具 + 内置技能 + 可选管线 + 消息钩子 + 项目上下文注入）
-> 落进 WorldSmith 的正确模块。本调研结论为决策 004 的依据。
+> 落进 WorldSea 的正确模块。本调研结论为决策 004 的依据。
 
-### 7.1 WorldSmith 现状（已核实）
+### 7.1 WorldSea 现状（已核实）
 
 | 项 | 现状 | 与 B1 的关系 |
 |----|------|-------------|
-| 主 Agent 后端 | TS `agent-runtime` 已冻结为适配器宿主；`createWorldSmithAgent` 为 stub；实际执行走 **Rust `AgentLoop`**（crates/agent-runtime） | → B1 落点应在 Rust |
+| 主 Agent 后端 | TS `agent-runtime` 已冻结为适配器宿主；`createWorldSeaAgent` 为 stub；实际执行走 **Rust `AgentLoop`**（crates/agent-runtime） | → B1 落点应在 Rust |
 | Rust `AgentLoop` | ReAct 核心循环：`backend(LLM)+tool_bus+state+config+broadcaster+long_task+loop_control+memory`；`run()` 内做记忆闭环 | → 场景需介入 `run()` 的 prompt 构建与工具视图 |
 | system_prompt 注入链 | `AgentLoopConfig.system_prompt`（静态字符串）→ `agent/memory.rs::build_prompt_options` 拼入 `PromptCallOptions.system_prompt_override` → `genai_backend.rs` 应用 | → 场景把「静态字符串」升级为「场景动态构建」的挂载点 |
 | 工具视图隔离 | `ToolBus` trait + `SimpleToolBus` + **`WhitelistToolBus`**（按白名单过滤 `list_all/call_tool`）已存在 | → 场景工具裁剪可直接复用 `WhitelistToolBus`，无需新造 |
@@ -355,9 +355,9 @@ pub struct ScenarioRegistry { /* 注册/查找/默认 */ }
 1. `AgentLoopConfig` 增加 `scenario: Option<Arc<dyn Scenario>>`（默认 None = 现行为，向后兼容）。
 2. `build_prompt_options`（agent/memory.rs）：当 `config.scenario` 存在时，用 `scenario.build_system_prompt(ctx)` 作为/追加到 `system_prompt_override`（保留现有 memory 注入逻辑）。
 3. 工具视图：为 `AgentLoop` 传入的 `tool_bus` 增加 `WhitelistToolBus` 包装（白名单 = 通用工具 + `scenario.tool_ids()`），在 `new/with_scenario` 时构建。
-4. `run()` 开头：把当前项目上下文（WorldSmith 本地 entity 库）注入 `ScenarioContext`。
+4. `run()` 开头：把当前项目上下文（WorldSea 本地 entity 库）注入 `ScenarioContext`。
 
-**WorldSmith 内置场景建议**（利用其世界构建优势，远富过 OpenWorld writing 场景）：
+**WorldSea 内置场景建议**（利用其世界构建优势，远富过 OpenWorld writing 场景）：
 - `worldbuilding`（默认）：实体 CRUD / 角色 / 区域 / 图谱 / 记忆 + 世界观技能
 - `writing`：文稿 / 大纲 / 润色 / 翻译
 - `coding`：复用 `codingAgentTools`（编码 Agent 工具集）

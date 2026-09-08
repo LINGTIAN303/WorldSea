@@ -1,5 +1,5 @@
 // coreBackend schema 领域：契约校验 + Schema API（原 coreBackend.ts 拆分），详细见 docs/details/注释/tauri/coreBackend.md
-import type { CoreValidationReport, EntityTypeSchema } from '@worldsmith/core-api-types'
+import type { CoreValidationReport, EntityTypeSchema } from '@worldsea/core-api-types'
 import { backendCall, algoCall } from './runtime'
 
 export async function validatePack(

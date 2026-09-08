@@ -9,7 +9,7 @@
 ```
 Skill 注册中心
 
-定义所有 WorldSmith Skill 的元数据和工具权限。
+定义所有 WorldSea Skill 的元数据和工具权限。
 核心功能：
 - ALWAYS_AVAILABLE_TOOLS: 所有技能下始终可用的工具白名单
 - SKILL_REGISTRY: 所有技能的静态配置数组
@@ -75,7 +75,7 @@ Skill 注册中心
 ```
 任务3 接线：注册到全局 SkillRegistry
 
-将本地 SKILL_REGISTRY 同步到 @worldsmith/agent-core 的全局 SkillRegistry，
+将本地 SKILL_REGISTRY 同步到 @worldsea/agent-core 的全局 SkillRegistry，
 使其成为技能查询的统一入口（供未来消费方使用）。
 
 设计说明：
@@ -99,5 +99,5 @@ Skill 注册中心
 4. 重新注册到全局 SkillRegistry（含已安装技能）
 
 幂等：重复调用会清空已安装技能后重新扫描填充。
-应在 createWorldSmithAgent 前 await 调用一次。
+应在 createWorldSeaAgent 前 await 调用一次。
 ```

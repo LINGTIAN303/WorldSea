@@ -22,7 +22,7 @@
 - **命令调用**：RPC handler 用 `app.state::<X>()` 取 managed state，直接调用 `#[tauri::command]` 函数（`app` 参数传 `app.clone()`）。
 - **命名参数约定**：桌面命令签名为 `params: SomeStruct` 时（如 `send_message`/`update_model`），前端 invoke 用 `{ params: {...} }` 包裹；RPC handler 反序列化前先经 `unwrap_params` 解包（见 `rpc.rs`），保持桌面/HTTP 双端一致。
 - **事件**：commands.rs 的 4 个发射 funnel（`TauriAgentEventEmitter`/`emit_orch`/`emit_orch_supervisor`/`emit_orch_multi`）额外向全局 `EVENT_HUB`（`tokio::sync::broadcast`）发布一份；SSE handler 订阅推送。桌面端原有 `app.emit` 保留（多发一份到 hub 无害）。
-- **前端切换**：浏览器模式（无 `__TAURI_INTERNALS__`）且配置了后端地址（`localStorage['worldsmith_backend_url']` 或 `VITE_BACKEND_URL`，默认 `http://127.0.0.1:8787`）→ 走 HTTP；否则回退原 `mockInvoke`。桌面端不变。
+- **前端切换**：浏览器模式（无 `__TAURI_INTERNALS__`）且配置了后端地址（`localStorage['worldsea_backend_url']` 或 `VITE_BACKEND_URL`，默认 `http://127.0.0.1:8787`）→ 走 HTTP；否则回退原 `mockInvoke`。桌面端不变。
 
 ## 2. 边界（明确「完整」的范围）
 
@@ -52,12 +52,12 @@ entity·relation·kv·file 全命令（cmd_get/put/update/delete/import/clear + 
 ### 2.4 已实现（2026-08-20 第三批：cmd_algo_* 真实 Rust 命令）
 
 此前 cmd_algo_* 在 Rust 端从未注册（mindmap 一直走 JS 降级）。本批新增 `src-tauri/src/algo_commands.rs`
-薄封装 worldsmith-core::algo::graph 算法，注册 lib.rs invoke_handler + rpc.rs：
+薄封装 worldsea-core::algo::graph 算法，注册 lib.rs invoke_handler + rpc.rs：
 cmd_algo_force_layout / radial_layout / tree_layout / grid_layout / layout_unified（MindmapTree）/ dijkstra_path / connected_components / pagerank / community_detection（Louvain）
-tauri app Cargo.toml 新增 `worldsmith-core = { path = "../../../worldsmith-core" }`（默认 features，无 wasm）。
+tauri app Cargo.toml 新增 `worldsea-core = { path = "../../../worldsea-core" }`（默认 features，无 wasm）。
 浏览器实测 9 命令全部 ok:true（connected_components 返回真实分量、force_layout 收敛 26 轮等）。
 
-> ⚠️ workflow_*（workflowApi.ts 28 命令）在 Rust 端从未实现，属未建功能（worldsmith-core 仅 parser/validator/storage，
+> ⚠️ workflow_*（workflowApi.ts 28 命令）在 Rust 端从未实现，属未建功能（worldsea-core 仅 parser/validator/storage，
 > 无 executor/runs/dispatch 命令层），保持现状待单独规划；transcribe_media 属桌面-only 不桥接。
 
 ### 2.3 不桥接（纯桌面 OS 集成，浏览器无意义）
@@ -96,7 +96,7 @@ cd apps/tauri && npm run dev   # 打开 http://localhost:5175
 ```
 浏览器控制台设置后端地址（或直接 `VITE_BACKEND_URL=http://127.0.0.1:8787`）：
 ```js
-localStorage.setItem('worldsmith_backend_url', 'http://127.0.0.1:8787')
+localStorage.setItem('worldsea_backend_url', 'http://127.0.0.1:8787')
 ```
 
 ## 6. 验证清单（验收 HTTP 桥）
@@ -112,7 +112,7 @@ localStorage.setItem('worldsmith_backend_url', 'http://127.0.0.1:8787')
 - [x] 前端 HTTP 模式修复（2026-08-20）：①Router/终端面板 invoke 崩溃——useRouterRust/useTerminalRust 的 `@tauri-apps/api/core` invoke 改走 transport；②terminal_* 命令 `{ args: {...} }` 包裹在 rpc.rs 加 `unwrap_args` 解包（此前报「缺少 command 参数」）；③ToT tab 不切换——useSessionViewState 的 SessionViewState 对象 reactive 化（原先普通对象字段修改不触发 computed 依赖），修复后 execTab 响应式、tab 切换/面板渲染正常。浏览器实测：终端 echo 执行成功、Router 关键词路由出决策「代码专家(coder)」、ToT/GoT/委派/多Agent tab 切换正常
 - [x] 剩余 10 个前端模块统一接入 transport（2026-08-20）：useSubagentRust / useLongTaskRust / useLoopControlRust / useKbRust / RustGroupChatBackend / useOrchestratorRunner / workflowApi / useWorkflowEngineRun / useRustLayout / useRustGraphAnalysis / useSystemBridge / ChatInput.vue 全部由 `@tauri-apps/api/core|event` 改走 `agent/composables/transport`；useRustLayout/useRustGraphAnalysis 的 `isTauriAvailable()` 追加 `|| isHttpBackend()` 以便 HTTP 模式直达真实 Rust 命令。typecheck 通过；浏览器实测子Agent（subagent_list_specs 返回真实 sandbox）/ Router / 终端 / ToT / GoT / 委派 / 多Agent / 活动面板全部正常，控制台无 invoke 崩溃。
   > ⚠️ 已知缺口（2026-08-20 已收窄）：workflow_*（workflowApi.ts 28 命令）在 Rust 端从未实现，属未建功能，保持现状待单独规划；transcribe_media（ChatInput.vue 语音转录）属桌面-only 不桥接。cmd_algo_* 已在本批实现并注册（见 2.4）。
-- [x] cmd_algo_* 真实 Rust 命令实现并注册（2026-08-20）：新增 algo_commands.rs 薄封装 worldsmith-core 算法，注册 lib.rs + rpc.rs，tauri Cargo 依赖 worldsmith-core。浏览器实测 9 命令全 ok:true（connected_components 真实分量、dijkstra 路径、force_layout 收敛、pagerank、community_detection、radial/tree/grid/unified 布局），mindmap 布局/图分析首次真正走 Rust（桌面 IPC 同步生效）。
+- [x] cmd_algo_* 真实 Rust 命令实现并注册（2026-08-20）：新增 algo_commands.rs 薄封装 worldsea-core 算法，注册 lib.rs + rpc.rs，tauri Cargo 依赖 worldsea-core。浏览器实测 9 命令全 ok:true（connected_components 真实分量、dijkstra 路径、force_layout 收敛、pagerank、community_detection、radial/tree/grid/unified 布局），mindmap 布局/图分析首次真正走 Rust（桌面 IPC 同步生效）。
 - [x] 执行面板 tab 初始不可点修复（2026-08-20）：根因是 SessionSidebar 由 `v-if="sessionOpen"` 控制默认不挂载，其「恢复上次会话」逻辑（refresh→switchSession）在加载时从不执行 → activeSessionId 恒为 null → setExecTab 静默 return。修复：恢复逻辑提升到 useAgentRust.restoreLastSession()（幂等：已活跃则跳过），AgentSpace onMounted（chat 模式）调用；SessionSidebar 原逻辑保留（有守卫不重复）。浏览器实测：加载后不点新建/不点会话，8 个执行子 tab 均可直接切换，activeSessionId 自动恢复为 LAST_SESSION_KEY 会话且 execTab=multi 恢复。
 - [ ] 会话切换/删除/记忆真实落库；重启后端后会话仍在
 - [ ] 桌面端（Tauri IPC）行为与桥接前一致（回归）

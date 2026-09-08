@@ -84,8 +84,8 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick, watch } from 'vue'
-import { useEntityTemplates, entitySchemaRegistry } from '@worldsmith/entity-core'
-import type { EntityTemplate, WorldTemplate } from '@worldsmith/entity-core'
+import { useEntityTemplates, entitySchemaRegistry } from '@worldsea/entity-core'
+import type { EntityTemplate, WorldTemplate } from '@worldsea/entity-core'
 import { useFocusTrap } from '@/composables/useFocusTrap'
 
 const props = defineProps<{ show: boolean }>()

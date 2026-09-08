@@ -13,7 +13,7 @@
 
 ### 1.1 现状（调研确认，2026-08-09）
 
-- **群聊 UI 元数据**（GroupSession/CasualGroupSession/ChatAgent）存 Dexie/IndexedDB 三表（`apps/tauri/src/space/group-chat/GroupSessionManager.ts`，库 `worldsmith-group-chat` v3）
+- **群聊 UI 元数据**（GroupSession/CasualGroupSession/ChatAgent）存 Dexie/IndexedDB 三表（`apps/tauri/src/space/group-chat/GroupSessionManager.ts`，库 `worldsea-group-chat` v3）
 - **参与者 LLM 通道已桥 Rust**（commit 81e3a23）：`RustGroupChatBackend.ts` 每参与者 `invoke('new_session')` 建独立 Rust AgentLoop 会话，`send_message` 自动写穿 sessions.db（`crates/agent-commands/src/lib.rs` L400-439）
 - **核心缺口**：
   1. `participantSessionMap` 是模块级内存 Map（`RustGroupChatBackend.ts` L88），重启后丢失 → 无法按群聊找回参与者会话

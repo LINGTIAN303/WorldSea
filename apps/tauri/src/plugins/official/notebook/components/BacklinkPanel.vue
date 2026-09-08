@@ -16,8 +16,8 @@
 </template>
 
 <script setup lang="ts">
-import type { Entity } from '@worldsmith/entity-core'
-import { WsIcon } from '@worldsmith/ui-kit'
+import type { Entity } from '@worldsea/entity-core'
+import { WsIcon } from '@worldsea/ui-kit'
 
 defineProps<{ links: Entity[] }>()
 defineEmits<{ navigate: [id: string]; createLink: [] }>()

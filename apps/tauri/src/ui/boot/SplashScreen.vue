@@ -1,5 +1,5 @@
 <!--
-  SplashScreen.vue — WorldSmith 启动页
+  SplashScreen.vue — WorldSea 启动页
   ─────────────────────────────────────
   双 Canvas 分层（constellation 固定动效 + interaction 鼠标交互）
   四角 HUD 装饰 + 中央标题/加载条 + bootState 控制淡出
@@ -37,10 +37,10 @@
     <!-- 中央内容 -->
     <div class="ws-splash__content">
       <div class="ws-splash__logo-glow">
-        <WorldSmithLogo :size="96" :radius="22" class="ws-splash__logo" />
+        <WorldSeaLogo :size="96" :radius="22" class="ws-splash__logo" />
       </div>
       <div class="ws-splash__title-glow">
-        <h1 class="ws-splash__title">WorldSmith</h1>
+        <h1 class="ws-splash__title">WorldSea</h1>
       </div>
       <p class="ws-splash__tagline">Build Worlds. Shape Realities.</p>
       <div class="ws-splash__loader">
@@ -63,7 +63,7 @@
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { createSplashEngine, type SplashEngine } from './splash-canvas'
 import { useUIStore } from '../../stores/uiStore'
-import WorldSmithLogo from '../../components/brand/WorldSmithLogo.vue'
+import WorldSeaLogo from '../../components/brand/WorldSeaLogo.vue'
 
 const constellationRef = ref<HTMLCanvasElement | null>(null)
 const interactionRef = ref<HTMLCanvasElement | null>(null)

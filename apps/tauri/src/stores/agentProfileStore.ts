@@ -14,7 +14,7 @@ import {
   deleteAgentProfile as dbDeleteProfile,
 } from '@agent/session/manager'
 
-const STORAGE_KEY_PROVIDER_SLOTS = 'worldsmith_group_provider_slots'
+const STORAGE_KEY_PROVIDER_SLOTS = 'worldsea_group_provider_slots'
 
 function loadSlotsFromStorage(): ProviderSlot[] {
   try {

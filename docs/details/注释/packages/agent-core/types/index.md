@@ -7,7 +7,7 @@
 
 ```
 /**
- * @worldsmith/agent-core — 核心类型定义
+ * @worldsea/agent-core — 核心类型定义
  *
  * 定义 Agent 运行时的所有核心抽象：
  * - PermissionLevel: 工具权限级别

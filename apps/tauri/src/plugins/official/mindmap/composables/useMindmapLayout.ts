@@ -1,8 +1,8 @@
 /** 思维导图布局逻辑（buildCanvasData/Rust 布局/持久化等，从 MindmapView 拆出），详细见 docs/details/注释/web/plugins/official/mindmap/composables/useMindmapLayout.md */
 import { nextTick, type Ref, type ComputedRef } from 'vue'
-import { deduplicateEdges } from '@worldsmith/ui-kit'
-import { getEdgeColor, useEntityStore, useRelationStore } from '@worldsmith/entity-core'
-import type { GraphNode, GraphEdge } from '@worldsmith/canvas-engine'
+import { deduplicateEdges } from '@worldsea/ui-kit'
+import { getEdgeColor, useEntityStore, useRelationStore } from '@worldsea/entity-core'
+import type { GraphNode, GraphEdge } from '@worldsea/canvas-engine'
 import type { CanvasNode, CanvasEdge } from './canvasTypes'
 import { useMindmapStore } from '../mindmapStore'
 import type { LayoutAlgorithmType } from '../mindmapStore'
@@ -10,7 +10,7 @@ import { nodeSize, edgeLineStyle } from '../mindmapConfig'
 import type { useRustLayout } from './useRustLayout'
 import type { useLayoutAnimation } from './useLayoutAnimation'
 import type { useCanvasRenderer } from './useCanvasRenderer'
-import type { useTypeMapping } from '@worldsmith/ui-kit'
+import type { useTypeMapping } from '@worldsea/ui-kit'
 
 /** useMindmapLayout 依赖的外部参数 */
 export interface UseMindmapLayoutDeps {

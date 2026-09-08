@@ -72,7 +72,7 @@
 import { ref, computed, watch } from 'vue'
 import TuiSelect from '../../components/ui/TuiSelect.vue'
 import { useSettingsStore } from '../../stores/settingsStore'
-import { getModelsByProvider, getModelInfo, modelSupportsVision, getVisionModels, getProviderLabelMap } from '@worldsmith/agent-runtime'
+import { getModelsByProvider, getModelInfo, modelSupportsVision, getVisionModels, getProviderLabelMap } from '@worldsea/agent-runtime'
 
 const settingsStore = useSettingsStore()
 
@@ -128,9 +128,9 @@ function onVisionModelChange(v: string): void {
 }
 
 // ── 图像生成配置 ──
-const imageGenProvider = ref(localStorage.getItem('worldsmith_image_gen_provider') || '')
-const imageGenModel = ref(localStorage.getItem('worldsmith_image_gen_model') || '')
-const imageGenBaseUrl = ref(localStorage.getItem('worldsmith_image_gen_base_url') || '')
+const imageGenProvider = ref(localStorage.getItem('worldsea_image_gen_provider') || '')
+const imageGenModel = ref(localStorage.getItem('worldsea_image_gen_model') || '')
+const imageGenBaseUrl = ref(localStorage.getItem('worldsea_image_gen_base_url') || '')
 const imageGenCustomProviderId = ref('')
 
 // 初始化：如果 provider 是 custom，尝试从 baseUrl 匹配自定义供应商 ID
@@ -139,9 +139,9 @@ if (imageGenProvider.value === 'custom' && imageGenBaseUrl.value) {
   if (matched) imageGenCustomProviderId.value = matched.id
 }
 
-watch(imageGenProvider, v => localStorage.setItem('worldsmith_image_gen_provider', v))
-watch(imageGenModel, v => localStorage.setItem('worldsmith_image_gen_model', v))
-watch(imageGenBaseUrl, v => localStorage.setItem('worldsmith_image_gen_base_url', v))
+watch(imageGenProvider, v => localStorage.setItem('worldsea_image_gen_provider', v))
+watch(imageGenModel, v => localStorage.setItem('worldsea_image_gen_model', v))
+watch(imageGenBaseUrl, v => localStorage.setItem('worldsea_image_gen_base_url', v))
 
 const imageGenProviders = computed(() => {
   const builtIn = [
@@ -228,11 +228,11 @@ function onImageGenModelChange(v: string): void {
 }
 
 // ── 视频生成配置 ──
-const videoGenProvider = ref(localStorage.getItem('worldsmith_video_gen_provider') || '')
-const videoGenModel = ref(localStorage.getItem('worldsmith_video_gen_model') || '')
+const videoGenProvider = ref(localStorage.getItem('worldsea_video_gen_provider') || '')
+const videoGenModel = ref(localStorage.getItem('worldsea_video_gen_model') || '')
 
-watch(videoGenProvider, v => localStorage.setItem('worldsmith_video_gen_provider', v))
-watch(videoGenModel, v => localStorage.setItem('worldsmith_video_gen_model', v))
+watch(videoGenProvider, v => localStorage.setItem('worldsea_video_gen_provider', v))
+watch(videoGenModel, v => localStorage.setItem('worldsea_video_gen_model', v))
 
 const videoGenProviders = [
   { value: 'agnes', label: 'Agnes AI' },

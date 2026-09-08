@@ -17,7 +17,7 @@ export interface KBEntry {
   lastAccessedAt: number
 }
 
-const DB_NAME = 'worldsmith_kb'
+const DB_NAME = 'worldsea_kb'
 const DB_VERSION = 1
 const ENTRY_STORE = 'entries'
 const CONTENT_STORE = 'contents'

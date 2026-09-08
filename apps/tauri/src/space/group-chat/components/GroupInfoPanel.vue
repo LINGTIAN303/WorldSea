@@ -83,7 +83,7 @@ import type { GroupMember, BaseLayerMode, ToolSource } from '../types'
 import { assignAgentColor } from '../types'
 import MemberList from './MemberList.vue'
 import RequestMonitorPanel from './RequestMonitorPanel.vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 
 defineEmits<{
   close: []

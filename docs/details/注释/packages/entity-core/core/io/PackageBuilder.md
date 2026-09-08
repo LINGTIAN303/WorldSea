@@ -9,13 +9,13 @@
 /**
  * PackageBuilder — .ws 包构建器
  *
- * 将 WorldSmithPack 打包为 ZIP 归档（.ws 扩展名），内嵌媒体文件。
+ * 将 WorldSeaPack 打包为 ZIP 归档（.ws 扩展名），内嵌媒体文件。
  * 媒体文件从实体 avatar 和 properties 中扫描引用并嵌入。
  *
  * 包结构：
- *   worldsmith-pack.ws (ZIP)
+ *   worldsea-pack.ws (ZIP)
  *   ├── manifest.json      ← 包元数据 + 文件索引
- *   ├── pack.json          ← WorldSmithPack（完整数据）
+ *   ├── pack.json          ← WorldSeaPack（完整数据）
  *   └── media/
  *       ├── avatars/       ← entity.avatar 引用的图片
  *       └── attachments/   ← properties 里引用的文件

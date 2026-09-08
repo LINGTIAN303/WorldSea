@@ -104,9 +104,9 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick } from 'vue'
-import { useEntityStore } from '@worldsmith/entity-core'
-import { getSettingsApi } from '@worldsmith/entity-core'
-import { useSmartFieldLink } from '@worldsmith/entity-core/composables'
+import { useEntityStore } from '@worldsea/entity-core'
+import { getSettingsApi } from '@worldsea/entity-core'
+import { useSmartFieldLink } from '@worldsea/entity-core/composables'
 import ImageField from './ImageField.vue'
 import ImageLightbox from './ImageLightbox.vue'
 
@@ -167,7 +167,7 @@ function selectEntityRef(entity: any) {
 
 async function createAndSelectEntity() {
   if (!settings.autoCreateEntityRefEnabled) return
-  const { useAutoCreateEntity } = await import('@worldsmith/entity-core/composables')
+  const { useAutoCreateEntity } = await import('@worldsea/entity-core/composables')
   const { promptAndCreate } = useAutoCreateEntity()
   const entity = await promptAndCreate({
     name: entitySearchQuery.value.trim(),

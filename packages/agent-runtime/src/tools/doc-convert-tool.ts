@@ -8,7 +8,7 @@
  */
 
 import type { ToolDefinition } from '../bridge-types'
-import type { ToolMeta } from '@worldsmith/agent-core'
+import type { ToolMeta } from '@worldsea/agent-core'
 
 /** 后端 MarkItDown 服务地址 */
 const BACKEND_CONVERT_URL = 'http://localhost:3100/api/convert'

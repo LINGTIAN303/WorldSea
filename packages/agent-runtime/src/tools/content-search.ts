@@ -1,7 +1,7 @@
 /** 内容搜索工具：跨实体类型关键词 + 语义混合搜索，详细见 docs/details/注释/packages/agent-runtime/tools-content-search.md */
 
 import type { ToolDefinition } from '../bridge-types'
-import type { ToolMeta } from '@worldsmith/agent-core'
+import type { ToolMeta } from '@worldsea/agent-core'
 import { semanticSearchEntities, isEmbeddingReady } from '../embedding/index'
 import type { SearchResultV2 } from '../embedding/vector-store-v2'
 

@@ -17,7 +17,7 @@
 import type { StorageAdapter } from '../adapters/StorageAdapter'
 import type { ArchiveIndex, Hook, MemoryChunk, MemoryFileHeader } from '../types'
 
-const DB_NAME = 'worldsmith-memory-archive'
+const DB_NAME = 'worldsea-memory-archive'
 const DB_VERSION = 2
 const STORE_HOOKS = 'hooks'
 const STORE_FILES = 'memoryFiles'

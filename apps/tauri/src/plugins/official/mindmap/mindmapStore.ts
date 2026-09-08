@@ -8,8 +8,8 @@
  */
 import { defineStore } from 'pinia'
 import { reactive, ref, computed, watch } from 'vue'
-import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'
-import { useGraphData } from '@worldsmith/canvas-engine'
+import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
+import { useGraphData } from '@worldsea/canvas-engine'
 import type { CameraState } from './composables/canvasTypes'
 
 export interface Section {
@@ -53,8 +53,8 @@ export interface ContextMenuState {
   strokeId: string
 }
 
-const STORAGE_PREFIX = 'worldsmith_mindmap_'
-const POSITION_STORAGE_KEY = 'worldsmith-mindmap-positions'
+const STORAGE_PREFIX = 'worldsea_mindmap_'
+const POSITION_STORAGE_KEY = 'worldsea-mindmap-positions'
 
 function loadFromStorage<T>(key: string, fallback: T): T {
   try {

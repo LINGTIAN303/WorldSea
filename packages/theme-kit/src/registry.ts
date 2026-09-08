@@ -1,5 +1,5 @@
 /**
- * @worldsmith/theme-kit - Manifest Registry
+ * @worldsea/theme-kit - Manifest Registry
  * 
  * 主题 Manifest 注册表：
  * - 注册/获取/查询主题配置

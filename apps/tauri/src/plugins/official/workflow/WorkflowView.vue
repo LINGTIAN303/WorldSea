@@ -114,7 +114,7 @@ function handleRunAgent() {
   updatePipeline(pipeline.id, { status: 'running', currentStepId: step.id })
 
   // 通过 sub-agent 派发，携带 pipelineContext，完成后 autoUpdatePipelineStep 自动回写
-  window.dispatchEvent(new CustomEvent('worldsmith:dispatch-sub-agent', {
+  window.dispatchEvent(new CustomEvent('worldsea:dispatch-sub-agent', {
     detail: {
       taskId: `pipeline-${pipeline.id}-${step.id}-${Date.now()}`,
       type: 'creation',
@@ -207,7 +207,7 @@ async function handleRetryStep(stepId: string) {
 
   // 等待状态更新完成后再派发子 Agent
   const stepConfig = step.config as any
-  window.dispatchEvent(new CustomEvent('worldsmith:dispatch-sub-agent', {
+  window.dispatchEvent(new CustomEvent('worldsea:dispatch-sub-agent', {
     detail: {
       taskId: `pipeline-${pipeline.id}-retry-${stepId}-${Date.now()}`,
       type: 'creation',
@@ -243,11 +243,11 @@ function onPipelineStepCompleted(e: Event) {
 }
 
 onMounted(() => {
-  window.addEventListener('worldsmith:pipeline-step-completed', onPipelineStepCompleted as EventListener)
+  window.addEventListener('worldsea:pipeline-step-completed', onPipelineStepCompleted as EventListener)
 })
 
 onBeforeUnmount(() => {
-  window.removeEventListener('worldsmith:pipeline-step-completed', onPipelineStepCompleted as EventListener)
+  window.removeEventListener('worldsea:pipeline-step-completed', onPipelineStepCompleted as EventListener)
 })
 </script>
 

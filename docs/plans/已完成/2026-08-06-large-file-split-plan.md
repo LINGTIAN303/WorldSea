@@ -118,7 +118,7 @@ status: 执行中
 - **packages/core-api-types**：新建纯类型包，71 个类型（64 共享 + 7 Core）唯一契约源；EntityTypeSchema 等 3 个与 entity-core 字段不一致 → 已内联 + 记录差异（未改 entity-core，待决策是否统一三份定义）
 - **web coreBackend.ts 1158→6 行**：api/ 目录（runtime 147/schema 63/retrofit 188/entity 76/algo 362/health 35/index），156 导出名与改造前一致，typecheck 通过
 - **tauri coreBackend.ts 1165→4 行**：api/ 目录（runtime 69/schema 47/retrofit 161/entity 74/algo 331/health 45/index），163 导出名 + 90 cmd 命令名与改造前一致，typecheck 通过
-- 双端类型完全同源（core-api-types）；调用方（worldsmithCore/main.ts/插件）零改动
+- 双端类型完全同源（core-api-types）；调用方（worldseaCore/main.ts/插件）零改动
 
 ## 第六轮：EntityTypeSchema 三份定义统一（契约层为权威）
 
@@ -129,8 +129,8 @@ status: 执行中
 - **t1 契约对齐**：core-api-types `FieldTypeSchema` 统一为 `fieldType` + `options: {value,label}[]`；entity-core `types/entity.ts`/`types/relation.ts` 继承契约层（FieldSchema 增运行时 `relationType?`；RelationTypeSchema 增 `inverseType?/autoCreateInverse?/properties?/pluginId?`）
 - **t2 entity-core 内部迁移**：FieldRegistry（FieldType=fieldType）/EntitySchema/RelationSchema（typeKey 注册主键）/PluginAPI（V1 registerEntityType 参数即契约层，V2 内部转 V1 时 `type: schema.typeKey`）/RelationshipRegistry/agent-descriptor/serializers/formula-auto/AutoLinkEngine/useDataDiagnostics/traits(13)/facets/relations 全部 `type→fieldType`、options 对象化
 - **t3 apps/web 注册层**：`modules/registry.ts`/`core/ModuleRuntime.ts` 构造 `fieldType` + `typeKey` 注册 + options 对象化（toFieldSchema typeMap 兜底）
-- **t4 SchemaRenderer.vue**：删除本地 SchemaField/EntityTypeSchema 定义，改 import `@worldsmith/core-api-types`；fallback 桥接简化（不再补 typeKey 映射）
+- **t4 SchemaRenderer.vue**：删除本地 SchemaField/EntityTypeSchema 定义，改 import `@worldsea/core-api-types`；fallback 桥接简化（不再补 typeKey 映射）
 - **t5 外部消费点**：实体组件（EntityMiniPanel/InfoPanel/KanbanView/GenericEntityView/BatchEditModal/DynamicFieldsAdder/SmartFieldAdder/useFieldPresets/EntityRelationSelector）+ 侧栏（SidebarV2/VersionHistory/GlobalSearch/TemplateManager）+ 19 个官方插件 index.ts 字段 `type→fieldType`/options 对象化（tactical-board/workflow 为 V1 `registerEntityType`，顶层主键 `type→typeKey`）；schema `.type→.typeKey` 消费点（GlobalGraph/useAISuggestions/useMindmapContextActions/MindmapView/PluginManager/CustomRelationTypeDialog/EntityTemplateDialog/SidebarV2/useSmartFillChat/KanbanView groupByOptions）
 - **t6 全量验证**：14 个包 typecheck 全绿（apps/web、apps/tauri、apps/cli、entity-core、shared-composables、shared-ui、plugin-sdk、ui-kit、core-api-types、canvas-engine、agent-runtime、theme-kit、agent-core、perf-kit）
-- **tsconfig 配置修复（跨包编译依赖）**：shared-composables/apps-cli/canvas-engine/agent-runtime 补 `@worldsmith/core-api-types` paths；plugin-sdk 新建非 build tsconfig.json（去 rootDir/composite）+ 补 `shims-vue.d.ts` + typecheck 改 vue-tsc；agent-runtime 补 `.vue` shim + typecheck 改 vue-tsc `--declaration false`（TS2883）
+- **tsconfig 配置修复（跨包编译依赖）**：shared-composables/apps-cli/canvas-engine/agent-runtime 补 `@worldsea/core-api-types` paths；plugin-sdk 新建非 build tsconfig.json（去 rootDir/composite）+ 补 `shims-vue.d.ts` + typecheck 改 vue-tsc；agent-runtime 补 `.vue` shim + typecheck 改 vue-tsc `--declaration false`（TS2883）
 - **教训**：同一文件的多个 SearchReplace 并行执行存在写入竞态（部分替换静默丢失，typecheck 复跑才发现）——同一文件必须串行编辑，改后 Read 复核

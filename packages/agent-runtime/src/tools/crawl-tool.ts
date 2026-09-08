@@ -1,7 +1,7 @@
 /** 深度网页爬取工具：Crawl4AI 优先 + Jina Reader 降级，详细见 docs/details/注释/packages/agent-runtime/tools-crawl-tool.md */
 
 import type { ToolDefinition } from '../bridge-types'
-import type { ToolMeta } from '@worldsmith/agent-core'
+import type { ToolMeta } from '@worldsea/agent-core'
 import { fetchWithJina, normalizeFormat } from './web-fetch'
 import { smartFetch } from '../utils/smart-fetch'
 

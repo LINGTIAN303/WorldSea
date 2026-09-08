@@ -23,7 +23,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 
 /**
  * 工具栏溢出折叠菜单：收纳上移 R3 后空间不足的次要控件。

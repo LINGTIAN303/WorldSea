@@ -13,7 +13,7 @@
 </template>
 
 <script setup lang="ts">
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 
 // 2026-08-12：由「会话列表/知识墙」双图标翻转按钮，简化为单一「侧边栏」开关按钮。
 // 会话列表与知识库已合并到侧边栏面板内，由面板内 Tab 切换，不再经此按钮切换。

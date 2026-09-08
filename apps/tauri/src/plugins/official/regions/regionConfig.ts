@@ -1,4 +1,4 @@
-import type { FormFieldDef } from '@worldsmith/plugin-sdk'
+import type { FormFieldDef } from '@worldsea/plugin-sdk'
 
 export const regionFields: FormFieldDef[] = [
   { key: 'name', label: '名称', type: 'text', required: true, placeholder: '区域名称' },

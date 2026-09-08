@@ -128,7 +128,7 @@
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import type { GroupChatMessage } from '../types'
 import { getToolLabel, getToolIcon, getToolImportance } from '../types'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import AvatarBadge from '@/ui/AvatarBadge.vue'
 
 const props = defineProps<{

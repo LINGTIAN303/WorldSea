@@ -14,6 +14,6 @@
 
 数据模型：
 - KBEntry: 知识条目（id/path/scope/content/tags/entityId/时间戳/访问统计）
-- 存储在 IndexedDB 'worldsmith_kb' 数据库中
+- 存储在 IndexedDB 'worldsea_kb' 数据库中
 - 按 scope + path 唯一索引
 ```

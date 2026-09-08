@@ -12,10 +12,10 @@ import './styles/web-tokens-bridge.css'
 import * as coreBackend from './core/coreBackend'
 
 // 共享层：注册 entity-core / canvas-engine 等运行时
-import { registerValidationApi } from '@worldsmith/entity-core'
-import { registerBackend } from '@worldsmith/canvas-engine/core'
-import { injectAllKeyframes } from '@worldsmith/motion-kit'
-import { registerAllManifests } from '@worldsmith/theme-kit'
+import { registerValidationApi } from '@worldsea/entity-core'
+import { registerBackend } from '@worldsea/canvas-engine/core'
+import { injectAllKeyframes } from '@worldsea/motion-kit'
+import { registerAllManifests } from '@worldsea/theme-kit'
 import { preloadSupportingModels } from './agent/composables/preloadModels'
 import { installModelFetchWatcher } from './agent/composables/useModelFetchWatcher'
 

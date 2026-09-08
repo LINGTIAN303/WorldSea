@@ -4,8 +4,8 @@
  * 这里集中放置无状态、无副作用的工具，供主文件、子组件与 composable 复用，
  * 避免逻辑重复并保持各模块职责单一。
  */
-import type { AgentMessage } from '@worldsmith/agent-runtime'
-import type { DeepSegment } from '@worldsmith/shared-composables/agent/useAgent'
+import type { AgentMessage } from '@worldsea/agent-runtime'
+import type { DeepSegment } from '@worldsea/shared-composables/agent/useAgent'
 
 /**
  * 渲染窗口化中的单个展示项。
@@ -19,7 +19,7 @@ export interface DisplayItem {
   type: 'message' | 'segment' | 'toolcall' | 'divider'
   msg?: AgentMessage
   segment?: DeepSegment
-  toolCall?: import('@worldsmith/shared-composables/agent/useAgent').ToolCallView
+  toolCall?: import('@worldsea/shared-composables/agent/useAgent').ToolCallView
   dividerText?: string
   _windowIndex?: number
 }

@@ -1,15 +1,15 @@
 import type { ToolDefinition } from '../bridge-types'
-import type { ToolMeta } from '@worldsmith/agent-core'
+import type { ToolMeta } from '@worldsea/agent-core'
 import type { A2UIMessage, A2UIComponent } from '../bridge-types'
 
-const WORLD_SMITH_CATALOG = 'https://worldsmith.app/catalog/v1'
+const WORLD_SMITH_CATALOG = 'https://worldsea.app/catalog/v1'
 
 export const a2uiCreateSurface: ToolDefinition = {
   name: 'ui_create_surface',
   description: '创建一个交互式 UI 画布，用于展示表单、卡片、数据面板等。返回 surfaceId。使用场景：需要向用户展示结构化信息、收集用户输入、创建交互式操作界面。',
   parameters: {
     surfaceId: { type: 'string', description: '画布唯一标识，如 "entity-card-1"、"search-results"', required: true },
-    catalogId: { type: 'string', description: '组件目录 ID，默认使用 WorldSmith 目录', required: false },
+    catalogId: { type: 'string', description: '组件目录 ID，默认使用 WorldSea 目录', required: false },
   },
   meta: {
     permission: 'moderate',

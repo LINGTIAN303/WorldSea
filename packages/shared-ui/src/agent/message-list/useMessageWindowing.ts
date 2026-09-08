@@ -1,6 +1,6 @@
 /** 消息列表渲染窗口化 + 滚动锚定 composable（前缀和二分定位 + 回到底部按钮）。泛化接收任意「含唯一 id 的事件行数组」（对齐 Agent 事件行流），详细见 docs/details/注释/packages/shared-ui/agent/message-list/useMessageWindowing.md */
 import { ref, computed, shallowRef, watch, nextTick, onMounted, onBeforeUnmount, type Ref } from 'vue'
-import type { AgentMessage } from '@worldsmith/agent-runtime'
+import type { AgentMessage } from '@worldsea/agent-runtime'
 
 // 窗口化常量（2026-09-05 S5 阶段 B：粒度切换为轮次级——测量/切片/占位单元从行改为轮次）
 const WINDOW_BUFFER = 3             // 视口上下各保留 3 个轮次缓冲（轮次级切窗块大，缓冲稍宽降低切窗频率）

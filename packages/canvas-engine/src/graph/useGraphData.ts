@@ -1,9 +1,9 @@
 import { computed, ref, watch, onUnmounted } from 'vue'
-import { useEntityStore, useRelationStore } from '@worldsmith/entity-core'
-import { deduplicateEdges } from '@worldsmith/entity-core/composables'
-import { relationSchemaRegistry, entitySchemaRegistry } from '@worldsmith/entity-core'
-import { getNodeTypeInfo, getEdgeTypeInfo } from '@worldsmith/entity-core'
-import type { Relation } from '@worldsmith/entity-core'
+import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
+import { deduplicateEdges } from '@worldsea/entity-core/composables'
+import { relationSchemaRegistry, entitySchemaRegistry } from '@worldsea/entity-core'
+import { getNodeTypeInfo, getEdgeTypeInfo } from '@worldsea/entity-core'
+import type { Relation } from '@worldsea/entity-core'
 
 export interface GraphNode {
   id: string

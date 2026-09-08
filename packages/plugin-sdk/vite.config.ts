@@ -4,14 +4,14 @@ import { resolve } from 'path'
 export default defineConfig({
   resolve: {
     alias: {
-      '@worldsmith/entity-core': resolve(__dirname, '../entity-core/src/index.ts'),
-      '@worldsmith/entity-core/stores': resolve(__dirname, '../entity-core/src/stores/index.ts'),
-      '@worldsmith/entity-core/core': resolve(__dirname, '../entity-core/src/core/index.ts'),
-      '@worldsmith/entity-core/types': resolve(__dirname, '../entity-core/src/types/index.ts'),
-      '@worldsmith/entity-core/composables': resolve(__dirname, '../entity-core/src/composables/index.ts'),
-      '@worldsmith/entity-core/traits': resolve(__dirname, '../entity-core/src/traits/index.ts'),
-      '@worldsmith/entity-core/facets': resolve(__dirname, '../entity-core/src/facets/index.ts'),
-      '@worldsmith/entity-core/relations': resolve(__dirname, '../entity-core/src/relations/index.ts'),
+      '@worldsea/entity-core': resolve(__dirname, '../entity-core/src/index.ts'),
+      '@worldsea/entity-core/stores': resolve(__dirname, '../entity-core/src/stores/index.ts'),
+      '@worldsea/entity-core/core': resolve(__dirname, '../entity-core/src/core/index.ts'),
+      '@worldsea/entity-core/types': resolve(__dirname, '../entity-core/src/types/index.ts'),
+      '@worldsea/entity-core/composables': resolve(__dirname, '../entity-core/src/composables/index.ts'),
+      '@worldsea/entity-core/traits': resolve(__dirname, '../entity-core/src/traits/index.ts'),
+      '@worldsea/entity-core/facets': resolve(__dirname, '../entity-core/src/facets/index.ts'),
+      '@worldsea/entity-core/relations': resolve(__dirname, '../entity-core/src/relations/index.ts'),
     },
   },
   build: {

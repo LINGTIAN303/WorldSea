@@ -330,8 +330,8 @@ export function validateRegistryConsistency(): string[] {
 }
 
 /** 任务3 接线：将本地 SKILL_REGISTRY 同步到全局 SkillRegistry，详细见 docs/details/注释/packages/agent-runtime/skills-registry.md */
-import { getGlobalSkillRegistry } from '@worldsmith/agent-core'
-import type { SkillDeclaration } from '@worldsmith/agent-core'
+import { getGlobalSkillRegistry } from '@worldsea/agent-core'
+import type { SkillDeclaration } from '@worldsea/agent-core'
 import { scanInstalledSkills } from './manifest'
 
 let _skillsRegistered = false

@@ -75,9 +75,9 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { CustomDropdown } from '@worldsmith/plugin-sdk'
+import { CustomDropdown } from '@worldsea/plugin-sdk'
 import { LAYOUT_OPTIONS } from '../mindmapConfig'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import ToolbarOverflow from '@/components/ui/ToolbarOverflow.vue'
 
 const props = withDefaults(defineProps<{

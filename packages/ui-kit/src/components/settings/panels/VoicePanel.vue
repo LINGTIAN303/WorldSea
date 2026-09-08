@@ -31,8 +31,8 @@
  * 面板三契约：goToCard / searchQuery 过滤 / dirty 上报（语音项变更时上报设置弹窗）。
  */
 import { ref, watch } from 'vue'
-import { CardDeck } from '@worldsmith/ui-kit'
-import { useSettingsStore } from '@worldsmith/entity-core'
+import { CardDeck } from '@worldsea/ui-kit'
+import { useSettingsStore } from '@worldsea/entity-core'
 
 const props = withDefaults(defineProps<{ searchQuery?: string }>(), { searchQuery: '' })
 const emit = defineEmits<{ dirty: []; 'card-change': [index: number] }>()

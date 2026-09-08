@@ -1,4 +1,4 @@
-# MemoryCenter 召回集成计划（增强 WorldSmith Agent 记忆系统）
+# MemoryCenter 召回集成计划（增强 WorldSea Agent 记忆系统）
 
 > **状态**：已完成（2026-08-30 实况核对后归档。阶段 0-5 全部落地：MemoryCenterAccessor 实现于 `crates/agent-memory/src/lib.rs`、trait 实际位于 `crates/agent-kernel/src/memory.rs`（2026-08-25 crate 重组后，文内 `crates/agent-runtime/src/memory.rs` 锚点过期，对外路径 `agent_runtime::memory` 语义未变）、注入接线 `crates/agent-commands/src/lib.rs` with_memory_root、5 个 memory_* 命令注册完好。阶段 4 声明的前端形态（MemoryPanel.vue/useMemoryCenterRust.ts）已被后续重构替换为 `apps/tauri/src/space/panels/MemoryShelf.vue`）
 > **创建日期**：2026-08-06
@@ -10,19 +10,19 @@
 
 ## 一、背景与结论
 
-**结论：召回 MemoryCenter 作为 WorldSmith Agent 记忆后端，方向正确、时机成熟。**
+**结论：召回 MemoryCenter 作为 WorldSea Agent 记忆后端，方向正确、时机成熟。**
 
 关键事实链：
-1. WorldSmith 的 [MemoryAccessor](file:///d:/本地化AI/DeepSeek_Home/worldsmith/crates/agent-runtime/src/memory.rs) trait 已定义，`Orchestrator` 有 `with_memory()` 注入点，但**无任何实现**（默认 `Option=None`）。
-2. 自研 `@worldsmith/memory-archive`（TS/IndexedDB）是 MemoryCenter 的**早期实验**，且 roadmap 明确标注"未与 Agent loop 深度集成"。
-3. MemoryCenter 是独立演进的成熟记忆库，具备三级周期归档、完整对话无损归档、4 维评分淘汰、冲突检测、17 类标签、BM25+语义混合检索等 WorldSmith 缺失能力。
-4. `memory-center-core` 自带 SQLite（rusqlite）/文件树/缓存存储，契合 WorldSmith 的 SQLite 单二进制约束。
+1. WorldSea 的 [MemoryAccessor](file:///d:/本地化AI/DeepSeek_Home/worldsea/crates/agent-runtime/src/memory.rs) trait 已定义，`Orchestrator` 有 `with_memory()` 注入点，但**无任何实现**（默认 `Option=None`）。
+2. 自研 `@worldsea/memory-archive`（TS/IndexedDB）是 MemoryCenter 的**早期实验**，且 roadmap 明确标注"未与 Agent loop 深度集成"。
+3. MemoryCenter 是独立演进的成熟记忆库，具备三级周期归档、完整对话无损归档、4 维评分淘汰、冲突检测、17 类标签、BM25+语义混合检索等 WorldSea 缺失能力。
+4. `memory-center-core` 自带 SQLite（rusqlite）/文件树/缓存存储，契合 WorldSea 的 SQLite 单二进制约束。
 
 ## 二、已确认决策
 
 | 决策点 | 选择 | 说明 |
 |--------|------|------|
-| 依赖引入方式 | **vendor 复制** | 将 `memory-center-core` + `memory-center-core-logic` 复制进 WorldSmith `crates/`，从此独立演进，不再依赖外部项目 |
+| 依赖引入方式 | **vendor 复制** | 将 `memory-center-core` + `memory-center-core-logic` 复制进 WorldSea `crates/`，从此独立演进，不再依赖外部项目 |
 | 适配层位置 | **新增 `crates/agent-memory`** | 承载 `MemoryAccessor` trait 的实现，边界清晰，符合模块化约束 |
 | 存储后端（当前） | **SQLite** | 用 `memory-center-core` 自带 SqliteStorage，符合单二进制约束 |
 
@@ -66,7 +66,7 @@ Storage trait（可插拔）
 ```
 阶段 0  vendor 复制：memory-center-core + core-logic 进 crates/vendor/，调整依赖路径 ✅ 已完成（2026-08-06）
         - 源文件复制自 D:\本地化AI\MemoryCenter\crates\
-        - Cargo.toml 已扁平化 workspace 依赖（WorldSmith 无根 workspace，各 crate 独立编译）
+        - Cargo.toml 已扁平化 workspace 依赖（WorldSea 无根 workspace，各 crate 独立编译）
         - 保留 native feature（jieba-rs + dashmap），去掉 WASM 相关 feature
         - 依赖版本对齐 workspace 定义：rusqlite 0.32 / jieba-rs 0.7 / moka 0.12 / dashmap 6.1 / r2d2 0.8 / r2d2_sqlite 0.25
         - cargo check 两个 crate 独立编译通过 ✅
@@ -80,7 +80,7 @@ Storage trait（可插拔）
         - AgentLoop 增加 memory 字段 + with_memory()/memory()（agent-runtime/src/agent.rs）
         - AgentCommandService.new_agent 为每会话构造 MemoryCenterAccessor 并注入 AgentLoop
           （agent-commands/src/lib.rs build_memory_accessor + Cargo.toml 依赖 agent-memory/memory-center-core）
-        - Tauri setup 传 app_data/worldsmith/memory 给 with_memory_root，桌面启用记忆
+        - Tauri setup 传 app_data/worldsea/memory 给 with_memory_root，桌面启用记忆
           （apps/tauri/src-tauri/src/lib.rs）
         - 验证：agent-commands cargo check 0 errors + 60 单测通过；tauri cargo check 通过
         ⚠️ 说明：DefaultOrchestrator 为 #[allow(dead_code)] 的 roadmap 预留结构（run 未实现，
@@ -110,7 +110,7 @@ Storage trait（可插拔）
         - 说明：管理功能（标签/置顶/删除/回收站/定时归档/合并）留待后续迭代，MVP 聚焦核心闭环
 阶段 5  清理：确认稳定后清理 TS 版 memory-archive ✅ 已完成（2026-08-08 复核：apps/web 已删除，"Web 端保留"理由失效，阶段 5 视为完成）
         - Tauri 端：删除 apps/tauri/src/memory-archive/（TauriFsOperations.ts 孤立文件，
-          无任何引用），移除 tauri tsconfig.json / vite.config.ts 的 @worldsmith/memory-archive
+          无任何引用），移除 tauri tsconfig.json / vite.config.ts 的 @worldsea/memory-archive
           路径映射。vue-tsc typecheck 通过 ✅
         - Web 端：原保留决策（apps/web 依赖 TS memory-archive 的 ArchivePanel/archive 视图等
           十几个组件，且 Web 聊天后端未接通，无法回退 Rust 记忆）已随 **apps/web 删除（2026-08-08）**
@@ -156,7 +156,7 @@ Storage trait（可插拔）
 - **Web 端（正常）**：Dexie/IndexedDB，删除会话级联清理图片。
 
 **处置落地**：
-- **会话持久化存储层**：新增 [`session_store.rs`](d:\本地化AI\DeepSeek_Home\worldsmith\crates\agent-commands\src\session_store.rs) — `SessionRepository` trait + `SqliteSessionRepository`（`sessions` 表 + `messages` 表，WAL 模式，消息级联删除）。4 个单测通过（save/load 往返、消息替换、级联删除、跨重启持久化）。
+- **会话持久化存储层**：新增 [`session_store.rs`](d:\本地化AI\DeepSeek_Home\worldsea\crates\agent-commands\src\session_store.rs) — `SessionRepository` trait + `SqliteSessionRepository`（`sessions` 表 + `messages` 表，WAL 模式，消息级联删除）。4 个单测通过（save/load 往返、消息替换、级联删除、跨重启持久化）。
 - **服务层写穿**：`AgentCommandService` 增 `session_store` 字段 + `with_session_store`；`new_session`/`send_message`/`clear_history`/`trim_context`/`delete_session` 各操作写穿（弱提示，失败仅记日志）。
 - **启动恢复**：`restore_sessions` 从存储加载全部会话经 `AgentLoop::restore_state` 重建（system 去重），Tauri `lib.rs` 启动时创建 `sessions.db` + 注入 + 调用恢复。
 - **孤儿记忆清理**：`MemoryAccessor` 增 `delete_by_session_id`，`MemoryCenterAccessor` 实现为枚举 Daily/Weekly/Monthly 三档，先删记忆文件再删索引钩子（防幽灵摘要）。含单测。
@@ -193,7 +193,7 @@ Storage trait（可插拔）
 
 | 风险 | 说明 | 缓解 |
 |------|------|------|
-| vendor 双轨演进 | 复制后 WorldSmith 内副本与 MemoryCenter 分叉 | 约定冲突时以哪边为准；必要时用 git 子模块替代 |
+| vendor 双轨演进 | 复制后 WorldSea 内副本与 MemoryCenter 分叉 | 约定冲突时以哪边为准；必要时用 git 子模块替代 |
 | 依赖面膨胀 | core-logic 引入 rusqlite/jieba-rs/moka/dashmap 等 | 仅引 core + core-logic，跳过 MCP/HTTP/Python 层，控依赖面 |
 | 存储后端未定 | SQLite 与文件树二选一未决 | Storage trait 可插拔，先实现 SQLite 全链路，文件树作为备用切换 |
 | 前端旧 UI 残留 | TS memory-archive 组件短期并存 | 阶段 4/5 逐步迁移与清理 |

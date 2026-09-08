@@ -8,7 +8,7 @@ class GroupChatDB extends Dexie {
   agents!: Table<ChatAgent, string>
 
   constructor() {
-    super('worldsmith-group-chat')
+    super('worldsea-group-chat')
     this.version(1).stores({
       sessions: 'id, name, updatedAt, state',
     })

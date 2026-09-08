@@ -50,9 +50,9 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { Entity } from '@worldsmith/entity-core'
+import type { Entity } from '@worldsea/entity-core'
 import type { TreeNode as TreeNodeType } from '../composables/useEventTree'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import EventCard from './EventCard.vue'
 
 const props = defineProps<{

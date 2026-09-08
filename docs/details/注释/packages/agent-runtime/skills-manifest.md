@@ -14,7 +14,7 @@
 已安装技能目录结构：
   <app_data_dir>/skills/
     my-skill/
-      skill.yaml          # 完整 manifest（优先，WorldSmith 原生格式）
+      skill.yaml          # 完整 manifest（优先，WorldSea 原生格式）
       SKILL.md            # 提示词（Claude Code 标准格式，frontmatter 作为 manifest 降级源）
       references/         # 参考文档
       assets/             # 资源文件

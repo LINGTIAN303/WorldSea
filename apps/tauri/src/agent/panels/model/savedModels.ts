@@ -14,7 +14,7 @@ export interface SavedModel {
   modality: string
 }
 
-const KEY = 'worldsmith_saved_models'
+const KEY = 'worldsea_saved_models'
 
 export function loadSavedModels(): SavedModel[] {
   try {

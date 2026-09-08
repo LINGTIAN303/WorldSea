@@ -9,7 +9,7 @@
 
 <script setup lang="ts">
 import { ref, onErrorCaptured } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 
 defineProps<{ message?: string }>()
 

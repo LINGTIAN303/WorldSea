@@ -93,10 +93,10 @@
 <script setup lang="ts">
 import { ref, computed, reactive, watch, nextTick, onBeforeUnmount } from 'vue'
 import draggable from 'vuedraggable'
-import { WsIcon } from '@worldsmith/ui-kit'
-import { WsEmpty } from '@worldsmith/ui-kit'
-import { useEntityStore } from '@worldsmith/entity-core'
-import type { Entity } from '@worldsmith/entity-core'
+import { WsIcon } from '@worldsea/ui-kit'
+import { WsEmpty } from '@worldsea/ui-kit'
+import { useEntityStore } from '@worldsea/entity-core'
+import type { Entity } from '@worldsea/entity-core'
 
 const props = defineProps<{
   chapters: Entity[]

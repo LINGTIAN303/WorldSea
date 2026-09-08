@@ -1,13 +1,13 @@
 <template>
   <Transition name="ws-fade">
     <div v-if="visible" class="welcome-overlay" @click.self="skip">
-      <div ref="dialogRef" class="welcome-card" role="dialog" aria-modal="true" aria-label="欢迎使用 WorldSmith" tabindex="-1" :style="{ width: modalResizable.width.value + 'px' }">
+      <div ref="dialogRef" class="welcome-card" role="dialog" aria-modal="true" aria-label="欢迎使用 WorldSea" tabindex="-1" :style="{ width: modalResizable.width.value + 'px' }">
         <button class="skip-btn" @click="skip">跳过</button>
 
         <div class="step-content">
           <div v-if="step === 0" class="step step-welcome">
             <div class="step-icon"><WsIcon name="globe" :size="48" /></div>
-            <h1 class="step-title">欢迎使用 WorldSmith</h1>
+            <h1 class="step-title">欢迎使用 WorldSea</h1>
             <p class="step-desc">你的世界观构建助手。在这里，你可以创建角色、区域、时间线、势力等，并将它们编织成一个完整的虚构世界。</p>
           </div>
 
@@ -78,12 +78,12 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
-import { useEntityStore, usePluginStore } from '@worldsmith/entity-core'
-import { useUIStore } from '@worldsmith/entity-core'
-import { useResizable, useModalShortcuts } from '@worldsmith/ui-kit'
+import { useEntityStore, usePluginStore } from '@worldsea/entity-core'
+import { useUIStore } from '@worldsea/entity-core'
+import { useResizable, useModalShortcuts } from '@worldsea/ui-kit'
 import WsIcon from '../WsIcon.vue'
 
-const WELCOME_KEY = 'worldsmith_welcomed'
+const WELCOME_KEY = 'worldsea_welcomed'
 
 const visible = ref(false)
 const step = ref(0)

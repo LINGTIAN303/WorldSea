@@ -110,7 +110,7 @@ export function buildPluginCapabilityPrompt(skillIds: string[]): string {
 
 /**
  * 内置插件能力列表
- * 定义所有 WorldSmith 官方插件的 Agent 可操作能力
+ * 定义所有 WorldSea 官方插件的 Agent 可操作能力
  */
 export const WORLD_SMITH_PLUGIN_CAPABILITIES: PluginCapability[] = [
   {

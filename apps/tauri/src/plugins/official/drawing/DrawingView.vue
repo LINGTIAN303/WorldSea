@@ -156,10 +156,10 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
-import { useShortcuts, CreateButton } from '@worldsmith/plugin-sdk'
-import { useCanvas } from '@worldsmith/ui-kit'
-import { WsIcon } from '@worldsmith/ui-kit'
-import { WsSpinner } from '@worldsmith/ui-kit'
+import { useShortcuts, CreateButton } from '@worldsea/plugin-sdk'
+import { useCanvas } from '@worldsea/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
+import { WsSpinner } from '@worldsea/ui-kit'
 import ToolbarOverflow from '@/components/ui/ToolbarOverflow.vue'
 import { useDrawingPersistence } from './composables/useDrawingPersistence'
 import { useDrawingLayers } from './composables/useDrawingLayers'

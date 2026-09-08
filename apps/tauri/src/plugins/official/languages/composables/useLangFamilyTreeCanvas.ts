@@ -7,7 +7,7 @@ import {
   drawClusterOutlines,
   type TreeEdgeBase,
   type NodeState,
-} from '@worldsmith/canvas-engine/tree'
+} from '@worldsea/canvas-engine/tree'
 import type { LangNode, LangEdge, LangRelation } from './useLangFamilyTreeData'
 
 /** 从 CSS 变量读取主题色（canvas 背景由引擎按 --color-bg-base 主题化，文本/边框须同步主题，否则浅色下不可见） */

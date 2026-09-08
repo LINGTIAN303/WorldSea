@@ -8,7 +8,7 @@ import type {
   MemoryArchiveResult,
   MemoryChunkContent,
   MemoryOutputType,
-} from '@worldsmith/agent-core/orchestrator'
+} from '@worldsea/agent-core/orchestrator'
 import { recallMemory, formatMemoryForPrompt } from '../tools/memory'
 import type { MemoryEntry } from '../tools/memory-internal'
 import { inferImportance } from '../tools/memory-internal'

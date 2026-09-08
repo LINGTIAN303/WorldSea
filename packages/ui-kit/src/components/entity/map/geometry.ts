@@ -4,7 +4,7 @@
  * 这里的函数都是无副作用的纯函数，依赖通过参数显式传入。
  */
 
-import { crossProduct } from '@worldsmith/canvas-engine/geometry'
+import { crossProduct } from '@worldsea/canvas-engine/geometry'
 import type { Point, RegionEntity, SharedEdge } from './types'
 
 // 点在多边形内（射线法）

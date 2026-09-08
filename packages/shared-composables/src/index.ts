@@ -1,5 +1,5 @@
 /**
- * @worldsmith/shared-composables
+ * @worldsea/shared-composables
  *
  * 端无关共享 composables 集合。
  * 三端（Web / Tauri / CLI）共用的 Agent、长任务、实体、UI 相关 composables

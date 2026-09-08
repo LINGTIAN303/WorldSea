@@ -1,7 +1,7 @@
 /** 长期记忆模块：localStorage + Embedding 双层记忆系统，详细见 docs/details/注释/packages/agent-runtime/tools-memory.md */
 
 import type { ToolDefinition } from '../bridge-types'
-import type { ToolMeta } from '@worldsmith/agent-core'
+import type { ToolMeta } from '@worldsea/agent-core'
 import { semanticSearchMemory, indexMemoryEntry, removeMemoryIndex, isEmbeddingReady } from '../embedding/index'
 import { loadMemory, saveMemory, evictIfNeeded, inferImportance, type MemoryEntry } from './memory-internal'
 

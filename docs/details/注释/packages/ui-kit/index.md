@@ -7,7 +7,7 @@
 
 ````
 // ============================================================================
-// @worldsmith/ui-kit — Standalone UI Component Library
+// @worldsea/ui-kit — Standalone UI Component Library
 // ============================================================================
 // This package serves as a FACADE that provides convenient access to all
 // UI-related exports, delegating to the appropriate package.

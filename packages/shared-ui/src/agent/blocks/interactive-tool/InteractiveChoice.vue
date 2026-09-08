@@ -32,9 +32,9 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
-import type { ToolCallView } from '@worldsmith/shared-composables/agent/useAgent'
-import type { ChoiceBlock } from '@worldsmith/agent-runtime'
+import { WsIcon } from '@worldsea/ui-kit'
+import type { ToolCallView } from '@worldsea/shared-composables/agent/useAgent'
+import type { ChoiceBlock } from '@worldsea/agent-runtime'
 import type { BlockActionEvent } from '../index'
 import { getToolLabel } from './utils'
 

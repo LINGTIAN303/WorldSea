@@ -14,7 +14,7 @@
 
 <script setup lang="ts">
 import { computed, reactive } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 
 const props = defineProps<{ config: Record<string, unknown>; componentId: string }>()
 

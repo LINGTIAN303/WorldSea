@@ -13,8 +13,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { ProgressBlock } from '@worldsmith/agent-runtime'
-import { WsIcon } from '@worldsmith/ui-kit'
+import type { ProgressBlock } from '@worldsea/agent-runtime'
+import { WsIcon } from '@worldsea/ui-kit'
 
 const props = defineProps<{ block: ProgressBlock }>()
 const ICONS: Record<string, string> = { running: 'loader', completed: 'check-circle', failed: 'x-circle' }

@@ -52,7 +52,7 @@ export type DeepSegment =
       tools: ToolCallView[]; outputs: PhaseOutput[]; status: 'active' | 'done' }
 
 /** Agent Backend 注入 Key（宽松类型兼容各端不同返回类型），详细见 docs/details/注释/packages/shared-composables/agent/useAgent.md */
-export const AGENT_BACKEND_INJECTION_KEY: InjectionKey<any> = Symbol('worldsmith:agent-backend')
+export const AGENT_BACKEND_INJECTION_KEY: InjectionKey<any> = Symbol('worldsea:agent-backend')
 
 /**
  * 注入 Agent Backend（在组件 setup 中调用）

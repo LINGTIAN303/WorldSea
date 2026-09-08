@@ -1,7 +1,7 @@
-import type { LibraryDescriptor, CapabilityDeclaration, FieldDefinition } from '@worldsmith/agent-runtime/toolbus/capability-types'
-import type { IToolContext } from '@worldsmith/agent-runtime/toolbus/types'
-import type { ToolParameter } from '@worldsmith/agent-runtime/bridge-types'
-import { emitEntityCard, emitEntityList } from '@worldsmith/agent-runtime/tools/a2ui-helpers'
+import type { LibraryDescriptor, CapabilityDeclaration, FieldDefinition } from '@worldsea/agent-runtime/toolbus/capability-types'
+import type { IToolContext } from '@worldsea/agent-runtime/toolbus/types'
+import type { ToolParameter } from '@worldsea/agent-runtime/bridge-types'
+import { emitEntityCard, emitEntityList } from '@worldsea/agent-runtime/tools/a2ui-helpers'
 import { entitySchemaRegistry } from './core/EntitySchema'
 import { fieldRegistry } from './core/FieldRegistry'
 import { getValidationApi } from './core/serviceProvider'
@@ -321,7 +321,7 @@ function basicValidate(entityType: string, data: Record<string, unknown>): strin
 }
 
 export const entityCoreDescriptor: LibraryDescriptor = {
-  id: '@worldsmith/entity-core',
+  id: '@worldsea/entity-core',
   name: 'Entity Core',
   version: '0.1.0',
   capabilities: [

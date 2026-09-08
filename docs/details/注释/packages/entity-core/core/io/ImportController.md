@@ -9,7 +9,7 @@
 /**
  * ImportController — 统一导入调度器
  *
- * 将 WorldSmithPack 按依赖顺序（拓扑排序）恢复到系统。
+ * 将 WorldSeaPack 按依赖顺序（拓扑排序）恢复到系统。
  * 支持 overwrite（全量覆盖）和 merge（按 id 去重合并）两种策略。
  *
  * 导入顺序 by design:

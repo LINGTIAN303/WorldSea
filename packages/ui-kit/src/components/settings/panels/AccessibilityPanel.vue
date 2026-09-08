@@ -30,8 +30,8 @@
  * 面板三契约：goToCard / searchQuery 过滤 / dirty 上报（动效开关变更时上报设置弹窗）。
  */
 import { ref, watch } from 'vue'
-import { CardDeck } from '@worldsmith/ui-kit'
-import { useSettingsStore, ANIMATION_GROUPS } from '@worldsmith/entity-core'
+import { CardDeck } from '@worldsea/ui-kit'
+import { useSettingsStore, ANIMATION_GROUPS } from '@worldsea/entity-core'
 
 const props = withDefaults(defineProps<{ searchQuery?: string }>(), { searchQuery: '' })
 const emit = defineEmits<{ dirty: []; 'card-change': [index: number] }>()

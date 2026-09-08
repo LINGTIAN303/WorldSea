@@ -40,14 +40,14 @@
               <WsIcon :name="refreshingModels ? 'loading' : 'refresh'" size="xs" />
             </button>
           </div>
-          <!-- [⑦] AutoModel 条目：WorldSmith Logo 图标（自动选型逻辑暂放，占位） -->
+          <!-- [⑦] AutoModel 条目：WorldSea Logo 图标（自动选型逻辑暂放，占位） -->
           <button
             class="model-option"
             :class="{ active: currentModelId === 'auto' }"
             @click="selectAutoModel"
           >
             <span class="model-option-status" aria-hidden="true"><WsIcon v-if="currentModelId === 'auto'" name="check" size="xs" /></span>
-            <WorldSmithLogo :size="16" class="model-option-icon" alt="WorldSmith" />
+            <WorldSeaLogo :size="16" class="model-option-icon" alt="WorldSea" />
             <span class="model-option-name">AutoModel</span>
             <span class="model-option-tag">自动</span>
           </button>
@@ -119,15 +119,15 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
-import { getModelInfo, getModelPresets, getProviderManifest, refreshModels, getThinkingLevels } from '@worldsmith/agent-runtime'
-import type { ThinkingLevel } from '@worldsmith/agent-runtime'
+import { WsIcon } from '@worldsea/ui-kit'
+import { getModelInfo, getModelPresets, getProviderManifest, refreshModels, getThinkingLevels } from '@worldsea/agent-runtime'
+import type { ThinkingLevel } from '@worldsea/agent-runtime'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useAgent } from '@/agent/composables/useAgent'
 import { useSessionViewState } from '@/agent/composables/useSessionViewState'
 import { loadApiKey, hasApiKey } from '@agent/index'
 import { getProviderIconUrl } from '@/assets/providerIcons'
-import WorldSmithLogo from '@/components/brand/WorldSmithLogo.vue'
+import WorldSeaLogo from '@/components/brand/WorldSeaLogo.vue'
 
 const props = withDefaults(defineProps<{
   isExpanded?: boolean

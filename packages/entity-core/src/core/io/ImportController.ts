@@ -1,20 +1,20 @@
 import {
   serializerRegistry,
   PACK_VERSION,
-  type WorldSmithPack,
+  type WorldSeaPack,
   type ImportStrategy,
   type ImportReport,
-} from './WorldSmithPack'
+} from './WorldSeaPack'
 import { PackageBuilder } from './PackageBuilder'
 import { getPackValidator } from './ioServices'
 
-/** 统一导入调度器（按依赖顺序拓扑排序恢复 WorldSmithPack，支持 overwrite/merge），详细见 docs/details/注释/packages/entity-core/core/io/ImportController.md */
+/** 统一导入调度器（按依赖顺序拓扑排序恢复 WorldSeaPack，支持 overwrite/merge），详细见 docs/details/注释/packages/entity-core/core/io/ImportController.md */
 export class ImportController {
   /**
    * 导入数据包
    */
   async importPack(
-    pack: WorldSmithPack,
+    pack: WorldSeaPack,
     strategy: ImportStrategy = 'overwrite',
   ): Promise<ImportReport> {
     const report: ImportReport = {
@@ -36,7 +36,7 @@ export class ImportController {
         skipped: 1,
         updated: 0,
         errors: [
-          `包版本 ${pack.manifest.version} 高于当前支持版本 ${PACK_VERSION}，请升级 WorldSmith`,
+          `包版本 ${pack.manifest.version} 高于当前支持版本 ${PACK_VERSION}，请升级 WorldSea`,
         ],
       })
       return report
@@ -115,7 +115,7 @@ export class ImportController {
   /**
    * 从 Blob 解析导入数据（自动识别 .ws ZIP 或 JSON/YAML 文本）
    */
-  async parseImportBlob(blob: Blob): Promise<WorldSmithPack> {
+  async parseImportBlob(blob: Blob): Promise<WorldSeaPack> {
     // 先尝试作为 .ws ZIP 包解析
     try {
       const { pack } = await PackageBuilder.extractPack(blob)
@@ -133,17 +133,17 @@ export class ImportController {
    *
    * 注：js-yaml 改为动态 import，避免进入首屏 bundle（仅 YAML 导入时才加载）
    */
-  async parseImportData(text: string): Promise<WorldSmithPack> {
+  async parseImportData(text: string): Promise<WorldSeaPack> {
     // 先尝试 JSON
     try {
-      const data = JSON.parse(text) as WorldSmithPack
+      const data = JSON.parse(text) as WorldSeaPack
       if (data.manifest && data.serializers) return data
     } catch { /* not JSON */ }
 
     // 再尝试 YAML（动态加载 js-yaml）
     try {
       const yaml = await import('js-yaml')
-      const data = yaml.load(text) as unknown as WorldSmithPack
+      const data = yaml.load(text) as unknown as WorldSeaPack
       if (data && typeof data === 'object' && 'manifest' in data && 'serializers' in data) return data
     } catch { /* not YAML */ }
 

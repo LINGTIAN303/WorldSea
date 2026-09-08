@@ -44,7 +44,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import { loadMemory, type MemoryEntry } from '@agent/tools/memory-internal'
 import { kbList } from '@agent/kb/kb-store'
 import { usePersonaFont } from '../composables/usePersonaFont'

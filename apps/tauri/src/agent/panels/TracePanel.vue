@@ -35,7 +35,7 @@
  * 与「活动」Tab（ActivityLog 事件流）区分：轨迹 = 结构化阶段表格。
  */
 import { computed } from 'vue'
-import { WsIcon } from '@worldsmith/ui-kit'
+import { WsIcon } from '@worldsea/ui-kit'
 import { useActivityLog } from '@/agent/composables/useActivityLog'
 
 export interface TraceRow {
