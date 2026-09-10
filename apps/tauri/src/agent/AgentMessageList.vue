@@ -7,8 +7,9 @@
           <WorldSeaLogo :size="48" :radius="14" />
         </template>
         <!-- 项目=目录（2026-09-03）：空态内嵌项目选择器 pill，替代原输入栏 WorkdirSelect -->
+        <!-- 2026-09-10 场景化：欢迎语按当前场景渲染（scenes.ts 单一事实源；草稿态取草稿场景） -->
         <template #hint>
-          我可以帮你管理 <ProjectSwitcher variant="pill" /> 世界观实体和关系。试试输入 / 查看可用命令
+          {{ currentWelcome.before }} <ProjectSwitcher variant="pill" /> {{ currentWelcome.after }}。试试输入 / 查看可用命令
         </template>
       </MessageListEmpty>
 
@@ -150,14 +151,15 @@ import { getOpKind, OP_VERB } from '@worldsea/shared-ui/agent/stream/rows/toolSe
 // M2：编排迹线（useOrchestrationTrace 聚合 + 编排段渲染）
 import OrchestrationSegment from './components/OrchestrationSegment.vue'
 import { useOrchestrationTrace } from './composables/useOrchestrationTrace'
-import { useSessionViewState } from './composables/useSessionViewState'
+import { useSessionViewState, normalizeSceneId, DEFAULT_SCENE_ID } from './composables/useSessionViewState'
 import { invoke } from './composables/transport'
 import { useAgentRust } from './composables/useAgentRust'
+import { SCENE_SLIDER_OPTIONS } from '@/space/chat/scenes'
 import type { ExecTab } from '@/space/stores/space-store'
 import WorldSeaLogo from '@/components/brand/WorldSeaLogo.vue'
 import ProjectSwitcher from '@/ui/project/ProjectSwitcher.vue'
 
-const { agentStream, resolveToolConfirmation, sessionTitlePending, currentSessionId, setProcessCollapsed, markTurnExpanded, autoCollapseProcess, turns, applyTurnEvent } = useAgent()
+const { agentStream, resolveToolConfirmation, sessionTitlePending, currentSessionId, setProcessCollapsed, markTurnExpanded, autoCollapseProcess, turns, applyTurnEvent, draftSessionActive, draftSceneId } = useAgent()
 const archiveStore = useArchiveStore()
 const { logs: activityLogs } = useActivityLog()
 // total_steps 预算横幅：latestStepBudget 由 event bridge 流通道 step_budget_warning 刷新
@@ -166,6 +168,17 @@ const { latestStepBudget, clearStepBudgetHint, sendMessage: sendAgentMessage } =
 // M2：编排迹线（状态由 useAgentRust 会话生命周期统一维护，本组件纯消费）+ 中止处理
 const { activeRun, finishedRuns } = useOrchestrationTrace()
 const sessionViewState = useSessionViewState()
+
+// 空态欢迎语（2026-09-10 场景化）：按当前生效场景渲染 scenes.ts 文案。
+// 场景判定与 SessionSidebar 滑块同口径：草稿态优先草稿场景（切滑块即时响应），
+// 否则活跃会话视图桶 sceneId（normalizeSceneId 兜底 world）。
+const currentWelcome = computed(() => {
+  const sceneId = draftSessionActive.value && draftSceneId.value
+    ? draftSceneId.value
+    : normalizeSceneId(sessionViewState.activeState.value?.sceneId)
+  return SCENE_SLIDER_OPTIONS.find(s => s.id === sceneId)?.welcome
+    ?? SCENE_SLIDER_OPTIONS.find(s => s.id === DEFAULT_SCENE_ID)!.welcome
+})
 
 /** 预算横幅可见：满额（percent≥100）+ 当前会话（避免历史会话残留横幅） */
 const budgetBannerVisible = computed(() => {

@@ -514,7 +514,7 @@ async function confirmDelete(id: string) {
 const sessionView = useSessionViewState()
 
 /** 场景选项静态源移至 ./scenes.ts（2026-09-10 同源化：与 AgentSpace Ctrl+1-5 快捷键共用），后端不可用时兜底 */
-type SceneOption = Omit<SceneOptionBase, 'hint'> & {
+type SceneOption = Pick<SceneOptionBase, 'id' | 'label'> & {
   /** 场景工作区根名（严格隔离展示；动态元数据后端可为 null） */
   hint?: string | null
   /** 记忆策略标签（standard/entity_rich/light） */
