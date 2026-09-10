@@ -2097,17 +2097,13 @@ async function deleteSession(sessionId: string): Promise<void> {
   teardownTraceListener(sessionId)
   teardownOrchestrationTraceListener(sessionId)
   if (currentSessionId.value === sessionId) {
-    currentSessionId.value = null
-    // Phase 4 工作区：删除当前会话时清空工作区引用
-    currentWorkdir.value = null
-    messages.value = []
-    turns.value = []
-    currentTurnId.value = null
-    
-    a2uiSurfaces.value = {}
-    subAgents.value = []
-    // M2 编排迹线：删除当前会话时清空 run 状态
-    resetOrchestrationTrace()
+    // 删除的是当前会话 → 恢复空状态草稿（2026-09-10 用户反馈：删除后应回空态会话，
+    // 而非被侧栏 watch→refresh 的自动恢复锚定到其他会话）。复用 newDraftSession 完整
+    // 清理清单（流式态/档位/计划等原清单遗漏项一并补齐）；清 LAST_SESSION_KEY +
+    // draftSessionActive 守卫双保险，防后续 restoreLastSession 拉回其他会话。
+    draftSceneId.value = null
+    try { localStorage.removeItem(LAST_SESSION_KEY) } catch {}
+    await newDraftSession()
   }
   await refreshSessionList()
 }
