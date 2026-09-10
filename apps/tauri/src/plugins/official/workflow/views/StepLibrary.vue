@@ -15,7 +15,7 @@
         @dragstart="$emit('drag-start', item)"
         @click="$emit('add-step', item)"
       >
-        <span class="sl-item__icon">{{ item.icon }}</span>
+        <span class="sl-item__icon"><StepTypeIcon :type="item.type" :size="18" /></span>
         <div class="sl-item__info">
           <span class="sl-item__label">{{ item.label }}</span>
           <span class="sl-item__desc">{{ item.description }}</span>
@@ -27,6 +27,7 @@
 
 <script setup lang="ts">
 import { useStepLibrary } from '../composables/useStepLibrary'
+import StepTypeIcon from '../components/StepTypeIcon.vue'
 import type { StepLibraryItem } from '../types'
 
 defineEmits<{

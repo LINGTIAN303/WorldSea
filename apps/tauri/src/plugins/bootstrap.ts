@@ -49,7 +49,12 @@ const pluginLoaders: Record<string, () => Promise<any>> = {
   'official.custom': () => import('./official/custom/index'),
 }
 
-export async function bootstrapPlugins(): Promise<void> {
+export interface BootstrapOptions {
+  /** 跳过「默认选中首个视图」：切项目重播种时不应打断当前视图选择 */
+  skipDefaultView?: boolean
+}
+
+export async function bootstrapPlugins(opts?: BootstrapOptions): Promise<void> {
   // 1. 预注册所有实体类型元数据（关系查询不断裂）
   pluginManager.preRegisterAllEntityTypes()
 
@@ -69,9 +74,9 @@ export async function bootstrapPlugins(): Promise<void> {
     await pluginManager.activate(p.instance)
   }
 
-  // 4. 若尚无视图选中（Agent 是首项），默认选中第一个插件视图
+  // 4. 若尚无视图选中（Agent 是首项），默认选中第一个插件视图（切项目重播种时跳过）
   const uiStore = useUIStore()
-  if (pluginStore.views.length > 0 && !uiStore.currentView) {
+  if (!opts?.skipDefaultView && pluginStore.views.length > 0 && !uiStore.currentView) {
     uiStore.setView(pluginStore.views[0].id)
     uiStore.viewComponent = pluginStore.views[0].component
   }

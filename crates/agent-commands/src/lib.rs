@@ -2,7 +2,7 @@
 
 mod error;
 mod fs_tools;
-mod job;
+pub mod job;
 mod long_task_store;
 mod loop_control;
 mod mock_backend;
@@ -12,6 +12,7 @@ mod run_store;
 mod session_store;
 mod subagent;
 mod subagent_store;
+mod supervisor_worker;
 mod terminal;
 
 pub use error::CommandError;
@@ -35,6 +36,7 @@ pub use session_store::{
 };
 pub use subagent::{register_subagent_tools, SubAgentInstanceInfo, SubAgentManager};
 pub use subagent_store::{SqliteSubAgentSpecStore, SubAgentSpecStore};
+pub use supervisor_worker::SubAgentWorkerNode;
 pub use terminal::{register_terminal_tools, TerminalService};
 
 use std::collections::HashMap;
@@ -64,20 +66,20 @@ use agent_runtime::orchestrator::{
     OrchestratorRunOptions,
 };
 use agent_runtime::scenario::{
-    Scenario, ScenarioEntityProvider, ScenarioRegistry, WorldbuildingScenario,
+    CodingScenario, DesignScenario, GeneralScenario, NovelScenario, Scenario,
+    ScenarioEntityProvider, ScenarioMemoryPolicy, ScenarioRegistry, WorldbuildingScenario,
 };
 use agent_runtime::router::{Pipeline, RouterConfig, RouterNode};
 use agent_runtime::types::{
     ArtifactKind, ExecStatus, OrchestratorState, PlanItem, PlanItemStatus, StepResult, StepStatus,
 };
-// 编排 4 模式 UI 下沉：ToT / GoT / Supervisor 节点，用于构单节点编排图跑通前端口令
+// 编排 4 模式 UI 下沉：ToT / GoT / Supervisor / Multi-Agent 节点，用于构单节点编排图跑通前端口令
 use agent_runtime::graph_of_thoughts::{GoTConfig, GoTNode};
-use agent_runtime::multi_agent::{AgentSpec, MultiAgentConfig, MultiAgentNode, Topology};
-use agent_runtime::supervisor::{SubAgentSpec, SupervisorConfig, SupervisorNode};
+use agent_runtime::sub_agent_pool::SubAgentSpec;
 use agent_runtime::tree_of_thoughts::{ToTConfig, ToTNode};
 use memory_center_core::model::ArchiveConfig;
 use agent_runtime::tool::{SimpleToolBus, Tool, ToolBus};
-use agent_runtime::types::{ConvergeReason, HandoverArtifact, MessageRole, OrchestratorMessage};
+use agent_runtime::types::{ConvergeReason, HandoverArtifact, OrchestratorMessage};
 use serde::{Deserialize, Serialize};
 use tokio::sync::{Mutex, RwLock};
 
@@ -162,42 +164,6 @@ pub struct SupervisorExecuteOptions {
     pub node_timeout_ms: Option<u64>,
 }
 
-/// Multi-Agent 编排运行参数（Agent 规格 + 拓扑 + 协作轮次）
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct MultiAgentExecuteOptions {
-    /// 参与协作的 Agent 规格列表（必须含 system_prompt；建议首个配置 initial_message 启动协作）
-    pub specs: Vec<AgentSpec>,
-    /// 最大协作轮次（覆盖默认 10）
-    #[serde(default)]
-    pub max_rounds: Option<usize>,
-    /// 拓扑结构（mesh/ring/star/pipeline；缺省 mesh）
-    #[serde(default)]
-    pub topology: Option<Topology>,
-    /// 是否启用共享黑板（默认 true）
-    #[serde(default)]
-    pub blackboard_enabled: Option<bool>,
-    /// 是否最后综合所有 Agent 输出（默认 true）
-    #[serde(default)]
-    pub require_synthesis: Option<bool>,
-    /// 节点执行超时（毫秒；M5 走查 ⑤ 触发 Degraded 用，B0-21）
-    #[serde(default)]
-    pub node_timeout_ms: Option<u64>,
-}
-
-impl Default for MultiAgentExecuteOptions {
-    fn default() -> Self {
-        Self {
-            specs: Vec::new(),
-            max_rounds: None,
-            topology: None,
-            blackboard_enabled: None,
-            require_synthesis: None,
-            node_timeout_ms: None,
-        }
-    }
-}
-
 impl Default for PlanExecuteOptions {
     fn default() -> Self {
         Self {
@@ -230,6 +196,13 @@ impl EventListener for ForwardToAgentBroadcaster {
 
 /// B 轨计划生成提示（PlanExecuteNode.make_plan）
 const B_RAIL_PLAN_PROMPT: &str = "你是任务规划者。请把用户任务拆解为可独立执行、结果可验收的步骤列表。";
+
+/// B 轨 Supervisor 派发决策 system 提示（role = 已注册子 Agent 规格 id；
+/// LLM 输出 JSON：{"done":bool,"role":"…","task":"…","new_tasks":[…]}}
+const B_RAIL_SUPERVISOR_PROMPT: &str = "你是任务主管。根据任务意图，把工作拆解为可由子 Agent 独立完成的任务并逐一派发。\
+可用角色（角色名即子 Agent 规格 id）：{roles}。\
+每轮决策输出 JSON：{\"done\":bool,\"role\":\"…\",\"task\":\"…\",\"new_tasks\":[{\"role\":\"…\",\"task\":\"…\"}]}；\
+任务描述需自包含、指向明确产出；队列已清且无新任务时 done=true。";
 
 /// 2026-09-02 统一待办：复杂任务引导提示（/plan 前缀与研究判型共用）——
 /// 注入用户输入尾部走主 Agent react 链，模型用 plan_create 建待办并严格串行执行。
@@ -553,6 +526,9 @@ pub struct SessionInfo {
     /// 弱引用前端 ProjectManager 的项目 UUID，供按项目过滤/记忆隔离等后续消费。
     #[serde(default)]
     pub project_id: Option<String>,
+    /// 会话绑定的场景 id（2026-09-09 场景底座：会话按场景装配/隔离；`None`=旧数据缺省 world）
+    #[serde(default)]
+    pub scene_id: Option<String>,
 }
 
 /// 群聊参与者会话信息（映射查询结果）
@@ -684,6 +660,77 @@ pub struct ProviderConfig {
     pub base_url: Option<String>,
 }
 
+// ─── 编排模式步骤（创作编排接轨：tot / got）───────────────────────────────
+
+/// 创作编排模式步骤执行参数（2026-09-09 接轨 B 轨节点）
+///
+/// tot：`intent + expand_prompt + evaluate_prompt + k + top-b + 深度上限`
+/// got：`intent + split/merge/evaluate_prompt + 再融合轮次上限`
+/// multi-agent：`intent + decompose_prompt + max_lanes + specs（委派子 Agent 规格）`
+/// 未用字段置 `None`（按 pattern 分支读取，camelCase 与前端 StepConfig 对齐）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PatternStepParams {
+    /// 任务意图（写入黑板 task.intent，tot 根问题 / got 融合目标 / multi-agent 切分目标）
+    pub intent: String,
+    /// tot：展开器 system prompt
+    #[serde(default)]
+    pub expand_prompt: Option<String>,
+    /// tot：评分器 system prompt
+    #[serde(default)]
+    pub evaluate_prompt: Option<String>,
+    /// tot：每叶子展开候选数（branching_k）
+    #[serde(default)]
+    pub branching_k: Option<usize>,
+    /// tot：剪枝后保留宽度（keep_top_b）
+    #[serde(default)]
+    pub keep_top_b: Option<usize>,
+    /// tot：树深上限
+    #[serde(default)]
+    pub max_depth: Option<u32>,
+    /// got：拆分器 system prompt
+    #[serde(default)]
+    pub split_prompt: Option<String>,
+    /// got：融合器 system prompt
+    #[serde(default)]
+    pub merge_prompt: Option<String>,
+    /// got：resplit/remerge 轮次上限
+    #[serde(default)]
+    pub max_rounds: Option<u32>,
+    /// multi-agent：切分器 system prompt（把任务静态切为互不阻塞的独立车道）
+    #[serde(default)]
+    pub decompose_prompt: Option<String>,
+    /// multi-agent：车道数上限（切分结果截断）
+    #[serde(default)]
+    pub max_lanes: Option<usize>,
+    /// multi-agent：委派子 Agent 规格（车道并行委派目标，按车道序轮转；空 = 拒绝执行）
+    #[serde(default)]
+    pub specs: Vec<SubAgentSpec>,
+}
+
+/// 编排模式步骤执行结果（创作编排画布/Agent 消费，镜像 RunReport）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PatternStepOutput {
+    /// 执行是否成功（false = 执行错误）
+    pub ok: bool,
+    /// 实际执行模式（tot / got）
+    pub pattern: String,
+    /// 交付文本（`result.draft`；tot 最优分支 / got 融合全解）
+    pub result: String,
+    /// 终局原因（Done / Fatal / Governed）
+    pub reason: String,
+    /// LLM 调用次数
+    pub llm_calls: u64,
+    /// 输入 token 累计
+    pub input_tokens: u64,
+    /// 输出 token 累计
+    pub output_tokens: u64,
+    /// 墙钟耗时（ms）
+    pub elapsed_ms: u64,
+    /// 错误信息（ok=false 时有值）
+    pub error: Option<String>,
+}
+
 // ─── 服务 ────────────────────────────────────────────────────
 
 /// Agent 命令服务 — 会话管理 + 命令方法
@@ -739,7 +786,7 @@ pub struct AgentCommandService {
     /// `clear_history`/`trim_context`/`delete_session` 各操作**写穿**到存储；启动时经
     /// [`Self::restore_sessions`] 加载全部会话重建 AgentLoop，应用重启后历史不丢失。
     session_store: Option<Arc<dyn SessionRepository>>,
-    /// 场景插件注册中心（B1 多场景，MVP 仅 worldbuilding）
+    /// 场景插件注册中心（B1 多场景，缺省 world）
     ///
     /// 惰性注册：`ensure_scenarios` 在首次需要时注册内置场景。
     scenario_registry: ScenarioRegistry,
@@ -749,10 +796,16 @@ pub struct AgentCommandService {
     /// `AgentLoopConfig` 时注入，`build_prompt_options` 据此把项目实体摘要
     /// 填入 `ScenarioContext`，场景 `build_system_prompt` 拼入 system prompt。
     entity_provider: Option<Arc<dyn ScenarioEntityProvider>>,
+    /// 场景工作区根目录（2026-09-09 场景底座：严格硬隔离）
+    ///
+    /// `None`：不启用目录强制隔离（默认，单测/未配置）；`Some`：新建场景会话时
+    /// workdir/workplace_id 强制绑定 `scenes_root/<scene.workspace_hint()>`，
+    /// `update_session_workdir` 校验目标目录必须落该场景根内（跨场景目录不可达）。
+    scenes_root: Option<PathBuf>,
     /// 额外注册进每个会话 ToolBus 的工具（B1 场景工具桥 MVP）
     ///
     /// `new_agent` 在注册 terminal/subagent 工具后，把本列表逐个注册进 tool_bus。
-    /// 供 Tauri 层注入原生实体只读工具（entity_list/entity_get），使 worldbuilding
+    /// 供 Tauri 层注入原生实体只读工具（entity_list/entity_get），使 world
     /// 场景 `tool_ids()` 声明的同名工具对 LLM 可见且可执行。空列表 = 不注入。
     extra_tools: Vec<Arc<dyn Tool>>,
     /// 会话级实体读取工厂（任务29/M4 数据源收敛；Tauri 层注入）
@@ -778,18 +831,35 @@ pub struct AgentCommandService {
         Option<Arc<dyn Fn() -> Vec<Arc<dyn Tool>> + Send + Sync>>,
 }
 
-/// 场景摘要（Tauri 序列化用）
+/// 场景摘要（Tauri 序列化用；2026-09-09 场景底座：装配元数据透传前端滑块/工作区）
 #[derive(Debug, Clone, Serialize)]
 pub struct ScenarioInfo {
     pub id: String,
     pub display_name: String,
+    /// 场景默认工作区根名（严格隔离：会话 workdir 落在 scenes_root/<hint>；None=默认根）
+    pub workspace_hint: Option<String>,
+    /// 场景记忆策略标签（standard/entity_rich/light，前端「记忆强度」展示）
+    pub memory_policy: &'static str,
+    /// 场景工具意图数（白名单规模参考）
+    pub tool_count: usize,
+    /// 场景默认技能意图列表
+    pub skills: Vec<String>,
 }
 
 impl From<&dyn Scenario> for ScenarioInfo {
     fn from(s: &dyn Scenario) -> Self {
+        let mem = match s.memory_policy() {
+            ScenarioMemoryPolicy::Standard => "standard",
+            ScenarioMemoryPolicy::EntityRich => "entity_rich",
+            ScenarioMemoryPolicy::Light => "light",
+        };
         Self {
             id: s.id().to_string(),
             display_name: s.display_name().to_string(),
+            workspace_hint: s.workspace_hint().map(|h| h.to_string()),
+            memory_policy: mem,
+            tool_count: s.tool_ids().len(),
+            skills: s.builtin_skills(),
         }
     }
 }
@@ -866,100 +936,15 @@ fn strip_first_token(text: &str) -> String {
     }
 }
 
-/// M5-RK1：专属 run_* 编排模式前缀（区别于 A3 四管线前缀 /调研 等）
+/// /plan 待办引导前缀（2026-09-09 指令层收敛后唯一保留的模式前缀）
 ///
-/// 前端 `/` 命令菜单（PIPELINE_ITEMS）注入 5 个模式项按模式直发对应 run_*：
-/// - `Plan` → run_plan_execute（强制规划管线，绕过 LLM 判型）
-/// - `Tot` → run_tot（思维树分支探索）
-/// - `Got` → run_got（多源聚合）
-/// - `Supervisor` → run_supervisor（拆分子任务委派子 Agent）
-/// - `Multi` → run_multi（黑板协作多智能体）
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ModePrefix {
-    Plan,
-    Tot,
-    Got,
-    Supervisor,
-    Multi,
-}
-
-impl ModePrefix {
-    fn as_prefix(self) -> &'static str {
-        match self {
-            Self::Plan => "/plan",
-            Self::Tot => "/tot",
-            Self::Got => "/got",
-            Self::Supervisor => "/supervisor",
-            Self::Multi => "/multi",
-        }
-    }
-}
-
-/// 从输入首 token 提取模式前缀（大小写不敏感，`/tot 问题` 与 `/tot问题` 均可命中）
-///
-/// 与 [`agent_runtime::router::extract_force_pipeline`]（四管线前缀）互不重叠：
-/// 模式前缀在四管线 kw 表之外，四管线前缀在本表之外，二者不会互相误判。
-fn extract_mode_prefix(input: &str) -> Option<ModePrefix> {
+/// 其余模式前缀（/tot /got /supervisor /multi）已随入口收敛消除，见
+/// docs/plans/2026-09-09-编排双轨收口审查与6模块迁移.md §七（4 指令完整触发面）；
+/// 四管线前缀（/调研 等）归 [`agent_runtime::router::extract_force_pipeline`]，互不重叠。
+fn is_plan_prefix(input: &str) -> bool {
     let first = input.trim().split_whitespace().next().unwrap_or("");
     let lower = first.to_lowercase();
-    [
-        ModePrefix::Plan,
-        ModePrefix::Tot,
-        ModePrefix::Got,
-        ModePrefix::Supervisor,
-        ModePrefix::Multi,
-    ]
-    .into_iter()
-    .find(|m| lower == m.as_prefix() || lower.starts_with(m.as_prefix()))
-}
-
-/// M3-RK1：Supervisor 图节点委派路径的子 run 记账器（映射到 RunStore）
-///
-/// SupervisorNode（patterns 层）不感知 RunStore；本实现把「建子 run / 收口」映射到
-/// 命令层 RunStore：父 run = 当前顶层 run（B11 顶层串行），session 继承父 run，
-/// 使 Supervisor 委派的每个子 Agent 成为 run 树子节点（前端"查看委派现场"数据源）。
-struct RunStoreSubRunAccountant {
-    store: Arc<RunStore>,
-}
-
-#[async_trait::async_trait]
-impl agent_runtime::sub_agent_pool::SubRunAccountant for RunStoreSubRunAccountant {
-    async fn begin(
-        &self,
-        _parent_run_id: Option<String>,
-        sub_agent_id: &str,
-        _sub_agent_name: &str,
-    ) -> Option<String> {
-        // 父 run = 当前活跃顶层 run（顶层串行下即 supervisor 自身 run）
-        let parent = self.store.current_top_run().await;
-        let sub_session = if let Some(p) = &parent {
-            self.store
-                .get(p)
-                .await
-                .map(|r| r.session_id)
-                .unwrap_or_else(|| "supervisor".into())
-        } else {
-            "supervisor".into()
-        };
-        Some(
-            self.store
-                .create(
-                    &sub_session,
-                    parent,
-                    Some(format!("sub:{}", sub_agent_id)),
-                )
-                .await,
-        )
-    }
-
-    async fn finish(&self, sub_run_id: &str, status: &str, summary: Option<String>) {
-        let (run_status, reason) = match status {
-            "error" => (RunStatus::Error, None),
-            "timeout" => (RunStatus::Timeout, Some(ConvergeReason::LimitReached)),
-            _ => (RunStatus::Completed, Some(ConvergeReason::GoalReached)),
-        };
-        self.store.finish(sub_run_id, run_status, reason, summary).await;
-    }
+    lower == "/plan" || lower.starts_with("/plan")
 }
 
 /// M1-7/M1-8 收口：单节点链构图前硬校验（D23）。
@@ -1063,6 +1048,15 @@ impl AgentCommandService {
     /// `build_system_prompt` 能经 `ScenarioContext.entity_summary` 感知项目已有实体。
     pub fn with_entity_provider(mut self, provider: Option<Arc<dyn ScenarioEntityProvider>>) -> Self {
         self.entity_provider = provider;
+        self
+    }
+
+    /// 注入场景工作区根目录（链式，2026-09-09 场景底座严格隔离）
+    ///
+    /// 传入后新建场景会话 workdir 强制落在 `scenes_root/<scene.workspace_hint()>`，
+    /// 且 `update_session_workdir` 拒绝切出场景根（跨场景硬隔离）。
+    pub fn with_scenes_root(mut self, root: Option<PathBuf>) -> Self {
+        self.scenes_root = root;
         self
     }
 
@@ -1232,6 +1226,8 @@ impl AgentCommandService {
     ///   - Phase 2 接入：写入 `AgentLoopConfig.workdir`，供 AgentLoop 构造 ToolContext
     /// - `workspace_id`：会话绑定的 Workspace 实体 id（Phase A，`None`=旧数据缺省）
     ///   - 写入 `AgentLoopConfig.workspace_id`（ToolContext 亦带上），供前端/工具感知实体归属
+    /// - `project_id`：会话归属项目 id（D1 锚点透传；填入 `AgentLoopConfig.project_id`，
+    ///   场景身份 prompt 的「当前项目 ID」段据此触发——2026-09-10 风险点③收口）
     async fn new_agent(
         &self,
         session_id: &str,
@@ -1241,6 +1237,7 @@ impl AgentCommandService {
         workdir: Option<PathBuf>,
         entity_storage_root: Option<PathBuf>,
         workspace_id: Option<String>,
+        project_id: Option<String>,
     ) -> (Arc<AgentLoop>, Arc<SubAgentManager>) {
         let config = provider_config.unwrap_or_else(Self::default_provider_config);
         let backend = Arc::new(GenaiBackend::new(config));
@@ -1321,6 +1318,13 @@ impl AgentCommandService {
             Some(p) if !mcp_note.is_empty() => Some(format!("{p}{mcp_note}")),
             other => other,
         };
+        // A5 HITL + 场景确认策略（2026-09-09 场景底座）：按场景调危险操作确认强度
+        // （场景未覆写时缺省 dangerous_only——execute_command 危险命令 / delegate_to_sub_agent）。
+        // 先借用场景取值，避免 scenario 在后续 move 进 config 时的借用冲突。
+        let confirmation_policy = scenario
+            .as_ref()
+            .map(|s| s.confirmation_policy())
+            .unwrap_or_else(ConfirmationPolicy::dangerous_only);
         let agent_config = AgentLoopConfig {
             system_prompt,
             // B1：场景插件（None=默认静态 prompt / 默认工具视图）
@@ -1328,12 +1332,13 @@ impl AgentCommandService {
             // B1 场景上下文注入：把实体访问器传给 AgentLoop，供 build_prompt_options 注入实体摘要
             // （任务29/M4：有 workdir 时为文件版 provider，否则回退全局 SQLite 版）
             entity_provider: session_entity_provider,
-            // A5 HITL：启用默认危险操作确认策略（execute_command 危险命令 / delegate_to_sub_agent）
-            confirmation_policy: Some(ConfirmationPolicy::dangerous_only()),
+            confirmation_policy: Some(confirmation_policy),
             // Phase 2：会话工作区（供 FS 工具解析相对路径，None=不限定）
             workdir,
             // Phase A：会话绑定的 Workspace 实体 id（供 ToolContext 注入，None=旧数据缺省）
             workspace_id,
+            // D1 锚点透传（2026-09-10 风险点③收口）：build_prompt_options 填入 ScenarioContext
+            project_id,
             ..Default::default()
         };
         // A3 四管线路由：为每个会话注入四管线路由节点（发送时决策管线）
@@ -1385,15 +1390,18 @@ impl AgentCommandService {
 
     // ── B1 场景：惰性注册 / 解析 / 列表 ─────────────────────────
 
-    /// 惰性注册内置场景（首次需要时注册 worldbuilding）
+    /// 惰性注册内置场景（2026-09-09 场景底座：5 场景全注册，前端滑块不再占位）
     fn ensure_scenarios(&self) {
         if self.scenario_registry.list().is_empty() {
-            self.scenario_registry
-                .register(Arc::new(WorldbuildingScenario::new()));
+            self.scenario_registry.register(Arc::new(WorldbuildingScenario::new()));
+            self.scenario_registry.register(Arc::new(NovelScenario::new()));
+            self.scenario_registry.register(Arc::new(GeneralScenario::new()));
+            self.scenario_registry.register(Arc::new(CodingScenario::new()));
+            self.scenario_registry.register(Arc::new(DesignScenario::new()));
         }
     }
 
-    /// 按 id 解析场景（None=默认场景，MVP 为 worldbuilding）
+    /// 按 id 解析场景（None=默认场景 world；未知 id 返回 None=不装配）
     fn resolve_scenario(&self, id: Option<&str>) -> Option<Arc<dyn Scenario>> {
         self.ensure_scenarios();
         match id {
@@ -1457,15 +1465,17 @@ impl AgentCommandService {
 
     // ── WorkspaceManager（Phase A：Workspace 实体化）──────────────
 
-    /// 为 `workdir` 生成/复用 Workspace 实体（幂等，按 root 去重）
+    /// 为 `workdir` 生成/复用 Workspace 实体（幂等，按 (root, scene_id) 复合去重——方案A）
     ///
-    /// 按 workdir 根目录在 `workspaces` 表 upsert：已存在复用原 id，否则新建并落库。
-    /// 返回 `WorkspaceRecord`，其 `id` 供 `new_session` 写入 `SessionRecord.workspace_id`。
-    /// `label` 默认取目录名（workdir 末段）。
+    /// 按 workdir 根目录在 `workspaces` 表 upsert：同 (root, scene_id) 已存在复用原 id，
+    /// 否则新建并落库。返回 `WorkspaceRecord`，其 `id` 供 `new_session` 写入
+    /// `SessionRecord.workspace_id`。`label` 默认取目录名（workdir 末段）。
+    /// `scene_id`：绑定场景（方案A 身份；用户项目目录在不同场景=新项目目录）。
     pub async fn ensure_workspace(
         &self,
         workdir: &str,
         label: &str,
+        scene_id: Option<&str>,
     ) -> Result<WorkspaceRecord, CommandError> {
         let store = match &self.session_store {
             Some(s) => s.clone(),
@@ -1475,7 +1485,7 @@ impl AgentCommandService {
                 ))
             }
         };
-        store.upsert_workspace(workdir, label).await
+        store.upsert_workspace(workdir, label, scene_id).await
     }
 
     /// 从目录路径导出展示用名称（取末段；根路径无末段时回退全路径）
@@ -1485,6 +1495,20 @@ impl AgentCommandService {
             .map(|n| n.to_string_lossy().to_string())
             .filter(|s| !s.is_empty())
             .unwrap_or_else(|| workdir.to_string_lossy().to_string())
+    }
+
+    /// 目录是否落在 base 领地内（字面前缀 + 双侧 canonicalize 兜底大小写/符号链接差异）。
+    /// 2026-09-10 场景根主权判据：workdir 落在 scenes_root 领地内=场景模式，领地外=项目模式。
+    fn path_under(wd: &std::path::Path, base: &std::path::Path) -> bool {
+        if wd.starts_with(base) {
+            return true;
+        }
+        let wd_canon = std::fs::canonicalize(wd).ok();
+        let base_canon = std::fs::canonicalize(base).ok();
+        match (wd_canon, base_canon) {
+            (Some(w), Some(b)) => w.starts_with(&b),
+            _ => false,
+        }
     }
 
     /// 列出全部 Workspace 实体（前端目录选择器 / 会话树分组用）
@@ -1513,6 +1537,28 @@ impl AgentCommandService {
         let id = uuid::Uuid::new_v4().to_string();
         // new_agent 会 move system_prompt，先克隆一份供后续持久化使用
         let persisted_prompt = system_prompt.clone();
+        // 场景解析：会话级装配单元（身份 prompt/工具/技能/工作区隔离；None=默认 world）
+        let scenario = self.resolve_scenario(scenario_id.as_deref());
+        let resolved_scene_id = scenario.as_ref().map(|s| s.id().to_string());
+        // 场景根主权（2026-09-10 拍板；同日修正判据）：**领地判定**——传入 workdir 落在
+        // scenes_root 领地内（任一场景根下）=场景模式 → 强制归本场景根（自愈前端残留的
+        // 跨场景 workdir）；领地外=用户项目目录 → 保留（方案A：workspaces 复合身份 root×scene）。
+        // ⚠ 不可用 project_id 判「项目模式」：前端弱锚点 projectId 恒非空（默认项目也带
+        // UUID），曾致场景根强制分支失效 + 残留 workdir 跨场景污染（实测数据链异常根因）。
+        let mut workdir = workdir;
+        if let (Some(root), Some(sc)) = (&self.scenes_root, &scenario) {
+            if let Some(hint) = sc.workspace_hint() {
+                let incoming_in_territory = workdir
+                    .as_ref()
+                    .map(|wd| Self::path_under(wd, root))
+                    .unwrap_or(false);
+                if workdir.is_none() || incoming_in_territory {
+                    let scene_root = root.join(hint);
+                    let _ = std::fs::create_dir_all(&scene_root);
+                    workdir = Some(scene_root);
+                }
+            }
+        }
         // workdir 会被 move 进 new_agent，先转成字符串供 SessionInfo/SessionRecord 复用
         let workdir_str = workdir.as_ref().map(|p| p.to_string_lossy().to_string());
         // Phase A：workdir 存在时为其删除/复用 Workspace 实体取 workspace_id（幂等）
@@ -1520,7 +1566,11 @@ impl AgentCommandService {
             Some(wd) => {
                 let label = Self::workspace_label_from(wd);
                 match self
-                    .ensure_workspace(&wd.to_string_lossy().to_string(), &label)
+                    .ensure_workspace(
+                        &wd.to_string_lossy().to_string(),
+                        &label,
+                        resolved_scene_id.as_deref(),
+                    )
                     .await
                 {
                     Ok(ws) => Some(ws.id),
@@ -1533,9 +1583,17 @@ impl AgentCommandService {
             }
             None => None,
         };
-        let scenario = self.resolve_scenario(scenario_id.as_deref());
         let (agent, sub_agent_manager) = self
-            .new_agent(&id, system_prompt, provider_config, scenario, workdir, entity_storage_root, workspace_id.clone())
+            .new_agent(
+                &id,
+                system_prompt,
+                provider_config,
+                scenario,
+                workdir,
+                entity_storage_root,
+                workspace_id.clone(),
+                project_id.clone(),
+            )
             .await;
         let info = SessionInfo {
             id: id.clone(),
@@ -1547,6 +1605,7 @@ impl AgentCommandService {
             workdir: workdir_str.clone(),
             workspace_id: workspace_id.clone(),
             project_id: project_id.clone(),
+            scene_id: resolved_scene_id.clone(),
         };
         self.sessions.lock().await.insert(id.clone(), agent);
         self.subagent_managers
@@ -1568,6 +1627,7 @@ impl AgentCommandService {
                 workdir: workdir_str.clone(),
                 workspace_id,
                 project_id,
+                scene_id: resolved_scene_id,
             };
             if let Err(e) = store.save_session(&record).await {
                 tracing::warn!("持久化新会话失败（仅内存生效）: {e}");
@@ -1925,10 +1985,275 @@ impl AgentCommandService {
         Ok(result)
     }
 
-    /// 运行 Supervisor 编排图（单节点：SupervisorNode）
+    /// 创作编排模式步骤执行（tot-search / got-solve 接轨，B 轨引擎）
     ///
-    /// 复用会话的 backend 与 ToolBus（通过 `AgentLoop::tool_bus()`），使被委派的
-    /// 子 Agent 与主 Agent 共享同一批工具。委派由内置 LLM 分配策略完成。
+    /// 复用会话 AgentLoop 的 backend（`KernelBackendLlm` 适配），执行
+    /// `agent_patterns::orchestrator` 的 TotNode / GotNode + DefaultOrchestrator，
+    /// 同步返回交付文本与用量。步骤由主 Agent 直接调用（pipeline_run_step 工具
+    /// 内部 invoke），不再派生子 Agent——见
+    /// docs/plans/2026-09-09-编排双轨收口审查与6模块迁移.md §创作编排接轨。
+    pub async fn run_pattern_step(
+        &self,
+        session_id: &str,
+        pattern: String,
+        params: PatternStepParams,
+    ) -> Result<PatternStepOutput, CommandError> {
+        let agent = self.get_agent(session_id).await?;
+        let backend = agent.node_backend();
+        let llm: Arc<dyn b_rail::LlmHandle> = Arc::new(b_rail::KernelBackendLlm::new(backend));
+        let memory: Arc<dyn b_rail::MemoryHandle> = Arc::new(b_rail::NoopMemory);
+
+        match pattern.as_str() {
+            "tot" => {
+                let expand = params.expand_prompt.unwrap_or_default();
+                let evaluate = params.evaluate_prompt.unwrap_or_default();
+                let k = params.branching_k.unwrap_or(3);
+                let top_b = params.keep_top_b.unwrap_or(2);
+                let depth = params.max_depth.unwrap_or(3);
+                if expand.trim().is_empty() || evaluate.trim().is_empty() {
+                    return Err(CommandError::Agent(
+                        "tot-search 步骤缺少展开/评分提示词（expandPrompt / evaluatePrompt）".into(),
+                    ));
+                }
+                // 单节点图：TotNode 自读黑板 task.intent 作根问题（with_seed 注入）
+                let node = b_rail::TotNode::new("tot", expand, evaluate, k, top_b, depth, None);
+                let graph = b_rail::Graph::build(vec![Box::new(node)], vec![], "tot")
+                    .map_err(|e| CommandError::Agent(format!("ToT 构图失败: {e}")))?;
+                let orch = b_rail::DefaultOrchestrator::new(&graph, llm, memory, b_rail::RunConfig::default())
+                    .with_seed(serde_json::json!({ "task.intent": params.intent }));
+                let report = orch
+                    .run()
+                    .await
+                    .map_err(|e| CommandError::Agent(format!("ToT 执行失败: {e}")))?;
+                Self::pattern_report("tot", report)
+            }
+            "got" => {
+                let split = params.split_prompt.unwrap_or_default();
+                let merge = params.merge_prompt.unwrap_or_default();
+                let evaluate = params.evaluate_prompt.unwrap_or_default();
+                let rounds = params.max_rounds.unwrap_or(2);
+                if split.trim().is_empty() || merge.trim().is_empty() || evaluate.trim().is_empty() {
+                    return Err(CommandError::Agent(
+                        "got-solve 步骤缺少拆分/融合/评估提示词（splitPrompt / mergePrompt / evaluatePrompt）".into(),
+                    ));
+                }
+                // 车道 = 视角求解单 Agent 节点：从黑板 got.view.<key>.task 取视角任务（GotNode Spawn 前写入）
+                let lane_factory: Arc<
+                    dyn Fn(usize, &str) -> Result<(String, b_rail::Graph), b_rail::NodeError> + Send + Sync,
+                > = Arc::new(|i, view| {
+                    let id = format!("lane-{i}");
+                    let node = b_rail::SingleAgentNode::terminal(
+                        id.clone(),
+                        b_rail::PromptSpec::for_key(
+                            format!(
+                                "你是创作视角求解器。基于给定视角任务产出高质量部分解，输出直接作为融合输入。视角：{view}"
+                            ),
+                            format!("got.view.{id}.task"),
+                        ),
+                    );
+                    let g = b_rail::Graph::build(vec![Box::new(node)], vec![], &id)?;
+                    Ok((id, g))
+                });
+                // 环回图：got --Out--> got（车道完成后回融合 → 回评估 → accept → Done）
+                let node = b_rail::GotNode::new("got", split, merge, evaluate, lane_factory, rounds);
+                let graph = b_rail::Graph::build(
+                    vec![Box::new(node)],
+                    vec![b_rail::Edge::new("got", b_rail::Port::Out, "got")],
+                    "got",
+                )
+                .map_err(|e| CommandError::Agent(format!("GoT 构图失败: {e}")))?;
+                let orch = b_rail::DefaultOrchestrator::new(&graph, llm, memory, b_rail::RunConfig::default())
+                    .with_seed(serde_json::json!({ "task.intent": params.intent }));
+                let report = orch
+                    .run()
+                    .await
+                    .map_err(|e| CommandError::Agent(format!("GoT 执行失败: {e}")))?;
+                Self::pattern_report("got", report)
+            }
+            "multi_agent" => {
+                let decompose = params.decompose_prompt.unwrap_or_default();
+                let max_lanes = params.max_lanes.unwrap_or(4);
+                if decompose.trim().is_empty() || params.specs.is_empty() {
+                    return Err(CommandError::Agent(
+                        "multi-agent 步骤缺少拆分提示词或未配置子 Agent 规格（decomposePrompt / specs）".into(),
+                    ));
+                }
+                // 多车道并发构图：
+                // 1. MultiAgentNode（切分 → Spawn lanes）
+                // 2. 每个车道 = SubAgentWorkerNode（桥接真实子 Agent，写入 ma.results.<lane>）
+                // 3. AggregateNode（聚合所有 ma.results → result.draft）
+                //
+                // 子 Agent 管理器：桥接委派（M3-1 子 run 会计 + SubAgentStarted/Completed/Error
+                // 事件广播），与 run_supervisor 同构；规格写入跨会话共享注册表。
+                let manager = Arc::new(SubAgentManager::new(
+                    agent.node_backend(),
+                    agent.tool_bus(),
+                    Arc::clone(&self.subagent_specs),
+                ));
+                manager.set_run_store(Arc::clone(&self.runs));
+                let broadcaster = agent.broadcaster_ref();
+                manager.set_broadcaster(Arc::clone(&broadcaster));
+                for spec in &params.specs {
+                    manager.register_spec(spec.clone()).await;
+                }
+                let specs = params.specs.clone();
+                let lane_factory: Arc<
+                    dyn Fn(usize, &str) -> Result<(String, b_rail::Graph), b_rail::NodeError> + Send + Sync,
+                > = Arc::new(move |i, _task| {
+                    let spec = specs
+                        .get(i % specs.len())
+                        .ok_or_else(|| b_rail::NodeError::fatal("lane_factory", "spec 列表为空（已前置校验）"))?;
+                    let lane_id = format!("lane-{i}");
+                    // 车道节点：委派真实子 Agent，读 ma.task.<lane_id> → 写 ma.results.<lane_id>
+                    // （聚合键约定）。不广播 SupervisorTaskAssigned（非 supervisor 委派现场）。
+                    let node = SubAgentWorkerNode::new(
+                        format!("worker:{lane_id}"),
+                        spec.id.clone(),
+                        spec.name.clone(),
+                        Arc::clone(&manager),
+                    )
+                    .with_task_key(format!("ma.task.{lane_id}"))
+                    .with_result_key(format!("ma.results.{lane_id}"))
+                    .without_assigned_event()
+                    .with_broadcaster(Arc::clone(&broadcaster));
+                    let g = b_rail::Graph::build(vec![Box::new(node)], vec![], &lane_id)?;
+                    Ok((lane_id, g))
+                });
+                // 图序：MultiAgentNode --(Spawn Lanes；车道并发)--> 聚合（全部车道完成后经
+                // return_map Done→Out 回父图，沿 Out 边到 AggregateNode）
+                let ma_node = b_rail::MultiAgentNode::new("ma", decompose, lane_factory, max_lanes);
+                let agg_node = b_rail::AggregateNode::new("agg", true); // 合并启用 LLM
+                let graph = b_rail::Graph::build(
+                    vec![Box::new(ma_node), Box::new(agg_node)],
+                    vec![b_rail::Edge::new("ma", b_rail::Port::Out, "agg")],
+                    "multi_agent",
+                )
+                .map_err(|e| CommandError::Agent(format!("Multi-Agent 构图失败: {e}")))?;
+                let orch = b_rail::DefaultOrchestrator::new(&graph, llm, memory, b_rail::RunConfig::default())
+                    .with_seed(serde_json::json!({ "task.intent": params.intent }));
+                let report = orch
+                    .run()
+                    .await
+                    .map_err(|e| CommandError::Agent(format!("Multi-Agent 执行失败: {e}")))?;
+                Self::pattern_report("multi_agent", report)
+            }
+            other => Err(CommandError::Agent(format!(
+                "未知编排模式步骤类型: {other}（仅支持 tot / got / multi_agent）"
+            ))),
+        }
+    }
+
+    /// 统一把 B 轨 [`b_rail::RunReport`] 翻译为创作编排步骤结果
+    ///
+    /// `ok` = 有交付文本（tot 最优分支 / got 融合全解；治理性完成亦 best-effort 交付）。
+    fn pattern_report(pattern: &str, report: b_rail::RunReport) -> Result<PatternStepOutput, CommandError> {
+        let reason = match &report.reason {
+            b_rail::TerminalReason::Done => "Done".to_string(),
+            b_rail::TerminalReason::Fatal(e) => format!("Fatal({e})"),
+            b_rail::TerminalReason::Governed(msg) => format!("Governed({msg})"),
+        };
+        let result = report.result_text().unwrap_or_default();
+        Ok(PatternStepOutput {
+            ok: !result.is_empty(),
+            pattern: pattern.to_string(),
+            result,
+            reason,
+            llm_calls: report.usage.llm_calls,
+            input_tokens: report.usage.input_tokens,
+            output_tokens: report.usage.output_tokens,
+            elapsed_ms: report.elapsed.as_millis() as u64,
+            error: None,
+        })
+    }
+
+    /// 构造 supervisor B 轨编排（构图 + 子 Agent 委派状态注入）。
+    ///
+    /// run 与 resume 共用：同一份 `SupervisorExecuteOptions` 必然产出同一张监督图，
+    /// resume 才能用入参重建出与断点一致的执行上下文（design §4.6）。
+    async fn build_supervisor_orchestration(
+        &self,
+        agent: &Arc<AgentLoop>,
+        options: &SupervisorExecuteOptions,
+    ) -> Result<(b_rail::Graph, Arc<dyn b_rail::LlmHandle>, Arc<dyn b_rail::MemoryHandle>), CommandError> {
+        // 子 Agent 管理器：委派桥（M3-1 子 run 会计 + 委派事件广播）
+        let manager = Arc::new(SubAgentManager::new(
+            agent.node_backend(),
+            agent.tool_bus(),
+            Arc::clone(&self.subagent_specs),
+        ));
+        manager.set_run_store(Arc::clone(&self.runs));
+        let broadcaster = agent.broadcaster_ref();
+        manager.set_broadcaster(Arc::clone(&broadcaster));
+
+        // 装配角色目录：role = 子 Agent 规格 id → SubAgentWorkerNode（委派工人）
+        let mut role_registry: std::collections::HashMap<String, Arc<dyn b_rail::OrchestratorNode>> =
+            std::collections::HashMap::new();
+        for spec in &options.specs {
+            let name = spec.name.clone();
+            manager.register_spec(spec.clone()).await;
+            role_registry.insert(
+                spec.id.clone(),
+                Arc::new(
+                    SubAgentWorkerNode::new(
+                        format!("worker:{}", spec.id),
+                        spec.id.clone(),
+                        name,
+                        Arc::clone(&manager),
+                    )
+                    .with_broadcaster(Arc::clone(&broadcaster)),
+                ),
+            );
+        }
+        if role_registry.is_empty() {
+            return Err(CommandError::Agent("supervisor 未配置任何子 Agent 规格（specs 为空）".into()));
+        }
+        let roles: Vec<String> = role_registry.keys().cloned().collect();
+        let dispatch_prompt = B_RAIL_SUPERVISOR_PROMPT.replace("{roles}", &roles.join(" | "));
+        let node =
+            b_rail::SupervisorNode::new("supervisor", dispatch_prompt, role_registry, options.max_rounds.unwrap_or(8));
+        let graph = b_rail::Graph::build(vec![Box::new(node)], vec![], "supervisor")
+            .map_err(|e| CommandError::Agent(format!("Supervisor 构图失败: {e}")))?;
+
+        // B 轨依赖注入：backend → KernelBackendLlm；记忆 S1 占位（NoopMemory）
+        let llm: Arc<dyn b_rail::LlmHandle> = Arc::new(b_rail::KernelBackendLlm::new(agent.node_backend()));
+        let memory: Arc<dyn b_rail::MemoryHandle> = Arc::new(b_rail::NoopMemory);
+        Ok((graph, llm, memory))
+    }
+
+    /// 统一收口 B 轨 run：产物翻译入 RunStore + run 状态 finish → OrchestratorResult
+    async fn finalize_b_rail_run(&self, run_id: &str, report: &b_rail::RunReport) -> OrchestratorResult {
+        let artifacts = b_rail_artifacts(run_id, report);
+        for artifact in &artifacts {
+            self.runs.add_artifact(run_id, artifact.clone()).await;
+        }
+        let (status, reason, final_message, error) = b_rail_terminal(report);
+        let result = OrchestratorResult {
+            status,
+            converge_reason: reason,
+            run_id: Some(run_id.to_string()),
+            final_message: final_message.clone(),
+            iterations: report.steps.len() as u32,
+            error,
+            final_state: OrchestratorState::new(final_message.clone().unwrap_or_default()),
+            artifacts,
+        };
+        self.runs
+            .finish(
+                run_id,
+                to_run_status(result.status),
+                result.converge_reason,
+                result.final_message.clone(),
+            )
+            .await;
+        result
+    }
+
+    /// 运行 Supervisor 编排图（B 轨引擎，2026-09-09 迁移 S3 切换）
+    ///
+    /// 复用会话的 backend 与 ToolBus：`agent-patterns::orchestrator` 的
+    /// `SupervisorNode`（LLM 派发决策）+ 委派工人 `SubAgentWorkerNode` 桥接到
+    /// 真实子 Agent（`SubAgentManager::delegate`，内置 M3-1 子 run 会计 + 事件
+    /// 广播——SupervisorTaskAssigned/SubAgentStarted/Completed → 右栏委派现场）。
     pub async fn run_supervisor(
         &self,
         session_id: &str,
@@ -1936,141 +2261,57 @@ impl AgentCommandService {
         options: SupervisorExecuteOptions,
     ) -> Result<OrchestratorResult, CommandError> {
         let agent = self.get_agent(session_id).await?;
-        let backend = agent.node_backend();
-        let tool_bus = agent.tool_bus();
-        // B22：登记 run
+        // B22：登记 run（管线名与 A 轨一致，前端迹线零感知）
         let run_id = self
             .runs
             .create(session_id, None, Some("supervisor".to_string()))
             .await;
-        let config = SupervisorConfig {
-            max_rounds: options.max_rounds.unwrap_or(SupervisorConfig::default().max_rounds),
-            ..Default::default()
-        };
-        // M1-7/8：单节点链构图期校验（注册表提供 kind 声明）
-        verify_single_node_pipeline("supervisor", "supervisor", agent_runtime::node::NodeType::Supervisor)?;
-        let mut orch = DefaultOrchestrator::new().with_backend(backend.clone());
-        // M3-RK1：注入子 run 记账器——Supervisor 图节点委派路径的子 Agent 挂到 run 树
-        // （父 run = 当前顶层 run；session 继承父 run；front-end 据此渲染委派现场）
-        let accountant = Arc::new(RunStoreSubRunAccountant {
-            store: Arc::clone(&self.runs),
-        });
-        orch.add_node(Box::new(
-            SupervisorNode::with_default_strategy(
-                "supervisor",
-                "Supervisor",
-                options.specs,
-                backend,
-                tool_bus,
-                config,
-            )
-            .with_accountant(accountant),
-        ));
-        orch.set_entry("supervisor");
-        let orch = Arc::new(orch);
-        orch.subscribe(Arc::new(ForwardToAgentBroadcaster {
-            target: agent.broadcaster_ref(),
-        }));
-        let result = self
-            .run_with_active_orchestrator(
-                Arc::clone(&orch),
-                orch.run(
-                    input,
-                    Some(OrchestratorRunOptions {
-                        run_id: Some(run_id.clone()),
-                        pipeline: Some("supervisor".to_string()),
-                        node_timeout_ms: options.node_timeout_ms,
-                        ..Default::default()
-                    }),
-                ),
-            )
+        let (graph, llm, memory) = self.build_supervisor_orchestration(&agent, &options).await?;
+        let orch = b_rail::DefaultOrchestrator::new(&graph, llm, memory, b_rail::RunConfig::default())
+            .with_seed(serde_json::json!({ "task.intent": input }));
+        // 断点快照：run_with_checkpoint 透出 Checkpoint（黑板全量 + 节点快照），
+        // 序列化存 RunStore 供断点查询；resume 入口见 run_supervisor_resume。
+        let (report, ckpt) = orch
+            .run_with_checkpoint()
             .await
             .map_err(|e| CommandError::Agent(format!("Supervisor 执行失败: {e}")))?;
-        // FIX-1 闭环（M5-RK3 补验修复）：交接物全文写入 RunStore（get_artifact 查询源）
-        for artifact in &result.artifacts {
-            self.runs.add_artifact(&run_id, artifact.clone()).await;
+        if let Some(ckpt) = ckpt {
+            if let Ok(json) = serde_json::to_value(ckpt) {
+                self.runs.save_checkpoint(&run_id, json).await;
+            }
         }
-        self.runs
-            .finish(
-                &run_id,
-                to_run_status(result.status),
-                result.converge_reason,
-                result.final_message.clone(),
-            )
-            .await;
-        Ok(result)
+        Ok(self.finalize_b_rail_run(&run_id, &report).await)
     }
 
-    /// 运行 Multi-Agent 协作编排图（单节点：MultiAgentNode）
+    /// 从断点续跑 supervisor 编排（2026-09-09 用户拍板接入 resume 入口）
     ///
-    /// 复用会话的 backend 与 ToolBus，使 N 个协作 Agent 共享同一批工具与 LLM 后端。
-    /// 拓扑/黑板/综合由 `MultiAgentConfig` 控制；协作过程事件经
-    /// [`ForwardToAgentBroadcaster`] 转投会话广播器，前端可实时展示黑板与轮次。
-    pub async fn run_multi(
+    /// B 轨 design §4.6：取 RunStore 已存 Checkpoint（`run_with_checkpoint` 产出），按原
+    /// `SupervisorExecuteOptions` 重建同一张监督图 → `DefaultOrchestrator::resume` 从断点
+    /// 继续调度（黑板 / 节点快照 / 步序号 / 用量恢复），完成后沿用原 run_id 收口。
+    /// 语义是「续跑」非「重跑」：断点后未执行的任务继续，已耗 LLM 用量不回卷。
+    pub async fn run_supervisor_resume(
         &self,
         session_id: &str,
-        input: String,
-        options: MultiAgentExecuteOptions,
+        run_id: &str,
+        options: SupervisorExecuteOptions,
     ) -> Result<OrchestratorResult, CommandError> {
         let agent = self.get_agent(session_id).await?;
-        let backend = agent.node_backend();
-        let tool_bus = agent.tool_bus();
-        // B22：登记 run
-        let run_id = self
-            .runs
-            .create(session_id, None, Some("multi-agent".to_string()))
-            .await;
-        let defaults = MultiAgentConfig::default();
-        let config = MultiAgentConfig {
-            max_rounds: options.max_rounds.unwrap_or(defaults.max_rounds),
-            topology: options.topology.unwrap_or(defaults.topology),
-            blackboard_enabled: options
-                .blackboard_enabled
-                .unwrap_or(defaults.blackboard_enabled),
-            require_synthesis: options
-                .require_synthesis
-                .unwrap_or(defaults.require_synthesis),
-            ..defaults
-        };
-        // M1-7/8：单节点链构图期校验（注册表提供 kind 声明）
-        verify_single_node_pipeline("multi_agent", "multi_agent", agent_runtime::node::NodeType::MultiAgent)?;
-        let mut orch = DefaultOrchestrator::new().with_backend(backend.clone());
-        orch.add_node(Box::new(MultiAgentNode::new(
-            "multi_agent", "MultiAgent", options.specs, backend, tool_bus, config,
-        )));
-        orch.set_entry("multi_agent");
-        let orch = Arc::new(orch);
-        orch.subscribe(Arc::new(ForwardToAgentBroadcaster {
-            target: agent.broadcaster_ref(),
-        }));
-        let result = self
-            .run_with_active_orchestrator(
-                Arc::clone(&orch),
-                orch.run(
-                    input,
-                    Some(OrchestratorRunOptions {
-                        run_id: Some(run_id.clone()),
-                        pipeline: Some("multi-agent".to_string()),
-                        node_timeout_ms: options.node_timeout_ms,
-                        ..Default::default()
-                    }),
-                ),
-            )
+        let run = self.runs.get(run_id).await.ok_or_else(|| {
+            CommandError::Agent(format!("run 不存在: {run_id}"))
+        })?;
+        let ckpt_json = run.checkpoint.clone().ok_or_else(|| {
+            CommandError::Agent(format!("run {run_id} 无断点快照（未接 run_with_checkpoint 或 run 已收口）"))
+        })?;
+        let ckpt: b_rail::Checkpoint = serde_json::from_value(ckpt_json)
+            .map_err(|e| CommandError::Agent(format!("断点快照反序列化失败: {e}")))?;
+        let (graph, llm, memory) = self.build_supervisor_orchestration(&agent, &options).await?;
+        // 黑板从 ckpt 恢复（不再注入 seed；断点后节点状态由快照还原）
+        let orch = b_rail::DefaultOrchestrator::new(&graph, llm, memory, b_rail::RunConfig::default());
+        let report = orch
+            .resume(ckpt)
             .await
-            .map_err(|e| CommandError::Agent(format!("Multi-Agent 执行失败: {e}")))?;
-        // FIX-1 闭环（M5-RK3 补验修复）：交接物全文写入 RunStore（get_artifact 查询源）
-        for artifact in &result.artifacts {
-            self.runs.add_artifact(&run_id, artifact.clone()).await;
-        }
-        self.runs
-            .finish(
-                &run_id,
-                to_run_status(result.status),
-                result.converge_reason,
-                result.final_message.clone(),
-            )
-            .await;
-        Ok(result)
+            .map_err(|e| CommandError::Agent(format!("Supervisor Resume 执行失败: {e}")))?;
+        Ok(self.finalize_b_rail_run(run_id, &report).await)
     }
 
     /// 按 run_id 查 run 实体（B22 / FIX-1：迹线回看与调试用）
@@ -2136,6 +2377,14 @@ impl AgentCommandService {
             Some(s) => s.clone(),
             None => return Ok(Vec::new()),
         };
+        // 空会话清理（2026-09-10 症状①）：切场景滑块/草稿态误建/首条发送失败遗留的
+        // 0 消息会话，此前仅靠前端 pendingSessionIds（内存态）隐藏，重启即现形为
+        // 「会话·xxxxx」空条目。恢复前按消息表实况物理清理（有消息/固定/group 绝不命中）。
+        match store.purge_empty_sessions().await {
+            Ok(n) if n > 0 => tracing::info!("启动清理空会话 {n} 条"),
+            Ok(_) => {}
+            Err(e) => tracing::warn!("启动清理空会话失败（跳过，不阻断恢复）: {e}"),
+        }
         let records = store.load_sessions().await?;
         // Phase A：预载 workspace_id → root 映射，供按实体还原 workdir root（一次查询）
         let mut root_by_wsid: HashMap<String, String> = HashMap::new();
@@ -2149,9 +2398,69 @@ impl AgentCommandService {
             // 重建 AgentLoop（provider 用默认占位，前端按需 set_provider_config）
             // workdir：优先按 workspace_id → workspaces.root 还原；无实体时退回持久化 workdir 列
             let workspace_id = record.workspace_id.clone();
-            let workdir_str = match workspace_id.as_ref().and_then(|id| root_by_wsid.get(id)) {
+            let mut workdir_str = match workspace_id.as_ref().and_then(|id| root_by_wsid.get(id)) {
                 Some(root) => Some(root.clone()),
                 None => record.workdir.clone(),
+            };
+            // P0 修复（2026-09-10 场景底座深入）：恢复链路按持久化 scene_id 重装配场景
+            // （工具白名单/确认策略/场景上下文）——否则重启后场景工具面漂移（coding 等场景
+            // 专用工具丢失、基础工具回流）。`None`（场景底座之前的旧会话）保持不装配，
+            // 与其创建时行为一致，不追溯改变旧会话；未知 id 兜底不装配（不阻断恢复）。
+            let scenario = {
+                self.ensure_scenarios();
+                record
+                    .scene_id
+                    .as_deref()
+                    .and_then(|id| self.scenario_registry.find(id))
+            };
+            // 主权自愈（2026-09-10 症状③）：历史脏数据（第三轮修正前落库的跨场景残留
+            // workdir，如 novel 会话落在 scenes\coding）恢复时按领地判定矫正——workdir
+            // 落在**其它**场景根内 → 强制归本会话场景根（与 new_session 同口径），并
+            // ensure_workspace 实体化后两参写穿（防重启反复回退）。领地外（用户项目目录）
+            // 与无场景旧会话（无法确定归属场景）不矫正。
+            let mut sovereign_fixed = false;
+            let mut sovereign_workspace_id: Option<String> = None;
+            {
+                let contaminated = workdir_str
+                    .as_ref()
+                    .map(|wd| {
+                        self.workdir_in_other_scene_root(
+                            record.scene_id.as_deref(),
+                            std::path::Path::new(wd),
+                        )
+                    })
+                    .unwrap_or(false);
+                if contaminated {
+                    if let Some(sc) = &scenario {
+                        if let (Some(root), Some(hint)) = (&self.scenes_root, sc.workspace_hint()) {
+                            let scene_root = root.join(hint);
+                            let _ = std::fs::create_dir_all(&scene_root);
+                            workdir_str = Some(scene_root.to_string_lossy().to_string());
+                            sovereign_fixed = true;
+                            // 实体化同步（与 update_session_workdir 一致）：新根取/建实体
+                            let label = Self::workspace_label_from(&scene_root);
+                            match self
+                                .ensure_workspace(
+                                    &scene_root.to_string_lossy(),
+                                    &label,
+                                    record.scene_id.as_deref(),
+                                )
+                                .await
+                            {
+                                Ok(ws) => sovereign_workspace_id = Some(ws.id),
+                                Err(e) => tracing::warn!(
+                                    "恢复自愈 ensure_workspace 失败，退回 workdir 兼容层: {e}"
+                                ),
+                            }
+                        }
+                    }
+                }
+            }
+            // 自愈矫正生效时 workspace_id 换绑新根实体（失败则退 None 兼容层）
+            let effective_workspace_id = if sovereign_fixed {
+                sovereign_workspace_id.clone()
+            } else {
+                workspace_id.clone()
             };
             let workdir = workdir_str.clone().map(PathBuf::from);
             let (agent, sub_agent_manager) = self
@@ -2159,13 +2468,14 @@ impl AgentCommandService {
                     &record.id,
                     Some(record.system_prompt),
                     None,
-                    None,
+                    scenario,
                     workdir,
                     // 方案A（2026-09-03）：恢复路径未持久化 entity_storage_root（SessionRecord 无此列），
                     // 传 None 回退 workdir——与创建时默认项目显式传 worlddata 的会话在重启后读侧
                     // 回落到 workdir/entities（与改造前行为一致，不新增缺陷）；普通项目 workdir 即同源。
                     None,
-                    workspace_id.clone(),
+                    effective_workspace_id.clone(),
+                    record.project_id.clone(),
                 )
                 .await;
             // 恢复消息历史（含 system 首条）
@@ -2194,6 +2504,22 @@ impl AgentCommandService {
                 .lock()
                 .await
                 .insert(record.id.clone(), sub_agent_manager);
+            // 主权自愈写穿（2026-09-10）：矫正后的 workdir + 新实体 workspace_id 两参同步落库，
+            // 避免下次重启又按旧 workspace_id → root 回退到错位目录
+            if sovereign_fixed {
+                if let Some(store) = &self.session_store {
+                    if let Err(e) = store
+                        .update_workdir(
+                            &record.id,
+                            workdir_str.as_deref(),
+                            sovereign_workspace_id.as_deref(),
+                        )
+                        .await
+                    {
+                        tracing::warn!("恢复自愈写穿失败（内存已矫正）: {e}");
+                    }
+                }
+            }
             let info = SessionInfo {
                 id: record.id.clone(),
                 created_at: record.created_at,
@@ -2202,8 +2528,9 @@ impl AgentCommandService {
                 pinned: record.pinned,
                 kind: record.kind,
                 workdir: workdir_str,
-                workspace_id: workspace_id,
+                workspace_id: effective_workspace_id,
                 project_id: record.project_id,
+                scene_id: record.scene_id.clone(),
             };
             self.meta.lock().await.insert(record.id.clone(), info.clone());
             restored.push(info);
@@ -2338,13 +2665,88 @@ impl AgentCommandService {
         Ok(())
     }
 
+    /// 目录是否落在**其它**场景工作区根内（跨场景领地判定）。
+    ///
+    /// 本场景根放行；无场景（`scene_id=None`）视为与所有场景不同——严格隔离语义下
+    /// 无场景旧会话也不得染指场景根。`path_under` 字面前缀 + 双侧 canonicalize
+    /// 兜底（大小写/符号链接差异），与 new_session 主权判定统一口径。
+    /// 供 [`Self::update_session_workdir`]（拦截）与 [`Self::restore_sessions`]（自愈矫正）共用。
+    fn workdir_in_other_scene_root(&self, scene_id: Option<&str>, path: &std::path::Path) -> bool {
+        let Some(root) = &self.scenes_root else {
+            return false;
+        };
+        self.ensure_scenarios();
+        let canon = std::fs::canonicalize(path).ok();
+        self.scenario_registry.list().iter().any(|sc| {
+            if scene_id == Some(sc.id()) {
+                return false; // 本场景根放行
+            }
+            let Some(hint) = sc.workspace_hint() else {
+                return false;
+            };
+            let other_root = root.join(hint);
+            Self::path_under(path, &other_root)
+                || canon
+                    .as_ref()
+                    .zip(std::fs::canonicalize(&other_root).ok())
+                    .map(|(c, b)| c.starts_with(&b))
+                    .unwrap_or(false)
+        })
+    }
+
     /// 更新会话绑定的工作区根目录（写穿持久化）。目录选择器切换工作区时同步当前会话归属，
     /// 使侧边栏会话树按新目录分组。workdir=None 表示不限定。
+    ///
+    /// 场景根主权（2026-09-10 拍板）：只拦截落在**其它**场景工作区根内的目录（跨场景目录
+    /// 不互通）；本场景根、用户项目目录及其它目录均放行（项目目录×场景=新项目目录）。
+    /// 未配置 scenes_root / 会话无场景时不拦截（兼容旧数据与单测）。
+    ///
+    /// 实体化同步（Phase A）：切目录时为新目录 ensure_workspace 取/建 Workspace 实体，
+    /// workdir 与 workspace_id 一并写穿 + 同步内存 meta；切 None 时两参一并清空。
     pub async fn update_session_workdir(
         &self,
         session_id: &str,
         workdir: Option<String>,
     ) -> Result<(), CommandError> {
+        if let Some(new_wd) = &workdir {
+            let scene_id = {
+                let meta = self.meta.lock().await;
+                let Some(info) = meta.get(session_id) else {
+                    return Err(CommandError::session_not_found(session_id));
+                };
+                info.scene_id.clone()
+            };
+            // 领地判定统一走 helper（与 new_session 主权判定 / restore 自愈同口径）
+            if self.workdir_in_other_scene_root(scene_id.as_deref(), std::path::Path::new(new_wd)) {
+                return Err(CommandError::Agent(
+                    "严格场景隔离：目录落在其它场景工作区根内（跨场景目录不互通），无法切换".into(),
+                ));
+            }
+        }
+        // Phase A 实体化同步（2026-09-10 断链修复）：切目录时为新目录 ensure_workspace
+        // 取/建 Workspace 实体（按 root×scene 复合去重），与 workdir 一并写穿 workspace_id——
+        // 否则 workspace_id 残留旧目录实体，重启恢复（restore_sessions 优先 workspace_id→root）
+        // 会回退旧目录。切 None（不限定）时两参一并清空。
+        let scene_id = {
+            let meta = self.meta.lock().await;
+            meta.get(session_id).and_then(|i| i.scene_id.clone())
+        };
+        let workspace_id = match &workdir {
+            Some(wd) => {
+                let label = Self::workspace_label_from(&std::path::PathBuf::from(wd));
+                match self.ensure_workspace(wd, &label, scene_id.as_deref()).await {
+                    Ok(ws) => Some(ws.id),
+                    Err(e) => {
+                        // 实体化失败不阻断切目录：退回 workdir 兼容层（与 new_session 容错一致）
+                        tracing::warn!(
+                            "update_session_workdir ensure_workspace 失败，退回 workdir 兼容层: {e}"
+                        );
+                        None
+                    }
+                }
+            }
+            None => None,
+        };
         // 同步内存会话元数据缓存（list_sessions 读 meta，不更新则列表仍显示旧目录）
         {
             let mut meta = self.meta.lock().await;
@@ -2352,10 +2754,11 @@ impl AgentCommandService {
                 return Err(CommandError::session_not_found(session_id));
             };
             info.workdir = workdir.clone();
+            info.workspace_id = workspace_id.clone();
         }
         if let Some(store) = &self.session_store {
             store
-                .update_workdir(session_id, workdir.as_deref())
+                .update_workdir(session_id, workdir.as_deref(), workspace_id.as_deref())
                 .await
                 .map_err(|e| CommandError::Internal(format!("更新会话工作区目录失败: {e}")))?;
         }
@@ -2428,7 +2831,11 @@ impl AgentCommandService {
                  提炼对话主题，不要逐字复制请求原文，不要引号或多余标点。只输出标题本身。"
                     .into(),
             ),
-            max_tokens: Some(64),
+            // 512（原 64）：推理型模型（如 deepseek-v4 系列）的 reasoning 会消耗输出预算，
+            // 64 常被推理吃空导致正文为空（「空响应」→ 成功率极低根因）；512 留足推理+正文
+            max_tokens: Some(512),
+            // silent（R6）：标题生成属过程内决策，流式碎片不得泄漏进会话事件流
+            silent: true,
             ..Default::default()
         };
         // 标题生成：偶发 LLM 失败（DeepSeek 限流/超时）会直接降级「新会话」，
@@ -2452,8 +2859,37 @@ impl AgentCommandService {
             }
         }
         if generated.is_empty() {
-            // 两次失败降级：保留「新会话」占位，记录日志（不阻断前端输出流）
-            tracing::warn!("会话标题生成失败（重试后仍失败），保留占位「新会话」: {last_err}");
+            // 兜底标题（2026-09-10 症状②）：LLM 两次失败不再留「新会话」占位——改用
+            // 首条消息截断（与前端 sessionTitle 兜底口径一致）写穿持久化。否则运行期
+            // 前端用首条消息兜底显示、重启后消息缓存清空即露馅为默认标题。
+            let fallback = {
+                let t = first_message.trim().replace(['\n', '\r'], " ");
+                let t = t.split_whitespace().collect::<Vec<_>>().join(" ");
+                if t.is_empty() {
+                    "新会话".to_string()
+                } else {
+                    truncate_chars(&t, 24)
+                }
+            };
+            tracing::warn!("会话标题生成失败（重试后仍失败），改用首条消息兜底标题: {last_err}");
+            if fallback != "新会话" {
+                // 重入校验标题锁定：LLM 调用期间用户可能已手动重命名
+                let locked = {
+                    let meta = self.meta.lock().await;
+                    meta.get(session_id).map(|i| i.title != "新会话").unwrap_or(true)
+                };
+                if !locked {
+                    self.update_session_title(session_id, &fallback).await?;
+                    return Ok(fallback);
+                }
+                return Ok(self
+                    .meta
+                    .lock()
+                    .await
+                    .get(session_id)
+                    .map(|i| i.title.clone())
+                    .unwrap_or(fallback));
+            }
             return Ok("新会话".into());
         }
         // 重入校验标题锁定：LLM 调用期间用户可能已手动重命名（title ≠ 新会话），
@@ -2578,98 +3014,20 @@ impl AgentCommandService {
 
     // ── 对话主链路 ────────────────────────────────────
 
-    /// M5-RK1：按模式前缀分发到专属 run_* 编排（send_message 模式分流调用）
-    ///
-    /// 特权/委派类（supervisor/multi）需要规格：无规格时返回**明确引导错误**
-    /// （反模式 6「永不静默降级」——不偷偷退回 plan_execute，让用户知道差什么）。
-    async fn run_mode_prefix(
-        &self,
-        session_id: &str,
-        mode: ModePrefix,
-        text: String,
-    ) -> Result<OrchestratorResult, CommandError> {
-        match mode {
-            ModePrefix::Plan => self
-                .run_plan_execute(
-                    session_id,
-                    text,
-                    PlanExecuteOptions {
-                        refine: true,
-                        ..Default::default()
-                    },
-                )
-                .await,
-            ModePrefix::Tot => self.run_tot(session_id, text, ToTExecuteOptions::default()).await,
-            ModePrefix::Got => self.run_got(session_id, text, GoTExecuteOptions::default()).await,
-            ModePrefix::Supervisor => {
-                let specs = self.list_subagent_specs().await;
-                if specs.is_empty() {
-                    return Err(CommandError::Agent(
-                        "/supervisor 需先配置子 Agent 规格：请先注册至少一个子 Agent（设置→子Agent）后再委派"
-                            .into(),
-                    ));
-                }
-                self.run_supervisor(
-                    session_id,
-                    text,
-                    SupervisorExecuteOptions {
-                        specs,
-                        max_rounds: None,
-                        node_timeout_ms: None,
-                    },
-                )
-                .await
-            }
-            ModePrefix::Multi => {
-                // MultiAgent 每个参与 Agent 需完整规格（system_prompt/角色），无全局默认阵容；
-                // 空规格会黑盒失败，此处显式引导走右栏「多Agent」面板选择阵容。
-                Err(CommandError::Agent(
-                    "/multi 需显式指定协作阵容：请在右侧「多Agent」面板选择参与 Agent 与黑板书配置后运行"
-                        .into(),
-                ))
-            }
-        }
-    }
-
     /// 发送消息（ReAct 循环执行）
     pub async fn send_message(&self, params: SendMessageParams) -> Result<SendMessageResult, CommandError> {
         let agent = self.get_agent(&params.session_id).await?;
-        // 2026-09-02 统一待办：/plan 前缀与研究判型不再进 B 轨独立管线（run_plan_execute 退役不触发），
-        // 统一注入待办引导走主 Agent react 链——模型用 plan_create 建待办、严格串行执行。
-        // M5-RK1：其余命令前缀（/tot /got /supervisor /multi）仍直通专属 run_* 编排。
+        // 2026-09-09 指令层收敛：/plan 前缀统一注入待办引导走主 Agent react 链
+        // （模型用 plan_create 建待办、严格串行执行）；/tot /got /supervisor /multi 前缀已消除。
         let mut react_text = params.text.clone();
-        if let Some(mode) = extract_mode_prefix(&params.text) {
+        if is_plan_prefix(&params.text) {
             let text = strip_first_token(&params.text);
             if text.is_empty() {
                 return Err(CommandError::Internal(
-                    "模式前缀后缺少任务描述（如 /tot 你的问题）".into(),
+                    "模式前缀后缺少任务描述（如 /plan 你的计划）".into(),
                 ));
             }
-            if mode == ModePrefix::Plan {
-                // 统一待办：/plan → 待办引导 + react 链（跳过下方判型）
-                react_text = format!("{text}\n\n{PLAN_TODO_GUIDANCE}");
-            } else {
-                let result = self.run_mode_prefix(&params.session_id, mode, text).await?;
-                // X1 修复：编排路径收口——用户消息+终稿入环、message_count 回写、写穿持久化
-                // （此前仅 react 路径持久化，run_mode_prefix 编排消息零落库 → 刷新即丢历史）
-                self.finalize_orchestration_turn(
-                    &params.session_id,
-                    &params.text,
-                    result.final_message.as_deref(),
-                )
-                .await;
-                let usage = agent.get_usage().await;
-                let state = agent.get_state_snapshot().await;
-                return Ok(SendMessageResult {
-                    session_id: params.session_id,
-                    reply: result.final_message.unwrap_or_default(),
-                    state,
-                    usage: SessionUsageSummary {
-                        input_tokens: usage.input_tokens,
-                        output_tokens: usage.output_tokens,
-                    },
-                });
-            }
+            react_text = format!("{text}\n\n{PLAN_TODO_GUIDANCE}");
         }
         // M4-2/M4-5（A1 自动为主 + B10 缓存）：判型 = force_pipeline 前缀 → 请求级缓存 → LLM 预判型。
         // 非 query（研究/实验/创作）自动进编排：转 run_plan_execute（编排 run 发 orchestration_trace
@@ -2853,43 +3211,6 @@ impl AgentCommandService {
         // 写穿压缩后的消息快照
         self.persist_messages(session_id).await;
         Ok(())
-    }
-
-    /// X1 修复：编排路径收口——把本轮「用户消息 + 终稿回复」追加进会话 AgentLoop 历史，
-    /// 回写 meta.message_count 并写穿持久化（对齐 react 路径语义；编排引擎本身不触碰会话历史）。
-    /// reply 为空（异常收敛）时只入环用户消息，避免空 assistant 轮污染上下文。
-    async fn finalize_orchestration_turn(
-        &self,
-        session_id: &str,
-        user_text: &str,
-        reply: Option<&str>,
-    ) {
-        let agent = match self.sessions.lock().await.get(session_id).cloned() {
-            Some(a) => a,
-            None => return,
-        };
-        let mut msgs = vec![OrchestratorMessage {
-            role: MessageRole::User,
-            content: user_text.to_string(),
-            tool_calls: Vec::new(),
-            tool_call_id: None,
-            meta: None,
-        }];
-        if let Some(reply) = reply.filter(|r| !r.is_empty()) {
-            msgs.push(OrchestratorMessage {
-                role: MessageRole::Assistant,
-                content: reply.to_string(),
-                tool_calls: Vec::new(),
-                tool_call_id: None,
-                meta: None,
-            });
-        }
-        agent.append_messages(msgs).await;
-        let count = agent.get_messages().await.len() as u32;
-        if let Some(meta) = self.meta.lock().await.get_mut(session_id) {
-            meta.message_count = count;
-        }
-        self.persist_messages(session_id).await;
     }
 
     /// 写穿某会话当前消息快照到持久化存储（弱提示：失败仅记日志不阻断）

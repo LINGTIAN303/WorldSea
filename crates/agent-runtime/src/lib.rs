@@ -44,12 +44,6 @@ pub use event::OrchestratorEvent;
 pub use graph_of_thoughts::{
     AggregationPromptTemplate, AggregationStrategy, GoTConfig, GoTNode, LlmAggregationStrategy,
 };
-pub use multi_agent::{
-    AgentMessage, AgentRole, AgentSpec, CollectingEmitter, ConvergenceReason, ConvergenceStrategy,
-    EventEmitterSafe, GoalCheckMAPromptTemplate, GoalCheckStrategyMA, LlmGoalCheckStrategyMA,
-    LlmSynthesisStrategy, MultiAgentConfig, MultiAgentError, MultiAgentNode,
-    SharedBlackboard, SynthesisPromptTemplate, SynthesisStrategy, Topology,
-};
 pub use long_task::{
     CheckpointProvider, HeartbeatStatus, HeartbeatTick, LongTaskCheckpoint, LongTaskManager,
     LongTaskMeta, LongTaskRecord, LongTaskStatus, LongTaskType, PipelineContext,
@@ -80,10 +74,9 @@ pub use router::{
 pub use scenario::{
     Scenario, ScenarioContext, ScenarioEntityProvider, ScenarioRegistry, WorldbuildingScenario,
 };
-pub use supervisor::{
-    AssignmentError, AssignmentPromptTemplate, AssignmentResult, AssignmentStrategy,
-    LlmAssignmentStrategy, SubAgentSpec, SupervisorConfig, SupervisorNode,
-};
+// A 轨 supervisor 顶层模块已随 B 轨接管删除（supervisor 节点机制现走
+// `agent_patterns::orchestrator::supervisor`）；`SubAgentSpec` 底座在
+// `agent_kernel::sub_agent_pool`，需用时经 `pub use agent_kernel::*` 直取。
 pub use tool::{SimpleToolBus, Tool, ToolBus, ToolDefinition, ToolError, WhitelistToolBus};
 pub use tool_context::ToolContext;
 pub use tree_of_thoughts::{

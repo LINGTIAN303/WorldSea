@@ -12,7 +12,7 @@
     </div>
 
     <div v-else-if="pipelineList.length === 0" class="pb-empty">
-      <div class="pb-empty__icon">📋</div>
+      <div class="pb-empty__icon"><TemplateIcon name="clipboard" :size="28" /></div>
       <h3>还没有创作计划</h3>
       <p>创建一个创作计划，将复杂的创作目标拆解为有序步骤</p>
       <button class="pb-btn pb-btn--primary" @click="showCreateDialog = true">
@@ -83,7 +83,7 @@
             class="pb-tpl-card"
             @click="handleApplyTemplate(tpl.id)"
           >
-            <div class="pb-tpl-card__icon">{{ tpl.icon }}</div>
+            <div class="pb-tpl-card__icon"><TemplateIcon :name="tpl.icon" :size="24" /></div>
             <h4>{{ tpl.name }}</h4>
             <p>{{ tpl.description }}</p>
             <span class="pb-tpl-card__steps">{{ tpl.steps.length }} 个步骤</span>
@@ -101,6 +101,7 @@
 import { ref, onMounted } from 'vue'
 import { CreateButton } from '@worldsea/plugin-sdk'
 import TuiSpinner from '@/components/ui/TuiSpinner.vue'
+import TemplateIcon from '../components/TemplateIcon.vue'
 import { usePipeline } from '../composables/usePipeline'
 import { usePipelineTemplates } from '../composables/usePipelineTemplates'
 import type { PipelineStatus } from '../types'

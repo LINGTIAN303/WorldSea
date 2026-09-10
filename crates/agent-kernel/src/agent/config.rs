@@ -114,6 +114,13 @@ pub struct AgentLoopConfig {
     /// 供 `AgentLoop` 构造 [`crate::tool_context::ToolContext`] 时一并注入
     /// `workspace_id`，使工具/后续边界可感知会话归属的 Workspace 实体。
     pub workspace_id: Option<String>,
+
+    /// 会话归属的项目 id（任务29/D1 锚点，弱引用前端 ProjectManager；`None`=未归属/旧数据）
+    ///
+    /// 供 `build_prompt_options` 填入 `ScenarioContext.project_id`，场景身份 prompt 的
+    /// 「当前项目 ID」段据此触发；kernel 不校验归属，纯链路透传字段
+    /// （2026-09-10 场景底座深入：风险点③收口）。
+    pub project_id: Option<String>,
 }
 
 impl Default for AgentLoopConfig {
@@ -149,6 +156,8 @@ impl Default for AgentLoopConfig {
             workdir: None,
             // Workspace 实体 id：默认无（旧数据缺省）
             workspace_id: None,
+            // 项目 id：默认无（未归属/旧数据）
+            project_id: None,
         }
     }
 }

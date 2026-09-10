@@ -49,7 +49,7 @@ impl fmt::Display for Port {
 /// 增量用量（token / LLM 调用数），供预算门累计（设计 §3.2）。
 ///
 /// 三个计数器均为饱和加法：单次溢出不会 panic，也不会回卷为负。
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Usage {
     pub input_tokens: u64,
     pub output_tokens: u64,

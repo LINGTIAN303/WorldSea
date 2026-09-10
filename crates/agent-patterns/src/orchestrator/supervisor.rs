@@ -146,6 +146,10 @@ impl OrchestratorNode for SupervisorNode {
                 NodeError::fatal("dispatch", format!("角色 {} 不在目录中", item.role))
             })?;
 
+            // 派发任务写入黑板 `sup.current`：工人节点（含 SubAgent 桥接适配层）
+            // 据此读当前派发项（role/task），worker 内联执行方可无参访问。
+            ctx.state.write("sup.current", json!({ "role": item.role, "task": item.task }));
+
             // 派发（Spawn 语义的内联黑盒执行：工人是 CompositeNode(loop)，设计 6.4 组合示例）
             let r = worker.execute(ctx).await?;
             usage.saturating_add(&r.usage);

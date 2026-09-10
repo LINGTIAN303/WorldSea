@@ -34,8 +34,8 @@ mod whisper;
 mod search_commands;
 // A4 Plan-Exec 计划工具（plan_create / plan_update）
 mod plan_commands;
-// Router Pattern 编排模式：Tauri 命令层（Router 样板，收纳编排 4 模式 UI 下沉）
-mod router_commands;
+// Router Pattern 编排命令层：2026-09-09 随右栏 Router 区一并下线（Router 归场景识别底座，
+// 非编排模式命令；底座为 agent-runtime 的 router 模块，不受影响）
 // Rust → 前端 双向工具桥（entity_create/update + content_search 等经前端执行）
 mod frontend_tool_bridge;
 // MCP 客户端 Hub（rmcp：stdio / streamable-http 双传输 + 工具快照）
@@ -54,6 +54,16 @@ mod algo_commands;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // [WebView2 崩溃记录] 2026-09-08：本机 WebView2 Runtime 152（152.0.4191.66，最新稳定）
+    // 在 wry/Tauri 宿主下间歇性 msedge.dll CHECK 崩溃（转储异常地址 0x7FFE1511B21D，
+    // EXCEPTION_BREAKPOINT），browser 进程启动或运行数分钟内随机触发、界面空白。
+    // 已排除：devtools/GPU/user-data/参数（env WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS
+    // 与 set_var 均无效——wry 0.55 强制 set_additional_browser_arguments 覆盖 env；
+    // msSmartScreenProtection 禁用亦无效）。疑 runtime 152 缺陷+本机被"优化"环境叠加。
+    // 已知正常存活实例：首启曾稳定 20+ 分钟。对策：崩溃后重启实例；WebView2 153
+    // （2026-09-10 发布）由 EdgeUpdate 自动更新后大概率自愈（152 为 2 周节奏首批）。
+    // 若要传 WebView2 启动参数，须用 tauri::WebviewWindowBuilder::additional_browser_args()
+    // 显式建窗（config 自动建窗无此通道），详见 docs。
     tauri::Builder::default()
         // 单实例：防多开，二次启动聚焦已有主窗口（须最先注册）
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
@@ -103,17 +113,11 @@ pub fn run() {
             commands::cmd_list_workdirs,
             commands::cmd_save_workdir,
             commands::cmd_delete_workdir,
-            commands::orchestrator_run_tot,
-            commands::orchestrator_run_got,
-            commands::orchestrator_run_supervisor,
-            commands::orchestrator_run_multi,
-            // Router Pattern 编排模式（Router 样板命令）
-            router_commands::router_create,
-            router_commands::router_route,
-            router_commands::router_set_targets,
-            router_commands::router_get_state,
-            router_commands::router_list_sessions,
-            router_commands::router_destroy,
+            commands::cmd_list_workspaces,
+            // 创作编排模式步骤（tot-search / got-solve / multi-agent 接轨 B 轨引擎）
+            commands::cmd_pattern_step_run,
+            // supervisor 编排续跑（resume 入口，2026-09-09 接入）
+            commands::cmd_run_supervisor_resume,
             commands::create_group_session_participant,
             commands::list_group_session_participants,
             commands::delete_group_session_participants,
@@ -294,11 +298,13 @@ pub fn run() {
         .manage(TerminalService::new())
         // Phase C 收尾：文件监听器注册表（cmd_fs_watch_start/stop 共享）
         .manage(fs_watch_commands::FsWatchRegistry(Default::default()))
-        // Router Pattern 编排注册表（router_* 命令共享；按会话存 targets/策略/最近决策）
-        .manage(router_commands::RouterRegistry::new())
         .setup(|app| {
+            // dev 模式内置开发者工具：默认关闭（2026-09-08 起）。
+            // 原因：本机 WebView2 152 打开 devtools 同样触发 msedge.dll CHECK 崩溃
+            // （异常码 0x80000003 EXCEPTION_BREAKPOINT）。需要内置 devtools 调试时：
+            // 设环境变量 WORLDSEA_OPEN_DEVTOOLS=1 再启动（tauri dev 进程会继承）。
             #[cfg(debug_assertions)]
-            {
+            if std::env::var_os("WORLDSEA_OPEN_DEVTOOLS").is_some() {
                 let window = app.get_webview_window("main").unwrap();
                 window.open_devtools();
             }
@@ -397,6 +403,9 @@ pub fn run() {
                     .with_memory_root(Some(app_data.join("worldsea").join("memory")))
                     // 会话持久化：注入 SQLite 会话存储，会话变更写穿 + 启动恢复
                     .with_session_store(session_store)
+                    // 场景底座（2026-09-09）：场景工作区根（严格硬隔离——场景会话 workdir
+                    // 强制落在 scenes/<scene.workspace_hint()>，跨场景目录不可切）
+                    .with_scenes_root(Some(app_data.join("scenes")))
                     // B1 场景上下文注入：注入实体访问器，场景 build_system_prompt 可感知项目已有实体
                     .with_entity_provider(Some(Arc::new(
                         entity_commands::SqliteScenarioEntityProvider::new(entity_db.clone()),

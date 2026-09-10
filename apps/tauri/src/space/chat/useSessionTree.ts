@@ -10,6 +10,10 @@
  * - 组内固定会话置顶，其余按创建时间倒序
  */
 import { ref, computed, type Ref } from 'vue'
+import { SCENE_SLIDER_OPTIONS } from './scenes'
+
+/** 场景工作区根目录名 → 中文场景名（分组 label 兜底：hint 是后端 workspace_hint 的静态镜像） */
+const SCENE_ROOT_LABELS = new Map(SCENE_SLIDER_OPTIONS.map((s) => [s.hint, s.label]))
 
 /** 目录实体（WorkdirRecord，camelCase，镜像 Rust agent_commands::WorkdirRecord） */
 export interface WorkdirRecord {
@@ -98,7 +102,8 @@ export function useSessionTree(
       if (isDefault) {
         label = '默认工作区'
       } else {
-        label = wd ? workdirLabel.get(wd) ?? baseName(wd) : '未限定目录'
+        // label 链：目录实体 > 场景根中文场景名 > 路径基名
+        label = wd ? workdirLabel.get(wd) ?? SCENE_ROOT_LABELS.get(baseName(wd)) ?? baseName(wd) : '未限定目录'
       }
       // 组内排序：固定置顶，其余按创建时间倒序
       const sessions = [...items].sort(

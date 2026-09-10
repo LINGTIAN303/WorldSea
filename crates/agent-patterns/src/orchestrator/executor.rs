@@ -92,7 +92,10 @@ impl RunReport {
 }
 
 /// 全链路快照（设计 §4.6：黑板全量 + 各有状态节点 snapshot + 步序号 + 台账 + 就绪集合）
-#[derive(Debug, Clone)]
+///
+/// serde：供命令层 `run_with_checkpoint` 持久化到 RunStore（断点可查 / 后续 resume）。
+/// `node_snapshots` 的 key（`作用域::节点id`）与 `NodeSnapshot` 均可序列化。
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Checkpoint {
     /// 已完成步数（恢复后步序号连续不回卷，设计 4.3）
     pub step_cursor: u64,

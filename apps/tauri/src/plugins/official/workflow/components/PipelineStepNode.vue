@@ -19,7 +19,7 @@
     </div>
     <div class="psn-content">
       <div class="psn-header">
-        <span class="psn-icon">{{ stepIcon(step.type) }}</span>
+        <span class="psn-icon"><StepTypeIcon :type="step.type" :size="18" /></span>
 
         <!-- 可编辑标题 -->
         <input
@@ -38,9 +38,9 @@
 
         <!-- 操作按钮：编辑模式下始终可见，非编辑模式下 hover 可见 -->
         <div class="psn-ops" :class="{ 'psn-ops--visible': editMode }" v-if="step.status === 'pending' || step.status === 'failed' || editMode">
-          <button v-if="step.status === 'failed'" class="psn-op psn-op--retry" title="重试" @click.stop="$emit('retry', step.id)">🔄</button>
-          <button class="psn-op" title="编辑配置" @click.stop="isEditingConfig = !isEditingConfig">✏️</button>
-          <button class="psn-op psn-op--danger" title="删除步骤" @click.stop="$emit('delete', step.id)">🗑</button>
+          <button v-if="step.status === 'failed'" class="psn-op psn-op--retry" title="重试" @click.stop="$emit('retry', step.id)"><IconRefresh :size="14" /></button>
+          <button class="psn-op" title="编辑配置" @click.stop="isEditingConfig = !isEditingConfig"><IconPencil :size="14" /></button>
+          <button class="psn-op psn-op--danger" title="删除步骤" @click.stop="$emit('delete', step.id)"><IconTrash :size="14" /></button>
         </div>
       </div>
 
@@ -89,7 +89,9 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, watch, onMounted, onBeforeUnmount } from 'vue'
 import type { PipelineStep, StepType, StepStatus, StepConfig } from '../types'
-import { STEP_TYPE_LABELS, STEP_TYPE_ICONS, STEP_TYPE_COLORS } from '../composables/useStepLibrary'
+import { STEP_TYPE_LABELS, STEP_TYPE_COLORS } from '../composables/useStepLibrary'
+import { IconRefresh, IconPencil, IconTrash } from '@tabler/icons-vue'
+import StepTypeIcon from './StepTypeIcon.vue'
 import StepConfigEditor from './StepConfigEditor.vue'
 
 const props = defineProps<{
@@ -209,10 +211,6 @@ function onDrop(e: DragEvent) {
 }
 
 // ─── 工具函数 ─────────────────────────────────────────
-function stepIcon(type: StepType): string {
-  return STEP_TYPE_ICONS[type] || '📌'
-}
-
 function typeLabel(type: StepType): string {
   return STEP_TYPE_LABELS[type] || type
 }

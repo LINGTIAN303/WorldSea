@@ -199,21 +199,16 @@ const durationText = computed(() => {
   return `${Math.floor(sec / 60)}m${sec % 60 ? ` ${sec % 60}s` : ''}`
 })
 
-/** 详图入口（M3，A4）：phase → 右栏详图 tab（深水区模式；plan/supervisor 也有独立面板） */
+/** 详图入口（M3，A4）：phase → 右栏详图 tab（深水区模式；plan/supervisor 也有独立面板）。
+    2026-09-09 右栏消除 tot/got 区：ToT/GoT 详图已迁创作编排承载面，历史 run 不再提供右栏跳转 */
 const detailEntry = computed<{ tab: string; label: string } | null>(() => {
   const phases = props.run.phases
   // 匹配深水区/面板阶段：任一阶段命中即提供入口（优先思维探索类）
   const hit =
-    phases.find((p) => p.phase === 'tot' || p.phase === 'thought') ??
-    phases.find((p) => p.phase === 'got' || p.phase === 'graph') ??
     phases.find((p) => p.phase === 'supervisor') ??
     phases.find((p) => p.phase === 'multi_agent')
   if (!hit) return null
   const map: Record<string, { tab: string; label: string }> = {
-    tot: { tab: 'tot', label: '查看思维树' },
-    thought: { tab: 'tot', label: '查看思维树' },
-    got: { tab: 'got', label: '查看聚合图' },
-    graph: { tab: 'got', label: '查看聚合图' },
     supervisor: { tab: 'supervisor', label: '查看委派现场' },
     multi_agent: { tab: 'multi', label: '查看协作黑板' },
   }

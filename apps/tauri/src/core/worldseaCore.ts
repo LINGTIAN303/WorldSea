@@ -142,13 +142,6 @@ export interface WorldSeaCoreAPI {
   algoFindLinePolygonIntersections(lineJson: string, polygonJson: string): string
   algoPolygonSplit(polygonJson: string, cuttingLineJson: string): string
   algoPolygonAugment(polygonJson: string, addingLineJson: string): string
-  schemaRegisterEntityType(schemaJson: string): string
-  schemaUnregisterEntityType(typeKey: string): void
-  schemaGetEntityType(typeKey: string): string
-  schemaListEntityTypes(): string
-  schemaUpdateEntityType(typeKey: string, updatesJson: string): string
-  schemaRegisterValidation(typeKey: string, ruleJson: string): void
-  schemaRegisterView(typeKey: string, viewJson: string): void
 }
 
 import { ref } from 'vue'

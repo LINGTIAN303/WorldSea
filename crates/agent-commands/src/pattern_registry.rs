@@ -4,14 +4,14 @@
 //!
 //! | 触点 | 字段 |
 //! |------|------|
-//! | ① 入口命令 | `entry_command`（手动命令前缀，A1 `/` 菜单） |
+//! | ① 入口命令 | `entry_command`（手动命令前缀，A1 `/` 菜单；2026-09-09 指令层收敛后已无单聊命令，恒为 None） |
 //! | ② 轨迹/细节事件族 | `event_family`（前端可按此过滤通道） |
 //! | ③ 交接物 | `artifact_kind`（该模式产出的物类型，D23） |
 //! | ④ 配置面 | `config_defaults`（次数参数等数据面，C0-5） |
 //! | ⑤ 详图组件 | `detail_component`（深水区模式，A4 右栏） |
 //!
 //! 新增模式改 **2 处**（注册项 + 模式实现），取代现状 8 处贯穿改动（[02-现状事实](02-现状事实.md) §十）。
-//! 前端一份 TS 清单与后端同构（序列化同步）——见 `apps/tauri/src/agent/patternRegistry.ts`。
+//! 2026-09-09 指令层收敛后前端 `patternRegistry.ts` 已删除，后端注册表为唯一事实源。
 //!
 //! 注册表是**元数据事实源**：命令层 / 前端从注册表读模式元数据，不再按模式写死（C0-15 契约发现）。
 
@@ -45,7 +45,10 @@ pub struct PatternRegistryEntry {
     /// ① 手动命令入口（无 = 仅自动触发）
     pub entry_command: Option<&'static str>,
     /// ① 运行命令（前端 invoke 名，A1 `/` 菜单触发）
-    pub run_command: &'static str,
+    ///
+    /// 2026-09-09 指令层收敛后已无独立命令（tot/got/supervisor/multi 前端
+    /// patternRegistry.ts 删除、tauri/RPC 注册删除），此字段恒为 None 保留元数据形状。
+    pub run_command: Option<&'static str>,
     /// ② 事件族（该模式发出的轨迹/细节事件类型，语义名）
     pub event_family: &'static [&'static str],
     /// ③ 产出的交接物 kind（D23，构图期 kind 校验数据源）
@@ -73,8 +76,8 @@ static PATTERN_REGISTRY: &[PatternRegistryEntry] = &[
             pattern_id: "tot",
             name: "思维树探索",
             capability: CapabilityGroup::Explore,
-            entry_command: Some("/tot"),
-            run_command: "orchestrator_run_tot",
+            entry_command: None,
+            run_command: None,
             event_family: &[
                 "thought_node_created",
                 "thought_node_scored",
@@ -94,8 +97,8 @@ static PATTERN_REGISTRY: &[PatternRegistryEntry] = &[
             pattern_id: "got",
             name: "思维图聚合",
             capability: CapabilityGroup::Explore,
-            entry_command: Some("/got"),
-            run_command: "orchestrator_run_got",
+            entry_command: None,
+            run_command: None,
             event_family: &[
                 "thought_node_created",
                 "thought_node_scored",
@@ -116,8 +119,8 @@ static PATTERN_REGISTRY: &[PatternRegistryEntry] = &[
             pattern_id: "supervisor",
             name: "监督委派",
             capability: CapabilityGroup::Collaborate,
-            entry_command: Some("/supervisor"),
-            run_command: "orchestrator_run_supervisor",
+            entry_command: None,
+            run_command: None,
             event_family: &["task_assigned", "sub_agent_started", "sub_agent_completed", "sub_agent_error"],
             artifact_kind: ArtifactKindTag::Delegation,
             config_defaults: PatternConfig {
@@ -131,8 +134,8 @@ static PATTERN_REGISTRY: &[PatternRegistryEntry] = &[
             pattern_id: "multi_agent",
             name: "多智能体协作",
             capability: CapabilityGroup::Collaborate,
-            entry_command: Some("/multi"),
-            run_command: "orchestrator_run_multi",
+            entry_command: None,
+            run_command: None,
             event_family: &["round_started", "message_sent", "blackboard_updated", "round_completed", "converged"],
             artifact_kind: ArtifactKindTag::Convergence,
             config_defaults: PatternConfig {
@@ -166,9 +169,6 @@ pub fn validate_registry(entries: &[PatternRegistryEntry]) -> Result<(), String>
         if !ids.insert(e.pattern_id) {
             return Err(format!("模式 id 重复: {}", e.pattern_id));
         }
-        if e.run_command.is_empty() {
-            return Err(format!("{}: run_command 为空（① 缺失）", e.pattern_id));
-        }
         if e.event_family.is_empty() {
             return Err(format!("{}: event_family 为空（② 缺失）", e.pattern_id));
         }
@@ -195,11 +195,9 @@ mod tests {
 
     #[test]
     fn registry_passes_contact_checklist() {
-        // 五触点检查单：①命令 ②事件族 ③物 全部必填（④配置 ⑤详图可空）
+        // 五触点检查单：②事件族 ③物 必填（①命令触点指令层收敛后下线可空；④配置 ⑤详图可空）
         validate_registry(pattern_registry()).expect("注册表必须通过五触点检查单");
         for e in pattern_registry() {
-            assert!(e.entry_command.is_some(), "{}: entry_command 缺失", e.pattern_id);
-            assert!(!e.run_command.is_empty());
             assert!(!e.event_family.is_empty());
         }
     }

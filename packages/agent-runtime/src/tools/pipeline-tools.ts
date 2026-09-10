@@ -422,6 +422,96 @@ const pipelineRunStepTool: ToolDefinition = {
       })
     }
 
+    // tot-search / got-solve 步骤：B 轨编排节点（TotNode/GotNode），由主 Agent
+    // 直接调用 pattern_step_run（invoke Rust 引擎）同步执行，不派生子 Agent。
+    // 2026-09-09 接轨，见 docs/plans/2026-09-09-编排双轨收口审查与6模块迁移.md。
+    if (step.type === 'tot-search' || step.type === 'got-solve') {
+      steps[stepIndex] = { ...step, status: 'running' }
+      await store.update(pipelineId, {
+        properties: { ...p, steps: JSON.stringify(steps), status: 'running', currentStepId: stepId },
+      }, 'agent')
+
+      const pattern = step.type === 'tot-search' ? 'tot' : 'got'
+      const cfg = step.config || {}
+      const params = {
+        intent: String(cfg.intent || ''),
+        expandPrompt: cfg.expandPrompt,
+        evaluatePrompt: cfg.evaluatePrompt,
+        branchingK: cfg.branchingK,
+        keepTopB: cfg.keepTopB,
+        maxDepth: cfg.maxDepth,
+        splitPrompt: cfg.splitPrompt,
+        mergePrompt: cfg.mergePrompt,
+        maxRounds: cfg.maxRounds,
+      }
+
+      try {
+        const api = await import('@tauri-apps/api/core')
+        const out = await api.invoke('cmd_pattern_step_run', {
+          sessionId: ctx.currentSessionId,
+          pattern,
+          params,
+        }) as { ok?: boolean; result?: string; reason?: string; llm_calls?: number; elapsed_ms?: number; error?: string | null } | null
+
+        if (out && out.ok) {
+          const result = out.result || ''
+          steps[stepIndex] = {
+            ...step,
+            status: 'completed',
+            output: {
+              summary: result.slice(0, 200) || '执行完成',
+              detail: result,
+            },
+          }
+          await store.update(pipelineId, {
+            properties: { ...p, steps: JSON.stringify(steps) },
+          }, 'agent')
+
+          return JSON.stringify({
+            ok: true,
+            stepId,
+            stepTitle: step.title,
+            stepType: step.type,
+            status: 'completed',
+            pattern,
+            result,
+            reason: out.reason,
+            llmCalls: out.llm_calls,
+            elapsedMs: out.elapsed_ms,
+            hint: `步骤「${step.title}」已完成，交付文本见 result 字段。`,
+          })
+        }
+
+        // 执行失败：标记步骤 failed 返回错误
+        steps[stepIndex] = { ...step, status: 'failed' }
+        await store.update(pipelineId, {
+          properties: { ...p, steps: JSON.stringify(steps) },
+        }, 'agent')
+        return JSON.stringify({
+          ok: false,
+          stepId,
+          stepTitle: step.title,
+          stepType: step.type,
+          error: out?.error
+            ? `编排模式执行失败: ${out.error}`
+            : `编排模式执行未产出结果（reason: ${out?.reason || '未知'}）`,
+        })
+      } catch (err) {
+        // 调用失败（如 Web 端无 Tauri 引擎通道）：回滚为 failed
+        steps[stepIndex] = { ...step, status: 'failed' }
+        await store.update(pipelineId, {
+          properties: { ...p, steps: JSON.stringify(steps) },
+        }, 'agent')
+        return JSON.stringify({
+          ok: false,
+          stepId,
+          stepTitle: step.title,
+          stepType: step.type,
+          error: `调用编排引擎失败: ${err instanceof Error ? err.message : String(err)}（tot/got 步骤需在 Tauri 桌面端运行）`,
+        })
+      }
+    }
+
     // 标记步骤为 running
     steps[stepIndex] = { ...step, status: 'running' }
     await store.update(pipelineId, {
@@ -527,6 +617,16 @@ const pipelineProposeTool: ToolDefinition = {
           description: '数据转换',
           configFields: ['transformType（转换类型）', 'prompt（转换说明）'],
           example: { type: 'transform', title: '数据转换', config: { transformType: 'general', prompt: '转换说明' } },
+        },
+        'tot-search': {
+          description: '思维树探索（B 轨 TotNode）：多分支展开→评分→剪枝，为创作目标择优',
+          configFields: ['intent（任务意图）', 'expandPrompt（展开器提示词）', 'evaluatePrompt（评分器提示词）', 'branchingK（分支数）', 'keepTopB（保留宽度）', 'maxDepth（树深上限）'],
+          example: { type: 'tot-search', title: '结局方向择优', config: { intent: '为故事设计 3 个结局方向并选出最优', expandPrompt: '基于当前分支生成候选细化方案', evaluatePrompt: '按创作意图契合度打 0-100 分', branchingK: 3, keepTopB: 2, maxDepth: 3 } },
+        },
+        'got-solve': {
+          description: '思维图求解（B 轨 GotNode）：拆分为多个视角并发求解后融合评估',
+          configFields: ['intent（任务意图）', 'splitPrompt（拆分提示词）', 'mergePrompt（融合提示词）', 'evaluatePrompt（评估提示词）', 'maxRounds（再融合轮次上限）'],
+          example: { type: 'got-solve', title: '王国设计', config: { intent: '设计一个完整王国', splitPrompt: '拆为地理/文化/政治等视角', mergePrompt: '对齐冲突并融合为统一设定', evaluatePrompt: '判定融合全解是否达标', maxRounds: 2 } },
         },
       },
       designPrinciples: [

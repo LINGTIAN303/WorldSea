@@ -118,6 +118,11 @@ class EntitySchemaV2RegistryClass {
   unregister(type: string): void {
     this.schemas.delete(type)
   }
+
+  /** 清空所有已注册的 V2 schema（项目切换时使用；插件/模块重新激活时经 registerEntityV2 重填） */
+  clear(): void {
+    this.schemas.clear()
+  }
 }
 
 export const entitySchemaRegistryV2 = new EntitySchemaV2RegistryClass()

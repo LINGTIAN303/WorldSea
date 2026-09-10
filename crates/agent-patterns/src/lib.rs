@@ -9,10 +9,8 @@
 //! docs/plans/VibeCoding编排模式落地执行.md（M1 骨架 → M2 循环层 → M3 框架层适配）。
 
 pub mod got;
-pub mod multi_agent;
 pub mod orchestrator;
 pub mod reflective;
 pub mod router;
 pub mod shared;
-pub mod supervisor;
 pub mod tot;

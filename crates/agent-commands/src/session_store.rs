@@ -56,6 +56,13 @@ pub struct SessionRecord {
     /// 供后续按项目过滤会话/记忆隔离等消费；`workdir`/`workspace_id` 继续承载目录语义。
     #[serde(default)]
     pub project_id: Option<String>,
+    /// 会话绑定的场景 id（2026-09-09 场景底座：新会话按 scene 装配；`None`=旧数据缺省 world）
+    ///
+    /// 场景 = 会话级装配单元（身份 prompt/工具/技能/工作区隔离），会话列表按场景
+    /// 过滤实现「场景间会话不互通」。缺省 world（与滑块默认一致；2026-09-10 由
+    /// worldbuilding 改名，旧值经迁移 UPDATE 归一）。
+    #[serde(default)]
+    pub scene_id: Option<String>,
 }
 
 /// 目录实体（工作区目录条目，Workdir 表）
@@ -73,8 +80,8 @@ pub struct WorkdirRecord {
 
 /// Workspace 实体（Workspace 表）
 ///
-/// `root` 为工作区根目录绝对路径（UNIQUE 按路径去重），`label` 为展示用名称；
-/// 会话经 `workspace_id` 引用本实体。与 [`WorkdirRecord`] 的定位差异：
+/// `root` 为工作区根目录绝对路径（与 `scene_id` 复合唯一，2026-09-10 方案A）；
+/// `label` 为展示用名称；会话经 `workspace_id` 引用本实体。与 [`WorkdirRecord`] 的定位差异：
 /// `workdir` 是「路径字符串」兼容层，`WorkspaceRecord` 是「实体化」后的一等公民
 /// （带 id/生命周期），本阶段 Phase A 引入，供 Session 真正「绑定一个 Workspace」。
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -83,6 +90,8 @@ pub struct WorkspaceRecord {
     pub id: String,
     pub root: String,
     pub label: String,
+    /// 绑定场景 id（2026-09-10 方案A：工作区身份 =（root × scene）；NULL=旧数据/未限定）
+    pub scene_id: Option<String>,
     pub created_at: u64,
 }
 
@@ -106,12 +115,28 @@ pub trait SessionRepository: Send + Sync {
     async fn load_messages(&self, session_id: &str) -> Result<Vec<OrchestratorMessage>, CommandError>;
     /// 删除会话及其消息（级联）
     async fn delete_session(&self, session_id: &str) -> Result<(), CommandError>;
+    /// 物理清理空会话（启动恢复时调用），返回清理条数。
+    ///
+    /// 判定 = 无任何消息行 && 非固定 && chat 类型——按 `messages` 表实况判定，
+    /// 不依赖不可靠的 message_count 列（X1：该列仅创建期写入）；有消息的会话绝不命中。
+    /// 群聊参与者会话（kind=group）排除在外，保证群聊映射恢复不受影响。
+    async fn purge_empty_sessions(&self) -> Result<u64, CommandError>;
     /// 更新会话标题（写穿）
     async fn update_title(&self, session_id: &str, title: &str) -> Result<(), CommandError>;
     /// 设置会话固定状态（写穿）
     async fn set_pinned(&self, session_id: &str, pinned: bool) -> Result<(), CommandError>;
-    /// 更新会话绑定的工作区根目录（写穿；None=不限定）。目录选择器切换工作区时同步当前会话归属
-    async fn update_workdir(&self, session_id: &str, workdir: Option<&str>) -> Result<(), CommandError>;
+    /// 更新会话的工作区目录绑定（写穿；None=不限定，两参一并清空）。
+    ///
+    /// `workdir` 与 `workspace_id` 是同一绑定的两面（目录字符串 / Workspace 实体引用），
+    /// 必须同步写：切目录时命令层先 `ensure_workspace` 取新实体 id 再一并落库，否则
+    /// `workspace_id` 残留旧目录实体，重启恢复（restore_sessions 优先 workspace_id→root）
+    /// 会回退旧目录（2026-09-10 断链修复）。
+    async fn update_workdir(
+        &self,
+        session_id: &str,
+        workdir: Option<&str>,
+        workspace_id: Option<&str>,
+    ) -> Result<(), CommandError>;
     /// 更新会话 system prompt（写穿；H5 风险点③ 动态刷新——技能/规则中途变更旧会话生效）
     async fn update_system_prompt(
         &self,
@@ -145,8 +170,13 @@ pub trait SessionRepository: Send + Sync {
     async fn list_workdirs(&self) -> Result<Vec<WorkdirRecord>, CommandError>;
     /// 删除一个目录实体（按 id）
     async fn delete_workdir(&self, id: &str) -> Result<(), CommandError>;
-    /// 写入/覆盖一个 Workspace 实体（按 root 去重；已存在复用原 id/created_at 仅更新 label）
-    async fn upsert_workspace(&self, root: &str, label: &str) -> Result<WorkspaceRecord, CommandError>;
+    /// 写入/覆盖一个 Workspace 实体（按 (root, scene_id) 复合去重；已存在复用原 id/created_at 仅更新 label）
+    async fn upsert_workspace(
+        &self,
+        root: &str,
+        label: &str,
+        scene_id: Option<&str>,
+    ) -> Result<WorkspaceRecord, CommandError>;
     /// 列出全部 Workspace 实体
     async fn list_workspaces(&self) -> Result<Vec<WorkspaceRecord>, CommandError>;
     /// 按 id 查 Workspace 实体（None=不存在）
@@ -240,6 +270,15 @@ impl SqliteSessionRepository {
         let _ = sqlx::query("ALTER TABLE sessions ADD COLUMN project_id TEXT")
             .execute(pool)
             .await;
+        // 迁移：会话场景 id 列（2026-09-09 场景底座；会话按场景装配/隔离），旧库补默认空
+        let _ = sqlx::query("ALTER TABLE sessions ADD COLUMN scene_id TEXT")
+            .execute(pool)
+            .await;
+        // 迁移：世界场景 id 改名（2026-09-10 worldbuilding→world），幂等 UPDATE，
+        // 保证既有会话在新 registry（id=world）下仍能按 scene_id 重装配
+        let _ = sqlx::query("UPDATE sessions SET scene_id = 'world' WHERE scene_id = 'worldbuilding'")
+            .execute(pool)
+            .await;
 
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS messages (
@@ -283,19 +322,94 @@ impl SqliteSessionRepository {
         .await
         .map_err(|e| CommandError::Internal(format!("初始化目录实体表失败: {e}")))?;
 
-        // Workspace 实体表：root UNIQUE 按根目录去重，id 供 sessions.workspace_id 引用；
-        // 会话经 workspace_id → 本表 root 还原工作区目录（Phase A 实体化）。
+        // Workspace 实体表：id 供 sessions.workspace_id 引用；会话经 workspace_id →
+        // 本表 root 还原工作区目录（Phase A 实体化）。
+        // 2026-09-10 方案A（场景根主权拍板）：工作区身份 =（root × scene_id）——用户打开的
+        // 项目目录在不同场景下属于「新项目目录」，同一目录跨场景各自独立工作区。
+        // 旧表 root UNIQUE 无法承载复合身份 → 检测到旧形态（无 scene_id 列）时重建。
+        let workspaces_exists: i64 =
+            sqlx::query_as::<_, (i64,)>(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'workspaces'",
+            )
+            .fetch_one(pool)
+            .await
+            .map_err(|e| CommandError::Internal(format!("检查 workspaces 表失败: {e}")))?
+            .0;
+        if workspaces_exists > 0 {
+            let has_scene_id: i64 =
+                sqlx::query_as::<_, (i64,)>(
+                    "SELECT COUNT(*) FROM pragma_table_info('workspaces') WHERE name = 'scene_id'",
+                )
+                .fetch_one(pool)
+                .await
+                .map_err(|e| CommandError::Internal(format!("检查 workspaces.scene_id 列失败: {e}")))?
+                .0;
+            if has_scene_id == 0 {
+                sqlx::query(
+                    "CREATE TABLE workspaces_new (
+                        id         TEXT PRIMARY KEY,
+                        root       TEXT NOT NULL,
+                        label      TEXT NOT NULL,
+                        scene_id   TEXT,
+                        created_at INTEGER NOT NULL
+                    )",
+                )
+                .execute(pool)
+                .await
+                .map_err(|e| CommandError::Internal(format!("重建 workspaces 表失败: {e}")))?;
+                sqlx::query(
+                    "INSERT INTO workspaces_new (id, root, label, scene_id, created_at)
+                     SELECT id, root, label, NULL, created_at FROM workspaces",
+                )
+                .execute(pool)
+                .await
+                .map_err(|e| CommandError::Internal(format!("迁移 workspaces 旧数据失败: {e}")))?;
+                sqlx::query("DROP TABLE workspaces")
+                    .execute(pool)
+                    .await
+                    .map_err(|e| CommandError::Internal(format!("移除旧 workspaces 表失败: {e}")))?;
+                sqlx::query("ALTER TABLE workspaces_new RENAME TO workspaces")
+                    .execute(pool)
+                    .await
+                    .map_err(|e| CommandError::Internal(format!("重命名 workspaces 表失败: {e}")))?;
+            }
+        }
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS workspaces (
                 id         TEXT PRIMARY KEY,
-                root       TEXT UNIQUE NOT NULL,
+                root       TEXT NOT NULL,
                 label      TEXT NOT NULL,
+                scene_id   TEXT,
                 created_at INTEGER NOT NULL
             )",
         )
         .execute(pool)
         .await
         .map_err(|e| CommandError::Internal(format!("初始化 Workspace 实体表失败: {e}")))?;
+        // (root, scene_id) 复合唯一索引（方案A 身份）；scene_id 为 NULL 的行互不冲突（SQLite 语义）
+        let _ = sqlx::query(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_workspaces_root_scene ON workspaces(root, scene_id)",
+        )
+        .execute(pool)
+        .await;
+        // 旧场景根工作区回填场景 id（根目录末段 = workspace_hint；幂等）。
+        // 注：项目目录名恰与 hint 同名时被回填亦自洽——该场景会话本就以 (root, 该场景) 为身份。
+        for (scene, hint) in [
+            ("world", "worldbuilding"),
+            ("novel", "novel"),
+            ("general", "general"),
+            ("coding", "coding"),
+            ("design", "design"),
+        ] {
+            let _ = sqlx::query(
+                "UPDATE workspaces SET scene_id = ?1 WHERE scene_id IS NULL AND (root LIKE ?2 OR root LIKE ?3)",
+            )
+            .bind(scene)
+            .bind(format!("%\\{hint}"))
+            .bind(format!("%/{hint}"))
+            .execute(pool)
+            .await;
+        }
         Ok(())
     }
 }
@@ -305,11 +419,11 @@ impl SessionRepository for SqliteSessionRepository {
     async fn save_session(&self, record: &SessionRecord) -> Result<(), CommandError> {
         // 注：sessions.router_enabled 列物理保留（历史数据兼容）但不再读写（FIX-4：开关废弃，指令化）
         sqlx::query(
-            "INSERT INTO sessions (id, system_prompt, created_at, message_count, updated_at, title, pinned, kind, workdir, workspace_id, project_id)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+            "INSERT INTO sessions (id, system_prompt, created_at, message_count, updated_at, title, pinned, kind, workdir, workspace_id, project_id, scene_id)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
              ON CONFLICT(id) DO UPDATE SET
                 system_prompt = ?2, created_at = ?3, message_count = ?4, updated_at = ?5,
-                title = ?6, pinned = ?7, kind = ?8, workdir = ?9, workspace_id = ?10, project_id = ?11",
+                title = ?6, pinned = ?7, kind = ?8, workdir = ?9, workspace_id = ?10, project_id = ?11, scene_id = ?12",
         )
         .bind(&record.id)
         .bind(&record.system_prompt)
@@ -322,6 +436,7 @@ impl SessionRepository for SqliteSessionRepository {
         .bind(&record.workdir)
         .bind(&record.workspace_id)
         .bind(&record.project_id)
+        .bind(&record.scene_id)
         .execute(&self.pool)
         .await
         .map_err(|e| CommandError::Internal(format!("写入会话失败: {e}")))?;
@@ -341,9 +456,10 @@ impl SessionRepository for SqliteSessionRepository {
             Option<String>,
             Option<String>,
             Option<String>,
+            Option<String>,
         )> =
             sqlx::query_as(
-                "SELECT id, system_prompt, created_at, message_count, updated_at, title, pinned, kind, workdir, workspace_id, project_id FROM sessions",
+                "SELECT id, system_prompt, created_at, message_count, updated_at, title, pinned, kind, workdir, workspace_id, project_id, scene_id FROM sessions",
             )
             .fetch_all(&self.pool)
             .await
@@ -367,9 +483,10 @@ impl SessionRepository for SqliteSessionRepository {
             Option<String>,
             Option<String>,
             Option<String>,
+            Option<String>,
         )> =
             sqlx::query_as(
-                "SELECT id, system_prompt, created_at, message_count, updated_at, title, pinned, kind, workdir, workspace_id, project_id FROM sessions WHERE kind = ?1",
+                "SELECT id, system_prompt, created_at, message_count, updated_at, title, pinned, kind, workdir, workspace_id, project_id, scene_id FROM sessions WHERE kind = ?1",
             )
             .bind(kind_to_str(kind))
             .fetch_all(&self.pool)
@@ -439,6 +556,19 @@ impl SessionRepository for SqliteSessionRepository {
         Ok(())
     }
 
+    async fn purge_empty_sessions(&self) -> Result<u64, CommandError> {
+        // 按消息表实况判定：无任何消息行的 chat 会话且未固定 → 物理删除
+        //（messages 级联无需处理——子查询保证无消息行；group_chat_sessions 映射仅挂 group 会话，不命中）
+        let result = sqlx::query(
+            "DELETE FROM sessions WHERE kind = 'chat' AND pinned = 0 \
+             AND id NOT IN (SELECT DISTINCT session_id FROM messages)",
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| CommandError::Internal(format!("清理空会话失败: {e}")))?;
+        Ok(result.rows_affected())
+    }
+
     async fn update_title(&self, session_id: &str, title: &str) -> Result<(), CommandError> {
         let updated_at = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -468,9 +598,11 @@ impl SessionRepository for SqliteSessionRepository {
         &self,
         session_id: &str,
         workdir: Option<&str>,
+        workspace_id: Option<&str>,
     ) -> Result<(), CommandError> {
-        sqlx::query("UPDATE sessions SET workdir = ?1 WHERE id = ?2")
+        sqlx::query("UPDATE sessions SET workdir = ?1, workspace_id = ?2 WHERE id = ?3")
             .bind(workdir)
+            .bind(workspace_id)
             .bind(session_id)
             .execute(&self.pool)
             .await
@@ -633,11 +765,18 @@ impl SessionRepository for SqliteSessionRepository {
         Ok(())
     }
 
-    async fn upsert_workspace(&self, root: &str, label: &str) -> Result<WorkspaceRecord, CommandError> {
-        // 按 root 去重：已存在则复用原 id/created_at 仅更新 label；不存在则新建 id
+    async fn upsert_workspace(
+        &self,
+        root: &str,
+        label: &str,
+        scene_id: Option<&str>,
+    ) -> Result<WorkspaceRecord, CommandError> {
+        // 方案A 复合去重：同 (root, scene_id) 复用原 id/created_at 仅更新 label；否则新建 id。
+        // `scene_id IS ?2` 使 NULL 键参与匹配（SQLite IS 支持绑定 NULL）。
         let existing: Option<(String, i64)> =
-            sqlx::query_as("SELECT id, created_at FROM workspaces WHERE root = ?1")
+            sqlx::query_as("SELECT id, created_at FROM workspaces WHERE root = ?1 AND scene_id IS ?2")
                 .bind(root)
+                .bind(scene_id)
                 .fetch_optional(&self.pool)
                 .await
                 .map_err(|e| CommandError::Internal(format!("查询 Workspace 实体失败: {e}")))?;
@@ -652,6 +791,7 @@ impl SessionRepository for SqliteSessionRepository {
                 id,
                 root: root.to_string(),
                 label: label.to_string(),
+                scene_id: scene_id.map(|s| s.to_string()),
                 created_at: created_at as u64,
             })
         } else {
@@ -661,11 +801,12 @@ impl SessionRepository for SqliteSessionRepository {
                 .map(|d| d.as_secs())
                 .unwrap_or(0);
             sqlx::query(
-                "INSERT INTO workspaces (id, root, label, created_at) VALUES (?1, ?2, ?3, ?4)",
+                "INSERT INTO workspaces (id, root, label, scene_id, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
             )
             .bind(&id)
             .bind(root)
             .bind(label)
+            .bind(scene_id)
             .bind(created_at as i64)
             .execute(&self.pool)
             .await
@@ -674,14 +815,15 @@ impl SessionRepository for SqliteSessionRepository {
                 id,
                 root: root.to_string(),
                 label: label.to_string(),
+                scene_id: scene_id.map(|s| s.to_string()),
                 created_at,
             })
         }
     }
 
     async fn list_workspaces(&self) -> Result<Vec<WorkspaceRecord>, CommandError> {
-        let rows: Vec<(String, String, String, i64)> = sqlx::query_as(
-            "SELECT id, root, label, created_at FROM workspaces ORDER BY created_at",
+        let rows: Vec<(String, String, String, Option<String>, i64)> = sqlx::query_as(
+            "SELECT id, root, label, scene_id, created_at FROM workspaces ORDER BY created_at",
         )
         .fetch_all(&self.pool)
         .await
@@ -690,8 +832,8 @@ impl SessionRepository for SqliteSessionRepository {
     }
 
     async fn get_workspace_by_id(&self, id: &str) -> Result<Option<WorkspaceRecord>, CommandError> {
-        let row: Option<(String, String, String, i64)> = sqlx::query_as(
-            "SELECT id, root, label, created_at FROM workspaces WHERE id = ?1",
+        let row: Option<(String, String, String, Option<String>, i64)> = sqlx::query_as(
+            "SELECT id, root, label, scene_id, created_at FROM workspaces WHERE id = ?1",
         )
         .bind(id)
         .fetch_optional(&self.pool)
@@ -723,6 +865,7 @@ fn record_from_row(
         workdir,
         workspace_id,
         project_id,
+        scene_id,
     ): (
         String,
         String,
@@ -732,6 +875,7 @@ fn record_from_row(
         String,
         i64,
         String,
+        Option<String>,
         Option<String>,
         Option<String>,
         Option<String>,
@@ -752,6 +896,7 @@ fn record_from_row(
         workdir,
         workspace_id,
         project_id,
+        scene_id,
     }
 }
 
@@ -766,11 +911,14 @@ fn workdir_from_row((id, path, label, created_at): (String, String, String, i64)
 }
 
 /// SQL 行 → WorkspaceRecord
-fn workspace_from_row((id, root, label, created_at): (String, String, String, i64)) -> WorkspaceRecord {
+fn workspace_from_row(
+    (id, root, label, scene_id, created_at): (String, String, String, Option<String>, i64),
+) -> WorkspaceRecord {
     WorkspaceRecord {
         id,
         root,
         label,
+        scene_id,
         created_at: created_at as u64,
     }
 }
@@ -803,6 +951,7 @@ mod tests {
             workdir: None,
             workspace_id: None,
             project_id: None,
+            scene_id: None,
         }
     }
 
@@ -1078,25 +1227,25 @@ mod tests {
 
         // 新建 Workspace 实体
         let w = store
-            .upsert_workspace("D:/workspaces/proj-a", "项目 A")
+            .upsert_workspace("D:/workspaces/proj-a", "项目 A", None)
             .await
             .unwrap();
         assert!(!w.id.is_empty());
         assert_eq!(w.root, "D:/workspaces/proj-a");
         assert_eq!(w.label, "项目 A");
 
-        // 按 root 去重：同 root 再 upsert 只更新 label，id/created_at 保持
+        // 复合去重：同 (root, scene_id) 再 upsert 只更新 label，id/created_at 保持
         let w2 = store
-            .upsert_workspace("D:/workspaces/proj-a", "项目 A 改名")
+            .upsert_workspace("D:/workspaces/proj-a", "项目 A 改名", None)
             .await
             .unwrap();
-        assert_eq!(w2.id, w.id, "同 root 复用原 id");
-        assert_eq!(w2.created_at, w.created_at, "同 root 保留原 created_at");
+        assert_eq!(w2.id, w.id, "同 (root, scene) 复用原 id");
+        assert_eq!(w2.created_at, w.created_at, "同 (root, scene) 保留原 created_at");
         assert_eq!(w2.label, "项目 A 改名");
 
         // 不同 root 新增为独立条目
         store
-            .upsert_workspace("D:/workspaces/proj-b", "项目 B")
+            .upsert_workspace("D:/workspaces/proj-b", "项目 B", None)
             .await
             .unwrap();
         assert_eq!(store.list_workspaces().await.unwrap().len(), 2);
@@ -1105,6 +1254,78 @@ mod tests {
         let got = store.get_workspace_by_id(&w.id).await.unwrap().unwrap();
         assert_eq!(got.root, "D:/workspaces/proj-a");
         assert_eq!(got.label, "项目 A 改名");
+    }
+
+    #[tokio::test]
+    async fn workspace_scene_composite_dedupe() {
+        // 方案A（2026-09-10 场景根主权）：工作区身份 =（root × scene）——
+        // 同一项目目录在不同场景下属于「新项目目录」，各自独立工作区实体
+        let store = SqliteSessionRepository::new_in_memory().await.unwrap();
+        let w_world = store
+            .upsert_workspace("D:/proj/a", "项目 A", Some("world"))
+            .await
+            .unwrap();
+        let w_coding = store
+            .upsert_workspace("D:/proj/a", "项目 A", Some("coding"))
+            .await
+            .unwrap();
+        assert_ne!(w_world.id, w_coding.id, "同目录不同场景应为两个独立工作区");
+        assert_eq!(w_world.scene_id.as_deref(), Some("world"));
+        assert_eq!(w_coding.scene_id.as_deref(), Some("coding"));
+
+        // 同 (root, scene) 复用
+        let w_world2 = store
+            .upsert_workspace("D:/proj/a", "项目 A 改名", Some("world"))
+            .await
+            .unwrap();
+        assert_eq!(w_world2.id, w_world.id, "同目录同场景复用原 id");
+        assert_eq!(w_world2.label, "项目 A 改名");
+
+        // 列表 2 条（world/coding 各一），按 id 查回场景
+        assert_eq!(store.list_workspaces().await.unwrap().len(), 2);
+        let got = store.get_workspace_by_id(&w_coding.id).await.unwrap().unwrap();
+        assert_eq!(got.scene_id.as_deref(), Some("coding"));
+    }
+
+    #[tokio::test]
+    async fn purge_empty_sessions_keeps_meaningful_rows() {
+        // 空会话清理（2026-09-10 症状①）：仅清「无消息行 && 非固定 && chat」；
+        // 有消息、固定、group 类型均保留（群聊映射恢复依赖 group 会话行）
+        let store = SqliteSessionRepository::new_in_memory().await.unwrap();
+
+        let mut empty = record("empty", 0); // 0 消息 chat 非固定 → 清
+        empty.message_count = 5; // 列值虚高（X1：不可靠）也不影响判定
+        store.save_session(&empty).await.unwrap();
+        let mut with_msg = record("with-msg", 0); // 有消息 → 保留
+        store.save_session(&with_msg).await.unwrap();
+        let mut pinned = record("pinned", 0); // 固定空会话 → 保留
+        pinned.pinned = true;
+        store.save_session(&pinned).await.unwrap();
+        let mut group = record("group", 0); // group 类型 → 保留
+        group.kind = SessionKind::Group;
+        store.save_session(&group).await.unwrap();
+
+        store
+            .replace_messages("with-msg", &[msg(MessageRole::User, "hi")])
+            .await
+            .unwrap();
+
+        let purged = store.purge_empty_sessions().await.unwrap();
+        assert_eq!(purged, 1, "仅清掉 1 条空会话");
+        let left: Vec<String> = store
+            .load_sessions()
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|r| r.id)
+            .collect();
+        assert!(!left.contains(&"empty".to_string()), "空会话应被清理");
+        for kept in ["with-msg", "pinned", "group"] {
+            assert!(left.contains(&kept.to_string()), "{kept} 应保留");
+        }
+
+        // 幂等：再跑一次无新增删除
+        assert_eq!(store.purge_empty_sessions().await.unwrap(), 0);
     }
 
     #[tokio::test]
@@ -1118,7 +1339,7 @@ mod tests {
         {
             let store = SqliteSessionRepository::new(&path).await.unwrap();
             let ws = store
-                .upsert_workspace("D:/workspaces/proj-a", "项目 A")
+                .upsert_workspace("D:/workspaces/proj-a", "项目 A", None)
                 .await
                 .unwrap();
             ws_id = ws.id.clone();

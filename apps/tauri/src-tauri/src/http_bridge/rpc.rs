@@ -8,14 +8,13 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
-use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use serde_json::{Value, from_value, to_value};
 use tauri::{AppHandle, Manager};
 
 use crate::{
     algo_commands, commands, entity_commands, frontend_tool_bridge, fs_commands,
-    project_commands, router_commands, search_commands, secure_store,
+    project_commands, search_commands, secure_store,
 };
 
 pub type RpcResult = Result<Value, String>;
@@ -69,6 +68,22 @@ struct SessionTitleArgs {
 struct SessionPinnedArgs {
     session_id: String,
     pinned: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PatternStepArgs {
+    session_id: String,
+    pattern: String,
+    params: agent_commands::PatternStepParams,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SupervisorResumeArgs {
+    session_id: String,
+    run_id: String,
+    options: agent_commands::SupervisorExecuteOptions,
 }
 
 #[derive(Deserialize)]
@@ -147,14 +162,6 @@ struct ProviderConfigArgs {
 struct ApiKeyPoolArgs {
     session_id: String,
     keys: Vec<String>,
-}
-
-/// 编排运行参数（plan/tot/got/supervisor/multi 共用：session_id + input + options）
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct OrchRunArgs {
-    session_id: String,
-    input: String,
 }
 
 /// 注册全部核心命令（Agent 空间真实调试所需；桌面专用命令不在 HTTP 面）。
@@ -241,6 +248,29 @@ pub fn register_core(reg: &mut Registry) {
             let a: SessionPinnedArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
             let st = app.state::<agent_commands::AgentCommandService>();
             c::set_session_pinned(st, a.session_id, a.pinned).await.map(|_| Value::Null)
+        })
+    }));
+
+    // 创作编排模式步骤（tot-search / got-solve / multi-agent 接轨 B 轨引擎；由 pipeline_run_step 工具 invoke）
+    reg.register("cmd_pattern_step_run", Arc::new(move |app, args| {
+        let app = app.clone();
+        Box::pin(async move {
+            let a: PatternStepArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
+            let st = app.state::<agent_commands::AgentCommandService>();
+            c::cmd_pattern_step_run(st, a.session_id, a.pattern, a.params)
+                .await
+                .map(|r| to_value(r).unwrap_or(Value::Null))
+        })
+    }));
+    // supervisor 编排续跑（resume 入口，2026-09-09 接入：同 options 重建监督图 + 断点恢复续跑）
+    reg.register("cmd_run_supervisor_resume", Arc::new(move |app, args| {
+        let app = app.clone();
+        Box::pin(async move {
+            let a: SupervisorResumeArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
+            let st = app.state::<agent_commands::AgentCommandService>();
+            c::cmd_run_supervisor_resume(st, a.session_id, a.run_id, a.options)
+                .await
+                .map(|r| to_value(r).unwrap_or(Value::Null))
         })
     }));
 
@@ -580,51 +610,8 @@ pub fn register_core(reg: &mut Registry) {
         })
     }));
 
-    // ── 编排：tot / got / supervisor / multi（plan 已随 B 轨退役移除，2026-09-04）──
-    reg.register("orchestrator_run_tot", Arc::new(move |app, args| {
-        let app = app.clone();
-        Box::pin(async move {
-            let a: OrchRunArgs = match from_value(args.clone()) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
-            let opt: Option<agent_commands::ToTExecuteOptions> = args_opt_field(args, "options");
-            let app_cmd = app.clone();
-            let app_state = app.clone();
-            let st = app_state.state::<agent_commands::AgentCommandService>();
-            c::orchestrator_run_tot(app_cmd, st, a.session_id, a.input, opt).await.map(|r| to_value(r).unwrap_or(Value::Null))
-        })
-    }));
-    reg.register("orchestrator_run_got", Arc::new(move |app, args| {
-        let app = app.clone();
-        Box::pin(async move {
-            let a: OrchRunArgs = match from_value(args.clone()) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
-            let opt: Option<agent_commands::GoTExecuteOptions> = args_opt_field(args, "options");
-            let app_cmd = app.clone();
-            let app_state = app.clone();
-            let st = app_state.state::<agent_commands::AgentCommandService>();
-            c::orchestrator_run_got(app_cmd, st, a.session_id, a.input, opt).await.map(|r| to_value(r).unwrap_or(Value::Null))
-        })
-    }));
-    reg.register("orchestrator_run_supervisor", Arc::new(move |app, args| {
-        let app = app.clone();
-        Box::pin(async move {
-            let a: OrchRunArgs = match from_value(args.clone()) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
-            let opt: agent_commands::SupervisorExecuteOptions = args_opt_field(args, "options").ok_or_else(|| "缺少 options 参数".to_string())?;
-            let app_cmd = app.clone();
-            let app_state = app.clone();
-            let st = app_state.state::<agent_commands::AgentCommandService>();
-            c::orchestrator_run_supervisor(app_cmd, st, a.session_id, a.input, opt).await.map(|r| to_value(r).unwrap_or(Value::Null))
-        })
-    }));
-    reg.register("orchestrator_run_multi", Arc::new(move |app, args| {
-        let app = app.clone();
-        Box::pin(async move {
-            let a: OrchRunArgs = match from_value(args.clone()) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
-            let opt: agent_commands::MultiAgentExecuteOptions = args_opt_field(args, "options").ok_or_else(|| "缺少 options 参数".to_string())?;
-            let app_cmd = app.clone();
-            let app_state = app.clone();
-            let st = app_state.state::<agent_commands::AgentCommandService>();
-            c::orchestrator_run_multi(app_cmd, st, a.session_id, a.input, opt).await.map(|r| to_value(r).unwrap_or(Value::Null))
-        })
-    }));
+    // 编排命令（orchestrator_run_tot/got/supervisor/multi）已于 2026-09-09 指令层收敛移除，
+    // 历史由对话流编排段（OrchestrationSegment）回放；未来承载面（创作编排/群聊会议）复用 B 轨引擎。
 
     // ── 记忆 ──
     reg.register("memory_list", Arc::new(move |app, args| {
@@ -885,7 +872,7 @@ struct SubAgentIdArg {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct SubAgentSpecArg {
-    spec: agent_runtime::supervisor::SubAgentSpec,
+    spec: agent_runtime::sub_agent_pool::SubAgentSpec,
 }
 
 #[derive(Deserialize)]
@@ -1055,22 +1042,6 @@ struct LongTaskStatusArg {
     task_id: String,
     status: agent_runtime::long_task::LongTaskStatus,
     ended_at: chrono::DateTime<chrono::Utc>,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct RouterTargetsArg {
-    session_id: String,
-    targets: Vec<agent_runtime::router::RouteTarget>,
-    use_llm: Option<bool>,
-    fallback_target_id: Option<String>,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct RouterRouteArg {
-    session_id: String,
-    input: String,
 }
 
 #[derive(Deserialize)]
@@ -1483,63 +1454,8 @@ fn register_extra(reg: &mut Registry) {
         })
     }));
 
-    // ── Router ──
-    reg.register("router_create", Arc::new(move |app, args| {
-        let app = app.clone();
-        Box::pin(async move {
-            let a: RouterTargetsArg = from_value(args).map_err(|e| e.to_string())?;
-            let s1 = app.clone();
-            let s2 = app.clone();
-            let st = s1.state::<agent_commands::AgentCommandService>();
-            let reg_state = s2.state::<router_commands::RouterRegistry>();
-            router_commands::router_create(st, reg_state, a.session_id, a.targets, a.use_llm, a.fallback_target_id)
-                .await.map(|_| Value::Null)
-        })
-    }));
-    reg.register("router_route", Arc::new(move |app, args| {
-        let app = app.clone();
-        Box::pin(async move {
-            let a: RouterRouteArg = from_value(args).map_err(|e| e.to_string())?;
-            let s1 = app.clone();
-            let s2 = app.clone();
-            let st = s1.state::<agent_commands::AgentCommandService>();
-            let reg_state = s2.state::<router_commands::RouterRegistry>();
-            router_commands::router_route(st, reg_state, a.session_id, a.input)
-                .await.map(|r| to_value(r).unwrap_or(Value::Null))
-        })
-    }));
-    reg.register("router_set_targets", Arc::new(move |app, args| {
-        let app = app.clone();
-        Box::pin(async move {
-            let a: RouterTargetsArg = from_value(args).map_err(|e| e.to_string())?;
-            let st = app.state::<router_commands::RouterRegistry>();
-            router_commands::router_set_targets(st, a.session_id, a.targets, a.use_llm, a.fallback_target_id)
-                .await.map(|_| Value::Null)
-        })
-    }));
-    reg.register("router_get_state", Arc::new(move |app, args| {
-        let app = app.clone();
-        Box::pin(async move {
-            let a: SessionArgs = from_value(args).map_err(|e| e.to_string())?;
-            let st = app.state::<router_commands::RouterRegistry>();
-            router_commands::router_get_state(st, a.session_id).await.map(|r| to_value(r).unwrap_or(Value::Null))
-        })
-    }));
-    reg.register("router_destroy", Arc::new(move |app, args| {
-        let app = app.clone();
-        Box::pin(async move {
-            let a: SessionArgs = from_value(args).map_err(|e| e.to_string())?;
-            let st = app.state::<router_commands::RouterRegistry>();
-            router_commands::router_destroy(st, a.session_id).await.map(|_| Value::Null)
-        })
-    }));
-    reg.register("router_list_sessions", Arc::new(move |app, _args| {
-        let app = app.clone();
-        Box::pin(async move {
-            let st = app.state::<router_commands::RouterRegistry>();
-            router_commands::router_list_sessions(st).await.map(|r| to_value(r).unwrap_or(Value::Null))
-        })
-    }));
+    // 2026-09-09：Router 命令层随右栏 Router 区下线（router_create/route/set_targets/
+    // get_state/list_sessions/destroy 已删除；Router 归场景识别底座，kernel router 不受影响）
 
     // ── Secure Store / Search ──
     // 注意：manage 的是 Arc<SecureStore>（SecureStore::new 返回 Arc<Self>），
@@ -1780,13 +1696,6 @@ fn unwrap_args(args: Value) -> Value {
         }
     }
     args
-}
-
-/// 从 args 对象取字段反序列化（缺失/空返回 None）
-fn args_opt_field<T: DeserializeOwned>(args: Value, key: &str) -> Option<T> {
-    let v = args.get(key)?;
-    if v.is_null() { return None; }
-    from_value(v.clone()).ok()
 }
 
 /// 供 mod.rs 分发：未注册命令的占位错误

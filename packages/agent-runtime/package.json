@@ -30,6 +30,7 @@
   },
   "dependencies": {
     "@worldsea/agent-core": "link:../agent-core",
+    "@worldsea/entity-core": "link:../entity-core",
     "@worldsea/governor-core": "link:../governor-core",
     "dexie": "^4.4.2"
   },

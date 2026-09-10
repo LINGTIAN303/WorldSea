@@ -48,6 +48,10 @@ const STEP_AGENT_LABELS: Record<string, string> = {
   'template-apply': '创作 Agent',
   'transform': '创作 Agent',
   'user-review': '用户审阅',
+  // 2026-09-09 接轨：tot/got/multi-agent 由主 Agent 直接调用 pattern_step_run 执行，不派生子 Agent
+  'tot-search': '思维树探索（B 轨）',
+  'got-solve': '思维图求解（B 轨）',
+  'multi-agent': '多智能体协作（B 轨）',
 }
 
 export function usePipelineExecution() {

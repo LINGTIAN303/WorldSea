@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use agent_runtime::supervisor::SubAgentSpec;
+use agent_runtime::sub_agent_pool::SubAgentSpec;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
 use sqlx::SqlitePool;
 

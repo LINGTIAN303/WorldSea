@@ -65,6 +65,12 @@ export class PluginManager {
     this.viewHook = hook
   }
 
+  /** 项目切换前调用：清空已激活状态，允许重新 activate 重播种官方类型（registerEntityV2 双写旧版+V2） */
+  resetForProjectSwitch(): void {
+    this.loaded.clear()
+    this.registrations.clear()
+  }
+
   async activate(plugin: PluginInstance): Promise<void> {
     if (this.loaded.has(plugin.manifest.id)) {
       console.warn(`[PluginManager] 插件 "${plugin.manifest.id}" 已激活`)

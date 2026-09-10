@@ -12,7 +12,9 @@
       :class="{ 'pt-btn--active': editing }"
       @click="$emit('toggle-edit', !editing)"
     >
-      {{ editing ? '✅ 完成编辑' : '✏️ 编辑步骤' }}
+      <IconPencil v-if="!editing" :size="14" />
+      <IconCheck v-else :size="14" />
+      {{ editing ? '完成编辑' : '编辑步骤' }}
     </button>
 
     <!-- 状态切换 -->
@@ -35,7 +37,8 @@
           :disabled="pipeline.status === 'running'"
           @click="$emit('run-agent')"
         >
-          🤖 交给 Agent 执行
+          <IconRobot :size="14" />
+          交给 Agent 执行
         </button>
         <button
           class="pt-btn pt-btn--engine"
@@ -43,10 +46,14 @@
           :title="'绕过 Agent 编排，直接调用 Rust Workflow 引擎执行（兜底通道）'"
           @click="$emit('run-direct')"
         >
-          ⚡ 直接执行
+          <IconBolt :size="14" />
+          直接执行
         </button>
-        <button class="pt-btn" @click="$emit('save-template')">💾 存为模板</button>
-        <button class="pt-btn pt-btn--danger" @click="$emit('delete')" aria-label="删除流水线">🗑</button>
+        <button class="pt-btn" @click="$emit('save-template')">
+          <IconDeviceFloppy :size="14" />
+          存为模板
+        </button>
+        <button class="pt-btn pt-btn--danger" @click="$emit('delete')" aria-label="删除流水线"><IconTrash :size="14" /></button>
         <button
           v-if="showSidebarToggle"
           class="pt-btn pt-btn--icon"
@@ -61,6 +68,7 @@
 </template>
 
 <script setup lang="ts">
+import { IconPencil, IconCheck, IconRobot, IconBolt, IconDeviceFloppy, IconTrash } from '@tabler/icons-vue'
 import type { CreationPipeline, PipelineStatus } from '../types'
 
 defineProps<{

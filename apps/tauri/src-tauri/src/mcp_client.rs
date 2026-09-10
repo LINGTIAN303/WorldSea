@@ -491,7 +491,7 @@ mod tests {
             move || hub.tools_for_bus()
         }));
         let info = svc
-            .new_session(None, None, None, None, None)
+            .new_session(None, None, None, None, None, None)
             .await
             .expect("new_session 应成功");
         let session_tools = svc

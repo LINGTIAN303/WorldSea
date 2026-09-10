@@ -105,11 +105,20 @@ impl AgentLoop {
             } else {
                 None
             };
-            Some(
-                scenario
-                    .build_system_prompt(&ScenarioContext::new(None, query_text, entity_summary))
-                    .await,
-            )
+            // 2026-09-10 风险点③收口：补齐 project_id / workspace_id 注入——此前恒 None，
+            // 场景身份 prompt 的「当前项目 ID」「工作区 ID」段永不触发。
+            let ctx = ScenarioContext::new(config.project_id.clone(), query_text, entity_summary)
+                .with_workspace_id(config.workspace_id.clone());
+            // 场景插件钩子（2026-09-09 场景底座）：extra_system_prompt_blocks 依次追加
+            // 到身份 prompt 之后（如 coding 场景注入工程规范 / 场景级约束）。
+            let mut base = scenario.build_system_prompt(&ctx).await;
+            for block in scenario.extra_system_prompt_blocks(&ctx) {
+                if !block.trim().is_empty() {
+                    base.push_str("\n\n");
+                    base.push_str(&block);
+                }
+            }
+            Some(base)
         } else {
             None
         };

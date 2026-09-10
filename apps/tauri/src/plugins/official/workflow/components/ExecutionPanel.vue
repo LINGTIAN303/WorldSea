@@ -36,7 +36,7 @@
     </div>
 
     <div v-if="!currentStep && executionLog.length === 0 && activeSubAgents.length === 0 && !engineState" class="ep-idle">
-      <p>等待执行... 点击「交给 Agent 执行」或「⚡ 直接执行」</p>
+      <p>等待执行... 点击「交给 Agent 执行」或「直接执行」</p>
     </div>
 
     <!-- ── Engine 通道（直接 Dispatch 兜底） ───────────────────── -->
@@ -44,7 +44,7 @@
     <div v-if="engineState" class="ep-engine">
       <div class="ep-engine__header">
         <span class="ep-engine__badge" :class="`ep-engine__badge--${engineState.status}`">
-          ⚡ Engine · {{ engineStatusLabel(engineState.status) }}
+          <IconBolt :size="12" /> Engine · {{ engineStatusLabel(engineState.status) }}
         </span>
         <span v-if="engineState.runId" class="ep-engine__runid" :title="engineState.runId">
           run: {{ engineState.runId.slice(0, 8) }}
@@ -93,6 +93,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { IconBolt } from '@tabler/icons-vue'
 import type { PipelineStep, StepType } from '../types'
 import { STEP_TYPE_LABELS } from '../composables/useStepLibrary'
 import { useOrchestrator } from '@/agent/composables/useOrchestrator'
@@ -217,6 +218,9 @@ function formatDuration(ms: number): string {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
 }
 .ep-engine__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: var(--fs-xs); font-weight: 600; padding: 2px 8px; border-radius: var(--radius-xs);
   background: var(--bg-tertiary, #e4e4e7);
 }

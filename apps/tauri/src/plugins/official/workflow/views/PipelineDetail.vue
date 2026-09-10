@@ -26,7 +26,7 @@
 
       <!-- 编辑模式提示条 -->
       <div v-if="editing" class="pd-edit-banner">
-        <span>📝 编辑模式 — 双击标题可重命名，拖拽手柄可排序，点击 ✏️ 编辑配置</span>
+        <span><IconPencil :size="13" /> 编辑模式 — 双击标题可重命名，拖拽手柄可排序，点击图标编辑配置</span>
       </div>
 
       <!-- 步骤列表 -->
@@ -52,7 +52,7 @@
       <!-- 连接管理（编辑模式下显示） -->
       <div v-if="editing && pipeline.steps.length >= 2" class="pd-connections">
         <div class="pd-connections__header">
-          <h4>🔗 步骤连接</h4>
+          <h4><IconLink :size="14" /> 步骤连接</h4>
           <button class="pd-connections__add" @click="showAddConnection = true">+ 添加连接</button>
         </div>
 
@@ -65,7 +65,7 @@
             <span v-if="conn.dataMapping?.length" class="pd-conn__mapping">
               {{ conn.dataMapping.map(m => `${m.fromField}→${m.toField}`).join(', ') }}
             </span>
-            <button class="pd-conn__delete" @click="$emit('remove-connection', conn.from, conn.to)">✕</button>
+            <button class="pd-conn__delete" title="删除连接" @click="$emit('remove-connection', conn.from, conn.to)"><IconX :size="13" /></button>
           </div>
         </div>
         <p v-else class="pd-connections__empty">暂无连接，步骤将按顺序依次执行</p>
@@ -89,14 +89,14 @@
       <!-- 空步骤：引导式添加入口 -->
       <div v-if="pipeline.steps.length === 0" class="pd-empty">
         <div class="pd-empty__hero">
-          <div class="pd-empty__icon">📋</div>
+          <div class="pd-empty__icon"><TemplateIcon name="clipboard" :size="30" /></div>
           <h3>开始编排你的创作计划</h3>
           <p class="pd-empty__desc">为「{{ pipeline.name }}」添加步骤，定义创作流程</p>
         </div>
 
         <!-- Agent 设计入口 -->
         <div class="pd-empty__agent" role="button" tabindex="0" @click="$emit('send-prompt', `/skill:creation-orchestrator 请为「${pipeline.name}」设计创作步骤。${pipeline.description ? '目标：' + pipeline.description : ''}`)" @keydown.enter.prevent="$emit('send-prompt', `/skill:creation-orchestrator 请为「${pipeline.name}」设计创作步骤。${pipeline.description ? '目标：' + pipeline.description : ''}`)" @keydown.space.prevent="$emit('send-prompt', `/skill:creation-orchestrator 请为「${pipeline.name}」设计创作步骤。${pipeline.description ? '目标：' + pipeline.description : ''}`)">
-          <span class="pd-empty__agent-icon">🤖</span>
+          <span class="pd-empty__agent-icon"><TemplateIcon name="sparkles" :size="20" /></span>
           <div class="pd-empty__agent-info">
             <span class="pd-empty__agent-title">让 Agent 帮你设计</span>
             <span class="pd-empty__agent-desc">描述你的创作目标，Agent 自动生成步骤</span>
@@ -118,7 +118,7 @@
               @keydown.enter.prevent="$emit('add-step', item)"
               @keydown.space.prevent="$emit('add-step', item)"
             >
-              <span class="pd-step-card__icon">{{ item.icon }}</span>
+              <span class="pd-step-card__icon"><StepTypeIcon :type="item.type" :size="18" /></span>
               <div class="pd-step-card__info">
                 <span class="pd-step-card__label">{{ item.label }}</span>
                 <span class="pd-step-card__desc">{{ item.description }}</span>
@@ -145,12 +145,15 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { IconPencil, IconLink, IconX } from '@tabler/icons-vue'
 import type { CreationPipeline, PipelineStep, PipelineStatus, StepLibraryItem, StepConnection } from '../types'
 import PipelineToolbar from '../components/PipelineToolbar.vue'
 import PipelineStepNode from '../components/PipelineStepNode.vue'
 import ExecutionPanel from '../components/ExecutionPanel.vue'
 import PipelineChat from '../components/PipelineChat.vue'
 import RunHistorySidebar from '../components/RunHistorySidebar.vue'
+import StepTypeIcon from '../components/StepTypeIcon.vue'
+import TemplateIcon from '../components/TemplateIcon.vue'
 import { useStepLibrary } from '../composables/useStepLibrary'
 import { useWorkflowEngineRun } from '../composables/useWorkflowEngineRun'
 

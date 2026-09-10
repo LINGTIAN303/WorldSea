@@ -1,7 +1,7 @@
 <template>
   <div class="pc-chat">
     <div class="pc-header">
-      <span class="pc-title">🤖 创作助手</span>
+      <span class="pc-title"><IconRobot :size="15" /> 创作助手</span>
       <span class="pc-hint">描述你的需求，Agent 会帮你编排和执行</span>
     </div>
 
@@ -41,6 +41,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { IconRobot } from '@tabler/icons-vue'
 import type { CreationPipeline } from '../types'
 
 const props = defineProps<{
@@ -126,6 +127,9 @@ function sendQuickAction(prompt: string) {
   gap: 8px;
 }
 .pc-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: var(--fs-md);
   font-weight: 600;
 }

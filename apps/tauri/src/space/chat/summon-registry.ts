@@ -87,21 +87,15 @@ export const SKILL_ITEMS: SummonItem[] = [
 /**
  * 四管线（/ Chip，随消息发送，force_pipeline 强制路由）
  *
- * A3 Routing 四管线：payload 注入 `/管线` 前缀，作为消息首 token，
- * 后端 `extract_force_pipeline` 命中后跳过 LLM 意图分类直接路由到对应管线。
- * 非强约束：仅当消息首 token 命中时生效，其余走 LLM(3s 超时降级关键词)。
+ * 2026-09-09 指令层收敛：/查询 /调研 /分析 /写作（四管线入口）已随旧轨 router
+ * 收敛移除——Router 归场景识别底座，管线由场景/会话自动装配，不再暴露散装指令；
+ * /plan 保留（待办引导）。
+ * 后端 extract_force_pipeline：/plan 仍由消息首 token 命中强制路由，其余走 LLM。
  */
 export const PIPELINE_ITEMS: SummonItem[] = [
-  { id: 'pipeline-query', prefix: '/', name: '查询', description: '强制查询管线：事实检索、快速问答', icon: 'search', kind: 'pipeline', payload: '/查询 ' },
-  { id: 'pipeline-research', prefix: '/', name: '研究', description: '强制研究管线：深度调研、文献综述', icon: 'book-open', kind: 'pipeline', payload: '/调研 ' },
-  { id: 'pipeline-experiment', prefix: '/', name: '实验', description: '强制实验管线：数据分析、代码计算', icon: 'flask-conical', kind: 'pipeline', payload: '/分析 ' },
-  { id: 'pipeline-compose', prefix: '/', name: '创作', description: '强制创作管线：写作、润色、内容生成', icon: 'pen-line', kind: 'pipeline', payload: '/写作 ' },
-  // M4-3（A1/C0-15 契约发现）：编排模式从 patternRegistry 注入命令菜单——按模式直发对应 run_*
+  // 2026-09-09 指令层收敛：/plan 保留（待办引导）；四管线入口（查询/研究/实验/创作）已消除
+  // （Router 归场景识别底座，见 docs/plans/2026-09-09-编排双轨收口审查与6模块迁移.md §七）。
   { id: 'pipeline-plan', prefix: '/', name: '规划执行', description: '强制规划管线：计划→执行→评审收敛', icon: 'task', kind: 'pipeline', payload: '/plan ' },
-  { id: 'pipeline-tot', prefix: '/', name: '思维树探索', description: '强制 ToT：分支式思维探索（解多解/难题）', icon: 'mindmap', kind: 'pipeline', payload: '/tot ' },
-  { id: 'pipeline-got', prefix: '/', name: '思维图聚合', description: '强制 GoT：多源聚合推理与对比', icon: 'workflow', kind: 'pipeline', payload: '/got ' },
-  { id: 'pipeline-supervisor', prefix: '/', name: '监督委派', description: '强制 Supervisor：拆分子任务委派子 Agent', icon: 'handshake', kind: 'pipeline', payload: '/supervisor ' },
-  { id: 'pipeline-multi', prefix: '/', name: '多智能体协作', description: '强制 MultiAgent：黑板协作多智能体解法', icon: 'users', kind: 'pipeline', payload: '/multi ' },
 ]
 
 /** 创作区视图源（！）——由插件视图注册表驱动，见 buildSummonItems */

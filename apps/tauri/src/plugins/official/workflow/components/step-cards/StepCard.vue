@@ -1,7 +1,7 @@
 <template>
   <div class="sc-card" :class="`sc-card--${step.type}`">
     <div class="sc-card__header">
-      <span class="sc-card__icon">{{ icon }}</span>
+      <span class="sc-card__icon"><StepTypeIcon :type="step.type" :size="18" /></span>
       <span class="sc-card__title">{{ step.title }}</span>
       <span class="sc-card__status" :class="`status--${step.status}`">{{ statusText }}</span>
     </div>
@@ -12,6 +12,9 @@
       <TemplateApplyCard v-else-if="step.type === 'template-apply'" :config="step.config as TemplateApplyConfig" />
       <ConsistencyCheckCard v-else-if="step.type === 'consistency-check'" :config="step.config as ConsistencyCheckConfig" />
       <TransformCard v-else-if="step.type === 'transform'" :config="step.config as TransformConfig" />
+      <TotSearchCard v-else-if="step.type === 'tot-search'" :config="step.config as TotSearchConfig" />
+      <GotSolveCard v-else-if="step.type === 'got-solve'" :config="step.config as GotSolveConfig" />
+      <MultiAgentCard v-else-if="step.type === 'multi-agent'" :config="step.config as MultiAgentConfig" />
     </div>
     <div class="sc-card__output" v-if="step.output?.summary">
       <p>{{ step.output.summary }}</p>
@@ -20,19 +23,20 @@
 </template>
 
 <script setup lang="ts">
-import type { PipelineStep, AgentTaskConfig, UserReviewConfig, BatchCreateConfig, TemplateApplyConfig, ConsistencyCheckConfig, TransformConfig, StepStatus } from '../../types'
-import { STEP_TYPE_ICONS } from '../../composables/useStepLibrary'
+import type { PipelineStep, AgentTaskConfig, UserReviewConfig, BatchCreateConfig, TemplateApplyConfig, ConsistencyCheckConfig, TransformConfig, TotSearchConfig, GotSolveConfig, MultiAgentConfig, StepStatus } from '../../types'
+import StepTypeIcon from '../StepTypeIcon.vue'
 import AgentTaskCard from './AgentTaskCard.vue'
 import UserReviewCard from './UserReviewCard.vue'
 import BatchCreateCard from './BatchCreateCard.vue'
 import TemplateApplyCard from './TemplateApplyCard.vue'
 import ConsistencyCheckCard from './ConsistencyCheckCard.vue'
 import TransformCard from './TransformCard.vue'
+import TotSearchCard from './TotSearchCard.vue'
+import GotSolveCard from './GotSolveCard.vue'
+import MultiAgentCard from './MultiAgentCard.vue'
 import { computed } from 'vue'
 
 const props = defineProps<{ step: PipelineStep }>()
-
-const icon = computed(() => STEP_TYPE_ICONS[props.step.type] || '📌')
 
 const statusText = computed(() => {
   const map: Record<StepStatus, string> = {

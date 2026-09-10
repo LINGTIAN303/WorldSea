@@ -816,7 +816,7 @@
 
         let agent = AgentLoop::new(backend.clone(), tool_bus)
             .with_config(AgentLoopConfig {
-                system_prompt: Some("你是世界构建助手".into()),
+                system_prompt: Some("你是世界构建Agent".into()),
                 ..Default::default()
             })
             .with_memory(Some(memory.clone()));
@@ -835,7 +835,7 @@
         let last_options = backend.last_options.lock().await.clone().unwrap();
         let sys = last_options.system_prompt_override.unwrap_or_default();
         assert!(
-            sys.contains("你是世界构建助手"),
+            sys.contains("你是世界构建Agent"),
             "system prompt 应保留，实际: {sys}"
         );
         assert!(

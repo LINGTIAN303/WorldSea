@@ -73,6 +73,10 @@ pub struct OrchestrationRun {
     /// 终局结论
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub final_message: Option<String>,
+    /// 断点快照（B 轨 `run_with_checkpoint` 产出；v1 内存驻留，
+    /// resume 入口待承载面动工接，断点可查）
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub checkpoint: Option<serde_json::Value>,
 }
 
 fn now_ms() -> i64 {
@@ -122,6 +126,7 @@ impl RunStore {
             started_at: Some(now_ms()),
             finished_at: None,
             final_message: None,
+            checkpoint: None,
         };
         self.runs.write().await.insert(run_id.clone(), run);
         if is_top {
@@ -192,6 +197,15 @@ impl RunStore {
         let mut guard = self.runs.write().await;
         if let Some(run) = guard.get_mut(run_id) {
             run.decisions.push(decision);
+        }
+    }
+
+    /// 保存断点快照（B 轨 `run_with_checkpoint` 产出；v1 内存驻留，供断点查询，
+    /// 后续承载面动工时接 resume）
+    pub async fn save_checkpoint(&self, run_id: &str, checkpoint: serde_json::Value) {
+        let mut guard = self.runs.write().await;
+        if let Some(run) = guard.get_mut(run_id) {
+            run.checkpoint = Some(checkpoint);
         }
     }
 

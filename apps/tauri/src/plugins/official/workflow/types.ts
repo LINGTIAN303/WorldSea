@@ -5,7 +5,14 @@
 
 // ─── 步骤类型 ─────────────────────────────────────────────────────────────
 
-/** 6 种面向创作场景的步骤类型 */
+/**
+ * 9 种面向创作场景的步骤类型
+ *
+ * 2026-09-09 接轨：tot-search（思维树探索）/ got-solve（思维图求解）/
+ * multi-agent（多智能体并行产出+聚合）为编排模式节点（B 轨 TotNode/GotNode/
+ * MultiAgentNode），由主 Agent 直接调用 pattern_step_run 工具执行。
+ * 见 docs/plans/2026-09-09-编排双轨收口审查与6模块迁移.md。
+ */
 export type StepType =
   | 'agent-task'
   | 'user-review'
@@ -13,6 +20,9 @@ export type StepType =
   | 'template-apply'
   | 'consistency-check'
   | 'transform'
+  | 'tot-search'
+  | 'got-solve'
+  | 'multi-agent'
 
 /** 步骤执行状态 */
 export type StepStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipped'
@@ -78,6 +88,60 @@ export interface TransformConfig {
   rules: string
 }
 
+/** 思维树搜索（ToT：expand → evaluate → prune → select）——2026-09-09 接轨 B 轨 TotNode */
+export interface TotSearchConfig {
+  /** 根问题 / 创作任务描述（写入黑板 task.intent） */
+  intent: string
+  /** 展开器 prompt（system）：如何基于当前分支生成候选细化方案 */
+  expandPrompt: string
+  /** 评分器 prompt（system）：如何对候选方案打 0-100 分（独立于展开器，避免自我偏好） */
+  evaluatePrompt: string
+  /** 每叶子展开的候选数（branching_k） */
+  branchingK: number
+  /** 剪枝后保留宽度（keep_top_b） */
+  keepTopB: number
+  /** 树深上限（治理终止闸门） */
+  maxDepth: number
+}
+
+/** 思维图求解（GoT：split → 并发视角求解 → merge → evaluate）——2026-09-09 接轨 B 轨 GotNode */
+export interface GotSolveConfig {
+  /** 任务意图（写入黑板 task.intent） */
+  intent: string
+  /** 拆分 prompt（system）：如何把任务拆为 2-4 个独立求解视角 */
+  splitPrompt: string
+  /** 融合 prompt（system）：如何对齐冲突并融合各视角部分解 */
+  mergePrompt: string
+  /** 评估 prompt（system）：判定融合解是否达标（accept） */
+  evaluatePrompt: string
+  /** resplit/remerge 轮次上限 */
+  maxRounds: number
+}
+
+/** multi-agent 车道委派的子 Agent 规格条目（对齐后端 SubAgentSpec） */
+export interface MultiAgentSpecItem {
+  /** 子 Agent 唯一 id（委派引用） */
+  id: string
+  /** 人类可读名称 */
+  name: string
+  /** 能力描述（供切分时参考专长） */
+  description: string
+  /** 系统提示词（专长与行为边界） */
+  systemPrompt: string
+}
+
+/** 多智能体并行产出+聚合（Multi-Agent：decompose → 车道并发委派子 Agent → 聚合）——2026-09-09 接轨 B 轨 MultiAgentNode */
+export interface MultiAgentConfig {
+  /** 任务意图（写入黑板 task.intent，切分目标） */
+  intent: string
+  /** 切分 prompt（system）：把任务静态切为互不阻塞的独立车道 */
+  decomposePrompt: string
+  /** 车道数上限（切分结果截断） */
+  maxLanes: number
+  /** 委派子 Agent 规格（车道并行委派目标，按车道序轮转） */
+  specs: MultiAgentSpecItem[]
+}
+
 /** 各步骤类型的配置联合类型 */
 export type StepConfig =
   | AgentTaskConfig
@@ -86,6 +150,9 @@ export type StepConfig =
   | TemplateApplyConfig
   | ConsistencyCheckConfig
   | TransformConfig
+  | TotSearchConfig
+  | GotSolveConfig
+  | MultiAgentConfig
 
 // ─── 步骤输出 ─────────────────────────────────────────────────────────────
 

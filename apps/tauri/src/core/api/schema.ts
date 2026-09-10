@@ -1,6 +1,9 @@
-// coreBackend schema 领域：契约校验 + Schema API（原 coreBackend.ts 拆分），详细见 docs/details/注释/tauri/coreBackend.md
+// coreBackend schema 领域：实体类型 Schema 统一数据源 = entity-core 旧版 entitySchemaRegistry
+// （2026-09-09 三套注册表收口：WASM 域 schema_* 方法在 wasm_export.rs 根本不存在，恒返回 null；
+//  官方插件 View / StepConfigEditor 改读注册表，写函数无消费方删除）。详细见 docs/details/注释/tauri/coreBackend.md
 import type { CoreValidationReport, EntityTypeSchema } from '@worldsea/core-api-types'
-import { backendCall, algoCall } from './runtime'
+import { entitySchemaRegistry, type EntityTypeSchema as RegistryEntityTypeSchema } from '@worldsea/entity-core'
+import { backendCall } from './runtime'
 
 export async function validatePack(
   packJson: string,
@@ -14,34 +17,27 @@ export async function validatePack(
   )
 }
 
-// ── Schema API ──
+// ── Schema API（唯一事实源 = entitySchemaRegistry） ──
 
-const EMPTY_ENTITY_TYPE_SCHEMA: EntityTypeSchema = { typeKey: '', label: '', icon: '', fields: [], relations: [], validations: [], views: [], iconMap: {}, idPrefix: '' }
-
-export async function schemaRegisterEntityType(schemaJson: string): Promise<EntityTypeSchema> {
-  return algoCall('cmd_schema_register_entity_type', { schemaJson }, c => c.schemaRegisterEntityType(schemaJson), EMPTY_ENTITY_TYPE_SCHEMA, true)
-}
-
-export async function schemaUnregisterEntityType(typeKey: string): Promise<void> {
-  return algoCall('cmd_schema_unregister_entity_type', { typeKey }, c => c.schemaUnregisterEntityType(typeKey), undefined, false)
+/** 注册表条目缺契约层必填字段（icon/iconMap/relations/validations/views/idPrefix 可为 undefined），
+ *  补默认值映射为契约形状，防 SchemaRenderer 崩溃（Object.keys(iconMap) 等） */
+function completeSchema(schema: RegistryEntityTypeSchema): EntityTypeSchema {
+  return {
+    ...schema,
+    icon: schema.icon ?? '',
+    iconMap: schema.iconMap ?? {},
+    relations: schema.relations ?? [],
+    validations: schema.validations ?? [],
+    views: schema.views ?? [],
+    idPrefix: schema.idPrefix ?? '',
+  }
 }
 
 export async function schemaGetEntityType(typeKey: string): Promise<EntityTypeSchema | null> {
-  return algoCall('cmd_schema_get_entity_type', { typeKey }, c => c.schemaGetEntityType(typeKey), null, true)
+  const schema = entitySchemaRegistry.get(typeKey)
+  return schema ? completeSchema(schema) : null
 }
 
 export async function schemaListEntityTypes(): Promise<EntityTypeSchema[]> {
-  return algoCall('cmd_schema_list_entity_types', {}, c => c.schemaListEntityTypes(), [] as EntityTypeSchema[], true)
-}
-
-export async function schemaUpdateEntityType(typeKey: string, updatesJson: string): Promise<EntityTypeSchema> {
-  return algoCall('cmd_schema_update_entity_type', { typeKey, updatesJson }, c => c.schemaUpdateEntityType(typeKey, updatesJson), EMPTY_ENTITY_TYPE_SCHEMA, true)
-}
-
-export async function schemaRegisterValidation(typeKey: string, ruleJson: string): Promise<void> {
-  return algoCall('cmd_schema_register_validation', { typeKey, ruleJson }, c => c.schemaRegisterValidation(typeKey, ruleJson), undefined, false)
-}
-
-export async function schemaRegisterView(typeKey: string, viewJson: string): Promise<void> {
-  return algoCall('cmd_schema_register_view', { typeKey, viewJson }, c => c.schemaRegisterView(typeKey, viewJson), undefined, false)
+  return entitySchemaRegistry.getAll().map(completeSchema)
 }

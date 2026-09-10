@@ -126,6 +126,7 @@ import { useUserProfileStore } from './stores/user-profile-store'
 import TitleBar from '@/ui/layout/TitleBar.vue'
 import PanelToggle from './PanelToggle.vue'
 import SessionSidebar from './chat/SessionSidebar.vue'
+import { SCENE_SLIDER_OPTIONS } from './chat/scenes'
 import SpaceChat from './chat/SpaceChat.vue'
 import GroupChatView from './group-chat/components/GroupChatView.vue'
 import MemoryShelf from './panels/MemoryShelf.vue'
@@ -299,15 +300,9 @@ onMounted(() => {
   PANEL_META.forEach((m, i) => {
     reg({ id: `space.tab.${m.id}`, keys: [String(i + 1)], description: `右栏切到「${m.label}」`, scope: 'space', handler: () => setRightTab(m.id) })
   })
-  // 场景切换 = 新建对应场景会话（Ctrl+1-5，SCENE_SLIDER_OPTIONS 顺序同源：世界/小说/通用/编程/设计）
-  const SCENE_KEYS: { id: string; label: string }[] = [
-    { id: 'worldbuilding', label: '世界' },
-    { id: 'novel', label: '小说' },
-    { id: 'general', label: '通用' },
-    { id: 'coding', label: '编程' },
-    { id: 'design', label: '设计' },
-  ]
-  SCENE_KEYS.forEach((s, i) => {
+  // 场景切换 = 新建对应场景会话（Ctrl+1-5；选项与 SessionSidebar 滑块同源：space/chat/scenes.ts，
+  // 2026-09-10 同源化消除两处硬编码漂移；世界场景 id 已改名 worldbuilding→world）
+  SCENE_SLIDER_OPTIONS.forEach((s, i) => {
     reg({ id: `space.scene.${s.id}`, keys: ['ctrl', String(i + 1)], description: `切换到「${s.label}」场景`, scope: 'space', preventDefault: true, handler: () => withSidebar(sb => sb.switchScenario(s.id)) })
   })
   // 聊天发送/换行（2026-09-06 用户反馈开放改键）：注册表仅作键位存储与设置面板展示，

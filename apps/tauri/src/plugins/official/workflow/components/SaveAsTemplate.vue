@@ -14,7 +14,8 @@
       </div>
       <div class="st-field st-field--row">
         <label>图标</label>
-        <input v-model="form.icon" class="st-input st-input--short" placeholder="📋" maxlength="4" />
+        <input v-model="form.icon" class="st-input st-input--short" placeholder="clipboard" maxlength="20" />
+        <span class="st-field__hint">crown / magic / character / network / clipboard / sparkles</span>
       </div>
       <div class="st-field">
         <label>标签（逗号分隔）</label>
@@ -74,7 +75,7 @@ onMounted(() => {
 const form = reactive({
   name: props.pipeline.name + ' (模板)',
   description: props.pipeline.description || '',
-  icon: '📋',
+  icon: 'clipboard',
   tagsInput: props.pipeline.tags.join(', '),
 })
 
@@ -89,7 +90,7 @@ function handleSave() {
   emit('save', {
     name: form.name.trim(),
     description: form.description.trim(),
-    icon: form.icon.trim() || '📋',
+    icon: form.icon.trim() || 'clipboard',
     tags,
     steps: props.pipeline.steps as any[],
     connections: props.pipeline.connections as any[],
@@ -117,7 +118,8 @@ function handleSave() {
   border: 1px solid var(--border, #e4e4e7); background: var(--bg-secondary, #f4f4f5);
   color: var(--text-primary, #18181b); font-size: var(--fs-md); box-sizing: border-box;
 }
-.st-input--short { width: 60px; text-align: center; font-size: var(--fs-xl); }
+.st-input--short { width: 130px; text-align: center; }
+.st-field__hint { font-size: var(--fs-xs); opacity: 0.5; white-space: nowrap; }
 .st-textarea { min-height: 60px; resize: vertical; }
 
 .st-info { margin-bottom: 16px; font-size: var(--fs-sm); opacity: 0.5; }

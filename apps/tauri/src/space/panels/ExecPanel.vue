@@ -68,44 +68,14 @@
         <template v-else-if="activeSection === 'activity'">
           <ActivityLog />
         </template>
-        <template v-else-if="activeSection === 'router'">
-          <RouterPanel />
-        </template>
-        <template v-else-if="activeSection === 'tot'">
-          <OrchestratorPanel
-            mode="tot"
-            title="ToT 思维树"
-            icon="workflow"
-            placeholder="输入问题，生成多分支思维树并评分…"
-            run-label="开始思维树"
-            empty-title="尚未运行思维树"
-            empty-hint="输入问题，用多路径思维树推理并评分"
-          />
-        </template>
-        <template v-else-if="activeSection === 'got'">
-          <OrchestratorPanel
-            mode="got"
-            title="GoT 思维图"
-            icon="mindmap"
-            placeholder="输入问题，构建并聚合多路径思维图…"
-            run-label="开始思维图"
-            empty-title="尚未运行思维图"
-            empty-hint="输入问题，构建图结构并聚合思考"
-          />
-        </template>
         <template v-else-if="activeSection === 'supervisor'">
           <OrchestratorPanel
             mode="supervisor"
             title="Supervisor 委派"
             icon="handshake"
-            placeholder="输入任务，按子 Agent 能力委派…"
-            run-label="开始委派"
-            empty-title="尚未运行委派"
-            empty-hint="输入任务，由 Supervisor 分配给多个子 Agent"
+            empty-title="本会话暂无委派现场"
+            empty-hint="本会话暂无编排现场，历史 run 可在会话中展开编排段查看。"
           />
-        </template>
-        <template v-else-if="activeSection === 'multi'">
-          <MultiAgentPanel />
         </template>
         <template v-else-if="activeSection === 'terminal'">
           <TerminalView />
@@ -144,7 +114,8 @@
 <script setup lang="ts">
 /**
  * ExecPanel：Agent 空间右侧执行面板（2026-09-03 UI 视觉改造）。
- * 9 个执行区（轨迹/活动/Router/子Agent/ToT/GoT/委派/多Agent/终端）。
+ * 执行区（轨迹/活动/Router/子Agent/委派/终端；2026-09-09 消除 ToT/GoT 区、
+ * 2026-09-09 消除 multi 区——多 Agent 协作已由群聊会议承载，历史现场迁移至群聊界面）。
  * 形态：已打开区以标签贴在面板首栏（点击切换、✕ 关闭），激活区内容无容器框直显面板；
  * 标签栏尾部 + 号浮窗追加执行区（按钮下方展开 + 边缘检测，修复原越界不可见）；无已开区时 3×3 居中宫格为唯一内容。
  * 状态与会话绑定（useSessionViewState）：openExecSections 已开列表 + execTab 激活区，
@@ -156,24 +127,20 @@ import SubAgentSection from '@/agent/components/SubAgentSection.vue'
 import RunTreeSection from '@/agent/components/RunTreeSection.vue'
 import ActivityLog from '@/agent/panels/ActivityLog.vue'
 import TracePanel from '@/agent/panels/TracePanel.vue'
-import RouterPanel from '@/agent/panels/RouterPanel.vue'
 import OrchestratorPanel from '@/agent/panels/OrchestratorPanel.vue'
-import MultiAgentPanel from '@/agent/panels/MultiAgentPanel.vue'
 import TerminalView from '@/terminal/components/TerminalView.vue'
 import SubAgentView from '@/subagent/components/SubAgentView.vue'
 import { useSessionViewState } from '@/agent/composables/useSessionViewState'
 import type { ExecTab } from '../stores/space-store'
 
-/** 9 个执行区元数据（宫格 / 标签共用；顺序即 3×3 宫格排布，ToT 居中） */
+/** 6 个执行区元数据（宫格 / 标签共用；顺序即 3×3 宫格排布；
+    2026-09-09 右栏消除 tot/got/multi/router 区——ToT/GoT/multi 已迁创作编排承载面、
+    Router 归场景识别底座，见 docs/plans/2026-09-09-编排双轨收口审查与6模块迁移.md） */
 const EXEC_META: { id: ExecTab; label: string; icon: string }[] = [
   { id: 'trace', label: '轨迹', icon: 'activity' },
   { id: 'activity', label: '活动', icon: 'chart' },
-  { id: 'router', label: 'Router', icon: 'workflow' },
   { id: 'subagent', label: '子Agent', icon: 'user' },
-  { id: 'tot', label: 'ToT', icon: 'workflow' },
-  { id: 'got', label: 'GoT', icon: 'mindmap' },
   { id: 'supervisor', label: '委派', icon: 'handshake' },
-  { id: 'multi', label: '多Agent', icon: 'workflow' },
   { id: 'terminal', label: '终端', icon: 'terminal' },
 ]
 

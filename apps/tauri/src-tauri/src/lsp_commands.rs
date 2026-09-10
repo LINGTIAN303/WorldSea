@@ -1,6 +1,9 @@
 //! LSP 外挂桥（智能提示三期 B1，立项 §五）：
 //! 检测系统 PATH 已装语言服务器 → spawn + stdio Content-Length 帧 ↔ Tauri IPC。
 //! server 按语言常驻（编辑器关闭不停），App 真退出时 kill_all 清理（lib.rs RunEvent::Exit）；
+//! Windows 侧 LSP 子进程额外挂 Job Object（KillOnJobClose，复用 agent-commands::job::WinJob）——
+//! 句柄随 LspProc 生命周期关闭，App 即使被强杀（kill_all 未执行）也会由系统在 job 句柄全部
+//! 关闭时整树回收子进程，防孤儿。
 //! 前端消息面：emit `lsp-message` {lang, body?, closed?}，命令 cmd_lsp_detect/start/send/stop。
 
 use std::collections::HashMap;
@@ -13,13 +16,16 @@ use serde_json::json;
 use tauri::{AppHandle, Emitter};
 
 /// 单语言 LSP 进程：stdin 写手 + 子进程句柄（stdout 归读线程持有）。
-/// root=进程初始化时的工作区根（跨工程需重启）；gen=代次（区分「被重启替换的旧进程」）
+/// root=进程初始化时的工作区根（跨工程需重启）；gen=代次（区分「被重启替换的旧进程」）；
+/// _job=Windows Job Object（KillOnJobClose：drop=关闭句柄=整树终止，兜底强杀/异常退出）
 struct LspProc {
     #[allow(dead_code)]
     stdin: ChildStdin,
     child: Child,
     root: String,
     gen: u64,
+    #[cfg(windows)]
+    _job: Option<agent_commands::job::WinJob>,
 }
 
 static PROCS: OnceLock<Mutex<HashMap<String, LspProc>>> = OnceLock::new();
@@ -188,6 +194,15 @@ pub fn cmd_lsp_start(
     let exe_or_prog = if exe.is_empty() { prog.to_string() } else { exe };
     let mut child = spawn_server(&exe_or_prog, args, &root)
         .map_err(|e| format!("启动 {exe_or_prog} 失败: {e}"))?;
+    // 挂 Job Object（KillOnJobClose，复用 agent-commands P1 基础设施 job::WinJob）：
+    // 句柄随 LspProc 生命周期关闭 → 系统整树终止（含孙进程），兜底强杀/异常退出防孤儿目标（走查遗留）
+    #[cfg(windows)]
+    let job_guard = match agent_commands::job::WinJob::new()
+        .and_then(|job| job.assign(child.id()).map(|()| job))
+    {
+        Ok(job) => Some(job),
+        Err(_) => None, // job 创建/挂入失败：降级为原 kill_all 行为，不阻断 LSP 启动
+    };
     let stdin = child.stdin.take().ok_or("stdin 不可用")?;
     let stdout = child.stdout.take().ok_or("stdout 不可用")?;
 
@@ -199,6 +214,8 @@ pub fn cmd_lsp_start(
             child,
             root: root_s.clone(),
             gen,
+            #[cfg(windows)]
+            _job: job_guard,
         },
     );
     drop(map); // 读线程结束时也要锁表，先释放

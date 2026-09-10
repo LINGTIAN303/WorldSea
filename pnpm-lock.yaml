@@ -417,6 +417,9 @@ importers:
       '@worldsea/agent-core':
         specifier: link:../agent-core
         version: link:../agent-core
+      '@worldsea/entity-core':
+        specifier: link:../entity-core
+        version: link:../entity-core
       '@worldsea/governor-core':
         specifier: link:../governor-core
         version: link:../governor-core

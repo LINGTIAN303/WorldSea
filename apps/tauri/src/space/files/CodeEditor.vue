@@ -37,6 +37,7 @@ import {
   LSP_CANDIDATE_LANGS,
   lspAssistExts,
   lspAvailable,
+  lspLangOf,
   lspStatusOf,
   lspNoProjectOf,
   type LspStatus,
@@ -173,8 +174,10 @@ watch(
     clearLintFallback()
     if (minimal) return
     // B1 仲裁（立项 §六）：已装语言服务器 → LSP 优先（需真实文件路径）；启动失败回落 tsAssist
-    if (filePath && LSP_CANDIDATE_LANGS.has(lang) && (await lspAvailable(lang))) {
-      const lExts = await lspAssistExts(lang, filePath)
+    // 2026-09-09 修复：lang=扩展名（rs/py 等），LSP 键口径不同，统一经 lspLangOf 归一化后再仲裁
+    const lspLang = lspLangOf(lang)
+    if (filePath && LSP_CANDIDATE_LANGS.has(lspLang) && (await lspAvailable(lspLang))) {
+      const lExts = await lspAssistExts(lspLang, filePath)
       if (seq !== assistWatchSeq) return
       if (lExts) {
         lspExts.value = lExts
@@ -183,7 +186,7 @@ watch(
           lintFallbackTimer = window.setTimeout(() => {
             lintFallbackTimer = null
             if (seq !== assistWatchSeq) return
-            if (lspStatusOf(lang) === 'ready') return // LSP 诊断已到达，无需回落
+            if (lspStatusOf(lspLang) === 'ready') return // LSP 诊断已到达，无需回落
             tsLintExts.value = tsAssistLintExts(`/virtual/main.${lang}`, props.modelValue)
           }, LINT_FALLBACK_MS)
         }
@@ -199,9 +202,10 @@ watch(
   { immediate: true },
 )
 
-/** LSP 生命周期角标：ready（诊断已到达）隐藏；其余状态给可见预期，不再静默死等 */
-const lspStatus = computed<LspStatus | undefined>(() => lspStatusOf(props.lang))
-const lspNoProject = computed(() => lspNoProjectOf(props.lang))
+/** LSP 生命周期角标：ready（诊断已到达）隐藏；其余状态给可见预期，不再静默死等。
+ *  键与 LSP 分支一致经 lspLangOf 归一化（.rs/.py 等扩展名≠LSP 键，否则角标查不到状态） */
+const lspStatus = computed<LspStatus | undefined>(() => lspStatusOf(lspLangOf(props.lang)))
+const lspNoProject = computed(() => lspNoProjectOf(lspLangOf(props.lang)))
 const lspStatusText = computed(() => {
   if (lspStatus.value === 'ready') return ''
   // 孤儿目录（root 上溯未命中任何工程清单）：server 大概率不产诊断，直说不转圈

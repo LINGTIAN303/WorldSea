@@ -13,6 +13,336 @@
     }
 
     #[tokio::test]
+    async fn scene_sovereignty_global_mode_forces_scene_root() {
+        // 场景根主权（2026-09-10 领地判据）：workdir 落在 scenes_root 领地内（残留的其它
+        // 场景根）= 场景模式 → 强制归本场景根；projectId 有无不影响判定
+        let tmp = std::env::temp_dir().join(format!("ws-sovereignty-g-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&tmp).unwrap();
+        let svc = AgentCommandService::new().with_scenes_root(Some(tmp.clone()));
+        let stale = tmp.join("novel"); // 前端残留的上一个场景根
+        std::fs::create_dir_all(&stale).unwrap();
+        let info = svc
+            .new_session(
+                None,
+                None,
+                Some("coding".into()),
+                Some(stale.clone()),
+                None,
+                Some("p1".into()), // 弱锚点恒非空也不影响
+            )
+            .await
+            .unwrap();
+        let expected = tmp.join("coding");
+        assert_eq!(
+            info.workdir.as_deref(),
+            Some(expected.to_str().unwrap()),
+            "领地内残留 workdir 应强制为 scenes_root/<hint>"
+        );
+        // 领地外目录（未配置场景根时）不强制：scenes_root=None 路径维持原值
+        let svc2 = AgentCommandService::new();
+        let info2 = svc2
+            .new_session(
+                None,
+                None,
+                Some("coding".into()),
+                Some(std::path::PathBuf::from("D:/elsewhere")),
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+        assert_eq!(info2.workdir.as_deref(), Some("D:/elsewhere"));
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[tokio::test]
+    async fn scene_sovereignty_crossover_self_heals() {
+        // 实测数据链异常回归（2026-09-10）：novel 会话携带残留 coding 场景根 + projectId
+        // 恒非空 → 应被领地判定矫正回 scenes_root/novel（而非跨场景落根）
+        let tmp = std::env::temp_dir().join(format!("ws-sovereignty-x-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&tmp).unwrap();
+        let svc = AgentCommandService::new().with_scenes_root(Some(tmp.clone()));
+        let stale_coding = tmp.join("coding");
+        std::fs::create_dir_all(&stale_coding).unwrap();
+        let info = svc
+            .new_session(
+                None,
+                None,
+                Some("novel".into()),
+                Some(stale_coding.clone()),
+                None,
+                Some("290f0bae".into()), // 实测：前端弱锚点恒非空
+            )
+            .await
+            .unwrap();
+        let expected = tmp.join("novel");
+        assert_eq!(
+            info.workdir.as_deref(),
+            Some(expected.to_str().unwrap()),
+            "novel 会话应自愈回 novel 场景根，而非落在 coding 根"
+        );
+        assert_eq!(info.scene_id.as_deref(), Some("novel"));
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[tokio::test]
+    async fn scene_sovereignty_project_mode_keeps_workdir() {
+        // 场景根主权（2026-09-10 拍板）：项目模式 → 保留用户项目目录（领地外），不被场景根
+        // 覆盖；工作区身份按（目录×场景）在 workspaces 复合去重（方案A）
+        let tmp = std::env::temp_dir().join(format!("ws-sovereignty-p-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&tmp).unwrap();
+        let scenes_root = tmp.join("scenes"); // 场景领地与项目目录分离（真实布局）
+        std::fs::create_dir_all(&scenes_root).unwrap();
+        let svc = AgentCommandService::new().with_scenes_root(Some(scenes_root));
+        let project = tmp.join("my-project");
+        std::fs::create_dir_all(&project).unwrap();
+        let info = svc
+            .new_session(
+                None,
+                None,
+                Some("coding".into()),
+                Some(project.clone()),
+                None,
+                Some("p1".into()),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            info.workdir.as_deref(),
+            Some(project.to_str().unwrap()),
+            "项目模式应保留传入项目目录，不被场景根覆盖"
+        );
+        assert_eq!(info.scene_id.as_deref(), Some("coding"));
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[tokio::test]
+    async fn update_workdir_rejects_other_scene_root_but_allows_project() {
+        // update_session_workdir 新规则（2026-09-10 拍板）：只拦「其它场景根」内目录；
+        // 本场景根、项目目录放行（项目目录×场景=新项目目录，同目录跨场景可开）
+        let tmp = std::env::temp_dir().join(format!("ws-sovereignty-w-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&tmp).unwrap();
+        let svc = AgentCommandService::new().with_scenes_root(Some(tmp.clone()));
+        let project = tmp.join("proj");
+        std::fs::create_dir_all(&project).unwrap();
+        let info = svc
+            .new_session(
+                None,
+                None,
+                Some("coding".into()),
+                Some(project.clone()),
+                None,
+                Some("p1".into()),
+            )
+            .await
+            .unwrap();
+        // ① 切到其它场景根（novel）→ 拒绝
+        let novel_root = tmp.join("novel");
+        std::fs::create_dir_all(&novel_root).unwrap();
+        let err = svc
+            .update_session_workdir(&info.id, Some(novel_root.to_string_lossy().to_string()))
+            .await;
+        assert!(err.is_err(), "切到其它场景根应被拒绝");
+        // ② 切到本场景根子目录 → 放行
+        let coding_sub = tmp.join("coding").join("sub");
+        std::fs::create_dir_all(&coding_sub).unwrap();
+        svc.update_session_workdir(&info.id, Some(coding_sub.to_string_lossy().to_string()))
+            .await
+            .unwrap();
+        // ③ 切回项目目录 → 放行
+        svc.update_session_workdir(&info.id, Some(project.to_string_lossy().to_string()))
+            .await
+            .unwrap();
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[tokio::test]
+    async fn update_session_workdir_syncs_workspace_id() {
+        // 断链修复回归（2026-09-10）：切目录必须同步 workspace_id（ensure_workspace 新实体，
+        // 按 root×scene 复合去重），否则重启恢复（restore_sessions 优先 workspace_id→root）
+        // 会回退旧目录；切 None（不限定）应把 workdir 与 workspace_id 一并清空
+        let store = SqliteSessionRepository::new_in_memory().await.unwrap();
+        let svc = AgentCommandService::new().with_session_store(store.clone());
+        let dir_a = std::env::temp_dir().join(format!("ws-sync-a-{}", uuid::Uuid::new_v4()));
+        let dir_b = std::env::temp_dir().join(format!("ws-sync-b-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir_a).unwrap();
+        std::fs::create_dir_all(&dir_b).unwrap();
+        let info = svc
+            .new_session(None, None, None, Some(dir_a.clone()), None, None)
+            .await
+            .unwrap();
+        // ① 初始：new_session 已为 dir_a 实体化，workspace_id 指向 a 实体
+        let sessions = store.load_sessions().await.unwrap();
+        let s0 = sessions.iter().find(|x| x.id == info.id).unwrap();
+        let ws_list0 = store.list_workspaces().await.unwrap();
+        let ws_a = ws_list0
+            .iter()
+            .find(|w| w.root == dir_a.to_string_lossy())
+            .expect("dir_a 应有 Workspace 实体");
+        assert_eq!(s0.workspace_id.as_deref(), Some(ws_a.id.as_str()));
+        // ② 切到 dir_b：workdir 与 workspace_id 应同步指向 b 的新实体（不残留 a）
+        svc.update_session_workdir(&info.id, Some(dir_b.to_string_lossy().to_string()))
+            .await
+            .unwrap();
+        let sessions = store.load_sessions().await.unwrap();
+        let s1 = sessions.iter().find(|x| x.id == info.id).unwrap();
+        assert_eq!(
+            s1.workdir.as_deref(),
+            Some(dir_b.to_str().unwrap()),
+            "切目录后 workdir 应落库"
+        );
+        let ws_b = store
+            .list_workspaces()
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|w| w.root == dir_b.to_string_lossy())
+            .expect("dir_b 应新建 Workspace 实体");
+        assert_ne!(ws_b.id, ws_a.id, "不同目录应为不同 Workspace 实体");
+        assert_eq!(
+            s1.workspace_id.as_deref(),
+            Some(ws_b.id.as_str()),
+            "切目录后 workspace_id 应同步新实体（断链修复点）"
+        );
+        // ③ 切 None：workdir 与 workspace_id 一并清空
+        svc.update_session_workdir(&info.id, None).await.unwrap();
+        let s2 = store
+            .load_sessions()
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|x| x.id == info.id)
+            .unwrap();
+        assert!(
+            s2.workdir.is_none() && s2.workspace_id.is_none(),
+            "切 None 应清空目录绑定（两参同步）"
+        );
+        let _ = std::fs::remove_dir_all(&dir_a);
+        let _ = std::fs::remove_dir_all(&dir_b);
+    }
+
+    #[tokio::test]
+    async fn restore_sessions_self_heals_cross_scene_workdir() {
+        // 恢复链路主权自愈（2026-09-10 症状③）：历史脏数据（novel 会话 workdir=coding
+        // 场景根，第三轮修正前落库形态）恢复时矫正回本场景根，并实体化两参写穿
+        //（workspace_id 换绑新根实体），下次重启不再反复回退；有消息会话不被 purge 误清
+        let tmp = std::env::temp_dir().join(format!("ws-restore-heal-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&tmp).unwrap();
+        let store = SqliteSessionRepository::new_in_memory().await.unwrap();
+        let coding_root = tmp.join("coding");
+        std::fs::create_dir_all(&coding_root).unwrap();
+        let dirty = SessionRecord {
+            id: "dirty-novel".into(),
+            system_prompt: String::new(),
+            created_at: 100,
+            message_count: 1,
+            updated_at: 100,
+            title: "脏会话".into(),
+            pinned: false,
+            kind: SessionKind::Chat,
+            workdir: Some(coding_root.to_string_lossy().to_string()),
+            workspace_id: None,
+            project_id: None,
+            scene_id: Some("novel".into()),
+        };
+        store.save_session(&dirty).await.unwrap();
+        // 加一条消息：模拟真实有内容的错位会话（同时防 purge 误清）
+        store
+            .replace_messages(
+                "dirty-novel",
+                &[agent_runtime::types::OrchestratorMessage {
+                    role: agent_runtime::types::MessageRole::User,
+                    content: "历史消息".into(),
+                    tool_calls: Vec::new(),
+                    tool_call_id: None,
+                    meta: None,
+                }],
+            )
+            .await
+            .unwrap();
+
+        let svc = AgentCommandService::new()
+            .with_scenes_root(Some(tmp.clone()))
+            .with_session_store(store.clone());
+        let restored = svc.restore_sessions().await.unwrap();
+        assert_eq!(restored.len(), 1, "有消息脏会话应恢复（不被清理）");
+        let novel_root = tmp.join("novel");
+        assert_eq!(
+            restored[0].workdir.as_deref(),
+            Some(novel_root.to_str().unwrap()),
+            "恢复时应自愈回 novel 场景根"
+        );
+        // 写穿验证：DB 中 workdir 已矫正
+        let in_db = store
+            .load_sessions()
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|r| r.id == "dirty-novel")
+            .unwrap();
+        assert_eq!(
+            in_db.workdir.as_deref(),
+            Some(novel_root.to_str().unwrap()),
+            "自愈结果应落库（下次重启不再回退）"
+        );
+        // 实体化验证：novel 根新建 Workspace 实体且 workspace_id 换绑
+        let novel_root_str = novel_root.to_string_lossy().to_string();
+        let ws = store
+            .list_workspaces()
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|w| w.root == novel_root_str)
+            .expect("novel 根应实体化");
+        assert_eq!(
+            in_db.workspace_id.as_deref(),
+            Some(ws.id.as_str()),
+            "workspace_id 应换绑新根实体"
+        );
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[tokio::test]
+    async fn generate_session_title_falls_back_to_first_message() {
+        // 标题兜底（2026-09-10 症状②）：LLM 生成失败（无 key → 两次重试均 Err）不再留
+        // 「新会话」占位，改用首条消息截断写穿——运行期前端兜底与持久化一致，重启不回退
+        let store = SqliteSessionRepository::new_in_memory().await.unwrap();
+        let svc = AgentCommandService::new().with_session_store(store.clone());
+        let info = svc
+            .new_session(None, None, None, None, None, None)
+            .await
+            .unwrap();
+        let first = "一个倒数手法，该如何写比较好？请给出具体思路和示例。";
+        let title = svc
+            .generate_session_title(&info.id, first, "好的，我们来看…")
+            .await
+            .unwrap();
+        assert_eq!(
+            title,
+            truncate_chars(first.trim(), 24),
+            "LLM 失败应兜底为首条消息截断标题"
+        );
+        assert_ne!(title, "新会话", "兜底标题不得为占位值");
+        // 落库 + meta 同步验证（重启恢复读此值）
+        let in_db = store
+            .load_sessions()
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|r| r.id == info.id)
+            .unwrap();
+        assert_eq!(in_db.title, title, "兜底标题应写穿持久化");
+        let listed = svc
+            .list_sessions(Some(SessionKind::Chat))
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|s| s.id == info.id)
+            .unwrap();
+        assert_eq!(listed.title, title, "内存 meta 应同步兜底标题");
+    }
+
+    #[tokio::test]
     async fn new_session_and_provider_config_roundtrip() {
         let svc = AgentCommandService::new();
         let info = svc
@@ -548,30 +878,29 @@
 
     // ── M5-RK1：模式前缀分流 ─────────────────────────────────
 
-    /// 五个模式前缀全部命中（带空格与无空格两种写法）
+    /// 入口收敛后仅 /plan 命中（带空格、无空格紧贴、大小写均支持）
     #[test]
-    fn extract_mode_prefix_matches_all_five() {
-        assert_eq!(extract_mode_prefix("/plan 先调研再写"), Some(ModePrefix::Plan));
-        assert_eq!(extract_mode_prefix("/tot 难题"), Some(ModePrefix::Tot));
-        assert_eq!(extract_mode_prefix("/got 对比"), Some(ModePrefix::Got));
-        assert_eq!(extract_mode_prefix("/supervisor 委派"), Some(ModePrefix::Supervisor));
-        assert_eq!(extract_mode_prefix("/multi 协作"), Some(ModePrefix::Multi));
-        // 无空格紧贴写法
-        assert_eq!(extract_mode_prefix("/tot难题"), Some(ModePrefix::Tot));
-        // 大小写不敏感
-        assert_eq!(extract_mode_prefix("/TOT 难题"), Some(ModePrefix::Tot));
+    fn is_plan_prefix_matches_plan_only() {
+        assert!(is_plan_prefix("/plan 先调研再写"));
+        assert!(is_plan_prefix("/plan先调研"), "无空格紧贴写法");
+        assert!(is_plan_prefix("/PLAN 调研"), "大小写不敏感");
+        // 已消除的模式前缀不再命中（指令层收敛，2026-09-09）
+        assert!(!is_plan_prefix("/tot 难题"));
+        assert!(!is_plan_prefix("/got 对比"));
+        assert!(!is_plan_prefix("/supervisor 委派"));
+        assert!(!is_plan_prefix("/multi 协作"));
     }
 
-    /// 四管线前缀不被模式前缀吞、普通文本不误判
+    /// 四管线前缀不被 /plan 前缀吞、普通文本不误判
     #[test]
-    fn extract_mode_prefix_ignores_pipeline_and_plain() {
-        assert_eq!(extract_mode_prefix("/调研 论文"), None, "四管线前缀归 force_pipeline");
-        assert_eq!(extract_mode_prefix("/写作 一章"), None);
-        assert_eq!(extract_mode_prefix("帮我写一封信"), None);
-        assert_eq!(extract_mode_prefix("tot 不是命令"), None, "裸词不命中，仅前置 / 前缀");
+    fn is_plan_prefix_ignores_pipeline_and_plain() {
+        assert!(!is_plan_prefix("/调研 论文"), "四管线前缀归 force_pipeline");
+        assert!(!is_plan_prefix("/写作 一章"));
+        assert!(!is_plan_prefix("帮我写一封信"));
+        assert!(!is_plan_prefix("plan 不是命令"), "裸词不命中，仅前置 / 前缀");
     }
 
-    /// 模式前缀后缺任务描述 → send_message 报错（不静默降级回 react）
+    /// /plan 前缀无任务描述 → send_message 报错（不静默降级回 react）
     #[tokio::test]
     async fn send_message_mode_prefix_without_task_fails() {
         let svc = AgentCommandService::new();
@@ -579,7 +908,7 @@
         let err = svc
             .send_message(SendMessageParams {
                 session_id: info.id.clone(),
-                text: "/tot".into(),
+                text: "/plan".into(),
                 images: vec![],
                 mode: None,
             })
@@ -591,118 +920,8 @@
         );
     }
 
-    /// /multi 前缀 → 明确引导错误（无 spec 时不允许黑盒失败）
-    #[tokio::test]
-    async fn send_message_multi_prefix_guides_to_panel() {
-        let svc = AgentCommandService::new();
-        let info = svc.new_session(None, None, None, None, None, None).await.unwrap();
-        let err = svc
-            .send_message(SendMessageParams {
-                session_id: info.id.clone(),
-                text: "/multi 协作任务".into(),
-                images: vec![],
-                mode: None,
-            })
-            .await
-            .unwrap_err();
-        assert!(
-            matches!(err, CommandError::Agent(_)),
-            "应返回引导错误，实际: {err}"
-        );
-    }
-
-    /// /supervisor 前缀 → 无注册规格时引导错误（明确差什么，不静默走 plan_execute）
-    #[tokio::test]
-    async fn send_message_supervisor_prefix_requires_specs() {
-        let svc = AgentCommandService::new();
-        let info = svc.new_session(None, None, None, None, None, None).await.unwrap();
-        let err = svc
-            .send_message(SendMessageParams {
-                session_id: info.id.clone(),
-                text: "/supervisor 拆解任务".into(),
-                images: vec![],
-                mode: None,
-            })
-            .await
-            .unwrap_err();
-        let msg = err.to_string();
-        assert!(
-            msg.contains("子 Agent") || matches!(err, CommandError::Agent(_)),
-            "应提示需配置子 Agent 规格，实际: {msg}"
-        );
-    }
-
-    /// X1：编排路径收口——用户/终稿消息入环 + message_count 回写 + 写穿持久化 + 重启恢复派生计数。
-    /// 编排引擎本身不触碰会话历史，收口逻辑（send_message 两处编排早退路径共用）独立单测覆盖；
-    /// 真实编排需 LLM，走 #[ignore] e2e。
-    #[tokio::test]
-    async fn orchestration_turn_finalizes_persistence_and_count() {
-        let store: Arc<dyn SessionRepository> =
-            SqliteSessionRepository::new_in_memory().await.unwrap();
-        let svc = AgentCommandService::new().with_session_store(Arc::clone(&store));
-        let info = svc.new_session(None, None, None, None, None, None).await.unwrap();
-
-        svc.finalize_orchestration_turn(&info.id, "/plan 写文档", Some("终稿内容"))
-            .await;
-
-        // ① 消息入环：用户消息 + 终稿（历史含 system 首条，按角色断言）
-        let msgs = svc.get_messages(&info.id).await.unwrap();
-        assert!(msgs
-            .iter()
-            .any(|m| m.role == MessageRole::User && m.content == "/plan 写文档"));
-        assert!(msgs
-            .iter()
-            .any(|m| m.role == MessageRole::Assistant && m.content == "终稿内容"));
-
-        // ② message_count 回写（侧栏「N 条」，与 react 路径同口径 = 环内消息总数）
-        let list = svc.list_sessions(None).await.unwrap();
-        assert_eq!(list[0].message_count, msgs.len() as u32);
-
-        // ③ 写穿持久化（刷新/重启后的恢复源）
-        let persisted = store.load_messages(&info.id).await.unwrap();
-        assert_eq!(persisted.len(), msgs.len());
-
-        // ④ 重启恢复：计数从 messages 表派生（不读 sessions 列，杜绝「重启归 0」）
-        let svc2 = AgentCommandService::new().with_session_store(store);
-        let restored = svc2.restore_sessions().await.unwrap();
-        assert_eq!(restored[0].message_count, msgs.len() as u32);
-        let restored_msgs = svc2.get_messages(&restored[0].id).await.unwrap();
-        assert_eq!(restored_msgs.len(), msgs.len());
-    }
-
-    // ── M3-RK1：Supervisor 图节点委派路径子 run 记账器 ──
-
-    /// RunStoreSubRunAccountant：begin 建子 run 挂到当前顶层 run，finish 收口
-    #[tokio::test]
-    async fn run_store_sub_run_accountant_hooks_parent_and_finishes() {
-        use agent_runtime::sub_agent_pool::SubRunAccountant;
-        let store = Arc::new(RunStore::new());
-        // 先建顶层 run（supervisor 自身）
-        let top = store.create("sess-1", None, Some("supervisor".to_string())).await;
-        assert_eq!(store.current_top_run().await.as_deref(), Some(top.as_str()));
-
-        let acc = RunStoreSubRunAccountant { store: Arc::clone(&store) };
-        // begin：子 run 挂到顶层（父=current_top），session 继承
-        let sub = acc.begin(None, "writer", "写作助手").await.unwrap();
-        let sub_run = store.get(&sub).await.unwrap();
-        assert_eq!(sub_run.parent_run_id.as_deref(), Some(top.as_str()), "子 run 应挂父 run");
-        assert_eq!(sub_run.session_id, "sess-1", "子 run 应继承父 run 的 session");
-        assert_eq!(sub_run.pipeline.as_deref(), Some("sub:writer"));
-
-        // finish：completed + 摘要
-        acc.finish(&sub, "completed", Some("结果摘要".into())).await;
-        let sub_run = store.get(&sub).await.unwrap();
-        assert_eq!(sub_run.status, RunStatus::Completed);
-        assert_eq!(sub_run.converge_reason, Some(ConvergeReason::GoalReached));
-        assert_eq!(sub_run.final_message.as_deref(), Some("结果摘要"));
-
-        // finish error 语义
-        let sub2 = acc.begin(None, "coder", "代码助手").await.unwrap();
-        acc.finish(&sub2, "error", Some("失败".into())).await;
-        let sub2_run = store.get(&sub2).await.unwrap();
-        assert_eq!(sub2_run.status, RunStatus::Error);
-        assert_eq!(sub2_run.converge_reason, None);
-    }
+    // ── M3-RK1：Supervisor 子 run 记账（2026-09-09 迁移：A 轨 RunStoreSubRunAccountant 删除，
+    //    子 run 会计改由 SubAgentManager::delegate 内置 M3-1 承担，见 subagent.rs delegate）──
 
     // ═══ S1 适配层：B 轨命令层契约辅助（编排双轨收拢试点）═══
 

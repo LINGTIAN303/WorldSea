@@ -10,8 +10,17 @@ import { listen } from '@tauri-apps/api/event'
 import { reactive } from 'vue'
 import type { Extension } from '@codemirror/state'
 
-/** 与 Rust server_spec 对应：值得探测的语言集合（json 走 D 期 entityAssist 不在内） */
+/** 与 Rust server_spec 对应：值得探测的语言集合（json 走 D 期 entityAssist 不在内）。
+ *  键 = server_spec 口径（rust/python…），与文件扩展名可能不同（rs/py），需经 lspLangOf 归一化 */
 export const LSP_CANDIDATE_LANGS = new Set(['rust', 'python', 'go', 'c', 'cpp', 'ts', 'tsx', 'js', 'jsx'])
+
+/** 扩展名 → LSP 语言键（server_spec 口径）：`rs`→`rust`、`py`→`python`，其余同键。
+ *  2026-09-09 修复：FilePreview.editLang=ext()（原始扩展名），不经归一化则 .rs/.py 永不在候选集，
+ *  LSP 路径被整体跳过（无角标、不 spawn server）——真机走查 .rs 无提示即此根因 */
+const LSP_LANG_BY_EXT: Record<string, string> = { rs: 'rust', py: 'python' }
+export function lspLangOf(ext: string): string {
+  return LSP_LANG_BY_EXT[ext] ?? ext
+}
 
 /** LSP languageId（规范标准名） */
 function languageIdOf(lang: string): string {

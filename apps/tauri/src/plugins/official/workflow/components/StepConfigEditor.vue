@@ -72,6 +72,62 @@
       <label class="sce-label">转换规则</label>
       <textarea class="sce-textarea" :value="localCfg.rules" @input="setField('rules', ($event.target as HTMLTextAreaElement).value)" rows="3" placeholder="自然语言描述转换规则..." />
     </template>
+
+    <!-- tot-search（思维树探索，B 轨 TotNode；由主 Agent 直接执行，不派生子 Agent） -->
+    <template v-else-if="stepType === 'tot-search'">
+      <label class="sce-label">任务意图</label>
+      <textarea class="sce-textarea" :value="localCfg.intent" @input="setField('intent', ($event.target as HTMLTextAreaElement).value)" rows="2" placeholder="要探索/择优的创作目标，如：为故事设计 3 个结局方向并选出最优" />
+      <label class="sce-label">展开器提示词 <span class="sce-hint">生成候选项的系统提示</span></label>
+      <textarea class="sce-textarea" :value="localCfg.expandPrompt" @input="setField('expandPrompt', ($event.target as HTMLTextAreaElement).value)" rows="3" placeholder="如何基于当前分支生成候选细化方案..." />
+      <label class="sce-label">评分器提示词 <span class="sce-hint">独立评分，避免自我偏好</span></label>
+      <textarea class="sce-textarea" :value="localCfg.evaluatePrompt" @input="setField('evaluatePrompt', ($event.target as HTMLTextAreaElement).value)" rows="3" placeholder="如何对候选方案打 0-100 分..." />
+      <label class="sce-label">分支数 k <span class="sce-hint">每叶子展开候选数</span></label>
+      <input class="sce-input" type="number" :value="localCfg.branchingK" @input="setField('branchingK', num('branchingK'))" min="1" max="8" />
+      <label class="sce-label">保留宽度 top-b <span class="sce-hint">剪枝后保留的候选数</span></label>
+      <input class="sce-input" type="number" :value="localCfg.keepTopB" @input="setField('keepTopB', num('keepTopB'))" min="1" max="4" />
+      <label class="sce-label">树深上限</label>
+      <input class="sce-input" type="number" :value="localCfg.maxDepth" @input="setField('maxDepth', num('maxDepth'))" min="1" max="6" />
+    </template>
+
+    <!-- got-solve（思维图求解，B 轨 GotNode；由主 Agent 直接执行，不派生子 Agent） -->
+    <template v-else-if="stepType === 'got-solve'">
+      <label class="sce-label">任务意图</label>
+      <textarea class="sce-textarea" :value="localCfg.intent" @input="setField('intent', ($event.target as HTMLTextAreaElement).value)" rows="2" placeholder="要并发求解的创作任务，如：设计一个完整的漂浮空岛王国" />
+      <label class="sce-label">拆分提示词 <span class="sce-hint">拆成 2-4 个独立求解视角</span></label>
+      <textarea class="sce-textarea" :value="localCfg.splitPrompt" @input="setField('splitPrompt', ($event.target as HTMLTextAreaElement).value)" rows="3" placeholder="如何把任务拆为独立视角（如地理/文化/政治）..." />
+      <label class="sce-label">融合提示词</label>
+      <textarea class="sce-textarea" :value="localCfg.mergePrompt" @input="setField('mergePrompt', ($event.target as HTMLTextAreaElement).value)" rows="3" placeholder="如何对齐冲突并融合各视角部分解..." />
+      <label class="sce-label">评估提示词 <span class="sce-hint">判定融合解是否达标</span></label>
+      <textarea class="sce-textarea" :value="localCfg.evaluatePrompt" @input="setField('evaluatePrompt', ($event.target as HTMLTextAreaElement).value)" rows="3" placeholder="判定融合全解是否达标..." />
+      <label class="sce-label">再融合轮次上限</label>
+      <input class="sce-input" type="number" :value="localCfg.maxRounds" @input="setField('maxRounds', num('maxRounds'))" min="1" max="5" />
+    </template>
+
+    <!-- multi-agent（多智能体并行产出+聚合，B 轨 MultiAgentNode + SubAgentWorkerNode 车道 + AggregateNode；
+         由主 Agent 直接执行：静态切分 → 车道并发委派子 Agent → LLM 聚合） -->
+    <template v-else-if="stepType === 'multi-agent'">
+      <label class="sce-label">任务意图</label>
+      <textarea class="sce-textarea" :value="localCfg.intent" @input="setField('intent', ($event.target as HTMLTextAreaElement).value)" rows="2" placeholder="要并行产出的创作任务，如：设计一个完整王国的地理/文化/历史三大板块" />
+      <label class="sce-label">切分提示词 <span class="sce-hint">静态切成互不阻塞的独立车道</span></label>
+      <textarea class="sce-textarea" :value="localCfg.decomposePrompt" @input="setField('decomposePrompt', ($event.target as HTMLTextAreaElement).value)" rows="3" placeholder="如何把任务切为独立车道（每车道由一个子 Agent 产出）..." />
+      <label class="sce-label">车道数上限</label>
+      <input class="sce-input" type="number" :value="localCfg.maxLanes" @input="setField('maxLanes', num('maxLanes'))" min="1" max="8" />
+      <label class="sce-label">子 Agent 规格 <span class="sce-hint">JSON 数组；id/name/description/systemPrompt</span></label>
+      <div class="sce-spec-import">
+        <button type="button" class="sce-btn" @click="loadRegisteredSpecs">从已注册规格导入</button>
+        <span class="sce-spec-count" v-if="registeredSpecs.length">{{ registeredSpecs.length }} 条可用</span>
+      </div>
+      <div v-if="registeredSpecs.length" class="sce-spec-list">
+        <div v-for="s in registeredSpecs" :key="s.id" class="sce-spec-row">
+          <div class="sce-spec-info">
+            <span class="sce-spec-name">{{ s.name }} <em>{{ s.id }}</em></span>
+            <span class="sce-spec-desc">{{ s.description }}</span>
+          </div>
+          <button type="button" class="sce-btn sce-btn--mini" @click="addRegisteredSpec(s)">添加</button>
+        </div>
+      </div>
+      <textarea class="sce-textarea" :value="specsText" @input="onSpecsInput" rows="5" placeholder='[{"id":"worldbuilder","name":"世界观架构师","description":"…","systemPrompt":"…"}]' />
+    </template>
   </div>
 </template>
 
@@ -104,6 +160,12 @@ function setField(field: string, value: any) {
   emit('update:config', { ...localCfg } as StepConfig)
 }
 
+/** 数字输入：空串/非法回退默认值（tot/got 步骤参数） */
+function num(field: string, fallback = 1): number {
+  const n = Number(localCfg[field])
+  return Number.isFinite(n) && n >= 1 ? n : fallback
+}
+
 // skillIds 用逗号分隔文本
 const skillIdsText = computed(() => {
   return (props.config as AgentTaskConfig).skillIds?.join(', ') ?? ''
@@ -132,6 +194,57 @@ function onOverridesInput(e: Event) {
   } catch {
     // 等 JSON 合法后再更新
   }
+}
+
+// multi-agent 子 Agent 规格用 JSON 数组文本（对齐后端 SubAgentSpec）
+const specsText = computed(() => {
+  const specs = (props.config as any).specs
+  return specs ? JSON.stringify(specs, null, 2) : '[]'
+})
+
+function onSpecsInput(e: Event) {
+  const val = (e.target as HTMLTextAreaElement).value
+  try {
+    const parsed = JSON.parse(val)
+    if (Array.isArray(parsed)) {
+      localCfg.specs = parsed
+      emit('update:config', { ...localCfg, specs: parsed } as StepConfig)
+    }
+  } catch {
+    // 等 JSON 合法后再更新
+  }
+}
+
+// ─── 从已注册子 Agent 规格导入（multi-agent specs UX 提升）──────────────
+interface RegisteredSpec {
+  id: string
+  name: string
+  description: string
+  system_prompt: string
+}
+
+const registeredSpecs = ref<RegisteredSpec[]>([])
+
+/** 拉取后端 subagent_list_specs（已注册规格跨会话共享） */
+async function loadRegisteredSpecs() {
+  try {
+    const { invoke } = await import('@/agent/composables/transport')
+    const list = (await invoke('subagent_list_specs')) as RegisteredSpec[] | null
+    registeredSpecs.value = list ?? []
+  } catch {
+    registeredSpecs.value = []
+  }
+}
+
+/** 把已注册规格追加进当前 specs（同 id 覆盖），与 JSON 文本双向同步 */
+function addRegisteredSpec(s: RegisteredSpec) {
+  const item = { id: s.id, name: s.name, description: s.description ?? '', systemPrompt: s.system_prompt ?? '' }
+  const specs: any[] = Array.isArray(localCfg.specs) ? [...localCfg.specs] : []
+  const idx = specs.findIndex(x => x.id === item.id)
+  if (idx >= 0) specs[idx] = item
+  else specs.push(item)
+  localCfg.specs = specs
+  emit('update:config', { ...localCfg, specs } as StepConfig)
 }
 
 // ─── 下拉选择数据 ──────────────────────────────────────────
@@ -189,5 +302,28 @@ onMounted(async () => {
 }
 .sce-checkbox-label input[type="checkbox"] {
   accent-color: var(--primary, #4f46e5);
+}
+.sce-btn {
+  padding: 4px 10px; border-radius: 5px; border: 1px solid var(--border, #e4e4e7);
+  background: var(--bg-secondary, #f4f4f5); color: var(--text-primary, #18181b);
+  font-size: var(--fs-xs); cursor: pointer; line-height: 1.4;
+}
+.sce-btn:hover { border-color: var(--primary, #4f46e5); color: var(--primary, #4f46e5); }
+.sce-btn--mini { padding: 2px 8px; flex-shrink: 0; }
+.sce-spec-import { display: flex; align-items: center; gap: 8px; }
+.sce-spec-count { font-size: var(--fs-xs); opacity: 0.5; }
+.sce-spec-list {
+  display: flex; flex-direction: column; gap: 4px; max-height: 150px; overflow-y: auto;
+  border: 1px dashed var(--border, #e4e4e7); border-radius: 5px; padding: 6px;
+}
+.sce-spec-row {
+  display: flex; align-items: center; gap: 8px; padding: 4px 6px;
+  border-radius: 4px; background: var(--bg-secondary, #f4f4f5);
+}
+.sce-spec-info { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.sce-spec-name { font-size: var(--fs-sm); font-weight: 500; }
+.sce-spec-name em { font-style: normal; opacity: 0.45; font-size: var(--fs-xs); margin-left: 4px; }
+.sce-spec-desc {
+  font-size: var(--fs-xs); opacity: 0.6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 </style>

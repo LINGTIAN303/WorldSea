@@ -73,6 +73,7 @@ pub use react::ReActLoopNode;
 pub use reflection::{Issue, ReflectionNode, Review};
 pub use self_refine::{ObjectiveSignal, SelfRefineNode, ThresholdObjective};
 pub use single_agent::{PromptSpec, SingleAgentNode};
+pub use tot::TotNode;
 pub use tool_use::ToolUseNode;
 pub use tools::{CallRecord, Decision, Observation, ReactStep, ToolCall, ToolHandle, ToolProposal, ToolSpec, ToolSpecSet, TraceEntry};
 pub use types::{NodeMeta, NodeResult, NodeSnapshot, Port, ProgressNote, Usage, NodeId};

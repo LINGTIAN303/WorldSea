@@ -54,7 +54,7 @@ import {
   type TurnEvent,
 } from '@worldsea/shared-composables/agent/turnModel'
 import { useActivityLog, type ActivityLogEntry } from './useActivityLog'
-import { useSessionViewState, LAST_SESSION_KEY } from './useSessionViewState'
+import { useSessionViewState, LAST_SESSION_KEY, normalizeSceneId } from './useSessionViewState'
 import { useOrchestrationTrace } from './useOrchestrationTrace'
 import { resolveWorkspaceDir, ensureWorkspaceDir, resolveEntityDataDir } from '@/space/workspace'
 // H5 规则体系（2026-08-30 拍板）：WORLDSEA.md 转应用内置资源（?raw 显式 import——
@@ -126,7 +126,7 @@ const isTauriRuntime = (): boolean =>
 function mockInvoke(cmd: string): unknown {
   switch (cmd) {
     case 'list_scenarios':
-      return [{ id: 'worldbuilding', display_name: '世界构建' }]
+      return [{ id: 'world', display_name: '世界构建' }]
     case 'new_session':
       return { id: `mock-session-${Date.now()}` }
     case 'list_sessions':
@@ -243,6 +243,10 @@ interface RustSessionInfo {
   workdir?: string
   /** 会话归属项目 id（任务29/D1 锚点；null=旧数据/未归属） */
   project_id?: string | null
+  /** 会话绑定的 Workspace 实体 id（Phase A；null=旧数据缺省，用 workdir 兜底） */
+  workspace_id?: string | null
+  /** 会话绑定的场景 id（2026-09-09 场景底座；null=旧数据缺省 world） */
+  scene_id?: string | null
 }
 
 /** Rust `agent_commands::WorkdirRecord` 镜像（目录实体，camelCase；Phase 3 会话树分组用） */
@@ -378,6 +382,10 @@ const currentSessionId = ref<string | null>(null)
  *  首条消息 newSession 或切换会话时清除。供自动恢复逻辑（restoreLastSession /
  *  SessionSidebar.refresh）识别草稿态并跳过「无会话自动切回」，否则 draft 被瞬间覆盖。 */
 const draftSessionActive = ref(false)
+/** 草稿场景暂存（2026-09-10 空会话修复）：切场景滑块进入草稿态时记录目标场景，
+ *  ensureSession 创建会话时消费——替代旧「切滑块立即 newSession」链路（每次切换
+ *  落库一个 0 消息空会话 + system_prompt 污染为字面量「新会话」）。 */
+const draftSceneId = ref<string | null>(null)
 /** 当前会话绑定的工作区根目录（Phase 4 接入本地文件系统；供文件面板/文件浏览器展示） */
 const currentWorkdir = ref<string | null>(null)
 /** 当前会话消息列表 */
@@ -1807,7 +1815,7 @@ async function getCurrentProjectIdSafe(): Promise<string | null> {
 }
 
 /** 新建会话（返回 Rust SessionInfo）
- * - `scenarioId`：B1 场景 ID（可选；缺省不传 → Rust 使用默认场景 worldbuilding）
+ * - `scenarioId`：B1 场景 ID（可选；缺省不传 → Rust 使用默认场景 world）
  */
 async function newSession(
   systemPrompt?: string,
@@ -1817,16 +1825,38 @@ async function newSession(
   // 任务29/A1 统一根 + 项目=目录（2026-09-03）：workdir = currentWorkdir（project:switched 处理器/切会话恢复），
   // 未设置则回退当前默认根（resolveWorkspaceDir() 无参 = 当前项目目录优先 /
   // 默认项目特判 ~/.WorldSea/agent，无项目兜底同 agent）——见 docs/plans/workspace-unification-plan.md
-  const workdir = currentWorkdir.value ?? (await resolveWorkspaceDir())
-  await ensureWorkspaceDir(workdir)
+  // 场景根主权修正（2026-09-10 症状①）：全局模式（默认项目/无项目）下 workdir 传 null——
+  // ~/.WorldSea/agent 不在 scenes_root（%APPDATA%/com.worldsea.app/scenes）领地内，传入会被
+  // 后端领地判据误判为「用户项目目录」保留 → 场景会话全部落「默认工作区」组；传 null 由
+  // 后端主权规则强制 scenes/<hint>（workdir.is_none() 分支）。普通项目继续传 dirPath（项目模式）。
+  // 项目模式 workdir 取当前项目目录（2026-09-10 翻转修复）：不再直接吃 currentWorkdir 残留——
+  // 上一会话可能属于其它项目/全局工作区（如 ~/.WorldSea/agent），残留传入会让新会话
+  // 重复落「默认工作区」组；「项目=目录」语义下会话恒跟随当前项目目录。
+  let workdir: string | null = null
+  let globalMode = false
+  try {
+    const { getProjectManager } = await import('@worldsea/entity-core/core')
+    const pm = getProjectManager()
+    const project = pm.getCurrentProjectId() ? await pm.getCurrentProject() : undefined
+    globalMode = !project || !!project.isDefault
+  } catch {
+    // 项目系统未就绪（启动早期）：按全局模式处理，由后端场景根主权接管
+    globalMode = true
+  }
+  if (!globalMode) {
+    workdir = await resolveWorkspaceDir()
+    await ensureWorkspaceDir(workdir)
+  }
   // 方案A（2026-09-03）：实体存储根与工作区根解耦——默认项目（未开目录）Agent 工作区在
   // ~/.WorldSea/agent、工作台实体在 ~/.WorldSea/worlddata（resolveEntityDataDir 特判），
   // 必须把后者作为 entityStorageRoot 传给后端实体读工具，否则读侧扫 agent/entities（空白）
   // 与写入侧（FileStorageBackend → worlddata/entities）分裂，模型创建实体后读不到。
   // 普通项目 resolveEntityDataDir()=dirPath=workdir（同源）→ 传 null 由后端回退 workdir。
+  // 全局模式（workdir=null，2026-09-10）必须显式传 worlddata——后端无 workdir 可回退。
   const entityDataDir = await resolveEntityDataDir()
   const norm = (p: string) => p.replace(/[\\/]+$/, '').toLowerCase()
-  const entityStorageRoot = entityDataDir && norm(entityDataDir) !== norm(workdir) ? entityDataDir : null
+  const entityStorageRoot =
+    entityDataDir && (!workdir || norm(entityDataDir) !== norm(workdir)) ? entityDataDir : null
   // 任务29/D1 锚点：会话归属当前项目（弱引用前端 ProjectManager 的项目 UUID）
   const projectId = await getCurrentProjectIdSafe()
   const info = await safeInvoke<RustSessionInfo>('new_session', {
@@ -1837,8 +1867,9 @@ async function newSession(
     entityStorageRoot,
     projectId: projectId ?? null,
   })
-  // L3：真正创建后退出草稿态
+  // L3：真正创建后退出草稿态（草稿场景已消费，清暂存防泄漏到下一次草稿）
   draftSessionActive.value = false
+  draftSceneId.value = null
   // 先清理当前会话的旧监听器（避免旧会话残留事件污染全局状态）
   const oldSessionId = currentSessionId.value
   if (oldSessionId && oldSessionId !== info.id) {
@@ -1917,7 +1948,7 @@ interface RustScenarioInfo {
   display_name: string
 }
 
-/** 列出可用场景（B1 多场景；默认 worldbuilding，供场景选择器） */
+/** 列出可用场景（B1 多场景；默认 world，供场景选择器） */
 async function listScenarios(): Promise<RustScenarioInfo[]> {
   return safeInvoke<RustScenarioInfo[]>('list_scenarios')
 }
@@ -1925,9 +1956,12 @@ async function listScenarios(): Promise<RustScenarioInfo[]> {
 /** L3 懒创建：进入「新会话草稿态」——不创建后端会话，仅清空本地显示态。
  *  首条消息发送时 `ensureSession()`（currentSessionId 为 null → new_session）才真正创建，
  *  消除「点 + 产生孤儿空会话」「切走无入口可回」问题（未产生对话不生产会话条目）。 */
-async function newDraftSession(): Promise<void> {
+async function newDraftSession(scenarioId?: string): Promise<void> {
   // L3：进入草稿态（先置标志再清 currentSessionId，避免 watch/refresh 自动恢复旧会话）
   draftSessionActive.value = true
+  // 切场景入口（滑块/Ctrl+1-5）传入目标场景：暂存到草稿场景，ensureSession 创建时消费；
+  // 普通「+ 会话」不传 → 草稿态沿用上一会话场景（useSessionViewState activeState）
+  if (scenarioId) draftSceneId.value = scenarioId
   // 项目=目录语义（2026-09-03）：新建草稿会话兜底 workdir——
   // currentWorkdir 可能为空（无项目/未选目录）→ 回落默认工作区，防陈旧值残留
   if (!currentWorkdir.value) currentWorkdir.value = await resolveWorkspaceDir()
@@ -1984,10 +2018,12 @@ export function registerProjectSwitchListener(): void {
 }
 
 /**
- * 会话显示标题：从消息缓存取首条用户消息截断；无数据回退短 id。
- * L2 修复（2026-08-28）：注释更新——后端 SessionInfo 已有完整 title 体系
+ * 会话显示标题：从消息缓存取首条用户消息截断；无数据回退「新会话」占位。
+ * L2 修复（2026-08-28）：后端 SessionInfo 已有完整 title 体系
  * （title 字段 + update_session_title / cmd_agent_generate_title），本函数仅作
- * 「后端 title 为「新会话」占位」时的前端兜底（首条用户消息 / 短 id）。
+ * 「后端 title 为「新会话」占位」时的前端兜底（首条用户消息）。
+ * 2026-09-10 空条目修复：兜底末端从「会话·短id」改回「新会话」——重启后消息缓存
+ * 为空，标题未生成的会话显示短 id 会被误读为空会话，且无信息量。
  */
 function sessionTitle(sessionId?: string | null): string {
   if (!sessionId) return '新会话'
@@ -1999,7 +2035,7 @@ function sessionTitle(sessionId?: string | null): string {
       return t.length > 24 ? t.slice(0, 24) + '…' : t
     }
   }
-  return `会话 · ${sessionId.slice(0, 8)}`
+  return '新会话'
 }
 
 /** 会话列表 */
@@ -2082,7 +2118,13 @@ async function updateSessionTitle(sessionId: string, title: string): Promise<voi
   await refreshSessionList()
 }
 
-/** 更新会话绑定的工作区根目录（目录选择器切换工作区时同步会话归属；workdir 可为 null=不限定） */
+/**
+ * 更新会话绑定的工作区根目录（目录选择器切换工作区时同步会话归属；workdir 可为 null=不限定）
+ *
+ * 任务29（WorkdirSelect）接线预留：当前全库无调用方，切工作区实际走「切项目 → 新草稿会话」。
+ * 后端已做实体化同步（切目录自动 ensure_workspace 并一并写穿 workspace_id，2026-09-10 断链修复），
+ * 接线后重启恢复不会回退旧目录。
+ */
 async function updateSessionWorkdir(sessionId: string, workdir: string | null): Promise<void> {
   await safeInvoke('cmd_update_session_workdir', { sessionId, workdir })
   await refreshSessionList()
@@ -2140,6 +2182,9 @@ async function removeMCPConnection(serverId: string): Promise<void> {
 
 /** 切换会话（加载该会话的消息历史） */
 async function switchSession(sessionId: string): Promise<void> {
+  // 切换到已存在会话必然离开草稿态（清标志 + 草稿场景暂存，防状态泄漏污染滑块场景显示）
+  draftSessionActive.value = false
+  draftSceneId.value = null
   // 清理旧会话的深度阶段与 A2UI 监听，切换到新会话
   const oldSessionId = currentSessionId.value
   if (oldSessionId && oldSessionId !== sessionId) {
@@ -2451,7 +2496,10 @@ async function buildSessionSystemPrompt(): Promise<string | undefined> {
  */
 async function ensureSession(): Promise<string> {
   if (currentSessionId.value) return currentSessionId.value
-  const info = await newSession(await buildSessionSystemPrompt())
+  // 2026-09-10 用户拍板：新建会话（按钮/Ctrl+N/草稿首条消息）继承滑块当前场景
+  // 草稿场景优先（切滑块显式设置的目标场景）→ 上一会话视图桶 sceneId（草稿沿用）→ 兜底 world
+  const sceneId = draftSceneId.value ?? normalizeSceneId(useSessionViewState().activeState.value?.sceneId)
+  const info = await newSession(await buildSessionSystemPrompt(), undefined, sceneId)
   return info.id
 }
 
@@ -3038,6 +3086,8 @@ export function useAgentRust() {
     // Phase 5：待激活会话（SessionSidebar 过滤）+ 标题生成中等候动画（消息区）
     pendingSessionIds,
     sessionTitlePending,
+    // 草稿场景暂存（SessionSidebar 场景滑块草稿态显示用，2026-09-10 空会话修复）
+    draftSceneId,
     // Phase 3 会话树：目录实体列表 + 刷新（SessionSidebar 分组用）
     workdirs,
     loadWorkdirs,

@@ -10,7 +10,7 @@ use agent_runtime::event::{OrchestratorEvent, EventListener, AgentEvent};
 use agent_runtime::llm::config::ProviderConfig;
 use agent_runtime::long_task::{LongTaskRecord, LongTaskStatus};
 use agent_runtime::loop_control::LoopControlConfig;
-use agent_runtime::supervisor::SubAgentSpec;
+use agent_runtime::sub_agent_pool::SubAgentSpec;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex as StdMutex, OnceLock};
@@ -972,6 +972,39 @@ pub async fn set_session_pinned(
         .map_err(|e| e.to_string())
 }
 
+/// 创作编排模式步骤执行（tot-search / got-solve 接轨 B 轨引擎）
+///
+/// 由 agent-runtime 的 `pipeline_run_step` 工具 invoke：复用会话 backend，执行
+/// B 轨 `TotNode`/`GotNode` + `DefaultOrchestrator`，同步返回交付文本与用量。
+/// 步骤由主 Agent 直接调用、不派生子 Agent。见
+/// docs/plans/2026-09-09-编排双轨收口审查与6模块迁移.md §创作编排接轨。
+#[tauri::command]
+pub async fn cmd_pattern_step_run(
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+    pattern: String,
+    params: agent_commands::PatternStepParams,
+) -> Result<agent_commands::PatternStepOutput, String> {
+    state
+        .run_pattern_step(&session_id, pattern, params)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// supervisor 编排续跑（resume 入口：从 RunStore 断点快照续跑同一张监督图，2026-09-09 接入）
+#[tauri::command]
+pub async fn cmd_run_supervisor_resume(
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+    run_id: String,
+    options: agent_commands::SupervisorExecuteOptions,
+) -> Result<agent_runtime::OrchestratorResult, String> {
+    state
+        .run_supervisor_resume(&session_id, &run_id, options)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// 列出全部目录实体（目录空间选择器 / 会话树分组用）
 #[tauri::command]
 pub async fn cmd_list_workdirs(
@@ -981,6 +1014,9 @@ pub async fn cmd_list_workdirs(
 }
 
 /// 保存/覆盖一个目录实体（按 path 去重，返回 upsert 后的记录）
+///
+/// 任务29（WorkdirSelect 目录选择器）写入入口预留——当前前端无调用方，workdirs 表
+/// 数据由此命令维护；会话树分组 label 消费 cmd_list_workdirs（表空时走路径基名兜底）。
 #[tauri::command]
 pub async fn cmd_save_workdir(
     state: State<'_, AgentCommandService>,
@@ -999,76 +1035,15 @@ pub async fn cmd_delete_workdir(
     state.delete_workdir(id).await.map_err(|e| e.to_string())
 }
 
-/// 运行 ToT（Tree of Thoughts）编排图；思维树进度经会话事件通道转发前端
+/// 列出全部 Workspace 实体（Phase A 实体化：id/root/label/sceneId/createdAt，camelCase）
+///
+/// 任务29（WorkdirSelect/会话树分组）消费预留；当前 new_session/update_session_workdir
+/// 已自动维护实体，前端查询入口由本命令提供。
 #[tauri::command]
-pub async fn orchestrator_run_tot(
-    app: AppHandle,
+pub async fn cmd_list_workspaces(
     state: State<'_, AgentCommandService>,
-    session_id: String,
-    input: String,
-    options: Option<agent_commands::ToTExecuteOptions>,
-) -> Result<agent_runtime::orchestrator::OrchestratorResult, String> {
-    if let Ok(agent) = state.get_agent(&session_id).await {
-        ensure_emitter_registered(&app, &agent, &session_id).await;
-    }
-    state
-        .run_tot(&session_id, input, options.unwrap_or_default())
-        .await
-        .map_err(|e| e.to_string())
-}
-
-/// 运行 GoT（Graph of Thoughts）编排图
-#[tauri::command]
-pub async fn orchestrator_run_got(
-    app: AppHandle,
-    state: State<'_, AgentCommandService>,
-    session_id: String,
-    input: String,
-    options: Option<agent_commands::GoTExecuteOptions>,
-) -> Result<agent_runtime::orchestrator::OrchestratorResult, String> {
-    if let Ok(agent) = state.get_agent(&session_id).await {
-        ensure_emitter_registered(&app, &agent, &session_id).await;
-    }
-    state
-        .run_got(&session_id, input, options.unwrap_or_default())
-        .await
-        .map_err(|e| e.to_string())
-}
-
-/// 运行 Supervisor 编排图（子 Agent 委派协调）
-#[tauri::command]
-pub async fn orchestrator_run_supervisor(
-    app: AppHandle,
-    state: State<'_, AgentCommandService>,
-    session_id: String,
-    input: String,
-    options: agent_commands::SupervisorExecuteOptions,
-) -> Result<agent_runtime::orchestrator::OrchestratorResult, String> {
-    if let Ok(agent) = state.get_agent(&session_id).await {
-        ensure_emitter_registered(&app, &agent, &session_id).await;
-    }
-    state
-        .run_supervisor(&session_id, input, options)
-        .await
-        .map_err(|e| e.to_string())
-}
-
-/// 运行 Multi-Agent 协作编排图（N 个 Agent 共享黑板协作）
-#[tauri::command]
-pub async fn orchestrator_run_multi(
-    app: AppHandle,
-    state: State<'_, AgentCommandService>,
-    session_id: String,
-    input: String,
-    options: agent_commands::MultiAgentExecuteOptions,
-) -> Result<agent_runtime::orchestrator::OrchestratorResult, String> {
-    if let Ok(agent) = state.get_agent(&session_id).await {
-        ensure_emitter_registered(&app, &agent, &session_id).await;
-    }
-    state
-        .run_multi(&session_id, input, options)
-        .await
-        .map_err(|e| e.to_string())
+) -> Result<Vec<agent_commands::WorkspaceRecord>, String> {
+    state.list_workspaces().await.map_err(|e| e.to_string())
 }
 
 /// 创建群聊参与者会话（kind='group' + 写 participantId↔sessionId 映射）

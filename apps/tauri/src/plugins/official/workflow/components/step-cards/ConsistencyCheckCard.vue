@@ -1,11 +1,12 @@
 <template>
   <div class="ccc">
-    <div class="ccc__row">🔍 范围: <strong>{{ scopeLabel }}</strong></div>
-    <div class="ccc__row">📏 严格度: <strong>{{ strictnessLabel }}</strong></div>
+    <div class="ccc__row"><IconSearch :size="13" /> 范围: <strong>{{ scopeLabel }}</strong></div>
+    <div class="ccc__row"><IconRuler :size="13" /> 严格度: <strong>{{ strictnessLabel }}</strong></div>
   </div>
 </template>
 <script setup lang="ts">
 import { computed } from 'vue'
+import { IconSearch, IconRuler } from '@tabler/icons-vue'
 import type { ConsistencyCheckConfig } from '../../types'
 const props = defineProps<{ config: ConsistencyCheckConfig }>()
 const scopeLabel = computed(() => {
@@ -18,6 +19,6 @@ const strictnessLabel = computed(() => {
 })
 </script>
 <style scoped>
-.ccc__row { font-size: var(--fs-sm); line-height: 1.6; }
+.ccc__row { font-size: var(--fs-sm); line-height: 1.6; display: flex; align-items: center; gap: 4px; }
 .ccc__row strong { color: var(--primary, #4f46e5); }
 </style>

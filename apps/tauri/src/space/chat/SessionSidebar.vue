@@ -15,7 +15,7 @@
           :class="{ active: i === activeSceneIndex }"
           role="tab"
           :aria-selected="i === activeSceneIndex"
-          :title="s.placeholder ? `${s.label}（占位：能力暂同默认场景）` : s.label"
+          :title="s.placeholder ? `${s.label}（占位：能力暂同默认场景）` : sceneTitle(s)"
           :data-ws-tip-keys="`Ctrl+${i + 1}`"
           @click="onSceneSlide(s.id)"
         >{{ s.label }}</button>
@@ -230,14 +230,15 @@ import { useAgent } from '@/agent/composables/useAgent'
 import { WsIcon } from '@worldsea/ui-kit'
 import KnowledgeWall from '@/agent/panels/KnowledgeWall.vue'
 import { useSpaceStore } from '../stores/space-store'
-import { useSessionViewState, LAST_SESSION_KEY } from '@/agent/composables/useSessionViewState'
+import { useSessionViewState, LAST_SESSION_KEY, normalizeSceneId } from '@/agent/composables/useSessionViewState'
+import { SCENE_SLIDER_OPTIONS, type SceneOptionBase } from './scenes'
 import { useAgentPersona } from '../composables/useAgentPersona'
 import { usePersonaFont } from '../composables/usePersonaFont'
 import { useFontStore } from '@/stores/fontStore'
 import PersonaMirror from '../panels/PersonaMirror.vue'
 import AvatarBadge from '@/ui/AvatarBadge.vue'
 import { useSessionTree, type WorkdirRecord } from './useSessionTree'
-import { resolveWorkspaceDir } from '../workspace'
+import { resolveDefaultWorkspaceDir } from '../workspace'
 import FileTreeBrowser from '../files/FileTreeBrowser.vue'
 import type { FsNode } from '../files/FileTreeBrowser.vue'
 import { setPendingFile } from '../files/pendingOpen'
@@ -255,11 +256,13 @@ interface RustSessionInfo {
   pinned: boolean
   /** 会话绑定的工作区根目录（Phase 3 会话树分组依据；缺省=未限定） */
   workdir?: string
+  /** 会话绑定的场景 id（2026-09-09 场景底座；null=旧数据缺省 world） */
+  scene_id?: string | null
 }
 
 // useAgentRust：会话列表/切换/删除/重命名/固定均由 Rust 后端管理
 const backend = useAgent()
-const { currentSessionId, newSession, newDraftSession, draftSessionActive, switchSession, deleteSession, listSessions, sessionTitle, updateSessionTitle, setSessionPinned, loadWorkdirs } = backend
+const { currentSessionId, newDraftSession, draftSessionActive, draftSceneId, switchSession, deleteSession, listSessions, sessionTitle, updateSessionTitle, setSessionPinned, loadWorkdirs } = backend
 const sessionList = backend.sessionList as unknown as Ref<RustSessionInfo[]>
 const workdirs = backend.workdirs as unknown as Ref<WorkdirRecord[]>
 /** Phase 5：待激活会话 id（newSession 后延迟展示，首条消息后才展示条目） */
@@ -277,10 +280,12 @@ interface SidebarItem {
 const loading = ref(true)
 const searchQuery = ref('')
 
-/** 会话列表：重命名过（title ≠ 新会话）显示 Rust 标题，否则用首条消息生成 */
+/** 会话列表：重命名过（title ≠ 新会话）显示 Rust 标题，否则用首条消息生成。
+ *  2026-09-09 场景底座：按当前场景过滤会话（场景间会话不互通，缺省 world 兼容旧数据） */
 const items = computed<SidebarItem[]>(() =>
   sessionList.value
     .filter((s) => !pendingSessionIds.value.includes(s.id)) // Phase 5：隐藏待激活会话（延迟展示）
+    .filter((s) => normalizeSceneId(s.scene_id) === currentScenarioId.value)
     .map(s => ({
     id: s.id,
     name: s.title !== '新会话' ? s.title : sessionTitle(s.id),
@@ -297,11 +302,15 @@ const filteredItems = computed(() => {
   return items.value.filter(s => s.name.toLowerCase().includes(q))
 })
 
-// ── Phase 3：默认目录路径（与 workspace.ts resolveWorkspaceDir 默认值一致）──
+// ── Phase 3：默认工作区基准路径（「默认工作区」组判定锚点）──
+// 2026-09-10 翻转修复：语义固定为全局 Agent 工作区 ~/.WorldSea/agent（恒定值）——
+// 旧实现每次 refresh 重算 resolveWorkspaceDir()（跟随当前项目），项目状态/就绪时机
+// 变化会让同一会话在「默认工作区」⇄ 真实目录名间翻转（用户实测的延迟矫正现象）。
+// 固定后：「默认工作区」组 = 落在全局 Agent 工作区的会话（含存量），项目会话恒显项目目录名。
 const defaultDir = ref('')
 async function loadDefaultDir(): Promise<void> {
   try {
-    defaultDir.value = await resolveWorkspaceDir()
+    defaultDir.value = await resolveDefaultWorkspaceDir()
   } catch {}
 }
 
@@ -383,6 +392,8 @@ function formatTime(ts: number): string {
 
 async function refresh() {
   try {
+    // 2026-09-09 场景底座：场景选项从后端拉取（滑块动态化，5 场景全实体化）
+    await loadScenes()
     const list = await listSessions()
     // Phase 3：同步刷新目录实体 + 默认目录路径（会话树分组标签/归属判断）
     await loadWorkdirs()
@@ -502,37 +513,82 @@ async function confirmDelete(id: string) {
 // ── [A5] 场景（2026-09-03 UI 视觉改造：下拉→分段滑块，固定 5 段；世界=默认，后四项占位）──
 const sessionView = useSessionViewState()
 
-/** 场景滑块固定选项。占位四项尚无专属场景插件：Rust resolve_scenario 对未知 id
- *  回退默认场景（worldbuilding），故选中占位项可正常新建会话、能力暂同默认 */
-const SCENE_SLIDER_OPTIONS: { id: string; label: string; placeholder?: boolean }[] = [
-  { id: 'worldbuilding', label: '世界' },
-  { id: 'novel', label: '小说', placeholder: true },
-  { id: 'general', label: '通用', placeholder: true },
-  { id: 'coding', label: '编程', placeholder: true },
-  { id: 'design', label: '设计', placeholder: true },
-]
+/** 场景选项静态源移至 ./scenes.ts（2026-09-10 同源化：与 AgentSpace Ctrl+1-5 快捷键共用），后端不可用时兜底 */
+type SceneOption = Omit<SceneOptionBase, 'hint'> & {
+  /** 场景工作区根名（严格隔离展示；动态元数据后端可为 null） */
+  hint?: string | null
+  /** 记忆策略标签（standard/entity_rich/light） */
+  memory?: string
+}
 
-/** 当前会话场景 ID（会话级，缺省 worldbuilding） */
-const currentScenarioId = computed(() => sessionView.activeState.value?.sceneId ?? 'worldbuilding')
+/** 记忆策略中文标签（滑块 title 弱提示用） */
+const MEMORY_LABELS: Record<string, string> = {
+  standard: '标准',
+  entity_rich: '实体增强',
+  light: '轻量',
+}
+
+/** 动态场景选项（2026-09-09 场景底座：从后端 list_scenarios 拉取，含工作区/记忆元数据） */
+const sceneOptions = ref<SceneOption[]>(SCENE_SLIDER_OPTIONS.map(s => ({ ...s })))
+
+async function loadScenes() {
+  try {
+    const { invoke } = await import('@/agent/composables/transport')
+    const scenes = (await invoke('list_scenarios')) as Array<{
+      id: string
+      display_name: string
+      workspace_hint?: string | null
+      memory_policy?: string
+    }>
+    if (scenes?.length) {
+      sceneOptions.value = scenes.map(s => ({
+        id: s.id,
+        label: s.display_name,
+        placeholder: false,
+        hint: s.workspace_hint ?? null,
+        memory: s.memory_policy,
+      }))
+    }
+  } catch { /* 后端不可用时保留静态 fallback */ }
+}
+
+/** 当前会话场景 ID（会话级，缺省 world；经 normalizeSceneId 防御空/空白值）。
+ *  草稿态优先读草稿场景暂存（切滑块显式设置的目标场景，2026-09-10 空会话修复），
+ *  使滑块在草稿态即停到目标段，与首条消息 ensureSession 实际创建的场景一致。 */
+const currentScenarioId = computed(() => {
+  if (draftSessionActive.value && draftSceneId.value) return draftSceneId.value
+  return normalizeSceneId(sessionView.activeState.value?.sceneId)
+})
 
 /** 滑块选中段 index（未知场景 id 归位默认段） */
 const activeSceneIndex = computed(() => {
-  const i = SCENE_SLIDER_OPTIONS.findIndex((s) => s.id === currentScenarioId.value)
+  const i = sceneOptions.value.findIndex((s) => s.id === currentScenarioId.value)
   return i >= 0 ? i : 0
 })
 
 /** 滑块 thumb：等宽分段（扣除轨道左右内边距 4px），按选中 index 平移整数段 */
 const sceneThumbStyle = computed(() => ({
-  width: `calc((100% - 4px) / ${SCENE_SLIDER_OPTIONS.length})`,
+  width: `calc((100% - 4px) / ${Math.max(sceneOptions.value.length, 1)})`,
   transform: `translateX(${activeSceneIndex.value * 100}%)`,
 }))
+
+/** 滑块按钮 title（弱提示：显示名/记忆策略/工作区根；动态元数据优先，静态 label 兜底） */
+function sceneTitle(s: SceneOptionBase): string {
+  const dyn = sceneOptions.value.find((o) => o.id === s.id)
+  const parts = [dyn?.label ?? s.label]
+  if (dyn?.memory) parts.push(`记忆：${MEMORY_LABELS[dyn.memory] ?? dyn.memory}`)
+  if (dyn?.hint) parts.push(`工作区：${dyn.hint}`)
+  return parts.join(' · ')
+}
 
 async function onSceneSlide(scenarioId: string) {
   if (scenarioId === currentScenarioId.value) return
   try {
-    await newSession('新会话', undefined, scenarioId)
-    const label = SCENE_SLIDER_OPTIONS.find((o) => o.id === scenarioId)?.label ?? scenarioId
-    window.dispatchEvent(new CustomEvent('ws-scenario-changed', { detail: { id: scenarioId, label } }))
+    // 2026-09-10 空会话修复：切场景改草稿语义（L3 懒创建同源）——旧实现直接
+    // newSession('新会话', ...)，每次切换落库一个 0 消息空会话（重启后现形为
+    // 「会话·xxxxx」条目）且 system_prompt 被污染为字面量。改为暂存草稿场景 +
+    // 进入草稿态，首条消息 ensureSession 按目标场景创建（完整装配 prompt）。
+    await newDraftSession(scenarioId)
   } catch (err) {
     console.warn('[scenario] 切换场景失败:', err)
   }

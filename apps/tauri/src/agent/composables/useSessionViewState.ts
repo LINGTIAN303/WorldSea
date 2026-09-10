@@ -21,13 +21,6 @@ export interface SessionOrchView {
   supervisorTasks: OrchTask[]
 }
 
-/** 多 Agent 协作摘要（恢复徽标/轮次用，精简防膨胀） */
-export interface MultiAgentSummary {
-  rounds: number
-  converged: boolean
-  messageCount: number
-}
-
 /** 会话级视图状态（persist → localStorage） */
 export interface SessionViewState {
   sceneId: string
@@ -41,11 +34,21 @@ export interface SessionViewState {
   model: { provider: string; modelId: string } | null
   activityLog: ActivityLogEntry[]
   orch: SessionOrchView
-  multiSummary: MultiAgentSummary | null
   lastSwitchAt: number
 }
 
-const VALID_EXEC_TABS: ExecTab[] = ['trace', 'activity', 'router', 'tot', 'got', 'supervisor', 'multi', 'terminal', 'subagent']
+/** 合法执行区（2026-09-09 右栏消除 tot/got/multi/router：旧落盘数据经 normalize 过滤，
+    ToT/GoT/multi 历史现场迁移创作编排、Router 归场景识别底座） */
+const VALID_EXEC_TABS: ExecTab[] = ['trace', 'activity', 'supervisor', 'terminal', 'subagent']
+
+/** 缺省场景 id（2026-09-10 世界场景改名 worldbuilding→world，与后端 ScenarioRegistry 一致） */
+export const DEFAULT_SCENE_ID = 'world'
+
+/** 场景 id 归一化：空/空白兜底缺省（后端契约 scene_id 恒 NULL 或有效 id，此处为前端防御层） */
+export function normalizeSceneId(v?: string | null): string {
+  const t = v?.trim()
+  return t ? t : DEFAULT_SCENE_ID
+}
 
 const STORAGE_KEY = 'worldsea_agent_session_views'
 export const LAST_SESSION_KEY = 'worldsea_agent_last_session'
@@ -59,7 +62,7 @@ function defaultOrch(): SessionOrchView {
 }
 function defaultState(partial?: Partial<SessionViewState>): SessionViewState {
   return {
-    sceneId: 'worldbuilding',
+    sceneId: DEFAULT_SCENE_ID,
     // 三模式移除（2026-08-31）：统一 normal
     chatMode: 'normal',
     execTab: 'trace',
@@ -68,7 +71,6 @@ function defaultState(partial?: Partial<SessionViewState>): SessionViewState {
     model: null,
     activityLog: [],
     orch: defaultOrch(),
-    multiSummary: null,
     lastSwitchAt: Date.now(),
     ...partial,
   }
@@ -100,6 +102,10 @@ function ensureHydrated(): void {
 /** 归一化（合并默认值 + 列表截断），保证落盘数据损坏也不崩 */
 function normalize(raw: Partial<SessionViewState>): SessionViewState {
   const s = defaultState(raw)
+  // 场景 id 归一化（2026-09-10 改名 worldbuilding→world）：旧落盘值映射 + 空值兜底
+  s.sceneId = s.sceneId === 'worldbuilding' ? DEFAULT_SCENE_ID : normalizeSceneId(s.sceneId)
+  // execTab 单值校验（旧落盘可能含已下线值如 'tot'——此前 normalize 只过滤了列表值）
+  if (!VALID_EXEC_TABS.includes(s.execTab)) s.execTab = 'trace'
   // openExecSections 去重 + 过滤非法值（旧版落盘可能含脏数据）
   const seen = new Set<ExecTab>()
   s.openExecSections = (raw.openExecSections ?? [])
@@ -272,11 +278,6 @@ function setModel(m: { provider: string; modelId: string } | null): void {
   scheduleSave()
 }
 
-function setMultiSummary(sessionId: string, summary: MultiAgentSummary | null): void {
-  getOrCreate(sessionId).multiSummary = summary
-  scheduleSave()
-}
-
 export function useSessionViewState() {
   return {
     activeSessionId,
@@ -295,6 +296,5 @@ export function useSessionViewState() {
     reorderExecSections,
     setRightPanel,
     setModel,
-    setMultiSummary,
   }
 }
