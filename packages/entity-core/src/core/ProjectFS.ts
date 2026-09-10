@@ -209,10 +209,10 @@ export async function exportProjectToDir(
 
   // 6. 导出设置
   const settingsStore = useSettingsStore()
-  const pluginsConfig = settingsStore.plugins.map(p => ({ id: p.id, active: p.active }))
+  const sproutsConfig = settingsStore.sprouts.map(p => ({ id: p.id, active: p.active }))
   batchWriter.add(
     `${projectDir}/settings/plugins.json`,
-    JSON.stringify(pluginsConfig, null, 2),
+    JSON.stringify(sproutsConfig, null, 2),
   )
   onProgress?.('settings', 1, 1)
 
@@ -333,14 +333,14 @@ export async function importProjectFromDir(
     // 模块目录可能不存在
   }
 
-  // 8. 导入插件设置
+  // 8. 导入芽设置
   try {
     const pluginsText = await readTextFile(`${sourceDir}/settings/plugins.json`)
     const pluginsConfig = JSON.parse(pluginsText)
     const settingsStore = useSettingsStore()
     for (const p of pluginsConfig) {
       if (p.active) {
-        settingsStore.togglePlugin(p.id)
+        settingsStore.toggleSprout(p.id)
       }
     }
   } catch {

@@ -20,16 +20,16 @@
     <!-- ── 可用模型：分类栏 + 列表 ── -->
     <div class="ms-models">
       <div class="agent-set-sub">可用模型</div>
-      <div class="ms-cat-bar" role="tablist" :aria-label="'可用模型分类'">
+      <div class="set-cats" role="tablist" :aria-label="'可用模型分类'">
         <button
           v-for="m in MODALITY_ORDER"
           :key="m"
-          class="ms-cat"
+          class="set-cat"
           :class="{ on: activeCat === m }"
           role="tab"
           :aria-selected="activeCat === m"
           @click="setCat(m)"
-        >{{ MODALITY_LABELS[m] }}<span class="ms-cat-count">{{ groupOf(m).length }}</span></button>
+        >{{ MODALITY_LABELS[m] }}<span class="set-cat-count">{{ groupOf(m).length }}</span></button>
       </div>
       <div v-if="savedModels.length" class="ms-model-grid">
         <button
@@ -185,18 +185,7 @@ function isActiveModel(model: SavedModel): boolean {
 .ms-type-label { font-size: var(--font-size-sm); font-weight: var(--font-weight-medium); color: var(--color-text); }
 .ms-type-desc { font-size: var(--font-size-xs); color: var(--color-text-tertiary); line-height: 1.4; }
 
-.ms-cat-bar { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
-.ms-cat {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 4px 10px; border-radius: var(--radius-pill, 999px);
-  border: 1px solid var(--color-border, var(--agent-border));
-  background: var(--color-surface, var(--agent-hover-bg));
-  color: var(--color-text-secondary); font-size: var(--font-size-xs);
-  cursor: pointer; transition: border-color 0.15s, background 0.15s, color 0.15s;
-}
-.ms-cat:hover { color: var(--color-text); }
-.ms-cat.on { border-color: var(--color-primary); color: var(--color-primary); background: color-mix(in srgb, var(--color-primary) 12%, transparent); }
-.ms-cat-count { font-size: var(--font-size-2xs, 10px); opacity: 0.7; }
+/* 分类栏样式在 settings-panels.css 基座（.set-cats / .set-cat / .set-cat-count），此前为私有 .ms-cat* 拷贝，2026-09-10 收敛删除 */
 
 .ms-model-list { display: flex; flex-direction: column; gap: 4px; }
 .ms-model-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }

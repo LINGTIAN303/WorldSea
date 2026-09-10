@@ -9,7 +9,7 @@ import { setAgentCurrentProjectId } from '@agent/session/manager'
 import { moduleRegistry } from '@/modules/registry'
 import { pluginAPI } from '@worldsea/entity-core'
 import { pluginManager } from '@/plugins/PluginManager'
-import { bootstrapPlugins } from '@/plugins/bootstrap'
+import { bootstrapSprouts } from '@/plugins/bootstrap'
 import { isTauri, hasTauriInvoke } from '@worldsea/entity-core/core'
 import { useFsWatcher } from './useFsWatcher'
 
@@ -284,12 +284,12 @@ export function useProjectSwitcher() {
       fileStore.loadAll(),
     ])
 
-    // 加载项目级插件开关
+    // 加载项目级芽开关
     const { useSettingsStore } = await import('@/stores/settingsStore')
     const settings = useSettingsStore()
-    const projectPlugins = await settings.loadProjectPlugins()
-    if (projectPlugins) {
-      settings.plugins = projectPlugins
+    const projectSprouts = await settings.loadProjectSprouts()
+    if (projectSprouts) {
+      settings.sprouts = projectSprouts
     }
   }
 
@@ -310,14 +310,14 @@ export function useProjectSwitcher() {
     // 2. 重新初始化模块注册表（从新项目 DB 加载模块并注册 schema）
     await moduleRegistry.initialize()
 
-    // 3. 官方插件重播种（2026-09-09 收口：bootstrapPlugins 仅在启动时跑一次、activate 有 loaded 防重入，
+    // 3. 官方芽重播种（2026-09-09 收口：bootstrapSprouts 仅在启动时跑一次、activate 有 loaded 防重入，
     //    切项目后官方类型在旧版/V2 表均缺失——resetForProjectSwitch 清 loaded 后重跑激活，
     //    registerEntityV2 双写同时重填旧版 + V2 + fieldRegistry）
     pluginManager.resetForProjectSwitch()
-    await bootstrapPlugins({ skipDefaultView: true })
+    await bootstrapSprouts({ skipDefaultView: true })
 
     // 4. 将 pluginAPI 中的视图全量同步到 pluginStore
-    //    官方插件视图在 pluginAPI._views 中始终存在（不会被清空），
+    //    官方芽视图在 pluginAPI._views 中始终存在（不会被清空），
     //    自定义模块视图由 moduleRegistry.initialize() 重新注册。
     //    但 moduleRegistry.initialize() 只写 pluginAPI._views，
     //    不会触发 pluginManager.viewHook → pluginStore.registerView，

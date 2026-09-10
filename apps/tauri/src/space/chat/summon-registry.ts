@@ -4,11 +4,11 @@
  * 五符号统一入口，触发方式在 ChatInput 内实现（任意光标位置 + rAF 节流）：
  *   # 应用层面板 → 打开面板（运行 / 配置 / 会话列表）
  *   ~ Agent 资产 → 打开持久化资产面板（记忆架 / 知识墙）
- *   ！创作区     → 切换插件创作视图（角色 / 区域 / 概念 / 物品 …）
+ *   ！创作区     → 切换芽创作视图（角色 / 区域 / 概念 / 物品 …）
  *   / 指令+技能  → 立即执行指令（模式切换 / 帮助）；技能转 Chip 随消息发送
  *   @ 引用       → 从世界设定实体库异步拉列表 → Chip 随消息发送
  *
- * # / ~ 面板为静态定义；！创作区由 buildSummonItems 从插件视图注册表动态生成；
+ * # / ~ 面板为静态定义；！创作区由 buildSummonItems 从芽视图注册表动态生成；
  * @ 引用由 getReferenceEntries 从实体类型注册表动态生成。
  */
 import type { ChatMode } from '@worldsea/shared-composables/agent/useAgent'
@@ -98,7 +98,7 @@ export const PIPELINE_ITEMS: SummonItem[] = [
   { id: 'pipeline-plan', prefix: '/', name: '规划执行', description: '强制规划管线：计划→执行→评审收敛', icon: 'task', kind: 'pipeline', payload: '/plan ' },
 ]
 
-/** 创作区视图源（！）——由插件视图注册表驱动，见 buildSummonItems */
+/** 创作区视图源（！）——由芽视图注册表驱动，见 buildSummonItems */
 export interface CreationViewSource {
   id: string
   label: string
@@ -107,7 +107,7 @@ export interface CreationViewSource {
 
 /**
  * 统一构建全部召唤条目（D1 分层）。
- * 传入插件视图注册表（pluginStore.views 或 pluginAPI.getViews()）作为 ！创作区来源，
+ * 传入芽视图注册表（pluginStore.views 或 pluginAPI.getViews()）作为 ！创作区来源，
  * 与静态 # 面板 / ~ 资产 / / 指令+技能 合并；@ 引用由 getReferenceEntries 单独动态生成。
  */
 export function buildSummonItems(creationViews: CreationViewSource[] = []): SummonItem[] {

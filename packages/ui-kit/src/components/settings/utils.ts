@@ -38,7 +38,7 @@ export const SHORTCUT_CATALOG: ShortcutItem[] = [
   { id: 'global.undoHistory', description: '撤销历史面板', keys: ['ctrl', 'alt', 'z'], scope: 'global' },
   { id: 'project.save', description: '导出到文件夹', keys: ['ctrl', 's'], scope: 'global' },
   { id: 'shell.toggle', description: '切换 Agent 空间 ⇄ 工作台', keys: ['ctrl', 'tab'], scope: 'global' },
-  // ── 视图（各插件视图挂载期间生效；Agent 空间自动失效）──
+  // ── 视图（各芽视图挂载期间生效；Agent 空间自动失效）──
   { id: 'character.undo', description: '角色：撤销', keys: ['ctrl', 'z'], scope: 'view' },
   { id: 'character.redo', description: '角色：重做', keys: ['ctrl', 'y'], scope: 'view' },
   { id: 'timeline.undo', description: '时间轴：撤销', keys: ['ctrl', 'z'], scope: 'view' },
@@ -123,7 +123,7 @@ export interface FontLayerConfig {
 
 export const FONT_LAYERS: FontLayerConfig[] = [
   { key: 'chrome', label: '界面字体', hint: 'Shell、侧栏、菜单、对话框、按钮' },
-  { key: 'editorUi', label: '编辑器 UI', hint: '编辑器工具栏、章节列表、插件工具栏' },
+  { key: 'editorUi', label: '编辑器 UI', hint: '编辑器工具栏、章节列表、芽工具栏' },
   { key: 'content', label: '内容字体', hint: '正文编辑区、Notebook Markdown' },
   { key: 'preview', label: '预览字体', hint: '手机预览、DOCX 导出' },
   { key: 'canvas', label: '画布字体', hint: 'FontRenderer 图片渲染' },

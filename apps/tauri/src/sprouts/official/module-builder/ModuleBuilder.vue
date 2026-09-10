@@ -20,7 +20,7 @@
         <div v-if="customModuleStore.modules.length === 0" class="bl-empty">
           <span class="ble-icon"><WsIcon name="settings" size="xl" /></span>
           <h3>还没有自定义模块</h3>
-          <p>点击「新建模块」开始创建属于你自己的插件</p>
+          <p>点击「新建模块」开始创建属于你自己的芽</p>
         </div>
       </div>
     </div>
@@ -145,8 +145,8 @@ function confirmPublish() {
       pluginId: CUSTOM_VIEW_PLUGIN_ID,
     }
     pluginAPI.registerView(view)
-    // registerView 会把 pluginId 覆写为 currentPluginId（运行时最后一次激活的插件），
-    // 这里再显式归一到父插件，保证侧边栏按插件启停过滤时不会意外隐藏
+    // registerView 会把 pluginId 覆写为 currentPluginId（运行时最后一次激活的芽），
+    // 这里再显式归一到父芽，保证侧边栏按芽启停过滤时不会意外隐藏
     view.pluginId = CUSTOM_VIEW_PLUGIN_ID
     pluginStore.registerView(view)
   }

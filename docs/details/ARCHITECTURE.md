@@ -36,7 +36,7 @@ WorldSea/
 
 | 端 | 目录 | 职责 | 后端能力 |
 |----|------|------|----------|
-| **Tauri（唯一 GUI）** | `apps/tauri` | 桌面应用，前端 Vue（Agent 对话、27 官方插件、Space 面板、设置）+ 后端 Rust 命令 | Rust 命令（src-tauri）+ `crates/agent-*` Agent 分层编排 + WASM 算法/校验 |
+| **Tauri（唯一 GUI）** | `apps/tauri` | 桌面应用，前端 Vue（Agent 对话、27 官方芽、Space 面板、设置）+ 后端 Rust 命令 | Rust 命令（src-tauri）+ `crates/agent-*` Agent 分层编排 + WASM 算法/校验 |
 
 **关键点**：web-to-tauri 迁移（2026-08-08）完成后，`apps/web`（原 Web 主应用）与 `apps/cli`（原 TS CLI）均已删除；随后 Rust CLI（`crates/cli`）亦于 2026-08-08 移除（其 chat / 文件读写 / 命令执行能力由 Tauri 端 `agent-commands` 工具集覆盖）。应用层收敛为 **Tauri 唯一 GUI + 共享 crates**；根级 `src/`、`src-tauri/`、`worldsea-server/`、`worldsea-agent/` 在更早的端分离中已迁移，根目录不存放应用源码。
 
@@ -87,7 +87,7 @@ WorldSea/
 - **Tauri 前端**：`apps/tauri/src/main.ts` → `apps/tauri/src/App.vue` → `apps/tauri/src/ui/layout/Shell.vue`
 - **Agent 对话**：`apps/tauri/src/agent/AgentWorkspace.vue`（chat 视图 + 浮动面板）
 - **Agent 空间**：`apps/tauri/src/space/`（AgentSpace.vue 壳 + 面板 + 快捷键 space 作用域）
-- **插件系统**：`apps/tauri/src/plugins/PluginManager.ts`；官方插件 `apps/tauri/src/plugins/official/`
+- **芽系统**：运行时 `apps/tauri/src/plugins/PluginManager.ts`（通用插件运行时底座）；官方芽 `apps/tauri/src/sprouts/official/`
 - **Tauri Rust 后端**：`apps/tauri/src-tauri/src/lib.rs`
 
 ## 8. 常用命令

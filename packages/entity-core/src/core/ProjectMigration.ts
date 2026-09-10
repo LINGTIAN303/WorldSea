@@ -153,7 +153,7 @@ async function performMigration(): Promise<MigrationResult> {
     }
   }
 
-  // 4. 迁移 localStorage 中的插件开关到 project_settings
+  // 4. 迁移 localStorage 中的芽开关到 project_settings
   await migratePluginToggles(pm, defaultProject.id)
 
   // 5. 设置当前项目
@@ -190,7 +190,7 @@ async function copyTable(
 }
 
 /**
- * 迁移 localStorage 中的插件开关到项目级 project_settings 表。
+ * 迁移 localStorage 中的芽开关到项目级 project_settings 表。
  */
 async function migratePluginToggles(pm: ReturnType<typeof getProjectManager>, projectId: string): Promise<void> {
   try {
@@ -206,9 +206,9 @@ async function migratePluginToggles(pm: ReturnType<typeof getProjectManager>, pr
       value: raw,
     })
 
-    console.log(`[ProjectMigration] 插件开关已迁移: ${toggles.length} 项`)
+    console.log(`[ProjectMigration] 芽开关已迁移: ${toggles.length} 项`)
   } catch (err) {
-    console.warn('[ProjectMigration] 插件开关迁移失败:', err)
+    console.warn('[ProjectMigration] 芽开关迁移失败:', err)
   }
 }
 

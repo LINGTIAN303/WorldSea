@@ -12,7 +12,7 @@ export interface ModuleInstance {
 
 /**
  * 项目级设置 KV 条目
- * 用于存储项目级插件开关、自定义配置等
+ * 用于存储项目级芽开关、自定义配置等
  */
 export interface ProjectSetting {
   key: string

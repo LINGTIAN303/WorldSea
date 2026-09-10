@@ -9,6 +9,10 @@
  * 仅由 SettingsDialog 引入（设置面板类名的唯一宿主），请勿在设置上下文之外使用这些类名。
  * 已知同映射陷阱：--color-surface 与 --color-surface-elevated 同值（web-tokens-bridge），
  * 故此处背景取 --content-bg（映射 bg-surface）并用 ring 阴影描边与背景区分。
+ *
+ * 2026-09-10 追加：.set-cats/.set-cat 分类筛选栏 + .set-input 输入框 + .set-btn 按钮。
+ * 前身是 McpPanel 的 .ms-cat* 与 AgentSettingsPanel Skills 卡同名类的两份私有拷贝，
+ * 收敛至此作为唯一权威（与 .set-card 同批，消除跨面板重复实现）。
  */
 
 .set-card { background: var(--content-bg, var(--color-bg-surface)); border-radius: var(--radius-md); padding: 14px 16px; box-shadow: 0 1px 6px rgba(0,0,0,0.06), 0 0 0 1px var(--border, var(--color-border)); }
@@ -29,3 +33,21 @@
 
 /* 说明文字（跟在行组/标题下方） */
 .set-hint { font-size: var(--font-size-xs); color: var(--text-tertiary, var(--color-text-tertiary)); margin: -2px 0 4px; }
+
+/* 分类筛选栏（药丸式 tab；MCP 状态筛选 / Skills 技能分类 / 内置工具分类共用） */
+.set-cats { display: flex; gap: 4px; flex-wrap: wrap; }
+.set-cat { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: var(--radius-pill, 999px); border: 1px solid var(--border, var(--color-border)); background: var(--content-bg, var(--color-bg-surface)); color: var(--text-secondary, var(--color-text-secondary)); font-size: var(--font-size-xs); cursor: pointer; transition: border-color 0.15s, background 0.15s, color 0.15s; }
+.set-cat:hover { color: var(--text-primary, var(--color-text)); }
+.set-cat.on { border-color: var(--primary, var(--color-primary)); color: var(--primary, var(--color-primary)); background: color-mix(in srgb, var(--primary, var(--color-primary)) 12%, transparent); }
+/* 分类计数徽标（如「全部 12」中的 12） */
+.set-cat-count { font-size: var(--font-size-2xs, 10px); opacity: 0.7; }
+
+/* 标准输入框（设置面板内文本/密码输入统一外观） */
+.set-input { width: 100%; box-sizing: border-box; padding: 6px 9px; font-size: var(--font-size-sm); font-family: inherit; color: var(--text-primary, var(--color-text)); background: var(--content-bg, var(--color-bg-surface)); border: 1px solid var(--border, var(--color-border)); border-radius: var(--radius-sm, 4px); outline: none; transition: border-color 0.15s; }
+.set-input:focus { border-color: var(--primary, var(--color-primary)); }
+.set-input::placeholder { color: var(--text-tertiary, var(--color-text-tertiary)); }
+
+/* 标准按钮（面板内次要操作，如「添加」「确认」） */
+.set-btn { display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 5px 12px; font-size: var(--font-size-xs); font-family: inherit; color: var(--text-primary, var(--color-text)); background: var(--content-bg, var(--color-bg-surface)); border: 1px solid var(--border, var(--color-border)); border-radius: var(--radius-sm, 4px); cursor: pointer; transition: border-color 0.15s, color 0.15s; }
+.set-btn:hover { border-color: var(--primary, var(--color-primary)); color: var(--primary, var(--color-primary)); }
+.set-btn--block { width: 100%; }

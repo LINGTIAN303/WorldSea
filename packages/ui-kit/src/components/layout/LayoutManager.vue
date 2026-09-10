@@ -103,7 +103,7 @@ async function resetType(entityType: string) {
 }
 
 async function resetAll() {
-  const ok = await confirm({ type: 'warning', title: '重置所有字段布局预设', description: '确定重置所有字段布局预设吗？这将恢复插件原始字段顺序。' })
+  const ok = await confirm({ type: 'warning', title: '重置所有字段布局预设', description: '确定重置所有字段布局预设吗？这将恢复芽原始字段顺序。' })
   if (!ok) return
   fieldOrderStore.resetAll()
   fieldRegistry.resetToBuiltin()

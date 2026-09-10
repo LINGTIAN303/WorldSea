@@ -1,11 +1,11 @@
 /**
- * 官方插件权威清单。
- * 所有官方插件的 id、导入路径、默认激活状态均在此定义。
+ * 官方芽权威清单。
+ * 所有官方芽的 id、导入路径、默认激活状态均在此定义。
  * app.vue 和 PluginSandbox 均从该清单加载，避免硬编码重复。
  */
-export interface OfficialPluginEntry {
+export interface OfficialSproutEntry {
   id: string
-  /** import 路径，相对 src/plugins/official */
+  /** import 路径，相对 src/sprouts/official */
   importPath: string
   /** 是否默认激活 */
   defaultActive: boolean
@@ -13,7 +13,7 @@ export interface OfficialPluginEntry {
   name?: string
 }
 
-export const OFFICIAL_PLUGINS: readonly OfficialPluginEntry[] = [
+export const OFFICIAL_SPROUTS: readonly OfficialSproutEntry[] = [
   { id: 'official.characters', importPath: './characters/index', defaultActive: true, name: '角色' },
   { id: 'official.regions', importPath: './regions/index', defaultActive: true, name: '区域' },
   { id: 'official.timeline', importPath: './timeline/index', defaultActive: true, name: '时间线' },
@@ -43,4 +43,4 @@ export const OFFICIAL_PLUGINS: readonly OfficialPluginEntry[] = [
   { id: 'official.workflow', importPath: './workflow/index', defaultActive: true, name: '工作流' },
 ] as const
 
-export const OFFICIAL_PLUGIN_IDS: ReadonlySet<string> = new Set(OFFICIAL_PLUGINS.map(p => p.id))
+export const OFFICIAL_SPROUT_IDS: ReadonlySet<string> = new Set(OFFICIAL_SPROUTS.map(p => p.id))

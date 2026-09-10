@@ -15,10 +15,10 @@ export type {
   FontPreferences,
 } from './fontStore'
 export { useUIStore } from './uiStore'
-export { useSettingsStore, PLUGIN_CATEGORIES, ANIMATION_GROUPS } from './settingsStore'
+export { useSettingsStore, SPROUT_CATEGORIES, ANIMATION_GROUPS } from './settingsStore'
 export type {
-  PluginToggle,
-  PluginCategory,
+  SproutToggle,
+  SproutCategory,
   CustomProviderEntry,
 } from './settingsStore'
 

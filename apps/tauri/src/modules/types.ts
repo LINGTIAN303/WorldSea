@@ -36,7 +36,7 @@ export interface ModuleField {
   showInList?: boolean
   refType?: string           // entity-ref: 引用的实体类型名（含 namespace）
   formula?: string           // formula 字段：计算公式
-  /** 来源插件 id（用于识别该字段类型由哪个 FieldExtension 提供） */
+  /** 来源芽 id（用于识别该字段类型由哪个 FieldExtension 提供） */
   extensionId?: string
 }
 

@@ -155,7 +155,7 @@ import type { RightTab } from './stores/space-store'
 const PANEL_META: { id: RightTab; label: string; icon: string; title: string }[] = [
   { id: 'exec', label: '执行', icon: 'chart', title: '执行（轨迹/活动/计划）' },
   { id: 'config', label: '配置', icon: 'settings', title: '配置（记忆/人格）' },
-  { id: 'creation', label: '创作', icon: 'palette', title: '创作（插件创作视图）' },
+  { id: 'creation', label: '创作', icon: 'palette', title: '创作（芽创作视图）' },
   { id: 'preview', label: '文件', icon: 'files', title: '文件（浏览器 + 内联预览）' },
   { id: 'usage', label: '用量', icon: 'dashboard', title: '用量（请求/token/费用）' },
 ]

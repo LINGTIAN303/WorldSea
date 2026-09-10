@@ -3,7 +3,7 @@ import { createEmptySlotRoot } from './layoutSchema'
 
 /**
  * 新页面模型（以「工具条 + 视图」为画布）。
- * 一张插件页面 = 工具条区（顶部栏）+ 视图区（主体），各为一棵槽位树。
+ * 一张芽页面 = 工具条区（顶部栏）+ 视图区（主体），各为一棵槽位树。
  * 挂载于 module.layoutSchema（契约层为 v1 类型，运行时强转读取）。
  */
 export interface PageSchema {

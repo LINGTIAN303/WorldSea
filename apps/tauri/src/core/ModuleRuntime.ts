@@ -1,6 +1,6 @@
 /**
  * ModuleRuntime — 自定义模块运行时
- * 将 CustomModule 定义转化为可用的插件系统注册项和视图组件
+ * 将 CustomModule 定义转化为可用的芽系统注册项和视图组件
  */
 import type { CustomModule, ModuleField, EntityTypeSchema, FieldSchema, RelationTypeSchema } from '@worldsea/entity-core'
 import { entitySchemaRegistry, relationSchemaRegistry } from '@worldsea/entity-core/core'

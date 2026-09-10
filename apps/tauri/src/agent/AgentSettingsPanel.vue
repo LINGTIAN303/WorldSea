@@ -32,7 +32,7 @@
         <!-- 设置内嵌（embedded）：卡片式全展开，无左侧导航 -->
         <template v-if="embedded">
           <!-- 显式轮转（叠放翻卡）：复用通用 CardDeck，当前卡完全显示，上/下一张各露一截边；滚轮边界续页 + 左列标题翻卡 -->
-          <CardDeck ref="deckRef" :count="5" :flat="!!searchQuery" @change="(i) => emit('card-change', i)">
+          <CardDeck ref="deckRef" :count="9" :flat="!!searchQuery" @change="(i) => emit('card-change', i)">
             <template #card="{ idx, cls }">
               <div class="set-card deck-card" :class="cls" :data-index="idx" v-show="cardMatch(idx)">
               <!-- 模型卡片：收缩为「供应商类型 + 可用模型」，二级/三级弹窗承载详情（重构 2026-08-23） -->
@@ -92,14 +92,14 @@
 
             <!-- 技能清单（D 批：分类栏） -->
             <div class="agent-set-sub">技能</div>
-            <div class="ms-cat-bar" role="tablist" aria-label="技能分类">
+            <div class="set-cats" role="tablist" aria-label="技能分类">
               <button
                 v-for="c in SKILL_CATS"
                 :key="c.value"
-                class="ms-cat" :class="{ on: activeSkillCat === c.value }"
+                class="set-cat" :class="{ on: activeSkillCat === c.value }"
                 role="tab" :aria-selected="activeSkillCat === c.value"
                 @click="activeSkillCat = c.value as any"
-              >{{ c.label }}<span class="ms-cat-count">{{ catSkillCount(c.value as any) }}</span></button>
+              >{{ c.label }}<span class="set-cat-count">{{ catSkillCount(c.value as any) }}</span></button>
             </div>
             <div class="skills-list">
               <div v-for="skill in skillsOfCat()" :key="skill.id" class="skill-item" :class="{ disabled: !skill.enabled }">
@@ -188,6 +188,35 @@
                       <li v-if="!permRules.locks.length" class="perm-empty">暂无</li>
                     </ul>
                   </div>
+                </div>
+              </template>
+              <!-- 内置工具卡片（2026-09-10：只读目录，按 TOOL_CATEGORIES 20 分类折叠展示） -->
+              <template v-else-if="idx === 5">
+                <div class="sc-head">内置工具</div>
+                <BuiltinToolsPanel :search-query="searchQuery" />
+              </template>
+              <!-- 插件卡片（2026-09-10：Agent 插件系统 = 能力打包分发层，尚未开始，空状态占位） -->
+              <template v-else-if="idx === 6">
+                <div class="sc-head">插件</div>
+                <AgentPluginsPanel :search-query="searchQuery" />
+              </template>
+              <!-- 用量卡片（2026-09-10 补齐：与独立悬浮面板 NAV_GROUPS 对齐） -->
+              <template v-else-if="idx === 7">
+                <div class="sc-head">用量</div>
+                <UsagePanel
+                  :total-usage="totalUsage"
+                  :calculated-cost="calculatedCost"
+                  :cumulative-usage="cumulativeUsage"
+                  :cache-hit-rate="cacheHitRate"
+                />
+              </template>
+              <!-- 人格预设卡片（2026-09-10 补齐：与独立悬浮面板 NAV_GROUPS 对齐） -->
+              <template v-else-if="idx === 8">
+                <div class="sc-head">人格预设</div>
+                <div class="settings-section">
+                  <div class="settings-label">Agent 人格预设</div>
+                  <TuiSelect :model-value="personaPreset" :options="personaOptions" @update:model-value="onPersonaPresetChange" />
+                  <div class="settings-hint">定义 Agent 的表达风格与角色倾向，切换后后续对话生效</div>
                 </div>
               </template>
               </div>
@@ -362,6 +391,14 @@
           <TerminalPanel v-else-if="settingsSubPanel === 'terminal'" key="terminal"
             @open-terminal="emit('open-terminal')"
           />
+          <!-- 内置工具面板（2026-09-10 补齐：与内嵌卡片路径对齐） -->
+          <BuiltinToolsPanel v-else-if="settingsSubPanel === 'builtin-tools'" key="builtin-tools"
+            :search-query="searchQuery"
+          />
+          <!-- 插件面板（2026-09-10 补齐：Agent 插件=能力打包分发层） -->
+          <AgentPluginsPanel v-else-if="settingsSubPanel === 'plugins'" key="plugins"
+            :search-query="searchQuery"
+          />
         </Transition>
         </template>
         </div>
@@ -425,6 +462,10 @@ import UsagePanel from './panels/UsagePanel.vue'
 import VisionPanel from './panels/VisionPanel.vue'
 import McpPanel from './panels/McpPanel.vue'
 import TerminalPanel from './panels/TerminalPanel.vue'
+// 2026-09-10 新增两卡：内置工具（只读目录）/ Agent 插件（空状态占位）
+// 走 ui-kit re-export 惯例（Phase 8d：通用设置面板实现在 ui-kit）
+import BuiltinToolsPanel from '@worldsea/ui-kit/components/settings/panels/BuiltinToolsPanel.vue'
+import AgentPluginsPanel from '@worldsea/ui-kit/components/settings/panels/AgentPluginsPanel.vue'
 // 模型卡片重构（2026-08-23）：一级平铺卡片 + 二级弹窗
 import ModelsSection from './panels/model/ModelsSection.vue'
 import ProviderTypeDialog from './panels/model/ProviderTypeDialog.vue'
@@ -464,13 +505,17 @@ const props = withDefaults(defineProps<{
   searchQuery: '',
 })
 
-/** 五张卡的搜索关键词（设置搜索过滤用，与 settings-panels.css 类名归一配套） */
+/** 七张卡的搜索关键词（设置搜索过滤用，与 settings-panels.css 类名归一配套） */
 const CARD_KEYWORDS = [
   '模型 供应商 密钥 api key 思考 thinking model provider',
   'Skills 技能 工具 搜索 视觉 图像 视频 skill search vision',
   'MCP 服务器 连接 mcp server',
   '规则 规则文件 world memory rules',
   '安全 权限 白名单 上锁 确认 safety security',
+  '内置工具 工具 能力 权限 分类 tool builtin tools permission',
+  '插件 扩展 打包 分发 安装 skills hooks agents plugin extension',
+  '用量 成本 消耗 缓存 usage cost token cache',
+  '人格 预设 persona 表达 风格 角色倾向',
 ]
 
 function cardMatch(idx: number): boolean {
@@ -609,7 +654,8 @@ function onModelParamsSave(params: { contextLength: number; maxTokens: number; t
   )
 }
 
-/** 子面板纵向分组导航（模型与推理 / 能力与工具 / 边界与个性） */
+/** 子面板纵向分组导航（模型与推理 / 能力与工具 / 边界与个性）
+ *  2026-09-10 收敛：与 embedded 路径的 9 张卡对齐（补齐 用量 / 人格预设 / 内置工具 / 插件） */
 const NAV_GROUPS = [
   {
     label: '模型与推理',
@@ -628,6 +674,8 @@ const NAV_GROUPS = [
       { key: 'search', label: '搜索', icon: 'globe' },
       { key: 'vision', label: '多模态', icon: 'eye' },
       { key: 'terminal', label: '终端', icon: 'keyboard' },
+      { key: 'builtin-tools', label: '内置工具', icon: 'tool' },
+      { key: 'plugins', label: '插件', icon: 'cat-plugins' },
     ],
   },
   {
@@ -1173,20 +1221,8 @@ onMounted(() => {
 }
 .tool-config .settings-row { display: flex; align-items: center; gap: 8px; }
 
-/* D 批：Skills/MCP 分类栏（与 ModelsSection 视觉一致的胶囊 bar，此处作用于 Agent 设置卡片区） */
-.ms-cat-bar { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
-.ms-cat {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 4px 10px; border-radius: var(--radius-pill, 999px);
-  border: 1px solid var(--agent-border);
-  background: var(--agent-hover-bg);
-  color: var(--text-secondary, var(--agent-text-secondary));
-  font-size: var(--font-size-xs);
-  cursor: pointer; transition: border-color 0.15s, background 0.15s, color 0.15s;
-}
-.ms-cat:hover { color: var(--color-text, var(--agent-text)); }
-.ms-cat.on { border-color: var(--color-primary, var(--agent-primary)); color: var(--color-primary, var(--agent-primary)); background: color-mix(in srgb, var(--agent-primary, var(--color-primary)) 12%, transparent); }
-.ms-cat-count { font-size: var(--font-size-2xs, 10px); opacity: 0.7; }
+/* D 批：Skills 分类栏样式已收敛至 settings-panels.css 基座（.set-cats / .set-cat / .set-cat-count）。
+   2026-09-10 删除此处的 .ms-cat* 私有拷贝（与 ModelsSection、McpPanel 三份重复实现合并为一）。 */
 
 .mcp-list { display: flex; flex-direction: column; gap: 6px; }
 .mcp-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--radius-mid); background: var(--agent-hover-bg); border: 1px solid transparent; transition: border-color 0.15s, opacity 0.15s; }

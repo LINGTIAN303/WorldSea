@@ -1,15 +1,15 @@
 <template>
   <div class="skills-store">
     <!-- 非 Tauri 环境提示 -->
-    <div v-if="!store.isTauri" class="store-hint">
+    <div v-if="!store.isTauri" class="set-hint">
       <WsIcon name="globe" size="xs" /> 商城功能仅在桌面端可用（需 Tauri 运行时）
     </div>
 
     <template v-else>
-      <!-- 技能源配置区 -->
+      <!-- 技能源配置区（2026-09-10 分区收拢：默认收起，避免长表单挤占首屏） -->
       <div class="store-section">
-        <button class="store-section-toggle" @click="sourcePanelOpen = !sourcePanelOpen">
-          <WsIcon :name="sourcePanelOpen ? 'grip' : 'star'" size="xs" />
+        <button class="store-section-toggle" @click="sourcePanelOpen = !sourcePanelOpen" :aria-expanded="sourcePanelOpen">
+          <WsIcon :name="sourcePanelOpen ? 'chevron-down' : 'chevron-right'" size="xs" />
           技能源配置
           <span class="store-section-count">{{ store.skillSources.value.length }}</span>
         </button>
@@ -26,33 +26,33 @@
               <button class="source-delete-btn" @click="store.removeSource(idx)" title="删除"><WsIcon name="delete" size="xs" /></button>
             </div>
             <div v-if="sourceAdding" class="store-source-form">
-              <div class="settings-row">
+              <div class="set-row">
                 <span class="sp-row-label">名称</span>
-                <input type="text" class="settings-input" v-model="sourceForm.name" placeholder="官方精选技能集" aria-label="技能源名称" />
+                <input type="text" class="set-input" v-model="sourceForm.name" placeholder="官方精选技能集" aria-label="技能源名称" />
               </div>
-              <div class="settings-row">
+              <div class="set-row">
                 <span class="sp-row-label">URL</span>
-                <input type="text" class="settings-input" v-model="sourceForm.url" placeholder="https://raw.githubusercontent.com/.../skills-manifest.json" aria-label="技能源 manifest URL" />
+                <input type="text" class="set-input" v-model="sourceForm.url" placeholder="https://raw.githubusercontent.com/.../skills-manifest.json" aria-label="技能源 manifest URL" />
               </div>
               <div class="store-source-actions">
-                <button class="sub-panel-btn" @click="confirmAddSource">确认</button>
-                <button class="sub-panel-btn" @click="sourceAdding = false">取消</button>
+                <button class="set-btn" @click="confirmAddSource">确认</button>
+                <button class="set-btn" @click="sourceAdding = false">取消</button>
               </div>
             </div>
-            <button v-else class="sub-panel-btn" @click="sourceAdding = true" style="width:100%">+ 添加技能源</button>
+            <button v-else class="set-btn set-btn--block" @click="sourceAdding = true">+ 添加技能源</button>
           </div>
         </Transition>
       </div>
 
       <!-- 本地导入区（Task 24 阶段4：多平台互通） -->
       <div class="store-section">
-        <button class="store-section-toggle" @click="importPanelOpen = !importPanelOpen">
-          <WsIcon name="plus" size="xs" />
+        <button class="store-section-toggle" @click="importPanelOpen = !importPanelOpen" :aria-expanded="importPanelOpen">
+          <WsIcon :name="importPanelOpen ? 'chevron-down' : 'chevron-right'" size="xs" />
           本地导入（Claude Code / Cursor / WorldSea）
         </button>
         <Transition name="ws-slide-up">
           <div v-if="importPanelOpen" class="store-import-area">
-            <p class="store-import-hint">
+            <p class="set-hint store-import-hint">
               选择外部技能文件（SKILL.md / .mdc / skill.yaml），自动识别格式并导入为 WorldSea 技能。已存在同名技能会覆盖。
             </p>
             <input
@@ -62,7 +62,7 @@
               style="display:none"
               @change="onFileSelected"
             />
-            <button class="sub-panel-btn" @click="fileInputRef?.click()" :disabled="importing">
+            <button class="set-btn" @click="fileInputRef?.click()" :disabled="importing">
               <WsIcon name="plus" size="xs" />
               {{ importing ? '导入中...' : '选择文件导入' }}
             </button>
@@ -77,113 +77,121 @@
         </Transition>
       </div>
 
-      <!-- 已安装技能（H3 冒烟修复 2026-08-30）：商城主列表只显示远程源技能，
-           本地导入/无源安装的技能无处可见——此区块列出全部已安装（installedVersionMap ∩ registry 合并视图） -->
-      <div class="store-section" v-if="localInstalledSkills.length > 0">
+      <!-- 2026-09-10 分区收拢：「已安装」与「商城」以 tab 分隔，避免两段网格同屏堆叠 -->
+      <div class="store-section">
         <div class="store-browse-header">
-          <span class="store-section-title">已安装 <span class="store-section-count">{{ localInstalledSkills.length }}</span></span>
-          <button class="store-section-toggle" @click="refreshStore" :disabled="store.loading.value">
+          <div class="set-cats" role="tablist" aria-label="技能视图">
+            <button
+              v-for="t in STORE_TABS"
+              :key="t.value"
+              class="set-cat" :class="{ on: activeTab === t.value }"
+              role="tab" :aria-selected="activeTab === t.value"
+              @click="activeTab = t.value"
+            >{{ t.label }}<span class="set-cat-count">{{ t.count() }}</span></button>
+          </div>
+          <button class="store-section-toggle store-refresh-btn" @click="refreshStore" :disabled="store.loading.value">
             <WsIcon name="refresh" size="xs" />
             {{ store.loading.value ? '刷新中...' : '刷新' }}
           </button>
         </div>
-        <div class="store-skill-grid">
-          <div v-for="s in localInstalledSkills" :key="s.id" class="store-skill-card">
-            <div class="store-skill-header">
-              <span class="store-skill-name">{{ s.name }}</span>
-              <span v-if="s.version" class="store-skill-version">v{{ s.version }}</span>
-            </div>
-            <div class="store-skill-meta">
-              <span class="store-skill-installed-tag">{{ s.id }}</span>
-            </div>
-            <div class="store-skill-actions">
-              <button
-                class="sub-panel-btn store-action-btn store-uninstall-btn"
-                :disabled="store.installing.value === s.id"
-                @click="onUninstall(s.id)"
-              >
-                <WsIcon name="delete" size="xs" />
-                {{ store.installing.value === s.id ? '卸载中...' : '卸载' }}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 商城浏览区 -->
-      <div class="store-section">
-        <div class="store-browse-header">
-          <button class="store-section-toggle" @click="refreshStore" :disabled="store.loading.value">
-            <WsIcon name="search" size="xs" />
-            {{ store.loading.value ? '加载中...' : '刷新商城' }}
-          </button>
-          <input
-            v-model="searchQuery"
-            type="text"
-            class="settings-input store-search"
-            placeholder="搜索技能..."
-            aria-label="搜索技能"
-          />
-        </div>
 
         <div v-if="store.error.value" class="store-error">{{ store.error.value }}</div>
 
-        <div v-if="filteredSkills.length === 0 && !store.loading.value" class="store-empty">
-          <template v-if="store.remoteSkills.value.length === 0">
-            暂无可用技能，请添加技能源并刷新
-          </template>
-          <template v-else>
-            未找到匹配的技能
-          </template>
-        </div>
-
-        <div class="store-skill-grid">
-          <div v-for="skill in filteredSkills" :key="skill.id" class="store-skill-card">
-            <div class="store-skill-header">
-              <span class="store-skill-name">{{ skill.name }}</span>
-              <span class="store-skill-version">v{{ skill.version }}</span>
-            </div>
-            <div class="store-skill-desc">{{ skill.description || '暂无描述' }}</div>
-            <div class="store-skill-meta">
-              <span v-if="skill.author" class="store-skill-author"><WsIcon name="star" size="xs" /> {{ skill.author }}</span>
-              <span v-if="store.isInstalled(skill.id)" class="store-skill-installed-tag">
-                已安装 v{{ store.installedVersionMap.value.get(skill.id) }}
-              </span>
-            </div>
-            <div class="store-skill-actions">
-              <!-- 未安装：安装按钮 -->
-              <button
-                v-if="!store.isInstalled(skill.id)"
-                class="sub-panel-btn store-action-btn"
-                :disabled="store.installing.value === skill.id"
-                @click="onInstall(skill)"
-              >
-                <WsIcon name="check" size="xs" />
-                {{ store.installing.value === skill.id ? '安装中...' : '安装' }}
-              </button>
-              <!-- 已安装但有更新：更新按钮 -->
-              <button
-                v-else-if="store.hasUpdate(skill)"
-                class="sub-panel-btn store-action-btn store-update-btn"
-                :disabled="store.installing.value === skill.id"
-                @click="onInstall(skill)"
-              >
-                <WsIcon name="timeline" size="xs" />
-                {{ store.installing.value === skill.id ? '更新中...' : '更新' }}
-              </button>
-              <!-- 已安装最新：卸载按钮 -->
-              <button
-                v-else
-                class="sub-panel-btn store-action-btn store-uninstall-btn"
-                :disabled="store.installing.value === skill.id"
-                @click="onUninstall(skill.id)"
-              >
-                <WsIcon name="delete" size="xs" />
-                {{ store.installing.value === skill.id ? '卸载中...' : '卸载' }}
-              </button>
+        <!-- 已安装视图 -->
+        <template v-if="activeTab === 'installed'">
+          <div v-if="localInstalledSkills.length === 0" class="store-empty">
+            暂无已安装的本地技能，可在「商城」安装或使用上方本地导入
+          </div>
+          <div v-else class="store-skill-grid">
+            <div v-for="s in localInstalledSkills" :key="s.id" class="store-skill-card">
+              <div class="store-skill-header">
+                <span class="store-skill-name">{{ s.name }}</span>
+                <span v-if="s.version" class="store-skill-version">v{{ s.version }}</span>
+              </div>
+              <div class="store-skill-meta">
+                <span class="store-skill-installed-tag">{{ s.id }}</span>
+              </div>
+              <div class="store-skill-actions">
+                <button
+                  class="set-btn store-action-btn store-uninstall-btn"
+                  :disabled="store.installing.value === s.id"
+                  @click="onUninstall(s.id)"
+                >
+                  <WsIcon name="delete" size="xs" />
+                  {{ store.installing.value === s.id ? '卸载中...' : '卸载' }}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </template>
+
+        <!-- 商城浏览视图 -->
+        <template v-else>
+          <input
+            v-model="searchQuery"
+            type="text"
+            class="set-input store-search"
+            placeholder="搜索技能..."
+            aria-label="搜索技能"
+          />
+
+          <div v-if="filteredSkills.length === 0 && !store.loading.value" class="store-empty">
+            <template v-if="store.remoteSkills.value.length === 0">
+              暂无可用技能，请添加技能源并刷新
+            </template>
+            <template v-else>
+              未找到匹配的技能
+            </template>
+          </div>
+
+          <div class="store-skill-grid">
+            <div v-for="skill in filteredSkills" :key="skill.id" class="store-skill-card">
+              <div class="store-skill-header">
+                <span class="store-skill-name">{{ skill.name }}</span>
+                <span class="store-skill-version">v{{ skill.version }}</span>
+              </div>
+              <div class="store-skill-desc">{{ skill.description || '暂无描述' }}</div>
+              <div class="store-skill-meta">
+                <span v-if="skill.author" class="store-skill-author"><WsIcon name="star" size="xs" /> {{ skill.author }}</span>
+                <span v-if="store.isInstalled(skill.id)" class="store-skill-installed-tag">
+                  已安装 v{{ store.installedVersionMap.value.get(skill.id) }}
+                </span>
+              </div>
+              <div class="store-skill-actions">
+                <!-- 未安装：安装按钮 -->
+                <button
+                  v-if="!store.isInstalled(skill.id)"
+                  class="set-btn store-action-btn"
+                  :disabled="store.installing.value === skill.id"
+                  @click="onInstall(skill)"
+                >
+                  <WsIcon name="check" size="xs" />
+                  {{ store.installing.value === skill.id ? '安装中...' : '安装' }}
+                </button>
+                <!-- 已安装但有更新：更新按钮 -->
+                <button
+                  v-else-if="store.hasUpdate(skill)"
+                  class="set-btn store-action-btn store-update-btn"
+                  :disabled="store.installing.value === skill.id"
+                  @click="onInstall(skill)"
+                >
+                  <WsIcon name="timeline" size="xs" />
+                  {{ store.installing.value === skill.id ? '更新中...' : '更新' }}
+                </button>
+                <!-- 已安装最新：卸载按钮 -->
+                <button
+                  v-else
+                  class="set-btn store-action-btn store-uninstall-btn"
+                  :disabled="store.installing.value === skill.id"
+                  @click="onUninstall(skill.id)"
+                >
+                  <WsIcon name="delete" size="xs" />
+                  {{ store.installing.value === skill.id ? '卸载中...' : '卸载' }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </template>
       </div>
     </template>
   </div>
@@ -204,6 +212,15 @@ const sourcePanelOpen = ref(false)
 const sourceAdding = ref(false)
 const sourceForm = ref({ name: '', url: '' })
 const searchQuery = ref('')
+
+/** 视图切换（2026-09-10 分区收拢）：已安装 / 商城 二选一，避免两段网格同屏堆叠 */
+const activeTab = ref<'installed' | 'store'>('installed')
+
+const localInstalledCount = computed(() => store.installedVersionMap.value.size)
+const STORE_TABS = computed(() => [
+  { value: 'installed' as const, label: '已安装', count: () => localInstalledCount.value },
+  { value: 'store' as const, label: '商城', count: () => store.remoteSkills.value.length },
+])
 
 // 本地导入状态（Task 24 阶段4）
 const importPanelOpen = ref(false)
@@ -292,21 +309,12 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* 注：.set-row/.set-input/.set-btn/.set-hint/.set-cats/.set-cat 来自 settings-panels.css 基座（勿在此复制） */
+
 .skills-store {
   margin-top: 12px;
   padding-top: 12px;
   border-top: 1px solid var(--color-border);
-}
-
-.store-hint {
-  padding: 10px 12px;
-  font-size: var(--font-size-sm);
-  color: var(--color-text-tertiary);
-  background: var(--color-surface);
-  border-radius: var(--radius-sm);
-  display: flex;
-  align-items: center;
-  gap: 6px;
 }
 
 .store-section {
@@ -430,18 +438,21 @@ onMounted(() => {
   margin-top: 8px;
 }
 
+/* 视图切换行：左为已安装/商城 tab，右为刷新按钮 */
 .store-browse-header {
   display: flex;
+  align-items: center;
   gap: 8px;
   margin-bottom: 10px;
 }
-.store-browse-header .store-section-toggle {
+/* 刷新按钮为内联小按钮，靠右不占满整行 */
+.store-refresh-btn {
   width: auto;
   flex-shrink: 0;
+  margin-left: auto;
 }
 .store-search {
-  flex: 1;
-  min-width: 0;
+  margin-bottom: 8px;
 }
 
 .store-error {
@@ -548,8 +559,6 @@ onMounted(() => {
   background: var(--color-bg);
 }
 .store-import-hint {
-  font-size: var(--font-size-xs);
-  color: var(--color-text-tertiary);
   margin: 0 0 8px 0;
   line-height: 1.5;
 }

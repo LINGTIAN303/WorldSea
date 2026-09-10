@@ -11,7 +11,7 @@ import { useUIStore } from './stores/uiStore'
 import { useTheme } from './components/ui/useTheme'
 import { useTheme as useEntityTheme, useSettingsStore } from '@worldsea/entity-core'
 import { useGlobalEvents, setActiveViewId, setAgentSpaceActive, enableGlobalTooltips } from '@worldsea/ui-kit'
-import { bootstrapPlugins } from './plugins/bootstrap'
+import { bootstrapSprouts } from './plugins/bootstrap'
 import { useProjectSwitcher } from './composables/useProjectSwitcher'
 import { registerProjectSwitchListener } from './agent/composables/useAgentRust'
 import { useSystemBridge } from './composables/useSystemBridge'
@@ -104,7 +104,7 @@ const { on: onGlobalEvent } = useGlobalEvents()
 onGlobalEvent('ws-set-theme', onSetTheme)
 
 // N9 视图上下文注入：Agent 空间（currentShell==='space'）→ view 快捷键失效（setActiveViewId(null)），
-// 主视图（workbench）→ 跟随当前 view。两壳 v-show 常驻，插件视图组件在 Agent 空间仍挂载，
+// 主视图（workbench）→ 跟随当前 view。两壳 v-show 常驻，芽视图组件在 Agent 空间仍挂载，
 // 不注入会导致其 view 快捷键（角色 n/delete 等）在 Agent 空间误触发。
 // space 上下文（2026-09-06）：Agent 空间壳激活时 space scope 快捷键生效，workbench 下失效。
 watch(
@@ -125,8 +125,8 @@ onMounted(async () => {
   document.addEventListener('contextmenu', e => e.preventDefault())
   // 应用初始主题（html data-theme 由此建立；apply 为同步函数，需传入当前主题模式）
   applyTheme(themeMode.value)
-  // 项目系统初始化 + projectDir 绑定（必须在 bootstrapPlugins 之前：
-  // 插件初始化 / Store loadAll 依赖 FileStorageBackend 已就绪，否则 isReady=false
+  // 项目系统初始化 + projectDir 绑定（必须在 bootstrapSprouts 之前：
+  // 芽初始化 / Store loadAll 依赖 FileStorageBackend 已就绪，否则 isReady=false
   // 会降级到不可用的 TauriStorageBackend，导致 cmd_get_all_entities 等 IPC 失败）
   try {
     await projectSwitcher.initialize()
@@ -141,9 +141,9 @@ onMounted(async () => {
     console.warn('[App] 注册项目切换联动失败:', err)
   }
   // Agent 工作台视图已退役（2026-08-09）：能力迁入 AgentSpace 执行面板，
-  // Shell 仅承载官方插件视图；默认进入 AgentSpace（currentShell 持久化）
-  // 启动已迁移插件（Phase C：注册视图/实体类型）
-  await bootstrapPlugins()
+  // Shell 仅承载官方芽视图；默认进入 AgentSpace（currentShell 持久化）
+  // 启动已迁移芽（Phase C：注册视图/实体类型）
+  await bootstrapSprouts()
   // 系统层桥初始化：托盘事件监听 + 最近项目同步（异步，不阻塞启动）
   void setupSystemBridge()
   // T09②（2026-09-01）：MCP 启动自动重连失败提示——启动拉取配置+状态合并视图，

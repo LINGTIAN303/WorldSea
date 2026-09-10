@@ -133,7 +133,7 @@ const pluginEntityTypes = computed(() => {
   return map
 })
 
-/** 缓存每个插件的实体数量,仅在实体增删时更新,避免动画帧中重复计算 */
+/** 缓存每个芽的实体数量,仅在实体增删时更新,避免动画帧中重复计算 */
 const pluginEntityCounts = computed(() => {
   const counts = new Map<string, number>()
   const typesMap = pluginEntityTypes.value
@@ -480,7 +480,7 @@ onBeforeUnmount(() => {
   gap: 2px;
   padding: 4px 6px;
   position: relative;
-  /* 治本裁剪：插件按钮在轮播边界即被裁剪，不再溢出覆盖头部收缩按钮 */
+  /* 治本裁剪：芽按钮在轮播边界即被裁剪，不再溢出覆盖头部收缩按钮 */
   overflow: hidden;
 }
 .sidebar-btn {

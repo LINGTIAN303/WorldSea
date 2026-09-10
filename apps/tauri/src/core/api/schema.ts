@@ -1,6 +1,6 @@
 // coreBackend schema 领域：实体类型 Schema 统一数据源 = entity-core 旧版 entitySchemaRegistry
 // （2026-09-09 三套注册表收口：WASM 域 schema_* 方法在 wasm_export.rs 根本不存在，恒返回 null；
-//  官方插件 View / StepConfigEditor 改读注册表，写函数无消费方删除）。详细见 docs/details/注释/tauri/coreBackend.md
+//  官方芽 View / StepConfigEditor 改读注册表，写函数无消费方删除）。详细见 docs/details/注释/tauri/coreBackend.md
 import type { CoreValidationReport, EntityTypeSchema } from '@worldsea/core-api-types'
 import { entitySchemaRegistry, type EntityTypeSchema as RegistryEntityTypeSchema } from '@worldsea/entity-core'
 import { backendCall } from './runtime'

@@ -1,4 +1,4 @@
-//! Agent Runtime — 场景插件体系（B1 多场景插件，MVP）
+//! Agent Runtime — 场景体系（B1 多场景，MVP）
 //!
 //! 借鉴 OpenWorld `ScenarioPlugin`（场景 = 身份 prompt + 专用工具 + 内置技能 + 可选消息钩子），
 //! 适配 WorldSea 本地世界构建上下文。MVP 阶段只实现链路与 `worldbuilding` 场景。
@@ -94,9 +94,9 @@ fn scenario_confirmation_policy() -> ConfirmationPolicy {
     ConfirmationPolicy::dangerous_only()
 }
 
-// ─── 场景插件 trait ──────────────────────────────────────
+// ─── 场景 trait ──────────────────────────────────────────
 
-/// 场景插件 trait
+/// 场景 trait
 ///
 /// 实现方：worldbuilding 等场景
 /// 调用方：AgentLoop 在 `build_prompt_options`（prompt 注入）与工具视图构建（工具裁剪）时调用
@@ -143,7 +143,7 @@ pub trait Scenario: Send + Sync + std::fmt::Debug {
         scenario_confirmation_policy()
     }
 
-    /// 场景附加 system prompt 段（插件钩子：场景可注入额外上下文块/约束）
+    /// 场景附加 system prompt 段（场景钩子：可注入额外上下文块/约束）
     ///
     /// 默认空；调用方（AgentLoop）在 `build_prompt_options` 中把返回块依次拼到
     /// `build_system_prompt` 之后。场景级扩展（如 coding 场景注入工程规范）由此承载。
@@ -155,9 +155,9 @@ pub trait Scenario: Send + Sync + std::fmt::Debug {
     async fn on_message(&self, _msg: &str, _ctx: &ScenarioContext) {}
 }
 
-// ─── 场景插件注册中心 ───────────────────────────────────
+// ─── 场景注册中心 ───────────────────────────────────────
 
-/// 场景插件注册中心
+/// 场景注册中心
 ///
 /// 注册 / 查找 / 默认场景。用 `std::sync::RwLock`（短临界读，无 async，不新增依赖）。
 pub struct ScenarioRegistry {
@@ -171,17 +171,17 @@ impl ScenarioRegistry {
         }
     }
 
-    /// 注册场景插件
+    /// 注册场景
     pub fn register(&self, plugin: Arc<dyn Scenario>) {
         self.plugins.write().unwrap().push(plugin);
     }
 
-    /// 获取所有场景插件
+    /// 获取所有场景
     pub fn list(&self) -> Vec<Arc<dyn Scenario>> {
         self.plugins.read().unwrap().clone()
     }
 
-    /// 按 id 查找场景插件
+    /// 按 id 查找场景
     pub fn find(&self, id: &str) -> Option<Arc<dyn Scenario>> {
         self.plugins
             .read()
@@ -205,7 +205,7 @@ impl Default for ScenarioRegistry {
 
 // ─── worldbuilding 场景（MVP 首发） ─────────────────────—
 
-/// 世界构建场景插件
+/// 世界构建场景
 ///
 /// 面向 WorldSea 核心领域（世界构建）：实体/角色/区域/图谱/记忆/知识库。
 /// MVP：身份 prompt + 工具意图 + 技能意图；实体上下文注入留待后续。
@@ -293,7 +293,8 @@ impl Scenario for WorldbuildingScenario {
             "kb_read".into(),
             "kb_search".into(),
             "kb_write".into(),
-            // B3 联网搜索（原生 web_search 工具，降级链保证可用）
+            // B3 联网搜索（实现在 TS 桥：packages/agent-runtime/src/tools/web-search.ts，
+            // 经 FrontendToolBridge 执行；Rust 侧仅登记白名单，无原生实现）
             "web_search".into(),
         ]
     }
@@ -601,7 +602,7 @@ mod tests {
             assert!(!sc.build_system_prompt(&ctx).await.trim().is_empty(), "{} 有身份 prompt", sc.id());
             // 场景确认策略缺省 = 全局 dangerous_only（默认不确认 Moderate 级）
             assert!(!sc.confirmation_policy().confirm_moderate, "{} 确认策略异常", sc.id());
-            // 插件钩子默认空
+            // 场景钩子默认空
             assert!(sc.extra_system_prompt_blocks(&ctx).is_empty(), "{} 额外 prompt 段默认空", sc.id());
         }
         // 严格隔离：5 场景均有独立工作区根（id ↔ hint 一一映射，互不共享）

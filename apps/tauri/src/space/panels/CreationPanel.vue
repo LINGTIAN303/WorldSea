@@ -55,7 +55,7 @@ const showPicker = ref(false)
 const pickerStyle = ref<Record<string, string>>({ top: '0px', left: '0px' })
 const activeViewId = ref('')
 
-/** 可用的插件创作视图（排除空间/主视图 `custom` 等非创作视图） */
+/** 可用的芽创作视图（排除空间/主视图 `custom` 等非创作视图） */
 const viewOptions = computed(() => {
   return pluginStore.views.filter(v => v.id !== 'custom')
 })

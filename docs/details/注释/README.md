@@ -252,6 +252,10 @@
 | src/components/entity/map/useAdjoin.ts | [useAdjoin.md](packages/ui-kit/components/entity/map/useAdjoin.md) | 接壤模式 composable（borders 关系 + 合并逻辑） |
 | src/components/entity/map/useBorderErase.ts | [useBorderErase.md](packages/ui-kit/components/entity/map/useBorderErase.md) | 抹除/移动边境线 composable（偏移/重划模式） |
 | src/components/entity/map/useDrawing.ts | [useDrawing.md](packages/ui-kit/components/entity/map/useDrawing.md) | 绘制模式 composable（手绘 + Alt 边境线） |
+| src/components/settings/panels/BuiltinToolsPanel.vue | [builtin-tools-panel.md](packages/ui-kit/builtin-tools-panel.md) | 内置工具面板（只读目录：20 分类折叠 + 权限徽标） |
+| src/components/settings/panels/AgentPluginsPanel.vue | [agent-plugins-panel.md](packages/ui-kit/agent-plugins-panel.md) | Agent 插件面板（能力打包分发层，空状态占位 + 术语界定） |
+| src/components/settings/panels/SproutsPanel.vue | — | 芽管理面板（27 个世界观芽开关 + 分类筛选 + 拖拽排序；2026-09-10 由 PluginsPanel 更名） |
+| src/components/settings/settings-panels.css | [settings-panels-convention.md](packages/ui-kit/settings-panels-convention.md) | 设置面板统一约定（三契约/基座样式/scoped 陷阱/卡片清单） |
 | src/index.ts | [index.md](packages/ui-kit/index.md) | ui-kit FACADE 包说明（聚合/委托导出） |
 
 ### packages/shared-ui（packages/shared-ui）

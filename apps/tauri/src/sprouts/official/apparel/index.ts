@@ -21,9 +21,9 @@ export const manifest = {
 }
 
 /**
- * 服饰插件不再注册独立的 apparel 实体类型。
+ * 服饰芽不再注册独立的 apparel 实体类型。
  * 服饰是 Item + ApparelFacet 的组合。
- * 此插件仅保留视图，提供服饰专属的浏览/筛选界面。
+ * 此芽仅保留视图，提供服饰专属的浏览/筛选界面。
  */
 export function activate(api: PluginAPIType) {
   api.registerView({ id: 'apparel', label: '服饰/装备', icon: 'apparel', component: ApparelView })

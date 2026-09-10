@@ -39,7 +39,7 @@
         <template v-if="searchQuery">
           <template v-for="cat in matchedCategories" :key="cat.id">
             <AppearancePanel v-if="cat.id === 'appearance'" :search-query="searchQuery" @dirty="onDirty" />
-            <PluginsPanel v-if="cat.id === 'plugins'" :search-query="searchQuery" @dirty="onDirty" />
+            <SproutsPanel v-if="cat.id === 'plugins'" :search-query="searchQuery" @dirty="onDirty" />
             <EditorPanel v-if="cat.id === 'editor'" :search-query="searchQuery" @dirty="onDirty" />
             <LayoutPanel v-if="cat.id === 'layout'" :search-query="searchQuery" @dirty="onDirty" />
             <RelationsPanel v-if="cat.id === 'relations'" :search-query="searchQuery" @dirty="onDirty" />
@@ -57,7 +57,7 @@
         <!-- 正常模式：只渲染当前激活的分类（均接入 CardDeck 叠放翻卡，左列标题点击翻卡） -->
         <template v-else>
           <AppearancePanel v-if="activeSection === 'appearance'" ref="appearanceRef" @dirty="onDirty" @card-change="onPanelCardChange" />
-          <PluginsPanel v-else-if="activeSection === 'plugins'" ref="pluginsRef" @dirty="onDirty" @card-change="onPanelCardChange" />
+          <SproutsPanel v-else-if="activeSection === 'plugins'" ref="pluginsRef" @dirty="onDirty" @card-change="onPanelCardChange" />
           <EditorPanel v-else-if="activeSection === 'editor'" ref="editorRef" @dirty="onDirty" @card-change="onPanelCardChange" />
           <LayoutPanel v-else-if="activeSection === 'layout'" ref="layoutRef" @dirty="onDirty" @card-change="onPanelCardChange" />
           <RelationsPanel v-else-if="activeSection === 'relations'" ref="relationsRef" @dirty="onDirty" @card-change="onPanelCardChange" />
@@ -88,7 +88,7 @@ import { useFocusTrap } from '@/composables/useFocusTrap'
 import StorageManagementTab from '../data/StorageManagementTab.vue'
 // 设置子面板（已迁移到 ui-kit，通过 re-export 兼容层导入）
 import AppearancePanel from './panels/AppearancePanel.vue'
-import PluginsPanel from './panels/PluginsPanel.vue'
+import SproutsPanel from './panels/SproutsPanel.vue'
 import EditorPanel from './panels/EditorPanel.vue'
 import LayoutPanel from './panels/LayoutPanel.vue'
 import RelationsPanel from './panels/RelationsPanel.vue'
@@ -136,7 +136,7 @@ watch(() => props.show, (val) => {
 
 const categories = [
   { id: 'appearance', icon: 'cat-appearance', label: '外观' },
-  { id: 'plugins', icon: 'cat-plugins', label: '插件' },
+  { id: 'plugins', icon: 'cat-plugins', label: '芽' },
   { id: 'editor', icon: 'cat-editor', label: '编辑' },
   { id: 'layout', icon: 'cat-layout', label: '布局' },
   { id: 'relations', icon: 'cat-relations', label: '关系' },
@@ -227,7 +227,7 @@ const activeRail = ref(-1)
 const railVisible = computed(() => !searchQuery.value && activeSection.value !== null && railItems.value.length > 0)
 /** 各分类面板实例（均暴露 goToCard，供左列标题点击翻卡；@card-change 上报左列高亮） */
 const appearanceRef = ref<InstanceType<typeof AppearancePanel> | null>(null)
-const pluginsRef = ref<InstanceType<typeof PluginsPanel> | null>(null)
+const pluginsRef = ref<InstanceType<typeof SproutsPanel> | null>(null)
 const editorRef = ref<InstanceType<typeof EditorPanel> | null>(null)
 const layoutRef = ref<InstanceType<typeof LayoutPanel> | null>(null)
 const relationsRef = ref<InstanceType<typeof RelationsPanel> | null>(null)
@@ -277,7 +277,7 @@ function updateRailLayout(): void {
 const HEADING_SELECTOR = '.sc-head'
 const SECTION_SELECTOR = '.set-card'
 
-/** 提取分节标题主文本：部分 .sc-head 内含多个元素（如插件面板含筛选标签），只取首个文字子节点 */
+/** 提取分节标题主文本：部分 .sc-head 内含多个元素（如芽面板含筛选标签），只取首个文字子节点 */
 function headText(h: HTMLElement): string {
   const span = h.querySelector('span')
   if (span) return span.textContent?.trim() || ''
@@ -345,7 +345,7 @@ onMounted(() => nextTick(() => { if (!props.show) return; rebuildRail() }))
 // 各分类的搜索关键词（用于搜索模式下过滤匹配的分类）
 const CATEGORY_KEYWORDS: Record<string, string> = {
   appearance: '主题 外观 深色 浅色 宇宙 极光 锻造 水墨 棱镜 编辑器 高亮 脉冲 动画 淡化 扩散 透明度 theme highlight 字体 字体库 字体分层 导入 变体',
-  plugins: '插件 扩展 模块 启用 禁用 内置 本地 远程 plugin',
+  plugins: '芽 扩展 模块 启用 禁用 内置 本地 远程 sprout',
   editor: '编辑 撤销 重做 历史 大纲 内嵌 光标 平滑 undo redo outline caret smooth',
   layout: '布局 面板 思维导图 中心节点 字段 预设 宽度 panel mindmap field 时间线 timeline 拖拽 泳道 甘特图 紧凑 分组',
   relations: '关系 自动 创建 实体 引用 图谱 选择器 relation auto create',
@@ -353,7 +353,7 @@ const CATEGORY_KEYWORDS: Record<string, string> = {
   shortcuts: '快捷键 键盘 快捷 绑定 shortcut keyboard',
   voice: '语音 识别 输入 麦克风 连续 语言 voice',
   storage: '存储 清理 孤立 文件 诊断 缓存 空间 配额 storage cleanup orphan diagnostic',
-  agent: 'Agent 模型 供应商 用量 Skills MCP 搜索 多模态 终端 安全 人格预设 思考级别 危险操作 确认 规则 规则文件 agent model provider usage skill mcp search vision terminal safety persona thinking',
+  agent: 'Agent 模型 供应商 用量 Skills MCP 搜索 多模态 终端 安全 人格预设 思考级别 危险操作 确认 规则 规则文件 内置工具 工具目录 权限级别 插件 扩展 打包 分发 agent model provider usage skill mcp search vision terminal safety persona thinking builtin tools plugin',
   accessibility: '动画效果 减弱动态 动画 动效 消息 脉冲 状态 面板 侧边栏 弹窗 控件 启动 眩晕 降低 可访问 reduce motion accessibility',
   about: '关于 版本 产品 WorldSea about version',
 }

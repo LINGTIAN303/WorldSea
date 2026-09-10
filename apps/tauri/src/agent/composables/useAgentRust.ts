@@ -2533,7 +2533,7 @@ async function prompt(text: string, options?: PromptOptions): Promise<void> {
   const sessionId = await ensureSession()
   const textContent = text.trim()
   // 并发门控（对齐 OpenCode ensureRunning）：上一轮仍在流式/生成时不重复创建 user 消息。
-  // 防止连点/重入/非 UI 路径（AISidebar/插件）在 Running 状态下再调 send，避免重复 user 行与重复 AI 响应。
+  // 防止连点/重入/非 UI 路径（AISidebar/芽）在 Running 状态下再调 send，避免重复 user 行与重复 AI 响应。
   if (isStreaming.value) {
     console.warn('[useAgentRust] 上一轮仍在生成，忽略重复 send')
     return

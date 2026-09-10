@@ -786,7 +786,7 @@ pub struct AgentCommandService {
     /// `clear_history`/`trim_context`/`delete_session` 各操作**写穿**到存储；启动时经
     /// [`Self::restore_sessions`] 加载全部会话重建 AgentLoop，应用重启后历史不丢失。
     session_store: Option<Arc<dyn SessionRepository>>,
-    /// 场景插件注册中心（B1 多场景，缺省 world）
+    /// 场景注册中心（B1 多场景，缺省 world）
     ///
     /// 惰性注册：`ensure_scenarios` 在首次需要时注册内置场景。
     scenario_registry: ScenarioRegistry,
@@ -1327,7 +1327,7 @@ impl AgentCommandService {
             .unwrap_or_else(ConfirmationPolicy::dangerous_only);
         let agent_config = AgentLoopConfig {
             system_prompt,
-            // B1：场景插件（None=默认静态 prompt / 默认工具视图）
+            // B1：场景（None=默认静态 prompt / 默认工具视图）
             scenario,
             // B1 场景上下文注入：把实体访问器传给 AgentLoop，供 build_prompt_options 注入实体摘要
             // （任务29/M4：有 workdir 时为文件版 provider，否则回退全局 SQLite 版）

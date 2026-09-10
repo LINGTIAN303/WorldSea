@@ -15,12 +15,12 @@ export class PluginManager {
   private loaded = new Map<string, PluginInstance>()
   private registrations = new Map<string, PluginRegistration>()
   private viewHook?: (viewId: string) => void
-  /** 全局预注册的实体类型——即使插件未激活，元数据也可查询 */
+  /** 全局预注册的实体类型——即使芽未激活，元数据也可查询 */
   private preRegisteredTypes = new Map<string, { type: string; label: string; pluginId: string; active: boolean }>()
 
   /**
-   * 全局预注册所有27个插件的实体类型元数据。
-   * 确保即使插件未激活，关系查询和类型引用也不会断裂。
+   * 全局预注册所有27个芽的实体类型元数据。
+   * 确保即使芽未激活，关系查询和类型引用也不会断裂。
    * 应在应用启动时调用一次。
    */
   preRegisterAllEntityTypes(): void {
@@ -51,12 +51,12 @@ export class PluginManager {
     }
   }
 
-  /** 查询实体类型是否已预注册（无论插件是否激活） */
+  /** 查询实体类型是否已预注册（无论芽是否激活） */
   isTypePreRegistered(type: string): boolean {
     return this.preRegisteredTypes.has(type)
   }
 
-  /** 查询实体类型对应的插件是否已激活 */
+  /** 查询实体类型对应的芽是否已激活 */
   isTypeActive(type: string): boolean {
     return this.preRegisteredTypes.get(type)?.active ?? false
   }
@@ -73,7 +73,7 @@ export class PluginManager {
 
   async activate(plugin: PluginInstance): Promise<void> {
     if (this.loaded.has(plugin.manifest.id)) {
-      console.warn(`[PluginManager] 插件 "${plugin.manifest.id}" 已激活`)
+      console.warn(`[PluginManager] 芽 "${plugin.manifest.id}" 已激活`)
       return
     }
 

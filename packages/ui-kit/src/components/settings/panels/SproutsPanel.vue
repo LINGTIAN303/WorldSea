@@ -1,12 +1,12 @@
 <template>
   <CardDeck :count="1" :flat="!!searchQuery" @change="(i) => emit('card-change', i)" ref="deckRef">
     <template #card="{ idx, cls }">
-      <div class="set-card deck-card" :class="cls" :data-index="idx" v-show="match('插件 plugin 启用 禁用')">
+      <div class="set-card deck-card" :class="cls" :data-index="idx" v-show="match('芽 sprout 启用 禁用')">
         <div class="sc-head">
-          <span>插件管理</span>
-          <div class="set-plugin-cats" role="tablist" aria-label="插件分类筛选">
+          <span>芽管理</span>
+          <div class="set-plugin-cats" role="tablist" aria-label="芽分类筛选">
             <button
-              v-for="c in PLUGIN_CATEGORIES"
+              v-for="c in SPROUT_CATEGORIES"
               :key="c.id"
               type="button"
               class="sp-cat"
@@ -17,20 +17,20 @@
             >{{ c.label }}</button>
           </div>
         </div>
-        <div class="set-plugin-search"><input type="text" v-model="pluginSearch" placeholder="搜索插件..." class="set-input" /></div>
-        <draggable v-if="showDraggable" :list="pluginList" item-key="id" ghost-class="sp-ghost" drag-class="sp-drag" handle=".sp-grip" @end="onPluginDragEnd" class="set-plugin-list">
+        <div class="set-plugin-search"><input type="text" v-model="sproutSearch" placeholder="搜索芽..." class="set-input" /></div>
+        <draggable v-if="showDraggable" :list="sproutList" item-key="id" ghost-class="sp-ghost" drag-class="sp-drag" handle=".sp-grip" @end="onSproutDragEnd" class="set-plugin-list">
           <template #item="{ element: p }">
             <div class="set-plugin-item">
               <span class="sp-grip" title="拖拽排序"><WsIcon name="grip" size="xs" /></span>
               <span v-if="p.source" class="sp-source">{{ p.source === 'builtin' ? '内置' : p.source === 'local' ? '本地' : '远程' }}</span>
-              <label class="sp-toggle"><input type="checkbox" :checked="p.active" @change="onPluginToggle(p.id)" /><span class="sp-icon"><WsIcon v-if="hasIcon(p.icon)" :name="p.icon" size="sm" /><span v-else>{{ p.icon }}</span></span><span class="sp-label">{{ p.label }}</span></label>
+              <label class="sp-toggle"><input type="checkbox" :checked="p.active" @change="onSproutToggle(p.id)" /><span class="sp-icon"><WsIcon v-if="hasIcon(p.icon)" :name="p.icon" size="sm" /><span v-else>{{ p.icon }}</span></span><span class="sp-label">{{ p.label }}</span></label>
             </div>
           </template>
         </draggable>
         <div v-else class="set-plugin-list">
-          <div v-for="p in filteredPlugins" :key="p.id" class="set-plugin-item">
+          <div v-for="p in filteredSprouts" :key="p.id" class="set-plugin-item">
             <span v-if="p.source" class="sp-source">{{ p.source === 'builtin' ? '内置' : p.source === 'local' ? '本地' : '远程' }}</span>
-            <label class="sp-toggle"><input type="checkbox" :checked="p.active" @change="onPluginToggle(p.id)" /><span class="sp-icon"><WsIcon v-if="hasIcon(p.icon)" :name="p.icon" size="sm" /><span v-else>{{ p.icon }}</span></span><span class="sp-label">{{ p.label }}</span></label>
+            <label class="sp-toggle"><input type="checkbox" :checked="p.active" @change="onSproutToggle(p.id)" /><span class="sp-icon"><WsIcon v-if="hasIcon(p.icon)" :name="p.icon" size="sm" /><span v-else>{{ p.icon }}</span></span><span class="sp-label">{{ p.label }}</span></label>
           </div>
         </div>
       </div>
@@ -40,7 +40,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { useSettingsStore, useUIStore, usePluginStore, PLUGIN_CATEGORIES, type PluginCategory } from '@worldsea/entity-core'
+import { useSettingsStore, useUIStore, usePluginStore, SPROUT_CATEGORIES, type SproutCategory } from '@worldsea/entity-core'
 import { hasIcon } from '@worldsea/ui-kit'
 import { CardDeck } from '@worldsea/ui-kit'
 import WsIcon from '../../WsIcon.vue'
@@ -56,48 +56,48 @@ const store = useSettingsStore()
 const uiStore = useUIStore()
 const pluginStore = usePluginStore()
 
-// 插件面板内部的搜索框（独立于全局 searchQuery）
-const pluginSearch = ref('')
+// 芽面板内部的搜索框（独立于全局 searchQuery）
+const sproutSearch = ref('')
 // 当前选中的分类筛选（'all' 表示全部）
-const activeCategory = ref<PluginCategory | 'all'>('all')
+const activeCategory = ref<SproutCategory | 'all'>('all')
 
 function match(keywords: string): boolean {
   return matchKeywords(props.searchQuery ?? '', keywords)
 }
 
-function onCategoryClick(id: PluginCategory) {
+function onCategoryClick(id: SproutCategory) {
   // 再次点击当前分类则取消筛选，回到全部
   activeCategory.value = activeCategory.value === id ? 'all' : id
 }
 
-const pluginList = ref(store.plugins.map(p => ({ ...p })))
+const sproutList = ref(store.sprouts.map(p => ({ ...p })))
 
-function syncPluginList() {
+function syncSproutList() {
   const order = uiStore.sidebarOrder
-  const sorted = [...store.plugins].sort((a, b) => {
+  const sorted = [...store.sprouts].sort((a, b) => {
     const va = pluginStore.views.find(v => v.pluginId === a.id)
     const vb = pluginStore.views.find(v => v.pluginId === b.id)
     const ia = va ? order.indexOf(va.id) : 999
     const ib = vb ? order.indexOf(vb.id) : 999
     return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib)
   })
-  pluginList.value = sorted.map(p => ({ ...p }))
+  sproutList.value = sorted.map(p => ({ ...p }))
 }
 
-watch(() => [uiStore.sidebarOrder, store.plugins] as const, () => {
-  syncPluginList()
+watch(() => [uiStore.sidebarOrder, store.sprouts] as const, () => {
+  syncSproutList()
 }, { deep: true, immediate: true })
 
 // 仅在「未搜索 且 未筛选分类」时启用拖拽排序，避免对子集排序造成歧义
-const showDraggable = computed(() => !pluginSearch.value && activeCategory.value === 'all')
+const showDraggable = computed(() => !sproutSearch.value && activeCategory.value === 'all')
 
-const filteredPlugins = computed(() => {
-  let list = pluginList.value
+const filteredSprouts = computed(() => {
+  let list = sproutList.value
   if (activeCategory.value !== 'all') {
     list = list.filter(p => p.category === activeCategory.value)
   }
-  if (pluginSearch.value) {
-    const q = pluginSearch.value.toLowerCase()
+  if (sproutSearch.value) {
+    const q = sproutSearch.value.toLowerCase()
     list = list.filter(p =>
       p.label.toLowerCase().includes(q) || p.id.toLowerCase().includes(q)
     )
@@ -105,8 +105,8 @@ const filteredPlugins = computed(() => {
   return list
 })
 
-function onPluginDragEnd() {
-  const newOrder = pluginList.value
+function onSproutDragEnd() {
+  const newOrder = sproutList.value
     .map(p => pluginStore.views.find(v => v.pluginId === p.id)?.id)
     .filter((id): id is string => !!id)
   const existing = new Set(newOrder)
@@ -117,12 +117,12 @@ function onPluginDragEnd() {
   emit('dirty')
 }
 
-function onPluginToggle(id: string) {
-  store.togglePlugin(id)
+function onSproutToggle(id: string) {
+  store.toggleSprout(id)
   emit('dirty')
 }
 
-defineExpose({ resetPluginSearch: () => { pluginSearch.value = '' }, goToCard: (i: number) => deckRef.value?.goToCard(i) })
+defineExpose({ resetSproutSearch: () => { sproutSearch.value = '' }, goToCard: (i: number) => deckRef.value?.goToCard(i) })
 </script>
 
 <style scoped>

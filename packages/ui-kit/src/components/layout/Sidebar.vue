@@ -112,7 +112,7 @@ const pluginEntityTypes = computed(() => {
   return map
 })
 
-/** 缓存每个插件的实体数量，仅在实体增删时更新，避免动画帧中重复计算 */
+/** 缓存每个芽的实体数量，仅在实体增删时更新，避免动画帧中重复计算 */
 const pluginEntityCounts = computed(() => {
   const counts = new Map<string, number>()
   const typesMap = pluginEntityTypes.value
@@ -276,7 +276,7 @@ function checkViewSwitch() {
     if (views.length === 0) return
     const idx = ((current % views.length) + views.length) % views.length
     const view = views[idx]
-    // 性能优化:延迟 setView 到下一轮事件循环,避免在物理 RAF 帧内同步挂载/卸载插件视图组件
+    // 性能优化:延迟 setView 到下一轮事件循环,避免在物理 RAF 帧内同步挂载/卸载芽视图组件
     // 原实现 setView + viewComponent 赋值在 tick() 中同步执行,与 width 动画叠加导致掉帧
     // 用 microtask 推迟,既保证响应性又避免阻塞动画帧
     Promise.resolve().then(() => {

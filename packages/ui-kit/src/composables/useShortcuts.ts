@@ -46,7 +46,7 @@ const registry = new Map<string, ShortcutDef>()
 const defaultKeysMap = new Map<string, string[]>()
 // ── 视图上下文（N9 修复 2026-08-28）──
 // view scope 快捷键仅在「主视图上下文」生效：Agent 空间激活（App.vue currentShell==='space'）
-// 时由 App 注入 null → view 快捷键全部失效，避免 Shell 常驻挂载的插件视图（角色/导图等）
+// 时由 App 注入 null → view 快捷键全部失效，避免 Shell 常驻挂载的芽视图（角色/导图等）
 // 快捷键在 Agent 空间误触发（如 n=新建 / delete=删除）。
 let activeViewId: string | null = null
 export function setActiveViewId(id: string | null): void {

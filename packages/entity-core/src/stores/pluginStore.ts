@@ -28,7 +28,7 @@ export const usePluginStore = defineStore('plugin', () => {
     views.value = []
   }
 
-  /** 清空所有已注册的插件（项目切换时使用） */
+  /** 清空所有已注册的芽（项目切换时使用） */
   function clearPlugins(): void {
     plugins.value = []
   }

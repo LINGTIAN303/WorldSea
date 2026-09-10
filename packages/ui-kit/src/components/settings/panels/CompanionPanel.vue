@@ -2,7 +2,7 @@
   <CardDeck :count="7" :flat="!!searchQuery" @change="(i) => emit('card-change', i)" ref="deckRef">
     <template #card="{ idx, cls }">
       <div class="set-card deck-card" :class="cls" :data-index="idx"
-        v-show="idx === 0 ? match('陪伴模式 video 启用 开关 空间 静默') : idx === 1 ? match('弹窗 持续 时间 duration 防抖 超时') : idx === 2 ? match('人格 persona 跨插件 角色 附体 切换 概率') : idx === 3 ? match('概率 luck 运气 活跃 沉默') : idx === 4 ? match('场景 scene 概率 probability 触发') : idx === 5 ? match('弹窗 位置 场景化 停驻 pin 点击') : match('独立 模型 model 供应商 provider')">
+        v-show="idx === 0 ? match('陪伴模式 video 启用 开关 空间 静默') : idx === 1 ? match('弹窗 持续 时间 duration 防抖 超时') : idx === 2 ? match('人格 persona 跨芽 角色 附体 切换 概率') : idx === 3 ? match('概率 luck 运气 活跃 沉默') : idx === 4 ? match('场景 scene 概率 probability 触发') : idx === 5 ? match('弹窗 位置 场景化 停驻 pin 点击') : match('独立 模型 model 供应商 provider')">
         <template v-if="idx === 0">
         <div class="sc-head">陪伴模式</div>
         <div class="set-row"><span>启用陪伴模式</span><label class="set-toggle"><input type="checkbox" v-model="store.companionModeEnabled" /><span class="set-toggle-slider"></span></label></div>
@@ -23,7 +23,7 @@
         <template v-else-if="idx === 2">
         <div class="sc-head">人格设置</div>
         <div class="set-row"><span>人格过渡动画</span><label class="set-toggle"><input type="checkbox" v-model="store.companionModePersonaTransition" /><span class="set-toggle-slider"></span></label></div>
-        <div class="set-row"><span>跨插件人格附体</span><label class="set-toggle"><input type="checkbox" v-model="store.companionModeCrossPlugin" /><span class="set-toggle-slider"></span></label></div>
+        <div class="set-row"><span>跨芽人格附体</span><label class="set-toggle"><input type="checkbox" v-model="store.companionModeCrossPlugin" /><span class="set-toggle-slider"></span></label></div>
         <div class="set-hint">编辑非生命体实体时，AI 可能以角色/种族/势力的人格说话</div>
         <div v-if="store.companionModeCrossPlugin" class="set-row set-row-sub"><span>人格切换概率</span><div class="set-range-wrap"><input type="range" min="0" max="100" step="5" v-model.number="store.companionModePersonaSwitchChance" class="set-range" /><span class="set-range-val">{{ store.companionModePersonaSwitchChance }}%</span></div></div>
         </template>

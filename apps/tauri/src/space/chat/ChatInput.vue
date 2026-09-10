@@ -332,7 +332,7 @@ const currentPlaceholder = computed(
 
 /* ── 召唤菜单可选项（按模式） ── */
 
-/** 创作区视图源：插件视图注册表（不含 Agent 主界面） */
+/** 创作区视图源：芽视图注册表（不含 Agent 主界面） */
 const creationViews = computed<{ id: string; label: string; icon: string }[]>(() =>
   pluginStore.views.map((v) => ({ id: v.id, label: v.label, icon: v.icon })),
 )
@@ -590,7 +590,7 @@ function summonRegion(item: SummonItem) {
     }
     return
   }
-  // ！创作区视图 → 切换到插件视图
+  // ！创作区视图 → 切换到芽视图
   if (item.kind === 'region') {
     const view = pluginStore.getView(item.payload)
     if (view) {

@@ -1,4 +1,4 @@
-/** 全局关系定义 v1.0（从 20 个插件提取/去重/合并，按领域分组注册），详细见 docs/details/注释/packages/entity-core/relations/index.md */
+/** 全局关系定义 v1.0（从 20 个芽提取/去重/合并，按领域分组注册），详细见 docs/details/注释/packages/entity-core/relations/index.md */
 
 import { defineRelation } from '../core/RelationshipRegistry'
 

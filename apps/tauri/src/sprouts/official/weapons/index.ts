@@ -21,9 +21,9 @@ export const manifest = {
 }
 
 /**
- * 武器插件不再注册独立的 weapon 实体类型。
+ * 武器芽不再注册独立的 weapon 实体类型。
  * 武器是 Item + WeaponFacet 的组合。
- * 此插件仅保留视图，提供武器专属的浏览/筛选界面。
+ * 此芽仅保留视图，提供武器专属的浏览/筛选界面。
  */
 export function activate(api: PluginAPIType) {
   api.registerView({ id: 'weapons', label: '武器', icon: 'weapon', component: WeaponView })

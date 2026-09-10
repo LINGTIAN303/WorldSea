@@ -1,6 +1,6 @@
 /**
  * 实体 JSON Schema 辅助（智能提示一期 D，2026-09-07 立项 §三）：
- * schema 源=entity-core 旧版实体注册表（entitySchemaRegistry）——官方插件启动时写入、
+ * schema 源=entity-core 旧版实体注册表（entitySchemaRegistry）——官方芽启动时写入、
  * 侧栏/实体表单同源、切项目时 clear+重注册；直接同步读表无进程级缓存（项目切换零 stale）。
  * （原 WASM 核心表经调研为死代码：全应用零写入，已弃用，见走查清单结论 #1）
  * 匹配键=文件顶层 "type" 字段 → typeKey，无匹配则全部静默（非实体 JSON 零回归）。

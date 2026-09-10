@@ -4,19 +4,19 @@ import { useTheme } from '../composables/useTheme'
 import { getProjectManager } from '../core'
 import { watchDebounced } from '@worldsea/perf-kit/render'
 
-export interface PluginToggle {
+export interface SproutToggle {
   id: string
   label: string
   icon: string
   active: boolean
   dependencies?: { moduleId: string; version?: string; optional?: boolean }[]
   source?: 'builtin' | 'local' | 'remote'
-  /** 插件分类，用于插件管理页标签筛选 */
-  category?: PluginCategory
+  /** 芽分类，用于芽管理页标签筛选 */
+  category?: SproutCategory
 }
 
-/** 插件分类定义（插件管理页标签筛选用） */
-export const PLUGIN_CATEGORIES = [
+/** 芽分类定义（芽管理页标签筛选用） */
+export const SPROUT_CATEGORIES = [
   { id: 'world', label: '世界观' },
   { id: 'characters', label: '角色' },
   { id: 'items', label: '物品' },
@@ -25,7 +25,7 @@ export const PLUGIN_CATEGORIES = [
   { id: 'system', label: '系统' },
 ] as const
 
-export type PluginCategory = typeof PLUGIN_CATEGORIES[number]['id']
+export type SproutCategory = typeof SPROUT_CATEGORIES[number]['id']
 
 export interface CustomProviderEntry {
   id: string
@@ -121,7 +121,7 @@ function loadAnimations(): Record<string, boolean> {
   }
 }
 
-const DEFAULT_PLUGINS: PluginToggle[] = [
+const DEFAULT_SPROUTS: SproutToggle[] = [
   { id: 'official.characters', label: '人物志', icon: 'character', active: true, category: 'characters' },
   { id: 'official.regions', label: '区域图谱', icon: 'region', active: false, category: 'world' },
   { id: 'official.timeline', label: '时间线', icon: 'timeline', active: true, category: 'narrative' },
@@ -151,35 +151,35 @@ const DEFAULT_PLUGINS: PluginToggle[] = [
   { id: 'official.workflow', label: '工作流', icon: 'lightning', active: true, category: 'system' },
 ]
 
-function loadPlugins(): PluginToggle[] {
+function loadSprouts(): SproutToggle[] {
   // 优先从项目 DB 的 project_settings 表读取
   // 同步初始化时先从 localStorage 加载，异步加载项目 DB 数据后更新
   try {
     const raw = localStorage.getItem(STORAGE_KEY_PLUGINS)
-    if (!raw) return DEFAULT_PLUGINS.map(p => ({ ...p }))
+    if (!raw) return DEFAULT_SPROUTS.map(p => ({ ...p }))
     const saved = JSON.parse(raw) as { id: string; active: boolean }[]
-    return DEFAULT_PLUGINS.map(def => {
+    return DEFAULT_SPROUTS.map(def => {
       const found = saved.find((s: any) => s.id === def.id)
       return { ...def, active: found ? found.active : def.active }
     })
   } catch {
-    return DEFAULT_PLUGINS.map(p => ({ ...p }))
+    return DEFAULT_SPROUTS.map(p => ({ ...p }))
   }
 }
 
 /**
- * 异步加载项目级插件开关。
- * 从项目 DB 的 project_settings 表读取，更新 plugins ref。
+ * 异步加载项目级芽开关。
+ * 从项目 DB 的 project_settings 表读取，更新 sprouts ref。
  * 切换项目后调用。
  */
-async function loadProjectPlugins(): Promise<PluginToggle[] | null> {
+async function loadProjectSprouts(): Promise<SproutToggle[] | null> {
   try {
     const pm = getProjectManager()
     const db = pm.getCurrentProjectDb()
     const entry = await db.table('project_settings').get('plugin_toggles')
     if (!entry) return null
     const saved = JSON.parse((entry as any).value) as { id: string; active: boolean }[]
-    return DEFAULT_PLUGINS.map(def => {
+    return DEFAULT_SPROUTS.map(def => {
       const found = saved.find((s: any) => s.id === def.id)
       return { ...def, active: found ? found.active : def.active }
     })
@@ -188,9 +188,9 @@ async function loadProjectPlugins(): Promise<PluginToggle[] | null> {
   }
 }
 
-function savePlugins(plugins: PluginToggle[]) {
-  const data = JSON.stringify(plugins.map(p => ({ id: p.id, active: p.active })))
-  // 同时写入 localStorage（回退）和项目 DB
+function saveSprouts(sprouts: SproutToggle[]) {
+  const data = JSON.stringify(sprouts.map(p => ({ id: p.id, active: p.active })))
+  // 同时写入 localStorage（回退）和项目 DB（键名保持 plugin_toggles，待芽收束为工具时统一迁移）
   localStorage.setItem(STORAGE_KEY_PLUGINS, data)
   try {
     const pm = getProjectManager()
@@ -256,7 +256,7 @@ const STORAGE_KEY_VOICE_CONTINUOUS = 'worldsea_voice_continuous'
 
 export const useSettingsStore = defineStore('settings', () => {
   const { currentThemeId, setTheme: setThemeFromEngine } = useTheme()
-  const plugins = ref<PluginToggle[]>(loadPlugins())
+  const sprouts = ref<SproutToggle[]>(loadSprouts())
   const theme = computed(() => currentThemeId.value)
 
   // 语音输入设置（Web Speech API）：识别语言 + 连续识别
@@ -362,11 +362,11 @@ export const useSettingsStore = defineStore('settings', () => {
   watch(customProviders, v => saveCustomProviders(v))
   watchDebounced(() => companionModeSceneProbs.value, () => localStorage.setItem(STORAGE_KEY_COMPANION_MODE_SCENE_PROBS, JSON.stringify(companionModeSceneProbs.value)), { debounce: 200, deep: true })
 
-  function togglePlugin(id: string) {
-    const p = plugins.value.find(p => p.id === id)
+  function toggleSprout(id: string) {
+    const p = sprouts.value.find(p => p.id === id)
     if (!p) return
     p.active = !p.active
-    savePlugins(plugins.value)
+    saveSprouts(sprouts.value)
   }
 
   function setTheme(t: string) {
@@ -374,11 +374,11 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   function isActive(id: string): boolean {
-    return plugins.value.find(p => p.id === id)?.active ?? false
+    return sprouts.value.find(p => p.id === id)?.active ?? false
   }
 
-  function getActivePluginIds(): string[] {
-    return plugins.value.filter(p => p.active).map(p => p.id)
+  function getActiveSproutIds(): string[] {
+    return sprouts.value.filter(p => p.active).map(p => p.id)
   }
 
   /* ─── 快捷键 ───
@@ -402,7 +402,7 @@ export const useSettingsStore = defineStore('settings', () => {
     return deriveKeyStoreId(baseUrl)
   }
 
-  return { plugins, theme, togglePlugin, setTheme, isActive, getActivePluginIds, loadProjectPlugins,
+  return { sprouts, theme, toggleSprout, setTheme, isActive, getActiveSproutIds, loadProjectSprouts,
            undoHistoryLimit, multiStepRedo, maxCenterNodes, panelLimitEnabled,
            smoothCaretEnabled, smoothCaretDuration, smoothCaretVariant,
            autoCreateEntityEnabled, autoCreateSelectorEnabled, autoCreateEntityRefEnabled, autoCreateGraphEnabled,

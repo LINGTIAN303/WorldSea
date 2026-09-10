@@ -1,6 +1,6 @@
 import type { PluginPermission, PluginManifest } from '@worldsea/entity-core/types'
 import { KNOWN_PERMISSIONS } from '@worldsea/entity-core/types'
-import { OFFICIAL_PLUGIN_IDS } from './plugin-manifest'
+import { OFFICIAL_SPROUT_IDS } from './plugin-manifest'
 
 type PermissionName = string
 
@@ -20,8 +20,8 @@ const PERMISSION_API_MAP: Record<PermissionName, string[]> = {
 }
 
 /**
- * 官方插件默认权限 — 仅当 manifest 未声明任何权限时作为回退。
- * 注意：官方插件仍需在 manifest 中显式声明权限以获得完整权限。
+ * 官方芽默认权限 — 仅当 manifest 未声明任何权限时作为回退。
+ * 注意：官方芽仍需在 manifest 中显式声明权限以获得完整权限。
  */
 const DEFAULT_OFFICIAL_PERMISSIONS: PermissionName[] = [
   'storage:read',
@@ -70,17 +70,17 @@ export class PluginSandbox {
     api: Record<string, unknown>,
     manifest: PluginManifest,
   ): Record<string, unknown> {
-    const isOfficial = OFFICIAL_PLUGIN_IDS.has(manifest.id)
+    const isOfficial = OFFICIAL_SPROUT_IDS.has(manifest.id)
     const manifestPermissions = manifest.permissions?.map(p => p.name) ?? []
 
-    // 官方插件也必须从 manifest 中显式声明权限
+    // 官方芽也必须从 manifest 中显式声明权限
     // 仅当 manifest 完全未声明权限时回退到默认集（向后兼容）
     let permissions: PermissionName[]
     if (manifestPermissions.length > 0) {
       permissions = manifestPermissions
     } else if (isOfficial) {
       console.warn(
-        `[Sandbox] 官方插件 "${manifest.id}" 未在 manifest 中声明权限，使用默认权限集。` +
+        `[Sandbox] 官方芽 "${manifest.id}" 未在 manifest 中声明权限，使用默认权限集。` +
         `建议在 manifest 中显式声明所需权限。`,
       )
       permissions = DEFAULT_OFFICIAL_PERMISSIONS
@@ -95,19 +95,19 @@ export class PluginSandbox {
         // 黑名单检查 — 阻止原型链污染攻击
         if (DANGEROUS_PROPERTY_BLACKLIST.has(prop)) {
           console.warn(
-            `[Sandbox] 插件 "${manifest.id}" 尝试访问敏感属性 "${prop}"，已拦截`,
+            `[Sandbox] 芽 "${manifest.id}" 尝试访问敏感属性 "${prop}"，已拦截`,
           )
           return undefined
         }
 
         if (!sandbox.allowedMethods.has(prop)) {
           console.warn(
-            `[Sandbox] 插件 "${manifest.id}" 尝试访问未授权 API: "${prop}"` +
+            `[Sandbox] 芽 "${manifest.id}" 尝试访问未授权 API: "${prop}"` +
             ` (需要声明对应 permission)`,
           )
           return () => {
             throw new Error(
-              `[Sandbox] 权限不足: 插件 "${manifest.id}" 未声明访问 "${prop}" 的权限`,
+              `[Sandbox] 权限不足: 芽 "${manifest.id}" 未声明访问 "${prop}" 的权限`,
             )
           }
         }
@@ -119,7 +119,7 @@ export class PluginSandbox {
         return value
       },
       set() {
-        console.warn(`[Sandbox] 插件 "${manifest.id}" 尝试修改 API 对象，已拦截`)
+        console.warn(`[Sandbox] 芽 "${manifest.id}" 尝试修改 API 对象，已拦截`)
         return false
       },
       // 阻止通过 has/in 检查探测内部属性
@@ -137,7 +137,7 @@ export class PluginSandbox {
       try {
         return fn.apply(this, args)
       } catch (e) {
-        console.error(`[Sandbox] 插件 "${self.pluginId}" 调用 ${methodName} 出错:`, e)
+        console.error(`[Sandbox] 芽 "${self.pluginId}" 调用 ${methodName} 出错:`, e)
         throw e
       }
     }

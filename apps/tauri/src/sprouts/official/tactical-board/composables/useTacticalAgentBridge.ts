@@ -27,7 +27,7 @@ export interface TacticalAgentHandlers {
 }
 
 /**
- * 战术板 Agent 插件桥接
+ * 战术板 Agent 桥接
  *
  * 将原 useAgentPluginBridge 中针对 'tactical-board' 的事件分发逻辑封装为独立 composable，
  * 父组件只需提供四个业务处理函数，无需关心事件解析细节。

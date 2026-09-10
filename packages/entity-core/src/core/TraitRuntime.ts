@@ -119,7 +119,7 @@ class EntitySchemaV2RegistryClass {
     this.schemas.delete(type)
   }
 
-  /** 清空所有已注册的 V2 schema（项目切换时使用；插件/模块重新激活时经 registerEntityV2 重填） */
+  /** 清空所有已注册的 V2 schema（项目切换时使用；芽/模块重新激活时经 registerEntityV2 重填） */
   clear(): void {
     this.schemas.clear()
   }

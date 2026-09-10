@@ -12,7 +12,7 @@
         <template v-else-if="idx === 1">
           <div class="sc-head">面板布局</div>
           <div class="set-row"><span>启用自定义视窗数量上限</span><label class="set-toggle"><input type="checkbox" :checked="store.panelLimitEnabled" @change="store.panelLimitEnabled = ($event.target as HTMLInputElement).checked" /><span class="set-toggle-slider"></span></label></div>
-          <div class="set-row"><span>插件侧边栏位置</span>
+          <div class="set-row"><span>芽侧边栏位置</span>
             <div class="set-chip-group">
               <label class="set-chip" :class="{ on: store.sidebarPosition === 'left' }">
                 <input type="radio" name="sidebarPos" value="left" v-model="store.sidebarPosition" /> 左侧
@@ -40,7 +40,7 @@
         <!-- 字段布局预设 -->
         <template v-else-if="idx === 2">
           <div class="sc-head">字段布局预设</div>
-          <div class="set-hint">重置后恢复插件原始字段顺序，删除所有自定义字段和用户预设</div>
+          <div class="set-hint">重置后恢复芽原始字段顺序，删除所有自定义字段和用户预设</div>
           <div class="set-btn-row">
             <button class="set-btn" @click="resetFieldPresets">重置所有字段预设</button>
             <button class="set-btn set-btn-danger" @click="resetCustomFields">清除所有自定义字段</button>
@@ -117,7 +117,7 @@ function onMaxCenterNodesChange(e: Event) {
 }
 
 async function resetFieldPresets() {
-  const ok = await confirm({ type: 'danger', title: '重置字段布局预设', description: '确定要重置所有字段布局预设吗？这将恢复插件原始字段顺序，删除所有用户预设。' })
+  const ok = await confirm({ type: 'danger', title: '重置字段布局预设', description: '确定要重置所有字段布局预设吗？这将恢复芽原始字段顺序，删除所有用户预设。' })
   if (!ok) return
   fieldOrderStore.resetAll()
   fieldRegistry.resetToBuiltin()

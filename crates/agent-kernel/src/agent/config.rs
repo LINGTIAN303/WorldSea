@@ -79,8 +79,8 @@ pub struct AgentLoopConfig {
     /// 内建 LoopController 配置（`None`=禁用内建自动控制），详细见 docs/details/注释/agent-runtime/agent.md
     pub loop_control: Option<LoopControlConfig>,
 
-    // ─── B1 多场景插件（MVP） ───
-    /// 场景插件（`None`=不启用场景，保持静态 `system_prompt` 行为）
+    // ─── B1 多场景（MVP） ───
+    /// 场景（`None`=不启用场景，保持静态 `system_prompt` 行为）
     ///
     /// 启用后：
     /// - `build_prompt_options` 用场景 `build_system_prompt` 构建/追加到 system prompt
