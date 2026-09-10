@@ -2702,7 +2702,9 @@ async function prompt(text: string, options?: PromptOptions): Promise<void> {
 
 /** 中途引导（对应 Rust `steer`，实现 IAgentBackend.steer） */
 async function steer(text: string): Promise<void> {
-  const sessionId = await ensureSession()
+  // 无会话守卫（2026-09-10 防误建）：草稿态无运行中任务可引导，不创建会话
+  const sessionId = currentSessionId.value
+  if (!sessionId) return
   await safeInvoke('steer', { sessionId, text })
 }
 
@@ -2774,7 +2776,9 @@ async function refreshMessages(): Promise<void> {
 
 /** 清理上下文窗口（对应 Rust `trim_context`，移除前 upToIndex 条消息） */
 async function trimContext(upToIndex: number): Promise<void> {
-  const sessionId = await ensureSession()
+  // 无会话守卫（2026-09-10 防误建）：草稿态无上下文可清理，不创建会话
+  const sessionId = currentSessionId.value
+  if (!sessionId) return
   await safeInvoke('trim_context', { sessionId, upToIndex })
   await refreshMessages()
 }
@@ -2793,7 +2797,11 @@ async function updateModel(
   thinkingMode?: boolean,
   totalSteps?: number,
 ): Promise<void> {
-  const sessionId = await ensureSession()
+  // 无会话守卫（2026-09-10 防误建，对齐 updateThinkingLevel）：草稿态切模型不创建会话——
+  // 模型选择已持久化 settingsStore，发送前兜底注入（ensureModelKeyInjected）会按
+  // settingsStore 自动注入新创建的会话；此处 ensureSession 会凭空落库 0 消息空会话
+  const sessionId = currentSessionId.value
+  if (!sessionId) return
   await safeInvoke('update_model', {
     params: {
       sessionId,
