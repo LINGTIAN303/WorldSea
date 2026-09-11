@@ -1,0 +1,862 @@
+//! # 记忆扩展库（memory_ext.db）
+//!
+//! A1 设计文档 §3.1「甲4 收窄」的落地：**vendor DDL 一字不改**，A1 引入的全部新概念
+//! 落在本库。与 `memories.db` 之间以 `memory_id` / `hook_id` 做**软外键**——
+//! 跨库不建 DB 级外键，一致性由应用层的写入顺序保证（先写 `memories.db`，再写本库）。
+//!
+//! 设计依据：`docs/plans/2026-09-11-A1-记忆系统设计.md` §3.1（数据模型）。
+//!
+//! ## 五张表
+//!
+//! | 表 | 用途 |
+//! |---|---|
+//! | `memory_ext` | 补齐 [`MemoryAccessor`](agent_runtime::memory::MemoryAccessor) 声明、但 `memories.db` 中**无落脚处**的 4 个字段 |
+//! | `hook_tags` | **真标签**维度（原 `hooks.tags` 列被挪用来存 `output_types`） |
+//! | `supersede_chain` | 矛盾**调和链**（不覆盖旧值，只记录新旧与时序） |
+//! | `raw_ref` | 外置原文**引用表**（GC 判据来源） |
+//! | `ext_meta` | 本库 schema 版本 |
+//!
+//! ## 两处实现级取舍（与设计文档的对应关系）
+//!
+//! 1. **连接形态**：设计文档写「独立连接池」，此处实现为 `Mutex<Connection>` 单连接。
+//!    理由：本库写入频率低（每轮至多数次）、单进程独占，单连接已足够，且省掉
+//!    `r2d2` / `r2d2_sqlite` 两个依赖边。后续若出现并发写压力，替换为连接池是**局部改动**。
+//! 2. **`raw_ref.ref_count` 不落列**：设计文档的列清单含 `ref_count`，此处改为
+//!    **由 `COUNT` 派生**（主键三元组 `(content_hash, owner_kind, owner_id)` 天然去重）。
+//!    理由：存储计数器会与行数据形成**第二个事实源**并可能漂移；派生计数在带索引的
+//!    主键上代价可忽略且始终自洽。
+
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
+
+use rusqlite::{Connection, OptionalExtension};
+
+use crate::{Error, Result};
+
+/// 本库 schema 版本（写入 `ext_meta.schema_version`）
+const SCHEMA_VERSION: u32 = 1;
+
+/// 外置引用持有方类型（`raw_ref.owner_kind`）
+pub mod owner_kind {
+    /// 上下文锚点（条级外置：超长内容在上下文中的前后锚点对）
+    pub const CONTEXT_ANCHOR: &str = "context_anchor";
+    /// 归档原文（批次级外置：pre_compress_hook 写入的整段未摘要上下文）
+    pub const ARCHIVE: &str = "archive";
+}
+
+/// 标签来源（`hook_tags.tag_kind`）
+pub mod tag_kind {
+    /// 用户显式打的标签
+    pub const USER: &str = "user";
+    /// 系统自动抽取
+    pub const AUTO: &str = "auto";
+    /// 来自实体记忆的实体引用（甲0② 实体桥接）
+    pub const ENTITY: &str = "entity";
+    /// 关键词
+    pub const KEYWORD: &str = "keyword";
+}
+
+/// `memory_ext` 一行：补齐契约声明的 4 个字段
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemoryExt {
+    /// 记忆文件 ID（= `memories.memory_id`）
+    pub memory_id: String,
+    /// **记忆发生时点**（Unix 毫秒）——区别于 `memories.archived_at`（归档时点）
+    pub created_at: i64,
+    /// 访问次数（甲3 淘汰的加权依据）
+    pub access_count: u32,
+    /// 永久保留标记（pinned 记忆不衰减、不淘汰）
+    pub pinned: bool,
+    /// 摘要生成方式（`llm` / `rule` / `none`，对齐 `SummaryMethod` 的 serde 形态）
+    pub summary_method: String,
+}
+
+/// `raw_ref` 一行：外置原文的一条引用
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RawRef {
+    /// 内容寻址哈希（sha256 前 16 位）
+    pub content_hash: String,
+    /// 持有方类型，见 [`owner_kind`]
+    pub owner_kind: String,
+    /// 持有方 ID（锚点 ID 或 hook_id）
+    pub owner_id: String,
+    /// 是否受保护（pinned 引用不参与 GC）
+    pub pinned: bool,
+    /// 写入时点（Unix 毫秒）
+    pub stored_at: i64,
+    /// 软删标记时点（Unix 毫秒）；`None` = 有效
+    pub deleted_at: Option<i64>,
+}
+
+/// 记忆扩展库（`{root}/projects/{project_id or "_default"}/memory_ext.db`）
+///
+/// 路径规则与 `memory-center-core` 的 `SqliteStorage` **完全一致**（同目录、同 project 分片），
+/// 便于运维侧一眼看出「一个项目一套记忆 = 两个库 + 一份外置原文」。
+pub struct ExtStore {
+    /// 数据库文件路径
+    db_path: PathBuf,
+    /// 单连接（见模块头「实现级取舍 1」）
+    conn: Arc<Mutex<Connection>>,
+}
+
+impl std::fmt::Debug for ExtStore {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ExtStore").field("db_path", &self.db_path).finish()
+    }
+}
+
+impl ExtStore {
+    /// 打开（不存在则创建）扩展库
+    ///
+    /// - `root`：记忆存储根目录（与传给 `MemoryCenterAccessor::new_sqlite` 的同源）
+    /// - `project_id`：项目 ID；`None` 时落 `_default` 分片
+    pub fn open(root: impl Into<PathBuf>, project_id: Option<String>) -> Result<Self> {
+        let root = root.into();
+        let project_dir = match &project_id {
+            Some(pid) => root.join("projects").join(pid),
+            None => root.join("projects").join("_default"),
+        };
+        std::fs::create_dir_all(&project_dir)
+            .map_err(|e| Error::Ext(format!("创建项目记忆目录失败 {:?}: {}", project_dir, e)))?;
+
+        let db_path = project_dir.join("memory_ext.db");
+        let conn = Connection::open(&db_path)
+            .map_err(|e| Error::Ext(format!("打开扩展库失败 {:?}: {}", db_path, e)))?;
+
+        // 与 vendor 同款 PRAGMA；不启用 foreign_keys（跨库无 FK）
+        conn.execute_batch(
+            "PRAGMA journal_mode = WAL;
+             PRAGMA synchronous = NORMAL;
+             PRAGMA busy_timeout = 5000;",
+        )
+        .map_err(|e| Error::Ext(format!("设置扩展库 PRAGMA 失败: {}", e)))?;
+
+        let store = Self {
+            db_path,
+            conn: Arc::new(Mutex::new(conn)),
+        };
+        store.init_schema()?;
+        Ok(store)
+    }
+
+    /// 数据库文件路径
+    pub fn db_path(&self) -> &Path {
+        &self.db_path
+    }
+
+    /// 建表（幂等）+ 写入 schema 版本
+    fn init_schema(&self) -> Result<()> {
+        let guard = self
+            .conn
+            .lock()
+            .map_err(|_| Error::Ext("扩展库连接锁中毒".into()))?;
+
+        guard
+            .execute_batch(
+                r#"
+CREATE TABLE IF NOT EXISTS memory_ext (
+    memory_id      TEXT PRIMARY KEY,
+    created_at     INTEGER NOT NULL,
+    access_count   INTEGER NOT NULL DEFAULT 0,
+    pinned         INTEGER NOT NULL DEFAULT 0,
+    summary_method TEXT NOT NULL DEFAULT 'none'
+);
+
+CREATE TABLE IF NOT EXISTS hook_tags (
+    hook_id  TEXT NOT NULL,
+    tag      TEXT NOT NULL,
+    tag_kind TEXT NOT NULL DEFAULT 'auto',
+    PRIMARY KEY (hook_id, tag, tag_kind)
+);
+CREATE INDEX IF NOT EXISTS idx_hook_tags_tag ON hook_tags(tag);
+
+CREATE TABLE IF NOT EXISTS supersede_chain (
+    old_hook_id TEXT NOT NULL,
+    new_hook_id TEXT NOT NULL,
+    reason      TEXT NOT NULL DEFAULT '',
+    decided_at  INTEGER NOT NULL,
+    PRIMARY KEY (old_hook_id, new_hook_id)
+);
+CREATE INDEX IF NOT EXISTS idx_supersede_new ON supersede_chain(new_hook_id);
+
+CREATE TABLE IF NOT EXISTS raw_ref (
+    content_hash TEXT NOT NULL,
+    owner_kind   TEXT NOT NULL,
+    owner_id     TEXT NOT NULL,
+    pinned       INTEGER NOT NULL DEFAULT 0,
+    stored_at    INTEGER NOT NULL,
+    deleted_at   INTEGER,
+    PRIMARY KEY (content_hash, owner_kind, owner_id)
+);
+CREATE INDEX IF NOT EXISTS idx_raw_ref_hash ON raw_ref(content_hash);
+
+CREATE TABLE IF NOT EXISTS ext_meta (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+"#,
+            )
+            .map_err(|e| Error::Ext(format!("初始化扩展库 schema 失败: {}", e)))?;
+
+        guard
+            .execute(
+                "INSERT INTO ext_meta (key, value) VALUES ('schema_version', ?1)
+                 ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                rusqlite::params![SCHEMA_VERSION.to_string()],
+            )
+            .map_err(|e| Error::Ext(format!("写入 schema_version 失败: {}", e)))?;
+        guard
+            .execute(
+                "INSERT INTO ext_meta (key, value) VALUES ('updated_at', ?1)
+                 ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                rusqlite::params![now_ms().to_string()],
+            )
+            .map_err(|e| Error::Ext(format!("写入 updated_at 失败: {}", e)))?;
+
+        Ok(())
+    }
+
+    /// 读取本库 schema 版本
+    pub async fn schema_version(&self) -> Result<u32> {
+        self.with_conn(|conn| {
+            let raw: Option<String> = conn
+                .query_row("SELECT value FROM ext_meta WHERE key = 'schema_version'", [], |r| {
+                    r.get(0)
+                })
+                .optional()
+                .map_err(|e| Error::Ext(format!("读取 schema_version 失败: {}", e)))?;
+            Ok(raw.and_then(|v| v.parse().ok()).unwrap_or(0))
+        })
+        .await
+    }
+
+    // ── memory_ext：补齐 4 个死字段 ─────────────────────────
+
+    /// 登记一条记忆的扩展信息（幂等：已存在则不动）
+    ///
+    /// - `created_at`：**记忆发生时点**（Unix 毫秒），不是归档时点
+    /// - `summary_method`：`llm` / `rule` / `none`
+    pub async fn ensure_memory_ext(
+        &self,
+        memory_id: &str,
+        created_at: i64,
+        summary_method: &str,
+    ) -> Result<()> {
+        let memory_id = memory_id.to_string();
+        let summary_method = normalize_summary_method(summary_method).to_string();
+        self.with_conn(move |conn| {
+            conn.execute(
+                "INSERT OR IGNORE INTO memory_ext
+                    (memory_id, created_at, access_count, pinned, summary_method)
+                 VALUES (?1, ?2, 0, 0, ?3)",
+                rusqlite::params![&memory_id, created_at, &summary_method],
+            )
+            .map_err(|e| Error::Ext(format!("登记 memory_ext 失败: {}", e)))?;
+            Ok(())
+        })
+        .await
+    }
+
+    /// 读取一条记忆的扩展信息
+    pub async fn get_memory_ext(&self, memory_id: &str) -> Result<Option<MemoryExt>> {
+        let memory_id = memory_id.to_string();
+        self.with_conn(move |conn| {
+            conn.query_row(
+                "SELECT memory_id, created_at, access_count, pinned, summary_method
+                 FROM memory_ext WHERE memory_id = ?1",
+                rusqlite::params![&memory_id],
+                |row| {
+                    Ok(MemoryExt {
+                        memory_id: row.get(0)?,
+                        created_at: row.get(1)?,
+                        access_count: row.get::<_, i64>(2)?.max(0) as u32,
+                        pinned: row.get::<_, i64>(3)? != 0,
+                        summary_method: row.get(4)?,
+                    })
+                },
+            )
+            .optional()
+            .map_err(|e| Error::Ext(format!("读取 memory_ext 失败: {}", e)))
+        })
+        .await
+    }
+
+    /// 访问计数 +1（甲3 淘汰的加权依据），返回自增后的值
+    ///
+    /// 记录不存在时以 `created_at = now`、`summary_method = 'none'` 补建——
+    /// 保证计数不会因调用顺序而丢失。
+    pub async fn bump_access_count(&self, memory_id: &str) -> Result<u32> {
+        let memory_id = memory_id.to_string();
+        let now = now_ms();
+        self.with_conn(move |conn| {
+            conn.execute(
+                "INSERT INTO memory_ext (memory_id, created_at, access_count, pinned, summary_method)
+                 VALUES (?1, ?2, 1, 0, 'none')
+                 ON CONFLICT(memory_id) DO UPDATE SET access_count = access_count + 1",
+                rusqlite::params![&memory_id, now],
+            )
+            .map_err(|e| Error::Ext(format!("自增 access_count 失败: {}", e)))?;
+
+            let n: i64 = conn
+                .query_row(
+                    "SELECT access_count FROM memory_ext WHERE memory_id = ?1",
+                    rusqlite::params![&memory_id],
+                    |r| r.get(0),
+                )
+                .map_err(|e| Error::Ext(format!("读取 access_count 失败: {}", e)))?;
+            Ok(n.max(0) as u32)
+        })
+        .await
+    }
+
+    /// 置顶 / 取消置顶（pinned 记忆不衰减、不淘汰）
+    pub async fn set_pinned(&self, memory_id: &str, pinned: bool) -> Result<()> {
+        let memory_id = memory_id.to_string();
+        let now = now_ms();
+        self.with_conn(move |conn| {
+            conn.execute(
+                "INSERT INTO memory_ext (memory_id, created_at, access_count, pinned, summary_method)
+                 VALUES (?1, ?2, 0, ?3, 'none')
+                 ON CONFLICT(memory_id) DO UPDATE SET pinned = ?3",
+                rusqlite::params![&memory_id, now, i64::from(pinned)],
+            )
+            .map_err(|e| Error::Ext(format!("设置 pinned 失败: {}", e)))?;
+            Ok(())
+        })
+        .await
+    }
+
+    // ── hook_tags：真标签维度 ───────────────────────────────
+
+    /// 追加一个标签（幂等）
+    pub async fn add_tag(&self, hook_id: &str, tag: &str, kind: &str) -> Result<()> {
+        let hook_id = hook_id.to_string();
+        let tag = tag.to_string();
+        let kind = kind.to_string();
+        self.with_conn(move |conn| {
+            conn.execute(
+                "INSERT OR IGNORE INTO hook_tags (hook_id, tag, tag_kind) VALUES (?1, ?2, ?3)",
+                rusqlite::params![&hook_id, &tag, &kind],
+            )
+            .map_err(|e| Error::Ext(format!("写入 hook_tags 失败: {}", e)))?;
+            Ok(())
+        })
+        .await
+    }
+
+    /// 读取某钩子的全部标签（`(tag, tag_kind)`，按 tag 升序）
+    pub async fn tags_of(&self, hook_id: &str) -> Result<Vec<(String, String)>> {
+        let hook_id = hook_id.to_string();
+        self.with_conn(move |conn| {
+            let mut stmt = conn
+                .prepare("SELECT tag, tag_kind FROM hook_tags WHERE hook_id = ?1 ORDER BY tag")
+                .map_err(|e| Error::Ext(format!("准备标签查询失败: {}", e)))?;
+            let rows = stmt
+                .query_map(rusqlite::params![&hook_id], |r| {
+                    Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
+                })
+                .map_err(|e| Error::Ext(format!("查询 hook_tags 失败: {}", e)))?;
+            rows.collect::<rusqlite::Result<Vec<_>>>()
+                .map_err(|e| Error::Ext(format!("读取 hook_tags 行失败: {}", e)))
+        })
+        .await
+    }
+
+    /// 删除某标签（幂等）
+    pub async fn remove_tag(&self, hook_id: &str, tag: &str, kind: &str) -> Result<()> {
+        let hook_id = hook_id.to_string();
+        let tag = tag.to_string();
+        let kind = kind.to_string();
+        self.with_conn(move |conn| {
+            conn.execute(
+                "DELETE FROM hook_tags WHERE hook_id = ?1 AND tag = ?2 AND tag_kind = ?3",
+                rusqlite::params![&hook_id, &tag, &kind],
+            )
+            .map_err(|e| Error::Ext(format!("删除 hook_tags 失败: {}", e)))?;
+            Ok(())
+        })
+        .await
+    }
+
+    // ── supersede_chain：矛盾调和链 ─────────────────────────
+
+    /// 记录一次调和：`new_hook_id` 取代 `old_hook_id`（**不删除旧值**）
+    pub async fn add_supersede(&self, old_hook_id: &str, new_hook_id: &str, reason: &str) -> Result<()> {
+        let old = old_hook_id.to_string();
+        let new = new_hook_id.to_string();
+        let reason = reason.to_string();
+        let now = now_ms();
+        self.with_conn(move |conn| {
+            conn.execute(
+                "INSERT OR IGNORE INTO supersede_chain
+                    (old_hook_id, new_hook_id, reason, decided_at) VALUES (?1, ?2, ?3, ?4)",
+                rusqlite::params![&old, &new, &reason, now],
+            )
+            .map_err(|e| Error::Ext(format!("写入 supersede_chain 失败: {}", e)))?;
+            Ok(())
+        })
+        .await
+    }
+
+    /// 沿调和链从 `hook_id` 一路向后走，返回被它取代的**后继序列**
+    ///
+    /// 返回顺序 = 从 `hook_id` 出发逐跳向后。带访问集防环（数据异常时不致死循环）。
+    pub async fn supersede_successors(&self, hook_id: &str) -> Result<Vec<String>> {
+        let start = hook_id.to_string();
+        self.with_conn(move |conn| {
+            let mut stmt = conn
+                .prepare("SELECT new_hook_id FROM supersede_chain WHERE old_hook_id = ?1")
+                .map_err(|e| Error::Ext(format!("准备调和链查询失败: {}", e)))?;
+
+            let mut seen: Vec<String> = vec![start.clone()];
+            let mut queue: Vec<String> = vec![start];
+            let mut out: Vec<String> = Vec::new();
+
+            while let Some(cur) = queue.pop() {
+                let next: Vec<String> = stmt
+                    .query_map(rusqlite::params![&cur], |r| r.get::<_, String>(0))
+                    .map_err(|e| Error::Ext(format!("查询调和链失败: {}", e)))?
+                    .collect::<rusqlite::Result<Vec<_>>>()
+                    .map_err(|e| Error::Ext(format!("读取调和链行失败: {}", e)))?;
+                for n in next {
+                    if !seen.contains(&n) {
+                        seen.push(n.clone());
+                        out.push(n.clone());
+                        queue.push(n);
+                    }
+                }
+            }
+            Ok(out)
+        })
+        .await
+    }
+
+    // ── raw_ref：外置原文引用（GC 判据） ─────────────────────
+
+    /// 摄取一条引用（幂等；重复摄取会把软删标记清掉，即「恢复」）
+    pub async fn acquire_raw_ref(
+        &self,
+        content_hash: &str,
+        owner_kind: &str,
+        owner_id: &str,
+        pinned: bool,
+    ) -> Result<()> {
+        let hash = content_hash.to_string();
+        let kind = owner_kind.to_string();
+        let id = owner_id.to_string();
+        let now = now_ms();
+        self.with_conn(move |conn| {
+            conn.execute(
+                "INSERT INTO raw_ref (content_hash, owner_kind, owner_id, pinned, stored_at, deleted_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, NULL)
+                 ON CONFLICT(content_hash, owner_kind, owner_id) DO UPDATE SET
+                    pinned = ?4,
+                    deleted_at = NULL",
+                rusqlite::params![&hash, &kind, &id, i64::from(pinned), now],
+            )
+            .map_err(|e| Error::Ext(format!("摄取 raw_ref 失败: {}", e)))?;
+            Ok(())
+        })
+        .await
+    }
+
+    /// 释放一条引用（物理删除该引用行；不动物理文件，删文件由 GC 判定后执行）
+    pub async fn release_raw_ref(&self, content_hash: &str, owner_kind: &str, owner_id: &str) -> Result<()> {
+        let hash = content_hash.to_string();
+        let kind = owner_kind.to_string();
+        let id = owner_id.to_string();
+        self.with_conn(move |conn| {
+            conn.execute(
+                "DELETE FROM raw_ref WHERE content_hash = ?1 AND owner_kind = ?2 AND owner_id = ?3",
+                rusqlite::params![&hash, &kind, &id],
+            )
+            .map_err(|e| Error::Ext(format!("释放 raw_ref 失败: {}", e)))?;
+            Ok(())
+        })
+        .await
+    }
+
+    /// 软删某内容的所有引用（入回收站；`deleted_at = now`）
+    ///
+    /// 对应设计文档 §6.3.2 的**第二档**：软删。硬删在回收站到期后由 GC 执行。
+    pub async fn soft_delete_raw_refs(&self, content_hash: &str) -> Result<usize> {
+        let hash = content_hash.to_string();
+        let now = now_ms();
+        self.with_conn(move |conn| {
+            let n = conn
+                .execute(
+                    "UPDATE raw_ref SET deleted_at = ?2 WHERE content_hash = ?1 AND deleted_at IS NULL",
+                    rusqlite::params![&hash, now],
+                )
+                .map_err(|e| Error::Ext(format!("软删 raw_ref 失败: {}", e)))?;
+            Ok(n)
+        })
+        .await
+    }
+
+    /// 某内容的有效引用数（`deleted_at IS NULL` 的行数）——**GC 判据的输入**
+    pub async fn raw_ref_count(&self, content_hash: &str) -> Result<u32> {
+        let hash = content_hash.to_string();
+        self.with_conn(move |conn| {
+            let n: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM raw_ref WHERE content_hash = ?1 AND deleted_at IS NULL",
+                    rusqlite::params![&hash],
+                    |r| r.get(0),
+                )
+                .map_err(|e| Error::Ext(format!("统计 raw_ref 失败: {}", e)))?;
+            Ok(n.max(0) as u32)
+        })
+        .await
+    }
+
+    /// GC 判据：某内容是否**可删**（无有效引用且无 pinned）
+    ///
+    /// 对应设计文档 §6.3.2「GC 判据 = 两处引用都不存在」。**两种引用皆无**即返回 `true`。
+    ///
+    /// 注意这是**谓词而非枚举**：引用被 [`release_raw_ref`](Self::release_raw_ref) 物理释放后，
+    /// 该哈希在 `raw_ref` 中已无行——枚举不出来，但判定依然正确。GC 扫描的对象是
+    /// **外置目录下的实际文件**（设计文档 §6.3.3 的 app_data 落点），逐个问本方法即可。
+    ///
+    /// [`release_raw_ref`]: Self::release_raw_ref
+    pub async fn is_gc_eligible(&self, content_hash: &str) -> Result<bool> {
+        let hash = content_hash.to_string();
+        self.with_conn(move |conn| {
+            let live: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM raw_ref WHERE content_hash = ?1 AND deleted_at IS NULL",
+                    rusqlite::params![&hash],
+                    |r| r.get(0),
+                )
+                .map_err(|e| Error::Ext(format!("统计有效引用失败: {}", e)))?;
+            if live > 0 {
+                return Ok(false);
+            }
+            let pinned: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM raw_ref WHERE content_hash = ?1 AND pinned != 0",
+                    rusqlite::params![&hash],
+                    |r| r.get(0),
+                )
+                .map_err(|e| Error::Ext(format!("统计 pinned 引用失败: {}", e)))?;
+            Ok(pinned == 0)
+        })
+        .await
+    }
+
+    /// 硬删某内容的全部引用行（回收站到期后调用；**物理文件删除由调用方执行**）
+    ///
+    /// 顺序要求：先删物理文件、再 `purge` 引用行——反过来一旦删行成功而删文件失败，
+    /// 该文件就成了不可追溯的孤儿（设计文档 §6.3.2 的三档顺序）。
+    pub async fn purge_raw_refs(&self, content_hash: &str) -> Result<usize> {
+        let hash = content_hash.to_string();
+        self.with_conn(move |conn| {
+            let n = conn
+                .execute("DELETE FROM raw_ref WHERE content_hash = ?1", rusqlite::params![&hash])
+                .map_err(|e| Error::Ext(format!("硬删 raw_ref 失败: {}", e)))?;
+            Ok(n)
+        })
+        .await
+    }
+
+    /// 回收站中已到期的内容哈希（`deleted_at <= cutoff` 且无 pinned）——硬删候选
+    pub async fn trash_expired_hashes(&self, cutoff_ms: i64) -> Result<Vec<String>> {
+        self.with_conn(move |conn| {
+            let mut stmt = conn
+                .prepare(
+                    "SELECT content_hash FROM raw_ref GROUP BY content_hash
+                     HAVING SUM(pinned) = 0
+                        AND SUM(CASE WHEN deleted_at IS NOT NULL AND deleted_at <= ?1 THEN 1 ELSE 0 END) > 0
+                        AND SUM(CASE WHEN deleted_at IS NULL THEN 1 ELSE 0 END) = 0
+                     ORDER BY content_hash",
+                )
+                .map_err(|e| Error::Ext(format!("准备回收站查询失败: {}", e)))?;
+            let rows = stmt
+                .query_map(rusqlite::params![cutoff_ms], |r| r.get::<_, String>(0))
+                .map_err(|e| Error::Ext(format!("查询回收站失败: {}", e)))?;
+            rows.collect::<rusqlite::Result<Vec<_>>>()
+                .map_err(|e| Error::Ext(format!("读取回收站行失败: {}", e)))
+        })
+        .await
+    }
+
+    /// 列出某内容哈希的全部引用行（诊断 / 追溯用）
+    pub async fn refs_of(&self, content_hash: &str) -> Result<Vec<RawRef>> {
+        let hash = content_hash.to_string();
+        self.with_conn(move |conn| {
+            let mut stmt = conn
+                .prepare(
+                    "SELECT content_hash, owner_kind, owner_id, pinned, stored_at, deleted_at
+                     FROM raw_ref WHERE content_hash = ?1 ORDER BY owner_kind, owner_id",
+                )
+                .map_err(|e| Error::Ext(format!("准备引用查询失败: {}", e)))?;
+            let rows = stmt
+                .query_map(rusqlite::params![&hash], |row| {
+                    Ok(RawRef {
+                        content_hash: row.get(0)?,
+                        owner_kind: row.get(1)?,
+                        owner_id: row.get(2)?,
+                        pinned: row.get::<_, i64>(3)? != 0,
+                        stored_at: row.get(4)?,
+                        deleted_at: row.get(5)?,
+                    })
+                })
+                .map_err(|e| Error::Ext(format!("查询 raw_ref 失败: {}", e)))?;
+            rows.collect::<rusqlite::Result<Vec<_>>>()
+                .map_err(|e| Error::Ext(format!("读取 raw_ref 行失败: {}", e)))
+        })
+        .await
+    }
+
+    // ── 内部：统一走 spawn_blocking，避免阻塞 async 执行器 ──
+
+    /// 在阻塞线程池上执行一次连接操作
+    async fn with_conn<T, F>(&self, f: F) -> Result<T>
+    where
+        F: FnOnce(&Connection) -> Result<T> + Send + 'static,
+        T: Send + 'static,
+    {
+        let conn = Arc::clone(&self.conn);
+        tokio::task::spawn_blocking(move || {
+            let guard = conn.lock().map_err(|_| Error::Ext("扩展库连接锁中毒".into()))?;
+            f(&guard)
+        })
+        .await
+        .map_err(|e| Error::Ext(format!("扩展库阻塞任务失败: {}", e)))?
+    }
+}
+
+/// 归一化摘要生成方式为 `llm` / `rule` / `none`
+///
+/// 与 `agent_runtime::memory::SummaryMethod` 的 serde 形态（`rename_all = "lowercase"`）对齐；
+/// 非法输入一律降级为 `none`（不报错，避免污染写入路径）。
+pub fn normalize_summary_method(raw: &str) -> &'static str {
+    match raw.trim().to_ascii_lowercase().as_str() {
+        "llm" => "llm",
+        "rule" => "rule",
+        _ => "none",
+    }
+}
+
+/// 当前 Unix 毫秒时间戳
+fn now_ms() -> i64 {
+    chrono::Utc::now().timestamp_millis()
+}
+
+// ─── 测试 ────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 建一个临时库（`_default` 分片）
+    fn temp_store(dir: &tempfile::TempDir) -> ExtStore {
+        ExtStore::open(dir.path().to_path_buf(), None).expect("打开扩展库")
+    }
+
+    #[tokio::test]
+    async fn schema_is_created_and_idempotent() {
+        let dir = tempfile::tempdir().unwrap();
+        let s = temp_store(&dir);
+        assert_eq!(s.schema_version().await.unwrap(), SCHEMA_VERSION);
+        assert!(s.db_path().ends_with("memory_ext.db"));
+        assert!(s.db_path().to_string_lossy().contains("_default"));
+
+        // 重复 open 不报错（建表幂等）
+        let s2 = ExtStore::open(dir.path().to_path_buf(), None).unwrap();
+        assert_eq!(s2.schema_version().await.unwrap(), SCHEMA_VERSION);
+    }
+
+    #[tokio::test]
+    async fn memory_ext_roundtrip_and_access_count() {
+        let dir = tempfile::tempdir().unwrap();
+        let s = temp_store(&dir);
+
+        s.ensure_memory_ext("m1", 1_700_000_000_000, "LLM").await.unwrap();
+        let e = s.get_memory_ext("m1").await.unwrap().expect("应存在");
+        assert_eq!(e.created_at, 1_700_000_000_000);
+        assert_eq!(e.access_count, 0);
+        assert!(!e.pinned);
+        assert_eq!(e.summary_method, "llm", "摘要方式应归一为小写");
+
+        // 幂等：重复登记不覆盖已有值
+        s.ensure_memory_ext("m1", 999, "rule").await.unwrap();
+        let e = s.get_memory_ext("m1").await.unwrap().unwrap();
+        assert_eq!(e.created_at, 1_700_000_000_000);
+
+        assert_eq!(s.bump_access_count("m1").await.unwrap(), 1);
+        assert_eq!(s.bump_access_count("m1").await.unwrap(), 2);
+
+        // 未登记 ID 也可自增（补建）
+        assert_eq!(s.bump_access_count("m2").await.unwrap(), 1);
+        assert!(s.get_memory_ext("m2").await.unwrap().is_some());
+
+        s.set_pinned("m1", true).await.unwrap();
+        assert!(s.get_memory_ext("m1").await.unwrap().unwrap().pinned);
+
+        assert!(s.get_memory_ext("不存在").await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn hook_tags_are_deduped_and_queryable() {
+        let dir = tempfile::tempdir().unwrap();
+        let s = temp_store(&dir);
+
+        s.add_tag("h1", "记忆系统", tag_kind::USER).await.unwrap();
+        s.add_tag("h1", "记忆系统", tag_kind::USER).await.unwrap(); // 幂等
+        s.add_tag("h1", "实体:角色A", tag_kind::ENTITY).await.unwrap();
+
+        let tags = s.tags_of("h1").await.unwrap();
+        assert_eq!(tags.len(), 2);
+        assert!(tags.contains(&("记忆系统".to_string(), tag_kind::USER.to_string())));
+        assert!(tags.contains(&("实体:角色A".to_string(), tag_kind::ENTITY.to_string())));
+
+        s.remove_tag("h1", "记忆系统", tag_kind::USER).await.unwrap();
+        assert_eq!(s.tags_of("h1").await.unwrap().len(), 1);
+        // 幂等删除
+        s.remove_tag("h1", "记忆系统", tag_kind::USER).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn supersede_chain_walks_and_is_cycle_safe() {
+        let dir = tempfile::tempdir().unwrap();
+        let s = temp_store(&dir);
+
+        // A → B → C（B 取代 A，C 取代 B）
+        s.add_supersede("A", "B", "时点转移").await.unwrap();
+        s.add_supersede("B", "C", "方案升级").await.unwrap();
+        let mut got = s.supersede_successors("A").await.unwrap();
+        got.sort();
+        assert_eq!(got, vec!["B".to_string(), "C".to_string()]);
+
+        // 旧值未被删除：A 仍可查到后继（调和 = 只增不删）
+        assert!(!s.supersede_successors("A").await.unwrap().is_empty());
+
+        // 环：X → Y → X 不应死循环
+        s.add_supersede("X", "Y", "").await.unwrap();
+        s.add_supersede("Y", "X", "").await.unwrap();
+        let got = s.supersede_successors("X").await.unwrap();
+        assert_eq!(got, vec!["Y".to_string()]);
+
+        assert!(s.supersede_successors("无后继").await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn raw_ref_gc_judgement_covers_both_reference_faces() {
+        let dir = tempfile::tempdir().unwrap();
+        let s = temp_store(&dir);
+
+        // 同一内容被两处引用：上下文锚点 + 归档
+        s.acquire_raw_ref("hash1", owner_kind::CONTEXT_ANCHOR, "anchor-1", false)
+            .await
+            .unwrap();
+        s.acquire_raw_ref("hash1", owner_kind::ARCHIVE, "hook-1", false)
+            .await
+            .unwrap();
+        // 幂等摄取
+        s.acquire_raw_ref("hash1", owner_kind::ARCHIVE, "hook-1", false)
+            .await
+            .unwrap();
+
+        assert_eq!(s.raw_ref_count("hash1").await.unwrap(), 2);
+        assert!(!s.is_gc_eligible("hash1").await.unwrap(), "有引用不该可删");
+
+        // 释放一处 → 仍有引用，不可删
+        s.release_raw_ref("hash1", owner_kind::CONTEXT_ANCHOR, "anchor-1")
+            .await
+            .unwrap();
+        assert_eq!(s.raw_ref_count("hash1").await.unwrap(), 1);
+        assert!(!s.is_gc_eligible("hash1").await.unwrap());
+
+        // 释放其余 → 无引用；**即使引用行已全部消失，判定依然正确**（谓词而非枚举）
+        s.release_raw_ref("hash1", owner_kind::ARCHIVE, "hook-1").await.unwrap();
+        assert_eq!(s.raw_ref_count("hash1").await.unwrap(), 0);
+        assert!(s.is_gc_eligible("hash1").await.unwrap());
+        assert!(s.refs_of("hash1").await.unwrap().is_empty(), "引用行已物理释放");
+        assert!(
+            s.is_gc_eligible("从未登记过的哈希").await.unwrap(),
+            "无引用即无保护"
+        );
+    }
+
+    #[tokio::test]
+    async fn pinned_raw_ref_never_becomes_gc_candidate() {
+        let dir = tempfile::tempdir().unwrap();
+        let s = temp_store(&dir);
+
+        s.acquire_raw_ref("h-pin", owner_kind::ARCHIVE, "hook-pin", true)
+            .await
+            .unwrap();
+        s.soft_delete_raw_refs("h-pin").await.unwrap();
+
+        assert_eq!(s.raw_ref_count("h-pin").await.unwrap(), 0, "软删后有效引用为 0");
+        assert!(
+            !s.is_gc_eligible("h-pin").await.unwrap(),
+            "pinned 内容即便无有效引用也不得判为可删"
+        );
+        // 硬删候选同样排除 pinned
+        let expired = s.trash_expired_hashes(now_ms()).await.unwrap();
+        assert!(expired.is_empty(), "pinned 不入硬删候选");
+    }
+
+    #[tokio::test]
+    async fn purge_removes_all_ref_rows() {
+        let dir = tempfile::tempdir().unwrap();
+        let s = temp_store(&dir);
+
+        s.acquire_raw_ref("h-gone", owner_kind::ARCHIVE, "hook-a", false)
+            .await
+            .unwrap();
+        s.acquire_raw_ref("h-gone", owner_kind::CONTEXT_ANCHOR, "anchor-a", false)
+            .await
+            .unwrap();
+        s.soft_delete_raw_refs("h-gone").await.unwrap();
+
+        assert_eq!(s.purge_raw_refs("h-gone").await.unwrap(), 2);
+        assert!(s.refs_of("h-gone").await.unwrap().is_empty());
+        assert!(s.is_gc_eligible("h-gone").await.unwrap(), "硬删后判定仍为可删");
+        // 幂等
+        assert_eq!(s.purge_raw_refs("h-gone").await.unwrap(), 0);
+    }
+
+    #[tokio::test]
+    async fn trash_expiry_selects_only_unreferenced_and_expired() {
+        let dir = tempfile::tempdir().unwrap();
+        let s = temp_store(&dir);
+
+        s.acquire_raw_ref("h-old", owner_kind::ARCHIVE, "hook-old", false)
+            .await
+            .unwrap();
+        s.soft_delete_raw_refs("h-old").await.unwrap();
+
+        s.acquire_raw_ref("h-live", owner_kind::ARCHIVE, "hook-live", false)
+            .await
+            .unwrap();
+
+        // 未到期（cutoff 早于软删时点）→ 不该入选
+        let none = s.trash_expired_hashes(0).await.unwrap();
+        assert!(none.is_empty());
+
+        // 已到期 → 仅 h-old 入选
+        let expired = s.trash_expired_hashes(now_ms()).await.unwrap();
+        assert_eq!(expired, vec!["h-old".to_string()]);
+
+        // 恢复（重新摄取）后不再是无引用态
+        s.acquire_raw_ref("h-old", owner_kind::ARCHIVE, "hook-old", false)
+            .await
+            .unwrap();
+        assert!(s.trash_expired_hashes(now_ms()).await.unwrap().is_empty());
+
+        let refs = s.refs_of("h-old").await.unwrap();
+        assert_eq!(refs.len(), 1);
+        assert!(refs[0].deleted_at.is_none(), "重新摄取应清除软删标记");
+    }
+
+    #[test]
+    fn summary_method_normalization() {
+        assert_eq!(normalize_summary_method("LLM"), "llm");
+        assert_eq!(normalize_summary_method(" rule "), "rule");
+        assert_eq!(normalize_summary_method("None"), "none");
+        assert_eq!(normalize_summary_method("乱写"), "none");
+    }
+}

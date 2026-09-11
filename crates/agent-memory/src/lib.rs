@@ -2,6 +2,8 @@
 
 #![forbid(unsafe_code)]
 
+pub mod ext;
+
 use async_trait::async_trait;
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -428,6 +430,10 @@ pub enum Error {
     /// MemoryCenter 核心错误（存储/检索/归档）
     #[error("MemoryCenter 错误: {0}")]
     Core(String),
+
+    /// 记忆扩展库错误（memory_ext.db，A1 甲4 引入）
+    #[error("记忆扩展库错误: {0}")]
+    Ext(String),
 }
 
 /// Crate 级 Result 别名

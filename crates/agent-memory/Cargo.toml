@@ -21,6 +21,11 @@ memory-center-core = { path = "../vendor/memory-center-core" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
+# ── 扩展库（memory_ext.db，A1 甲4）──
+# 与 vendor/memory-center-core 同版本同 feature：bundled 统一由 libsqlite3-sys 提供，
+# 最终二进制不会出现两份 SQLite（cargo feature 合并）。
+rusqlite = { version = "0.32", features = ["bundled"] }
+
 # ── 异步运行时 ──
 tokio = { version = "1", features = ["sync", "macros", "rt", "time"] }
 async-trait = "0.1"

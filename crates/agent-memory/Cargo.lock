@@ -9,24 +9,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aae1277d39aeec15cb388266ecc24b11c80469deae6067e17a1a7aa9e5c1f234"
 
 [[package]]
-name = "agent-memory"
-version = "0.1.0"
-dependencies = [
- "agent-runtime",
- "async-trait",
- "chrono",
- "memory-center-core",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror 2.0.19",
- "tokio",
- "tracing",
- "uuid",
-]
-
-[[package]]
-name = "agent-runtime"
+name = "agent-kernel"
 version = "0.1.0"
 dependencies = [
  "async-trait",
@@ -38,6 +21,45 @@ dependencies = [
  "tokio",
  "tracing",
  "uuid",
+]
+
+[[package]]
+name = "agent-memory"
+version = "0.1.0"
+dependencies = [
+ "agent-runtime",
+ "async-trait",
+ "chrono",
+ "memory-center-core",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.19",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "agent-patterns"
+version = "0.1.0"
+dependencies = [
+ "agent-kernel",
+ "async-trait",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.19",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "agent-runtime"
+version = "0.1.0"
+dependencies = [
+ "agent-kernel",
+ "agent-patterns",
 ]
 
 [[package]]
