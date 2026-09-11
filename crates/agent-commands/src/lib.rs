@@ -3262,6 +3262,10 @@ impl AgentCommandService {
     }
 
     /// 写穿某会话当前消息快照到持久化存储（弱提示：失败仅记日志不阻断）
+    ///
+    /// **A1 丙2 阶段 B 起为不可变追加语义**：视图变化记入日志（`session_log`），
+    /// 被裁消息**只解除活跃引用、内容完整保留**——返回的变化三元组用于观测裁剪是否
+    /// 真的发生（`dropped > 0` 表示本轮有内容移出上下文但未丢失）。
     async fn persist_messages(&self, session_id: &str) {
         let Some(store) = &self.session_store else {
             return;
@@ -3271,8 +3275,17 @@ impl AgentCommandService {
             None => return,
         };
         let messages = agent.get_messages().await;
-        if let Err(e) = store.replace_messages(session_id, &messages).await {
-            tracing::warn!("持久化会话 {session_id} 消息失败: {e}");
+        match store.replace_messages(session_id, &messages).await {
+            Ok(outcome) if outcome.dropped > 0 => {
+                tracing::info!(
+                    session = %session_id,
+                    dropped = outcome.dropped,
+                    kept = outcome.kept,
+                    "会话视图同步：有内容移出活跃上下文（内容保留在不可变日志，可回源）"
+                );
+            }
+            Ok(_) => {}
+            Err(e) => tracing::warn!("持久化会话 {session_id} 消息失败: {e}"),
         }
         // A4 Plan-Exec：随消息一并写穿当前计划（与消息同生命周期，send_message 后持久化）
         let plan = agent.get_plan().await;

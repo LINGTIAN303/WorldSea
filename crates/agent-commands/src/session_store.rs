@@ -95,6 +95,59 @@ pub struct WorkspaceRecord {
     pub created_at: u64,
 }
 
+// ─── A1 丙2 阶段 B：不可变会话日志 ───────────────────────────
+
+/// 不可变会话日志中的一条记录
+///
+/// **`log_offset` 是稳定坐标**：每条消息版本在整个会话生命周期内只分配一次、
+/// 永不复用、永不修改 —— 这是己1 锚点机制可落地的前提（`messages` 表式的
+/// 全量替换快照里，同一个位置在不同时刻指向不同消息，坐标不成立）。
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionLogEntry {
+    /// 稳定坐标（会话内单调递增，从 0 起）
+    pub log_offset: i64,
+    /// 消息本体（原样 JSON 反序列化）
+    pub message: OrchestratorMessage,
+    /// 入日志时点（Unix 秒）
+    pub recorded_at: u64,
+}
+
+/// 会话日志统计（面板与健康检查用）
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionLogStats {
+    /// 日志总量（历次写入过的消息版本总数）
+    pub log_len: i64,
+    /// 当前活跃视图条数
+    pub live_len: i64,
+    /// 已移出视图的条数（= 日志中被"裁掉"但内容仍保留的部分）
+    pub dropped_len: i64,
+    /// 事件条数（历次同步次数）
+    pub event_count: i64,
+}
+
+/// 一次视图同步的变化三元组
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReplaceOutcome {
+    /// 本次新进日志的条数（含被就地修订而重新记录的消息）
+    pub added: i64,
+    /// 本次移出活跃视图的条数（内容仍留在日志中）
+    pub dropped: i64,
+    /// 视图最终条数
+    pub kept: i64,
+    /// 本次事件的坐标
+    pub event_seq: i64,
+}
+
+impl ReplaceOutcome {
+    /// 本次是否发生实质变化
+    pub fn is_noop(&self) -> bool {
+        self.added == 0 && self.dropped == 0
+    }
+}
+
 /// 会话持久化存储抽象
 ///
 /// 独立为 trait 便于：单测用内存实现验证业务逻辑，不经真实 DB；真实场景用
@@ -105,20 +158,54 @@ pub trait SessionRepository: Send + Sync {
     async fn save_session(&self, record: &SessionRecord) -> Result<(), CommandError>;
     /// 加载全部会话头（启动时重建 AgentLoop 用）
     async fn load_sessions(&self) -> Result<Vec<SessionRecord>, CommandError>;
-    /// 整体替换某会话的消息（写穿；先清该会话旧消息再写入）
+    /// 同步会话的消息视图（**不可变追加语义**，A1 丙2 阶段 B）
+    ///
+    /// 传入选中的「当前视图」快照；实现须保证：
+    /// 1. **新消息追加进不可变日志**（`session_log`，每条版本只写一次、永不更新删除）
+    /// 2. **移出视图的消息只解除活跃引用**，其日志条目与内容**完整保留**
+    /// 3. 追加一条事件记录（`session_events`）说明本次变化的规模
+    ///
+    /// 返回本次变化的三元组，便于调用方观测与测试断言。
     async fn replace_messages(
         &self,
         session_id: &str,
         messages: &[OrchestratorMessage],
-    ) -> Result<(), CommandError>;
-    /// 加载某会话的全部消息（按 seq 升序）
+    ) -> Result<ReplaceOutcome, CommandError>;
+    /// 加载某会话当前活跃视图（按视图位置升序）
     async fn load_messages(&self, session_id: &str) -> Result<Vec<OrchestratorMessage>, CommandError>;
-    /// 删除会话及其消息（级联）
+    /// 读取不可变日志片段（按日志坐标升序）—— 供 session 日志面板 / 审计 / 锚点回填
+    ///
+    /// 默认返回空（不支持日志的后端视为无日志可读）。
+    async fn load_session_log(
+        &self,
+        _session_id: &str,
+        _from_offset: i64,
+        _limit: i64,
+    ) -> Result<Vec<SessionLogEntry>, CommandError> {
+        Ok(Vec::new())
+    }
+    /// 按日志坐标读单条（**锚点解析**：锚点 = `(session_id, log_offset)`）
+    ///
+    /// 默认返回 `None`。
+    async fn read_log_entry(
+        &self,
+        _session_id: &str,
+        _log_offset: i64,
+    ) -> Result<Option<SessionLogEntry>, CommandError> {
+        Ok(None)
+    }
+    /// 日志统计（总量 / 活跃 / 已移出视图 / 事件数）—— 供面板与健康检查
+    ///
+    /// 默认返回全零。
+    async fn session_log_stats(&self, _session_id: &str) -> Result<SessionLogStats, CommandError> {
+        Ok(SessionLogStats::default())
+    }
+    /// 删除会话及其全部持久化痕迹（级联：视图 / 日志 / 事件）
     async fn delete_session(&self, session_id: &str) -> Result<(), CommandError>;
     /// 物理清理空会话（启动恢复时调用），返回清理条数。
     ///
-    /// 判定 = 无任何消息行 && 非固定 && chat 类型——按 `messages` 表实况判定，
-    /// 不依赖不可靠的 message_count 列（X1：该列仅创建期写入）；有消息的会话绝不命中。
+    /// 判定 = 无任何活跃消息 && 非固定 && chat 类型——按**活跃视图**实况判定，
+    /// 不依赖不可靠的 message_count 列（X1：该列仅创建期写入）；有活跃消息的会话绝不命中。
     /// 群聊参与者会话（kind=group）排除在外，保证群聊映射恢复不受影响。
     async fn purge_empty_sessions(&self) -> Result<u64, CommandError>;
     /// 更新会话标题（写穿）
@@ -292,6 +379,118 @@ impl SqliteSessionRepository {
         .execute(pool)
         .await
         .map_err(|e| CommandError::Internal(format!("初始化会话消息表失败: {e}")))?;
+
+        // ─── A1 丙2 阶段 B：不可变会话日志 ───────────────────────────
+        //
+        // 设计依据：docs/plans/2026-09-11-A1-记忆系统设计.md §5.5
+        //
+        // 此前 `messages` 表是**可变快照**：`replace_messages` = DELETE 全表 + 逐条
+        // INSERT → 被裁消息**物理删除、不可恢复**，且坐标不稳定（同一位置在不同
+        // 时刻指向不同消息）→ 锚点机制无底座。
+        //
+        // 改为「**不可变追加日志 + 活跃视图**」双层：
+        //
+        //   session_log   —— 只增不改不删；每条消息**版本**只写一次，带稳定坐标 log_offset
+        //   session_live  —— 活跃视图：当前上下文中的消息按位置指向日志坐标（游标，可重写）
+        //   session_events—— 每次同步追加一条事件（规模三元组），供日志面板与审计
+        //
+        // 关键区分：**日志不可变，视图可变**。「裁剪」= 从视图解除引用，日志内容不动。
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS session_log (
+                session_id  TEXT NOT NULL,
+                log_offset  INTEGER NOT NULL,
+                msg_json    TEXT NOT NULL,
+                recorded_at INTEGER NOT NULL,
+                PRIMARY KEY (session_id, log_offset),
+                FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+            )",
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| CommandError::Internal(format!("初始化会话日志表失败: {e}")))?;
+
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS session_live (
+                session_id TEXT NOT NULL,
+                position   INTEGER NOT NULL,
+                log_offset INTEGER NOT NULL,
+                PRIMARY KEY (session_id, position),
+                FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+            )",
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| CommandError::Internal(format!("初始化活跃视图表失败: {e}")))?;
+
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS session_events (
+                session_id TEXT NOT NULL,
+                event_seq  INTEGER NOT NULL,
+                event_kind TEXT NOT NULL,
+                added      INTEGER NOT NULL,
+                dropped    INTEGER NOT NULL,
+                kept       INTEGER NOT NULL,
+                created_at INTEGER NOT NULL,
+                PRIMARY KEY (session_id, event_seq),
+                FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+            )",
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| CommandError::Internal(format!("初始化会话事件表失败: {e}")))?;
+
+        // 迁移：旧库的 `messages` 快照 → 日志 + 视图（**一次性、幂等**）
+        //
+        // 迁移后 `messages` 表**保留但不再读写**（历史兼容留痕，不再作为事实源）；
+        // 判定「是否已迁移」= `messages` 表存在 **且** 日志表为空（避免重复迁移把
+        // 旧快照又灌一遍）。
+        let legacy_exists: i64 = sqlx::query_as::<_, (i64,)>(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'messages'",
+        )
+        .fetch_one(pool)
+        .await
+        .map_err(|e| CommandError::Internal(format!("检查 messages 表失败: {e}")))?
+        .0;
+        if legacy_exists > 0 {
+            let log_len: i64 = sqlx::query_as::<_, (i64,)>("SELECT COUNT(*) FROM session_log")
+                .fetch_one(pool)
+                .await
+                .map_err(|e| CommandError::Internal(format!("统计会话日志失败: {e}")))?
+                .0;
+            if log_len == 0 {
+                let now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_secs() as i64)
+                    .unwrap_or(0);
+                // 旧快照的每条消息成为一条日志记录，坐标沿用原 seq；
+                // 视图按相同位置铺满（迁移前的视图 = 全部消息）
+                sqlx::query(
+                    "INSERT INTO session_log (session_id, log_offset, msg_json, recorded_at)
+                     SELECT session_id, seq, msg_json, ?1 FROM messages",
+                )
+                .bind(now)
+                .execute(pool)
+                .await
+                .map_err(|e| CommandError::Internal(format!("迁移消息到会话日志失败: {e}")))?;
+                sqlx::query(
+                    "INSERT INTO session_live (session_id, position, log_offset)
+                     SELECT session_id, seq, seq FROM messages",
+                )
+                .execute(pool)
+                .await
+                .map_err(|e| CommandError::Internal(format!("迁移消息到活跃视图失败: {e}")))?;
+                // 为每个曾被写入过消息的会话补一条 initial 事件
+                sqlx::query(
+                    "INSERT INTO session_events (session_id, event_seq, event_kind, added, dropped, kept, created_at)
+                     SELECT session_id, 0, 'initial', COUNT(*), 0, COUNT(*), ?1
+                     FROM messages GROUP BY session_id",
+                )
+                .bind(now)
+                .execute(pool)
+                .await
+                .map_err(|e| CommandError::Internal(format!("迁移会话事件失败: {e}")))?;
+            }
+        }
 
         // 群聊参与者会话映射表：group_id + participant_id → rust_session_id
         // （session 行删除时级联清理映射，保证不残留孤儿关联）
@@ -495,59 +694,307 @@ impl SessionRepository for SqliteSessionRepository {
         Ok(rows.into_iter().map(record_from_row).collect())
     }
 
+    /// 同步消息视图（不可变追加语义，A1 丙2 阶段 B）
+    ///
+    /// ## 对齐算法（旧视图 → 新视图）
+    ///
+    /// 调用方送来的是「当前完整视图」，本实现须推断出三类变化。按**首尾夹逼**对齐：
+    ///
+    /// 1. **公共前缀**：从头逐条 JSON 相等 → 保持原日志坐标（内容未变）
+    /// 2. **公共后缀**：从尾逐条 JSON 相等（不与前缀重叠）→ 保持原日志坐标
+    /// 3. **中段**：旧独有 = 移出视图（**只解除引用**）；新独有 = 追加日志（分配新坐标）
+    ///
+    /// 该算法覆盖真实调用形态：整段不变（全前缀命中）、尾部追加（全前缀命中）、
+    /// 头部裁剪（全后缀命中）、就地修订尾部消息（末条进入"新独有"→ 旧版本留日志、
+    /// 新版本重新记录）。
+    ///
+    /// **为何要首尾夹逼而不是只比前缀**：裁剪发生在**头部**，只比前缀会把
+    /// 「保留的尾部」全部误判为「新增」→ 日志每次裁剪都翻倍膨胀，且尾部消息
+    /// 的坐标不断漂移（锚点失效）。
     async fn replace_messages(
         &self,
         session_id: &str,
         messages: &[OrchestratorMessage],
-    ) -> Result<(), CommandError> {
+    ) -> Result<ReplaceOutcome, CommandError> {
+        // 1. 读当前视图（含各自日志坐标）
+        let prev: Vec<(i64, String)> = sqlx::query_as(
+            "SELECT l.log_offset, l.msg_json FROM session_live v \
+             JOIN session_log l ON l.session_id = v.session_id AND l.log_offset = v.log_offset \
+             WHERE v.session_id = ?1 ORDER BY v.position",
+        )
+        .bind(session_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| CommandError::Internal(format!("读取活跃视图失败: {e}")))?;
+
+        // 2. 新视图序列化（一次，后面复用）
+        let next_json: Vec<String> = messages
+            .iter()
+            .map(|m| serde_json::to_string(m))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| CommandError::Internal(format!("序列化消息失败: {e}")))?;
+
+        // 3. 首尾夹逼对齐
+        let (prev_len, next_len) = (prev.len(), next_json.len());
+        let mut head = 0usize;
+        while head < prev_len && head < next_len && prev[head].1 == next_json[head] {
+            head += 1;
+        }
+        let mut tail = 0usize;
+        while tail < (prev_len - head)
+            && tail < (next_len - head)
+            && prev[prev_len - 1 - tail].1 == next_json[next_len - 1 - tail]
+        {
+            tail += 1;
+        }
+
+        // 4. 计算新视图的坐标序列
+        //    前缀段沿用旧坐标；后缀段沿用旧坐标；中段新增 → 新分配坐标
+        let mut offsets: Vec<i64> = Vec::with_capacity(next_len);
+        for i in 0..head {
+            offsets.push(prev[i].0);
+        }
+        let mut new_added = 0i64;
+        for i in head..(next_len - tail) {
+            let _ = i;
+            offsets.push(-1); // 占位，事务内分配
+            new_added += 1;
+        }
+        for t in (0..tail).rev() {
+            offsets.push(prev[prev_len - 1 - t].0);
+        }
+
+        let dropped = (prev_len - head - tail) as i64;
+        let kept = next_len as i64;
+
+        // 5. 单事务落库：分配坐标 → 追加日志 → 重写视图游标 → 追加事件
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0);
         let mut tx = self
             .pool
             .begin()
             .await
             .map_err(|e| CommandError::Internal(format!("开启消息事务失败: {e}")))?;
 
-        sqlx::query("DELETE FROM messages WHERE session_id = ?1")
+        if new_added > 0 {
+            let max_offset: i64 = sqlx::query_as::<_, (Option<i64>,)>(
+                "SELECT MAX(log_offset) FROM session_log WHERE session_id = ?1",
+            )
+            .bind(session_id)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(|e| CommandError::Internal(format!("查询日志末坐标失败: {e}")))?
+            .0
+            .unwrap_or(-1);
+
+            let mut cursor = max_offset + 1;
+            for (i, off) in offsets.iter_mut().enumerate() {
+                if *off != -1 {
+                    continue;
+                }
+                let json = &next_json[i];
+                sqlx::query(
+                    "INSERT INTO session_log (session_id, log_offset, msg_json, recorded_at) VALUES (?1, ?2, ?3, ?4)",
+                )
+                .bind(session_id)
+                .bind(cursor)
+                .bind(json)
+                .bind(now)
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| CommandError::Internal(format!("追加会话日志失败: {e}")))?;
+                *off = cursor;
+                cursor += 1;
+            }
+        }
+
+        // 重写视图游标（**这是游标不是日志**：日志内容不受影响）
+        sqlx::query("DELETE FROM session_live WHERE session_id = ?1")
             .bind(session_id)
             .execute(&mut *tx)
             .await
-            .map_err(|e| CommandError::Internal(format!("清空旧消息失败: {e}")))?;
-
-        for (seq, msg) in messages.iter().enumerate() {
-            let json = serde_json::to_string(msg)
-                .map_err(|e| CommandError::Internal(format!("序列化消息失败: {e}")))?;
-            sqlx::query("INSERT INTO messages (session_id, seq, msg_json) VALUES (?1, ?2, ?3)")
-                .bind(session_id)
-                .bind(seq as i64)
-                .bind(&json)
-                .execute(&mut *tx)
-                .await
-                .map_err(|e| CommandError::Internal(format!("写入消息失败: {e}")))?;
+            .map_err(|e| CommandError::Internal(format!("清理旧视图游标失败: {e}")))?;
+        for (position, off) in offsets.iter().enumerate() {
+            sqlx::query(
+                "INSERT INTO session_live (session_id, position, log_offset) VALUES (?1, ?2, ?3)",
+            )
+            .bind(session_id)
+            .bind(position as i64)
+            .bind(off)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| CommandError::Internal(format!("写入视图游标失败: {e}")))?;
         }
+
+        // 追加事件（不可变；event_seq 单调递增）
+        let event_seq: i64 = sqlx::query_as::<_, (Option<i64>,)>(
+            "SELECT MAX(event_seq) FROM session_events WHERE session_id = ?1",
+        )
+        .bind(session_id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|e| CommandError::Internal(format!("查询事件末序号失败: {e}")))?
+        .0
+        .map(|v| v + 1)
+        .unwrap_or(0);
+
+        let kind = match (new_added > 0, dropped > 0) {
+            (true, true) => "revise",
+            (true, false) => {
+                if prev_len == 0 {
+                    "initial"
+                } else {
+                    "append"
+                }
+            }
+            (false, true) => "trim",
+            (false, false) => "noop",
+        };
+        sqlx::query(
+            "INSERT INTO session_events (session_id, event_seq, event_kind, added, dropped, kept, created_at) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        )
+        .bind(session_id)
+        .bind(event_seq)
+        .bind(kind)
+        .bind(new_added)
+        .bind(dropped)
+        .bind(kept)
+        .bind(now)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| CommandError::Internal(format!("追加会话事件失败: {e}")))?;
 
         tx.commit()
             .await
             .map_err(|e| CommandError::Internal(format!("提交消息事务失败: {e}")))?;
-        Ok(())
+
+        if dropped > 0 {
+            tracing::info!(
+                session = %session_id,
+                added = new_added,
+                dropped,
+                kept,
+                kind,
+                "会话视图已同步：{dropped} 条移出活跃视图（**内容保留在不可变日志中**，坐标不变）"
+            );
+        }
+
+        Ok(ReplaceOutcome {
+            added: new_added,
+            dropped,
+            kept,
+            event_seq,
+        })
     }
 
     async fn load_messages(&self, session_id: &str) -> Result<Vec<OrchestratorMessage>, CommandError> {
-        let rows: Vec<(String,)> =
-            sqlx::query_as("SELECT msg_json FROM messages WHERE session_id = ?1 ORDER BY seq")
-                .bind(session_id)
-                .fetch_all(&self.pool)
-                .await
-                .map_err(|e| CommandError::Internal(format!("读取会话消息失败: {e}")))?;
-        let mut messages = Vec::with_capacity(rows.len());
-        for (json,) in rows {
-            let msg: OrchestratorMessage = serde_json::from_str(&json)
-                .map_err(|e| CommandError::Internal(format!("解析会话消息失败: {e}")))?;
-            messages.push(msg);
+        let rows: Vec<(String,)> = sqlx::query_as(
+            "SELECT l.msg_json FROM session_live v \
+             JOIN session_log l ON l.session_id = v.session_id AND l.log_offset = v.log_offset \
+             WHERE v.session_id = ?1 ORDER BY v.position",
+        )
+        .bind(session_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| CommandError::Internal(format!("读取活跃视图失败: {e}")))?;
+        rows.into_iter()
+            .map(|(json,)| {
+                serde_json::from_str(&json)
+                    .map_err(|e| CommandError::Internal(format!("解析会话消息失败: {e}")))
+            })
+            .collect()
+    }
+
+    async fn load_session_log(
+        &self,
+        session_id: &str,
+        from_offset: i64,
+        limit: i64,
+    ) -> Result<Vec<SessionLogEntry>, CommandError> {
+        let rows: Vec<(i64, String, i64)> = sqlx::query_as(
+            "SELECT log_offset, msg_json, recorded_at FROM session_log \
+             WHERE session_id = ?1 AND log_offset >= ?2 ORDER BY log_offset LIMIT ?3",
+        )
+        .bind(session_id)
+        .bind(from_offset)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| CommandError::Internal(format!("读取会话日志失败: {e}")))?;
+        rows.into_iter()
+            .map(|(log_offset, json, ts)| {
+                Ok(SessionLogEntry {
+                    log_offset,
+                    message: serde_json::from_str(&json)
+                        .map_err(|e| CommandError::Internal(format!("解析日志消息失败: {e}")))?,
+                    recorded_at: ts as u64,
+                })
+            })
+            .collect()
+    }
+
+    async fn read_log_entry(
+        &self,
+        session_id: &str,
+        log_offset: i64,
+    ) -> Result<Option<SessionLogEntry>, CommandError> {
+        let row: Option<(String, i64)> = sqlx::query_as(
+            "SELECT msg_json, recorded_at FROM session_log WHERE session_id = ?1 AND log_offset = ?2",
+        )
+        .bind(session_id)
+        .bind(log_offset)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| CommandError::Internal(format!("读取日志条目失败: {e}")))?;
+        match row {
+            None => Ok(None),
+            Some((json, ts)) => Ok(Some(SessionLogEntry {
+                log_offset,
+                message: serde_json::from_str(&json)
+                    .map_err(|e| CommandError::Internal(format!("解析日志消息失败: {e}")))?,
+                recorded_at: ts as u64,
+            })),
         }
-        Ok(messages)
+    }
+
+    async fn session_log_stats(&self, session_id: &str) -> Result<SessionLogStats, CommandError> {
+        let log_len: i64 = sqlx::query_as::<_, (i64,)>(
+            "SELECT COUNT(*) FROM session_log WHERE session_id = ?1",
+        )
+        .bind(session_id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| CommandError::Internal(format!("统计日志失败: {e}")))?
+        .0;
+        let live_len: i64 = sqlx::query_as::<_, (i64,)>(
+            "SELECT COUNT(*) FROM session_live WHERE session_id = ?1",
+        )
+        .bind(session_id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| CommandError::Internal(format!("统计视图失败: {e}")))?
+        .0;
+        let event_count: i64 = sqlx::query_as::<_, (i64,)>(
+            "SELECT COUNT(*) FROM session_events WHERE session_id = ?1",
+        )
+        .bind(session_id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| CommandError::Internal(format!("统计事件失败: {e}")))?
+        .0;
+        Ok(SessionLogStats {
+            log_len,
+            live_len,
+            dropped_len: (log_len - live_len).max(0),
+            event_count,
+        })
     }
 
     async fn delete_session(&self, session_id: &str) -> Result<(), CommandError> {
-        // messages 表有 ON DELETE CASCADE，删 sessions 行即级联清除消息
+        // session_log / session_live / session_events 均有 ON DELETE CASCADE，删 sessions 行即级联清除
         sqlx::query("DELETE FROM sessions WHERE id = ?1")
             .bind(session_id)
             .execute(&self.pool)
@@ -557,11 +1004,11 @@ impl SessionRepository for SqliteSessionRepository {
     }
 
     async fn purge_empty_sessions(&self) -> Result<u64, CommandError> {
-        // 按消息表实况判定：无任何消息行的 chat 会话且未固定 → 物理删除
-        //（messages 级联无需处理——子查询保证无消息行；group_chat_sessions 映射仅挂 group 会话，不命中）
+        // 按**活跃视图**实况判定：无任何活跃消息的 chat 会话且未固定 → 物理删除
+        //（子表级联无需处理——子查询保证无活跃视图；group_chat_sessions 映射仅挂 group 会话，不命中）
         let result = sqlx::query(
             "DELETE FROM sessions WHERE kind = 'chat' AND pinned = 0 \
-             AND id NOT IN (SELECT DISTINCT session_id FROM messages)",
+             AND id NOT IN (SELECT DISTINCT session_id FROM session_live)",
         )
         .execute(&self.pool)
         .await
@@ -996,6 +1443,345 @@ mod tests {
         assert_eq!(loaded.len(), 1, "替换后应只剩新列表");
     }
 
+    // ─── A1 丙2 阶段 B：不可变会话日志 ───────────────────────
+
+    /// ★ 核心契约：裁剪**不丢内容**——移出视图的消息完整保留在不可变日志中
+    ///
+    /// 这修正了改造前的行为（`replace_messages` = DELETE 全表 + INSERT →
+    /// 被裁消息物理删除、不可恢复）。
+    #[tokio::test]
+    async fn trim_keeps_dropped_content_in_immutable_log() {
+        let store = SqliteSessionRepository::new_in_memory().await.unwrap();
+        store.save_session(&record("s1", 4)).await.unwrap();
+
+        let full = vec![
+            msg(MessageRole::User, "第一轮提问"),
+            msg(MessageRole::Assistant, "第一轮回答"),
+            msg(MessageRole::User, "第二轮提问"),
+            msg(MessageRole::Assistant, "第二轮回答"),
+        ];
+        store.replace_messages("s1", &full).await.unwrap();
+
+        // 头部裁掉前两条（典型上下文裁剪）
+        let trimmed = vec![full[2].clone(), full[3].clone()];
+        let outcome = store.replace_messages("s1", &trimmed).await.unwrap();
+        assert_eq!(outcome.dropped, 2, "应移出视图 2 条");
+        assert_eq!(outcome.added, 0, "被保留的尾部不应重新入日志（坐标复用）");
+        assert_eq!(outcome.kept, 2);
+
+        // 视图只剩后两条
+        let loaded = store.load_messages("s1").await.unwrap();
+        assert_eq!(loaded.len(), 2);
+        assert_eq!(loaded[0].content, "第二轮提问");
+
+        // ★ 但日志里有全部 4 条（前两条内容未丢）
+        let log = store.load_session_log("s1", 0, 100).await.unwrap();
+        assert_eq!(log.len(), 4, "日志应保留全部 4 个消息版本");
+        assert_eq!(log[0].message.content, "第一轮提问");
+        assert_eq!(log[1].message.content, "第一轮回答");
+
+        // 统计口径自洽
+        let stats = store.session_log_stats("s1").await.unwrap();
+        assert_eq!(stats.log_len, 4);
+        assert_eq!(stats.live_len, 2);
+        assert_eq!(stats.dropped_len, 2, "已移出视图 2 条");
+    }
+
+    /// ★ 稳定坐标：尾部消息在多次头部裁剪后 **log_offset 不变**（锚点可寻址）
+    ///
+    /// 这是「锚点 = 稳定坐标」的最小验证——改造前 `messages.seq` 每轮全量重写，
+    /// 同一 seq 在不同时刻指向不同消息，坐标不成立。
+    #[tokio::test]
+    async fn log_offsets_are_stable_across_repeated_trims() {
+        let store = SqliteSessionRepository::new_in_memory().await.unwrap();
+        store.save_session(&record("s1", 6)).await.unwrap();
+
+        let full: Vec<_> = (0..6)
+            .map(|i| msg(MessageRole::User, &format!("消息{i}")))
+            .collect();
+        store.replace_messages("s1", &full).await.unwrap();
+
+        // 记录「消息5」的坐标
+        let anchor = {
+            let log = store.load_session_log("s1", 0, 100).await.unwrap();
+            let entry = log.iter().find(|e| e.message.content == "消息5").unwrap();
+            entry.log_offset
+        };
+
+        // 连续三次头部裁剪
+        for cut in [1usize, 2, 3] {
+            let kept: Vec<_> = full[cut..].to_vec();
+            store.replace_messages("s1", &kept).await.unwrap();
+        }
+
+        // ★ 锚点仍指向同一条消息
+        let resolved = store.read_log_entry("s1", anchor).await.unwrap().unwrap();
+        assert_eq!(
+            resolved.message.content, "消息5",
+            "锚点坐标必须稳定：多次裁剪后仍指向同一条消息"
+        );
+
+        // 且日志没有因裁剪而膨胀（尾部坐标复用，未重复入日志）
+        let stats = store.session_log_stats("s1").await.unwrap();
+        assert_eq!(stats.log_len, 6, "裁剪不应新增日志条目（坐标复用）");
+        assert_eq!(stats.live_len, 3);
+    }
+
+    /// 增量追加：只把新消息写进日志
+    #[tokio::test]
+    async fn append_only_records_new_messages() {
+        let store = SqliteSessionRepository::new_in_memory().await.unwrap();
+        store.save_session(&record("s1", 3)).await.unwrap();
+
+        let v1 = vec![msg(MessageRole::User, "A")];
+        let o1 = store.replace_messages("s1", &v1).await.unwrap();
+        assert_eq!((o1.added, o1.dropped, o1.kept), (1, 0, 1), "首次写入");
+
+        let v2 = vec![
+            msg(MessageRole::User, "A"),
+            msg(MessageRole::Assistant, "B"),
+        ];
+        let o2 = store.replace_messages("s1", &v2).await.unwrap();
+        assert_eq!((o2.added, o2.dropped, o2.kept), (1, 0, 2), "仅新增 1 条");
+
+        let v3 = vec![
+            msg(MessageRole::User, "A"),
+            msg(MessageRole::Assistant, "B"),
+            msg(MessageRole::User, "C"),
+        ];
+        let o3 = store.replace_messages("s1", &v3).await.unwrap();
+        assert_eq!((o3.added, o3.dropped, o3.kept), (1, 0, 3));
+
+        let stats = store.session_log_stats("s1").await.unwrap();
+        assert_eq!(stats.log_len, 3, "日志 = 3 个版本（无重复记录）");
+        assert_eq!(stats.event_count, 3);
+    }
+
+    /// 就地修订尾部消息：**旧版本留日志、新版本重新记录**（编辑不抹除历史）
+    #[tokio::test]
+    async fn in_place_revision_preserves_previous_version() {
+        let store = SqliteSessionRepository::new_in_memory().await.unwrap();
+        store.save_session(&record("s1", 2)).await.unwrap();
+
+        let v1 = vec![
+            msg(MessageRole::User, "提问"),
+            msg(MessageRole::Assistant, "初版回答"),
+        ];
+        store.replace_messages("s1", &v1).await.unwrap();
+
+        // 模拟 merge_last_assistant_meta：最后一条 assistant 内容被改写
+        let v2 = vec![
+            msg(MessageRole::User, "提问"),
+            msg(MessageRole::Assistant, "补充元数据后的回答"),
+        ];
+        let o2 = store.replace_messages("s1", &v2).await.unwrap();
+        assert_eq!(o2.added, 1, "修订版应作为新版本入日志");
+        assert_eq!(o2.dropped, 1, "旧版本移出视图");
+
+        // 视图是最新版
+        let loaded = store.load_messages("s1").await.unwrap();
+        assert_eq!(loaded[1].content, "补充元数据后的回答");
+
+        // 日志里两个版本都在（历史不被抹除）
+        let log = store.load_session_log("s1", 0, 100).await.unwrap();
+        assert_eq!(log.len(), 3, "1(user) + 2(assistant 两版)");
+        assert!(log.iter().any(|e| e.message.content == "初版回答"));
+        assert!(log.iter().any(|e| e.message.content == "补充元数据后的回答"));
+    }
+
+    /// 无变化同步：不产生新日志条目，事件类型标记为 noop（幂等）
+    #[tokio::test]
+    async fn identical_resync_is_noop() {
+        let store = SqliteSessionRepository::new_in_memory().await.unwrap();
+        store.save_session(&record("s1", 2)).await.unwrap();
+
+        let v = vec![
+            msg(MessageRole::User, "A"),
+            msg(MessageRole::Assistant, "B"),
+        ];
+        store.replace_messages("s1", &v).await.unwrap();
+        let before = store.session_log_stats("s1").await.unwrap();
+
+        let o = store.replace_messages("s1", &v).await.unwrap();
+        assert!(o.is_noop(), "同内容同步应无变化: {o:?}");
+
+        let after = store.session_log_stats("s1").await.unwrap();
+        assert_eq!(after.log_len, before.log_len, "日志不应增长");
+        assert_eq!(after.event_count, before.event_count + 1, "但事件仍留痕（审计）");
+    }
+
+    /// 清空历史 = 视图清空；**日志仍保留全部内容**（可回溯）
+    #[tokio::test]
+    async fn clear_history_empties_view_but_keeps_log() {
+        let store = SqliteSessionRepository::new_in_memory().await.unwrap();
+        store.save_session(&record("s1", 2)).await.unwrap();
+
+        let v = vec![
+            msg(MessageRole::User, "将被清空 A"),
+            msg(MessageRole::Assistant, "将被清空 B"),
+        ];
+        store.replace_messages("s1", &v).await.unwrap();
+
+        let o = store.replace_messages("s1", &[]).await.unwrap();
+        assert_eq!(o.dropped, 2);
+        assert!(store.load_messages("s1").await.unwrap().is_empty(), "视图已清空");
+
+        let stats = store.session_log_stats("s1").await.unwrap();
+        assert_eq!(stats.log_len, 2, "清空历史不应销毁日志");
+        assert_eq!(stats.live_len, 0);
+    }
+
+    /// 锚点解析：未知坐标返回 None（不 panic、不误指）
+    #[tokio::test]
+    async fn unknown_anchor_resolves_to_none() {
+        let store = SqliteSessionRepository::new_in_memory().await.unwrap();
+        store.save_session(&record("s1", 1)).await.unwrap();
+        store
+            .replace_messages("s1", &[msg(MessageRole::User, "A")])
+            .await
+            .unwrap();
+
+        assert!(store.read_log_entry("s1", 999).await.unwrap().is_none());
+        assert!(store.read_log_entry("s1", -1).await.unwrap().is_none());
+        // 跨会话不串味
+        store.save_session(&record("s2", 1)).await.unwrap();
+        assert!(store.read_log_entry("s2", 0).await.unwrap().is_none());
+    }
+
+    /// 日志分段读取（供前端日志面板分页）
+    #[tokio::test]
+    async fn log_can_be_paged() {
+        let store = SqliteSessionRepository::new_in_memory().await.unwrap();
+        store.save_session(&record("s1", 5)).await.unwrap();
+        let v: Vec<_> = (0..5)
+            .map(|i| msg(MessageRole::User, &format!("m{i}")))
+            .collect();
+        store.replace_messages("s1", &v).await.unwrap();
+
+        let page1 = store.load_session_log("s1", 0, 2).await.unwrap();
+        assert_eq!(page1.len(), 2);
+        assert_eq!(page1[0].log_offset, 0);
+        let page2 = store.load_session_log("s1", 2, 2).await.unwrap();
+        assert_eq!(page2[0].log_offset, 2);
+        assert_eq!(page2[0].message.content, "m2");
+        // 分页不重不漏
+        let rest = store.load_session_log("s1", 4, 10).await.unwrap();
+        assert_eq!(rest.len(), 1);
+    }
+
+    /// 删除会话：日志 / 视图 / 事件一并级联清除（不留孤儿）
+    #[tokio::test]
+    async fn delete_session_cascades_log_and_events() {
+        let store = SqliteSessionRepository::new_in_memory().await.unwrap();
+        store.save_session(&record("s1", 2)).await.unwrap();
+        store
+            .replace_messages("s1", &[msg(MessageRole::User, "A"), msg(MessageRole::Assistant, "B")])
+            .await
+            .unwrap();
+
+        store.delete_session("s1").await.unwrap();
+        let stats = store.session_log_stats("s1").await.unwrap();
+        assert_eq!(stats, SessionLogStats::default(), "删除后应无任何残留: {stats:?}");
+    }
+
+    /// 旧库迁移：既有 `messages` 快照 → 日志 + 视图（幂等，不重复灌）
+    #[tokio::test]
+    async fn legacy_messages_snapshot_migrates_to_log() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("sessions.db");
+        let path = db_path.to_str().unwrap().to_string();
+
+        // ① 先造一个「改造前形态」的旧库：只有 sessions + messages 两表且有数据。
+        //    直接用 sqlx 建（不经仓储），模拟历史版本留下的库文件。
+        {
+            let opts = sqlx::sqlite::SqliteConnectOptions::new()
+                .filename(&path)
+                .create_if_missing(true);
+            let pool = sqlx::SqlitePool::connect_with(opts).await.unwrap();
+            sqlx::query(
+                "CREATE TABLE sessions (
+                    id            TEXT PRIMARY KEY,
+                    system_prompt TEXT NOT NULL,
+                    created_at    INTEGER NOT NULL,
+                    message_count INTEGER NOT NULL,
+                    updated_at    INTEGER NOT NULL
+                )",
+            )
+            .execute(&pool)
+            .await
+            .unwrap();
+            sqlx::query(
+                "CREATE TABLE messages (
+                    session_id TEXT NOT NULL,
+                    seq        INTEGER NOT NULL,
+                    msg_json   TEXT NOT NULL,
+                    PRIMARY KEY (session_id, seq),
+                    FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+                )",
+            )
+            .execute(&pool)
+            .await
+            .unwrap();
+            sqlx::query(
+                "INSERT INTO sessions (id, system_prompt, created_at, message_count, updated_at)
+                 VALUES ('s1', 'sys', 1, 2, 1)",
+            )
+            .execute(&pool)
+            .await
+            .unwrap();
+            for (seq, m) in [
+                (0_i64, msg(MessageRole::User, "旧消息A")),
+                (1_i64, msg(MessageRole::Assistant, "旧消息B")),
+            ] {
+                sqlx::query("INSERT INTO messages (session_id, seq, msg_json) VALUES (?1, ?2, ?3)")
+                    .bind("s1")
+                    .bind(seq)
+                    .bind(serde_json::to_string(&m).unwrap())
+                    .execute(&pool)
+                    .await
+                    .unwrap();
+            }
+            pool.close().await;
+        }
+
+        // ② 打开仓储（init 触发迁移）
+        let store = SqliteSessionRepository::new(&path).await.unwrap();
+        let loaded = store.load_messages("s1").await.unwrap();
+        assert_eq!(loaded.len(), 2, "旧快照应迁移进活跃视图");
+        assert_eq!(loaded[0].content, "旧消息A");
+
+        let log = store.load_session_log("s1", 0, 100).await.unwrap();
+        assert_eq!(log.len(), 2, "旧快照应迁移进日志");
+        assert_eq!(log[1].message.content, "旧消息B");
+
+        let stats = store.session_log_stats("s1").await.unwrap();
+        assert_eq!(stats.event_count, 1, "应补一条 initial 事件");
+        assert_eq!(stats.dropped_len, 0);
+
+        // ③ 迁移后仍可正常增量写入（坐标从旧 seq 之后继续）
+        let o = store
+            .replace_messages(
+                "s1",
+                &[
+                    msg(MessageRole::User, "旧消息A"),
+                    msg(MessageRole::Assistant, "旧消息B"),
+                    msg(MessageRole::User, "新消息C"),
+                ],
+            )
+            .await
+            .unwrap();
+        assert_eq!(o.added, 1, "仅新增第三条");
+        assert_eq!(
+            store.load_session_log("s1", 0, 100).await.unwrap().len(),
+            3
+        );
+
+        // ④ 幂等：再开一次不重复迁移
+        let store2 = SqliteSessionRepository::new(&path).await.unwrap();
+        let stats2 = store2.session_log_stats("s1").await.unwrap();
+        assert_eq!(stats2.log_len, 3, "重复打开不应重复迁移");
+    }
+
     #[tokio::test]
     async fn delete_cascades_messages() {
         let store = SqliteSessionRepository::new_in_memory().await.unwrap();
@@ -1296,7 +2082,7 @@ mod tests {
         let mut empty = record("empty", 0); // 0 消息 chat 非固定 → 清
         empty.message_count = 5; // 列值虚高（X1：不可靠）也不影响判定
         store.save_session(&empty).await.unwrap();
-        let mut with_msg = record("with-msg", 0); // 有消息 → 保留
+        let with_msg = record("with-msg", 0); // 有消息 → 保留
         store.save_session(&with_msg).await.unwrap();
         let mut pinned = record("pinned", 0); // 固定空会话 → 保留
         pinned.pinned = true;
