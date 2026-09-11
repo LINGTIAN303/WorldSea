@@ -133,6 +133,14 @@ pub struct AgentLoopConfig {
     /// 全 ASCII 内容约合 4 万 token，两个方向的偏差都不小。
     /// 2026-09-11（A1 丙1）起统一为**上下文 token**。
     pub context_budget: Option<crate::context_budget::ContextBudgetPolicy>,
+
+    // ─── A1 己2①：类型化保留契约 ─────────────────
+    /// 保留策略（`None`=默认，见 [`RetentionPolicy::default`]）
+    ///
+    /// 决定预算裁剪时「丢哪些、保哪些」：系统提示词 / 最近一轮 user 输入 /
+    /// A3 白名单打标消息**永不裁剪**，其余按「最近 N 条 + 陈旧优先」丢弃，
+    /// 工具交换组原子同去同留。
+    pub retention_policy: Option<crate::retention::RetentionPolicy>,
 }
 
 impl Default for AgentLoopConfig {
@@ -172,6 +180,8 @@ impl Default for AgentLoopConfig {
             project_id: None,
             // A1 丙1：默认兜底预算（装配层应按模型声明覆盖）
             context_budget: None,
+            // A1 己2①：默认保留策略（最近 12 条 + 硬保护）
+            retention_policy: None,
         }
     }
 }

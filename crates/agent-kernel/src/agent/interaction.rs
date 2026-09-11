@@ -86,6 +86,63 @@ impl AgentLoop {
         Ok(())
     }
 
+    /// 按**删除掩码**清理上下文（A1 己2①：保留契约的落地手段）
+    ///
+    /// 与 [`Self::trim_context`] 的区别：后者只能删**前缀**（`up_to_index` 之前全部），
+    /// 而保留契约要求「删掉中段的陈旧内容、同时保住更旧的受保护消息」
+    /// （如 `state.messages[0]` 的系统提示词、被标为决策的早期消息）——
+    /// 前缀语义无法表达，故改为按掩码逐条筛除。
+    ///
+    /// 同步两边状态的方式：先 `set_messages` 覆盖 backend，再覆盖 `state.messages`
+    /// （与 [`Self::set_runtime_messages`] 同源；`trim_context` 的 `up_to_index`
+    /// 语义保持不变，外部调用方不受影响）。
+    ///
+    /// 返回实际删除的条数；掩码为空或全 `false` 时不触碰任何状态。
+    pub async fn trim_context_dropping(&self, drop_mask: &[bool]) -> Result<usize, AgentError> {
+        let dropped = drop_mask.iter().filter(|d| **d).count();
+        if dropped == 0 {
+            return Ok(0);
+        }
+
+        // 1. 计算保留后的消息序列（长度不变或变短；此处以 state 为准）
+        let kept: Vec<crate::types::OrchestratorMessage> = {
+            let state = self.state.lock().await;
+            if drop_mask.len() != state.messages.len() {
+                warn!(
+                    "trim_context_dropping: 掩码长度 {} 与消息数 {} 不一致，跳过以避免错删",
+                    drop_mask.len(),
+                    state.messages.len()
+                );
+                return Ok(0);
+            }
+            state
+                .messages
+                .iter()
+                .enumerate()
+                .filter(|(i, _)| !drop_mask[*i])
+                .map(|(_, m)| m.clone())
+                .collect()
+        };
+
+        // 2. backend 端覆盖（前缀裁剪不适用，改用覆盖式同步）
+        self.backend
+            .set_messages(kept.clone())
+            .await
+            .map_err(AgentError::from)?;
+
+        // 3. state 端覆盖
+        {
+            let mut state = self.state.lock().await;
+            state.messages = kept;
+        }
+        debug!(
+            "trim_context_dropping: 删除 {} 条，剩余 {} 条",
+            dropped,
+            drop_mask.len() - dropped
+        );
+        Ok(dropped)
+    }
+
     /// 获取 pi-ai agent 内部 messages — 对应前端 `IAgentBackend.getRuntimeMessages()`
     ///
     /// 用于长任务 checkpoint 持久化，区别于 `get_messages()`（返回值类型相同，但语义上为 runtime）。

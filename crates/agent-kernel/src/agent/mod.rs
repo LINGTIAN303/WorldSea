@@ -12,6 +12,7 @@ use crate::confirmation::{ConfirmationBroker, ConfirmationPolicy};
 use crate::event::{AgentEvent, EventBroadcaster, EventListener, OrchestratorEvent};
 use crate::loop_control::{LoopControlConfig, LoopController};
 use crate::long_task::{CheckpointProvider, LongTaskManager};
+use crate::retention::RetentionPlan;
 use crate::router_decider::{Pipeline, RouterDecider};
 use crate::tool::ToolBus;
 use crate::types::{MessageRole, OrchestratorMessage, PlanItem, ToolCall};
@@ -774,31 +775,33 @@ impl AgentLoop {
     /// 那是实现与语义不一致：同为 160_000，全中文内容约合 5.3 万 token、
     /// 全 ASCII 约合 4 万 token，两个方向都有明显偏差。
     ///
-    /// ## 触发策略
-    ///
-    /// 触发点 = **四层压缩阶梯的最高层（AutoCompact，归档阈值的 95%）**，
-    /// 是「最后手段」：逼近归档阈值时才裁整条消息。其余三层（Snip / MicroCompact /
-    /// Collapse）是精度工具、尚未实现。
-    ///
     /// **预算口径已补全**（修正前漏算）：除 `state.messages` 外，一并计入
     /// 每轮重拼的 `system_prompt`（系统提示词 + 记忆注入 + 规则 + 管线指引）——
     /// 此前只累加 messages，导致真实窗口占用被系统性低估。
+    ///
+    /// ## 保留契约（A1 己2①，2026-09-11 接入）
+    ///
+    /// 触发点 = **四层压缩阶梯的最高层（AutoCompact，归档阈值的 95%）**，是「最后手段」。
+    /// 「丢哪些」由 [`RetentionPlan`] 按类型化契约决定，而非此前的「从头部逐条丢」：
+    ///
+    /// | 等级 | 对象 | 处理 |
+    /// |---|---|---|
+    /// | `SystemAnchor` | `role = System`（承载系统提示词） | **永不裁剪**——同时修掉「被裁后下一轮重推、落到末尾」的位置漂移 |
+    /// | `LatestUserInput` | 最近一条 user 原始输入 | **永不裁剪**——修掉「单轮 ≥6 次工具调用即被挤出保留窗口」的数据丢失 |
+    /// | `Pinned(tag)` | 显式打标（A3 白名单：意图/决策/待办/记忆引用） | **永不裁剪** |
+    /// | `RecentTurn` | 最近 `keep_recent` 条 | 第二道防线 |
+    /// | `Droppable` | 陈旧内容 | 可裁（**工具交换组原子丢弃**，杜绝悬空 `tool_call_id`） |
+    ///
+    /// 删除手段同步升级为**选择性删除**（[`Self::trim_context_dropping`]）——
+    /// 前缀裁剪无法表达「保住更旧的受保护消息、只删中段陈旧内容」。
     ///
     /// ## 语义安全
     ///
     /// 被裁轮次必然已归档进记忆——归档阈值与预算触发点同源（同为窗口比例，
     /// 且触发点在归档阈值之内），预算触发时未归档缓冲只剩最近几轮，保留条数足够覆盖。
-    ///
-    /// ## 裁剪边界
-    ///
-    /// 从头部裁掉最旧消息，但**对齐 tool 配对**（A1 己2②）：切点若落在
-    /// `assistant(tool_calls)` 与其 `tool_result` 之间会产生悬空 `tool_call_id`，
-    /// LLM API 直接判 400。采用回退（少裁）而非前移（多裁）——配对完整性优先于预算。
     async fn enforce_context_budget(&self) {
-        const HISTORY_KEEP_MESSAGES: usize = 12; // 最少保留条数（含最近一轮 user 输入所在的一轮）
-
         // 预算策略：装配层注入优先，缺省用兜底（32K 窗口 × 0.25）
-        let policy = {
+        let (policy, retention_policy) = {
             let guard = match self.config.read() {
                 Ok(g) => g,
                 Err(_) => {
@@ -806,7 +809,10 @@ impl AgentLoop {
                     return;
                 }
             };
-            guard.context_budget.unwrap_or_default()
+            (
+                guard.context_budget.unwrap_or_default(),
+                guard.retention_policy.unwrap_or_default(),
+            )
         };
 
         // 每轮重拼的系统侧文本（系统提示词 + 记忆注入 + 管线指引）——一并计入窗口占用
@@ -820,109 +826,73 @@ impl AgentLoop {
                 + (self.token_estimator)(&pipe.unwrap_or_default())
         };
 
-        let (history_tokens, total_msgs) = {
+        // 逐条成本 + 保留契约分类（同一次持锁内取齐，避免两次快照不一致）
+        let (plan, costs, history_tokens, total_msgs) = {
             let state = self.state.lock().await;
-            let tokens: usize = state
+            let costs: Vec<usize> = state
                 .messages
                 .iter()
                 .map(|m| (self.token_estimator)(&m.content) + MESSAGE_STRUCTURE_OVERHEAD_TOKENS)
-                .sum();
-            (tokens, state.messages.len())
+                .collect();
+            let history: usize = costs.iter().sum();
+            let plan = RetentionPlan::classify(&state.messages, &retention_policy);
+            (plan, costs, history, state.messages.len())
         };
         let total_tokens = history_tokens + system_tokens;
         let trigger = policy.trim_trigger();
 
+        let (n_system, n_user, n_pinned) = plan.protected_counts();
         debug!(
-            "上下文占用：历史 {} token + 系统侧 {} token = {} token（触发点 {}，窗口 {}，归档阈值 {}，当前层级 {}）",
+            "上下文占用：历史 {} token + 系统侧 {} token = {} token（触发点 {}，窗口 {}，归档阈值 {}，当前层级 {}）；受保护：System {} / 最新user {} / 打标 {}",
             history_tokens,
             system_tokens,
             total_tokens,
             trigger,
             policy.context_window,
             policy.archive_threshold,
-            policy.tier_of(total_tokens)
+            policy.tier_of(total_tokens),
+            n_system,
+            n_user,
+            n_pinned
         );
 
-        if total_tokens <= trigger || total_msgs <= HISTORY_KEEP_MESSAGES {
+        if total_tokens <= trigger || total_msgs == 0 {
             return;
         }
 
-        // 从头部计算需裁条数：裁到预算内或只剩保留条数
-        let mut drop = 0usize;
-        let mut acc = total_tokens;
-        {
-            let state = self.state.lock().await;
-            let keep_from = total_msgs.saturating_sub(HISTORY_KEEP_MESSAGES);
-            for m in state.messages.iter() {
-                if drop >= keep_from || acc <= trigger {
-                    break;
-                }
-                acc -= (self.token_estimator)(&m.content) + MESSAGE_STRUCTURE_OVERHEAD_TOKENS;
-                drop += 1;
-            }
-        }
-        // ── A1 己2②（2026-09-11）：裁剪边界对齐 tool 配对 ──────────────────
-        // 原实现从头逐条丢，切点可能落在 assistant(tool_calls) 与其
-        // tool_result 之间 → 悬空 tool_call_id 会被 LLM API 判为 400（真实 BUG）。
-        // 策略：**回退边界（少裁）而非前移（多裁）**——配对完整性优先于预算，
-        // 预算只是软目标，配对破坏是硬错误；回退把整个工具交换留在保留区。
-        let mut pair_retreat = 0usize;
-        if drop > 0 {
-            let shapes: Vec<(MessageRole, bool)> = {
-                let state = self.state.lock().await;
-                state
-                    .messages
-                    .iter()
-                    .map(|m| (m.role, !m.tool_calls.is_empty()))
-                    .collect()
-            };
-            let planned = drop;
-            while drop > 0 && Self::cut_breaks_tool_pairing(&shapes, drop) {
-                drop -= 1;
-            }
-            pair_retreat = planned - drop;
-        }
-        if drop == 0 {
-            debug!("上下文预算裁剪：候选裁量经 tool 配对对齐后归零，本轮不裁剪");
+        // 按保留契约选组丢弃（工具交换组原子）
+        let drops = plan.select_drops(&costs, total_tokens, trigger);
+        if drops.is_empty() {
+            debug!(
+                "上下文预算裁剪：超线（{} > {}）但可裁内容已穷尽（受保护组 {} 个），本轮不裁剪",
+                total_tokens, trigger, drops.skipped_protected_groups
+            );
             return;
         }
-        match self.trim_context(drop).await {
-            Ok(()) => info!(
-                "上下文预算裁剪：占用 {} token（历史 {} + 系统侧 {}）超触发点 {}（窗口 {}），已裁掉最旧 {} 条（保留 {} 条）{}",
+
+        let mask = drops.mask(total_msgs);
+        match self.trim_context_dropping(&mask).await {
+            Ok(dropped) => info!(
+                "上下文预算裁剪：占用 {} token（历史 {} + 系统侧 {}）超触发点 {}（窗口 {}），已按保留契约裁掉 {} 条（保留 {} 条）；释放约 {} token{}",
                 total_tokens,
                 history_tokens,
                 system_tokens,
                 trigger,
                 policy.context_window,
-                drop,
-                total_msgs - drop,
-                if pair_retreat > 0 {
-                    format!("；其中 {pair_retreat} 条为对齐 tool 配对而回退未裁")
+                dropped,
+                total_msgs - dropped,
+                drops.dropped_tokens,
+                if drops.skipped_protected_groups > 0 {
+                    format!(
+                        "；{} 个受保护组跳过未裁（System/最新user/打标/最近{}条）",
+                        drops.skipped_protected_groups, retention_policy.keep_recent
+                    )
                 } else {
                     String::new()
                 }
             ),
             Err(e) => warn!("上下文预算裁剪失败: {}", e),
         }
-    }
-
-    /// A1 己2②：判断在 `cut` 处切开是否破坏 tool_call / tool_result 配对。
-    ///
-    /// 前 `cut` 条被丢弃、`cut..` 保留，两种破坏形态：
-    /// 1. 保留区首条是 `toolResult` —— 其所属的 assistant(tool_calls) 已被丢弃；
-    /// 2. 丢弃区末条是携带 `tool_calls` 的 assistant —— 其工具结果仍留在保留区。
-    fn cut_breaks_tool_pairing(shapes: &[(MessageRole, bool)], cut: usize) -> bool {
-        let Some(first_kept) = shapes.get(cut) else {
-            return false; // 保留区为空（整段丢弃）不构成悬空
-        };
-        if first_kept.0 == MessageRole::ToolResult {
-            return true;
-        }
-        if cut == 0 {
-            return false;
-        }
-        let last_dropped = &shapes[cut - 1];
-        last_dropped.0 == MessageRole::Assistant && last_dropped.1
     }
 
     /// M4-5（B10）：预判型 — 供 send_message 在 run 启动前决定 run 形状

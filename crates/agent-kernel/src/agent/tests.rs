@@ -237,6 +237,186 @@
         }
     }
 
+    /// A1 己2①：预算裁剪接入保留契约后，**System 锚点与最近一轮 user 输入必须存活**
+    ///
+    /// 用显式预算（窗口 4K × 0.25 → 触发点 950）制造**深度裁剪**——深到「按旧实现
+    /// 从头逐条丢」会把 System 锚点也吃掉（旧实现第一个丢的就是它，下一轮重推 →
+    /// 落到列表末尾，即位置漂移）。
+    ///
+    /// ```text
+    /// 0     System（小）      ← 旧实现第一个丢 → 下一轮重推到末尾（位置漂移）
+    /// 1-4   陈旧小消息（user/assistant 交替）
+    /// 5     user「最新指令」   ← 本轮最后一条 user，契约硬保护
+    /// 6-15  陈旧大消息（assistant）← 真正的体量所在
+    /// ```
+    ///
+    /// 「单轮 ≥6 次工具调用把最新 user 挤出保留窗口」的靶心场景由
+    /// `retention::tests::latest_user_survives_heavy_tool_turn` 覆盖（那里能精确构造
+    /// 条数挤压），本用例只管端到端接线。
+    #[tokio::test]
+    async fn context_budget_preserves_system_anchor_and_latest_user() {
+        use crate::context_budget::ContextBudgetPolicy;
+        use crate::retention::RetentionPolicy;
+        use crate::types::{MessageRole, OrchestratorMessage};
+
+        let backend = Arc::new(MockBackend::new(vec![]));
+        let tool_bus = Arc::new(SimpleToolBus::new());
+        let agent = AgentLoop::new(backend, tool_bus).with_config(AgentLoopConfig {
+            context_budget: Some(ContextBudgetPolicy::new(4_000, 0.25)),
+            retention_policy: Some(RetentionPolicy { keep_recent: 2 }),
+            ..Default::default()
+        });
+
+        let mut msgs = vec![OrchestratorMessage {
+            role: MessageRole::System,
+            content: "你是 WorldSea 的助手".into(),
+            tool_calls: Vec::new(),
+            tool_call_id: None,
+            meta: None,
+        }];
+        // 陈旧小消息：user / assistant 交替（真实对话形态；
+        // 若全用 user 角色，「最后一条 user」会落到末尾的陈旧消息上，测不到靶心）
+        for i in 0..4 {
+            msgs.push(OrchestratorMessage {
+                role: if i % 2 == 0 {
+                    MessageRole::User
+                } else {
+                    MessageRole::Assistant
+                },
+                content: format!("陈旧小消息 {i}"),
+                tool_calls: Vec::new(),
+                tool_call_id: None,
+                meta: None,
+            });
+        }
+        // 本轮最后一条 user —— 契约硬保护
+        msgs.push(OrchestratorMessage {
+            role: MessageRole::User,
+            content: "最新指令：重构这个模块".into(),
+            tool_calls: Vec::new(),
+            tool_call_id: None,
+            meta: None,
+        });
+        // 其后的助手工作产出（体量所在，可裁）
+        for i in 0..10 {
+            msgs.push(OrchestratorMessage {
+                role: MessageRole::Assistant,
+                content: format!("陈旧大消息 {i}：{}", "x".repeat(2_000)),
+                tool_calls: Vec::new(),
+                tool_call_id: None,
+                meta: None,
+            });
+        }
+        let total = msgs.len();
+        assert_eq!(total, 16);
+        agent.append_messages(msgs).await;
+
+        agent.enforce_context_budget().await;
+        let kept = agent.get_messages().await;
+
+        assert!(kept.len() < total, "应发生裁剪，实际保留 {} 条", kept.len());
+        assert_eq!(
+            kept[0].role,
+            MessageRole::System,
+            "System 锚点必须仍在首位（旧实现会先丢它 → 位置漂移）"
+        );
+        assert!(
+            kept.iter().any(|m| m.content.contains("最新指令")),
+            "最近一轮 user 原始输入必须存活"
+        );
+        // 深度裁剪确实深入到了 user 之后的内容
+        assert!(
+            kept.len() <= 6,
+            "深度裁剪应只剩受保护内容，实际 {} 条: {:?}",
+            kept.len(),
+            kept.iter().map(|m| (m.role, m.content.chars().take(12).collect::<String>())).collect::<Vec<_>>()
+        );
+    }
+
+    /// A1 己2①：裁剪是**选择性删除**而非前缀删除——夹在陈旧内容里的打标消息得以存活
+    #[tokio::test]
+    async fn context_budget_uses_selective_not_prefix_trim() {
+        use crate::context_budget::ContextBudgetPolicy;
+        use crate::retention::{RetentionPolicy, META_RETENTION_KEY};
+        use crate::types::{MessageRole, OrchestratorMessage};
+
+        let backend = Arc::new(MockBackend::new(vec![]));
+        let tool_bus = Arc::new(SimpleToolBus::new());
+        let agent = AgentLoop::new(backend, tool_bus).with_config(AgentLoopConfig {
+            context_budget: Some(ContextBudgetPolicy::new(4_000, 0.25)),
+            retention_policy: Some(RetentionPolicy { keep_recent: 1 }),
+            ..Default::default()
+        });
+
+        // System(0) · 陈旧(1..5) · 决策(5) · 陈旧(6..10) · user(10)
+        let mut msgs = vec![OrchestratorMessage {
+            role: MessageRole::System,
+            content: "系统提示词".into(),
+            tool_calls: Vec::new(),
+            tool_call_id: None,
+            meta: None,
+        }];
+        for i in 0..4 {
+            msgs.push(OrchestratorMessage {
+                role: MessageRole::User,
+                content: format!("陈旧前置 {i}：{}", "y".repeat(1_200)),
+                tool_calls: Vec::new(),
+                tool_call_id: None,
+                meta: None,
+            });
+        }
+        msgs.push(OrchestratorMessage {
+            role: MessageRole::Assistant,
+            content: "已决定：采用方案 B".into(),
+            tool_calls: Vec::new(),
+            tool_call_id: None,
+            meta: Some(
+                [(META_RETENTION_KEY.to_string(), serde_json::json!("decision"))]
+                    .into_iter()
+                    .collect(),
+            ),
+        });
+        for i in 0..4 {
+            msgs.push(OrchestratorMessage {
+                role: MessageRole::User,
+                content: format!("陈旧后置 {i}：{}", "z".repeat(1_200)),
+                tool_calls: Vec::new(),
+                tool_call_id: None,
+                meta: None,
+            });
+        }
+        msgs.push(OrchestratorMessage {
+            role: MessageRole::User,
+            content: "继续推进".into(),
+            tool_calls: Vec::new(),
+            tool_call_id: None,
+            meta: None,
+        });
+        let total = msgs.len();
+        assert_eq!(total, 11);
+        agent.append_messages(msgs).await;
+
+        agent.enforce_context_budget().await;
+        let kept = agent.get_messages().await;
+
+        assert!(
+            kept.iter().any(|m| m.content.contains("方案 B")),
+            "打标为「决策」的旧消息不得被裁——前缀裁剪做不到（它在陈旧内容中间）"
+        );
+        assert!(kept.iter().any(|m| m.content.contains("继续推进")), "最新 user 应存活");
+        assert_eq!(kept[0].role, MessageRole::System);
+        assert!(
+            kept.len() < total,
+            "陈旧内容应被删掉，实际保留 {} 条",
+            kept.len()
+        );
+        // 决策消息之前与之后的陈旧内容都被删了 —— 这正是「选择性」而非「前缀」的证据
+        assert!(
+            !kept.iter().any(|m| m.content.contains("陈旧前置")),
+            "决策之前的陈旧内容应被删"
+        );
+    }
+
     /// R6 第二部分：merge_last_assistant_meta 把事件序追加进最后 assistant 消息 meta.action_events，
     /// 多次调用累计（追加语义），无 assistant 消息时忽略。
     #[tokio::test]
