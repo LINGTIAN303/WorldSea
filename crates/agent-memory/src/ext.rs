@@ -34,7 +34,10 @@ use rusqlite::{Connection, OptionalExtension};
 use crate::{Error, Result};
 
 /// 本库 schema 版本（写入 `ext_meta.schema_version`）
-const SCHEMA_VERSION: u32 = 1;
+///
+/// - v1（2026-09-11）：五表初版
+/// - v2（2026-09-11）：`supersede_chain` 增 `summary` 列（调和摘要，甲2）
+const SCHEMA_VERSION: u32 = 2;
 
 /// 外置引用持有方类型（`raw_ref.owner_kind`）
 pub mod owner_kind {
@@ -94,6 +97,24 @@ pub struct RawRef {
     pub stored_at: i64,
     /// 软删标记时点（Unix 毫秒）；`None` = 有效
     pub deleted_at: Option<i64>,
+}
+
+/// `supersede_chain` 一行：一次调和记录
+///
+/// 对应设计文档 §4.1 的「C 条」——**矛盾不覆盖**的落地凭据：原始双方均保留，
+/// 取代关系与时序另立记录。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SupersedeLink {
+    /// 被取代的旧条目
+    pub old_hook_id: String,
+    /// 取代它的新条目
+    pub new_hook_id: String,
+    /// 机器可读的判定依据（冲突类型名 / `revision`）
+    pub reason: String,
+    /// 人文可读的调和摘要（`None` = 未生成）
+    pub summary: Option<String>,
+    /// 判定时点（Unix 毫秒）
+    pub decided_at: i64,
 }
 
 /// 记忆扩展库（`{root}/projects/{project_id or "_default"}/memory_ext.db`）
@@ -185,6 +206,7 @@ CREATE TABLE IF NOT EXISTS supersede_chain (
     old_hook_id TEXT NOT NULL,
     new_hook_id TEXT NOT NULL,
     reason      TEXT NOT NULL DEFAULT '',
+    summary     TEXT,
     decided_at  INTEGER NOT NULL,
     PRIMARY KEY (old_hook_id, new_hook_id)
 );
@@ -209,6 +231,10 @@ CREATE TABLE IF NOT EXISTS ext_meta (
             )
             .map_err(|e| Error::Ext(format!("初始化扩展库 schema 失败: {}", e)))?;
 
+        // 版本迁移：v1 → v2（`supersede_chain` 增 `summary` 列）
+        // 新建库已带上该列；既有库需 ALTER 补列（旧值 NULL，语义 = 无摘要）
+        Self::ensure_column(&guard, "supersede_chain", "summary", "TEXT")?;
+
         guard
             .execute(
                 "INSERT INTO ext_meta (key, value) VALUES ('schema_version', ?1)
@@ -224,6 +250,34 @@ CREATE TABLE IF NOT EXISTS ext_meta (
             )
             .map_err(|e| Error::Ext(format!("写入 updated_at 失败: {}", e)))?;
 
+        Ok(())
+    }
+
+    /// 幂等补列（版本迁移用）
+    ///
+    /// `CREATE TABLE IF NOT EXISTS` 对**已存在**的表不生效，故新增列必须显式 ALTER。
+    /// 先查 `PRAGMA table_info` 判存在，避免重复 ALTER 报错。
+    fn ensure_column(
+        conn: &Connection,
+        table: &str,
+        column: &str,
+        decl: &str,
+    ) -> Result<()> {
+        let exists: bool = {
+            let mut stmt = conn
+                .prepare(&format!("PRAGMA table_info({table})"))
+                .map_err(|e| Error::Ext(format!("探测表结构失败: {}", e)))?;
+            let names: Vec<String> = stmt
+                .query_map([], |r| r.get::<_, String>(1))
+                .map_err(|e| Error::Ext(format!("读取表结构失败: {}", e)))?
+                .filter_map(|r| r.ok())
+                .collect();
+            names.iter().any(|n| n == column)
+        };
+        if !exists {
+            conn.execute(&format!("ALTER TABLE {table} ADD COLUMN {column} {decl}"), [])
+                .map_err(|e| Error::Ext(format!("补列 {table}.{column} 失败: {}", e)))?;
+        }
         Ok(())
     }
 
@@ -431,22 +485,118 @@ CREATE TABLE IF NOT EXISTS ext_meta (
         .await
     }
 
+    /// 按标签反查持有该标签的全部 hook_id（按写入时点升序）
+    ///
+    /// 真标签是可检索维度中最直接的一档（如 [`crate::RECONCILE_TAG`] 标出全部调和记忆），
+    /// 供 `MEMORY.md` 注入与 UI 侧「按标签筛记忆」消费。
+    pub async fn hooks_by_tag(&self, tag: &str) -> Result<Vec<String>> {
+        let tag = tag.to_string();
+        self.with_conn(move |conn| {
+            let mut stmt = conn
+                .prepare("SELECT hook_id FROM hook_tags WHERE tag = ?1 ORDER BY hook_id")
+                .map_err(|e| Error::Ext(format!("准备标签反查失败: {}", e)))?;
+            let rows = stmt
+                .query_map(rusqlite::params![&tag], |r| r.get::<_, String>(0))
+                .map_err(|e| Error::Ext(format!("标签反查失败: {}", e)))?;
+            rows.collect::<rusqlite::Result<Vec<_>>>()
+                .map_err(|e| Error::Ext(format!("读取标签反查行失败: {}", e)))
+        })
+        .await
+    }
+
     // ── supersede_chain：矛盾调和链 ─────────────────────────
 
     /// 记录一次调和：`new_hook_id` 取代 `old_hook_id`（**不删除旧值**）
-    pub async fn add_supersede(&self, old_hook_id: &str, new_hook_id: &str, reason: &str) -> Result<()> {
+    ///
+    /// - `reason`：**机器可读**的判定依据（如 `stance_reversal` / `direct_contradict` /
+    ///   `revision`），供程序分支与统计
+    /// - `summary`：**人文可读**的调和摘要（如「2025-11 前：使用 React；之后（2026-01）：改用 Vue」），
+    ///   供 `MEMORY.md` 注入（乙3）与召回展示消费；`None` = 本次未生成
+    ///
+    /// 幂等：同一 `(old, new)` 对重复记录时**只补摘要**，不覆盖已有 reason（先到者为准）。
+    pub async fn add_supersede(
+        &self,
+        old_hook_id: &str,
+        new_hook_id: &str,
+        reason: &str,
+        summary: Option<&str>,
+    ) -> Result<()> {
         let old = old_hook_id.to_string();
         let new = new_hook_id.to_string();
         let reason = reason.to_string();
+        let summary = summary.map(|s| s.to_string());
         let now = now_ms();
         self.with_conn(move |conn| {
             conn.execute(
-                "INSERT OR IGNORE INTO supersede_chain
-                    (old_hook_id, new_hook_id, reason, decided_at) VALUES (?1, ?2, ?3, ?4)",
-                rusqlite::params![&old, &new, &reason, now],
+                "INSERT INTO supersede_chain
+                    (old_hook_id, new_hook_id, reason, summary, decided_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5)
+                 ON CONFLICT(old_hook_id, new_hook_id) DO UPDATE SET
+                    summary = COALESCE(excluded.summary, summary)",
+                rusqlite::params![&old, &new, &reason, &summary, now],
             )
             .map_err(|e| Error::Ext(format!("写入 supersede_chain 失败: {}", e)))?;
             Ok(())
+        })
+        .await
+    }
+
+    /// 读取一条调和链记录（`(old, new)` 精确匹配）
+    pub async fn supersede_link(
+        &self,
+        old_hook_id: &str,
+        new_hook_id: &str,
+    ) -> Result<Option<SupersedeLink>> {
+        let old = old_hook_id.to_string();
+        let new = new_hook_id.to_string();
+        self.with_conn(move |conn| {
+            conn.query_row(
+                "SELECT old_hook_id, new_hook_id, reason, summary, decided_at
+                 FROM supersede_chain WHERE old_hook_id = ?1 AND new_hook_id = ?2",
+                rusqlite::params![&old, &new],
+                row_to_supersede_link,
+            )
+            .optional()
+            .map_err(|e| Error::Ext(format!("读取调和链记录失败: {}", e)))
+        })
+        .await
+    }
+
+    /// 列出某条记忆作为**旧值**的全部调和记录（它被谁取代）
+    pub async fn superseded_by(&self, old_hook_id: &str) -> Result<Vec<SupersedeLink>> {
+        let old = old_hook_id.to_string();
+        self.with_conn(move |conn| {
+            let mut stmt = conn
+                .prepare(
+                    "SELECT old_hook_id, new_hook_id, reason, summary, decided_at
+                     FROM supersede_chain WHERE old_hook_id = ?1 ORDER BY decided_at",
+                )
+                .map_err(|e| Error::Ext(format!("准备调和链查询失败: {}", e)))?;
+            let rows = stmt
+                .query_map(rusqlite::params![&old], row_to_supersede_link)
+                .map_err(|e| Error::Ext(format!("查询调和链失败: {}", e)))?;
+            rows.collect::<rusqlite::Result<Vec<_>>>()
+                .map_err(|e| Error::Ext(format!("读取调和链行失败: {}", e)))
+        })
+        .await
+    }
+
+    /// 列出全部已生成摘要的调和记录（供 `MEMORY.md` 注入按需取用）
+    pub async fn supersede_summaries(&self) -> Result<Vec<SupersedeLink>> {
+        self.with_conn(|conn| {
+            let mut stmt = conn
+                .prepare(
+                    "SELECT old_hook_id, new_hook_id, reason, summary, decided_at
+                     FROM supersede_chain
+                     WHERE summary IS NOT NULL AND summary != ''
+                     ORDER BY decided_at",
+                )
+                .map_err(|e| Error::Ext(format!("准备摘要查询失败: {}", e)))?;
+            let rows = stmt
+                .query_map([], row_to_supersede_link)
+                .map_err(|e| Error::Ext(format!("查询调和摘要失败: {}", e)))?;
+            rows.collect::<rusqlite::Result<Vec<_>>>()
+                .map_err(|e| Error::Ext(format!("读取调和摘要行失败: {}", e)))
         })
         .await
     }
@@ -696,6 +846,17 @@ fn now_ms() -> i64 {
     chrono::Utc::now().timestamp_millis()
 }
 
+/// 行 → [`SupersedeLink`]（列序：old_hook_id, new_hook_id, reason, summary, decided_at）
+fn row_to_supersede_link(row: &rusqlite::Row<'_>) -> rusqlite::Result<SupersedeLink> {
+    Ok(SupersedeLink {
+        old_hook_id: row.get(0)?,
+        new_hook_id: row.get(1)?,
+        reason: row.get(2)?,
+        summary: row.get(3)?,
+        decided_at: row.get(4)?,
+    })
+}
+
 /// 行 → [`MemoryExt`]（列序：memory_id, hook_id, created_at, access_count, pinned, summary_method）
 fn row_to_memory_ext(row: &rusqlite::Row<'_>) -> rusqlite::Result<MemoryExt> {
     Ok(MemoryExt {
@@ -730,6 +891,42 @@ mod tests {
         // 重复 open 不报错（建表幂等）
         let s2 = ExtStore::open(dir.path().to_path_buf(), None).unwrap();
         assert_eq!(s2.schema_version().await.unwrap(), SCHEMA_VERSION);
+    }
+
+    /// v1 → v2 迁移：既有库（无 `summary` 列）被 `open` 自动补列
+    #[tokio::test]
+    async fn schema_migrates_v1_database_to_v2() {
+        let dir = tempfile::tempdir().unwrap();
+        let project_dir = dir.path().join("projects").join("_default");
+        std::fs::create_dir_all(&project_dir).unwrap();
+        let db = project_dir.join("memory_ext.db");
+
+        // 手工造一个 v1 形态的库（supersede_chain 无 summary 列）
+        {
+            let conn = rusqlite::Connection::open(&db).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE supersede_chain (
+                     old_hook_id TEXT NOT NULL,
+                     new_hook_id TEXT NOT NULL,
+                     reason      TEXT NOT NULL DEFAULT '',
+                     decided_at  INTEGER NOT NULL,
+                     PRIMARY KEY (old_hook_id, new_hook_id)
+                 );",
+            )
+            .unwrap();
+        }
+
+        // open 时自动迁移
+        let s = ExtStore::open(dir.path().to_path_buf(), None).unwrap();
+        assert_eq!(s.schema_version().await.unwrap(), SCHEMA_VERSION);
+        // 补列后读写正常
+        s.add_supersede("A", "B", "revision", Some("迁移后的摘要"))
+            .await
+            .unwrap();
+        assert_eq!(
+            s.supersede_link("A", "B").await.unwrap().unwrap().summary.as_deref(),
+            Some("迁移后的摘要")
+        );
     }
 
     #[tokio::test]
@@ -800,8 +997,10 @@ mod tests {
         let s = temp_store(&dir);
 
         // A → B → C（B 取代 A，C 取代 B）
-        s.add_supersede("A", "B", "时点转移").await.unwrap();
-        s.add_supersede("B", "C", "方案升级").await.unwrap();
+        s.add_supersede("A", "B", "时点转移", Some("A 之后：B"))
+            .await
+            .unwrap();
+        s.add_supersede("B", "C", "方案升级", None).await.unwrap();
         let mut got = s.supersede_successors("A").await.unwrap();
         got.sort();
         assert_eq!(got, vec!["B".to_string(), "C".to_string()]);
@@ -809,13 +1008,57 @@ mod tests {
         // 旧值未被删除：A 仍可查到后继（调和 = 只增不删）
         assert!(!s.supersede_successors("A").await.unwrap().is_empty());
 
+        // 逐跳记录可读回（含摘要）
+        let link = s.supersede_link("A", "B").await.unwrap().expect("应有记录");
+        assert_eq!(link.reason, "时点转移");
+        assert_eq!(link.summary.as_deref(), Some("A 之后：B"));
+        assert!(link.decided_at > 0);
+        assert!(s.supersede_link("A", "C").await.unwrap().is_none());
+        assert!(s.supersede_link("B", "C").await.unwrap().unwrap().summary.is_none());
+
+        // 被谁取代
+        let by = s.superseded_by("B").await.unwrap();
+        assert_eq!(by.len(), 1);
+        assert_eq!(by[0].new_hook_id, "C");
+
+        // 全部带摘要的记录（供 MEMORY.md 注入）
+        let with_summary = s.supersede_summaries().await.unwrap();
+        assert_eq!(with_summary.len(), 1);
+        assert_eq!(with_summary[0].old_hook_id, "A");
+
         // 环：X → Y → X 不应死循环
-        s.add_supersede("X", "Y", "").await.unwrap();
-        s.add_supersede("Y", "X", "").await.unwrap();
+        s.add_supersede("X", "Y", "", None).await.unwrap();
+        s.add_supersede("Y", "X", "", None).await.unwrap();
         let got = s.supersede_successors("X").await.unwrap();
         assert_eq!(got, vec!["Y".to_string()]);
 
         assert!(s.supersede_successors("无后继").await.unwrap().is_empty());
+    }
+
+    /// 幂等：同 `(old, new)` 重复记录只补摘要，不覆盖已有 reason
+    #[tokio::test]
+    async fn supersede_record_is_idempotent_with_summary_backfill() {
+        let dir = tempfile::tempdir().unwrap();
+        let s = temp_store(&dir);
+
+        s.add_supersede("A", "B", "revision", None).await.unwrap();
+        s.add_supersede("A", "B", "另一个理由", Some("补上的摘要"))
+            .await
+            .unwrap();
+
+        let link = s.supersede_link("A", "B").await.unwrap().unwrap();
+        assert_eq!(link.reason, "revision", "reason 先到者为准，不被覆盖");
+        assert_eq!(link.summary.as_deref(), Some("补上的摘要"), "摘要可补齐");
+
+        // 已有摘要不被 None 抹掉
+        s.add_supersede("A", "B", "revision", None).await.unwrap();
+        assert!(s
+            .supersede_link("A", "B")
+            .await
+            .unwrap()
+            .unwrap()
+            .summary
+            .is_some());
     }
 
     #[tokio::test]

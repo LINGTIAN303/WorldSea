@@ -4,6 +4,7 @@
 
 pub mod ext;
 pub mod model_profile;
+pub mod reconcile;
 
 use async_trait::async_trait;
 use std::collections::HashSet;
@@ -16,12 +17,17 @@ use agent_runtime::memory::{
     MemoryWriteEntry, MemoryWriteOp, MemoryWriteOptions, NoopReason, SummaryMethod, WriteOutcome,
 };
 use memory_center_core::archive::Archiver;
-use memory_center_core::model::{ArchiveConfig, ArchivePeriod, MessageContent, MessageTurn, Tag};
+use memory_center_core::conflict::{ConflictDetector, ConflictReport};
+use memory_center_core::heuristic::HeuristicDetector;
+use memory_center_core::model::{
+    ArchiveConfig, ArchivePeriod, MemoryFile, MemoryUpdate, MessageContent, MessageTurn, Tag,
+};
 use memory_center_core::retrieve::{Retriever, SummaryView};
 use memory_center_core::sqlite::SqliteStorage;
 use memory_center_core::storage::Storage;
 
 use ext::ExtStore;
+use reconcile::{ReconcileContext, ReconcilePolicy, ReconcileSide, ReconcileSummarizer};
 
 /// MemoryAccessor 适配层结构体（存储后端 + 检索器 + 归档器），详细见 docs/details/注释/agent-memory/lib.md
 pub struct MemoryCenterAccessor {
@@ -44,6 +50,15 @@ pub struct MemoryCenterAccessor {
     /// 承载 vendor DDL 无落脚处的字段（`created_at` / `access_count` / `pinned` /
     /// `summary_method`）与 A1 新增概念（真标签 / 调和链 / 外置引用）。
     ext: Option<ExtStore>,
+    /// 冲突检测器（A1 甲2；默认 [`HeuristicDetector`]——纯算法、零成本、无网络依赖）
+    ///
+    /// 作用：为「取代」判定**依据**并丰富调和摘要（不是安全闸门——
+    /// 无论检测结果如何，硬规则「矛盾不覆盖」都恒定生效）。
+    conflict_detector: Arc<dyn ConflictDetector>,
+    /// 调和策略（A1 甲2；默认 `RuleSummary`——零成本摘要 + 记链）
+    reconcile_policy: ReconcilePolicy,
+    /// LLM 摘要生成器（A1 甲2；`None`=未注入，`LlmSummary` 档自动降级为规则摘要）
+    reconcile_summarizer: Option<Arc<dyn ReconcileSummarizer>>,
 }
 
 impl MemoryCenterAccessor {
@@ -108,7 +123,36 @@ impl MemoryCenterAccessor {
             ext,
             boundary: AtomicUsize::new(0),
             injected_hooks: Arc::new(Mutex::new(HashSet::new())),
+            // A1 甲2：默认启发式检测器（纯算法、零成本、无网络依赖）+ 规则摘要档
+            conflict_detector: Arc::new(HeuristicDetector::new()),
+            reconcile_policy: ReconcilePolicy::default(),
+            reconcile_summarizer: None,
         }
+    }
+
+    /// 注入调和策略（链式，A1 甲2）
+    pub fn with_reconcile_policy(mut self, policy: ReconcilePolicy) -> Self {
+        self.reconcile_policy = policy;
+        self
+    }
+
+    /// 注入冲突检测器（链式，A1 甲2；默认 [`HeuristicDetector`]）
+    pub fn with_conflict_detector(mut self, detector: Arc<dyn ConflictDetector>) -> Self {
+        self.conflict_detector = detector;
+        self
+    }
+
+    /// 注入 LLM 调和摘要生成器（链式，A1 甲2）
+    ///
+    /// 仅 [`ReconcileMode::LlmSummary`] 档消费；未注入时该档自动降级为规则摘要。
+    pub fn with_reconcile_summarizer(mut self, summarizer: Arc<dyn ReconcileSummarizer>) -> Self {
+        self.reconcile_summarizer = Some(summarizer);
+        self
+    }
+
+    /// 当前调和策略（只读）
+    pub fn reconcile_policy(&self) -> ReconcilePolicy {
+        self.reconcile_policy
     }
 
     /// 注入扩展库（链式）
@@ -424,13 +468,170 @@ impl MemoryAccessor for MemoryCenterAccessor {
             MemoryWriteOp::Noop => Ok(WriteOutcome::Noop { reason: NoopReason::Explicit }),
 
             MemoryWriteOp::Update => {
-                // A1 甲1 分期：UPDATE 依赖甲2 矛盾调和策略，本期不启用。
-                // 关键取向：**不静默覆盖**——宁可什么都不做，也不制造静默的信息丢失。
-                tracing::warn!(
-                    layer = ?entry.layer,
-                    "记忆 Update 操作尚未启用（A1 甲1 分期后置）；矛盾一律走调和链，本期不覆盖"
+                // A1 甲2：取代式更新——**矛盾不覆盖**的落地。
+                //
+                // 语义：`hook_id` 指向的旧条目被 `content` 取代。执行路径：
+                //   1. 定位旧条目（读索引）→ 未命中 = NotFound
+                //   2. 冲突检测（可关；纯算法）→ 得到判定依据
+                //   3. 把「新增新事实 + 废弃旧事实」记进**旧记忆文件的 updates 字段**
+                //      （vendor 语义：非破坏性追加，不动 turns）
+                //      ★ 副作用收益：旧内容由此进入 vendor 的历史事实集，
+                //        后续对同一文件的取代才有检测对照组
+                //   4. 新事实作为**新条目**入库（★ 跳过写前去重——见下）
+                //   5. 记取代链（old → new + reason + summary）
+                //   6. 按策略产出调和摘要，并作为**调和记忆**入库
+                //   7. 返回 `Superseded { old, new }`
+                let hook_id = entry
+                    .hook_id
+                    .clone()
+                    .ok_or_else(|| MemoryError::Other("Update 操作缺少 hook_id".into()))?;
+                let content = entry.content.trim().to_string();
+                if content.is_empty() {
+                    return Ok(WriteOutcome::Noop { reason: NoopReason::Explicit });
+                }
+
+                // 1. 定位旧条目
+                let Some(located) = self.locate_hook(&hook_id).await? else {
+                    return Ok(WriteOutcome::Noop { reason: NoopReason::NotFound });
+                };
+
+                // 2. 冲突检测（以旧记忆文件为对照）
+                let conflict = if self.reconcile_policy.detect_conflicts {
+                    self.detect_conflict(&content, &located.old_text, &located.memory).await
+                } else {
+                    None
+                };
+
+                // 3. 修订记入旧记忆文件（非破坏性：只追加 updates，不动 turns）
+                let update = MemoryUpdate::new()
+                    .add_fact(content.clone())
+                    .deprecate_fact(located.old_text.clone());
+                let report = match conflict.as_ref() {
+                    Some(kind) => {
+                        let mut r = ConflictReport::empty();
+                        r.push(memory_center_core::conflict::ConflictRecord {
+                            kind: kind.clone(),
+                            severity: memory_center_core::conflict::Severity::Critical,
+                            description: format!(
+                                "取代式更新：新事实取代旧事实（{}）",
+                                kind_display(kind)
+                            ),
+                            existing_fact: Some(located.old_text.clone()),
+                            new_fact: content.clone(),
+                        });
+                        r
+                    }
+                    None => ConflictReport::empty(),
+                };
+                if let Err(e) = self
+                    .storage
+                    .update_memory_with_conflicts(
+                        &located.memory_id,
+                        update,
+                        report.conflicts.clone(),
+                    )
+                    .await
+                {
+                    // 修订记录失败不阻断取代（链与摘要才是主产物）；但必须留痕
+                    tracing::warn!("旧记忆的修订记录写入失败（取代仍继续）: {e}");
+                }
+
+                // 4. 新事实入库（★ 跳过写前去重）
+                //    取代场景下新旧内容天然相似（如「字号偏小」→「字号偏大」），
+                //    走去重会被判为重复而返回 Noop → 取代永远无法完成。
+                let new_hook_id = match self
+                    .write(
+                        MemoryWriteEntry {
+                            op: MemoryWriteOp::Add,
+                            content: content.clone(),
+                            layer: entry.layer,
+                            hook_id: None,
+                            entity_ids: entry.entity_ids.clone(),
+                            tags: entry.tags.clone(),
+                        },
+                        Some(MemoryWriteOptions {
+                            skip_dedup: true,
+                            ..Default::default()
+                        }),
+                    )
+                    .await?
+                {
+                    WriteOutcome::Added { hook_id } => hook_id,
+                    other => {
+                        // Add 分支在 skip_dedup 下不应失败；真发生了也不静默
+                        tracing::warn!("取代流程中新事实入库未成功: {other:?}");
+                        return Ok(other);
+                    }
+                };
+
+                // 5. 记取代链 + 6. 调和摘要
+                let ctx = ReconcileContext {
+                    old: ReconcileSide {
+                        hook_id: hook_id.clone(),
+                        text: located.old_title.clone(),
+                        at_ms: located.old_at_ms,
+                    },
+                    new: ReconcileSide {
+                        hook_id: new_hook_id.clone(),
+                        text: content.clone(),
+                        at_ms: now_ms(),
+                    },
+                    conflict,
+                };
+                let (summary, from_llm) = reconcile::summarize(
+                    &self.reconcile_policy,
+                    &ctx,
+                    self.reconcile_summarizer.as_ref(),
+                )
+                .await;
+                let reason = ctx.reason_name();
+
+                if let Some(ext) = &self.ext {
+                    if let Err(e) = ext
+                        .add_supersede(&hook_id, &new_hook_id, reason, summary.as_deref())
+                        .await
+                    {
+                        tracing::warn!("写入取代链失败: {e}");
+                    }
+                } else {
+                    tracing::warn!("扩展库未启用，取代链未记录（调和结论会丢失）");
+                }
+
+                // 调和摘要作为独立记忆入库（设计文档 ②「生成一条显式记录矛盾与时序的新记忆」）
+                if let Some(text) = &summary {
+                    let mut summary_entry = MemoryWriteEntry::add(text.clone())
+                        .with_layer(entry.layer)
+                        .with_tags(vec![RECONCILE_TAG.to_string()]);
+                    summary_entry.entity_ids = entry.entity_ids.clone();
+                    match self
+                        .write(
+                            summary_entry,
+                            Some(MemoryWriteOptions {
+                                skip_dedup: true,
+                                ..Default::default()
+                            }),
+                        )
+                        .await
+                    {
+                        Ok(WriteOutcome::Added { hook_id: summary_hook }) => {
+                            tracing::debug!(
+                                "调和摘要已入库：hook={summary_hook}（llm={from_llm}）"
+                            );
+                        }
+                        Ok(other) => tracing::warn!("调和摘要入库未成功: {other:?}"),
+                        Err(e) => tracing::warn!("调和摘要入库失败: {e}"),
+                    }
+                }
+
+                tracing::info!(
+                    old = %hook_id,
+                    new = %new_hook_id,
+                    reason,
+                    has_summary = summary.is_some(),
+                    from_llm,
+                    "记忆取代完成（矛盾不覆盖：旧条目保留，取代关系已记链）"
                 );
-                Ok(WriteOutcome::Noop { reason: NoopReason::Explicit })
+                Ok(WriteOutcome::Superseded { old_hook_id: hook_id, new_hook_id })
             }
 
             MemoryWriteOp::Delete => {
@@ -573,11 +774,135 @@ impl MemoryAccessor for MemoryCenterAccessor {
     }
 }
 
-// ─── A1 甲1：内部实现 ────────────────────────────────
+// ─── A1 甲2：内部实现 ────────────────────────────────
+
+/// 调和摘要条目的标签（便于按标签筛出调和记忆，供 `MEMORY.md` 注入消费）
+pub const RECONCILE_TAG: &str = "调和";
+
+/// 定位结果（旧条目的读取结果）
+struct LocatedHook {
+    /// 旧条目的记忆文件 ID
+    memory_id: String,
+    /// 旧条目的完整记忆文件（冲突检测的对照物）
+    memory: MemoryFile,
+    /// 旧条目的正文（`turns` 的 user 侧文本拼接；冲突检测用）
+    old_text: String,
+    /// 旧条目的摘要标题（调和摘要展示用；比正文短且更"标题化"）
+    old_title: String,
+    /// 旧条目的时点（Unix 毫秒；优先 `created_at`，缺则取记忆归档时间）
+    old_at_ms: i64,
+}
+
+/// 冲突类型的中文名（取引用——`ConflictKind` 非 `Copy`）
+fn kind_display(kind: &memory_center_core::conflict::ConflictKind) -> &'static str {
+    use memory_center_core::conflict::ConflictKind;
+    match kind {
+        ConflictKind::DirectContradict => "直接矛盾",
+        ConflictKind::StanceReversal => "立场反转",
+        ConflictKind::SelfContradict => "自我矛盾",
+    }
+}
+
+/// 当前 Unix 毫秒
+fn now_ms() -> i64 {
+    chrono::Utc::now().timestamp_millis()
+}
 
 impl MemoryCenterAccessor {
-    /// 写前去重：候选来自关键词检索，相似度用「字符二元组 Jaccard」近似
+    /// 按 hook_id 定位旧条目（遍历三个归档周期读索引）
     ///
+    /// 同时取出：记忆文件（检测对照）、正文、摘要标题、时点。
+    async fn locate_hook(&self, hook_id: &str) -> std::result::Result<Option<LocatedHook>, MemoryError> {
+        for period in [
+            ArchivePeriod::Daily,
+            ArchivePeriod::Weekly,
+            ArchivePeriod::Monthly,
+        ] {
+            let doc = self
+                .storage
+                .read_index(&self.session_id, self.project_id.as_deref(), period)
+                .await
+                .map_err(|e| MemoryError::Other(e.to_string()))?;
+            let Some(doc) = doc else { continue };
+            let Some(hook) = doc.hooks.iter().find(|h| h.id.to_string() == hook_id) else {
+                continue;
+            };
+
+            let memory = self
+                .storage
+                .read_memory(&hook.memory_id)
+                .await
+                .map_err(|e| MemoryError::Other(format!("读取旧记忆失败: {e}")))?;
+
+            let old_text: String = memory
+                .turns
+                .iter()
+                .filter_map(|t| t.user_message.text.as_deref())
+                .collect::<Vec<_>>()
+                .join("\n");
+
+            // 时点：优先扩展库的「记忆发生时点」，缺则退回记忆文件的归档时间
+            let old_at_ms = match &self.ext {
+                Some(ext) => match ext.get_by_hook(hook_id).await {
+                    Ok(Some(row)) => row.created_at,
+                    _ => memory.archived_at.timestamp_millis(),
+                },
+                None => memory.archived_at.timestamp_millis(),
+            };
+
+            return Ok(Some(LocatedHook {
+                memory_id: hook.memory_id.clone(),
+                memory,
+                old_text,
+                old_title: hook.summary.title.clone(),
+                old_at_ms,
+            }));
+        }
+        Ok(None)
+    }
+
+    /// 冲突检测：新内容 vs 旧内容
+    ///
+    /// 构造 vendor 语义的 [`MemoryUpdate`]（`add_fact(新)` + `deprecate_fact(旧)`）——
+    /// 这是「取代」在 vendor 模型里的精确表达。检测器返回的冲突里，取
+    /// **严重度最高**的一条作为判定依据（Critical 优先于 Warning）。
+    ///
+    /// ## 两处已核实的边界（实测得出，非推测）
+    ///
+    /// 1. **`SelfContradict` 是构造性误报，须剔除**——vendor 的维度 1 比较的是
+    ///    「同一批 update 内 added 与 deprecated 的相似度」。我们的 update 按定义
+    ///    总是「新增新事实 + 废弃旧事实」，而取代场景下新旧内容天然相似
+    ///    （如「字号偏小」→「字号偏大」）→ 维度 1 必然命中。它对**取代**这个用法
+    ///    不携带任何信息，保留它会让每一条取代都被标成「自我矛盾」。
+    /// 2. **首次取代检不出冲突**——vendor 的 [`HeuristicDetector`] 只从
+    ///    `memory.updates` 提取历史事实集（不看 `turns`），故第一次取代时对照组为空，
+    ///    维度 2/3 无从命中，判为 `revision`（修订）。第二次起（旧内容已由
+    ///    [`MemoryCenterAccessor::write`] 的 Update 分支写进 `updates`）才有对照组。
+    ///
+    /// 这两点都**不影响安全**：硬规则「矛盾不覆盖」与检测结果无关，
+    /// 检测只影响判定依据与摘要的质量。
+    async fn detect_conflict(
+        &self,
+        new_content: &str,
+        old_text: &str,
+        old_memory: &MemoryFile,
+    ) -> Option<memory_center_core::conflict::ConflictKind> {
+        use memory_center_core::conflict::ConflictKind;
+        let update = MemoryUpdate::new()
+            .add_fact(new_content)
+            .deprecate_fact(old_text);
+        let report = self.conflict_detector.detect(&update, old_memory).await;
+        report
+            .conflicts
+            .iter()
+            .filter(|c| c.kind != ConflictKind::SelfContradict)
+            .max_by_key(|c| c.severity)
+            .map(|c| c.kind.clone())
+    }
+}
+
+impl MemoryCenterAccessor {
+    /// 写前去重：候选来自关键词检索，相似度用「字符二元组 Jaccard」近似    ///
     /// **这是 A2 语义检索落地前的占位实现**——上游 2026 年调研里「相似度 > 0.92」
     /// 指的是 embedding 余弦相似度，而当前检索器只有关键词通道。故此处：
     /// 1. 用内容前缀作为探测词取得候选（与摘要标题的产生方式一致：首段文本）；
@@ -838,10 +1163,25 @@ mod tests {
     fn make_accessor() -> MemoryCenterAccessor {
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path().to_path_buf();
+        // 显式交出临时目录所有权：`TempDir` 析构会尝试删目录，而库文件仍被
+        // 持有的连接打开（Windows 下删除会失败，行为依赖平台）；`forget` 让
+        // 「目录存活到进程结束」成为确定语义，而非依赖文件锁的副作用。
+        std::mem::forget(dir);
+        make_accessor_in(&root)
+    }
+
+    /// 在指定根目录建适配层（需要自己掌握目录生命周期时使用）
+    fn make_accessor_in(root: &std::path::Path) -> MemoryCenterAccessor {
         // 阈值取 40：单轮 make_turn 默认 60 tokens，确保 push 1 轮即可触发归档，
         // 与 test_archive_and_recall 的多轮累积断言（110 >= 40）也兼容。
         let config = ArchiveConfig::from_threshold(40);
-        MemoryCenterAccessor::new_sqlite(root, "sess-agent-memory", None, config).unwrap()
+        MemoryCenterAccessor::new_sqlite(
+            root.to_path_buf(),
+            "sess-agent-memory",
+            None,
+            config,
+        )
+        .unwrap()
     }
 
     #[tokio::test]
@@ -1188,16 +1528,310 @@ mod tests {
         );
     }
 
-    /// Update 本期后置：返回 Noop 而非静默覆盖（不制造信息丢失）
+    /// Update 未命中目标 → `Noop(NotFound)`（不静默吞掉、也不误建）
     #[tokio::test]
-    async fn write_update_is_deferred_not_silently_overwriting() {
+    async fn write_update_on_unknown_hook_is_not_found() {
         let accessor = make_accessor();
-        let mut entry = MemoryWriteEntry::add("被更新的内容");
+        let mut entry = MemoryWriteEntry::add("替代内容");
         entry.op = MemoryWriteOp::Update;
+        entry.hook_id = Some("不存在的-hook".into());
         let outcome = accessor.write(entry, None).await.unwrap();
         assert!(
-            matches!(outcome, WriteOutcome::Noop { .. }),
-            "Update 后置期应返回 Noop，绝不静默覆盖，实际 {outcome:?}"
+            matches!(outcome, WriteOutcome::Noop { reason: NoopReason::NotFound }),
+            "未命中应返回 Noop(NotFound)，实际 {outcome:?}"
         );
+    }
+
+    // ─── A1 甲2：矛盾调和（取代式更新） ──────────────────
+
+    /// 写一条记忆并返回其 hook_id
+    async fn seed(accessor: &MemoryCenterAccessor, text: &str) -> String {
+        match accessor
+            .write(MemoryWriteEntry::add(text), None)
+            .await
+            .unwrap()
+        {
+            WriteOutcome::Added { hook_id } => hook_id,
+            other => panic!("播种失败: {other:?}"),
+        }
+    }
+
+    /// 取代一条记忆（Update），返回结果
+    async fn supersede(
+        accessor: &MemoryCenterAccessor,
+        hook_id: &str,
+        new_text: &str,
+    ) -> WriteOutcome {
+        let mut entry = MemoryWriteEntry::add(new_text);
+        entry.op = MemoryWriteOp::Update;
+        entry.hook_id = Some(hook_id.to_string());
+        accessor.write(entry, None).await.unwrap()
+    }
+
+    /// ★ 核心契约：取代不覆盖——旧条目保留、新条目独立、取代链记录完整
+    #[tokio::test]
+    async fn update_supersedes_without_overwriting_old_entry() {
+        let accessor = make_accessor();
+        let old_hook = seed(&accessor, "项目使用 React 作为前端框架").await;
+
+        let outcome = supersede(&accessor, &old_hook, "项目已改用 Vue 作为前端框架").await;
+        let new_hook = match outcome {
+            WriteOutcome::Superseded { old_hook_id, new_hook_id } => {
+                assert_eq!(old_hook_id, old_hook);
+                assert_ne!(new_hook_id, old_hook, "新条目必须是独立条目");
+                new_hook_id
+            }
+            other => panic!("应返回 Superseded，实际 {other:?}"),
+        };
+
+        // ① 旧条目仍在（未被覆盖、未被删除）——可召回
+        let hits = accessor.recall("React".to_string(), None).await.unwrap();
+        assert!(
+            hits.iter().any(|h| h.hook_id == old_hook),
+            "旧条目必须保留（矛盾不覆盖）"
+        );
+        // ② 新条目独立入库——可召回
+        let hits = accessor.recall("Vue".to_string(), None).await.unwrap();
+        assert!(
+            hits.iter().any(|h| h.hook_id == new_hook),
+            "新条目应独立入库"
+        );
+        // ③ 取代链已记录
+        let ext = accessor.ext_store().unwrap();
+        let link = ext
+            .supersede_link(&old_hook, &new_hook)
+            .await
+            .unwrap()
+            .expect("取代链应存在");
+        assert_eq!(link.reason, "revision", "首次取代无对照组 → 判为修订");
+        assert!(link.summary.is_some(), "默认档应产出调和摘要");
+        // ④ 链条可向后走
+        assert_eq!(
+            ext.supersede_successors(&old_hook).await.unwrap(),
+            vec![new_hook.clone()]
+        );
+    }
+
+    /// ★ 关键陷阱：取代必须**跳过写前去重**
+    ///
+    /// 新旧内容天然相似（同一事实的修正），若走去重会被判重复而返回 Noop，
+    /// 取代永远无法完成。此测试锁住该行为。
+    ///
+    /// **内容长度说明**：去重用的「字符二元组 Jaccard」对内容长度敏感——
+    /// 摘要标题恒带 `...` 后缀会稀释相似度，故短内容（约 36 字以下）即使完全
+    /// 相同也达不到 0.92 阈值（实测 15 字 → 0.875）。用例因此选足够长的文本，
+    /// 使对照组**确定性地**触发去重，从而证明「Update 确实绕开了它」。
+    #[tokio::test]
+    async fn update_skips_dedup_so_similar_content_can_supersede() {
+        let accessor = make_accessor();
+        let old = "项目早期采用 React 作为前端框架并配套 Vite 构建工具链，后期团队评估后决定整体迁移";
+        let old_hook = seed(&accessor, old).await;
+
+        // 新内容与旧内容高度相似（仅结尾「迁移」→「重写」）
+        let new = "项目早期采用 React 作为前端框架并配套 Vite 构建工具链，后期团队评估后决定整体重写";
+        let outcome = supersede(&accessor, &old_hook, new).await;
+        assert!(
+            matches!(outcome, WriteOutcome::Superseded { .. }),
+            "相似内容也应能完成取代（不得被写前去重拦截），实际 {outcome:?}"
+        );
+
+        // 对照：同内容走普通 Add 会被去重拦截（long 文本确定性触发，见上方说明）
+        let dup = accessor
+            .write(MemoryWriteEntry::add(old), None)
+            .await
+            .unwrap();
+        assert!(
+            matches!(dup, WriteOutcome::Noop { reason: NoopReason::Duplicate { .. } }),
+            "对照组：普通 Add 应被去重拦截，实际 {dup:?}"
+        );
+    }
+
+    /// 调和摘要按设计文档 ② 作为独立记忆入库，并带「调和」标签
+    #[tokio::test]
+    async fn update_writes_reconciliation_summary_as_memory() {
+        let accessor = make_accessor();
+        let old_hook = seed(&accessor, "用户 2025 年使用 React").await;
+        let outcome = supersede(&accessor, &old_hook, "用户 2026 年改用 Vue").await;
+        let new_hook = match outcome {
+            WriteOutcome::Superseded { new_hook_id, .. } => new_hook_id,
+            other => panic!("应取代成功: {other:?}"),
+        };
+
+        let ext = accessor.ext_store().unwrap();
+        let summary = ext
+            .supersede_link(&old_hook, &new_hook)
+            .await
+            .unwrap()
+            .unwrap()
+            .summary
+            .expect("应有摘要");
+
+        // 摘要含时序信息（两侧日期）与判定依据
+        assert!(summary.contains("前：") && summary.contains("之后（"), "摘要含时序: {summary}");
+        assert_eq!(summary.matches("20").count() >= 2, true, "摘要含两侧时点: {summary}");
+
+        // 摘要作为独立记忆入库：带「调和」标签，且既不是旧条目也不是新条目
+        let tagged = ext.hooks_by_tag(RECONCILE_TAG).await.unwrap();
+        assert_eq!(tagged.len(), 1, "应恰有一条调和记忆，实际 {tagged:?}");
+        assert_ne!(tagged[0], old_hook);
+        assert_ne!(tagged[0], new_hook);
+
+        // 汇总查询：全部带摘要的调和记录
+        let all = ext.supersede_summaries().await.unwrap();
+        assert_eq!(all.len(), 1);
+        assert_eq!(all[0].old_hook_id, old_hook);
+    }
+
+    /// 取代**不**误报「自我矛盾」（构造性误报须剔除，见 `detect_conflict` 文档）
+    #[tokio::test]
+    async fn supersede_does_not_misreport_self_contradiction() {
+        let accessor = make_accessor();
+        let old_hook = seed(&accessor, "偏好：深色主题，字号偏小").await;
+        let new_hook = match supersede(&accessor, &old_hook, "偏好：深色主题，字号偏大").await {
+            WriteOutcome::Superseded { new_hook_id, .. } => new_hook_id,
+            other => panic!("{other:?}"),
+        };
+        let link = accessor
+            .ext_store()
+            .unwrap()
+            .supersede_link(&old_hook, &new_hook)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_ne!(
+            link.reason, "self_contradict",
+            "add(新)+deprecate(旧) 的构造必然触发 vendor 维度1，对取代无语义，须剔除"
+        );
+        assert_eq!(link.reason, "revision");
+    }
+
+    /// `ChainOnly` 档：只记链不产摘要（R1 成本开关）
+    #[tokio::test]
+    async fn chain_only_mode_records_link_without_summary() {
+        let dir = tempfile::tempdir().unwrap();
+        let accessor = make_accessor_in(dir.path()).with_reconcile_policy(
+            crate::reconcile::ReconcilePolicy {
+                mode: crate::reconcile::ReconcileMode::ChainOnly,
+                ..Default::default()
+            },
+        );
+
+        let old_hook = seed(&accessor, "旧方案：方案甲").await;
+        let outcome = supersede(&accessor, &old_hook, "新方案：方案乙").await;
+        let new_hook = match outcome {
+            WriteOutcome::Superseded { new_hook_id, .. } => new_hook_id,
+            other => panic!("应取代成功: {other:?}"),
+        };
+
+        let link = accessor
+            .ext_store()
+            .unwrap()
+            .supersede_link(&old_hook, &new_hook)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(link.summary.is_none(), "ChainOnly 档不应产出摘要");
+        assert_eq!(link.reason, "revision", "仍记判定依据");
+
+        // 不产摘要 → 汇总查询为空
+        assert!(accessor
+            .ext_store()
+            .unwrap()
+            .supersede_summaries()
+            .await
+            .unwrap()
+            .is_empty());
+    }
+
+    /// `LlmSummary` 档注入生成器 → 摘要用 LLM 文本
+    #[tokio::test]
+    async fn llm_mode_uses_injected_summarizer() {
+        struct Fake;
+        #[async_trait]
+        impl crate::reconcile::ReconcileSummarizer for Fake {
+            async fn summarize(
+                &self,
+                _ctx: &crate::reconcile::ReconcileContext,
+            ) -> crate::Result<String> {
+                Ok("LLM 改写过的调和摘要".to_string())
+            }
+        }
+
+        let dir = tempfile::tempdir().unwrap();
+        let accessor = make_accessor_in(dir.path())
+            .with_reconcile_policy(crate::reconcile::ReconcilePolicy {
+                mode: crate::reconcile::ReconcileMode::LlmSummary,
+                ..Default::default()
+            })
+            .with_reconcile_summarizer(Arc::new(Fake));
+
+        let old_hook = seed(&accessor, "旧事实 A").await;
+        let new_hook = match supersede(&accessor, &old_hook, "新事实 B").await {
+            WriteOutcome::Superseded { new_hook_id, .. } => new_hook_id,
+            other => panic!("应取代成功: {other:?}"),
+        };
+        let link = accessor
+            .ext_store()
+            .unwrap()
+            .supersede_link(&old_hook, &new_hook)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(link.summary.as_deref(), Some("LLM 改写过的调和摘要"));
+    }
+
+    /// 检测关闭时仍完成取代（安全性不依赖检测）
+    #[tokio::test]
+    async fn update_works_with_detection_disabled() {
+        let dir = tempfile::tempdir().unwrap();
+        let accessor = make_accessor_in(dir.path()).with_reconcile_policy(
+            crate::reconcile::ReconcilePolicy {
+                detect_conflicts: false,
+                ..Default::default()
+            },
+        );
+        let old_hook = seed(&accessor, "关闭检测：旧值").await;
+        let new_hook = match supersede(&accessor, &old_hook, "关闭检测：新值").await {
+            WriteOutcome::Superseded { new_hook_id, .. } => new_hook_id,
+            other => panic!("检测关闭也应完成取代: {other:?}"),
+        };
+        let link = accessor
+            .ext_store()
+            .unwrap()
+            .supersede_link(&old_hook, &new_hook)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(link.reason, "revision", "关闭检测 → 一律判为修订");
+    }
+
+    /// 多级取代链：A→B→C，A 可走到 C（保留全部历史）
+    #[tokio::test]
+    async fn chained_supersede_keeps_full_history() {
+        let accessor = make_accessor();
+        let a = seed(&accessor, "第一代方案：甲").await;
+        let b = match supersede(&accessor, &a, "第二代方案：乙").await {
+            WriteOutcome::Superseded { new_hook_id, .. } => new_hook_id,
+            other => panic!("{other:?}"),
+        };
+        let c = match supersede(&accessor, &b, "第三代方案：丙").await {
+            WriteOutcome::Superseded { new_hook_id, .. } => new_hook_id,
+            other => panic!("{other:?}"),
+        };
+
+        let ext = accessor.ext_store().unwrap();
+        let mut chain = ext.supersede_successors(&a).await.unwrap();
+        chain.sort();
+        let mut expected = vec![b.clone(), c.clone()];
+        expected.sort();
+        assert_eq!(chain, expected, "A 应能走到 B 与 C");
+        // 三代内容全部保留（可召回）
+        for (kw, hook) in [("甲", &a), ("乙", &b), ("丙", &c)] {
+            let hits = accessor.recall(kw.to_string(), None).await.unwrap();
+            assert!(
+                hits.iter().any(|h| &h.hook_id == hook),
+                "第 {kw} 代条目应保留"
+            );
+        }
     }
 }
