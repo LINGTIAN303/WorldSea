@@ -353,6 +353,18 @@ state.messages.drain(0..up_to_index);
 原文**永久丢失**；且 `session_store` 里的历史不会被同步裁剪 →
 **刷新页面回源后，被裁掉的旧消息又完整回来了**。裁剪只在当前进程生命周期内有效。
 
+> **⚠ 2026-09-11 回写修正：本差距的后半句与代码实况不符，方案基线须据此更新。**
+>
+> **实况：裁剪是写穿的。** 链路为：`run()` 内 `AfterRun` 调 `run_memory_archive` → `enforce_context_budget` → `trim_context`（`crates/agent-kernel/src/agent/mod.rs:646` → `:732`）→ `run()` 返回 → 前端主发送路径 `send_message`（`apps/tauri/src/agent/composables/useAgentRust.ts:2592` 调 `invoke('send_message')`）在 `agent.run()` 返回后调 `persist_messages`（`crates/agent-commands/src/lib.rs:3114`）→ `store.replace_messages`（`:3217-3233`）。另有 AgentEnd 触发的第二条写穿路径（`apps/tauri/src-tauri/src/commands.rs:321-325` → `flush_action_events` → `persist_messages`）。
+>
+> 而 `replace_messages` 的实现是**全量替换**——`DELETE FROM messages WHERE session_id` 后逐条 INSERT（`crates/agent-commands/src/session_store.rs:509-525`）。
+>
+> **结论修正**：被裁消息不是"刷新后回来"，而是**被物理删除、不可恢复**。裁剪不是"只在当前进程生命周期内有效"，而是**持久生效**。
+>
+> **对方案的影响**：方向不变但性质变了——阶段 B 要解决的不是"防复活"，而是"**把可变快照改成不可变追加**"。裁剪的破坏性比原文估计的更高，因此优先级应上调。
+>
+> 关联取证：`messages` 表无 append-only 语义；tool_result 在**入库前**已按 12 000 字节保头截断（本节 §6.3），故被裁内容中连工具结果原文都从未落过盘；`record_turn` 归档时丢弃 `tool_calls` / `thinking`（`crates/agent-memory/src/lib.rs:260-283`），归档兜不住工具交互。详见 [A1 记忆系统设计 · 裁定清单](../../docs/plans/2026-09-11-A1-记忆系统设计-裁定清单.md) 己1 / 己2。
+
 **差距 2：无 tool_call / tool_result 配对保护（真实 BUG 风险）**
 
 `enforce_context_budget` 按字节累加算 `drop` 条数，切点完全可能落在
