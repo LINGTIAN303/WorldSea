@@ -8,6 +8,7 @@ mod loop_control;
 mod mock_backend;
 mod pattern_registry;
 mod pty;
+mod raw_tools;
 mod run_store;
 mod session_store;
 mod subagent;
@@ -1272,6 +1273,10 @@ impl AgentCommandService {
         // 注册文件系统工具（read_file/write_file/list_directory/search_files/edit_file），
         // 基于 ToolContext.workdir 解析相对路径；写在 terminal 之后（FS 为独立工具组）。
         fs_tools::register_fs_tools(&*tool_bus).await;
+        // A1 己1①：注册记忆原文读工具（只读；按内容坐标取回被截断的完整原文）。
+        // 无记忆根时不注册——没有外置目录就没有可读内容，注册一个必然报错的工具
+        // 只会让模型白试一次。
+        self.register_memory_raw_tools(&*tool_bus).await;
         // 注册子 Agent 编排工具（delegate_to_sub_agent / list_sub_agents），
         // 共享服务级 `subagent_specs` 注册表，跨会话可见。
         let sub_agent_manager = subagent::register_subagent_tools(
@@ -1381,6 +1386,19 @@ impl AgentCommandService {
         let mut agent_builder = AgentLoop::new(backend, tool_bus).with_config(agent_config);
         // A1 丙1（2026-09-11）：注入与当前模型匹配的真实分词器（tiktoken 路径）
         agent_builder = agent_builder.with_token_estimator(model_profile.estimator());
+        // A1 己1①（2026-09-11）：注入原文外置器——工具结果**截断前**先落原文到
+        // 记忆根的 raw/ 目录（内容寻址），截断标注附带坐标供 memory_read_raw 取回。
+        // 打开失败仅告警：外置是增强，缺失时退回纯截断（功能不中断）。
+        if let Some(root) = &self.memory_root {
+            match agent_memory::raw_store::RawStore::open(root) {
+                Ok(store) => {
+                    agent_builder = agent_builder.with_raw_context_sink(store.sink());
+                }
+                Err(e) => {
+                    tracing::warn!("打开原文外置目录失败，本轮不启用原文保真: {e}");
+                }
+            }
+        }
         // A5 HITL：为每个会话注入独立的确认协调器（配合 confirmation_policy 生效）
         agent_builder = agent_builder.with_confirmation(Some(Arc::new(ConfirmationBroker::new())));
         agent_builder = agent_builder.with_router(Some(router));

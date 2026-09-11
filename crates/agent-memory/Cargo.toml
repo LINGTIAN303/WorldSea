@@ -29,6 +29,10 @@ serde_json = "1"
 # 最终二进制不会出现两份 SQLite（cargo feature 合并）。
 rusqlite = { version = "0.32", features = ["bundled"] }
 
+# ── 原文外置的内容坐标（A1 己1①）──
+# sha256 前 16 位十六进制作为内容寻址坐标（同内容必同坐标 → 天然去重 + 可跨会话复用）
+sha2 = "0.10"
+
 # ── 异步运行时 ──
 tokio = { version = "1", features = ["sync", "macros", "rt", "time"] }
 async-trait = "0.1"

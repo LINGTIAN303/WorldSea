@@ -174,6 +174,12 @@ pub struct AgentLoop {
     /// **为什么是闭包而非 trait**：调用方只需「一个函数」，闭包注入避免为此引入
     /// 整条 crate 依赖边（真实分词器重依赖隔离在 `memory-center-models`）。
     token_estimator: crate::context_budget::TokenEstimator,
+    /// 原文外置器（A1 己1①：工具结果截断**前**把完整原文外置成文件）
+    ///
+    /// 默认 [`crate::raw_context::noop_sink`]（不外置，行为与改造前一致）；
+    /// 装配层注入真实实现（写 app_data 真文件 + 登记引用）后，超长工具结果的
+    /// 截断标注会附带内容坐标，原文可据此取回。
+    raw_context_sink: crate::raw_context::RawContextSink,
 }
 
 impl AgentLoop {
@@ -228,6 +234,7 @@ impl AgentLoop {
             pipeline_context: Arc::new(StdRwLock::new(None)),
             hooks: AgentLoopHooks::default(),
             token_estimator: crate::context_budget::heuristic_estimator(),
+            raw_context_sink: crate::raw_context::noop_sink(),
         }
     }
 
@@ -300,6 +307,21 @@ impl AgentLoop {
     /// 当前生效的 token 估算器（只读）
     pub fn token_estimator(&self) -> &crate::context_budget::TokenEstimator {
         &self.token_estimator
+    }
+
+    /// 注入原文外置器（链式，同步，A1 己1①）
+    ///
+    /// 装配层注入真实实现后，超长工具结果在**截断前**会先被外置成文件，
+    /// 截断标注附带内容坐标（`原文已外置：raw/{hash}`），原文可据此取回。
+    /// 不注入时行为与改造前完全一致（纯截断）。
+    pub fn with_raw_context_sink(mut self, sink: crate::raw_context::RawContextSink) -> Self {
+        self.raw_context_sink = sink;
+        self
+    }
+
+    /// 当前生效的原文外置器（只读）
+    pub fn raw_context_sink(&self) -> &crate::raw_context::RawContextSink {
+        &self.raw_context_sink
     }
 
     /// 注入 HITL 确认协调器（链式，同步，A5）

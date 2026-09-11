@@ -157,6 +157,127 @@
         assert_eq!(value.as_str().unwrap(), "短内容");
     }
 
+    // ─── A1 己1①：原文外置（截断前先保原文） ──────────────────
+
+    /// ★ 核心契约：截断**之前**把完整原文交给外置器，标注附带坐标
+    #[test]
+    fn clamp_externalizes_full_text_before_truncating() {
+        use super::tools::{clamp_tool_result_with, TOOL_RESULT_STR_LIMIT};
+        use crate::raw_context::{parse_externalized_hash, RawRef};
+        use std::sync::{Arc, Mutex};
+
+        // 记录 sink 收到的原文，并返回固定坐标
+        let seen: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+        let seen2 = Arc::clone(&seen);
+        let sink: crate::raw_context::RawContextSink = Arc::new(move |text: &str| {
+            seen2.lock().unwrap().push(text.to_string());
+            Some(RawRef {
+                content_hash: "0123456789abcdef".into(),
+                byte_len: text.len(),
+            })
+        });
+
+        let original = format!("HEAD{}TAIL", "x".repeat(TOOL_RESULT_STR_LIMIT + 5_000));
+        let mut value = serde_json::Value::String(original.clone());
+        clamp_tool_result_with(&mut value, &sink);
+        let out = value.as_str().unwrap();
+
+        // ① sink 收到的是**完整原文**（不是截断后的）
+        let captured = seen.lock().unwrap();
+        assert_eq!(captured.len(), 1, "应恰好外置一次");
+        assert_eq!(captured[0].len(), original.len(), "外置的必须是完整原文");
+        assert!(captured[0].contains("HEAD") && captured[0].ends_with("TAIL"));
+
+        // ② 标注里带上了坐标，且可被反解
+        assert_eq!(
+            parse_externalized_hash(out).as_deref(),
+            Some("0123456789abcdef"),
+            "截断标注须附外置坐标: {out}"
+        );
+        // ③ 截断本身照常（保头 + 保尾）
+        assert!(out.starts_with("HEAD"));
+        assert!(out.ends_with("TAIL"));
+        assert!(out.contains("已截断"));
+    }
+
+    /// 外置器返回 `None`（超闸门 / IO 失败 / 未注入）→ 退回纯截断，功能不中断
+    #[test]
+    fn clamp_falls_back_to_plain_truncation_when_sink_declines() {
+        use super::tools::{clamp_tool_result_with, TOOL_RESULT_STR_LIMIT};
+        use crate::raw_context::parse_externalized_hash;
+
+        let declining: crate::raw_context::RawContextSink = Arc::new(|_| None);
+        let original = format!("HEAD{}TAIL", "y".repeat(TOOL_RESULT_STR_LIMIT * 2));
+        let mut value = serde_json::Value::String(original);
+        clamp_tool_result_with(&mut value, &declining);
+        let out = value.as_str().unwrap();
+
+        assert!(out.starts_with("HEAD") && out.ends_with("TAIL"), "截断照常生效");
+        assert!(out.contains("已截断"));
+        assert!(
+            parse_externalized_hash(out).is_none(),
+            "未外置则不应出现坐标（避免指向不存在的内容）: {out}"
+        );
+    }
+
+    /// 未超限的内容**不触发外置**（避免为小内容白写文件）
+    #[test]
+    fn clamp_does_not_externalize_within_limit() {
+        use super::tools::clamp_tool_result_with;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let calls = Arc::new(AtomicUsize::new(0));
+        let calls2 = Arc::clone(&calls);
+        let counting: crate::raw_context::RawContextSink = Arc::new(move |_| {
+            calls2.fetch_add(1, Ordering::SeqCst);
+            None
+        });
+
+        let mut value = serde_json::Value::String("短内容".into());
+        clamp_tool_result_with(&mut value, &counting);
+        assert_eq!(calls.load(Ordering::SeqCst), 0, "未超限不应触发外置");
+        assert_eq!(value.as_str().unwrap(), "短内容");
+    }
+
+    /// 嵌套结构里每个超长字符串**各自**外置（坐标不同 → 可分别取回）
+    #[test]
+    fn clamp_externalizes_each_long_string_independently() {
+        use super::tools::{clamp_tool_result_with, TOOL_RESULT_STR_LIMIT};
+        use crate::raw_context::{parse_externalized_hash, RawContextSink, RawRef};
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let n = Arc::new(AtomicUsize::new(0));
+        let n2 = Arc::clone(&n);
+        let sink: RawContextSink = Arc::new(move |text: &str| {
+            let i = n2.fetch_add(1, Ordering::SeqCst);
+            Some(RawRef {
+                content_hash: format!("{i:016x}"),
+                byte_len: text.len(),
+            })
+        });
+
+        let big = "z".repeat(TOOL_RESULT_STR_LIMIT + 100);
+        let mut value = serde_json::json!({
+            "stdout": big.clone(),
+            "stderr": big.clone(),
+            "small": "ok",
+            "__meta": { "op": "bash" },
+        });
+        clamp_tool_result_with(&mut value, &sink);
+
+        assert_eq!(n.load(Ordering::SeqCst), 2, "两个超长字段应各自外置一次");
+        let out = value.to_string();
+
+        // 断言「各自拿到独立坐标且都可解析」——**不假设遍历顺序**
+        // （serde_json 的 Map 默认按键排序，`stderr` 先于 `stdout`）
+        let h_stdout = parse_externalized_hash(value["stdout"].as_str().unwrap()).expect("应可解析");
+        let h_stderr = parse_externalized_hash(value["stderr"].as_str().unwrap()).expect("应可解析");
+        assert_ne!(h_stdout, h_stderr, "两条内容应各自独立外置（坐标不同）");
+        // 短字段与 `__meta` 键不受影响
+        assert_eq!(value["small"], "ok");
+        assert!(out.contains("bash"), "__meta 应原样保留");
+    }
+
     /// A1 己2②：预算裁剪边界对齐 tool 配对——不得切出悬空 tool_call_id
     ///
     /// 构造：7 条小消息 + assistant(带 tool_calls, 20KB) + toolResult(12KB) + 11 条大消息。

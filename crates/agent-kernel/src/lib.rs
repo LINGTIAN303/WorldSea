@@ -21,6 +21,7 @@ pub mod memory;
 pub mod node;
 pub mod orchestrator;
 pub mod pipeline;
+pub mod raw_context;
 pub mod retention;
 pub mod router_decider;
 pub mod scenario;

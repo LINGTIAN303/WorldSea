@@ -36,6 +36,11 @@ const SYSTEM_BASE_TOOLS: &[&str] = &[
     "load_skill",
     "load_skill_reference",
     "load_skill_asset",
+    // A1 己1①（2026-09-11）：原文取回工具——**任何场景**的工具结果都可能被截断
+    // （terminal 大输出、大文件读取…），故取回能力也必须是跨场景的基础能力。
+    // 漏加会重现本节注释里记录过的同类问题：白名单下模型看不到该工具，
+    // 看到「原文已外置：raw/xxx」却无从取回。
+    "memory_read_raw",
 ];
 
 /// 世界构建场景注入的实体类型（对应 WorldSea 实体类型规范，见 typeMappingRegistry.ts）

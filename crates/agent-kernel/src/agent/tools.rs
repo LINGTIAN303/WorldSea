@@ -62,13 +62,41 @@ const TOOL_RESULT_TAIL_PARTS: usize = 2;
 
 /// 递归裁剪工具结果中的超长字符串（保留结构：Object/Array 遍历，`__meta` 元数据键不截）。
 /// 截断在 UTF-8 字符边界进行，中段省略并标注省略字节数（首尾均保留）。
+///
+/// **仅测试用**：生产路径一律走 [`clamp_tool_result_with`]（带外置 sink）。
+/// 保留本包装是为了让既有测试少写一个参数，且它们本来就在验证「不外置时的行为」。
+#[cfg(test)]
 pub(super) fn clamp_tool_result(value: &mut Value) {
+    clamp_tool_result_with(value, &crate::raw_context::noop_sink());
+}
+
+/// 带**原文外置**的裁剪（A1 己1①）
+///
+/// 与 [`clamp_tool_result`] 的差别只有一处：在真正截断**之前**，先把完整原文交给
+/// `sink` 外置；成功时在截断标注里附上坐标（见 [`crate::raw_context`]）。
+///
+/// ```text
+/// 外置成功：…[已截断，省略 12345 字节；原文已外置：raw/ab12cd34ef567890]…
+/// 外置未做：…[已截断，省略 12345 字节]…            ← 与改造前完全一致
+/// ```
+///
+/// **失败不影响功能**：`sink` 返回 `None`（超闸门 / IO 失败 / 未注入）时退回纯截断——
+/// 外置是「尽量保住原文」的增强，截断才是防爆兜底，后者永不缺席。
+pub(super) fn clamp_tool_result_with(
+    value: &mut Value,
+    sink: &crate::raw_context::RawContextSink,
+) {
     match value {
         Value::String(s) => {
             if s.len() <= TOOL_RESULT_STR_LIMIT {
                 return;
             }
-            // 首尾预算：头部 3/5、尾部 2/5（头部含起始上下文，尾部含结论）
+
+            // ① 截断前先外置完整原文（此刻 `s` 仍是原文）
+            let externalized_hash = sink(s).map(|r| r.content_hash);
+
+            // ② 算切点（只读 `s`，尚未修改）
+            //    首尾预算：头部 3/5、尾部 2/5（头部含起始上下文，尾部含结论）
             let head_budget = TOOL_RESULT_STR_LIMIT * TOOL_RESULT_HEAD_PARTS
                 / (TOOL_RESULT_HEAD_PARTS + TOOL_RESULT_TAIL_PARTS);
             let tail_budget = TOOL_RESULT_STR_LIMIT - head_budget;
@@ -83,18 +111,26 @@ pub(super) fn clamp_tool_result(value: &mut Value) {
                 tail_start += 1;
             }
             let omitted = tail_start - head_end;
-            *s = format!(
-                "{}\n…[已截断，省略 {} 字节]…\n{}",
-                &s[..head_end],
-                omitted,
-                &s[tail_start..]
-            );
+
+            // ③ 构造标注：外置成功则附带坐标（供后续按坐标取回原文）
+            let note = match &externalized_hash {
+                Some(hash) => format!(
+                    "已截断，省略 {omitted} 字节；{}",
+                    crate::raw_context::externalized_note(hash)
+                ),
+                None => format!("已截断，省略 {omitted} 字节"),
+            };
+
+            // ④ 落成截断结果
+            *s = format!("{}\n…[{note}]…\n{}", &s[..head_end], &s[tail_start..]);
         }
-        Value::Array(arr) => arr.iter_mut().for_each(clamp_tool_result),
+        Value::Array(arr) => arr
+            .iter_mut()
+            .for_each(|v| clamp_tool_result_with(v, sink)),
         Value::Object(map) => {
             for (k, v) in map.iter_mut() {
                 if k != "__meta" {
-                    clamp_tool_result(v);
+                    clamp_tool_result_with(v, sink);
                 }
             }
         }
@@ -538,8 +574,9 @@ impl AgentLoop {
                 }
             };
 
-            // H1 修复（P1.5）：统一裁剪超长字符串（广播与入历史看到一致内容）
-            clamp_tool_result(&mut result_value);
+            // H1 修复（P1.5）+ A1 己1①：统一裁剪超长字符串（广播与入历史看到一致内容）；
+            // 截断前先把完整原文外置（注入 sink 时），标注里附坐标供取回
+            clamp_tool_result_with(&mut result_value, &self.raw_context_sink);
 
             // 广播 ToolCallEnd（status/duration_ms/error 顶层权威——H7 P0.5）
             self.broadcast(OrchestratorEvent::Agent(AgentEvent::ToolCallEnd {
@@ -684,8 +721,8 @@ impl AgentLoop {
         // 5. 按顺序广播 ToolCallEnd 并构造 toolResult 消息
         let mut results = Vec::with_capacity(indexed_results.len());
         for (_, call_id, tool_name, mut result_value, duration_ms, status, error) in indexed_results {
-            // H1 修复（P1.5）：统一裁剪超长字符串（与串行路径一致）
-            clamp_tool_result(&mut result_value);
+            // H1 修复（P1.5）+ A1 己1①：统一裁剪超长字符串（与串行路径一致）
+            clamp_tool_result_with(&mut result_value, &self.raw_context_sink);
 
             self.broadcast(OrchestratorEvent::Agent(AgentEvent::ToolCallEnd {
                 tool_call_id: call_id.clone(),

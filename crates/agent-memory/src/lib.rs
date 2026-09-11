@@ -5,6 +5,7 @@
 pub mod ext;
 pub mod memory_md;
 pub mod model_profile;
+pub mod raw_store;
 pub mod reconcile;
 
 use async_trait::async_trait;
