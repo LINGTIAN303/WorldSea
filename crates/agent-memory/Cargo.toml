@@ -16,6 +16,9 @@ crate-type = ["rlib"]
 agent-runtime = { path = "../agent-runtime" }
 # MemoryCenter 核心（SQLite/文件树存储 + Retriefer + Archiver）
 memory-center-core = { path = "../vendor/memory-center-core" }
+# MemoryCenter 模型特配（A1 丙1：真实 token 分词器 + 窗口/归档比率专家值）
+# 语义：与 memory-center-core 同族，属「原产地收编」而非外部引入
+memory-center-models = { path = "../vendor/memory-center-models" }
 
 # ── 序列化 ──
 serde = { version = "1", features = ["derive"] }

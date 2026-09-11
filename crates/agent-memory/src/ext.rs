@@ -57,10 +57,18 @@ pub mod tag_kind {
 }
 
 /// `memory_ext` 一行：补齐契约声明的 4 个字段
+///
+/// **键设计（施工期细化，见设计文档 §3.1）**：主键仍是 `memory_id`（对齐上游归档单元），
+/// 但**另带 `hook_id` 唯列**——原因是 trait 面以 hook_id 为访问键
+/// （`pin(hook_id)` / `touch(hook_id)` / `MemoryRecallResult.hook_id`），
+/// 若只有 memory_id 则每次置顶/计数都要先反查，徒增一次跨表查询。
+/// 归档流程中 hook ↔ memory 为 1:1（一 MemoryFile 对应一 IndexHook），故不引入歧义。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MemoryExt {
     /// 记忆文件 ID（= `memories.memory_id`）
     pub memory_id: String,
+    /// 索引钩子 ID（= `hooks.hook_id`；trait 面的访问键）
+    pub hook_id: String,
     /// **记忆发生时点**（Unix 毫秒）——区别于 `memories.archived_at`（归档时点）
     pub created_at: i64,
     /// 访问次数（甲3 淘汰的加权依据）
@@ -156,11 +164,14 @@ impl ExtStore {
                 r#"
 CREATE TABLE IF NOT EXISTS memory_ext (
     memory_id      TEXT PRIMARY KEY,
+    hook_id        TEXT NOT NULL DEFAULT '',
     created_at     INTEGER NOT NULL,
     access_count   INTEGER NOT NULL DEFAULT 0,
     pinned         INTEGER NOT NULL DEFAULT 0,
     summary_method TEXT NOT NULL DEFAULT 'none'
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_memory_ext_hook
+    ON memory_ext(hook_id) WHERE hook_id != '';
 
 CREATE TABLE IF NOT EXISTS hook_tags (
     hook_id  TEXT NOT NULL,
@@ -232,24 +243,28 @@ CREATE TABLE IF NOT EXISTS ext_meta (
 
     // ── memory_ext：补齐 4 个死字段 ─────────────────────────
 
-    /// 登记一条记忆的扩展信息（幂等：已存在则不动）
+    /// 登记一条记忆的扩展信息（幂等：已存在则**补齐 hook_id 但不覆盖**既有计数与标记）
     ///
     /// - `created_at`：**记忆发生时点**（Unix 毫秒），不是归档时点
     /// - `summary_method`：`llm` / `rule` / `none`
     pub async fn ensure_memory_ext(
         &self,
         memory_id: &str,
+        hook_id: &str,
         created_at: i64,
         summary_method: &str,
     ) -> Result<()> {
         let memory_id = memory_id.to_string();
+        let hook_id = hook_id.to_string();
         let summary_method = normalize_summary_method(summary_method).to_string();
         self.with_conn(move |conn| {
             conn.execute(
-                "INSERT OR IGNORE INTO memory_ext
-                    (memory_id, created_at, access_count, pinned, summary_method)
-                 VALUES (?1, ?2, 0, 0, ?3)",
-                rusqlite::params![&memory_id, created_at, &summary_method],
+                "INSERT INTO memory_ext
+                    (memory_id, hook_id, created_at, access_count, pinned, summary_method)
+                 VALUES (?1, ?2, ?3, 0, 0, ?4)
+                 ON CONFLICT(memory_id) DO UPDATE SET hook_id = excluded.hook_id
+                 WHERE memory_ext.hook_id = ''",
+                rusqlite::params![&memory_id, &hook_id, created_at, &summary_method],
             )
             .map_err(|e| Error::Ext(format!("登记 memory_ext 失败: {}", e)))?;
             Ok(())
@@ -257,23 +272,15 @@ CREATE TABLE IF NOT EXISTS ext_meta (
         .await
     }
 
-    /// 读取一条记忆的扩展信息
+    /// 读取一条记忆的扩展信息（按 memory_id）
     pub async fn get_memory_ext(&self, memory_id: &str) -> Result<Option<MemoryExt>> {
         let memory_id = memory_id.to_string();
         self.with_conn(move |conn| {
             conn.query_row(
-                "SELECT memory_id, created_at, access_count, pinned, summary_method
+                "SELECT memory_id, hook_id, created_at, access_count, pinned, summary_method
                  FROM memory_ext WHERE memory_id = ?1",
                 rusqlite::params![&memory_id],
-                |row| {
-                    Ok(MemoryExt {
-                        memory_id: row.get(0)?,
-                        created_at: row.get(1)?,
-                        access_count: row.get::<_, i64>(2)?.max(0) as u32,
-                        pinned: row.get::<_, i64>(3)? != 0,
-                        summary_method: row.get(4)?,
-                    })
-                },
+                row_to_memory_ext,
             )
             .optional()
             .map_err(|e| Error::Ext(format!("读取 memory_ext 失败: {}", e)))
@@ -281,46 +288,92 @@ CREATE TABLE IF NOT EXISTS ext_meta (
         .await
     }
 
-    /// 访问计数 +1（甲3 淘汰的加权依据），返回自增后的值
-    ///
-    /// 记录不存在时以 `created_at = now`、`summary_method = 'none'` 补建——
-    /// 保证计数不会因调用顺序而丢失。
-    pub async fn bump_access_count(&self, memory_id: &str) -> Result<u32> {
-        let memory_id = memory_id.to_string();
-        let now = now_ms();
+    /// 按 hook_id 读取扩展信息（trait 面的访问键；未登记返回 `None`）
+    pub async fn get_by_hook(&self, hook_id: &str) -> Result<Option<MemoryExt>> {
+        let hook_id = hook_id.to_string();
         self.with_conn(move |conn| {
-            conn.execute(
-                "INSERT INTO memory_ext (memory_id, created_at, access_count, pinned, summary_method)
-                 VALUES (?1, ?2, 1, 0, 'none')
-                 ON CONFLICT(memory_id) DO UPDATE SET access_count = access_count + 1",
-                rusqlite::params![&memory_id, now],
+            conn.query_row(
+                "SELECT memory_id, hook_id, created_at, access_count, pinned, summary_method
+                 FROM memory_ext WHERE hook_id = ?1",
+                rusqlite::params![&hook_id],
+                row_to_memory_ext,
             )
-            .map_err(|e| Error::Ext(format!("自增 access_count 失败: {}", e)))?;
-
-            let n: i64 = conn
-                .query_row(
-                    "SELECT access_count FROM memory_ext WHERE memory_id = ?1",
-                    rusqlite::params![&memory_id],
-                    |r| r.get(0),
-                )
-                .map_err(|e| Error::Ext(format!("读取 access_count 失败: {}", e)))?;
-            Ok(n.max(0) as u32)
+            .optional()
+            .map_err(|e| Error::Ext(format!("按 hook 读取 memory_ext 失败: {}", e)))
         })
         .await
     }
 
-    /// 置顶 / 取消置顶（pinned 记忆不衰减、不淘汰）
-    pub async fn set_pinned(&self, memory_id: &str, pinned: bool) -> Result<()> {
+    /// 访问计数 +1（甲3 淘汰的加权依据），返回自增后的值
+    ///
+    /// **按 hook_id 定位**——召回路径拿到的是 hook_id（`MemoryRecallResult.hook_id`），
+    /// 不该为一次计数反查 memory_id。行不存在时返回 `Ok(0)` 且不建行
+    /// （计数只对已登记的记忆生效，避免为幽灵 hook 造行）。
+    pub async fn bump_access_count_by_hook(&self, hook_id: &str) -> Result<u32> {
+        let hook_id = hook_id.to_string();
+        self.with_conn(move |conn| {
+            let n = conn
+                .execute(
+                    "UPDATE memory_ext SET access_count = access_count + 1 WHERE hook_id = ?1",
+                    rusqlite::params![&hook_id],
+                )
+                .map_err(|e| Error::Ext(format!("自增 access_count 失败: {}", e)))?;
+            if n == 0 {
+                return Ok(0);
+            }
+            let v: i64 = conn
+                .query_row(
+                    "SELECT access_count FROM memory_ext WHERE hook_id = ?1",
+                    rusqlite::params![&hook_id],
+                    |r| r.get(0),
+                )
+                .map_err(|e| Error::Ext(format!("读取 access_count 失败: {}", e)))?;
+            Ok(v.max(0) as u32)
+        })
+        .await
+    }
+
+    /// 置顶 / 取消置顶（按 hook_id；pinned 记忆不衰减、不淘汰）
+    ///
+    /// 未登记时返回 `Ok(false)`（未命中，不静默造行）。
+    pub async fn set_pinned_by_hook(&self, hook_id: &str, pinned: bool) -> Result<bool> {
+        let hook_id = hook_id.to_string();
+        self.with_conn(move |conn| {
+            let n = conn
+                .execute(
+                    "UPDATE memory_ext SET pinned = ?2 WHERE hook_id = ?1",
+                    rusqlite::params![&hook_id, i64::from(pinned)],
+                )
+                .map_err(|e| Error::Ext(format!("设置 pinned 失败: {}", e)))?;
+            Ok(n > 0)
+        })
+        .await
+    }
+
+    /// 列出全部置顶记忆的 hook_id（供「置顶集合」查询与 UI）
+    pub async fn pinned_hooks(&self) -> Result<Vec<String>> {
+        self.with_conn(|conn| {
+            let mut stmt = conn
+                .prepare("SELECT hook_id FROM memory_ext WHERE pinned != 0 AND hook_id != '' ORDER BY created_at")
+                .map_err(|e| Error::Ext(format!("准备置顶查询失败: {}", e)))?;
+            let rows = stmt
+                .query_map([], |r| r.get::<_, String>(0))
+                .map_err(|e| Error::Ext(format!("查询置顶失败: {}", e)))?;
+            rows.collect::<rusqlite::Result<Vec<_>>>()
+                .map_err(|e| Error::Ext(format!("读取置顶行失败: {}", e)))
+        })
+        .await
+    }
+
+    /// 删除一条扩展记录（随记忆删除级联；跨库无 FK，由调用方显式调用）
+    pub async fn delete_memory_ext(&self, memory_id: &str) -> Result<()> {
         let memory_id = memory_id.to_string();
-        let now = now_ms();
         self.with_conn(move |conn| {
             conn.execute(
-                "INSERT INTO memory_ext (memory_id, created_at, access_count, pinned, summary_method)
-                 VALUES (?1, ?2, 0, ?3, 'none')
-                 ON CONFLICT(memory_id) DO UPDATE SET pinned = ?3",
-                rusqlite::params![&memory_id, now, i64::from(pinned)],
+                "DELETE FROM memory_ext WHERE memory_id = ?1",
+                rusqlite::params![&memory_id],
             )
-            .map_err(|e| Error::Ext(format!("设置 pinned 失败: {}", e)))?;
+            .map_err(|e| Error::Ext(format!("删除 memory_ext 失败: {}", e)))?;
             Ok(())
         })
         .await
@@ -643,6 +696,18 @@ fn now_ms() -> i64 {
     chrono::Utc::now().timestamp_millis()
 }
 
+/// 行 → [`MemoryExt`]（列序：memory_id, hook_id, created_at, access_count, pinned, summary_method）
+fn row_to_memory_ext(row: &rusqlite::Row<'_>) -> rusqlite::Result<MemoryExt> {
+    Ok(MemoryExt {
+        memory_id: row.get(0)?,
+        hook_id: row.get(1)?,
+        created_at: row.get(2)?,
+        access_count: row.get::<_, i64>(3)?.max(0) as u32,
+        pinned: row.get::<_, i64>(4)? != 0,
+        summary_method: row.get(5)?,
+    })
+}
+
 // ─── 测试 ────────────────────────────────────────
 
 #[cfg(test)]
@@ -672,29 +737,41 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let s = temp_store(&dir);
 
-        s.ensure_memory_ext("m1", 1_700_000_000_000, "LLM").await.unwrap();
+        s.ensure_memory_ext("m1", "h1", 1_700_000_000_000, "LLM").await.unwrap();
         let e = s.get_memory_ext("m1").await.unwrap().expect("应存在");
+        assert_eq!(e.hook_id, "h1");
         assert_eq!(e.created_at, 1_700_000_000_000);
         assert_eq!(e.access_count, 0);
         assert!(!e.pinned);
         assert_eq!(e.summary_method, "llm", "摘要方式应归一为小写");
+        // 按 hook 也能取到（trait 面访问键）
+        assert_eq!(s.get_by_hook("h1").await.unwrap().unwrap().memory_id, "m1");
+        assert!(s.get_by_hook("不存在").await.unwrap().is_none());
 
-        // 幂等：重复登记不覆盖已有值
-        s.ensure_memory_ext("m1", 999, "rule").await.unwrap();
+        // 幂等：重复登记不覆盖已有值；但空 hook_id 会被补齐
+        s.ensure_memory_ext("m1", "h1-新", 999, "rule").await.unwrap();
         let e = s.get_memory_ext("m1").await.unwrap().unwrap();
-        assert_eq!(e.created_at, 1_700_000_000_000);
+        assert_eq!(e.created_at, 1_700_000_000_000, "已存在的记录不被覆盖");
+        assert_eq!(e.hook_id, "h1", "hook_id 非空时不覆盖");
+        assert_eq!(e.summary_method, "llm");
 
-        assert_eq!(s.bump_access_count("m1").await.unwrap(), 1);
-        assert_eq!(s.bump_access_count("m1").await.unwrap(), 2);
+        // 计数（按 hook）
+        assert_eq!(s.bump_access_count_by_hook("h1").await.unwrap(), 1);
+        assert_eq!(s.bump_access_count_by_hook("h1").await.unwrap(), 2);
+        // 幽灵 hook 不建行
+        assert_eq!(s.bump_access_count_by_hook("幽灵").await.unwrap(), 0);
+        assert!(s.get_by_hook("幽灵").await.unwrap().is_none());
 
-        // 未登记 ID 也可自增（补建）
-        assert_eq!(s.bump_access_count("m2").await.unwrap(), 1);
-        assert!(s.get_memory_ext("m2").await.unwrap().is_some());
-
-        s.set_pinned("m1", true).await.unwrap();
+        // 置顶（按 hook）
+        assert!(s.set_pinned_by_hook("h1", true).await.unwrap());
         assert!(s.get_memory_ext("m1").await.unwrap().unwrap().pinned);
+        assert_eq!(s.pinned_hooks().await.unwrap(), vec!["h1".to_string()]);
+        assert!(!s.set_pinned_by_hook("幽灵", true).await.unwrap(), "未登记不命中");
 
-        assert!(s.get_memory_ext("不存在").await.unwrap().is_none());
+        // 级联删除
+        s.delete_memory_ext("m1").await.unwrap();
+        assert!(s.get_memory_ext("m1").await.unwrap().is_none());
+        assert!(s.pinned_hooks().await.unwrap().is_empty());
     }
 
     #[tokio::test]

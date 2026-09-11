@@ -121,6 +121,18 @@ pub struct AgentLoopConfig {
     /// 「当前项目 ID」段据此触发；kernel 不校验归属，纯链路透传字段
     /// （2026-09-10 场景底座深入：风险点③收口）。
     pub project_id: Option<String>,
+
+    // ─── A1 丙1：上下文预算（token 口径）─────────────────
+    /// 上下文预算策略（`None`=用兜底策略，见 [`ContextBudgetPolicy::fallback`]）
+    ///
+    /// **由装配层按当前模型解析后注入**：窗口与归档比率都来自模型声明
+    /// （MemoryCenter 模型特配的专家调校值），kernel 本身不认识任何具体模型。
+    ///
+    /// **量纲警示**：此前本处数值是**字节**（`HISTORY_BUDGET_BYTES = 160_000`），
+    /// 属实现与语义不一致——同为 160_000，全中文内容约合 5.3 万 token、
+    /// 全 ASCII 内容约合 4 万 token，两个方向的偏差都不小。
+    /// 2026-09-11（A1 丙1）起统一为**上下文 token**。
+    pub context_budget: Option<crate::context_budget::ContextBudgetPolicy>,
 }
 
 impl Default for AgentLoopConfig {
@@ -158,6 +170,8 @@ impl Default for AgentLoopConfig {
             workspace_id: None,
             // 项目 id：默认无（未归属/旧数据）
             project_id: None,
+            // A1 丙1：默认兜底预算（装配层应按模型声明覆盖）
+            context_budget: None,
         }
     }
 }

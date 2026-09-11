@@ -11,6 +11,7 @@ pub mod agent;
 pub mod alias;
 pub mod backend;
 pub mod confirmation;
+pub mod context_budget;
 pub mod event;
 pub mod llm;
 pub mod long_task;

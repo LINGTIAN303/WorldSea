@@ -1202,14 +1202,16 @@ impl AgentCommandService {
     ///
     /// 以 `root` 为存储根目录、`session_id` 为记忆隔离依据，为每个会话创建独立的
     /// SQLite 记忆后端。`project_id` 传 `None`（单聊按会话隔离，跨会话聚合检索暂不启用）。
+    ///
+    /// **归档阈值（A1 丙1，2026-09-11 归一）**：由模型档案推导（`窗口 × 归档比率`），
+    /// 替换原先写死的 `2000`——该值仅够「让阶段 3 闭环在本会话内可验证」，
+    /// 与设计文档「归档比率 = 窗口 × 2/5」的口径无关，属量纲修正的连带项。
     fn build_memory_accessor(
         root: &PathBuf,
         session_id: &str,
+        profile: &agent_memory::model_profile::ModelProfile,
     ) -> std::result::Result<Arc<dyn MemoryAccessor>, agent_memory::Error> {
-        // 归档阈值：MemoryCenter 默认 400K（生产长会话），对 Agent 会话过大——
-        // 真实对话几乎达不到，归档永不触发。取 2000 token（约 10-20 轮普通对话）
-        // 让阶段 3 闭环（归档 → 检索 → 注入）可在会话内验证，后续可按需调整。
-        let config = ArchiveConfig::from_threshold(2000);
+        let config = ArchiveConfig::from_threshold(profile.archive_threshold);
         let accessor = MemoryCenterAccessor::new_sqlite(root.clone(), session_id, None, config)?;
         Ok(Arc::new(accessor))
     }
@@ -1240,6 +1242,29 @@ impl AgentCommandService {
         project_id: Option<String>,
     ) -> (Arc<AgentLoop>, Arc<SubAgentManager>) {
         let config = provider_config.unwrap_or_else(Self::default_provider_config);
+        // A1 丙1（2026-09-11）：解析模型档案——「窗口 / 归档阈值 / 真实分词器」单一来源。
+        // 窗口优先取 Provider 声明（`get_model` 覆盖 cloud/local/custom 三条路径），
+        // 再由模型档案（注册表专家值或家族保守推导）给出归档阈值与分词器。
+        let model_profile = {
+            let declared = agent_runtime::llm::get_model(&config)
+                .map(|m| m.context_window)
+                .unwrap_or(0);
+            agent_memory::model_profile::ModelProfile::resolve(
+                config.model_id(),
+                config.provider_id(),
+                declared,
+            )
+        };
+        tracing::debug!(
+            model = %model_profile.model_name,
+            family = ?model_profile.family,
+            window = model_profile.context_window,
+            archive_threshold = model_profile.archive_threshold,
+            ratio = model_profile.archive_ratio(),
+            tokenizer = %model_profile.tokenizer_name,
+            from_registry = model_profile.from_registry,
+            "上下文预算档案已解析（量纲：上下文 token）"
+        );
         let backend = Arc::new(GenaiBackend::new(config));
         let tool_bus = Arc::new(SimpleToolBus::new());
         // 注册终端工具（execute_command + 持久化 shell 会话）
@@ -1339,6 +1364,8 @@ impl AgentCommandService {
             workspace_id,
             // D1 锚点透传（2026-09-10 风险点③收口）：build_prompt_options 填入 ScenarioContext
             project_id,
+            // A1 丙1（2026-09-11）：上下文预算策略（token 口径，数值由模型窗口推导）
+            context_budget: Some(model_profile.budget_policy()),
             ..Default::default()
         };
         // A3 四管线路由：为每个会话注入四管线路由节点（发送时决策管线）
@@ -1352,13 +1379,15 @@ impl AgentCommandService {
             RouterConfig::default(),
         ));
         let mut agent_builder = AgentLoop::new(backend, tool_bus).with_config(agent_config);
+        // A1 丙1（2026-09-11）：注入与当前模型匹配的真实分词器（tiktoken 路径）
+        agent_builder = agent_builder.with_token_estimator(model_profile.estimator());
         // A5 HITL：为每个会话注入独立的确认协调器（配合 confirmation_policy 生效）
         agent_builder = agent_builder.with_confirmation(Some(Arc::new(ConfirmationBroker::new())));
         agent_builder = agent_builder.with_router(Some(router));
         // 记忆注入：配置了 memory_root 时为该会话构造 MemoryCenterAccessor 并注入，
         // 失败仅告警不阻断（弱提示语义，记忆不可用不影响主流程）。
         if let Some(root) = &self.memory_root {
-            match Self::build_memory_accessor(root, session_id) {
+            match Self::build_memory_accessor(root, session_id, &model_profile) {
                 Ok(memory) => {
                     agent_builder = agent_builder.with_memory(Some(memory));
                 }

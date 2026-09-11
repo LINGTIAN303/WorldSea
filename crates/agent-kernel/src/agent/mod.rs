@@ -39,6 +39,12 @@ pub use state::{AgentState, AgentStateSnapshot};
 
 use backend_bridge::BackendEventBridge;
 
+/// 单条消息的结构开销估算（role 标记 / tool_call_id / 分隔符等的 token 近似）
+///
+/// 对齐上游 `MessageContent::estimate_tokens` 的做法：正文之外的协议开销按固定值粗估，
+/// 避免只数正文而系统性低估窗口占用。
+const MESSAGE_STRUCTURE_OVERHEAD_TOKENS: usize = 8;
+
 // ─── AgentLoop ────────────────────────────────────────────
 
 /// 会话累计用量（input/output tokens）
@@ -159,6 +165,14 @@ pub struct AgentLoop {
     /// `run()` 在各位点（`RunPhase`）统一调度；默认无钩子，注册后按位点观察/扩展。
     /// 内置织入（记忆/路由/DeepPhase）为底座内聚能力，不随钩子启用与否而改变。
     hooks: AgentLoopHooks,
+    /// Token 估算器（A1 丙1：上下文计量口径 = 上下文 token）
+    ///
+    /// 默认 [`crate::context_budget::heuristic_estimator`]（CJK 1/字、ASCII 1/4 字符），
+    /// 装配层应用 [`Self::with_token_estimator`] 注入真实分词器（tiktoken）。
+    ///
+    /// **为什么是闭包而非 trait**：调用方只需「一个函数」，闭包注入避免为此引入
+    /// 整条 crate 依赖边（真实分词器重依赖隔离在 `memory-center-models`）。
+    token_estimator: crate::context_budget::TokenEstimator,
 }
 
 impl AgentLoop {
@@ -212,6 +226,7 @@ impl AgentLoop {
             router: None,
             pipeline_context: Arc::new(StdRwLock::new(None)),
             hooks: AgentLoopHooks::default(),
+            token_estimator: crate::context_budget::heuristic_estimator(),
         }
     }
 
@@ -269,6 +284,21 @@ impl AgentLoop {
     pub fn with_memory(mut self, memory: Option<Arc<dyn crate::memory::MemoryAccessor>>) -> Self {
         self.memory = memory;
         self
+    }
+
+    /// 注入 token 估算器（链式，同步，A1 丙1）
+    ///
+    /// 装配层应注入与当前模型匹配的真实分词器（如 `memory-center-models` 的
+    /// tiktoken 实现）；不注入时使用无依赖的近似兜底（中文场景偏差 20–30%，
+    /// 会让阈值触发时机漂移）。
+    pub fn with_token_estimator(mut self, estimator: crate::context_budget::TokenEstimator) -> Self {
+        self.token_estimator = estimator;
+        self
+    }
+
+    /// 当前生效的 token 估算器（只读）
+    pub fn token_estimator(&self) -> &crate::context_budget::TokenEstimator {
+        &self.token_estimator
     }
 
     /// 注入 HITL 确认协调器（链式，同步，A5）
@@ -732,55 +762,107 @@ impl AgentLoop {
         self.enforce_context_budget().await;
     }
 
-    /// H1 修复（P1.5，2026-08-30）：上下文预算自动裁剪 — 消息历史只进不出的解药
+    /// 上下文预算自动裁剪 — 消息历史只进不出的解药
     ///
     /// 此前消息历史只进不出：归档是"增值"而非"腾挪"（archive 的边界被忽略），
     /// 全链路无 token 计量，长会话终将顶爆 LLM 上下文窗口。
     ///
-    /// 策略：AfterRun 阶段估算活跃历史字节量，超预算则从头部裁掉最旧消息只保留
-    /// 最近 `HISTORY_KEEP_MESSAGES` 条（`trim_context` 同步 backend + state 两边）。
+    /// ## 计量口径（A1 丙1，2026-09-11 归一）
     ///
-    /// 语义安全：被裁轮次必然已归档进记忆——归档阈值（2000 token）远小于预算阈值
-    /// （约 5 万+ token），预算触发时未归档缓冲只剩最近几轮，保留条数足够覆盖。
+    /// **单位 = 上下文 token**（LLM 上下文窗口占用），**数值由模型窗口推导**。
+    /// 修正前的实现按**字节**累加（`content.len()`）并与硬编码 `160_000` 比较——
+    /// 那是实现与语义不一致：同为 160_000，全中文内容约合 5.3 万 token、
+    /// 全 ASCII 约合 4 万 token，两个方向都有明显偏差。
+    ///
+    /// ## 触发策略
+    ///
+    /// 触发点 = **四层压缩阶梯的最高层（AutoCompact，归档阈值的 95%）**，
+    /// 是「最后手段」：逼近归档阈值时才裁整条消息。其余三层（Snip / MicroCompact /
+    /// Collapse）是精度工具、尚未实现。
+    ///
+    /// **预算口径已补全**（修正前漏算）：除 `state.messages` 外，一并计入
+    /// 每轮重拼的 `system_prompt`（系统提示词 + 记忆注入 + 规则 + 管线指引）——
+    /// 此前只累加 messages，导致真实窗口占用被系统性低估。
+    ///
+    /// ## 语义安全
+    ///
+    /// 被裁轮次必然已归档进记忆——归档阈值与预算触发点同源（同为窗口比例，
+    /// 且触发点在归档阈值之内），预算触发时未归档缓冲只剩最近几轮，保留条数足够覆盖。
+    ///
+    /// ## 裁剪边界
+    ///
+    /// 从头部裁掉最旧消息，但**对齐 tool 配对**（A1 己2②）：切点若落在
+    /// `assistant(tool_calls)` 与其 `tool_result` 之间会产生悬空 `tool_call_id`，
+    /// LLM API 直接判 400。采用回退（少裁）而非前移（多裁）——配对完整性优先于预算。
     async fn enforce_context_budget(&self) {
-        // ═══════════════════════════════════════════════════════════════
-        // ⚠ TODO(await-user · 2026-08-30)：以下两个阈值为【占位默认值】，已标记待定！
-        // 用户明确要求：上下文压缩/归档阈值涉及消息删除，需慎重——后续将由用户
-        // 说明具体策略后调整（可能改为可配置/按 token 精算/归档联动策略等）。
-        // 在用户说明之前，此处的数值仅作为保守占位，勿当作最终设计依赖。
-        // ═══════════════════════════════════════════════════════════════
-        const HISTORY_BUDGET_BYTES: usize = 160_000; // ⚠ 占位待定（≈5.3 万汉字 / 16 万 ASCII 字符）
-        const HISTORY_KEEP_MESSAGES: usize = 12; // ⚠ 占位待定（保留最近 12 条 ≈4-6 轮）
+        const HISTORY_KEEP_MESSAGES: usize = 12; // 最少保留条数（含最近一轮 user 输入所在的一轮）
 
-        let (total_bytes, total_msgs) = {
+        // 预算策略：装配层注入优先，缺省用兜底（32K 窗口 × 0.25）
+        let policy = {
+            let guard = match self.config.read() {
+                Ok(g) => g,
+                Err(_) => {
+                    warn!("上下文预算裁剪：config RwLock 中毒，本轮跳过");
+                    return;
+                }
+            };
+            guard.context_budget.unwrap_or_default()
+        };
+
+        // 每轮重拼的系统侧文本（系统提示词 + 记忆注入 + 管线指引）——一并计入窗口占用
+        // （修正前只累加 messages，真实窗口占用被系统性低估）
+        let system_tokens = {
+            let cfg = self.config.read().map(|g| g.system_prompt.clone()).unwrap_or(None);
+            let mem = self.memory_context.read().map(|g| g.clone()).unwrap_or(None);
+            let pipe = self.pipeline_context.read().map(|g| g.clone()).unwrap_or(None);
+            (self.token_estimator)(&cfg.unwrap_or_default())
+                + (self.token_estimator)(&mem.unwrap_or_default())
+                + (self.token_estimator)(&pipe.unwrap_or_default())
+        };
+
+        let (history_tokens, total_msgs) = {
             let state = self.state.lock().await;
-            let bytes: usize = state
+            let tokens: usize = state
                 .messages
                 .iter()
-                .map(|m| m.content.len() + 32) // content + 结构开销粗估
+                .map(|m| (self.token_estimator)(&m.content) + MESSAGE_STRUCTURE_OVERHEAD_TOKENS)
                 .sum();
-            (bytes, state.messages.len())
+            (tokens, state.messages.len())
         };
-        if total_bytes <= HISTORY_BUDGET_BYTES || total_msgs <= HISTORY_KEEP_MESSAGES {
+        let total_tokens = history_tokens + system_tokens;
+        let trigger = policy.trim_trigger();
+
+        debug!(
+            "上下文占用：历史 {} token + 系统侧 {} token = {} token（触发点 {}，窗口 {}，归档阈值 {}，当前层级 {}）",
+            history_tokens,
+            system_tokens,
+            total_tokens,
+            trigger,
+            policy.context_window,
+            policy.archive_threshold,
+            policy.tier_of(total_tokens)
+        );
+
+        if total_tokens <= trigger || total_msgs <= HISTORY_KEEP_MESSAGES {
             return;
         }
 
         // 从头部计算需裁条数：裁到预算内或只剩保留条数
         let mut drop = 0usize;
-        let mut acc = total_bytes;
+        let mut acc = total_tokens;
         {
             let state = self.state.lock().await;
             let keep_from = total_msgs.saturating_sub(HISTORY_KEEP_MESSAGES);
             for m in state.messages.iter() {
-                if drop >= keep_from || acc <= HISTORY_BUDGET_BYTES {
+                if drop >= keep_from || acc <= trigger {
                     break;
                 }
-                acc -= m.content.len() + 32;
+                acc -= (self.token_estimator)(&m.content) + MESSAGE_STRUCTURE_OVERHEAD_TOKENS;
                 drop += 1;
             }
         }
         // ── A1 己2②（2026-09-11）：裁剪边界对齐 tool 配对 ──────────────────
-        // 原实现按字节逐条从头丢，切点可能落在 assistant(tool_calls) 与其
+        // 原实现从头逐条丢，切点可能落在 assistant(tool_calls) 与其
         // tool_result 之间 → 悬空 tool_call_id 会被 LLM API 判为 400（真实 BUG）。
         // 策略：**回退边界（少裁）而非前移（多裁）**——配对完整性优先于预算，
         // 预算只是软目标，配对破坏是硬错误；回退把整个工具交换留在保留区。
@@ -806,9 +888,12 @@ impl AgentLoop {
         }
         match self.trim_context(drop).await {
             Ok(()) => info!(
-                "上下文预算裁剪：历史 {} 字节超预算 {}，已裁掉最旧 {} 条（保留 {} 条）{}",
-                total_bytes,
-                HISTORY_BUDGET_BYTES,
+                "上下文预算裁剪：占用 {} token（历史 {} + 系统侧 {}）超触发点 {}（窗口 {}），已裁掉最旧 {} 条（保留 {} 条）{}",
+                total_tokens,
+                history_tokens,
+                system_tokens,
+                trigger,
+                policy.context_window,
                 drop,
                 total_msgs - drop,
                 if pair_retreat > 0 {
