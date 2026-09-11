@@ -122,6 +122,7 @@ pub fn run() {
             commands::list_group_session_participants,
             commands::delete_group_session_participants,
             commands::memory_list,
+            commands::memory_md_render,
             commands::memory_recall,
             commands::memory_archive,
             commands::memory_load_chunk,

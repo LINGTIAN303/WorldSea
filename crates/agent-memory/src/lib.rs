@@ -3,6 +3,7 @@
 #![forbid(unsafe_code)]
 
 pub mod ext;
+pub mod memory_md;
 pub mod model_profile;
 pub mod reconcile;
 
@@ -59,6 +60,8 @@ pub struct MemoryCenterAccessor {
     reconcile_policy: ReconcilePolicy,
     /// LLM 摘要生成器（A1 甲2；`None`=未注入，`LlmSummary` 档自动降级为规则摘要）
     reconcile_summarizer: Option<Arc<dyn ReconcileSummarizer>>,
+    /// 常驻文档渲染策略（A1 乙3①；默认 [`memory_md::MemoryMdPolicy::default`]）
+    memory_md_policy: memory_md::MemoryMdPolicy,
 }
 
 impl MemoryCenterAccessor {
@@ -127,7 +130,15 @@ impl MemoryCenterAccessor {
             conflict_detector: Arc::new(HeuristicDetector::new()),
             reconcile_policy: ReconcilePolicy::default(),
             reconcile_summarizer: None,
+            // A1 乙3①：常驻文档默认策略（1500 字符 / 20 条 / 单条 160 字）
+            memory_md_policy: memory_md::MemoryMdPolicy::default(),
         }
+    }
+
+    /// 注入常驻文档渲染策略（链式，A1 乙3①）
+    pub fn with_memory_md_policy(mut self, policy: memory_md::MemoryMdPolicy) -> Self {
+        self.memory_md_policy = policy;
+        self
     }
 
     /// 注入调和策略（链式，A1 甲2）
@@ -772,6 +783,81 @@ impl MemoryAccessor for MemoryCenterAccessor {
             Err(e) => Err(MemoryError::Other(e.to_string())),
         }
     }
+
+    /// 渲染常驻记忆文档 `MEMORY.md`（A1 乙3①）
+    ///
+    /// 从受治理的集合**派生**（无自由文本写入口，见 [`crate::memory_md`] 模块文档）：
+    ///
+    /// | 来源 | 取法 |
+    /// |---|---|
+    /// | 置顶条目 | 扩展库 `pinned` 标记（甲4）→ 取其正文 |
+    /// | 调和结论 | 扩展库取代链上**已生成摘要**的记录（甲2）→ 直接取摘要 |
+    ///
+    /// 两类都缺 → 返回 `None`（调用方不产出空文件）。
+    ///
+    /// **扩展库未启用**时返回 `None`——常驻集合的元数据（pinned / 取代链）本身就在扩展库里，
+    /// 缺它无从判定「谁够格常驻」；此时退化为不产出，而非用库内全量硬凑
+    /// （那会违反乙1②「精选」并把每轮成本推到不可接受）。
+    async fn render_memory_md(&self) -> std::result::Result<Option<String>, MemoryError> {
+        let Some(ext) = self.ext.as_ref() else {
+            return Ok(None);
+        };
+
+        let mut entries: Vec<memory_md::CuratedEntry> = Vec::new();
+
+        // ① 调和结论（甲2 产出）
+        for link in ext
+            .supersede_summaries()
+            .await
+            .map_err(|e| MemoryError::Other(e.to_string()))?
+        {
+            entries.push(memory_md::CuratedEntry::from_supersede_link(&link));
+        }
+
+        // ② 置顶条目（甲4 产出）—— **跨会话视图**
+        //
+        // MEMORY.md 按设计「贯穿全部会话」（§3.3），故不走会话级索引 `locate_hook`，
+        // 而是用扩展库的 (hook_id, memory_id) 直读记忆文件：`Storage::read_memory`
+        // 同样不按会话过滤 → 天然得到全局视角。
+        for pin in ext
+            .pinned_entries()
+            .await
+            .map_err(|e| MemoryError::Other(e.to_string()))?
+        {
+            // 单条失败只跳过该条（不让一条坏数据拖垮整份常驻文档）
+            match self.storage.read_memory(&pin.memory_id).await {
+                Ok(file) => {
+                    let text: String = file
+                        .turns
+                        .iter()
+                        .filter_map(|t| t.user_message.text.as_deref())
+                        .collect::<Vec<_>>()
+                        .join(" ");
+                    if text.trim().is_empty() {
+                        tracing::warn!(
+                            hook = %pin.hook_id,
+                            "置顶记忆正文为空（跳过渲染）"
+                        );
+                        continue;
+                    }
+                    entries.push(memory_md::CuratedEntry {
+                        kind: memory_md::CuratedKind::Pinned,
+                        text,
+                        at_ms: pin.created_at,
+                    });
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        hook = %pin.hook_id,
+                        memory_id = %pin.memory_id,
+                        "读取置顶记忆失败（跳过渲染）: {e}"
+                    );
+                }
+            }
+        }
+
+        Ok(memory_md::render(&entries, &self.memory_md_policy))
+    }
 }
 
 // ─── A1 甲2：内部实现 ────────────────────────────────
@@ -1172,12 +1258,23 @@ mod tests {
 
     /// 在指定根目录建适配层（需要自己掌握目录生命周期时使用）
     fn make_accessor_in(root: &std::path::Path) -> MemoryCenterAccessor {
+        make_accessor_with_session(root, "sess-agent-memory")
+    }
+
+    /// 在指定根目录 + 指定会话 ID 建适配层
+    ///
+    /// 用于**跨会话**用例：同一 `root` 下不同 `session_id`，记忆库（`_default` 分片）
+    /// 与扩展库同源，仅 hooks/memories 的会话过滤不同。
+    fn make_accessor_with_session(
+        root: &std::path::Path,
+        session_id: &str,
+    ) -> MemoryCenterAccessor {
         // 阈值取 40：单轮 make_turn 默认 60 tokens，确保 push 1 轮即可触发归档，
         // 与 test_archive_and_recall 的多轮累积断言（110 >= 40）也兼容。
         let config = ArchiveConfig::from_threshold(40);
         MemoryCenterAccessor::new_sqlite(
             root.to_path_buf(),
-            "sess-agent-memory",
+            session_id,
             None,
             config,
         )
@@ -1807,8 +1904,7 @@ mod tests {
 
     /// 多级取代链：A→B→C，A 可走到 C（保留全部历史）
     #[tokio::test]
-    async fn chained_supersede_keeps_full_history() {
-        let accessor = make_accessor();
+    async fn chained_supersede_keeps_full_history() {        let accessor = make_accessor();
         let a = seed(&accessor, "第一代方案：甲").await;
         let b = match supersede(&accessor, &a, "第二代方案：乙").await {
             WriteOutcome::Superseded { new_hook_id, .. } => new_hook_id,
@@ -1833,5 +1929,152 @@ mod tests {
                 "第 {kw} 代条目应保留"
             );
         }
+    }
+
+    // ─── A1 乙3①：MEMORY.md 派生渲染 ──────────────────────
+
+    /// 空库不产出文件（避免空文件被注入白占上下文）
+    #[tokio::test]
+    async fn render_memory_md_is_none_when_nothing_curated() {
+        let accessor = make_accessor();
+        // 库里有普通记忆，但既未置顶也无调和结论 → 无资格进精选常驻
+        let _ = seed(&accessor, "一条普通记忆，未置顶").await;
+        assert!(
+            accessor.render_memory_md().await.unwrap().is_none(),
+            "无精选常驻条目时应返回 None（不产空文件）"
+        );
+    }
+
+    /// 置顶条目进入「长期有效」组
+    #[tokio::test]
+    async fn render_memory_md_includes_pinned_entries() {
+        let accessor = make_accessor();
+        let hook = seed(&accessor, "用户偏好：界面字号偏大，深色主题").await;
+        accessor.pin(&hook, true).await.unwrap();
+
+        let md = accessor.render_memory_md().await.unwrap().expect("应产出内容");
+        assert!(md.contains("长期有效"), "应有置顶分组: {md}");
+        assert!(md.contains("深色主题"), "应含置顶条目正文: {md}");
+        assert!(md.contains("自动维护"), "抬头应声明由记忆系统维护");
+        assert!(md.contains("用户不可直接编辑"), "抬头应声明用户只读");
+    }
+
+    /// ★ 调和结论自动进入「已知更正」组（甲2 与乙3 的咬合点）
+    ///
+    /// 设计原话：「调和结论正是最该进 MEMORY.md 的那类内容」——本测试锁住这条自动通路：
+    /// 一次取代式更新之后，无需任何额外操作，MEMORY.md 就应包含该更正。
+    #[tokio::test]
+    async fn render_memory_md_includes_reconcile_summaries_automatically() {
+        let accessor = make_accessor();
+        let old_hook = seed(&accessor, "用户偏好：界面字号偏小").await;
+        let _ = supersede(&accessor, &old_hook, "用户偏好：界面字号偏大").await;
+
+        let md = accessor.render_memory_md().await.unwrap().expect("应产出内容");
+        assert!(md.contains("已知更正"), "应有更正分组: {md}");
+        assert!(md.contains("前：") && md.contains("之后（"), "应含时序调和摘要: {md}");
+    }
+
+    /// 置顶 + 更正并存时的完整形态与组序
+    #[tokio::test]
+    async fn render_memory_md_full_shape_orders_reconcile_first() {
+        let accessor = make_accessor();
+        let pinned = seed(&accessor, "长期设定：主角名为林昭").await;
+        accessor.pin(&pinned, true).await.unwrap();
+        let old = seed(&accessor, "主角设定：主角名为林川").await;
+        let _ = supersede(&accessor, &old, "主角设定：主角名为林昭").await;
+
+        let md = accessor.render_memory_md().await.unwrap().unwrap();
+        let i_reconcile = md.find("## 已知更正").expect("更正组");
+        let i_pinned = md.find("## 长期有效").expect("长期有效组");
+        assert!(i_reconcile < i_pinned, "更正组在前（先纠偏再给稳定认知）: {md}");
+        assert!(md.contains("林昭"), "含置顶设定");
+    }
+
+    /// 取消置顶后条目退出常驻（集合可增减）
+    #[tokio::test]
+    async fn render_memory_md_drops_entry_after_unpin() {
+        let accessor = make_accessor();
+        let hook = seed(&accessor, "临时置顶的内容").await;
+        accessor.pin(&hook, true).await.unwrap();
+        assert!(accessor.render_memory_md().await.unwrap().is_some());
+
+        accessor.pin(&hook, false).await.unwrap();
+        assert!(
+            accessor.render_memory_md().await.unwrap().is_none(),
+            "取消置顶后应回到无内容态"
+        );
+    }
+
+    /// 扩展库不可用时返回 None 而非用全量硬凑（守住乙1②「精选」）
+    #[tokio::test]
+    async fn render_memory_md_is_none_without_ext_store() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().to_path_buf();
+        // Windows 下 TempDir 析构会尝试删目录，而库文件仍被打开 → 交所有权给进程
+        std::mem::forget(dir);
+        let storage: Arc<dyn Storage> =
+            Arc::new(SqliteStorage::new(root, None).unwrap());
+        let accessor = MemoryCenterAccessor::new(
+            storage,
+            "sess-agent-memory",
+            None,
+            ArchiveConfig::from_threshold(40),
+        );
+
+        // 库里放点东西，但无扩展库 → 无法判定「谁够格常驻」→ 不产出
+        let mut entry = MemoryWriteEntry::add("未置顶的普通记忆");
+        entry.hook_id = None;
+        let _ = accessor.write(entry, None).await.unwrap();
+        assert!(accessor.ext_store().is_none());
+        assert!(
+            accessor.render_memory_md().await.unwrap().is_none(),
+            "无扩展库时应退化为不产出，而非用库内全量硬凑"
+        );
+    }
+
+    /// ★ 跨会话：A 会话的置顶与更正，应出现在 B 会话视角的 MEMORY.md 中
+    ///
+    /// 设计依据：MEMORY.md「**贯穿全部会话**」（§3.3）。故其渲染必须跨会话——
+    /// 若误用会话级索引（`locate_hook` 按 session 读 hooks），A 会话的置顶在 B 视角下
+    /// 会定位失败而被静默跳过，文档就退化成「只反映当前会话」，与设计不符。
+    #[tokio::test]
+    async fn render_memory_md_is_cross_session() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().to_path_buf();
+        std::mem::forget(dir);
+
+        // A 会话：置顶一条 + 产生一次更正
+        let a = make_accessor_with_session(&root, "sess-A");
+        let pinned = seed(&a, "跨会话设定：世界名为九霄").await;
+        a.pin(&pinned, true).await.unwrap();
+        let old = seed(&a, "旧的势力设定：三宗并立").await;
+        let _ = supersede(&a, &old, "新的势力设定：五宗并立").await;
+
+        // B 会话（同一记忆根）：应看到 A 的全部常驻内容
+        let b = make_accessor_with_session(&root, "sess-B");
+        let md = b
+            .render_memory_md()
+            .await
+            .unwrap()
+            .expect("B 会话视角也应有常驻内容");
+
+        assert!(md.contains("九霄"), "A 会话的置顶应跨会话可见: {md}");
+        assert!(md.contains("五宗并立"), "A 会话的更正应跨会话可见: {md}");
+        assert!(md.contains("## 已知更正") && md.contains("## 长期有效"));
+    }
+
+    /// 同一状态下两次渲染逐字节一致（调用方据此避免无意义写盘）
+    #[tokio::test]
+    async fn render_memory_md_is_stable_across_calls() {
+        let accessor = make_accessor();
+        let a = seed(&accessor, "置顶甲").await;
+        accessor.pin(&a, true).await.unwrap();
+        let b = seed(&accessor, "将被取代的乙").await;
+        let _ = supersede(&accessor, &b, "取代后的丙").await;
+
+        let first = accessor.render_memory_md().await.unwrap().unwrap();
+        let second = accessor.render_memory_md().await.unwrap().unwrap();
+        assert_eq!(first, second, "同状态两次渲染须逐字节一致");
+        assert!(first.ends_with('\n'));
     }
 }

@@ -105,14 +105,24 @@ async function getMcpConfigPath(): Promise<string | undefined> {
   return base ? `${base}/worldsea/mcp.json` : undefined
 }
 
-/** 写边界白名单（workdir 外精确放行文件）：MCP 配置 + 全局规则目录六件（用户与 Agent 均可编辑——拍板「共同维护」）
- *  §六 2026-09-03：放行 ~/.WorldSea/rules 六件（新载体，Agent 可直编）；旧 appData 路径已移除（T20 清理） */
+/** 写边界白名单（workdir 外精确放行文件）：MCP 配置 + 全局规则目录（用户与 Agent 均可编辑——拍板「共同维护」）
+ *  §六 2026-09-03：放行 ~/.WorldSea/rules 六件（新载体，Agent 可直编）；旧 appData 路径已移除（T20 清理）
+ *
+ *  ⚠ A1 乙3①（2026-09-11）：**MEMORY.md 除外**——它与其余五件性质不同：
+ *  - 其余五件：用户与 Agent 共同维护，Agent 直编文件即生效 → 需放行 fs 写入
+ *  - MEMORY.md：`Agent 主动维护` 但**须走结构化操作**（甲1 四操作），且
+ *    「用户不能涉及 + 不能随意写入」（乙1/乙2 用户留言）→ **不给 fs 写入口**
+ *    其内容由记忆系统从受治理的集合**派生渲染**（前端经 memory_md_render 取回后写入），
+ *    若放行 fs 直写，Agent 的自由文本会绕过四操作、并在下次派生时被静默覆盖。
+ */
 function extraWritablePathsFor(base?: string): string[] | undefined {
   if (!base) return undefined
   const homeRulesDir = homeDirSync ? `${homeDirSync}/.WorldSea/rules` : undefined
   return [
     `${base}/worldsea/mcp.json`,
-    ...(homeRulesDir ? GLOBAL_RULES_FILES.map((f) => `${homeRulesDir}/${f}`) : []),
+    ...(homeRulesDir
+      ? GLOBAL_RULES_FILES.filter((f) => f !== MEMORY_RULES_FILE).map((f) => `${homeRulesDir}/${f}`)
+      : []),
   ]
 }
 
@@ -2380,17 +2390,60 @@ export async function ensureProjectAgentsFile(): Promise<void> {
 /** AGENTS.md/RULES.md 等常驻类的读取已并入 buildSessionSystemPrompt 的全局组/项目组循环（readTextOrNull + 文件常量）。 */
 
 /**
+ * A1 乙3①（2026-09-11）：把 `MEMORY.md` 与记忆库对齐（派生渲染 → 落盘）
+ *
+ * 数据流（**单向派生**，无自由文本写入口）：
+ *
+ * ```
+ * 记忆库（置顶条目 + 调和结论）
+ *      │ memory_md_render（Rust 侧派生渲染，字节稳定）
+ *      ▼
+ * ~/.WorldSea/rules/MEMORY.md   ← 本函数落盘
+ *      │ buildSessionSystemPrompt 全局组最后一项
+ *      ▼
+ * system_prompt（常驻每轮可见）
+ * ```
+ *
+ * **只在内容变化时写盘**：Rust 侧渲染对同输入逐字节稳定，故可直接比对内容——
+ * 避免每次建会话/刷新都产生无意义写入与 mtime 变动。
+ *
+ * **失败静默**：记忆后端未启用、会话未就绪、无可渲染内容（null）都属正常态，
+ * 不产文件也不报错；仅命令本身出错时留一条 warn。
+ *
+ * @returns 是否**实际更新了文件**（供调用方决定要不要重刷会话 prompt）
+ */
+async function syncMemoryMd(sessionId: string | null): Promise<boolean> {
+  if (!sessionId) return false
+  const dir = globalRulesDirSync()
+  if (!dir) return false
+  const path = `${dir}/${MEMORY_RULES_FILE}`
+  try {
+    const rendered = await safeInvoke<string | null>('memory_md_render', { sessionId })
+    if (typeof rendered !== 'string' || !rendered.trim()) return false
+    const current = await readTextOrNull(path)
+    if (current === rendered) return false // 逐字节稳定 → 无变化不写盘
+    await safeInvoke('cmd_fs_write', { path, content: rendered, createDirs: true })
+    console.info('[useAgentRust] MEMORY.md 已按记忆库派生更新')
+    return true
+  } catch (e) {
+    console.warn('[useAgentRust] MEMORY.md 派生同步失败（不影响主流程）:', e)
+    return false
+  }
+}
+
+/**
  * 构建会话级 system prompt 注入段（ensureSession → newSession 用）。
  *
- * 组成（按序拼接，空段跳过）——H5 常驻类六件（2026-08-30 拍板八文件体系）：
+ * 组成（按序拼接，空段跳过）——H5 常驻类（2026-08-30 拍板八文件体系）：
  * ① WORLDSEA.md（系统级内置资源）：Agent 认知 WorldSea 本身；不可编辑，随版本维护
  * ② 全局规则组：rules/{RULES,WRITING,DESIGN,TOOLS}.md——优先级低于项目级（拍板「RULES 低 AGENTS 一级」，同组同理）
+ * ②.5 MEMORY.md（**全局组最后一项**，A1 乙3①）——常驻认知，非「需遵循的规则」
  * ③ 项目规则组：<workdir>/{AGENTS,WRITING,DESIGN,TOOLS}.md——优先级最高，最后注入
  * ④ 技能索引（H3 P1：initSkillRegistry 每次建会话重扫 + buildSkillIndexPrompt 启停过滤）
  *
  * 注入契约：new_session(system_prompt) → AgentLoopConfig.system_prompt →
  * build_prompt_options 的 static_p 段与场景 prompt **拼接**（非覆盖，见 agent-kernel memory.rs）。
- * WORLD.md 不在本函数（节奏型注入=实体操作触发重注入，排序第 4 项施工）；MEMORY.md 待记忆系统。
+ * WORLD.md 不在本函数（节奏型注入=实体操作触发重注入，排序第 4 项施工）。
  *
  * 设计说明（原 await-user 点收敛）：
  * - 生效时机 v1 = 仅新会话（已存在会话 system_prompt 固定）；规则变更对旧会话生效待后续（watcher/事件）。
@@ -2404,6 +2457,9 @@ async function buildSessionSystemPrompt(): Promise<string | undefined> {
   // 使 ② 全局规则组读到新载体 ~/.WorldSea/rules（消除首启竞态）
   await getHomeDirCached()
   await ensureGlobalHomeOnce()
+
+  // A1 乙3①：先按记忆库派生 MEMORY.md，保证下方 ②.5 读到的是最新态
+  await syncMemoryMd(currentSessionId.value)
 
   // ① WORLDSEA.md（内置系统说明——始终存在，认知性非约束性）
   sections.push(
@@ -2430,6 +2486,22 @@ async function buildSessionSystemPrompt(): Promise<string | undefined> {
           content.trim(),
         )
       }
+    }
+
+    // ②.5 A1 乙3①：MEMORY.md —— 全局组**最后一项**（设计 §7.3 处置）
+    // 措辞与其余五件刻意区分：那五件是「用户与 Agent 共同维护」的规则；
+    // 本件是记忆系统自动维护、用户只读的**常驻认知**，故定位为「你对用户的既有认知」
+    // 而非「需遵循的规则」，并显式给出「以时序较晚者为准」以配合甲2 的调和语义
+    // （调和结论记录了「已发生的更正」，防模型拿过期印象作答）。
+    const memoryMd = await readTextOrNull(`${rulesDir}/${MEMORY_RULES_FILE}`)
+    if (memoryMd) {
+      sections.push(
+        `## 常驻记忆（全局 · ${MEMORY_RULES_FILE}）\n\n` +
+        '以下是记忆系统为你维护的**常驻认知**（由记忆操作派生，用户不可直接编辑）——' +
+        '跨会话稳定地记录用户的偏好、设定与**已发生的更正**。' +
+        '与你在对话中的临时印象冲突时，以本文件（尤其是时序较晚者）为准：\n\n' +
+        memoryMd.trim(),
+      )
     }
   }
 
@@ -2496,6 +2568,20 @@ async function ensureSession(): Promise<string> {
   // 草稿场景优先（切滑块显式设置的目标场景）→ 上一会话视图桶 sceneId（草稿沿用）→ 兜底 world
   const sceneId = draftSceneId.value ?? normalizeSceneId(useSessionViewState().activeState.value?.sceneId)
   const info = await newSession(await buildSessionSystemPrompt(), undefined, sceneId)
+  // A1 乙3①：构建上面那次 prompt 时 currentSessionId 尚为 null（本次调用正为此而建会话），
+  // 故那次同步被跳过。此处用新会话 id 补一次 MEMORY.md 派生；**若确有更新**，
+  // 重刷一次 prompt 使新内容在同一会话即生效（不更新则完全无额外开销）。
+  if (await syncMemoryMd(info.id)) {
+    try {
+      const prompt = await buildSessionSystemPrompt()
+      await safeInvoke('cmd_agent_update_system_prompt', {
+        sessionId: info.id,
+        systemPrompt: prompt ?? null,
+      })
+    } catch (e) {
+      console.warn('[useAgentRust] MEMORY.md 更新后的会话 prompt 重刷失败（下轮生效）:', e)
+    }
+  }
   return info.id
 }
 

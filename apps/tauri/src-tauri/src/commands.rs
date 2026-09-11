@@ -1085,6 +1085,21 @@ pub async fn delete_group_session_participants(
         .map_err(|e| e.to_string())
 }
 
+/// 渲染常驻记忆文档 MEMORY.md（A1 乙3①）
+///
+/// 返回 Markdown 全文；`None` = 无可渲染内容（前端不应产出空文件）。
+/// 只产内容不落盘——`MEMORY.md` 属 H5 规则体系，路径知识在前端。
+#[tauri::command]
+pub async fn memory_md_render(
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+) -> Result<Option<String>, String> {
+    state
+        .memory_md_render(&session_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// 记忆列表（空查询=全量，按时间排序；支持可选关键词过滤）
 #[tauri::command]
 pub async fn memory_list(

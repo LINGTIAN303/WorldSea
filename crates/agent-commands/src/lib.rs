@@ -2960,6 +2960,25 @@ impl AgentCommandService {
 
     // ── 会话级记忆（阶段 4：前端 ArchivePanel 迁移后端）────────────────
 
+    /// 渲染常驻记忆文档 `MEMORY.md`（A1 乙3①）
+    ///
+    /// 从记忆库**派生**当前会话的精选常驻条目（置顶 + 调和结论），
+    /// 返回 Markdown 全文；`None` = 无可渲染内容（调用方**不应产出空文件**）。
+    ///
+    /// **路径归前端**：本方法只产内容不落盘——`MEMORY.md` 属 H5 规则体系
+    /// （`~/.WorldSea/rules/`），该目录的路径知识在前端；Rust 侧不掌握它，
+    /// 也就不该替前端决定写哪儿。前端拿到内容后写入并触发会话 prompt 刷新。
+    pub async fn memory_md_render(&self, session_id: &str) -> Result<Option<String>, CommandError> {
+        let memory = self
+            .get_memory(session_id)
+            .await?
+            .ok_or_else(|| CommandError::Internal(format!("会话 {session_id} 未启用记忆后端")))?;
+        memory
+            .render_memory_md()
+            .await
+            .map_err(|e| CommandError::Internal(e.to_string()))
+    }
+
     /// 获取会话记忆访问器（未启用记忆时返回 None）
     async fn get_memory(&self, session_id: &str) -> Result<Option<Arc<dyn MemoryAccessor>>, CommandError> {
         let agent = self.get_agent(session_id).await?;

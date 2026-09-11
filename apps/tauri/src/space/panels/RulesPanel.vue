@@ -46,16 +46,16 @@
         </div>
       </div>
       <div class="rp-path" :title="activePath ?? undefined">
-        {{ activePath ?? (activeMeta.readonly ? '应用内置资源' : '路径不可用——项目级需绑定项目目录，全局级需应用数据目录') }}
+        {{ activePath ?? (activeMeta.readonlyFile ? '路径不可用——需应用数据目录就绪' : activeMeta.readonly ? '应用内置资源' : '路径不可用——项目级需绑定项目目录，全局级需应用数据目录') }}
       </div>
 
-      <!-- WORLDSEA：只读展示 -->
+      <!-- 只读展示：内置资源（WORLDSEA）或记忆库派生（MEMORY.md · A1 乙3①） -->
       <template v-if="activeMeta.readonly">
-        <pre class="rp-readonly">{{ builtinWorldseaMd }}</pre>
-        <div class="rp-note">应用内置系统文档（随版本维护，不可编辑），Agent 新会话自动注入。</div>
+        <pre class="rp-readonly">{{ readonlyContent }}</pre>
+        <div class="rp-note">{{ readonlyNote }}</div>
       </template>
 
-      <!-- MEMORY：说明卡 -->
+      <!-- MEMORY：说明卡（历史态；readonlyFile 已取代） -->
       <template v-else-if="activeMeta.disabled">
         <div class="rp-note-block">
           MEMORY.md 由 <b>Agent 维护</b>（记录对你的最重要记忆信息），用户不可在此直接编辑；
@@ -140,6 +140,8 @@ interface RuleFileMeta {
   title: string
   scopes: Scope[]
   readonly?: boolean
+  /** 只读但**内容来自文件**（而非内置资源）——A1 乙3① 的 MEMORY.md 用 */
+  readonlyFile?: boolean
   disabled?: boolean
   note?: string
 }
@@ -152,7 +154,7 @@ const FILE_METAS: RuleFileMeta[] = [
   { id: 'rules', file: RULES_RULES_FILE, title: '全局规则', scopes: ['global'] },
   { id: 'design', file: DESIGN_RULES_FILE, title: '设计规则', scopes: ['project', 'global'] },
   { id: 'tools', file: TOOLS_RULES_FILE, title: '工具规则', scopes: ['project', 'global'] },
-  { id: 'memory', file: MEMORY_RULES_FILE, title: '记忆', scopes: [], disabled: true },
+  { id: 'memory', file: MEMORY_RULES_FILE, title: '常驻记忆', scopes: [], readonly: true, readonlyFile: true, note: '由记忆系统自动维护（Agent 主动更新，用户不可直接编辑）：从记忆库派生渲染「长期有效」与「已知更正」两组条目，全局级、贯穿全部会话、常驻注入。如需变更，请在对话中告知 Agent。' },
 ]
 
 interface DraftState {
@@ -182,13 +184,16 @@ const builtinWorldseaMd = BUILTIN_WORLDSEA_MD
 const placeholder = '每行一条规则；支持 Markdown 列表与小节'
 
 function pathFor(meta: RuleFileMeta, scope: Scope): string | null {
+  // 只读但内容来自文件的卡（MEMORY.md）：路径恒为全局级（它只存在于规则目录）
+  if (meta.readonlyFile) return rulesDir.value ? `${rulesDir.value}/${meta.file}` : null
   if (meta.readonly || meta.disabled) return null
   if (scope === 'project') return workdir.value ? `${workdir.value}/${meta.file}` : null
   return rulesDir.value ? `${rulesDir.value}/${meta.file}` : null
 }
 
-/** 卡片标签：作用域（项目/全局）或特殊态（内置/记忆域） */
+/** 卡片标签：作用域（项目/全局）或特殊态（内置/自动维护） */
 function cardTags(m: RuleFileMeta): string[] {
+  if (m.readonlyFile) return ['自动维护']
   if (m.readonly) return ['内置']
   if (m.disabled) return ['记忆域']
   return m.scopes.map((s) => (s === 'project' ? '项目' : '全局'))
@@ -207,6 +212,7 @@ function selectCard(m: RuleFileMeta): void {
   activeScope.value = m.scopes[0] ?? 'project'
   statusMsg.value = ''
   statusIsError.value = false
+  if (m.readonlyFile) { void loadReadonlyFile(m); return }
   if (!m.readonly && !m.disabled) void ensureDraft(m, activeScope.value)
 }
 
@@ -265,6 +271,43 @@ function onThresholdChange(raw: string): void {
   worldThreshold.value = getWorldRulesThreshold()
 }
 
+// ── A1 乙3①：只读卡的展示内容 ─────────────────────────────
+/** 只读文件的正文（MEMORY.md；惰性加载，读不到时给明确提示而非空白） */
+const readonlyFileContent = ref<string | null>(null)
+const readonlyFileLoading = ref(false)
+
+/** 只读卡当前应展示的正文 */
+const readonlyContent = computed(() => {
+  if (activeMeta.value?.readonlyFile) {
+    if (readonlyFileLoading.value) return '读取中…'
+    return readonlyFileContent.value ?? '（尚无内容——记忆库中暂无精选常驻条目）'
+  }
+  return builtinWorldseaMd
+})
+
+/** 只读卡的脚注说明 */
+const readonlyNote = computed(() => {
+  if (activeMeta.value?.readonlyFile) {
+    return activeMeta.value.note ?? ''
+  }
+  return '应用内置系统文档（随版本维护，不可编辑），Agent 新会话自动注入。'
+})
+
+/** 加载只读文件内容（切换卡片时调用；幂等可重入） */
+async function loadReadonlyFile(meta: RuleFileMeta): Promise<void> {
+  const path = pathFor(meta, 'global')
+  if (!path) { readonlyFileContent.value = null; return }
+  readonlyFileLoading.value = true
+  try {
+    readonlyFileContent.value = await invoke<string>('cmd_fs_read', { path })
+  } catch {
+    // 尚无文件 = 尚未产生常驻条目（正常态），给空提示而非报错
+    readonlyFileContent.value = null
+  } finally {
+    readonlyFileLoading.value = false
+  }
+}
+
 onMounted(async () => {
   try {
     workdir.value = await resolveWorkspaceDir()
@@ -275,6 +318,16 @@ onMounted(async () => {
   } catch { rulesDir.value = null }
   // 全量探测存在性（卡片状态点；异步尽力而为）
   for (const m of FILE_METAS) {
+    // 只读文件卡（MEMORY.md）无 scopes，单独探一次（key 用 global 记状态点）
+    if (m.readonlyFile) {
+      const path = pathFor(m, 'global')
+      if (path) {
+        void invoke('cmd_fs_read', { path })
+          .then(() => { existsMap[`${m.id}:global`] = true })
+          .catch(() => { existsMap[`${m.id}:global`] = false })
+      }
+      continue
+    }
     for (const scope of m.scopes) {
       const path = pathFor(m, scope)
       const key = `${m.id}:${scope}`

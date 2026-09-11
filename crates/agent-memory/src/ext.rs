@@ -99,6 +99,17 @@ pub struct RawRef {
     pub deleted_at: Option<i64>,
 }
 
+/// `memory_ext` 中的一条置顶引用（供跨会话渲染 `MEMORY.md` 用）
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PinnedEntry {
+    /// 索引钩子 ID
+    pub hook_id: String,
+    /// 记忆文件 ID（可直接喂 `Storage::read_memory` 取正文，无需会话级索引）
+    pub memory_id: String,
+    /// 记忆发生时点（Unix 毫秒）
+    pub created_at: i64,
+}
+
 /// `supersede_chain` 一行：一次调和记录
 ///
 /// 对应设计文档 §4.1 的「C 条」——**矛盾不覆盖**的落地凭据：原始双方均保留，
@@ -406,12 +417,36 @@ CREATE TABLE IF NOT EXISTS ext_meta (
 
     /// 列出全部置顶记忆的 hook_id（供「置顶集合」查询与 UI）
     pub async fn pinned_hooks(&self) -> Result<Vec<String>> {
+        Ok(self
+            .pinned_entries()
+            .await?
+            .into_iter()
+            .map(|e| e.hook_id)
+            .collect())
+    }
+
+    /// 列出全部置顶条目（含 `memory_id` 与时点）
+    ///
+    /// **跨会话视图**：本查询**不带会话过滤**——`MEMORY.md` 按设计「贯穿全部会话」
+    /// （§3.3），故其数据来源必须跨会话。配合 `Storage::read_memory(memory_id)`
+    /// （同样不按会话过滤）即可渲染全局常驻文档，无需依赖会话级索引。
+    pub async fn pinned_entries(&self) -> Result<Vec<PinnedEntry>> {
         self.with_conn(|conn| {
             let mut stmt = conn
-                .prepare("SELECT hook_id FROM memory_ext WHERE pinned != 0 AND hook_id != '' ORDER BY created_at")
+                .prepare(
+                    "SELECT hook_id, memory_id, created_at FROM memory_ext
+                     WHERE pinned != 0 AND hook_id != '' AND memory_id != ''
+                     ORDER BY created_at",
+                )
                 .map_err(|e| Error::Ext(format!("准备置顶查询失败: {}", e)))?;
             let rows = stmt
-                .query_map([], |r| r.get::<_, String>(0))
+                .query_map([], |r| {
+                    Ok(PinnedEntry {
+                        hook_id: r.get(0)?,
+                        memory_id: r.get(1)?,
+                        created_at: r.get(2)?,
+                    })
+                })
                 .map_err(|e| Error::Ext(format!("查询置顶失败: {}", e)))?;
             rows.collect::<rusqlite::Result<Vec<_>>>()
                 .map_err(|e| Error::Ext(format!("读取置顶行失败: {}", e)))

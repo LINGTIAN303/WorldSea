@@ -136,6 +136,12 @@ struct MemoryListArgs {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct MemoryMdRenderArgs {
+    session_id: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct MemoryRecallArgs {
     session_id: String,
     query: String,
@@ -620,6 +626,14 @@ pub fn register_core(reg: &mut Registry) {
             let a: MemoryListArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
             let st = app.state::<agent_commands::AgentCommandService>();
             c::memory_list(st, a.session_id, a.keyword, a.limit).await.map(|r| to_value(r).unwrap_or(Value::Null))
+        })
+    }));
+    reg.register("memory_md_render", Arc::new(move |app, args| {
+        let app = app.clone();
+        Box::pin(async move {
+            let a: MemoryMdRenderArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
+            let st = app.state::<agent_commands::AgentCommandService>();
+            c::memory_md_render(st, a.session_id).await.map(|r| to_value(r).unwrap_or(Value::Null))
         })
     }));
     reg.register("memory_recall", Arc::new(move |app, args| {
