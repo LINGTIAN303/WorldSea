@@ -4,6 +4,12 @@
 > 创建时间：2026-06-16
 > 状态：**包已建成，Phase 1 核心 store 改造、Phase 2 渲染节流、Phase 3 全部落地（含 loadByPage 的 DB 分页）；Phase 4 已落地 KanbanView 虚拟滚动（PERF-10）与 Canvas 脏矩形优化（PERF-16），其余待排期**（2026-08-04 复核）
 
+> **2026-09-11 迁移后实况校正（web→tauri 端收敛所致；全库 grep 取证）**：上方 2026-08-04 复核为 **web 端时代**记录，端分离（2026-08-08 删 `apps/web`）后有成果未随迁——
+> - ⚠ **上句「Phase 4 已落地 KanbanView 虚拟滚动」已失效**：`useVirtualList` 仅保留定义与导出，**全库零消费方**；`apps/tauri/src/modules/runtime/KanbanView.vue` 为空占位（注释「Kanban 视图待迁移」）。此项需重新落地或正式注销。
+> - ⚠ **另两项零消费方**（已落地但无调用方，性质为「预留工具」）：`createIdleRaf`、`createUpdateBatcher` 仅出现在自身定义与三处 index 导出。
+> - ✅ **仍被真实消费**（取证）：`useShallowArray`（entityStore / artifactStore / fileStore / relationStore / trashStore / useAgentEvents）、`useShallowRefMap`（entityStore / artifactStore）、`watchDebounced`（AgentMessageList / GlobalSearch / uiStore / settingsStore / fontStore）、`useStreamingRenderer`（useMarkdownRender）、`createBatchIpc`（ProjectFS）。
+> - 待办维持不变：Phase 4 其余项 + 需逐一确认的 deep watch。
+
 > **2026-08-04 复核（实际状态）**：
 > - ✅ `packages/perf-kit` 包已创建，已实现并导出：`useShallowRefMap` / `useShallowArray` / `createDebouncedStorage` / `createBatchIpc` / `watchDebounced` / `rafThrottle` / `useStreamingRenderer`
 > - ✅ **Phase 1 store 浅引用改造已落地**：`entityStore` / `fileStore` / `trashStore` / `relationStore` 均已改用 `useShallowArray` / `useShallowRefMap`（其中 relationStore 已于 2026-08-04 补齐，替代旧的深响应式 `ref` + `.filter()` 整体替换）
