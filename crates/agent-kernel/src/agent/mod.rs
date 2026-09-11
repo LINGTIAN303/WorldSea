@@ -779,16 +779,65 @@ impl AgentLoop {
                 drop += 1;
             }
         }
+        // ── A1 己2②（2026-09-11）：裁剪边界对齐 tool 配对 ──────────────────
+        // 原实现按字节逐条从头丢，切点可能落在 assistant(tool_calls) 与其
+        // tool_result 之间 → 悬空 tool_call_id 会被 LLM API 判为 400（真实 BUG）。
+        // 策略：**回退边界（少裁）而非前移（多裁）**——配对完整性优先于预算，
+        // 预算只是软目标，配对破坏是硬错误；回退把整个工具交换留在保留区。
+        let mut pair_retreat = 0usize;
+        if drop > 0 {
+            let shapes: Vec<(MessageRole, bool)> = {
+                let state = self.state.lock().await;
+                state
+                    .messages
+                    .iter()
+                    .map(|m| (m.role, !m.tool_calls.is_empty()))
+                    .collect()
+            };
+            let planned = drop;
+            while drop > 0 && Self::cut_breaks_tool_pairing(&shapes, drop) {
+                drop -= 1;
+            }
+            pair_retreat = planned - drop;
+        }
         if drop == 0 {
+            debug!("上下文预算裁剪：候选裁量经 tool 配对对齐后归零，本轮不裁剪");
             return;
         }
         match self.trim_context(drop).await {
             Ok(()) => info!(
-                "上下文预算裁剪：历史 {} 字节超预算 {}，已裁掉最旧 {} 条（保留 {} 条）",
-                total_bytes, HISTORY_BUDGET_BYTES, drop, total_msgs - drop
+                "上下文预算裁剪：历史 {} 字节超预算 {}，已裁掉最旧 {} 条（保留 {} 条）{}",
+                total_bytes,
+                HISTORY_BUDGET_BYTES,
+                drop,
+                total_msgs - drop,
+                if pair_retreat > 0 {
+                    format!("；其中 {pair_retreat} 条为对齐 tool 配对而回退未裁")
+                } else {
+                    String::new()
+                }
             ),
             Err(e) => warn!("上下文预算裁剪失败: {}", e),
         }
+    }
+
+    /// A1 己2②：判断在 `cut` 处切开是否破坏 tool_call / tool_result 配对。
+    ///
+    /// 前 `cut` 条被丢弃、`cut..` 保留，两种破坏形态：
+    /// 1. 保留区首条是 `toolResult` —— 其所属的 assistant(tool_calls) 已被丢弃；
+    /// 2. 丢弃区末条是携带 `tool_calls` 的 assistant —— 其工具结果仍留在保留区。
+    fn cut_breaks_tool_pairing(shapes: &[(MessageRole, bool)], cut: usize) -> bool {
+        let Some(first_kept) = shapes.get(cut) else {
+            return false; // 保留区为空（整段丢弃）不构成悬空
+        };
+        if first_kept.0 == MessageRole::ToolResult {
+            return true;
+        }
+        if cut == 0 {
+            return false;
+        }
+        let last_dropped = &shapes[cut - 1];
+        last_dropped.0 == MessageRole::Assistant && last_dropped.1
     }
 
     /// M4-5（B10）：预判型 — 供 send_message 在 run 启动前决定 run 形状

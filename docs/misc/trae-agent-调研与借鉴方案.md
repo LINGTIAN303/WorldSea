@@ -376,7 +376,7 @@ class ThoughtData:
 | MCP | 启动时 discover，append 进 `_tools` | `register_mcp_tools` / `unregister_mcp_server`（按 server 批量管理，更强） |
 | 执行模式 | `parallel_tool_call` / `sequential_tool_call` 二选一 | 按 `parallel_tool_calls` + HITL 确认分派（`agent/tools.rs:269-314`） |
 | 超时/重试 | ❌ 无 | ✅ `tokio::time::timeout` + 指数退避（`agent/tools.rs:164-266`） |
-| 结果裁剪 | `maybe_truncate` | `clamp_tool_result`，`TOOL_RESULT_STR_LIMIT = 12_000`（`agent/tools.rs:16,443`） |
+| 结果裁剪 | `maybe_truncate` | `clamp_tool_result`，`TOOL_RESULT_STR_LIMIT = 12_000`（`agent/tools.rs`；2026-09-11 起为**保头 3/5 + 保尾 2/5**） |
 | 前置钩子 | ❌ 无 | ✅ `on_pre_use`（可改 args / Deny） |
 | 错误类型 | 通用 `ToolError` | `NotFound/ArgsParse/Execution/Timeout/Aborted/Other` |
 | 资源释放 | `Tool.close()`，`_close_tools` 在 finally 调用 | 需核对 |

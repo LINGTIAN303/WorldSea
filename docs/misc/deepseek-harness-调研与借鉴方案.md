@@ -403,13 +403,17 @@ const HISTORY_KEEP_MESSAGES: usize = 12;      // ⚠ 占位待定
 `clamp_tool_result` 在工具结果**进入消息历史之前**截断：
 
 ```rust
-// tools.rs:32
+// tools.rs —— 2026-09-11 前的实现（只保头）
 *s = format!("{}\n…[已截断，省略 {} 字节]", &s[..end], omitted);
 ```
 
-- 只保头、丢尾（dsh 保头 + 保尾）
+- ~~只保头、丢尾（dsh 保头 + 保尾）~~ → **2026-09-11 已施工**：改为保头（3/5）+ 保尾（2/5）。原文仍不可恢复，但尾部结论不再丢失
 - 原文不可恢复（dsh 保留原事件，替换引用其 seq）
 - 阈值是**字节**且按 `String::len()` 算（dsh 按 Unicode 码点，明确避免劈开代理对）
+
+> **2026-09-11 施工回写**：
+> 1. **保头 + 保尾已落地**——`clamp_tool_result` 现保留头部 3/5 + 尾部 2/5，中段省略并标注省略字节数；仍在 UTF-8 字符边界切分（见 阶段 D 第 1 项）。
+> 2. **tool 配对保护已落地**——`enforce_context_budget` 的裁剪边界现对齐 `tool_call` / `tool_result` 配对，采用**回退边界（少裁）**策略：配对完整性优先于预算，避免切出悬空 `tool_call_id`（见 差距矩阵「tool 配对保护 P0」行）。
 
 ---
 
@@ -417,10 +421,10 @@ const HISTORY_KEEP_MESSAGES: usize = 12;      // ⚠ 占位待定
 
 | 能力 | dsh | WorldSea | 优先级 |
 |---|---|---|---|
-| 压缩语义 | 日志上的 `replace` 记录 | 内存 drain | **P0** |
+| 压缩语义 | 日志上的 `replace` 记录 | 内存 drain（快照写穿 → 物理删除） | **P0** |
 | 原文可回溯 | 是（append-only 日志） | 否 | **P0** |
-| 压缩结果可持久 | 是（本身就是事件） | 否（刷新即复活） | **P0** |
-| tool 配对保护 | `toolPairingBalancedBefore/After` | 无 | **P0** |
+| 压缩结果可持久 | 是（本身就是事件） | 否（全量替换，被删即不可恢复） | **P0** |
+| tool 配对保护 | `toolPairingBalancedBefore/After` | ✅ **已施工（2026-09-11）**：`cut_breaks_tool_pairing` 边界回退对齐 | ~~P0~~ 已闭环 |
 | token 计量 | 独立 `ctx.tokenMeter` 服务 | 无（字节粗估） | **P1** |
 | 阈值与模型上下文挂钩 | `thresholdRatio × routedContextWindow` | 无关联 | **P1** |
 | 崩溃可检测 | 孤儿 `compaction/start` | 无事务 | P1 |
@@ -482,7 +486,7 @@ msg.meta.insert("shadowed_by".into(), json!(summary_seq));
 
 ### 阶段 D：裁剪与恢复（P2）
 
-1. `clamp_tool_result` 改为**保头 + 保尾**（当前只保头），并考虑改为入库后替换以保可回溯
+1. ~~`clamp_tool_result` 改为**保头 + 保尾**（当前只保头）~~ ✅ **已施工（2026-09-11）**；**仍待办**：改为入库后替换以保可回溯
 2. 溢出错误分类 + 压缩后重试一次
 
 ---
@@ -491,7 +495,7 @@ msg.meta.insert("shadowed_by".into(), json!(summary_seq));
 
 | # | 风险 | 影响 | 建议 |
 |---|---|---|---|
-| R1 | **A1 缺失会导致真实 400 错误** —— 悬空 `tool_call_id` | 长会话触发裁剪后，下一次请求可能直接失败 | 优先修，改动 < 30 行 |
+| R1 | **A1 缺失会导致真实 400 错误** —— 悬空 `tool_call_id` | 长会话触发裁剪后，下一次请求可能直接失败 | ~~优先修，改动 < 30 行~~ ✅ **已修（2026-09-11）**：`cut_breaks_tool_pairing` 边界回退 |
 | R2 | **阶段 B 需要新增 LLM 摘要调用** —— 增加成本与延迟 | 每次压缩一次额外请求 | 建议默认 `auto: true` 但可关；阈值设保守值 |
 | R3 | **阶段 B 改变用户可见行为** —— 会话中出现检查点消息 | 属 UX 变更（信息层级），需确认渲染形态 | 前端如何呈现检查点，需你定 |
 | R4 | **触发时机从 AfterRun 挪到派生前** —— 属架构变更 | 影响 `RunPhase` 语义 | 需确认 |

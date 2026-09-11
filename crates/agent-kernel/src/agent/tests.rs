@@ -106,6 +106,137 @@
         assert_eq!(after.last().unwrap().content, "终稿");
     }
 
+    /// A1 己1③：工具结果截断改为「保头 + 保尾」——尾部结论不再丢失
+    #[test]
+    fn clamp_tool_result_keeps_head_and_tail() {
+        use super::tools::{clamp_tool_result, TOOL_RESULT_STR_LIMIT};
+
+        let head_marker = "HEAD_BEGIN";
+        let tail_marker = "TAIL_END";
+        let original = format!(
+            "{head_marker}{}{tail_marker}",
+            "x".repeat(TOOL_RESULT_STR_LIMIT + 5_000)
+        );
+        let mut value = serde_json::Value::String(original);
+        clamp_tool_result(&mut value);
+        let out = value.as_str().unwrap();
+
+        assert!(out.starts_with(head_marker), "头部应保留");
+        assert!(out.ends_with(tail_marker), "尾部应保留（旧实现只保头部）");
+        assert!(out.contains("已截断"), "应标注省略");
+        // 内容预算受控：首 + 尾 = LIMIT，外加省略标记
+        assert!(
+            out.len() < TOOL_RESULT_STR_LIMIT + 200,
+            "总长应受控，实际 {}",
+            out.len()
+        );
+    }
+
+    /// A1 己1③：截断在多字节字符边界安全（旧实现与新版都必须不劈开 UTF-8）
+    #[test]
+    fn clamp_tool_result_is_utf8_boundary_safe() {
+        use super::tools::clamp_tool_result;
+
+        // 全中文长串（每字 3 字节）：按字节硬切必落在字符中间
+        let mut value = serde_json::Value::String("中".repeat(20_000));
+        clamp_tool_result(&mut value);
+        let out = value.as_str().unwrap();
+
+        assert!(out.contains("已截断"), "超限应被截断");
+        assert!(out.starts_with('中'), "头部应从完整字符开始");
+        assert!(out.ends_with('中'), "尾部应到完整字符结束");
+    }
+
+    /// A1 己1③：未超限的字符串原样保留（不引入无谓改动）
+    #[test]
+    fn clamp_tool_result_noop_when_within_limit() {
+        use super::tools::clamp_tool_result;
+
+        let mut value = serde_json::Value::String("短内容".into());
+        clamp_tool_result(&mut value);
+        assert_eq!(value.as_str().unwrap(), "短内容");
+    }
+
+    /// A1 己2②：预算裁剪边界对齐 tool 配对——不得切出悬空 tool_call_id
+    ///
+    /// 构造：7 条小消息 + assistant(带 tool_calls, 20KB) + toolResult(12KB) + 11 条大消息。
+    /// 朴素按字节裁剪会得到 drop=8，恰好把 toolResult 留在保留区首位 → 悬空 tool_call_id → 400。
+    #[tokio::test]
+    async fn context_budget_cut_aligns_to_tool_pairing() {
+        use crate::types::{MessageRole, OrchestratorMessage};
+
+        let backend = Arc::new(MockBackend::new(vec![]));
+        let tool_bus = Arc::new(SimpleToolBus::new());
+        let agent = AgentLoop::new(backend, tool_bus);
+
+        let mut msgs = Vec::new();
+        for i in 0..7 {
+            msgs.push(OrchestratorMessage {
+                role: if i % 2 == 0 {
+                    MessageRole::User
+                } else {
+                    MessageRole::Assistant
+                },
+                content: "a".repeat(4_000),
+                tool_calls: Vec::new(),
+                tool_call_id: None,
+                meta: None,
+            });
+        }
+        msgs.push(OrchestratorMessage {
+            role: MessageRole::Assistant,
+            content: "b".repeat(20_000),
+            tool_calls: vec![ToolCall {
+                id: "call_1".into(),
+                name: "echo".into(),
+                args: serde_json::json!({}),
+            }],
+            tool_call_id: None,
+            meta: None,
+        });
+        msgs.push(OrchestratorMessage {
+            role: MessageRole::ToolResult,
+            content: "c".repeat(12_000),
+            tool_calls: Vec::new(),
+            tool_call_id: Some("call_1".into()),
+            meta: None,
+        });
+        for _ in 0..11 {
+            msgs.push(OrchestratorMessage {
+                role: MessageRole::User,
+                content: "d".repeat(12_000),
+                tool_calls: Vec::new(),
+                tool_call_id: None,
+                meta: None,
+            });
+        }
+        agent.append_messages(msgs).await;
+
+        agent.enforce_context_budget().await;
+
+        let kept = agent.get_messages().await;
+        assert!(!kept.is_empty(), "应发生裁剪");
+        assert_ne!(
+            kept[0].role,
+            MessageRole::ToolResult,
+            "保留区首条不得是 toolResult——否则其 tool_call 已丢，构成悬空"
+        );
+        // 全量不变量：任何 toolResult 都必须有仍在保留区的 assistant(tool_calls) 声明
+        let mut declared: Vec<String> = Vec::new();
+        for m in &kept {
+            match m.role {
+                MessageRole::Assistant => {
+                    declared.extend(m.tool_calls.iter().map(|tc| tc.id.clone()))
+                }
+                MessageRole::ToolResult => {
+                    let id = m.tool_call_id.clone().unwrap_or_default();
+                    assert!(declared.contains(&id), "悬空 tool_call_id: {id}");
+                }
+                _ => {}
+            }
+        }
+    }
+
     /// R6 第二部分：merge_last_assistant_meta 把事件序追加进最后 assistant 消息 meta.action_events，
     /// 多次调用累计（追加语义），无 assistant 消息时忽略。
     #[tokio::test]

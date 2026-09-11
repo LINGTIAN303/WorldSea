@@ -47,26 +47,48 @@ impl ToolStreamSink for AgentToolStream {
     }
 }
 
-/// H1 修复（P1.5，2026-08-30）：工具结果统一裁剪——单个字符串值超限截断（保留头部），
+/// H1 修复（P1.5，2026-08-30）：工具结果统一裁剪——单个字符串值超限截断，
 /// 防止 terminal 大输出 / 大文件读取把消息历史与 LLM 上下文撑爆。
 /// 此前截断只靠各工具源头自律，terminal/读文件类无兜底。
-const TOOL_RESULT_STR_LIMIT: usize = 12_000;
+pub(super) const TOOL_RESULT_STR_LIMIT: usize = 12_000;
+
+/// A1 己1③（2026-09-11）：截断由「只保头部」改为「保头 + 保尾」。
+///
+/// 依据：工具输出的结论 / 报错 / 统计 / 文件末尾通常落在尾部，只保头部会把最有
+/// 价值的部分丢掉；而截断发生在**入库前**（见下方调用点），被丢掉的内容此后
+/// 任何存储里都不存在、无从回溯。头部保留占比略高（起始上下文需完整）。
+const TOOL_RESULT_HEAD_PARTS: usize = 3;
+const TOOL_RESULT_TAIL_PARTS: usize = 2;
 
 /// 递归裁剪工具结果中的超长字符串（保留结构：Object/Array 遍历，`__meta` 元数据键不截）。
-/// 截断在 UTF-8 字符边界进行，尾部追加省略标记。
-fn clamp_tool_result(value: &mut Value) {
+/// 截断在 UTF-8 字符边界进行，中段省略并标注省略字节数（首尾均保留）。
+pub(super) fn clamp_tool_result(value: &mut Value) {
     match value {
         Value::String(s) => {
             if s.len() <= TOOL_RESULT_STR_LIMIT {
                 return;
             }
-            // 按字符边界截断（避免劈开多字节字符），尾部追加省略标记
-            let mut end = TOOL_RESULT_STR_LIMIT;
-            while end > 0 && !s.is_char_boundary(end) {
-                end -= 1;
+            // 首尾预算：头部 3/5、尾部 2/5（头部含起始上下文，尾部含结论）
+            let head_budget = TOOL_RESULT_STR_LIMIT * TOOL_RESULT_HEAD_PARTS
+                / (TOOL_RESULT_HEAD_PARTS + TOOL_RESULT_TAIL_PARTS);
+            let tail_budget = TOOL_RESULT_STR_LIMIT - head_budget;
+
+            // 按字符边界切分（避免劈开多字节字符）
+            let mut head_end = head_budget;
+            while head_end > 0 && !s.is_char_boundary(head_end) {
+                head_end -= 1;
             }
-            let omitted = s.len() - end;
-            *s = format!("{}\n…[已截断，省略 {} 字节]", &s[..end], omitted);
+            let mut tail_start = s.len() - tail_budget;
+            while tail_start < s.len() && !s.is_char_boundary(tail_start) {
+                tail_start += 1;
+            }
+            let omitted = tail_start - head_end;
+            *s = format!(
+                "{}\n…[已截断，省略 {} 字节]…\n{}",
+                &s[..head_end],
+                omitted,
+                &s[tail_start..]
+            );
         }
         Value::Array(arr) => arr.iter_mut().for_each(clamp_tool_result),
         Value::Object(map) => {
