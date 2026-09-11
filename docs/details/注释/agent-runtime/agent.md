@@ -486,7 +486,7 @@ AgentLoop 和 Backend 各自持有独立的 `EventBroadcaster`：
 
 ## 织入点 Hook 协议（matrix §8 里程碑 5，2026-08-25 实现）
 
-> 代码：[kernel/agent/hooks.rs](../../../../crates/agent-runtime/src/kernel/agent/hooks.rs)
+> 代码：[kernel/agent/hooks.rs](../../../../crates/agent-kernel/src/agent/hooks.rs)
 > 把 `AgentLoop::run` 生命周期内的横切织入位（记忆闭环 / 四管线路由 / DeepPhase 阶段判定）
 > 显性化为统一位点契约，并提供外部扩展通道。**不改变**内置织入行为与对外契约。
 

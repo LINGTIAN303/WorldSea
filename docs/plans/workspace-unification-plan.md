@@ -29,22 +29,22 @@ WorldSea 是 Agent 产品、Harness 工程。文件系统对 Harness 不是"存�
 
 ### 2.1 项目空间（实体数据落盘体系）
 
-- **管理链**：[ProjectManager.ts](../packages/entity-core/src/core/ProjectManager.ts)（项目元数据在 IndexedDB `WorldSea-Meta`，含 `dirPath` 字段）→ [FileStorageBackend.ts](../packages/entity-core/src/core/FileStorageBackend.ts)（**本地目录为主存储**，IndexedDB 仅 fallback）
-- **默认绑定**：Tauri 桌面端项目无目录时自动绑定 `{appDataDir}/projects/{projectId}`（[useProjectSwitcher.ts](../apps/tauri/src/composables/useProjectSwitcher.ts) 兜底），文件主存储是常态
+- **管理链**：[ProjectManager.ts](../../packages/entity-core/src/core/ProjectManager.ts)（项目元数据在 IndexedDB `WorldSea-Meta`，含 `dirPath` 字段）→ [FileStorageBackend.ts](../../packages/entity-core/src/core/FileStorageBackend.ts)（**本地目录为主存储**，IndexedDB 仅 fallback）
+- **默认绑定**：Tauri 桌面端项目无目录时自动绑定 `{appDataDir}/projects/{projectId}`（[useProjectSwitcher.ts](../../apps/tauri/src/composables/useProjectSwitcher.ts) 兜底），文件主存储是常态
 - **目录结构**：`entities/{类型}/{名称_id8}.json` + `relations/_index.json` + `.worldsea/`（kv_store、files_meta、files_content）
-- **UI 入口**：[AppMenu.vue](../apps/tauri/src/ui/layout/AppMenu.vue)「绑定/切换项目目录」「导出到文件夹 Ctrl+S」；应用内**无**项目文件树视图
-- **外部回流**：[useFsWatcher.ts](../packages/entity-core/src/composables/useFsWatcher.ts) → Rust `cmd_fs_watch_start`（notify 监听）→ `fs:change` → 增量重载，带自身写入静默期——与外部资源管理器已双向打通
+- **UI 入口**：[AppMenu.vue](../../apps/tauri/src/ui/layout/AppMenu.vue)「绑定/切换项目目录」「导出到文件夹 Ctrl+S」；应用内**无**项目文件树视图
+- **外部回流**：[useFsWatcher.ts](../../packages/entity-core/src/composables/useFsWatcher.ts) → Rust `cmd_fs_watch_start`（notify 监听）→ `fs:change` → 增量重载，带自身写入静默期——与外部资源管理器已双向打通
 
 ### 2.2 Agent 工作空间（会话绑定工作目录）
 
-- **会话级 `workdir`** 持久化于 Rust SQLite；默认根**固定 `~/.worldsea/workspace`**，设计为"不跟随项目"（对齐 OpenClaw 惯例，[workspace.ts](../apps/tauri/src/space/workspace.ts)）
+- **会话级 `workdir`** 持久化于 Rust SQLite；默认根**固定 `~/.worldsea/workspace`**，设计为"不跟随项目"（对齐 OpenClaw 惯例，[workspace.ts](../../apps/tauri/src/space/workspace.ts)）
 - **目录实体**：`cmd_save_workdir/list_workdirs`（SQLite），作为下拉候选 + 会话树分组
-- **消费方四处**：① coding 工具链词法边界（[coding-agent-tools.ts](../packages/agent-runtime/src/tools/coding-agent-tools.ts) `resolveWithinWorkspace`：相对路径 join、越界拒绝、无 workdir 放行）；② shell cwd 缺省；③ 前端工具桥上下文注入（useAgentRust 的 `toolBridgeContext.workspace`）；④ 右栏 [WorkspacePanel.vue](../apps/tauri/src/space/panels/WorkspacePanel.vue)
+- **消费方四处**：① coding 工具链词法边界（[coding-agent-tools.ts](../../packages/agent-runtime/src/tools/coding-agent-tools.ts) `resolveWithinWorkspace`：相对路径 join、越界拒绝、无 workdir 放行）；② shell cwd 缺省；③ 前端工具桥上下文注入（useAgentRust 的 `toolBridgeContext.workspace`）；④ 右栏 `apps/tauri/src/space/panels/WorkspacePanel.vue`
 - **WorkspacePanel**：应用内文件资源管理器雏形（目录树/新建/重命名/删除/上传/只读预览），但**只覆盖 workdir 范围**、只支持文本、走 `cmd_fs_*`
 
 ### 2.3 已存在的单向缝合点
 
-[WorkdirSelect.vue](../apps/tauri/src/space/chat/WorkdirSelect.vue) `applyWorkdir`（save=true 时）：Agent 侧「打开文件夹…」主动选目录 → `bindDirToProject` 把它绑定为当前项目存储目录并 toast（[useFileSystemProject.ts](../packages/entity-core/src/composables/useFileSystemProject.ts)）。注释原话：「统一根目录：Agent 工作区 = 项目数据存储」。
+`apps/tauri/src/space/chat/WorkdirSelect.vue` `applyWorkdir`（save=true 时）：Agent 侧「打开文件夹…」主动选目录 → `bindDirToProject` 把它绑定为当前项目存储目录并 toast（[useFileSystemProject.ts](../../packages/entity-core/src/composables/useFileSystemProject.ts)）。注释原话：「统一根目录：Agent 工作区 = 项目数据存储」。
 **方向性已存在，但单向**：AppMenu 换绑项目目录、切换项目时，Agent 会话 workdir 均不跟随。
 
 ### 2.4 分叉清单（7 条）

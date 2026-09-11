@@ -13,7 +13,7 @@
 **结论：召回 MemoryCenter 作为 WorldSea Agent 记忆后端，方向正确、时机成熟。**
 
 关键事实链：
-1. WorldSea 的 [MemoryAccessor](file:///d:/本地化AI/DeepSeek_Home/worldsea/crates/agent-runtime/src/memory.rs) trait 已定义，`Orchestrator` 有 `with_memory()` 注入点，但**无任何实现**（默认 `Option=None`）。
+1. WorldSea 的 [MemoryAccessor](../../../crates/agent-kernel/src/memory.rs) trait 已定义，`Orchestrator` 有 `with_memory()` 注入点，但**无任何实现**（默认 `Option=None`）。
 2. 自研 `@worldsea/memory-archive`（TS/IndexedDB）是 MemoryCenter 的**早期实验**，且 roadmap 明确标注"未与 Agent loop 深度集成"。
 3. MemoryCenter 是独立演进的成熟记忆库，具备三级周期归档、完整对话无损归档、4 维评分淘汰、冲突检测、17 类标签、BM25+语义混合检索等 WorldSea 缺失能力。
 4. `memory-center-core` 自带 SQLite（rusqlite）/文件树/缓存存储，契合 WorldSea 的 SQLite 单二进制约束。
@@ -156,7 +156,7 @@ Storage trait（可插拔）
 - **Web 端（正常）**：Dexie/IndexedDB，删除会话级联清理图片。
 
 **处置落地**：
-- **会话持久化存储层**：新增 [`session_store.rs`](d:\本地化AI\DeepSeek_Home\worldsea\crates\agent-commands\src\session_store.rs) — `SessionRepository` trait + `SqliteSessionRepository`（`sessions` 表 + `messages` 表，WAL 模式，消息级联删除）。4 个单测通过（save/load 往返、消息替换、级联删除、跨重启持久化）。
+- **会话持久化存储层**：新增 [`session_store.rs`](../../../crates/agent-commands/src/session_store.rs) — `SessionRepository` trait + `SqliteSessionRepository`（`sessions` 表 + `messages` 表，WAL 模式，消息级联删除）。4 个单测通过（save/load 往返、消息替换、级联删除、跨重启持久化）。
 - **服务层写穿**：`AgentCommandService` 增 `session_store` 字段 + `with_session_store`；`new_session`/`send_message`/`clear_history`/`trim_context`/`delete_session` 各操作写穿（弱提示，失败仅记日志）。
 - **启动恢复**：`restore_sessions` 从存储加载全部会话经 `AgentLoop::restore_state` 重建（system 去重），Tauri `lib.rs` 启动时创建 `sessions.db` + 注入 + 调用恢复。
 - **孤儿记忆清理**：`MemoryAccessor` 增 `delete_by_session_id`，`MemoryCenterAccessor` 实现为枚举 Daily/Weekly/Monthly 三档，先删记忆文件再删索引钩子（防幽灵摘要）。含单测。

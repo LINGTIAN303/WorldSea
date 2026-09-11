@@ -120,20 +120,28 @@
 | 2 | `plans/perf-kit-plan.md` | 执行中（头部注记基于 2026-08-04 **web 端时代**） | **已追加「2026-09-11 迁移后实况校正」注记**——Phase 4.6 虚拟滚动成果未随 web→tauri 迁移（`useVirtualList` 零消费方、`KanbanView.vue` 空占位）；另发现 `createIdleRaf` / `createUpdateBatcher` 同为零消费方 |
 | 3 | `plans/ROADMAP.md` 任务 29 | 进行中 | 保持——ROADMAP 状态枚举无「收尾中」粒度，标「进行中」不算错（本索引与 plan 均标「收尾中」） |
 
-## 已知遗留：全库相对链接断链（未处理）
+## 全库链接校验（2026-09-11 已清零）
 
-2026-09-11 全库扫描（**301 文件 / 732 条相对链接**）：本轮修复 8 处后**剩余断链 215 处**（修复前 223）。绝大多数为历史遗留，根因两类：
+2026-09-11 全库扫描与修复：**301 文件 / 684 条相对链接 / 断链 0 / 绝对路径引用 0**（修复前：732 链接 / 断链 223 / 绝对路径 10）。
 
-1. **crate 重组系统性过期**（2026-08-25）——`crates/agent-runtime/src/...` 大量引用失效，实体已迁 `agent-kernel` / `agent-patterns`。集中于 [orchestration-matrix.md](../details/架构/orchestration-matrix.md) 与 [agent-orchestration-roadmap.md](../plans/已完成/agent-orchestration-roadmap.md)
-2. **web→tauri 端收敛**——已删前端组件路径失效（`ProjectRulesEditor.vue` / `WorkspacePanel.vue` / `WorkdirSelect.vue` / `SpaceNavbar.vue` 等）
+199 条待修条目的处置分布：
 
-**断链最集中的文档**：`重构视觉稿/agent-space-ui-matrix.md` **110 处**（占一半以上）——该文档用仓库根相对路径（`apps/tauri/src/...`）而非相对自身位置书写，从 `docs/重构视觉稿/` 出发全部失效；其次 `details/架构/orchestration-matrix.md` 46 处、`plans/已完成/agent-orchestration-roadmap.md` 32 处。
+| 处置方式 | 数量 | 说明 |
+| --- | --- | --- |
+| 补前缀 | 75 | 目标按仓库根书写而非相对自身（少写 `../`）——`重构视觉稿/agent-space-ui-matrix.md` 110 处的成因 |
+| 唯一命中重定位 | 41 | 按文件名全库反查、唯一命中后改指 |
+| crate 重组映射 | 23 | 2026-08-25 拆分规则：底座文件 → `agent-kernel`；模式目录 → `agent-patterns`（如 `tree_of_thoughts/` → `patterns/src/tot/`） |
+| 旧绝对路径 → 相对 | 11 | `file:///d:/本地化AI/DeepSeek_Home/worldsea/...` 与 `d:\...` 两种遗留形态 |
+| **降级为纯路径** | 58 | 目标确已删除、无对应物——转为不可点击的 `` `纯路径` ``（保留信息、消除死链，符合「清单用形式 1」约定） |
 
-另有 **10 处 `file:///d:/本地化AI/DeepSeek_Home/worldsea/...` 绝对路径**引用（违反项目「禁用绝对路径」约定，且指向旧目录）。本轮未处理，建议单独立项清理。校验工具：`scripts/check-doc-links.mjs`。
+**降级对象**（已删除且无替代）：编排右栏组件（`PlanPanel.vue` / `RouterPanel.vue` / `MultiAgentPanel.vue` / `useToTRust.ts` 等）、三模式移除产物（`deepPhases.ts` / `PhaseSection.vue`）、重构删除的面板（`ProjectRulesEditor.vue` / `WorkspacePanel.vue` / `WorkdirSelect.vue` / `SpaceNavbar.vue`）、A 轨 `multi_agent/` 模块、`.trae/` 下未入库文档。
+
+**校验工具**：`scripts/check-doc-links.mjs`（可传目录参数，输出断链 / 绝对路径 / 疑似误报）。文档批量变更后建议回归一次。
 
 ## 变更记录
 
 - **2026-08-30**：全库实况核对——归档 17 份已完成计划 + 1 目录；skills-store-spec 判「部分断线」；标注编排域 M1-M5 双轨并行（收口待拍板）
 - **2026-09-11（第一轮）**：补录 12 份未收录文档（plans 执行中 2 / 归档区 3 / details 5 / misc 2）；更新自迭代决策记录摘要（23 主题 → 29 分片、决策点 1-86）；新建 [WORKSTREAMS.md](WORKSTREAMS.md) 工作线总览
 - **2026-09-11（第二轮）**：目录归位（`plans/任务/` → `plans/已完成/`、`执行中/` → `misc/`、删 `docs/test.md`）；3 处状态勘误处置完毕（2 处改源文档 + 1 处判定保持）；连带修复 8 处断链；新增 `scripts/check-doc-links.mjs` 校验工具；登记全库断链遗留 215 处（未处理）
+- **2026-09-11（第三轮）**：全库链接治理——199 条待修条目全部处置（改指 150 / 降级 58）；**断链与绝对路径引用双双归零**（223 → 0、10 → 0）。降级对象均为已删除且无替代的路径，转为不可点击纯路径
 

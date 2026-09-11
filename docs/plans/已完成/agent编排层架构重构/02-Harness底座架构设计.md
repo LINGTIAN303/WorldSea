@@ -10,7 +10,7 @@ depends_on: 01-编排模式矩阵表.md
 > ReactNode、ExtensionRegistry 替代 NodeType、SubAgent 节点化、harness/patterns/infra 三层目录——
 > 经两方裁定**全部未采纳**（子 Agent 语义悬空 / 回归风险与收益倒挂 / 扩展通道本就是 trait /
 > 消灭自主委派语义 / infra 层无收益）。仅其合理内核「织入点协议化」降级列入权威矩阵
-> [orchestration-matrix.md](../../details/架构/orchestration-matrix.md) §8 里程碑 5。
+> [orchestration-matrix.md](../../../details/架构/orchestration-matrix.md) §8 里程碑 5。
 > 施工以 matrix 为准；本文档仅作未采纳备选存档，防止未来重提时遗漏已否决的理由。
 > 详见 [03-两方方案裁定纪要.md](03-两方方案裁定纪要.md)。
 

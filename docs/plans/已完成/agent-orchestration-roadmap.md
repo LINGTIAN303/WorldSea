@@ -4,7 +4,7 @@
 > 创建日期：2026-07-24
 > **归档注记（2026-08-30 实况核对）**：阶段 3（pi-ai 移除）实际已完成（全 packages 无 `from 'pi-ai'`，e2e-closure 5.5 核实），正文"可选待定"过期；文内全部 `crates/agent-runtime/src/...` 路径已随 2026-08-25 crate 拆分迁移（实体在 agent-kernel / agent-patterns，旧路径经 `pub use` 转发兼容）；曾声称完成的 Loop Engineering 命令层经端分离迁移断裂后已由自迭代 23 恢复（`docs/misc/self-iteration/23-loop-control-long-task.md`）；唯一未确认尾巴：failTask 终态闭环（2026-08-02 遗留）无后续记录。后续演进见 [orchestration-matrix.md](../../details/架构/orchestration-matrix.md) 与 [VibeCoding编排模式落地执行.md](../VibeCoding编排模式落地执行.md)。
 > 状态：**阶段 1（Rust Agent loop）+ 阶段 2（编排框架）已完成**（2026-07-28，cargo test 127/127）；阶段 0（TS 编排验证）未做完整，被 Rust 直接实现替代；阶段 3（自研 pi-ai）可选待定
-> 关联：替换 WorldSea 的 TS pi-ai（详见 [project_memory.md](../../project_memory.md)）
+> 关联：替换 WorldSea 的 TS pi-ai（详见 [project_memory.md](../../../project_memory.md)）
 > 2026-08-25：13 模式层级重划已产出权威矩阵 [orchestration-matrix.md](../../details/架构/orchestration-matrix.md)（纯文档，未动代码）；同日经两方方案裁定（[03-两方方案裁定纪要.md](./agent编排层架构重构/03-两方方案裁定纪要.md)）合并修正后，matrix 为唯一架构权威；本文档三层架构图保留为历史规划视角
 
 ## 一、目标
@@ -58,19 +58,19 @@
 
 | 模式 | 现状 | Rust 落点 |
 |------|------|------|
-| 1. Single Agent | ✅ | [agent/mod.rs](../../crates/agent-runtime/src/agent/mod.rs) AgentLoop |
-| 2. ReAct | ✅ | [agent/mod.rs](../../crates/agent-runtime/src/agent/mod.rs) `run_react_loop` |
-| 3. Plan-and-Execute | ✅ 本次补齐 | [plan.rs](../../crates/agent-runtime/src/plan.rs) PlanNode + ExecuteNode |
-| 4. Reflection | ✅ 本次补齐 | [reflection.rs](../../crates/agent-runtime/src/reflection.rs) ReflectionNode |
-| 5. Self-Refine | ✅ 本次补齐 | [reflection.rs](../../crates/agent-runtime/src/reflection.rs) RefineNode |
-| 6. ToT | ✅ | [tree_of_thoughts](../../crates/agent-runtime/src/tree_of_thoughts/mod.rs) ToTNode |
-| 7. GoT | ✅ | [graph_of_thoughts.rs](../../crates/agent-runtime/src/graph_of_thoughts.rs) GoTNode |
-| 8. Multi-Agent | ✅ | [multi_agent](../../crates/agent-runtime/src/multi_agent/mod.rs) MultiAgentNode |
-| 9. Supervisor | ✅ | [supervisor.rs](../../crates/agent-runtime/src/supervisor.rs) SupervisorNode |
-| 10. Router | ✅ | [router.rs](../../crates/agent-runtime/src/router.rs) RouterNode |
-| 11. Tool Use | ✅ | [tool.rs](../../crates/agent-runtime/src/tool.rs) ToolBus |
-| 12. Memory | ✅ 部分 | [memory.rs](../../crates/agent-runtime/src/memory.rs) MemoryAccessor 横切 |
-| 13. Loop Engineering | ✅ 部分 | [loop_control.rs](../../crates/agent-runtime/src/loop_control.rs) + [long_task.rs](../../crates/agent-runtime/src/long_task.rs) |
+| 1. Single Agent | ✅ | [agent/mod.rs](../../../crates/agent-kernel/src/agent/mod.rs) AgentLoop |
+| 2. ReAct | ✅ | [agent/mod.rs](../../../crates/agent-kernel/src/agent/mod.rs) `run_react_loop` |
+| 3. Plan-and-Execute | ✅ 本次补齐 | `crates/agent-runtime/src/plan.rs` PlanNode + ExecuteNode |
+| 4. Reflection | ✅ 本次补齐 | [reflection.rs](../../../crates/agent-patterns/src/orchestrator/reflection.rs) ReflectionNode |
+| 5. Self-Refine | ✅ 本次补齐 | [reflection.rs](../../../crates/agent-patterns/src/orchestrator/reflection.rs) RefineNode |
+| 6. ToT | ✅ | [tree_of_thoughts](../../../crates/agent-patterns/src/tot/mod.rs) ToTNode |
+| 7. GoT | ✅ | [graph_of_thoughts.rs](../../../crates/agent-patterns/src/got/graph_of_thoughts.rs) GoTNode |
+| 8. Multi-Agent | ✅ | `crates/agent-runtime/src/multi_agent/mod.rs` MultiAgentNode |
+| 9. Supervisor | ✅ | [supervisor.rs](../../../crates/agent-patterns/src/orchestrator/supervisor.rs) SupervisorNode |
+| 10. Router | ✅ | [router.rs](../../../crates/agent-patterns/src/router/router.rs) RouterNode |
+| 11. Tool Use | ✅ | [tool.rs](../../../crates/agent-kernel/src/tool.rs) ToolBus |
+| 12. Memory | ✅ 部分 | [memory.rs](../../../crates/agent-kernel/src/memory.rs) MemoryAccessor 横切 |
+| 13. Loop Engineering | ✅ 部分 | [loop_control.rs](../../../crates/agent-kernel/src/loop_control.rs) + [long_task.rs](../../../crates/agent-kernel/src/long_task.rs) |
 
 ## 三、三条路径分析
 
@@ -130,13 +130,13 @@
 ##### 0.1 设计统一 Orchestrator 接口
 - [ ] 定义 `Orchestrator` trait/interface（TS 版）
 - [ ] 定义 `Node` / `Edge` / `State` 抽象（参考 LangGraph）
-- [ ] 设计事件流（与现有 [AgentEvent](../../packages/agent-runtime/src/bridge-types.ts) 兼容）
+- [ ] 设计事件流（与现有 [AgentEvent](../../../packages/agent-runtime/src/bridge-types.ts) 兼容）
 - [ ] 输出：`packages/agent-core/src/orchestrator/` 新模块
 
 ##### 0.2 重构现有 ReAct 循环
 - [ ] 将 pi-agent-core 的 Agent 循环包装为 `ReactNode`
 - [ ] 暴露中断/恢复/重试钩子（替代直接调 `agent.prompt`）
-- [ ] 将 [bridge.ts](../../packages/agent-runtime/src/bridge.ts) 的 prompt 调用改为经过 Orchestrator
+- [ ] 将 [bridge.ts](../../../packages/agent-runtime/src/bridge.ts) 的 prompt 调用改为经过 Orchestrator
 - [ ] 验收：现有功能不退化，新增可控中断能力
 
 ##### 0.3 实现 Plan-and-Execute 模式
@@ -160,7 +160,7 @@
 - [x] 设计 `MemoryAccessor` 接口（解耦 memory-archive，可迁移到 Rust trait）
 - [x] 实现 `MemoryNode` 节点（4 种动作：recall/inject/archive/auto）
 - [x] 短期记忆：`ShortTermMemoryHelper` trim 策略（token 估算 + 保留 system/首条user/最近N条）
-- [x] 将 [memory-archive](../../packages/memory-archive) 接入 Orchestrator（通过 `NodeContext.memory` 可选字段注入）
+- [x] 将 [memory-archive](../../../packages/memory-archive) 接入 Orchestrator（通过 `NodeContext.memory` 可选字段注入）
 - [ ] 工作记忆：ReAct 循环内的观察缓冲（推迟到阶段 0.7 实现，已在 0.7 完成）
 - [x] 长期记忆：通过 `MemoryAccessor.recall()` 检索跨会话记忆
 - [x] 事件扩展：`memory_recall` / `memory_inject` / `memory_archive` / `memory_trim` 4 类事件
@@ -297,7 +297,7 @@
 ###### 阶段 1.3 P0 修复（与前端 IAgentBackend 接口契约对齐）
 - **背景**：阶段 1.5 Tauri 集成前复查发现，Rust 侧 `AgentLoop` 缺失前端 `IAgentBackend` 接口的多个方法（steer/follow_up/trim_context/set_runtime_messages/is_streaming/state/dispose/update_model），且 backend 事件未桥接到 AgentLoop 广播器。
 - **交付内容**：
-  1. **`AgentStateSnapshot`**（[agent.rs](../../crates/agent-runtime/src/agent.rs#L132)）：序列化友好的只读视图，含 current_iteration/aborted/paused/is_streaming/messages/model/thinking_level，对应前端 `IAgentBackend.state`
+  1. **`AgentStateSnapshot`**（`crates/agent-runtime/src/agent.rs#L132`）：序列化友好的只读视图，含 current_iteration/aborted/paused/is_streaming/messages/model/thinking_level，对应前端 `IAgentBackend.state`
   2. **IAgentBackend 接口补全**：
      - `steer(text)` → 委托 backend.steer，进入 steer_buffer，下次 prompt 附加为前置 user 消息
      - `follow_up(text)` → 调用 run（保留历史，开始新一轮循环）
@@ -309,13 +309,13 @@
      - `get_state_snapshot()` → 返回 AgentStateSnapshot
      - `update_model(provider, model_id, base_url, api_key, temperature, max_tokens)` → 调用 backend.update_provider 热切换 + 同步更新 config
      - `dispose()` → 清空状态 + 标记 aborted + 重置 is_streaming
-  3. **BackendEventBridge**（[agent.rs](../../crates/agent-runtime/src/agent.rs#L905)）：实现 `EventListener` trait，在 `AgentLoop::new` 时 spawn 注入到 backend.subscribe_events，转发 backend 的 StreamStart/StreamDelta/StreamEnd/ToolCallStart/ToolCallEnd 到 AgentLoop 广播器；使用 `try_read` 避免阻塞，锁竞争时丢弃事件
-  4. **GenaiBackend 扩展**（[genai_backend.rs](../../crates/agent-runtime/src/llm/genai_backend.rs#L502)）：
+  3. **BackendEventBridge**（`crates/agent-runtime/src/agent.rs#L905`）：实现 `EventListener` trait，在 `AgentLoop::new` 时 spawn 注入到 backend.subscribe_events，转发 backend 的 StreamStart/StreamDelta/StreamEnd/ToolCallStart/ToolCallEnd 到 AgentLoop 广播器；使用 `try_read` 避免阻塞，锁竞争时丢弃事件
+  4. **GenaiBackend 扩展**（[genai_backend.rs](../../../crates/agent-kernel/src/llm/genai_backend.rs#L502)）：
      - `subscribe_events(listener)` → 注入监听器到 event_broadcaster
      - `current_model()` → 返回 ProviderConfig.model_id
      - `update_provider(provider, model_id, api_key, base_url)` → 热切换 Cloud/Custom 配置，保留 messages/steer_buffer；Local 返回 Unsupported 错误
   5. **AgentLoop::run 改进**：使用 `backend.current_model()` 替代硬编码 "unknown"，正确广播 AgentStart/StreamStart 模型 ID；通过 `is_streaming` AtomicBool 跟踪 run 活跃状态
-  6. **ThinkingLevel 派生 Serialize/Deserialize**（[backend.rs](../../crates/agent-runtime/src/backend.rs)）：#[serde(rename_all = "lowercase")]，支持前端 JSON 通信
+  6. **ThinkingLevel 派生 Serialize/Deserialize**（[backend.rs](../../../crates/agent-kernel/src/backend.rs)）：#[serde(rename_all = "lowercase")]，支持前端 JSON 通信
 - **编译修复**：
   - `genai_backend.rs` 缺少 `use crate::event::EventListener` 导入
   - `Custom` 变体字段对齐：实际为 `base_url/api_key/api_type/model_id/context_window/max_tokens`（无 `provider` 字段），保留旧 api_type/context_window/max_tokens
@@ -326,13 +326,13 @@
 - **与前端接口对齐**：Rust 侧 AgentLoop 现已实现 IAgentBackend 全部方法（steer/followUp/abort/updateModel/updateThinkingLevel/clearHistory/subscribe/dispose/state/isStreaming/trimContext/getRuntimeMessages/setRuntimeMessages），可平滑接入 Tauri IPC
 
 ##### 1.4 ToolBus Rust 版（扩展 MCP / 别名 / 并行）
-- [x] ~~迁移 [packages/agent-core/src/bus/](../../packages/agent-core/src/bus) 到 Rust~~（阶段 1.3 已完成基础 ToolBus）
+- [x] ~~迁移 [packages/agent-core/src/bus/](../../../packages/agent-core/src/bus) 到 Rust~~（阶段 1.3 已完成基础 ToolBus）
 - [x] ~~用 `dyn Tool` trait object 替代 TS 的 ToolDefinition~~（阶段 1.3 已完成）
-- [x] MCP 服务器工具：`register_mcp_tools` / `unregister_mcp_server`（[mcp.rs](../../crates/agent-runtime/src/mcp.rs)）
-- [x] 别名系统（LEGACY_TO_CODING_MAP / LEGACY_ALGO_MAP / LEGACY_PLUGIN_MAP）用 `HashMap<&'static str, &'static str>` + `OnceLock`（[alias.rs](../crates/agent-runtime/src/alias.rs)）
+- [x] MCP 服务器工具：`register_mcp_tools` / `unregister_mcp_server`（[mcp.rs](../../../crates/agent-kernel/src/mcp.rs)）
+- [x] 别名系统（LEGACY_TO_CODING_MAP / LEGACY_ALGO_MAP / LEGACY_PLUGIN_MAP）用 `HashMap<&'static str, &'static str>` + `OnceLock`（[alias.rs](../../../crates/agent-kernel/src/alias.rs)）
 - [~] 技能解析（`SkillRegistry`）— **推迟到阶段 2**，阶段 1.5 Tauri 集成不需要
-- [x] 并行工具调用：`config.parallel_tool_calls = true` 时用 `tokio::task::JoinSet` 并发执行（[agent.rs](../../crates/agent-runtime/src/agent.rs)）
-- [x] 工具定义传给 LLM：在 `build_chat_request` 中填充 `ChatRequest::with_tools`（[genai_backend.rs](../../crates/agent-runtime/src/llm/genai_backend.rs)）
+- [x] 并行工具调用：`config.parallel_tool_calls = true` 时用 `tokio::task::JoinSet` 并发执行（`crates/agent-runtime/src/agent.rs`）
+- [x] 工具定义传给 LLM：在 `build_chat_request` 中填充 `ChatRequest::with_tools`（[genai_backend.rs](../../../crates/agent-kernel/src/llm/genai_backend.rs)）
 - [~] 验收：Rust 侧能注册和调用 MCP 工具，并行执行多个工具调用 — **单元测试跳过**（用户决策），仅 `cargo check --features llm-genai` 通过
 
 ###### 阶段 1.4 完成记录
@@ -357,13 +357,13 @@
 ##### 1.5 Tauri 集成
 - [x] 将 `crates/agent-runtime` 接入 `src-tauri/Cargo.toml`
 - [x] 暴露 Tauri 命令（14 个）：`agent_prompt` / `agent_steer` / `agent_follow_up` / `agent_abort` / `agent_update_model` / `agent_update_thinking_level` / `agent_clear_history` / `agent_subscribe` / `agent_dispose` / `agent_state` / `agent_is_streaming` / `agent_trim_context` / `agent_get_runtime_messages` / `agent_set_runtime_messages`
-- [x] 前端 [useAgentRust.ts](../src/agent/composables/useAgentRust.ts) 封装 Tauri invoke + 事件监听
+- [x] 前端 [useAgentRust.ts](../../../apps/tauri/src/agent/composables/useAgentRust.ts) 封装 Tauri invoke + 事件监听
 - [x] 集成 `AgentRegistry` 多实例管理（按 sessionId 区分）
 - [x] `TauriEventListener` 实现事件桥接（OrchestratorEvent → app.emit）
 - [ ] 验收：浏览器经 Tauri 调用 Rust Agent，流式事件回传（推迟到阶段 2.0 端到端实测）
 
 ###### 阶段 1.5 完成记录
-- 详见 [project_memory.md 阶段 1.5 章节](../../project_memory.md#阶段-15-tauri-集成完成2026-07-25)
+- 详见 [project_memory.md 阶段 1.5 章节](../../../project_memory.md#阶段-15-tauri-集成完成2026-07-25)
 - **关键决策**：多实例 AgentRegistry（对齐前端多 session）+ 事件桥接（EventListener trait + app.emit）+ 独立 Payload 类型（解耦前后端）
 - **验证**：`cargo check` 通过 ✅ 0 errors / 0 warnings
 
@@ -489,7 +489,7 @@
 |--------|----------|------|
 | M0 | 阶段 0 完成：TS 编排框架，模式 1-5 可用 | ✅ 已跳过（Rust 路线直接实现，TS 仅保留部分产出） |
 | M1 | 阶段 1 完成：Rust Agent loop，pi-ai 移除 | ✅ 已完成（2026-07-25 Tauri 集成，cargo check 0 errors；pi-ai 依赖保留在 TS 端作为备用） |
-| M2 | 阶段 2 完成：13 模式全可用，Rust 编排框架 | ✅ 已完成（2026-08-19 补齐 3/4/5 节点后闭环：12 模式 Rust 落地 + Memory/Loop 横切；真实 DeepSeek 双链路验证；详见 [交付清单](../misc/orchestration-patterns-delivery.md)） |
+| M2 | 阶段 2 完成：13 模式全可用，Rust 编排框架 | ✅ 已完成（2026-08-19 补齐 3/4/5 节点后闭环：12 模式 Rust 落地 + Memory/Loop 横切；真实 DeepSeek 双链路验证；详见 [交付清单](../../misc/orchestration-patterns-delivery.md)） |
 | M3 | 阶段 3（如需）：自研 pi-ai | ⏳ 可选（genai 未成瓶颈前不启动） |
 
 > **待办**（阶段 1/2 验收未闭环部分）：
@@ -497,7 +497,7 @@
 > - failTask 终态闭环（Rust 长任务，2026-08-02 待收敛后干净环境重测）
 > - 深度模式 / A2UI / 终端 / 子 Agent 补齐（Rust 后端高级能力）
 > - TS→Rust 迁移完成度：pi-ai 依赖移除尚未执行（TS 后端仍可用作兜底）
-> - Refine 多轮迭代在真实低分场景实测（当前评审 95 一次收敛，迭代分支待专用用例验证，详见 [交付清单](../misc/orchestration-patterns-delivery.md) 遗留风险）
+> - Refine 多轮迭代在真实低分场景实测（当前评审 95 一次收敛，迭代分支待专用用例验证，详见 [交付清单](../../misc/orchestration-patterns-delivery.md) 遗留风险）
 
 ## 八、参考资料
 
@@ -505,4 +505,4 @@
 - [genai crate](https://crates.io/crates/genai)（阶段 1 选型）
 - [rig crate](https://crates.io/crates/rig)（备选）
 - [LangGraph](https://github.com/langchain-ai/langgraph)（编排框架参考）
-- [当前 TS 架构调研报告](./agent-ts-architecture-survey.md)（如有）
+- `agent-ts-architecture-survey.md`（如有）
