@@ -6,14 +6,15 @@
 //!
 //! 设计依据：`docs/plans/2026-09-11-A1-记忆系统设计.md` §3.1（数据模型）。
 //!
-//! ## 五张表
+//! ## 六张表
 //!
 //! | 表 | 用途 |
 //! |---|---|
-//! | `memory_ext` | 补齐 [`MemoryAccessor`](agent_runtime::memory::MemoryAccessor) 声明、但 `memories.db` 中**无落脚处**的 4 个字段 |
+//! | `memory_ext` | 补齐 [`MemoryAccessor`](agent_runtime::memory::MemoryAccessor) 声明、但 `memories.db` 中**无落脚处**的字段 + 甲3 衰减三列 |
 //! | `hook_tags` | **真标签**维度（原 `hooks.tags` 列被挪用来存 `output_types`） |
 //! | `supersede_chain` | 矛盾**调和链**（不覆盖旧值，只记录新旧与时序） |
 //! | `raw_ref` | 外置原文**引用表**（GC 判据来源） |
+//! | `raw_trash` | 外置文件**回收站**（甲3：入站时点 → 满 `trashRetentionDays` 方可硬删） |
 //! | `ext_meta` | 本库 schema 版本 |
 //!
 //! ## 两处实现级取舍（与设计文档的对应关系）
@@ -37,7 +38,9 @@ use crate::{Error, Result};
 ///
 /// - v1（2026-09-11）：五表初版
 /// - v2（2026-09-11）：`supersede_chain` 增 `summary` 列（调和摘要，甲2）
-const SCHEMA_VERSION: u32 = 2;
+/// - v3（2026-09-12）：`memory_ext` 增 `last_access_at` / `decay_score` / `deprecated_at`
+///   三列（甲3 淘汰链）；新增 `raw_trash` 表（外置文件回收站）
+const SCHEMA_VERSION: u32 = 3;
 
 /// 外置引用持有方类型（`raw_ref.owner_kind`）
 pub mod owner_kind {
@@ -66,7 +69,7 @@ pub mod tag_kind {
 /// （`pin(hook_id)` / `touch(hook_id)` / `MemoryRecallResult.hook_id`），
 /// 若只有 memory_id 则每次置顶/计数都要先反查，徒增一次跨表查询。
 /// 归档流程中 hook ↔ memory 为 1:1（一 MemoryFile 对应一 IndexHook），故不引入歧义。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct MemoryExt {
     /// 记忆文件 ID（= `memories.memory_id`）
     pub memory_id: String,
@@ -76,6 +79,12 @@ pub struct MemoryExt {
     pub created_at: i64,
     /// 访问次数（甲3 淘汰的加权依据）
     pub access_count: u32,
+    /// 最近一次召回命中的时点（Unix 毫秒；`0` = 从未访问）——甲3 衰减的 recency 依据
+    pub last_access_at: i64,
+    /// 当前衰减评分（0.0–1.0；甲3 `apply_decay` 写入）
+    pub decay_score: f64,
+    /// 软淘汰标记时点（Unix 毫秒；`None` = 有效，`Some` = 已入回收站，**可恢复**）
+    pub deprecated_at: Option<i64>,
     /// 永久保留标记（pinned 记忆不衰减、不淘汰）
     pub pinned: bool,
     /// 摘要生成方式（`llm` / `rule` / `none`，对齐 `SummaryMethod` 的 serde 形态）
@@ -108,6 +117,28 @@ pub struct PinnedEntry {
     pub memory_id: String,
     /// 记忆发生时点（Unix 毫秒）
     pub created_at: i64,
+}
+
+/// 一次衰减巡检的结果（[`ExtStore::apply_decay`]）
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DecayOutcome {
+    /// 重算评分的条目数
+    pub scored: usize,
+    /// 本次**新**软淘汰（入回收站）的 hook_id
+    pub newly_deprecated: Vec<String>,
+    /// 本次**恢复**（召回返青、清除软淘汰标记）的条目数
+    pub restored: usize,
+}
+
+/// 硬删候选（[`ExtStore::purge_due_entries`]）
+///
+/// `memory_id` 用于删除 `memories.db` 的记忆行；`hook_id` 用于回调与日志。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EvictableEntry {
+    /// 索引钩子 ID
+    pub hook_id: String,
+    /// 记忆文件 ID
+    pub memory_id: String,
 }
 
 /// `supersede_chain` 一行：一次调和记录
@@ -202,6 +233,9 @@ CREATE TABLE IF NOT EXISTS memory_ext (
     hook_id        TEXT NOT NULL DEFAULT '',
     created_at     INTEGER NOT NULL,
     access_count   INTEGER NOT NULL DEFAULT 0,
+    last_access_at INTEGER NOT NULL DEFAULT 0,
+    decay_score    REAL NOT NULL DEFAULT 1.0,
+    deprecated_at  INTEGER,
     pinned         INTEGER NOT NULL DEFAULT 0,
     summary_method TEXT NOT NULL DEFAULT 'none'
 );
@@ -237,6 +271,11 @@ CREATE TABLE IF NOT EXISTS raw_ref (
 );
 CREATE INDEX IF NOT EXISTS idx_raw_ref_hash ON raw_ref(content_hash);
 
+CREATE TABLE IF NOT EXISTS raw_trash (
+    content_hash TEXT PRIMARY KEY,
+    trashed_at   INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS ext_meta (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -248,6 +287,13 @@ CREATE TABLE IF NOT EXISTS ext_meta (
         // 版本迁移：v1 → v2（`supersede_chain` 增 `summary` 列）
         // 新建库已带上该列；既有库需 ALTER 补列（旧值 NULL，语义 = 无摘要）
         Self::ensure_column(&guard, "supersede_chain", "summary", "TEXT")?;
+
+        // 版本迁移：v2 → v3（甲3 淘汰链的三列）
+        // 旧行按默认值补：`last_access_at = 0`（从未访问）、`decay_score = 1.0`（未评分）、
+        // `deprecated_at = NULL`（有效）——首次 `apply_decay` 会按真实时点重算评分。
+        Self::ensure_column(&guard, "memory_ext", "last_access_at", "INTEGER NOT NULL DEFAULT 0")?;
+        Self::ensure_column(&guard, "memory_ext", "decay_score", "REAL NOT NULL DEFAULT 1.0")?;
+        Self::ensure_column(&guard, "memory_ext", "deprecated_at", "INTEGER")?;
 
         guard
             .execute(
@@ -345,7 +391,8 @@ CREATE TABLE IF NOT EXISTS ext_meta (
         let memory_id = memory_id.to_string();
         self.with_conn(move |conn| {
             conn.query_row(
-                "SELECT memory_id, hook_id, created_at, access_count, pinned, summary_method
+                "SELECT memory_id, hook_id, created_at, access_count, last_access_at,
+                        decay_score, deprecated_at, pinned, summary_method
                  FROM memory_ext WHERE memory_id = ?1",
                 rusqlite::params![&memory_id],
                 row_to_memory_ext,
@@ -361,7 +408,8 @@ CREATE TABLE IF NOT EXISTS ext_meta (
         let hook_id = hook_id.to_string();
         self.with_conn(move |conn| {
             conn.query_row(
-                "SELECT memory_id, hook_id, created_at, access_count, pinned, summary_method
+                "SELECT memory_id, hook_id, created_at, access_count, last_access_at,
+                        decay_score, deprecated_at, pinned, summary_method
                  FROM memory_ext WHERE hook_id = ?1",
                 rusqlite::params![&hook_id],
                 row_to_memory_ext,
@@ -372,20 +420,26 @@ CREATE TABLE IF NOT EXISTS ext_meta (
         .await
     }
 
-    /// 访问计数 +1（甲3 淘汰的加权依据），返回自增后的值
+    /// 访问记录（甲3 衰减的加权依据）：`access_count +1` 且刷新 `last_access_at`
     ///
-    /// **按 hook_id 定位**——召回路径拿到的是 hook_id（`MemoryRecallResult.hook_id`），
-    /// 不该为一次计数反查 memory_id。行不存在时返回 `Ok(0)` 且不建行
-    /// （计数只对已登记的记忆生效，避免为幽灵 hook 造行）。
+    /// 返回自增后的计数；`Ok(0)` = 未命中（行不存在不建行——计数只对已登记记忆生效）。
+    /// 使用系统当前时刻；需要注入时点（测试 / 回放）时用 [`Self::touch_by_hook`]。
     pub async fn bump_access_count_by_hook(&self, hook_id: &str) -> Result<u32> {
+        self.touch_by_hook(hook_id, now_ms()).await
+    }
+
+    /// 访问记录（显式时点版）——语义与 [`Self::bump_access_count_by_hook`] 相同
+    pub async fn touch_by_hook(&self, hook_id: &str, now_ms: i64) -> Result<u32> {
         let hook_id = hook_id.to_string();
         self.with_conn(move |conn| {
             let n = conn
                 .execute(
-                    "UPDATE memory_ext SET access_count = access_count + 1 WHERE hook_id = ?1",
-                    rusqlite::params![&hook_id],
+                    "UPDATE memory_ext
+                     SET access_count = access_count + 1, last_access_at = ?2
+                     WHERE hook_id = ?1",
+                    rusqlite::params![&hook_id, now_ms],
                 )
-                .map_err(|e| Error::Ext(format!("自增 access_count 失败: {}", e)))?;
+                .map_err(|e| Error::Ext(format!("记录访问失败: {}", e)))?;
             if n == 0 {
                 return Ok(0);
             }
@@ -849,6 +903,220 @@ CREATE TABLE IF NOT EXISTS ext_meta (
         .await
     }
 
+    /// 释放某持有方的**全部**引用（会话删除等生命周期收口用）
+    ///
+    /// 用于「所有者已消失」的批量释放：如删除会话时，该会话的上下文锚点引用
+    /// （`owner_kind = context_anchor`, `owner_id = session_id`）整体失效 →
+    /// 对应外置文件在下一轮 GC 中进入回收站（§6.3.2 的「保护期 → 软删」跃迁）。
+    ///
+    /// 返回被释放的引用行数。**不动物理文件**——删文件由 GC 判定后执行。
+    pub async fn release_refs_by_owner(&self, owner_kind: &str, owner_id: &str) -> Result<usize> {
+        let kind = owner_kind.to_string();
+        let id = owner_id.to_string();
+        self.with_conn(move |conn| {
+            let n = conn
+                .execute(
+                    "DELETE FROM raw_ref WHERE owner_kind = ?1 AND owner_id = ?2",
+                    rusqlite::params![&kind, &id],
+                )
+                .map_err(|e| Error::Ext(format!("按持有方释放引用失败: {}", e)))?;
+            Ok(n)
+        })
+        .await
+    }
+
+    // ── 甲3：衰减评分与淘汰（§4.3 三级链）──────────────────────
+
+    /// 衰减巡检：重算全部条目的 `decay_score`，并做**可逆的**软淘汰/恢复
+    ///
+    /// 单次遍历完成三件事（同一连接、避免多次快照不一致）：
+    /// 1. 按 [`crate::decay::score`] 重算评分并写回 `decay_score`（pinned 恒 1.0）
+    /// 2. `score < threshold` 且未软删 → 置 `deprecated_at = now`（**入回收站**）
+    /// 3. `score >= threshold` 且已软删 → **清 `deprecated_at`**（召回返青 → 回保护期）
+    ///
+    /// **不物理删除任何东西**——硬删由 [`Self::purge_due_entries`] 挑出候选后，
+    /// 由调用方（[`crate::evict`]）执行。
+    pub async fn apply_decay(
+        &self,
+        now_ms: i64,
+        policy: crate::decay::EvictionPolicy,
+    ) -> Result<DecayOutcome> {
+        self.with_conn(move |conn| {
+            let mut stmt = conn
+                .prepare(
+                    "SELECT memory_id, hook_id, created_at, last_access_at, access_count,
+                            pinned, deprecated_at
+                     FROM memory_ext ORDER BY created_at",
+                )
+                .map_err(|e| Error::Ext(format!("准备衰减查询失败: {}", e)))?;
+            let rows: Vec<(String, String, i64, i64, i64, i64, Option<i64>)> = stmt
+                .query_map([], |r| {
+                    Ok((
+                        r.get(0)?,
+                        r.get(1)?,
+                        r.get(2)?,
+                        r.get(3)?,
+                        r.get(4)?,
+                        r.get(5)?,
+                        r.get(6)?,
+                    ))
+                })
+                .map_err(|e| Error::Ext(format!("查询待衰减条目失败: {}", e)))?
+                .filter_map(|r| r.ok())
+                .collect();
+            drop(stmt);
+
+            let mut outcome = DecayOutcome::default();
+            for (memory_id, hook_id, created_at, last_access_at, access_count, pinned, deprecated_at) in rows {
+                let pinned = pinned != 0;
+                let s = crate::decay::score(
+                    created_at,
+                    last_access_at,
+                    access_count.max(0) as u32,
+                    pinned,
+                    now_ms,
+                    &policy,
+                );
+                outcome.scored += 1;
+
+                let should_deprecate = !pinned && policy.is_deprecated(s);
+                match (should_deprecate, deprecated_at) {
+                    (true, None) => {
+                        conn.execute(
+                            "UPDATE memory_ext SET decay_score = ?2, deprecated_at = ?3
+                             WHERE memory_id = ?1",
+                            rusqlite::params![&memory_id, s, now_ms],
+                        )
+                        .map_err(|e| Error::Ext(format!("写入软淘汰标记失败: {}", e)))?;
+                        outcome.newly_deprecated.push(hook_id);
+                    }
+                    (false, Some(_)) => {
+                        conn.execute(
+                            "UPDATE memory_ext SET decay_score = ?2, deprecated_at = NULL
+                             WHERE memory_id = ?1",
+                            rusqlite::params![&memory_id, s],
+                        )
+                        .map_err(|e| Error::Ext(format!("清除软淘汰标记失败: {}", e)))?;
+                        outcome.restored += 1;
+                    }
+                    _ => {
+                        conn.execute(
+                            "UPDATE memory_ext SET decay_score = ?2 WHERE memory_id = ?1",
+                            rusqlite::params![&memory_id, s],
+                        )
+                        .map_err(|e| Error::Ext(format!("写入衰减评分失败: {}", e)))?;
+                    }
+                }
+            }
+            Ok(outcome)
+        })
+        .await
+    }
+
+    /// 硬删候选：软淘汰已满 `delete_after_days` 且未 pinned 的条目
+    ///
+    /// 只**挑选**不删除——物理删除（memories 行 + 本库行）由调用方执行：
+    /// 顺序为 **先删 `memories.db` 的记忆行、再清本库扩展行**（跨库无 FK，
+    /// 先清扩展行会让记忆成为「无治理记录」的裸行）。
+    pub async fn purge_due_entries(
+        &self,
+        now_ms: i64,
+        policy: crate::decay::EvictionPolicy,
+    ) -> Result<Vec<EvictableEntry>> {
+        let cutoff = now_ms - policy.delete_after_ms();
+        self.with_conn(move |conn| {
+            let mut stmt = conn
+                .prepare(
+                    "SELECT hook_id, memory_id FROM memory_ext
+                     WHERE deprecated_at IS NOT NULL AND deprecated_at <= ?1 AND pinned = 0
+                     ORDER BY deprecated_at",
+                )
+                .map_err(|e| Error::Ext(format!("准备硬删候选查询失败: {}", e)))?;
+            let rows = stmt
+                .query_map(rusqlite::params![cutoff], |r| {
+                    Ok(EvictableEntry {
+                        hook_id: r.get(0)?,
+                        memory_id: r.get(1)?,
+                    })
+                })
+                .map_err(|e| Error::Ext(format!("查询硬删候选失败: {}", e)))?;
+            rows.collect::<rusqlite::Result<Vec<_>>>()
+                .map_err(|e| Error::Ext(format!("读取硬删候选行失败: {}", e)))
+        })
+        .await
+    }
+
+    // ── 甲3：外置文件回收站（§6.3.2 三档生命周期）──────────────
+
+    /// 把一个外置文件放入回收站（记录入站时点；重复入站保留**最早**时点）
+    ///
+    /// 保留最早时点是有意的：文件在回收站中的时长应自「首次失去引用」起算，
+    /// 而非每次巡检重置——否则 GC 每跑一次就把窗口推后一次，永不硬删。
+    pub async fn trash_put(&self, content_hash: &str, now_ms: i64) -> Result<()> {
+        let hash = content_hash.to_string();
+        self.with_conn(move |conn| {
+            conn.execute(
+                "INSERT INTO raw_trash (content_hash, trashed_at) VALUES (?1, ?2)
+                 ON CONFLICT(content_hash) DO NOTHING",
+                rusqlite::params![&hash, now_ms],
+            )
+            .map_err(|e| Error::Ext(format!("写入回收站失败: {}", e)))?;
+            Ok(())
+        })
+        .await
+    }
+
+    /// 查询入站时点（`None` = 不在回收站）
+    pub async fn trash_taken_at(&self, content_hash: &str) -> Result<Option<i64>> {
+        let hash = content_hash.to_string();
+        self.with_conn(move |conn| {
+            conn.query_row(
+                "SELECT trashed_at FROM raw_trash WHERE content_hash = ?1",
+                rusqlite::params![&hash],
+                |r| r.get::<_, i64>(0),
+            )
+            .optional()
+            .map_err(|e| Error::Ext(format!("查询回收站时点失败: {}", e)))
+        })
+        .await
+    }
+
+    /// 从回收站恢复（重新获得引用时调用）；返回是否确有记录被移除
+    pub async fn trash_restore(&self, content_hash: &str) -> Result<bool> {
+        let hash = content_hash.to_string();
+        self.with_conn(move |conn| {
+            let n = conn
+                .execute(
+                    "DELETE FROM raw_trash WHERE content_hash = ?1",
+                    rusqlite::params![&hash],
+                )
+                .map_err(|e| Error::Ext(format!("移出回收站失败: {}", e)))?;
+            Ok(n > 0)
+        })
+        .await
+    }
+
+    /// 列出回收站中的全部坐标（诊断 / 孤儿清理用）
+    pub async fn trash_list(&self) -> Result<Vec<(String, i64)>> {
+        self.with_conn(|conn| {
+            let mut stmt = conn
+                .prepare("SELECT content_hash, trashed_at FROM raw_trash ORDER BY trashed_at")
+                .map_err(|e| Error::Ext(format!("准备回收站列表查询失败: {}", e)))?;
+            let rows = stmt
+                .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))
+                .map_err(|e| Error::Ext(format!("查询回收站列表失败: {}", e)))?;
+            rows.collect::<rusqlite::Result<Vec<_>>>()
+                .map_err(|e| Error::Ext(format!("读取回收站列表失败: {}", e)))
+        })
+        .await
+    }
+
+    /// 从回收站彻底移除记录（硬删完成后清理；幂等）
+    pub async fn trash_forget(&self, content_hash: &str) -> Result<()> {
+        let _ = self.trash_restore(content_hash).await?;
+        Ok(())
+    }
+
     // ── 内部：统一走 spawn_blocking，避免阻塞 async 执行器 ──
 
     /// 在阻塞线程池上执行一次连接操作
@@ -895,15 +1163,19 @@ fn row_to_supersede_link(row: &rusqlite::Row<'_>) -> rusqlite::Result<SupersedeL
     })
 }
 
-/// 行 → [`MemoryExt`]（列序：memory_id, hook_id, created_at, access_count, pinned, summary_method）
+/// 行 → [`MemoryExt`]（列序：memory_id, hook_id, created_at, access_count,
+/// last_access_at, decay_score, deprecated_at, pinned, summary_method）
 fn row_to_memory_ext(row: &rusqlite::Row<'_>) -> rusqlite::Result<MemoryExt> {
     Ok(MemoryExt {
         memory_id: row.get(0)?,
         hook_id: row.get(1)?,
         created_at: row.get(2)?,
         access_count: row.get::<_, i64>(3)?.max(0) as u32,
-        pinned: row.get::<_, i64>(4)? != 0,
-        summary_method: row.get(5)?,
+        last_access_at: row.get(4)?,
+        decay_score: row.get(5)?,
+        deprecated_at: row.get(6)?,
+        pinned: row.get::<_, i64>(7)? != 0,
+        summary_method: row.get(8)?,
     })
 }
 

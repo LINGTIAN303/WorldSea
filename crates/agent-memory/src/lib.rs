@@ -2,6 +2,8 @@
 
 #![forbid(unsafe_code)]
 
+pub mod decay;
+pub mod evict;
 pub mod ext;
 pub mod memory_md;
 pub mod model_profile;
@@ -228,6 +230,18 @@ impl MemoryAccessor for MemoryCenterAccessor {
             results.truncate(top_k);
         }
 
+        // A1 甲3：**召回命中 = 一次真实访问**——计入 `access_count` 与 `last_access_at`，
+        // 作为衰减评分（§4.3）的访问加权依据。语义：经常被召回的条目应当「返青」，
+        // 长期无人问津的条目才走向淘汰；故此处计数不是统计噪声而是**淘汰判据的输入**。
+        // 失败仅告警：计数是增强，不影响本轮召回结果。
+        if let Some(ext) = &self.ext {
+            for r in &results {
+                if let Err(e) = ext.bump_access_count_by_hook(&r.hook_id).await {
+                    tracing::warn!(hook = %r.hook_id, "记录召回访问失败: {e}");
+                }
+            }
+        }
+
         Ok(results)
     }
 
@@ -375,6 +389,23 @@ impl MemoryAccessor for MemoryCenterAccessor {
                 .delete_index(session_id, self.project_id.as_deref(), period)
                 .await
                 .map_err(|e| MemoryError::Other(e.to_string()))?;
+        }
+        // A1 甲3：会话消失 → 其**上下文锚点引用**整体失效（外置文件侧的生命周期收口）
+        //
+        // 引用释放后，对应外置文件在下一轮 GC 中从「保护期」进入回收站（§6.3.2），
+        // 满 `trashRetentionDays` 后由巡检硬删。失败仅告警：释放是后台收敛动作，
+        // 不影响会话删除本身的结果。
+        if let Some(ext) = &self.ext {
+            match ext
+                .release_refs_by_owner(ext::owner_kind::CONTEXT_ANCHOR, session_id)
+                .await
+            {
+                Ok(n) if n > 0 => {
+                    tracing::info!(session = %session_id, released = n, "已释放该会话的上下文锚点引用")
+                }
+                Ok(_) => {}
+                Err(e) => tracing::warn!("释放会话 {session_id} 锚点引用失败: {e}"),
+            }
         }
         Ok(())
     }
@@ -1458,6 +1489,59 @@ mod tests {
         assert!(after.is_empty(), "删除后应检索不到记忆");
     }
 
+    /// A1 甲3：会话删除 → 该会话的**上下文锚点引用**整体释放（外置文件生命周期收口）
+    ///
+    /// 释放后对应外置文件在下一轮 GC 中从「保护期」进入回收站；此处只验证释放本身
+    /// （GC 侧的行为由 `evict::tests` 覆盖）。
+    #[tokio::test]
+    async fn delete_by_session_id_releases_context_anchor_refs() {
+        let accessor = make_accessor();
+        let ext = accessor.ext_store().expect("扩展库应已打开");
+        let session = accessor.session_id.clone();
+
+        // 两条锚点引用（本会话）+ 一条别的会话（不应被误伤）
+        ext.acquire_raw_ref(
+            "aaaaaaaaaaaaaaaa",
+            crate::ext::owner_kind::CONTEXT_ANCHOR,
+            &session,
+            false,
+        )
+        .await
+        .unwrap();
+        ext.acquire_raw_ref(
+            "bbbbbbbbbbbbbbbb",
+            crate::ext::owner_kind::CONTEXT_ANCHOR,
+            &session,
+            false,
+        )
+        .await
+        .unwrap();
+        ext.acquire_raw_ref(
+            "cccccccccccccccc",
+            crate::ext::owner_kind::CONTEXT_ANCHOR,
+            "其他会话",
+            false,
+        )
+        .await
+        .unwrap();
+
+        accessor.delete_by_session_id(&session).await.unwrap();
+
+        assert_eq!(
+            ext.raw_ref_count("aaaaaaaaaaaaaaaa").await.unwrap(),
+            0,
+            "本会话引用应释放"
+        );
+        assert_eq!(ext.raw_ref_count("bbbbbbbbbbbbbbbb").await.unwrap(), 0);
+        assert_eq!(
+            ext.raw_ref_count("cccccccccccccccc").await.unwrap(),
+            1,
+            "其他会话的引用不得被误伤"
+        );
+        // 释放后即可 GC（无有效引用）
+        assert!(ext.is_gc_eligible("aaaaaaaaaaaaaaaa").await.unwrap());
+    }
+
     // ─── A1 甲1：写入四操作与条目级维护 ──────────────────
 
     /// `write(Add)` 落库 → 可召回 → 扩展信息已登记（甲4 闭环）
@@ -1486,7 +1570,9 @@ mod tests {
         // 扩展信息已登记（含真标签）——A1 甲4 的闭环验证
         let ext = accessor.ext_store().expect("扩展库应已打开");
         let row = ext.get_by_hook(&hook_id).await.unwrap().expect("应有扩展行");
-        assert_eq!(row.access_count, 0);
+        // ★ A1 甲3：上一次 recall 命中 = 一次真实访问 → 计数与访问时点都应更新
+        assert_eq!(row.access_count, 1, "召回命中应计入访问");
+        assert!(row.last_access_at > 0, "访问时点应被记录（衰减 recency 依据）");
         assert_eq!(row.summary_method, "rule", "无 LLM 摘要器时应为启发式");
         assert!(
             row.created_at > 0,

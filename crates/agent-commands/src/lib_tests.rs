@@ -1370,3 +1370,18 @@
         // 无记忆根 → 不构造扩展库、不报错（登记是增强，不阻断）
         svc.register_fold_refs("sess-none", &[folded]).await;
     }
+
+    /// A1 甲3：手动巡检入口在「无记忆根」时为无害空转；配了根则跑通一轮
+    #[tokio::test]
+    async fn memory_gc_entry_point_smoke() {
+        // 无记忆根 → 空报告（不创建任何目录）
+        let svc = AgentCommandService::default();
+        let report = svc.run_memory_gc().await.unwrap();
+        assert_eq!(report, agent_memory::evict::GcReport::default());
+
+        // 有记忆根 → 一轮巡检跑通（空库无动作）
+        let dir = tempfile::tempdir().unwrap();
+        let svc = AgentCommandService::default().with_memory_root(Some(dir.path().to_path_buf()));
+        let report = svc.run_memory_gc().await.unwrap();
+        assert!(!report.did_something(), "空记忆根一轮巡检应无动作");
+    }

@@ -198,6 +198,13 @@ impl EventListener for ForwardToAgentBroadcaster {
 /// B 轨计划生成提示（PlanExecuteNode.make_plan）
 const B_RAIL_PLAN_PROMPT: &str = "你是任务规划者。请把用户任务拆解为可独立执行、结果可验收的步骤列表。";
 
+/// A1 甲3：记忆巡检默认间隔（6 小时）
+///
+/// 取 6 小时：衰减是「天」级现象（半衰期 30 天），巡检更频繁即无意义；
+/// 而每日一次会让回收站窗口（7 天）误差偏大。首轮延迟一个间隔执行（不阻塞启动）。
+const DEFAULT_MEMORY_GC_INTERVAL: std::time::Duration =
+    std::time::Duration::from_secs(6 * 60 * 60);
+
 /// B 轨 Supervisor 派发决策 system 提示（role = 已注册子 Agent 规格 id；
 /// LLM 输出 JSON：{"done":bool,"role":"…","task":"…","new_tasks":[…]}}
 const B_RAIL_SUPERVISOR_PROMPT: &str = "你是任务主管。根据任务意图，把工作拆解为可由子 Agent 独立完成的任务并逐一派发。\
@@ -836,6 +843,14 @@ pub struct AgentCommandService {
     /// 并把「上下文锚点仍引用该外置文件」登记进 `raw_ref`（GC 判定依据，§6.3.2；
     /// **甲3 落地前只增不删**——本批只登记、不释放）。`None` = 尚未构造。
     fold_ext: tokio::sync::Mutex<Option<agent_memory::ext::ExtStore>>,
+    /// A1 甲3：记忆巡检后台任务是否已启动（幂等标记，避免多会话重复拉起）
+    memory_gc_started: Arc<std::sync::atomic::AtomicBool>,
+    /// A1 甲3：巡检间隔（`None` = 默认 6 小时）
+    ///
+    /// 设计文档 R2：「淘汰依赖调度基础设施 → 甲3 第 5 批先接调度」。
+    /// 巡检只做衰减/淘汰/GC，**不做任何面向用户的写操作**，故默认开启；
+    /// 测试可用 [`Self::with_memory_gc_interval`] 调大间隔避免干扰。
+    memory_gc_interval: Option<std::time::Duration>,
 }
 
 /// 场景摘要（Tauri 序列化用；2026-09-09 场景底座：装配元数据透传前端滑块/工作区）
@@ -1047,6 +1062,99 @@ impl AgentCommandService {
     pub fn with_session_store(mut self, store: Arc<dyn SessionRepository>) -> Self {
         self.session_store = Some(store);
         self
+    }
+
+    /// 覆盖记忆巡检间隔（链式；A1 甲3）
+    ///
+    /// `None`（默认）= 6 小时。仅在配置了 `memory_root` 时生效。
+    pub fn with_memory_gc_interval(mut self, interval: Option<std::time::Duration>) -> Self {
+        self.memory_gc_interval = interval;
+        self
+    }
+
+    /// 记忆巡检（A1 甲3）——手动触发一轮完整巡检
+    ///
+    /// 与后台任务调用的是同一个入口（[`agent_memory::evict::run_gc_pass`]）：
+    /// 衰减评分 → 软淘汰/恢复 → 硬删到期条目 → 外置文件 GC。
+    /// 未配置 `memory_root` 时返回空报告（视为无记忆可巡检）。
+    pub async fn run_memory_gc(
+        &self,
+    ) -> Result<agent_memory::evict::GcReport, CommandError> {
+        let Some(root) = &self.memory_root else {
+            return Ok(agent_memory::evict::GcReport::default());
+        };
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as i64)
+            .unwrap_or(0);
+        agent_memory::evict::run_gc_pass(
+            root,
+            now,
+            &agent_memory::decay::EvictionPolicy::default(),
+        )
+        .await
+        .map_err(CommandError::Internal)
+    }
+
+    /// 惰性启动记忆巡检后台任务（幂等；A1 甲3）
+    ///
+    /// **只启动一次**（`memory_gc_started` 标记）：任何会话构造时若发现记忆后端已配置
+    /// 且任务未启动，则拉起一个后台循环——按 `memory_gc_interval`（默认 6 小时）
+    /// 周期性调用 [`Self::run_memory_gc`]。
+    ///
+    /// 设计取舍：
+    /// - **首轮不立即执行**（先睡一个间隔）——避免与启动期初始化争抢 IO；
+    /// - **失败只告警不重试加速**——巡检是后台收敛动作，下一轮自然重试；
+    /// - **任务不持有 Service 引用**（只捕获根目录 + 间隔）——避免生命周期纠缠
+    ///   （若持有 `Arc<Self>` 会形成自环，服务永不释放）。
+    fn ensure_memory_gc_task(&self) {
+        let Some(root) = self.memory_root.clone() else {
+            return;
+        };
+        if self
+            .memory_gc_started
+            .swap(true, std::sync::atomic::Ordering::SeqCst)
+        {
+            return;
+        }
+        let interval = self
+            .memory_gc_interval
+            .unwrap_or(DEFAULT_MEMORY_GC_INTERVAL);
+        tokio::spawn(async move {
+            tracing::info!(
+                interval_secs = interval.as_secs(),
+                "记忆巡检后台任务已启动（A1 甲3：衰减 / 淘汰 / 外置 GC）"
+            );
+            loop {
+                tokio::time::sleep(interval).await;
+                let now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_millis() as i64)
+                    .unwrap_or(0);
+                match agent_memory::evict::run_gc_pass(
+                    &root,
+                    now,
+                    &agent_memory::decay::EvictionPolicy::default(),
+                )
+                .await
+                {
+                    Ok(report) if report.did_something() => {
+                        tracing::info!(
+                            scored = report.decay_scored,
+                            newly_deprecated = report.newly_deprecated,
+                            restored = report.restored,
+                            entries_evicted = report.entries_evicted,
+                            raw_trashed = report.raw_trashed,
+                            raw_restored = report.raw_restored,
+                            raw_purged = report.raw_purged,
+                            "记忆巡检完成"
+                        );
+                    }
+                    Ok(_) => tracing::debug!("记忆巡检完成（无动作）"),
+                    Err(e) => tracing::warn!("记忆巡检失败（下轮重试）: {e}"),
+                }
+            }
+        });
     }
 
     /// 注入场景实体访问器（链式，B1 场景上下文注入）
@@ -1419,6 +1527,9 @@ impl AgentCommandService {
                     tracing::warn!("构造 MemoryCenterAccessor 失败，跳过记忆注入: {e}");
                 }
             }
+            // A1 甲3（2026-09-12）：惰性启动记忆巡检后台任务
+            // （衰减 / 软淘汰 / 硬删 / 外置文件 GC；只启动一次，见方法文档）
+            self.ensure_memory_gc_task();
         }
         let agent = Arc::new(agent_builder);
         // 将子 Agent 管理器的广播器指向主 Agent 的广播器，
