@@ -6,12 +6,17 @@
 //! files  (path PK, size, mtime_ms, indexed_at)          -- 增量 diff 依据（size+mtime）
 //! chunks (chunk_id PK, path, ordinal, start_line, end_line, text)
 //! embeddings (hook_id PK, memory_id, vector)            -- SqliteVectorIndex 自己的表（同库）
+//! meta   (key PK, value)                                -- chunk_schema_version（分块版本）
 //! ```
 //!
 //! ## 更新语义
 //!
 //! - **增量**：`search` 前做一次「重扫 + diff」（纯元数据，3 秒去抖）；只有 size/mtime
 //!   变化的文件被重读/重分块；删除的文件移除索引。手动 `rebuild` 清空后全量重建。
+//! - **分块版本作废**：打开库时校验 `meta.chunk_schema_version`；与
+//!   [`CHUNK_SCHEMA_VERSION`] 不符即整体作废（清块/文件行/向量）→ 下次 `sync()` 全量重建。
+//!   **必须有这一层**：`sync()` 只看 `size + mtime`，分块规则变了而文件没变时 diff 会判
+//!   「未变更」，索引静默沿用旧分块（无任何外部症状）。
 //! - **向量渐进**：关键词索引（本地）即时可用；向量由后台任务分批补齐——首次检索
 //!   不等 embedding，先给关键词结果，后续检索逐步转为混合。
 //! - **隐私**：仅启用语义检索（配置了端点）时块文本才发往嵌入端点；未配置纯本地。
@@ -52,7 +57,24 @@ CREATE TABLE IF NOT EXISTS chunks (
 );
 
 CREATE INDEX IF NOT EXISTS idx_chunks_path ON chunks(path);
+
+-- 索引自身的元信息（当前只有分块版本；键值结构，便于后续加标记）
+CREATE TABLE IF NOT EXISTS meta (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
 "#;
+
+/// **分块/索引 schema 版本——分块规则变更时必须递增**
+///
+/// - `1` = 按行累积 + 重叠（无边界感知）
+/// - `2` = 边界感知（Markdown 标题 / 代码列 0 顶层声明；R2-1）
+///
+/// 索引库是**可重建缓存**：版本不符即整体作废（清块 / 清文件行 / 清向量），
+/// 由下次 `sync()` 全量重建。**为什么必须递增**：`sync()` 的增量 diff 依据是
+/// `size + mtime`——分块规则变了而文件没变，diff 会判定「未变更」并沿用作废前的
+/// 块，检索结果与新规则不一致；且这种偏差**没有任何外部症状**（静默失效）。
+const CHUNK_SCHEMA_VERSION: i64 = 2;
 
 /// 向量补批大小（每批 embedding 调用的条数）
 const BACKFILL_BATCH: usize = 32;
@@ -64,6 +86,56 @@ fn now_ms() -> i64 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as i64)
         .unwrap_or(0)
+}
+
+/// 分块版本校验：与 [`CHUNK_SCHEMA_VERSION`] 不符即**整体作废**索引
+///
+/// 作废三处（缺一即产生「半新半旧」的索引）：块、文件行（增量 diff 的依据）、
+/// 向量（chunk_id 随分块规则变化，旧向量会变成孤儿且与新块错配）。
+///
+/// 无 `meta` 行（本机制引入前建的索引）视为版本未知 → 同样作废一次。
+fn ensure_chunk_schema(conn: &rusqlite::Connection, db: &Path) -> Result<(), String> {
+    let stored: Option<i64> = conn
+        .query_row(
+            "SELECT value FROM meta WHERE key = 'chunk_schema_version'",
+            [],
+            |r| r.get::<_, String>(0),
+        )
+        .ok()
+        .and_then(|v| v.parse().ok());
+    if stored == Some(CHUNK_SCHEMA_VERSION) {
+        return Ok(());
+    }
+
+    conn.execute("DELETE FROM chunks", [])
+        .map_err(|e| format!("作废旧索引（清块）失败: {e}"))?;
+    conn.execute("DELETE FROM files", [])
+        .map_err(|e| format!("作废旧索引（清文件表）失败: {e}"))?;
+    // embeddings 表由 SqliteVectorIndex 建（未启用语义检索时不存在）
+    let has_embeddings: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'embeddings'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap_or(0);
+    if has_embeddings > 0 {
+        conn.execute("DELETE FROM embeddings", [])
+            .map_err(|e| format!("作废旧索引（清向量）失败: {e}"))?;
+    }
+    conn.execute(
+        "INSERT OR REPLACE INTO meta (key, value) VALUES ('chunk_schema_version', ?1)",
+        [CHUNK_SCHEMA_VERSION.to_string()],
+    )
+    .map_err(|e| format!("写入分块版本失败: {e}"))?;
+
+    tracing::info!(
+        db = %db.display(),
+        from = ?stored,
+        to = CHUNK_SCHEMA_VERSION,
+        "分块规则版本变更，旧索引已作废（下次检索全量重建）"
+    );
+    Ok(())
 }
 
 /// 索引统计（状态展示）
@@ -143,6 +215,9 @@ impl WorkspaceIndex {
         let conn = rusqlite::Connection::open(&db).map_err(|e| format!("打开索引库失败: {e}"))?;
         conn.execute_batch(INIT_SQL)
             .map_err(|e| format!("初始化索引表失败: {e}"))?;
+        // 分块版本校验（必须在建向量索引 / 播种 BM25 **之前**：作废要连向量一起清，
+        // 否则向量索引的内存缓存会把旧 chunk_id 的向量继续带进检索）
+        ensure_chunk_schema(&conn, &db)?;
 
         // 向量与嵌入器（启用语义检索时；维度变更自动清旧向量）
         let (vectors, embedder, dim): (Option<Arc<SqliteVectorIndex>>, Option<Arc<dyn Embedder>>, usize) =
@@ -870,6 +945,64 @@ mod tests {
             spans.iter().all(|(s, e)| !(*s < 3 && *e >= 3)),
             "标题边界不应被跨块切开: {spans:?}"
         );
+    }
+
+    #[tokio::test]
+    async fn stale_chunk_schema_purges_index_and_rebuilds() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("index").join("ws.db");
+        let workdir = dir.path().join("ws");
+        std::fs::create_dir_all(&workdir).unwrap();
+        write(&workdir, "a.md", "边界版本 校验内容");
+
+        // 建库并登记当前分块版本
+        {
+            let idx = WorkspaceIndex::open(
+                db.clone(),
+                workdir.clone(),
+                IndexPolicy::default(),
+                None,
+            )
+            .unwrap();
+            idx.sync().unwrap();
+            assert_eq!(idx.stats().files, 1);
+            let conn = idx.conn.lock().unwrap();
+            let v: String = conn
+                .query_row(
+                    "SELECT value FROM meta WHERE key = 'chunk_schema_version'",
+                    [],
+                    |r| r.get(0),
+                )
+                .unwrap();
+            assert_eq!(v, CHUNK_SCHEMA_VERSION.to_string(), "打开时应登记当前分块版本");
+            // 伪造「升级前的旧索引」
+            conn.execute(
+                "UPDATE meta SET value = '1' WHERE key = 'chunk_schema_version'",
+                [],
+            )
+            .unwrap();
+        }
+
+        // 版本不符 → 整体作废（`stats()` 直接读库，不触发懒同步）
+        let idx2 =
+            WorkspaceIndex::open(db.clone(), workdir.clone(), IndexPolicy::default(), None)
+                .unwrap();
+        assert_eq!(idx2.stats().files, 0, "旧版本索引应整体作废");
+        assert_eq!(idx2.stats().chunks, 0);
+
+        // 作废是**懒重建**：下一次同步即按新分块全量重建
+        let report = idx2.sync().unwrap();
+        assert_eq!(report.added, 1, "旧索引作废后应全量重建: {report:?}");
+        assert_eq!(idx2.stats().files, 1);
+        assert!(
+            !idx2.search("边界版本", 5, None, None).await.is_empty(),
+            "重建后应可检索"
+        );
+        drop(idx2);
+
+        // 版本一致时重开幂等（不得反复作废）
+        let idx3 = WorkspaceIndex::open(db, workdir, IndexPolicy::default(), None).unwrap();
+        assert_eq!(idx3.stats().files, 1, "版本一致时重开不应作废索引");
     }
 
     #[tokio::test]
