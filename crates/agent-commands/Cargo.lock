@@ -18,6 +18,7 @@ checksum = "aae1277d39aeec15cb388266ecc24b11c80469deae6067e17a1a7aa9e5c1f234"
 name = "agent-commands"
 version = "0.1.0"
 dependencies = [
+ "agent-index",
  "agent-memory",
  "agent-patterns",
  "agent-runtime",
@@ -37,6 +38,21 @@ dependencies = [
  "tracing",
  "uuid",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "agent-index"
+version = "0.1.0"
+dependencies = [
+ "agent-memory",
+ "async-trait",
+ "memory-center-core",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
