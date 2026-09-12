@@ -1385,3 +1385,42 @@
         let report = svc.run_memory_gc().await.unwrap();
         assert!(!report.did_something(), "空记忆根一轮巡检应无动作");
     }
+
+    /// 丁3：project_id 贯通记忆访问器——会话的记忆三库落在对应项目分片
+    ///
+    /// 丁3 前 `build_memory_accessor` 硬编码 `None`，所有项目共用 `_default`；
+    /// 本批起会话持久化的 `project_id` 一路贯通到三库（memories / ext / vec）分片。
+    #[tokio::test]
+    async fn new_session_memory_follows_project_shard() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().to_path_buf();
+        let svc = AgentCommandService::default().with_memory_root(Some(root.clone()));
+
+        // 项目 A 的会话 → 记忆落 projects/proj-alpha/
+        let info = svc
+            .new_session(None, None, None, None, None, Some("proj-alpha".into()))
+            .await
+            .unwrap();
+        assert_eq!(info.project_id.as_deref(), Some("proj-alpha"));
+        let shard_a = root.join("projects").join("proj-alpha");
+        assert!(shard_a.join("memories.db").is_file(), "memories.db 应落项目分片");
+        assert!(shard_a.join("memory_ext.db").is_file(), "扩展库应落同一分片");
+        assert!(
+            !root
+                .join("projects")
+                .join("_default")
+                .join("memories.db")
+                .exists(),
+            "不得再落 _default（丁3 前所有项目共用该分片）"
+        );
+
+        // 项目 B → 独立分片（互不混淆）
+        let _ = svc
+            .new_session(None, None, None, None, None, Some("proj-beta".into()))
+            .await
+            .unwrap();
+        assert!(
+            root.join("projects").join("proj-beta").join("memories.db").is_file(),
+            "另一项目应独立分片"
+        );
+    }

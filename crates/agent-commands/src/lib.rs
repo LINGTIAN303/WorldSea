@@ -213,10 +213,14 @@ const B_RAIL_PLAN_PROMPT: &str = "你是任务规划者。请把用户任务拆�
 const DEFAULT_MEMORY_GC_INTERVAL: std::time::Duration =
     std::time::Duration::from_secs(6 * 60 * 60);
 
-/// A2 戊1：把巡检硬删的记忆条目移出检索索引（幽灵索引项清理）
+/// A2 戊1 + 丁3：把巡检硬删的记忆条目移出检索索引（幽灵索引项清理）
 ///
 /// BM25 与向量索引是「进程内 + 独立库」两层，`memories.db` 行删除不会连带更新它们。
 /// 未启用语义检索（无配置）时为空操作；构建失败仅告警（下次巡检/重建会自然收敛）。
+///
+/// **丁3（2026-09-12）**：索引库与记忆库同分片（`projects/{pid}/memory_vec.db`）——
+/// 遍历全部分片逐个清理；**只处理已存在的向量库**（不为无向量的项目建空库）。
+/// `remove` 对不存在的 hook 是 no-op，多分片重复调用安全。
 async fn sync_evicted_hooks(
     root: &std::path::Path,
     semantic_config: &Arc<std::sync::RwLock<Option<agent_memory::semantic::SemanticConfig>>>,
@@ -228,21 +232,32 @@ async fn sync_evicted_hooks(
     let Some(config) = semantic_config.read().ok().and_then(|g| g.clone()) else {
         return;
     };
-    let vec_db = root
-        .join("projects")
-        .join("_default")
-        .join("memory_vec.db");
-    match agent_memory::semantic::get_or_build(&vec_db, &config).await {
-        Ok(stack) => {
-            for hook in hooks {
-                stack.remove(hook);
-            }
-            tracing::info!(
-                count = hooks.len(),
-                "巡检硬删条目已移出检索索引（A2 戊1）"
-            );
+    let projects = root.join("projects");
+    let Ok(rd) = std::fs::read_dir(&projects) else {
+        return;
+    };
+    let mut cleaned_shards = 0usize;
+    for entry in rd.flatten() {
+        let vec_db = entry.path().join("memory_vec.db");
+        if !vec_db.is_file() {
+            continue; // 该分片无向量库（未启用语义/尚无向量）——跳过，不为它建空库
         }
-        Err(e) => tracing::warn!("检索栈构建失败，硬删条目索引残留（待下次重建收敛）: {e}"),
+        match agent_memory::semantic::get_or_build(&vec_db, &config).await {
+            Ok(stack) => {
+                for hook in hooks {
+                    stack.remove(hook);
+                }
+                cleaned_shards += 1;
+            }
+            Err(e) => tracing::warn!("检索栈构建失败，硬删条目索引残留（待下次重建收敛）: {e}"),
+        }
+    }
+    if cleaned_shards > 0 {
+        tracing::info!(
+            count = hooks.len(),
+            shards = cleaned_shards,
+            "巡检硬删条目已移出检索索引（A2 戊1 / 丁3 分片遍历）"
+        );
     }
 }
 
@@ -1269,7 +1284,10 @@ impl AgentCommandService {
 
     /// 语义索引状态（A2 戊1；配置面板状态展示）
     ///
-    /// 未配置 / 构建失败 → 全零（UI 据此显示「未启用」）。
+    /// **丁3（2026-09-12）**：记忆按项目分片后不存在「全局唯一索引库」——
+    /// 遍历 `projects/*/memory_vec.db` **聚合**各分片统计（关键词 / 向量条数求和，
+    /// 维度取首个非零）；只统计已存在的向量库（不为空项目建库）。
+    /// 未配置 / 无分片 → 全零（UI 据此显示「未启用」）。
     pub async fn semantic_status(&self) -> agent_memory::semantic::SemanticStats {
         let Some(root) = &self.memory_root else {
             return agent_memory::semantic::SemanticStats::default();
@@ -1282,17 +1300,31 @@ impl AgentCommandService {
         else {
             return agent_memory::semantic::SemanticStats::default();
         };
-        let vec_db = root
-            .join("projects")
-            .join("_default")
-            .join("memory_vec.db");
-        match agent_memory::semantic::get_or_build(&vec_db, &config).await {
-            Ok(stack) => stack.stats(),
-            Err(e) => {
-                tracing::warn!("语义索引状态查询失败: {e}");
-                agent_memory::semantic::SemanticStats::default()
+        let projects = root.join("projects");
+        let Ok(rd) = std::fs::read_dir(&projects) else {
+            return agent_memory::semantic::SemanticStats::default();
+        };
+        let mut agg = agent_memory::semantic::SemanticStats::default();
+        for entry in rd.flatten() {
+            let vec_db = entry.path().join("memory_vec.db");
+            if !vec_db.is_file() {
+                continue; // 该分片未启用语义 / 尚无向量库
+            }
+            match agent_memory::semantic::get_or_build(&vec_db, &config).await {
+                Ok(stack) => {
+                    let s = stack.stats();
+                    agg.keyword_len += s.keyword_len;
+                    agg.vector_len += s.vector_len;
+                    if agg.dim == 0 {
+                        agg.dim = s.dim;
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!("语义索引状态查询失败（分片 {:?}）: {e}", entry.file_name());
+                }
             }
         }
+        agg
     }
 
     /// 惰性启动记忆巡检后台任务（幂等；A1 甲3）
@@ -1518,7 +1550,10 @@ impl AgentCommandService {
     /// 构造会话级 MemoryCenterAccessor（记忆适配层）
     ///
     /// 以 `root` 为存储根目录、`session_id` 为记忆隔离依据，为每个会话创建独立的
-    /// SQLite 记忆后端。`project_id` 传 `None`（单聊按会话隔离，跨会话聚合检索暂不启用）。
+    /// SQLite 记忆后端。**`project_id` 是记忆分片依据（丁3，2026-09-12）**——
+    /// `memories.db` / `memory_ext.db` / `memory_vec.db` 三库同分片
+    /// （`{root}/projects/{pid}`）；会话持久化里的 `SessionRecord.project_id`
+    /// 贯通到此，实现「项目 A 的记忆与项目 B 隔离」。
     ///
     /// **归档阈值（A1 丙1，2026-09-11 归一）**：由模型档案推导（`窗口 × 归档比率`），
     /// 替换原先写死的 `2000`——该值仅够「让阶段 3 闭环在本会话内可验证」，
@@ -1526,21 +1561,21 @@ impl AgentCommandService {
     fn build_memory_accessor(
         root: &PathBuf,
         session_id: &str,
+        project_id: Option<String>,
         profile: &agent_memory::model_profile::ModelProfile,
         semantic_config: Arc<std::sync::RwLock<Option<agent_memory::semantic::SemanticConfig>>>,
     ) -> std::result::Result<Arc<dyn MemoryAccessor>, agent_memory::Error> {
         let config = ArchiveConfig::from_threshold(profile.archive_threshold);
-        let accessor = MemoryCenterAccessor::new_sqlite(root.clone(), session_id, None, config)?;
-        // A2 戊1：注入语义检索句柄（共享配置 Arc；未启用时 accessor 内自会降级为
-        // 既有关键词路径——句柄注入本身零行为变化）
-        let vec_db = root
-            .join("projects")
-            .join("_default")
-            .join("memory_vec.db");
-        let accessor = accessor.with_semantics(agent_memory::semantic::SemanticHandle::new(
+        // A2 戊1 + 丁3：语义配置句柄共享（保存即全会话生效）+ 向量库与记忆库同分片
+        //（此前此处手动构造 `_default` 的 vec_db 覆盖 new_sqlite 的正确分片——已随
+        // 丁3 删除：new_sqlite_with_semantics 内部按 project_id 统一分片）
+        let accessor = MemoryCenterAccessor::new_sqlite_with_semantics(
+            root.clone(),
+            session_id,
+            project_id,
+            config,
             semantic_config,
-            vec_db,
-        ));
+        )?;
         Ok(Arc::new(accessor))
     }
 
@@ -1604,6 +1639,9 @@ impl AgentCommandService {
             Some(root) => match Self::build_memory_accessor(
                 root,
                 session_id,
+                // 丁3（2026-09-12）：project_id 贯通到记忆访问器——记忆按项目分片
+                // （此前硬编码 None → 所有项目共用 `_default`）
+                project_id.clone(),
                 &model_profile,
                 self.semantic_config.clone(),
             ) {

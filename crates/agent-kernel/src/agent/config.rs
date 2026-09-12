@@ -150,7 +150,7 @@ pub struct AgentLoopConfig {
     /// recall / inject 的 options。kernel 本身不判场景，只消费参数。
     ///
     /// **None = 既有默认（top_k 5 / max_tokens 2000）**——未迁移路径零行为变化。
-    pub memory_tier: Option<crate::scenario::MemoryTierParams>,
+    pub memory_tier: Option<MemoryTierParams>,
 }
 
 impl Default for AgentLoopConfig {

@@ -78,16 +78,52 @@ impl MemoryCenterAccessor {
     /// # 参数
     /// - `root`：存储根目录（`{root}/projects/{project_id}/memories.db`）
     /// - `session_id`：当前会话 ID（记忆隔离依据）
-    /// - `project_id`：项目 ID（可选，跨会话聚合检索）
+    /// - `project_id`：**分片依据**（丁3：真实项目 id；`None` 落 `_default`）——
+    ///   `memories.db` / `memory_ext.db` / `memory_vec.db` 三库同分片
     /// - `archive_config`：归档阈值配置（token 阈值 / 强制截断上限）
     ///
     /// 同时打开同目录下的**扩展库** `memory_ext.db`（A1 甲4）；扩展库打开失败时
     /// 降级为 `None`（记忆主链路不受影响，仅 A1 新增能力不可用）。
+    /// 装配层应优先用 [`Self::new_sqlite_with_semantics`]（共享语义配置句柄）。
     pub fn new_sqlite(
         root: impl Into<std::path::PathBuf>,
         session_id: impl Into<String>,
         project_id: Option<String>,
         archive_config: ArchiveConfig,
+    ) -> crate::Result<Self> {
+        Self::new_sqlite_inner(root, session_id, project_id, archive_config, None)
+    }
+
+    /// 创建适配层（SQLite 后端 + **共享**语义检索配置句柄）——装配层用
+    ///
+    /// 与 [`Self::new_sqlite`] 的唯一区别：语义检索的配置句柄由外部注入共享
+    /// （保存配置即对所有会话生效）；向量库路径与 `memories.db` **同分片**。
+    ///
+    /// **丁3（2026-09-12）**：`project_id` 是记忆隔离的唯一分片依据——装配层必须
+    /// 传真实项目 id（会话持久化的 `SessionRecord.project_id`）。
+    pub fn new_sqlite_with_semantics(
+        root: impl Into<std::path::PathBuf>,
+        session_id: impl Into<String>,
+        project_id: Option<String>,
+        archive_config: ArchiveConfig,
+        semantic_config: Arc<std::sync::RwLock<Option<semantic::SemanticConfig>>>,
+    ) -> crate::Result<Self> {
+        Self::new_sqlite_inner(
+            root,
+            session_id,
+            project_id,
+            archive_config,
+            Some(semantic_config),
+        )
+    }
+
+    /// 共享实现：打开三库（memories / ext / vec 同分片）并装配语义句柄
+    fn new_sqlite_inner(
+        root: impl Into<std::path::PathBuf>,
+        session_id: impl Into<String>,
+        project_id: Option<String>,
+        archive_config: ArchiveConfig,
+        semantic_config: Option<Arc<std::sync::RwLock<Option<semantic::SemanticConfig>>>>,
     ) -> crate::Result<Self> {
         let root = root.into();
         let storage: Arc<dyn Storage> = Arc::new(SqliteStorage::new(root.clone(), project_id.clone())?);
@@ -99,13 +135,13 @@ impl MemoryCenterAccessor {
             }
         };
         // A2 戊1：语义检索句柄（向量库与 memories.db 同分片；配置默认为空=未启用，
-        // 由装配层经 [`Self::with_semantics`] 注入共享配置后即时生效）
+        // 共享句柄由装配层经 new_sqlite_with_semantics 注入后即时生效）
         let shard = match &project_id {
             Some(pid) => root.join("projects").join(pid),
             None => root.join("projects").join("_default"),
         };
         let handle = semantic::SemanticHandle::new(
-            Arc::new(std::sync::RwLock::new(None)),
+            semantic_config.unwrap_or_else(|| Arc::new(std::sync::RwLock::new(None))),
             shard.join("memory_vec.db"),
         );
         Ok(Self::new_with_ext(storage, session_id, project_id, archive_config, ext)

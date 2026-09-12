@@ -39,6 +39,7 @@
 //! 也可由运维 / 测试随时手动触发。
 
 use std::path::Path;
+use std::sync::Arc;
 
 use memory_center_core::sqlite::SqliteStorage;
 use memory_center_core::storage::Storage;
@@ -88,24 +89,80 @@ impl GcReport {
     }
 }
 
-/// 对某个记忆根目录跑**一轮**完整巡检
+/// 对某个记忆根跑**一轮**完整巡检（全分片）
+///
+/// 丁3（2026-09-12）：记忆按项目分片（`root/projects/{project_id}`）后，本函数
+/// **遍历全部分片**：
+/// - ①② 逐分片执行（衰减 / 软淘汰 / 硬删——数据归属各自分片）
+/// - ③ **全局一次且跨分片协调**——外置文件（`raw/`）是全局共享的（内容寻址：
+///   同内容同坐标），物理删除必须满足「**所有分片**都无有效引用与 pinned，
+///   且以**最后一个**分片失去引用的时点起算回收站窗口」；否则会误删其他项目
+///   仍在引用的原文（跨分片正确性，本批修复的核心缺陷）。
 ///
 /// - `root`：记忆存储根（与 `MemoryCenterAccessor::new_sqlite` 同源）
 /// - `now_ms`：巡检时点（Unix 毫秒；显式传入以便测试与回放）
 /// - `policy`：淘汰策略参数（[`EvictionPolicy::default`] 即设计起点）
-///
-/// 记忆分片固定为 `None`（→ `_default`）——与 `build_memory_accessor` 的当前实现一致；
-/// 丁3 `project_id` 记忆隔离落地后，此处需同步升级为按项目分片巡检（届时由调度层
-/// 遍历项目列表逐个调用）。
 pub async fn run_gc_pass(
     root: &Path,
     now_ms: i64,
     policy: &EvictionPolicy,
 ) -> Result<GcReport, String> {
-    let ext = ExtStore::open(root.to_path_buf(), None).map_err(|e| e.to_string())?;
+    let shards = open_shards(root)?;
     let raw = RawStore::open(root.to_path_buf()).map_err(|e| e.to_string())?;
-    let storage = SqliteStorage::new(root.to_path_buf(), None).map_err(|e| e.to_string())?;
-    run_gc_pass_with(&storage, &ext, &raw, now_ms, policy).await
+    let mut report = GcReport::default();
+    for s in &shards {
+        run_shard_evict(s.storage.as_ref(), &s.ext, now_ms, policy, &mut report).await?;
+    }
+    let exts: Vec<&ExtStore> = shards.iter().map(|s| &s.ext).collect();
+    run_raw_gc(&raw, &exts, now_ms, policy, &mut report).await?;
+    Ok(report)
+}
+
+/// 记忆分片句柄（巡检用）
+struct ShardHandles {
+    /// 分片名（project_id，或 `_default`；排序与日志用）
+    pid: String,
+    ext: ExtStore,
+    storage: Arc<dyn Storage>,
+}
+
+/// 枚举记忆根下的全部分片（`root/projects/*` 目录；无目录 = 无分片）
+///
+/// 含 `_default`（无项目归属的兜底分片）——它的存量数据同样按衰减自然收敛。
+/// 目录名回映射为 project_id（`_default` → `None`），与三库（memories/ext/vec）
+/// 的分片判据保持一致。
+fn open_shards(root: &Path) -> Result<Vec<ShardHandles>, String> {
+    let projects = root.join("projects");
+    let mut out: Vec<ShardHandles> = Vec::new();
+    let Ok(rd) = std::fs::read_dir(&projects) else {
+        return Ok(out); // 无 projects 目录 = 无分片
+    };
+    for entry in rd.flatten() {
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+        let Some(pid) = path.file_name().and_then(|s| s.to_str()) else {
+            continue;
+        };
+        let project_id = if pid == "_default" {
+            None
+        } else {
+            Some(pid.to_string())
+        };
+        let ext = ExtStore::open(root.to_path_buf(), project_id.clone()).map_err(|e| e.to_string())?;
+        let storage: Arc<dyn Storage> = Arc::new(
+            SqliteStorage::new(root.to_path_buf(), project_id).map_err(|e| e.to_string())?,
+        );
+        out.push(ShardHandles {
+            pid: pid.to_string(),
+            ext,
+            storage,
+        });
+    }
+    // 稳定顺序（日志与测试可预期）
+    out.sort_by(|a, b| a.pid.cmp(&b.pid));
+    Ok(out)
 }
 
 /// 巡检主体（依赖注入版：测试与自定义后端用）
@@ -120,15 +177,27 @@ pub async fn run_gc_pass_with(
     policy: &EvictionPolicy,
 ) -> Result<GcReport, String> {
     let mut report = GcReport::default();
+    run_shard_evict(storage, ext, now_ms, policy, &mut report).await?;
+    run_raw_gc(raw, &[ext], now_ms, policy, &mut report).await?;
+    Ok(report)
+}
 
+/// ①② 单分片步骤：衰减（含软淘汰/恢复）→ 硬删到期条目
+async fn run_shard_evict(
+    storage: &dyn Storage,
+    ext: &ExtStore,
+    now_ms: i64,
+    policy: &EvictionPolicy,
+    report: &mut GcReport,
+) -> Result<(), String> {
     // ── ① 衰减 + 软淘汰/恢复（可逆，不删任何东西）────────────────
     let decay = ext
         .apply_decay(now_ms, *policy)
         .await
         .map_err(|e| e.to_string())?;
-    report.decay_scored = decay.scored;
-    report.newly_deprecated = decay.newly_deprecated.len();
-    report.restored = decay.restored;
+    report.decay_scored += decay.scored;
+    report.newly_deprecated += decay.newly_deprecated.len();
+    report.restored += decay.restored;
 
     // ── ② 硬删：回收站满 delete_after_days 的条目 ─────────────────
     // 顺序：先删 memories.db 的记忆行（hooks 随 FK 级联），再清本库扩展行。
@@ -159,71 +228,99 @@ pub async fn run_gc_pass_with(
             }
         }
     }
+    Ok(())
+}
 
-    // ── ③ 外置文件 GC ────────────────────────────────────────────
-    // ③a 恢复：回收站中但已重新获引的（内容寻址使「同内容再次出现」= 同坐标）
-    for (hash, _) in ext.trash_list().await.map_err(|e| e.to_string())? {
-        let eligible = ext
-            .is_gc_eligible(&hash)
-            .await
-            .map_err(|e| e.to_string())?;
-        if !eligible {
-            if ext
-                .trash_restore(&hash)
-                .await
-                .map_err(|e| e.to_string())?
-            {
-                report.raw_restored += 1;
+/// ③ 外置文件 GC（全局一次；跨分片协调）
+///
+/// **跨分片规则（丁3）**：
+/// - 判定谓词 `is_gc_eligible` 是分片内的（引用表 / pinned 按分片）→ 全局「可删」
+///   要求**所有分片**都适格（任一分片有引用即受保护）；
+/// - 回收站窗口以**最后一个**分片失去引用的时点起算（各分片独立记录时点，
+///   取最大值；尚无记录的分片本次补记 = 起点顺延到本次巡检）；
+/// - 硬删时清**全部分片**的引用行与回收站记录（同一坐标的引用可能分布在多个分片）。
+///
+/// `shard_exts` 为空时（无分片）**保守不动**——没有判定依据时不删任何文件。
+async fn run_raw_gc(
+    raw: &RawStore,
+    shard_exts: &[&ExtStore],
+    now_ms: i64,
+    policy: &EvictionPolicy,
+    report: &mut GcReport,
+) -> Result<(), String> {
+    if shard_exts.is_empty() {
+        tracing::debug!("外置文件 GC：无记忆分片，本轮跳过（保守不删）");
+        return Ok(());
+    }
+
+    // ── ③a 孤儿收敛：各分片回收站记录指向的文件已不在（外部清理 / 上次硬删中断）──
+    for ext in shard_exts {
+        for (hash, _) in ext.trash_list().await.map_err(|e| e.to_string())? {
+            if !raw.contains(&hash) {
+                ext.trash_forget(&hash).await.map_err(|e| e.to_string())?;
+                report.trash_pruned += 1;
             }
-        } else if !raw.contains(&hash) {
-            // 孤儿记录：文件已不在（外部清理 / 上次硬删中断）→ 收敛
-            ext.trash_forget(&hash).await.map_err(|e| e.to_string())?;
-            report.trash_pruned += 1;
         }
     }
 
-    // ③b 扫描磁盘文件：判定 → 入回收站 → 到期硬删
+    // ── ③b 扫描磁盘文件（全局一次）：跨分片判定 → 入回收站 → 到期硬删 ──
     let retention_ms = policy.trash_retention_ms();
     for hash in raw.list_hashes() {
-        let eligible = ext
-            .is_gc_eligible(&hash)
-            .await
-            .map_err(|e| e.to_string())?;
-        if !eligible {
+        // 跨分片判定：任一分片有有效引用 / pinned → 受保护
+        let mut all_eligible = true;
+        for ext in shard_exts {
+            if !ext.is_gc_eligible(&hash).await.map_err(|e| e.to_string())? {
+                all_eligible = false;
+                break;
+            }
+        }
+        if !all_eligible {
+            // 曾有分片把它入回收站（另一分片仍引用）→ 各分片恢复（清记录）；
+            // 窗口计时随后自「最后失去引用」重新起算
+            for ext in shard_exts {
+                if ext.trash_restore(&hash).await.map_err(|e| e.to_string())? {
+                    report.raw_restored += 1;
+                }
+            }
             report.raw_protected += 1;
             continue;
         }
-        match ext
-            .trash_taken_at(&hash)
-            .await
-            .map_err(|e| e.to_string())?
-        {
-            None => {
-                // 首次失去引用 → 入回收站（时点自此刻起算）
-                ext.trash_put(&hash, now_ms).await.map_err(|e| e.to_string())?;
-                report.raw_trashed += 1;
-            }
-            Some(taken) if now_ms.saturating_sub(taken) >= retention_ms => {
-                // 回收站到期 → 硬删：先删物理文件、再清引用行、最后清回收站记录
-                if !raw.delete(&hash) {
-                    // 删文件失败：不清理引用与回收站记录（留待下次巡检重试，
-                    // 保持「文件与引用记录同进出」的可追溯性）
-                    tracing::warn!(hash = %hash, "硬删外置文件失败（保留记录待重试）");
-                    continue;
+        // 全分片皆无引用：为尚无回收站记录的分片补记时点（窗口起点 = 本次巡检时刻），
+        // 并取各分片时点的最大值 = 「最后失去引用」的近似时刻
+        let mut newly_trashed = false;
+        let mut latest: Option<i64> = None;
+        for ext in shard_exts {
+            match ext.trash_taken_at(&hash).await.map_err(|e| e.to_string())? {
+                Some(t) => latest = Some(latest.map_or(t, |m: i64| m.max(t))),
+                None => {
+                    ext.trash_put(&hash, now_ms).await.map_err(|e| e.to_string())?;
+                    newly_trashed = true;
                 }
-                ext.purge_raw_refs(&hash)
-                    .await
-                    .map_err(|e| e.to_string())?;
-                ext.trash_forget(&hash).await.map_err(|e| e.to_string())?;
-                report.raw_purged += 1;
-            }
-            Some(_) => {
-                // 回收站窗口内：不动（等满 trash_retention_days）
             }
         }
+        let release_at = if newly_trashed {
+            now_ms
+        } else {
+            latest.unwrap_or(now_ms)
+        };
+        if now_ms.saturating_sub(release_at) >= retention_ms {
+            // 到期硬删：先删物理文件、再清全分片引用行与回收站记录
+            if !raw.delete(&hash) {
+                // 删文件失败：不清记录（留待下次巡检重试，
+                // 保持「文件与引用记录同进出」的可追溯性）
+                tracing::warn!(hash = %hash, "硬删外置文件失败（保留记录待重试）");
+                continue;
+            }
+            for ext in shard_exts {
+                ext.purge_raw_refs(&hash).await.map_err(|e| e.to_string())?;
+                ext.trash_forget(&hash).await.map_err(|e| e.to_string())?;
+            }
+            report.raw_purged += 1;
+        } else if newly_trashed {
+            report.raw_trashed += 1;
+        }
     }
-
-    Ok(report)
+    Ok(())
 }
 
 // ─── 测试 ────────────────────────────────────────
@@ -548,5 +645,116 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(report, again);
+    }
+
+    // ─── 丁3：跨分片巡检与守卫 ──────────────────────────────
+
+    /// 跨分片守卫（丁3 核心修复）：外置文件被「另一分片」引用时不得硬删
+    ///
+    /// 外置文件全局共享（内容寻址），而引用表/回收站按项目分片——
+    /// 若按分片独立判定，p2 分片（无引用）会把 p1 仍在引用的原文误删。
+    #[tokio::test]
+    async fn cross_shard_gc_protects_shared_raw_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().to_path_buf();
+
+        let raw = RawStore::open(root.clone()).unwrap();
+        let r = raw.store("被 p1 引用的原文").unwrap();
+
+        // p1：登记有效引用；p2：无引用（孤立视角）
+        let ext_p1 = ExtStore::open(root.clone(), Some("p1".to_string())).unwrap();
+        ext_p1
+            .acquire_raw_ref(&r.content_hash, owner_kind::CONTEXT_ANCHOR, "sess-1", false)
+            .await
+            .unwrap();
+        let _ext_p2 = ExtStore::open(root.clone(), Some("p2".to_string())).unwrap();
+
+        let now = 1_000_000_000_000i64;
+        // 两轮（第二轮远超回收站窗口）：分片独立判定时 p2 会误删
+        for step in [0i64, 100 * DAY_MS] {
+            let report = run_gc_pass(&root, now + step, &EvictionPolicy::default())
+                .await
+                .unwrap();
+            assert_eq!(report.raw_purged, 0, "p1 仍引用时不得硬删");
+        }
+        assert!(raw.contains(&r.content_hash), "跨分片共享的原文必须保留");
+    }
+
+    /// 全分片皆无引用 → 正常入回收站并按窗口硬删（跨分片守卫不误保护）
+    #[tokio::test]
+    async fn cross_shard_gc_purges_when_all_shards_release() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().to_path_buf();
+        let raw = RawStore::open(root.clone()).unwrap();
+        let r = raw.store("无人引用的原文").unwrap();
+
+        // 两个分片都曾有引用（已软删）——当前皆无有效引用
+        for pid in ["p1", "p2"] {
+            let ext = ExtStore::open(root.clone(), Some(pid.to_string())).unwrap();
+            ext.acquire_raw_ref(
+                &r.content_hash,
+                owner_kind::ARCHIVE,
+                &format!("hook-{pid}"),
+                false,
+            )
+            .await
+            .unwrap();
+            ext.soft_delete_raw_refs(&r.content_hash).await.unwrap();
+        }
+
+        let now = 1_000_000_000_000i64;
+        // 首轮：全分片无引用 → 各分片补记时点 → 入回收站（未到期）
+        let report = run_gc_pass(&root, now, &EvictionPolicy::default())
+            .await
+            .unwrap();
+        assert_eq!(report.raw_trashed, 1, "首次入回收站计一次（跨分片不重复计数）");
+        assert_eq!(report.raw_purged, 0);
+
+        // +8 天：满 7 天窗口 → 硬删（并清全分片引用与回收站记录）
+        let report = run_gc_pass(&root, now + 8 * DAY_MS, &EvictionPolicy::default())
+            .await
+            .unwrap();
+        assert_eq!(report.raw_purged, 1, "全分片释放满窗口后应硬删");
+        assert!(!raw.contains(&r.content_hash));
+        for pid in ["p1", "p2"] {
+            let ext = ExtStore::open(root.clone(), Some(pid.to_string())).unwrap();
+            assert!(
+                ext.trash_taken_at(&r.content_hash).await.unwrap().is_none(),
+                "{pid} 的回收站记录应一并清理"
+            );
+        }
+    }
+
+    /// 巡检遍历全部分片：各分片的到期条目都被硬删（`evicted_hooks` 聚合回传）
+    #[tokio::test]
+    async fn gc_pass_traverses_all_shards() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().to_path_buf();
+        let now = 1_000_000_000_000i64;
+
+        // p1 / p2 各 seed 一条一年前的记忆扩展行（指向各自分片的记忆库）
+        for pid in ["p1", "p2"] {
+            let ext = ExtStore::open(root.clone(), Some(pid.to_string())).unwrap();
+            let storage = SqliteStorage::new(root.clone(), Some(pid.to_string())).unwrap();
+            let memory_id = seed_memory(&storage, "sess-x").await;
+            ext.ensure_memory_ext(&memory_id, &format!("hook-{pid}"), now - 365 * DAY_MS, "rule")
+                .await
+                .unwrap();
+        }
+
+        // 首轮：两分片各软淘汰 1 条
+        let report = run_gc_pass(&root, now, &EvictionPolicy::default())
+            .await
+            .unwrap();
+        assert_eq!(report.newly_deprecated, 2, "两个分片各软淘汰一条");
+
+        // +91 天：两分片各硬删 1 条（遍历生效），hook 聚合回传
+        let report = run_gc_pass(&root, now + 91 * DAY_MS, &EvictionPolicy::default())
+            .await
+            .unwrap();
+        assert_eq!(report.entries_evicted, 2, "两个分片各硬删一条");
+        let mut hooks = report.evicted_hooks.clone();
+        hooks.sort();
+        assert_eq!(hooks, vec!["hook-p1".to_string(), "hook-p2".to_string()]);
     }
 }
