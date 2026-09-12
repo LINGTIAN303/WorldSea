@@ -75,7 +75,7 @@ pub trait ScenarioEntityProvider: Send + Sync + std::fmt::Debug {
 
 // ─── 场景记忆策略 ──────────────────────────────────────
 
-/// 场景记忆策略（数据意图；MVP 供 AgentLoop 记忆注入与前端「记忆强度」展示参考）
+/// 场景记忆策略（数据意图；供 AgentLoop 记忆注入与前端「记忆强度」展示参考）
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ScenarioMemoryPolicy {
     /// 通用记忆（缺省）：标准记忆策略
@@ -85,6 +85,56 @@ pub enum ScenarioMemoryPolicy {
     EntityRich,
     /// 轻记忆（如 coding：避免知识沉淀稀释代码上下文）
     Light,
+}
+
+/// 记忆档位参数（A1 丁1：档位 → 注入预算 / 召回条数的实参）
+///
+/// 设计依据 [A1 §4.2](../../../docs/plans/2026-09-11-A1-记忆系统设计.md)：
+/// 档位同时控制**注入预算 / 召回条数**与写入策略。本结构承载前两项
+/// （写入策略落在归档侧，尚未施工）。消费点：
+/// [`crate::agent::AgentLoopConfig::memory_tier`] → `run_recall_memory`
+/// 构造 `MemoryRecallOptions.top_k` / `MemoryInjectOptions.max_tokens`。
+///
+/// **Standard 档 = 既有 options 默认值（top_k 5 / max_tokens 2000）**——
+/// 未配置档位的路径（测试 / 无场景会话）保持零行为变化。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MemoryTierParams {
+    /// 注入预算（token）——每轮记忆注入的上下文成本上限
+    pub inject_max_tokens: u32,
+    /// 召回条数——单轮自动召回的最大条数
+    pub recall_top_k: u32,
+}
+
+impl Default for MemoryTierParams {
+    fn default() -> Self {
+        // Default = Standard 档（与 MemoryRecallOptions / MemoryInjectOptions 的既有默认一致，
+        // 「未配置 = 零变化」由本行保证）
+        ScenarioMemoryPolicy::Standard.params()
+    }
+}
+
+impl ScenarioMemoryPolicy {
+    /// 档位参数（注入预算 / 召回条数）
+    ///
+    /// 数值定标：Standard 取既有默认作锚点；EntityRich 高/多（1.5× / 1.6×，
+    /// 世界构建需要更多设定线索）；Light 低/少（0.4×，coding 避免稀释代码上下文）。
+    /// **单点常量**——调档位只改本函数。
+    pub fn params(self) -> MemoryTierParams {
+        match self {
+            Self::EntityRich => MemoryTierParams {
+                inject_max_tokens: 3_000,
+                recall_top_k: 8,
+            },
+            Self::Standard => MemoryTierParams {
+                inject_max_tokens: 2_000,
+                recall_top_k: 5,
+            },
+            Self::Light => MemoryTierParams {
+                inject_max_tokens: 800,
+                recall_top_k: 2,
+            },
+        }
+    }
 }
 
 /// 场景确认策略：危险操作确认强度按场景调（缺省 = 全局 dangerous_only）
@@ -678,6 +728,35 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// A1 丁1：记忆档位参数——EntityRich > Standard > Light（注入预算与召回条数双维度）
+    #[test]
+    fn memory_tier_params_scale_monotonically_by_policy() {
+        let entity = ScenarioMemoryPolicy::EntityRich.params();
+        let standard = ScenarioMemoryPolicy::Standard.params();
+        let light = ScenarioMemoryPolicy::Light.params();
+
+        assert!(entity.inject_max_tokens > standard.inject_max_tokens);
+        assert!(standard.inject_max_tokens > light.inject_max_tokens);
+        assert!(entity.recall_top_k > standard.recall_top_k);
+        assert!(standard.recall_top_k > light.recall_top_k);
+    }
+
+    /// A1 丁1：Standard 档 = 既有 options 默认（零行为变化锚点，防漂移）
+    #[test]
+    fn standard_tier_equals_existing_options_defaults() {
+        let standard = ScenarioMemoryPolicy::Standard.params();
+        assert_eq!(
+            standard.recall_top_k,
+            crate::memory::MemoryRecallOptions::default().top_k
+        );
+        assert_eq!(
+            standard.inject_max_tokens,
+            crate::memory::MemoryInjectOptions::default().max_tokens
+        );
+        // Default = Standard（未配置档位的路径零行为变化）
+        assert_eq!(MemoryTierParams::default(), standard);
     }
 
     /// A1「Agent 记忆工具」批：权限分级登记（确认流据此拦不可逆操作）

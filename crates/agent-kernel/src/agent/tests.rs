@@ -1507,12 +1507,16 @@
 
     // ─── 阶段 3：记忆闭环（recall/inject/record_turn/archive 织入）───
 
-    /// Mock 记忆访问器 — 记录调用并返回预设检索结果
+    /// Mock 记忆访问器 — 记录调用与收到的 options 并返回预设检索结果
     struct MockMemory {
         recall_calls: std::sync::Mutex<Vec<String>>,
         inject_calls: std::sync::Mutex<usize>,
         record_turn_calls: std::sync::Mutex<usize>,
         archive_calls: std::sync::Mutex<usize>,
+        /// 最近一次 recall 收到的 options（A1 丁1 档位断言用）
+        last_recall_opts: std::sync::Mutex<Option<crate::memory::MemoryRecallOptions>>,
+        /// 最近一次 inject 收到的 options（A1 丁1 档位断言用）
+        last_inject_opts: std::sync::Mutex<Option<crate::memory::MemoryInjectOptions>>,
     }
 
     impl MockMemory {
@@ -1522,6 +1526,8 @@
                 inject_calls: std::sync::Mutex::new(0),
                 record_turn_calls: std::sync::Mutex::new(0),
                 archive_calls: std::sync::Mutex::new(0),
+                last_recall_opts: std::sync::Mutex::new(None),
+                last_inject_opts: std::sync::Mutex::new(None),
             }
         }
     }
@@ -1531,10 +1537,11 @@
         async fn recall(
             &self,
             query: String,
-            _options: Option<crate::memory::MemoryRecallOptions>,
+            options: Option<crate::memory::MemoryRecallOptions>,
         ) -> std::result::Result<Vec<crate::memory::MemoryRecallResult>, crate::memory::MemoryError>
         {
             self.recall_calls.lock().unwrap().push(query);
+            *self.last_recall_opts.lock().unwrap() = options;
             Ok(vec![crate::memory::MemoryRecallResult {
                 hook_id: "hook-1".into(),
                 summary: "用户偏好：用 Rust 构建高性能 Agent".into(),
@@ -1551,9 +1558,10 @@
         async fn inject(
             &self,
             results: Vec<crate::memory::MemoryRecallResult>,
-            _options: Option<crate::memory::MemoryInjectOptions>,
+            options: Option<crate::memory::MemoryInjectOptions>,
         ) -> std::result::Result<String, crate::memory::MemoryError> {
             *self.inject_calls.lock().unwrap() += 1;
+            *self.last_inject_opts.lock().unwrap() = options;
             let first = results.first().map(|r| r.summary.clone()).unwrap_or_default();
             Ok(format!("# 相关记忆\n\n- {first}"))
         }
@@ -1634,6 +1642,61 @@
         let agent = AgentLoop::new(backend, tool_bus);
         let result = agent.run("测试".into()).await.expect("应执行成功");
         assert_eq!(result, "ok");
+    }
+
+    /// A1 丁1：记忆档位生效——recall 的 top_k 与 inject 的 max_tokens 按档位传递
+    #[tokio::test]
+    async fn run_recall_memory_passes_tier_params() {
+        use crate::scenario::ScenarioMemoryPolicy;
+
+        for (policy, expect_top_k, expect_max_tokens) in [
+            (ScenarioMemoryPolicy::Light, 2u32, 800u32),
+            (ScenarioMemoryPolicy::EntityRich, 8, 3_000),
+        ] {
+            let backend = Arc::new(MockBackend::new(vec![PromptResponse::text_only("ok")]));
+            let memory = Arc::new(MockMemory::new());
+            let agent = AgentLoop::new(backend, Arc::new(SimpleToolBus::new()))
+                .with_config(AgentLoopConfig {
+                    memory_tier: Some(policy.params()),
+                    ..Default::default()
+                })
+                .with_memory(Some(memory.clone()));
+            agent.run("查点什么".into()).await.expect("应成功");
+
+            let ro = memory
+                .last_recall_opts
+                .lock()
+                .unwrap()
+                .clone()
+                .expect("recall 应收到显式 options");
+            let io = memory
+                .last_inject_opts
+                .lock()
+                .unwrap()
+                .clone()
+                .expect("inject 应收到显式 options");
+            assert_eq!(ro.top_k, expect_top_k, "{policy:?} 档召回条数");
+            assert_eq!(io.max_tokens, expect_max_tokens, "{policy:?} 档注入预算");
+        }
+    }
+
+    /// A1 丁1：未配置档位 → Standard 档（= 既有 options 默认，零行为变化）
+    #[tokio::test]
+    async fn run_recall_memory_defaults_to_existing_options() {
+        let backend = Arc::new(MockBackend::new(vec![PromptResponse::text_only("ok")]));
+        let memory = Arc::new(MockMemory::new());
+        let agent = AgentLoop::new(backend, Arc::new(SimpleToolBus::new()))
+            .with_memory(Some(memory.clone()));
+        agent.run("测试".into()).await.expect("应成功");
+
+        let ro = memory.last_recall_opts.lock().unwrap().clone().unwrap();
+        let io = memory.last_inject_opts.lock().unwrap().clone().unwrap();
+        // 与既有 options 默认一致（Standard 档锚点，防默认值改动造成的隐性行为漂移）
+        assert_eq!(ro.top_k, crate::memory::MemoryRecallOptions::default().top_k);
+        assert_eq!(
+            io.max_tokens,
+            crate::memory::MemoryInjectOptions::default().max_tokens
+        );
     }
 
     // ─── A3 四管线路由：AgentLoop 发送链路接入 ────────────────────────

@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use crate::confirmation::ConfirmationPolicy;
 use crate::loop_control::LoopControlConfig;
-use crate::scenario::{Scenario, ScenarioEntityProvider};
+use crate::scenario::{MemoryTierParams, Scenario, ScenarioEntityProvider};
 
 // ─── 配置与状态 ────────────────────────────────────────────
 
@@ -141,6 +141,16 @@ pub struct AgentLoopConfig {
     /// A3 白名单打标消息**永不裁剪**，其余按「最近 N 条 + 陈旧优先」丢弃，
     /// 工具交换组原子同去同留。
     pub retention_policy: Option<crate::retention::RetentionPolicy>,
+
+    // ─── A1 丁1：记忆档位（注入预算 / 召回条数）─────────────────
+    /// 记忆档位参数（`None`=Standard 档，见 [`MemoryTierParams::default`]）
+    ///
+    /// **由装配层按场景注入**：`ScenarioMemoryPolicy::params()` 给出
+    /// 注入预算（token）与召回条数，`run_recall_memory` 据此构造
+    /// recall / inject 的 options。kernel 本身不判场景，只消费参数。
+    ///
+    /// **None = 既有默认（top_k 5 / max_tokens 2000）**——未迁移路径零行为变化。
+    pub memory_tier: Option<crate::scenario::MemoryTierParams>,
 }
 
 impl Default for AgentLoopConfig {
@@ -182,6 +192,9 @@ impl Default for AgentLoopConfig {
             context_budget: None,
             // A1 己2①：默认保留策略（最近 12 条 + 硬保护）
             retention_policy: None,
+            // A1 丁1：默认 Standard 档（None → 消费点取 MemoryTierParams::default，
+            // 与既有 recall/inject 默认一致）
+            memory_tier: None,
         }
     }
 }

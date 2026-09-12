@@ -1710,6 +1710,9 @@ impl AgentCommandService {
             .as_ref()
             .map(|s| s.confirmation_policy())
             .unwrap_or_else(ConfirmationPolicy::dangerous_only);
+        // A1 丁1（2026-09-12）：按场景记忆档位注入「注入预算 / 召回条数」——
+        // 同样先借后 move；无场景 = None = Standard 档（既有默认，零行为变化）。
+        let memory_tier = scenario.as_ref().map(|s| s.memory_policy().params());
         let agent_config = AgentLoopConfig {
             system_prompt,
             // B1：场景（None=默认静态 prompt / 默认工具视图）
@@ -1726,6 +1729,8 @@ impl AgentCommandService {
             project_id,
             // A1 丙1（2026-09-11）：上下文预算策略（token 口径，数值由模型窗口推导）
             context_budget: Some(model_profile.budget_policy()),
+            // A1 丁1（2026-09-12）：记忆档位（按场景；run_recall_memory 消费）
+            memory_tier,
             ..Default::default()
         };
         // A3 四管线路由：为每个会话注入四管线路由节点（发送时决策管线）

@@ -741,11 +741,31 @@ impl AgentLoop {
     ///
     /// 仅在启用记忆且检索到结果时执行；任一环节失败静默跳过，不影响主流程。
     /// 注入文本存入 memory_context，由 build_prompt_options 拼入 system_prompt_override。
+    ///
+    /// **档位化（A1 丁1）**：召回条数（`top_k`）与注入预算（`max_tokens`）取自
+    /// [`AgentLoopConfig::memory_tier`]（装配层按场景 `ScenarioMemoryPolicy::params()`
+    /// 注入）；未配置时为 Standard 档 = 既有默认（5 条 / 2000 token），零行为变化。
     async fn run_recall_memory(&self, user_input: &str) {
+        let tier = self
+            .config
+            .read()
+            .map(|g| g.memory_tier.unwrap_or_default())
+            .unwrap_or_default();
         if let Some(memory) = &self.memory {
-            if let Ok(recall_results) = memory.recall(user_input.to_string(), None).await {
+            let recall_opts = crate::memory::MemoryRecallOptions {
+                top_k: tier.recall_top_k,
+                ..Default::default()
+            };
+            if let Ok(recall_results) = memory
+                .recall(user_input.to_string(), Some(recall_opts))
+                .await
+            {
                 if !recall_results.is_empty() {
-                    if let Ok(injected) = memory.inject(recall_results, None).await {
+                    let inject_opts = crate::memory::MemoryInjectOptions {
+                        max_tokens: tier.inject_max_tokens,
+                        ..Default::default()
+                    };
+                    if let Ok(injected) = memory.inject(recall_results, Some(inject_opts)).await {
                         if !injected.is_empty() {
                             if let Ok(mut guard) = self.memory_context.write() {
                                 *guard = Some(injected);
