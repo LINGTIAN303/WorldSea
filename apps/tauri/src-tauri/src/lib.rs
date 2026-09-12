@@ -135,6 +135,9 @@ pub fn run() {
             semantic_commands::cmd_semantic_config_set,
             semantic_commands::cmd_semantic_status,
             semantic_commands::cmd_semantic_rebuild,
+            // A2-2：工作区文件索引（workspace_search 的状态 / 重建）
+            semantic_commands::cmd_workspace_index_status,
+            semantic_commands::cmd_workspace_index_rebuild,
             commands::send_message,
             commands::cmd_agent_confirm,
             commands::cmd_agent_set_security_level,
@@ -431,6 +434,8 @@ pub fn run() {
                     .with_memory_root(Some(app_data.join("worldsea").join("memory")))
                     // A2 戊1：语义检索配置（共享句柄；配置保存后各会话即时生效）
                     .with_semantic_config(semantic_shared)
+                    // A2-2：工作区索引根（app_data；索引落点不污染用户工作区）
+                    .with_workspace_index_root(Some(app_data.join("worldsea").join("index")))
                     // 会话持久化：注入 SQLite 会话存储，会话变更写穿 + 启动恢复
                     .with_session_store(session_store)
                     // 场景底座（2026-09-09）：场景工作区根（严格硬隔离——场景会话 workdir

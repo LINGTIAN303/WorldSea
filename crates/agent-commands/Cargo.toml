@@ -18,6 +18,8 @@ agent-runtime = { path = "../agent-runtime", features = ["llm-genai"] }
 agent-patterns = { path = "../agent-patterns" }
 # MemoryAccessor 适配层（阶段 2：为会话注入 MemoryCenterAccessor）
 agent-memory = { path = "../agent-memory" }
+# A2-2：工作区文件检索索引（workspace_search 引擎）
+agent-index = { path = "../agent-index" }
 # MemoryCenter 核心（ArchiveConfig 归档阈值配置）
 memory-center-core = { path = "../vendor/memory-center-core" }
 

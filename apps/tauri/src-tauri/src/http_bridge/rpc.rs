@@ -764,6 +764,23 @@ pub fn register_core(reg: &mut Registry) {
             crate::semantic_commands::cmd_semantic_rebuild(st, a.session_id).await.map(|r| to_value(r).unwrap_or(Value::Null))
         })
     }));
+    // ── A2-2：工作区文件索引（workspace_search 的状态 / 重建）──
+    reg.register("cmd_workspace_index_status", Arc::new(move |app, args| {
+        let app = app.clone();
+        Box::pin(async move {
+            let a: SessionArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
+            let st = app.state::<agent_commands::AgentCommandService>();
+            crate::semantic_commands::cmd_workspace_index_status(st, a.session_id).await.map(|r| to_value(r).unwrap_or(Value::Null))
+        })
+    }));
+    reg.register("cmd_workspace_index_rebuild", Arc::new(move |app, args| {
+        let app = app.clone();
+        Box::pin(async move {
+            let a: SessionArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
+            let st = app.state::<agent_commands::AgentCommandService>();
+            crate::semantic_commands::cmd_workspace_index_rebuild(st, a.session_id).await.map(|r| to_value(r).unwrap_or(Value::Null))
+        })
+    }));
 
     // ── 终端（args 透传 Value；detect_shells 无参数）──
     reg.register("terminal_execute_command", Arc::new(move |app, args| {

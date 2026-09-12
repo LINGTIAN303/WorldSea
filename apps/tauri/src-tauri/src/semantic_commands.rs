@@ -14,7 +14,7 @@ use std::sync::{Arc, RwLock};
 
 use tauri::State;
 
-use agent_commands::{AgentCommandService, SemanticConfig, SemanticStats};
+use agent_commands::{AgentCommandService, SemanticConfig, SemanticStats, WorkspaceIndexStats};
 
 use crate::secure_store::SecureStore;
 
@@ -286,6 +286,30 @@ pub async fn cmd_semantic_rebuild(
         docs,
         stats: svc.semantic_status().await,
     })
+}
+
+// ─── A2-2：工作区文件索引（workspace_search 的索引状态与重建）─────────
+
+/// 工作区索引状态（文件数 / 块数 / 向量数；会话须绑定工作区）
+#[tauri::command]
+pub async fn cmd_workspace_index_status(
+    svc: State<'_, AgentCommandService>,
+    session_id: String,
+) -> Result<WorkspaceIndexStats, String> {
+    svc.workspace_index_status(&session_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 重建会话工作区的检索索引（清空 → 重新扫描；向量后台渐进补齐）
+#[tauri::command]
+pub async fn cmd_workspace_index_rebuild(
+    svc: State<'_, AgentCommandService>,
+    session_id: String,
+) -> Result<WorkspaceIndexStats, String> {
+    svc.workspace_index_rebuild(&session_id)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[cfg(test)]

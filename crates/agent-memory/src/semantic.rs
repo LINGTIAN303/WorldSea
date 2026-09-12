@@ -70,7 +70,8 @@ impl SemanticConfig {
             && self.api_key == other.api_key
     }
 
-    fn to_embedder_config(&self) -> EmbedderConfig {
+    /// 装配 vendor Embedder 配置（供 agent-index 等工作区检索侧复用同一供给面）
+    pub fn to_embedder_config(&self) -> EmbedderConfig {
         EmbedderConfig {
             api_url: self.api_url.clone(),
             api_key: self.api_key.clone(),

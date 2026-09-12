@@ -10,6 +10,8 @@ mod memory_tools;
 mod pattern_registry;
 mod pty;
 mod raw_tools;
+// A2-2：工作区检索工具（workspace_search）
+mod workspace_tools;
 mod run_store;
 mod session_store;
 mod subagent;
@@ -35,6 +37,8 @@ pub use run_store::{DecisionRecord, OrchestrationRun, RunStatus, RunStore};
 pub use raw_tools::RawSlice;
 /// A2 戊1：语义检索类型透传（Tauri 命令层读写配置 / 状态展示用）
 pub use agent_memory::semantic::{SemanticConfig, SemanticStats};
+/// A2-2：工作区索引统计透传（Tauri 命令层状态展示用）
+pub use agent_index::IndexStats as WorkspaceIndexStats;
 pub use session_store::{
     SessionEventRecord, SessionKind, SessionLogEntry, SessionLogStats, SessionRecord,
     SessionRepository, SqliteSessionRepository, WorkdirRecord, WorkspaceRecord,
@@ -893,6 +897,11 @@ pub struct AgentCommandService {
     /// 用共享 `Arc<RwLock<…>>`：配置层保存后**各会话即时生效**（访问器内句柄引用
     /// 同一 Arc；检索栈按配置指纹自动重建）。默认 `None` = 行为与接线前一致。
     semantic_config: Arc<std::sync::RwLock<Option<agent_memory::semantic::SemanticConfig>>>,
+    /// A2-2：工作区索引根目录（app_data；每 workdir 一个索引库文件）
+    ///
+    /// `None`（默认）= 不注册 `workspace_search` 工具；`Some` 时 `new_agent` 注册该工具，
+    /// 索引在首次检索时按需建立（懒建）。索引库落 app_data 而非工作区（不污染用户目录）。
+    workspace_index_root: Option<PathBuf>,
 }
 
 /// 场景摘要（Tauri 序列化用；2026-09-09 场景底座：装配元数据透传前端滑块/工作区）
@@ -1133,6 +1142,15 @@ impl AgentCommandService {
         self.semantic_config.clone()
     }
 
+    /// 注入工作区索引根目录（链式；A2-2）
+    ///
+    /// 传入后每个会话注册 `workspace_search` 工具（索引落点 `{root}/<workdir 指纹>.db`）。
+    /// `None`（默认）= 不注册该工具。
+    pub fn with_workspace_index_root(mut self, root: Option<PathBuf>) -> Self {
+        self.workspace_index_root = root;
+        self
+    }
+
     /// 记忆巡检（A1 甲3）——手动触发一轮完整巡检
     ///
     /// 与后台任务调用的是同一个入口（[`agent_memory::evict::run_gc_pass`]）：
@@ -1172,6 +1190,56 @@ impl AgentCommandService {
             .rebuild_semantic_index()
             .await
             .map_err(|e| CommandError::Internal(e.to_string()))
+    }
+
+    /// 工作区索引状态（A2-2；配置面板状态展示）
+    ///
+    /// 未配置索引根 / 会话无工作区 → 全零（UI 据此显示「未启用」）。
+    pub async fn workspace_index_status(
+        &self,
+        session_id: &str,
+    ) -> Result<agent_index::IndexStats, CommandError> {
+        let (index, _) = self.workspace_index_for(session_id).await?;
+        Ok(index.stats())
+    }
+
+    /// 重建某会话工作区的检索索引（A2-2；「重建索引」按钮）
+    pub async fn workspace_index_rebuild(
+        &self,
+        session_id: &str,
+    ) -> Result<agent_index::IndexStats, CommandError> {
+        let (index, _) = self.workspace_index_for(session_id).await?;
+        index.rebuild().await.map_err(CommandError::Internal)
+    }
+
+    /// 解析会话 workdir 对应的索引实例（状态 / 重建共用）
+    async fn workspace_index_for(
+        &self,
+        session_id: &str,
+    ) -> Result<(Arc<agent_index::WorkspaceIndex>, PathBuf), CommandError> {
+        let Some(root) = &self.workspace_index_root else {
+            return Err(CommandError::Internal(
+                "工作区索引未启用（未配置索引根目录）".into(),
+            ));
+        };
+        let agent = self.get_agent(session_id).await?;
+        let workdir = agent
+            .workdir()
+            .ok_or_else(|| CommandError::Internal("该会话未绑定工作区（workdir）".into()))?;
+        let semantic = self
+            .semantic_config
+            .read()
+            .ok()
+            .and_then(|guard| guard.clone());
+        let index = agent_index::get_or_open(
+            root,
+            &workdir,
+            agent_index::IndexPolicy::default(),
+            semantic,
+        )
+        .await
+        .map_err(CommandError::Internal)?;
+        Ok((index, workdir))
     }
 
     /// 语义索引状态（A2 戊1；配置面板状态展示）
@@ -1531,6 +1599,8 @@ impl AgentCommandService {
         // 无记忆根时不注册——没有外置目录就没有可读内容，注册一个必然报错的工具
         // 只会让模型白试一次。
         self.register_memory_raw_tools(&*tool_bus).await;
+        // A2-2：注册工作区检索工具（有索引根时；懒建索引——首次检索才打开/建立该 workdir 的索引）
+        self.register_workspace_tools(&*tool_bus).await;
         // A1「Agent 记忆工具」批：注册五件记忆工具（显式读/写/纠/治理）。
         // 无记忆后端时不注册（同上：必然报错的工具只会让模型白试）。
         // 可见性由场景白名单控制（`Light` 档场景不列这些名字即不可见）。

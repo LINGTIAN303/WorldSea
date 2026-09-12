@@ -41,6 +41,9 @@ const SYSTEM_BASE_TOOLS: &[&str] = &[
     // 漏加会重现本节注释里记录过的同类问题：白名单下模型看不到该工具，
     // 看到「原文已外置：raw/xxx」却无从取回。
     "memory_read_raw",
+    // A2-2（2026-09-12）：工作区文件混合检索——考据资料/代码的「哪份资料讲过 X」
+    // 类检索跨场景通用（世界构建/小说/编码都要），与 grep（精确字面）互补。
+    "workspace_search",
 ];
 
 /// 世界构建场景注入的实体类型（对应 WorldSea 实体类型规范，见 typeMappingRegistry.ts）

@@ -64,10 +64,30 @@
         {{ message }}
       </div>
       <div class="sc-status">
-        索引：关键词 {{ stats.keywordLen }} · 向量 {{ stats.vectorLen }} · 维度 {{ stats.dim || form.dim }}
+        记忆索引：关键词 {{ stats.keywordLen }} · 向量 {{ stats.vectorLen }} · 维度 {{ stats.dim || form.dim }}
       </div>
+
+      <!-- A2-2：工作区文件索引（workspace_search 的索引状态与重建） -->
+      <div class="sc-divider"></div>
+      <div class="sc-subhead">工作区索引（workspace_search）</div>
+      <div v-if="wsError" class="sc-status sc-status-warn">{{ wsError }}</div>
+      <div v-else class="sc-status">
+        文件 {{ wsStats.files }} · 块 {{ wsStats.chunks }} · 向量 {{ wsStats.vectors }}（维度 {{ wsStats.dim || '—' }}）
+      </div>
+      <div class="sc-actions">
+        <button
+          class="sc-btn"
+          :disabled="busy || !currentSessionId"
+          :title="currentSessionId ? '按当前会话工作区重建文件索引' : '请先打开会话'"
+          @click="rebuildWorkspace"
+        >
+          <WsIcon name="refresh" :size="12" :stroke-width="1.7" />重建工作区索引
+        </button>
+      </div>
+
       <p class="sc-hint">
-        仅记忆摘要（标题/摘要/事实/标签）会发送到该端点，不含原始对话；保存后对全部会话即时生效。
+        仅记忆摘要（标题/摘要/事实/标签）与工作区内白名单文本/代码文件（跳过 .git、node_modules、
+        agent-tmp 等目录与二进制）会发送到该端点；保存后对全部会话即时生效。
       </p>
     </div>
   </div>
@@ -102,6 +122,14 @@ interface SemanticStatsDto {
   dim: number
 }
 
+/** A2-2：工作区索引统计镜像（`agent_index::IndexStats`） */
+interface WorkspaceIndexStatsDto {
+  files: number
+  chunks: number
+  vectors: number
+  dim: number
+}
+
 interface RebuildResultDto {
   docs: number
   stats: SemanticStatsDto
@@ -115,6 +143,9 @@ const message = ref('')
 const msgKind = ref<'ok' | 'err'>('ok')
 const apiKeySet = ref(false)
 const stats = ref<SemanticStatsDto>({ keywordLen: 0, vectorLen: 0, dim: 0 })
+/** A2-2：工作区文件索引统计（未绑定工作区 / 未启用时以 wsError 说明） */
+const wsStats = ref<WorkspaceIndexStatsDto>({ files: 0, chunks: 0, vectors: 0, dim: 0 })
+const wsError = ref('')
 const form = reactive({
   enabled: false,
   apiUrl: '',
@@ -158,6 +189,47 @@ async function refresh(): Promise<void> {
     stats.value = st
   } catch (e) {
     setMsg('err', `读取配置失败：${errText(e)}`)
+  } finally {
+    busy.value = false
+  }
+  await refreshWorkspace()
+}
+
+/** A2-2：工作区索引状态（无会话/未绑定工作区 → 以说明代替数字） */
+async function refreshWorkspace(): Promise<void> {
+  const sid = currentSessionId.value
+  if (!sid) {
+    wsError.value = '未打开会话'
+    return
+  }
+  try {
+    wsStats.value = await invoke<WorkspaceIndexStatsDto>('cmd_workspace_index_status', {
+      sessionId: sid,
+    })
+    wsError.value = ''
+  } catch (e) {
+    wsError.value = errText(e)
+  }
+}
+
+/** A2-2：重建工作区索引（清空 → 重新扫描；向量后台补齐） */
+async function rebuildWorkspace(): Promise<void> {
+  const sid = currentSessionId.value
+  if (!sid) {
+    setMsg('err', '请先打开一个会话（索引按会话工作区重建）')
+    return
+  }
+  busy.value = true
+  message.value = ''
+  try {
+    const st = await invoke<WorkspaceIndexStatsDto>('cmd_workspace_index_rebuild', {
+      sessionId: sid,
+    })
+    wsStats.value = st
+    wsError.value = ''
+    setMsg('ok', `工作区索引已重建：${st.files} 文件 / ${st.chunks} 块`)
+  } catch (e) {
+    setMsg('err', errText(e))
   } finally {
     busy.value = false
   }
@@ -357,6 +429,23 @@ onMounted(refresh)
   font-size: var(--font-size-2xs);
   color: var(--color-text-tertiary);
   font-variant-numeric: tabular-nums;
+}
+.sc-status-warn {
+  color: #d97706;
+  word-break: break-all;
+}
+
+/* A2-2：工作区索引区段 */
+.sc-divider {
+  height: 1px;
+  background: var(--color-border);
+  margin: 8px 0;
+}
+.sc-subhead {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin-bottom: 4px;
 }
 
 .sc-hint {
