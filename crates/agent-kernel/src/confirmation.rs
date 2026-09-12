@@ -55,6 +55,12 @@ pub fn tool_permission(tool_name: &str) -> ToolPermission {
         // 文件系统工具（Phase 5）：只读放行（Safe）；写入/编辑 → Moderate（默认不确认，可按策略开启）
         "read_file" | "list_directory" | "search_files" => ToolPermission::Safe,
         "write_file" | "edit_file" | "edit_diff" => ToolPermission::Moderate,
+        // A1 记忆工具（2026-09-12）：
+        // - 只读两件 → Safe（`memory_recall` 的副作用在记忆系统内部（访问计数），
+        //   不触碰用户数据；`memory_read_raw` 是纯读且作用域收敛到外置目录）
+        // - 写入/治理三件 → Moderate（可解释、可撤销；删除已在上方 Dangerous）
+        "memory_recall" | "memory_read_raw" => ToolPermission::Safe,
+        "memory_store" | "memory_update" | "memory_pin" => ToolPermission::Moderate,
         // 其余未登记工具按 Moderate 兜底（策略默认不确认，行为不变）
         _ => ToolPermission::Moderate,
     }

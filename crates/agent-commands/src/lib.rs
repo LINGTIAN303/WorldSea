@@ -6,6 +6,7 @@ pub mod job;
 mod long_task_store;
 mod loop_control;
 mod mock_backend;
+mod memory_tools;
 mod pattern_registry;
 mod pty;
 mod raw_tools;
@@ -1382,6 +1383,21 @@ impl AgentCommandService {
         );
         let backend = Arc::new(GenaiBackend::new(config));
         let tool_bus = Arc::new(SimpleToolBus::new());
+        // A1「Agent 记忆工具」批（2026-09-12）：**先构造记忆访问器**——它要被两处消费：
+        // ① 五件记忆工具（memory_recall/store/update/delete/pin）各自持有它
+        // ② `AgentLoop::with_memory`（自动召回/归档链路）
+        // 故提前到工具注册之前构造，两处共用同一实例（同一 SQLite 连接与状态）。
+        // 构造失败仅告警不阻断（弱提示语义：记忆不可用不影响主流程）。
+        let memory: Option<Arc<dyn MemoryAccessor>> = match &self.memory_root {
+            Some(root) => match Self::build_memory_accessor(root, session_id, &model_profile) {
+                Ok(m) => Some(m),
+                Err(e) => {
+                    tracing::warn!("构造 MemoryCenterAccessor 失败，跳过记忆注入: {e}");
+                    None
+                }
+            },
+            None => None,
+        };
         // 注册终端工具（execute_command + 持久化 shell 会话）
         terminal::register_terminal_tools(&*tool_bus).await;
         // 注册文件系统工具（read_file/write_file/list_directory/search_files/edit_file），
@@ -1391,6 +1407,12 @@ impl AgentCommandService {
         // 无记忆根时不注册——没有外置目录就没有可读内容，注册一个必然报错的工具
         // 只会让模型白试一次。
         self.register_memory_raw_tools(&*tool_bus).await;
+        // A1「Agent 记忆工具」批：注册五件记忆工具（显式读/写/纠/治理）。
+        // 无记忆后端时不注册（同上：必然报错的工具只会让模型白试）。
+        // 可见性由场景白名单控制（`Light` 档场景不列这些名字即不可见）。
+        if let Some(mem) = &memory {
+            memory_tools::register_memory_tools(&*tool_bus, mem.clone()).await;
+        }
         // 注册子 Agent 编排工具（delegate_to_sub_agent / list_sub_agents），
         // 共享服务级 `subagent_specs` 注册表，跨会话可见。
         let sub_agent_manager = subagent::register_subagent_tools(
@@ -1516,17 +1538,12 @@ impl AgentCommandService {
         // A5 HITL：为每个会话注入独立的确认协调器（配合 confirmation_policy 生效）
         agent_builder = agent_builder.with_confirmation(Some(Arc::new(ConfirmationBroker::new())));
         agent_builder = agent_builder.with_router(Some(router));
-        // 记忆注入：配置了 memory_root 时为该会话构造 MemoryCenterAccessor 并注入，
-        // 失败仅告警不阻断（弱提示语义，记忆不可用不影响主流程）。
-        if let Some(root) = &self.memory_root {
-            match Self::build_memory_accessor(root, session_id, &model_profile) {
-                Ok(memory) => {
-                    agent_builder = agent_builder.with_memory(Some(memory));
-                }
-                Err(e) => {
-                    tracing::warn!("构造 MemoryCenterAccessor 失败，跳过记忆注入: {e}");
-                }
-            }
+        // 记忆注入（A1：「Agent 记忆工具」批起与工具注册共用同一实例，见上方构造处）：
+        // 自动召回 / 归档链路与显式工具操作**落在同一个访问器**上——避免两套连接与状态。
+        if let Some(mem) = memory {
+            agent_builder = agent_builder.with_memory(Some(mem));
+        }
+        if self.memory_root.is_some() {
             // A1 甲3（2026-09-12）：惰性启动记忆巡检后台任务
             // （衰减 / 软淘汰 / 硬删 / 外置文件 GC；只启动一次，见方法文档）
             self.ensure_memory_gc_task();

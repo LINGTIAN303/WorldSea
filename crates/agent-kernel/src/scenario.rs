@@ -289,6 +289,11 @@ impl Scenario for WorldbuildingScenario {
             // 记忆
             "memory_recall".into(),
             "memory_store".into(),
+            // 记忆治理（A1「Agent 记忆工具」批，2026-09-12）：修正 / 撤回 / 常驻。
+            // 叙事场景的记忆是核心资产（设定、伏笔、人物关系），故治理入口齐全
+            "memory_update".into(),
+            "memory_delete".into(),
+            "memory_pin".into(),
             // 知识库
             "kb_read".into(),
             "kb_search".into(),
@@ -376,6 +381,10 @@ impl Scenario for NovelScenario {
             "content_search".into(),
             "memory_recall".into(),
             "memory_store".into(),
+            // 记忆治理（A1「Agent 记忆工具」批）
+            "memory_update".into(),
+            "memory_delete".into(),
+            "memory_pin".into(),
             "kb_read".into(),
             "kb_search".into(),
             "kb_write".into(),
@@ -436,6 +445,10 @@ impl Scenario for GeneralScenario {
             "content_search".into(),
             "memory_recall".into(),
             "memory_store".into(),
+            // 记忆治理（A1「Agent 记忆工具」批）
+            "memory_update".into(),
+            "memory_delete".into(),
+            "memory_pin".into(),
             "kb_read".into(),
             "kb_search".into(),
             "web_search".into(),
@@ -507,7 +520,10 @@ impl Scenario for CodingScenario {
             "content_search".into(),
             "kb_read".into(),
             "kb_search".into(),
-            "memory_recall".into(),
+            // ★ A1（2026-09-12 用户裁定「可以收掉召回」）：本场景为 `Light` 记忆策略
+            //   （避免知识沉淀稀释代码上下文），此前仍列出 `memory_recall` —— 意图与
+            //   档位自相矛盾。**已收掉**：Light 档不暴露任何显式记忆工具（自动归档
+            //   路径不受影响，仍是「弱沉淀」的承载面）。
             "web_search".into(),
         ]
     }
@@ -569,6 +585,10 @@ impl Scenario for DesignScenario {
             "content_search".into(),
             "memory_recall".into(),
             "memory_store".into(),
+            // 记忆治理（A1「Agent 记忆工具」批）
+            "memory_update".into(),
+            "memory_delete".into(),
+            "memory_pin".into(),
             "kb_read".into(),
             "kb_search".into(),
             "kb_write".into(),
@@ -611,6 +631,65 @@ mod tests {
             .map(|s| s.workspace_hint().unwrap_or_default().to_string())
             .collect();
         assert_eq!(hints.len(), 5, "5 场景工作区根必须互不共享（严格隔离）");
+    }
+
+    /// A1（2026-09-12）：场景记忆工具清单与档位自洽
+    ///
+    /// - `Light` 档（coding）**不得**声明任何记忆工具——档位意图是「不召回 / 弱沉淀」
+    ///   （用户裁定「可以收掉召回」），此前仍列 `memory_recall` 属自相矛盾；
+    /// - 其余档位须声明完整治理面（recall / store / update / delete / pin）——
+    ///   只有机制没有入口（A1 至甲3 的状态）等于模型无法主动使用记忆。
+    #[tokio::test]
+    async fn scenario_memory_tools_match_policy_boundaries() {
+        let coding = CodingScenario::new();
+        let coding_tools = coding.tool_ids();
+        for forbidden in [
+            "memory_recall",
+            "memory_store",
+            "memory_update",
+            "memory_delete",
+            "memory_pin",
+        ] {
+            assert!(
+                !coding_tools.iter().any(|t| t == forbidden),
+                "Light 档（coding）不应声明记忆工具：{forbidden}（用户裁定「收掉召回」）"
+            );
+        }
+
+        let memory_capable: Vec<Arc<dyn Scenario>> = vec![
+            Arc::new(WorldbuildingScenario::new()),
+            Arc::new(NovelScenario::new()),
+            Arc::new(GeneralScenario::new()),
+            Arc::new(DesignScenario::new()),
+        ];
+        for sc in &memory_capable {
+            let tools = sc.tool_ids();
+            for required in [
+                "memory_recall",
+                "memory_store",
+                "memory_update",
+                "memory_delete",
+                "memory_pin",
+            ] {
+                assert!(
+                    tools.iter().any(|t| t == required),
+                    "{} 应声明记忆工具 {required}（治理面须完整）",
+                    sc.id()
+                );
+            }
+        }
+    }
+
+    /// A1「Agent 记忆工具」批：权限分级登记（确认流据此拦不可逆操作）
+    #[test]
+    fn memory_tools_have_registered_permission_levels() {
+        use crate::confirmation::{tool_permission, ToolPermission};
+        assert_eq!(tool_permission("memory_recall"), ToolPermission::Safe);
+        assert_eq!(tool_permission("memory_read_raw"), ToolPermission::Safe);
+        assert_eq!(tool_permission("memory_store"), ToolPermission::Moderate);
+        assert_eq!(tool_permission("memory_update"), ToolPermission::Moderate);
+        assert_eq!(tool_permission("memory_pin"), ToolPermission::Moderate);
+        assert_eq!(tool_permission("memory_delete"), ToolPermission::Dangerous);
     }
 
     #[tokio::test]

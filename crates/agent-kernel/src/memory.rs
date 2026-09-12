@@ -404,6 +404,21 @@ impl MemoryWriteEntry {
         }
     }
 
+    /// 构造一条 Update 条目（取代式更新：`content` 为新事实，`hook_id` 为被取代的旧条目）
+    ///
+    /// 语义见 [`MemoryWriteOp::Update`]——**不是就地覆盖**：实现方须保留旧条目
+    /// 并记录取代关系（甲2）。
+    pub fn update(hook_id: impl Into<String>, content: impl Into<String>) -> Self {
+        Self {
+            op: MemoryWriteOp::Update,
+            content: content.into(),
+            layer: MemoryLayer::default(),
+            hook_id: Some(hook_id.into()),
+            entity_ids: Vec::new(),
+            tags: Vec::new(),
+        }
+    }
+
     /// 指定层级（链式）
     pub fn with_layer(mut self, layer: MemoryLayer) -> Self {
         self.layer = layer;
@@ -454,17 +469,22 @@ pub enum WriteOutcome {
         /// 新条目的钩子 ID
         hook_id: String,
     },
-    /// 更新既有条目（本期未启用）
+    /// 更新既有条目（就地改写；本期未启用——事实变化请走 [`Self::Superseded`] 的调和路径）
     Updated {
         /// 被更新的钩子 ID
         hook_id: String,
     },
-    /// 调和：保留新旧双方并记录取代关系（甲2；本期未启用）
+    /// 调和：保留新旧双方并记录取代关系（甲2）
     Superseded {
         /// 被取代的旧条目
         old_hook_id: String,
         /// 取代它的新条目
         new_hook_id: String,
+    },
+    /// 删除成功（甲1 的 DELETE 操作；与 `Updated` 分开是为了让调用方准确叙事）
+    Deleted {
+        /// 被删除的钩子 ID
+        hook_id: String,
     },
     /// 未写入
     Noop {

@@ -119,6 +119,21 @@ pub struct PinnedEntry {
     pub created_at: i64,
 }
 
+/// 召回访问后的治理元数据（[`ExtStore::touch_with_meta`]）
+///
+/// 三者都在本库、都是 vendor `SummaryView` 拿不到的字段：
+/// `access_count`（甲3 衰减的加权依据）、`pinned`（保护标记）、真标签
+/// （`hooks.tags` 列被挪用存 `output_types`，真标签在 `hook_tags`）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TouchMeta {
+    /// 自增后的访问计数
+    pub access_count: u32,
+    /// 是否置顶（不衰减、不淘汰）
+    pub pinned: bool,
+    /// 真标签（按字典序）
+    pub tags: Vec<String>,
+}
+
 /// 一次衰减巡检的结果（[`ExtStore::apply_decay`]）
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DecayOutcome {
@@ -451,6 +466,59 @@ CREATE TABLE IF NOT EXISTS ext_meta (
                 )
                 .map_err(|e| Error::Ext(format!("读取 access_count 失败: {}", e)))?;
             Ok(v.max(0) as u32)
+        })
+        .await
+    }
+
+    /// 访问记录 + **一次取回治理元数据**（pinned / 最新计数 / 真标签）
+    ///
+    /// 供**召回热路径**使用：`recall()` 每轮都要为命中条目补全真实字段
+    /// （vendor 的 `SummaryView` 拿不到 pinned / access_count / 真标签——
+    /// `hooks.tags` 列被挪用存 `output_types`，三者都在本库）。
+    ///
+    /// 与「分别调 `touch_by_hook` + `get_by_hook` + `tags_of`」等价，但**共用一次
+    /// 连接获取**（后者要三次 `spawn_blocking` + 三次锁）——召回每轮都跑，热路径
+    /// 值得这个合并。
+    ///
+    /// 返回 `None` = 该 hook 未登记（调用方保持 vendor 侧原值，不臆造）。
+    pub async fn touch_with_meta(
+        &self,
+        hook_id: &str,
+        now_ms: i64,
+    ) -> Result<Option<TouchMeta>> {
+        let hook_id = hook_id.to_string();
+        self.with_conn(move |conn| {
+            let n = conn
+                .execute(
+                    "UPDATE memory_ext
+                     SET access_count = access_count + 1, last_access_at = ?2
+                     WHERE hook_id = ?1",
+                    rusqlite::params![&hook_id, now_ms],
+                )
+                .map_err(|e| Error::Ext(format!("记录访问失败: {}", e)))?;
+            if n == 0 {
+                return Ok(None);
+            }
+            let (access_count, pinned): (i64, i64) = conn
+                .query_row(
+                    "SELECT access_count, pinned FROM memory_ext WHERE hook_id = ?1",
+                    rusqlite::params![&hook_id],
+                    |r| Ok((r.get(0)?, r.get(1)?)),
+                )
+                .map_err(|e| Error::Ext(format!("读取访问计数失败: {}", e)))?;
+            let mut stmt = conn
+                .prepare("SELECT tag FROM hook_tags WHERE hook_id = ?1 ORDER BY tag")
+                .map_err(|e| Error::Ext(format!("准备标签查询失败: {}", e)))?;
+            let tags: Vec<String> = stmt
+                .query_map(rusqlite::params![&hook_id], |r| r.get::<_, String>(0))
+                .map_err(|e| Error::Ext(format!("查询真标签失败: {}", e)))?
+                .filter_map(|r| r.ok())
+                .collect();
+            Ok(Some(TouchMeta {
+                access_count: access_count.max(0) as u32,
+                pinned: pinned != 0,
+                tags,
+            }))
         })
         .await
     }
@@ -926,7 +994,6 @@ CREATE TABLE IF NOT EXISTS ext_meta (
     }
 
     // ── 甲3：衰减评分与淘汰（§4.3 三级链）──────────────────────
-
     /// 衰减巡检：重算全部条目的 `decay_score`，并做**可逆的**软淘汰/恢复
     ///
     /// 单次遍历完成三件事（同一连接、避免多次快照不一致）：

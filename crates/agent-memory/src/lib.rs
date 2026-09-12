@@ -230,14 +230,31 @@ impl MemoryAccessor for MemoryCenterAccessor {
             results.truncate(top_k);
         }
 
-        // A1 甲3：**召回命中 = 一次真实访问**——计入 `access_count` 与 `last_access_at`，
-        // 作为衰减评分（§4.3）的访问加权依据。语义：经常被召回的条目应当「返青」，
-        // 长期无人问津的条目才走向淘汰；故此处计数不是统计噪声而是**淘汰判据的输入**。
-        // 失败仅告警：计数是增强，不影响本轮召回结果。
+        // A1（2026-09-12）两件事一次做完（召回热路径，每轮都跑）：
+        //
+        // ① **召回命中 = 一次真实访问**（甲3）——计入 `access_count` 并刷新
+        //    `last_access_at`。语义：经常被召回的条目应当「返青」，长期无人问津的
+        //    条目才走向淘汰；故此处计数不是统计噪声而是**淘汰判据的输入**。
+        // ② **补全真实治理字段**（pinned / access_count / 真标签）——vendor 的
+        //    `SummaryView` 拿不到这三者（`hooks.tags` 列被挪用存 `output_types`，
+        //    三者都在适配层扩展库）。**不补则检索结果会误报**：置顶条目显示
+        //    `pinned=false`、真标签丢失——模型与 UI 据此判断都会出错。
+        //
+        // 失败仅告警：两件事都是增强，不影响本轮召回结果本身。
         if let Some(ext) = &self.ext {
-            for r in &results {
-                if let Err(e) = ext.bump_access_count_by_hook(&r.hook_id).await {
-                    tracing::warn!(hook = %r.hook_id, "记录召回访问失败: {e}");
+            let now = chrono::Utc::now().timestamp_millis();
+            for r in results.iter_mut() {
+                match ext.touch_with_meta(&r.hook_id, now).await {
+                    Ok(Some(meta)) => {
+                        r.access_count = meta.access_count;
+                        r.pinned = meta.pinned;
+                        if !meta.tags.is_empty() {
+                            // 真标签覆盖 vendor 侧（后被挪用的列）
+                            r.tags = meta.tags;
+                        }
+                    }
+                    Ok(None) => {} // 未登记（无治理记录）——保持 vendor 侧原值
+                    Err(e) => tracing::warn!(hook = %r.hook_id, "召回访问登记失败: {e}"),
                 }
             }
         }
@@ -682,7 +699,7 @@ impl MemoryAccessor for MemoryCenterAccessor {
                     .hook_id
                     .ok_or_else(|| MemoryError::Other("Delete 操作缺少 hook_id".into()))?;
                 if self.delete_hook_inner(&hook_id).await? {
-                    Ok(WriteOutcome::Updated { hook_id })
+                    Ok(WriteOutcome::Deleted { hook_id })
                 } else {
                     Ok(WriteOutcome::Noop { reason: NoopReason::NotFound })
                 }
@@ -1635,7 +1652,7 @@ mod tests {
             .write(MemoryWriteEntry::delete(hook_id.clone()), None)
             .await
             .unwrap();
-        assert!(matches!(deleted, WriteOutcome::Updated { .. }), "删除应命中");
+        assert!(matches!(deleted, WriteOutcome::Deleted { .. }), "删除应命中");
 
         // 再删同一 hook：未命中
         let again = accessor
@@ -1681,6 +1698,46 @@ mod tests {
             .unwrap()
             .unwrap()
             .pinned);
+    }
+
+    /// A1「Agent 记忆工具」批：召回结果补全**真实治理字段**
+    ///
+    /// vendor 的 `SummaryView` 拿不到 pinned / access_count / 真标签（三者都在
+    /// 适配层扩展库）。若不补，工具输出与 UI 会**误报**（置顶条目显示 `pinned=false`、
+    /// 真标签丢失）——模型据此判断会出错。
+    #[tokio::test]
+    async fn recall_enriches_pinned_access_count_and_real_tags() {
+        let accessor = make_accessor();
+
+        let hook_id = match accessor
+            .write(
+                MemoryWriteEntry::add("召回补全测试，关键词 Fenghuang").with_tags(vec!["真标签A".into()]),
+                None,
+            )
+            .await
+            .unwrap()
+        {
+            WriteOutcome::Added { hook_id } => hook_id,
+            other => panic!("应新增成功，实际 {other:?}"),
+        };
+        accessor.pin(&hook_id, true).await.unwrap();
+
+        // 召回即一次访问（甲3）＋ 补全真实字段
+        let hits = accessor.recall("Fenghuang".to_string(), None).await.unwrap();
+        let hit = hits.iter().find(|h| h.hook_id == hook_id).expect("应命中");
+
+        assert!(hit.pinned, "置顶状态必须真实反映（vendor 侧恒 false）");
+        assert_eq!(hit.access_count, 1, "召回应计入访问计数");
+        assert!(
+            hit.tags.iter().any(|t| t == "真标签A"),
+            "真标签应覆盖 vendor 侧被挪用的列，实际: {:?}",
+            hit.tags
+        );
+
+        // 再来一次：计数递增（淘汰判据「返青」的输入）
+        let again = accessor.recall("Fenghuang".to_string(), None).await.unwrap();
+        let hit2 = again.iter().find(|h| h.hook_id == hook_id).unwrap();
+        assert_eq!(hit2.access_count, 2);
     }
 
     /// `read_raw_context`：未接线时返回 None（不视为错误）；写入后可回读
