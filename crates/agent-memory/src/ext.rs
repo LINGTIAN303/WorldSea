@@ -132,6 +132,9 @@ pub struct SupersedeLink {
 ///
 /// 路径规则与 `memory-center-core` 的 `SqliteStorage` **完全一致**（同目录、同 project 分片），
 /// 便于运维侧一眼看出「一个项目一套记忆 = 两个库 + 一份外置原文」。
+///
+/// `Clone` 为句柄语义（共享同一连接，`Arc<Mutex<Connection>>` 内部共享）。
+#[derive(Clone)]
 pub struct ExtStore {
     /// 数据库文件路径
     db_path: PathBuf,

@@ -143,6 +143,195 @@ impl AgentLoop {
         Ok(dropped)
     }
 
+    // ─── A1 §6.2：锚点回填机制 ─────────────────────────
+
+    /// 把选中的组**折叠**为锚点对（A1 §6.2 第一段：占位）
+    ///
+    /// 与 [`Self::trim_context_dropping`]（直接删除）的区别：**折叠不扔内容**——
+    /// 组内消息合成为「一对前后锚点 + 空容器位」，原文先外置（硬前提），
+    /// 压缩文本由 [`Self::backfill_folds`] 后续填回。
+    ///
+    /// ## 硬前提（安全设计）
+    ///
+    /// 对每个候选组：先经 [`crate::raw_context::RawContextSink`] 外置合并材料，
+    /// **只有外置成功（`Some`）才替换为折叠形**；外置被拒（超闸门 / 未注入）
+    /// 时**该组保留原样**——宁可超线，也不制造「上下文里没了、存储里也没有」
+    /// 的不可恢复丢失。
+    ///
+    /// ## 配对安全
+    ///
+    /// 组 = [`crate::retention`] 的工具交换组（`assistant(tool_calls)` + 其
+    /// 结果集）：折叠以**组为原子单位**，组内全部消息合并为一条折叠形并清空
+    /// `tool_calls` / `tool_call_id`——工具配对关系在折叠形内部整体消化，
+    /// 不产生新的悬空 `tool_call_id`。
+    ///
+    /// ## 不二次折叠
+    ///
+    /// 已是折叠形的消息不再参与折叠（其原文已在外置层，再次折叠只会套娃）；
+    /// 该组按「跳过」处理。
+    ///
+    /// 无外置器注入（`raw_context_enabled == false`）时不应调用本方法——
+    /// 调用方（`enforce_context_budget`）会退回旧的删除路径。
+    pub async fn fold_context(
+        &self,
+        groups: &[Vec<usize>],
+    ) -> Result<crate::anchor::FoldOutcome, AgentError> {
+        use crate::anchor as mark;
+        let mut outcome = mark::FoldOutcome::default();
+        if groups.is_empty() {
+            return Ok(outcome);
+        }
+
+        // 快照（一次持锁取齐；后续在副本上计算，最后统一写回——与 trim 同款模式）
+        let snapshot: Vec<OrchestratorMessage> = self.state.lock().await.messages.clone();
+        let policy = mark::FoldPolicy::default();
+
+        // 组首下标 → 折叠形；covered = 被折叠组的全部成员下标
+        let mut replacements: std::collections::HashMap<usize, OrchestratorMessage> =
+            std::collections::HashMap::new();
+        let mut covered: std::collections::HashSet<usize> = std::collections::HashSet::new();
+
+        for group in groups {
+            let members: Vec<OrchestratorMessage> = group
+                .iter()
+                .filter_map(|&i| snapshot.get(i).cloned())
+                .collect();
+            if members.is_empty() {
+                continue;
+            }
+            // 不二次折叠：组内任一条已是折叠形 → 整组跳过
+            if members.iter().any(mark::is_folded) {
+                outcome.skipped_embedded += 1;
+                continue;
+            }
+
+            // ★ 硬前提：原文先安全外置（失败/被拒 → 该组保留原样）
+            let archive = mark::render_archive_content(&members);
+            let Some(raw_ref) = (self.raw_context_sink)(&archive) else {
+                outcome.skipped_denied += 1;
+                continue;
+            };
+
+            let orig_tokens: usize = members
+                .iter()
+                .map(|m| {
+                    (self.token_estimator)(&m.content) + super::MESSAGE_STRUCTURE_OVERHEAD_TOKENS
+                })
+                .sum();
+            let meta = mark::FoldMeta {
+                state: mark::FoldState::Placeholder,
+                raw: raw_ref.content_hash.clone(),
+                orig_bytes: raw_ref.byte_len,
+                orig_count: members.len(),
+                orig_tokens,
+            };
+            let folded = mark::make_folded_message(mark::fold_role_of(&members), &meta);
+            let folded_tokens = (self.token_estimator)(&folded.content)
+                + super::MESSAGE_STRUCTURE_OVERHEAD_TOKENS;
+
+            outcome.saved_tokens += orig_tokens.saturating_sub(folded_tokens);
+            outcome.folded_messages += members.len();
+            outcome.folded_groups += 1;
+            outcome.fills.push((
+                raw_ref.content_hash,
+                mark::condense(&archive, policy.head_chars, policy.tail_chars),
+            ));
+
+            replacements.insert(group[0], folded);
+            covered.extend(group.iter().copied());
+        }
+
+        if outcome.folded_groups == 0 {
+            debug!(
+                "fold_context: 无可折叠组（外置拒绝 {} / 已折叠 {}）",
+                outcome.skipped_denied, outcome.skipped_embedded
+            );
+            return Ok(outcome);
+        }
+
+        // 组装新列表：组首 → 折叠形（占位态）；组内其余 → 移除；组外 → 原样
+        let mut kept: Vec<OrchestratorMessage> = Vec::with_capacity(snapshot.len());
+        for (i, m) in snapshot.iter().enumerate() {
+            if let Some(folded) = replacements.get(&i) {
+                kept.push(folded.clone());
+                continue;
+            }
+            if covered.contains(&i) {
+                continue;
+            }
+            kept.push(m.clone());
+        }
+
+        // backend 覆盖 + state 覆盖（与 trim_context_dropping 同源，避免状态漂移）
+        self.backend
+            .set_messages(kept.clone())
+            .await
+            .map_err(AgentError::from)?;
+        {
+            let mut state = self.state.lock().await;
+            state.messages = kept;
+        }
+        debug!(
+            "fold_context: 折叠 {} 组（{} 条 → {} 锚点），估计释放 {} token",
+            outcome.folded_groups, outcome.folded_messages, outcome.folded_groups, outcome.saved_tokens
+        );
+        Ok(outcome)
+    }
+
+    /// 把压缩文本**填回**锚点之间（A1 §6.2 第二段：空容器位 → 已回填）
+    ///
+    /// `fills` = `(raw 坐标, 压缩文本)` 对（通常来自 [`Self::fold_context`] 的产出，
+    /// 也可由外部压缩器异步生成后传入）。对每条**占位态**折叠形：
+    /// 按坐标找到压缩文本 → 渲染为已回填形态。
+    ///
+    /// 找不到对应压缩文本的折叠形**保持占位**（优雅降级：坐标仍在，可回源）。
+    /// 返回实际填回的条数。
+    pub async fn backfill_folds(&self, fills: &[(String, String)]) -> Result<usize, AgentError> {
+        use crate::anchor as mark;
+        if fills.is_empty() {
+            return Ok(0);
+        }
+
+        // 1. 锁内计算新列表（照 trim_context_dropping 的三段式：算 → backend → state）
+        let (kept, filled) = {
+            let state = self.state.lock().await;
+            let mut kept = state.messages.clone();
+            let mut filled = 0usize;
+            for msg in kept.iter_mut() {
+                let Some(mut meta) = mark::fold_meta_of(msg) else {
+                    continue;
+                };
+                if meta.state != mark::FoldState::Placeholder {
+                    continue;
+                }
+                let Some((_, condensed)) = fills.iter().find(|(h, _)| h == &meta.raw) else {
+                    continue;
+                };
+                msg.content = mark::render_filled(&meta, condensed);
+                meta.state = mark::FoldState::Filled;
+                mark::set_fold_meta(msg, &meta);
+                filled += 1;
+            }
+            (kept, filled)
+        };
+        if filled == 0 {
+            return Ok(0);
+        }
+
+        // 2. backend 端覆盖（消息内容已变）
+        self.backend
+            .set_messages(kept.clone())
+            .await
+            .map_err(AgentError::from)?;
+        // 3. state 端覆盖
+        {
+            let mut state = self.state.lock().await;
+            state.messages = kept;
+        }
+        debug!("backfill_folds: 已填回 {} 条折叠形", filled);
+        Ok(filled)
+    }
+
     /// 获取 pi-ai agent 内部 messages — 对应前端 `IAgentBackend.getRuntimeMessages()`
     ///
     /// 用于长任务 checkpoint 持久化，区别于 `get_messages()`（返回值类型相同，但语义上为 runtime）。

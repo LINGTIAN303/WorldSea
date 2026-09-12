@@ -180,6 +180,12 @@ pub struct AgentLoop {
     /// 装配层注入真实实现（写 app_data 真文件 + 登记引用）后，超长工具结果的
     /// 截断标注会附带内容坐标，原文可据此取回。
     raw_context_sink: crate::raw_context::RawContextSink,
+    /// 是否注入了真实外置器（A1 §6.2：决定裁剪走「折叠」还是旧「删除」路径）
+    ///
+    /// 折叠的硬前提 = 原文先安全外置；未注入外置器时折叠不可能执行，
+    /// `enforce_context_budget` 保持既有「选择性删除」行为
+    /// （测试与未配置记忆的环境）。
+    raw_context_enabled: bool,
 }
 
 impl AgentLoop {
@@ -235,6 +241,7 @@ impl AgentLoop {
             hooks: AgentLoopHooks::default(),
             token_estimator: crate::context_budget::heuristic_estimator(),
             raw_context_sink: crate::raw_context::noop_sink(),
+            raw_context_enabled: false,
         }
     }
 
@@ -314,14 +321,24 @@ impl AgentLoop {
     /// 装配层注入真实实现后，超长工具结果在**截断前**会先被外置成文件，
     /// 截断标注附带内容坐标（`原文已外置：raw/{hash}`），原文可据此取回。
     /// 不注入时行为与改造前完全一致（纯截断）。
+    ///
+    /// **同时置位 [`Self::raw_context_enabled`]**（A1 §6.2）：上下文预算裁剪
+    /// 从「选择性删除」升级为「锚点折叠」——原文先外置（硬前提）→ 锚点占位
+    /// → 压缩文本填回。未注入时保持旧的删除路径。
     pub fn with_raw_context_sink(mut self, sink: crate::raw_context::RawContextSink) -> Self {
         self.raw_context_sink = sink;
+        self.raw_context_enabled = true;
         self
     }
 
     /// 当前生效的原文外置器（只读）
     pub fn raw_context_sink(&self) -> &crate::raw_context::RawContextSink {
         &self.raw_context_sink
+    }
+
+    /// 是否注入了真实外置器（A1 §6.2：裁剪走「折叠」还是「删除」的判据）
+    pub fn raw_context_enabled(&self) -> bool {
+        self.raw_context_enabled
     }
 
     /// 注入 HITL 确认协调器（链式，同步，A5）
@@ -892,6 +909,64 @@ impl AgentLoop {
             return;
         }
 
+        // ── A1 §6.2 锚点回填：有外置器 → 「折叠」替代「删除」────────────────
+        // 折叠 = 删除的安全升级：把「直接扔掉」改为「原文先外置（硬前提）→
+        // 锚点对 + 空容器位占位 → 压缩文本填回」。上下文里保留锚点痕迹与
+        // 浓缩版本，原文始终可按坐标取回；外置被拒的组保留原样（宁超线勿丢）。
+        //
+        // 未注入外置器（测试 / 未配置记忆环境）→ 保持既有「选择性删除」行为。
+        if self.raw_context_enabled {
+            let groups = plan.selected_groups(&drops);
+            match self.fold_context(&groups).await {
+                Ok(outcome) if outcome.folded_groups > 0 => {
+                    let backfilled = match self.backfill_folds(&outcome.fills).await {
+                        Ok(n) => n,
+                        Err(e) => {
+                            warn!(
+                                "锚点回填失败（折叠形停留空容器位，坐标仍在、可回源）: {e}"
+                            );
+                            0
+                        }
+                    };
+                    info!(
+                        "上下文预算折叠：占用 {} token（历史 {} + 系统侧 {}）超触发点 {}（窗口 {}），已折叠 {} 组（{} 条 → {} 个锚点，回填 {}），估计释放约 {} token{}",
+                        total_tokens,
+                        history_tokens,
+                        system_tokens,
+                        trigger,
+                        policy.context_window,
+                        outcome.folded_groups,
+                        outcome.folded_messages,
+                        outcome.folded_groups,
+                        backfilled,
+                        outcome.saved_tokens,
+                        if outcome.skipped_denied > 0 || outcome.skipped_embedded > 0 {
+                            format!(
+                                "；跳过 {} 组（外置拒绝 {} / 已折叠 {}，保留原样）",
+                                outcome.skipped_denied + outcome.skipped_embedded,
+                                outcome.skipped_denied,
+                                outcome.skipped_embedded
+                            )
+                        } else {
+                            String::new()
+                        }
+                    );
+                }
+                Ok(outcome) => {
+                    // 候选组全部未折叠（外置拒绝 / 已是折叠形）——保留原样（宁超线勿丢）
+                    debug!(
+                        "上下文预算折叠：候选 {} 组均未折叠（外置拒绝 {} / 已折叠 {}），本轮不裁",
+                        groups.len(),
+                        outcome.skipped_denied,
+                        outcome.skipped_embedded
+                    );
+                }
+                Err(e) => warn!("上下文预算折叠失败: {e}"),
+            }
+            return;
+        }
+
+        // 未注入外置器：既有「选择性删除」路径（A1 己2①）
         let mask = drops.mask(total_msgs);
         match self.trim_context_dropping(&mask).await {
             Ok(dropped) => info!(

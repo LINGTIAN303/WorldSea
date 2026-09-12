@@ -1265,3 +1265,108 @@
             vec!["Plan".to_string(), "Execution".to_string(), "Exploration".to_string()]
         );
     }
+
+    /// A1 §6.2：折叠引用登记——折叠形外置坐标进入 `raw_ref`（context_anchor 侧）
+    ///
+    /// 只增不删：本批只验证「登记」与「幂等」；释放（release）留给甲3 接线。
+    #[tokio::test]
+    async fn fold_refs_are_registered_into_raw_ref() {
+        use agent_memory::ext::ExtStore;
+        use agent_runtime::anchor::{set_fold_meta, FoldMeta, FoldState};
+        use agent_runtime::types::MessageRole;
+
+        let dir = tempfile::tempdir().unwrap();
+        let svc = AgentCommandService::default().with_memory_root(Some(dir.path().to_path_buf()));
+
+        let hash = "abcdef0123456789";
+        let plain = OrchestratorMessage {
+            role: MessageRole::User,
+            content: "普通消息".into(),
+            tool_calls: Vec::new(),
+            tool_call_id: None,
+            meta: None,
+        };
+        let mut folded = OrchestratorMessage {
+            role: MessageRole::Assistant,
+            content: "折叠形（含锚点）".into(),
+            tool_calls: Vec::new(),
+            tool_call_id: None,
+            meta: None,
+        };
+        set_fold_meta(
+            &mut folded,
+            &FoldMeta {
+                state: FoldState::Filled,
+                raw: hash.into(),
+                orig_bytes: 100,
+                orig_count: 2,
+                orig_tokens: 50,
+            },
+        );
+
+        svc.register_fold_refs("sess-a", &[folded.clone(), plain.clone()])
+            .await;
+
+        // 登记生效：context_anchor 引用存在 → 不可 GC
+        let store = ExtStore::open(dir.path().to_path_buf(), None).unwrap();
+        assert_eq!(store.raw_ref_count(hash).await.unwrap(), 1);
+        assert!(
+            !store.is_gc_eligible(hash).await.unwrap(),
+            "有上下文锚点引用 → 不可 GC"
+        );
+
+        // 幂等：重复登记不重复计数（主键 (hash, kind, owner) 去重）
+        svc.register_fold_refs("sess-a", &[folded.clone(), plain.clone()])
+            .await;
+        assert_eq!(store.raw_ref_count(hash).await.unwrap(), 1);
+
+        // 跨会话各记一条（owner_id = session_id 的粒度验证）
+        svc.register_fold_refs("sess-b", &[folded, plain]).await;
+        assert_eq!(
+            store.raw_ref_count(hash).await.unwrap(),
+            2,
+            "两个会话各持一条上下文锚点引用"
+        );
+
+        // 无折叠消息 → 不产生新登记（零开销早退）
+        let only_plain = vec![OrchestratorMessage {
+            role: MessageRole::User,
+            content: "无折叠".into(),
+            tool_calls: Vec::new(),
+            tool_call_id: None,
+            meta: None,
+        }];
+        svc.register_fold_refs("sess-c", &only_plain).await;
+        assert_eq!(
+            store.raw_ref_count("0000000000000000").await.unwrap(),
+            0,
+            "无折叠消息不应产生任何登记"
+        );
+    }
+
+    /// A1 §6.2：未配置 `memory_root`（无记忆环境）时登记静默跳过、不 panic
+    #[tokio::test]
+    async fn fold_refs_registration_skips_without_memory_root() {
+        use agent_runtime::anchor::{set_fold_meta, FoldMeta, FoldState};
+
+        let svc = AgentCommandService::default(); // memory_root = None
+        let mut folded = OrchestratorMessage {
+            role: agent_runtime::types::MessageRole::Assistant,
+            content: "折叠形".into(),
+            tool_calls: Vec::new(),
+            tool_call_id: None,
+            meta: None,
+        };
+        set_fold_meta(
+            &mut folded,
+            &FoldMeta {
+                state: FoldState::Filled,
+                raw: "abcdef0123456789".into(),
+                orig_bytes: 10,
+                orig_count: 1,
+                orig_tokens: 5,
+            },
+        );
+        // 无记忆根 → 不构造扩展库、不报错（登记是增强，不阻断）
+        svc.register_fold_refs("sess-none", &[folded]).await;
+    }

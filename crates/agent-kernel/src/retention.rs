@@ -443,6 +443,27 @@ impl RetentionPlan {
             skipped_protected_groups: skipped,
         }
     }
+
+    /// 把 [`DropPlan`] 的展平下标重组为**组**序列（A1 §6.2 折叠用）
+    ///
+    /// 组内下标升序；组间按首成员下标升序（= 从旧到新）。
+    /// 用于把「原子丢弃」升级为「**原子折叠**」——切在组中间会产生悬空
+    /// `tool_call_id`，故折叠必须以组为单位整体进行。
+    pub fn selected_groups(&self, drops: &DropPlan) -> Vec<Vec<usize>> {
+        let mut by_group: std::collections::BTreeMap<usize, Vec<usize>> =
+            std::collections::BTreeMap::new();
+        for &i in &drops.indices {
+            if let Some(&g) = self.groups.get(i) {
+                by_group.entry(g).or_default().push(i);
+            }
+        }
+        let mut result: Vec<Vec<usize>> = by_group.into_values().collect();
+        for g in result.iter_mut() {
+            g.sort_unstable();
+        }
+        result.sort_by_key(|g| g.first().copied().unwrap_or(usize::MAX));
+        result
+    }
 }
 
 // ─── 测试 ────────────────────────────────────────
@@ -718,6 +739,31 @@ mod tests {
         // 形态 2：声明留下、结果被切走
         let unanswered = vec![tool_caller("c2", "调用")];
         assert_eq!(dangling_tool_calls(&unanswered), vec!["c2".to_string()]);
+    }
+
+    /// A1 §6.2：把 DropPlan 的展平下标重组为**组**（折叠的原子单位）
+    #[test]
+    fn selected_groups_reassembles_drop_indices_into_groups() {
+        // [u0, asst(c1), res(c1), u1(最新user·受保护), asst(c2), res(c2)]
+        let msgs = vec![
+            msg(MessageRole::User, "u0"),
+            tool_caller("c1", "a"),
+            tool_result("c1", "r1"),
+            msg(MessageRole::User, "u1"),
+            tool_caller("c2", "b"),
+            tool_result("c2", "r2"),
+        ];
+        let plan = RetentionPlan::classify(&msgs, &RetentionPolicy { keep_recent: 0 });
+        let costs = flat_costs(msgs.len(), 10);
+        // 目标 10 < 总 60：从旧到新丢，但 u1（最新 user）所在组受保护被跳过
+        let drops = plan.select_drops(&costs, 60, 10);
+        let groups = plan.selected_groups(&drops);
+
+        assert_eq!(
+            groups,
+            vec![vec![0], vec![1, 2], vec![4, 5]],
+            "应按组重组（组内升序、组间按首成员）且不含受保护组 [3]"
+        );
     }
 
     /// 属性式验证：多种布局下，**裁剪不得新增悬空配对**

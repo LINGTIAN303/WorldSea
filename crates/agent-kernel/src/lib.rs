@@ -9,6 +9,7 @@
 pub mod a2ui;
 pub mod agent;
 pub mod alias;
+pub mod anchor;
 pub mod backend;
 pub mod confirmation;
 pub mod context_budget;

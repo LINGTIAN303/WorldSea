@@ -538,6 +538,351 @@
         );
     }
 
+    // ─── A1 §6.2：锚点回填（折叠 / 回填）────────────────────────
+
+    /// 注入外置器后，超线裁剪走**折叠**而非删除：
+    /// 被选中的组替换为「锚点对 + 压缩文本」（已回填态），原文先外置。
+    #[tokio::test]
+    async fn context_budget_folds_instead_of_dropping_when_sink_injected() {
+        use crate::anchor::{fold_meta_of, is_folded, FoldState};
+        use crate::context_budget::ContextBudgetPolicy;
+        use crate::raw_context::{RawContextSink, RawRef};
+        use crate::retention::RetentionPolicy;
+        use crate::types::{MessageRole, OrchestratorMessage};
+
+        let calls = Arc::new(AtomicUsize::new(0));
+        let calls2 = Arc::clone(&calls);
+        let captured: Arc<std::sync::Mutex<Vec<String>>> =
+            Arc::new(std::sync::Mutex::new(Vec::new()));
+        let captured2 = Arc::clone(&captured);
+        let sink: RawContextSink = Arc::new(move |text: &str| {
+            let i = calls2.fetch_add(1, Ordering::SeqCst);
+            captured2.lock().unwrap().push(text.to_string());
+            Some(RawRef {
+                content_hash: format!("{i:016x}"),
+                byte_len: text.len(),
+            })
+        });
+
+        let backend = Arc::new(MockBackend::new(vec![]));
+        let tool_bus = Arc::new(SimpleToolBus::new());
+        let agent = AgentLoop::new(backend, tool_bus)
+            .with_config(AgentLoopConfig {
+                context_budget: Some(ContextBudgetPolicy::new(4_000, 0.25)),
+                retention_policy: Some(RetentionPolicy { keep_recent: 2 }),
+                ..Default::default()
+            })
+            .with_raw_context_sink(sink);
+
+        // System(0) · 陈旧 4 条（各 ≈500 token）· 最新 user(5) · 回复(6)
+        let mut msgs = vec![OrchestratorMessage {
+            role: MessageRole::System,
+            content: "系统提示词".into(),
+            tool_calls: Vec::new(),
+            tool_call_id: None,
+            meta: None,
+        }];
+        for i in 0..4 {
+            msgs.push(OrchestratorMessage {
+                role: if i % 2 == 0 {
+                    MessageRole::User
+                } else {
+                    MessageRole::Assistant
+                },
+                content: format!("陈旧 {i}：{}", "x".repeat(2_000)),
+                tool_calls: Vec::new(),
+                tool_call_id: None,
+                meta: None,
+            });
+        }
+        msgs.push(OrchestratorMessage {
+            role: MessageRole::User,
+            content: "最新指令：继续推进".into(),
+            tool_calls: Vec::new(),
+            tool_call_id: None,
+            meta: None,
+        });
+        msgs.push(OrchestratorMessage {
+            role: MessageRole::Assistant,
+            content: "好的".into(),
+            tool_calls: Vec::new(),
+            tool_call_id: None,
+            meta: None,
+        });
+        agent.append_messages(msgs).await;
+
+        agent.enforce_context_budget().await;
+        let kept = agent.get_messages().await;
+
+        let folded: Vec<&OrchestratorMessage> = kept.iter().filter(|m| is_folded(m)).collect();
+        assert!(
+            !folded.is_empty(),
+            "注入外置器后应发生折叠，实际保留 {} 条、无折叠形",
+            kept.len()
+        );
+        // 折叠形是「已回填」态（enforce 内背靠背执行 backfill）
+        for f in &folded {
+            let meta = fold_meta_of(f).expect("折叠形应带 meta");
+            assert_eq!(meta.state, FoldState::Filled, "折叠形应为已回填态");
+            assert_eq!(meta.raw.len(), 16, "外置坐标应为 16 位");
+            assert!(
+                f.content.contains("⟨锚点A:") && f.content.contains("⟨锚点B:"),
+                "折叠形须含一对前后锚点: {}",
+                f.content
+            );
+            assert!(
+                f.content.contains("已外置"),
+                "压缩文本须附原文坐标: {}",
+                f.content
+            );
+        }
+        // 与 sink 调用次数一致（每折叠一组外置一次）
+        assert_eq!(
+            calls.load(Ordering::SeqCst),
+            folded.len(),
+            "外置次数应与折叠组数一致"
+        );
+        // 被折叠消息（陈旧 0/1/2——select_drops 至 trigger 即停，陈旧 3 仍在）的
+        // 原文不应完整停留在上下文里（压缩文本至多含头尾片段）
+        for i in 0..3 {
+            let full = format!("陈旧 {i}：{}", "x".repeat(2_000));
+            assert!(
+                kept.iter().all(|m| !m.content.contains(&full)),
+                "被折叠消息 {i} 的原文不应完整驻留"
+            );
+        }
+        // ★ 但外置材料必须含**完整原文**（折叠的保真承诺落在外置层）
+        let materials = captured.lock().unwrap();
+        assert_eq!(materials.len(), 3, "应有三次外置");
+        let full0 = format!("陈旧 0：{}", "x".repeat(2_000));
+        assert!(
+            materials.iter().any(|t| t.contains(&full0)),
+            "外置材料须含完整原文（2000 字符全量）"
+        );
+        // 受保护内容仍在
+        assert!(kept.iter().any(|m| m.content.contains("最新指令")));
+        // 折叠的收益是**体量**而非条数：非工具消息 1 条 → 1 条折叠形（远小于原文）
+        assert!(
+            folded
+                .iter()
+                .all(|m| m.content.chars().count() < 1_000),
+            "折叠形应远小于原文（2000+ 字符），实际: {:?}",
+            folded.iter().map(|m| m.content.chars().count()).collect::<Vec<_>>()
+        );
+    }
+
+    /// 外置被拒（闸门 / 未就绪）→ 该组**保留原样**（宁超线勿丢）
+    #[tokio::test]
+    async fn fold_keeps_original_intact_when_sink_denies() {
+        use crate::context_budget::ContextBudgetPolicy;
+        use crate::raw_context::RawContextSink;
+        use crate::retention::RetentionPolicy;
+        use crate::types::{MessageRole, OrchestratorMessage};
+
+        let sink: RawContextSink = Arc::new(|_| None); // 一律拒绝
+        let backend = Arc::new(MockBackend::new(vec![]));
+        let tool_bus = Arc::new(SimpleToolBus::new());
+        let agent = AgentLoop::new(backend, tool_bus)
+            .with_config(AgentLoopConfig {
+                context_budget: Some(ContextBudgetPolicy::new(4_000, 0.25)),
+                retention_policy: Some(RetentionPolicy { keep_recent: 2 }),
+                ..Default::default()
+            })
+            .with_raw_context_sink(sink);
+
+        let mut msgs = vec![OrchestratorMessage {
+            role: MessageRole::System,
+            content: "系统提示词".into(),
+            tool_calls: Vec::new(),
+            tool_call_id: None,
+            meta: None,
+        }];
+        for i in 0..4 {
+            msgs.push(OrchestratorMessage {
+                role: MessageRole::User,
+                content: format!("陈旧 {i}：{}", "x".repeat(2_000)),
+                tool_calls: Vec::new(),
+                tool_call_id: None,
+                meta: None,
+            });
+        }
+        let total = msgs.len();
+        agent.append_messages(msgs).await;
+
+        agent.enforce_context_budget().await;
+        let kept = agent.get_messages().await;
+
+        assert_eq!(kept.len(), total, "外置被拒时不得删除任何消息（宁超线勿丢）");
+        assert!(
+            kept.iter().any(|m| m.content.contains(&"x".repeat(2_000))),
+            "原文须完整保留"
+        );
+    }
+
+    /// 折叠的配对安全：工具交换组整体折叠为一条，不产生新的悬空 tool_call_id
+    #[tokio::test]
+    async fn fold_never_breaks_tool_pairing() {
+        use crate::context_budget::ContextBudgetPolicy;
+        use crate::raw_context::{RawContextSink, RawRef};
+        use crate::retention::{dangling_tool_calls, RetentionPolicy};
+        use crate::types::{MessageRole, OrchestratorMessage, ToolCall};
+
+        let n = Arc::new(AtomicUsize::new(0));
+        let n2 = Arc::clone(&n);
+        let sink: RawContextSink = Arc::new(move |text: &str| {
+            let i = n2.fetch_add(1, Ordering::SeqCst);
+            Some(RawRef {
+                content_hash: format!("{i:016x}"),
+                byte_len: text.len(),
+            })
+        });
+
+        let backend = Arc::new(MockBackend::new(vec![]));
+        let tool_bus = Arc::new(SimpleToolBus::new());
+        let agent = AgentLoop::new(backend, tool_bus)
+            .with_config(AgentLoopConfig {
+                context_budget: Some(ContextBudgetPolicy::new(4_000, 0.25)),
+                retention_policy: Some(RetentionPolicy { keep_recent: 1 }),
+                ..Default::default()
+            })
+            .with_raw_context_sink(sink);
+
+        // System(0) · user(1) · [asst(c1) 大 + res(c1) 大](2-3) · user(4) 最新
+        let msgs = vec![
+            OrchestratorMessage {
+                role: MessageRole::System,
+                content: "系统提示词".into(),
+                tool_calls: Vec::new(),
+                tool_call_id: None,
+                meta: None,
+            },
+            OrchestratorMessage {
+                role: MessageRole::User,
+                content: "开始".into(),
+                tool_calls: Vec::new(),
+                tool_call_id: None,
+                meta: None,
+            },
+            OrchestratorMessage {
+                role: MessageRole::Assistant,
+                content: format!("调用工具：{}", "a".repeat(3_000)),
+                tool_calls: vec![ToolCall {
+                    id: "call_1".into(),
+                    name: "echo".into(),
+                    args: serde_json::json!({"text": "x".repeat(500)}),
+                }],
+                tool_call_id: None,
+                meta: None,
+            },
+            OrchestratorMessage {
+                role: MessageRole::ToolResult,
+                content: format!("工具结果：{}", "b".repeat(3_000)),
+                tool_calls: Vec::new(),
+                tool_call_id: Some("call_1".into()),
+                meta: None,
+            },
+            OrchestratorMessage {
+                role: MessageRole::User,
+                content: "最新指令".into(),
+                tool_calls: Vec::new(),
+                tool_call_id: None,
+                meta: None,
+            },
+        ];
+        agent.append_messages(msgs).await;
+
+        agent.enforce_context_budget().await;
+        let kept = agent.get_messages().await;
+
+        assert!(
+            !kept.is_empty() && kept.len() < 5,
+            "应发生折叠（保留 {} 条）",
+            kept.len()
+        );
+        assert!(
+            dangling_tool_calls(&kept).is_empty(),
+            "折叠不得产生悬空 tool_call_id: {:?}",
+            dangling_tool_calls(&kept)
+        );
+    }
+
+    /// 两段式接口：单独调 `fold_context` 先落**空容器位**；无对应压缩文本时
+    /// `backfill_folds` 保持占位（优雅降级——坐标仍在、可回源）
+    #[tokio::test]
+    async fn fold_lands_placeholder_and_backfill_degrades_gracefully() {
+        use crate::anchor::{fold_meta_of, is_folded, FoldState};
+        use crate::raw_context::{RawContextSink, RawRef};
+        use crate::types::{MessageRole, OrchestratorMessage};
+
+        let sink: RawContextSink = Arc::new(|text: &str| {
+            Some(RawRef {
+                content_hash: "0123456789abcdef".into(),
+                byte_len: text.len(),
+            })
+        });
+        let backend = Arc::new(MockBackend::new(vec![]));
+        let tool_bus = Arc::new(SimpleToolBus::new());
+        let agent = AgentLoop::new(backend, tool_bus).with_raw_context_sink(sink);
+
+        agent
+            .append_messages(vec![
+                OrchestratorMessage {
+                    role: MessageRole::User,
+                    content: "第一条".into(),
+                    tool_calls: Vec::new(),
+                    tool_call_id: None,
+                    meta: None,
+                },
+                OrchestratorMessage {
+                    role: MessageRole::Assistant,
+                    content: "第二条".into(),
+                    tool_calls: Vec::new(),
+                    tool_call_id: None,
+                    meta: None,
+                },
+            ])
+            .await;
+
+        // 折叠组 [0,1]（两消息各自成组时为 [0] 与 [1]；此处按一个工具组语义构造——
+        // 直接给一个任意分组：把两条非工具消息视为一组）
+        let outcome = agent.fold_context(&[vec![0, 1]]).await.unwrap();
+        assert_eq!(outcome.folded_groups, 1);
+        assert_eq!(outcome.folded_messages, 2);
+
+        let kept = agent.get_messages().await;
+        assert_eq!(kept.len(), 1, "两条应折叠为一条");
+        assert!(is_folded(&kept[0]));
+        let meta = fold_meta_of(&kept[0]).unwrap();
+        assert_eq!(meta.state, FoldState::Placeholder, "回填前应为空容器位");
+        assert!(kept[0].content.contains("空容器位"), "{}", kept[0].content);
+
+        // 压缩文本缺失 → 保持占位（降级），返回 0
+        let filled = agent
+            .backfill_folds(&[("deadbeefdeadbeef".into(), "错的".into())])
+            .await
+            .unwrap();
+        assert_eq!(filled, 0);
+        let kept = agent.get_messages().await;
+        assert_eq!(
+            fold_meta_of(&kept[0]).unwrap().state,
+            FoldState::Placeholder,
+            "无对应压缩文本应保持占位"
+        );
+
+        // 正确坐标 → 填回（filled）
+        let filled = agent
+            .backfill_folds(&[(
+                "0123456789abcdef".into(),
+                "压缩后的正文".into(),
+            )])
+            .await
+            .unwrap();
+        assert_eq!(filled, 1);
+        let kept = agent.get_messages().await;
+        assert_eq!(fold_meta_of(&kept[0]).unwrap().state, FoldState::Filled);
+        assert!(kept[0].content.contains("压缩后的正文"));
+    }
+
     /// R6 第二部分：merge_last_assistant_meta 把事件序追加进最后 assistant 消息 meta.action_events，
     /// 多次调用累计（追加语义），无 assistant 消息时忽略。
     #[tokio::test]

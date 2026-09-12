@@ -830,6 +830,12 @@ pub struct AgentCommandService {
     /// `None`（默认）：不注入。
     mcp_tools_provider:
         Option<Arc<dyn Fn() -> Vec<Arc<dyn Tool>> + Send + Sync>>,
+    /// A1 §6.2：折叠引用登记用的扩展库（惰性构造，同 `memory_root` 下的 `memory_ext.db`）
+    ///
+    /// 折叠形消息的 `meta["fold"].raw` 记录了外置坐标；`persist_messages` 扫描折叠形
+    /// 并把「上下文锚点仍引用该外置文件」登记进 `raw_ref`（GC 判定依据，§6.3.2；
+    /// **甲3 落地前只增不删**——本批只登记、不释放）。`None` = 尚未构造。
+    fold_ext: tokio::sync::Mutex<Option<agent_memory::ext::ExtStore>>,
 }
 
 /// 场景摘要（Tauri 序列化用；2026-09-09 场景底座：装配元数据透传前端滑块/工作区）
@@ -3305,10 +3311,67 @@ impl AgentCommandService {
             Ok(_) => {}
             Err(e) => tracing::warn!("持久化会话 {session_id} 消息失败: {e}"),
         }
+        // A1 §6.2：折叠引用登记（上下文锚点 → raw_ref；只增不删，GC 判定依据）
+        self.register_fold_refs(session_id, &messages).await;
         // A4 Plan-Exec：随消息一并写穿当前计划（与消息同生命周期，send_message 后持久化）
         let plan = agent.get_plan().await;
         if let Err(e) = store.save_plan(session_id, &plan).await {
             tracing::warn!("持久化会话 {session_id} 计划失败: {e}");
+        }
+    }
+
+    /// A1 §6.2：把「上下文锚点仍引用外置文件」登记进扩展库 `raw_ref`
+    ///
+    /// 扫描本会话消息里的折叠形（`meta["fold"]`），对其外置坐标登记
+    /// `owner = (context_anchor, session_id)` 的引用——§6.3.2「双引用判定」的
+    /// 「上下文锚点」一侧（另一侧是归档 `raw_context_path`，随归档接线）。
+    ///
+    /// **只增不删**（§6.3.2 分期）：本批只登记、不释放——释放留给会话删除 /
+    /// 折叠清空接线（甲3 淘汰批次）。重复登记幂等（`raw_ref` 主键去重）。
+    /// 失败仅告警不阻断（登记是增强，不参与主链路语义）。
+    async fn register_fold_refs(&self, session_id: &str, messages: &[OrchestratorMessage]) {
+        // 收集本会话上下文里的折叠引用（同 hash 去重；无折叠则零开销返回）
+        let mut hashes: std::collections::BTreeSet<String> = Default::default();
+        for m in messages {
+            if let Some(meta) = agent_runtime::anchor::fold_meta_of(m) {
+                hashes.insert(meta.raw);
+            }
+        }
+        if hashes.is_empty() {
+            return;
+        }
+        let Some(root) = self.memory_root.clone() else {
+            return;
+        };
+
+        // 惰性构造扩展库（与 MemoryCenterAccessor 同路径规则；project 分片当前为
+        // `_default`——丁3 project_id 记忆隔离落地后需同步升级）
+        let mut guard = self.fold_ext.lock().await;
+        if guard.is_none() {
+            match agent_memory::ext::ExtStore::open(root, None) {
+                Ok(s) => *guard = Some(s),
+                Err(e) => {
+                    tracing::warn!("折叠引用登记：打开扩展库失败: {e}");
+                    return;
+                }
+            }
+        }
+        let store = guard.as_ref().cloned();
+        drop(guard);
+        let Some(store) = store else { return };
+
+        for hash in hashes {
+            if let Err(e) = store
+                .acquire_raw_ref(
+                    &hash,
+                    agent_memory::ext::owner_kind::CONTEXT_ANCHOR,
+                    session_id,
+                    false,
+                )
+                .await
+            {
+                tracing::warn!("折叠引用登记失败（{hash}）: {e}");
+            }
         }
     }
 
