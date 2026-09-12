@@ -213,6 +213,27 @@ const B_RAIL_PLAN_PROMPT: &str = "你是任务规划者。请把用户任务拆�
 const DEFAULT_MEMORY_GC_INTERVAL: std::time::Duration =
     std::time::Duration::from_secs(6 * 60 * 60);
 
+/// 工作区索引库巡检（孤儿清理）——后台任务与手动入口**共用同一实现**
+///
+/// `agent-index` 的索引库落 app_data（`{index_root}/{目录名}-{workdir 指纹}.db`），
+/// 工作区被删除/改名后即成孤儿。清理条件见 [`agent_index::prune_orphans`]：
+/// **工作区不存在 + 超宽限期（默认 30 天）+ 非本进程活跃实例**，三重同时满足才删。
+///
+/// 失败的删除（如被占用）不计入 removed，下一轮巡检自然重试。
+async fn prune_workspace_indexes(index_root: &std::path::Path) -> agent_index::PruneReport {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0);
+    let active = agent_index::active_index_paths().await;
+    agent_index::prune_orphans(
+        index_root,
+        now,
+        agent_index::DEFAULT_PRUNE_GRACE_MS,
+        &active,
+    )
+}
+
 /// A2 戊1 + 丁3：把巡检硬删的记忆条目移出检索索引（幽灵索引项清理）
 ///
 /// BM25 与向量索引是「进程内 + 独立库」两层，`memories.db` 行删除不会连带更新它们。
@@ -1193,6 +1214,19 @@ impl AgentCommandService {
         Ok(report)
     }
 
+    /// 工作区索引库巡检（A2-2 收尾）——手动触发一轮孤儿索引库清理
+    ///
+    /// 与后台巡检**同一实现**（[`prune_workspace_indexes`]）；未配置索引根时返回空报告。
+    /// 清理条件：工作区不存在 + 超宽限期（30 天）+ 非活跃实例，三重同时满足。
+    pub async fn run_workspace_index_gc(
+        &self,
+    ) -> Result<agent_index::PruneReport, CommandError> {
+        let Some(root) = &self.workspace_index_root else {
+            return Ok(agent_index::PruneReport::default());
+        };
+        Ok(prune_workspace_indexes(root).await)
+    }
+
     // ─── 上下文窗口（丁1 加急：面板查询 / 手动压缩）────────────
 
     /// 会话上下文窗口占用快照（面板展示；与自动裁剪同源计量）
@@ -1339,9 +1373,13 @@ impl AgentCommandService {
     /// - **任务不持有 Service 引用**（只捕获根目录 + 间隔）——避免生命周期纠缠
     ///   （若持有 `Arc<Self>` 会形成自环，服务永不释放）。
     fn ensure_memory_gc_task(&self) {
-        let Some(root) = self.memory_root.clone() else {
+        let memory_root = self.memory_root.clone();
+        let index_root = self.workspace_index_root.clone();
+        // 两类根都没有 → 无事可巡；**只要有一个就拉起**（避免「只配了工作区索引
+        // 却因缺记忆根而永不巡检」的静默缺口）
+        if memory_root.is_none() && index_root.is_none() {
             return;
-        };
+        }
         if self
             .memory_gc_started
             .swap(true, std::sync::atomic::Ordering::SeqCst)
@@ -1355,7 +1393,7 @@ impl AgentCommandService {
         tokio::spawn(async move {
             tracing::info!(
                 interval_secs = interval.as_secs(),
-                "记忆巡检后台任务已启动（A1 甲3：衰减 / 淘汰 / 外置 GC）"
+                "后台巡检任务已启动（记忆：衰减 / 淘汰 / 外置 GC；工作区：孤儿索引库 GC）"
             );
             loop {
                 tokio::time::sleep(interval).await;
@@ -1363,29 +1401,52 @@ impl AgentCommandService {
                     .duration_since(std::time::UNIX_EPOCH)
                     .map(|d| d.as_millis() as i64)
                     .unwrap_or(0);
-                match agent_memory::evict::run_gc_pass(
-                    &root,
-                    now,
-                    &agent_memory::decay::EvictionPolicy::default(),
-                )
-                .await
-                {
-                    Ok(report) if report.did_something() => {
-                        // A2 戊1：硬删条目同步移出检索索引
-                        sync_evicted_hooks(&root, &semantic_config, &report.evicted_hooks).await;
+                if let Some(root) = &memory_root {
+                    match agent_memory::evict::run_gc_pass(
+                        root,
+                        now,
+                        &agent_memory::decay::EvictionPolicy::default(),
+                    )
+                    .await
+                    {
+                        Ok(report) if report.did_something() => {
+                            // A2 戊1：硬删条目同步移出检索索引
+                            sync_evicted_hooks(root, &semantic_config, &report.evicted_hooks)
+                                .await;
+                            tracing::info!(
+                                scored = report.decay_scored,
+                                newly_deprecated = report.newly_deprecated,
+                                restored = report.restored,
+                                entries_evicted = report.entries_evicted,
+                                raw_trashed = report.raw_trashed,
+                                raw_restored = report.raw_restored,
+                                raw_purged = report.raw_purged,
+                                "记忆巡检完成"
+                            );
+                        }
+                        Ok(_) => tracing::debug!("记忆巡检完成（无动作）"),
+                        Err(e) => tracing::warn!("记忆巡检失败（下轮重试）: {e}"),
+                    }
+                }
+                if let Some(root) = &index_root {
+                    let report = prune_workspace_indexes(root).await;
+                    if report.did_something() {
                         tracing::info!(
-                            scored = report.decay_scored,
-                            newly_deprecated = report.newly_deprecated,
-                            restored = report.restored,
-                            entries_evicted = report.entries_evicted,
-                            raw_trashed = report.raw_trashed,
-                            raw_restored = report.raw_restored,
-                            raw_purged = report.raw_purged,
-                            "记忆巡检完成"
+                            scanned = report.scanned,
+                            removed = report.removed,
+                            "工作区索引库巡检完成（孤儿清理）"
+                        );
+                    } else {
+                        tracing::debug!(
+                            scanned = report.scanned,
+                            kept_alive = report.kept_alive,
+                            kept_recent = report.kept_recent,
+                            skipped_unknown = report.skipped_unknown,
+                            skipped_active = report.skipped_active,
+                            failed = report.failed,
+                            "工作区索引库巡检完成（无动作）"
                         );
                     }
-                    Ok(_) => tracing::debug!("记忆巡检完成（无动作）"),
-                    Err(e) => tracing::warn!("记忆巡检失败（下轮重试）: {e}"),
                 }
             }
         });

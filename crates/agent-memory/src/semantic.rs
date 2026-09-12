@@ -780,7 +780,11 @@ mod tests {
         let allow: HashSet<String> = ["h-a".to_string(), "h-b".to_string()].into();
         let hit = stack.find_similar("新内容", 5, &allow).await.unwrap();
         assert_eq!(hit.0, "h-a", "应命中余弦最高的旧内容A");
-        assert!(hit.1 > 0.9, "余弦应高于阈值区间（0.92 判定由调用方做）: {}", hit.1);
+        assert!(
+            hit.1 > 0.9,
+            "余弦应高于语义去重阈值区间（0.75 判定由调用方做；回退通道另有 Jaccard 0.92）: {}",
+            hit.1
+        );
     }
 
     #[tokio::test]

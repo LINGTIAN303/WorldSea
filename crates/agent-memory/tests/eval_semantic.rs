@@ -5,9 +5,10 @@
 //! 都还没有基线。本测试补这两项，作为记忆侧语义检索的成熟度证据：
 //!
 //! 1. **召回**：BM25-only vs 混合（BM25 ∪ 向量 → RRF）的 hit@1 / hit@3。
-//! 2. **去重阈值标定**：`find_duplicate` 走 embedding 余弦（戊1 裁定阈值 **0.92**，
-//!    理由为「原始语义比较」）。本测试实测「同义改写」与「不相关」两类探针的
-//!    top1 余弦分布，回答 *0.92 偏高 / 偏低 / 合适*——该阈值此前**从未被真实向量标定**。
+//! 2. **去重阈值校验**：`find_duplicate` 走 embedding 余弦，阈值 = 生产常量
+//!    `COSINE_DEDUP_THRESHOLD_DEFAULT`（**2026-09-12 由本评测标定为 0.75**；上一版 0.92
+//!    是从「字符二元组 Jaccard」继承的数值，实测使真重复 100% 漏判）。
+//!    本测试把标定结果**变成回归断言**：同义改写须全部达阈、同主题新事实与无关须全部不达阈。
 //!
 //! 运行（默认 `#[ignore]`，端点与 Key 从环境变量读）：
 //!
@@ -275,13 +276,13 @@ async fn memory_semantic_baseline_report() {
         "混合检索 top3 不应弱于关键词基线（{hy3} < {kw3}）——检查向量通道是否补齐或融合是否被改坏"
     );
 
-    // ── 2. 去重阈值标定（戊1 裁定阈值 = 0.92）────────────────────────
+    // ── 2. 去重阈值校验（阈值取**生产常量**，不是测试内自定值）──────────
     // 三类探针缺一不可：
-    //   A 同义改写     —— 应判**重复**：其下界决定阈值不能高于它
-    //   B 同主题新事实 —— 应判**不重复**：其**上界**决定阈值不能低于它（真正的约束）
-    //   C 完全无关     —— 应判不重复：背景噪声
+    //   A 同义改写     —— 应判**重复**：须**全部**达阈（否则漏判真重复）
+    //   B 同主题新事实 —— 应判**不重复**：须**全部**不达阈（真正的约束）
+    //   C 完全无关     —— 应判不重复：须全部不达阈
     // 只测 A/C 会高估可分性（两簇之间天然有大空隙），真实误判风险来自 B。
-    const DEDUP_THRESHOLD: f32 = 0.92;
+    const DEDUP_THRESHOLD: f32 = agent_runtime::memory::COSINE_DEDUP_THRESHOLD_DEFAULT;
     let same = probe_all(&stack, &allow, DEDUP_SAME).await;
     let related = probe_all(&stack, &allow, DEDUP_RELATED).await;
     let diff = probe_all(&stack, &allow, DEDUP_DIFF).await;
@@ -357,5 +358,29 @@ async fn memory_semantic_baseline_report() {
         same_min > rel_max,
         "同义改写（最小 {same_min:.4}）未整体高于同主题新事实（最大 {rel_max:.4}）\
          ——单阈值去重不可行，需改判别方式而非调阈值"
+    );
+    // 契约三（**阈值回归**）：当前生产阈值必须同时满足「不漏判」与「不误并」。
+    // 这三条是标定结果的守卫：任何一侧被破坏，都说明阈值（或向量模型）需要重标定。
+    assert_eq!(
+        ge(&same_cos),
+        DEDUP_SAME.len(),
+        "同义改写应**全部**达到去重阈值 {DEDUP_THRESHOLD}（否则写前去重漏判真重复；\
+         实际未达 {}/{}，最小 {same_min:.4}）",
+        DEDUP_SAME.len() - ge(&same_cos),
+        DEDUP_SAME.len()
+    );
+    assert_eq!(
+        ge(&rel_cos),
+        0,
+        "同主题新事实**不应**达到去重阈值 {DEDUP_THRESHOLD}（否则会把不同事实误并为重复；\
+         实际越界 {}/{}，最大 {rel_max:.4}）",
+        ge(&rel_cos),
+        DEDUP_RELATED.len()
+    );
+    assert_eq!(
+        ge(&diff_cos),
+        0,
+        "完全无关内容不应达到去重阈值 {DEDUP_THRESHOLD}（实际越界 {}）",
+        ge(&diff_cos)
     );
 }

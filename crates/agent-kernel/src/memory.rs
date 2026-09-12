@@ -446,12 +446,27 @@ impl MemoryWriteEntry {
     }
 }
 
+/// **语义（余弦）**去重阈值默认值
+///
+/// **2026-09-12 实测标定**（`crates/agent-memory/tests/eval_semantic.rs`，bge-m3 / 1024 维）：
+/// 同义改写 top1 余弦 0.813–0.887、同主题新事实 ≤ 0.691 → 单阈值可分区间 **(0.691, 0.813)**，
+/// 取中点 **0.75**（两侧余量对称）。
+///
+/// **为什么不再是 0.92**：0.92 是从「字符二元组 Jaccard」继承来的数值——Jaccard 与余弦
+/// **不同量纲**，沿用 0.92 实测使真重复 **100% 漏判**（去重恒不触发，且无外部症状）。
+pub const COSINE_DEDUP_THRESHOLD_DEFAULT: f32 = 0.75;
+
 /// 写入选项（A1 甲1）
 #[derive(Debug, Clone)]
 pub struct MemoryWriteOptions {
-    /// 去重相似度阈值（写前检索命中 ≥ 此值即判为重复 → `Noop`）
+    /// **语义（余弦）**去重阈值（写前检索命中 ≥ 此值即判为重复 → `Noop`）
     ///
-    /// 默认 0.92（对齐 2026 年外部调研的收敛做法）。
+    /// 默认 [`COSINE_DEDUP_THRESHOLD_DEFAULT`]（`0.75`）。
+    ///
+    /// **注意适用范围**：本值只作用于**语义余弦**通道。文本近似**回退**通道
+    /// （字符二元组 Jaccard）**不使用本值**——两个度量不同量纲、各自的合理阈值相差很大
+    /// （同一句 26 字文本的 Jaccard ≈ 0.926，而真实同义改写的余弦仅 0.81–0.89），
+    /// 共用一个数必然一侧失效。回退通道有自己的常量（`agent_memory::JACCARD_DEDUP_THRESHOLD`）。
     pub dedup_threshold: f32,
     /// 跳过去重检查（强制写入；用于用户显式「记住这个」语义）
     pub skip_dedup: bool,
@@ -462,7 +477,7 @@ pub struct MemoryWriteOptions {
 impl Default for MemoryWriteOptions {
     fn default() -> Self {
         Self {
-            dedup_threshold: 0.92,
+            dedup_threshold: COSINE_DEDUP_THRESHOLD_DEFAULT,
             skip_dedup: false,
             source: None,
         }

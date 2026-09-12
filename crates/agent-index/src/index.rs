@@ -21,7 +21,7 @@
 //!   不等 embedding，先给关键词结果，后续检索逐步转为混合。
 //! - **隐私**：仅启用语义检索（配置了端点）时块文本才发往嵌入端点；未配置纯本地。
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use std::sync::{Arc, Mutex as StdMutex, OnceLock, RwLock};
@@ -81,6 +81,21 @@ const BACKFILL_BATCH: usize = 32;
 /// 检索前增量同步的最小间隔（毫秒；避免连续检索重复扫描）
 const SYNC_DEBOUNCE_MS: i64 = 3_000;
 
+// ─── meta 键（索引库自述信息；GC 的判定依据）─────────────────
+//
+// **为什么必须记录 workdir**：库文件名为 `{目录名}-{workdir 路径哈希前 8 位}.db`，
+// 哈希**不可反解**——不记 workdir 就无法判断「这个索引库对应的目录还在不在」，
+// 只能按 mtime 老化（会误删网络盘/移动盘上暂时不可达的工作区索引）。
+const META_WORKDIR: &str = "workdir";
+const META_LAST_USED_AT: &str = "last_used_at";
+
+/// 孤儿索引库的默认宽限期（30 天）
+///
+/// 工作区「不存在」有多种成因：已删除、已改名、移动盘未插入、网络盘离线。
+/// **宽限期是这几种情况的安全网**：只有「目录不存在 **且** 30 天未被使用」才删；
+/// 误删的代价仅是索引重建（可重建缓存），但频繁重建会浪费 embedding 额度。
+pub const DEFAULT_PRUNE_GRACE_MS: i64 = 30 * 24 * 60 * 60 * 1_000;
+
 fn now_ms() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -135,6 +150,24 @@ fn ensure_chunk_schema(conn: &rusqlite::Connection, db: &Path) -> Result<(), Str
         to = CHUNK_SCHEMA_VERSION,
         "分块规则版本变更，旧索引已作废（下次检索全量重建）"
     );
+    Ok(())
+}
+
+/// 读 meta 键（缺失/读失败 → `None`）
+fn read_meta(conn: &rusqlite::Connection, key: &str) -> Option<String> {
+    conn.query_row("SELECT value FROM meta WHERE key = ?1", [key], |r| {
+        r.get::<_, String>(0)
+    })
+    .ok()
+}
+
+/// 写 meta 键（upsert）
+fn write_meta(conn: &rusqlite::Connection, key: &str, value: &str) -> Result<(), String> {
+    conn.execute(
+        "INSERT OR REPLACE INTO meta (key, value) VALUES (?1, ?2)",
+        rusqlite::params![key, value],
+    )
+    .map_err(|e| format!("写入索引元信息失败: {e}"))?;
     Ok(())
 }
 
@@ -218,6 +251,11 @@ impl WorkspaceIndex {
         // 分块版本校验（必须在建向量索引 / 播种 BM25 **之前**：作废要连向量一起清，
         // 否则向量索引的内存缓存会把旧 chunk_id 的向量继续带进检索）
         ensure_chunk_schema(&conn, &db)?;
+        // 自述信息（GC 判定依据）：记录工作区绝对路径 + 本次使用时刻。
+        // canonicalize 失败（目录已不存在）时退回原路径——GC 正是要识别这类库。
+        let recorded = workdir.canonicalize().unwrap_or_else(|_| workdir.to_path_buf());
+        write_meta(&conn, META_WORKDIR, &recorded.to_string_lossy())?;
+        write_meta(&conn, META_LAST_USED_AT, &now_ms().to_string())?;
 
         // 向量与嵌入器（启用语义检索时；维度变更自动清旧向量）
         let (vectors, embedder, dim): (Option<Arc<SqliteVectorIndex>>, Option<Arc<dyn Embedder>>, usize) =
@@ -385,6 +423,10 @@ impl WorkspaceIndex {
 
         let now = now_ms();
         self.last_sync_ms.store(now, Ordering::Relaxed);
+        // 刷新使用时刻（GC 宽限期依据；写失败不影响同步本身）
+        if let Ok(conn) = self.conn.lock() {
+            let _ = write_meta(&conn, META_LAST_USED_AT, &now.to_string());
+        }
         if report.changed() {
             tracing::debug!(
                 added = report.added,
@@ -415,31 +457,40 @@ impl WorkspaceIndex {
         // 先清该文件旧块（三处：SQL / 关键词 / 向量）
         self.forget_path(&entry.rel)?;
 
+        // **单文件一个事务**：逐条 `INSERT` 各自成为一个隐式事务时，WAL 模式会**每行
+        // fsync 一次**——规模实测（2 万块）显示这是建索引耗时的大头（`scale_benchmark_report`）。
+        // 一个文件的块一次性提交，语义不变（要么整文件入索引，要么整文件不落）。
         {
-            let conn = self.conn.lock().map_err(|_| "索引连接锁中毒".to_string())?;
-            let mut stmt = conn
-                .prepare(
-                    "INSERT INTO chunks (chunk_id, path, ordinal, start_line, end_line, text) \
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                )
-                .map_err(|e| format!("准备块写入失败: {e}"))?;
-            for c in &chunks {
-                let chunk_id = format!("{}#{}", entry.rel, c.ordinal);
-                stmt.execute(rusqlite::params![
-                    chunk_id,
-                    entry.rel,
-                    c.ordinal as i64,
-                    c.start_line as i64,
-                    c.end_line as i64,
-                    c.text
-                ])
-                .map_err(|e| format!("写入块失败: {e}"))?;
+            let mut conn = self.conn.lock().map_err(|_| "索引连接锁中毒".to_string())?;
+            let tx = conn
+                .transaction()
+                .map_err(|e| format!("开启索引事务失败: {e}"))?;
+            {
+                let mut stmt = tx
+                    .prepare(
+                        "INSERT INTO chunks (chunk_id, path, ordinal, start_line, end_line, text) \
+                         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                    )
+                    .map_err(|e| format!("准备块写入失败: {e}"))?;
+                for c in &chunks {
+                    let chunk_id = format!("{}#{}", entry.rel, c.ordinal);
+                    stmt.execute(rusqlite::params![
+                        chunk_id,
+                        entry.rel,
+                        c.ordinal as i64,
+                        c.start_line as i64,
+                        c.end_line as i64,
+                        c.text
+                    ])
+                    .map_err(|e| format!("写入块失败: {e}"))?;
+                }
             }
-            conn.execute(
+            tx.execute(
                 "INSERT OR REPLACE INTO files (path, size, mtime_ms, indexed_at) VALUES (?1, ?2, ?3, ?4)",
                 rusqlite::params![entry.rel, entry.size as i64, entry.mtime_ms, now_ms()],
             )
             .map_err(|e| format!("写入文件表失败: {e}"))?;
+            tx.commit().map_err(|e| format!("提交索引事务失败: {e}"))?;
         }
 
         {
@@ -729,6 +780,129 @@ pub async fn registry_clear() {
     registry.lock().await.clear();
 }
 
+// ─── 索引库 GC（孤儿清理）────────────────────────────────
+
+/// 索引库 GC 报告
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PruneReport {
+    /// 扫描到的索引库文件数
+    pub scanned: usize,
+    /// 实际删除数
+    pub removed: usize,
+    /// 工作区仍存在 → 保留
+    pub kept_alive: usize,
+    /// 在宽限期内 → 保留
+    pub kept_recent: usize,
+    /// 缺 workdir / last_used_at 记录（本机制引入前建的库）→ 保守保留
+    pub skipped_unknown: usize,
+    /// 本进程活跃实例占用 → 保留
+    pub skipped_active: usize,
+    /// 打开或删除失败（含被占用）→ 保留
+    pub failed: usize,
+}
+
+impl PruneReport {
+    /// 本轮是否有实际清理动作
+    pub fn did_something(&self) -> bool {
+        self.removed > 0
+    }
+}
+
+/// 清理孤儿索引库（**保守三重条件，全部满足才删**）
+///
+/// 1. 库内 meta 记录了 workdir，且该目录**不存在**（已删除 / 已改名 / 移动盘未插入 / 网络盘离线）；
+/// 2. `now_ms - last_used_at >= grace_ms`（默认 30 天，见 [`DEFAULT_PRUNE_GRACE_MS`]）；
+/// 3. 不是本进程的活跃实例（`active` 由调用方经 [`active_index_paths`] 取）。
+///
+/// **宽限期为何必需**：条件 1 会把「暂时不可达」（移动盘 / 网络盘）误判成「已删除」，
+/// 宽限期是这层误判的安全网——真删错了代价也可接受（索引是可重建缓存），
+/// 但反复重建会白耗 embedding 额度。
+///
+/// **保守取向的代价**：本机制引入前建的库（无 meta 记录）**永不删**——宁可留一个死库，
+/// 不可删错一个活库；清理它们的唯一途径是手动删除索引目录（见 crate 文档）。
+pub fn prune_orphans(
+    index_root: &Path,
+    now_ms: i64,
+    grace_ms: i64,
+    active: &HashSet<PathBuf>,
+) -> PruneReport {
+    let mut report = PruneReport::default();
+    let Ok(entries) = std::fs::read_dir(index_root) else {
+        return report; // 索引根不存在 = 无库可清
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+            continue;
+        };
+        // 只认主库文件（跳过 -wal / -shm 伴生文件）
+        if !name.ends_with(".db") || !entry.file_type().map(|t| t.is_file()).unwrap_or(false) {
+            continue;
+        }
+        report.scanned += 1;
+
+        if active.contains(&path) {
+            report.skipped_active += 1;
+            continue;
+        }
+
+        // 只读打开：GC 不应写 WAL、也不应改库 mtime
+        let conn = match rusqlite::Connection::open_with_flags(
+            &path,
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+        ) {
+            Ok(c) => c,
+            Err(_) => {
+                report.failed += 1;
+                continue;
+            }
+        };
+        let workdir = read_meta(&conn, META_WORKDIR);
+        let last_used = read_meta(&conn, META_LAST_USED_AT).and_then(|v| v.parse::<i64>().ok());
+        let (Some(workdir), Some(last_used)) = (workdir, last_used) else {
+            report.skipped_unknown += 1;
+            continue;
+        };
+        drop(conn);
+
+        if Path::new(&workdir).exists() {
+            report.kept_alive += 1;
+            continue;
+        }
+        if now_ms - last_used < grace_ms {
+            report.kept_recent += 1;
+            continue;
+        }
+
+        // 删除：主库 + 伴生文件（伴生文件不存在即跳过）
+        let mut ok = std::fs::remove_file(&path).is_ok();
+        for suffix in ["-wal", "-shm"] {
+            let side = PathBuf::from(format!("{}{suffix}", path.display()));
+            if side.exists() {
+                ok &= std::fs::remove_file(&side).is_ok();
+            }
+        }
+        if ok {
+            report.removed += 1;
+            tracing::info!(
+                db = %path.display(),
+                workdir = %workdir,
+                "孤儿索引库已清理（工作区不存在且超宽限期）"
+            );
+        } else {
+            report.failed += 1;
+        }
+    }
+    report
+}
+
+/// 当前进程活跃的索引库路径（GC 排除依据）
+pub async fn active_index_paths() -> HashSet<PathBuf> {
+    let registry = REGISTRY.get_or_init(|| tokio::sync::Mutex::new(HashMap::new()));
+    registry.lock().await.keys().cloned().collect()
+}
+
 // ─── 测试 ────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -764,7 +938,41 @@ mod tests {
         }
     }
 
-    async fn open_idx(root: &Path, with_embedder: Option<Arc<dyn Embedder>>) -> Arc<WorkspaceIndex> {
+    /// 确定性哈希嵌入器（**规模压测用**）
+    ///
+    /// 只保证「非零 + 归一化」——目的是让向量通道参与索引与检索、把规模与延迟测出来，
+    /// **不评语义质量**（语义质量由 `tests/eval_retrieval.rs` 用真实端点评）。
+    /// 用假嵌入器做规模测试的好处：可重复、零 API 成本、不受网络抖动干扰。
+    struct HashEmbedder {
+        dim: usize,
+    }
+
+    #[async_trait::async_trait]
+    impl Embedder for HashEmbedder {
+        fn dim(&self) -> usize {
+            self.dim
+        }
+        async fn embed(&self, text: &str) -> memory_center_core::Result<Vec<f32>> {
+            let mut v = vec![0.0f32; self.dim];
+            for (i, c) in text.chars().enumerate() {
+                v[(c as usize).wrapping_add(i) % self.dim] += 1.0;
+            }
+            let norm = v.iter().map(|x| x * x).sum::<f32>().sqrt();
+            if norm > 0.0 {
+                for x in &mut v {
+                    *x /= norm;
+                }
+            }
+            Ok(v)
+        }
+    }
+
+    /// 打开带「注入嵌入器 + 指定维度」的索引（测试专用；生产路径经 `open` 的 SemanticConfig）
+    async fn open_idx_with(
+        root: &Path,
+        with_embedder: Option<Arc<dyn Embedder>>,
+        dim: usize,
+    ) -> Arc<WorkspaceIndex> {
         let db = root.join("index").join("ws.db");
         let workdir = root.join("ws");
         std::fs::create_dir_all(&workdir).unwrap();
@@ -776,7 +984,6 @@ mod tests {
         )
         .unwrap();
         if let Some(emb) = with_embedder {
-            // 测试注入：重建为带嵌入器的实例（生产路径经 `open` 的 SemanticConfig）
             let idx2 = WorkspaceIndex {
                 db: idx.db.clone(),
                 workdir: idx.workdir.clone(),
@@ -784,10 +991,10 @@ mod tests {
                 conn: StdMutex::new(rusqlite::Connection::open(&idx.db).unwrap()),
                 keyword: RwLock::new(Bm25Searcher::new()),
                 vectors: Some(Arc::new(
-                    SqliteVectorIndex::new(idx.db.clone(), 3).unwrap(),
+                    SqliteVectorIndex::new(idx.db.clone(), dim).unwrap(),
                 )),
                 embedder: Some(emb),
-                dim: 3,
+                dim,
                 semantic_key: "test".into(),
                 last_sync_ms: AtomicI64::new(0),
                 backfill_running: AtomicBool::new(false),
@@ -799,6 +1006,10 @@ mod tests {
             return idx2;
         }
         idx
+    }
+
+    async fn open_idx(root: &Path, with_embedder: Option<Arc<dyn Embedder>>) -> Arc<WorkspaceIndex> {
+        open_idx_with(root, with_embedder, 3).await
     }
 
     #[tokio::test]
@@ -1036,5 +1247,275 @@ mod tests {
             hits.iter().any(|h| h.path == "设定.md"),
             "向量通道应命中: {hits:?}"
         );
+    }
+
+    // ─── 索引库 GC（孤儿清理）────────────────────────────
+
+    /// `open` 必须写下 workdir 与使用时刻——GC 的判定依据
+    #[tokio::test]
+    async fn open_records_workdir_and_last_used_at() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("index").join("ws.db");
+        let workdir = dir.path().join("ws");
+        std::fs::create_dir_all(&workdir).unwrap();
+        let idx =
+            WorkspaceIndex::open(db, workdir.clone(), IndexPolicy::default(), None).unwrap();
+        let expected = workdir.canonicalize().unwrap().to_string_lossy().to_string();
+        let conn = idx.conn.lock().unwrap();
+        assert_eq!(
+            read_meta(&conn, META_WORKDIR).as_deref(),
+            Some(expected.as_str()),
+            "应记录工作区绝对路径（库名的路径哈希不可反解）"
+        );
+        assert!(read_meta(&conn, META_LAST_USED_AT).is_some(), "应记录使用时刻");
+    }
+
+    /// GC：只删「工作区不存在 + 超宽限期」；三种保护各验一次
+    #[tokio::test]
+    async fn prune_removes_only_stale_orphans() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("index");
+        std::fs::create_dir_all(&root).unwrap();
+
+        // 1) 孤儿 + 超期 → 应删
+        let orphan_ws = dir.path().join("gone");
+        std::fs::create_dir_all(&orphan_ws).unwrap();
+        let orphan_db = root.join("gone-aaaaaaaa.db");
+        {
+            let _ = WorkspaceIndex::open(
+                orphan_db.clone(),
+                orphan_ws.clone(),
+                IndexPolicy::default(),
+                None,
+            )
+            .unwrap();
+        }
+        std::fs::remove_dir_all(&orphan_ws).unwrap(); // 工作区消失
+        // 把使用时刻回拨到宽限期之外（刚建的库当然还在宽限期内）
+        {
+            let conn = rusqlite::Connection::open(&orphan_db).unwrap();
+            write_meta(
+                &conn,
+                META_LAST_USED_AT,
+                &(now_ms() - DEFAULT_PRUNE_GRACE_MS - 1).to_string(),
+            )
+            .unwrap();
+        }
+
+        // 2) 工作区仍在 → 保留
+        let live_ws = dir.path().join("alive");
+        std::fs::create_dir_all(&live_ws).unwrap();
+        let live_db = root.join("alive-bbbbbbbb.db");
+        let _live =
+            WorkspaceIndex::open(live_db.clone(), live_ws, IndexPolicy::default(), None).unwrap();
+
+        // 3) 孤儿但在宽限期内 → 保留
+        let recent_ws = dir.path().join("recent");
+        std::fs::create_dir_all(&recent_ws).unwrap();
+        let recent_db = root.join("recent-cccccccc.db");
+        {
+            let _ = WorkspaceIndex::open(
+                recent_db.clone(),
+                recent_ws.clone(),
+                IndexPolicy::default(),
+                None,
+            )
+            .unwrap();
+        }
+        std::fs::remove_dir_all(&recent_ws).unwrap();
+
+        let now = now_ms();
+        let report = prune_orphans(&root, now, DEFAULT_PRUNE_GRACE_MS, &HashSet::new());
+        assert_eq!(report.scanned, 3, "{report:?}");
+        assert_eq!(report.removed, 1, "只有超期孤儿应被删: {report:?}");
+        assert_eq!(report.kept_alive, 1);
+        assert_eq!(report.kept_recent, 1);
+        assert!(!orphan_db.exists(), "超期孤儿库应已删除");
+        assert!(live_db.exists(), "工作区仍存在的库不得删");
+        assert!(recent_db.exists(), "宽限期内的库不得删");
+
+        // 宽限期 0 → 宽限期内的孤儿也超期 → 删
+        let report2 = prune_orphans(&root, now, 0, &HashSet::new());
+        assert_eq!(report2.removed, 1, "{report2:?}");
+        assert!(!recent_db.exists());
+        assert!(live_db.exists(), "工作区仍存在的库始终不得删");
+    }
+
+    /// GC：活跃实例与「无 meta 记录的老库」都必须保留（保守取向）
+    #[tokio::test]
+    async fn prune_skips_active_and_unknown() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("index");
+        std::fs::create_dir_all(&root).unwrap();
+
+        // 活跃实例：连它的工作区也「消失」，仍不得删
+        let ws = dir.path().join("busy");
+        std::fs::create_dir_all(&ws).unwrap();
+        let db = root.join("busy-dddddddd.db");
+        let _idx =
+            WorkspaceIndex::open(db.clone(), ws.clone(), IndexPolicy::default(), None).unwrap();
+        std::fs::remove_dir_all(&ws).unwrap();
+        let mut active = HashSet::new();
+        active.insert(db.clone());
+        let report = prune_orphans(&root, now_ms(), 0, &active);
+        assert_eq!(report.skipped_active, 1, "{report:?}");
+        assert!(db.exists(), "活跃实例不得删");
+
+        // 无 meta 记录的老库（本机制引入前建的）→ 保守保留
+        let legacy = root.join("legacy-eeeeeeee.db");
+        {
+            let conn = rusqlite::Connection::open(&legacy).unwrap();
+            conn.execute_batch("CREATE TABLE files (path TEXT PRIMARY KEY);")
+                .unwrap();
+        }
+        let report2 = prune_orphans(&root, now_ms(), 0, &HashSet::new());
+        assert_eq!(report2.skipped_unknown, 1, "{report2:?}");
+        assert!(legacy.exists(), "无 meta 记录的老库不得自动删（需手动清索引目录）");
+    }
+
+    /// `active_index_paths` 应反映注册表内容（GC 排除依据）
+    #[tokio::test]
+    async fn active_index_paths_reflects_registry() {
+        registry_clear().await;
+        let dir = tempfile::tempdir().unwrap();
+        let ws = dir.path().join("ws");
+        std::fs::create_dir_all(&ws).unwrap();
+        let idx = get_or_open(&dir.path().join("index"), &ws, IndexPolicy::default(), None)
+            .await
+            .unwrap();
+        let active = active_index_paths().await;
+        assert!(active.contains(idx.db_path()), "活跃库应出现在排除集合: {active:?}");
+        registry_clear().await;
+        assert!(active_index_paths().await.is_empty(), "清空后应为空");
+    }
+
+    // ─── 规模压测（默认忽略）──────────────────────────────
+
+    /// 「2 万 chunk 量级」的建索引与检索延迟实测
+    ///
+    /// 文档里「2 万 chunk 落在 `SqliteVectorIndex` 内存暴力甜点区」此前只是**测算**；
+    /// 本测试把它变成**实测**。用确定性假嵌入器（不调端点）→ 可重复、零成本；
+    /// 只测**规模与延迟**，不评语义质量（语义由 `tests/eval_retrieval.rs` 真端点评）。
+    ///
+    /// 运行：`cargo test --offline --lib -- --ignored --nocapture scale_benchmark`
+    #[tokio::test]
+    #[ignore = "规模压测（IO 密集，数分钟）：cargo test --offline --lib -- --ignored --nocapture"]
+    async fn scale_benchmark_report() {
+        use std::time::Instant;
+
+        const FILES: usize = 500;
+        const BLOCKS_PER_FILE: usize = 40; // 每块 ≈ 1 行 ≈ 1 chunk（max_chars=500）
+        const BLOCK_CHARS: usize = 450;
+        const QUERIES: usize = 20;
+        const DIM: usize = 1024; // 对齐 bge-m3
+
+        let dir = tempfile::tempdir().unwrap();
+        let ws = dir.path().join("ws");
+        std::fs::create_dir_all(&ws).unwrap();
+
+        // 语料：500 × 40 ≈ 2 万块（约 27 MB UTF-8）
+        let t = Instant::now();
+        for f in 0..FILES {
+            let mut body = String::new();
+            for b in 0..BLOCKS_PER_FILE {
+                body.push_str(&format!(
+                    "文档{f} 段落{b} {} 关键词{} 星门 灵能 遗迹 命名\n",
+                    "测".repeat(BLOCK_CHARS - 40),
+                    b % 17
+                ));
+            }
+            std::fs::write(ws.join(format!("doc{f:04}.md")), body).unwrap();
+        }
+        println!(
+            "[规模压测] 合成语料 {FILES} 文件 × {BLOCKS_PER_FILE} 块 ≈ {} 块，生成 {} ms",
+            FILES * BLOCKS_PER_FILE,
+            t.elapsed().as_millis()
+        );
+
+        // 分阶段计时：定位「扫描 / 读+分块 / 落库+BM25」各占多少
+        let policy = IndexPolicy::default();
+        let t = Instant::now();
+        let entries = scan_files(&ws, &policy);
+        let scan_ms = t.elapsed().as_millis();
+        let t = Instant::now();
+        let mut total_chunks = 0usize;
+        for e in &entries {
+            if let Ok(c) = std::fs::read_to_string(&e.abs) {
+                total_chunks +=
+                    crate::chunker::chunk_text_for(&c, &policy.chunk, policy.boundary_hint(&e.abs))
+                        .len();
+            }
+        }
+        let chunk_ms = t.elapsed().as_millis();
+        println!(
+            "[规模压测] 分阶段: 扫描 {scan_ms} ms / 读+分块 {chunk_ms} ms（{total_chunks} 块）\
+             → 余下即落库 + BM25 分词"
+        );
+
+        // 建索引（扫描 + 分块 + 落库 + BM25-jieba）
+        let embedder: Arc<dyn Embedder> = Arc::new(HashEmbedder { dim: DIM });
+        let t = Instant::now();
+        let idx = open_idx_with(dir.path(), Some(embedder), DIM).await;
+        let sync_ms = t.elapsed().as_millis();
+        let stats = idx.stats();
+        println!(
+            "[规模压测] 建索引（扫描+分块+落库+BM25）: {sync_ms} ms → 文件 {} / 块 {}",
+            stats.files, stats.chunks
+        );
+
+        // 向量补齐（含 SQLite BLOB 写入）
+        let t = Instant::now();
+        idx.spawn_backfill();
+        for _ in 0..6000 {
+            if idx.stats().vectors >= idx.stats().chunks {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+        let stats = idx.stats();
+        println!(
+            "[规模压测] 向量补齐: {} ms → {} 条（dim {DIM}，约 {} MB BLOB）",
+            t.elapsed().as_millis(),
+            stats.vectors,
+            stats.vectors * DIM * 4 / (1024 * 1024)
+        );
+
+        // 检索延迟（关键词通道 / 混合通道）
+        let queries: Vec<String> = (0..QUERIES)
+            .map(|i| format!("关键词{} 星门 灵界{i}", i % 17))
+            .collect();
+        let (mut kw, mut hy) = (Vec::new(), Vec::new());
+        for q in &queries {
+            let t = Instant::now();
+            let _ = idx.keyword.read().map(|k| k.search(q, 8));
+            kw.push(t.elapsed().as_secs_f64() * 1000.0);
+            let t = Instant::now();
+            let _ = idx.search(q, 8, None, None).await;
+            hy.push(t.elapsed().as_secs_f64() * 1000.0);
+        }
+        let avg = |v: &[f64]| v.iter().sum::<f64>() / v.len() as f64;
+        let p95 = |v: &[f64]| {
+            let mut s = v.to_vec();
+            s.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+            s[((s.len() as f64 * 0.95) as usize).min(s.len() - 1)]
+        };
+        println!(
+            "[规模压测] 检索延迟（{QUERIES} 次）: 关键词 avg {:.1} ms / p95 {:.1} ms ｜ \
+             混合（含查询向量化 + 余弦 + RRF）avg {:.1} ms / p95 {:.1} ms",
+            avg(&kw),
+            p95(&kw),
+            avg(&hy),
+            p95(&hy)
+        );
+
+        // 块数取决于分块器打包（每块约 2 行 ≈ 900 字，`max_chars` 是软目标），
+        // 故只校验量级而不是精确值
+        assert_eq!(stats.files, FILES, "文件应全部入索引");
+        assert!(
+            stats.chunks >= FILES * BLOCKS_PER_FILE / 2,
+            "块数应达万级，实际 {}",
+            stats.chunks
+        );
+        assert_eq!(stats.vectors, stats.chunks, "向量应全部补齐");
     }
 }

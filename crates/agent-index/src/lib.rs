@@ -24,6 +24,10 @@
 //!   （见 `index::CHUNK_SCHEMA_VERSION`）→ 打开库时旧索引**整体作废**（清块 / 文件行 /
 //!   向量），**下一次检索或同步即全量重建**（`search` 自带懒同步）；不能依赖增量 diff
 //!   ——它只看 size+mtime，规则变了而文件没变时会静默沿用旧分块。
+//! - **孤儿库 GC**：库名里的路径指纹**不可反解**，故 meta 另记 `workdir` 与
+//!   `last_used_at`；[`prune_orphans`] 在「工作区不存在 **且** 超宽限期 **且** 非活跃实例」
+//!   三重条件下清理（默认宽限 30 天，覆盖移动盘未插入 / 网络盘离线等暂时不可达）。
+//!   本机制引入前建的库无 meta 记录 → **永不自动删**（手动删索引目录即可）。
 //! - **内容外发边界**：仅「白名单扩展名 + 排除目录 + 单文件上限」内的文件文本会被分块，
 //!   且**仅当启用语义检索（配置了 embedding 端点）时**块文本才会发往端点（向量通道）；
 //!   未配置时纯本地 BM25（零外发）。
@@ -39,6 +43,7 @@ pub mod policy;
 
 pub use chunker::{BoundaryHint, ChunkParams, RawChunk, chunk_text, chunk_text_for};
 pub use index::{
-    IndexStats, SyncReport, WorkspaceHit, WorkspaceIndex, get_or_open, registry_clear,
+    DEFAULT_PRUNE_GRACE_MS, IndexStats, PruneReport, SyncReport, WorkspaceHit, WorkspaceIndex,
+    active_index_paths, get_or_open, prune_orphans, registry_clear,
 };
 pub use policy::{FileEntry, IndexPolicy, scan_files};

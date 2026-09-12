@@ -1250,20 +1250,25 @@ impl MemoryCenterAccessor {
         stack.clone()
     }
 
-    /// 写前去重：候选来自关键词检索，相似度用「字符二元组 Jaccard」近似    ///
-    /// **这是 A2 语义检索落地前的占位实现**——上游 2026 年调研里「相似度 > 0.92」
-    /// 指的是 embedding 余弦相似度，而当前检索器只有关键词通道。故此处：
-    /// 1. 用内容前缀作为探测词取得候选（与摘要标题的产生方式一致：首段文本）；
-    /// 2. 对候选的摘要文本做字符二元组 Jaccard，与阈值比较。
+    /// 写前去重：**两条通道各自定额**，判定口径不混用
     ///
-    /// **A2 戊1（2026-09-12）**：语义通道可用时**优先走向量余弦**（阈值 0.92 的
-    /// 原始语义）；向量化失败 / 未配置时回退本文本近似路径。
+    /// 1. **语义通道（首选）**：内容向量化 → 与已有摘要向量比余弦，取最高分；
+    ///    阈值 = `cosine_threshold`（默认 `COSINE_DEDUP_THRESHOLD_DEFAULT` = 0.75，实测标定）。
+    /// 2. **文本近似回退**（语义未配置 / 向量化失败）：候选来自关键词检索，相似度用
+    ///    字符二元组 Jaccard，阈值 = [`JACCARD_DEDUP_THRESHOLD`]（0.92）。
+    ///
+    /// **为什么回退不看 `cosine_threshold`**：Jaccard 与余弦**不同量纲**——同一句 26 字文本
+    /// 的 Jaccard ≈ 0.926，而真实同义改写的余弦只有 0.813–0.887；共用一个数必有一侧失效
+    /// （这正是 2026-09-12 修掉的问题）。
+    ///
+    /// **语义通道可用时不回退**：两条通道判定口径不同，混用会引入假阳性/假阴性交织。
+    /// 语义通道给出「无超阈候选」即是结论，只有**向量化失败**才落到回退。
     ///
     /// **保守取向**：候选为空即判「不重复」——宁可重复写入，不可误判吞掉一条新记忆。
     async fn find_duplicate(
         &self,
         content: &str,
-        threshold: f32,
+        cosine_threshold: f32,
     ) -> std::result::Result<Option<(String, f32)>, MemoryError> {
         // A2 戊1：语义通道优先（候选 = 本会话已有摘要向量）
         if let Some(stack) = self.sem_stack().await {
@@ -1275,7 +1280,7 @@ impl MemoryCenterAccessor {
             let allow: HashSet<String> = summaries.iter().map(|s| s.hook_id.clone()).collect();
             if !allow.is_empty() {
                 match stack.find_similar(content, 5, &allow).await {
-                    Some((hook_id, score)) if score >= threshold => {
+                    Some((hook_id, score)) if score >= cosine_threshold => {
                         return Ok(Some((hook_id, score)));
                     }
                     // 语义通道可用且无超阈候选 → 判定不重复（不再回退文本近似：
@@ -1287,7 +1292,8 @@ impl MemoryCenterAccessor {
             }
         }
 
-        // 回退路径：字符二元组 Jaccard 文本近似（A1 占位实现，语义同前）
+        // 回退路径：字符二元组 Jaccard 文本近似
+        // 阈值**独立于** cosine_threshold（不同量纲）——见 JACCARD_DEDUP_THRESHOLD 的说明
         // 探测词：取内容前 64 字符（摘要标题取首条消息前 80 字符，二者量级对齐）
         let probe: String = content.chars().take(64).collect();
         let candidates = self
@@ -1307,7 +1313,9 @@ impl MemoryCenterAccessor {
                 hay.push_str(abs);
             }
             let score = bigram_jaccard(content, &hay);
-            if score >= threshold && best.as_ref().map(|(_, s)| score > *s).unwrap_or(true) {
+            if score >= JACCARD_DEDUP_THRESHOLD
+                && best.as_ref().map(|(_, s)| score > *s).unwrap_or(true)
+            {
                 best = Some((c.hook_id.clone(), score));
             }
         }
@@ -1449,9 +1457,23 @@ fn estimate_tokens(text: &str) -> usize {
     cjk + ascii / 4 + 1
 }
 
+/// **文本近似回退通道**的去重阈值（**字符二元组 Jaccard** 量纲）
+///
+/// 与语义余弦阈值（`agent_kernel::memory::COSINE_DEDUP_THRESHOLD_DEFAULT` = 0.75）
+/// **不同量纲，绝不可共用**：
+///
+/// | 度量 | 同一句文本 | 真实同义改写 | 同主题新事实 |
+/// |---|---|---|---|
+/// | 字符二元组 Jaccard | ≈ 0.926（26 字） | 视改写幅度剧烈波动 | 低 |
+/// | embedding 余弦（bge-m3） | ≈ 1.0 | **0.813–0.887** | ≤ 0.691 |
+///
+/// 故 0.92 只对 Jaccard 成立、对余弦偏高约 0.11（实测使真重复全部漏判）。
+/// 回退通道是**降级路径**（语义通道未配置 / 向量化失败），单独定额即可，不对外暴露旋钮。
+pub const JACCARD_DEDUP_THRESHOLD: f32 = 0.92;
+
 /// 字符二元组 Jaccard 相似度（0.0–1.0）
 ///
-/// 用于 [`MemoryCenterAccessor::find_duplicate`] 的写前去重近似。
+/// 用于 [`MemoryCenterAccessor::find_duplicate`] 的写前去重近似（**回退路径**）。
 ///
 /// ## 为什么用二元组而不是分词
 ///
@@ -1859,7 +1881,10 @@ mod tests {
             .unwrap();
         match second {
             WriteOutcome::Noop { reason: NoopReason::Duplicate { score, .. } } => {
-                assert!(score >= 0.92, "重复判定的相似度应达阈值，实际 {score}");
+                assert!(
+                    score >= JACCARD_DEDUP_THRESHOLD,
+                    "重复判定的相似度应达 Jaccard 阈值，实际 {score}"
+                );
             }
             other => panic!("重复内容应判为 Noop(Duplicate)，实际 {other:?}"),
         }
@@ -1873,6 +1898,59 @@ mod tests {
             .await
             .unwrap();
         assert!(matches!(forced, WriteOutcome::Added { .. }), "跳过去重后应写入");
+    }
+
+    /// 阈值契约（2026-09-12 标定）：余弦阈值必须落在实测可分区间内，且为默认值
+    #[test]
+    fn cosine_dedup_threshold_fits_measured_band() {
+        use agent_runtime::memory::COSINE_DEDUP_THRESHOLD_DEFAULT as COSINE;
+        // 实测（tests/eval_semantic.rs·bge-m3）：同义改写余弦下界 0.8131 / 同主题新事实上界 0.6910
+        assert!(
+            COSINE > 0.6910 && COSINE < 0.8131,
+            "余弦去重阈值必须落在实测可分区间 (0.691, 0.813) 内，实际 {COSINE}"
+        );
+        assert_eq!(
+            MemoryWriteOptions::default().dedup_threshold,
+            COSINE,
+            "默认写入选项应使用该常量（防默认值漂移）"
+        );
+        // 两条通道不同量纲：Jaccard 阈值必须显著高于余弦阈值
+        assert!(
+            JACCARD_DEDUP_THRESHOLD > COSINE,
+            "Jaccard 与余弦不同量纲，阈值不应相同（{JACCARD_DEDUP_THRESHOLD} vs {COSINE}）"
+        );
+    }
+
+    /// 回退通道（Jaccard）**不使用**余弦阈值——两条通道各自定额
+    ///
+    /// 这是「度量与阈值不可跨度量共用」的可执行契约：若回退错误沿用 `dedup_threshold`，
+    /// 调用方传一个偏高的值就会**意外关掉文本近似去重**（反之传偏低值则会误并）。
+    #[tokio::test]
+    async fn fallback_dedup_ignores_cosine_threshold() {
+        let accessor = make_accessor(); // 无语义配置 → 只走回退路径
+        let text = "项目使用 Rsproxy 作为 cargo 镜像源，直连可用";
+        let first = accessor.write(MemoryWriteEntry::add(text), None).await.unwrap();
+        assert!(matches!(first, WriteOutcome::Added { .. }), "{first:?}");
+
+        // 传一个远高于 Jaccard 合理区的「余弦阈值」（0.999）
+        let opts = MemoryWriteOptions {
+            dedup_threshold: 0.999,
+            ..Default::default()
+        };
+        let again = accessor
+            .write(MemoryWriteEntry::add(text), Some(opts))
+            .await
+            .unwrap();
+        assert!(
+            matches!(
+                again,
+                WriteOutcome::Noop {
+                    reason: NoopReason::Duplicate { .. },
+                    ..
+                }
+            ),
+            "回退通道不应沿用余弦阈值（否则该参数会意外关掉文本近似去重）: {again:?}"
+        );
     }
 
     /// `write(Delete)` 按 hook_id 删除；重复删除判为未命中
@@ -2100,10 +2178,12 @@ mod tests {
     /// 新旧内容天然相似（同一事实的修正），若走去重会被判重复而返回 Noop，
     /// 取代永远无法完成。此测试锁住该行为。
     ///
-    /// **内容长度说明**：去重用的「字符二元组 Jaccard」对内容长度敏感——
+    /// **内容长度说明**：回退通道去重用的「字符二元组 Jaccard」对内容长度敏感——
     /// 摘要标题恒带 `...` 后缀会稀释相似度，故短内容（约 36 字以下）即使完全
-    /// 相同也达不到 0.92 阈值（实测 15 字 → 0.875）。用例因此选足够长的文本，
-    /// 使对照组**确定性地**触发去重，从而证明「Update 确实绕开了它」。
+    /// 相同也达不到 `JACCARD_DEDUP_THRESHOLD`（0.92；实测 15 字 → 0.875）。用例因此选
+    /// 足够长的文本，使对照组**确定性地**触发去重，从而证明「Update 确实绕开了它」。
+    ///
+    /// 注：该长度敏感性只在**回退路径**存在；语义通道（余弦）对长度不敏感。
     #[tokio::test]
     async fn update_skips_dedup_so_similar_content_can_supersede() {
         let accessor = make_accessor();
@@ -2622,7 +2702,7 @@ mod tests {
             .unwrap();
         assert!(matches!(first, WriteOutcome::Added { .. }), "{first:?}");
 
-        // 换一种说法但向量相同 → 判重（阈值 0.92 的原始语义）
+        // 换一种说法但向量相同 → 判重（语义通道，阈值 COSINE_DEDUP_THRESHOLD_DEFAULT = 0.75）
         let dup = accessor
             .write(MemoryWriteEntry::add("内容乙：换个说法的同一件事"), None)
             .await
