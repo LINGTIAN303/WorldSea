@@ -46,7 +46,7 @@ impl SecureStore {
     }
 
     /// 写入（覆盖语义，幂等）
-    async fn set(&self, key: &str, value: &str) -> Result<(), String> {
+    pub(crate) async fn set(&self, key: &str, value: &str) -> Result<(), String> {
         sqlx::query("INSERT OR REPLACE INTO secure_store (key, value) VALUES (?, ?)")
             .bind(key)
             .bind(value)
@@ -57,7 +57,7 @@ impl SecureStore {
     }
 
     /// 读取（无返回 None）
-    async fn get(&self, key: &str) -> Result<Option<String>, String> {
+    pub(crate) async fn get(&self, key: &str) -> Result<Option<String>, String> {
         let row: Option<(String,)> = sqlx::query_as("SELECT value FROM secure_store WHERE key = ?")
             .bind(key)
             .fetch_optional(&self.pool)
@@ -67,7 +67,7 @@ impl SecureStore {
     }
 
     /// 删除（返回是否命中）
-    async fn delete(&self, key: &str) -> Result<bool, String> {
+    pub(crate) async fn delete(&self, key: &str) -> Result<bool, String> {
         let res = sqlx::query("DELETE FROM secure_store WHERE key = ?")
             .bind(key)
             .execute(&self.pool)

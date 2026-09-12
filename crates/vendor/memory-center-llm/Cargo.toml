@@ -1,0 +1,30 @@
+# memory-center-llm（WorldSea vendor 版）
+# 来源：D:\本地化AI\MemoryCenter\crates\memory-center-llm
+# LLM/Embedding HTTP 客户端（隔离 reqwest 依赖），与 MemoryCenter 项目分叉独立演进
+# 已扁平化 workspace 依赖（WorldSea 无根 workspace，各 crate 独立编译）
+#
+# 用途（A2 戊1 语义检索）：HttpEmbedder 提供 OpenAI 兼容 /v1/embeddings 实现；
+# 其余模块（detector/scorer/summary_generator/anchor_generator）保留原样，
+# 供后续 LLM 档摘要（甲2）等接线复用。
+
+[package]
+name = "memory-center-llm"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+description = "MemoryCenter LLM 客户端组件 - HTTP LLM 检测器/评分器/Embedder（隔离 reqwest 依赖 · WorldSea vendor 复制版）"
+license = "MIT"
+
+[dependencies]
+memory-center-core = { path = "../memory-center-core" }
+# HTTP 客户端（隔离 reqwest 依赖；与 src-tauri 的 reqwest 0.12 同主版本，feature 合并）
+reqwest = { version = "0.12", features = ["json"] }
+async-trait = "0.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tracing = "0.1"
+
+[dev-dependencies]
+tokio = { version = "1.0", features = ["rt", "macros"] }
+uuid = { version = "1.0", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }

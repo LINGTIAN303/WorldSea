@@ -47,6 +47,9 @@ mod mcp_commands;
 mod skills_store;
 // 安全存储命令（cmd_secure_store/load/delete）：API Key 落应用数据目录 SQLite
 mod secure_store;
+
+// A2 戊1：语义检索配置命令（端点 / 模型 / 维度 / Key + 索引状态与重建）
+mod semantic_commands;
 // [HTTP-BRIDGE] 临时：浏览器直连真实后端的 HTTP 服务（axum RPC + SSE）；移除时删除本段与 http_bridge/ 目录
 mod http_bridge;
 // [HTTP-BRIDGE] 图布局/图分析算法命令（cmd_algo_*）：薄封装 worldsea-core 算法，桌面 IPC + HTTP RPC 双端
@@ -127,6 +130,11 @@ pub fn run() {
             commands::memory_archive,
             commands::memory_load_chunk,
             commands::memory_boundary,
+            // A2 戊1：语义检索配置与索引（读/存/状态/重建）
+            semantic_commands::cmd_semantic_config_get,
+            semantic_commands::cmd_semantic_config_set,
+            semantic_commands::cmd_semantic_status,
+            semantic_commands::cmd_semantic_rebuild,
             commands::send_message,
             commands::cmd_agent_confirm,
             commands::cmd_agent_set_security_level,
@@ -382,7 +390,20 @@ pub fn run() {
                     .await
                     .expect("初始化安全存储数据库失败")
             });
-            app.manage(secure_store);
+            app.manage(secure_store.clone());
+
+            // A2 戊1：语义检索配置（共享配置句柄 + 配置存储）
+            // 先加载（读 JSON + Key 装配进共享句柄）再注入服务：启动即按已保存配置生效；
+            // 保存配置后各会话即时生效（访问器与配置层引用同一 Arc）。
+            let semantic_shared: Arc<std::sync::RwLock<Option<agent_commands::SemanticConfig>>> =
+                Arc::new(std::sync::RwLock::new(None));
+            let semantic_store = Arc::new(semantic_commands::SemanticStore::new(
+                app_data.join("worldsea").join("semantic.json"),
+                secure_store,
+                semantic_shared.clone(),
+            ));
+            tauri::async_runtime::block_on(semantic_store.load_into_shared());
+            app.manage(semantic_store);
             // B3 搜索 Provider 降级链：global 管理，供 web_search 工具 + set_search_config 命令共享
             let search_chain = Arc::new(search_commands::SearchProviderChain::new(
                 search_commands::SearchConfig::default(),
@@ -408,6 +429,8 @@ pub fn run() {
                     // 记忆后端：传入应用数据目录子路径，new_session 时为每个会话构造
                     // MemoryCenterAccessor 并注入 AgentLoop（阶段 2：让桌面生效）
                     .with_memory_root(Some(app_data.join("worldsea").join("memory")))
+                    // A2 戊1：语义检索配置（共享句柄；配置保存后各会话即时生效）
+                    .with_semantic_config(semantic_shared)
                     // 会话持久化：注入 SQLite 会话存储，会话变更写穿 + 启动恢复
                     .with_session_store(session_store)
                     // 场景底座（2026-09-09）：场景工作区根（严格硬隔离——场景会话 workdir

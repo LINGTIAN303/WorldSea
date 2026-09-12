@@ -9,6 +9,7 @@ pub mod memory_md;
 pub mod model_profile;
 pub mod raw_store;
 pub mod reconcile;
+pub mod semantic;
 
 use async_trait::async_trait;
 use std::collections::HashSet;
@@ -65,6 +66,10 @@ pub struct MemoryCenterAccessor {
     reconcile_summarizer: Option<Arc<dyn ReconcileSummarizer>>,
     /// 常驻文档渲染策略（A1 乙3①；默认 [`memory_md::MemoryMdPolicy::default`]）
     memory_md_policy: memory_md::MemoryMdPolicy,
+    /// 语义检索句柄（A2 戊1；`None` = 未接线，召回/去重走既有文本路径）
+    ///
+    /// 句柄内配置为**共享可写**：装配层改配置后各会话即时生效。
+    semantics: Option<semantic::SemanticHandle>,
 }
 
 impl MemoryCenterAccessor {
@@ -86,14 +91,25 @@ impl MemoryCenterAccessor {
     ) -> crate::Result<Self> {
         let root = root.into();
         let storage: Arc<dyn Storage> = Arc::new(SqliteStorage::new(root.clone(), project_id.clone())?);
-        let ext = match ExtStore::open(root, project_id.clone()) {
+        let ext = match ExtStore::open(root.clone(), project_id.clone()) {
             Ok(s) => Some(s),
             Err(e) => {
                 tracing::warn!("打开记忆扩展库失败（A1 甲4 能力不可用）: {e}");
                 None
             }
         };
-        Ok(Self::new_with_ext(storage, session_id, project_id, archive_config, ext))
+        // A2 戊1：语义检索句柄（向量库与 memories.db 同分片；配置默认为空=未启用，
+        // 由装配层经 [`Self::with_semantics`] 注入共享配置后即时生效）
+        let shard = match &project_id {
+            Some(pid) => root.join("projects").join(pid),
+            None => root.join("projects").join("_default"),
+        };
+        let handle = semantic::SemanticHandle::new(
+            Arc::new(std::sync::RwLock::new(None)),
+            shard.join("memory_vec.db"),
+        );
+        Ok(Self::new_with_ext(storage, session_id, project_id, archive_config, ext)
+            .with_semantics(handle))
     }
 
     /// 创建适配层（可注入任意存储后端）
@@ -135,7 +151,18 @@ impl MemoryCenterAccessor {
             reconcile_summarizer: None,
             // A1 乙3①：常驻文档默认策略（1500 字符 / 20 条 / 单条 160 字）
             memory_md_policy: memory_md::MemoryMdPolicy::default(),
+            // A2 戊1：语义检索句柄默认未接线（由 new_sqlite / with_semantics 注入）
+            semantics: None,
         }
+    }
+
+    /// 注入语义检索句柄（链式，A2 戊1）
+    ///
+    /// 注入后：`recall` 升级为混合检索（BM25 + 向量 + RRF）、写前去重升级为
+    /// 语义余弦（失败回退文本近似）、写入/删除同步索引。未注入 = 行为与接线前一致。
+    pub fn with_semantics(mut self, handle: semantic::SemanticHandle) -> Self {
+        self.semantics = Some(handle);
+        self
     }
 
     /// 注入常驻文档渲染策略（链式，A1 乙3①）
@@ -211,21 +238,75 @@ impl MemoryAccessor for MemoryCenterAccessor {
         options: Option<MemoryRecallOptions>,
     ) -> std::result::Result<Vec<MemoryRecallResult>, MemoryError> {
         let opts = options.unwrap_or_default();
+        let top_k = opts.top_k.max(1) as usize;
 
-        // 关键词预筛选：返回相关度 > 0 的摘要视图（按相关度降序）
-        let summaries = self
-            .retriever
-            .filter_hooks_by_keyword(&query)
-            .await
-            .map_err(|e| MemoryError::RecallFailed(e.to_string()))?;
+        // A2 戊1：语义通道可用 → 混合检索（BM25 + 向量 + RRF，会话内过滤）；
+        // 不可用（未配置 / 建栈失败）→ 既有「关键词预筛选」路径（行为零变化）
+        let mut results: Vec<MemoryRecallResult> = 'recall: {
+            if let Some(stack) = self.sem_stack().await {
+                let summaries = self
+                    .retriever
+                    .get_summaries()
+                    .await
+                    .map_err(|e| MemoryError::RecallFailed(e.to_string()))?;
+                if summaries.is_empty() {
+                    break 'recall Vec::new();
+                }
+                let stack = self.sem_seed(&stack, &summaries).await;
+                let allow: HashSet<String> =
+                    summaries.iter().map(|s| s.hook_id.clone()).collect();
+                let by_hook: std::collections::HashMap<&str, &SummaryView> = summaries
+                    .iter()
+                    .map(|s| (s.hook_id.as_str(), s))
+                    .collect();
+                let hits = stack.search(&query, top_k, &allow).await;
+                let mapped: Vec<MemoryRecallResult> = hits
+                    .into_iter()
+                    .filter_map(|hit| {
+                        by_hook.get(hit.hook_id.as_str()).map(|view| {
+                            let mut r = summary_to_recall_result(view, &query);
+                            // 命中来源为语义/混合时标注（观察语义通道是否生效）
+                            let via_vector = matches!(
+                                hit.source,
+                                memory_center_core::semantic::RetrievalSource::Semantic
+                                    | memory_center_core::semantic::RetrievalSource::Hybrid
+                            );
+                            if via_vector && !r.matched_fields.iter().any(|f| f == "embedding") {
+                                r.matched_fields.push("embedding".to_string());
+                            }
+                            r
+                        })
+                    })
+                    .collect();
+                if !mapped.is_empty() {
+                    break 'recall mapped; // 混合通道有结果 → 用它
+                }
+                // 混合通道无结果 → 回退关键词路径（保持原有召回下限）
+                let mut kw = self
+                    .retriever
+                    .filter_hooks_by_keyword(&query)
+                    .await
+                    .map_err(|e| MemoryError::RecallFailed(e.to_string()))?;
+                kw.truncate(top_k);
+                break 'recall kw
+                    .into_iter()
+                    .map(|s| summary_to_recall_result(&s, &query))
+                    .collect();
+            }
 
-        let mut results: Vec<MemoryRecallResult> = summaries
-            .into_iter()
-            .map(|s| summary_to_recall_result(&s, &query))
-            .collect();
+            // 既有路径：关键词预筛选（返回相关度 > 0 的摘要视图，按相关度降序）
+            let summaries = self
+                .retriever
+                .filter_hooks_by_keyword(&query)
+                .await
+                .map_err(|e| MemoryError::RecallFailed(e.to_string()))?;
+            summaries
+                .into_iter()
+                .map(|s| summary_to_recall_result(&s, &query))
+                .collect()
+        };
 
         // 应用 top_k（按相关度降序，取前 N）
-        let top_k = opts.top_k.max(1) as usize;
         if results.len() > top_k {
             results.truncate(top_k);
         }
@@ -260,6 +341,38 @@ impl MemoryAccessor for MemoryCenterAccessor {
         }
 
         Ok(results)
+    }
+
+    /// 重建语义检索索引（A2 戊1）：清空两通道 → 用本会话全部摘要重灌
+    ///
+    /// 用途：换模型（维度变更已自动清空旧向量）、索引损坏修复、手动「重建索引」。
+    /// 返回索引文档数；语义未启用（无配置）时返回错误，调用方据此提示先配置。
+    async fn rebuild_semantic_index(&self) -> std::result::Result<usize, MemoryError> {
+        let stack = self.sem_stack().await.ok_or_else(|| {
+            MemoryError::Other("语义检索未启用（未配置 embedding 端点或端点不可用）".into())
+        })?;
+        let summaries = self
+            .retriever
+            .get_summaries()
+            .await
+            .map_err(|e| MemoryError::RecallFailed(e.to_string()))?;
+        let mut docs = Vec::with_capacity(summaries.len());
+        for v in &summaries {
+            docs.push((
+                v.hook_id.clone(),
+                v.memory_id.clone(),
+                self.index_text_for(v).await,
+            ));
+        }
+        let count = docs.len();
+        let stats = stack.rebuild(&docs).await;
+        tracing::info!(
+            docs = count,
+            keyword = stats.keyword_len,
+            vector = stats.vector_len,
+            "语义索引重建完成（A2 戊1）"
+        );
+        Ok(count)
     }
 
     async fn inject(
@@ -787,6 +900,14 @@ impl MemoryAccessor for MemoryCenterAccessor {
                     }
                 }
 
+                // A2 戊1：索引同步（best-effort；失败不影响写入语义）
+                // 索引文本 = 摘要口径 + ext 真标签（vendor hooks.tags 列被挪用作废）
+                if let Some(stack) = self.sem_stack().await {
+                    let view = SummaryView::from(&hook);
+                    let text = self.index_text_for(&view).await;
+                    stack.index_hook(&view.hook_id, &view.memory_id, &text).await;
+                }
+
                 Ok(WriteOutcome::Added { hook_id: hook.id.to_string() })
             }
         }
@@ -1037,19 +1158,100 @@ impl MemoryCenterAccessor {
 }
 
 impl MemoryCenterAccessor {
+    /// 解析语义栈（未启用 / 建栈失败 → `None`；不播种）
+    ///
+    /// 建栈开销：向量库加载（本地）+ BM25 空索引；配置指纹不变时命中注册表复用。
+    async fn sem_stack(&self) -> Option<Arc<semantic::SemanticStack>> {
+        let handle = self.semantics.as_ref()?;
+        let config = handle.current()?;
+        match semantic::get_or_build(handle.vector_db(), &config).await {
+            Ok(stack) => Some(stack),
+            Err(e) => {
+                tracing::warn!("语义检索栈构建失败（本轮降级为关键词通道）: {e}");
+                None
+            }
+        }
+    }
+
+    /// 索引文本（摘要口径 + ext 真标签；vendor `hooks.tags` 列被挪用不作来源）
+    async fn index_text_for(&self, view: &SummaryView) -> String {
+        let ext_tags: Vec<String> = match &self.ext {
+            Some(ext) => ext
+                .tags_of(&view.hook_id)
+                .await
+                .map(|rows| rows.into_iter().map(|(t, _)| t).collect())
+                .unwrap_or_default(),
+            None => Vec::new(),
+        };
+        semantic::index_text_of(view, &ext_tags)
+    }
+
+    /// 播种（召回路径用）：关键词一次性全量 + 向量仅补缺失
+    ///
+    /// 向量补齐**失败即停**：避免在同一轮里连续撞网络超时（熔断器会兜底，但没必要
+    /// 连撞）；剩余条目留待下次召回或手动重建补齐。
+    async fn sem_seed(
+        &self,
+        stack: &Arc<semantic::SemanticStack>,
+        views: &[SummaryView],
+    ) -> Arc<semantic::SemanticStack> {
+        if !stack.keyword_seeded() {
+            for v in views {
+                let text = self.index_text_for(v).await;
+                stack.index_keyword(&v.hook_id, &v.memory_id, &text);
+            }
+            stack.mark_keyword_seeded();
+        }
+        for v in views {
+            if stack.has_vector(&v.hook_id) {
+                continue;
+            }
+            let text = self.index_text_for(v).await;
+            if !stack.index_hook(&v.hook_id, &v.memory_id, &text).await {
+                break;
+            }
+        }
+        stack.clone()
+    }
+
     /// 写前去重：候选来自关键词检索，相似度用「字符二元组 Jaccard」近似    ///
     /// **这是 A2 语义检索落地前的占位实现**——上游 2026 年调研里「相似度 > 0.92」
     /// 指的是 embedding 余弦相似度，而当前检索器只有关键词通道。故此处：
     /// 1. 用内容前缀作为探测词取得候选（与摘要标题的产生方式一致：首段文本）；
     /// 2. 对候选的摘要文本做字符二元组 Jaccard，与阈值比较。
     ///
+    /// **A2 戊1（2026-09-12）**：语义通道可用时**优先走向量余弦**（阈值 0.92 的
+    /// 原始语义）；向量化失败 / 未配置时回退本文本近似路径。
+    ///
     /// **保守取向**：候选为空即判「不重复」——宁可重复写入，不可误判吞掉一条新记忆。
-    /// A2 落地后本函数体可整体替换（签名与语义不变）。
     async fn find_duplicate(
         &self,
         content: &str,
         threshold: f32,
     ) -> std::result::Result<Option<(String, f32)>, MemoryError> {
+        // A2 戊1：语义通道优先（候选 = 本会话已有摘要向量）
+        if let Some(stack) = self.sem_stack().await {
+            let summaries = self
+                .retriever
+                .get_summaries()
+                .await
+                .map_err(|e| MemoryError::RecallFailed(e.to_string()))?;
+            let allow: HashSet<String> = summaries.iter().map(|s| s.hook_id.clone()).collect();
+            if !allow.is_empty() {
+                match stack.find_similar(content, 5, &allow).await {
+                    Some((hook_id, score)) if score >= threshold => {
+                        return Ok(Some((hook_id, score)));
+                    }
+                    // 语义通道可用且无超阈候选 → 判定不重复（不再回退文本近似：
+                    // 两条通道判定口径不同，混用会引入假阳性/假阴性交织）
+                    Some(_) => return Ok(None),
+                    // 向量化失败 → 回退文本近似
+                    None => {}
+                }
+            }
+        }
+
+        // 回退路径：字符二元组 Jaccard 文本近似（A1 占位实现，语义同前）
         // 探测词：取内容前 64 字符（摘要标题取首条消息前 80 字符，二者量级对齐）
         let probe: String = content.chars().take(64).collect();
         let candidates = self
@@ -1111,6 +1313,10 @@ impl MemoryCenterAccessor {
                 if let Err(e) = ext.delete_memory_ext(&hook.memory_id).await {
                     tracing::warn!("清理记忆扩展记录失败: {e}");
                 }
+            }
+            // A2 戊1：索引同步（删除即移出两通道；失败仅告警）
+            if let Some(stack) = self.sem_stack().await {
+                stack.remove(hook_id);
             }
             return Ok(true);
         }
@@ -2220,5 +2426,254 @@ mod tests {
         let second = accessor.render_memory_md().await.unwrap().unwrap();
         assert_eq!(first, second, "同状态两次渲染须逐字节一致");
         assert!(first.ends_with('\n'));
+    }
+
+    // ─── A2 戊1：语义检索接入（混合召回 / 语义去重 / 索引同步）────────
+
+    /// 特征假 Embedder：文本包含触发词 → 对应向量；否则零向量（不参与语义通道）
+    ///
+    /// 零向量是刻意的：向量检索对长度为 0 的向量返回空，等价于「该通道不发声」。
+    struct FeatureEmbedder {
+        triggers: Vec<(String, Vec<f32>)>,
+    }
+
+    #[async_trait]
+    impl memory_center_core::semantic::Embedder for FeatureEmbedder {
+        fn dim(&self) -> usize {
+            3
+        }
+        async fn embed(&self, text: &str) -> memory_center_core::Result<Vec<f32>> {
+            for (keyword, vector) in &self.triggers {
+                if text.contains(keyword.as_str()) {
+                    return Ok(vector.clone());
+                }
+            }
+            Ok(vec![0.0, 0.0, 0.0])
+        }
+    }
+
+    /// 建「语义已接线」的 accessor：注册表预置假向量栈 + 注入共享配置句柄
+    ///
+    /// 返回 `(accessor, stack)` —— stack 供索引进度断言（写入/删除同步）。
+    async fn make_semantic_accessor(
+        root: &std::path::Path,
+        session: &str,
+        triggers: Vec<(&str, [f32; 3])>,
+        enabled: bool,
+    ) -> (MemoryCenterAccessor, Arc<semantic::SemanticStack>) {
+        let vec_db = root
+            .join("projects")
+            .join("_default")
+            .join("memory_vec.db");
+        let config = semantic::SemanticConfig {
+            api_url: "http://127.0.0.1:9/v1/embeddings".into(),
+            api_key: "k".into(),
+            model: "test-model".into(),
+            dim: 3,
+            timeout_secs: 1,
+        };
+        let embedder: Arc<dyn memory_center_core::semantic::Embedder> =
+            Arc::new(FeatureEmbedder {
+                triggers: triggers
+                    .into_iter()
+                    .map(|(k, v)| (k.to_string(), v.to_vec()))
+                    .collect(),
+            });
+        let stack =
+            semantic::SemanticStack::build_with_embedder(vec_db.clone(), config.clone(), embedder)
+                .unwrap();
+        semantic::register_stack_for_test(&vec_db, stack.clone()).await;
+        let cfg = Arc::new(std::sync::RwLock::new(if enabled { Some(config) } else { None }));
+        let accessor = MemoryCenterAccessor::new_sqlite(
+            root.to_path_buf(),
+            session,
+            None,
+            ArchiveConfig::from_threshold(40),
+        )
+        .unwrap()
+        .with_semantics(semantic::SemanticHandle::new(cfg, vec_db));
+        (accessor, stack)
+    }
+
+    /// ★ 混合召回：与记忆**无字面重叠**的查询，靠语义通道命中（并标注 embedding）
+    #[tokio::test]
+    async fn semantic_recall_hits_without_lexical_overlap() {
+        let dir = tempfile::tempdir().unwrap();
+        let (accessor, _stack) = make_semantic_accessor(
+            dir.path(),
+            "sess-sem",
+            vec![
+                ("偏好使用 vim", [1.0, 0.0, 0.0]),
+                ("编辑器设置", [1.0, 0.0, 0.0]),
+            ],
+            true,
+        )
+        .await;
+
+        accessor
+            .write(MemoryWriteEntry::add("偏好使用 vim 编辑代码"), None)
+            .await
+            .unwrap();
+
+        // 查询词与记忆无字面重叠（BM25 无从命中）→ 语义通道必须把它捞回来
+        let hits = accessor
+            .recall("编辑器设置".to_string(), None)
+            .await
+            .unwrap();
+        assert!(!hits.is_empty(), "语义通道应命中无字面重叠的记忆");
+        assert!(
+            hits[0].matched_fields.iter().any(|f| f == "embedding"),
+            "命中来源应标注 embedding: {:?}",
+            hits[0].matched_fields
+        );
+    }
+
+    /// 语义未启用 → 保持既有行为（无 embedding 标注；无字面重叠则命中不到）
+    #[tokio::test]
+    async fn semantic_disabled_keeps_legacy_recall() {
+        let dir = tempfile::tempdir().unwrap();
+        let (accessor, _stack) = make_semantic_accessor(
+            dir.path(),
+            "sess-off",
+            vec![
+                ("偏好使用 vim", [1.0, 0.0, 0.0]),
+                ("编辑器设置", [1.0, 0.0, 0.0]),
+            ],
+            false,
+        )
+        .await;
+
+        accessor
+            .write(MemoryWriteEntry::add("偏好使用 vim 编辑代码"), None)
+            .await
+            .unwrap();
+
+        let hits = accessor.recall("vim".to_string(), None).await.unwrap();
+        assert!(!hits.is_empty(), "字面命中仍应生效（既有路径）");
+        assert!(
+            !hits.iter().any(|r| r.matched_fields.iter().any(|f| f == "embedding")),
+            "未接线时不得出现 embedding 标注"
+        );
+        let miss = accessor
+            .recall("编辑器设置".to_string(), None)
+            .await
+            .unwrap();
+        assert!(
+            miss.is_empty(),
+            "未启用语义时无字面重叠命中不到（与接线前一致）: {miss:?}"
+        );
+    }
+
+    /// ★ 语义去重：向量近重复（余弦 ≥ 阈值）→ Noop(Duplicate)；异主题正常写入
+    #[tokio::test]
+    async fn semantic_dedup_blocks_near_duplicate() {
+        let dir = tempfile::tempdir().unwrap();
+        let (accessor, _stack) = make_semantic_accessor(
+            dir.path(),
+            "sess-dup",
+            vec![
+                ("内容甲", [1.0, 0.0, 0.0]),
+                ("内容乙", [1.0, 0.0, 0.0]),
+                ("内容丙", [0.0, 1.0, 0.0]),
+            ],
+            true,
+        )
+        .await;
+
+        let first = accessor
+            .write(MemoryWriteEntry::add("内容甲：项目采用单文件存储"), None)
+            .await
+            .unwrap();
+        assert!(matches!(first, WriteOutcome::Added { .. }), "{first:?}");
+
+        // 换一种说法但向量相同 → 判重（阈值 0.92 的原始语义）
+        let dup = accessor
+            .write(MemoryWriteEntry::add("内容乙：换个说法的同一件事"), None)
+            .await
+            .unwrap();
+        assert!(
+            matches!(
+                dup,
+                WriteOutcome::Noop {
+                    reason: NoopReason::Duplicate { .. },
+                    ..
+                }
+            ),
+            "向量近重复应判重复: {dup:?}"
+        );
+
+        // 异主题（正交向量）→ 正常写入
+        let other = accessor
+            .write(MemoryWriteEntry::add("内容丙：完全不同的主题"), None)
+            .await
+            .unwrap();
+        assert!(matches!(other, WriteOutcome::Added { .. }), "{other:?}");
+    }
+
+    /// 写入/删除同步索引（关键词 + 向量两通道）
+    #[tokio::test]
+    async fn write_and_delete_sync_semantic_index() {
+        let dir = tempfile::tempdir().unwrap();
+        let (accessor, stack) = make_semantic_accessor(
+            dir.path(),
+            "sess-sync",
+            vec![("同步验证", [1.0, 0.0, 0.0])],
+            true,
+        )
+        .await;
+
+        let outcome = accessor
+            .write(MemoryWriteEntry::add("同步验证：写入即索引"), None)
+            .await
+            .unwrap();
+        let hook_id = match outcome {
+            WriteOutcome::Added { hook_id } => hook_id,
+            other => panic!("应新增成功: {other:?}"),
+        };
+        let st = stack.stats();
+        assert!(st.keyword_len >= 1, "写入后关键词索引应有序条目: {st:?}");
+        assert!(st.vector_len >= 1, "写入后向量索引应有条目: {st:?}");
+        assert!(stack.has_vector(&hook_id), "该 hook 应有向量");
+
+        // 删除 → 两通道同步移除
+        let del = accessor
+            .write(MemoryWriteEntry::delete(&hook_id), None)
+            .await
+            .unwrap();
+        assert!(matches!(del, WriteOutcome::Deleted { .. }), "{del:?}");
+        assert!(!stack.has_vector(&hook_id), "删除后向量应移除");
+        assert_eq!(stack.stats().vector_len, 0);
+        assert_eq!(stack.stats().keyword_len, 0);
+    }
+
+    /// 召回路径的懒播种：首次检索把既有记忆灌入两通道（关键词一次性 + 向量补缺）
+    #[tokio::test]
+    async fn recall_seeds_pre_existing_memories() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().to_path_buf();
+        // 先以「未接线」身份写入一条既有记忆（模拟接线前的存量数据）
+        let plain = make_accessor_with_session(&root, "sess-seed");
+        plain
+            .write(MemoryWriteEntry::add("存量记忆：赛季规则草案"), None)
+            .await
+            .unwrap();
+
+        // 再接语义（同一 root / 会话）：首次 recall 应自动播种
+        let (accessor, stack) = make_semantic_accessor(
+            &root,
+            "sess-seed",
+            vec![
+                ("赛季规则", [1.0, 0.0, 0.0]),
+                ("赛制问询", [1.0, 0.0, 0.0]),
+            ],
+            true,
+        )
+        .await;
+        assert_eq!(stack.stats().keyword_len, 0, "接线前索引为空");
+
+        let hits = accessor.recall("赛制问询".to_string(), None).await.unwrap();
+        assert!(!hits.is_empty(), "播种后无字面重叠的语义查询应命中");
+        assert!(stack.keyword_seeded(), "首次召回后应标记已播种");
+        assert!(stack.stats().vector_len >= 1, "向量应补齐");
     }
 }

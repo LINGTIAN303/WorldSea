@@ -733,6 +733,37 @@ pub fn register_core(reg: &mut Registry) {
             c::memory_boundary(st, a.session_id).await.map(|r| to_value(r).unwrap_or(Value::Null))
         })
     }));
+    // ── A2 戊1：语义检索配置与索引 ──
+    reg.register("cmd_semantic_config_get", Arc::new(move |app, _args| {
+        let app = app.clone();
+        Box::pin(async move {
+            let st = app.state::<Arc<crate::semantic_commands::SemanticStore>>();
+            crate::semantic_commands::cmd_semantic_config_get(st).await.map(|r| to_value(r).unwrap_or(Value::Null))
+        })
+    }));
+    reg.register("cmd_semantic_config_set", Arc::new(move |app, args| {
+        let app = app.clone();
+        Box::pin(async move {
+            let p: crate::semantic_commands::SemanticSettingsPatch = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
+            let st = app.state::<Arc<crate::semantic_commands::SemanticStore>>();
+            crate::semantic_commands::cmd_semantic_config_set(st, p).await.map(|r| to_value(r).unwrap_or(Value::Null))
+        })
+    }));
+    reg.register("cmd_semantic_status", Arc::new(move |app, _args| {
+        let app = app.clone();
+        Box::pin(async move {
+            let st = app.state::<agent_commands::AgentCommandService>();
+            crate::semantic_commands::cmd_semantic_status(st).await.map(|r| to_value(r).unwrap_or(Value::Null))
+        })
+    }));
+    reg.register("cmd_semantic_rebuild", Arc::new(move |app, args| {
+        let app = app.clone();
+        Box::pin(async move {
+            let a: SessionArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
+            let st = app.state::<agent_commands::AgentCommandService>();
+            crate::semantic_commands::cmd_semantic_rebuild(st, a.session_id).await.map(|r| to_value(r).unwrap_or(Value::Null))
+        })
+    }));
 
     // ── 终端（args 透传 Value；detect_shells 无参数）──
     reg.register("terminal_execute_command", Arc::new(move |app, args| {

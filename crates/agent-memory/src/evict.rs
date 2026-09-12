@@ -68,6 +68,11 @@ pub struct GcReport {
     pub raw_purged: usize,
     /// ③ 顺带清理的孤儿回收站记录数（文件已不在，记录残留）
     pub trash_pruned: usize,
+    /// ② 本次硬删的 hook_id 列表（供装配层同步检索索引——A2 戊1）
+    ///
+    /// 硬删后 `memories.db` 里已无该条目，但 BM25 / 向量索引是**进程内 + 独立库**，
+    /// 不会随删；装配层据本列表把对应条目移出索引（否则会残留幽灵索引项）。
+    pub evicted_hooks: Vec<String>,
 }
 
 impl GcReport {
@@ -142,6 +147,8 @@ pub async fn run_gc_pass_with(
                     );
                 }
                 report.entries_evicted += 1;
+                // A2 戊1：登记硬删 hook（装配层据此同步检索索引）
+                report.evicted_hooks.push(entry.hook_id.clone());
             }
             Err(e) => {
                 tracing::warn!(
@@ -457,6 +464,11 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(report.entries_evicted, 1, "回收站满 90 天应硬删");
+        assert_eq!(
+            report.evicted_hooks,
+            vec!["hook-old".to_string()],
+            "A2 戊1：硬删 hook 应回传（装配层据此同步检索索引）"
+        );
         assert!(
             ext.get_memory_ext(&memory_id).await.unwrap().is_none(),
             "扩展行应清理"

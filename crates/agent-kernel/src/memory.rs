@@ -108,6 +108,14 @@ pub trait MemoryAccessor: Send + Sync {
         Ok(())
     }
 
+    /// 重建语义检索索引（A2 戊1；全量重嵌）
+    ///
+    /// 返回本次索引的文档数；默认实现返回 `Ok(0)`——不支持语义索引的访问器
+    /// 视为「无可重建」，不是错误（与其余默认方法同一保守取向）。
+    async fn rebuild_semantic_index(&self) -> Result<usize, MemoryError> {
+        Ok(0)
+    }
+
     /// 置顶 / 取消置顶（`pinned` 记忆不衰减、不淘汰）
     async fn pin(&self, _hook_id: &str, _pinned: bool) -> Result<(), MemoryError> {
         Ok(())

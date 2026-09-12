@@ -19,6 +19,9 @@ memory-center-core = { path = "../vendor/memory-center-core" }
 # MemoryCenter 模型特配（A1 丙1：真实 token 分词器 + 窗口/归档比率专家值）
 # 语义：与 memory-center-core 同族，属「原产地收编」而非外部引入
 memory-center-models = { path = "../vendor/memory-center-models" }
+# MemoryCenter LLM HTTP 客户端（A2 戊1：HttpEmbedder = OpenAI 兼容 /v1/embeddings；
+# 同族原产地收编，reqwest 依赖隔离在该 crate 内）
+memory-center-llm = { path = "../vendor/memory-center-llm" }
 
 # ── 序列化 ──
 serde = { version = "1", features = ["derive"] }

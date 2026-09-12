@@ -83,7 +83,11 @@
                   <button class="right-subtab" :class="{ active: spaceStore.configSubTab === 'profile' }" @click="spaceStore.setConfigSubTab('profile')">档案</button>
                 </div>
                 <div class="right-config-body">
-                  <MemoryShelf v-if="spaceStore.configSubTab === 'memory'" embedded />
+                  <template v-if="spaceStore.configSubTab === 'memory'">
+                    <!-- A2 戊1：语义检索配置（端点 / 模型 / 维度 / Key + 索引状态与重建） -->
+                    <SemanticSearchCard />
+                    <MemoryShelf embedded />
+                  </template>
                   <PersonaMirror v-else-if="spaceStore.configSubTab === 'persona'" embedded />
                   <!-- [②] 档案占位（不在本次实现） -->
                   <div v-else class="right-profile-placeholder">
@@ -130,6 +134,7 @@ import { SCENE_SLIDER_OPTIONS } from './chat/scenes'
 import SpaceChat from './chat/SpaceChat.vue'
 import GroupChatView from './group-chat/components/GroupChatView.vue'
 import MemoryShelf from './panels/MemoryShelf.vue'
+import SemanticSearchCard from './panels/SemanticSearchCard.vue'
 import PersonaMirror from './panels/PersonaMirror.vue'
 import ExecPanel from './panels/ExecPanel.vue'
 import CreationPanel from './panels/CreationPanel.vue'

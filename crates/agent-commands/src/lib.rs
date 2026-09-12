@@ -33,6 +33,8 @@ pub use pattern_registry::{
 };
 pub use run_store::{DecisionRecord, OrchestrationRun, RunStatus, RunStore};
 pub use raw_tools::RawSlice;
+/// A2 戊1：语义检索类型透传（Tauri 命令层读写配置 / 状态展示用）
+pub use agent_memory::semantic::{SemanticConfig, SemanticStats};
 pub use session_store::{
     SessionEventRecord, SessionKind, SessionLogEntry, SessionLogStats, SessionRecord,
     SessionRepository, SqliteSessionRepository, WorkdirRecord, WorkspaceRecord,
@@ -206,6 +208,39 @@ const B_RAIL_PLAN_PROMPT: &str = "你是任务规划者。请把用户任务拆�
 /// 而每日一次会让回收站窗口（7 天）误差偏大。首轮延迟一个间隔执行（不阻塞启动）。
 const DEFAULT_MEMORY_GC_INTERVAL: std::time::Duration =
     std::time::Duration::from_secs(6 * 60 * 60);
+
+/// A2 戊1：把巡检硬删的记忆条目移出检索索引（幽灵索引项清理）
+///
+/// BM25 与向量索引是「进程内 + 独立库」两层，`memories.db` 行删除不会连带更新它们。
+/// 未启用语义检索（无配置）时为空操作；构建失败仅告警（下次巡检/重建会自然收敛）。
+async fn sync_evicted_hooks(
+    root: &std::path::Path,
+    semantic_config: &Arc<std::sync::RwLock<Option<agent_memory::semantic::SemanticConfig>>>,
+    hooks: &[String],
+) {
+    if hooks.is_empty() {
+        return;
+    }
+    let Some(config) = semantic_config.read().ok().and_then(|g| g.clone()) else {
+        return;
+    };
+    let vec_db = root
+        .join("projects")
+        .join("_default")
+        .join("memory_vec.db");
+    match agent_memory::semantic::get_or_build(&vec_db, &config).await {
+        Ok(stack) => {
+            for hook in hooks {
+                stack.remove(hook);
+            }
+            tracing::info!(
+                count = hooks.len(),
+                "巡检硬删条目已移出检索索引（A2 戊1）"
+            );
+        }
+        Err(e) => tracing::warn!("检索栈构建失败，硬删条目索引残留（待下次重建收敛）: {e}"),
+    }
+}
 
 /// B 轨 Supervisor 派发决策 system 提示（role = 已注册子 Agent 规格 id；
 /// LLM 输出 JSON：{"done":bool,"role":"…","task":"…","new_tasks":[…]}}
@@ -853,6 +888,11 @@ pub struct AgentCommandService {
     /// 巡检只做衰减/淘汰/GC，**不做任何面向用户的写操作**，故默认开启；
     /// 测试可用 [`Self::with_memory_gc_interval`] 调大间隔避免干扰。
     memory_gc_interval: Option<std::time::Duration>,
+    /// A2 戊1：语义检索配置（与 Tauri 配置层共享；`None` = 未启用）
+    ///
+    /// 用共享 `Arc<RwLock<…>>`：配置层保存后**各会话即时生效**（访问器内句柄引用
+    /// 同一 Arc；检索栈按配置指纹自动重建）。默认 `None` = 行为与接线前一致。
+    semantic_config: Arc<std::sync::RwLock<Option<agent_memory::semantic::SemanticConfig>>>,
 }
 
 /// 场景摘要（Tauri 序列化用；2026-09-09 场景底座：装配元数据透传前端滑块/工作区）
@@ -1074,6 +1114,25 @@ impl AgentCommandService {
         self
     }
 
+    /// 注入语义检索配置（链式；A2 戊1）
+    ///
+    /// 传入**共享** `Arc<RwLock<…>>`（Tauri 配置层持有同一实例）：accessor 构造时
+    /// 引用它，配置保存后各会话即时生效。`None`（默认）= 未启用语义检索。
+    pub fn with_semantic_config(
+        mut self,
+        config: Arc<std::sync::RwLock<Option<agent_memory::semantic::SemanticConfig>>>,
+    ) -> Self {
+        self.semantic_config = config;
+        self
+    }
+
+    /// 语义检索配置句柄（Tauri 配置层读写用）
+    pub fn semantic_config_handle(
+        &self,
+    ) -> Arc<std::sync::RwLock<Option<agent_memory::semantic::SemanticConfig>>> {
+        self.semantic_config.clone()
+    }
+
     /// 记忆巡检（A1 甲3）——手动触发一轮完整巡检
     ///
     /// 与后台任务调用的是同一个入口（[`agent_memory::evict::run_gc_pass`]）：
@@ -1089,13 +1148,58 @@ impl AgentCommandService {
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_millis() as i64)
             .unwrap_or(0);
-        agent_memory::evict::run_gc_pass(
+        let report = agent_memory::evict::run_gc_pass(
             root,
             now,
             &agent_memory::decay::EvictionPolicy::default(),
         )
         .await
-        .map_err(CommandError::Internal)
+        .map_err(CommandError::Internal)?;
+        // A2 戊1：硬删条目同步移出检索索引（BM25 / 向量是独立库，不随删）
+        sync_evicted_hooks(root, &self.semantic_config, &report.evicted_hooks).await;
+        Ok(report)
+    }
+
+    /// 重建某会话的语义检索索引（A2 戊1；配置面板「重建索引」按钮）
+    ///
+    /// 返回索引文档数；语义未启用或会话无记忆后端时返回错误（UI 提示先配置）。
+    pub async fn rebuild_semantic_index(&self, session_id: &str) -> Result<usize, CommandError> {
+        let agent = self.get_agent(session_id).await?;
+        let Some(memory) = agent.memory() else {
+            return Err(CommandError::Internal("该会话未启用记忆后端".into()));
+        };
+        memory
+            .rebuild_semantic_index()
+            .await
+            .map_err(|e| CommandError::Internal(e.to_string()))
+    }
+
+    /// 语义索引状态（A2 戊1；配置面板状态展示）
+    ///
+    /// 未配置 / 构建失败 → 全零（UI 据此显示「未启用」）。
+    pub async fn semantic_status(&self) -> agent_memory::semantic::SemanticStats {
+        let Some(root) = &self.memory_root else {
+            return agent_memory::semantic::SemanticStats::default();
+        };
+        let Some(config) = self
+            .semantic_config
+            .read()
+            .ok()
+            .and_then(|guard| guard.clone())
+        else {
+            return agent_memory::semantic::SemanticStats::default();
+        };
+        let vec_db = root
+            .join("projects")
+            .join("_default")
+            .join("memory_vec.db");
+        match agent_memory::semantic::get_or_build(&vec_db, &config).await {
+            Ok(stack) => stack.stats(),
+            Err(e) => {
+                tracing::warn!("语义索引状态查询失败: {e}");
+                agent_memory::semantic::SemanticStats::default()
+            }
+        }
     }
 
     /// 惰性启动记忆巡检后台任务（幂等；A1 甲3）
@@ -1122,6 +1226,7 @@ impl AgentCommandService {
         let interval = self
             .memory_gc_interval
             .unwrap_or(DEFAULT_MEMORY_GC_INTERVAL);
+        let semantic_config = self.semantic_config.clone();
         tokio::spawn(async move {
             tracing::info!(
                 interval_secs = interval.as_secs(),
@@ -1141,6 +1246,8 @@ impl AgentCommandService {
                 .await
                 {
                     Ok(report) if report.did_something() => {
+                        // A2 戊1：硬删条目同步移出检索索引
+                        sync_evicted_hooks(&root, &semantic_config, &report.evicted_hooks).await;
                         tracing::info!(
                             scored = report.decay_scored,
                             newly_deprecated = report.newly_deprecated,
@@ -1327,9 +1434,20 @@ impl AgentCommandService {
         root: &PathBuf,
         session_id: &str,
         profile: &agent_memory::model_profile::ModelProfile,
+        semantic_config: Arc<std::sync::RwLock<Option<agent_memory::semantic::SemanticConfig>>>,
     ) -> std::result::Result<Arc<dyn MemoryAccessor>, agent_memory::Error> {
         let config = ArchiveConfig::from_threshold(profile.archive_threshold);
         let accessor = MemoryCenterAccessor::new_sqlite(root.clone(), session_id, None, config)?;
+        // A2 戊1：注入语义检索句柄（共享配置 Arc；未启用时 accessor 内自会降级为
+        // 既有关键词路径——句柄注入本身零行为变化）
+        let vec_db = root
+            .join("projects")
+            .join("_default")
+            .join("memory_vec.db");
+        let accessor = accessor.with_semantics(agent_memory::semantic::SemanticHandle::new(
+            semantic_config,
+            vec_db,
+        ));
         Ok(Arc::new(accessor))
     }
 
@@ -1390,7 +1508,12 @@ impl AgentCommandService {
         // 故提前到工具注册之前构造，两处共用同一实例（同一 SQLite 连接与状态）。
         // 构造失败仅告警不阻断（弱提示语义：记忆不可用不影响主流程）。
         let memory: Option<Arc<dyn MemoryAccessor>> = match &self.memory_root {
-            Some(root) => match Self::build_memory_accessor(root, session_id, &model_profile) {
+            Some(root) => match Self::build_memory_accessor(
+                root,
+                session_id,
+                &model_profile,
+                self.semantic_config.clone(),
+            ) {
                 Ok(m) => Some(m),
                 Err(e) => {
                     tracing::warn!("构造 MemoryCenterAccessor 失败，跳过记忆注入: {e}");
