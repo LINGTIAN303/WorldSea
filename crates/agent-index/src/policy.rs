@@ -84,6 +84,56 @@ impl IndexPolicy {
             "dockerfile" | "makefile" | "readme" | "license" | "changelog" | "cmakelists.txt"
         )
     }
+
+    /// 分块边界提示（R2 质量档 · 2026-09-12）：按扩展名选择结构边界规则
+    ///
+    /// - **Markdown / 散文**（md / markdown / rst / org）→ 行首 `#` 标题为边界
+    /// - **代码**（rs/ts/py/go/… 见下）→ 列 0 顶层声明 / 属性 / 文档注释为边界
+    /// - **其余**（json / csv / yaml / html / css / toml …）→ `Plain`，不识别边界（v1 行为）
+    ///
+    /// 未识别类型一律退回 `Plain`：**边界感知只让块更贴合结构，不改变未识别类型的
+    /// 既有切分**（零行为变化锚点）。
+    pub fn boundary_hint(&self, path: &Path) -> crate::chunker::BoundaryHint {
+        use crate::chunker::BoundaryHint;
+        let ext = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.to_ascii_lowercase())
+            .unwrap_or_default();
+        if matches!(ext.as_str(), "md" | "markdown" | "rst" | "org") {
+            return BoundaryHint::Markdown;
+        }
+        if matches!(
+            ext.as_str(),
+            "rs" | "ts" | "tsx" | "js" | "jsx" | "vue" | "py" | "go" | "java" | "kt" | "c" | "h"
+                | "cpp" | "hpp" | "cs" | "rb" | "php" | "swift" | "lua" | "sh" | "bash" | "ps1"
+                | "sql" | "proto" | "gradle"
+        ) {
+            return BoundaryHint::Code;
+        }
+        BoundaryHint::Plain
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::chunker::BoundaryHint;
+
+    #[test]
+    fn boundary_hint_follows_extension() {
+        let p = IndexPolicy::default();
+        assert_eq!(
+            p.boundary_hint(Path::new("考据/星海地理.md")),
+            BoundaryHint::Markdown
+        );
+        assert_eq!(p.boundary_hint(Path::new("src/main.rs")), BoundaryHint::Code);
+        assert_eq!(p.boundary_hint(Path::new("x/脚本.PY")), BoundaryHint::Code, "扩展名大小写不敏感");
+        // 结构化但无「声明/标题」语义的类型 → 不识别边界（v1 行为）
+        assert_eq!(p.boundary_hint(Path::new("data.json")), BoundaryHint::Plain);
+        assert_eq!(p.boundary_hint(Path::new("conf/app.yaml")), BoundaryHint::Plain);
+        assert_eq!(p.boundary_hint(Path::new("Dockerfile")), BoundaryHint::Plain);
+    }
 }
 
 /// 扫描到的文件（相对路径 + 元数据）

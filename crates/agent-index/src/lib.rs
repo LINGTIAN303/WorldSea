@@ -6,11 +6,15 @@
 //! ## 结构
 //!
 //! ```text
-//! 扫描（scan_files） → 增量 diff（size+mtime） → 分块（chunk_text，按行累积+重叠）
+//! 扫描（scan_files） → 增量 diff（size+mtime） → 分块（chunk_text_for，按行累积+重叠+边界感知）
 //!   → 关键词索引（Bm25Searcher，jieba 中文分词；内存）
 //!   → 向量索引（SqliteVectorIndex，BLOB 持久化；后台渐进补齐）
 //!   → 检索（关键词 ∪ 向量 → rrf_fusion，按 scope/type 过滤）
 //! ```
+//!
+//! **边界感知分块**（R2 质量档）：按扩展名选择结构边界——Markdown 的 `#` 标题、
+//! 代码的列 0 顶层声明（`fn` / `def` / `class` / `impl` / `export` …）——让切分点
+//! 落在结构边界上而非固定字数处；**未识别类型退回 `Plain`，即 v1 行为不变**。
 //!
 //! ## 落点与隐私边界
 //!
@@ -29,7 +33,7 @@ pub mod chunker;
 pub mod index;
 pub mod policy;
 
-pub use chunker::{ChunkParams, RawChunk, chunk_text};
+pub use chunker::{BoundaryHint, ChunkParams, RawChunk, chunk_text, chunk_text_for};
 pub use index::{
     IndexStats, SyncReport, WorkspaceHit, WorkspaceIndex, get_or_open, registry_clear,
 };

@@ -330,7 +330,12 @@ impl WorkspaceIndex {
                 return Ok(());
             }
         };
-        let chunks = crate::chunker::chunk_text(&content, &self.policy.chunk);
+        // 边界感知分块（R2）：按扩展名选结构边界规则（未识别类型 = v1 行为）
+        let chunks = crate::chunker::chunk_text_for(
+            &content,
+            &self.policy.chunk,
+            self.policy.boundary_hint(&entry.abs),
+        );
 
         // 先清该文件旧块（三处：SQL / 关键词 / 向量）
         self.forget_path(&entry.rel)?;
@@ -827,6 +832,44 @@ mod tests {
         let stats = idx.rebuild().await.unwrap();
         assert!(stats.chunks > 0, "重建后块应恢复: {stats:?}");
         assert!(!idx.search("回环测试", 5, None, None).await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn markdown_headings_are_not_split_across_chunks() {
+        // R2 接线验证：索引管线按扩展名启用边界感知（.md → Markdown 提示）
+        let dir = tempfile::tempdir().unwrap();
+        let idx = open_idx(dir.path(), None).await;
+        let ws = idx.workdir().to_path_buf();
+        let body = "测".repeat(300); // 单行 300 字 → 节内累计已过半个块（250）
+        write(
+            &ws,
+            "考据/长文.md",
+            &format!("## 第一节\n{body}\n## 第二节\n{body}\n"),
+        );
+        idx.sync().unwrap();
+
+        let spans: Vec<(i64, i64)> = {
+            let conn = idx.conn.lock().unwrap();
+            let mut stmt = conn
+                .prepare("SELECT start_line, end_line FROM chunks WHERE path = ?1 ORDER BY ordinal")
+                .unwrap();
+            let rows = stmt
+                .query_map(["考据/长文.md"], |r| {
+                    Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?))
+                })
+                .unwrap();
+            rows.flatten().collect()
+        };
+        assert!(!spans.is_empty(), "应切出块");
+        let starts: Vec<i64> = spans.iter().map(|(s, _)| *s).collect();
+        assert!(
+            starts.contains(&3),
+            "第 3 行（`## 第二节`）应成为某块起点（若走 Plain 则不会）: {spans:?}"
+        );
+        assert!(
+            spans.iter().all(|(s, e)| !(*s < 3 && *e >= 3)),
+            "标题边界不应被跨块切开: {spans:?}"
+        );
     }
 
     #[tokio::test]

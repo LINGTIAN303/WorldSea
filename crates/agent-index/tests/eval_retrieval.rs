@@ -253,4 +253,15 @@ async fn semantic_eval_report() {
         SEMANTIC_QUERIES.len(),
         SEMANTIC_QUERIES.len()
     );
+    // 回归护栏（2026-09-12 基线）：混合通道不得比关键词基线更差。
+    // RRF 融合只要有一条通道失败就会降级为另一条；此断言把「融合无回退损失」
+    // 从「报告里的一句话」变成可执行的契约——R2 各增强项（语法分块 / Reranker）
+    // 改动后重跑此测试即可发现质量回退。
+    assert!(
+        hy_hits >= kw_hits,
+        "混合检索不应弱于关键词基线（关键词 {kw_hits}/{}，混合 {hy_hits}/{}）——\
+         检查向量通道是否补齐（端点/Key）或融合是否被改坏",
+        SEMANTIC_QUERIES.len(),
+        SEMANTIC_QUERIES.len()
+    );
 }
