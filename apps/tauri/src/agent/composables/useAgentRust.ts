@@ -591,6 +591,96 @@ function clearStepBudgetHint(): void {
   latestStepBudget.value = null
 }
 
+// ─── 上下文窗口：手动压缩（/compact 指令与上下文面板共用）──────
+
+/** `agent_kernel::context_budget::ContextUsage` 镜像（camelCase 与 Rust serde 一致） */
+export interface ContextUsageDto {
+  totalTokens: number
+  historyTokens: number
+  systemTokens: number
+  messageCount: number
+  contextWindow: number
+  archiveThreshold: number
+  trimTrigger: number
+  tier: number
+}
+
+/** `agent_kernel::context_budget::CompactOutcome` 镜像（camelCase） */
+export interface CompactOutcomeDto {
+  beforeTokens: number
+  afterTokens: number
+  savedTokens: number
+  foldedGroups: number
+  foldedMessages: number
+  droppedMessages: number
+  skippedProtectedGroups: number
+  mode: string
+}
+
+/** 手动压缩回执（/compact 指令与上下文面板共用同一实现的产出） */
+export interface CompactionReceipt {
+  ok: boolean
+  /** 展示文案（单一来源：两处入口的结果文案不漂移） */
+  text: string
+  /** 压缩后最新占用（失败为 null） */
+  usage: ContextUsageDto | null
+}
+
+/** 最近一次手动压缩回执（输入区提示条与上下文面板消费；null=无回执） */
+const latestCompaction = ref<CompactionReceipt | null>(null)
+
+/** 清除压缩回执（提示条关闭 / 切换会话时调用） */
+function clearCompactionHint(): void {
+  latestCompaction.value = null
+}
+
+/** 手动压缩指令（trim 后精确匹配；中英双别名） */
+const COMPACT_COMMANDS = new Set(['/compact', '/压缩'])
+
+function fmtTokensShort(n: number): string {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M'
+  if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K'
+  return String(n)
+}
+
+/** 压缩回执文案（两处入口共用）：释放量与占用百分比变化 + 处理方式 */
+function compactionText(o: CompactOutcomeDto, u: ContextUsageDto): string {
+  if (o.mode === 'none') {
+    return o.skippedProtectedGroups > 0 ? '已无可压缩内容（全部在保护范围内）' : '已无可压缩内容'
+  }
+  const pct = (n: number) => (u.contextWindow > 0 ? Math.round((n / u.contextWindow) * 100) : 0)
+  const verb = o.mode === 'folded'
+    ? `折叠 ${o.foldedGroups} 组 / ${o.foldedMessages} 条`
+    : `删除 ${o.droppedMessages} 条`
+  return `已压缩：释放 ${fmtTokensShort(o.savedTokens)} token（占用 ${pct(o.beforeTokens)}% → ${pct(o.afterTokens)}%）· ${verb}`
+}
+
+/** 手动压缩当前会话「一次到底」（/compact 指令与上下文面板按钮共用） */
+async function compactContext(sessionIdArg?: string): Promise<CompactionReceipt> {
+  const sessionId = sessionIdArg ?? (await ensureSession())
+  try {
+    const res = await safeInvoke<{ outcome: CompactOutcomeDto; usage: ContextUsageDto }>(
+      'compact_context',
+      { sessionId },
+    )
+    const receipt: CompactionReceipt = {
+      ok: true,
+      text: compactionText(res.outcome, res.usage),
+      usage: res.usage,
+    }
+    latestCompaction.value = receipt
+    return receipt
+  } catch (e) {
+    const receipt: CompactionReceipt = {
+      ok: false,
+      text: `压缩失败：${e instanceof Error ? e.message : String(e)}`,
+      usage: null,
+    }
+    latestCompaction.value = receipt
+    return receipt
+  }
+}
+
 /** 工具确认（占位：Rust 端工具调用自动执行，无需前端确认） */
 function resolveToolConfirmation(): void {}
 
@@ -2622,6 +2712,15 @@ async function prompt(text: string, options?: PromptOptions): Promise<void> {
   // 防止连点/重入/非 UI 路径（AISidebar/芽）在 Running 状态下再调 send，避免重复 user 行与重复 AI 响应。
   if (isStreaming.value) {
     console.warn('[useAgentRust] 上一轮仍在生成，忽略重复 send')
+    // 压缩指令被流式门控拦下时给出回执（用户可感知「为什么没反应」）
+    if (COMPACT_COMMANDS.has(textContent)) {
+      latestCompaction.value = { ok: false, text: '生成中，暂不可压缩（等本轮结束后重试）', usage: null }
+    }
+    return
+  }
+  // ── /compact 手动压缩指令（中英双别名）：不发往模型、不进消息流 —— 直通后端「一次到底」压缩 ──
+  if (COMPACT_COMMANDS.has(textContent)) {
+    await compactContext(sessionId)
     return
   }
   // 上一轮编排 run 异常未收口（后端 error 路径不产 pipe_finished）→ 本地强制收口为 failed，
@@ -3192,6 +3291,11 @@ export function useAgentRust() {
 
     // ── 用量（设置面板 UsagePanel 依赖）──
     totalUsage,
+
+    // ── 上下文窗口（丁1：/compact 指令与上下文面板共用）──
+    compactContext,
+    latestCompaction: readonly(latestCompaction),
+    clearCompactionHint,
 
     // ── 消息 ──
     messages,

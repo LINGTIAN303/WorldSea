@@ -405,6 +405,23 @@ pub fn register_core(reg: &mut Registry) {
             c::memory_read_raw(st, a.content_hash, a.from, a.max_chars).await.map(|r| to_value(r).unwrap_or(Value::Null))
         })
     }));
+    // ── 丁1 加急：上下文窗口（占用快照 / 手动压缩）──
+    reg.register("context_usage", Arc::new(move |app, args| {
+        let app = app.clone();
+        Box::pin(async move {
+            let a: SessionArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
+            let st = app.state::<agent_commands::AgentCommandService>();
+            c::context_usage(st, a.session_id).await.map(|r| to_value(r).unwrap_or(Value::Null))
+        })
+    }));
+    reg.register("compact_context", Arc::new(move |app, args| {
+        let app = app.clone();
+        Box::pin(async move {
+            let a: SessionArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
+            let st = app.state::<agent_commands::AgentCommandService>();
+            c::compact_context(st, a.session_id).await.map(|r| to_value(r).unwrap_or(Value::Null))
+        })
+    }));
     reg.register("is_streaming", Arc::new(move |app, args| {
         let app = app.clone();
         Box::pin(async move {

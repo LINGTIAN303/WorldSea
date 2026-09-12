@@ -2112,3 +2112,261 @@
             .expect("应有 toolResult");
         assert!(tr.content.contains("被 A6 钩子拒绝"));
     }
+
+    // ─── 丁1 加急：上下文窗口面板 / 手动压缩 ─────────────────
+
+    /// context_usage：窗口/阈值/触发点/层级/构成分项与自动裁剪同源可见
+    #[tokio::test]
+    async fn context_usage_reports_window_threshold_and_tier() {
+        use crate::context_budget::ContextBudgetPolicy;
+        use crate::types::{MessageRole, OrchestratorMessage};
+
+        let backend = Arc::new(MockBackend::new(vec![]));
+        let tool_bus = Arc::new(SimpleToolBus::new());
+        let agent = AgentLoop::new(backend, tool_bus).with_config(AgentLoopConfig {
+            context_budget: Some(ContextBudgetPolicy::new(4_000, 0.25)), // 阈值 1000 / 触发点 950
+            ..Default::default()
+        });
+
+        let text = "中".repeat(1_000); // CJK 1 token/字 → 约 1001 token/条
+        agent
+            .append_messages(vec![
+                OrchestratorMessage {
+                    role: MessageRole::System,
+                    content: "系统提示词".into(),
+                    tool_calls: Vec::new(),
+                    tool_call_id: None,
+                    meta: None,
+                },
+                OrchestratorMessage {
+                    role: MessageRole::User,
+                    content: text.clone(),
+                    tool_calls: Vec::new(),
+                    tool_call_id: None,
+                    meta: None,
+                },
+                OrchestratorMessage {
+                    role: MessageRole::Assistant,
+                    content: text,
+                    tool_calls: Vec::new(),
+                    tool_call_id: None,
+                    meta: None,
+                },
+            ])
+            .await;
+
+        let u = agent.context_usage().await;
+        assert_eq!(u.context_window, 4_000);
+        assert_eq!(u.archive_threshold, 1_000);
+        assert_eq!(u.trim_trigger, 950);
+        assert_eq!(u.message_count, 3);
+        // 两条大消息各 ≈1000 token，必然越过触发点 → 最高层
+        assert!(u.total_tokens > u.trim_trigger, "占用应越过触发点");
+        assert_eq!(u.tier, 4);
+        assert_eq!(
+            u.history_tokens + u.system_tokens,
+            u.total_tokens,
+            "构成分项应加总一致"
+        );
+        assert!(u.system_tokens > 0, "系统侧（提示词）应计入占用");
+    }
+
+    /// 手动压缩「一次到底」：忽略触发点（占用远低于自动阈值也执行），
+    /// 可裁内容全部折叠、受保护内容不动、释放可见且前后计量同源
+    #[tokio::test]
+    async fn compact_now_folds_all_droppable_and_keeps_protected() {
+        use crate::anchor::is_folded;
+        use crate::context_budget::ContextBudgetPolicy;
+        use crate::raw_context::{RawContextSink, RawRef};
+        use crate::retention::RetentionPolicy;
+        use crate::types::{MessageRole, OrchestratorMessage};
+
+        let calls = Arc::new(AtomicUsize::new(0));
+        let calls2 = Arc::clone(&calls);
+        let sink: RawContextSink = Arc::new(move |text: &str| {
+            let i = calls2.fetch_add(1, Ordering::SeqCst);
+            Some(RawRef {
+                content_hash: format!("{i:016x}"),
+                byte_len: text.len(),
+            })
+        });
+
+        // 窗口 100K / 阈值 40K——当前占用远低于触发点（自动路径不会动手），
+        // 手动压缩仍应立即执行（证明「忽略触发点」）
+        let agent =
+            AgentLoop::new(Arc::new(MockBackend::new(vec![])), Arc::new(SimpleToolBus::new()))
+                .with_config(AgentLoopConfig {
+                    context_budget: Some(ContextBudgetPolicy::new(100_000, 0.40)),
+                    retention_policy: Some(RetentionPolicy { keep_recent: 2 }),
+                    ..Default::default()
+                })
+                .with_raw_context_sink(sink);
+
+        let mut msgs = vec![OrchestratorMessage {
+            role: MessageRole::System,
+            content: "系统提示词".into(),
+            tool_calls: Vec::new(),
+            tool_call_id: None,
+            meta: None,
+        }];
+        for i in 0..4 {
+            msgs.push(OrchestratorMessage {
+                role: if i % 2 == 0 {
+                    MessageRole::User
+                } else {
+                    MessageRole::Assistant
+                },
+                content: format!("陈旧 {i}：{}", "x".repeat(2_000)),
+                tool_calls: Vec::new(),
+                tool_call_id: None,
+                meta: None,
+            });
+        }
+        msgs.push(OrchestratorMessage {
+            role: MessageRole::User,
+            content: "最新指令：继续推进".into(),
+            tool_calls: Vec::new(),
+            tool_call_id: None,
+            meta: None,
+        });
+        msgs.push(OrchestratorMessage {
+            role: MessageRole::Assistant,
+            content: "好的".into(),
+            tool_calls: Vec::new(),
+            tool_call_id: None,
+            meta: None,
+        });
+        agent.append_messages(msgs).await;
+
+        let before = agent.context_usage().await;
+        assert!(
+            before.total_tokens < before.archive_threshold,
+            "前置条件：占用未达归档阈值（自动路径不会触发）"
+        );
+
+        let outcome = agent.compact_now().await.expect("手动压缩应成功");
+        assert_eq!(outcome.mode, "folded");
+        assert_eq!(outcome.before_tokens, before.total_tokens, "before 应与查询同源");
+        assert!(outcome.folded_groups >= 1, "陈旧组应被折叠");
+        assert!(outcome.folded_messages >= 1);
+        assert!(outcome.after_tokens < outcome.before_tokens, "压缩后占用应下降");
+        assert!(outcome.saved_tokens > 0, "应有可见释放");
+        assert_eq!(
+            outcome.saved_tokens,
+            outcome.before_tokens - outcome.after_tokens
+        );
+        assert_eq!(calls.load(Ordering::SeqCst), outcome.folded_groups, "外置次数应等于折叠组数");
+
+        let kept = agent.get_messages().await;
+        // 受保护内容仍在：系统提示 + 最新 user 输入
+        assert!(kept.iter().any(|m| m.role == MessageRole::System), "系统消息应保留");
+        assert!(kept.iter().any(|m| m.content.contains("最新指令")), "最新 user 输入应保留");
+        // 折叠形存在（注入外置器 → 折叠路径）
+        assert!(kept.iter().any(is_folded), "应存在折叠形");
+    }
+
+    /// 未注入外置器 → 删除路径（与自动路径同源的降级行为）
+    #[tokio::test]
+    async fn compact_now_drops_without_sink() {
+        use crate::retention::RetentionPolicy;
+        use crate::types::{MessageRole, OrchestratorMessage};
+
+        let agent =
+            AgentLoop::new(Arc::new(MockBackend::new(vec![])), Arc::new(SimpleToolBus::new()))
+                .with_config(AgentLoopConfig {
+                    retention_policy: Some(RetentionPolicy { keep_recent: 1 }),
+                    ..Default::default()
+                });
+
+        let mut msgs = vec![OrchestratorMessage {
+            role: MessageRole::System,
+            content: "系统提示词".into(),
+            tool_calls: Vec::new(),
+            tool_call_id: None,
+            meta: None,
+        }];
+        for i in 0..3 {
+            msgs.push(OrchestratorMessage {
+                role: if i % 2 == 0 {
+                    MessageRole::User
+                } else {
+                    MessageRole::Assistant
+                },
+                content: format!("陈旧 {i}"),
+                tool_calls: Vec::new(),
+                tool_call_id: None,
+                meta: None,
+            });
+        }
+        msgs.push(OrchestratorMessage {
+            role: MessageRole::User,
+            content: "最新指令：继续推进".into(),
+            tool_calls: Vec::new(),
+            tool_call_id: None,
+            meta: None,
+        });
+        agent.append_messages(msgs).await;
+        let before_len = agent.get_messages().await.len();
+
+        let outcome = agent.compact_now().await.expect("应成功");
+        assert_eq!(outcome.mode, "dropped");
+        assert!(outcome.dropped_messages >= 1, "陈旧消息应被删除");
+
+        let kept = agent.get_messages().await;
+        assert!(kept.len() < before_len, "删除后条数应减少");
+        assert!(kept.iter().any(|m| m.content.contains("最新指令")));
+        assert!(kept.iter().any(|m| m.role == MessageRole::System));
+    }
+
+    /// 无可压内容（全在受保护范围内）→ mode="none"、零释放
+    #[tokio::test]
+    async fn compact_now_none_when_nothing_droppable() {
+        use crate::types::{MessageRole, OrchestratorMessage};
+
+        let agent = AgentLoop::new(
+            Arc::new(MockBackend::new(vec![])),
+            Arc::new(SimpleToolBus::new()),
+        );
+        agent
+            .append_messages(vec![
+                OrchestratorMessage {
+                    role: MessageRole::System,
+                    content: "系统提示词".into(),
+                    tool_calls: Vec::new(),
+                    tool_call_id: None,
+                    meta: None,
+                },
+                OrchestratorMessage {
+                    role: MessageRole::User,
+                    content: "短问题".into(),
+                    tool_calls: Vec::new(),
+                    tool_call_id: None,
+                    meta: None,
+                },
+                OrchestratorMessage {
+                    role: MessageRole::Assistant,
+                    content: "短回答".into(),
+                    tool_calls: Vec::new(),
+                    tool_call_id: None,
+                    meta: None,
+                },
+            ])
+            .await;
+
+        let outcome = agent.compact_now().await.expect("应成功");
+        assert_eq!(outcome.mode, "none");
+        assert_eq!(outcome.saved_tokens, 0);
+        assert_eq!(outcome.before_tokens, outcome.after_tokens);
+    }
+
+    /// 流式进行中拒绝手动压缩（循环正在写 state，避免竞态）
+    #[tokio::test]
+    async fn compact_now_rejected_while_streaming() {
+        let agent = AgentLoop::new(
+            Arc::new(MockBackend::new(vec![])),
+            Arc::new(SimpleToolBus::new()),
+        );
+        agent.is_streaming.store(true, Ordering::SeqCst);
+        let err = agent.compact_now().await.expect_err("流式中应拒绝");
+        assert!(err.to_string().contains("流式"), "错误信息应说明流式原因: {err}");
+    }

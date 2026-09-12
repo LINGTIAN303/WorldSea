@@ -46,6 +46,20 @@ use backend_bridge::BackendEventBridge;
 /// 避免只数正文而系统性低估窗口占用。
 const MESSAGE_STRUCTURE_OVERHEAD_TOKENS: usize = 8;
 
+/// 上下文计量快照（内部，一次持锁取齐）
+///
+/// [丁1 加急] `enforce_context_budget`（自动裁剪）与 `context_usage`（面板查询）、
+/// `compact_now`（手动压缩）共用同一次计量，保证「查询所见 = 裁剪所依」。
+struct ContextMeasurement {
+    policy: crate::context_budget::ContextBudgetPolicy,
+    retention_policy: crate::retention::RetentionPolicy,
+    plan: RetentionPlan,
+    costs: Vec<usize>,
+    history_tokens: usize,
+    system_tokens: usize,
+    message_count: usize,
+}
+
 // ─── AgentLoop ────────────────────────────────────────────
 
 /// 会话累计用量（input/output tokens）
@@ -839,48 +853,17 @@ impl AgentLoop {
     /// 被裁轮次必然已归档进记忆——归档阈值与预算触发点同源（同为窗口比例，
     /// 且触发点在归档阈值之内），预算触发时未归档缓冲只剩最近几轮，保留条数足够覆盖。
     async fn enforce_context_budget(&self) {
-        // 预算策略：装配层注入优先，缺省用兜底（32K 窗口 × 0.25）
-        let (policy, retention_policy) = {
-            let guard = match self.config.read() {
-                Ok(g) => g,
-                Err(_) => {
-                    warn!("上下文预算裁剪：config RwLock 中毒，本轮跳过");
-                    return;
-                }
-            };
-            (
-                guard.context_budget.unwrap_or_default(),
-                guard.retention_policy.unwrap_or_default(),
-            )
-        };
-
-        // 每轮重拼的系统侧文本（系统提示词 + 记忆注入 + 管线指引）——一并计入窗口占用
-        // （修正前只累加 messages，真实窗口占用被系统性低估）
-        let system_tokens = {
-            let cfg = self.config.read().map(|g| g.system_prompt.clone()).unwrap_or(None);
-            let mem = self.memory_context.read().map(|g| g.clone()).unwrap_or(None);
-            let pipe = self.pipeline_context.read().map(|g| g.clone()).unwrap_or(None);
-            (self.token_estimator)(&cfg.unwrap_or_default())
-                + (self.token_estimator)(&mem.unwrap_or_default())
-                + (self.token_estimator)(&pipe.unwrap_or_default())
-        };
-
-        // 逐条成本 + 保留契约分类（同一次持锁内取齐，避免两次快照不一致）
-        let (plan, costs, history_tokens, total_msgs) = {
-            let state = self.state.lock().await;
-            let costs: Vec<usize> = state
-                .messages
-                .iter()
-                .map(|m| (self.token_estimator)(&m.content) + MESSAGE_STRUCTURE_OVERHEAD_TOKENS)
-                .collect();
-            let history: usize = costs.iter().sum();
-            let plan = RetentionPlan::classify(&state.messages, &retention_policy);
-            (plan, costs, history, state.messages.len())
-        };
+        // 计量与保留计划（与 context_usage / compact_now 同源，见 measure_context）
+        let m = self.measure_context().await;
+        let policy = m.policy;
+        let retention_policy = m.retention_policy;
+        let history_tokens = m.history_tokens;
+        let system_tokens = m.system_tokens;
         let total_tokens = history_tokens + system_tokens;
+        let total_msgs = m.message_count;
         let trigger = policy.trim_trigger();
 
-        let (n_system, n_user, n_pinned) = plan.protected_counts();
+        let (n_system, n_user, n_pinned) = m.plan.protected_counts();
         debug!(
             "上下文占用：历史 {} token + 系统侧 {} token = {} token（触发点 {}，窗口 {}，归档阈值 {}，当前层级 {}）；受保护：System {} / 最新user {} / 打标 {}",
             history_tokens,
@@ -900,7 +883,7 @@ impl AgentLoop {
         }
 
         // 按保留契约选组丢弃（工具交换组原子）
-        let drops = plan.select_drops(&costs, total_tokens, trigger);
+        let drops = m.plan.select_drops(&m.costs, total_tokens, trigger);
         if drops.is_empty() {
             debug!(
                 "上下文预算裁剪：超线（{} > {}）但可裁内容已穷尽（受保护组 {} 个），本轮不裁剪",
@@ -916,7 +899,7 @@ impl AgentLoop {
         //
         // 未注入外置器（测试 / 未配置记忆环境）→ 保持既有「选择性删除」行为。
         if self.raw_context_enabled {
-            let groups = plan.selected_groups(&drops);
+            let groups = m.plan.selected_groups(&drops);
             match self.fold_context(&groups).await {
                 Ok(outcome) if outcome.folded_groups > 0 => {
                     let backfilled = match self.backfill_folds(&outcome.fills).await {
@@ -990,6 +973,153 @@ impl AgentLoop {
             ),
             Err(e) => warn!("上下文预算裁剪失败: {}", e),
         }
+    }
+
+    /// 计量上下文占用（历史 + 系统侧）并产出保留计划 —— 一次持锁取齐
+    ///
+    /// [丁1 加急] 供三处共用：
+    /// - [`Self::enforce_context_budget`]（自动裁剪）
+    /// - [`Self::context_usage`]（面板查询）
+    /// - [`Self::compact_now`]（手动压缩）
+    ///
+    /// 「查询所见 = 裁剪所依」由共用本方法保证——三处若各自计量，
+    /// 数值漂移会让用户按面板做的决策失去依据。
+    async fn measure_context(&self) -> ContextMeasurement {
+        let (policy, retention_policy) = match self.config.read() {
+            Ok(g) => (
+                g.context_budget.unwrap_or_default(),
+                g.retention_policy.unwrap_or_default(),
+            ),
+            Err(_) => {
+                warn!("上下文计量：config RwLock 中毒，回退兜底策略");
+                (
+                    crate::context_budget::ContextBudgetPolicy::default(),
+                    crate::retention::RetentionPolicy::default(),
+                )
+            }
+        };
+
+        // 每轮重拼的系统侧文本（系统提示词 + 记忆注入 + 管线指引）——一并计入窗口占用
+        // （修正前只累加 messages，真实窗口占用被系统性低估）
+        let system_tokens = {
+            let cfg = self.config.read().map(|g| g.system_prompt.clone()).unwrap_or(None);
+            let mem = self.memory_context.read().map(|g| g.clone()).unwrap_or(None);
+            let pipe = self.pipeline_context.read().map(|g| g.clone()).unwrap_or(None);
+            (self.token_estimator)(&cfg.unwrap_or_default())
+                + (self.token_estimator)(&mem.unwrap_or_default())
+                + (self.token_estimator)(&pipe.unwrap_or_default())
+        };
+
+        // 逐条成本 + 保留契约分类（同一次持锁内取齐，避免两次快照不一致）
+        let (plan, costs, history_tokens, message_count) = {
+            let state = self.state.lock().await;
+            let costs: Vec<usize> = state
+                .messages
+                .iter()
+                .map(|m| (self.token_estimator)(&m.content) + MESSAGE_STRUCTURE_OVERHEAD_TOKENS)
+                .collect();
+            let history: usize = costs.iter().sum();
+            let plan = RetentionPlan::classify(&state.messages, &retention_policy);
+            (plan, costs, history, state.messages.len())
+        };
+
+        ContextMeasurement {
+            policy,
+            retention_policy,
+            plan,
+            costs,
+            history_tokens,
+            system_tokens,
+            message_count,
+        }
+    }
+
+    /// 上下文窗口占用快照（丁1 加急：前端「上下文」面板）
+    ///
+    /// 纯查询、无副作用；计量口径与自动裁剪、手动压缩完全同源。
+    pub async fn context_usage(&self) -> crate::context_budget::ContextUsage {
+        let m = self.measure_context().await;
+        let total_tokens = m.history_tokens + m.system_tokens;
+        crate::context_budget::ContextUsage {
+            total_tokens,
+            history_tokens: m.history_tokens,
+            system_tokens: m.system_tokens,
+            message_count: m.message_count,
+            context_window: m.policy.context_window,
+            archive_threshold: m.policy.archive_threshold,
+            trim_trigger: m.policy.trim_trigger(),
+            tier: m.policy.tier_of(total_tokens),
+        }
+    }
+
+    /// 手动压缩「一次到底」——忽略触发点，把可裁内容尽量折叠/删除
+    ///
+    /// 与 [`Self::enforce_context_budget`] 的差别只在**触发条件**：
+    /// 自动路径等占用达最高压缩层（归档阈值 95%）才动；本方法由用户发起、
+    /// 立即执行（`select_drops` 传入 trigger=0 = 全选可裁组语义）。
+    ///
+    /// - 受保护内容（System / 最新 user / 打标 / 最近 `keep_recent` 条）**永不触碰**
+    /// - 注入外置器 → 折叠（原文先外置 → 锚点 + 压缩文本；外置被拒的组保留原样）
+    /// - 未注入外置器 → 选择性删除（测试 / 未配置记忆环境的路径）
+    /// - 流式进行中拒绝——循环正在写 state，压缩会与主流程竞态
+    pub async fn compact_now(&self) -> Result<crate::context_budget::CompactOutcome, AgentError> {
+        use crate::context_budget::CompactOutcome;
+
+        if self.is_streaming() {
+            return Err(AgentError::Other("流式进行中，暂不可压缩上下文".into()));
+        }
+
+        let m = self.measure_context().await;
+        let before_tokens = m.history_tokens + m.system_tokens;
+        let mut outcome = CompactOutcome {
+            before_tokens,
+            ..Default::default()
+        };
+
+        // trigger=0：全选可裁组（受保护组由 select_drops 自然跳过并计数）
+        let drops = m.plan.select_drops(&m.costs, before_tokens, 0);
+        outcome.skipped_protected_groups = drops.skipped_protected_groups;
+        if drops.is_empty() {
+            // 无可压内容（全在受保护范围内 / 会话太短）
+            outcome.after_tokens = before_tokens;
+            outcome.mode = "none".into();
+            return Ok(outcome);
+        }
+
+        if self.raw_context_enabled {
+            let groups = m.plan.selected_groups(&drops);
+            let folded = self.fold_context(&groups).await?;
+            if folded.folded_groups > 0 {
+                if let Err(e) = self.backfill_folds(&folded.fills).await {
+                    warn!("手动压缩：锚点回填失败（折叠形停留空容器位，坐标仍在、可回源）: {e}");
+                }
+            }
+            outcome.folded_groups = folded.folded_groups;
+            outcome.folded_messages = folded.folded_messages;
+            outcome.mode = if folded.folded_groups > 0 { "folded" } else { "none" }.into();
+        } else {
+            let mask = drops.mask(m.message_count);
+            let dropped = self.trim_context_dropping(&mask).await?;
+            outcome.dropped_messages = dropped;
+            outcome.mode = if dropped > 0 { "dropped" } else { "none" }.into();
+        }
+
+        // 折叠/删除后重新计量（回填的压缩文本会改变最终占用，须以实测为准）
+        let after = self.measure_context().await;
+        outcome.after_tokens = after.history_tokens + after.system_tokens;
+        outcome.saved_tokens = outcome.before_tokens.saturating_sub(outcome.after_tokens);
+        info!(
+            "手动压缩：占用 {} → {} token（释放 {}；模式 {}；折叠 {} 组/{} 条，删除 {} 条；受保护跳过 {} 组）",
+            outcome.before_tokens,
+            outcome.after_tokens,
+            outcome.saved_tokens,
+            outcome.mode,
+            outcome.folded_groups,
+            outcome.folded_messages,
+            outcome.dropped_messages,
+            outcome.skipped_protected_groups
+        );
+        Ok(outcome)
     }
 
     /// M4-5（B10）：预判型 — 供 send_message 在 run 启动前决定 run 形状

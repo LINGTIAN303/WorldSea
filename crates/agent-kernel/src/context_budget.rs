@@ -53,6 +53,8 @@
 
 use std::sync::Arc;
 
+use serde::Serialize;
+
 /// Token 估算器：文本 → 上下文 token 数
 ///
 /// 用闭包而非 trait，理由（对齐上游 `memory-center-models::build_token_estimator`）：
@@ -186,6 +188,55 @@ impl Default for ContextBudgetPolicy {
     fn default() -> Self {
         Self::fallback()
     }
+}
+
+// ─── 对外快照与手动作业产出（丁1 加急：上下文窗口面板 / 手动压缩）────
+
+/// 上下文窗口占用快照（面板展示与命令层回传）
+///
+/// 计量口径与 [`crate::agent::AgentLoop::enforce_context_budget`] 同一套
+/// （消息历史 + 每轮重拼的系统侧文本），保证「面板所见 = 裁剪所依」。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContextUsage {
+    /// 当前总占用（token）= 历史 + 系统侧
+    pub total_tokens: usize,
+    /// 消息历史占用（token，含逐条结构开销）
+    pub history_tokens: usize,
+    /// 系统侧占用（token，系统提示词 + 记忆注入 + 管线指引）
+    pub system_tokens: usize,
+    /// 消息条数
+    pub message_count: usize,
+    /// 模型上下文窗口总量（token）
+    pub context_window: usize,
+    /// 归档阈值（token）
+    pub archive_threshold: usize,
+    /// 当前实现的裁剪触发点（最高压缩层，token）
+    pub trim_trigger: usize,
+    /// 四层阶梯所在层（0=未达第一层，1–4）
+    pub tier: u8,
+}
+
+/// 手动压缩产出（一次到底）
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompactOutcome {
+    /// 压缩前总占用（token）
+    pub before_tokens: usize,
+    /// 压缩后总占用（token，折叠回填后重新计量）
+    pub after_tokens: usize,
+    /// 实际释放（token）
+    pub saved_tokens: usize,
+    /// 折叠组数（注入外置器的路径）
+    pub folded_groups: usize,
+    /// 被折叠的消息条数
+    pub folded_messages: usize,
+    /// 被删除的消息条数（无外置器的路径）
+    pub dropped_messages: usize,
+    /// 因受保护（System/最新 user/打标/最近 N 条）跳过未动的组数
+    pub skipped_protected_groups: usize,
+    /// 处理模式："folded"（折叠）/ "dropped"（删除）/ "none"（无可压内容）
+    pub mode: String,
 }
 
 // ─── 测试 ────────────────────────────────────────

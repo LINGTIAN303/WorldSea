@@ -13,6 +13,27 @@
       @cancel="handleSummonCancel"
     />
 
+    <!-- 手动压缩回执提示条（/compact 指令或上下文面板触发；6s 自动消失） -->
+    <Transition name="compact-hint">
+      <div
+        v-if="compactHintVisible && latestCompaction"
+        class="compact-hint"
+        :class="{ 'is-err': !latestCompaction.ok }"
+        role="status"
+      >
+        <WsIcon name="collapse" size="xs" class="compact-hint-icon" />
+        <span class="compact-hint-text">{{ latestCompaction.text }}</span>
+        <button
+          class="compact-hint-close"
+          type="button"
+          aria-label="关闭提示"
+          @click="dismissCompactHint()"
+        >
+          <WsIcon name="x" size="xs" />
+        </button>
+      </div>
+    </Transition>
+
     <!-- 双层输入框：上层胶囊输入区 + 下层常驻工具栏 -->
     <div
       class="chat-input-box"
@@ -233,6 +254,29 @@ const settingsStore = useSettingsStore()
 const pluginStore = usePluginStore()
 const uiStore = useUIStore()
 const { isStreaming, abort, setSecurityLevel, securityLevel: sessionSecurityLevel } = useAgent()
+// 手动压缩回执（/compact 指令或上下文面板触发）：输入框上方提示条，6s 自动消失
+const { latestCompaction, clearCompactionHint } = useAgent()
+const compactHintVisible = ref(false)
+let compactHintTimer: ReturnType<typeof setTimeout> | null = null
+watch(latestCompaction, (c) => {
+  if (!c) {
+    compactHintVisible.value = false
+    return
+  }
+  compactHintVisible.value = true
+  if (compactHintTimer) clearTimeout(compactHintTimer)
+  compactHintTimer = setTimeout(() => {
+    compactHintVisible.value = false
+  }, 6000)
+})
+onBeforeUnmount(() => {
+  if (compactHintTimer) clearTimeout(compactHintTimer)
+})
+/** 关闭提示条（手动关闭同时清全局回执，避免切换到上下文面板后残留旧结果） */
+function dismissCompactHint(): void {
+  compactHintVisible.value = false
+  clearCompactionHint()
+}
 
 // P0-4 迭代：权限分级图标下拉（v2 三档 2026-09-03：plan/interact/autopilot）；value=后端 security level
 // 只读研究=plan｜交互确认=interact（默认，含危险三键 + 可学习白名单）｜自动巡航=autopilot
@@ -437,7 +481,10 @@ function detectSummon(value: string, cursorPos: number) {
       const prefix = m[2] === '!' ? '！' : m[2]
       const filter = m[3]
       const items = prefix === '@' ? getReferenceEntries() : filterByPrefix(allSummonItems.value, prefix)
-      if (items.length > 0) {
+      // filter 无匹配时不弹菜单：让 /compact 等保留指令（及无意义的过滤输入）直接走
+      // 普通发送路径，不悬停空菜单
+      const matched = filter ? items.filter((i) => matchesFilter(i, filter)) : items
+      if (matched.length > 0) {
         summonSymbolStart = cursorPos - filter.length - 1
         summonPrefix.value = prefix
         summonFilter.value = filter
@@ -1101,6 +1148,68 @@ onBeforeUnmount(() => {
   padding: 10px 16px 14px;
   background: transparent;
   position: relative;
+}
+
+/* ── 手动压缩回执提示条（/compact 指令与上下文面板共用回执）── */
+.compact-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: min(var(--conv-w), calc(100% - 2vw));
+  max-width: min(var(--conv-w), calc(100% - 2vw));
+  box-sizing: border-box;
+  margin: 0 0 6px;
+  padding: 5px 8px;
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-primary);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+.compact-hint.is-err {
+  border-left-color: var(--color-warning);
+  color: var(--color-warning);
+}
+.compact-hint-icon { flex-shrink: 0; color: var(--color-primary); }
+.compact-hint.is-err .compact-hint-icon { color: var(--color-warning); }
+.compact-hint-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.compact-hint-close {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+}
+.compact-hint-close:hover {
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+.compact-hint-enter-active,
+.compact-hint-leave-active {
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+.compact-hint-enter-from,
+.compact-hint-leave-to {
+  opacity: 0;
+  transform: translateY(4px);
+}
+:root[data-anim-panels='off'] .compact-hint-enter-from,
+:root[data-anim-panels='off'] .compact-hint-leave-to {
+  transform: none;
 }
 
 /* ── 双层输入框（[C] 宽度联动：以 W=75vw 为上限（原55vw向左右各扩10%）；主区被左栏/右栏挤窄时收缩到主区-2vw，左右各留 1vw 缝） ── */

@@ -180,6 +180,9 @@ pub fn run() {
             commands::load_session_events,
             commands::load_live_offsets,
             commands::memory_read_raw,
+            // 丁1 加急：上下文窗口（占用快照 / 手动压缩）
+            commands::context_usage,
+            commands::compact_context,
             commands::is_streaming,
             commands::update_model,
             commands::update_thinking_level,

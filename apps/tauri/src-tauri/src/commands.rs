@@ -1481,6 +1481,46 @@ pub async fn memory_read_raw(
         .map_err(|e| e.to_string())
 }
 
+// ── 丁1 加急：上下文窗口（面板查询 / 手动压缩）──────────────
+
+/// 手动压缩响应（压缩产出 + 压缩后最新占用，供面板与提示条共用）
+#[derive(serde::Serialize)]
+pub struct CompactResultDto {
+    outcome: agent_runtime::context_budget::CompactOutcome,
+    usage: agent_runtime::context_budget::ContextUsage,
+}
+
+/// 会话上下文窗口占用快照（面板展示；与自动裁剪同源计量）
+#[tauri::command]
+pub async fn context_usage(
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+) -> Result<agent_runtime::context_budget::ContextUsage, String> {
+    state
+        .context_usage(&session_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 手动压缩会话上下文「一次到底」（/compact 指令与面板按钮）
+///
+/// 流式进行中由底座拒绝（错误信息含「流式」）；成功后返回压缩产出与最新占用。
+#[tauri::command]
+pub async fn compact_context(
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+) -> Result<CompactResultDto, String> {
+    let outcome = state
+        .compact_context(&session_id)
+        .await
+        .map_err(|e| e.to_string())?;
+    let usage = state
+        .context_usage(&session_id)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(CompactResultDto { outcome, usage })
+}
+
 /// 是否正在流式输出
 #[tauri::command]
 pub async fn is_streaming(

@@ -1178,6 +1178,31 @@ impl AgentCommandService {
         Ok(report)
     }
 
+    // ─── 上下文窗口（丁1 加急：面板查询 / 手动压缩）────────────
+
+    /// 会话上下文窗口占用快照（面板展示；与自动裁剪同源计量）
+    pub async fn context_usage(
+        &self,
+        session_id: &str,
+    ) -> Result<agent_runtime::context_budget::ContextUsage, CommandError> {
+        let agent = self.get_agent(session_id).await?;
+        Ok(agent.context_usage().await)
+    }
+
+    /// 手动压缩会话上下文「一次到底」（/compact 指令与面板按钮）
+    ///
+    /// 流式进行中由底座拒绝（`AgentError::Other`）；返回压缩前后占用与释放量。
+    pub async fn compact_context(
+        &self,
+        session_id: &str,
+    ) -> Result<agent_runtime::context_budget::CompactOutcome, CommandError> {
+        let agent = self.get_agent(session_id).await?;
+        agent
+            .compact_now()
+            .await
+            .map_err(|e| CommandError::Internal(e.to_string()))
+    }
+
     /// 重建某会话的语义检索索引（A2 戊1；配置面板「重建索引」按钮）
     ///
     /// 返回索引文档数；语义未启用或会话无记忆后端时返回错误（UI 提示先配置）。
