@@ -68,6 +68,9 @@
         <template v-else-if="activeSection === 'activity'">
           <ActivityLog />
         </template>
+        <template v-else-if="activeSection === 'sessionlog'">
+          <SessionLogPanel />
+        </template>
         <template v-else-if="activeSection === 'supervisor'">
           <OrchestratorPanel
             mode="supervisor"
@@ -127,6 +130,7 @@ import SubAgentSection from '@/agent/components/SubAgentSection.vue'
 import RunTreeSection from '@/agent/components/RunTreeSection.vue'
 import ActivityLog from '@/agent/panels/ActivityLog.vue'
 import TracePanel from '@/agent/panels/TracePanel.vue'
+import SessionLogPanel from '@/agent/panels/SessionLogPanel.vue'
 import OrchestratorPanel from '@/agent/panels/OrchestratorPanel.vue'
 import TerminalView from '@/terminal/components/TerminalView.vue'
 import SubAgentView from '@/subagent/components/SubAgentView.vue'
@@ -135,10 +139,12 @@ import type { ExecTab } from '../stores/space-store'
 
 /** 6 个执行区元数据（宫格 / 标签共用；顺序即 3×3 宫格排布；
     2026-09-09 右栏消除 tot/got/multi/router 区——ToT/GoT/multi 已迁创作编排承载面、
-    Router 归场景识别底座，见 docs/plans/2026-09-09-编排双轨收口审查与6模块迁移.md） */
+    Router 归场景识别底座，见 docs/plans/2026-09-09-编排双轨收口审查与6模块迁移.md；
+    2026-09-12 新增「会话日志」区（A1 R3，设计文档 §10.3） */
 const EXEC_META: { id: ExecTab; label: string; icon: string }[] = [
   { id: 'trace', label: '轨迹', icon: 'activity' },
   { id: 'activity', label: '活动', icon: 'chart' },
+  { id: 'sessionlog', label: '会话日志', icon: 'scroll' },
   { id: 'subagent', label: '子Agent', icon: 'user' },
   { id: 'supervisor', label: '委派', icon: 'handshake' },
   { id: 'terminal', label: '终端', icon: 'terminal' },

@@ -163,6 +163,12 @@ pub fn run() {
             commands::trim_context,
             commands::get_state,
             commands::get_messages,
+            // A1 R3：会话日志面板只读查询（统计 / 分页日志 / 事件流 / 活跃坐标 / 原文取回）
+            commands::session_log_stats,
+            commands::load_session_log,
+            commands::load_session_events,
+            commands::load_live_offsets,
+            commands::memory_read_raw,
             commands::is_streaming,
             commands::update_model,
             commands::update_thinking_level,

@@ -1414,6 +1414,73 @@ pub async fn get_messages(
     state.get_messages(&session_id).await.map_err(|e| e.to_string())
 }
 
+// ── A1 R3：会话日志面板（只读查询，设计文档 §10.3）──────────────
+
+/// 会话日志统计（日志总量 / 活跃视图 / 已移出视图 / 事件数）
+#[tauri::command]
+pub async fn session_log_stats(
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+) -> Result<agent_commands::SessionLogStats, String> {
+    state
+        .session_log_stats(&session_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 读取不可变日志片段（分页：fromOffset 起始坐标 + limit 条数）
+#[tauri::command]
+pub async fn load_session_log(
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+    from_offset: i64,
+    limit: i64,
+) -> Result<Vec<agent_commands::SessionLogEntry>, String> {
+    state
+        .load_session_log(&session_id, from_offset, limit)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 读取会话事件流片段（检查点：历次同步的类型与规模留痕）
+#[tauri::command]
+pub async fn load_session_events(
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+    from_seq: i64,
+    limit: i64,
+) -> Result<Vec<agent_commands::SessionEventRecord>, String> {
+    state
+        .load_session_events(&session_id, from_seq, limit)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 读取活跃视图坐标集合（面板标记「活跃 / 已移出视图」）
+#[tauri::command]
+pub async fn load_live_offsets(
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+) -> Result<Vec<i64>, String> {
+    state
+        .load_live_offsets(&session_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 按坐标取回外置原文（与 `memory_read_raw` 工具同语义：只收坐标、分段、不返回半截）
+#[tauri::command]
+pub async fn memory_read_raw(
+    state: State<'_, AgentCommandService>,
+    content_hash: String,
+    from: Option<u64>,
+    max_chars: Option<u64>,
+) -> Result<agent_commands::RawSlice, String> {
+    state
+        .read_raw_content(&content_hash, from, max_chars)
+        .map_err(|e| e.to_string())
+}
+
 /// 是否正在流式输出
 #[tauri::command]
 pub async fn is_streaming(

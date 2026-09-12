@@ -127,6 +127,27 @@ pub struct SessionLogStats {
     pub event_count: i64,
 }
 
+/// 一次视图同步事件（`session_events` 行）
+///
+/// 事件流是「压缩可见性」的**留痕**：每次同步（含裁剪 / 修订 / 无变化）追加一条，
+/// 记录规模三元组与类型。日志面板据此呈现「检查点」（何时、以什么方式改变了上下文）。
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionEventRecord {
+    /// 事件坐标（会话内单调递增，从 0 起）
+    pub event_seq: i64,
+    /// 事件类型：`initial` / `append` / `trim` / `revise` / `noop`
+    pub event_kind: String,
+    /// 本次新进日志的条数
+    pub added: i64,
+    /// 本次移出活跃视图的条数（内容保留在日志）
+    pub dropped: i64,
+    /// 视图最终条数
+    pub kept: i64,
+    /// 事件时点（Unix 秒）
+    pub created_at: u64,
+}
+
 /// 一次视图同步的变化三元组
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -199,6 +220,24 @@ pub trait SessionRepository: Send + Sync {
     /// 默认返回全零。
     async fn session_log_stats(&self, _session_id: &str) -> Result<SessionLogStats, CommandError> {
         Ok(SessionLogStats::default())
+    }
+    /// 读取事件流片段（按事件坐标升序）—— 供日志面板呈现「检查点」
+    ///
+    /// 默认返回空（不支持事件的后端视为无事件可读）。
+    async fn load_session_events(
+        &self,
+        _session_id: &str,
+        _from_seq: i64,
+        _limit: i64,
+    ) -> Result<Vec<SessionEventRecord>, CommandError> {
+        Ok(Vec::new())
+    }
+    /// 读取活跃视图当前引用的日志坐标集合（按视图位置排列，非坐标数值排序）
+    ///
+    /// 供面板标记每条日志「活跃 / 已移出视图」——不含在集合中的坐标即内容仍
+    /// 保留、但已不在模型上下文里。默认返回空。
+    async fn load_live_offsets(&self, _session_id: &str) -> Result<Vec<i64>, CommandError> {
+        Ok(Vec::new())
     }
     /// 删除会话及其全部持久化痕迹（级联：视图 / 日志 / 事件）
     async fn delete_session(&self, session_id: &str) -> Result<(), CommandError>;
@@ -993,6 +1032,48 @@ impl SessionRepository for SqliteSessionRepository {
         })
     }
 
+    async fn load_session_events(
+        &self,
+        session_id: &str,
+        from_seq: i64,
+        limit: i64,
+    ) -> Result<Vec<SessionEventRecord>, CommandError> {
+        let rows: Vec<(i64, String, i64, i64, i64, i64)> = sqlx::query_as(
+            "SELECT event_seq, event_kind, added, dropped, kept, created_at FROM session_events \
+             WHERE session_id = ?1 AND event_seq >= ?2 ORDER BY event_seq LIMIT ?3",
+        )
+        .bind(session_id)
+        .bind(from_seq)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| CommandError::Internal(format!("读取会话事件失败: {e}")))?;
+        Ok(rows
+            .into_iter()
+            .map(
+                |(event_seq, event_kind, added, dropped, kept, created_at)| SessionEventRecord {
+                    event_seq,
+                    event_kind,
+                    added,
+                    dropped,
+                    kept,
+                    created_at: created_at as u64,
+                },
+            )
+            .collect())
+    }
+
+    async fn load_live_offsets(&self, session_id: &str) -> Result<Vec<i64>, CommandError> {
+        let rows: Vec<(i64,)> = sqlx::query_as(
+            "SELECT log_offset FROM session_live WHERE session_id = ?1 ORDER BY position",
+        )
+        .bind(session_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| CommandError::Internal(format!("读取活跃坐标失败: {e}")))?;
+        Ok(rows.into_iter().map(|(offset,)| offset).collect())
+    }
+
     async fn delete_session(&self, session_id: &str) -> Result<(), CommandError> {
         // session_log / session_live / session_events 均有 ON DELETE CASCADE，删 sessions 行即级联清除
         sqlx::query("DELETE FROM sessions WHERE id = ?1")
@@ -1667,6 +1748,76 @@ mod tests {
         // 分页不重不漏
         let rest = store.load_session_log("s1", 4, 10).await.unwrap();
         assert_eq!(rest.len(), 1);
+    }
+
+    /// 事件流（检查点留痕）：类型与规模三元组逐条落账，可分页读取
+    #[tokio::test]
+    async fn event_trail_records_kind_and_scale() {
+        let store = SqliteSessionRepository::new_in_memory().await.unwrap();
+        store.save_session(&record("s1", 2)).await.unwrap();
+        let a = msg(MessageRole::User, "A");
+        let b = msg(MessageRole::Assistant, "B");
+        let c = msg(MessageRole::User, "C");
+
+        // 四种事件类型各走一次：initial → append → trim → revise
+        store.replace_messages("s1", &[a.clone(), b.clone()]).await.unwrap();
+        store
+            .replace_messages("s1", &[a, b.clone(), c.clone()])
+            .await
+            .unwrap();
+        store.replace_messages("s1", &[b, c.clone()]).await.unwrap();
+        store
+            .replace_messages("s1", &[msg(MessageRole::Assistant, "B2"), c])
+            .await
+            .unwrap();
+
+        let events = store.load_session_events("s1", 0, 100).await.unwrap();
+        let kinds: Vec<&str> = events.iter().map(|e| e.event_kind.as_str()).collect();
+        assert_eq!(kinds, vec!["initial", "append", "trim", "revise"]);
+        assert_eq!((events[0].added, events[0].dropped, events[0].kept), (2, 0, 2));
+        assert_eq!((events[1].added, events[1].dropped, events[1].kept), (1, 0, 3));
+        assert_eq!((events[2].added, events[2].dropped, events[2].kept), (0, 1, 2));
+        assert_eq!((events[3].added, events[3].dropped, events[3].kept), (1, 1, 2));
+        assert_eq!(events[0].event_seq, 0);
+        assert!(events[0].created_at > 0, "事件须带时点");
+        for w in events.windows(2) {
+            assert!(w[1].event_seq > w[0].event_seq, "事件坐标必须单调递增");
+        }
+
+        // 分页：不重不漏
+        let page = store.load_session_events("s1", 2, 1).await.unwrap();
+        assert_eq!(page.len(), 1);
+        assert_eq!(page[0].event_kind, "trim");
+
+        // 跨会话不串味
+        store.save_session(&record("s2", 0)).await.unwrap();
+        assert!(store.load_session_events("s2", 0, 10).await.unwrap().is_empty());
+    }
+
+    /// 活跃坐标集合与视图一致：移出视图的坐标消失、修订后的新坐标出现
+    #[tokio::test]
+    async fn live_offsets_reflect_current_view() {
+        let store = SqliteSessionRepository::new_in_memory().await.unwrap();
+        store.save_session(&record("s1", 3)).await.unwrap();
+        let a = msg(MessageRole::User, "A");
+        let b = msg(MessageRole::Assistant, "B");
+        let c = msg(MessageRole::User, "C");
+
+        store.replace_messages("s1", &[a, b.clone(), c.clone()]).await.unwrap();
+        assert_eq!(store.load_live_offsets("s1").await.unwrap(), vec![0, 1, 2]);
+
+        // 头部裁剪：坐标 0 移出视图（内容仍在日志）
+        store.replace_messages("s1", &[b, c.clone()]).await.unwrap();
+        assert_eq!(store.load_live_offsets("s1").await.unwrap(), vec![1, 2]);
+
+        // 就地修订 B → B2：旧坐标 1 移出、新坐标 3 进入
+        store
+            .replace_messages("s1", &[msg(MessageRole::Assistant, "B2"), c])
+            .await
+            .unwrap();
+        let live = store.load_live_offsets("s1").await.unwrap();
+        assert_eq!(live, vec![3, 2], "按视图位置排列（修订的新版本在前）");
+        assert!(!live.contains(&1), "旧版本坐标必须已移出活跃集合");
     }
 
     /// 删除会话：日志 / 视图 / 事件一并级联清除（不留孤儿）

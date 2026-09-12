@@ -35,7 +35,7 @@ use agent_runtime::tool::{Tool, ToolError};
 use async_trait::async_trait;
 use serde_json::{json, Value};
 
-use crate::AgentCommandService;
+use crate::{AgentCommandService, CommandError};
 
 /// 单次返回的字符上限（超过则截断并提示）
 ///
@@ -43,6 +43,76 @@ use crate::AgentCommandService;
 /// 裁剪（保头 + 保尾）——那是**预期行为**，本上限只防止把 32 MiB 的文件整体灌进
 /// 一次工具返回（某些 provider 对单条消息体积有硬限制）。
 pub const RAW_READ_MAX_CHARS: usize = 512 * 1024;
+
+/// 一次原文取回的切片结果（工具结果与 Tauri 命令共用同一形状）
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RawSlice {
+    /// 已解析出的内容坐标（16 位十六进制）
+    pub content_hash: String,
+    /// 本次返回的内容片段
+    pub content: String,
+    /// 原文总字符数
+    pub total_chars: usize,
+    /// 本片段起始字符位
+    pub from: usize,
+    /// 是否还有后续片段
+    pub truncated: bool,
+    /// 续读游标（无后续为 None）
+    pub next_from: Option<usize>,
+}
+
+/// 按坐标取回外置原文（分段）——`memory_read_raw` 工具与 Tauri 命令的**唯一实现**
+///
+/// 安全边界见模块头：只接受 16 位十六进制坐标（或含标注的整段文本，尽力解析）、
+/// 内容不存在即报错（含回收提示，不返回半截内容）、单次上限 [`RAW_READ_MAX_CHARS`]。
+pub fn read_raw_paged(
+    memory_root: &std::path::Path,
+    raw_hash: &str,
+    from: Option<u64>,
+    max_chars: Option<u64>,
+) -> Result<RawSlice, String> {
+    let raw_hash = raw_hash.trim();
+    // 容错：调用方可能把整段标注贴进来（模型常见行为），此处尽力解析出坐标
+    let hash = if agent_memory::raw_store::is_valid_hash(raw_hash) {
+        raw_hash.to_string()
+    } else if let Some(parsed) = parse_externalized_hash(raw_hash) {
+        parsed
+    } else {
+        return Err(format!("内容坐标非法（应为 16 位十六进制）: {raw_hash}"));
+    };
+
+    // 打开外置目录（失败即报错，不静默返回空）
+    let store = agent_memory::raw_store::RawStore::open(memory_root)
+        .map_err(|e| format!("无法访问记忆原文目录: {e}"))?;
+
+    let full = store.read(&hash).ok_or_else(|| {
+        format!("未找到该坐标对应的原文（可能已超出保留期被回收）: {hash}")
+    })?;
+
+    let total_chars = full.chars().count();
+    let from = from.unwrap_or(0) as usize;
+    let max_chars = max_chars
+        .map(|v| (v as usize).min(RAW_READ_MAX_CHARS))
+        .unwrap_or(RAW_READ_MAX_CHARS);
+
+    let slice: String = full.chars().skip(from).take(max_chars).collect();
+    let returned_chars = slice.chars().count();
+    let truncated = from + returned_chars < total_chars;
+
+    Ok(RawSlice {
+        content_hash: hash,
+        content: slice,
+        total_chars,
+        from,
+        truncated,
+        next_from: if truncated {
+            Some(from + returned_chars)
+        } else {
+            None
+        },
+    })
+}
 
 /// 记忆原文读工具
 pub struct MemoryReadRawTool {
@@ -102,50 +172,19 @@ impl Tool for MemoryReadRawTool {
             .and_then(|v| v.as_str())
             .map(|s| s.trim())
             .ok_or_else(|| ToolError::Execution("缺少参数 content_hash".into()))?;
+        let from = args.get("from").and_then(|v| v.as_u64());
+        let max_chars = args.get("max_chars").and_then(|v| v.as_u64());
 
-        // 容错：调用方可能把整段标注贴进来（模型常见行为），此处尽力解析出坐标
-        let hash = if agent_memory::raw_store::is_valid_hash(raw_hash) {
-            raw_hash.to_string()
-        } else if let Some(parsed) = parse_externalized_hash(raw_hash) {
-            parsed
-        } else {
-            return Err(ToolError::Execution(format!(
-                "内容坐标非法（应为 16 位十六进制）: {raw_hash}"
-            )));
-        };
-
-        // 打开外置目录（失败即报错，不静默返回空）
-        let store = agent_memory::raw_store::RawStore::open(&self.memory_root)
-            .map_err(|e| ToolError::Execution(format!("无法访问记忆原文目录: {e}")))?;
-
-        let full = store.read(&hash).ok_or_else(|| {
-            ToolError::Execution(format!(
-                "未找到该坐标对应的原文（可能已超出保留期被回收）: {hash}"
-            ))
-        })?;
-
-        let total_chars = full.chars().count();
-        let from = args
-            .get("from")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0) as usize;
-        let max_chars = args
-            .get("max_chars")
-            .and_then(|v| v.as_u64())
-            .map(|v| (v as usize).min(RAW_READ_MAX_CHARS))
-            .unwrap_or(RAW_READ_MAX_CHARS);
-
-        let slice: String = full.chars().skip(from).take(max_chars).collect();
-        let returned_chars = slice.chars().count();
-        let truncated = from + returned_chars < total_chars;
+        let slice = read_raw_paged(&self.memory_root, raw_hash, from, max_chars)
+            .map_err(ToolError::Execution)?;
 
         Ok(json!({
-            "content_hash": hash,
-            "content": slice,
-            "total_chars": total_chars,
-            "from": from,
-            "truncated": truncated,
-            "next_from": if truncated { Some(from + returned_chars) } else { None },
+            "content_hash": slice.content_hash,
+            "content": slice.content,
+            "total_chars": slice.total_chars,
+            "from": slice.from,
+            "truncated": slice.truncated,
+            "next_from": slice.next_from,
             "__meta": { "op": "memory_read_raw", "readonly": true },
         }))
     }
@@ -161,6 +200,24 @@ impl AgentCommandService {
             bus.register(Arc::new(MemoryReadRawTool::new(root.clone())))
                 .await;
         }
+    }
+
+    /// 按坐标取回外置原文（分段）—— R3 会话日志面板「查看原文」的命令入口
+    ///
+    /// 与 [`MemoryReadRawTool`] 共用 [`read_raw_paged`] 唯一实现：安全边界
+    /// （坐标白名单 / 不存在即报错 / 上限）与工具完全一致，不给 UI 开后门。
+    pub fn read_raw_content(
+        &self,
+        raw_hash: &str,
+        from: Option<u64>,
+        max_chars: Option<u64>,
+    ) -> Result<RawSlice, CommandError> {
+        let Some(root) = &self.memory_root else {
+            return Err(CommandError::Internal(
+                "记忆根目录未配置，无法取回原文".into(),
+            ));
+        };
+        read_raw_paged(root, raw_hash, from, max_chars).map_err(CommandError::Internal)
     }
 }
 

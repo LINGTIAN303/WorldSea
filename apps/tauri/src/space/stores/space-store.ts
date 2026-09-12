@@ -12,10 +12,11 @@ export type SidebarTab = 'session' | 'knowledge'
 export type RightTab = 'exec' | 'config' | 'creation' | 'preview' | 'usage'
 /** 配置 Tab 内子切换：记忆 / 人格 / 档案（档案为占位，2026-08-29） */
 export type ConfigSubTab = 'memory' | 'persona' | 'profile'
-/** 执行面板 Tab：轨迹/活动/终端/子Agent + 编排模式（Supervisor）；
+/** 执行面板 Tab：轨迹/活动/会话日志/终端/子Agent + 编排模式（Supervisor）；
     2026-09-09 右栏消除 tot/got/multi 区（ToT/GoT/multi 迁创作编排承载面）；
-    2026-09-09 消除 Router 区（Router 归场景识别底座，命令与面板下线） */
-export type ExecTab = 'trace' | 'activity' | 'supervisor' | 'terminal' | 'subagent'
+    2026-09-09 消除 Router 区（Router 归场景识别底座，命令与面板下线）；
+    2026-09-12 新增 sessionlog 区（A1 R3：前端 session 日志（历史）面板） */
+export type ExecTab = 'trace' | 'activity' | 'sessionlog' | 'supervisor' | 'terminal' | 'subagent'
 export type AgentMood = 'active' | 'thinking' | 'focused' | 'idle'
 
 export interface AgentPersona {

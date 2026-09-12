@@ -113,6 +113,30 @@ struct TrimArgs {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct SessionLogArgs {
+    session_id: String,
+    from_offset: i64,
+    limit: i64,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SessionEventsArgs {
+    session_id: String,
+    from_seq: i64,
+    limit: i64,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawReadArgs {
+    content_hash: String,
+    from: Option<u64>,
+    max_chars: Option<u64>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct ConfirmArgs {
     session_id: String,
     confirm_id: String,
@@ -338,6 +362,47 @@ pub fn register_core(reg: &mut Registry) {
             let a: SessionArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
             let st = app.state::<agent_commands::AgentCommandService>();
             c::get_messages(st, a.session_id).await.map(|r| to_value(r).unwrap_or(Value::Null))
+        })
+    }));
+    // ── A1 R3：会话日志面板（只读查询）──
+    reg.register("session_log_stats", Arc::new(move |app, args| {
+        let app = app.clone();
+        Box::pin(async move {
+            let a: SessionArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
+            let st = app.state::<agent_commands::AgentCommandService>();
+            c::session_log_stats(st, a.session_id).await.map(|r| to_value(r).unwrap_or(Value::Null))
+        })
+    }));
+    reg.register("load_session_log", Arc::new(move |app, args| {
+        let app = app.clone();
+        Box::pin(async move {
+            let a: SessionLogArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
+            let st = app.state::<agent_commands::AgentCommandService>();
+            c::load_session_log(st, a.session_id, a.from_offset, a.limit).await.map(|r| to_value(r).unwrap_or(Value::Null))
+        })
+    }));
+    reg.register("load_session_events", Arc::new(move |app, args| {
+        let app = app.clone();
+        Box::pin(async move {
+            let a: SessionEventsArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
+            let st = app.state::<agent_commands::AgentCommandService>();
+            c::load_session_events(st, a.session_id, a.from_seq, a.limit).await.map(|r| to_value(r).unwrap_or(Value::Null))
+        })
+    }));
+    reg.register("load_live_offsets", Arc::new(move |app, args| {
+        let app = app.clone();
+        Box::pin(async move {
+            let a: SessionArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
+            let st = app.state::<agent_commands::AgentCommandService>();
+            c::load_live_offsets(st, a.session_id).await.map(|r| to_value(r).unwrap_or(Value::Null))
+        })
+    }));
+    reg.register("memory_read_raw", Arc::new(move |app, args| {
+        let app = app.clone();
+        Box::pin(async move {
+            let a: RawReadArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
+            let st = app.state::<agent_commands::AgentCommandService>();
+            c::memory_read_raw(st, a.content_hash, a.from, a.max_chars).await.map(|r| to_value(r).unwrap_or(Value::Null))
         })
     }));
     reg.register("is_streaming", Arc::new(move |app, args| {

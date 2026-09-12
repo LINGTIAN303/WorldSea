@@ -32,9 +32,10 @@ pub use pattern_registry::{
     pattern_registry, validate_registry,
 };
 pub use run_store::{DecisionRecord, OrchestrationRun, RunStatus, RunStore};
+pub use raw_tools::RawSlice;
 pub use session_store::{
-    SessionKind, SessionRecord, SessionRepository, SqliteSessionRepository, WorkdirRecord,
-    WorkspaceRecord,
+    SessionEventRecord, SessionKind, SessionLogEntry, SessionLogStats, SessionRecord,
+    SessionRepository, SqliteSessionRepository, WorkdirRecord, WorkspaceRecord,
 };
 pub use subagent::{register_subagent_tools, SubAgentInstanceInfo, SubAgentManager};
 pub use subagent_store::{SqliteSubAgentSpecStore, SubAgentSpecStore};
@@ -3710,6 +3711,53 @@ impl AgentCommandService {
     pub async fn get_messages(&self, session_id: &str) -> Result<Vec<OrchestratorMessage>, CommandError> {
         let agent = self.get_agent(session_id).await?;
         Ok(agent.get_messages().await)
+    }
+
+    // ── 会话日志查询（A1 R3 面板消费：轨迹 / 检查点 / 活跃标记）────────
+
+    /// 会话日志统计（日志总量 / 活跃视图 / 已移出视图 / 事件数）
+    pub async fn session_log_stats(
+        &self,
+        session_id: &str,
+    ) -> Result<SessionLogStats, CommandError> {
+        let Some(store) = &self.session_store else {
+            return Ok(SessionLogStats::default());
+        };
+        store.session_log_stats(session_id).await
+    }
+
+    /// 读取不可变日志片段（分页：起始坐标 + 条数）
+    pub async fn load_session_log(
+        &self,
+        session_id: &str,
+        from_offset: i64,
+        limit: i64,
+    ) -> Result<Vec<SessionLogEntry>, CommandError> {
+        let Some(store) = &self.session_store else {
+            return Ok(Vec::new());
+        };
+        store.load_session_log(session_id, from_offset, limit).await
+    }
+
+    /// 读取会话事件流片段（检查点：历次同步的类型与规模留痕）
+    pub async fn load_session_events(
+        &self,
+        session_id: &str,
+        from_seq: i64,
+        limit: i64,
+    ) -> Result<Vec<SessionEventRecord>, CommandError> {
+        let Some(store) = &self.session_store else {
+            return Ok(Vec::new());
+        };
+        store.load_session_events(session_id, from_seq, limit).await
+    }
+
+    /// 读取活跃视图坐标集合（面板标记「活跃 / 已移出视图」）
+    pub async fn load_live_offsets(&self, session_id: &str) -> Result<Vec<i64>, CommandError> {
+        let Some(store) = &self.session_store else {
+            return Ok(Vec::new());
+        };
+        store.load_live_offsets(session_id).await
     }
 
     /// 是否正在流式输出

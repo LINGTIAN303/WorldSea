@@ -38,8 +38,9 @@ export interface SessionViewState {
 }
 
 /** 合法执行区（2026-09-09 右栏消除 tot/got/multi/router：旧落盘数据经 normalize 过滤，
-    ToT/GoT/multi 历史现场迁移创作编排、Router 归场景识别底座） */
-const VALID_EXEC_TABS: ExecTab[] = ['trace', 'activity', 'supervisor', 'terminal', 'subagent']
+    ToT/GoT/multi 历史现场迁移创作编排、Router 归场景识别底座；
+    2026-09-12 新增 sessionlog：A1 R3 会话日志面板） */
+const VALID_EXEC_TABS: ExecTab[] = ['trace', 'activity', 'sessionlog', 'supervisor', 'terminal', 'subagent']
 
 /** 缺省场景 id（2026-09-10 世界场景改名 worldbuilding→world，与后端 ScenarioRegistry 一致） */
 export const DEFAULT_SCENE_ID = 'world'
