@@ -131,6 +131,7 @@ const DEFAULT_SPROUTS: SproutToggle[] = [
   { id: 'official.items', label: '道具', icon: 'item', active: false, category: 'items' },
   { id: 'official.apparel', label: '服饰/装备', icon: 'apparel', active: false, category: 'items' },
   { id: 'official.custom', label: '自定义视窗', icon: 'dashboard', active: false, category: 'system' },
+  { id: 'official.mindmap', label: '思维导图', icon: 'mindmap', active: false, category: 'visual' },
   { id: 'official.module-builder', label: '自定义模块', icon: 'module-builder', active: true, category: 'system' },
   { id: 'official.graph', label: '全局图谱', icon: 'graph', active: false, category: 'visual' },
   { id: 'official.buildings', label: '建筑/地点细节', icon: 'building', active: false, category: 'world' },

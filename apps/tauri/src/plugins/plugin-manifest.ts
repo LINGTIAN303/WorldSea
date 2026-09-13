@@ -20,6 +20,7 @@ export const OFFICIAL_SPROUTS: readonly OfficialSproutEntry[] = [
   { id: 'official.organizations', importPath: './organizations/index', defaultActive: true, name: '组织' },
   { id: 'official.concepts', importPath: './concepts/index', defaultActive: true, name: '概念' },
   { id: 'official.items', importPath: './items/index', defaultActive: true, name: '物品' },
+  { id: 'official.mindmap', importPath: './mindmap/index', defaultActive: true, name: '思维导图' },
   { id: 'official.custom', importPath: './custom/index', defaultActive: false, name: '自定义' },
   { id: 'official.module-builder', importPath: './module-builder/index', defaultActive: false, name: '模块构建器' },
   { id: 'official.graph', importPath: './graph/index', defaultActive: true, name: '图谱' },

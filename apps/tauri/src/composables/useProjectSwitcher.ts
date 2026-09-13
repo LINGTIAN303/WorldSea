@@ -295,6 +295,11 @@ export function useProjectSwitcher() {
     if (projectSproutGroups) {
       settings.sproutGroups = projectSproutGroups
     }
+
+    // 重载思维导图文档（项目级隔离：文档索引与内容都在项目 DB）
+    const { useMindmapDocStore } = await import('@/sprouts/official/mindmap/mindmapStore')
+    const mindmapDocStore = useMindmapDocStore()
+    await mindmapDocStore.loadAll()
   }
 
   /**
