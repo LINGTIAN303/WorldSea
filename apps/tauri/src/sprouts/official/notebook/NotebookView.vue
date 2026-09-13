@@ -82,7 +82,7 @@
 
 <script setup lang="ts">
 import { ref, computed, reactive, watch, onMounted, onBeforeUnmount } from 'vue'
-import { useEntityStore, useRelationStore, useBidirectional } from '@worldsea/entity-core'
+import { useEntityStore, useRelationStore, useBidirectional, useUndoRedo } from '@worldsea/entity-core'
 import type { Relation } from '@worldsea/entity-core'
 import { WsEmpty, WsIcon } from '@worldsea/ui-kit'
 import NotebookEditor from './components/NotebookEditor.vue'
@@ -103,6 +103,7 @@ interface NotebookFolder {
 const entityStore = useEntityStore()
 const relationStore = useRelationStore()
 const { createBidirectional } = useBidirectional()
+const { beginTransaction, commitTransaction, rollbackTransaction } = useUndoRedo()
 /** 代码单元格沙箱：与 CodeCell.vue 共用同一实现（Agent 侧 execute_code 也走这里） */
 const codeSandbox = useCodeSandbox()
 const currentMode = ref<ViewMode>('editor')
@@ -231,13 +232,34 @@ function clearFolderToRename(): void {
   folderToRename.value = null
 }
 
+/**
+ * 把一组实体更新归并为**一条**撤销记录。
+ *
+ * `entityStore.update` 每条都会 record() 进全局撤销栈，而栈上限只有 20（见 MEMORY 工程教训 29）
+ * —— 一次拖拽重排、一次删文件夹都会连带更新 N 条笔记；若不归并，单次操作就把用户的历史冲光。
+ * `record()` 在 update() 内部是**同步**执行的，所以这里同步 begin/commit 即可正确归组。
+ */
+function asSingleUndoStep(description: string, write: () => void): void {
+  beginTransaction()
+  try {
+    write()
+    commitTransaction(description)
+  } catch (err) {
+    rollbackTransaction()
+    console.warn('[NotebookView] 批量更新失败', err)
+  }
+}
+
 function deleteFolder(folderId: string): void {
   if (pendingDeleteFolderId.value === folderId) {
     const folder = folders.value.find(f => f.id === folderId)
     if (folder) {
-      for (const note of getFolderNotes(folderId)) {
-        entityStore.update(note.id, { properties: { ...note.properties, folderId: '' } })
-      }
+      // 文件夹内的笔记要一并移出，属同一次用户动作 → 归并为一条撤销记录
+      asSingleUndoStep('删除文件夹', () => {
+        for (const note of getFolderNotes(folderId)) {
+          entityStore.update(note.id, { properties: { ...note.properties, folderId: '' } })
+        }
+      })
       folders.value = folders.value.filter(f => f.id !== folderId)
       collapsedFolders.delete(folderId)
       saveFolders()
@@ -279,16 +301,19 @@ async function deleteNote(noteId: string): Promise<void> {
 }
 
 function reorderNotes(_folderId: string, noteIds: string[]): void {
-  for (let i = 0; i < noteIds.length; i++) {
-    const note = notebookNotes.value.find((n) => n.id === noteIds[i])
-    if (!note) continue
-    const sortOrder = String(i).padStart(10, '0')
-    if (note.properties?.sortOrder !== sortOrder) {
-      entityStore.update(note.id, {
-        properties: { ...note.properties, sortOrder },
-      })
+  // 一次拖拽 = 一次操作：逐条 update 会产生 N 条撤销记录，归并后只留一条
+  asSingleUndoStep('调整笔记顺序', () => {
+    for (let i = 0; i < noteIds.length; i++) {
+      const note = notebookNotes.value.find((n) => n.id === noteIds[i])
+      if (!note) continue
+      const sortOrder = String(i).padStart(10, '0')
+      if (note.properties?.sortOrder !== sortOrder) {
+        entityStore.update(note.id, {
+          properties: { ...note.properties, sortOrder },
+        })
+      }
     }
-  }
+  })
 }
 
 function renameFolder(folderId: string, newName: string): void {

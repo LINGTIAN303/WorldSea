@@ -149,7 +149,6 @@
 <script setup lang="ts">
 import { ref, watch, reactive, nextTick, onMounted, onUnmounted } from 'vue'
 import draggable from 'vuedraggable'
-import { useEntityStore } from '@worldsea/entity-core'
 import { WsIcon } from '@worldsea/ui-kit'
 import type { NotebookEntity } from '../types'
 
@@ -216,28 +215,12 @@ function filterByFolder(notes: NotebookEntity[], folderId: string): NotebookEnti
 const folderList = ref<NotebookFolder[]>([...props.folders])
 watch(() => props.folders, (f) => { folderList.value = [...f] }, { deep: true })
 
-const entityStore = useEntityStore()
 const unfiledList = ref<NotebookEntity[]>([...props.unfiledNotes])
 watch(() => props.unfiledNotes, (notes) => { unfiledList.value = [...notes] }, { deep: true })
-watch(() => entityStore.entities, () => {
-  const allNotes = entityStore.entities.filter((e): e is NotebookEntity => e.type === 'notebook')
-  unfiledList.value = [...allNotes.filter(n => {
-    const fid = n.properties?.folderId
-    return !fid || !props.folders.some(f => f.id === fid)
-  }).sort(sortByOrder)]
-  for (const f of props.folders) {
-    const filtered = allNotes.filter(n => (n.properties?.folderId || '') === f.id).sort(sortByOrder)
-    if (!noteLists[f.id]) {
-      noteLists[f.id] = reactive([...filtered])
-    } else {
-      noteLists[f.id].splice(0, noteLists[f.id].length, ...filtered)
-    }
-  }
-  for (const id of Object.keys(noteLists)) {
-    if (!props.folders.some(f => f.id === id)) delete noteLists[id]
-  }
-}, { deep: true })
 
+// 注：此前这里另有一个 watch(entityStore.entities) 直接读 store 重建 unfiledList / noteLists，
+// 与下方 syncNoteLists（由 props.allNotes 驱动）职责完全重复 —— 已移除。
+// 本组件只从 props 单向接收数据，不再直连 store（顺带消除「props 全集 vs 直读 store」两套来源）。
 const noteLists = reactive<Record<string, NotebookEntity[]>>({})
 
 function syncNoteLists() {
