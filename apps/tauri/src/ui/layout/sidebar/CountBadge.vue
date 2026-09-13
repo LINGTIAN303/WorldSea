@@ -19,7 +19,7 @@ import {
   IconNumber9Small,
 } from '@tabler/icons-vue'
 
-const props = withDefaults(defineProps<{ value: number; size?: number }>(), { value: 0, size: 13 })
+const props = withDefaults(defineProps<{ value: number; size?: number }>(), { value: 0, size: 16 })
 
 /** 数字位 → 图标组件映射（下标 0-9） */
 const DIGIT_ICONS: Component[] = [
@@ -55,14 +55,12 @@ const digitIcons = computed(() => {
 </template>
 
 <style scoped>
+/* 无底壳：只渲染数字图标本身，靠 margin-left:auto 推到行尾 */
 .num-count-badge {
   display: inline-flex;
   align-items: center;
   gap: 0.5px;
-  background: var(--bg-tertiary);
   color: var(--text-tertiary);
-  border-radius: var(--radius-mid);
-  padding: 2px 5px;
   margin-left: auto;
   flex-shrink: 0;
   line-height: 1;
