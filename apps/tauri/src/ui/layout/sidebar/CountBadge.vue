@@ -55,11 +55,12 @@ const digitIcons = computed(() => {
 </template>
 
 <style scoped>
-/* 无底壳：只渲染数字图标本身，靠 margin-left:auto 推到行尾 */
+/* 无底壳：只渲染数字图标本身，靠 margin-left:auto 推到行尾。
+   位间 gap 为 0：Tabler Number 图标字形自带左右留白，再叠加间隙会显得过宽 */
 .num-count-badge {
   display: inline-flex;
   align-items: center;
-  gap: 0.5px;
+  gap: 0;
   color: var(--text-tertiary);
   margin-left: auto;
   flex-shrink: 0;
