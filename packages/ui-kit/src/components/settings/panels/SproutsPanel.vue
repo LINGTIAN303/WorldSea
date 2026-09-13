@@ -12,47 +12,50 @@
                 class="sp-group-dd-btn"
                 :aria-expanded="groupMenuOpen"
                 aria-haspopup="menu"
-                @click="groupMenuOpen = !groupMenuOpen"
+                @click="openMenu"
               >
-                <span>{{ groupMenuLabel }}</span>
+                <span>分组</span>
                 <WsIcon name="chevron-down" size="xs" />
               </button>
               <div v-if="groupMenuOpen" class="sp-group-menu" role="menu">
-                <template v-if="!savingGroup">
+                <!-- 命名行常驻（不再做「点击切换出输入框」的 v-if 流程，规避焦点/时序类失效）：
+                     输入名字 → 保存（保存对象 = 当前激活集，见 confirmSaveGroup） -->
+                <div class="sp-group-save-row">
+                  <input
+                    ref="groupNameRef"
+                    v-model="groupName"
+                    type="text"
+                    class="set-input sp-group-input"
+                    :placeholder="`分组名（保存当前激活 ${activeSproutIds.length} 个）`"
+                    maxlength="20"
+                    @keyup.enter="confirmSaveGroup"
+                    @keyup.esc="closeMenu"
+                  />
+                </div>
+                <div class="sp-group-save-actions">
                   <button
                     type="button"
-                    class="sp-group-menu-item sp-group-menu-action"
-                    :disabled="activeSproutIds.length === 0"
-                    :title="activeSproutIds.length === 0 ? '先勾选至少一个芽（自定义激活范围）再保存' : ''"
-                    @click="startSaveGroup"
-                  >＋ 保存当前激活为分组{{ activeSproutIds.length > 0 ? `（${activeSproutIds.length}）` : '' }}</button>
-                  <div v-if="store.sproutGroups.length === 0" class="sp-group-menu-empty">暂无分组：勾选芽后保存</div>
-                  <template v-else>
-                    <div class="sp-group-menu-sep"></div>
-                    <div
-                      v-for="g in store.sproutGroups"
-                      :key="g.id"
-                      class="sp-group-menu-item"
-                      :class="{ on: isActiveSetEqual(g.sproutIds) }"
-                      role="menuitem"
-                      :title="`应用分组「${g.name}」：仅激活组内 ${g.sproutIds.length} 个芽，组外停用`"
-                      @click="onApplyGroup(g)"
-                    >
-                      <span class="sp-group-name">{{ g.name }}</span>
-                      <span class="sp-group-count">{{ g.sproutIds.length }}</span>
-                      <span class="sp-group-del" role="button" :aria-label="`删除分组 ${g.name}`" title="删除分组" @click.stop="onRemoveGroup(g)">✕</span>
-                    </div>
-                  </template>
-                </template>
-                <template v-else>
-                  <div class="sp-group-save-row">
-                    <input ref="groupNameRef" v-model="groupName" type="text" class="set-input sp-group-input" placeholder="分组名称..." maxlength="20" @keyup.enter="confirmSaveGroup" @keyup.esc="cancelSaveGroup" />
-                  </div>
-                  <div class="sp-group-save-actions">
-                    <button type="button" class="sp-bulk-btn sp-bulk-btn--primary" :disabled="!groupName.trim()" @click="confirmSaveGroup">保存</button>
-                    <button type="button" class="sp-bulk-btn" @click="cancelSaveGroup">取消</button>
-                  </div>
-                </template>
+                    class="sp-bulk-btn sp-bulk-btn--primary"
+                    title="保存当前激活的芽为该名称的分组（同名覆盖更新）"
+                    @click="confirmSaveGroup"
+                  >保存</button>
+                </div>
+                <div class="sp-group-menu-sep"></div>
+                <div class="sp-group-menu-caption">已存分组（点击应用）</div>
+                <div v-if="store.sproutGroups.length === 0" class="sp-group-menu-empty">暂无分组</div>
+                <div
+                  v-for="g in store.sproutGroups"
+                  :key="g.id"
+                  class="sp-group-menu-item"
+                  :class="{ on: isActiveSetEqual(g.sproutIds) }"
+                  role="menuitem"
+                  :title="`应用分组「${g.name}」：仅激活组内 ${g.sproutIds.length} 个芽，组外停用`"
+                  @click="onApplyGroup(g)"
+                >
+                  <span class="sp-group-name">{{ g.name }}</span>
+                  <span class="sp-group-count">{{ g.sproutIds.length }}</span>
+                  <span class="sp-group-del" role="button" :aria-label="`删除分组 ${g.name}`" title="删除分组" @click.stop="onRemoveGroup(g)">✕</span>
+                </div>
               </div>
             </div>
           </div>
@@ -103,7 +106,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useSettingsStore, useUIStore, usePluginStore, SPROUT_CATEGORIES, type SproutCategory, type SproutGroup } from '@worldsea/entity-core'
-import { hasIcon, toastSuccess } from '@worldsea/ui-kit'
+import { hasIcon, toastSuccess, toastWarn } from '@worldsea/ui-kit'
 import { CardDeck } from '@worldsea/ui-kit'
 import WsIcon from '../../WsIcon.vue'
 import draggable from 'vuedraggable'
@@ -184,13 +187,11 @@ function onSproutToggle(id: string) {
   emit('dirty')
 }
 
-// ── 批量操作与自定义分组（2026-09-13；本轮布局调整：全选并入搜索行单键、分组改标题旁下拉）──
+// ── 批量操作与自定义分组（2026-09-13；布局调整：全选并入搜索行单键、分组改标题旁下拉）──
 // 范围语义（2026-09-13 二次修正）：
 // - 全选/全不选作用于「当前过滤集」（分类 + 搜索后的可见芽）——批量勾选手段
 // - **保存分组保存的是「当前激活集」**（用户勾选出来的自定义激活范围快照），与过滤集无关
-const savingGroup = ref(false)
-const groupName = ref('')
-const groupNameRef = ref<HTMLInputElement | null>(null)
+// （groupName/groupNameRef 声明在下方「分组下拉」段）
 
 /** 当前激活芽列表（保存分组的对象） */
 const activeSproutIds = computed(() => store.sprouts.filter(p => p.active).map(p => p.id))
@@ -210,42 +211,47 @@ function onSelectAll(active: boolean) {
 }
 
 // ── 分组下拉 ──
+// 交互契约：命名输入常驻菜单顶部（不做 v-if 切换，规避「点击切换→焦点丢失/时序竞争」
+// 整类失效）；保存按钮不加 disabled——空名/空激活集点击时 toast 明确反馈，杜绝「没反应」。
 const groupMenuOpen = ref(false)
 const groupDdRef = ref<HTMLElement | null>(null)
+const groupName = ref('')
+const groupNameRef = ref<HTMLInputElement | null>(null)
 
-/** 下拉按钮文案：当前激活集命中某分组时显示其名，否则显示「分组」 */
-const groupMenuLabel = computed(() => {
-  const hit = store.sproutGroups.find(g => isActiveSetEqual(g.sproutIds))
-  return hit ? hit.name : '分组'
-})
+function openMenu() {
+  groupMenuOpen.value = !groupMenuOpen.value
+  if (groupMenuOpen.value) {
+    nextTick(() => groupNameRef.value?.focus())
+  } else {
+    groupName.value = ''
+  }
+}
+
+function closeMenu() {
+  groupMenuOpen.value = false
+  groupName.value = ''
+}
 
 function onDocClick(e: MouseEvent) {
   if (!groupMenuOpen.value) return
   if (groupDdRef.value && !groupDdRef.value.contains(e.target as Node)) {
-    groupMenuOpen.value = false
-    savingGroup.value = false
-    groupName.value = ''
+    closeMenu()
   }
 }
 onMounted(() => document.addEventListener('click', onDocClick))
 onUnmounted(() => document.removeEventListener('click', onDocClick))
 
-function startSaveGroup() {
-  groupName.value = ''
-  savingGroup.value = true
-  nextTick(() => groupNameRef.value?.focus())
-}
-
-function cancelSaveGroup() {
-  savingGroup.value = false
-  groupName.value = ''
-}
-
 function confirmSaveGroup() {
   const name = groupName.value.trim()
-  if (!name || activeSproutIds.value.length === 0) return
+  if (!name) {
+    toastWarn('请先输入分组名')
+    return
+  }
+  if (activeSproutIds.value.length === 0) {
+    toastWarn('当前没有激活的芽：先勾选要激活的芽，再保存分组')
+    return
+  }
   const g = store.saveSproutGroup(name, activeSproutIds.value)
-  savingGroup.value = false
   groupName.value = ''
   groupMenuOpen.value = false
   emit('dirty')
@@ -262,7 +268,7 @@ function isActiveSetEqual(ids: string[]): boolean {
 
 function onApplyGroup(g: SproutGroup) {
   store.applySproutGroup(g.id)
-  groupMenuOpen.value = false
+  closeMenu()
   emit('dirty')
   toastSuccess(`已应用分组「${g.name}」（激活 ${g.sproutIds.length} 个芽）`)
 }
@@ -333,6 +339,7 @@ defineExpose({ resetSproutSearch: () => { sproutSearch.value = '' }, goToCard: (
 .sp-group-menu-action { color: var(--primary, var(--color-primary)); }
 .sp-group-menu-empty { padding: 6px 8px; font-size: var(--font-size-xs, 12px); color: var(--text-tertiary, var(--color-text-tertiary)); }
 .sp-group-menu-sep { height: 1px; margin: 4px 2px; background: var(--border, var(--color-border)); }
+.sp-group-menu-caption { padding: 4px 8px 2px; font-size: var(--text-micro-font-size, 10px); color: var(--text-tertiary, var(--color-text-tertiary)); }
 .sp-group-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sp-group-count { font-size: var(--text-micro-font-size, 10px); opacity: 0.7; }
 .sp-group-del { color: inherit; opacity: 0.55; cursor: pointer; padding: 0 2px; border-radius: 3px; }
