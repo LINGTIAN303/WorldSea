@@ -114,6 +114,16 @@
             <button v-if="selectedObj?.image" class="mmv-bind-btn" @click="onRemoveImage">移除</button>
             <input ref="imageInputRef" type="file" accept="image/*" class="mmv-hidden-input" @change="onImageFile" />
           </div>
+          <div class="mmv-bind-note-row">
+            <span class="mmv-bind-label">备注</span>
+            <textarea
+              v-model="noteDraft"
+              class="mmv-note-input"
+              rows="2"
+              placeholder="补充说明…（失焦自动保存，节点上以 ✎ 标记）"
+              @blur="commitNote"
+            />
+          </div>
           <p class="mmv-bind-hint">绑定后，构思成熟的想法可随时跳到对应芽落地为完整实体。</p>
         </div>
       </Transition>
@@ -136,6 +146,9 @@ import { markdownToMindElixir, mindElixirToMarkdown } from './mindmapMarkdown'
 interface NodeMeta { entityId?: string }
 
 const BIND_TAG_PREFIX = '⧉'
+
+/** 备注徽章：note 内容存 NodeObj.note（官方字段，引擎不渲染），节点上以此徽章提示「有备注」 */
+const NOTE_TAG = '✎'
 
 /** mind-elixir 右键菜单中文文案（LangPack 结构；引擎默认英文且未导出 i18n 包） */
 const MENU_LOCALE = {
@@ -535,7 +548,7 @@ async function onDeleteDoc(d: { id: string; name: string }) {
 
 /* ── 节点搜索与定位 ── */
 
-interface NodeHit { id: string; topic: string; parentTopic: string; collapsedAncestors: string[] }
+interface NodeHit { id: string; topic: string; parentTopic: string; note?: string; collapsedAncestors: string[] }
 
 const searchQuery = ref('')
 const searchHoverIndex = ref(-1)
@@ -546,7 +559,7 @@ function collectNodes(): NodeHit[] {
   const hits: NodeHit[] = []
   const walk = (obj: NodeObj, parentTopic: string, collapsedAncestors: string[]) => {
     const isCollapsed = obj.expanded === false
-    hits.push({ id: obj.id, topic: obj.topic, parentTopic, collapsedAncestors })
+    hits.push({ id: obj.id, topic: obj.topic, parentTopic, note: typeof obj.note === 'string' ? obj.note : undefined, collapsedAncestors })
     const nextCollapsed = isCollapsed ? [...collapsedAncestors, obj.id] : collapsedAncestors
     for (const c of obj.children ?? []) walk(c, obj.topic, nextCollapsed)
   }
@@ -558,7 +571,7 @@ const searchResults = computed<NodeHit[]>(() => {
   const q = searchQuery.value.trim().toLowerCase()
   if (!q) return []
   return collectNodes()
-    .filter(n => n.topic.toLowerCase().includes(q))
+    .filter(n => n.topic.toLowerCase().includes(q) || (n.note?.toLowerCase().includes(q) ?? false))
     .slice(0, 10)
 })
 
@@ -665,6 +678,34 @@ function onRemoveImage() {
   const obj = selectedObj.value
   if (!obj) return
   rerenderNodePatch(obj, { image: undefined })
+  scheduleSave()
+}
+
+/* ── 节点备注（NodeObj.note；引擎不渲染，徽章 ✎ 提示 + 面板编辑）── */
+
+const noteDraft = ref('')
+
+/** 选中节点切换时同步备注草稿 */
+watch(selectedObj, (obj) => {
+  noteDraft.value = typeof obj?.note === 'string' ? obj.note : ''
+})
+
+/** 失焦提交：有内容 = 写 note + 挂徽章；清空 = 删字段 + 摘徽章（显式 undefined 删字段） */
+function commitNote() {
+  const obj = selectedObj.value
+  if (!obj) return
+  const text = noteDraft.value.trim()
+  const prev = typeof obj.note === 'string' ? obj.note : ''
+  if (text === prev) return
+  const tags = (obj.tags ?? []).filter(t => typeof t === 'string' && t !== NOTE_TAG)
+  if (text) {
+    obj.note = text
+    tags.push(NOTE_TAG)
+  } else {
+    obj.note = undefined
+  }
+  obj.tags = tags
+  rerenderNodePatch(obj, { note: obj.note, tags: obj.tags })
   scheduleSave()
 }
 
@@ -884,5 +925,14 @@ defineExpose({ getMindmapInstance: () => mind })
 .mmv-bind-btn:hover { border-color: var(--accent, var(--primary)); color: var(--accent, var(--primary)); }
 .mmv-bind-btn.primary { background: var(--accent, var(--primary)); border-color: var(--accent, var(--primary)); color: var(--on-accent, #fff); }
 .mmv-bind-btn.primary:hover { filter: brightness(1.08); color: var(--on-accent, #fff); }
+.mmv-bind-note-row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+.mmv-note-input {
+  width: 100%; padding: 5px 8px; font-size: var(--font-size-xs); line-height: 1.5;
+  font-family: inherit; resize: vertical; min-height: 40px;
+  border: 1px solid var(--border, var(--border-color)); border-radius: var(--radius-2xs, 3px);
+  background: var(--bg-surface, var(--card-bg)); color: var(--text-primary, var(--text-color));
+  outline: none; transition: border-color var(--duration-fast, 0.1s);
+}
+.mmv-note-input:focus { border-color: var(--accent, var(--primary)); }
 .mmv-bind-hint { margin: 0; font-size: var(--text-micro-font-size, 10px); color: var(--text-muted, var(--text-tertiary)); line-height: 1.5; }
 </style>
