@@ -465,9 +465,6 @@ importers:
       '@worldsea/perf-kit':
         specifier: link:../perf-kit
         version: link:../perf-kit
-      '@worldsea/theme-kit':
-        specifier: link:../theme-kit
-        version: link:../theme-kit
       jszip:
         specifier: ^3.10.1
         version: 3.10.1
