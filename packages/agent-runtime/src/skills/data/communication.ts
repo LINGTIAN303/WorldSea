@@ -122,6 +122,12 @@ export const COMMUNICATION_SKILLS: SkillMeta[] = [
     examples: ['创建一个世界观思维导图', '给脑图添加一个分支节点', '重新布局思维导图'],
     triggers: ['思维导图', '脑图', '节点', '分支', '导图'],
     relatedPlugins: ['mindmap'],
+    // toolbus internal 链：mindmap 能力描述符由 App 侧注册（main.ts），激活本技能时对 Agent 可见
+    capabilities: {
+      internal: ['mindmap.list', 'mindmap.read', 'mindmap.create', 'mindmap.append'],
+      cli: [],
+      mcp: [],
+    },
     pluginTools: [
       { pluginId: 'mindmap', tools: ['mindmap'], capabilities: ['节点管理', '布局', '导出', '批量创建', '搜索'] },
     ],
