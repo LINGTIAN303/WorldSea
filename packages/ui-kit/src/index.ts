@@ -62,6 +62,8 @@ export { default as UndoHistoryPanel } from './components/data/UndoHistoryPanel.
 export { default as DocExport } from './components/data/DocExport.vue'
 export { default as ExportImportDialog } from './components/data/ExportImportDialog.vue'
 export { default as ImportExportModal } from './components/data/ImportExportModal.vue'
+export { default as DataTable } from './components/data/DataTable.vue'
+export type { DataTableColumn, DataTableEditPayload } from './components/data/DataTable.vue'
 export { default as RegionMap } from './components/entity/RegionMap.vue'
 export { default as TemplateManager } from './components/entity/TemplateManager.vue'
 export { default as GlobalCaretIndicator } from './components/layout/GlobalCaretIndicator.vue'

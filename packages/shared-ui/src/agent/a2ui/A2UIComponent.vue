@@ -338,31 +338,13 @@
     </template>
 
     <template v-else-if="comp.component === 'EditableTable'">
-      <div class="a2ui-table-wrap">
-        <div v-if="comp.title" class="a2ui-table-title">{{ comp.title }}</div>
-        <div class="a2ui-table-scroll">
-          <table class="a2ui-table">
-            <thead>
-              <tr>
-                <th v-for="col in tableColumns" :key="col.key">{{ col.label }}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="(row, ri) in tableRows" :key="ri">
-                <td v-for="col in tableColumns" :key="col.key">
-                  <input
-                    v-if="col.editable"
-                    class="a2ui-table-input"
-                    :value="resolveBinding(row[col.key], dataModel)"
-                    @change="onTableEdit(ri, col.key, ($event.target as HTMLInputElement).value)"
-                  />
-                  <span v-else>{{ resolveBinding(row[col.key], dataModel) ?? '' }}</span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <DataTable
+        :columns="tableColumns"
+        :rows="tableRows"
+        :title="comp.title"
+        :resolve-cell="resolveTableCell"
+        @edit="onTableEdit"
+      />
     </template>
 
     <template v-else-if="comp.component === 'ChartView'">
@@ -470,7 +452,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { WsIcon } from '@worldsea/ui-kit'
+import { WsIcon, DataTable } from '@worldsea/ui-kit'
 import A2UIResolvedImage from './A2UIResolvedImage.vue'
 
 const props = defineProps<{
@@ -639,8 +621,14 @@ const tableRows = computed(() => {
   return []
 })
 
-function onTableEdit(rowIndex: number, key: string, value: string): void {
-  emit('action', { name: 'table_edit', data: { rowIndex, key, value } })
+/** 单元格绑定解析：把 A2UI 的 resolveBinding 注入通用 DataTable（原内联实现直调 resolveBinding） */
+function resolveTableCell(value: unknown): unknown {
+  return props.resolveBinding(value, props.dataModel)
+}
+
+/** 单元格编辑 → 上抛 A2UI action（负载与 DataTable 的 edit payload 同形） */
+function onTableEdit(payload: { rowIndex: number; key: string; value: string }): void {
+  emit('action', { name: 'table_edit', data: payload })
 }
 
 const selectedSuggestion = ref<string | null>(null)
@@ -823,15 +811,8 @@ const renderedMermaid = computed(() => {
 .mv-container { overflow: auto; max-height: 300px; }
 .mv-container pre.mermaid { font-family: monospace; font-size: var(--font-size-sm); color: var(--agent-text-secondary, var(--color-text-tertiary)); white-space: pre-wrap; margin: 0; background: transparent; }
 
-.a2ui-table-wrap { background: var(--agent-bg-tertiary, var(--color-bg-elevated)); border: 1px solid var(--agent-border, var(--color-border)); border-radius: var(--radius-md, 8px); padding: 10px; }
-.a2ui-table-title { font-size: var(--font-size-base); font-weight: var(--font-weight-semibold); color: var(--agent-text, var(--color-text-primary)); margin-bottom: 8px; }
-.a2ui-table-scroll { overflow-x: auto; }
-.a2ui-table { width: 100%; border-collapse: collapse; font-size: var(--font-size-sm); }
-.a2ui-table th { padding: 6px 10px; text-align: left; font-weight: var(--font-weight-semibold); color: var(--agent-text-secondary, var(--color-text-tertiary)); border-bottom: 1px solid var(--agent-border, var(--color-border)); font-size: var(--font-size-xs); text-transform: uppercase; letter-spacing: 0.3px; }
-.a2ui-table td { padding: 5px 10px; border-bottom: 1px solid var(--agent-border, var(--color-border)); color: var(--agent-text, var(--color-text-primary)); }
-.a2ui-table-input { background: transparent; border: 1px solid transparent; color: var(--agent-text, var(--color-text-primary)); font-size: var(--font-size-sm); padding: 2px 4px; border-radius: 3px; width: 100%; outline: none; }
-.a2ui-table-input:hover { border-color: var(--agent-border, var(--color-border)); }
-.a2ui-table-input:focus { border-color: var(--agent-accent, var(--color-primary)); background: var(--color-bg-elevated); }
+/* 表格样式已随 EditableTable 抽取到 @worldsea/ui-kit 的 DataTable.vue（2026-09-14），此处不再重复定义；
+   令牌回退链（--agent-* → --color-*）随组件一起搬走，故两个上下文的观感保持一致。 */
 
 .a2ui-chart-wrap { background: var(--agent-bg-tertiary, var(--color-bg-elevated)); border: 1px solid var(--agent-border, var(--color-border)); border-radius: var(--radius-md, 8px); padding: 10px; }
 .a2ui-chart-title { font-size: var(--font-size-base); font-weight: var(--font-weight-semibold); color: var(--agent-text, var(--color-text-primary)); margin-bottom: 8px; }
