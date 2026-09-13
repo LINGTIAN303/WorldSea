@@ -122,13 +122,13 @@ function loadAnimations(): Record<string, boolean> {
 }
 
 const DEFAULT_SPROUTS: SproutToggle[] = [
-  // label 以侧边栏视图注册名（apps/tauri/src/sprouts/official/*/index.ts registerView）为权威，2026-09-13 对齐
+  // label/icon 以侧边栏视图注册名（apps/tauri/src/sprouts/official/*/index.ts registerView）为权威，2026-09-13 对齐
   { id: 'official.characters', label: '角色', icon: 'character', active: true, category: 'characters' },
   { id: 'official.regions', label: '区域图谱', icon: 'region', active: false, category: 'world' },
   { id: 'official.timeline', label: '时间线', icon: 'timeline', active: true, category: 'narrative' },
   { id: 'official.organizations', label: '势力/组织', icon: 'organization', active: false, category: 'characters' },
   { id: 'official.concepts', label: '概念/设定库', icon: 'concept', active: true, category: 'world' },
-  { id: 'official.items', label: '道具', icon: 'trade', active: false, category: 'items' },
+  { id: 'official.items', label: '道具', icon: 'item', active: false, category: 'items' },
   { id: 'official.apparel', label: '服饰/装备', icon: 'apparel', active: false, category: 'items' },
   { id: 'official.mindmap', label: '思维导图', icon: 'mindmap', active: false, category: 'visual' },
   { id: 'official.custom', label: '自定义视窗', icon: 'dashboard', active: false, category: 'system' },
