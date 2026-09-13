@@ -1,5 +1,7 @@
 /** useFileExtract：文档内容提取（docx/pdf/text 统一解析，pdfjs 改 Web Worker），详细见 docs/details/注释/web/composables/useFileExtract.md */
 
+import { ensurePdfWorker } from '@/space/files/pdfjsSetup'
+
 /// 支持的文档扩展名
 const DOC_EXTENSIONS = ['.docx']
 const PDF_EXTENSIONS = ['.pdf']
@@ -55,16 +57,9 @@ export async function extractDocumentText(file: File): Promise<ExtractedDocument
   // ─── PDF：pdfjs-dist 在 Web Worker 中解析，避免阻塞主线程 ───
   if (PDF_EXTENSIONS.includes(ext)) {
     try {
-      const pdfjsLib = await import('pdfjs-dist')
-      // 修复：原 workerSrc='' 会回退到主线程同步解析，大 PDF 卡顿。
-      // 改用 workerPort + new Worker 显式启动 Web Worker。
-      // 仅初始化一次（pdfjs 内部会缓存 GlobalWorkerOptions.workerPort）。
-      if (!pdfjsLib.GlobalWorkerOptions.workerPort) {
-        pdfjsLib.GlobalWorkerOptions.workerPort = new Worker(
-          new URL('pdfjs-dist/build/pdf.worker.mjs', import.meta.url),
-          { type: 'module' },
-        )
-      }
+      // Worker 初始化已抽到 pdfjsSetup：与「文件预览」（PdfPreview）共用同一全局单例，
+      // 不再各自 new Worker（该设置本身是全局的，两处重复初始化无意义）。
+      const pdfjsLib = await ensurePdfWorker()
       const arrayBuffer = await file.arrayBuffer()
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
       const pages: string[] = []

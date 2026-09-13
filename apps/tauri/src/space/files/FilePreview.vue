@@ -45,6 +45,15 @@
       <div v-else class="fpv-loading">加载中…</div>
     </div>
 
+    <!-- Word 预览（2026-09-14 文档格式一期）：docx-preview 保真渲染，只读 -->
+    <DocxPreview v-else-if="kind === 'docx' && fileBytes" :data="fileBytes" />
+
+    <!-- Excel 预览（2026-09-14）：SheetJS 解析 → 通用 DataTable 渲染，只读 -->
+    <XlsxPreview v-else-if="kind === 'xlsx' && fileBytes" :data="fileBytes" />
+
+    <!-- PDF 预览（2026-09-14）：pdfjs 逐页 canvas，只读 -->
+    <PdfPreview v-else-if="kind === 'pdf' && fileBytes" :data="fileBytes" />
+
     <!-- 编辑态（2026-09-06 编辑器内核一期）：CM6 源码编辑，Ctrl+S 落盘（CodeEditor 内 keymap）；
          file-path 供 B1 LSP（语言服务器按真实路径工作，无路径时回落 tsAssist 单文件模式） -->
     <CodeEditor
@@ -136,6 +145,9 @@ import '@worldsea/shared-ui/agent/bubbles/agent-markdown.css'
 import CodeEditor from './CodeEditor.vue'
 import CodeDiff from './CodeDiff.vue'
 import FileIcon from './FileIcon.vue'
+import DocxPreview from './DocxPreview.vue'
+import XlsxPreview from './XlsxPreview.vue'
+import PdfPreview from './PdfPreview.vue'
 import { fileTabsState } from './fileTabsStore'
 
 const props = defineProps<{ path: string; name: string; size: number }>()
@@ -153,12 +165,29 @@ const MIME: Record<string, string> = {
   png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
   webp: 'image/webp', bmp: 'image/bmp', svg: 'image/svg+xml',
 }
-/** 已知不可预览二进制扩展名：直接提示，不走大文件守卫 */
+/**
+ * 已知不可预览二进制扩展名：直接提示，不走大文件守卫。
+ *
+ * 注意：`docx / xlsx / pdf` 已有只读渲染器（见下方 DOCX_EXT / XLSX_EXT / PDF_EXT），
+ * **不在此列**。此处保留两类：
+ * ① 前端无实用方案的旧二进制格式（`.doc`/`.ppt` 是 OLE 容器、非 OOXML，mammoth /
+ *    docx-preview 均不读）；
+ * ② `.xls` —— 该扩展名在实际数据里常是「HTML 表格改名」，而 SheetJS 对它是宽容解析，
+ *    与「垃圾内容也会被当成表」同属一个口子，无法用文件头确定性区分（详见 XlsxPreview）；
+ * ③ 尚未接渲染器的 `.pptx`（计划三期：本机 LibreOffice 转 PDF）。
+ */
 const BINARY_EXT = new Set([
   'exe', 'dll', 'so', 'dylib', 'bin', 'dat', 'db', 'sqlite', 'sqlite3', 'lock',
   'zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'iso', 'img',
-  'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'ico', 'woff', 'woff2', 'ttf', 'otf',
+  'doc', 'xls', 'ppt', 'pptx', 'ico', 'woff', 'woff2', 'ttf', 'otf',
 ])
+
+/** Word（OOXML）—— docx-preview 保真渲染 */
+const DOCX_EXT = new Set(['docx'])
+/** Excel（.xlsx，OOXML/ZIP）—— SheetJS 解析 → 通用 DataTable */
+const XLSX_EXT = new Set(['xlsx'])
+/** PDF —— pdfjs 逐页渲染 */
+const PDF_EXT = new Set(['pdf'])
 
 /** Markdown 渲染扩展名 */
 const MD_EXT = new Set(['md', 'markdown'])
@@ -180,13 +209,15 @@ const CODE_LANG_BY_EXT: Record<string, string> = {
   yaml: 'yaml', yml: 'yaml',
 }
 
-/** 预览类别：image / markdown / html / code / text（判定后；binary 以独立标志表达） */
-type PreviewKind = 'image' | 'markdown' | 'html' | 'code' | 'text'
+/** 预览类别：image / markdown / html / docx / xlsx / pdf / code / text（二进制以独立标志表达） */
+type PreviewKind = 'image' | 'markdown' | 'html' | 'docx' | 'xlsx' | 'pdf' | 'code' | 'text'
 const kind = ref<PreviewKind>('text')
 const guard = ref(false)
 const forced = ref(false)
 const binary = ref(false)
 const text = ref<string | null>(null)
+/** 二进制文档（docx/xlsx/pdf）原始字节：本组件读取后交给子渲染器（子组件保持纯渲染、无 IO） */
+const fileBytes = ref<ArrayBuffer | null>(null)
 const imgSrc = ref<string | null>(null)
 /** Markdown 渲染产物（v-html） */
 const mdHtml = ref('')
@@ -301,8 +332,8 @@ const saving = ref(false)
 /** CM 语言扩展键（=扩展名，CodeEditor 内映射语言包；未收录=纯文本编辑） */
 const editLang = ref('')
 
-/** 可编辑条件：非图片、非二进制（含读取后判定）、非大文件守卫态、未超编辑上限 */
-const editable = computed(() => !binary.value && !guard.value && !isImage() && props.size <= EDIT_MAX)
+/** 可编辑条件：非图片、非二进制文档渲染器、非二进制（含读取后判定）、非大文件守卫态、未超编辑上限 */
+const editable = computed(() => !binary.value && !guard.value && !isImage() && !isRenderedDoc() && props.size <= EDIT_MAX)
 
 /** 进入编辑：秒点竞态防护——内容未加载完先等待（仍失败则不进编辑，防空起点覆盖）；
  *  缓冲恢复：有未保存缓冲（右栏切 Tab 后重挂）优先于磁盘文本 */
@@ -420,8 +451,25 @@ function previewKind(): PreviewKind {
   if (isImage()) return 'image'
   if (MD_EXT.has(ext())) return 'markdown'
   if (HTML_EXT.has(ext())) return 'html'
+  if (DOCX_EXT.has(ext())) return 'docx'
+  if (XLSX_EXT.has(ext())) return 'xlsx'
+  if (PDF_EXT.has(ext())) return 'pdf'
   if (CODE_LANG_BY_EXT[ext()]) return 'code'
   return 'text'
+}
+
+/** 是否走「二进制文档渲染器」：只读呈现，不可进 CodeMirror 编辑，也无预览/编辑切换 */
+function isRenderedDoc(): boolean {
+  const k = kind.value
+  return k === 'docx' || k === 'xlsx' || k === 'pdf'
+}
+
+/** base64 → ArrayBuffer（cmd_fs_read 仅提供 utf-8 / base64 两种编码，二进制文档走后者） */
+function base64ToArrayBuffer(b64: string): ArrayBuffer {
+  const bin = atob(b64)
+  const bytes = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+  return bytes.buffer
 }
 
 /** 是否需要大文件守卫（已知二进制不守卫——直接提示不可预览） */
@@ -464,9 +512,10 @@ function load(): Promise<void> {
 async function doLoad(): Promise<void> {
   binary.value = false
   text.value = null
+  fileBytes.value = null
   imgSrc.value = null
   mdHtml.value = ''
-  // 已知二进制（exe/压缩包/office 等）：直接提示不可预览（T11）
+  // 已知二进制（exe/压缩包/旧 office 等）：直接提示不可预览（T11）
   if (isKnownBinary()) {
     kind.value = 'text'
     binary.value = true
@@ -480,6 +529,17 @@ async function doLoad(): Promise<void> {
       imgSrc.value = `data:${MIME[ext()] ?? 'image/png'};base64,${b64}`
     } catch (err) {
       console.warn('[FilePreview] 读取图片失败:', err)
+      binary.value = true
+    }
+    return
+  }
+  // 二进制文档（docx/xlsx/pdf）：读 base64 → ArrayBuffer，交给对应子渲染器
+  if (k === 'docx' || k === 'xlsx' || k === 'pdf') {
+    try {
+      const b64 = await invoke<string>('cmd_fs_read', { path: props.path, encoding: 'base64' })
+      fileBytes.value = base64ToArrayBuffer(b64)
+    } catch (err) {
+      console.warn('[FilePreview] 读取文档失败（可能为损坏或加密文件）:', err)
       binary.value = true
     }
     return
@@ -526,6 +586,7 @@ watch(
   () => {
     forced.value = false
     binary.value = false
+    fileBytes.value = null
     htmlView.value = 'render'
     mode.value = 'preview'
     dirty.value = false
