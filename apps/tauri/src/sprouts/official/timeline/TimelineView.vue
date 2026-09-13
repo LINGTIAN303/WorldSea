@@ -49,16 +49,57 @@
       @toggle-select="toggleSelect"
     />
 
-    <EventDetailPanel
-      v-if="selectedEvent"
-      :event="selectedEvent"
-      :all-events="eventList"
-      :all-relations="relationStore.relations"
-      :involved-entities="involvedEntities(selectedEvent?.id ?? '')"
+    <!-- 事件详情：复用通用 EntityDetailPanel（此前私有 EventDetailPanel 令牌/结构与全局不一致，2026-09-13 收敛） -->
+    <EntityDetailPanel
+      :visible="!!selectedEvent"
+      :entity="selectedEvent"
+      :icon="importanceIcon"
+      :title="selectedEvent?.name || ''"
+      :subtitle="eventSubtitle"
+      :tabs="detailTabs"
+      :show-edit="!!selectedEvent"
+      :editing="isEditing"
+      panel-id="detail-event"
       @close="selectedEvent = null"
-      @delete-event="deleteEvent"
-      @navigate-to-event="navigateToEvent"
-    />
+      @edit="isEditing ? cancelEdit() : startEdit()"
+      @tab-change="detailActiveTab = $event"
+    >
+      <template #info>
+        <div class="detail-fields">
+          <DetailField v-if="isEditing" label="名称" :value="String(editForm._name ?? selectedEvent?.name ?? '')" :editing="true" type="text"
+            @update:value="editForm._name = $event" @commit="saveEdit" />
+          <template v-for="(val, key) in visibleFields" :key="key">
+            <DetailField :label="fieldLabel(key)" :value="val" :editing="isEditing" type="text"
+              @update:value="editForm[key] = $event" @commit="saveEdit" />
+          </template>
+        </div>
+        <DetailField label="描述" :value="selectedEvent?.description" :editing="isEditing" type="textarea"
+          @update:value="editForm._description = $event" @commit="saveEdit" />
+        <div v-if="involved.length > 0" class="detail-section">
+          <h4>涉及实体</h4>
+          <div v-for="e in involved" :key="e.id" class="involved-item">{{ e.name }}</div>
+        </div>
+        <div class="detail-actions" style="margin-top:16px">
+          <button v-if="isEditing && selectedEvent" class="btn-danger btn-sm" @click="deleteEvent(selectedEvent.id)">删除</button>
+        </div>
+        <DynamicFieldsAdder entity-type="event" v-model="editForm" :field-defs="customFieldDefs" @update:field-defs="customFieldDefs = $event" />
+        <div class="detail-edit-bar" v-if="isEditing">
+          <button class="btn-primary btn-sm" @click="saveEdit()">保存</button>
+        </div>
+      </template>
+      <template #causal>
+        <CausalGraph
+          :event="selectedEvent"
+          :events="eventList"
+          :relations="relationStore.relations"
+          @navigate-to-event="navigateToEvent"
+        />
+        <EntityRelationSelector v-if="selectedEvent" :entity-id="selectedEvent.id" entity-type="event" relation-type="causes" />
+      </template>
+      <template #default>
+        <UniversalRelationPanel v-if="selectedEvent?.id" :entity-id="selectedEvent.id" entity-type="event" :inline-visible="detailActiveTab === 'info'" storage-scope="event" />
+      </template>
+    </EntityDetailPanel>
 
     <ConflictDetector
       :show="showConflicts"
@@ -82,20 +123,21 @@
 import { ref, computed, onMounted } from 'vue'
 import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
-import { CustomDropdown, EntityFormModal, CreateButton, type FormFieldDef, useDuplicateNameCheck, useShortcuts, useBatchDelete, useConfirm } from '@worldsea/plugin-sdk'
+import { CustomDropdown, EntityFormModal, CreateButton, EntityDetailPanel, DetailField, DynamicFieldsAdder, UniversalRelationPanel, EntityRelationSelector, useDuplicateNameCheck, useShortcuts, useBatchDelete, useConfirm, useEntityEdit, type FormFieldDef } from '@worldsea/plugin-sdk'
 import { toastSuccess, toastWithUndo, useUndoRedo } from '@worldsea/ui-kit'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { WsIcon } from '@worldsea/ui-kit'
 
 import TimelineChart from './components/TimelineChart.vue'
-import EventDetailPanel from './components/EventDetailPanel.vue'
 import ConflictDetector from './components/ConflictDetector.vue'
+import CausalGraph from './components/CausalGraph.vue'
 import { useEventTree } from './composables/useEventTree'
 import { useTimelineSort } from './composables/useTimelineSort'
 import { useConflictDetection } from './composables/useConflictDetection'
 import { detectEras, parseDateRange } from './composables/useDateParser'
 import { useTimelineDrag } from './composables/useTimelineDrag'
 import { useAgentPluginBridge } from '@/composables/useAgentPluginBridge'
+import { entitySchemaRegistry } from '@worldsea/entity-core'
 
 const entityStore = useEntityStore()
 const relationStore = useRelationStore()
@@ -270,6 +312,47 @@ async function onFormSave(data: { name: string; description: string; properties:
 
 function selectEvent(event: Entity) { selectedEvent.value = event }
 
+// ── 事件详情面板（原私有 EventDetailPanel 逻辑收敛到通用 EntityDetailPanel）──
+const detailActiveTab = ref('info')
+const customFieldDefs = ref<any[]>([])
+
+const detailTabs = [
+  { id: 'info', icon: 'outline', label: '详情' },
+  { id: 'causal', icon: 'link', label: '因果链' },
+]
+
+const { isEditing, editForm, startEdit, cancelEdit, saveEdit } = useEntityEdit(selectedEvent)
+
+const eventSchema = computed(() => entitySchemaRegistry.get('event'))
+
+const involved = computed(() => (selectedEvent.value ? involvedEntities(selectedEvent.value.id) : []))
+
+/** 展示字段（沿用原面板行为：location 不在详情列表显示） */
+const visibleFields = computed(() => {
+  if (!selectedEvent.value) return {}
+  const { location, ...rest } = selectedEvent.value.properties as Record<string, unknown>
+  return rest
+})
+
+function fieldLabel(key: string): string {
+  const field = eventSchema.value?.fields.find(f => f.key === key)
+  return field?.label || key
+}
+
+/** header 图标按重要度：关键=旗标、重要=星标、其余=书签 */
+const importanceIcon = computed(() => {
+  if (!selectedEvent.value) return 'timeline'
+  const imp = selectedEvent.value.properties.importance as string
+  return imp === '关键' ? 'flag' : imp === '重要' ? 'star' : 'bookmark'
+})
+
+const eventSubtitle = computed(() => {
+  if (!selectedEvent.value) return ''
+  const d = String(selectedEvent.value.properties.date || '?')
+  const end = selectedEvent.value.properties.dateEnd as string | undefined
+  return end ? `${d} ~ ${end}` : d
+})
+
 function navigateToEvent(id: string) {
   const found = entityStore.entityMap.get(id)
   if (found) {
@@ -384,6 +467,11 @@ useAgentPluginBridge('timeline', async (event) => {
 }
 .btn-danger:hover { background: color-mix(in srgb, var(--danger) 12%, transparent); }
 .btn-sm { padding: 5px 12px; font-size: var(--font-size-sm); }
+/* ── 事件详情面板内容（自私有 EventDetailPanel 收敛而来）── */
+.detail-section { margin: 12px 0; }
+.detail-section h4 { font-size: var(--font-size-sm); color: var(--color-text-secondary); margin-bottom: 6px; border-bottom: 1px solid var(--color-border); padding-bottom: 4px; }
+.involved-item { padding: 4px 8px; font-size: var(--font-size-sm); border-radius: var(--radius-sm); }
+.involved-item:hover { background: var(--color-bg-hover); }
 .btn-ghost.active {
   background: var(--primary-light);
   color: var(--primary);
