@@ -2,9 +2,9 @@
   <Transition name="ws-slide-right">
     <div v-if="visible && node" class="gg-detail">
       <div class="gg-detail-header">
-        <span class="gg-detail-icon">{{ node.icon }}</span>
+        <WsIcon :name="node.icon" size="md" />
         <span class="gg-detail-name">{{ node.name }}</span>
-        <button class="gg-detail-close" @click="$emit('close')">✕</button>
+        <button class="gg-detail-close" @click="$emit('close')"><WsIcon name="x" size="sm" /></button>
       </div>
       <div class="gg-detail-body">
         <div class="gg-detail-row"><span class="gg-detail-label">类型</span><span class="gg-detail-value">{{ node.label }}</span></div>
@@ -18,6 +18,7 @@
 </template>
 
 <script setup lang="ts">
+import { WsIcon } from '@worldsea/ui-kit'
 import { type GraphNode } from '@worldsea/ui-kit'
 
 defineProps<{

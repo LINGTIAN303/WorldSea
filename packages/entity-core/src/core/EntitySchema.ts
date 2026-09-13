@@ -26,32 +26,6 @@ const FALLBACK_TYPE_LABELS: Record<string, string> = {
   apparel: '服饰/装备',
 }
 
-const TYPE_EMOJI: Record<string, string> = {
-  character: '👤',
-  organization: '⚔️',
-  region: '🏛',
-  location: '📍',
-  item: '📦',
-  event: '📅',
-  concept: '🧠',
-  race: '🧬',
-  species: '🧬',
-  timeline: '📅',
-  magic: '✨',
-  outline_node: '📋',
-  manuscript: '📜',
-  language: '🗣️',
-  culture: '🎭',
-  conflict: '💥',
-  plant: '🌿',
-  combat_stat: '⚔️',
-  weapon: '🗡️',
-  inspiration: '💡',
-  building: '🏗️',
-  custom: '📄',
-  apparel: '👘',
-}
-
 const TYPE_ICON: Record<string, string> = {
   character: 'character',
   organization: 'organization',
@@ -97,10 +71,6 @@ class EntitySchemaRegistry {
     const schema = this.schemas.get(type)
     if (schema?.label) return schema.label
     return FALLBACK_TYPE_LABELS[type] || type
-  }
-
-  getEmoji(type: string): string {
-    return TYPE_EMOJI[type] || '📄'
   }
 
   getIconName(type: string): string {

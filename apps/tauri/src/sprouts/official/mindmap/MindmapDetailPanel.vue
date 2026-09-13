@@ -4,7 +4,7 @@
       <div class="mm-dp-header">
         <span class="mm-dp-icon"><WsIcon :name="iconForType(nodeType)" size="md" /></span>
         <span class="mm-dp-name">{{ nodeName }}</span>
-        <button class="mm-dp-close" @click="$emit('close')">✕</button>
+        <button class="mm-dp-close" :aria-label="'关闭'" @click="$emit('close')"><WsIcon name="x" size="sm" /></button>
       </div>
 
       <div class="mm-dp-section">
