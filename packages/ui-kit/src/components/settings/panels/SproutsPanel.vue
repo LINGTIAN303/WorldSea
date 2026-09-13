@@ -22,9 +22,10 @@
                   <button
                     type="button"
                     class="sp-group-menu-item sp-group-menu-action"
-                    :disabled="filteredSprouts.length === 0"
+                    :disabled="activeSproutIds.length === 0"
+                    :title="activeSproutIds.length === 0 ? '先勾选至少一个芽（自定义激活范围）再保存' : ''"
                     @click="startSaveGroup"
-                  >＋ 保存当前为分组{{ filteredSprouts.length > 0 ? `（${filteredSprouts.length}）` : '' }}</button>
+                  >＋ 保存当前激活为分组{{ activeSproutIds.length > 0 ? `（${activeSproutIds.length}）` : '' }}</button>
                   <div v-if="store.sproutGroups.length === 0" class="sp-group-menu-empty">暂无分组：勾选芽后保存</div>
                   <template v-else>
                     <div class="sp-group-menu-sep"></div>
@@ -74,6 +75,7 @@
             type="button"
             class="sp-selectall-btn"
             :disabled="filteredSprouts.length === 0"
+            :title="filteredAllActive ? '取消当前可见芽的激活（至少保留人物志兜底）' : '激活当前可见芽'"
             @click="onToggleSelectAll"
           >{{ filteredAllActive ? '全不选' : '全选' }}</button>
           <input type="text" v-model="sproutSearch" placeholder="搜索芽..." class="set-input" />
@@ -183,12 +185,15 @@ function onSproutToggle(id: string) {
 }
 
 // ── 批量操作与自定义分组（2026-09-13；本轮布局调整：全选并入搜索行单键、分组改标题旁下拉）──
-// 范围语义统一：全选/全不选/保存分组都作用于「当前过滤集」（分类 + 搜索后的可见芽）。
-// 工作流示例：切到「世界观」分类 → 全选 → 保存为分组 → 得到世界观方案；「全部」分类下
-// 全选 = 一键全部激活。
+// 范围语义（2026-09-13 二次修正）：
+// - 全选/全不选作用于「当前过滤集」（分类 + 搜索后的可见芽）——批量勾选手段
+// - **保存分组保存的是「当前激活集」**（用户勾选出来的自定义激活范围快照），与过滤集无关
 const savingGroup = ref(false)
 const groupName = ref('')
 const groupNameRef = ref<HTMLInputElement | null>(null)
+
+/** 当前激活芽列表（保存分组的对象） */
+const activeSproutIds = computed(() => store.sprouts.filter(p => p.active).map(p => p.id))
 
 /** 当前过滤集是否已全部激活（全选单键的文案/动作切换依据） */
 const filteredAllActive = computed(() =>
@@ -238,8 +243,8 @@ function cancelSaveGroup() {
 
 function confirmSaveGroup() {
   const name = groupName.value.trim()
-  if (!name || filteredSprouts.value.length === 0) return
-  const g = store.saveSproutGroup(name, filteredSprouts.value.map(p => p.id))
+  if (!name || activeSproutIds.value.length === 0) return
+  const g = store.saveSproutGroup(name, activeSproutIds.value)
   savingGroup.value = false
   groupName.value = ''
   groupMenuOpen.value = false

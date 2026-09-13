@@ -210,6 +210,8 @@ export interface SproutGroup {
   sproutIds: string[]
 }
 const STORAGE_KEY_SPROUT_GROUPS = 'worldsea_sprout_groups'
+/** 全停用兜底：保留此角色芽视图（人物志）为激活态 */
+const FALLBACK_SPROUT_ID = 'official.characters'
 
 function loadSproutGroups(): SproutGroup[] {
   try {
@@ -425,11 +427,19 @@ export const useSettingsStore = defineStore('settings', () => {
   function setSproutsActive(ids: string[], active: boolean) {
     const set = new Set(ids)
     sprouts.value = sprouts.value.map(p => set.has(p.id) ? { ...p, active } : p)
+    ensureFallbackSprout()
     saveSprouts(sprouts.value)
   }
 
+  /** 全停用兜底芽：至少保留一个角色芽视图（人物志），避免 workbench 无视图可用（2026-09-13 用户要求） */
+  function ensureFallbackSprout() {
+    if (sprouts.value.some(p => p.active)) return
+    const fallback = sprouts.value.find(p => p.id === FALLBACK_SPROUT_ID)
+    if (fallback) fallback.active = true
+  }
+
   /**
-   * 保存当前勾选集为分组。同名分组覆盖更新（重复保存同名 = 修改其芽集合）。
+   * 保存当前激活集为分组（激活范围快照）。同名分组覆盖更新（重复保存同名 = 修改其芽集合）。
    * @returns 保存后的分组
    */
   function saveSproutGroup(name: string, groupSproutIds: string[]): SproutGroup {
@@ -451,12 +461,13 @@ export const useSettingsStore = defineStore('settings', () => {
     return group
   }
 
-  /** 应用分组 = 激活范围替换为组内集合（组外停用），并持久化 */
+  /** 应用分组 = 激活范围替换为组内集合（组外停用），并持久化；全停用时兜底保留角色芽 */
   function applySproutGroup(groupId: string) {
     const g = sproutGroups.value.find(x => x.id === groupId)
     if (!g) return
     const ids = new Set(g.sproutIds)
     sprouts.value = sprouts.value.map(p => ({ ...p, active: ids.has(p.id) }))
+    ensureFallbackSprout()
     saveSprouts(sprouts.value)
   }
 
