@@ -70,7 +70,7 @@ const TYPE_ICON: Record<string, string> = {
   culture: 'culture',
   conflict: 'combat',
   plant: 'plant',
-  combat_stat: 'combat',
+  combat_stat: 'target',
   weapon: 'weapon',
   inspiration: 'inspiration',
   building: 'building',

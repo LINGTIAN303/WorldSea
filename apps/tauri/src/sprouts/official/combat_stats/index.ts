@@ -19,7 +19,7 @@ export function activate(api: PluginAPIType) {
   api.registerEntityV2({
     type: 'combat_stat',
     label: '战力',
-    icon: 'combat',
+    icon: 'target',
     traits: [
       { traitId: 'identifiable' },
       { traitId: 'taggable' },
@@ -36,5 +36,5 @@ export function activate(api: PluginAPIType) {
     ],
   })
 
-  api.registerView({ id: 'combat_stats', label: '战力', icon: 'combat', component: CombatStatView })
+  api.registerView({ id: 'combat_stats', label: '战力', icon: 'target', component: CombatStatView })
 }

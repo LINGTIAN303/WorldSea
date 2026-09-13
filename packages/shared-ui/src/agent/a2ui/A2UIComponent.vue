@@ -535,7 +535,7 @@ const ENTITY_ICONS: Record<string, string> = {
   character: 'character', region: 'region', item: 'item', building: 'building', organization: 'organization',
   concept: 'concept', culture: 'culture', language: 'language', magic: 'magic', species: 'species',
   plant: 'plant', weapon: 'weapon', event: 'event', manuscript: 'manuscript', inspiration: 'inspiration',
-  conflict: 'war', apparel: 'apparel', custom: 'item', combat_stat: 'combat', dashboard: 'dashboard',
+  conflict: 'war', apparel: 'apparel', custom: 'item', combat_stat: 'target', dashboard: 'dashboard',
 }
 
 const resolvedEntityData = computed(() => props.resolveBinding({ path: props.comp.dataPath || '/entity' }, props.dataModel) || {})
