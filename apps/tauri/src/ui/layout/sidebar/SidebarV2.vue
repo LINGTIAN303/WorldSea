@@ -56,7 +56,7 @@
           <WsIcon v-if="hasIcon(item.view.icon)" :name="item.view.icon" size="md" class="sidebar-icon" />
           <span v-else class="sidebar-icon">{{ item.view.icon }}</span>
           <span v-if="!uiStore.sidebarCollapsed" class="sidebar-label">{{ item.view.label }}</span>
-          <span v-if="!uiStore.sidebarCollapsed && item.count > 0" class="sidebar-count">{{ item.count }}</span>
+          <CountBadge v-if="!uiStore.sidebarCollapsed && item.count > 0" :value="item.count" />
         </div>
       </div>
     </div>
@@ -75,6 +75,7 @@ import { usePluginStore, useEntityStore, entitySchemaRegistry } from '@worldsea/
 import type { PluginView } from '@worldsea/entity-core/types'
 import { WsIcon } from '@worldsea/ui-kit'
 import { hasIcon } from '@/assets/iconRegistry'
+import CountBadge from './CountBadge.vue'
 import { useSidebarPhysics } from './useSidebarPhysics'
 import { useSidebarInteraction } from './useSidebarInteraction'
 import { useSidebarDragHandler } from './useSidebarDragHandler'
@@ -538,18 +539,7 @@ onBeforeUnmount(() => {
   text-overflow: ellipsis;
   flex: 1;
 }
-.sidebar-count {
-  font-size: var(--font-size-xs);
-  background: var(--bg-tertiary);
-  color: var(--text-tertiary);
-  border-radius: var(--radius-mid);
-  padding: 1px 6px;
-  min-width: 18px;
-  text-align: center;
-  margin-left: auto;
-  flex-shrink: 0;
-  line-height: 16px;
-}
+/* 数量徽记已组件化（CountBadge.vue，Tabler 数字图标逐位拼接），旧 .sidebar-count 样式移除 */
 
 /* ── 减弱动态偏好（prefers-reduced-motion）：停用点击脉冲与折叠位移 ──
    与 TuiButton/TuiModal/TuiDrawer/AgentWorkspace 同一可访问性语言：仅保留静态状态。 */
