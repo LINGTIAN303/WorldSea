@@ -345,7 +345,7 @@ onMounted(() => nextTick(() => { if (!props.show) return; rebuildRail() }))
 // 各分类的搜索关键词（用于搜索模式下过滤匹配的分类）
 const CATEGORY_KEYWORDS: Record<string, string> = {
   appearance: '主题 外观 深色 浅色 宇宙 极光 锻造 水墨 棱镜 编辑器 高亮 脉冲 动画 淡化 扩散 透明度 theme highlight 字体 字体库 字体分层 导入 变体',
-  plugins: '芽 扩展 模块 启用 禁用 内置 本地 远程 sprout',
+  plugins: '芽 扩展 模块 启用 禁用 内置 本地 远程 sprout 分组 全选',
   editor: '编辑 撤销 重做 历史 大纲 内嵌 光标 平滑 undo redo outline caret smooth',
   layout: '布局 面板 思维导图 中心节点 字段 预设 宽度 panel mindmap field 时间线 timeline 拖拽 泳道 甘特图 紧凑 分组',
   relations: '关系 自动 创建 实体 引用 图谱 选择器 relation auto create',
@@ -392,7 +392,9 @@ function close() {
 
 <style scoped>
 .set-overlay { position: fixed; inset: 0; z-index: var(--z-overlay); background: var(--overlay, rgba(0,0,0,0.35)); display: flex; align-items: flex-start; justify-content: center; padding-top: 3vh; }
-.set-shell { height: min(88vh, 640px); display: flex; flex-direction: column; position: relative; min-width: 420px; max-width: 680px; width: auto; }
+.set-shell { height: min(88vh, 680px); display: flex; flex-direction: column; position: relative; min-width: 420px; max-width: 680px; width: auto; }
+/* 2026-09-13：上限 640 → 680——芽管理卡（27 芽 + 头部）在 640 下会触发卡片区内滚动，
+   680 下芽卡一屏完整可见；其余标签页仅获得更多可视空间 */
 
 .set-topbar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: var(--content-bg, var(--color-bg-surface)); border-radius: var(--radius-md); box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
 .set-topbar-left { display: flex; align-items: center; gap: 6px; color: var(--text-secondary); flex-shrink: 0; }

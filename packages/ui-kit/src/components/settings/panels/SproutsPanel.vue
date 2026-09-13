@@ -1,9 +1,60 @@
 <template>
   <CardDeck :count="1" :flat="!!searchQuery" @change="(i) => emit('card-change', i)" ref="deckRef">
     <template #card="{ idx, cls }">
-      <div class="set-card deck-card" :class="cls" :data-index="idx" v-show="match('芽 sprout 启用 禁用')">
+      <div class="set-card deck-card" :class="cls" :data-index="idx" v-show="match('芽 sprout 启用 禁用 分组 全选')">
         <div class="sc-head">
-          <span>芽管理</span>
+          <div class="sc-head-left">
+            <span>芽管理</span>
+            <!-- 分组下拉：应用 / 保存当前为分组 / 删除，三合一（点击外部或 Esc 关闭） -->
+            <div ref="groupDdRef" class="sp-group-dd">
+              <button
+                type="button"
+                class="sp-group-dd-btn"
+                :aria-expanded="groupMenuOpen"
+                aria-haspopup="menu"
+                @click="groupMenuOpen = !groupMenuOpen"
+              >
+                <span>{{ groupMenuLabel }}</span>
+                <WsIcon name="chevron-down" size="xs" />
+              </button>
+              <div v-if="groupMenuOpen" class="sp-group-menu" role="menu">
+                <template v-if="!savingGroup">
+                  <button
+                    type="button"
+                    class="sp-group-menu-item sp-group-menu-action"
+                    :disabled="filteredSprouts.length === 0"
+                    @click="startSaveGroup"
+                  >＋ 保存当前为分组{{ filteredSprouts.length > 0 ? `（${filteredSprouts.length}）` : '' }}</button>
+                  <div v-if="store.sproutGroups.length === 0" class="sp-group-menu-empty">暂无分组：勾选芽后保存</div>
+                  <template v-else>
+                    <div class="sp-group-menu-sep"></div>
+                    <div
+                      v-for="g in store.sproutGroups"
+                      :key="g.id"
+                      class="sp-group-menu-item"
+                      :class="{ on: isActiveSetEqual(g.sproutIds) }"
+                      role="menuitem"
+                      :title="`应用分组「${g.name}」：仅激活组内 ${g.sproutIds.length} 个芽，组外停用`"
+                      @click="onApplyGroup(g)"
+                    >
+                      <span class="sp-group-name">{{ g.name }}</span>
+                      <span class="sp-group-count">{{ g.sproutIds.length }}</span>
+                      <span class="sp-group-del" role="button" :aria-label="`删除分组 ${g.name}`" title="删除分组" @click.stop="onRemoveGroup(g)">✕</span>
+                    </div>
+                  </template>
+                </template>
+                <template v-else>
+                  <div class="sp-group-save-row">
+                    <input ref="groupNameRef" v-model="groupName" type="text" class="set-input sp-group-input" placeholder="分组名称..." maxlength="20" @keyup.enter="confirmSaveGroup" @keyup.esc="cancelSaveGroup" />
+                  </div>
+                  <div class="sp-group-save-actions">
+                    <button type="button" class="sp-bulk-btn sp-bulk-btn--primary" :disabled="!groupName.trim()" @click="confirmSaveGroup">保存</button>
+                    <button type="button" class="sp-bulk-btn" @click="cancelSaveGroup">取消</button>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
           <div class="set-plugin-cats" role="tablist" aria-label="芽分类筛选">
             <button
               v-for="c in SPROUT_CATEGORIES"
@@ -17,34 +68,15 @@
             >{{ c.label }}</button>
           </div>
         </div>
-        <div class="set-plugin-search"><input type="text" v-model="sproutSearch" placeholder="搜索芽..." class="set-input" /></div>
-        <!-- 批量操作行：全选作用于当前过滤集（分类/搜索筛选后的可见芽）；「全部激活」= 分类「全部」+ 无搜索时点全选 -->
-        <div class="sp-bulk-bar">
-          <button type="button" class="sp-bulk-btn" :disabled="filteredSprouts.length === 0" @click="onSelectAll(true)">全选</button>
-          <button type="button" class="sp-bulk-btn" :disabled="filteredSprouts.length === 0" @click="onSelectAll(false)">全不选</button>
-          <span class="sp-bulk-spacer"></span>
-          <template v-if="savingGroup">
-            <input ref="groupNameRef" v-model="groupName" type="text" class="set-input sp-group-input" placeholder="分组名称..." maxlength="20" @keyup.enter="confirmSaveGroup" @keyup.esc="cancelSaveGroup" />
-            <button type="button" class="sp-bulk-btn sp-bulk-btn--primary" :disabled="!groupName.trim()" @click="confirmSaveGroup">保存</button>
-            <button type="button" class="sp-bulk-btn" @click="cancelSaveGroup">取消</button>
-          </template>
-          <button v-else type="button" class="sp-bulk-btn" :disabled="filteredSprouts.length === 0" @click="startSaveGroup">保存为分组</button>
-        </div>
-        <!-- 自定义分组 chips：点击应用（仅激活组内芽，组外停用）；当前激活集与分组一致时高亮 -->
-        <div v-if="store.sproutGroups.length > 0" class="sp-group-row" role="group" aria-label="自定义分组">
+        <!-- 搜索行：左端为全选/全不选单键（按当前过滤集是否已全激活切换文案与动作） -->
+        <div class="set-plugin-search">
           <button
-            v-for="g in store.sproutGroups"
-            :key="g.id"
             type="button"
-            class="sp-group-chip"
-            :class="{ on: isActiveSetEqual(g.sproutIds) }"
-            :title="`应用分组「${g.name}」：仅激活组内 ${g.sproutIds.length} 个芽，组外停用`"
-            @click="onApplyGroup(g)"
-          >
-            <span class="sp-group-name">{{ g.name }}</span>
-            <span class="sp-group-count">{{ g.sproutIds.length }}</span>
-            <span class="sp-group-del" role="button" :aria-label="`删除分组 ${g.name}`" title="删除分组" @click.stop="onRemoveGroup(g)">✕</span>
-          </button>
+            class="sp-selectall-btn"
+            :disabled="filteredSprouts.length === 0"
+            @click="onToggleSelectAll"
+          >{{ filteredAllActive ? '全不选' : '全选' }}</button>
+          <input type="text" v-model="sproutSearch" placeholder="搜索芽..." class="set-input" />
         </div>
         <draggable v-if="showDraggable" :list="sproutList" item-key="id" ghost-class="sp-ghost" drag-class="sp-drag" handle=".sp-grip" @end="onSproutDragEnd" class="set-plugin-list">
           <template #item="{ element: p }">
@@ -67,7 +99,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useSettingsStore, useUIStore, usePluginStore, SPROUT_CATEGORIES, type SproutCategory, type SproutGroup } from '@worldsea/entity-core'
 import { hasIcon, toastSuccess } from '@worldsea/ui-kit'
 import { CardDeck } from '@worldsea/ui-kit'
@@ -150,18 +182,48 @@ function onSproutToggle(id: string) {
   emit('dirty')
 }
 
-// ── 批量操作与自定义分组（2026-09-13）──
-// 范围语义统一：全选/全不选/保存为分组都作用于「当前过滤集」（分类 + 搜索后的可见芽）。
+// ── 批量操作与自定义分组（2026-09-13；本轮布局调整：全选并入搜索行单键、分组改标题旁下拉）──
+// 范围语义统一：全选/全不选/保存分组都作用于「当前过滤集」（分类 + 搜索后的可见芽）。
 // 工作流示例：切到「世界观」分类 → 全选 → 保存为分组 → 得到世界观方案；「全部」分类下
 // 全选 = 一键全部激活。
 const savingGroup = ref(false)
 const groupName = ref('')
 const groupNameRef = ref<HTMLInputElement | null>(null)
 
+/** 当前过滤集是否已全部激活（全选单键的文案/动作切换依据） */
+const filteredAllActive = computed(() =>
+  filteredSprouts.value.length > 0 && filteredSprouts.value.every(p => p.active),
+)
+
+function onToggleSelectAll() {
+  onSelectAll(!filteredAllActive.value)
+}
+
 function onSelectAll(active: boolean) {
   store.setSproutsActive(filteredSprouts.value.map(p => p.id), active)
   emit('dirty')
 }
+
+// ── 分组下拉 ──
+const groupMenuOpen = ref(false)
+const groupDdRef = ref<HTMLElement | null>(null)
+
+/** 下拉按钮文案：当前激活集命中某分组时显示其名，否则显示「分组」 */
+const groupMenuLabel = computed(() => {
+  const hit = store.sproutGroups.find(g => isActiveSetEqual(g.sproutIds))
+  return hit ? hit.name : '分组'
+})
+
+function onDocClick(e: MouseEvent) {
+  if (!groupMenuOpen.value) return
+  if (groupDdRef.value && !groupDdRef.value.contains(e.target as Node)) {
+    groupMenuOpen.value = false
+    savingGroup.value = false
+    groupName.value = ''
+  }
+}
+onMounted(() => document.addEventListener('click', onDocClick))
+onUnmounted(() => document.removeEventListener('click', onDocClick))
 
 function startSaveGroup() {
   groupName.value = ''
@@ -180,6 +242,7 @@ function confirmSaveGroup() {
   const g = store.saveSproutGroup(name, filteredSprouts.value.map(p => p.id))
   savingGroup.value = false
   groupName.value = ''
+  groupMenuOpen.value = false
   emit('dirty')
   toastSuccess(`已保存分组「${g.name}」（${g.sproutIds.length} 个芽）`)
 }
@@ -194,6 +257,7 @@ function isActiveSetEqual(ids: string[]): boolean {
 
 function onApplyGroup(g: SproutGroup) {
   store.applySproutGroup(g.id)
+  groupMenuOpen.value = false
   emit('dirty')
   toastSuccess(`已应用分组「${g.name}」（激活 ${g.sproutIds.length} 个芽）`)
 }
@@ -214,8 +278,17 @@ defineExpose({ resetSproutSearch: () => { sproutSearch.value = '' }, goToCard: (
 .set-input { padding: 4px 8px; font-size: var(--font-size-sm); border: 1px solid var(--border, var(--color-border)); border-radius: var(--radius-sm); background: var(--bg, var(--color-bg-surface)); color: var(--text-color); }
 .set-input:focus { outline: none; border-color: var(--primary, var(--color-primary)); }
 
-.set-plugin-search { margin-bottom: 8px; }
-.set-plugin-search .set-input { width: 100%; }
+.set-plugin-search { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+.set-plugin-search .set-input { flex: 1; min-width: 0; }
+/* 全选/全不选单键：文案按当前过滤集是否已全激活切换 */
+.sp-selectall-btn {
+  flex-shrink: 0; padding: 4px 12px; font-size: var(--font-size-xs, 12px); line-height: 1.6;
+  color: var(--text-secondary, var(--color-text-secondary)); background: transparent;
+  border: 1px solid var(--border, var(--color-border)); border-radius: 999px; cursor: pointer;
+  transition: background 0.1s, border-color 0.1s, color 0.1s, opacity 0.1s;
+}
+.sp-selectall-btn:hover:not(:disabled) { border-color: var(--primary, var(--color-primary)); color: var(--primary, var(--color-primary)); }
+.sp-selectall-btn:disabled { opacity: var(--disabled-opacity, 0.5); cursor: not-allowed; }
 .set-plugin-cats { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 .sp-cat { padding: 2px 10px; font-size: var(--font-size-xs, 12px); line-height: 1.6; color: var(--text-secondary, var(--color-text-secondary)); background: transparent; border: 1px solid var(--border, var(--color-border)); border-radius: 999px; cursor: pointer; transition: background 0.1s, border-color 0.1s, color 0.1s; }
 .sp-cat:hover { background: var(--hover-bg, var(--color-bg-hover)); }
@@ -225,9 +298,43 @@ defineExpose({ resetSproutSearch: () => { sproutSearch.value = '' }, goToCard: (
    （此前 max-height 320px 会把第 9 行（自定义视图/自定义模块/工作流）裁到屏下） */
 .set-plugin-list { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 2px; }
 
-/* ── 批量操作行 / 自定义分组（2026-09-13）── */
-.sp-bulk-bar { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
-.sp-bulk-spacer { flex: 1; }
+/* ── 分组下拉（标题旁）/ 菜单内保存按钮（2026-09-13）── */
+.sc-head-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.sp-group-dd { position: relative; }
+.sp-group-dd-btn {
+  display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px;
+  font-size: var(--font-size-xs, 12px); line-height: 1.6; text-transform: none; letter-spacing: normal;
+  color: var(--text-secondary, var(--color-text-secondary)); background: transparent;
+  border: 1px solid var(--border, var(--color-border)); border-radius: 999px; cursor: pointer;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+}
+.sp-group-dd-btn:hover { border-color: var(--primary, var(--color-primary)); color: var(--primary, var(--color-primary)); }
+.sp-group-menu {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: var(--z-dropdown, 100);
+  min-width: 200px; max-height: 260px; overflow-y: auto;
+  padding: 4px; border-radius: var(--radius-mid, 8px);
+  background: var(--content-bg, var(--color-bg-surface));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14), 0 0 0 1px var(--border, var(--color-border));
+}
+.sp-group-menu-item {
+  display: flex; align-items: center; gap: 6px; width: 100%; padding: 5px 8px;
+  font-size: var(--font-size-xs, 12px); color: var(--text-secondary, var(--color-text-secondary));
+  background: transparent; border: none; border-radius: var(--radius-sm, 6px); cursor: pointer; text-align: left;
+  transition: background 0.1s, color 0.1s;
+}
+.sp-group-menu-item:hover:not(:disabled) { background: var(--hover-bg, var(--color-bg-hover)); color: var(--text-color, var(--color-text-primary)); }
+.sp-group-menu-item.on { color: var(--primary, var(--color-primary)); font-weight: var(--font-weight-medium, 500); }
+.sp-group-menu-item:disabled { opacity: var(--disabled-opacity, 0.5); cursor: not-allowed; }
+.sp-group-menu-action { color: var(--primary, var(--color-primary)); }
+.sp-group-menu-empty { padding: 6px 8px; font-size: var(--font-size-xs, 12px); color: var(--text-tertiary, var(--color-text-tertiary)); }
+.sp-group-menu-sep { height: 1px; margin: 4px 2px; background: var(--border, var(--color-border)); }
+.sp-group-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-group-count { font-size: var(--text-micro-font-size, 10px); opacity: 0.7; }
+.sp-group-del { color: inherit; opacity: 0.55; cursor: pointer; padding: 0 2px; border-radius: 3px; }
+.sp-group-del:hover { opacity: 1; color: var(--danger, var(--color-danger)); }
+.sp-group-save-row { padding: 2px; }
+.sp-group-save-row .sp-group-input { width: 100%; }
+.sp-group-save-actions { display: flex; justify-content: flex-end; gap: 6px; padding: 6px 2px 2px; }
 .sp-bulk-btn {
   padding: 3px 10px; font-size: var(--font-size-xs, 12px); line-height: 1.6;
   color: var(--text-secondary, var(--color-text-secondary)); background: transparent;
@@ -238,23 +345,7 @@ defineExpose({ resetSproutSearch: () => { sproutSearch.value = '' }, goToCard: (
 .sp-bulk-btn:disabled { opacity: var(--disabled-opacity, 0.5); cursor: not-allowed; }
 .sp-bulk-btn--primary { background: var(--primary, var(--color-primary)); border-color: var(--primary, var(--color-primary)); color: var(--on-accent, #fff); }
 .sp-bulk-btn--primary:hover:not(:disabled) { color: var(--on-accent, #fff); filter: brightness(1.08); }
-.sp-group-input { width: 160px; padding: 3px 8px; font-size: var(--font-size-xs, 12px); }
-.sp-group-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
-.sp-group-chip {
-  display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px;
-  font-size: var(--font-size-xs, 12px); line-height: 1.6;
-  border: 1px solid var(--border, var(--color-border)); border-radius: 999px;
-  background: transparent; color: var(--text-secondary, var(--color-text-secondary)); cursor: pointer;
-  transition: background 0.1s, border-color 0.1s, color 0.1s;
-}
-.sp-group-chip:hover { border-color: var(--primary, var(--color-primary)); color: var(--primary, var(--color-primary)); }
-.sp-group-chip.on {
-  background: var(--primary-light, color-mix(in srgb, var(--color-primary) 10%, transparent));
-  border-color: var(--primary, var(--color-primary)); color: var(--primary, var(--color-primary));
-}
-.sp-group-count { font-size: var(--text-micro-font-size, 10px); opacity: 0.7; }
-.sp-group-del { color: inherit; opacity: 0.55; cursor: pointer; padding: 0 1px; border-radius: 3px; }
-.sp-group-del:hover { opacity: 1; color: var(--danger, var(--color-danger)); }
+.sp-group-input { padding: 3px 8px; font-size: var(--font-size-xs, 12px); }
 .set-plugin-item { padding: 3px 0; display: flex; align-items: center; gap: 4px; }
 .sp-grip { cursor: grab; color: var(--text-tertiary, #bbb); font-size: var(--font-size-base); line-height: 1; padding: 2px 2px; user-select: none; flex-shrink: 0; transition: color 0.1s; }
 .sp-grip:hover { color: var(--text-secondary, #888); }
@@ -262,7 +353,7 @@ defineExpose({ resetSproutSearch: () => { sproutSearch.value = '' }, goToCard: (
 .sp-ghost { opacity: 0.4; background: var(--primary-light, color-mix(in srgb, var(--color-primary) 10%, transparent)); border-radius: 4px; }
 .sp-drag { background: var(--content-bg, var(--color-bg-surface)); box-shadow: 0 4px 12px rgba(0,0,0,0.15); border-radius: 4px; }
 .sp-source { font-size: var(--text-micro-font-size); color: var(--text-tertiary, var(--color-text-tertiary)); background: var(--bg-secondary, var(--color-bg-elevated)); padding: 1px 4px; border-radius: 3px; margin-right: 4px; }
-.sp-toggle { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: var(--font-size-sm); padding: 4px 6px; border-radius: var(--radius-sm); transition: background 0.1s; }
+.sp-toggle { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: var(--font-size-sm); padding: 2px 6px; border-radius: var(--radius-sm); transition: background 0.1s; }
 .sp-toggle:hover { background: var(--hover-bg, var(--color-bg-hover)); }
 .sp-toggle input { margin: 0; accent-color: var(--primary, var(--color-primary)); }
 .sp-icon { font-size: var(--font-size-lg); }
