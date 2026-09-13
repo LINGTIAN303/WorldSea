@@ -9,7 +9,7 @@
       :custom-tabs="customTabs"
       entity-label="角色"
       id-prefix="chr"
-      :icon-fn="() => 'user'"
+      :icon-fn="() => 'character'"
       card-subtitle="role"
       @select-entity="onSelectEntity"
     >

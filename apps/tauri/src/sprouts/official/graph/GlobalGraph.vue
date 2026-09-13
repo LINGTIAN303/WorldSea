@@ -19,7 +19,9 @@
     <div ref="containerRef" class="g-canvas"></div>
 
     <div v-if="entityStore.entities.length === 0" class="g-empty">
-      <WsEmpty preset="no-data" title="图谱为空" description="创建实体后会自动显示在这里" />
+      <WsEmpty preset="no-data" title="图谱为空" description="创建实体后会自动显示在这里">
+        <template #icon><WsIcon name="graph" size="xl" /></template>
+      </WsEmpty>
     </div>
 
     <PathSearchPanel

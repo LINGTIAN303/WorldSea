@@ -48,7 +48,9 @@
 
     <MindmapBreadcrumb :breadcrumb="breadcrumb" @jump="jumpTo" />
 
-    <EmptyState v-if="!entityStore.entities.length" icon="map" message="还没有实体" hint="创建第一个实体吧" />
+    <WsEmpty v-if="!entityStore.entities.length" title="还没有实体" description="创建第一个实体吧">
+      <template #icon><WsIcon name="mindmap" size="xl" /></template>
+    </WsEmpty>
 
     <div class="mm-main-area">
       <div ref="containerRef" class="mm-canvas">
@@ -229,9 +231,9 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { WsIcon } from '@worldsea/ui-kit'
+import { WsEmpty, WsIcon } from '@worldsea/ui-kit'
 import { useEntityStore, useRelationStore, relationSchemaRegistry } from '@worldsea/entity-core'
-import { EmptyState, EntityFormModal, useShortcuts, currentSequence, type ShortcutDef } from '@worldsea/plugin-sdk'
+import { EntityFormModal, useShortcuts, currentSequence, type ShortcutDef } from '@worldsea/plugin-sdk'
 import { useUndoRedo, useGraphData, useTypeMapping } from '@worldsea/ui-kit'
 import MindmapToolbar from './components/MindmapToolbar.vue'
 import MindmapNodeTooltip from './components/MindmapNodeTooltip.vue'

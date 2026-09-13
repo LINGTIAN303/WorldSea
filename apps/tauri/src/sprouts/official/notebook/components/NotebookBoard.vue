@@ -1,7 +1,7 @@
 <template>
   <div class="nb-board">
     <div v-if="notes.length === 0" class="nb-board-empty">
-      <WsIcon name="dashboard" size="xl" />
+      <WsIcon name="notebook" size="xl" />
       <div class="nb-be-text">暂无笔记</div>
     </div>
     <div v-else class="nb-board-columns">

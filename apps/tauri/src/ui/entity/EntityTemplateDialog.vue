@@ -21,7 +21,7 @@
 
           <div class="et-list" v-if="filteredEntityTemplates.length">
             <div v-for="tmpl in filteredEntityTemplates" :key="tmpl.id" class="et-card" role="button" tabindex="0" :aria-label="`应用模板：${tmpl.name}`" @click="onApplyEntityTemplate(tmpl)" @keydown.enter.prevent="onApplyEntityTemplate(tmpl)" @keydown.space.prevent="onApplyEntityTemplate(tmpl)">
-              <div class="et-card-icon">{{ entitySchemaRegistry.getEmoji(tmpl.entityType) }}</div>
+              <div class="et-card-icon"><WsIcon :name="entitySchemaRegistry.getIconName(tmpl.entityType)" :size="22" /></div>
               <div class="et-card-content">
                 <div class="et-card-h">
                   <strong>{{ tmpl.name }}</strong>
@@ -85,6 +85,7 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, watch } from 'vue'
 import { useEntityTemplates, entitySchemaRegistry } from '@worldsea/entity-core'
+import { WsIcon } from '@worldsea/ui-kit'
 import type { EntityTemplate, WorldTemplate } from '@worldsea/entity-core'
 import { useFocusTrap } from '@/composables/useFocusTrap'
 

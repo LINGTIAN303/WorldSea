@@ -75,7 +75,7 @@
       </template>
 
       <WsEmpty v-if="entities.length === 0" title="暂无区域" description="点击上方按钮创建第一个区域">
-        <template #icon><WsIcon name="map" size="xl" /></template>
+        <template #icon><WsIcon name="region" size="xl" /></template>
       </WsEmpty>
     </template>
 
@@ -159,8 +159,8 @@ function toggleExpand(id: string) {
 }
 
 // ── Icon function ──
-function iconFn() { return 'location' }
-function typeIcon(r: any) { return typeIconMap[r.properties?.regionType as string] || 'location' }
+function iconFn() { return 'region' }
+function typeIcon(r: any) { return typeIconMap[r.properties?.regionType as string] || 'region' }
 
 // ── Form fields ──
 const fields: FormFieldDef[] = [

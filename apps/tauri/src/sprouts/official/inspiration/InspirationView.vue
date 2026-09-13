@@ -46,10 +46,11 @@ const fields: FormFieldDef[] = [
   { key: 'tags', label: '标签', type: 'tags' },
 ]
 
+/** 实体图标：按素材类型映射到 WsIcon id（原 emoji 体系 WsIcon 解析不到，卡片/空状态均无图标）；兜底 = 芽图标灯泡 */
 function icon(e: Entity | null): string {
-  if (!e) return '\u{1F4A1}'
+  if (!e) return 'inspiration'
   const t = e.properties.materialType as string
-  return { '图片': '\u{1F5BC}', '视频': '\u{1F3AC}', '文章': '\u{1F4DD}', '音乐': '\u{1F3B5}', '概念': '\u{1F4AD}', '角色': '\u{1F464}', '场景': '\u{1F304}', '对话': '\u{1F4AC}' }[t] || '\u{1F4A1}'
+  return { '图片': 'image', '视频': 'video', '文章': 'manuscript', '音乐': 'music', '概念': 'concept', '角色': 'character', '场景': 'region', '对话': 'chat' }[t] || 'inspiration'
 }
 
 const filterOpts = [

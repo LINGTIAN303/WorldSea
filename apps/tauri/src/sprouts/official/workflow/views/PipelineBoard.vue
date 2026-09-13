@@ -12,7 +12,7 @@
     </div>
 
     <div v-else-if="pipelineList.length === 0" class="pb-empty">
-      <div class="pb-empty__icon"><TemplateIcon name="clipboard" :size="28" /></div>
+      <div class="pb-empty__icon"><WsIcon name="lightning" :size="28" /></div>
       <h3>还没有创作计划</h3>
       <p>创建一个创作计划，将复杂的创作目标拆解为有序步骤</p>
       <button class="pb-btn pb-btn--primary" @click="showCreateDialog = true">
@@ -100,6 +100,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { CreateButton } from '@worldsea/plugin-sdk'
+import { WsIcon } from '@worldsea/ui-kit'
 import TuiSpinner from '@/components/ui/TuiSpinner.vue'
 import TemplateIcon from '../components/TemplateIcon.vue'
 import { usePipeline } from '../composables/usePipeline'

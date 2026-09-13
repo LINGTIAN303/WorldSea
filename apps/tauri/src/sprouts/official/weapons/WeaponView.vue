@@ -3,7 +3,7 @@
     <div v-if="viewMode === 'lineage'" class="wv-lineage">
       <WeaponLineageView @back="viewMode = 'list'" />
     </div>
-    <SchemaRenderer v-else type-key="item" :additional-filter="isWeaponItem" :detail-tabs="weaponTabs" facet-on-create="weapon" :schema-loader="loadEntityTypeSchema">
+    <SchemaRenderer v-else type-key="item" entity-label="武器" :icon-fn="() => 'weapon'" :additional-filter="isWeaponItem" :detail-tabs="weaponTabs" facet-on-create="weapon" :schema-loader="loadEntityTypeSchema">
       <template #toolbar-extra>
         <button class="wv-lin-btn" @click="viewMode = 'lineage'" title="传承谱系视图">
           <WsIcon name="family-tree" :size="16" :stroke-width="1.5" />

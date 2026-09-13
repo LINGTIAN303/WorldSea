@@ -105,7 +105,9 @@
           </template>
         </template>
 
-        <WsEmpty v-if="events.length === 0 && !loading" preset="no-data" description="还没有事件，点击上方按钮创建" />
+        <WsEmpty v-if="events.length === 0 && !loading" title="暂无事件" description="点击上方按钮创建第一个事件">
+          <template #icon><WsIcon name="timeline" size="xl" /></template>
+        </WsEmpty>
       </div>
     </template>
   </div>
@@ -113,7 +115,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
-import { WsEmpty } from '@worldsea/ui-kit'
+import { WsEmpty, WsIcon } from '@worldsea/ui-kit'
 import type { Entity } from '@worldsea/entity-core'
 import type { ParsedDate, EraInfo } from '../composables/useDateParser'
 import type { TreeNode as TreeNodeType } from '../composables/useEventTree'

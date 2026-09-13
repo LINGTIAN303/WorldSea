@@ -8,12 +8,12 @@
     v-else-if="schema"
     :entity-type="schema.typeKey"
     :form-fields="formFields"
-    :icon-fn="iconFn"
+    :icon-fn="iconFn || schemaIconFn"
     :filter-options="filterOpts"
     :filter-field-key="filterFieldKey"
     :filter-defs="filterDefs"
     :id-prefix="schema.idPrefix || defaultIdPrefix"
-    :entity-label="schema.label"
+    :entity-label="entityLabel || schema.label"
     :additional-filter="additionalFilter"
     :detail-tabs="detailTabs"
     :custom-tabs="customTabs"
@@ -77,6 +77,10 @@ const props = withDefaults(defineProps<{
   sortOptions?: { key: string; label: string }[]
   hideCreateButton?: boolean
   facetOnCreate?: string
+  /** 覆盖实体显示名（空状态提示语等；默认用 schema.label）——供复用其他类型的视图定制文案（如武器复用 item） */
+  entityLabel?: string
+  /** 覆盖实体图标解析（卡片/详情/空状态；默认按 schema.iconMap → schema.icon） */
+  iconFn?: (entity: any) => string
   /** 实体类型 schema 加载器（端分离后由宿主注入；未提供时降级到 entitySchemaRegistry） */
   schemaLoader?: (typeKey: string) => Promise<EntityTypeSchema | null>
 }>(), {
@@ -172,7 +176,8 @@ const filterOpts = computed(() => {
   return [{ value: '', label: '全部' }, ...field.options.map(o => ({ value: o.value, label: o.label }))]
 })
 
-const iconFn = computed(() => {
+/** schema 内建的图标解析（iconMap 按筛选字段映射 → schema.icon 兜底）；消费者传入 iconFn 时被覆盖 */
+const schemaIconFn = computed(() => {
   if (!schema.value || Object.keys(schema.value.iconMap).length === 0) return undefined
   return (entity: any) => {
     const filterVal = entity?.[filterFieldKey.value]

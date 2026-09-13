@@ -29,7 +29,9 @@
     <template #list="{ select: selectEntity }">
       <div v-if="activeTab === 'tree'" class="outline-tree-area">
         <div class="tree-container" :class="{ 'is-empty': treeData.length === 0 }">
-          <WsEmpty v-if="treeData.length === 0" preset="no-data" title="空大纲" description="点击上方按钮创建第一个章节" />
+          <WsEmpty v-if="treeData.length === 0" preset="no-data" title="空大纲" description="点击上方按钮创建第一个章节">
+            <template #icon><WsIcon name="outline" size="xl" /></template>
+          </WsEmpty>
           <GenericTreeView
             v-for="node in treeData"
             :key="node.entity.id"
@@ -96,7 +98,9 @@
             <span v-if="nodesByLine(line, flatNodes).length===0" class="sl-empty">暂无节点</span>
           </div>
         </div>
-        <WsEmpty v-if="storylines.length === 0" preset="no-data" title="暂无线索" description="在节点的&quot;所属线索&quot;字段中添加线索名称" />
+        <WsEmpty v-if="storylines.length === 0" preset="no-data" title="暂无线索" description="在节点的&quot;所属线索&quot;字段中添加线索名称">
+          <template #icon><WsIcon name="outline" size="xl" /></template>
+        </WsEmpty>
       </div>
 
       <div v-if="activeTab === 'progress'" class="progress-view">

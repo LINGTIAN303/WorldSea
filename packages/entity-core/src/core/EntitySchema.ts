@@ -54,7 +54,7 @@ const TYPE_EMOJI: Record<string, string> = {
 
 const TYPE_ICON: Record<string, string> = {
   character: 'character',
-  organization: 'war',
+  organization: 'organization',
   region: 'region',
   location: 'location',
   item: 'item',

@@ -72,7 +72,9 @@
           :notes="filteredNotes"
           @select="selectedNoteId = $event"
         />
-        <div v-else class="nb-empty">选择或创建一个笔记开始</div>
+        <WsEmpty v-else title="选择或创建一个笔记开始">
+          <template #icon><WsIcon name="notebook" size="xl" /></template>
+        </WsEmpty>
       </div>
     </div>
   </div>
@@ -82,7 +84,7 @@
 import { ref, computed, reactive, watch, onMounted } from 'vue'
 import { useEntityStore, useRelationStore, useBidirectional } from '@worldsea/entity-core'
 import type { Relation } from '@worldsea/entity-core'
-import { WsIcon } from '@worldsea/ui-kit'
+import { WsEmpty, WsIcon } from '@worldsea/ui-kit'
 import NotebookEditor from './components/NotebookEditor.vue'
 import NotebookBoard from './components/NotebookBoard.vue'
 import NotebookGraph from './components/NotebookGraph.vue'
