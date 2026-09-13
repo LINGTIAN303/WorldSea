@@ -129,7 +129,6 @@
 | src/memory-archive/adapters/TauriFsOperations.ts | [TauriFsOperations.md](tauri/TauriFsOperations.md) | FsOperations 的 Tauri 实现：cmd_fs_* 命令映射 |
 | src/plugins/workflow/api/workflowApi.ts | [workflowApi.md](tauri/workflowApi.md) | Workflow 引擎命令调用层：28 个命令镜像、设计要点 |
 | src/plugins/workflow/composables/useWorkflowEngineRun.ts | [useWorkflowEngineRun.md](tauri/useWorkflowEngineRun.md) | 直接 Dispatch 兜底通道运行控制器：工作机制与注意 |
-| src/plugins/mindmap/composables/useRustGraphAnalysis.ts | [useRustGraphAnalysis.md](tauri/useRustGraphAnalysis.md) | Rust 图分析算法桥接：算法清单与 Web 回退策略 |
 | 拆分记录（2026-08-06） | — | coreBackend.ts 按领域拆为 src/core/api/（schema / retrofit / entity / algo / health / runtime + index 聚合），coreBackend.ts 保留 `export * from './api'`，类型统一来自 @worldsea/core-api-types，公共导出签名不变，原 import 处无需改动；各新文件无 ≥ 10 行连续注释块，未生成新文档 |
 
 ### web（apps/web，已删除 2026-08-08）
@@ -273,12 +272,6 @@
 | src/reactive/batchedUpdates.ts | [batchedUpdates.md](packages/perf-kit/reactive/batchedUpdates.md) | 批量更新合并器（解决 PERF-03 更新风暴） |
 | src/render/idleRaf.ts | [idleRaf.md](packages/perf-kit/render/idleRaf.md) | 空闲 RAF 管理器（解决 PERF-22 常驻 CPU） |
 | src/render/virtualList.ts | [virtualList.md](packages/perf-kit/render/virtualList.md) | 通用虚拟滚动 hook（前缀和 + 二分定位） |
-
-### packages/theme-kit（packages/theme-kit）
-
-| 代码文件 | 详细注释文档 | 摘要 |
-|---|---|---|
-| src/motion-override.ts | [motion-override.md](packages/theme-kit/motion-override.md) | Motion Override Engine：覆盖缓动/时长/motion-scale、注入关键帧、设置交互模式 |
 
 ### packages/plugin-sdk（packages/plugin-sdk）
 

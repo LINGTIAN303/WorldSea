@@ -45,15 +45,21 @@ import { WsIcon } from '@worldsea/ui-kit'
 import { WsEmpty } from '@worldsea/ui-kit'
 import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
-import { useMindmapStore } from '../mindmap/mindmapStore'
 
 const entityStore = useEntityStore()
 const relationStore = useRelationStore()
 
-// 清理思维导图自动创建产生的重复「中心主题」概念（保留 1 个）
+/**
+ * 清理重复「中心主题」概念（保留 1 个，删除其余）。
+ * 历史背景：旧思维导图芽会自动创建「中心主题」概念实体且可能重复；
+ * 芽已删除（2026-09-13），此处保留自愈逻辑清理存量数据。
+ */
 onMounted(async () => {
   await entityStore.loadAll()
-  await useMindmapStore().deduplicateCenterNodes()
+  const centers = entityStore.entities.filter(e => e.type === 'concept' && e.name === '中心主题')
+  if (centers.length > 1) {
+    await Promise.all(centers.slice(1).map(c => entityStore.remove(c.id)))
+  }
 })
 
 const fields: FormFieldDef[] = [
