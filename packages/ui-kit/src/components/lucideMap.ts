@@ -25,6 +25,9 @@ import {
   PanelRight, PanelRightOpen, PanelRightClose,
   FolderTree, Files,
 } from 'lucide-vue-next'
+// Tabler 图标混编：个别芽的图标由用户点名采用 Tabler（@tabler/icons-vue），与本表混编（2026-09-13）。
+// 组件 API 兼容：两者都接受 size / stroke-width（Tabler 的 stroke-width 经 attrs 落到 svg）。
+import { IconMoodNeutral, IconUsersGroup, IconMoodAngryFilled, IconBrandTerraform } from '@tabler/icons-vue'
 
 const LUCIDE_MAP: Record<string, Component> = {
   user: User,
@@ -173,20 +176,20 @@ const LUCIDE_MAP: Record<string, Component> = {
   building: Building2,
   species: Dna,
   weapon: Swords,
-  combat: Flame,
+  combat: IconMoodAngryFilled,
   plant: Flower2,
   culture: Landmark,
   language: Languages,
   manuscript: ScrollTextIcon,
   outline: LayoutList,
   magic: Wand2,
-  concept: Lightbulb,
+  concept: IconBrandTerraform,
   mindmap: Network,
   inspiration: Lightbulb,
-  organization: Building2,
+  organization: IconUsersGroup,
   timeline: Clock,
   region: MapPin,
-  character: User,
+  character: IconMoodNeutral,
   graph: Share2,
   drawing: PenTool,
   race: Dna,
