@@ -53,17 +53,32 @@ const cssText = ref('')
 const validationMsg = ref('')
 const validationType = ref<'error' | 'success' | 'info'>('info')
 
+// 自定义 CSS 持久化键（2026-09-13 修复：此前只写 DOM style 标签，刷新即丢）
+const CUSTOM_CSS_KEY = 'worldsea:custom-css'
+
 onMounted(() => {
   const overrides = { ...userOverrides.value }
   if (Object.keys(overrides).length > 0) {
     jsonText.value = JSON.stringify(overrides, null, 2)
   } else {
-    jsonText.value = '{\n  "--color-primary": "#8b5cf6",\n  "--radius-md": "8px"\n}'
+    jsonText.value = '{\n  "--radius-md": "8px"\n}'
   }
 
-  const style = document.getElementById('ws-custom-css')
-  if (style) {
-    cssText.value = style.textContent ?? ''
+  // 恢复持久化的自定义 CSS（无则保持空，不注入）
+  let saved = ''
+  try {
+    saved = localStorage.getItem(CUSTOM_CSS_KEY) ?? ''
+  } catch {
+    saved = ''
+  }
+  if (saved) {
+    cssText.value = saved
+    applyCssToDom(saved)
+  } else {
+    const style = document.getElementById('ws-custom-css')
+    if (style) {
+      cssText.value = style.textContent ?? ''
+    }
   }
 })
 
@@ -102,14 +117,24 @@ function applyJson() {
   validationType.value = 'success'
 }
 
-function onCssInput() {
+/** 把自定义 CSS 写入 DOM style 标签（#ws-custom-css，注入 :root 级生效） */
+function applyCssToDom(css: string) {
   let style = document.getElementById('ws-custom-css') as HTMLStyleElement | null
   if (!style) {
     style = document.createElement('style')
     style.id = 'ws-custom-css'
     document.head.appendChild(style)
   }
-  style.textContent = cssText.value
+  style.textContent = css
+}
+
+function onCssInput() {
+  applyCssToDom(cssText.value)
+  try {
+    localStorage.setItem(CUSTOM_CSS_KEY, cssText.value)
+  } catch {
+    // localStorage 不可用时仅本次会话生效
+  }
 }
 
 async function importFromClipboard() {
@@ -130,12 +155,12 @@ async function importFromClipboard() {
 async function exportToClipboard() {
   try {
     const currentTheme = allThemes.value.find(t => t.id === currentThemeId.value)
+    // 收束后自定义主题不再携带 mode（明暗独立于主题风味，导入方也不消费该字段）
     const themeDef: ThemeDefinition = {
       name: currentTheme?.name ?? '自定义主题',
       id: `custom-${Date.now()}`,
       author: 'User',
       version: '1.0.0',
-      mode: currentTheme?.mode ?? 'dark',
       tokens: { ...userOverrides.value },
     }
     const json = exportTheme(themeDef)

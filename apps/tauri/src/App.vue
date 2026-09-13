@@ -41,12 +41,14 @@ watch(() => settingsStore.animations, (a) => {
 
 // 主题初始化：Shell 与 AgentSpace 共用（三态；components/ui/useTheme 已内置
 // 跟随系统——preference 'system' 默认态 + matchMedia 实时监听，无需额外实现）
-const { theme: themeMode, apply: applyTheme, setMode } = useTheme()
+const { theme: themeMode, apply: applyTheme, setMode, followSystem } = useTheme()
 // 系统层桥：托盘事件监听 + 状态同步（App 启动时 setup，幂等）
 const { setup: setupSystemBridge } = useSystemBridge()
 
 const uiStore = useUIStore()
 const projectSwitcher = useProjectSwitcher()
+// entity-core 主题引擎（强调色轴）：模块加载时已完成旧主题 id → accent id 迁移
+const { setAccent, restorePersistedTheme } = useEntityTheme()
 
 // ── Agent UI 依赖注入（AgentUiDeps）────────────────────────────
 // 深度模式消息气泡（DeepMessageArea / useMarkdownRender）依赖 useAgentUiDeps()，
@@ -82,20 +84,22 @@ provideAgentUiDeps({
 })
 
 /**
- * 预设主题切换统一落地（AppearancePanel/ThemeEditor 派发 ws-set-theme）。
+ * 主题两轴统一落地（2026-09-13 收束：主题 = 底色 × 强调色；AppearancePanel 派发 ws-set-theme）。
  * App.vue 恒挂载（AgentSpace / Shell 平级切换），在此注册保证两种壳都生效。
- * - setTheme(id)：更新 entity-core currentThemeId（active 高亮）+ 应用 Manifest
- * - setMode(mode)：App 壳唯一控制 data-theme（覆盖命名 id，保证明暗自洽）
- * - setUserOverrides：写 --accent 令牌风味（与圆角/密度合并）
+ * - detail.mode（'light'|'dark'|'system'）→ App 壳三态（data-theme 唯一控制源；system 恢复跟随）
+ * - detail.accent（强调色 id）→ entity-core setAccent（深浅双段规则注入 + 用户令牌重放）
  */
-const { setTheme: setNamedTheme, setUserOverrides, userOverrides } = useEntityTheme()
 function onSetTheme(e: Event) {
-  const detail = (e as CustomEvent).detail
-  if (!detail || !detail.id) return
+  const detail = (e as CustomEvent).detail ?? {}
   try {
-    setNamedTheme(detail.id)
-    setMode(detail.mode === 'light' ? 'light' : 'dark')
-    setUserOverrides({ ...userOverrides.value, '--accent': detail.accent })
+    if (detail.mode === 'system') {
+      followSystem()
+    } else if (detail.mode === 'light' || detail.mode === 'dark') {
+      setMode(detail.mode)
+    }
+    if (typeof detail.accent === 'string' && detail.accent) {
+      setAccent(detail.accent)
+    }
   } catch (err) {
     console.error('[ws-set-theme] 处理失败:', err)
   }
@@ -125,6 +129,13 @@ onMounted(async () => {
   document.addEventListener('contextmenu', e => e.preventDefault())
   // 应用初始主题（html data-theme 由此建立；apply 为同步函数，需传入当前主题模式）
   applyTheme(themeMode.value)
+  // 主题恢复第二轴：强调色规则注入 + 用户令牌覆盖重放（圆角/密度等）。
+  // 收束前缺失此步——重启后 --accent 与覆盖令牌不恢复，观感回退裸基准。
+  try {
+    restorePersistedTheme()
+  } catch (err) {
+    console.error('[App] 主题恢复失败:', err)
+  }
   // 项目系统初始化 + projectDir 绑定（必须在 bootstrapSprouts 之前：
   // 芽初始化 / Store loadAll 依赖 FileStorageBackend 已就绪，否则 isReady=false
   // 会降级到不可用的 TauriStorageBackend，导致 cmd_get_all_entities 等 IPC 失败）

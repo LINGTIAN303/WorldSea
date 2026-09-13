@@ -60,6 +60,12 @@ function applyPreference(p: ThemePreference) {
   preference.value = p
   persist(p)
   apply(p === 'system' ? detectSystem() : p)
+  // 广播三态变化（设置面板底色段高亮同步）：同页面无 storage 事件，只能手动派发
+  try {
+    window.dispatchEvent(new CustomEvent('ws-theme-mode-changed', { detail: { preference: p, applied: theme.value } }))
+  } catch {
+    // 非浏览器环境忽略
+  }
 }
 
 /** 主题按钮三态循环：浅色 → 深色 → 跟随系统 → 浅色（批次99，使 system 态可达） */

@@ -1,7 +1,7 @@
 <template>
   <div class="theme-pro">
     <div class="theme-pro__toolbar">
-      <span class="theme-pro__hint">编辑语义令牌，实时预览效果</span>
+      <span class="theme-pro__hint">编辑设计令牌（覆盖优先于强调色预设），实时预览效果</span>
       <button class="theme-pro__reset" @click="resetOverrides">重置</button>
     </div>
 
@@ -90,12 +90,16 @@ function toggleGroup(id: string) {
 const tokenGroups: TokenGroup[] = [
   {
     id: 'colors-brand',
-    label: '品牌色',
+    label: '强调色',
+    // 2026-09-13 收束：直接编辑 --accent 系（theme.css 基准令牌，全端消费者）；
+    // 此前编辑 --color-primary 仅影响 web 桥接别名（--color-primary: var(--accent) 的
+    // 消费者），Tauri 原生 --accent 组件不变色——同一个「主色」两套体系已收敛。
+    // 注意：此处的手动覆盖优先于强调色预设（setAccent 会清除这些内联键）。
     tokens: [
-      { key: '--color-primary', label: '主色', type: 'color' },
-      { key: '--color-primary-hover', label: '主色悬停', type: 'color' },
-      { key: '--color-primary-active', label: '主色激活', type: 'color' },
-      { key: '--color-primary-subtle', label: '主色淡', type: 'color' },
+      { key: '--accent', label: '强调主色', type: 'color' },
+      { key: '--accent-hover', label: '悬停色', type: 'color' },
+      { key: '--accent-soft', label: '弱底色', type: 'color' },
+      { key: '--accent-soft-border', label: '弱底边框', type: 'color' },
     ],
   },
   {

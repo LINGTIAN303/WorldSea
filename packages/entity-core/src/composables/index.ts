@@ -1,6 +1,6 @@
-// 主题管理（Phase 4 从根 src/composables/useTheme.ts 下沉到 entity-core）
-export { useTheme } from './useTheme'
-export type { ThemeDefinition } from './useTheme'
+// 主题管理（Phase 4 从根 src/composables/useTheme.ts 下沉到 entity-core；2026-09-13 收束为主题两轴）
+export { useTheme, ACCENT_PRESETS, DEFAULT_ACCENT_ID } from './useTheme'
+export type { ThemeDefinition, AccentPreset } from './useTheme'
 
 // 文件系统监听（Phase 5a 从根 src/composables/useFsWatcher.ts 下沉到 entity-core）
 export { useFsWatcher } from './useFsWatcher'

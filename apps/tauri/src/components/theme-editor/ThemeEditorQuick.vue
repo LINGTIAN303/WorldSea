@@ -1,22 +1,6 @@
 <template>
   <div class="theme-quick">
-    <div class="theme-quick__section">
-      <h4 class="theme-quick__heading">选择预设主题</h4>
-      <div class="theme-quick__grid">
-        <div
-          v-for="theme in themes"
-          :key="theme.id"
-          :class="['theme-quick__card', { 'theme-quick__card--active': currentThemeId === theme.id }]"
-          @click="setTheme(theme.id)"
-        >
-          <div class="theme-quick__preview" :style="theme.previewStyle">
-            <div class="theme-quick__preview-dot" :style="{ background: theme.primary }"></div>
-          </div>
-          <div class="theme-quick__name">{{ theme.name }}</div>
-        </div>
-      </div>
-    </div>
-
+    <!-- 2026-09-13 收束：预设主题选择已并入 设置 → 外观（底色 × 强调色），此处不再重复陈列 -->
     <div class="theme-quick__section">
       <h4 class="theme-quick__heading">圆角风格</h4>
       <div class="theme-quick__options">
@@ -45,22 +29,32 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-// entity-core 主题引擎：currentThemeId 作为预设高亮唯一来源（与 AppearancePanel 共享），
-// setUserOverrides 仅写令牌覆盖（圆角/密度），不碰 data-theme。
+// entity-core 主题引擎：setUserOverrides 仅写令牌覆盖（圆角/密度），不碰 data-theme 与强调色。
 import { useTheme } from '@/composables/useTheme'
 
-const { userOverrides, setUserOverrides, currentThemeId } = useTheme()
+const { userOverrides, setUserOverrides } = useTheme()
 
-const radiusStyle = ref<'sharp' | 'standard' | 'round'>('standard')
-const density = ref<'compact' | 'comfortable' | 'spacious'>('comfortable')
+// 圆角/密度覆盖键全集：选「标准/舒适」（= 回归主题基准）时据此清除，避免旧覆盖残留
+const RADIUS_KEYS = ['--radius-btn', '--radius-card', '--radius-input', '--radius-modal']
+const DENSITY_KEYS = ['--spacing-card', '--spacing-btn', '--spacing-gap', '--spacing-btn-x', '--spacing-btn-sm-x', '--spacing-modal-x']
 
-const themes = [
-  { id: 'aurora-abyss', name: '极光深渊', primary: '#8b5cf6', dark: true, previewStyle: { background: 'linear-gradient(135deg, #0f0f23, #1a1a3e)' } },
-  { id: 'light', name: '明亮', primary: '#4a6cf7', dark: false, previewStyle: { background: '#f5f5f5' } },
-  { id: 'forge-ember', name: '锻造炉', primary: '#c87830', dark: true, previewStyle: { background: 'linear-gradient(160deg, #1a1410, #2a1e14)' } },
-  { id: 'ink-scroll', name: '水墨卷轴', primary: '#2a2018', dark: false, previewStyle: { background: 'linear-gradient(180deg, #f8f4ef, #f0ebe2)' } },
-  { id: 'crystal-prism', name: '晶体棱镜', primary: '#64b4ff', dark: true, previewStyle: { background: 'linear-gradient(135deg, #0c0c14, #12121e)' } },
-]
+// 回显：从 userOverrides 反推当前风格（未覆盖 = standard/comfortable），
+// 修复此前「打开编辑器永远显示默认态」的状态丢失
+function detectRadiusStyle(): 'sharp' | 'standard' | 'round' {
+  const v = userOverrides.value['--radius-btn']
+  if (v === '2px') return 'sharp'
+  if (v === '12px') return 'round'
+  return 'standard'
+}
+function detectDensity(): 'compact' | 'comfortable' | 'spacious' {
+  const v = userOverrides.value['--spacing-card']
+  if (v === 'var(--space-3)') return 'compact'
+  if (v === 'var(--space-6)') return 'spacious'
+  return 'comfortable'
+}
+
+const radiusStyle = ref<'sharp' | 'standard' | 'round'>(detectRadiusStyle())
+const density = ref<'compact' | 'comfortable' | 'spacious'>(detectDensity())
 
 const radiusOptions = [
   { id: 'sharp' as const, label: '锐利' },
@@ -74,20 +68,6 @@ const densityOptions = [
   { id: 'spacious' as const, label: '宽松' },
 ]
 
-/**
- * 选择预设主题：与 AppearancePanel 走同一 canonical 路径——派发 ws-set-theme，
- * 由 App.vue 统一落地（setNamedTheme 同步 currentThemeId 高亮 + setMode 控制 data-theme
- * 明暗 + setUserOverrides 写 --accent 风味）。两处主题选择 UI 因此高亮保持一致，
- * 且 data-theme 仍由 App 壳三态唯一控制，无踩踏。
- */
-function setTheme(id: string) {
-  const theme = themes.find(t => t.id === id)
-  if (!theme) return
-  window.dispatchEvent(new CustomEvent('ws-set-theme', {
-    detail: { id, mode: theme.dark ? 'dark' : 'light', accent: theme.primary },
-  }))
-}
-
 function setRadiusStyle(style: 'sharp' | 'standard' | 'round') {
   radiusStyle.value = style
   applyQuickSettings()
@@ -100,6 +80,9 @@ function setDensity(d: 'compact' | 'comfortable' | 'spacious') {
 
 function applyQuickSettings() {
   const overrides: Record<string, string> = { ...userOverrides.value }
+  // 先清除两维旧键（含强调色预设选择时保留其余覆盖），再按需写入
+  for (const k of RADIUS_KEYS) delete overrides[k]
+  for (const k of DENSITY_KEYS) delete overrides[k]
 
   if (radiusStyle.value === 'sharp') {
     overrides['--radius-btn'] = '2px'
@@ -139,19 +122,6 @@ function applyQuickSettings() {
 <style scoped>
 .theme-quick { display: flex; flex-direction: column; gap: var(--space-5); }
 .theme-quick__heading { font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); color: var(--color-text-secondary); margin-bottom: var(--space-2); }
-.theme-quick__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: var(--space-3); }
-.theme-quick__card {
-  cursor: pointer; border: 2px solid transparent; border-radius: var(--radius-md);
-  padding: var(--space-2); text-align: center; transition: background var(--duration-fast) var(--ease-default), border-color var(--duration-fast) var(--ease-default), color var(--duration-fast) var(--ease-default), box-shadow var(--duration-fast) var(--ease-default), transform var(--duration-fast) var(--ease-default), opacity var(--duration-fast) var(--ease-default), filter var(--duration-fast) var(--ease-default);
-}
-.theme-quick__card:hover { border-color: var(--color-primary); }
-.theme-quick__card--active { border-color: var(--color-primary); background: var(--color-primary-subtle); }
-.theme-quick__preview {
-  height: 60px; border-radius: var(--radius-sm); margin-bottom: var(--space-1);
-  display: flex; align-items: center; justify-content: center;
-}
-.theme-quick__preview-dot { width: 20px; height: 20px; border-radius: 50%; }
-.theme-quick__name { font-size: var(--font-size-xs); color: var(--color-text-secondary); }
 .theme-quick__options { display: flex; gap: var(--space-2); }
 .theme-quick__option {
   padding: var(--space-1) var(--space-3); border: 1px solid var(--color-border);

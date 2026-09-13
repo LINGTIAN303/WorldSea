@@ -2,16 +2,24 @@
   <CardDeck :count="4" :flat="!!searchQuery" @change="(i) => emit('card-change', i)" ref="deckRef">
     <template #card="{ idx, cls }">
       <div class="set-card deck-card" :class="cls" :data-index="idx"
-        v-show="idx === 0 ? match('主题 theme 外观 深色 浅色 极光 锻造 水墨 棱镜 宇宙 编辑器') : idx === 1 ? match('高亮 highlight 脉冲 动画 淡化 扩散 透明度') : true">
-        <!-- 主题 -->
+        v-show="idx === 0 ? match('主题 theme 外观 底色 深色 浅色 跟随系统 强调色 颜色 编辑器') : idx === 1 ? match('高亮 highlight 脉冲 动画 淡化 扩散 透明度') : true">
+        <!-- 主题（2026-09-13 收束：主题 = 底色 × 强调色 两轴，不再陈列六个预设主题卡） -->
         <template v-if="idx === 0">
           <div class="sc-head">主题</div>
-          <div class="set-theme-row">
-            <button v-for="t in themes" :key="t.id" class="set-theme-btn" :class="{ on: currentThemeId === t.id }" @click="onThemeChange(t.id)">
-              <WsIcon :name="t.icon" size="md" class="st-icon" />
-              <span class="st-label">{{ t.label }}</span>
+          <div class="set-theme-sub">底色</div>
+          <div class="set-theme-row" role="group" aria-label="底色">
+            <button v-for="m in modeOptions" :key="m.id" class="set-theme-btn" :class="{ on: modePreference === m.id }" @click="onModeChange(m.id)">
+              <WsIcon :name="m.icon" size="md" class="st-icon" />
+              <span class="st-label">{{ m.label }}</span>
             </button>
           </div>
+          <div class="set-theme-sub">强调色</div>
+          <div class="set-accent-row" role="group" aria-label="强调色">
+            <button v-for="a in ACCENT_PRESETS" :key="a.id" class="set-accent-dot" :class="{ on: currentThemeId === a.id }" :title="a.label" :aria-label="`强调色：${a.label}`" @click="onAccentChange(a.id)">
+              <span class="set-accent-core" :style="{ background: a.light }"></span>
+            </button>
+          </div>
+          <div class="set-accent-hint">当前强调色：{{ currentAccentLabel }}（深色下自动提亮）</div>
           <button class="set-theme-editor-btn" @click="openThemeEditor">
             <WsIcon name="theme-editor" size="xs" /> 主题编辑器
           </button>
@@ -96,8 +104,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useSettingsStore, useTheme, useFontStore, type FontLayer } from '@worldsea/entity-core'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useSettingsStore, useTheme, useFontStore, ACCENT_PRESETS, type FontLayer } from '@worldsea/entity-core'
 import { useFontPresets, useFontLibraryStore, type FontLibraryEntry, type FontVariantEntry } from '@worldsea/font-kit'
 import { installFromWsfont, installFromRawFont, installFromZip } from '@worldsea/font-kit'
 import WsIcon from '../../WsIcon.vue'
@@ -147,27 +155,49 @@ const fontStorageHint = computed(() => {
   return `${(used / 1024 / 1024).toFixed(1)} MB / 400 MB`
 })
 
-// 预设主题：id 保留给 entity-core currentThemeId 追踪（active 高亮）；
-// mode 映射到 App 壳三态（唯一 data-theme 控制源，避免命名 id 写入 data-theme 破坏明暗）；
-// accent 为令牌风味（写 --accent 覆盖，与圆角/密度合并）。通过 ws-set-theme 事件交由 App 壳落地。
-const themes = [
-  { id: 'aurora-abyss', icon: 'theme-aurora-abyss', label: '极光深渊', mode: 'dark', accent: '#8b5cf6' },
-  { id: 'light', icon: 'theme-light', label: '明亮', mode: 'light', accent: '#4a6cf7' },
-  { id: 'forge-ember', icon: 'theme-forge-ember', label: '锻造炉', mode: 'dark', accent: '#c87830' },
-  { id: 'ink-scroll', icon: 'theme-ink-scroll', label: '水墨卷轴', mode: 'light', accent: '#2a2018' },
-  { id: 'crystal-prism', icon: 'theme-crystal-prism', label: '晶体棱镜', mode: 'dark', accent: '#64b4ff' },
-  { id: 'cosmic', icon: 'theme-cosmic', label: '宇宙', mode: 'dark', accent: '#a855f7' },
+// ── 主题两轴（2026-09-13 收束）──
+// 轴 1 底色：light/dark/system 三态。持久化与 data-theme 由 App 壳唯一控制
+// （apps/tauri/components/ui/useTheme.ts，键 'worldsea:theme'）；本面板只读初值 +
+// 监听 ws-theme-mode-changed 同步高亮，切换经 ws-set-theme 交 App 壳落地。
+type ModePreference = 'light' | 'dark' | 'system'
+const MODE_STORAGE_KEY = 'worldsea:theme' // App 壳三态持久化键
+function readModePreference(): ModePreference {
+  try {
+    const v = localStorage.getItem(MODE_STORAGE_KEY)
+    return v === 'light' || v === 'dark' ? v : 'system'
+  } catch {
+    return 'system'
+  }
+}
+const modePreference = ref<ModePreference>(readModePreference())
+const modeOptions: { id: ModePreference; icon: string; label: string }[] = [
+  { id: 'light', icon: 'sun', label: '浅色' },
+  { id: 'dark', icon: 'moon', label: '深色' },
+  { id: 'system', icon: 'monitor', label: '跟随系统' },
 ]
+function onModeChanged(e: Event) {
+  const p = (e as CustomEvent).detail?.preference
+  if (p === 'light' || p === 'dark' || p === 'system') modePreference.value = p
+}
+onMounted(() => window.addEventListener('ws-theme-mode-changed', onModeChanged))
+onUnmounted(() => window.removeEventListener('ws-theme-mode-changed', onModeChanged))
+
+function onModeChange(m: ModePreference) {
+  window.dispatchEvent(new CustomEvent('ws-set-theme', { detail: { mode: m } }))
+  emit('dirty')
+}
+
+// 轴 2 强调色：六色预设（entity-core ACCENT_PRESETS，深浅双段规则注入）。
+// currentThemeId（entity-core）收束后即当前强调色 id，驱动色板高亮。
+const currentAccentLabel = computed(() => ACCENT_PRESETS.find(a => a.id === currentThemeId.value)?.label ?? '靛蓝')
+
+function onAccentChange(id: string) {
+  window.dispatchEvent(new CustomEvent('ws-set-theme', { detail: { accent: id } }))
+  emit('dirty')
+}
 
 function match(keywords: string): boolean {
   return matchKeywords(props.searchQuery ?? '', keywords)
-}
-
-function onThemeChange(id: string) {
-  const t = themes.find(x => x.id === id)
-  // 交由 App 壳落地（data-theme 唯一控制源）：App 监听 ws-set-theme → setMode + setUserOverrides
-  window.dispatchEvent(new CustomEvent('ws-set-theme', { detail: { id, mode: t?.mode ?? 'dark', accent: t?.accent } }))
-  emit('dirty')
 }
 
 function openThemeEditor() {
@@ -278,6 +308,22 @@ function onFontImport(e: Event) {
 .set-hint-inline { font-size: var(--font-size-xs); color: var(--text-tertiary); font-weight: normal; }
 
 .set-theme-row { display: flex; gap: 6px; }
+.set-theme-sub { margin: 2px 0 6px; font-size: var(--font-size-xs); color: var(--text-tertiary, var(--color-text-tertiary)); }
+/* 强调色色板：圆形色点，选中态用当前强调色勾边 */
+.set-accent-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.set-accent-dot {
+  width: 30px; height: 30px; border-radius: 50%; padding: 3px;
+  border: 2px solid var(--border, var(--color-border)); background: transparent; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: background 0.12s, border-color 0.12s, color 0.12s, box-shadow 0.12s, transform 0.12s, opacity 0.12s, filter 0.12s;
+}
+.set-accent-dot:hover { border-color: var(--primary, var(--color-primary)); }
+.set-accent-dot.on {
+  border-color: var(--primary, var(--color-primary));
+  box-shadow: 0 0 0 2px var(--primary-light, color-mix(in srgb, var(--color-primary) 25%, transparent));
+}
+.set-accent-core { display: block; width: 100%; height: 100%; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08); }
+.set-accent-hint { margin-top: 8px; font-size: var(--font-size-xs); color: var(--text-tertiary, var(--color-text-tertiary)); }
 .set-theme-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; border: 1px solid var(--border, var(--color-border)); border-radius: 8px; background: var(--bg, var(--color-bg-surface)); cursor: pointer; transition: background 0.12s, border-color 0.12s, color 0.12s, box-shadow 0.12s, transform 0.12s, opacity 0.12s, filter 0.12s; }
 .set-theme-btn:hover { border-color: var(--primary, var(--color-primary)); }
 .set-theme-btn.on { border-color: var(--primary, var(--color-primary)); background: var(--primary-light, color-mix(in srgb, var(--color-primary) 10%, transparent)); }
