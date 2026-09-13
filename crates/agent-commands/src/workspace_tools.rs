@@ -157,11 +157,29 @@ impl Tool for WorkspaceSearchTool {
                 "chunks": stats.chunks,
                 "vectors": stats.vectors,
                 "dim": stats.dim,
+                "keywordReady": stats.keyword_ready,
+                "keywordBuilt": stats.keyword_built,
             },
             "results": hits,
             "__meta": { "op": "workspace_search", "readonly": true },
         });
-        if hits.is_empty() {
+        // 提示的**优先级**：先报「索引未就绪」（冷启动，2026-09-13），再报空结果与向量补齐。
+        // 模型据此知道「不是没有内容，是索引还在建」——避免误判工作区为空。
+        if !stats.keyword_ready {
+            out["note"] = json!(if hits.is_empty() {
+                format!(
+                    "工作区索引正在后台构建（已就绪 {}/{} 块）——首次检索需要一次全量构建，\
+                     本次暂无结果，请稍后重试同一查询。",
+                    stats.keyword_built, stats.chunks
+                )
+            } else {
+                format!(
+                    "工作区索引正在后台构建（已就绪 {}/{} 块）——本次结果来自语义通道，\
+                     可能不完整；稍后重试可获得更全的结果。",
+                    stats.keyword_built, stats.chunks
+                )
+            });
+        } else if hits.is_empty() {
             let hint = if stats.files == 0 {
                 "工作区内未发现可索引的文本/代码文件（或均被白名单/排除清单跳过）。"
             } else {

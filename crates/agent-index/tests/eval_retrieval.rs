@@ -132,6 +132,8 @@ async fn build_fixture_index(root: &Path) -> Arc<WorkspaceIndex> {
     .await
     .unwrap();
     idx.sync().unwrap();
+    // 关键词通道显式播种（生产由后台预热完成；测试要确定性就绪）
+    idx.build_keyword_blocking().unwrap();
     idx
 }
 
@@ -207,6 +209,7 @@ async fn semantic_eval_report() {
     .await
     .unwrap();
     kw_idx.sync().unwrap();
+    kw_idx.build_keyword_blocking().unwrap(); // 关键词通道显式播种（生产由后台预热完成）
     let mut kw_hits = 0usize;
     for (query, expect) in SEMANTIC_QUERIES {
         if hit(&kw_idx, query, expect, 3).await {
@@ -224,6 +227,7 @@ async fn semantic_eval_report() {
     .await
     .unwrap();
     hy_idx.sync().unwrap();
+    hy_idx.build_keyword_blocking().unwrap(); // 关键词通道显式播种（生产由后台预热完成）
     let _ = hy_idx.search("预热", 1, None, None).await; // 触发后台补向量
     for _ in 0..300 {
         if hy_idx.stats().vectors >= hy_idx.stats().chunks {

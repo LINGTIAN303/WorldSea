@@ -23,7 +23,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex as StdMutex, OnceLock, RwLock};
 
 use memory_center_core::bm25::Bm25Searcher;
@@ -179,6 +179,10 @@ pub struct IndexStats {
     pub chunks: usize,
     pub vectors: usize,
     pub dim: usize,
+    /// 关键词通道是否已就绪（false = 后台播种中，检索暂只走向量通道）
+    pub keyword_ready: bool,
+    /// 已播种块数（就绪后等于 `chunks`；就绪前用于进度展示）
+    pub keyword_built: usize,
 }
 
 /// 一次增量同步的变化量
@@ -221,7 +225,18 @@ pub struct WorkspaceIndex {
     /// 元数据/块读写连接（与向量索引共用同一库文件，各自连接，WAL 并存）
     conn: StdMutex<rusqlite::Connection>,
     /// 关键词索引（内存；从 chunks 重建）
+    ///
+    /// **⚠ 不在 `open()` 里播种**（2026-09-13 冷启动修正）：2 万块实测播种 **82.8 s**
+    /// （占全量建索引的 92%，`scale_benchmark_report`）——放在 open / 检索路径上会让
+    /// **首次检索阻塞约 90 s**。改由 [`WorkspaceIndex::ensure_warmup`] 在后台播种；
+    /// 就绪前 `search` 跳过关键词通道（见 [`WorkspaceIndex::keyword_ready`]）。
     keyword: RwLock<Bm25Searcher>,
+    /// 关键词通道是否已就绪（未就绪 = 本进程尚未完成播种）
+    keyword_ready: AtomicBool,
+    /// 后台预热是否已启动（单飞标志，防并发触发；成功后保持，失败则复位待重试）
+    warmup_started: AtomicBool,
+    /// 已播种块数（就绪前用于进度展示）
+    keyword_built_chunks: AtomicUsize,
     /// 向量索引（启用语义检索时）
     vectors: Option<Arc<SqliteVectorIndex>>,
     /// 熔断嵌入器（与记忆侧同一供给面）
@@ -231,6 +246,8 @@ pub struct WorkspaceIndex {
     semantic_key: String,
     last_sync_ms: AtomicI64,
     backfill_running: AtomicBool,
+    /// 后台增量刷新是否在跑（单飞；重检索只触发不等待）
+    sync_running: AtomicBool,
     sync_lock: StdMutex<()>,
 }
 
@@ -273,25 +290,9 @@ impl WorkspaceIndex {
                 None => (None, None, 0),
             };
 
-        // 关键词索引自 chunks 重建（本地、快；首次打开即完整可用）
+        // 关键词索引**保持为空**（**不在 open 里播种**）：全量播种 2 万块 ≈ 83 s，
+        // 放在这里就让「打开索引」= 卡 83 s。改由 `ensure_warmup` 后台播种。
         let keyword = Bm25Searcher::new();
-        {
-            let mut stmt = conn
-                .prepare("SELECT chunk_id, path, text FROM chunks")
-                .map_err(|e| format!("准备块查询失败: {e}"))?;
-            let rows = stmt
-                .query_map([], |r| {
-                    Ok((
-                        r.get::<_, String>(0)?,
-                        r.get::<_, String>(1)?,
-                        r.get::<_, String>(2)?,
-                    ))
-                })
-                .map_err(|e| format!("查询块失败: {e}"))?;
-            for row in rows.flatten() {
-                keyword.index(&row.0, &row.1, &row.2);
-            }
-        }
 
         Ok(Arc::new(Self {
             db,
@@ -299,12 +300,16 @@ impl WorkspaceIndex {
             policy,
             conn: StdMutex::new(conn),
             keyword: RwLock::new(keyword),
+            keyword_ready: AtomicBool::new(false),
+            warmup_started: AtomicBool::new(false),
+            keyword_built_chunks: AtomicUsize::new(0),
             vectors,
             embedder,
             dim,
             semantic_key: semantic.map(semantic_key_of).unwrap_or_default(),
             last_sync_ms: AtomicI64::new(0),
             backfill_running: AtomicBool::new(false),
+            sync_running: AtomicBool::new(false),
             sync_lock: StdMutex::new(()),
         }))
     }
@@ -317,6 +322,181 @@ impl WorkspaceIndex {
     /// 被索引的工作区根
     pub fn workdir(&self) -> &Path {
         &self.workdir
+    }
+
+    /// 关键词通道是否已就绪
+    ///
+    /// **未就绪时 `search` 只走向量通道且毫不犹豫等待**：全量播种 2 万块 ≈ 83 s，
+    /// 在这里等就等于把冷启动阻塞从 `open` 搬到检索（那正是本次修正要消除的东西）。
+    pub fn keyword_ready(&self) -> bool {
+        self.keyword_ready.load(Ordering::Acquire)
+    }
+
+    /// 后台播种进度 `(已播种块数, 总块数)`（就绪后两者相等）
+    pub fn keyword_progress(&self) -> (usize, usize) {
+        let built = self.keyword_built_chunks.load(Ordering::Acquire);
+        let total = self
+            .conn
+            .lock()
+            .ok()
+            .and_then(|c| {
+                c.query_row("SELECT COUNT(*) FROM chunks", [], |r| r.get::<_, i64>(0))
+                    .ok()
+            })
+            .unwrap_or(0) as usize;
+        (built, total)
+    }
+
+    /// 触发后台预热（**增量同步 → 关键词播种**；幂等单飞）
+    ///
+    /// **调用方不 await**：两阶段都完成后 `keyword_ready` 翻真，后续检索自动转为
+    /// 全量混合通道。失败会复位单飞标志，下一次检索可重试。
+    ///
+    /// **为什么是两阶段**：`sync` 负责把磁盘内容落库（首次 ≈ 全量写，
+    /// 但**不写关键词**——见 [`WorkspaceIndex::index_file`] 的说明），`播种` 再一次性
+    /// 从库全量构建倒排。二者分开，首建就不会把 83 s 的分词跑两遍。
+    pub fn ensure_warmup(self: &Arc<Self>) {
+        if self.keyword_ready() || self.warmup_started.swap(true, Ordering::SeqCst) {
+            return;
+        }
+        let this = Arc::clone(self);
+        tokio::spawn(async move {
+            let started = std::time::Instant::now();
+            // 阶段一：同步（把磁盘内容落库；未就绪时只写 DB，不写关键词）
+            let sync_res = tokio::task::spawn_blocking({
+                let this = Arc::clone(&this);
+                move || this.sync()
+            })
+            .await;
+            match sync_res {
+                Ok(Ok(r)) => tracing::info!(
+                    workdir = %this.workdir.display(),
+                    added = r.added,
+                    updated = r.updated,
+                    removed = r.removed,
+                    "工作区索引预热：同步阶段完成"
+                ),
+                Ok(Err(e)) => {
+                    this.warmup_started.store(false, Ordering::SeqCst);
+                    tracing::warn!("工作区索引预热：同步失败（下次检索重试）: {e}");
+                    return;
+                }
+                Err(e) => {
+                    this.warmup_started.store(false, Ordering::SeqCst);
+                    tracing::warn!("工作区索引预热：同步任务异常（下次检索重试）: {e}");
+                    return;
+                }
+            }
+            // 阶段二：播种关键词（全量）
+            let res = tokio::task::spawn_blocking({
+                let this = Arc::clone(&this);
+                move || this.build_keyword_blocking()
+            })
+            .await;
+            match res {
+                Ok(Ok(n)) => tracing::info!(
+                    workdir = %this.workdir.display(),
+                    chunks = n,
+                    ms = started.elapsed().as_millis(),
+                    "工作区索引后台预热完成（冷启动修正）"
+                ),
+                Ok(Err(e)) => {
+                    this.warmup_started.store(false, Ordering::SeqCst);
+                    tracing::warn!("关键词索引播种失败（下次检索重试）: {e}");
+                }
+                Err(e) => {
+                    this.warmup_started.store(false, Ordering::SeqCst);
+                    tracing::warn!("关键词索引播种任务异常（下次检索重试）: {e}");
+                }
+            }
+        });
+    }
+
+    /// 同步预热（**阻塞**；测试、`rebuild`、需要「立即可用」语义的调用方共用）
+    ///
+    /// = [`sync`](Self::sync)（落库）+ [`build_keyword_blocking`](Self::build_keyword_blocking)
+    /// （播种）。返回播种块数。
+    pub fn warmup_blocking(&self) -> Result<usize, String> {
+        self.sync()?;
+        self.build_keyword_blocking()
+    }
+
+    /// 触发后台增量刷新（单飞；**不阻塞调用方**）
+    ///
+    /// 检索路径在「已就绪且去抖过期」时调用：本次检索用现有索引（可能落后于磁盘最新的
+    /// 几秒变更），刷新完成后下次检索即可见。**为什么不等待**：与冷启动同一个理由——
+    /// 大批量变更（`git pull`）时的同步刷新会把「卡顿」原样搬回检索路径。
+    fn spawn_sync(self: &Arc<Self>) {
+        if self.sync_running.swap(true, Ordering::SeqCst) {
+            return;
+        }
+        let this = Arc::clone(self);
+        tokio::spawn(async move {
+            let sync_owner = Arc::clone(&this);
+            let res = tokio::task::spawn_blocking(move || sync_owner.sync()).await;
+            this.sync_running.store(false, Ordering::SeqCst);
+            match res {
+                Ok(Ok(r)) if r.changed() => tracing::debug!(
+                    added = r.added,
+                    updated = r.updated,
+                    removed = r.removed,
+                    "工作区索引后台刷新完成"
+                ),
+                Ok(Ok(_)) => {}
+                Ok(Err(e)) => tracing::warn!("工作区索引后台刷新失败（下次检索重试）: {e}"),
+                Err(e) => tracing::warn!("工作区索引后台刷新任务异常: {e}"),
+            }
+        });
+    }
+
+    /// 全量播种关键词索引（**阻塞**；后台预热、`rebuild` 与测试共用）
+    ///
+    /// 返回播种块数。重复调用安全（整表替换，不会与已有内容叠加）。
+    ///
+    /// **三处并发约束**：
+    /// 1. **全程持 `sync_lock`**——否则「读快照 → 替换」这段窗口里若有增量 `sync`
+    ///    插入，它的写入会被整表替换抹掉（快照读的是更早的库状态），造成
+    ///    「块在库里、关键词里没有」的永久漏检。
+    /// 2. **锁外构建、锁内替换**——若全程持关键词**写锁**，83 s 的播种会挡住所有并发
+    ///    检索（`search` 取读锁即等待）。改为先在锁外建好新索引，最后用写锁**瞬间替换**：
+    ///    并发的 `search` 最多等一次赋值的时间。
+    /// 3. **不与 `search` 的读取冲突**：检索期间要么读到旧索引（未就绪时为空的空索引），
+    ///    要么读到新索引，不存在「读一半」。
+    pub fn build_keyword_blocking(&self) -> Result<usize, String> {
+        let _guard = self.sync_lock.lock().map_err(|_| "同步锁中毒".to_string())?;
+        let rows: Vec<(String, String, String)> = {
+            let conn = self.conn.lock().map_err(|_| "索引连接锁中毒".to_string())?;
+            let mut stmt = conn
+                .prepare("SELECT chunk_id, path, text FROM chunks")
+                .map_err(|e| format!("准备块查询失败: {e}"))?;
+            let rows = stmt
+                .query_map([], |r| {
+                    Ok((
+                        r.get::<_, String>(0)?,
+                        r.get::<_, String>(1)?,
+                        r.get::<_, String>(2)?,
+                    ))
+                })
+                .map_err(|e| format!("查询块失败: {e}"))?;
+            rows.flatten().collect()
+        };
+        // 锁外构建新索引（83 s 的大头；其间检索仍可读旧索引，不被阻塞）
+        let fresh = Bm25Searcher::new();
+        for (id, path, text) in &rows {
+            fresh.index(id, path, text);
+        }
+        // 锁内瞬间替换
+        {
+            let mut kw = self
+                .keyword
+                .write()
+                .map_err(|_| "关键词索引锁中毒".to_string())?;
+            *kw = fresh;
+        }
+        self.keyword_built_chunks
+            .store(rows.len(), Ordering::Release);
+        self.keyword_ready.store(true, Ordering::Release);
+        Ok(rows.len())
     }
 
     /// 统计
@@ -341,10 +521,15 @@ impl WorkspaceIndex {
             chunks,
             vectors: self.vectors.as_ref().map(|v| v.len()).unwrap_or(0),
             dim: self.dim,
+            keyword_ready: self.keyword_ready(),
+            keyword_built: self.keyword_built_chunks.load(Ordering::Acquire),
         }
     }
 
-    /// 全量重建（清空 → 重新扫描索引；向量由后台补齐）
+    /// 全量重建（清空 → 重新扫描索引 → 播种关键词；向量由后台补齐）
+    ///
+    /// 关键词通道**在这里同步重建**（不用后台）：重建本就是用户显式发起的一次性动作，
+    /// 「点了重建 → 索引立刻可用」比「稍后再可用」更符合预期。
     pub async fn rebuild(self: &Arc<Self>) -> Result<IndexStats, String> {
         {
             let conn = self.conn.lock().map_err(|_| "索引连接锁中毒".to_string())?;
@@ -354,14 +539,23 @@ impl WorkspaceIndex {
                 .map_err(|e| format!("清空文件表失败: {e}"))?;
         }
         self.keyword.write().map_err(|_| "关键词索引锁中毒".to_string())?.clear();
+        // 复位就绪标志：`sync` 在未就绪时只写 DB，播放在下方显式做完
+        self.keyword_ready.store(false, Ordering::Release);
+        self.keyword_built_chunks.store(0, Ordering::Release);
         if let Some(v) = &self.vectors {
             v.clear();
         }
         self.last_sync_ms.store(0, Ordering::Relaxed);
         let report = self.sync()?;
+        // 关键词通道全量播种（阻塞，但重建是显式动作；用 spawn_blocking 不占 async worker）
+        let this = Arc::clone(self);
+        let chunks = tokio::task::spawn_blocking(move || this.build_keyword_blocking())
+            .await
+            .map_err(|e| format!("关键词重建任务异常: {e}"))??;
         tracing::info!(
             workdir = %self.workdir.display(),
             added = report.added,
+            chunks,
             "工作区索引重建完成（A2-2）"
         );
         self.spawn_backfill();
@@ -493,7 +687,15 @@ impl WorkspaceIndex {
             tx.commit().map_err(|e| format!("提交索引事务失败: {e}"))?;
         }
 
-        {
+        // 关键词索引：**仅在已就绪时增量写入**（2026-09-13 冷启动修正）
+        //
+        // 未就绪 = 本进程尚未完成全量播种，此刻写进去的内容注定被播种的 `clear()`
+        // 覆盖；而首建场景（sync 全量 `added`）若在此逐块分词，**83 s 的分词会白跑
+        // 两遍**（sync 一遍 + 播种一遍）→ 首建总耗时翻倍。故跳过，交给播种一次性建。
+        //
+        // 一致性由 `build_keyword_blocking` 全程持 `sync_lock` 保证：本函数要么在
+        // 播种前/后完整执行，要么被挡在播种之外——不会出现「快照之后写入、被 clear 抹掉」。
+        if self.keyword_ready() {
             let kw = self.keyword.write().map_err(|_| "关键词索引锁中毒".to_string())?;
             for c in &chunks {
                 let chunk_id = format!("{}#{}", entry.rel, c.ordinal);
@@ -535,7 +737,18 @@ impl WorkspaceIndex {
 
     /// 检索（关键词即时 + 向量尽力；RRF 融合；scope/type 过滤）
     ///
-    /// `self: &Arc<Self>`：向量补批要 `spawn` 后台任务（需持有 Arc）。
+    /// `self: &Arc<Self>`：预热与向量补批都要 `spawn` 后台任务（需持有 Arc）。
+    ///
+    /// ## 冷启动不阻塞（2026-09-13 修正）
+    ///
+    /// 本函数**从不等待索引构建**：
+    /// - **未就绪**（本进程尚未播种关键词）→ 触发后台预热并立即继续；此时关键词通道
+    ///   为空，结果来自向量通道（若有），下一次检索即可用全量混合。
+    /// - **已就绪** → 若增量去抖过期，触发**后台**刷新（不等待）：本次用现有索引，
+    ///   新变更在下次检索可见。
+    ///
+    /// 上层的呈现契约见 [`WorkspaceIndex::keyword_ready`] / [`WorkspaceIndex::stats`]：
+    /// 调用方（`workspace_search` 工具 / 面板）应据此如实告知「索引正在构建」。
     pub async fn search(
         self: &Arc<Self>,
         query: &str,
@@ -546,11 +759,15 @@ impl WorkspaceIndex {
         if query.trim().is_empty() {
             return Vec::new();
         }
-        // 增量刷新（3s 去抖；阻塞 IO，规模内可接受）
-        let fresh_enough = now_ms() - self.last_sync_ms.load(Ordering::Relaxed) < SYNC_DEBOUNCE_MS;
-        if !fresh_enough {
-            if let Err(e) = self.sync() {
-                tracing::warn!("工作区索引增量同步失败（用现有索引继续）: {e}");
+        // 冷启动：关键词通道未就绪 → 后台预热（同步 + 播种），**不等待**
+        if !self.keyword_ready() {
+            self.ensure_warmup();
+        } else {
+            // 热路径：增量刷新转后台（不等待；大批量变更时不把卡顿搬回检索路径）
+            let fresh_enough =
+                now_ms() - self.last_sync_ms.load(Ordering::Relaxed) < SYNC_DEBOUNCE_MS;
+            if !fresh_enough {
+                self.spawn_sync();
             }
         }
         // 向量后台补齐（不等它）
@@ -968,6 +1185,9 @@ mod tests {
     }
 
     /// 打开带「注入嵌入器 + 指定维度」的索引（测试专用；生产路径经 `open` 的 SemanticConfig）
+    ///
+    /// **返回前完成预热**（同步 + 播种）：让既有测试保持「open 之后即可检索」的假设
+    /// （空库时预热近零开销）。生产路径不这样做——那正是冷启动修正要消除的阻塞。
     async fn open_idx_with(
         root: &Path,
         with_embedder: Option<Arc<dyn Embedder>>,
@@ -990,6 +1210,9 @@ mod tests {
                 policy: idx.policy.clone(),
                 conn: StdMutex::new(rusqlite::Connection::open(&idx.db).unwrap()),
                 keyword: RwLock::new(Bm25Searcher::new()),
+                keyword_ready: AtomicBool::new(false),
+                warmup_started: AtomicBool::new(false),
+                keyword_built_chunks: AtomicUsize::new(0),
                 vectors: Some(Arc::new(
                     SqliteVectorIndex::new(idx.db.clone(), dim).unwrap(),
                 )),
@@ -998,13 +1221,14 @@ mod tests {
                 semantic_key: "test".into(),
                 last_sync_ms: AtomicI64::new(0),
                 backfill_running: AtomicBool::new(false),
+                sync_running: AtomicBool::new(false),
                 sync_lock: StdMutex::new(()),
             };
-            // 重建关键词索引
             let idx2 = Arc::new(idx2);
-            idx2.sync().unwrap();
+            idx2.warmup_blocking().unwrap();
             return idx2;
         }
+        idx.warmup_blocking().unwrap();
         idx
     }
 
@@ -1205,6 +1429,8 @@ mod tests {
         let report = idx2.sync().unwrap();
         assert_eq!(report.added, 1, "旧索引作废后应全量重建: {report:?}");
         assert_eq!(idx2.stats().files, 1);
+        // 关键词通道在未就绪时不随 sync 写入，显式播种（生产由后台预热完成）
+        idx2.build_keyword_blocking().unwrap();
         assert!(
             !idx2.search("边界版本", 5, None, None).await.is_empty(),
             "重建后应可检索"
@@ -1214,6 +1440,78 @@ mod tests {
         // 版本一致时重开幂等（不得反复作废）
         let idx3 = WorkspaceIndex::open(db, workdir, IndexPolicy::default(), None).unwrap();
         assert_eq!(idx3.stats().files, 1, "版本一致时重开不应作废索引");
+    }
+
+    // ─── 冷启动修正（2026-09-13）──────────────────────────
+
+    /// 冷启动修正：首次检索**不阻塞**建索引；后台预热完成后自动转为可用
+    #[tokio::test]
+    async fn cold_search_returns_promptly_then_recovers_after_warmup() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("index").join("ws.db");
+        let ws = dir.path().join("ws");
+        std::fs::create_dir_all(&ws).unwrap();
+        write(&ws, "a.md", "冷启动 语义内容 关键词");
+        // 直接 open（不预热）——模拟生产冷启动路径
+        let idx = WorkspaceIndex::open(db, ws, IndexPolicy::default(), None).unwrap();
+        assert!(!idx.keyword_ready(), "刚 open 时应未就绪");
+
+        // 冷检索：立即返回（触发后台预热但不等待），无关键词结果
+        let t = std::time::Instant::now();
+        let hits = idx.search("冷启动", 5, None, None).await;
+        let elapsed = t.elapsed().as_millis();
+        assert!(hits.is_empty(), "首建完成前不应有关键词结果");
+        assert!(
+            elapsed < 500,
+            "冷检索不得阻塞建索引（全量播种实测 83 s 级；实际 {elapsed} ms）"
+        );
+
+        // 等后台预热（小库很快）
+        let mut ready = false;
+        for _ in 0..200 {
+            if idx.keyword_ready() {
+                ready = true;
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+        }
+        assert!(ready, "后台预热应在合理时间内完成");
+        let hits = idx.search("冷启动", 5, None, None).await;
+        assert!(!hits.is_empty(), "预热完成后应能检索到: {hits:?}");
+        // 预热是幂等的：重复触发不再改变状态
+        idx.ensure_warmup();
+        assert!(idx.keyword_ready());
+    }
+
+    /// 已就绪后的文件变更由**后台**增量刷新吸收：检索不阻塞、随后可见
+    #[tokio::test]
+    async fn ready_search_refreshes_in_background() {
+        let dir = tempfile::tempdir().unwrap();
+        let idx = open_idx(dir.path(), None).await; // 预热过（就绪）
+        assert!(idx.keyword_ready());
+        let ws = idx.workdir().to_path_buf();
+        write(&ws, "new.md", "崭新主题 灯塔守则");
+
+        // 拨旧去抖时间戳，确保本次检索会触发后台刷新
+        idx.last_sync_ms.store(0, Ordering::Relaxed);
+        let t = std::time::Instant::now();
+        let _ = idx.search("灯塔守则", 5, None, None).await;
+        assert!(
+            t.elapsed().as_millis() < 500,
+            "检索不应等待后台刷新（实际 {} ms）",
+            t.elapsed().as_millis()
+        );
+
+        // 轮询：后台刷新完成后新文件应可被检索
+        let mut found = false;
+        for _ in 0..300 {
+            if !idx.search("灯塔守则", 5, None, None).await.is_empty() {
+                found = true;
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+        }
+        assert!(found, "后台刷新完成后新文件应可被检索");
     }
 
     #[tokio::test]
@@ -1452,15 +1750,50 @@ mod tests {
              → 余下即落库 + BM25 分词"
         );
 
-        // 建索引（扫描 + 分块 + 落库 + BM25-jieba）
+        // 首建总耗时（新口径·冷启动修正后）：open 不再阻塞，但 `open_idx_with` 会调
+        // `warmup_blocking`（= 同步 + 播种，即生产后台预热的同一路径）→ 这里量到的
+        // 就是「后台预热」的真实成本。**关键差异**：生产里它发生在后台，检索不再等它。
         let embedder: Arc<dyn Embedder> = Arc::new(HashEmbedder { dim: DIM });
         let t = Instant::now();
         let idx = open_idx_with(dir.path(), Some(embedder), DIM).await;
-        let sync_ms = t.elapsed().as_millis();
+        let first_build_ms = t.elapsed().as_millis();
         let stats = idx.stats();
         println!(
-            "[规模压测] 建索引（扫描+分块+落库+BM25）: {sync_ms} ms → 文件 {} / 块 {}",
+            "[规模压测] 首建总耗时（同步+播种，后台路径）: {first_build_ms} ms → 文件 {} / 块 {}",
             stats.files, stats.chunks
+        );
+        assert!(idx.keyword_ready(), "预热后关键词通道应就绪");
+
+        // BM25 单独计时（**含 jieba 分词 + 倒排表构建**）——把 86 s 的归属钉死
+        // （黑盒计时：不依赖 jieba 依赖，走 vendor 的 `KeywordSearcher::index`）
+        let t = Instant::now();
+        let kw_probe = Bm25Searcher::new();
+        let mut bm25_rows = 0usize;
+        {
+            let conn = idx.conn.lock().unwrap();
+            let mut stmt = conn
+                .prepare("SELECT chunk_id, path, text FROM chunks")
+                .unwrap();
+            let rows = stmt
+                .query_map([], |r| {
+                    Ok((
+                        r.get::<_, String>(0)?,
+                        r.get::<_, String>(1)?,
+                        r.get::<_, String>(2)?,
+                    ))
+                })
+                .unwrap();
+            for (id, path, text) in rows.flatten() {
+                KeywordSearcher::index(&kw_probe, &id, &path, &text);
+                bm25_rows += 1;
+            }
+        }
+        let bm25_ms = t.elapsed().as_millis();
+        println!(
+            "[规模压测] BM25 单独计时（jieba + 倒排）: {bm25_ms} ms（{bm25_rows} 块 → \
+             {} 个词元条目）；首建其余 {} ms 归「扫描+分块+落库」",
+            kw_probe.len(),
+            first_build_ms.saturating_sub(bm25_ms)
         );
 
         // 向量补齐（含 SQLite BLOB 写入）

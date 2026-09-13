@@ -73,6 +73,9 @@
       <div v-if="wsError" class="sc-status sc-status-warn">{{ wsError }}</div>
       <div v-else class="sc-status">
         文件 {{ wsStats.files }} · 块 {{ wsStats.chunks }} · 向量 {{ wsStats.vectors }}（维度 {{ wsStats.dim || '—' }}）
+        <template v-if="wsStats.chunks > 0 && !wsStats.keywordReady">
+          · <span class="sc-building">索引构建中 {{ wsStats.keywordBuilt }}/{{ wsStats.chunks }}</span>
+        </template>
       </div>
       <div class="sc-actions">
         <button
@@ -128,6 +131,10 @@ interface WorkspaceIndexStatsDto {
   chunks: number
   vectors: number
   dim: number
+  /** 关键词通道是否已就绪（false = 后台构建中；冷启动修正 2026-09-13） */
+  keywordReady: boolean
+  /** 已构建块数（就绪前用于进度展示） */
+  keywordBuilt: number
 }
 
 interface RebuildResultDto {
@@ -144,7 +151,7 @@ const msgKind = ref<'ok' | 'err'>('ok')
 const apiKeySet = ref(false)
 const stats = ref<SemanticStatsDto>({ keywordLen: 0, vectorLen: 0, dim: 0 })
 /** A2-2：工作区文件索引统计（未绑定工作区 / 未启用时以 wsError 说明） */
-const wsStats = ref<WorkspaceIndexStatsDto>({ files: 0, chunks: 0, vectors: 0, dim: 0 })
+const wsStats = ref<WorkspaceIndexStatsDto>({ files: 0, chunks: 0, vectors: 0, dim: 0, keywordReady: true, keywordBuilt: 0 })
 const wsError = ref('')
 const form = reactive({
   enabled: false,
@@ -446,6 +453,10 @@ onMounted(refresh)
   font-weight: 600;
   color: var(--color-text-secondary);
   margin-bottom: 4px;
+}
+/* 冷启动修正：后台构建中的进度提示（用警示色表明「暂时不完整」） */
+.sc-building {
+  color: #d97706;
 }
 
 .sc-hint {

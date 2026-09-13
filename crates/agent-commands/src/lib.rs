@@ -1269,11 +1269,15 @@ impl AgentCommandService {
     /// 工作区索引状态（A2-2；配置面板状态展示）
     ///
     /// 未配置索引根 / 会话无工作区 → 全零（UI 据此显示「未启用」）。
+    ///
+    /// **顺带触发后台预热**（2026-09-13 冷启动修正）：用户打开配置面板通常就在意索引，
+    /// 此刻开始构建比「等第一次检索才启动」更早进入就绪；已就绪/已启动时为空操作。
     pub async fn workspace_index_status(
         &self,
         session_id: &str,
     ) -> Result<agent_index::IndexStats, CommandError> {
         let (index, _) = self.workspace_index_for(session_id).await?;
+        index.ensure_warmup();
         Ok(index.stats())
     }
 
