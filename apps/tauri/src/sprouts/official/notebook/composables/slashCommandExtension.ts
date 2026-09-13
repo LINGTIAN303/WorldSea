@@ -4,16 +4,17 @@ import suggestion from '@tiptap/suggestion'
 export interface SlashCommandItem {
   id: string
   label: string
+  /** WsIcon 图标 id（非 emoji，见 packages/ui-kit/src/components/lucideMap.ts） */
   icon: string
   description: string
 }
 
 export const SLASH_COMMANDS: SlashCommandItem[] = [
-  { id: 'continue', label: '续写', icon: '✍️', description: 'AI 续写后续内容' },
-  { id: 'polish', label: '润色', icon: '✨', description: 'AI 润色选中文本' },
-  { id: 'summarize', label: '摘要', icon: '📋', description: 'AI 生成内容摘要' },
-  { id: 'link_note', label: '链接笔记', icon: '🔗', description: '插入笔记间链接' },
-  { id: 'mention', label: '提及实体', icon: '@', description: '插入 @ 提及实体' },
+  { id: 'continue', label: '续写', icon: 'pen-line', description: 'AI 续写后续内容' },
+  { id: 'polish', label: '润色', icon: 'sparkles', description: 'AI 润色选中文本' },
+  { id: 'summarize', label: '摘要', icon: 'document', description: 'AI 生成内容摘要' },
+  { id: 'link_note', label: '链接笔记', icon: 'link', description: '插入笔记间链接' },
+  { id: 'mention', label: '提及实体', icon: 'at-sign', description: '插入 @ 提及实体' },
 ]
 
 const SlashCommandExtension = Extension.create({

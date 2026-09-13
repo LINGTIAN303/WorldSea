@@ -8,7 +8,7 @@
       @click="selectItem(item)"
       @mouseenter="selectedIdx = idx"
     >
-      <span class="sc-icon">{{ item.icon }}</span>
+      <span class="sc-icon"><WsIcon :name="item.icon" size="xs" /></span>
       <div class="sc-text">
         <span class="sc-label">{{ item.label }}</span>
         <span class="sc-desc">{{ item.description }}</span>
@@ -20,6 +20,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { WsIcon } from '@worldsea/ui-kit'
 import type { SlashCommandItem } from '../composables/slashCommandExtension'
 
 const emit = defineEmits<{
@@ -122,10 +123,12 @@ defineExpose({ open, close, updateItems, onKeyDown })
   background: var(--hover-bg);
 }
 .sc-icon {
-  font-size: var(--font-size-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
   flex-shrink: 0;
   width: 24px;
-  text-align: center;
 }
 .sc-text {
   display: flex;

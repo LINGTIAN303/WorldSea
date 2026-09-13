@@ -8,7 +8,7 @@
         <option value="json">JSON</option>
       </select>
       <button class="cc-run-btn" :disabled="isRunning" @click="runCode">
-        <WsIcon name="arrow-up" size="xs" /> {{ isRunning ? '执行中...' : '运行' }}
+        <WsIcon name="play" size="xs" /> {{ isRunning ? '执行中...' : '运行' }}
       </button>
     </div>
     <textarea

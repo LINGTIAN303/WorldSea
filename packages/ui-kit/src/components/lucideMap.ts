@@ -26,6 +26,7 @@ import {
   FolderTree, Files,
   ZoomOut, AlignCenterHorizontal, AlignCenterVertical,
   AlignHorizontalDistributeCenter, ImageDown, FileDown, SquareDashed,
+  Bold, Italic, Strikethrough, Quote, ListOrdered, AtSign,
 } from 'lucide-vue-next'
 // Tabler 图标混编：个别芽的图标由用户点名采用 Tabler（@tabler/icons-vue），与本表混编（2026-09-13）。
 // 组件 API 兼容：两者都接受 size / stroke-width（Tabler 的 stroke-width 经 attrs 落到 svg）。
@@ -252,6 +253,13 @@ const LUCIDE_MAP: Record<string, Component> = {
   'image-down': ImageDown,
   'file-down': FileDown,
   'square-dashed': SquareDashed,
+  // 编辑器工具栏专用（2026-09-14 笔记本芽）：文本样式 / 引用 / 有序列表 / @提及
+  bold: Bold,
+  italic: Italic,
+  strikethrough: Strikethrough,
+  quote: Quote,
+  'list-ordered': ListOrdered,
+  'at-sign': AtSign,
 }
 
 export function resolveLucideIcon(name: string): Component | null {

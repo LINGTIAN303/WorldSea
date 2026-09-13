@@ -92,6 +92,7 @@ import FolderTree from './components/FolderTree.vue'
 import { VIEW_MODES } from './notebookConfig'
 import type { ViewMode } from './notebookConfig'
 import { useAgentPluginBridge } from '@/composables/useAgentPluginBridge'
+import { useCodeSandbox } from './composables/useCodeSandbox'
 import type { NotebookEntity } from './types'
 
 interface NotebookFolder {
@@ -102,6 +103,8 @@ interface NotebookFolder {
 const entityStore = useEntityStore()
 const relationStore = useRelationStore()
 const { createBidirectional } = useBidirectional()
+/** 代码单元格沙箱：与 CodeCell.vue 共用同一实现（Agent 侧 execute_code 也走这里） */
+const codeSandbox = useCodeSandbox()
 const currentMode = ref<ViewMode>('editor')
 const searchQuery = ref('')
 const selectedNoteId = ref<string | null>(null)
@@ -425,31 +428,8 @@ useAgentPluginBridge('notebook', async (event) => {
         const note = notebookNotes.value.find((n) => n.id === noteId)
         if (note) {
           try {
-        const iframe = document.createElement('iframe')
-            iframe.style.display = 'none'
-            iframe.sandbox.add('allow-scripts')
-            const escapedCode = code.replace(/<\/script>/gi, '<\\/script>')
-            const srcdoc = `<!DOCTYPE html><html><head><script>
-              const __logs = [];
-              const console = { log: (...a) => __logs.push(a.map(v => typeof v === 'object' ? JSON.stringify(v) : String(v)).join(' ')), error: (...a) => __logs.push('ERROR: ' + a.map(String).join(' ')) };
-              try { ${escapedCode} } catch(e) { __logs.push('ERROR: ' + (e.message || String(e))); }
-              parent.postMessage({ type: 'code-output', logs: __logs }, '*');
-            <\/script></head><body></body></html>`
-            iframe.srcdoc = srcdoc
-            document.body.appendChild(iframe)
-            const output = await new Promise<string>((resolve) => {
-              const timer = setTimeout(() => { iframe.remove(); resolve('执行超时（5秒限制）') }, 5000)
-              function onMsg(e: MessageEvent) {
-                if (e.data?.type === 'code-output' && e.source === iframe.contentWindow) {
-                  clearTimeout(timer)
-                  window.removeEventListener('message', onMsg)
-                  iframe.remove()
-                  const l = e.data.logs || []
-                  resolve(l.length > 0 ? l.join('\n') : '(无输出)')
-                }
-              }
-              window.addEventListener('message', onMsg)
-            })
+            // 共用 useCodeSandbox（此前此处是第二份重复沙箱实现，行为已与 CodeCell 出现偏差）
+            const output = await codeSandbox.execute(code, 'javascript')
             await entityStore.update(noteId, { properties: { ...note.properties, codeOutput: output } })
           } catch (err: any) {
             await entityStore.update(noteId, { properties: { ...note.properties, codeOutput: 'ERROR: ' + (err?.message || String(err)) } })

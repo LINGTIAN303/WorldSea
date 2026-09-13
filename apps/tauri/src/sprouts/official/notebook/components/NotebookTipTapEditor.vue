@@ -11,26 +11,26 @@
       </div>
       <div class="toolbar-divider"></div>
       <div class="toolbar-group">
-        <button class="tb-btn" :class="{ active: editor?.isActive('bold') }" @click="editor?.chain().focus().toggleBold().run()" title="粗体"><b>B</b></button>
-        <button class="tb-btn" :class="{ active: editor?.isActive('italic') }" @click="editor?.chain().focus().toggleItalic().run()" title="斜体"><i>I</i></button>
-        <button class="tb-btn" :class="{ active: editor?.isActive('strike') }" @click="editor?.chain().focus().toggleStrike().run()" title="删除线"><s>S</s></button>
-        <button class="tb-btn" :class="{ active: editor?.isActive('code') }" @click="editor?.chain().focus().toggleCode().run()" title="行内代码">&lt;/&gt;</button>
+        <button class="tb-btn" :class="{ active: editor?.isActive('bold') }" @click="editor?.chain().focus().toggleBold().run()" title="粗体" aria-label="粗体"><WsIcon name="bold" size="xs" /></button>
+        <button class="tb-btn" :class="{ active: editor?.isActive('italic') }" @click="editor?.chain().focus().toggleItalic().run()" title="斜体" aria-label="斜体"><WsIcon name="italic" size="xs" /></button>
+        <button class="tb-btn" :class="{ active: editor?.isActive('strike') }" @click="editor?.chain().focus().toggleStrike().run()" title="删除线" aria-label="删除线"><WsIcon name="strikethrough" size="xs" /></button>
+        <button class="tb-btn" :class="{ active: editor?.isActive('code') }" @click="editor?.chain().focus().toggleCode().run()" title="行内代码" aria-label="行内代码"><WsIcon name="code" size="xs" /></button>
       </div>
       <div class="toolbar-divider"></div>
       <div class="toolbar-group">
-        <button class="tb-btn" :class="{ active: editor?.isActive('blockquote') }" @click="editor?.chain().focus().toggleBlockquote().run()" title="引用">"</button>
-        <button class="tb-btn" :class="{ active: editor?.isActive('bulletList') }" @click="editor?.chain().focus().toggleBulletList().run()" title="无序列表">•</button>
-        <button class="tb-btn" :class="{ active: editor?.isActive('orderedList') }" @click="editor?.chain().focus().toggleOrderedList().run()" title="有序列表">1.</button>
-        <button class="tb-btn" @click="editor?.chain().focus().setHorizontalRule().run()" title="分割线">—</button>
+        <button class="tb-btn" :class="{ active: editor?.isActive('blockquote') }" @click="editor?.chain().focus().toggleBlockquote().run()" title="引用" aria-label="引用"><WsIcon name="quote" size="xs" /></button>
+        <button class="tb-btn" :class="{ active: editor?.isActive('bulletList') }" @click="editor?.chain().focus().toggleBulletList().run()" title="无序列表" aria-label="无序列表"><WsIcon name="list" size="xs" /></button>
+        <button class="tb-btn" :class="{ active: editor?.isActive('orderedList') }" @click="editor?.chain().focus().toggleOrderedList().run()" title="有序列表" aria-label="有序列表"><WsIcon name="list-ordered" size="xs" /></button>
+        <button class="tb-btn" @click="editor?.chain().focus().setHorizontalRule().run()" title="分割线" aria-label="分割线"><WsIcon name="minus" size="xs" /></button>
       </div>
       <div class="toolbar-divider"></div>
       <div class="toolbar-group">
-        <button class="tb-btn" @click="editor?.chain().focus().undo().run()" :disabled="!editor?.can().undo()" title="撤销">↩</button>
-        <button class="tb-btn" @click="editor?.chain().focus().redo().run()" :disabled="!editor?.can().redo()" title="重做">↪</button>
+        <button class="tb-btn" @click="editor?.chain().focus().undo().run()" :disabled="!editor?.can().undo()" title="撤销" aria-label="撤销"><WsIcon name="undo" size="xs" /></button>
+        <button class="tb-btn" @click="editor?.chain().focus().redo().run()" :disabled="!editor?.can().redo()" title="重做" aria-label="重做"><WsIcon name="redo" size="xs" /></button>
       </div>
       <div class="toolbar-spacer"></div>
-      <button class="nb-preview-toggle" :class="{ active: showPreview }" @click="showPreview = !showPreview" title="切换预览">
-        {{ showPreview ? '编辑' : '预览' }}
+      <button class="nb-preview-toggle" :class="{ active: showPreview }" @click="showPreview = !showPreview" :title="showPreview ? '切回编辑' : '切换到预览'">
+        <WsIcon :name="showPreview ? 'edit' : 'eye'" size="xs" /> {{ showPreview ? '编辑' : '预览' }}
       </button>
       <span class="save-status" :class="saveStatus">{{ saveLabel }}</span>
       <span class="word-count">{{ wordCount }} 字</span>
@@ -50,6 +50,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { EditorContent } from '@tiptap/vue-3'
+import { WsIcon } from '@worldsea/ui-kit'
 import { marked } from 'marked'
 import MentionPopover from './MentionPopover.vue'
 import SlashCommandMenu from './SlashCommandMenu.vue'
@@ -162,6 +163,7 @@ onBeforeUnmount(() => {
   font-size: var(--font-size-sm); background: var(--color-bg-base); color: var(--color-text-primary);
 }
 .nb-preview-toggle {
+  display: inline-flex; align-items: center; gap: 4px;
   padding: 2px 8px; border: 1px solid var(--color-border); border-radius: var(--radius-xs);
   font-size: var(--font-size-xs); background: transparent; color: var(--color-text-secondary); cursor: pointer;
 }

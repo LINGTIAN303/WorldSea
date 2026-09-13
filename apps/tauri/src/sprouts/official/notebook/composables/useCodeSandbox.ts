@@ -105,7 +105,8 @@ export function useCodeSandbox() {
         const document = undefined;
         const self = undefined;
         const top = undefined;
-        const parent = undefined;
+        // 注意：不可遮蔽 parent —— 它是本沙箱唯一的回传通道（下方 parent.postMessage）。
+        // 且 const 声明存在 TDZ，一旦声明就无法在声明前捕获引用，故这里只能不声明。
         try {
           ${escapedCode}
         } catch(e) {
