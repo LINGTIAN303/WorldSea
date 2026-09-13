@@ -14,12 +14,12 @@
 
       <div class="mm-dp-section">
         <button class="mm-dp-toggle" @click="showRelations = !showRelations">
-          {{ showRelations ? '▾' : '▸' }} 关系 ({{ relationCount }})
+          <WsIcon :name="showRelations ? 'chevron-down' : 'chevron-right'" size="xs" /> 关系 ({{ relationCount }})
         </button>
         <div v-if="showRelations" class="mm-dp-relations">
           <div v-for="r in relations" :key="r.id" class="mm-dp-rel-item" role="button" tabindex="0" @click="$emit('navigate', r.targetId)" @keydown.enter="$emit('navigate', r.targetId)">
             <span class="mm-dp-rel-type">{{ r.label }}</span>
-            <span class="mm-dp-rel-arrow">→</span>
+            <span class="mm-dp-rel-arrow"><WsIcon name="arrow-right" size="xs" /></span>
             <span class="mm-dp-rel-target">{{ r.targetName }}</span>
           </div>
           <WsEmpty v-if="relations.length === 0" preset="no-data" title="暂无关系" />
@@ -28,7 +28,7 @@
 
       <div class="mm-dp-section">
         <button class="mm-dp-toggle" @click="showDetails = !showDetails">
-          {{ showDetails ? '▾' : '▸' }} 详细信息
+          <WsIcon :name="showDetails ? 'chevron-down' : 'chevron-right'" size="xs" /> 详细信息
         </button>
         <div v-if="showDetails" class="mm-dp-details">
           <p v-if="nodeDesc" class="mm-dp-desc">{{ nodeDesc }}</p>
@@ -67,8 +67,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { WsIcon } from '@worldsea/ui-kit'
-import { WsEmpty } from '@worldsea/ui-kit'
+import { WsIcon, WsEmpty } from '@worldsea/ui-kit'
 import { DynamicFieldsAdder } from '@worldsea/plugin-sdk'
 import type { FieldSchema } from '@worldsea/entity-core'
 import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
@@ -185,7 +184,7 @@ watch(() => props.nodeId, () => {
   border-left: 1px solid var(--border-color);
   display: flex; flex-direction: column;
   overflow-y: auto; flex-shrink: 0;
-  box-shadow: -4px 0 16px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--shadow-md);
 }
 .mm-dp-header {
   display: flex; align-items: center; gap: 10px;
