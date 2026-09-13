@@ -6,6 +6,18 @@
         <span class="mmv-side-title">思维导图</span>
         <button class="mmv-new-btn" title="新建导图" @click="onCreateDoc"><WsIcon name="plus" size="xs" /> 新建</button>
       </div>
+      <div class="mmv-side-tools">
+        <button class="mmv-tool-btn" title="导入 Markdown 大纲为新导图" @click="fileInputRef?.click()"><WsIcon name="upload" size="xs" /> 导入</button>
+        <button class="mmv-tool-btn" title="将当前导图导出为 Markdown" :disabled="!store.currentId" @click="onExportMd"><WsIcon name="download" size="xs" /> 导出</button>
+        <CustomDropdown
+          :model-value="templatePick"
+          :options="templateOptions"
+          placeholder="从模板新建…"
+          class="mmv-template-dd"
+          @update:model-value="onCreateFromTemplate"
+        />
+        <input ref="fileInputRef" type="file" accept=".md,.markdown,.txt" class="mmv-hidden-input" @change="onImportFile" />
+      </div>
       <ul class="mmv-doc-list">
         <li
           v-for="d in store.sortedDocs"
@@ -84,6 +96,7 @@ import { WsIcon, WsEmpty, toastSuccess } from '@worldsea/ui-kit'
 import { useEntityStore, useUIStore, type Entity } from '@worldsea/entity-core'
 import { CustomDropdown, useConfirm } from '@worldsea/plugin-sdk'
 import { useMindmapDocStore } from './mindmapStore'
+import { markdownToMindElixir, mindElixirToMarkdown } from './mindmapMarkdown'
 
 /** 节点绑定实体的元数据载体（mind-elixir 官方通用 metadata 字段） */
 interface NodeMeta { entityId?: string }
@@ -185,6 +198,132 @@ function onCreateDoc() {
   toastSuccess('已新建导图')
 }
 
+/* ── 模板 / Markdown 导入导出 ── */
+
+/** 内建模板（Markdown 大纲；经 markdownToMindElixir 落成导图） */
+const TEMPLATES: { label: string; name: string; markdown: string }[] = [
+  {
+    label: '角色构思',
+    name: '角色构思',
+    markdown: `# 新角色
+- 外形
+  - 相貌特征
+  - 着装风格
+- 性格
+  - 核心特质
+  - 内在矛盾
+- 背景
+  - 出身与经历
+  - 关键转折事件
+- 关系
+  - 盟友
+  - 敌对
+- 成长弧线
+  - 起点状态
+  - 终点状态`,
+  },
+  {
+    label: '故事线',
+    name: '故事线',
+    markdown: `# 新故事线
+- 第一幕 · 开端
+  - 日常状态
+  - 激励事件
+- 第二幕 · 对抗
+  - 递进冲突
+  - 至暗时刻
+- 第三幕 · 结局
+  - 高潮对决
+  - 尾声与余波`,
+  },
+  {
+    label: '世界观分支',
+    name: '世界观分支',
+    markdown: `# 世界构思
+- 地理
+  - 大陆与区域
+  - 气候与奇观
+- 种族与物种
+- 势力与冲突
+- 历史纪元
+  - 远古
+  - 近世
+- 力量体系
+  - 力量来源
+  - 等级与代价`,
+  },
+  {
+    label: '章节大纲',
+    name: '章节大纲',
+    markdown: `# 章节大纲
+- 第一章
+  - 场景与视点
+  - 本章钩子
+- 第二章
+  - 场景与视点
+  - 本章钩子
+- 第三章
+  - 场景与视点
+  - 本章钩子`,
+  },
+]
+
+const templateOptions = TEMPLATES.map((t, i) => ({ value: String(i), label: t.label }))
+const templatePick = ref('')
+
+function onCreateFromTemplate(v: string) {
+  templatePick.value = ''
+  const tpl = TEMPLATES[Number(v)]
+  if (!tpl) return
+  const data = markdownToMindElixir(tpl.markdown)
+  if (!data) return
+  const id = store.createDoc(tpl.name)
+  // 用模板树覆盖 createDoc 的默认空白树
+  const meta = store.docs.find(d => d.id === id)
+  if (meta) store.persistDocData(id, data as MindElixirData)
+  openDoc(id)
+  toastSuccess(`已从模板「${tpl.label}」创建导图`)
+}
+
+const fileInputRef = ref<HTMLInputElement | null>(null)
+
+/** 导入 Markdown 文件 → 新导图 */
+function onImportFile(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = '' // 允许重复导入同名文件
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = () => {
+    const md = String(reader.result ?? '')
+    const data = markdownToMindElixir(md)
+    if (!data) {
+      toastSuccess('文件为空或无法解析出大纲结构')
+      return
+    }
+    const name = file.name.replace(/\.(md|markdown|txt)$/i, '')
+    const id = store.createDoc(name)
+    store.persistDocData(id, data as MindElixirData)
+    openDoc(id)
+    toastSuccess(`已导入「${name}」`)
+  }
+  reader.readAsText(file)
+}
+
+/** 导出当前导图为 Markdown 文件（用画布实时数据，含未保存变更） */
+function onExportMd() {
+  if (!mind || !store.currentMeta) return
+  const md = mindElixirToMarkdown(mind.getData() as MindElixirData)
+  const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${store.currentMeta.name}.md`
+  a.click()
+  URL.revokeObjectURL(url)
+  toastSuccess(`已导出「${store.currentMeta.name}.md」`)
+}
+
 function startRename(d: { id: string; name: string }) {
   renamingId.value = d.id
   renameText.value = d.name
@@ -263,13 +402,28 @@ function goToEntity(entity: Entity) {
 
 /* ── 生命周期 ── */
 
+/** Agent 侧写文档后的事件联动：刷新列表；若改的是当前打开文档则重载画布 */
+function onDocsChanged(e: Event) {
+  const updatedId = (e as CustomEvent).detail?.updatedId as string | undefined
+  store.loadAll()
+  if (updatedId && updatedId === store.currentId && mind) {
+    const data = store.getDocData(updatedId)
+    if (data) {
+      mind.refresh(data)
+      mind.clearHistory?.()
+    }
+  }
+}
+
 onMounted(async () => {
+  window.addEventListener('ws-mindmap-docs-changed', onDocsChanged)
   await entityStore.loadAll()
   await store.loadAll()
   if (store.currentId) openDoc(store.currentId)
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('ws-mindmap-docs-changed', onDocsChanged)
   if (saveTimer) clearTimeout(saveTimer)
   // 卸载前把未落盘的变更立即保存
   const currentId = store.currentId
@@ -306,6 +460,19 @@ defineExpose({ getMindmapInstance: () => mind })
   transition: background var(--duration-fast, 0.1s), border-color var(--duration-fast, 0.1s), color var(--duration-fast, 0.1s);
 }
 .mmv-new-btn:hover { border-color: var(--accent, var(--primary)); color: var(--accent, var(--primary)); }
+/* 工具行：导入 / 导出 / 模板 */
+.mmv-side-tools { display: flex; align-items: center; gap: 4px; padding: 0 12px 8px; }
+.mmv-tool-btn {
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 3px 8px; font-size: var(--font-size-xs);
+  border: 1px solid var(--border, var(--border-color)); border-radius: var(--radius-xs, 4px);
+  background: transparent; color: var(--text-secondary); cursor: pointer;
+  transition: background var(--duration-fast, 0.1s), border-color var(--duration-fast, 0.1s), color var(--duration-fast, 0.1s);
+}
+.mmv-tool-btn:hover:not(:disabled) { border-color: var(--accent, var(--primary)); color: var(--accent, var(--primary)); }
+.mmv-tool-btn:disabled { opacity: var(--disabled-opacity, 0.5); cursor: not-allowed; }
+.mmv-template-dd { flex: 1; min-width: 0; }
+.mmv-hidden-input { display: none; }
 .mmv-doc-list { list-style: none; margin: 0; padding: 0 6px; overflow-y: auto; flex: 1; }
 .mmv-doc-item {
   display: flex; align-items: center; gap: 6px;
