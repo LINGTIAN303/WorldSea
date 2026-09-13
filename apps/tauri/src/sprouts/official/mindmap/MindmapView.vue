@@ -1,63 +1,81 @@
 <template>
   <div class="mindmap-view">
-    <!-- 左侧：导图文档列表 -->
-    <aside class="mmv-sidebar">
+    <!-- 左侧：导图文档列表（可折叠；收起后只留展开钮） -->
+    <aside class="mmv-sidebar" :class="{ collapsed: sidebarCollapsed }">
       <div class="mmv-side-head">
-        <span class="mmv-side-title">思维导图</span>
-        <button class="mmv-new-btn" title="新建导图" @click="onCreateDoc"><WsIcon name="plus" size="xs" /> 新建</button>
+        <template v-if="!sidebarCollapsed">
+          <span class="mmv-side-title">思维导图</span>
+          <button class="mmv-icon-act" title="收起侧栏" @click="sidebarCollapsed = true"><WsIcon name="chevron-left" size="xs" /></button>
+        </template>
+        <button v-else class="mmv-icon-act" title="展开侧栏" @click="sidebarCollapsed = false"><WsIcon name="chevron-right" size="xs" /></button>
       </div>
-      <div class="mmv-side-tools">
-        <button class="mmv-tool-btn" title="导入 Markdown 大纲为新导图" @click="fileInputRef?.click()"><WsIcon name="upload" size="xs" /> 导入</button>
-        <button class="mmv-tool-btn" title="将当前导图导出为 Markdown" :disabled="!store.currentId" @click="onExportMd"><WsIcon name="download" size="xs" /> MD</button>
-        <button class="mmv-tool-btn" title="导出当前导图为 PNG 图片" :disabled="!store.currentId" @click="onExportImage('png')"><WsIcon name="image-down" size="xs" /></button>
-        <button class="mmv-tool-btn" title="导出当前导图为 SVG 矢量图" :disabled="!store.currentId" @click="onExportImage('svg')"><WsIcon name="file-down" size="xs" /></button>
-        <CustomDropdown
-          :model-value="templatePick"
-          :options="templateOptions"
-          placeholder="从模板新建…"
-          class="mmv-template-dd"
-          @update:model-value="onCreateFromTemplate"
-        />
-        <input ref="fileInputRef" type="file" accept=".md,.markdown,.txt" class="mmv-hidden-input" @change="onImportFile" />
-      </div>
-      <ul class="mmv-doc-list">
-        <li
-          v-for="d in store.sortedDocs"
-          :key="d.id"
-          class="mmv-doc-item"
-          :class="{ active: d.id === store.currentId }"
-          @click="openDoc(d.id)"
-        >
-          <template v-if="renamingId === d.id">
-            <input
-              ref="renameInputRef"
-              v-model="renameText"
-              class="mmv-rename-input"
-              maxlength="40"
-              @click.stop
-              @keyup.enter="commitRename(d.id)"
-              @keyup.esc="renamingId = null"
-              @blur="commitRename(d.id)"
-            />
-          </template>
-          <template v-else>
-            <span class="mmv-doc-name" :title="d.name">{{ d.name }}</span>
-            <span class="mmv-doc-actions">
-              <span role="button" class="mmv-doc-act" title="重命名" @click.stop="startRename(d)"><WsIcon name="edit" size="xs" /></span>
-              <span role="button" class="mmv-doc-act danger" title="删除导图" @click.stop="onDeleteDoc(d)"><WsIcon name="delete" size="xs" /></span>
-            </span>
-          </template>
-        </li>
-      </ul>
-      <div class="mmv-side-foot">{{ saveStateText }}</div>
+      <template v-if="!sidebarCollapsed">
+        <div class="mmv-side-tools">
+          <button class="mmv-tool-btn" title="新建空白导图" @click="onCreateDoc"><WsIcon name="plus" size="xs" /></button>
+          <button class="mmv-tool-btn" title="导入 Markdown 大纲为新导图" @click="fileInputRef?.click()"><WsIcon name="upload" size="xs" /></button>
+          <button class="mmv-tool-btn" title="导出当前导图为 Markdown" :disabled="!store.currentId" @click="onExportMd"><WsIcon name="download" size="xs" /></button>
+          <button class="mmv-tool-btn" title="导出当前导图为 PNG 图片" :disabled="!store.currentId" @click="onExportImage('png')"><WsIcon name="image-down" size="xs" /></button>
+          <button class="mmv-tool-btn" title="导出当前导图为 SVG 矢量图" :disabled="!store.currentId" @click="onExportImage('svg')"><WsIcon name="file-down" size="xs" /></button>
+          <input ref="fileInputRef" type="file" accept=".md,.markdown,.txt" class="mmv-hidden-input" @change="onImportFile" />
+        </div>
+        <div class="mmv-side-template">
+          <CustomDropdown
+            :model-value="templatePick"
+            :options="templateOptions"
+            placeholder="从模板新建…"
+            class="mmv-template-dd"
+            @update:model-value="onCreateFromTemplate"
+          />
+        </div>
+        <ul class="mmv-doc-list">
+          <li
+            v-for="d in store.sortedDocs"
+            :key="d.id"
+            class="mmv-doc-item"
+            :class="{ active: d.id === store.currentId }"
+            @click="openDoc(d.id)"
+          >
+            <template v-if="renamingId === d.id">
+              <input
+                ref="renameInputRef"
+                v-model="renameText"
+                class="mmv-rename-input"
+                maxlength="40"
+                @click.stop
+                @keyup.enter="commitRename(d.id)"
+                @keyup.esc="renamingId = null"
+                @blur="commitRename(d.id)"
+              />
+            </template>
+            <template v-else>
+              <span class="mmv-doc-name" :title="d.name">{{ d.name }}</span>
+              <span class="mmv-doc-actions">
+                <span role="button" class="mmv-doc-act" title="重命名" @click.stop="startRename(d)"><WsIcon name="edit" size="xs" /></span>
+                <span role="button" class="mmv-doc-act danger" title="删除导图" @click.stop="onDeleteDoc(d)"><WsIcon name="delete" size="xs" /></span>
+              </span>
+            </template>
+          </li>
+        </ul>
+        <div class="mmv-side-foot">{{ saveStateText }}</div>
+      </template>
     </aside>
 
     <!-- 主区：mind-elixir 画布 -->
-    <div class="mmv-main">
+    <div ref="mainEl" class="mmv-main">
       <div ref="mapEl" class="mmv-map"></div>
       <WsEmpty v-if="store.currentId === null" title="没有导图" description="点击左侧「新建」创建第一张导图">
         <template #icon><WsIcon name="mindmap" size="xl" /></template>
       </WsEmpty>
+
+      <!-- 备注悬浮预览：hover 有备注（✎）的节点时显示 -->
+      <Transition name="ws-scale-fade">
+        <div
+          v-if="noteTip"
+          class="mmv-note-tip"
+          :class="{ below: noteTip.below }"
+          :style="{ left: noteTip.x + 'px', top: noteTip.y + 'px' }"
+        >{{ noteTip.text }}</div>
+      </Transition>
 
       <!-- 节点搜索浮框：匹配 topic → 选中并居中 -->
       <div v-if="store.currentId !== null" class="mmv-search">
@@ -181,6 +199,9 @@ const selectedObj = ref<NodeObj | null>(null)
 const renamingId = ref<string | null>(null)
 const renameText = ref('')
 const renameInputRef = ref<HTMLInputElement[]>([])
+
+/** 侧栏折叠（收起只留展开钮，画布全宽；会话内状态不持久化） */
+const sidebarCollapsed = ref(false)
 
 const saveStateText = computed(() => {
   if (store.saveState === 'saving') return '保存中…'
@@ -709,6 +730,30 @@ function commitNote() {
   scheduleSave()
 }
 
+/* ── 备注悬浮预览（画布 mousemove 委托）── */
+
+const mainEl = ref<HTMLElement | null>(null)
+const noteTip = ref<{ text: string; x: number; y: number; below: boolean } | null>(null)
+
+/** hover 有备注的节点 → tooltip 悬浮预览（优先上方，空间不足放下方）；值未变时跳过赋值防高频重渲染 */
+function onMapMove(e: MouseEvent) {
+  const tpc = (e.target as HTMLElement | null)?.closest?.('me-tpc') as (HTMLElement & { nodeObj?: NodeObj }) | null
+  const note = tpc?.nodeObj && typeof tpc.nodeObj.note === 'string' ? tpc.nodeObj.note : ''
+  const host = mainEl.value
+  if (!note || !tpc || !host) {
+    noteTip.value = null
+    return
+  }
+  const tr = tpc.getBoundingClientRect()
+  const hr = host.getBoundingClientRect()
+  const x = tr.left + tr.width / 2 - hr.left
+  const above = tr.top - hr.top > 96
+  const y = above ? tr.top - hr.top : tr.bottom - hr.top
+  const prev = noteTip.value
+  if (prev && prev.text === note && prev.x === x && prev.y === y && prev.below === !above) return
+  noteTip.value = { text: note, x, y, below: !above }
+}
+
 /** 跳转到绑定实体的对应芽视图 */
 function goToEntity(entity: Entity) {
   const viewMap: Record<string, string> = {
@@ -741,6 +786,7 @@ function onDocsChanged(e: Event) {
 onMounted(async () => {
   window.addEventListener('ws-mindmap-docs-changed', onDocsChanged)
   window.addEventListener('ws-set-theme', onThemeChanged)
+  mapEl.value?.addEventListener('mousemove', onMapMove)
   await entityStore.loadAll()
   await store.loadAll()
   if (store.currentId) openDoc(store.currentId)
@@ -749,6 +795,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   window.removeEventListener('ws-mindmap-docs-changed', onDocsChanged)
   window.removeEventListener('ws-set-theme', onThemeChanged)
+  mapEl.value?.removeEventListener('mousemove', onMapMove)
   if (saveTimer) clearTimeout(saveTimer)
   // 卸载前把未落盘的变更立即保存
   const currentId = store.currentId
@@ -766,37 +813,41 @@ defineExpose({ getMindmapInstance: () => mind })
 <style scoped>
 .mindmap-view { display: flex; height: 100%; overflow: hidden; }
 
-/* 左侧文档列表 */
+/* 左侧文档列表（可折叠） */
 .mmv-sidebar {
   width: 220px; flex-shrink: 0; display: flex; flex-direction: column;
   border-right: 1px solid var(--border, var(--border-color));
   background: var(--bg-surface, var(--card-bg));
+  transition: width var(--duration-fast, 0.15s) var(--ease-default, ease);
 }
+.mmv-sidebar.collapsed { width: 40px; }
 .mmv-side-head {
   display: flex; align-items: center; justify-content: space-between;
   padding: 12px 12px 8px;
 }
+.mmv-sidebar.collapsed .mmv-side-head { justify-content: center; padding: 12px 4px 8px; }
 .mmv-side-title { font-weight: var(--font-weight-semibold); font-size: var(--font-size-sm); color: var(--text-primary, var(--text-color)); }
-.mmv-new-btn {
-  display: inline-flex; align-items: center; gap: 3px;
-  padding: 3px 8px; font-size: var(--font-size-xs);
-  border: 1px solid var(--border, var(--border-color)); border-radius: var(--radius-xs, 4px);
-  background: transparent; color: var(--text-secondary); cursor: pointer;
-  transition: background var(--duration-fast, 0.1s), border-color var(--duration-fast, 0.1s), color var(--duration-fast, 0.1s);
+.mmv-icon-act {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; padding: 0;
+  border: none; border-radius: var(--radius-2xs, 3px);
+  background: transparent; color: var(--text-muted, var(--text-tertiary)); cursor: pointer;
+  transition: background var(--duration-fast, 0.1s), color var(--duration-fast, 0.1s);
 }
-.mmv-new-btn:hover { border-color: var(--accent, var(--primary)); color: var(--accent, var(--primary)); }
-/* 工具行：导入 / 导出 / 模板 */
-.mmv-side-tools { display: flex; align-items: center; gap: 4px; padding: 0 12px 8px; }
+.mmv-icon-act:hover { color: var(--text-primary, var(--text-color)); background: var(--bg-muted, var(--hover-bg)); }
+/* 工具行（图标钮组）+ 模板行（独占全宽） */
+.mmv-side-tools { display: flex; align-items: center; gap: 4px; padding: 0 12px 6px; }
 .mmv-tool-btn {
-  display: inline-flex; align-items: center; gap: 3px;
-  padding: 3px 8px; font-size: var(--font-size-xs);
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 24px; padding: 0; flex-shrink: 0;
   border: 1px solid var(--border, var(--border-color)); border-radius: var(--radius-xs, 4px);
   background: transparent; color: var(--text-secondary); cursor: pointer;
   transition: background var(--duration-fast, 0.1s), border-color var(--duration-fast, 0.1s), color var(--duration-fast, 0.1s);
 }
 .mmv-tool-btn:hover:not(:disabled) { border-color: var(--accent, var(--primary)); color: var(--accent, var(--primary)); }
 .mmv-tool-btn:disabled { opacity: var(--disabled-opacity, 0.5); cursor: not-allowed; }
-.mmv-template-dd { flex: 1; min-width: 0; }
+.mmv-side-template { padding: 0 12px 8px; }
+.mmv-template-dd { width: 100%; }
 .mmv-hidden-input { display: none; }
 .mmv-doc-list { list-style: none; margin: 0; padding: 0 6px; overflow-y: auto; flex: 1; }
 .mmv-doc-item {
@@ -888,6 +939,13 @@ defineExpose({ getMindmapInstance: () => mind })
   --panel-bgcolor: var(--bg-surface, var(--card-bg));
   --panel-border-color: var(--border, var(--border-color));
   background: var(--bg-app, var(--bg));
+  /* 框选偏移修复：大导图内容布局溢出容器 → viselect 判定 _scrollAvailable=true
+     走「裁剪+margin 抵消」复杂分支导致框与指针错位。overflow:clip 下 scrollWidth
+     恒等于 clientWidth → 恒走全屏 fixed 简单分支（client 坐标直绘，跟手）。
+     代价 = 框选到边缘不再自动平移画布（空格/右键拖平移仍可用）。
+     hidden 为不支持 clip 的回退（行为同前，不劣化）。 */
+  overflow: hidden;
+  overflow: clip;
 }
 
 /* 绑定面板（右下浮条） */
@@ -934,5 +992,22 @@ defineExpose({ getMindmapInstance: () => mind })
   outline: none; transition: border-color var(--duration-fast, 0.1s);
 }
 .mmv-note-input:focus { border-color: var(--accent, var(--primary)); }
+
+/* 备注悬浮预览（.mmv-main 局部定位；默认在节点上方，空间不足加 below 放下方） */
+.mmv-note-tip {
+  position: absolute;
+  transform: translate(-50%, calc(-100% - 8px));
+  max-width: 280px; padding: 6px 10px;
+  font-size: var(--font-size-xs); line-height: 1.5;
+  color: var(--text-primary, var(--text-color));
+  background: var(--bg-surface, var(--card-bg));
+  border: 1px solid var(--border, var(--border-color));
+  border-radius: var(--radius-mid, 8px);
+  box-shadow: var(--shadow-md);
+  white-space: pre-wrap; word-break: break-word;
+  pointer-events: none;
+  z-index: calc(var(--z-dropdown, 100) + 1);
+}
+.mmv-note-tip.below { transform: translate(-50%, 8px); }
 .mmv-bind-hint { margin: 0; font-size: var(--text-micro-font-size, 10px); color: var(--text-muted, var(--text-tertiary)); line-height: 1.5; }
 </style>
