@@ -17,6 +17,7 @@
  */
 import type { LibraryDescriptor, CapabilityDeclaration, AvailabilitySpec } from '@worldsea/agent-runtime/toolbus/capability-types'
 import type { ToolParameter } from '@worldsea/agent-runtime/bridge-types'
+import { getProjectManager } from '@worldsea/entity-core/core'
 import { loadDocIndex, loadDoc, saveDoc, saveDocIndex, genId, type MindmapDocMeta } from './mindmapDoc'
 import { markdownToMindElixir, mindElixirToMarkdown } from './mindmapMarkdown'
 
@@ -122,6 +123,41 @@ const mindmapDescriptor: LibraryDescriptor = {
         saveDoc({ ...meta, data: doc.data })
         notifyDocsChanged(id)
         return JSON.stringify({ ok: true, id, appended: (parsed.nodeData.children ?? []).length })
+      },
+    },
+    {
+      id: 'mindmap.write',
+      name: 'Write Mindmap',
+      description: '整图写回：用 Markdown 大纲完全替换指定导图的结构（根 topic 取首个 # 标题）。破坏性操作——先 mindmap.read 读取当前结构，修改后写回；写回前自动保留一份备份（mindmap_doc_{id}_backup，可在项目 DB 中找回）。仅用于用户明确要求重组/整理导图时。',
+      category: 'crud',
+      parameters: {
+        id: { type: 'string', description: '目标导图 id', required: true } satisfies ToolParameter,
+        markdown: { type: 'string', description: '完整的新 Markdown 大纲（# 根 + - 缩进列表）', required: true } satisfies ToolParameter,
+      },
+      availability: AVAILABILITY,
+      execute: async args => {
+        const id = String(args.id)
+        const doc = loadDoc(id)
+        if (!doc) return JSON.stringify({ ok: false, error: `导图 ${id} 不存在` })
+        const parsed = markdownToMindElixir(String(args.markdown ?? ''))
+        if (!parsed) return JSON.stringify({ ok: false, error: 'Markdown 大纲为空或无法解析' })
+        // 写前备份：旧文档体存独立 KV（不进索引，孤儿备份），误覆盖时可人工找回
+        try {
+          const db = getProjectManager().getCurrentProjectDb() as { table: (name: string) => { put: (row: { key: string; value: string }) => void } } | null
+          db?.table('project_settings').put({ key: `mindmap_doc_${id}_backup_${Date.now().toString(36)}`, value: JSON.stringify(doc) })
+        } catch {
+          /* 项目系统未初始化时跳过备份（仅 localStorage 场景，旧数据仍在 localStorage） */
+        }
+        // 保留文档名与元信息，仅替换树数据与图级元数据
+        const meta = touchDoc(id)
+        if (!meta) return JSON.stringify({ ok: false, error: '更新索引失败' })
+        const nextData = { ...doc.data, nodeData: parsed.nodeData }
+        saveDoc({ ...meta, data: nextData })
+        notifyDocsChanged(id)
+        const count = (function count(n: { children?: unknown[] }): number {
+          return 1 + (n.children ?? []).reduce((s: number, c) => s + count(c as { children?: unknown[] }), 0)
+        })(parsed.nodeData)
+        return JSON.stringify({ ok: true, id, nodes: count })
       },
     },
   ] satisfies CapabilityDeclaration[],

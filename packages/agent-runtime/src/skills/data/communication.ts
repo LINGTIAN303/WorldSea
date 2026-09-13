@@ -124,7 +124,7 @@ export const COMMUNICATION_SKILLS: SkillMeta[] = [
     relatedPlugins: ['mindmap'],
     // toolbus internal 链：mindmap 能力描述符由 App 侧注册（main.ts），激活本技能时对 Agent 可见
     capabilities: {
-      internal: ['mindmap.list', 'mindmap.read', 'mindmap.create', 'mindmap.append'],
+      internal: ['mindmap.list', 'mindmap.read', 'mindmap.create', 'mindmap.append', 'mindmap.write'],
       cli: [],
       mcp: [],
     },
