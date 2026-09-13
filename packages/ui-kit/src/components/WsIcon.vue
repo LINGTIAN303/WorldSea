@@ -30,7 +30,6 @@
 import { computed, type Component } from 'vue'
 import { getIcon } from '../assets/iconRegistry'
 import { resolveLucideIcon } from './lucideMap'
-import { getThemeIconOverride } from '@worldsea/theme-kit'
 
 type IconSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl'
 
@@ -53,16 +52,10 @@ const props = withDefaults(defineProps<{
   fallback: '',
 })
 
-/** 主题覆盖优先；否则优先 Lucide 标准图标，最后回退到注册表路径图标 */
-const themeIconDef = computed(() => getThemeIconOverride(props.name))
-
-const lucideIcon = computed<Component | null>(() => {
-  if (themeIconDef.value) return null
-  return resolveLucideIcon(props.name)
-})
+/** 图标解析：优先 Lucide 标准图标，回退到注册表路径图标（主题图标覆盖已随 theme-kit 风格包退役，2026-09-13） */
+const lucideIcon = computed<Component | null>(() => resolveLucideIcon(props.name))
 
 const iconDef = computed(() => {
-  if (themeIconDef.value) return themeIconDef.value
   if (lucideIcon.value) return null
   return getIcon(props.name)
 })

@@ -3,7 +3,7 @@
 ## 职责
 Tauri 端主题管理。模块级单例：读取偏好、应用到 `<html data-theme>`、持久化。
 
-> 2026-09-13 主题收束：主题模型 = **底色 × 强调色 两轴**。本文件只承载「底色」轴（data-theme 三态）；「强调色」轴落在 entity-core `useTheme`（`ACCENT_PRESETS` + `setAccent`，深浅双段规则注入 `<style id="ws-accent-override">`）。原六个预设主题（极光深渊/明亮/锻造炉/水墨卷轴/晶体棱镜/宇宙）退役，旧 id 经 `THEME_ID_MIGRATIONS` 自动迁移为强调色 id；theme-kit 风格包（纹理/交互模式/动效覆盖）不再随主题应用（取证：`--texture-*`、`data-interaction-mode`、`--ease-enter` 等全仓零消费点）。
+> 2026-09-13 主题收束：主题模型 = **底色 × 强调色 两轴**。本文件只承载「底色」轴（data-theme 三态）；「强调色」轴落在 entity-core `useTheme`（`ACCENT_PRESETS` + `setAccent`，深浅双段规则注入 `<style id="ws-accent-override">`）。原六个预设主题（极光深渊/明亮/锻造炉/水墨卷轴/晶体棱镜/宇宙）退役，旧 id 经 `THEME_ID_MIGRATIONS` 自动迁移为强调色 id。theme-kit 风格包（纹理/图标风格/动效覆盖引擎）**已删除**（真机确认后清理；取证：`--texture-*`、`data-interaction-mode`、`--ease-enter` 等全仓零消费点，从未真实生效），`@worldsea/theme-kit` 仅剩退役说明骨架；WsIcon 的主题图标覆盖分支一并移除（行为等价，该分支退役后恒为空）。
 
 ## 设计决策
 - **令牌覆盖驱动**：深色不是每个组件各自处理，而是在 `theme.css` 的 `[data-theme="dark"]` 块覆盖全部 CSS 变量——所有组件经 `var()` 引用，切主题即全端生效，零组件改动。

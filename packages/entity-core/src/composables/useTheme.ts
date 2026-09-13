@@ -19,9 +19,8 @@ export interface ThemeDefinition {
 //   soft-border/grad-to/ring/on-accent）用 color-mix 随主值自动跟随。
 // - 原六预设主题（aurora-abyss/light/forge-ember/ink-scroll/crystal-prism/cosmic）的
 //   mode+accent 语义由两轴组合承接（旧 id 经 THEME_ID_MIGRATIONS 迁移）；风格包
-//   （纹理/交互模式/动效覆盖）在 theme-kit 中保留文件但不再随主题应用——2026-09-13
-//   取证：--texture-*、data-interaction-mode、--ease-enter/--duration-enter 等在仓库
-//   内零消费点，从未真实生效。
+//   （纹理/图标/动效）已随 theme-kit 退役删除——2026-09-13 取证：--texture-*、
+//   data-interaction-mode、--ease-enter 等在仓库内零消费点，从未真实生效。
 const STORAGE_KEY = 'worldsea-theme'
 const CUSTOM_THEMES_KEY = 'worldsea-custom-themes'
 const OVERRIDES_KEY = 'worldsea-theme-overrides'

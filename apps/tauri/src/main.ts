@@ -15,7 +15,6 @@ import * as coreBackend from './core/coreBackend'
 import { registerValidationApi } from '@worldsea/entity-core'
 import { registerBackend } from '@worldsea/canvas-engine/core'
 import { injectAllKeyframes } from '@worldsea/motion-kit'
-import { registerAllManifests } from '@worldsea/theme-kit'
 import { preloadSupportingModels } from './agent/composables/preloadModels'
 import { installModelFetchWatcher } from './agent/composables/useModelFetchWatcher'
 
@@ -39,8 +38,8 @@ async function initializeBackend() {
     getBackendType: coreBackend.getBackendType,
   })
 
-  // 注册主题清单
-  registerAllManifests()
+  // theme-kit manifest 注册已随风格包退役移除（2026-09-13 主题收束，c3e7a3e）；
+  // 动画风格现由 theme.css 令牌 + motion-kit keyframes 承载
 
   // 注入所有 keyframes 动画
   injectAllKeyframes()

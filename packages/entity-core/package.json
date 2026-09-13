@@ -27,7 +27,6 @@
     "@worldsea/agent-runtime": "link:../agent-runtime",
     "@worldsea/core-api-types": "link:../core-api-types",
     "@worldsea/perf-kit": "link:../perf-kit",
-    "@worldsea/theme-kit": "link:../theme-kit",
     "jszip": "^3.10.1",
     "pinia": "^3.0.4",
     "vue": "^3.5.32"
