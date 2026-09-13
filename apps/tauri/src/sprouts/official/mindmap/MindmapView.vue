@@ -268,11 +268,21 @@ function openDoc(id: string) {
   selectedObj.value = null
 }
 
-/** 清除 init 写入容器的 inline 主题变量（见 openDoc 注释） */
+/** 清除 init 写入容器的 inline 主题变量（见 openDoc 注释）。
+ *  仅清颜色/样式类（:deep 映射已覆盖）；布局间距类必须保留引擎 inline 默认值——
+ *  引擎 CSS 文件对这些变量零定义，清掉后 margin/padding 的 var() 落空，
+ *  节点布局塌缩、连接线端点全错（09-14 真机实锤：线飞散/切文档丢线）。 */
+const KEEP_LAYOUT_VARS = new Set([
+  '--node-gap-x', '--node-gap-y', '--main-gap-x', '--main-gap-y',
+  '--map-padding', '--topic-padding', '--main-radius', '--root-radius',
+])
+
 function stripInlineThemeVars() {
   if (!mind) return
   for (const prop of Array.from(mind.container.style)) {
-    if (prop.startsWith('--')) mind.container.style.removeProperty(prop)
+    if (prop.startsWith('--') && !KEEP_LAYOUT_VARS.has(prop)) {
+      mind.container.style.removeProperty(prop)
+    }
   }
 }
 
