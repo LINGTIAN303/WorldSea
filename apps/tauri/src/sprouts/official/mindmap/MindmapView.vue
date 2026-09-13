@@ -108,6 +108,12 @@
             <button class="mmv-bind-btn primary" @click="goToEntity(boundEntity)"><WsIcon name="arrow-right" size="xs" /> 前往</button>
             <button class="mmv-bind-btn" @click="onUnbind">解绑</button>
           </div>
+          <div class="mmv-bind-row">
+            <span class="mmv-bind-label">节点图片</span>
+            <button class="mmv-bind-btn" @click="imageInputRef?.click()">插入…</button>
+            <button v-if="selectedObj?.image" class="mmv-bind-btn" @click="onRemoveImage">移除</button>
+            <input ref="imageInputRef" type="file" accept="image/*" class="mmv-hidden-input" @change="onImageFile" />
+          </div>
           <p class="mmv-bind-hint">绑定后，构思成熟的想法可随时跳到对应芽落地为完整实体。</p>
         </div>
       </Transition>
@@ -130,6 +136,22 @@ import { markdownToMindElixir, mindElixirToMarkdown } from './mindmapMarkdown'
 interface NodeMeta { entityId?: string }
 
 const BIND_TAG_PREFIX = '⧉'
+
+/** mind-elixir 右键菜单中文文案（LangPack 结构；引擎默认英文且未导出 i18n 包） */
+const MENU_LOCALE = {
+  addChild: '插入子节点',
+  addParent: '插入父节点',
+  addSibling: '插入同级节点',
+  removeNode: '删除节点',
+  focus: '专注',
+  cancelFocus: '取消专注',
+  moveUp: '上移',
+  moveDown: '下移',
+  link: '连接线',
+  linkBidirectional: '双向连接',
+  clickTips: '请点击目标节点',
+  summary: '概要',
+}
 
 const store = useMindmapDocStore()
 const entityStore = useEntityStore()
@@ -175,9 +197,9 @@ function openDoc(id: string) {
     mind = new MindElixir({
       el: mapEl.value,
       direction: MindElixir.SIDE,
-      locale: 'zh_CN',
       editable: true,
-      contextMenu: true,
+      // 右键菜单汉化（Link 连接线 / Summary 概要 / Focus 专注等能力内建其中）
+      contextMenu: { focus: true, link: true, locale: MENU_LOCALE },
       toolBar: true,
       keypress: true,
       allowUndo: true,
@@ -187,13 +209,32 @@ function openDoc(id: string) {
       // 注意不可调 changeTheme——它会把内置主题 cssVar 以 inline 写入容器，踩掉映射。
       theme: { name: 'WorldSea', palette: buildPalette() },
     })
+    // 粘贴 Markdown 大纲 → 选中节点下落成子树（剪贴板非引擎内部节点时触发）
+    mind.pasteHandler = onPasteMarkdown
     registerBusHandlers(mind)
     mind.init(data)
+    // init 内部会调 changeTheme 把内置主题 cssVar 以 inline style 写进容器，
+    // 踩掉模板的两轴 CSS 变量映射（暗色下画布呈内置亮色）——清掉交给映射接管
+    stripInlineThemeVars()
   } else {
     mind.refresh(data)
     mind.clearHistory?.()
+    // refresh 不应用文档方向（direction 会残留上一文档）——按文档数据校正
+    const dir = data.direction
+    if (dir === MindElixir.LEFT) mind.initLeft()
+    else if (dir === MindElixir.RIGHT) mind.initRight()
+    else if (dir === MindElixir.DOWN) mind.initDown()
+    else mind.initSide()
   }
   selectedObj.value = null
+}
+
+/** 清除 init 写入容器的 inline 主题变量（见 openDoc 注释） */
+function stripInlineThemeVars() {
+  if (!mind) return
+  for (const prop of Array.from(mind.container.style)) {
+    if (prop.startsWith('--')) mind.container.style.removeProperty(prop)
+  }
 }
 
 /** 注册画布事件：操作 → 防抖自动保存；选中 → 更新绑定面板 */
@@ -267,6 +308,33 @@ function onThemeChanged() {
   if (!mind) return
   mind.theme = { ...mind.theme, palette: buildPalette() }
   try { mind.linkDiv() } catch { /* ignore */ }
+}
+
+/* ── 粘贴 Markdown 大纲 → 子树 ── */
+
+/**
+ * 从外部（如笔记芽、编辑器）复制 MD 大纲后，在导图内直接 Ctrl+V——
+ * 大纲落成当前选中节点的子分支。非大纲文本（解析不出列表）不拦截，走浏览器默认。
+ */
+async function onPasteMarkdown(e: ClipboardEvent) {
+  if (!mind) return
+  const text = e.clipboardData?.getData('text/plain')
+  if (!text) return
+  const parsed = markdownToMindElixir(text)
+  const tops = parsed?.nodeData.children
+  if (!tops || tops.length === 0) return
+  const target = mind.currentNode
+  if (!target) {
+    e.preventDefault()
+    toastWarn('先选中一个节点，再粘贴大纲')
+    return
+  }
+  e.preventDefault()
+  for (const top of tops) {
+    await mind.addChild(target, top as NodeObj)
+  }
+  scheduleSave()
+  toastSuccess(`已粘贴 ${tops.length} 个分支到「${target.nodeObj.topic}」`)
 }
 
 /* ── 文档列表操作 ── */
@@ -537,7 +605,7 @@ function onBindEntity(entityId: string) {
   tags.push(`${BIND_TAG_PREFIX} ${entity.name}`)
   obj.tags = tags
   obj.metadata = { ...(obj.metadata as NodeMeta | undefined), entityId }
-  rerenderNode(obj)
+  rerenderNodePatch(obj, { tags: obj.tags, metadata: obj.metadata })
   scheduleSave()
 }
 
@@ -546,18 +614,58 @@ function onUnbind() {
   if (!obj || !mind) return
   obj.tags = (obj.tags ?? []).filter(t => !(typeof t === 'string' && t.startsWith(BIND_TAG_PREFIX)))
   obj.metadata = { ...(obj.metadata as NodeMeta | undefined), entityId: undefined }
-  rerenderNode(obj)
+  rerenderNodePatch(obj, { tags: obj.tags, metadata: obj.metadata })
   scheduleSave()
 }
 
-/** 节点对象变更后重渲染（reshapeNode 接受 Partial patch） */
-function rerenderNode(obj: NodeObj) {
+/**
+ * 节点对象 patch 后重渲染（reshapeNode：Object.assign 合并 + operation 事件入
+ * undo 栈并触发自动保存）。patch 传显式 undefined 可删除对应字段（如图片）。
+ */
+function rerenderNodePatch(obj: NodeObj, patch: Partial<NodeObj>) {
   try {
-    const el = mind!.findEle(obj.id)
-    if (el) mind!.reshapeNode(el, { tags: obj.tags, metadata: obj.metadata })
+    const el = mind?.findEle(obj.id)
+    if (el) mind?.reshapeNode(el, patch)
   } catch {
     /* 节点可能已被删除 */
   }
+}
+
+/* ── 节点图片（NodeObj.image 内建渲染）── */
+
+const imageInputRef = ref<HTMLInputElement | null>(null)
+
+/** 插入图片：dataURL 内嵌进文档（构思用途）；宽上限 240px 等比缩放，>2MB 拒收 */
+function onImageFile(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  const obj = selectedObj.value
+  if (!file || !obj) return
+  if (file.size > 2 * 1024 * 1024) {
+    toastWarn('图片过大（超过 2MB），请压缩后再插入')
+    return
+  }
+  const reader = new FileReader()
+  reader.onload = () => {
+    const url = String(reader.result ?? '')
+    const img = new Image()
+    img.onload = () => {
+      const w = Math.min(240, img.naturalWidth)
+      const h = Math.round(img.naturalHeight * (w / img.naturalWidth))
+      rerenderNodePatch(obj, { image: { url, width: w, height: h, fit: 'cover' } })
+      scheduleSave()
+    }
+    img.src = url
+  }
+  reader.readAsDataURL(file)
+}
+
+function onRemoveImage() {
+  const obj = selectedObj.value
+  if (!obj) return
+  rerenderNodePatch(obj, { image: undefined })
+  scheduleSave()
 }
 
 /** 跳转到绑定实体的对应芽视图 */

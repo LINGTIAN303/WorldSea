@@ -81,27 +81,46 @@ export function saveDocIndex(index: MindmapDocMeta[]) {
   }
 }
 
-/** 读单张导图文档 */
+/**
+ * 剥离 mind-elixir getData() 内嵌的运行时视图字段：
+ * - theme（含 palette 快照）：分支配色跟随运行时强调色（两轴），固化进文档会在
+ *   init 时经 changeTheme(e.theme || this.theme) 回灌旧配色——必须剥离
+ * - direction / compact 保留：文档级布局偏好，init 时会被应用
+ */
+function stripRuntimeFields<T extends MindElixirData>(data: T): T {
+  if (data && 'theme' in data) {
+    const { theme: _theme, ...rest } = data
+    return rest as T
+  }
+  return data
+}
+
+/** 读单张导图文档（theme 运行时字段已剥离） */
 export function loadDoc(id: string): MindmapDoc | null {
   const db = getDb()
   if (db) {
     try {
       const raw = db.table('project_settings').get(DB_DOC_PREFIX + id)
-      if (raw) return JSON.parse(raw) as MindmapDoc
+      if (raw) {
+        const doc = JSON.parse(raw) as MindmapDoc
+        return { ...doc, data: stripRuntimeFields(doc.data) }
+      }
     } catch {
       /* fallthrough */
     }
   }
-  return lsGet<MindmapDoc | null>(LS_DOC_PREFIX + id, null)
+  const doc = lsGet<MindmapDoc | null>(LS_DOC_PREFIX + id, null)
+  return doc ? { ...doc, data: stripRuntimeFields(doc.data) } : null
 }
 
-/** 写单张导图文档（双写） */
+/** 写单张导图文档（双写；写前剥离 theme 运行时字段） */
 export function saveDoc(doc: MindmapDoc) {
-  lsSet(LS_DOC_PREFIX + doc.id, doc)
+  const clean: MindmapDoc = { ...doc, data: stripRuntimeFields(doc.data) }
+  lsSet(LS_DOC_PREFIX + clean.id, clean)
   const db = getDb()
   if (db) {
     try {
-      db.table('project_settings').put({ key: DB_DOC_PREFIX + doc.id, value: JSON.stringify(doc) })
+      db.table('project_settings').put({ key: DB_DOC_PREFIX + clean.id, value: JSON.stringify(clean) })
     } catch {
       /* localStorage 已兜底 */
     }
