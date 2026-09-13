@@ -128,7 +128,7 @@ const mindmapDescriptor: LibraryDescriptor = {
     {
       id: 'mindmap.write',
       name: 'Write Mindmap',
-      description: '整图写回：用 Markdown 大纲完全替换指定导图的结构（根 topic 取首个 # 标题）。破坏性操作——先 mindmap.read 读取当前结构，修改后写回；写回前自动保留一份备份（mindmap_doc_{id}_backup，可在项目 DB 中找回）。仅用于用户明确要求重组/整理导图时。',
+      description: '整图写回：用 Markdown 大纲完全替换指定导图的结构（根 topic 取首个 # 标题）。破坏性操作——先 mindmap.read 读取当前结构，修改后写回；写回前自动保留一份备份（mindmap_doc_{id}_backup，可在项目 DB 中找回）。注意：写回会重建全部节点 id，已有自由关系线与概要括号不保留。仅用于用户明确要求重组/整理导图时。',
       category: 'crud',
       parameters: {
         id: { type: 'string', description: '目标导图 id', required: true } satisfies ToolParameter,
@@ -148,10 +148,12 @@ const mindmapDescriptor: LibraryDescriptor = {
         } catch {
           /* 项目系统未初始化时跳过备份（仅 localStorage 场景，旧数据仍在 localStorage） */
         }
-        // 保留文档名与元信息，仅替换树数据与图级元数据
+        // 保留文档名与元信息，仅替换树数据与图级元数据。
+        // 注意：MD 大纲只承载树结构，写回后节点 id 全部重建——旧 arrows/summaries
+        // 按 id 引用节点会全部断链，显式清空（否则渲染悬挂线/悬空概要）。
         const meta = touchDoc(id)
         if (!meta) return JSON.stringify({ ok: false, error: '更新索引失败' })
-        const nextData = { ...doc.data, nodeData: parsed.nodeData }
+        const nextData = { ...doc.data, nodeData: parsed.nodeData, arrows: [], summaries: [] }
         saveDoc({ ...meta, data: nextData })
         notifyDocsChanged(id)
         const count = (function count(n: { children?: unknown[] }): number {

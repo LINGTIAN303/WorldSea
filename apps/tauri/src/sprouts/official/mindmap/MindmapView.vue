@@ -8,7 +8,9 @@
       </div>
       <div class="mmv-side-tools">
         <button class="mmv-tool-btn" title="导入 Markdown 大纲为新导图" @click="fileInputRef?.click()"><WsIcon name="upload" size="xs" /> 导入</button>
-        <button class="mmv-tool-btn" title="将当前导图导出为 Markdown" :disabled="!store.currentId" @click="onExportMd"><WsIcon name="download" size="xs" /> 导出</button>
+        <button class="mmv-tool-btn" title="将当前导图导出为 Markdown" :disabled="!store.currentId" @click="onExportMd"><WsIcon name="download" size="xs" /> MD</button>
+        <button class="mmv-tool-btn" title="导出当前导图为 PNG 图片" :disabled="!store.currentId" @click="onExportImage('png')"><WsIcon name="image-down" size="xs" /></button>
+        <button class="mmv-tool-btn" title="导出当前导图为 SVG 矢量图" :disabled="!store.currentId" @click="onExportImage('svg')"><WsIcon name="file-down" size="xs" /></button>
         <CustomDropdown
           :model-value="templatePick"
           :options="templateOptions"
@@ -57,6 +59,32 @@
         <template #icon><WsIcon name="mindmap" size="xl" /></template>
       </WsEmpty>
 
+      <!-- 节点搜索浮框：匹配 topic → 选中并居中 -->
+      <div v-if="store.currentId !== null" class="mmv-search">
+        <WsIcon name="search" size="xs" class="mmv-search-icon" />
+        <input
+          v-model="searchQuery"
+          class="mmv-search-input"
+          placeholder="搜索节点…"
+          @blur="searchQuery = ''"
+          @keydown.enter.prevent="onSearchEnter"
+          @keydown.esc="searchQuery = ''"
+        />
+        <ul v-if="searchQuery && searchResults.length > 0" class="mmv-search-results">
+          <li
+            v-for="(r, i) in searchResults"
+            :key="r.id"
+            :class="{ 'is-hover': i === searchHoverIndex }"
+            @mouseenter="searchHoverIndex = i"
+            @mousedown.prevent="locateNode(r)"
+          >
+            <span class="mmv-search-topic">{{ r.topic }}</span>
+            <span v-if="r.parentTopic" class="mmv-search-parent">{{ r.parentTopic }}</span>
+          </li>
+        </ul>
+        <div v-else-if="searchQuery && searchResults.length === 0" class="mmv-search-empty">无匹配节点</div>
+      </div>
+
       <!-- 绑定面板：选中节点时浮现 -->
       <Transition name="ws-scale-fade">
         <div v-if="selectedObj" class="mmv-bind-panel">
@@ -88,11 +116,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import MindElixir from 'mind-elixir'
 import 'mind-elixir/style'
 import type { NodeObj, MindElixirData, MindElixirInstance } from 'mind-elixir'
-import { WsIcon, WsEmpty, toastSuccess } from '@worldsea/ui-kit'
+import { WsIcon, WsEmpty, toastSuccess, toastWarn } from '@worldsea/ui-kit'
 import { useEntityStore, useUIStore, type Entity } from '@worldsea/entity-core'
 import { CustomDropdown, useConfirm } from '@worldsea/plugin-sdk'
 import { useMindmapDocStore } from './mindmapStore'
@@ -154,7 +182,10 @@ function openDoc(id: string) {
       keypress: true,
       allowUndo: true,
       newTopicName: '新节点',
-      // 主题令牌适配：CSS 变量在模板样式覆盖（跟随底色×强调色两轴），此处只选布局方向
+      // 主题令牌适配：CSS 变量在模板样式覆盖（跟随底色×强调色两轴）；
+      // palette 只放分支色环（消费点 = 一级分支描边+主线色，不影响节点底/文字）。
+      // 注意不可调 changeTheme——它会把内置主题 cssVar 以 inline 写入容器，踩掉映射。
+      theme: { name: 'WorldSea', palette: buildPalette() },
     })
     registerBusHandlers(mind)
     mind.init(data)
@@ -188,6 +219,54 @@ function scheduleSave() {
 function clearSelection() {
   try { mind?.clearSelection() } catch { /* ignore */ }
   selectedObj.value = null
+}
+
+/* ── 分支配色（跟随强调色的色环）── */
+
+/** hex → HSL（h 0-360，s/l 0-100）；非 hex 输入返回 null */
+function hexToHsl(hex: string): { h: number; s: number; l: number } | null {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim())
+  if (!m) return null
+  const int = parseInt(m[1], 16)
+  const r = (int >> 16 & 255) / 255, g = (int >> 8 & 255) / 255, b = (int & 255) / 255
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min
+  let h = 0
+  if (d !== 0) {
+    if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) * 60
+    else if (max === g) h = ((b - r) / d + 2) * 60
+    else h = ((r - g) / d + 4) * 60
+  }
+  const l = (max + min) / 2
+  const s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1))
+  return { h, s: s * 100, l: l * 100 }
+}
+
+function hslToHex(h: number, s: number, l: number): string {
+  const a = (s / 100) * Math.min(l / 100, 1 - l / 100)
+  const f = (n: number) => {
+    const k = (n + h / 30) % 12
+    const c = l / 100 - a * Math.max(Math.min(k - 3, 9 - k, 1), -1)
+    return Math.round(c * 255).toString(16).padStart(2, '0')
+  }
+  return `#${f(0)}${f(8)}${f(4)}`
+}
+
+/** 读当前强调色（--accent），生成一级分支配色：8 色环，强调色为首色 */
+function buildPalette(): string[] {
+  const raw = getComputedStyle(document.documentElement).getPropertyValue('--accent')
+  const base = hexToHsl(raw) ?? hexToHsl('#4a6cf7')!
+  // S/L 收敛到柔和区间：分支线在明暗底上都清晰，且不过分抢眼
+  const s = Math.min(65, Math.max(45, base.s))
+  const l = Math.min(68, Math.max(58, base.l))
+  const offsets = [0, 40, -40, 80, -80, 145, -145, 180]
+  return offsets.map(o => hslToHex((base.h + o + 360) % 360, s, l))
+}
+
+/** 主题两轴联动：强调色变化时重生成分支配色并重绘线条（绕开 changeTheme 保住 CSS 变量映射） */
+function onThemeChanged() {
+  if (!mind) return
+  mind.theme = { ...mind.theme, palette: buildPalette() }
+  try { mind.linkDiv() } catch { /* ignore */ }
 }
 
 /* ── 文档列表操作 ── */
@@ -310,18 +389,54 @@ function onImportFile(e: Event) {
   reader.readAsText(file)
 }
 
+/** 通用 Blob 下载（MD / PNG / SVG 共用） */
+function downloadBlob(name: string, blob: Blob) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = name
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 /** 导出当前导图为 Markdown 文件（用画布实时数据，含未保存变更） */
 function onExportMd() {
   if (!mind || !store.currentMeta) return
   const md = mindElixirToMarkdown(mind.getData() as MindElixirData)
-  const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `${store.currentMeta.name}.md`
-  a.click()
-  URL.revokeObjectURL(url)
+  downloadBlob(`${store.currentMeta.name}.md`, new Blob([md], { type: 'text/markdown;charset=utf-8' }))
   toastSuccess(`已导出「${store.currentMeta.name}.md」`)
+}
+
+/** 导出图片时注入画布 CSS 变量的实际值——导出产物是独立 SVG 文档，读不到页面级变量 */
+const EXPORT_CSS_VARS = [
+  '--main-color', '--main-bgcolor', '--color', '--bgcolor', '--selected', '--accent-color',
+  '--root-color', '--root-bgcolor', '--root-border-color', '--panel-color', '--panel-bgcolor',
+  '--panel-border-color', '--map-padding', '--node-gap-x', '--node-gap-y', '--main-gap-x',
+  '--main-gap-y', '--topic-padding',
+]
+
+function collectMapCss(): string {
+  const el = mapEl.value?.querySelector('.map-container')
+  if (!el) return ''
+  const cs = getComputedStyle(el)
+  return EXPORT_CSS_VARS.map(v => `${v}: ${cs.getPropertyValue(v).trim()};`).join(' ')
+}
+
+/** 导出图片：PNG（异步栅格）/ SVG（矢量）；失败给出明确反馈 */
+async function onExportImage(kind: 'png' | 'svg') {
+  if (!mind || !store.currentMeta) return
+  const css = collectMapCss()
+  try {
+    const blob = kind === 'png' ? await mind.exportPng(false, css) : mind.exportSvg(false, css)
+    if (!blob) {
+      toastWarn('导出失败：画布为空或渲染异常')
+      return
+    }
+    downloadBlob(`${store.currentMeta.name}.${kind}`, blob)
+    toastSuccess(`已导出「${store.currentMeta.name}.${kind}」`)
+  } catch {
+    toastWarn('导出失败：画布为空或渲染异常')
+  }
 }
 
 function startRename(d: { id: string; name: string }) {
@@ -348,6 +463,65 @@ async function onDeleteDoc(d: { id: string; name: string }) {
   const next = store.currentId
   if (next) openDoc(next)
   toastSuccess(`已删除「${d.name}」`)
+}
+
+/* ── 节点搜索与定位 ── */
+
+interface NodeHit { id: string; topic: string; parentTopic: string; collapsedAncestors: string[] }
+
+const searchQuery = ref('')
+const searchHoverIndex = ref(-1)
+
+/** 遍历导图树收集节点：父 topic 用于同名列辅助显示；收起祖先链用于定位前逐层展开 */
+function collectNodes(): NodeHit[] {
+  if (!mind) return []
+  const hits: NodeHit[] = []
+  const walk = (obj: NodeObj, parentTopic: string, collapsedAncestors: string[]) => {
+    const isCollapsed = obj.expanded === false
+    hits.push({ id: obj.id, topic: obj.topic, parentTopic, collapsedAncestors })
+    const nextCollapsed = isCollapsed ? [...collapsedAncestors, obj.id] : collapsedAncestors
+    for (const c of obj.children ?? []) walk(c, obj.topic, nextCollapsed)
+  }
+  walk(mind.getData().nodeData, '', [])
+  return hits
+}
+
+const searchResults = computed<NodeHit[]>(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return []
+  return collectNodes()
+    .filter(n => n.topic.toLowerCase().includes(q))
+    .slice(0, 10)
+})
+
+watch(searchQuery, () => {
+  searchHoverIndex.value = searchResults.value.length > 0 ? 0 : -1
+})
+
+function onSearchEnter() {
+  const hit = searchResults.value[Math.max(0, searchHoverIndex.value)]
+  if (hit) locateNode(hit)
+}
+
+/**
+ * 定位节点：收起区域内的节点无 DOM（findEle 取不到），先对收起祖先链自上而下
+ * 逐层 expandNode（同步建 DOM），再选中并居中。
+ */
+function locateNode(hit: NodeHit) {
+  if (!mind) return
+  try {
+    for (const aid of hit.collapsedAncestors) {
+      const obj = mind.getObjById(aid, mind.nodeData)
+      if (!obj || obj.expanded !== false) continue
+      const ele = mind.findEle(aid)
+      if (ele) mind.expandNode(ele, true)
+    }
+    const el = mind.findEle(hit.id)
+    if (!el) return
+    mind.selectNode(el)
+    mind.scrollIntoView(el, true)
+    searchQuery.value = ''
+  } catch { /* ignore */ }
 }
 
 /* ── 节点绑定实体 ── */
@@ -417,6 +591,7 @@ function onDocsChanged(e: Event) {
 
 onMounted(async () => {
   window.addEventListener('ws-mindmap-docs-changed', onDocsChanged)
+  window.addEventListener('ws-set-theme', onThemeChanged)
   await entityStore.loadAll()
   await store.loadAll()
   if (store.currentId) openDoc(store.currentId)
@@ -424,6 +599,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('ws-mindmap-docs-changed', onDocsChanged)
+  window.removeEventListener('ws-set-theme', onThemeChanged)
   if (saveTimer) clearTimeout(saveTimer)
   // 卸载前把未落盘的变更立即保存
   const currentId = store.currentId
@@ -506,6 +682,44 @@ defineExpose({ getMindmapInstance: () => mind })
 /* 主区画布 */
 .mmv-main { flex: 1; position: relative; overflow: hidden; }
 .mmv-map { width: 100%; height: 100%; }
+
+/* 节点搜索浮框 */
+.mmv-search { position: absolute; left: 16px; top: 16px; width: 240px; z-index: var(--z-dropdown, 100); }
+.mmv-search-icon {
+  position: absolute; left: 9px; top: 50%; transform: translateY(-50%);
+  color: var(--text-muted, var(--text-tertiary)); pointer-events: none;
+}
+.mmv-search-input {
+  width: 100%; padding: 5px 10px 5px 27px; font-size: var(--font-size-xs);
+  border: 1px solid var(--border, var(--border-color)); border-radius: 999px;
+  background: var(--bg-surface, var(--card-bg)); color: var(--text-primary, var(--text-color));
+  outline: none; box-shadow: var(--shadow-sm, var(--shadow-md));
+  transition: border-color var(--duration-fast, 0.1s), box-shadow var(--duration-fast, 0.1s);
+}
+.mmv-search-input:focus { border-color: var(--accent, var(--primary)); }
+.mmv-search-results {
+  list-style: none; margin: 4px 0 0; padding: 4px;
+  background: var(--bg-surface, var(--card-bg));
+  border: 1px solid var(--border, var(--border-color)); border-radius: var(--radius-mid, 8px);
+  box-shadow: var(--shadow-md); max-height: 240px; overflow-y: auto;
+}
+.mmv-search-results li {
+  display: flex; align-items: baseline; gap: 6px;
+  padding: 4px 8px; border-radius: var(--radius-2xs, 3px); cursor: pointer;
+}
+.mmv-search-results li.is-hover { background: var(--accent-soft, var(--primary-light)); }
+.mmv-search-topic {
+  font-size: var(--font-size-xs); color: var(--text-primary, var(--text-color));
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mmv-search-parent { font-size: var(--text-micro-font-size, 10px); color: var(--text-muted, var(--text-tertiary)); flex-shrink: 0; }
+.mmv-search-empty {
+  margin-top: 4px; padding: 6px 10px; font-size: var(--font-size-xs);
+  color: var(--text-muted, var(--text-tertiary));
+  background: var(--bg-surface, var(--card-bg));
+  border: 1px solid var(--border, var(--border-color)); border-radius: var(--radius-mid, 8px);
+  box-shadow: var(--shadow-md);
+}
 
 /* mind-elixir 主题适配：映射到 WorldSea 设计令牌，自动跟随底色×强调色两轴 */
 .mmv-map :deep(.map-container),
