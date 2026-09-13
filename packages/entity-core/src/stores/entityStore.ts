@@ -116,14 +116,22 @@ export const useEntityStore = defineStore('entity', () => {
     return clean.id
   }
 
-  async function update(id: string, changes: Partial<Entity>, source: 'user' | 'agent' | 'import' = 'user') {
+  /**
+   * 更新实体（内存立即生效，持久化与事件异步）。
+   *
+   * @param opts.skipUndo 跳过撤销栈记录。**仅用于自动保存类写入**（编辑器内容防抖落库）：
+   *   这类写入会在每次输入暂停时产生一条撤销记录，迅速填满撤销上限（默认 20）并把用户
+   *   真实操作的撤销历史挤掉。文本级撤销由编辑器自身负责（TipTap 内部 undo / 章节快照），
+   *   不进全局撤销栈。
+   */
+  async function update(id: string, changes: Partial<Entity>, source: 'user' | 'agent' | 'import' = 'user', opts?: { skipUndo?: boolean }) {
     clearError()
     const clean = { ...changes, updatedAt: new Date().toISOString() }
 
     const old = findById(id)
     const oldProps = old?.properties ?? {}
 
-    if (!isUndoing && old) {
+    if (!isUndoing && !opts?.skipUndo && old) {
       const before: Partial<Entity> = {}
       for (const key of Object.keys(changes)) {
         (before as any)[key] = (old as any)[key]

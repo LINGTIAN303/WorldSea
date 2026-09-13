@@ -55,7 +55,8 @@ import { marked } from 'marked'
 import MentionPopover from './MentionPopover.vue'
 import SlashCommandMenu from './SlashCommandMenu.vue'
 import { useNoteEditor } from '../composables/useNoteEditor'
-import type { SlashCommandItem } from '../composables/slashCommandExtension'
+import { SLASH_COMMANDS, type SlashCommandItem } from '../composables/slashCommandExtension'
+import { toastWarn } from '@/composables/useToast'
 import type { Entity } from '@worldsea/entity-core'
 
 type SlashCommandPopoverApi = {
@@ -98,6 +99,13 @@ const slashCommandMenuRef = ref<SlashCommandPopoverApi | null>(null)
 onMounted(() => {
   setMentionPopover(mentionPopoverRef.value)
   setSlashCommandPopover(slashCommandMenuRef.value)
+  // 斜杠命令回调：`mention` 由 useNoteEditor 内部处理（插入 @），其余四条
+  // （续写 / 润色 / 摘要 / 链接笔记）在笔记本芽尚无落地实现。此前从未注册回调 →
+  // 点击后只删掉 "/" 而毫无反馈（静默失败），违反「禁用不留静默」铁律，故显式提示。
+  setSlashCommandCallback((commandId: string) => {
+    const cmd = SLASH_COMMANDS.find(c => c.id === commandId)
+    toastWarn(`「${cmd?.label ?? commandId}」尚未接入，暂不可用`)
+  })
   loadNote(props.note)
 })
 

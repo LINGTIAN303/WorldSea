@@ -81,7 +81,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive, watch, onMounted } from 'vue'
+import { ref, computed, reactive, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useEntityStore, useRelationStore, useBidirectional } from '@worldsea/entity-core'
 import type { Relation } from '@worldsea/entity-core'
 import { WsEmpty, WsIcon } from '@worldsea/ui-kit'
@@ -272,6 +272,8 @@ async function duplicateNote(noteId: string): Promise<void> {
 }
 
 async function deleteNote(noteId: string): Promise<void> {
+  // 丢弃待写入，避免笔记删除后闸门再把它写回来
+  pendingWrites.delete(noteId)
   await entityStore.remove(noteId)
   if (selectedNoteId.value === noteId) selectedNoteId.value = null
 }
@@ -299,15 +301,64 @@ function reorderFolders(newFolders: NotebookFolder[]): void {
   saveFolders()
 }
 
-async function onNoteUpdate(data: { id: string; changes: Record<string, unknown> }): Promise<void> {
-  await entityStore.update(data.id, data.changes)
+/**
+ * 编辑器写入的落库闸门：按笔记 id 合并 + 防抖。
+ *
+ * 背景：编辑器此前每次按键都直接 `entityStore.update`，导致逐键写库；配合撤销栈上限 20，
+ * 打字会把全局撤销历史冲掉。改为同一笔记在窗口内的多次变更只落最后一次。
+ * 内容型写入带 skipUndo（见 NotebookEditor.emitUpdate 与 useNoteEditor），
+ * 离散的元数据变更（改名/换文件夹）仍记撤销 —— 只要有一项需要记，整批就记。
+ */
+const COMMIT_DELAY = 400
+const pendingWrites = new Map<string, { changes: Record<string, unknown>; skipUndo: boolean }>()
+let commitTimer: ReturnType<typeof setTimeout> | null = null
+
+function onNoteUpdate(data: { id: string; changes: Record<string, unknown>; skipUndo?: boolean }): void {
+  const prev = pendingWrites.get(data.id)
+  pendingWrites.set(data.id, {
+    changes: data.changes,
+    skipUndo: prev ? prev.skipUndo && !!data.skipUndo : !!data.skipUndo,
+  })
+  if (commitTimer) clearTimeout(commitTimer)
+  commitTimer = setTimeout(flushPendingWrites, COMMIT_DELAY)
+}
+
+/** 立即落库所有待写入（切笔记、离开视图、删除笔记前调用，确保不丢改动） */
+async function flushPendingWrites(): Promise<void> {
+  if (commitTimer) {
+    clearTimeout(commitTimer)
+    commitTimer = null
+  }
+  if (pendingWrites.size === 0) return
+  const batch = Array.from(pendingWrites.entries())
+  pendingWrites.clear()
+  for (const [id, item] of batch) {
+    // 落库前与实体的最新状态合并：待写入只带「本组件负责的字段」，
+    // 若直接全量写回会在防抖窗口内覆盖掉 useNoteEditor 刚写入的正文。
+    const live = notebookNotes.value.find((n) => n.id === id)
+    if (!live) continue  // 已被删除，丢弃
+    const partial = (item.changes.properties ?? {}) as Record<string, unknown>
+    try {
+      await entityStore.update(id, {
+        ...item.changes,
+        properties: { ...live.properties, ...partial },
+      }, 'user', { skipUndo: item.skipUndo })
+    } catch (err) {
+      console.warn('[NotebookView] 笔记落库失败', err)
+    }
+  }
 }
 
 watch(sidebarOpen, () => { saveSidebar() })
 
+// 切笔记即落库，避免防抖窗口内的改动滞留到用户看不见的地方
+watch(selectedNoteId, () => { flushPendingWrites() })
+
 onMounted(async () => {
   await migrateBacklinks()
 })
+
+onBeforeUnmount(() => { flushPendingWrites() })
 
 async function migrateBacklinks(): Promise<void> {
   const notesWithBacklinks = notebookNotes.value.filter((n) => {
@@ -337,7 +388,7 @@ async function migrateBacklinks(): Promise<void> {
     }
     await entityStore.update(note.id, {
       properties: { ...note.properties, backlinks: [], forwardLinks: [] },
-    })
+    }, 'user', { skipUndo: true })  // 一次性数据迁移，非用户操作，不进撤销栈
   }
 }
 
@@ -392,6 +443,7 @@ useAgentPluginBridge('notebook', async (event) => {
     case 'delete_note': {
       const noteId = payload.noteId as string
       if (!noteId) break
+      pendingWrites.delete(noteId)
       await entityStore.remove(noteId)
       if (selectedNoteId.value === noteId) selectedNoteId.value = null
       break

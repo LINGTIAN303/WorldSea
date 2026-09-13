@@ -178,19 +178,31 @@ export function useChapterEditor(currentChapter: Ref<Entity | null>) {
     }, AUTOSAVE_DELAY)
   }
 
+  /**
+   * 内容持久化。
+   *
+   * 自动保存类写入统一带 `skipUndo`：章节正文按「输入暂停」落库，每次都记撤销会迅速填满
+   * 全局撤销上限（默认 20），把用户真实操作的撤销历史挤掉。文本级撤销由 TipTap 自身的
+   * undo 栈与章节快照（useChapterSnapshots）负责，不进全局撤销栈。
+   */
+  async function persistContent(html: string, text: string): Promise<void> {
+    if (!currentChapter.value) return
+    await es.update(currentChapter.value.id, {
+      properties: {
+        ...currentChapter.value.properties,
+        content: html,
+        wordCount: text.length,
+      },
+    }, 'user', { skipUndo: true })
+  }
+
   async function flushSave() {
     if (!currentChapter.value || !editor.value) return
     const html = editor.value.getHTML()
     const text = editor.value.getText()
     saveStatus.value = 'saving'
     try {
-      await es.update(currentChapter.value.id, {
-        properties: {
-          ...currentChapter.value.properties,
-          content: html,
-          wordCount: text.length,
-        },
-      })
+      await persistContent(html, text)
       saveStatus.value = 'saved'
     } catch {
       saveStatus.value = 'unsaved'
@@ -203,15 +215,7 @@ export function useChapterEditor(currentChapter: Ref<Entity | null>) {
       saveTimer = null
     }
     if (editor.value && currentChapter.value && saveStatus.value === 'unsaved') {
-      const html = editor.value.getHTML()
-      const text = editor.value.getText()
-      es.update(currentChapter.value.id, {
-        properties: {
-          ...currentChapter.value.properties,
-          content: html,
-          wordCount: text.length,
-        },
-      })
+      persistContent(editor.value.getHTML(), editor.value.getText())
     }
     if (entity && editor.value) {
       const content = (entity.properties.content as string) || ''
@@ -238,15 +242,7 @@ export function useChapterEditor(currentChapter: Ref<Entity | null>) {
       saveTimer = null
     }
     if (editor.value && currentChapter.value) {
-      const html = editor.value.getHTML()
-      const text = editor.value.getText()
-      es.update(currentChapter.value.id, {
-        properties: {
-          ...currentChapter.value.properties,
-          content: html,
-          wordCount: text.length,
-        },
-      })
+      persistContent(editor.value.getHTML(), editor.value.getText())
     }
     editor.value?.destroy()
   })

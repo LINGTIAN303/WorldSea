@@ -1,12 +1,12 @@
 <template>
   <div class="nb-editor">
     <div class="nb-editor-header">
-      <input v-model="editName" class="nb-editor-title" placeholder="笔记标题" @change="emitUpdate" />
-      <select v-model="editFolder" class="nb-editor-folder" @change="emitUpdate">
+      <input v-model="editName" class="nb-editor-title" placeholder="笔记标题" @change="emitUpdate()" />
+      <select v-model="editFolder" class="nb-editor-folder" @change="emitUpdate()">
         <option value="">未分类</option>
         <option v-for="f in folders" :key="f.id" :value="f.id"><WsIcon name="folder" size="xs" /> {{ f.name }}</option>
       </select>
-      <select v-model="editType" class="nb-editor-type" @change="emitUpdate">
+      <select v-model="editType" class="nb-editor-type" @change="emitUpdate()">
         <option v-for="t in NOTE_TYPES" :key="t.value" :value="t.value">{{ t.icon }} {{ t.label }}</option>
       </select>
     </div>
@@ -16,7 +16,7 @@
           v-if="editType === 'code'"
           :code="editContent"
           :language="editLanguage"
-          @update="editContent = $event; emitUpdate()"
+          @update="editContent = $event; emitUpdate({ skipUndo: true })"
           @run="onCodeRun"
           @language-change="editLanguage = $event; emitUpdate()"
         />
@@ -70,7 +70,10 @@ interface NotebookFolder {
 }
 
 const props = defineProps<{ note: NotebookEntity; folders: NotebookFolder[] }>()
-const emit = defineEmits<{ update: [data: { id: string; changes: Record<string, unknown> }]; navigate: [id: string] }>()
+const emit = defineEmits<{
+  update: [data: { id: string; changes: Record<string, unknown>; skipUndo?: boolean }]
+  navigate: [id: string]
+}>()
 
 const entityStore = useEntityStore()
 const relationStore = useRelationStore()
@@ -99,24 +102,36 @@ const backlinkNotes = computed(() => {
   return entityStore.entities.filter((e) => sourceIds.includes(e.id))
 })
 
+/**
+ * 富文本正文不再经本组件回写 —— 见 useNoteEditor：它独占持久化富文本正文
+ * （300ms 防抖 + skipUndo）。此处只同步本地状态，供 CodeCell 的 code 型取值。
+ * 此前每次按键都会 emit → 与 useNoteEditor 形成「一次输入两次写库」的双写入。
+ */
 function onContentChange(html: string): void {
   editContent.value = html
-  emitUpdate()
 }
 
-function emitUpdate(): void {
+/**
+ * 上报元数据变更（名称/文件夹/类型）。
+ * @param opts.skipUndo 内容型自动保存传 true；离散的元数据变更不传（保留可撤销）。
+ *
+ * **只上报本组件负责的字段**，不做 `...props.note.properties` 全量快照 —— 全量快照是
+ * emit 时刻的值，经 400ms 防抖落库时会覆盖掉期间由 useNoteEditor 写入的新正文。
+ * 落库方（NotebookView.flushPendingWrites）会把这些字段合并到实体的最新 properties 上。
+ *
+ * 注：content 仅在 code 型笔记时上报 —— code 型走 CodeCell，没有 useNoteEditor 保底。
+ */
+function emitUpdate(opts?: { skipUndo?: boolean }): void {
+  const properties: Record<string, unknown> = {
+    noteType: editType.value,
+    codeLanguage: editLanguage.value,
+    folderId: editFolder.value,
+  }
+  if (editType.value === 'code') properties.content = editContent.value
   emit('update', {
     id: props.note.id,
-    changes: {
-      name: editName.value,
-      properties: {
-        ...props.note.properties,
-        content: editContent.value,
-        noteType: editType.value,
-        codeLanguage: editLanguage.value,
-        folderId: editFolder.value,
-      },
-    },
+    changes: { name: editName.value, properties },
+    skipUndo: opts?.skipUndo,
   })
 }
 

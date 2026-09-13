@@ -181,17 +181,29 @@ export function useNoteEditor(currentNote: Ref<Entity | null>, onContentChange?:
     }, AUTOSAVE_DELAY)
   }
 
+  /**
+   * 内容持久化。
+   *
+   * 自动保存类写入统一带 `skipUndo`：编辑器内容按「输入暂停」落库，每次都记撤销会迅速
+   * 填满全局撤销上限（默认 20）并把用户真实操作的撤销历史挤掉。文本级撤销由 TipTap
+   * 自身的 undo 栈负责，不进全局撤销栈。
+   */
+  async function persistContent(html: string): Promise<void> {
+    if (!currentNote.value) return
+    await es.update(currentNote.value.id, {
+      properties: {
+        ...currentNote.value.properties,
+        content: html,
+      },
+    }, 'user', { skipUndo: true })
+  }
+
   async function flushSave() {
     if (!currentNote.value || !editor.value) return
     const html = editor.value.getHTML()
     saveStatus.value = 'saving'
     try {
-      await es.update(currentNote.value.id, {
-        properties: {
-          ...currentNote.value.properties,
-          content: html,
-        },
-      })
+      await persistContent(html)
       saveStatus.value = 'saved'
     } catch {
       saveStatus.value = 'unsaved'
@@ -205,12 +217,7 @@ export function useNoteEditor(currentNote: Ref<Entity | null>, onContentChange?:
     }
     if (editor.value && currentNote.value && saveStatus.value === 'unsaved') {
       const html = editor.value.getHTML()
-      es.update(currentNote.value.id, {
-        properties: {
-          ...currentNote.value.properties,
-          content: html,
-        },
-      })
+      persistContent(html)
     }
     if (entity && editor.value) {
       const content = (entity.properties.content as string) || ''
@@ -232,9 +239,14 @@ export function useNoteEditor(currentNote: Ref<Entity | null>, onContentChange?:
   }
 
   onBeforeUnmount(() => {
+    // 卸载前必须落盘：此前只清定时器 + destroy，未 flush —— 防抖窗口（300ms）内的改动
+    // 会随视图卸载永久丢失。本 composable 是富文本正文的唯一写入方，此处丢即真丢。
     if (saveTimer) {
       clearTimeout(saveTimer)
       saveTimer = null
+    }
+    if (editor.value && currentNote.value && saveStatus.value === 'unsaved') {
+      persistContent(editor.value.getHTML())
     }
     editor.value?.destroy()
   })

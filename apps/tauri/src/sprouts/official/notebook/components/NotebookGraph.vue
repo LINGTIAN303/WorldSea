@@ -52,7 +52,25 @@ watch(() => noteLinkRels.value.length, () => {
   nextTick(() => buildGraph())
 })
 
+/**
+ * 把主题令牌解析为具体色值。
+ *
+ * canvas 的 fillStyle / strokeStyle **不接受** `var(--token)` 字符串（底层 useSmallCanvasGraph
+ * 内部的 `'var(--text-color, #333)'` 就是一条无效写法，会被浏览器忽略），因此必须在绘制前
+ * 取出令牌实值。自定义属性可继承，从画布容器上读即可拿到当前两轴（底色 × 强调色）的值。
+ * 与思维导图导出 PNG 时注入 computed 变量是同一套路。
+ */
+function resolveToken(name: string, fallback: string): string {
+  const el = containerRef.value
+  if (!el || typeof getComputedStyle !== 'function') return fallback
+  const value = getComputedStyle(el).getPropertyValue(name).trim()
+  return value || fallback
+}
+
 function buildGraph(): void {
+  // 节点色随强调色轴、连线色随次级文字色 —— 换强调色后重建即跟随，不再写死
+  const nodeColor = resolveToken('--accent', '#7c3aed')
+  const edgeColor = resolveToken('--text-secondary', '#9ca3af')
   const nodeMap = new Map<string, SGNode>()
 
   function addNote(id: string) {
@@ -62,7 +80,7 @@ function buildGraph(): void {
     nodeMap.set(id, {
       id,
       label: note.name || '未命名',
-      color: '#7c3aed',
+      color: nodeColor,
       size: 16,
     })
   }
@@ -76,7 +94,7 @@ function buildGraph(): void {
     id: rel.id,
     source: rel.sourceId,
     target: rel.targetId,
-    color: '#9ca3af',
+    color: edgeColor,
     width: 1.5,
     arrow: true,
     bidirectional: true,
