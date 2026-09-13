@@ -19,6 +19,7 @@ export { useSettingsStore, SPROUT_CATEGORIES, ANIMATION_GROUPS } from './setting
 export type {
   SproutToggle,
   SproutCategory,
+  SproutGroup,
   CustomProviderEntry,
 } from './settingsStore'
 

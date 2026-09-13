@@ -284,12 +284,16 @@ export function useProjectSwitcher() {
       fileStore.loadAll(),
     ])
 
-    // 加载项目级芽开关
+    // 加载项目级芽开关 + 芽分组（分组持久化模式与芽开关一致：localStorage 回退 + 项目 DB）
     const { useSettingsStore } = await import('@/stores/settingsStore')
     const settings = useSettingsStore()
     const projectSprouts = await settings.loadProjectSprouts()
     if (projectSprouts) {
       settings.sprouts = projectSprouts
+    }
+    const projectSproutGroups = await settings.loadProjectSproutGroups()
+    if (projectSproutGroups) {
+      settings.sproutGroups = projectSproutGroups
     }
   }
 

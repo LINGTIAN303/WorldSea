@@ -201,6 +201,56 @@ function saveSprouts(sprouts: SproutToggle[]) {
   }
 }
 
+// ─── 芽分组（2026-09-13）：用户自建的激活范围方案 ───
+// 持久化模式与芽开关一致：localStorage（回退）+ 项目 DB project_settings（项目级，
+// 不同项目可维护不同分组）。key = 'sprout_groups'。
+export interface SproutGroup {
+  id: string
+  name: string
+  sproutIds: string[]
+}
+const STORAGE_KEY_SPROUT_GROUPS = 'worldsea_sprout_groups'
+
+function loadSproutGroups(): SproutGroup[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_SPROUT_GROUPS)
+    const arr = raw ? JSON.parse(raw) as SproutGroup[] : []
+    return Array.isArray(arr)
+      ? arr.filter(g => g && typeof g.id === 'string' && typeof g.name === 'string' && Array.isArray(g.sproutIds))
+      : []
+  } catch {
+    return []
+  }
+}
+
+function saveSproutGroups(groups: SproutGroup[]) {
+  const data = JSON.stringify(groups)
+  localStorage.setItem(STORAGE_KEY_SPROUT_GROUPS, data)
+  try {
+    const pm = getProjectManager()
+    const db = pm.getCurrentProjectDb()
+    db.table('project_settings').put({ key: 'sprout_groups', value: data })
+  } catch {
+    // 项目系统未初始化，仅保存到 localStorage
+  }
+}
+
+/** 异步加载项目级芽分组（切换项目后调用，模式同 loadProjectSprouts） */
+async function loadProjectSproutGroups(): Promise<SproutGroup[] | null> {
+  try {
+    const pm = getProjectManager()
+    const db = pm.getCurrentProjectDb()
+    const entry = await db.table('project_settings').get('sprout_groups')
+    if (!entry) return null
+    const arr = JSON.parse((entry as any).value) as SproutGroup[]
+    return Array.isArray(arr)
+      ? arr.filter(g => g && typeof g.id === 'string' && typeof g.name === 'string' && Array.isArray(g.sproutIds))
+      : []
+  } catch {
+    return null
+  }
+}
+
 function loadCustomProviders(): CustomProviderEntry[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_AI_CUSTOM_PROVIDERS)
@@ -257,6 +307,8 @@ const STORAGE_KEY_VOICE_CONTINUOUS = 'worldsea_voice_continuous'
 export const useSettingsStore = defineStore('settings', () => {
   const { currentThemeId, setTheme: setThemeFromEngine } = useTheme()
   const sprouts = ref<SproutToggle[]>(loadSprouts())
+  // 芽分组：用户自建的激活范围方案（项目级持久化，模式同 sprouts）
+  const sproutGroups = ref<SproutGroup[]>(loadSproutGroups())
   const theme = computed(() => currentThemeId.value)
 
   // 语音输入设置（Web Speech API）：识别语言 + 连续识别
@@ -369,6 +421,50 @@ export const useSettingsStore = defineStore('settings', () => {
     saveSprouts(sprouts.value)
   }
 
+  /** 批量设置激活态（仅影响给定 id 集合，其余不动），持久化——全选/全不选的落点 */
+  function setSproutsActive(ids: string[], active: boolean) {
+    const set = new Set(ids)
+    sprouts.value = sprouts.value.map(p => set.has(p.id) ? { ...p, active } : p)
+    saveSprouts(sprouts.value)
+  }
+
+  /**
+   * 保存当前勾选集为分组。同名分组覆盖更新（重复保存同名 = 修改其芽集合）。
+   * @returns 保存后的分组
+   */
+  function saveSproutGroup(name: string, groupSproutIds: string[]): SproutGroup {
+    const trimmed = name.trim()
+    const ids = [...groupSproutIds]
+    const existing = sproutGroups.value.find(g => g.name === trimmed)
+    if (existing) {
+      existing.sproutIds = ids
+      saveSproutGroups(sproutGroups.value)
+      return existing
+    }
+    const group: SproutGroup = {
+      id: 'sg-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      name: trimmed,
+      sproutIds: ids,
+    }
+    sproutGroups.value = [...sproutGroups.value, group]
+    saveSproutGroups(sproutGroups.value)
+    return group
+  }
+
+  /** 应用分组 = 激活范围替换为组内集合（组外停用），并持久化 */
+  function applySproutGroup(groupId: string) {
+    const g = sproutGroups.value.find(x => x.id === groupId)
+    if (!g) return
+    const ids = new Set(g.sproutIds)
+    sprouts.value = sprouts.value.map(p => ({ ...p, active: ids.has(p.id) }))
+    saveSprouts(sprouts.value)
+  }
+
+  function removeSproutGroup(groupId: string) {
+    sproutGroups.value = sproutGroups.value.filter(g => g.id !== groupId)
+    saveSproutGroups(sproutGroups.value)
+  }
+
   function setTheme(t: string) {
     setThemeFromEngine(t)
   }
@@ -402,7 +498,7 @@ export const useSettingsStore = defineStore('settings', () => {
     return deriveKeyStoreId(baseUrl)
   }
 
-  return { sprouts, theme, toggleSprout, setTheme, isActive, getActiveSproutIds, loadProjectSprouts,
+  return { sprouts, sproutGroups, theme, toggleSprout, setSproutsActive, saveSproutGroup, applySproutGroup, removeSproutGroup, setTheme, isActive, getActiveSproutIds, loadProjectSprouts, loadProjectSproutGroups,
            undoHistoryLimit, multiStepRedo, maxCenterNodes, panelLimitEnabled,
            smoothCaretEnabled, smoothCaretDuration, smoothCaretVariant,
            autoCreateEntityEnabled, autoCreateSelectorEnabled, autoCreateEntityRefEnabled, autoCreateGraphEnabled,
