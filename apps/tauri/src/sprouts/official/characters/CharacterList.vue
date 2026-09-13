@@ -19,7 +19,7 @@
       </template>
 
       <template #detail-header="{ entity }">
-        <span class="dp-avatar"><template v-if="entity?.avatar">{{ entity?.avatar }}</template><WorldSeaLogo v-else :size="22" :radius="6" /></span>
+        <span class="dp-avatar"><template v-if="entity?.avatar">{{ entity?.avatar }}</template><WsIcon v-else name="character" :size="22" /></span>
         <div class="dp-title-area">
           <h3>{{ entity?.name || '' }}</h3>
           <span class="dp-type-label">角色</span>
@@ -129,7 +129,6 @@ import CharacterExperience from './components/CharacterExperience.vue'
 
 import { GenericEntityView, EntityRelationSelector, CustomDropdown, useShortcuts, useUndoRedo } from '@worldsea/plugin-sdk'
 import { toastSuccess } from '@worldsea/ui-kit'
-import WorldSeaLogo from '@/components/brand/WorldSeaLogo.vue'
 import { characterFields } from './characterConfig'
 import { characterTemplates } from './characterTemplates'
 import type { FilterDef, CustomTabDef } from '@worldsea/plugin-sdk'
