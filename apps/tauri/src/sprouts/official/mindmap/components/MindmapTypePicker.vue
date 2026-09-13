@@ -5,7 +5,7 @@
         <h4>选择实体类型</h4>
         <div class="mm-modal-grid">
           <button v-for="t in activeTypes" :key="t.type" class="mm-type-card" @click="$emit('pick', t.type)">
-            <WsIcon :name="resolveIcon(t.icon)" size="lg" :fallback="t.icon" />
+            <WsIcon :name="t.icon" size="lg" :fallback="t.icon" />
             <span>{{ t.label }}</span>
           </button>
         </div>
@@ -17,7 +17,6 @@
 
 <script setup lang="ts">
 import { WsIcon } from '@worldsea/ui-kit'
-import { resolveIcon } from '../mindmapConfig'
 
 defineProps<{
   visible: boolean

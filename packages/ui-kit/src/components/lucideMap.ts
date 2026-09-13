@@ -24,6 +24,8 @@ import {
   PanelLeft, PanelLeftOpen, PanelLeftClose,
   PanelRight, PanelRightOpen, PanelRightClose,
   FolderTree, Files,
+  ZoomOut, AlignCenterHorizontal, AlignCenterVertical,
+  AlignHorizontalDistributeCenter, ImageDown, FileDown, SquareDashed,
 } from 'lucide-vue-next'
 // Tabler 图标混编：个别芽的图标由用户点名采用 Tabler（@tabler/icons-vue），与本表混编（2026-09-13）。
 // 组件 API 兼容：两者都接受 size / stroke-width（Tabler 的 stroke-width 经 attrs 落到 svg）。
@@ -241,6 +243,15 @@ const LUCIDE_MAP: Record<string, Component> = {
   bot: Bot,
   'volume-off': VolumeOff,
   'volume-on': Volume2,
+  // 思维导图 Toolbar 专用（2026-09-13）：缩放/对齐/分布/导出
+  'zoom-in': ZoomIn,
+  'zoom-out': ZoomOut,
+  'align-center-horizontal': AlignCenterHorizontal,
+  'align-center-vertical': AlignCenterVertical,
+  'align-horizontal-distribute-center': AlignHorizontalDistributeCenter,
+  'image-down': ImageDown,
+  'file-down': FileDown,
+  'square-dashed': SquareDashed,
 }
 
 export function resolveLucideIcon(name: string): Component | null {

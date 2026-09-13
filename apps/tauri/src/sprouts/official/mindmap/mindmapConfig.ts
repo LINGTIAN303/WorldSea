@@ -1,25 +1,8 @@
 import { RelationTypes } from '@worldsea/entity-core'
 import { getNodeColor, getNodeTypeInfo, getEdgeColor } from '@worldsea/entity-core'
 
-export const EMOJI_TO_ICON: Record<string, string> = {
-  '📋': 'outline', '🏷️': 'tag', '📝': 'edit', '🎨': 'palette',
-  '📐': 'outline', '🔗': 'link', '✨': 'magic', '📂': 'folder',
-  '📁': 'folder', '🔍': 'search', '🗑️': 'delete', '⭐': 'star',
-  '🏠': 'home', '⚔️': 'war', '📜': 'manuscript', '📍': 'location',
-  '💡': 'inspiration', '🎭': 'culture', '🐉': 'species', '🧠': 'concept',
-  '🧬': 'species', '🐣': 'character', '🌱': 'plant', '⚡': 'lightning',
-  '💀': 'skull', '🛡️': 'shield', '🔮': 'magic', '💍': 'tag',
-  '🧪': 'magic', '🔧': 'settings', '🚢': 'trade', '🎵': 'music',
-  '🏺': 'item', '🍷': 'item', '👘': 'apparel', '📦': 'item',
-  '✅': 'check', '📌': 'pin', '🌿': 'plant', '🗡️': 'weapon',
-  '🏗️': 'building', '📄': 'manuscript', '🧩': 'puzzle', '👤': 'user',
-  '🖼️': 'image', '⬆️': 'arrow-up', '🔄': 'refresh', '🎯': 'target',
-  '🖌️': 'brush',
-}
-
-export function resolveIcon(emoji: string): string {
-  return EMOJI_TO_ICON[emoji] || emoji
-}
+// 注：原 EMOJI_TO_ICON 兼容表已删（2026-09-13）——类型 icon 全链路已是 WsIcon id
+// 体系（typeMappingRegistry 单源），emoji 映射层无实际命中，属历史遗留。
 
 export function typeColor(type: string): string {
   return getNodeColor(type, 'warm')

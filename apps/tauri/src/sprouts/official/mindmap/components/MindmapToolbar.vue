@@ -16,27 +16,27 @@
       <!-- 常驻操作：视图导航 / 撤销重做 / 模式切换 / 缩放 -->
       <div class="toolbar-actions">
         <div class="action-group">
-          <button v-if="canGoBack" class="icon-btn" @click="$emit('go-back')" title="返回上层" data-ws-tip-keys="Esc">←</button>
-          <button class="icon-btn" :class="{ active: detailPanelVisible }" @click="$emit('toggle-detail')" title="详情侧栏" data-ws-tip-keys="I"><WsIcon name="outline" size="sm" /></button>
-          <button class="icon-btn" :class="{ active: minimapVisible }" @click="$emit('toggle-minimap')" title="小地图 (M)"><WsIcon name="search" size="sm" /></button>
+          <button v-if="canGoBack" class="icon-btn" @click="$emit('go-back')" title="返回上层" data-ws-tip-keys="Esc"><WsIcon name="arrow-left" size="sm" /></button>
+          <button class="icon-btn" :class="{ active: detailPanelVisible }" @click="$emit('toggle-detail')" title="详情侧栏" data-ws-tip-keys="I"><WsIcon name="panel-right" size="sm" /></button>
+          <button class="icon-btn" :class="{ active: minimapVisible }" @click="$emit('toggle-minimap')" title="小地图 (M)"><WsIcon name="map" size="sm" /></button>
         </div>
 
         <div class="action-group">
-          <button class="icon-btn" :disabled="!canUndo" :class="{ disabled: !canUndo }" @click="$emit('undo')" title="撤销" data-ws-tip-keys="Ctrl+Z"><WsIcon name="refresh" size="sm" /></button>
-          <button class="icon-btn" :disabled="!canRedo" :class="{ disabled: !canRedo }" @click="$emit('redo')" title="重做" data-ws-tip-keys="Ctrl+Y"><WsIcon name="refresh" size="sm" /></button>
+          <button class="icon-btn" :disabled="!canUndo" :class="{ disabled: !canUndo }" @click="$emit('undo')" title="撤销" data-ws-tip-keys="Ctrl+Z"><WsIcon name="undo" size="sm" /></button>
+          <button class="icon-btn" :disabled="!canRedo" :class="{ disabled: !canRedo }" @click="$emit('redo')" title="重做" data-ws-tip-keys="Ctrl+Y"><WsIcon name="redo" size="sm" /></button>
         </div>
 
         <div class="action-group">
           <button class="icon-btn" :class="{ active: editMode }" @click="$emit('toggle-edit-mode')" title="编辑模式 (E)"><WsIcon name="edit" size="sm" /></button>
           <button class="icon-btn" :class="{ active: freeDrawMode }" @click="$emit('toggle-free-draw')" title="自由绘图" data-ws-tip-keys="D"><WsIcon name="brush" size="sm" /></button>
-          <button class="icon-btn" @click="$emit('toggle-ai-suggest')" title="AI 关系建议" data-ws-tip-keys="Ctrl+J"><WsIcon name="concept" size="sm" /></button>
+          <button class="icon-btn" @click="$emit('toggle-ai-suggest')" title="AI 关系建议" data-ws-tip-keys="Ctrl+J"><WsIcon name="lightbulb" size="sm" /></button>
           <button class="icon-btn primary" @click="$emit('ai-organize')" title="AI 整理（让 Agent 帮你布局/找孤立/找环）"><WsIcon name="magic" size="sm" /> AI</button>
         </div>
 
         <div class="action-group">
-          <button class="icon-btn" @click="$emit('fit')" title="适应视图" data-ws-tip-keys="F">⊞</button>
-          <button class="icon-btn" @click="$emit('zoom-in')" title="放大">＋</button>
-          <button class="icon-btn" @click="$emit('zoom-out')" title="缩小">－</button>
+          <button class="icon-btn" @click="$emit('fit')" title="适应视图" data-ws-tip-keys="F"><WsIcon name="expand" size="sm" /></button>
+          <button class="icon-btn" @click="$emit('zoom-in')" title="放大"><WsIcon name="zoom-in" size="sm" /></button>
+          <button class="icon-btn" @click="$emit('zoom-out')" title="缩小"><WsIcon name="zoom-out" size="sm" /></button>
           <span class="zoom-level">{{ zoomLevel }}%</span>
         </div>
       </div>
@@ -55,20 +55,20 @@
         <div v-if="editMode" class="to-group">添加</div>
         <button v-if="editMode" class="to-item" @click="$emit('add-textbox')" title="添加文本框" data-ws-tip-keys="N C"><WsIcon name="edit" size="sm" /> 添加文本框</button>
         <button v-if="editMode" class="to-item" @click="$emit('add-image')"><WsIcon name="image" size="sm" /> 添加图片</button>
-        <button v-if="editMode" class="to-item" @click="$emit('add-note')"><WsIcon name="outline" size="sm" /> 添加备注</button>
+        <button v-if="editMode" class="to-item" @click="$emit('add-note')"><WsIcon name="notepad" size="sm" /> 添加备注</button>
         <button v-if="editMode" class="to-item" @click="$emit('add-link')"><WsIcon name="link" size="sm" /> 添加链接</button>
-        <button v-if="editMode" class="to-item" @click="$emit('add-group')"><WsIcon name="item" size="sm" /> 添加分组</button>
+        <button v-if="editMode" class="to-item" @click="$emit('add-group')"><WsIcon name="folder" size="sm" /> 添加分组</button>
         <button v-if="editMode" class="to-item" @click="$emit('add-center')"><WsIcon name="star" size="sm" /> 添加中心节点</button>
 
         <div v-if="selectedCount >= 2" class="to-group">对齐</div>
-        <button v-if="selectedCount >= 2" class="to-item" @click="$emit('align-selection', 'h')"><WsIcon name="arrow-up" size="sm" /> 水平对齐</button>
-        <button v-if="selectedCount >= 2" class="to-item" @click="$emit('align-selection', 'v')"><WsIcon name="refresh" size="sm" /> 垂直对齐</button>
-        <button v-if="selectedCount >= 2" class="to-item" @click="$emit('distribute-selection')">≣ 均匀分布</button>
-        <button v-if="selectedCount >= 2" class="to-item" @click="$emit('create-section-from-selection')"><WsIcon name="item" size="sm" /> 创建分组框</button>
+        <button v-if="selectedCount >= 2" class="to-item" @click="$emit('align-selection', 'h')"><WsIcon name="align-center-horizontal" size="sm" /> 水平对齐</button>
+        <button v-if="selectedCount >= 2" class="to-item" @click="$emit('align-selection', 'v')"><WsIcon name="align-center-vertical" size="sm" /> 垂直对齐</button>
+        <button v-if="selectedCount >= 2" class="to-item" @click="$emit('distribute-selection')"><WsIcon name="align-horizontal-distribute-center" size="sm" /> 均匀分布</button>
+        <button v-if="selectedCount >= 2" class="to-item" @click="$emit('create-section-from-selection')"><WsIcon name="square-dashed" size="sm" /> 创建分组框</button>
 
         <div class="to-group">导出</div>
-        <button class="to-item" @click="$emit('export-png')">🖼 导出 PNG</button>
-        <button class="to-item" @click="$emit('export-svg')">📐 导出 SVG</button>
+        <button class="to-item" @click="$emit('export-png')"><WsIcon name="image-down" size="sm" /> 导出 PNG</button>
+        <button class="to-item" @click="$emit('export-svg')"><WsIcon name="file-down" size="sm" /> 导出 SVG</button>
       </ToolbarOverflow>
   </Teleport>
 </template>
