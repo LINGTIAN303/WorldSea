@@ -143,7 +143,7 @@ const DEFAULT_SPROUTS: SproutToggle[] = [
   { id: 'official.conflict', label: '冲突/战争', icon: 'combat', active: false, category: 'narrative' },
   { id: 'official.inspiration', label: '灵感/素材库', icon: 'inspiration', active: true, category: 'narrative' },
   { id: 'official.plants', label: '植物/生态', icon: 'plant', active: false, category: 'world' },
-  { id: 'official.combat_stats', label: '战力', icon: 'combat', active: false, category: 'system' },
+  { id: 'official.combat_stats', label: '战力', icon: 'target', active: false, category: 'system' },
   { id: 'official.weapons', label: '武器', icon: 'weapon', active: false, category: 'items' },
   { id: 'official.manuscript', label: '正文写作', icon: 'manuscript', active: false, category: 'narrative' },
   { id: 'official.drawing', label: '画板', icon: 'drawing', active: false, category: 'visual' },
