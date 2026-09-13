@@ -409,7 +409,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeyDown))
 .ft-folder-del:hover { color: var(--color-danger); }
 .ft-folder-del.confirming {
   display: inline-block; color: var(--color-danger); font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold); animation: ws-pulse 1s infinite;
+  font-weight: var(--font-weight-semibold); animation: pulse var(--dur-pulse) infinite;
 }
 .ft-folder-items { overflow: hidden; transition: max-height 0.2s ease; }
 .ft-folder-group.collapsed .ft-folder-items { max-height: 0; }
@@ -435,10 +435,10 @@ onUnmounted(() => document.removeEventListener('keydown', onKeyDown))
 .ft-empty { padding: 12px; text-align: center; font-size: var(--font-size-sm); color: var(--color-text-tertiary); }
 
 .ft-cm-backdrop {
-  position: fixed; inset: 0; z-index: 999; background: transparent;
+  position: fixed; inset: 0; z-index: calc(var(--z-modal) - 1); background: transparent;
 }
 .ft-context-menu {
-  position: fixed; z-index: 1000; min-width: 150px;
+  position: fixed; z-index: var(--z-modal); min-width: 150px;
   background: var(--color-bg-surface); border: 1px solid var(--color-border);
   border-radius: var(--radius-sm); padding: 4px; box-shadow: var(--shadow-md);
 }

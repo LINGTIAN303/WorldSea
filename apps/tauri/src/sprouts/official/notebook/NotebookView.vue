@@ -31,7 +31,7 @@
               :selectedNoteId="selectedNoteId"
               :collapsedFolders="collapsedFolders"
               :unfiledNotes="unfiledNotes"
-              :allNotes="filteredNotes"
+              :allNotes="notebookNotes"
               :searchResults="filteredNotes"
               :searchMode="!!searchQuery"
               :pendingDeleteId="pendingDeleteFolderId"
@@ -151,12 +151,20 @@ const notebookNotes = computed(() =>
   entityStore.entities.filter((e): e is NotebookEntity => e.type === 'notebook')
 )
 
+/** 正文以 TipTap HTML 存储，检索前剥标签，避免 `<p>`/`<strong>` 之类标签命中产生噪声 */
+function plainText(html?: string): string {
+  return (html || '').replace(/<[^>]*>/g, ' ')
+}
+
 const filteredNotes = computed(() => {
   if (!searchQuery.value) return notebookNotes.value
   const q = searchQuery.value.toLowerCase()
+  // 检索范围 = 标题 + 描述 + 正文（此前漏掉正文，导致正文里的词搜不到；
+  // Agent 侧 notebook(search_notes) 一直是搜正文的，两侧语义由此对齐）
   return notebookNotes.value.filter((n) =>
     n.name.toLowerCase().includes(q) ||
-    (n.description || '').toLowerCase().includes(q)
+    (n.description || '').toLowerCase().includes(q) ||
+    plainText(n.properties?.content).toLowerCase().includes(q)
   )
 })
 

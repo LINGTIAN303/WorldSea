@@ -11,20 +11,23 @@
 import { ref, onErrorCaptured } from 'vue'
 import { WsIcon } from '@worldsea/ui-kit'
 
-defineProps<{ message?: string }>()
+const props = defineProps<{ message?: string }>()
 
 const hasError = ref(false)
-const errorMessage = ref('组件异常，请刷新后重试')
+// 调用方可指定兜底标题（如「编辑器加载失败」），未指定时用通用文案
+const errorMessage = ref(props.message || '组件异常，请刷新后重试')
 
 onErrorCaptured((err) => {
   hasError.value = true
-  errorMessage.value = '组件异常：' + (err.message || String(err))
+  const detail = err.message || String(err)
+  // 有自定义标题时用「标题：详情」，否则沿用原通用文案
+  errorMessage.value = props.message ? `${props.message}：${detail}` : '组件异常：' + detail
   return false
 })
 
 function retry() {
   hasError.value = false
-  errorMessage.value = '组件异常，请刷新后重试'
+  errorMessage.value = props.message || '组件异常，请刷新后重试'
 }
 </script>
 

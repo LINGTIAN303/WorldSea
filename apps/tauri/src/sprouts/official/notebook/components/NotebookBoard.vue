@@ -32,7 +32,7 @@
             >
               <div class="nb-bc-icon"><WsIcon :name="getNoteIcon(element)" size="sm" /></div>
               <div class="nb-bc-name">{{ element.name }}</div>
-              <div class="nb-bc-preview">{{ (element.properties?.content || '').slice(0, 80) }}</div>
+              <div class="nb-bc-preview">{{ notePreview(element) }}</div>
               <div v-if="element.tags?.length" class="nb-bc-tags">
                 <span v-for="tag in element.tags.slice(0, 3)" :key="tag" class="nb-bc-tag">{{ tag }}</span>
               </div>
@@ -77,6 +77,16 @@ watch(() => props.notes, (notes) => {
 function getNoteIcon(note: NotebookEntity): string {
   const noteType = note.properties?.noteType || 'markdown'
   return NOTE_TYPES.find(t => t.value === noteType)?.icon || 'edit'
+}
+
+/** 正文以 TipTap HTML 存储，卡片预览需先剥标签再截断，否则会漏出 <p>/<strong> 等标签文本 */
+function notePreview(note: NotebookEntity): string {
+  return (note.properties?.content || '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 80)
 }
 
 function onColChange(colType: string, evt: any) {
