@@ -250,6 +250,11 @@ function openDoc(id: string) {
     // init 内部会调 changeTheme 把内置主题 cssVar 以 inline style 写进容器，
     // 踩掉模板的两轴 CSS 变量映射（暗色下画布呈内置亮色）——清掉交给映射接管
     stripInlineThemeVars()
+    // 框选偏移修复：引擎内嵌 viselect 的框选矩形为 fixed 定位，其包含块在本
+    // 环境 DOM 下发生偏移（框与指针错位、右下角钉在起点）。禁用它，由自绘
+    // 框选接管（absolute + 实时 containerRect 换算，见 onCanvasPointerDown）。
+    mind.selection?.disable()
+    mind.container.addEventListener('pointerdown', onCanvasPointerDown)
   } else {
     mind.refresh(data)
     mind.clearHistory?.()
@@ -626,6 +631,77 @@ function locateNode(hit: NodeHit) {
   } catch { /* ignore */ }
 }
 
+/* ── 画布框选（自绘；引擎 viselect 的 fixed 坐标系在本环境偏移，已禁用）── */
+
+let selBox: HTMLDivElement | null = null
+let selStart: { x: number; y: number } | null = null
+
+/** 框选矩形：absolute 定位于画布容器内（局部坐标 = client - 实时 containerRect，天然跟手） */
+function ensureSelBox(): HTMLDivElement {
+  if (!selBox) {
+    selBox = document.createElement('div')
+    selBox.className = 'mmv-selection-box'
+    mind!.container.appendChild(selBox)
+  }
+  return selBox
+}
+
+function onCanvasPointerDown(e: PointerEvent) {
+  if (!mind || e.button !== 0 || !e.isPrimary) return
+  const t = e.target as HTMLElement
+  if (t.className !== 'map-container') return // 仅空白处起框（节点拖拽/平移不受影响）
+  const cr = mind.container.getBoundingClientRect()
+  selStart = { x: e.clientX - cr.left, y: e.clientY - cr.top }
+  const box = ensureSelBox()
+  box.style.display = 'block'
+  box.style.left = `${selStart.x}px`
+  box.style.top = `${selStart.y}px`
+  box.style.width = '0px'
+  box.style.height = '0px'
+  window.addEventListener('pointermove', onSelMove)
+  window.addEventListener('pointerup', onSelUp, { once: true })
+}
+
+function onSelMove(e: PointerEvent) {
+  if (!selStart || !mind) return
+  const cr = mind.container.getBoundingClientRect()
+  const cx = e.clientX - cr.left
+  const cy = e.clientY - cr.top
+  const box = ensureSelBox()
+  box.style.left = `${Math.min(selStart.x, cx)}px`
+  box.style.top = `${Math.min(selStart.y, cy)}px`
+  box.style.width = `${Math.abs(cx - selStart.x)}px`
+  box.style.height = `${Math.abs(cy - selStart.y)}px`
+}
+
+function onSelUp(e: PointerEvent) {
+  window.removeEventListener('pointermove', onSelMove)
+  if (!selStart || !mind) {
+    selStart = null
+    return
+  }
+  const cr = mind.container.getBoundingClientRect()
+  // 框矩形转视口坐标，与节点 rect（client）做相交判定
+  const x1 = Math.min(selStart.x, e.clientX - cr.left) + cr.left
+  const y1 = Math.min(selStart.y, e.clientY - cr.top) + cr.top
+  const x2 = Math.max(selStart.x, e.clientX - cr.left) + cr.left
+  const y2 = Math.max(selStart.y, e.clientY - cr.top) + cr.top
+  selStart = null
+  if (selBox) selBox.style.display = 'none'
+  const hit: HTMLElement[] = []
+  mind.container.querySelectorAll('me-tpc').forEach(el => {
+    const r = el.getBoundingClientRect()
+    if (r.left < x2 && r.right > x1 && r.top < y2 && r.bottom > y1) hit.push(el as HTMLElement)
+  })
+  if (hit.length === 0) {
+    mind.clearSelection()
+    return
+  }
+  // Ctrl/Cmd 叠加：保留已选节点合并框选命中
+  const base = e.ctrlKey || e.metaKey ? mind.currentNodes ?? [] : []
+  mind.selectNodes([...new Set([...base, ...hit])] as never[])
+}
+
 /* ── 节点绑定实体 ── */
 
 /** 绑定/换绑实体：写 metadata + tags 徽章，重渲染该节点并保存 */
@@ -796,6 +872,8 @@ onBeforeUnmount(() => {
   window.removeEventListener('ws-mindmap-docs-changed', onDocsChanged)
   window.removeEventListener('ws-set-theme', onThemeChanged)
   mapEl.value?.removeEventListener('mousemove', onMapMove)
+  window.removeEventListener('pointermove', onSelMove)
+  mind?.container?.removeEventListener('pointerdown', onCanvasPointerDown)
   if (saveTimer) clearTimeout(saveTimer)
   // 卸载前把未落盘的变更立即保存
   const currentId = store.currentId
@@ -939,13 +1017,6 @@ defineExpose({ getMindmapInstance: () => mind })
   --panel-bgcolor: var(--bg-surface, var(--card-bg));
   --panel-border-color: var(--border, var(--border-color));
   background: var(--bg-app, var(--bg));
-  /* 框选偏移修复：大导图内容布局溢出容器 → viselect 判定 _scrollAvailable=true
-     走「裁剪+margin 抵消」复杂分支导致框与指针错位。overflow:clip 下 scrollWidth
-     恒等于 clientWidth → 恒走全屏 fixed 简单分支（client 坐标直绘，跟手）。
-     代价 = 框选到边缘不再自动平移画布（空格/右键拖平移仍可用）。
-     hidden 为不支持 clip 的回退（行为同前，不劣化）。 */
-  overflow: hidden;
-  overflow: clip;
 }
 
 /* 绑定面板（右下浮条） */
@@ -1009,5 +1080,15 @@ defineExpose({ getMindmapInstance: () => mind })
   z-index: calc(var(--z-dropdown, 100) + 1);
 }
 .mmv-note-tip.below { transform: translate(-50%, 8px); }
+
+/* 自绘框选矩形（absolute 定位于画布容器，替代引擎 viselect 的 fixed 框） */
+.mmv-map :deep(.mmv-selection-box) {
+  display: none;
+  position: absolute;
+  z-index: 25;
+  background: var(--accent-soft, var(--primary-light, rgba(79, 144, 242, 0.18)));
+  border: 1px solid var(--accent, var(--primary));
+  pointer-events: none;
+}
 .mmv-bind-hint { margin: 0; font-size: var(--text-micro-font-size, 10px); color: var(--text-muted, var(--text-tertiary)); line-height: 1.5; }
 </style>
