@@ -110,15 +110,20 @@ pub async fn cmd_fs_read(
     }
 }
 
-/// 在系统文件资源管理器中打开指定目录（2026-09-03 文件面板「打开项目文件夹」）
+/// 在系统文件资源管理器中打开指定路径（目录或文件）—— 「打开项目文件夹」/「用默认程序打开」
 ///
 /// Windows 用 `explorer`（无需等待退出）；macOS 用 `open`；Linux 用 `xdg-open`。
+/// 传文件路径时由系统按默认关联程序打开（pptx 等无内置渲染器的格式走此降级出口）。
+///
+/// 接受**正斜杠**路径：Windows 的 explorer 对 `/` 解析异常，故在此统一归一化为反斜杠
+/// （此前由调用方各自 replace 兜底，集中到本命令后调用方可直接传前端统一格式）。
 #[tauri::command]
 pub async fn cmd_open_in_explorer(path: String) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
+        let native = path.replace('/', "\\");
         std::process::Command::new("explorer")
-            .arg(&path)
+            .arg(&native)
             .spawn()
             .map_err(|e| format!("打开系统文件夹失败: {e}"))?;
         Ok(())

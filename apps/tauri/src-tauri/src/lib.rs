@@ -54,6 +54,8 @@ mod semantic_commands;
 mod http_bridge;
 // [HTTP-BRIDGE] 图布局/图分析算法命令（cmd_algo_*）：薄封装 worldsea-core 算法，桌面 IPC + HTTP RPC 双端
 mod algo_commands;
+// 文档格式预览：本机 Office 转换（ppt/pptx → PDF，LibreOffice headless；含探测与缓存）
+mod office_commands;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -239,6 +241,9 @@ pub fn run() {
             fs_commands::cmd_fs_copy,
             fs_commands::cmd_fs_rename,
             fs_commands::cmd_fs_search,
+            // 文档格式预览（2026-09-14）：本机 Office 转换 —— 探测 + ppt/pptx → PDF（带缓存）
+            office_commands::cmd_office_available,
+            office_commands::cmd_pptx_to_pdf,
             // Phase A 迁移：项目切换（useProjectSwitcher Tauri 分支）
             project_commands::cmd_switch_project,
             // Phase B 迁移：获取应用数据目录（自动绑定项目存储目录）

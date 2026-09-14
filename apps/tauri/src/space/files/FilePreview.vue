@@ -54,6 +54,10 @@
     <!-- PDF 预览（2026-09-14）：pdfjs 逐页 canvas，只读 -->
     <PdfPreview v-else-if="kind === 'pdf' && fileBytes" :data="fileBytes" />
 
+    <!-- 演示文稿预览（2026-09-14）：本机 LibreOffice 转 PDF 后复用上面的 PDF 通路；
+         未装 LibreOffice 或转换失败时给明确提示与「用系统默认程序打开」出口 -->
+    <PptxPreview v-else-if="kind === 'pptx'" :path="path" />
+
     <!-- 编辑态（2026-09-06 编辑器内核一期）：CM6 源码编辑，Ctrl+S 落盘（CodeEditor 内 keymap）；
          file-path 供 B1 LSP（语言服务器按真实路径工作，无路径时回落 tsAssist 单文件模式） -->
     <CodeEditor
@@ -148,6 +152,7 @@ import FileIcon from './FileIcon.vue'
 import DocxPreview from './DocxPreview.vue'
 import XlsxPreview from './XlsxPreview.vue'
 import PdfPreview from './PdfPreview.vue'
+import PptxPreview from './PptxPreview.vue'
 import { fileTabsState } from './fileTabsStore'
 
 const props = defineProps<{ path: string; name: string; size: number }>()
@@ -168,18 +173,17 @@ const MIME: Record<string, string> = {
 /**
  * 已知不可预览二进制扩展名：直接提示，不走大文件守卫。
  *
- * 注意：`docx / xlsx / pdf` 已有只读渲染器（见下方 DOCX_EXT / XLSX_EXT / PDF_EXT），
+ * 注意：`docx / xlsx / pdf / ppt / pptx` 均有只读渲染器（见下方 *_EXT 常量组），
  * **不在此列**。此处保留两类：
- * ① 前端无实用方案的旧二进制格式（`.doc`/`.ppt` 是 OLE 容器、非 OOXML，mammoth /
- *    docx-preview 均不读）；
+ * ① 前端与「本机转换」都无实用方案的旧二进制格式（`.doc` 是 OLE 容器、非 OOXML，
+ *    mammoth / docx-preview 均不读）；
  * ② `.xls` —— 该扩展名在实际数据里常是「HTML 表格改名」，而 SheetJS 对它是宽容解析，
- *    与「垃圾内容也会被当成表」同属一个口子，无法用文件头确定性区分（详见 XlsxPreview）；
- * ③ 尚未接渲染器的 `.pptx`（计划三期：本机 LibreOffice 转 PDF）。
+ *    与「垃圾内容也会被当成表」同属一个口子，无法用文件头确定性区分（详见 xlsxToTables.ts）。
  */
 const BINARY_EXT = new Set([
   'exe', 'dll', 'so', 'dylib', 'bin', 'dat', 'db', 'sqlite', 'sqlite3', 'lock',
   'zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'iso', 'img',
-  'doc', 'xls', 'ppt', 'pptx', 'ico', 'woff', 'woff2', 'ttf', 'otf',
+  'doc', 'xls', 'ico', 'woff', 'woff2', 'ttf', 'otf',
 ])
 
 /** Word（OOXML）—— docx-preview 保真渲染 */
@@ -188,6 +192,8 @@ const DOCX_EXT = new Set(['docx'])
 const XLSX_EXT = new Set(['xlsx'])
 /** PDF —— pdfjs 逐页渲染 */
 const PDF_EXT = new Set(['pdf'])
+/** 演示文稿 —— 本机 LibreOffice 转 PDF 后复用 PDF 通路（见 PptxPreview） */
+const PPTX_EXT = new Set(['ppt', 'pptx'])
 
 /** Markdown 渲染扩展名 */
 const MD_EXT = new Set(['md', 'markdown'])
@@ -209,8 +215,8 @@ const CODE_LANG_BY_EXT: Record<string, string> = {
   yaml: 'yaml', yml: 'yaml',
 }
 
-/** 预览类别：image / markdown / html / docx / xlsx / pdf / code / text（二进制以独立标志表达） */
-type PreviewKind = 'image' | 'markdown' | 'html' | 'docx' | 'xlsx' | 'pdf' | 'code' | 'text'
+/** 预览类别：image / markdown / html / docx / xlsx / pdf / pptx / code / text（二进制以独立标志表达） */
+type PreviewKind = 'image' | 'markdown' | 'html' | 'docx' | 'xlsx' | 'pdf' | 'pptx' | 'code' | 'text'
 const kind = ref<PreviewKind>('text')
 const guard = ref(false)
 const forced = ref(false)
@@ -454,14 +460,18 @@ function previewKind(): PreviewKind {
   if (DOCX_EXT.has(ext())) return 'docx'
   if (XLSX_EXT.has(ext())) return 'xlsx'
   if (PDF_EXT.has(ext())) return 'pdf'
+  if (PPTX_EXT.has(ext())) return 'pptx'
   if (CODE_LANG_BY_EXT[ext()]) return 'code'
   return 'text'
 }
 
-/** 是否走「二进制文档渲染器」：只读呈现，不可进 CodeMirror 编辑，也无预览/编辑切换 */
+/**
+ * 是否走「二进制文档渲染器」：只读呈现，不可进 CodeMirror 编辑，也无预览/编辑切换。
+ * `pptx` 一并计入 —— 它由本机转换 + PDF 渲染承载，同样不可编辑。
+ */
 function isRenderedDoc(): boolean {
   const k = kind.value
-  return k === 'docx' || k === 'xlsx' || k === 'pdf'
+  return k === 'docx' || k === 'xlsx' || k === 'pdf' || k === 'pptx'
 }
 
 /** base64 → ArrayBuffer（cmd_fs_read 仅提供 utf-8 / base64 两种编码，二进制文档走后者） */
@@ -475,6 +485,8 @@ function base64ToArrayBuffer(b64: string): ArrayBuffer {
 /** 是否需要大文件守卫（已知二进制不守卫——直接提示不可预览） */
 function needsGuard(): boolean {
   if (isKnownBinary()) return false
+  // 演示文稿不守卫：本机转换由 LibreOffice 侧读盘，浏览器不读该文件，守卫文案「预览可能会卡顿」在此无意义
+  if (PPTX_EXT.has(ext())) return false
   return props.size > (isImage() ? IMAGE_GUARD : TEXT_GUARD)
 }
 
@@ -544,6 +556,9 @@ async function doLoad(): Promise<void> {
     }
     return
   }
+  // 演示文稿：由 PptxPreview 自行完成「探测 → 本机转换 → 读取 PDF 产物」
+  // （转换是异步且可能失败的独立流程，不适合塞进这里）
+  if (k === 'pptx') return
   // 文本族统一 utf-8 读取后按类别渲染
   // code/text 无特殊预览效果：点开即编辑（预览/编辑合并，2026-09-07）；
   // markdown 走富文本渲染；html 默认渲染视图（源码视图模板直读 text 走 CM 只读）
