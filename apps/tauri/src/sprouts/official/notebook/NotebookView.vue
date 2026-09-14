@@ -22,11 +22,17 @@
     <div class="nb-content">
       <div :class="['nb-sidebar', { collapsed: !sidebarOpen }]">
         <div class="nb-sidebar-inner">
-          <div class="nb-search">
-            <input v-model="searchQuery" class="nb-search-input" placeholder="搜索笔记..." />
+          <!-- 三期：笔记 / 文件双 tab（拍板=并列双 tab，零数据迁移；文件侧复用 FileTreeBrowser） -->
+          <div class="nb-side-tabs">
+            <button class="nb-side-tab" :class="{ on: sidebarTab === 'notes' }" @click="sidebarTab = 'notes'">笔记</button>
+            <button class="nb-side-tab" :class="{ on: sidebarTab === 'files' }" @click="sidebarTab = 'files'">文件</button>
           </div>
-          <div class="nb-note-list">
-            <FolderTree
+          <template v-if="sidebarTab === 'notes'">
+            <div class="nb-search">
+              <input v-model="searchQuery" class="nb-search-input" placeholder="搜索笔记..." />
+            </div>
+            <div class="nb-note-list">
+              <FolderTree
               :folders="folders"
               :selectedNoteId="selectedNoteId"
               :collapsedFolders="collapsedFolders"
@@ -49,9 +55,21 @@
               @deleteNote="deleteNote"
               @reorderNotes="reorderNotes"
             />
-          </div>
+            </div>
+          </template>
+          <template v-else>
+            <div class="nb-note-list">
+              <FileTreeBrowser
+                v-if="filesRoot"
+                :root-path="filesRoot"
+                compact
+                title="项目文件"
+              />
+              <div v-else class="nb-files-empty">项目目录未就绪</div>
+            </div>
+          </template>
         </div>
-        
+
       </div>
 
       <div class="nb-main">
@@ -89,6 +107,8 @@ import NotebookEditor from './components/NotebookEditor.vue'
 import NotebookBoard from './components/NotebookBoard.vue'
 import NotebookGraph from './components/NotebookGraph.vue'
 import FolderTree from './components/FolderTree.vue'
+import FileTreeBrowser from '@/space/files/FileTreeBrowser.vue'
+import { resolveEntityDataDir } from '@/space/workspace'
 import { VIEW_MODES } from './notebookConfig'
 import type { ViewMode } from './notebookConfig'
 import { useAgentPluginBridge } from '@/composables/useAgentPluginBridge'
@@ -111,6 +131,21 @@ const searchQuery = ref('')
 const selectedNoteId = ref<string | null>(null)
 const collapsedFolders = reactive(new Set<string>())
 const sidebarOpen = ref(true)
+
+// ── 三期：侧栏「笔记 / 文件」双 tab（拍板=并列双 tab）──
+// tab 记忆按项目目录隔离没必要（同一用户习惯跨项目一致），直接全局 localStorage；
+// 文件根 = resolveEntityDataDir()（普通项目=dirPath，默认项目=worlddata，与工作台实体同源）。
+const SIDEBAR_TAB_KEY = 'worldsea-notebook-sidebar-tab'
+const sidebarTab = ref<'notes' | 'files'>(
+  localStorage.getItem(SIDEBAR_TAB_KEY) === 'files' ? 'files' : 'notes',
+)
+watch(sidebarTab, (v) => {
+  try { localStorage.setItem(SIDEBAR_TAB_KEY, v) } catch { /* 忽略 */ }
+})
+const filesRoot = ref<string | null>(null)
+onMounted(async () => {
+  filesRoot.value = await resolveEntityDataDir()
+})
 const folderToRename = ref<string | null>(null)
 const pendingDeleteFolderId = ref<string | null>(null)
 
@@ -581,6 +616,17 @@ useAgentPluginBridge('notebook', async (event) => {
 .nb-sidebar { width: 240px; min-width: 0; border-right: 1px solid var(--color-border-subtle); display: flex; flex-direction: column; transition: width 0.25s ease, min-width 0.25s ease, opacity 0.2s ease; overflow: hidden; background: var(--color-bg-surface); }
 .nb-sidebar.collapsed { width: 0; min-width: 0; border-right: none; }
 .nb-sidebar-inner { width: 240px; min-width: 240px; display: flex; flex-direction: column; height: 100%; }
+/* 三期：笔记 / 文件双 tab 切换 */
+.nb-side-tabs { display: flex; gap: 2px; padding: 8px 8px 0; flex-shrink: 0; }
+.nb-side-tab {
+  flex: 1; padding: 5px 0; border: 1px solid var(--color-border); background: transparent;
+  color: var(--color-text-tertiary); font-size: var(--font-size-xs); cursor: pointer;
+  border-radius: var(--radius-xs); font-weight: var(--font-weight-medium);
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.nb-side-tab:hover { background: var(--color-bg-hover); color: var(--color-text-secondary); }
+.nb-side-tab.on { background: var(--color-primary-muted); color: var(--color-primary); border-color: var(--color-primary); }
+.nb-files-empty { padding: 24px 12px; text-align: center; font-size: var(--font-size-xs); color: var(--color-text-tertiary); }
 .nb-search { padding: 8px; }
 .nb-search-input { width: 100%; padding: 6px 8px; border-radius: var(--radius-xs); border: 1px solid var(--color-border); background: var(--color-bg-base); color: var(--color-text-primary); font-size: var(--font-size-sm); outline: none; }
 .nb-search-input:focus { border-color: var(--color-primary); }

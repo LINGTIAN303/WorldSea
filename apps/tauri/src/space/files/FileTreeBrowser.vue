@@ -5,6 +5,7 @@
       <div v-if="!mergedHeader" class="ftb-title-row">
         <span class="ftb-title"><WsIcon name="folder" size="sm" /> {{ title }}</span>
         <div class="ftb-title-actions">
+          <button class="ftb-action-btn" :class="{ on: viewMode === 'trash' }" :title="viewMode === 'trash' ? '返回目录树' : `回收站（${trashItems.length} 项，30 天自动清理）`" @click="toggleTrashView"><WsIcon name="trash" size="sm" /></button>
           <button class="ftb-action-btn" title="在系统文件资源管理器中打开项目目录" :disabled="!resolvedRoot" @click="openInExplorer"><WsIcon name="folder-open" size="sm" /></button>
           <button class="ftb-action-btn" title="刷新" @click="refresh"><WsIcon name="refresh" size="sm" /></button>
         </div>
@@ -41,15 +42,39 @@
       <input ref="fileInput" type="file" class="ftb-file-input" @change="onFilePicked" />
     </div>
 
+    <!-- 回收站视图（三期「删除可逆化」）：还原 / 永久删除 / 清空 -->
+    <div v-if="viewMode === 'trash'" class="ftb-body">
+      <div class="ftb-trash-bar">
+        <span class="ftb-trash-hint">回收站 · {{ trashItems.length }} 项 · 30 天后自动清理</span>
+        <button
+          v-if="trashItems.length"
+          class="ftb-tool-btn danger"
+          :disabled="trashBusy"
+          @click="onTrashEmpty"
+          title="永久删除全部回收站内容，不可撤销"
+        ><WsIcon name="trash" size="xs" /><span>清空</span></button>
+      </div>
+      <div v-if="trashItems.length === 0" class="ftb-empty">回收站为空</div>
+      <div v-for="item in trashItems" :key="item.id" class="ftb-row ftb-trash-row">
+        <WsIcon :name="item.isDir ? 'folder' : 'file'" size="xs" class="icon-folder" />
+        <span class="ftb-name" :title="item.originalPath">{{ item.name }}</span>
+        <span class="ftb-trash-time">{{ new Date(item.deletedAt).toLocaleDateString() }}</span>
+        <div class="ftb-row-actions">
+          <button class="ftb-row-btn" title="还原到原位置" :disabled="trashBusy" @click.stop="onTrashRestore(item)"><WsIcon name="undo" size="xs" /></button>
+          <button class="ftb-row-btn danger" title="永久删除（不可撤销）" :disabled="trashBusy" @click.stop="onTrashDelete(item)"><WsIcon name="trash" size="xs" /></button>
+        </div>
+      </div>
+    </div>
+
     <!-- 目录树 -->
-    <div class="ftb-body">
+    <div v-else class="ftb-body">
       <div v-if="loading" class="ftb-empty">加载中…</div>
       <div v-else-if="flatNodes.length === 0" class="ftb-empty">工作区为空</div>
       <div
         v-for="fn in flatNodes"
         :key="fn.node.path"
         class="ftb-row"
-        :class="{ dir: fn.node.isDir, active: fn.node.path === currentPath }"
+        :class="{ dir: fn.node.isDir, active: fn.node.path === currentPath, muted: fn.muted }"
         :style="{ paddingLeft: fn.depth * 14 + 8 + 'px' }"
       >
         <button
@@ -113,6 +138,8 @@ import TuiButton from '../../components/ui/TuiButton.vue'
 import { invoke } from '@/agent/composables/transport'
 import { useAgent } from '@/agent/composables/useAgent'
 import { resolveWorkspaceDir, ensureWorkspaceDir } from '../workspace'
+import { useFileTrash, type FileTrashRecord } from '@/composables/fileTrash'
+import { toastInfo, toastError } from '@/composables/useToast'
 import FileIcon from './FileIcon.vue'
 
 /** 目录树节点（对应 cmd_fs_list 返回的 FsEntry camelCase 结构） */
@@ -134,6 +161,8 @@ interface FlatNode {
   depth: number
   /** 工作区分区（agent-tmp=临时区 / agent-out=成果区；其余为 undefined） */
   partition?: 'tmp' | 'out'
+  /** 内部目录视觉弱化（entities 等：真实存储可见但低亮，2026-09-14 拍板「弱化不隐藏」） */
+  muted?: boolean
 }
 
 /** 输入弹窗状态：新建文件/文件夹（重命名已改为树行内编辑，不走弹窗） */
@@ -174,6 +203,76 @@ const fileInput = ref<HTMLInputElement>()
 const inputDialog = ref<InputDialog | null>(null)
 const resolvedRoot = ref<string | null>(props.rootPath)
 
+// ── 文件回收站（三期「删除可逆化」）：删除 = 移入 {root}/.trash + 记账，30 天过期 ──
+const fileTrash = useFileTrash(() => resolvedRoot.value)
+const trashItems = ref<FileTrashRecord[]>([])
+const viewMode = ref<'tree' | 'trash'>('tree')
+const trashBusy = ref(false)
+
+async function refreshTrash(): Promise<void> {
+  await fileTrash.reload()
+  trashItems.value = [...fileTrash.items()]
+}
+
+async function onTrashRestore(item: FileTrashRecord): Promise<void> {
+  if (trashBusy.value) return
+  trashBusy.value = true
+  try {
+    const dest = await fileTrash.restore(item.id)
+    trashItems.value = [...fileTrash.items()]
+    toastInfo(`已还原「${item.name}」`)
+    if (viewMode.value === 'tree') await refresh()
+    void dest
+  } catch (err) {
+    toastError(`还原失败：${String(err)}`)
+  } finally {
+    trashBusy.value = false
+  }
+}
+
+async function onTrashDelete(item: FileTrashRecord): Promise<void> {
+  if (trashBusy.value) return
+  const ok = await confirm({
+    type: 'warning',
+    title: '永久删除确认',
+    description: `将永久删除「${item.name}」，此操作不可撤销。确定继续？`,
+  })
+  if (!ok) return
+  trashBusy.value = true
+  try {
+    await fileTrash.permanentDelete(item.id)
+    trashItems.value = [...fileTrash.items()]
+  } catch (err) {
+    toastError(`删除失败：${String(err)}`)
+  } finally {
+    trashBusy.value = false
+  }
+}
+
+async function onTrashEmpty(): Promise<void> {
+  if (trashBusy.value || trashItems.value.length === 0) return
+  const ok = await confirm({
+    type: 'warning',
+    title: '清空回收站',
+    description: `将永久删除回收站内全部 ${trashItems.value.length} 项，此操作不可撤销。确定继续？`,
+  })
+  if (!ok) return
+  trashBusy.value = true
+  try {
+    await fileTrash.empty()
+    trashItems.value = [...fileTrash.items()]
+  } catch (err) {
+    toastError(`清空失败：${String(err)}`)
+  } finally {
+    trashBusy.value = false
+  }
+}
+
+function toggleTrashView(): void {
+  viewMode.value = viewMode.value === 'tree' ? 'trash' : 'tree'
+  if (viewMode.value === 'trash') void refreshTrash()
+}
+
 /** 归一化路径分隔符为 '/'（Rust cmd_fs_list 返回也用 '/'，保证一致） */
 function norm(p: string): string {
   return p.replace(/\\/g, '/')
@@ -206,12 +305,17 @@ const flatNodes = computed<FlatNode[]>(() => {
     for (const node of nodes) {
       // 工作区分区标记（M3：agent-tmp/agent-out 一级目录 chip 标注）
       let partition: 'tmp' | 'out' | undefined
+      let muted: boolean | undefined
       if (root) {
         const rel = norm(node.path).slice(norm(root).length).replace(/^\/+/, '')
         const first = rel.split('/').filter(Boolean)[0]?.toLowerCase()
         partition = first === 'agent-tmp' ? 'tmp' : first === 'agent-out' ? 'out' : undefined
+        // 回收站目录从树中隐藏（独立「回收站」视图承载，双入口只会造成混乱）
+        if (depth === 0 && first === '.trash') continue
+        // 实体存储目录弱化（真实存储格式可见但低亮，拍板：弱化不隐藏）
+        muted = first === 'entities' ? true : undefined
       }
-      out.push({ node, depth, partition })
+      out.push({ node, depth, partition, muted })
       if (node.isDir && node.expanded && node.children) {
         walk(node.children, depth + 1)
       }
@@ -434,20 +538,33 @@ async function confirmInput(): Promise<void> {
   }
 }
 
-/** 删除节点（需确认） */
+/** 删除节点（三期可逆化：默认移入回收站；移入失败才降级为确认后永久删除） */
 async function onDelete(node: FsNode): Promise<void> {
   const ok = await confirm({
     type: 'warning',
     title: '删除确认',
-    description: `确定删除${node.isDir ? '文件夹' : '文件'} "${node.name}" 吗？此操作不可撤销。`,
+    description: `确定删除${node.isDir ? '文件夹' : '文件'}「${node.name}」吗？将移入回收站（30 天后自动清理，可随时还原）。`,
   })
   if (!ok) return
   try {
-    await invoke('cmd_fs_delete', { path: node.path })
-    await refresh()
+    await fileTrash.moveToTrash(node.path, node.isDir)
+    trashItems.value = [...fileTrash.items()]
+    toastInfo(`已移入回收站：${node.name}`)
   } catch (err) {
-    console.warn('[FileTreeBrowser] 删除失败:', err)
+    // 跨卷 / 占用等导致无法软删除：诚实降级为「确认后永久删除」，不静默失败
+    const force = await confirm({
+      type: 'warning',
+      title: '无法移入回收站',
+      description: `移入回收站失败（${String(err)}）。是否永久删除「${node.name}」？此操作不可撤销。`,
+    })
+    if (!force) return
+    try {
+      await invoke('cmd_fs_delete', { path: node.path })
+    } catch (err2) {
+      toastError(`删除失败：${String(err2)}`)
+    }
   }
+  await refresh()
 }
 
 /** 当前浏览路径是否位于 agent-tmp 临时区内（含其本身与子级）——决定「清空临时区」入口可见性 */
@@ -709,6 +826,20 @@ watch(currentWorkdir, () => {
 .ftb-row.active {
   background: var(--color-primary-muted);
 }
+/* 内部存储目录弱化（entities 等：可见但低亮 —— 拍板「弱化不隐藏」） */
+.ftb-row.muted { opacity: 0.55; }
+/* ── 回收站视图（三期删除可逆化）── */
+.ftb-trash-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 4px 6px 8px;
+}
+.ftb-trash-hint { font-size: var(--font-size-xs); color: var(--color-text-tertiary); }
+.ftb-trash-row .ftb-name {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: var(--font-size-sm);
+}
+.ftb-trash-time { font-size: var(--font-size-xs); color: var(--color-text-tertiary); flex-shrink: 0; }
+.ftb-action-btn.on { color: var(--color-primary); }
 .ftb-toggle {
   width: 16px;
   height: 16px;
