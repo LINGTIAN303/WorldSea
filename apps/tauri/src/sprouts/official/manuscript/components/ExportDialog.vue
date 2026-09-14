@@ -15,15 +15,17 @@
       <div class="export-section">
         <label class="export-label">范围</label>
         <div class="export-formats">
-          <button class="export-fmt-btn" :class="{ active: scope === 'current' }" @click="scope = 'current'">当前章节</button>
-          <button class="export-fmt-btn" :class="{ active: scope === 'all' }" @click="scope = 'all'">全部章节</button>
+          <button class="export-fmt-btn" :class="{ active: scope === 'current' }" @click="scope = 'current'">当前{{ noun }}</button>
+          <button class="export-fmt-btn" :class="{ active: scope === 'all' }" @click="scope = 'all'">全部{{ noun }}</button>
         </div>
       </div>
 
-      <div v-if="selectedFormat === 'txt'" class="export-section">
+      <!-- includeTitle 语义 = 标题插入正文首行：txt / docx 支持（docx 于 2026-09-14 修正对齐）；
+           md 的标题语义是 frontmatter（下方独立勾选框），故 md 不显示本项 -->
+      <div v-if="selectedFormat !== 'md'" class="export-section">
         <label class="export-check">
           <input type="checkbox" v-model="includeTitle" />
-          包含章节标题
+          包含{{ noun }}标题
         </label>
       </div>
 
@@ -45,7 +47,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { WsIcon } from '@worldsea/ui-kit'
 import { useManuscriptExport } from '../composables/useManuscriptExport'
 import type { Entity } from '@worldsea/entity-core'
@@ -54,7 +56,11 @@ import { useFocusTrap } from '@/composables/useFocusTrap'
 const props = defineProps<{
   currentChapter: Entity | null
   allChapters: Entity[]
+  /** 范围文案名词（导出对话在笔记本芽复用时的「笔记」等；缺省「章节」） */
+  noun?: string
 }>()
+
+const noun = computed(() => props.noun || '章节')
 
 const emit = defineEmits<{ close: [] }>()
 
