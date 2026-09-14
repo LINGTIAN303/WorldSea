@@ -185,6 +185,8 @@ const props = withDefaults(
     title?: string
     /** 合并头部模式：面包屑+工具同一行、无标题行（右栏两层头）；缺省经典模式（标题行+面包屑+独立工具行，左栏/浮层） */
     mergedHeader?: boolean
+    /** 文件过滤器（素材面板等场景）：返回 false 的**文件**不显示，目录不受影响（保留导航） */
+    fileFilter?: (name: string) => boolean
   }>(),
   { rootPath: null, compact: false, title: '项目目录', mergedHeader: false },
 )
@@ -314,6 +316,8 @@ const flatNodes = computed<FlatNode[]>(() => {
         if (depth === 0 && first === '.trash') continue
         // 实体存储目录弱化（真实存储格式可见但低亮，拍板：弱化不隐藏）
         muted = first === 'entities' ? true : undefined
+        // 素材过滤（fileFilter）：仅过滤文件行，目录保留供导航（新建文件等操作不受影响）
+        if (!node.isDir && props.fileFilter && !props.fileFilter(node.name)) continue
       }
       out.push({ node, depth, partition, muted })
       if (node.isDir && node.expanded && node.children) {

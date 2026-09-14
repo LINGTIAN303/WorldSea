@@ -2,6 +2,7 @@
   <div class="nb-editor">
     <div class="nb-editor-header">
       <input v-model="editName" class="nb-editor-title" placeholder="笔记标题" @change="emitUpdate()" />
+      <button class="nb-export-btn" title="导出当前笔记（TXT / Markdown / DOCX）" @click="$emit('export')"><WsIcon name="item" size="sm" /></button>
       <select v-model="editFolder" class="nb-editor-folder" @change="emitUpdate()">
         <option value="">未分类</option>
         <option v-for="f in folders" :key="f.id" :value="f.id"><WsIcon name="folder" size="xs" /> {{ f.name }}</option>
@@ -73,6 +74,7 @@ const props = defineProps<{ note: NotebookEntity; folders: NotebookFolder[] }>()
 const emit = defineEmits<{
   update: [data: { id: string; changes: Record<string, unknown>; skipUndo?: boolean }]
   navigate: [id: string]
+  export: []
 }>()
 
 const entityStore = useEntityStore()
@@ -171,6 +173,8 @@ function onCodeRun(output: string): void {
 .nb-editor { display: flex; flex-direction: column; height: 100%; }
 .nb-editor-header { display: flex; gap: 8px; padding: 8px 16px; border-bottom: 1px solid var(--color-border-subtle); align-items: center; background: var(--color-bg-surface); font-family: var(--font-family-editor-ui); }
 .nb-editor-title { flex: 1; background: transparent; border: none; color: var(--color-text-primary); font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold); outline: none; }
+.nb-export-btn { display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0; border: none; border-radius: var(--radius-xs); background: transparent; color: var(--color-text-tertiary); cursor: pointer; flex-shrink: 0; transition: background 0.15s, color 0.15s; }
+.nb-export-btn:hover { background: var(--color-bg-hover); color: var(--color-text-secondary); }
 .nb-editor-folder { padding: 4px 8px; border-radius: var(--radius-xs); border: 1px solid var(--color-border); background: var(--color-bg-base); color: var(--color-text-secondary); font-size: var(--font-size-sm); outline: none; max-width: 140px; }
 .nb-editor-type { padding: 4px 8px; border-radius: var(--radius-xs); border: 1px solid var(--color-border); background: var(--color-bg-base); color: var(--color-text-secondary); font-size: var(--font-size-sm); outline: none; }
 .nb-editor-folder option, .nb-editor-type option { background: var(--color-bg-surface); color: var(--color-text-primary); }

@@ -63,7 +63,9 @@
                 v-if="filesRoot"
                 :root-path="filesRoot"
                 compact
-                title="项目文件"
+                title="素材（支持格式）"
+                :file-filter="isSupportedAsset"
+                @select="onAssetSelect"
               />
               <div v-else class="nb-files-empty">项目目录未就绪</div>
             </div>
@@ -79,6 +81,7 @@
           :folders="folders"
           @update="onNoteUpdate"
           @navigate="selectedNoteId = $event"
+          @export="showExport = true"
         />
         <NotebookBoard
           v-else-if="currentMode === 'board'"
@@ -95,6 +98,30 @@
         </WsEmpty>
       </div>
     </div>
+
+    <!-- 导出（2026-09-14 补缺口：笔记本此前无导出入口；复用文稿 ExportDialog，noun=笔记） -->
+    <ExportDialog
+      v-if="showExport"
+      :current-chapter="currentNote"
+      :all-chapters="notebookNotes"
+      noun="笔记"
+      @close="showExport = false"
+    />
+
+    <!-- 素材预览浮层：FilePreview 自带 IO（按 path 读 base64 分发四渲染器），笔记本内直接复用 -->
+    <Teleport to="body">
+      <div v-if="previewFile" class="nb-file-preview-overlay" @click.self="previewFile = null">
+        <div class="nb-file-preview-panel">
+          <button class="nb-file-preview-close" title="关闭预览" @click="previewFile = null"><WsIcon name="close" size="sm" /></button>
+          <FilePreview
+            :path="previewFile.path"
+            :name="previewFile.name"
+            :size="previewFile.size"
+            @close="previewFile = null"
+          />
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -108,7 +135,10 @@ import NotebookBoard from './components/NotebookBoard.vue'
 import NotebookGraph from './components/NotebookGraph.vue'
 import FolderTree from './components/FolderTree.vue'
 import FileTreeBrowser from '@/space/files/FileTreeBrowser.vue'
+import FilePreview from '@/space/files/FilePreview.vue'
+import ExportDialog from '@/sprouts/official/manuscript/components/ExportDialog.vue'
 import { resolveEntityDataDir } from '@/space/workspace'
+import { isSupportedAsset } from './assetFilter'
 import { VIEW_MODES } from './notebookConfig'
 import type { ViewMode } from './notebookConfig'
 import { useAgentPluginBridge } from '@/composables/useAgentPluginBridge'
@@ -146,6 +176,19 @@ const filesRoot = ref<string | null>(null)
 onMounted(async () => {
   filesRoot.value = await resolveEntityDataDir()
 })
+
+// ── 导出入口（挂文稿 ExportDialog，noun=笔记；currentNote 为 null 时对话框由 v-if 挡住）──
+const showExport = ref(false)
+
+// ── 素材面板（2026-09-14 拍板 C：文件 tab 重定位）──
+// 筛选 = isSupportedAsset（图片 + 四渲染器文档），不支持格式不显示；
+// 点击支持格式的文件 → 浮层内联预览（FilePreview 自带 IO，按 path 读 base64 分发四渲染器）。
+interface PreviewFile { name: string; path: string; size: number }
+const previewFile = ref<PreviewFile | null>(null)
+function onAssetSelect(node: { name: string; path: string; size: number }): void {
+  if (!isSupportedAsset(node.name)) return
+  previewFile.value = { name: node.name, path: node.path, size: node.size }
+}
 const folderToRename = ref<string | null>(null)
 const pendingDeleteFolderId = ref<string | null>(null)
 
@@ -640,4 +683,28 @@ useAgentPluginBridge('notebook', async (event) => {
 
 .nb-main { flex: 1; overflow: auto; background: var(--color-bg-base); }
 .nb-empty { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--color-text-tertiary); font-size: var(--font-size-base); }
+
+/* 素材预览浮层（Teleport body，z 走全局令牌） */
+.nb-file-preview-overlay {
+  position: fixed; inset: 0; background: var(--color-overlay);
+  display: flex; align-items: center; justify-content: center;
+  z-index: var(--z-modal);
+}
+.nb-file-preview-panel {
+  position: relative;
+  width: min(860px, 92vw); height: min(640px, 88vh);
+  background: var(--color-bg-surface);
+  border-radius: var(--radius-lg, 12px);
+  overflow: hidden;
+  display: flex; flex-direction: column;
+}
+.nb-file-preview-panel :deep(.fpv) { height: 100%; }
+.nb-file-preview-close {
+  position: absolute; top: 10px; right: 10px; z-index: 1;
+  width: 26px; height: 26px; padding: 0; border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-xs); background: var(--color-bg-surface); color: var(--color-text-tertiary);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+.nb-file-preview-close:hover { background: var(--color-bg-hover); color: var(--color-text-secondary); }
 </style>
