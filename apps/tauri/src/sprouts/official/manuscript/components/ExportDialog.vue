@@ -58,6 +58,9 @@ const props = defineProps<{
   allChapters: Entity[]
   /** 范围文案名词（导出对话在笔记本芽复用时的「笔记」等；缺省「章节」） */
   noun?: string
+  /** 所属书籍（2026-09-14 书籍实体迭代）：传入时「全部{{noun}}」升级为整书
+   *  导出——文件名/文档标题=书名、md 书级 frontmatter；不传走旧合并逻辑 */
+  book?: Entity | null
 }>()
 
 const noun = computed(() => props.noun || '章节')
@@ -75,7 +78,7 @@ onMounted(() => {
   nextTick(() => activate())
 })
 
-const { exportChapter, exportMultiple } = useManuscriptExport()
+const { exportChapter, exportMultiple, exportBook } = useManuscriptExport()
 
 const formats = [
   { value: 'txt' as const, label: 'TXT', icon: 'manuscript' },
@@ -98,10 +101,18 @@ async function doExport() {
         includeFrontmatter: includeFrontmatter.value,
       })
     } else if (scope.value === 'all' && props.allChapters.length > 0) {
-      await exportMultiple(props.allChapters, selectedFormat.value, {
-        includeTitle: includeTitle.value,
-        includeFrontmatter: includeFrontmatter.value,
-      })
+      if (props.book) {
+        // 书籍工作区：全部章节 = 整书导出（文件名/标题=书名、md 书级 frontmatter）
+        await exportBook(props.book, props.allChapters, selectedFormat.value, {
+          includeTitle: includeTitle.value,
+          includeFrontmatter: includeFrontmatter.value,
+        })
+      } else {
+        await exportMultiple(props.allChapters, selectedFormat.value, {
+          includeTitle: includeTitle.value,
+          includeFrontmatter: includeFrontmatter.value,
+        })
+      }
     }
   } catch (err) {
     console.error('Export failed:', err)

@@ -12,46 +12,63 @@
       <CreateButton :label="inBook ? '新建章节' : '新建书籍'" @click="inBook ? newManuscript() : newBook()" />
     </Teleport>
 
-    <!-- 层1：书籍列表（2026-09-14 书籍实体——先建书，点击书籍才进入章节编辑器） -->
+    <!-- 层1：书籍列表（2026-09-14 书籍实体——先建书，点击书籍才进入章节编辑器）；
+         书籍排序 = 网格拖拽（vuedraggable，sortOrder 落 book.properties） -->
     <div v-if="!inBook" class="ms-books">
-      <div class="ms-books-grid">
-        <article
-          v-for="b in books"
-          :key="b.id"
-          class="ms-book-card"
-          role="button"
-          tabindex="0"
-          @click="openBook(b.id)"
-          @keydown.enter.prevent="openBook(b.id)"
-        >
-          <button class="ms-book-del" title="删除书籍" aria-label="删除书籍" @click.stop="deleteBook(b)">
-            <WsIcon name="delete" size="xs" />
-          </button>
-          <div class="ms-book-icon"><WsIcon name="book" size="lg" /></div>
-          <div class="ms-book-name">{{ b.name }}</div>
-          <div class="ms-book-desc">{{ b.description || '暂无简介' }}</div>
-          <div class="ms-book-meta">
-            <span>{{ chapterCount(b.id) }} 章</span>
-            <span>{{ totalWords(b.id) }} 字</span>
-          </div>
-        </article>
-        <article
-          v-if="unfiledChapters.length > 0"
-          class="ms-book-card ms-book-card--ghost"
-          role="button"
-          tabindex="0"
-          @click="openBook('')"
-          @keydown.enter.prevent="openBook('')"
-        >
-          <div class="ms-book-icon"><WsIcon name="manuscript" size="lg" /></div>
-          <div class="ms-book-name">未归书章节</div>
-          <div class="ms-book-desc">{{ unfiledChapters.length }} 个章节尚未归入任何书籍</div>
-          <div class="ms-book-meta">
-            <span>{{ unfiledChapters.length }} 章</span>
-            <span>{{ unfiledWords }} 字</span>
-          </div>
-        </article>
-      </div>
+      <draggable
+        :list="books"
+        item-key="id"
+        class="ms-books-grid"
+        ghost-class="ms-book-ghost"
+        drag-class="ms-book-drag"
+        @end="onBooksReorder"
+      >
+        <template #item="{ element: b }">
+          <article
+            class="ms-book-card"
+            role="button"
+            tabindex="0"
+            @click="openBook(b.id)"
+            @keydown.enter.prevent="openBook(b.id)"
+          >
+            <div class="ms-book-actions">
+              <button class="ms-book-act" title="编辑信息" aria-label="编辑信息" @click.stop="openBookInfo(b)"><WsIcon name="edit" size="xs" /></button>
+              <button class="ms-book-act" title="删除书籍" aria-label="删除书籍" @click.stop="deleteBook(b)"><WsIcon name="delete" size="xs" /></button>
+            </div>
+            <div class="ms-book-cover">
+              <img v-if="bookCover(b)" :src="bookCover(b)" alt="" />
+              <div v-else class="ms-book-cover-empty"><WsIcon name="book" size="lg" /></div>
+            </div>
+            <div class="ms-book-name">{{ b.name }}</div>
+            <div class="ms-book-desc">{{ b.description || '暂无简介' }}</div>
+            <div class="ms-book-meta">
+              <span>{{ chapterCount(b.id) }} 章</span>
+              <span>{{ totalWords(b.id) }} 字</span>
+            </div>
+          </article>
+        </template>
+        <!-- 未归书虚拟卡片：不参与拖拽排序（#footer 不入排序列表） -->
+        <template #footer>
+          <article
+            v-if="unfiledChapters.length > 0"
+            class="ms-book-card ms-book-card--ghost"
+            role="button"
+            tabindex="0"
+            @click="openBook('')"
+            @keydown.enter.prevent="openBook('')"
+          >
+            <div class="ms-book-cover">
+              <div class="ms-book-cover-empty"><WsIcon name="manuscript" size="lg" /></div>
+            </div>
+            <div class="ms-book-name">未归书章节</div>
+            <div class="ms-book-desc">{{ unfiledChapters.length }} 个章节尚未归入任何书籍</div>
+            <div class="ms-book-meta">
+              <span>{{ unfiledChapters.length }} 章</span>
+              <span>{{ unfiledWords }} 字</span>
+            </div>
+          </article>
+        </template>
+      </draggable>
       <WsEmpty v-if="books.length === 0 && unfiledChapters.length === 0" preset="no-data" title="还没有书籍——新建一本开始写作" />
     </div>
 
@@ -62,11 +79,16 @@
           <span><WsIcon :name="sidebarCollapsed ? 'chevron-right' : 'arrow-up'" size="xs" /></span>
         </div>
         <div v-show="!sidebarCollapsed" class="ms-sidebar-content">
-          <!-- 返回书籍列表（点击书籍才能进编辑器的上行出口） -->
-          <button class="ms-back-btn" title="返回书籍列表" @click="backToBooks">
-            <WsIcon name="arrow-left" size="xs" />
-            <span class="ms-back-name">{{ bookTitle }}</span>
-          </button>
+          <!-- 返回书籍列表（点击书籍才能进编辑器的上行出口）+ 书籍信息编辑 -->
+          <div class="ms-book-bar">
+            <button class="ms-back-btn" title="返回书籍列表" @click="backToBooks">
+              <WsIcon name="arrow-left" size="xs" />
+              <span class="ms-back-name">{{ bookTitle }}</span>
+            </button>
+            <button v-if="selectedBook" class="ms-bar-act" title="编辑书籍信息" aria-label="编辑书籍信息" @click="openBookInfo(selectedBook)">
+              <WsIcon name="edit" size="xs" />
+            </button>
+          </div>
           <div class="ms-chapter-wrap">
             <ChapterList
               :chapters="filteredManuscripts"
@@ -137,13 +159,22 @@
       v-if="showExport"
       :current-chapter="current"
       :all-chapters="viewChapters"
+      :book="selectedBook"
       @close="showExport = false"
+    />
+
+    <!-- 书籍信息编辑（书名/简介/封面；层1 卡片与层2 返回条双入口） -->
+    <BookInfoDialog
+      v-if="showBookInfo && editingBook"
+      :book="editingBook"
+      @close="showBookInfo = false"
     />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import draggable from 'vuedraggable'
 import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
 import { useDuplicateNameCheck, CustomDropdown, CreateButton } from '@worldsea/plugin-sdk'
 import { WsIcon, WsEmpty, useConfirm } from '@worldsea/ui-kit'
@@ -152,6 +183,7 @@ import ChapterList from './components/ChapterList.vue'
 import PhonePreview from './components/PhonePreview.vue'
 import AISidebar from './components/AISidebar.vue'
 import ExportDialog from './components/ExportDialog.vue'
+import BookInfoDialog from './components/BookInfoDialog.vue'
 import { useChapterEditor } from './composables/useChapterEditor'
 import { useChapterSnapshots } from './composables/useChapterSnapshots'
 import type { Entity } from '@worldsea/entity-core'
@@ -210,11 +242,39 @@ const manuscripts = computed(() => {
     .sort((a, b) => ((a.properties.sortOrder as number) ?? 0) - ((b.properties.sortOrder as number) ?? 0))
 })
 
-const books = computed(() => (es.entities ?? []).filter(e => e.type === 'book'))
+const books = computed(() => (es.entities ?? [])
+  .filter(e => e.type === 'book')
+  // sortOrder 升序；旧书籍无该字段排最后，首次拖拽重排后自然收敛
+  .sort((a, b) => ((a.properties.sortOrder as number) ?? Number.MAX_SAFE_INTEGER) - ((b.properties.sortOrder as number) ?? Number.MAX_SAFE_INTEGER)))
 
 const selectedBook = computed(() =>
   selectedBookId.value ? books.value.find(b => b.id === selectedBookId.value) ?? null : null
 )
+
+/** 书籍封面 asset URL（BookInfoDialog 上传后落 properties.cover） */
+function bookCover(b: Entity): string {
+  return (b.properties.cover as string) || ''
+}
+
+// ── 书籍信息编辑（书名/简介/封面；层1 卡片 hover + 层2 返回条旁双入口）──
+const showBookInfo = ref(false)
+const editingBook = ref<Entity | null>(null)
+
+function openBookInfo(b: Entity) {
+  editingBook.value = b
+  showBookInfo.value = true
+}
+
+/** 网格拖拽结束：按新顺序落 sortOrder（与 ChapterList onDragEnd 同款模式——
+ *  draggable mutate 的临时数组在 @end 时即最终顺序，computed 重算自动刷新） */
+async function onBooksReorder() {
+  for (let i = 0; i < books.value.length; i++) {
+    const b = books.value[i]
+    if ((b.properties.sortOrder as number | undefined) !== i) {
+      await es.update(b.id, { properties: { ...b.properties, sortOrder: i } })
+    }
+  }
+}
 
 /** 层2 侧栏标题：书名 / 未归书章节 */
 const bookTitle = computed(() => selectedBook.value?.name || '未归书章节')
@@ -300,7 +360,7 @@ async function newBook() {
     type: 'book',
     name: checkedName,
     description: '',
-    properties: {},
+    properties: { sortOrder: books.value.length },
     tags: [],
     createdAt: now,
     updatedAt: now,
@@ -446,27 +506,41 @@ useAgentPluginBridge('manuscript', (event) => {
 }
 .ms-book-card {
   position: relative;
-  padding: 18px 16px 14px;
+  padding: 0 16px 14px;
   border: 1px solid var(--border-light);
   border-radius: var(--radius-lg);
   background: var(--card-bg);
   cursor: pointer;
+  overflow: hidden;
   transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
 }
 .ms-book-card:hover { border-color: var(--primary); box-shadow: 0 4px 14px rgba(0,0,0,0.08); transform: translateY(-2px); }
 .ms-book-card--ghost { border-style: dashed; background: transparent; }
-.ms-book-del {
-  position: absolute; top: 8px; right: 8px;
+/* 拖拽态（vuedraggable ghost/drag class） */
+.ms-book-ghost { opacity: 0.5; }
+.ms-book-drag { opacity: 0.92; box-shadow: 0 6px 18px rgba(0,0,0,0.18); }
+
+/* hover 操作组（编辑信息 / 删除书籍） */
+.ms-book-actions { position: absolute; top: 8px; right: 8px; z-index: 1; display: none; gap: 4px; }
+.ms-book-card:hover .ms-book-actions { display: flex; }
+.ms-book-act {
   width: 24px; height: 24px; padding: 0;
-  border: none; background: transparent; border-radius: var(--radius-xs);
+  border: none; background: var(--card-bg); border-radius: var(--radius-xs);
   color: var(--text-tertiary); cursor: pointer;
-  display: none; align-items: center; justify-content: center;
+  display: flex; align-items: center; justify-content: center;
   transition: background 0.15s, color 0.15s;
 }
-.ms-book-card:hover .ms-book-del { display: flex; }
-.ms-book-del:hover { background: var(--danger-soft, rgba(220, 53, 69, 0.1)); color: var(--danger); }
-.ms-book-icon { color: var(--primary); margin-bottom: 10px; }
-.ms-book-card--ghost .ms-book-icon { color: var(--text-tertiary); }
+.ms-book-act:hover { background: var(--hover-bg); color: var(--primary); }
+.ms-book-actions .ms-book-act:last-child:hover { color: var(--danger); }
+
+/* 封面区：负 margin 出血到卡片三边（顶部圆角由卡片 overflow:hidden 裁齐） */
+.ms-book-cover {
+  height: 150px; margin: 0 -16px 12px;
+  overflow: hidden; display: flex; align-items: center; justify-content: center;
+  background: var(--bg-tertiary);
+}
+.ms-book-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ms-book-cover-empty { color: var(--text-tertiary); }
 .ms-book-name {
   font-size: var(--font-size-base); font-weight: var(--font-weight-semibold);
   color: var(--text-color); margin-bottom: 4px;
@@ -509,10 +583,11 @@ useAgentPluginBridge('manuscript', (event) => {
   flex-direction: column;
   min-width: 0;
 }
-/* 返回书籍列表（书籍工作区上行出口） */
+/* 返回书籍列表（书籍工作区上行出口）+ 书籍信息编辑按钮 */
+.ms-book-bar { display: flex; align-items: center; gap: 2px; margin: 6px 8px 0; flex-shrink: 0; }
 .ms-back-btn {
   display: flex; align-items: center; gap: 6px;
-  margin: 6px 8px 0;
+  flex: 1; min-width: 0;
   padding: 6px 8px;
   border: none; border-radius: var(--radius-xs);
   background: transparent; cursor: pointer;
@@ -522,6 +597,14 @@ useAgentPluginBridge('manuscript', (event) => {
 }
 .ms-back-btn:hover { background: var(--hover-bg); color: var(--primary); }
 .ms-back-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--font-weight-medium); }
+.ms-bar-act {
+  width: 26px; height: 26px; padding: 0; flex-shrink: 0;
+  border: none; border-radius: var(--radius-xs); background: transparent;
+  color: var(--text-tertiary); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+.ms-bar-act:hover { background: var(--hover-bg); color: var(--primary); }
 .ms-chapter-wrap { flex: 1; min-height: 0; }
 
 .ms-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }

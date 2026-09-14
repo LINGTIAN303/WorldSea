@@ -134,5 +134,61 @@ export function useManuscriptExport() {
     }
   }
 
-  return { exportChapter, exportMultiple }
+  /**
+   * 整书合并导出（2026-09-14 书籍实体迭代）：与 exportMultiple 的区别——
+   * 文件名与文档标题 = 书名（非固定「全部章节」）；md 为**书级** frontmatter
+   * （书名/简介/章节数/总字数），章节只留一级标题，不再逐章塞 frontmatter。
+   * docx 复用 htmlToDocx（title=书名 → buildDocxBlob 文档标题），章节结构同
+   * exportMultiple（h1 + hr 分隔）。图片资产预处理在 htmlToDocx 内统一做。
+   */
+  async function exportBook(
+    book: Entity,
+    chapters: Entity[],
+    format: 'txt' | 'md' | 'docx',
+    options: { includeTitle?: boolean; includeFrontmatter?: boolean } = {}
+  ) {
+    const bookName = book.name
+    const safeName = bookName.replace(/[/\\?%*:|"<>]/g, '_')
+    const totalWords = chapters.reduce((s, e) => s + ((e.properties.wordCount as number) || 0), 0)
+
+    switch (format) {
+      case 'docx': {
+        const allHtml = chapters.map(e => `<h1>${e.name}</h1>${(e.properties.content as string) || ''}`).join('<hr/>')
+        const blob = await htmlToDocx(allHtml, bookName, options.includeTitle !== false)
+        downloadBlob(blob, `${safeName}.docx`)
+        break
+      }
+      case 'md': {
+        const parts: string[] = []
+        if (options.includeFrontmatter !== false) {
+          parts.push([
+            '---',
+            `title: "${bookName}"`,
+            `description: "${(book.description || '').replace(/"/g, '\\"')}"`,
+            `chapters: ${chapters.length}`,
+            `totalWords: ${totalWords}`,
+            `exportedAt: ${new Date().toISOString()}`,
+            '---',
+            '',
+          ].join('\n'))
+        }
+        for (const e of chapters) {
+          const body = await htmlToMarkdown((e.properties.content as string) || '', false, e)
+          parts.push(`# ${e.name}\n\n${body}`)
+        }
+        downloadText(parts.join('\n\n'), `${safeName}.md`, 'text/markdown')
+        break
+      }
+      default: {
+        const parts: string[] = [bookName, '']
+        for (const e of chapters) {
+          parts.push(htmlToText((e.properties.content as string) || '', true, e.name))
+          parts.push('---')
+        }
+        downloadText(parts.join('\n\n'), `${safeName}.txt`)
+      }
+    }
+  }
+
+  return { exportChapter, exportMultiple, exportBook }
 }
