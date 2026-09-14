@@ -54,9 +54,14 @@ async function htmlToDocx(html: string, title: string, includeTitle = true): Pro
     import('./htmlToDocxBlocks'),
     import('./blocksToDocx'),
   ])
+  // 资产图片预处理（2026-09-14 目录化）：正文里 convertFileSrc 绝对 URL 换回
+  // data URL 再进纯函数链（IR/映射层仍只认 data URL，零改动）；读取失败的
+  // src 原样保留 → 映射层显式占位降级。
+  const { resolveAssetImagesInHtml } = await import('@/composables/imageAssets')
+  const resolved = await resolveAssetImagesInHtml(html)
   const fontStore = useFontStore()
   const exportFont = fontStore.prefs.preview.family || fontStore.prefs.content.family || 'Microsoft YaHei'
-  const blocks = htmlToBlocks(html)
+  const blocks = htmlToBlocks(resolved)
   return buildDocxBlob(blocks, { title: includeTitle ? title : '', defaultFont: exportFont })
 }
 

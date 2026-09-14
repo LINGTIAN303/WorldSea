@@ -80,6 +80,7 @@ pub async fn cmd_fs_write(
     path: String,
     content: String,
     create_dirs: Option<bool>,
+    encoding: Option<String>,
 ) -> Result<(), String> {
     ensure_write_allowed(Path::new(&path))?;
     if create_dirs.unwrap_or(false) {
@@ -89,7 +90,17 @@ pub async fn cmd_fs_write(
             }
         }
     }
-    fs::write(&path, content).map_err(|e| e.to_string())
+    // encoding = "base64"：content 为裸 base64 字符串，解码后写二进制 —— 与
+    // cmd_fs_read 的 encoding=base64 对称（图片资产目录化 2026-09-14：前端把
+    // 图片文件转 base64 后落盘 {entityDataDir}/assets/）。缺省行为不变（UTF-8 文本）。
+    if encoding.as_deref() == Some("base64") {
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(content.as_bytes())
+            .map_err(|e| format!("base64 解码失败: {e}"))?;
+        fs::write(&path, bytes).map_err(|e| e.to_string())
+    } else {
+        fs::write(&path, content).map_err(|e| e.to_string())
+    }
 }
 
 /// 读取文件内容

@@ -1059,6 +1059,8 @@ struct FsWriteArg {
     path: String,
     content: String,
     create_dirs: Option<bool>,
+    /// 与 Tauri invoke 参数一致：Some("base64") = content 为裸 base64，解码写二进制
+    encoding: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -1298,7 +1300,7 @@ fn register_extra(reg: &mut Registry) {
     reg.register("cmd_fs_write", Arc::new(move |_app, args| {
         Box::pin(async move {
             let a: FsWriteArg = from_value(args).map_err(|e| e.to_string())?;
-            fs_commands::cmd_fs_write(a.path, a.content, a.create_dirs)
+            fs_commands::cmd_fs_write(a.path, a.content, a.create_dirs, a.encoding)
                 .await
                 .map(|_| Value::Null)
         })
