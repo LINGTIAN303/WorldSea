@@ -31,6 +31,12 @@ Thumbs.db
 *.sw?
 
 # ── Secrets & credentials (added at git init) ──────────────────────────
+# 注意：secrets/ api-keys/ apiKeys/ 故意**不锚定**（2026-09-14 审计结论）——
+# 它们是全树安全网，凭据可能出现在任意层级；锚定到仓库根会破坏防护。
+# 代价：若未来在源码树新建同名目录，其中新增文件会被静默忽略（同 data/ 事故机制），
+# 新建目录前可用 `git check-ignore -v --no-index <路径>` 先自查。
+# logs / coverage/ / test-results/ 等工具产物规则同理：产物可能落在任意包目录，
+# 锚定反而会破坏忽略（审计时全仓无同名源码目录，风险为潜在而非现存）。
 .env
 .env.*
 !.env.example

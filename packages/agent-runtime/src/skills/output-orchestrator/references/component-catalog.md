@@ -5,7 +5,8 @@
 ### EditableTable（可编辑表格）
 - 数据结构：`{ columns: [{key, label, editable}], rows: [{...}] }`
 - 适用：实体对比、属性列表、批量数据
-- 交互：内联编辑、行增删、排序
+- 交互：**单元格内联编辑**（行增删、排序未实现 —— 2026-09-14 与实现对账修正，原描述夸大）
+- 实现：A2UI 模板分支，消费 ui-kit 通用 `DataTable.vue`（`packages/ui-kit/src/components/data/DataTable.vue`），单元格值经 `resolveCell` 钩子注入（组件本身不认识绑定表达式）
 
 ### EntityCard（实体卡片）
 - 数据结构：绑定到 dataModel 的实体数据
