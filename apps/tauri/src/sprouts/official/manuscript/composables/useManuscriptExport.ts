@@ -38,32 +38,26 @@ async function htmlToMarkdown(html: string, includeFrontmatter: boolean, entity:
   return md
 }
 
-async function htmlToDocx(html: string, title: string): Promise<Blob> {
-  const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import('docx')
-  const text = stripHTML(html)
-  const lines = text.split('\n').filter(Boolean)
-  const children: InstanceType<typeof Paragraph>[] = []
-
-  children.push(new Paragraph({
-    text: title,
-    heading: HeadingLevel.HEADING_1,
-    spacing: { after: 200 },
-  }))
-
+/**
+ * HTML → docx（富内容保真版，2026-09-14）。
+ * 旧实现是 `stripHTML` 后逐行成段，丢失标题层级/列表/加粗/引用/代码/表格；
+ * 现拆为「HTML → IR（htmlToDocxBlocks）→ docx 对象（blocksToDocx）」两层，
+ * 解析层可被 jsdom 单测，映射层做 ZIP 冒烟 —— 架构同 `xlsxToTables.ts` 先例。
+ *
+ * docx 库（约 600KB+）保持动态加载：只有真正导出 docx 时才拉取。
+ *
+ * `includeTitle`：此前 docx 分支**忽略**该选项（标题恒插入，与 txt/md 分支及
+ * ExportDialog 的勾选框不一致）—— 本版修正为与其它格式同语义。
+ */
+async function htmlToDocx(html: string, title: string, includeTitle = true): Promise<Blob> {
+  const [{ htmlToBlocks }, { buildDocxBlob }] = await Promise.all([
+    import('./htmlToDocxBlocks'),
+    import('./blocksToDocx'),
+  ])
   const fontStore = useFontStore()
   const exportFont = fontStore.prefs.preview.family || fontStore.prefs.content.family || 'Microsoft YaHei'
-
-  for (const line of lines) {
-    children.push(new Paragraph({
-      children: [new TextRun({ text: line, size: 24, font: exportFont })],
-      spacing: { after: 120 },
-    }))
-  }
-
-  const doc = new Document({
-    sections: [{ children }],
-  })
-  return Packer.toBlob(doc)
+  const blocks = htmlToBlocks(html)
+  return buildDocxBlob(blocks, { title: includeTitle ? title : '', defaultFont: exportFont })
 }
 
 function downloadBlob(blob: Blob, filename: string) {
@@ -102,7 +96,7 @@ export function useManuscriptExport() {
         break
       }
       case 'docx': {
-        const blob = await htmlToDocx(html, title)
+        const blob = await htmlToDocx(html, title, options.includeTitle !== false)
         downloadBlob(blob, `${safeName}.docx`)
         break
       }
