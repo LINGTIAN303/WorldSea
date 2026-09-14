@@ -41,6 +41,10 @@
             </div>
             <div class="ms-book-name">{{ b.name }}</div>
             <div class="ms-book-desc">{{ b.description || '暂无简介' }}</div>
+            <div v-if="(b.tags as string[])?.length" class="ms-book-tags">
+              <span v-for="t in (b.tags as string[]).slice(0, 3)" :key="t" class="ms-book-tag">{{ t }}</span>
+              <span v-if="(b.tags as string[]).length > 3" class="ms-book-tag ms-book-tag--more">+{{ (b.tags as string[]).length - 3 }}</span>
+            </div>
             <div class="ms-book-meta">
               <span>{{ chapterCount(b.id) }} 章</span>
               <span>{{ totalWords(b.id) }} 字</span>
@@ -104,7 +108,7 @@
 
       <div v-if="current" class="ms-main">
         <div class="ms-editor-header">
-          <input v-model="editTitle" class="ms-title-input" placeholder="章节标题" @blur="saveTitle" />
+          <input ref="titleInputRef" v-model="editTitle" class="ms-title-input" placeholder="章节标题" @blur="saveTitle" />
           <div class="ms-header-actions">
             <CustomDropdown v-model="editStatus" :options="statusOptions" @update:modelValue="saveMeta" />
             <button class="ms-action-btn" title="快照" @click="saveSnapshot"><WsIcon name="image" size="sm" /></button>
@@ -196,6 +200,7 @@ const { checkAndConfirmName } = useDuplicateNameCheck()
 const { confirm } = useConfirm()
 
 const current = ref<Entity | null>(null)
+const titleInputRef = ref<HTMLInputElement | null>(null)
 const editTitle = ref('')
 const editStatus = ref('草稿')
 const filterOutline = ref('')
@@ -339,12 +344,19 @@ async function backToBooks() {
   selectedBookId.value = null
 }
 
-function select(m: Entity) {
+function select(m: Entity, opts: { focusTitle?: boolean } = {}) {
   current.value = m
   editTitle.value = m.name
   editStatus.value = (m.properties.status as string) || '草稿'
   loadChapter(m)
   loadSnapshots(m)
+  // 新建章节：光标定位到编辑器头部章名行并全选（直接输入覆盖「未命名章节」）
+  if (opts.focusTitle) {
+    nextTick(() => {
+      titleInputRef.value?.focus()
+      titleInputRef.value?.select()
+    })
+  }
 }
 
 async function saveTitle() {
@@ -407,7 +419,7 @@ async function newManuscript() {
   }
   await es.add(entity)
   const created = (es.entities ?? []).find(e => e.id === id)
-  if (created) select(created)
+  if (created) select(created, { focusTitle: true })
 }
 
 async function deleteChapter(entity: Entity) {
@@ -467,8 +479,110 @@ watch(current, (val, old) => {
   }
 })
 
-useAgentPluginBridge('manuscript', (event) => {
-  console.log(`[Agent→${event.pluginId}] ${event.action}`, event.payload)
+// ── Agent bridge（2026-09-14 空壳清账：此前仅 console.log，工具 8 动作全部假成功。
+//    本轮消费核心 6 项；insert_mention（插入位置语义）/ split_chapter（正文拆分逻辑）留挂账；
+//    共性前提：bridge 依赖视图挂载，未挂载仍假成功——架构级缺陷另账）──
+
+/** 工具侧英文状态枚举 → 芽内中文状态（plugin-backend-tools.ts:385 draft/writing/review/done） */
+const agentStatusMap: Record<string, string> = { draft: '草稿', writing: '草稿', review: '修订中', done: '终稿' }
+
+function stripTags(html: string): string {
+  return (html || '').replace(/<[^>]*>/g, '')
+}
+
+function agentWordCount(html: string): number {
+  return stripTags(html).length
+}
+
+useAgentPluginBridge('manuscript', async (event) => {
+  const { action, payload } = event
+  switch (action) {
+    case 'create_chapter': {
+      const title = (payload.title as string) || '未命名章节'
+      const content = (payload.content as string) || ''
+      const now = new Date().toISOString()
+      const id = `ms-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+      await es.add({
+        id,
+        type: 'manuscript',
+        name: title,
+        description: '',
+        properties: {
+          content,
+          outlineNodeId: '',
+          wordCount: agentWordCount(content),
+          status: agentStatusMap[(payload.status as string) || 'draft'] || '草稿',
+          sortOrder: viewChapters.value.length,
+          volumeName: (payload.volumeName as string) || '',
+          bookId: selectedBookId.value || '',
+          entityMentions: '',
+          snapshots: '[]',
+        },
+        tags: [],
+        createdAt: now,
+        updatedAt: now,
+      })
+      break
+    }
+
+    case 'update_chapter': {
+      const ch = manuscripts.value.find(m => m.id === (payload.chapterId as string))
+      if (!ch) break
+      const properties = { ...ch.properties }
+      if (payload.content !== undefined) {
+        properties.content = payload.content as string
+        properties.wordCount = agentWordCount(payload.content as string)
+      }
+      if (payload.status) properties.status = agentStatusMap[payload.status as string] || properties.status
+      if (payload.volumeName !== undefined) properties.volumeName = payload.volumeName as string
+      await es.update(ch.id, { properties })
+      break
+    }
+
+    case 'list_chapters': {
+      // emitPluginQuery 无返回通路 → window 变通回传（NotebookView list_notes 同款惯例）
+      ;(window as unknown as Record<string, unknown>).__worldsea_manuscript_chapters__ =
+        manuscripts.value.map(m => ({
+          id: m.id,
+          name: m.name,
+          status: (m.properties.status as string) || '草稿',
+          wordCount: m.properties.wordCount || 0,
+          bookId: m.properties.bookId || '',
+          volumeName: m.properties.volumeName || '',
+        }))
+      break
+    }
+
+    case 'get_chapter_content': {
+      const ch = manuscripts.value.find(m => m.id === (payload.chapterId as string))
+      ;(window as unknown as Record<string, unknown>).__worldsea_manuscript_chapter_content__ = ch
+        ? { chapterId: ch.id, name: ch.name, content: ch.properties.content || '', found: true }
+        : { chapterId: payload.chapterId, found: false }
+      break
+    }
+
+    case 'export_document': {
+      // 触发导出对话框（格式与范围由用户确认，Agent 不越权直接下载）
+      showExport.value = true
+      break
+    }
+
+    case 'reorder_chapters': {
+      const ids = payload.chapterIds as string[]
+      if (!Array.isArray(ids)) break
+      for (let i = 0; i < ids.length; i++) {
+        const ch = manuscripts.value.find(m => m.id === ids[i])
+        if (ch && (ch.properties.sortOrder as number) !== i) {
+          await es.update(ch.id, { properties: { ...ch.properties, sortOrder: i } })
+        }
+      }
+      break
+    }
+
+    default:
+      // insert_mention / split_chapter 挂账（见计划文档 §二）
+      console.warn(`[Agent→manuscript] 未实现的动作: ${action}`, payload)
+  }
 })
 </script>
 
@@ -544,6 +658,13 @@ useAgentPluginBridge('manuscript', (event) => {
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 .ms-book-meta { display: flex; gap: 10px; font-size: var(--font-size-xs); color: var(--text-secondary); }
+/* 书籍标签 chips（BookInfoDialog 编辑 entity.tags；最多显 3 个 + 溢出计数） */
+.ms-book-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+.ms-book-tag {
+  font-size: var(--font-size-2xs); color: var(--text-secondary);
+  background: var(--bg-tertiary); padding: 1px 6px; border-radius: var(--radius-2xs);
+}
+.ms-book-tag--more { color: var(--text-tertiary); }
 
 .ms-body { display: flex; flex: 1; gap: 0; overflow: hidden; }
 

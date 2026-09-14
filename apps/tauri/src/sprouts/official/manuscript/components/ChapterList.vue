@@ -5,6 +5,16 @@
       <span class="cl-count">{{ chapters.length }}</span>
     </div>
 
+    <!-- 书内进度统计（2026-09-14 侧栏优化：总字数 + 各状态章节数一眼可见） -->
+    <div class="cl-stats">
+      <span class="cl-stats-words">{{ chapters.length }} 章 · {{ statsWords }} 字</span>
+      <span class="cl-stats-status">
+        <span class="st-draft">草 {{ statsByStatus('草稿') }}</span>
+        <span class="st-revising">修 {{ statsByStatus('修订中') }}</span>
+        <span class="st-final">终 {{ statsByStatus('终稿') }}</span>
+      </span>
+    </div>
+
     <div class="cl-search">
       <input v-model="searchQuery" class="cl-search-input" placeholder="搜索章节..." aria-label="搜索章节" />
     </div>
@@ -39,6 +49,7 @@
             <span class="cl-item-name">{{ element.name }}</span>
             <div class="cl-item-meta">
               <span class="cl-status" :class="statusClass(element)">{{ (element.properties.status as string) || '草稿' }}</span>
+              <span v-for="t in itemTags(element).slice(0, 2)" :key="t" class="cl-item-tag">{{ t }}</span>
               <span class="cl-words">{{ element.properties.wordCount || 0 }}字</span>
             </div>
           </div>
@@ -161,7 +172,17 @@ const emit = defineEmits<{
 
 const es = useEntityStore()
 
-const collapsedGroups = reactive(new Set<string>())
+// ── 分卷折叠持久化（2026-09-14 侧栏优化：此前刷新即丢；键按项目无关的全局——
+//    卷名是自由文本、跨项目同名的记忆冲突可忽略，与 notebook 侧栏 tab 记忆同口径）──
+const COLLAPSED_KEY = 'worldsea-manuscript-collapsed-vols'
+const collapsedGroups = reactive(new Set<string>(loadCollapsedGroups()))
+
+function loadCollapsedGroups(): string[] {
+  try { return JSON.parse(localStorage.getItem(COLLAPSED_KEY) || '[]') } catch { return [] }
+}
+function saveCollapsedGroups(): void {
+  try { localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...collapsedGroups])) } catch { /* 忽略 */ }
+}
 
 function toggleGroup(name: string) {
   if (collapsedGroups.has(name)) {
@@ -169,6 +190,21 @@ function toggleGroup(name: string) {
   } else {
     collapsedGroups.add(name)
   }
+  saveCollapsedGroups()
+}
+
+/** 书内进度统计（标题行下方小字条） */
+const statsWords = computed(() =>
+  props.chapters.reduce((s, c) => s + Number(c.properties.wordCount || 0), 0)
+)
+
+function statsByStatus(status: string): number {
+  return props.chapters.filter(c => ((c.properties.status as string) || '草稿') === status).length
+}
+
+/** 章节行标签 chips（实体顶层 tags；最多显 2 个，溢出不计数保持 meta 行紧凑） */
+function itemTags(e: Entity): string[] {
+  return Array.isArray(e.tags) ? e.tags : []
 }
 
 /** 搜索时忽略折叠状态（命中组强制展开，避免「搜到了但看不见」） */
@@ -394,6 +430,17 @@ onBeforeUnmount(() => {
 .cl-title { font-weight: var(--font-weight-semibold); font-size: var(--font-size-sm); }
 .cl-count { font-size: var(--font-size-xs); color: var(--text-tertiary); background: var(--bg-tertiary); padding: 1px 6px; border-radius: var(--radius-mid); }
 
+/* 书内进度统计条（标题行下、搜索框上） */
+.cl-stats {
+  display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  padding: 5px 12px; border-bottom: 1px solid var(--border-light); flex-shrink: 0;
+  font-size: var(--font-size-2xs); color: var(--text-tertiary);
+}
+.cl-stats-status { display: flex; gap: 6px; }
+.cl-stats-status .st-draft, .cl-stats-status .st-revising, .cl-stats-status .st-final {
+  padding: 0 4px; border-radius: var(--radius-2xs);
+}
+
 /* 章节搜索（2026-09-14 侧栏优化） */
 .cl-search { padding: 8px 10px; border-bottom: 1px solid var(--border-light); flex-shrink: 0; }
 .cl-search-input {
@@ -437,6 +484,11 @@ onBeforeUnmount(() => {
 .st-revising { background: var(--info-soft, #dbeafe); color: var(--info, #1e40af); }
 .st-final { background: var(--success-soft, #d1fae5); color: var(--success, #065f46); }
 .cl-words { font-size: var(--font-size-xs); color: var(--text-tertiary); }
+/* 章节行标签 chips（实体顶层 tags，最多显 2 个） */
+.cl-item-tag {
+  font-size: var(--font-size-2xs); color: var(--text-secondary);
+  background: var(--bg-tertiary); padding: 0 4px; border-radius: var(--radius-2xs);
+}
 
 .cl-ghost { opacity: 0.4; background: var(--primary-light); }
 .cl-drag { opacity: 0.9; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }

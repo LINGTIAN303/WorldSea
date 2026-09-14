@@ -126,6 +126,8 @@ export function useOutlineTree() {
   return {
     flatNodes, treeData,
     addRootNode, addChildNode, deleteNode, moveNode, reorderSiblings,
+    // Agent bridge（OutlineView create_node/batch_create）建子节点时同步 parent_child 关系
+    syncParentChildRelation,
     nodeIcon, statusLabel,
   }
 }

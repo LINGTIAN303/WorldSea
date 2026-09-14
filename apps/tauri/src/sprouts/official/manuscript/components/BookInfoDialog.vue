@@ -28,6 +28,25 @@
         <textarea id="binfo-desc" v-model="descVal" class="binfo-textarea" rows="4" placeholder="一句话介绍这本书（显示在书籍卡片上）"></textarea>
       </div>
 
+      <!-- 自定义标签（2026-09-14 拍板：存实体顶层 tags 字段；回车/逗号添加，点 × 删除） -->
+      <div class="binfo-field">
+        <label class="binfo-label" for="binfo-tag-input">标签</label>
+        <div class="binfo-tags">
+          <span v-for="t in tagsVal" :key="t" class="binfo-tag">
+            {{ t }}
+            <button class="binfo-tag-x" :aria-label="`删除标签 ${t}`" @click="removeTag(t)"><WsIcon name="close" size="2xs" /></button>
+          </span>
+          <input
+            id="binfo-tag-input"
+            v-model="tagInput"
+            class="binfo-tag-input"
+            placeholder="输入后回车添加"
+            @keydown.enter.prevent="addTag"
+            @keydown.,.prevent="addTag"
+          />
+        </div>
+      </div>
+
       <div class="binfo-actions">
         <button class="btn-secondary" @click="$emit('close')">取消</button>
         <button class="btn-primary" :disabled="saving" @click="save">{{ saving ? (isCreate ? '创建中...' : '保存中...') : (isCreate ? '创建' : '保存') }}</button>
@@ -68,6 +87,21 @@ onMounted(() => {
 
 const nameVal = ref(props.book?.name || '')
 const descVal = ref(props.book?.description || '')
+
+// ── 自定义标签（实体顶层 tags 字段；卡片与章节行均显示）──
+const tagsVal = ref<string[]>(Array.isArray(props.book?.tags) ? [...(props.book.tags as string[])] : [])
+const tagInput = ref('')
+
+function addTag() {
+  const t = tagInput.value.trim().replace(/[,，]/g, '')
+  if (!t) return
+  if (!tagsVal.value.includes(t)) tagsVal.value.push(t)
+  tagInput.value = ''
+}
+
+function removeTag(t: string) {
+  tagsVal.value = tagsVal.value.filter(x => x !== t)
+}
 
 // ── 封面状态机：选文件仅本地预览（objectURL），保存时才 writeImageAsset 落盘；
 //    显式移除 = coverRemoved；两者都不沾 = 保持原值 ──
@@ -144,7 +178,7 @@ async function save() {
     if (cover !== undefined) properties.cover = cover
 
     if (props.book) {
-      await es.update(props.book.id, { name, description: descVal.value, properties })
+      await es.update(props.book.id, { name, description: descVal.value, tags: [...tagsVal.value], properties })
     } else {
       // 创建模式：此刻才落地书籍实体
       const now = new Date().toISOString()
@@ -154,7 +188,7 @@ async function save() {
         name,
         description: descVal.value,
         properties,
-        tags: [],
+        tags: [...tagsVal.value],
         createdAt: now,
         updatedAt: now,
       })
@@ -206,6 +240,31 @@ async function save() {
   transition: border-color 0.15s;
 }
 .binfo-textarea:focus { border-color: var(--primary); }
+
+/* 标签编辑器（chips + 行内输入；回车/逗号添加） */
+.binfo-tags {
+  display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+  padding: 6px 8px; border: 1px solid var(--border-color); border-radius: var(--radius-xs);
+  background: var(--input-bg); transition: border-color 0.15s;
+}
+.binfo-tags:focus-within { border-color: var(--primary); }
+.binfo-tag {
+  display: inline-flex; align-items: center; gap: 2px;
+  font-size: var(--font-size-xs); color: var(--text-secondary);
+  background: var(--bg-tertiary); padding: 2px 4px 2px 8px; border-radius: var(--radius-2xs);
+}
+.binfo-tag-x {
+  width: 16px; height: 16px; padding: 0; border: none; border-radius: var(--radius-2xs);
+  background: transparent; color: var(--text-tertiary); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: color 0.15s, background 0.15s;
+}
+.binfo-tag-x:hover { color: var(--danger); background: var(--hover-bg); }
+.binfo-tag-input {
+  flex: 1; min-width: 100px; border: none; background: transparent; outline: none;
+  font-size: var(--font-size-xs); color: var(--text-color); padding: 2px 0;
+}
+.binfo-tag-input::placeholder { color: var(--text-tertiary); }
 
 .binfo-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 </style>
