@@ -1,5 +1,5 @@
-import { ref, onBeforeUnmount, type Ref } from 'vue'
-import { useEditor } from '@tiptap/vue-3'
+import { ref, shallowRef, onMounted, onBeforeUnmount, type Ref } from 'vue'
+import { Editor } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import Mention from '@tiptap/extension-mention'
 import { TableKit } from '@tiptap/extension-table'
@@ -73,109 +73,119 @@ export function useNoteEditor(currentNote: Ref<Entity | null>, onContentChange?:
     }
   }
 
-  const editor = useEditor({
-    extensions: [
-      StarterKit,
-      // 表格（二期）：v3 官方四件套合集（Table/TableRow/TableHeader/TableCell）。
-      // resizable 让列宽可拖拽（HTML 产物带 colgroup 宽度）；表格结构操作由工具栏
-      // 的光标上下文组提供（见 NotebookTipTapEditor）。
-      TableKit.configure({ table: { resizable: true } }),
-      Mention.configure({
-        HTMLAttributes: { class: 'nb-mention' },
-        suggestion: {
-          char: '@',
-          items: ({ query }: { query: string }) => {
-            const all = (es.entities ?? []).map(e => ({
-              id: e.id,
-              name: e.name,
-              type: e.type,
-              typeLabel: entitySchemaRegistry.getLabel(e.type),
-              icon: entitySchemaRegistry.getIconName(e.type) || 'clipboard-list',
-            }))
-            if (!query) return all.slice(0, 20)
-            const q = query.toLowerCase()
-            return all.filter(i =>
-              i.name.toLowerCase().includes(q) || i.typeLabel.toLowerCase().includes(q)
-            ).slice(0, 20)
-          },
-          render: () => {
-            return {
-              onStart: (props: SuggestionProps<MentionItem>) => {
-                mentionCommand = props.command
-                mentionPopoverRef?.open(props.clientRect ?? null)
-              },
-              onUpdate: (props: SuggestionProps<MentionItem>) => {
-                mentionCommand = props.command
-              },
-              onExit: () => {
-                mentionPopoverRef?.close()
-                mentionCommand = null
-              },
-              onKeyDown: (props: SuggestionKeyDownProps) => {
-                if (props.event.key === 'Escape') {
+  // ── 编辑器生命周期自管（勿改回 useEditor）──
+  // 缺陷史：useEditor 内部 onBeforeUnmount 会先 destroy，且它注册早于本组合函数自己的
+  // 卸载钩子 → 卸载钩子里对「已销毁编辑器」调 getHTML() 抛
+  // `Cannot read properties of null (reading 'cached')`，dev 模式下 Vue 对生命周期错误
+  // throw → 视图切换失败；且「卸载落盘」实际从未成功过（每次都在 destroy 之后执行）。
+  // 自管后顺序自控：卸载时先在活体上取内容落盘，再销毁。与 useChapterEditor 同步修改。
+  const editor = shallowRef<Editor>()
+
+  onMounted(() => {
+    editor.value = new Editor({
+      extensions: [
+        StarterKit,
+        // 表格（二期）：v3 官方四件套合集（Table/TableRow/TableHeader/TableCell）。
+        // resizable 让列宽可拖拽（HTML 产物带 colgroup 宽度）；表格结构操作由工具栏
+        // 的光标上下文组提供（见 NotebookTipTapEditor）。
+        TableKit.configure({ table: { resizable: true } }),
+        Mention.configure({
+          HTMLAttributes: { class: 'nb-mention' },
+          suggestion: {
+            char: '@',
+            items: ({ query }: { query: string }) => {
+              const all = (es.entities ?? []).map(e => ({
+                id: e.id,
+                name: e.name,
+                type: e.type,
+                typeLabel: entitySchemaRegistry.getLabel(e.type),
+                icon: entitySchemaRegistry.getIconName(e.type) || 'clipboard-list',
+              }))
+              if (!query) return all.slice(0, 20)
+              const q = query.toLowerCase()
+              return all.filter(i =>
+                i.name.toLowerCase().includes(q) || i.typeLabel.toLowerCase().includes(q)
+              ).slice(0, 20)
+            },
+            render: () => {
+              return {
+                onStart: (props: SuggestionProps<MentionItem>) => {
+                  mentionCommand = props.command
+                  mentionPopoverRef?.open(props.clientRect ?? null)
+                },
+                onUpdate: (props: SuggestionProps<MentionItem>) => {
+                  mentionCommand = props.command
+                },
+                onExit: () => {
                   mentionPopoverRef?.close()
-                  return true
-                }
-                return false
-              },
-            }
+                  mentionCommand = null
+                },
+                onKeyDown: (props: SuggestionKeyDownProps) => {
+                  if (props.event.key === 'Escape') {
+                    mentionPopoverRef?.close()
+                    return true
+                  }
+                  return false
+                },
+              }
+            },
           },
+          renderText: ({ node }) => {
+            return `@${node.attrs.label ?? node.attrs.id}`
+          },
+        }),
+        SlashCommandExtension.configure({
+          suggestion: {
+            char: '/',
+            items: ({ query }: { query: string }) => {
+              if (!query) return SLASH_COMMANDS
+              const q = query.toLowerCase()
+              return SLASH_COMMANDS.filter(item =>
+                item.label.toLowerCase().includes(q) ||
+                item.id.toLowerCase().includes(q) ||
+                item.description.toLowerCase().includes(q)
+              )
+            },
+            command: ({ editor, range }: { editor: any; range: any }) => {
+              editor.chain().focus().deleteRange(range).run()
+            },
+            render: (): any => {
+              return {
+                onStart: (props: SuggestionProps<SlashCommandItem>) => {
+                  slashCommandRef = props.command
+                  slashCommandPopoverRef?.open(props.clientRect ?? null, props.items)
+                },
+                onUpdate: (props: SuggestionProps<SlashCommandItem>) => {
+                  slashCommandRef = props.command
+                  slashCommandPopoverRef?.updateItems(props.items)
+                },
+                onExit: () => {
+                  slashCommandPopoverRef?.close()
+                  slashCommandRef = null
+                },
+                onKeyDown: (props: SuggestionKeyDownProps) => {
+                  return slashCommandPopoverRef?.onKeyDown(props.event) ?? false
+                },
+              }
+            },
+          },
+        }),
+      ],
+      content: '',
+      editorProps: {
+        attributes: {
+          class: 'nb-editor-body tiptap',
         },
-        renderText: ({ node }) => {
-          return `@${node.attrs.label ?? node.attrs.id}`
-        },
-      }),
-      SlashCommandExtension.configure({
-        suggestion: {
-          char: '/',
-          items: ({ query }: { query: string }) => {
-            if (!query) return SLASH_COMMANDS
-            const q = query.toLowerCase()
-            return SLASH_COMMANDS.filter(item =>
-              item.label.toLowerCase().includes(q) ||
-              item.id.toLowerCase().includes(q) ||
-              item.description.toLowerCase().includes(q)
-            )
-          },
-          command: ({ editor, range }: { editor: any; range: any }) => {
-            editor.chain().focus().deleteRange(range).run()
-          },
-          render: (): any => {
-            return {
-              onStart: (props: SuggestionProps<SlashCommandItem>) => {
-                slashCommandRef = props.command
-                slashCommandPopoverRef?.open(props.clientRect ?? null, props.items)
-              },
-              onUpdate: (props: SuggestionProps<SlashCommandItem>) => {
-                slashCommandRef = props.command
-                slashCommandPopoverRef?.updateItems(props.items)
-              },
-              onExit: () => {
-                slashCommandPopoverRef?.close()
-                slashCommandRef = null
-              },
-              onKeyDown: (props: SuggestionKeyDownProps) => {
-                return slashCommandPopoverRef?.onKeyDown(props.event) ?? false
-              },
-            }
-          },
-        },
-      }),
-    ],
-    content: '',
-    editorProps: {
-      attributes: {
-        class: 'nb-editor-body tiptap',
       },
-    },
-    onUpdate: ({ editor: ed }) => {
-      const text = ed.getText()
-      wordCount.value = text.length
-      if (onContentChange) {
-        onContentChange(ed.getHTML())
-      }
-      scheduleAutosave()
-    },
+      onUpdate: ({ editor: ed }) => {
+        const text = ed.getText()
+        wordCount.value = text.length
+        if (onContentChange) {
+          onContentChange(ed.getHTML())
+        }
+        scheduleAutosave()
+      },
+    })
   })
 
   function scheduleAutosave() {
@@ -246,14 +256,16 @@ export function useNoteEditor(currentNote: Ref<Entity | null>, onContentChange?:
   onBeforeUnmount(() => {
     // 卸载前必须落盘：此前只清定时器 + destroy，未 flush —— 防抖窗口（300ms）内的改动
     // 会随视图卸载永久丢失。本 composable 是富文本正文的唯一写入方，此处丢即真丢。
+    // （历史上这段因 useEditor 先销毁而从未成功执行过，见上方「生命周期自管」注释。）
     if (saveTimer) {
       clearTimeout(saveTimer)
       saveTimer = null
     }
     if (editor.value && currentNote.value && saveStatus.value === 'unsaved') {
-      persistContent(editor.value.getHTML())
+      void persistContent(editor.value.getHTML())
     }
     editor.value?.destroy()
+    editor.value = undefined
   })
 
   return {
