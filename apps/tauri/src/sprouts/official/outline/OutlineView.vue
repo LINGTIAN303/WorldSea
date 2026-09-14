@@ -247,7 +247,6 @@ const detailTabs: RelationTabDef[] = []
 const {
   flatNodes, treeData,
   addRootNode, addChildNode, deleteNode,
-  moveNode: moveOutlineNode, syncParentChildRelation,
   nodeIcon, statusLabel,
 } = useOutlineTree()
 
@@ -347,138 +346,14 @@ onMounted(() => {
 })
 onUnmounted(() => unregisterShortcut('outline.close-detail'))
 
-// ── Agent bridge（2026-09-14 命名错位清账：工具发 create_node（plugin-backend-tools.ts:472），
-//    视图此前只认旧名 add_node → 假成功。对齐 create_node + 补 move_node / batch_create /
-//    export_outline；get_structure（query 无返回通路）/ link_entity（关系语义待拍板）留挂账 ──
-
-/** Agent 建节点：带真实 title（不走 checkAndConfirmName 弹确认，Agent 场景不打断）；
- *  父 id 无效时容错回落为根节点；nodeType（act/sequence/scene/beat）原值存 properties.nodeType */
-async function createNodeByAgent(title: string, parentId: string | null, nodeType?: string): Promise<string | null> {
-  const parent = parentId ? flatNodes.value.find(e => e.id === parentId) : null
-  const effectiveParentId = parent?.id || ''
-  const siblings = flatNodes.value.filter(e => (e.properties.parentId as string || '') === effectiveParentId)
-  const now = new Date().toISOString()
-  const id = `out-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
-  await es.add({
-    id, type: 'outline_node', name: title,
-    description: '',
-    properties: {
-      status: '未写', order: siblings.length + 1,
-      parentId: effectiveParentId, storylines: '', summary: '',
-      manuscriptId: '', content: '',
-      ...(nodeType ? { nodeType } : {}),
-    },
-    tags: [], createdAt: now, updatedAt: now,
-  } as Entity)
-  if (parent) await syncParentChildRelation(id, parent.id)
-  await es.loadByType('outline_node')
-  return id
-}
-
-/** batch_create：递归建树（structure: { title, type?, children?: [...] }） */
-async function batchCreateByAgent(structure: { title?: unknown; type?: unknown; children?: unknown }, parentId: string | null): Promise<void> {
-  const title = String((structure as { title?: unknown })?.title || '').trim()
-  if (!title) return
-  const id = await createNodeByAgent(title, parentId, (structure as { type?: unknown }).type ? String((structure as { type?: unknown }).type) : undefined)
-  if (!id) return
-  const children = (structure as { children?: unknown[] }).children
-  if (Array.isArray(children)) {
-    for (const child of children) {
-      await batchCreateByAgent(child as typeof structure, id)
-    }
-  }
-}
-
-/** export_outline：树序列化下载（text/markdown 同构缩进列表；json 全量结构） */
-function exportOutlineByAgent(format: string) {
-  const serialize = (nodes: typeof treeData.value, depth: number, lines: string[]) => {
-    for (const n of nodes) {
-      const summary = (n.entity.properties.summary as string) || ''
-      lines.push(`${'  '.repeat(depth)}- ${n.entity.name}${summary ? `：${summary}` : ''}`)
-      serialize(n.children, depth + 1, lines)
-    }
-  }
-  const safeName = '大纲'
-  let content = ''
-  let mime = 'text/plain'
-  let ext = 'txt'
-  if (format === 'json') {
-    const toJson = (nodes: typeof treeData.value): unknown =>
-      nodes.map(n => ({
-        title: n.entity.name,
-        type: n.entity.properties.nodeType || n.entity.properties.contentType,
-        status: n.entity.properties.status || '未写',
-        children: toJson(n.children),
-      }))
-    content = JSON.stringify(toJson(treeData.value), null, 2)
-    mime = 'application/json'
-    ext = 'json'
-  } else {
-    const lines: string[] = []
-    if (format === 'markdown') lines.push('# 大纲', '')
-    serialize(treeData.value, 0, lines)
-    content = lines.join('\n')
-    if (format === 'markdown') { mime = 'text/markdown'; ext = 'md' }
-  }
-  const blob = new Blob([content], { type: `${mime};charset=utf-8` })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `${safeName}.${ext}`
-  a.click()
-  URL.revokeObjectURL(url)
-}
-
-useAgentPluginBridge('outline', async (event) => {
+// ── Agent bridge（视图侧仅剩 UI 动作 navigate；2026-09-14 全局桥拍板后，数据动作
+//    create_node/update_node/delete_node/move_node/batch_create/export_outline
+//    已上移 @/agent/agentDataBridges.ts——与视图挂载解耦，未挂载也必达；
+//    get_structure 查询亦在全局桥（get_structure/link_entity 语义挂账已随 query
+//    真回传解锁前者））──
+useAgentPluginBridge('outline', (event) => {
   const { action, payload } = event
   switch (action) {
-    case 'create_node': {
-      // 对齐工具侧命名（此前视图只认 add_node → Agent 建节点全部假成功）
-      const title = String(payload.title || '').trim() || '未命名节点'
-      const parentId = (payload.parentId as string) || null
-      await createNodeByAgent(title, parentId === 'root' ? null : parentId, (payload.type as string) || undefined)
-      break
-    }
-    case 'update_node': {
-      const nodeId = payload.nodeId as string
-      const changes = payload.changes as Record<string, unknown>
-      if (nodeId && changes) {
-        // changes.title 映射到实体 name（工具侧 changes: { title?, type?, description?, status? }）
-        const { title, ...rest } = changes as { title?: string }
-        const patch: Record<string, unknown> = { ...rest }
-        await es.update(nodeId, {
-          ...(title !== undefined ? { name: title } : {}),
-          properties: patch,
-        } as Partial<Entity>)
-      }
-      break
-    }
-    case 'delete_node': {
-      const nodeId = payload.nodeId as string
-      if (nodeId) await deleteNode(nodeId)
-      break
-    }
-    case 'move_node': {
-      const nodeId = payload.nodeId as string
-      const newParentId = (payload.newParentId as string) || ''
-      if (nodeId) {
-        // position = 新父中索引（0 基）；缺失时兜底追加到新父末尾
-        const raw = Number(payload.position)
-        const fallbackOrder = flatNodes.value.filter(e => (e.properties.parentId as string || '') === newParentId).length + 1
-        const newOrder = payload.position !== undefined && Number.isFinite(raw) ? raw + 1 : fallbackOrder
-        await moveOutlineNode(nodeId, newParentId, newOrder)
-      }
-      break
-    }
-    case 'batch_create': {
-      const structure = payload.structure as { title?: unknown; type?: unknown; children?: unknown } | undefined
-      if (structure) await batchCreateByAgent(structure, null)
-      break
-    }
-    case 'export_outline': {
-      exportOutlineByAgent(String(payload.format || 'text'))
-      break
-    }
     case 'navigate': {
       const nodeId = payload.nodeId as string
       if (nodeId) {
@@ -490,7 +365,7 @@ useAgentPluginBridge('outline', async (event) => {
       break
     }
     default:
-      // get_structure（query 无返回通路）/ link_entity（关系语义待拍板）——挂账见计划文档
+      // link_entity（关系语义待拍板）挂账；数据动作走全局桥
       console.log(`[Agent→outline] ${action}`, payload)
   }
 })

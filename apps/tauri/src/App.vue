@@ -15,6 +15,7 @@ import { bootstrapSprouts } from './plugins/bootstrap'
 import { useProjectSwitcher } from './composables/useProjectSwitcher'
 import { registerProjectSwitchListener } from './agent/composables/useAgentRust'
 import { useSystemBridge } from './composables/useSystemBridge'
+import { installAgentDataBridges } from './agent/agentDataBridges'
 import { useMcpConnections } from '@worldsea/shared-composables/agent/useMcpConnections'
 import { useAgent } from './agent/composables/useAgent'
 import { toastWarn } from '@/composables/useToast'
@@ -155,6 +156,14 @@ onMounted(async () => {
   // Shell 仅承载官方芽视图；默认进入 AgentSpace（currentShell 持久化）
   // 启动已迁移芽（Phase C：注册视图/实体类型）
   await bootstrapSprouts()
+  // Agent→芽 数据动作全局桥（2026-09-14 架构拍板）：App 启动即注册、与视图挂载
+  // 解耦——写/查动作必达 store；UI 动作仍由视图内 useAgentPluginBridge 消费。
+  // 幂等；须在 bootstrapSprouts 之后（实体类型/视图注册完成）
+  try {
+    installAgentDataBridges()
+  } catch (err) {
+    console.error('[App] Agent 数据桥安装失败:', err)
+  }
   // 系统层桥初始化：托盘事件监听 + 最近项目同步（异步，不阻塞启动）
   void setupSystemBridge()
   // T09②（2026-09-01）：MCP 启动自动重连失败提示——启动拉取配置+状态合并视图，

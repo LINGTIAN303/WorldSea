@@ -1,4 +1,4 @@
-import { ref, onBeforeUnmount } from 'vue'
+import { ref, onBeforeUnmount, getCurrentInstance } from 'vue'
 
 const EXECUTION_TIMEOUT = 5000
 
@@ -120,9 +120,14 @@ export function useCodeSandbox() {
     })
   }
 
-  onBeforeUnmount(() => {
-    killIframe()
-  })
+  // 生命周期钩子条件注册（2026-09-14 全局桥拍板）：app 级 agentDataBridges 也实例化
+  // 本沙箱（execute_code 动作），无组件上下文——getCurrentInstance 为 null 时跳过
+  // 注册（全局实例与 app 同生命周期，无需清理；组件实例内仍正常卸载清理）
+  if (getCurrentInstance()) {
+    onBeforeUnmount(() => {
+      killIframe()
+    })
+  }
 
   return {
     output,

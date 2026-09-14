@@ -8,19 +8,52 @@ function emitPluginEvent(pluginId: string, action: string, payload: unknown): st
     if (typeof window !== 'undefined' && window.dispatchEvent) {
       window.dispatchEvent(new CustomEvent('worldsea:agent:plugin-action', { detail }))
     }
-    return JSON.stringify({ ok: true, pluginId, action, dispatched: true })
+    // 诚实化口径（2026-09-14 全局桥拍板）：dispatched=true 只代表事件已派发。
+    // 数据动作由 app 级桥消费（agentDataBridges.ts，与视图挂载无关）→ 必达；
+    // UI 动作（导航/开对话框等）仍需对应视图挂载，未挂载时无人消费。
+    return JSON.stringify({ ok: true, pluginId, action, dispatched: true, note: '数据动作由 app 级桥必达消费；UI 动作需对应视图挂载' })
   } catch (e) {
     return JSON.stringify({ ok: false, error: String(e) })
   }
 }
 
-function emitPluginQuery(pluginId: string, query: string, params?: unknown): string {
-  try {
-    const detail = { pluginId, query, params, timestamp: Date.now() }
-    if (typeof window !== 'undefined' && window.dispatchEvent) {
-      window.dispatchEvent(new CustomEvent('worldsea:agent:plugin-query', { detail }))
+/** 等待 app 级桥回传查询结果（requestId 配对；3s 超时 = 桥未注册该查询/未安装） */
+function waitQueryResult(requestId: string, timeoutMs: number): Promise<unknown> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      cleanup()
+      resolve({ ok: false, error: '查询超时：数据桥未注册该查询或未安装（视图/桥未就绪）' })
+    }, timeoutMs)
+    const onResult = (e: Event) => {
+      const d = (e as CustomEvent).detail as { requestId?: string; result?: unknown } | undefined
+      if (!d || d.requestId !== requestId) return
+      cleanup()
+      resolve({ ok: true, data: d.result })
     }
-    return JSON.stringify({ ok: true, pluginId, query, dispatched: true, note: '需要通过UI状态读取查询结果' })
+    const cleanup = () => {
+      clearTimeout(timer)
+      window.removeEventListener('worldsea:agent:plugin-query-result', onResult)
+    }
+    window.addEventListener('worldsea:agent:plugin-query-result', onResult)
+  })
+}
+
+/**
+ * 查询派发（2026-09-14 真回传改造）：此前是彻底单向广播（返回「需要通过UI状态
+ * 读取查询结果」），Agent 拿不到数据。现带 requestId 派发并等待 app 级桥
+ * （agentDataBridges.ts）回传结果——同步读 store，3s 超时报「桥未就绪」。
+ */
+async function emitPluginQuery(pluginId: string, query: string, params?: unknown): Promise<string> {
+  try {
+    if (typeof window === 'undefined' || !window.dispatchEvent) {
+      return JSON.stringify({ ok: false, error: '非浏览器环境，查询不可用' })
+    }
+    const requestId = `q-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    window.dispatchEvent(new CustomEvent('worldsea:agent:plugin-query', {
+      detail: { pluginId, query, params, requestId, timestamp: Date.now() },
+    }))
+    const result = await waitQueryResult(requestId, 3000)
+    return JSON.stringify(result)
   } catch (e) {
     return JSON.stringify({ ok: false, error: String(e) })
   }
@@ -383,6 +416,7 @@ const manuscriptTool: ToolDefinition = {
     content: { type: 'string', description: '初始正文内容（create_chapter 用）/ 新正文内容（update_chapter 用）' },
     volumeName: { type: 'string', description: '所属卷名' },
     status: { type: 'string', description: '状态: draft / writing / review / done' },
+    bookId: { type: 'string', description: '目标书籍ID（create_chapter 用；不传 = 未归书章节）' },
     chapterId: { type: 'string', description: '章节ID' },
     entityId: { type: 'string', description: '要引用的实体ID（insert_mention 用）' },
     position: { type: 'number', description: '插入位置（字符偏移）' },

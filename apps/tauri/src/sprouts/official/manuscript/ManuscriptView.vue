@@ -479,109 +479,20 @@ watch(current, (val, old) => {
   }
 })
 
-// ── Agent bridge（2026-09-14 空壳清账：此前仅 console.log，工具 8 动作全部假成功。
-//    本轮消费核心 6 项；insert_mention（插入位置语义）/ split_chapter（正文拆分逻辑）留挂账；
-//    共性前提：bridge 依赖视图挂载，未挂载仍假成功——架构级缺陷另账）──
-
-/** 工具侧英文状态枚举 → 芽内中文状态（plugin-backend-tools.ts:385 draft/writing/review/done） */
-const agentStatusMap: Record<string, string> = { draft: '草稿', writing: '草稿', review: '修订中', done: '终稿' }
-
-function stripTags(html: string): string {
-  return (html || '').replace(/<[^>]*>/g, '')
-}
-
-function agentWordCount(html: string): number {
-  return stripTags(html).length
-}
-
-useAgentPluginBridge('manuscript', async (event) => {
-  const { action, payload } = event
+// ── Agent bridge（视图侧仅剩 UI 动作；2026-09-14 全局桥拍板后，数据动作
+//    create_chapter/update_chapter/list_chapters/get_chapter_content/reorder_chapters
+//    已上移 @/agent/agentDataBridges.ts——与视图挂载解耦，未挂载也必达）──
+useAgentPluginBridge('manuscript', (event) => {
+  const { action } = event
   switch (action) {
-    case 'create_chapter': {
-      const title = (payload.title as string) || '未命名章节'
-      const content = (payload.content as string) || ''
-      const now = new Date().toISOString()
-      const id = `ms-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
-      await es.add({
-        id,
-        type: 'manuscript',
-        name: title,
-        description: '',
-        properties: {
-          content,
-          outlineNodeId: '',
-          wordCount: agentWordCount(content),
-          status: agentStatusMap[(payload.status as string) || 'draft'] || '草稿',
-          sortOrder: viewChapters.value.length,
-          volumeName: (payload.volumeName as string) || '',
-          bookId: selectedBookId.value || '',
-          entityMentions: '',
-          snapshots: '[]',
-        },
-        tags: [],
-        createdAt: now,
-        updatedAt: now,
-      })
-      break
-    }
-
-    case 'update_chapter': {
-      const ch = manuscripts.value.find(m => m.id === (payload.chapterId as string))
-      if (!ch) break
-      const properties = { ...ch.properties }
-      if (payload.content !== undefined) {
-        properties.content = payload.content as string
-        properties.wordCount = agentWordCount(payload.content as string)
-      }
-      if (payload.status) properties.status = agentStatusMap[payload.status as string] || properties.status
-      if (payload.volumeName !== undefined) properties.volumeName = payload.volumeName as string
-      await es.update(ch.id, { properties })
-      break
-    }
-
-    case 'list_chapters': {
-      // emitPluginQuery 无返回通路 → window 变通回传（NotebookView list_notes 同款惯例）
-      ;(window as unknown as Record<string, unknown>).__worldsea_manuscript_chapters__ =
-        manuscripts.value.map(m => ({
-          id: m.id,
-          name: m.name,
-          status: (m.properties.status as string) || '草稿',
-          wordCount: m.properties.wordCount || 0,
-          bookId: m.properties.bookId || '',
-          volumeName: m.properties.volumeName || '',
-        }))
-      break
-    }
-
-    case 'get_chapter_content': {
-      const ch = manuscripts.value.find(m => m.id === (payload.chapterId as string))
-      ;(window as unknown as Record<string, unknown>).__worldsea_manuscript_chapter_content__ = ch
-        ? { chapterId: ch.id, name: ch.name, content: ch.properties.content || '', found: true }
-        : { chapterId: payload.chapterId, found: false }
-      break
-    }
-
     case 'export_document': {
       // 触发导出对话框（格式与范围由用户确认，Agent 不越权直接下载）
       showExport.value = true
       break
     }
-
-    case 'reorder_chapters': {
-      const ids = payload.chapterIds as string[]
-      if (!Array.isArray(ids)) break
-      for (let i = 0; i < ids.length; i++) {
-        const ch = manuscripts.value.find(m => m.id === ids[i])
-        if (ch && (ch.properties.sortOrder as number) !== i) {
-          await es.update(ch.id, { properties: { ...ch.properties, sortOrder: i } })
-        }
-      }
-      break
-    }
-
     default:
-      // insert_mention / split_chapter 挂账（见计划文档 §二）
-      console.warn(`[Agent→manuscript] 未实现的动作: ${action}`, payload)
+      // insert_mention / split_chapter 挂账（见计划文档 §二）；数据动作走全局桥
+      console.warn(`[Agent→manuscript] 未实现或非 UI 动作: ${action}`, event.payload)
   }
 })
 </script>

@@ -153,8 +153,6 @@ import { collectAssetDiskPaths, deleteOrphanAssets, findOrphanAssets, listAssetF
 import { isSupportedAsset } from './assetFilter'
 import { VIEW_MODES } from './notebookConfig'
 import type { ViewMode } from './notebookConfig'
-import { useAgentPluginBridge } from '@/composables/useAgentPluginBridge'
-import { useCodeSandbox } from './composables/useCodeSandbox'
 import type { NotebookEntity } from './types'
 
 interface NotebookFolder {
@@ -166,8 +164,6 @@ const entityStore = useEntityStore()
 const relationStore = useRelationStore()
 const { createBidirectional } = useBidirectional()
 const { beginTransaction, commitTransaction, rollbackTransaction } = useUndoRedo()
-/** 代码单元格沙箱：与 CodeCell.vue 共用同一实现（Agent 侧 execute_code 也走这里） */
-const codeSandbox = useCodeSandbox()
 const currentMode = ref<ViewMode>('editor')
 const searchQuery = ref('')
 const selectedNoteId = ref<string | null>(null)
@@ -542,147 +538,8 @@ async function migrateBacklinks(): Promise<void> {
     }, 'user', { skipUndo: true })  // 一次性数据迁移，非用户操作，不进撤销栈
   }
 }
-
-useAgentPluginBridge('notebook', async (event) => {
-  const { action, payload } = event
-  console.log(`[Agent→notebook] ${action}`, payload)
-
-  switch (action) {
-    case 'create_note': {
-      const targetFolder = (payload.folderId as string) || (folders.value.length > 0 ? folders.value[0].id : '')
-      const id = await entityStore.add({
-        id: crypto.randomUUID(),
-        type: 'notebook',
-        name: (payload.name as string) || (payload.content as string)?.slice(0, 30) || 'AI 创建的笔记',
-        description: '',
-        properties: {
-          content: (payload.content as string) || '',
-          noteType: (payload.noteType as string) || 'markdown',
-          tags: (payload.tags as string[]) || [],
-          linkedEntities: [],
-          codeLanguage: '',
-          codeOutput: '',
-          sortOrder: Date.now().toString(),
-          folderId: targetFolder,
-        },
-        tags: [],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }, 'user')
-      selectedNoteId.value = id
-      break
-    }
-
-    case 'update_note': {
-      const noteId = payload.noteId as string
-      if (!noteId) break
-      const note = notebookNotes.value.find((n) => n.id === noteId)
-      if (!note) break
-      const changes: Record<string, unknown> = { updatedAt: new Date().toISOString() }
-      if (payload.content !== undefined) {
-        changes.properties = { ...note.properties, content: payload.content }
-      }
-      if (payload.tags !== undefined) {
-        const props = (changes.properties as Record<string, unknown>) || { ...note.properties }
-        props.tags = payload.tags
-        changes.properties = props
-      }
-      await entityStore.update(noteId, changes)
-      break
-    }
-
-    case 'delete_note': {
-      const noteId = payload.noteId as string
-      if (!noteId) break
-      pendingWrites.delete(noteId)
-      await entityStore.remove(noteId)
-      if (selectedNoteId.value === noteId) selectedNoteId.value = null
-      break
-    }
-
-    case 'list_notes': {
-      let results = notebookNotes.value
-      const folderId = payload.folderId as string | undefined
-      const keyword = payload.keyword as string | undefined
-      if (folderId) {
-        results = results.filter((n) => n.properties?.folderId === folderId)
-      }
-      if (keyword) {
-        const q = keyword.toLowerCase()
-        results = results.filter((n) =>
-          n.name.toLowerCase().includes(q) ||
-          (n.properties?.content || '').toLowerCase().includes(q)
-        )
-      }
-      const summary = results.map((n) => ({ id: n.id, name: n.name, type: n.properties?.noteType }))
-      ;window.__worldsea_notebook_list__ = summary
-      break
-    }
-
-    case 'search_notes': {
-      const keyword = (payload.keyword as string) || ''
-      const q = keyword.toLowerCase()
-      const results = notebookNotes.value.filter((n) =>
-        n.name.toLowerCase().includes(q) ||
-        (n.description || '').toLowerCase().includes(q) ||
-        (n.properties?.content || '').toLowerCase().includes(q)
-      )
-      const summary = results.map((n) => ({ id: n.id, name: n.name, preview: (n.properties?.content || '').slice(0, 100) }))
-      ;window.__worldsea_notebook_search__ = summary
-      break
-    }
-
-    case 'execute_code': {
-      const noteId = payload.noteId as string
-      const code = payload.code as string
-      if (noteId && code) {
-        const note = notebookNotes.value.find((n) => n.id === noteId)
-        if (note) {
-          try {
-            // 共用 useCodeSandbox（此前此处是第二份重复沙箱实现，行为已与 CodeCell 出现偏差）
-            const output = await codeSandbox.execute(code, 'javascript')
-            await entityStore.update(noteId, { properties: { ...note.properties, codeOutput: output } })
-          } catch (err: any) {
-            await entityStore.update(noteId, { properties: { ...note.properties, codeOutput: 'ERROR: ' + (err?.message || String(err)) } })
-          }
-        }
-      }
-      break
-    }
-
-    case 'create_backlink': {
-      const { sourceId, targetId } = payload as { sourceId: string; targetId: string }
-      if (!sourceId || !targetId) break
-      const source = notebookNotes.value.find((n) => n.id === sourceId)
-      const target = notebookNotes.value.find((n) => n.id === targetId)
-      if (source && target) {
-        await createBidirectional({ type: 'note_link', sourceId, targetId })
-      }
-      break
-    }
-
-    case 'export_note': {
-      const noteId = payload.noteId as string
-      const format = (payload.format as string) || 'markdown'
-      const note = notebookNotes.value.find((n) => n.id === noteId)
-      if (!note) break
-      const content = note.properties?.content || ''
-      const filename = `${note.name}.${format === 'html' ? 'html' : 'md'}`
-      const mimeType = format === 'html' ? 'text/html' : 'text/markdown'
-      const blob = new Blob([content], { type: mimeType })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = filename
-      a.click()
-      URL.revokeObjectURL(url)
-      break
-    }
-
-    default:
-      console.warn(`[Agent→notebook] unknown action: ${action}`, payload)
-  }
-})
+// Agent→notebook 的 8 个数据动作已上移至 app 级全局桥（@/agent/agentDataBridges.ts，
+// 2026-09-14 架构拍板：与视图挂载解耦，视图未挂载也必达）；视图内无 UI 动作残留。
 </script>
 
 <style scoped>
