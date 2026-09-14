@@ -58,8 +58,18 @@
             </div>
           </template>
           <template v-else>
+            <!-- 孤儿清理操作条（assets/ 兼作素材库，不做自动清理 → 显式按钮 + confirm） -->
+            <div class="nb-assets-actions">
+              <button
+                class="nb-clean-btn"
+                :disabled="cleaningAssets || !filesRoot"
+                title="删除 assets/ 下未被任何实体引用、且写入超过 24 小时的图片"
+                @click="onCleanOrphanAssets"
+              >清理未引用图片</button>
+            </div>
             <div class="nb-note-list">
               <FileTreeBrowser
+                ref="assetTreeRef"
                 v-if="filesRoot"
                 :root-path="filesRoot"
                 compact
@@ -129,7 +139,7 @@
 import { ref, computed, reactive, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useEntityStore, useRelationStore, useBidirectional, useUndoRedo } from '@worldsea/entity-core'
 import type { Relation } from '@worldsea/entity-core'
-import { WsEmpty, WsIcon } from '@worldsea/ui-kit'
+import { WsEmpty, WsIcon, useConfirm } from '@worldsea/ui-kit'
 import NotebookEditor from './components/NotebookEditor.vue'
 import NotebookBoard from './components/NotebookBoard.vue'
 import NotebookGraph from './components/NotebookGraph.vue'
@@ -138,6 +148,8 @@ import FileTreeBrowser from '@/space/files/FileTreeBrowser.vue'
 import FilePreview from '@/space/files/FilePreview.vue'
 import ExportDialog from '@/sprouts/official/manuscript/components/ExportDialog.vue'
 import { resolveEntityDataDir } from '@/space/workspace'
+import { toastInfo, toastSuccess, toastWarn } from '@/composables/useToast'
+import { collectAssetDiskPaths, deleteOrphanAssets, findOrphanAssets, listAssetFiles } from '@/composables/imageAssets'
 import { isSupportedAsset } from './assetFilter'
 import { VIEW_MODES } from './notebookConfig'
 import type { ViewMode } from './notebookConfig'
@@ -188,6 +200,42 @@ const previewFile = ref<PreviewFile | null>(null)
 function onAssetSelect(node: { name: string; path: string; size: number }): void {
   if (!isSupportedAsset(node.name)) return
   previewFile.value = { name: node.name, path: node.path, size: node.size }
+}
+
+// ── 孤儿资产清理（2026-09-14 挂账：删笔记后 assets/ 图片残留无人回收）──
+// assets/ 兼作素材库（用户手动放的未引用图不能被自动删）→ 不做自动惰性清理，
+// 改显式按钮 + confirm 列表。引用集 = 全部实体 properties（不限于笔记，文稿
+// 正文同样引用资产）；宽限期 24h 在 imageAssets.findOrphanAssets 内判定。
+const { confirm } = useConfirm()
+const assetTreeRef = ref<{ refresh: () => Promise<void> } | null>(null)
+const cleaningAssets = ref(false)
+
+async function onCleanOrphanAssets(): Promise<void> {
+  if (!filesRoot.value || cleaningAssets.value) return
+  cleaningAssets.value = true
+  try {
+    const texts = entityStore.entities.map((e) => JSON.stringify(e.properties ?? {}))
+    const refs = collectAssetDiskPaths(texts)
+    const files = await listAssetFiles(filesRoot.value)
+    const orphans = findOrphanAssets(files, refs, Date.now())
+    if (orphans.length === 0) {
+      toastInfo('没有发现未引用的图片')
+      return
+    }
+    const totalBytes = orphans.reduce((s, f) => s + (f.size || 0), 0)
+    const ok = await confirm({
+      type: 'warning',
+      title: '清理未引用图片',
+      description: `将删除 ${orphans.length} 个未被任何实体引用的图片（共 ${(totalBytes / 1024 / 1024).toFixed(2)}MB，24 小时内新写入的文件不会清理）。确定继续？`,
+    })
+    if (!ok) return
+    const failed = await deleteOrphanAssets(orphans.map((f) => f.path))
+    if (failed.length === 0) toastSuccess(`已清理 ${orphans.length} 个未引用图片`)
+    else toastWarn(`已清理 ${orphans.length - failed.length} 个，${failed.length} 个删除失败`)
+    await assetTreeRef.value?.refresh()
+  } finally {
+    cleaningAssets.value = false
+  }
 }
 const folderToRename = ref<string | null>(null)
 const pendingDeleteFolderId = ref<string | null>(null)
@@ -670,6 +718,11 @@ useAgentPluginBridge('notebook', async (event) => {
 .nb-side-tab:hover { background: var(--color-bg-hover); color: var(--color-text-secondary); }
 .nb-side-tab.on { background: var(--color-primary-muted); color: var(--color-primary); border-color: var(--color-primary); }
 .nb-files-empty { padding: 24px 12px; text-align: center; font-size: var(--font-size-xs); color: var(--color-text-tertiary); }
+/* 素材 tab 顶部操作条（孤儿清理按钮；不动 FileTreeBrowser 共享组件） */
+.nb-assets-actions { display: flex; justify-content: flex-end; padding: 4px 8px 0; flex-shrink: 0; }
+.nb-clean-btn { padding: 3px 10px; border-radius: var(--radius-xs); border: 1px solid var(--color-border); background: transparent; color: var(--color-text-tertiary); font-size: var(--font-size-xs); cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s; }
+.nb-clean-btn:hover:not(:disabled) { color: var(--color-danger); border-color: var(--color-danger); background: color-mix(in srgb, var(--color-danger) 10%, transparent); }
+.nb-clean-btn:disabled { opacity: 0.5; cursor: default; }
 .nb-search { padding: 8px; }
 .nb-search-input { width: 100%; padding: 6px 8px; border-radius: var(--radius-xs); border: 1px solid var(--color-border); background: var(--color-bg-base); color: var(--color-text-primary); font-size: var(--font-size-sm); outline: none; }
 .nb-search-input:focus { border-color: var(--color-primary); }
