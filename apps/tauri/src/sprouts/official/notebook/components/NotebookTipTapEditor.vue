@@ -23,6 +23,8 @@
         <button class="tb-btn" :class="{ active: editor?.isActive('orderedList') }" @click="editor?.chain().focus().toggleOrderedList().run()" title="有序列表" aria-label="有序列表"><WsIcon name="list-ordered" size="xs" /></button>
         <button class="tb-btn" @click="editor?.chain().focus().setHorizontalRule().run()" title="分割线" aria-label="分割线"><WsIcon name="minus" size="xs" /></button>
         <button class="tb-btn" @click="editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()" title="插入表格" aria-label="插入表格"><WsIcon name="table" size="xs" /></button>
+        <button class="tb-btn" @click="imageInput?.click()" title="插入图片（本地文件，≤2MB）" aria-label="插入图片"><WsIcon name="image" size="xs" /></button>
+        <input ref="imageInput" type="file" accept="image/*" multiple class="tb-hidden-input" @change="onPickImages" />
       </div>
       <!-- 表格上下文组：光标在表格内才出现（结构操作）；禁用态由 can() 判定（如只剩一行时禁删行），不留无反馈的死按钮 -->
       <template v-if="editor?.isActive('table')">
@@ -70,7 +72,8 @@ import MentionPopover from './MentionPopover.vue'
 import SlashCommandMenu from './SlashCommandMenu.vue'
 import { useNoteEditor } from '../composables/useNoteEditor'
 import { SLASH_COMMANDS, type SlashCommandItem } from '../composables/slashCommandExtension'
-import { toastWarn } from '@/composables/useToast'
+import { insertImageFilesInto } from '@/composables/imageInsert'
+import { toastSuccess, toastWarn } from '@/composables/useToast'
 import type { Entity } from '@worldsea/entity-core'
 
 type SlashCommandPopoverApi = {
@@ -85,6 +88,17 @@ const emit = defineEmits<{ contentChange: [html: string] }>()
 
 const showPreview = ref(false)
 const fallbackContent = ref(String(props.note.properties?.content || ''))
+
+// 图片插入（工具栏按钮 → 隐藏文件选择器）；粘贴 / 拖拽走 useNoteEditor 的 handlePaste/handleDrop
+const imageInput = ref<HTMLInputElement | null>(null)
+async function onPickImages(e: Event) {
+  const input = e.target as HTMLInputElement
+  const files = Array.from(input.files ?? [])
+  input.value = '' // 允许连续选择同一文件
+  if (!files.length) return
+  const n = await insertImageFilesInto(editor.value, files)
+  if (n > 0) toastSuccess(`已插入 ${n} 张图片（base64 存入正文，单张上限 2MB）`)
+}
 
 function onFallbackInput(e: Event) {
   const val = (e.target as HTMLTextAreaElement).value
@@ -180,6 +194,8 @@ onBeforeUnmount(() => {
 .tb-btn:hover { background: var(--color-bg-hover); }
 .tb-btn.active { background: color-mix(in srgb, var(--color-primary) 15%, transparent); color: var(--color-primary); }
 .tb-btn:disabled { opacity: 0.3; cursor: default; }
+/* 工具栏内嵌的隐藏文件选择器（插入图片按钮触发） */
+.tb-hidden-input { display: none; }
 /* 文字按钮（表格结构操作）：宽度随文字，与图标按钮同高 */
 .tb-btn--txt { width: auto; min-width: 28px; padding: 0 7px; font-size: var(--font-size-xs); font-weight: var(--font-weight-medium); }
 .tb-btn--danger { color: var(--color-danger); }
@@ -227,6 +243,16 @@ onBeforeUnmount(() => {
   font-size: var(--font-size-sm); font-weight: var(--font-weight-medium); cursor: pointer;
 }
 .nb-editor-wrap :deep(.nb-mention:hover) { background: var(--color-primary); color: var(--on-accent); }
+
+/* ── 图片（三期前置）：块级 img，宽度自适应不越界；选中态与表格选中同色 ── */
+.nb-editor-wrap :deep(.tiptap img) {
+  max-width: 100%; height: auto; display: block; margin: 8px 0;
+  border-radius: var(--radius-sm);
+}
+.nb-editor-wrap :deep(.tiptap img.ProseMirror-selectednode) {
+  outline: 2px solid var(--color-primary); outline-offset: 2px;
+}
+.nb-preview-wrap :deep(img) { max-width: 100%; height: auto; border-radius: var(--radius-sm); }
 
 /* ── 表格（二期）：TipTap 官方建议的最小样式集 + 主题令牌化 ── */
 .nb-editor-wrap :deep(.tiptap .tableWrapper) { overflow-x: auto; margin: 8px 0; }

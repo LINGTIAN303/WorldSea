@@ -143,6 +143,19 @@ onMounted(() => {
   color: var(--color-text-inverse);
 }
 
+/* ── 图片（三期前置）：块级 img，宽度自适应不越界；选中态与表格选中同色 ── */
+.editor-wrap :deep(.tiptap img) {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 8px 0;
+  border-radius: var(--radius-xs);
+}
+.editor-wrap :deep(.tiptap img.ProseMirror-selectednode) {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 /* ── 表格（二期）：与笔记本同一套最小样式，令牌取本文件既有别名层 ── */
 .editor-wrap :deep(.tiptap .tableWrapper) {
   overflow-x: auto;

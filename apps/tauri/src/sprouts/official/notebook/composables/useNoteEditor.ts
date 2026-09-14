@@ -3,8 +3,10 @@ import { Editor } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import Mention from '@tiptap/extension-mention'
 import { TableKit } from '@tiptap/extension-table'
+import Image from '@tiptap/extension-image'
 import SlashCommandExtension, { SLASH_COMMANDS } from './slashCommandExtension'
 import type { SlashCommandItem } from './slashCommandExtension'
+import { pickImageFiles, insertImageFilesInto } from '@/composables/imageInsert'
 import { useEntityStore } from '@worldsea/entity-core'
 import { entitySchemaRegistry } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
@@ -89,6 +91,9 @@ export function useNoteEditor(currentNote: Ref<Entity | null>, onContentChange?:
         // resizable 让列宽可拖拽（HTML 产物带 colgroup 宽度）；表格结构操作由工具栏
         // 的光标上下文组提供（见 NotebookTipTapEditor）。
         TableKit.configure({ table: { resizable: true } }),
+        // 图片（三期前置）：块级节点；allowBase64 必开 —— 本地图片以 data URL 进正文
+        // （MVP 存储决策，见 imageInsert.ts）。导出 docx 的对应映射见 blocksToDocx。
+        Image.configure({ inline: false, allowBase64: true }),
         Mention.configure({
           HTMLAttributes: { class: 'nb-mention' },
           suggestion: {
@@ -175,6 +180,21 @@ export function useNoteEditor(currentNote: Ref<Entity | null>, onContentChange?:
       editorProps: {
         attributes: {
           class: 'nb-editor-body tiptap',
+        },
+        // 粘贴 / 拖拽本地图片（截图贴笔记是高频场景）。闭包引用 editor shallowRef：
+        // 此时尚在构造中，插入动作发生时 editor.value 必已就绪。
+        handlePaste: (_view, event) => {
+          const files = pickImageFiles(event.clipboardData?.files)
+          if (!files.length) return false
+          void insertImageFilesInto(editor.value, files)
+          return true
+        },
+        handleDrop: (_view, event) => {
+          const files = pickImageFiles(event.dataTransfer?.files)
+          if (!files.length) return false
+          event.preventDefault()
+          void insertImageFilesInto(editor.value, files)
+          return true
         },
       },
       onUpdate: ({ editor: ed }) => {

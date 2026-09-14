@@ -19,6 +19,7 @@ import {
   BorderStyle,
   Document,
   HeadingLevel,
+  ImageRun,
   LevelFormat,
   Packer,
   Paragraph,
@@ -34,6 +35,7 @@ import {
   type IRunOptions,
 } from 'docx'
 import type { DocxBlock, DocxRun } from './htmlToDocxBlocks'
+import { parseDataUrl, decodeBase64, mimeToDocxType, readImageSize } from './imageData'
 
 export interface DocxBuildOptions {
   /** 文档标题（一级标题置顶；传空串则不生成标题段） */
@@ -93,6 +95,68 @@ function orderedRef(listId: number): string {
   return `ws-ol-${listId}`
 }
 
+// ── 图片块（三期前置：编辑器已接 Image 扩展，正文可含 data URL 图片）──
+
+/** Word 正文可用宽度约 600px（A4 + 1in 边距 @96dpi），超高图（长截图）限 820 */
+const IMAGE_MAX_WIDTH = 600
+const IMAGE_MAX_HEIGHT = 820
+
+/** 等比 clamp 到页面可用范围；退化保底 ≥1px（0 尺寸图片 Word 会拒开） */
+function clampImageDims(dims: { width: number; height: number }): { width: number; height: number } {
+  let { width, height } = dims
+  if (!Number.isFinite(width) || width < 1) width = 1
+  if (!Number.isFinite(height) || height < 1) height = 1
+  const scale = Math.min(1, IMAGE_MAX_WIDTH / width, IMAGE_MAX_HEIGHT / height)
+  return {
+    width: Math.max(1, Math.round(width * scale)),
+    height: Math.max(1, Math.round(height * scale)),
+  }
+}
+
+function placeholderParagraph(text: string, base: RunBase): Paragraph {
+  return new Paragraph({
+    children: [new TextRun({
+      text,
+      italics: true,
+      color: '808080',
+      font: base.font,
+      ...(base.size !== undefined ? { size: base.size } : {}),
+    })],
+    spacing: { after: 120 },
+  })
+}
+
+/**
+ * image 块 → 图片段落 / 占位段落。
+ * 三类降级（全部**显式占位**，不留静默丢失）：
+ * - 非 data URL（外部 http 图）→ 导出器不做网络 IO，占位注明来源
+ * - webp / svg 等 Word 不支持的格式 → 占位注明
+ * - base64 损坏 → 占位注明
+ */
+function imageBlockToDocx(block: Extract<DocxBlock, { kind: 'image' }>, base: RunBase): (Paragraph | Table)[] {
+  const parsed = parseDataUrl(block.src)
+  if (!parsed) {
+    return [placeholderParagraph(`（外部图片未嵌入导出：${block.src.slice(0, 80)}${block.src.length > 80 ? '…' : ''}）`, base)]
+  }
+  const type = mimeToDocxType(parsed.mime)
+  if (!type) {
+    return [placeholderParagraph(`（图片格式 ${parsed.mime} 不被 Word 支持，未嵌入）`, base)]
+  }
+  try {
+    const bytes = decodeBase64(parsed.base64)
+    // 尺寸优先读图片头（无变形）；读不出（ exotic 编码/损坏）退默认 480×320 ——
+    // 比例可能不准，但比「整个图片因缺 transformation 而无法生成」可取
+    const dims = readImageSize(bytes, parsed.mime) ?? { width: 480, height: 320 }
+    const { width, height } = clampImageDims(dims)
+    return [new Paragraph({
+      children: [new ImageRun({ type, data: bytes, transformation: { width, height } })],
+      spacing: { after: 120 },
+    })]
+  } catch {
+    return [placeholderParagraph('（图片数据损坏，未能嵌入）', base)]
+  }
+}
+
 /** 收集全部有序列表 listId → Document.numbering 配置 */
 function numberingConfig(blocks: DocxBlock[]): INumberingOptions | undefined {
   const ids = new Set<number>()
@@ -142,6 +206,8 @@ function blockToDocx(block: DocxBlock, base: RunBase): (Paragraph | Table)[] {
       }))
     case 'hr':
       return [new Paragraph({ thematicBreak: true })]
+    case 'image':
+      return imageBlockToDocx(block, base)
     case 'table': {
       const border = tableBorder()
       const borders = {

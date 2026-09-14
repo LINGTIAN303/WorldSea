@@ -8,11 +8,13 @@
  * 拆成纯函数的理由（同 `xlsxToTables.ts` 先例）：DOM 解析逻辑可被 jsdom 直接单测，
  * 不必为了测排版逻辑去启动 Vue 组件。
  *
- * 覆盖面（与两处编辑器的实际配置对齐 —— StarterKit + Mention + TableKit，无图片扩展）：
+ * 覆盖面（与两处编辑器的实际配置对齐 —— StarterKit + Mention + TableKit + Image）：
  * - h1~h6 / p / ul / ol / li（含嵌套）/ blockquote / pre / hr / table(th/td/colspan/rowspan)
+ * - 块级 img（TipTap Image 默认 inline:false，`<img>` 为顶层节点）→ image 块；
+ *   **行内 img**（旧 HTML 或手动 inline 配置才会出现）仍丢弃 —— docx ImageRun 是
+ *   段级对象，行内混排需要文本绕排映射，不值得为罕见场景做
  * - 行内：strong/b、em/i、u、s/strike/del、code（行内）、br
  * - mention（`span.nb-mention` / `span.ms-mention`）按普通行内文本保留
- * - `<img>` 跳过：编辑器尚未装 Image 扩展，正文不会出现；若未来装了需在此补映射
  *
  * 输入契约：html 可能来自 `exportMultiple`（各章以 `<h1>章名</h1>` + `<hr/>` 拼接），
  * 也可能为空串 —— 空串 / 纯空白一律返回 `[]`。
@@ -53,6 +55,7 @@ export type DocxBlock =
   | { kind: 'listItem'; ordered: boolean; listId: number; level: number; runs: DocxRun[] }
   | { kind: 'code'; lines: string[] }
   | { kind: 'hr' }
+  | { kind: 'image'; src: string; alt?: string }
   | { kind: 'table'; rows: DocxRowIr[] }
 
 interface ParseState {
@@ -92,7 +95,8 @@ function collectInline(node: Node, marks: Omit<DocxRun, 'text'>, out: DocxRun[])
     return
   }
   if (tag === 'IMG') {
-    // 编辑器未装 Image 扩展（2026-09-14 实测），正文不应出现 img；出现则丢弃占位
+    // 行内 img（p 内 / 旧 HTML）：丢弃。块级 img（编辑器 Image 扩展的标准产物）由
+    // walkBlocks 单独成块 —— 见彼处注释。
     return
   }
   const mark = MARK_TAGS[tag]
@@ -211,6 +215,12 @@ function walkBlocks(parent: Element, quote: boolean, state: ParseState, out: Doc
       out.push({ kind: 'code', lines: (el.textContent ?? '').replace(/\n$/, '').split('\n') })
     } else if (tag === 'HR') {
       out.push({ kind: 'hr' })
+    } else if (tag === 'IMG') {
+      // 块级 img（TipTap Image 扩展 inline:false 的标准产物，顶层节点）→ 独立 image 块。
+      // src 通常是 data URL（本地图片 MVP 存储），也可能是外部 URL —— 由映射层决定
+      // 真实嵌入或占位降级（解析层不做 IO）。
+      const src = el.getAttribute('src') || ''
+      if (src) out.push({ kind: 'image', src, ...(el.getAttribute('alt') ? { alt: el.getAttribute('alt') as string } : {}) })
     } else if (tag === 'TABLE') {
       out.push(parseTable(el))
     } else {

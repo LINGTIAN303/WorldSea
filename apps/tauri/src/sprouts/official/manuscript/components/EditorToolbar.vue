@@ -21,6 +21,8 @@
       <button class="tb-btn" :class="{ active: editor?.isActive('orderedList') }" @click="editor?.chain().focus().toggleOrderedList().run()" title="有序列表">1.</button>
       <button class="tb-btn" @click="editor?.chain().focus().setHorizontalRule().run()" title="分割线">—</button>
       <button class="tb-btn" @click="editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()" title="插入表格">⊞</button>
+      <button class="tb-btn" @click="imageInput?.click()" title="插入图片（本地文件，≤2MB）">图</button>
+      <input ref="imageInput" type="file" accept="image/*" multiple class="tb-hidden-input" @change="onPickImages" />
     </div>
     <!-- 表格上下文组：光标在表格内才出现；禁用态由 can() 判定（如只剩一行时禁删行），不留无反馈的死按钮。
          注：本工具栏仍是字符风格（图标化是笔记本侧 257fd8a 的事，文稿侧挂账未做），故沿用字符/文字风格保持内部一致 -->
@@ -48,14 +50,27 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type { Editor } from '@tiptap/vue-3'
+import { insertImageFilesInto } from '@/composables/imageInsert'
+import { toastSuccess } from '@/composables/useToast'
 
 const props = defineProps<{
   editor: Editor | null
   saveStatus: 'saved' | 'saving' | 'unsaved'
   wordCount: number
 }>()
+
+// 图片插入（工具栏按钮 → 隐藏文件选择器）；粘贴 / 拖拽走 useChapterEditor 的 handlePaste/handleDrop
+const imageInput = ref<HTMLInputElement | null>(null)
+async function onPickImages(e: Event) {
+  const input = e.target as HTMLInputElement
+  const files = Array.from(input.files ?? [])
+  input.value = '' // 允许连续选择同一文件
+  if (!files.length) return
+  const n = await insertImageFilesInto(props.editor, files)
+  if (n > 0) toastSuccess(`已插入 ${n} 张图片（base64 存入正文，单张上限 2MB）`)
+}
 
 const headingLevel = computed(() => {
   if (!props.editor) return '0'
@@ -106,6 +121,8 @@ function setHeading(e: Event) {
 .tb-btn:hover { background: var(--hover-bg); }
 .tb-btn.active { background: var(--active-bg); color: var(--primary); }
 .tb-btn:disabled { opacity: 0.3; cursor: default; }
+/* 工具栏内嵌的隐藏文件选择器（插入图片按钮触发） */
+.tb-hidden-input { display: none; }
 /* 文字按钮（表格结构操作）：宽度随文字，与图标按钮同高 */
 .tb-btn--txt { width: auto; min-width: 28px; padding: 0 7px; font-size: var(--font-size-xs); font-weight: var(--font-weight-medium); }
 .tb-btn--danger { color: var(--color-danger); }

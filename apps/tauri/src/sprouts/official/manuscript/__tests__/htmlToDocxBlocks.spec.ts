@@ -8,6 +8,7 @@
  */
 import { describe, it, expect } from 'vitest'
 import { htmlToBlocks, normalizeRuns, type DocxBlock, type DocxRun } from '../composables/htmlToDocxBlocks'
+import { parseDataUrl, decodeBase64, mimeToDocxType, readImageSize } from '../composables/imageData'
 
 function texts(runs: DocxRun[]): string[] {
   return runs.map(r => r.text)
@@ -129,9 +130,19 @@ describe('htmlToDocxBlocks · HTML → IR', () => {
     expect(blocks.map(b => b.kind)).toEqual(['heading', 'paragraph', 'hr', 'heading', 'paragraph'])
   })
 
-  it('img 跳过（编辑器未装图片扩展，出现即丢弃）', () => {
+  it('行内 img（p 内，非 Image 扩展产物）丢弃，不影响前后文本', () => {
     const blocks = htmlToBlocks('<p>前<img src="x.png" alt="图">后</p>')
     expect(texts((blocks[0] as { runs: DocxRun[] }).runs).join('')).toBe('前后')
+  })
+
+  it('块级 img（Image 扩展产物）→ image 块，保留 src/alt', () => {
+    const blocks = htmlToBlocks('<p>前</p><img src="data:image/png;base64,AAAA" alt="截图"><p>后</p>')
+    expect(blocks).toHaveLength(3)
+    expect(blocks[1]).toEqual({ kind: 'image', src: 'data:image/png;base64,AAAA', alt: '截图' })
+  })
+
+  it('无 src 的 img 不产块', () => {
+    expect(htmlToBlocks('<img alt="空">')).toEqual([])
   })
 
   it('块级散落文本 → 段落兜底', () => {
@@ -144,6 +155,76 @@ describe('htmlToDocxBlocks · HTML → IR', () => {
     expect(normalizeRuns([{ text: 'a' }, { text: '\n' }, { text: 'b' }])).toEqual([
       { text: 'a' }, { text: '\n' }, { text: 'b' },
     ])
+  })
+})
+
+describe('imageData · data URL 解析与图片头尺寸', () => {
+  it('parseDataUrl：合法解析；http URL / 非 base64 → null', () => {
+    expect(parseDataUrl('data:image/png;base64,QUJD')).toEqual({ mime: 'image/png', base64: 'QUJD' })
+    expect(parseDataUrl('https://example.com/a.png')).toBeNull()
+    expect(parseDataUrl('data:image/svg+xml,%3Csvg%3E')).toBeNull()
+  })
+
+  it('mimeToDocxType：png/jpeg/gif/bmp 映射，webp/svg 拒绝', () => {
+    expect(mimeToDocxType('image/png')).toBe('png')
+    expect(mimeToDocxType('image/jpeg')).toBe('jpg')
+    expect(mimeToDocxType('image/gif')).toBe('gif')
+    expect(mimeToDocxType('image/bmp')).toBe('bmp')
+    expect(mimeToDocxType('image/webp')).toBeNull()
+    expect(mimeToDocxType('image/svg+xml')).toBeNull()
+  })
+
+  it('decodeBase64：标准 base64 → 字节', () => {
+    // 'QUJD' = 'ABC'
+    expect(Array.from(decodeBase64('QUJD'))).toEqual([0x41, 0x42, 0x43])
+  })
+
+  /** 构造带 IHDR 宽高的最小 PNG 头（33 字节，足以读尺寸；docx 不校验图片完整性） */
+  function makePngBytes(width: number, height: number): Uint8Array {
+    const b = new Uint8Array(33)
+    b.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 0)
+    b.set([0, 0, 0, 13], 8)
+    b.set([0x49, 0x48, 0x44, 0x52], 12) // 'IHDR'
+    const be32 = (v: number, o: number) => { b[o] = (v >>> 24) & 0xff; b[o + 1] = (v >>> 16) & 0xff; b[o + 2] = (v >>> 8) & 0xff; b[o + 3] = v & 0xff }
+    be32(width, 16)
+    be32(height, 20)
+    return b
+  }
+
+  it('PNG 头：IHDR 大端宽高', () => {
+    const dims = readImageSize(makePngBytes(1280, 720), 'image/png')
+    expect(dims).toEqual({ width: 1280, height: 720 })
+  })
+
+  it('GIF 头：小端宽高', () => {
+    const b = new Uint8Array(24)
+    b.set([0x47, 0x49, 0x46, 0x38, 0x39, 0x61], 0) // 'GIF89a'
+    b.set([0x40, 0x01, 0xf0, 0x00], 6) // 320 x 240 (LE)
+    expect(readImageSize(b, 'image/gif')).toEqual({ width: 320, height: 240 })
+  })
+
+  it('BMP 头：DIB 偏移 18/22，负高取绝对值', () => {
+    const b = new Uint8Array(40)
+    b.set([0x42, 0x4d], 0) // 'BM'
+    const le32 = (v: number, o: number) => { b[o] = v & 0xff; b[o + 1] = (v >>> 8) & 0xff; b[o + 2] = (v >>> 16) & 0xff; b[o + 3] = (v >>> 24) & 0xff }
+    le32(100, 18)
+    le32(-50, 22) // top-down 行序
+    expect(readImageSize(b, 'image/bmp')).toEqual({ width: 100, height: 50 })
+  })
+
+  it('JPEG：SOF0 前有 APP0 段，逐段跳过后命中', () => {
+    const b = new Uint8Array(48)
+    b.set([0xff, 0xd8], 0) // SOI
+    b.set([0xff, 0xe0, 0x00, 0x10], 2) // APP0，段长 16（含自身 2 字节）
+    b.set([0xff, 0xc0, 0x00, 0x11, 0x08], 20) // SOF0：len 17、精度 8
+    b.set([0x02, 0xd0], 25) // height 720
+    b.set([0x05, 0x00], 27) // width 1280
+    expect(readImageSize(b, 'image/jpeg')).toEqual({ width: 1280, height: 720 })
+  })
+
+  it('未知 mime / 短字节流 → null（调用方走 fallback）', () => {
+    expect(readImageSize(makePngBytes(10, 10), 'image/webp')).toBeNull()
+    expect(readImageSize(new Uint8Array(8), 'image/png')).toBeNull()
   })
 })
 
@@ -195,5 +276,38 @@ describe('blocksToDocx · 真实打包冒烟（jszip 解包断言）', () => {
     expect(docXml).not.toContain('<w:numPr>')
     const numberingXml = await zip.file('word/numbering.xml')!.async('string')
     expect(numberingXml).not.toContain('w:val="decimal"')
+  })
+
+  it('image 块：PNG data URL 嵌入为 drawing；webp / 外部 URL 走显式占位', async () => {
+    const { buildDocument } = await import('../composables/blocksToDocx')
+    const { Packer } = await import('docx')
+    const JSZip = (await import('jszip')).default
+
+    // 最小 PNG 头（8 签名 + IHDR + 1280x720 大端宽高）—— docx 只打包不校验图片完整性
+    const bytes = new Uint8Array(33)
+    bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 0)
+    bytes.set([0, 0, 0, 13], 8)
+    bytes.set([0x49, 0x48, 0x44, 0x52], 12)
+    const be32 = (v: number, o: number) => { bytes[o] = (v >>> 24) & 0xff; bytes[o + 1] = (v >>> 16) & 0xff; bytes[o + 2] = (v >>> 8) & 0xff; bytes[o + 3] = v & 0xff }
+    be32(1280, 16)
+    be32(720, 20)
+    let bin = ''
+    bytes.forEach(x => { bin += String.fromCharCode(x) })
+    const pngSrc = 'data:image/png;base64,' + btoa(bin)
+
+    const doc = buildDocument(
+      htmlToBlocks(`<p>图前</p><img src="${pngSrc}" alt="截图"><img src="data:image/webp;base64,QUJD"><img src="https://example.com/a.png"><p>图后</p>`),
+      { title: '' },
+    )
+    const buffer = await Packer.toBuffer(doc)
+    const zip = await JSZip.loadAsync(buffer)
+    const docXml = await zip.file('word/document.xml')!.async('string')
+    expect(docXml).toContain('<w:drawing>') // PNG 真实嵌入
+    expect(docXml).toContain('image/webp 不被 Word 支持') // webp 显式占位
+    expect(docXml).toContain('外部图片未嵌入导出') // http 图显式占位
+    // PNG 数据进了 media（排除 `word/media/` 目录条目本身 —— zip.files 含目录项）
+    const media = Object.keys(zip.files).filter(n => n.startsWith('word/media/') && !n.endsWith('/'))
+    expect(media.length).toBe(1)
+    expect(media[0]).toMatch(/\.png$/)
   })
 })

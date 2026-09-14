@@ -3,8 +3,10 @@ import { Editor, EditorContent } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import Mention from '@tiptap/extension-mention'
 import { TableKit } from '@tiptap/extension-table'
+import Image from '@tiptap/extension-image'
 import SlashCommandExtension, { SLASH_COMMANDS } from './slashCommandExtension'
 import type { SlashCommandItem } from './slashCommandExtension'
+import { pickImageFiles, insertImageFilesInto } from '@/composables/imageInsert'
 import { useEntityStore } from '@worldsea/entity-core'
 import { entitySchemaRegistry } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
@@ -87,6 +89,8 @@ export function useChapterEditor(currentChapter: Ref<Entity | null>) {
         StarterKit,
         // 表格（二期）：与笔记本同一配置，见 useNoteEditor 注释
         TableKit.configure({ table: { resizable: true } }),
+        // 图片（三期前置）：与笔记本同一配置，见 useNoteEditor 注释
+        Image.configure({ inline: false, allowBase64: true }),
         Mention.configure({
           HTMLAttributes: { class: 'ms-mention' },
           suggestion: {
@@ -173,6 +177,20 @@ export function useChapterEditor(currentChapter: Ref<Entity | null>) {
       editorProps: {
         attributes: {
           class: 'ms-editor-body',
+        },
+        // 粘贴 / 拖拽本地图片（与 useNoteEditor 同一逻辑，见彼处注释）
+        handlePaste: (_view, event) => {
+          const files = pickImageFiles(event.clipboardData?.files)
+          if (!files.length) return false
+          void insertImageFilesInto(editor.value, files)
+          return true
+        },
+        handleDrop: (_view, event) => {
+          const files = pickImageFiles(event.dataTransfer?.files)
+          if (!files.length) return false
+          event.preventDefault()
+          void insertImageFilesInto(editor.value, files)
+          return true
         },
       },
       onUpdate: ({ editor: ed }) => {
