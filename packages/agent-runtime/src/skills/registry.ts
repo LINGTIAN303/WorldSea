@@ -56,6 +56,7 @@ export const ALWAYS_AVAILABLE_TOOLS = [
   'output_table', 'output_choice', 'output_code', 'output_entity_card',
   'output_alert', 'output_stat', 'output_list', 'output_progress',
   'output_comparison', 'output_timeline', 'output_image', 'output_accordion',
+  'preview_file',
   'vision_analyze', 'list_vision_images',
   'image_generate', 'image_gen_config', 'image_list', 'image_show',
   'read_file', 'clipboard_read', 'clipboard_write', 'notify',

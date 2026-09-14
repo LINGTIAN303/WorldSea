@@ -45,6 +45,7 @@ import { personaTools } from './tools/persona'
 import { sessionTools } from './tools/session-tools'
 import { crawlTools } from './tools/crawl-tool'
 import { docConvertTools } from './tools/doc-convert-tool'
+import { previewFileTools } from './tools/preview-file'
 import { entityContextTools } from './tools/entity-context'
 import { nativeTools } from './tools/native-tools'
 import { codingAgentTools, LEGACY_TO_CODING_MAP } from './tools/coding-agent-tools'
@@ -106,6 +107,7 @@ function registerAllTools(): void {
     ...sessionTools,
     ...crawlTools,
     ...docConvertTools,
+    ...previewFileTools,
     ...nativeTools,
     ...codingAgentTools,
     // H3 Skills 点火（P1，2026-08-30）：技能元工具必须进 ALL_TOOLS_MAP——
@@ -236,6 +238,7 @@ export const ALL_TOOLS = [
   ...SKILL_META_TOOLS,
   ...crawlTools,
   ...docConvertTools,
+  ...previewFileTools,
   ...nativeTools,
   ...codingAgentTools,
 ]
@@ -254,7 +257,7 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
   { id: 'entity', label: '实体管理', tools: [...entityCrudTools, ...entityContextTools] },
   { id: 'relation', label: '关系管理', tools: [...relationManageTools] },
   { id: 'search', label: '搜索与检索', tools: [...contentSearchTools, ...webSearchTools, ...webFetchTools, ...crawlTools] },
-  { id: 'output', label: '输出渲染', tools: [...outputTools] },
+  { id: 'output', label: '输出渲染', tools: [...outputTools, ...previewFileTools] },
   { id: 'a2ui', label: 'A2UI 界面', tools: [...a2uiTools, ...a2uiHelperTools] },
   { id: 'memory', label: '记忆系统', tools: [...memoryTools] },
   { id: 'project', label: '项目管理', tools: [...projectTools] },

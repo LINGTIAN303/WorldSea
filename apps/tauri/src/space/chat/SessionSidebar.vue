@@ -633,15 +633,23 @@ function onClickOutside() {
   confirmingDeleteId.value = null
 }
 
+/** Agent preview_file 工具推送（worldsea:preview-file 事件）→ 复用左栏点击文件的同一条预览通路 */
+function onAgentPreviewFile(e: Event): void {
+  const node = (e as CustomEvent<FsNode>).detail
+  if (node?.path) onLeftFileSelect(node)
+}
+
 onMounted(() => {
   refresh()
   document.addEventListener('click', onClickOutside)
   window.addEventListener('ws-session-title-updated', refresh)
+  window.addEventListener('worldsea:preview-file', onAgentPreviewFile)
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', onClickOutside)
   window.removeEventListener('ws-session-title-updated', refresh)
+  window.removeEventListener('worldsea:preview-file', onAgentPreviewFile)
 })
 
 watch(currentSessionId, () => {
