@@ -54,6 +54,7 @@
       <div class="cl-ctx-item" role="menuitem" tabindex="0" @click="ctxCycleStatus" @keydown.enter.prevent="ctxCycleStatus"><WsIcon name="delete" size="xs" /> 切换状态</div>
       <div class="cl-ctx-item" role="menuitem" tabindex="0" @click="ctxSetVolume" @keydown.enter.prevent="ctxSetVolume"><WsIcon name="folder" size="xs" /> 修改所属卷</div>
       <div class="cl-ctx-item" role="menuitem" tabindex="0" @click="ctxLinkOutline" @keydown.enter.prevent="ctxLinkOutline"><WsIcon name="link" size="xs" /> 关联大纲节点</div>
+      <div class="cl-ctx-item" role="menuitem" tabindex="0" @click="ctxMoveToBook" @keydown.enter.prevent="ctxMoveToBook"><WsIcon name="book" size="xs" /> 移动到书籍</div>
       <div class="cl-ctx-divider"></div>
       <div class="cl-ctx-item cl-ctx-danger" role="menuitem" tabindex="0" @click="ctxDelete" @keydown.enter.prevent="ctxDelete"><WsIcon name="delete" size="xs" /> 删除</div>
     </div>
@@ -71,6 +72,31 @@
         <div class="cl-modal-actions">
           <button class="btn-secondary btn-sm" @click="showRenameInput = false">取消</button>
           <button class="btn-primary btn-sm" @click="confirmRename">确定</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 移动到书籍（2026-09-14 书籍迭代：存量章节改归属的唯一入口）；当前所属书禁选 -->
+    <div v-if="showBookPicker" class="cl-modal-overlay" @click.self="showBookPicker = false">
+      <div class="cl-modal-sm">
+        <h4>移动到书籍</h4>
+        <div class="cl-outline-list">
+          <div
+            v-for="b in bookOptions"
+            :key="b.id"
+            class="cl-outline-item"
+            :class="{ active: bookPickId === b.id, disabled: ((ctxMenu.entity?.properties.bookId as string) || '') === b.id }"
+            @click="pickBook(b.id)"
+          >
+            {{ b.name }}
+          </div>
+          <div class="cl-outline-item" :class="{ active: bookPickId === '', disabled: ((ctxMenu.entity?.properties.bookId as string) || '') === '' }" @click="pickBook('')">
+            未归书
+          </div>
+        </div>
+        <div class="cl-modal-actions">
+          <button class="btn-secondary btn-sm" @click="showBookPicker = false">取消</button>
+          <button class="btn-primary btn-sm" @click="confirmBookMove">确定</button>
         </div>
       </div>
     </div>
@@ -209,6 +235,11 @@ const showVolumeInput = ref(false)
 const volumeInputVal = ref('')
 const showOutlinePicker = ref(false)
 const outlinePickId = ref('')
+const showBookPicker = ref(false)
+const bookPickId = ref('')
+
+/** 书籍选项（移动到书籍弹层；书籍列表从 store 自取，与 outlineNodes 同款） */
+const bookOptions = computed(() => (es.entities ?? []).filter(e => e.type === 'book'))
 
 const ctxMenuRef = ref<HTMLDivElement | null>(null)
 let ctxMenuReturnFocusEl: HTMLElement | null = null
@@ -310,6 +341,29 @@ async function confirmOutline() {
   })
 }
 
+/** 章节跨书移动：目标 = 书籍 id 或 ''（未归书）；当前所属书禁选（点了无变化） */
+function ctxMoveToBook() {
+  ctxMenu.show = false
+  if (!ctxMenu.entity) return
+  bookPickId.value = ((ctxMenu.entity.properties.bookId as string) || '')
+  showBookPicker.value = true
+}
+
+function pickBook(id: string) {
+  if (((ctxMenu.entity?.properties.bookId as string) || '') === id) return
+  bookPickId.value = id
+}
+
+async function confirmBookMove() {
+  showBookPicker.value = false
+  if (!ctxMenu.entity) return
+  const currentBookId = ((ctxMenu.entity.properties.bookId as string) || '')
+  if (bookPickId.value === currentBookId) return // 无变化
+  await es.update(ctxMenu.entity.id, {
+    properties: { ...ctxMenu.entity.properties, bookId: bookPickId.value },
+  })
+}
+
 function ctxDelete() {
   ctxMenu.show = false
   if (!ctxMenu.entity) return
@@ -407,4 +461,6 @@ onBeforeUnmount(() => {
 .cl-outline-item { padding: 6px 10px; font-size: var(--font-size-sm); cursor: pointer; border-radius: var(--radius-xs); }
 .cl-outline-item:hover { background: var(--hover-bg); }
 .cl-outline-item.active { background: var(--active-bg); color: var(--primary); }
+.cl-outline-item.disabled { opacity: 0.45; cursor: default; }
+.cl-outline-item.disabled:hover { background: transparent; }
 </style>

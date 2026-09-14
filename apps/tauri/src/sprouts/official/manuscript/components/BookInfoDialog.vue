@@ -1,11 +1,11 @@
 <template>
   <div class="binfo-overlay" @click.self="$emit('close')">
     <div ref="dialogRef" class="binfo-dialog" role="dialog" aria-modal="true" aria-labelledby="binfo-title" tabindex="-1">
-      <h3 id="binfo-title"><WsIcon name="book" size="sm" /> 书籍信息</h3>
+      <h3 id="binfo-title"><WsIcon name="book" size="sm" /> {{ isCreate ? '新建书籍' : '书籍信息' }}</h3>
 
-      <!-- 封面（2026-09-14 书籍迭代·拍板图片封面）：复用 writeImageAsset 落盘
-           assets/（素材面板可见、孤儿清理按 book.properties JSON 识别不误删），
-           properties.cover 存 convertFileSrc 绝对 URL -->
+      <!-- 封面（2026-09-14 书籍迭代·拍板图片封面）：保存时经 writeImageAsset 落盘
+           assets/（素材面板可见、孤儿清理按 book.properties JSON 识别不误删）。
+           上传时机 = 保存时（选文件仅本地预览）——取消/关闭不残留无引用图片文件 -->
       <div class="binfo-cover">
         <div class="binfo-cover-box">
           <img v-if="coverPreview" :src="coverPreview" alt="封面预览" />
@@ -13,7 +13,7 @@
         </div>
         <div class="binfo-cover-actions">
           <button class="btn-secondary btn-sm" @click="coverInput?.click()">上传封面</button>
-          <button v-if="coverPreview" class="btn-secondary btn-sm" @click="pendingCover = null">移除封面</button>
+          <button v-if="coverPreview" class="btn-secondary btn-sm" @click="removeCover">移除封面</button>
         </div>
         <input ref="coverInput" type="file" accept="image/*" class="binfo-hidden-input" @change="onPickCover" />
       </div>
@@ -30,25 +30,32 @@
 
       <div class="binfo-actions">
         <button class="btn-secondary" @click="$emit('close')">取消</button>
-        <button class="btn-primary" :disabled="saving" @click="save">{{ saving ? '保存中...' : '保存' }}</button>
+        <button class="btn-primary" :disabled="saving" @click="save">{{ saving ? (isCreate ? '创建中...' : '保存中...') : (isCreate ? '创建' : '保存') }}</button>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { WsIcon } from '@worldsea/ui-kit'
 import { useEntityStore } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
-import { writeImageAsset } from '@/composables/imageAssets'
+import { writeImageAsset, ASSET_MAX_BYTES } from '@/composables/imageAssets'
 import { toastError } from '@/composables/useToast'
 import { useFocusTrap } from '@/composables/useFocusTrap'
 
-const props = defineProps<{ book: Entity }>()
+const props = defineProps<{
+  /** null/缺省 = 创建模式（确认后才 es.add 落地实体）；传实体 = 编辑模式 */
+  book?: Entity | null
+  /** 创建模式新书 sortOrder（父层按现有书籍数给；编辑模式忽略） */
+  nextSortOrder?: number
+}>()
 const emit = defineEmits<{ close: [] }>()
 
 const es = useEntityStore()
+
+const isCreate = computed(() => !props.book)
 
 const dialogRef = ref<HTMLElement | null>(null)
 const { activate } = useFocusTrap(dialogRef, {
@@ -59,31 +66,56 @@ onMounted(() => {
   nextTick(() => activate())
 })
 
-const nameVal = ref(props.book.name)
-const descVal = ref(props.book.description || '')
-// 封面三态：undefined=未改动 / null=移除 / string=新封面 asset URL
-const pendingCover = ref<string | null | undefined>(undefined)
+const nameVal = ref(props.book?.name || '')
+const descVal = ref(props.book?.description || '')
+
+// ── 封面状态机：选文件仅本地预览（objectURL），保存时才 writeImageAsset 落盘；
+//    显式移除 = coverRemoved；两者都不沾 = 保持原值 ──
+const coverFile = ref<File | null>(null)
+const coverRemoved = ref(false)
+const coverPreview = ref(props.book ? (props.book.properties.cover as string) || '' : '')
 const coverInput = ref<HTMLInputElement | null>(null)
-const saving = ref(false)
+let previewObjectUrl = ''
 
-const coverPreview = computed(() => {
-  if (pendingCover.value === null) return ''
-  if (pendingCover.value) return pendingCover.value
-  return (props.book.properties.cover as string) || ''
-})
+function setPreview(src: string) {
+  if (previewObjectUrl) {
+    URL.revokeObjectURL(previewObjectUrl)
+    previewObjectUrl = ''
+  }
+  coverPreview.value = src
+}
 
-async function onPickCover(e: Event) {
+/** 选择后本地预校验（与 writeImageAsset 同口径，避免保存时才发现超限） */
+function onPickCover(e: Event) {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
   input.value = '' // 允许连续选择同一文件
   if (!file) return
-  const result = await writeImageAsset(file) // 类型/2MB 校验 + 落盘 + convertFileSrc
-  if (result.ok && result.src) {
-    pendingCover.value = result.src
-  } else {
-    toastError(result.reason || '封面上传失败')
+  if (!file.type.startsWith('image/')) {
+    toastError(`「${file.name}」不是图片文件`)
+    return
   }
+  if (file.size > ASSET_MAX_BYTES) {
+    toastError(`「${file.name}」超过 2MB 上限（${(file.size / 1024 / 1024).toFixed(1)}MB）`)
+    return
+  }
+  coverFile.value = file
+  coverRemoved.value = false
+  previewObjectUrl = URL.createObjectURL(file)
+  setPreview(previewObjectUrl)
 }
+
+function removeCover() {
+  coverFile.value = null
+  coverRemoved.value = true
+  setPreview('')
+}
+
+onBeforeUnmount(() => {
+  if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl)
+})
+
+const saving = ref(false)
 
 async function save() {
   const name = nameVal.value.trim()
@@ -93,10 +125,40 @@ async function save() {
   }
   saving.value = true
   try {
+    // 封面落盘时机 = 保存：待上传文件 → writeImageAsset；显式移除 → 清空；否则原值不动
+    let cover: string | null | undefined = undefined
+    if (coverFile.value) {
+      const r = await writeImageAsset(coverFile.value)
+      if (!r.ok || !r.src) {
+        toastError(r.reason || '封面上传失败')
+        return // 保留表单与已选文件，用户可重试
+      }
+      cover = r.src
+    } else if (coverRemoved.value) {
+      cover = ''
+    }
+
     // 实体更新 = properties 整体替换（entity_commands.rs:338），必须带全量
-    const properties = { ...props.book.properties }
-    if (pendingCover.value !== undefined) properties.cover = pendingCover.value
-    await es.update(props.book.id, { name, description: descVal.value, properties })
+    const properties: Record<string, unknown> = { ...(props.book?.properties ?? {}) }
+    if (!props.book && props.nextSortOrder !== undefined) properties.sortOrder = props.nextSortOrder
+    if (cover !== undefined) properties.cover = cover
+
+    if (props.book) {
+      await es.update(props.book.id, { name, description: descVal.value, properties })
+    } else {
+      // 创建模式：此刻才落地书籍实体
+      const now = new Date().toISOString()
+      await es.add({
+        id: `book-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        type: 'book',
+        name,
+        description: descVal.value,
+        properties,
+        tags: [],
+        createdAt: now,
+        updatedAt: now,
+      })
+    }
     emit('close')
   } finally {
     saving.value = false

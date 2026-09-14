@@ -9,7 +9,7 @@
       <span v-if="inBook" class="toolbar-info">共 {{ viewChapters.length }} 章</span>
     </Teleport>
     <Teleport to="#view-toolbar-create">
-      <CreateButton :label="inBook ? '新建章节' : '新建书籍'" @click="inBook ? newManuscript() : newBook()" />
+      <CreateButton :label="inBook ? '新建章节' : '新建书籍'" @click="inBook ? newManuscript() : startCreateBook()" />
     </Teleport>
 
     <!-- 层1：书籍列表（2026-09-14 书籍实体——先建书，点击书籍才进入章节编辑器）；
@@ -163,10 +163,11 @@
       @close="showExport = false"
     />
 
-    <!-- 书籍信息编辑（书名/简介/封面；层1 卡片与层2 返回条双入口） -->
+    <!-- 书籍信息编辑/创建（书名/简介/封面；创建模式=editingBook 为 null，确认后才落地） -->
     <BookInfoDialog
-      v-if="showBookInfo && editingBook"
+      v-if="showBookInfo"
       :book="editingBook"
+      :next-sort-order="books.length"
       @close="showBookInfo = false"
     />
   </div>
@@ -257,11 +258,18 @@ function bookCover(b: Entity): string {
 }
 
 // ── 书籍信息编辑（书名/简介/封面；层1 卡片 hover + 层2 返回条旁双入口）──
+// editingBook=null 且 showBookInfo=true = 创建模式（弹窗确认后才落地实体，用户拍板）
 const showBookInfo = ref(false)
 const editingBook = ref<Entity | null>(null)
 
 function openBookInfo(b: Entity) {
   editingBook.value = b
+  showBookInfo.value = true
+}
+
+/** 新建书籍：先弹信息窗，填完书名/简介/封面确认后才创建（不再直接落「未命名书籍」） */
+function startCreateBook() {
+  editingBook.value = null
   showBookInfo.value = true
 }
 
@@ -348,22 +356,6 @@ async function saveMeta() {
   if (!current.value) return
   await es.update(current.value.id, {
     properties: { ...current.value.properties, status: editStatus.value },
-  })
-}
-
-async function newBook() {
-  const checkedName = await checkAndConfirmName('未命名书籍', undefined, 'book')
-  if (!checkedName) return
-  const now = new Date().toISOString()
-  await es.add({
-    id: `book-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-    type: 'book',
-    name: checkedName,
-    description: '',
-    properties: { sortOrder: books.value.length },
-    tags: [],
-    createdAt: now,
-    updatedAt: now,
   })
 }
 
