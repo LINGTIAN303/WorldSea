@@ -129,9 +129,13 @@ const contentStyle = computed(() => ({
 }))
 
 const sanitizedHTML = computed(() => {
+  // 二期后正文可含表格与图片：白名单须放行对应标签与属性，
+  // 否则 DOMPurify 会直接剥掉 <table>/<img>（表格只剩散落文本、图片整体消失）。
+  // TipTap resizable 表格带 style="min-width" 与 <colgroup><col style="width:...">
   return DOMPurify.sanitize(props.html, {
-    ALLOWED_TAGS: ['p', 'br', 'b', 'i', 's', 'em', 'strong', 'h1', 'h2', 'h3', 'ul', 'ol', 'li', 'blockquote', 'hr', 'span'],
-    ALLOWED_ATTR: ['class', 'data-id', 'data-label'],
+    ALLOWED_TAGS: ['p', 'br', 'b', 'i', 's', 'em', 'strong', 'u', 'h1', 'h2', 'h3', 'ul', 'ol', 'li', 'blockquote', 'hr', 'span',
+      'img', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'colgroup', 'col', 'pre', 'code'],
+    ALLOWED_ATTR: ['class', 'data-id', 'data-label', 'src', 'alt', 'colspan', 'rowspan', 'style'],
   })
 })
 
@@ -260,6 +264,29 @@ function onResizeStart(e: MouseEvent) {
 .pp-body :deep(hr) {
   border: none; border-top: 1px solid var(--color-border-subtle); margin: 1em 0;
 }
+/* 表格 / 图片 / 代码（二期富内容在手机预览的承载；手机主题为有意设计的硬编码三态，
+   故此处用主题无关的灰色 alpha 而非令牌，与上方 blockquote/hr 做法一致） */
+.pp-body :deep(img) {
+  max-width: 100%; height: auto; display: block; margin: 0.5em auto;
+  border-radius: 4px;
+}
+.pp-body :deep(table) {
+  border-collapse: collapse; width: 100%; margin: 0.75em 0; font-size: 0.92em;
+}
+.pp-body :deep(th), .pp-body :deep(td) {
+  border: 1px solid rgba(128,128,128,0.35); padding: 4px 8px; text-align: left; vertical-align: top;
+}
+.pp-body :deep(th) {
+  background: rgba(128,128,128,0.12); font-weight: var(--font-weight-semibold);
+}
+.pp-body :deep(pre) {
+  background: rgba(128,128,128,0.12); padding: 8px 10px; border-radius: 6px;
+  overflow-x: auto; font-size: 0.9em; white-space: pre-wrap; word-break: break-word;
+}
+.pp-body :deep(code) {
+  background: rgba(128,128,128,0.12); padding: 1px 4px; border-radius: 3px; font-size: 0.9em;
+}
+.pp-body :deep(pre code) { background: transparent; padding: 0; }
 
 .pp-resize-handle {
   position: absolute; right: 0; bottom: 0; width: 16px; height: 16px;
