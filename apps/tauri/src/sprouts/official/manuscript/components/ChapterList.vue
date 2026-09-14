@@ -1,18 +1,22 @@
 <template>
   <div class="chapter-list">
     <div class="cl-header">
-      <span class="cl-title">章节列表</span>
+      <span class="cl-title">{{ title }}</span>
       <span class="cl-count">{{ chapters.length }}</span>
     </div>
 
+    <div class="cl-search">
+      <input v-model="searchQuery" class="cl-search-input" placeholder="搜索章节..." aria-label="搜索章节" />
+    </div>
+
     <div v-for="group in groupedChapters" :key="group.name" class="cl-group">
-      <div class="cl-group-header" role="button" tabindex="0" :aria-expanded="!collapsedGroups.has(group.name)" @click="toggleGroup(group.name)" @keydown.enter.prevent="toggleGroup(group.name)" @keydown.space.prevent="toggleGroup(group.name)">
-        <span class="cl-collapse"><WsIcon :name="collapsedGroups.has(group.name) ? 'chevron-right' : 'chevron-down'" size="xs" /></span>
+      <div class="cl-group-header" role="button" tabindex="0" :aria-expanded="!isGroupCollapsed(group.name)" @click="toggleGroup(group.name)" @keydown.enter.prevent="toggleGroup(group.name)" @keydown.space.prevent="toggleGroup(group.name)">
+        <span class="cl-collapse"><WsIcon :name="isGroupCollapsed(group.name) ? 'chevron-right' : 'chevron-down'" size="xs" /></span>
         <span class="cl-group-name">{{ group.name }}</span>
         <span class="cl-group-count">{{ group.items.length }}</span>
       </div>
       <draggable
-        v-show="!collapsedGroups.has(group.name)"
+        v-show="!isGroupCollapsed(group.name)"
         :list="group.items"
         item-key="id"
         group="chapters"
@@ -43,6 +47,7 @@
     </div>
 
     <WsEmpty v-if="chapters.length === 0" preset="no-data" title="暂无章节" />
+    <WsEmpty v-else-if="groupedChapters.length === 0" preset="no-data" title="没有匹配的章节" />
 
     <div v-if="ctxMenu.show" ref="ctxMenuRef" class="cl-ctx-menu" :style="{ left: ctxMenu.x + 'px', top: ctxMenu.y + 'px' }" role="menu" tabindex="-1" @keydown="onCtxMenuKeydown">
       <div class="cl-ctx-item" role="menuitem" tabindex="0" @click="ctxRename" @keydown.enter.prevent="ctxRename"><WsIcon name="edit" size="xs" /> 重命名</div>
@@ -51,6 +56,23 @@
       <div class="cl-ctx-item" role="menuitem" tabindex="0" @click="ctxLinkOutline" @keydown.enter.prevent="ctxLinkOutline"><WsIcon name="link" size="xs" /> 关联大纲节点</div>
       <div class="cl-ctx-divider"></div>
       <div class="cl-ctx-item cl-ctx-danger" role="menuitem" tabindex="0" @click="ctxDelete" @keydown.enter.prevent="ctxDelete"><WsIcon name="delete" size="xs" /> 删除</div>
+    </div>
+
+    <div v-if="showRenameInput" class="cl-modal-overlay" @click.self="showRenameInput = false">
+      <div class="cl-modal-sm">
+        <h4>重命名章节</h4>
+        <input
+          ref="renameInputRef"
+          v-model="renameInputVal"
+          class="cl-input"
+          placeholder="章节标题"
+          @keyup.enter="confirmRename"
+        />
+        <div class="cl-modal-actions">
+          <button class="btn-secondary btn-sm" @click="showRenameInput = false">取消</button>
+          <button class="btn-primary btn-sm" @click="confirmRename">确定</button>
+        </div>
+      </div>
     </div>
 
     <div v-if="showVolumeInput" class="cl-modal-overlay" @click.self="showVolumeInput = false">
@@ -101,6 +123,8 @@ import type { Entity } from '@worldsea/entity-core'
 const props = defineProps<{
   chapters: Entity[]
   currentId: string
+  /** 侧边栏标题（书籍工作区显示当前书名；书籍内联预览等场景可自定义） */
+  title?: string
 }>()
 
 const emit = defineEmits<{
@@ -121,14 +145,24 @@ function toggleGroup(name: string) {
   }
 }
 
+/** 搜索时忽略折叠状态（命中组强制展开，避免「搜到了但看不见」） */
+function isGroupCollapsed(name: string): boolean {
+  return !searchQuery.value.trim() && collapsedGroups.has(name)
+}
+
+// ── 章节搜索（2026-09-14 侧栏优化：章节多时定位困难；按标题过滤，组内命中）──
+const searchQuery = ref('')
+
 interface ChapterGroup {
   name: string
   items: Entity[]
 }
 
 const groupedChapters = computed<ChapterGroup[]>(() => {
+  const q = searchQuery.value.trim().toLowerCase()
   const map = new Map<string, Entity[]>()
   for (const ch of props.chapters) {
+    if (q && !ch.name.toLowerCase().includes(q)) continue
     const vol = (ch.properties.volumeName as string) || ''
     const key = vol || '未分组'
     if (!map.has(key)) map.set(key, [])
@@ -168,6 +202,9 @@ async function onDragEnd() {
 }
 
 const ctxMenu = reactive({ show: false, x: 0, y: 0, entity: null as Entity | null })
+const showRenameInput = ref(false)
+const renameInputVal = ref('')
+const renameInputRef = ref<HTMLInputElement | null>(null)
 const showVolumeInput = ref(false)
 const volumeInputVal = ref('')
 const showOutlinePicker = ref(false)
@@ -213,9 +250,21 @@ function closeCtx() {
 function ctxRename() {
   ctxMenu.show = false
   if (!ctxMenu.entity) return
-  const newName = prompt('重命名章节', ctxMenu.entity.name)
-  if (newName && newName.trim()) {
-    es.update(ctxMenu.entity.id, { name: newName.trim() })
+  // 自定义弹层替代原生 prompt（2026-09-14 侧栏优化：与修改所属卷弹层同款交互）
+  renameInputVal.value = ctxMenu.entity.name
+  showRenameInput.value = true
+  nextTick(() => {
+    renameInputRef.value?.focus()
+    renameInputRef.value?.select()
+  })
+}
+
+async function confirmRename() {
+  showRenameInput.value = false
+  if (!ctxMenu.entity) return
+  const newName = renameInputVal.value.trim()
+  if (newName && newName !== ctxMenu.entity.name) {
+    await es.update(ctxMenu.entity.id, { name: newName })
   }
 }
 
@@ -290,6 +339,16 @@ onBeforeUnmount(() => {
 }
 .cl-title { font-weight: var(--font-weight-semibold); font-size: var(--font-size-sm); }
 .cl-count { font-size: var(--font-size-xs); color: var(--text-tertiary); background: var(--bg-tertiary); padding: 1px 6px; border-radius: var(--radius-mid); }
+
+/* 章节搜索（2026-09-14 侧栏优化） */
+.cl-search { padding: 8px 10px; border-bottom: 1px solid var(--border-light); flex-shrink: 0; }
+.cl-search-input {
+  width: 100%; padding: 5px 8px; border: 1px solid var(--border-color); border-radius: var(--radius-xs);
+  font-size: var(--font-size-xs); background: var(--input-bg); color: var(--text-color);
+  outline: none; box-sizing: border-box; transition: border-color 0.15s;
+}
+.cl-search-input:focus { border-color: var(--primary); }
+.cl-search-input::placeholder { color: var(--text-tertiary); }
 
 .cl-group { display: flex; flex-direction: column; }
 .cl-group-header {

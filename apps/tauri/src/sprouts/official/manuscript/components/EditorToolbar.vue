@@ -10,22 +10,22 @@
     </div>
     <div class="toolbar-divider"></div>
     <div class="toolbar-group">
-      <button class="tb-btn" :class="{ active: editor?.isActive('bold') }" @click="editor?.chain().focus().toggleBold().run()" title="粗体"><b>B</b></button>
-      <button class="tb-btn" :class="{ active: editor?.isActive('italic') }" @click="editor?.chain().focus().toggleItalic().run()" title="斜体"><i>I</i></button>
-      <button class="tb-btn" :class="{ active: editor?.isActive('strike') }" @click="editor?.chain().focus().toggleStrike().run()" title="删除线"><s>S</s></button>
+      <button class="tb-btn" :class="{ active: editor?.isActive('bold') }" @click="editor?.chain().focus().toggleBold().run()" title="粗体" aria-label="粗体"><WsIcon name="bold" size="xs" /></button>
+      <button class="tb-btn" :class="{ active: editor?.isActive('italic') }" @click="editor?.chain().focus().toggleItalic().run()" title="斜体" aria-label="斜体"><WsIcon name="italic" size="xs" /></button>
+      <button class="tb-btn" :class="{ active: editor?.isActive('strike') }" @click="editor?.chain().focus().toggleStrike().run()" title="删除线" aria-label="删除线"><WsIcon name="strikethrough" size="xs" /></button>
     </div>
     <div class="toolbar-divider"></div>
     <div class="toolbar-group">
-      <button class="tb-btn" :class="{ active: editor?.isActive('blockquote') }" @click="editor?.chain().focus().toggleBlockquote().run()" title="引用">"</button>
-      <button class="tb-btn" :class="{ active: editor?.isActive('bulletList') }" @click="editor?.chain().focus().toggleBulletList().run()" title="无序列表">•</button>
-      <button class="tb-btn" :class="{ active: editor?.isActive('orderedList') }" @click="editor?.chain().focus().toggleOrderedList().run()" title="有序列表">1.</button>
-      <button class="tb-btn" @click="editor?.chain().focus().setHorizontalRule().run()" title="分割线">—</button>
-      <button class="tb-btn" @click="editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()" title="插入表格">⊞</button>
-      <button class="tb-btn" @click="imageInput?.click()" title="插入图片（本地文件，≤2MB）">图</button>
+      <button class="tb-btn" :class="{ active: editor?.isActive('blockquote') }" @click="editor?.chain().focus().toggleBlockquote().run()" title="引用" aria-label="引用"><WsIcon name="quote" size="xs" /></button>
+      <button class="tb-btn" :class="{ active: editor?.isActive('bulletList') }" @click="editor?.chain().focus().toggleBulletList().run()" title="无序列表" aria-label="无序列表"><WsIcon name="list" size="xs" /></button>
+      <button class="tb-btn" :class="{ active: editor?.isActive('orderedList') }" @click="editor?.chain().focus().toggleOrderedList().run()" title="有序列表" aria-label="有序列表"><WsIcon name="list-ordered" size="xs" /></button>
+      <button class="tb-btn" @click="editor?.chain().focus().setHorizontalRule().run()" title="分割线" aria-label="分割线"><WsIcon name="minus" size="xs" /></button>
+      <button class="tb-btn" @click="editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()" title="插入表格" aria-label="插入表格"><WsIcon name="table" size="xs" /></button>
+      <button class="tb-btn" @click="imageInput?.click()" title="插入图片（本地文件，≤2MB）" aria-label="插入图片"><WsIcon name="image" size="xs" /></button>
       <input ref="imageInput" type="file" accept="image/*" multiple class="tb-hidden-input" @change="onPickImages" />
     </div>
     <!-- 表格上下文组：光标在表格内才出现；禁用态由 can() 判定（如只剩一行时禁删行），不留无反馈的死按钮。
-         注：本工具栏仍是字符风格（图标化是笔记本侧 257fd8a 的事，文稿侧挂账未做），故沿用字符/文字风格保持内部一致 -->
+         结构操作沿用文字按钮（与笔记本侧 NotebookTipTapEditor 同款惯例） -->
     <template v-if="editor?.isActive('table')">
       <div class="toolbar-divider"></div>
       <div class="toolbar-group">
@@ -40,8 +40,8 @@
     </template>
     <div class="toolbar-divider"></div>
     <div class="toolbar-group">
-      <button class="tb-btn" @click="editor?.chain().focus().undo().run()" :disabled="!editor?.can().undo()" title="撤销">↩</button>
-      <button class="tb-btn" @click="editor?.chain().focus().redo().run()" :disabled="!editor?.can().redo()" title="重做">↪</button>
+      <button class="tb-btn" @click="editor?.chain().focus().undo().run()" :disabled="!editor?.can().undo()" title="撤销" aria-label="撤销"><WsIcon name="undo" size="xs" /></button>
+      <button class="tb-btn" @click="editor?.chain().focus().redo().run()" :disabled="!editor?.can().redo()" title="重做" aria-label="重做"><WsIcon name="redo" size="xs" /></button>
     </div>
     <div class="toolbar-spacer"></div>
     <span class="save-status" :class="saveStatus">{{ saveLabel }}</span>
@@ -52,6 +52,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { Editor } from '@tiptap/vue-3'
+import { WsIcon } from '@worldsea/ui-kit'
 import { insertImageFilesInto } from '@/composables/imageInsert'
 import { toastSuccess } from '@/composables/useToast'
 
@@ -69,7 +70,7 @@ async function onPickImages(e: Event) {
   input.value = '' // 允许连续选择同一文件
   if (!files.length) return
   const n = await insertImageFilesInto(props.editor, files)
-  if (n > 0) toastSuccess(`已插入 ${n} 张图片（base64 存入正文，单张上限 2MB）`)
+  if (n > 0) toastSuccess(`已插入 ${n} 张图片（落盘项目资产，单张上限 2MB）`)
 }
 
 const headingLevel = computed(() => {

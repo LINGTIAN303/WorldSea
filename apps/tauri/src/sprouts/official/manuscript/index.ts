@@ -21,6 +21,19 @@ export const manifest = {
 }
 
 export function activate(api: PluginAPIType) {
+  // 书籍实体（2026-09-14）：正文写作的顶层容器——先建书、书内建章（properties.bookId 归属），
+  // 点击书籍才进入章节编辑器。无 bookId 的旧章节归「未归书」虚拟组，零迁移。
+  api.registerEntityV2({
+    type: 'book',
+    label: '书籍',
+    icon: 'book',
+    traits: [
+      { traitId: 'identifiable' },
+      { traitId: 'visual' },
+    ],
+    ownFields: [],
+  })
+
   api.registerEntityV2({
     type: 'manuscript',
     label: '正文',
@@ -36,6 +49,7 @@ export function activate(api: PluginAPIType) {
     ownFields: [
       { key: 'outlineNodeId', label: '关联大纲节点ID', fieldType: 'text' },
       { key: 'volumeName', label: '所属卷名', fieldType: 'text' },
+      { key: 'bookId', label: '所属书籍ID', fieldType: 'text' },
       { key: 'entityMentions', label: '提及实体ID列表', fieldType: 'text' },
       { key: 'snapshots', label: '版本快照', fieldType: 'text' },
     ],
