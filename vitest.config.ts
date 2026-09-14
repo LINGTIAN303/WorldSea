@@ -14,6 +14,9 @@ export default defineConfig({
       'packages/agent-runtime/src/tools/__tests__/**/*.spec.ts',
       'packages/shared-composables/**/__tests__/**/*.spec.ts',
       'packages/shared-ui/**/__tests__/**/*.spec.ts',
+      // 2026-09-14 纳入：原先只覆盖 packages/**，唯一 GUI（apps/tauri，含全部芽视图与
+      // 前端逻辑）完全不参与测试 —— 新写的纯逻辑只能靠临时脚本验证。
+      'apps/tauri/**/__tests__/**/*.spec.ts',
     ],
     coverage: {
       provider: 'v8',
@@ -32,7 +35,10 @@ export default defineConfig({
     // 转为数组形式（Vite 8 中对象形式的 $ 后缀 alias 不生效，需用数组形式）
     // 与 vite.config.ts 保持一致，避免测试与开发环境行为分叉
     alias: Object.entries({
-      '@': fileURLToPath(new URL('./src', import.meta.url)),
+      // `@` 原指向仓库根的 ./src —— web 时代遗留，该目录已不存在，且全仓无消费方。
+      // 唯一 GUI 是 apps/tauri，其自身 vite.config 亦为 `@` → apps/tauri/src；
+      // 此处对齐，使 apps/tauri 的测试能按项目惯例写 `@/...`（2026-09-14）。
+      '@': fileURLToPath(new URL('./apps/tauri/src', import.meta.url)),
       '@agent': path.resolve(__dirname, 'packages/agent-runtime/src'),
       '@worldsea/entity-core$': path.resolve(__dirname, 'packages/entity-core/src'),
       '@worldsea/entity-core/stores': path.resolve(__dirname, 'packages/entity-core/src/stores'),
