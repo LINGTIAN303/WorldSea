@@ -2,6 +2,7 @@ import { ref, onBeforeUnmount, type Ref } from 'vue'
 import { useEditor, EditorContent } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import Mention from '@tiptap/extension-mention'
+import { TableKit } from '@tiptap/extension-table'
 import SlashCommandExtension, { SLASH_COMMANDS } from './slashCommandExtension'
 import type { SlashCommandItem } from './slashCommandExtension'
 import { useEntityStore } from '@worldsea/entity-core'
@@ -75,6 +76,8 @@ export function useChapterEditor(currentChapter: Ref<Entity | null>) {
   const editor = useEditor({
     extensions: [
       StarterKit,
+      // 表格（二期）：与笔记本同一配置，见 useNoteEditor 注释
+      TableKit.configure({ table: { resizable: true } }),
       Mention.configure({
         HTMLAttributes: { class: 'ms-mention' },
         suggestion: {

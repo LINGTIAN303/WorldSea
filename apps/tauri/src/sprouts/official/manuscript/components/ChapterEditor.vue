@@ -142,4 +142,49 @@ onMounted(() => {
   background: var(--primary);
   color: var(--color-text-inverse);
 }
+
+/* ── 表格（二期）：与笔记本同一套最小样式，令牌取本文件既有别名层 ── */
+.editor-wrap :deep(.tiptap .tableWrapper) {
+  overflow-x: auto;
+  margin: 8px 0;
+}
+.editor-wrap :deep(.tiptap table) {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  overflow: hidden;
+}
+.editor-wrap :deep(.tiptap th),
+.editor-wrap :deep(.tiptap td) {
+  border: 1px solid var(--border-color);
+  padding: 4px 10px;
+  vertical-align: top;
+  position: relative;
+}
+.editor-wrap :deep(.tiptap th) {
+  background: var(--bg-tertiary);
+  font-weight: var(--font-weight-semibold);
+  text-align: left;
+}
+.editor-wrap :deep(.tiptap .selectedCell::after) {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--primary) 18%, transparent);
+}
+.editor-wrap :deep(.tiptap .column-resize-handle) {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: -2px;
+  width: 4px;
+  z-index: 20;
+  background: var(--primary);
+  pointer-events: none;
+}
+.editor-wrap :deep(.tiptap.resize-cursor) {
+  cursor: col-resize;
+}
 </style>

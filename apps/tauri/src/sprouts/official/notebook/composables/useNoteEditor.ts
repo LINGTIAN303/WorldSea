@@ -2,6 +2,7 @@ import { ref, onBeforeUnmount, type Ref } from 'vue'
 import { useEditor } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import Mention from '@tiptap/extension-mention'
+import { TableKit } from '@tiptap/extension-table'
 import SlashCommandExtension, { SLASH_COMMANDS } from './slashCommandExtension'
 import type { SlashCommandItem } from './slashCommandExtension'
 import { useEntityStore } from '@worldsea/entity-core'
@@ -75,6 +76,10 @@ export function useNoteEditor(currentNote: Ref<Entity | null>, onContentChange?:
   const editor = useEditor({
     extensions: [
       StarterKit,
+      // 表格（二期）：v3 官方四件套合集（Table/TableRow/TableHeader/TableCell）。
+      // resizable 让列宽可拖拽（HTML 产物带 colgroup 宽度）；表格结构操作由工具栏
+      // 的光标上下文组提供（见 NotebookTipTapEditor）。
+      TableKit.configure({ table: { resizable: true } }),
       Mention.configure({
         HTMLAttributes: { class: 'nb-mention' },
         suggestion: {

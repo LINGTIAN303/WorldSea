@@ -22,7 +22,21 @@
         <button class="tb-btn" :class="{ active: editor?.isActive('bulletList') }" @click="editor?.chain().focus().toggleBulletList().run()" title="无序列表" aria-label="无序列表"><WsIcon name="list" size="xs" /></button>
         <button class="tb-btn" :class="{ active: editor?.isActive('orderedList') }" @click="editor?.chain().focus().toggleOrderedList().run()" title="有序列表" aria-label="有序列表"><WsIcon name="list-ordered" size="xs" /></button>
         <button class="tb-btn" @click="editor?.chain().focus().setHorizontalRule().run()" title="分割线" aria-label="分割线"><WsIcon name="minus" size="xs" /></button>
+        <button class="tb-btn" @click="editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()" title="插入表格" aria-label="插入表格"><WsIcon name="table" size="xs" /></button>
       </div>
+      <!-- 表格上下文组：光标在表格内才出现（结构操作）；禁用态由 can() 判定（如只剩一行时禁删行），不留无反馈的死按钮 -->
+      <template v-if="editor?.isActive('table')">
+        <div class="toolbar-divider"></div>
+        <div class="toolbar-group">
+          <span class="tb-group-label">表格</span>
+          <button class="tb-btn tb-btn--txt" @click="editor?.chain().focus().addRowAfter().run()" title="在下方插入行">行+</button>
+          <button class="tb-btn tb-btn--txt" :disabled="!editor?.can().deleteRow()" @click="editor?.chain().focus().deleteRow().run()" title="删除当前行">行−</button>
+          <button class="tb-btn tb-btn--txt" @click="editor?.chain().focus().addColumnAfter().run()" title="在右侧插入列">列+</button>
+          <button class="tb-btn tb-btn--txt" :disabled="!editor?.can().deleteColumn()" @click="editor?.chain().focus().deleteColumn().run()" title="删除当前列">列−</button>
+          <button class="tb-btn tb-btn--txt" :class="{ active: editor?.isActive('tableHeader') }" @click="editor?.chain().focus().toggleHeaderRow().run()" title="切换表头行">表头</button>
+          <button class="tb-btn tb-btn--txt tb-btn--danger" @click="editor?.chain().focus().deleteTable().run()" title="删除整个表格">删除表格</button>
+        </div>
+      </template>
       <div class="toolbar-divider"></div>
       <div class="toolbar-group">
         <button class="tb-btn" @click="editor?.chain().focus().undo().run()" :disabled="!editor?.can().undo()" title="撤销" aria-label="撤销"><WsIcon name="undo" size="xs" /></button>
@@ -166,6 +180,11 @@ onBeforeUnmount(() => {
 .tb-btn:hover { background: var(--color-bg-hover); }
 .tb-btn.active { background: color-mix(in srgb, var(--color-primary) 15%, transparent); color: var(--color-primary); }
 .tb-btn:disabled { opacity: 0.3; cursor: default; }
+/* 文字按钮（表格结构操作）：宽度随文字，与图标按钮同高 */
+.tb-btn--txt { width: auto; min-width: 28px; padding: 0 7px; font-size: var(--font-size-xs); font-weight: var(--font-weight-medium); }
+.tb-btn--danger { color: var(--color-danger); }
+.tb-btn--danger:hover { background: var(--danger-soft); }
+.tb-group-label { font-size: var(--font-size-2xs); color: var(--color-text-tertiary); align-self: center; padding-right: 2px; user-select: none; }
 .toolbar-select {
   padding: 2px 6px; border: 1px solid var(--color-border); border-radius: var(--radius-xs);
   font-size: var(--font-size-sm); background: var(--color-bg-base); color: var(--color-text-primary);
@@ -209,6 +228,31 @@ onBeforeUnmount(() => {
 }
 .nb-editor-wrap :deep(.nb-mention:hover) { background: var(--color-primary); color: var(--on-accent); }
 
+/* ── 表格（二期）：TipTap 官方建议的最小样式集 + 主题令牌化 ── */
+.nb-editor-wrap :deep(.tiptap .tableWrapper) { overflow-x: auto; margin: 8px 0; }
+.nb-editor-wrap :deep(.tiptap table) {
+  border-collapse: collapse; table-layout: fixed; width: 100%; overflow: hidden;
+}
+.nb-editor-wrap :deep(.tiptap th),
+.nb-editor-wrap :deep(.tiptap td) {
+  border: 1px solid var(--color-border); padding: 4px 8px; vertical-align: top; position: relative;
+  min-width: var(--table-cell-min-width, 3em);
+}
+.nb-editor-wrap :deep(.tiptap th) {
+  background: var(--color-bg-muted); font-weight: var(--font-weight-semibold); text-align: left;
+}
+/* 多选单元格高亮（拖选 / shift 选区） */
+.nb-editor-wrap :deep(.tiptap .selectedCell::after) {
+  content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none;
+  background: color-mix(in srgb, var(--color-primary) 18%, transparent);
+}
+/* 列宽拖拽手柄（resizable: true） */
+.nb-editor-wrap :deep(.tiptap .column-resize-handle) {
+  position: absolute; right: -2px; top: 0; bottom: -2px; width: 4px; z-index: 20;
+  background: var(--color-primary); pointer-events: none;
+}
+.nb-editor-wrap :deep(.tiptap.resize-cursor) { cursor: col-resize; }
+
 .nb-preview-wrap { font-family: var(--font-family-content); font-size: var(--font-size-base); line-height: 1.7; color: var(--color-text-primary); }
 .nb-preview-wrap :deep(h1) { font-size: var(--font-size-2xl); font-weight: var(--font-weight-bold); margin: 20px 0 12px; }
 .nb-preview-wrap :deep(h2) { font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold); margin: 16px 0 10px; }
@@ -218,6 +262,11 @@ onBeforeUnmount(() => {
 }
 .nb-preview-wrap :deep(code) { background: var(--color-bg-hover); padding: 2px 4px; border-radius: var(--radius-2xs); font-size: var(--font-size-sm); }
 .nb-preview-wrap :deep(pre) { background: var(--color-bg-hover); padding: 12px; border-radius: var(--radius-sm); overflow-x: auto; margin: 8px 0; }
+/* 预览侧表格：marked 渲染 GFM 表格（与编辑态同观感） */
+.nb-preview-wrap :deep(table) { border-collapse: collapse; width: 100%; margin: 8px 0; }
+.nb-preview-wrap :deep(th),
+.nb-preview-wrap :deep(td) { border: 1px solid var(--color-border); padding: 4px 8px; text-align: left; vertical-align: top; }
+.nb-preview-wrap :deep(th) { background: var(--color-bg-muted); font-weight: var(--font-weight-semibold); }
 
 .editor-fallback { width: 100%; height: 100%; min-height: 200px; border: 1px solid var(--color-border-subtle); border-radius: var(--radius-sm); padding: 12px; font-family: var(--font-family-content); font-size: var(--font-size-base); line-height: 1.7; color: var(--color-text-primary); background: var(--color-bg-base); resize: vertical; outline: none; }
 .editor-fallback:focus { border-color: var(--color-primary); }

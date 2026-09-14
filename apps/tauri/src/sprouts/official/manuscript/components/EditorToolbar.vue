@@ -20,7 +20,22 @@
       <button class="tb-btn" :class="{ active: editor?.isActive('bulletList') }" @click="editor?.chain().focus().toggleBulletList().run()" title="无序列表">•</button>
       <button class="tb-btn" :class="{ active: editor?.isActive('orderedList') }" @click="editor?.chain().focus().toggleOrderedList().run()" title="有序列表">1.</button>
       <button class="tb-btn" @click="editor?.chain().focus().setHorizontalRule().run()" title="分割线">—</button>
+      <button class="tb-btn" @click="editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()" title="插入表格">⊞</button>
     </div>
+    <!-- 表格上下文组：光标在表格内才出现；禁用态由 can() 判定（如只剩一行时禁删行），不留无反馈的死按钮。
+         注：本工具栏仍是字符风格（图标化是笔记本侧 257fd8a 的事，文稿侧挂账未做），故沿用字符/文字风格保持内部一致 -->
+    <template v-if="editor?.isActive('table')">
+      <div class="toolbar-divider"></div>
+      <div class="toolbar-group">
+        <span class="tb-group-label">表格</span>
+        <button class="tb-btn tb-btn--txt" @click="editor?.chain().focus().addRowAfter().run()" title="在下方插入行">行+</button>
+        <button class="tb-btn tb-btn--txt" :disabled="!editor?.can().deleteRow()" @click="editor?.chain().focus().deleteRow().run()" title="删除当前行">行−</button>
+        <button class="tb-btn tb-btn--txt" @click="editor?.chain().focus().addColumnAfter().run()" title="在右侧插入列">列+</button>
+        <button class="tb-btn tb-btn--txt" :disabled="!editor?.can().deleteColumn()" @click="editor?.chain().focus().deleteColumn().run()" title="删除当前列">列−</button>
+        <button class="tb-btn tb-btn--txt" :class="{ active: editor?.isActive('tableHeader') }" @click="editor?.chain().focus().toggleHeaderRow().run()" title="切换表头行">表头</button>
+        <button class="tb-btn tb-btn--txt tb-btn--danger" @click="editor?.chain().focus().deleteTable().run()" title="删除整个表格">删除表格</button>
+      </div>
+    </template>
     <div class="toolbar-divider"></div>
     <div class="toolbar-group">
       <button class="tb-btn" @click="editor?.chain().focus().undo().run()" :disabled="!editor?.can().undo()" title="撤销">↩</button>
@@ -91,6 +106,11 @@ function setHeading(e: Event) {
 .tb-btn:hover { background: var(--hover-bg); }
 .tb-btn.active { background: var(--active-bg); color: var(--primary); }
 .tb-btn:disabled { opacity: 0.3; cursor: default; }
+/* 文字按钮（表格结构操作）：宽度随文字，与图标按钮同高 */
+.tb-btn--txt { width: auto; min-width: 28px; padding: 0 7px; font-size: var(--font-size-xs); font-weight: var(--font-weight-medium); }
+.tb-btn--danger { color: var(--color-danger); }
+.tb-btn--danger:hover { background: var(--danger-soft); }
+.tb-group-label { font-size: var(--font-size-2xs); color: var(--text-tertiary); align-self: center; padding-right: 2px; user-select: none; }
 .toolbar-select {
   padding: 2px 6px; border: 1px solid var(--border-color); border-radius: var(--radius-xs);
   font-size: var(--font-size-sm); background: var(--input-bg); color: var(--text-color);

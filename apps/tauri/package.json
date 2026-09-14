@@ -44,6 +44,8 @@
     "@tauri-apps/plugin-opener": "^2.5.4",
     "@tiptap/core": "^3.29.1",
     "@tiptap/extension-mention": "^3.29.1",
+    "@tiptap/extension-table": "3.29.1",
+    "@tiptap/pm": "3.29.1",
     "@tiptap/starter-kit": "^3.29.1",
     "@tiptap/suggestion": "^3.29.1",
     "@tiptap/vue-3": "^3.29.1",
