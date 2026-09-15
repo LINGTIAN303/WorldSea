@@ -79,8 +79,19 @@
     <!-- 层2：书籍工作区（侧边栏章节列表 + 编辑器） -->
     <div v-else class="ms-body">
       <div class="ms-sidebar" :class="{ collapsed: sidebarCollapsed }">
-        <div class="ms-sidebar-toggle" role="button" tabindex="0" :aria-expanded="!sidebarCollapsed" @click="sidebarCollapsed = !sidebarCollapsed" @keydown.enter.prevent="sidebarCollapsed = !sidebarCollapsed" @keydown.space.prevent="sidebarCollapsed = !sidebarCollapsed">
-          <span><WsIcon :name="sidebarCollapsed ? 'chevron-right' : 'arrow-up'" size="xs" /></span>
+        <!-- 展开/折叠：图标水平垂直居中于窄条；折叠态整条即按钮，展开态细条退让（2026-09-15 形态优化） -->
+        <div
+          class="ms-sidebar-toggle"
+          role="button"
+          tabindex="0"
+          :aria-expanded="!sidebarCollapsed"
+          :aria-label="sidebarCollapsed ? '展开侧栏' : '收起侧栏'"
+          :title="sidebarCollapsed ? '展开侧栏' : '收起侧栏'"
+          @click="sidebarCollapsed = !sidebarCollapsed"
+          @keydown.enter.prevent="sidebarCollapsed = !sidebarCollapsed"
+          @keydown.space.prevent="sidebarCollapsed = !sidebarCollapsed"
+        >
+          <span><WsIcon :name="sidebarCollapsed ? 'panel-left-open' : 'panel-left-close'" :size="sidebarCollapsed ? 'sm' : 'xs'" /></span>
         </div>
         <div v-show="!sidebarCollapsed" class="ms-sidebar-content">
           <!-- 返回书籍列表（点击书籍才能进编辑器的上行出口）+ 书籍信息编辑 -->
@@ -589,24 +600,38 @@ useAgentPluginBridge('manuscript', (event) => {
   overflow: hidden;
 }
 .ms-sidebar.collapsed { width: 32px; }
-/* 折叠热区 32px + 图标块 hover 反馈（2026-09-15 形态优化：原 28px 窄条仅图标，点按区域过窄） */
+/* 展开/折叠条（2026-09-15 形态优化）：
+   展开态 = 20px 细条退让 + 图标水平垂直居中，默认无底色（hover 才浮现）；
+   折叠态 = 整条 32px 即按钮，图标居中、热区给足 */
 .ms-sidebar-toggle {
-  width: 32px;
-  display: flex; align-items: flex-start; justify-content: center;
-  padding-top: 8px;
+  width: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
   cursor: pointer;
   color: var(--text-tertiary);
-  font-size: var(--font-size-xs);
-  flex-shrink: 0;
   user-select: none;
+  border-radius: var(--radius-xs);
+  margin: 4px 0 4px 2px;
+  transition: background 0.15s, color 0.15s, width 0.2s ease;
 }
 .ms-sidebar-toggle > span {
-  width: 24px; height: 24px;
+  width: 20px; height: 20px;
   display: flex; align-items: center; justify-content: center;
   border-radius: var(--radius-xs);
   transition: background 0.15s, color 0.15s;
 }
-.ms-sidebar-toggle:hover > span { background: var(--hover-bg); color: var(--primary); }
+.ms-sidebar-toggle:hover { color: var(--primary); }
+.ms-sidebar-toggle:hover > span { background: var(--hover-bg); }
+/* 折叠态：整条即按钮（宽度撑满侧栏、全高、图标垂直居中） */
+.ms-sidebar.collapsed .ms-sidebar-toggle {
+  width: 32px;
+  margin: 0;
+  align-self: stretch;
+  border-radius: 0;
+}
+.ms-sidebar.collapsed .ms-sidebar-toggle > span { width: 28px; height: 28px; }
 .ms-sidebar-content {
   flex: 1;
   display: flex;
@@ -665,12 +690,14 @@ useAgentPluginBridge('manuscript', (event) => {
 }
 .ms-action-btn {
   width: 32px; height: 32px; border: none; background: transparent;
-  cursor: pointer; border-radius: var(--radius-sm); font-size: var(--font-size-lg);
+  cursor: pointer; border-radius: var(--radius-sm);
+  /* 图标走 currentColor：此处必须显式设色，否则继承 body 默认黑——暗色主题下不反色（2026-09-15 修复） */
+  color: var(--text-secondary);
   display: flex; align-items: center; justify-content: center;
-  transition: background 0.1s, transform 0.1s;
+  transition: background 0.12s, color 0.12s;
 }
-.ms-action-btn:hover { background: var(--hover-bg); transform: scale(1.1); }
-.ms-action-btn.active { background: var(--primary-light); }
+.ms-action-btn:hover { background: var(--hover-bg); color: var(--primary); }
+.ms-action-btn.active { background: var(--primary-light); color: var(--primary); }
 
 .ms-history {
   border-top: 1px solid var(--border-light);
