@@ -588,19 +588,25 @@ useAgentPluginBridge('manuscript', (event) => {
   transition: width 0.2s ease;
   overflow: hidden;
 }
-.ms-sidebar.collapsed { width: 28px; }
+.ms-sidebar.collapsed { width: 32px; }
+/* 折叠热区 32px + 图标块 hover 反馈（2026-09-15 形态优化：原 28px 窄条仅图标，点按区域过窄） */
 .ms-sidebar-toggle {
-  width: 28px;
+  width: 32px;
   display: flex; align-items: flex-start; justify-content: center;
-  padding-top: 12px;
+  padding-top: 8px;
   cursor: pointer;
   color: var(--text-tertiary);
   font-size: var(--font-size-xs);
   flex-shrink: 0;
   user-select: none;
-  transition: color 0.15s;
 }
-.ms-sidebar-toggle:hover { color: var(--primary); }
+.ms-sidebar-toggle > span {
+  width: 24px; height: 24px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-xs);
+  transition: background 0.15s, color 0.15s;
+}
+.ms-sidebar-toggle:hover > span { background: var(--hover-bg); color: var(--primary); }
 .ms-sidebar-content {
   flex: 1;
   display: flex;
@@ -608,7 +614,7 @@ useAgentPluginBridge('manuscript', (event) => {
   min-width: 0;
 }
 /* 返回书籍列表（书籍工作区上行出口）+ 书籍信息编辑按钮 */
-.ms-book-bar { display: flex; align-items: center; gap: 2px; margin: 6px 8px 0; flex-shrink: 0; }
+.ms-book-bar { display: flex; align-items: center; gap: 2px; padding: 6px 8px 2px; flex-shrink: 0; }
 .ms-back-btn {
   display: flex; align-items: center; gap: 6px;
   flex: 1; min-width: 0;

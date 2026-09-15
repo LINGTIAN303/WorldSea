@@ -9,9 +9,9 @@
     <div class="cl-stats">
       <span class="cl-stats-words">{{ chapters.length }} 章 · {{ statsWords }} 字</span>
       <span class="cl-stats-status">
-        <span class="st-draft">草 {{ statsByStatus('草稿') }}</span>
-        <span class="st-revising">修 {{ statsByStatus('修订中') }}</span>
-        <span class="st-final">终 {{ statsByStatus('终稿') }}</span>
+        <span class="cl-stat"><i class="cl-dot cl-dot--draft"></i>草 {{ statsByStatus('草稿') }}</span>
+        <span class="cl-stat"><i class="cl-dot cl-dot--revising"></i>修 {{ statsByStatus('修订中') }}</span>
+        <span class="cl-stat"><i class="cl-dot cl-dot--final"></i>终 {{ statsByStatus('终稿') }}</span>
       </span>
     </div>
 
@@ -19,46 +19,52 @@
       <input v-model="searchQuery" class="cl-search-input" placeholder="搜索章节..." aria-label="搜索章节" />
     </div>
 
-    <div v-for="group in groupedChapters" :key="group.name" class="cl-group">
-      <div class="cl-group-header" role="button" tabindex="0" :aria-expanded="!isGroupCollapsed(group.name)" @click="toggleGroup(group.name)" @keydown.enter.prevent="toggleGroup(group.name)" @keydown.space.prevent="toggleGroup(group.name)">
-        <span class="cl-collapse"><WsIcon :name="isGroupCollapsed(group.name) ? 'chevron-right' : 'chevron-down'" size="xs" /></span>
-        <span class="cl-group-name">{{ group.name }}</span>
-        <span class="cl-group-count">{{ group.items.length }}</span>
-      </div>
-      <draggable
-        v-show="!isGroupCollapsed(group.name)"
-        :list="group.items"
-        item-key="id"
-        group="chapters"
-        ghost-class="cl-ghost"
-        drag-class="cl-drag"
-        @end="onDragEnd"
-      >
-        <template #item="{ element }">
-          <div
-            class="cl-item"
-            :class="{ active: currentId === element.id }"
-            role="button"
-            tabindex="0"
-            :aria-pressed="currentId === element.id"
-            @click="$emit('select', element)"
-            @keydown.enter.prevent="$emit('select', element)"
-            @keydown.space.prevent="$emit('select', element)"
-            @contextmenu.prevent="onContext($event, element)"
-          >
-            <span class="cl-item-name">{{ element.name }}</span>
-            <div class="cl-item-meta">
-              <span class="cl-status" :class="statusClass(element)">{{ (element.properties.status as string) || '草稿' }}</span>
-              <span v-for="t in itemTags(element).slice(0, 2)" :key="t" class="cl-item-tag">{{ t }}</span>
-              <span class="cl-words">{{ element.properties.wordCount || 0 }}字</span>
+    <!-- 列表滚动容器（2026-09-15 形态优化：此前分组列表无滚动容器，章节多时被
+         overflow:hidden 裁剪且不可滚动——可用性修复） -->
+    <div class="cl-list">
+      <div v-for="group in groupedChapters" :key="group.name" class="cl-group">
+        <div class="cl-group-header" role="button" tabindex="0" :aria-expanded="!isGroupCollapsed(group.name)" @click="toggleGroup(group.name)" @keydown.enter.prevent="toggleGroup(group.name)" @keydown.space.prevent="toggleGroup(group.name)">
+          <span class="cl-collapse"><WsIcon :name="isGroupCollapsed(group.name) ? 'chevron-right' : 'chevron-down'" size="xs" /></span>
+          <span class="cl-group-name">{{ group.name }}</span>
+          <span class="cl-group-meta">{{ group.items.length }} 章 · {{ groupWords(group) }} 字</span>
+        </div>
+        <draggable
+          v-show="!isGroupCollapsed(group.name)"
+          :list="group.items"
+          item-key="id"
+          group="chapters"
+          ghost-class="cl-ghost"
+          drag-class="cl-drag"
+          @end="onDragEnd"
+        >
+          <template #item="{ element }">
+            <div
+              class="cl-item"
+              :class="{ active: currentId === element.id }"
+              role="button"
+              tabindex="0"
+              :aria-pressed="currentId === element.id"
+              @click="$emit('select', element)"
+              @keydown.enter.prevent="$emit('select', element)"
+              @keydown.space.prevent="$emit('select', element)"
+              @contextmenu.prevent="onContext($event, element)"
+            >
+              <span class="cl-item-name">{{ element.name }}</span>
+              <div class="cl-item-meta">
+                <span class="cl-status">
+                  <i class="cl-dot" :class="dotClass(element)"></i>{{ (element.properties.status as string) || '草稿' }}
+                </span>
+                <span v-for="t in itemTags(element).slice(0, 2)" :key="t" class="cl-item-tag">{{ t }}</span>
+                <span class="cl-words">{{ element.properties.wordCount || 0 }}字</span>
+              </div>
             </div>
-          </div>
-        </template>
-      </draggable>
-    </div>
+          </template>
+        </draggable>
+      </div>
 
-    <WsEmpty v-if="chapters.length === 0" preset="no-data" title="暂无章节" />
-    <WsEmpty v-else-if="groupedChapters.length === 0" preset="no-data" title="没有匹配的章节" />
+      <WsEmpty v-if="chapters.length === 0" preset="no-data" title="暂无章节" description="点击上方「新建章节」开始创作" />
+      <WsEmpty v-else-if="groupedChapters.length === 0" preset="no-result" title="没有匹配的章节" />
+    </div>
 
     <div v-if="ctxMenu.show" ref="ctxMenuRef" class="cl-ctx-menu" :style="{ left: ctxMenu.x + 'px', top: ctxMenu.y + 'px' }" role="menu" tabindex="-1" @keydown="onCtxMenuKeydown">
       <div class="cl-ctx-item" role="menuitem" tabindex="0" @click="ctxRename" @keydown.enter.prevent="ctxRename"><WsIcon name="edit" size="xs" /> 重命名</div>
@@ -207,6 +213,11 @@ function itemTags(e: Entity): string[] {
   return Array.isArray(e.tags) ? e.tags : []
 }
 
+/** 组内字数汇总（2026-09-15 形态优化：分组头右侧「N 章 · X 字」） */
+function groupWords(group: { items: Entity[] }): number {
+  return group.items.reduce((s, c) => s + Number(c.properties.wordCount || 0), 0)
+}
+
 /** 搜索时忽略折叠状态（命中组强制展开，避免「搜到了但看不见」） */
 function isGroupCollapsed(name: string): boolean {
   return !searchQuery.value.trim() && collapsedGroups.has(name)
@@ -239,12 +250,12 @@ const groupedChapters = computed<ChapterGroup[]>(() => {
 
 const outlineNodes = computed(() => (es.entities ?? []).filter(e => e.type === 'outline_node'))
 
-function statusClass(m: Entity): string {
+/** 状态色点修饰类（三态；色点体系替代整块彩底——克制化，2026-09-15 形态优化） */
+function dotClass(m: Entity): string {
   const s = (m.properties.status as string) || '草稿'
-  if (s === '草稿') return 'st-draft'
-  if (s === '修订中') return 'st-revising'
-  if (s === '终稿') return 'st-final'
-  return 'st-draft'
+  if (s === '修订中') return 'cl-dot--revising'
+  if (s === '终稿') return 'cl-dot--final'
+  return 'cl-dot--draft'
 }
 
 async function onDragEnd() {
@@ -436,10 +447,15 @@ onBeforeUnmount(() => {
   padding: 5px 12px; border-bottom: 1px solid var(--border-light); flex-shrink: 0;
   font-size: var(--font-size-2xs); color: var(--text-tertiary);
 }
-.cl-stats-status { display: flex; gap: 6px; }
-.cl-stats-status .st-draft, .cl-stats-status .st-revising, .cl-stats-status .st-final {
-  padding: 0 4px; border-radius: var(--radius-2xs);
-}
+.cl-stats-status { display: flex; gap: 8px; }
+.cl-stat { display: inline-flex; align-items: center; gap: 3px; }
+
+/* 状态色点（2026-09-15 形态优化：整块彩底 → 6px 色点 + 文字，克制化；
+   行内与统计条共用同一体系） */
+.cl-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
+.cl-dot--draft { background: var(--warning, #d97706); }
+.cl-dot--revising { background: var(--info, #2563eb); }
+.cl-dot--final { background: var(--success, #059669); }
 
 /* 章节搜索（2026-09-14 侧栏优化） */
 .cl-search { padding: 8px 10px; border-bottom: 1px solid var(--border-light); flex-shrink: 0; }
@@ -451,43 +467,58 @@ onBeforeUnmount(() => {
 .cl-search-input:focus { border-color: var(--primary); }
 .cl-search-input::placeholder { color: var(--text-tertiary); }
 
+/* 列表滚动容器（2026-09-15 可用性修复：此前分组列表无滚动容器，
+   章节多时被 overflow:hidden 裁剪且不可滚动） */
+.cl-list { flex: 1; min-height: 0; overflow-y: auto; }
+/* 侧栏窄区空态紧凑化（图标/间距/文案宽度按 260px 侧栏收窄） */
+.cl-list :deep(.ws-empty) { padding: 28px 12px; }
+.cl-list :deep(.ws-empty__icon) { font-size: 28px; margin-bottom: 8px; }
+.cl-list :deep(.ws-empty__title) { font-size: var(--font-size-xs); }
+.cl-list :deep(.ws-empty__desc) { font-size: var(--font-size-2xs); max-width: 180px; }
+
 .cl-group { display: flex; flex-direction: column; }
 .cl-group-header {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 6px 10px;
+  gap: 6px;
+  padding: 6px 12px;
   cursor: pointer;
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-xs);
   color: var(--text-secondary);
   background: var(--menubar-bg);
   border-bottom: 1px solid var(--border-light);
   user-select: none;
+  position: sticky; top: 0; z-index: 1; /* 长列表滚动时组头吸顶 */
 }
 .cl-group-header:hover { background: var(--hover-bg); }
-.cl-collapse { font-size: var(--font-size-xs); width: 14px; text-align: center; }
-.cl-group-name { flex: 1; font-weight: var(--font-weight-medium); }
-.cl-group-count { font-size: var(--font-size-xs); color: var(--text-tertiary); }
+.cl-collapse { font-size: var(--font-size-xs); width: 14px; text-align: center; flex-shrink: 0; }
+.cl-group-name { flex: 1; min-width: 0; font-weight: var(--font-weight-medium); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cl-group-meta { font-size: var(--font-size-2xs); color: var(--text-tertiary); flex-shrink: 0; }
 
 .cl-item {
-  padding: 8px 12px 8px 20px;
+  position: relative;
+  padding: 7px 12px 7px 22px;
   cursor: pointer;
   border-bottom: 1px solid var(--border-light);
-  transition: background 0.1s;
+  transition: background 0.12s;
 }
 .cl-item:hover { background: var(--hover-bg); }
+/* 当前章节：左侧主色竖条 + 轻背景（比纯色块更清晰的定位感） */
 .cl-item.active { background: var(--primary-light); }
+.cl-item.active::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px;
+  background: var(--primary);
+}
+.cl-item.active .cl-item-name { color: var(--primary); }
 .cl-item-name { display: block; font-weight: var(--font-weight-medium); font-size: var(--font-size-sm); margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cl-item-meta { display: flex; align-items: center; gap: 6px; }
-.cl-status { font-size: var(--font-size-xs); padding: 1px 5px; border-radius: var(--radius-2xs); }
-.st-draft { background: var(--warning-soft, #fef3c7); color: var(--warning, #92400e); }
-.st-revising { background: var(--info-soft, #dbeafe); color: var(--info, #1e40af); }
-.st-final { background: var(--success-soft, #d1fae5); color: var(--success, #065f46); }
-.cl-words { font-size: var(--font-size-xs); color: var(--text-tertiary); }
+.cl-status { display: inline-flex; align-items: center; gap: 4px; font-size: var(--font-size-2xs); color: var(--text-secondary); }
+.cl-words { font-size: var(--font-size-2xs); color: var(--text-tertiary); margin-left: auto; } /* 字数右对齐 */
 /* 章节行标签 chips（实体顶层 tags，最多显 2 个） */
 .cl-item-tag {
   font-size: var(--font-size-2xs); color: var(--text-secondary);
   background: var(--bg-tertiary); padding: 0 4px; border-radius: var(--radius-2xs);
+  max-width: 64px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
 .cl-ghost { opacity: 0.4; background: var(--primary-light); }
