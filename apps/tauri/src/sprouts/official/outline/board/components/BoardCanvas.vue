@@ -58,6 +58,7 @@
         @resize-start="onContainerResizeStart(c, $event)"
         @toggle-collapse="$emit('toggleCollapse', c.id)"
         @remove="$emit('removeContainer', c.id)"
+        @remove-component="(componentId: string) => $emit('removeComponent', c.id, componentId)"
         @open-manuscript="$emit('openManuscript', c.id)"
         @add-component="(form: string) => $emit('addComponent', c.id, form)"
       />
@@ -131,6 +132,7 @@ const emit = defineEmits<{
   (e: 'containerDrop', containerId: string): void
   (e: 'toggleCollapse', containerId: string): void
   (e: 'removeContainer', containerId: string): void
+  (e: 'removeComponent', containerId: string, componentId: string): void
   (e: 'openManuscript', containerId: string): void
   (e: 'addComponent', containerId: string, form: string): void
   (e: 'createNodeAt', pos: Point): void

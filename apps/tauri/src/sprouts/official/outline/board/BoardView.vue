@@ -58,6 +58,7 @@
       @container-drop="onContainerDrop"
       @toggle-collapse="onToggleCollapse"
       @remove-container="onRemoveContainer"
+      @remove-component="onRemoveComponentInContainer"
       @open-manuscript="onOpenManuscript"
       @add-component="onAddComponent"
       @create-node-at="onCreateNodeAt"
@@ -83,6 +84,20 @@
       @toggle-grid="onToggleGrid"
       @fit-all="fitAll"
       @cleanup-dangling="onCleanupDangling"
+    />
+
+    <!-- 容器属性面板（规格 §五「属性条」）：选中容器时出现，画布内悬浮 -->
+    <BoardInspector
+      v-if="inspectedContainer"
+      :container="inspectedContainer"
+      :node="inspectedNode"
+      @close="inspectorClosed = true"
+      @resize="onInspectorResize"
+      @reset-size="onInspectorResetSize"
+      @update-config="onComponentConfig"
+      @remove-component="onInspectorRemoveComponent"
+      @reorder-components="onReorderComponents"
+      @open-node="onOpenNodeFromInspector"
     />
 
     <NodeSidebar
@@ -129,6 +144,7 @@ import { CreateButton } from '@worldsea/plugin-sdk'
 import { WsIcon } from '@worldsea/ui-kit'
 import BoardCanvas from './components/BoardCanvas.vue'
 import BoardCanvasToolbar from './components/BoardCanvasToolbar.vue'
+import BoardInspector from './components/BoardInspector.vue'
 import BoardListView from './BoardListView.vue'
 import NodeSidebar from './components/NodeSidebar.vue'
 import { useBoardDocs } from './composables/useBoardDocs'
@@ -214,6 +230,18 @@ const removingSectionContainerCount = computed(() => {
   if (!s) return 0
   return layout.value.containers.filter(c => c.sectionId === s.id).length
 })
+/** 当前选中的容器（选中粒度 = 容器；属性面板据此显示） */
+const selectedContainer = computed(() =>
+  selection.selectedId.value
+    ? layout.value.containers.find(c => c.id === selection.selectedId.value) ?? null
+    : null,
+)
+/** 面板可手动关闭；切换选中时自动重新展开（否则换了容器面板仍不出现，像坏了） */
+const inspectorClosed = ref(false)
+const inspectedContainer = computed(() => (inspectorClosed.value ? null : selectedContainer.value))
+const inspectedNode = computed(() =>
+  inspectedContainer.value ? nodesById.value.get(inspectedContainer.value.nodeId) : undefined,
+)
 const zoomPercent = computed(() => Math.round(viewport.value.zoom * 100))
 
 const saveText = computed(() => {
@@ -314,6 +342,57 @@ function onOpenManuscript(containerId: string): void {
 function onAddComponent(containerId: string, form: string): void {
   undoApi.record()
   layoutApi.addComponent(containerId, form)
+}
+
+// ── 属性面板（容器尺寸 / 组件配置 / 排序 / 打开节点）──
+// 全部遵循同一纪律：先 record() 入白板撤销栈，再走 useBoardLayout 的原子操作。
+
+function onInspectorResize(size: { w: number; h: number }): void {
+  const c = inspectedContainer.value
+  if (!c) return
+  undoApi.record()
+  layoutApi.resizeContainer(c.id, size)
+}
+
+/** 恢复内容自适应：清掉显式尺寸（容器重新按内容撑开） */
+function onInspectorResetSize(): void {
+  const c = inspectedContainer.value
+  if (!c) return
+  undoApi.record()
+  layoutApi.resizeContainer(c.id, undefined)
+}
+
+function onComponentConfig(componentId: string, patch: Record<string, unknown>): void {
+  const c = inspectedContainer.value
+  if (!c) return
+  undoApi.record()
+  layoutApi.updateComponentConfig(c.id, componentId, patch)
+}
+
+function onInspectorRemoveComponent(componentId: string): void {
+  const c = inspectedContainer.value
+  if (!c) return
+  undoApi.record()
+  layoutApi.removeComponent(c.id, componentId)
+}
+
+/** 容器内组件行的悬停移除：与属性面板同一原子操作，只是入口不同 */
+function onRemoveComponentInContainer(containerId: string, componentId: string): void {
+  undoApi.record()
+  layoutApi.removeComponent(containerId, componentId)
+}
+
+function onReorderComponents(orderedIds: string[]): void {
+  const c = inspectedContainer.value
+  if (!c) return
+  undoApi.record()
+  layoutApi.reorderContainerComponents(c.id, orderedIds)
+}
+
+/** 面板里的「打开节点正文」与容器头同一链路（避免两份实现） */
+function onOpenNodeFromInspector(): void {
+  const c = inspectedContainer.value
+  if (c) onOpenManuscript(c.id)
 }
 
 function onViewportChange(vp: typeof viewport.value): void {
@@ -574,6 +653,11 @@ watch(() => layoutApi.boardId.value, () => {
 // 容器列表变化后清理失效选中
 watch(() => layout.value.containers.length, () => {
   selection.dropIfMissing(new Set(layout.value.containers.map(c => c.id)))
+})
+
+// 切换到另一个容器时重新展开属性面板（关闭动作只针对当时那个容器）
+watch(() => selection.selectedId.value, () => {
+  inspectorClosed.value = false
 })
 </script>
 

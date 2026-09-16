@@ -59,13 +59,21 @@
     </div>
 
     <div v-if="!container.collapsed" class="bc-body">
-      <component
-        :is="defOf(c.form)"
-        v-for="c in visibleComponents"
-        :key="c.id"
-        :node-id="container.nodeId"
-        :config="c.config"
-      />
+      <!-- 组件行：悬停显示「移除」（规格 §四）；行本身不拦截选中，故只让按钮 stop -->
+      <div v-for="c in visibleComponents" :key="c.id" class="bc-comp">
+        <component
+          :is="defOf(c.form)"
+          :node-id="container.nodeId"
+          :config="c.config"
+        />
+        <button
+          class="bc-comp-x"
+          type="button"
+          title="移除该表现形式（不影响节点）"
+          aria-label="移除表现形式"
+          @click.stop="$emit('removeComponent', c.id)"
+        >✕</button>
+      </div>
       <div v-if="!visibleComponents.length" class="bc-empty" @dblclick.stop="openFormMenu">
         {{ node ? '添加表现形式' : '节点已删除，可清理此容器' }}
       </div>
@@ -90,6 +98,12 @@
         @click.stop="pickForm(f.form)"
       >
         <span class="bc-form-label">{{ f.label }}</span>
+        <!-- 09-16 裁定：同容器内同种形式**允许**重复，但给出提示（通常是误操作） -->
+        <span
+          v-if="hasForm(f.form)"
+          class="bc-form-dup"
+          title="该容器已有同种表现形式（仍可添加）"
+        >已有</span>
         <span class="bc-form-kind">{{ f.kind === 'inline' ? '可编辑' : '只读' }}</span>
       </button>
       <div v-if="!formDefs.length" class="bc-form-empty">暂无可用表现形式</div>
@@ -123,6 +137,7 @@ const emit = defineEmits<{
   (e: 'resizeStart', ev: PointerEvent): void
   (e: 'toggleCollapse'): void
   (e: 'remove'): void
+  (e: 'removeComponent', componentId: string): void
   (e: 'openManuscript'): void
   (e: 'addComponent', form: string): void
 }>()
@@ -172,6 +187,11 @@ function openFormMenu(): void {
 function pickForm(form: string): void {
   menuOpen.value = false
   emit('addComponent', form)
+}
+
+/** 该容器是否已有同种形式（菜单据此显示「已有」提示，但不阻止添加） */
+function hasForm(form: string): boolean {
+  return props.container.components.some(c => c.form === form)
 }
 
 // 容器失去选中（点了别处）时收起形式菜单，避免菜单挂在画布上不消失
@@ -241,6 +261,29 @@ watch(() => props.selected, selected => {
   gap: 4px;
   padding: 6px 8px 8px;
 }
+.bc-comp { position: relative; min-width: 0; }
+.bc-comp-x {
+  position: absolute;
+  right: -4px;
+  top: -4px;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  background: var(--menubar-bg, var(--bg-secondary));
+  /* 符号按钮必须显式设色，否则暗色主题下不可见 */
+  color: var(--text-tertiary);
+  font-size: var(--font-size-2xs);
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.bc-comp:hover .bc-comp-x { opacity: 1; }
+.bc-comp-x:hover { color: var(--error, #dc2626); border-color: var(--error, #dc2626); }
 .bc-empty {
   font-size: var(--font-size-2xs);
   color: var(--text-tertiary);
@@ -281,6 +324,15 @@ watch(() => props.selected, selected => {
 }
 .bc-form-item:hover { background: var(--hover-bg); }
 .bc-form-kind { font-size: var(--font-size-2xs); color: var(--text-tertiary); }
+.bc-form-dup {
+  flex-shrink: 0;
+  padding: 0 4px;
+  border-radius: var(--radius-xs);
+  background: var(--warning, #d97706);
+  color: #fff;
+  font-size: var(--font-size-2xs);
+  opacity: 0.85;
+}
 .bc-form-empty { padding: 6px 8px; font-size: var(--font-size-2xs); color: var(--text-tertiary); }
 .bc-resize {
   position: absolute;
