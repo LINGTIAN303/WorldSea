@@ -57,6 +57,19 @@ export function parseViewport(raw: unknown): Viewport {
   }
 }
 
+/** 视口是否已被用户/系统实际保存过（用于「首次进入适配」判定） */
+export function hasSavedViewport(raw: unknown): boolean {
+  if (typeof raw !== 'string') return !!raw && typeof raw === 'object'
+  const text = raw.trim()
+  if (!text) return false
+  try {
+    const obj = JSON.parse(text) as unknown
+    return !!obj && typeof obj === 'object'
+  } catch {
+    return false
+  }
+}
+
 export function serializeViewport(vp: Viewport): string {
   return JSON.stringify({ zoom: clampZoom(vp.zoom), panX: vp.panX, panY: vp.panY })
 }

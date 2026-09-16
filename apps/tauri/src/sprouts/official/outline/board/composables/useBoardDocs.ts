@@ -6,7 +6,6 @@
  */
 import { computed, ref } from 'vue'
 import { useEntityStore } from '@worldsea/entity-core'
-import { createDefaultViewport, serializeViewport } from '../boardGeometry'
 import { createEmptyBoardLayout, genBoardId, parseBoardLayout, serializeBoardLayout } from '../layoutSchema'
 import type { SnapMode } from './useBoardSnap'
 
@@ -44,7 +43,9 @@ export function useBoardDocs() {
       name: name.trim() || DEFAULT_BOARD_NAME,
       description: '',
       properties: {
-        viewport: serializeViewport(createDefaultViewport()),
+        // 视口**故意留空**：表示「从未设置」→ 首次进入时由视图层做「适配全部」
+        // （若这里写死默认值，视图层就无法区分「用户设过 zoom=1」与「从未设置」）
+        viewport: '',
         layout: serializeBoardLayout(createEmptyBoardLayout()),
         thumbnail: '',
         snap: 'guides',

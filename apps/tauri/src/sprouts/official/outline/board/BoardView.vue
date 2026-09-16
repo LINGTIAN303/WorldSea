@@ -136,12 +136,12 @@
  * 装配层：把 composables 与组件接起来，并作为**唯一**的数据变更入口。
  * 所有写操作都遵循同一顺序：record()（撤销快照）→ 调 useBoardLayout 的原子操作 → 自动保存。
  */
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useEntityStore, type Entity } from '@worldsea/entity-core'
 // 芽视图里的 UI 组件必须显式导入：它们**不是全局组件**，未导入时 vue-tsc 不报错、
 // 只在渲染时静默变成空节点（2026-09-16 真机走查踩坑）
 import { CreateButton } from '@worldsea/plugin-sdk'
-import { WsIcon } from '@worldsea/ui-kit'
+import { WsIcon, useShortcuts } from '@worldsea/ui-kit'
 import BoardCanvas from './components/BoardCanvas.vue'
 import BoardCanvasToolbar from './components/BoardCanvasToolbar.vue'
 import BoardInspector from './components/BoardInspector.vue'
@@ -155,6 +155,7 @@ import { parseSnapMode, type SnapMode } from './composables/useBoardSnap'
 import { contentBounds, fitViewport, type Point, type Rect } from './boardGeometry'
 import { DEFAULT_CONTAINER_SIZE, danglingContainerIds, genBoardId, rectOfContainer, type BoardSection } from './layoutSchema'
 import { captureHierarchy, diffHierarchy, planReparent, type DropMode } from './outlineHierarchy'
+import { renderBoardThumbnail } from './thumbnail'
 import { initializeForms } from './forms/initializeForms'
 // 复用既有的 parent_child 关系同步（单一实现，避免第二份漂移）
 import { useOutlineTree } from '../composables/useOutlineTree'
@@ -270,15 +271,39 @@ async function openBoard(boardId: string): Promise<void> {
   selection.clear()
   sectionDrawMode.value = false
   removingSection.value = null
+  // 首次进入（该白板从未保存过视口）→ 把已有内容带进视野；否则按保存的视口恢复
+  if (layoutApi.pendingFit.value) await fitAllWhenReady()
+}
+
+/** 等画布具备真实尺寸后再适配（挂载首帧 clientWidth 可能还是 0，直接算会得到错误的 zoom/pan） */
+async function fitAllWhenReady(attempts = 6): Promise<void> {
+  await nextTick()
+  const size = canvasRef.value?.size() ?? { w: 0, h: 0 }
+  if (size.w === 0 || size.h === 0) {
+    if (attempts > 0) requestAnimationFrame(() => void fitAllWhenReady(attempts - 1))
+    return
+  }
+  fitAll()
 }
 
 async function onBack(): Promise<void> {
-  await layoutApi.saveNow() // 退出编辑器立即落盘（规格 §七）
+  captureThumbnail() // 退出编辑器时生成缩略图（规格 §七）
+  await layoutApi.saveNow() // 立即落盘（不等防抖）
   docs.backToList()
   selection.clear()
   undoApi.clear()
   sectionDrawMode.value = false
   removingSection.value = null
+}
+
+/**
+ * 生成并暂存缩略图（退出编辑器 / 卸载时调用）。
+ * 白板是 DOM 画布，无法截屏——改为按布局体绘制**结构示意图**（区虚线框 + 容器实心块），
+ * 详见 board/thumbnail.ts 的模块注释。落盘由随后的 saveNow 一并完成（不做第二条写路径）。
+ */
+function captureThumbnail(): void {
+  const dataUrl = renderBoardThumbnail(layout.value)
+  if (dataUrl) layoutApi.setThumbnail(dataUrl)
 }
 
 async function onCreate(): Promise<void> {
@@ -597,53 +622,126 @@ function onRedo(): void {
   }
 }
 
-// ── 快捷键（批次 1 用 window 监听；批次 4 收编进 useShortcuts 注册表）──
-function onKeydown(ev: KeyboardEvent): void {
-  if (!inEditor.value) return
-  const target = ev.target as HTMLElement | null
-  const inField = !!target && (
-    target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable
-  )
+// ── 快捷键（批次 4：收编进 useShortcuts 注册表，规格 §八）──
+/**
+ * 收编收益（替代批次 1 的 window 常驻监听）：
+ * · 注册表内置**输入焦点保护**——焦点在 INPUT/TEXTAREA/SELECT/contentEditable 时 view 层全部失效
+ *   （`useShortcuts.ts:267`），不必再手写 inField 判断；
+ * · IME 组合期一律忽略（`:246`），中文输入法选词时按 Enter/Esc 不会误触发；
+ * · view 层命中后 `stopImmediatePropagation`（`:287-289`），阻断残留的 window 级监听；
+ * · 可被「设置 → 快捷键」面板读取与改键（这才是走注册表的核心价值）。
+ *
+ * 注册时机：**仅编辑器层**（列表层没有画布语义）。用 watch 控制注册/注销，
+ * 避免列表层按 Del/Ctrl+Z 误触发画布操作。
+ */
+const { register: registerShortcut, unregister: unregisterShortcut } = useShortcuts()
 
-  if (ev.key === 'Escape') {
-    // 画区模式优先退出（避免误以为「清选择」能退出画区）
-    if (sectionDrawMode.value) {
-      sectionDrawMode.value = false
-      return
-    }
-    if (removingSection.value) {
-      removingSection.value = null
-      return
-    }
-    selection.clear()
+const BOARD_SHORTCUT_IDS = [
+  'outline-board.undo',
+  'outline-board.redo',
+  'outline-board.delete-container',
+  'outline-board.reset-zoom',
+  'outline-board.fit-all',
+  'outline-board.draw-section',
+  'outline-board.escape',
+] as const
+
+function unregisterShortcuts(): void {
+  for (const id of BOARD_SHORTCUT_IDS) unregisterShortcut(id)
+}
+
+/** Esc 的优先级链：画区模式 → 删区弹层 → 清选中（行内编辑的 Esc 由组件自处理，不进注册表） */
+function onEscapeKey(): void {
+  if (sectionDrawMode.value) {
+    sectionDrawMode.value = false
     return
   }
-  const mod = ev.ctrlKey || ev.metaKey
-  if (mod && ev.key.toLowerCase() === 'z') {
-    ev.preventDefault()
-    if (ev.shiftKey) onRedo()
-    else onUndo()
+  if (removingSection.value) {
+    removingSection.value = null
     return
   }
-  if (!inField && (ev.key === 'Delete' || ev.key === 'Backspace') && selection.selectedId.value) {
-    // Backspace 可能是输入意图，故只在非输入态处理
-    if (ev.key === 'Backspace') return
-    ev.preventDefault()
-    onRemoveContainer(selection.selectedId.value)
-  }
+  selection.clear()
+}
+
+function registerShortcuts(): void {
+  registerShortcut({
+    id: 'outline-board.undo',
+    keys: ['ctrl', 'z'],
+    scope: 'view',
+    description: '大纲白板：撤销',
+    preventDefault: true,
+    handler: onUndo,
+  })
+  registerShortcut({
+    id: 'outline-board.redo',
+    keys: ['ctrl', 'shift', 'z'],
+    scope: 'view',
+    description: '大纲白板：重做',
+    preventDefault: true,
+    handler: onRedo,
+  })
+  registerShortcut({
+    id: 'outline-board.delete-container',
+    keys: ['delete'],
+    scope: 'view',
+    description: '大纲白板：删除选中容器（不删节点）',
+    preventDefault: true,
+    handler: () => {
+      const id = selection.selectedId.value
+      if (id) onRemoveContainer(id)
+    },
+  })
+  registerShortcut({
+    id: 'outline-board.reset-zoom',
+    keys: ['ctrl', '0'],
+    scope: 'view',
+    description: '大纲白板：缩放重置为 100%',
+    preventDefault: true,
+    handler: () => canvasRef.value?.zoomTo(1),
+  })
+  registerShortcut({
+    id: 'outline-board.fit-all',
+    // Shift+1 经 normalizeKeys 归一为单键 '!'（非字母可打印字符不叠加 shift 修饰，见 useShortcuts.ts:79-85）
+    keys: ['!'],
+    scope: 'view',
+    description: '大纲白板：适配全部',
+    handler: fitAll,
+  })
+  registerShortcut({
+    id: 'outline-board.draw-section',
+    keys: ['s'],
+    scope: 'view',
+    description: '大纲白板：画区',
+    handler: () => { sectionDrawMode.value = !sectionDrawMode.value },
+  })
+  registerShortcut({
+    id: 'outline-board.escape',
+    keys: ['escape'],
+    scope: 'view',
+    description: '大纲白板：取消选中 / 退出画区',
+    handler: onEscapeKey,
+  })
 }
 
 // ── 生命周期 ────────────────────────────────
 onMounted(async () => {
   await docs.loadAll()
-  window.addEventListener('keydown', onKeydown)
 })
 
 onBeforeUnmount(() => {
-  window.removeEventListener('keydown', onKeydown)
-  if (layoutApi.boardId.value) void layoutApi.saveNow()
+  unregisterShortcuts()
+  if (layoutApi.boardId.value) {
+    captureThumbnail() // 关闭视图前也刷新缩略图（等价于退出编辑器）
+    void layoutApi.saveNow()
+  }
   layoutApi.dispose()
 })
+
+// 编辑器层 ↔ 列表层切换时注册/注销快捷键（列表层无画布语义）
+watch(inEditor, val => {
+  if (val) registerShortcuts()
+  else unregisterShortcuts()
+}, { immediate: true })
 
 // 当前白板切换时清空撤销（撤销不跨板）
 watch(() => layoutApi.boardId.value, () => {

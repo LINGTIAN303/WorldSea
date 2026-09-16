@@ -138,6 +138,98 @@ describe('layoutSchema / parseBoardLayout 容错', () => {
   })
 })
 
+describe('useBoardLayout / 首次进入适配（viewport 从未保存）', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('viewport 为空串（新建白板的形态）→ pendingFit 为真，视口回默认', async () => {
+    const { es, board } = await setup()
+    const id = await createBoard(es, '首适白板 A')
+    // 把 viewport 置空，模拟「从未设置」
+    await es.update(id, { properties: { viewport: '' } })
+    await board.load(id)
+    expect(board.pendingFit.value).toBe(true)
+    expect(board.viewport.value).toEqual({ zoom: 1, panX: 0, panY: 0 })
+  })
+
+  it('viewport 已保存 → pendingFit 为假，按保存值恢复', async () => {
+    const { es, board } = await setup()
+    const id = await createBoard(es, '首适白板 B')
+    await board.load(id)
+    expect(board.pendingFit.value).toBe(false)
+    expect(board.viewport.value).toEqual({ zoom: 1.5, panX: 12, panY: -8 })
+  })
+
+  it('viewport 是坏 JSON → 视为未设置；坏数据不炸视图', async () => {
+    const { es, board } = await setup()
+    const id = await createBoard(es, '首适白板 C')
+    await es.update(id, { properties: { viewport: '{坏' } })
+    await board.load(id)
+    expect(board.pendingFit.value).toBe(true)
+    expect(board.viewport.value).toEqual({ zoom: 1, panX: 0, panY: 0 })
+  })
+
+  it('setViewport 后保存 → 再次 load 不再是首次（pendingFit 转假）', async () => {
+    const { es, board } = await setup()
+    const id = await createBoard(es, '首适白板 D')
+    await es.update(id, { properties: { viewport: '' } })
+    await board.load(id)
+    expect(board.pendingFit.value).toBe(true)
+    board.setViewport({ zoom: 1.2, panX: -30, panY: 40 })
+    await board.saveNow()
+
+    await board.load(id)
+    expect(board.pendingFit.value).toBe(false)
+    expect(board.viewport.value).toEqual({ zoom: 1.2, panX: -30, panY: 40 })
+  })
+})
+
+describe('useBoardLayout / 缩略图', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('setThumbnail 后落盘，且不丢其他 properties 字段', async () => {
+    const { es, board } = await setup()
+    const id = await createBoard(es, '缩略白板 A')
+    await board.load(id)
+    board.setThumbnail('data:image/jpeg;base64,AAAA')
+    await board.saveNow()
+
+    const saved = (es.entities ?? []).find(e => e.id === id)
+    const props = saved?.properties as Record<string, unknown>
+    expect(props.thumbnail).toBe('data:image/jpeg;base64,AAAA')
+    // 同一处保存链：其它字段仍在
+    expect(props.viewport).toBe('{"zoom":1.5,"panX":12,"panY":-8}')
+    expect(props.snap).toBe('guides')
+    expect(props.gridEnabled).toBe(true)
+  })
+
+  it('load 读回已存缩略图；空串不覆盖为 undefined', async () => {
+    const { es, board } = await setup()
+    const id = await createBoard(es, '缩略白板 B')
+    await board.load(id)
+    expect(board.thumbnail.value).toBe('asset://thumb.png') // 帮助函数里预置的值
+    board.setThumbnail('')
+    await board.saveNow()
+    await board.load(id)
+    expect(board.thumbnail.value).toBe('')
+  })
+
+  it('空布局生成的空串缩略图不会污染已存图（视图层只在有值时 set）', async () => {
+    const { es, board } = await setup()
+    const id = await createBoard(es, '缩略白板 C')
+    await board.load(id)
+    const before = board.thumbnail.value
+    // 模拟 renderBoardThumbnail 在无 canvas 环境返回 ''
+    const dataUrl = ''
+    if (dataUrl) board.setThumbnail(dataUrl)
+    await board.saveNow()
+    expect(board.thumbnail.value).toBe(before)
+  })
+})
+
 describe('useBoardLayout / 读写与保存', () => {
   beforeEach(() => {
     vi.restoreAllMocks()

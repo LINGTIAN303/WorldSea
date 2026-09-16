@@ -34,7 +34,8 @@
         </div>
 
         <div class="blv-cover">
-          <WsIcon name="outline" size="lg" />
+          <img v-if="thumbOf(b)" class="blv-thumb" :src="thumbOf(b)" alt="" />
+          <WsIcon v-else name="outline" size="lg" />
         </div>
 
         <input
@@ -147,6 +148,15 @@ function updatedText(updatedAt?: string): string {
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
+
+/**
+ * 卡片缩略图（dataURL）。白板缩略图是**结构示意图**（区虚线框 + 容器实心块），
+ * 生成时机＝退出编辑器（见 board/thumbnail.ts）；无图时回退为图标。
+ */
+function thumbOf(board: Entity): string {
+  const raw = board.properties?.thumbnail
+  return typeof raw === 'string' ? raw : ''
+}
 </script>
 
 <style scoped>
@@ -204,9 +214,16 @@ function updatedText(updatedAt?: string): string {
   justify-content: center;
   height: 72px;
   margin-bottom: 8px;
+  overflow: hidden;
   border-radius: var(--radius-xs);
   background: var(--bg-tertiary);
   color: var(--text-tertiary);
+}
+.blv-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 .blv-name {
   font-size: var(--font-size-sm);

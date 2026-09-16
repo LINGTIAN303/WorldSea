@@ -14,6 +14,7 @@ import { ref } from 'vue'
 import { useEntityStore, type Entity } from '@worldsea/entity-core'
 import {
   createDefaultViewport,
+  hasSavedViewport,
   parseViewport,
   serializeViewport,
   type Point,
@@ -68,7 +69,14 @@ export function useBoardLayout() {
   const layout = ref<OutlineBoardLayout>(createEmptyBoardLayout())
   /** 视口也由本模块托管：与布局共用一处保存入口，避免两条写路径互相覆盖 properties */
   const viewport = ref<Viewport>(createDefaultViewport())
+  /** 缩略图（dataURL）：同样托管在此，与布局/视口共用一次落盘（避免三条写路径各自整体替换 properties） */
+  const thumbnail = ref('')
   const saveState = ref<BoardSaveState>('idle')
+  /**
+   * 「首次进入适配」标记：该白板从未保存过视口时置真，
+   * 视图层据此在首帧用 fitViewport 把内容带进视野（否则新建白板若容器在远处会看不到东西）。
+   */
+  const pendingFit = ref(false)
 
   let saveTimer: ReturnType<typeof setTimeout> | null = null
   let holdTimer: ReturnType<typeof setTimeout> | null = null
@@ -89,15 +97,26 @@ export function useBoardLayout() {
     return (es.entities ?? []).find(e => e.id === id && e.type === 'outline_board')
   }
 
-  /** 载入指定白板的布局体与视口（调用前需确保 store 已含 outline_board 实体，视图层用 loadAll） */
+  /** 载入指定白板的布局体、视口与缩略图（调用前需确保 store 已含 outline_board 实体，视图层用 loadAll） */
   async function load(id: string): Promise<boolean> {
     clearTimers()
     boardId.value = id
     const board = boardEntity(id)
     layout.value = parseBoardLayout(board?.properties?.layout)
-    viewport.value = parseViewport(board?.properties?.viewport)
+    const rawViewport = board?.properties?.viewport
+    viewport.value = parseViewport(rawViewport)
+    // 从未保存过视口（新建白板把 viewport 置空）→ 交给视图层做首次适配
+    pendingFit.value = !hasSavedViewport(rawViewport)
+    thumbnail.value = typeof board?.properties?.thumbnail === 'string'
+      ? (board?.properties?.thumbnail as string)
+      : ''
     saveState.value = 'idle'
     return !!board
+  }
+
+  /** 设置缩略图（退出编辑器时生成；与布局共用保存链） */
+  function setThumbnail(dataUrl: string): void {
+    thumbnail.value = dataUrl || ''
   }
 
   /** 设置视口（走同一防抖保存链） */
@@ -140,6 +159,7 @@ export function useBoardLayout() {
           ...board.properties,
           layout: serializeBoardLayout(layout.value),
           viewport: serializeViewport(viewport.value),
+          thumbnail: thumbnail.value,
         },
       })
       saveState.value = 'saved'
@@ -390,11 +410,14 @@ export function useBoardLayout() {
     boardId,
     layout,
     viewport,
+    thumbnail,
+    pendingFit,
     saveState,
     load,
     saveNow,
     dispose,
     setViewport,
+    setThumbnail,
     replaceLayout,
     addContainer,
     removeContainerById,

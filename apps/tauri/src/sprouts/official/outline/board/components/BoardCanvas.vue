@@ -9,7 +9,7 @@
   <div
     ref="rootEl"
     class="bcv"
-    :class="{ 'bcv--panning': panning, 'bcv--drawing': sectionDrawMode }"
+    :class="{ 'bcv--panning': panning, 'bcv--drawing': sectionDrawMode, 'bcv--space': spaceDown }"
     :style="gridStyle"
     @pointerdown="onBackgroundPointerDown"
     @dblclick="onBackgroundDblClick"
@@ -85,7 +85,7 @@
  * 画布：视口（缩放/平移）、容器与区的拖动/尺寸、空白双击新建、右栏拖放落点、画区模式。
  * 几何计算全部来自 boardGeometry / sectionArrange 的纯函数，组件内不出现坐标公式。
  */
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import type { Entity } from '@worldsea/entity-core'
 import BoardContainerView from './BoardContainerView.vue'
 import BoardSectionView from './BoardSectionView.vue'
@@ -150,6 +150,30 @@ const emit = defineEmits<{
 
 const rootEl = ref<HTMLElement | null>(null)
 const panning = ref(false)
+/**
+ * 是否按住 Space（规格 §八「Space + 拖拽 = 平移」）。
+ * 「按住」是持续态而非离散按键动作，故不进 useShortcuts 注册表，在本组件内自监听。
+ * 输入框/按钮聚焦时不进入该状态（否则会抢走「空格输入」与「空格激活按钮」）。
+ */
+const spaceDown = ref(false)
+
+function isTypingTarget(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null
+  if (!el) return false
+  const tag = el.tagName
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON' || el.isContentEditable
+}
+
+function onSpaceKeyDown(ev: KeyboardEvent): void {
+  if (ev.key !== ' ' || ev.repeat || isTypingTarget(ev.target)) return
+  ev.preventDefault() // 空格默认会滚动侧栏列表，按住平移期间应阻断
+  spaceDown.value = true
+}
+
+function onSpaceKeyUp(ev: KeyboardEvent): void {
+  if (ev.key !== ' ') return
+  spaceDown.value = false
+}
 
 const snapGuides = useBoardSnap({
   getMode: () => props.snapMode,
@@ -222,11 +246,23 @@ let bgStart: { local: Point; vp: Viewport } | null = null
 let bgMoved = false
 let drawStart: Point | null = null
 
+/**
+ * 启动平移（背景拖拽、中键、以及 Space 按住时的容器/区拖拽都汇到这里）。
+ * 平移不改数据，故不产生撤销快照。
+ */
+function startPan(ev: PointerEvent): void {
+  bgStart = { local: localPoint(ev), vp: { ...props.viewport } }
+  bgMoved = false
+  panning.value = true
+  window.addEventListener('pointermove', onBackgroundPointerMove)
+  window.addEventListener('pointerup', onBackgroundPointerUp)
+}
+
 function onBackgroundPointerDown(ev: PointerEvent): void {
   if (ev.button !== 0 && ev.button !== 1) return
 
   // 画区模式：背景拖拽 = 拖出矩形（此时不平移，避免两种语义抢同一手势）
-  if (props.sectionDrawMode && ev.button === 0) {
+  if (props.sectionDrawMode && ev.button === 0 && !spaceDown.value) {
     drawStart = toWorld(localPoint(ev))
     drawPreview.value = normalizeRect(drawStart, drawStart)
     window.addEventListener('pointermove', onDrawPointerMove)
@@ -234,11 +270,7 @@ function onBackgroundPointerDown(ev: PointerEvent): void {
     return
   }
 
-  bgStart = { local: localPoint(ev), vp: { ...props.viewport } }
-  bgMoved = false
-  panning.value = true
-  window.addEventListener('pointermove', onBackgroundPointerMove)
-  window.addEventListener('pointerup', onBackgroundPointerUp)
+  startPan(ev)
 }
 
 function onBackgroundPointerMove(ev: PointerEvent): void {
@@ -296,6 +328,11 @@ let resize: ResizeState | null = null
 
 function onContainerDragStart(container: BoardContainer, ev: PointerEvent): void {
   if (ev.button !== 0) return
+  // Space 按住时：容器拖动转为画布平移（与 Figma 一致的手势优先级）
+  if (spaceDown.value) {
+    startPan(ev)
+    return
+  }
   emit('interactionStart') // 撤销快照：一次拖动只记一次
   drag = {
     id: container.id,
@@ -372,6 +409,11 @@ let sectionDrag: SectionDragState | null = null
 
 function beginSectionDrag(section: BoardSection, ev: PointerEvent, mode: 'move' | 'resize'): void {
   if (ev.button !== 0) return
+  // Space 按住时：区拖动同样转为画布平移（优先于元素拖动）
+  if (spaceDown.value) {
+    startPan(ev)
+    return
+  }
   emit('interactionStart')
   sectionDrag = {
     id: section.id,
@@ -478,6 +520,14 @@ onBeforeUnmount(() => {
   window.removeEventListener('pointerup', onSectionPointerUp)
   window.removeEventListener('pointermove', onDrawPointerMove)
   window.removeEventListener('pointerup', onDrawPointerUp)
+  window.removeEventListener('keydown', onSpaceKeyDown)
+  window.removeEventListener('keyup', onSpaceKeyUp)
+})
+
+// Space 平移：挂载期常驻（仅当本画布挂载时；编辑器层才渲染本组件）
+onMounted(() => {
+  window.addEventListener('keydown', onSpaceKeyDown)
+  window.addEventListener('keyup', onSpaceKeyUp)
 })
 </script>
 
@@ -493,6 +543,9 @@ onBeforeUnmount(() => {
 }
 .bcv--panning { cursor: grabbing; }
 .bcv--drawing { cursor: crosshair; }
+/* Space 按住：光标提示可平移（与中键拖拽一致的语义） */
+.bcv--space { cursor: grab; }
+.bcv--space.bcv--panning { cursor: grabbing; }
 .bcv-world {
   position: absolute;
   left: 0;
