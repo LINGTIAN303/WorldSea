@@ -41,7 +41,7 @@
     @remove="onRemoveBoard"
   />
 
-  <!-- 层 2：编辑器（画布 + 右栏节点侧栏） -->
+  <!-- 层 2：编辑器（画布 + 画布悬浮条 + 右栏节点侧栏） -->
   <div v-else class="bv-editor">
     <BoardCanvas
       ref="canvasRef"
@@ -50,16 +50,41 @@
       :nodes-by-id="nodesById"
       :selected-id="selection.selectedId.value"
       :snap-mode="snapMode"
+      :grid-enabled="gridEnabled"
+      :section-draw-mode="sectionDrawMode"
       @select="onCanvasSelect"
       @move-container="onMoveContainer"
+      @resize-container="onResizeContainer"
+      @container-drop="onContainerDrop"
       @toggle-collapse="onToggleCollapse"
       @remove-container="onRemoveContainer"
+      @open-manuscript="onOpenManuscript"
       @add-component="onAddComponent"
       @create-node-at="onCreateNodeAt"
       @drop-node="onDropNode"
       @viewport-change="onViewportChange"
       @interaction-start="onInteractionStart"
+      @create-section="onCreateSection"
+      @section-draw-done="sectionDrawMode = false"
+      @move-section="onMoveSection"
+      @resize-section="onResizeSection"
+      @rename-section="onRenameSection"
+      @rearrange-section="onRearrangeSection"
+      @remove-section="askRemoveSection"
     />
+
+    <BoardCanvasToolbar
+      :snap-mode="snapMode"
+      :grid-enabled="gridEnabled"
+      :drawing="sectionDrawMode"
+      :dangling-count="danglingIds.length"
+      @toggle-draw="sectionDrawMode = !sectionDrawMode"
+      @set-snap="onSetSnap"
+      @toggle-grid="onToggleGrid"
+      @fit-all="fitAll"
+      @cleanup-dangling="onCleanupDangling"
+    />
+
     <NodeSidebar
       :nodes="outlineNodes"
       :placed-ids="placedIds"
@@ -69,6 +94,24 @@
       @locate="onLocate"
       @reparent="onReparent"
     />
+
+    <!-- 删区二选一（规格 §二）：必须显式选择容器去留，避免误删 -->
+    <div v-if="removingSection" class="bv-dialog-mask" @pointerdown.self="removingSection = null">
+      <div class="bv-dialog" role="dialog" aria-label="删除区">
+        <div class="bv-dialog-title">删除区「{{ removingSection.title || '未命名区' }}」</div>
+        <div class="bv-dialog-desc">该区当前有 {{ removingSectionContainerCount }} 个容器。请选择处理方式：</div>
+        <div class="bv-dialog-actions">
+          <button class="bv-dialog-btn" type="button" @click="confirmRemoveSection('detach')">
+            仅删区，容器落回画布
+          </button>
+          <button class="bv-dialog-btn bv-dialog-btn--danger" type="button" @click="confirmRemoveSection('cascade')">
+            连同区内容器一起删
+          </button>
+          <button class="bv-dialog-btn bv-dialog-btn--plain" type="button" @click="removingSection = null">取消</button>
+        </div>
+        <div class="bv-dialog-hint">两种方式都<strong>不会</strong>删除大纲节点本身，只影响白板上的摆放。</div>
+      </div>
+    </div>
   </div>
   </div>
 </template>
@@ -85,22 +128,22 @@ import { useEntityStore, type Entity } from '@worldsea/entity-core'
 import { CreateButton } from '@worldsea/plugin-sdk'
 import { WsIcon } from '@worldsea/ui-kit'
 import BoardCanvas from './components/BoardCanvas.vue'
+import BoardCanvasToolbar from './components/BoardCanvasToolbar.vue'
 import BoardListView from './BoardListView.vue'
 import NodeSidebar from './components/NodeSidebar.vue'
 import { useBoardDocs } from './composables/useBoardDocs'
 import { useBoardLayout } from './composables/useBoardLayout'
 import { useBoardSelection } from './composables/useBoardSelection'
-import { useBoardUndo } from './composables/useBoardUndo'
+import { useBoardUndo, provideBoardUndo } from './composables/useBoardUndo'
 import { parseSnapMode, type SnapMode } from './composables/useBoardSnap'
-import { contentBounds, fitViewport, type Point } from './boardGeometry'
-import { containerRects, genBoardId } from './layoutSchema'
+import { contentBounds, fitViewport, type Point, type Rect } from './boardGeometry'
+import { DEFAULT_CONTAINER_SIZE, danglingContainerIds, genBoardId, rectOfContainer, type BoardSection } from './layoutSchema'
 import { captureHierarchy, diffHierarchy, planReparent, type DropMode } from './outlineHierarchy'
 import { initializeForms } from './forms/initializeForms'
 // 复用既有的 parent_child 关系同步（单一实现，避免第二份漂移）
 import { useOutlineTree } from '../composables/useOutlineTree'
 
-/** 容器自适应尺寸的估算值（与画布一致） */
-const FALLBACK_SIZE = { w: 200, h: 80 }
+/** 容器自适应尺寸的估算值统一取 layoutSchema.DEFAULT_CONTAINER_SIZE（避免多处漂移） */
 
 initializeForms()
 
@@ -120,10 +163,29 @@ const undoApi = useBoardUndo({
     layoutApi.replaceLayout(snap.layout)
     if (snap.hierarchy) void restoreHierarchy(snap.hierarchy)
   },
+  // 字段条目回放：就地编辑（改名 / 改描述）的撤销也归白板栈（规格 §六「内容写入统一单步」）
+  applyField: (nodeId, values) => { void applyNodeFields(nodeId, values) },
 })
+
+/**
+ * 回放内容编辑：直接写节点字段。带 `{ skipUndo }`——白板栈自己记了这一步，
+ * 不能再进实体全局栈（否则两套撤销历史会互相打架）。节点已删则静默跳过。
+ */
+async function applyNodeFields(nodeId: string, values: Record<string, unknown>): Promise<void> {
+  const node = (es.entities ?? []).find(e => e.id === nodeId)
+  if (!node) return
+  await es.update(nodeId, values, 'user', { skipUndo: true })
+}
+
+// 形式组件（标题式 / 树式 / 句子式…）通过注入拿撤销能力，不必逐层透传 props
+provideBoardUndo({ recordContentEdit: undoApi.recordContentEdit })
 
 const canvasRef = ref<InstanceType<typeof BoardCanvas> | null>(null)
 const sidebarCollapsed = ref(false)
+/** 画区模式：开启后画布背景拖拽 = 拖出矩形（画完一个自动退出，避免连续误画） */
+const sectionDrawMode = ref(false)
+/** 待确认删除的区（弹层二选一，规格 §二） */
+const removingSection = ref<BoardSection | null>(null)
 
 // ── 派生数据 ────────────────────────────────
 const { boards, currentBoard, inEditor } = docs
@@ -138,9 +200,20 @@ const outlineNodes = computed<Entity[]>(
 )
 const nodesById = computed(() => new Map(outlineNodes.value.map(n => [n.id, n] as const)))
 const placedIds = computed(() => new Set(layout.value.containers.map(c => c.nodeId)))
+/** 现存节点 id 集合：判定悬空容器用 */
+const existingNodeIds = computed(() => new Set(outlineNodes.value.map(n => n.id)))
+/** 悬空容器（节点已删）：只在悬浮条上给清理入口，绝不自动删 */
+const danglingIds = computed(() => danglingContainerIds(layout.value, existingNodeIds.value))
 const snapMode = computed<SnapMode>(() =>
   parseSnapMode(currentBoard.value?.properties?.snap),
 )
+/** 背景网格开关（白板级，默认开）；与吸附模式解耦（规格 §一） */
+const gridEnabled = computed(() => currentBoard.value?.properties?.gridEnabled !== false)
+const removingSectionContainerCount = computed(() => {
+  const s = removingSection.value
+  if (!s) return 0
+  return layout.value.containers.filter(c => c.sectionId === s.id).length
+})
 const zoomPercent = computed(() => Math.round(viewport.value.zoom * 100))
 
 const saveText = computed(() => {
@@ -167,6 +240,8 @@ async function openBoard(boardId: string): Promise<void> {
   await layoutApi.load(boardId)
   undoApi.clear()
   selection.clear()
+  sectionDrawMode.value = false
+  removingSection.value = null
 }
 
 async function onBack(): Promise<void> {
@@ -174,6 +249,8 @@ async function onBack(): Promise<void> {
   docs.backToList()
   selection.clear()
   undoApi.clear()
+  sectionDrawMode.value = false
+  removingSection.value = null
 }
 
 async function onCreate(): Promise<void> {
@@ -211,6 +288,27 @@ function onRemoveContainer(containerId: string): void {
   undoApi.record()
   layoutApi.removeContainerById(containerId)
   selection.dropIfMissing(new Set(layout.value.containers.map(c => c.id)))
+}
+
+/** 尺寸手柄拖动（拖动开始时已 record，故这里只改数据） */
+function onResizeContainer(containerId: string, size: { w: number; h: number }): void {
+  layoutApi.resizeContainer(containerId, size)
+}
+
+/** 拖动结束才重算归属：拖动中重算会让容器的区归属随手指反复跳动 */
+function onContainerDrop(containerId: string): void {
+  void layoutApi.settleContainerSection(containerId)
+}
+
+/** 打开正文：复用既有 ws-navigate 链路（与旧树视图的「跳转到正文」同一实现） */
+function onOpenManuscript(containerId: string): void {
+  const container = layout.value.containers.find(c => c.id === containerId)
+  if (!container) return
+  const manuscriptId = (nodesById.value.get(container.nodeId)?.properties?.manuscriptId as string) || ''
+  if (!manuscriptId) return
+  window.dispatchEvent(new CustomEvent('ws-navigate', {
+    detail: { type: 'entity', entityId: manuscriptId, entityType: 'manuscript' },
+  }))
 }
 
 function onAddComponent(containerId: string, form: string): void {
@@ -268,8 +366,8 @@ function onDropNode(nodeId: string, pos: Point): void {
 function onSidebarAdd(nodeId: string): void {
   const size = canvasRef.value?.size() ?? { w: 0, h: 0 }
   const center: Point = {
-    x: (-viewport.value.panX + size.w / 2) / viewport.value.zoom - FALLBACK_SIZE.w / 2,
-    y: (-viewport.value.panY + size.h / 2) / viewport.value.zoom - FALLBACK_SIZE.h / 2,
+    x: (-viewport.value.panX + size.w / 2) / viewport.value.zoom - DEFAULT_CONTAINER_SIZE.w / 2,
+    y: (-viewport.value.panY + size.h / 2) / viewport.value.zoom - DEFAULT_CONTAINER_SIZE.h / 2,
   }
   onDropNode(nodeId, { x: Math.round(center.x), y: Math.round(center.y) })
 }
@@ -281,11 +379,10 @@ function onLocate(nodeId: string): void {
 }
 
 function locateContainer(containerId: string): void {
-  const rect = containerRects(layout.value, FALLBACK_SIZE).find(
-    (_, idx) => layout.value.containers[idx]?.id === containerId,
-  )
+  const container = layout.value.containers.find(c => c.id === containerId)
+  if (!container) return
   selection.select(containerId)
-  if (rect) canvasRef.value?.centerOn(rect)
+  canvasRef.value?.centerOn(rectOfContainer(container))
 }
 
 // ── 层级重排（右栏拖拽）────────────────────
@@ -330,6 +427,69 @@ async function restoreHierarchy(
   }
 }
 
+// ── 区（Section）事件 ────────────────────────
+
+/** 画区完成：新建区，并把中心落在区内的既有容器一并纳入归属（与拖动结束的归属规则一致） */
+function onCreateSection(rect: Rect): void {
+  undoApi.record()
+  layoutApi.addSection(rect)
+}
+
+function onMoveSection(sectionId: string, rect: Rect): void {
+  layoutApi.moveSectionTo(sectionId, rect)
+}
+
+function onResizeSection(sectionId: string, rect: Rect): void {
+  layoutApi.resizeSection(sectionId, rect)
+}
+
+function onRenameSection(sectionId: string, title: string): void {
+  undoApi.record()
+  layoutApi.renameSection(sectionId, title)
+}
+
+function onRearrangeSection(sectionId: string): void {
+  undoApi.record()
+  layoutApi.rearrangeSection(sectionId)
+}
+
+/** 删区前先问容器去留（规格 §二：二选一，不静默决定） */
+function askRemoveSection(sectionId: string): void {
+  const s = layout.value.sections.find(x => x.id === sectionId)
+  if (s) removingSection.value = s
+}
+
+function confirmRemoveSection(mode: 'detach' | 'cascade'): void {
+  const s = removingSection.value
+  removingSection.value = null
+  if (!s) return
+  undoApi.record()
+  layoutApi.removeSectionById(s.id, mode)
+  selection.dropIfMissing(new Set(layout.value.containers.map(c => c.id)))
+}
+
+// ── 白板级设置（吸附模式 / 网格开关）与悬空容器清理 ──
+
+async function onSetSnap(mode: SnapMode): Promise<void> {
+  const id = currentBoard.value?.id
+  if (!id) return
+  await docs.setBoardSnap(id, mode)
+}
+
+async function onToggleGrid(): Promise<void> {
+  const id = currentBoard.value?.id
+  if (!id) return
+  await docs.setBoardGridEnabled(id, !gridEnabled.value)
+}
+
+/** 清理悬空容器：必须用户显式点击（绝不自动删），且只删容器、不删节点 */
+function onCleanupDangling(): void {
+  if (!danglingIds.value.length) return
+  undoApi.record()
+  layoutApi.cleanupDangling(existingNodeIds.value)
+  selection.dropIfMissing(new Set(layout.value.containers.map(c => c.id)))
+}
+
 // ── 视口控件 ────────────────────────────────
 function zoomBy(dir: 1 | -1): void {
   canvasRef.value?.zoomStep(dir > 0 ? -1 : 1)
@@ -337,7 +497,11 @@ function zoomBy(dir: 1 | -1): void {
 
 function fitAll(): void {
   const size = canvasRef.value?.size() ?? { w: 0, h: 0 }
-  const rects = containerRects(layout.value, FALLBACK_SIZE)
+  // 适配全部要**包含区**（规格 §一：zoom to fit，含全部容器与区）
+  const rects: Rect[] = [
+    ...layout.value.containers.map(c => rectOfContainer(c)),
+    ...layout.value.sections.map(s => ({ ...s.rect })),
+  ]
   layoutApi.setViewport(fitViewport(contentBounds(rects), size))
 }
 
@@ -363,6 +527,15 @@ function onKeydown(ev: KeyboardEvent): void {
   )
 
   if (ev.key === 'Escape') {
+    // 画区模式优先退出（避免误以为「清选择」能退出画区）
+    if (sectionDrawMode.value) {
+      sectionDrawMode.value = false
+      return
+    }
+    if (removingSection.value) {
+      removingSection.value = null
+      return
+    }
     selection.clear()
     return
   }
@@ -415,6 +588,8 @@ watch(() => layout.value.containers.length, () => {
 }
 .bv-editor {
   display: flex;
+  /* 画布悬浮条与删区弹层以本层为定位参照 */
+  position: relative;
   flex: 1;
   min-height: 0;
   min-width: 0;
@@ -451,4 +626,47 @@ watch(() => layout.value.containers.length, () => {
 .bv-sep { width: 1px; height: 14px; background: var(--border-light); }
 .bv-zoom { font-size: var(--font-size-2xs); color: var(--text-tertiary); min-width: 34px; text-align: center; }
 .bv-count { font-size: var(--font-size-xs); color: var(--text-secondary); }
+/* 删区二选一弹层（居中，覆盖画布与右栏） */
+.bv-dialog-mask {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.28);
+}
+.bv-dialog {
+  width: 360px;
+  max-width: calc(100% - 32px);
+  padding: 14px 16px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-mid);
+  background: var(--menubar-bg, var(--bg-secondary));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+.bv-dialog-title {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-color);
+  margin-bottom: 6px;
+}
+.bv-dialog-desc { font-size: var(--font-size-xs); color: var(--text-secondary); margin-bottom: 12px; }
+.bv-dialog-actions { display: flex; flex-direction: column; gap: 6px; }
+.bv-dialog-btn {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xs);
+  background: transparent;
+  /* 按钮文字必须显式设色 */
+  color: var(--text-color);
+  font-size: var(--font-size-xs);
+  text-align: left;
+  cursor: pointer;
+}
+.bv-dialog-btn:hover { background: var(--hover-bg); border-color: var(--primary); color: var(--primary); }
+.bv-dialog-btn--danger:hover { border-color: var(--error, #dc2626); color: var(--error, #dc2626); }
+.bv-dialog-btn--plain { text-align: center; color: var(--text-secondary); }
+.bv-dialog-hint { margin-top: 10px; font-size: var(--font-size-2xs); color: var(--text-tertiary); }
 </style>

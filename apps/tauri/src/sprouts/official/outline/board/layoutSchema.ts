@@ -8,7 +8,7 @@
  * 【容错原则】解析永不抛错：非法 JSON / 结构缺失 / 类型不符一律回退到安全默认，
  * 保证「坏数据不炸视图」（用户手改 DB、版本升级、半写入都可能产生坏数据）。
  */
-import type { Point, Rect } from './boardGeometry'
+import { hitTestRects, shiftRect, type Point, type Rect } from './boardGeometry'
 
 export const BOARD_LAYOUT_VERSION = 1
 
@@ -235,14 +235,25 @@ export function removeContainers(
   return { ...layout, containers: layout.containers.filter(c => !drop.has(c.id)) }
 }
 
+/** 分量前先补一个容器自适应尺寸的估算值（吸附/包围盒/命中都要用，故收敛到单一定义） */
+export const DEFAULT_CONTAINER_SIZE = { w: 200, h: 80 }
+
+/** 取容器的有效矩形：显式尺寸优先，未设尺寸时用估算值（单一实现，避免多处漂移） */
+export function rectOfContainer(
+  container: BoardContainer,
+  fallback: { w: number; h: number } = DEFAULT_CONTAINER_SIZE,
+): Rect {
+  return {
+    x: container.pos.x,
+    y: container.pos.y,
+    w: container.size?.w ?? fallback.w,
+    h: container.size?.h ?? fallback.h,
+  }
+}
+
 /** 全部容器的世界坐标矩形（供吸附、适配全部使用） */
 export function containerRects(layout: OutlineBoardLayout, fallback: { w: number; h: number }): Rect[] {
-  return layout.containers.map(c => ({
-    x: c.pos.x,
-    y: c.pos.y,
-    w: c.size?.w ?? fallback.w,
-    h: c.size?.h ?? fallback.h,
-  }))
+  return layout.containers.map(c => rectOfContainer(c, fallback))
 }
 
 /** 区矩形（含容器时用于「带的容器整体移动」等判断） */
@@ -278,4 +289,145 @@ export function reorderComponents(
     if (!orderedIds.includes(c.id)) next.push({ ...c, order: next.length + 1 })
   }
   return { ...container, components: next }
+}
+
+// ─────────────────────────────────────────────
+// 区（Section）：人工划分，承担「组间约束」
+// 规格：docs/plans/2026-09-16-大纲白板-编辑器交互规格.md §二
+// ─────────────────────────────────────────────
+
+export function createSection(
+  rect: Rect,
+  opts: { title?: string; arrange?: SectionArrange; order?: number } = {},
+): BoardSection {
+  const section: BoardSection = {
+    id: genBoardId('sec'),
+    rect: {
+      x: Math.round(rect.x),
+      y: Math.round(rect.y),
+      w: Math.max(0, Math.round(rect.w)),
+      h: Math.max(0, Math.round(rect.h)),
+    },
+    arrange: opts.arrange ?? 'free',
+    order: opts.order ?? 1,
+  }
+  const title = (opts.title ?? '').trim()
+  if (title) section.title = title
+  return section
+}
+
+export function nextSectionOrder(layout: OutlineBoardLayout): number {
+  return layout.sections.reduce((max, s) => Math.max(max, s.order), 0) + 1
+}
+
+export function findSection(layout: OutlineBoardLayout, sectionId: string): BoardSection | undefined {
+  return layout.sections.find(s => s.id === sectionId)
+}
+
+export function replaceSection(
+  layout: OutlineBoardLayout,
+  sectionId: string,
+  next: BoardSection,
+): OutlineBoardLayout {
+  return {
+    ...layout,
+    sections: layout.sections.map(s => (s.id === sectionId ? next : s)),
+  }
+}
+
+/** 区内容器（按 sectionId 归属；归属在拖动结束时由几何重算，见 resolveSectionFor） */
+export function containersOfSection(
+  layout: OutlineBoardLayout,
+  sectionId: string,
+): BoardContainer[] {
+  return layout.containers.filter(c => c.sectionId === sectionId)
+}
+
+/**
+ * 删区（二选一，规格 §二）：
+ * · mode='detach'：**仅删区**，容器落回画布（清 sectionId，位置不变）
+ * · mode='cascade'：连区内容器一起删（**只删容器，仍不删节点**）
+ */
+export function removeSections(
+  layout: OutlineBoardLayout,
+  sectionIds: string[],
+  mode: 'detach' | 'cascade' = 'detach',
+): OutlineBoardLayout {
+  const drop = new Set(sectionIds)
+  const sections = layout.sections.filter(s => !drop.has(s.id))
+  const containers = mode === 'cascade'
+    ? layout.containers.filter(c => !(c.sectionId && drop.has(c.sectionId)))
+    : layout.containers.map(c =>
+      c.sectionId && drop.has(c.sectionId) ? stripSectionId(c) : c,
+    )
+  return { ...layout, sections, containers }
+}
+
+/** 清掉容器的 sectionId（不可变） */
+export function stripSectionId(container: BoardContainer): BoardContainer {
+  const next: BoardContainer = { ...container }
+  delete next.sectionId
+  return next
+}
+
+/** 设置/清除容器归属区（不可变） */
+export function setContainerSectionId(
+  layout: OutlineBoardLayout,
+  containerId: string,
+  sectionId: string | null,
+): OutlineBoardLayout {
+  return {
+    ...layout,
+    containers: layout.containers.map(c => {
+      if (c.id !== containerId) return c
+      if (!sectionId) return stripSectionId(c)
+      if (c.sectionId === sectionId) return c
+      return { ...c, sectionId }
+    }),
+  }
+}
+
+/**
+ * 区平移 = **区矩形与其内容器一起平移**（规格 §二「关键语义」，一次原子变更）。
+ * 内容器依据 sectionId 归属确定，与容器当前坐标无关——所以先落进区的容器即便
+ * 被拖到区外（归属尚未重算）也仍然跟随，语义一致。
+ */
+export function shiftSectionWithContainers(
+  layout: OutlineBoardLayout,
+  sectionId: string,
+  dx: number,
+  dy: number,
+): OutlineBoardLayout {
+  const section = findSection(layout, sectionId)
+  if (!section || (!dx && !dy)) return layout
+  return {
+    ...layout,
+    sections: layout.sections.map(s =>
+      s.id === sectionId ? { ...s, rect: shiftRect(s.rect, dx, dy) } : s,
+    ),
+    containers: layout.containers.map(c =>
+      c.sectionId === sectionId ? { ...c, pos: { x: c.pos.x + dx, y: c.pos.y + dy } } : c,
+    ),
+  }
+}
+
+/**
+ * 点的区命中：返回**最上层**命中的区（后绘制者在上）。用于容器拖动结束后的归属重算。
+ * 未命中任何区 → null（容器脱离区）。
+ */
+export function sectionAtPoint(layout: OutlineBoardLayout, p: Point): BoardSection | null {
+  const idx = hitTestRects(p, sectionRects(layout))
+  return idx >= 0 ? layout.sections[idx] : null
+}
+
+/**
+ * 依据容器矩形中心点解析它应归属的区 id（null = 不归属任何区）。
+ * 用中心点而非「完全包含」：容器跨区界时归属由中心决定，避免出现「半个容器在区里」的歧义。
+ */
+export function resolveSectionFor(
+  layout: OutlineBoardLayout,
+  containerRect: Rect,
+): string | null {
+  const center = { x: containerRect.x + containerRect.w / 2, y: containerRect.y + containerRect.h / 2 }
+  return sectionAtPoint(layout, center)?.id ?? null
 }

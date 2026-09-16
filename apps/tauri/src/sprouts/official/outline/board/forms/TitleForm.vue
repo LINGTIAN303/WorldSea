@@ -35,6 +35,7 @@ import { useEntityStore } from '@worldsea/entity-core'
 import { resolveChildNodes, resolveNodeDepth, resolveNodeNumbering } from '../outlineDerive'
 import { formatNumbering, indentForDepth, type NumberingStyle } from './titleNumbering'
 import { resolveFormConfig } from './registry'
+import { injectBoardUndo } from '../composables/useBoardUndo'
 
 /** 内容写入防抖（规格 §0.3） */
 const WRITE_DEBOUNCE = 400
@@ -45,6 +46,8 @@ const props = defineProps<{
 }>()
 
 const es = useEntityStore()
+/** 白板撤销栈（若无装配层提供则为 null：组件仍可用，只是内容编辑不进撤销栈） */
+const boardUndo = injectBoardUndo()
 
 const node = computed(() => (es.entities ?? []).find(e => e.id === props.nodeId))
 const allNodes = computed(() => (es.entities ?? []).filter(e => e.type === 'outline_node'))
@@ -96,6 +99,8 @@ const editing = ref(false)
 const draft = ref('')
 const inputEl = ref<HTMLInputElement | null>(null)
 let writeTimer: ReturnType<typeof setTimeout> | null = null
+/** 编辑会话起点值：整段会话（双击进入 → 提交）只登记 **一步** 撤销（规格 §六） */
+let sessionPrev: string | null = null
 
 function clearWriteTimer(): void {
   if (writeTimer) {
@@ -117,8 +122,9 @@ function scheduleWrite(value: string): void {
 }
 
 async function startEdit(): Promise<void> {
-  if (!node.value) return
-  draft.value = node.value.name ?? ''
+  if (!node.value || editing.value) return
+  sessionPrev = node.value.name ?? ''
+  draft.value = sessionPrev
   editing.value = true
   await nextTick()
   inputEl.value?.focus()
@@ -128,11 +134,24 @@ async function startEdit(): Promise<void> {
 function commit(): void {
   if (!editing.value) return
   writeName(draft.value)
+  // 一次编辑会话 = 撤销栈一步：中间防抖写入不单独占步，撤销回到会话起点
+  const prev = sessionPrev ?? ''
+  const next = (draft.value ?? '').trim()
+  if (prev !== next) {
+    boardUndo?.recordContentEdit(props.nodeId, { name: prev }, { name: next }, '标题改名')
+  }
+  sessionPrev = null
   editing.value = false
 }
 
 function cancel(): void {
   clearWriteTimer()
+  // Esc 回滚（规格 §一）：防抖可能已把中间值落库，这里显式写回会话起点值
+  const prev = sessionPrev
+  if (prev !== null && (node.value?.name ?? '') !== prev) {
+    void es.update(props.nodeId, { name: prev }, 'user', { skipUndo: true })
+  }
+  sessionPrev = null
   editing.value = false
 }
 

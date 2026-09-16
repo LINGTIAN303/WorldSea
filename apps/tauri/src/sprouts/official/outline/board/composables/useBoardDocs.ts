@@ -8,6 +8,7 @@ import { computed, ref } from 'vue'
 import { useEntityStore } from '@worldsea/entity-core'
 import { createDefaultViewport, serializeViewport } from '../boardGeometry'
 import { createEmptyBoardLayout, genBoardId, parseBoardLayout, serializeBoardLayout } from '../layoutSchema'
+import type { SnapMode } from './useBoardSnap'
 
 export const DEFAULT_BOARD_NAME = '未命名白板'
 
@@ -90,6 +91,25 @@ export function useBoardDocs() {
     return parseBoardLayout(board.properties?.layout).containers.length
   }
 
+  /**
+   * 写回白板级设置（吸附模式 / 网格开关）。
+   * 实体更新是「properties 整体替换」语义，故必须先合并当前 properties——
+   * 否则会把 layout / viewport / thumbnail 一起抹掉（与 useBoardLayout.saveNow 同一纪律）。
+   */
+  async function updateBoardProps(id: string, patch: Record<string, unknown>): Promise<void> {
+    const board = boards.value.find(b => b.id === id)
+    if (!board) return
+    await es.update(id, { properties: { ...board.properties, ...patch } })
+  }
+
+  async function setBoardSnap(id: string, mode: SnapMode): Promise<void> {
+    await updateBoardProps(id, { snap: mode })
+  }
+
+  async function setBoardGridEnabled(id: string, enabled: boolean): Promise<void> {
+    await updateBoardProps(id, { gridEnabled: enabled })
+  }
+
   return {
     boards,
     currentBoard,
@@ -103,5 +123,7 @@ export function useBoardDocs() {
     openBoard,
     backToList,
     containerCount,
+    setBoardSnap,
+    setBoardGridEnabled,
   }
 }

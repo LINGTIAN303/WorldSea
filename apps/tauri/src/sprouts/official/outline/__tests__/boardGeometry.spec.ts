@@ -17,6 +17,11 @@ import {
   pointInRect,
   contentBounds,
   fitViewport,
+  rectCenter,
+  shiftRect,
+  normalizeRect,
+  hitTestRects,
+  resizeRectFromHandle,
   type Rect,
   type Viewport,
 } from '../board/boardGeometry'
@@ -187,5 +192,52 @@ describe('boardGeometry / 视口解析与序列化', () => {
 
   it('超范围 zoom 在序列化时即被夹取', () => {
     expect(JSON.parse(serializeViewport({ zoom: 99, panX: 0, panY: 0 })).zoom).toBe(MAX_ZOOM)
+  })
+})
+
+describe('boardGeometry / 区几何（画区 · 命中 · 平移）', () => {
+  it('normalizeRect 支持反向拖拽（右下 → 左上）', () => {
+    const a = normalizeRect({ x: 300, y: 200 }, { x: 100, y: 50 })
+    expect(a).toEqual({ x: 100, y: 50, w: 200, h: 150 })
+  })
+
+  it('normalizeRect 对极小拖拽放大到最小尺寸（避免画不出可操作的区）', () => {
+    const tiny = normalizeRect({ x: 10, y: 10 }, { x: 12, y: 13 }, { w: 80, h: 60 })
+    expect(tiny).toEqual({ x: 10, y: 10, w: 80, h: 60 })
+  })
+
+  it('rectCenter 与 shiftRect', () => {
+    expect(rectCenter(rect(0, 0, 100, 40))).toEqual({ x: 50, y: 20 })
+    expect(shiftRect(rect(10, 20, 100, 40), -5, 8)).toEqual({ x: 5, y: 28, w: 100, h: 40 })
+  })
+
+  it('hitTestRects 返回最上层命中（后绘制者优先），未命中返回 -1', () => {
+    const rects = [rect(0, 0, 200, 200), rect(50, 50, 200, 200)]
+    // 重叠区域应命中索引 1（上层）
+    expect(hitTestRects({ x: 60, y: 60 }, rects)).toBe(1)
+    // 仅第一层覆盖
+    expect(hitTestRects({ x: 10, y: 10 }, rects)).toBe(0)
+    expect(hitTestRects({ x: 900, y: 900 }, rects)).toBe(-1)
+  })
+
+  it('resizeRectFromHandle：右下角手柄只改宽高，左上角不动', () => {
+    const start = rect(100, 100, 200, 100)
+    const next = resizeRectFromHandle(start, 'se', { x: 400, y: 260 })
+    expect(next).toEqual({ x: 100, y: 100, w: 300, h: 160 })
+  })
+
+  it('resizeRectFromHandle：左上角手柄改左上角，右下角不动', () => {
+    const start = rect(100, 100, 200, 100)
+    const next = resizeRectFromHandle(start, 'nw', { x: 150, y: 130 })
+    expect(next).toEqual({ x: 150, y: 130, w: 150, h: 70 })
+  })
+
+  it('resizeRectFromHandle：反向拖过头时按最小尺寸钳制（不出现负尺寸）', () => {
+    const start = rect(100, 100, 200, 100)
+    const next = resizeRectFromHandle(start, 'se', { x: -500, y: -500 }, { w: 120, h: 48 })
+    expect(next.w).toBe(120)
+    expect(next.h).toBe(48)
+    expect(next.x).toBe(100)
+    expect(next.y).toBe(100)
   })
 })

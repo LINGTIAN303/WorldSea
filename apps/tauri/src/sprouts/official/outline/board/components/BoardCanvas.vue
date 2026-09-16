@@ -1,14 +1,15 @@
 <template>
   <!--
     白板画布（BoardCanvas）—— DOM 绝对定位 + transform 缩放
-    规格：docs/plans/2026-09-16-大纲白板-编辑器交互规格.md §一 / §三 / §五
+    规格：docs/plans/2026-09-16-大纲白板-编辑器交互规格.md §一 / §二 / §三 / §五
     · 渲染技术选型为 DOM（表格式要复用 DataTable、就地编辑需要真实输入控件）
+    · 舞台层级：背景网格 → 区 → 容器 → 组件（DOM 顺序即层级，区在容器下层）
     · 本组件只做「几何 + 事件」，一切数据变更通过 emit 上行到 BoardView
   -->
   <div
     ref="rootEl"
     class="bcv"
-    :class="{ 'bcv--panning': panning }"
+    :class="{ 'bcv--panning': panning, 'bcv--drawing': sectionDrawMode }"
     :style="gridStyle"
     @pointerdown="onBackgroundPointerDown"
     @dblclick="onBackgroundDblClick"
@@ -32,6 +33,20 @@
         :style="{ top: `${gy}px` }"
       />
 
+      <!-- 区（在容器下层） -->
+      <BoardSectionView
+        v-for="s in layout.sections"
+        :key="s.id"
+        :section="s"
+        :container-count="sectionContainerCount(s.id)"
+        @drag-start="onSectionDragStart(s, $event)"
+        @resize-start="onSectionResizeStart(s, $event)"
+        @rename="(title: string) => $emit('renameSection', s.id, title)"
+        @rearrange="$emit('rearrangeSection', s.id)"
+        @remove="$emit('removeSection', s.id)"
+      />
+
+      <!-- 容器 -->
       <BoardContainerView
         v-for="c in layout.containers"
         :key="c.id"
@@ -40,31 +55,44 @@
         :selected="selectedId === c.id"
         @select="$emit('select', c.id)"
         @drag-start="onContainerDragStart(c, $event)"
+        @resize-start="onContainerResizeStart(c, $event)"
         @toggle-collapse="$emit('toggleCollapse', c.id)"
         @remove="$emit('removeContainer', c.id)"
+        @open-manuscript="$emit('openManuscript', c.id)"
         @add-component="(form: string) => $emit('addComponent', c.id, form)"
       />
+
+      <!-- 画区预览（虚线矩形） -->
+      <div v-if="drawPreview" class="bcv-draw-preview" :style="previewStyle" />
     </div>
 
     <!-- 空态：空白板引导 -->
-    <div v-if="!layout.containers.length" class="bcv-empty" @pointerdown.stop @dblclick.stop="onBackgroundDblClick">
+    <div v-if="!layout.containers.length && !layout.sections.length" class="bcv-empty" @pointerdown.stop @dblclick.stop="onBackgroundDblClick">
       <div class="bcv-empty-title">空白白板</div>
-      <div class="bcv-empty-desc">从右侧拖节点进来，或双击空白新建节点</div>
+      <div class="bcv-empty-desc">从右侧拖节点进来，或双击空白新建节点；也可用左下角「画区」框出一块区域</div>
+    </div>
+
+    <!-- 画区模式的提示条（模式下背景拖拽不再平移，避免误操作） -->
+    <div v-if="sectionDrawMode" class="bcv-draw-hint">
+      在画布上拖出矩形以创建区 · <span class="bcv-draw-key">Esc</span> 取消
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 /**
- * 画布：视口（缩放/平移）、容器拖动（含吸附）、空白双击新建、右栏拖放落点。
- * 几何计算全部来自 boardGeometry / useBoardSnap 的纯函数，组件内不出现坐标公式。
+ * 画布：视口（缩放/平移）、容器与区的拖动/尺寸、空白双击新建、右栏拖放落点、画区模式。
+ * 几何计算全部来自 boardGeometry / sectionArrange 的纯函数，组件内不出现坐标公式。
  */
 import { computed, onBeforeUnmount, ref } from 'vue'
 import type { Entity } from '@worldsea/entity-core'
 import BoardContainerView from './BoardContainerView.vue'
+import BoardSectionView from './BoardSectionView.vue'
 import { useBoardSnap, type SnapMode } from '../composables/useBoardSnap'
 import {
   clampZoom,
+  normalizeRect,
+  resizeRectFromHandle,
   screenToWorld,
   zoomAt,
   zoomStepFromWheel,
@@ -73,10 +101,14 @@ import {
   type Viewport,
 } from '../boardGeometry'
 import { readNodeIdFromDnD } from '../dnd'
-import type { BoardContainer, OutlineBoardLayout } from '../layoutSchema'
+import {
+  DEFAULT_CONTAINER_SIZE,
+  rectOfContainer,
+  type BoardContainer,
+  type BoardSection,
+  type OutlineBoardLayout,
+} from '../layoutSchema'
 
-/** 容器未设尺寸时的估算矩形（仅用于吸附与包围盒） */
-const FALLBACK_SIZE = { w: 200, h: 80 }
 /** 背景拖拽与单击的位移阈值（像素） */
 const DRAG_THRESHOLD = 3
 
@@ -86,18 +118,32 @@ const props = defineProps<{
   nodesById: Map<string, Entity>
   selectedId: string | null
   snapMode: SnapMode
+  /** 背景点阵网格显示开关（与吸附模式解耦，规格 §一） */
+  gridEnabled: boolean
+  /** 画区模式：背景拖拽改为拖出矩形 */
+  sectionDrawMode: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'select', containerId: string | null): void
   (e: 'moveContainer', containerId: string, pos: Point): void
+  (e: 'resizeContainer', containerId: string, size: { w: number; h: number }): void
+  (e: 'containerDrop', containerId: string): void
   (e: 'toggleCollapse', containerId: string): void
   (e: 'removeContainer', containerId: string): void
+  (e: 'openManuscript', containerId: string): void
   (e: 'addComponent', containerId: string, form: string): void
   (e: 'createNodeAt', pos: Point): void
   (e: 'dropNode', nodeId: string, pos: Point): void
   (e: 'viewportChange', vp: Viewport): void
   (e: 'interactionStart'): void
+  (e: 'createSection', rect: Rect): void
+  (e: 'sectionDrawDone'): void
+  (e: 'moveSection', sectionId: string, rect: Rect): void
+  (e: 'resizeSection', sectionId: string, rect: Rect): void
+  (e: 'renameSection', sectionId: string, title: string): void
+  (e: 'rearrangeSection', sectionId: string): void
+  (e: 'removeSection', sectionId: string): void
 }>()
 
 const rootEl = ref<HTMLElement | null>(null)
@@ -114,13 +160,21 @@ const worldStyle = computed(() => ({
 
 /** 点阵网格随视口一起平移缩放（关闭时隐藏） */
 const gridStyle = computed(() => {
-  if (props.snapMode === 'off') return {}
+  if (!props.gridEnabled) return {}
   const step = 20 * props.viewport.zoom
   return {
     backgroundImage: 'radial-gradient(circle, var(--border-light) 1px, transparent 1px)',
     backgroundSize: `${step}px ${step}px`,
     backgroundPosition: `${props.viewport.panX}px ${props.viewport.panY}px`,
   }
+})
+
+/** 画区预览矩形（世界坐标） */
+const drawPreview = ref<Rect | null>(null)
+const previewStyle = computed(() => {
+  const r = drawPreview.value
+  if (!r) return {}
+  return { left: `${r.x}px`, top: `${r.y}px`, width: `${r.w}px`, height: `${r.h}px` }
 })
 
 /** 画布内相对坐标 */
@@ -134,16 +188,23 @@ function toWorld(p: Point): Point {
   return screenToWorld(p, props.viewport)
 }
 
-/** 其他容器的估算矩形（用于吸附；排除自身） */
-function otherRects(excludeId?: string): Rect[] {
-  return props.layout.containers
-    .filter(c => c.id !== excludeId)
-    .map(c => ({
-      x: c.pos.x,
-      y: c.pos.y,
-      w: c.size?.w ?? FALLBACK_SIZE.w,
-      h: c.size?.h ?? FALLBACK_SIZE.h,
-    }))
+function sectionContainerCount(sectionId: string): number {
+  return props.layout.containers.filter(c => c.sectionId === sectionId).length
+}
+
+/**
+ * 吸附参照矩形：容器与区都参与（拖动区时应能与其他区/容器对齐）。
+ * 排除自身——排除项用 id 区分，容器与区不会撞 id（前缀不同）。
+ */
+function snapRects(exclude?: { containerId?: string; sectionId?: string }): Rect[] {
+  const out: Rect[] = []
+  for (const c of props.layout.containers) {
+    if (c.id !== exclude?.containerId) out.push(rectOfContainer(c))
+  }
+  for (const s of props.layout.sections) {
+    if (s.id !== exclude?.sectionId) out.push({ ...s.rect })
+  }
+  return out
 }
 
 // ── 视口：滚轮缩放（需 passive:false 才能 preventDefault）──
@@ -154,13 +215,23 @@ function onWheel(ev: WheelEvent): void {
   emit('viewportChange', zoomAt(props.viewport, next, anchor))
 }
 
-// ── 背景：拖拽平移 / 单击取消选中 / 双击新建 ──
+// ── 背景：拖拽平移 / 单击取消选中 / 双击新建 / 画区 ──
 let bgStart: { local: Point; vp: Viewport } | null = null
 let bgMoved = false
+let drawStart: Point | null = null
 
 function onBackgroundPointerDown(ev: PointerEvent): void {
-  // 只处理空白处（容器自身会 stopPropagation）
   if (ev.button !== 0 && ev.button !== 1) return
+
+  // 画区模式：背景拖拽 = 拖出矩形（此时不平移，避免两种语义抢同一手势）
+  if (props.sectionDrawMode && ev.button === 0) {
+    drawStart = toWorld(localPoint(ev))
+    drawPreview.value = normalizeRect(drawStart, drawStart)
+    window.addEventListener('pointermove', onDrawPointerMove)
+    window.addEventListener('pointerup', onDrawPointerUp)
+    return
+  }
+
   bgStart = { local: localPoint(ev), vp: { ...props.viewport } }
   bgMoved = false
   panning.value = true
@@ -186,17 +257,40 @@ function onBackgroundPointerUp(): void {
 }
 
 function onBackgroundDblClick(ev: MouseEvent): void {
+  if (props.sectionDrawMode) return
   emit('createNodeAt', toWorld(localPoint(ev)))
 }
 
-// ── 容器拖动（指针事件 + 吸附）──
+// ── 画区（拖出矩形）──
+function onDrawPointerMove(ev: PointerEvent): void {
+  if (!drawStart) return
+  drawPreview.value = normalizeRect(drawStart, toWorld(localPoint(ev)))
+}
+
+function onDrawPointerUp(): void {
+  window.removeEventListener('pointermove', onDrawPointerMove)
+  window.removeEventListener('pointerup', onDrawPointerUp)
+  const rect = drawPreview.value
+  drawStart = null
+  drawPreview.value = null
+  if (rect) emit('createSection', rect)
+  emit('sectionDrawDone') // 画完一块自动退出模式（规格：一次画一个，避免误画）
+}
+
+// ── 容器拖动 / 尺寸 ──
 interface DragState {
   id: string
   startWorld: Point
   startPos: Point
-  size: { w: number; h: number }
 }
 let drag: DragState | null = null
+
+interface ResizeState {
+  id: string
+  startWorld: Point
+  startSize: { w: number; h: number }
+}
+let resize: ResizeState | null = null
 
 function onContainerDragStart(container: BoardContainer, ev: PointerEvent): void {
   if (ev.button !== 0) return
@@ -205,7 +299,6 @@ function onContainerDragStart(container: BoardContainer, ev: PointerEvent): void
     id: container.id,
     startWorld: toWorld(localPoint(ev)),
     startPos: { ...container.pos },
-    size: { w: container.size?.w ?? FALLBACK_SIZE.w, h: container.size?.h ?? FALLBACK_SIZE.h },
   }
   window.addEventListener('pointermove', onContainerPointerMove)
   window.addEventListener('pointerup', onContainerPointerUp)
@@ -218,15 +311,117 @@ function onContainerPointerMove(ev: PointerEvent): void {
     x: drag.startPos.x + (world.x - drag.startWorld.x),
     y: drag.startPos.y + (world.y - drag.startWorld.y),
   }
-  const moving: Rect = { x: raw.x, y: raw.y, w: drag.size.w, h: drag.size.h }
-  const snapped = snapGuides.resolve(moving, otherRects(drag.id), raw)
+  const container = props.layout.containers.find(c => c.id === drag?.id)
+  const size = container?.size ?? DEFAULT_CONTAINER_SIZE
+  const moving: Rect = { x: raw.x, y: raw.y, w: size.w, h: size.h }
+  const snapped = snapGuides.resolve(moving, snapRects({ containerId: drag.id }), raw)
   emit('moveContainer', drag.id, { x: Math.round(snapped.x), y: Math.round(snapped.y) })
 }
 
 function onContainerPointerUp(): void {
   window.removeEventListener('pointermove', onContainerPointerMove)
   window.removeEventListener('pointerup', onContainerPointerUp)
+  const id = drag?.id
   drag = null
+  snapGuides.clearGuides()
+  // 拖动结束才重算区的归属（拖动中重算会让归属随手指跳动）
+  if (id) emit('containerDrop', id)
+}
+
+function onContainerResizeStart(container: BoardContainer, ev: PointerEvent): void {
+  if (ev.button !== 0) return
+  emit('interactionStart')
+  resize = {
+    id: container.id,
+    startWorld: toWorld(localPoint(ev)),
+    startSize: { ...(container.size ?? DEFAULT_CONTAINER_SIZE) },
+  }
+  window.addEventListener('pointermove', onResizePointerMove)
+  window.addEventListener('pointerup', onResizePointerUp)
+}
+
+function onResizePointerMove(ev: PointerEvent): void {
+  if (!resize) return
+  const world = toWorld(localPoint(ev))
+  // 容器尺寸只关心宽高：以 (0,0) 为原点、拖右下角，故起点矩形即「当前尺寸」
+  const startRect: Rect = { x: 0, y: 0, w: resize.startSize.w, h: resize.startSize.h }
+  const pointer: Point = {
+    x: startRect.w + (world.x - resize.startWorld.x),
+    y: startRect.h + (world.y - resize.startWorld.y),
+  }
+  const next = resizeRectFromHandle(startRect, 'se', pointer, { w: 120, h: 48 })
+  emit('resizeContainer', resize.id, { w: next.w, h: next.h })
+}
+
+function onResizePointerUp(): void {
+  window.removeEventListener('pointermove', onResizePointerMove)
+  window.removeEventListener('pointerup', onResizePointerUp)
+  resize = null
+}
+
+// ── 区拖动 / 尺寸 ──
+interface SectionDragState {
+  id: string
+  mode: 'move' | 'resize'
+  startWorld: Point
+  startRect: Rect
+}
+let sectionDrag: SectionDragState | null = null
+
+function beginSectionDrag(section: BoardSection, ev: PointerEvent, mode: 'move' | 'resize'): void {
+  if (ev.button !== 0) return
+  emit('interactionStart')
+  sectionDrag = {
+    id: section.id,
+    mode,
+    startWorld: toWorld(localPoint(ev)),
+    startRect: { ...section.rect },
+  }
+  window.addEventListener('pointermove', onSectionPointerMove)
+  window.addEventListener('pointerup', onSectionPointerUp)
+}
+
+function onSectionDragStart(section: BoardSection, ev: PointerEvent): void {
+  beginSectionDrag(section, ev, 'move')
+}
+
+function onSectionResizeStart(section: BoardSection, ev: PointerEvent): void {
+  beginSectionDrag(section, ev, 'resize')
+}
+
+function onSectionPointerMove(ev: PointerEvent): void {
+  if (!sectionDrag) return
+  const world = toWorld(localPoint(ev))
+  const dx = world.x - sectionDrag.startWorld.x
+  const dy = world.y - sectionDrag.startWorld.y
+
+  if (sectionDrag.mode === 'move') {
+    const moving: Rect = {
+      ...sectionDrag.startRect,
+      x: sectionDrag.startRect.x + dx,
+      y: sectionDrag.startRect.y + dy,
+    }
+    const snapped = snapGuides.resolve(moving, snapRects({ sectionId: sectionDrag.id }), {
+      x: moving.x,
+      y: moving.y,
+    })
+    emit('moveSection', sectionDrag.id, { ...moving, x: Math.round(snapped.x), y: Math.round(snapped.y) })
+    return
+  }
+
+  const next = resizeRectFromHandle(
+    sectionDrag.startRect,
+    'se',
+    { x: sectionDrag.startRect.x + sectionDrag.startRect.w + dx, y: sectionDrag.startRect.y + sectionDrag.startRect.h + dy },
+    { w: 80, h: 60 },
+  )
+  emit('resizeSection', sectionDrag.id, next)
+}
+
+function onSectionPointerUp(): void {
+  window.removeEventListener('pointermove', onSectionPointerMove)
+  window.removeEventListener('pointerup', onSectionPointerUp)
+  sectionDrag = null
   snapGuides.clearGuides()
 }
 
@@ -257,7 +452,7 @@ defineExpose({
   size(): { w: number; h: number } {
     return { w: rootEl.value?.clientWidth ?? 0, h: rootEl.value?.clientHeight ?? 0 }
   },
-  /** 把某个世界矩形带到视口中心（「已在板上」节点定位时用） */
+  /** 把某个世界矩形带到视口中心（「已在板上」节点定位、区定位时用） */
   centerOn(rect: Rect): void {
     const w = rootEl.value?.clientWidth ?? 0
     const h = rootEl.value?.clientHeight ?? 0
@@ -275,6 +470,12 @@ onBeforeUnmount(() => {
   window.removeEventListener('pointerup', onBackgroundPointerUp)
   window.removeEventListener('pointermove', onContainerPointerMove)
   window.removeEventListener('pointerup', onContainerPointerUp)
+  window.removeEventListener('pointermove', onResizePointerMove)
+  window.removeEventListener('pointerup', onResizePointerUp)
+  window.removeEventListener('pointermove', onSectionPointerMove)
+  window.removeEventListener('pointerup', onSectionPointerUp)
+  window.removeEventListener('pointermove', onDrawPointerMove)
+  window.removeEventListener('pointerup', onDrawPointerUp)
 })
 </script>
 
@@ -289,6 +490,7 @@ onBeforeUnmount(() => {
   cursor: default;
 }
 .bcv--panning { cursor: grabbing; }
+.bcv--drawing { cursor: crosshair; }
 .bcv-world {
   position: absolute;
   left: 0;
@@ -303,6 +505,13 @@ onBeforeUnmount(() => {
 }
 .bcv-guide--v { top: -5000px; width: 1px; height: 10000px; }
 .bcv-guide--h { left: -5000px; height: 1px; width: 10000px; }
+.bcv-draw-preview {
+  position: absolute;
+  border: 1px dashed var(--primary);
+  background: var(--hover-bg);
+  border-radius: var(--radius-mid);
+  pointer-events: none;
+}
 .bcv-empty {
   position: absolute;
   left: 50%;
@@ -313,4 +522,23 @@ onBeforeUnmount(() => {
 }
 .bcv-empty-title { font-size: var(--font-size-sm); color: var(--text-secondary); margin-bottom: 4px; }
 .bcv-empty-desc { font-size: var(--font-size-2xs); color: var(--text-tertiary); }
+.bcv-draw-hint {
+  position: absolute;
+  left: 50%;
+  top: 12px;
+  transform: translateX(-50%);
+  padding: 4px 10px;
+  border-radius: var(--radius-mid);
+  background: var(--menubar-bg, var(--bg-secondary));
+  border: 1px solid var(--border-color);
+  font-size: var(--font-size-2xs);
+  color: var(--text-secondary);
+  pointer-events: none;
+}
+.bcv-draw-key {
+  padding: 0 4px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-xs);
+  color: var(--text-tertiary);
+}
 </style>

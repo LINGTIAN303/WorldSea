@@ -223,3 +223,81 @@ export function fitViewport(
     panY: viewportSize.h / 2 - centerWorld.y * zoom,
   }
 }
+
+/** 矩形中心点（区归属判定、定位容器都用它） */
+export function rectCenter(r: Rect): Point {
+  return { x: r.x + r.w / 2, y: r.y + r.h / 2 }
+}
+
+/** 平移矩形（区整体移动时的基础运算） */
+export function shiftRect(r: Rect, dx: number, dy: number): Rect {
+  return { x: r.x + dx, y: r.y + dy, w: r.w, h: r.h }
+}
+
+/**
+ * 由两个角点构造矩形（「画区」时从按下点拖到当前点）。
+ * 支持反向拖拽（从右下拖到左上也算），并按最小尺寸放大到可操作范围。
+ */
+export function normalizeRect(
+  a: Point,
+  b: Point,
+  minSize = { w: 80, h: 60 },
+): Rect {
+  const x = Math.min(a.x, b.x)
+  const y = Math.min(a.y, b.y)
+  return {
+    x: Math.round(x),
+    y: Math.round(y),
+    w: Math.round(Math.max(minSize.w, Math.abs(b.x - a.x))),
+    h: Math.round(Math.max(minSize.h, Math.abs(b.y - a.y))),
+  }
+}
+
+/**
+ * 命中测试：返回**最上层**命中的索引（-1 表示未命中）。
+ * 取「最后一个命中」是因为渲染顺序即层级顺序——后绘制的在上层（区在容器下层，故只会用于区）。
+ */
+export function hitTestRects(p: Point, rects: Rect[]): number {
+  for (let i = rects.length - 1; i >= 0; i--) {
+    if (pointInRect(p, rects[i])) return i
+  }
+  return -1
+}
+
+/** 尺寸手柄的四个角（右下角为主手柄，其余为后续扩展预留） */
+export type ResizeHandle = 'se' | 'sw' | 'ne' | 'nw'
+
+/**
+ * 按手柄拖动结果计算新矩形（容器右下角手柄、区调整尺寸共用）。
+ * 只有被拖动的边会变化，对边保持不动；最小尺寸钳制保证不为负。
+ *
+ * 例：拖右下角（'se'）时 left/top 不变，仅 width/height 变化。
+ */
+export function resizeRectFromHandle(
+  start: Rect,
+  handle: ResizeHandle,
+  pointer: Point,
+  minSize = { w: 120, h: 48 },
+): Rect {
+  let { x, y, w, h } = start
+  const right = start.x + start.w
+  const bottom = start.y + start.h
+
+  if (handle === 'se' || handle === 'ne') {
+    w = Math.max(minSize.w, pointer.x - start.x)
+  }
+  if (handle === 'sw' || handle === 'nw') {
+    const nextW = Math.max(minSize.w, right - pointer.x)
+    w = nextW
+    x = right - nextW
+  }
+  if (handle === 'se' || handle === 'sw') {
+    h = Math.max(minSize.h, pointer.y - start.y)
+  }
+  if (handle === 'ne' || handle === 'nw') {
+    const nextH = Math.max(minSize.h, bottom - pointer.y)
+    h = nextH
+    y = bottom - nextH
+  }
+  return { x: Math.round(x), y: Math.round(y), w: Math.round(w), h: Math.round(h) }
+}

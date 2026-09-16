@@ -32,6 +32,16 @@
           @click.stop="openFormMenu"
         >＋</button>
         <button
+          v-if="hasManuscript"
+          class="bc-btn"
+          type="button"
+          title="打开正文（该节点已关联章节）"
+          aria-label="打开正文"
+          @click.stop="$emit('openManuscript')"
+        >
+          <WsIcon name="book-open" size="xs" />
+        </button>
+        <button
           class="bc-btn"
           type="button"
           :title="container.collapsed ? '展开' : '折叠'"
@@ -61,6 +71,14 @@
       </div>
     </div>
 
+    <!-- 尺寸手柄：拖动由画布统一处理指针（本组件只上报起点） -->
+    <span
+      class="bc-resize"
+      role="separator"
+      aria-label="调整容器尺寸"
+      @pointerdown.stop="$emit('resizeStart', $event)"
+    />
+
     <!-- 形式选择菜单（从注册表读出，新增形式自动出现） -->
     <div v-if="menuOpen" class="bc-form-menu" @pointerdown.stop @dblclick.stop>
       <button
@@ -86,6 +104,8 @@
  */
 import { computed, ref, watch } from 'vue'
 import type { Entity } from '@worldsea/entity-core'
+// 芽视图里的 UI 组件不是全局组件，必须显式导入（否则渲染期静默为空、vue-tsc 不报错）
+import { WsIcon } from '@worldsea/ui-kit'
 import type { BoardContainer } from '../layoutSchema'
 import { getAllForms, getForm } from '../forms/registry'
 import type { Component as VueComponent } from 'vue'
@@ -100,10 +120,15 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'select'): void
   (e: 'dragStart', ev: PointerEvent): void
+  (e: 'resizeStart', ev: PointerEvent): void
   (e: 'toggleCollapse'): void
   (e: 'remove'): void
+  (e: 'openManuscript'): void
   (e: 'addComponent', form: string): void
 }>()
+
+/** 节点关联了正文章节时才提供「打开正文」入口（规格 §三） */
+const hasManuscript = computed(() => !!(props.node?.properties?.manuscriptId as string))
 
 const menuOpen = ref(false)
 const formDefs = computed(() => getAllForms())
@@ -257,4 +282,16 @@ watch(() => props.selected, selected => {
 .bc-form-item:hover { background: var(--hover-bg); }
 .bc-form-kind { font-size: var(--font-size-2xs); color: var(--text-tertiary); }
 .bc-form-empty { padding: 6px 8px; font-size: var(--font-size-2xs); color: var(--text-tertiary); }
+.bc-resize {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 12px;
+  height: 12px;
+  border-right: 2px solid var(--text-tertiary);
+  border-bottom: 2px solid var(--text-tertiary);
+  cursor: nwse-resize;
+  opacity: 0.55;
+}
+.bc-resize:hover { opacity: 1; border-color: var(--primary); }
 </style>

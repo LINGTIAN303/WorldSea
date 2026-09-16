@@ -17,24 +17,42 @@ import {
   parseViewport,
   serializeViewport,
   type Point,
+  type Rect,
   type Viewport,
 } from '../boardGeometry'
 import {
+  containersOfSection,
   createComponent,
   createContainer,
   createEmptyBoardLayout,
+  createSection,
   danglingContainerIds,
   findContainer,
   findContainerByNode,
+  findSection,
   nextComponentOrder,
+  nextSectionOrder,
   parseBoardLayout,
+  rectOfContainer,
   removeContainers,
+  removeSections,
   replaceContainer,
+  replaceSection,
   reorderComponents,
+  resolveSectionFor,
   serializeBoardLayout,
+  setContainerSectionId,
+  shiftSectionWithContainers,
   type BoardContainer,
+  type BoardSection,
   type OutlineBoardLayout,
+  type SectionArrange,
 } from '../layoutSchema'
+import {
+  arrangeSection,
+  shouldRearrangeOnResize,
+  type ArrangeItem,
+} from '../sectionArrange'
 
 /** 布局保存防抖（与 drawing 芽的 AUTOSAVE_DELAY 对齐量级） */
 export const BOARD_SAVE_DEBOUNCE = 500
@@ -194,10 +212,8 @@ export function useBoardLayout() {
   function setContainerSection(containerId: string, sectionId: string | null): void {
     const c = findContainer(layout.value, containerId)
     if (!c) return
-    const next: BoardContainer = { ...c }
-    if (sectionId) next.sectionId = sectionId
-    else delete next.sectionId
-    mutate(replaceContainer(layout.value, containerId, next))
+    if ((c.sectionId ?? null) === (sectionId || null)) return
+    mutate(setContainerSectionId(layout.value, containerId, sectionId || null))
   }
 
   // ── 组件操作 ─────────────────────────────
@@ -240,6 +256,116 @@ export function useBoardLayout() {
     mutate(replaceContainer(layout.value, containerId, reorderComponents(c, orderedIds)))
   }
 
+  // ── 区（Section）操作 ─────────────────────
+
+  /**
+   * 画区：新建一个区，并把**中心点落在区内**的既有容器自动纳入归属。
+   * 归属规则与「容器拖动结束重算」完全一致（resolveSectionFor），所以用户画框圈住已有容器时
+   * 不必再手动归位。区重叠时新画的在上（与渲染层级一致，由 hitTestRects 的「后绘制者在上」决定）。
+   */
+  function addSection(rect: Rect): string {
+    const order = nextSectionOrder(layout.value)
+    const section = createSection(rect, { title: `区 ${order}`, order })
+    let next: OutlineBoardLayout = { ...layout.value, sections: [...layout.value.sections, section] }
+    next = {
+      ...next,
+      containers: next.containers.map(c => {
+        const sid = resolveSectionFor(next, rectOfContainer(c))
+        return sid === section.id ? { ...c, sectionId: section.id } : c
+      }),
+    }
+    mutate(next)
+    return section.id
+  }
+
+  function renameSection(sectionId: string, title: string): void {
+    const s = findSection(layout.value, sectionId)
+    if (!s) return
+    const nextTitle = title.trim()
+    if ((s.title ?? '') === nextTitle) return
+    const next: BoardSection = { ...s }
+    if (nextTitle) next.title = nextTitle
+    else delete next.title
+    mutate(replaceSection(layout.value, sectionId, next))
+  }
+
+  /** 区平移：**区与其内容器整体移动**（一次原子变更 → 撤销只需一步） */
+  function moveSectionTo(sectionId: string, rect: Rect): void {
+    const s = findSection(layout.value, sectionId)
+    if (!s) return
+    const dx = Math.round(rect.x) - s.rect.x
+    const dy = Math.round(rect.y) - s.rect.y
+    if (!dx && !dy) return
+    mutate(shiftSectionWithContainers(layout.value, sectionId, dx, dy))
+  }
+
+  /**
+   * 区调整尺寸：`free` 保持容器相对位置；其余排布模式按 gap 重排（规格 §二）。
+   * 重排与区尺寸同处**一次 mutate** —— 避免「区已变大但容器没跟上」的中间态被保存或入撤销栈。
+   */
+  function resizeSection(sectionId: string, rect: Rect, opts: { rearrange?: boolean } = {}): void {
+    const s = findSection(layout.value, sectionId)
+    if (!s) return
+    const nextRect: Rect = {
+      x: Math.round(rect.x),
+      y: Math.round(rect.y),
+      w: Math.max(80, Math.round(rect.w)),
+      h: Math.max(60, Math.round(rect.h)),
+    }
+    let next = replaceSection(layout.value, sectionId, { ...s, rect: nextRect })
+    const rearrange = opts.rearrange ?? shouldRearrangeOnResize(s.arrange)
+    if (rearrange) next = applyArrange(next, sectionId)
+    mutate(next)
+  }
+
+  /** 切换区的排布方式（切换后立即按新方式排一次） */
+  function setSectionArrange(sectionId: string, arrange: SectionArrange): void {
+    const s = findSection(layout.value, sectionId)
+    if (!s || s.arrange === arrange) return
+    let next = replaceSection(layout.value, sectionId, { ...s, arrange })
+    if (shouldRearrangeOnResize(arrange)) next = applyArrange(next, sectionId)
+    mutate(next)
+  }
+
+  /** 按区的 arrange 重算其内容器坐标（只有容器位置变化，纯计算） */
+  function applyArrange(layoutIn: OutlineBoardLayout, sectionId: string): OutlineBoardLayout {
+    const s = findSection(layoutIn, sectionId)
+    if (!s) return layoutIn
+    const items: ArrangeItem[] = containersOfSection(layoutIn, sectionId).map(c => {
+      const r = rectOfContainer(c)
+      return { id: c.id, x: r.x, y: r.y, w: r.w, h: r.h }
+    })
+    const placed = arrangeSection(items, s.rect, s.arrange)
+    const posById = new Map(placed.map(p => [p.id, p] as const))
+    return {
+      ...layoutIn,
+      containers: layoutIn.containers.map(c => {
+        const p = posById.get(c.id)
+        return p ? { ...c, pos: { x: p.x, y: p.y } } : c
+      }),
+    }
+  }
+
+  /** 手动触发一次区内重排（属性面板「重新排列」用） */
+  function rearrangeSection(sectionId: string): void {
+    if (!findSection(layout.value, sectionId)) return
+    mutate(applyArrange(layout.value, sectionId))
+  }
+
+  /** 删区二选一：`detach` = 仅删区、容器落回画布；`cascade` = 连区内容器一起删（**仍不删节点**） */
+  function removeSectionById(sectionId: string, mode: 'detach' | 'cascade' = 'detach'): void {
+    if (!findSection(layout.value, sectionId)) return
+    mutate(removeSections(layout.value, [sectionId], mode))
+  }
+
+  /** 容器拖动结束后重算归属：中心点落在哪个区就归哪个区，未命中则脱离 */
+  function settleContainerSection(containerId: string): void {
+    const c = findContainer(layout.value, containerId)
+    if (!c) return
+    const sid = resolveSectionFor(layout.value, rectOfContainer(c))
+    if ((c.sectionId ?? null) === sid) return
+    mutate(setContainerSectionId(layout.value, containerId, sid))
+  }
   // ── 悬空容器（节点被删）──
 
   /** 列出悬空容器 id（渲染占位 + 是否可清理的依据） */
@@ -280,6 +406,14 @@ export function useBoardLayout() {
     removeComponent,
     updateComponentConfig,
     reorderContainerComponents,
+    addSection,
+    renameSection,
+    moveSectionTo,
+    resizeSection,
+    setSectionArrange,
+    rearrangeSection,
+    removeSectionById,
+    settleContainerSection,
     listDangling,
     cleanupDangling,
   }

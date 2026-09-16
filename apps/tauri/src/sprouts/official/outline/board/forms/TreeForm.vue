@@ -62,6 +62,7 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { useEntityStore } from '@worldsea/entity-core'
 import { resolveNodeNumbering } from '../outlineDerive'
 import { resolveFormConfig } from './registry'
+import { injectBoardUndo } from '../composables/useBoardUndo'
 import { formatNumbering, indentForDepth, type NumberingStyle } from './titleNumbering'
 import { buildTreeRows, defaultExpandedIds, type TreeRow, type TreeScope, type TreeSourceNode } from './treeRows'
 
@@ -74,6 +75,8 @@ const props = defineProps<{
 }>()
 
 const es = useEntityStore()
+/** 白板撤销栈（未装配时为 null：组件仍可用，只是内容编辑不进撤销栈） */
+const boardUndo = injectBoardUndo()
 
 const cfg = computed(() => resolveFormConfig('tree', props.config))
 const scope = computed<TreeScope>(() => (cfg.value.scope === 'this' ? 'this' : 'all'))
@@ -135,6 +138,8 @@ const editingId = ref<string | null>(null)
 const draft = ref('')
 const editInput = ref<HTMLInputElement | null>(null)
 let writeTimer: ReturnType<typeof setTimeout> | null = null
+/** 编辑会话起点值：整段会话（双击进入 → 提交）只登记**一步**撤销（与标题式同策略） */
+let sessionPrev: string | null = null
 
 function setEditInput(el: unknown): void {
   editInput.value = (el as HTMLInputElement | null) ?? null
@@ -156,7 +161,9 @@ function writeName(id: string, value: string): void {
 }
 
 async function startEdit(row: TreeRow): Promise<void> {
+  if (editingId.value === row.id) return
   editingId.value = row.id
+  sessionPrev = row.name
   draft.value = row.name
   await nextTick()
   editInput.value?.focus()
@@ -166,11 +173,28 @@ async function startEdit(row: TreeRow): Promise<void> {
 function commit(id: string): void {
   if (editingId.value !== id) return
   writeName(id, draft.value)
+  // 一次编辑会话 = 撤销栈一步（中间防抖写入不单独占步）
+  const prev = sessionPrev ?? ''
+  const next = (draft.value ?? '').trim()
+  if (prev !== next) {
+    boardUndo?.recordContentEdit(id, { name: prev }, { name: next }, '树内改名')
+  }
+  sessionPrev = null
   editingId.value = null
 }
 
 function cancel(): void {
   clearWriteTimer()
+  // Esc 回滚：防抖可能已把中间值落库，这里显式写回会话起点值
+  const id = editingId.value
+  const prev = sessionPrev
+  if (id && prev !== null) {
+    const node = allNodes.value.find(n => n.id === id)
+    if ((node?.name ?? '') !== prev) {
+      void es.update(id, { name: prev }, 'user', { skipUndo: true })
+    }
+  }
+  sessionPrev = null
   editingId.value = null
 }
 
