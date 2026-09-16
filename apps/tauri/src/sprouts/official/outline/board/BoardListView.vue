@@ -75,6 +75,8 @@
  */
 import { nextTick, ref } from 'vue'
 import type { Entity } from '@worldsea/entity-core'
+// 显式导入（非全局组件）：漏导入时渲染静默为空，vue-tsc 不报错
+import { WsEmpty, WsIcon } from '@worldsea/ui-kit'
 
 defineProps<{
   boards: Entity[]

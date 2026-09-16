@@ -80,6 +80,8 @@
  */
 import { computed, ref, watch } from 'vue'
 import type { Entity } from '@worldsea/entity-core'
+// 显式导入（非全局组件）
+import { WsIcon } from '@worldsea/ui-kit'
 import { resolveChildNodes } from '../outlineDerive'
 import { NODE_DND_MIME } from '../dnd'
 

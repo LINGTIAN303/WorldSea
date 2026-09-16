@@ -5,7 +5,9 @@
     装配：docs/plans/2026-09-16-大纲白板-施工分解.md §1.2
     · 视图只有一个：`outline-board`（同芽的树视图是另一个视图，二者并存）
     · 工具条控件 Teleport 到视图工具条落点（与 manuscript/drawing 等芽一致）
+    · 根元素必须是 flex 列容器 + height:100%（项目视图宿主要求；否则画布/空态高度为 0）
   -->
+  <div class="board-view">
   <Teleport to="#view-toolbar-create">
     <CreateButton v-if="!inEditor" label="新建白板" @click="onCreate" />
   </Teleport>
@@ -67,6 +69,7 @@
       @locate="onLocate"
     />
   </div>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -76,6 +79,10 @@
  */
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useEntityStore, type Entity } from '@worldsea/entity-core'
+// 芽视图里的 UI 组件必须显式导入：它们**不是全局组件**，未导入时 vue-tsc 不报错、
+// 只在渲染时静默变成空节点（2026-09-16 真机走查踩坑）
+import { CreateButton } from '@worldsea/plugin-sdk'
+import { WsIcon } from '@worldsea/ui-kit'
 import BoardCanvas from './components/BoardCanvas.vue'
 import BoardListView from './BoardListView.vue'
 import NodeSidebar from './components/NodeSidebar.vue'
@@ -343,6 +350,14 @@ watch(() => layout.value.containers.length, () => {
 </script>
 
 <style scoped>
+/* 根容器：项目视图宿主是 flex 布局，视图根需自行撑满（照 ManuscriptView 的 .manuscript-view） */
+.board-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+}
 .bv-editor {
   display: flex;
   flex: 1;
