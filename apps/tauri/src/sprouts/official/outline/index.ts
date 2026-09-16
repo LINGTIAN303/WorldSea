@@ -1,5 +1,6 @@
 import type { PluginAPIType } from '@worldsea/entity-core'
 import OutlineView from './OutlineView.vue'
+import BoardView from './board/BoardView.vue'
 
 export const manifest = {
   id: 'official.outline',
@@ -40,5 +41,35 @@ export function activate(api: PluginAPIType) {
     ],
   })
 
+  // ── 白板（2026-09-16 批次 1）─────────────────────────────
+  // 白板实体：容器/组件/视口都落在 properties（照 drawing 画板芽先例）；
+  // 节点内容仍由 outline_node 派生，白板只记「哪个节点、什么表现形式、放在哪」。
+  // 规格：docs/plans/2026-09-15-大纲芽重构-理论基线与现状.md §8.10.2
+  api.registerEntityV2({
+    type: 'outline_board',
+    label: '大纲白板',
+    icon: 'outline',
+    traits: [
+      { traitId: 'identifiable' },
+      { traitId: 'visual' },
+    ],
+    // identifiable 已提供 name/description，故此处只列白板专有字段
+    ownFields: [
+      { key: 'viewport', label: '视口', fieldType: 'text' },
+      { key: 'layout', label: '布局体', fieldType: 'text' },
+      { key: 'thumbnail', label: '缩略图', fieldType: 'text' },
+      { key: 'snap', label: '吸附模式', fieldType: 'text' },
+      { key: 'gridEnabled', label: '网格', fieldType: 'boolean' },
+    ],
+  })
+
   api.registerView({ id: 'outline', label: '大纲', icon: 'outline', component: OutlineView })
+
+  // 白板视图与树视图**并存**（树 = 结构保真视图，白板 = 表现自由视图；09-15 文档 §8.10.5-F）
+  api.registerView({
+    id: 'outline-board',
+    label: '大纲白板',
+    icon: 'outline',
+    component: BoardView,
+  })
 }
