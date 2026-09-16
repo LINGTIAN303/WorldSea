@@ -23,6 +23,12 @@ import {
   serializeBoardLayout,
   type OutlineBoardLayout,
 } from '../board/layoutSchema'
+// 用 ReturnType 精确取 store / composable 的类型：避免 any 造成回调参数隐式 any
+import type { useEntityStore as UseEntityStore } from '@worldsea/entity-core'
+import type { useBoardLayout as UseBoardLayout } from '../board/composables/useBoardLayout'
+
+type EntityStoreApi = ReturnType<typeof UseEntityStore>
+type BoardLayoutApi = ReturnType<typeof UseBoardLayout>
 
 function uid(tag: string): string {
   return `${tag}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
@@ -58,18 +64,18 @@ async function createBoard(
  * 动态 import 缓存：entity-core/store 链首次编译较重（冷启动，实测 4.6s），
  * 放 beforeAll 预热并放宽预算，避免在用例内吃 5s 默认超时（照 agentDataBridges.spec 的做法）。
  */
-let useEntityStoreRef: (() => any) | null = null
-let useBoardLayoutRef: (() => any) | null = null
+let useEntityStoreRef: (() => EntityStoreApi) | null = null
+let useBoardLayoutRef: (() => BoardLayoutApi) | null = null
 
 beforeAll(async () => {
-  useEntityStoreRef = (await import('@worldsea/entity-core')).useEntityStore as () => any
-  useBoardLayoutRef = (await import('../board/composables/useBoardLayout')).useBoardLayout as () => any
+  useEntityStoreRef = (await import('@worldsea/entity-core')).useEntityStore as () => EntityStoreApi
+  useBoardLayoutRef = (await import('../board/composables/useBoardLayout')).useBoardLayout as () => BoardLayoutApi
 }, 30000)
 
 async function setup() {
   setActivePinia(createPinia())
-  const es = (useEntityStoreRef as () => any)()
-  return { es, board: (useBoardLayoutRef as () => any)() }
+  const es = (useEntityStoreRef as () => EntityStoreApi)()
+  return { es, board: (useBoardLayoutRef as () => BoardLayoutApi)() }
 }
 
 function sleep(ms: number): Promise<void> {

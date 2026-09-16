@@ -1,5 +1,6 @@
 import type { PluginAPIType } from '@worldsea/entity-core'
-import OutlineView from './OutlineView.vue'
+// 原 OutlineView（独立树视图）已于 2026-09-16 下线：其浏览形态由白板内的「树式」表现形式承载，
+// 层级重排由右栏树承载（负责人裁定：旧视图不删能力、改为成为白板里的一个容器内容）
 import BoardView from './board/BoardView.vue'
 
 export const manifest = {
@@ -63,12 +64,12 @@ export function activate(api: PluginAPIType) {
     ],
   })
 
-  api.registerView({ id: 'outline', label: '大纲', icon: 'outline', component: OutlineView })
-
-  // 白板视图与树视图**并存**（树 = 结构保真视图，白板 = 表现自由视图；09-15 文档 §8.10.5-F）
+  // ── 唯一「大纲」视图（2026-09-16 入口整合）────────────────
+  // 视图 id 复用 'outline'：侧栏顺序持久化的是**视图 id 列表**（uiStore.sidebarOrder →
+  // localStorage），复用 id 可无缝接管原入口的位置与实体 type→view 映射，不留未知 id 残渣。
   api.registerView({
-    id: 'outline-board',
-    label: '大纲白板',
+    id: 'outline',
+    label: '大纲',
     icon: 'outline',
     component: BoardView,
   })

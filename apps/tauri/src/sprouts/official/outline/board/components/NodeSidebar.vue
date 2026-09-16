@@ -40,12 +40,16 @@
           v-for="row in rows"
           :key="row.id"
           class="ns-item"
-          :class="{ 'ns-item--placed': row.placed }"
+          :class="[{ 'ns-item--placed': row.placed }, dropClass(row.id)]"
           role="treeitem"
           :aria-level="row.depth + 1"
           :draggable="true"
-          :title="row.placed ? '已在板上（拖拽或双击将定位到已有容器）' : row.name"
+          :title="row.placed ? '已在板上（拖拽或双击将定位到已有容器）；也可拖到其它节点上调整层级' : row.name"
           @dragstart="onDragStart(row, $event)"
+          @dragover.prevent="onItemDragOver(row, $event)"
+          @dragleave="onItemDragLeave(row)"
+          @drop.prevent.stop="onItemDrop(row, $event)"
+          @dragend="resetDropHint"
           @dblclick="onActivate(row)"
           @click="onActivate(row)"
         >
@@ -83,7 +87,8 @@ import type { Entity } from '@worldsea/entity-core'
 // 显式导入（非全局组件）
 import { WsIcon } from '@worldsea/ui-kit'
 import { resolveChildNodes } from '../outlineDerive'
-import { NODE_DND_MIME } from '../dnd'
+import { NODE_DND_MIME, readNodeIdFromDnD } from '../dnd'
+import { dropModeFromRatio, type DropMode } from '../outlineHierarchy'
 
 interface Row {
   id: string
@@ -104,6 +109,8 @@ const emit = defineEmits<{
   (e: 'add', nodeId: string): void
   (e: 'locate', nodeId: string): void
   (e: 'toggleCollapse'): void
+  /** 拖到另一个节点项上 → 层级重排（成为其子节点 / 插到其前 / 其后） */
+  (e: 'reparent', draggedId: string, targetId: string, mode: DropMode): void
 }>()
 
 const query = ref('')
@@ -189,6 +196,45 @@ function onDragStart(row: Row, ev: DragEvent): void {
   ev.dataTransfer.setData('text/plain', row.name)
 }
 
+// ── 层级重排（拖到节点项上）─────────────────
+// 同一个拖拽按**落点**分流：落在画布上 = 入板（BoardCanvas 的 drop），
+// 落在节点项上 = 层级重排（本组处理）。故画布侧不会误吞树内重排。
+const dragOverId = ref<string | null>(null)
+const dragOverMode = ref<DropMode>('child')
+
+function dropClass(id: string): string | undefined {
+  if (dragOverId.value !== id) return undefined
+  if (dragOverMode.value === 'before') return 'ns-item--drop-before'
+  if (dragOverMode.value === 'after') return 'ns-item--drop-after'
+  return 'ns-item--drop-child'
+}
+
+function onItemDragOver(row: Row, ev: DragEvent): void {
+  const el = ev.currentTarget as HTMLElement | null
+  if (!el) return
+  const rect = el.getBoundingClientRect()
+  const ratio = rect.height > 0 ? (ev.clientY - rect.top) / rect.height : 0.5
+  dragOverId.value = row.id
+  dragOverMode.value = dropModeFromRatio(ratio)
+}
+
+function onItemDragLeave(row: Row): void {
+  if (dragOverId.value === row.id) dragOverId.value = null
+}
+
+function onItemDrop(row: Row, ev: DragEvent): void {
+  const draggedId = readNodeIdFromDnD(ev)
+  const mode = dragOverMode.value
+  resetDropHint()
+  if (!draggedId || draggedId === row.id) return
+  emit('reparent', draggedId, row.id, mode)
+}
+
+function resetDropHint(): void {
+  dragOverId.value = null
+  dragOverMode.value = 'child'
+}
+
 /** 双击/单击 → 未入板则落到视口中心；已入板则定位已有容器 */
 function onActivate(row: Row): void {
   if (row.placed) emit('locate', row.id)
@@ -254,6 +300,10 @@ function onActivate(row: Row): void {
 }
 .ns-item:hover { background: var(--hover-bg); }
 .ns-item--placed { color: var(--text-tertiary); cursor: default; }
+/* 拖拽落点指示：上/下 = 插到前/后（指示线），中 = 成为子节点（高亮） */
+.ns-item--drop-before { box-shadow: inset 0 2px 0 0 var(--primary); }
+.ns-item--drop-after { box-shadow: inset 0 -2px 0 0 var(--primary); }
+.ns-item--drop-child { background: var(--primary-light); }
 .ns-indent { flex-shrink: 0; }
 .ns-caret {
   width: 14px;

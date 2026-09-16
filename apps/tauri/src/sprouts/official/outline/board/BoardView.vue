@@ -67,6 +67,7 @@
       @toggle-collapse="sidebarCollapsed = !sidebarCollapsed"
       @add="onSidebarAdd"
       @locate="onLocate"
+      @reparent="onReparent"
     />
   </div>
   </div>
@@ -92,8 +93,11 @@ import { useBoardSelection } from './composables/useBoardSelection'
 import { useBoardUndo } from './composables/useBoardUndo'
 import { parseSnapMode, type SnapMode } from './composables/useBoardSnap'
 import { contentBounds, fitViewport, type Point } from './boardGeometry'
-import { containerRects, genBoardId, type OutlineBoardLayout } from './layoutSchema'
+import { containerRects, genBoardId } from './layoutSchema'
+import { captureHierarchy, diffHierarchy, planReparent, type DropMode } from './outlineHierarchy'
 import { initializeForms } from './forms/initializeForms'
+// 复用既有的 parent_child 关系同步（单一实现，避免第二份漂移）
+import { useOutlineTree } from '../composables/useOutlineTree'
 
 /** 容器自适应尺寸的估算值（与画布一致） */
 const FALLBACK_SIZE = { w: 200, h: 80 }
@@ -104,9 +108,18 @@ const es = useEntityStore()
 const docs = useBoardDocs()
 const layoutApi = useBoardLayout()
 const selection = useBoardSelection()
+const { syncParentChildRelation } = useOutlineTree()
+
 const undoApi = useBoardUndo({
-  getLayout: () => layoutApi.layout.value,
-  applyLayout: (l: OutlineBoardLayout) => layoutApi.replaceLayout(l),
+  // 快照含布局 + 层级：Ctrl+Z 既能撤画布布局操作，也能撤右栏的层级重排（原树视图的能力已并入白板）
+  getSnapshot: () => ({
+    layout: layoutApi.layout.value,
+    hierarchy: captureHierarchy(outlineNodes.value),
+  }),
+  applySnapshot: snap => {
+    layoutApi.replaceLayout(snap.layout)
+    if (snap.hierarchy) void restoreHierarchy(snap.hierarchy)
+  },
 })
 
 const canvasRef = ref<InstanceType<typeof BoardCanvas> | null>(null)
@@ -273,6 +286,48 @@ function locateContainer(containerId: string): void {
   )
   selection.select(containerId)
   if (rect) canvasRef.value?.centerOn(rect)
+}
+
+// ── 层级重排（右栏拖拽）────────────────────
+
+/**
+ * 执行右栏的重排计划：按 planReparent 的结果写回 parentId/order，并同步 parent_child 关系。
+ * 写入带 `{ skipUndo }`——撤销由白板栈负责（快照里带了层级表，见 useBoardUndo）。
+ */
+async function onReparent(draggedId: string, targetId: string, mode: DropMode): Promise<void> {
+  const plan = planReparent(outlineNodes.value, draggedId, targetId, mode)
+  if (!plan) return
+  undoApi.record()
+  for (const u of plan) {
+    const node = outlineNodes.value.find(n => n.id === u.id)
+    if (!node) continue
+    await es.update(
+      u.id,
+      { properties: { ...node.properties, parentId: u.parentId, order: u.order } },
+      'user',
+      { skipUndo: true },
+    )
+  }
+  const dragged = plan.find(u => u.id === draggedId)
+  await syncParentChildRelation(draggedId, dragged?.parentId ?? '')
+}
+
+/** 按层级快照回放（撤销/重做用）：只写差异项 */
+async function restoreHierarchy(
+  snapshot: Record<string, { parentId: string; order: number }>,
+): Promise<void> {
+  const updates = diffHierarchy(outlineNodes.value, snapshot)
+  for (const u of updates) {
+    const node = outlineNodes.value.find(n => n.id === u.id)
+    if (!node) continue
+    await es.update(
+      u.id,
+      { properties: { ...node.properties, parentId: u.parentId, order: u.order } },
+      'user',
+      { skipUndo: true },
+    )
+    await syncParentChildRelation(u.id, u.parentId)
+  }
 }
 
 // ── 视口控件 ────────────────────────────────
