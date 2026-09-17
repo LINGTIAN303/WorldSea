@@ -11,6 +11,11 @@ import './styles/web-tokens-bridge.css'
 // Tauri 端 coreBackend（Tauri invoke only 版本）
 import * as coreBackend from './core/coreBackend'
 
+// 全局文件拖拽兜底：与 tauri.conf.json 的 `dragDropEnabled: false` 配套
+// （关掉宿主劫持才能用 HTML5 拖拽；代价是需自己挡住「文件拖到非落点区 → webview 导航」）
+import { installFileDragGuard } from './composables/dragDropGuard'
+installFileDragGuard()
+
 // 共享层：注册 entity-core / canvas-engine 等运行时
 import { registerValidationApi } from '@worldsea/entity-core'
 import { registerBackend } from '@worldsea/canvas-engine/core'
