@@ -27,6 +27,10 @@
       <span class="bv-zoom">{{ zoomPercent }}%</span>
       <button class="bv-tb" type="button" title="放大" @click="zoomBy(1)">＋</button>
       <button class="bv-tb" type="button" title="适配全部 (Shift+1)" @click="fitAll">适配</button>
+      <span class="bv-sep" />
+      <button class="bv-tb" type="button" title="导出大纲（按表现形式渲染）" @click="exportOpen = true">
+        <WsIcon name="file-down" size="xs" />
+      </button>
     </template>
     <span v-else class="bv-count">共 {{ boards.length }} 块白板</span>
   </Teleport>
@@ -110,6 +114,15 @@
       @reparent="onReparent"
     />
 
+    <!-- 导出弹层（规格 §十）：导出全部大纲节点，按表现形式渲染 -->
+    <BoardExportDialog
+      v-if="exportOpen"
+      :node-count="outlineNodes.length"
+      :exporting="exporting"
+      @close="exportOpen = false"
+      @confirm="onExport"
+    />
+
     <!-- 删区二选一（规格 §二）：必须显式选择容器去留，避免误删 -->
     <div v-if="removingSection" class="bv-dialog-mask" @pointerdown.self="removingSection = null">
       <div class="bv-dialog" role="dialog" aria-label="删除区">
@@ -141,10 +154,11 @@ import { useEntityStore, type Entity } from '@worldsea/entity-core'
 // 芽视图里的 UI 组件必须显式导入：它们**不是全局组件**，未导入时 vue-tsc 不报错、
 // 只在渲染时静默变成空节点（2026-09-16 真机走查踩坑）
 import { CreateButton } from '@worldsea/plugin-sdk'
-import { WsIcon, useShortcuts } from '@worldsea/ui-kit'
+import { WsIcon, useShortcuts, toastWarn } from '@worldsea/ui-kit'
 import BoardCanvas from './components/BoardCanvas.vue'
 import BoardCanvasToolbar from './components/BoardCanvasToolbar.vue'
 import BoardInspector from './components/BoardInspector.vue'
+import BoardExportDialog from './components/BoardExportDialog.vue'
 import BoardListView from './BoardListView.vue'
 import NodeSidebar from './components/NodeSidebar.vue'
 import { useBoardDocs } from './composables/useBoardDocs'
@@ -157,6 +171,14 @@ import { DEFAULT_CONTAINER_SIZE, danglingContainerIds, genBoardId, rectOfContain
 import { captureHierarchy, diffHierarchy, planReparent, type DropMode } from './outlineHierarchy'
 import { renderBoardThumbnail } from './thumbnail'
 import { BOARD_SHORTCUT_IDS, BOARD_SHORTCUT_META } from './shortcuts'
+import { buildOutlineExport } from './export/outlineExport'
+import {
+  downloadBlob,
+  downloadText,
+  htmlToDocxBlob,
+  safeFileName,
+  type ExportFormat,
+} from './export/exportRunner'
 import { initializeForms } from './forms/initializeForms'
 // 复用既有的 parent_child 关系同步（单一实现，避免第二份漂移）
 import { useOutlineTree } from '../composables/useOutlineTree'
@@ -687,6 +709,37 @@ function registerShortcuts(): void {
       preventDefault: meta.preventDefault,
       handler,
     })
+  }
+}
+
+// ── 导出（规格 §十：按表现形式渲染；导出的是全部大纲节点，布局只提供形式偏好）──
+const exportOpen = ref(false)
+const exporting = ref(false)
+
+async function onExport(format: ExportFormat): Promise<void> {
+  if (exporting.value) return
+  exporting.value = true
+  try {
+    const boardName = currentBoard.value?.name || '大纲'
+    const result = buildOutlineExport({
+      nodes: outlineNodes.value,
+      layout: layout.value,
+    })
+    const base = safeFileName(boardName)
+    if (format === 'md') {
+      downloadText(result.markdown, `${base}.md`, 'text/markdown')
+    } else {
+      // docx 需动态加载 docx 库（数百 KB），故按钮期间显示「导出中…」
+      const blob = await htmlToDocxBlob(result.html, boardName)
+      downloadBlob(blob, `${base}.docx`)
+    }
+    exportOpen.value = false
+  } catch (err) {
+    // 导出失败不静默：提示用户并保留弹层便于重试
+    console.warn('[BoardView] 导出失败', err)
+    toastWarn('导出失败，请重试')
+  } finally {
+    exporting.value = false
   }
 }
 
