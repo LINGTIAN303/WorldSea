@@ -1,3 +1,20 @@
+/**
+ * useOutlineTree —— 大纲树的读操作 + 少量写操作（Agent 桥与白板右栏共用）
+ *
+ * 【消费者现状】独立树视图 `OutlineView.vue` 已于 2026-09-16 下线（浏览形态改由白板承载）。
+ * 本模块**存活的部分**只有四个：`flatNodes`（读）、`syncParentChildRelation`（BoardView 用）、
+ * `deleteNode` / `moveNode`（agentDataBridges 的 Agent 路径用）。
+ * 其余（`treeData` / `addRootNode` / `addChildNode` / `nodeIcon` / `statusLabel`）仅供已下线的
+ * OutlineView 使用，属施工分解 §十三 C 类「待消化」挂账——按「不允许无记录地删能力」保留。
+ *
+ * 【两条硬约束（2026-09-17 质量体检发现，均曾造成真实数据丢失）】
+ * ① **写 `properties` 前必须合并**：实体更新对 `properties` 是**整体替换**
+ *    （`entityStore.update` → `updateById` 只做顶层浅合并，`properties` 整个对象被换掉）。
+ *    只提交 `{ parentId, order }` 这类子集会抹掉 status / 摘要 / 关联章节 / content。
+ * ② **不得调用 `es.loadByType`**：它内部走 `setAll()`，会把 store 的 `entities`
+ *    整体替换为**该类型**的实体，从而挤掉其它所有芽的实体（Agent 删一个节点 → 全库实体
+ *    从内存消失，直到下次 `loadAll`）。写操作后 store 已同步维护内存态，本就无需刷新。
+ */
 import { computed } from 'vue'
 import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
 import type { Entity } from '@worldsea/entity-core'
@@ -81,35 +98,23 @@ export function useOutlineTree() {
       tags: [], createdAt: now, updatedAt: now,
     } as Entity)
     await syncParentChildRelation(id, parent.id)
-    await es.loadByType('outline_node')
     return id
   }
 
   async function deleteNode(id: string) {
     const children = flatNodes.value.filter(e => (e.properties.parentId as string || '') === id)
     for (const c of children) await deleteNode(c.id)
-    await es.remove(id)
-    await es.loadByType('outline_node')
+    await es.remove(id) // 级联清理关联关系；内存态由 store 同步维护
   }
 
   async function moveNode(nodeId: string, newParentId: string, newOrder: number) {
+    const node = flatNodes.value.find(e => e.id === nodeId)
+    if (!node) return
+    // 必须合并：只写 { parentId, order } 会抹掉 status / 摘要 / 关联章节 / content（见文件头约束 ①）
     await es.update(nodeId, {
-      properties: {
-        parentId: newParentId,
-        order: newOrder,
-      },
+      properties: { ...node.properties, parentId: newParentId, order: newOrder },
     } as Partial<Entity>)
     await syncParentChildRelation(nodeId, newParentId)
-    await es.loadByType('outline_node')
-  }
-
-  async function reorderSiblings(_parentId: string, orderedIds: string[]) {
-    for (let i = 0; i < orderedIds.length; i++) {
-      await es.update(orderedIds[i], {
-        properties: { order: i + 1 },
-      } as Partial<Entity>)
-    }
-    await es.loadByType('outline_node')
   }
 
   function nodeIcon(e: Entity): string {
@@ -125,8 +130,9 @@ export function useOutlineTree() {
 
   return {
     flatNodes, treeData,
-    addRootNode, addChildNode, deleteNode, moveNode, reorderSiblings,
-    // Agent bridge（OutlineView create_node/batch_create）建子节点时同步 parent_child 关系
+    addRootNode, addChildNode, deleteNode, moveNode,
+    // Agent bridge（outline create_node/batch_create）建子节点时同步 parent_child 关系；
+    // BoardView 的右栏重排同样复用
     syncParentChildRelation,
     nodeIcon, statusLabel,
   }

@@ -142,6 +142,108 @@ describe('agentDataBridges 数据动作（与视图挂载解耦）', () => {
   }, 45000)
 })
 
+describe('大纲写动作的属性保全（2026-09-17 质量体检回归）', () => {
+  /**
+   * 三条真实缺陷的护栏（详见 docs/plans/2026-09-16-大纲白板-施工分解.md §十四）：
+   * ① `update_node` 原写 `properties: rest` → 整个 properties 被替换，节点脱树
+   * ② `useOutlineTree.moveNode` 原写 `properties: { parentId, order }` → 状态/摘要被抹
+   * ③ `useOutlineTree` 原调 `es.loadByType` → 把 store 的 entities 整体收窄为 outline_node
+   */
+  it('update_node 只提交增量时，未提及的字段仍在（parentId/order/content 不被抹）', async () => {
+    const { useEntityStore } = await import('@worldsea/entity-core')
+    const es = useEntityStore()
+
+    fireAction('outline', 'batch_create', {
+      structure: { title: '护栏卷', children: [{ title: '护栏章', summary: '初始摘要' }] },
+    })
+    const created = await waitFor(
+      () => ['护栏卷', '护栏章'].every(n => es.entities.some(e => e.type === 'outline_node' && e.name === n)),
+      15000,
+    )
+    expect(created).toBe(true)
+
+    const parent = es.entities.find(e => e.type === 'outline_node' && e.name === '护栏卷')!
+    const child = es.entities.find(e => e.type === 'outline_node' && e.name === '护栏章')!
+    // 建树时 batch_create 已把 summary 落到 description（摘要口径统一）
+    expect(child.description).toBe('初始摘要')
+
+    fireAction('outline', 'update_node', {
+      nodeId: child.id,
+      changes: { status: '完成', summary: '改后的摘要' },
+    })
+    const done = await waitFor(() => es.entities.find(e => e.id === child.id)?.properties.status === '完成')
+    expect(done).toBe(true)
+
+    const after = es.entities.find(e => e.id === child.id)!
+    expect(after.properties.parentId).toBe(parent.id) // 未脱树
+    expect(after.properties.order).toBe(1) // 序号仍在
+    expect(after.properties.content).toBe('') // 未变成 undefined
+    expect(after.properties.storylines).toBe('')
+    expect(after.description).toBe('改后的摘要') // summary 归一写入 description
+  }, 45000)
+
+  it('move_node 换父后，状态与摘要仍在（useOutlineTree.moveNode 的护栏）', async () => {
+    const { useEntityStore } = await import('@worldsea/entity-core')
+    const es = useEntityStore()
+
+    fireAction('outline', 'batch_create', {
+      structure: { title: '护栏甲', children: [{ title: '护栏乙' }, { title: '护栏丙' }] },
+    })
+    const created = await waitFor(
+      () => ['护栏甲', '护栏乙', '护栏丙'].every(n => es.entities.some(e => e.type === 'outline_node' && e.name === n)),
+      15000,
+    )
+    expect(created).toBe(true)
+
+    const a = es.entities.find(e => e.name === '护栏甲')!
+    const b = es.entities.find(e => e.name === '护栏乙')!
+    const c = es.entities.find(e => e.name === '护栏丙')!
+
+    fireAction('outline', 'update_node', { nodeId: b.id, changes: { status: '草稿', summary: '乙的摘要' } })
+    const updated = await waitFor(() => es.entities.find(e => e.id === b.id)?.properties.status === '草稿')
+    expect(updated).toBe(true)
+
+    // 把丙移到甲下第 0 位（仍是甲的子节点，只是序号变化）
+    fireAction('outline', 'move_node', { nodeId: c.id, newParentId: a.id, position: 0 })
+    const moved = await waitFor(() => es.entities.find(e => e.id === c.id)?.properties.order === 1)
+    expect(moved).toBe(true)
+
+    const cAfter = es.entities.find(e => e.id === c.id)!
+    expect(cAfter.properties.parentId).toBe(a.id)
+    expect(cAfter.properties.status).toBe('未写') // 未被抹成 undefined
+    expect(cAfter.properties.content).toBe('')
+
+    // 重排不得波及同胞的属性
+    const bAfter = es.entities.find(e => e.id === b.id)!
+    expect(bAfter.description).toBe('乙的摘要')
+    expect(bAfter.properties.status).toBe('草稿')
+  }, 45000)
+
+  it('大纲写动作不挤掉其它类型的实体（loadByType 收窄护栏）', async () => {
+    const { useEntityStore } = await import('@worldsea/entity-core')
+    const es = useEntityStore()
+
+    // 自成一体：本用例自己造一个「别的芽」的实体作为探针
+    fireAction('notebook', 'create_note', { name: '护栏笔记', content: '探针' })
+    const probe = await waitFor(() => es.entities.some(e => e.type === 'notebook' && e.name === '护栏笔记'))
+    expect(probe).toBe(true)
+
+    fireAction('outline', 'batch_create', { structure: { title: '护栏丁' } })
+    await waitFor(() => es.entities.some(e => e.type === 'outline_node' && e.name === '护栏丁'))
+    const d = es.entities.find(e => e.type === 'outline_node' && e.name === '护栏丁')!
+
+    // 这两条路径历史上都会调 es.loadByType('outline_node')（= setAll 收窄）
+    fireAction('outline', 'move_node', { nodeId: d.id, newParentId: '', position: 0 })
+    fireAction('outline', 'delete_node', { nodeId: d.id })
+    const deleted = await waitFor(() => !es.entities.some(e => e.name === '护栏丁'))
+    expect(deleted).toBe(true)
+
+    // 关键断言：store 里仍有其它类型的实体（收窄会把它们全部挤掉，直到下次 loadAll）
+    expect(es.entities.some(e => e.type === 'notebook' && e.name === '护栏笔记')).toBe(true)
+    expect(es.entities.some(e => e.type === 'manuscript')).toBe(true)
+  }, 45000)
+})
+
 describe('agentDataBridges 查询回传协议', () => {
   it('query 带 requestId 派发 → 结果事件回传（requestId 配对 + 数据正确）', async () => {
     fireAction('manuscript', 'create_chapter', { title: '回传测试章' })

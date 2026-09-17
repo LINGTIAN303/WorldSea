@@ -240,7 +240,8 @@ export function installAgentDataBridges(): void {
       const id = `out-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
       await es.add({
         id, type: 'outline_node', name: title,
-        description: '',
+        // 摘要走实体顶层 description（口径同 update_node，见下方注释）
+        description: String(payload.summary || ''),
         properties: {
           status: '未写', order: siblings.length + 1,
           parentId: effectiveParentId, storylines: '', summary: '',
@@ -256,10 +257,28 @@ export function installAgentDataBridges(): void {
       const nodeId = payload.nodeId as string
       const changes = (payload.changes as Record<string, unknown>) || undefined
       if (!nodeId || !changes) return
-      const { title, ...rest } = changes as { title?: string }
+      const node = flatNodes.value.find(e => e.id === nodeId)
+      if (!node) return
+      const { title, description, summary, type, ...rest } = changes as {
+        title?: string
+        description?: string
+        summary?: string
+        type?: string
+      }
+      // 摘要口径统一到**实体顶层** description（表现形式规格 §2.1-①「映射 node.description，
+      // 不新增 summary」）：白板句子式与导出都只认顶层 description，故 Agent 传 summary 或
+      // description 都归一写顶层。`type` 与 create 路径对齐写 properties.nodeType
+      // （`contentType` 是旧 UI 表单字段，不在此写）。
+      const nextDescription = description ?? summary
+      const propsPatch: Record<string, unknown> = { ...rest }
+      if (type !== undefined) propsPatch.nodeType = type
       await es.update(nodeId, {
         ...(title !== undefined ? { name: title } : {}),
-        properties: rest,
+        ...(nextDescription !== undefined ? { description: nextDescription } : {}),
+        // 【必须合并】实体更新对 properties 是**整体替换**（updateById 只做顶层浅合并）。
+        // 原实现只提交 `rest`，会把 parentId/order/content 一并抹掉 —— Agent 改一次状态，
+        // 节点就脱树、正文字段清零（2026-09-17 质量体检发现，见施工分解 §十四）。
+        properties: { ...node.properties, ...propsPatch },
       })
     },
 
@@ -282,7 +301,7 @@ export function installAgentDataBridges(): void {
 
     // { title, type?, children?: [...] } 树递归建
     'outline:batch_create': async (payload) => {
-      const structure = payload.structure as { title?: unknown; type?: unknown; children?: unknown } | undefined
+      const structure = payload.structure as { title?: unknown; summary?: unknown; type?: unknown; children?: unknown } | undefined
       if (!structure) return
       const createTree = async (node: typeof structure, parentId: string | null): Promise<void> => {
         const title = String(node?.title || '').trim()
@@ -294,10 +313,10 @@ export function installAgentDataBridges(): void {
         const id = `out-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
         await es.add({
           id, type: 'outline_node', name: title,
-          description: '',
+          description: String(node.summary || ''),
           properties: {
             status: '未写', order: siblings.length + 1,
-            parentId: effectiveParentId, storylines: '', summary: '',
+            parentId: effectiveParentId, storylines: '',
             manuscriptId: '', content: '',
             ...(node.type ? { nodeType: String(node.type) } : {}),
           },
@@ -323,7 +342,13 @@ export function installAgentDataBridges(): void {
           nodes
             .filter(e => (e.properties.parentId as string || '') === pid)
             .sort((a, b) => Number(a.properties.order || 0) - Number(b.properties.order || 0))
-            .map(e => ({ name: e.name, summary: (e.properties.summary as string) || '', children: buildChildren(e.id) }))
+            .map(e => ({
+              name: e.name,
+              // 摘要口径 = 实体顶层 description（表现形式规格 §2.1-①「复用 description，不新增 summary」）；
+              // 原实现只读 properties.summary（无写入方）→ 导出摘要恒为空。summary 作为历史字段做回落兼容。
+              summary: e.description || (e.properties.summary as string) || '',
+              children: buildChildren(e.id),
+            }))
         return buildChildren(parentId)
       }
       let content = ''
