@@ -9,13 +9,19 @@
   <div
     ref="rootEl"
     class="bcv"
-    :class="{ 'bcv--panning': panning, 'bcv--drawing': sectionDrawMode, 'bcv--space': spaceDown }"
+    :class="{
+      'bcv--panning': panning,
+      'bcv--drawing': sectionDrawMode,
+      'bcv--space': spaceDown,
+      'bcv--node-drop': nodeDropActive,
+    }"
     :style="gridStyle"
     @pointerdown="onBackgroundPointerDown"
     @dblclick="onBackgroundDblClick"
     @contextmenu.prevent
     @wheel="onWheel"
-    @dragover.prevent
+    @dragover="onNodeDragOver"
+    @dragleave="onNodeDragLeave"
     @drop.prevent="onDrop"
   >
     <div class="bcv-world" :style="worldStyle">
@@ -101,7 +107,7 @@ import {
   type Rect,
   type Viewport,
 } from '../boardGeometry'
-import { readNodeIdFromDnD } from '../dnd'
+import { readNodeIdFromDnD, acceptsNodeDrag } from '../dnd'
 import {
   DEFAULT_CONTAINER_SIZE,
   rectOfContainer,
@@ -156,6 +162,9 @@ const panning = ref(false)
  * 输入框/按钮聚焦时不进入该状态（否则会抢走「空格输入」与「空格激活按钮」）。
  */
 const spaceDown = ref(false)
+
+/** 正拖着「大纲节点」经过画布（用于落点反馈；见 onNodeDragOver） */
+const nodeDropActive = ref(false)
 
 function isTypingTarget(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null
@@ -470,7 +479,31 @@ function onSectionPointerUp(): void {
 }
 
 // ── 右栏拖放落点 ──
+/**
+ * 拖拽态：拖的是大纲节点时点亮画布（虚线框 + 复制光标），让「能放」在视觉上可见。
+ *
+ * 三个必须做对的动作（否则在 Windows/WebView2 上会表现为「拖拽没反应」）：
+ * ① `dragover` 必须 `preventDefault()`——HTML5 DnD 的硬性规定，不调用则**永远不触发 drop**；
+ * ② 目标侧要设 `dropEffect`，与源侧 `effectAllowed='copy'` 对齐，否则光标显示「禁止」；
+ * ③ 非本类型拖拽（如从系统拖文件）不点亮画布，但仍 `preventDefault` 以阻止 webview 接管该文件。
+ */
+function onNodeDragOver(ev: DragEvent): void {
+  ev.preventDefault()
+  if (!acceptsNodeDrag(ev.dataTransfer)) return
+  if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'copy'
+  nodeDropActive.value = true
+}
+
+/** 拖出画布才清态：子元素之间移动也触发 dragleave，故用 relatedTarget 判定 */
+function onNodeDragLeave(ev: DragEvent): void {
+  const to = ev.relatedTarget as Node | null
+  if (to && rootEl.value?.contains(to)) return
+  nodeDropActive.value = false
+}
+
 function onDrop(ev: DragEvent): void {
+  nodeDropActive.value = false
+  if (!acceptsNodeDrag(ev.dataTransfer)) return
   const nodeId = readNodeIdFromDnD(ev)
   if (!nodeId) return
   emit('dropNode', nodeId, toWorld(localPoint(ev)))
@@ -546,6 +579,11 @@ onMounted(() => {
 /* Space 按住：光标提示可平移（与中键拖拽一致的语义） */
 .bcv--space { cursor: grab; }
 .bcv--space.bcv--panning { cursor: grabbing; }
+/* 拖着大纲节点经过画布：虚线内边框 + 复制光标（落点可见，否则用户以为拖拽没实现） */
+.bcv--node-drop {
+  cursor: copy;
+  box-shadow: inset 0 0 0 2px var(--primary);
+}
 .bcv-world {
   position: absolute;
   left: 0;

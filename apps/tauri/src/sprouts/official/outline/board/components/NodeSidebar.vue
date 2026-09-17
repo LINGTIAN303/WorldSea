@@ -299,7 +299,11 @@ function onActivate(row: Row): void {
   user-select: none;
 }
 .ns-item:hover { background: var(--hover-bg); }
-.ns-item--placed { color: var(--text-tertiary); cursor: default; }
+.ns-item:active { cursor: grabbing; }
+/* 已在板上：**仍可拖**（拖/双击 = 定位到已有容器），故光标不能回退成 default
+   —— 原为 `cursor: default`，与 title 提示「拖拽或双击将定位到已有容器」自相矛盾，
+   也让人误判「这条不可拖」（2026-09-17 真机反馈） */
+.ns-item--placed { color: var(--text-tertiary); }
 /* 拖拽落点指示：上/下 = 插到前/后（指示线），中 = 成为子节点（高亮） */
 .ns-item--drop-before { box-shadow: inset 0 2px 0 0 var(--primary); }
 .ns-item--drop-after { box-shadow: inset 0 -2px 0 0 var(--primary); }
