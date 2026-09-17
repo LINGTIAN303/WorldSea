@@ -102,6 +102,7 @@
       @remove-component="onInspectorRemoveComponent"
       @reorder-components="onReorderComponents"
       @open-node="onOpenNodeFromInspector"
+      @update-node-field="onUpdateNodeField"
     />
 
     <NodeSidebar
@@ -215,6 +216,27 @@ async function applyNodeFields(nodeId: string, values: Record<string, unknown>):
   const node = (es.entities ?? []).find(e => e.id === nodeId)
   if (!node) return
   await es.update(nodeId, values, 'user', { skipUndo: true })
+}
+
+/**
+ * 属性面板改节点字段（状态 / 所属线索 / 字数 / 关联章节）。
+ *
+ * 两条硬约束：
+ * ① 写 `properties` 前**必须合并**——实体更新对 properties 是整体替换（见施工分解 §十四）。
+ * ② 登记白板撤销栈一步（`field` 条目）：前后值都给**整份 properties**，
+ *    否则撤销回放时会把未提及的字段抹掉（同一个坑的第二面）。
+ *
+ * 这一区同时是线索式 / 进度式的**数据写入入口**——它们只读 `status`/`storylines`/`wordCount`，
+ * 而旧树视图的详情面板随旧视图下线后，这里曾是缺口。
+ */
+function onUpdateNodeField(key: string, value: unknown, label: string): void {
+  const node = inspectedNode.value
+  if (!node) return
+  const prev = { ...(node.properties ?? {}) }
+  if (prev[key] === value) return
+  const next = { ...prev, [key]: value }
+  undoApi.recordContentEdit(node.id, { properties: prev }, { properties: next }, label)
+  void applyNodeFields(node.id, { properties: next })
 }
 
 // 形式组件（标题式 / 树式 / 句子式…）通过注入拿撤销能力，不必逐层透传 props

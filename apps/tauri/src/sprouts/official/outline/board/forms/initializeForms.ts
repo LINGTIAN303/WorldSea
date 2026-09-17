@@ -1,13 +1,16 @@
 /**
  * initializeForms —— 注册全部表现形式（幂等，芽激活时调用一次）
  *
- * 批次 1 只注册标题式；句子式 / 表格式在批次 3 加入（同一入口追加即可，编辑器无需改动）。
- * 注册表是唯一的扩展点：新增表现形式 = 注册一个 FormDefinition。
+ * 批次 1 只注册标题式；句子式 / 表格式在批次 3 加入；线索式 / 进度式在 09-17 加入
+ * （迁移原独立大纲视图的「情节线索 / 进度总览」两个页签）。
+ * 注册表是唯一的扩展点：新增表现形式 = 注册一个 FormDefinition，编辑器无需改动。
  */
 import TitleForm from './TitleForm.vue'
 import TreeForm from './TreeForm.vue'
 import SentenceForm from './SentenceForm.vue'
 import TableForm from './TableForm.vue'
+import StorylineForm from './StorylineForm.vue'
+import ProgressForm from './ProgressForm.vue'
 import { registerForm } from './registry'
 import type { NumberingStyle } from './titleNumbering'
 
@@ -16,6 +19,12 @@ const NUMBERING_OPTIONS: Array<{ value: NumberingStyle; label: string }> = [
   { value: 'numeric', label: '数字 1.2.3' },
   { value: 'chinese', label: '中文 一、（一）' },
   { value: 'roman', label: '罗马 I、II' },
+]
+
+/** 统计类形式共用的范围选项（口径：`this` = 本节点 + 其子树，**含自身**） */
+const SCOPE_OPTIONS = [
+  { value: 'all', label: '全部节点' },
+  { value: 'this', label: '本节点及子树' },
 ]
 
 let initialized = false
@@ -177,6 +186,58 @@ export function initializeForms(): void {
       { key: 'maxHeight', label: '最大高度', type: 'number', default: 240 },
     ],
     component: TableForm,
+  })
+
+  // 线索式：按「所属线索」横向聚合（派生型只读）
+  // 迁移自旧视图「情节线索」页签；数据源是节点的 properties.storylines，本形式不写数据
+  registerForm({
+    form: 'storyline',
+    label: '线索式',
+    icon: 'workflow',
+    kind: 'derived',
+    description: '按「所属线索」聚合：每条线索的节点与字数',
+    defaultHeight: 120,
+    defaultConfig: {
+      scope: 'all',
+      showCount: true,
+      showWordCount: true,
+      showNodes: true,
+      maxHeight: 200,
+    },
+    configSchema: [
+      { key: 'scope', label: '范围', type: 'select', options: SCOPE_OPTIONS, default: 'all' },
+      { key: 'showCount', label: '显示节点数', type: 'boolean', default: true },
+      { key: 'showWordCount', label: '显示字数', type: 'boolean', default: true },
+      { key: 'showNodes', label: '显示节点标签', type: 'boolean', default: true },
+      { key: 'maxHeight', label: '最大高度', type: 'number', default: 200 },
+    ],
+    component: StorylineForm,
+  })
+
+  // 进度式：节点数 / 字数 / 完成度 + 状态分布 + 线索分布（派生型只读）
+  // 迁移自旧视图「进度总览」页签；scope='this' 时挂在「卷」容器上即每卷一张进度卡
+  registerForm({
+    form: 'progress',
+    label: '进度式',
+    icon: 'chart',
+    kind: 'derived',
+    description: '节点数 / 字数 / 完成度与分布（只读统计）',
+    defaultHeight: 130,
+    defaultConfig: {
+      scope: 'all',
+      showBar: true,
+      showStatus: true,
+      showStoryline: true,
+      maxHeight: 220,
+    },
+    configSchema: [
+      { key: 'scope', label: '范围', type: 'select', options: SCOPE_OPTIONS, default: 'all' },
+      { key: 'showBar', label: '显示完成度进度条', type: 'boolean', default: true },
+      { key: 'showStatus', label: '显示状态分布', type: 'boolean', default: true },
+      { key: 'showStoryline', label: '显示线索分布', type: 'boolean', default: true },
+      { key: 'maxHeight', label: '最大高度', type: 'number', default: 220 },
+    ],
+    component: ProgressForm,
   })
 }
 

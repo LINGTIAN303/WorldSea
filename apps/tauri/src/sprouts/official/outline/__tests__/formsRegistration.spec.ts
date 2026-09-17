@@ -18,13 +18,13 @@ beforeAll(() => {
 })
 
 describe('formsRegistration / 真实注册表', () => {
-  it('四种表现形式均已注册，且 form 标识唯一', () => {
+  it('六种表现形式均已注册，且 form 标识唯一', () => {
     const forms = getAllForms().map(d => d.form)
-    for (const expected of ['title', 'sentence', 'tree', 'table']) {
+    for (const expected of ['title', 'sentence', 'tree', 'table', 'storyline', 'progress']) {
       expect(forms).toContain(expected)
     }
     expect(new Set(forms).size).toBe(forms.length)
-    expect(forms).toHaveLength(4)
+    expect(forms).toHaveLength(6)
   })
 
   it('每个形式：label 非空、component 已挂载、defaultHeight 为正', () => {
@@ -71,10 +71,22 @@ describe('formsRegistration / 真实注册表', () => {
     }
   })
 
-  it('表格式是派生型（只读）；标题式与句子式是就地型', () => {
+  it('派生型（表格式 / 线索式 / 进度式）只读；标题式 / 树式 / 句子式可就地编辑', () => {
     expect(getForm('table')?.kind).toBe('derived')
+    expect(getForm('storyline')?.kind).toBe('derived')
+    expect(getForm('progress')?.kind).toBe('derived')
     expect(getForm('title')?.kind).toBe('inline')
     expect(getForm('sentence')?.kind).toBe('inline')
+    expect(getForm('tree')?.kind).toBe('inline')
+  })
+
+  it('线索式 / 进度式都提供范围配置（all / this）', () => {
+    for (const form of ['storyline', 'progress']) {
+      const scope = (getForm(form)?.configSchema ?? []).find(f => f.key === 'scope')
+      expect(scope, `${form} 缺少 scope 配置`).toBeTruthy()
+      expect(scope?.type).toBe('select')
+      expect((scope?.options ?? []).map(o => o.value)).toEqual(['all', 'this'])
+    }
   })
 
   it('句子式的软上限与行数是数字型配置（组件按数字解析）', () => {

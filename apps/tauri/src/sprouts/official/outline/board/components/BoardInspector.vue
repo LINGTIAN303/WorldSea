@@ -41,6 +41,57 @@
       </button>
     </div>
 
+    <!-- 节点属性（白板是唯一入口：容器与节点 1:1，这里是节点字段的天然归属地）
+         其中「状态 / 所属线索 / 字数」正是线索式与进度式的数据源——没有这一区，
+         那两个形式永远是空的（原树视图的详情面板 09-17 随旧视图下线） -->
+    <div v-if="node" class="bi-sec">
+      <div class="bi-sec-title">节点属性<span class="bi-sec-note">写入大纲节点</span></div>
+
+      <label class="bi-field">
+        <span class="bi-field-label">状态</span>
+        <select
+          class="bi-select"
+          :value="statusValue"
+          @change="$emit('updateNodeField', 'status', ($event.target as HTMLSelectElement).value, '改状态')"
+        >
+          <option v-for="s in STATUS_OPTIONS" :key="s" :value="s">{{ s }}</option>
+        </select>
+      </label>
+
+      <label class="bi-field">
+        <span class="bi-field-label">所属线索</span>
+        <input
+          class="bi-text"
+          type="text"
+          placeholder="多个用逗号分隔"
+          :value="storylinesValue"
+          @change="$emit('updateNodeField', 'storylines', ($event.target as HTMLInputElement).value, '改线索')"
+        />
+      </label>
+
+      <label class="bi-field">
+        <span class="bi-field-label">字数</span>
+        <input
+          class="bi-num"
+          type="number"
+          min="0"
+          :value="wordCountValue"
+          @change="$emit('updateNodeField', 'wordCount', Number(($event.target as HTMLInputElement).value), '改字数')"
+        />
+      </label>
+
+      <label class="bi-field">
+        <span class="bi-field-label">关联章节</span>
+        <input
+          class="bi-text"
+          type="text"
+          placeholder="章节 ID（可空）"
+          :value="manuscriptValue"
+          @change="$emit('updateNodeField', 'manuscriptId', ($event.target as HTMLInputElement).value, '改关联章节')"
+        />
+      </label>
+    </div>
+
     <!-- 组件列表（可拖拽排序） -->
     <div class="bi-sec">
       <div class="bi-sec-title">表现形式<span class="bi-sec-note">拖拽行可调整顺序</span></div>
@@ -128,6 +179,10 @@ import { computed, ref, watch } from 'vue'
 import type { Entity } from '@worldsea/entity-core'
 import { DEFAULT_CONTAINER_SIZE, type BoardComponent, type BoardContainer } from '../layoutSchema'
 import { getForm, resolveFormConfig, type FormConfigField } from '../forms/registry'
+import { NODE_STATUSES, statusOf } from '../forms/progressStats'
+
+/** 状态三态（与节点注册的 deteriorable trait 选项一致，勿另造值） */
+const STATUS_OPTIONS = NODE_STATUSES
 
 const props = defineProps<{
   container: BoardContainer | null
@@ -142,7 +197,15 @@ const emit = defineEmits<{
   (e: 'removeComponent', componentId: string): void
   (e: 'reorderComponents', orderedIds: string[]): void
   (e: 'openNode'): void
+  /** 改节点字段（写 properties 的合并与撤销登记由装配层负责——本组件只上报意图） */
+  (e: 'updateNodeField', key: string, value: unknown, label: string): void
 }>()
+
+// ── 节点字段现值（派生自 node，不本地缓存：外部改动应立刻反映到面板）──
+const statusValue = computed(() => statusOf(props.node))
+const storylinesValue = computed(() => String(props.node?.properties?.storylines ?? ''))
+const wordCountValue = computed(() => Number(props.node?.properties?.wordCount ?? 0) || 0)
+const manuscriptValue = computed(() => String(props.node?.properties?.manuscriptId ?? ''))
 
 const headText = computed(() => {
   const name = (props.node?.name ?? '').trim()
