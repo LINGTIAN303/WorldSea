@@ -18,7 +18,7 @@
     :style="gridStyle"
     @pointerdown="onBackgroundPointerDown"
     @dblclick="onBackgroundDblClick"
-    @contextmenu.prevent
+    @contextmenu="onContextMenu"
     @wheel="onWheel"
     @dragover="onNodeDragOver"
     @dragleave="onNodeDragLeave"
@@ -45,6 +45,7 @@
         :key="s.id"
         :section="s"
         :container-count="sectionContainerCount(s.id)"
+        :rename-signal="renameSectionSignal"
         @drag-start="onSectionDragStart(s, $event)"
         @resize-start="onSectionResizeStart(s, $event)"
         @rename="(title: string) => $emit('renameSection', s.id, title)"
@@ -59,6 +60,7 @@
         :container="c"
         :node="nodesById.get(c.nodeId)"
         :selected="selectedId === c.id"
+        :open-form-signal="openFormSignal"
         @select="$emit('select', c.id)"
         @drag-start="onContainerDragStart(c, $event)"
         @resize-start="onContainerResizeStart(c, $event)"
@@ -108,6 +110,7 @@ import {
   type Viewport,
 } from '../boardGeometry'
 import { readNodeIdFromDnD, acceptsNodeDrag } from '../dnd'
+import { resolveContextTarget, type ContextTarget } from '../contextMenu'
 import {
   DEFAULT_CONTAINER_SIZE,
   rectOfContainer,
@@ -129,6 +132,9 @@ const props = defineProps<{
   gridEnabled: boolean
   /** 画区模式：背景拖拽改为拖出矩形 */
   sectionDrawMode: boolean
+  /** 右键菜单请求：区改名 / 容器展开形式菜单（透传给对应子组件，本组件不解释其内容） */
+  renameSectionSignal?: { id: string; token: number } | null
+  openFormSignal?: { id: string; token: number } | null
 }>()
 
 const emit = defineEmits<{
@@ -143,6 +149,8 @@ const emit = defineEmits<{
   (e: 'addComponent', containerId: string, form: string): void
   (e: 'createNodeAt', pos: Point): void
   (e: 'dropNode', nodeId: string, pos: Point): void
+  /** 右键落点（已解析为四级上下文之一）+ 视口坐标，由装配层决定菜单与动作 */
+  (e: 'contextMenu', payload: { target: ContextTarget; x: number; y: number }): void
   (e: 'viewportChange', vp: Viewport): void
   (e: 'interactionStart'): void
   (e: 'createSection', rect: Rect): void
@@ -509,8 +517,27 @@ function onDrop(ev: DragEvent): void {
   emit('dropNode', nodeId, toWorld(localPoint(ev)))
 }
 
+// ── 右键菜单落点 ──
+/**
+ * 落点由**标注**决定（`data-ctx` / `data-ctx-id`，见 contextMenu.ts）：
+ * 组件行 > 容器 > 区 > 画布空白，`closest` 天然取最内层。
+ * 本组件只负责「解析 + 上报」，菜单长什么样与动作怎么做都在装配层（BoardView）。
+ */
+function onContextMenu(ev: MouseEvent): void {
+  ev.preventDefault()
+  emit('contextMenu', {
+    target: resolveContextTarget(ev.target as Element | null),
+    x: ev.clientX,
+    y: ev.clientY,
+  })
+}
+
 /** 供父级调用的视口能力（缩放按钮 / 定位已有容器 / 适配全部） */
 defineExpose({
+  /** 屏幕（client）坐标 → 世界坐标；右键「在此新建节点」用 */
+  clientToWorld(clientX: number, clientY: number): Point {
+    return toWorld(localPoint({ clientX, clientY }))
+  },
   zoomStep(deltaY: number): void {
     const local = {
       x: (rootEl.value?.clientWidth ?? 0) / 2,

@@ -35,12 +35,16 @@
         <input v-model="query" class="ns-search-input" type="text" placeholder="搜索节点…" />
       </div>
 
-      <div class="ns-list" role="tree">
+      <div ref="listEl" class="ns-list" role="tree">
         <div
           v-for="row in rows"
           :key="row.id"
           class="ns-item"
-          :class="[{ 'ns-item--placed': row.placed }, dropClass(row.id)]"
+          :class="[
+            { 'ns-item--placed': row.placed, 'ns-item--flash': flashId === row.id },
+            dropClass(row.id),
+          ]"
+          :data-node-id="row.id"
           role="treeitem"
           :aria-level="row.depth + 1"
           :draggable="true"
@@ -82,7 +86,7 @@
  * 节点侧栏：只读展示 + 事件上报；入板逻辑在 BoardView（统一写入 useBoardLayout）。
  * 拖拽用 HTML5 DnD（与 module-builder 的 Toolbox 同路子），画布侧 dragover/drop 接收。
  */
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import type { Entity } from '@worldsea/entity-core'
 // 显式导入（非全局组件）
 import { WsIcon } from '@worldsea/ui-kit'
@@ -103,6 +107,11 @@ const props = defineProps<{
   nodes: Entity[]
   placedIds: Set<string>
   collapsed: boolean
+  /**
+   * 外部请求「在右栏中定位某节点」（右键菜单「在右栏中定位」）。
+   * {id, token}：token 递增保证重复定位同一节点也能再次触发。
+   */
+  revealSignal?: { id: string; token: number } | null
 }>()
 
 const emit = defineEmits<{
@@ -240,6 +249,59 @@ function onActivate(row: Row): void {
   if (row.placed) emit('locate', row.id)
   else emit('add', row.id)
 }
+
+// ── 外部定位（右键菜单「在右栏中定位」）──────────
+/** 短暂高亮的目标（1.2s 后清除，用闪烁而非常驻，避免与「当前项」语义混淆） */
+const flashId = ref<string | null>(null)
+let flashTimer: ReturnType<typeof setTimeout> | null = null
+const listEl = ref<HTMLElement | null>(null)
+
+/**
+ * 展开目标节点的**祖先链**并滚动到它。
+ * 三个细节都不能省：
+ * ① 祖先不展开则目标行根本不在 `rows` 里（树是懒展开的）；
+ * ② 若正在搜索，目标可能被过滤掉 → 清空搜索（定位意图优先于过滤）；
+ * ③ 右栏折叠时列表不存在，直接跳过（调用方会先展开右栏）。
+ */
+function revealNode(id: string): void {
+  if (!id || props.collapsed) return
+  if (query.value.trim()) query.value = ''
+
+  const byId = new Map(props.nodes.map(n => [n.id, n]))
+  const next = new Set(expanded.value)
+  let cur = byId.get(id)
+  let guard = 0
+  while (cur && guard < 64) {
+    guard += 1
+    const pid = (cur.properties?.parentId as string) || ''
+    if (!pid) break
+    next.add(pid)
+    cur = byId.get(pid)
+  }
+  expanded.value = next
+
+  flashId.value = id
+  if (flashTimer) clearTimeout(flashTimer)
+  flashTimer = setTimeout(() => { flashId.value = null }, 1200)
+
+  void nextTick(() => {
+    const el = listEl.value?.querySelector<HTMLElement>(`[data-node-id="${cssEscape(id)}"]`)
+    el?.scrollIntoView({ block: 'center' })
+  })
+}
+
+/** 节点 id 在本项目是 uuid/自定义串，进选择器前做最小转义（避免以数字开头时被当选择器语法） */
+function cssEscape(v: string): string {
+  return v.replace(/["\\]/g, '\\$&')
+}
+
+watch(() => props.revealSignal, signal => {
+  if (signal) revealNode(signal.id)
+})
+
+onBeforeUnmount(() => {
+  if (flashTimer) clearTimeout(flashTimer)
+})
 </script>
 
 <style scoped>
@@ -304,6 +366,11 @@ function onActivate(row: Row): void {
    —— 原为 `cursor: default`，与 title 提示「拖拽或双击将定位到已有容器」自相矛盾，
    也让人误判「这条不可拖」（2026-09-17 真机反馈） */
 .ns-item--placed { color: var(--text-tertiary); }
+/* 外部定位后的短暂高亮（1.2s 后由组件清除） */
+.ns-item--flash {
+  background: var(--primary-soft, rgba(79, 70, 229, 0.12));
+  box-shadow: inset 2px 0 0 0 var(--primary);
+}
 /* 拖拽落点指示：上/下 = 插到前/后（指示线），中 = 成为子节点（高亮） */
 .ns-item--drop-before { box-shadow: inset 0 2px 0 0 var(--primary); }
 .ns-item--drop-after { box-shadow: inset 0 -2px 0 0 var(--primary); }

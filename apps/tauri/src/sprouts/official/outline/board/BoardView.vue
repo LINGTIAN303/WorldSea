@@ -56,6 +56,8 @@
       :snap-mode="snapMode"
       :grid-enabled="gridEnabled"
       :section-draw-mode="sectionDrawMode"
+      :rename-section-signal="renameSignal"
+      :open-form-signal="openFormSignal"
       @select="onCanvasSelect"
       @move-container="onMoveContainer"
       @resize-container="onResizeContainer"
@@ -76,6 +78,7 @@
       @rename-section="onRenameSection"
       @rearrange-section="onRearrangeSection"
       @remove-section="askRemoveSection"
+      @context-menu="onContextMenu"
     />
 
     <BoardCanvasToolbar
@@ -109,10 +112,22 @@
       :nodes="outlineNodes"
       :placed-ids="placedIds"
       :collapsed="sidebarCollapsed"
+      :reveal-signal="revealSignal"
       @toggle-collapse="sidebarCollapsed = !sidebarCollapsed"
       @add="onSidebarAdd"
       @locate="onLocate"
       @reparent="onReparent"
+    />
+
+    <!-- 右键菜单（四级上下文：画布空白 / 区 / 容器 / 组件行；见 board/contextMenu.ts） -->
+    <BoardContextMenu
+      :show="!!ctxMenu"
+      :x="ctxMenu?.x ?? 0"
+      :y="ctxMenu?.y ?? 0"
+      :items="ctxItems"
+      :aria-label="ctxAriaLabel"
+      @select="onCtxSelect"
+      @close="ctxMenu = null"
     />
 
     <!-- 导出弹层（规格 §十）：导出全部大纲节点，按表现形式渲染 -->
@@ -159,6 +174,7 @@ import { WsIcon, useShortcuts, toastWarn } from '@worldsea/ui-kit'
 import BoardCanvas from './components/BoardCanvas.vue'
 import BoardCanvasToolbar from './components/BoardCanvasToolbar.vue'
 import BoardInspector from './components/BoardInspector.vue'
+import BoardContextMenu from './components/BoardContextMenu.vue'
 import BoardExportDialog from './components/BoardExportDialog.vue'
 import BoardListView from './BoardListView.vue'
 import NodeSidebar from './components/NodeSidebar.vue'
@@ -172,6 +188,14 @@ import { DEFAULT_CONTAINER_SIZE, danglingContainerIds, genBoardId, rectOfContain
 import { captureHierarchy, diffHierarchy, planReparent, type DropMode } from './outlineHierarchy'
 import { renderBoardThumbnail } from './thumbnail'
 import { BOARD_SHORTCUT_IDS, BOARD_SHORTCUT_META } from './shortcuts'
+import {
+  buildMenuItems,
+  containerIdOfTarget,
+  DEFAULT_CONTEXT_STATE,
+  type ContextState,
+  type ContextTarget,
+  type MenuItem,
+} from './contextMenu'
 import { buildOutlineExport } from './export/outlineExport'
 import {
   downloadBlob,
@@ -652,6 +676,173 @@ function fitAll(): void {
     ...layout.value.sections.map(s => ({ ...s.rect })),
   ]
   layoutApi.setViewport(fitViewport(contentBounds(rects), size))
+}
+
+// ── 右键菜单（规格 §十三）──────────────────────
+// 职责分工：菜单长什么样由 `contextMenu.ts` 纯函数决定；本层只做三件事——
+// ① 提供上下文状态（构建菜单需要）② 落点 → 动作分派 ③ 需要「外部触发」的子组件信号。
+const ctxMenu = ref<{ x: number; y: number; target: ContextTarget } | null>(null)
+
+const CTX_ARIA: Record<ContextTarget['kind'], string> = {
+  canvas: '画布菜单',
+  section: '区菜单',
+  container: '容器菜单',
+  component: '表现形式菜单',
+}
+const ctxAriaLabel = computed(() => (ctxMenu.value ? CTX_ARIA[ctxMenu.value.target.kind] : '菜单'))
+
+/** 子组件「外部触发」信号（右键菜单要用到几个子组件的内部交互态，故用递增 token 触发） */
+const renameSignal = ref<{ id: string; token: number } | null>(null)
+const openFormSignal = ref<{ id: string; token: number } | null>(null)
+const revealSignal = ref<{ id: string; token: number } | null>(null)
+let signalToken = 0
+
+function ctxContainer(id: string | null) {
+  return id ? layout.value.containers.find(c => c.id === id) ?? null : null
+}
+
+/** 把当前布局与状态折算成菜单所需的最小上下文（缺项一律取保守默认值） */
+const ctxItems = computed<MenuItem[]>(() => {
+  const menu = ctxMenu.value
+  if (!menu) return []
+  const { target } = menu
+  const state: ContextState = {
+    ...DEFAULT_CONTEXT_STATE,
+    gridEnabled: gridEnabled.value,
+    snapMode: snapMode.value,
+  }
+
+  if (target.kind === 'container' || target.kind === 'component') {
+    const c = ctxContainer(containerIdOfTarget(target))
+    if (!c) return []
+    const node = nodesById.value.get(c.nodeId)
+    state.dangling = !node
+    state.hasManuscript = !!(node?.properties?.manuscriptId as string)
+    state.collapsed = !!c.collapsed
+    state.autoSized = !c.size
+  }
+  if (target.kind === 'component') {
+    const c = ctxContainer(target.containerId)
+    const ordered = [...(c?.components ?? [])].sort((a, b) => a.order - b.order)
+    const i = ordered.findIndex(x => x.id === target.componentId)
+    state.isFirstComponent = i <= 0
+    state.isLastComponent = i < 0 || i === ordered.length - 1
+  }
+  return buildMenuItems(target, state)
+})
+
+function onContextMenu(payload: { target: ContextTarget; x: number; y: number }): void {
+  // 选中粒度＝容器（规格 §五）：右键容器/组件行先选中它，属性面板随之出现，
+  // 使「右键 → 在属性面板中配置」这条链路不需要额外约定
+  const containerId = containerIdOfTarget(payload.target)
+  if (containerId) {
+    selection.select(containerId)
+    inspectorClosed.value = false
+  }
+  ctxMenu.value = { x: payload.x, y: payload.y, target: payload.target }
+}
+
+/** 适配视口到某个矩形（区菜单的「适配到该区」复用同一算法） */
+function fitToRect(rect: Rect): void {
+  const size = canvasRef.value?.size() ?? { w: 0, h: 0 }
+  layoutApi.setViewport(fitViewport(contentBounds([rect]), size))
+}
+
+function componentIdsOf(containerId: string): string[] {
+  const c = ctxContainer(containerId)
+  return [...(c?.components ?? [])].sort((a, b) => a.order - b.order).map(x => x.id)
+}
+
+/** 组件行「上移/下移」：复用属性面板的同一原子操作（DnD 的键盘可达替代） */
+function moveComponent(containerId: string, componentId: string, dir: -1 | 1): void {
+  const ids = componentIdsOf(containerId)
+  const from = ids.indexOf(componentId)
+  const to = from + dir
+  if (from < 0 || to < 0 || to >= ids.length) return
+  const next = [...ids]
+  next.splice(from, 1)
+  next.splice(to, 0, componentId)
+  undoApi.record()
+  layoutApi.reorderContainerComponents(containerId, next)
+}
+
+/** 菜单动作分派（id 与 contextMenu.ts 的约定一一对应） */
+function onCtxSelect(id: string): void {
+  const menu = ctxMenu.value
+  ctxMenu.value = null
+  if (!menu) return
+  const { target } = menu
+
+  if (target.kind === 'canvas') {
+    if (id === 'new-node') {
+      // 新建在**右键处**（与双击空白同一路径），而不是视口中心——右键表达的是「我要在这里」
+      const world = canvasRef.value?.clientToWorld(menu.x, menu.y)
+      if (world) void onCreateNodeAt(world)
+      return
+    }
+    if (id === 'fit-all') { fitAll(); return }
+    if (id === 'zoom-100') { canvasRef.value?.zoomTo(1); return }
+    if (id === 'toggle-grid') { void onToggleGrid(); return }
+    if (id === 'snap-off') { void onSetSnap('off'); return }
+    if (id === 'snap-grid') { void onSetSnap('grid'); return }
+    if (id === 'snap-guides') { void onSetSnap('guides'); return }
+    return
+  }
+
+  if (target.kind === 'section') {
+    if (id === 'rename-section') {
+      signalToken += 1
+      renameSignal.value = { id: target.id, token: signalToken }
+      return
+    }
+    if (id === 'rearrange-section') { onRearrangeSection(target.id); return }
+    if (id === 'fit-section') {
+      const s = layout.value.sections.find(x => x.id === target.id)
+      if (s) fitToRect({ ...s.rect })
+      return
+    }
+    if (id === 'remove-section') { askRemoveSection(target.id); return }
+    return
+  }
+
+  const containerId = containerIdOfTarget(target)
+  if (!containerId) return
+
+  if (id === 'open-manuscript') { onOpenManuscript(containerId); return }
+  if (id === 'reveal-in-sidebar') {
+    const c = ctxContainer(containerId)
+    if (!c) return
+    sidebarCollapsed.value = false
+    signalToken += 1
+    revealSignal.value = { id: c.nodeId, token: signalToken }
+    return
+  }
+  if (id === 'add-form') {
+    signalToken += 1
+    openFormSignal.value = { id: containerId, token: signalToken }
+    return
+  }
+  if (id === 'toggle-collapse') { onToggleCollapse(containerId); return }
+  if (id === 'reset-size') {
+    const c = ctxContainer(containerId)
+    if (!c || !c.size) return
+    undoApi.record()
+    layoutApi.resizeContainer(c.id, undefined)
+    return
+  }
+  if (id === 'remove-container') { onRemoveContainer(containerId); return }
+
+  if (target.kind === 'component') {
+    const { componentId } = target
+    if (id === 'focus-inspector') {
+      // 选中与面板展开已在 onContextMenu 完成，这里只需确保面板可见（面板在画布内悬浮）
+      inspectorClosed.value = false
+      return
+    }
+    if (id === 'move-component-up') { moveComponent(containerId, componentId, -1); return }
+    if (id === 'move-component-down') { moveComponent(containerId, componentId, 1); return }
+    if (id === 'remove-component') { onRemoveComponentInContainer(containerId, componentId); return }
+  }
 }
 
 // ── 撤销 / 重做 ─────────────────────────────

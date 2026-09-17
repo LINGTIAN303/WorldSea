@@ -12,6 +12,8 @@
     :style="boxStyle"
     role="group"
     :aria-label="`区：${titleText}`"
+    data-ctx="section"
+    :data-ctx-id="section.id"
   >
     <div class="bs-head" @pointerdown.stop="$emit('dragStart', $event)" @dblclick.stop>
       <span
@@ -66,7 +68,7 @@
  * 区组件：只做渲染与事件上报。区矩形、内容器归属、排布都由 useBoardLayout 的原子操作负责
  * （保证「改了就一定被保存」，且区与内容器同处一次变更、撤销只需一步）。
  */
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import type { BoardSection, SectionArrange } from '../layoutSchema'
 
 const props = defineProps<{
@@ -75,6 +77,11 @@ const props = defineProps<{
   selected?: boolean
   /** 归属该区的容器数（徽标展示用） */
   containerCount: number
+  /**
+   * 外部请求进入改名态（右键菜单「重命名区」）。
+   * 用 { id, token } 而非布尔：token 递增保证「同一条区连点两次也能再次触发」。
+   */
+  renameSignal?: { id: string; token: number } | null
 }>()
 
 const emit = defineEmits<{
@@ -125,6 +132,14 @@ function commitRename(): void {
 function cancelRename(): void {
   renaming.value = false
 }
+
+/** 右键菜单触发的改名（与双击同一路径，避免两份实现） */
+watch(
+  () => props.renameSignal,
+  signal => {
+    if (signal && signal.id === props.section.id) void startRename()
+  },
+)
 </script>
 
 <style scoped>

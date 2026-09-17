@@ -16,6 +16,8 @@
     :style="boxStyle"
     role="group"
     :aria-label="node ? `节点容器：${node.name}` : '节点已删除的容器'"
+    data-ctx="container"
+    :data-ctx-id="container.id"
     @pointerdown.stop="$emit('select')"
     @dblclick.stop
   >
@@ -60,7 +62,13 @@
 
     <div v-if="!container.collapsed" class="bc-body">
       <!-- 组件行：悬停显示「移除」（规格 §四）；行本身不拦截选中，故只让按钮 stop -->
-      <div v-for="c in visibleComponents" :key="c.id" class="bc-comp">
+      <div
+        v-for="c in visibleComponents"
+        :key="c.id"
+        class="bc-comp"
+        data-ctx="component"
+        :data-ctx-id="c.id"
+      >
         <component
           :is="defOf(c.form)"
           :node-id="container.nodeId"
@@ -129,6 +137,8 @@ const props = defineProps<{
   /** 悬空（节点已删）时为 undefined */
   node?: Entity
   selected: boolean
+  /** 外部请求展开「形式选择菜单」（右键菜单「添加表现形式」）；{id, token} 保证可重复触发 */
+  openFormSignal?: { id: string; token: number } | null
 }>()
 
 const emit = defineEmits<{
@@ -198,6 +208,14 @@ function hasForm(form: string): boolean {
 watch(() => props.selected, selected => {
   if (!selected) menuOpen.value = false
 })
+
+/** 右键菜单触发的「添加表现形式」（打开后容器会因选中而保持展开） */
+watch(
+  () => props.openFormSignal,
+  signal => {
+    if (signal && signal.id === props.container.id) menuOpen.value = true
+  },
+)
 </script>
 
 <style scoped>
