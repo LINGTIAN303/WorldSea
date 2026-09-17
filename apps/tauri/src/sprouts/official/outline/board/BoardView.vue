@@ -156,6 +156,7 @@ import { contentBounds, fitViewport, type Point, type Rect } from './boardGeomet
 import { DEFAULT_CONTAINER_SIZE, danglingContainerIds, genBoardId, rectOfContainer, type BoardSection } from './layoutSchema'
 import { captureHierarchy, diffHierarchy, planReparent, type DropMode } from './outlineHierarchy'
 import { renderBoardThumbnail } from './thumbnail'
+import { BOARD_SHORTCUT_IDS, BOARD_SHORTCUT_META } from './shortcuts'
 import { initializeForms } from './forms/initializeForms'
 // 复用既有的 parent_child 关系同步（单一实现，避免第二份漂移）
 import { useOutlineTree } from '../composables/useOutlineTree'
@@ -636,16 +637,6 @@ function onRedo(): void {
  */
 const { register: registerShortcut, unregister: unregisterShortcut } = useShortcuts()
 
-const BOARD_SHORTCUT_IDS = [
-  'outline-board.undo',
-  'outline-board.redo',
-  'outline-board.delete-container',
-  'outline-board.reset-zoom',
-  'outline-board.fit-all',
-  'outline-board.draw-section',
-  'outline-board.escape',
-] as const
-
 function unregisterShortcuts(): void {
   for (const id of BOARD_SHORTCUT_IDS) unregisterShortcut(id)
 }
@@ -663,64 +654,40 @@ function onEscapeKey(): void {
   selection.clear()
 }
 
+/**
+ * 注册全部白板快捷键：**元数据来自 `board/shortcuts.ts`**（单一来源，设置面板目录比对其一致性），
+ * 本处只负责把 id 绑到具体 handler —— 避免「注册处与展示目录各写一份清单」的漂移。
+ */
 function registerShortcuts(): void {
-  registerShortcut({
-    id: 'outline-board.undo',
-    keys: ['ctrl', 'z'],
-    scope: 'view',
-    description: '大纲白板：撤销',
-    preventDefault: true,
-    handler: onUndo,
-  })
-  registerShortcut({
-    id: 'outline-board.redo',
-    keys: ['ctrl', 'shift', 'z'],
-    scope: 'view',
-    description: '大纲白板：重做',
-    preventDefault: true,
-    handler: onRedo,
-  })
-  registerShortcut({
-    id: 'outline-board.delete-container',
-    keys: ['delete'],
-    scope: 'view',
-    description: '大纲白板：删除选中容器（不删节点）',
-    preventDefault: true,
-    handler: () => {
+  const handlers: Record<string, () => void> = {
+    'outline-board.undo': onUndo,
+    'outline-board.redo': onRedo,
+    'outline-board.delete-container': () => {
       const id = selection.selectedId.value
       if (id) onRemoveContainer(id)
     },
-  })
-  registerShortcut({
-    id: 'outline-board.reset-zoom',
-    keys: ['ctrl', '0'],
-    scope: 'view',
-    description: '大纲白板：缩放重置为 100%',
-    preventDefault: true,
-    handler: () => canvasRef.value?.zoomTo(1),
-  })
-  registerShortcut({
-    id: 'outline-board.fit-all',
-    // Shift+1 经 normalizeKeys 归一为单键 '!'（非字母可打印字符不叠加 shift 修饰，见 useShortcuts.ts:79-85）
-    keys: ['!'],
-    scope: 'view',
-    description: '大纲白板：适配全部',
-    handler: fitAll,
-  })
-  registerShortcut({
-    id: 'outline-board.draw-section',
-    keys: ['s'],
-    scope: 'view',
-    description: '大纲白板：画区',
-    handler: () => { sectionDrawMode.value = !sectionDrawMode.value },
-  })
-  registerShortcut({
-    id: 'outline-board.escape',
-    keys: ['escape'],
-    scope: 'view',
-    description: '大纲白板：取消选中 / 退出画区',
-    handler: onEscapeKey,
-  })
+    'outline-board.reset-zoom': () => canvasRef.value?.zoomTo(1),
+    'outline-board.fit-all': fitAll,
+    'outline-board.draw-section': () => { sectionDrawMode.value = !sectionDrawMode.value },
+    'outline-board.escape': onEscapeKey,
+  }
+
+  for (const meta of BOARD_SHORTCUT_META) {
+    const handler = handlers[meta.id]
+    if (!handler) {
+      // 元数据有、handler 缺 → 属实现漏配，直接暴露而不是静默注册空动作
+      console.warn(`[BoardView] 快捷键 ${meta.id} 未绑定 handler，已跳过注册`)
+      continue
+    }
+    registerShortcut({
+      id: meta.id,
+      keys: [...meta.keys],
+      description: meta.description,
+      scope: 'view',
+      preventDefault: meta.preventDefault,
+      handler,
+    })
+  }
 }
 
 // ── 生命周期 ────────────────────────────────

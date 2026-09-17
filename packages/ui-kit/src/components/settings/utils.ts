@@ -82,8 +82,17 @@ export const SHORTCUT_CATALOG: ShortcutItem[] = [
   { id: 'tactical.awareness-influence', description: '战术板：势力态势感知', keys: ['1'], scope: 'view' },
   { id: 'tactical.awareness-threat', description: '战术板：威胁态势感知', keys: ['2'], scope: 'view' },
   { id: 'tactical.awareness-supply', description: '战术板：补给态势感知', keys: ['3'], scope: 'view' },
-  // ── 视图·大纲 ──
-  { id: 'outline.close-detail', description: '大纲：取消选中节点', keys: ['escape'], scope: 'view' },
+  // ── 视图·大纲白板（BoardView；**仅编辑器层注册**，列表层不注册——故列表层打开设置时
+  //     键位显示为下方 fallback 且提示「所属视图未激活」，进入编辑器后即可改键）──
+  { id: 'outline-board.undo', description: '大纲白板：撤销', keys: ['ctrl', 'z'], scope: 'view' },
+  { id: 'outline-board.redo', description: '大纲白板：重做', keys: ['ctrl', 'shift', 'z'], scope: 'view' },
+  { id: 'outline-board.delete-container', description: '大纲白板：删除选中容器（不删节点）', keys: ['delete'], scope: 'view' },
+  { id: 'outline-board.reset-zoom', description: '大纲白板：缩放重置为 100%', keys: ['ctrl', '0'], scope: 'view' },
+  // Shift+1 经 normalizeKeys 归一为单键 '!'（非字母可打印字符不叠加 shift 修饰）；
+  // 'keys' 与注册处保持一致写 '!'，展示层负责拆成 Shift + 1
+  { id: 'outline-board.fit-all', description: '大纲白板：适配全部', keys: ['!'], scope: 'view' },
+  { id: 'outline-board.draw-section', description: '大纲白板：画区', keys: ['s'], scope: 'view' },
+  { id: 'outline-board.escape', description: '大纲白板：取消选中 / 退出画区', keys: ['escape'], scope: 'view' },
   // ── Agent 空间（AgentSpace.vue；仅 Agent 空间壳激活时生效，群聊模式左栏相关键空转）──
   { id: 'space.session.new', description: '新建会话', keys: ['ctrl', 'n'], scope: 'space' },
   { id: 'space.session.search', description: '聚焦会话搜索', keys: ['ctrl', 'f'], scope: 'space' },

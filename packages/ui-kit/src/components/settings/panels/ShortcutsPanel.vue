@@ -63,10 +63,19 @@ function fmt(k: string): string {
   return formatKeyForDisplay(k)
 }
 
+/**
+ * 展示用键位拆分：个别键在物理上必须配合 Shift 才能键出，而注册/匹配层按
+ * `normalizeKeys` 的归一结果存**单键**（非字母可打印字符不叠加 shift 修饰，
+ * 见 useShortcuts.normalizeKeys）。此处仅影响展示，拆成两块更贴近用户的按键认知。
+ */
+const DISPLAY_SPLIT: Record<string, string[]> = {
+  '?': ['shift', '?'],
+  '!': ['shift', '1'],
+}
+
 function getDisplayKeys(s: ShortcutItem): string[] {
   const keys = getRegisteredKeys(s.id) ?? s.keys
-  // '?' 物理上需 Shift 才能键出，显示为 Shift+? 两块（与其他组合键一致；注册/匹配层仍为 ['?']）
-  return keys.flatMap(k => (k === '?' ? ['shift', '?'] : [k]))
+  return keys.flatMap(k => DISPLAY_SPLIT[k] ?? [k])
 }
 
 function hasOverride(id: string): boolean {
