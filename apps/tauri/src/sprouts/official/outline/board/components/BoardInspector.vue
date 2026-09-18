@@ -58,6 +58,22 @@
         </select>
       </label>
 
+      <!-- 节点类型（2026-09-18 Q6-① 补齐）：此前该字段只有 Agent 侧能读写
+           （`create_node`/`batch_create` 写入、`get_structure` 返回、SKILL.md 记载），
+           而 UI 完全不可见、不可编辑 —— 这是能力缺口。
+           取值**保留英文四值**（Agent 工具与 SKILL.md 已按此口径），中文只作显示标签。 -->
+      <label class="bi-field">
+        <span class="bi-field-label">节点类型</span>
+        <select
+          class="bi-select"
+          :value="nodeTypeValue"
+          @change="$emit('updateNodeField', 'nodeType', ($event.target as HTMLSelectElement).value, '改节点类型')"
+        >
+          <option value="">（未设）</option>
+          <option v-for="t in NODE_TYPE_OPTIONS" :key="t.value" :value="t.value">{{ t.label }}</option>
+        </select>
+      </label>
+
       <label class="bi-field">
         <span class="bi-field-label">所属线索</span>
         <input
@@ -193,6 +209,18 @@ import { NODE_STATUSES, statusOf } from '../forms/progressStats'
 /** 状态三态（与节点注册的 deteriorable trait 选项一致，勿另造值） */
 const STATUS_OPTIONS = NODE_STATUSES
 
+/**
+ * 节点类型四值（与 `outline/index.ts` 的 `nodeType` ownField 选项**保持一致**，
+ * 也与 SKILL.md 记载、Agent 工具写入口径一致）。
+ * **value 是英文**（存量与 Agent 口径）、**label 是中文**（显示）。
+ */
+const NODE_TYPE_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: 'act', label: '幕' },
+  { value: 'sequence', label: '序列' },
+  { value: 'scene', label: '场景' },
+  { value: 'beat', label: '节拍' },
+]
+
 const props = defineProps<{
   container: BoardContainer | null
   node?: Entity
@@ -221,6 +249,8 @@ const emit = defineEmits<{
 const statusValue = computed(() => statusOf(props.node))
 const storylinesValue = computed(() => String(props.node?.properties?.storylines ?? ''))
 const wordCountValue = computed(() => Number(props.node?.properties?.wordCount ?? 0) || 0)
+/** 节点类型现值（空串 = 未设，下拉里有「（未设）」项可选回空） */
+const nodeTypeValue = computed(() => String(props.node?.properties?.nodeType ?? ''))
 
 const headText = computed(() => {
   const name = (props.node?.name ?? '').trim()

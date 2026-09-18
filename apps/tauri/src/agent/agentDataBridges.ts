@@ -432,7 +432,11 @@ export function installAgentDataBridges(): void {
           .map(e => ({
             id: e.id,
             title: e.name,
-            type: e.properties.nodeType || e.properties.contentType,
+            // 2026-09-18（Q6-①）：只读 `nodeType`。此前的 `|| e.properties.contentType` 兜底
+            // 是给旧 UI 表单（写 contentType，取值 章节/场景/片段/备注）用的 ——
+            // 该表单随 OutlineView 于 09-17 删除，兜底已无来源；且两套取值语义并不同
+            // （备注 ≠ beat），留着只会让「节点类型」出现两种口径。现已注册进 ownFields。
+            type: e.properties.nodeType || '',
             status: e.properties.status || '未写',
             children: build(e.id),
           }))

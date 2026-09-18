@@ -30,7 +30,13 @@ export function activate(api: PluginAPIType) {
     traits: [
       { traitId: 'identifiable' },
       { traitId: 'visual' },
-      { traitId: 'narrative' },
+      // 2026-09-18（Q6-B）：**不再复用 `narrative` trait**。
+      // 该 trait 声明 `content` / `wordCount` / `sortOrder` 三个字段，但它被
+      // manuscript（章节正文）与 notebook（笔记正文）共用 —— 那两个芽确实需要 `content`；
+      // 而大纲节点（Q1 已裁定为**纯结构层**）对 `content` 与 `sortOrder`
+      // **既无写入口也无消费方**（逐处取证见施工分解 §十九）。
+      // 继续共享它等于让 schema 一直声明两个用不上的字段，故改为只取真正在用的
+      // `wordCount`（进度式 / 线索式统计消费），移入 ownFields。
       { traitId: 'deteriorable', fieldOverrides: {
         condition: { label: '状态', options: ['未写', '草稿', '完成'].map(s => ({ value: s, label: s })) },
       } },
@@ -39,6 +45,23 @@ export function activate(api: PluginAPIType) {
       { key: 'parentId', label: '父节点ID', fieldType: 'text' },
       { key: 'storylines', label: '所属线索', fieldType: 'text' },
       { key: 'manuscriptId', label: '关联章节ID', fieldType: 'text' },
+      // 原由 narrative trait 提供；语义是**规划期人工预估**（≠ manuscript 的机器统计字数）
+      { key: 'wordCount', label: '字数（预估）', fieldType: 'number' },
+      // 2026-09-18（Q6-①）：此前是「自由写入」字段 —— Agent 侧 `create_node`/`batch_create`
+      // 会写它、`get_structure` 会返回它、SKILL.md 也记载它，但**从未注册**，
+      // 且 UI 里完全不可见（属性面板补了编辑入口，见 BoardInspector）。
+      // 取值保留英文四值（Agent 工具与 SKILL.md 已按此口径），中文只作显示标签。
+      {
+        key: 'nodeType',
+        label: '节点类型',
+        fieldType: 'select',
+        options: [
+          { value: 'act', label: '幕' },
+          { value: 'sequence', label: '序列' },
+          { value: 'scene', label: '场景' },
+          { value: 'beat', label: '节拍' },
+        ],
+      },
     ],
   })
 

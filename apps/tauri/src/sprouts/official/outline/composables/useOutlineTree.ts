@@ -4,8 +4,9 @@
  * 【消费者现状】独立树视图 `OutlineView.vue` 已于 2026-09-16 下线（浏览形态改由白板承载）。
  * 本模块**存活的部分**只有四个：`flatNodes`（读）、`syncParentChildRelation`（BoardView 用）、
  * `deleteNode` / `moveNode`（agentDataBridges 的 Agent 路径用）。
- * 其余（`treeData` / `addRootNode` / `addChildNode` / `nodeIcon` / `statusLabel`）仅供已下线的
+ * 其余（`treeData` / `addRootNode` / `addChildNode` / `statusLabel`）仅供已下线的
  * OutlineView 使用，属施工分解 §十三 C 类「待消化」挂账——按「不允许无记录地删能力」保留。
+ * （`nodeIcon` 已于 2026-09-18 随 Q6-③ 删除：它无调用方且返回 emoji，违反项目图标约定。）
  *
  * 【两条硬约束（2026-09-17 质量体检发现，均曾造成真实数据丢失）】
  * ① **写 `properties` 前必须合并**：实体更新对 `properties` 是**整体替换**
@@ -118,12 +119,9 @@ export function useOutlineTree() {
     await syncParentChildRelation(nodeId, newParentId)
   }
 
-  function nodeIcon(e: Entity): string {
-    const s = e.properties.status as string
-    if (s === '完成') return '✅'
-    if (s === '草稿') return '📝'
-    return '📋'
-  }
+  // 2026-09-18（Q6-③）：删除 `nodeIcon` —— 它返回 emoji（✅/📝/📋），既违反项目
+  // 「禁用 emoji 图标」约定，又**已无任何调用方**（唯一使用者是 09-17 删除的 OutlineView）。
+  // 图标语义由白板的表现形式层承担（`WsIcon` SVG）。
 
   function statusLabel(e: Entity): string {
     return (e.properties.status as string) || '未写'
@@ -135,6 +133,6 @@ export function useOutlineTree() {
     // Agent bridge（outline create_node/batch_create）建子节点时同步 parent_child 关系；
     // BoardView 的右栏重排同样复用
     syncParentChildRelation,
-    nodeIcon, statusLabel,
+    statusLabel,
   }
 }
