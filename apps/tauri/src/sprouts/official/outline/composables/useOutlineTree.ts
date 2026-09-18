@@ -72,7 +72,7 @@ export function useOutlineTree() {
       properties: {
         status: '未写', order: flatNodes.value.length + 1,
         parentId: '', storylines: '', summary: '',
-        manuscriptId: '', content: '',
+        manuscriptId: '',
       },
       tags: [], createdAt: now, updatedAt: now,
     } as Entity)
@@ -94,7 +94,7 @@ export function useOutlineTree() {
       properties: {
         status: '未写', order: children.length + 1,
         parentId: parent.id, storylines: '', summary: '',
-        manuscriptId: '', content: '',
+        manuscriptId: '',
       },
       tags: [], createdAt: now, updatedAt: now,
     } as Entity)

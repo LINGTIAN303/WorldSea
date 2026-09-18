@@ -245,7 +245,7 @@ export function installAgentDataBridges(): void {
         properties: {
           status: '未写', order: siblings.length + 1,
           parentId: effectiveParentId, storylines: '', summary: '',
-          manuscriptId: '', content: '',
+          manuscriptId: '',
           ...(payload.type ? { nodeType: payload.type as string } : {}),
         },
         tags: [], createdAt: now, updatedAt: now,
@@ -317,7 +317,7 @@ export function installAgentDataBridges(): void {
           properties: {
             status: '未写', order: siblings.length + 1,
             parentId: effectiveParentId, storylines: '',
-            manuscriptId: '', content: '',
+            manuscriptId: '',
             ...(node.type ? { nodeType: String(node.type) } : {}),
           },
           tags: [], createdAt: now, updatedAt: now,

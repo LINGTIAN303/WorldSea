@@ -166,6 +166,10 @@ describe('大纲写动作的属性保全（2026-09-17 质量体检回归）', ()
     const child = es.entities.find(e => e.type === 'outline_node' && e.name === '护栏章')!
     // 建树时 batch_create 已把 summary 落到 description（摘要口径统一）
     expect(child.description).toBe('初始摘要')
+    // Q1 裁定（2026-09-18 · 大纲＝纯结构层）：新建节点**不再携带 content**。
+    // 此前 6 处新建路径都会写 `content: ''`（一个无入口、无消费方的野字段），已全部清理；
+    // 这条断言钉住裁定，防止将来被顺手加回。
+    expect(child.properties.content).toBeUndefined()
 
     fireAction('outline', 'update_node', {
       nodeId: child.id,
@@ -177,7 +181,7 @@ describe('大纲写动作的属性保全（2026-09-17 质量体检回归）', ()
     const after = es.entities.find(e => e.id === child.id)!
     expect(after.properties.parentId).toBe(parent.id) // 未脱树
     expect(after.properties.order).toBe(1) // 序号仍在
-    expect(after.properties.content).toBe('') // 未变成 undefined
+    expect(after.properties.manuscriptId).toBe('') // 未提及的字段未被抹成 undefined
     expect(after.properties.storylines).toBe('')
     expect(after.description).toBe('改后的摘要') // summary 归一写入 description
   }, 45000)
@@ -211,7 +215,7 @@ describe('大纲写动作的属性保全（2026-09-17 质量体检回归）', ()
     const cAfter = es.entities.find(e => e.id === c.id)!
     expect(cAfter.properties.parentId).toBe(a.id)
     expect(cAfter.properties.status).toBe('未写') // 未被抹成 undefined
-    expect(cAfter.properties.content).toBe('')
+    expect(cAfter.properties.manuscriptId).toBe('') // 未提及的字段未被抹成 undefined
 
     // 重排不得波及同胞的属性
     const bAfter = es.entities.find(e => e.id === b.id)!
