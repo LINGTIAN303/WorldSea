@@ -37,9 +37,11 @@ export const LINK_FIELD = {
 
 /**
  * 本模块对 store 的最小依赖（只用到这两条能力 → 便于测试注入替身）。
- * 注意 `getAllEntities()` **直接委托 storage、不改变 store 状态**——
- * 这正是这里不能用 `es.loadByType('manuscript')` 的原因：后者会把 store 的 `entities`
- * 收窄成该类型、**挤掉其它芽的实体**（框架级陷阱，见施工分解 §十三 A-7）。
+ * 注意 `getAllEntities()` **直接委托 storage、不改 store 状态**——本模块要同时看
+ * 章节与大纲节点两类实体做双侧判定，用它会一次拿全，无需关心 store 里当前有哪些类型。
+ *
+ * （`es.loadByType` 的「挤掉其它类型」副作用已于 2026-09-18 修正为增量语义；
+ *  但凡需要「一次看多类实体」的场合，`getAllEntities` 仍是更直接的读法。）
  */
 export interface ChapterLinkStore {
   getAllEntities(): Promise<Entity[]>

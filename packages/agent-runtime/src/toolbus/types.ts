@@ -9,6 +9,11 @@ export interface IEntityStore {
   remove(id: string, source?: string): Promise<void>
   getById(id: string): Promise<EntityLike | undefined>
   getAllEntities(): Promise<EntityLike[]>
+  /**
+   * 按类型加载（**增量语义**：只替换该类型，保留其它类型的内存态）。
+   * 早期实现会整体替换 store 的实体集合，造成跨芽数据"消失"，2026-09-18 已修正。
+   * 需要「一次看多类实体」时优先用 `getAllEntities()`。
+   */
   loadByType(type: string): Promise<void>
   typeCounts: Map<string, number> | { value: Map<string, number> }
 }

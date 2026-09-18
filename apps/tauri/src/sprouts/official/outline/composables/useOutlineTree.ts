@@ -11,9 +11,9 @@
  * ① **写 `properties` 前必须合并**：实体更新对 `properties` 是**整体替换**
  *    （`entityStore.update` → `updateById` 只做顶层浅合并，`properties` 整个对象被换掉）。
  *    只提交 `{ parentId, order }` 这类子集会抹掉 status / 摘要 / 关联章节 / content。
- * ② **不得调用 `es.loadByType`**：它内部走 `setAll()`，会把 store 的 `entities`
- *    整体替换为**该类型**的实体，从而挤掉其它所有芽的实体（Agent 删一个节点 → 全库实体
- *    从内存消失，直到下次 `loadAll`）。写操作后 store 已同步维护内存态，本就无需刷新。
+ * ② **写操作后不要「顺手刷新」**：store 已同步维护内存态，刷新是多余的。
+ *    （`es.loadByType` 的「挤掉其它类型」副作用已于 2026-09-18 修正为增量语义，
+ *    所以现在调它不至于损坏数据；但**多余就是多余**，本文件那处调用已删除。）
  */
 import { computed } from 'vue'
 import { useEntityStore, useRelationStore } from '@worldsea/entity-core'
@@ -76,7 +76,8 @@ export function useOutlineTree() {
       },
       tags: [], createdAt: now, updatedAt: now,
     } as Entity)
-    await es.loadByType('outline_node')
+    // 写操作后 store 已同步维护内存态，**本就无需刷新**（2026-09-18 删掉此前这里的
+    // `es.loadByType('outline_node')`——它既是多余的，也正是本文件约束②警告的那件事）
     return id
   }
 

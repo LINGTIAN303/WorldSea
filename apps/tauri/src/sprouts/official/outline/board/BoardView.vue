@@ -307,8 +307,9 @@ const existingNodeIds = computed(() => new Set(outlineNodes.value.map(n => n.id)
 const danglingIds = computed(() => danglingContainerIds(layout.value, existingNodeIds.value))
 
 // ── 章节（右栏「章节」tab 的数据源）──────────────
-// 读法必须用 `es.getAllEntities()`（只读、直接委托 storage）——**不能用 `es.loadByType('manuscript')`**：
-// 后者会把 store 的 `entities` 收窄成该类型、挤掉其它芽的实体（框架级陷阱，见施工分解 §十三 A-7）。
+// 读法用 `es.getAllEntities()`（只读、直接委托 storage）：这里要同时拿章节与大纲节点做
+// 「已关联」判定，一次全量最省事。（`loadByType` 的收窄副作用已于 2026-09-18 修正，
+// 但它的语义是「只保证该类型最新」，跨类型判定仍以 getAllEntities 为直路。）
 const chapters = ref<Entity[]>([])
 const chapterLink = ref<ChapterLinkIndex>({ nodeByChapter: new Map(), chapterByNode: new Map() })
 
