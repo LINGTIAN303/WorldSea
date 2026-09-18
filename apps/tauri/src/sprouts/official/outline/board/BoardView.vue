@@ -69,6 +69,7 @@
       @add-component="onAddComponent"
       @create-node-at="onCreateNodeAt"
       @drop-node="onDropNode"
+      @drop-chapter="onDropChapter"
       @viewport-change="onViewportChange"
       @interaction-start="onInteractionStart"
       @create-section="onCreateSection"
@@ -98,7 +99,9 @@
       v-if="inspectedContainer"
       :container="inspectedContainer"
       :node="inspectedNode"
+      :linked-chapter-name="inspectedChapterName"
       @close="inspectorClosed = true"
+      @unlink-chapter="onUnlinkChapter"
       @resize="onInspectorResize"
       @reset-size="onInspectorResetSize"
       @update-config="onComponentConfig"
@@ -113,10 +116,14 @@
       :placed-ids="placedIds"
       :collapsed="sidebarCollapsed"
       :reveal-signal="revealSignal"
+      :chapters="chapters"
+      :chapter-node-names="chapterNodeNames"
       @toggle-collapse="sidebarCollapsed = !sidebarCollapsed"
       @add="onSidebarAdd"
       @locate="onLocate"
       @reparent="onReparent"
+      @add-chapter="onSidebarAddChapter"
+      @link-chapter="linkChapter"
     />
 
     <!-- 右键菜单（四级上下文：画布空白 / 区 / 容器 / 组件行；见 board/contextMenu.ts） -->
@@ -170,7 +177,7 @@ import { useEntityStore, type Entity } from '@worldsea/entity-core'
 // 芽视图里的 UI 组件必须显式导入：它们**不是全局组件**，未导入时 vue-tsc 不报错、
 // 只在渲染时静默变成空节点（2026-09-16 真机走查踩坑）
 import { CreateButton } from '@worldsea/plugin-sdk'
-import { WsIcon, useShortcuts, toastWarn } from '@worldsea/ui-kit'
+import { WsIcon, useShortcuts, toastWarn, toastInfo } from '@worldsea/ui-kit'
 import BoardCanvas from './components/BoardCanvas.vue'
 import BoardCanvasToolbar from './components/BoardCanvasToolbar.vue'
 import BoardInspector from './components/BoardInspector.vue'
@@ -207,6 +214,14 @@ import {
 import { initializeForms } from './forms/initializeForms'
 // 复用既有的 parent_child 关系同步（单一实现，避免第二份漂移）
 import { useOutlineTree } from '../composables/useOutlineTree'
+// 「章节 ↔ 大纲节点」关联的唯一写入入口（收敛此前的双字段双轨，见该模块头注释）
+import {
+  buildChapterLinkIndex,
+  CHAPTER_TYPE,
+  linkChapterToNode,
+  unlinkNode,
+  type ChapterLinkIndex,
+} from '@/entity/chapterLink'
 
 /** 容器自适应尺寸的估算值统一取 layoutSchema.DEFAULT_CONTAINER_SIZE（避免多处漂移） */
 
@@ -290,6 +305,34 @@ const placedIds = computed(() => new Set(layout.value.containers.map(c => c.node
 const existingNodeIds = computed(() => new Set(outlineNodes.value.map(n => n.id)))
 /** 悬空容器（节点已删）：只在悬浮条上给清理入口，绝不自动删 */
 const danglingIds = computed(() => danglingContainerIds(layout.value, existingNodeIds.value))
+
+// ── 章节（右栏「章节」tab 的数据源）──────────────
+// 读法必须用 `es.getAllEntities()`（只读、直接委托 storage）——**不能用 `es.loadByType('manuscript')`**：
+// 后者会把 store 的 `entities` 收窄成该类型、挤掉其它芽的实体（框架级陷阱，见施工分解 §十三 A-7）。
+const chapters = ref<Entity[]>([])
+const chapterLink = ref<ChapterLinkIndex>({ nodeByChapter: new Map(), chapterByNode: new Map() })
+
+async function refreshChapters(): Promise<void> {
+  const all = await es.getAllEntities()
+  chapters.value = all.filter(e => e.type === CHAPTER_TYPE)
+  // 索引取**全量实体**建：双轨期间历史数据可能只有一侧有值，两侧都收进来才能正确判定「已关联」
+  chapterLink.value = buildChapterLinkIndex(all)
+}
+
+/** 章节 id → 已关联的节点名（右栏「已关联」标记；双侧汇总，任一侧有值即算已关联） */
+const chapterNodeNames = computed(() => {
+  // 索引已**归一化**（双轨历史数据任一侧有值、两个方向都可查），故只读一个方向即可
+  const byId = nodesById.value
+  const out = new Map<string, string>()
+  for (const [chapterId, nodeId] of chapterLink.value.nodeByChapter) {
+    out.set(chapterId, (byId.get(nodeId)?.name ?? '').trim() || '未命名节点')
+  }
+  return out
+})
+
+/** 进入编辑器时拉一次章节；关联动作后再刷新标记 */
+watch(inEditor, v => { if (v) void refreshChapters() }, { immediate: true })
+
 const snapMode = computed<SnapMode>(() =>
   parseSnapMode(currentBoard.value?.properties?.snap),
 )
@@ -312,6 +355,19 @@ const inspectedContainer = computed(() => (inspectorClosed.value ? null : select
 const inspectedNode = computed(() =>
   inspectedContainer.value ? nodesById.value.get(inspectedContainer.value.nodeId) : undefined,
 )
+
+/**
+ * 面板上显示的「已关联章节名」。
+ * 索引已归一化，故从 `nodeByChapter` 反查即可（`chapterByNode` 取到的是同一结果）。
+ */
+const inspectedChapterName = computed(() => {
+  const node = inspectedNode.value
+  if (!node) return ''
+  const chapterId = chapterLink.value.chapterByNode.get(node.id)
+    || String((node.properties?.manuscriptId as string) ?? '').trim()
+  if (!chapterId) return ''
+  return (chapters.value.find(c => c.id === chapterId)?.name ?? '').trim() || '未命名章节'
+})
 const zoomPercent = computed(() => Math.round(viewport.value.zoom * 100))
 
 const saveText = computed(() => {
@@ -549,6 +605,93 @@ function onSidebarAdd(nodeId: string): void {
 function onLocate(nodeId: string): void {
   const container = layout.value.containers.find(c => c.nodeId === nodeId)
   if (container) locateContainer(container.id)
+}
+
+// ── 章节：关联与「拖入即建节点」──────────────────
+// 关联的**唯一写入口**是 `@/entity/chapterLink`（它负责双侧双写 + 1:1 清旧值）。
+// 本层只决定「何时调用 + 关联后怎么呈现」。
+
+/**
+ * 把章节关联到指定节点（唯一写入入口的包装：只加提示与右栏刷新）。
+ *
+ * **不进白板撤销栈**（有意）：白板撤销条目是**单实体字段**语义（`field` 类型），
+ * 而关联是一次「多实体原子操作」（章节 + 节点 + 可能清理两侧旧关联），条目模型表达不了。
+ * 关联本身是幂等且可逆的（再关联 / 解除即可），故本轮不扩撤销条目类型。
+ */
+async function linkChapter(chapterId: string, nodeId: string): Promise<void> {
+  const outcome = await linkChapterToNode(es, chapterId, nodeId)
+  if (!outcome.written.length) return
+  await refreshChapters()
+  const nodeName = (nodesById.value.get(nodeId)?.name ?? '').trim() || '未命名节点'
+  toastInfo(`已关联「${nodeName}」`)
+}
+
+/** 拖章节入画布：落在容器上 → 只关联；落在空白 → 新建节点 + 容器 + 关联 */
+async function onDropChapter(
+  chapterId: string,
+  pos: Point,
+  containerId: string | null,
+): Promise<void> {
+  const chapter = chapters.value.find(c => c.id === chapterId)
+  if (!chapter) return
+
+  const target = containerId
+    ? layout.value.containers.find(c => c.id === containerId) ?? null
+    : null
+
+  if (target) {
+    await linkChapter(chapterId, target.nodeId)
+    selection.select(target.id)
+    return
+  }
+
+  // 空白落点：新建节点（名字与描述取自章节）+ 建容器 + 关联
+  undoApi.record()
+  const now = new Date().toISOString()
+  const nodeId = genBoardId('out')
+  const siblings = outlineNodes.value.filter(n => !((n.properties?.parentId as string) || ''))
+  await es.add({
+    id: nodeId,
+    type: 'outline_node',
+    name: (chapter.name ?? '').trim() || '新节点',
+    description: (chapter.description ?? '') || '',
+    properties: {
+      status: '未写',
+      order: siblings.length + 1,
+      parentId: '',
+      storylines: '',
+      summary: '',
+      manuscriptId: '',
+      content: '',
+    },
+    tags: [],
+    createdAt: now,
+    updatedAt: now,
+  })
+  layoutApi.addContainer(nodeId, pos)
+  const created = layout.value.containers.find(c => c.nodeId === nodeId)
+  if (created) selection.select(created.id)
+  await linkChapter(chapterId, nodeId)
+}
+
+/** 右栏双击/单击章节：落到视口中心（复用节点入板的同一居中算法） */
+function onSidebarAddChapter(chapterId: string): void {
+  const size = canvasRef.value?.size() ?? { w: 0, h: 0 }
+  const center: Point = {
+    x: (-viewport.value.panX + size.w / 2) / viewport.value.zoom - DEFAULT_CONTAINER_SIZE.w / 2,
+    y: (-viewport.value.panY + size.h / 2) / viewport.value.zoom - DEFAULT_CONTAINER_SIZE.h / 2,
+  }
+  void onDropChapter(chapterId, { x: Math.round(center.x), y: Math.round(center.y) }, null)
+}
+
+/** 属性面板「解除关联」：节点侧解除（两侧字段都清，节点与章节都不删） */
+async function onUnlinkChapter(): Promise<void> {
+  const node = inspectedNode.value
+  if (!node) return
+  const outcome = await unlinkNode(es, node.id)
+  if (!outcome.written.length) return
+  await refreshChapters()
+  toastInfo('已解除章节关联')
 }
 
 function locateContainer(containerId: string): void {

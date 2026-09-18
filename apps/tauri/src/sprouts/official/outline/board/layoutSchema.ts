@@ -238,6 +238,27 @@ export function removeContainers(
 /** 分量前先补一个容器自适应尺寸的估算值（吸附/包围盒/命中都要用，故收敛到单一定义） */
 export const DEFAULT_CONTAINER_SIZE = { w: 200, h: 80 }
 
+/**
+ * 命中测试：世界坐标落在哪个容器内（没有则 null）。
+ *
+ * **逆序遍历**：`containers` 的数组顺序即 DOM 渲染顺序，**后渲染的在视觉上层**，
+ * 故命中应优先返回靠后的那个——否则重叠时会把落点判给被压住的容器。
+ * （区与容器是兄弟、容器之间可重叠，故重叠是正常态而非异常。）
+ */
+export function containerAtPoint(
+  containers: BoardContainer[],
+  point: { x: number; y: number },
+  fallback: { w: number; h: number } = DEFAULT_CONTAINER_SIZE,
+): BoardContainer | null {
+  for (let i = containers.length - 1; i >= 0; i -= 1) {
+    const r = rectOfContainer(containers[i], fallback)
+    if (point.x >= r.x && point.x <= r.x + r.w && point.y >= r.y && point.y <= r.y + r.h) {
+      return containers[i]
+    }
+  }
+  return null
+}
+
 /** 取容器的有效矩形：显式尺寸优先，未设尺寸时用估算值（单一实现，避免多处漂移） */
 export function rectOfContainer(
   container: BoardContainer,

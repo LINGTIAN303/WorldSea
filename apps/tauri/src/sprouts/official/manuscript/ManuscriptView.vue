@@ -204,6 +204,8 @@ import { useChapterEditor } from './composables/useChapterEditor'
 import { useChapterSnapshots } from './composables/useChapterSnapshots'
 import type { Entity } from '@worldsea/entity-core'
 import { useAgentPluginBridge } from '@/composables/useAgentPluginBridge'
+// 「章节 ↔ 大纲节点」关联的唯一写入入口（新建章节归属节点时用，保证双侧一致）
+import { linkChapterToNode } from '@/entity/chapterLink'
 
 const es = useEntityStore()
 const rs = useRelationStore()
@@ -429,6 +431,9 @@ async function newManuscript() {
     updatedAt: now,
   }
   await es.add(entity)
+  // 若当前是按某个大纲节点筛选（「在该节点下新建章节」），把归属写成**双向关联**——
+  // 走唯一写入入口，否则只写章节侧、大纲白板的「打开正文」不会亮（09-18 收敛）
+  if (filterOutline.value) await linkChapterToNode(es, id, filterOutline.value)
   const created = (es.entities ?? []).find(e => e.id === id)
   if (created) select(created, { focusTitle: true })
 }

@@ -11,19 +11,19 @@
         v-if="!collapsed"
         class="ns-toggle"
         type="button"
-        title="收起节点栏"
-        aria-label="收起节点栏"
+        title="收起侧栏"
+        aria-label="收起侧栏"
         @click="$emit('toggleCollapse')"
       >
         <WsIcon name="panel-right-close" size="xs" />
       </button>
-      <span v-if="!collapsed" class="ns-title">节点</span>
+      <span v-if="!collapsed" class="ns-title">{{ tab === 'nodes' ? '节点' : '章节' }}</span>
       <button
         v-else
         class="ns-toggle ns-toggle--collapsed"
         type="button"
-        title="展开节点栏"
-        aria-label="展开节点栏"
+        title="展开侧栏"
+        aria-label="展开侧栏"
         @click="$emit('toggleCollapse')"
       >
         <WsIcon name="panel-right-open" size="sm" />
@@ -31,52 +31,105 @@
     </div>
 
     <template v-if="!collapsed">
+      <!-- 两个来源并列：节点（入板）/ 章节（新建节点并关联，或关联到已有容器） -->
+      <div class="ns-tabs" role="tablist" aria-label="侧栏来源">
+        <button
+          v-for="t in TABS"
+          :key="t.id"
+          class="ns-tab"
+          type="button"
+          role="tab"
+          :aria-selected="tab === t.id"
+          :class="{ 'ns-tab--active': tab === t.id }"
+          @click="switchTab(t.id)"
+        >{{ t.label }}</button>
+      </div>
+
       <div class="ns-search">
-        <input v-model="query" class="ns-search-input" type="text" placeholder="搜索节点…" />
+        <input
+          v-model="query"
+          class="ns-search-input"
+          type="text"
+          :placeholder="tab === 'nodes' ? '搜索节点…' : '搜索章节…'"
+        />
       </div>
 
       <div ref="listEl" class="ns-list" role="tree">
-        <div
-          v-for="row in rows"
-          :key="row.id"
-          class="ns-item"
-          :class="[
-            { 'ns-item--placed': row.placed, 'ns-item--flash': flashId === row.id },
-            dropClass(row.id),
-          ]"
-          :data-node-id="row.id"
-          role="treeitem"
-          :aria-level="row.depth + 1"
-          :draggable="true"
-          :title="row.placed ? '已在板上（拖拽或双击将定位到已有容器）；也可拖到其它节点上调整层级' : row.name"
-          @dragstart="onDragStart(row, $event)"
-          @dragover.prevent="onItemDragOver(row, $event)"
-          @dragleave="onItemDragLeave(row)"
-          @drop.prevent.stop="onItemDrop(row, $event)"
-          @dragend="resetDropHint"
-          @dblclick="onActivate(row)"
-          @click="onActivate(row)"
-        >
-          <span class="ns-indent" :style="{ width: `${row.depth * 12}px` }" />
-          <button
-            v-if="row.hasChildren && !isSearching"
-            class="ns-caret"
-            type="button"
-            :title="isExpanded(row.id) ? '折叠' : '展开'"
-            @click.stop="toggleExpand(row.id)"
-          >{{ isExpanded(row.id) ? '▾' : '▸' }}</button>
-          <span v-else class="ns-caret ns-caret--empty" />
-          <span class="ns-dot" :class="dotClassOf(row.status)" />
-          <span class="ns-name">{{ row.name }}</span>
-          <span v-if="row.placed" class="ns-badge">已在板上</span>
-        </div>
+        <template v-if="tab === 'nodes'">
+          <div
+            v-for="row in rows"
+            :key="row.id"
+            class="ns-item"
+            :class="[
+              { 'ns-item--placed': row.placed, 'ns-item--flash': flashId === row.id },
+              dropClass(row.id),
+            ]"
+            :data-node-id="row.id"
+            role="treeitem"
+            :aria-level="row.depth + 1"
+            :draggable="true"
+            :title="row.placed ? '已在板上（拖拽或双击将定位到已有容器）；也可拖到其它节点上调整层级' : row.name"
+            @dragstart="onDragStart(row, $event)"
+            @dragover.prevent="onItemDragOver(row, $event)"
+            @dragleave="onItemDragLeave(row)"
+            @drop.prevent.stop="onItemDrop(row, $event)"
+            @dragend="resetDropHint"
+            @dblclick="onActivate(row)"
+            @click="onActivate(row)"
+          >
+            <span class="ns-indent" :style="{ width: `${row.depth * 12}px` }" />
+            <button
+              v-if="row.hasChildren && !isSearching"
+              class="ns-caret"
+              type="button"
+              :title="isExpanded(row.id) ? '折叠' : '展开'"
+              @click.stop="toggleExpand(row.id)"
+            >{{ isExpanded(row.id) ? '▾' : '▸' }}</button>
+            <span v-else class="ns-caret ns-caret--empty" />
+            <span class="ns-dot" :class="dotClassOf(row.status)" />
+            <span class="ns-name">{{ row.name }}</span>
+            <span v-if="row.placed" class="ns-badge">已在板上</span>
+          </div>
 
-        <div v-if="!rows.length" class="ns-empty">
-          {{ isSearching ? '没有匹配的节点' : '还没有大纲节点' }}
-        </div>
+          <div v-if="!rows.length" class="ns-empty">
+            {{ isSearching ? '没有匹配的节点' : '还没有大纲节点' }}
+          </div>
+        </template>
+
+        <!-- 章节 tab：拖入画布 = 新建节点并关联；拖到容器上 = 只建立关联 -->
+        <template v-else>
+          <div
+            v-for="c in chapterRows"
+            :key="c.id"
+            class="ns-item"
+            :data-node-id="c.id"
+            role="treeitem"
+            :aria-level="1"
+            :draggable="true"
+            :title="c.linkedNodeName
+              ? `已关联「${c.linkedNodeName}」（拖拽将改为关联落点节点）`
+              : `${c.name}（拖到画布空白新建节点，拖到容器上则只建立关联）`"
+            @dragstart="onChapterDragStart(c, $event)"
+            @dblclick="emit('addChapter', c.id)"
+            @click="emit('addChapter', c.id)"
+          >
+            <span class="ns-indent" />
+            <span class="ns-caret ns-caret--empty" />
+            <span class="ns-dot" :class="c.dotClass" />
+            <span class="ns-name">{{ c.name }}</span>
+            <span v-if="c.wordCount" class="ns-words">{{ c.wordCount }}字</span>
+            <span v-if="c.linkedNodeName" class="ns-badge ns-badge--linked">{{ c.linkedNodeName }}</span>
+          </div>
+
+          <div v-if="!chapterRows.length" class="ns-empty">
+            {{ isSearching ? '没有匹配的章节' : '还没有章节（在正文芽中创建）' }}
+          </div>
+        </template>
       </div>
 
-      <div class="ns-hint">拖到画布放置 · 双击落在视口中心</div>
+      <div class="ns-hint">
+        {{ tab === 'nodes' ? '拖到画布放置 · 双击落在视口中心' : '拖到空白新建节点并关联 · 拖到容器上只建立关联' }}
+      </div>
     </template>
   </aside>
 </template>
@@ -91,7 +144,7 @@ import type { Entity } from '@worldsea/entity-core'
 // 显式导入（非全局组件）
 import { WsIcon } from '@worldsea/ui-kit'
 import { resolveChildNodes } from '../outlineDerive'
-import { NODE_DND_MIME, readNodeIdFromDnD } from '../dnd'
+import { NODE_DND_MIME, CHAPTER_DND_MIME, readDndPayload, carriesChapter } from '../dnd'
 import { dropModeFromRatio, type DropMode } from '../outlineHierarchy'
 
 interface Row {
@@ -112,6 +165,10 @@ const props = defineProps<{
    * {id, token}：token 递增保证重复定位同一节点也能再次触发。
    */
   revealSignal?: { id: string; token: number } | null
+  /** 章节 tab 的数据源（manuscript 实体；由装配层用只读 API 取，见 chapterLink） */
+  chapters?: Entity[]
+  /** 章节 id → 已关联的大纲节点名（「已关联」标记用；空表示未关联） */
+  chapterNodeNames?: Map<string, string>
 }>()
 
 const emit = defineEmits<{
@@ -120,7 +177,25 @@ const emit = defineEmits<{
   (e: 'toggleCollapse'): void
   /** 拖到另一个节点项上 → 层级重排（成为其子节点 / 插到其前 / 其后） */
   (e: 'reparent', draggedId: string, targetId: string, mode: DropMode): void
+  /** 章节双击/单击 → 新建节点并建立关联（落到视口中心） */
+  (e: 'addChapter', chapterId: string): void
+  /** 拖章节到节点项上 → 把该章节关联到该节点（不新建） */
+  (e: 'linkChapter', chapterId: string, nodeId: string): void
 }>()
+
+// ── 两个来源的 tab（节点 / 章节）───────────────
+const TABS: Array<{ id: 'nodes' | 'chapters'; label: string }> = [
+  { id: 'nodes', label: '节点' },
+  { id: 'chapters', label: '章节' },
+]
+const tab = ref<'nodes' | 'chapters'>('nodes')
+
+/** 切换 tab 时清空搜索：两个来源的过滤词不该互相继承（否则切过去看到空列表） */
+function switchTab(next: 'nodes' | 'chapters'): void {
+  if (tab.value === next) return
+  tab.value = next
+  query.value = ''
+}
 
 const query = ref('')
 const expanded = ref<Set<string>>(new Set())
@@ -221,6 +296,13 @@ function dropClass(id: string): string | undefined {
 function onItemDragOver(row: Row, ev: DragEvent): void {
   const el = ev.currentTarget as HTMLElement | null
   if (!el) return
+  // 章节载荷没有「位置」概念（它只能「关联到该节点」）→ 固定用「成为子节点」那种高亮，
+  // 不给上/下插入线，避免暗示一个不存在的排序语义
+  if (carriesChapter(ev.dataTransfer)) {
+    dragOverId.value = row.id
+    dragOverMode.value = 'child'
+    return
+  }
   const rect = el.getBoundingClientRect()
   const ratio = rect.height > 0 ? (ev.clientY - rect.top) / rect.height : 0.5
   dragOverId.value = row.id
@@ -232,11 +314,17 @@ function onItemDragLeave(row: Row): void {
 }
 
 function onItemDrop(row: Row, ev: DragEvent): void {
-  const draggedId = readNodeIdFromDnD(ev)
-  const mode = dragOverMode.value
+  const payload = readDndPayload(ev)
   resetDropHint()
-  if (!draggedId || draggedId === row.id) return
-  emit('reparent', draggedId, row.id, mode)
+  if (!payload) return
+  // 拖章节到节点项上 = 把该章节关联到这个节点（比「先入板再拖到容器上」更直接，
+  // 且节点还没入板时也能用）。落点无位置语义，故 mode 不参与。
+  if (payload.kind === 'chapter') {
+    emit('linkChapter', payload.id, row.id)
+    return
+  }
+  if (payload.id === row.id) return
+  emit('reparent', payload.id, row.id, dragOverMode.value)
 }
 
 function resetDropHint(): void {
@@ -248,6 +336,50 @@ function resetDropHint(): void {
 function onActivate(row: Row): void {
   if (row.placed) emit('locate', row.id)
   else emit('add', row.id)
+}
+
+// ── 章节 tab ───────────────────────────────────
+interface ChapterRow {
+  id: string
+  name: string
+  wordCount: number
+  /** 已关联的节点名（空 = 未关联） */
+  linkedNodeName: string
+  dotClass: string
+}
+
+/**
+ * 章节行。搜索命中名或标签；顺序保持传入顺序（装配层已按卷/顺序排好），
+ * 不在这里再排序——排序规则属数据侧，视图侧只做过滤。
+ */
+const chapterRows = computed<ChapterRow[]>(() => {
+  const q = query.value.trim().toLowerCase()
+  const names = props.chapterNodeNames ?? new Map<string, string>()
+  const out: ChapterRow[] = []
+  for (const c of props.chapters ?? []) {
+    const status = (c.properties?.status as string) || '草稿'
+    const name = (c.name ?? '').trim() || '未命名章节'
+    const hay = `${name} ${c.description ?? ''} ${status}`.toLowerCase()
+    if (q && !hay.includes(q)) continue
+    out.push({
+      id: c.id,
+      name,
+      wordCount: Number(c.properties?.wordCount ?? 0) || 0,
+      linkedNodeName: names.get(c.id) ?? '',
+      dotClass: status === '终稿'
+        ? 'ns-dot--done'
+        : status === '修订中' ? 'ns-dot--draft' : 'ns-dot--todo',
+    })
+  }
+  return out
+})
+
+/** 章节拖拽源：写专用 MIME（与节点载荷区分，落点语义不同） */
+function onChapterDragStart(c: ChapterRow, ev: DragEvent): void {
+  if (!ev.dataTransfer) return
+  ev.dataTransfer.effectAllowed = 'copy'
+  ev.dataTransfer.setData(CHAPTER_DND_MIME, c.id)
+  ev.dataTransfer.setData('text/plain', c.name)
 }
 
 // ── 外部定位（右键菜单「在右栏中定位」）──────────
@@ -338,6 +470,31 @@ onBeforeUnmount(() => {
 .ns-toggle--collapsed { width: 100%; height: 28px; }
 .ns-title { font-size: var(--font-size-xs); color: var(--text-secondary); font-weight: var(--font-weight-medium); }
 .ns-search { padding: 6px 8px; border-bottom: 1px solid var(--border-light); flex-shrink: 0; }
+/* 来源切换（节点 / 章节）：分段按钮，与画布悬浮条的吸附三态同一视觉语言 */
+.ns-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 6px 8px 0;
+  flex-shrink: 0;
+}
+.ns-tab {
+  flex: 1;
+  padding: 3px 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  /* 显式设色：暗色主题下不设会继承成不可见（项目通用坑） */
+  color: var(--text-secondary);
+  font-size: var(--font-size-2xs);
+  font-family: inherit;
+  cursor: pointer;
+}
+.ns-tab:hover { background: var(--hover-bg); }
+.ns-tab--active {
+  border-color: var(--border-color);
+  background: var(--bg-tertiary);
+  color: var(--text-color);
+}
 .ns-search-input {
   width: 100%;
   padding: 4px 8px;
@@ -402,6 +559,16 @@ onBeforeUnmount(() => {
   padding: 0 4px;
 }
 .ns-empty { padding: 12px 10px; font-size: var(--font-size-2xs); color: var(--text-tertiary); text-align: center; }
+/* 章节行：字数与「已关联」徽标（徽标显示关联到的节点名，便于判断该不该再拖） */
+.ns-words { flex-shrink: 0; font-size: var(--font-size-2xs); color: var(--text-tertiary); }
+.ns-badge--linked {
+  max-width: 84px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--primary);
+  background: var(--primary-soft, rgba(79, 70, 229, 0.1));
+}
 .ns-hint {
   flex-shrink: 0;
   padding: 6px 8px;

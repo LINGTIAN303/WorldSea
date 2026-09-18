@@ -6,7 +6,7 @@
  * 「右栏拖拽像没实现」，根因候选正是 drop 侧缺 `dropEffect`/类型判定，故补测试锁住行为。
  */
 import { describe, it, expect } from 'vitest'
-import { acceptsNodeDrag, NODE_DND_MIME, readNodeIdFromDnD } from '../board/dnd'
+import { acceptsBoardDrag, carriesChapter, CHAPTER_DND_MIME, NODE_DND_MIME, readDndPayload, readNodeIdFromDnD } from '../board/dnd'
 
 function dataTransfer(types: string[], data: Record<string, string> = {}): DataTransfer {
   return {
@@ -19,23 +19,69 @@ function dragEvent(dt: DataTransfer | null): DragEvent {
   return { dataTransfer: dt } as unknown as DragEvent
 }
 
-describe('dnd / acceptsNodeDrag', () => {
+describe('dnd / acceptsBoardDrag', () => {
   it('types 含本芽 MIME → 接受', () => {
-    expect(acceptsNodeDrag(dataTransfer([NODE_DND_MIME]))).toBe(true)
+    expect(acceptsBoardDrag(dataTransfer([NODE_DND_MIME]))).toBe(true)
   })
 
   it('含其它类型（如系统拖文件）→ 不接受', () => {
-    expect(acceptsNodeDrag(dataTransfer(['Files']))).toBe(false)
-    expect(acceptsNodeDrag(dataTransfer(['text/plain']))).toBe(false)
+    expect(acceptsBoardDrag(dataTransfer(['Files']))).toBe(false)
+    expect(acceptsBoardDrag(dataTransfer(['text/plain']))).toBe(false)
   })
 
   it('混合类型里含本芽 MIME → 接受（拖拽载荷同时写了 text/plain 也照样认）', () => {
-    expect(acceptsNodeDrag(dataTransfer(['text/plain', NODE_DND_MIME]))).toBe(true)
+    expect(acceptsBoardDrag(dataTransfer(['text/plain', NODE_DND_MIME]))).toBe(true)
   })
 
   it('空 / 缺失 dataTransfer → 不接受（不抛错）', () => {
-    expect(acceptsNodeDrag(dataTransfer([]))).toBe(false)
-    expect(acceptsNodeDrag(null)).toBe(false)
+    expect(acceptsBoardDrag(dataTransfer([]))).toBe(false)
+    expect(acceptsBoardDrag(null)).toBe(false)
+  })
+
+  it('章节载荷也被接受（画布对两类载荷都点亮落点）', () => {
+    expect(acceptsBoardDrag(dataTransfer([CHAPTER_DND_MIME]))).toBe(true)
+  })
+})
+
+describe('dnd / carriesChapter（dragover 阶段区分章节载荷）', () => {
+  it('章节 MIME → true；节点 MIME / 其它 → false', () => {
+    expect(carriesChapter(dataTransfer([CHAPTER_DND_MIME]))).toBe(true)
+    expect(carriesChapter(dataTransfer([NODE_DND_MIME]))).toBe(false)
+    expect(carriesChapter(dataTransfer(['Files']))).toBe(false)
+    expect(carriesChapter(null)).toBe(false)
+  })
+})
+
+describe('dnd / readDndPayload（按类型分派）', () => {
+  it('节点载荷 → kind=node', () => {
+    const ev = dragEvent(dataTransfer([NODE_DND_MIME], { [NODE_DND_MIME]: 'n1' }))
+    expect(readDndPayload(ev)).toEqual({ kind: 'node', id: 'n1' })
+  })
+
+  it('章节载荷 → kind=chapter', () => {
+    const ev = dragEvent(dataTransfer([CHAPTER_DND_MIME], { [CHAPTER_DND_MIME]: 'c1' }))
+    expect(readDndPayload(ev)).toEqual({ kind: 'chapter', id: 'c1' })
+  })
+
+  it('两类都在时**节点优先**（同一次拖拽不会同时是两类，优先取节点是防御性约定）', () => {
+    const ev = dragEvent(dataTransfer([NODE_DND_MIME, CHAPTER_DND_MIME], {
+      [NODE_DND_MIME]: 'n1',
+      [CHAPTER_DND_MIME]: 'c1',
+    }))
+    expect(readDndPayload(ev)).toEqual({ kind: 'node', id: 'n1' })
+  })
+
+  it('无本芽载荷 / 空 dataTransfer → null', () => {
+    expect(readDndPayload(dragEvent(dataTransfer(['Files'])))).toBeNull()
+    expect(readDndPayload(dragEvent(null))).toBeNull()
+  })
+
+  it('getData 抛错时返回 null 而不是把异常抛给 drop 流程', () => {
+    const throwing = {
+      types: [NODE_DND_MIME],
+      getData: () => { throw new Error('SecurityError') },
+    } as unknown as DataTransfer
+    expect(readDndPayload(dragEvent(throwing))).toBeNull()
   })
 })
 

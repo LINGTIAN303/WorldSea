@@ -109,9 +109,10 @@ import {
   type Rect,
   type Viewport,
 } from '../boardGeometry'
-import { readNodeIdFromDnD, acceptsNodeDrag } from '../dnd'
+import { readDndPayload, acceptsBoardDrag } from '../dnd'
 import { resolveContextTarget, type ContextTarget } from '../contextMenu'
 import {
+  containerAtPoint,
   DEFAULT_CONTAINER_SIZE,
   rectOfContainer,
   type BoardContainer,
@@ -149,6 +150,8 @@ const emit = defineEmits<{
   (e: 'addComponent', containerId: string, form: string): void
   (e: 'createNodeAt', pos: Point): void
   (e: 'dropNode', nodeId: string, pos: Point): void
+  /** 章节拖入：world 落点 + 命中的容器 id（null = 落在空白） */
+  (e: 'dropChapter', chapterId: string, pos: Point, containerId: string | null): void
   /** 右键落点（已解析为四级上下文之一）+ 视口坐标，由装配层决定菜单与动作 */
   (e: 'contextMenu', payload: { target: ContextTarget; x: number; y: number }): void
   (e: 'viewportChange', vp: Viewport): void
@@ -497,7 +500,7 @@ function onSectionPointerUp(): void {
  */
 function onNodeDragOver(ev: DragEvent): void {
   ev.preventDefault()
-  if (!acceptsNodeDrag(ev.dataTransfer)) return
+  if (!acceptsBoardDrag(ev.dataTransfer)) return
   if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'copy'
   nodeDropActive.value = true
 }
@@ -511,10 +514,17 @@ function onNodeDragLeave(ev: DragEvent): void {
 
 function onDrop(ev: DragEvent): void {
   nodeDropActive.value = false
-  if (!acceptsNodeDrag(ev.dataTransfer)) return
-  const nodeId = readNodeIdFromDnD(ev)
-  if (!nodeId) return
-  emit('dropNode', nodeId, toWorld(localPoint(ev)))
+  const payload = readDndPayload(ev)
+  if (!payload) return
+  const world = toWorld(localPoint(ev))
+  if (payload.kind === 'node') {
+    emit('dropNode', payload.id, world)
+    return
+  }
+  // 章节载荷：落点是否压在某个容器上决定语义（容器上 = 只关联；空白 = 新建节点 + 关联）。
+  // 命中测试放在这里做——画布持有 layout，装配层无需重复几何计算。
+  const hit = containerAtPoint(props.layout.containers, world)
+  emit('dropChapter', payload.id, world, hit?.id ?? null)
 }
 
 // ── 右键菜单落点 ──
