@@ -550,14 +550,40 @@ defineRelation({
 // 15. 创作关系域（Narrative Relations）
 // ─────────────────────────────────────────────
 
+// 2026-09-18（① 关联实体徽章 / Q3 前置）：**删除 `draft_of` / `appears_in`**。
+// 它们表达的是「大纲节点 ↔ 章节」，而这层关系已按 Q5-A 裁定为**双字段 + 唯一写入入口**
+// （`apps/tauri/src/entity/chapterLink.ts`）；且这两条关系类型**从未被写入过**
+// （全仓只有定义处，无任何 `rs.add` 调用）→ 属死类型，留着会让同一关系有两种表达。
+//
+// 新增 3 条语义化类型（源都是 outline_node，目标为大纲以外的芽实体）：
+// 它们是「关联实体徽章」的数据来源，也是 Q3「关系能力」的前置之一。
+// 命名沿用本文件既有惯例（语义化动词 + inverse 成对）。
 defineRelation({
-  type: 'draft_of', label: '草稿对应', inverseType: 'draft_for', inverseLabel: '草稿',
-  sourceTypes: ['manuscript'], targetTypes: ['outline_node'], symmetric: false, domain: 'narrative',
+  type: 'outline_mentions', label: '提及', inverseType: 'mentioned_by_outline', inverseLabel: '被大纲提及',
+  sourceTypes: ['outline_node'],
+  // 泛指「被这个节点涉及的实体」：角色/道具/概念/组织/物种/语言/技能/建筑/文化/植物/战力/素材。
+  // 不含 manuscript（有关联字段）、notebook/book/drawing（非叙事实体）、outline_*（自身与容器）。
+  targetTypes: [
+    'character', 'item', 'concept', 'organization', 'species', 'language',
+    'magic', 'building', 'culture', 'plant', 'combat_stat', 'inspiration',
+  ],
+  symmetric: false, domain: 'narrative',
 })
 
 defineRelation({
-  type: 'appears_in', label: '出现于', inverseType: 'contains_node', inverseLabel: '包含节点',
-  sourceTypes: ['outline_node'], targetTypes: ['manuscript'], symmetric: false, domain: 'narrative',
+  type: 'outline_located_in', label: '发生于', inverseType: 'outline_nodes_here', inverseLabel: '含大纲节点',
+  sourceTypes: ['outline_node'],
+  // 「这一幕发生在哪里」——地点类实体
+  targetTypes: ['region', 'building'],
+  symmetric: false, domain: 'narrative',
+})
+
+defineRelation({
+  type: 'outline_covers', label: '承载', inverseType: 'covered_by_outline', inverseLabel: '被大纲承载',
+  sourceTypes: ['outline_node'],
+  // 「这一节讲的是哪件事」——事件类实体
+  targetTypes: ['event', 'conflict'],
+  symmetric: false, domain: 'narrative',
 })
 
 defineRelation({

@@ -20,7 +20,9 @@
  * 其余芽（timeline/graph/mindmap/tactical-board/magic/module-builder）同模式挂账分批迁。
  */
 
-import { useEntityStore, useRelationStore, useBidirectional } from '@worldsea/entity-core'
+import { useEntityStore, useRelationStore, useBidirectional, relationshipRegistry } from '@worldsea/entity-core'
+// 「节点 ↔ 芽实体」关联的唯一写入入口（关系表写入，幂等；2026-09-18 新增三条关系类型）
+import { linkOutlineEntity, resolveRefRelation, unlinkOutlineEntity } from '@/entity/outlineLinks'
 import { useCodeSandbox } from '@/sprouts/official/notebook/composables/useCodeSandbox'
 import { useOutlineTree } from '@/sprouts/official/outline/composables/useOutlineTree'
 
@@ -441,6 +443,62 @@ export function installAgentDataBridges(): void {
             children: build(e.id),
           }))
       return build('')
+    },
+
+    /**
+     * 实体关联（2026-09-18 新增）：把大纲节点关联到角色/地点/事件等芽实体。
+     *
+     * 与 chapterLink 的分工：**章节关联走双字段**（`manuscriptId`/`outlineNodeId`），
+     * **其它实体关联走关系表**（本 handler）—— 后者没有对应的字段，关系是它的唯一表达。
+     *
+     * 校验（三条，都为了「宁可明确报错也不要假成功」）：
+     * ① `relation` 未知 → 报 `unknown-relation`（**不回退默认值**，否则写错语义却显示成功）
+     * ② 目标实体不存在 → `missing-entity`
+     * ③ 目标实体类型不在该关系类型的 targetTypes 白名单内 → `target-type-mismatch:<type>`
+     *    （例如把「角色」当作 `located_in` 的目标 —— 关系能建但语义是错的）
+     */
+    'outline:link_entity': async (payload: Record<string, unknown>) => {
+      const nodeId = String(payload.nodeId ?? '')
+      if (!nodeId) throw new Error('link_entity 需要 nodeId')
+
+      const raw = Array.isArray(payload.entities) ? payload.entities : []
+      if (!raw.length) throw new Error('link_entity 需要 entities 数组（[{ entityId, relation? }]）')
+
+      const unlink = payload.unlink === true
+      const results: Array<{ entityId: string; relation: string; outcome: string }> = []
+
+      for (const item of raw) {
+        const rec = (item ?? {}) as Record<string, unknown>
+        const entityId = String(rec.entityId ?? '')
+        const relationRaw = rec.relation
+        const relation = resolveRefRelation(relationRaw)
+
+        if (!entityId) {
+          results.push({ entityId: '', relation: '', outcome: 'missing-entity' })
+          continue
+        }
+        if (!relation) {
+          results.push({ entityId, relation: String(relationRaw ?? ''), outcome: 'unknown-relation' })
+          continue
+        }
+        const target = (es.entities ?? []).find(e => e.id === entityId)
+        if (!target) {
+          results.push({ entityId, relation, outcome: 'missing-entity' })
+          continue
+        }
+        const allowed = relationshipRegistry.get(relation)?.targetTypes ?? []
+        if (allowed.length && !allowed.includes(target.type)) {
+          results.push({ entityId, relation, outcome: `target-type-mismatch:${target.type}` })
+          continue
+        }
+
+        const outcome = unlink
+          ? ((await unlinkOutlineEntity(rs, nodeId, entityId, relation)) ? 'removed' : 'absent')
+          : await linkOutlineEntity(rs, nodeId, entityId, relation)
+        results.push({ entityId, relation, outcome })
+      }
+
+      return { nodeId, results }
     },
   }
 

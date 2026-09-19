@@ -473,17 +473,16 @@ const manuscriptTool: ToolDefinition = {
 
 const outlineTool: ToolDefinition = {
   name: 'outline',
-  // 2026-09-17 质量体检：原描述里的「实体关联」与 enum 的 `link_entity` 一并撤下——
-  // 该动作在两个壳里都没有消费者（旧视图只 console.log），工具却回 `dispatched:true`，属
-  // 「假成功」。关系语义需先拍板（关系类型注册表里没有 outline_node→角色/地点/物品 的类型，
-  // 只有 appears_in/draft_of 两条指向 manuscript 的），落地前不再对外声明该能力。
-  description: '大纲操作：节点创建/更新/移动/删除/结构查询/导出/批量创建',
+  // 2026-09-18 **恢复**「实体关联」：此前撤下的两个前置都已解除 ——
+  // ① 关系类型注册表补了三条（`outline_mentions` / `outline_located_in` / `outline_covers`）
+  // ② 数据桥新增 `outline:link_entity` handler（真写关系表，不再是假成功）
+  description: '大纲操作：节点创建/更新/移动/删除/结构查询/导出/批量创建/实体关联',
   parameters: {
     action: {
       type: 'string',
       description: '操作类型',
       required: true,
-      enum: ['create_node', 'update_node', 'move_node', 'get_structure', 'export_outline', 'delete_node', 'batch_create'],
+      enum: ['create_node', 'update_node', 'move_node', 'get_structure', 'export_outline', 'delete_node', 'batch_create', 'link_entity'],
     },
     title: { type: 'string', description: '节点标题（create_node 用）' },
     parentId: { type: 'string', description: '父节点ID（根节点为root）' },
@@ -494,13 +493,15 @@ const outlineTool: ToolDefinition = {
     position: { type: 'number', description: '在新父节点中的位置索引（move_node 用）' },
     format: { type: 'string', description: '导出格式: text / json / markdown' },
     structure: { type: 'object', description: '树形结构 { title, type, children?: [...] }（batch_create 用）' },
+    entities: { type: 'object', description: '要关联的实体数组 [{ entityId, relation? }]（link_entity 用）。relation 取 mentions（提及，默认）/ located_in（发生于，目标须是区域或建筑）/ covers（承载，目标须是事件或冲突）' },
+    unlink: { type: 'boolean', description: 'true 则解除关联而非建立（link_entity 用）' },
   },
   meta: {
     permission: 'moderate' as const,
     category: 'plugin' as const,
     aliases: [
       'outline_create_node', 'outline_update_node', 'outline_move_node', 'outline_get_structure',
-      'outline_export_outline', 'outline_delete_node', 'outline_batch_create',
+      'outline_export_outline', 'outline_delete_node', 'outline_batch_create', 'outline_link_entity',
     ],
   },
   execute: async (args, _ctx) => {
@@ -519,9 +520,9 @@ const outlineTool: ToolDefinition = {
         return emitPluginQuery('outline', 'get_structure')
       }
       case 'link_entity': {
-        // 已下线（2026-09-17 质量体检）：此前派发 'link_entity' 但没有任何消费者，
-        // 工具却回 ok/dispatched → 假成功。关系语义拍板后再连同 enum/aliases 一起恢复。
-        return JSON.stringify({ ok: false, error: 'link_entity 暂未开放：大纲节点↔实体的关系类型尚未拍板' })
+        // 2026-09-18 恢复：派发到 app 级桥的 `outline:link_entity`（真写关系表）。
+        // 此前返回「暂未开放」是因为关系类型不存在 + 无消费者（会假成功）。
+        return emitPluginEvent('outline', 'link_entity', args)
       }
       case 'export_outline': {
         // 必须是 'export_outline'：app 级桥的注册键是 `outline:export_outline`。

@@ -30,7 +30,14 @@
 4. `outline(action='delete_node')` 会**连同子树一起删**——删有子节点的节点前先跟用户确认
 
 ### 关联实体
-- **暂不开放**。`link_entity` 已从工具表撤下（大纲节点↔角色/地点/物品的关系类型尚未拍板）。需要把实体挂到节点上时，告诉用户这是待办能力，不要尝试调用。
+- **已开放**（2026-09-18）。用 `outline(action='link_entity')` 把节点关联到角色/地点/事件等实体，参数 `nodeId` + `entities: [{ entityId, relation? }]`：
+  - `relation='mentions'`（默认）—— **提及**：角色 / 道具 / 概念 / 组织 / 物种 / 语言 / 技能 / 建筑 / 文化 / 植物 / 战力 / 素材
+  - `relation='located_in'` —— **发生于**：区域 / 建筑
+  - `relation='covers'` —— **承载**：事件 / 冲突
+- **目标类型必须匹配**：例如把「角色」当作 `located_in` 的目标会返回 `target-type-mismatch:<type>`，而不是静默建立语义错误的关系。
+- 传 `unlink: true` 解除关联（只解除指定的那一条，不影响该实体的其它关系）。
+- 返回体逐条给 `outcome`：`created` / `exists`（幂等）/ `unknown-relation` / `missing-entity` / `target-type-mismatch:<type>`。
+- 关联结果由白板的「**关联实体**」表现形式展示（按实体类型聚合的徽章，用户点击可跳转）。
 
 ## 工具绑定
 
@@ -44,7 +51,7 @@
 | `outline(action='get_structure')` | 读取完整树 |
 | `outline(action='export_outline')` | 导出（text / json / markdown） |
 | `entity_create` / `entity_delete` | 底层实体操作 |
-| `relation_create` | 建立节点间叙事关系（`appears_in` / `draft_of`） |
+| `relation_create` | 建立实体间关系（通用工具）。大纲相关的三条语义化关系见上「关联实体」 |
 
 > 已下线：`outline(action='link_entity')`（无消费者，调用会返回明确的错误而不是假成功）。
 

@@ -18,13 +18,13 @@ beforeAll(() => {
 })
 
 describe('formsRegistration / 真实注册表', () => {
-  it('六种表现形式均已注册，且 form 标识唯一', () => {
+  it('七种表现形式均已注册，且 form 标识唯一', () => {
     const forms = getAllForms().map(d => d.form)
-    for (const expected of ['title', 'sentence', 'tree', 'table', 'storyline', 'progress']) {
+    for (const expected of ['title', 'sentence', 'tree', 'table', 'storyline', 'progress', 'refs']) {
       expect(forms).toContain(expected)
     }
     expect(new Set(forms).size).toBe(forms.length)
-    expect(forms).toHaveLength(6)
+    expect(forms).toHaveLength(7)
   })
 
   it('每个形式：label 非空、component 已挂载、defaultHeight 为正', () => {
@@ -71,10 +71,12 @@ describe('formsRegistration / 真实注册表', () => {
     }
   })
 
-  it('派生型（表格式 / 线索式 / 进度式）只读；标题式 / 树式 / 句子式可就地编辑', () => {
+  it('派生型（表格式 / 线索式 / 进度式 / 关联实体）只读；标题式 / 树式 / 句子式可就地编辑', () => {
     expect(getForm('table')?.kind).toBe('derived')
     expect(getForm('storyline')?.kind).toBe('derived')
     expect(getForm('progress')?.kind).toBe('derived')
+    // 关联实体徽章读的是**关系表**（不是节点字段），只能派生只读
+    expect(getForm('refs')?.kind).toBe('derived')
     expect(getForm('title')?.kind).toBe('inline')
     expect(getForm('sentence')?.kind).toBe('inline')
     expect(getForm('tree')?.kind).toBe('inline')

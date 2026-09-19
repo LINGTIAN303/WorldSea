@@ -11,6 +11,7 @@ import SentenceForm from './SentenceForm.vue'
 import TableForm from './TableForm.vue'
 import StorylineForm from './StorylineForm.vue'
 import ProgressForm from './ProgressForm.vue'
+import OutlineRefsForm from './OutlineRefsForm.vue'
 import { registerForm } from './registry'
 import type { NumberingStyle } from './titleNumbering'
 
@@ -238,6 +239,27 @@ export function initializeForms(): void {
       { key: 'maxHeight', label: '最大高度', type: 'number', default: 220 },
     ],
     component: ProgressForm,
+  })
+
+  // 关联实体徽章（派生型只读）—— 重建旧树视图的「关联实体徽章组」
+  // 数据源**不是节点字段而是关系表**（`outline_mentions` / `outline_located_in` / `outline_covers`），
+  // 故建立关联的入口在 Agent（`link_entity` 工具）；属性面板里没有、也不该有对应输入框（关系不是字段）。
+  registerForm({
+    form: 'refs',
+    label: '关联实体',
+    icon: 'link',
+    kind: 'derived',
+    description: '本节点关联的角色 / 地点 / 事件等实体（点击跳转）',
+    defaultHeight: 90,
+    defaultConfig: {
+      maxPerGroup: 4,
+      emptyText: '暂无关联实体（可由 Agent 建立关联）',
+    },
+    configSchema: [
+      { key: 'maxPerGroup', label: '每组最多显示', type: 'number', default: 4 },
+      { key: 'emptyText', label: '空态文案', type: 'text', default: '暂无关联实体（可由 Agent 建立关联）' },
+    ],
+    component: OutlineRefsForm,
   })
 }
 
