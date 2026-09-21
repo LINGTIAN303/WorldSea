@@ -93,7 +93,7 @@
     "apps/tauri/src-tauri/src/entity_commands.rs": 1207,
     "apps/tauri/src-tauri/src/frontend_tool_bridge.rs": 455,
     "apps/tauri/src-tauri/src/http_bridge/rpc.rs": 1891,
-    "apps/tauri/src-tauri/src/lib.rs": 619,
+    "apps/tauri/src-tauri/src/lib.rs": 621,
     "apps/tauri/src-tauri/src/mcp_client.rs": 1349,
     "apps/tauri/src-tauri/src/search_commands.rs": 732,
     "apps/tauri/src-tauri/src/whisper.rs": 571,

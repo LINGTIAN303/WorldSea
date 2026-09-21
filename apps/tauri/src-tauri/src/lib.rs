@@ -34,6 +34,8 @@ mod whisper;
 mod search_commands;
 // 档 1（2026-09-22）：搜索配置存储——引擎偏好落 JSON、Provider Key 落 SecureStore、装配降级链
 mod search_config;
+// 档 3-a（2026-09-22）：出网收口——URL 严格解析 + 公网目标判定，供抓取类工具逐跳复校
+mod net_egress;
 // A4 Plan-Exec 计划工具（plan_create / plan_update）
 mod plan_commands;
 // Router Pattern 编排命令层：2026-09-09 随右栏 Router 区一并下线（Router 归场景识别底座，
