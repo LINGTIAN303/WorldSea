@@ -116,6 +116,9 @@ session_events 每次同步追加一条事件（initial / append / trim / revise
   合并为单一概念面（`CheckpointRef`，`agent-engine::contracts::checkpoints`）——
   存储各归其位（锚点表 / `long_tasks`），保留策略天然分治；任务断点在引入会话绑定前
   `session_id = None`（引用式，快照本体不搬家）。
-- **纯前端/命令可见面（S3-e2 起）**：分叉 / 回滚 / 检查点三事件的**发射点**尚未接线
-  （key + mode 已登记）；命令层入口与 AgentLoop 内存态同步随 S3-e2。
+- **命令可见面（S3-e2 已接线）**：`fork_session` / `rewind_session` / `create_checkpoint` /
+  `list_checkpoints` 四命令（Tauri 薄包装）+ 内存态同步（fork 建子 AgentLoop 并继承
+  Provider 配置；rewind 同步 `restore_state`，**运行中拒绝**——`rewind_guard`）+
+  三事件经总线广播（前端通道 `agent:event:session_branch:{session_id}`）。
+  前端交互（分叉/回滚/检查点 UI）与 `forked_from` 展示随 UX 排期。
 - 不做多端 replayable 投影 / 跨设备同步（04 §四）。

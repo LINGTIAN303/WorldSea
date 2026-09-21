@@ -112,6 +112,10 @@ pub fn run() {
         .manage(Mutex::new(tray::TrayState::default()))
         .invoke_handler(tauri::generate_handler![
             commands::new_session,
+            commands::fork_session,
+            commands::rewind_session,
+            commands::create_checkpoint,
+            commands::list_checkpoints,
             commands::list_scenarios,
             commands::list_patterns,
             commands::list_sessions,

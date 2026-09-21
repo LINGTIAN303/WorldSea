@@ -33,3 +33,16 @@ P2 新增：Deep Phase 事件转发 — 订阅 AgentLoop 的 DeepPhaseChanged �
 
 创建条目后订阅本文件顶部的 TauriEventListener，`check` 广播的 LoopEng* 事件
 会转发到前端 `loop_control:event:{task_id}`。
+
+---
+
+## 补充（2026-09-22，S3-e2 会话分支命令面）
+
+新增四命令（薄包装 `AgentCommandService`，`invoke_handler` 已注册）：
+`fork_session(session_id, request_seq)` / `rewind_session(session_id, request_seq)` /
+`create_checkpoint(session_id)` / `list_checkpoints(session_id, limit?)`
+（末者同时注入 `State<LongTaskRepository>`——统一检查点视图 = 会话锚点 + 活跃任务断点）。
+
+**事件通道**：会话分支三事件（`conversation_forked` / `conversation_rewound` /
+`checkpoint_created`）经 emitter 转发到**专用通道** `agent:event:session_branch:{session_id}`
+（07 口径：无 turnModel 归约规则的新事件不并入动作段；前端展示随 UX 排期）。

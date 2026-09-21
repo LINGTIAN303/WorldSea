@@ -30,32 +30,32 @@ pub struct RewindOutcome {
     pub replace: ReplaceOutcome,
 }
 
-impl SqliteSessionRepository {
-    /// 回滚会话活跃视图到请求边界 `request_seq`（日志不删、可再回退）。
-    ///
-    /// 拒绝条件（fail-closed，与分叉同源）：会话不存在 / 快照链缺该序号或不完整。
-    /// 拒绝发生在落 mark 之前——不产生任何残留。
-    pub async fn rewind_session(
-        &self,
-        session_id: &str,
-        request_seq: i64,
-    ) -> Result<RewindOutcome, CommandError> {
-        let exists = self.load_sessions().await?.iter().any(|r| r.id == session_id);
-        if !exists {
-            return Err(CommandError::session_not_found(session_id));
-        }
-        let snapshots = self.load_request_snapshots(session_id, 0, i64::MAX).await?;
-        let Some((_, view)) = reconstruct_request_view(&snapshots, request_seq) else {
-            return Err(CommandError::invalid_argument(format!(
-                "请求边界 {request_seq} 不可重建（快照链缺失或不完整），拒绝回滚"
-            )));
-        };
-        let payload = serde_json::json!({ "request_seq": request_seq }).to_string();
-        let mark = self.begin_branch_op("rewind", session_id, Some(&payload)).await?;
-        let replace = self.replace_messages(session_id, &view).await?;
-        self.finish_branch_op(&mark).await?;
-        Ok(RewindOutcome { target_seq: request_seq, view, replace })
+/// 回滚会话活跃视图到请求边界 `request_seq`（日志不删、可再回退）。
+///
+/// 拒绝条件（fail-closed，与分叉同源）：会话不存在 / 快照链缺该序号或不完整。
+/// 拒绝发生在落 mark 之前——不产生任何残留。
+///
+/// 入口：`SessionRepository::rewind_session`（trait 委托；服务层经 dyn 调用）。
+pub(crate) async fn rewind_session(
+    store: &SqliteSessionRepository,
+    session_id: &str,
+    request_seq: i64,
+) -> Result<RewindOutcome, CommandError> {
+    let exists = store.load_sessions().await?.iter().any(|r| r.id == session_id);
+    if !exists {
+        return Err(CommandError::session_not_found(session_id));
     }
+    let snapshots = store.load_request_snapshots(session_id, 0, i64::MAX).await?;
+    let Some((_, view)) = reconstruct_request_view(&snapshots, request_seq) else {
+        return Err(CommandError::invalid_argument(format!(
+            "请求边界 {request_seq} 不可重建（快照链缺失或不完整），拒绝回滚"
+        )));
+    };
+    let payload = serde_json::json!({ "request_seq": request_seq }).to_string();
+    let mark = store.begin_branch_op("rewind", session_id, Some(&payload)).await?;
+    let replace = store.replace_messages(session_id, &view).await?;
+    store.finish_branch_op(&mark).await?;
+    Ok(RewindOutcome { target_seq: request_seq, view, replace })
 }
 
 #[cfg(test)]

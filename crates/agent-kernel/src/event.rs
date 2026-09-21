@@ -670,6 +670,38 @@ pub enum OrchestratorEvent {
         /// 提问结果（answered / denied / cancelled，见 `AskOutcome::kind`）
         outcome: AskOutcome,
     },
+
+    // ── 会话分支（S3-e2 接线；key 已于 S3-c/S3-d 登记，此处补齐发射面）──
+
+    /// 会话分叉：父会话在某请求边界派生出子会话（广播于父会话总线）
+    ConversationForked {
+        /// 父会话 id
+        parent_session: String,
+        /// 派生的子会话 id
+        child_session: String,
+        /// 分叉锚点（请求边界）
+        request_seq: i64,
+    },
+    /// 会话回滚：活跃视图回退到某请求边界（日志不删）
+    ConversationRewound {
+        /// 会话 id
+        session_id: String,
+        /// 回滚到的请求边界
+        request_seq: i64,
+        /// 本次移出活跃视图的条数（内容保留在不可变日志）
+        dropped: i64,
+        /// 回滚后视图条数
+        kept: i64,
+    },
+    /// 检查点创建（手动 / 每 N 请求自动）
+    CheckpointCreated {
+        /// 会话 id
+        session_id: String,
+        /// 打点所在的请求边界
+        request_seq: i64,
+        /// 来源：`manual` / `auto`
+        kind: String,
+    },
 }
 
 /// 编排器结束结果（简化版，避免与 `OrchestratorResult` 循环引用）
@@ -790,6 +822,9 @@ impl OrchestratorEvent {
             Self::ConfirmationResolved { .. } => keys::CONFIRMATION_RESOLVED,
             Self::AskRequested { .. } => keys::ASK_REQUESTED,
             Self::AskResolved { .. } => keys::ASK_RESOLVED,
+            Self::ConversationForked { .. } => keys::CONVERSATION_FORKED,
+            Self::ConversationRewound { .. } => keys::CONVERSATION_REWOUND,
+            Self::CheckpointCreated { .. } => keys::CHECKPOINT_CREATED,
         }
     }
 }
@@ -852,5 +887,34 @@ impl EventBroadcaster {
         inner: impl FnOnce(&mut OrchestratorEvent) -> Outcome + 'a,
     ) -> Outcome {
         self.bus.waterfall(event, inner)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// S3-e2 接线：会话分支三变体的 key 映射（与 `agent-engine::contracts::keys` 登记一致）
+    #[test]
+    fn session_branch_variants_map_to_registered_keys() {
+        let forked = OrchestratorEvent::ConversationForked {
+            parent_session: "p".into(),
+            child_session: "c".into(),
+            request_seq: 3,
+        };
+        assert_eq!(forked.key(), keys::CONVERSATION_FORKED);
+        let rewound = OrchestratorEvent::ConversationRewound {
+            session_id: "s".into(),
+            request_seq: 1,
+            dropped: 2,
+            kept: 3,
+        };
+        assert_eq!(rewound.key(), keys::CONVERSATION_REWOUND);
+        let checkpoint = OrchestratorEvent::CheckpointCreated {
+            session_id: "s".into(),
+            request_seq: 9,
+            kind: "manual".into(),
+        };
+        assert_eq!(checkpoint.key(), keys::CHECKPOINT_CREATED);
     }
 }

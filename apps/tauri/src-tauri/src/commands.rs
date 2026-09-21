@@ -882,6 +882,42 @@ impl Listener for PlanEventEmitter {
                     tracing::warn!("Failed to emit PlanReplanned event to frontend: {}", err);
                 }
             }
+            // S3-e2 会话分支：专用通道（07 口径——新事件无 turnModel 归约规则者
+            // 落独立通道，前端展示随 UX 排期，不并入动作段）
+            OrchestratorEvent::ConversationForked { parent_session, child_session, request_seq } => {
+                let event_name = format!("agent:event:session_branch:{}", self.session_id);
+                if let Err(err) = emit_dual(&self.app, &event_name, json!({
+                    "type": "forked",
+                    "sessionId": parent_session,
+                    "childSessionId": child_session,
+                    "requestSeq": request_seq,
+                })) {
+                    tracing::warn!("Failed to emit ConversationForked event to frontend: {}", err);
+                }
+            }
+            OrchestratorEvent::ConversationRewound { session_id, request_seq, dropped, kept } => {
+                let event_name = format!("agent:event:session_branch:{}", self.session_id);
+                if let Err(err) = emit_dual(&self.app, &event_name, json!({
+                    "type": "rewound",
+                    "sessionId": session_id,
+                    "requestSeq": request_seq,
+                    "dropped": dropped,
+                    "kept": kept,
+                })) {
+                    tracing::warn!("Failed to emit ConversationRewound event to frontend: {}", err);
+                }
+            }
+            OrchestratorEvent::CheckpointCreated { session_id, request_seq, kind } => {
+                let event_name = format!("agent:event:session_branch:{}", self.session_id);
+                if let Err(err) = emit_dual(&self.app, &event_name, json!({
+                    "type": "checkpoint_created",
+                    "sessionId": session_id,
+                    "requestSeq": request_seq,
+                    "kind": kind,
+                })) {
+                    tracing::warn!("Failed to emit CheckpointCreated event to frontend: {}", err);
+                }
+            }
             _ => {}
         }
         ListenerOutcome::Continue
@@ -1583,6 +1619,62 @@ pub async fn trim_context(
 ) -> Result<(), String> {
     state
         .trim_context(&session_id, up_to_index)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+// ── S3-e2：会话分支命令面（分叉 / 回滚 / 检查点）────────────────
+
+/// 分叉会话（从请求边界派生；子会话继承父会话 Provider 配置，不自动运行）
+///
+/// `request_seq` = 请求边界（见 `session_snapshots` 查询面）。失败语义：
+/// 会话不存在 / 快照链缺该序号 → 拒绝且零残留（见 `session_fork`）。
+#[tauri::command]
+pub async fn fork_session(
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+    request_seq: i64,
+) -> Result<agent_commands::SessionInfo, String> {
+    state
+        .fork_session(&session_id, request_seq)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 回滚会话到请求边界（日志不删、可再回退；**运行中拒绝**——先中断再回滚）
+#[tauri::command]
+pub async fn rewind_session(
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+    request_seq: i64,
+) -> Result<(), String> {
+    state
+        .rewind_session(&session_id, request_seq)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 手动打点检查点（锚点 = 当前请求边界；无请求边界 → 拒绝）。返回检查点 id
+#[tauri::command]
+pub async fn create_checkpoint(
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+) -> Result<String, String> {
+    state.create_checkpoint(&session_id).await.map_err(|e| e.to_string())
+}
+
+/// 统一检查点视图（S3-e 合并裁定 · 方案 A）：会话锚点 + 活跃任务断点
+///
+/// `limit <= 0` = 不截断；任务断点在引入会话绑定前不按会话过滤（引用式，快照本体在 long_tasks）。
+#[tauri::command]
+pub async fn list_checkpoints(
+    state: State<'_, AgentCommandService>,
+    tasks: State<'_, LongTaskRepository>,
+    session_id: String,
+    limit: Option<i64>,
+) -> Result<Vec<agent_commands::CheckpointRef>, String> {
+    state
+        .list_checkpoint_refs(&session_id, limit.unwrap_or(0), Some(&tasks))
         .await
         .map_err(|e| e.to_string())
 }

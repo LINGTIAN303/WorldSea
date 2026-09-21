@@ -1949,3 +1949,228 @@
         assert!(!path.exists(), "文件应被清理");
         request_snapshot::remove_wal_file(dir.path(), "s-del"); // 幂等（不 panic）
     }
+
+    // ─── S3-e2：会话分支命令面（分叉 / 回滚 / 检查点）──────────────
+
+    /// 捕获型监听器：断言分支事件确实广播（key 序列）
+    struct CaptureEvents(std::sync::Mutex<Vec<&'static str>>);
+    impl Listener for CaptureEvents {
+        fn call(&self, event: &OrchestratorEvent) -> ListenerOutcome {
+            self.0.lock().unwrap().push(event.key());
+            ListenerOutcome::Continue
+        }
+    }
+
+    fn branch_msg(
+        role: agent_runtime::types::MessageRole,
+        content: &str,
+    ) -> agent_runtime::types::OrchestratorMessage {
+        agent_runtime::types::OrchestratorMessage {
+            role,
+            content: content.into(),
+            tool_calls: Vec::new(),
+            tool_call_id: None,
+            meta: None,
+        }
+    }
+
+    fn branch_snapshot(
+        at: u64,
+        update: agent_runtime::agent::request_snapshot::ViewUpdate,
+    ) -> agent_runtime::agent::request_snapshot::RequestSnapshot {
+        agent_runtime::agent::request_snapshot::RequestSnapshot {
+            captured_at_ms: at,
+            purpose: "main".into(),
+            provider: "test".into(),
+            model_id: "test-model".into(),
+            temperature: None,
+            max_tokens: None,
+            top_p: None,
+            top_k: None,
+            thinking_mode: None,
+            thinking_level: None,
+            silent: false,
+            system_prompt: None,
+            tools_json: None,
+            tools_names: Vec::new(),
+            material_ref: None,
+            view_update: update,
+        }
+    }
+
+    /// 种子会话：两轮真实形态 + 快照链——
+    /// 视图 [u1,a1,u2,a2]；seq0 发送 [u1]；seq1 发送 [u1,a1,u2]（u2 = 触发第 1 轮的新输入）
+    async fn seed_two_rounds(store: &SqliteSessionRepository, session_id: &str) {
+        use agent_runtime::agent::request_snapshot::ViewUpdate;
+        use agent_runtime::types::MessageRole;
+        store
+            .replace_messages(
+                session_id,
+                &[
+                    branch_msg(MessageRole::User, "u1"),
+                    branch_msg(MessageRole::Assistant, "a1"),
+                    branch_msg(MessageRole::User, "u2"),
+                    branch_msg(MessageRole::Assistant, "a2"),
+                ],
+            )
+            .await
+            .unwrap();
+        store
+            .append_request_snapshot(
+                session_id,
+                &branch_snapshot(100, ViewUpdate::Full { messages: vec![branch_msg(MessageRole::User, "u1")] }),
+            )
+            .await
+            .unwrap();
+        store
+            .append_request_snapshot(
+                session_id,
+                &branch_snapshot(
+                    200,
+                    ViewUpdate::Appended {
+                        messages: vec![branch_msg(MessageRole::Assistant, "a1"), branch_msg(MessageRole::User, "u2")],
+                    },
+                ),
+            )
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn fork_session_creates_live_child_and_emits() {
+        let store = SqliteSessionRepository::new_in_memory().await.unwrap();
+        let svc = AgentCommandService::new().with_session_store(store.clone());
+        let info = svc.new_session(None, vec![], None, None, None, None, None).await.unwrap();
+        seed_two_rounds(&store, &info.id).await;
+        let capture = Arc::new(CaptureEvents(Default::default()));
+        svc.get_agent(&info.id)
+            .await
+            .unwrap()
+            .subscribe_key(agent_runtime::event::keys::CONVERSATION_FORKED, capture.clone())
+            .await;
+
+        let child = svc.fork_session(&info.id, 1).await.unwrap();
+
+        // 子会话可立即取用（内存态已注册），视图 = 边界视图（含 u2、不含其响应）
+        let child_agent = svc.get_agent(&child.id).await.unwrap();
+        let msgs = child_agent.get_messages().await;
+        assert_eq!(msgs.len(), 3);
+        assert_eq!(msgs[2].content, "u2");
+        assert_eq!(child.message_count, 3);
+        // 会话列表可见
+        let list = svc.list_sessions(None).await.unwrap();
+        assert!(list.iter().any(|s| s.id == child.id));
+        // 事件已广播（父会话总线）
+        assert_eq!(capture.0.lock().unwrap().as_slice(), &["conversation_forked"]);
+    }
+
+    #[tokio::test]
+    async fn rewind_session_syncs_live_agent_and_emits() {
+        let store = SqliteSessionRepository::new_in_memory().await.unwrap();
+        let svc = AgentCommandService::new().with_session_store(store.clone());
+        let info = svc.new_session(None, vec![], None, None, None, None, None).await.unwrap();
+        seed_two_rounds(&store, &info.id).await;
+        let capture = Arc::new(CaptureEvents(Default::default()));
+        svc.get_agent(&info.id)
+            .await
+            .unwrap()
+            .subscribe_key(agent_runtime::event::keys::CONVERSATION_REWOUND, capture.clone())
+            .await;
+
+        // 回滚到 seq1 = u2 那一轮发出时的状态（a2 被移出视图）
+        svc.rewind_session(&info.id, 1).await.unwrap();
+
+        // 内存态与存储双侧同步到边界视图；列表条数随之派生
+        let msgs = svc.get_agent(&info.id).await.unwrap().get_messages().await;
+        assert_eq!(msgs.len(), 3, "内存态应同步为回滚后的视图");
+        assert_eq!(msgs[2].content, "u2");
+        assert_eq!(store.load_messages(&info.id).await.unwrap().len(), 3);
+        assert_eq!(
+            svc.list_sessions(None)
+                .await
+                .unwrap()
+                .iter()
+                .find(|s| s.id == info.id)
+                .unwrap()
+                .message_count,
+            3
+        );
+        assert_eq!(capture.0.lock().unwrap().as_slice(), &["conversation_rewound"]);
+    }
+
+    #[test]
+    fn rewind_guard_rejects_streaming() {
+        assert!(rewind_guard(false).is_ok(), "空闲会话应放行");
+        let err = rewind_guard(true).unwrap_err();
+        assert!(matches!(err, CommandError::InvalidArgument(_)), "运行中应拒绝: {err:?}");
+    }
+
+    #[tokio::test]
+    async fn create_checkpoint_uses_latest_boundary_and_emits() {
+        let store = SqliteSessionRepository::new_in_memory().await.unwrap();
+        let svc = AgentCommandService::new().with_session_store(store.clone());
+        let info = svc.new_session(None, vec![], None, None, None, None, None).await.unwrap();
+        seed_two_rounds(&store, &info.id).await;
+        let capture = Arc::new(CaptureEvents(Default::default()));
+        svc.get_agent(&info.id)
+            .await
+            .unwrap()
+            .subscribe_key(agent_runtime::event::keys::CHECKPOINT_CREATED, capture.clone())
+            .await;
+
+        let id = svc.create_checkpoint(&info.id).await.unwrap();
+        let cps = store.list_checkpoints(&info.id, 10).await.unwrap();
+        assert_eq!(cps.len(), 1);
+        assert_eq!(cps[0].id, id);
+        assert_eq!(cps[0].request_seq, 1, "锚点 = 最后一次请求序号");
+        assert_eq!(cps[0].kind, "manual");
+        assert_eq!(capture.0.lock().unwrap().as_slice(), &["checkpoint_created"]);
+
+        // 无请求边界的会话：拒绝（不以伪坐标打点）
+        let fresh = svc.new_session(None, vec![], None, None, None, None, None).await.unwrap();
+        assert!(svc.create_checkpoint(&fresh.id).await.is_err(), "无快照不应打点");
+    }
+
+    #[tokio::test]
+    async fn list_checkpoint_refs_merges_task_resume() {
+        use agent_runtime::long_task::{
+            LongTaskCheckpoint, LongTaskMeta, LongTaskRecord, LongTaskStatus, LongTaskType,
+        };
+        let store = SqliteSessionRepository::new_in_memory().await.unwrap();
+        let svc = AgentCommandService::new().with_session_store(store.clone());
+        let info = svc.new_session(None, vec![], None, None, None, None, None).await.unwrap();
+        seed_two_rounds(&store, &info.id).await;
+        svc.create_checkpoint(&info.id).await.unwrap();
+        let tasks = LongTaskRepository::new_in_memory().await.unwrap();
+        let now = chrono::Utc::now();
+        tasks
+            .save(LongTaskRecord {
+                task_id: "longtask-run".into(),
+                task_type: LongTaskType::MainAgent,
+                status: LongTaskStatus::Running,
+                started_at: now,
+                last_heartbeat_at: now,
+                ended_at: None,
+                turn_count: 0,
+                current_tool: None,
+                current_phase: None,
+                checkpoint: LongTaskCheckpoint {
+                    agent_messages: Vec::new(),
+                    last_user_text: "t".into(),
+                    skill_names: None,
+                    chat_mode: None,
+                    locked_chat_mode: None,
+                },
+                meta: LongTaskMeta { agent_type: None, prompt: "t".into(), pipeline_context: None },
+            })
+            .await
+            .unwrap();
+
+        let refs = svc.list_checkpoint_refs(&info.id, 10, Some(&tasks)).await.unwrap();
+        assert_eq!(refs.len(), 2, "1 锚点 + 1 活跃任务断点");
+        assert!(refs.iter().any(|r| r.kind() == CheckpointKind::TaskResume));
+        assert!(refs.iter().any(|r| r.kind() == CheckpointKind::SessionAnchor));
+        // 未注入长任务存储：只出锚点
+        let refs = svc.list_checkpoint_refs(&info.id, 10, None).await.unwrap();
+        assert_eq!(refs.len(), 1);
+    }

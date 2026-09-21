@@ -120,7 +120,7 @@ async fn manual_checkpoint_bracketed_and_retention_keeps_latest() {
     seed_session(&store, "s").await;
 
     // 手动打点（括号版，kind=manual）
-    let id = checkpoint_now(&store, "s", 3, "manual").await.unwrap();
+    let id = put_checkpoint(&store, "s", 3, "manual").await.unwrap();
     let cps = store.list_checkpoints("s", 10).await.unwrap();
     assert_eq!(cps.len(), 1);
     assert_eq!(cps[0].id, id);
@@ -130,7 +130,7 @@ async fn manual_checkpoint_bracketed_and_retention_keeps_latest() {
 
     // 保留策略：手动 + 自动合并计数，超出 CHECKPOINT_KEEP 淘汰最旧
     for seq in 0..CHECKPOINT_KEEP + 5 {
-        checkpoint_now(&store, "s", seq, "auto").await.unwrap();
+        put_checkpoint(&store, "s", seq, "auto").await.unwrap();
     }
     let cps = store.list_checkpoints("s", 1000).await.unwrap();
     assert_eq!(cps.len() as i64, CHECKPOINT_KEEP, "应淘汰至保留上限");
@@ -144,8 +144,8 @@ async fn manual_checkpoint_bracketed_and_retention_keeps_latest() {
 async fn list_checkpoint_refs_merges_anchors_and_running_tasks() {
     let store = SqliteSessionRepository::new_in_memory().await.unwrap();
     seed_session(&store, "s").await;
-    checkpoint_now(&store, "s", 3, "manual").await.unwrap();
-    checkpoint_now(&store, "s", 9, "auto").await.unwrap();
+    put_checkpoint(&store, "s", 3, "manual").await.unwrap();
+    put_checkpoint(&store, "s", 9, "auto").await.unwrap();
     let tasks = LongTaskRepository::new_in_memory().await.unwrap();
     // 活跃任务（心跳为 1h 前——比锚点旧，用于跨源排序断言）+ 终态任务（不应出现）
     tasks.save(task_record("longtask-run", LongTaskStatus::Running, -3600)).await.unwrap();
@@ -179,7 +179,7 @@ async fn anchor_prune_leaves_task_resume_untouched() {
     // 保留策略分治（方案 A 要点）：锚点按数量淘汰；任务断点随任务生命周期，不受锚点淘汰影响
     let store = SqliteSessionRepository::new_in_memory().await.unwrap();
     seed_session(&store, "s").await;
-    checkpoint_now(&store, "s", 1, "manual").await.unwrap();
+    put_checkpoint(&store, "s", 1, "manual").await.unwrap();
     let tasks = LongTaskRepository::new_in_memory().await.unwrap();
     tasks.save(task_record("longtask-run", LongTaskStatus::Running, 0)).await.unwrap();
 

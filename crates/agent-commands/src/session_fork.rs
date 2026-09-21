@@ -30,33 +30,34 @@ pub struct ForkOutcome {
     pub fork: SessionForkRecord,
 }
 
-impl SqliteSessionRepository {
-    /// 从请求边界分叉会话（端到端执行链；子会话独立追写）。
-    ///
-    /// 拒绝条件（fail-closed，宁可说"不可重建"也不给错误视图）：父会话不存在 /
-    /// 快照链缺该序号或不完整。拒绝发生在落 mark 之前——不产生任何残留。
-    pub async fn fork_session(
-        &self,
-        parent_id: &str,
-        request_seq: i64,
-    ) -> Result<ForkOutcome, CommandError> {
-        let parent = self
+/// 从请求边界分叉会话（端到端执行链；子会话独立追写）。
+///
+/// 拒绝条件（fail-closed，宁可说"不可重建"也不给错误视图）：父会话不存在 /
+/// 快照链缺该序号或不完整。拒绝发生在落 mark 之前——不产生任何残留。
+///
+/// 入口：`SessionRepository::fork_session`（trait 委托；服务层经 dyn 调用）。
+pub(crate) async fn fork_session(
+    store: &SqliteSessionRepository,
+    parent_id: &str,
+    request_seq: i64,
+) -> Result<ForkOutcome, CommandError> {
+        let parent = store
             .load_sessions()
             .await?
             .into_iter()
             .find(|r| r.id == parent_id)
             .ok_or_else(|| CommandError::session_not_found(parent_id))?;
-        let snapshots = self.load_request_snapshots(parent_id, 0, i64::MAX).await?;
+    let snapshots = store.load_request_snapshots(parent_id, 0, i64::MAX).await?;
         let Some((_, view)) = reconstruct_request_view(&snapshots, request_seq) else {
             return Err(CommandError::invalid_argument(format!(
                 "请求边界 {request_seq} 不可重建（快照链缺失或不完整），拒绝分叉"
             )));
         };
 
-        // 子会话头：复制装配面（提示词 / 场景 / 工作区 / 项目），不携带工具会话与长任务状态
-        let child_id = uuid::Uuid::new_v4().to_string();
-        let now = (chrono::Utc::now().timestamp_millis().max(0) / 1000) as u64;
-        let child = SessionRecord {
+    // 子会话头：复制装配面（提示词 / 场景 / 工作区 / 项目），不携带工具会话与长任务状态
+    let child_id = uuid::Uuid::new_v4().to_string();
+    let now = (chrono::Utc::now().timestamp_millis().max(0) / 1000) as u64;
+    let child = SessionRecord {
             id: child_id.clone(),
             system_prompt: parent.system_prompt.clone(),
             prompt_sections: parent.prompt_sections.clone(),
@@ -71,24 +72,23 @@ impl SqliteSessionRepository {
             project_id: parent.project_id.clone(),
             scene_id: parent.scene_id.clone(),
         };
-        // 事务括号左端：payload 携带子会话 id（装载期收敛按它撤销半成品）
-        let payload = serde_json::json!({
-            "child_session_id": child_id,
-            "request_seq": request_seq,
-        })
-        .to_string();
-        let mark = self.begin_branch_op("fork", parent_id, Some(&payload)).await?;
-        self.save_session(&child).await?;
-        self.replace_messages(&child_id, &view).await?;
-        self.record_fork(&child_id, parent_id, request_seq).await?;
-        // 括号右端：清 mark 即提交点（此前任一步失败 → mark 留存 → 装载期撤销）
-        self.finish_branch_op(&mark).await?;
+    // 事务括号左端：payload 携带子会话 id（装载期收敛按它撤销半成品）
+    let payload = serde_json::json!({
+        "child_session_id": child_id,
+        "request_seq": request_seq,
+    })
+    .to_string();
+    let mark = store.begin_branch_op("fork", parent_id, Some(&payload)).await?;
+    store.save_session(&child).await?;
+    store.replace_messages(&child_id, &view).await?;
+    store.record_fork(&child_id, parent_id, request_seq).await?;
+    // 括号右端：清 mark 即提交点（此前任一步失败 → mark 留存 → 装载期撤销）
+    store.finish_branch_op(&mark).await?;
 
-        let fork = self.read_fork(&child_id).await?.ok_or_else(|| {
+    let fork = store.read_fork(&child_id).await?.ok_or_else(|| {
             CommandError::Internal("分叉记录写入后读取为空（不应发生）".into())
-        })?;
-        Ok(ForkOutcome { child, view, fork })
-    }
+    })?;
+    Ok(ForkOutcome { child, view, fork })
 }
 
 #[cfg(test)]

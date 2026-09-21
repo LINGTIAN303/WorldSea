@@ -24,7 +24,7 @@ pub const AUTO_CHECKPOINT_INTERVAL: i64 = 10;
 pub const CHECKPOINT_KEEP: i64 = 50;
 
 /// 打一个检查点（括号版；`kind`：`manual` / `auto`）。返回检查点 id。
-pub(crate) async fn checkpoint_now(
+pub(crate) async fn put_checkpoint(
     store: &SqliteSessionRepository,
     session_id: &str,
     request_seq: i64,
@@ -36,6 +36,23 @@ pub(crate) async fn checkpoint_now(
     store.prune_checkpoints(session_id, CHECKPOINT_KEEP).await?;
     store.finish_branch_op(&mark).await?;
     Ok(id)
+}
+
+/// 会话当前请求边界（= 最后一次请求序号；无请求 → `None`）。
+///
+/// 供**手动打点**取锚点坐标（S3-e2 命令面）；旁路调用同计入序号，故无需区分用途。
+pub(crate) async fn latest_request_seq(
+    store: &SqliteSessionRepository,
+    session_id: &str,
+) -> Result<Option<i64>, CommandError> {
+    let row: (Option<i64>,) = sqlx::query_as(
+        "SELECT MAX(request_seq) FROM request_snapshots WHERE session_id = ?1",
+    )
+    .bind(session_id)
+    .fetch_one(&store.pool)
+    .await
+    .map_err(|e| CommandError::Internal(format!("查询当前请求边界失败: {e}")))?;
+    Ok(row.0)
 }
 
 /// 请求落库后的自动打点（每 N 个请求一次；返回本次是否打点）。
@@ -50,7 +67,7 @@ pub(crate) async fn auto_checkpoint_after_request(
     if (request_seq + 1) % AUTO_CHECKPOINT_INTERVAL != 0 {
         return Ok(false);
     }
-    checkpoint_now(store, session_id, request_seq, "auto").await?;
+    put_checkpoint(store, session_id, request_seq, "auto").await?;
     Ok(true)
 }
 

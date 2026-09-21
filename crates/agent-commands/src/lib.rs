@@ -4145,6 +4145,169 @@ impl AgentCommandService {
         Ok(())
     }
 
+    // ── S3-e2：会话分支命令面（分叉 / 回滚 / 检查点）──────────────
+
+    /// 分叉会话（从请求边界派生；子会话继承父会话 Provider 配置，**不自动运行**）。
+    ///
+    /// 链路：存储分叉（`session_fork`，链不完整即拒绝且零残留）→ 建子 AgentLoop
+    /// （装配面与 Provider 配置复制父会话）→ 恢复边界视图 → 注册内存表 → 广播
+    /// `ConversationForked`（父会话总线）。子会话不携带工具会话 / 长任务状态 / 计划（ZD1-5）。
+    pub async fn fork_session(
+        &self,
+        session_id: &str,
+        request_seq: i64,
+    ) -> Result<SessionInfo, CommandError> {
+        let store = match &self.session_store {
+            Some(s) => s.clone(),
+            None => return Err(CommandError::Internal("未配置会话持久化存储，无法分叉".into())),
+        };
+        let parent_agent = self.get_agent(session_id).await?;
+        let out = store.fork_session(session_id, request_seq).await?;
+        // 子会话装配：场景按持久化 id 重解析（未知 id 不装配，与 restore 同口径）
+        self.ensure_scenarios();
+        let scenario = out
+            .child
+            .scene_id
+            .as_deref()
+            .and_then(|id| self.scenario_registry.find(id));
+        let sections: Vec<PromptSection> = out
+            .child
+            .prompt_sections
+            .as_deref()
+            .and_then(|json| serde_json::from_str(json).ok())
+            .unwrap_or_default();
+        let (agent, sub_agent_manager) = self
+            .new_agent(
+                &out.child.id,
+                Some(out.child.system_prompt.clone()),
+                sections,
+                parent_agent.current_provider_config().await,
+                scenario,
+                out.child.workdir.clone().map(PathBuf::from),
+                // 方案A：与 restore 同口径——不持久化 entity_storage_root，回退 workdir
+                None,
+                out.child.workspace_id.clone(),
+                out.child.project_id.clone(),
+            )
+            .await;
+        agent
+            .restore_state(AgentState {
+                messages: out.view.clone(),
+                ..AgentState::default()
+            })
+            .await;
+        let info = SessionInfo {
+            id: out.child.id.clone(),
+            created_at: out.child.created_at,
+            message_count: out.view.len() as u32,
+            title: out.child.title.clone(),
+            pinned: false,
+            kind: out.child.kind,
+            workdir: out.child.workdir.clone(),
+            workspace_id: out.child.workspace_id.clone(),
+            project_id: out.child.project_id.clone(),
+            scene_id: out.child.scene_id.clone(),
+        };
+        self.sessions.lock().await.insert(out.child.id.clone(), agent);
+        self.subagent_managers
+            .lock()
+            .await
+            .insert(out.child.id.clone(), sub_agent_manager);
+        self.meta.lock().await.insert(out.child.id.clone(), info.clone());
+        Self::emit_branch_event(
+            &parent_agent,
+            OrchestratorEvent::ConversationForked {
+                parent_session: session_id.to_string(),
+                child_session: out.child.id.clone(),
+                request_seq,
+            },
+        )
+        .await;
+        Ok(info)
+    }
+
+    /// 回滚会话（**运行中拒绝**——先中断再回滚；日志不删、可再回退）。
+    ///
+    /// 链路：守卫（`rewind_guard`）→ 存储回滚（`session_rewind`）→ 内存态同步
+    /// （`restore_state`，计划随会话保留——回滚只动消息视图）→ 广播 `ConversationRewound`。
+    pub async fn rewind_session(&self, session_id: &str, request_seq: i64) -> Result<(), CommandError> {
+        let store = match &self.session_store {
+            Some(s) => s.clone(),
+            None => return Err(CommandError::Internal("未配置会话持久化存储，无法回滚".into())),
+        };
+        let agent = self.get_agent(session_id).await?;
+        rewind_guard(agent.is_streaming())?;
+        let out = store.rewind_session(session_id, request_seq).await?;
+        agent
+            .restore_state(AgentState {
+                messages: out.view.clone(),
+                plan: agent.get_plan().await,
+                ..AgentState::default()
+            })
+            .await;
+        if let Some(meta) = self.meta.lock().await.get_mut(session_id) {
+            meta.message_count = out.view.len() as u32;
+        }
+        Self::emit_branch_event(
+            &agent,
+            OrchestratorEvent::ConversationRewound {
+                session_id: session_id.to_string(),
+                request_seq,
+                dropped: out.replace.dropped,
+                kept: out.replace.kept,
+            },
+        )
+        .await;
+        Ok(())
+    }
+
+    /// 手动打点检查点（锚点 = **当前请求边界**；无请求边界 → 拒绝）。返回检查点 id。
+    pub async fn create_checkpoint(&self, session_id: &str) -> Result<String, CommandError> {
+        let store = match &self.session_store {
+            Some(s) => s.clone(),
+            None => return Err(CommandError::Internal("未配置会话持久化存储，无法打点".into())),
+        };
+        let agent = self.get_agent(session_id).await?;
+        let Some(request_seq) = store.latest_request_seq(session_id).await? else {
+            return Err(CommandError::invalid_argument(
+                "会话尚无请求边界（无请求快照），无法打点",
+            ));
+        };
+        let id = store.put_checkpoint(session_id, request_seq, "manual").await?;
+        Self::emit_branch_event(
+            &agent,
+            OrchestratorEvent::CheckpointCreated {
+                session_id: session_id.to_string(),
+                request_seq,
+                kind: "manual".into(),
+            },
+        )
+        .await;
+        Ok(id)
+    }
+
+    /// 统一检查点视图（S3-e 合并裁定 · 方案 A）：会话锚点 + 活跃任务断点。
+    ///
+    /// `tasks` 为未注入长任务存储时的 `None`（此时只出锚点侧）。
+    pub async fn list_checkpoint_refs(
+        &self,
+        session_id: &str,
+        limit: i64,
+        tasks: Option<&LongTaskRepository>,
+    ) -> Result<Vec<CheckpointRef>, CommandError> {
+        let Some(store) = self.session_store.as_ref() else {
+            return Ok(Vec::new());
+        };
+        crate::session_checkpoint::list_checkpoint_refs(store.as_ref(), tasks, session_id, limit)
+            .await
+    }
+
+    /// S3-e2：会话分支事件广播（先取总线句柄、**壳锁外**分发——锁纪律同 `AgentLoop::broadcast`）。
+    async fn emit_branch_event(agent: &Arc<AgentLoop>, event: OrchestratorEvent) {
+        let bus = agent.broadcaster_ref().read().await.handle();
+        bus.emit(&event);
+    }
+
     /// 写穿某会话当前消息快照到持久化存储（弱提示：失败仅记日志不阻断）
     ///
     /// **A1 丙2 阶段 B 起为不可变追加语义**：视图变化记入日志（`session_log`），
@@ -4581,6 +4744,19 @@ impl AgentCommandService {
         let status = agent.long_task_manager().get_heartbeat_status().await;
         Ok(status)
     }
+}
+
+/// S3-e2 回滚守卫：运行中（流式）会话拒绝回滚——先中断再回滚。
+///
+/// 理由：回滚替换活跃视图，而运行中的轮次仍会向旧视图继续写入——两者竞态会让回滚
+/// 结果被后续写入覆盖。fail-closed：不静默打断用户正在等待的输出。
+fn rewind_guard(is_streaming: bool) -> Result<(), CommandError> {
+    if is_streaming {
+        return Err(CommandError::invalid_argument(
+            "会话运行中：先中断当前轮再回滚",
+        ));
+    }
+    Ok(())
 }
 
 /// 按字符边界截断字符串到最多 `max` 字符（避免在 UTF-8 多字节序列中间截断）

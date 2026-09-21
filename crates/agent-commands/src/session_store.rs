@@ -429,6 +429,35 @@ pub trait SessionRepository: Send + Sync {
     ) -> Result<Vec<agent_engine::contracts::checkpoints::CheckpointRef>, CommandError> {
         Ok(Vec::new())
     }
+    /// 从请求边界分叉会话（S3-e2 命令面；默认不支持——后端需具备分支存储）。
+    async fn fork_session(
+        &self,
+        _parent_id: &str,
+        _request_seq: i64,
+    ) -> Result<crate::session_fork::ForkOutcome, CommandError> {
+        Err(CommandError::Internal("当前会话存储不支持分叉".into()))
+    }
+    /// 回滚会话活跃视图到请求边界（S3-e2 命令面；默认不支持）。
+    async fn rewind_session(
+        &self,
+        _session_id: &str,
+        _request_seq: i64,
+    ) -> Result<crate::session_rewind::RewindOutcome, CommandError> {
+        Err(CommandError::Internal("当前会话存储不支持回滚".into()))
+    }
+    /// 打一个检查点（括号版，S3-e2 命令面；`kind`：`manual` / `auto`；默认不支持）。
+    async fn put_checkpoint(
+        &self,
+        _session_id: &str,
+        _request_seq: i64,
+        _kind: &str,
+    ) -> Result<String, CommandError> {
+        Err(CommandError::Internal("当前会话存储不支持检查点".into()))
+    }
+    /// 会话当前请求边界（最后一次请求序号；无请求 → `None`）。默认 `None`。
+    async fn latest_request_seq(&self, _session_id: &str) -> Result<Option<i64>, CommandError> {
+        Ok(None)
+    }
     /// 更新会话标题（写穿）
     async fn update_title(&self, session_id: &str, title: &str) -> Result<(), CommandError>;
     /// 设置会话固定状态（写穿）
@@ -1590,6 +1619,35 @@ impl SessionRepository for SqliteSessionRepository {
         limit: i64,
     ) -> Result<Vec<agent_engine::contracts::checkpoints::CheckpointRef>, CommandError> {
         crate::session_checkpoint::session_anchor_refs(self, session_id, limit).await
+    }
+
+    async fn fork_session(
+        &self,
+        parent_id: &str,
+        request_seq: i64,
+    ) -> Result<crate::session_fork::ForkOutcome, CommandError> {
+        crate::session_fork::fork_session(self, parent_id, request_seq).await
+    }
+
+    async fn rewind_session(
+        &self,
+        session_id: &str,
+        request_seq: i64,
+    ) -> Result<crate::session_rewind::RewindOutcome, CommandError> {
+        crate::session_rewind::rewind_session(self, session_id, request_seq).await
+    }
+
+    async fn put_checkpoint(
+        &self,
+        session_id: &str,
+        request_seq: i64,
+        kind: &str,
+    ) -> Result<String, CommandError> {
+        crate::session_checkpoint::put_checkpoint(self, session_id, request_seq, kind).await
+    }
+
+    async fn latest_request_seq(&self, session_id: &str) -> Result<Option<i64>, CommandError> {
+        crate::session_checkpoint::latest_request_seq(self, session_id).await
     }
 
     async fn update_title(&self, session_id: &str, title: &str) -> Result<(), CommandError> {
