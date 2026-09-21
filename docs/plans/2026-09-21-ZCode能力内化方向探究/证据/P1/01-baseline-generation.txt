@@ -1,0 +1,9 @@
+已生成 architecture-baseline.json：冻结文件 218 个 · 既有违规豁免 8 项
+  · [ts-cycle] TS 包级依赖环：entity-core → agent-runtime-ts → entity-core
+  · [ts-cycle] TS 包级依赖环：agent-runtime-ts → canvas-engine → agent-runtime-ts
+  · [ts-cycle] TS 包级依赖环：entity-core → agent-runtime-ts → canvas-engine → entity-core
+  · [ts-cycle] TS 包级依赖环：agent-runtime-ts → plugin-sdk → ui-kit → agent-runtime-ts
+  · [ts-cycle] TS 包级依赖环：entity-core → agent-runtime-ts → plugin-sdk → ui-kit → entity-core
+  · [ts-cycle] TS 包级依赖环：plugin-sdk → ui-kit → plugin-sdk
+  · [ts-cycle] TS 包级依赖环：entity-core → agent-runtime-ts → plugin-sdk → ui-kit → font-kit → entity-core
+  · [ts-cycle] TS 包级依赖环：entity-core → agent-runtime-ts → plugin-sdk → entity-core

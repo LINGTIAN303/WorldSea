@@ -18,6 +18,7 @@
     "build:core": "wasm-pack build ./worldsea-core --target bundler --out-dir pkg --scope worldsea --out-name index -- --features wasm",
     "build:wasm-all": "npm run build:wasm && npm run build:core",
     "gen:bridge-spec": "node scripts/gen-bridge-spec.mjs",
+    "arch:check": "node scripts/architecture/check.mjs",
     "build": "pnpm --filter @worldsea/tauri tauri:build",
     "tauri:dev": "pnpm --filter @worldsea/tauri tauri:dev",
     "tauri:build": "pnpm --filter @worldsea/tauri tauri:build",

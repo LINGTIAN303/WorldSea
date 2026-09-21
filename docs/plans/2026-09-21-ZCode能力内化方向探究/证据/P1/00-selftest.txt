@@ -1,0 +1,9 @@
+PASS  clean-fixture 零违规
+PASS  unregistered-module 报红
+PASS  rust-edge 报红（mod-a → mod-b 未在 requires）
+PASS  ts-cycle 报红
+PASS  file-size 新建超限报红
+PASS  基线冻结内不报
+PASS  存量增长报红
+PASS  --changed 过滤未变更文件
+— self-test：8/8 通过

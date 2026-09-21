@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "_note": "架构策略（ZCode 能力内化 · P 线 P1）。检查器：scripts/architecture/check.mjs；命令：node scripts/architecture/check.mjs [--changed] [--update-baseline] [--self-test]。规则：① 顶层模块目录必须在此登记（新增模块先登记，未登记即报红）；② 新建文件不得超过 maxFileLines，存量超限文件按 architecture-baseline.json 冻结、只禁增长；③ Rust 模块的 path 依赖边必须在 requires 白名单内（新增跨模块依赖先登记）；④ TS 包间不得成环。",
+  "_status": "v1（2026-09-21）：阈值取 ZCode 蓝本 400 行，待 D3 用 P4 基线数据复核；TS 包级依赖边白名单（requires）暂未启用，先只禁环。",
+  "global": {
+    "maxFileLines": 400,
+    "overrides": [
+      { "match": "tests", "maxFileLines": 1200 },
+      { "match": ".spec.", "maxFileLines": 1200 },
+      { "match": ".test.", "maxFileLines": 1200 }
+    ],
+    "scanExtensions": [".rs", ".ts", ".tsx", ".vue", ".mjs"],
+    "excludeDirs": ["node_modules", "target", "dist", "pkg", ".git", "gen", "generated", "mock-cdn"],
+    "discoveryRoots": ["crates", "crates/vendor", "packages", "apps", "worldsea-core", "tactical-engine"]
+  },
+  "modules": [
+    { "id": "agent-kernel", "kind": "rust", "roots": ["crates/agent-kernel/src"], "manifest": "crates/agent-kernel/Cargo.toml", "requires": [] },
+    { "id": "agent-patterns", "kind": "rust", "roots": ["crates/agent-patterns/src"], "manifest": "crates/agent-patterns/Cargo.toml", "requires": ["agent-kernel"] },
+    { "id": "agent-runtime", "kind": "rust", "roots": ["crates/agent-runtime/src"], "manifest": "crates/agent-runtime/Cargo.toml", "requires": ["agent-kernel", "agent-patterns"] },
+    { "id": "agent-memory", "kind": "rust", "roots": ["crates/agent-memory/src"], "manifest": "crates/agent-memory/Cargo.toml", "requires": ["agent-runtime", "vendor-memory-center-core", "vendor-memory-center-llm", "vendor-memory-center-models"] },
+    { "id": "agent-index", "kind": "rust", "roots": ["crates/agent-index/src"], "manifest": "crates/agent-index/Cargo.toml", "requires": ["agent-memory", "vendor-memory-center-core"] },
+    { "id": "agent-commands", "kind": "rust", "roots": ["crates/agent-commands/src", "crates/agent-commands/tests"], "manifest": "crates/agent-commands/Cargo.toml", "requires": ["agent-index", "agent-memory", "agent-patterns", "agent-runtime", "vendor-memory-center-core"] },
+    { "id": "worldsea-skills-store", "kind": "rust", "roots": ["crates/worldsea-skills-store/src"], "manifest": "crates/worldsea-skills-store/Cargo.toml", "requires": [] },
+    { "id": "vendor-memory-center-core-logic", "kind": "rust", "roots": ["crates/vendor/memory-center-core-logic/src"], "manifest": "crates/vendor/memory-center-core-logic/Cargo.toml", "requires": [] },
+    { "id": "vendor-memory-center-core", "kind": "rust", "roots": ["crates/vendor/memory-center-core/src"], "manifest": "crates/vendor/memory-center-core/Cargo.toml", "requires": ["vendor-memory-center-core-logic"] },
+    { "id": "vendor-memory-center-llm", "kind": "rust", "roots": ["crates/vendor/memory-center-llm/src"], "manifest": "crates/vendor/memory-center-llm/Cargo.toml", "requires": ["vendor-memory-center-core"] },
+    { "id": "vendor-memory-center-models", "kind": "rust", "roots": ["crates/vendor/memory-center-models/src"], "manifest": "crates/vendor/memory-center-models/Cargo.toml", "requires": ["vendor-memory-center-core"] },
+    { "id": "worldsea-core", "kind": "rust", "roots": ["worldsea-core/src"], "manifest": "worldsea-core/Cargo.toml", "requires": [] },
+    { "id": "tactical-engine", "kind": "rust", "roots": ["tactical-engine/src"], "manifest": "tactical-engine/Cargo.toml", "requires": [] },
+    { "id": "tauri-backend", "kind": "rust", "roots": ["apps/tauri/src-tauri/src"], "manifest": "apps/tauri/src-tauri/Cargo.toml", "requires": ["agent-commands", "agent-runtime", "worldsea-skills-store", "worldsea-core"] },
+
+    { "id": "tauri-app", "kind": "ts", "roots": ["apps/tauri/src"], "manifest": "apps/tauri/package.json", "requires": [] },
+    { "id": "agent-core", "kind": "ts", "roots": ["packages/agent-core/src"], "manifest": "packages/agent-core/package.json", "requires": [] },
+    { "id": "agent-runtime-ts", "kind": "ts", "roots": ["packages/agent-runtime/src"], "manifest": "packages/agent-runtime/package.json", "requires": [] },
+    { "id": "canvas-engine", "kind": "ts", "roots": ["packages/canvas-engine/src"], "manifest": "packages/canvas-engine/package.json", "requires": [] },
+    { "id": "core-api-types", "kind": "ts", "roots": ["packages/core-api-types/src"], "manifest": "packages/core-api-types/package.json", "requires": [] },
+    { "id": "entity-core", "kind": "ts", "roots": ["packages/entity-core/src"], "manifest": "packages/entity-core/package.json", "requires": [] },
+    { "id": "font-kit", "kind": "ts", "roots": ["packages/font-kit/src"], "manifest": "packages/font-kit/package.json", "requires": [] },
+    { "id": "governor-core", "kind": "ts", "roots": ["packages/governor-core/src"], "manifest": "packages/governor-core/package.json", "requires": [] },
+    { "id": "memory-archive", "kind": "ts", "roots": ["packages/memory-archive/src"], "manifest": "packages/memory-archive/package.json", "requires": [] },
+    { "id": "motion-kit", "kind": "ts", "roots": ["packages/motion-kit/src"], "manifest": "packages/motion-kit/package.json", "requires": [] },
+    { "id": "perf-kit", "kind": "ts", "roots": ["packages/perf-kit/src"], "manifest": "packages/perf-kit/package.json", "requires": [] },
+    { "id": "plugin-sdk", "kind": "ts", "roots": ["packages/plugin-sdk/src"], "manifest": "packages/plugin-sdk/package.json", "requires": [] },
+    { "id": "shared-composables", "kind": "ts", "roots": ["packages/shared-composables/src"], "manifest": "packages/shared-composables/package.json", "requires": [] },
+    { "id": "shared-ui", "kind": "ts", "roots": ["packages/shared-ui/src"], "manifest": "packages/shared-ui/package.json", "requires": [] },
+    { "id": "theme-kit", "kind": "ts", "roots": ["packages/theme-kit/src"], "manifest": "packages/theme-kit/package.json", "requires": [] },
+    { "id": "ui-kit", "kind": "ts", "roots": ["packages/ui-kit/src"], "manifest": "packages/ui-kit/package.json", "requires": [] }
+  ]
+}

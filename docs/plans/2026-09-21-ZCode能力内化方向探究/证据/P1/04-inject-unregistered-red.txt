@@ -1,0 +1,3 @@
+== 架构检查（模式：full） ==
+❌ [registry] 模块目录未登记：packages/__arch_probe__（请在 architecture-policy.json 登记）
+— 违规 1 项 · 存量超限文件 218 个（基线冻结 218 个） · root=.

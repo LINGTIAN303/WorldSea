@@ -1,0 +1,3 @@
+== 架构检查（模式：full） ==
+❌ [file-size] crates/agent-kernel/src/agent/tests.rs 增长到 4974 行（存量冻结 4973 行；拆分为宜）
+— 违规 1 项 · 存量超限文件 218 个（基线冻结 218 个） · root=.
