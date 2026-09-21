@@ -299,9 +299,10 @@ const devToolsModule: ModuleDescriptor = {
 }
 
 /**
- * 插件系统工具。
+ * 芽工具模块。
  *
- * plugin_tools/module_builder_tools/plugin_backend_tools。
+ * 2026-09-21 世界观芽工具整合（批 3）：旧三件（plugin_tools / module_builder_tools /
+ * plugin_backend_tools）退役——芽操作入口为 worldview 工具（tools/worldview/）。
  */
 const pluginToolsModule: ModuleDescriptor = {
   id: 'agent.tools.plugin',
@@ -309,13 +310,11 @@ const pluginToolsModule: ModuleDescriptor = {
   version: '1.0.0',
   priority: 'normal',
   defaultActive: true,
-  description: '插件系统与模块构建工具',
+  description: '世界观芽工具（worldview）',
   dependencies: [{ moduleId: 'agent.tool-meta', optional: false }],
 
   activate: async () => {
-    await import('./tools/plugin-tools')
-    await import('./tools/module-builder-tools')
-    await import('./tools/plugin-backend-tools')
+    await import('./tools/worldview')
   },
 }
 

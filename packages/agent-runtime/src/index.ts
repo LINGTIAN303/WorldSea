@@ -119,7 +119,7 @@ export { algoTools, LEGACY_ALGO_MAP } from './tools/algo-tools'
 export { projectTools } from './tools/project-io'
 export { crawlTools } from './tools/crawl-tool'
 export { docConvertTools } from './tools/doc-convert-tool'
-export { pluginTools } from './tools/plugin-tools'
+// 2026-09-21 批 3：pluginTools（旧芽工具三件）退役——芽操作面为 worldview 工具
 // ═══ 世界观芽工具（2026-09-21 整合 · 批 1） ═══
 export { worldviewTool, registerWorldviewSprout, listWorldviewSprouts, resolveWorldviewSprout, clearWorldviewSprouts, SPROUT_ACTIONS, runSproutAction, runEntityTypeAction, SPROUT_GUIDES, renderSproutList, renderSproutGuide } from './tools/worldview'
 export type { WorldviewSprout, SproutAction, SproutActionParam } from './tools/worldview'

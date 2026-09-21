@@ -171,7 +171,7 @@
 | src/skills/platform-adapters.ts | [skills-platform-adapters.md](packages/agent-runtime/skills-platform-adapters.md) | 多平台技能格式双向转换（Claude Code/Cursor/WorldSea） |
 | src/skills/plugin-bridge.ts | [skills-plugin-bridge.md](packages/agent-runtime/skills-plugin-bridge.md) | 插件能力桥接：Skill 系统 ↔ 插件系统 |
 | src/skills/registry.ts | [skills-registry.md](packages/agent-runtime/skills-registry.md) | Skill 注册中心：工具白名单/合并/提示词生成/一致性校验 |
-| src/skills/data/*.ts | （无独立注释文档，见 skills-registry.md 拆分记录） | SKILL_REGISTRY 静态数据按类别拆分：creation/analysis/development/communication/worldbuilding/other + visibility 辅助 |
+| src/skills/data/*.ts | （无独立注释文档，见 skills-registry.md 拆分记录） | SKILL_REGISTRY 静态数据（批 3 后仅存 communication.ts 的 creation-orchestrator）+ visibility 辅助 |
 | src/skills/skills-store.ts | [skills-skills-store.md](packages/agent-runtime/skills-skills-store.md) | 技能写入封装：安装/卸载/本地导入（SKILL.md + sidecar）/ 创建入口（不触发重扫，S2 更新） |
 | src/skills/creator.ts | [skills-creator.md](packages/agent-runtime/skills-creator.md) | 创建/导入组装层：规范 SKILL.md + 可选 sidecar 生成（回读自检，S2 管理面） |
 | src/skills/validator.ts | [skills-protocol.md](packages/agent-runtime/skills-protocol.md) | Skill 协议校验器：规范规则集（name/description/compatibility）+ 私有键 warn（S1 协议基座） |
@@ -196,8 +196,6 @@
 | src/tools/orchestrator-tools.ts | [tools-orchestrator-tools.md](packages/agent-runtime/tools-orchestrator-tools.md) | Agent 调度器：CustomEvent 调度 9 种子 Agent |
 | src/tools/output-tools.ts | [tools-output-tools.md](packages/agent-runtime/tools-output-tools.md) | 输出块工具集：13 个交互式 UI 组件渲染 |
 | src/tools/pipeline-tools.ts | [tools-pipeline-tools.md](packages/agent-runtime/tools-pipeline-tools.md) | 创作编排工具集：9 工具管理创作 Pipeline |
-| src/tools/plugin-backend-tools.ts | [tools-plugin-backend-tools.md](packages/agent-runtime/tools-plugin-backend-tools.md) | 插件后端工具集（域级合并版，CustomEvent 通信） |
-| src/tools/plugin-tools.ts | [tools-plugin-tools.md](packages/agent-runtime/tools-plugin-tools.md) | 通用插件操作工具集：跨插件统一操作接口 |
 | src/tools/retrofit-tools.ts | [tools-retrofit-tools.md](packages/agent-runtime/tools-retrofit-tools.md) | 安全改造工具集：Negotiate→Apply 五阶段工作流 |
 | src/tools/schema-tools.ts | [tools-schema-tools.md](packages/agent-runtime/tools-schema-tools.md) | Schema 管理工具集（Tauri 后端，注册/验证/导出） |
 | src/tools/task-tools.ts | [tools-task-tools.md](packages/agent-runtime/tools-task-tools.md) | task_complete 工具：显式完成声明（Anthropic 三原则） |

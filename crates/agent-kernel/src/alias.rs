@@ -52,26 +52,9 @@ pub const LEGACY_ALGO_MAP: &[(&str, &str)] = &[
     ("algo_crdt_lww", "algo_run"),
 ];
 
-/// 旧插件工具名 → 新插件工具名（按模块聚合）
-///
-/// 来源：`worldsea-agent/src/tools/plugin-backend-tools.ts:967`
-pub const LEGACY_PLUGIN_MAP: &[(&str, &str)] = &[
-    // timeline 模块
-    ("timeline_create_event", "timeline"),
-    ("timeline_update_event", "timeline"),
-    ("timeline_sort_events", "timeline"),
-    ("timeline_detect_conflicts", "timeline"),
-    ("timeline_get_events", "timeline"),
-    ("timeline_export_timeline", "timeline"),
-    ("timeline_set_layout_mode", "timeline"),
-    ("timeline_set_group_mode", "timeline"),
-    ("timeline_zoom", "timeline"),
-    ("timeline_toggle_collapse", "timeline"),
-    // graph 模块
-    ("graph_get_nodes", "graph"),
-    ("graph_get_edges", "graph"),
-    ("graph_find_path", "graph"),
-];
+// 2026-09-21 世界观芽工具整合（批 3）：`LEGACY_PLUGIN_MAP`（旧芽工具名 → 域级工具名，
+// 原来源 `tools/plugin-backend-tools.ts`）随旧芽工具三件退役移除——旧名不再做别名映射；
+// 芽操作入口为 worldview 工具（`worldview = 域工具动作表 + 说明`）。
 
 // ─── 别名解析 ────────────────────────────────────────────
 
@@ -82,12 +65,9 @@ static ALIAS_MAP: OnceLock<HashMap<&'static str, &'static str>> = OnceLock::new(
 fn alias_map() -> &'static HashMap<&'static str, &'static str> {
     ALIAS_MAP.get_or_init(|| {
         let mut m = HashMap::with_capacity(
-            LEGACY_TO_CODING_MAP.len() + LEGACY_ALGO_MAP.len() + LEGACY_PLUGIN_MAP.len(),
+            LEGACY_TO_CODING_MAP.len() + LEGACY_ALGO_MAP.len(),
         );
-        // 注入顺序：PLUGIN → ALGO → CODING（CODING 优先级最高，最后注入覆盖）
-        for &(k, v) in LEGACY_PLUGIN_MAP {
-            m.insert(k, v);
-        }
+        // 注入顺序：ALGO → CODING（CODING 优先级最高，最后注入覆盖）
         for &(k, v) in LEGACY_ALGO_MAP {
             m.insert(k, v);
         }
@@ -152,10 +132,11 @@ mod tests {
     }
 
     #[test]
-    fn resolve_plugin_alias() {
-        assert_eq!(resolve_alias("timeline_create_event"), "timeline");
-        assert_eq!(resolve_alias("graph_get_nodes"), "graph");
-        assert_eq!(resolve_alias("graph_find_path"), "graph");
+    fn resolve_plugin_alias_retired() {
+        // 2026-09-21 世界观芽工具整合（批 3）：旧芽工具名不再做别名映射（原映射到 timeline/graph，
+        // 而这两个工具本身也未对 LLM 可达）——断言「不映射、原样返回」，防旧表复活。
+        assert_eq!(resolve_alias("timeline_create_event"), "timeline_create_event");
+        assert_eq!(resolve_alias("graph_get_nodes"), "graph_get_nodes");
     }
 
     #[test]
@@ -169,14 +150,14 @@ mod tests {
     fn is_alias_detects_correctly() {
         assert!(is_alias("fs_read"));
         assert!(is_alias("algo_spatial_insert"));
-        assert!(is_alias("timeline_create_event"));
+        assert!(!is_alias("timeline_create_event"));
         assert!(!is_alias("read_file"));
         assert!(!is_alias("nonexistent"));
     }
 
     #[test]
     fn alias_count_matches_total() {
-        let expected = LEGACY_TO_CODING_MAP.len() + LEGACY_ALGO_MAP.len() + LEGACY_PLUGIN_MAP.len();
+        let expected = LEGACY_TO_CODING_MAP.len() + LEGACY_ALGO_MAP.len();
         // 注意：合并时可能有 key 冲突（不同表的同名 key 覆盖），
         // 实际数量可能小于总和。这里只验证下界。
         assert!(alias_count() <= expected);

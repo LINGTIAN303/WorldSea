@@ -3,6 +3,7 @@
 > status: **执行中**（2026-09-17 拍板：D1 分层单源 / D2 sidecar 文件 / D3 多根+优先级 / D4 先查清再逐项裁量；按 §5.5 批次施工）
 > 输入：① [01-dsh三域设计基线](01-dsh三域设计基线.md)（dsh Skill 机制）｜② [02-三域对照与建议清单](02-三域对照与建议清单.md) §七（用户裁定 D3）｜③ 本文 §三（2026-09-17 源码级补充取证，带 file:line）｜④ Agent Skills 开放规范原文（agentskills.io/specification）
 > 范围：协议字段与校验 / 发现面 / 管理面 / 存量处置。**芽（sprout）所属技能本轮不动**（用户裁定：后续芽会整合成一个聚合单工具）。
+> 2026-09-21 批 3 注记：上述「后续整合」已完成——26 项芽所属技能退役，「使用方法」迁 worldview 工具（见 [2026-09-21-世界观芽工具整合.md](../../plans/2026-09-21-世界观芽工具整合.md)）；SKILL_REGISTRY 仅存挂账 creation-orchestrator，旧芽工具三件（plugin-tools / module-builder-tools / plugin-backend-tools）同步退役。
 
 ---
 

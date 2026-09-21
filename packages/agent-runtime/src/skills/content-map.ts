@@ -2,47 +2,10 @@
 // Why: Vite8/Rolldown import.meta.glob silently matches nothing for module-relative patterns,
 // so we use explicit dynamic imports instead. Regenerate when skill files change.
 // 2026-09-18 S4 存量处置：随技能退役累计移除 25 条映射（第一批 9 + smart-fill 1 + instructions 类 15）；
-// creation-orchestrator 仍保留（挂账单独议，见 docs/plans/2026-09-17-三域对齐dsh/05-instructions类技能评估.md）
+// 2026-09-21 世界观芽工具整合（批 3）：26 项芽所属技能退役（其「使用方法」迁 worldview 工具），
+// 移除 37 条映射——仅保留挂账的 creation-orchestrator（单独议，见 docs/plans/2026-09-17-三域对齐dsh/05-instructions类技能评估.md）。
 export type SkillContentLoader = () => Promise<{ default: string }>
 
 export const SKILL_CONTENT_LOADERS: Record<string, SkillContentLoader> = {
-  'analysis-engine/SKILL.md': () => import('./analysis-engine/SKILL.md?raw'),
-  'analysis-engine/references/algo-catalog.md': () => import('./analysis-engine/references/algo-catalog.md?raw'),
-  'building-geography/SKILL.md': () => import('./building-geography/SKILL.md?raw'),
-  'character-profile/SKILL.md': () => import('./character-profile/SKILL.md?raw'),
-  'combat-system/SKILL.md': () => import('./combat-system/SKILL.md?raw'),
-  'conflict-history/SKILL.md': () => import('./conflict-history/SKILL.md?raw'),
-  'content-craft/SKILL.md': () => import('./content-craft/SKILL.md?raw'),
-  'content-craft/assets/entity-templates.yaml': () => import('./content-craft/assets/entity-templates.yaml?raw'),
-  'content-craft/references/content-templates.md': () => import('./content-craft/references/content-templates.md?raw'),
   'creation-orchestrator/instructions.md': () => import('./creation-orchestrator/instructions.md?raw'),
-  'culture-customs/SKILL.md': () => import('./culture-customs/SKILL.md?raw'),
-  'graph-explorer/SKILL.md': () => import('./graph-explorer/SKILL.md?raw'),
-  'inspiration-curator/SKILL.md': () => import('./inspiration-curator/SKILL.md?raw'),
-  'item-encyclopedia/SKILL.md': () => import('./item-encyclopedia/SKILL.md?raw'),
-  'language-system/SKILL.md': () => import('./language-system/SKILL.md?raw'),
-  'lore-concepts/SKILL.md': () => import('./lore-concepts/SKILL.md?raw'),
-  'magic-system-designer/SKILL.md': () => import('./magic-system-designer/SKILL.md?raw'),
-  'manuscript-author/SKILL.md': () => import('./manuscript-author/SKILL.md?raw'),
-  'mindmap-builder/SKILL.md': () => import('./mindmap-builder/SKILL.md?raw'),
-  'module-builder/SKILL.md': () => import('./module-builder/SKILL.md?raw'),
-  'notebook-curator/SKILL.md': () => import('./notebook-curator/SKILL.md?raw'),
-  'outline-architect/SKILL.md': () => import('./outline-architect/SKILL.md?raw'),
-  'output-orchestrator/SKILL.md': () => import('./output-orchestrator/SKILL.md?raw'),
-  'output-orchestrator/assets/output-templates.yaml': () => import('./output-orchestrator/assets/output-templates.yaml?raw'),
-  'output-orchestrator/references/component-catalog.md': () => import('./output-orchestrator/references/component-catalog.md?raw'),
-  'output-orchestrator/references/output-channel-guide.md': () => import('./output-orchestrator/references/output-channel-guide.md?raw'),
-  'persona-possess/SKILL.md': () => import('./persona-possess/SKILL.md?raw'),
-  'persona-possess/references/persona-types.md': () => import('./persona-possess/references/persona-types.md?raw'),
-  'retrofit-architect/SKILL.md': () => import('./retrofit-architect/SKILL.md?raw'),
-  'retrofit-architect/references/retrofit-intent-types.md': () => import('./retrofit-architect/references/retrofit-intent-types.md?raw'),
-  'retrofit-architect/references/retrofit-phases.md': () => import('./retrofit-architect/references/retrofit-phases.md?raw'),
-  'roleplay/SKILL.md': () => import('./roleplay/SKILL.md?raw'),
-  'roleplay/references/roleplay-patterns.md': () => import('./roleplay/references/roleplay-patterns.md?raw'),
-  'tactical-planner/SKILL.md': () => import('./tactical-planner/SKILL.md?raw'),
-  'timeline-architect/SKILL.md': () => import('./timeline-architect/SKILL.md?raw'),
-  'web-scout/SKILL.md': () => import('./web-scout/SKILL.md?raw'),
-  'web-scout/references/search-guide.md': () => import('./web-scout/references/search-guide.md?raw'),
-  'worldbuilding/SKILL.md': () => import('./worldbuilding/SKILL.md?raw'),
-  'worldbuilding/references/worldbuilding-checklist.md': () => import('./worldbuilding/references/worldbuilding-checklist.md?raw'),
 }

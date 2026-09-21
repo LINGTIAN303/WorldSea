@@ -1,4 +1,9 @@
-// 技能元数据（沟通协作类），来源 registry.ts SKILL_REGISTRY 拆分，见 docs/details/注释/packages/agent-runtime/skills-registry.md
+// 技能元数据（沟通协作类）。
+// 2026-09-21 世界观芽工具整合（批 3）：26 项芽所属技能已退役——其「使用方法」迁入
+// worldview 工具（tools/worldview/guides.ts，见 docs/plans/2026-09-21-世界观芽工具整合.md）；
+// 本文件仅保留挂账的 creation-orchestrator（单独议，见 05-instructions类技能评估.md）。
+// 此前存量处置：vision-analyzer（S4 退役）；timeline-architect / graph-explorer /
+// mindmap-builder / manuscript-author（批 3 随芽技能退役移除）。
 import type { SkillMeta } from '../registry'
 import { getSkillVisibility } from './visibility'
 
@@ -32,118 +37,6 @@ export const COMMUNICATION_SKILLS: SkillMeta[] = [
     outputPreferences: [
       { channel: 'chat', condition: '创作步骤执行结果报告时' },
       { channel: 'a2ui', component: 'EditableTable', condition: '列出 Pipeline 列表 / 模板列表时' },
-    ],
-  },
-  // 2026-09-18 S4 存量处置：vision-analyzer 已退役——
-  // 其能力（vision_analyze / list_vision_images）先补桥入「可达工具面」再摘注册（E2 裁定）
-  {
-    id: 'timeline-architect',
-    name: '时间线编排',
-    icon: 'timeline',
-    description: '时间线事件管理与可视化编排。支持双模式（水平甘特图/垂直树形）、泳道分组（角色/地点/纪元/标签）、折叠展开、缩放导航、拖拽改时间、冲突检测、因果图。对应 timeline 插件。关键词：时间线、事件、因果、年代、冲突检测、泳道、甘特图、缩放、并行、布局、分组。',
-    category: 'domain',
-    enabled: true,
-    visibility: getSkillVisibility('timeline-architect'),
-    version: '2.0.0',
-    promptFile: 'timeline-architect/SKILL.md',
-    baseTools: ['entity_list', 'entity_get'],
-    allowedTools: ['entity_create', 'entity_update', 'relation_create', 'consistency_check'],
-    examples: ['在时间线上添加一个新事件', '按角色分组查看并行事件', '检测时间线的冲突', '切换为水平甘特图模式', '缩放到纪元视图', '拖拽调整事件时间'],
-    triggers: ['时间线', '事件', '因果', '年代', '时间冲突', '泳道', '甘特图', '并行', '缩放', '布局', '分组'],
-    relatedPlugins: ['timeline'],
-    pluginTools: [
-      { pluginId: 'timeline', tools: ['timeline'], capabilities: ['创建事件', '排序', '冲突检测', '布局切换', '泳道分组', '缩放导航', '折叠展开'] },
-    ],
-    tags: ['时间线', '事件', '因果', '时序', '泳道', '甘特图', '并行'],
-    priority: 8,
-    outputPreferences: [
-      { channel: 'a2ui', component: 'EditableTable', condition: '列出事件列表时' },
-      { channel: 'a2ui', component: 'MermaidRender', condition: '展示因果图时' },
-      { channel: 'a2ui', component: 'output_timeline', condition: '展示时间线可视化时' },
-      { channel: 'plugin', plugin: 'timeline', condition: '直接操作时间线视图时' },
-      { channel: 'chat', condition: '简短确认' },
-    ],
-  },
-  {
-    id: 'graph-explorer',
-    name: '图谱探索',
-    icon: 'graph',
-    description: '全局关系图谱探索与分析。支持路径查找、聚类分析、节点高亮、快照导出、子图搜索、类型过滤。对应 graph 插件。关键词：图谱、关系网络、聚类、路径、连接、子图、社区。',
-    category: 'domain',
-    enabled: true,
-    visibility: getSkillVisibility('graph-explorer'),
-    version: '1.0.0',
-    promptFile: 'graph-explorer/SKILL.md',
-    baseTools: ['entity_list', 'entity_get', 'relation_list'],
-    allowedTools: ['algo_run'],
-    examples: ['找到角色A到角色B的关系路径', '分析世界的关系网络聚类', '高亮与王国相关的所有实体'],
-    triggers: ['图谱', '关系网络', '聚类', '路径', '连接', '关系图', '子图', '社区'],
-    relatedPlugins: ['graph'],
-    pluginTools: [
-      { pluginId: 'graph', tools: ['graph'], capabilities: ['节点管理', '路径查询', '聚类分析', '子图搜索', '类型过滤'] },
-    ],
-    tags: ['图谱', '关系', '网络', '路径', '聚类'],
-    priority: 9,
-    outputPreferences: [
-      { channel: 'a2ui', component: 'MermaidRender', condition: '展示关系子图时' },
-      { channel: 'plugin', plugin: 'graph', condition: '需要交互式图谱操作时' },
-      { channel: 'chat', condition: '文字分析报告' },
-    ],
-  },
-  {
-    id: 'mindmap-builder',
-    name: '思维导图',
-    icon: 'map',
-    description: '思维导图构建与管理。支持节点增删改、自动布局、树结构导出。对应 mindmap 插件。关键词：思维导图、脑图、节点、分支、导出。',
-    category: 'domain',
-    enabled: true,
-    visibility: getSkillVisibility('mindmap-builder'),
-    version: '1.0.0',
-    promptFile: 'mindmap-builder/SKILL.md',
-    baseTools: ['entity_list', 'entity_get'],
-    allowedTools: ['entity_create', 'entity_update', 'entity_delete', 'relation_create'],
-    examples: ['创建一个世界观思维导图', '给脑图添加一个分支节点', '重新布局思维导图'],
-    triggers: ['思维导图', '脑图', '节点', '分支', '导图'],
-    relatedPlugins: ['mindmap'],
-    // toolbus internal 链：mindmap 能力描述符由 App 侧注册（main.ts），激活本技能时对 Agent 可见
-    capabilities: {
-      internal: ['mindmap.list', 'mindmap.read', 'mindmap.create', 'mindmap.append', 'mindmap.write'],
-      cli: [],
-      mcp: [],
-    },
-    pluginTools: [
-      { pluginId: 'mindmap', tools: ['mindmap'], capabilities: ['节点管理', '布局', '导出', '批量创建', '搜索'] },
-    ],
-    tags: ['思维导图', '脑图', '结构', '可视化'],
-    priority: 7,
-    outputPreferences: [
-      { channel: 'plugin', plugin: 'mindmap', condition: '直接在导图画布上操作时' },
-      { channel: 'chat', condition: '文字描述节点结构' },
-    ],
-  },
-  {
-    id: 'manuscript-author',
-    name: '正文创作',
-    icon: 'manuscript',
-    description: '正文编辑器操作助手。支持章节创建/编辑/导出、实体引用插入、AI辅助写作。对应 manuscript 插件。关键词：正文、章节、写作、导出、引用。',
-    category: 'domain',
-    enabled: true,
-    visibility: getSkillVisibility('manuscript-author'),
-    version: '1.0.0',
-    promptFile: 'manuscript-author/SKILL.md',
-    baseTools: ['entity_list', 'entity_get', 'content_search'],
-    allowedTools: ['entity_create', 'entity_update', 'file_write'],
-    examples: ['创建一个新章节', '导出正文为PDF', '在正文中插入角色引用'],
-    triggers: ['正文', '章节', '写作', '导出', '引用', '文稿'],
-    relatedPlugins: ['manuscript'],
-    pluginTools: [
-      { pluginId: 'manuscript', tools: ['manuscript'], capabilities: ['章节管理', '内容编辑', '导出', '排序', '拆分'] },
-    ],
-    tags: ['正文', '章节', '写作', '导出'],
-    priority: 9,
-    outputPreferences: [
-      { channel: 'plugin', plugin: 'manuscript', condition: '直接操作正文编辑器时' },
-      { channel: 'chat', condition: '章节摘要或写作建议' },
     ],
   },
 ]

@@ -20,8 +20,8 @@ import { retrofitTools } from './tools/retrofit-tools'
 import { schemaTools } from './tools/schema-tools'
 import { algoTools } from './tools/algo-tools'
 import { fileTools } from './tools/file-tools'
-import { pluginTools } from './tools/plugin-tools'
-import { moduleBuilderTools } from './tools/module-builder-tools'
+// 2026-09-21 世界观芽工具整合（批 3）：旧芽工具三件（plugin-tools / module-builder-tools /
+// plugin-backend-tools）退役——执行逻辑早已迁 worldview 动作表（batch 1），本批删除残壳。
 // terminalTools 已被 codingAgentTools 的 shell_session 完全取代（action 参数统一）
 // 旧工具名通过 LEGACY_TO_CODING_MAP 别名映射到 shell_session
 import { webCliTools } from './tools/web-cli-tools'
@@ -50,7 +50,6 @@ import { entityContextTools } from './tools/entity-context'
 import { nativeTools } from './tools/native-tools'
 import { codingAgentTools, LEGACY_TO_CODING_MAP } from './tools/coding-agent-tools'
 import { LEGACY_ALGO_MAP } from './tools/algo-tools'
-import { PLUGIN_BACKEND_TOOLS, LEGACY_PLUGIN_MAP } from './tools/plugin-backend-tools'
 import { worldviewTool } from './tools/worldview'
 import { InternalChainRegistry } from './toolbus/internal-registry'
 import { entityCoreDescriptor } from '@worldsea/entity-core'
@@ -84,8 +83,7 @@ function registerAllTools(): void {
     ...schemaTools,
     ...algoTools,
     ...fileTools,
-    ...pluginTools,
-    ...moduleBuilderTools,
+    // 2026-09-21 批 3：pluginTools / moduleBuilderTools / PLUGIN_BACKEND_TOOLS 退役
     // terminalTools 已被 codingAgentTools 的 shell_session 完全取代
     ...webCliTools,
     // fsTools 已被 codingAgentTools 取代，不再注册
@@ -95,7 +93,6 @@ function registerAllTools(): void {
     ...terminalLauncherTools,
     ...orchestratorTools,
     ...pipelineTools,
-    ...PLUGIN_BACKEND_TOOLS,
     ...outputTools,
     manuscriptClone,
     ...visionTools,
@@ -143,13 +140,7 @@ function registerAllTools(): void {
       if (tool) ALL_TOOLS_MAP.set(legacy, tool)
     }
   }
-  // 注册插件后端旧工具名→域级工具的别名映射
-  for (const [legacy, canonical] of Object.entries(LEGACY_PLUGIN_MAP)) {
-    if (!ALL_TOOLS_MAP.has(legacy)) {
-      const tool = ALL_TOOLS_MAP.get(canonical)
-      if (tool) ALL_TOOLS_MAP.set(legacy, tool)
-    }
-  }
+  // 2026-09-21 批 3：LEGACY_PLUGIN_MAP（旧芽工具名）随三件退役移除
 }
 
 registerAllTools()
@@ -216,8 +207,7 @@ export const ALL_TOOLS = [
   ...schemaTools,
   ...algoTools,
   ...fileTools,
-  ...pluginTools,
-  ...moduleBuilderTools,
+  // 2026-09-21 批 3：pluginTools / moduleBuilderTools 退役
   // terminalTools 已被 codingAgentTools 的 shell_session 完全取代
   ...webCliTools,
   // fsTools 已被 codingAgentTools 取代（read_file/write_file/list_directory/search_files/execute_command）
@@ -227,7 +217,6 @@ export const ALL_TOOLS = [
   ...terminalLauncherTools,
   ...orchestratorTools,
   ...pipelineTools,
-  ...PLUGIN_BACKEND_TOOLS,
   ...outputTools,
   manuscriptClone,
   ...visionTools,
@@ -271,7 +260,8 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
   { id: 'file', label: '文件操作', tools: [...fileTools, ...docConvertTools] },
   { id: 'dev', label: '开发工具', tools: [...terminalLauncherTools, ...webCliTools, ...pkgTools, ...gitTools, ...sysTools] },
   { id: 'native', label: '原生能力', tools: [...nativeTools] },
-  { id: 'plugin', label: '插件系统', tools: [...pluginTools, ...moduleBuilderTools, ...PLUGIN_BACKEND_TOOLS, worldviewTool] },
+  // 2026-09-21 批 3：旧三件退役后，本分类为芽操作入口（worldview）
+  { id: 'plugin', label: '插件系统', tools: [worldviewTool] },
   { id: 'orchestrator', label: '编排与流水线', tools: [...orchestratorTools, ...pipelineTools] },
   { id: 'vision', label: '视觉与生成', tools: [...visionTools, ...imageGenTools, ...videoGenTools] },
   { id: 'plan', label: '规划与知识', tools: [...planTools, ...kbTools, ...taskTools] },

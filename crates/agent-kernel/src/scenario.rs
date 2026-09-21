@@ -374,16 +374,12 @@ impl Scenario for WorldbuildingScenario {
         ]
     }
 
-    /// 世界构建场景默认激活的技能意图（与 TS 技能体系联动）
+    /// 世界构建场景默认激活的技能（2026-09-21 世界观芽工具整合 · 批 3）：
+    /// 原 6 个名字（worldbuild/character/geography/magic/combat/language）均为悬空名
+    /// （不在 SKILL_REGISTRY）——已清理；芽的「使用方法」现由 worldview 工具按需披露，
+    /// 场景不再预置技能（同 S5 对 coding 场景的处置口径）。
     fn builtin_skills(&self) -> Vec<String> {
-        vec![
-            "worldbuild".into(),
-            "character".into(),
-            "geography".into(),
-            "magic".into(),
-            "combat".into(),
-            "language".into(),
-        ]
+        Vec::new()
     }
 }
 
@@ -862,7 +858,8 @@ mod tests {
         let sc = WorldbuildingScenario::new();
         assert_eq!(sc.id(), "world");
         assert!(sc.tool_ids().contains(&"entity_get".to_string()));
-        assert!(sc.builtin_skills().contains(&"worldbuild".to_string()));
+        // 2026-09-21 批 3：悬空技能名已清理（芽说明改由 worldview 工具按需披露）
+        assert!(sc.builtin_skills().is_empty());
     }
 
     #[tokio::test]

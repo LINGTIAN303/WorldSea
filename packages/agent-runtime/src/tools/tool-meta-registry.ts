@@ -4,7 +4,7 @@ import type { ToolMeta } from '@worldsea/agent-core'
 import { getGlobalToolRegistry } from '@worldsea/agent-core'
 import type { ToolDefinition } from '../bridge-types'
 import { LEGACY_ALGO_MAP } from './algo-tools'
-import { LEGACY_PLUGIN_MAP } from './plugin-backend-tools'
+// 2026-09-21 批 3：LEGACY_PLUGIN_MAP（旧芽工具名别名）随三件退役移除——旧名不再解析。
 
 /** 工具列表注入点（默认从 agent.ts 注入，CLI 从 cli-agent.ts 注入） */
 // 任务3 接线后：工具直接注册到全局 ToolRegistry，不再需要本地 _toolsSource 变量。
@@ -114,16 +114,8 @@ function buildMetaCache(): Map<string, ToolMeta> {
     }
   }
 
-  // 2.6. 从 LEGACY_PLUGIN_MAP 补充插件旧名映射
-  for (const [alias, canonical] of Object.entries(LEGACY_PLUGIN_MAP)) {
-    if (!cache.has(alias)) {
-      const meta = cache.get(canonical)
-      if (meta) cache.set(alias, meta)
-    }
-  }
-
   // 3. LEGACY_TOOL_META 已淘汰（任务3 后续）：所有静态工具声明式 meta 进 ToolRegistry，
-  //    旧工具名通过 ALIAS_MAP / LEGACY_ALGO_MAP / LEGACY_PLUGIN_MAP 解析，无需独立兜底表。
+  //    旧工具名通过 ALIAS_MAP / LEGACY_ALGO_MAP 解析，无需独立兜底表。
 
   return cache
 }

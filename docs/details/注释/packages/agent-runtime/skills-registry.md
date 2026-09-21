@@ -1,6 +1,8 @@
 # registry.ts 详细注释文档（packages/agent-runtime/skills）
 
 > 来源：`packages/agent-runtime/src/skills/registry.ts` 中连续 ≥ 10 行的长注释块，按文件内出现顺序迁移至此。
+>
+> 2026-09-21 批 3 注记：26 项芽所属技能退役（「使用方法」迁 `tools/worldview/guides.ts`）——SKILL_REGISTRY 现仅存挂账的 creation-orchestrator；`data/{worldbuilding,creation,analysis,other,development}.ts` 已删（communication.ts 精简为单条）。
 > 代码内原位置已替换为一行简要注释 + 相对路径。
 > 拆分记录（2026-08-06）：SKILL_REGISTRY 数据数组按类别拆入 skills/data/。
 

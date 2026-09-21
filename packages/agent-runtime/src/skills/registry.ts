@@ -67,22 +67,15 @@ export const ALWAYS_AVAILABLE_TOOLS = [
   'execute_command', 'shell_session', 'web_search', 'web_fetch',
 ]
 
-// SKILL_REGISTRY 静态数据按类别拆分至 skills/data/（纯静态数据与逻辑分离），合并顺序与原内联数组一致
+// 2026-09-21 世界观芽工具整合（批 3）：26 项芽所属技能退役——
+// 其「使用方法」已迁入 worldview 工具（tools/worldview/guides.ts），本注册表仅存挂账的
+// creation-orchestrator；外部安装技能（Skills Store）不受影响（走 scanInstalledSkills 合并）。
+// 计划：docs/plans/2026-09-21-世界观芽工具整合.md
 import { getSkillVisibility } from './data/visibility'
-import { CREATION_SKILLS } from './data/creation'
-import { ANALYSIS_SKILLS } from './data/analysis'
-import { DEVELOPMENT_SKILLS } from './data/development'
 import { COMMUNICATION_SKILLS } from './data/communication'
-import { WORLDBUILDING_SKILLS } from './data/worldbuilding'
-import { OTHER_SKILLS } from './data/other'
 
 export const SKILL_REGISTRY: SkillMeta[] = [
-  ...CREATION_SKILLS,
-  ...ANALYSIS_SKILLS,
-  ...DEVELOPMENT_SKILLS,
   ...COMMUNICATION_SKILLS,
-  ...WORLDBUILDING_SKILLS,
-  ...OTHER_SKILLS,
 ]
 
 /**

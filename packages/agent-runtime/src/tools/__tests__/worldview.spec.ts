@@ -15,7 +15,6 @@ import {
   SPROUT_ACTIONS,
   SPROUT_GUIDES,
 } from '../worldview'
-import { PLUGIN_BACKEND_TOOLS } from '../plugin-backend-tools'
 
 const fakeCtx = {} as unknown as IToolContext
 
@@ -122,46 +121,6 @@ describe('worldview：动作执行（渐进披露第三级）', () => {
     } finally {
       table.get_structure.run = original
     }
-  })
-})
-
-describe('旧域工具薄壳（单一事实源转发）', () => {
-  it('timeline 薄壳转发到动作表（args 原样透传）', async () => {
-    const shell = PLUGIN_BACKEND_TOOLS.find(t => t.name === 'timeline')
-    expect(shell).toBeDefined()
-    const table = SPROUT_ACTIONS['official.timeline']
-    const original = table.get_events.run
-    const spy = vi.fn(async (_args: Record<string, unknown>) => JSON.stringify({ ok: true, from: 'actions' }))
-    table.get_events.run = spy
-    try {
-      const raw = await shell!.execute({ action: 'get_events', limit: 5 }, fakeCtx)
-      expect(JSON.parse(raw).from).toBe('actions')
-      expect(spy.mock.calls[0][0]).toMatchObject({ action: 'get_events', limit: 5 })
-    } finally {
-      table.get_events.run = original
-    }
-  })
-
-  it('entity_type 薄壳按实体类型路由到对应芽', async () => {
-    const shell = PLUGIN_BACKEND_TOOLS.find(t => t.name === 'entity_type')
-    expect(shell).toBeDefined()
-    const table = SPROUT_ACTIONS['official.characters']
-    const original = table.list.run
-    const spy = vi.fn(async () => JSON.stringify({ ok: true, from: 'characters' }))
-    table.list.run = spy
-    try {
-      const raw = await shell!.execute({ action: 'list', entity_type: 'character' }, fakeCtx)
-      expect(JSON.parse(raw).from).toBe('characters')
-    } finally {
-      table.list.run = original
-    }
-  })
-
-  it('entity_type 未知类型：fail loud', async () => {
-    const shell = PLUGIN_BACKEND_TOOLS.find(t => t.name === 'entity_type')!
-    const parsed = JSON.parse(await shell.execute({ action: 'list', entity_type: 'no_such' }, fakeCtx))
-    expect(parsed.ok).toBe(false)
-    expect(parsed.available).toContain('character')
   })
 })
 
