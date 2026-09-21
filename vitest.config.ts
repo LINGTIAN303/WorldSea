@@ -12,8 +12,13 @@ export default defineConfig({
       'packages/memory-archive/**/__tests__/**/*.spec.ts',
       'packages/entity-core/**/__tests__/**/*.spec.ts',
       'packages/agent-runtime/src/tools/__tests__/**/*.spec.ts',
+      // 2026-09-17 纳入（S1 协议基座）：skills 侧此前无测试目录；解析器/校验器/sidecar 均为纯函数
+      'packages/agent-runtime/src/skills/__tests__/**/*.spec.ts',
       'packages/shared-composables/**/__tests__/**/*.spec.ts',
       'packages/shared-ui/**/__tests__/**/*.spec.ts',
+      // 2026-09-20 纳入（Q1 提问工具）：ui-kit composable 此前无测试目录；
+      // useAsk 批量提问状态机（五态）为纯逻辑，适宜 jsdom 直测
+      'packages/ui-kit/**/__tests__/**/*.spec.ts',
       // 2026-09-14 纳入：原先只覆盖 packages/**，唯一 GUI（apps/tauri，含全部芽视图与
       // 前端逻辑）完全不参与测试 —— 新写的纯逻辑只能靠临时脚本验证。
       'apps/tauri/**/__tests__/**/*.spec.ts',

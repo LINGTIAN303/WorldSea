@@ -60,6 +60,7 @@ My-Data-Project/
 worldsea-data/
 .worldsea-data/
 .public/
+.独立项/
 # 本机 MSVC 环境注入脚本（沙箱 PATH 适配，含机器特定路径，不入库）
 scripts/msvc_env.sh
 # 会话归档（daily/index，运行期自动生成）
