@@ -194,3 +194,32 @@ describe('零漂移守卫：guides 不内嵌字段清单', () => {
     }
   })
 })
+
+describe('工具描述：发现路径（2026-09-21 A+C 轮）', () => {
+  it('描述含用户域词汇与用法语义（「某领域怎么用」可语义命中）', () => {
+    const desc = worldviewTool.description
+    expect(desc).toContain('使用方法')
+    // 工具列表里扫到「道具」「实体字段」这类词 → 命中「道具实体怎么用」类问法
+    expect(desc).toContain('道具')
+    expect(desc).toContain('实体字段')
+    expect(worldviewTool.parameters.sprout.description).toContain('道具')
+  })
+
+  it('描述不写死领域清单（示例 + 以运行时返回为准）', () => {
+    expect(worldviewTool.description).toContain('示例')
+    expect(worldviewTool.description).toContain('以不带参数的调用返回为准')
+  })
+
+  it('描述与参数说明不含引导词（与芽说明同口径）', () => {
+    const banned = ['建议', '推荐', '优先', '首选', '应该', '务必', '最好']
+    const texts = [
+      worldviewTool.description,
+      ...Object.values(worldviewTool.parameters).map(p => p.description),
+    ]
+    for (const text of texts) {
+      for (const word of banned) {
+        expect(text.includes(word), `工具描述含引导词「${word}」：${text}`).toBe(false)
+      }
+    }
+  })
+})

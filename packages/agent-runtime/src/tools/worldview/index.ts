@@ -19,15 +19,15 @@ import { runSproutAction } from './actions'
 export const worldviewTool: ToolDefinition = {
   name: 'worldview',
   description:
-    '世界观芽工具。不传 sprout：返回全部芽名清单；传 sprout：返回该芽的使用方法（含动作目录与参数说明）；传 sprout 与 action：执行该芽的动作（params 传参）。',
+    '世界观领域（芽）的入口：列领域清单 / 取某领域的使用方法（实体字段、关系、动作与参数）/ 执行某领域的动作。领域示例：角色、道具、区域、势力、时间线、大纲、正文、笔记、魔法、文化等（完整清单以不带参数的调用返回为准）。',
   parameters: {
     sprout: {
       type: 'string',
-      description: '芽名（如「大纲」）或芽 id（如 outline）。不传则列出全部芽名',
+      description: '领域名（如「道具」「大纲」）或领域 id（如 item / outline）。不传则列出全部领域',
     },
     action: {
       type: 'string',
-      description: '动作名。与 sprout 一并传入时执行该动作；单独传 sprout 时返回该芽使用方法',
+      description: '动作名。与 sprout 一并传入时执行该动作；单独传 sprout 时返回该领域使用方法',
     },
     params: {
       type: 'object',
