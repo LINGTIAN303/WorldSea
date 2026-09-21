@@ -161,6 +161,14 @@ ReAct 核心循环
   更新 `turn_count` / `current_tool` / checkpoint 快照（含完整 messages 用于断点恢复）。
   节流策略：仅在 `has_active_task()` 时生成 checkpoint 快照，避免无活跃任务时的无效克隆。
 
+> **A3 补注（2026-09-17，阶段 2 · 输入准入）**：两个 `Aborted` 出口（`state.aborted` /
+> 协作式取消）现统一经 `finalize_interrupted_turn(reason, iteration)` 收口——**已交付文本**
+> （流式已送达前端的增量，由 `DeliveredTextRecorder` 累积）落为 assistant 终稿
+> （`meta.interrupted*` 即**中断锚点**）并广播 `StreamEnd` + `AgentInterrupted`。
+> 另：`run` 起始与每轮请求构建前各有一次 `consume_admitted_inputs`（三通道 inbox 的
+> pre-step 准入，`waterfall` 分发 `InputAdmission`，监听器可改写/丢弃/否决）——
+> 详见 `crates/agent-kernel/src/agent/input.rs` 模块文档。
+
 ---
 
 ## 注释块 8（原文件第 727-736 行）
@@ -319,6 +327,12 @@ system 消息，故记忆只能经 override 注入（本方法拼接）。
 
 - 仅在串行模式生效（`parallel_tool_calls=false`，默认配置）
 - 并行模式因 `self` 无法 move 进 'static 闭包，不应用超时/重试
+- **T4（2026-09-18）后串并行同规**：本职责链已提取为模块级共享执行器
+  `run_tool_with_retry`（+ 依赖束 `ToolExecShared`）；串行方法只负责装配依赖束并发起调用，
+  并行 task 克隆同一依赖束后在 spawn 内调用——超时 / 重试 / 取消检查 / A6 钩子 /
+  重试事件在两条路径上一致。
+- 上一条「并行模式……不应用超时/重试」**已作废**：以「克隆依赖束」替代「move self」，
+  未引入 `RetryToolBus` 装饰器方案。
 
 # 参数
 
@@ -337,7 +351,7 @@ system 消息，故记忆只能经 override 注入（本方法拼接）。
 # 并行模式策略
 
 1. 主任务按顺序广播所有 `ToolCallStart`（UI 能先看到全部待执行工具）
-2. 用 `JoinSet` 并发 spawn 每个工具调用
+2. 用 `JoinSet` 并发 spawn 每个工具调用（T4 起每个 task 走与串行一致的 `run_tool_with_retry` 统一包装）
 3. 收集结果后按原索引排序（保证 toolResult 消息顺序与 tool_calls 一致，便于 LLM 理解）
 4. 主任务按顺序广播 `ToolCallEnd`
 
@@ -347,17 +361,35 @@ system 消息，故记忆只能经 override 注入（本方法拼接）。
 
 ## 注释块 16（原文件第 1554-1566 行）
 
-用 JoinSet 并发执行（每个 task 返回 (原索引, call_id, tool_name, result_value)）
+用 JoinSet 并发执行：每个 task 内走与串行一致的 `run_tool_with_retry` 统一包装
+（每个 task 返回 (原索引, call_id, tool_name, result_value, duration_ms, status, error)）
 
-Loop Engineering 批次4 集成：并行模式下的工具重试/超时限制
-- **超时**：每个 task 独立应用 `tool_timeout`（spawn 内部用 `tokio::time::timeout`）
-- **重试**：每个 task 独立重试（`tool_max_retries` 控制单工具重试次数）
+T4（2026-09-18）：并行模式下的超时/重试/钩子/事件同规
+- **超时**：每个 task 独立应用 `tool_timeout`（统一包装内 `tokio::time::timeout`）
+- **重试**：每个 task 独立按 `tool_max_retries` + 2^n 退避重试
+- **钩子**：A6 pre/post/on_error 与串行一致（此前并行直调总线绕过钩子）
+- **事件**：每次重试广播 `LoopEngRetrying`、耗尽广播 `LoopEngRetryExhausted`
+- **取消**：每次重试前检查 `is_cancel_requested()`
 - **限流**：不在并行模式应用（并行执行本身就不需要严格限流）
 
-注意：spawn 内部不能调用 `self.execute_tool_with_retry`（因为 `self` 不能 move 进
-'static 闭包），因此这里直接用 `tool_bus.call_tool`，不应用超时/重试。
-若需在并行模式应用超时/重试，应在 ToolBus 层实现（如 `RetryToolBus` 装饰器）。
-当前实现保持并行模式简单，超时/重试仅在串行模式生效（默认配置 parallel_tool_calls=false）。
+实现方式：spawn 内不能借用 `&self`，改为克隆 `ToolExecShared` 依赖束（全为 Arc / 轻量字段）
+进 task；原「直接用 `tool_bus.call_tool`、不应用超时/重试」与
+「应在 ToolBus 层实现 `RetryToolBus` 装饰器」两处旧说明均已作废。
+
+### 附：T1 工具失败结果判别契约（2026-09-18）
+
+工具失败结果统一由 `tool_failure_payload` / `tool_failure_from_error` 构造（Q1 起
+`tool_failure_payload` 迁至 `crates/agent-kernel/src/tool.rs`——公开路径
+`agent_runtime::tool::tool_failure_payload`，跨 crate 复用（agent-commands 提问工具）；
+`tool_failure_from_error` 仍在 `agent/tools.rs`，供 `Err(ToolError)` 路径）：
+- 保留既有 `error`（字符串）+ `tool` 字段（对模型习惯与既有消费方零破坏）
+- 新增 `isError: true`（判别显式）+ `errorCode`（结构化码，经 `ToolError::error_code()` 单点映射）
+- 码表：UNKNOWN_TOOL / INVALID_TOOL_INPUT / EXECUTION_ERROR / TIMEOUT / ABORTED / UNKNOWN（源自 ToolError）；
+  策略与确认拒绝：POLICY_DENIED / CONFIRM_DENIED / CONFIRM_SKIPPED / CONFIRM_TIMEOUT；
+  提问（Q1）：ASK_DENIED / ASK_CANCELLED / ASK_UNAVAILABLE；并行 task panic：TOOL_PANIC
+- 前端桥：前端工具以 `{ok:false,error}` 或 `{error}` 形态「成功返回的失败」由 `normalize_frontend_failure` 归一化补判别字段
+- 成功结果不加 `isError`（缺省即成功；与 dsh 显式双侧的差异系有意选择——避免全量成功负载膨胀）
+- 边界：`ToolCallEnd.status` 维持既有口径（拒绝类结果历史上为 success），本次不改（避免非加性改动）
 
 ---
 

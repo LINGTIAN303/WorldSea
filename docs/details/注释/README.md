@@ -56,7 +56,9 @@
 | src/subagent.rs | [subagent.md](agent-commands/subagent.md) | 子 Agent 编排：委派工具、懒加载实例池、事件广播器注入 |
 | src/subagent_store.rs | [subagent_store.md](agent-commands/subagent_store.md) | 子 Agent 规格 SQLite 持久化（JSON 整条存储，启动加载/写穿） |
 | src/long_task_store.rs | [long_task_store.md](agent-commands/long_task_store.md) | 长任务 SQLite 持久化（表结构 + 仓库 API） |
-| src/terminal.rs | [terminal.md](agent-commands/terminal.md) | 终端工具：execute_command / 持久化 Shell 会话设计 |
+| src/sandbox/{mod.rs, win.rs} | [sandbox.md](agent-commands/sandbox.md) | E3 真沙箱：受限令牌 + ACL 授予 / 会话级 temp 生命周期 / 撤销口径与边界登记（E3-1..E3-4） |
+| src/terminal.rs | [terminal.md](agent-commands/terminal.md) | 终端工具：execute_command / 持久化 Shell 会话设计；E3 沙箱接线与文案口径（2026-09-18 补充） |
+| src/{timers.rs, timer_tools.rs} | [timers.md](agent-commands/timers.md) | 定时唤醒（批次 C·S1）：`session_timers` 状态机 + 认领幂等 / 载荷与来源标记跨层契约 / 护栏与失败语义 / 已知边界 |
 | tests/e2e_llm.rs | [e2e_llm.md](agent-commands/e2e_llm.md) | 真实 LLM 端到端实测：运行方式/设计约束/Provider 选择、Router 与 ToT 编排模式链路 |
 | src/lib_tests.rs | （无） | 2026-08-06 拆分的测试模块（#[path] 引用），无 ≥ 10 行连续注释块 |
 | src/loop_control_tests.rs | （无） | 2026-08-06 拆分的测试模块（#[path] 引用），无 ≥ 10 行连续注释块 |
@@ -170,9 +172,11 @@
 | src/skills/plugin-bridge.ts | [skills-plugin-bridge.md](packages/agent-runtime/skills-plugin-bridge.md) | 插件能力桥接：Skill 系统 ↔ 插件系统 |
 | src/skills/registry.ts | [skills-registry.md](packages/agent-runtime/skills-registry.md) | Skill 注册中心：工具白名单/合并/提示词生成/一致性校验 |
 | src/skills/data/*.ts | （无独立注释文档，见 skills-registry.md 拆分记录） | SKILL_REGISTRY 静态数据按类别拆分：creation/analysis/development/communication/worldbuilding/other + visibility 辅助 |
-| src/skills/skills-store.ts | [skills-skills-store.md](packages/agent-runtime/skills-skills-store.md) | 本地导入技能：写 skill.yaml + SKILL.md（不触发重扫） |
-| src/skills/__tests__/manifest.spec.ts | [skills-tests-manifest-spec.md](packages/agent-runtime/skills-tests-manifest-spec.md) | frontmatterToSkillMeta 转换逻辑单元测试 |
-| src/skills/__tests__/platform-adapters.spec.ts | [skills-tests-platform-adapters-spec.md](packages/agent-runtime/skills-tests-platform-adapters-spec.md) | 多平台技能格式互通单元测试 |
+| src/skills/skills-store.ts | [skills-skills-store.md](packages/agent-runtime/skills-skills-store.md) | 技能写入封装：安装/卸载/本地导入（SKILL.md + sidecar）/ 创建入口（不触发重扫，S2 更新） |
+| src/skills/creator.ts | [skills-creator.md](packages/agent-runtime/skills-creator.md) | 创建/导入组装层：规范 SKILL.md + 可选 sidecar 生成（回读自检，S2 管理面） |
+| src/skills/validator.ts | [skills-protocol.md](packages/agent-runtime/skills-protocol.md) | Skill 协议校验器：规范规则集（name/description/compatibility）+ 私有键 warn（S1 协议基座） |
+| src/skills/sidecar.ts | [skills-protocol.md](packages/agent-runtime/skills-protocol.md) | Skill sidecar（worldsea.skill.json）：D2 私有字段承载，宽容解析降级 |
+| src/skills/__tests__/*.spec.ts | [skills-protocol.md](packages/agent-runtime/skills-protocol.md) + [skills-creator.md](packages/agent-runtime/skills-creator.md)（测试说明见文内「设计要点」） | 协议基座契约测试：解析器（flow/分隔符/metadata/缩进）+ 校验器 + sidecar + 创建模板/导入组装/合并策略（46 用例） |
 | src/stores/image-persistence.ts | [stores-image-persistence.md](packages/agent-runtime/stores-image-persistence.md) | 图像 IndexedDB 持久化（虚拟路径格式） |
 | src/stores/image-store.ts | [stores-image-store.md](packages/agent-runtime/stores-image-store.md) | 内存级图像缓存（30 分钟 TTL） |
 | src/stores/video-persistence.ts | [stores-video-persistence.md](packages/agent-runtime/stores-video-persistence.md) | 视频 IndexedDB 持久化（元数据 + Blob） |
@@ -262,8 +266,12 @@
 | 代码文件 | 详细注释文档 | 摘要 |
 |---|---|---|
 | src/agent/blocks/interactive-tool/utils.ts | [utils.md](packages/shared-ui/agent/blocks/interactive-tool/utils.md) | InteractiveToolCall 共享工具函数（标签/格式化/截断） |
-| src/agent/bubbles/useMarkdownRender.ts | [useMarkdownRender.md](packages/shared-ui/agent/bubbles/useMarkdownRender.md) | Markdown 渲染 composable（消毒 + mention 注入 + rAF 节流） |
+| src/agent/bubbles/codeHighlight.ts | [codeHighlight.md](packages/shared-ui/agent/bubbles/codeHighlight.md) | Prism 语法高亮 + **内容键 memo**（C7：消除「内容未变却重复高亮」两条热路径；参考实现供门禁判别力自证） |
+| src/agent/bubbles/markdownStream.ts | [markdownStream.md](packages/shared-ui/agent/bubbles/markdownStream.md) | 流式 Markdown 内核（C2）：分块判定线（最后一个内容 token）+ 保守回退（def/html）+ 增量渲染器（token 缓存，增量 ≡ 全量契约） |
+| src/agent/bubbles/useMarkdownRender.ts | [useMarkdownRender.md](packages/shared-ui/agent/bubbles/useMarkdownRender.md) | Markdown 渲染 composable（Vue 接线：rAF 节流 + 字体段 + JSON 剥离；增量内核见 markdownStream.md） |
 | src/agent/message-list/useMessageWindowing.ts | [useMessageWindowing.md](packages/shared-ui/agent/message-list/useMessageWindowing.md) | 消息列表窗口化 + 滚动锚定 composable |
+| src/agent/stream/rows/thinkSummary.ts | [thinkSummary.md](packages/shared-ui/agent/stream/rows/thinkSummary.md) | 推理行摘要（C1 推理流式专项）：定向扫描替代全文逐行切分（等价性契约 + 判别力自证；参考实现留在源码供门禁对照） |
+| src/agent/stream/groupTurns.ts | [groupTurns.md](packages/shared-ui/agent/stream/groupTurns.md) | 事件行流 → 轮次分组 + **整组复用**（帧率修复③：源行引用全等则复用分组对象，使流式每 delta 只重渲被触及的轮次） |
 
 ### packages/perf-kit（packages/perf-kit）
 

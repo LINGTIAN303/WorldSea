@@ -101,3 +101,20 @@ Skill 注册中心
 幂等：重复调用会清空已安装技能后重新扫描填充。
 应在 createWorldSeaAgent 前 await 调用一次。
 ```
+
+## 注释块 7（2026-09-18 S2 发现面：D3 优先级合并）
+
+```
+合并内置与已安装技能（D3 裁定：安装根 > 内置，同名覆盖并登记 warning）
+纯函数（可测）：返回覆盖后的合并列表；warnings 数组由调用方传入并累积。
+```
+
+变更说明（取代注释块 6 第 2 步的旧口径）：
+
+- **合并策略反转**：原「内置优先、同 id 静默跳过」→ **安装根 > 内置**（同名覆盖 + 登记 warning），
+  被覆盖的内置条目从合并视图（`_mergedSkills`，`getAllRegisteredSkills` 唯一返回源）中剔除；
+  理由：用户显式安装的技能应生效，且不静默（对齐 dsh 分层覆盖）。
+- **新增可见面**：`getInstalledScanWarnings()` 返回上次扫描登记的警告
+  （覆盖冲突 / 安装根内同 id 重复目录保留首个 / 条目协议校验 error 级），供面板与调用方展示。
+- **扫描即校验**：`scanInstalledSkills` 每条目携带 `issues`（`validateSkillFrontmatter`，
+  `dirName = 安装目录名`）；注册表把 error 级问题并入扫描警告（不阻断加载）。

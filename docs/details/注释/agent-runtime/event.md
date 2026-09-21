@@ -169,17 +169,16 @@ A2UI 事件（阶段 P2 新增）
 这些事件用于跟踪 Agent-to-UI 的画布操作，
 前端可据此展示"Agent 创建了画布 X"、"Agent 更新了组件 Y"等状态。
 
-事件触发时机：
-- AgentLoop 执行 A2UI 工具（如 ui_create_surface / ui_update_components 等）后，
-  工具通过 FrontendToolBridge 调用 TS 实现，TS 实现内部调用 ctx.emitA2UI
-- FrontendToolBridge 将 emitA2UI 调用桥接回 Rust，封装为 A2UIEvent 广播
-- Tauri 命令层将 A2UIEvent 转换为 AgentEventPayload::A2UI 推送到前端
+事件触发时机（2026-09-17 现状）：
+- 桥工具（ui_create_surface / ui_update_components 等）执行中，TS 实现内部调用 ctx.emitA2UI
+- emitA2UI → 命令 cmd_agent_emit_a2ui → 会话事件总线广播 A2UIEvent
+- Tauri emitter 转发前端通道 `agent:event:a2ui:{session_id}`；同一条事件另经动作段臂
+  缓冲 → AgentEnd 收口落 meta.action_events（画布回源数据源）
 
 设计说明：
 - A2UI 事件本质是"工具副作用"，不依赖 Orchestrator 编排模式
 - 包装在 OrchestratorEvent 内是为了走现有事件广播通道（EventBroadcaster）
-- 与 Agent(AgentEvent::A2UI) 的关系：A2UIEvent 是 Orchestrator 层的包装，
-  Tauri 端在转换时会同时处理两种形式（统一输出 AgentEventPayload::A2UI）
+- `AgentEvent::A2UI` 死变体已于 2026-09-17 清理——活路径只走 `OrchestratorEvent::A2UIEvent`
 
 ---
 

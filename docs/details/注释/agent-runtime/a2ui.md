@@ -27,10 +27,16 @@
 | `update_data_model`   | `{ updateDataModel: {} }`  |
 | `delete_surface`      | `{ deleteSurface: {...} }` |
 
-## 使用场景
-- `AgentEvent::A2UI` 变体携带 `A2UIMessage`，由 AgentLoop 在工具调用后产生
-- 通过 `OrchestratorEvent` 转发到 Tauri 层，再序列化为 `AgentEventPayload::A2UI`
-- 前端监听 `a2ui` 事件，更新 `a2uiSurfaces` 状态，由 `A2UIRenderer.vue` 渲染
+## 使用场景（2026-09-17 现状）
+- 桥工具（`ui_*` / 实体工具）执行中经前端 `ctx.emitA2UI` → `cmd_agent_emit_a2ui` →
+  `OrchestratorEvent::A2UIEvent`（携带 `A2UIMessage`）广播到会话事件总线
+- Tauri emitter 转发前端通道 `agent:event:a2ui:{session_id}`；同一条事件另经动作段臂
+  缓冲 → AgentEnd 收口落 `meta.action_events`（画布回源数据源，见 2026-09-17 画布回源计划）
+- 前端监听该通道更新 `a2uiSurfaces` 状态，由 `A2UIRenderer.vue` 渲染
+
+> 历史注记：本段原描述「`AgentEvent::A2UI` 变体 → `AgentEventPayload::A2UI`」为接线前设计；
+> 2026-09-17 A2UI 端到端接线（活路径走 `OrchestratorEvent::A2UIEvent`）后，
+> `AgentEvent::A2UI` 死变体已清理（D6/D7 纪律延续）。
 
 ---
 

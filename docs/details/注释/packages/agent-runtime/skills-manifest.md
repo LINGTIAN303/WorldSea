@@ -42,3 +42,23 @@
 
 非 Tauri 环境或目录为空时返回空数组（零回归）。
 ```
+
+## 注释块 3（2026-09-17 S1 协议基座：sidecar 接入）
+
+```
+sidecar（worldsea.skill.json）：D2 裁定的私有字段权威源（缺失即降级，不阻断）
+frontmatterToSkillMeta(..., sidecar?)：sidecar 为私有字段权威源，frontmatter 顶层私有键仅作过渡兜底
+```
+
+变更说明（补充）：
+
+- **扫描链路新增一步**：每个已安装技能目录在读出提示词文件后，再读 `worldsea.skill.json`
+  （`parseWorldSeaSkillSidecar` 宽容解析，坏 JSON/非法字段 → null 降级，不阻断技能加载）。
+- **`frontmatterToSkillMeta` 增第 4 参**（可选，向后兼容）：私有字段按
+  `sidecar?.x ?? fm.x` 合并——`icon` / `category` / `capabilities` / `schemaContext` /
+  `triggers` / `tags` / `priority` / `autoActivate`，并新增 `visibility` /
+  `outputPreferences` / `relatedPlugins` / `pluginTools` 的来源（此前 visibility 硬编码 `always`、
+  后三者无来源）。
+- **规范字段不落 SkillMeta**：`license` / `compatibility` / `metadata` 由 parser 解析后保留在
+  frontmatter 层（供管理面展示与合规校验），不进入运行时 SkillMeta。
+- **内置技能不受影响**：内置元数据仍来自 TS `SKILL_REGISTRY`（D1 分层单源：存量内置走 TS 过渡）。

@@ -49,7 +49,7 @@
 
 热切换 Provider 配置（不清空消息历史）
 
-重建 `ProviderConfig` 并替换内部 config，保留 messages 和 steer_buffer。
+重建 `ProviderConfig` 并替换内部 config，保留 messages。
 对应前端 `IAgentBackend.updateModel` 接口。
 
 # 模式切换规则
