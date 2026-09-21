@@ -116,6 +116,7 @@ pub fn run() {
             commands::rewind_session,
             commands::create_checkpoint,
             commands::list_checkpoints,
+            commands::grant_session_permission,
             commands::list_scenarios,
             commands::list_patterns,
             commands::list_sessions,

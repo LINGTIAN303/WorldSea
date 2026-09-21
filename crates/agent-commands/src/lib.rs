@@ -33,6 +33,8 @@ pub use error::CommandError;
 pub use fs_tools::register_fs_tools;
 // v2 权限规则引擎（方向3 P0，2026-09-03）：白名单/上锁名单与三档——透传给 Tauri 命令层
 pub use agent_runtime::permission_rules;
+/// S4-b：会话级授权条目（透传 Tauri 命令层——前端「本会话总是允许」按钮随 UX 批）
+pub use agent_runtime::permission_machine::SessionGrant;
 pub use long_task_store::LongTaskRepository;
 pub use loop_control::{
     LoopControlCheckResult, LoopControlEntry, LoopControlRegistry, LoopControlRegistryError,
@@ -4727,6 +4729,18 @@ impl AgentCommandService {
     ) -> Result<(), CommandError> {
         let agent = self.get_agent(session_id).await?;
         agent.set_provider_config(config).await.map_err(CommandError::from)
+    }
+
+    /// S4-b：写入会话级授权（**仅本会话内存活**、不落盘——ZD2-3；只服务 alwaysAsk gate）。
+    ///
+    /// 返回写入后的条目总数。前端「本会话总是允许」按钮随 UX 批接线；命令面先行可测。
+    pub async fn grant_session_permission(
+        &self,
+        session_id: &str,
+        grants: Vec<SessionGrant>,
+    ) -> Result<usize, CommandError> {
+        let agent = self.get_agent(session_id).await?;
+        Ok(agent.grant_session_permission(grants))
     }
 
     /// 注入备用 API Key 池（A2 多 Key 降级）

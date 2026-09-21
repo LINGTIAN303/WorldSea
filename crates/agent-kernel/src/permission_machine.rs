@@ -129,11 +129,108 @@ pub struct PermissionCtx<'a> {
     pub path_outside_workdir: bool,
 }
 
-/// alwaysAsk 判定（**S4-a 批次源**：Dangerous 级工具——现状语义；S4-b 扩四类结构化名单）
+/// alwaysAsk 类别（ZD2-2 四类**全选**；S4-b 结构化名单）
 ///
-/// 注意：alwaysAsk 位于档位闸门之前——**Autopilot 亦不可绕过**（05-§八.1 不变量）。
+/// 「数据区写删」为**路径型**——不进本名单，由内置锁 / 数据区位次（1）承担
+/// （E1 写保护在真实写入链路独立执行，见 `agent_commands::fs_tools::ensure_not_protected`）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AlwaysAskClass {
+    /// 进程执行（命令 / 终端类：`is_command_tool` 同源集合）
+    ProcessExec,
+    /// 未预批外发（MCP 调用 `mcp__*` / `web_fetch`）——出网收口在传输层，此处是人工闸门
+    UntrustedEgress,
+    /// 破坏性工具（Dangerous 级：委派 / 删除 / 清空）
+    Destructive,
+}
+
+/// alwaysAsk 判定（S4-b 四类结构化名单；**迁移点**：工具族批迁 `ToolDescriptor.always_ask` 字段）
+///
+/// 注意：alwaysAsk 位于档位闸门之前——**Autopilot 亦不可绕过**（05-§八.1 不变量）；
+/// 用户 Allow 名单（位次 3）与其后传入的「预批」语义先于本名单（名单即预批）。
+pub fn always_ask_class(tool_name: &str) -> Option<AlwaysAskClass> {
+    if tool_name.starts_with("mcp__") {
+        return Some(AlwaysAskClass::UntrustedEgress);
+    }
+    if crate::confirmation::is_command_tool(tool_name) {
+        return Some(AlwaysAskClass::ProcessExec);
+    }
+    if tool_name == "web_fetch" {
+        return Some(AlwaysAskClass::UntrustedEgress);
+    }
+    (crate::confirmation::tool_permission(tool_name) == ToolPermission::Dangerous)
+        .then_some(AlwaysAskClass::Destructive)
+}
+
+/// alwaysAsk 命中（类别见 [`always_ask_class`]）
 pub fn is_always_ask(tool_name: &str) -> bool {
-    crate::confirmation::tool_permission(tool_name) == ToolPermission::Dangerous
+    always_ask_class(tool_name).is_some()
+}
+
+// ─── 会话级授权（S4-b；ZD2-3：仅会话内存活、不落盘）────────────────
+
+/// 会话级授权条目
+///
+/// - `content = None`：该工具全量授权；`Some(pattern)`：内容包含匹配
+///   （命令子串 / 路径前缀——主体经 `confirmation::rule_content_subject` 归一化）
+/// - `once = true`：命中即消费（一次性）
+///
+/// serde camelCase：跨 IPC 边界（前端「本会话总是允许」按钮随 UX 批）。
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionGrant {
+    pub tool_name: String,
+    pub content: Option<String>,
+    pub once: bool,
+}
+
+/// 会话级授权集合（内存态；**只服务 alwaysAsk gate**——对齐 ZCode sessionRules）
+#[derive(Debug, Clone, Default)]
+pub struct SessionPermissionGrants {
+    entries: Vec<SessionGrant>,
+}
+
+impl SessionPermissionGrants {
+    /// 新增一条（空 tool_name / 空 content 忽略——避免"空模式匹配一切"）
+    pub fn grant(&mut self, tool_name: impl Into<String>, content: Option<String>, once: bool) {
+        let tool_name = tool_name.into();
+        if tool_name.is_empty() {
+            return;
+        }
+        let content = content.filter(|c| !c.is_empty());
+        self.entries.push(SessionGrant { tool_name, content, once });
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    /// 命中判定并消费：`once` 条目命中后移除；返回是否命中。
+    ///
+    /// 匹配口径：工具名相等，且（条目 content 为空 → 全量；否则 `subject` 包含模式）。
+    /// 无 `subject`（工具不带内容主体）时仅全量条目可命中。
+    pub fn consume(&mut self, tool_name: &str, subject: Option<&str>) -> bool {
+        let hit = self.entries.iter().position(|e| {
+            e.tool_name == tool_name
+                && match (&e.content, subject) {
+                    (None, _) => true,
+                    (Some(pattern), Some(subject)) => subject.contains(pattern.as_str()),
+                    (Some(_), None) => false,
+                }
+        });
+        match hit {
+            Some(idx) => {
+                if self.entries[idx].once {
+                    self.entries.remove(idx);
+                }
+                true
+            }
+            None => false,
+        }
+    }
 }
 
 /// 判定顺序**单点**（位次表见模块文档与 11-§三；命中即返回，不回溯）

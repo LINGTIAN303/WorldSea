@@ -189,6 +189,12 @@ pub struct AgentLoop {
     /// 通过 `with_confirmation` 注入。启用后，`execute_tool_calls` 对命中
     /// `config.confirmation_policy` 的工具调用发起确认（广播事件 + 等待前端回传）。
     confirmation_broker: Option<Arc<ConfirmationBroker>>,
+    /// S4-b：会话级授权（ZD2-3——仅会话内存活、不落盘；**只服务 alwaysAsk gate**）
+    ///
+    /// 经 `grant_session_permission` 写入（命令层 API；前端「本会话总是允许」按钮随 UX 批），
+    /// `maybe_require_confirmation` 在 alwaysAsk 位次消费（`once` 命中即移除）。
+    /// 选用 `StdMutex`（短临界区、不跨 await 持有）。
+    session_grants: Arc<StdMutex<crate::permission_machine::SessionPermissionGrants>>,
     /// Q1 提问（2026-09-20）：本循环是否为子代理实例（`true` 时提问类工具不可用）
     ///
     /// 由 [`SubAgentManager`](crate::sub_agent_pool) 构造子代理时经 [`Self::mark_sub_agent`]
@@ -323,6 +329,9 @@ impl AgentLoop {
             memory: None,
             memory_context: Arc::new(StdRwLock::new(None)),
             confirmation_broker: None,
+            session_grants: Arc::new(StdMutex::new(
+                crate::permission_machine::SessionPermissionGrants::default(),
+            )),
             is_sub_agent: false,
             tool_hooks: Vec::new(),
             router: None,

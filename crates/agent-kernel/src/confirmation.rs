@@ -481,6 +481,31 @@ pub fn is_write_tool(tool_name: &str) -> bool {
     matches!(tool_name, "write_file" | "edit_file" | "edit_diff")
 }
 
+/// 内容主体（S4-b：会话授权 / 项目规则等内容匹配的判定主体）
+///
+/// - 命令类工具：`command` 原文（**小写**，与 `dangerous_command_patterns` 同口径）
+/// - FS 类工具：解析（`fs_path_arg` → `expand_home` → `ctx.resolve_path`）后的**归一化路径**
+/// - 其余工具：`None`（无内容主体——会话授权仅全量条目可命中）
+pub fn rule_content_subject(
+    tool_name: &str,
+    args: &serde_json::Value,
+    ctx: &ToolContext,
+) -> Option<String> {
+    if is_command_tool(tool_name) {
+        return args
+            .get("command")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_lowercase());
+    }
+    if is_fs_tool(tool_name) {
+        let raw = fs_path_arg(tool_name, args)?;
+        let expanded = expand_home(&raw);
+        let resolved = ctx.resolve_path(&expanded);
+        return Some(crate::tool_context::normalize_path(&resolved).to_string_lossy().to_string());
+    }
+    None
+}
+
 /// 规则引擎统一裁决（锁 > 白名单）：
 /// - `Err`：命中用户锁（按 read/command/write 维度）——调用方按拒绝处理
 /// - `Ok(true)`：命中白名单（命令/路径）——调用方直接放行，跳过档位确认

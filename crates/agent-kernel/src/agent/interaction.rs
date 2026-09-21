@@ -489,4 +489,30 @@ impl AgentLoop {
     pub async fn current_api_key_pool(&self) -> Vec<String> {
         self.backend.api_key_pool().await
     }
+
+    /// S4-b：写入会话级授权（**仅会话内存活**；只服务 alwaysAsk gate——ZD2-3）。
+    /// 返回写入后的条目总数。空工具名 / 空内容模式被忽略（见 `SessionPermissionGrants::grant`）。
+    pub fn grant_session_permission(
+        &self,
+        entries: Vec<crate::permission_machine::SessionGrant>,
+    ) -> usize {
+        let mut grants = self.session_grants.lock().unwrap_or_else(|e| e.into_inner());
+        for entry in entries {
+            grants.grant(entry.tool_name, entry.content, entry.once);
+        }
+        grants.len()
+    }
+
+    /// S4-b：消费会话级授权（`once` 命中即移除）；返回是否命中。
+    pub fn consume_session_grant(&self, tool_name: &str, subject: Option<&str>) -> bool {
+        self.session_grants
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .consume(tool_name, subject)
+    }
+
+    /// S4-b：会话级授权当前条目数（可观测 / 测试用）
+    pub fn session_grant_count(&self) -> usize {
+        self.session_grants.lock().unwrap_or_else(|e| e.into_inner()).len()
+    }
 }

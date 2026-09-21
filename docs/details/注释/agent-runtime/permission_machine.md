@@ -37,8 +37,19 @@ S4-a 把顺序收为**纯函数** [`decide`]：无 I/O、无全局单例——�
 
 ## 四、批次边界（S4 计划）
 
-- 本批（S4-a）：位次 1-13 与全部字段；alwaysAsk **源** = Dangerous 级（现状语义）；
-  项目裁决恒 `None`；会话授权来源恒空。
-- S4-b：alwaysAsk 扩四类结构化名单 + 会话授权来源接入（Q1/Q3 拍板）。
+- S4-a（已完成）：位次 1-13 与全部字段。
+- S4-b（已完成）：alwaysAsk 扩四类结构化名单（`always_ask_class`：进程执行 / 未预批外发 /
+  破坏性 / 数据区写删〔路径型并入 E1 位〕；**迁移点：工具族批迁 `ToolDescriptor.always_ask`**）+
+  会话授权来源接入（`SessionGrant` / `SessionPermissionGrants`，`AgentLoop` 存取；
+  `once` 命中即消费；匹配主体经 `confirmation::rule_content_subject` 归一化）。
 - S4-c：项目规则来源接入（`{workdir}/.worldsea/permissions.json`，Q2 拍板）。
 - 位次表**不随批次改动，只换来源**；改位次须同行更新 §三 表与逐位用例。
+
+## 五、会话级授权（S4-b）
+
+- **作用域**：仅会话内存活、不落盘（ZD2-3）——「会话内允许」≠ 全局放行；永久授权走用户名单显式编辑。
+- **只服务 alwaysAsk gate**（位次 6）：普通工具不认（用例 `pos6`、`s4b_session_grant_serves_always_ask_gate_only`… 见逐位表）。
+- **条目语义**：`content=None` 全量 / `Some(pattern)` 内容包含匹配（命令=小写原文；路径=归一化路径）；
+  `once=true` 命中即消费。空工具名 / 空模式被忽略（防空模式匹配一切）。
+- **接口**：`AgentLoop::{grant_session_permission, consume_session_grant, session_grant_count}`；
+  命令面 `grant_session_permission`（服务层 + Tauri；UI 随 UX 批）。

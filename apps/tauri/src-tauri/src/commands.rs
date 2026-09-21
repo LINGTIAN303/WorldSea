@@ -1679,6 +1679,21 @@ pub async fn list_checkpoints(
         .map_err(|e| e.to_string())
 }
 
+/// S4-b：写入会话级授权（仅本会话内存活；`once=true` 一次性）——只服务 alwaysAsk gate
+///
+/// 前端「本会话总是允许」按钮随 UX 批接线；此处为命令面先行（机制可测）。
+#[tauri::command]
+pub async fn grant_session_permission(
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+    grants: Vec<agent_commands::SessionGrant>,
+) -> Result<usize, String> {
+    state
+        .grant_session_permission(&session_id, grants)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// 状态快照
 #[tauri::command]
 pub async fn get_state(

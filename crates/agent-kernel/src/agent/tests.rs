@@ -4971,3 +4971,31 @@
             .await;
         assert_eq!(agent.project_id().as_deref(), Some("p-456"));
     }
+
+    /// S4-b：会话级授权存取（仅会话内存活；`once` 命中即消费；内容模式匹配）
+    #[tokio::test]
+    async fn session_grant_accessors_roundtrip_and_consume_once() {
+        use crate::permission_machine::SessionGrant;
+        let agent = AgentLoop::new(
+            Arc::new(MockBackend::new(vec![])),
+            Arc::new(SimpleToolBus::new()),
+        );
+        assert_eq!(agent.session_grant_count(), 0, "新会话无授权");
+
+        let n = agent.grant_session_permission(vec![
+            SessionGrant { tool_name: "execute_command".into(), content: Some("cargo".into()), once: true },
+            SessionGrant { tool_name: "web_fetch".into(), content: None, once: false },
+        ]);
+        assert_eq!(n, 2, "写入后条目数");
+
+        // 内容不匹配：不命中、不消费
+        assert!(!agent.consume_session_grant("execute_command", Some("git status")));
+        assert_eq!(agent.session_grant_count(), 2);
+        // 一次性命中即消费
+        assert!(agent.consume_session_grant("execute_command", Some("cargo test")));
+        assert_eq!(agent.session_grant_count(), 1, "once 命中后移除");
+        assert!(!agent.consume_session_grant("execute_command", Some("cargo test")), "已消费");
+        // 全量条目（content=None）：无主体亦命中，且不消费
+        assert!(agent.consume_session_grant("web_fetch", None));
+        assert_eq!(agent.session_grant_count(), 1);
+    }

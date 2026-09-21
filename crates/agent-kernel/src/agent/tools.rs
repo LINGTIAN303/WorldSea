@@ -550,6 +550,13 @@ impl AgentLoop {
             .unwrap_or(false);
         // agent-tmp 全权免确认（隐式白名单；与敏感目录/用户锁互斥——二者在本位次之前拦截）
         let agent_tmp = crate::confirmation::should_bypass_confirmation(name, args, ctx);
+        // S4-b：alwaysAsk（四类名单）+ 会话级授权（仅 alwaysAsk gate 消费——ZD2-3）
+        let always_ask = is_always_ask(name);
+        let session_grant = always_ask
+            && self.consume_session_grant(
+                name,
+                crate::confirmation::rule_content_subject(name, args, ctx).as_deref(),
+            );
         let decision = decide(&PermissionCtx {
             tool_name: name,
             args,
@@ -560,8 +567,8 @@ impl AgentLoop {
             user_lock: user_lock.as_deref(),
             user_allow,
             project: ProjectVerdict::None, // S4-c 接入项目规则来源
-            always_ask: is_always_ask(name), // S4-b 扩四类结构化名单
-            session_grant: false,         // S4-b 接入会话级授权来源
+            always_ask,
+            session_grant,
             plan_forbidden_write_or_command: plan_forbidden,
             agent_tmp,
             path_outside_workdir,

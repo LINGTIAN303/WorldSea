@@ -269,6 +269,59 @@ fn ask_degrades_without_confirmation_channel() {
     assert_eq!(decide(&c2).behavior, Behavior::Deny, "Deny 不降级");
 }
 
+// ─── S4-b：alwaysAsk 四类名单 + 会话级授权 ────────────────────
+
+/// 四类名单覆盖（ZD2-2 全选）：进程执行 / 未预批外发 / 破坏性 + 数据区写删（路径型）
+#[test]
+fn s4b_always_ask_classes_cover_four_categories() {
+    // ① 进程执行（is_command_tool 同源集合）
+    for t in [
+        "execute_command",
+        "bash",
+        "powershell",
+        "shell_session",
+        "shell_session_exec",
+        "shell_session_create",
+        "shell_session_write",
+    ] {
+        assert_eq!(always_ask_class(t), Some(AlwaysAskClass::ProcessExec), "{t}");
+    }
+    // ② 未预批外发：MCP 全量前缀 + web_fetch
+    assert_eq!(always_ask_class("mcp__fs__read_file"), Some(AlwaysAskClass::UntrustedEgress));
+    assert_eq!(always_ask_class("mcp__any__tool"), Some(AlwaysAskClass::UntrustedEgress));
+    assert_eq!(always_ask_class("web_fetch"), Some(AlwaysAskClass::UntrustedEgress));
+    // ③ 破坏性工具（Dangerous 级）
+    for t in ["delegate_to_sub_agent", "entity_delete", "memory_delete", "clear_history", "trash_empty"] {
+        assert_eq!(always_ask_class(t), Some(AlwaysAskClass::Destructive), "{t}");
+    }
+    // ④ 数据区写删为**路径型**——由内置锁 / 数据区位次（1）承担，不进本名单
+    assert_eq!(always_ask_class("write_file"), None);
+    assert_eq!(always_ask_class("edit_file"), None);
+    // 未登记工具不误伤（Moderate 兜底）
+    assert_eq!(always_ask_class("unknown_tool"), None);
+    assert_eq!(always_ask_class("entity_get"), None);
+}
+
+/// 会话授权消费规则：内容匹配 / 一次性消费 / 全量条目 / 空值忽略
+#[test]
+fn s4b_session_grant_consumption_rules() {
+    let mut g = SessionPermissionGrants::default();
+    assert!(g.is_empty());
+    g.grant("execute_command", Some("cargo".into()), true);
+    g.grant("bash", None, false);
+    g.grant("", None, false); // 空工具名忽略
+    g.grant("web_fetch", Some(String::new()), false); // 空内容 → 归一为全量
+    assert_eq!(g.len(), 3, "空工具名被忽略");
+
+    assert!(!g.consume("execute_command", Some("git status")), "内容不匹配");
+    assert!(g.consume("execute_command", Some("cargo test")), "内容包含命中");
+    assert_eq!(g.len(), 2, "once 命中即消费");
+    assert!(!g.consume("execute_command", Some("cargo test")), "已消费不重复");
+    assert!(g.consume("bash", Some("任意")), "全量条目不限内容");
+    assert!(g.consume("web_fetch", None), "空内容归一为全量：无主体亦命中");
+    assert_eq!(g.len(), 2, "全量条目不被消费");
+}
+
 /// 兜底：无策略（未启用确认）→ 放行
 #[test]
 fn fallback_allows_without_policy() {
