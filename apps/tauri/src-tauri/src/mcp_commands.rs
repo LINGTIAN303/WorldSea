@@ -147,7 +147,14 @@ pub async fn cmd_mcp_disconnect(
     id: String,
 ) -> Result<usize, String> {
     state.hub.disconnect(&id).await?;
-    Ok(svc.remove_mcp_server_tools(&id).await)
+    let removed = svc.remove_mcp_server_tools(&id).await;
+    // M7：最后一个 server 断开时，一并移除枢纽级 resources 工具
+    if state.hub.connected_count().await == 0 {
+        let _ = svc
+            .remove_mcp_server_tools(agent_runtime::mcp::MCP_HUB_TOOL_GROUP)
+            .await;
+    }
+    Ok(removed)
 }
 
 /// 活跃连接状态列表（前端面板渲染）
@@ -191,6 +198,12 @@ pub async fn cmd_mcp_delete(
 ) -> Result<(), String> {
     let _ = state.hub.disconnect(&id).await;
     let _ = svc.remove_mcp_server_tools(&id).await;
+    // M7：最后一个 server 移除时，一并移除枢纽级 resources 工具
+    if state.hub.connected_count().await == 0 {
+        let _ = svc
+            .remove_mcp_server_tools(agent_runtime::mcp::MCP_HUB_TOOL_GROUP)
+            .await;
+    }
     let _guard = state
         .config_lock
         .lock()

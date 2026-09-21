@@ -41,6 +41,11 @@ export function useMcpConnections(options: UseMcpConnectionsOptions = {}) {
     loaded.value = true
     // Rust 启动时已按配置文件 auto_connect_all，这里只取「配置+状态」合并视图
     connections.value = await agent.getMCPConnections()
+    // M6（2026-09-17 三域对齐 dsh）：绑定 Rust 状态机事件（连接/重连/失败/断开时实时刷新）
+    agent.onMCPStatusChanged?.(() => {
+      void refreshConnections()
+    })
+    void agent.ensureMCPStatusListener?.()
     // T09②（2026-09-01）：启动自动重连失败检测——enabled 但未连上即属于
     // 启动重连失败（服务器未起/网络/鉴权等）。供应用根组件消费并提示一次。
     autoReconnectFailed.value = connections.value
@@ -58,7 +63,14 @@ export function useMcpConnections(options: UseMcpConnectionsOptions = {}) {
   async function addConnection(config: MCPConnectionConfig): Promise<void> {
     const agent = getAgentMethods()
     if (!agent) return
-    await agent.addMCPConnection(config)
+    try {
+      await agent.addMCPConnection(config)
+    } catch (e) {
+      // cmd_mcp_connect 在连接失败时直接返回、不落盘；这里补一次 save，
+      // 让配置以启用态保留 → 进入「连接失败」组并保留重试入口（C-2，2026-09-17 UI 优化）
+      try { await agent.saveMCPConnection({ ...config, enabled: true }) } catch {}
+      throw e
+    }
     connections.value = await agent.getMCPConnections()
   }
 
@@ -77,17 +89,34 @@ export function useMcpConnections(options: UseMcpConnectionsOptions = {}) {
     if (!current) return
     const next: MCPConnectionConfig = { ...current.config, enabled: !current.config.enabled }
     if (next.enabled) {
-      // 连接即持久化（cmd_mcp_connect 内 upsert），失败时回写禁用态保持一致
+      // 启用：连接即持久化；失败时保持启用态并补存配置（落「连接失败」组可重试），
+      // 不再静默回写禁用（C-2，2026-09-17）
       try {
         await agent.addMCPConnection(next)
-      } catch {
-        await agent.saveMCPConnection({ ...next, enabled: false })
+      } catch (e) {
+        try { await agent.saveMCPConnection(next) } catch {}
+        throw e
       }
     } else {
       await agent.saveMCPConnection(next)
       try { await agent.disconnectMCPConnection(serverId) } catch {}
     }
     connections.value = await agent.getMCPConnections()
+  }
+
+  /** 仅保存不连接（编辑已禁用服务器时使用，避免意外发起连接） */
+  async function saveConnection(config: MCPConnectionConfig): Promise<void> {
+    const agent = getAgentMethods()
+    if (!agent) return
+    await agent.saveMCPConnection(config)
+    connections.value = await agent.getMCPConnections()
+  }
+
+  /** 重试连接（「连接失败」组）：取当前配置重新 connect（cmd_mcp_connect 幂等 upsert） */
+  async function retryConnection(serverId: string): Promise<void> {
+    const current = connections.value.find((c) => c.id === serverId)
+    if (!current) return
+    await addConnection({ ...current.config, enabled: true })
   }
 
   async function refreshConnections(): Promise<void> {
@@ -103,6 +132,8 @@ export function useMcpConnections(options: UseMcpConnectionsOptions = {}) {
     addConnection,
     removeConnection,
     toggleConnection,
+    saveConnection,
+    retryConnection,
     refreshConnections,
   }
 }

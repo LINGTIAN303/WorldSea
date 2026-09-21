@@ -338,16 +338,44 @@ import { scanInstalledSkills } from './manifest'
 let _skillsRegistered = false
 
 // ── 已安装技能（Task 24 阶段1：Skills Store 动态加载） ──
-/** 已安装技能列表（运行时从 app_data_dir/skills 扫描，初始为空） */
+/** 已安装技能列表（运行时从安装根扫描，初始为空） */
 let _installedSkills: SkillMeta[] = []
 /** 已安装技能 id → installDir 映射（loader 据此走 fs 加载分支） */
 const _installedSkillDirs = new Map<string, string>()
+/** 合并视图（内置 + 已安装，按 D3 优先级覆盖后；registerSkillsToGlobalRegistry 与查询共用） */
+let _mergedSkills: SkillMeta[] = [...SKILL_REGISTRY]
+/** 上次扫描登记的警告（覆盖冲突 / 不合规等问题；供面板展示） */
+let _installedScanWarnings: string[] = []
 /** initSkillRegistry 是否已完成（幂等守卫） */
 let _skillRegistryInited = false
 
-/** 返回内置 + 已安装的全部技能（合并视图） */
+/**
+ * 合并内置与已安装技能（D3 裁定：安装根 > 内置，同名覆盖并登记 warning）
+ *
+ * 纯函数（可测）：返回覆盖后的合并列表；warnings 数组由调用方传入并累积。
+ */
+export function mergeInstalledOverBuiltin(
+  builtin: SkillMeta[],
+  installed: SkillMeta[],
+  warnings: string[] = [],
+): SkillMeta[] {
+  const installedIds = new Set(installed.map((s) => s.id))
+  for (const id of installedIds) {
+    if (builtin.some((b) => b.id === id)) {
+      warnings.push(`已安装技能「${id}」覆盖了同名内置技能（优先级：安装根 > 内置）`)
+    }
+  }
+  return [...builtin.filter((b) => !installedIds.has(b.id)), ...installed]
+}
+
+/** 上次扫描登记的警告（覆盖冲突 / 同 id 重复 / 不合规等） */
+export function getInstalledScanWarnings(): string[] {
+  return [..._installedScanWarnings]
+}
+
+/** 返回内置 + 已安装的全部技能（合并视图，已按优先级覆盖） */
 function getAllRegisteredSkills(): SkillMeta[] {
-  return [...SKILL_REGISTRY, ..._installedSkills]
+  return _mergedSkills
 }
 
 /** 判断技能是否为已安装技能（来自 Skills Store，需走 fs 加载） */
@@ -401,17 +429,30 @@ export function isSkillsRegisteredToGlobal(): boolean {
 /** 初始化技能注册表：扫描已安装技能并合并（幂等），详细见 docs/details/注释/packages/agent-runtime/skills-registry.md */
 export async function initSkillRegistry(): Promise<void> {
   const entries = await scanInstalledSkills()
-  const builtinIds = new Set(SKILL_REGISTRY.map(s => s.id))
+  const warnings: string[] = []
 
   _installedSkills = []
   _installedSkillDirs.clear()
 
-  for (const { meta, installDir } of entries) {
-    if (builtinIds.has(meta.id)) continue // 内置优先，跳过 id 冲突
-    if (_installedSkillDirs.has(meta.id)) continue // 防同 id 重复
+  for (const { meta, installDir, issues } of entries) {
+    // 同 id 重复目录（安装根内）：保留首个 + 登记 warning（D3：不静默）
+    if (_installedSkillDirs.has(meta.id)) {
+      warnings.push(`安装根下存在同 id 的重复技能目录（保留首个）：${meta.id}（目录 ${installDir}）`)
+      continue
+    }
     _installedSkills.push(meta)
     _installedSkillDirs.set(meta.id, installDir)
+    // 协议校验问题登记（error 级即不合规；不阻断加载，面板可见）
+    for (const issue of issues) {
+      if (issue.level === 'error') {
+        warnings.push(`技能「${meta.id}」不符合协议规范：${issue.field ? `${issue.field}——` : ''}${issue.message}`)
+      }
+    }
   }
+
+  // D3 优先级合并：安装根覆盖同名内置（覆盖即登记 warning）
+  _mergedSkills = mergeInstalledOverBuiltin(SKILL_REGISTRY, _installedSkills, warnings)
+  _installedScanWarnings = warnings
 
   // 重新注册到全局 SkillRegistry（包含已安装技能）
   registerSkillsToGlobalRegistry()

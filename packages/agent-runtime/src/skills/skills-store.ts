@@ -9,6 +9,9 @@
 
 import { isTauri } from '../execution'
 import { initSkillRegistry, notifySessionPromptDirty } from './registry'
+import { buildSkillTemplate } from './creator'
+import type { SkillCreateInput } from './creator'
+import type { SkillValidationIssue } from './validator'
 
 /** Tauri invoke 函数类型 */
 type TauriInvoke = (cmd: string, args?: Record<string, unknown>) => Promise<unknown>
@@ -219,25 +222,28 @@ export async function checkUpdates(manifest: RemoteManifest): Promise<RemoteSkil
   })
 }
 
-/** 本地导入参数（Task 24 阶段4：多平台互通） */
+/** 本地导入参数（Task 24 阶段4：多平台互通；2026-09-18 S2 协议基座：改为 SKILL.md + sidecar 落盘） */
 export interface ImportLocalOptions {
   /** 技能 id（作为目录名） */
   skillId: string
-  /** skill.yaml manifest 文本 */
-  skillYaml: string
-  /** SKILL.md 提示词文本（可选，空则不写） */
+  /** skill.yaml manifest 文本（legacy 路径；新流程不写，留空即可） */
+  skillYaml?: string
+  /** SKILL.md 提示词文本（含规范 frontmatter，为唯一元数据源） */
   skillMd?: string
+  /** worldsea.skill.json 文本（D2 私有字段承载；无私有字段则留空） */
+  sidecarJson?: string
 }
 
-/** 本地导入技能：写 skill.yaml + SKILL.md 到 app_data_dir/skills（不触发重扫），详细见 docs/details/注释/packages/agent-runtime/skills-skills-store.md */
+/** 本地导入技能：写 SKILL.md（+ 可选 sidecar / legacy skill.yaml）到安装根（不触发重扫），详细见 docs/details/注释/packages/agent-runtime/skills-skills-store.md */
 export async function importLocalSkill(opts: ImportLocalOptions): Promise<InstallResult | null> {
   const invoke = await getTauriInvoke()
   if (!invoke) return null
   try {
     return (await invoke('cmd_skills_import_local', {
       skillId: opts.skillId,
-      skillYaml: opts.skillYaml,
+      skillYaml: opts.skillYaml ?? null,
       skillMd: opts.skillMd ?? null,
+      sidecar: opts.sidecarJson ?? null,
     })) as InstallResult
   } catch {
     return null
@@ -257,4 +263,42 @@ export async function importLocalSkillAndReload(opts: ImportLocalOptions): Promi
     notifySessionPromptDirty('skills-import')
   }
   return result
+}
+
+/** 创建技能结果（S2 管理面） */
+export interface CreateSkillOutcome {
+  ok: boolean
+  /** 生成物校验问题（error 级未放行时 ok=false 且不落盘） */
+  issues: SkillValidationIssue[]
+  result?: InstallResult | null
+}
+
+/**
+ * 创建技能并重新扫描注册表（S2 管理面：创建向导的写入入口）
+ *
+ * 流程：buildSkillTemplate（规范 SKILL.md + 可选 sidecar）→ 校验（error 级默认拦截）
+ * → importLocalSkill（SKILL.md-only 写路径）→ initSkillRegistry → 通知会话提示词脏。
+ *
+ * @param opts.allowNonCompliant 用户显式放行（仅当校验有 error 时才有意义）
+ */
+export async function createSkillAndReload(
+  input: SkillCreateInput,
+  opts: { allowNonCompliant?: boolean } = {},
+): Promise<CreateSkillOutcome> {
+  const template = buildSkillTemplate(input)
+  const hasError = template.issues.some((issue) => issue.level === 'error')
+  if (hasError && !opts.allowNonCompliant) {
+    return { ok: false, issues: template.issues }
+  }
+
+  const result = await importLocalSkill({
+    skillId: input.id.trim(),
+    skillMd: template.skillMd,
+    sidecarJson: template.sidecarJson,
+  })
+  if (result) {
+    await initSkillRegistry()
+    notifySessionPromptDirty('skills-create')
+  }
+  return { ok: !!result, issues: template.issues, result }
 }

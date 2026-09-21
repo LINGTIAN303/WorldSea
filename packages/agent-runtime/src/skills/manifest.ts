@@ -4,6 +4,10 @@ import { isTauri } from '../execution'
 import type { SkillMeta } from './registry'
 import { parseFrontmatter } from './parser'
 import type { ParsedSkillMd } from './parser'
+import { parseWorldSeaSkillSidecar, WORLDSEA_SKILL_SIDECAR_FILE } from './sidecar'
+import type { WorldSeaSkillSidecar } from './sidecar'
+import { validateSkillFrontmatter } from './validator'
+import type { SkillValidationIssue } from './validator'
 
 /** Tauri invoke 函数类型 */
 type TauriInvoke = (cmd: string, args?: Record<string, unknown>) => Promise<unknown>
@@ -46,6 +50,8 @@ export interface InstalledSkillEntry {
   meta: SkillMeta
   /** skills/ 下的子目录名（loader 据此定位文件） */
   installDir: string
+  /** 协议校验问题（S2：扫描即校验，供注册表/面板登记；不阻断加载） */
+  issues: SkillValidationIssue[]
 }
 
 /** 获取已安装技能根目录绝对路径；非 Tauri 环境返回 null */
@@ -97,30 +103,35 @@ function normalizeCategory(raw: unknown): SkillMeta['category'] {
  * @param fm parseFrontmatter 返回的 frontmatter
  * @param installDir skills/ 下的子目录名（作为 id 兜底）
  * @param promptFile 实际提示词文件名（SKILL.md 或 instructions.md）
+ * @param sidecar 目录内 worldsea.skill.json 的解析结果（D2 裁定：私有字段权威源；缺失即降级）
  */
 export function frontmatterToSkillMeta(
   fm: ParsedSkillMd['frontmatter'],
   installDir: string,
   promptFile: string,
+  sidecar?: WorldSeaSkillSidecar | null,
 ): SkillMeta {
   return {
     id: fm.id || installDir,
     name: fm.name || fm.id || installDir,
-    icon: sanitizeIcon(fm.icon),
+    icon: sanitizeIcon(sidecar?.icon ?? fm.icon),
     description: fm.description || '',
-    category: normalizeCategory(fm.category),
+    category: normalizeCategory(sidecar?.category ?? fm.category),
     enabled: fm.enabled !== false, // 默认 true，除非显式 enabled: false
-    visibility: 'always',
+    visibility: sidecar?.visibility ?? 'always',
     version: fm.version || '1.0.0',
     promptFile,
     baseTools: fm.baseTools,
     allowedTools: fm.allowedTools,
-    capabilities: fm.capabilities,
-    schemaContext: fm.schemaContext,
-    triggers: fm.triggers,
-    tags: fm.tags,
-    priority: fm.priority ?? 5,
-    autoActivate: fm.autoActivate,
+    capabilities: sidecar?.capabilities ?? fm.capabilities,
+    schemaContext: sidecar?.schemaContext ?? fm.schemaContext,
+    triggers: sidecar?.triggers ?? fm.triggers,
+    tags: sidecar?.tags ?? fm.tags,
+    priority: sidecar?.priority ?? fm.priority ?? 5,
+    autoActivate: sidecar?.autoActivate ?? fm.autoActivate,
+    outputPreferences: sidecar?.outputPreferences,
+    relatedPlugins: sidecar?.relatedPlugins,
+    pluginTools: sidecar?.pluginTools,
   }
 }
 
@@ -200,9 +211,14 @@ export async function scanInstalledSkills(): Promise<InstalledSkillEntry[]> {
     }
 
     if (fm) {
+      // sidecar（worldsea.skill.json）：D2 裁定的私有字段权威源（缺失即降级，不阻断）
+      const sidecarRaw = await readFileText(joinPath(skillsDir, installDir, WORLDSEA_SKILL_SIDECAR_FILE))
+      const sidecar = parseWorldSeaSkillSidecar(sidecarRaw)
       result.push({
-        meta: frontmatterToSkillMeta(fm, installDir, promptFile),
+        meta: frontmatterToSkillMeta(fm, installDir, promptFile, sidecar),
         installDir,
+        // 扫描即校验（S2）：规范要求 name 与目录同名；问题登记不阻断加载
+        issues: validateSkillFrontmatter(fm, { dirName: installDir }),
       })
     }
   }

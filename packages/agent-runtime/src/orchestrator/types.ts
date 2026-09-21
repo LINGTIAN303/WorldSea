@@ -53,35 +53,38 @@ export const AGENT_TYPE_CONFIG: Record<AgentType, {
   name: string
   skillIds: string[]
 }> = {
+  // S4 存量处置（2026-09-18）：14 个 instructions.md 类技能退役后，以下 worker 的 skillIds 清空——
+  // 其专用工具族（pkg_*/sys_*/git_*/file_*/fs_*/web_*_cli 等）本就不可达，子 Agent 走
+  // always-available 基础集 + 原生工具（bash/read_file/…）；评估见 05-instructions类技能评估.md
   'terminal-worker': {
     icon: '💻',
     name: '终端 Agent',
-    skillIds: ['terminal-launcher', 'terminal-operator', 'fs-operator', 'sys-inspector'],
+    skillIds: [],
   },
   'review-worker': {
     icon: '🔍',
     name: '审查 Agent',
-    skillIds: ['code-reviewer', 'security-scanner'],
+    skillIds: [],
   },
   'research-worker': {
     icon: '🌐',
     name: '研究 Agent',
-    skillIds: ['web-cli-operator', 'find-skills'],
+    skillIds: [],
   },
   'test-worker': {
     icon: '🧪',
     name: '测试 Agent',
-    skillIds: ['test-automator'],
+    skillIds: [],
   },
   'doc-worker': {
     icon: '📝',
     name: '文档 Agent',
-    skillIds: ['doc-generator'],
+    skillIds: [],
   },
   'git-worker': {
     icon: '🔀',
     name: 'Git Agent',
-    skillIds: ['git-operator'],
+    skillIds: [],
   },
   // 创作型
   'creation-worker': {

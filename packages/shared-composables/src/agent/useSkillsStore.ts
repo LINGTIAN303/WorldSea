@@ -7,11 +7,17 @@ import {
   uninstallSkillAndReload,
   getInstalledVersions,
   importLocalSkillAndReload,
+  createSkillAndReload,
   autoImportSkill,
-  exportToSkillYaml,
+  composeSkillMd,
+  sidecarJsonFromMeta,
+  validateSkillMdText,
+  getInstalledScanWarnings,
   hasSkillsInvoke,
   type RemoteSkillEntry,
   type InstalledMeta,
+  type SkillCreateInput,
+  type SkillValidationIssue,
 } from '@agent/index'
 
 /** 技能源配置 */
@@ -45,6 +51,16 @@ const installedVersions = ref<InstalledMeta[]>([])
 const loading = ref(false)
 const installing = ref<string | null>(null)
 const error = ref<string | null>(null)
+/** 扫描警告（S2：覆盖冲突 / 同 id 重复 / 不合规；面板可见） */
+const scanWarnings = ref<string[]>([])
+
+/** 本地导入结果（S2：新增 issues——校验问题，error 级需显式放行） */
+export interface ImportLocalResult {
+  success: boolean
+  warnings: string[]
+  platform: string
+  issues?: SkillValidationIssue[]
+}
 
 /** 持久化技能源配置 */
 function saveSources(): void {
@@ -116,10 +132,11 @@ export function useSkillsStore() {
     }
   }
 
-  /** 刷新已安装技能版本 */
+  /** 刷新已安装技能版本（含扫描警告） */
   async function refreshInstalled(): Promise<void> {
     if (!isTauri.value) return
     installedVersions.value = await getInstalledVersions()
+    scanWarnings.value = getInstalledScanWarnings()
   }
 
   /** 安装技能（成功后刷新已安装列表） */
@@ -176,30 +193,63 @@ export function useSkillsStore() {
     return !!local && local !== skill.version
   }
 
-  /** 本地导入技能（多平台互通：自动检测外部格式解析为标准 skill），详细见 docs/details/注释/packages/shared-composables/agent/useSkillsStore.md */
-  async function importLocal(raw: string, fallbackId: string): Promise<{ success: boolean; warnings: string[]; platform: string }> {
+  /**
+   * 本地导入技能（多平台互通：自动检测外部格式）
+   *
+   * S2 协议基座变更：落盘改为「规范 SKILL.md（frontmatter 为唯一元数据源）+ 可选 sidecar」，
+   * 不再写 legacy skill.yaml；导入前经协议校验，error 级默认拦截，
+   * 用户可经 `allowNonCompliant` 显式放行（面板「仍然导入」）。
+   */
+  async function importLocal(raw: string, fallbackId: string, opts: { allowNonCompliant?: boolean } = {}): Promise<ImportLocalResult> {
     if (!isTauri.value) {
       return { success: false, warnings: ['商城功能仅在桌面端可用'], platform: 'unknown' }
     }
     error.value = null
     try {
       const parsed = autoImportSkill(raw, fallbackId)
-      const skillYaml = exportToSkillYaml(parsed.meta)
-      const skillMd = parsed.body || undefined
-      const result = await importLocalSkillAndReload({
-        skillId: parsed.meta.id,
-        skillYaml,
-        skillMd,
-      })
+      const skillId = parsed.meta.id
+      const body = parsed.body?.trim() ? parsed.body : `# ${parsed.meta.name}`
+      const skillMd = composeSkillMd(skillId, parsed.meta.description, body)
+      const sidecarJson = sidecarJsonFromMeta(parsed.meta)
+
+      // 协议校验（前置）：error 级拦截（可显式放行）
+      const issues = validateSkillMdText(skillMd, skillId)
+      const hasError = issues.some((issue) => issue.level === 'error')
+      if (hasError && !opts.allowNonCompliant) {
+        return { success: false, warnings: parsed.warnings, platform: parsed.platform, issues }
+      }
+
+      const result = await importLocalSkillAndReload({ skillId, skillMd, sidecarJson })
       if (result) {
         await refreshInstalled()
-        return { success: true, warnings: parsed.warnings, platform: parsed.platform }
+        return { success: true, warnings: parsed.warnings, platform: parsed.platform, issues }
       }
       error.value = '导入失败：写入技能文件失败'
-      return { success: false, warnings: parsed.warnings, platform: parsed.platform }
+      return { success: false, warnings: parsed.warnings, platform: parsed.platform, issues }
     } catch (e: any) {
       error.value = `导入失败: ${e?.message || e}`
       return { success: false, warnings: [], platform: 'unknown' }
+    }
+  }
+
+  /** 创建技能（S2 创建向导：规范 SKILL.md + 可选 sidecar；校验 error 级默认拦截） */
+  async function createSkill(
+    input: SkillCreateInput,
+    opts: { allowNonCompliant?: boolean } = {},
+  ): Promise<{ ok: boolean; issues: SkillValidationIssue[] }> {
+    if (!isTauri.value) {
+      return { ok: false, issues: [{ level: 'error', message: '商城功能仅在桌面端可用' }] }
+    }
+    error.value = null
+    try {
+      const outcome = await createSkillAndReload(input, opts)
+      if (outcome.ok) await refreshInstalled()
+      else if (outcome.issues.length > 0) error.value = '创建失败：不符合协议规范'
+      else error.value = '创建失败：写入技能文件失败'
+      return { ok: outcome.ok, issues: outcome.issues }
+    } catch (e: any) {
+      error.value = `创建失败: ${e?.message || e}`
+      return { ok: false, issues: [] }
     }
   }
 
@@ -208,6 +258,7 @@ export function useSkillsStore() {
     skillSources,
     remoteSkills,
     installedVersions,
+    scanWarnings,
     loading,
     installing,
     error,
@@ -223,5 +274,6 @@ export function useSkillsStore() {
     isInstalled,
     hasUpdate,
     importLocal,
+    createSkill,
   }
 }

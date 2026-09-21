@@ -326,6 +326,4 @@ export async function createWorldSeaAgent(_options: CreateAgentOptions): Promise
 
 export { DefaultToolBus } from './toolbus/toolbus'
 export type { ToolBus } from './toolbus/toolbus'
-export { MCPManager } from './mcp/mcp-manager'
-export { MCPToolAdapter } from './mcp/mcp-adapter'
 export type { MCPConnectionConfig, MCPTransportType, MCPToolInfo, MCPConnectionState } from './mcp/types'

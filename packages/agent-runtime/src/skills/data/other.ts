@@ -29,81 +29,12 @@ export const OTHER_SKILLS: SkillMeta[] = [
       { channel: 'chat', condition: '简短确认' },
     ],
   },
-  {
-    id: 'relation-explorer',
-    name: '关系探索',
-    icon: 'link',
-    description: '跨实体关系深度探索与构建。支持 20+ 种关系类型的创建、查询、路径分析、关系网络可视化。关键词：关系、关联、连接、关系网、关系链、双向链接、关系类型。',
-    category: 'action',
-    enabled: true,
-    visibility: getSkillVisibility('relation-explorer'),
-    version: '1.0.0',
-    promptFile: 'relation-explorer/SKILL.md',
-    baseTools: ['entity_list', 'entity_get', 'relation_list'],
-    allowedTools: ['relation_create', 'relation_delete', 'algo_run', 'a2ui_show_relation', 'ui_create_surface', 'ui_update_components'],
-    examples: ['查找两个角色的所有关系路径', '分析实体的关系网络结构', '批量创建实体之间的关系'],
-    triggers: ['关系', '关联', '连接', '关系网', '关系链', '关系类型'],
-    relatedPlugins: ['graph'],
-    pluginTools: [
-      { pluginId: 'graph', tools: ['graph'], capabilities: ['图谱查询', '路径分析', '聚类'] },
-    ],
-    tags: ['关系', '关联', '图谱', '网络'],
-    priority: 9,
-    outputPreferences: [
-      { channel: 'a2ui', component: 'MermaidRender', condition: '展示关系子图时' },
-      { channel: 'a2ui', component: 'EditableTable', condition: '列出关系列表时' },
-      { channel: 'plugin', plugin: 'graph', condition: '需要交互式图谱操作时' },
-      { channel: 'chat', condition: '简短确认' },
-    ],
-  },
-  {
-    id: 'smart-fill',
-    name: '智能填充',
-    icon: 'magic',
-    description: '实体字段智能建议与一键填充。支持字段级接续预览、实体级批量填充、上下文感知生成、对话式协同创作。关键词：填充、建议、补全、自动、续写、ghost text、AI建议、智能。',
-    category: 'action',
-    enabled: true,
-    visibility: getSkillVisibility('smart-fill'),
-    version: '1.0.0',
-    promptFile: 'smart-fill/SKILL.md',
-    baseTools: ['entity_list', 'entity_get', 'content_search', 'entity_get_context'],
-    allowedTools: ['entity_suggest_field', 'entity_smart_fill', 'entity_get_context', 'relation_list', 'schema_get_entity_type', 'memory_recall', 'a2ui_show_entity', 'ui_create_surface', 'ui_update_components', 'ui_update_data'],
-    examples: ['帮我填充这个角色的空字段', '为这个建筑生成描述', '接续预览角色性格描述', '与AI聊聊这段设定'],
-    triggers: ['填充', '建议', '补全', '自动', '续写', 'AI建议', '智能'],
-    tags: ['填充', '建议', '补全', '续写', '智能'],
-    priority: 9,
-    outputPreferences: [
-      { channel: 'a2ui', component: 'SuggestionPicker', condition: '提供多个建议值让用户选择时' },
-      { channel: 'a2ui', component: 'EntityCard', condition: '展示填充结果预览时' },
-      { channel: 'a2ui', component: 'Comparison', condition: '左右对比原始 vs 填充后时' },
-      { channel: 'chat', condition: '字段建议值直接输出时' },
-    ],
-  },
-  {
-    id: 'data-analyst',
-    name: '数据分析',
-    icon: 'chart',
-    description: '项目数据深度分析。实体统计、属性分布、关系密度、一致性审计、趋势分析。生成可视化报告。关键词：统计、分析、分布、趋势、报告、数据、审计、密度。',
-    category: 'action',
-    enabled: true,
-    visibility: getSkillVisibility('data-analyst'),
-    version: '1.0.0',
-    promptFile: 'data-analyst/SKILL.md',
-    baseTools: ['entity_list', 'entity_get', 'content_search'],
-    allowedTools: ['relation_list', 'algo_run', 'consistency_check', 'schema_validate', 'ui_create_surface', 'ui_update_components', 'ui_update_data'],
-    examples: ['统计各类型实体的分布', '分析关系网络的密度和聚类', '生成世界观完整性审计报告'],
-    triggers: ['统计', '分析', '分布', '趋势', '报告', '数据', '审计'],
-    relatedPlugins: ['notebook'],
-    pluginTools: [
-      { pluginId: 'notebook', tools: ['notebook'], capabilities: ['分析报告保存'] },
-    ],
-    tags: ['统计', '分析', '分布', '报告', '审计'],
-    priority: 8,
-    outputPreferences: [
-      { channel: 'a2ui', component: 'ChartView', condition: '数值分布可视化时' },
-      { channel: 'a2ui', component: 'EditableTable', condition: '统计数据汇总时' },
-      { channel: 'a2ui', component: 'Comparison', condition: '多维度对比分析时' },
-      { channel: 'plugin', plugin: 'notebook', condition: '分析报告需持久保存时' },
-    ],
-  },
+  // 2026-09-18 S4 存量处置：smart-fill 技能已退役——
+  // 前端智能填充对话（useSmartFillChat）改按工具名直取，其能力由
+  // entity_suggest_field / entity_smart_fill / entity_get_context 等工具承载。
+  //
+  // 2026-09-18 S5 收口：relation-explorer 与 data-analyst 亦已退役——
+  // S5 归属核验发现二者不在任何芽的 agentSkills 声明中（属遗漏的独立技能）；
+  // 能力主体（entity_* / content_search / consistency_check）已可达，
+  // 关系视角与数据分析约定见 WORLDSEA.md。
 ]

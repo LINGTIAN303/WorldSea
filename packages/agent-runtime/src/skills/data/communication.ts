@@ -34,25 +34,8 @@ export const COMMUNICATION_SKILLS: SkillMeta[] = [
       { channel: 'a2ui', component: 'EditableTable', condition: '列出 Pipeline 列表 / 模板列表时' },
     ],
   },
-  {
-    id: 'vision-analyzer',
-    name: '视觉分析',
-    icon: 'eye',
-    description: '图片视觉分析。当用户发送图片需要识别、描述、分析时自动触发。支持跨厂商调用视觉模型——即使当前主模型不支持视觉，也能通过此工具调用支持视觉的模型来分析图片。关键词：图片、视觉、识图、看图、照片、截图、图像。',
-    category: 'action',
-    enabled: true,
-    visibility: getSkillVisibility('vision-analyzer'),
-    version: '1.0.0',
-    promptFile: 'vision-analyzer/instructions.md',
-    baseTools: [],
-    allowedTools: ['vision_analyze', 'list_vision_images'],
-    triggers: ['图片', '视觉', '识图', '看图', '照片', '截图', '图像'],
-    tags: ['视觉', '图片', '识图', '分析'],
-    priority: 10,
-    outputPreferences: [
-      { channel: 'chat', condition: '图片分析结果和描述时' },
-    ],
-  },
+  // 2026-09-18 S4 存量处置：vision-analyzer 已退役——
+  // 其能力（vision_analyze / list_vision_images）先补桥入「可达工具面」再摘注册（E2 裁定）
   {
     id: 'timeline-architect',
     name: '时间线编排',

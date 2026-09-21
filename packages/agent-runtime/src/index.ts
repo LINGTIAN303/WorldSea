@@ -13,8 +13,6 @@ export type { ToolBus } from './toolbus/toolbus'
 export type { IToolContext, IToolStores, IEntityStore, IRelationStore, IFileStore, ISettingsStore, IUIStore, SessionSummary } from './toolbus/types'
 
 // ═══ MCP ═══
-export { MCPManager } from './mcp/mcp-manager'
-export { MCPToolAdapter } from './mcp/mcp-adapter'
 export type { MCPConnectionConfig, MCPTransportType, MCPToolInfo, MCPConnectionState } from './mcp/types'
 
 // ═══ 会话管理 ═══
@@ -80,8 +78,16 @@ export { checkRateLimit, recordRequest, recordUsage, getUsageSummary } from './u
 export { SKILL_REGISTRY, getEnabledSkills, getAllSkills, toggleSkill, resolveToolNames, ALWAYS_AVAILABLE_TOOLS } from './skills/registry'
 export type { SkillMeta } from './skills/registry'
 // Skills Store：远程技能源下载/安装/卸载/更新 + 本地导入
-export { downloadRemoteManifest, installSkill, installSkillAndReload, uninstallSkill, uninstallSkillAndReload, getInstalledVersions, checkUpdates, importLocalSkill, importLocalSkillAndReload, hasSkillsInvoke } from './skills/skills-store'
-export type { InstallResult, InstalledMeta, RemoteSkillEntry, RemoteManifest, InstallSkillOptions, ImportLocalOptions } from './skills/skills-store'
+export { downloadRemoteManifest, installSkill, installSkillAndReload, uninstallSkill, uninstallSkillAndReload, getInstalledVersions, checkUpdates, importLocalSkill, importLocalSkillAndReload, hasSkillsInvoke, createSkillAndReload } from './skills/skills-store'
+export type { InstallResult, InstalledMeta, RemoteSkillEntry, RemoteManifest, InstallSkillOptions, ImportLocalOptions, CreateSkillOutcome } from './skills/skills-store'
+// S2 协议基座（2026-09-18）：创建/导入组装层 + 协议校验器 + 扫描警告
+export { buildSkillTemplate, composeSkillMd, buildSidecarJson, sidecarJsonFromMeta, validateSkillMdText, isCreatableSkillId } from './skills/creator'
+export type { SkillCreateInput, SkillCreateTemplate } from './skills/creator'
+export { validateSkillFrontmatter, isSkillCompliant, isValidSkillName } from './skills/validator'
+export type { SkillValidationIssue, SkillValidationLevel } from './skills/validator'
+export { getInstalledScanWarnings, mergeInstalledOverBuiltin } from './skills/registry'
+export { parseWorldSeaSkillSidecar, WORLDSEA_SKILL_SIDECAR_FILE } from './skills/sidecar'
+export type { WorldSeaSkillSidecar } from './skills/sidecar'
 // 多平台互通：Claude Code / Cursor / WorldSea 格式双向转换
 export { detectPlatform, importClaudeCodeSkill, importCursorRule, importWorldSeaYaml, autoImportSkill, exportToClaudeCodeSkill, exportToCursorRule, exportToSkillYaml } from './skills/platform-adapters'
 export type { SkillPlatform, ImportResult } from './skills/platform-adapters'

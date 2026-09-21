@@ -547,26 +547,12 @@ const projectToolsModule: ModuleDescriptor = {
    ════════════════════════════════════════ */
 
 /**
- * MCP 协议支持。
+ * MCP 协议支持 —— 已移除（M9，2026-09-17 三域对齐 dsh）。
  *
- * 初始化 MCPManager，支持外部 MCP 服务器连接。
- * 失败静默（MCP 为可选能力）。
+ * 旧 TS 栈（MCPManager / MCPToolAdapter）全仓零实例化（2026-08-30 Harness 调研已证），
+ * MCP 客户端已由 Rust rmcp 路线接管（apps/tauri/src-tauri/src/mcp_client.rs）；
+ * 本模块原「仅验证可加载」的懒加载失去意义，随死代码一并清理。
  */
-const mcpModule: ModuleDescriptor = {
-  id: 'agent.mcp',
-  name: 'MCP 协议',
-  version: '1.0.0',
-  priority: 'lazy',
-  requires: ['mcp'],
-  defaultActive: true,
-  description: 'MCP 协议支持（延迟加载）',
-
-  activate: async () => {
-    // MCP 模块按需初始化，此处仅验证可加载
-    await import('./mcp/mcp-manager')
-    await import('./mcp/mcp-adapter')
-  },
-}
 
 /**
  * 群聊系统。
@@ -633,7 +619,6 @@ export const agentModules: ModuleDescriptor[] = [
   projectToolsModule,
 
   // ── lazy ──
-  mcpModule,
   groupChatModule,
 ]
 

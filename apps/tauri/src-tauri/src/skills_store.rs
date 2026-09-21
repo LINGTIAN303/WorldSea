@@ -218,21 +218,28 @@ pub fn cmd_skills_get_installed_versions(app: AppHandle) -> Result<Vec<Installed
  * 已存在同名技能则覆盖（先删后写，支持更新场景）。
  *
  * @param skill_id  技能 id（作为目录名，校验合法性）
- * @param skill_yaml  skill.yaml manifest 文本
+ * @param skill_yaml  skill.yaml manifest 文本（None 或空则不写；新流程应为 None）
  * @param skill_md  SKILL.md 提示词文本（None 或空则不写 SKILL.md）
+ * @param sidecar  worldsea.skill.json 文本（None 或空则不写；D2 私有字段承载）
  */
 #[tauri::command]
 pub fn cmd_skills_import_local(
     app: AppHandle,
     skill_id: String,
-    skill_yaml: String,
+    skill_yaml: Option<String>,
     skill_md: Option<String>,
+    sidecar: Option<String>,
 ) -> Result<InstallResult, String> {
     validate_skill_id(&skill_id)?;
     let dest_dir = skills_dir(&app)?.join(&skill_id);
 
-    // 写入 skill.yaml + SKILL.md（纯逻辑，含覆盖更新）
-    let file_count = write_skill_files(&dest_dir, &skill_yaml, skill_md.as_deref())?;
+    // 写入技能文件（纯逻辑，三类文件各写、含覆盖更新；三者皆空报错）
+    let file_count = write_skill_files(
+        &dest_dir,
+        skill_yaml.as_deref(),
+        skill_md.as_deref(),
+        sidecar.as_deref(),
+    )?;
 
     let version = read_skill_version(&dest_dir);
     Ok(InstallResult {

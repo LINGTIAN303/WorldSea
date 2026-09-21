@@ -135,19 +135,19 @@ impl FrontendToolBridge {
 
 // ─── 桥工具定义 ──────────────────────────────────────────
 
-/// 一个交由前端执行的桥工具（name/description/parameters 与前端 `ALL_TOOLS_MAP` 对齐，
-/// 使 LLM 看到的工具契约一致；execute 委托 bridge 转发前端执行 + 回传）
+/// 一个交由前端执行的桥工具（契约来自 `bridge_tool_specs.json` 生成物，与前端工具定义
+/// 同源，使 LLM 看到的工具契约一致；execute 委托 bridge 转发前端执行 + 回传）
 pub struct FrontendBridgeTool {
-    name: &'static str,
-    description: &'static str,
+    name: String,
+    description: String,
     parameters: serde_json::Value,
     bridge: Arc<FrontendToolBridge>,
 }
 
 impl FrontendBridgeTool {
     pub fn new(
-        name: &'static str,
-        description: &'static str,
+        name: String,
+        description: String,
         parameters: serde_json::Value,
         bridge: Arc<FrontendToolBridge>,
     ) -> Self {
@@ -158,11 +158,11 @@ impl FrontendBridgeTool {
 #[async_trait]
 impl Tool for FrontendBridgeTool {
     fn name(&self) -> &str {
-        self.name
+        &self.name
     }
 
     fn description(&self) -> &str {
-        self.description
+        &self.description
     }
 
     fn parameters(&self) -> serde_json::Value {
@@ -170,9 +170,11 @@ impl Tool for FrontendBridgeTool {
     }
 
     async fn execute(&self, args: serde_json::Value) -> Result<serde_json::Value, ToolError> {
-        let result = self.bridge.request(self.name, args.clone()).await?;
+        let result = self.bridge.request(&self.name, args.clone()).await?;
+        // T1：前端「成功返回的失败」载荷补判别字段（isError + errorCode）
+        let result = normalize_frontend_failure(result);
         // 事件流丰富化：按工具名+args 附 __meta，供前端 ToolRow 展示语义操作段
-        Ok(attach_bridge_meta(self.name, &args, result))
+        Ok(attach_bridge_meta(&self.name, &args, result))
     }
 }
 
@@ -218,116 +220,89 @@ fn attach_bridge_meta(
     }
 }
 
-// ─── 首批桥工具清单（与前端 ALL_TOOLS_MAP 的 entity-crud / content-search 对齐）───
-
-/// 构造首批桥工具（entity_create / entity_update / content_search）
+/// T1（2026-09-18）：前端工具「成功返回的失败」载荷归一化。
 ///
-/// 工具定义（description/parameters）从前端 `packages/agent-runtime/src/tools/`
-/// 的对应工具拷贝，保证 LLM 看到的前后契约一致。返回工具名即首批桥接清单。
+/// 前端工具的失败有两种出口：抛异常（`resolve` 转 `ToolError` → kernel 统一构造失败结果）
+/// 与**返回失败载荷**（`{ ok:false, error }` 或 `{ error }`，经桥按成功回传）——
+/// 后者若不处理，模型只会看到一个形状像失败的"成功"结果。此处按约定补判别字段
+/// （`isError: true` + `errorCode: "EXECUTION_ERROR"`），原字段一律保留（加性）；
+/// `ok:true`（显式成功，以其为准）、无 `error`、已带 `isError`、非对象结果均原样放行。
+/// 详细见 docs/details/注释/agent-runtime/agent.md（注释块 16 附：T1 判别契约）
+fn normalize_frontend_failure(result: serde_json::Value) -> serde_json::Value {
+    let Some(obj) = result.as_object() else {
+        return result; // 字符串/数组等非对象结果：无 ok/error 约定，原样放行
+    };
+    let explicit_failure = obj.get("ok").and_then(|v| v.as_bool()) == Some(false);
+    let implicit_failure = !obj.contains_key("ok")
+        && obj
+            .get("error")
+            .and_then(|v| v.as_str())
+            .map(|s| !s.is_empty())
+            .unwrap_or(false);
+    if !(explicit_failure || implicit_failure) || obj.contains_key("isError") {
+        return result;
+    }
+    let mut obj = obj.clone();
+    obj.insert("isError".to_string(), serde_json::Value::Bool(true));
+    obj.insert(
+        "errorCode".to_string(),
+        serde_json::Value::String("EXECUTION_ERROR".to_string()),
+    );
+    serde_json::Value::Object(obj)
+}
+
+// ─── 桥工具契约（T5：单一事实源在前端，此处消费生成物）──────────
+//
+// T5（2026-09-17）：桥工具的 name/description/parameters 唯一事实源是前端
+// `packages/agent-runtime`（tools/bridge-spec.ts 的 BRIDGE_TOOL_NAMES + 各 ToolDefinition）。
+// 本文件不再手工拷贝契约（曾因此实际漂移：schema 文本两侧不一致），改为消费构建期生成物：
+//   生成：`node scripts/gen-bridge-spec.mjs`
+//   校验：vitest `packages/agent-runtime/src/tools/__tests__/bridge-spec.spec.ts`
+//         （对比生成物与 TS 定义，逐字节不一致即失败）
+
+/// 桥工具生成物（include_str! 编译期嵌入：缺文件即编译失败，坏 JSON 即启动失败，不静默降级）
+const BRIDGE_TOOL_SPECS_JSON: &str = include_str!("bridge_tool_specs.json");
+
+/// 单个桥工具契约（与前端 `BridgeToolSpec` 同构）
+#[derive(serde::Deserialize)]
+struct BridgeToolSpec {
+    name: String,
+    description: String,
+    parameters: serde_json::Value,
+}
+
+/// 生成物顶层结构（仅取 tools；generatedBy/source 说明字段由 serde 忽略）
+#[derive(serde::Deserialize)]
+struct BridgeToolSpecs {
+    tools: Vec<BridgeToolSpec>,
+}
+
+/// 解析后的桥工具清单（进程内解析一次；解析失败即 panic——契约缺失不允许静默降级）
+fn bridge_tool_specs() -> &'static [BridgeToolSpec] {
+    static SPECS: std::sync::OnceLock<Vec<BridgeToolSpec>> = std::sync::OnceLock::new();
+    SPECS.get_or_init(|| {
+        serde_json::from_str::<BridgeToolSpecs>(BRIDGE_TOOL_SPECS_JSON)
+            .expect("bridge_tool_specs.json 解析失败：请运行 node scripts/gen-bridge-spec.mjs 重新生成")
+            .tools
+    })
+}
+
+/// 构造桥工具：契约（名称/描述/参数 schema）来自生成物，执行委托前端
+///
+/// 返回工具名即桥接清单（顺序与前端 BRIDGE_TOOL_NAMES 一致）；在 lib.rs 装配
+/// `.chain(bridge_tools(...))` 处生效。
 pub fn bridge_tools(bridge: Arc<FrontendToolBridge>) -> Vec<Arc<dyn Tool>> {
-    vec![
-        Arc::new(FrontendBridgeTool::new(
-            "entity_create",
-            "创建新实体。需要 type 和 name，可选 description 和 properties。",
-            serde_json::json!({
-                "type": "object",
-                "properties": {
-                    "type": { "type": "string", "description": "实体类型" },
-                    "name": { "type": "string", "description": "实体名称" },
-                    "description": { "type": "string", "description": "实体描述（可选）" },
-                    "properties": { "type": "object", "description": "实体属性（键值对，可选）" }
-                },
-                "required": ["type", "name"]
-            }),
-            bridge.clone(),
-        )),
-        Arc::new(FrontendBridgeTool::new(
-            "entity_update",
-            "更新实体属性。只能更新 name、description、properties 中的字段。",
-            serde_json::json!({
-                "type": "object",
-                "properties": {
-                    "id": { "type": "string", "description": "实体 ID" },
-                    "name": { "type": "string", "description": "新名称（可选）" },
-                    "description": { "type": "string", "description": "新描述（可选）" },
-                    "properties": { "type": "object", "description": "要更新的属性键值对（合并）" }
-                },
-                "required": ["id"]
-            }),
-            bridge.clone(),
-        )),
-        // 任务29/M4 收敛补齐：E1 拒绝裸删 entities/ 后的语义删除正道（TS 实现已存在
-        // entity-crud.ts entityDeleteTool：级联删关联关系 + 清索引 + 关 A2UI 画布），
-        // 此前桥上缺失导致 Agent 删实体无合法路径——E1 引导语与桥清单在此对齐闭环
-        Arc::new(FrontendBridgeTool::new(
-            "entity_delete",
-            "删除指定实体及其所有关联关系。此操作不可逆。需要实体 ID（可通过 entity_list 获取）。执行前请向用户确认删除意图。",
-            serde_json::json!({
-                "type": "object",
-                "properties": {
-                    "id": { "type": "string", "description": "实体 ID" }
-                },
-                "required": ["id"]
-            }),
-            bridge.clone(),
-        )),
-        Arc::new(FrontendBridgeTool::new(
-            "content_search",
-            "在项目的所有实体中搜索内容。支持语义搜索（理解含义）和关键词搜索（精确匹配）的混合模式。语义搜索能找到意思相近但不包含关键词的内容；关键词搜索能精确匹配文本。使用场景：模糊查找、概念搜索、精确匹配。",
-            serde_json::json!({
-                "type": "object",
-                "properties": {
-                    "keyword": { "type": "string", "description": "搜索关键词或描述" },
-                    "scope": { "type": "string", "description": "关键词搜索范围: name/description/properties/all，默认 all", "enum": ["name", "description", "properties", "all"] },
-                    "limit": { "type": "number", "description": "返回数量上限，默认20" },
-                    "mode": { "type": "string", "description": "搜索模式: hybrid(语义+关键词混合)/keyword(纯关键词)/semantic(纯语义)，默认 hybrid", "enum": ["hybrid", "keyword", "semantic"] }
-                },
-                "required": ["keyword"]
-            }),
-            bridge.clone(),
-        )),
-        // Skills 点火（H3 P1，2026-08-30）：技能元工具三件——schema 与前端 meta-tools.ts
-        // 对齐拷贝；执行经 ALL_TOOLS_MAP 的 SKILL_META_TOOLS（progressive disclosure 懒加载）。
-        // load_skill 让 LLM 可见技能索引（ensureSession 注入 system_prompt）后按需激活技能。
-        Arc::new(FrontendBridgeTool::new(
-            "load_skill",
-            "Load and activate a skill by its id. This will inject the skill instructions into your context, giving you specialized capabilities. Available skills are listed in the \"Available Skills\" section of your system prompt. Call this tool when the user task matches a skill description. Small reference documents (≤2) are automatically preloaded. For additional references, use load_skill_reference.",
-            serde_json::json!({
-                "type": "object",
-                "properties": {
-                    "skill_id": { "type": "string", "description": "The skill id to activate (e.g. \"worldbuilding\", \"content-craft\", \"analysis-engine\")" }
-                },
-                "required": ["skill_id"]
-            }),
-            bridge.clone(),
-        )),
-        Arc::new(FrontendBridgeTool::new(
-            "load_skill_reference",
-            "Load a reference document from an active skill. Note: small reference sets (≤2 files) are already preloaded when you call load_skill. Use this tool for additional references or skills with 3+ references. Returns the full reference content.",
-            serde_json::json!({
-                "type": "object",
-                "properties": {
-                    "skill_id": { "type": "string", "description": "The skill id that contains the reference" },
-                    "ref_path": { "type": "string", "description": "The reference file name (e.g. \"references/algo-catalog.md\")" }
-                },
-                "required": ["skill_id", "ref_path"]
-            }),
-            bridge.clone(),
-        )),
-        Arc::new(FrontendBridgeTool::new(
-            "load_skill_asset",
-            "Load a template or static resource from an active skill. Use when you need entity templates, output format templates, or other assets referenced in the skill instructions.",
-            serde_json::json!({
-                "type": "object",
-                "properties": {
-                    "skill_id": { "type": "string", "description": "The skill id that contains the asset" },
-                    "asset_path": { "type": "string", "description": "The asset file name (e.g. \"entity-templates.yaml\")" }
-                },
-                "required": ["skill_id", "asset_path"]
-            }),
-            bridge,
-        )),
-    ]
+    bridge_tool_specs()
+        .iter()
+        .map(|spec| {
+            Arc::new(FrontendBridgeTool::new(
+                spec.name.clone(),
+                spec.description.clone(),
+                spec.parameters.clone(),
+                bridge.clone(),
+            )) as Arc<dyn Tool>
+        })
+        .collect()
 }
 
 // ─── 测试 ────────────────────────────────────────────────
@@ -342,29 +317,64 @@ mod tests {
     use super::*;
 
     #[test]
-    fn bridge_tools_define_first_batch_tools() {
-        // 验证构造的桥工具契约：需 AppHandle 实例化，故此处仅验证清单由名称文档承载。
-        // 桥工具列表由 `bridge_tools` 返回七个，name 与前端 ALL_TOOLS_MAP 对齐——
-        // 该契约在 lib.rs 装配 `.chain(bridge_tools(...))` 处应用。
-        // 任务29/M4：entity_delete 补齐（E1 拒绝裸删后的语义删除正道），三→四。
-        // H3 Skills 点火（P1，2026-08-30）：技能元工具三件（load_skill/_reference/_asset），四→七。
-        let names = [
-            "entity_create",
-            "entity_update",
-            "entity_delete",
-            "content_search",
-            "load_skill",
-            "load_skill_reference",
-            "load_skill_asset",
-        ];
-        assert_eq!(names.len(), 7);
-        assert!(names.contains(&"entity_create"));
-        assert!(names.contains(&"entity_update"));
-        assert!(names.contains(&"entity_delete"));
-        assert!(names.contains(&"content_search"));
-        assert!(names.contains(&"load_skill"));
-        assert!(names.contains(&"load_skill_reference"));
-        assert!(names.contains(&"load_skill_asset"));
+    fn bridge_tools_spec_matches_bridge_contract() {
+        // 桥接清单契约（T5 后取自生成物，AppHandle 无关）：顺序稳定、契约字段完备。
+        // 清单由前端 BRIDGE_TOOL_NAMES 决定（单源），此处作为 Rust 侧快照守卫——
+        // 前端增删/改名桥工具时本断言会失败，提醒同步审查 LLM 契约与白名单。
+        // 演进记录：任务29/M4 三→四（entity_delete）；H3 Skills 点火四→七；
+        // A2UI 接线（2026-09-17）七→十一；S3 补桥（2026-09-18）十一→二十六
+        // （kb_* 9 / project_* 2 / consistency_check / entity_get_context + 智能填充 2）；
+        // E2（2026-09-18）二十六→二十八（vision_analyze / list_vision_images）。
+        let specs = bridge_tool_specs();
+        let names: Vec<&str> = specs.iter().map(|s| s.name.as_str()).collect();
+        assert_eq!(
+            names,
+            vec![
+                "entity_create",
+                "entity_update",
+                "entity_delete",
+                "content_search",
+                "load_skill",
+                "load_skill_reference",
+                "load_skill_asset",
+                "ui_create_surface",
+                "ui_update_components",
+                "ui_update_data",
+                "ui_delete_surface",
+                "kb_write",
+                "kb_read",
+                "kb_list",
+                "kb_search",
+                "kb_delete",
+                "kb_extract",
+                "kb_reflect",
+                "kb_link",
+                "kb_init",
+                "project_export",
+                "project_import",
+                "consistency_check",
+                "entity_get_context",
+                "entity_suggest_field",
+                "entity_smart_fill",
+                "vision_analyze",
+                "list_vision_images",
+            ]
+        );
+        for spec in specs {
+            assert!(!spec.description.trim().is_empty(), "{} 缺少 description", spec.name);
+            assert_eq!(
+                spec.parameters["type"], "object",
+                "{} 的 parameters 必须是 object schema", spec.name
+            );
+            assert!(
+                spec.parameters["properties"].is_object(),
+                "{} 的 parameters.properties 缺失", spec.name
+            );
+            assert!(
+                spec.parameters["required"].is_array(),
+                "{} 的 parameters.required 缺失", spec.name
+            );
+        }
     }
 
     #[test]
@@ -398,5 +408,48 @@ mod tests {
         );
         assert_eq!(plain["ok"], true);
         assert!(plain.get("__meta").is_none());
+    }
+
+    #[test]
+    fn normalize_frontend_failure_marks_convention_payloads() {
+        // T1：ok:false → 补 isError + errorCode，原字段全保留（加性）
+        let marked = normalize_frontend_failure(serde_json::json!({
+            "ok": false,
+            "error": "实体不存在",
+            "path": "/a.md",
+        }));
+        assert_eq!(marked["isError"], true);
+        assert_eq!(marked["errorCode"], "EXECUTION_ERROR");
+        assert_eq!(marked["ok"], false);
+        assert_eq!(marked["error"], "实体不存在");
+        assert_eq!(marked["path"], "/a.md");
+
+        // 裸 { error }（无 ok）→ 同样补标记
+        let bare = normalize_frontend_failure(serde_json::json!({ "error": "未检测到可用 Shell" }));
+        assert_eq!(bare["isError"], true);
+        assert_eq!(bare["errorCode"], "EXECUTION_ERROR");
+
+        // 显式 ok:true 以其为准（即使带 error 字段也不标记）
+        assert!(
+            normalize_frontend_failure(serde_json::json!({ "ok": true, "error": "x" }))
+                .get("isError")
+                .is_none()
+        );
+        // 无 error 字段 / 已带 isError / 非对象结果 → 原样放行
+        assert!(
+            normalize_frontend_failure(serde_json::json!({ "count": 1 }))
+                .get("isError")
+                .is_none()
+        );
+        let already = normalize_frontend_failure(serde_json::json!({
+            "ok": false,
+            "isError": true,
+            "errorCode": "X",
+        }));
+        assert_eq!(already["errorCode"], "X");
+        assert_eq!(
+            normalize_frontend_failure(serde_json::json!("plain")),
+            serde_json::json!("plain")
+        );
     }
 }

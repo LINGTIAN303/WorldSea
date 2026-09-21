@@ -23,5 +23,7 @@ export interface MCPConnectionState {
   config: MCPConnectionConfig
   status: 'disconnected' | 'connecting' | 'connected' | 'error'
   tools: MCPToolInfo[]
+  /** 已连接服务器的工具数（来自 cmd_mcp_status 的 tool_count；tools 明细按需经 cmd_mcp_list_tools 拉取） */
+  toolCount?: number
   error?: string
 }
