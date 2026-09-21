@@ -3,8 +3,10 @@
  *
  * 两级输出：
  * - 清单（renderSproutList）：芽名 + id + 一句话定位（不含说明全量——渐进披露第一级）
- * - 说明（renderSproutGuide）：概述（手写数据）+ 动作目录（自 SPROUT_ACTIONS 自动生成，杜绝双份漂移）
+ * - 说明（renderSproutGuide）：概述（手写数据）+ 实体字段（自运行时 schema 生成）+
+ *   动作目录（自 SPROUT_ACTIONS 自动生成，杜绝双份漂移）
  */
+import { entitySchemaRegistry } from '@worldsea/entity-core'
 import type { WorldviewSprout } from './registry'
 import { SPROUT_ACTIONS } from './actions'
 import { SPROUT_GUIDES } from './guides'
@@ -23,7 +25,34 @@ export function renderSproutList(sprouts: WorldviewSprout[]): string {
   })
 }
 
-/** 单个芽的使用方法（概述 + 动作目录） */
+/**
+ * 实体字段段（2026-09-21 零漂移）：按芽 id 反查该芽激活时注册的实体类型
+ * （`entitySchemaRegistry` 中 `pluginId === 芽 id` 的 schema），字段 / 取值 / 必填 /
+ * 关联 均由运行时 schema 生成——芽改字段或改枚举时说明自动跟随，不手写。
+ * 无匹配（非前端环境 / 芽无独立实体类型）时返回空数组，静默省略该段。
+ */
+function renderEntityFields(sproutId: string): string[] {
+  const schemas = entitySchemaRegistry.getAll().filter(s => s.pluginId === sproutId)
+  if (schemas.length === 0) return []
+
+  const lines: string[] = ['## 实体字段（运行时）', '']
+  for (const schema of schemas) {
+    lines.push(`- **${schema.typeKey}**（${schema.label}）`)
+    for (const field of schema.fields) {
+      const attrs: string[] = [field.fieldType]
+      if (field.required) attrs.push('必填')
+      if (field.options && field.options.length > 0) {
+        attrs.push(`取值：${field.options.map(o => o.label || o.value).join(' / ')}`)
+      }
+      const ref = field.refType || field.autoLink?.targetType
+      if (ref) attrs.push(`关联：${ref}`)
+      lines.push(`  - ${field.key}（${field.label}，${attrs.join('，')}）`)
+    }
+  }
+  return lines
+}
+
+/** 单个芽的使用方法（概述 + 实体字段 + 动作目录） */
 export function renderSproutGuide(sprout: WorldviewSprout): string {
   const guide = SPROUT_GUIDES[sprout.id]
   const table = SPROUT_ACTIONS[sprout.id]
@@ -32,6 +61,11 @@ export function renderSproutGuide(sprout: WorldviewSprout): string {
   lines.push(`# ${sprout.name}（${sprout.id}）`)
   lines.push('')
   lines.push(guide?.overview?.trim() || sprout.description || '（暂无详述）')
+
+  const fieldLines = renderEntityFields(sprout.id)
+  if (fieldLines.length > 0) {
+    lines.push('', ...fieldLines)
+  }
 
   if (table && Object.keys(table).length > 0) {
     lines.push('', '## 动作', '')

@@ -3,8 +3,12 @@
  *
  * 覆盖：芽名清单（随登记动态）/ 改名跟随 / 解析三形态 / 说明渲染（含动作目录）/
  * 无动作芽兜底 / 错误契约（fail loud）/ 动作路由 / 旧域工具薄壳转发 / 说明中性守卫。
+ *
+ * 零漂移轮（2026-09-21）追加：实体字段段（自运行时 schema 生成）/ 无 schema 不输出 /
+ * guides 不内嵌字段清单守卫。
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest'
+import { entitySchemaRegistry } from '@worldsea/entity-core'
 import type { IToolContext } from '../../toolbus/types'
 import {
   worldviewTool,
@@ -140,5 +144,53 @@ describe('说明中性守卫（无引导词）', () => {
 
   it('全部 27 芽均有说明数据（guides 覆盖）', () => {
     expect(Object.keys(SPROUT_GUIDES)).toHaveLength(27)
+  })
+})
+
+describe('实体字段（运行时 schema 生成，零漂移）', () => {
+  afterEach(() => {
+    entitySchemaRegistry.unregister('region')
+  })
+
+  it('芽有注册实体类型时：说明自动带出字段 / 取值 / 必填 / 关联', async () => {
+    entitySchemaRegistry.register({
+      typeKey: 'region',
+      label: '区域',
+      pluginId: 'official.regions',
+      fields: [
+        { key: 'climate', label: '气候', fieldType: 'text' },
+        {
+          key: 'terrainType',
+          label: '地形',
+          fieldType: 'select',
+          options: [
+            { value: 'mountain', label: '山地' },
+            { value: 'plain', label: '平原' },
+          ],
+        },
+        { key: 'capital', label: '首府', fieldType: 'entity-ref', refType: 'building', required: true },
+      ],
+    })
+    const text = await worldviewTool.execute({ sprout: '区域图谱' }, fakeCtx)
+    expect(text).toContain('## 实体字段（运行时）')
+    expect(text).toContain('- **region**（区域）')
+    expect(text).toContain('climate（气候，text）')
+    expect(text).toContain('terrainType（地形，select，取值：山地 / 平原）')
+    expect(text).toContain('capital（首府，entity-ref，必填，关联：building）')
+  })
+
+  it('芽未注册实体类型：不输出字段段（静默省略）', async () => {
+    const text = await worldviewTool.execute({ sprout: '大纲' }, fakeCtx)
+    expect(text).not.toContain('## 实体字段')
+  })
+})
+
+describe('零漂移守卫：guides 不内嵌字段清单', () => {
+  it('除 module-builder 例外外，全部 guides 不含「——字段：」', () => {
+    // module-builder 例外：custom_module 无运行时实体类型注册（字段说明保留手写）
+    for (const [id, guide] of Object.entries(SPROUT_GUIDES)) {
+      if (id === 'official.module-builder') continue
+      expect(guide.overview.includes('——字段：'), `${id} 仍内嵌字段清单`).toBe(false)
+    }
   })
 })

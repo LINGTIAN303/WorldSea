@@ -1,3 +1,12 @@
+/**
+ * 工具面结构守卫（ALL_TOOLS / TOOL_CATEGORIES / getToolsForSkills / 声明式 meta）
+ *
+ * 2026-09-21 恢复纳入 vitest include（此前不在收口、无人跑）：
+ * - 技能 id 改用现存唯一注册技能 creation-orchestrator（worldbuilding / content-craft 已于
+ *   S4/S5 与芽工具整合批 3 退役）；
+ * - 「多技能合并」用例改写为「已注册技能并入声明工具 vs 未知技能仅基础集」——
+ *   注册表仅存 1 项，无法构造两个已注册技能。
+ */
 import { describe, it, expect } from 'vitest'
 import { ALL_TOOLS, TOOL_CATEGORIES, getToolsForSkills } from '../agent'
 
@@ -90,16 +99,18 @@ describe('TOOL_CATEGORIES', () => {
 })
 
 describe('getToolsForSkills', () => {
-  it('returns tools for known skill IDs', () => {
-    const tools = getToolsForSkills(['worldbuilding'])
+  it('returns tools for known skill IDs（含技能声明工具）', () => {
+    const tools = getToolsForSkills(['creation-orchestrator'])
     expect(Array.isArray(tools)).toBe(true)
     expect(tools.length).toBeGreaterThan(0)
-    // Should include base tools from the skill
     const toolNames = tools.map(t => t.name)
+    // 基础集（always-available）
     expect(toolNames).toContain('entity_list')
     expect(toolNames).toContain('entity_get')
-    // Should include skill meta tools (load_skill, load_skill_reference, load_skill_asset)
+    // 技能元工具（load_skill, load_skill_reference, load_skill_asset）
     expect(toolNames).toContain('load_skill')
+    // 技能声明工具（creation-orchestrator 的 allowedTools = pipeline_*）
+    expect(toolNames).toContain('pipeline_create')
   })
 
   it('returns only always-available + meta tools for unknown skill IDs', () => {
@@ -117,14 +128,17 @@ describe('getToolsForSkills', () => {
     expect(toolNames).not.toContain('entity_create')
   })
 
-  it('returns more tools when multiple skills are activated', () => {
-    const singleTools = getToolsForSkills(['worldbuilding'])
-    const multiTools = getToolsForSkills(['worldbuilding', 'content-craft'])
-    expect(multiTools.length).toBeGreaterThan(singleTools.length)
+  it('已注册技能并入其声明工具；未知技能仅返回基础集', () => {
+    // 2026-09-21：注册表仅存 creation-orchestrator，以「已注册 vs 未知」替代原「多技能合并」用例
+    const known = getToolsForSkills(['creation-orchestrator']).map(t => t.name)
+    const unknown = getToolsForSkills(['nonexistent-skill-xyz']).map(t => t.name)
+    expect(known).toContain('pipeline_create')
+    expect(unknown).not.toContain('pipeline_create')
+    expect(known.length).toBeGreaterThan(unknown.length)
   })
 
   it('deduplicates tools across skills', () => {
-    const tools = getToolsForSkills(['worldbuilding', 'content-craft'])
+    const tools = getToolsForSkills(['creation-orchestrator', 'creation-orchestrator'])
     const names = tools.map(t => t.name)
     const uniqueNames = new Set(names)
     expect(uniqueNames.size).toBe(names.length)

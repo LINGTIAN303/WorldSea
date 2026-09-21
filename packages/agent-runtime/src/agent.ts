@@ -165,9 +165,11 @@ export function getToolsForSkills(activeSkillIds: string[]): typeof entityCrudTo
 
   for (const name of toolNames) {
     const t = ALL_TOOLS_MAP.get(name)
-    if (t && !seen.has(name)) {
+    // 以「工具名」而非「查找键」去重：ALL_TOOLS_MAP 同时挂别名键（meta.aliases /
+    // LEGACY_*_MAP），键名与 tool.name 不同源，混用会漏去重（2026-09-21 守卫实测）
+    if (t && !seen.has(t.name)) {
       tools.push(t)
-      seen.add(name)
+      seen.add(t.name)
     }
   }
 
@@ -187,7 +189,14 @@ export function getToolsForSkills(activeSkillIds: string[]): typeof entityCrudTo
     }
   }
 
-  tools.push(...SKILL_META_TOOLS)
+  // 技能元工具收尾并入（按工具名去重——load_skill 已在 ALWAYS_AVAILABLE_TOOLS 内，
+  // 无条件 push 会重复；2026-09-21 守卫实测）
+  for (const t of SKILL_META_TOOLS) {
+    if (!seen.has(t.name)) {
+      tools.push(t)
+      seen.add(t.name)
+    }
+  }
 
   return tools
 }

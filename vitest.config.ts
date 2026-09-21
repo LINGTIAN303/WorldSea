@@ -22,6 +22,11 @@ export default defineConfig({
       // 2026-09-14 纳入：原先只覆盖 packages/**，唯一 GUI（apps/tauri，含全部芽视图与
       // 前端逻辑）完全不参与测试 —— 新写的纯逻辑只能靠临时脚本验证。
       'apps/tauri/**/__tests__/**/*.spec.ts',
+      // 2026-09-21 恢复纳入（世界观芽工具整合收口轮）：src/__tests__/ 此前整体不在收口内，
+      // 两枚工具/技能结构守卫长期无人跑（agent-tools / always-available-verify）；
+      // 同目录 embedding 系 4 份 spec 本次未一并纳入（导入面未核，另行处置）。
+      'packages/agent-runtime/src/__tests__/agent-tools.spec.ts',
+      'packages/agent-runtime/src/__tests__/always-available-verify.spec.ts',
     ],
     coverage: {
       provider: 'v8',
@@ -45,6 +50,18 @@ export default defineConfig({
       // 此处对齐，使 apps/tauri 的测试能按项目惯例写 `@/...`（2026-09-14）。
       '@': fileURLToPath(new URL('./apps/tauri/src', import.meta.url)),
       '@agent': path.resolve(__dirname, 'packages/agent-runtime/src'),
+      // 2026-09-21 补：canvas-engine 的 agent-descriptor 等共享包按包导出子路径引用
+      // agent-runtime / governor-core（apps/tauri/vite.config.ts 已配同款），
+      // 测试环境此前缺失导致「导入 ../agent 的 spec 无法收集」；
+      // 前缀条目（无 $）覆盖 tools/* / toolbus/* 等子路径。
+      '@worldsea/agent-runtime$': path.resolve(__dirname, 'packages/agent-runtime/src'),
+      '@worldsea/agent-runtime/execution': path.resolve(__dirname, 'packages/agent-runtime/src/execution'),
+      '@worldsea/agent-runtime/bridge-types': path.resolve(__dirname, 'packages/agent-runtime/src/bridge-types'),
+      '@worldsea/agent-runtime/toolbus': path.resolve(__dirname, 'packages/agent-runtime/src/toolbus'),
+      '@worldsea/agent-runtime/tools': path.resolve(__dirname, 'packages/agent-runtime/src/tools'),
+      '@worldsea/governor-core$': path.resolve(__dirname, 'packages/governor-core/src'),
+      '@worldsea/governor-core/types': path.resolve(__dirname, 'packages/governor-core/src/types'),
+      '@worldsea/governor-core/registry': path.resolve(__dirname, 'packages/governor-core/src/registry'),
       '@worldsea/entity-core$': path.resolve(__dirname, 'packages/entity-core/src'),
       '@worldsea/entity-core/stores': path.resolve(__dirname, 'packages/entity-core/src/stores'),
       '@worldsea/entity-core/core': path.resolve(__dirname, 'packages/entity-core/src/core'),
