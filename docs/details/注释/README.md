@@ -130,6 +130,9 @@
 | src-tauri/src/commands.rs | [commands.md](tauri/commands.md) | Tauri 命令层：Agent 主链路 14 命令（薄包装 AgentCommandService）、事件名协议（含 agent:event:deep_phase_changed:{session_id} 后缀） |
 | src-tauri/src/search_config.rs | [search-config.md](tauri/search-config.md) | 联网搜索配置存储（档 1）：三断口成因、后端单点持 Key、只装配当前引擎、跨栈守卫断言方向 |
 | src-tauri/src/net_egress.rs | [net-egress.md](tauri/net-egress.md) | 出网收口（档 3-a）：零依赖 URL 严格解析口径、私网/本地判定与内嵌 IPv4 复校、不做 DNS preflight 的取舍、逐跳复校契约、理由级断言的假绿教训 |
+| src-tauri/src/web_fetch_commands.rs | [web-fetch.md](tauri/web-fetch.md) | 抓取工具（档 3-b）：Tool 实现与口径表（UA / 10MB / 30s / 5 跳逐跳复校 / 类型白名单）、进程内缓存、截断与不可信内容围栏、P4 落点偏差说明 |
+| src-tauri/src/web_fetch_extract.rs | [web-fetch.md](tauri/web-fetch.md) | HTML 扫描器：跳过块、标题与块边界去重（push_break）、锚点内联 URL 与链接表去重上限、输入 400k 截断 |
+| src-tauri/src/web_fetch_text.rs | [web-fetch.md](tauri/web-fetch.md) | 文本层：实体解码矩阵、空白规整、相对链接归一（remove_dot_segments）、属性扫描的边界判定与同后缀属性规避 |
 | vite.config.ts | [vite-config.md](tauri/vite-config.md) | Tauri 端 Vite 配置：IPC 直连设计原则、WASM 算法降级、端口与构建触发 |
 | src/memory-archive/adapters/TauriFsOperations.ts | [TauriFsOperations.md](tauri/TauriFsOperations.md) | FsOperations 的 Tauri 实现：cmd_fs_* 命令映射 |
 | src/plugins/workflow/api/workflowApi.ts | [workflowApi.md](tauri/workflowApi.md) | Workflow 引擎命令调用层：28 个命令镜像、设计要点 |

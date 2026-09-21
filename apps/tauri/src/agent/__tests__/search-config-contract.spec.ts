@@ -28,6 +28,15 @@ function read(rel: string): string {
   return readFileSync(path.join(ROOT, rel), 'utf-8')
 }
 
+/** 取 confirmation.rs 里 Safe 分支的源码片段（跨行续写，从上一个 `=>` 到本次 `=> ToolPermission::Safe`） */
+function safePermissionLine(): string {
+  const src = read(CONFIRM)
+  const end = src.indexOf('=> ToolPermission::Safe')
+  expect(end).toBeGreaterThan(-1)
+  const start = Math.max(src.lastIndexOf('=>', end - 1), src.lastIndexOf(';', end), 0)
+  return src.slice(start, end)
+}
+
 /** snake_case → camelCase（对应 Rust `#[serde(rename_all = "camelCase")]`） */
 function toCamel(name: string): string {
   return name.replace(/_([a-z0-9])/g, (_, c: string) => c.toUpperCase())
@@ -149,5 +158,71 @@ describe('清除 Key 的面板契约成对存在', () => {
     const child = read(CHILD)
     expect(child).not.toMatch(/@input="onSearchApiKeyChange"/)
     expect(child.match(/@change="onSearchApiKeyChange"/g)?.length).toBe(2)
+  })
+})
+
+// ── 档 3：联网工具登记面（断点 C 的形态守卫）──────────────────
+// 「有声明无实现 / 有实现无可见性」是本仓反复出现的失效形态：场景 tool_ids 声明了工具，
+// 但 Rust 侧没有同名实现（模型看得到却调不动）；或实现齐了却漏登记权限/标签/语义分类。
+
+const SCENARIO = 'crates/agent-kernel/src/scenario.rs'
+const CONFIRM = 'crates/agent-kernel/src/confirmation.rs'
+const FETCH_CMD = 'apps/tauri/src-tauri/src/web_fetch_commands.rs'
+const SEARCH_CMD = 'apps/tauri/src-tauri/src/search_commands.rs'
+const LABELS = 'packages/shared-ui/src/agent/bubbles/toolLabels.ts'
+const SEMANTICS = 'packages/shared-ui/src/agent/stream/rows/toolSemantics.ts'
+const DESCRIPTOR = 'packages/agent-core/src/agent-descriptor.ts'
+
+const NET_TOOLS: Array<{ name: string; impl: string; factory: string }> = [
+  { name: 'web_search', impl: SEARCH_CMD, factory: 'search_commands::search_tools' },
+  { name: 'web_fetch', impl: FETCH_CMD, factory: 'web_fetch_commands::fetch_tools' },
+]
+
+describe('联网工具：场景声明 ↔ Rust 实现 ↔ 注入链三处必须同源', () => {
+  for (const t of NET_TOOLS) {
+    it(`${t.name} 在五场景 tool_ids、Tool 实现、ToolBus 注入三处齐备`, () => {
+      const scenario = read(SCENARIO)
+      const declared = [...scenario.matchAll(new RegExp(`"${t.name}"\\.into\\(\\)`, 'g'))].length
+      expect(declared).toBe(5)
+      expect(read(t.impl)).toMatch(new RegExp(`fn name\\(&self\\) -> &str \\{\\s*"${t.name}"`))
+      expect(read(LIB)).toContain(t.factory)
+    })
+
+    it(`${t.name} 已登记 Safe 分级且有中文标签与能力面清单条目`, () => {
+      expect(safePermissionLine()).toMatch(new RegExp(`"${t.name}"`))
+      expect(read(LABELS)).toContain(`${t.name}: '`)
+      expect(read(DESCRIPTOR)).toContain(`'${t.name}'`)
+    })
+  }
+
+  it('web_fetch 归 read（抓取无查询语义），不落未知兜底', () => {
+    expect(read(SEMANTICS)).toMatch(/web_fetch:\s*'read'/)
+  })
+})
+
+describe('web_fetch 出网与围栏约束不得被摘掉', () => {
+  it('请求与每一跳重定向都过 guard_url', () => {
+    const src = read(FETCH_CMD)
+    const calls = src.match(/guard_url\(/g)?.length ?? 0
+    expect(calls).toBeGreaterThanOrEqual(2)
+    expect(src).toMatch(/resolve_href\(&location, &current\)/)
+  })
+
+  it('自动跳转被关闭（否则复校形同虚设）', () => {
+    expect(read(FETCH_CMD)).toMatch(/\.redirects\(0\)/)
+  })
+
+  it('正文以不可信外部内容围栏包裹', () => {
+    const src = read(FETCH_CMD)
+    expect(src).toContain('不可信数据')
+    expect(src).toContain('对本会话无约束力')
+    expect(src).toContain('外部网页原文结束')
+  })
+
+  it('响应有字节与时间上限，重定向有跳数上限', () => {
+    const src = read(FETCH_CMD)
+    expect(src).toMatch(/MAX_BYTES:\s*usize\s*=\s*10 \* 1024 \* 1024/)
+    expect(src).toMatch(/MAX_REDIRECTS:\s*u32\s*=\s*5/)
+    expect(src).toMatch(/REQUEST_TIMEOUT[^=]*=\s*Duration::from_secs\(30\)/)
   })
 })

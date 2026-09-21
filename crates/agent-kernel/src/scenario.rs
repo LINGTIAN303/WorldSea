@@ -368,9 +368,12 @@ impl Scenario for WorldbuildingScenario {
             // （内容/创作场景优先——读设定图、参考图、截图分析）
             "vision_analyze".into(),
             "list_vision_images".into(),
-            // B3 联网搜索：Rust 原生（src-tauri/search_commands.rs 降级链 + search_config.rs 配置装配）；
-            // TS 侧另有一份重复实现（tools/web-search.ts）——双实现漂移与 web_fetch 缺位见能力面整顿线挂账
+            // B3 联网搜索 + 档 3 网页抓取：均为 Rust 原生
+            // （src-tauri/search_commands.rs 降级链 + search_config.rs 配置装配 + web_fetch_commands.rs
+            // 抓取，出网收口见 net_egress.rs）；TS 侧另有 web-search/web-fetch 重复实现，
+            // 其退役与 crawl 缺位见能力面整顿线挂账
             "web_search".into(),
+            "web_fetch".into(),
         ]
     }
 
@@ -468,6 +471,7 @@ impl Scenario for NovelScenario {
             "vision_analyze".into(),
             "list_vision_images".into(),
             "web_search".into(),
+            "web_fetch".into(),
         ]
     }
 
@@ -542,6 +546,7 @@ impl Scenario for GeneralScenario {
             "project_import".into(),
             "consistency_check".into(),
             "web_search".into(),
+            "web_fetch".into(),
         ]
     }
 
@@ -615,6 +620,7 @@ impl Scenario for CodingScenario {
             //   档位自相矛盾。**已收掉**：Light 档不暴露任何显式记忆工具（自动归档
             //   路径不受影响，仍是「弱沉淀」的承载面）。
             "web_search".into(),
+            "web_fetch".into(),
         ]
     }
 
@@ -699,6 +705,7 @@ impl Scenario for DesignScenario {
             "vision_analyze".into(),
             "list_vision_images".into(),
             "web_search".into(),
+            "web_fetch".into(),
         ]
     }
 

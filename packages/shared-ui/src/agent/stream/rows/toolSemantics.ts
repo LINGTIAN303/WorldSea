@@ -56,6 +56,8 @@ export const TOOL_OP: Record<string, OpKind> = {
   // ── 搜索 search ──
   search_files: 'search', file_search: 'search', fs_search: 'search', content_search: 'search',
   kb_search: 'search', web_search: 'search', web_search_cli: 'search', graph_find_path: 'search',
+  // ── 读取（网络）：抓取单页正文，归 read 而非 search（无查询语义，结果是整页内容） ──
+  web_fetch: 'read',
   // ── 命令 cmd ──
   execute_command: 'cmd', shell_session_create: 'cmd', shell_session_exec: 'cmd', shell_session_input: 'cmd',
   shell_session_destroy: 'cmd', shell_session_list: 'cmd', detect_shells: 'cmd', detect_terminal_mode: 'cmd',

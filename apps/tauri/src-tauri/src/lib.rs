@@ -36,6 +36,10 @@ mod search_commands;
 mod search_config;
 // 档 3-a（2026-09-22）：出网收口——URL 严格解析 + 公网目标判定，供抓取类工具逐跳复校
 mod net_egress;
+// 档 3-b（2026-09-22）：抓取能力——文本层 + HTML 扫描器 + 原生 web_fetch 工具（缓存 / 上限 / 围栏）
+mod web_fetch_text;
+mod web_fetch_extract;
+mod web_fetch_commands;
 // A4 Plan-Exec 计划工具（plan_create / plan_update）
 mod plan_commands;
 // Router Pattern 编排命令层：2026-09-09 随右栏 Router 区一并下线（Router 归场景识别底座，
@@ -476,6 +480,8 @@ pub fn run() {
                         entity_commands::entity_read_tools(entity_db.clone())
                             .into_iter()
                             .chain(search_commands::search_tools(search_chain.clone()))
+                            // 档 3-b：原生抓取工具（出网收口见 net_egress）
+                            .chain(web_fetch_commands::fetch_tools())
                             .chain(plan_commands::plan_tools())
                             // FrontendToolBridge：注入前端执行桥工具（entity_create/update +
                             // content_search），这些工具 Rust 无原生实现，经全局事件转前端执行

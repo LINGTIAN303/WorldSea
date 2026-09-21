@@ -151,9 +151,10 @@ pub fn tool_permission(tool_name: &str) -> ToolPermission {
         // 命令执行：Moderate 基底（命中危险命令模式由 needs_confirmation 动态升级）
         "execute_command" | "shell_session" | "shell_session_exec" | "shell_session_create"
         | "shell_session_write" => ToolPermission::Moderate,
-        // 计划写入 / 搜索 / 实体读：Safe 级可放行
+        // 计划写入 / 搜索与抓取 / 实体读：Safe 级可放行
+        // （web_fetch 的读侧风险由出网收口与不可信内容围栏承担，见 src-tauri/net_egress.rs）
         "plan_create" | "plan_update" | "plan_replan" | "entity_list" | "entity_get"
-        | "web_search" | "list_sub_agents" => ToolPermission::Safe,
+        | "web_search" | "web_fetch" | "list_sub_agents" => ToolPermission::Safe,
         // 文件系统工具（Phase 5）：只读放行（Safe）；写入/编辑 → Moderate（默认不确认，可按策略开启）
         "read_file" | "list_directory" | "search_files" => ToolPermission::Safe,
         "write_file" | "edit_file" | "edit_diff" => ToolPermission::Moderate,

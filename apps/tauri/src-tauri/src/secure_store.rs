@@ -104,10 +104,23 @@ mod tests {
     use super::*;
 
     /// 临时文件库（避免污染真实数据目录）
+    ///
+    /// 路径必须**逐次独占**：只按进程号命名的话，同二进制内的多个测试会共用一个文件，
+    /// 并行时 `remove_file` + 并发建表会撞 `SQLITE_BUSY`（code: 5 database is locked）。
     async fn temp_store() -> Arc<SecureStore> {
-        let path = std::env::temp_dir().join(format!("ws_secure_test_{}.db", std::process::id()));
+        let path = temp_db_path();
         let _ = std::fs::remove_file(&path);
         SecureStore::new(path.to_str().unwrap()).await.expect("建临时库失败")
+    }
+
+    fn temp_db_path() -> std::path::PathBuf {
+        static SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let n = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        std::env::temp_dir().join(format!(
+            "ws_secure_test_{}_{}.db",
+            std::process::id(),
+            n
+        ))
     }
 
     #[tokio::test]
