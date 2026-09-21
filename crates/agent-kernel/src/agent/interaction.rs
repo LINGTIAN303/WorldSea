@@ -484,4 +484,9 @@ impl AgentLoop {
             .await
             .map_err(AgentError::from)
     }
+
+    /// 读取备用 API Key 池（A2；供会话派生面复制——如分叉子会话继承父配置）
+    pub async fn current_api_key_pool(&self) -> Vec<String> {
+        self.backend.api_key_pool().await
+    }
 }

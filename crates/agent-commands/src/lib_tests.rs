@@ -2043,11 +2043,12 @@
         let info = svc.new_session(None, vec![], None, None, None, None, None).await.unwrap();
         seed_two_rounds(&store, &info.id).await;
         let capture = Arc::new(CaptureEvents(Default::default()));
-        svc.get_agent(&info.id)
-            .await
-            .unwrap()
+        let parent_agent = svc.get_agent(&info.id).await.unwrap();
+        parent_agent
             .subscribe_key(agent_runtime::event::keys::CONVERSATION_FORKED, capture.clone())
             .await;
+        // A2：备用 Key 池随分叉继承（父会话注入后子会话应可见同一池）
+        parent_agent.set_api_key_pool(vec!["backup-1".into()]).await.unwrap();
 
         let child = svc.fork_session(&info.id, 1).await.unwrap();
 
@@ -2057,6 +2058,11 @@
         assert_eq!(msgs.len(), 3);
         assert_eq!(msgs[2].content, "u2");
         assert_eq!(child.message_count, 3);
+        assert_eq!(
+            child_agent.current_api_key_pool().await,
+            vec!["backup-1".to_string()],
+            "备用 Key 池应随分叉继承"
+        );
         // 会话列表可见
         let list = svc.list_sessions(None).await.unwrap();
         assert!(list.iter().any(|s| s.id == child.id));

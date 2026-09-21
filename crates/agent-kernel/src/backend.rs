@@ -131,6 +131,12 @@ pub trait NodeBackendAccessor: Send + Sync {
     async fn set_api_key_pool(&self, _keys: Vec<String>) -> Result<(), BackendError> {
         Ok(())
     }
+
+    /// 读取备用 API Key 池（A2 多 Key 降级；供会话派生面复制配置——如分叉子会话继承）。
+    /// 默认空（不支持的后端无池可言）。
+    async fn api_key_pool(&self) -> Vec<String> {
+        Vec::new()
+    }
 }
 
 /// LLM 调用返回结果 — 阶段 1.3 引入

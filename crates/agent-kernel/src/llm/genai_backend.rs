@@ -839,6 +839,10 @@ impl NodeBackendAccessor for GenaiBackend {
         self.set_key_pool(keys).await;
         Ok(())
     }
+
+    async fn api_key_pool(&self) -> Vec<String> {
+        self.key_pool.read().await.clone()
+    }
 }
 
 // ─── genai 类型适配辅助 ────────────────────────────────────

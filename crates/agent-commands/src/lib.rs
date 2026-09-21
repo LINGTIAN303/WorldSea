@@ -4196,6 +4196,13 @@ impl AgentCommandService {
                 ..AgentState::default()
             })
             .await;
+        // A2 多 Key 降级：备用 Key 池一并继承（非空才复制；失败不阻断分叉）
+        let key_pool = parent_agent.current_api_key_pool().await;
+        if !key_pool.is_empty() {
+            if let Err(e) = agent.set_api_key_pool(key_pool).await {
+                tracing::warn!("子会话继承备用 Key 池失败（仅主 Key 生效）: {e}");
+            }
+        }
         let info = SessionInfo {
             id: out.child.id.clone(),
             created_at: out.child.created_at,
