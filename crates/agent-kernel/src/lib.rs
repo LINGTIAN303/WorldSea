@@ -37,3 +37,4 @@ pub mod types;
 pub mod workspace_partition;
 pub mod permission_rules;
 pub mod permission_machine;
+pub mod project_rules;

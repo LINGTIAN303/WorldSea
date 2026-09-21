@@ -2654,6 +2654,76 @@
         );
     }
 
+    /// S4-c：项目规则 deny 经配置注入生效——工具不被执行且结果为 POLICY_DENIED
+    /// （覆盖「config.project_rules → ctx.project → permission_machine 位次 4」整条接线）
+    #[tokio::test]
+    async fn project_rules_deny_blocks_tool_via_config() {
+        struct CountingEcho(Arc<AtomicUsize>);
+        #[async_trait]
+        impl crate::tool::Tool for CountingEcho {
+            fn name(&self) -> &str {
+                "read_file"
+            }
+            fn description(&self) -> &str {
+                "计数回显（测试用）"
+            }
+            fn parameters(&self) -> serde_json::Value {
+                serde_json::json!({ "type": "object", "properties": {} })
+            }
+            async fn execute(
+                &self,
+                args: serde_json::Value,
+            ) -> Result<serde_json::Value, crate::tool::ToolError> {
+                self.0.fetch_add(1, Ordering::SeqCst);
+                Ok(args)
+            }
+        }
+
+        let calls = Arc::new(AtomicUsize::new(0));
+        let backend = Arc::new(MockBackend::new(vec![
+            PromptResponse {
+                text: "读文件".into(),
+                tool_calls: vec![ToolCall {
+                    id: "tc_proj".into(),
+                    name: "read_file".into(),
+                    args: serde_json::json!({ "path": "note.txt" }),
+                }],
+                input_tokens: None,
+                output_tokens: None,
+                stop_reason: Some("tool_calls".into()),
+                reasoning: None,
+            },
+            PromptResponse::text_only("完成"),
+        ]));
+        let tool_bus = Arc::new(SimpleToolBus::new());
+        tool_bus.register(Arc::new(CountingEcho(calls.clone()))).await;
+        let agent = AgentLoop::new(backend, tool_bus).with_config(AgentLoopConfig {
+            workdir: Some(std::path::PathBuf::from("/ws")),
+            project_rules: Some(Arc::new(crate::permission_machine::ProjectPermissionRules {
+                deny: vec!["read_file".into()],
+                ask: Vec::new(),
+                allow: Vec::new(),
+            })),
+            ..Default::default()
+        });
+
+        let result = agent.run("跑".into()).await.expect("运行应成功");
+        assert_eq!(result, "完成");
+        assert_eq!(calls.load(Ordering::SeqCst), 0, "项目规则 deny 的工具不应被执行");
+        let msgs = agent.get_messages().await;
+        let tr = msgs
+            .iter()
+            .find(|m| m.role == MessageRole::ToolResult && m.tool_call_id.as_deref() == Some("tc_proj"))
+            .expect("应有拒绝 toolResult");
+        let v: serde_json::Value = serde_json::from_str(&tr.content).expect("toolResult 应为 JSON");
+        assert_eq!(v["isError"], true);
+        assert_eq!(v["errorCode"], "POLICY_DENIED");
+        assert!(
+            v["error"].as_str().unwrap_or("").contains("项目规则"),
+            "拒绝原因应标明项目规则: {v}"
+        );
+    }
+
     /// T1 契约：并行路径失败结果同样带判别字段（与串行同规）；成功结果不携带 `isError`。
     #[tokio::test]
     async fn parallel_failure_and_success_discriminants() {

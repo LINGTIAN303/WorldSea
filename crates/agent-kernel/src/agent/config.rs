@@ -110,6 +110,12 @@ pub struct AgentLoopConfig {
     /// 确认（经 `ConfirmationBroker` 广播事件 + 等待前端回传），危险操作需用户确认。
     pub confirmation_policy: Option<ConfirmationPolicy>,
 
+    /// S4-c：项目规则（`{workdir}/.worldsea/permissions.json` 加载结果；`None`=未声明）
+    ///
+    /// 判定位次在 `permission_machine`（4 deny / 7 ask / 10 allow）；加载与重载由命令层
+    /// 在会话装配 / 工作区切换时执行（编辑规则文件后经 `set_project_rules` 生效）。
+    pub project_rules: Option<Arc<crate::permission_machine::ProjectPermissionRules>>,
+
     /// 会话绑定的工作区根目录（`None`=不限定工作区）
     ///
     /// 供 `AgentLoop` 构造 [`crate::tool_context::ToolContext`] 并注入到工具执行
@@ -191,6 +197,7 @@ impl Default for AgentLoopConfig {
             entity_provider: None,
             // A5 HITL：默认不启用确认（无 broker 时策略不生效）
             confirmation_policy: None,
+            project_rules: None,
             // 工作区：默认不限定（None=相对路径原样返回）
             workdir: None,
             // Workspace 实体 id：默认无（旧数据缺省）

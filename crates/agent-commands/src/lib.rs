@@ -1960,6 +1960,12 @@ impl AgentCommandService {
         // A1 丁1（2026-09-12）：按场景记忆档位注入「注入预算 / 召回条数」——
         // 同样先借后 move；无场景 = None = Standard 档（既有默认，零行为变化）。
         let memory_tier = scenario.as_ref().map(|s| s.memory_policy().params());
+        // S4-c：项目规则（`{workdir}/.worldsea/permissions.json`——data zone 内，Agent 裸写受 E1 保护，
+        // 声明不可自改）；缺文件 / 坏 JSON → 未声明。编辑后经 `reload_project_rules` 生效。
+        let project_rules = workdir
+            .as_ref()
+            .and_then(|wd| agent_runtime::permission_machine::ProjectPermissionRules::load(wd))
+            .map(Arc::new);
         let agent_config = AgentLoopConfig {
             system_prompt,
             prompt_sections,
@@ -1969,6 +1975,8 @@ impl AgentCommandService {
             // （任务29/M4：有 workdir 时为文件版 provider，否则回退全局 SQLite 版）
             entity_provider: session_entity_provider,
             confirmation_policy: Some(confirmation_policy),
+            // S4-c：项目规则（deny/ask/allow；位次 4/7/10）
+            project_rules,
             // Phase 2：会话工作区（供 FS 工具解析相对路径，None=不限定）
             workdir,
             // Phase A：会话绑定的 Workspace 实体 id（供 ToolContext 注入，None=旧数据缺省）
@@ -4729,6 +4737,21 @@ impl AgentCommandService {
     ) -> Result<(), CommandError> {
         let agent = self.get_agent(session_id).await?;
         agent.set_provider_config(config).await.map_err(CommandError::from)
+    }
+
+    /// S4-c：重载会话项目规则（`{workdir}/.worldsea/permissions.json`）——编辑规则文件后调用生效。
+    ///
+    /// 返回是否加载到规则（`false` = 未声明 / 坏 JSON / 无工作区，规则按清除处理）。
+    /// 随会话装配（`new_agent`）自动加载一次；工作区切换的在线传播依赖既有 workdir 通道。
+    pub async fn reload_project_rules(&self, session_id: &str) -> Result<bool, CommandError> {
+        let agent = self.get_agent(session_id).await?;
+        let rules = agent
+            .workdir()
+            .and_then(|wd| agent_runtime::permission_machine::ProjectPermissionRules::load(&wd))
+            .map(Arc::new);
+        let loaded = rules.is_some();
+        agent.set_project_rules(rules);
+        Ok(loaded)
     }
 
     /// S4-b：写入会话级授权（**仅本会话内存活**、不落盘——ZD2-3；只服务 alwaysAsk gate）。

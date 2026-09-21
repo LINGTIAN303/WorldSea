@@ -322,6 +322,84 @@ fn s4b_session_grant_consumption_rules() {
     assert_eq!(g.len(), 2, "全量条目不被消费");
 }
 
+// ─── S4-c：项目规则层 ────────────────────────────────
+
+/// 项目规则裁决：deny > ask > allow > None；工具精确/通配 + 内容包含/通配
+#[test]
+fn s4c_project_rules_verdict_priority_and_matching() {
+    let rules = ProjectPermissionRules {
+        deny: vec!["execute_command".into(), "mcp__*".into(), "read_file:*secret*".into()],
+        ask: vec!["web_fetch".into(), "write_file".into()],
+        allow: vec!["read_file:*entities/*".into(), "write_file".into()],
+    };
+    // 工具精确（无内容模式 = 全量）
+    assert_eq!(rules.verdict("execute_command", Some("ls")), ProjectVerdict::Deny);
+    assert_eq!(rules.verdict("execute_command", None), ProjectVerdict::Deny);
+    // 工具通配（mcp__*）
+    assert_eq!(rules.verdict("mcp__fs__read_file", None), ProjectVerdict::Deny);
+    // 内容通配（*secret*）
+    assert_eq!(rules.verdict("read_file", Some("/ws/.env-secret")), ProjectVerdict::Deny);
+    assert_eq!(rules.verdict("read_file", Some("/ws/note.txt")), ProjectVerdict::None, "不匹配 deny/allow");
+    // ask 优先于 allow（write_file 同时在两者中 → Ask）
+    assert_eq!(rules.verdict("write_file", None), ProjectVerdict::Ask);
+    assert_eq!(rules.verdict("web_fetch", None), ProjectVerdict::Ask);
+    // allow（内容前缀通配）
+    assert_eq!(rules.verdict("read_file", Some("/ws/entities/a.json")), ProjectVerdict::Allow);
+    // 未声明工具
+    assert_eq!(rules.verdict("entity_get", None), ProjectVerdict::None);
+}
+
+/// 内容匹配口径：无 `*` → 包含；含 `*` → 通配（与既有名单子串口径兼容）
+#[test]
+fn s4c_content_matches_semantics() {
+    assert!(content_matches("cargo", "cargo test"), "无星号=包含");
+    assert!(!content_matches("cargo", "git status"));
+    assert!(content_matches("cargo *", "cargo test"), "含星号=通配（前缀锚定）");
+    assert!(!content_matches("cargo *", "sudo cargo test"), "首段锚定开头");
+    assert!(content_matches("*secret*", "/a/b/secret.txt"));
+    assert!(content_matches("*.env", "/a/b/.env"), "末段锚定结尾");
+    assert!(tool_matches("mcp__*", "mcp__fs__read"), "工具通配");
+    assert!(!tool_matches("read", "read_file"), "工具无星号=精确相等");
+}
+
+/// 项目规则文件加载：合法 / 缺文件 / 坏 JSON / 空规则
+#[test]
+fn s4c_project_rules_load_from_disk() {
+    let base = std::env::temp_dir().join(format!(
+        "ws-proj-rules-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0)
+    ));
+    let rules_dir = base.join(".worldsea");
+    std::fs::create_dir_all(&rules_dir).unwrap();
+
+    // ① 合法文件
+    std::fs::write(
+        rules_dir.join("permissions.json"),
+        r#"{"deny":["execute_command"],"allow":["read_file:*entities/*"]}"#,
+    )
+    .unwrap();
+    let loaded = ProjectPermissionRules::load(&base).expect("合法文件应加载");
+    assert_eq!(loaded.verdict("execute_command", None), ProjectVerdict::Deny);
+    assert_eq!(loaded.verdict("read_file", Some("/x/entities/a")), ProjectVerdict::Allow);
+
+    // ② 坏 JSON → 未声明（不阻断装配，不猜测）
+    std::fs::write(rules_dir.join("permissions.json"), "{ not json").unwrap();
+    assert!(ProjectPermissionRules::load(&base).is_none());
+
+    // ③ 空规则（{}）→ 未声明
+    std::fs::write(rules_dir.join("permissions.json"), "{}").unwrap();
+    assert!(ProjectPermissionRules::load(&base).is_none());
+
+    // ④ 缺文件 → 未声明
+    std::fs::remove_file(rules_dir.join("permissions.json")).unwrap();
+    assert!(ProjectPermissionRules::load(&base).is_none());
+
+    let _ = std::fs::remove_dir_all(&base);
+}
+
 /// 兜底：无策略（未启用确认）→ 放行
 #[test]
 fn fallback_allows_without_policy() {

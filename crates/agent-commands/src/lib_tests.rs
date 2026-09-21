@@ -1950,6 +1950,38 @@
         request_snapshot::remove_wal_file(dir.path(), "s-del"); // 幂等（不 panic）
     }
 
+    /// S4-c：项目规则从工作区加载 / 重载（`{workdir}/.worldsea/permissions.json`）
+    #[tokio::test]
+    async fn reload_project_rules_loads_from_workdir() {
+        let dir = std::env::temp_dir().join(format!("ws-proj-rules-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(dir.join(".worldsea")).unwrap();
+        std::fs::write(
+            dir.join(".worldsea/permissions.json"),
+            r#"{"deny":["execute_command"]}"#,
+        )
+        .unwrap();
+        let store = SqliteSessionRepository::new_in_memory().await.unwrap();
+        let svc = AgentCommandService::new().with_session_store(store.clone());
+        let info = svc
+            .new_session(None, vec![], None, None, Some(dir.clone()), None, None)
+            .await
+            .unwrap();
+        // 装配期已加载；显式重载同样命中
+        assert!(svc.reload_project_rules(&info.id).await.unwrap(), "应加载到项目规则");
+
+        // 无规则目录 → 未声明（false）
+        let plain = std::env::temp_dir().join(format!("ws-proj-rules-none-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&plain).unwrap();
+        let info2 = svc
+            .new_session(None, vec![], None, None, Some(plain.clone()), None, None)
+            .await
+            .unwrap();
+        assert!(!svc.reload_project_rules(&info2.id).await.unwrap(), "无规则应返回 false");
+
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(&plain);
+    }
+
     // ─── S3-e2：会话分支命令面（分叉 / 回滚 / 检查点）──────────────
 
     /// 捕获型监听器：断言分支事件确实广播（key 序列）

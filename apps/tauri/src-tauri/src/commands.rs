@@ -1679,6 +1679,20 @@ pub async fn list_checkpoints(
         .map_err(|e| e.to_string())
 }
 
+/// S4-c：重载会话项目规则（`{workdir}/.worldsea/permissions.json`）——编辑规则文件后调用生效
+///
+/// 返回是否加载到规则（false = 未声明 / 坏 JSON / 无工作区）。
+#[tauri::command]
+pub async fn reload_project_rules(
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+) -> Result<bool, String> {
+    state
+        .reload_project_rules(&session_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// S4-b：写入会话级授权（仅本会话内存活；`once=true` 一次性）——只服务 alwaysAsk gate
 ///
 /// 前端「本会话总是允许」按钮随 UX 批接线；此处为命令面先行（机制可测）。

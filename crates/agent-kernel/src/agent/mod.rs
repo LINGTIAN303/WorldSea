@@ -495,6 +495,18 @@ impl AgentLoop {
         }
     }
 
+    /// 设置 / 重载会话的项目规则（S4-c；`None` = 未声明/清除）
+    ///
+    /// 写入 config（`maybe_require_confirmation` 每次读取），编辑规则文件后调用即生效。
+    pub fn set_project_rules(
+        &self,
+        rules: Option<Arc<crate::permission_machine::ProjectPermissionRules>>,
+    ) {
+        if let Ok(mut guard) = self.config.write() {
+            guard.project_rules = rules;
+        }
+    }
+
     /// 解析一次待定的工具确认（前端经 `cmd_agent_confirm` 回传）
     ///
     /// `outcome` 为 D8 四值（approved / denied / skipped / timeout；

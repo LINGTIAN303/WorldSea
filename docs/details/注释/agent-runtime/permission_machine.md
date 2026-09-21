@@ -42,7 +42,8 @@ S4-a 把顺序收为**纯函数** [`decide`]：无 I/O、无全局单例——�
   破坏性 / 数据区写删〔路径型并入 E1 位〕；**迁移点：工具族批迁 `ToolDescriptor.always_ask`**）+
   会话授权来源接入（`SessionGrant` / `SessionPermissionGrants`，`AgentLoop` 存取；
   `once` 命中即消费；匹配主体经 `confirmation::rule_content_subject` 归一化）。
-- S4-c：项目规则来源接入（`{workdir}/.worldsea/permissions.json`，Q2 拍板）。
+- S4-c（已完成）：项目规则来源接入——独立模块 `project_rules.rs`（`{workdir}/.worldsea/permissions.json`；
+  来源与匹配见 §六）。
 - 位次表**不随批次改动，只换来源**；改位次须同行更新 §三 表与逐位用例。
 
 ## 五、会话级授权（S4-b）
@@ -53,3 +54,16 @@ S4-a 把顺序收为**纯函数** [`decide`]：无 I/O、无全局单例——�
   `once=true` 命中即消费。空工具名 / 空模式被忽略（防空模式匹配一切）。
 - **接口**：`AgentLoop::{grant_session_permission, consume_session_grant, session_grant_count}`；
   命令面 `grant_session_permission`（服务层 + Tauri；UI 随 UX 批）。
+
+## 六、项目规则（S4-c）
+
+- **文件**：`{workdir}/.worldsea/permissions.json`（`project_rules::PROJECT_RULES_REL_PATH`）——data zone 内，
+  Agent 裸写受 E1 保护（**声明不可自改**）；格式 `{"deny":[...], "ask":[...], "allow":[...]}`。
+- **条目**：`"tool"`（该工具全部调用）或 `"tool:content"`（工具 + 内容模式）。
+- **匹配**：工具名无 `*` = 精确相等 / 含 `*` = 通配；内容无 `*` = 包含（兼容既有子串名单）/
+  含 `*` = 通配（**首段锚定开头、末段锚定结尾**——路径模式写 `*entities/*` 而非 `entities/*`）。
+- **优先级**：`deny > ask > allow > None`（fail-closed）→ 判定位次 4/7/10（deny 先于 alwaysAsk，Q4-B）。
+- **加载**：装配期（`new_agent`）+ `reload_project_rules`（服务 / Tauri 命令）；缺文件 / 坏 JSON /
+  超限（>256KB）/ 空规则 → **未声明**（坏 JSON 记 warn；权限声明绝不猜测）。
+- **边界**：规则随 agent 的 workdir 加载；`update_session_workdir` 的在线传播为既有缺口（随批登记）——
+  切换目录后需重开会话或经 reload 命令。

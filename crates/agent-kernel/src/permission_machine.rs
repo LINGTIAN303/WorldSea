@@ -18,6 +18,9 @@
 //! （本批 `ProjectVerdict::None`）。位次表不随批次改动，只换来源。
 
 use crate::confirmation::{ConfirmationPolicy, ToolPermission};
+
+// 项目规则类型/匹配独立成模块（S4-c 拆分：文件规模 ≤400 行）；此处重导出保持调用面稳定
+pub use crate::project_rules::{content_matches, tool_matches, ProjectPermissionRules, ProjectVerdict};
 use crate::permission_rules::SecurityLevel;
 
 /// 判定行为（终值）
@@ -87,19 +90,6 @@ impl Decision {
     }
 }
 
-/// 项目规则裁决（S4-c 接入来源；本批恒 `None`）
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub enum ProjectVerdict {
-    /// 未声明 / 未命中
-    #[default]
-    None,
-    /// 拒绝（项目硬约束）
-    Deny,
-    /// 需确认
-    Ask,
-    /// 放行
-    Allow,
-}
 
 /// 判定输入（聚合；调用点负责从各来源填充——纯函数无 I/O）
 pub struct PermissionCtx<'a> {
@@ -216,8 +206,9 @@ impl SessionPermissionGrants {
         let hit = self.entries.iter().position(|e| {
             e.tool_name == tool_name
                 && match (&e.content, subject) {
+                    // 无 `*` → 包含（既有口径）；含 `*` → 通配（与项目规则同源，见 content_matches）
                     (None, _) => true,
-                    (Some(pattern), Some(subject)) => subject.contains(pattern.as_str()),
+                    (Some(pattern), Some(subject)) => content_matches(pattern, subject),
                     (Some(_), None) => false,
                 }
         });
