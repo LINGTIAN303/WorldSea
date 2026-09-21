@@ -112,4 +112,10 @@ session_events 每次同步追加一条事件（initial / append / trim / revise
 - **工作区回滚不纳入内核**（ZD1-3）：写作数据（实体 store）回滚由领域层另立项。
 - **分支操作 mark 只在进程存活期间有意义**：装载时一律视为崩溃残留（保守语义）。
 - **检查点是「指针」不是「快照」**：只记 `request_seq` 坐标，内容由日志 + 快照链承载。
+- **统一检查点视图（S3-f 合并裁定）**：会话锚点与长任务断点经 `list_checkpoint_refs`
+  合并为单一概念面（`CheckpointRef`，`agent-engine::contracts::checkpoints`）——
+  存储各归其位（锚点表 / `long_tasks`），保留策略天然分治；任务断点在引入会话绑定前
+  `session_id = None`（引用式，快照本体不搬家）。
+- **纯前端/命令可见面（S3-e2 起）**：分叉 / 回滚 / 检查点三事件的**发射点**尚未接线
+  （key + mode 已登记）；命令层入口与 AgentLoop 内存态同步随 S3-e2。
 - 不做多端 replayable 投影 / 跨设备同步（04 §四）。

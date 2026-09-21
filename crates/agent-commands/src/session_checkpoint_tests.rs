@@ -1,7 +1,37 @@
 use super::*;
+use agent_engine::contracts::checkpoints::{CheckpointAnchor, CheckpointKind};
 use agent_runtime::agent::request_snapshot::{RequestSnapshot, ViewUpdate};
+use agent_runtime::long_task::{
+    LongTaskCheckpoint, LongTaskMeta, LongTaskRecord, LongTaskStatus, LongTaskType,
+};
 use agent_runtime::types::{MessageRole, OrchestratorMessage};
+use chrono::{Duration, Utc};
+use crate::long_task_store::LongTaskRepository;
 use crate::session_store::SessionRepository;
+
+/// 造一条长任务记录（心跳相对 now 偏移，供跨源排序断言）
+fn task_record(task_id: &str, status: LongTaskStatus, heartbeat_offset_secs: i64) -> LongTaskRecord {
+    let now = Utc::now();
+    LongTaskRecord {
+        task_id: task_id.into(),
+        task_type: LongTaskType::MainAgent,
+        status,
+        started_at: now - Duration::seconds(heartbeat_offset_secs.abs() + 60),
+        last_heartbeat_at: now + Duration::seconds(heartbeat_offset_secs),
+        ended_at: None,
+        turn_count: 0,
+        current_tool: None,
+        current_phase: None,
+        checkpoint: LongTaskCheckpoint {
+            agent_messages: Vec::new(),
+            last_user_text: "任务".into(),
+            skill_names: None,
+            chat_mode: None,
+            locked_chat_mode: None,
+        },
+        meta: LongTaskMeta { agent_type: None, prompt: "t".into(), pipeline_context: None },
+    }
+}
 
 fn msg(content: &str) -> OrchestratorMessage {
     OrchestratorMessage {
@@ -106,4 +136,57 @@ async fn manual_checkpoint_bracketed_and_retention_keeps_latest() {
     assert_eq!(cps.len() as i64, CHECKPOINT_KEEP, "应淘汰至保留上限");
     assert_eq!(cps[0].request_seq, CHECKPOINT_KEEP + 4, "最新保留");
     assert_eq!(cps.last().unwrap().request_seq, 5, "淘汰按 (request_seq, created_at) 取最旧（含手动点）");
+}
+
+// ─── S3-e 检查点合并（方案 A）：统一引用视图 ──────────────────
+
+#[tokio::test]
+async fn list_checkpoint_refs_merges_anchors_and_running_tasks() {
+    let store = SqliteSessionRepository::new_in_memory().await.unwrap();
+    seed_session(&store, "s").await;
+    checkpoint_now(&store, "s", 3, "manual").await.unwrap();
+    checkpoint_now(&store, "s", 9, "auto").await.unwrap();
+    let tasks = LongTaskRepository::new_in_memory().await.unwrap();
+    // 活跃任务（心跳为 1h 前——比锚点旧，用于跨源排序断言）+ 终态任务（不应出现）
+    tasks.save(task_record("longtask-run", LongTaskStatus::Running, -3600)).await.unwrap();
+    tasks.save(task_record("longtask-done", LongTaskStatus::Completed, -10)).await.unwrap();
+
+    let refs = list_checkpoint_refs(&*store, Some(&tasks), "s", 10).await.unwrap();
+    assert_eq!(refs.len(), 3, "2 锚点 + 1 活跃任务断点（终态任务排除）");
+    assert_eq!(refs.iter().filter(|r| r.kind() == CheckpointKind::SessionAnchor).count(), 2);
+    let task_refs: Vec<_> = refs.iter().filter(|r| r.kind() == CheckpointKind::TaskResume).collect();
+    assert_eq!(task_refs.len(), 1);
+    assert_eq!(task_refs[0].id, "longtask-run");
+    assert_eq!(task_refs[0].session_id, None, "任务断点未绑定会话（引用式）");
+    assert!(matches!(
+        task_refs[0].anchor,
+        CheckpointAnchor::TaskProgress { ref task_id } if task_id == "longtask-run"
+    ));
+    assert_eq!(refs.last().unwrap().id, "longtask-run", "按 created_at_ms 降序——旧心跳排末位");
+    // limit 截断（取最新）
+    let refs = list_checkpoint_refs(&*store, Some(&tasks), "s", 2).await.unwrap();
+    assert_eq!(refs.len(), 2);
+    assert!(refs.iter().all(|r| r.kind() == CheckpointKind::SessionAnchor));
+
+    // 未配置长任务存储：只出锚点（入口契约的 Option 面）
+    let refs = list_checkpoint_refs(&*store, None, "s", 10).await.unwrap();
+    assert_eq!(refs.len(), 2);
+    assert!(refs.iter().all(|r| r.kind() == CheckpointKind::SessionAnchor));
+}
+
+#[tokio::test]
+async fn anchor_prune_leaves_task_resume_untouched() {
+    // 保留策略分治（方案 A 要点）：锚点按数量淘汰；任务断点随任务生命周期，不受锚点淘汰影响
+    let store = SqliteSessionRepository::new_in_memory().await.unwrap();
+    seed_session(&store, "s").await;
+    checkpoint_now(&store, "s", 1, "manual").await.unwrap();
+    let tasks = LongTaskRepository::new_in_memory().await.unwrap();
+    tasks.save(task_record("longtask-run", LongTaskStatus::Running, 0)).await.unwrap();
+
+    let deleted = store.prune_checkpoints("s", 0).await.unwrap();
+    assert_eq!(deleted, 1, "锚点全量淘汰");
+
+    let refs = list_checkpoint_refs(&*store, Some(&tasks), "s", 10).await.unwrap();
+    assert_eq!(refs.len(), 1, "任务断点不参与锚点淘汰");
+    assert_eq!(refs[0].kind(), CheckpointKind::TaskResume);
 }

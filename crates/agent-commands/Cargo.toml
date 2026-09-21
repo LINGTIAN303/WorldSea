@@ -12,6 +12,8 @@ crate-type = ["rlib"]
 
 [dependencies]
 # ── 本地 crate ──
+# 新内核契约（单一定义处；S3-e 检查点合并裁定 · 方案 A 引入——类型层统一）
+agent-engine = { path = "../agent-engine" }
 # 启用 llm-genai：使 agent-runtime 的 GenaiBackend 可用（5.4 真实 LLM 接入）
 agent-runtime = { path = "../agent-runtime", features = ["llm-genai"] }
 # B 轨统一骨架（S1 适配层：编排双轨收拢试点 Plan-and-Execute 的直接执行引擎，经 agent_patterns::orchestrator）

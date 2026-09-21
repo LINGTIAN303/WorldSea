@@ -167,6 +167,40 @@ impl LongTaskRepository {
     }
 
     /// 列出所有 Running 任务（应用启动恢复用，按 started_at ASC）
+    /// 统一检查点引用（S3-e 合并裁定 · 方案 A）：活跃任务（`running`）的断点引用。
+    ///
+    /// - 只列 `running`——终态任务的断点无续跑意义；
+    /// - **引用不含快照本体**（`LongTaskCheckpoint` 仍在任务记录里，续跑恢复路径不变）；
+    /// - `created_at_ms` 取最后心跳时点（跨源按"最后更新"排序）。
+    pub async fn checkpoint_refs(
+        &self,
+        limit: i64,
+    ) -> Result<Vec<agent_engine::contracts::checkpoints::CheckpointRef>, CommandError> {
+        use agent_engine::contracts::checkpoints::{CheckpointAnchor, CheckpointRef};
+        let rows: Vec<(String, String)> = sqlx::query_as(
+            "SELECT task_id, last_heartbeat_at FROM long_tasks WHERE status = 'running' \
+             ORDER BY last_heartbeat_at DESC LIMIT ?1",
+        )
+        .bind(if limit > 0 { limit } else { i64::MAX })
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| CommandError::Internal(format!("读取活跃任务断点失败: {e}")))?;
+        Ok(rows
+            .into_iter()
+            .filter_map(|(task_id, heartbeat)| {
+                // 心跳为 RFC3339（写入侧保证）；坏值跳过——引用视图不因单行脏数据整体失败
+                let created_at_ms =
+                    DateTime::parse_from_rfc3339(&heartbeat).ok()?.timestamp_millis();
+                Some(CheckpointRef {
+                    id: task_id.clone(),
+                    session_id: None,
+                    anchor: CheckpointAnchor::TaskProgress { task_id },
+                    created_at_ms,
+                })
+            })
+            .collect())
+    }
+
     pub async fn list_running(&self) -> Result<Vec<LongTaskRecord>, CommandError> {
         self.list_by_status(LongTaskStatus::Running).await
     }

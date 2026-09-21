@@ -419,6 +419,16 @@ pub trait SessionRepository: Send + Sync {
     ) -> Result<Vec<crate::session_branch::BranchResidue>, CommandError> {
         Ok(Vec::new())
     }
+    /// 统一检查点引用（S3-e 合并裁定 · 方案 A）：本仓储只产**会话锚点**侧；
+    /// 任务断点由 [`crate::LongTaskRepository::checkpoint_refs`] 提供，
+    /// 两类合并入口见 [`crate::session_checkpoint::list_checkpoint_refs`]。默认空。
+    async fn checkpoint_refs(
+        &self,
+        _session_id: &str,
+        _limit: i64,
+    ) -> Result<Vec<agent_engine::contracts::checkpoints::CheckpointRef>, CommandError> {
+        Ok(Vec::new())
+    }
     /// 更新会话标题（写穿）
     async fn update_title(&self, session_id: &str, title: &str) -> Result<(), CommandError>;
     /// 设置会话固定状态（写穿）
@@ -1572,6 +1582,14 @@ impl SessionRepository for SqliteSessionRepository {
         &self,
     ) -> Result<Vec<crate::session_branch::BranchResidue>, CommandError> {
         crate::session_branch::reconcile_residue(self).await
+    }
+
+    async fn checkpoint_refs(
+        &self,
+        session_id: &str,
+        limit: i64,
+    ) -> Result<Vec<agent_engine::contracts::checkpoints::CheckpointRef>, CommandError> {
+        crate::session_checkpoint::session_anchor_refs(self, session_id, limit).await
     }
 
     async fn update_title(&self, session_id: &str, title: &str) -> Result<(), CommandError> {

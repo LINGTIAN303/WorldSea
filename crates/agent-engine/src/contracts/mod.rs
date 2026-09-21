@@ -2,9 +2,11 @@
 //!
 //! 落有四类已稳固的契约：事件键表与分发模式（S3-b 自 agent-kernel 迁入）、
 //! 输入三语义、审批四值。`ToolDescriptor` 归工具族批次。
+//! 另落检查点引用契约（S3-e 合并裁定 · 方案 A，见 [`checkpoints`]）。
 
 use serde::{Deserialize, Serialize};
 
+pub mod checkpoints;
 pub mod keys;
 
 /// 事件键：静态字符串（命名沿既有口径：snake_case 单词式，如 `"agent_start"`）。
