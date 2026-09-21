@@ -1,0 +1,17 @@
+[package]
+name = "agent-engine"
+version = "0.1.0"
+edition = "2021"
+description = "WorldSea 新内核（ZCode 能力内化 · S3 起）——契约与执行引擎"
+license = "MIT OR Apache-2.0"
+keywords = ["agent", "engine", "contracts"]
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+# 契约类型需要序列化（对齐旧 kernel 口径：snake_case）；零业务依赖——不依赖任何 worldsea crate
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+serde_json = "1"
