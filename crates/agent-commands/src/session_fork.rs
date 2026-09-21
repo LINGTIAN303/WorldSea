@@ -9,6 +9,7 @@
 //!   （头 + 视图 + 分叉记录）→ 清 mark。任一步失败 mark **故意保留**——装载期
 //!   [`crate::session_branch`] 收敛入口据此撤销半成品子会话（未清 mark ⇔ 未提交）。
 //! - 不携带工具会话 / 长任务状态（ZD1-5：首批最小面）。
+//! 详细见 docs/details/注释/agent-commands/session_store.md（会话族总览 §四）。
 
 use agent_runtime::types::OrchestratorMessage;
 

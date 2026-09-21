@@ -59,6 +59,7 @@
 | src/sandbox/{mod.rs, win.rs} | [sandbox.md](agent-commands/sandbox.md) | E3 真沙箱：受限令牌 + ACL 授予 / 会话级 temp 生命周期 / 撤销口径与边界登记（E3-1..E3-4） |
 | src/terminal.rs | [terminal.md](agent-commands/terminal.md) | 终端工具：execute_command / 持久化 Shell 会话设计；E3 沙箱接线与文案口径（2026-09-18 补充） |
 | src/{timers.rs, timer_tools.rs} | [timers.md](agent-commands/timers.md) | 定时唤醒（批次 C·S1）：`session_timers` 状态机 + 认领幂等 / 载荷与来源标记跨层契约 / 护栏与失败语义 / 已知边界 |
+| src/session_store.rs（+ session_branch.rs / session_fork.rs 同域） | [session_store.md](agent-commands/session_store.md) | 会话族：不可变日志 / 活跃视图 / 事件流三层 + 请求快照结构级重建链 + 分叉与装载期冷修复（S3 会话族；2026-09-21 补写——代码内指针原为悬空） |
 | tests/e2e_llm.rs | [e2e_llm.md](agent-commands/e2e_llm.md) | 真实 LLM 端到端实测：运行方式/设计约束/Provider 选择、Router 与 ToT 编排模式链路 |
 | src/lib_tests.rs | （无） | 2026-08-06 拆分的测试模块（#[path] 引用），无 ≥ 10 行连续注释块 |
 | src/loop_control_tests.rs | （无） | 2026-08-06 拆分的测试模块（#[path] 引用），无 ≥ 10 行连续注释块 |

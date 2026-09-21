@@ -8,6 +8,7 @@
 //!   [`SqliteSessionRepository::reconcile_branch_ops`] 收敛（对齐压缩锁范式）
 //!
 //! 本批交付存储与收敛原语；fork/rewind 执行链与装载期接线随 S3-c/S3-d 落地。
+//! 详细见 docs/details/注释/agent-commands/session_store.md（会话族总览 §四）。
 
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
