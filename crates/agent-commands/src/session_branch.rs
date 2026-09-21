@@ -279,6 +279,7 @@ impl SqliteSessionRepository {
 
     /// 装载期收敛：检出并清理该会话的全部残留 mark，返回被检出项（供调用方 warn 留档）。
     /// 保守语义：mark 只在进程存活期间有意义，装载时一律视为崩溃残留并清空。
+    /// **只清 mark、不撤销数据**——带撤销的全量入口见 [`reconcile_residue`]。
     pub async fn reconcile_branch_ops(&self, session_id: &str) -> Result<Vec<SessionBranchOpRecord>, CommandError> {
         let rows = sqlx::query_as::<_, (String, String, String, Option<String>, i64)>(
             "SELECT op_id, op, session_id, payload, created_at
@@ -307,6 +308,68 @@ impl SqliteSessionRepository {
             })
             .collect())
     }
+}
+
+/// 装载期检出的一条分支残留（`SessionRepository::reconcile_branch_residue` 返回，供调用方 warn 留档）
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BranchResidue {
+    /// 检出并已清除的 mark
+    pub op: SessionBranchOpRecord,
+    /// fork 残留撤销掉的半成品子会话 id（非 fork / 子会话不存在时为 None）
+    pub undone_child: Option<String>,
+}
+
+/// 装载期分支残留收敛（S3-c 冷修复；由 `SessionRepository::reconcile_branch_residue` 委托）。
+///
+/// 语义：**mark 未清 ⇔ 操作未提交**（调用方从未收到成功）——`fork` 残留即撤销半成品
+/// 子会话（内容可由父快照重放，删除无信息损失；留存则会成为无来源记录的幽灵会话），
+/// 其余 op 残留只清 mark（S3-d 的回滚 / 检查点按需补撤销动作）。收敛幂等。
+pub(crate) async fn reconcile_residue(
+    store: &SqliteSessionRepository,
+) -> Result<Vec<BranchResidue>, CommandError> {
+    let rows = sqlx::query_as::<_, (String, String, String, Option<String>, i64)>(
+        "SELECT op_id, op, session_id, payload, created_at FROM session_branch_ops ORDER BY created_at ASC",
+    )
+    .fetch_all(&store.pool)
+    .await
+    .map_err(|e| CommandError::Internal(format!("读取分支操作残留失败: {e}")))?;
+    if rows.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut out = Vec::with_capacity(rows.len());
+    for (op_id, op, session_id, payload, created_at) in rows {
+        let mut undone_child = None;
+        if op == "fork" {
+            if let Some(child) = child_id_of(payload.as_deref()) {
+                // 级联清理子会话的日志 / 视图 / 分叉记录（FK ON DELETE CASCADE）；
+                // 行不存在 = 崩溃点在建子会话之前，无需撤销
+                let deleted = sqlx::query("DELETE FROM sessions WHERE id = ?1")
+                    .bind(&child)
+                    .execute(&store.pool)
+                    .await
+                    .map_err(|e| CommandError::Internal(format!("撤销半成品子会话失败: {e}")))?
+                    .rows_affected();
+                if deleted > 0 {
+                    undone_child = Some(child);
+                }
+            }
+        }
+        out.push(BranchResidue {
+            op: SessionBranchOpRecord { op_id, op, session_id, payload, created_at },
+            undone_child,
+        });
+    }
+    sqlx::query("DELETE FROM session_branch_ops")
+        .execute(&store.pool)
+        .await
+        .map_err(|e| CommandError::Internal(format!("清理分支操作残留失败: {e}")))?;
+    Ok(out)
+}
+
+/// 从 fork mark 的 payload 取子会话 id（坏 payload 视为无子会话，不阻断收敛）
+fn child_id_of(payload: Option<&str>) -> Option<String> {
+    let value: serde_json::Value = serde_json::from_str(payload?).ok()?;
+    value.get("child_session_id")?.as_str().map(str::to_string)
 }
 
 #[cfg(test)]

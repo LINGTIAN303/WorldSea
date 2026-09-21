@@ -441,6 +441,60 @@
     }
 
     #[tokio::test]
+    async fn restore_recovers_uncommitted_fork_residue() {
+        // S3-c 装载期冷修复：上次进程中断遗留的 fork 残留（mark 未清）——半成品子会话
+        // 必须由装载期撤销。注入点选「子会话已写视图但未记来源」：空会话清理不命中
+        //（有活跃视图），只有分支残留收敛可回收 → 断言区分两条路径。
+        let store = SqliteSessionRepository::new_in_memory().await.unwrap();
+        let parent = SessionRecord {
+            id: "p".into(),
+            system_prompt: String::new(),
+            prompt_sections: None,
+            created_at: 100,
+            message_count: 1,
+            updated_at: 100,
+            title: "父会话".into(),
+            pinned: false,
+            kind: SessionKind::Chat,
+            workdir: None,
+            workspace_id: None,
+            project_id: None,
+            scene_id: None,
+        };
+        store.save_session(&parent).await.unwrap();
+        let msg = |content: &str| agent_runtime::types::OrchestratorMessage {
+            role: agent_runtime::types::MessageRole::User,
+            content: content.into(),
+            tool_calls: Vec::new(),
+            tool_call_id: None,
+            meta: None,
+        };
+        store.replace_messages("p", &[msg("历史消息")]).await.unwrap();
+        // 崩溃点注入：分叉中途——mark 已落、子会话行 + 视图已写、来源记录未写、mark 未清
+        let payload =
+            serde_json::json!({"child_session_id": "half-child", "request_seq": 0}).to_string();
+        store.begin_branch_op("fork", "p", Some(&payload)).await.unwrap();
+        let half = SessionRecord { id: "half-child".into(), ..parent };
+        store.save_session(&half).await.unwrap();
+        store.replace_messages("half-child", &[msg("半成品")]).await.unwrap();
+
+        let svc = AgentCommandService::new().with_session_store(store.clone());
+        let restored = svc.restore_sessions().await.unwrap();
+        assert_eq!(restored.len(), 1, "半成品子会话不应被重建为内存会话");
+        assert_eq!(restored[0].id, "p");
+        assert!(
+            store.load_sessions().await.unwrap().iter().all(|s| s.id != "half-child"),
+            "半成品子会话应从库中撤销"
+        );
+        let marks: i64 = sqlx::query_as::<_, (i64,)>("SELECT COUNT(*) FROM session_branch_ops")
+            .fetch_one(&store.pool)
+            .await
+            .unwrap()
+            .0;
+        assert_eq!(marks, 0, "残留 mark 应清空");
+    }
+
+    #[tokio::test]
     async fn generate_session_title_falls_back_to_first_message() {
         // 标题兜底（2026-09-10 症状②）：LLM 生成失败（无 key → 两次重试均 Err）不再留
         // 「新会话」占位，改用首条消息截断写穿——运行期前端兜底与持久化一致，重启不回退

@@ -37,6 +37,8 @@ pub fn mode_of(key: EventKey) -> DispatchMode {
         keys::INPUT_ADMISSION => DispatchMode::Waterfall,
         // A1 第二段（工具结果裁剪）：waterfall（监听器链可改写 result；链尾内建 = 裁剪）
         keys::TOOL_RESULT_PRE_BROADCAST => DispatchMode::Waterfall,
+        // S3-c 会话分支：同步扇出、无拦截语义（显式登记，后续分支事件同族入表）
+        keys::CONVERSATION_FORKED => DispatchMode::Emit,
         _ => DispatchMode::Emit,
     }
 }
@@ -134,5 +136,12 @@ mod tests {
         assert_eq!(mode_of(keys::INPUT_ADMISSION), DispatchMode::Waterfall);
         assert_eq!(mode_of(keys::TOOL_RESULT_PRE_BROADCAST), DispatchMode::Waterfall);
         assert_eq!(mode_of(keys::AGENT_START), DispatchMode::Emit);
+    }
+
+    #[test]
+    fn session_branch_key_registered_with_mode() {
+        // S3-c：会话分支事件登记（key + mode 双查——键值口径 snake_case 单词式）
+        assert_eq!(keys::CONVERSATION_FORKED, "conversation_forked");
+        assert_eq!(mode_of(keys::CONVERSATION_FORKED), DispatchMode::Emit);
     }
 }

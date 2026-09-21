@@ -411,6 +411,14 @@ pub trait SessionRepository: Send + Sync {
     /// 不依赖不可靠的 message_count 列（X1：该列仅创建期写入）；有活跃消息的会话绝不命中。
     /// 群聊参与者会话（kind=group）排除在外，保证群聊映射恢复不受影响。
     async fn purge_empty_sessions(&self) -> Result<u64, CommandError>;
+    /// 装载期分支残留收敛（S3-c 冷修复）：检出上次进程中断遗留的 fork/rewind/checkpoint
+    /// 操作 mark——`fork` 未提交者撤销其半成品子会话（细则见 `session_branch`）。
+    /// 返回检出项供调用方 warn 留档。默认无操作（不支持分支操作的后端无残留可言）。
+    async fn reconcile_branch_residue(
+        &self,
+    ) -> Result<Vec<crate::session_branch::BranchResidue>, CommandError> {
+        Ok(Vec::new())
+    }
     /// 更新会话标题（写穿）
     async fn update_title(&self, session_id: &str, title: &str) -> Result<(), CommandError>;
     /// 设置会话固定状态（写穿）
@@ -1550,6 +1558,12 @@ impl SessionRepository for SqliteSessionRepository {
         .await
         .map_err(|e| CommandError::Internal(format!("清理空会话失败: {e}")))?;
         Ok(result.rows_affected())
+    }
+
+    async fn reconcile_branch_residue(
+        &self,
+    ) -> Result<Vec<crate::session_branch::BranchResidue>, CommandError> {
+        crate::session_branch::reconcile_residue(self).await
     }
 
     async fn update_title(&self, session_id: &str, title: &str) -> Result<(), CommandError> {

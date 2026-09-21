@@ -106,6 +106,31 @@ async fn branch_op_bracket_and_reconcile() {
 }
 
 #[tokio::test]
+async fn recover_residue_undoes_uncommitted_fork_only() {
+    let store = SqliteSessionRepository::new_in_memory().await.unwrap();
+    seed_session(&store, "p").await;
+    seed_session(&store, "c1").await; // 半成品子会话（mark 未清）
+    seed_session(&store, "s2").await;
+    let payload = serde_json::json!({"child_session_id": "c1", "request_seq": 2}).to_string();
+    store.begin_branch_op("fork", "p", Some(&payload)).await.unwrap();
+    store.begin_branch_op("fork", "p", Some(r#"{"child_session_id":"ghost"}"#)).await.unwrap();
+    store.begin_branch_op("rewind", "s2", None).await.unwrap();
+
+    let residue = store.reconcile_branch_residue().await.unwrap();
+    assert_eq!(residue.len(), 3);
+    assert_eq!(residue[0].op.op, "fork");
+    assert_eq!(residue[0].undone_child.as_deref(), Some("c1"), "未提交子会话应被撤销");
+    assert_eq!(residue[1].undone_child, None, "子会话不存在（崩溃于建行之前）→ 无撤销动作");
+    assert_eq!(residue[2].op.op, "rewind");
+    assert_eq!(residue[2].undone_child, None, "非 fork 残留只清 mark");
+    // 半成品被回收、父会话与无关会话保留；全表 mark 已清
+    assert!(store.load_sessions().await.unwrap().iter().all(|s| s.id != "c1"));
+    assert!(store.load_sessions().await.unwrap().iter().any(|s| s.id == "p"));
+    assert_eq!(count(&store, "SELECT COUNT(*) FROM session_branch_ops", "x").await, 0);
+    assert!(store.reconcile_branch_residue().await.unwrap().is_empty(), "收敛幂等");
+}
+
+#[tokio::test]
 async fn delete_session_cascades_branch_rows() {
     let store = SqliteSessionRepository::new_in_memory().await.unwrap();
     seed_session(&store, "src").await;

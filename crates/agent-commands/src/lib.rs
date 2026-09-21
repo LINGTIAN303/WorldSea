@@ -18,6 +18,7 @@ mod workspace_path;
 mod workspace_tools;
 mod run_store;
 mod session_branch;
+mod session_fork;
 mod session_store;
 mod subagent;
 mod subagent_store;
@@ -41,7 +42,8 @@ pub use pattern_registry::{
     pattern_registry, validate_registry,
 };
 pub use run_store::{DecisionRecord, OrchestrationRun, RunStatus, RunStore};
-pub use session_branch::{SessionBranchOpRecord, SessionCheckpointRecord, SessionForkRecord};
+pub use session_branch::{BranchResidue, SessionBranchOpRecord, SessionCheckpointRecord, SessionForkRecord};
+pub use session_fork::ForkOutcome;
 pub use raw_tools::RawSlice;
 /// A2 戊1：语义检索类型透传（Tauri 命令层读写配置 / 状态展示用）
 pub use agent_memory::semantic::{SemanticConfig, SemanticStats};
@@ -3137,6 +3139,23 @@ impl AgentCommandService {
             Some(s) => s.clone(),
             None => return Ok(Vec::new()),
         };
+        // S3-c 分支残留冷修复（先于一切装载动作）：上次进程中断遗留的 fork/rewind/
+        // checkpoint 操作 mark——fork 未提交者撤销其半成品子会话（mark 未清 ⇔ 未提交，
+        // 见 session_branch 细则）。置于会话装载之前，避免半成品被重建为内存幽灵会话。
+        match store.reconcile_branch_residue().await {
+            Ok(residue) => {
+                for r in residue {
+                    tracing::warn!(
+                        session = %r.op.session_id,
+                        op = %r.op.op,
+                        op_id = %r.op.op_id,
+                        undone_child = r.undone_child.as_deref().unwrap_or("-"),
+                        "检测到会话分支操作残留（上次进程中断）：已收敛"
+                    );
+                }
+            }
+            Err(e) => tracing::warn!("分支残留收敛失败（跳过，不阻断恢复）: {e}"),
+        }
         // 空会话清理（2026-09-10 症状①）：切场景滑块/草稿态误建/首条发送失败遗留的
         // 0 消息会话，此前仅靠前端 pendingSessionIds（内存态）隐藏，重启即现形为
         // 「会话·xxxxx」空条目。恢复前按消息表实况物理清理（有消息/固定/group 绝不命中）。

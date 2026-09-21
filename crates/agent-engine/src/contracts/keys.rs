@@ -102,3 +102,7 @@ pub const CONFIRMATION_RESOLVED: EventKey = "confirmation_resolved";
 // Q1 提问（模型主动提问）
 pub const ASK_REQUESTED: EventKey = "ask_requested";
 pub const ASK_RESOLVED: EventKey = "ask_resolved";
+
+// 会话分支（S3-c；04 会话模型草案 §2.5——分叉 / 回滚 / 检查点三事件族，前端可见）
+/// 会话分叉（子会话自父会话某请求边界派生；父会话零影响）
+pub const CONVERSATION_FORKED: EventKey = "conversation_forked";
