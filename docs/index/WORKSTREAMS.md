@@ -20,7 +20,7 @@
 2. **大纲白板是本周期最大的产品线动作**——三块欠账（定位含混 / 关系贫瘠 / 状态缺失）经「理论基线 → 三份规格 → 五批施工 → 六轮收口」全部落地；挂账（施工分解 §十三 A6/B10/C4 + §19.5 三项）与分轮走查清单仍开。
 3. **待拍板项集中三处**：W3 能力面整顿（P1-P6 拍板项）· 千万字级检索 R2 四项（watcher 增量 / 本地 embedding / reranker / turns 入索引）· 对话区浏览器级性能指标（需引入 Playwright）。
 4. **产品线仍以「方向待定」为主**——29 条中 24 条待启动、多数备注「需明确迭代方向」，是坑位不是工单。
-5. **世界观芽工具整合线已完成（2026-09-21，真机走查通过 + 收口轮）**——27 芽的「说明 + 操作」收敛为一个内置工具 `worldview`（芽名清单 → 使用方法 → 动作执行三级渐进披露；10 个域工具 114 动作迁入，顺带解决「域工具对 AI 不可达」）；26 份芽 SKILL.md 与旧芽工具三件退役（净删 6000+ 行），SKILL_REGISTRY 仅存挂账 creation-orchestrator。**收口轮**：说明的字段/枚举改由 render 按芽 id 从运行时 `entitySchemaRegistry` 动态生成（guides 剥离手写枚举，零漂移）+ 两枚旧守卫 spec 恢复纳入 vitest（顺手修 `getToolsForSkills` 重复项）。
+5. **世界观芽工具整合线已完成（2026-09-21，真机走查通过 + 收口轮）**——27 芽的「说明 + 操作」收敛为一个内置工具 `worldview`（芽名清单 → 使用方法 → 动作执行三级渐进披露；10 个域工具 114 动作迁入，顺带解决「域工具对 AI 不可达」）；26 份芽 SKILL.md 与旧芽工具三件退役（净删 6000+ 行），SKILL_REGISTRY 仅存挂账 creation-orchestrator。**收口轮**：说明的字段/枚举改由 render 按芽 id 从运行时 `entitySchemaRegistry` 动态生成（guides 剥离手写枚举，零漂移）+ 两枚旧守卫 spec 恢复纳入 vitest（顺手修 `getToolsForSkills` 重复项）。**发现路径轮**：真机实测「道具实体怎么用」未走 worldview（扒源码代偿）→ 查因「可见但提示层无指向 + 描述无语义命中」→ A 认知文档补指向（仅新会话）+ C 工具描述补领域词（立即生效）+ 守卫两枚；B（芽索引进 prompt）挂账。
 
 > **2026-09-21 刷新**：补登 6 条未入本视图的工作线（大纲白板 / 写作域 / 文件格式支持 / Agent 数据桥 / MCP 卡 UI / A2UI 画布回源）；同步第四域 E3 主线收官与第五域批次 A-E 进度；登记仓库提交状态（见文首）。
 
@@ -102,7 +102,7 @@
 | 文件格式支持与侧栏目录树 | **执行中（一期 / 二期 / 三期全部落地）**：一期只读预览四渲染器（docx-preview / SheetJS→DataTable / pdfjs / pptx 经本机 LibreOffice 转 PDF + 降级出口）+ 二期 TipTap 表格（TableKit + 工具栏光标上下文组）+ 三期侧栏双 tab（笔记 / 文件，文件 tab 重定位为素材面板）+ **`preview_file` Agent 文件推送**（跨层 CustomEvent，与左栏手点同链）+ **图片资产目录化**（`{entityDataDir}/assets/` + `convertFileSrc`，导出链 data URL 预处理三层零改动）+ **孤儿清理**（24h 宽限期显式按钮）+ 迁移 rebase 纯函数入库 | 真机走查（四渲染器 / `preview_file` / 资产化 / 孤儿清理）；挂账：迁移 rebase 挂接点（待「目录失效重选」生命周期建立）· 根 / apps 依赖清单双份收敛 | [文件格式支持与侧栏目录树方案](../plans/2026-09-14-文件格式支持与侧栏目录树方案.md) |
 | Agent 数据桥架构 | **三芽先行完成（2026-09-14）**：数据 / UI 动作分路由——新建 app 级 `agentDataBridges.ts`（App.vue 幂等安装；数据动作直达 pinia store，**与视图挂载解耦**）+ `emitPluginQuery` **真回传**（requestId 配对 / 3s 超时）+ handler 串行队列 + 首个 bridge 级测试（9 用例）；notebook 全部数据动作上移、manuscript / outline 只剩 UI 动作 | 其余芽迁移（timeline / graph / mindmap / tactical-board / magic / module-builder 分批，各芽 handler 现状未盘点）；UI 动作跨视图投递；写动作真回执（待需求） | [Agent 数据桥架构](../plans/2026-09-14-Agent数据桥架构.md) |
 | MCP 卡前端 UI 优化 | **三批次代码完成（2026-09-18）**：全局设置 → Agent → MCP 卡四档重做——A 硬伤（Headers textarea / 失焦校验 / 删除 danger 确认）+ B 视觉（token 收敛设置基座 / 行规格对齐 Skills / 色点状态）+ C 可见性（toolCount 徽标 / 懒加载工具清单 / **对接 M6 状态机四组**：已连接 / 连接中 / 连接失败 / 已禁用）+ D 编辑（卡内内联表单 + 表单·JSON 双模式）；零 Rust 改动；`mcpForm.ts` 42 例单测 | 真机走查 T1-T12 | [MCP 卡 UI 优化](../plans/2026-09-17-MCP卡UI优化.md) |
-| 世界观芽工具整合（worldview） | **批 1-3 完成 + 真机走查通过（2026-09-21，线级完成）**：一个内置工具（非 Skill / MCP / 芽）承载三级渐进披露——芽名清单（随芽注册动态）/ 使用方法（27 条中性说明 + 动作目录自动生成）/ 动作执行；10 个域工具 **114 个动作**迁入动作表（顺带解决「域工具对 AI 不可达」）；批 3 退役收口——26 份芽 SKILL.md 删除 + 旧芽工具三件与 LEGACY_PLUGIN_MAP 退役 + plugin-bridge 能力表清空 + Rust 侧收敛 + 守卫重定（SKILL_REGISTRY 仅存挂账 creation-orchestrator）；收口轮——说明字段/枚举改由 render 从运行时 schema 生成（零漂移）+ 两枚旧守卫 spec 恢复纳入（顺手修 `getToolsForSkills` 重复项） | [2026-09-21-世界观芽工具整合.md](../plans/2026-09-21-世界观芽工具整合.md) |
+| 世界观芽工具整合（worldview） | **批 1-3 完成 + 真机走查通过（2026-09-21，线级完成）**：一个内置工具（非 Skill / MCP / 芽）承载三级渐进披露——芽名清单（随芽注册动态）/ 使用方法（27 条中性说明 + 动作目录自动生成）/ 动作执行；10 个域工具 **114 个动作**迁入动作表（顺带解决「域工具对 AI 不可达」）；批 3 退役收口——26 份芽 SKILL.md 删除 + 旧芽工具三件与 LEGACY_PLUGIN_MAP 退役 + plugin-bridge 能力表清空 + Rust 侧收敛 + 守卫重定（SKILL_REGISTRY 仅存挂账 creation-orchestrator）；收口轮——说明字段/枚举改由 render 从运行时 schema 生成（零漂移）+ 两枚旧守卫 spec 恢复纳入（顺手修 `getToolsForSkills` 重复项）；发现路径轮——「道具实体怎么用」实测未走 worldview（提示层无指向 + 描述无语义命中）→ A 认知文档补指向（仅新会话）+ C 工具描述补领域词 | [2026-09-21-世界观芽工具整合.md](../plans/2026-09-21-世界观芽工具整合.md) |
 | A2UI 画布回源 / 持久化 | **已完成（2026-09-17 实现 + 走查 3 项通过）**：`action_event_payload` 增 a2ui 臂 → 自动缓冲 / AgentEnd 收口 / `meta.action_events` 落库（零持久化改动 + 契约测试）+ 前端 `collectA2UIActionEvents`（turnModel 纯函数）+ 切会话旁路重放重建画布 | —（D1 裁定不进过程层） | [A2UI 画布回源持久化](../plans/2026-09-17-A2UI画布回源持久化.md) |
 
 > 附：**编排模式投放设计**（[01-问题清单](../plans/编排模式投放设计/01-问题清单.md) 83/83 收敛 → [04-方案](../plans/编排模式投放设计/04-方案.md) v1 蓝图 → 双轨收拢试点 S1-S4 全落地）是本区块的方法论底座，风险与走查分别记入 [05-风险台账](../plans/编排模式投放设计/05-风险台账.md) 与 [06-M5走查清单](../plans/编排模式投放设计/06-M5走查清单.md)。
@@ -181,6 +181,8 @@ dsh 对齐线（同一条方法链：源码逐行取证 → 基线 → 对照清
 ---
 
 ## 变更记录
+
+- **2026-09-21 世界观芽工具整合 · 发现路径轮（A+C）**：真机实测「道具实体怎么用」未走 `worldview`——模型改用 `entity_get_context` → `kb_search` → `memory_recall` → `bash`(失败) → `grep` → `read_file` → `powershell` 扒源码。取证：worldview 已进 `SYSTEM_BASE_TOOLS` 与桥契约（模型每轮可见其描述），**断在提示层无指向（批 3 退役技能时领域入口地图随技能索引段消失）+ 描述层无语义命中（全内部术语「芽/sprout」）**。落点：A——`WORLDSEA.md` 能力面补「世界观领域（芽）」指向（三级用法 + 示例非穷尽 + 反源码检索代偿；仅新会话生效）+ C——工具 description/sprout 参数补领域词与示例（桥契约重生成；立即生效）+ 守卫两枚（worldview.spec 描述三例 / 新 `worldseaRules.spec`）。B 方案（芽索引进 prompt）挂账待拍板。验证：vitest **70 文件 / 988** · vue-tsc 0（agent-runtime + apps/tauri）。
 
 - **2026-09-21 世界观芽工具整合 · 收口轮（零漂移 + 旧守卫恢复）**：说明的「实体字段」段改由 `render.ts` 按芽 id（`pluginId === 芽 id`）从运行时 `entitySchemaRegistry` 动态生成（字段 / 取值 / 必填 / 关联），guides 剥离 14 处手写字段枚举（保留语义；module-builder 例外——无运行时实体类型）；两枚旧守卫 spec（agent-tools / always-available-verify）恢复纳入 vitest include（测试环境补 agent-runtime / governor-core 子路径别名），**守卫当场抓出** `getToolsForSkills` 的 `load_skill` 重复并入缺陷（已按工具名去重修正）。验证：vitest **69 文件 / 982** · bench 14/14 · vue-tsc 0（agent-runtime + apps/tauri）· Rust 零改动。
 
