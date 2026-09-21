@@ -17,6 +17,7 @@ pub mod sandbox;
 mod workspace_path;
 mod workspace_tools;
 mod run_store;
+mod session_branch;
 mod session_store;
 mod subagent;
 mod subagent_store;
@@ -40,6 +41,7 @@ pub use pattern_registry::{
     pattern_registry, validate_registry,
 };
 pub use run_store::{DecisionRecord, OrchestrationRun, RunStatus, RunStore};
+pub use session_branch::{SessionBranchOpRecord, SessionCheckpointRecord, SessionForkRecord};
 pub use raw_tools::RawSlice;
 /// A2 戊1：语义检索类型透传（Tauri 命令层读写配置 / 状态展示用）
 pub use agent_memory::semantic::{SemanticConfig, SemanticStats};

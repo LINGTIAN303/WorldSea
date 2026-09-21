@@ -478,7 +478,7 @@ pub trait SessionRepository: Send + Sync {
 
 /// SQLite 实现：`sessions` 表存会话头，`messages` 表按会话存消息 JSON 行
 pub struct SqliteSessionRepository {
-    pool: SqlitePool,
+    pub(crate) pool: SqlitePool,
 }
 
 impl SqliteSessionRepository {
@@ -695,6 +695,8 @@ impl SqliteSessionRepository {
         .execute(pool)
         .await
         .map_err(|e| CommandError::Internal(format!("初始化请求快照去重池失败: {e}")))?;
+
+        crate::session_branch::ensure_schema(pool).await?; // S3-b2：分叉 / 检查点 / 操作 mark 建表（幂等）
 
         // 迁移：旧库的 `messages` 快照 → 日志 + 视图（**一次性、幂等**）
         //
