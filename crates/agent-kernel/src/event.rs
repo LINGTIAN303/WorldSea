@@ -9,7 +9,7 @@ use serde::Serialize;
 
 use crate::a2ui::A2UIMessage;
 use crate::confirmation::{AskOutcome, ConfirmationOutcome};
-use crate::event_bus::{DispatchMode, Listener, Outcome};
+use crate::event_bus::{Listener, Outcome};
 use crate::node::{NodeStatus, NodeType};
 use crate::types::{ConvergeReason, ImageAttachment, PlanItem, ReflectionResult};
 
@@ -713,117 +713,10 @@ pub enum TracePhaseStatus {
 }
 
 
-// ─── 事件 Key 与模式声明 ──────────────────────────────
+// ─── 事件 Key 与模式声明（S3-b：定义迁至 agent_engine::contracts——单一定义处，此处只读引用）──
 
-/// 事件 Key（由变体名产出；常量集中在 [`keys`] 模块，`key()` 与其一一对应）
-pub type EventKey = &'static str;
-
-/// 全部事件 Key 常量（单一声明点；与 `key()` 的穷尽 match 一一对应）
-pub mod keys {
-    use super::EventKey;
-
-    // Agent 基础事件
-    pub const AGENT_START: EventKey = "agent_start";
-    pub const USER_MESSAGE: EventKey = "user_message";
-    pub const STREAM_START: EventKey = "stream_start";
-    pub const STREAM_DELTA: EventKey = "stream_delta";
-    pub const REASONING_DELTA: EventKey = "reasoning_delta";
-    pub const STREAM_END: EventKey = "stream_end";
-    pub const TOOL_CALL_START: EventKey = "tool_call_start";
-    pub const TOOL_CALL_END: EventKey = "tool_call_end";
-    pub const ERROR: EventKey = "error";
-    pub const AGENT_END: EventKey = "agent_end";
-
-    // 编排器生命周期
-    pub const ORCHESTRATOR_START: EventKey = "orchestrator_start";
-    pub const ORCHESTRATOR_END: EventKey = "orchestrator_end";
-    pub const NODE_START: EventKey = "node_start";
-    pub const NODE_END: EventKey = "node_end";
-
-    // 统一轨迹事件族
-    pub const TRACE_PIPE_STARTED: EventKey = "trace_pipe_started";
-    pub const TRACE_PHASE_ENTERED: EventKey = "trace_phase_entered";
-    pub const TRACE_PHASE_RESULT: EventKey = "trace_phase_result";
-    pub const TRACE_PIPE_FINISHED: EventKey = "trace_pipe_finished";
-
-    // Plan-and-Execute
-    pub const PLAN_CREATED: EventKey = "plan_created";
-    pub const PLAN_STEP_UPDATE: EventKey = "plan_step_update";
-    pub const PLAN_REPLANNED: EventKey = "plan_replanned";
-
-    // Reflection
-    pub const REFLECTION_RESULT: EventKey = "reflection_result";
-
-    // Supervisor / SubAgent
-    pub const SUPERVISOR_TASK_ASSIGNED: EventKey = "supervisor_task_assigned";
-    pub const SUB_AGENT_STARTED: EventKey = "sub_agent_started";
-    pub const SUB_AGENT_COMPLETED: EventKey = "sub_agent_completed";
-    pub const SUB_AGENT_ERROR: EventKey = "sub_agent_error";
-
-    // Router
-    pub const ROUTER_DECISION_MADE: EventKey = "router_decision_made";
-    pub const ROUTER_NO_MATCH: EventKey = "router_no_match";
-    pub const ROUTER_ERROR: EventKey = "router_error";
-
-    // Tree of Thoughts
-    pub const THOUGHT_NODE_CREATED: EventKey = "thought_node_created";
-    pub const THOUGHT_NODE_SCORED: EventKey = "thought_node_scored";
-    pub const THOUGHT_BRANCH_EXPLORED: EventKey = "thought_branch_explored";
-    pub const TOT_GOAL_REACHED: EventKey = "tot_goal_reached";
-    pub const TOT_TERMINATED: EventKey = "tot_terminated";
-    pub const TOT_ERROR: EventKey = "tot_error";
-
-    // Graph of Thoughts
-    pub const THOUGHTS_AGGREGATED: EventKey = "thoughts_aggregated";
-
-    // Loop Engineering
-    pub const LOOP_ENG_RATE_LIMIT_EXCEEDED: EventKey = "loop_eng_rate_limit_exceeded";
-    pub const LOOP_ENG_RETRYING: EventKey = "loop_eng_retrying";
-    pub const LOOP_ENG_RETRY_EXHAUSTED: EventKey = "loop_eng_retry_exhausted";
-    pub const LOOP_ENG_SOFT_TIMEOUT_WARNING: EventKey = "loop_eng_soft_timeout_warning";
-    pub const LOOP_ENG_SOFT_TIMEOUT_CRITICAL: EventKey = "loop_eng_soft_timeout_critical";
-    pub const LOOP_ENG_WATCHDOG_IDLE: EventKey = "loop_eng_watchdog_idle";
-    pub const LOOP_ENG_WATCHDOG_DEAD: EventKey = "loop_eng_watchdog_dead";
-    pub const LOOP_ENG_RECOVERED: EventKey = "loop_eng_recovered";
-    pub const STEP_BUDGET_WARNING: EventKey = "step_budget_warning";
-
-    // 上下文压缩（阶段 3 · A2 补齐②③：事务括号 + 事件化）
-
-    pub const CONTEXT_COMPACT_STARTED: EventKey = "context_compact_started";
-    pub const CONTEXT_COMPACT_FINISHED: EventKey = "context_compact_finished";
-    pub const CONTEXT_COMPACT_FAILED: EventKey = "context_compact_failed";
-
-    // 请求快照（阶段 3 · A2 补齐④）
-
-    pub const REQUEST_SNAPSHOT_CAPTURED: EventKey = "request_snapshot_captured";
-
-    // 输入模型（阶段 2 · A3：inbox 三通道 + pre-step 准入 + 取消收口）
-
-    /// 输入准入（**waterfall 分发**：监听器可改写/丢弃待准入输入）
-    pub const INPUT_ADMISSION: EventKey = "input_admission";
-    /// 本轮被中断（取消收口：已交付文本终结 + 中断锚点）
-    pub const AGENT_INTERRUPTED: EventKey = "agent_interrupted";
-
-    // 工具结果预处理（阶段 1 第二段迁移：工具结果裁剪，waterfall 分发）
-
-    /// 工具结果广播前同步预处理（监听器可改写 `result`；链尾内建 = 裁剪）
-    pub const TOOL_RESULT_PRE_BROADCAST: EventKey = "tool_result_pre_broadcast";
-
-    // 工具流式（只进流通道，不进入 LLM 上下文）
-    pub const TOOL_CALL_DELTA: EventKey = "tool_call_delta";
-    pub const FILE_CHANGE: EventKey = "file_change";
-
-    // A2UI
-    pub const A2UI_EVENT: EventKey = "a2ui_event";
-
-    // HITL 权限确认
-    pub const CONFIRMATION_REQUESTED: EventKey = "confirmation_requested";
-    pub const CONFIRMATION_RESOLVED: EventKey = "confirmation_resolved";
-
-    // Q1 提问（模型主动提问）
-    pub const ASK_REQUESTED: EventKey = "ask_requested";
-    pub const ASK_RESOLVED: EventKey = "ask_resolved";
-}
+/// 事件 Key（自 agent-engine 引入；常量表见 [`keys`]，模式表见 [`mode_of`]）
+pub use agent_engine::contracts::{keys, mode_of, EventKey};
 
 impl AgentEvent {
     /// 事件 Key
@@ -898,20 +791,6 @@ impl OrchestratorEvent {
             Self::AskRequested { .. } => keys::ASK_REQUESTED,
             Self::AskResolved { .. } => keys::ASK_RESOLVED,
         }
-    }
-}
-
-/// 事件模式声明（单一声明点，06 草案 §3.1 / U1 表驱动）
-///
-/// 默认 [`DispatchMode::Emit`]（含死变体——U4：Emit 兜底保留，去留与 D6 合并裁定）；
-/// 少数事件显式登记其他模式（`INPUT_ADMISSION` 与 `TOOL_RESULT_PRE_BROADCAST` = waterfall）。
-pub fn mode_of(key: EventKey) -> DispatchMode {
-    match key {
-        // A3 输入准入：waterfall（监听器链可改写 / 否决待准入输入）
-        keys::INPUT_ADMISSION => DispatchMode::Waterfall,
-        // A1 第二段（工具结果裁剪）：waterfall（监听器链可改写 result；链尾内建 = 裁剪）
-        keys::TOOL_RESULT_PRE_BROADCAST => DispatchMode::Waterfall,
-        _ => DispatchMode::Emit,
     }
 }
 

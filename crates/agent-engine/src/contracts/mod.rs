@@ -1,11 +1,13 @@
 //! 内核契约（S2 冻结 · 07 文档）——单一定义处。
 //!
-//! 本批（S3-a）落三类已稳固的类型：事件键与分发模式、输入三语义、审批四值。
-//! 事件 key **全表**（59 项）与 ToolDescriptor 分别归 S3-b 与工具族批次，避免迁移期双份事实源漂移。
+//! 落有四类已稳固的契约：事件键表与分发模式（S3-b 自 agent-kernel 迁入）、
+//! 输入三语义、审批四值。`ToolDescriptor` 归工具族批次。
 
 use serde::{Deserialize, Serialize};
 
-/// 事件键：`domain/name` 形态的静态字符串（同类事件共享）。
+pub mod keys;
+
+/// 事件键：静态字符串（命名沿既有口径：snake_case 单词式，如 `"agent_start"`）。
 pub type EventKey = &'static str;
 
 /// 事件分发模式——五模式**声明面**保留；近景实装 Emit / Bail / Waterfall
@@ -13,11 +15,30 @@ pub type EventKey = &'static str;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DispatchMode {
+    /// 同步扇出、忽略返回值（既有 broadcast 语义）
     Emit,
+    /// 同步串行、首个否决值短路（dsh: bail）
     Bail,
+    /// 顺序 await、首个否决短路（dsh: serial）
     Serial,
+    /// 并行 await（dsh: parallel）
     Parallel,
+    /// 环绕中间件、末参 next、不调即否决（dsh: waterfall）
     Waterfall,
+}
+
+/// 事件模式声明（单一声明点，06 草案 §3.1 / U1 表驱动；S3-b 自 agent-kernel 迁入）
+///
+/// 默认 [`DispatchMode::Emit`]；少数事件显式登记其他模式
+/// （`INPUT_ADMISSION` 与 `TOOL_RESULT_PRE_BROADCAST` = waterfall）。
+pub fn mode_of(key: EventKey) -> DispatchMode {
+    match key {
+        // A3 输入准入：waterfall（监听器链可改写 / 否决待准入输入）
+        keys::INPUT_ADMISSION => DispatchMode::Waterfall,
+        // A1 第二段（工具结果裁剪）：waterfall（监听器链可改写 result；链尾内建 = 裁剪）
+        keys::TOOL_RESULT_PRE_BROADCAST => DispatchMode::Waterfall,
+        _ => DispatchMode::Emit,
+    }
 }
 
 /// 输入三语义（对齐旧 `agent-kernel::agent::input::InputKind`）。
@@ -101,9 +122,17 @@ mod tests {
     }
 
     #[test]
-    fn event_key_shape() {
-        // 键形态约定：domain/name（如 "conversation/forked"）——S3-b 起全表登记
-        let sample: EventKey = "conversation/forked";
-        assert!(sample.contains('/'));
+    fn keys_table_moved_intact() {
+        // S3-b 迁移对照：Key 值与旧 agent-kernel::event::keys 逐字一致（首尾抽样）
+        assert_eq!(keys::AGENT_START, "agent_start");
+        assert_eq!(keys::ASK_RESOLVED, "ask_resolved");
+    }
+
+    #[test]
+    fn mode_of_registers_waterfall_keys() {
+        // 两个 waterfall 登记必须随表迁移（06 草案 U1 表驱动）
+        assert_eq!(mode_of(keys::INPUT_ADMISSION), DispatchMode::Waterfall);
+        assert_eq!(mode_of(keys::TOOL_RESULT_PRE_BROADCAST), DispatchMode::Waterfall);
+        assert_eq!(mode_of(keys::AGENT_START), DispatchMode::Emit);
     }
 }

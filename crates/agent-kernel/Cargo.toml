@@ -43,6 +43,9 @@ chrono = { version = "0.4", features = ["serde"] }
 genai = { version = "0.7.0-beta.16", optional = true, default-features = false, features = ["native-tls"] }
 sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio"], optional = true }
 
+# ── 新内核契约（S3-b：事件 Key 表 / DispatchMode 单一定义处）──
+agent-engine = { path = "../agent-engine" }
+
 [dev-dependencies]
 tokio = { version = "1", features = ["full", "test-util"] }
 

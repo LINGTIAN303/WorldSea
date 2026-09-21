@@ -13,23 +13,10 @@ use std::sync::Arc;
 
 use crate::event::{EventKey, OrchestratorEvent};
 
-/// 事件分发模式（对齐 deepseek-harness 的五模式语义，06 草案 §3.1）
+/// 事件分发模式（S3-b：类型定义迁至 agent-engine::contracts——单一定义处，此处只读引用）
 ///
-/// 模式声明见 [`crate::event::mode_of`]（当前全部事件为 `Emit`）。
-/// `Serial` / `Parallel` 分发方法待有场景时补，声明层先保留。
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum DispatchMode {
-    /// 同步扇出、忽略返回值（既有 broadcast 语义）
-    Emit,
-    /// 同步串行、首个否决值短路（dsh: bail）
-    Bail,
-    /// 顺序 await、首个否决短路（dsh: serial）
-    Serial,
-    /// 并行 await（dsh: parallel）
-    Parallel,
-    /// 环绕中间件、末参 next、不调即否决（dsh: waterfall）
-    Waterfall,
-}
+/// 模式声明见 [`crate::event::mode_of`]；`Serial` / `Parallel` 分发方法待有场景时补，声明层先保留。
+pub use agent_engine::contracts::DispatchMode;
 
 /// 分发递归深度上限（重入防护；06 草案 U5 裁定为常量，不做配置项）
 pub const MAX_DISPATCH_DEPTH: u8 = 8;

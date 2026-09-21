@@ -14,7 +14,7 @@
     "discoveryRoots": ["crates", "crates/vendor", "packages", "apps", "worldsea-core", "tactical-engine"]
   },
   "modules": [
-    { "id": "agent-kernel", "kind": "rust", "roots": ["crates/agent-kernel/src"], "manifest": "crates/agent-kernel/Cargo.toml", "requires": [] },
+    { "id": "agent-kernel", "kind": "rust", "roots": ["crates/agent-kernel/src"], "manifest": "crates/agent-kernel/Cargo.toml", "requires": ["agent-engine"] },
     { "id": "agent-engine", "kind": "rust", "roots": ["crates/agent-engine/src"], "manifest": "crates/agent-engine/Cargo.toml", "requires": [] },
     { "id": "agent-patterns", "kind": "rust", "roots": ["crates/agent-patterns/src"], "manifest": "crates/agent-patterns/Cargo.toml", "requires": ["agent-kernel"] },
     { "id": "agent-runtime", "kind": "rust", "roots": ["crates/agent-runtime/src"], "manifest": "crates/agent-runtime/Cargo.toml", "requires": ["agent-kernel", "agent-patterns"] },
