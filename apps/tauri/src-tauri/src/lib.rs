@@ -30,8 +30,10 @@ mod tray;
 mod system;
 // 音视频转录（candle-whisper 语音转文字）
 mod whisper;
-// B3 搜索 Provider 抽象 + 降级链（web_search 原生工具 + 配置命令）
+// B3 搜索 Provider 抽象 + 降级链（web_search 原生工具）
 mod search_commands;
+// 档 1（2026-09-22）：搜索配置存储——引擎偏好落 JSON、Provider Key 落 SecureStore、装配降级链
+mod search_config;
 // A4 Plan-Exec 计划工具（plan_create / plan_update）
 mod plan_commands;
 // Router Pattern 编排命令层：2026-09-09 随右栏 Router 区一并下线（Router 归场景识别底座，
@@ -303,8 +305,9 @@ pub fn run() {
             system::cmd_autostart_set_enabled,
             // 音视频转录（candle-whisper 语音转文字）
             whisper::transcribe_media,
-            // B3 搜索 Provider 配置（设置搜索 API Key，作用于 web_search 工具降级链）
-            search_commands::set_search_config,
+            // B3 搜索配置读写（设置面板用；Key 走安全存储，不回传明文）
+            search_config::cmd_search_config_get,
+            search_config::cmd_search_config_set,
             // 安全存储（cmd_secure_store/load/delete）：API Key 落应用数据目录 SQLite
             secure_store::cmd_secure_store,
             secure_store::cmd_secure_load,
@@ -405,6 +408,21 @@ pub fn run() {
             });
             app.manage(secure_store.clone());
 
+            // B3 搜索 Provider 降级链 + 档 1 配置存储（2026-09-22）：
+            // 链 global 管理供 web_search 工具用；启动即从 search_config.json + secure_store.db
+            // 装配，使设置面板保存的引擎/Key 真的进链（此前固定 default()，实际永远只走免 Key 兜底）。
+            let search_chain = Arc::new(search_commands::SearchProviderChain::new(
+                search_commands::SearchConfig::default(),
+            ));
+            app.manage(search_chain.clone());
+            let search_store = Arc::new(search_config::SearchConfigStore::new(
+                app_data.join("worldsea").join("search_config.json"),
+                secure_store.clone(),
+                search_chain.clone(),
+            ));
+            tauri::async_runtime::block_on(search_store.load_into_chain());
+            app.manage(search_store);
+
             // A2 戊1：语义检索配置（共享配置句柄 + 配置存储）
             // 先加载（读 JSON + Key 装配进共享句柄）再注入服务：启动即按已保存配置生效；
             // 保存配置后各会话即时生效（访问器与配置层引用同一 Arc）。
@@ -417,11 +435,6 @@ pub fn run() {
             ));
             tauri::async_runtime::block_on(semantic_store.load_into_shared());
             app.manage(semantic_store);
-            // B3 搜索 Provider 降级链：global 管理，供 web_search 工具 + set_search_config 命令共享
-            let search_chain = Arc::new(search_commands::SearchProviderChain::new(
-                search_commands::SearchConfig::default(),
-            ));
-            app.manage(search_chain.clone());
             // FrontendToolBridge：构造前端工具桥（注入 AppHandle 发全局 agent:tool_call 事件），
             // manage 供 cmd_agent_tool_result 命令使用；桥工具并入 extra_tools 注入每个会话
             let frontend_bridge = Arc::new(frontend_tool_bridge::FrontendToolBridge::new(

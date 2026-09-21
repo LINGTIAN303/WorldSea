@@ -77,12 +77,15 @@
                   <input
                     type="password"
                     :value="searchApiKey"
-                    @input="onSearchApiKeyChange"
-                    placeholder="搜索 API Key"
+                    @change="onSearchApiKeyChange"
+                    :placeholder="searchKeySet ? '已配置（留空保持不变）' : '搜索 API Key'"
                     class="settings-input"
                   />
+                  <button v-if="searchKeySet" class="skill-toggle" title="清除已存 Key" @click="emit('search-apikey-clear')">
+                    <WsIcon name="close" size="xs" />
+                  </button>
                 </div>
-                <div class="settings-hint">web_search 需配置 Key；web_fetch（阅读网页）无需 Key</div>
+                <div class="settings-hint">未配置 Key 时自动降级 DuckDuckGo 免 Key 搜索；配置后优先走所选引擎</div>
               </div>
               <!-- 视觉分析 / 图像生成 / 视频生成 配置（共用 VisionPanel） -->
               <div v-if="['vision', 'image', 'video'].includes(openCapConfig)" class="tool-config">
@@ -355,12 +358,15 @@
               <input
                 type="password"
                 :value="searchApiKey"
-                @input="onSearchApiKeyChange"
-                placeholder="搜索 API Key"
+                @change="onSearchApiKeyChange"
+                :placeholder="searchKeySet ? '已配置（留空保持不变）' : '搜索 API Key'"
                 class="settings-input"
               />
+              <button v-if="searchKeySet" class="skill-toggle" title="清除已存 Key" @click="emit('search-apikey-clear')">
+                <WsIcon name="close" size="xs" />
+              </button>
             </div>
-            <div class="settings-hint">web_search 需配置 Key；web_fetch（阅读网页）无需 Key，直接可用</div>
+            <div class="settings-hint">未配置 Key 时自动降级 DuckDuckGo 免 Key 搜索；配置后优先走所选引擎</div>
           </div>
           <!-- 多模态面板 -->
           <VisionPanel v-else-if="settingsSubPanel === 'vision'" key="vision" />
@@ -500,6 +506,8 @@ const props = withDefaults(defineProps<{
   cacheHitRate: number
   searchEngine: string
   searchApiKey: string
+  /** 当前引擎是否已存 Key（后端只回「是否已配置」，面板不回显明文） */
+  searchKeySet?: boolean
   skills: Array<{ id: string; icon: string; name: string; description: string; enabled: boolean; category?: 'domain' | 'action' | 'persona' }>
   mcpConnections: MCPConnectionState[]
   embedded?: boolean
@@ -507,6 +515,7 @@ const props = withDefaults(defineProps<{
 }>(), {
   embedded: false,
   searchQuery: '',
+  searchKeySet: false,
 })
 
 /** 七张卡的搜索关键词（设置搜索过滤用，与 settings-panels.css 类名归一配套） */
@@ -539,6 +548,7 @@ const emit = defineEmits<{
   'thinking-level-change': [level: string]
   'search-engine-change': [engine: string]
   'search-apikey-change': [key: string]
+  'search-apikey-clear': []
   'toggle-skill': [skillId: string]
   'skills-changed': []
   'toggle-mcp': [serverId: string]

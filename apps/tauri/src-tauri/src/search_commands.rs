@@ -7,7 +7,7 @@
 //!   任一 Provider 出错（认证/限流/网络）或返回空结果即降级到下一个，全部失败返回末位错误。
 //! - `WebSearchTool`：实现 `agent-runtime::tool::Tool`，注册进 Rust `ToolBus`，供 LLM 调用。
 //!
-//! 数据源为各搜索 API；API Key 经 `set_search_config` 命令运行时注入（缺省仅 DuckDuckGo）。
+//! 数据源为各搜索 API；配置（引擎 + Key）由 `search_config.rs` 的配置存储单点写入（缺省仅 DuckDuckGo）。
 
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
@@ -112,6 +112,15 @@ impl SearchProviderChain {
         // 免 Key 兜底始终在最后
         list.push((Arc::new(DuckDuckGoProvider), None));
         list
+    }
+
+    /// 当前配置的「尝试顺序」Provider id 列表（诊断 / 跨模块守卫用，不含 Key）
+    pub fn ordered_provider_ids(&self) -> Vec<String> {
+        let cfg = self.config();
+        self.ordered_providers(&cfg)
+            .iter()
+            .map(|(p, _)| p.id().to_string())
+            .collect()
     }
 
     /// 同步执行搜索（阻塞）。由调用方（`WebSearchTool`）做线程池隔离。
@@ -224,18 +233,6 @@ impl Tool for WebSearchTool {
 /// 构造 B3 搜索工具集合（注册进 Rust ToolBus 用）。当前仅 `web_search`。
 pub fn search_tools(chain: Arc<SearchProviderChain>) -> Vec<Arc<dyn Tool>> {
     vec![Arc::new(WebSearchTool::new(chain))]
-}
-
-/// Tauri 命令：运行时更新搜索 Provider 配置（API Key）。
-///
-/// 传入的 `config` 中非空字段写入链；缺省（全 None）时仅 DuckDuckGo 免 Key 兜底。
-#[tauri::command]
-pub async fn set_search_config(
-    state: tauri::State<'_, Arc<SearchProviderChain>>,
-    config: SearchConfig,
-) -> Result<(), String> {
-    state.set_config(config);
-    Ok(())
 }
 
 // ─── 各 Provider 实现 ──────────────────────────────────────

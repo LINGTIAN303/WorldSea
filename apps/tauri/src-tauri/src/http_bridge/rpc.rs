@@ -14,7 +14,7 @@ use tauri::{AppHandle, Manager};
 
 use crate::{
     algo_commands, commands, entity_commands, frontend_tool_bridge, fs_commands,
-    project_commands, search_commands, secure_store,
+    project_commands, search_config, secure_store,
 };
 
 pub type RpcResult = Result<Value, String>;
@@ -1246,12 +1246,6 @@ struct SecureSetArg {
     value: String,
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct SearchConfigArg {
-    config: search_commands::SearchConfig,
-}
-
 // ── cmd_algo_* 参数（graphJson 等 JSON 字符串；config 可选）──
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1666,12 +1660,20 @@ fn register_extra(reg: &mut Registry) {
             secure_store::cmd_secure_delete(st, a.key).await.map(|_| Value::Null)
         })
     }));
-    reg.register("set_search_config", Arc::new(move |app, args| {
+    // B3 搜索配置读写（与 cmd_semantic_config_* 同型：State<Arc<Store>>，视图不回传 Key 明文）
+    reg.register("cmd_search_config_get", Arc::new(move |app, _args| {
         let app = app.clone();
         Box::pin(async move {
-            let a: SearchConfigArg = from_value(args).map_err(|e| e.to_string())?;
-            let st = app.state::<Arc<search_commands::SearchProviderChain>>();
-            search_commands::set_search_config(st, a.config).await.map(|_| Value::Null)
+            let st = app.state::<Arc<search_config::SearchConfigStore>>();
+            search_config::cmd_search_config_get(st).await.map(|r| to_value(r).unwrap_or(Value::Null))
+        })
+    }));
+    reg.register("cmd_search_config_set", Arc::new(move |app, args| {
+        let app = app.clone();
+        Box::pin(async move {
+            let p: search_config::SearchSettingsPatch = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
+            let st = app.state::<Arc<search_config::SearchConfigStore>>();
+            search_config::cmd_search_config_set(st, p).await.map(|r| to_value(r).unwrap_or(Value::Null))
         })
     }));
 

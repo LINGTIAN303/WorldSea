@@ -28,6 +28,7 @@
         :cache-hit-rate="cacheHitRate"
         :search-engine="searchEngine"
         :search-api-key="searchApiKey"
+        :search-key-set="searchKeySet"
         :skills="skills"
         :mcp-connections="mcpConnectionsList"
         embedded
@@ -40,6 +41,7 @@
         @thinking-level-change="onThinkingLevelChange"
         @search-engine-change="onSearchEngineChange"
         @search-apikey-change="onSearchApiKeyChange"
+        @search-apikey-clear="onSearchApiKeyClear"
         @toggle-skill="onToggleSkill"
         @toggle-mcp="onToggleMcp"
         @add-mcp="onAddMcp"
@@ -64,7 +66,8 @@ import { useAgent } from '@/agent/composables/useAgent'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useMcpConnections } from '@worldsea/shared-composables/agent/useMcpConnections'
 import { toastError } from '@/composables/useToast'
-import { getAllSkills, toggleSkill, storeApiKey, loadApiKey, removeApiKey } from '@agent/index'
+import { getAllSkills, toggleSkill, loadApiKey } from '@agent/index'
+import { invoke } from '@/agent/composables/transport'
 import { getModelInfo, calculateCost, getThinkingLevels } from '@worldsea/agent-runtime'
 import AgentSettingsPanel from '@/agent/AgentSettingsPanel.vue'
 import RulesPanel from './RulesPanel.vue'
@@ -113,6 +116,8 @@ const personaPreset = ref('default')
 const thinkingLevel = ref<ThinkingLevel>('off')
 const searchEngine = ref('tavily')
 const searchApiKey = ref('')
+// 档 1（2026-09-22）：Key 由后端持（SecureStore），面板只知「是否已配置」，不回显明文
+const searchKeySet = ref(false)
 const skills = ref<SkillMeta[]>(getAllSkills())
 
 // Agent 设置项变更 → dirty 上报（面板三契约；各项为即时应用型，上报供设置弹窗关闭时刷新）
@@ -252,22 +257,50 @@ function onThinkingLevelChange(level: string): void {
 // A7：工具安全级别切换已下沉到 AgentSettingsPanel 内部（useAgentRust.setSecurityLevel 直接调后端），
 // 本层不再转发；会话级档位状态（新旧会话不继承）由 useAgentRust.securityLevel 持有。
 
-async function onSearchEngineChange(engine: string): Promise<void> {
-  const oldEngine = searchEngine.value
-  if (searchApiKey.value) {
-    await storeApiKey('search_' + oldEngine, searchApiKey.value)
-  } else {
-    await removeApiKey('search_' + oldEngine)
-  }
-  searchEngine.value = engine
-  const newKey = await loadApiKey('search_' + engine)
-  searchApiKey.value = newKey || ''
-  try { localStorage.setItem('agent_search_config', JSON.stringify({ engine })) } catch {}
+/** 后端 `cmd_search_config_get/set` 的视图形状（档 1；无 Key 明文） */
+interface SearchSettingsDto {
+  engine: string
+  tavilyKeySet: boolean
+  bingKeySet: boolean
+  serpapiKeySet: boolean
+  activeKeySet: boolean
+  providerOrder: string[]
 }
 
-function onSearchApiKeyChange(key: string): void {
+function applySearchDto(dto: SearchSettingsDto): void {
+  searchEngine.value = dto.engine
+  searchKeySet.value = dto.activeKeySet
+}
+
+/** 切引擎：只发 engine——各引擎的 Key 由后端按槽位各持，不随切换搬动 */
+async function onSearchEngineChange(engine: string): Promise<void> {
+  try {
+    applySearchDto(await invoke<SearchSettingsDto>('cmd_search_config_set', { settings: { engine } }))
+  } catch (err) {
+    toastError(`切换搜索引擎失败：${err instanceof Error ? err.message : String(err)}`)
+  }
+}
+
+/** 存 Key（面板在 @change 提交时才调）：非空才发，后端语义「留空保持不变」 */
+async function onSearchApiKeyChange(key: string): Promise<void> {
+  const trimmed = key.trim()
   searchApiKey.value = key
-  saveSearchConfig()
+  if (!trimmed) return
+  try {
+    applySearchDto(await invoke<SearchSettingsDto>('cmd_search_config_set', { settings: { apiKey: trimmed } }))
+  } catch (err) {
+    toastError(`保存搜索 API Key 失败：${err instanceof Error ? err.message : String(err)}`)
+  }
+}
+
+/** 显式清除当前引擎的 Key（留空不再兼作清除，避免误删） */
+async function onSearchApiKeyClear(): Promise<void> {
+  try {
+    applySearchDto(await invoke<SearchSettingsDto>('cmd_search_config_set', { settings: { clearApiKey: true } }))
+    searchApiKey.value = ''
+  } catch (err) {
+    toastError(`清除搜索 API Key 失败：${err instanceof Error ? err.message : String(err)}`)
+  }
 }
 
 async function onApiKeyChange(provider: string, apiKey: string): Promise<void> {
@@ -352,17 +385,6 @@ async function onRemoveMcp(serverId: string): Promise<void> {
 /** 终端面板内嵌 Tauri 原生终端（TerminalView），无需额外打开外部终端 */
 function openTerminal(): void {}
 
-async function saveSearchConfig(): Promise<void> {
-  try {
-    localStorage.setItem('agent_search_config', JSON.stringify({ engine: searchEngine.value }))
-  } catch {}
-  if (searchApiKey.value) {
-    await storeApiKey('search_' + searchEngine.value, searchApiKey.value)
-  } else {
-    await removeApiKey('search_' + searchEngine.value)
-  }
-}
-
 function saveAgentSettings(): void {
   try {
     localStorage.setItem('agent_settings', JSON.stringify({
@@ -389,14 +411,11 @@ function loadAgentSettings(): void {
 
 async function loadSearchConfig(): Promise<void> {
   try {
-    const raw = localStorage.getItem('agent_search_config')
-    if (raw) {
-      const cfg = JSON.parse(raw)
-      searchEngine.value = cfg.engine || 'tavily'
-    }
-    const key = await loadApiKey('search_' + searchEngine.value)
-    searchApiKey.value = key || ''
-  } catch {}
+    applySearchDto(await invoke<SearchSettingsDto>('cmd_search_config_get'))
+  } catch (err) {
+    // 读不到就如实提示（档 1 修的就是「配了但没人读」的静默不生效）
+    console.warn('[AgentSettings] 读取联网搜索配置失败:', err)
+  }
 }
 
 function loadThinkingLevel(): void {
