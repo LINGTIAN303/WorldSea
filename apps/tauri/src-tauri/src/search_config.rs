@@ -186,6 +186,13 @@ impl SearchConfigStore {
         }
 
         self.chain.set_config(Self::assemble(&engine, &keys));
+        // 保存动作留痕（不带 Key 值）：排查「配了到底生效没」只看这一行即可定位是链侧还是前端侧
+        tracing::info!(
+            engine = %engine,
+            active_key_set = !keys.of(&engine).trim().is_empty(),
+            order = ?self.chain.ordered_provider_ids(),
+            "联网搜索配置已更新（档 1）"
+        );
         Ok(view_of(&engine, &keys, &self.chain.ordered_provider_ids()))
     }
 
