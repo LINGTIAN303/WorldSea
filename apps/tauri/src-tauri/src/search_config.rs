@@ -1,5 +1,5 @@
 //! B3 搜索配置存储（引擎偏好 + Provider API Key，落 JSON / SecureStore 并装配降级链）
-//! 详细设计见 docs/details/注释/apps/tauri/search-config.md
+//! 详细设计见 docs/details/注释/tauri/search-config.md
 
 use std::path::PathBuf;
 use std::sync::Arc;

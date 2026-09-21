@@ -368,8 +368,8 @@ impl Scenario for WorldbuildingScenario {
             // （内容/创作场景优先——读设定图、参考图、截图分析）
             "vision_analyze".into(),
             "list_vision_images".into(),
-            // B3 联网搜索（实现在 TS 桥：packages/agent-runtime/src/tools/web-search.ts，
-            // 经 FrontendToolBridge 执行；Rust 侧仅登记白名单，无原生实现）
+            // B3 联网搜索：Rust 原生（src-tauri/search_commands.rs 降级链 + search_config.rs 配置装配）；
+            // TS 侧另有一份重复实现（tools/web-search.ts）——双实现漂移与 web_fetch 缺位见能力面整顿线挂账
             "web_search".into(),
         ]
     }
