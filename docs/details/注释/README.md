@@ -31,6 +31,7 @@
 | kernel/alias.rs / mcp.rs / a2ui.rs / deep_phases.rs / scenario.rs | alias.md / [mcp.md](agent-runtime/mcp.md) / [a2ui.md](agent-runtime/a2ui.md) / [deep_phases.md](agent-runtime/deep_phases.md) | 工具别名 / MCP 适配 / A2UI 渲染 / 深度任务层 / 场景上下文（可承载类层锚点） |
 | kernel/router_decider.rs（2026-08-25 新增） | — | RouterDecider trait + Pipeline/RouterDecision（消除 kernel→patterns 反向依赖） |
 | kernel/sub_agent_pool.rs（2026-08-25 新增） | — | SubAgentSpec +SubAgentPool 共享运行时（Supervisor 与命令层双池统一，§7 待决 7） |
+| kernel/permission_machine.rs（2026-09-22 新增） | [permission_machine.md](agent-runtime/permission_machine.md) | 权限模式机（S4-a）：判定顺序单点化——位次表来源 / 两条不变量（alwaysAsk 不可绕过、锁单调）/ 易错语义 / 分批边界 |
 | kernel/lib.rs | [lib.md](agent-runtime/lib.md) | 底座内核导出与架构总览 |
 
 #### agent-patterns（扩展模式，`crates/agent-patterns/src`）

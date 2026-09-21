@@ -508,88 +508,97 @@ impl AgentLoop {
 
     /// A5 HITL：若命中确认策略，则发起确认并等待用户回传
     ///
-    /// 返回 `Some(denied_value)` 表示用户拒绝/超时/敏感目录拒绝（作为工具结果返回，不执行工具）；
-    /// 返回 `None` 表示放行或未命中策略（可继续执行）。
+    /// 返回 `Some(denied_value)` 表示拒绝（锁 / Plan 守卫 / 用户拒绝 / 超时——作为工具结果返回，
+    /// 不执行工具）；返回 `None` 表示放行或未命中策略（可继续执行）。
     ///
-    /// # Phase 5 动态路径判定
-    /// 在 `policy.needs_confirmation` 判定基础上，用 [`ToolContext`](crate::tool_context::ToolContext)
-    /// 对 FS 工具做额外裁决：
-    /// - 命中敏感目录（`~/.ssh`、`~/.gnupg`、`/etc`、`/usr`、`/bin`、`/sbin`）：
-    ///   默认直接拒绝；若 `policy.allow_sensitive_with_confirm` 开启 → 转为需确认（经确认放行）。
-    /// - 写/搜索类工具（`write_file`/`edit_file`/`search_files`）解析后越出 workdir
-    ///   → 强制确认（对齐「工作区之外需授权」）。
+    /// **S4-a（2026-09-22）：判定单点化**——本方法只做「来源取证 + 执行」，
+    /// 顺序判定统一在 [`crate::permission_machine::decide`]（位次表见 11-S4施工计划 §三）：
+    /// 敏感目录守卫（内置锁 / 越界）、用户锁/白名单、Plan 守卫、agent-tmp、档位闸门与
+    /// 工具等级（含危险命令动态升级）、路径越界升级、确认通道缺失的 Ask 降级。
+    /// 不变量：模式放行分支不得绕过 alwaysAsk；锁不得被名单/档位翻案。
     async fn maybe_require_confirmation(
         &self,
         name: &str,
         args: &serde_json::Value,
         ctx: &crate::tool_context::ToolContext,
     ) -> Option<serde_json::Value> {
+        use crate::permission_machine::{decide, is_always_ask, Behavior, PermissionCtx, ProjectVerdict};
         let config = self.config_snapshot();
-        // 敏感目录开关已删除（2026-09-03 v2：五档统一硬 Deny，锁为预置维度）
+        // ── 来源取证（不判定；判定单点在 `permission_machine::decide`——S4-a）──
+        // 敏感目录守卫（内置锁 / 越界位）
         let guard = crate::confirmation::guard_fs_path(name, args, ctx, false);
-        // 0) 敏感目录守卫：命中即拒绝（安全底线，内置预置锁）
-        if let crate::confirmation::PathGuard::Deny(reason) = guard {
-            return Some(tool_failure_payload(name, reason, "POLICY_DENIED"));
-        }
-        // 0.5) v2 规则引擎裁决（用户锁 > 白名单 > 档位）：
-        //      命中用户锁 → 拒绝；命中白名单 → 直接放行（跳过档位确认）
-        match crate::confirmation::rule_engine_verdict(name, args, ctx) {
-            Err(msg) => {
-                return Some(tool_failure_payload(name, msg, "POLICY_DENIED"));
-            }
-            Ok(true) => return None,
-            Ok(false) => {}
-        }
-        // 0.6) Plan 只读档：写/命令操作直接拒绝（锁不依赖确认流程）
-        if let Some(policy) = &config.confirmation_policy {
-            if policy.security_level == crate::permission_rules::SecurityLevel::Plan
-                && (crate::confirmation::is_write_tool(name)
-                    || crate::confirmation::is_command_tool(name))
-            {
-                return Some(tool_failure_payload(
-                    name,
-                    "Plan 只读档：写/命令操作已禁用",
-                    "POLICY_DENIED",
-                ));
-            }
-        }
-        // 0.7) agent-tmp 全权免确认：写/搜索工具解析落 workdir/agent-tmp 子树 → 直接放行。
-        // 敏感目录 Deny 与用户锁已在上方拦截（agent-tmp 与二者互斥），此处仅剩隐式白名单语义。
-        if crate::confirmation::should_bypass_confirmation(name, args, ctx) {
-            return None;
-        }
-        // 未启用确认（无 broker / 无 policy）→ 放行（敏感目录已在上面拦截，
-        // 越界写入由 FS 工具执行时的 `ensure_within_workdir` 兜底拒绝）
-        let broker = self.confirmation_broker.as_ref()?;
-        let policy = config.confirmation_policy.as_ref()?;
-        // 策略判定（三级裁决 + 危险命令模式）
-        let mut needs = policy.needs_confirmation(name, args);
-        // 动态路径守卫：写/搜索类越出 workdir，或开启确认开关后命中敏感目录 → 强制确认
-        if !needs && guard == crate::confirmation::PathGuard::Confirm {
-            needs = true;
-        }
-        if !needs {
-            return None;
-        }
-        let outcome = broker
-            .request(&self.broadcaster, name, args.clone())
-            .await;
-        // D8 四值：拒绝 / 跳过 / 超时不再混同——工具错误消息区分，LLM 可据此采取不同后续
-        // T1：结果补判别字段（isError + errorCode，拒绝类码与四值一一对应）
-        let (reason, code) = match outcome {
-            crate::confirmation::ConfirmationOutcome::Approved => return None,
-            crate::confirmation::ConfirmationOutcome::Denied => ("用户拒绝了工具调用", "CONFIRM_DENIED"),
-            crate::confirmation::ConfirmationOutcome::Skipped => ("用户跳过了工具调用", "CONFIRM_SKIPPED"),
-            crate::confirmation::ConfirmationOutcome::Timeout => (
-                "等待用户确认超时，工具调用未执行",
-                "CONFIRM_TIMEOUT",
-            ),
+        let (builtin_lock, path_outside_workdir) = match &guard {
+            crate::confirmation::PathGuard::Deny(reason) => (Some(reason.clone()), false),
+            crate::confirmation::PathGuard::Confirm => (None, true),
+            crate::confirmation::PathGuard::Allow => (None, false),
         };
-        Some(tool_failure_payload(
-            name,
-            format!("{reason} \"{name}\""),
-            code,
-        ))
+        // v2 规则引擎（用户锁 / 白名单）
+        let (user_lock, user_allow) = match crate::confirmation::rule_engine_verdict(name, args, ctx)
+        {
+            Err(msg) => (Some(msg), false),
+            Ok(true) => (None, true),
+            Ok(false) => (None, false),
+        };
+        let policy = config.confirmation_policy.as_ref();
+        // Plan 只读档：写/命令（档位守卫位）
+        let plan_forbidden = policy
+            .map(|p| {
+                p.security_level == crate::permission_rules::SecurityLevel::Plan
+                    && (crate::confirmation::is_write_tool(name)
+                        || crate::confirmation::is_command_tool(name))
+            })
+            .unwrap_or(false);
+        // agent-tmp 全权免确认（隐式白名单；与敏感目录/用户锁互斥——二者在本位次之前拦截）
+        let agent_tmp = crate::confirmation::should_bypass_confirmation(name, args, ctx);
+        let decision = decide(&PermissionCtx {
+            tool_name: name,
+            args,
+            policy,
+            // 确认通道 = broker 与策略均就绪（缺一即落兜底放行——现行语义）
+            confirmation_available: self.confirmation_broker.is_some() && policy.is_some(),
+            builtin_lock: builtin_lock.as_deref(),
+            user_lock: user_lock.as_deref(),
+            user_allow,
+            project: ProjectVerdict::None, // S4-c 接入项目规则来源
+            always_ask: is_always_ask(name), // S4-b 扩四类结构化名单
+            session_grant: false,         // S4-b 接入会话级授权来源
+            plan_forbidden_write_or_command: plan_forbidden,
+            agent_tmp,
+            path_outside_workdir,
+        });
+        match decision.behavior {
+            Behavior::Allow => None,
+            Behavior::Deny => Some(tool_failure_payload(name, decision.reason, "POLICY_DENIED")),
+            Behavior::Ask => {
+                // 归一化保证：Ask ⇒ confirmation_available ⇒ broker 就绪
+                let Some(broker) = self.confirmation_broker.as_ref() else {
+                    return None;
+                };
+                let outcome = broker
+                    .request(&self.broadcaster, name, args.clone())
+                    .await;
+                // D8 四值：拒绝 / 跳过 / 超时不再混同——工具错误消息区分，LLM 可据此采取不同后续
+                // T1：结果补判别字段（isError + errorCode，拒绝类码与四值一一对应）
+                let (reason, code) = match outcome {
+                    crate::confirmation::ConfirmationOutcome::Approved => return None,
+                    crate::confirmation::ConfirmationOutcome::Denied => {
+                        ("用户拒绝了工具调用", "CONFIRM_DENIED")
+                    }
+                    crate::confirmation::ConfirmationOutcome::Skipped => {
+                        ("用户跳过了工具调用", "CONFIRM_SKIPPED")
+                    }
+                    crate::confirmation::ConfirmationOutcome::Timeout => (
+                        "等待用户确认超时，工具调用未执行",
+                        "CONFIRM_TIMEOUT",
+                    ),
+                };
+                Some(tool_failure_payload(
+                    name,
+                    format!("{reason} \"{name}\""),
+                    code,
+                ))
+            }
+        }
     }
 
     /// 工具结果**广播前同步预处理**（A1 第二阶段迁移：裁剪迁入事件总线）

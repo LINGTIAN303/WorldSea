@@ -36,3 +36,4 @@ pub mod tool_hook;
 pub mod types;
 pub mod workspace_partition;
 pub mod permission_rules;
+pub mod permission_machine;

@@ -1,0 +1,44 @@
+# permission_machine.rs 详细注释文档（agent-kernel）
+
+> 来源：`crates/agent-kernel/src/permission_machine.rs` 的模块级长注释块。
+> 代码内保留简要说明 + 本文件相对路径；**位次表（事实源）**见
+> [11-S4施工计划 §三](../../../plans/2026-09-21-ZCode能力内化方向探究/11-S4施工计划-权限模式机.md)。
+
+---
+
+## 一、为什么需要（S4 立项）
+
+权限判定此前**散落六段**（`agent/tools.rs::maybe_require_confirmation` 内按代码顺序隐式成序）：
+`guard_fs_path`（敏感目录）→ `rule_engine_verdict`（用户锁 / 白名单）→ Plan 档守卫 →
+agent-tmp 免确认 → `ConfirmationPolicy::needs_confirmation`（档位短路 + 三级危险 + 危险命令模式）
+→ 动态路径守卫。改一处判定要通读全链，且「alwaysAsk 不可绕过」「锁单调」两条语义**无单点声明**。
+
+S4-a 把顺序收为**纯函数** [`decide`]：无 I/O、无全局单例——规则 / 名单 / 档位 / 命中原因
+经 `PermissionCtx` 传入（调用点只负责「取证 + 执行」）。位次表见 11-§三，用例
+`permission_machine_tests::pos1..pos13` **一行一例（错位即红）**。
+
+## 二、两条不变量（反证锚点）
+
+| 不变量 | 含义 | 用例 |
+|---|---|---|
+| **模式放行分支不得绕过 alwaysAsk** | alwaysAsk 位（5）先于档位闸门（11）——Autopilot（yolo）亦不可静默放行必问操作 | `pos5_always_ask_survives_autopilot`（← 05-§八.1；**本批唯一行为变化：Autopilot 下 Dangerous 级工具从静默放行改为仍弹确认，收敛方向=更严**） |
+| **锁单调** | 内置锁 / 用户锁位于位次最前，任何名单 / 档位 / 项目规则不得翻案 | `locks_are_monotonic`（+ `pos1` / `pos13` 拒绝不翻案、`ask_degrades…` Deny 不降级） |
+
+## 三、关键语义（易错点）
+
+- **会话级授权只服务 alwaysAsk gate**：命中与否只改变位次 5 的出口（`session_grant` 允许），
+  **不得**成为普通工具的通用放行（对齐 ZCode sessionRules；用例 `pos6`）。
+- **用户 Allow 先于档位**（ZD2-5：名单 > 档位）：位次 3 在 Plan 守卫（8）之前——
+  白名单命令在 Plan 档可执行；名单是用户的显式授权，优先级高于档位与项目规则。
+- **Ask 的无通道降级**：确认通道不可用（无 broker / 无 policy）时，**任何来源的 Ask 降级为
+  Allow**（现行语义——没有确认可执行）；`Deny` 不受影响（锁与 Plan 守卫仍前置于此）。
+- **路径越界只升级放行**：位次 13 把 `Allow` 提升为 `Ask`（工作区外需授权）；
+  不降级、不翻案拒绝；显式白名单（位次 3）不受其影响（名单即授权）。
+
+## 四、批次边界（S4 计划）
+
+- 本批（S4-a）：位次 1-13 与全部字段；alwaysAsk **源** = Dangerous 级（现状语义）；
+  项目裁决恒 `None`；会话授权来源恒空。
+- S4-b：alwaysAsk 扩四类结构化名单 + 会话授权来源接入（Q1/Q3 拍板）。
+- S4-c：项目规则来源接入（`{workdir}/.worldsea/permissions.json`，Q2 拍板）。
+- 位次表**不随批次改动，只换来源**；改位次须同行更新 §三 表与逐位用例。
