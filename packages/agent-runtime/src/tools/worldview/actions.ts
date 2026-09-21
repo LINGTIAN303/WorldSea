@@ -946,6 +946,13 @@ interface EntityTypeSproutConfig {
   filterFields: string[]
 }
 
+/**
+ * entity_type 系芽配置（10 → 9）。
+ * 2026-09-21（批 2 取证修正）：**apparel 移出**——`official.apparel` 已不再注册独立
+ * `apparel` 实体类型（服饰 = Item + Facet 的视图组合，见该芽 index.ts 注释）；
+ * 保留会得到一个「恒为空」的 list 动作（对可达的 worldview 工具即新型假功能）。
+ * 其读写经道具（items）能力；说明见 guides.ts。
+ */
 const ENTITY_TYPE_SPROUT_CONFIGS: EntityTypeSproutConfig[] = [
   { sproutId: 'official.characters', pluginId: 'character', entityType: 'character', label: '角色', filterFields: ['role', 'affiliation', 'race', 'gender'] },
   { sproutId: 'official.culture', pluginId: 'culture', entityType: 'culture', label: '文化条目', filterFields: ['cultureType'] },
@@ -955,7 +962,6 @@ const ENTITY_TYPE_SPROUT_CONFIGS: EntityTypeSproutConfig[] = [
   { sproutId: 'official.items', pluginId: 'item', entityType: 'item', label: '道具', filterFields: ['itemType', 'rarity', 'condition'] },
   { sproutId: 'official.concepts', pluginId: 'concept', entityType: 'concept', label: '概念', filterFields: ['conceptType'] },
   { sproutId: 'official.combat_stats', pluginId: 'combat_stat', entityType: 'combat_stat', label: '战力条目', filterFields: ['system', 'culture'] },
-  { sproutId: 'official.apparel', pluginId: 'apparel', entityType: 'apparel', label: '服饰', filterFields: ['apparelType', 'armorClass', 'style'] },
   { sproutId: 'official.inspiration', pluginId: 'inspiration', entityType: 'inspiration', label: '素材', filterFields: ['materialType'] },
 ]
 
@@ -980,8 +986,6 @@ const FILTER_FIELD_DESCRIPTIONS: Record<string, string> = {
   conceptType: '按 conceptType 过滤',
   system: '按 system 过滤',
   culture: '按 culture 过滤',
-  apparelType: '按 apparelType 过滤',
-  armorClass: '按 armorClass 过滤',
   materialType: '按 materialType 过滤',
 }
 

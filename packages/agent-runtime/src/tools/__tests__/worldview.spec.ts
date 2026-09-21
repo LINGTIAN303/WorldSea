@@ -13,6 +13,7 @@ import {
   resolveWorldviewSprout,
   renderSproutGuide,
   SPROUT_ACTIONS,
+  SPROUT_GUIDES,
 } from '../worldview'
 import { PLUGIN_BACKEND_TOOLS } from '../plugin-backend-tools'
 
@@ -58,7 +59,7 @@ describe('worldview：使用方法（渐进披露第二级）', () => {
   it('传 sprout：返回概述 + 动作目录 + 执行方式', async () => {
     const text = await worldviewTool.execute({ sprout: '大纲' }, fakeCtx)
     expect(text).toContain('# 大纲（official.outline）')
-    expect(text).toContain('大纲管理与章节规划')
+    expect(text).toContain('大纲节点与叙事结构的维护')
     expect(text).toContain('## 动作')
     expect(text).toContain('**create_node**')
     expect(text).toContain("执行方式：worldview(sprout='大纲'")
@@ -167,11 +168,18 @@ describe('旧域工具薄壳（单一事实源转发）', () => {
 describe('说明中性守卫（无引导词）', () => {
   it('全部芽的使用方法不含 建议/推荐/优先/首选/应该/务必/最好', () => {
     const banned = ['建议', '推荐', '优先', '首选', '应该', '务必', '最好']
-    for (const sproutId of Object.keys(SPROUT_ACTIONS)) {
+    // 覆盖范围：有说明的芽（guides）+ 有动作的芽（actions）的并集——批 2 后为全部 27 芽
+    const allSproutIds = new Set([...Object.keys(SPROUT_GUIDES), ...Object.keys(SPROUT_ACTIONS)])
+    expect(allSproutIds.size).toBeGreaterThanOrEqual(27)
+    for (const sproutId of allSproutIds) {
       const text = renderSproutGuide({ id: sproutId, name: sproutId, description: '' })
       for (const word of banned) {
         expect(text.includes(word), `${sproutId} 的说明含引导词「${word}」`).toBe(false)
       }
     }
+  })
+
+  it('全部 27 芽均有说明数据（guides 覆盖）', () => {
+    expect(Object.keys(SPROUT_GUIDES)).toHaveLength(27)
   })
 })

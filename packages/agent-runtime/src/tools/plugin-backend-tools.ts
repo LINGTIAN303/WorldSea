@@ -353,9 +353,10 @@ const moduleBuilderTool: ToolDefinition = {
 // 10. Entity Type Tool
 // ============================================================
 
+// 2026-09-21（批 2 取证修正）：apparel 移出——该芽不再注册独立 apparel 实体类型（服饰 = Item + 视图）。
 const ENTITY_TYPE_ENUMS = [
   'character', 'culture', 'language', 'conflict', 'building',
-  'item', 'concept', 'combat_stat', 'apparel', 'inspiration',
+  'item', 'concept', 'combat_stat', 'inspiration',
 ]
 
 const entityTypeTool: ToolDefinition = {

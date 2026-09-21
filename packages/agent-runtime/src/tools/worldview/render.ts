@@ -58,5 +58,7 @@ export function renderSproutGuide(sprout: WorldviewSprout): string {
     )
   }
 
+  lines.push('', '> 实体字段与取值以运行时 schema 为准；字段语义可经 entity_suggest_field 查询。')
+
   return lines.join('\n')
 }
