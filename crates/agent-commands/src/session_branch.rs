@@ -7,7 +7,8 @@
 //! - 操作 mark：**事务括号**——先落 mark、成功清 mark；崩溃残留由装载期
 //!   [`SqliteSessionRepository::reconcile_branch_ops`] 收敛（对齐压缩锁范式）
 //!
-//! 本批交付存储与收敛原语；fork/rewind 执行链与装载期接线随 S3-c/S3-d 落地。
+//! 存储与收敛原语（S3-b2）；执行链见 `session_fork.rs` / `session_rewind.rs` /
+//! `session_checkpoint.rs`，装载期接线见 `lib.rs::restore_sessions`。
 //! 详细见 docs/details/注释/agent-commands/session_store.md（会话族总览 §四）。
 
 use serde::{Deserialize, Serialize};
@@ -323,8 +324,9 @@ pub struct BranchResidue {
 /// 装载期分支残留收敛（S3-c 冷修复；由 `SessionRepository::reconcile_branch_residue` 委托）。
 ///
 /// 语义：**mark 未清 ⇔ 操作未提交**（调用方从未收到成功）——`fork` 残留即撤销半成品
-/// 子会话（内容可由父快照重放，删除无信息损失；留存则会成为无来源记录的幽灵会话），
-/// 其余 op 残留只清 mark（S3-d 的回滚 / 检查点按需补撤销动作）。收敛幂等。
+/// 子会话（内容可由父快照重放，删除无信息损失；留存则会成为无来源记录的幽灵会话）；
+/// `rewind` / `checkpoint` 残留**不撤销数据**（S3-d 裁定：终态自洽——视图回退无损且可再回滚、
+/// 检查点为单行插入，撤销反而引入新风险），只清 mark + warn 留档。收敛幂等。
 pub(crate) async fn reconcile_residue(
     store: &SqliteSessionRepository,
 ) -> Result<Vec<BranchResidue>, CommandError> {

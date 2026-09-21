@@ -75,7 +75,7 @@ session_events 每次同步追加一条事件（initial / append / trim / revise
 |---|---|---|
 | 分叉 `fork` | 子会话初始视图 = 父会话在 `request_seq` **派发时**的消息视图（含该请求输入、不含其响应及之后）；父会话零影响；不携带工具会话 / 长任务状态（ZD1-5） | 新 `sessions` 行 + 视图写入（坐标独立从 0 起）+ `session_forks` 来源记录 |
 | 回滚 `rewind` | 向活跃视图追加一条 replace（回退到目标边界视图），**日志不删**——可再回退、可再前行（ZD1-2：默认域 conversation） | `session_live` 游标重写 + `session_events` 追加 |
-| 检查点 `checkpoint` | 手动 + 每 N 请求自动（ZD1-4，N=10）；= 锚点指针 + 保留策略 | `session_checkpoints` 行（kind：manual / auto） |
+| 检查点 `checkpoint` | 手动 + 每 N 请求自动（ZD1-4，N=10）；= 锚点指针 + 保留策略（手动 + 自动合并计数，保留最近 50） | `session_checkpoints` 行（kind：manual / auto） |
 
 **事务括号（沿用压缩锁范式）**：三类操作先落 mark（`session_branch_ops`，payload 携
 定位信息）→ 执行 → 成功清 mark。**mark 未清 ⇔ 操作未提交**（调用方从未收到成功）。

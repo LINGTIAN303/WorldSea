@@ -1499,6 +1499,14 @@ impl SessionRepository for SqliteSessionRepository {
         tx.commit()
             .await
             .map_err(|e| CommandError::Internal(format!("请求快照事务提交失败: {e}")))?;
+        if affected > 0 {
+            // S3-d 自动检查点（每 N 个请求边界；ZD1-4）——辅助操作，失败只告警不回滚快照
+            if let Err(e) =
+                crate::session_checkpoint::auto_checkpoint_after_request(self, session_id, seq).await
+            {
+                tracing::warn!("自动检查点打点失败（不影响快照落库）: {e}");
+            }
+        }
         Ok(if affected > 0 { Some(seq) } else { None })
     }
 

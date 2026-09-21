@@ -103,6 +103,10 @@ pub const CONFIRMATION_RESOLVED: EventKey = "confirmation_resolved";
 pub const ASK_REQUESTED: EventKey = "ask_requested";
 pub const ASK_RESOLVED: EventKey = "ask_resolved";
 
-// 会话分支（S3-c；04 会话模型草案 §2.5——分叉 / 回滚 / 检查点三事件族，前端可见）
+// 会话分支（S3-c/S3-d；04 会话模型草案 §2.5——分叉 / 回滚 / 检查点三事件族，前端可见）
 /// 会话分叉（子会话自父会话某请求边界派生；父会话零影响）
 pub const CONVERSATION_FORKED: EventKey = "conversation_forked";
+/// 会话回滚（活跃视图回退到某请求边界；日志不删）
+pub const CONVERSATION_REWOUND: EventKey = "conversation_rewound";
+/// 检查点创建（手动 / 每 N 请求自动）
+pub const CHECKPOINT_CREATED: EventKey = "checkpoint_created";
