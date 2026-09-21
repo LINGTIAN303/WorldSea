@@ -3,6 +3,14 @@ import { ref } from 'vue'
 export type ConfirmType = 'info' | 'warning' | 'danger'
 export type ConfirmPosition = 'center' | 'bottom'
 
+/**
+ * 三键选择结果（`withChoice` 模式；D8 审批四值需要区分「拒绝」与「跳过」）
+ * - `confirmed`：主键（含附加动作「添加白名单并放行」）
+ * - `cancelled`：取消键（拒绝）
+ * - `skipped`：第三键（中性选项，如「取消(跳过)」）
+ */
+export type ConfirmChoice = 'confirmed' | 'cancelled' | 'skipped'
+
 /** 附加动作（如「添加白名单并放行」）：点击先执行 run()，随后按放行处理（关闭并 resolve true） */
 export interface ConfirmExtraAction {
   label: string
@@ -21,6 +29,11 @@ interface ConfirmOptions {
   position?: ConfirmPosition
   /** 附加动作按钮（渲染在 actions 区） */
   extraActions?: ConfirmExtraAction[]
+  /**
+   * 需要区分三键结果时置 true：`confirm()` 的 Promise 返回 [`ConfirmChoice`]
+   * （原样保留 boolean 模式给既有调用方——第三键在 boolean 模式下与取消同为 false）。
+   */
+  withChoice?: boolean
 }
 
 interface ConfirmState {
@@ -33,7 +46,9 @@ interface ConfirmState {
   neutralText: string
   position: ConfirmPosition
   extraActions: ConfirmExtraAction[]
-  resolve: ((value: boolean) => void) | null
+  /** withChoice 模式标记（决定 resolve 的取值形态） */
+  withChoice: boolean
+  resolve: ((value: boolean | ConfirmChoice) => void) | null
 }
 
 const state = ref<ConfirmState>({
@@ -46,6 +61,7 @@ const state = ref<ConfirmState>({
   neutralText: '',
   position: 'center',
   extraActions: [],
+  withChoice: false,
   resolve: null,
 })
 
@@ -56,7 +72,9 @@ const TYPE_DEFAULTS: Record<ConfirmType, { confirmText: string; cancelText: stri
 }
 
 export function useConfirm() {
-  function confirm(options: ConfirmOptions): Promise<boolean> {
+  function confirm(options: ConfirmOptions & { withChoice: true }): Promise<ConfirmChoice>
+  function confirm(options: ConfirmOptions): Promise<boolean>
+  function confirm(options: ConfirmOptions): Promise<boolean | ConfirmChoice> {
     const type = options.type || 'info'
     const defaults = TYPE_DEFAULTS[type]
     return new Promise(resolve => {
@@ -70,26 +88,32 @@ export function useConfirm() {
         neutralText: options.neutralText || '',
         position: options.position || 'center',
         extraActions: options.extraActions || [],
+        withChoice: options.withChoice === true,
         resolve,
       }
     })
   }
 
-  function doConfirm() {
-    state.value.resolve?.(true)
+  /** 统一三键收口：withChoice 模式返回三值，否则折叠为 boolean（既有调用方契约不变） */
+  function resolveWith(choice: ConfirmChoice) {
+    const s = state.value
+    const resolve = s.resolve
     state.value.resolve = null
     state.value.show = false
+    resolve?.(s.withChoice ? choice : choice === 'confirmed')
+  }
+
+  function doConfirm() {
+    resolveWith('confirmed')
   }
 
   function doCancel() {
-    state.value.resolve?.(false)
-    state.value.resolve = null
-    state.value.show = false
+    resolveWith('cancelled')
   }
 
-  /** 第三键（中性选项）：与 cancel 同为 false，仅语义标签不同（如「跳过」vs「拒绝」） */
+  /** 第三键（中性选项）：boolean 模式与 cancel 同为 false，仅语义标签不同（如「跳过」vs「拒绝」） */
   function doNeutral() {
-    doCancel()
+    resolveWith('skipped')
   }
 
   return { state, confirm, doConfirm, doCancel, doNeutral }

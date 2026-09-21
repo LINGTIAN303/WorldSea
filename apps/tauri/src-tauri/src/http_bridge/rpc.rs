@@ -90,6 +90,7 @@ struct SupervisorResumeArgs {
 #[serde(rename_all = "camelCase")]
 struct NewSessionArgs {
     system_prompt: Option<String>,
+    prompt_sections: Option<Vec<agent_runtime::agent::prompt_sections::PromptSection>>,
     provider_config: Option<agent_runtime::llm::config::ProviderConfig>,
     scenario_id: Option<String>,
     workdir: Option<String>,
@@ -140,7 +141,27 @@ struct RawReadArgs {
 struct ConfirmArgs {
     session_id: String,
     confirm_id: String,
-    approved: bool,
+    /// D8 四值回传（approved / denied / skipped；timeout 由 kernel 超时产生）
+    outcome: String,
+}
+
+/// Q1 提问作答回传（2026-09-20）：`answers` 缺省/None = 用户拒绝作答（ASK_DENIED）
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AskAnswerArgs {
+    session_id: String,
+    ask_id: String,
+    /// 用户作答（`[{id, selected[], custom?}]`，按提问批次 1:1 组装）；None = 拒绝作答
+    answers: Option<Vec<agent_runtime::confirmation::AskAnswer>>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct A2UIEmitArgs {
+    session_id: String,
+    surface_id: String,
+    /// camelCase A2UI 消息（createSurface / updateComponents / updateDataModel / deleteSurface）
+    message: serde_json::Value,
 }
 
 #[derive(Deserialize)]
@@ -205,7 +226,7 @@ pub fn register_core(reg: &mut Registry) {
         Box::pin(async move {
             let a: NewSessionArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
             let st = app.state::<agent_commands::AgentCommandService>();
-            c::new_session(st, a.system_prompt, a.provider_config, a.scenario_id, a.workdir, a.entity_storage_root, a.project_id)
+            c::new_session(st, a.system_prompt, a.prompt_sections, a.provider_config, a.scenario_id, a.workdir, a.entity_storage_root, a.project_id)
                 .await
                 .map(|r| to_value(r).unwrap_or(Value::Null))
         })
@@ -485,7 +506,25 @@ pub fn register_core(reg: &mut Registry) {
         Box::pin(async move {
             let a: ConfirmArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
             let st = app.state::<agent_commands::AgentCommandService>();
-            c::cmd_agent_confirm(st, a.session_id, a.confirm_id, a.approved).await.map(|r| to_value(r).unwrap_or(Value::Null))
+            c::cmd_agent_confirm(st, a.session_id, a.confirm_id, a.outcome).await.map(|r| to_value(r).unwrap_or(Value::Null))
+        })
+    }));
+    // Q1 提问（2026-09-20）：提问面板作答/拒绝回传（answers=None 即拒绝作答）
+    reg.register("cmd_agent_ask_answer", Arc::new(move |app, args| {
+        let app = app.clone();
+        Box::pin(async move {
+            let a: AskAnswerArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
+            let st = app.state::<agent_commands::AgentCommandService>();
+            c::cmd_agent_ask_answer(st, a.session_id, a.ask_id, a.answers).await.map(|r| to_value(r).unwrap_or(Value::Null))
+        })
+    }));
+    // A2UI 接线（2026-09-17）：桥工具 emitA2UI → 会话事件总线 → 前端画布通道
+    reg.register("cmd_agent_emit_a2ui", Arc::new(move |app, args| {
+        let app = app.clone();
+        Box::pin(async move {
+            let a: A2UIEmitArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
+            let st = app.state::<agent_commands::AgentCommandService>();
+            c::cmd_agent_emit_a2ui(st, a.session_id, a.surface_id, a.message).await.map(|_| Value::Null)
         })
     }));
     reg.register("cmd_agent_set_security_level", Arc::new(move |app, args| {
@@ -505,19 +544,19 @@ pub fn register_core(reg: &mut Registry) {
             c::cmd_agent_tool_names(st, a.session_id).await.map(|r| to_value(r).unwrap_or(Value::Null))
         })
     }));
-    // 动态刷新会话 system prompt（H5 风险点③，2026-08-30 · 硬约束：新命令必须同步桥接层）
+    // 动态刷新会话提示段（H5 风险点③ + A4 双端收口，2026-09-17 · 硬约束：新命令必须同步桥接层）
     #[derive(Deserialize)]
     #[serde(rename_all = "camelCase")]
-    struct UpdateSystemPromptArgs {
+    struct UpdatePromptSectionsArgs {
         session_id: String,
-        system_prompt: Option<String>,
+        prompt_sections: Vec<agent_runtime::agent::prompt_sections::PromptSection>,
     }
-    reg.register("cmd_agent_update_system_prompt", Arc::new(move |app, args| {
+    reg.register("cmd_agent_update_prompt_sections", Arc::new(move |app, args| {
         let app = app.clone();
         Box::pin(async move {
-            let a: UpdateSystemPromptArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
+            let a: UpdatePromptSectionsArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
             let st = app.state::<agent_commands::AgentCommandService>();
-            c::cmd_agent_update_system_prompt(st, a.session_id, a.system_prompt).await.map(|_| Value::Null)
+            c::cmd_agent_update_prompt_sections(st, a.session_id, a.prompt_sections).await.map(|_| Value::Null)
         })
     }));
 
@@ -614,8 +653,12 @@ pub fn register_core(reg: &mut Registry) {
     #[serde(rename_all = "camelCase")]
     struct SkillsImportArgs {
         skill_id: String,
-        skill_yaml: String,
+        #[serde(default)]
+        skill_yaml: Option<String>,
+        #[serde(default)]
         skill_md: Option<String>,
+        #[serde(default)]
+        sidecar: Option<String>,
     }
     reg.register("cmd_skills_download_manifest", Arc::new(move |_app, args| {
         Box::pin(async move {
@@ -678,7 +721,7 @@ pub fn register_core(reg: &mut Registry) {
             let a: SkillsImportArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
             let app2 = app.clone();
             tauri::async_runtime::spawn_blocking(move || {
-                crate::skills_store::cmd_skills_import_local(app2, a.skill_id, a.skill_yaml, a.skill_md)
+                crate::skills_store::cmd_skills_import_local(app2, a.skill_id, a.skill_yaml, a.skill_md, a.sidecar)
             })
             .await
             .map_err(|e| format!("spawn_blocking 失败: {e}"))?
@@ -1378,15 +1421,8 @@ fn register_extra(reg: &mut Registry) {
         })
     }));
 
-    // ── 项目命令（cmd_switch_project / cmd_get_app_data_dir / cmd_delete_project_db）──
-    reg.register("cmd_switch_project", Arc::new(move |_app, args| {
-        Box::pin(async move {
-            let a: ProjectIdArg = from_value(args).map_err(|e| e.to_string())?;
-            project_commands::cmd_switch_project(a.project_id)
-                .await
-                .map(|_| Value::Null)
-        })
-    }));
+    // ── 项目命令（cmd_get_app_data_dir / cmd_get_home_dir / cmd_delete_project_db）──
+    // W6（2026-09-18）：cmd_switch_project 空壳已删（全局会话库，无切换动作）
     reg.register("cmd_get_app_data_dir", Arc::new(move |app, _args| {
         let app = app.clone();
         Box::pin(async move {

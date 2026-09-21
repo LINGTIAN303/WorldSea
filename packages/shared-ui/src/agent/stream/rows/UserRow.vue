@@ -5,7 +5,24 @@
   emits：hover / leave / copy / retry。
 -->
 <template>
+  <!-- 批次 C·S1（2026-09-20）：定时唤醒自动投递行（meta.input_kind === 'timer'）——
+       非普通用户气泡：左侧系统行样式 + 时钟图标 + 载荷文本（长文可折叠） -->
+  <div v-if="isTimer" class="ws-stream-row ws-timer-row" :data-msg-id="msg.id">
+    <div class="ws-timer-head">
+      <WsIcon name="clock" size="xs" />
+      <span class="ws-timer-label">定时唤醒</span>
+      <span class="ws-timer-time">{{ actions.timeLabel }}</span>
+      <button
+        v-if="timerOverflow"
+        type="button"
+        class="ws-timer-toggle"
+        @click="timerExpanded = !timerExpanded"
+      >{{ timerExpanded ? '收起' : '展开' }}</button>
+    </div>
+    <pre class="ws-timer-text" :class="{ folded: timerOverflow && !timerExpanded }">{{ msg.content }}</pre>
+  </div>
   <div
+    v-else
     class="ws-stream-row ws-user-row"
     :class="{ 'msg-user': true }"
     :data-msg-id="msg.id"
@@ -55,6 +72,13 @@ const emit = defineEmits<{
   (e: 'copy', msg: AgentMessage): void
   (e: 'retry', msg: AgentMessage): void
 }>()
+
+// ===== 定时唤醒行（批次 C·S1，2026-09-20）=====
+/** 来源标记：消息 metadata.input_kind（Rust 侧注入的 user 消息 meta 透传） */
+const isTimer = computed(() => props.msg.metadata?.input_kind === 'timer')
+const timerExpanded = ref(false)
+/** 定时唤醒载荷较长时提供折叠（按字符粗判，避免 DOM 测量） */
+const timerOverflow = computed(() => (props.msg.content || '').length > 240)
 
 // ===== 操作栏（时间 + 导出能力，仅用 timeLabel） =====
 const actions = useMessageActions(
@@ -117,6 +141,60 @@ watch(
 </script>
 
 <style scoped>
+/* ── 定时唤醒行（批次 C·S1，2026-09-20）：左侧系统行样式，与用户气泡区分 ── */
+.ws-timer-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 2px 0;
+  padding: 8px 12px;
+  border-left: 2px solid var(--agent-accent, var(--color-primary, #6b7280));
+  background: var(--agent-tool-bg, rgba(127, 127, 127, 0.06));
+  border-radius: 6px;
+  max-width: 92%;
+}
+.ws-timer-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--agent-text-muted, var(--text-secondary));
+  font-size: var(--font-size-xs, 11px);
+}
+.ws-timer-label {
+  font-weight: 600;
+}
+.ws-timer-time {
+  opacity: 0.75;
+}
+.ws-timer-toggle {
+  margin-left: auto;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--agent-accent, var(--color-primary, #6b7280));
+  cursor: pointer;
+  font-size: inherit;
+}
+.ws-timer-toggle:hover {
+  text-decoration: underline;
+}
+.ws-timer-text {
+  margin: 0;
+  font-family: var(--agent-font);
+  font-size: var(--font-size-sm, 13px);
+  line-height: 1.5;
+  color: var(--agent-text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+/* 折叠态：限高 + 底部渐隐（提示可展开） */
+.ws-timer-text.folded {
+  max-height: 4.5em;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(180deg, #000 60%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 60%, transparent 100%);
+}
+
 .ws-user-row {
   display: flex;
   align-items: flex-start;

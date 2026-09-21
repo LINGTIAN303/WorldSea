@@ -281,7 +281,10 @@ const loading = ref(true)
 const searchQuery = ref('')
 
 /** 会话列表：重命名过（title ≠ 新会话）显示 Rust 标题，否则用首条消息生成。
- *  2026-09-09 场景底座：按当前场景过滤会话（场景间会话不互通，缺省 world 兼容旧数据） */
+ *  2026-09-09 场景底座：按当前场景过滤会话（场景间会话不互通，缺省 world 兼容旧数据）
+ *  W6（2026-09-18 工作区与环境对齐 dsh）：**不做按项目隐藏**——对齐 dsh 的
+ *  「会话全量可见 + 按项目（=目录）分组 + 未归属兜底」形态（见 useSessionTree
+ *  目录组与「未限定目录」组）；隐藏会话属 dsh 的**用户显式**能力，非按项目自动过滤。 */
 const items = computed<SidebarItem[]>(() =>
   sessionList.value
     .filter((s) => !pendingSessionIds.value.includes(s.id)) // Phase 5：隐藏待激活会话（延迟展示）

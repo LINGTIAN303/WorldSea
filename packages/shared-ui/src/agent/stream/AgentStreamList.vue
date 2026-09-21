@@ -93,27 +93,11 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import type { AgentStreamItem } from '@worldsea/shared-composables/agent/useAgent'
-import { aggregatePlanBlocks, type ProcessBlock } from './aggregatePlanBlocks'
+import { groupTurns, type GroupCacheEntry, type TurnGroup } from './groupTurns'
 import ProcessBlocks from './ProcessBlocks.vue'
 import StreamRow from './rows/StreamRow.vue'
 import type { AgentMessage, BlockActionEvent } from '../bubbles/types'
 import './stream.css'
-
-type UserItem = Extract<AgentStreamItem, { type: 'user' }>
-type AssistantItem = Extract<AgentStreamItem, { type: 'assistant' }>
-
-/** 轮次分组：一个 Turn 的三层结构 + 尾部行 */
-interface TurnGroup {
-  id: string
-  /** ① 用户消息层；窗口切片从轮次中间开始时为 null */
-  user: UserItem | null
-  /** ② 过程层（扁平输入行；聚合后为块序列 ProcessBlock[]，供 ProcessBlocks 树渲染） */
-  process: ProcessBlock[]
-  /** ③ 结果层；结果层未落地时为 null */
-  result: AssistantItem | null
-  /** 结果层之后仍属于本轮次的行（如中止分隔行） */
-  tail: AgentStreamItem[]
-}
 
 /** 事件行流 items */
 const props = defineProps<{
@@ -123,47 +107,16 @@ const props = defineProps<{
 }>()
 
 /**
- * 按轮次分组：以 user 行开启新组，isResult 的正文行归为结果层，其后行入 tail
+ * 轮次分组（纯函数见 groupTurns.ts）：切段 + 计划步骤块聚合。
  *
- * 过程层（process）在分组基础上再做「计划步骤块」聚合：isPlanStep 行作为块头，
- * 其后紧邻的、id 属于该步骤 childRefIds 的行收集为块内子动作（默认折叠可展开）。
- * 分组只做「切段」，不改变行的相对顺序——窗口化依赖渲染顺序与 items 顺序一致。
+ * 2026-09-20 帧率修复③：分组带「整组复用」缓存——该轮次在窗口内的源行引用序列逐项全等时，
+ * 复用上一帧的分组对象（含 `process` 块数组引用）。Vue 对 props 引用未变的子组件跳过 patch，
+ * 故流式期间**只有正在增长的轮次**的 ProcessBlocks 重渲，其余轮次零开销
+ * （原实现每 delta 重建全部块对象 → 窗口内所有 ProcessBlocks 每 delta 重渲）。
  */
-const groups = computed<TurnGroup[]>(() => {
-  const out: TurnGroup[] = []
-  let cur: TurnGroup | null = null
-  for (const it of props.items) {
-    if (it.type === 'user') {
-      // group.id 取 turnId（折叠 latch 归属用）；旧调用方未带 turnId 时回退行 id
-      cur = { id: it.turnId ?? it.id, user: it, process: [], result: null, tail: [] }
-      out.push(cur)
-      continue
-    }
-    // 切片从轮次中间开始：造无用户行的组承接，避免行被丢弃
-    if (!cur) {
-      cur = { id: `orphan-${it.id}`, user: null, process: [], result: null, tail: [] }
-      out.push(cur)
-    }
-    if (it.type === 'assistant' && it.isResult) {
-      // 同组已存在结果层属异常数据：开新组承载，避免后者覆盖前者
-      if (cur.result) {
-        cur = { id: `tail-${it.id}`, user: null, process: [], result: null, tail: [] }
-        out.push(cur)
-      }
-      cur.result = it
-    } else if (cur.result) {
-      cur.tail.push(it)
-    } else {
-      cur.process.push(it)
-    }
-  }
-  // 2026-09-04 多级折叠树聚合：把 process 扁平行 → 嵌套块序列（组合行段 / 待办项 / 计划折叠区）
-  for (const g of out) {
-    if (!g.process.length) continue
-    g.process = aggregatePlanBlocks(g.process as unknown as AgentStreamItem[])
-  }
-  return out
-})
+const groupCache = new Map<string, GroupCacheEntry>()
+
+const groups = computed<TurnGroup[]>(() => groupTurns(props.items, groupCache))
 
 // ===== 组合行段本地展开态（组件内 ref；2026-09-05 调整为默认折叠：集合含 id=展开，
 // 切窗重挂与 think 行一样重置——重置后为默认折叠态）=====

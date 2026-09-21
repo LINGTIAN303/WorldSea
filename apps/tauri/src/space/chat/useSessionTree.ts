@@ -43,9 +43,12 @@ export interface SessionGroup {
   sessions: SidebarItem[]
 }
 
-/** 归一化路径（去除尾部 / 与 \，避免 Windows/Linux 分隔符差异影响分组） */
+/** 归一化路径（统一分隔符为 `/` + 去除尾部 `/` 与 `\`，避免 Windows/Linux 及混用差异影响分组）
+ *
+ * W1（2026-09-18 工作区与环境对齐 dsh）：后端 workdir/workspace root 现统一为 `/` 形态
+ * （`agent-commands::workspace_path`），此处同步做分隔符归一，保证新旧数据分组一致。 */
 function normalizePath(p: string): string {
-  return (p || '').replace(/[\\/]+$/g, '')
+  return (p || '').replace(/\\/g, '/').replace(/\/+$/g, '')
 }
 
 /** 取路径基名（兼容 / 与 \ 两种分隔符；空路径回退原始字符串） */

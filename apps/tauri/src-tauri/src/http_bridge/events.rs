@@ -1,6 +1,6 @@
 //! [HTTP-BRIDGE] 临时模块：全局事件广播 hub（浏览器 SSE 订阅用）
 //!
-//! commands.rs 的发射 funnel（TauriAgentEventEmitter / emit_orch / emit_orch_supervisor / emit_orch_multi）
+//! commands.rs 的发射 funnel（TauriAgentEventEmitter / emit_orch / emit_orch_supervisor）
 //! 除原有 `app.emit`（桌面 IPC）外，额外 `publish` 一份到本 hub；SSE handler 订阅推送。
 //! 桌面端行为不变（原 emit 保留，多发一份到 hub 无害）。
 //! 移除：删除本文件 + 还原 commands.rs 中标记 `// [HTTP-BRIDGE]` 的 publish 调用。

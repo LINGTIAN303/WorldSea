@@ -7,7 +7,7 @@
 
 import { ref, readonly, onUnmounted } from 'vue'
 import type { IAgentBackend, AgentEvent, A2UIMessage } from '@agent/index'
-import { createWorldSeaAgent, getToolsForSkills } from '@agent/index'
+import { createWorldSeaAgent, ALL_TOOLS_MAP } from '@agent/index'
 import type { ProviderConfig } from '@agent/index'
 import { useEntityStore, useRelationStore, useFileStore, useSettingsStore } from '@worldsea/entity-core'
 import { loadApiKey } from '@agent/index'
@@ -29,6 +29,22 @@ export interface SmartFillChatMessage {
   role: 'user' | 'assistant'
   content: string
 }
+
+/**
+ * 智能填充对话的工具集（S4 改造，2026-09-18）
+ *
+ * 原实现为 `getToolsForSkills(['smart-fill'])`（依赖技能注册表）；smart-fill 技能退役后
+ * 改按**工具名直取**，工具集与原技能的 baseTools + allowedTools 等价。
+ * 说明：不再注入 SKILL_META_TOOLS——该内嵌会话无「可用技能」索引，load_skill 无意义。
+ */
+const SMART_FILL_TOOL_NAMES = [
+  // 原 baseTools
+  'entity_list', 'entity_get', 'content_search', 'entity_get_context',
+  // 原 allowedTools
+  'entity_suggest_field', 'entity_smart_fill', 'relation_list',
+  'schema_get_entity_type', 'memory_recall', 'a2ui_show_entity',
+  'ui_create_surface', 'ui_update_components', 'ui_update_data',
+] as const
 
 export function useSmartFillChat() {
   const visible = ref(false)
@@ -128,7 +144,10 @@ export function useSmartFillChat() {
     if (!_providerConfig || !_toolContext) return null
 
     try {
-      const tools = getToolsForSkills(['smart-fill'])
+      // S4 改造：按工具名直取（原 getToolsForSkills(['smart-fill']) 依赖技能注册表）
+      const tools = SMART_FILL_TOOL_NAMES
+        .map(name => ALL_TOOLS_MAP.get(name))
+        .filter((t): t is NonNullable<typeof t> => !!t)
       const agent = await createWorldSeaAgent({
         providerConfig: _providerConfig,
         toolContext: _toolContext,
@@ -247,10 +266,9 @@ export function useSmartFillChat() {
       return
     }
 
-    // 构建初始 prompt，指示 Agent 先获取上下文
+    // 构建初始 prompt，指示 Agent 先获取上下文（S4：原 `/skill:smart-fill` 前缀为无处理器的惰性文本，已移除）
     const ctx = context.value
     const prompt = [
-      `/skill:smart-fill`,
       `用户在编辑实体时打开了对话，请先调用 entity_get_context 获取实体上下文，然后与用户对话。`,
       ctx.entityType ? `实体类型：${ctx.entityType}` : '',
       ctx.entityName ? `实体名称：${ctx.entityName}` : '',
@@ -342,11 +360,9 @@ export function useSmartFillChat() {
       return
     }
 
-    // 注入 /skill:smart-fill 前缀，确保后续对话轮次保持智能填充技能上下文
-    const prompt = `/skill:smart-fill\n${text}`
-
+    // S4：原 `/skill:smart-fill` 前缀为无处理器的惰性文本（全仓无解析器），已移除
     try {
-      await backend.prompt(prompt)
+      await backend.prompt(text)
     } catch (err) {
       loading.value = false
       console.error('[SmartFillChat] 发送消息失败:', err)

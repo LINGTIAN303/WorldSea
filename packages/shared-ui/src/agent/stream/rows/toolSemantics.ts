@@ -144,6 +144,10 @@ export interface ToolMeta {
   replacements?: number
   exit_code?: number
   duration_ms?: number
+  /** E3-4 沙箱审计元信息：沙箱模式（`read_only` / `workspace_write` 稳定锚点；无戳记不落字段） */
+  sandbox?: string
+  /** E3-4 沙箱拒绝标记（受限命令的写被系统拒绝：工作区外写 / 只读档任何写） */
+  sandbox_denied?: boolean
 }
 
 /** 字节数格式化为可读大小（如 2150 → "+2.1 KB"） */
@@ -184,6 +188,23 @@ export function extractEffectLabel(meta?: ToolMeta | null): string {
       if (typeof meta.duration_ms === 'number') parts.push(`${(meta.duration_ms / 1000).toFixed(1)}s`)
       return parts.join(' · ')
     }
+    default:
+      return ''
+  }
+}
+
+/**
+ * E3-4（2026-09-18）：沙箱模式短标签（`__meta.sandbox` → 工具行常显徽标）
+ *
+ * 未知 / 缺失模式返回空串（调用方不渲染）；`read_only` / `workspace_write` 为后端稳定锚点
+ * （`agent-kernel::sandbox::SandboxMode::as_str`，跨端一致）。
+ */
+export function formatSandboxMode(mode?: string | null): string {
+  switch (mode) {
+    case 'read_only':
+      return '沙箱·只读'
+    case 'workspace_write':
+      return '沙箱·工作区写'
     default:
       return ''
   }

@@ -19,7 +19,8 @@ export {
 import { ref, computed, reactive, readonly } from 'vue'
 import { invoke as tauriInvoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn, isHttpBackend, invokeRpc, invoke } from './transport'
-import { useConfirm } from '@worldsea/ui-kit'
+import { useConfirm, useAsk, type AskQuestion } from '@worldsea/ui-kit'
+import { toastWarn } from '@/composables/useToast'
 import { useOrchEvents } from './useOrchEvents'
 import { ALL_TOOLS_MAP, loadApiKey, type IToolContext } from '@agent/index'
 // H3 Skills 点火（P1，2026-08-30）：技能索引注入 + 已安装技能扫描合并
@@ -48,6 +49,7 @@ import {
   reduceEvent,
   parseToolResult,
   actionEventToTurnEvents,
+  collectA2UIActionEvents,
   type ActionStatus,
   type FlatRow,
   type Turn,
@@ -212,10 +214,19 @@ type RustStreamPayload =
       status?: string
       /** H7 P0.5：执行耗时（毫秒） */
       durationMs?: number
-      /** H7 P0.5：失败错误摘要 */
+      /** H7 P0.5：失败错误摘要（result 内另有 T1 判别字段 isError/errorCode） */
       error?: string
     }
-  | { type: 'error'; message: string }
+  | {
+      type: 'error'
+      message: string
+      /** A5 后续：稳定错误码（如 RATE_LIMIT；非 Backend 错误时缺失） */
+      code?: string
+      /** A5 后续：是否可重试（瞬时性故障） */
+      retryable?: boolean
+      /** A5 后续：服务端 Retry-After 建议等待（毫秒） */
+      retryAfterMs?: number
+    }
   | { type: 'agent_end' }
   // R6 第一部分转发补齐的六类动作段事件（tauri emitter 注入流通道）：
   // payload 平铺 { action, seq, ...动作段明细 }（action_event_payload 映射的 camelCase 明细）
@@ -228,6 +239,8 @@ type RustStreamPayload =
   // total_steps 总步骤预算警示（tauri emitter 独立推送，非动作段语义）：
   // 80%/95%/100% 各一次，前端据此在流区底部展示「继续」横幅（满额时）
   | { type: 'step_budget_warning'; used: number; limit: number; percent: number }
+  // A5 收尾（2026-09-17）：LLM/工具重试进行中（退避等待期状态行；恢复/终态即消散）
+  | { type: 'llm_retry'; attempt: number; maxRetries: number; backoffMs: number; error: string }
   // 2026-09-02 系统工具流式（tauri emitter 独立推送，非动作段语义）：
   // - tool_delta：bash/powershell 增量输出（工具段内容区实时显示）
   // - file_change：write/edit/edit_diff 绿红 diff（含路径渲染）
@@ -241,6 +254,15 @@ type RustStreamPayload =
     }
 
 // ─── Rust 端类型镜像（snake_case，与 agent-runtime 序列化一致）──────────────
+
+/** 提示段（A4 双端收口）：与 Rust `agent::prompt_sections::PromptSection` 同形直传。
+ *  `order` 为静态注入带内序（200-299）——带内序由本文件 `SECTION_ORDER` 集中分配，
+ *  带间序（场景 100 / 静态带 / 记忆 300 / 管线 400）由 Rust `prompt_sections::order` 持有。 */
+export interface PromptSectionDto {
+  name: string
+  order: number
+  text: string
+}
 
 /** Rust `agent_commands::SessionInfo` 镜像 */
 interface RustSessionInfo {
@@ -591,6 +613,39 @@ function clearStepBudgetHint(): void {
   latestStepBudget.value = null
 }
 
+// ─── A5 收尾：重试状态行 + 终态错误结构化信息（2026-09-17）──────────
+
+/** 重试中状态（`llm_retry` 事件刷新；null=非重试态）——退避等待期状态行消费 */
+export interface RetryStateInfo {
+  /** 当前第几次重试（从 1 计） */
+  attempt: number
+  /** 最大重试次数 */
+  maxRetries: number
+  /** 本次等待毫秒（退避与 Retry-After 取大的最终等待；状态行倒计时基准） */
+  backoffMs: number
+  /** 失败原因摘要（状态行展示，如 "429 Too Many Requests"） */
+  error: string
+  /** 等待截止时间（前端本地时钟；倒计时剩余 = deadlineAt - now） */
+  deadlineAt: number
+}
+
+const latestRetry = ref<RetryStateInfo | null>(null)
+
+/** 终态错误的结构化信息（流通道 `error` payload；错误行展示「可重试 / 建议等待」） */
+export interface LlmErrorInfo {
+  code?: string
+  retryable?: boolean
+  retryAfterMs?: number
+}
+
+const latestErrorInfo = ref<LlmErrorInfo | null>(null)
+
+/** 清空重试/终态错误提示（会话切换、新建/草稿会话、新任务开始时调用） */
+function clearRetryHints(): void {
+  latestRetry.value = null
+  latestErrorInfo.value = null
+}
+
 // ─── 上下文窗口：手动压缩（/compact 指令与上下文面板共用）──────
 
 /** `agent_kernel::context_budget::ContextUsage` 镜像（camelCase 与 Rust serde 一致） */
@@ -798,6 +853,8 @@ function flatRowToStreamItem(row: FlatRow): AgentStreamItem {
           timestamp: row.msg.timestamp,
           images: row.msg.images,
           files: row.msg.files,
+          // 批次 C·S1（2026-09-20）：来源标记透传（定时唤醒 → UserRow 专门行）
+          metadata: row.msg.inputKind ? { input_kind: row.msg.inputKind } : undefined,
         },
         id: row.msg.id,
         timestamp: row.msg.timestamp,
@@ -1112,6 +1169,29 @@ function handleStreamEvent(sessionId: string, payload: RustStreamPayload): void 
     return
   }
 
+  // A5 收尾（2026-09-17）：重试中状态行 + 终态错误结构化信息（此前已透传未消费）
+  // - llm_retry：退避等待期状态行（第 n/m 次 + 倒计时基准 deadlineAt）
+  // - error：终态错误 → 记录 code/retryable/retryAfterMs（错误行展示），重试状态消散
+  if (payload.type === 'llm_retry') {
+    latestRetry.value = {
+      attempt: payload.attempt,
+      maxRetries: payload.maxRetries,
+      backoffMs: payload.backoffMs,
+      error: payload.error,
+      deadlineAt: Date.now() + payload.backoffMs,
+    }
+    return
+  }
+  if (payload.type === 'error') {
+    latestErrorInfo.value = {
+      code: payload.code,
+      retryable: payload.retryable,
+      retryAfterMs: payload.retryAfterMs,
+    }
+    latestRetry.value = null
+    return
+  }
+
   // 2026-09-02 系统工具流式事件：进轮次树工具段（实时渲染；回源无此事件，实时专属）
   // - tool_delta：bash/powershell 增量输出 → 归并到正在执行/刚完成的工具段内容区
   // - file_change：write/edit/edit_diff 绿红 diff → 归并到工具段（含路径渲染）
@@ -1141,6 +1221,8 @@ function handleStreamEvent(sessionId: string, payload: RustStreamPayload): void 
   }
 
   if (payload.type === 'start') {
+    // A5 收尾：流恢复（新流开始）→ 重试状态行消散（若曾重试）
+    latestRetry.value = null
     // 新流开始：创建空助手消息承载后续增量（messages 仍维护，供 lastAssistantHas* 等消费）
     const msg: AgentMessage = {
       id: nextAssistantId(),
@@ -1230,7 +1312,8 @@ function handleStreamEvent(sessionId: string, payload: RustStreamPayload): void 
     return
   }
 
-  // 工具调用结束：result 为工具真实执行结果（失败时为 { error, tool }）
+  // 工具调用结束：result 为工具真实执行结果（T1 起失败结果为判别联合：isError + errorCode，
+  // 并保留 error/tool 字段；旧载荷仍由 parseToolResult 形状推断兜底）
   if (payload.type === 'tool_call_end') {
     if (turnId) {
       const parsed = parseToolResult(payload.result)
@@ -1354,8 +1437,8 @@ interface RustConfirmPayload {
   args?: Record<string, unknown>
   /** 仅 resolved 事件：`resolved` 标记 */
   type?: 'resolved'
-  /** 仅 resolved 事件：审批结果 */
-  approved?: boolean
+  /** 仅 resolved 事件：审批结果（D8 四值；timeout 由 kernel 超时产生） */
+  outcome?: 'approved' | 'denied' | 'skipped' | 'timeout'
 }
 
 /** HITL 确认事件监听器清理函数（按 sessionId 索引） */
@@ -1381,8 +1464,9 @@ async function setupConfirmListener(sessionId: string): Promise<void> {
       // v2 白名单附加动作（方向3 P0，2026-09-03）：命令工具 → 命令白名单；FS 写/搜索 → 路径白名单
       const allowAction = buildAllowAction(payload.toolName, payload.args)
       // 三键确认（2026-08-30）：通过 / 取消(跳过) / 拒绝——此前只有 取消+确认(文案"删除"，
-      // 被读成"拒绝")，没有「通过」入口。kernel v1 仅 bool：跳过与拒绝均按 false（不执行）处理
-      const approved = await confirm({
+      // 被读成"拒绝")，没有「通过」入口。D8 四值（2026-09-17）：三键各自成值回传
+      // （通过→approved / 拒绝→denied / 取消(跳过)→skipped；timeout 由 kernel 超时产生）
+      const choice = await confirm({
         type: 'danger',
         title: '危险操作确认',
         description: `工具 "${payload.toolName}" 将执行${argSummary ? `\n参数：${argSummary}` : ''}\n是否继续？`,
@@ -1391,11 +1475,14 @@ async function setupConfirmListener(sessionId: string): Promise<void> {
         neutralText: '取消(跳过)',
         position: 'bottom',
         extraActions: allowAction ? [allowAction] : [],
+        withChoice: true,
       })
+      const outcome =
+        choice === 'confirmed' ? 'approved' : choice === 'skipped' ? 'skipped' : 'denied'
       await safeInvoke('cmd_agent_confirm', {
         sessionId,
         confirmId: payload.confirmId,
-        approved,
+        outcome,
       })
     })
     confirmUnlistenFns.set(sessionId, unlisten)
@@ -1415,8 +1502,8 @@ const ALLOWABLE_COMMAND_TOOLS = new Set([
   'shell_session_write',
 ])
 
-/** FS 写/搜索工具名（白名单「路径」维度；read 不触发确认，无需白名单） */
-const ALLOWABLE_PATH_TOOLS = new Set(['write_file', 'edit_file', 'search_files'])
+/** FS 写/搜索工具名（白名单「路径」维度；对齐 kernel confirmation::is_write_or_search_tool —— 2026-09-20 补 edit_diff） */
+const ALLOWABLE_PATH_TOOLS = new Set(['write_file', 'edit_file', 'edit_diff', 'search_files'])
 
 /**
  * 构造「添加白名单并放行」附加动作（v2，2026-09-03）
@@ -1454,6 +1541,71 @@ function teardownConfirmListener(sessionId: string): void {
   if (unlisten) {
     unlisten()
     confirmUnlistenFns.delete(sessionId)
+  }
+}
+
+// ─── Q1 提问事件监听（agent:ask:{session_id}，2026-09-20）────────────────────
+
+/** Rust `AskRequested` / `AskResolved` 事件 payload 镜像 */
+interface RustAskPayload {
+  /** 提问请求唯一 ID（回传 cmd_agent_ask_answer 时原样返回） */
+  askId: string
+  /** 仅 requested 事件：问题批次（camelCase：id/question/header?/options?/multiSelect?） */
+  questions?: AskQuestion[]
+  /** 仅 resolved 事件：`resolved` 标记 */
+  type?: 'resolved'
+  /** 仅 resolved 事件：结果（answered / denied / cancelled / timed_out） */
+  outcome?: 'answered' | 'denied' | 'cancelled' | 'timed_out'
+}
+
+/** 提问事件监听器清理函数（按 sessionId 索引） */
+const askUnlistenFns = new Map<string, UnlistenFn>()
+
+/**
+ * 为指定会话设置提问事件监听（Q1）
+ *
+ * 监听 `agent:ask:{session_id}`：`AskRequested` → 提问面板（useAsk 批量协议，
+ * 逐题作答）→ 用户作答/跳过/取消后经 `cmd_agent_ask_answer` 回传
+ * （取消 = answers 缺省 = 拒绝作答 → ASK_DENIED）。`AskResolved`（含随轮取消
+ * 与作答完成）→ `dismiss` 关闭对应面板（对已解决 ask_id 幂等无害）。
+ * 幂等：已存在监听器则直接返回。
+ */
+async function setupAskListener(sessionId: string): Promise<void> {
+  if (askUnlistenFns.has(sessionId)) return
+
+  const eventName = `agent:ask:${sessionId}`
+  try {
+    const unlisten = await listen<RustAskPayload>(eventName, async (e) => {
+      const payload = e.payload
+      const { ask, dismiss } = useAsk()
+      // kernel 侧已解决（作答回传后的 resolved / abort·销毁的随轮取消 / 10 分钟超时跳过）
+      // → 关闭面板；超时另给弱提示说明「已按跳过处理」（模型侧收到空答案 + timedOut 标记）
+      if (payload.type === 'resolved') {
+        if (payload.outcome === 'timed_out') {
+          toastWarn('提问等待超时（10 分钟），已按「跳过」处理并继续')
+        }
+        dismiss(payload.askId)
+        return
+      }
+      if (!payload.questions || payload.questions.length === 0) return
+      const answers = await ask({ askId: payload.askId, questions: payload.questions })
+      const args: Record<string, unknown> = { sessionId, askId: payload.askId }
+      // 取消（answers = null）→ 不携带 answers 字段（Rust Option → None = 拒绝作答）
+      if (answers) args.answers = answers
+      await safeInvoke('cmd_agent_ask_answer', args)
+    })
+    askUnlistenFns.set(sessionId, unlisten)
+  } catch (err) {
+    console.error(`[useAgentRust] listen ${eventName} 失败:`, err)
+  }
+}
+
+/** 清理指定会话的提问事件监听 */
+function teardownAskListener(sessionId: string): void {
+  const unlisten = askUnlistenFns.get(sessionId)
+  if (unlisten) {
+    unlisten()
+    askUnlistenFns.delete(sessionId)
   }
 }
 
@@ -1535,6 +1687,18 @@ function buildBridgeContext(): IToolContext {
     },
     platform: 'web' as const,
     currentSessionId: currentSessionId.value ?? undefined,
+    // A2UI 接线（2026-09-17）：桥工具画布消息 → Rust 会话事件总线
+    // （OrchestratorEvent::A2UIEvent）→ `agent:event:a2ui:{session}` → handleA2UIEvent 渲染。
+    // 会话缺省（草稿态）时静默忽略——画布为尽力而为的 UI 通道，失败不影响工具结果。
+    emitA2UI: (surfaceId: string, message: A2UIMessage) => {
+      const sid = currentSessionId.value
+      if (!sid) return
+      void safeInvoke('cmd_agent_emit_a2ui', { sessionId: sid, surfaceId, message }).catch(
+        (err: unknown) => {
+          console.warn('[useAgentRust] emitA2UI 失败:', err)
+        },
+      )
+    },
   }
   return toolBridgeContext
 }
@@ -1915,10 +2079,11 @@ async function getCurrentProjectIdSafe(): Promise<string | null> {
 }
 
 /** 新建会话（返回 Rust SessionInfo）
+ * - `promptSections`：A4 双端收口后的提示段清单（结构化；组装由 Rust 负责）
  * - `scenarioId`：B1 场景 ID（可选；缺省不传 → Rust 使用默认场景 world）
  */
 async function newSession(
-  systemPrompt?: string,
+  promptSections?: PromptSectionDto[],
   providerConfig?: RustProviderConfigFull,
   scenarioId?: string,
 ): Promise<RustSessionInfo> {
@@ -1960,7 +2125,9 @@ async function newSession(
   // 任务29/D1 锚点：会话归属当前项目（弱引用前端 ProjectManager 的项目 UUID）
   const projectId = await getCurrentProjectIdSafe()
   const info = await safeInvoke<RustSessionInfo>('new_session', {
-    systemPrompt: systemPrompt ?? null,
+    // legacy 单段字段保留在契约内（本路径不再使用；结构化段走 promptSections）
+    systemPrompt: null,
+    promptSections: promptSections ?? null,
     providerConfig: providerConfig ?? null,
     scenarioId: scenarioId ?? null,
     workdir,
@@ -1978,6 +2145,7 @@ async function newSession(
     teardownSubAgentListener(oldSessionId)
     teardownStreamListener(oldSessionId)
     teardownConfirmListener(oldSessionId)
+    teardownAskListener(oldSessionId)
     teardownPlanListener(oldSessionId)
     teardownTraceListener(oldSessionId)
     teardownOrchListener(oldSessionId)
@@ -2016,6 +2184,8 @@ async function newSession(
   
   a2uiSurfaces.value = {}
   subAgents.value = []
+  // A5 收尾：新会话重置重试状态行/终态错误信息
+  clearRetryHints()
   // M2 编排迹线：新会话重置（跨会话不残留 run）
   resetOrchestrationTrace()
   // A4 Plan-Exec：新会话无计划，清空 usePlanStore（按会话隔离）
@@ -2029,6 +2199,7 @@ async function newSession(
   await setupSubAgentListener(info.id)
   await setupStreamListener(info.id)
   await setupConfirmListener(info.id)
+  await setupAskListener(info.id)
   await setupPlanListener(info.id)
   await setupTraceListener(info.id)
   await setupOrchListener(info.id)
@@ -2072,6 +2243,7 @@ async function newDraftSession(scenarioId?: string): Promise<void> {
     teardownSubAgentListener(oldSessionId)
     teardownStreamListener(oldSessionId)
     teardownConfirmListener(oldSessionId)
+    teardownAskListener(oldSessionId)
     teardownPlanListener(oldSessionId)
     teardownTraceListener(oldSessionId)
     teardownOrchListener(oldSessionId)
@@ -2089,6 +2261,8 @@ async function newDraftSession(scenarioId?: string): Promise<void> {
   
   a2uiSurfaces.value = {}
   subAgents.value = []
+  // A5 收尾：草稿态重置重试状态行/终态错误信息
+  clearRetryHints()
   resetOrchestrationTrace()
   usePlanStore().clearPlan()
   turns.value = []
@@ -2194,6 +2368,7 @@ async function deleteSession(sessionId: string): Promise<void> {
   teardownSubAgentListener(sessionId)
   teardownStreamListener(sessionId)
   teardownConfirmListener(sessionId)
+  teardownAskListener(sessionId)
   teardownTraceListener(sessionId)
   teardownOrchestrationTraceListener(sessionId)
   if (currentSessionId.value === sessionId) {
@@ -2239,21 +2414,59 @@ async function setSessionPinned(sessionId: string, pinned: boolean): Promise<voi
 /** 已保存配置 + 活跃状态合并视图（面板列表数据源） */
 async function getMCPConnections(): Promise<MCPConnectionState[]> {
   const saved = await safeInvoke<MCPConnectionConfig[]>('cmd_mcp_saved', {}).catch(() => [])
-  const status = await safeInvoke<Array<{ id: string; connected: boolean; toolCount: number }>>(
-    'cmd_mcp_status',
-    {},
-  ).catch(() => [] as Array<{ id: string; connected: boolean; toolCount: number }>)
+  const status = await safeInvoke<
+    Array<{ id: string; connected: boolean; toolCount: number; state?: string; error?: string | null }>
+  >('cmd_mcp_status', {}).catch(
+    () => [] as Array<{ id: string; connected: boolean; toolCount: number; state?: string; error?: string | null }>,
+  )
   const statusMap = new Map(status.map((s) => [s.id, s]))
   return saved.map((config) => {
     const st = statusMap.get(config.id)
+    // M6（2026-09-17 三域对齐 dsh）：状态直取 Rust 状态机——
+    // connected → 已连接；reconnecting → 连接中（退避重连中）；failed → 异常（带原因）
+    const status: MCPConnectionState['status'] = !config.enabled
+      ? 'disconnected'
+      : st?.state === 'connected'
+        ? 'connected'
+        : st?.state === 'reconnecting'
+          ? 'connecting'
+          : st?.state === 'failed'
+            ? 'error'
+            : 'disconnected'
     return {
       id: config.id,
       config,
-      // 真实状态：enabled 且 Rust 侧活跃连接才算 connected
-      status: config.enabled && st?.connected ? 'connected' : 'disconnected',
+      status,
+      error: st?.error ?? undefined,
       tools: [],
+      // 工具数直取 status（工具明细在面板展开时按需走 cmd_mcp_list_tools 懒加载）
+      toolCount: st?.toolCount ?? 0,
     } as MCPConnectionState
   })
+}
+
+// ─── M6：MCP 状态事件（Rust Hub 状态机 → 前端实时刷新） ───
+
+/** 状态变化回调（useMcpConnections 注册；事件仅作「需要刷新」信号，合并视图仍由 getMCPConnections 统一产出） */
+let mcpStatusChangedHandler: (() => void) | null = null
+
+function onMCPStatusChanged(handler: () => void): void {
+  mcpStatusChangedHandler = handler
+}
+
+let mcpStatusListenerBound = false
+
+/** 确保 mcp:status 事件监听注册（幂等；首次取数后调用） */
+async function ensureMCPStatusListener(): Promise<void> {
+  if (mcpStatusListenerBound) return
+  mcpStatusListenerBound = true
+  try {
+    await listen('mcp:status', () => {
+      mcpStatusChangedHandler?.()
+    })
+  } catch {
+    mcpStatusListenerBound = false
+  }
 }
 
 /** 保存配置并连接（rmcp：stdio/http 按配置分派），幂等（同 id 重连） */
@@ -2289,6 +2502,7 @@ async function switchSession(sessionId: string): Promise<void> {
     teardownSubAgentListener(oldSessionId)
     teardownStreamListener(oldSessionId)
     teardownConfirmListener(oldSessionId)
+    teardownAskListener(oldSessionId)
     teardownPlanListener(oldSessionId)
     teardownTraceListener(oldSessionId)
     teardownOrchListener(oldSessionId)
@@ -2303,12 +2517,15 @@ async function switchSession(sessionId: string): Promise<void> {
   
   a2uiSurfaces.value = {}
   subAgents.value = []
+  // A5 收尾：切会话重置重试状态行/终态错误信息（与预算横幅同理，防跨会话残留）
+  clearRetryHints()
   // M2 编排迹线：切会话重置 run 状态（run 挂会话，不跨会话残留）
   resetOrchestrationTrace()
   await setupA2UIListener(sessionId)
   await setupSubAgentListener(sessionId)
   await setupStreamListener(sessionId)
   await setupConfirmListener(sessionId)
+  await setupAskListener(sessionId)
   await setupPlanListener(sessionId)
   await setupTraceListener(sessionId)
   await setupOrchListener(sessionId)
@@ -2346,6 +2563,12 @@ async function switchSession(sessionId: string): Promise<void> {
   } else if (rustMsgs.length > 0) {
     turns.value = rebuildTurnsFromMessages(rustMsgs)
     sessionTurnsCache.set(sessionId, turns.value)
+  }
+  // A2UI 画布回源（2026-09-17）：按消息序重放持久化的 a2ui 动作事件重建画布状态
+  // （数据源 = assistant.meta.action_events；D1 裁定不进过程层，故不走轮次树，
+  //  仅重放进 a2uiSurfaces——handleA2UIEvent 幂等：创建覆盖/更新合并/删除移除）
+  for (const ev of collectA2UIActionEvents(rustMsgs)) {
+    handleA2UIEvent(ev.surfaceId, ev.message as A2UIMessage)
   }
   // A4 Plan-Exec：切换会话时恢复该会话的计划（按会话隔离），无计划则清空
   try {
@@ -2459,7 +2682,7 @@ async function readTextOrNull(path: string): Promise<string | null> {
 
 /**
  * 一次性迁移（v1 → 八文件体系）：<workdir>/WORLDSEA.md → AGENTS.md（改名不改内容）。
- * AGENTS.md 已存在或两文件均不存在时为 no-op；规则注入路径（buildSessionSystemPrompt）
+ * AGENTS.md 已存在或两文件均不存在时为 no-op；规则注入路径（buildSessionPromptSections）
  * 与 ProjectRulesEditor 编辑路径共用，保证两侧看到一致状态。
  */
 export async function ensureProjectAgentsFile(): Promise<void> {
@@ -2477,7 +2700,7 @@ export async function ensureProjectAgentsFile(): Promise<void> {
   } catch { /* 旧文件也不存在：首次使用，无需处理 */ }
 }
 
-/** AGENTS.md/RULES.md 等常驻类的读取已并入 buildSessionSystemPrompt 的全局组/项目组循环（readTextOrNull + 文件常量）。 */
+/** AGENTS.md/RULES.md 等常驻类的读取已并入 buildSessionPromptSections 的全局组/项目组循环（readTextOrNull + 文件常量）。 */
 
 /**
  * A1 乙3①（2026-09-11）：把 `MEMORY.md` 与记忆库对齐（派生渲染 → 落盘）
@@ -2489,7 +2712,7 @@ export async function ensureProjectAgentsFile(): Promise<void> {
  *      │ memory_md_render（Rust 侧派生渲染，字节稳定）
  *      ▼
  * ~/.WorldSea/rules/MEMORY.md   ← 本函数落盘
- *      │ buildSessionSystemPrompt 全局组最后一项
+ *      │ buildSessionPromptSections 全局组最后一项
  *      ▼
  * system_prompt（常驻每轮可见）
  * ```
@@ -2521,27 +2744,46 @@ async function syncMemoryMd(sessionId: string | null): Promise<boolean> {
   }
 }
 
+/** 静态注入带内段序（A4 双端收口，07 设计 §3.2）：200-299 带内序由 TS 集中分配；
+ *  带间序（场景 100 / 静态带 / 记忆 300 / 管线 400）由 Rust `prompt_sections::order` 持有。
+ *  取值与旧「6 块 push 顺序」一一对应（重组装结果逐字节一致）。 */
+const SECTION_ORDER = {
+  worldsea: 200,
+  globalRules: 210,
+  globalWriting: 215,
+  globalDesign: 220,
+  globalTools: 225,
+  memoryMd: 230,
+  projectAgents: 240,
+  projectWriting: 245,
+  projectDesign: 250,
+  projectTools: 255,
+  workspacePartition: 260,
+  skillIndex: 270,
+} as const
+
 /**
- * 构建会话级 system prompt 注入段（ensureSession → newSession 用）。
+ * 构建会话级提示段清单（ensureSession → newSession 用；A4 双端收口 2026-09-17）。
  *
- * 组成（按序拼接，空段跳过）——H5 常驻类（2026-08-30 拍板八文件体系）：
+ * 组成（段序见 `SECTION_ORDER`，空段跳过）——H5 常驻类（2026-08-30 拍板八文件体系）：
  * ① WORLDSEA.md（系统级内置资源）：Agent 认知 WorldSea 本身；不可编辑，随版本维护
  * ② 全局规则组：rules/{RULES,WRITING,DESIGN,TOOLS}.md——优先级低于项目级（拍板「RULES 低 AGENTS 一级」，同组同理）
  * ②.5 MEMORY.md（**全局组最后一项**，A1 乙3①）——常驻认知，非「需遵循的规则」
  * ③ 项目规则组：<workdir>/{AGENTS,WRITING,DESIGN,TOOLS}.md——优先级最高，最后注入
  * ④ 技能索引（H3 P1：initSkillRegistry 每次建会话重扫 + buildSkillIndexPrompt 启停过滤）
  *
- * 注入契约：new_session(system_prompt) → AgentLoopConfig.system_prompt →
- * build_prompt_options 的 static_p 段与场景 prompt **拼接**（非覆盖，见 agent-kernel memory.rs）。
+ * 注入契约（A4 双端收口）：本函数只**产出结构化段**（name/order/text，静态注入带 200-299）；
+ * 组装由 Rust `assemble_sections` 唯一负责（段序排序 + `\n\n` 连接）——旧「TS 拼文本」路径
+ * 已收口。Rust 侧再追加 `mcp_note`（order 290）/ 运行期记忆（300）/ 管线指引（400）。
  * WORLD.md 不在本函数（节奏型注入=实体操作触发重注入，排序第 4 项施工）。
  *
  * 设计说明（原 await-user 点收敛）：
- * - 生效时机 v1 = 仅新会话（已存在会话 system_prompt 固定）；规则变更对旧会话生效待后续（watcher/事件）。
+ * - 生效时机 v1 = 仅新会话（已存在会话提示段固定）；规则变更对旧会话生效待后续（watcher/事件）。
  * - 措辞：认知段用「认知」，规则段用「遵循」+ 显式优先级声明；如需更强措辞仅改各段头文案。
  * - 「AGENTS.md 大部分操作注入」v1 表达 = system prompt 常驻（会话生命周期内每轮可见）。
  */
-async function buildSessionSystemPrompt(): Promise<string | undefined> {
-  const sections: string[] = []
+async function buildSessionPromptSections(): Promise<PromptSectionDto[]> {
+  const sections: PromptSectionDto[] = []
 
   // §六 全局层迁移前置：确保 home 规则目录就绪（homeDirSync 回填 + 目录创建/存量迁移），
   // 使 ② 全局规则组读到新载体 ~/.WorldSea/rules（消除首启竞态）
@@ -2552,29 +2794,35 @@ async function buildSessionSystemPrompt(): Promise<string | undefined> {
   await syncMemoryMd(currentSessionId.value)
 
   // ① WORLDSEA.md（内置系统说明——始终存在，认知性非约束性）
-  sections.push(
-    '## WorldSea 系统说明（WORLDSEA.md）\n\n' +
-    '以下为应用内置系统文档，帮助你认知本平台与你的角色：\n\n' +
-    BUILTIN_WORLDSEA_MD.trim(),
-  )
+  sections.push({
+    name: 'worldsea',
+    order: SECTION_ORDER.worldsea,
+    text:
+      '## WorldSea 系统说明（WORLDSEA.md）\n\n' +
+      '以下为应用内置系统文档，帮助你认知本平台与你的角色：\n\n' +
+      BUILTIN_WORLDSEA_MD.trim(),
+  })
 
   // ② 全局规则组（存在才注入；优先级低于项目级——拍板）
   const rulesDir = globalRulesDirSync()
   if (rulesDir) {
-    const globalGroup: Array<[string, string]> = [
-      [RULES_RULES_FILE, '全局规则'],
-      [WRITING_RULES_FILE, '写作规则'],
-      [DESIGN_RULES_FILE, '设计规则'],
-      [TOOLS_RULES_FILE, '工具规则'],
+    const globalGroup: Array<[string, string, string, number]> = [
+      [RULES_RULES_FILE, '全局规则', 'global_rules', SECTION_ORDER.globalRules],
+      [WRITING_RULES_FILE, '写作规则', 'global_writing', SECTION_ORDER.globalWriting],
+      [DESIGN_RULES_FILE, '设计规则', 'global_design', SECTION_ORDER.globalDesign],
+      [TOOLS_RULES_FILE, '工具规则', 'global_tools', SECTION_ORDER.globalTools],
     ]
-    for (const [file, label] of globalGroup) {
+    for (const [file, label, name, order] of globalGroup) {
       const content = await readTextOrNull(`${rulesDir}/${file}`)
       if (content) {
-        sections.push(
-          `## ${label}（全局 · ${file}）\n\n以下是全局${label}（用户与 Agent 共同维护），请遵循执行；` +
-          '与项目级规则冲突时，以项目级为准：\n\n' +
-          content.trim(),
-        )
+        sections.push({
+          name,
+          order,
+          text:
+            `## ${label}（全局 · ${file}）\n\n以下是全局${label}（用户与 Agent 共同维护），请遵循执行；` +
+            '与项目级规则冲突时，以项目级为准：\n\n' +
+            content.trim(),
+        })
       }
     }
 
@@ -2585,13 +2833,16 @@ async function buildSessionSystemPrompt(): Promise<string | undefined> {
     // （调和结论记录了「已发生的更正」，防模型拿过期印象作答）。
     const memoryMd = await readTextOrNull(`${rulesDir}/${MEMORY_RULES_FILE}`)
     if (memoryMd) {
-      sections.push(
-        `## 常驻记忆（全局 · ${MEMORY_RULES_FILE}）\n\n` +
-        '以下是记忆系统为你维护的**常驻认知**（由记忆操作派生，用户不可直接编辑）——' +
-        '跨会话稳定地记录用户的偏好、设定与**已发生的更正**。' +
-        '与你在对话中的临时印象冲突时，以本文件（尤其是时序较晚者）为准：\n\n' +
-        memoryMd.trim(),
-      )
+      sections.push({
+        name: 'memory_md',
+        order: SECTION_ORDER.memoryMd,
+        text:
+          `## 常驻记忆（全局 · ${MEMORY_RULES_FILE}）\n\n` +
+          '以下是记忆系统为你维护的**常驻认知**（由记忆操作派生，用户不可直接编辑）——' +
+          '跨会话稳定地记录用户的偏好、设定与**已发生的更正**。' +
+          '与你在对话中的临时印象冲突时，以本文件（尤其是时序较晚者）为准：\n\n' +
+          memoryMd.trim(),
+      })
     }
   }
 
@@ -2599,19 +2850,22 @@ async function buildSessionSystemPrompt(): Promise<string | undefined> {
   await ensureProjectAgentsFile()
   const workdir = currentWorkdir.value
   if (workdir) {
-    const projectGroup: Array<[string, string]> = [
-      [AGENTS_RULES_FILE, '项目协作规则'],
-      [WRITING_RULES_FILE, '写作规则'],
-      [DESIGN_RULES_FILE, '设计规则'],
-      [TOOLS_RULES_FILE, '工具规则'],
+    const projectGroup: Array<[string, string, string, number]> = [
+      [AGENTS_RULES_FILE, '项目协作规则', 'project_agents', SECTION_ORDER.projectAgents],
+      [WRITING_RULES_FILE, '写作规则', 'project_writing', SECTION_ORDER.projectWriting],
+      [DESIGN_RULES_FILE, '设计规则', 'project_design', SECTION_ORDER.projectDesign],
+      [TOOLS_RULES_FILE, '工具规则', 'project_tools', SECTION_ORDER.projectTools],
     ]
-    for (const [file, label] of projectGroup) {
+    for (const [file, label, name, order] of projectGroup) {
       const content = await readTextOrNull(`${workdir}/${file}`)
       if (content) {
-        sections.push(
-          `## ${label}（项目 · ${file}）\n\n以下是本项目的${label}（用户与 Agent 共同维护），请遵循执行：\n\n` +
-          content.trim(),
-        )
+        sections.push({
+          name,
+          order,
+          text:
+            `## ${label}（项目 · ${file}）\n\n以下是本项目的${label}（用户与 Agent 共同维护），请遵循执行：\n\n` +
+            content.trim(),
+        })
       }
     }
 
@@ -2628,14 +2882,17 @@ async function buildSessionSystemPrompt(): Promise<string | undefined> {
           `- 实体数据受 E1 写保护，请用实体语义工具（entity_* / content_search）操作——会话侧 ${workdir}/entities；平台实体目录 ${entityDataDir}\n`
         : // 普通项目：workdir 即项目根，实体目录同源
           `- ${workdir}/entities/、${workdir}/.worldsea/ 为项目数据区，受写保护，请用实体语义工具（entity_* / content_search）操作\n`
-    sections.push(
-      '## 工作区分区\n\n' +
-      `当前工作区根目录：${workdir}\n\n` +
-      `- 临时产物（草稿/中间文件）请写入 ${workdir}/agent-tmp/（Agent 全权，可自由创建与清理，写操作免确认）\n` +
-      `- 收官成果请放入 ${workdir}/agent-out/\n` +
-      dataDirLine +
-      `- 未绑定项目时兜底草稿目录为 ~/.WorldSea/agent`,
-    )
+    sections.push({
+      name: 'workspace_partition',
+      order: SECTION_ORDER.workspacePartition,
+      text:
+        '## 工作区分区\n\n' +
+        `当前工作区根目录：${workdir}\n\n` +
+        `- 临时产物（草稿/中间文件）请写入 ${workdir}/agent-tmp/（Agent 全权，可自由创建与清理，写操作免确认）\n` +
+        `- 收官成果请放入 ${workdir}/agent-out/\n` +
+        dataDirLine +
+        `- 未绑定项目时兜底草稿目录为 ~/.WorldSea/agent`,
+    })
   }
 
   try {
@@ -2644,9 +2901,11 @@ async function buildSessionSystemPrompt(): Promise<string | undefined> {
     console.warn('[useAgentRust] initSkillRegistry 失败，仅内置技能参与索引', e)
   }
   const index = buildSkillIndexPrompt()
-  if (index) sections.push(index)
+  if (index) {
+    sections.push({ name: 'skill_index', order: SECTION_ORDER.skillIndex, text: index })
+  }
 
-  return sections.length ? sections.join('\n\n') : undefined
+  return sections
 }
 
 /**
@@ -2657,16 +2916,16 @@ async function ensureSession(): Promise<string> {
   // 2026-09-10 用户拍板：新建会话（按钮/Ctrl+N/草稿首条消息）继承滑块当前场景
   // 草稿场景优先（切滑块显式设置的目标场景）→ 上一会话视图桶 sceneId（草稿沿用）→ 兜底 world
   const sceneId = draftSceneId.value ?? normalizeSceneId(useSessionViewState().activeState.value?.sceneId)
-  const info = await newSession(await buildSessionSystemPrompt(), undefined, sceneId)
+  const info = await newSession(await buildSessionPromptSections(), undefined, sceneId)
   // A1 乙3①：构建上面那次 prompt 时 currentSessionId 尚为 null（本次调用正为此而建会话），
   // 故那次同步被跳过。此处用新会话 id 补一次 MEMORY.md 派生；**若确有更新**，
   // 重刷一次 prompt 使新内容在同一会话即生效（不更新则完全无额外开销）。
   if (await syncMemoryMd(info.id)) {
     try {
-      const prompt = await buildSessionSystemPrompt()
-      await safeInvoke('cmd_agent_update_system_prompt', {
+      const sections = await buildSessionPromptSections()
+      await safeInvoke('cmd_agent_update_prompt_sections', {
         sessionId: info.id,
-        systemPrompt: prompt ?? null,
+        promptSections: sections,
       })
     } catch (e) {
       console.warn('[useAgentRust] MEMORY.md 更新后的会话 prompt 重刷失败（下轮生效）:', e)
@@ -2680,18 +2939,18 @@ async function ensureSession(): Promise<string> {
 // - 技能启停 toggleSkill / 安装 installSkillAndReload / 卸载 uninstallSkillAndReload /
 //   导入 importLocalSkillAndReload（registry/skills-store）
 // - 规则文件保存（RulesPanel onSave，source='rules'）
-// 动作：重建当前会话完整 system prompt（技能索引 + 规则文件）→ cmd_agent_update_system_prompt
-// 推送 kernel（下一轮 build_prompt_options 即生效）+ 写穿 sessions.system_prompt。
+// 动作：重建当前会话提示段（技能索引 + 规则文件）→ cmd_agent_update_prompt_sections
+// 推送 kernel（下一轮 build_prompt_options 即生效）+ 写穿 sessions 双列（缓存文本 + 段 JSON）。
 // ⚠ initSkillRegistry / 重建流程绝不发事件（只允许变更操作发），否则死循环。
 let sessionPromptRefreshing = false
 async function refreshSessionPrompt(): Promise<void> {
   if (sessionPromptRefreshing || !currentSessionId.value) return
   sessionPromptRefreshing = true
   try {
-    const prompt = await buildSessionSystemPrompt()
-    await safeInvoke('cmd_agent_update_system_prompt', {
+    const sections = await buildSessionPromptSections()
+    await safeInvoke('cmd_agent_update_prompt_sections', {
       sessionId: currentSessionId.value,
-      systemPrompt: prompt ?? null,
+      promptSections: sections,
     })
   } catch (e) {
     // 失败不阻断用户操作；下次变更事件重试
@@ -2719,6 +2978,8 @@ async function prompt(text: string, options?: PromptOptions): Promise<void> {
     return
   }
   // ── /compact 手动压缩指令（中英双别名）：不发往模型、不进消息流 —— 直通后端「一次到底」压缩 ──
+  // A5 收尾：新任务开始 → 清空上一轮的终态错误信息/重试状态（错误行随新轮重置）
+  clearRetryHints()
   if (COMPACT_COMMANDS.has(textContent)) {
     await compactContext(sessionId)
     return
@@ -2876,6 +3137,8 @@ async function prompt(text: string, options?: PromptOptions): Promise<void> {
     throw error
   } finally {
     isStreaming.value = false
+    // A5 收尾：一轮收束 → 重试状态行必消散（重试只可能发生在运行中）
+    latestRetry.value = null
   }
 
   emit({ type: 'agent_end', sessionId, messages: messages.value })
@@ -3249,6 +3512,9 @@ export function useAgentRust() {
     // total_steps 预算警示（只读；流区横幅消费）
     latestStepBudget: readonly(latestStepBudget),
     clearStepBudgetHint,
+    // A5 收尾：重试状态行 + 终态错误结构化信息（只读；对话区状态行/错误行消费）
+    latestRetry: readonly(latestRetry),
+    latestErrorInfo: readonly(latestErrorInfo),
     updateThinkingLevel,
     clearHistory,
     subscribe,
@@ -3288,6 +3554,9 @@ export function useAgentRust() {
     disconnectMCPConnection,
     removeMCPConnection,
     getMcpConfigPath,
+    // M6：状态事件接线（useMcpConnections 消费；Rust 状态机 → 实时刷新）
+    onMCPStatusChanged,
+    ensureMCPStatusListener,
 
     // ── 用量（设置面板 UsagePanel 依赖）──
     totalUsage,

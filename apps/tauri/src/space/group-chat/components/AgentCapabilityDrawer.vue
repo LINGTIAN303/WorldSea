@@ -162,21 +162,8 @@ const alwaysAvailableSet = new Set(ALWAYS_AVAILABLE_TOOLS)
 // 群聊 Agent 不可选技能：安全风险/全局操作/开发工具/元操作/与群聊架构冲突
 const GROUP_CHAT_EXCLUDED_SKILLS = new Set([
   'retrofit-architect',   // 修改项目Schema，多Agent并发改造会冲突
-  'project-io',           // 全局导入导出，不应由群聊Agent执行
-  'terminal-operator',    // Shell命令执行，安全风险
-  'fs-operator',          // 文件系统操作，安全风险
-  'pkg-manager',          // 包管理，安全风险
-  'git-operator',         // Git操作，与群聊场景无关
-  'sys-inspector',        // 系统级查询，与群聊场景无关
-  'terminal-launcher',    // 启动终端进程，安全风险
-  'web-cli-operator',     // CLI联网，间接Shell访问
-  'agent-orchestrator',   // 子Agent调度，与群聊对等架构冲突
-  'skill-creator',        // 元操作，群聊Agent不应创建新技能
-  'find-skills',          // 元操作，群聊Agent不应安装社区技能
-  'code-reviewer',        // 开发工具，与世界观群聊场景无关
-  'test-automator',       // 开发工具，与群聊场景无关
-  'doc-generator',        // 开发工具，与群聊场景无关
-  'security-scanner',     // 开发工具，与群聊场景无关
+  // 2026-09-18 S4：14 个 instructions.md 类技能（终端/文件/包管理/Git/系统/联网/审查/测试/文档/安全/
+  // Skill 元操作/多 Agent 调度）已退役，对应排除项随之移除；creation-orchestrator 仍在（挂账单独议）
   'creation-orchestrator', // Pipeline编排是管理者技能，群聊协调应在群层面
 ])
 

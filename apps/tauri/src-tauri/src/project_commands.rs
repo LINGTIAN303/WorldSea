@@ -1,16 +1,13 @@
 //! 项目命令层（Phase A/B 迁移：数据层链路打通）
 //!
-//! 前端 useProjectSwitcher 的 Tauri 分支在初始化/切换项目时调用 cmd_switch_project，
-//! 创建项目时通过 cmd_get_app_data_dir 获取应用数据目录以自动绑定项目目录。
+//! 前端 useProjectSwitcher 在初始化/切换项目时经下列命令获取应用数据目录、
+//! 绑定项目目录与清理项目数据目录。
+//!
+//! W6（2026-09-18 工作区与环境对齐 dsh）：原 `cmd_switch_project` 空壳（只打日志返回 Ok）
+//! 已删除——会话库自 Phase A 起为**全局单库**（按 `project_id` 列归属 + 前端按项目过滤），
+//! 不存在「切换后端数据库」动作，保留空壳只会造成"已切换"的错觉。
 
 use tauri::Manager;
-
-/// 切换项目（当前架构为全局会话库，记录日志返回成功）
-#[tauri::command]
-pub async fn cmd_switch_project(project_id: String) -> Result<(), String> {
-    tracing::debug!("[Project] 切换到项目: {project_id}（全局会话库，无需重连）");
-    Ok(())
-}
 
 /// 获取应用数据目录路径（用于自动绑定项目存储目录）
 ///

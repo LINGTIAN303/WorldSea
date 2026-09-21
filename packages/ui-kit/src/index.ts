@@ -154,7 +154,13 @@ export {
 export { useDialog } from './composables/useDialog'
 export { useCardDeck } from './composables/useCardDeck'
 export { useConfirm, type ConfirmType, type ConfirmExtraAction } from './composables/useConfirm'
-export { useAsk } from './composables/useAsk'
+export {
+  useAsk,
+  type AskOption,
+  type AskQuestion,
+  type AskAnswer,
+  type AskRequest,
+} from './composables/useAsk'
 export { useSelection, SelectionKey, provideGlobalSelection, type SelectionState } from './composables/useSelection'
 export {
   useShortcuts,

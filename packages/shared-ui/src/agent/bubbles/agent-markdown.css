@@ -28,6 +28,11 @@
 .ws-agent-md > :first-child { margin-top: 0; }
 .ws-agent-md > :last-child { margin-bottom: 0; }
 
+/* C2 流式增量双段容器：首/末块外边距归零需命中段内实际块（wrapper 上的归零
+   挡不住子块外边距经 wrapper 向外折叠）；段间外边距照常折叠，视觉间距不变 */
+.ws-agent-md > .ws-md-seg:first-child > :first-child { margin-top: 0; }
+.ws-agent-md > .ws-md-seg:last-child > :last-child { margin-bottom: 0; }
+
 .ws-agent-md code {
   background: var(--agent-hover-bg);
   padding: 1px 5px;

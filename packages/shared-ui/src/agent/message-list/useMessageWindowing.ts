@@ -49,6 +49,14 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
   let resizeObserver: ResizeObserver | null = null
   let scrollRafId: number | null = null
 
+  /**
+   * 导航点（DotNav）用：用户消息行元素缓存 + 脏标记（2026-09-20 帧率修复②）。
+   * 只在「用户行增删 / 轮次根增删（切窗）」时置脏——流式正文的 innerHTML 逐帧替换
+   * 只产生行内 `characterData`/子节点变动，不置脏，故滚动帧可长期复用缓存。
+   */
+  let navUserMsgEls: HTMLElement[] = []
+  let navUserMsgElsDirty = true
+
   /** 轮次前缀和数组 + O(1) 占位高度：turnPrefixSums[i] = 前 i 个轮次的累计高度 */
   const prefixSums = shallowRef<Float64Array | null>(null)
   let rebuildRafId: number | null = null
@@ -295,14 +303,26 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
     // 2026-09-05 导航点激活推导（放早退之前：纯滚动不切窗时也要更新）——视口顶基准线
     //（top+40px，贴近阅读位）之上最后一条用户消息。目录高亮语义：激活点随基准线跨越
     // 无缝交接，任意时刻恰一条；不依赖 IO 可见性（阈值判定在相邻消息交替处有空档）。
+    //
+    // 2026-09-20 帧率修复②：原实现每次滚动都做一次全 DOM `querySelectorAll('[data-msg-id]')`
+    // （流式自动贴底期间即帧级频率）且对**每个**行元素先读 `offsetParent`（强制布局）再按 id 过滤。
+    // 现改为「用户消息行元素缓存 + 脏标记惰性重建」：滚动帧只遍历缓存（≈ 用户行数），
+    // 且只对用户行做布局读取。
     if (userMsgIds && userMsgIds.value.size > 0) {
-      const navTopY = scroll.getBoundingClientRect().top
+      if (navUserMsgElsDirty) {
+        const ids = userMsgIds.value
+        navUserMsgEls = []
+        for (const el of scroll.querySelectorAll<HTMLElement>('[data-msg-id]')) {
+          if (ids.has(el.dataset.msgId ?? '')) navUserMsgEls.push(el)
+        }
+        navUserMsgElsDirty = false
+      }
+      const navTopY = scroll.getBoundingClientRect().top + 40
       let found = ''
-      for (const el of scroll.querySelectorAll('[data-msg-id]')) {
-        if ((el as HTMLElement).offsetParent === null) continue
-        const id = el.getAttribute('data-msg-id') ?? ''
-        if (!userMsgIds.value.has(id)) continue
-        if (el.getBoundingClientRect().top <= navTopY + 40) found = id
+      for (const el of navUserMsgEls) {
+        // 切窗卸载 / 隐藏的行跳过（脱离文档时 offsetParent 为 null）
+        if (el.offsetParent === null) continue
+        if (el.getBoundingClientRect().top <= navTopY) found = el.dataset.msgId ?? ''
       }
       activeUserMsgId.value = found
     }
@@ -506,6 +526,7 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
     // 清理旧 observer（仅在组件卸载或容器变更时调用）
     if (scrollObserver) { scrollObserver.disconnect(); scrollObserver = null }
     if (mutationObserver) { mutationObserver.disconnect(); mutationObserver = null }
+    navUserMsgElsDirty = true
 
     const containerEl = container.value
     if (!containerEl) return
@@ -539,6 +560,8 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
     mutationObserver = new MutationObserver((mutations) => {
       if (!scrollObserver) return
       for (const m of mutations) {
+        // 移除（切窗卸载 / 会话切换）→ 用户行缓存必失效
+        if (m.removedNodes.length > 0) navUserMsgElsDirty = true
         for (const node of m.addedNodes) {
           if (node.nodeType !== Node.ELEMENT_NODE) continue
           const el = node as Element
@@ -548,6 +571,8 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
               scrollObserver.observe(el)
               observedMsgEls.add(el)
             }
+            // 用户行新增 → 导航点缓存失效（只认用户行，避免正文 innerHTML 变动误置脏）
+            if (userMsgIds?.value.has(el.getAttribute('data-msg-id') ?? '')) navUserMsgElsDirty = true
           }
           // S5：新增轮次根 → 登记 + RO 观察（轮次高度测量单元）
           if (el.hasAttribute && el.hasAttribute('data-turn-root')) {
@@ -556,6 +581,7 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
               turnRootEls.set(tid, el)
               resizeObserver?.observe(el)
             }
+            navUserMsgElsDirty = true
           }
           // 也观察后代中的消息节点
           if (el.querySelectorAll) {
@@ -564,6 +590,7 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
                 scrollObserver.observe(child)
                 observedMsgEls.add(child)
               }
+              if (userMsgIds?.value.has(child.getAttribute('data-msg-id') ?? '')) navUserMsgElsDirty = true
             }
             for (const child of el.querySelectorAll('[data-turn-root]')) {
               const tid = child.getAttribute('data-turn-root')
@@ -571,6 +598,7 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
                 turnRootEls.set(tid, child)
                 resizeObserver?.observe(child)
               }
+              navUserMsgElsDirty = true
             }
           }
         }
@@ -629,11 +657,15 @@ export function useMessageWindowing<Row extends { id: string }>(options: {
     newMsgCountWhileAway.value = 0
     visibleMsgIds.value = new Set()
     turnRootEls.clear()
+    navUserMsgElsDirty = true
     activeUserMsgId.value = ''
     visibleStart.value = 0
     visibleEnd.value = INITIAL_RENDER_TURNS
     rebuildPrefixSums(false)
   })
+
+  // 用户消息 id 集合变化（新用户消息 / 归档边界 / 切会话）→ 导航点缓存失效
+  if (userMsgIds) watch(userMsgIds, () => { navUserMsgElsDirty = true })
 
   onMounted(() => {
     nextTick(() => {

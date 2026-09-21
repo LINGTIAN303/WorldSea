@@ -19,8 +19,10 @@ import {
   resultSegment,
   turnActionCount,
   turnThinkCount,
+  parseToolResult,
   decideCollapse,
   actionEventToTurnEvents,
+  collectA2UIActionEvents,
   type RebuildMessage,
   type Segment,
   type Turn,
@@ -685,6 +687,18 @@ describe('回源重建', () => {
     expect(texts.map((s) => (s.kind === 'text' ? s.text : '')).join('')).not.toContain('"files"')
   })
 
+  it('来源标记透传：user 消息 meta.input_kind = "timer" → TurnUserMessage.inputKind（批次 C·S1）', () => {
+    const turns = rebuildFromMessages([
+      { role: 'user', content: '[定时唤醒] 定时器到点', meta: { input_kind: 'timer' } },
+      { role: 'assistant', content: '收到，继续。' },
+      { role: 'user', content: '普通输入' },
+    ])
+    expect(turns).toHaveLength(2)
+    expect(turns[0].userMessage.inputKind).toBe('timer')
+    // 无 meta / 非 timer：不携带来源标记（普通用户气泡路径不变）
+    expect(turns[1].userMessage.inputKind).toBeUndefined()
+  })
+
   it('工具失败：结果含 error 键时动作段标记 failed', () => {
     const turns = rebuildFromMessages([
       { role: 'user', content: '读文件' },
@@ -878,6 +892,35 @@ describe('过程层折叠与展平', () => {
     expect(decideCollapse(turns[0], false)).toBe('skip')
   })
 
+  // 2026-09-20 帧率修复：可见性惰性求值——生产侧视口探测是全 DOM 遍历 + 强制布局，
+  // 若调用方提前求值，稳态下每个 delta 会为每一轮白算一次（饿死 rAF）。
+  it('折叠判定：惰性 thunk 与直接布尔值结果一致', () => {
+    const expanded = reduceEvent(buildFullTurn(), { type: 'turn_expanded', turnId: 't1' })
+    const cases: Turn[] = [
+      startTurn()[0], // 流式（结果层未落地）
+      buildFullTurn()[0], // 结果层已落地 + 未展开过
+      expanded[0], // 展开过（需要可见性）
+      reduceEvent(buildFullTurn(), { type: 'auto_collapse', turnId: 't1' })[0], // 已自动折叠
+    ]
+    for (const turn of cases) {
+      for (const visible of [true, false]) {
+        expect(decideCollapse(turn, () => visible)).toBe(decideCollapse(turn, visible))
+      }
+    }
+  })
+
+  it('折叠判定：thunk 只在判据真的需要可见性时才被调用', () => {
+    const expanded = reduceEvent(buildFullTurn(), { type: 'turn_expanded', turnId: 't1' })[0]
+    const calls = { streaming: 0, collapsed: 0, notExpanded: 0, needsVisible: 0 }
+
+    decideCollapse(startTurn()[0], () => (calls.streaming++, true))
+    decideCollapse(reduceEvent(buildFullTurn(), { type: 'auto_collapse', turnId: 't1' })[0], () => (calls.collapsed++, true))
+    decideCollapse(buildFullTurn()[0], () => (calls.notExpanded++, true))
+    decideCollapse(expanded, () => (calls.needsVisible++, true))
+
+    expect(calls).toEqual({ streaming: 0, collapsed: 0, notExpanded: 0, needsVisible: 1 })
+  })
+
   it('flattenTurn 单轮展平与 flattenTurns 全量展平逐行一致（渲染层轮次级增量缓存的前提）', () => {
     const turns = buildFullTurn()
     const expandedSingle = flattenTurn(turns[0], { abortedText: '已由用户停止' })
@@ -984,6 +1027,35 @@ describe('shell exit_code≠0 失败判定（观察项落地）', () => {
   })
 })
 
+describe('T1 判别字段优先（isError + errorCode）', () => {
+  it('isError:true 判 failed 并沿用 error 文案；缺 error 时给兜底文案', () => {
+    expect(
+      parseToolResult({
+        isError: true,
+        error: '工具不存在: x',
+        errorCode: 'UNKNOWN_TOOL',
+        tool: 'x',
+      }),
+    ).toMatchObject({ status: 'failed', error: '工具不存在: x' })
+    expect(parseToolResult({ isError: true, errorCode: 'ABORTED' })).toMatchObject({
+      status: 'failed',
+      error: '工具执行失败',
+    })
+  })
+
+  it('无 isError 的旧载荷仍按形状推断；成功结果不受影响', () => {
+    // 旧形态（无判别字段）：靠 error 键推断，兼容保留
+    expect(parseToolResult({ error: '旧形态失败', tool: 'x' })).toMatchObject({ status: 'failed' })
+    // 前端桥归一化后的「成功返回的失败」载荷
+    expect(parseToolResult({ ok: false, isError: true, error: '前端工具失败' })).toMatchObject({
+      status: 'failed',
+      error: '前端工具失败',
+    })
+    // 成功结果不携带 isError（缺省即成功）
+    expect(parseToolResult({ id: 'e1', name: '林晚' })).toMatchObject({ status: 'completed' })
+  })
+})
+
 describe('R6 第三部分：动作段事件翻译与回源重建', () => {
   it.each([
     ['subagent.start', 'subagent', { phase: 'start', subAgentId: 'sa-1', name: '写作助手', task: '写段落' }, 1, 'subagent'],
@@ -996,7 +1068,8 @@ describe('R6 第三部分：动作段事件翻译与回源重建', () => {
     ['router', 'router', { phase: 'decision', target: 'query' }, 2, 'router'],
     ['reflection', 'reflection', { result: { score: 80 } }, 2, 'reflection'],
     ['confirm.requested', 'confirm', { phase: 'requested', confirmId: 'cf-1', tool: 'entity_create' }, 1, 'confirm'],
-    ['confirm.resolved-approved', 'confirm', { phase: 'resolved', confirmId: 'cf-1', approved: true }, 1, ''],
+    ['confirm.resolved-approved', 'confirm', { phase: 'resolved', confirmId: 'cf-1', outcome: 'approved' }, 1, ''],
+    ['confirm.resolved-skipped', 'confirm', { phase: 'resolved', confirmId: 'cf-2', outcome: 'skipped' }, 1, ''],
     ['unknown', 'unknown_action', { phase: 'x' }, 0, ''],
   ])('%s → %i 条事件', (_name, action, payload, count, firstAction) => {
     const events = actionEventToTurnEvents('t1', action as string, payload as Record<string, unknown>)
@@ -1088,5 +1161,58 @@ describe('R6 第三部分：动作段事件翻译与回源重建', () => {
     )
     expect(thinks.length).toBe(2)
     expect(thinks.every((s) => s === 'complete')).toBe(true)
+  })
+})
+
+describe('A2UI 画布回源：collectA2UIActionEvents（2026-09-17）', () => {
+  it('按消息序提取 a2ui 动作事件（过滤其他动作；create → update → delete 序保持）', () => {
+    const events = collectA2UIActionEvents([
+      { role: 'user', content: '建卡片' } as never,
+      {
+        role: 'assistant',
+        content: '好',
+        meta: {
+          action_events: [
+            { seq: 0, action: 'confirm', phase: 'requested', confirmId: 'cf-1' },
+            { seq: 1, action: 'a2ui', surfaceId: 'card-1', message: { version: 'v0.9', createSurface: { surfaceId: 'card-1', catalogId: 'c' } } },
+            { seq: 2, action: 'a2ui', surfaceId: 'card-1', message: { version: 'v0.9', updateDataModel: { surfaceId: 'card-1', path: '/entity', value: { name: '林晚' } } } },
+          ],
+        },
+      } as never,
+      {
+        role: 'assistant',
+        content: '删了',
+        meta: {
+          action_events: [
+            { seq: 3, action: 'a2ui', surfaceId: 'card-1', message: { version: 'v0.9', deleteSurface: { surfaceId: 'card-1' } } },
+          ],
+        },
+      } as never,
+    ] as never)
+    expect(events.map((e) => e.surfaceId)).toEqual(['card-1', 'card-1', 'card-1'])
+    expect(events[0].message).toMatchObject({ createSurface: { surfaceId: 'card-1' } })
+    expect(events[2].message).toMatchObject({ deleteSurface: { surfaceId: 'card-1' } })
+  })
+
+  it('容错：非 assistant / 缺 surfaceId / message 非对象 / 无 action_events 一律跳过', () => {
+    const events = collectA2UIActionEvents([
+      { role: 'user', content: 'x', meta: { action_events: [{ action: 'a2ui', surfaceId: 'u-1', message: {} }] } } as never,
+      {
+        role: 'assistant',
+        content: 'a',
+        meta: {
+          action_events: [
+            { action: 'a2ui', message: {} }, // 缺 surfaceId
+            { action: 'a2ui', surfaceId: 'no-msg' }, // 缺 message
+            null,
+            42,
+            { action: 'a2ui', surfaceId: 'ok', message: { version: 'v0.9' } },
+          ],
+        },
+      } as never,
+      { role: 'assistant', content: 'b' } as never,
+    ] as never)
+    expect(events).toHaveLength(1)
+    expect(events[0].surfaceId).toBe('ok')
   })
 })

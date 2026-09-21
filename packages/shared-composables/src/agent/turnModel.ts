@@ -19,7 +19,8 @@ import type { ImageAttachment, FileAttachment } from '@agent/index'
  * - tool      可回源：assistant.tool_calls 给 name/args，tool_result 消息按 tool_call_id 给 result
  * - plan      可回源：get_state 快照携带 plan
  * - subagent  暂不可回源：SubAgent* 事件仅存于前端内存 subAgents
- * - a2ui      暂不可回源：A2UIEvent 仅存于前端内存 a2uiSurfaces
+ * - a2ui      可回源（画布）：meta.action_events 经 collectA2UIActionEvents 重放进 a2uiSurfaces；
+ *             不进过程层（D1 裁定，无 turn 行段）
  * - confirm   交互态：历史无需完整还原
  * - phase     暂不可回源：编排轨迹仅存于前端内存 useOrchestrationTrace
  * - router    暂不可回源：RouterDecisionMade 未转发至前端
@@ -155,6 +156,11 @@ export interface TurnUserMessage {
   timestamp: number
   images?: ImageAttachment[]
   files?: FileAttachment[]
+  /**
+   * 来源标记（批次 C·S1，2026-09-20）：来自消息 `meta.input_kind`——
+   * `'timer'` = 定时唤醒自动投递（前端专门行呈现，非普通用户气泡）
+   */
+  inputKind?: string
 }
 
 /** 轮次状态 */
@@ -1010,8 +1016,10 @@ function readThinking(m: RebuildMessage): string {
  * - 回源：`toolResult` 消息的 content（`serde_json::to_string` 后的 JSON 字符串）
  * - 实时：`ToolCallEnd` 的 payload.result（已解析的 JSON 值）
  *
- * 失败判定对齐后端（crates/agent-kernel/src/agent/tools.rs:390-399）：
- * 结果顶层含非 null 的 `error` 键即视为失败；`{ error, tool }` 为后端失败固定形态。
+ * 失败判定（T1，2026-09-18 起）：
+ * - **判别字段优先**：顶层 `isError === true` 即失败（后端失败结果契约，配 `errorCode` 结构化码）；
+ * - 兼容旧载荷：无 isError 时按形状推断——顶层含非 null `error` 键即失败（`{ error, tool }` 为旧固定形态）；
+ * - 缺省即成功。
  */
 export function parseToolResult(raw: unknown): {
   status: 'completed' | 'failed'
@@ -1028,6 +1036,14 @@ export function parseToolResult(raw: unknown): {
   }
   if (v && typeof v === 'object') {
     const o = v as Record<string, unknown>
+    // T1：判别字段优先（isError 显式失败；error 缺失时给统一兜底文案）
+    if (o.isError === true) {
+      return {
+        status: 'failed',
+        error:
+          o.error != null ? (typeof o.error === 'string' ? o.error : String(o.error)) : '工具执行失败',
+      }
+    }
     if (o.error != null) {
       return { status: 'failed', error: typeof o.error === 'string' ? o.error : String(o.error) }
     }
@@ -1154,8 +1170,10 @@ export function actionEventToTurnEvents(
       if (!confirmId) return []
       const refId = `${R6_REF_PREFIX}confirm:${confirmId}`
       if (payload.phase === 'resolved') {
+        // D8 四值（2026-09-17）：审批结果由 approved bool 改为 outcome
+        // （approved 放行 → completed；denied/skipped/timeout 未执行 → failed）
         return [
-          { type: 'action_end', turnId, refId, status: payload.approved ? 'completed' : 'failed' },
+          { type: 'action_end', turnId, refId, status: str(payload.outcome) === 'approved' ? 'completed' : 'failed' },
         ]
       }
       return [
@@ -1191,10 +1209,13 @@ export function rebuildFromMessages(msgs: RebuildMessage[]): Turn[] {
       // 用户消息：先收口上一轮，再开新轮
       if (turnId) turns = reduceEvent(turns, { type: 'turn_end', turnId, status: 'complete' })
       turnId = `turn-${i}`
+      // 来源标记透传（批次 C·S1：定时唤醒 input_kind = "timer" → 前端专门行）
+      const inputKind =
+        typeof m.meta?.input_kind === 'string' ? (m.meta.input_kind as string) : undefined
       turns = reduceEvent(turns, {
         type: 'turn_start',
         turnId,
-        userMessage: { id: `user-${i}`, text: m.content, timestamp: Date.now() },
+        userMessage: { id: `user-${i}`, text: m.content, timestamp: Date.now(), inputKind },
       })
       continue
     }
@@ -1258,6 +1279,38 @@ export function rebuildFromMessages(msgs: RebuildMessage[]): Turn[] {
   return turns
 }
 
+/**
+ * A2UI 画布回源：从持久化消息中收集 a2ui 动作事件（2026-09-17）
+ *
+ * 数据来源与 R6 动作段同源——assistant 消息 `meta.action_events` 中 `action === 'a2ui'`
+ * 的条目（后端 `action_event_payload` 的 a2ui 臂写入 `{ surfaceId, message }`）。
+ * 按消息序（= 事件发生序）返回，供调用方逐条重放进 A2UI 画布状态
+ * （`handleA2UIEvent` 幂等：createSurface 覆盖 / updateComponents 合并 / deleteSurface 移除）。
+ *
+ * D1 裁定（不进过程层）：本函数**只服务画布回源**，不参与 `actionEventToTurnEvents`
+ * 的 turn 行段重建——故与 `rebuildFromMessages` 并列而非内嵌。
+ */
+export function collectA2UIActionEvents(
+  msgs: RebuildMessage[],
+): Array<{ surfaceId: string; message: Record<string, unknown> }> {
+  const out: Array<{ surfaceId: string; message: Record<string, unknown> }> = []
+  for (const m of msgs) {
+    if (m.role !== 'assistant') continue
+    const rawEvents = m.meta?.action_events
+    if (!Array.isArray(rawEvents)) continue
+    for (const ev of rawEvents) {
+      if (!ev || typeof ev !== 'object') continue
+      const ae = ev as Record<string, unknown>
+      if (ae.action !== 'a2ui') continue
+      const surfaceId = typeof ae.surfaceId === 'string' ? ae.surfaceId : ''
+      const message = ae.message
+      if (!surfaceId || !message || typeof message !== 'object') continue
+      out.push({ surfaceId, message: message as Record<string, unknown> })
+    }
+  }
+  return out
+}
+
 // ─── 派生视图 ─────────────────────────────────────────
 
 /** 取过程层行段（排除已固化为结果层的那段） */
@@ -1304,14 +1357,23 @@ export type CollapseDecision =
  * 前置：结果层已落地（否则过程中折叠会让用户看不到正在发生什么）。
  * latch：`hasAutoCollapsed` 为真则永不再次自动折叠（用户手动展开后不再自动收起）。
  *
+ * **可见性惰性求值（2026-09-20 帧率修复）**：`processVisible` 允许传 thunk。视口探测在生产侧
+ * 是一次全 DOM 遍历 + 强制布局，而前三条判据（流式 / 结果层未落地 / 已折叠）**都不看视口**——
+ * 调用方若提前求值，稳态下每个 delta 会为**每一轮**白算一次（长会话下即每 delta 百万级节点访问，
+ * 直接饿死 rAF）。传 thunk 可保证「只在真正需要时探测」，判定结果不变。
+ *
  * @param turn 轮次
- * @param processVisible 该轮次的过程层是否仍在视口内
+ * @param processVisible 该轮次的过程层是否仍在视口内；可传 `() => boolean` 延迟求值
  */
-export function decideCollapse(turn: Turn, processVisible: boolean): CollapseDecision {
+export function decideCollapse(
+  turn: Turn,
+  processVisible: boolean | (() => boolean),
+): CollapseDecision {
   if (turn.status === 'streaming' || !turn.resultId) return 'skip'
   if (turn.processCollapsed || turn.hasAutoCollapsed) return 'skip'
   if (!turn.userEverExpanded) return 'collapse-now'
-  if (!processVisible) return 'collapse-now'
+  const visible = typeof processVisible === 'function' ? processVisible() : processVisible
+  if (!visible) return 'collapse-now'
   return 'schedule-idle'
 }
 

@@ -1,113 +1,13 @@
-/** Markdown 渲染 composable（marked 解析 → DOMPurify 消毒 → mention 注入 + rAF 节流），详细见 docs/details/注释/packages/shared-ui/agent/bubbles/useMarkdownRender.md */
+/** Markdown 渲染 composable（增量渲染内核见 markdownStream.ts；rAF 节流 + 字体段 + JSON 剥离），详细见 docs/details/注释/packages/shared-ui/agent/bubbles/useMarkdownRender.md */
 import { computed } from 'vue'
-import { Marked } from 'marked'
-import DOMPurify from 'dompurify'
 import { useStreamingRenderer } from '@worldsea/perf-kit/render'
 import { useEntityMentionIndex } from '@worldsea/shared-composables/agent/useEntityMentionIndex'
 import { useAgentUiDeps } from '@worldsea/shared-composables/agent/deps'
-
-/** HTML 转义（代码块内嵌 / 纯文本回退用） */
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-}
-
-/** 是否含未闭合代码围栏（``` 数量为奇数） */
-function hasUnclosedFence(text: string): boolean {
-  const fences = text.split('```').length - 1
-  return fences % 2 === 1
-}
-
-/**
- * 语法高亮钩子（C 阶段接入）：对语言 lang 的代码返回高亮 HTML；返回 null 表示不高亮。
- * 默认不启用（B 阶段先落地代码块外壳），C 阶段注入 Prism 轻量实现。
- * 模块级可写，供外部注入，避免 shared-ui 与高亮库强耦合。
- */
-let highlightCode: ((code: string, lang: string) => string | null) | null = null
-export function setCodeHighlighter(fn: ((code: string, lang: string) => string | null) | null): void {
-  highlightCode = fn
-}
-
-/** 生成高亮后的 <code> 内容：命中高亮器返回其输出，否则转义原文 */
-function renderCodeContent(code: string, lang: string): string {
-  if (highlightCode) {
-    try {
-      const highlighted = highlightCode(code, lang)
-      if (highlighted) return highlighted
-    } catch {
-      // 高亮失败降级为纯文本
-    }
-  }
-  return escapeHtml(code)
-}
-
-/** marked 实例（无状态，模块级共享） */
-const marked = new Marked({ gfm: true, breaks: true })
-
-/**
- * 自定义 code renderer：为代码块包裹 header（语言标签 + 复制按钮）。
- * 与 Tauri 端 MessageContent 同款外壳，保证跨端代码块体验一致。
- * data-copy 存转义后的代码文本，复制动作由气泡根元素事件委托处理。
- */
-marked.use({
-  renderer: {
-    code({ text, lang }) {
-      const language = lang || 'text'
-      const safeLang = escapeHtml(language)
-      const body = renderCodeContent(String(text), language)
-      return [
-        '<div class="ws-code-block">',
-        '<div class="ws-code-head">',
-        `<span class="ws-code-lang">${safeLang}</span>`,
-        `<button type="button" class="ws-code-copy" data-copy="${escapeHtml(String(text))}">复制</button>`,
-        '</div>',
-        `<pre><code class="language-${safeLang}">${body}</code></pre>`,
-        '</div>',
-      ].join('')
-    },
-    link({ href, title, text }) {
-      const hrefAttr = escapeHtml(String(href))
-      const titleAttr = title ? ` title="${escapeHtml(String(title))}"` : ''
-      return `<a href="${hrefAttr}" target="_blank" rel="noopener noreferrer"${titleAttr}>${text}</a>`
-    },
-  },
-})
-
-/** DOMPurify hook：保留 data-ws-* 自定义属性（实体 mention 依赖）—— 模块级只注册一次 */
-let purifyHookRegistered = false
-if (!purifyHookRegistered) {
-  DOMPurify.addHook('uponSanitizeAttribute', (_node, data) => {
-    if (data.attrName?.startsWith('data-ws-')) {
-      data.forceKeepAttr = true
-    }
-  })
-  purifyHookRegistered = true
-}
-
-/**
- * 实体名高亮注入缓存：按原始 HTML 缓存注入结果，避免重渲染时重复匹配
- *
- * ⚠️ key 是**完整 HTML 字符串**：流式输出时每个 delta 都产生一个新 key，
- * 且命中率极低（HTML 每次都在变）——无上限会随流式输出持续泄漏（一轮长回复可累积数千条）。
- * 故设上限并 FIFO 淘汰（Map 保持插入顺序，从头删即最早条目）。
- *
- * 注：原 WeakMap 在 TS5.7+ 要求 key 为 object，改用 Map。
- */
-const MENTION_CACHE_MAX = 200
-const mentionInjectCache = new Map<string, string>()
-
-/** 淘汰最早的 20%：一次删一批而非一条，摊销淘汰开销 */
-function evictMentionCache(): void {
-  const drop = Math.ceil(MENTION_CACHE_MAX * 0.2)
-  let i = 0
-  for (const k of mentionInjectCache.keys()) {
-    if (i++ >= drop) break
-    mentionInjectCache.delete(k)
-  }
-}
+import {
+  createMarkdownStreamRenderer,
+  renderFullMarkdown,
+  type StreamRenderedHtml,
+} from './markdownStream'
 
 /**
  * 从 Markdown 文本中剥离顶层 JSON 对象块
@@ -165,91 +65,14 @@ function tryExtractJson(text: string, start: number): string | null {
 }
 
 /**
- * 在 marked 渲染后的 HTML 中注入实体名高亮
- * 策略：用 DOMParser 解析 HTML，遍历纯文本节点（跳过 code/pre/a 等已格式化元素），
- * 匹配实体名并包裹 <span data-ws-entity-id="..." class="ws-entity-mention">
- */
-function injectMentions(html: string, matchInText: (text: string) => Array<{ start: number; end: number; name: string; entityIds: string[]; entityType: string }>): string {
-  if (!html) return ''
-  // 缓存命中：避免流式输出时同一段文本反复匹配
-  const cached = mentionInjectCache.get(html)
-  if (cached !== undefined) return cached
-
-  try {
-    const doc = new DOMParser().parseFromString(`<div id="__root">${html}</div>`, 'text/html')
-    const root = doc.getElementById('__root')
-    if (!root) return html
-
-    let hasMatch = false
-    const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-      acceptNode(node) {
-        // 跳过 code/pre/a 标签内的文本（这些不需要实体高亮）
-        const parent = node.parentElement
-        if (!parent) return NodeFilter.FILTER_REJECT
-        const tag = parent.tagName.toLowerCase()
-        if (tag === 'code' || tag === 'pre' || tag === 'a' || tag === 'script' || tag === 'style') {
-          return NodeFilter.FILTER_REJECT
-        }
-        // 跳过已是 mention span 内的文本
-        if (parent.classList?.contains('ws-entity-mention')) {
-          return NodeFilter.FILTER_REJECT
-        }
-        return node.nodeValue && node.nodeValue.trim().length >= 2
-          ? NodeFilter.FILTER_ACCEPT
-          : NodeFilter.FILTER_REJECT
-      },
-    })
-
-    const textNodes: Text[] = []
-    let current: Node | null
-    while ((current = walker.nextNode())) {
-      textNodes.push(current as Text)
-    }
-
-    for (const textNode of textNodes) {
-      const text = textNode.nodeValue || ''
-      const matches = matchInText(text)
-      if (matches.length === 0) continue
-
-      // 将文本节点替换为：普通文本 + mention span 的混合序列
-      const fragment = doc.createDocumentFragment()
-      let lastEnd = 0
-      for (const m of matches) {
-        if (m.start > lastEnd) {
-          fragment.appendChild(doc.createTextNode(text.slice(lastEnd, m.start)))
-        }
-        const span = doc.createElement('span')
-        span.className = 'ws-entity-mention'
-        span.setAttribute('data-ws-entity-id', m.entityIds[0])
-        span.setAttribute('data-ws-entity-type', m.entityType)
-        span.setAttribute('data-ws-entity-name', m.name)
-        span.textContent = m.name
-        span.title = `${m.entityType}: ${m.name}（点击查看详情）`
-        fragment.appendChild(span)
-        lastEnd = m.end
-      }
-      if (lastEnd < text.length) {
-        fragment.appendChild(doc.createTextNode(text.slice(lastEnd)))
-      }
-      textNode.parentNode?.replaceChild(fragment, textNode)
-      hasMatch = true
-    }
-
-    const result = hasMatch ? root.innerHTML : html
-    if (mentionInjectCache.size >= MENTION_CACHE_MAX) evictMentionCache()
-    mentionInjectCache.set(html, result)
-    return result
-  } catch {
-    // DOMParser 不可用或解析失败时降级为原始 HTML
-    return html
-  }
-}
-
-/**
  * Markdown 渲染 composable
  *
+ * 渲染链路：原始 content →（字体段 / JSON 剥离）→ rAF 节流 → **增量渲染器**
+ * （已完成块只渲一次并缓存，活动尾块每帧重渲；见 markdownStream.ts）
+ *
  * @param getContent 返回当前消息的原始 content（调用方负责 role 过滤）
- * @returns rawMarkdown / throttledRaw / renderedMarkdown / renderMd
+ * @returns rawMarkdown / throttledRaw / renderedMarkdown（兼容整串）/ renderMd（整段路径）
+ *          / stableHtml + tailHtml（增量双段，供视图层分容器消费）
  */
 export function useMarkdownRender(getContent: () => string) {
   const { matchInText } = useEntityMentionIndex()
@@ -266,23 +89,29 @@ export function useMarkdownRender(getContent: () => string) {
 
   const throttledRaw = useStreamingRenderer(() => rawMarkdown.value, { initialValue: '' })
 
-  /** 渲染单段 Markdown 为已消毒+注入 mention 的 HTML（含流式降级） */
+  /** 增量渲染器（组件实例级状态：固化段缓存 + 尾块独立重渲） */
+  const streamRenderer = createMarkdownStreamRenderer({ matchInText })
+
+  /** 整段路径（兼容 API；整段消毒 + mention 注入 + 围栏降级） */
   function renderMd(text: string): string {
     if (!text) return ''
-    // 流式中代码围栏未闭合 → 纯文本（换行转 <br>），避免误吞噬后续内容
-    if (hasUnclosedFence(text)) {
-      return escapeHtml(text).replace(/\n/g, '<br>')
-    }
-    const raw = DOMPurify.sanitize(marked.parse(text) as string)
-    return injectMentions(raw, matchInText)
+    return renderFullMarkdown(text, matchInText)
   }
 
-  const renderedMarkdown = computed(() => {
+  const streamRendered = computed<StreamRenderedHtml>(() => {
     const filtered = throttledRaw.value
-    return filtered ? renderMd(filtered) : ''
+    if (!filtered) return { stableHtml: '', tailHtml: '' }
+    return streamRenderer.render(filtered)
   })
 
-  return { rawMarkdown, throttledRaw, renderedMarkdown, renderMd }
+  /** 固化段 HTML（跨帧仅追加） */
+  const stableHtml = computed(() => streamRendered.value.stableHtml)
+  /** 活动尾块 HTML（每帧重渲） */
+  const tailHtml = computed(() => streamRendered.value.tailHtml)
+  /** 整串兼容（stable + tail；无 mention 索引需求以外的调用方沿用此值） */
+  const renderedMarkdown = computed(() => streamRendered.value.stableHtml + streamRendered.value.tailHtml)
+
+  return { rawMarkdown, throttledRaw, renderedMarkdown, renderMd, stableHtml, tailHtml }
 }
 
 /** 代码块复制按钮事件处理器（v-html 内按钮无法直接绑定，由气泡根元素事件委托调用）。
@@ -301,17 +130,12 @@ export function handleCodeCopyClick(e: MouseEvent): boolean {
 }
 
 /**
- * 模块级纯函数：渲染单段 Markdown 为已消毒 HTML（无 mention 注入，无 rAF 节流）。
+ * 模块级纯函数：渲染单段 Markdown 为已消毒 HTML（无 mention 注入，无 rAF 节流、无增量）。
  *
- * 供无实体索引的轻场景复用（如群聊/私聊气泡），与 `useMarkdownRender.renderMd` 共用同一
+ * 供无实体索引的轻场景复用（如群聊/私聊气泡），与 `useMarkdownRender` 共用同一
  * marked 实例 + 代码块外壳 + 流式降级，保证跨入口代码块体验一致。
  * 调用方需要复制按钮时，在 v-html 容器根元素上绑定 `@click` 并调用 `handleCodeCopyClick`。
  */
 export function renderMarkdownHtml(text: string): string {
-  if (!text) return ''
-  // 流式中代码围栏未闭合 → 纯文本（换行转 <br>），避免误吞噬后续内容
-  if (hasUnclosedFence(text)) {
-    return escapeHtml(text).replace(/\n/g, '<br>')
-  }
-  return DOMPurify.sanitize(marked.parse(text) as string)
+  return renderFullMarkdown(text, null)
 }

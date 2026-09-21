@@ -5,8 +5,10 @@ use agent_commands::{
     LoopControlRegistry, LoopControlRegistryError, LoopControlStatus, SecurityLevel,
     SendMessageParams, SubAgentInstanceInfo, TerminalService, UpdateModelParams,
 };
+use agent_runtime::agent::prompt_sections::PromptSection;
 use agent_runtime::backend::ThinkingLevel;
-use agent_runtime::event::{OrchestratorEvent, EventListener, AgentEvent};
+use agent_runtime::event::{AgentEvent, OrchestratorEvent};
+use agent_runtime::event_bus::{Listener, ListenerOutcome};
 use agent_runtime::llm::config::ProviderConfig;
 use agent_runtime::long_task::{LongTaskRecord, LongTaskStatus};
 use agent_runtime::loop_control::LoopControlConfig;
@@ -47,8 +49,10 @@ impl TauriAgentEventEmitter {
     /// 过滤掉高频流式增量 `StreamDelta`（避免 trace 消息爆炸），其余阶段事件全部纳入，
     /// 使前端能按序还原「一次对话一条可追踪链」（AgentStart → … → AgentEnd）。
     /// R6 第一部分：动作段事件 → 流通道 payload（`agent:event:stream:{sid}` 的
-    /// `type: "action_event"` 消息）。六类动作段的统一转发映射——前端 turnModel
-    /// 据此驱动 ActionSegment（第三部分接入消费）；持久化载体为第二部分。
+    /// `type: "action_event"` 消息）。七类动作段的统一转发映射（subagent/phase/
+    /// router/reflection/confirm/**a2ui**，2026-09-17 补 a2ui 臂）——前端 turnModel
+    /// 据此驱动 ActionSegment（a2ui 例外：D1 裁定不进过程层，仅作持久化载体供画布回源）；
+    /// 持久化载体为第二部分。
     /// 已知限制：字段为 camelCase 明细快照，phase/router 类不含完整枚举序列化。
     fn action_event_payload(event: &OrchestratorEvent) -> Option<(&'static str, serde_json::Value)> {
         match event {
@@ -93,9 +97,41 @@ impl TauriAgentEventEmitter {
             OrchestratorEvent::ConfirmationRequested { confirm_id, tool_name, .. } => {
                 Some(("confirm", serde_json::json!({ "phase": "requested", "confirmId": confirm_id, "tool": tool_name })))
             }
-            OrchestratorEvent::ConfirmationResolved { confirm_id, approved } => {
-                Some(("confirm", serde_json::json!({ "phase": "resolved", "confirmId": confirm_id, "approved": approved })))
+            OrchestratorEvent::ConfirmationResolved { confirm_id, outcome } => {
+                Some(("confirm", serde_json::json!({ "phase": "resolved", "confirmId": confirm_id, "outcome": outcome })))
             }
+            // A2UI 画布回源（2026-09-17）：a2ui 作第七类入缓冲/持久化（AgentEnd 收口 →
+            // `meta.action_events`），供前端 `collectA2UIActionEvents` 重放重建画布。
+            // D1 裁定「不进过程层」：前端 `actionEventToTurnEvents` 不建段（default → []）。
+            OrchestratorEvent::A2UIEvent { surface_id, message, .. } => {
+                Some(("a2ui", serde_json::json!({ "surfaceId": surface_id, "message": message })))
+            }
+            _ => None,
+        }
+    }
+
+    /// A5 收尾（2026-09-17）：重试事件 → 流通道 payload（`type: "llm_retry"`）
+    ///
+    /// `LoopEngRetrying` 由 LLM 调用重试（`agent/llm.rs`）与工具执行重试（`agent/tools.rs`）
+    /// 两处发射——主对话此前只能经 loop-control 专用通道看到（还需存在 loop task），
+    /// 普通会话中退避等待期零反馈。本臂把「正在重试（第 n/m 次 + 最终等待毫秒）」
+    /// 推给流通道，前端据此显示重试状态行。
+    /// 仅转发 `LoopEngRetrying`：重试耗尽后紧跟终态 `Error`（现有错误行已覆盖）。
+    fn llm_retry_payload(event: &OrchestratorEvent) -> Option<serde_json::Value> {
+        match event {
+            OrchestratorEvent::LoopEngRetrying {
+                attempt,
+                max_retries,
+                backoff_ms,
+                error,
+                ..
+            } => Some(serde_json::json!({
+                "type": "llm_retry",
+                "attempt": attempt,
+                "maxRetries": max_retries,
+                "backoffMs": backoff_ms,
+                "error": error,
+            })),
             _ => None,
         }
     }
@@ -160,8 +196,12 @@ impl TauriAgentEventEmitter {
                     format!("工具执行完成（{}ms）", duration_ms),
                 ))
             }
-            OrchestratorEvent::Agent(AgentEvent::Error { message }) => {
-                Some(("error", format!("执行出错：{message}")))
+            OrchestratorEvent::Agent(AgentEvent::Error { message, code, .. }) => {
+                // A5 后续：活动日志带稳定错误码（有则附）；message 仍含用户引导语
+                match code {
+                    Some(code) => Some(("error", format!("执行出错（{code}）：{message}"))),
+                    None => Some(("error", format!("执行出错：{message}"))),
+                }
             }
             OrchestratorEvent::Agent(AgentEvent::AgentEnd) => {
                 Some(("agent_end", "Agent 执行结束".to_string()))
@@ -190,6 +230,74 @@ impl TauriAgentEventEmitter {
             OrchestratorEvent::ConfirmationRequested { tool_name, .. } => {
                 Some(("confirmation_requested", format!("请求确认工具 {tool_name}")))
             }
+            // 阶段 3 · 压缩事件化（A2 补齐③）：压缩事务以活动日志可见、可审计
+            OrchestratorEvent::ContextCompactStarted {
+                trigger,
+                before_tokens,
+                tier,
+            } => Some((
+                "context_compact_start",
+                format!(
+                    "上下文压缩开始（{}，占用 {} token，阶梯层 {}）",
+                    compact_trigger_label(trigger),
+                    before_tokens,
+                    tier
+                ),
+            )),
+            OrchestratorEvent::ContextCompactFinished {
+                trigger,
+                mode,
+                before_tokens,
+                after_tokens,
+                saved_tokens,
+                folded_groups,
+                dropped_messages,
+                ..
+            } => Some((
+                "context_compact_end",
+                format!(
+                    "上下文压缩完成（{}，{}）：{} → {} token（释放 {}）",
+                    compact_trigger_label(trigger),
+                    match mode.as_str() {
+                        "folded" => format!("折叠 {folded_groups} 组"),
+                        "dropped" => format!("删除 {dropped_messages} 条"),
+                        _ => "无可压内容".to_string(),
+                    },
+                    before_tokens,
+                    after_tokens,
+                    saved_tokens,
+                ),
+            )),
+            OrchestratorEvent::ContextCompactFailed {
+                trigger,
+                stage,
+                error,
+            } => Some((
+                "context_compact_error",
+                format!(
+                    "上下文压缩失败（{}，阶段 {}）：{error}",
+                    compact_trigger_label(trigger),
+                    stage
+                ),
+            )),
+            // 阶段 2 · A3：取消收口（已交付文本终结 + 中断锚点）以活动日志可见
+            OrchestratorEvent::AgentInterrupted {
+                reason,
+                iteration,
+                delivered_chars,
+            } => Some((
+                "agent_interrupted",
+                format!(
+                    "本轮被中断（{}，第 {} 轮）：已交付 {} 字",
+                    match reason.as_str() {
+                        "user_abort" => "用户中断",
+                        "cooperative_cancel" => "协作式取消",
+                        other => other,
+                    },
+                    iteration,
+                    delivered_chars
+                ),
+            )),
             // 其余事件（含高频 StreamDelta、A2UI 等）不纳入 trace 通道
             _ => None,
         }
@@ -238,19 +346,16 @@ fn emit_orch_supervisor(emitter: &TauriAgentEventEmitter, kind: &str, payload: s
     }
 }
 
-/// Multi-Agent 实时事件 → `agent:event:orch_multi:{session_id}`
-///
-/// payload 同构 `{ kind, payload }`；kind ∈
-/// round_started / message_sent / blackboard_updated / round_completed / converged。
-fn emit_orch_multi(emitter: &TauriAgentEventEmitter, kind: &str, payload: serde_json::Value) {
-    let event_name = format!("agent:event:orch_multi:{}", emitter.session_id);
-    if let Err(err) = emit_dual(&emitter.app, &event_name, serde_json::json!({ "kind": kind, "payload": payload })) {
-        tracing::warn!("Failed to emit multi-agent event ({kind}) to frontend: {err}");
+/// 压缩触发源标签（`auto`/`manual` → 活动日志展示文案）
+fn compact_trigger_label(trigger: &str) -> &'static str {
+    match trigger {
+        "manual" => "手动 /compact",
+        _ => "自动预算",
     }
 }
 
-impl EventListener for TauriAgentEventEmitter {
-    fn on_event(&self, event: &OrchestratorEvent) {
+impl Listener for TauriAgentEventEmitter {
+    fn call(&self, event: &OrchestratorEvent) -> ListenerOutcome {
         // R6 第一部分：六类动作段事件（subagent/a2ui/phase/router/reflection/confirm）
         // 注入流通道（此前仅 trace/orch 专用通道，行段模型拿不到——回源即失的转发缺口）
         if let Some((action, payload)) = Self::action_event_payload(event) {
@@ -285,6 +390,14 @@ impl EventListener for TauriAgentEventEmitter {
             });
             if let Err(err) = emit_dual(&self.app, &event_name, payload) {
                 tracing::warn!("Failed to emit step_budget_warning: {}", err);
+            }
+        }
+        // A5 收尾（2026-09-17）：重试状态直推流通道——退避等待期前端显示状态行
+        //（llm_retry；不持久化——状态型事件，恢复/终态即消散）
+        if let Some(payload) = Self::llm_retry_payload(event) {
+            let event_name = format!("agent:event:stream:{}", self.session_id);
+            if let Err(err) = emit_dual(&self.app, &event_name, payload) {
+                tracing::warn!("Failed to emit llm_retry: {}", err);
             }
         }
         // 2026-09-02 系统工具流式事件：直推流通道（实时渲染，不持久化）
@@ -498,16 +611,43 @@ impl EventListener for TauriAgentEventEmitter {
                     tracing::warn!("Failed to emit ConfirmationRequested event to frontend: {}", err);
                 }
             }
-            OrchestratorEvent::ConfirmationResolved { confirm_id, approved } => {
+            OrchestratorEvent::ConfirmationResolved { confirm_id, outcome } => {
                 // 转发到前端：事件名 `agent:confirm:{session_id}`
-                // payload: { confirmId, approved }（供前端清理进行中的确认弹窗）
+                // payload: { type: "resolved", confirmId, outcome }（D8 四值；
+                // 供前端清理进行中的确认弹窗）
                 let event_name = format!("agent:confirm:{}", self.session_id);
                 if let Err(err) = emit_dual(&self.app, &event_name, serde_json::json!({
                     "type": "resolved",
                     "confirmId": confirm_id,
-                    "approved": approved,
+                    "outcome": outcome,
                 })) {
                     tracing::warn!("Failed to emit ConfirmationResolved event to frontend: {}", err);
+                }
+            }
+            // Q1 提问（2026-09-20）：模型主动提问 → 前端提问面板
+            OrchestratorEvent::AskRequested { ask_id, questions } => {
+                // 转发到前端：事件名 `agent:ask:{session_id}`
+                // payload: { askId, questions }（questions 为 camelCase 批次：
+                // [{id, question, header?, options?, multiSelect?}]）
+                let event_name = format!("agent:ask:{}", self.session_id);
+                if let Err(err) = emit_dual(&self.app, &event_name, serde_json::json!({
+                    "askId": ask_id,
+                    "questions": questions,
+                })) {
+                    tracing::warn!("Failed to emit AskRequested event to frontend: {}", err);
+                }
+            }
+            OrchestratorEvent::AskResolved { ask_id, outcome } => {
+                // 转发到前端：事件名 `agent:ask:{session_id}`
+                // payload: { type: "resolved", askId, outcome }（answered / denied / cancelled；
+                // 供前端清理进行中的提问面板——含随轮取消路径）
+                let event_name = format!("agent:ask:{}", self.session_id);
+                if let Err(err) = emit_dual(&self.app, &event_name, serde_json::json!({
+                    "type": "resolved",
+                    "askId": ask_id,
+                    "outcome": outcome.kind(),
+                })) {
+                    tracing::warn!("Failed to emit AskResolved event to frontend: {}", err);
                 }
             }
             // 流式响应事件（打字机效果）
@@ -529,8 +669,27 @@ impl EventListener for TauriAgentEventEmitter {
                     AgentEvent::StreamEnd { full_text } => {
                         serde_json::json!({ "type": "end", "fullText": full_text })
                     }
-                    AgentEvent::Error { message } => {
-                        serde_json::json!({ "type": "error", "message": message })
+                    AgentEvent::Error {
+                        message,
+                        code,
+                        retryable,
+                        retry_after_ms,
+                    } => {
+                        // A5 后续：结构化字段加性透传（前端可渐进消费；老前端只读 message 不受影响）
+                        let mut payload = serde_json::json!({
+                            "type": "error",
+                            "message": message,
+                        });
+                        if let Some(code) = code {
+                            payload["code"] = serde_json::Value::String(code.to_string());
+                        }
+                        if let Some(retryable) = retryable {
+                            payload["retryable"] = serde_json::Value::Bool(*retryable);
+                        }
+                        if let Some(ms) = retry_after_ms {
+                            payload["retryAfterMs"] = serde_json::Value::from(*ms);
+                        }
+                        payload
                     }
                     AgentEvent::AgentEnd => serde_json::json!({ "type": "agent_end" }),
                     // 工具调用事件：转发到流通道，由前端 turnModel 驱动 ActionSegment
@@ -566,72 +725,16 @@ impl EventListener for TauriAgentEventEmitter {
                         }
                         payload
                     }
-                    // R6 第一部分：A2UI 归 AgentEvent——注入流通道动作段消息
-                    AgentEvent::A2UI { surface_id, .. } => serde_json::json!({
-                        "type": "action_event",
-                        "action": "a2ui",
-                        "phase": "update",
-                        "surfaceId": surface_id,
-                    }),
                     // 其他基础 Agent 事件（UserMessage 等）暂不在此通道转发
-                    _ => return,
+                    _ => return ListenerOutcome::Continue,
                 };
                 let event_name = format!("agent:event:stream:{}", self.session_id);
                 if let Err(err) = emit_dual(&self.app, &event_name, payload) {
                     tracing::warn!("Failed to emit Stream event to frontend: {}", err);
                 }
             }
-            // ── A4 Plan-Exec 计划事件 ──
-            // 转发 `PlanCreated` / `PlanStepUpdate` 到前端通道
-            // `agent:event:plan_created:{session_id}` / `agent:event:plan_update:{session_id}`，
-            // 前端 `useAgentEvents` 据此更新 `usePlanStore`，驱动 PlanPanel 展示。
-            OrchestratorEvent::PlanCreated { items } => {
-                let event_name = format!("agent:event:plan_created:{}", self.session_id);
-                if let Err(err) = emit_dual(&self.app, 
-                    &event_name,
-                    serde_json::json!({ "items": items }),
-                ) {
-                    tracing::warn!("Failed to emit PlanCreated event to frontend: {}", err);
-                }
-            }
-            OrchestratorEvent::PlanStepUpdate {
-                step_id,
-                status,
-                output,
-            } => {
-                let event_name = format!("agent:event:plan_update:{}", self.session_id);
-                if let Err(err) = emit_dual(&self.app, 
-                    &event_name,
-                    serde_json::json!({
-                        "itemId": step_id,
-                        "status": status,
-                        "output": output,
-                    }),
-                ) {
-                    tracing::warn!("Failed to emit PlanStepUpdate event to frontend: {}", err);
-                }
-            }
-            // A4 Replanner：计划重规划后整体刷新前端
-            OrchestratorEvent::PlanReplanned { items } => {
-                let event_name = format!("agent:event:plan_replanned:{}", self.session_id);
-                if let Err(err) = emit_dual(&self.app, 
-                    &event_name,
-                    serde_json::json!({ "items": items }),
-                ) {
-                    tracing::warn!("Failed to emit PlanReplanned event to frontend: {}", err);
-                }
-            }
-            // Reflection/Self-Refine 评审结果：转发到 `agent:event:reflection:{session_id}`，
-            // 前端据此展示评分/问题/建议（与 A4 计划事件同一转发模式）
-            OrchestratorEvent::ReflectionResult { result } => {
-                let event_name = format!("agent:event:reflection:{}", self.session_id);
-                if let Err(err) = emit_dual(&self.app, 
-                    &event_name,
-                    serde_json::json!({ "result": result }),
-                ) {
-                    tracing::warn!("Failed to emit ReflectionResult event to frontend: {}", err);
-                }
-            }
+            // ── A4 Plan-Exec 计划事件：已迁至独立监听器 `PlanEventEmitter`（首迁示范，见 06-事件总线设计草案 §五）──
+            // ReflectionResult 专用通道已废弃（D7 裁定：前端零监听；评审结果仍经动作段通道下发）
             // ─── 编排 4 模式 UI 下沉：ToT/GoT 思维树实时事件 → `agent:event:orch:{session_id}` ───
             OrchestratorEvent::ThoughtNodeCreated {
                 thought_id,
@@ -719,45 +822,69 @@ impl EventListener for TauriAgentEventEmitter {
                     "reasoning": reasoning,
                 }));
             }
-            // ─── Multi-Agent 实时事件 → `agent:event:orch_multi:{session_id}` ───
-            OrchestratorEvent::MultiAgentRoundStarted {
-                round, agent_count, ..
-            } => {
-                emit_orch_multi(self, "round_started", json!({
-                    "round": round, "agentCount": agent_count,
-                }));
-            }
-            OrchestratorEvent::MultiAgentMessageSent {
-                from,
-                to,
-                message_type,
-                content_preview,
-                ..
-            } => {
-                emit_orch_multi(self, "message_sent", json!({
-                    "from": from, "to": to,
-                    "messageType": message_type,
-                    "contentPreview": content_preview,
-                }));
-            }
-            OrchestratorEvent::MultiAgentBlackboardUpdated { key, by, .. } => {
-                emit_orch_multi(self, "blackboard_updated", json!({
-                    "key": key, "by": by,
-                }));
-            }
-            OrchestratorEvent::MultiAgentRoundCompleted { round, outputs, .. } => {
-                emit_orch_multi(self, "round_completed", json!({
-                    "round": round, "outputs": outputs,
-                }));
-            }
-            OrchestratorEvent::MultiAgentConverged { reason, final_result, .. } => {
-                emit_orch_multi(self, "converged", json!({
-                    "reason": reason, "finalResult": final_result,
-                }));
-            }
+            // Multi-Agent 专用通道（orch_multi）已废弃（D7 裁定：前端零监听，2026-09-17）
             // 其他事件目前不需要转发到前端
             _ => {}
         }
+        ListenerOutcome::Continue
+    }
+}
+
+/// Plan 事件族专用发射器（首迁示范：从 `TauriAgentEventEmitter` 拆出的独立监听器）
+///
+/// 覆盖 `PlanCreated` / `PlanStepUpdate` / `PlanReplanned` 三事件 → 三个前端通道；
+/// 其余事件忽略。每会话一个实例（经 `ensure_emitter_registered` 与主 emitter 一并订阅）——
+/// 两个不同实例各收到一份事件、不触发 `Arc::ptr_eq` 去重；拆分的意义是把 Plan 分支
+/// 从主 emitter 的巨型 match 中解放出来（见 06-事件总线设计草案 §五 首迁）。
+pub struct PlanEventEmitter {
+    app: AppHandle,
+    session_id: String,
+}
+
+impl Listener for PlanEventEmitter {
+    fn call(&self, event: &OrchestratorEvent) -> ListenerOutcome {
+        match event {
+            OrchestratorEvent::PlanCreated { items } => {
+                let event_name = format!("agent:event:plan_created:{}", self.session_id);
+                if let Err(err) = emit_dual(
+                    &self.app,
+                    &event_name,
+                    serde_json::json!({ "items": items }),
+                ) {
+                    tracing::warn!("Failed to emit PlanCreated event to frontend: {}", err);
+                }
+            }
+            OrchestratorEvent::PlanStepUpdate {
+                step_id,
+                status,
+                output,
+            } => {
+                let event_name = format!("agent:event:plan_update:{}", self.session_id);
+                if let Err(err) = emit_dual(
+                    &self.app,
+                    &event_name,
+                    serde_json::json!({
+                        "itemId": step_id,
+                        "status": status,
+                        "output": output,
+                    }),
+                ) {
+                    tracing::warn!("Failed to emit PlanStepUpdate event to frontend: {}", err);
+                }
+            }
+            OrchestratorEvent::PlanReplanned { items } => {
+                let event_name = format!("agent:event:plan_replanned:{}", self.session_id);
+                if let Err(err) = emit_dual(
+                    &self.app,
+                    &event_name,
+                    serde_json::json!({ "items": items }),
+                ) {
+                    tracing::warn!("Failed to emit PlanReplanned event to frontend: {}", err);
+                }
+            }
+            _ => {}
+        }
+        ListenerOutcome::Continue
     }
 }
 
@@ -799,6 +926,19 @@ async fn ensure_emitter_registered(
             action_seq: AtomicU64::new(0),
         });
         agent.subscribe(emitter.clone()).await;
+        // 首迁：Plan 事件族独立监听器（3 key 精确订阅；与主 emitter 同生命周期，
+        // 幂等由上述注册表状态保证）
+        let plan_emitter = Arc::new(PlanEventEmitter {
+            app: app.clone(),
+            session_id: session_id.to_string(),
+        });
+        for key in [
+            agent_runtime::event::keys::PLAN_CREATED,
+            agent_runtime::event::keys::PLAN_STEP_UPDATE,
+            agent_runtime::event::keys::PLAN_REPLANNED,
+        ] {
+            agent.subscribe_key(key, plan_emitter.clone()).await;
+        }
         let mut registry = emitter_registry().lock().unwrap();
         registry.entry(session_id.to_string()).or_insert(emitter);
     }
@@ -819,6 +959,7 @@ async fn ensure_emitter_registered(
 pub async fn new_session(
     state: State<'_, AgentCommandService>,
     system_prompt: Option<String>,
+    prompt_sections: Option<Vec<PromptSection>>,
     provider_config: Option<ProviderConfig>,
     scenario_id: Option<String>,
     workdir: Option<String>,
@@ -828,6 +969,7 @@ pub async fn new_session(
     state
         .new_session(
             system_prompt,
+            prompt_sections.unwrap_or_default(),
             provider_config,
             scenario_id,
             workdir.map(std::path::PathBuf::from),
@@ -1181,18 +1323,68 @@ pub async fn send_message(
     state.send_message(params).await.map_err(|e| e.to_string())
 }
 
-/// 解析 HITL 工具确认（A5）：前端 `agent:confirm:{session_id}` 弹窗后回传
+/// 解析 HITL 工具确认（A5；D8 四值 2026-09-17）：前端 `agent:confirm:{session_id}` 弹窗后回传
 ///
-/// `approved=true` 放行工具执行，`false` 拒绝（工具按失败返回给 LLM）。
+/// `outcome` 取 `approved` / `denied` / `skipped`（三键各自成值；`timeout` 由 kernel 超时产生，
+/// 不接受前端回传）。`approved` 放行工具执行，其余按不执行返回给 LLM（文案区分）。
+///
+/// 相关：提问面板回传见 `cmd_agent_ask_answer`（Q1）；定时唤醒三件套
+/// `set_timer`/`list_timers`/`cancel_timer`（批次 C·S1）为纯工具，无独立命令。
 #[tauri::command]
 pub async fn cmd_agent_confirm(
     state: State<'_, AgentCommandService>,
     session_id: String,
     confirm_id: String,
-    approved: bool,
+    outcome: String,
+) -> Result<bool, String> {
+    let outcome = agent_runtime::confirmation::ConfirmationOutcome::parse(&outcome)?;
+    state
+        .resolve_confirmation(&session_id, &confirm_id, outcome)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 解析「模型主动提问」的回答（Q1，2026-09-20）：前端 `agent:ask:{session_id}` 面板回传
+///
+/// `answers = Some([...])`：用户作答（`[{id, selected[], custom?}]`，按提问批次 1:1 组装；
+/// 跳过 = 空 `selected` 无 `custom`）；`answers = None`：用户拒绝作答（前端「取消」键，
+/// 工具侧按 ASK_DENIED 失败结果回模型）。返回是否成功唤醒等待方
+/// （ask_id 已处理 / 已随轮取消时 false）。
+///
+/// 失败码（工具结果内 `errorCode`）：ASK_DENIED / ASK_CANCELLED / ASK_UNAVAILABLE
+/// （见 `crates/agent-commands/src/ask_tools.rs`；提问工具豁免执行前确认）。
+/// 超时口径：10 分钟兜底 → 按「跳过」返回（逐题空答案 + `timedOut: true`，非失败结果）。
+#[tauri::command]
+pub async fn cmd_agent_ask_answer(
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+    ask_id: String,
+    answers: Option<Vec<agent_runtime::confirmation::AskAnswer>>,
 ) -> Result<bool, String> {
     state
-        .resolve_confirmation(&session_id, &confirm_id, approved)
+        .resolve_ask(&session_id, &ask_id, answers)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// A2UI 接线（2026-09-17）：前端桥工具发射画布消息（`ctx.emitA2UI` 的实现端）
+///
+/// 链路：桥工具（`ui_*` / 实体工具）执行中调用 `ctx.emitA2UI` → 本命令 →
+/// `AgentCommandService::emit_a2ui` → 会话事件总线 `OrchestratorEvent::A2UIEvent`
+/// → emitter 转发 `agent:event:a2ui:{session_id}` → 前端 `handleA2UIEvent` 更新画布。
+/// `message` 为 camelCase A2UI 消息（`createSurface` / `updateComponents` /
+/// `updateDataModel` / `deleteSurface` 之一）。会话不存在时报错，前端按尽力而为忽略。
+#[tauri::command]
+pub async fn cmd_agent_emit_a2ui(
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+    surface_id: String,
+    message: serde_json::Value,
+) -> Result<(), String> {
+    let message: agent_runtime::a2ui::A2UIMessage = serde_json::from_value(message)
+        .map_err(|e| format!("A2UI 消息解析失败: {e}"))?;
+    state
+        .emit_a2ui(&session_id, &surface_id, message)
         .await
         .map_err(|e| e.to_string())
 }
@@ -1251,16 +1443,15 @@ pub async fn cmd_agent_tool_names(
         .map_err(|e| e.to_string())
 }
 
-/// 动态刷新会话 system prompt（H5 风险点③，2026-08-30）：
-/// 技能索引/规则文件中途变更时，前端重建完整 prompt 推送到当前会话并写穿持久化
+/// 技能索引/规则文件中途变更时，前端重建提示段推送到当前会话并写穿持久化（A4 双端收口）
 #[tauri::command]
-pub async fn cmd_agent_update_system_prompt(
+pub async fn cmd_agent_update_prompt_sections(
     state: State<'_, AgentCommandService>,
     session_id: String,
-    system_prompt: Option<String>,
+    prompt_sections: Vec<PromptSection>,
 ) -> Result<(), String> {
     state
-        .update_session_system_prompt(&session_id, system_prompt)
+        .update_session_prompt_sections(&session_id, prompt_sections)
         .await
         .map_err(|e| e.to_string())
 }
@@ -1827,8 +2018,8 @@ struct LoopControlTauriEventListener {
     app: AppHandle,
 }
 
-impl EventListener for LoopControlTauriEventListener {
-    fn on_event(&self, event: &OrchestratorEvent) {
+impl Listener for LoopControlTauriEventListener {
+    fn call(&self, event: &OrchestratorEvent) -> ListenerOutcome {
         // 只处理 Loop Engineering 事件；字段名与前端 RustLoopControlEventPayload 对齐（snake_case）
         let (task_id, payload): (String, serde_json::Value) = match event {
             OrchestratorEvent::LoopEngRateLimitExceeded {
@@ -1942,13 +2133,14 @@ impl EventListener for LoopControlTauriEventListener {
                 }),
             ),
             // 其他事件不转发
-            _ => return,
+            _ => return ListenerOutcome::Continue,
         };
 
         let event_name = format!("loop_control:event:{task_id}");
         if let Err(err) = emit_dual(&self.app, &event_name, payload) {
             tracing::warn!("Failed to emit loop_control event to frontend: {}", err);
         }
+        ListenerOutcome::Continue
     }
 }
 
@@ -2204,4 +2396,64 @@ pub async fn cmd_long_task_delete(
     task_id: String,
 ) -> Result<bool, String> {
     state.delete(&task_id).await.map_err(|e| e.to_string())
+}
+
+// ─── 测试 ────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A2UI 持久化契约（2026-09-17）：`A2UIEvent → ("a2ui", { surfaceId, message })`
+    ///
+    /// 该形状即前后端契约——前端 `collectA2UIActionEvents`（turnModel）按 `surfaceId` +
+    /// `message`（camelCase A2UIMessage）从 `meta.action_events` 重放重建画布。
+    #[test]
+    fn action_event_payload_maps_a2ui_event() {
+        let event = OrchestratorEvent::A2UIEvent {
+            node_id: "s-1".into(),
+            surface_id: "card-1".into(),
+            message: agent_runtime::a2ui::A2UIMessage::create_surface(
+                "card-1",
+                "https://worldsea.app/catalog/v1",
+            ),
+        };
+        let (action, payload) =
+            TauriAgentEventEmitter::action_event_payload(&event).expect("A2UIEvent 应映射为动作段");
+        assert_eq!(action, "a2ui");
+        assert_eq!(payload["surfaceId"], "card-1");
+        // message 为 camelCase A2UIMessage（前端 handleA2UIEvent 按变体键判型）
+        assert_eq!(payload["message"]["version"], "v0.9");
+        assert_eq!(payload["message"]["createSurface"]["surfaceId"], "card-1");
+        assert_eq!(
+            payload["message"]["createSurface"]["catalogId"],
+            "https://worldsea.app/catalog/v1"
+        );
+    }
+
+    /// 重试反馈契约（2026-09-17）：`LoopEngRetrying → llm_retry` 流 payload（camelCase）
+    ///
+    /// 前端 `handleStreamEvent` 按此形状驱动重试状态行（第 n/m 次 + 等待毫秒）；
+    /// 其他事件不映射（仅重试进行中上报，耗尽的终态走 Error 事件）。
+    #[test]
+    fn llm_retry_payload_maps_retrying_event() {
+        let event = OrchestratorEvent::LoopEngRetrying {
+            task_id: "t-1".into(),
+            attempt: 2,
+            max_retries: 3,
+            backoff_ms: 5000,
+            error: "429 Too Many Requests".into(),
+        };
+        let p = TauriAgentEventEmitter::llm_retry_payload(&event).expect("LoopEngRetrying 应映射");
+        assert_eq!(p["type"], "llm_retry");
+        assert_eq!(p["attempt"], 2);
+        assert_eq!(p["maxRetries"], 3);
+        assert_eq!(p["backoffMs"], 5000);
+        assert_eq!(p["error"], "429 Too Many Requests");
+        assert!(
+            TauriAgentEventEmitter::llm_retry_payload(&OrchestratorEvent::Agent(AgentEvent::AgentEnd))
+                .is_none(),
+            "非重试事件不应映射"
+        );
+    }
 }

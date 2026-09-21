@@ -72,6 +72,69 @@
               <span v-if="importResult.warnings.length" class="store-import-warnings">
                 {{ importResult.warnings.join('；') }}
               </span>
+              <div v-if="importResult.issues?.length" class="store-import-warnings">
+                <div v-for="(issue, i) in importResult.issues" :key="i">
+                  {{ issue.field ? `${issue.field}：` : '' }}{{ issue.message }}
+                </div>
+                <button
+                  v-if="!importResult.success && pendingImportText"
+                  class="set-btn"
+                  :disabled="importing"
+                  @click="retryImportAnyway"
+                >仍然导入（不符合协议规范）</button>
+              </div>
+            </div>
+          </div>
+        </Transition>
+      </div>
+
+      <!-- 创建技能（S2 创建向导：生成规范 SKILL.md + 可选 sidecar） -->
+      <div class="store-section">
+        <button class="store-section-toggle" @click="createPanelOpen = !createPanelOpen" :aria-expanded="createPanelOpen">
+          <WsIcon :name="createPanelOpen ? 'chevron-down' : 'chevron-right'" size="xs" />
+          创建技能
+        </button>
+        <Transition name="ws-slide-up">
+          <div v-if="createPanelOpen" class="store-import-area">
+            <p class="set-hint store-import-hint">
+              按协议规范生成技能：ID 须为小写字母/数字/连字符（与目录同名）；图标 / 优先级等私有字段写入 sidecar。
+            </p>
+            <div class="set-row">
+              <span class="sp-row-label">ID</span>
+              <input type="text" class="set-input" v-model="createForm.id" placeholder="my-skill" aria-label="技能 ID" />
+            </div>
+            <div class="set-row">
+              <span class="sp-row-label">名称</span>
+              <input type="text" class="set-input" v-model="createForm.name" placeholder="我的技能（缺省同 ID）" aria-label="技能名称" />
+            </div>
+            <div class="set-row">
+              <span class="sp-row-label">描述</span>
+              <input type="text" class="set-input" v-model="createForm.description" placeholder="做什么 + 何时使用" aria-label="技能描述" />
+            </div>
+            <div class="set-row">
+              <span class="sp-row-label">图标</span>
+              <input type="text" class="set-input" v-model="createForm.icon" placeholder="可选（lucide 图标名，如 sparkles）" aria-label="技能图标" />
+            </div>
+            <div class="set-row">
+              <span class="sp-row-label">优先级</span>
+              <input type="text" class="set-input" v-model="createForm.priority" placeholder="可选（数字，默认 5）" aria-label="技能优先级" />
+            </div>
+            <div class="store-source-actions">
+              <button
+                class="set-btn"
+                :disabled="creating || !createForm.id.trim() || !createForm.description.trim()"
+                @click="onCreate"
+              >{{ creating ? '创建中...' : '创建' }}</button>
+              <button class="set-btn" @click="createPanelOpen = false">收起</button>
+            </div>
+            <div v-if="createResult" class="store-import-result" :class="{ success: createResult.success }">
+              <WsIcon :name="createResult.success ? 'check' : 'close'" size="xs" />
+              <span>{{ createResult.message }}</span>
+              <div v-if="createResult.issues.length" class="store-import-warnings">
+                <div v-for="(issue, i) in createResult.issues" :key="i">
+                  {{ issue.field ? `${issue.field}：` : '' }}{{ issue.message }}
+                </div>
+              </div>
             </div>
           </div>
         </Transition>
@@ -99,6 +162,10 @@
 
         <!-- 已安装视图 -->
         <template v-if="activeTab === 'installed'">
+          <!-- 扫描警告（S2：覆盖冲突 / 同 id 重复 / 不合规） -->
+          <div v-if="store.scanWarnings.value.length" class="store-error">
+            <div v-for="(w, i) in store.scanWarnings.value" :key="i">{{ w }}</div>
+          </div>
           <div v-if="localInstalledSkills.length === 0" class="store-empty">
             暂无已安装的本地技能，可在「商城」安装或使用上方本地导入
           </div>
@@ -225,8 +292,17 @@ const STORE_TABS = computed(() => [
 // 本地导入状态（Task 24 阶段4）
 const importPanelOpen = ref(false)
 const importing = ref(false)
-const importResult = ref<{ success: boolean; warnings: string[]; platform: string } | null>(null)
+const importResult = ref<{ success: boolean; warnings: string[]; platform: string; issues?: { level: string; field?: string; message: string }[] } | null>(null)
 const fileInputRef = ref<HTMLInputElement | null>(null)
+/** 上次导入原文（校验拦截后「仍然导入」用） */
+const pendingImportText = ref('')
+const pendingImportFallbackId = ref('')
+
+// ── 创建技能（S2 创建向导）──
+const createPanelOpen = ref(false)
+const creating = ref(false)
+const createForm = ref({ id: '', name: '', description: '', icon: '', priority: '' })
+const createResult = ref<{ success: boolean; message: string; issues: { level: string; field?: string; message: string }[] } | null>(null)
 
 /** 搜索过滤后的远程技能列表 */
 const filteredSkills = computed(() => {
@@ -278,7 +354,7 @@ async function onUninstall(skillId: string): Promise<void> {
   if (ok) emit('skills-changed')
 }
 
-/** 本地导入技能：读取文件 → autoImportSkill 解析 → 写入 skills 目录 */
+/** 本地导入技能：读取文件 → autoImportSkill 解析 → 协议校验 → 写入技能目录（规范 SKILL.md + sidecar） */
 async function onFileSelected(e: Event): Promise<void> {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
@@ -289,6 +365,8 @@ async function onFileSelected(e: Event): Promise<void> {
     const text = await file.text()
     // 用文件名（去扩展名）作为 fallbackId，清洗非法字符
     const fallbackId = file.name.replace(/\.(md|mdc|ya?ml)$/i, '').replace(/[^a-zA-Z0-9_-]/g, '-').replace(/-+/g, '-')
+    pendingImportText.value = text
+    pendingImportFallbackId.value = fallbackId
     const result = await store.importLocal(text, fallbackId)
     importResult.value = result
     if (result.success) emit('skills-changed')
@@ -297,6 +375,46 @@ async function onFileSelected(e: Event): Promise<void> {
   } finally {
     importing.value = false
     input.value = '' // 重置，允许重复选择同一文件
+  }
+}
+
+/** 校验拦截后显式放行导入（S2：allowNonCompliant） */
+async function retryImportAnyway(): Promise<void> {
+  if (!pendingImportText.value) return
+  importing.value = true
+  try {
+    const result = await store.importLocal(pendingImportText.value, pendingImportFallbackId.value, { allowNonCompliant: true })
+    importResult.value = result
+    if (result.success) emit('skills-changed')
+  } finally {
+    importing.value = false
+  }
+}
+
+/** 创建技能（S2）：模板生成 → 校验 → 写入安装根 */
+async function onCreate(): Promise<void> {
+  const priority = createForm.value.priority.trim() ? Number(createForm.value.priority) : undefined
+  creating.value = true
+  createResult.value = null
+  try {
+    const outcome = await store.createSkill({
+      id: createForm.value.id.trim(),
+      name: createForm.value.name.trim() || undefined,
+      description: createForm.value.description.trim(),
+      icon: createForm.value.icon.trim() || undefined,
+      priority: Number.isFinite(priority) ? priority : undefined,
+    })
+    createResult.value = {
+      success: outcome.ok,
+      message: outcome.ok ? '创建成功，已刷新技能列表' : '创建失败（不符合协议规范或写入失败）',
+      issues: outcome.issues,
+    }
+    if (outcome.ok) {
+      createForm.value = { id: '', name: '', description: '', icon: '', priority: '' }
+      emit('skills-changed')
+    }
+  } finally {
+    creating.value = false
   }
 }
 

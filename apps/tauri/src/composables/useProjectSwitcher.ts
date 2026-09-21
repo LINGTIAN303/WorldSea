@@ -128,17 +128,10 @@ export function useProjectSwitcher() {
     // 2. 初始化 ProjectManager
     const projectId = await pm.initialize()
 
-    // 3. Tauri 环境：切换后端 SQLite 数据库（P3-W4 续恢复）
-    if (isTauri() && hasTauriInvoke()) {
-      try {
-        const { invoke } = await import('@tauri-apps/api/core')
-        await invoke('cmd_switch_project', { projectId })
-      } catch (err) {
-        console.error('[ProjectSwitcher] Tauri cmd_switch_project 失败:', err)
-      }
-    }
+    // 2.5（W6，2026-09-18）原 cmd_switch_project 空壳调用已删：会话库为全局单库，
+    // 会话归属走 project_id 列 + 前端按项目过滤（SessionSidebar），无后端切换动作。
 
-    // 2.5 默认项目兜底归位（无项目/未选目录 = 全局根，2026-09-03 拍板）
+    // 3. 默认项目兜底归位（无项目/未选目录 = 全局根，2026-09-03 拍板）
     //    · 系统默认项目（isDefault，或旧「默认项目」名——一次性补标记）不可移除；
     //    · 其 dirPath 恒为全局根 ~/.WorldSea（选择器显示 / 打开文件夹定位基准；
     //      修历史残留 dirPath 如 worldentity / tream_test）；
@@ -210,18 +203,8 @@ export function useProjectSwitcher() {
         return false
       }
 
-      // 2. Tauri 环境：切换后端 SQLite 数据库（P3-W4 续恢复）
-      if (isTauri() && hasTauriInvoke()) {
-        try {
-          const { invoke } = await import('@tauri-apps/api/core')
-          await invoke('cmd_switch_project', { projectId: targetProjectId })
-        } catch (err) {
-          console.error('[ProjectSwitcher] Tauri cmd_switch_project 失败:', err)
-        }
-      }
-
       // 2. 设置 FileStorageBackend 目录绑定（默认项目特判到根/worlddata；
-        //    no-dir 项目保持 null/既有 dirPath）
+      //    no-dir 项目保持 null/既有 dirPath）
       let dirPath = await pm.getProjectDir(targetProjectId)
       const targetProj = await pm.getProject(targetProjectId)
       await setStorageProjectDir(entityDirOf(targetProj, dirPath))

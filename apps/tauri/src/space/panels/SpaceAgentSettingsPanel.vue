@@ -43,6 +43,8 @@
         @toggle-skill="onToggleSkill"
         @toggle-mcp="onToggleMcp"
         @add-mcp="onAddMcp"
+        @save-mcp="onSaveMcp"
+        @retry-mcp="onRetryMcp"
         @remove-mcp="onRemoveMcp"
         @open-terminal="openTerminal"
         @api-key-change="onApiKeyChange"
@@ -57,7 +59,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
-import { WsIcon } from '@worldsea/ui-kit'
+import { WsIcon, useConfirm } from '@worldsea/ui-kit'
 import { useAgent } from '@/agent/composables/useAgent'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useMcpConnections } from '@worldsea/shared-composables/agent/useMcpConnections'
@@ -86,9 +88,20 @@ const {
 
 const settingsStore = useSettingsStore()
 // 注入 useAgentRust（提供 getMCPConnections/addMCPConnection/removeMCPConnection 本地管理）
-const { connections: mcpConnections, addConnection, removeConnection, toggleConnection, ensureLoaded: ensureMcpLoaded } = useMcpConnections({ getAgent: () => useAgent() })
+const {
+  connections: mcpConnections,
+  addConnection,
+  removeConnection,
+  toggleConnection,
+  saveConnection,
+  retryConnection,
+  ensureLoaded: ensureMcpLoaded,
+} = useMcpConnections({ getAgent: () => useAgent() })
 
 const mcpConnectionsList = computed(() => mcpConnections.value)
+
+// 删除 MCP 服务器二次确认（Tauri WebView2 禁用原生 confirm，统一走 WsConfirmDialog）
+const { confirm } = useConfirm()
 
 const currentProvider = ref(settingsStore.aiCloudProvider)
 const currentModelId = ref(settingsStore.aiCloudModel)
@@ -290,11 +303,50 @@ async function onAddMcp(config: MCPConnectionConfig): Promise<void> {
 }
 
 async function onToggleMcp(serverId: string): Promise<void> {
-  await toggleConnection(serverId)
+  try {
+    await toggleConnection(serverId)
+  } catch (err) {
+    // C-2：启用失败不再静默回写禁用，配置保留在「连接失败」组；这里给出错误提示
+    const msg = err instanceof Error ? err.message : String(err)
+    toastError(`MCP 连接失败：${msg}`)
+    console.error('[MCP] 启停切换失败:', serverId, err)
+  }
+}
+
+async function onSaveMcp(config: MCPConnectionConfig): Promise<void> {
+  try {
+    await saveConnection(config)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    toastError(`MCP「${config.name}」保存失败：${msg}`)
+  }
+}
+
+async function onRetryMcp(serverId: string): Promise<void> {
+  try {
+    await retryConnection(serverId)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    toastError(`MCP 重试连接失败：${msg}`)
+    console.error('[MCP] 重试连接失败:', serverId, err)
+  }
 }
 
 async function onRemoveMcp(serverId: string): Promise<void> {
-  await removeConnection(serverId)
+  const target = mcpConnections.value.find((c) => c.id === serverId)
+  const ok = await confirm({
+    type: 'danger',
+    title: '删除 MCP 服务器',
+    description: `确定删除「${target?.config.name ?? serverId}」吗？将同时断开连接并从 mcp.json 移除配置，此操作不可撤销。`,
+    confirmText: '删除',
+    cancelText: '取消',
+  })
+  if (!ok) return
+  try {
+    await removeConnection(serverId)
+  } catch (err) {
+    toastError(`删除失败：${err instanceof Error ? err.message : String(err)}`)
+  }
 }
 
 /** 终端面板内嵌 Tauri 原生终端（TerminalView），无需额外打开外部终端 */

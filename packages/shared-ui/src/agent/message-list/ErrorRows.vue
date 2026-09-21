@@ -5,6 +5,8 @@
     <div class="error-copy">
       <span class="error-title">会话出错</span>
       <span class="error-message">{{ error.message }}</span>
+      <!-- A5 收尾（2026-09-17）：结构化提示（可重试 / 服务端建议等待），来自流通道 error 字段 -->
+      <span v-if="retryHint" class="error-hint">{{ retryHint }}</span>
     </div>
     <code v-if="error.code" class="error-code">{{ error.code }}</code>
   </div>
@@ -20,6 +22,8 @@ export interface ErrorRowItem {
 
 defineProps<{
   error: ErrorRowItem | null
+  /** A5 收尾：终态错误结构化提示（如「瞬时性故障，可重试；服务端建议约 5 秒后重试」） */
+  retryHint?: string
 }>()
 </script>
 
@@ -53,6 +57,10 @@ defineProps<{
 }
 .error-message {
   color: var(--agent-text-secondary, inherit);
+}
+.error-hint {
+  color: var(--warning, #f59e0b);
+  font-size: var(--font-size-2xs, 11px);
 }
 .error-code {
   flex-shrink: 0;

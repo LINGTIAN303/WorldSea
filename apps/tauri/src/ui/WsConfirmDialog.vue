@@ -10,7 +10,8 @@
       >
         <div
           class="ws-confirm"
-          :class="`ws-confirm--${state.position}`"
+          :class="[`ws-confirm--${state.position}`, { 'ws-confirm--docked': !!dockedStyle }]"
+          :style="dockedStyle"
           ref="confirmRef"
           role="alertdialog"
           aria-modal="true"
@@ -20,8 +21,10 @@
           <div class="ws-confirm__icon" :class="`ws-confirm__icon--${state.type}`">
             <WsIcon :name="iconName" size="md" />
           </div>
-          <h3 :id="titleId" class="ws-confirm__title">{{ state.title }}</h3>
-          <p v-if="state.description" :id="descId" class="ws-confirm__desc">{{ state.description }}</p>
+          <div class="ws-confirm__text">
+            <h3 :id="titleId" class="ws-confirm__title">{{ state.title }}</h3>
+            <p v-if="state.description" :id="descId" class="ws-confirm__desc">{{ state.description }}</p>
+          </div>
           <div class="ws-confirm__actions">
             <TuiButton variant="ghost" size="sm" @click="doCancel">{{ state.cancelText }}</TuiButton>
             <!-- 可选第三键（中性选项，如「取消(跳过)」）：仅 HITL 等三选场景渲染 -->
@@ -47,11 +50,17 @@ import { ref, computed, watch, nextTick } from 'vue'
 import { useConfirm } from '@worldsea/plugin-sdk'
 import type { ConfirmExtraAction } from '@worldsea/ui-kit'
 import { useFocusTrap } from '@/composables/useFocusTrap'
+import { useDockPanelRect } from '@/composables/useDockPanelRect'
 import { WsIcon } from '@worldsea/ui-kit'
 import TuiButton from '@/components/ui/TuiButton.vue'
 
 const { state, doConfirm, doCancel, doNeutral } = useConfirm()
 const confirmRef = ref<HTMLElement | null>(null)
+
+/** bottom 模式停靠输入栏（宽度跟随 + 底边对齐；center 模式不受影响） */
+const { dockedStyle } = useDockPanelRect(
+  computed(() => state.value.show && state.value.position === 'bottom'),
+)
 
 const titleId = 'ws-confirm-title'
 const descId = 'ws-confirm-desc'
@@ -124,6 +133,58 @@ watch(() => state.value.show, (v) => {
 
 .ws-confirm--bottom {
   pointer-events: auto; /* 面板本身可交互 */
+}
+
+/* 文本块包裹：center 模式 display:contents 让 h3/p 仍按原块级流布局（视觉零变化） */
+.ws-confirm__text {
+  display: contents;
+}
+
+/* ── bottom 模式停靠态（2026-09-20 走查后改版）：条状面板，宽度跟随输入栏、底边对齐可覆盖输入栏 ── */
+.ws-confirm--docked {
+  position: absolute; /* overlay 为 fixed inset:0 → absolute 即视口坐标 */
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: none;
+  padding: 14px 16px;
+  border-radius: var(--radius-2xl);
+  text-align: left;
+}
+
+.ws-confirm--docked .ws-confirm__text {
+  display: block;
+  flex: 1;
+  min-width: 0;
+}
+
+.ws-confirm--docked .ws-confirm__icon {
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.ws-confirm--docked .ws-confirm__title {
+  font-size: var(--fs-md);
+  margin: 0 0 4px;
+}
+
+.ws-confirm--docked .ws-confirm__desc {
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: pre-line;
+}
+
+.ws-confirm--docked .ws-confirm__actions {
+  justify-content: flex-end;
+  flex-shrink: 0;
 }
 
 .ws-confirm__icon {

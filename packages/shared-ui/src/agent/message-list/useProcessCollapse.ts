@@ -59,21 +59,29 @@ export function useProcessCollapse(opts: UseProcessCollapseOptions): void {
   }
 
   /**
-   * 过程层是否仍在视口内
-   * 按 dataset 遍历比对而非拼属性选择器：turnId 可能含特殊字符，避免选择器注入/转义坑。
+   * 构建「轮次 → 过程层是否在视口内」索引（一次 DOM 遍历 + 一次容器 rect）。
+   *
+   * 2026-09-20 帧率修复：原实现是「每个轮次各查一次」，即每 delta 做 O(轮次数) 次
+   * `querySelectorAll('[data-turn-id]')` 全子树遍历 + 强制布局（长会话下每 delta 百万级
+   * 节点访问，直接饿死 rAF → 流式打字机掉帧）。改为**每次评估只建一次索引**，
+   * 且由 `decideCollapse` 惰性触发——稳态（流式轮 / 已折叠轮全部 'skip'）下完全不查。
+   *
+   * 只统计已渲染（窗口内）的过程层元素：未渲染 = 被窗口化卸载 → 视为不可见（与逐轮查询语义一致）。
+   * 按 dataset 取值而非拼选择器：turnId 可能含特殊字符，避免选择器注入/转义坑。
    */
-  function isProcessVisible(turnId: string): boolean {
+  function buildVisibilityIndex(): Map<string, boolean> {
+    const index = new Map<string, boolean>()
     const scroll = getScrollEl()
-    if (!scroll) return false
+    if (!scroll) return index
+    const sr = scroll.getBoundingClientRect()
     for (const el of scroll.querySelectorAll<HTMLElement>('[data-turn-id]')) {
-      if (el.dataset.turnId !== turnId) continue
+      const turnId = el.dataset.turnId
+      if (!turnId) continue
       const r = el.getBoundingClientRect()
-      const sr = scroll.getBoundingClientRect()
       // 与视口有任意重叠即视为可见
-      return r.bottom > sr.top && r.top < sr.bottom
+      index.set(turnId, r.bottom > sr.top && r.top < sr.bottom)
     }
-    // 找不到过程层元素（已被窗口化切片卸载 / 本轮无过程内容）→ 视为不可见
-    return false
+    return index
   }
 
   function clearTimer(turnId: string): void {
@@ -94,8 +102,14 @@ export function useProcessCollapse(opts: UseProcessCollapseOptions): void {
   }
 
   function evaluate(): void {
+    // 视口索引惰性建一次（仅当某轮次真的需要可见性时才建，见 buildVisibilityIndex 注释）
+    let visibility: Map<string, boolean> | null = null
+    const isVisible = (turnId: string): boolean => {
+      if (!visibility) visibility = buildVisibilityIndex()
+      return visibility.get(turnId) ?? false
+    }
     for (const t of opts.turns.value) {
-      const decision = decideCollapse(t, isProcessVisible(t.id))
+      const decision = decideCollapse(t, () => isVisible(t.id))
       if (decision === 'skip') {
         clearTimer(t.id)
       } else if (decision === 'collapse-now') {

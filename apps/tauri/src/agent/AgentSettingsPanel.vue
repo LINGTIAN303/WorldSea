@@ -122,6 +122,8 @@
                   :mcp-connections="mcpConnections"
                   @toggle-mcp="(serverId) => emit('toggle-mcp', serverId)"
                   @add-mcp="(config) => emit('add-mcp', config)"
+                  @save-mcp="(config) => emit('save-mcp', config)"
+                  @retry-mcp="(serverId) => emit('retry-mcp', serverId)"
                   @remove-mcp="(serverId) => emit('remove-mcp', serverId)"
                 />
               </template>
@@ -385,6 +387,8 @@
             :mcp-connections="mcpConnections"
             @toggle-mcp="(serverId) => emit('toggle-mcp', serverId)"
             @add-mcp="(config) => emit('add-mcp', config)"
+            @save-mcp="(config) => emit('save-mcp', config)"
+            @retry-mcp="(serverId) => emit('retry-mcp', serverId)"
             @remove-mcp="(serverId) => emit('remove-mcp', serverId)"
           />
           <!-- 终端面板 -->
@@ -470,7 +474,7 @@ import AgentPluginsPanel from '@worldsea/ui-kit/components/settings/panels/Agent
 import ModelsSection from './panels/model/ModelsSection.vue'
 import ProviderTypeDialog from './panels/model/ProviderTypeDialog.vue'
 import ModelParamsDialog from './panels/model/ModelParamsDialog.vue'
-import { getModelInfo } from '@worldsea/agent-runtime'
+import { getModelInfo, type MCPConnectionState, type MCPConnectionConfig } from '@worldsea/agent-runtime'
 import { useAgentRust } from './composables/useAgentRust'
 
 const { updateModel, securityLevel, setSecurityLevel } = useAgentRust()
@@ -497,7 +501,7 @@ const props = withDefaults(defineProps<{
   searchEngine: string
   searchApiKey: string
   skills: Array<{ id: string; icon: string; name: string; description: string; enabled: boolean; category?: 'domain' | 'action' | 'persona' }>
-  mcpConnections: Array<{ id: string; config: { id: string; name: string; transport: string; url?: string; command?: string; args?: string[]; enabled: boolean }; status: string; tools: unknown[]; error?: string }>
+  mcpConnections: MCPConnectionState[]
   embedded?: boolean
   searchQuery?: string
 }>(), {
@@ -538,7 +542,9 @@ const emit = defineEmits<{
   'toggle-skill': [skillId: string]
   'skills-changed': []
   'toggle-mcp': [serverId: string]
-  'add-mcp': [config: any]
+  'add-mcp': [config: MCPConnectionConfig]
+  'save-mcp': [config: MCPConnectionConfig]
+  'retry-mcp': [serverId: string]
   'remove-mcp': [serverId: string]
   'reset-position': []
   'open-terminal': []
@@ -1224,18 +1230,9 @@ onMounted(() => {
 /* D 批：Skills 分类栏样式已收敛至 settings-panels.css 基座（.set-cats / .set-cat / .set-cat-count）。
    2026-09-10 删除此处的 .ms-cat* 私有拷贝（与 ModelsSection、McpPanel 三份重复实现合并为一）。 */
 
-.mcp-list { display: flex; flex-direction: column; gap: 6px; }
-.mcp-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--radius-mid); background: var(--agent-hover-bg); border: 1px solid transparent; transition: border-color 0.15s, opacity 0.15s; }
-.mcp-item.disabled { opacity: 0.5; }
-.mcp-item:hover { border-color: var(--agent-border); }
-.mcp-status { font-size: var(--font-size-xs); flex-shrink: 0; }
-.mcp-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-.mcp-name { font-size: var(--font-size-sm); font-weight: var(--font-weight-medium); color: var(--agent-text); font-family: var(--agent-font); }
-.mcp-desc { font-size: var(--font-size-xs); color: var(--agent-text-tertiary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--agent-font); }
-.mcp-add-form { display: flex; flex-direction: column; gap: 6px; padding: 6px 0; border-top: 1px solid var(--agent-border); }
-.mcp-add-actions { display: flex; gap: 6px; justify-content: flex-end; }
-.mcp-delete-btn { background: none; border: none; cursor: pointer; font-size: var(--font-size-xs); padding: 2px 4px; opacity: 0.4; transition: opacity 0.15s; }
-.mcp-delete-btn:hover { opacity: 1; }
+/* MCP 卡样式（.mcp-list/.mcp-item/.mcp-form 等）已随 McpPanel 抽离收敛到
+   agent/panels/McpPanel.vue 的 scoped 样式（2026-09-17 UI 优化），此处不再保留全局拷贝。
+   .skill-toggle 为 Skills 行与 MCP 行共用，仍保留在本文件全局样式中。 */
 
 
 .chat-mode-grid {

@@ -36,9 +36,10 @@
       <span v-if="!isOpen" class="ws-stream-think-summary">{{ summary }}</span>
     </div>
     <!-- 展开态：可折叠容器（grid-rows 0fr→1fr 高度动画 + 内容虚化→凝实）。
-         标题行位置不动，下方内容被展开高度顺滑推下（accordion 语义）。 -->
+         标题行位置不动，下方内容被展开高度顺滑推下（accordion 语义）。
+         正文绑 displayText 而非 item.text：折叠态不可见 → 不更新；展开态 rAF 合并（见 script）。 -->
     <div class="ws-stream-think-collapse" :class="{ open: isOpen }" :aria-hidden="!isOpen">
-      <div ref="bodyEl" class="ws-stream-think-body" @click.stop>{{ item.text }}</div>
+      <div ref="bodyEl" class="ws-stream-think-body" @click.stop>{{ displayText }}</div>
     </div>
   </div>
 </template>
@@ -47,7 +48,9 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { WsIcon } from '@worldsea/ui-kit'
 import { IconBrain } from '@tabler/icons-vue'
+import { rafThrottle } from '@worldsea/perf-kit/render'
 import { useThinkingFold } from '../../bubbles/useThinkingFold'
+import { thinkSummary } from './thinkSummary'
 
 /** Think 行的最小形参与事件流项一致 */
 interface ThinkItem {
@@ -107,13 +110,28 @@ function toggle() {
 }
 
 // ===== 摘要：running=末行 / complete=首行 =====
-const lines = computed(() =>
-  props.item.text.split('\n').map(s => s.trim()).filter(Boolean),
+// 2026-09-20 性能（C1 推理专项）：改为 thinkSummary 定向扫描——原实现每个 delta 对全文
+// split('\n').map(trim).filter 一次（O(全文) 分配），长推理流式下是主要 GC 压力来源。
+const summary = computed(() => thinkSummary(props.item.text, isStreaming.value))
+
+// ===== 正文文本：折叠态跳过更新 + 展开态 rAF 合并 =====
+// 折叠态正文高度为 0 且 aria-hidden（不可见），原实现仍每 delta 整段 patch 文本节点；
+// 展开态则对齐正文行（useStreamingRenderer）的 rAF 节流。展开瞬间同步到最新，避免闪现旧内容。
+const displayText = ref(props.item.text)
+const flushText = rafThrottle(() => {
+  displayText.value = props.item.text
+})
+watch(
+  () => props.item.text,
+  () => {
+    if (!isOpen.value) return
+    flushText()
+  },
 )
-const summary = computed(() => {
-  const l = lines.value
-  const src = isStreaming.value ? l[l.length - 1] : l[0]
-  return (src || '').slice(0, 80)
+watch(isOpen, (open) => {
+  if (!open) return
+  flushText.cancel()
+  displayText.value = props.item.text
 })
 
 // ===== 运行中自动跟随末尾（对齐 scrollLeft=scrollWidth-clientWidth） =====
@@ -122,20 +140,16 @@ function followEnd() {
   if (!bodyEl.value) return
   bodyEl.value.scrollLeft = bodyEl.value.scrollWidth - bodyEl.value.clientWidth
 }
-watch(
-  () => props.item.text,
-  () => {
-    if (isOpen.value && isStreaming.value) {
-      nextTick(followEnd)
-    }
-  },
-)
+watch(displayText, () => {
+  if (isOpen.value && isStreaming.value) nextTick(followEnd)
+})
 // 监听锚点：open 变化为 true 且 running 时也跟随一次
 watch(isOpen, () => {
   if (isOpen.value && isStreaming.value) nextTick(followEnd)
 })
 onBeforeUnmount(() => {
   bodyEl.value = null
+  flushText.cancel()
   if (animTimer !== null) {
     window.clearTimeout(animTimer)
     animTimer = null

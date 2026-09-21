@@ -52,7 +52,13 @@
         <span class="ws-stream-tool-dot" :class="item.tc.status" v-if="item.tc.status === 'running'"></span>
         <WsIcon v-else-if="item.tc.status === 'completed'" name="check" size="xs" class="ws-stream-tool-icon-success" />
         <WsIcon v-else name="x" size="xs" class="ws-stream-tool-icon-fail" />
-        <!-- 只读信息：效果标签 / 执行耗时 / 错误摘要 / 参数预览（不可点击） -->
+        <!-- 只读信息：沙箱徽标 / 效果标签 / 执行耗时 / 错误摘要 / 参数预览（不可点击） -->
+        <span
+          v-if="!isFailed && (sandboxDenied || sandboxLabel)"
+          class="ws-stream-tool-sandbox"
+          :class="{ 'is-denied': sandboxDenied }"
+          :title="sandboxTitle || undefined"
+        >{{ sandboxDenied ? '沙箱拒绝' : sandboxLabel }}</span>
         <span v-if="!isFailed && effect" class="ws-stream-tool-effect">{{ effect }}</span>
         <span v-if="durationText" class="ws-stream-tool-duration">{{ durationText }}</span>
         <span v-if="isFailed" class="ws-stream-tool-error">{{ errorText }}</span>
@@ -120,6 +126,7 @@ import {
   OP_VERB,
   extractOperationSubject,
   extractEffectLabel,
+  formatSandboxMode,
   type ToolMeta,
 } from './toolSemantics'
 import type { ToolCallView, InteractiveToolType } from '@worldsea/shared-composables/agent/useAgent'
@@ -199,6 +206,16 @@ const meta = computed<ToolMeta | null>(() => {
   return m && typeof m === 'object' ? (m as ToolMeta) : null
 })
 const effect = computed(() => extractEffectLabel(meta.value))
+
+// ===== E3-4 沙箱徽标：__meta.sandbox（审计元信息对外可见；无戳记不渲染） =====
+// 被沙箱拒绝时改显「沙箱拒绝」（警示态 + 悬停说明），模式标签让位
+const sandboxLabel = computed(() => formatSandboxMode(meta.value?.sandbox))
+const sandboxDenied = computed(() => meta.value?.sandbox_denied === true)
+const sandboxTitle = computed(() =>
+  sandboxDenied.value
+    ? '沙箱拒绝：该命令的写操作被系统拒绝（工作区外路径，或只读档下的任何写）'
+    : '',
+)
 
 // ===== 执行耗时（H7 P0.5 事件权威字段）；shell 类已由 __meta duration_ms 进 effect，避免重复 =====
 const durationText = computed(() => {

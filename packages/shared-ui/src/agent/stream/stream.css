@@ -302,6 +302,21 @@
   padding: 1px 5px;
   border-radius: 4px;
 }
+/* E3-4 沙箱徽标（__meta.sandbox：受限模式下工具行常显；被拒时改警示色描边） */
+.ws-stream-tool-sandbox {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--agent-text-tertiary);
+  background: var(--agent-hover-bg);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.ws-stream-tool-sandbox.is-denied {
+  color: var(--agent-danger);
+  background: transparent;
+  border: 1px solid var(--agent-danger);
+  padding: 0 4px;
+}
 /* 执行耗时（H7 P0.5 事件权威字段，如 1.2s / 1m05s） */
 .ws-stream-tool-duration {
   flex-shrink: 0;

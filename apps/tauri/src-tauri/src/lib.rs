@@ -142,10 +142,14 @@ pub fn run() {
             semantic_commands::cmd_workspace_index_rebuild,
             commands::send_message,
             commands::cmd_agent_confirm,
+            // Q1 提问（2026-09-20）：提问面板作答回传（Some=作答 / None=拒绝）
+            commands::cmd_agent_ask_answer,
+            // A2UI 接线（2026-09-17）：桥工具 emitA2UI → 会话事件总线 → 前端画布通道
+            commands::cmd_agent_emit_a2ui,
             commands::cmd_agent_set_security_level,
             // 诊断：会话工具名清单（MCP 注入链路验证）
             commands::cmd_agent_tool_names,
-            commands::cmd_agent_update_system_prompt,
+            commands::cmd_agent_update_prompt_sections,
             // FrontendToolBridge：前端执行桥工具后按 callId 回传结果
             commands::cmd_agent_tool_result,
             // Skills Store（H3 点火 2026-08-30 重建）：商城安装/卸载/版本/本地导入/目录
@@ -244,8 +248,6 @@ pub fn run() {
             // 文档格式预览（2026-09-14）：本机 Office 转换 —— 探测 + ppt/pptx → PDF（带缓存）
             office_commands::cmd_office_available,
             office_commands::cmd_pptx_to_pdf,
-            // Phase A 迁移：项目切换（useProjectSwitcher Tauri 分支）
-            project_commands::cmd_switch_project,
             // Phase B 迁移：获取应用数据目录（自动绑定项目存储目录）
             project_commands::cmd_get_app_data_dir,
             // §六 全局层迁移：获取用户主目录（~/.WorldSea 载体根）
@@ -485,6 +487,46 @@ pub fn run() {
             svc.set_mcp_tools_provider({
                 let hub = mcp_state.hub.clone();
                 Arc::new(move || hub.tools_for_bus())
+            });
+            // M7：server instructions 快照供给器（mcp_note 提示段消费）
+            svc.set_mcp_notes_provider({
+                let hub = mcp_state.hub.clone();
+                Arc::new(move || hub.notes_for_prompt())
+            });
+            // M6（2026-09-17 三域对齐 dsh）：Hub 事件外发——状态变化转 Tauri 事件（前端实时
+            // 状态），工具集变化触发会话同步（重连成功 → 热注入；超限注销 → 按服务器移除）。
+            mcp_state.hub.set_event_sink({
+                let app_handle = app.handle().clone();
+                let hub = mcp_state.hub.clone();
+                Arc::new(move |ev: mcp_client::McpHubEvent| {
+                    use tauri::Emitter;
+                    match ev {
+                        mcp_client::McpHubEvent::Status(entry) => {
+                            let _ = app_handle.emit("mcp:status", entry);
+                        }
+                        mcp_client::McpHubEvent::ToolsChanged { server_id, removed } => {
+                            let handle = app_handle.clone();
+                            let hub = hub.clone();
+                            tauri::async_runtime::spawn(async move {
+                                if let Some(svc) = handle.try_state::<AgentCommandService>() {
+                                    if removed {
+                                        let _ = svc.remove_mcp_server_tools(&server_id).await;
+                                        // M7：全部断开时一并移除枢纽级 resources 工具
+                                        if hub.connected_count().await == 0 {
+                                            let _ = svc
+                                                .remove_mcp_server_tools(
+                                                    agent_runtime::mcp::MCP_HUB_TOOL_GROUP,
+                                                )
+                                                .await;
+                                        }
+                                    } else {
+                                        let _ = svc.hot_inject_mcp_tools().await;
+                                    }
+                                }
+                            });
+                        }
+                    }
+                })
             });
             app.manage(mcp_state);
             {

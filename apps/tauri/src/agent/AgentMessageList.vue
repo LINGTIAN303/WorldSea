@@ -101,8 +101,18 @@
         />
       </Transition>
 
-      <!-- [⑥] 会话错误行：由 activity log error 项派生 -->
-      <ErrorRows :error="turnError" />
+      <!-- [⑥] 会话错误行：由 activity log error 项派生；A5 收尾：附结构化提示（可重试/建议等待） -->
+      <ErrorRows :error="turnError" :retry-hint="errorRetryHint" />
+
+      <!-- A5 收尾（2026-09-17）：重试状态行——退避等待期可见（恢复/终态即消散） -->
+      <Transition name="fade">
+        <div v-if="latestRetry" class="retry-banner" role="status">
+          <span class="retry-dot" />
+          <span class="retry-text">
+            连接不稳定，正在重试（第 {{ latestRetry.attempt }}/{{ latestRetry.maxRetries }} 次<template v-if="retryRemainSec > 0">，约 {{ retryRemainSec }} 秒后</template>）
+          </span>
+        </div>
+      </Transition>
 
       <!-- total_steps 预算满额横幅：模型工具调用轮数达到上限，可「继续」（接续机制占位，见 docs 记录） -->
       <Transition name="fade">
@@ -136,7 +146,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
 import AgentStreamList from '@worldsea/shared-ui/agent/stream/AgentStreamList.vue'
 import A2UIRenderer from '@worldsea/shared-ui/agent/a2ui/A2UIRenderer.vue'
 import { useAgent } from './composables/useAgent'
@@ -164,7 +174,7 @@ const archiveStore = useArchiveStore()
 const { logs: activityLogs } = useActivityLog()
 // total_steps 预算横幅：latestStepBudget 由 event bridge 流通道 step_budget_warning 刷新
 const agentRust = useAgentRust()
-const { latestStepBudget, clearStepBudgetHint, sendMessage: sendAgentMessage } = agentRust
+const { latestStepBudget, clearStepBudgetHint, sendMessage: sendAgentMessage, latestRetry, latestErrorInfo } = agentRust
 // M2：编排迹线（状态由 useAgentRust 会话生命周期统一维护，本组件纯消费）+ 中止处理
 const { activeRun, finishedRuns } = useOrchestrationTrace()
 const sessionViewState = useSessionViewState()
@@ -403,6 +413,41 @@ const turnError = computed<{ message: string; code?: string } | null>(() => {
   return { message: last.message, code: last.detail ? String(last.detail) : undefined }
 })
 
+// A5 收尾（2026-09-17）：终态错误结构化提示（retryable / retryAfterMs 消费）
+// 仅 Backend 错误携带（流通道 error payload）；无信息时不渲染提示行
+const errorRetryHint = computed<string | undefined>(() => {
+  const info = latestErrorInfo.value
+  if (!info) return undefined
+  const parts: string[] = []
+  if (info.retryable) parts.push('瞬时性故障，可重试')
+  if (info.retryAfterMs && info.retryAfterMs > 0) {
+    parts.push(`服务端建议约 ${Math.round(info.retryAfterMs / 1000)} 秒后重试`)
+  }
+  return parts.length ? parts.join('；') : undefined
+})
+
+// A5 收尾：重试状态行倒计时（deadlineAt 本地时钟；仅重试期间起表，消散即停）
+const retryNow = ref(Date.now())
+let retryTickTimer: number | null = null
+watch(latestRetry, (v) => {
+  if (retryTickTimer !== null) {
+    clearInterval(retryTickTimer)
+    retryTickTimer = null
+  }
+  if (v) {
+    retryNow.value = Date.now()
+    retryTickTimer = window.setInterval(() => { retryNow.value = Date.now() }, 500)
+  }
+}, { immediate: true })
+onBeforeUnmount(() => {
+  if (retryTickTimer !== null) clearInterval(retryTickTimer)
+})
+const retryRemainSec = computed(() => {
+  const r = latestRetry.value
+  if (!r) return 0
+  return Math.max(0, Math.ceil((r.deadlineAt - retryNow.value) / 1000))
+})
+
 const messagesContainer = ref<HTMLDivElement>()
 
 // ─── 过程层自动折叠（§3.4 三条件）──────────────────────────
@@ -597,6 +642,27 @@ defineExpose({
 }
 .banner-continue:hover {
   background: color-mix(in srgb, var(--color-primary) 18%, transparent);
+}
+
+/* A5 收尾：重试状态行（非交互——退避等待期提示，恢复/终态即消散） */
+.retry-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm, 6px);
+  border: 1px solid var(--color-border, var(--border));
+  background: var(--bg-muted, var(--color-surface-elevated));
+  font-size: var(--font-size-xs, 12px);
+  color: var(--color-text-secondary);
+}
+.retry-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--warning, #f59e0b);
+  flex-shrink: 0;
 }
 
 /* 等候动画 ↔ 运行行段交叉过渡：

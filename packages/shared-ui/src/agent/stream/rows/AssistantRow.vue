@@ -38,9 +38,14 @@
       </div>
     </div>
 
-    <!-- 正文 Markdown（2026-08-30 用户拍板：移除长文折叠，「展开全文」不再使用） -->
+    <!-- 正文 Markdown（2026-08-30 用户拍板：移除长文折叠，「展开全文」不再使用）
+         C2 增量渲染：双段容器——stable 段跨帧仅追加（v-html 值不变则 Vue 不触碰该 DOM），
+         tail 段承载活动尾块每帧重渲；两段拼接与整段渲染等价（契约测试锁定） -->
     <div class="ws-assistant-text" :style="agentFontStyle">
-      <div class="ws-agent-md" v-html="renderedMarkdown"></div>
+      <div class="ws-agent-md">
+        <div v-if="stableHtml" class="ws-md-seg ws-md-stable" v-html="stableHtml"></div>
+        <div v-if="tailHtml" class="ws-md-seg ws-md-tail" v-html="tailHtml"></div>
+      </div>
     </div>
 
     <!-- Block*（非 manuscript）紧贴正文后 -->
@@ -89,8 +94,8 @@ const emit = defineEmits<{
   (e: 'manuscript-local-action', event: BlockActionEvent): void
 }>()
 
-// ===== Markdown 渲染（正文，assistant 角色） =====
-const { renderedMarkdown } = useMarkdownRender(() => props.msg.content)
+// ===== Markdown 渲染（正文，assistant 角色；C2：stable/tail 双段增量） =====
+const { renderedMarkdown, stableHtml, tailHtml } = useMarkdownRender(() => props.msg.content)
 
 // ===== 操作栏（复制/导出图片/GIF/时间） =====
 const actions = useMessageActions(
