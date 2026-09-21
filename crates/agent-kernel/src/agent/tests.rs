@@ -2724,6 +2724,124 @@
         );
     }
 
+    /// S4-d / B7 四值回归：确认结果 → 工具结果判别码端到端
+    /// （Approved 放行执行 / Denied→CONFIRM_DENIED / Skipped→CONFIRM_SKIPPED / Timeout→CONFIRM_TIMEOUT）
+    #[tokio::test]
+    async fn confirmation_four_values_map_to_payload_codes() {
+        use crate::confirmation::{ConfirmationBroker, ConfirmationOutcome, ConfirmationPolicy};
+        use std::time::Duration;
+
+        /// 捕获确认请求 id（模拟前端：监听 `agent:confirm` 通道后回传）
+        struct ConfirmCapture(std::sync::Mutex<Option<String>>);
+        impl Listener for ConfirmCapture {
+            fn call(&self, event: &OrchestratorEvent) -> ListenerOutcome {
+                if let OrchestratorEvent::ConfirmationRequested { confirm_id, .. } = event {
+                    *self.0.lock().unwrap() = Some(confirm_id.clone());
+                }
+                ListenerOutcome::Continue
+            }
+        }
+
+        struct CountingEcho(Arc<AtomicUsize>);
+        #[async_trait]
+        impl crate::tool::Tool for CountingEcho {
+            fn name(&self) -> &str {
+                "delegate_to_sub_agent" // Dangerous 级 → alwaysAsk（位次 5）
+            }
+            fn description(&self) -> &str {
+                "计数回显（测试用）"
+            }
+            fn parameters(&self) -> serde_json::Value {
+                serde_json::json!({ "type": "object", "properties": {} })
+            }
+            async fn execute(
+                &self,
+                _args: serde_json::Value,
+            ) -> Result<serde_json::Value, crate::tool::ToolError> {
+                self.0.fetch_add(1, Ordering::SeqCst);
+                Ok(serde_json::json!({ "ok": true }))
+            }
+        }
+
+        async fn run_case(
+            resolve: Option<ConfirmationOutcome>,
+            timeout_ms: Option<u64>,
+        ) -> (usize, Option<serde_json::Value>) {
+            let calls = Arc::new(AtomicUsize::new(0));
+            let backend = Arc::new(MockBackend::new(vec![
+                PromptResponse {
+                    text: "委派".into(),
+                    tool_calls: vec![ToolCall {
+                        id: "tc_confirm".into(),
+                        name: "delegate_to_sub_agent".into(),
+                        args: serde_json::json!({}),
+                    }],
+                    input_tokens: None,
+                    output_tokens: None,
+                    stop_reason: Some("tool_calls".into()),
+                    reasoning: None,
+                },
+                PromptResponse::text_only("完成"),
+            ]));
+            let tool_bus = Arc::new(SimpleToolBus::new());
+            tool_bus.register(Arc::new(CountingEcho(calls.clone()))).await;
+            let broker = Arc::new(match timeout_ms {
+                Some(ms) => ConfirmationBroker::with_timeout(Duration::from_millis(ms)),
+                None => ConfirmationBroker::new(),
+            });
+            let agent = Arc::new(
+                AgentLoop::new(backend, tool_bus)
+                    .with_config(AgentLoopConfig {
+                        confirmation_policy: Some(ConfirmationPolicy::dangerous_only()),
+                        ..Default::default()
+                    })
+                    .with_confirmation(Some(broker.clone())),
+            );
+            let capture = Arc::new(ConfirmCapture(std::sync::Mutex::new(None)));
+            agent.subscribe(capture.clone()).await;
+
+            let runner = agent.clone();
+            let handle = tokio::spawn(async move { runner.run("跑".into()).await });
+            if let Some(outcome) = resolve {
+                for _ in 0..200 {
+                    tokio::time::sleep(Duration::from_millis(5)).await;
+                    let id = capture.0.lock().unwrap().clone();
+                    if let Some(id) = id {
+                        broker.resolve(&id, outcome).await;
+                        break;
+                    }
+                }
+            }
+            handle.await.unwrap().expect("运行应成功");
+
+            let msgs = agent.get_messages().await;
+            let tr = msgs.iter().find(|m| {
+                m.role == MessageRole::ToolResult && m.tool_call_id.as_deref() == Some("tc_confirm")
+            });
+            let value = tr.map(|m| serde_json::from_str(&m.content).expect("toolResult 应为 JSON"));
+            (calls.load(Ordering::SeqCst), value)
+        }
+
+        // 放行：工具执行、结果不携带判别码
+        let (calls, v) = run_case(Some(ConfirmationOutcome::Approved), None).await;
+        assert_eq!(calls, 1, "Approved 应执行工具");
+        let v = v.expect("应有 toolResult");
+        assert!(v.get("isError").is_none(), "放行结果不应携带 isError: {v}");
+
+        // 拒绝 / 跳过：不执行、判别码区分
+        let (calls, v) = run_case(Some(ConfirmationOutcome::Denied), None).await;
+        assert_eq!(calls, 0, "Denied 不应执行");
+        assert_eq!(v.expect("应有拒绝结果")["errorCode"], "CONFIRM_DENIED");
+        let (calls, v) = run_case(Some(ConfirmationOutcome::Skipped), None).await;
+        assert_eq!(calls, 0, "Skipped 不应执行");
+        assert_eq!(v.expect("应有跳过结果")["errorCode"], "CONFIRM_SKIPPED");
+
+        // 超时（broker 30ms）：不执行、码为 CONFIRM_TIMEOUT
+        let (calls, v) = run_case(None, Some(30)).await;
+        assert_eq!(calls, 0, "Timeout 不应执行");
+        assert_eq!(v.expect("应有超时结果")["errorCode"], "CONFIRM_TIMEOUT");
+    }
+
     /// T1 契约：并行路径失败结果同样带判别字段（与串行同规）；成功结果不携带 `isError`。
     #[tokio::test]
     async fn parallel_failure_and_success_discriminants() {

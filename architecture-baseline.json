@@ -6,7 +6,7 @@
     "crates/agent-kernel/src/agent/input.rs": 455,
     "crates/agent-kernel/src/agent/interaction.rs": 519,
     "crates/agent-kernel/src/agent/mod.rs": 1842,
-    "crates/agent-kernel/src/agent/tests.rs": 5071,
+    "crates/agent-kernel/src/agent/tests.rs": 5189,
     "crates/agent-kernel/src/agent/tools.rs": 879,
     "crates/agent-kernel/src/anchor.rs": 484,
     "crates/agent-kernel/src/backend.rs": 556,
