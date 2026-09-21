@@ -53,6 +53,8 @@ export const ALWAYS_AVAILABLE_TOOLS = [
   'kb_write', 'kb_read', 'kb_list', 'kb_search', 'kb_delete', 'kb_extract', 'kb_reflect', 'kb_link', 'kb_init',
   'project_export', 'project_import',
   'load_skill',
+  // 2026-09-21 世界观芽工具整合（批 1）：芽名清单 / 使用方法 / 动作执行三级入口
+  'worldview',
   'output_table', 'output_choice', 'output_code', 'output_entity_card',
   'output_alert', 'output_stat', 'output_list', 'output_progress',
   'output_comparison', 'output_timeline', 'output_image', 'output_accordion',

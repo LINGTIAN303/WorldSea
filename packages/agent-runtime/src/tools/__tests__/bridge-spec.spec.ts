@@ -25,6 +25,7 @@ import { dailyTaskTools } from '../daily-task'
 import { entityContextTools } from '../entity-context'
 import { visionTools } from '../vision-tools'
 import { SKILL_META_TOOLS } from '../../skills/meta-tools'
+import { worldviewTool } from '../worldview'
 import { BRIDGE_TOOL_NAMES, buildBridgeSpec, serializeBridgeSpec } from '../bridge-spec'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -41,6 +42,8 @@ const ALL_BRIDGED_SOURCES: ToolDefinition[] = [
   ...contentSearchTools,
   ...a2uiTools,
   ...SKILL_META_TOOLS,
+  // 世界观芽工具（2026-09-21 芽工具整合 · 批 1）
+  worldviewTool,
   // S3 补桥（2026-09-18）
   ...kbTools,
   ...projectTools,

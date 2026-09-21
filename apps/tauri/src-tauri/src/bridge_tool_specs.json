@@ -173,6 +173,28 @@
       }
     },
     {
+      "name": "worldview",
+      "description": "世界观芽工具。不传 sprout：返回全部芽名清单；传 sprout：返回该芽的使用方法（含动作目录与参数说明）；传 sprout 与 action：执行该芽的动作（params 传参）。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "sprout": {
+            "type": "string",
+            "description": "芽名（如「大纲」）或芽 id（如 outline）。不传则列出全部芽名"
+          },
+          "action": {
+            "type": "string",
+            "description": "动作名。与 sprout 一并传入时执行该动作；单独传 sprout 时返回该芽使用方法"
+          },
+          "params": {
+            "type": "object",
+            "description": "动作参数（按使用方法中该动作的参数说明传入）"
+          }
+        },
+        "required": []
+      }
+    },
+    {
       "name": "ui_create_surface",
       "description": "创建一个交互式 UI 画布，用于展示表单、卡片、数据面板等。返回 surfaceId。使用场景：需要向用户展示结构化信息、收集用户输入、创建交互式操作界面。",
       "parameters": {

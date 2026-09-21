@@ -51,6 +51,7 @@ import { nativeTools } from './tools/native-tools'
 import { codingAgentTools, LEGACY_TO_CODING_MAP } from './tools/coding-agent-tools'
 import { LEGACY_ALGO_MAP } from './tools/algo-tools'
 import { PLUGIN_BACKEND_TOOLS, LEGACY_PLUGIN_MAP } from './tools/plugin-backend-tools'
+import { worldviewTool } from './tools/worldview'
 import { InternalChainRegistry } from './toolbus/internal-registry'
 import { entityCoreDescriptor } from '@worldsea/entity-core'
 import { canvasEngineDescriptor } from '@worldsea/canvas-engine'
@@ -114,6 +115,8 @@ function registerAllTools(): void {
     // 桥执行（FrontendToolBridge → ALL_TOOLS_MAP.get）查的是 MAP 而非 ALL_TOOLS 数组，
     // 漏注册会导致 LLM 调 load_skill 报「前端未注册工具」
     ...SKILL_META_TOOLS,
+    // 2026-09-21 世界观芽工具（批 1）：同 load_skill——桥执行查 ALL_TOOLS_MAP
+    worldviewTool,
   ]
   for (const t of all) {
     ALL_TOOLS_MAP.set(t.name, t)
@@ -236,6 +239,7 @@ export const ALL_TOOLS = [
   ...personaTools,
   ...sessionTools,
   ...SKILL_META_TOOLS,
+  worldviewTool,
   ...crawlTools,
   ...docConvertTools,
   ...previewFileTools,
@@ -267,7 +271,7 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
   { id: 'file', label: '文件操作', tools: [...fileTools, ...docConvertTools] },
   { id: 'dev', label: '开发工具', tools: [...terminalLauncherTools, ...webCliTools, ...pkgTools, ...gitTools, ...sysTools] },
   { id: 'native', label: '原生能力', tools: [...nativeTools] },
-  { id: 'plugin', label: '插件系统', tools: [...pluginTools, ...moduleBuilderTools, ...PLUGIN_BACKEND_TOOLS] },
+  { id: 'plugin', label: '插件系统', tools: [...pluginTools, ...moduleBuilderTools, ...PLUGIN_BACKEND_TOOLS, worldviewTool] },
   { id: 'orchestrator', label: '编排与流水线', tools: [...orchestratorTools, ...pipelineTools] },
   { id: 'vision', label: '视觉与生成', tools: [...visionTools, ...imageGenTools, ...videoGenTools] },
   { id: 'plan', label: '规划与知识', tools: [...planTools, ...kbTools, ...taskTools] },

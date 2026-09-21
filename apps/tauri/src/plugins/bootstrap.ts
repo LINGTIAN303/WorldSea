@@ -1,6 +1,7 @@
 // 轻量芽启动装配（Phase C 迁移：替代 web governor 编排）
 import { pluginManager } from './PluginManager'
 import { usePluginStore, pluginAPI } from '@worldsea/entity-core'
+import { registerWorldviewSprout } from '@agent/index'
 import { useUIStore } from '../stores/uiStore'
 
 /** 已迁移芽（第一批：characters/regions/concepts/items；第二批：timeline/organizations/culture/conflict/inspiration/apparel/outline/manuscript/drawing/notebook；第三批：WASM 布局类 13 个） */
@@ -66,12 +67,22 @@ export async function bootstrapSprouts(opts?: BootstrapOptions): Promise<void> {
     useUIStore().ensureViewInOrder(viewId)
   })
 
-  // 3. 加载并激活已迁移芽
+  // 3. 加载并激活已迁移芽；同时登记进世界观芽工具（worldview）
+  //    ——「芽名随已有芽的注册」的实现：id 为稳定键、name/description 实时取登记值，
+  //    改芽名（manifest.name）或增删芽（MIGRATED_SPROUT_IDS），工具侧自动跟随。
   const loaded = await Promise.all(
     Array.from(MIGRATED_SPROUT_IDS).map(async id => ({ id, instance: await sproutLoaders[id]() })),
   )
   for (const p of loaded) {
     await pluginManager.activate(p.instance)
+    const manifest = p.instance?.manifest
+    if (manifest?.id && manifest?.name) {
+      registerWorldviewSprout({
+        id: manifest.id,
+        name: manifest.name,
+        description: manifest.description || '',
+      })
+    }
   }
 
   // 4. 若尚无视图选中（Agent 是首项），默认选中第一个芽视图（切项目重播种时跳过）

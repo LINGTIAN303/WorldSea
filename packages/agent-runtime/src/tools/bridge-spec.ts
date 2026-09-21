@@ -28,6 +28,9 @@ export const BRIDGE_TOOL_NAMES = [
   'load_skill',
   'load_skill_reference',
   'load_skill_asset',
+  // 世界观芽工具（tools/worldview/）——2026-09-21 芽工具整合（批 1）：
+  // 芽名清单 / 使用方法 / 动作执行三级入口（芽名随芽注册动态；执行面收敛自 10 个域工具）
+  'worldview',
   // A2UI 画布（tools/a2ui-tools.ts）
   'ui_create_surface',
   'ui_update_components',

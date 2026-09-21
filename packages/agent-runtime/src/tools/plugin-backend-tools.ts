@@ -1,65 +1,15 @@
 import type { ToolDefinition } from '../bridge-types'
-import { emitEntityCard } from './a2ui-helpers'
-import { indexEntity } from '../embedding/index'
-
-function emitPluginEvent(pluginId: string, action: string, payload: unknown): string {
-  try {
-    const detail = { pluginId, action, payload, timestamp: Date.now() }
-    if (typeof window !== 'undefined' && window.dispatchEvent) {
-      window.dispatchEvent(new CustomEvent('worldsea:agent:plugin-action', { detail }))
-    }
-    // 诚实化口径（2026-09-14 全局桥拍板）：dispatched=true 只代表事件已派发。
-    // 数据动作由 app 级桥消费（agentDataBridges.ts，与视图挂载无关）→ 必达；
-    // UI 动作（导航/开对话框等）仍需对应视图挂载，未挂载时无人消费。
-    return JSON.stringify({ ok: true, pluginId, action, dispatched: true, note: '数据动作由 app 级桥必达消费；UI 动作需对应视图挂载' })
-  } catch (e) {
-    return JSON.stringify({ ok: false, error: String(e) })
-  }
-}
-
-/** 等待 app 级桥回传查询结果（requestId 配对；3s 超时 = 桥未注册该查询/未安装） */
-function waitQueryResult(requestId: string, timeoutMs: number): Promise<unknown> {
-  return new Promise((resolve) => {
-    const timer = setTimeout(() => {
-      cleanup()
-      resolve({ ok: false, error: '查询超时：数据桥未注册该查询或未安装（视图/桥未就绪）' })
-    }, timeoutMs)
-    const onResult = (e: Event) => {
-      const d = (e as CustomEvent).detail as { requestId?: string; result?: unknown } | undefined
-      if (!d || d.requestId !== requestId) return
-      cleanup()
-      resolve({ ok: true, data: d.result })
-    }
-    const cleanup = () => {
-      clearTimeout(timer)
-      window.removeEventListener('worldsea:agent:plugin-query-result', onResult)
-    }
-    window.addEventListener('worldsea:agent:plugin-query-result', onResult)
-  })
-}
+import { runSproutAction, runEntityTypeAction } from './worldview/actions'
 
 /**
- * 查询派发（2026-09-14 真回传改造）：此前是彻底单向广播（返回「需要通过UI状态
- * 读取查询结果」），Agent 拿不到数据。现带 requestId 派发并等待 app 级桥
- * （agentDataBridges.ts）回传结果——同步读 store，3s 超时报「桥未就绪」。
+ * 芽后端工具集（域级，**薄壳**）——执行逻辑已迁至 `./worldview/actions.ts`（单一事实源）。
+ *
+ * 2026-09-21 世界观芽工具整合（批 1）：原 10 个域工具的 switch 分支统一迁入
+ * `worldview/actions.ts` 的芽动作表；本文件保留工具定义（name/description/parameters/别名，
+ * 供 ALL_TOOLS_MAP / UI 元注册表消费），execute 仅做转发。
+ * 这些工具对 LLM 不可见（不在桥清单与场景 tool_ids）；新入口为 `worldview` 工具。
+ * 本批（批 3）将整体退役——退役前按既有消费方盘点处理。
  */
-async function emitPluginQuery(pluginId: string, query: string, params?: unknown): Promise<string> {
-  try {
-    if (typeof window === 'undefined' || !window.dispatchEvent) {
-      return JSON.stringify({ ok: false, error: '非浏览器环境，查询不可用' })
-    }
-    const requestId = `q-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-    window.dispatchEvent(new CustomEvent('worldsea:agent:plugin-query', {
-      detail: { pluginId, query, params, requestId, timestamp: Date.now() },
-    }))
-    const result = await waitQueryResult(requestId, 3000)
-    return JSON.stringify(result)
-  } catch (e) {
-    return JSON.stringify({ ok: false, error: String(e) })
-  }
-}
-
-/** 插件后端工具集（域级合并版）：CustomEvent 与前端插件通信，详细见 docs/details/注释/packages/agent-runtime/tools-plugin-backend-tools.md */
 
 // ============================================================
 // 1. Timeline Tool
@@ -106,144 +56,7 @@ const timelineTool: ToolDefinition = {
       'timeline_set_layout_mode', 'timeline_set_group_mode', 'timeline_zoom', 'timeline_toggle_collapse',
     ],
   },
-  execute: async (args, ctx) => {
-    const action = String(args.action)
-    switch (action) {
-      case 'create_event': {
-        const entityName = String(args.name)
-        const entities = await ctx.stores.entity.getAllEntities()
-        const duplicate = entities.some((e: any) => e.type === 'event' && e.name === entityName)
-        if (duplicate) {
-          return JSON.stringify({ error: `已存在同名事件 "${entityName}"`, hint: '请使用不同名称或先用 timeline get_events 查看' })
-        }
-        const entity = {
-          id: crypto.randomUUID(),
-          type: 'event',
-          name: entityName,
-          description: String(args.description || ''),
-          properties: {
-            date: args.date || '',
-            dateEnd: args.dateEnd || '',
-            era: args.era || '',
-            importance: args.importance || '普通',
-            status: args.status || '正史',
-            location: args.location || '',
-            parentId: args.parentId || '',
-          },
-          tags: Array.isArray(args.tags) ? args.tags : [],
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        }
-        const id = await ctx.stores.entity.add(entity, 'agent')
-        emitEntityCard(ctx, { ...entity, id })
-        indexEntity({ ...entity, id }).catch(() => {})
-        emitPluginEvent('timeline', 'create_event', { ...args, id })
-        return JSON.stringify({ success: true, id, name: entity.name })
-      }
-      case 'update_event': {
-        const entityId = String(args.eventId)
-        const existing = await ctx.stores.entity.getById(entityId)
-        if (!existing) return JSON.stringify({ error: `事件 ${entityId} 不存在`, hint: '请使用 timeline get_events 查看现有事件' })
-        const changes = (args.changes || {}) as Record<string, unknown>
-        const updates: Record<string, unknown> = {}
-        if (changes.name) updates.name = String(changes.name)
-        if (changes.description) updates.description = String(changes.description)
-        const newProps = { ...(existing.properties || {}) }
-        if (changes.date !== undefined) newProps.date = changes.date
-        if (changes.dateEnd !== undefined) newProps.dateEnd = changes.dateEnd
-        if (changes.era !== undefined) newProps.era = changes.era
-        if (changes.importance !== undefined) newProps.importance = changes.importance
-        if (changes.status !== undefined) newProps.status = changes.status
-        if (changes.location !== undefined) newProps.location = changes.location
-        if (changes.parentId !== undefined) newProps.parentId = changes.parentId
-        updates.properties = newProps
-        await ctx.stores.entity.update(entityId, updates, 'agent')
-        const updated = await ctx.stores.entity.getById(entityId)
-        if (updated) {
-          emitEntityCard(ctx, updated)
-          indexEntity(updated).catch(() => {})
-        }
-        emitPluginEvent('timeline', 'update_event', args)
-        return JSON.stringify({ success: true, id: entityId })
-      }
-      case 'sort_events': {
-        return emitPluginEvent('timeline', 'sort_events', args)
-      }
-      case 'detect_conflicts': {
-        const entities = await ctx.stores.entity.getAllEntities()
-        const events = entities.filter((e: any) => e.type === 'event' && e.properties?.date)
-        const threshold = Number(args.threshold) || 30
-        const conflicts: Array<{ event1: string; event2: string; daysApart: number }> = []
-        const parsedDates: Array<{ id: string; name: string; dateStr: string; time: number }> = []
-        for (const e of events) {
-          const dateStr = String(e.properties?.date || '')
-          const time = new Date(dateStr).getTime()
-          if (!isNaN(time)) {
-            parsedDates.push({ id: e.id, name: e.name, dateStr, time })
-          }
-        }
-        parsedDates.sort((a, b) => a.time - b.time)
-        for (let i = 0; i < parsedDates.length; i++) {
-          for (let j = i + 1; j < parsedDates.length; j++) {
-            const daysApart = Math.abs(parsedDates[j].time - parsedDates[i].time) / (86400000)
-            if (daysApart <= threshold && daysApart > 0) {
-              conflicts.push({ event1: parsedDates[i].name, event2: parsedDates[j].name, daysApart: Math.round(daysApart) })
-            }
-          }
-        }
-        return JSON.stringify({ total: conflicts.length, threshold, conflicts })
-      }
-      case 'get_events': {
-        let entities = await ctx.stores.entity.getAllEntities()
-        let events = entities.filter((e: any) => e.type === 'event')
-        if (args.era) {
-          const eraVal = String(args.era)
-          events = events.filter((e: any) => e.properties?.era === eraVal)
-        }
-        if (args.importance) {
-          const impVal = String(args.importance)
-          events = events.filter((e: any) => e.properties?.importance === impVal)
-        }
-        if (args.keyword) {
-          const kw = String(args.keyword).toLowerCase()
-          events = events.filter((e: any) =>
-            e.name.toLowerCase().includes(kw) ||
-            (e.description || '').toLowerCase().includes(kw)
-          )
-        }
-        const limit = Number(args.limit) || 20
-        const results = events.slice(0, limit).map((e: any) => ({
-          id: e.id,
-          name: e.name,
-          description: e.description || '',
-          date: e.properties?.date || '',
-          dateEnd: e.properties?.dateEnd || '',
-          era: e.properties?.era || '',
-          importance: e.properties?.importance || '',
-          status: e.properties?.status || '',
-          location: e.properties?.location || '',
-        }))
-        return JSON.stringify({ total: events.length, showing: results.length, events: results })
-      }
-      case 'export': {
-        return emitPluginEvent('timeline', 'export', args)
-      }
-      case 'set_layout_mode': {
-        return emitPluginEvent('timeline', 'set_layout_mode', args)
-      }
-      case 'set_group_mode': {
-        return emitPluginEvent('timeline', 'set_group_mode', args)
-      }
-      case 'zoom': {
-        return emitPluginEvent('timeline', 'zoom', args)
-      }
-      case 'toggle_collapse': {
-        return emitPluginEvent('timeline', 'toggle_collapse', args)
-      }
-      default:
-        return JSON.stringify({ error: `未知操作: ${action}` })
-    }
-  },
+  execute: async (args, ctx) => runSproutAction('official.timeline', String(args.action), args, ctx),
 }
 
 // ============================================================
@@ -279,37 +92,7 @@ const graphTool: ToolDefinition = {
       'graph_highlight_nodes', 'graph_export_snapshot', 'graph_filter_by_type', 'graph_search_subgraph',
     ],
   },
-  execute: async (args, _ctx) => {
-    const action = String(args.action)
-    switch (action) {
-      case 'get_nodes': {
-        return emitPluginQuery('graph', 'get_nodes', args)
-      }
-      case 'get_edges': {
-        return emitPluginQuery('graph', 'get_edges', args)
-      }
-      case 'find_path': {
-        return emitPluginQuery('graph', 'find_path', args)
-      }
-      case 'cluster_analysis': {
-        return emitPluginQuery('graph', 'cluster_analysis', args)
-      }
-      case 'highlight_nodes': {
-        return emitPluginEvent('graph', 'highlight_nodes', args)
-      }
-      case 'export_snapshot': {
-        return emitPluginEvent('graph', 'export_snapshot', args)
-      }
-      case 'filter_by_type': {
-        return emitPluginEvent('graph', 'filter_by_type', args)
-      }
-      case 'search_subgraph': {
-        return emitPluginQuery('graph', 'search_subgraph', args)
-      }
-      default:
-        return JSON.stringify({ error: `未知操作: ${action}` })
-    }
-  },
+  execute: async (args, ctx) => runSproutAction('official.graph', String(args.action), args, ctx),
 }
 
 // ============================================================
@@ -350,52 +133,7 @@ const mindmapTool: ToolDefinition = {
       'mindmap_suggest_move_to_group', 'mindmap_ai_organize',
     ],
   },
-  execute: async (args, _ctx) => {
-    const action = String(args.action)
-    switch (action) {
-      case 'create_node': {
-        return emitPluginEvent('mindmap', 'create_node', args)
-      }
-      case 'update_node': {
-        return emitPluginEvent('mindmap', 'update_node', args)
-      }
-      case 'delete_node': {
-        return emitPluginEvent('mindmap', 'delete_node', args)
-      }
-      case 'get_structure': {
-        return emitPluginQuery('mindmap', 'get_structure')
-      }
-      case 'auto_layout': {
-        return emitPluginEvent('mindmap', 'auto_layout', args)
-      }
-      case 'export_image': {
-        return emitPluginEvent('mindmap', 'export_image', args)
-      }
-      case 'batch_create': {
-        return emitPluginEvent('mindmap', 'batch_create', args)
-      }
-      case 'search_node': {
-        return emitPluginQuery('mindmap', 'search_node', args)
-      }
-      case 'find_isolated': {
-        return emitPluginEvent('mindmap', 'find_isolated', {})
-      }
-      case 'find_cycles': {
-        return emitPluginEvent('mindmap', 'find_cycles', args)
-      }
-      case 'highlight_path': {
-        return emitPluginEvent('mindmap', 'highlight_path', args)
-      }
-      case 'suggest_move_to_group': {
-        return emitPluginEvent('mindmap', 'suggest_move_to_group', args)
-      }
-      case 'ai_organize': {
-        return emitPluginEvent('mindmap', 'ai_organize', {})
-      }
-      default:
-        return JSON.stringify({ error: `未知操作: ${action}` })
-    }
-  },
+  execute: async (args, ctx) => runSproutAction('official.mindmap', String(args.action), args, ctx),
 }
 
 // ============================================================
@@ -434,37 +172,7 @@ const manuscriptTool: ToolDefinition = {
       'manuscript_reorder_chapters', 'manuscript_split_chapter',
     ],
   },
-  execute: async (args, _ctx) => {
-    const action = String(args.action)
-    switch (action) {
-      case 'create_chapter': {
-        return emitPluginEvent('manuscript', 'create_chapter', args)
-      }
-      case 'update_chapter': {
-        return emitPluginEvent('manuscript', 'update_chapter', args)
-      }
-      case 'list_chapters': {
-        return emitPluginQuery('manuscript', 'list_chapters', args)
-      }
-      case 'get_chapter_content': {
-        return emitPluginQuery('manuscript', 'get_chapter_content', args)
-      }
-      case 'insert_mention': {
-        return emitPluginEvent('manuscript', 'insert_mention', args)
-      }
-      case 'export_document': {
-        return emitPluginEvent('manuscript', 'export_document', args)
-      }
-      case 'reorder_chapters': {
-        return emitPluginEvent('manuscript', 'reorder_chapters', args)
-      }
-      case 'split_chapter': {
-        return emitPluginEvent('manuscript', 'split_chapter', args)
-      }
-      default:
-        return JSON.stringify({ error: `未知操作: ${action}` })
-    }
-  },
+  execute: async (args, ctx) => runSproutAction('official.manuscript', String(args.action), args, ctx),
 }
 
 // ============================================================
@@ -473,9 +181,6 @@ const manuscriptTool: ToolDefinition = {
 
 const outlineTool: ToolDefinition = {
   name: 'outline',
-  // 2026-09-18 **恢复**「实体关联」：此前撤下的两个前置都已解除 ——
-  // ① 关系类型注册表补了三条（`outline_mentions` / `outline_located_in` / `outline_covers`）
-  // ② 数据桥新增 `outline:link_entity` handler（真写关系表，不再是假成功）
   description: '大纲操作：节点创建/更新/移动/删除/结构查询/导出/批量创建/实体关联',
   parameters: {
     action: {
@@ -504,41 +209,7 @@ const outlineTool: ToolDefinition = {
       'outline_export_outline', 'outline_delete_node', 'outline_batch_create', 'outline_link_entity',
     ],
   },
-  execute: async (args, _ctx) => {
-    const action = String(args.action)
-    switch (action) {
-      case 'create_node': {
-        return emitPluginEvent('outline', 'create_node', args)
-      }
-      case 'update_node': {
-        return emitPluginEvent('outline', 'update_node', args)
-      }
-      case 'move_node': {
-        return emitPluginEvent('outline', 'move_node', args)
-      }
-      case 'get_structure': {
-        return emitPluginQuery('outline', 'get_structure')
-      }
-      case 'link_entity': {
-        // 2026-09-18 恢复：派发到 app 级桥的 `outline:link_entity`（真写关系表）。
-        // 此前返回「暂未开放」是因为关系类型不存在 + 无消费者（会假成功）。
-        return emitPluginEvent('outline', 'link_entity', args)
-      }
-      case 'export_outline': {
-        // 必须是 'export_outline'：app 级桥的注册键是 `outline:export_outline`。
-        // 原实现派发的是 'export'，键不匹配 → 无消费者 → 导出假成功（2026-09-17 体检）。
-        return emitPluginEvent('outline', 'export_outline', args)
-      }
-      case 'delete_node': {
-        return emitPluginEvent('outline', 'delete_node', args)
-      }
-      case 'batch_create': {
-        return emitPluginEvent('outline', 'batch_create', args)
-      }
-      default:
-        return JSON.stringify({ error: `未知操作: ${action}` })
-    }
-  },
+  execute: async (args, ctx) => runSproutAction('official.outline', String(args.action), args, ctx),
 }
 
 // ============================================================
@@ -576,37 +247,7 @@ const notebookTool: ToolDefinition = {
       'notebook_search_notes', 'notebook_delete_note',
     ],
   },
-  execute: async (args, _ctx) => {
-    const action = String(args.action)
-    switch (action) {
-      case 'create_note': {
-        return emitPluginEvent('notebook', 'create_note', args)
-      }
-      case 'update_note': {
-        return emitPluginEvent('notebook', 'update_note', args)
-      }
-      case 'list_notes': {
-        return emitPluginQuery('notebook', 'list_notes', args)
-      }
-      case 'execute_code': {
-        return emitPluginEvent('notebook', 'execute_code', args)
-      }
-      case 'create_backlink': {
-        return emitPluginEvent('notebook', 'create_backlink', args)
-      }
-      case 'export_note': {
-        return emitPluginEvent('notebook', 'export_note', args)
-      }
-      case 'search_notes': {
-        return emitPluginQuery('notebook', 'search_notes', args)
-      }
-      case 'delete_note': {
-        return emitPluginEvent('notebook', 'delete_note', args)
-      }
-      default:
-        return JSON.stringify({ error: `未知操作: ${action}` })
-    }
-  },
+  execute: async (args, ctx) => runSproutAction('official.notebook', String(args.action), args, ctx),
 }
 
 // ============================================================
@@ -640,37 +281,7 @@ const tacticalTool: ToolDefinition = {
       'tactical_undo_move', 'tactical_get_unit_stats', 'tactical_set_terrain',
     ],
   },
-  execute: async (args, _ctx) => {
-    const action = String(args.action)
-    switch (action) {
-      case 'deploy_unit': {
-        return emitPluginEvent('tactical-board', 'deploy_unit', args)
-      }
-      case 'move_unit': {
-        return emitPluginEvent('tactical-board', 'move_unit', args)
-      }
-      case 'get_battle_state': {
-        return emitPluginQuery('tactical-board', 'get_battle_state')
-      }
-      case 'simulate_turn': {
-        return emitPluginEvent('tactical-board', 'simulate_turn', args)
-      }
-      case 'export_battle_log': {
-        return emitPluginEvent('tactical-board', 'export_battle_log', args)
-      }
-      case 'undo_move': {
-        return emitPluginEvent('tactical-board', 'undo_move', args)
-      }
-      case 'get_unit_stats': {
-        return emitPluginQuery('tactical-board', 'get_unit_stats', args)
-      }
-      case 'set_terrain': {
-        return emitPluginEvent('tactical-board', 'set_terrain', args)
-      }
-      default:
-        return JSON.stringify({ error: `未知操作: ${action}` })
-    }
-  },
+  execute: async (args, ctx) => runSproutAction('official.tactical-board', String(args.action), args, ctx),
 }
 
 // ============================================================
@@ -704,34 +315,7 @@ const magicTool: ToolDefinition = {
       'magic_validate_tree', 'magic_export_skill_tree', 'magic_delete_skill_node', 'magic_check_dependencies',
     ],
   },
-  execute: async (args, _ctx) => {
-    const action = String(args.action)
-    switch (action) {
-      case 'create_skill_node': {
-        return emitPluginEvent('magic', 'create_skill_node', args)
-      }
-      case 'update_skill_node': {
-        return emitPluginEvent('magic', 'update_skill_node', args)
-      }
-      case 'get_skill_tree': {
-        return emitPluginQuery('magic', 'get_skill_tree')
-      }
-      case 'validate_tree': {
-        return emitPluginQuery('magic', 'validate_tree')
-      }
-      case 'export_skill_tree': {
-        return emitPluginEvent('magic', 'export_skill_tree', args)
-      }
-      case 'delete_skill_node': {
-        return emitPluginEvent('magic', 'delete_skill_node', args)
-      }
-      case 'check_dependencies': {
-        return emitPluginQuery('magic', 'check_dependencies', args)
-      }
-      default:
-        return JSON.stringify({ error: `未知操作: ${action}` })
-    }
-  },
+  execute: async (args, ctx) => runSproutAction('official.magic', String(args.action), args, ctx),
 }
 
 // ============================================================
@@ -762,52 +346,17 @@ const moduleBuilderTool: ToolDefinition = {
       'module_builder_list_modules', 'module_builder_reorder_components',
     ],
   },
-  execute: async (args, _ctx) => {
-    const action = String(args.action)
-    switch (action) {
-      case 'create_module': {
-        return emitPluginEvent('module-builder', 'create_module', args)
-      }
-      case 'delete_module': {
-        return emitPluginEvent('module-builder', 'delete_module', args)
-      }
-      case 'list_modules': {
-        return emitPluginQuery('module-builder', 'list_modules')
-      }
-      case 'reorder_components': {
-        return emitPluginEvent('module-builder', 'reorder_components', args)
-      }
-      default:
-        return JSON.stringify({ error: `未知操作: ${action}` })
-    }
-  },
+  execute: async (args, ctx) => runSproutAction('official.module-builder', String(args.action), args, ctx),
 }
 
 // ============================================================
 // 10. Entity Type Tool
 // ============================================================
 
-interface EntityTypePluginConfig {
-  pluginId: string
-  entityType: string
-  label: string
-  filterFields: string[]
-}
-
-const ENTITY_TYPE_PLUGIN_CONFIGS: EntityTypePluginConfig[] = [
-  { pluginId: 'character', entityType: 'character', label: '角色', filterFields: ['role', 'affiliation', 'race', 'gender'] },
-  { pluginId: 'culture', entityType: 'culture', label: '文化条目', filterFields: ['cultureType'] },
-  { pluginId: 'language', entityType: 'language', label: '语言', filterFields: ['langType', 'scope', 'maturity'] },
-  { pluginId: 'conflict', entityType: 'conflict', label: '冲突', filterFields: ['conflictType', 'scale'] },
-  { pluginId: 'building', entityType: 'building', label: '建筑', filterFields: ['buildingType', 'style', 'status'] },
-  { pluginId: 'item', entityType: 'item', label: '道具', filterFields: ['itemType', 'rarity', 'condition'] },
-  { pluginId: 'concept', entityType: 'concept', label: '概念', filterFields: ['conceptType'] },
-  { pluginId: 'combat_stat', entityType: 'combat_stat', label: '战力条目', filterFields: ['system', 'culture'] },
-  { pluginId: 'apparel', entityType: 'apparel', label: '服饰', filterFields: ['apparelType', 'armorClass', 'style'] },
-  { pluginId: 'inspiration', entityType: 'inspiration', label: '素材', filterFields: ['materialType'] },
+const ENTITY_TYPE_ENUMS = [
+  'character', 'culture', 'language', 'conflict', 'building',
+  'item', 'concept', 'combat_stat', 'apparel', 'inspiration',
 ]
-
-const ENTITY_TYPE_ENUMS = ENTITY_TYPE_PLUGIN_CONFIGS.map(c => c.pluginId)
 
 const entityTypeTool: ToolDefinition = {
   name: 'entity_type',
@@ -881,90 +430,8 @@ const entityTypeTool: ToolDefinition = {
       'inspiration_list', 'inspiration_create', 'inspiration_update', 'inspiration_get_detail',
     ],
   },
-  execute: async (args, ctx) => {
-    const action = String(args.action)
-    const entityTypeValue = String(args.entity_type)
-    const config = ENTITY_TYPE_PLUGIN_CONFIGS.find(c => c.pluginId === entityTypeValue)
-    if (!config) {
-      return JSON.stringify({ error: `未知实体类型: ${entityTypeValue}`, hint: `可选: ${ENTITY_TYPE_ENUMS.join(', ')}` })
-    }
-    const { entityType, label, filterFields } = config
-
-    switch (action) {
-      case 'list': {
-        let entities = await ctx.stores.entity.getAllEntities()
-        let filtered = entities.filter((e: any) => e.type === entityType)
-        for (const field of filterFields) {
-          if (args[field]) {
-            const val = String(args[field])
-            filtered = filtered.filter((e: any) =>
-              e.properties?.[field] === val ||
-              (e[field] && String(e[field]).toLowerCase().includes(val.toLowerCase()))
-            )
-          }
-        }
-        const results = filtered.map((e: any) => ({
-          id: e.id, name: e.name, description: e.description || '',
-          properties: e.properties || {}, tags: e.tags || [],
-        }))
-        return JSON.stringify({ total: filtered.length, items: results })
-      }
-      case 'create': {
-        const entities = await ctx.stores.entity.getAllEntities()
-        const duplicate = entities.some((e: any) => e.type === entityType && e.name === String(args.name))
-        if (duplicate) {
-          return JSON.stringify({ error: `已存在同名${label} "${args.name}"`, hint: `请使用不同名称或先用 entity_type list 查看` })
-        }
-        const entity = {
-          id: crypto.randomUUID(),
-          type: entityType,
-          name: String(args.name),
-          description: String(args.description || ''),
-          properties: (args.properties as Record<string, unknown>) || {},
-          tags: Array.isArray(args.tags) ? args.tags : [],
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        }
-        const id = await ctx.stores.entity.add(entity, 'agent')
-        emitEntityCard(ctx, { ...entity, id })
-        indexEntity({ ...entity, id }).catch(() => {})
-        return JSON.stringify({ success: true, id, name: entity.name })
-      }
-      case 'update': {
-        const entityId = String(args.entityTypeId)
-        const existing = await ctx.stores.entity.getById(entityId)
-        if (!existing) return JSON.stringify({ error: `${label} ${entityId} 不存在` })
-        const changes = (args.changes || {}) as Record<string, unknown>
-        const updates: Record<string, unknown> = {}
-        if (changes.name) updates.name = String(changes.name)
-        if (changes.description) updates.description = String(changes.description)
-        const newProps = { ...(existing.properties || {}) }
-        for (const [key, val] of Object.entries(changes)) {
-          if (key !== 'name' && key !== 'description') newProps[key] = val
-        }
-        updates.properties = newProps
-        await ctx.stores.entity.update(entityId, updates, 'agent')
-        const updated = await ctx.stores.entity.getById(entityId)
-        if (updated) {
-          emitEntityCard(ctx, updated)
-          indexEntity(updated).catch(() => {})
-        }
-        return JSON.stringify({ success: true, id: entityId })
-      }
-      case 'get_detail': {
-        const entityId = String(args.entityTypeId)
-        const existing = await ctx.stores.entity.getById(entityId)
-        if (!existing) return JSON.stringify({ error: `${label} ${entityId} 不存在` })
-        return JSON.stringify({
-          id: existing.id, name: existing.name, description: existing.description || '',
-          properties: existing.properties || {}, tags: existing.tags || [],
-          createdAt: existing.createdAt, updatedAt: existing.updatedAt,
-        })
-      }
-      default:
-        return JSON.stringify({ error: `未知操作: ${action}` })
-    }
-  },
+  execute: async (args, ctx) =>
+    runEntityTypeAction(String(args.entity_type), String(args.action), args, ctx),
 }
 
 // ============================================================
