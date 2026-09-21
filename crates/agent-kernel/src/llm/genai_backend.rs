@@ -16,7 +16,8 @@ use tokio::sync::RwLock;
 use tracing::debug;
 
 use crate::backend::{BackendError, NodeBackendAccessor, PromptCallOptions, PromptResponse};
-use crate::event::{EventBroadcaster, EventListener, OrchestratorEvent};
+use crate::event::{EventBroadcaster, OrchestratorEvent};
+use crate::event_bus::Listener;
 use crate::llm::config::ProviderConfig;
 use crate::llm::error::LlmError;
 use crate::llm::manifest::find_manifest;
@@ -29,8 +30,9 @@ use crate::types::{MessageRole, OrchestratorMessage};
 /// - `Client`：genai 客户端（可复用连接池）
 /// - `ProviderConfig`：当前 Provider 配置（运行时可切换）
 /// - `messages`：内部消息历史（线程安全）
-/// - `steer_buffer`：steer 调用的缓冲区（下次 prompt 时附加为 user 消息）
 /// - `event_broadcaster`：流事件广播器
+///
+/// （原 `steer_buffer` 已删——A3 起插话统一走 AgentLoop inbox → pre-step 准入。）
 pub struct GenaiBackend {
     /// genai 客户端
     client: Client,
@@ -40,8 +42,6 @@ pub struct GenaiBackend {
     key_pool: Arc<RwLock<Vec<String>>>,
     /// 内部消息历史
     messages: Arc<RwLock<Vec<OrchestratorMessage>>>,
-    /// steer 缓冲区
-    steer_buffer: Arc<RwLock<Vec<String>>>,
     /// 事件广播器（可选，便于上层订阅流事件）
     event_broadcaster: Arc<RwLock<EventBroadcaster>>,
 }
@@ -57,7 +57,6 @@ impl GenaiBackend {
             config: Arc::new(RwLock::new(config)),
             key_pool: Arc::new(RwLock::new(Vec::new())),
             messages: Arc::new(RwLock::new(Vec::new())),
-            steer_buffer: Arc::new(RwLock::new(Vec::new())),
             event_broadcaster: Arc::new(RwLock::new(EventBroadcaster::new())),
         }
     }
@@ -69,7 +68,6 @@ impl GenaiBackend {
             config: Arc::new(RwLock::new(config)),
             key_pool: Arc::new(RwLock::new(Vec::new())),
             messages: Arc::new(RwLock::new(Vec::new())),
-            steer_buffer: Arc::new(RwLock::new(Vec::new())),
             event_broadcaster: Arc::new(RwLock::new(EventBroadcaster::new())),
         }
     }
@@ -88,7 +86,7 @@ impl GenaiBackend {
     }
 
     /// 订阅事件广播
-    pub async fn subscribe_events(&self, listener: Arc<dyn crate::event::EventListener>) {
+    pub async fn subscribe_events(&self, listener: Arc<dyn Listener>) {
         self.event_broadcaster.write().await.subscribe(listener);
     }
 
@@ -309,9 +307,14 @@ impl GenaiBackend {
         Ok((req, chat_opts))
     }
 
-    /// 广播事件
+    /// 广播事件（取总线句柄后于**壳锁外**分发——2026-09-17 风险点处置）
     async fn broadcast(&self, event: OrchestratorEvent) {
-        self.event_broadcaster.read().await.broadcast(&event);
+        self.event_bus_handle().await.emit(&event);
+    }
+
+    /// 取出事件总线句柄（短读壳锁；分发于锁外进行，链内注册/I/O 不阻滞写者）
+    async fn event_bus_handle(&self) -> Arc<crate::event_bus::EventBus> {
+        self.event_broadcaster.read().await.handle()
     }
 
     /// 用指定 ServiceTarget 执行一次流式调用并聚合结果（A2 多 Key 降级的单次尝试）
@@ -529,73 +532,52 @@ impl GenaiBackend {
     }
 }
 
-#[async_trait]
-impl NodeBackendAccessor for GenaiBackend {
-    async fn prompt(
+impl GenaiBackend {
+    /// 校验 API Key 并收集候选 key（主 key 在前 + 备用 key 池）——prompt / 旁路调用共用
+    async fn ensure_ready_keys(
         &self,
-        prompt: String,
-        options: Option<PromptCallOptions>,
-    ) -> Result<PromptResponse, BackendError> {
-        let opts = options.unwrap_or_default();
-        // R6 第四部分：静默调用（过程内决策，如路由判型）→ 抑制流式事件广播
-        let silent = opts.silent;
-        let config = self.config.read().await.clone();
-
-        // 1. 校验 API Key（cloud/custom 模式）
-        if !matches!(config, ProviderConfig::Local { .. }) {
-            let api_key = config.api_key();
-            if api_key.is_empty() {
-                return Err(BackendError::Auth(format!(
-                    "API Key 缺失: provider={}",
-                    config.provider_id()
-                )));
-            }
-        }
-
-        // 2. 推入 user 消息（含 steer 缓冲）
-        {
-            let mut messages = self.messages.write().await;
-            // steer 缓冲作为前置 user 消息
-            let steer_buf = self.steer_buffer.read().await.clone();
-            for steer_text in steer_buf {
-                messages.push(OrchestratorMessage {
-                    role: MessageRole::User,
-                    content: steer_text,
-                    tool_calls: Vec::new(),
-                    tool_call_id: None,
-                    meta: None,
-                });
-            }
-            // 清空 steer 缓冲
-            self.steer_buffer.write().await.clear();
-            // 推入本次 prompt
-            messages.push(OrchestratorMessage {
-                role: MessageRole::User,
-                content: prompt.clone(),
-                tool_calls: Vec::new(),
-                tool_call_id: None,
-                meta: None,
-            });
-        }
-
-        // 3. 收集候选 key（主 key + 备用 key 池）
+        config: &ProviderConfig,
+    ) -> Result<Vec<String>, BackendError> {
         let primary_key = config.api_key().to_string();
+        if !matches!(config, ProviderConfig::Local { .. }) && primary_key.is_empty() {
+            return Err(BackendError::MissingCredential(format!(
+                "provider={}",
+                config.provider_id()
+            )));
+        }
         let mut candidate_keys: Vec<String> = vec![primary_key.clone()];
         if !matches!(config, ProviderConfig::Local { .. }) {
             candidate_keys.extend(self.backup_keys(&primary_key).await);
         }
+        Ok(candidate_keys)
+    }
 
-        // 4-6. 逐 key 尝试执行（A2 多 Key 降级）：
-        // 主 key 请求命中可重试错误（认证/限流/网络）时，换池中下一把 key 重试。
-        let messages_snapshot = self.messages.read().await.clone();
+    /// 逐 key 尝试执行一次 Chat 请求（A2 多 Key 降级）——**不触碰内部会话状态**
+    ///
+    /// 主 key 请求命中可重试错误（认证/限流/网络）时，换池中下一把 key 重试；
+    /// 全部失败返回最后一次错误。会话状态（消息写入 / 广播 / 收尾）由调用方负责。
+    async fn exec_with_key_fallback(
+        &self,
+        config: &ProviderConfig,
+        candidate_keys: &[String],
+        messages: &[OrchestratorMessage],
+        opts: &PromptCallOptions,
+    ) -> Result<PromptResponse, BackendError> {
+        let silent = opts.silent;
+        tracing::debug!(
+            purpose = opts.purpose.as_deref().unwrap_or("-"),
+            silent,
+            messages = messages.len(),
+            "LLM 请求（多 Key 降级链）"
+        );
         let (chat_req, chat_opts) =
-            Self::build_chat_request(&messages_snapshot, &opts).map_err(BackendError::from)?;
+            Self::build_chat_request(messages, opts).map_err(BackendError::from)?;
 
         let mut last_error: Option<BackendError> = None;
-        for key in &candidate_keys {
+        for key in candidate_keys {
             let mut attempt_config = config.clone();
             if !matches!(config, ProviderConfig::Local { .. }) {
-                attempt_config = set_config_api_key(&config, key);
+                attempt_config = set_config_api_key(config, key);
             }
             let service_target =
                 Self::resolve_service_target(&attempt_config).map_err(BackendError::from)?;
@@ -609,9 +591,10 @@ impl NodeBackendAccessor for GenaiBackend {
                 .exec_stream_once(service_target, chat_req.clone(), &chat_opts, silent)
                 .await;
             match stream_result {
-                Ok(resp) => return self.finish_prompt(resp, silent).await,
+                Ok(resp) => return Ok(resp),
                 Err(e) => {
-                    if is_retryable_error(&e) && last_error.is_none() {
+                    // A5：降级判据 = 稳定错误码（不解析 message）——认证/限流/配额/网络
+                    if e.code().is_key_fallback_eligible() && last_error.is_none() {
                         last_error = Some(e);
                         continue;
                     }
@@ -622,10 +605,100 @@ impl NodeBackendAccessor for GenaiBackend {
         // 所有候选 key 均失败
         Err(last_error.unwrap_or_else(|| BackendError::Other("无可用 API Key".into())))
     }
+}
 
-    async fn steer(&self, text: String) -> Result<(), BackendError> {
-        self.steer_buffer.write().await.push(text);
-        Ok(())
+#[async_trait]
+impl NodeBackendAccessor for GenaiBackend {
+    async fn prompt(
+        &self,
+        prompt: String,
+        options: Option<PromptCallOptions>,
+    ) -> Result<PromptResponse, BackendError> {
+        let opts = options.unwrap_or_default();
+        // R6 第四部分：静默调用（过程内决策，如路由判型）→ 抑制流式事件广播
+        let silent = opts.silent;
+        let config = self.config.read().await.clone();
+
+        // 1. 校验 API Key 并收集候选 key（先于消息写入：失败时不改动会话状态）
+        let candidate_keys = self.ensure_ready_keys(&config).await?;
+
+        // 2. 推入 user 消息（本次 prompt）
+        {
+            let mut messages = self.messages.write().await;
+            messages.push(OrchestratorMessage {
+                role: MessageRole::User,
+                content: prompt.clone(),
+                tool_calls: Vec::new(),
+                tool_call_id: None,
+                meta: None,
+            });
+        }
+
+        // 3. 执行（A2 多 Key 降级）→ 收尾（写回 assistant 响应 + StreamEnd 广播）
+        let messages_snapshot = self.messages.read().await.clone();
+        // 阶段 3 · ④ 扩展（D13「旁路全收」）：带 `purpose` 标签的直调请求（pattern 引擎
+        // 路由判型 / Reflection·Refine / ToT / GoT / 编排适配器）派发前入账。视图取本次
+        // 实际请求消息（恒全量，见 `build_bypass_snapshot`）；事件经 BackendEventBridge
+        // 转发到会话广播器 → 命令层 WAL 监听器同步落行。
+        //
+        // 不含主链路（purpose=None，由 AgentLoop 自身采集，避免双重入账）与压缩摘要
+        // （purpose="compaction"，走 `prompt_side_call` 且已带材料坐标入账）——后者按
+        // 标签显式排除，防未来改用路径时重复。
+        if let Some(purpose) = opts.purpose.as_deref() {
+            if purpose != "compaction" {
+                let snapshot = crate::agent::request_snapshot::build_bypass_snapshot(
+                    purpose,
+                    config.provider_id(),
+                    config.model_id(),
+                    &opts,
+                    &messages_snapshot,
+                );
+                self.broadcast(OrchestratorEvent::RequestSnapshotCaptured { snapshot })
+                    .await;
+            }
+        }
+        let resp = self
+            .exec_with_key_fallback(&config, &candidate_keys, &messages_snapshot, &opts)
+            .await?;
+        self.finish_prompt(resp, silent).await
+    }
+
+    /// 旁路调用（阶段 3 · D4 压缩摘要）：不写会话消息、不消费 steer 缓冲、不广播流式事件
+    ///
+    /// 与 [`Self::prompt`] 共用同一条执行内核（[`Self::exec_with_key_fallback`]），
+    /// 差别只在会话状态：请求材料由调用方给全（系统提示 + 历史快照 + 指令），
+    /// 响应只回传不落历史。**暖前缀**：`history` 传主对话消息快照时，
+    /// 请求前缀与主请求逐字一致（provider 前缀缓存可命中到指令之前）。
+    async fn prompt_side_call(
+        &self,
+        system_prompt: Option<String>,
+        history: Vec<OrchestratorMessage>,
+        instruction: String,
+        options: PromptCallOptions,
+    ) -> Result<PromptResponse, BackendError> {
+        let config = self.config.read().await.clone();
+        let candidate_keys = self.ensure_ready_keys(&config).await?;
+
+        let mut opts = options;
+        // 旁路调用一律静默：中间产物（摘要等）不泄漏为对话流
+        opts.silent = true;
+        if system_prompt.is_some() {
+            opts.system_prompt_override = system_prompt;
+        }
+
+        let mut messages = history;
+        if !instruction.is_empty() {
+            messages.push(OrchestratorMessage {
+                role: MessageRole::User,
+                content: instruction,
+                tool_calls: Vec::new(),
+                tool_call_id: None,
+                meta: None,
+            });
+        }
+        // 注意：不写回 self.messages——旁路语义（无会话副作用）
+        self.exec_with_key_fallback(&config, &candidate_keys, &messages, &opts)
+            .await
     }
 
     async fn get_messages(&self) -> Vec<OrchestratorMessage> {
@@ -651,7 +724,7 @@ impl NodeBackendAccessor for GenaiBackend {
     ///
     /// AgentLoop 在 `new` 时调用此方法，使订阅 AgentLoop 的监听器
     /// 能收到 backend 广播的 `StreamStart`/`StreamDelta`/`StreamEnd` 等事件。
-    async fn subscribe_events(&self, listener: Arc<dyn EventListener>) {
+    async fn subscribe_events(&self, listener: Arc<dyn Listener>) {
         self.event_broadcaster.write().await.subscribe(listener);
     }
 
@@ -685,8 +758,8 @@ impl NodeBackendAccessor for GenaiBackend {
             } => {
                 let final_key = api_key.unwrap_or_else(|| old_key.clone());
                 if final_key.is_empty() {
-                    return Err(BackendError::Auth(format!(
-                        "API Key 缺失: provider={}",
+                    return Err(BackendError::MissingCredential(format!(
+                        "provider={}",
                         provider
                     )));
                 }
@@ -811,16 +884,6 @@ fn set_config_api_key(config: &ProviderConfig, key: &str) -> ProviderConfig {
             max_tokens: *max_tokens,
         },
     }
-}
-
-/// 判断某个错误是否可触发 key 降级重试（认证失败/限流/网络）
-fn is_retryable_error(e: &BackendError) -> bool {
-    matches!(
-        e,
-        BackendError::Auth(_)
-            | BackendError::RateLimit
-            | BackendError::Network(_)
-    )
 }
 
 #[cfg(test)]
@@ -950,21 +1013,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn genai_backend_steer_appends_to_buffer() {
-        let config = ProviderConfig::Cloud {
-            provider: "deepseek".to_string(),
-            model_id: "deepseek-v4-flash".to_string(),
-            api_key: "sk-test".to_string(),
-        };
-        let backend = GenaiBackend::new(config);
-        backend.steer("附加指令1".to_string()).await.unwrap();
-        backend.steer("附加指令2".to_string()).await.unwrap();
-        let buffer = backend.steer_buffer.read().await;
-        assert_eq!(buffer.len(), 2);
-        assert_eq!(buffer[0], "附加指令1");
-    }
-
-    #[tokio::test]
     async fn genai_backend_set_get_messages_roundtrip() {
         let config = ProviderConfig::Local {
             endpoint: "http://localhost:11434".to_string(),
@@ -1088,9 +1136,49 @@ mod tests {
         let result = backend.prompt("hello".to_string(), None).await;
         assert!(result.is_err());
         match result {
-            Err(BackendError::Auth(_)) => {}
-            _ => panic!("应为 Auth 错误"),
+            // A5：空 Key 归类为「未配置凭证」（可路由到用户提示）
+            Err(BackendError::MissingCredential(_)) => {}
+            _ => panic!("应为 MissingCredential 错误"),
         }
+    }
+
+    /// 旁路调用不触碰会话状态（消息不被改写）；A3 起 backend 侧不再持有 steer 缓冲
+    #[tokio::test]
+    async fn side_call_does_not_touch_conversation_state() {
+        let config = ProviderConfig::Cloud {
+            provider: "deepseek".to_string(),
+            model_id: "deepseek-v4-flash".to_string(),
+            api_key: "".to_string(), // 空 Key → Auth 错误（不触网）
+        };
+        let backend = GenaiBackend::new(config);
+        backend
+            .set_messages(vec![OrchestratorMessage {
+                role: MessageRole::User,
+                content: "既有消息".to_string(),
+                tool_calls: Vec::new(),
+                tool_call_id: None,
+                meta: None,
+            }])
+            .await
+            .unwrap();
+
+        let result = backend
+            .prompt_side_call(
+                None,
+                vec![],
+                "摘要指令".to_string(),
+                PromptCallOptions::default(),
+            )
+            .await;
+        assert!(
+            matches!(result, Err(BackendError::MissingCredential(_))),
+            "空 Key 应返回未配置凭证错误"
+        );
+
+        // 旁路语义：会话消息不被改写
+        let messages = backend.get_messages().await;
+        assert_eq!(messages.len(), 1, "旁路调用不得改写会话消息: {messages:?}");
+        assert_eq!(messages[0].content, "既有消息");
     }
 
     // ─── A2 多 Key 降级 ───
@@ -1122,12 +1210,37 @@ mod tests {
     }
 
     #[test]
-    fn is_retryable_error_classifies_network_and_auth() {
-        assert!(is_retryable_error(&BackendError::Network("timeout".into())));
-        assert!(is_retryable_error(&BackendError::Auth("401".into())));
-        assert!(is_retryable_error(&BackendError::RateLimit));
-        assert!(!is_retryable_error(&BackendError::ModelNotFound("x".into())));
-        assert!(!is_retryable_error(&BackendError::Other("boom".into())));
+    fn key_fallback_eligibility_comes_from_stable_codes() {
+        // A5：降级判据 = 稳定错误码（原实现为 BackendError 变体匹配，已单点化）
+        assert!(BackendError::Network("timeout".into()).code().is_key_fallback_eligible());
+        assert!(BackendError::Auth("401".into()).code().is_key_fallback_eligible());
+        assert!(
+            BackendError::RateLimit {
+                retry_after_ms: None
+            }
+            .code()
+            .is_key_fallback_eligible()
+        );
+        assert!(
+            BackendError::InvalidCredential("403".into())
+                .code()
+                .is_key_fallback_eligible()
+        );
+        assert!(BackendError::Quota("余额不足".into()).code().is_key_fallback_eligible());
+        assert!(!BackendError::ModelNotFound("x".into()).code().is_key_fallback_eligible());
+        assert!(!BackendError::Other("boom".into()).code().is_key_fallback_eligible());
+        assert!(
+            !BackendError::MissingCredential("provider=x".into())
+                .code()
+                .is_key_fallback_eligible(),
+            "主 key 未配置属装配问题，不换 key"
+        );
+        assert!(
+            !BackendError::ContextWindowExceeded("溢出".into())
+                .code()
+                .is_key_fallback_eligible(),
+            "上下文溢出换 key 无意义（走压缩路径）"
+        );
     }
 
     #[tokio::test]
@@ -1145,5 +1258,82 @@ mod tests {
         ]).await;
         let backups = backend.backup_keys("sk-primary").await;
         assert_eq!(backups, vec!["sk-backup1".to_string(), "sk-backup2".to_string()]);
+    }
+
+    /// 阶段 3 · ④ 扩展（D13 旁路全收）：带 purpose 标签的直调在派发前入账
+    /// （旁路快照 = 实际请求视图全量）；无标签（主链路）不在此采集
+    ///
+    /// 用 Local 配置指向不可达端口：请求必失败但不触外网，采集发生在派发前。
+    #[tokio::test]
+    async fn prompt_with_purpose_captures_bypass_snapshot() {
+        use crate::agent::request_snapshot::{RequestSnapshot, ViewUpdate};
+        use crate::event_bus::{Listener, ListenerOutcome};
+
+        struct Recorder {
+            snaps: std::sync::Mutex<Vec<RequestSnapshot>>,
+        }
+        impl Listener for Recorder {
+            fn call(&self, event: &OrchestratorEvent) -> ListenerOutcome {
+                if let OrchestratorEvent::RequestSnapshotCaptured { snapshot } = event {
+                    self.snaps.lock().unwrap().push(snapshot.clone());
+                }
+                ListenerOutcome::Continue
+            }
+        }
+
+        let backend = GenaiBackend::new(ProviderConfig::Local {
+            endpoint: "http://127.0.0.1:1".to_string(),
+            api_type: LocalApiType::Ollama,
+            model_id: "local-model".to_string(),
+        });
+        let recorder = Arc::new(Recorder {
+            snaps: std::sync::Mutex::new(Vec::new()),
+        });
+        backend.subscribe_events(recorder.clone()).await;
+        backend
+            .set_messages(vec![OrchestratorMessage {
+                role: MessageRole::User,
+                content: "既有消息".to_string(),
+                tool_calls: Vec::new(),
+                tool_call_id: None,
+                meta: None,
+            }])
+            .await
+            .unwrap();
+
+        // 带标签直调（pattern 形态）：采集先于派发（请求本身因端口不可达而失败）
+        let result = backend
+            .prompt(
+                "路由提示".to_string(),
+                Some(PromptCallOptions {
+                    purpose: Some("router".into()),
+                    silent: true,
+                    ..Default::default()
+                }),
+            )
+            .await;
+        assert!(result.is_err(), "不可达端口应返回错误（不影响采集）");
+
+        let snaps = recorder.snaps.lock().unwrap().clone();
+        assert_eq!(snaps.len(), 1, "带 purpose 的直调应采集一条旁路快照");
+        assert_eq!(snaps[0].purpose, "router");
+        assert_eq!(snaps[0].model_id, "local-model");
+        assert!(snaps[0].silent);
+        match &snaps[0].view_update {
+            ViewUpdate::Full { messages } => {
+                assert_eq!(messages.len(), 2, "视图应为实际请求消息（既有 + 本次提示）");
+                assert_eq!(messages[0].content, "既有消息");
+                assert_eq!(messages[1].content, "路由提示");
+            }
+            other => panic!("旁路快照应恒为全量: {other:?}"),
+        }
+
+        // 无标签（主链路形态）：不在此采集（由 AgentLoop 采集点负责）
+        let _ = backend.prompt("主链路提示".to_string(), None).await;
+        assert_eq!(
+            recorder.snaps.lock().unwrap().len(),
+            1,
+            "无 purpose 标签的调用不应在 backend 侧采集"
+        );
     }
 }

@@ -72,6 +72,82 @@ pub const DEFAULT_MAX_TOTAL_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 /// 外置目录名（相对记忆根）
 pub const RAW_DIR_NAME: &str = "raw";
 
+/// 压缩事务锁目录名（`raw` 子目录；GC 扫描按 `.txt` 过滤，天然互不干扰）
+pub const LOCKS_DIR_NAME: &str = "locks";
+
+/// 压缩事务锁记录（阶段 3 · A2 补齐②：崩溃可检测的「孤儿锁」依据）
+///
+/// 生命周期 = 压缩事务括号（`ContextCompactStarted` → 落锁；`Finished` / `Failed` → 解锁）：
+/// 崩溃（或进程被强杀）时右端事件丢失 → 锁文件残留 → 会话下次装载时检测清理。
+/// 检测的「孤儿」语义 = 装载期本会话尚无活跃实例、却存在锁文件 → 必为上次进程遗留。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CompactLock {
+    /// 会话 ID（锁文件按此命名）
+    pub session_id: String,
+    /// 落锁进程 ID（诊断用；进程重启后必然不同）
+    pub pid: u32,
+    /// 触发源："auto" / "manual"
+    pub trigger: String,
+    /// 压缩前总占用（token）
+    pub before_tokens: usize,
+    /// 落锁时间（Unix 毫秒）
+    pub started_at_ms: u64,
+}
+
+impl CompactLock {
+    /// 序列化为锁文件文本（行式 `key=value`，零依赖、可直接诊断）
+    pub fn to_text(&self) -> String {
+        format!(
+            "pid={}\nsession={}\ntrigger={}\nbefore_tokens={}\nstarted_at_ms={}\n",
+            self.pid, self.session_id, self.trigger, self.before_tokens, self.started_at_ms
+        )
+    }
+
+    /// 解析锁文件文本（缺字段 / 格式错误 → `None`：宁可当「无锁」，也不误报孤儿）
+    pub fn parse(text: &str) -> Option<Self> {
+        let mut pid = None;
+        let mut session_id = None;
+        let mut trigger = None;
+        let mut before_tokens = None;
+        let mut started_at_ms = None;
+        for line in text.lines() {
+            let Some((key, value)) = line.split_once('=') else {
+                continue;
+            };
+            match key.trim() {
+                "pid" => pid = value.trim().parse().ok(),
+                "session" => session_id = Some(value.trim().to_string()),
+                "trigger" => trigger = Some(value.trim().to_string()),
+                "before_tokens" => before_tokens = value.trim().parse().ok(),
+                "started_at_ms" => started_at_ms = value.trim().parse().ok(),
+                _ => {}
+            }
+        }
+        Some(Self {
+            session_id: session_id?,
+            pid: pid?,
+            trigger: trigger?,
+            before_tokens: before_tokens?,
+            started_at_ms: started_at_ms?,
+        })
+    }
+}
+
+/// 锁文件名（会话 ID 安全化：非字母数字/下划线/连字符 → `_`；防路径穿越）
+fn lock_file_name(session_id: &str) -> String {
+    let safe: String = session_id
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    format!("{safe}.lock")
+}
+
 /// 原文外置存储
 #[derive(Debug, Clone)]
 pub struct RawStore {
@@ -262,6 +338,80 @@ impl RawStore {
             }
         }
     }
+
+    // ─── 压缩事务锁（阶段 3 · A2 补齐②）────────────────────────
+
+    /// 压缩事务锁目录（`{记忆根}/raw/locks`，不存在则创建）
+    pub fn locks_dir(&self) -> std::io::Result<PathBuf> {
+        let dir = self.dir.join(LOCKS_DIR_NAME);
+        std::fs::create_dir_all(&dir)?;
+        Ok(dir)
+    }
+
+    /// 某会话的锁文件路径（会话 ID 先做文件名安全化，防路径穿越）
+    pub fn lock_path_of(&self, session_id: &str) -> PathBuf {
+        self.dir.join(LOCKS_DIR_NAME).join(lock_file_name(session_id))
+    }
+
+    /// 落锁（同步；原子写：tmp → rename）。失败返回 `None`。
+    ///
+    /// 落锁是**诊断增强**（孤儿检测依据），失败不阻断压缩主流程——调用方仅告警。
+    /// 幂等：同会话重复落锁 = 覆盖（同一时刻本会话至多一个压缩事务）。
+    pub fn acquire_compact_lock(&self, lock: &CompactLock) -> Option<PathBuf> {
+        let dir = self.locks_dir().ok()?;
+        let name = lock_file_name(&lock.session_id);
+        let path = dir.join(&name);
+        let tmp = dir.join(format!(".{name}.tmp"));
+        if let Err(e) = std::fs::write(&tmp, lock.to_text().as_bytes()) {
+            tracing::warn!(error = %e, "写压缩事务锁临时文件失败（孤儿检测降级）");
+            let _ = std::fs::remove_file(&tmp);
+            return None;
+        }
+        if let Err(e) = std::fs::rename(&tmp, &path) {
+            tracing::warn!(error = %e, "压缩事务锁改名失败（孤儿检测降级）");
+            let _ = std::fs::remove_file(&tmp);
+            return None;
+        }
+        Some(path)
+    }
+
+    /// 解锁（幂等：文件不存在视为已解锁）
+    pub fn release_compact_lock(&self, session_id: &str) -> bool {
+        match std::fs::remove_file(self.lock_path_of(session_id)) {
+            Ok(()) => true,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => true,
+            Err(e) => {
+                tracing::warn!(error = %e, %session_id, "删除压缩事务锁失败");
+                false
+            }
+        }
+    }
+
+    /// 读取某会话的锁（无锁 / 解析失败 → `None`）
+    pub fn read_compact_lock(&self, session_id: &str) -> Option<CompactLock> {
+        let text = std::fs::read_to_string(self.lock_path_of(session_id)).ok()?;
+        CompactLock::parse(&text)
+    }
+
+    /// 列举全部锁（诊断 / 后续 GC 收敛用；按会话 ID 排序，稳定）
+    pub fn list_compact_locks(&self) -> Vec<CompactLock> {
+        let Ok(entries) = std::fs::read_dir(self.dir.join(LOCKS_DIR_NAME)) else {
+            return Vec::new();
+        };
+        let mut out: Vec<CompactLock> = entries
+            .filter_map(|e| e.ok())
+            .filter(|e| {
+                e.path()
+                    .extension()
+                    .map(|ext| ext == "lock")
+                    .unwrap_or(false)
+            })
+            .filter_map(|e| std::fs::read_to_string(e.path()).ok())
+            .filter_map(|text| CompactLock::parse(&text))
+            .collect();
+        out.sort_by(|a, b| a.session_id.cmp(&b.session_id));
+        out
+    }
 }
 
 /// 坐标格式校验：**恰好 16 位十六进制**
@@ -431,5 +581,85 @@ mod tests {
             .filter(|n| n.ends_with(".tmp"))
             .collect();
         assert!(leftovers.is_empty(), "不应残留临时文件: {leftovers:?}");
+    }
+
+    // ─── 压缩事务锁（阶段 3 · A2 补齐②）────────────
+
+    fn sample_lock(session: &str) -> CompactLock {
+        CompactLock {
+            session_id: session.to_string(),
+            pid: 4242,
+            trigger: "auto".into(),
+            before_tokens: 12_345,
+            started_at_ms: 1_700_000_000_000,
+        }
+    }
+
+    #[test]
+    fn compact_lock_roundtrips_through_text_and_store() {
+        let dir = tempfile::tempdir().unwrap();
+        let s = store(&dir);
+        let lock = sample_lock("sess-1");
+
+        // 无锁：读回 None
+        assert!(s.read_compact_lock("sess-1").is_none());
+        // 落锁 → 读回逐字段一致；文本格式可直接解析
+        let path = s.acquire_compact_lock(&lock).expect("落锁应成功");
+        assert!(path.exists());
+        assert_eq!(s.read_compact_lock("sess-1"), Some(lock.clone()));
+        assert_eq!(CompactLock::parse(&lock.to_text()), Some(lock.clone()));
+        // 解锁（幂等）
+        assert!(s.release_compact_lock("sess-1"));
+        assert!(s.release_compact_lock("sess-1"), "重复解锁应幂等");
+        assert!(s.read_compact_lock("sess-1").is_none());
+    }
+
+    #[test]
+    fn compact_lock_parse_rejects_malformed_and_missing_fields() {
+        assert!(CompactLock::parse("").is_none());
+        assert!(
+            CompactLock::parse("pid=1\nsession=x\n").is_none(),
+            "缺字段应拒绝（宁可当无锁，不误报孤儿）"
+        );
+        let broken = sample_lock("x").to_text().replace("pid=4242", "pid=nan");
+        assert!(CompactLock::parse(&broken).is_none(), "非法数值应拒绝");
+    }
+
+    #[test]
+    fn compact_lock_never_touches_raw_hashes_and_sanitizes_names() {
+        let dir = tempfile::tempdir().unwrap();
+        let s = store(&dir);
+        // 文件名安全化：穿越形态被转义（不逃出 locks 目录）
+        let path = s.lock_path_of("../escape");
+        assert!(
+            path.parent().is_some_and(|p| p.ends_with(LOCKS_DIR_NAME)),
+            "锁文件必须落在 locks 目录内: {path:?}"
+        );
+        assert!(!path.to_string_lossy().contains(".."), "不得残留穿越分量: {path:?}");
+        // 锁文件不进入外置文件清单 / 计数（GC 扫描对象不受污染）
+        let _ = s.store("内容").unwrap();
+        let _ = s.acquire_compact_lock(&sample_lock("sess-a")).unwrap();
+        assert_eq!(s.count(), 1, "list_hashes 只应看到 .txt 外置文件");
+        assert_eq!(s.list_compact_locks().len(), 1);
+        // tmp 残留（写中断）不入锁清单
+        std::fs::write(s.locks_dir().unwrap().join(".sess-b.lock.tmp"), "pid=1").unwrap();
+        assert_eq!(s.list_compact_locks().len(), 1, "tmp 文件不应被当作锁");
+    }
+
+    #[test]
+    fn compact_lock_overwrites_for_same_session_and_lists_sorted() {
+        let dir = tempfile::tempdir().unwrap();
+        let s = store(&dir);
+        let _ = s.acquire_compact_lock(&sample_lock("b")).unwrap();
+        let _ = s.acquire_compact_lock(&sample_lock("a")).unwrap();
+        // 覆盖：同会话二次落锁后读到最新内容（同一时刻至多一个压缩事务）
+        let mut second = sample_lock("a");
+        second.trigger = "manual".into();
+        let _ = s.acquire_compact_lock(&second).unwrap();
+        assert_eq!(s.read_compact_lock("a").unwrap().trigger, "manual");
+
+        let listed = s.list_compact_locks();
+        let ids: Vec<&str> = listed.iter().map(|l| l.session_id.as_str()).collect();
+        assert_eq!(ids, vec!["a", "b"], "列举应按会话 ID 排序: {listed:?}");
     }
 }

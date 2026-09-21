@@ -5,6 +5,9 @@
 //! `ConfirmationRequested` 事件 → Tauri 端转发前端 `agent:confirm:{session_id}` →
 //! 前端弹窗后经 `cmd_agent_confirm` 回传 → `ConfirmationBroker::resolve` 放行/拒绝。
 //!
+//! D8 四值对齐（2026-09-17）：审批结果由 bool 升级为 [`ConfirmationOutcome`]
+//! （approved / denied / skipped / timeout）——「拒绝」「跳过」「超时」不再不可区分。
+//!
 //! 决策在 Rust 侧（`ConfirmationPolicy` 配置需确认工具集），MVP 仅覆盖危险操作。
 
 use std::collections::HashMap;
@@ -13,14 +16,113 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use serde::{Deserialize, Serialize};
 use tokio::sync::{oneshot, Mutex, RwLock};
 
 use crate::event::{EventBroadcaster, OrchestratorEvent};
 use crate::permission_rules::SecurityLevel;
 use crate::tool_context::ToolContext;
 
-/// 默认确认超时（60s），超时按拒绝处理，避免 Agent 无限等待
+/// 默认确认超时（60s），超时按不执行处理，避免 Agent 无限等待
 const DEFAULT_CONFIRM_TIMEOUT: Duration = Duration::from_secs(60);
+
+/// 默认提问超时（10 分钟，2026-09-20 用户裁定：超时按「跳过」处理）
+///
+/// 提问不套用确认的 60s（人工作答需要时间），但也不能无限等待（无应答者场景）；
+/// 超时 → [`AskOutcome::TimedOut`]：清理 pending + 广播 `AskResolved{timed_out}`
+/// （前端关面板 + 弱提示），工具侧按「跳过」返回空答案 + `timedOut` 标记。
+const DEFAULT_ASK_TIMEOUT: Duration = Duration::from_secs(600);
+
+// ─── 审批结果四值（D8，2026-09-17） ──────────────────────────
+
+/// 用户审批结果（D8 四值对齐；取代原 bool 归一——跳过/拒绝/超时相互不可区分）
+///
+/// - `Approved`：用户放行（含「添加白名单并放行」附加动作）
+/// - `Denied`：用户拒绝执行
+/// - `Skipped`：用户跳过本次操作（第三键「取消(跳过)」）
+/// - `Timeout`：等待用户确认超时（`DEFAULT_CONFIRM_TIMEOUT`），按不执行处理
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ConfirmationOutcome {
+    /// 用户放行
+    Approved,
+    /// 用户拒绝
+    Denied,
+    /// 用户跳过（第三键）
+    Skipped,
+    /// 等待确认超时（仅 kernel 侧产生，不接受前端回传）
+    Timeout,
+}
+
+impl ConfirmationOutcome {
+    /// 是否放行工具执行（仅 `Approved` 为真）
+    pub fn is_approved(self) -> bool {
+        matches!(self, Self::Approved)
+    }
+
+    /// 从 snake_case 字符串解析（前端 `cmd_agent_confirm` 入参；`timeout` 由 kernel 超时产生）
+    pub fn parse(raw: &str) -> Result<Self, String> {
+        match raw {
+            "approved" => Ok(Self::Approved),
+            "denied" => Ok(Self::Denied),
+            "skipped" => Ok(Self::Skipped),
+            "timeout" => Err("timeout 由 kernel 超时产生，不接受前端回传".to_string()),
+            other => Err(format!("未知审批结果: {other}（期望 approved/denied/skipped）")),
+        }
+    }
+}
+
+// ─── 提问通道（Q1，2026-09-20） ─────────────────────────────
+
+/// 提问单题答案（前端回传；协议对齐 dsh `ask_user_question`：稳定 id 原样回显）
+///
+/// 语义（对齐 dsh）：
+/// - 单选：`custom` 覆盖 `selected`（有自定义回答时 `selected` 为空）
+/// - 多选：`custom` 为补充（保留 `selected`）
+/// - 跳过 / 未答：`selected` 为空且无 `custom`
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AskAnswer {
+    /// 问题稳定 id（与请求 `questions[].id` 一一对应）
+    pub id: String,
+    /// 选中的选项 label 列表（跳过/未答 = 空数组）
+    #[serde(default)]
+    pub selected: Vec<String>,
+    /// 自定义回答（可选；单选下为覆盖语义）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub custom: Option<String>,
+}
+
+/// 提问结果（D3 三语义 + 超时四值，2026-09-20）
+///
+/// - `Answered`：用户作答（answers 与问题按稳定 id 一一对应）→ 工具成功结果
+/// - `Denied`：用户拒绝作答（前端「取消」键）→ 工具失败码 `ASK_DENIED`
+/// - `Cancelled`：等待被中断取消（abort / dispose 随轮取消；仅 kernel 侧产生）
+///   → 工具失败码 `ASK_CANCELLED`
+/// - `TimedOut`：等待超时（`DEFAULT_ASK_TIMEOUT` = 10 分钟；仅 kernel 侧产生）
+///   → 工具按「跳过」处理（逐题空答案 + `timedOut` 标记，非失败结果）
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AskOutcome {
+    /// 用户已作答
+    Answered(Vec<AskAnswer>),
+    /// 用户拒绝作答（前端取消）
+    Denied,
+    /// 等待被中断取消（随轮取消 / 会话销毁；仅 kernel 侧产生）
+    Cancelled,
+    /// 等待超时（10 分钟兜底；仅 kernel 侧产生）——按「跳过」处理
+    TimedOut,
+}
+
+impl AskOutcome {
+    /// 结果类别字符串（事件载荷 `AskResolved` / 前端清理用）
+    pub fn kind(&self) -> &'static str {
+        match self {
+            Self::Answered(_) => "answered",
+            Self::Denied => "denied",
+            Self::Cancelled => "cancelled",
+            Self::TimedOut => "timed_out",
+        }
+    }
+}
 
 // ─── A7 工具权限分级 ──────────────────────────────────────────
 
@@ -145,6 +247,12 @@ impl ConfirmationPolicy {
 
     /// 判断某工具调用是否需要确认（A7 三分级裁决，档位短路优先）
     pub fn needs_confirmation(&self, tool_name: &str, args: &serde_json::Value) -> bool {
+        // Q1（2026-09-20）：提问工具不做执行前确认——提问面板本身就是人工交互，
+        // 再叠一层「工具执行确认」是双重弹窗；且 Plan 档「恒确认」会把它一并拦下
+        // （提问不改写任何状态，无需执行闸门；子代理/不可用由工具内 ASK_UNAVAILABLE 收口）
+        if tool_name == "ask_user_question" {
+            return false;
+        }
         // 档位短路（v2，2026-09-03）：Autopilot 恒不确认；Plan 恒确认
         match self.security_level {
             SecurityLevel::Autopilot => return false,
@@ -428,54 +536,73 @@ pub fn rule_engine_verdict(
 /// 每个 AgentLoop 会话持有一个 broker；`request` 广播事件并 `await` oneshot，
 /// 前端经 `cmd_agent_confirm` 调用 `resolve` 唤醒等待方。
 pub struct ConfirmationBroker {
-    pending: Mutex<HashMap<String, oneshot::Sender<bool>>>,
+    pending: Mutex<HashMap<String, oneshot::Sender<ConfirmationOutcome>>>,
+    /// Q1（2026-09-20）：待回答提问（10 分钟兜底超时——`ask_timeout`；随轮取消见 `AgentLoop::abort/dispose`）
+    pending_asks: Mutex<HashMap<String, oneshot::Sender<AskOutcome>>>,
     timeout: Duration,
+    /// 提问兜底超时（默认 10 分钟；测试可经 `with_ask_timeout` 缩短）
+    ask_timeout: Duration,
 }
 
 impl ConfirmationBroker {
-    /// 创建确认协调器（默认超时 60s）
+    /// 创建确认协调器（默认确认超时 60s；提问兜底超时 10 分钟）
     pub fn new() -> Self {
         Self {
             pending: Mutex::new(HashMap::new()),
+            pending_asks: Mutex::new(HashMap::new()),
             timeout: DEFAULT_CONFIRM_TIMEOUT,
+            ask_timeout: DEFAULT_ASK_TIMEOUT,
         }
     }
 
-    /// 创建并自定义确认超时
+    /// 创建并自定义确认超时（提问超时维持默认）
     pub fn with_timeout(timeout: Duration) -> Self {
         Self {
             pending: Mutex::new(HashMap::new()),
+            pending_asks: Mutex::new(HashMap::new()),
             timeout,
+            ask_timeout: DEFAULT_ASK_TIMEOUT,
+        }
+    }
+
+    /// 创建并自定义提问兜底超时（测试用；生产维持 `DEFAULT_ASK_TIMEOUT`）
+    pub fn with_ask_timeout(ask_timeout: Duration) -> Self {
+        Self {
+            pending: Mutex::new(HashMap::new()),
+            pending_asks: Mutex::new(HashMap::new()),
+            timeout: DEFAULT_CONFIRM_TIMEOUT,
+            ask_timeout,
         }
     }
 
     /// 发起确认请求：广播事件并等待前端响应
     ///
-    /// # 返回
-    /// - `Some(true)`：用户放行
-    /// - `Some(false)`：用户拒绝
-    /// - `None`：超时或中断（调用方按拒绝处理）
+    /// # 返回（D8 四值）
+    /// - `Approved`：用户放行
+    /// - `Denied` / `Skipped`：用户拒绝 / 跳过（均不执行，文案区分）
+    /// - `Timeout`：超时或中断（调用方按不执行处理）
     pub async fn request(
         &self,
         broadcaster: &Arc<RwLock<EventBroadcaster>>,
         tool_name: &str,
         args: serde_json::Value,
-    ) -> Option<bool> {
+    ) -> ConfirmationOutcome {
         let confirm_id = Self::gen_id();
         let (tx, rx) = oneshot::channel();
         self.pending.lock().await.insert(confirm_id.clone(), tx);
-        // 广播确认请求（同步 broadcast，锁先 read）
-        broadcaster.read().await.broadcast(&OrchestratorEvent::ConfirmationRequested {
+        // 广播确认请求（取总线句柄后于**壳锁外**分发——2026-09-17 风险点处置）
+        let bus = broadcaster.read().await.handle();
+        bus.emit(&OrchestratorEvent::ConfirmationRequested {
             confirm_id: confirm_id.clone(),
             tool_name: tool_name.to_string(),
             args,
         });
-        // 等待前端回传，超时则清理并返回 None
+        // 等待前端回传，超时则清理并返回 Timeout
         match tokio::time::timeout(self.timeout, rx).await {
-            Ok(Ok(approved)) => Some(approved),
+            Ok(Ok(outcome)) => outcome,
             _ => {
                 self.pending.lock().await.remove(&confirm_id);
-                None
+                ConfirmationOutcome::Timeout
             }
         }
     }
@@ -483,9 +610,9 @@ impl ConfirmationBroker {
     /// 解析确认（前端经 `cmd_agent_confirm` 回传）
     ///
     /// 返回是否成功找到并唤醒对应等待方（confirm_id 不存在 = 已超时/已处理）。
-    pub async fn resolve(&self, confirm_id: &str, approved: bool) -> bool {
+    pub async fn resolve(&self, confirm_id: &str, outcome: ConfirmationOutcome) -> bool {
         if let Some(tx) = self.pending.lock().await.remove(confirm_id) {
-            let _ = tx.send(approved);
+            let _ = tx.send(outcome);
             true
         } else {
             false
@@ -501,6 +628,88 @@ impl ConfirmationBroker {
             .unwrap_or(0);
         let n = COUNTER.fetch_add(1, Ordering::Relaxed);
         format!("confirm-{nanos}-{n}")
+    }
+
+    // ─── Q1 提问通道（2026-09-20） ─────────────────────────────
+
+    /// 发起提问请求：广播 `AskRequested` 事件并等待前端作答
+    ///
+    /// **超时口径（2026-09-20 用户裁定）**：兜底 10 分钟（`DEFAULT_ASK_TIMEOUT`）——
+    /// 提问不套用确认的 60s（人工作答需要时间），但也不能无限等待（无应答者场景）；
+    /// 超时 → [`AskOutcome::TimedOut`]（清理 pending + 广播 `AskResolved{timed_out}`，
+    /// 前端关面板 + 弱提示），工具侧按「跳过」处理。取消/中断另由
+    /// [`AgentLoop::abort`](crate::agent::AgentLoop::abort) /
+    /// [`AgentLoop::dispose`](crate::agent::AgentLoop::dispose) 经 [`Self::cancel_pending_asks`] 收口。
+    ///
+    /// `questions` 为工具规范化后的批次载荷（camelCase：
+    /// `[{ id, question, header?, options?, multiSelect? }]`）。
+    pub async fn ask(
+        &self,
+        broadcaster: &Arc<RwLock<EventBroadcaster>>,
+        questions: serde_json::Value,
+    ) -> AskOutcome {
+        let ask_id = Self::gen_ask_id();
+        let (tx, rx) = oneshot::channel();
+        self.pending_asks.lock().await.insert(ask_id.clone(), tx);
+        // 广播提问请求（取总线句柄后于**壳锁外**分发——同 `request` 的锁纪律）
+        let bus = broadcaster.read().await.handle();
+        bus.emit(&OrchestratorEvent::AskRequested {
+            ask_id: ask_id.clone(),
+            questions,
+        });
+        // 等待人工作答：用户作答/拒绝（`resolve_ask`）、随轮取消（`cancel_pending_asks`）
+        // 或兜底超时三者之一唤醒
+        match tokio::time::timeout(self.ask_timeout, rx).await {
+            Ok(Ok(outcome)) => outcome,
+            // 发送端被丢弃（不应发生）→ 按取消兜底，保证工具侧不致永久挂起
+            Ok(Err(_)) => AskOutcome::Cancelled,
+            Err(_) => {
+                // 超时：清理 pending 并广播 resolved（前端据此关面板 + 弱提示）
+                self.pending_asks.lock().await.remove(&ask_id);
+                let bus = broadcaster.read().await.handle();
+                bus.emit(&OrchestratorEvent::AskResolved {
+                    ask_id,
+                    outcome: AskOutcome::TimedOut,
+                });
+                AskOutcome::TimedOut
+            }
+        }
+    }
+
+    /// 解析提问（前端经 `cmd_agent_ask_answer` 回传）
+    ///
+    /// 返回是否成功找到并唤醒对应等待方（ask_id 不存在 = 已处理/已取消）。
+    pub async fn resolve_ask(&self, ask_id: &str, outcome: AskOutcome) -> bool {
+        if let Some(tx) = self.pending_asks.lock().await.remove(ask_id) {
+            let _ = tx.send(outcome);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// 取消全部待回答提问（Q1 随轮取消），返回被取消的 ask_id 列表
+    ///
+    /// 调用方（`AgentLoop::cancel_pending_asks`）据此广播 `AskResolved{cancelled}`
+    /// 供前端清理面板。
+    pub async fn cancel_pending_asks(&self) -> Vec<String> {
+        let mut guard = self.pending_asks.lock().await;
+        let ids: Vec<String> = guard.keys().cloned().collect();
+        for (_, tx) in guard.drain() {
+            let _ = tx.send(AskOutcome::Cancelled);
+        }
+        ids
+    }
+
+    /// 生成提问请求唯一 ID（`ask-{nanos}-{n}`，与 confirm 同构、靠前缀区分）
+    fn gen_ask_id() -> String {
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+        format!("ask-{nanos}-{n}")
     }
 }
 
@@ -571,8 +780,152 @@ mod tests {
             let guard = broker2.pending.lock().await;
             guard.keys().next().cloned().unwrap()
         };
-        assert!(broker2.resolve(&id, true).await);
-        assert_eq!(handle.await.unwrap(), Some(true));
+        assert!(broker2.resolve(&id, ConfirmationOutcome::Denied).await);
+        assert_eq!(handle.await.unwrap(), ConfirmationOutcome::Denied);
+        // 已解析的 confirm_id 再次 resolve → false（已处理）
+        assert!(!broker2.resolve(&id, ConfirmationOutcome::Approved).await);
+    }
+
+    #[tokio::test]
+    async fn broker_timeout_returns_timeout_outcome() {
+        // D8：超时不再与「拒绝」混同——应产出独立的 Timeout 四值
+        let broker = ConfirmationBroker::with_timeout(Duration::from_millis(30));
+        let broadcaster = Arc::new(RwLock::new(EventBroadcaster::new()));
+        let outcome = broker
+            .request(&broadcaster, "execute_command", serde_json::json!({}))
+            .await;
+        assert_eq!(outcome, ConfirmationOutcome::Timeout);
+        assert!(!outcome.is_approved());
+    }
+
+    #[test]
+    fn outcome_four_values_and_parse() {
+        // D8 四值：仅 approved 放行；前端只可回传三值（timeout 由 kernel 产生）
+        assert!(ConfirmationOutcome::Approved.is_approved());
+        assert!(!ConfirmationOutcome::Denied.is_approved());
+        assert!(!ConfirmationOutcome::Skipped.is_approved());
+        assert!(!ConfirmationOutcome::Timeout.is_approved());
+        assert_eq!(ConfirmationOutcome::parse("approved").unwrap(), ConfirmationOutcome::Approved);
+        assert_eq!(ConfirmationOutcome::parse("denied").unwrap(), ConfirmationOutcome::Denied);
+        assert_eq!(ConfirmationOutcome::parse("skipped").unwrap(), ConfirmationOutcome::Skipped);
+        assert!(ConfirmationOutcome::parse("timeout").is_err());
+        assert!(ConfirmationOutcome::parse("yes").is_err());
+        // serde 口径：snake_case（与前端 TS 联合类型一致）
+        let json = serde_json::to_value(ConfirmationOutcome::Skipped).unwrap();
+        assert_eq!(json, serde_json::json!("skipped"));
+    }
+
+    // ─── Q1 提问通道测试（2026-09-20） ─────────────────────────
+
+    #[test]
+    fn policy_needs_confirmation_exempts_ask_question() {
+        // Q1：提问工具豁免执行前确认（面板即人工交互；Plan 档恒确认同样豁免）
+        let plan = ConfirmationPolicy::plan();
+        assert!(!plan.needs_confirmation("ask_user_question", &serde_json::json!({"questions": []})));
+        assert!(plan.needs_confirmation("read_file", &serde_json::json!({"path": "a.md"})));
+        let moderate = ConfirmationPolicy::moderate_and_dangerous();
+        assert!(!moderate.needs_confirmation("ask_user_question", &serde_json::json!({})));
+    }
+
+    #[tokio::test]
+    async fn broker_ask_resolve_wakes_request_with_answers() {
+        // 提问等待无超时：由 resolve_ask 唤醒并原样带回答案
+        let broker = Arc::new(ConfirmationBroker::new());
+        let broadcaster = Arc::new(RwLock::new(EventBroadcaster::new()));
+        let b2 = broker.clone();
+        let bc = broadcaster.clone();
+        let handle = tokio::spawn(async move {
+            b2.ask(&bc, serde_json::json!([{ "id": "q1", "question": "继续吗？" }]))
+                .await
+        });
+        // 轮询等待请求进入 pending_asks
+        let mut ask_id = None;
+        for _ in 0..50 {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            let guard = broker.pending_asks.lock().await;
+            if let Some(k) = guard.keys().next().cloned() {
+                ask_id = Some(k);
+                break;
+            }
+        }
+        let ask_id = ask_id.expect("ask 应进入 pending_asks");
+        assert!(ask_id.starts_with("ask-"), "ask_id 前缀应可区分: {ask_id}");
+        let answers = vec![AskAnswer {
+            id: "q1".into(),
+            selected: vec!["Approve".into()],
+            custom: None,
+        }];
+        assert!(broker
+            .resolve_ask(&ask_id, AskOutcome::Answered(answers.clone()))
+            .await);
+        assert_eq!(handle.await.unwrap(), AskOutcome::Answered(answers));
+        // 已解析的 ask_id 再次 resolve → false（已处理）
+        assert!(!broker.resolve_ask(&ask_id, AskOutcome::Denied).await);
+    }
+
+    #[tokio::test]
+    async fn broker_cancel_pending_asks_wakes_all_with_cancelled() {
+        // 随轮取消（Q1）：abort / dispose 时全部等待方应收到 Cancelled，不得残留
+        let broker = Arc::new(ConfirmationBroker::new());
+        let broadcaster = Arc::new(RwLock::new(EventBroadcaster::new()));
+        let mut handles = Vec::new();
+        for _ in 0..2 {
+            let b = broker.clone();
+            let bc = broadcaster.clone();
+            handles.push(tokio::spawn(async move {
+                b.ask(&bc, serde_json::json!([])).await
+            }));
+        }
+        // 轮询等待两条请求都进入 pending_asks
+        for _ in 0..50 {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            if broker.pending_asks.lock().await.len() == 2 {
+                break;
+            }
+        }
+        let ids = broker.cancel_pending_asks().await;
+        assert_eq!(ids.len(), 2, "应返回两条被取消的 ask_id");
+        for h in handles {
+            assert_eq!(h.await.unwrap(), AskOutcome::Cancelled);
+        }
+        // 清空后再取消 → 空列表（幂等）
+        assert!(broker.cancel_pending_asks().await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn broker_ask_timeout_returns_timed_out_and_clears_pending() {
+        // 10 分钟兜底超时（此处缩短验证）：超时 → TimedOut，pending 清理、后续 resolve 无效
+        let broker = ConfirmationBroker::with_ask_timeout(Duration::from_millis(30));
+        let broadcaster = Arc::new(RwLock::new(EventBroadcaster::new()));
+        let outcome = broker
+            .ask(&broadcaster, serde_json::json!([{ "id": "q1", "question": "继续？" }]))
+            .await;
+        assert_eq!(outcome, AskOutcome::TimedOut);
+        assert_eq!(outcome.kind(), "timed_out");
+        // pending 已随超时清理（幂等返回空）
+        assert!(broker.cancel_pending_asks().await.is_empty());
+        assert!(!broker.resolve_ask("ask-any", AskOutcome::Denied).await);
+    }
+
+    #[test]
+    fn ask_outcome_kinds_and_answer_serde() {
+        // 结果类别（事件载荷 / 前端清理判据）
+        assert_eq!(AskOutcome::Answered(vec![]).kind(), "answered");
+        assert_eq!(AskOutcome::Denied.kind(), "denied");
+        assert_eq!(AskOutcome::Cancelled.kind(), "cancelled");
+        assert_eq!(AskOutcome::TimedOut.kind(), "timed_out");
+        // 答案序列化：custom 缺省不携带（对齐 dsh 输出 schema）
+        let a = AskAnswer {
+            id: "q1".into(),
+            selected: vec!["A".into()],
+            custom: None,
+        };
+        let v = serde_json::to_value(&a).unwrap();
+        assert_eq!(v, serde_json::json!({ "id": "q1", "selected": ["A"] }));
+        // 反序列化：selected / custom 可缺省（跳过 = 空 selected 无 custom）
+        let parsed: AskAnswer = serde_json::from_value(serde_json::json!({ "id": "q1" })).unwrap();
+        assert_eq!(parsed.selected, Vec::<String>::new());
+        assert_eq!(parsed.custom, None);
     }
 
     // ─── Phase 5 动态路径守卫测试 ─────────────────────────────
@@ -582,7 +935,9 @@ mod tests {
             workdir: Some(PathBuf::from(wd)),
             project_id: None,
             workspace_id: None,
+            sandbox: None,
             tool_stream: None,
+            is_sub_agent: false,
         }
     }
 

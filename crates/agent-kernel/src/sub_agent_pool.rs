@@ -199,7 +199,11 @@ impl SubAgentPool {
         };
 
         let agent = Arc::new(
-            AgentLoop::new(Arc::clone(&self.backend), child_tool_bus).with_config(child_config),
+            AgentLoop::new(Arc::clone(&self.backend), child_tool_bus)
+                .with_config(child_config)
+                // Q1（2026-09-20）：子代理标记——提问类工具（ask_user_question）在子代理内
+                // fail loud（ASK_UNAVAILABLE）：子代理无独立会话实例、无人类应答者
+                .mark_sub_agent(),
         );
 
         // 上下文迁移：规格变更重建时，把旧实例的非 system 消息迁到新实例
@@ -306,9 +310,6 @@ mod tests {
         ) -> Result<PromptResponse, BackendError> {
             *self.last_prompt.lock().await = options.and_then(|o| o.system_prompt_override);
             Ok(PromptResponse::text_only("完成"))
-        }
-        async fn steer(&self, _text: String) -> Result<(), BackendError> {
-            Ok(())
         }
         async fn get_messages(&self) -> Vec<OrchestratorMessage> {
             Vec::new()

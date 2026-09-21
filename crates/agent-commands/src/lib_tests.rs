@@ -1,6 +1,7 @@
 // ─── 单元测试 ────────────────────────────────────────────
 
     use super::*;
+    use agent_runtime::agent::prompt_sections::PromptSection;
     // S1 适配层：Bring RunObserver trait 进作用域以调用桥上方法
     use agent_patterns::orchestrator::RunObserver;
 
@@ -10,6 +11,12 @@
             model_id: "deepseek-v4-flash".into(),
             api_key: api_key.into(),
         }
+    }
+
+    /// W1（2026-09-18 工作区与环境对齐 dsh）：workdir / workspace root 现为**规范化形态**
+    /// （canonicalize + 去 verbatim 前缀 + 分隔符统一 `/`）——断言期望值一律经此换算
+    fn norm_path(p: &std::path::Path) -> String {
+        crate::workspace_path::normalize_workdir(&p.to_string_lossy())
     }
 
     #[tokio::test]
@@ -24,6 +31,7 @@
         let info = svc
             .new_session(
                 None,
+                vec![],
                 None,
                 Some("coding".into()),
                 Some(stale.clone()),
@@ -35,7 +43,7 @@
         let expected = tmp.join("coding");
         assert_eq!(
             info.workdir.as_deref(),
-            Some(expected.to_str().unwrap()),
+            Some(norm_path(&expected).as_str()),
             "领地内残留 workdir 应强制为 scenes_root/<hint>"
         );
         // 领地外目录（未配置场景根时）不强制：scenes_root=None 路径维持原值
@@ -43,6 +51,7 @@
         let info2 = svc2
             .new_session(
                 None,
+                vec![],
                 None,
                 Some("coding".into()),
                 Some(std::path::PathBuf::from("D:/elsewhere")),
@@ -67,6 +76,7 @@
         let info = svc
             .new_session(
                 None,
+                vec![],
                 None,
                 Some("novel".into()),
                 Some(stale_coding.clone()),
@@ -78,7 +88,7 @@
         let expected = tmp.join("novel");
         assert_eq!(
             info.workdir.as_deref(),
-            Some(expected.to_str().unwrap()),
+            Some(norm_path(&expected).as_str()),
             "novel 会话应自愈回 novel 场景根，而非落在 coding 根"
         );
         assert_eq!(info.scene_id.as_deref(), Some("novel"));
@@ -99,6 +109,7 @@
         let info = svc
             .new_session(
                 None,
+                vec![],
                 None,
                 Some("coding".into()),
                 Some(project.clone()),
@@ -109,7 +120,7 @@
             .unwrap();
         assert_eq!(
             info.workdir.as_deref(),
-            Some(project.to_str().unwrap()),
+            Some(norm_path(&project).as_str()),
             "项目模式应保留传入项目目录，不被场景根覆盖"
         );
         assert_eq!(info.scene_id.as_deref(), Some("coding"));
@@ -128,6 +139,7 @@
         let info = svc
             .new_session(
                 None,
+                vec![],
                 None,
                 Some("coding".into()),
                 Some(project.clone()),
@@ -168,7 +180,7 @@
         std::fs::create_dir_all(&dir_a).unwrap();
         std::fs::create_dir_all(&dir_b).unwrap();
         let info = svc
-            .new_session(None, None, None, Some(dir_a.clone()), None, None)
+            .new_session(None, vec![], None, None, Some(dir_a.clone()), None, None)
             .await
             .unwrap();
         // ① 初始：new_session 已为 dir_a 实体化，workspace_id 指向 a 实体
@@ -177,7 +189,7 @@
         let ws_list0 = store.list_workspaces().await.unwrap();
         let ws_a = ws_list0
             .iter()
-            .find(|w| w.root == dir_a.to_string_lossy())
+            .find(|w| w.root == norm_path(&dir_a))
             .expect("dir_a 应有 Workspace 实体");
         assert_eq!(s0.workspace_id.as_deref(), Some(ws_a.id.as_str()));
         // ② 切到 dir_b：workdir 与 workspace_id 应同步指向 b 的新实体（不残留 a）
@@ -188,7 +200,7 @@
         let s1 = sessions.iter().find(|x| x.id == info.id).unwrap();
         assert_eq!(
             s1.workdir.as_deref(),
-            Some(dir_b.to_str().unwrap()),
+            Some(norm_path(&dir_b).as_str()),
             "切目录后 workdir 应落库"
         );
         let ws_b = store
@@ -196,7 +208,7 @@
             .await
             .unwrap()
             .into_iter()
-            .find(|w| w.root == dir_b.to_string_lossy())
+            .find(|w| w.root == norm_path(&dir_b))
             .expect("dir_b 应新建 Workspace 实体");
         assert_ne!(ws_b.id, ws_a.id, "不同目录应为不同 Workspace 实体");
         assert_eq!(
@@ -221,6 +233,131 @@
         let _ = std::fs::remove_dir_all(&dir_b);
     }
 
+    /// W1（2026-09-18 工作区与环境对齐 dsh）：路径身份规范化——
+    /// 同目录不同写法（尾分隔符 / `.`）不得分裂出第二条 Workspace 实体
+    #[tokio::test]
+    async fn workdir_variants_share_one_workspace_entity() {
+        let store = SqliteSessionRepository::new_in_memory().await.unwrap();
+        let svc = AgentCommandService::new().with_session_store(store.clone());
+        let dir = std::env::temp_dir().join(format!("ws-norm-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let variant_trailing = format!("{}{}", dir.to_string_lossy(), std::path::MAIN_SEPARATOR);
+        let variant_dot = dir.join(".").to_string_lossy().to_string();
+        let info_a = svc
+            .new_session(None, vec![], None, None, Some(dir.clone()), None, None)
+            .await
+            .unwrap();
+        let info_b = svc
+            .new_session(
+                None,
+                vec![],
+                None,
+                None,
+                Some(PathBuf::from(&variant_trailing)),
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+        let info_c = svc
+            .new_session(
+                None,
+                vec![],
+                None,
+                None,
+                Some(PathBuf::from(&variant_dot)),
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+        let sessions = store.load_sessions().await.unwrap();
+        let ws_of = |id: &str| {
+            sessions
+                .iter()
+                .find(|s| s.id == id)
+                .and_then(|s| s.workspace_id.clone())
+        };
+        let (a, b, c) = (ws_of(&info_a.id), ws_of(&info_b.id), ws_of(&info_c.id));
+        assert!(
+            a.is_some() && a == b && b == c,
+            "三种写法应共享同一 workspace_id: {a:?} / {b:?} / {c:?}"
+        );
+        let workspaces = store.list_workspaces().await.unwrap();
+        assert_eq!(
+            workspaces.len(),
+            1,
+            "同目录不同写法应只有一条 Workspace 实体: {workspaces:?}"
+        );
+        // 写穿 workdir 亦为规范化形态（前端分组 / 恢复同源）
+        let s0 = sessions.iter().find(|s| s.id == info_a.id).unwrap();
+        assert_eq!(s0.workdir.as_deref(), Some(norm_path(&dir).as_str()));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// W2②（2026-09-18 工作区与环境对齐 dsh）：`workdir` 列 = 派生缓存——
+    /// 与实体 root 漂移时（老数据 / 手工改库），启动恢复以实体为准并**写穿矫正**
+    #[tokio::test]
+    async fn restore_corrects_workdir_cache_from_entity() {
+        let store = SqliteSessionRepository::new_in_memory().await.unwrap();
+        let svc = AgentCommandService::new().with_session_store(store.clone());
+        let dir_a = std::env::temp_dir().join(format!("ws-cache-a-{}", uuid::Uuid::new_v4()));
+        let dir_b = std::env::temp_dir().join(format!("ws-cache-b-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir_a).unwrap();
+        std::fs::create_dir_all(&dir_b).unwrap();
+        let info = svc
+            .new_session(None, vec![], None, None, Some(dir_a.clone()), None, None)
+            .await
+            .unwrap();
+        // 防 purge 误清：加一条历史消息（与 restore 其它用例同法）
+        store
+            .replace_messages(
+                &info.id,
+                &[agent_runtime::types::OrchestratorMessage {
+                    role: agent_runtime::types::MessageRole::User,
+                    content: "历史消息".into(),
+                    tool_calls: Vec::new(),
+                    tool_call_id: None,
+                    meta: None,
+                }],
+            )
+            .await
+            .unwrap();
+        // 制造漂移：缓存列留在 A，workspace_id 指向 B 实体
+        let ws_b = svc
+            .ensure_workspace(&dir_b.to_string_lossy(), "b", None)
+            .await
+            .unwrap();
+        store
+            .update_workdir(&info.id, Some(&dir_a.to_string_lossy()), Some(&ws_b.id))
+            .await
+            .unwrap();
+        // 启动恢复：实体权威值覆盖缓存列
+        let restored = svc.restore_sessions().await.unwrap();
+        let r = restored.iter().find(|s| s.id == info.id).unwrap();
+        assert_eq!(
+            r.workdir.as_deref(),
+            Some(norm_path(&dir_b).as_str()),
+            "恢复读路径应以实体 root 为准"
+        );
+        // 写穿：DB 缓存列已矫正（下次启动不再依赖内存矫正）
+        let in_db = store
+            .load_sessions()
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|s| s.id == info.id)
+            .unwrap();
+        assert_eq!(
+            in_db.workdir.as_deref(),
+            Some(norm_path(&dir_b).as_str()),
+            "漂移应写穿矫正"
+        );
+        assert_eq!(in_db.workspace_id.as_deref(), Some(ws_b.id.as_str()));
+        let _ = std::fs::remove_dir_all(&dir_a);
+        let _ = std::fs::remove_dir_all(&dir_b);
+    }
+
     #[tokio::test]
     async fn restore_sessions_self_heals_cross_scene_workdir() {
         // 恢复链路主权自愈（2026-09-10 症状③）：历史脏数据（novel 会话 workdir=coding
@@ -234,6 +371,7 @@
         let dirty = SessionRecord {
             id: "dirty-novel".into(),
             system_prompt: String::new(),
+            prompt_sections: None,
             created_at: 100,
             message_count: 1,
             updated_at: 100,
@@ -269,7 +407,7 @@
         let novel_root = tmp.join("novel");
         assert_eq!(
             restored[0].workdir.as_deref(),
-            Some(novel_root.to_str().unwrap()),
+            Some(norm_path(&novel_root).as_str()),
             "恢复时应自愈回 novel 场景根"
         );
         // 写穿验证：DB 中 workdir 已矫正
@@ -282,11 +420,11 @@
             .unwrap();
         assert_eq!(
             in_db.workdir.as_deref(),
-            Some(novel_root.to_str().unwrap()),
+            Some(norm_path(&novel_root).as_str()),
             "自愈结果应落库（下次重启不再回退）"
         );
         // 实体化验证：novel 根新建 Workspace 实体且 workspace_id 换绑
-        let novel_root_str = novel_root.to_string_lossy().to_string();
+        let novel_root_str = norm_path(&novel_root);
         let ws = store
             .list_workspaces()
             .await
@@ -309,7 +447,7 @@
         let store = SqliteSessionRepository::new_in_memory().await.unwrap();
         let svc = AgentCommandService::new().with_session_store(store.clone());
         let info = svc
-            .new_session(None, None, None, None, None, None)
+            .new_session(None, vec![], None, None, None, None, None)
             .await
             .unwrap();
         let first = "一个倒数手法，该如何写比较好？请给出具体思路和示例。";
@@ -346,7 +484,7 @@
     async fn new_session_and_provider_config_roundtrip() {
         let svc = AgentCommandService::new();
         let info = svc
-            .new_session(Some("测试助手".into()), Some(cloud_config("sk-test")), None, None, None, None)
+            .new_session(Some("测试助手".into()), vec![], Some(cloud_config("sk-test")), None, None, None, None)
             .await
             .unwrap();
         let cfg = svc.get_provider_config(&info.id).await.unwrap();
@@ -354,6 +492,116 @@
         assert_eq!(cfg.provider, "deepseek");
         assert_eq!(cfg.model, "deepseek-v4-flash");
         assert!(cfg.base_url.is_some());
+    }
+
+    /// A4 双端收口：结构化段建会话双列落库；动态刷新双列写穿
+    #[tokio::test]
+    async fn prompt_sections_persist_and_update_roundtrip() {
+        let store = SqliteSessionRepository::new_in_memory().await.unwrap();
+        let svc = AgentCommandService::new().with_session_store(store.clone());
+
+        let info = svc
+            .new_session(
+                None,
+                vec![
+                    PromptSection::new("worldsea", 200, "系统说明"),
+                    PromptSection::new("skill_index", 270, "技能索引"),
+                ],
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+
+        // 建会话写穿：段 JSON + 静态合集缓存文本（段组装产物）
+        let records = store.load_sessions().await.unwrap();
+        let rec = records.iter().find(|r| r.id == info.id).unwrap();
+        assert!(
+            rec.prompt_sections.as_deref().unwrap().contains("worldsea"),
+            "段 JSON 应落库"
+        );
+        assert_eq!(rec.system_prompt, "系统说明\n\n技能索引");
+
+        // 动态刷新（模拟规则/技能变更）：新段双列写穿
+        svc.update_session_prompt_sections(
+            &info.id,
+            vec![PromptSection::new("worldsea", 200, "系统说明 v2")],
+        )
+        .await
+        .unwrap();
+        let records = store.load_sessions().await.unwrap();
+        let rec = records.iter().find(|r| r.id == info.id).unwrap();
+        assert_eq!(rec.system_prompt, "系统说明 v2");
+        assert!(
+            rec.prompt_sections.as_deref().unwrap().contains("系统说明 v2"),
+            "刷新后段 JSON 应更新"
+        );
+    }
+
+    /// 手动 /compact 写穿（05-§2.3 缺口 1）：压缩改写的活跃视图同步落库
+    #[tokio::test]
+    async fn compact_context_persists_compacted_view() {
+        use agent_runtime::types::{MessageRole, OrchestratorMessage};
+
+        let store = SqliteSessionRepository::new_in_memory().await.unwrap();
+        let svc = AgentCommandService::new().with_session_store(store.clone());
+        let info = svc
+            .new_session(Some("系统".into()), vec![], None, None, None, None, None)
+            .await
+            .unwrap();
+
+        // 造可裁内容：默认保留策略 keep_recent=12，推 20 轮 + 最新指令（受保护）
+        let agent = svc.get_agent(&info.id).await.unwrap();
+        let mut msgs = vec![OrchestratorMessage {
+            role: MessageRole::System,
+            content: "系统".into(),
+            tool_calls: Vec::new(),
+            tool_call_id: None,
+            meta: None,
+        }];
+        for i in 0..20 {
+            msgs.push(OrchestratorMessage {
+                role: if i % 2 == 0 {
+                    MessageRole::User
+                } else {
+                    MessageRole::Assistant
+                },
+                content: format!("陈旧 {i}"),
+                tool_calls: Vec::new(),
+                tool_call_id: None,
+                meta: None,
+            });
+        }
+        msgs.push(OrchestratorMessage {
+            role: MessageRole::User,
+            content: "最新指令：继续推进".into(),
+            tool_calls: Vec::new(),
+            tool_call_id: None,
+            meta: None,
+        });
+        agent.append_messages(msgs).await;
+        let before_len = agent.get_messages().await.len();
+
+        let outcome = svc.compact_context(&info.id).await.expect("手动压缩应成功");
+        assert!(
+            outcome.mode == "dropped" || outcome.mode == "folded",
+            "应发生实际压缩，实际模式: {}",
+            outcome.mode
+        );
+        let after_len = agent.get_messages().await.len();
+        assert!(after_len < before_len, "压缩后内存视图应减少");
+
+        // 写穿验证：store 活跃视图与内存一致（重启恢复不回退旧视图）
+        let persisted = store.load_messages(&info.id).await.unwrap();
+        assert_eq!(
+            persisted.len(),
+            after_len,
+            "压缩后的活跃视图应已落库（05-§2.3 缺口 1）"
+        );
+        assert!(persisted.iter().any(|m| m.content.contains("最新指令")));
     }
 
     #[tokio::test]
@@ -364,6 +612,7 @@
         let info = svc
             .new_session(
                 Some("测试".into()),
+                vec![],
                 None,
                 None,
                 Some(std::path::PathBuf::from("C:\\ws\\agent")),
@@ -372,7 +621,8 @@
             )
             .await
             .unwrap();
-        assert_eq!(info.workdir.as_deref(), Some("C:\\ws\\agent"));
+        // W1：workdir 现为规范化形态（分隔符统一 `/`；`C:\ws\agent` 不存在 → 词法分支）
+        assert_eq!(info.workdir.as_deref(), Some("C:/ws/agent"));
         // 会话可正常查询（Provider 为默认占位回显）
         let cfg = svc.get_provider_config(&info.id).await.unwrap();
         assert_eq!(cfg.provider, "deepseek");
@@ -383,7 +633,7 @@
         let svc = AgentCommandService::new();
         // 空 API Key 的 Cloud 配置 → 发送消息应报 Auth 错误（而非回显 mock）
         let info = svc
-            .new_session(Some("测试助手".into()), Some(cloud_config("")), None, None, None, None)
+            .new_session(Some("测试助手".into()), vec![], Some(cloud_config("")), None, None, None, None)
             .await
             .unwrap();
         let err = svc
@@ -402,7 +652,7 @@
     async fn set_provider_config_updates_backend() {
         let svc = AgentCommandService::new();
         // 创建会话时不注入配置（用默认占位）
-        let info = svc.new_session(None, None, None, None, None, None).await.unwrap();
+        let info = svc.new_session(None, vec![], None, None, None, None, None).await.unwrap();
         // 前端写入真实配置（含 API Key）
         svc.set_provider_config(&info.id, cloud_config("sk-real")).await.unwrap();
         let cfg = svc.get_provider_config(&info.id).await.unwrap();
@@ -428,7 +678,7 @@
     #[tokio::test]
     async fn list_and_delete_session() {
         let svc = AgentCommandService::new();
-        let info = svc.new_session(None, None, None, None, None, None).await.unwrap();
+        let info = svc.new_session(None, vec![], None, None, None, None, None).await.unwrap();
         let list = svc.list_sessions(None).await.unwrap();
         assert_eq!(list.len(), 1);
         svc.delete_session(&info.id).await.unwrap();
@@ -449,8 +699,8 @@
         temp_dir: None,
         })
         .await;
-        let s1 = svc.new_session(None, None, None, None, None, None).await.unwrap();
-        let s2 = svc.new_session(None, None, None, None, None, None).await.unwrap();
+        let s1 = svc.new_session(None, vec![], None, None, None, None, None).await.unwrap();
+        let s2 = svc.new_session(None, vec![], None, None, None, None, None).await.unwrap();
         // 服务级注册表可见
         assert_eq!(svc.list_subagent_specs().await.len(), 1);
         // 两个会话共享同一注册表（各自 Agent 的 SubAgentManager 持同一 Arc）
@@ -760,7 +1010,7 @@
     #[tokio::test]
     async fn subagent_instances_empty_until_delegation() {
         let svc = AgentCommandService::new();
-        let info = svc.new_session(None, None, None, None, None, None).await.unwrap();
+        let info = svc.new_session(None, vec![], None, None, None, None, None).await.unwrap();
         // 未委派任何子 Agent 前，实例池为空
         let instances = svc.list_subagent_instances(&info.id).await.unwrap();
         assert!(instances.is_empty(), "未委派前实例池应为空");
@@ -780,7 +1030,7 @@
             "清空不存在的会话应报 session_not_found，实际: {err}"
         );
         // 会话存在但实例从未创建 → 返回 false（不报错）
-        let info = svc.new_session(None, None, None, None, None, None).await.unwrap();
+        let info = svc.new_session(None, vec![], None, None, None, None, None).await.unwrap();
         let removed = svc.clear_subagent_instance(&info.id, "coder").await.unwrap();
         assert!(!removed, "实例池中无该实例时清空应返回 false");
     }
@@ -789,7 +1039,7 @@
     #[tokio::test]
     async fn delete_session_removes_subagent_manager() {
         let svc = AgentCommandService::new();
-        let info = svc.new_session(None, None, None, None, None, None).await.unwrap();
+        let info = svc.new_session(None, vec![], None, None, None, None, None).await.unwrap();
         svc.delete_session(&info.id).await.unwrap();
         let err = svc.list_subagent_instances(&info.id).await.unwrap_err();
         assert!(
@@ -805,7 +1055,7 @@
     #[tokio::test]
     async fn register_session_loop_control_shares_builtin_controller() {
         let svc = AgentCommandService::new();
-        let info = svc.new_session(None, None, None, None, None, None).await.unwrap();
+        let info = svc.new_session(None, vec![], None, None, None, None, None).await.unwrap();
 
         // 注册该会话的内建控制器为 task_id = "task-main"
         svc.register_session_loop_control("task-main", &info.id)
@@ -862,7 +1112,7 @@
     #[tokio::test]
     async fn register_session_loop_control_rejects_duplicate_task() {
         let svc = AgentCommandService::new();
-        let info = svc.new_session(None, None, None, None, None, None).await.unwrap();
+        let info = svc.new_session(None, vec![], None, None, None, None, None).await.unwrap();
         svc.register_session_loop_control("task-main", &info.id)
             .await
             .unwrap();
@@ -904,7 +1154,7 @@
     #[tokio::test]
     async fn send_message_mode_prefix_without_task_fails() {
         let svc = AgentCommandService::new();
-        let info = svc.new_session(None, None, None, None, None, None).await.unwrap();
+        let info = svc.new_session(None, vec![], None, None, None, None, None).await.unwrap();
         let err = svc
             .send_message(SendMessageParams {
                 session_id: info.id.clone(),
@@ -1057,9 +1307,10 @@
         events: Arc<tokio::sync::Mutex<Vec<OrchestratorEvent>>>,
     }
 
-    impl EventListener for TraceCollect {
-        fn on_event(&self, event: &OrchestratorEvent) {
+    impl Listener for TraceCollect {
+        fn call(&self, event: &OrchestratorEvent) -> ListenerOutcome {
             self.events.try_lock().unwrap().push(event.clone());
+            ListenerOutcome::Continue
         }
     }
 
@@ -1398,7 +1649,7 @@
 
         // 项目 A 的会话 → 记忆落 projects/proj-alpha/
         let info = svc
-            .new_session(None, None, None, None, None, Some("proj-alpha".into()))
+            .new_session(None, vec![], None, None, None, None, Some("proj-alpha".into()))
             .await
             .unwrap();
         assert_eq!(info.project_id.as_deref(), Some("proj-alpha"));
@@ -1416,11 +1667,231 @@
 
         // 项目 B → 独立分片（互不混淆）
         let _ = svc
-            .new_session(None, None, None, None, None, Some("proj-beta".into()))
+            .new_session(None, vec![], None, None, None, None, Some("proj-beta".into()))
             .await
             .unwrap();
         assert!(
             root.join("projects").join("proj-beta").join("memories.db").is_file(),
             "另一项目应独立分片"
         );
+    }
+
+    // ─── 阶段 3 · A2 补齐②：压缩事务锁（括号事件 → 锁文件）────────────
+
+    /// 压缩括号事件驱动锁文件落 / 解（Started 落锁；Finished·Failed 解锁；无关事件不动锁）
+    #[test]
+    fn compact_lock_listener_tracks_bracket_events() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = agent_memory::raw_store::RawStore::open(dir.path()).unwrap();
+        let listener = CompactLockListener {
+            store: store.clone(),
+            session_id: "sess-lock".into(),
+        };
+
+        // 左端：落锁（字段取自事件）
+        let started = OrchestratorEvent::ContextCompactStarted {
+            trigger: "auto".into(),
+            before_tokens: 9_999,
+            tier: 4,
+        };
+        assert_eq!(listener.call(&started), ListenerOutcome::Continue);
+        let lock = store.read_compact_lock("sess-lock").expect("Started 应落锁");
+        assert_eq!(lock.trigger, "auto");
+        assert_eq!(lock.before_tokens, 9_999);
+        assert_eq!(lock.pid, std::process::id(), "锁应记录落锁进程");
+
+        // 右端：解锁（Finished）
+        let finished = OrchestratorEvent::ContextCompactFinished {
+            trigger: "auto".into(),
+            mode: "folded".into(),
+            before_tokens: 9_999,
+            after_tokens: 5_000,
+            saved_tokens: 4_999,
+            folded_groups: 2,
+            folded_messages: 4,
+            dropped_messages: 0,
+            skipped_protected_groups: 0,
+            backfilled: 2,
+        };
+        assert_eq!(listener.call(&finished), ListenerOutcome::Continue);
+        assert!(store.read_compact_lock("sess-lock").is_none(), "Finished 应解锁");
+
+        // 异常右端同样解锁（Failed）
+        let _ = listener.call(&started);
+        assert!(store.read_compact_lock("sess-lock").is_some());
+        let failed = OrchestratorEvent::ContextCompactFailed {
+            trigger: "manual".into(),
+            stage: "fold".into(),
+            error: "boom".into(),
+        };
+        assert_eq!(listener.call(&failed), ListenerOutcome::Continue);
+        assert!(store.read_compact_lock("sess-lock").is_none(), "Failed 应解锁");
+
+        // 无关事件不触碰锁（锁保持到右端事件）
+        let _ = listener.call(&started);
+        let _ = listener.call(&OrchestratorEvent::Agent(
+            agent_runtime::event::AgentEvent::AgentEnd,
+        ));
+        assert!(
+            store.read_compact_lock("sess-lock").is_some(),
+            "无关事件不应解锁"
+        );
+    }
+
+    /// 装载期孤儿收敛：上次中断遗留的锁被检测（返回记录）并清理，幂等
+    #[test]
+    fn orphan_compact_lock_is_detected_and_cleared() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = agent_memory::raw_store::RawStore::open(dir.path()).unwrap();
+        // 模拟上次进程中断：手工留下一个锁文件
+        let leftover = agent_memory::raw_store::CompactLock {
+            session_id: "sess-orphan".into(),
+            pid: 999_999,
+            trigger: "auto".into(),
+            before_tokens: 1,
+            started_at_ms: 123,
+        };
+        let _ = store.acquire_compact_lock(&leftover).unwrap();
+
+        let orphan =
+            reconcile_orphan_compact_lock(&store, "sess-orphan").expect("应检出孤儿锁");
+        assert_eq!(orphan.pid, 999_999, "返回记录应保留落锁进程供诊断");
+        assert!(store.read_compact_lock("sess-orphan").is_none(), "检出后应清理");
+        assert!(
+            reconcile_orphan_compact_lock(&store, "sess-orphan").is_none(),
+            "无锁时应为 None（幂等）"
+        );
+    }
+
+    // ─── 阶段 3 · ④：请求快照 WAL（同步追加 + 异步落库 + 装载期补齐）────────────
+
+    fn snap_session_record(id: &str) -> SessionRecord {
+        SessionRecord {
+            id: id.into(),
+            system_prompt: "s".into(),
+            prompt_sections: None,
+            created_at: 1,
+            message_count: 0,
+            updated_at: 1,
+            title: "快照测试".into(),
+            pinned: false,
+            kind: SessionKind::Chat,
+            workdir: None,
+            workspace_id: None,
+            project_id: None,
+            scene_id: None,
+        }
+    }
+
+    fn sample_snapshot(
+        captured_at_ms: u64,
+        full: bool,
+    ) -> agent_runtime::agent::request_snapshot::RequestSnapshot {
+        use agent_runtime::agent::request_snapshot::{RequestSnapshot, ViewUpdate};
+        use agent_runtime::types::{MessageRole, OrchestratorMessage};
+        let messages = vec![OrchestratorMessage {
+            role: MessageRole::User,
+            content: format!("请求 {captured_at_ms}"),
+            tool_calls: Vec::new(),
+            tool_call_id: None,
+            meta: None,
+        }];
+        RequestSnapshot {
+            captured_at_ms,
+            purpose: "main".into(),
+            provider: "deepseek".into(),
+            model_id: "deepseek-v4-flash".into(),
+            temperature: None,
+            max_tokens: None,
+            top_p: None,
+            top_k: None,
+            thinking_mode: None,
+            thinking_level: None,
+            silent: false,
+            system_prompt: Some("系统提示".into()),
+            tools_json: None,
+            tools_names: Vec::new(),
+            material_ref: None,
+            view_update: if full {
+                ViewUpdate::Full { messages }
+            } else {
+                ViewUpdate::Appended { messages }
+            },
+        }
+    }
+
+    /// 监听器同步追加 WAL 行；刷入落库后移除文件；重放幂等
+    #[tokio::test]
+    async fn snapshot_wal_listener_appends_and_flush_ingests() {
+        use agent_runtime::event::OrchestratorEvent;
+
+        let dir = tempfile::tempdir().unwrap();
+        let store: Arc<dyn SessionRepository> =
+            SqliteSessionRepository::new_in_memory().await.unwrap();
+        store.save_session(&snap_session_record("s-wal")).await.unwrap();
+        let path = request_snapshot::wal_path(dir.path(), "s-wal");
+        let gate = Arc::new(request_snapshot::WalGate::new());
+        let (tx, _rx) = tokio::sync::mpsc::unbounded_channel::<()>();
+        let listener =
+            request_snapshot::RequestSnapshotListener::new(path.clone(), tx, Arc::clone(&gate));
+
+        // 同步追加两行（不经后台任务——验证回调自身的落盘行为）
+        let _ = listener.call(&OrchestratorEvent::RequestSnapshotCaptured {
+            snapshot: sample_snapshot(1_000, true),
+        });
+        let _ = listener.call(&OrchestratorEvent::RequestSnapshotCaptured {
+            snapshot: sample_snapshot(1_001, false),
+        });
+        let lines = std::fs::read_to_string(&path).unwrap();
+        assert_eq!(lines.lines().count(), 2, "两行应已同步落 WAL");
+
+        // 装载期补齐（等价：直接刷入）
+        request_snapshot::flush_wal(&store, "s-wal", &path, &gate).await;
+        let records = store.load_request_snapshots("s-wal", 0, 10).await.unwrap();
+        assert_eq!(records.len(), 2, "两行应已落库");
+        assert!(!path.exists(), "刷入完成后 WAL 应被移除");
+
+        // 重放（无文件）→ 幂等：不新增行、不报错
+        request_snapshot::flush_wal(&store, "s-wal", &path, &gate).await;
+        assert_eq!(
+            store.load_request_snapshots("s-wal", 0, 10).await.unwrap().len(),
+            2
+        );
+    }
+
+    /// 装载期补齐：残留文件中的好行落库、坏行跳过、文件一并清除
+    #[tokio::test]
+    async fn snapshot_wal_recovery_skips_bad_lines() {
+        let dir = tempfile::tempdir().unwrap();
+        let store: Arc<dyn SessionRepository> =
+            SqliteSessionRepository::new_in_memory().await.unwrap();
+        store
+            .save_session(&snap_session_record("s-recover"))
+            .await
+            .unwrap();
+        let path = request_snapshot::wal_path(dir.path(), "s-recover");
+        let good = serde_json::to_string(&sample_snapshot(2_000, true)).unwrap();
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, format!("{good}\n这不是 JSON\n")).unwrap();
+
+        let gate = Arc::new(request_snapshot::WalGate::new());
+        request_snapshot::flush_wal(&store, "s-recover", &path, &gate).await;
+        assert_eq!(
+            store.load_request_snapshots("s-recover", 0, 10).await.unwrap().len(),
+            1,
+            "好行应落库（坏行跳过）"
+        );
+        assert!(!path.exists(), "补齐后文件应被移除");
+    }
+
+    /// 会话删除：WAL 文件清理幂等
+    #[test]
+    fn snapshot_wal_removed_with_session() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = request_snapshot::wal_path(dir.path(), "s-del");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, "x\n").unwrap();
+        request_snapshot::remove_wal_file(dir.path(), "s-del");
+        assert!(!path.exists(), "文件应被清理");
+        request_snapshot::remove_wal_file(dir.path(), "s-del"); // 幂等（不 panic）
     }

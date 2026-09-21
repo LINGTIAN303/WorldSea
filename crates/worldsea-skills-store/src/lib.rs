@@ -208,17 +208,36 @@ pub fn extract_skill_zip(bytes: &[u8], path_in_archive: &str, dest_dir: &Path) -
 }
 
 /**
- * 本地导入：写入 skill.yaml + SKILL.md 到 dest_dir（Task 24 阶段4）
+ * 本地导入/创建：写入技能目录文件（Task 24 阶段4；2026-09-18 S2 协议基座扩展）
  *
- * 用于多平台互通：前端解析 Claude Code SKILL.md / Cursor .mdc / WorldSea skill.yaml，
- * 生成标准 skill.yaml + SKILL.md 文本，调用本函数写入技能目录。
+ * 用于多平台互通与「创建技能」：前端生成文本（规范 SKILL.md / WorldSea skill.yaml /
+ * worldsea.skill.json sidecar），调用本函数写入技能目录。
+ *
+ * 协议基座变更（D1 分层单源 + D2 sidecar）：**三类文件均可选且各写：
+ * - 新流程只写 `SKILL.md`（规范 frontmatter 为唯一元数据源）+ 可选 `worldsea.skill.json`（私有字段）
+ * - `skill.yaml` 保留给存量/legacy 导入路径
  *
  * @param dest_dir 目标技能目录（已存在则先删除再写入，支持覆盖更新）
- * @param skill_yaml skill.yaml manifest 文本
- * @param skill_md SKILL.md 提示词文本（None 或空字符串则不写 SKILL.md）
- * @returns 写入的文件数（1 或 2）
+ * @param skill_yaml skill.yaml 文本（None 或空则不写）
+ * @param skill_md SKILL.md 文本（None 或空则不写）
+ * @param sidecar worldsea.skill.json 文本（None 或空则不写）
+ * @returns 写入的文件数（1-3）；三者皆空时报错（不允许创建空技能目录）
  */
-pub fn write_skill_files(dest_dir: &Path, skill_yaml: &str, skill_md: Option<&str>) -> Result<usize, CoreError> {
+pub fn write_skill_files(
+    dest_dir: &Path,
+    skill_yaml: Option<&str>,
+    skill_md: Option<&str>,
+    sidecar: Option<&str>,
+) -> Result<usize, CoreError> {
+    let yaml = skill_yaml.filter(|s| !s.is_empty());
+    let md = skill_md.filter(|s| !s.is_empty());
+    let side = sidecar.filter(|s| !s.is_empty());
+    if yaml.is_none() && md.is_none() && side.is_none() {
+        return Err(CoreError::storage(
+            "导入内容为空：skill.yaml / SKILL.md / worldsea.skill.json 至少需要一个".to_string(),
+        ));
+    }
+
     if dest_dir.exists() {
         fs::remove_dir_all(dest_dir)
             .map_err(|e| CoreError::storage(format!("删除旧版本失败: {e}")))?;
@@ -227,16 +246,20 @@ pub fn write_skill_files(dest_dir: &Path, skill_yaml: &str, skill_md: Option<&st
         .map_err(|e| CoreError::storage(format!("创建技能目录失败: {e}")))?;
 
     let mut count = 0usize;
-    fs::write(dest_dir.join("skill.yaml"), skill_yaml)
-        .map_err(|e| CoreError::storage(format!("写入 skill.yaml 失败: {e}")))?;
-    count += 1;
-
-    if let Some(md) = skill_md {
-        if !md.is_empty() {
-            fs::write(dest_dir.join("SKILL.md"), md)
-                .map_err(|e| CoreError::storage(format!("写入 SKILL.md 失败: {e}")))?;
-            count += 1;
-        }
+    if let Some(y) = yaml {
+        fs::write(dest_dir.join("skill.yaml"), y)
+            .map_err(|e| CoreError::storage(format!("写入 skill.yaml 失败: {e}")))?;
+        count += 1;
+    }
+    if let Some(m) = md {
+        fs::write(dest_dir.join("SKILL.md"), m)
+            .map_err(|e| CoreError::storage(format!("写入 SKILL.md 失败: {e}")))?;
+        count += 1;
+    }
+    if let Some(s) = side {
+        fs::write(dest_dir.join("worldsea.skill.json"), s)
+            .map_err(|e| CoreError::storage(format!("写入 worldsea.skill.json 失败: {e}")))?;
+        count += 1;
     }
     Ok(count)
 }
@@ -413,7 +436,7 @@ mod tests {
         let dest_path = dest.path().join("my-skill");
         let yaml = "id: my-skill\nname: 我的技能\nversion: 1.0.0\n";
         let md = "# 我的技能\n\n提示词正文";
-        let count = write_skill_files(&dest_path, yaml, Some(md)).unwrap();
+        let count = write_skill_files(&dest_path, Some(yaml), Some(md), None).unwrap();
         assert_eq!(count, 2);
         assert!(dest_path.join("skill.yaml").exists());
         assert!(dest_path.join("SKILL.md").exists());
@@ -431,7 +454,7 @@ mod tests {
         let dest_path = dest.path().join("yaml-only");
         let yaml = "id: yaml-only\nversion: 2.0.0\n";
         // skill_md 为 None
-        let count = write_skill_files(&dest_path, yaml, None).unwrap();
+        let count = write_skill_files(&dest_path, Some(yaml), None, None).unwrap();
         assert_eq!(count, 1);
         assert!(dest_path.join("skill.yaml").exists());
         assert!(!dest_path.join("SKILL.md").exists());
@@ -443,7 +466,7 @@ mod tests {
         let dest_path = dest.path().join("empty-md");
         let yaml = "id: empty-md\nversion: 1.0.0\n";
         // 空字符串 SKILL.md 应被跳过
-        let count = write_skill_files(&dest_path, yaml, Some("")).unwrap();
+        let count = write_skill_files(&dest_path, Some(yaml), Some(""), None).unwrap();
         assert_eq!(count, 1);
         assert!(!dest_path.join("SKILL.md").exists());
     }
@@ -453,17 +476,47 @@ mod tests {
         let dest = TempDir::new().unwrap();
         let dest_path = dest.path().join("overwrite");
         // 第一次写入 v1
-        write_skill_files(&dest_path, "id: overwrite\nversion: 1.0.0\n", Some("# v1")).unwrap();
+        write_skill_files(&dest_path, Some("id: overwrite\nversion: 1.0.0\n"), Some("# v1"), None).unwrap();
         // 模拟旧版本额外文件
         std::fs::write(dest_path.join("old-file.txt"), b"old").unwrap();
         // 第二次写入 v2（覆盖）
-        write_skill_files(&dest_path, "id: overwrite\nversion: 2.0.0\n", Some("# v2")).unwrap();
+        write_skill_files(&dest_path, Some("id: overwrite\nversion: 2.0.0\n"), Some("# v2"), None).unwrap();
         let version = read_skill_version(&dest_path);
         assert_eq!(version, "2.0.0");
         // 旧文件应被删除（目录被重建）
         assert!(!dest_path.join("old-file.txt").exists());
         let md = std::fs::read_to_string(dest_path.join("SKILL.md")).unwrap();
         assert!(md.contains("# v2"));
+    }
+
+    // ── 协议基座（S2，2026-09-18）：SKILL.md-only 与 sidecar 写路径 ──
+
+    #[test]
+    fn test_write_skill_files_md_only_with_sidecar() {
+        // D1/D2 新流程：只写规范 SKILL.md（frontmatter 为唯一元数据源）+ 可选 sidecar
+        let dest = TempDir::new().unwrap();
+        let dest_path = dest.path().join("proto-skill");
+        let md = "---\nname: proto-skill\ndescription: 协议基座技能\nversion: 2.1.0\n---\n\n# 正文";
+        let sidecar = r#"{"icon":"sparkles","priority":9}"#;
+        let count = write_skill_files(&dest_path, None, Some(md), Some(sidecar)).unwrap();
+        assert_eq!(count, 2);
+        assert!(!dest_path.join("skill.yaml").exists(), "新流程不应写 skill.yaml");
+        assert!(dest_path.join("SKILL.md").exists());
+        assert!(dest_path.join("worldsea.skill.json").exists());
+        // 版本从 SKILL.md frontmatter 读取（md-only 降级链）
+        assert_eq!(read_skill_version(&dest_path), "2.1.0");
+        let sidecar_content = std::fs::read_to_string(dest_path.join("worldsea.skill.json")).unwrap();
+        assert!(sidecar_content.contains("sparkles"));
+    }
+
+    #[test]
+    fn test_write_skill_files_all_empty_rejected() {
+        // 三者皆空：拒绝创建空技能目录（明确报错，不静默）
+        let dest = TempDir::new().unwrap();
+        let dest_path = dest.path().join("empty-skill");
+        assert!(write_skill_files(&dest_path, None, None, None).is_err());
+        assert!(write_skill_files(&dest_path, Some(""), Some(""), Some("")).is_err());
+        assert!(!dest_path.exists(), "报错时不应留下空目录");
     }
 
     #[test]

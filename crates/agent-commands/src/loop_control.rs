@@ -3,7 +3,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use agent_runtime::event::{EventBroadcaster, EventListener, OrchestratorEvent};
+use agent_runtime::event::{EventBroadcaster, OrchestratorEvent};
+use agent_runtime::event_bus::Listener;
 use agent_runtime::loop_control::{
     LoopControlCheck, LoopControlConfig, LoopController, RateLimitExceeded, SoftTimeoutLevel,
     WatchdogAlert,
@@ -85,7 +86,7 @@ impl LoopControlEntry {
     }
 
     /// 订阅事件监听器
-    pub async fn subscribe(&self, listener: Arc<dyn EventListener>) {
+    pub async fn subscribe(&self, listener: Arc<dyn Listener>) {
         let mut bc = self.broadcaster.write().await;
         bc.subscribe(listener);
     }

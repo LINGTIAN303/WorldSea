@@ -30,6 +30,7 @@ use windows_sys::Win32::System::Console::{
 use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress};
 use windows_sys::Win32::System::Pipes::CreatePipe;
 use windows_sys::Win32::System::Threading::{
+    CreateProcessAsUserW,
     CreateProcessW, GetCurrentProcess, GetExitCodeProcess, GetProcessId, TerminateProcess,
     WaitForSingleObject, INFINITE, EXTENDED_STARTUPINFO_PRESENT, STARTF_USESTDHANDLES,
     STARTUPINFOEXW, InitializeProcThreadAttributeList, UpdateProcThreadAttribute,
@@ -49,6 +50,10 @@ type ProcThreadAttributeListPtr = *mut std::ffi::c_void;
 
 /// 匿名管道缓冲区（64 KiB，避免小缓冲死锁，对齐 running-process#150）
 const PIPE_BUFFER_SIZE: u32 = 64 * 1024;
+
+/// CREATE_UNICODE_ENVIRONMENT（0x0000_0400）——环境块为 UTF-16 时必带此 flag，
+/// 否则系统会把块按 ANSI 解释（非 ASCII 值乱码）。本地定义避免跨 features 依赖。
+const CREATE_UNICODE_ENVIRONMENT: u32 = 0x0000_0400;
 
 /// HANDLE 的 Send 包装（HANDLE = *mut c_void 非 Send；HANDLE 实际是内核句柄整数值，
 /// 跨线程仅传递值不转移所有权语义——Drop 由包装持有者负责）
@@ -235,12 +240,16 @@ impl PassthroughPty {
     ///
     /// `shell`：subprocess 可执行路径（cmd.exe / powershell.exe / bash 等）
     /// `cwd`：工作目录；`env_list`：附加环境变量；`cols/rows`：终端尺寸
-    pub fn spawn(
+    ///
+    /// E3-3（2026-09-18）：以受限令牌挂载 ConPTY（`token=None` 为不受限通路）；
+    /// 受限令牌的派生与生命周期由 `crate::sandbox::win` 持有，此处只接受裸句柄（不转移所有权）。
+    pub fn spawn_with_token(
         shell: &str,
         cwd: &str,
         env_list: &[(String, String)],
         cols: u16,
         rows: u16,
+        token: Option<HANDLE>,
     ) -> anyhow::Result<Self> {
         // 1) 管道对：in_read→ConPTY 输入、out_write→ConPTY 输出
         let mut in_read: HANDLE = INVALID_HANDLE_VALUE as _;
@@ -264,12 +273,13 @@ impl PassthroughPty {
             out_write,
         )?;
 
-        // 3) Spawn 子进程（挂 ConPTY，经 STARTUPINFOEX）
+        // 3) Spawn 子进程（挂 ConPTY，经 STARTUPINFOEX；token 为 Some 时受限令牌启动）
         let (child_proc, _child_thread) = spawn_child_into_conpty(
             &con,
             shell,
             cwd,
             env_list,
+            token,
         )?;
         // 关闭线程句柄（防泄漏）
         let _ = unsafe { CloseHandle(_child_thread) };
@@ -361,6 +371,7 @@ fn spawn_child_into_conpty(
     shell: &str,
     cwd: &str,
     env_list: &[(String, String)],
+    token: Option<HANDLE>,
 ) -> anyhow::Result<(HANDLE, HANDLE)> {
     let mut si: STARTUPINFOEXW = unsafe { mem::zeroed() };
     si.StartupInfo.cb = mem::size_of::<STARTUPINFOEXW>() as u32;
@@ -379,49 +390,176 @@ fn spawn_child_into_conpty(
     } else {
         cwd.encode_utf16().chain(Some(0)).collect()
     };
-    // 环境块："KEY=VALUE\0" 逐项 + 末尾双空 → 追加合并进父环境
-    let mut env_wide: Vec<u16> = Vec::new();
-    for (k, v) in env_list {
-        env_wide.extend(k.encode_utf16());
-        env_wide.push(b'=' as u16);
-        env_wide.extend(v.encode_utf16());
-        env_wide.push(0);
-    }
-    env_wide.push(0); // 环境块双 null 结尾
+    // 环境块（E1，2026-09-18 工作区与环境对齐 dsh）：父进程环境**剔除敏感变量** +
+    // 显式 env_list 覆盖，恒传块（不再 null 继承）——与命令执行 / portable-pty 回落后端同口径。
+    let env_wide = build_env_block(env_list);
 
     let mut pi = unsafe { mem::zeroed() };
     // CreateProcessW：lpApplicationName 传 null + lpCommandLine 携带 shell——让系统按 PATH 解析
     // 可执行文件（cmd.exe 等），且 cwd 为 "." 时不受相对路径限制。lpCommandLine 必须可变。
+    // E3-3（2026-09-18）：token 为 Some 时改走 CreateProcessAsUserW（受限令牌挂载 ConPTY），
+    // 其余参数同形（含 ConPTY 伪控制台线程属性列表；bInheritHandles 保持 false）。
     let mut wide_cmdline: Vec<u16> = shell.encode_utf16().chain(Some(0)).collect();
+    let flags = EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT;
+    let env_ptr = env_wide.as_ptr() as *const std::ffi::c_void;
+    let cwd_ptr = if wide_cwd.is_empty() {
+        ptr::null()
+    } else {
+        wide_cwd.as_ptr()
+    };
     let res = unsafe {
-        CreateProcessW(
-            ptr::null(),          // lpApplicationName = null（用 PATH 搜索）
-            wide_cmdline.as_mut_ptr(), // lpCommandLine（shell 路径，可变非空）
-            ptr::null(),
-            ptr::null(),
-            0, // bInheritHandles=false
-            EXTENDED_STARTUPINFO_PRESENT,
-            if env_list.is_empty() {
-                ptr::null()
-            } else {
-                env_wide.as_ptr() as *const std::ffi::c_void
-            },
-            if wide_cwd.is_empty() {
-                ptr::null()
-            } else {
-                wide_cwd.as_ptr()
-            },
-            &si.StartupInfo,
-            &mut pi,
-        )
+        match token {
+            Some(tok) => CreateProcessAsUserW(
+                tok,
+                ptr::null(),
+                wide_cmdline.as_mut_ptr(),
+                ptr::null(),
+                ptr::null(),
+                0, // bInheritHandles=false
+                flags,
+                env_ptr,
+                cwd_ptr,
+                &si.StartupInfo,
+                &mut pi,
+            ),
+            None => CreateProcessW(
+                ptr::null(),          // lpApplicationName = null（用 PATH 搜索）
+                wide_cmdline.as_mut_ptr(), // lpCommandLine（shell 路径，可变非空）
+                ptr::null(),
+                ptr::null(),
+                0, // bInheritHandles=false
+                // CREATE_UNICODE_ENVIRONMENT：块为 UTF-16，缺该 flag 会被系统按 ANSI 解释
+                flags,
+                env_ptr,
+                cwd_ptr,
+                &si.StartupInfo,
+                &mut pi,
+            ),
+        }
     };
     if res == 0 {
         anyhow::bail!(
-            "CreateProcessW `{shell}` in `{cwd}` failed: {}",
+            "ConPTY 子进程创建失败 `{shell}` in `{cwd}`（受限令牌={}）: {}",
+            token.is_some(),
             IoError::last_os_error()
         );
     }
     Ok((pi.hProcess, pi.hThread))
+}
+
+// ─── 环境块构建（E1 口径统一）───────────────────────────────
+
+/// 构造传给 CreateProcessW 的环境块：**父进程环境剔除敏感变量** + 显式 `env_list` 覆盖
+///
+/// - 敏感判定与命令执行 / MCP stdio 同源：`agent_runtime::env_scrub::is_sensitive_env_key`
+/// - Windows 环境变量名大小写不敏感：以大写名归并，显式项覆盖父项、保留显式项原名
+/// - 输出 UTF-16 `"K=V\0"` 序列 + 末尾双 null（须与 `CREATE_UNICODE_ENVIRONMENT` 同用）
+///
+/// `pub(crate)`：E3-2 受限 spawn（sandbox::win）与 PTY 同口径复用（显式 env 含 TMP/TEMP 重写）
+pub(crate) fn build_env_block(env_list: &[(String, String)]) -> Vec<u16> {
+    build_env_block_from(std::env::vars_os(), env_list)
+}
+
+/// [`build_env_block`] 的可注入版本（父环境迭代器入参，便于单测）
+fn build_env_block_from(
+    parent: impl Iterator<Item = (std::ffi::OsString, std::ffi::OsString)>,
+    env_list: &[(String, String)],
+) -> Vec<u16> {
+    use std::collections::BTreeMap;
+    let mut merged: BTreeMap<String, (String, String)> = BTreeMap::new();
+    for (k, v) in parent {
+        let (Ok(k), Ok(v)) = (k.into_string(), v.into_string()) else {
+            continue; // 非 UTF-8 键/值跳过（无法判定与编码）
+        };
+        if agent_runtime::env_scrub::is_sensitive_env_key(&k) {
+            continue; // E1：敏感变量不继承
+        }
+        merged.insert(k.to_ascii_uppercase(), (k, v));
+    }
+    // 显式注入在清洗**之后**合并（显式传入的 key 不受清洗影响）
+    for (k, v) in env_list {
+        merged.insert(k.to_ascii_uppercase(), (k.clone(), v.clone()));
+    }
+    let mut block: Vec<u16> = Vec::new();
+    for (_, (k, v)) in merged {
+        block.extend(k.encode_utf16());
+        block.push(b'=' as u16);
+        block.extend(v.encode_utf16());
+        block.push(0);
+    }
+    block.push(0);
+    block
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ffi::OsString;
+
+    /// 环境块解码为 (K, V) 列表（供断言；忽略双 null 结尾产生的空段）
+    fn decode(block: &[u16]) -> Vec<(String, String)> {
+        let mut out = Vec::new();
+        for seg in block.split(|&c| c == 0) {
+            if seg.is_empty() {
+                continue;
+            }
+            let s = String::from_utf16(seg).expect("utf16");
+            if let Some((k, v)) = s.split_once('=') {
+                out.push((k.to_string(), v.to_string()));
+            }
+        }
+        out
+    }
+
+    fn pair(k: &str, v: &str) -> (OsString, OsString) {
+        (OsString::from(k), OsString::from(v))
+    }
+
+    /// E1：敏感变量不继承，运行必需变量保留
+    #[test]
+    fn sensitive_keys_not_inherited() {
+        let parent = vec![
+            pair("PATH", "C:\\bin"),
+            pair("SystemRoot", "C:\\Windows"),
+            pair("GH_TOKEN", "ghp_xxx"),
+            pair("my_password", "p"),
+            pair("DB_SECRET", "s"),
+            pair("api_token", "t"),
+        ];
+        let block = build_env_block_from(parent.into_iter(), &[]);
+        let env = decode(&block);
+        let keys: Vec<&str> = env.iter().map(|(k, _)| k.as_str()).collect();
+        assert!(keys.contains(&"PATH"), "PATH 必须保留");
+        assert!(keys.contains(&"SystemRoot"), "SystemRoot 必须保留");
+        for k in ["GH_TOKEN", "my_password", "DB_SECRET", "api_token"] {
+            assert!(!keys.contains(&k), "{k} 不应继承");
+        }
+        // 双 null 结尾
+        assert!(block.len() >= 2 && block[block.len() - 1] == 0 && block[block.len() - 2] == 0);
+    }
+
+    /// 显式 env_list 按大小写不敏感覆盖父项，且保留显式项原名
+    #[test]
+    fn explicit_env_overrides_case_insensitively() {
+        let parent = vec![pair("Path", "old")];
+        let block = build_env_block_from(parent.into_iter(), &[("PATH".into(), "new".into())]);
+        let env = decode(&block);
+        let path_entries: Vec<&(String, String)> =
+            env.iter().filter(|(k, _)| k.eq_ignore_ascii_case("PATH")).collect();
+        assert_eq!(path_entries.len(), 1, "不得出现大小写变体重复项");
+        assert_eq!(path_entries[0].0, "PATH", "保留显式项原名");
+        assert_eq!(path_entries[0].1, "new");
+    }
+
+    /// 显式传入的敏感键允许注入（清洗只作用于「继承」，与 dsh 显式 env 后合并同语义）
+    #[test]
+    fn explicit_sensitive_key_allowed() {
+        let block = build_env_block_from(std::iter::empty(), &[("OPENAI_API_KEY".into(), "k".into())]);
+        let env = decode(&block);
+        assert_eq!(env.len(), 1);
+        assert_eq!(env[0].0, "OPENAI_API_KEY");
+        assert_eq!(env[0].1, "k");
+    }
 }
 
 // ─── 句柄读写包装 ───────────────────────────────────────────
@@ -526,26 +664,43 @@ fn dup_handle(src: HANDLE) -> anyhow::Result<HANDLE> {
 use super::PtySession;
 use tokio::sync::mpsc;
 
-/// 用自研 passthrough backend 打开 PTY 会话
+/// 用自研 passthrough backend 打开 PTY 会话（不受限通路）
 pub async fn spawn_passthrough(
     shell: &str,
     cwd: &str,
     env_list: &[(String, String)],
     pty_size: portable_pty::PtySize,
 ) -> Result<PtySession, String> {
+    spawn_passthrough_with_token(shell, cwd, env_list, pty_size, None).await
+}
+
+/// E3-3（2026-09-18）：受限令牌挂载变体——`token=Some` 时子进程以 `CreateProcessAsUserW` 启动
+///
+/// 受限模式**不回落** portable-pty（其无法注入令牌，回落即边界旁路）——失败由调用方 fail-closed。
+/// DSR 握手与输出缓冲链路与不受限通路完全一致（新接线不得绕过 DSR）。
+pub async fn spawn_passthrough_with_token(
+    shell: &str,
+    cwd: &str,
+    env_list: &[(String, String)],
+    pty_size: portable_pty::PtySize,
+    token: Option<HHandle>,
+) -> Result<PtySession, String> {
     let shell_owned = shell.to_string();
     let cwd_owned = cwd.to_string();
     let env_owned = env_list.to_vec();
     let (tx, rx) = mpsc::channel::<Vec<u8>>(64);
 
+    // 受限令牌经 HHandle（Send 包装）传递；闭包内还原为裸句柄（HANDLE 非 Send）
+    let token_raw = token.map(|h| h.0 as usize);
     // 同步创建（spawn_blocking 中调用 Windows API，避免阻塞 tokio worker）
     let pty = tokio::task::spawn_blocking(move || {
-        PassthroughPty::spawn(
+        PassthroughPty::spawn_with_token(
             &shell_owned,
             &cwd_owned,
             &env_owned,
             pty_size.cols,
             pty_size.rows,
+            token_raw.map(|v| v as HANDLE),
         )
     })
     .await

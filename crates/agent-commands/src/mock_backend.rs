@@ -12,7 +12,7 @@ use async_trait::async_trait;
 use agent_runtime::backend::{
     BackendError, NodeBackendAccessor, PromptCallOptions, PromptResponse, ThinkingLevel,
 };
-use agent_runtime::event::EventListener;
+use agent_runtime::event_bus::Listener;
 use agent_runtime::types::OrchestratorMessage;
 
 /// 占位 LLM 后端：回显收到的输入，返回固定模型名。
@@ -43,10 +43,6 @@ impl NodeBackendAccessor for MockBackend {
         Ok(PromptResponse::text_only(text))
     }
 
-    async fn steer(&self, _text: String) -> Result<(), BackendError> {
-        Ok(())
-    }
-
     async fn get_messages(&self) -> Vec<OrchestratorMessage> {
         Vec::new()
     }
@@ -59,7 +55,7 @@ impl NodeBackendAccessor for MockBackend {
         Ok(())
     }
 
-    async fn subscribe_events(&self, _listener: Arc<dyn EventListener>) {
+    async fn subscribe_events(&self, _listener: Arc<dyn Listener>) {
         // Mock 后端无流式事件
     }
 

@@ -4,6 +4,7 @@ use crate::backend::PromptCallOptions;
 use crate::scenario::ScenarioContext;
 use crate::tool::{ToolBus, WhitelistToolBus};
 
+use super::prompt_sections::{assemble_sections, order, PromptSection};
 use super::{AgentLoop, AgentLoopConfig};
 
 /// 系统基础工具（始终可用，不随场景裁剪）
@@ -44,6 +45,14 @@ const SYSTEM_BASE_TOOLS: &[&str] = &[
     // A2-2（2026-09-12）：工作区文件混合检索——考据资料/代码的「哪份资料讲过 X」
     // 类检索跨场景通用（世界构建/小说/编码都要），与 grep（精确字面）互补。
     "workspace_search",
+    // Q1（2026-09-20）：模型主动提问——任何场景都可能需要「向用户确认/补全信息」
+    // 才能继续（对齐 dsh `ask_user_question`）；不进本基础集则场景白名单下不可见。
+    "ask_user_question",
+    // S1（2026-09-20，批次 C）：定时唤醒三件套——「需要等待/稍后继续」跨场景通用
+    // （等待后台任务、轮询外部状态、延后提醒）；同 ask 口径进基础集，可见性由场景白名单裁剪。
+    "set_timer",
+    "list_timers",
+    "cancel_timer",
 ];
 
 /// 世界构建场景注入的实体类型（对应 WorldSea 实体类型规范，见 typeMappingRegistry.ts）
@@ -131,31 +140,35 @@ impl AgentLoop {
             None
         };
 
-        let system_prompt_override = match (
-            scenario_prompt,
-            config.system_prompt.clone(),
-            memory_ctx,
-        ) {
-            (Some(scen), Some(static_p), Some(mem)) => {
-                Some(format!("{scen}\n\n{static_p}\n\n{mem}"))
+        // A4 段式组装（2026-09-16 提取融合）：四段改为结构化段（段序见 prompt_sections::order），
+        // 拼接顺序与改造前一致：场景 → 静态 → 记忆 → 管线；空段跳过、全空返回 None。
+        let mut sections: Vec<PromptSection> = Vec::new();
+        if let Some(scen) = scenario_prompt {
+            sections.push(PromptSection::new("scenario", order::SCENARIO, scen));
+        }
+        // A4 双端收口：静态注入带优先用结构化段（TS 12 段 + mcp_note，各自 order）；
+        // 为空则回退 legacy 单段（群聊 / 老会话文本）——两条路径组装结果逐字节一致。
+        if !config.prompt_sections.is_empty() {
+            for sec in &config.prompt_sections {
+                sections.push(sec.clone());
             }
-            (Some(scen), Some(static_p), None) => Some(format!("{scen}\n\n{static_p}")),
-            (Some(scen), None, Some(mem)) => Some(format!("{scen}\n\n{mem}")),
-            (Some(scen), None, None) => Some(scen),
-            (None, Some(base), Some(mem)) => Some(format!("{base}\n\n{mem}")),
-            (None, base, mem) => base.or(mem),
-        };
-
-        // A3：追加管线路由指引（本轮经 RouterNode 决策的管线，指导 Agent 处理方式）
-        let mut system_prompt_override = system_prompt_override;
+        } else if let Some(static_p) = config.system_prompt.clone() {
+            sections.push(PromptSection::new("static", order::STATIC, static_p));
+        }
+        if let Some(mem) = memory_ctx {
+            sections.push(PromptSection::new("memory", order::MEMORY, mem));
+        }
+        // A3：管线路由指引（本轮经 RouterNode 决策的管线，指导 Agent 处理方式）
         if let Ok(guard) = self.pipeline_context.read() {
             if let Some(pipeline_ctx) = guard.as_ref() {
-                system_prompt_override = Some(match system_prompt_override {
-                    Some(s) => format!("{s}\n\n{pipeline_ctx}"),
-                    None => pipeline_ctx.clone(),
-                });
+                sections.push(PromptSection::new(
+                    "pipeline",
+                    order::PIPELINE,
+                    pipeline_ctx.clone(),
+                ));
             }
         }
+        let system_prompt_override = assemble_sections(sections);
 
         PromptCallOptions {
             system_prompt_override,
@@ -167,6 +180,7 @@ impl AgentLoop {
             top_p: config.top_p,
             top_k: config.top_k,
             silent: false,
+            purpose: None,
             thinking_mode: config.thinking_mode,
             thinking_level: config.thinking_level,
             images: Vec::new(),

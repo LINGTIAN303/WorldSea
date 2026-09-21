@@ -1,7 +1,7 @@
 //! AgentLoop — ReAct 模式的核心循环，详细见 docs/details/注释/agent-runtime/agent.md
 
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, RwLock as StdRwLock};
+use std::sync::{Arc, Mutex as StdMutex, RwLock as StdRwLock};
 use std::time::Instant;
 
 use tokio::sync::{Mutex as AsyncMutex, RwLock};
@@ -9,7 +9,8 @@ use tracing::{debug, error, info, warn};
 
 use crate::backend::NodeBackendAccessor;
 use crate::confirmation::{ConfirmationBroker, ConfirmationPolicy};
-use crate::event::{AgentEvent, EventBroadcaster, EventListener, OrchestratorEvent};
+use crate::event::{AgentEvent, EventBroadcaster, EventKey, OrchestratorEvent};
+use crate::event_bus::Listener;
 use crate::loop_control::{LoopControlConfig, LoopController};
 use crate::long_task::{CheckpointProvider, LongTaskManager};
 use crate::retention::RetentionPlan;
@@ -17,19 +18,25 @@ use crate::router_decider::{Pipeline, RouterDecider};
 use crate::tool::ToolBus;
 use crate::types::{MessageRole, OrchestratorMessage, PlanItem, ToolCall};
 
+use prompt_sections::PromptSection;
+
 // 仅供 tests.rs（`use super::*` glob 引入）使用的类型，非 test 构建下不参与编译
 #[cfg(test)]
 use crate::backend::{BackendError, PromptCallOptions};
 
 mod backend_bridge;
+mod compaction_summary;
 mod config;
 mod error;
 mod hooks;
+pub mod input;
 mod interaction;
 mod llm;
 mod long_task;
 mod loop_control;
 mod memory;
+pub mod prompt_sections;
+pub mod request_snapshot;
 mod state;
 mod tools;
 
@@ -52,12 +59,29 @@ const MESSAGE_STRUCTURE_OVERHEAD_TOKENS: usize = 8;
 /// `compact_now`（手动压缩）共用同一次计量，保证「查询所见 = 裁剪所依」。
 struct ContextMeasurement {
     policy: crate::context_budget::ContextBudgetPolicy,
-    retention_policy: crate::retention::RetentionPolicy,
     plan: RetentionPlan,
     costs: Vec<usize>,
     history_tokens: usize,
     system_tokens: usize,
     message_count: usize,
+    /// 消息内容字节总量（前置检查短路基线用；与 `costs` 同一次持锁取齐）
+    content_bytes: usize,
+    /// 系统侧文本字节总量（同上）
+    system_bytes: usize,
+}
+
+/// 请求派生前压缩的短路基线（阶段 3 · A2 补齐①）
+///
+/// 记「上次完整计量」时的四项：消息条数 / 体量字节（消息内容 + 系统侧文本）/
+/// 总占用 token / 当时的触发线。每轮请求前先比对该基线做廉价短路——只有
+/// 「上次占用 + 新增体量的保守 token 下界」可能越过触发线时才做完整计量。
+/// 触发线不一致（模型切换导致窗口变化）时禁用短路，强制重新计量。
+#[derive(Debug, Clone, Copy)]
+struct CompactCheckMarker {
+    message_count: usize,
+    total_bytes: usize,
+    total_tokens: usize,
+    trigger: usize,
 }
 
 // ─── AgentLoop ────────────────────────────────────────────
@@ -98,6 +122,12 @@ pub struct AgentLoop {
     /// 用于构造 [`crate::tool_context::ToolContext`] 并注入到工具执行（Phase A）。
     /// 与 `config.workspace_id` 保持一致（`with_config`/`set_config` 同步更新）。
     workspace_id: Arc<StdRwLock<Option<String>>>,
+    /// 会话归属的项目 id（从 `config.project_id` 读取）
+    ///
+    /// 用于构造 [`crate::tool_context::ToolContext`] 并注入到工具执行
+    /// （W2①，2026-09-18 工作区与环境对齐 dsh：此前 `tool_ctx` 恒写 `None`，
+    /// 项目归属对工具不可见）。与 `config.project_id` 保持一致（同上前两字段）。
+    project_id: Arc<StdRwLock<Option<String>>>,
     /// 事件广播器
     broadcaster: Arc<RwLock<EventBroadcaster>>,
     /// 是否正在流式输出（run 方法活跃中）
@@ -159,6 +189,13 @@ pub struct AgentLoop {
     /// 通过 `with_confirmation` 注入。启用后，`execute_tool_calls` 对命中
     /// `config.confirmation_policy` 的工具调用发起确认（广播事件 + 等待前端回传）。
     confirmation_broker: Option<Arc<ConfirmationBroker>>,
+    /// Q1 提问（2026-09-20）：本循环是否为子代理实例（`true` 时提问类工具不可用）
+    ///
+    /// 由 [`SubAgentManager`](crate::sub_agent_pool) 构造子代理时经 [`Self::mark_sub_agent`]
+    /// 置位；随 [`ToolContext`](crate::tool_context::ToolContext) 注入工具执行
+    /// （`is_sub_agent`），供 `ask_user_question` 在子代理内 fail loud（ASK_UNAVAILABLE）
+    /// ——子代理无独立会话实例、无人类应答者，提问会永久阻塞。
+    is_sub_agent: bool,
     /// A6 工具生命周期钩子（空=不启用）
     ///
     /// 通过 `with_tool_hook` 注入。`execute_tool_with_retry` 在 `call_tool` 前
@@ -200,6 +237,25 @@ pub struct AgentLoop {
     /// `enforce_context_budget` 保持既有「选择性删除」行为
     /// （测试与未配置记忆的环境）。
     raw_context_enabled: bool,
+    /// 请求派生前压缩的轻量短路基线（阶段 3 · A2 补齐①）
+    ///
+    /// 每轮 LLM 请求派发前都要判断是否触压缩；完整计量成本 O(内容量)，故先比对
+    /// 本基线（O(消息数) 的字节求和）——见 [`Self::enforce_context_budget`]。
+    compact_check: Arc<StdMutex<Option<CompactCheckMarker>>>,
+    /// 请求快照的上一条视图（阶段 3 · ④：增量判据——前缀比对为**逐字段等值**）
+    ///
+    /// 持有上一视图副本（不持哈希）：假前缀会静默损坏重建结果，宁可多一次内存拷贝。
+    /// Agent 重建（项目切换 / 重载）后为空 → 首条快照必为全量视图（自纠正）。
+    request_snapshot_tracker: Arc<StdMutex<Option<Vec<OrchestratorMessage>>>>,
+    /// 输入 inbox（阶段 2 · A3：三通道统一入口，`run_react_loop` 每轮经准入消费）
+    ///
+    /// 见 [`input`] 模块：`FollowUp` / `Steer` / `Inject` 三语义 + pre-step 准入。
+    inbox: Arc<StdMutex<Vec<input::InputItem>>>,
+    /// 已交付文本累积（A3 取消收口：中断时落为终稿 + 中断锚点）
+    ///
+    /// 由 `DeliveredTextRecorder` 监听本环巴士维护（StreamStart 清零 / Delta 累积 /
+    /// StreamEnd 权威覆盖）。
+    delivered_text: Arc<StdMutex<String>>,
 }
 
 impl AgentLoop {
@@ -208,7 +264,24 @@ impl AgentLoop {
     /// 自动注入 backend 事件桥接 listener，使订阅 AgentLoop 的监听器
     /// 能收到 backend 广播的 `StreamStart`/`StreamDelta`/`StreamEnd` 等事件。
     pub fn new(backend: Arc<dyn NodeBackendAccessor>, tool_bus: Arc<dyn ToolBus>) -> Self {
-        let broadcaster = Arc::new(RwLock::new(EventBroadcaster::new()));
+        // 阶段 3 · ④ 扩展：链路锚点（旁路快照入链 → 本环增量基点失效，见 request_snapshot）
+        // 先于其余监听器订阅：旁路行经 BackendEventBridge 到达本环时同步重置基点
+        let request_snapshot_tracker = Arc::new(StdMutex::new(None));
+        // 阶段 2 · A3：已交付文本记录器（取消收口用；订阅本环巴士，on_any）
+        let delivered_text = Arc::new(StdMutex::new(String::new()));
+        let broadcaster = {
+            let mut b = EventBroadcaster::new();
+            b.subscribe_key(
+                crate::event::keys::REQUEST_SNAPSHOT_CAPTURED,
+                Arc::new(request_snapshot::SnapshotChainAnchor::new(Arc::clone(
+                    &request_snapshot_tracker,
+                ))),
+            );
+            b.subscribe(Arc::new(input::DeliveredTextRecorder::new(Arc::clone(
+                &delivered_text,
+            ))));
+            Arc::new(RwLock::new(b))
+        };
         let is_streaming = Arc::new(AtomicBool::new(false));
         let state = Arc::new(AsyncMutex::new(AgentState::new()));
         let config = Arc::new(StdRwLock::new(AgentLoopConfig::default()));
@@ -238,6 +311,7 @@ impl AgentLoop {
             config,
             workdir: Arc::new(StdRwLock::new(None)),
             workspace_id: Arc::new(StdRwLock::new(None)),
+            project_id: Arc::new(StdRwLock::new(None)),
             broadcaster,
             is_streaming,
             long_task_manager,
@@ -249,6 +323,7 @@ impl AgentLoop {
             memory: None,
             memory_context: Arc::new(StdRwLock::new(None)),
             confirmation_broker: None,
+            is_sub_agent: false,
             tool_hooks: Vec::new(),
             router: None,
             pipeline_context: Arc::new(StdRwLock::new(None)),
@@ -256,6 +331,10 @@ impl AgentLoop {
             token_estimator: crate::context_budget::heuristic_estimator(),
             raw_context_sink: crate::raw_context::noop_sink(),
             raw_context_enabled: false,
+            compact_check: Arc::new(StdMutex::new(None)),
+            request_snapshot_tracker,
+            inbox: Arc::new(StdMutex::new(Vec::new())),
+            delivered_text,
         }
     }
 
@@ -364,6 +443,17 @@ impl AgentLoop {
         self
     }
 
+    /// 标记为子代理实例（Q1，链式，同步）
+    ///
+    /// 置位后 [`Self::tool_ctx`] 注入的 `is_sub_agent = true`，使「仅主会话可用」的工具
+    /// （如 `ask_user_question`）在子代理内显式拒绝（`ASK_UNAVAILABLE`）——子代理无人类
+    /// 应答者，若放行会永久阻塞（对齐 dsh `DELEGATED_CALLER`）。由 `sub_agent_pool`
+    /// 构造子代理时调用；主会话不调用（默认 `false`）。
+    pub fn mark_sub_agent(mut self) -> Self {
+        self.is_sub_agent = true;
+        self
+    }
+
     /// 注册工具生命周期钩子（链式，同步，A6）
     ///
     /// 可多次调用注册多个钩子，按注册顺序在 `call_tool` 前依次执行。
@@ -398,22 +488,73 @@ impl AgentLoop {
 
     /// 解析一次待定的工具确认（前端经 `cmd_agent_confirm` 回传）
     ///
+    /// `outcome` 为 D8 四值（approved / denied / skipped / timeout；
+    /// 前端只回传前三值，`timeout` 由 [`crate::confirmation::ConfirmationBroker`] 超时产生）。
     /// 返回是否成功唤醒对应等待方（confirm_id 不存在 = 已超时/已处理）。
     /// 未启用确认或 broker 不存在时恒返回 `false`。
-    pub async fn resolve_confirmation(&self, confirm_id: &str, approved: bool) -> bool {
+    pub async fn resolve_confirmation(
+        &self,
+        confirm_id: &str,
+        outcome: crate::confirmation::ConfirmationOutcome,
+    ) -> bool {
         let Some(broker) = &self.confirmation_broker else {
             return false;
         };
-        let resolved = broker.resolve(confirm_id, approved).await;
+        let resolved = broker.resolve(confirm_id, outcome).await;
         if resolved {
             // 广播确认已解决，供前端清理进行中的确认弹窗
             self.broadcast(OrchestratorEvent::ConfirmationResolved {
                 confirm_id: confirm_id.to_string(),
-                approved,
+                outcome,
             })
             .await;
         }
         resolved
+    }
+
+    /// 解析一次待回答的提问（Q1，前端经 `cmd_agent_ask_answer` 回传）
+    ///
+    /// `outcome`：`Answered(answers)` = 用户作答 / `Denied` = 用户拒绝作答（前端取消键）；
+    /// `Cancelled` 仅 kernel 侧产生（[`Self::abort`] / [`Self::dispose`] 随轮取消）。
+    /// 返回是否成功唤醒对应等待方（ask_id 不存在 = 已处理/已取消）。
+    /// 未启用 broker 时恒返回 `false`。
+    pub async fn resolve_ask(
+        &self,
+        ask_id: &str,
+        outcome: crate::confirmation::AskOutcome,
+    ) -> bool {
+        let Some(broker) = &self.confirmation_broker else {
+            return false;
+        };
+        let resolved = broker.resolve_ask(ask_id, outcome.clone()).await;
+        if resolved {
+            // 广播提问已解决，供前端清理进行中的提问面板
+            self.broadcast(OrchestratorEvent::AskResolved {
+                ask_id: ask_id.to_string(),
+                outcome,
+            })
+            .await;
+        }
+        resolved
+    }
+
+    /// Q1：随轮取消——中断全部待回答提问并通知前端清理（D3：提问无固定超时）
+    ///
+    /// 在 [`Self::abort`]（用户中断运行）与 [`Self::dispose`]（会话销毁）时调用：
+    /// 若不取消，等待中的提问工具将永久阻塞、abort 无法生效。取消的等待方收到
+    /// [`AskOutcome::Cancelled`](crate::confirmation::AskOutcome::Cancelled)，
+    /// 工具据此构造 `ASK_CANCELLED` 失败结果回模型。
+    async fn cancel_pending_asks(&self) {
+        let Some(broker) = &self.confirmation_broker else {
+            return;
+        };
+        for ask_id in broker.cancel_pending_asks().await {
+            self.broadcast(OrchestratorEvent::AskResolved {
+                ask_id,
+                outcome: crate::confirmation::AskOutcome::Cancelled,
+            })
+            .await;
+        }
     }
 
     /// 内建 LoopController 是否启用
@@ -439,6 +580,12 @@ impl AgentLoop {
         } else {
             warn!("with_config: workspace_id RwLock poisoned");
         }
+        // 同步 project_id 独立字段（W2①，供 ToolContext 注入）
+        if let Ok(mut guard) = self.project_id.write() {
+            *guard = config.project_id.clone();
+        } else {
+            warn!("with_config: project_id RwLock poisoned");
+        }
         if let Ok(mut guard) = self.config.write() {
             *guard = config;
         } else {
@@ -457,19 +604,29 @@ impl AgentLoop {
         if let Ok(mut guard) = self.workspace_id.write() {
             *guard = config.workspace_id.clone();
         }
+        // 同步 project_id 独立字段（W2①，供 ToolContext 注入）
+        if let Ok(mut guard) = self.project_id.write() {
+            *guard = config.project_id.clone();
+        }
         if let Ok(mut guard) = self.config.write() {
             *guard = config;
         }
     }
 
-    /// 运行时更新会话 system prompt（H5 风险点③ 动态刷新，2026-08-30）：
-    /// 技能索引/规则文件中途变更时由命令层调用，下一轮 build_prompt_options
-    /// 即从 config.system_prompt 构建新的 system_prompt_override——旧会话立即生效。
-    pub async fn set_system_prompt(&self, system_prompt: Option<String>) {
-        if let Ok(mut guard) = self.config.write() {
-            guard.system_prompt = system_prompt;
-        } else {
-            warn!("set_system_prompt: config RwLock poisoned, 未更新");
+    /// 运行时更新会话提示段（H5 风险点③ 动态刷新 + A4 双端收口，2026-09-17）：
+    /// 技能索引/规则文件/提示段中途变更时由命令层调用，下一轮 build_prompt_options
+    /// 即从 `config.prompt_sections` 展开各段——旧会话立即生效。
+    ///
+    /// 同步刷新 `config.system_prompt` 缓存（= 段组装的静态合集文本，供首条
+    /// System 消息推入等 legacy 消费）。
+    pub async fn set_prompt_sections(&self, prompt_sections: Vec<PromptSection>) {
+        let static_text = prompt_sections::assemble_sections(prompt_sections.clone());
+        match self.config.write() {
+            Ok(mut guard) => {
+                guard.prompt_sections = prompt_sections;
+                guard.system_prompt = static_text;
+            }
+            Err(_) => warn!("set_prompt_sections: config RwLock poisoned, 未更新"),
         }
     }
 
@@ -481,9 +638,14 @@ impl AgentLoop {
             .unwrap_or_else(|_| AgentLoopConfig::default())
     }
 
-    /// 订阅事件
-    pub async fn subscribe(&self, listener: Arc<dyn EventListener>) {
+    /// 订阅事件（全量）
+    pub async fn subscribe(&self, listener: Arc<dyn Listener>) {
         self.broadcaster.write().await.subscribe(listener);
+    }
+
+    /// 精确订阅（仅接收 `key` 的分发；供 Plan 事件族等精确监听器使用）
+    pub async fn subscribe_key(&self, key: EventKey, listener: Arc<dyn Listener>) -> bool {
+        self.broadcaster.write().await.subscribe_key(key, listener)
     }
 
     /// 获取内部广播器引用（供外部组件向同一广播器广播事件）
@@ -514,6 +676,27 @@ impl AgentLoop {
         self.workspace_id.read().ok().and_then(|g| g.clone())
     }
 
+    /// 获取会话归属的项目 id（构造 ToolContext 注入工具执行；W2①，2026-09-18）
+    pub fn project_id(&self) -> Option<String> {
+        self.project_id.read().ok().and_then(|g| g.clone())
+    }
+
+    /// 当前档位派生的沙箱戳记（构造 ToolContext 注入工具执行；E3-1，2026-09-18）
+    ///
+    /// 观测期语义：仅随 ctx 传播（日志 + 审计元信息），不改变执行行为；
+    /// 强制执行（受限令牌 + ACL）落 E3-2/E3-3——见 [crate::sandbox]。
+    pub fn sandbox_spec(&self) -> Option<crate::sandbox::SandboxSpec> {
+        let workdir = self.workdir.read().ok().and_then(|g| g.clone());
+        // 未配置确认策略 → 按默认档位口径（SecurityLevel::default = interact）
+        let level = self
+            .config_snapshot()
+            .confirmation_policy
+            .as_ref()
+            .map(|p| p.security_level)
+            .unwrap_or_default();
+        crate::sandbox::sandbox_policy(level, workdir.as_deref())
+    }
+
     /// 获取内部 ToolBus 访问器（供 Supervisor 编排节点为子 Agent 提供共享工具）
     ///
     /// SupervisorNode 构造需要 `Arc<dyn ToolBus>` 来运行被委派的子 Agent，
@@ -523,14 +706,28 @@ impl AgentLoop {
     }
 
     /// 广播事件
+    ///
+    /// **锁纪律（2026-09-17 风险点处置）**：先取总线句柄、**释放壳锁**，再运行监听器链——
+    /// 链内可安全注册（延后下一轮）/执行 I/O，不阻滞写者，也不会令 `try_read` 型
+    /// 转发监听器（`ForwardToAgentBroadcaster` 等）在写者排队时静默丢事件。
     async fn broadcast(&self, event: OrchestratorEvent) {
-        self.broadcaster.read().await.broadcast(&event);
+        self.event_bus_handle().await.emit(&event);
+    }
+
+    /// 取出事件总线句柄（短读壳锁；**分发应在取到句柄后于锁外进行**）
+    async fn event_bus_handle(&self) -> Arc<crate::event_bus::EventBus> {
+        self.broadcaster.read().await.handle()
     }
 
     /// 中断当前运行
     pub async fn abort(&self) {
-        let mut state = self.state.lock().await;
-        state.aborted = true;
+        {
+            let mut state = self.state.lock().await;
+            state.aborted = true;
+        }
+        // Q1（2026-09-20）：随轮取消待回答提问（先释放 state 锁，广播在锁外进行）——
+        // 否则等待中的提问工具永久阻塞，abort 无法生效
+        self.cancel_pending_asks().await;
         debug!("AgentLoop abort 已请求");
     }
 
@@ -640,6 +837,11 @@ impl AgentLoop {
             self.hooks.dispatch(RunPhase::BeforeReact, &ctx).await;
         }
 
+        // ── 阶段 2 · A3：运行起始的输入准入（空闲期注入排在本条 user 消息之前）──
+        // 与循环内的 pre-step 准入同一实现：保证「提交顺序 = 上下文顺序」
+        // （run 起始消费 = 首轮 pre-step 的等价前置；循环内再消费运行中到达的输入）。
+        self.consume_admitted_inputs(0).await;
+
         // 推入 user 消息
         let config_snapshot = self.config_snapshot();
         {
@@ -711,8 +913,28 @@ impl AgentLoop {
                 self.broadcast(OrchestratorEvent::Agent(AgentEvent::AgentEnd)).await;
             }
             Err(e) => {
+                // A5 用户提示路由：可行动错误码附引导语（前端错误分支直接可读）
+                // A5 后续：结构化字段（code / retryable / retry_after_ms）随事件下传，
+                // 前端可按码分支，不必解析 message 文本
+                let mut message = e.to_string();
+                let (code, retryable, retry_after_ms) = match e {
+                    AgentError::Backend(be) => {
+                        if let Some(hint) = be.code().user_hint() {
+                            message = format!("{message}（{hint}）");
+                        }
+                        (
+                            Some(be.code().as_str().to_string()),
+                            Some(be.code().is_retryable()),
+                            be.retry_after_ms(),
+                        )
+                    }
+                    _ => (None, None, None),
+                };
                 self.broadcast(OrchestratorEvent::Agent(AgentEvent::Error {
-                    message: e.to_string(),
+                    message,
+                    code,
+                    retryable,
+                    retry_after_ms,
                 }))
                 .await;
                 self.broadcast(OrchestratorEvent::Agent(AgentEvent::AgentEnd)).await;
@@ -820,10 +1042,13 @@ impl AgentLoop {
         }
     }
 
-    /// [RunPhase::AfterRun 内置] 记忆归档 — record_turn + archive + 上下文预算裁剪
+    /// [RunPhase::AfterRun 内置] 记忆归档 — record_turn + archive
     ///
     /// 记录本轮对话（供归档前累积）并触发归档；任一环节失败静默跳过，不影响主流程返回。
-    /// 归档后执行上下文预算检查（H1 修复 P1.5，见 `enforce_context_budget`）。
+    ///
+    /// **上下文预算压缩已前移**（阶段 3 · A2 补齐①，2026-09-17）：从本阶段挪到
+    /// [`Self::run_react_loop`] 每轮 LLM 请求派发之前（见 `enforce_context_budget`）——
+    /// 修正前压缩发生在轮次结束后，收益滞后一整轮（本轮请求都已用旧窗口发完）。
     async fn run_memory_archive(&self, user_input: &str, result: &Result<String, AgentError>) {
         if let Some(memory) = &self.memory {
             let assistant_text = match result {
@@ -833,7 +1058,6 @@ impl AgentLoop {
             let _ = memory.record_turn(user_input.to_string(), assistant_text).await;
             let _ = memory.archive(None).await;
         }
-        self.enforce_context_budget().await;
     }
 
     /// 上下文预算自动裁剪 — 消息历史只进不出的解药
@@ -872,11 +1096,46 @@ impl AgentLoop {
     ///
     /// 被裁轮次必然已归档进记忆——归档阈值与预算触发点同源（同为窗口比例，
     /// 且触发点在归档阈值之内），预算触发时未归档缓冲只剩最近几轮，保留条数足够覆盖。
+    ///
+    /// **执行体归一（阶段 3 · 2026-09-17）**：与手动 `/compact` 共用 [`Self::run_compaction`]，
+    /// 本方法只保留「触发线判断 + 日志」；压缩过程以 Started/Finished/Failed 三事件
+    /// 构成事务括号（A2 补齐②③，见 [`Self::run_compaction`]）。
     async fn enforce_context_budget(&self) {
-        // 计量与保留计划（与 context_usage / compact_now 同源，见 measure_context）
+        // ── 轻量短路（阶段 3 · A2 补齐①：请求派生前检查的成本控制）──
+        // 每轮请求派发前都会调用本方法，先做 O(消息数) 的字节比对：若「上次占用 +
+        // 新增体量的保守 token 下界（字节 / 4 + 每条结构开销）」仍低于触发线，跳过完整计量。
+        // 下界取字节/4：UTF-8 内容（含 CJK 三字节/字）的 token 数都不低于该值 → 跳过不会漏触发。
+        let gate_trigger = match self.config.read() {
+            Ok(g) => g.context_budget.unwrap_or_default().trim_trigger(),
+            Err(_) => {
+                warn!("上下文前置检查：config RwLock 中毒，本轮跳过");
+                return;
+            }
+        };
+        let (message_count, total_bytes) = self.cheap_context_snapshot().await;
+        let short_circuit = match self.compact_check.lock() {
+            Ok(guard) => guard.as_ref().is_some_and(|marker| {
+                if marker.trigger != gate_trigger {
+                    // 模型切换（窗口/触发线变化）→ 基线失效，强制重新计量
+                    return false;
+                }
+                let added_bytes = total_bytes.saturating_sub(marker.total_bytes);
+                let added_msgs = message_count.saturating_sub(marker.message_count);
+                let lower_bound = marker.total_tokens
+                    + added_bytes / 4
+                    + added_msgs * MESSAGE_STRUCTURE_OVERHEAD_TOKENS;
+                lower_bound < gate_trigger
+            }),
+            // 基线锁中毒 → 保守走完整计量
+            Err(_) => false,
+        };
+        if short_circuit {
+            return;
+        }
+
+        // ── 完整计量（与 context_usage / compact_now 同源，见 measure_context）──
         let m = self.measure_context().await;
         let policy = m.policy;
-        let retention_policy = m.retention_policy;
         let history_tokens = m.history_tokens;
         let system_tokens = m.system_tokens;
         let total_tokens = history_tokens + system_tokens;
@@ -899,19 +1158,136 @@ impl AgentLoop {
         );
 
         if total_tokens <= trigger || total_msgs == 0 {
+            // 本次计量即下次短路基线
+            self.record_compact_check(&m, total_tokens, trigger);
             return;
         }
 
-        // 按保留契约选组丢弃（工具交换组原子）
-        let drops = m.plan.select_drops(&m.costs, total_tokens, trigger);
+        // 基线先行记录（压缩失败时视图不变 → 该基线仍准确）；成功后以压缩后占用刷新
+        self.record_compact_check(&m, total_tokens, trigger);
+        match self.run_compaction(m, trigger, "auto").await {
+            Ok(outcome) => {
+                let (message_count, total_bytes) = self.cheap_context_snapshot().await;
+                self.set_compact_check(message_count, total_bytes, outcome.after_tokens, trigger);
+            }
+            // 失败仅告警不阻断主流程
+            Err(e) => warn!("上下文预算裁剪失败: {e}"),
+        }
+    }
+
+    /// 廉价体量快照（消息条数 / 总体量字节）——O(消息数)，不逐条估算 token
+    ///
+    /// 总体量 = 消息内容字节 + 系统侧文本字节（系统提示词 / 记忆注入 / 管线指引）。
+    /// 供请求派生前压缩的轻量短路使用（见 [`Self::enforce_context_budget`]）。
+    async fn cheap_context_snapshot(&self) -> (usize, usize) {
+        let (message_count, content_bytes) = {
+            let state = self.state.lock().await;
+            let bytes: usize = state.messages.iter().map(|m| m.content.len()).sum();
+            (state.messages.len(), bytes)
+        };
+        let system_bytes = {
+            let cfg = self
+                .config
+                .read()
+                .map(|g| g.system_prompt.as_ref().map(|s| s.len()).unwrap_or(0))
+                .unwrap_or(0);
+            let mem = self
+                .memory_context
+                .read()
+                .map(|g| g.as_ref().map(|s| s.len()).unwrap_or(0))
+                .unwrap_or(0);
+            let pipe = self
+                .pipeline_context
+                .read()
+                .map(|g| g.as_ref().map(|s| s.len()).unwrap_or(0))
+                .unwrap_or(0);
+            cfg + mem + pipe
+        };
+        (message_count, content_bytes + system_bytes)
+    }
+
+    /// 以一次完整计量刷新短路基线（见 [`Self::enforce_context_budget`]）
+    fn record_compact_check(&self, m: &ContextMeasurement, total_tokens: usize, trigger: usize) {
+        self.set_compact_check(
+            m.message_count,
+            m.content_bytes + m.system_bytes,
+            total_tokens,
+            trigger,
+        );
+    }
+
+    /// 写入短路基线（锁中毒时静默——下次仍会走完整计量）
+    fn set_compact_check(
+        &self,
+        message_count: usize,
+        total_bytes: usize,
+        total_tokens: usize,
+        trigger: usize,
+    ) {
+        if let Ok(mut guard) = self.compact_check.lock() {
+            *guard = Some(CompactCheckMarker {
+                message_count,
+                total_bytes,
+                total_tokens,
+                trigger,
+            });
+        }
+    }
+
+    /// 执行一次上下文压缩 —— 自动预算裁剪 / 手动 `/compact` 的**唯一实现**
+    ///
+    /// ## 归一（阶段 3 · A2 补齐，2026-09-17）
+    ///
+    /// 修正前自动（[`Self::enforce_context_budget`]）与手动（[`Self::compact_now`]）
+    /// 各持一份几乎相同的「选组 → 折叠/删除 → 回填」逻辑——事件化与事务化若在两条
+    /// 路径分别加即成双份（双轨防护）。本方法收口为一份实现，触发条件仍由调用方决定：
+    /// - 自动：占用超 [`ContextBudgetPolicy::trim_trigger`]（最高压缩层 = 最后手段）
+    /// - 手动：`trigger = 0`（全选可裁组语义）
+    ///
+    /// ## 事务括号（阶段 3 · A2 补齐②③）
+    ///
+    /// 以三事件构成括号：`Started` 在**任何副作用之前**（外置写盘 / 视图改写）广播；
+    /// `Finished` 在视图改写 + 回填结束且重新计量之后广播；折叠 / 删除失败时先广播
+    /// `Failed` 再上抛。压缩事务锁监听器（命令层）依据两个右端事件解锁——崩溃时
+    /// 右端缺失即成「孤儿锁」，会话下一次装载时检测（见 05-§2.3 缺口 2/3）。
+    ///
+    /// 无可裁内容（`drops` 为空）时不构成事务：直接返回 `mode = "none"`，无括号事件。
+    async fn run_compaction(
+        &self,
+        m: ContextMeasurement,
+        trigger: usize,
+        trigger_src: &str,
+    ) -> Result<crate::context_budget::CompactOutcome, AgentError> {
+        use crate::context_budget::CompactOutcome;
+
+        let before_tokens = m.history_tokens + m.system_tokens;
+        let mut outcome = CompactOutcome {
+            before_tokens,
+            ..Default::default()
+        };
+
+        // trigger=0：全选可裁组（受保护组由 select_drops 自然跳过并计数）
+        let drops = m.plan.select_drops(&m.costs, before_tokens, trigger);
+        outcome.skipped_protected_groups = drops.skipped_protected_groups;
         if drops.is_empty() {
             debug!(
-                "上下文预算裁剪：超线（{} > {}）但可裁内容已穷尽（受保护组 {} 个），本轮不裁剪",
-                total_tokens, trigger, drops.skipped_protected_groups
+                "上下文压缩（{trigger_src}）：触发线 {trigger} 但可裁内容已穷尽（受保护组 {} 个），本轮不压缩",
+                drops.skipped_protected_groups
             );
-            return;
+            outcome.after_tokens = before_tokens;
+            outcome.mode = "none".into();
+            return Ok(outcome);
         }
 
+        // ── 括号左端：任何副作用（外置写盘 / 视图改写）之前 ──
+        self.broadcast(OrchestratorEvent::ContextCompactStarted {
+            trigger: trigger_src.to_string(),
+            before_tokens,
+            tier: m.policy.tier_of(before_tokens),
+        })
+        .await;
+
+        let mut backfilled = 0usize;
         // ── A1 §6.2 锚点回填：有外置器 → 「折叠」替代「删除」────────────────
         // 折叠 = 删除的安全升级：把「直接扔掉」改为「原文先外置（硬前提）→
         // 锚点对 + 空容器位占位 → 压缩文本填回」。上下文里保留锚点痕迹与
@@ -920,79 +1296,118 @@ impl AgentLoop {
         // 未注入外置器（测试 / 未配置记忆环境）→ 保持既有「选择性删除」行为。
         if self.raw_context_enabled {
             let groups = m.plan.selected_groups(&drops);
-            match self.fold_context(&groups).await {
-                Ok(outcome) if outcome.folded_groups > 0 => {
-                    let backfilled = match self.backfill_folds(&outcome.fills).await {
-                        Ok(n) => n,
-                        Err(e) => {
-                            warn!(
-                                "锚点回填失败（折叠形停留空容器位，坐标仍在、可回源）: {e}"
-                            );
-                            0
-                        }
-                    };
-                    info!(
-                        "上下文预算折叠：占用 {} token（历史 {} + 系统侧 {}）超触发点 {}（窗口 {}），已折叠 {} 组（{} 条 → {} 个锚点，回填 {}），估计释放约 {} token{}",
-                        total_tokens,
-                        history_tokens,
-                        system_tokens,
-                        trigger,
-                        policy.context_window,
-                        outcome.folded_groups,
-                        outcome.folded_messages,
-                        outcome.folded_groups,
-                        backfilled,
-                        outcome.saved_tokens,
-                        if outcome.skipped_denied > 0 || outcome.skipped_embedded > 0 {
-                            format!(
-                                "；跳过 {} 组（外置拒绝 {} / 已折叠 {}，保留原样）",
-                                outcome.skipped_denied + outcome.skipped_embedded,
-                                outcome.skipped_denied,
-                                outcome.skipped_embedded
-                            )
-                        } else {
-                            String::new()
-                        }
+            let folded = match self.fold_context(&groups).await {
+                Ok(folded) => folded,
+                Err(e) => {
+                    // 括号右端—异常：折叠可能已产生外置副作用，右端必须广播（锁据此释放）
+                    self.broadcast(OrchestratorEvent::ContextCompactFailed {
+                        trigger: trigger_src.to_string(),
+                        stage: "fold".into(),
+                        error: e.to_string(),
+                    })
+                    .await;
+                    return Err(e);
+                }
+            };
+            let mut skip_note = String::new();
+            let mut summarized_groups = 0usize;
+            if folded.folded_groups > 0 {
+                // 阶段 3 · D4：LLM 摘要生成（失败 / 超预算逐组回退规则浓缩）
+                let (fills, summarized) = self.fold_fills_with_summaries(&folded).await;
+                summarized_groups = summarized;
+                match self.backfill_folds(&fills).await {
+                    Ok(n) => backfilled = n,
+                    Err(e) => {
+                        warn!("锚点回填失败（折叠形停留空容器位，坐标仍在、可回源）: {e}");
+                    }
+                }
+                if folded.skipped_denied > 0 || folded.skipped_embedded > 0 {
+                    skip_note = format!(
+                        "；跳过 {} 组（外置拒绝 {} / 已折叠 {}，保留原样）",
+                        folded.skipped_denied + folded.skipped_embedded,
+                        folded.skipped_denied,
+                        folded.skipped_embedded
                     );
                 }
-                Ok(outcome) => {
-                    // 候选组全部未折叠（外置拒绝 / 已是折叠形）——保留原样（宁超线勿丢）
-                    debug!(
-                        "上下文预算折叠：候选 {} 组均未折叠（外置拒绝 {} / 已折叠 {}），本轮不裁",
-                        groups.len(),
-                        outcome.skipped_denied,
-                        outcome.skipped_embedded
-                    );
-                }
-                Err(e) => warn!("上下文预算折叠失败: {e}"),
+            } else {
+                // 候选组全部未折叠（外置拒绝 / 已是折叠形）——保留原样（宁超线勿丢）
+                debug!(
+                    "上下文压缩（{trigger_src}）：候选 {} 组均未折叠（外置拒绝 {} / 已折叠 {}），本轮不压缩",
+                    groups.len(),
+                    folded.skipped_denied,
+                    folded.skipped_embedded
+                );
             }
-            return;
+            outcome.folded_groups = folded.folded_groups;
+            outcome.folded_messages = folded.folded_messages;
+            outcome.mode = if folded.folded_groups > 0 { "folded" } else { "none" }.into();
+            if folded.folded_groups > 0 {
+                info!(
+                    "上下文压缩（{trigger_src}）：占用 {} token（历史 {} + 系统侧 {}）超触发线 {}（窗口 {}），已折叠 {} 组（{} 条 → {} 个锚点，回填 {}，LLM 摘要 {} 组）{skip_note}",
+                    before_tokens,
+                    m.history_tokens,
+                    m.system_tokens,
+                    trigger,
+                    m.policy.context_window,
+                    folded.folded_groups,
+                    folded.folded_messages,
+                    folded.folded_groups,
+                    backfilled,
+                    summarized_groups
+                );
+            }
+        } else {
+            // 未注入外置器：既有「选择性删除」路径（A1 己2①）
+            let mask = drops.mask(m.message_count);
+            let dropped = match self.trim_context_dropping(&mask).await {
+                Ok(dropped) => dropped,
+                Err(e) => {
+                    self.broadcast(OrchestratorEvent::ContextCompactFailed {
+                        trigger: trigger_src.to_string(),
+                        stage: "trim".into(),
+                        error: e.to_string(),
+                    })
+                    .await;
+                    return Err(e);
+                }
+            };
+            outcome.dropped_messages = dropped;
+            outcome.mode = if dropped > 0 { "dropped" } else { "none" }.into();
         }
 
-        // 未注入外置器：既有「选择性删除」路径（A1 己2①）
-        let mask = drops.mask(total_msgs);
-        match self.trim_context_dropping(&mask).await {
-            Ok(dropped) => info!(
-                "上下文预算裁剪：占用 {} token（历史 {} + 系统侧 {}）超触发点 {}（窗口 {}），已按保留契约裁掉 {} 条（保留 {} 条）；释放约 {} token{}",
-                total_tokens,
-                history_tokens,
-                system_tokens,
-                trigger,
-                policy.context_window,
-                dropped,
-                total_msgs - dropped,
-                drops.dropped_tokens,
-                if drops.skipped_protected_groups > 0 {
-                    format!(
-                        "；{} 个受保护组跳过未裁（System/最新user/打标/最近{}条）",
-                        drops.skipped_protected_groups, retention_policy.keep_recent
-                    )
-                } else {
-                    String::new()
-                }
-            ),
-            Err(e) => warn!("上下文预算裁剪失败: {}", e),
-        }
+        // 压缩后重新计量（回填的压缩文本会改变最终占用，须以实测为准）
+        let after = self.measure_context().await;
+        outcome.after_tokens = after.history_tokens + after.system_tokens;
+        outcome.saved_tokens = outcome.before_tokens.saturating_sub(outcome.after_tokens);
+
+        // 括号右端：视图改写 + 回填结束（锁监听器据此解锁）
+        self.broadcast(OrchestratorEvent::ContextCompactFinished {
+            trigger: trigger_src.to_string(),
+            mode: outcome.mode.clone(),
+            before_tokens: outcome.before_tokens,
+            after_tokens: outcome.after_tokens,
+            saved_tokens: outcome.saved_tokens,
+            folded_groups: outcome.folded_groups,
+            folded_messages: outcome.folded_messages,
+            dropped_messages: outcome.dropped_messages,
+            skipped_protected_groups: outcome.skipped_protected_groups,
+            backfilled,
+        })
+        .await;
+
+        info!(
+            "上下文压缩（{}）：占用 {} → {} token（释放 {}；模式 {}；折叠 {} 组/{} 条，删除 {} 条；受保护跳过 {} 组）",
+            trigger_src,
+            outcome.before_tokens,
+            outcome.after_tokens,
+            outcome.saved_tokens,
+            outcome.mode,
+            outcome.folded_groups,
+            outcome.folded_messages,
+            outcome.dropped_messages,
+            outcome.skipped_protected_groups
+        );
+        Ok(outcome)
     }
 
     /// 计量上下文占用（历史 + 系统侧）并产出保留计划 —— 一次持锁取齐
@@ -1021,17 +1436,23 @@ impl AgentLoop {
 
         // 每轮重拼的系统侧文本（系统提示词 + 记忆注入 + 管线指引）——一并计入窗口占用
         // （修正前只累加 messages，真实窗口占用被系统性低估）
-        let system_tokens = {
+        let (system_tokens, system_bytes) = {
             let cfg = self.config.read().map(|g| g.system_prompt.clone()).unwrap_or(None);
             let mem = self.memory_context.read().map(|g| g.clone()).unwrap_or(None);
             let pipe = self.pipeline_context.read().map(|g| g.clone()).unwrap_or(None);
-            (self.token_estimator)(&cfg.unwrap_or_default())
-                + (self.token_estimator)(&mem.unwrap_or_default())
-                + (self.token_estimator)(&pipe.unwrap_or_default())
+            let bytes = cfg.as_ref().map(|s| s.len()).unwrap_or(0)
+                + mem.as_ref().map(|s| s.len()).unwrap_or(0)
+                + pipe.as_ref().map(|s| s.len()).unwrap_or(0);
+            (
+                (self.token_estimator)(&cfg.unwrap_or_default())
+                    + (self.token_estimator)(&mem.unwrap_or_default())
+                    + (self.token_estimator)(&pipe.unwrap_or_default()),
+                bytes,
+            )
         };
 
         // 逐条成本 + 保留契约分类（同一次持锁内取齐，避免两次快照不一致）
-        let (plan, costs, history_tokens, message_count) = {
+        let (plan, costs, history_tokens, message_count, content_bytes) = {
             let state = self.state.lock().await;
             let costs: Vec<usize> = state
                 .messages
@@ -1039,18 +1460,20 @@ impl AgentLoop {
                 .map(|m| (self.token_estimator)(&m.content) + MESSAGE_STRUCTURE_OVERHEAD_TOKENS)
                 .collect();
             let history: usize = costs.iter().sum();
+            let bytes: usize = state.messages.iter().map(|m| m.content.len()).sum();
             let plan = RetentionPlan::classify(&state.messages, &retention_policy);
-            (plan, costs, history, state.messages.len())
+            (plan, costs, history, state.messages.len(), bytes)
         };
 
         ContextMeasurement {
             policy,
-            retention_policy,
             plan,
             costs,
             history_tokens,
             system_tokens,
             message_count,
+            content_bytes,
+            system_bytes,
         }
     }
 
@@ -1077,68 +1500,40 @@ impl AgentLoop {
     /// 与 [`Self::enforce_context_budget`] 的差别只在**触发条件**：
     /// 自动路径等占用达最高压缩层（归档阈值 95%）才动；本方法由用户发起、
     /// 立即执行（`select_drops` 传入 trigger=0 = 全选可裁组语义）。
+    /// 执行体与自动路径共用 [`Self::run_compaction`]（阶段 3 归一，含事务括号事件）。
     ///
     /// - 受保护内容（System / 最新 user / 打标 / 最近 `keep_recent` 条）**永不触碰**
     /// - 注入外置器 → 折叠（原文先外置 → 锚点 + 压缩文本；外置被拒的组保留原样）
     /// - 未注入外置器 → 选择性删除（测试 / 未配置记忆环境的路径）
     /// - 流式进行中拒绝——循环正在写 state，压缩会与主流程竞态
     pub async fn compact_now(&self) -> Result<crate::context_budget::CompactOutcome, AgentError> {
-        use crate::context_budget::CompactOutcome;
-
         if self.is_streaming() {
             return Err(AgentError::Other("流式进行中，暂不可压缩上下文".into()));
         }
-
         let m = self.measure_context().await;
-        let before_tokens = m.history_tokens + m.system_tokens;
-        let mut outcome = CompactOutcome {
-            before_tokens,
-            ..Default::default()
-        };
+        self.run_compaction(m, 0, "manual").await
+    }
 
-        // trigger=0：全选可裁组（受保护组由 select_drops 自然跳过并计数）
-        let drops = m.plan.select_drops(&m.costs, before_tokens, 0);
-        outcome.skipped_protected_groups = drops.skipped_protected_groups;
-        if drops.is_empty() {
-            // 无可压内容（全在受保护范围内 / 会话太短）
-            outcome.after_tokens = before_tokens;
-            outcome.mode = "none".into();
-            return Ok(outcome);
-        }
-
-        if self.raw_context_enabled {
-            let groups = m.plan.selected_groups(&drops);
-            let folded = self.fold_context(&groups).await?;
-            if folded.folded_groups > 0 {
-                if let Err(e) = self.backfill_folds(&folded.fills).await {
-                    warn!("手动压缩：锚点回填失败（折叠形停留空容器位，坐标仍在、可回源）: {e}");
-                }
-            }
-            outcome.folded_groups = folded.folded_groups;
-            outcome.folded_messages = folded.folded_messages;
-            outcome.mode = if folded.folded_groups > 0 { "folded" } else { "none" }.into();
-        } else {
-            let mask = drops.mask(m.message_count);
-            let dropped = self.trim_context_dropping(&mask).await?;
-            outcome.dropped_messages = dropped;
-            outcome.mode = if dropped > 0 { "dropped" } else { "none" }.into();
-        }
-
-        // 折叠/删除后重新计量（回填的压缩文本会改变最终占用，须以实测为准）
-        let after = self.measure_context().await;
-        outcome.after_tokens = after.history_tokens + after.system_tokens;
-        outcome.saved_tokens = outcome.before_tokens.saturating_sub(outcome.after_tokens);
-        info!(
-            "手动压缩：占用 {} → {} token（释放 {}；模式 {}；折叠 {} 组/{} 条，删除 {} 条；受保护跳过 {} 组）",
-            outcome.before_tokens,
-            outcome.after_tokens,
-            outcome.saved_tokens,
-            outcome.mode,
-            outcome.folded_groups,
-            outcome.folded_messages,
-            outcome.dropped_messages,
-            outcome.skipped_protected_groups
-        );
+    /// A5 · 溢出压缩（provider 判定 `CONTEXT_WINDOW_EXCEEDED` 后的重发前置）
+    ///
+    /// 与 [`Self::compact_now`] 的差别：
+    /// - **不设 `is_streaming` 守卫**——调用点就在主循环内部（请求失败后的重发前），
+    ///   state 由本任务独占（守卫的防护对象是外部并发压缩）；
+    /// - 压缩后把新视图**重同步给 backend**（主链路请求内容取自 backend 内部视图，
+    ///   不重同步则重发仍是压缩前的历史）。
+    ///
+    /// 触发语义：provider 的溢出判定是上下文计量的**地面真值**（启发式估算漏判时
+    /// 的最后一道防线）；`trigger=0` = 全选可裁组（同手动压缩语义）。
+    pub(super) async fn compact_for_overflow(
+        &self,
+    ) -> Result<crate::context_budget::CompactOutcome, AgentError> {
+        let m = self.measure_context().await;
+        let outcome = self.run_compaction(m, 0, "overflow").await?;
+        let view = self.state.lock().await.messages.clone();
+        self.backend
+            .set_messages(view)
+            .await
+            .map_err(AgentError::from)?;
         Ok(outcome)
     }
 
@@ -1166,6 +1561,10 @@ impl AgentLoop {
             {
                 let state = self.state.lock().await;
                 if state.aborted {
+                    // A3 取消收口：已交付文本终结 + 中断锚点（先于 Error/AgentEnd 广播）
+                    let iteration = state.current_iteration;
+                    drop(state);
+                    self.finalize_interrupted_turn("user_abort", iteration).await;
                     return Err(AgentError::Aborted);
                 }
             }
@@ -1179,7 +1578,8 @@ impl AgentLoop {
                 // 转换状态机 Running → Cancelled（同时停止心跳定时器、清空内存）
                 let cancelled_record = self.long_task_manager.cancel_task().await;
                 if let Some(record) = cancelled_record {
-                    // 广播 StreamEnd（携带已生成的部分文本，便于 UI 显示）
+                    // A3 取消收口：已交付文本终结 + 中断锚点（原「广播 StreamEnd」注释即此意；
+                    // 现在由 finalize_interrupted_turn 统一落终稿 + 广播，不再只留注释）
                     // 注意：此处不持久化 cancelled_record，调用方（Tauri 命令层）负责
                     // 通过心跳定时器的 CheckpointFlush tick 或显式 save 落库
                     debug!(
@@ -1187,6 +1587,9 @@ impl AgentLoop {
                         record.task_id, record.turn_count
                     );
                 }
+                let iteration = self.state.lock().await.current_iteration;
+                self.finalize_interrupted_turn("cooperative_cancel", iteration)
+                    .await;
                 return Err(AgentError::Aborted);
             }
 
@@ -1228,6 +1631,21 @@ impl AgentLoop {
                 }
             }
 
+            // ── 阶段 2 · A3：pre-step 输入准入 ───
+            // inbox 三通道（FollowUp / Steer / Inject）在每轮请求构建**之前**统一裁决：
+            // waterfall 分发 InputAdmission（监听器可改写/丢弃；不调 next = 否决本轮），
+            // 准入项注入 state（随下方 set_messages 对本次请求生效）。压缩在其后计量，
+            // 因此注入的上下文同样参与预算判断。
+            let iteration = { self.state.lock().await.current_iteration };
+            self.consume_admitted_inputs(iteration).await;
+
+            // ── 阶段 3 · A2 补齐①：请求派生前压缩 ───
+            // 修正前压缩在 AfterRun（轮次结束后）——收益滞后一整轮；此处位于每轮
+            // LLM 请求派发（build_prompt_options / set_messages / prompt）之前，
+            // 压缩收益在同一轮请求上生效。轻量短路避免每轮全量计量的成本（见
+            // `enforce_context_budget`）。压缩失败仅告警，不阻断本轮请求。
+            self.enforce_context_budget().await;
+
             // 构建 PromptCallOptions（含工具定义，阶段 1.4）
             let options = self.build_prompt_options(&config_snapshot).await;
 
@@ -1239,6 +1657,10 @@ impl AgentLoop {
                     .await
                     .map_err(AgentError::from)?;
             }
+
+            // 阶段 3 · ④：请求快照（派发前采集——命令层监听器经同步分发先落 WAL，
+            // 崩溃后可由装载期补齐；视图增量保证任一请求可结构级重建）
+            self.capture_request_snapshot("main", &options, None).await;
 
             // 调用 LLM（空 prompt，因为消息已通过上方 set_messages 同步给 backend）
             //
@@ -1374,15 +1796,19 @@ impl AgentLoop {
     /// 清空状态和消息历史，释放资源。
     /// 调用后不应再使用该 AgentLoop 实例。
     pub async fn dispose(&self) {
-        let mut state = self.state.lock().await;
-        state.messages.clear();
-        state.current_iteration = 0;
-        state.total_steps_used = 0;
-        state.budget_warn_80_notified = false;
-        state.budget_warn_95_notified = false;
-        state.budget_final_notified = false;
-        state.aborted = true; // 标记为已销毁，防止后续 run
+        {
+            let mut state = self.state.lock().await;
+            state.messages.clear();
+            state.current_iteration = 0;
+            state.total_steps_used = 0;
+            state.budget_warn_80_notified = false;
+            state.budget_warn_95_notified = false;
+            state.budget_final_notified = false;
+            state.aborted = true; // 标记为已销毁，防止后续 run
+        }
         self.is_streaming.store(false, Ordering::SeqCst);
+        // Q1（2026-09-20）：随轮取消待回答提问（销毁后无人再应答，必须收口防永久阻塞）
+        self.cancel_pending_asks().await;
         // 同步停止长任务心跳定时器，避免泄漏
         self.long_task_manager.stop_heartbeat().await;
         debug!("AgentLoop dispose: 已释放资源");

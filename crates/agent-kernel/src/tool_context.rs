@@ -34,7 +34,9 @@ pub trait ToolStreamSink: Send + Sync {
 /// - `workdir`：会话绑定的工作区根目录（`None`=无约束，相对路径原样返回）
 /// - `project_id`：关联项目 ID（可选，供多项目/多工作区场景区分）
 /// - `workspace_id`：关联 Workspace 实体 id（Phase A，`None`=旧数据缺省）
+/// - `sandbox`：沙箱戳记（E3-1，按档位派生；`None`=不启用）
 /// - `tool_stream`：工具流式输出接收器（`None`=无流通道；注入者见 AgentLoop）
+/// - `is_sub_agent`：子代理标记（Q1，`true`=本执行在子代理循环内）
 ///
 /// # 约束
 /// 需满足 `Clone + Send + Sync`（并行工具执行时 `JoinSet::spawn` 需 clone 进每个 task）。
@@ -46,8 +48,19 @@ pub struct ToolContext {
     pub project_id: Option<String>,
     /// Workspace 实体 id（可选；Phase A，供工具/后续边界感知实体归属）
     pub workspace_id: Option<String>,
+    /// 沙箱戳记（E3-1，2026-09-18）：由会话档位派生的文件写效应策略；
+    /// `None`=不启用（面板/无 ctx 入口）。当前为**观测期**（仅日志与审计元信息），
+    /// 强制执行（受限令牌 + ACL）落 E3-2/E3-3——见 [crate::sandbox]
+    pub sandbox: Option<crate::sandbox::SandboxSpec>,
     /// 工具流式输出接收器（`None`=无流通道）
     pub tool_stream: Option<Arc<dyn ToolStreamSink>>,
+    /// 子代理标记（Q1，2026-09-20）：本次工具执行是否发生在子代理循环内
+    ///
+    /// 由 `AgentLoop` 注入（`sub_agent_pool` 构造子代理实例时置位）。供「仅主会话可用」
+    /// 的工具（如 `ask_user_question`）在 execute 内显式判定并 fail loud
+    /// （`ASK_UNAVAILABLE`）——子代理无独立会话实例、无人类应答者，提问会永久阻塞
+    /// （对齐 dsh `DELEGATED_CALLER` 口径）。
+    pub is_sub_agent: bool,
 }
 
 impl std::fmt::Debug for ToolContext {
@@ -56,7 +69,9 @@ impl std::fmt::Debug for ToolContext {
             .field("workdir", &self.workdir)
             .field("project_id", &self.project_id)
             .field("workspace_id", &self.workspace_id)
+            .field("sandbox", &self.sandbox)
             .field("tool_stream", &self.tool_stream.as_ref().map(|_| "<ToolStreamSink>"))
+            .field("is_sub_agent", &self.is_sub_agent)
             .finish()
     }
 }
@@ -128,7 +143,9 @@ mod tests {
             workdir: Some(PathBuf::from("/workspace")),
             project_id: None,
             workspace_id: None,
+            sandbox: None,
             tool_stream: None,
+            is_sub_agent: false,
         };
         let resolved = ctx.resolve_path("src/a.md");
         assert_eq!(resolved, PathBuf::from("/workspace/src/a.md"));
@@ -140,7 +157,9 @@ mod tests {
             workdir: Some(PathBuf::from("/workspace")),
             project_id: None,
             workspace_id: None,
+            sandbox: None,
             tool_stream: None,
+            is_sub_agent: false,
         };
         let resolved = ctx.resolve_path("/etc/passwd");
         assert_eq!(resolved, PathBuf::from("/etc/passwd"));
@@ -159,7 +178,9 @@ mod tests {
             workdir: Some(PathBuf::from("/workspace")),
             project_id: None,
             workspace_id: None,
+            sandbox: None,
             tool_stream: None,
+            is_sub_agent: false,
         };
         assert!(ctx.is_within_workdir("src/a.md"));
         assert!(ctx.is_within_workdir("/workspace/src/a.md"));
@@ -171,7 +192,9 @@ mod tests {
             workdir: Some(PathBuf::from("/workspace")),
             project_id: None,
             workspace_id: None,
+            sandbox: None,
             tool_stream: None,
+            is_sub_agent: false,
         };
         assert!(!ctx.is_within_workdir("/etc/passwd"));
         assert!(!ctx.is_within_workdir("../outside.md"));
@@ -181,5 +204,21 @@ mod tests {
     fn within_workdir_true_when_no_workdir() {
         let ctx = ToolContext::default();
         assert!(ctx.is_within_workdir("/any/path"));
+    }
+
+    #[test]
+    fn sandbox_stamp_defaults_to_none_and_propagates_on_clone() {
+        // E3-1：默认 ctx 不携带戳记（面板 / 无 ctx 入口）；显式注入时随 Clone 传播（并行工具 clone 进 task）
+        assert!(ToolContext::default().sandbox.is_none());
+        let mut ctx = ToolContext::default();
+        ctx.sandbox = Some(crate::sandbox::SandboxSpec {
+            mode: crate::sandbox::SandboxMode::WorkspaceWrite,
+            root: PathBuf::from("/workspace"),
+        });
+        let cloned = ctx.clone();
+        assert_eq!(
+            cloned.sandbox.expect("戳记应随 Clone 传播").mode,
+            crate::sandbox::SandboxMode::WorkspaceWrite
+        );
     }
 }

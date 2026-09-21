@@ -71,6 +71,17 @@ impl WinJob {
             Ok(())
         }
     }
+
+    /// 将进程句柄挂入 Job（E3-2 受限 spawn：挂起创建期挂接，无 pid 竞态；句柄由调用方持有不转移）
+    pub fn assign_handle(&self, process: HANDLE) -> Result<(), String> {
+        unsafe {
+            let r = AssignProcessToJobObject(self.job, process);
+            if r == 0 {
+                return Err("AssignProcessToJobObject(handle) 失败".into());
+            }
+            Ok(())
+        }
+    }
 }
 
 #[cfg(windows)]
@@ -93,6 +104,11 @@ impl WinJob {
     }
     #[allow(unused_variables)]
     pub fn assign(&self, pid: u32) -> Result<(), String> {
+        Ok(())
+    }
+    /// 非 Windows 占位（受限 spawn 为 Windows 专有，E3-2）
+    #[allow(unused_variables)]
+    pub fn assign_handle(&self, process: *mut std::ffi::c_void) -> Result<(), String> {
         Ok(())
     }
 }

@@ -1,6 +1,6 @@
     use super::*;
     use agent_runtime::backend::{BackendError, PromptCallOptions, PromptResponse};
-    use agent_runtime::event::EventListener;
+    use agent_runtime::event_bus::{Listener, ListenerOutcome};
     use agent_runtime::tool::SimpleToolBus;
     use agent_runtime::types::{MessageRole, OrchestratorMessage};
 
@@ -19,9 +19,6 @@
             tokio::time::sleep(self.delay).await;
             Ok(PromptResponse::text_only(format!("[slow] {prompt}")))
         }
-        async fn steer(&self, _text: String) -> Result<(), BackendError> {
-            Ok(())
-        }
         async fn get_messages(&self) -> Vec<OrchestratorMessage> {
             Vec::new()
         }
@@ -31,7 +28,7 @@
         async fn trim_context(&self, _up_to_index: usize) -> Result<(), BackendError> {
             Ok(())
         }
-        async fn subscribe_events(&self, _listener: Arc<dyn EventListener>) {}
+        async fn subscribe_events(&self, _listener: Arc<dyn Listener>) {}
         async fn current_model(&self) -> String {
             "slow-model".into()
         }
@@ -241,15 +238,16 @@
     struct RecordingListener {
         events: std::sync::Mutex<Vec<String>>,
     }
-    impl EventListener for RecordingListener {
-        fn on_event(&self, event: &OrchestratorEvent) {
+    impl Listener for RecordingListener {
+        fn call(&self, event: &OrchestratorEvent) -> ListenerOutcome {
             let name = match event {
                 OrchestratorEvent::SubAgentStarted { .. } => "start",
                 OrchestratorEvent::SubAgentCompleted { .. } => "completed",
                 OrchestratorEvent::SubAgentError { .. } => "error",
-                _ => return,
+                _ => return ListenerOutcome::Continue,
             };
             self.events.lock().unwrap().push(name.to_string());
+            ListenerOutcome::Continue
         }
     }
 

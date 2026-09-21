@@ -1,5 +1,6 @@
 //! agent-commands 命令层（服务层）：封装 AgentLoop 能力为 Tauri 可调用的命令服务，详细见 docs/details/注释/agent-commands/lib.md
 
+mod ask_tools;
 mod error;
 mod fs_tools;
 pub mod job;
@@ -10,7 +11,10 @@ mod memory_tools;
 mod pattern_registry;
 mod pty;
 mod raw_tools;
+mod request_snapshot;
+pub mod sandbox;
 // A2-2：工作区检索工具（workspace_search）
+mod workspace_path;
 mod workspace_tools;
 mod run_store;
 mod session_store;
@@ -18,6 +22,8 @@ mod subagent;
 mod subagent_store;
 mod supervisor_worker;
 mod terminal;
+mod timer_tools;
+mod timers;
 
 pub use error::CommandError;
 pub use fs_tools::register_fs_tools;
@@ -43,10 +49,13 @@ pub use session_store::{
     SessionEventRecord, SessionKind, SessionLogEntry, SessionLogStats, SessionRecord,
     SessionRepository, SqliteSessionRepository, WorkdirRecord, WorkspaceRecord,
 };
+// 阶段 3 · ④（D14：本期不做 UI）：重建 API 作为 crate 公共面暴露，
+// 供诊断 / 后续面板消费；「重建语义（结构级）」见 08-请求头快照设计草案 D10。
+pub use session_store::{reconstruct_request_view, RequestSnapshotRecord};
 pub use subagent::{register_subagent_tools, SubAgentInstanceInfo, SubAgentManager};
 pub use subagent_store::{SqliteSubAgentSpecStore, SubAgentSpecStore};
 pub use supervisor_worker::SubAgentWorkerNode;
-pub use terminal::{register_terminal_tools, TerminalService};
+pub use terminal::{register_terminal_tools, ShellSessionManager, TerminalService};
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -56,12 +65,16 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use agent_memory::MemoryCenterAccessor;
 // B 轨统一骨架（S1 适配层：编排双轨收拢试点引擎；`b_rail` 前缀避免与 kernel 同名类型混淆）
 use agent_patterns::orchestrator as b_rail;
+use agent_runtime::agent::prompt_sections::{assemble_sections, order, PromptSection};
 use agent_runtime::agent::{AgentLoop, AgentLoopConfig, AgentState, AgentStateSnapshot};
 use agent_runtime::backend::{NodeBackendAccessor, PromptCallOptions, ThinkingLevel};
-use agent_runtime::confirmation::{ConfirmationBroker, ConfirmationPolicy};
-use agent_runtime::event::{
-    EventBroadcaster, EventListener, OrchestratorEndStatus, OrchestratorEvent, TracePhaseStatus,
+use agent_runtime::confirmation::{
+    AskAnswer, AskOutcome, ConfirmationBroker, ConfirmationOutcome, ConfirmationPolicy,
 };
+use agent_runtime::event::{
+    EventBroadcaster, OrchestratorEndStatus, OrchestratorEvent, TracePhaseStatus,
+};
+use agent_runtime::event_bus::{Listener, ListenerOutcome};
 use agent_runtime::llm::config::ProviderConfig as RuntimeProviderConfig;
 use agent_runtime::llm::GenaiBackend;
 use agent_runtime::long_task::HeartbeatStatus;
@@ -191,12 +204,81 @@ struct ForwardToAgentBroadcaster {
     target: Arc<RwLock<EventBroadcaster>>,
 }
 
-impl EventListener for ForwardToAgentBroadcaster {
-    fn on_event(&self, event: &OrchestratorEvent) {
+impl Listener for ForwardToAgentBroadcaster {
+    fn call(&self, event: &OrchestratorEvent) -> ListenerOutcome {
         if let Ok(b) = self.target.try_read() {
             b.broadcast(event);
         }
+        ListenerOutcome::Continue
     }
+}
+
+/// 压缩事务锁监听器（阶段 3 · A2 补齐②）——把压缩括号事件映射为锁文件的落 / 解
+///
+/// - `ContextCompactStarted` → 落锁（`{记忆根}/raw/locks/{session}.lock`）
+/// - `ContextCompactFinished` / `ContextCompactFailed` → 解锁
+///
+/// **同步回调保证顺序**：事件经总线同步分发，落锁必然发生在压缩的任何副作用
+/// （外置写盘 / 视图改写）之前；崩溃时右端事件丢失 → 锁残留 → 孤儿可检测
+/// （装载期由 [`reconcile_orphan_compact_lock`] 收敛）。
+/// 锁是诊断增强：落锁 / 解锁失败仅告警，不阻断压缩主流程。
+struct CompactLockListener {
+    store: agent_memory::raw_store::RawStore,
+    session_id: String,
+}
+
+impl Listener for CompactLockListener {
+    fn call(&self, event: &OrchestratorEvent) -> ListenerOutcome {
+        match event {
+            OrchestratorEvent::ContextCompactStarted {
+                trigger,
+                before_tokens,
+                ..
+            } => {
+                let lock = agent_memory::raw_store::CompactLock {
+                    session_id: self.session_id.clone(),
+                    pid: std::process::id(),
+                    trigger: trigger.clone(),
+                    before_tokens: *before_tokens,
+                    started_at_ms: now_unix_ms(),
+                };
+                if self.store.acquire_compact_lock(&lock).is_none() {
+                    tracing::warn!(
+                        session = %self.session_id,
+                        "压缩事务锁落锁失败（孤儿检测降级，压缩继续）"
+                    );
+                }
+            }
+            OrchestratorEvent::ContextCompactFinished { .. }
+            | OrchestratorEvent::ContextCompactFailed { .. } => {
+                self.store.release_compact_lock(&self.session_id);
+            }
+            _ => {}
+        }
+        ListenerOutcome::Continue
+    }
+}
+
+/// 压缩事务孤儿锁收敛（阶段 3 · A2 补齐②）——会话装载期清理上次中断遗留的锁
+///
+/// 判定依据：本函数在 AgentLoop 构建期调用（此刻本会话尚无活跃实例），
+/// 存在锁文件 → 必为上次进程中断（崩溃 / 强杀）遗留。返回孤儿记录供调用方告警；
+/// 外置残留文件（若有）由外置 GC 按「无引用 + 宽限期」自然收敛，此处只清锁标记。
+fn reconcile_orphan_compact_lock(
+    store: &agent_memory::raw_store::RawStore,
+    session_id: &str,
+) -> Option<agent_memory::raw_store::CompactLock> {
+    let orphan = store.read_compact_lock(session_id)?;
+    store.release_compact_lock(session_id);
+    Some(orphan)
+}
+
+/// 当前 Unix 毫秒时间戳（压缩事务锁落锁时间）
+fn now_unix_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
 }
 
 // ═══ B 轨（统一骨架）Plan-and-Execute 试点引擎辅助层（S1 适配层）═══
@@ -914,6 +996,11 @@ pub struct AgentCommandService {
     /// `None`（默认）：不注入。
     mcp_tools_provider:
         Option<Arc<dyn Fn() -> Vec<Arc<dyn Tool>> + Send + Sync>>,
+    /// M7（2026-09-17 三域对齐 dsh）：server instructions 供给器（Tauri 层注入 McpHub 快照）
+    ///
+    /// `new_agent` 构造会话时同步调用，把各已连接 server 的 instructions（自述用法，
+    /// Rust 侧已截断至 600 字符）并入 `mcp_note` 提示段。`None`（默认）：不注入。
+    mcp_notes_provider: Option<Arc<dyn Fn() -> Vec<(String, String)> + Send + Sync>>,
     /// A1 §6.2：折叠引用登记用的扩展库（惰性构造，同 `memory_root` 下的 `memory_ext.db`）
     ///
     /// 折叠形消息的 `meta["fold"].raw` 记录了外置坐标；`persist_messages` 扫描折叠形
@@ -1241,15 +1328,26 @@ impl AgentCommandService {
     /// 手动压缩会话上下文「一次到底」（/compact 指令与面板按钮）
     ///
     /// 流式进行中由底座拒绝（`AgentError::Other`）；返回压缩前后占用与释放量。
+    ///
+    /// **写穿（05-§2.3 缺口 1 修复，2026-09-17）**：压缩改写活跃视图（折叠/删除），
+    /// 成功后同步消息数并 `persist_messages` 落库——否则重启恢复回退旧视图
+    /// （回执与落库不一致）；弱提示语义与其余写穿点一致（失败仅日志不阻断）。
     pub async fn compact_context(
         &self,
         session_id: &str,
     ) -> Result<agent_runtime::context_budget::CompactOutcome, CommandError> {
         let agent = self.get_agent(session_id).await?;
-        agent
+        let outcome = agent
             .compact_now()
             .await
-            .map_err(|e| CommandError::Internal(e.to_string()))
+            .map_err(|e| CommandError::Internal(e.to_string()))?;
+        // 压缩改写活跃视图（折叠/删除）→ 消息数与视图写穿（与 send_message 收尾/trim 同模式）
+        let count = agent.get_messages().await.len() as u32;
+        if let Some(meta) = self.meta.lock().await.get_mut(session_id) {
+            meta.message_count = count;
+        }
+        self.persist_messages(session_id).await;
+        Ok(outcome)
     }
 
     /// 重建某会话的语义检索索引（A2 戊1；配置面板「重建索引」按钮）
@@ -1494,23 +1592,33 @@ impl AgentCommandService {
         self.mcp_tools_provider = Some(provider);
     }
 
+    /// M7（2026-09-17 三域对齐 dsh）：注入 server instructions 供给器
+    ///
+    /// Tauri 层 setup 传入（内部读 McpHub instructions 快照）；`new_agent` 构造
+    /// 会话时同步调用，并入 `mcp_note` 提示段（各 server 一行「id 说明：...」）。
+    pub fn set_mcp_notes_provider(
+        &mut self,
+        provider: Arc<dyn Fn() -> Vec<(String, String)> + Send + Sync>,
+    ) {
+        self.mcp_notes_provider = Some(provider);
+    }
+
     /// 把指定 agent 的 tool_bus 用 MCP 工具快照做「分组注册」（T09①，2026-09-01）
     ///
-    /// 按工具名前缀 `mcp_{server_id}_` 分组调用 `register_mcp_tools`，使
+    /// 按 [`Tool::mcp_server_id`] 分组调用 `register_mcp_tools`，使
     /// SimpleToolBus 记录 server_id → 工具名归属（供 `unregister_mcp_server` 按服务器注销）。
     /// `new_agent` / `hot_inject_mcp_tools` 共用，保证两条注入路径归属一致。
     async fn register_mcp_bus(&self, bus: &dyn ToolBus, tools: &[Arc<dyn Tool>]) {
         let mut grouped: std::collections::BTreeMap<String, Vec<Arc<dyn Tool>>> = Default::default();
         for t in tools {
-            // 名字契约：mcp_{server_id}_{tool_name}（server_id 不含下划线）
-            if let Some(rest) = t.name().strip_prefix("mcp_") {
-                if let Some(pos) = rest.find('_') {
-                    grouped.entry(rest[..pos].to_string()).or_default().push(t.clone());
-                    continue;
-                }
-            }
-            // 非标 MCP 命名兜底：单工具组（服务器 id 取名字符串，可被按名注销）
-            grouped.entry("misc".to_string()).or_default().push(t.clone());
+            // M3（2026-09-17 三域对齐 dsh）：归属改由 `Tool::mcp_server_id()` 表达，
+            // 不再从工具名反解析——命名契约（mcp__server__tool）与归属信息解耦。
+            let key = t
+                .mcp_server_id()
+                .map(str::to_string)
+                // 非 MCP 工具兜底：以全名自成一组（可按名注销）
+                .unwrap_or_else(|| t.name().to_string());
+            grouped.entry(key).or_default().push(t.clone());
         }
         for (server_id, tools) in grouped {
             bus.register_mcp_tools(server_id, tools).await;
@@ -1551,15 +1659,9 @@ impl AgentCommandService {
         let mut affected = 0usize;
         for agent in sessions.values() {
             let bus = agent.tool_bus();
-            // 仅当该服务器的工具确实存在于会话总线才注销（避免无谓遍历）
-            let prefix = format!("mcp_{server_id}_");
-            let exists = bus
-                .list_all()
-                .await
-                .into_iter()
-                .any(|d| d.name.starts_with(&prefix));
-            if exists {
-                bus.unregister_mcp_server(server_id).await;
+            // M3：按真实移除数判定受影响会话（原为工具名前缀反查，依赖命名格式）
+            let removed = bus.unregister_mcp_server(server_id).await;
+            if removed > 0 {
                 affected += 1;
             }
         }
@@ -1662,6 +1764,7 @@ impl AgentCommandService {
         &self,
         session_id: &str,
         system_prompt: Option<String>,
+        prompt_sections: Vec<PromptSection>,
         provider_config: Option<RuntimeProviderConfig>,
         scenario: Option<Arc<dyn Scenario>>,
         workdir: Option<PathBuf>,
@@ -1719,7 +1822,10 @@ impl AgentCommandService {
             None => None,
         };
         // 注册终端工具（execute_command + 持久化 shell 会话）
-        terminal::register_terminal_tools(&*tool_bus).await;
+        // 批次 C·S1（2026-09-20）：PTY 会话池提升为会话级共享实例——终端工具与
+        // 定时唤醒服务（watch 捕获读游标）同源；此前池封闭在注册函数内、外部不可达。
+        let shell_manager = terminal::ShellSessionManager::new();
+        terminal::register_terminal_tools(&*tool_bus, shell_manager.clone()).await;
         // 注册文件系统工具（read_file/write_file/list_directory/search_files/edit_file），
         // 基于 ToolContext.workdir 解析相对路径；写在 terminal 之后（FS 为独立工具组）。
         fs_tools::register_fs_tools(&*tool_bus).await;
@@ -1751,8 +1857,8 @@ impl AgentCommandService {
         }
         // H2 MCP 重建（P2，2026-08-30）：注入当前已连接的 MCP 工具（动态拉取快照——
         // 连接变更后新建的会话拿到新工具集，与技能/规则同策略）
-        // MCP 感知注记：工具名 `mcp_{server_id}_` 前缀对 LLM 不够显性（真机实测模型曾答
-        // 「没有接入任何 MCP 工具」，尽管总线里已有 33 个 mcp_* 工具）——把已连接服务器
+        // MCP 感知注记：工具名 `mcp__{server_id}__` 前缀对 LLM 不够显性（真机实测模型曾答
+        // 「没有接入任何 MCP 工具」，尽管总线里已有 33 个 mcp__* 工具）——把已连接服务器
         // 清单写进 system prompt，使模型能直接回答/调用
         let mut mcp_note = String::new();
         if let Some(provider) = &self.mcp_tools_provider {
@@ -1760,22 +1866,35 @@ impl AgentCommandService {
             if !mcp_tools.is_empty() {
                 let mut counts: std::collections::BTreeMap<String, usize> = Default::default();
                 for t in &mcp_tools {
-                    // 名字契约：mcp_{server_id}_{tool_name}（server_id 不含下划线）
-                    if let Some(rest) = t.name().strip_prefix("mcp_") {
-                        if let Some(pos) = rest.find('_') {
-                            *counts.entry(rest[..pos].to_string()).or_default() += 1;
+                    // M3：归属走 Tool::mcp_server_id()（不再按名字反解析）
+                    if let Some(id) = t.mcp_server_id() {
+                        // M7：枢纽级工具（resources 三件）不计入服务器清单
+                        if id == agent_runtime::mcp::MCP_HUB_TOOL_GROUP {
+                            continue;
                         }
+                        *counts.entry(id.to_string()).or_default() += 1;
                     }
                 }
                 let list: Vec<String> = counts
                     .iter()
-                    .map(|(id, c)| format!("{id}（{c} 个工具，前缀 mcp_{id}_）"))
+                    .map(|(id, c)| {
+                        format!(
+                            "{id}（{c} 个工具，前缀 mcp__{}__）",
+                            agent_runtime::mcp::sanitize_segment(id)
+                        )
+                    })
                     .collect();
                 mcp_note = format!(
-                    "\n\n[MCP 环境] 当前已连接 {} 个 MCP 服务器：{}。工具名以 mcp_ 开头的即 MCP 工具，可直接调用；若用户问及 MCP 能力，请基于本清单回答。",
+                    "[MCP 环境] 当前已连接 {} 个 MCP 服务器：{}。工具名以 mcp__ 开头的即 MCP 工具，可直接调用；若用户问及 MCP 能力，请基于本清单回答。",
                     list.len(),
                     list.join("、")
                 );
+                // M7：server instructions（各 server 自述用法；Rust 侧已截断）
+                if let Some(provider) = &self.mcp_notes_provider {
+                    for (id, text) in provider() {
+                        mcp_note.push_str(&format!("\n- {id} 说明：{text}"));
+                    }
+                }
             }
             self.register_mcp_bus(tool_bus.as_ref(), &mcp_tools).await;
         }
@@ -1801,10 +1920,23 @@ impl AgentCommandService {
             }
             None => self.entity_provider.clone(),
         };
-        // MCP 感知注记追加到 system prompt 末尾（无 MCP 时为空串，不影响原 prompt）
-        let system_prompt = match system_prompt {
-            Some(p) if !mcp_note.is_empty() => Some(format!("{p}{mcp_note}")),
-            other => other,
+        // A4 双端收口：MCP 注记段化（静态注入带尾 order 290）。
+        // - 结构化路径（prompt_sections 非空）：注记作为 `mcp_note` 段追加（不再字符串拼接）；
+        //   同步产出静态合集缓存（= 段组装文本，供 run() 首条 System 消息推入等 legacy 消费）。
+        // - legacy 路径（群聊 / 老会话）：保持原「文本 + 注记尾部拼接」行为不变。
+        let (system_prompt, prompt_sections) = if prompt_sections.is_empty() {
+            let text = match system_prompt {
+                Some(p) if !mcp_note.is_empty() => Some(format!("{p}{mcp_note}")),
+                other => other,
+            };
+            (text, Vec::new())
+        } else {
+            let mut sections = prompt_sections;
+            if !mcp_note.is_empty() {
+                sections.push(PromptSection::new("mcp_note", order::MCP_NOTE, mcp_note.clone()));
+            }
+            let text = assemble_sections(sections.clone());
+            (text, sections)
         };
         // A5 HITL + 场景确认策略（2026-09-09 场景底座）：按场景调危险操作确认强度
         // （场景未覆写时缺省 dangerous_only——execute_command 危险命令 / delegate_to_sub_agent）。
@@ -1818,6 +1950,7 @@ impl AgentCommandService {
         let memory_tier = scenario.as_ref().map(|s| s.memory_policy().params());
         let agent_config = AgentLoopConfig {
             system_prompt,
+            prompt_sections,
             // B1：场景（None=默认静态 prompt / 默认工具视图）
             scenario,
             // B1 场景上下文注入：把实体访问器传给 AgentLoop，供 build_prompt_options 注入实体摘要
@@ -1862,8 +1995,11 @@ impl AgentCommandService {
                 }
             }
         }
-        // A5 HITL：为每个会话注入独立的确认协调器（配合 confirmation_policy 生效）
-        agent_builder = agent_builder.with_confirmation(Some(Arc::new(ConfirmationBroker::new())));
+        // A5 HITL / Q1 提问（2026-09-20）：为每个会话注入独立的确认协调器
+        // （配合 confirmation_policy 生效）；提问通道复用同一 broker——阻塞原语同构
+        let confirmation_broker = Arc::new(ConfirmationBroker::new());
+        agent_builder =
+            agent_builder.with_confirmation(Some(Arc::clone(&confirmation_broker)));
         agent_builder = agent_builder.with_router(Some(router));
         // 记忆注入（A1：「Agent 记忆工具」批起与工具注册共用同一实例，见上方构造处）：
         // 自动召回 / 归档链路与显式工具操作**落在同一个访问器**上——避免两套连接与状态。
@@ -1876,6 +2012,90 @@ impl AgentCommandService {
             self.ensure_memory_gc_task();
         }
         let agent = Arc::new(agent_builder);
+        // Q1 提问工具（2026-09-20）：注册提问工具到会话工具总线。
+        // 两依赖（broker 阻塞通道 / broadcaster 事件广播）中 broadcaster 需从 agent 取句柄，
+        // 故注册置于 agent 构造之后、`run` 之前；可见性由 kernel `SYSTEM_BASE_TOOLS` 保证。
+        ask_tools::register_ask_tools(
+            &*agent.tool_bus(),
+            Arc::clone(&confirmation_broker),
+            agent.broadcaster_ref(),
+        )
+        .await;
+        // S1 定时唤醒（2026-09-20，批次 C）：三件套注册 + 恢复扫描（补投/重新武装）。
+        // 仅在配置了会话持久化存储时启用（无 store 则定时器无法跨重启存在，工具不注册）。
+        if let Some(store) = &self.session_store {
+            let runner = Arc::new(timers::TimerRunner::new(
+                Arc::clone(&agent),
+                shell_manager.clone(),
+                store.clone(),
+                session_id.to_string(),
+            ));
+            timer_tools::register_timer_tools(
+                &*agent.tool_bus(),
+                timer_tools::TimerDeps::new(
+                    store.clone(),
+                    session_id.to_string(),
+                    shell_manager.clone(),
+                )
+                .with_runner(Arc::clone(&runner)),
+            )
+            .await;
+            timers::restore_and_arm(runner).await;
+        }
+        // 阶段 3 · A2 补齐②③：压缩事务锁（括号事件 → 外置根 raw/locks 锁文件）
+        // - 装载期孤儿收敛：上次压缩中断（崩溃 / 强杀）遗留的锁在此检测清理
+        // - 运行期：Started 落锁 / Finished·Failed 解锁（同步回调，先于压缩副作用）
+        // 未配置记忆根（无外置存储）时不启用——锁的检测对象是外置残留，属增强项。
+        if let Some(root) = &self.memory_root {
+            match agent_memory::raw_store::RawStore::open(root) {
+                Ok(store) => {
+                    if let Some(orphan) = reconcile_orphan_compact_lock(&store, session_id) {
+                        tracing::warn!(
+                            session = %session_id,
+                            orphan_pid = orphan.pid,
+                            trigger = %orphan.trigger,
+                            started_at_ms = orphan.started_at_ms,
+                            "检测到压缩事务孤儿锁（上次压缩被中断）：已清理锁标记；外置残留由外置 GC 收敛"
+                        );
+                    }
+                    let lock_listener = Arc::new(CompactLockListener {
+                        store,
+                        session_id: session_id.to_string(),
+                    });
+                    for key in [
+                        agent_runtime::event::keys::CONTEXT_COMPACT_STARTED,
+                        agent_runtime::event::keys::CONTEXT_COMPACT_FINISHED,
+                        agent_runtime::event::keys::CONTEXT_COMPACT_FAILED,
+                    ] {
+                        agent.subscribe_key(key, lock_listener.clone()).await;
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!("压缩事务锁未启用（打开外置目录失败）: {e}");
+                }
+            }
+        }
+        // 阶段 3 · ④：请求快照采集（D11：同步 WAL + 异步落库 + 装载期补齐）
+        // 无持久化存储 / 无记忆根时不启用——快照的查询面就是存储。
+        if let (Some(root), Some(store)) = (&self.memory_root, &self.session_store) {
+            let path = request_snapshot::wal_path(root, session_id);
+            let gate = Arc::new(request_snapshot::WalGate::new());
+            let notify = request_snapshot::spawn_snapshot_flusher(
+                store.clone(),
+                session_id.to_string(),
+                path.clone(),
+                Arc::clone(&gate),
+            );
+            let listener = Arc::new(request_snapshot::RequestSnapshotListener::new(
+                path, notify, gate,
+            ));
+            agent
+                .subscribe_key(
+                    agent_runtime::event::keys::REQUEST_SNAPSHOT_CAPTURED,
+                    listener,
+                )
+                .await;
+        }
         // 将子 Agent 管理器的广播器指向主 Agent 的广播器，
         // 使子 Agent 委派事件（Started/Completed/Error）能透传到订阅主 Agent 的前端。
         sub_agent_manager.set_broadcaster(agent.broadcaster_ref());
@@ -1953,6 +2173,7 @@ impl AgentCommandService {
     pub async fn new_session(
         &self,
         system_prompt: Option<String>,
+        prompt_sections: Vec<PromptSection>,
         provider_config: Option<RuntimeProviderConfig>,
         scenario_id: Option<String>,
         workdir: Option<PathBuf>,
@@ -1961,6 +2182,7 @@ impl AgentCommandService {
     ) -> Result<SessionInfo, CommandError> {
         self.new_session_with_kind(
             system_prompt,
+            prompt_sections,
             provider_config,
             SessionKind::Chat,
             scenario_id,
@@ -1993,7 +2215,10 @@ impl AgentCommandService {
                 ))
             }
         };
-        store.upsert_workspace(workdir, label, scene_id).await
+        // W1（2026-09-18）：实体边界兜底规范化——任何调用方传入不同写法都归一到同一身份
+        //（调用侧亦已规范化，此处保证未来新调用方不漏）
+        let normalized = crate::workspace_path::normalize_workdir(workdir);
+        store.upsert_workspace(&normalized, label, scene_id).await
     }
 
     /// 从目录路径导出展示用名称（取末段；根路径无末段时回退全路径）
@@ -2034,6 +2259,7 @@ impl AgentCommandService {
     async fn new_session_with_kind(
         &self,
         system_prompt: Option<String>,
+        prompt_sections: Vec<PromptSection>,
         provider_config: Option<RuntimeProviderConfig>,
         kind: SessionKind,
         scenario_id: Option<String>,
@@ -2043,8 +2269,21 @@ impl AgentCommandService {
     ) -> Result<SessionInfo, CommandError> {
         // 先生成会话 ID，作为记忆隔离依据传入 new_agent（构造 MemoryCenterAccessor）
         let id = uuid::Uuid::new_v4().to_string();
-        // new_agent 会 move system_prompt，先克隆一份供后续持久化使用
-        let persisted_prompt = system_prompt.clone();
+        // new_agent 会 move 入参，先在持久化前算出落库形态。
+        // A4 双端收口：结构化路径落「段组装缓存文本」（等价旧 TS 拼装结果；不含 `mcp_note`——
+        // 与旧行为一致：旧库存的也是入参文本、不含注记，恢复时由 new_agent 按当前 MCP 清单重生成）；
+        // legacy 路径保持入参文本。
+        let persisted_prompt = if prompt_sections.is_empty() {
+            system_prompt.clone()
+        } else {
+            assemble_sections(prompt_sections.clone())
+        };
+        // A4 双端收口：段 JSON 写穿（结构化路径；空=legacy 文本路径不落段）
+        let persisted_sections = if prompt_sections.is_empty() {
+            None
+        } else {
+            serde_json::to_string(&prompt_sections).ok()
+        };
         // 场景解析：会话级装配单元（身份 prompt/工具/技能/工作区隔离；None=默认 world）
         let scenario = self.resolve_scenario(scenario_id.as_deref());
         let resolved_scene_id = scenario.as_ref().map(|s| s.id().to_string());
@@ -2067,6 +2306,12 @@ impl AgentCommandService {
                 }
             }
         }
+        // W1（2026-09-18 工作区与环境对齐 dsh）：工作区路径身份规范化——
+        // 同目录不同写法（大小写/短名/.. /尾分隔符/符号链接）不再分裂出多条 Workspace 实体；
+        // 规范化一次后，session.workdir / workspaces.root / 工具边界三方同源。
+        let workdir = workdir.map(|wd| {
+            PathBuf::from(crate::workspace_path::normalize_workdir(&wd.to_string_lossy()))
+        });
         // workdir 会被 move 进 new_agent，先转成字符串供 SessionInfo/SessionRecord 复用
         let workdir_str = workdir.as_ref().map(|p| p.to_string_lossy().to_string());
         // Phase A：workdir 存在时为其删除/复用 Workspace 实体取 workspace_id（幂等）
@@ -2095,6 +2340,7 @@ impl AgentCommandService {
             .new_agent(
                 &id,
                 system_prompt,
+                prompt_sections,
                 provider_config,
                 scenario,
                 workdir,
@@ -2126,6 +2372,7 @@ impl AgentCommandService {
             let record = SessionRecord {
                 id: id.clone(),
                 system_prompt: persisted_prompt.unwrap_or_default(),
+                prompt_sections: persisted_sections,
                 created_at: info.created_at,
                 message_count: 0,
                 updated_at: info.created_at,
@@ -2157,7 +2404,7 @@ impl AgentCommandService {
     /// 诊断：列出指定会话 tool_bus 的全部工具名（2026-08-30，MCP 注入链路验证用）
     ///
     /// 返回 LLM 工具视图的同源清单（`tool_bus.list_all()`），可用于核对
-    /// MCP 工具（`mcp_{server_id}_` 前缀）是否真正注册进会话。
+    /// MCP 工具（`mcp__{server_id}__` 前缀）是否真正注册进会话。
     pub async fn tool_names(&self, session_id: &str) -> Result<Vec<String>, CommandError> {
         let agent = self.get_agent(session_id).await?;
         Ok(agent
@@ -2237,9 +2484,14 @@ impl AgentCommandService {
             .collect();
         let tool_ctx = agent_runtime::ToolContext {
             workdir: agent.workdir(),
-            project_id: None,
+            // W2①（2026-09-18）：此前恒 None——计划步骤内工具执行同样应携带项目归属
+            project_id: agent.project_id(),
             workspace_id: agent.workspace_id(),
+            // E3-1（2026-09-18）：计划步骤工具与主循环同口径携带沙箱戳记（观测期）
+            sandbox: agent.sandbox_spec(),
             tool_stream: None,
+            // Q1（2026-09-20）：计划步骤工具属主会话执行（非子代理）——提问类工具可用
+            is_sub_agent: false,
         };
         let tool_handle: Arc<dyn b_rail::ToolHandle> = Arc::new(BusToolHandle {
             bus: Arc::clone(&tool_bus),
@@ -2850,10 +3102,10 @@ impl AgentCommandService {
         };
         // Phase A：workspace_id 存在但 workdir 缺失时，用 workspaces.root 兜底，
         // 保证前端会话树按目录分组不回归（workdir 为实体 root 派生）。
-        if list
-            .iter()
-            .any(|s| s.workspace_id.is_some() && s.workdir.is_none())
-        {
+        // W2①（2026-09-18 工作区与环境对齐 dsh）：「读路径统一走 workspace 实体」——
+        // 由「仅缺失兜底」升级为**实体优先**（与 restore_sessions 同口径）：只要
+        // workspace_id 能解析出 root 就以实体 root 为准，workdir 列降为无实体时的回退。
+        if list.iter().any(|s| s.workspace_id.is_some()) {
             if let Some(store) = &self.session_store {
                 let workspaces = store.list_workspaces().await?;
                 let mut root_by_id: HashMap<String, String> = HashMap::new();
@@ -2861,11 +3113,9 @@ impl AgentCommandService {
                     root_by_id.insert(ws.id.clone(), ws.root.clone());
                 }
                 for s in list.iter_mut() {
-                    if s.workdir.is_none() {
-                        if let Some(ws_id) = &s.workspace_id {
-                            if let Some(root) = root_by_id.get(ws_id) {
-                                s.workdir = Some(root.clone());
-                            }
+                    if let Some(ws_id) = &s.workspace_id {
+                        if let Some(root) = root_by_id.get(ws_id) {
+                            s.workdir = Some(root.clone());
                         }
                     }
                 }
@@ -2970,11 +3220,37 @@ impl AgentCommandService {
             } else {
                 workspace_id.clone()
             };
+            // W1（2026-09-18 工作区与环境对齐 dsh）：恢复读路径统一为规范化形态（幂等）——
+            // 覆盖三源：workspace 实体 root / 持久化 workdir 列（可能为旧写法）/ 场景自愈新根；
+            // 与 workspaces.root、工具边界三方同源（自愈写穿落库的亦为此形态）。
+            let workdir_str = workdir_str.map(|wd| crate::workspace_path::normalize_workdir(&wd));
+            // W2②（2026-09-18 工作区与环境对齐 dsh）：`workdir` 列 = **派生缓存**，
+            // 事实源 = `workspaces.root`——实体权威值可解析且与缓存列不一致时（老数据 /
+            // 手工改库 / 历史语义变更），以实体为准并在下方**写穿矫正**；否则每次读都要
+            // 在内存里矫正、DB 永远脏（list_sessions 属读 API 不写盘，矫正统一收敛在启动期）。
+            let entity_root_resolved = workspace_id
+                .as_ref()
+                .and_then(|id| root_by_wsid.get(id))
+                .is_some();
+            let cache_drift = !sovereign_fixed
+                && entity_root_resolved
+                && record
+                    .workdir
+                    .as_deref()
+                    .map(|w| crate::workspace_path::normalize_workdir(w))
+                    != workdir_str;
             let workdir = workdir_str.clone().map(PathBuf::from);
+            // A4 双端收口：优先按段 JSON 重建（精确恢复）；无则 legacy 文本单段
+            let restored_sections: Vec<PromptSection> = record
+                .prompt_sections
+                .as_deref()
+                .and_then(|json| serde_json::from_str(json).ok())
+                .unwrap_or_default();
             let (agent, sub_agent_manager) = self
                 .new_agent(
                     &record.id,
                     Some(record.system_prompt),
+                    restored_sections,
                     None,
                     scenario,
                     workdir,
@@ -3027,6 +3303,17 @@ impl AgentCommandService {
                         tracing::warn!("恢复自愈写穿失败（内存已矫正）: {e}");
                     }
                 }
+            } else if cache_drift {
+                // W2②：缓存列矫正写穿——实体 root 为事实源，`workdir` 列就此与实体同源
+                //（下次启动不再依赖内存矫正；也防止其它读路径（如按列分组）读到旧值）
+                if let Some(store) = &self.session_store {
+                    if let Err(e) = store
+                        .update_workdir(&record.id, workdir_str.as_deref(), workspace_id.as_deref())
+                        .await
+                    {
+                        tracing::warn!("恢复期矫正 workdir 缓存列失败（内存已矫正）: {e}");
+                    }
+                }
             }
             let info = SessionInfo {
                 id: record.id.clone(),
@@ -3060,7 +3347,16 @@ impl AgentCommandService {
         provider_config: Option<RuntimeProviderConfig>,
     ) -> Result<GroupParticipantSessionInfo, CommandError> {
         let info = self
-            .new_session_with_kind(system_prompt, provider_config, SessionKind::Group, None, None, None, None)
+            .new_session_with_kind(
+                system_prompt,
+                vec![], // A4：群聊保持 legacy 单段文本路径（不改群聊 prompt 机制）
+                provider_config,
+                SessionKind::Group,
+                None,
+                None,
+                None,
+                None,
+            )
             .await?;
         // 写映射（持久化；失败弱提示——会话仍可用，仅重启后无法恢复定位）
         if let Some(store) = &self.session_store {
@@ -3132,6 +3428,10 @@ impl AgentCommandService {
             if let Err(e) = memory.delete_by_session_id(session_id).await {
                 tracing::warn!("清理会话 {session_id} 孤儿记忆失败: {e}");
             }
+        }
+        // 阶段 3 · ④：请求快照 WAL 随会话清理（DB 行由外键级联删除）
+        if let Some(root) = &self.memory_root {
+            request_snapshot::remove_wal_file(root, session_id);
         }
         Ok(())
     }
@@ -3211,11 +3511,16 @@ impl AgentCommandService {
     ///
     /// 实体化同步（Phase A）：切目录时为新目录 ensure_workspace 取/建 Workspace 实体，
     /// workdir 与 workspace_id 一并写穿 + 同步内存 meta；切 None 时两参一并清空。
+    ///
+    /// W1（2026-09-18）：入口先做路径身份规范化（与 new_session 同口径），
+    /// 保证「切换目录」不会因写法差异新建出第二条 Workspace 实体。
     pub async fn update_session_workdir(
         &self,
         session_id: &str,
         workdir: Option<String>,
     ) -> Result<(), CommandError> {
+        // W1：路径身份规范化（幂等；空串原样）
+        let workdir = workdir.map(|wd| crate::workspace_path::normalize_workdir(&wd));
         if let Some(new_wd) = &workdir {
             let scene_id = {
                 let meta = self.meta.lock().await;
@@ -3273,21 +3578,29 @@ impl AgentCommandService {
         Ok(())
     }
 
-    /// 更新会话 system prompt（H5 风险点③ 动态刷新，2026-08-30）
+    /// 更新会话提示段（H5 风险点③ 动态刷新 + A4 双端收口，2026-09-17）
     ///
-    /// 技能索引/规则文件中途变更时由前端调用：重建后的完整 system prompt 推送到
-    /// 该会话 AgentLoop（下一轮 build_prompt_options 即生效）并写穿持久化
-    /// （sessions.system_prompt，重启后 restore_sessions 用新值重建）。
-    pub async fn update_session_system_prompt(
+    /// 技能索引/规则文件中途变更时由前端调用：重建后的结构化段推送到该会话
+    /// AgentLoop（下一轮 build_prompt_options 即生效）并写穿持久化——
+    /// `sessions.system_prompt` 存静态合集缓存文本、`sessions.prompt_sections`
+    /// 存段 JSON（重启后 restore_sessions 优先按段 JSON 重建）。
+    pub async fn update_session_prompt_sections(
         &self,
         session_id: &str,
-        system_prompt: Option<String>,
+        prompt_sections: Vec<PromptSection>,
     ) -> Result<(), CommandError> {
         let agent = self.get_agent(session_id).await?;
-        agent.set_system_prompt(system_prompt.clone()).await;
+        agent.set_prompt_sections(prompt_sections.clone()).await;
         if let Some(store) = &self.session_store {
+            // 静态合集缓存（与 agent 内 config.system_prompt 缓存同源同值）
+            let static_text = assemble_sections(prompt_sections.clone());
+            let sections_json = if prompt_sections.is_empty() {
+                None
+            } else {
+                serde_json::to_string(&prompt_sections).ok()
+            };
             store
-                .update_system_prompt(session_id, system_prompt.as_deref())
+                .update_prompt(session_id, static_text.as_deref(), sections_json.as_deref())
                 .await?;
         }
         Ok(())
@@ -3678,31 +3991,96 @@ impl AgentCommandService {
         Ok(())
     }
 
-    /// 解析一次待定的工具确认（HITL，A5）
+    /// 解析一次待定的工具确认（HITL，A5；D8 四值 2026-09-17）
     ///
-    /// 前端在 `agent:confirm:{session_id}` 弹窗后调用，`approved=true` 放行、
-    /// `false` 拒绝。返回是否成功唤醒对应等待方（confirm_id 已超时/已处理时 false）。
+    /// 前端在 `agent:confirm:{session_id}` 弹窗后调用：
+    /// `approved` 放行 / `denied` 拒绝 / `skipped` 跳过（三键各自成值）。
+    /// 返回是否成功唤醒对应等待方（confirm_id 已超时/已处理时 false）。
     pub async fn resolve_confirmation(
         &self,
         session_id: &str,
         confirm_id: &str,
-        approved: bool,
+        outcome: ConfirmationOutcome,
     ) -> Result<bool, CommandError> {
         let agent = self.get_agent(session_id).await?;
-        Ok(agent.resolve_confirmation(confirm_id, approved).await)
+        Ok(agent.resolve_confirmation(confirm_id, outcome).await)
+    }
+
+    /// 解析一次待回答的提问（Q1，2026-09-20）
+    ///
+    /// 前端在 `agent:ask:{session_id}` 面板作答后调用：`answers = Some([...])` 表示作答
+    /// （`[{id, selected[], custom?}]`，由前端按提问批次 1:1 组装）、`None` 表示用户
+    /// 拒绝作答（前端「取消」键 → ASK_DENIED）。返回是否成功唤醒对应等待方
+    /// （ask_id 已处理/已随轮取消时 false）。
+    pub async fn resolve_ask(
+        &self,
+        session_id: &str,
+        ask_id: &str,
+        answers: Option<Vec<AskAnswer>>,
+    ) -> Result<bool, CommandError> {
+        let agent = self.get_agent(session_id).await?;
+        let outcome = match answers {
+            Some(list) => AskOutcome::Answered(list),
+            None => AskOutcome::Denied,
+        };
+        Ok(agent.resolve_ask(ask_id, outcome).await)
+    }
+
+    /// A2UI 接线（2026-09-17）：把前端桥工具发射的 A2UI 消息广播进会话事件总线
+    ///
+    /// 链路：前端 `ctx.emitA2UI`（桥工具执行中）→ `cmd_agent_emit_a2ui` → 本方法 →
+    /// `OrchestratorEvent::A2UIEvent` → Tauri emitter 转发前端
+    /// `agent:event:a2ui:{session_id}` → `handleA2UIEvent` 增量更新画布。
+    /// 会话不存在时返回 `SessionNotFound`（调用方按尽力而为处理——画布为 UI 通道，
+    /// 失败不影响工具结果）。
+    pub async fn emit_a2ui(
+        &self,
+        session_id: &str,
+        surface_id: &str,
+        message: agent_runtime::a2ui::A2UIMessage,
+    ) -> Result<(), CommandError> {
+        let agent = self.get_agent(session_id).await?;
+        // 锁纪律（2026-09-17）：取总线句柄后于**壳锁外**分发
+        let broadcaster = agent.broadcaster_ref();
+        let bus = broadcaster.read().await.handle();
+        bus.emit(&OrchestratorEvent::A2UIEvent {
+            node_id: session_id.to_string(),
+            surface_id: surface_id.to_string(),
+            message,
+        });
+        Ok(())
     }
 
     /// 中途引导（steer，对应前端 sendBlockAction）
     ///
     /// M4-6（FIX-3 / D21 插话门）：有活跃编排 run → steer 进编排器节点边界队列（不中断链）；
-    /// 否则走 AgentLoop steer（react 路径原语义）。
+    /// 否则按 A3 三语义分流：
+    /// - **运行中**：`submit_input(Steer)` 入 inbox——下一轮请求前的 pre-step 准入注入
+    ///   （投递统一走 inbox；backend 级 steer 通道已删除）
+    /// - **空闲**：**唤醒**（对齐 dsh `steer`）——复用 [`Self::send_message`] 全路径
+    ///   （判型 / run 登记 / 写穿 / 事件），保证消息持久化与正常发送一致
     pub async fn steer(&self, session_id: &str, text: String) -> Result<(), CommandError> {
         if let Some(orch) = self.active_orchestrator.read().await.clone() {
             orch.push_steer(text);
             return Ok(());
         }
         let agent = self.get_agent(session_id).await?;
-        agent.steer(text).await.map_err(CommandError::from)
+        if agent.is_streaming() {
+            agent
+                .submit_input(agent_runtime::agent::input::InputKind::Steer, text)
+                .await
+                .map(|_| ())
+                .map_err(CommandError::from)
+        } else {
+            // 空闲 steer = 唤醒：走完整 send 路径（本轮同步跑完，与 send_message 同款阻塞语义）
+            let params = SendMessageParams {
+                session_id: session_id.to_string(),
+                text,
+                images: Vec::new(),
+                mode: None,
+            };
+            self.send_message(params).await.map(|_| ())
+        }
     }
 
     /// 中断当前运行

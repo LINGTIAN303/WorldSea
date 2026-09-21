@@ -41,8 +41,163 @@ fn with_meta(result: serde_json::Value, meta: serde_json::Value) -> serde_json::
     }
 }
 
+/// E3-1（2026-09-18，观测期）：沙箱戳记并入命令类工具的审计元信息（`__meta.sandbox`）。
+/// `None`（面板 / 无 ctx 入口）不落字段；观测期**不改变任何执行行为**（强制落 E3-2/E3-3，
+/// 设计见 docs/plans/2026-09-18-工作区与环境对齐dsh/03-E3真沙箱设计方案.md）。
+fn attach_sandbox_meta(meta: &mut serde_json::Value, ctx: &ToolContext) {
+    if let Some(spec) = &ctx.sandbox {
+        if let Some(obj) = meta.as_object_mut() {
+            obj.insert("sandbox".to_string(), serde_json::json!(spec.mode.as_str()));
+        }
+    }
+}
+
+/// E3-1 观测：命令 / 会话类工具读取沙箱戳记记一行日志（E3-2/E3-3 起强制已生效）
+fn observe_sandbox(ctx: &ToolContext, tool: &str) {
+    if let Some(spec) = &ctx.sandbox {
+        tracing::info!(
+            target: "sandbox",
+            tool,
+            mode = spec.mode.as_str(),
+            root = %spec.root.display(),
+            "E3 沙箱：工具携带戳记（命令族 E3-2 / PTY E3-3 已强制）"
+        );
+    }
+}
+
+/// E3-4（2026-09-18）：系统拒绝写访问的常见字样（一期从简，设计 §4.6 不做逐后端方言精确分类）
+const DENIAL_MARKERS: [&str; 4] = [
+    "拒绝访问",           // Windows cmd / powershell 中文
+    "access is denied",  // Windows 英文
+    "access denied",     // 简写变体
+    "permission denied", // MSYS / WSL 类通道
+];
+
+/// 系统拒绝写访问字样匹配
+fn sandbox_denial(stderr: &str) -> bool {
+    let s = stderr.to_lowercase();
+    DENIAL_MARKERS.iter().any(|m| s.contains(m))
+}
+
+/// E3-4：受限命令被系统拒绝时，返回「沙箱拒绝」提示（含当前模式）；未命中返回 `None`
+///
+/// 判定：文件写边界已启用（Windows）+ 携带沙箱戳记 + 非零退出 + stderr 命中拒绝字样。
+/// 提示并入结果 `sandbox_hint`（模型与用户同见），元信息落 `__meta.sandbox_denied`。
+fn sandbox_deny_hint(ctx: &ToolContext, exit_code: Option<i32>, stderr: &str) -> Option<String> {
+    // 文件写边界仅 Windows 本期启用（设计 §4.8）——Unix 的 Permission denied 非本沙箱所致
+    if !crate::sandbox::supported() {
+        return None;
+    }
+    let spec = ctx.sandbox.as_ref()?;
+    if !matches!(exit_code, Some(code) if code != 0) || !sandbox_denial(stderr) {
+        return None;
+    }
+    Some(format!(
+        "沙箱拒绝：该命令的写操作被操作系统拒绝（工作区外路径，或只读档下的任何写）。\
+         当前沙箱模式 {}（写边界 = 工作区 + 私有 temp）；这不是命令语法问题——\
+         请改用工作区内路径，或调整会话档位。",
+        spec.mode.as_str()
+    ))
+}
+
+/// E3-4：把沙箱模式并入对象结果的 `__meta`（PTY 会话类工具的审计元信息）
+///
+/// 命令族两站点沿用既有 [`attach_sandbox_meta`]；此处供 create / exec 等结果后置并入
+/// （无戳记 / 非 Windows 不改动——Unix 本期不启用文件写边界，设计 §4.8）。
+fn attach_result_sandbox_meta(mut result: serde_json::Value, ctx: &ToolContext) -> serde_json::Value {
+    if !crate::sandbox::supported() {
+        return result;
+    }
+    let Some(spec) = ctx.sandbox.as_ref() else {
+        return result;
+    };
+    if let Some(obj) = result.as_object_mut() {
+        if !obj.contains_key("__meta") {
+            obj.insert("__meta".to_string(), serde_json::json!({}));
+        }
+        if let Some(meta) = obj.get_mut("__meta").and_then(|m| m.as_object_mut()) {
+            meta.insert("sandbox".to_string(), serde_json::json!(spec.mode.as_str()));
+        }
+    }
+    result
+}
+
+/// E3-2（2026-09-18）：启动命令子进程——受限通路（Windows + 沙箱戳记）或普通通路
+///
+/// 受限通路 **fail-closed**（D3 拍板）：沙箱构造 / 授予 / 启动任一失败 → 拒绝执行，绝不静默裸跑。
+/// - `plain_cmd`：普通通路命令（调用方自建，形态各自保持既有语义：cmd / powershell / sh）；
+/// - `confined_cmdline`：受限通路的完整命令行；`None` 时按 `cmd.exe /D /S /C` 形态构造。
+fn spawn_command_child(
+    mut plain_cmd: tokio::process::Command,
+    cwd: Option<&str>,
+    env_list: Option<Vec<(String, String)>>,
+    ctx: &ToolContext,
+    command: &str,
+    confined_cmdline: Option<String>,
+) -> Result<crate::sandbox::CommandChild, ToolError> {
+    #[cfg(windows)]
+    if let Some(spec) = ctx.sandbox.as_ref() {
+        let cmdline = confined_cmdline.unwrap_or_else(|| crate::sandbox::win::cmdline_for_cmd(command));
+        let cwd_path = cwd.map(std::path::Path::new);
+        return crate::sandbox::win::spawn_confined_command(
+            spec,
+            &cmdline,
+            cwd_path,
+            env_list.unwrap_or_default(),
+        )
+        .map(crate::sandbox::CommandChild::Confined)
+        .map_err(|e| {
+            ToolError::Execution(format!(
+                "沙箱不可用（E3 受限执行 fail-closed：已拒绝执行该命令）：{e}"
+            ))
+        });
+    }
+    #[cfg(not(windows))]
+    let _ = (ctx, command, confined_cmdline); // Unix 本期不启用文件写边界（设计 §4.8）
+    // 普通通路（面板 / Unix / 无戳记）：P1 Job 整树回收
+    if let Some(env_list) = env_list {
+        for (k, v) in env_list {
+            plain_cmd.env(k, v);
+        }
+    }
+    let (child, job) = spawn_with_job(&mut plain_cmd)
+        .map_err(|e| ToolError::Execution(format!("命令启动失败: {e}")))?;
+    Ok(crate::sandbox::CommandChild::plain(child, job))
+}
+
+/// E3-3 受限 PTY 会话位平台别名（非 Windows 恒为 `()`——Unix 本期不启用文件写边界，设计 §4.8）
+#[cfg(windows)]
+type PtyBits = crate::sandbox::win::PtySessionBits;
+#[cfg(not(windows))]
+type PtyBits = ();
+
+/// E3-3（2026-09-18）：按沙箱戳记构造受限 PTY 会话位（Windows；`None` = 面板 / 非 Windows 普通通路）
+///
+/// **fail-closed**（D3）：构造失败（令牌派生 / 工作区授予 / temp 建立任一环节）→ 拒绝创建会话，
+/// 绝不退回不受限 PTY（未受限的 PTY 会成为边界旁路）。
+#[cfg(windows)]
+fn confined_pty_bits(ctx: &ToolContext) -> Result<Option<PtyBits>, ToolError> {
+    let Some(spec) = ctx.sandbox.as_ref() else {
+        return Ok(None);
+    };
+    crate::sandbox::win::pty_session_bits(spec).map(Some).map_err(|e| {
+        ToolError::Execution(format!(
+            "沙箱不可用（E3-3 PTY 受限挂载 fail-closed：已拒绝创建会话）：{e}"
+        ))
+    })
+}
+
+/// 是否 WSL/bash 形态 shell（D9 裁定：受限模式下 WSL 服务拒绝受限令牌，该通道 fail-closed）
+#[cfg(windows)]
+fn is_wsl_shell(shell: &str) -> bool {
+    let s = shell.to_ascii_lowercase();
+    s.contains("wsl") || s.contains("bash")
+}
+
 /// 清理 ANSI 转义码与不可打印字符（对齐 TS 端 execute_command 的清理逻辑）
-fn clean_ansi(input: &str) -> String {
+///
+/// `pub(crate)`（批次 C·S1）：定时唤醒的后台输出捕获同口径清理。
+pub(crate) fn clean_ansi(input: &str) -> String {
     // CSI 序列（ESC [ ... 字母）与 OSC 序列（ESC ] ... BEL/ST）
     let csi = Regex::new(r"\x1b\[[0-9;?]*[a-zA-Z]").unwrap();
     let osc = Regex::new(r"\x1b\].*?(\x07|\x1b\\)").unwrap();
@@ -106,26 +261,13 @@ fn parse_env(args: &serde_json::Value) -> Option<Vec<(String, String)>> {
 /// 受限执行（P1 补充，2026-09-04）：剔除继承自宿主 shell 的密钥环境变量——
 /// 防 Agent 命令把宿主凭证带入/泄漏（如 `gh` 读 GH_TOKEN、`aws` 读 AWS_*）。
 /// 显式注入（`env` 参数 / cmd.env）在 sanitize **之后**执行，仍可覆盖（调用方显式传入的 key 不受影响）。
-const SENSITIVE_ENV_KEYS: &[&str] = &[
-    "AWS_ACCESS_KEY_ID",
-    "AWS_SECRET_ACCESS_KEY",
-    "AWS_SESSION_TOKEN",
-    "GH_TOKEN",
-    "GITHUB_TOKEN",
-    "OPENAI_API_KEY",
-    "ANTHROPIC_API_KEY",
-    "ANTHROPIC_AUTH_TOKEN",
-    "DEEPSEEK_API_KEY",
-    "AZURE_OPENAI_API_KEY",
-    "GOOGLE_API_KEY",
-    "GEMINI_API_KEY",
-    "HUGGING_FACE_HUB_TOKEN",
-    "HF_TOKEN",
-    "REPLICATE_API_TOKEN",
-];
-
+///
+/// E1（2026-09-18 工作区与环境对齐 dsh）：口径由「15 项显式名单」升级为
+/// **启发式通配**（键名含 KEY / PASSWORD / SECRET / TOKEN 即剔除），判定与
+/// collector 统一在 `agent_runtime::env_scrub`（工具执行 / PTY / MCP stdio 同源）；
+/// 原名单成员全部被启发式覆盖（回归锚点见 kernel env_scrub 单测）。
 fn sanitize_env(cmd: &mut tokio::process::Command) {
-    for k in SENSITIVE_ENV_KEYS {
+    for k in agent_runtime::env_scrub::sensitive_inherited_env_keys() {
         cmd.env_remove(k);
     }
 }
@@ -158,11 +300,15 @@ fn spawn_with_job(
 ///
 /// Windows 优先自研 passthrough backend（PSEUDOCONSOLE_PASSTHROUGH_MODE 0x8，
 /// raw VT 字节流，见 `pty/conpty_passthrough`）；失败/非 Windows 回落 portable-pty。
+///
+/// E3-3（2026-09-18）：`confined` 为受限会话位时以受限令牌挂载 ConPTY（Windows 专用通路、
+/// 不回落）；`None` 保持既有普通通路语义（面板 / 非 Windows）。
 async fn spawn_pty_session(
     shell: &str,
     cwd: &str,
     env_list: &[(String, String)],
     pty_size: PtySize,
+    confined: Option<&PtyBits>,
 ) -> Result<
     (
         Box<dyn Child + Send + Sync>,
@@ -172,6 +318,12 @@ async fn spawn_pty_session(
     ),
     String,
 > {
+    #[cfg(not(windows))]
+    let _ = confined; // Unix 本期不启用文件写边界（设计 §4.8）
+    #[cfg(windows)]
+    let session =
+        crate::pty::open_pty(shell, cwd, env_list, pty_size, confined.map(|b| b.raw_token())).await?;
+    #[cfg(not(windows))]
     let session = crate::pty::open_pty(shell, cwd, env_list, pty_size).await?;
     Ok((session.child, session.master, session.writer, session.out_rx))
 }
@@ -195,6 +347,11 @@ struct ShellSession {
     _job: crate::job::WinJob,
     shell_path: String,
     cwd: String,
+    /// E3-3：本会话是否受限（受限模式下 exec/input 拒绝驱动非受限会话——防「面板会话被借用」旁路）
+    confined: bool,
+    /// E3-3：会话级私有 temp（受限 WorkspaceWrite；销毁时撤销 ACE + 删目录）
+    #[cfg(windows)]
+    confined_temp: Option<crate::sandbox::win::SessionTemp>,
 }
 
 /// 会话输出缓冲：累积 PTY 原始字节流（含 ANSI/VT 序列）
@@ -286,6 +443,38 @@ impl ShellSessionManager {
         Self::default()
     }
 
+    // ─── 游标读取（批次 C·S1，2026-09-20：定时唤醒的后台输出捕获） ───────
+
+    /// 会话输出缓冲当前末尾偏移（游标锚点；会话不存在 → `None`）
+    pub async fn session_cursor(&self, session_id: &str) -> Option<usize> {
+        let sessions = self.sessions.lock().await;
+        sessions.get(session_id).map(|s| s.buf.end())
+    }
+
+    /// 从偏移读取指定会话的增量输出（会话不存在 → `None`）
+    ///
+    /// 与 `collect_output` 同源读取（`SessionOutputBuf::read_from`：不等待新输出、
+    /// 不独占通道），返回 `(data, new_pos, truncated)`。
+    pub async fn read_session_from(
+        &self,
+        session_id: &str,
+        pos: usize,
+    ) -> Option<(String, usize, bool)> {
+        let sessions = self.sessions.lock().await;
+        let s = sessions.get(session_id)?;
+        Some(s.buf.read_from(pos))
+    }
+
+    /// 会话是否存在（watch 列表设定时校验）
+    pub async fn has_session(&self, session_id: &str) -> bool {
+        self.sessions.lock().await.contains_key(session_id)
+    }
+
+    /// 现有会话 id 列表（校验失败时给出可用清单）
+    pub async fn session_ids(&self) -> Vec<String> {
+        self.sessions.lock().await.keys().cloned().collect()
+    }
+
     /// 收集会话输出缓冲增量直到超时（7.1：游标窗口收集，从调用时偏移读起）
     ///
     /// 与旧实现（消费 out_rx）的区别：不再独占通道——PTY 字节先落 `buf`，
@@ -318,7 +507,9 @@ impl ShellSessionManager {
 /// # 规则
 /// - `cwd` 参数显式传入 → 用之；若 workdir 存在且该 cwd 越界 → 拒绝
 /// - `cwd` 参数缺省 → 默认取 `ctx.workdir`（shell cwd 默认注入工作区）；
-///   workdir 为 None（未绑定的旧库/旧会话）→ 返回 None，沿用当前进程 cwd，向后兼容
+///   `workdir=None` 的**无 ctx 入口**（终端面板 `TerminalService.execute_command`）→
+///   返回 None 沿用当前进程 cwd（用户驱动的面板不受 Agent fail-safe 约束）
+/// - 无工作区 fail-safe 守卫在**工具入口**（`execute_with_ctx`，W3）——Agent 路径拒绝、面板路径放行
 fn resolve_command_cwd(
     args: &serde_json::Value,
     ctx: &ToolContext,
@@ -366,26 +557,22 @@ impl ExecuteCommandTool {
             }));
         }
         let cwd = resolve_command_cwd(&args, ctx)?;
+        // E3-1 观测：命令携带沙箱戳记（不改行为）
+        observe_sandbox(ctx, "execute_command");
         let timeout_ms = args
             .get("timeout_ms")
             .and_then(|v| v.as_u64())
             .unwrap_or(DEFAULT_TIMEOUT_MS);
         let env_list = parse_env(&args);
 
-        let mut cmd = build_command(&command, cwd.as_deref(), None);
-        if let Some(env_list) = env_list {
-            for (k, v) in env_list {
-                cmd.env(k, v);
-            }
-        }
-
         let started = Instant::now();
-        // 受限执行（P1）：spawn 挂 Job（KILL_ON_JOB_CLOSE），超时 kill 主进程 + Drop 整树回收
-        let (mut child, _job) = spawn_with_job(&mut cmd)
-            .map_err(|e| ToolError::Execution(format!("命令启动失败: {e}")))?;
+        // E3-2：受限通路（Windows + 沙箱戳记，fail-closed）或普通通路（P1 Job 整树回收）
+        let plain_cmd = build_command(&command, cwd.as_deref(), None);
+        let mut child =
+            spawn_command_child(plain_cmd, cwd.as_deref(), env_list, ctx, &command, None)?;
         // execute_command 非流式：take 管道后后台收集，主进程 wait/kill（&mut）不 move
-        let stdout_pipe = child.stdout.take().ok_or_else(|| ToolError::Execution("无法获取 stdout 管道".into()))?;
-        let stderr_pipe = child.stderr.take().ok_or_else(|| ToolError::Execution("无法获取 stderr 管道".into()))?;
+        let stdout_pipe = child.take_stdout().ok_or_else(|| ToolError::Execution("无法获取 stdout 管道".into()))?;
+        let stderr_pipe = child.take_stderr().ok_or_else(|| ToolError::Execution("无法获取 stderr 管道".into()))?;
         let out_task = tokio::task::spawn(async move {
             let mut r = tokio::io::BufReader::new(stdout_pipe).lines();
             let mut buf = Vec::new();
@@ -402,32 +589,37 @@ impl ExecuteCommandTool {
             }
             buf
         });
-        let wait = tokio::time::timeout(Duration::from_millis(timeout_ms), child.wait()).await;
-        let status = match wait {
-            Ok(Ok(st)) => st,
-            Ok(Err(e)) => return Err(ToolError::Execution(format!("命令等待失败: {e}"))),
-            Err(_) => {
-                let _ = child.kill().await; // 超时终止主进程；残留子进程由 _job Drop 整树回收
+        let exit_code = match child.wait_timeout(Duration::from_millis(timeout_ms)).await {
+            Ok(crate::sandbox::WaitOutcome::Exited(code)) => code,
+            Ok(crate::sandbox::WaitOutcome::TimedOut) => {
+                child.kill().await; // 超时终止主进程；残留子进程由 Job Drop 整树回收
                 return Err(ToolError::Execution("命令执行超时".into()));
             }
+            Err(e) => return Err(ToolError::Execution(e)),
         };
         let duration_ms = started.elapsed().as_millis() as u64;
         let stdout = clean_ansi(&out_task.await.unwrap_or_default().join("\n"));
         let stderr = clean_ansi(&err_task.await.unwrap_or_default().join("\n"));
-        let exit_code = status.code();
-        Ok(with_meta(
-            serde_json::json!({
-                "stdout": if stdout.is_empty() { "(命令已执行，无输出)" } else { &stdout },
-                "stderr": stderr,
-                "exit_code": exit_code,
-            }),
-            serde_json::json!({
-                "op": "cmd",
-                "command": &command,
-                "exit_code": exit_code,
-                "duration_ms": duration_ms,
-            }),
-        ))
+        let mut meta = serde_json::json!({
+            "op": "cmd",
+            "command": &command,
+            "exit_code": exit_code,
+            "duration_ms": duration_ms,
+        });
+        // E3-1 观测：审计元信息携带沙箱模式（None 不落字段）
+        attach_sandbox_meta(&mut meta, ctx);
+        // E3-4：沙箱拒绝识别（受限通路 + 非零退出 + 系统拒绝字样）→ 结果附提示与当前模式
+        let deny_hint = sandbox_deny_hint(ctx, exit_code, &stderr);
+        let mut value = serde_json::json!({
+            "stdout": if stdout.is_empty() { "(命令已执行，无输出)" } else { &stdout },
+            "stderr": stderr,
+            "exit_code": exit_code,
+        });
+        if let Some(hint) = deny_hint {
+            meta["sandbox_denied"] = serde_json::json!(true);
+            value["sandbox_hint"] = serde_json::json!(hint);
+        }
+        Ok(with_meta(value, meta))
     }
 }
 
@@ -452,7 +644,8 @@ impl Tool for ExecuteCommandTool {
         })
     }
     async fn execute(&self, args: serde_json::Value) -> Result<serde_json::Value, ToolError> {
-        // execute 走默认上下文（workdir=None），保持旧行为（cwd 缺省为当前进程 cwd）
+        // execute 走默认上下文（workdir=None），保持旧行为（cwd 缺省为当前进程 cwd）——
+        // 终端面板 `TerminalService.execute_command` 走此入口（用户驱动，不受 Agent fail-safe）
         self.run(args, &ToolContext::default()).await
     }
     async fn execute_with_ctx(
@@ -460,7 +653,10 @@ impl Tool for ExecuteCommandTool {
         ctx: &ToolContext,
         args: serde_json::Value,
     ) -> Result<serde_json::Value, ToolError> {
+        // W3（2026-09-18 工作区与环境对齐 dsh）：Agent 执行路径 fail-safe——
+        // 会话无工作区时拒绝（旧语义沿用进程 cwd，属边界消失，已收口）；
         // 覆写以读取 ctx.workdir：cwd 缺省注入工作区，越界 cwd 拒绝
+        crate::fs_tools::require_workdir(ctx)?;
         self.run(args, ctx).await
     }
 }
@@ -608,22 +804,53 @@ impl ShellExecTool {
             }));
         }
         let cwd = resolve_command_cwd(&args, ctx)?;
+        // E3-1 观测：命令携带沙箱戳记（不改行为）
+        observe_sandbox(ctx, self.tool_name());
 
-        let mut cmd = self.build_command(&command, cwd.as_deref());
+        // D9（2026-09-18 裁定）：受限模式下 bash（Windows 经 WSL）通道不可用——WSL 服务拒绝受限令牌
+        // （R4 实测 `E_ACCESSDENIED`，补探加入 INTERACTIVE 仍拒）；按 D3 口径 fail-closed 明确报错
+        #[cfg(windows)]
+        if ctx.sandbox.is_some() && matches!(self.flavor, ShellFlavor::Bash) {
+            return Err(ToolError::Execution(
+                "受限模式不支持 bash（Windows 经 WSL）通道（WSL 服务拒绝受限令牌）；\
+                 请改用 powershell 或 execute_command。"
+                    .into(),
+            ));
+        }
+        // 受限通路的命令行形态：powershell 走 argv（与普通通路同参），bash 走 cmd 形态（上方已拦）
+        #[cfg(windows)]
+        let confined_cmdline = Some(match self.flavor {
+            ShellFlavor::PowerShell => crate::sandbox::win::cmdline_from_argv(&[
+                "powershell.exe".to_string(),
+                "-NoProfile".to_string(),
+                "-NonInteractive".to_string(),
+                "-Command".to_string(),
+                command.clone(),
+            ]),
+            ShellFlavor::Bash => crate::sandbox::win::cmdline_for_cmd(&command),
+        });
+        #[cfg(not(windows))]
+        let confined_cmdline: Option<String> = None;
+
         let started = Instant::now();
 
         // 流式读取（2026-09-02 系统工具流式事件）：
         // stdout 管道逐行读取 → 同步 sink.delta 推送 ToolCallDelta（前端工具段实时显示），
         // 同时累积 clean 文本作为最终 stdout 给 LLM；stderr 单独收集不推送。
-        // 取消：工具 future 被 drop（AgentLoop 中止）→ tokio Command 自动 kill 子进程；
-        // 超时：下面 timeout(child.wait()) 触发 kill。
-        // 子进程因 cmd.output() 不可用（stdout 被接管），改用 spawn + 双读任务。
-        // 受限执行（P1，2026-09-04）：挂 Job（KILL_ON_JOB_CLOSE）——取消（future drop）/
-        // 超时 kill 主进程后，Drop 时自动整树回收残留子进程。
-        let (mut child, _job) = spawn_with_job(&mut cmd)
-            .map_err(|e| ToolError::Execution(format!("命令启动失败: {e}")))?;
-        let stdout = child.stdout.take().ok_or_else(|| ToolError::Execution("无法获取 stdout 管道".into()))?;
-        let stderr = child.stderr.take().ok_or_else(|| ToolError::Execution("无法获取 stderr 管道".into()))?;
+        // 取消：工具 future 被 drop（AgentLoop 中止）→ 子进程随 Job Drop 整树回收；
+        // 超时：下面 wait_timeout 超时 → kill 主进程。
+        // E3-2（2026-09-18）：受限通路（Windows + 沙箱戳记，fail-closed）或普通通路（P1 Job）
+        let plain_cmd = self.build_command(&command, cwd.as_deref());
+        let mut child = spawn_command_child(
+            plain_cmd,
+            cwd.as_deref(),
+            None,
+            ctx,
+            &command,
+            confined_cmdline,
+        )?;
+        let stdout = child.take_stdout().ok_or_else(|| ToolError::Execution("无法获取 stdout 管道".into()))?;
+        let stderr = child.take_stderr().ok_or_else(|| ToolError::Execution("无法获取 stderr 管道".into()))?;
         let sink = ctx.tool_stream.clone();
         let out_task = tokio::task::spawn(async move {
             let mut reader = tokio::io::BufReader::new(stdout).lines();
@@ -651,33 +878,38 @@ impl ShellExecTool {
             buf
         });
 
-        let wait_result = tokio::time::timeout(Duration::from_millis(timeout_ms), child.wait()).await;
-        let status = match wait_result {
-            Ok(Ok(st)) => st,
-            Ok(Err(e)) => return Err(ToolError::Execution(format!("命令等待失败: {e}"))),
-            Err(_) => {
-                let _ = child.kill().await; // 超时终止子进程（stdout 管道关闭 → 读任务自然结束）
+        let exit_code = match child.wait_timeout(Duration::from_millis(timeout_ms)).await {
+            Ok(crate::sandbox::WaitOutcome::Exited(code)) => code,
+            Ok(crate::sandbox::WaitOutcome::TimedOut) => {
+                child.kill().await; // 超时终止子进程（stdout 管道关闭 → 读任务自然结束）
                 return Err(ToolError::Execution(format!("命令执行超时（>{}ms）", timeout_ms)));
             }
+            Err(e) => return Err(ToolError::Execution(e)),
         };
         let stdout = out_task.await.unwrap_or_default().join("\n");
         let stderr = err_task.await.unwrap_or_default().join("\n");
         let duration_ms = started.elapsed().as_millis() as u64;
-        let exit_code = status.code();
-        Ok(with_meta(
-            serde_json::json!({
-                "stdout": if stdout.is_empty() { "(命令已执行，无输出)" } else { &stdout },
-                "stderr": stderr,
-                "exit_code": exit_code,
-            }),
-            serde_json::json!({
-                "op": self.tool_name(),
-                "command": &command,
-                "exit_code": exit_code,
-                "duration_ms": duration_ms,
-                "timed_out": false,
-            }),
-        ))
+        let mut meta = serde_json::json!({
+            "op": self.tool_name(),
+            "command": &command,
+            "exit_code": exit_code,
+            "duration_ms": duration_ms,
+            "timed_out": false,
+        });
+        // E3-1 观测：审计元信息携带沙箱模式（None 不落字段）
+        attach_sandbox_meta(&mut meta, ctx);
+        // E3-4：沙箱拒绝识别（受限通路 + 非零退出 + 系统拒绝字样）→ 结果附提示与当前模式
+        let deny_hint = sandbox_deny_hint(ctx, exit_code, &stderr);
+        let mut value = serde_json::json!({
+            "stdout": if stdout.is_empty() { "(命令已执行，无输出)" } else { &stdout },
+            "stderr": stderr,
+            "exit_code": exit_code,
+        });
+        if let Some(hint) = deny_hint {
+            meta["sandbox_denied"] = serde_json::json!(true);
+            value["sandbox_hint"] = serde_json::json!(hint);
+        }
+        Ok(with_meta(value, meta))
     }
 }
 
@@ -714,6 +946,8 @@ impl Tool for ShellExecTool {
         self.execute_with_ctx(&ToolContext::default(), args).await
     }
     async fn execute_with_ctx(&self, ctx: &ToolContext, args: serde_json::Value) -> Result<serde_json::Value, ToolError> {
+        // W3（2026-09-18 工作区与环境对齐 dsh）：Agent 执行路径 fail-safe（无工作区拒绝）
+        crate::fs_tools::require_workdir(ctx)?;
         self.run_impl(ctx, args).await
     }
 }
@@ -739,39 +973,41 @@ impl ShellSessionCreateTool {
     pub fn new(manager: ShellSessionManager) -> Self {
         Self { manager }
     }
-}
 
-#[async_trait]
-impl Tool for ShellSessionCreateTool {
-    fn name(&self) -> &str {
-        "shell_session_create"
-    }
-    fn description(&self) -> &str {
-        "创建一个持久化 Shell 会话。会话保持 Shell 进程活跃，支持多轮命令执行，工作目录和环境变量在命令间保持。适用于需要连续执行多条命令、保持上下文状态的场景（如项目构建、环境配置、交互式操作）。"
-    }
-    fn parameters(&self) -> serde_json::Value {
-        serde_json::json!({
-            "type": "object",
-            "properties": {
-                "shell": { "type": "string", "description": "Shell 类型路径（可选，默认自动选择。可传入 detect_shells 返回的 path 值）" },
-                "cwd": { "type": "string", "description": "初始工作目录（可选）" },
-                "env": { "type": "object", "description": "环境变量（可选）", "additionalProperties": { "type": "string" } }
-            }
-        })
-    }
-    async fn execute(&self, args: serde_json::Value) -> Result<serde_json::Value, ToolError> {
+    /// 会话创建主实现：普通通路（面板 / 非 Windows，`confined=None`）与受限通路
+    /// （Agent + Windows 沙箱戳记：受限令牌 / TMP/TEMP 覆盖 / 会话级 temp）
+    #[allow(unused_mut)] // 非 Windows：confined 恒为 None::<()>，无取 temp 的可变路径
+    async fn create_session(
+        &self,
+        args: serde_json::Value,
+        mut confined: Option<PtyBits>,
+    ) -> Result<serde_json::Value, ToolError> {
         let shell = args
             .get("shell")
             .and_then(|v| v.as_str())
             .unwrap_or(default_shell())
             .to_string();
+        // D9（2026-09-18 裁定）：受限模式下 wsl/bash 会话不可用（WSL 服务拒绝受限令牌）→ fail-closed
+        #[cfg(windows)]
+        if confined.is_some() && is_wsl_shell(&shell) {
+            return Err(ToolError::Execution(
+                "受限模式不支持 bash（Windows 经 WSL）会话（WSL 服务拒绝受限令牌）；\
+                 请改用 cmd / powershell 会话。"
+                    .into(),
+            ));
+        }
         let cwd = args
             .get("cwd")
             .and_then(|v| v.as_str())
             .filter(|c| !c.is_empty())
             .map(|c| c.to_string())
             .unwrap_or_else(default_session_cwd);
-        let env_list = parse_env(&args);
+        let mut env_list = parse_env(&args).unwrap_or_default();
+        // E3-3：受限会话附加 TMP/TEMP 重写（WorkspaceWrite 指向会话级私有 temp；ReadOnly 为空）
+        #[cfg(windows)]
+        if let Some(bits) = &confined {
+            env_list.extend(bits.env().iter().cloned());
+        }
 
         // PTY 化：portable-pty 打开伪终端（Windows = ConPTY），子进程挂 PTY 而非管道
         let pty_size = PtySize {
@@ -781,11 +1017,19 @@ impl Tool for ShellSessionCreateTool {
             pixel_height: 0,
         };
 
-        let (child, master, writer, mut out_rx) =
-            match spawn_pty_session(&shell, &cwd, &env_list.unwrap_or_default(), pty_size).await {
-                Ok(v) => v,
-                Err(e) => return Err(ToolError::Execution(format!("PTY 会话启动失败: {e}"))),
-            };
+        // 先落 spawn 结果（避免 match 暂存借用与下方取 temp 的可变借用冲突）
+        let spawned = spawn_pty_session(&shell, &cwd, &env_list, pty_size, confined.as_ref()).await;
+        let (child, master, writer, mut out_rx) = match spawned {
+            Ok(v) => v,
+            Err(e) => {
+                // E3-3：启动失败即回收会话级 temp（授予不残留）
+                #[cfg(windows)]
+                if let Some(temp) = confined.as_mut().and_then(|b| b.take_temp()) {
+                    temp.revoke_and_remove();
+                }
+                return Err(ToolError::Execution(format!("PTY 会话启动失败: {e}")));
+            }
+        };
 
         let session_id = format!("session-{}", uuid::Uuid::new_v4().simple());
         // 受限进程（P1，2026-09-04）：PTY 会话挂 Job（KILL_ON_JOB_CLOSE）——会话销毁时
@@ -811,6 +1055,10 @@ impl Tool for ShellSessionCreateTool {
             _job: job,
             shell_path: shell.clone(),
             cwd: cwd.clone(),
+            confined: confined.is_some(),
+            // E3-3：会话级 temp 移交给会话（销毁时撤销 ACE + 删目录）
+            #[cfg(windows)]
+            confined_temp: confined.as_mut().and_then(|b| b.take_temp()),
         };
         self.manager.sessions.lock().await.insert(session_id.clone(), session);
 
@@ -822,6 +1070,61 @@ impl Tool for ShellSessionCreateTool {
             "pty": true,
             "hint": "会话已创建（PTY 伪终端）。使用 shell_session_exec 在此会话中执行命令，使用 shell_session_destroy 销毁会话。"
         }))
+    }
+}
+
+#[async_trait]
+impl Tool for ShellSessionCreateTool {
+    fn name(&self) -> &str {
+        "shell_session_create"
+    }
+    fn description(&self) -> &str {
+        "创建一个持久化 Shell 会话。会话保持 Shell 进程活跃，支持多轮命令执行，工作目录和环境变量在命令间保持。适用于需要连续执行多条命令、保持上下文状态的场景（如项目构建、环境配置、交互式操作）。"
+    }
+    fn parameters(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "shell": { "type": "string", "description": "Shell 类型路径（可选，默认自动选择。可传入 detect_shells 返回的 path 值）" },
+                "cwd": { "type": "string", "description": "初始工作目录（可选）" },
+                "env": { "type": "object", "description": "环境变量（可选）", "additionalProperties": { "type": "string" } }
+            }
+        })
+    }
+    /// W3（2026-09-18 工作区与环境对齐 dsh）：无工作区 fail-safe + cwd 与命令工具同口径——
+    /// 缺省注入工作区、显式越界拒绝（PTY 会话默认落在工作区内）
+    ///
+    /// E3-3（2026-09-18）：受限模式下以受限令牌挂载 ConPTY（构造失败 fail-closed 拒绝创建）
+    async fn execute_with_ctx(&self, ctx: &ToolContext, args: serde_json::Value) -> Result<serde_json::Value, ToolError> {
+        crate::fs_tools::require_workdir(ctx)?;
+        // E3-1 观测：PTY 会话创建携带沙箱戳记（不改行为；面板路径经 execute() 无 ctx 不落）
+        observe_sandbox(ctx, "shell_session_create");
+        let mut args = args;
+        match args.get("cwd").and_then(|v| v.as_str()).filter(|c| !c.is_empty()) {
+            Some(cwd) => {
+                if !ctx.is_within_workdir(cwd) {
+                    return Err(ToolError::Execution(format!(
+                        "拒绝在 workspace 之外创建终端会话，cwd 越界: {cwd}"
+                    )));
+                }
+            }
+            None => {
+                if let Some(wd) = &ctx.workdir {
+                    args["cwd"] = serde_json::Value::String(wd.to_string_lossy().to_string());
+                }
+            }
+        }
+        // E3-3：受限会话位（Windows + 沙箱戳记；构造失败 fail-closed 拒绝）
+        #[cfg(windows)]
+        let bits = confined_pty_bits(ctx)?;
+        #[cfg(not(windows))]
+        let bits = None;
+        // E3-4：审计元信息（受限时结果落 __meta.sandbox；面板/非 Windows 不动）
+        Ok(attach_result_sandbox_meta(self.create_session(args, bits).await?, ctx))
+    }
+    async fn execute(&self, args: serde_json::Value) -> Result<serde_json::Value, ToolError> {
+        // 面板路径（无 ctx）：不受限普通通路（用户驱动）
+        self.create_session(args, None).await
     }
 }
 
@@ -855,7 +1158,27 @@ impl Tool for ShellSessionExecTool {
             "required": ["session_id", "command"]
         })
     }
+    /// W3（2026-09-18 工作区与环境对齐 dsh）：无工作区 fail-safe（PTY 命令执行同命令类口径）
+    ///
+    /// E3-3（2026-09-18）：受限模式下可驱动受限会话（命令在受限 shell 内执行），
+    /// 但拒绝驱动非受限会话（防「面板会话被借用」边界旁路）
+    async fn execute_with_ctx(&self, ctx: &ToolContext, args: serde_json::Value) -> Result<serde_json::Value, ToolError> {
+        crate::fs_tools::require_workdir(ctx)?;
+        // E3-4：审计元信息（受限时结果落 __meta.sandbox）
+        Ok(attach_result_sandbox_meta(self.run(args, ctx.sandbox.is_some()).await?, ctx))
+    }
     async fn execute(&self, args: serde_json::Value) -> Result<serde_json::Value, ToolError> {
+        self.run(args, false).await
+    }
+}
+
+impl ShellSessionExecTool {
+    /// 会话执行主实现（`confined_ctx` = 受限模式入口；面板路径传 false）
+    async fn run(
+        &self,
+        args: serde_json::Value,
+        #[allow(unused_variables)] confined_ctx: bool,
+    ) -> Result<serde_json::Value, ToolError> {
         let session_id = args
             .get("session_id")
             .and_then(|v| v.as_str())
@@ -884,6 +1207,15 @@ impl Tool for ShellSessionExecTool {
         let session = sessions
             .get_mut(&session_id)
             .ok_or_else(|| ToolError::Execution("会话不存在或已销毁，请使用 shell_session_create 创建新会话".into()))?;
+        // E3-3：受限模式不得驱动非受限会话（边界旁路收口）
+        #[cfg(windows)]
+        if confined_ctx && !session.confined {
+            return Err(ToolError::Execution(
+                "受限模式下不可向非受限会话发送命令（该会话非本模式创建，不受 E3 写边界约束）；\
+                 请在本模式下用 shell_session_create 新建会话。"
+                    .into(),
+            ));
+        }
 
         // PTY 写入：使用创建时持有的 writer（portable-pty take 仅一次）
         // 7.1：输出已落 buf（后台转发 task），此处直接写命令，随后从 buf 游标窗口收集
@@ -942,7 +1274,25 @@ impl Tool for ShellSessionInputTool {
             "required": ["session_id", "data"]
         })
     }
+    /// W3（2026-09-18 工作区与环境对齐 dsh）：无工作区 fail-safe（PTY 输入同命令类口径）
+    ///
+    /// E3-3（2026-09-18）：受限模式下可向受限会话发送输入，但拒绝非受限会话（同 exec 旁路口径）
+    async fn execute_with_ctx(&self, ctx: &ToolContext, args: serde_json::Value) -> Result<serde_json::Value, ToolError> {
+        crate::fs_tools::require_workdir(ctx)?;
+        self.run(args, ctx.sandbox.is_some()).await
+    }
     async fn execute(&self, args: serde_json::Value) -> Result<serde_json::Value, ToolError> {
+        self.run(args, false).await
+    }
+}
+
+impl ShellSessionInputTool {
+    /// 会话输入主实现（`confined_ctx` = 受限模式入口；面板路径传 false）
+    async fn run(
+        &self,
+        args: serde_json::Value,
+        #[allow(unused_variables)] confined_ctx: bool,
+    ) -> Result<serde_json::Value, ToolError> {
         let session_id = args
             .get("session_id")
             .and_then(|v| v.as_str())
@@ -962,6 +1312,15 @@ impl Tool for ShellSessionInputTool {
         let session = sessions
             .get_mut(&session_id)
             .ok_or_else(|| ToolError::Execution("会话不存在或已销毁".into()))?;
+        // E3-3：受限模式不得向非受限会话发送输入（边界旁路收口，同 exec 口径）
+        #[cfg(windows)]
+        if confined_ctx && !session.confined {
+            return Err(ToolError::Execution(
+                "受限模式下不可向非受限会话发送输入（该会话非本模式创建，不受 E3 写边界约束）；\
+                 请在本模式下用 shell_session_create 新建会话。"
+                    .into(),
+            ));
+        }
         // PTY 写入：使用创建时持有的 writer，写交互输入
         //（append_return=true 追加 \r\n：Windows ConPTY 必需；false=真终端原始按键流）
         {
@@ -1021,12 +1380,20 @@ impl Tool for ShellSessionDestroyTool {
         let mut sessions = self.manager.sessions.lock().await;
         let removed = sessions.remove(&session_id);
         if let Some(mut session) = removed {
+            // E3-3：会话级 temp 先移出（随后 kill 会 move 会话；撤销须在进程终止后进行）
+            #[cfg(windows)]
+            let confined_temp = session.confined_temp.take();
             // portable-pty Child kill/wait 为同步 API → spawn_blocking 包裹
             let _ = tokio::task::spawn_blocking(move || {
                 let _ = session.child.kill();
                 let _ = session.child.wait();
             })
             .await;
+            // E3-3：撤销会话级 temp 的写 ACE 并删除目录（best-effort；残渣惰性无害）
+            #[cfg(windows)]
+            if let Some(temp) = confined_temp {
+                temp.revoke_and_remove();
+            }
         }
         Ok(serde_json::json!({ "ok": true, "session_id": session_id, "message": "会话已销毁" }))
     }
@@ -1178,8 +1545,13 @@ impl TerminalService {
 /// 构建并注册全部终端工具到工具总线
 ///
 /// 调用方：`AgentCommandService::new_agent`，在创建 `SimpleToolBus` 后注册。
-pub async fn register_terminal_tools(bus: &dyn agent_runtime::tool::ToolBus) {
-    let manager = ShellSessionManager::new();
+///
+/// `manager` 由调用方持有（2026-09-20 批次 C：PTY 会话池提升为**可注入**——
+/// 定时唤醒服务需按会话读取后台输出游标；此前每次注册自带一个新池、外部不可达）。
+pub async fn register_terminal_tools(
+    bus: &dyn agent_runtime::tool::ToolBus,
+    manager: ShellSessionManager,
+) {
     bus.register(Arc::new(ShellExecTool::bash())).await;
     bus.register(Arc::new(ShellExecTool::powershell())).await;
     // 2026-09-02：execute_command 已退役，不再注册到工具总线（Agent 统一用 bash/powershell）；

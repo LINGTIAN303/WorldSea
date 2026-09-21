@@ -76,6 +76,15 @@ pub trait Tool: Send + Sync {
             parameters: self.parameters(),
         }
     }
+
+    /// MCP 工具所属服务器（非 MCP 工具返回 None）
+    ///
+    /// M3（2026-09-17 三域对齐 dsh）：MCP 归属改由本方法表达——分组注册 / 按服务器
+    /// 注销 / 提示注记等调用方不再从工具名字符串反解析 server_id，命名契约与归属
+    /// 信息解耦（顺带取消「server_id 不得含下划线」的隐性约束）。
+    fn mcp_server_id(&self) -> Option<&str> {
+        None
+    }
 }
 
 // ─── ToolBus trait ────────────────────────────────────────────
@@ -155,9 +164,14 @@ pub trait ToolBus: Send + Sync {
 
     /// 按服务器 ID 注销所有 MCP 工具
     ///
-    /// 默认实现：无操作。具体实现需在 `register_mcp_tools` 中记录
+    /// 默认实现：无操作（返回 0）。具体实现需在 `register_mcp_tools` 中记录
     /// `server_id → [tool_name]` 映射，此处按映射批量删除。
-    async fn unregister_mcp_server(&self, _server_id: &str) {}
+    ///
+    /// 返回实际移除的工具数（M3：原为 `()`——调用方曾靠工具名前缀反查「是否存在」，
+    /// 改按真实移除数判定，消除对命名格式的依赖）。
+    async fn unregister_mcp_server(&self, _server_id: &str) -> usize {
+        0
+    }
 
     /// 解析工具名别名
     ///
@@ -297,14 +311,19 @@ impl ToolBus for SimpleToolBus {
         self.mcp_servers.write().await.insert(server_id, names);
     }
 
-    async fn unregister_mcp_server(&self, server_id: &str) {
+    async fn unregister_mcp_server(&self, server_id: &str) -> usize {
         let names = self.mcp_servers.write().await.remove(server_id);
         if let Some(names) = names {
             let mut tools = self.tools.write().await;
+            let mut removed = 0usize;
             for name in names {
-                tools.remove(&name);
+                if tools.remove(&name).is_some() {
+                    removed += 1;
+                }
             }
+            return removed;
         }
+        0
     }
 }
 
@@ -393,8 +412,8 @@ impl ToolBus for WhitelistToolBus {
         self.inner.register_mcp_tools(server_id, tools).await;
     }
 
-    async fn unregister_mcp_server(&self, server_id: &str) {
-        self.inner.unregister_mcp_server(server_id).await;
+    async fn unregister_mcp_server(&self, server_id: &str) -> usize {
+        self.inner.unregister_mcp_server(server_id).await
     }
 }
 
@@ -420,6 +439,46 @@ pub enum ToolError {
 
     #[error("其他错误: {0}")]
     Other(String),
+}
+
+impl ToolError {
+    /// T1（2026-09-18）：工具失败的结构化错误码（对齐 dsh 判别联合的 error code）。
+    ///
+    /// 供模型做「重试 / 换路 / 放弃」判断、前端做统一判据；与失败结果载荷中的
+    /// `errorCode` 字段同源（经 `tool_failure_from_error` 单点映射）。
+    /// 详细见 docs/details/注释/agent-runtime/agent.md（注释块 16 附：T1 判别契约）
+    pub fn error_code(&self) -> &'static str {
+        match self {
+            ToolError::NotFound(_) => "UNKNOWN_TOOL",
+            ToolError::ArgsParse(_) => "INVALID_TOOL_INPUT",
+            ToolError::Execution(_) => "EXECUTION_ERROR",
+            ToolError::Timeout => "TIMEOUT",
+            ToolError::Aborted => "ABORTED",
+            ToolError::Other(_) => "UNKNOWN",
+        }
+    }
+}
+
+/// 工具失败结果的统一构造——判别联合（`isError` + `errorCode` 显式）。
+///
+/// T1（2026-09-18）建立：保留既有 `error`（字符串）与 `tool` 字段（对模型习惯与既有
+/// 消费方零破坏），新增 `isError: true` 与结构化 `errorCode`（[`ToolError::error_code`]
+/// 单点映射；策略/确认/提问等非 `ToolError` 场景由调用方给码，如 POLICY_DENIED /
+/// CONFIRM_* / ASK_*）。成功结果**不携带** `isError`（缺省即成功）。
+///
+/// Q1（2026-09-20）：自 `agent/tools.rs` 迁入本模块——agent-commands 的提问工具需
+/// **跨 crate 复用同一构造**（保持「失败结果单一构造点」，防形状漂移）；公开路径
+/// `agent_runtime::tool::tool_failure_payload`。
+///
+/// 详细见 docs/details/注释/agent-runtime/agent.md（注释块 16 附：T1 判别契约）
+pub fn tool_failure_payload(tool: &str, message: impl Into<String>, code: &str) -> serde_json::Value {
+    let message: String = message.into();
+    serde_json::json!({
+        "isError": true,
+        "error": message,
+        "errorCode": code,
+        "tool": tool,
+    })
 }
 
 // ─── 测试用的 Echo 工具 ────────────────────────────────────────────
@@ -458,6 +517,23 @@ impl Tool for EchoTool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tool_error_codes_are_stable() {
+        // T1：错误码是模型（重试/换路判断）与前端（统一判据）的对外契约，取值不可随意漂移
+        assert_eq!(ToolError::NotFound("x".into()).error_code(), "UNKNOWN_TOOL");
+        assert_eq!(
+            ToolError::ArgsParse("x".into()).error_code(),
+            "INVALID_TOOL_INPUT"
+        );
+        assert_eq!(
+            ToolError::Execution("x".into()).error_code(),
+            "EXECUTION_ERROR"
+        );
+        assert_eq!(ToolError::Timeout.error_code(), "TIMEOUT");
+        assert_eq!(ToolError::Aborted.error_code(), "ABORTED");
+        assert_eq!(ToolError::Other("x".into()).error_code(), "UNKNOWN");
+    }
 
     #[tokio::test]
     async fn register_and_get_by_name() {

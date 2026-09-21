@@ -319,9 +319,13 @@ impl Scenario for WorldbuildingScenario {
 
     /// 世界构建场景专用工具意图（entity/relation/content/memory/kb）
     ///
-    /// 注：Rust `tool_bus` 当前通过 `new_agent` 仅注册 terminal + subagent 工具，
-    /// 此处工具名多为 TS 侧（`ALL_TOOLS_MAP`）桥接工具的表达意图。未来 TS 工具
-    /// 注册进 Rust `ToolBus` 后，本列表将决定 worldbuilding 场景的可用工具扩充。
+    /// 注：本列表与 `SYSTEM_BASE_TOOLS` 共同决定**可见性**（`WhitelistToolBus` 对
+    /// `list_all` 与 `call_tool` 双向裁剪）。列表中既可是 Rust 原生工具（entity_*/memory_*），
+    /// 也可是经 `FrontendToolBridge` 注册进 ToolBus 的前端工具（entity_*/content_search/kb_*/
+    /// ui_*/load_skill 等，见 `apps/tauri/src-tauri/src/frontend_tool_bridge.rs`）——
+    /// 桥接清单由前端 `BRIDGE_TOOL_NAMES` 单源生成（T5）。
+    /// 2026-09-18（S3 补桥）后：本列表内的 kb_read/kb_search/kb_write 与 entity_get_context
+    /// 由「声明但无实现」变为「真实可达」（桥已注册）。
     fn tool_ids(&self) -> Vec<String> {
         vec![
             // 实体 CRUD
@@ -348,6 +352,22 @@ impl Scenario for WorldbuildingScenario {
             "kb_read".into(),
             "kb_search".into(),
             "kb_write".into(),
+            // S4 存量处置（2026-09-18）：knowledge-base 技能退役后，kb 能力由工具面承载——
+            // 此处补齐 kb 全家族（此前仅 read/search/write 三个，其余 6 个「有工具无可见性」）。
+            "kb_list".into(),
+            "kb_delete".into(),
+            "kb_extract".into(),
+            "kb_reflect".into(),
+            "kb_link".into(),
+            "kb_init".into(),
+            // S4：project-io 技能退役后，项目导入导出与一致性检查改由工具面承载
+            "project_export".into(),
+            "project_import".into(),
+            "consistency_check".into(),
+            // E2（2026-09-18）：vision-analyzer 技能退役后，「图像理解」由工具面承载
+            // （内容/创作场景优先——读设定图、参考图、截图分析）
+            "vision_analyze".into(),
+            "list_vision_images".into(),
             // B3 联网搜索（实现在 TS 桥：packages/agent-runtime/src/tools/web-search.ts，
             // 经 FrontendToolBridge 执行；Rust 侧仅登记白名单，无原生实现）
             "web_search".into(),
@@ -438,6 +458,19 @@ impl Scenario for NovelScenario {
             "kb_read".into(),
             "kb_search".into(),
             "kb_write".into(),
+            // S4（2026-09-18）：kb 全家族 + 项目导入导出（技能退役后由工具面承载）
+            "kb_list".into(),
+            "kb_delete".into(),
+            "kb_extract".into(),
+            "kb_reflect".into(),
+            "kb_link".into(),
+            "kb_init".into(),
+            "project_export".into(),
+            "project_import".into(),
+            "consistency_check".into(),
+            // E2（2026-09-18）：图像理解由工具面承载（内容/创作场景优先）
+            "vision_analyze".into(),
+            "list_vision_images".into(),
             "web_search".into(),
         ]
     }
@@ -501,6 +534,17 @@ impl Scenario for GeneralScenario {
             "memory_pin".into(),
             "kb_read".into(),
             "kb_search".into(),
+            // S4（2026-09-18）：kb 全家族补齐（通用场景此前仅 read/search）+ 项目导入导出
+            "kb_write".into(),
+            "kb_list".into(),
+            "kb_delete".into(),
+            "kb_extract".into(),
+            "kb_reflect".into(),
+            "kb_link".into(),
+            "kb_init".into(),
+            "project_export".into(),
+            "project_import".into(),
+            "consistency_check".into(),
             "web_search".into(),
         ]
     }
@@ -579,7 +623,10 @@ impl Scenario for CodingScenario {
     }
 
     fn builtin_skills(&self) -> Vec<String> {
-        vec!["coding".into(), "refactor".into()]
+        // 2026-09-18 S5 收口：原 ["coding", "refactor"] 两个名字均非注册技能
+        // （coding 技能已退役——其工具面为 SYSTEM_BASE_TOOLS 原生工具；
+        //  "refactor" 全仓无注册来源，属历史悬空名），故清空。
+        Vec::new()
     }
 }
 
@@ -642,6 +689,19 @@ impl Scenario for DesignScenario {
             "kb_read".into(),
             "kb_search".into(),
             "kb_write".into(),
+            // S4（2026-09-18）：kb 全家族 + 项目导入导出（技能退役后由工具面承载）
+            "kb_list".into(),
+            "kb_delete".into(),
+            "kb_extract".into(),
+            "kb_reflect".into(),
+            "kb_link".into(),
+            "kb_init".into(),
+            "project_export".into(),
+            "project_import".into(),
+            "consistency_check".into(),
+            // E2（2026-09-18）：图像理解由工具面承载（内容/创作场景优先）
+            "vision_analyze".into(),
+            "list_vision_images".into(),
             "web_search".into(),
         ]
     }

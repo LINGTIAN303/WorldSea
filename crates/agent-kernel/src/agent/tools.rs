@@ -6,7 +6,7 @@ use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 
 use crate::event::{AgentEvent, EventBroadcaster, OrchestratorEvent};
-use crate::tool::ToolError;
+use crate::tool::{tool_failure_payload, ToolError};
 use crate::tool_context::ToolStreamSink;
 use crate::tool_hook::ToolHookAction;
 use crate::types::{MessageRole, OrchestratorMessage, PlanItem, PlanItemStatus, ToolCall};
@@ -45,6 +45,148 @@ impl ToolStreamSink for AgentToolStream {
             hunks,
         });
     }
+}
+
+/// T4（2026-09-18）：工具执行共享依赖束——串行路径直接构造，并行路径克隆进每个 task。
+///
+/// 全部字段为 `Arc` / 轻量克隆（钩子列表元素即 `Arc`），使串行与并行两条路径
+/// 走**同一个执行包装**（超时 / 重试 / 取消检查 / 生命周期钩子 / 重试事件同规）。
+/// 详细见 docs/details/注释/agent-runtime/agent.md
+#[derive(Clone)]
+struct ToolExecShared {
+    /// 场景门控后的工具总线（`effective_tool_bus`，场景下为 WhitelistToolBus）
+    bus: Arc<dyn crate::tool::ToolBus>,
+    /// A6 生命周期钩子（克隆成本 = N 个指针）
+    hooks: Vec<Arc<dyn crate::tool_hook::ToolLifecycleHook>>,
+    /// 事件广播器（重试 / 重试耗尽事件出口）
+    broadcaster: Arc<RwLock<EventBroadcaster>>,
+    /// 长任务管理器（取消检查 + 重试事件的 task_id 来源）
+    long_task_manager: Arc<crate::long_task::LongTaskManager>,
+    /// 重试上限（默认 0 = 不重试）
+    max_retries: u32,
+    /// 退避基延迟（第 n 次重试等待 = base × 2^n）
+    base_delay: std::time::Duration,
+    /// 单次执行超时（None = 不限时）
+    timeout: Option<std::time::Duration>,
+}
+
+/// T4（2026-09-18）：工具执行统一包装（串行 / 并行共用）。
+///
+/// 职责链：A6 钩子 pre（可改参 / 拒绝）→ 取消检查 → 超时包裹 → 失败按 2^n 退避重试
+/// （上限 `max_retries`）→ post / on_error 钩子 → 重试 / 耗尽事件广播。
+///
+/// 此前上述全套仅串行路径具备（内联在 `execute_tool_with_retry` 中）；并行路径
+/// 直调 `call_tool_with_ctx`——工具卡死会挂住整个 turn（无超时），且失败不重试、
+/// 钩子被绕过，与串行行为不一致。统一后两条路径等价。
+/// 详细见 docs/details/注释/agent-runtime/agent.md
+async fn run_tool_with_retry(
+    shared: &ToolExecShared,
+    name: &str,
+    ctx: &crate::tool_context::ToolContext,
+    args: serde_json::Value,
+) -> Result<serde_json::Value, ToolError> {
+    // A6 工具生命周期钩子：pre 阶段（可改 args / 拒绝）
+    // 多个钩子按注册顺序依次执行，后一个通过 Allow(new_args) 覆盖前一个。
+    let mut effective_args = args.clone();
+    for hook in &shared.hooks {
+        match hook.on_pre_use(name, &effective_args) {
+            ToolHookAction::Allow(new_args) => effective_args = new_args,
+            ToolHookAction::Deny(reason) => {
+                let err = ToolError::Execution(reason);
+                // 拒绝：跑全部 on_error 钩子记录，再返回（视为工具失败）
+                for h in &shared.hooks {
+                    h.on_error(name, &effective_args, &err);
+                }
+                return Err(err);
+            }
+        }
+    }
+
+    let mut attempt: u32 = 0;
+    loop {
+        // 取消检查（每次重试前）
+        if shared.long_task_manager.is_cancel_requested() {
+            info!("run_tool_with_retry: 检测到取消请求，停止重试");
+            return Err(ToolError::Aborted);
+        }
+
+        // 执行调用（含超时）
+        let call_result = if let Some(t) = shared.timeout {
+            match tokio::time::timeout(
+                t,
+                shared.bus.call_tool_with_ctx(name, ctx, effective_args.clone()),
+            )
+            .await
+            {
+                Ok(r) => r,
+                Err(_elapsed) => {
+                    warn!("工具 {} 执行超时（{:?}，attempt {}）", name, t, attempt + 1);
+                    Err(ToolError::Timeout)
+                }
+            }
+        } else {
+            shared
+                .bus
+                .call_tool_with_ctx(name, ctx, effective_args.clone())
+                .await
+        };
+
+        match call_result {
+            Ok(v) => {
+                // A6：post 阶段（观测结果，不阻断）
+                for h in &shared.hooks {
+                    h.on_post_use(name, &effective_args, &v);
+                }
+                return Ok(v);
+            }
+            Err(e) => {
+                if attempt >= shared.max_retries {
+                    // A6：on_error 阶段（记录错误，不阻断流程）
+                    for h in &shared.hooks {
+                        h.on_error(name, &effective_args, &e);
+                    }
+                    // Loop Engineering 批次5：广播重试耗尽事件
+                    super::loop_control::emit_loop_retry_exhausted_with(
+                        &shared.broadcaster,
+                        &shared.long_task_manager,
+                        shared.max_retries,
+                        &e.to_string(),
+                    )
+                    .await;
+                    return Err(e);
+                }
+                let delay = shared.base_delay * 2u32.pow(attempt);
+                warn!(
+                    "工具 {} 执行失败（attempt {}/{}），{:?} 后重试：{}",
+                    name,
+                    attempt + 1,
+                    shared.max_retries,
+                    delay,
+                    e
+                );
+                // Loop Engineering 批次5：广播正在重试事件（attempt 从 1 计）
+                super::loop_control::emit_loop_retrying_with(
+                    &shared.broadcaster,
+                    &shared.long_task_manager,
+                    attempt + 1,
+                    shared.max_retries,
+                    delay.as_millis() as u64,
+                    &e.to_string(),
+                )
+                .await;
+                tokio::time::sleep(delay).await;
+                attempt += 1;
+            }
+        }
+    }
+}
+
+/// T1：由 [`ToolError`] 构造失败结果（错误码单点映射，见 [`ToolError::error_code`]）。
+///
+/// 通用载荷构造已迁 [`crate::tool::tool_failure_payload`]（Q1，2026-09-20：跨 crate
+/// 复用，保持失败结果单一构造点）；本包装留在 agent 侧，供 `Err(ToolError)` 路径调用。
+pub(super) fn tool_failure_from_error(tool: &str, err: &ToolError) -> serde_json::Value {
+    tool_failure_payload(tool, err.to_string(), err.error_code())
 }
 
 /// H1 修复（P1.5，2026-08-30）：工具结果统一裁剪——单个字符串值超限截断，
@@ -255,115 +397,61 @@ impl AgentLoop {
         }
     }
 
-    /// 执行单个工具调用，含超时/重试（批次4），详细见 docs/details/注释/agent-runtime/agent.md
+    /// T4（2026-09-18）：构造工具执行共享依赖束（串行直接使用 / 并行克隆进任务）
+    fn tool_exec_shared(&self) -> ToolExecShared {
+        let config = self.config_snapshot();
+        ToolExecShared {
+            bus: self.effective_tool_bus(&config),
+            hooks: self.tool_hooks.clone(),
+            broadcaster: Arc::clone(&self.broadcaster),
+            long_task_manager: Arc::clone(&self.long_task_manager),
+            max_retries: config.tool_max_retries,
+            base_delay: config.tool_retry_base_delay,
+            timeout: config.tool_timeout,
+        }
+    }
+
+    /// T4：构造本会话的工具上下文（workdir / workspace_id / project_id 读锁短临界区，取出即释放）。
+    ///
+    /// `tool_call_id` 非空时注入逐调用流式 sink（bash/powershell 增量输出、文件变更 diff）。
+    ///
+    /// `pub(super)`：供同级测试模块（`agent::tests`）验证沙箱戳记等契约（E3-1）
+    pub(super) fn tool_ctx(&self, tool_call_id: Option<&str>) -> crate::tool_context::ToolContext {
+        let workdir = self.workdir.read().map(|g| g.clone()).unwrap_or(None);
+        let workspace_id = self.workspace_id.read().map(|g| g.clone()).unwrap_or(None);
+        // W2①（2026-09-18）：project_id 贯通（此前恒 None，工具侧看不到项目归属）
+        let project_id = self.project_id.read().map(|g| g.clone()).unwrap_or(None);
+        // E3-1（2026-09-18，方向 3 沙箱主业）：按当前档位派生沙箱戳记（观测期，不强制）；
+        // 无工作区 → None（命令路径已由 W3 fail-safe 拒绝），档位取自确认策略快照
+        let sandbox = self.sandbox_spec();
+        crate::tool_context::ToolContext {
+            workdir,
+            project_id,
+            workspace_id,
+            sandbox,
+            tool_stream: tool_call_id.map(|id| {
+                Arc::new(AgentToolStream {
+                    broadcaster: Arc::clone(&self.broadcaster),
+                    tool_call_id: id.to_string(),
+                }) as Arc<dyn ToolStreamSink>
+            }),
+            // Q1（2026-09-20）：子代理标记随 ctx 传播——「仅主会话可用」的工具
+            // （ask_user_question）据此 fail loud（ASK_UNAVAILABLE）
+            is_sub_agent: self.is_sub_agent,
+        }
+    }
+
+    /// 执行单个工具调用，含超时/重试（批次4；T4 起与并行路径共用 [`run_tool_with_retry`]），
+    /// 详细见 docs/details/注释/agent-runtime/agent.md
     async fn execute_tool_with_retry(
         &self,
         tool_call_id: &str,
         name: &str,
         args: serde_json::Value,
     ) -> Result<serde_json::Value, ToolError> {
-        let config = self.config_snapshot();
-        let max_retries = config.tool_max_retries;
-        let base_delay = config.tool_retry_base_delay;
-        let timeout = config.tool_timeout;
-        // B2 场景工具门控：启用场景时用 WhitelistToolBus 包装，非白名单工具
-        // 执行返回 NotFound 被拦截（与可见性过滤一致，避免绕过场景工具约束）。
-        let bus = self.effective_tool_bus(&config);
-
-        // 构造本会话的工具上下文（workdir 来自 AgentLoop 持有字段）
-        // 读锁短临界区：取出后立即释放，不跨 await 持有
-        let workdir = self.workdir.read().map(|g| g.clone()).unwrap_or(None);
-        let workspace_id = self.workspace_id.read().map(|g| g.clone()).unwrap_or(None);
-        let self_tool_ctx = crate::tool_context::ToolContext {
-            workdir,
-            project_id: None,
-            workspace_id,
-            // 逐工具调用注入流式 sink（bash/powershell 增量输出、文件变更 diff）
-            tool_stream: Some(Arc::new(AgentToolStream {
-                broadcaster: Arc::clone(&self.broadcaster),
-                tool_call_id: tool_call_id.to_string(),
-            })),
-        };
-
-        // A6 工具生命周期钩子：pre 阶段（可改 args / 拒绝）
-        // 多个钩子按注册顺序依次执行，后一个通过 Allow(new_args) 覆盖前一个。
-        let mut effective_args = args.clone();
-        for hook in &self.tool_hooks {
-            match hook.on_pre_use(name, &effective_args) {
-                ToolHookAction::Allow(new_args) => effective_args = new_args,
-                ToolHookAction::Deny(reason) => {
-                    let err = ToolError::Execution(reason);
-                    // 拒绝：跑全部 on_error 钩子记录，再返回（视为工具失败）
-                    for h in &self.tool_hooks {
-                        h.on_error(name, &effective_args, &err);
-                    }
-                    return Err(err);
-                }
-            }
-        }
-
-        let mut attempt: u32 = 0;
-        loop {
-            // 取消检查（每次重试前）
-            if self.long_task_manager.is_cancel_requested() {
-                info!("execute_tool_with_retry: 检测到取消请求，停止重试");
-                return Err(ToolError::Aborted);
-            }
-
-            // 执行调用（含超时）
-            let call_result = if let Some(t) = timeout {
-                match tokio::time::timeout(t, bus.call_tool_with_ctx(name, &self_tool_ctx, effective_args.clone())).await {
-                    Ok(r) => r,
-                    Err(_elapsed) => {
-                        warn!("工具 {} 执行超时（{:?}，attempt {}）", name, t, attempt + 1);
-                        Err(ToolError::Timeout)
-                    }
-                }
-            } else {
-                bus.call_tool_with_ctx(name, &self_tool_ctx, effective_args.clone()).await
-            };
-
-            match call_result {
-                Ok(v) => {
-                    // A6：post 阶段（观测结果，不阻断）
-                    for h in &self.tool_hooks {
-                        h.on_post_use(name, &effective_args, &v);
-                    }
-                    return Ok(v);
-                }
-                Err(e) => {
-                    if attempt >= max_retries {
-                        // A6：on_error 阶段（记录错误，不阻断流程）
-                        for h in &self.tool_hooks {
-                            h.on_error(name, &effective_args, &e);
-                        }
-                        // Loop Engineering 批次5：广播重试耗尽事件
-                        self.emit_loop_retry_exhausted(max_retries, &e.to_string())
-                            .await;
-                        return Err(e);
-                    }
-                    let delay = base_delay * 2u32.pow(attempt);
-                    warn!(
-                        "工具 {} 执行失败（attempt {}/{}），{:?} 后重试：{}",
-                        name,
-                        attempt + 1,
-                        max_retries,
-                        delay,
-                        e
-                    );
-                    // Loop Engineering 批次5：广播正在重试事件（attempt 从 1 计）
-                    self.emit_loop_retrying(
-                        attempt + 1,
-                        max_retries,
-                        delay.as_millis() as u64,
-                        &e.to_string(),
-                    )
-                    .await;
-                    tokio::time::sleep(delay).await;
-                    attempt += 1;
-                }
-            }
-        }
+        let shared = self.tool_exec_shared();
+        let ctx = self.tool_ctx(Some(tool_call_id));
+        run_tool_with_retry(&shared, name, &ctx, args).await
     }
 
     /// 执行工具调用（串行/并行），详细见 docs/details/注释/agent-runtime/agent.md
@@ -372,16 +460,8 @@ impl AgentLoop {
         tool_calls: Vec<ToolCall>,
     ) -> Result<Vec<OrchestratorMessage>, AgentError> {
         let config_snapshot = self.config_snapshot();
-        // 构造本会话的工具上下文（workdir 来自 AgentLoop 持有字段）
-        // 读锁短临界区：取出后立即释放，不跨 await 持有
-        let workdir = self.workdir.read().map(|g| g.clone()).unwrap_or(None);
-        let workspace_id = self.workspace_id.read().map(|g| g.clone()).unwrap_or(None);
-        let self_tool_ctx = crate::tool_context::ToolContext {
-            workdir,
-            project_id: None,
-            workspace_id,
-            tool_stream: None,
-        };
+        // 构造本会话的工具上下文（T4：统一经 `tool_ctx`；workdir 来自 AgentLoop 持有字段）
+        let self_tool_ctx = self.tool_ctx(None);
         // A5 HITL：若任一工具需确认（策略命中 / 敏感目录拒绝 / 越界确认），强制走串行
         // 确认需逐次暂停等待；敏感目录拒绝/越界确认若走并行会被绕过，故一并纳入。
         let any_needs_confirm = tool_calls.iter().any(|t| {
@@ -417,10 +497,13 @@ impl AgentLoop {
             needs_guard || needs_policy
         });
         if config_snapshot.parallel_tool_calls && tool_calls.len() > 1 && !any_needs_confirm {
-            self.execute_tool_calls_parallel(tool_calls).await
-        } else {
-            self.execute_tool_calls_serial(tool_calls).await
+            // Q1（2026-09-20）：提问工具强制走串行——一次只弹一个提问面板（同批多个 ask
+            // 会互相顶掉前端面板，且人工作答本就是串行语义；同 confirmation 的串行理由）
+            if !tool_calls.iter().any(|t| t.name == "ask_user_question") {
+                return self.execute_tool_calls_parallel(tool_calls).await;
+            }
         }
+        self.execute_tool_calls_serial(tool_calls).await
     }
 
     /// A5 HITL：若命中确认策略，则发起确认并等待用户回传
@@ -446,19 +529,13 @@ impl AgentLoop {
         let guard = crate::confirmation::guard_fs_path(name, args, ctx, false);
         // 0) 敏感目录守卫：命中即拒绝（安全底线，内置预置锁）
         if let crate::confirmation::PathGuard::Deny(reason) = guard {
-            return Some(serde_json::json!({
-                "error": reason,
-                "tool": name,
-            }));
+            return Some(tool_failure_payload(name, reason, "POLICY_DENIED"));
         }
         // 0.5) v2 规则引擎裁决（用户锁 > 白名单 > 档位）：
         //      命中用户锁 → 拒绝；命中白名单 → 直接放行（跳过档位确认）
         match crate::confirmation::rule_engine_verdict(name, args, ctx) {
             Err(msg) => {
-                return Some(serde_json::json!({
-                    "error": msg,
-                    "tool": name,
-                }))
+                return Some(tool_failure_payload(name, msg, "POLICY_DENIED"));
             }
             Ok(true) => return None,
             Ok(false) => {}
@@ -469,10 +546,11 @@ impl AgentLoop {
                 && (crate::confirmation::is_write_tool(name)
                     || crate::confirmation::is_command_tool(name))
             {
-                return Some(serde_json::json!({
-                    "error": "Plan 只读档：写/命令操作已禁用",
-                    "tool": name,
-                }));
+                return Some(tool_failure_payload(
+                    name,
+                    "Plan 只读档：写/命令操作已禁用",
+                    "POLICY_DENIED",
+                ));
             }
         }
         // 0.7) agent-tmp 全权免确认：写/搜索工具解析落 workdir/agent-tmp 子树 → 直接放行。
@@ -493,17 +571,71 @@ impl AgentLoop {
         if !needs {
             return None;
         }
-        let approved = broker
+        let outcome = broker
             .request(&self.broadcaster, name, args.clone())
-            .await
-            .unwrap_or(false);
-        if approved {
-            None
-        } else {
-            Some(serde_json::json!({
-                "error": format!("用户拒绝了工具调用 \"{name}\""),
-                "tool": name,
-            }))
+            .await;
+        // D8 四值：拒绝 / 跳过 / 超时不再混同——工具错误消息区分，LLM 可据此采取不同后续
+        // T1：结果补判别字段（isError + errorCode，拒绝类码与四值一一对应）
+        let (reason, code) = match outcome {
+            crate::confirmation::ConfirmationOutcome::Approved => return None,
+            crate::confirmation::ConfirmationOutcome::Denied => ("用户拒绝了工具调用", "CONFIRM_DENIED"),
+            crate::confirmation::ConfirmationOutcome::Skipped => ("用户跳过了工具调用", "CONFIRM_SKIPPED"),
+            crate::confirmation::ConfirmationOutcome::Timeout => (
+                "等待用户确认超时，工具调用未执行",
+                "CONFIRM_TIMEOUT",
+            ),
+        };
+        Some(tool_failure_payload(
+            name,
+            format!("{reason} \"{name}\""),
+            code,
+        ))
+    }
+
+    /// 工具结果**广播前同步预处理**（A1 第二阶段迁移：裁剪迁入事件总线）
+    ///
+    /// 在串行 / 并行两条工具执行路径上，于 `ToolCallEnd` 广播与 toolResult 消息
+    /// 构造**之前**以 `waterfall` 分发 [`OrchestratorEvent::ToolResultPreBroadcast`]：
+    /// - **链尾内建** = [`clamp_tool_result_with`]（现行裁剪 + 原文外置）——零监听器
+    ///   时行为与迁移前逐字节一致
+    /// - 监听器可改写 `result`（如按 `tool_name` 定制裁剪策略）
+    /// - 不调 `next` 即否决 → **兜底裁剪**（「截断永不缺席」；裁剪幂等：已裁内容
+    ///   二次裁剪为 no-op，不会重复外置）
+    ///
+    /// **红线遵守（05-§2.4）**：① 同步——链内零 await（分发在短读锁临界区内，
+    /// 与 A3 输入准入同型）；② 单副本——广播与入历史继续共用同一 `result_value`；
+    /// ③ 位置不变——仍在广播前（前端所见 = 入历史所见）。
+    pub(super) async fn preprocess_tool_result(
+        &self,
+        tool_call_id: &str,
+        tool_name: &str,
+        result: &mut Value,
+    ) {
+        let mut event = OrchestratorEvent::ToolResultPreBroadcast {
+            tool_call_id: tool_call_id.to_string(),
+            tool_name: tool_name.to_string(),
+            result: std::mem::replace(result, Value::Null),
+        };
+        let outcome = {
+            // 取总线句柄后于**壳锁外**分发（2026-09-17 风险点处置：链内注册/I/O 不阻滞写者）
+            let bus = self.event_bus_handle().await;
+            bus.waterfall(&mut event, |ev| {
+                if let OrchestratorEvent::ToolResultPreBroadcast { result, .. } = ev {
+                    clamp_tool_result_with(result, &self.raw_context_sink);
+                }
+                crate::event_bus::Outcome::Ok
+            })
+        };
+        // 取回（可能被监听器改写的）负载——广播与入历史共用此值（单副本）
+        if let OrchestratorEvent::ToolResultPreBroadcast {
+            result: processed, ..
+        } = event
+        {
+            *result = processed;
+        }
+        if outcome == crate::event_bus::Outcome::Vetoed {
+            // 否决 = 跳过链尾裁剪 → 调用方兜底裁剪（防爆兜底不可被绕过）
+            clamp_tool_result_with(result, &self.raw_context_sink);
         }
     }
 
@@ -520,16 +652,8 @@ impl AgentLoop {
     ) -> Result<Vec<OrchestratorMessage>, AgentError> {
         let mut results = Vec::with_capacity(tool_calls.len());
 
-        // 构造本会话的工具上下文（workdir 来自 AgentLoop 持有字段）
-        // 读锁短临界区：取出后立即释放，不跨 await 持有
-        let workdir = self.workdir.read().map(|g| g.clone()).unwrap_or(None);
-        let workspace_id = self.workspace_id.read().map(|g| g.clone()).unwrap_or(None);
-        let self_tool_ctx = crate::tool_context::ToolContext {
-            workdir,
-            project_id: None,
-            workspace_id,
-            tool_stream: None,
-        };
+        // 构造本会话的工具上下文（T4：统一经 `tool_ctx`；确认预检用，不注入流式 sink）
+        let self_tool_ctx = self.tool_ctx(None);
 
         for tc in tool_calls {
             // 广播 ToolCallStart
@@ -566,17 +690,15 @@ impl AgentLoop {
                     (
                         "failed",
                         Some(e.to_string()),
-                        serde_json::json!({
-                            "error": e.to_string(),
-                            "tool": tc.name,
-                        }),
+                        tool_failure_from_error(&tc.name, &e),
                     )
                 }
             };
 
-            // H1 修复（P1.5）+ A1 己1①：统一裁剪超长字符串（广播与入历史看到一致内容）；
-            // 截断前先把完整原文外置（注入 sink 时），标注里附坐标供取回
-            clamp_tool_result_with(&mut result_value, &self.raw_context_sink);
+            // H1 修复（P1.5）+ A1 己1① + 阶段 1 第二段：广播前 waterfall 预处理——
+            // 链尾内建 = 统一裁剪超长字符串 + 原文外置（监听器可改写，见 preprocess_tool_result）
+            self.preprocess_tool_result(&tc.id, &tc.name, &mut result_value)
+                .await;
 
             // 广播 ToolCallEnd（status/duration_ms/error 顶层权威——H7 P0.5）
             self.broadcast(OrchestratorEvent::Agent(AgentEvent::ToolCallEnd {
@@ -612,15 +734,15 @@ impl AgentLoop {
     ///
     /// 事件广播顺序：
     /// - `ToolCallStart` × N（按原顺序，spawn 前）
-    /// - 工具并发执行（每个 task 不广播，避免事件交错）
+    /// - 工具并发执行（ToolCall* 生命周期事件不在 task 内广播，避免事件交错；
+    ///   工具流式 delta 与重试事件属 droppable 增强通道，由 task 内发出）
     /// - `ToolCallEnd` × N（按原索引顺序，结果收集完成后）
     async fn execute_tool_calls_parallel(
         &self,
         tool_calls: Vec<ToolCall>,
     ) -> Result<Vec<OrchestratorMessage>, AgentError> {
-        // B2 场景工具门控：并行执行同样走 effective_tool_bus（场景下 WhitelistToolBus）
-        let config_snapshot = self.config_snapshot();
-        let bus = self.effective_tool_bus(&config_snapshot);
+        // B2 场景工具门控 + T4：并行与串行共用 `ToolExecShared`（超时/重试/取消/钩子/重试事件同规）
+        let shared = self.tool_exec_shared();
         // 1. 按顺序广播所有 ToolCallStart
         for tc in &tool_calls {
             self.broadcast(OrchestratorEvent::Agent(AgentEvent::ToolCallStart {
@@ -631,31 +753,17 @@ impl AgentLoop {
             .await;
         }
 
-        // 2. 用 JoinSet 并发执行（含并行模式重试/超时限制说明），详细见 docs/details/注释/agent-runtime/agent.md
+        // 2. 用 JoinSet 并发执行：每个 task 走与串行一致的 `run_tool_with_retry`
+        //    （T4：超时 / 重试 / 取消检查 / 钩子 / 重试事件同规），详细见 docs/details/注释/agent-runtime/agent.md
         // 元组末三位为 H7 P0.5 执行耗时/成败/错误摘要（task 内计时，含重试）
         let mut join_set: tokio::task::JoinSet<
             (usize, String, String, serde_json::Value, u64, String, Option<String>),
         > = tokio::task::JoinSet::new();
 
-        // 构造本会话的工具上下文（workdir 来自 AgentLoop 持有字段），并行时 clone 进每个 task
-        // 读锁短临界区：取出后立即释放，不跨 await 持有
-        let workdir = self.workdir.read().map(|g| g.clone()).unwrap_or(None);
-        let workspace_id = self.workspace_id.read().map(|g| g.clone()).unwrap_or(None);
-        let self_tool_ctx = crate::tool_context::ToolContext {
-            workdir,
-            project_id: None,
-            workspace_id,
-            tool_stream: None,
-        };
-
         for (idx, tc) in tool_calls.into_iter().enumerate() {
-            let tool_bus = bus.clone();
+            let shared = shared.clone();
             // 并行：每个 task 注入独立 sink（tool_call_id 不同，流事件归位到各自工具段）
-            let mut ctx = self_tool_ctx.clone();
-            ctx.tool_stream = Some(Arc::new(AgentToolStream {
-                broadcaster: Arc::clone(&self.broadcaster),
-                tool_call_id: tc.id.clone(),
-            }));
+            let ctx = self.tool_ctx(Some(&tc.id));
             let call_id = tc.id.clone();
             let tool_name = tc.name.clone();
             let args = tc.args.clone();
@@ -670,16 +778,13 @@ impl AgentLoop {
                 // H7 P0.5：task 内计时（覆盖重试；Start 广播在 spawn 前统一进行，不计入）
                 let exec_started = std::time::Instant::now();
                 let (result_value, status, error) =
-                    match tool_bus.call_tool_with_ctx(&tool_name, &ctx, args).await {
+                    match run_tool_with_retry(&shared, &tool_name, &ctx, args).await {
                         Ok(v) => (v, "success", None),
                         Err(e) => {
                             warn!("工具 {} 并行执行失败: {}", tool_name, e);
                             let msg = e.to_string();
                             (
-                                serde_json::json!({
-                                    "error": msg.clone(),
-                                    "tool": tool_name,
-                                }),
+                                tool_failure_from_error(&tool_name, &e),
                                 "failed",
                                 Some(msg),
                             )
@@ -704,9 +809,7 @@ impl AgentLoop {
                         0, // 占位索引，排序后会被覆盖或放到最前
                         String::new(),
                         String::new(),
-                        serde_json::json!({
-                            "error": format!("task panic: {join_err}"),
-                        }),
+                        tool_failure_payload("", format!("task panic: {join_err}"), "TOOL_PANIC"),
                         0,
                         "failed".to_string(),
                         Some(format!("task panic: {join_err}")),
@@ -721,8 +824,9 @@ impl AgentLoop {
         // 5. 按顺序广播 ToolCallEnd 并构造 toolResult 消息
         let mut results = Vec::with_capacity(indexed_results.len());
         for (_, call_id, tool_name, mut result_value, duration_ms, status, error) in indexed_results {
-            // H1 修复（P1.5）+ A1 己1①：统一裁剪超长字符串（与串行路径一致）
-            clamp_tool_result_with(&mut result_value, &self.raw_context_sink);
+            // H1 修复（P1.5）+ A1 己1① + 阶段 1 第二段：广播前 waterfall 预处理（与串行路径一致）
+            self.preprocess_tool_result(&call_id, &tool_name, &mut result_value)
+                .await;
 
             self.broadcast(OrchestratorEvent::Agent(AgentEvent::ToolCallEnd {
                 tool_call_id: call_id.clone(),

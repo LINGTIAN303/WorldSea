@@ -1,4 +1,4 @@
-﻿//! 思维域共享类型 — ThoughtNode/ToTConfig/ToTError/ToTTerminationReason + 策略 trait
+//! 思维域共享类型 — ThoughtNode/ToTConfig/ToTError/ToTTerminationReason + 策略 trait
 //!
 //! 原 tree_of_thoughts/{node,config,error,strategies}.rs 合并，供 ToT/GoT 共同复用
 //! （matrix §4 GoT 解耦：GoT 经本模块公开 API 复用，不再跨目录 import tot 内部符号）。
@@ -424,6 +424,8 @@ impl ExplorationStrategy for BeamSearchStrategy {
         let options = PromptCallOptions {
             system_prompt_override: Some(self.prompt_template.system.clone()),
             tools_override: Some(Vec::new()),
+            // 阶段 3 · ④ 扩展：旁路入账标签（D13 旁路全收）
+            purpose: Some("tot_expand".into()),
             ..Default::default()
         };
 
@@ -524,6 +526,8 @@ impl ScoringStrategy for LlmScoringStrategy {
         let options = PromptCallOptions {
             system_prompt_override: Some(self.prompt_template.system.clone()),
             tools_override: Some(Vec::new()),
+            // 阶段 3 · ④ 扩展：旁路入账标签（D13 旁路全收）
+            purpose: Some("tot_score".into()),
             ..Default::default()
         };
 
@@ -611,6 +615,8 @@ impl GoalCheckStrategy for LlmGoalCheckStrategy {
         let options = PromptCallOptions {
             system_prompt_override: Some(self.prompt_template.system.clone()),
             tools_override: Some(Vec::new()),
+            // 阶段 3 · ④ 扩展：旁路入账标签（D13 旁路全收）
+            purpose: Some("tot_goal_check".into()),
             ..Default::default()
         };
 

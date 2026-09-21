@@ -7,6 +7,7 @@
 use async_trait::async_trait;
 use serde_json::Value;
 
+use agent_kernel::backend::PromptCallOptions;
 use agent_kernel::event::OrchestratorEvent;
 use agent_kernel::node::{NodeContext, NodeResult, NodeStatus, NodeType, OrchestratorNode};
 use crate::shared::json::extract_json_object;
@@ -210,7 +211,12 @@ impl OrchestratorNode for ReflectionNode {
                 .push(make_msg(MessageRole::User, prompt.clone()));
         }
 
-        let response = match ctx.backend.prompt(prompt, None).await {
+        // 阶段 3 · ④ 扩展：旁路入账标签（D13 旁路全收；请求构造不变）
+        let options = PromptCallOptions {
+            purpose: Some("reflection".into()),
+            ..Default::default()
+        };
+        let response = match ctx.backend.prompt(prompt, Some(options)).await {
             Ok(r) => r.text,
             Err(e) => return NodeResult::error(format!("ReflectionNode LLM 调用失败: {e}")),
         };
@@ -570,7 +576,12 @@ impl OrchestratorNode for RefineNode {
                 .push(make_msg(MessageRole::User, prompt.clone()));
         }
 
-        let response = match ctx.backend.prompt(prompt, None).await {
+        // 阶段 3 · ④ 扩展：旁路入账标签（D13 旁路全收；请求构造不变）
+        let options = PromptCallOptions {
+            purpose: Some("refine".into()),
+            ..Default::default()
+        };
+        let response = match ctx.backend.prompt(prompt, Some(options)).await {
             Ok(r) => r.text,
             Err(e) => return NodeResult::error(format!("RefineNode LLM 调用失败: {e}")),
         };

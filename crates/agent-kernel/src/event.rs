@@ -8,7 +8,8 @@ use std::sync::Arc;
 use serde::Serialize;
 
 use crate::a2ui::A2UIMessage;
-use crate::memory::{MemoryArchiveResult, MemoryRecallResult};
+use crate::confirmation::{AskOutcome, ConfirmationOutcome};
+use crate::event_bus::{DispatchMode, Listener, Outcome};
 use crate::node::{NodeStatus, NodeType};
 use crate::types::{ConvergeReason, ImageAttachment, PlanItem, ReflectionResult};
 
@@ -56,19 +57,26 @@ pub enum AgentEvent {
         error: Option<String>,
     },
     /// 错误
-    Error { message: String },
+    ///
+    /// A5 后续（2026-09-17）：附结构化字段——`code`（稳定错误码，如 `RATE_LIMIT`）/
+    /// `retryable`（是否可重试）/ `retry_after_ms`（服务端 `Retry-After` 建议等待）。
+    /// 仅 `AgentError::Backend` 类错误可填，其余为 `None`；`message` 内仍保留
+    /// 用户可行动引导语（`user_hint` 文本逻辑不变）。
+    Error {
+        /// 错误消息（含用户引导语）
+        message: String,
+        /// 稳定错误码（`BackendErrorCode::as_str()`）
+        #[serde(skip_serializing_if = "Option::is_none")]
+        code: Option<String>,
+        /// 是否可重试（瞬时性故障）
+        #[serde(skip_serializing_if = "Option::is_none")]
+        retryable: Option<bool>,
+        /// 服务端建议等待（`Retry-After`，毫秒）
+        #[serde(skip_serializing_if = "Option::is_none")]
+        retry_after_ms: Option<u64>,
+    },
     /// Agent 结束
     AgentEnd,
-    /// A2UI 事件（P2 新增）
-    ///
-    /// 由 A2UI 工具（如 `ui_create_surface`、`ui_update_components` 等）触发，
-    /// 携带目标画布 ID 与 A2UI 消息载荷。
-    /// 前端监听此事件，更新 `a2uiSurfaces` 状态，由 `A2UIRenderer.vue` 渲染。
-    ///
-    /// # 字段
-    /// - `surface_id`：目标画布 ID（与 `message` 内的 surface_id 一致，便于前端快速路由）
-    /// - `message`：A2UI 消息（含 createSurface / updateComponents / updateDataModel / deleteSurface 变体）
-    A2UI { surface_id: String, message: A2UIMessage },
 }
 
 // ─── Orchestrator 扩展事件 ────────────────────────────────────
@@ -151,46 +159,99 @@ pub enum OrchestratorEvent {
     /// 评审结果
     ReflectionResult { result: ReflectionResult },
 
-    // ── Memory Pattern 事件（阶段 0.6 新增）──
-    /// 记忆检索
-    MemoryRecall {
-        query: String,
-        results: Vec<MemoryRecallResult>,
-        duration_ms: u64,
+    // ─ 上下文压缩事件族（阶段 3 · A2 补齐②③：事务括号 + 事件化）──
+    // 括号语义：`Started` 在**任何副作用之前**（外置写盘 / 视图改写）广播；
+    // 此后必须收到 `Finished` 或 `Failed`——右端缺失即「事务中断（崩溃）」，
+    // 由压缩事务锁（孤儿锁）在会话下一次装载时检测。
+    /// 压缩事务开始（括号左端）
+    ContextCompactStarted {
+        /// 触发源：`auto`（自动预算裁剪）/ `manual`（/compact 手动）
+        trigger: String,
+        /// 压缩前总占用（token = 历史 + 系统侧）
+        before_tokens: usize,
+        /// 压缩前所在压缩阶梯层（0=未达第一层，1–4）
+        tier: u8,
     },
-    /// 记忆注入
-    MemoryInject {
-        summary: String,
-        hook_count: usize,
+    /// 压缩事务完成（括号右端；视图改写与回填结束、重计量之后）
+    ContextCompactFinished {
+        /// 触发源：`auto` / `manual`
+        trigger: String,
+        /// 处理模式："folded"（折叠）/ "dropped"（删除）
+        mode: String,
+        /// 压缩前总占用（token）
+        before_tokens: usize,
+        /// 压缩后总占用（token，重计量）
+        after_tokens: usize,
+        /// 实际释放（token）
+        saved_tokens: usize,
+        /// 折叠组数（注入外置器的路径）
+        folded_groups: usize,
+        /// 被折叠的消息条数
+        folded_messages: usize,
+        /// 被删除的消息条数（无外置器的路径）
+        dropped_messages: usize,
+        /// 因受保护（System/最新 user/打标/最近 N 条）跳过未动的组数
+        skipped_protected_groups: usize,
+        /// 实际填回压缩文本的锚点数
+        backfilled: usize,
     },
-    /// 记忆归档
-    MemoryArchive {
-        result: Option<MemoryArchiveResult>,
-    },
-    /// 短期记忆 trim
-    MemoryTrim {
-        removed_count: usize,
-        removed_tokens: usize,
+    /// 压缩事务失败（括号右端—异常；折叠 / 删除失败时先广播再上抛）
+    ContextCompactFailed {
+        /// 触发源：`auto` / `manual`
+        trigger: String,
+        /// 失败阶段："fold"（折叠）/ "trim"（选择性删除）
+        stage: String,
+        /// 错误摘要
+        error: String,
     },
 
-    // ── Working Memory 事件（阶段 0.7 新增）──
-    /// 工作记忆推入
-    WorkingMemoryPush {
-        entry_id: String,
+    // ── 请求快照事件族（阶段 3 · A2 补齐④）──
+    /// 请求快照已采集（**派发之前**；命令层监听器经同步分发先落 WAL，崩溃可补齐）
+    RequestSnapshotCaptured {
+        /// 快照内容（除消息以外的一切 + 视图增量）——见 `agent::request_snapshot`
+        snapshot: crate::agent::request_snapshot::RequestSnapshot,
+    },
+
+    // ── 输入模型事件族（阶段 2 · A3）──
+    /// 输入准入（**waterfall 分发**：监听器可改写 / 丢弃 `items`；链尾内建 = 全部准入）
+    ///
+    /// 分发方式：调用方（`AgentLoop::consume_admitted_inputs`）以 `waterfall` 显式分发——
+    /// 监听器不调 `next` 即否决本次准入（输入保留到下一轮）；`items` 置空 = 全部拒绝。
+    InputAdmission {
+        /// 当前循环轮次（`state.current_iteration`）
+        iteration: u32,
+        /// 待准入输入（**可改写负载**；`kind` 标记来源语义）
+        items: Vec<crate::agent::input::InputItem>,
+    },
+
+    /// 本轮被中断（取消收口：已交付文本终结 + 中断锚点；先于 `AgentEnd` 广播）
+    AgentInterrupted {
+        /// 中断原因：`user_abort`（主动中断）/ `cooperative_cancel`（协作式取消）
+        reason: String,
+        /// 中断时所在循环轮次
+        iteration: u32,
+        /// 已交付文本字符数（0 = 无半成品）
+        delivered_chars: usize,
+    },
+
+    // ─ 工具结果预处理事件族（阶段 1 第二段迁移：工具结果裁剪）──
+    /// 工具结果**广播前同步预处理**（**waterfall 分发**：监听器可改写 `result`）
+    ///
+    /// 分发方式：调用方（`AgentLoop::preprocess_tool_result`）在串行 / 并行两条
+    /// 工具执行路径上，于 `ToolCallEnd` 广播与 toolResult 消息构造**之前**以
+    /// `waterfall` 显式分发（05 §2.4 红线：前端所见 = 入历史所见）。
+    /// 链尾内建 = 现行裁剪（`clamp_tool_result_with`，含原文外置）——零监听器时
+    /// 行为与迁移前逐字节一致；监听器不调 `next` 即否决 → 调用方**兜底裁剪**
+    /// （「截断永不缺席」：本事件的否决不可绕过防爆兜底）。
+    ///
+    /// 本事件是"分发载具"（同 `InputAdmission`），**不向前端转发**。
+    ToolResultPreBroadcast {
+        /// 工具调用 ID
+        tool_call_id: String,
+        /// 工具名（供监听器按工具定制裁剪策略）
         tool_name: String,
-        estimated_tokens: usize,
-    },
-    /// 工作记忆 trim
-    WorkingMemoryTrim {
-        removed_count: usize,
-        remaining_count: usize,
-    },
-    /// 工作记忆清空
-    WorkingMemoryClear,
-    /// 工作记忆合并到 messages
-    WorkingMemoryMerge {
-        merged_count: usize,
-        merged_tokens: usize,
+        /// 工具结果（**可改写负载**）
+        result: serde_json::Value,
     },
 
     // Supervisor Pattern 事件（任务分配/子 Agent 执行进度），详细见 docs/details/注释/agent-runtime/event.md
@@ -241,9 +302,7 @@ pub enum OrchestratorEvent {
     },
     /// 子 Agent 执行失败
     ///
-    /// 在 `AgentLoop::run` 返回错误时触发。
-    /// 与 `SupervisorError` 的区别：本事件特指子 Agent 执行阶段失败，
-    /// `SupervisorError` 指任务分配阶段失败。
+    /// 在 `AgentLoop::run` 返回错误时触发（子 Agent 执行阶段失败）。
     SubAgentError {
         /// 触发节点 ID（Supervisor 节点的 id）
         node_id: String,
@@ -251,17 +310,6 @@ pub enum OrchestratorEvent {
         sub_agent_id: String,
         /// 子 Agent 名称
         sub_agent_name: String,
-        /// 错误信息
-        error: String,
-    },
-    /// Supervisor 任务分配阶段失败
-    ///
-    /// 在 `AssignmentStrategy::assign` 返回错误时触发。
-    SupervisorError {
-        /// 触发节点 ID（Supervisor 节点的 id）
-        node_id: String,
-        /// 错误阶段（"assign" / "spec_lookup" / "agent_run"）
-        stage: String,
         /// 错误信息
         error: String,
     },
@@ -423,86 +471,6 @@ pub enum OrchestratorEvent {
         content_preview: String,
     },
 
-    // Multi-Agent Pattern 事件（多轮协作过程），详细见 docs/details/注释/agent-runtime/event.md
-    /// Multi-Agent 协作轮次开始
-    ///
-    /// 在每轮协作开始时触发，携带轮次编号与参与 Agent 数量。
-    /// 前端可据此展示"第 N 轮协作开始（共 M 个 Agent）"。
-    MultiAgentRoundStarted {
-        /// 触发节点 ID（Multi-Agent 节点的 id）
-        node_id: String,
-        /// 当前轮次（从 1 开始）
-        round: usize,
-        /// 参与 Agent 数量
-        agent_count: usize,
-    },
-    /// Agent 间消息已发送
-    ///
-    /// 在 Agent 从 mpsc 通道接收到消息时触发（接收方视角），
-    /// 携带发送方/接收方 ID、消息类型与内容预览。
-    /// 前端可据此展示"Agent A → Agent B: 任务消息"。
-    MultiAgentMessageSent {
-        /// 触发节点 ID（Multi-Agent 节点的 id）
-        node_id: String,
-        /// 发送方 Agent ID
-        from: String,
-        /// 接收方 Agent ID（"all" 表示广播）
-        to: String,
-        /// 消息类型（"task" / "result" / "broadcast" / "query" / "synchronize"）
-        message_type: String,
-        /// 消息内容预览（前 200 字符）
-        content_preview: String,
-    },
-    /// 共享黑板已更新
-    ///
-    /// 在 Agent 写入共享黑板后触发，携带更新的 key 与写入方 Agent ID。
-    /// 前端可据此展示"Agent A 更新了黑板 [agent_output:A]"。
-    MultiAgentBlackboardUpdated {
-        /// 触发节点 ID（Multi-Agent 节点的 id）
-        node_id: String,
-        /// 被更新的 key（如 "agent_output:agent_id"）
-        key: String,
-        /// 写入方 Agent ID
-        by: String,
-    },
-    /// Multi-Agent 协作轮次完成
-    ///
-    /// 在每轮协作所有 Agent 执行完毕后触发，携带轮次编号与本轮输出列表。
-    /// 前端可据此展示"第 N 轮协作完成（M 个输出）"。
-    MultiAgentRoundCompleted {
-        /// 触发节点 ID（Multi-Agent 节点的 id）
-        node_id: String,
-        /// 当前轮次
-        round: usize,
-        /// 本轮所有 Agent 的输出列表
-        outputs: Vec<String>,
-    },
-    /// Multi-Agent 协作收敛
-    ///
-    /// 在协作满足收敛条件（max_rounds / goal_reached / all_agents_idle / aborted）后触发，
-    /// 携带收敛原因与最终综合结果。
-    /// 前端可据此展示"协作完成：目标达成"。
-    MultiAgentConverged {
-        /// 触发节点 ID（Multi-Agent 节点的 id）
-        node_id: String,
-        /// 收敛原因（"MaxRoundsReached" / "GoalReached" / "AllAgentsIdle" / "Aborted"）
-        reason: String,
-        /// 最终综合结果
-        final_result: String,
-    },
-    /// Multi-Agent 执行失败
-    ///
-    /// 在 Agent 执行失败或收敛检查失败时触发。
-    /// `agent_id="system"` 表示系统级错误（如收敛检查失败）。
-    MultiAgentError {
-        /// 触发节点 ID（Multi-Agent 节点的 id）
-        node_id: String,
-        /// 失败的 Agent ID（"system" 表示系统级错误）
-        agent_id: String,
-        /// 错误信息
-        error: String,
-    },
-
     // Loop Engineering 事件（循环控制行为），详细见 docs/details/注释/agent-runtime/event.md
     /// 速率限制触发
     ///
@@ -530,7 +498,7 @@ pub enum OrchestratorEvent {
         attempt: u32,
         /// 最大重试次数
         max_retries: u32,
-        /// 退避时长（毫秒）
+        /// 实际等待时长（毫秒；A5 后续起 = 退避与 `Retry-After` 取大后的最终值）
         backoff_ms: u64,
         /// 触发重试的错误信息
         error: String,
@@ -680,8 +648,27 @@ pub enum OrchestratorEvent {
     ConfirmationResolved {
         /// 确认请求唯一 ID
         confirm_id: String,
-        /// 用户审批结果
-        approved: bool,
+        /// 用户审批结果（D8 四值：approved / denied / skipped / timeout）
+        outcome: ConfirmationOutcome,
+    },
+
+    // Q1 提问事件（2026-09-20），详细见 docs/details/注释/agent-runtime/event.md
+    /// 请求用户回答问题（模型主动提问）
+    ///
+    /// 由 `ConfirmationBroker::ask` 广播，Tauri 端转发到前端
+    /// `agent:ask:{session_id}`，前端弹提问面板后经 `cmd_agent_ask_answer` 回传。
+    AskRequested {
+        /// 提问请求唯一 ID（前端回传时原样返回）
+        ask_id: String,
+        /// 问题批次（camelCase：`[{id, question, header?, options?, multiSelect?}]`）
+        questions: serde_json::Value,
+    },
+    /// 提问已解决（前端已响应或随轮取消，用于前端清理进行中的提问面板）
+    AskResolved {
+        /// 提问请求唯一 ID
+        ask_id: String,
+        /// 提问结果（answered / denied / cancelled，见 `AskOutcome::kind`）
+        outcome: AskOutcome,
     },
 }
 
@@ -725,18 +712,218 @@ pub enum TracePhaseStatus {
     Skipped,
 }
 
-// ─── 事件监听器 ────────────────────────────────────
 
-/// 事件监听器 trait
-pub trait EventListener: Send + Sync {
-    /// 处理事件
-    fn on_event(&self, event: &OrchestratorEvent);
+// ─── 事件 Key 与模式声明 ──────────────────────────────
+
+/// 事件 Key（由变体名产出；常量集中在 [`keys`] 模块，`key()` 与其一一对应）
+pub type EventKey = &'static str;
+
+/// 全部事件 Key 常量（单一声明点；与 `key()` 的穷尽 match 一一对应）
+pub mod keys {
+    use super::EventKey;
+
+    // Agent 基础事件
+    pub const AGENT_START: EventKey = "agent_start";
+    pub const USER_MESSAGE: EventKey = "user_message";
+    pub const STREAM_START: EventKey = "stream_start";
+    pub const STREAM_DELTA: EventKey = "stream_delta";
+    pub const REASONING_DELTA: EventKey = "reasoning_delta";
+    pub const STREAM_END: EventKey = "stream_end";
+    pub const TOOL_CALL_START: EventKey = "tool_call_start";
+    pub const TOOL_CALL_END: EventKey = "tool_call_end";
+    pub const ERROR: EventKey = "error";
+    pub const AGENT_END: EventKey = "agent_end";
+
+    // 编排器生命周期
+    pub const ORCHESTRATOR_START: EventKey = "orchestrator_start";
+    pub const ORCHESTRATOR_END: EventKey = "orchestrator_end";
+    pub const NODE_START: EventKey = "node_start";
+    pub const NODE_END: EventKey = "node_end";
+
+    // 统一轨迹事件族
+    pub const TRACE_PIPE_STARTED: EventKey = "trace_pipe_started";
+    pub const TRACE_PHASE_ENTERED: EventKey = "trace_phase_entered";
+    pub const TRACE_PHASE_RESULT: EventKey = "trace_phase_result";
+    pub const TRACE_PIPE_FINISHED: EventKey = "trace_pipe_finished";
+
+    // Plan-and-Execute
+    pub const PLAN_CREATED: EventKey = "plan_created";
+    pub const PLAN_STEP_UPDATE: EventKey = "plan_step_update";
+    pub const PLAN_REPLANNED: EventKey = "plan_replanned";
+
+    // Reflection
+    pub const REFLECTION_RESULT: EventKey = "reflection_result";
+
+    // Supervisor / SubAgent
+    pub const SUPERVISOR_TASK_ASSIGNED: EventKey = "supervisor_task_assigned";
+    pub const SUB_AGENT_STARTED: EventKey = "sub_agent_started";
+    pub const SUB_AGENT_COMPLETED: EventKey = "sub_agent_completed";
+    pub const SUB_AGENT_ERROR: EventKey = "sub_agent_error";
+
+    // Router
+    pub const ROUTER_DECISION_MADE: EventKey = "router_decision_made";
+    pub const ROUTER_NO_MATCH: EventKey = "router_no_match";
+    pub const ROUTER_ERROR: EventKey = "router_error";
+
+    // Tree of Thoughts
+    pub const THOUGHT_NODE_CREATED: EventKey = "thought_node_created";
+    pub const THOUGHT_NODE_SCORED: EventKey = "thought_node_scored";
+    pub const THOUGHT_BRANCH_EXPLORED: EventKey = "thought_branch_explored";
+    pub const TOT_GOAL_REACHED: EventKey = "tot_goal_reached";
+    pub const TOT_TERMINATED: EventKey = "tot_terminated";
+    pub const TOT_ERROR: EventKey = "tot_error";
+
+    // Graph of Thoughts
+    pub const THOUGHTS_AGGREGATED: EventKey = "thoughts_aggregated";
+
+    // Loop Engineering
+    pub const LOOP_ENG_RATE_LIMIT_EXCEEDED: EventKey = "loop_eng_rate_limit_exceeded";
+    pub const LOOP_ENG_RETRYING: EventKey = "loop_eng_retrying";
+    pub const LOOP_ENG_RETRY_EXHAUSTED: EventKey = "loop_eng_retry_exhausted";
+    pub const LOOP_ENG_SOFT_TIMEOUT_WARNING: EventKey = "loop_eng_soft_timeout_warning";
+    pub const LOOP_ENG_SOFT_TIMEOUT_CRITICAL: EventKey = "loop_eng_soft_timeout_critical";
+    pub const LOOP_ENG_WATCHDOG_IDLE: EventKey = "loop_eng_watchdog_idle";
+    pub const LOOP_ENG_WATCHDOG_DEAD: EventKey = "loop_eng_watchdog_dead";
+    pub const LOOP_ENG_RECOVERED: EventKey = "loop_eng_recovered";
+    pub const STEP_BUDGET_WARNING: EventKey = "step_budget_warning";
+
+    // 上下文压缩（阶段 3 · A2 补齐②③：事务括号 + 事件化）
+
+    pub const CONTEXT_COMPACT_STARTED: EventKey = "context_compact_started";
+    pub const CONTEXT_COMPACT_FINISHED: EventKey = "context_compact_finished";
+    pub const CONTEXT_COMPACT_FAILED: EventKey = "context_compact_failed";
+
+    // 请求快照（阶段 3 · A2 补齐④）
+
+    pub const REQUEST_SNAPSHOT_CAPTURED: EventKey = "request_snapshot_captured";
+
+    // 输入模型（阶段 2 · A3：inbox 三通道 + pre-step 准入 + 取消收口）
+
+    /// 输入准入（**waterfall 分发**：监听器可改写/丢弃待准入输入）
+    pub const INPUT_ADMISSION: EventKey = "input_admission";
+    /// 本轮被中断（取消收口：已交付文本终结 + 中断锚点）
+    pub const AGENT_INTERRUPTED: EventKey = "agent_interrupted";
+
+    // 工具结果预处理（阶段 1 第二段迁移：工具结果裁剪，waterfall 分发）
+
+    /// 工具结果广播前同步预处理（监听器可改写 `result`；链尾内建 = 裁剪）
+    pub const TOOL_RESULT_PRE_BROADCAST: EventKey = "tool_result_pre_broadcast";
+
+    // 工具流式（只进流通道，不进入 LLM 上下文）
+    pub const TOOL_CALL_DELTA: EventKey = "tool_call_delta";
+    pub const FILE_CHANGE: EventKey = "file_change";
+
+    // A2UI
+    pub const A2UI_EVENT: EventKey = "a2ui_event";
+
+    // HITL 权限确认
+    pub const CONFIRMATION_REQUESTED: EventKey = "confirmation_requested";
+    pub const CONFIRMATION_RESOLVED: EventKey = "confirmation_resolved";
+
+    // Q1 提问（模型主动提问）
+    pub const ASK_REQUESTED: EventKey = "ask_requested";
+    pub const ASK_RESOLVED: EventKey = "ask_resolved";
 }
 
-/// 事件广播器 — 简单的 fan-out 广播
+impl AgentEvent {
+    /// 事件 Key
+    pub fn key(&self) -> EventKey {
+        match self {
+            Self::AgentStart { .. } => keys::AGENT_START,
+            Self::UserMessage { .. } => keys::USER_MESSAGE,
+            Self::StreamStart { .. } => keys::STREAM_START,
+            Self::StreamDelta { .. } => keys::STREAM_DELTA,
+            Self::ReasoningDelta { .. } => keys::REASONING_DELTA,
+            Self::StreamEnd { .. } => keys::STREAM_END,
+            Self::ToolCallStart { .. } => keys::TOOL_CALL_START,
+            Self::ToolCallEnd { .. } => keys::TOOL_CALL_END,
+            Self::Error { .. } => keys::ERROR,
+            Self::AgentEnd => keys::AGENT_END,
+        }
+    }
+}
+
+impl OrchestratorEvent {
+    /// 事件 Key（穷尽 match 无 default——新增变体必须在此登记，编译期强制）
+    pub fn key(&self) -> EventKey {
+        match self {
+            Self::Agent(inner) => inner.key(),
+            Self::OrchestratorStart { .. } => keys::ORCHESTRATOR_START,
+            Self::OrchestratorEnd { .. } => keys::ORCHESTRATOR_END,
+            Self::NodeStart { .. } => keys::NODE_START,
+            Self::NodeEnd { .. } => keys::NODE_END,
+            Self::TracePipeStarted { .. } => keys::TRACE_PIPE_STARTED,
+            Self::TracePhaseEntered { .. } => keys::TRACE_PHASE_ENTERED,
+            Self::TracePhaseResult { .. } => keys::TRACE_PHASE_RESULT,
+            Self::TracePipeFinished { .. } => keys::TRACE_PIPE_FINISHED,
+            Self::PlanCreated { .. } => keys::PLAN_CREATED,
+            Self::PlanStepUpdate { .. } => keys::PLAN_STEP_UPDATE,
+            Self::PlanReplanned { .. } => keys::PLAN_REPLANNED,
+            Self::ReflectionResult { .. } => keys::REFLECTION_RESULT,
+            Self::SupervisorTaskAssigned { .. } => keys::SUPERVISOR_TASK_ASSIGNED,
+            Self::SubAgentStarted { .. } => keys::SUB_AGENT_STARTED,
+            Self::SubAgentCompleted { .. } => keys::SUB_AGENT_COMPLETED,
+            Self::SubAgentError { .. } => keys::SUB_AGENT_ERROR,
+            Self::RouterDecisionMade { .. } => keys::ROUTER_DECISION_MADE,
+            Self::RouterNoMatch { .. } => keys::ROUTER_NO_MATCH,
+            Self::RouterError { .. } => keys::ROUTER_ERROR,
+            Self::ThoughtNodeCreated { .. } => keys::THOUGHT_NODE_CREATED,
+            Self::ThoughtNodeScored { .. } => keys::THOUGHT_NODE_SCORED,
+            Self::ThoughtBranchExplored { .. } => keys::THOUGHT_BRANCH_EXPLORED,
+            Self::ToTGoalReached { .. } => keys::TOT_GOAL_REACHED,
+            Self::ToTTerminated { .. } => keys::TOT_TERMINATED,
+            Self::ToTError { .. } => keys::TOT_ERROR,
+            Self::ThoughtsAggregated { .. } => keys::THOUGHTS_AGGREGATED,
+            Self::LoopEngRateLimitExceeded { .. } => keys::LOOP_ENG_RATE_LIMIT_EXCEEDED,
+            Self::LoopEngRetrying { .. } => keys::LOOP_ENG_RETRYING,
+            Self::LoopEngRetryExhausted { .. } => keys::LOOP_ENG_RETRY_EXHAUSTED,
+            Self::LoopEngSoftTimeoutWarning { .. } => keys::LOOP_ENG_SOFT_TIMEOUT_WARNING,
+            Self::LoopEngSoftTimeoutCritical { .. } => keys::LOOP_ENG_SOFT_TIMEOUT_CRITICAL,
+            Self::LoopEngWatchdogIdle { .. } => keys::LOOP_ENG_WATCHDOG_IDLE,
+            Self::LoopEngWatchdogDead { .. } => keys::LOOP_ENG_WATCHDOG_DEAD,
+            Self::LoopEngRecovered { .. } => keys::LOOP_ENG_RECOVERED,
+            Self::StepBudgetWarning { .. } => keys::STEP_BUDGET_WARNING,
+            Self::ContextCompactStarted { .. } => keys::CONTEXT_COMPACT_STARTED,
+            Self::ContextCompactFinished { .. } => keys::CONTEXT_COMPACT_FINISHED,
+            Self::ContextCompactFailed { .. } => keys::CONTEXT_COMPACT_FAILED,
+            Self::RequestSnapshotCaptured { .. } => keys::REQUEST_SNAPSHOT_CAPTURED,
+            Self::InputAdmission { .. } => keys::INPUT_ADMISSION,
+            Self::AgentInterrupted { .. } => keys::AGENT_INTERRUPTED,
+            Self::ToolResultPreBroadcast { .. } => keys::TOOL_RESULT_PRE_BROADCAST,
+            Self::ToolCallDelta { .. } => keys::TOOL_CALL_DELTA,
+            Self::FileChange { .. } => keys::FILE_CHANGE,
+            Self::A2UIEvent { .. } => keys::A2UI_EVENT,
+            Self::ConfirmationRequested { .. } => keys::CONFIRMATION_REQUESTED,
+            Self::ConfirmationResolved { .. } => keys::CONFIRMATION_RESOLVED,
+            Self::AskRequested { .. } => keys::ASK_REQUESTED,
+            Self::AskResolved { .. } => keys::ASK_RESOLVED,
+        }
+    }
+}
+
+/// 事件模式声明（单一声明点，06 草案 §3.1 / U1 表驱动）
+///
+/// 默认 [`DispatchMode::Emit`]（含死变体——U4：Emit 兜底保留，去留与 D6 合并裁定）；
+/// 少数事件显式登记其他模式（`INPUT_ADMISSION` 与 `TOOL_RESULT_PRE_BROADCAST` = waterfall）。
+pub fn mode_of(key: EventKey) -> DispatchMode {
+    match key {
+        // A3 输入准入：waterfall（监听器链可改写 / 否决待准入输入）
+        keys::INPUT_ADMISSION => DispatchMode::Waterfall,
+        // A1 第二段（工具结果裁剪）：waterfall（监听器链可改写 result；链尾内建 = 裁剪）
+        keys::TOOL_RESULT_PRE_BROADCAST => DispatchMode::Waterfall,
+        _ => DispatchMode::Emit,
+    }
+}
+
+/// 事件广播器 — 会话级事件分发器（A1 第二步：换用 [`Listener`] + key 订阅）
+///
+/// 对外保留 `subscribe`（全量）/ `broadcast`（广播）命名与行为；新增
+/// `subscribe_key`（精确订阅）与 `bail` / `waterfall`（模式化分发，供审批 / 裁剪 /
+/// 超时迁移使用）。内部委托 [`crate::event_bus::EventBus`]。
 #[derive(Default)]
 pub struct EventBroadcaster {
-    listeners: Vec<Arc<dyn EventListener>>,
+    /// 总线（`Arc` 共享：分发方经 [`Self::handle`] 取句柄后**在壳锁外**运行监听器链）
+    bus: Arc<crate::event_bus::EventBus>,
 }
 
 impl EventBroadcaster {
@@ -744,18 +931,47 @@ impl EventBroadcaster {
         Self::default()
     }
 
-    pub fn subscribe(&mut self, listener: Arc<dyn EventListener>) {
-        // 去重：同一监听器实例（Arc 强指针相等）不重复订阅，
-        // 避免调用方反复订阅同一监听器导致事件多播（如前端重复 delta）。
-        if self.listeners.iter().any(|l| Arc::ptr_eq(l, &listener)) {
-            return;
-        }
-        self.listeners.push(listener);
+    /// 取出总线句柄 —— 供调度方**先释放外包锁、再分发**（2026-09-17 风险点处置）
+    ///
+    /// 分发（`emit` / `bail` / `waterfall`）期间监听器链不持任何外包锁：
+    /// 链内可安全注册（延后下一轮，C3）、可执行 I/O，不阻滞写者，
+    /// 也不会令 `try_read` 型转发监听器静默丢事件。
+    pub fn handle(&self) -> Arc<crate::event_bus::EventBus> {
+        Arc::clone(&self.bus)
     }
 
+    /// 全量订阅（去重：同一实例 `Arc::ptr_eq` 不重复订阅，避免事件多播如前端重复 delta）
+    ///
+    /// 返回 `true` 表示新增，`false` 表示已存在（幂等跳过）。
+    pub fn subscribe(&mut self, listener: Arc<dyn Listener>) -> bool {
+        self.bus.on_any(listener)
+    }
+
+    /// 精确订阅（仅接收 `key` 的分发；供 Plan 事件族等精确监听器使用）
+    pub fn subscribe_key(&mut self, key: EventKey, listener: Arc<dyn Listener>) -> bool {
+        self.bus.on(key, listener)
+    }
+
+    /// 分发事件（等价既有实现：按注册顺序逐个调用、忽略返回值）
+    ///
+    /// **注意**：本方法在调用方持有的壳锁下运行监听器链——调度方（AgentLoop /
+    /// GenaiBackend）一律经 [`Self::handle`] 于锁外分发；本方法保留供外部
+    /// 已持锁调用方（`broadcaster_ref()` 的既有用法）与测试使用。
     pub fn broadcast(&self, event: &OrchestratorEvent) {
-        for listener in &self.listeners {
-            listener.on_event(event);
-        }
+        self.bus.emit(event);
+    }
+
+    /// bail 分发（同步串行、首个否决短路；返回是否被否决）
+    pub fn bail(&self, event: &OrchestratorEvent) -> bool {
+        self.bus.bail(event)
+    }
+
+    /// waterfall 分发（监听器链环绕 `inner`；监听器不调 `next` 即否决）
+    pub fn waterfall<'a>(
+        &self,
+        event: &mut OrchestratorEvent,
+        inner: impl FnOnce(&mut OrchestratorEvent) -> Outcome + 'a,
+    ) -> Outcome {
+        self.bus.waterfall(event, inner)
     }
 }

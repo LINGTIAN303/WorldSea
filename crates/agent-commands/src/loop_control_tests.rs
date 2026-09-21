@@ -1,6 +1,7 @@
 // ─── 测试 ────────────────────────────────────────────
 
     use super::*;
+    use agent_runtime::event_bus::ListenerOutcome;
 
     fn make_entry(max_turns: Option<u32>) -> LoopControlEntry {
         let config = LoopControlConfig {
@@ -44,9 +45,10 @@
     async fn check_and_emit_broadcasts_rate_limit_event() {
         // 用内存监听器捕获广播的事件
         struct CaptureListener(std::sync::Mutex<Vec<OrchestratorEvent>>);
-        impl EventListener for CaptureListener {
-            fn on_event(&self, event: &OrchestratorEvent) {
+        impl Listener for CaptureListener {
+            fn call(&self, event: &OrchestratorEvent) -> ListenerOutcome {
                 self.0.lock().unwrap().push(event.clone());
+                ListenerOutcome::Continue
             }
         }
 

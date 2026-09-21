@@ -3,10 +3,11 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-use agent_commands::{AgentCommandService, SendMessageParams, register_terminal_tools};
+use agent_commands::{AgentCommandService, SendMessageParams, ShellSessionManager, register_terminal_tools};
 use agent_runtime::agent::{AgentError, AgentLoop, AgentLoopConfig};
 use agent_runtime::backend::{NodeBackendAccessor, PromptCallOptions};
 use agent_runtime::event::OrchestratorEvent;
+use agent_runtime::event_bus::{Listener, ListenerOutcome};
 use agent_runtime::llm::config::ProviderConfig;
 use agent_runtime::llm::GenaiBackend;
 use agent_runtime::long_task::{
@@ -62,6 +63,7 @@ async fn e2e_main_chain_deepseek_stream_reply() {
     let info = svc
         .new_session(
             Some("你是测试助手，请用中文简洁回答。".into()),
+            vec![],
             Some(deepseek_config(&api_key)),
             None,
             None,
@@ -1177,7 +1179,7 @@ async fn e2e_terminal_tools_full_chain_deepseek() {
 
     // 1) 构造带终端工具注册的 AgentLoop（复用 AgentCommandService::new_agent 的注册入口）
     let tool_bus = Arc::new(SimpleToolBus::new());
-    register_terminal_tools(&*tool_bus).await;
+    register_terminal_tools(&*tool_bus, ShellSessionManager::new()).await;
     // 诊断：确认工具已注册到总线（list_all 应返回全部终端工具）
     {
         let defs = tool_bus.list_all().await;
@@ -1308,6 +1310,7 @@ async fn e2e_subagent_orchestration_deepseek() {
                  user. Never fabricate the result, never ask for clarification."
                     .into(),
             ),
+            vec![],
             Some(deepseek_config(&api_key)),
             None,
             None,
@@ -1393,7 +1396,7 @@ async fn e2e_subagent_terminal_whitelist_deepseek() {
     // ── 0) 前置确定性校验：WhitelistToolBus 隔离本身正确（不依赖 LLM）──
     {
         let inner = Arc::new(SimpleToolBus::new());
-        register_terminal_tools(&*inner).await;
+        register_terminal_tools(&*inner, ShellSessionManager::new()).await;
         let wl = WhitelistToolBus::new(inner, vec!["execute_command".into()]);
         let defs = wl.list_all().await;
         assert_eq!(
@@ -1437,6 +1440,7 @@ async fn e2e_subagent_terminal_whitelist_deepseek() {
                  After receiving the sub-agent result, tell the user the exact command output."
                     .into(),
             ),
+            vec![],
             Some(deepseek_config(&api_key)),
             None,
             None,
@@ -1558,6 +1562,7 @@ async fn e2e_subagent_multi_dispatch_deepseek() {
                  Never fabricate the result."
                     .into(),
             ),
+            vec![],
             Some(deepseek_config(&api_key)),
             None,
             None,
@@ -1675,6 +1680,7 @@ async fn e2e_subagent_spec_hot_update_deepseek() {
                  the coding task directly. After receiving the sub-agent result, tell the user 'done'."
                     .into(),
             ),
+            vec![],
             Some(deepseek_config(&api_key)),
             None,
             None,
@@ -1773,7 +1779,7 @@ async fn e2e_diag_prompt_with_tools_direct() {
 
     // 构造仅含 execute_command 的工具总线
     let tool_bus = Arc::new(SimpleToolBus::new());
-    register_terminal_tools(&*tool_bus).await;
+    register_terminal_tools(&*tool_bus, ShellSessionManager::new()).await;
     let defs = tool_bus.list_all().await;
     let exec = defs
         .iter()
@@ -1786,8 +1792,8 @@ async fn e2e_diag_prompt_with_tools_direct() {
 
     // 订阅事件，打印 ToolCallStart 的累积过程（诊断 genai 碎片累积）
     struct ToolCallDiag;
-    impl agent_runtime::event::EventListener for ToolCallDiag {
-        fn on_event(&self, event: &OrchestratorEvent) {
+    impl Listener for ToolCallDiag {
+        fn call(&self, event: &OrchestratorEvent) -> ListenerOutcome {
             if let OrchestratorEvent::Agent(agent_runtime::event::AgentEvent::ToolCallStart {
                 tool_call_id,
                 name,
@@ -1796,6 +1802,7 @@ async fn e2e_diag_prompt_with_tools_direct() {
             {
                 eprintln!("[diag:event] ToolCallStart id={} name={:?} args={:?}", tool_call_id, name, args);
             }
+            ListenerOutcome::Continue
         }
     }
     backend.subscribe_events(Arc::new(ToolCallDiag)).await;

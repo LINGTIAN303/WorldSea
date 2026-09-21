@@ -229,6 +229,8 @@ impl RoutingStrategy for LlmRoutingStrategy {
             tools: vec![crate::orchestrator::decision::route_target_decision_tool()],
             force_tool: Some("route_target_decision".into()),
             silent: true,
+            // 阶段 3 · ④ 扩展：旁路入账标签（D13 旁路全收）
+            purpose: Some("router".into()),
             ..Default::default()
         };
 

@@ -38,9 +38,6 @@
                 None => Err(BackendError::Network("测试队列耗尽（模拟 LLM 调用失败）".into())),
             }
         }
-        async fn steer(&self, _text: String) -> Result<(), BackendError> {
-            Ok(())
-        }
         async fn get_messages(&self) -> Vec<OrchestratorMessage> {
             Vec::new()
         }

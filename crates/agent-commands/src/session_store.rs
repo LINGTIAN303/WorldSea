@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use agent_runtime::agent::request_snapshot::RequestSnapshot;
 use agent_runtime::types::OrchestratorMessage;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
 use sqlx::SqlitePool;
@@ -31,6 +32,9 @@ impl Default for SessionKind {
 pub struct SessionRecord {
     pub id: String,
     pub system_prompt: String,
+    /// 静态注入带段 JSON（A4 双端收口；`None`=旧数据/群聊 legacy——恢复走文本单段）
+    #[serde(default)]
+    pub prompt_sections: Option<String>,
     pub created_at: u64,
     pub message_count: u32,
     pub updated_at: u64,
@@ -41,13 +45,17 @@ pub struct SessionRecord {
     /// 会话类型（chat/group，缺省 chat）
     #[serde(default)]
     pub kind: SessionKind,
-    /// 会话绑定的工作区根目录（Phase 3 接入本地文件系统；None=不限定）
+    /// 会话绑定的工作区根目录 —— **派生缓存列**（W2②，2026-09-18 工作区与环境对齐 dsh）
+    ///
+    /// 事实源 = `workspaces.root`（经 `workspace_id` 关联）。本列只作缓存/展示：
+    /// 写路径恒与实体双写（建会话 / 切目录）、读路径恒实体优先（`list_sessions` / `restore_sessions`）、
+    /// 启动期对不一致的存量做**写穿矫正**（`restore_sessions`）；`None`=无实体可解析时的不限定态。
     #[serde(default)]
     pub workdir: Option<String>,
     /// 会话绑定的 Workspace 实体 id（Phase A；`None`=旧数据缺省，用 workdir 兜底）
     ///
-    /// `workdir` 字符串保留做向后兼容展示，`workspace_id` 是新引入的实体引用；
-    /// 二者并存时以 `workspace_id` → workspaces.root 为准。
+    /// **唯一事实源**：`workdir` 列的取值由本 id → `workspaces.root` 派生，
+    /// 二者不一致时一律以实体为准（矫正规则见上）。
     #[serde(default)]
     pub workspace_id: Option<String>,
     /// 会话归属的项目 id（任务29/D1 锚点；`None`=旧数据/未归属）
@@ -169,6 +177,121 @@ impl ReplaceOutcome {
     }
 }
 
+// ─── 请求快照（阶段 3 · ④）────────────────────────
+
+/// 一条请求快照记录（大对象已从去重池还原）
+#[derive(Debug, Clone, PartialEq)]
+pub struct RequestSnapshotRecord {
+    /// 会话内请求序号（单调递增，从 0 起；含旁路调用）
+    pub request_seq: i64,
+    /// 快照本体（`system_prompt` / `tools_json` 已由 `request_blobs` 还原）
+    pub snapshot: RequestSnapshot,
+}
+
+/// 依据请求快照序列重建目标请求派发时的消息视图（**结构级等值**，D10 (b)）
+///
+/// 规则：按序号升序——`Full` 重置基底、`Appended` 拼接增量；目标条为 `Full` 时
+/// 直接得到其视图。**链不完整**（增量先于任何全量）→ `None`：拒绝重建，
+/// 绝不给出错误结果（宁可说"重建不了"）。
+pub fn reconstruct_request_view(
+    records: &[RequestSnapshotRecord],
+    target_seq: i64,
+) -> Option<(RequestSnapshotRecord, Vec<OrchestratorMessage>)> {
+    use agent_runtime::agent::request_snapshot::ViewUpdate;
+    let target = records.iter().find(|r| r.request_seq == target_seq)?.clone();
+    let mut base: Option<Vec<OrchestratorMessage>> = None;
+    for record in records.iter().filter(|r| r.request_seq <= target_seq) {
+        match &record.snapshot.view_update {
+            ViewUpdate::Full { messages } => base = Some(messages.clone()),
+            ViewUpdate::Appended { messages } => {
+                let Some(current) = base.as_mut() else {
+                    return None; // 链不完整：增量先于全量
+                };
+                current.extend(messages.iter().cloned());
+            }
+        }
+    }
+    Some((target, base?))
+}
+
+// ─── 定时器记录（批次 C·S1，2026-09-20） ─────────────────────
+
+/// 会话级一次性定时器记录（`session_timers` 表；随会话存储 + 级联删除）
+///
+/// 状态机（一次性，无周期）：`pending` → `fired`（到点认领触发）/ `cancelled`（用户取消）。
+/// 「认领」= `claim_timer_fired` 的原子 UPDATE（`WHERE status='pending'`）——重启补投
+/// 与重放不会重复触发。
+#[derive(Debug, Clone, PartialEq)]
+pub struct SessionTimerRecord {
+    /// 定时器 id（`timer-{uuid}`）
+    pub id: String,
+    /// 归属会话 id（FK sessions.id，ON DELETE CASCADE）
+    pub session_id: String,
+    /// 触发时点（Unix 毫秒）
+    pub fire_at: i64,
+    /// 提醒事项（可空；到点唤醒载荷携带）
+    pub note: Option<String>,
+    /// 监视的 PTY 会话 id 列表（空 = 不捕获后台输出）
+    pub watch: Vec<String>,
+    /// 设定时各 watch 会话的输出游标（PTY 会话 id → `SessionOutputBuf::end()` 绝对偏移）
+    pub cursors: std::collections::HashMap<String, i64>,
+    /// 状态
+    pub status: SessionTimerStatus,
+    /// 创建时点（Unix 毫秒）
+    pub created_at: i64,
+    /// 触发时点（`fired` 时写入）
+    pub fired_at: Option<i64>,
+}
+
+/// 定时器状态（一次性流转）
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SessionTimerStatus {
+    /// 未到期（等待触发）
+    Pending,
+    /// 已触发（认领成功）
+    Fired,
+    /// 已取消（用户撤销）
+    Cancelled,
+}
+
+impl SessionTimerStatus {
+    /// 落库字符串口径
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Pending => "pending",
+            Self::Fired => "fired",
+            Self::Cancelled => "cancelled",
+        }
+    }
+
+    /// 解析落库字符串（未知按 Pending——保守不丢待触发项）
+    pub fn parse(raw: &str) -> Self {
+        match raw {
+            "fired" => Self::Fired,
+            "cancelled" => Self::Cancelled,
+            _ => Self::Pending,
+        }
+    }
+}
+
+/// 行 → 定时器记录（JSON 列容错解析：坏数据退化为空集合，不阻断读取）
+fn timer_from_row(row: &sqlx::sqlite::SqliteRow) -> SessionTimerRecord {
+    use sqlx::Row;
+    let watch_json: String = row.try_get("watch_json").unwrap_or_else(|_| "[]".to_string());
+    let cursors_json: String = row.try_get("cursors_json").unwrap_or_else(|_| "{}".to_string());
+    SessionTimerRecord {
+        id: row.try_get("id").unwrap_or_default(),
+        session_id: row.try_get("session_id").unwrap_or_default(),
+        fire_at: row.try_get("fire_at").unwrap_or(0),
+        note: row.try_get::<Option<String>, _>("note").ok().flatten(),
+        watch: serde_json::from_str(&watch_json).unwrap_or_default(),
+        cursors: serde_json::from_str(&cursors_json).unwrap_or_default(),
+        status: SessionTimerStatus::parse(&row.try_get::<String, _>("status").unwrap_or_default()),
+        created_at: row.try_get("created_at").unwrap_or(0),
+        fired_at: row.try_get::<Option<i64>, _>("fired_at").ok().flatten(),
+    }
+}
+
 /// 会话持久化存储抽象
 ///
 /// 独立为 trait 便于：单测用内存实现验证业务逻辑，不经真实 DB；真实场景用
@@ -194,6 +317,25 @@ pub trait SessionRepository: Send + Sync {
     ) -> Result<ReplaceOutcome, CommandError>;
     /// 加载某会话当前活跃视图（按视图位置升序）
     async fn load_messages(&self, session_id: &str) -> Result<Vec<OrchestratorMessage>, CommandError>;
+    /// 新增定时器记录（批次 C·S1；默认空实现 = 不支持持久化定时器的后端）
+    async fn insert_timer(&self, _record: &SessionTimerRecord) -> Result<(), CommandError> {
+        Ok(())
+    }
+    /// 列出会话未到期定时器（status = pending，按 fire_at 升序）
+    async fn list_pending_timers(
+        &self,
+        _session_id: &str,
+    ) -> Result<Vec<SessionTimerRecord>, CommandError> {
+        Ok(Vec::new())
+    }
+    /// 认领到点定时器（**原子**：pending → fired）；`true` = 本次认领成功（唯一触发者）
+    async fn claim_timer_fired(&self, _id: &str) -> Result<bool, CommandError> {
+        Ok(false)
+    }
+    /// 取消定时器（pending → cancelled，仅限本会话）；`true` = 命中并取消
+    async fn cancel_timer(&self, _session_id: &str, _id: &str) -> Result<bool, CommandError> {
+        Ok(false)
+    }
     /// 读取不可变日志片段（按日志坐标升序）—— 供 session 日志面板 / 审计 / 锚点回填
     ///
     /// 默认返回空（不支持日志的后端视为无日志可读）。
@@ -239,6 +381,28 @@ pub trait SessionRepository: Send + Sync {
     async fn load_live_offsets(&self, _session_id: &str) -> Result<Vec<i64>, CommandError> {
         Ok(Vec::new())
     }
+    /// 追加一条请求快照（阶段 3 · ④；**幂等**——WAL 重放按内容摘要去重）
+    ///
+    /// 返回落库的请求序号（会话内单调递增）；重复内容返回 `None`（已存在）。
+    /// 默认无操作（不支持的后端视为无快照可存）。
+    async fn append_request_snapshot(
+        &self,
+        _session_id: &str,
+        _snapshot: &RequestSnapshot,
+    ) -> Result<Option<i64>, CommandError> {
+        Ok(None)
+    }
+    /// 按序号升序读取请求快照（重建用）——须从 0 起读全（缺链时重建会拒绝）
+    ///
+    /// 默认返回空。
+    async fn load_request_snapshots(
+        &self,
+        _session_id: &str,
+        _from_seq: i64,
+        _limit: i64,
+    ) -> Result<Vec<RequestSnapshotRecord>, CommandError> {
+        Ok(Vec::new())
+    }
     /// 删除会话及其全部持久化痕迹（级联：视图 / 日志 / 事件）
     async fn delete_session(&self, session_id: &str) -> Result<(), CommandError>;
     /// 物理清理空会话（启动恢复时调用），返回清理条数。
@@ -263,11 +427,14 @@ pub trait SessionRepository: Send + Sync {
         workdir: Option<&str>,
         workspace_id: Option<&str>,
     ) -> Result<(), CommandError>;
-    /// 更新会话 system prompt（写穿；H5 风险点③ 动态刷新——技能/规则中途变更旧会话生效）
-    async fn update_system_prompt(
+    /// 更新会话提示（写穿；H5 风险点③ 动态刷新 + A4 双端收口——技能/规则中途变更旧会话生效）
+    ///
+    /// `system_prompt` = 静态合集缓存文本；`prompt_sections` = 段 JSON（A4；None=清空/legacy）。
+    async fn update_prompt(
         &self,
         session_id: &str,
         system_prompt: Option<&str>,
+        prompt_sections: Option<&str>,
     ) -> Result<(), CommandError>;
     /// 保存群聊参与者会话映射（写穿；group_id+participant_id 走 upsert）
     async fn save_group_participant(
@@ -346,6 +513,17 @@ impl SqliteSessionRepository {
         Ok(Arc::new(Self { pool }))
     }
 
+    /// 从请求快照去重池还原一个大对象（系统提示词 / 工具集）
+    async fn load_request_blob(&self, content_hash: &str) -> Result<Option<String>, CommandError> {
+        let row: Option<(String,)> =
+            sqlx::query_as("SELECT content FROM request_blobs WHERE content_hash = ?1")
+                .bind(content_hash)
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(|e| CommandError::Internal(format!("读取请求快照去重池失败: {e}")))?;
+        Ok(row.map(|(content,)| content))
+    }
+
     /// 建表（幂等）+ 旧库补列迁移
     async fn init(pool: &SqlitePool) -> Result<(), CommandError> {
         sqlx::query(
@@ -398,6 +576,10 @@ impl SqliteSessionRepository {
             .await;
         // 迁移：会话场景 id 列（2026-09-09 场景底座；会话按场景装配/隔离），旧库补默认空
         let _ = sqlx::query("ALTER TABLE sessions ADD COLUMN scene_id TEXT")
+            .execute(pool)
+            .await;
+        // 迁移：A4 双端收口——静态注入带段 JSON 列（可空；旧库/群聊 legacy 为 NULL）
+        let _ = sqlx::query("ALTER TABLE sessions ADD COLUMN prompt_sections TEXT")
             .execute(pool)
             .await;
         // 迁移：世界场景 id 改名（2026-09-10 worldbuilding→world），幂等 UPDATE，
@@ -478,6 +660,42 @@ impl SqliteSessionRepository {
         .await
         .map_err(|e| CommandError::Internal(format!("初始化会话事件表失败: {e}")))?;
 
+        // 阶段 3 · ④（请求快照，D9-D14 裁定）：请求头快照 + 内容寻址去重池。
+        // 快照 = 除消息以外的一切 + 视图增量（Appended/Full）——与 session_log 配合
+        // 使任一请求可（结构级）重建；`request_blobs` 按内容哈希去重系统提示词与工具 schema。
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS request_snapshots (
+                session_id     TEXT NOT NULL,
+                request_seq    INTEGER NOT NULL,
+                captured_at_ms INTEGER NOT NULL,
+                purpose        TEXT NOT NULL,
+                provider       TEXT NOT NULL,
+                model_id       TEXT NOT NULL,
+                snapshot_digest TEXT NOT NULL,
+                snapshot_json  TEXT NOT NULL,
+                system_hash    TEXT,
+                tools_hash     TEXT,
+                PRIMARY KEY (session_id, request_seq),
+                UNIQUE (session_id, snapshot_digest),
+                FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+            )",
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| CommandError::Internal(format!("初始化请求快照表失败: {e}")))?;
+
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS request_blobs (
+                content_hash TEXT PRIMARY KEY,
+                kind         TEXT NOT NULL,
+                content      TEXT NOT NULL,
+                created_at   INTEGER NOT NULL
+            )",
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| CommandError::Internal(format!("初始化请求快照去重池失败: {e}")))?;
+
         // 迁移：旧库的 `messages` 快照 → 日志 + 视图（**一次性、幂等**）
         //
         // 迁移后 `messages` 表**保留但不再读写**（历史兼容留痕，不再作为事实源）；
@@ -545,6 +763,38 @@ impl SqliteSessionRepository {
         .execute(pool)
         .await
         .map_err(|e| CommandError::Internal(format!("初始化群聊参与者会话表失败: {e}")))?;
+
+        // 定时器表（批次 C·S1，2026-09-20）：会话级一次性定时器——持久化 + 到期补投；
+        // FK 级联（随会话删除，与 messages/session_log 同口径）。
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS session_timers (
+                id           TEXT PRIMARY KEY,
+                session_id   TEXT NOT NULL,
+                fire_at      INTEGER NOT NULL,
+                note         TEXT,
+                watch_json   TEXT NOT NULL DEFAULT '[]',
+                cursors_json TEXT NOT NULL DEFAULT '{}',
+                status       TEXT NOT NULL DEFAULT 'pending',
+                created_at   INTEGER NOT NULL,
+                fired_at     INTEGER,
+                FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+            )",
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| CommandError::Internal(format!("建表 session_timers 失败: {e}")))?;
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_session_timers_session ON session_timers(session_id)",
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| CommandError::Internal(format!("建索引 idx_session_timers_session 失败: {e}")))?;
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_session_timers_status ON session_timers(status)",
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| CommandError::Internal(format!("建索引 idx_session_timers_status 失败: {e}")))?;
 
         // 目录实体表（Workdir）：path UNIQUE 按路径去重，id 供前端树形分组定位；
         // 会话仍存 workdir 路径字符串，经路径与本表目录条目关联（Phase 2 目录实体）。
@@ -654,17 +904,88 @@ impl SqliteSessionRepository {
 
 #[async_trait::async_trait]
 impl SessionRepository for SqliteSessionRepository {
+    // ─── 定时器（批次 C·S1，2026-09-20） ─────────────────────────
+
+    async fn insert_timer(&self, record: &SessionTimerRecord) -> Result<(), CommandError> {
+        sqlx::query(
+            "INSERT INTO session_timers
+                (id, session_id, fire_at, note, watch_json, cursors_json, status, created_at, fired_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        )
+        .bind(&record.id)
+        .bind(&record.session_id)
+        .bind(record.fire_at)
+        .bind(&record.note)
+        .bind(serde_json::to_string(&record.watch).unwrap_or_else(|_| "[]".to_string()))
+        .bind(serde_json::to_string(&record.cursors).unwrap_or_else(|_| "{}".to_string()))
+        .bind(record.status.as_str())
+        .bind(record.created_at)
+        .bind(record.fired_at)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| CommandError::Internal(format!("写入定时器失败: {e}")))?;
+        Ok(())
+    }
+
+    async fn list_pending_timers(
+        &self,
+        session_id: &str,
+    ) -> Result<Vec<SessionTimerRecord>, CommandError> {
+        let rows = sqlx::query(
+            "SELECT id, session_id, fire_at, note, watch_json, cursors_json, status, created_at, fired_at
+             FROM session_timers
+             WHERE session_id = ?1 AND status = 'pending'
+             ORDER BY fire_at ASC",
+        )
+        .bind(session_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| CommandError::Internal(format!("读取定时器失败: {e}")))?;
+        Ok(rows.iter().map(timer_from_row).collect())
+    }
+
+    async fn claim_timer_fired(&self, id: &str) -> Result<bool, CommandError> {
+        let fired_at = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as i64)
+            .unwrap_or(0);
+        let res = sqlx::query(
+            "UPDATE session_timers SET status = 'fired', fired_at = ?2
+             WHERE id = ?1 AND status = 'pending'",
+        )
+        .bind(id)
+        .bind(fired_at)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| CommandError::Internal(format!("认领定时器失败: {e}")))?;
+        Ok(res.rows_affected() == 1)
+    }
+
+    async fn cancel_timer(&self, session_id: &str, id: &str) -> Result<bool, CommandError> {
+        let res = sqlx::query(
+            "UPDATE session_timers SET status = 'cancelled'
+             WHERE id = ?1 AND session_id = ?2 AND status = 'pending'",
+        )
+        .bind(id)
+        .bind(session_id)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| CommandError::Internal(format!("取消定时器失败: {e}")))?;
+        Ok(res.rows_affected() == 1)
+    }
+
     async fn save_session(&self, record: &SessionRecord) -> Result<(), CommandError> {
         // 注：sessions.router_enabled 列物理保留（历史数据兼容）但不再读写（FIX-4：开关废弃，指令化）
         sqlx::query(
-            "INSERT INTO sessions (id, system_prompt, created_at, message_count, updated_at, title, pinned, kind, workdir, workspace_id, project_id, scene_id)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+            "INSERT INTO sessions (id, system_prompt, prompt_sections, created_at, message_count, updated_at, title, pinned, kind, workdir, workspace_id, project_id, scene_id)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
              ON CONFLICT(id) DO UPDATE SET
-                system_prompt = ?2, created_at = ?3, message_count = ?4, updated_at = ?5,
-                title = ?6, pinned = ?7, kind = ?8, workdir = ?9, workspace_id = ?10, project_id = ?11, scene_id = ?12",
+                system_prompt = ?2, prompt_sections = ?3, created_at = ?4, message_count = ?5, updated_at = ?6,
+                title = ?7, pinned = ?8, kind = ?9, workdir = ?10, workspace_id = ?11, project_id = ?12, scene_id = ?13",
         )
         .bind(&record.id)
         .bind(&record.system_prompt)
+        .bind(&record.prompt_sections)
         .bind(record.created_at as i64)
         .bind(record.message_count as i64)
         .bind(record.updated_at as i64)
@@ -685,6 +1006,7 @@ impl SessionRepository for SqliteSessionRepository {
         let rows: Vec<(
             String,
             String,
+            Option<String>,
             i64,
             i64,
             i64,
@@ -697,7 +1019,7 @@ impl SessionRepository for SqliteSessionRepository {
             Option<String>,
         )> =
             sqlx::query_as(
-                "SELECT id, system_prompt, created_at, message_count, updated_at, title, pinned, kind, workdir, workspace_id, project_id, scene_id FROM sessions",
+                "SELECT id, system_prompt, prompt_sections, created_at, message_count, updated_at, title, pinned, kind, workdir, workspace_id, project_id, scene_id FROM sessions",
             )
             .fetch_all(&self.pool)
             .await
@@ -712,6 +1034,7 @@ impl SessionRepository for SqliteSessionRepository {
         let rows: Vec<(
             String,
             String,
+            Option<String>,
             i64,
             i64,
             i64,
@@ -724,7 +1047,7 @@ impl SessionRepository for SqliteSessionRepository {
             Option<String>,
         )> =
             sqlx::query_as(
-                "SELECT id, system_prompt, created_at, message_count, updated_at, title, pinned, kind, workdir, workspace_id, project_id, scene_id FROM sessions WHERE kind = ?1",
+                "SELECT id, system_prompt, prompt_sections, created_at, message_count, updated_at, title, pinned, kind, workdir, workspace_id, project_id, scene_id FROM sessions WHERE kind = ?1",
             )
             .bind(kind_to_str(kind))
             .fetch_all(&self.pool)
@@ -1074,6 +1397,136 @@ impl SessionRepository for SqliteSessionRepository {
         Ok(rows.into_iter().map(|(offset,)| offset).collect())
     }
 
+    async fn append_request_snapshot(
+        &self,
+        session_id: &str,
+        snapshot: &RequestSnapshot,
+    ) -> Result<Option<i64>, CommandError> {
+        // 大对象入去重池（内容寻址：同系统提示词 / 同工具集只存一份）
+        let system_hash = snapshot
+            .system_prompt
+            .as_ref()
+            .map(|s| agent_memory::raw_store::hash_of(s));
+        let tools_hash = snapshot
+            .tools_json
+            .as_ref()
+            .map(|s| agent_memory::raw_store::hash_of(s));
+        // 行内 JSON：大对象摘除（读取时由去重池还原）
+        let mut slim = snapshot.clone();
+        slim.system_prompt = None;
+        slim.tools_json = None;
+        let snapshot_json = serde_json::to_string(&slim)
+            .map_err(|e| CommandError::Internal(format!("序列化请求快照失败: {e}")))?;
+        // 幂等键：整条快照的内容摘要（WAL 重放时去重；同毫秒同内容视为同一条）
+        let digest = agent_memory::raw_store::hash_of(&format!(
+            "{session_id}|{}|{snapshot_json}",
+            snapshot.captured_at_ms
+        ));
+
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|e| CommandError::Internal(format!("请求快照事务开启失败: {e}")))?;
+        if let Some(system) = &snapshot.system_prompt {
+            sqlx::query(
+                "INSERT OR IGNORE INTO request_blobs (content_hash, kind, content, created_at) \
+                 VALUES (?1, 'system', ?2, ?3)",
+            )
+            .bind(system_hash.as_deref())
+            .bind(system)
+            .bind(snapshot.captured_at_ms as i64)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| CommandError::Internal(format!("写入系统提示词去重池失败: {e}")))?;
+        }
+        if let Some(tools) = &snapshot.tools_json {
+            sqlx::query(
+                "INSERT OR IGNORE INTO request_blobs (content_hash, kind, content, created_at) \
+                 VALUES (?1, 'tools', ?2, ?3)",
+            )
+            .bind(tools_hash.as_deref())
+            .bind(tools)
+            .bind(snapshot.captured_at_ms as i64)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| CommandError::Internal(format!("写入工具集去重池失败: {e}")))?;
+        }
+
+        // 序号 = 会话内 MAX+1；重复内容被 UNIQUE 约束忽略（不占用新序号）
+        let seq: i64 = sqlx::query_as::<_, (Option<i64>,)>(
+            "SELECT MAX(request_seq) FROM request_snapshots WHERE session_id = ?1",
+        )
+        .bind(session_id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|e| CommandError::Internal(format!("查询请求快照末序号失败: {e}")))?
+        .0
+        .map(|v| v + 1)
+        .unwrap_or(0);
+
+        let affected = sqlx::query(
+            "INSERT OR IGNORE INTO request_snapshots \
+             (session_id, request_seq, captured_at_ms, purpose, provider, model_id, \
+              snapshot_digest, snapshot_json, system_hash, tools_hash) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        )
+        .bind(session_id)
+        .bind(seq)
+        .bind(snapshot.captured_at_ms as i64)
+        .bind(&snapshot.purpose)
+        .bind(&snapshot.provider)
+        .bind(&snapshot.model_id)
+        .bind(&digest)
+        .bind(&snapshot_json)
+        .bind(system_hash.as_deref())
+        .bind(tools_hash.as_deref())
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| CommandError::Internal(format!("写入请求快照失败: {e}")))?
+        .rows_affected();
+
+        tx.commit()
+            .await
+            .map_err(|e| CommandError::Internal(format!("请求快照事务提交失败: {e}")))?;
+        Ok(if affected > 0 { Some(seq) } else { None })
+    }
+
+    async fn load_request_snapshots(
+        &self,
+        session_id: &str,
+        from_seq: i64,
+        limit: i64,
+    ) -> Result<Vec<RequestSnapshotRecord>, CommandError> {
+        let rows = sqlx::query_as::<_, (i64, String, Option<String>, Option<String>)>(
+            "SELECT request_seq, snapshot_json, system_hash, tools_hash FROM request_snapshots \
+             WHERE session_id = ?1 AND request_seq >= ?2 ORDER BY request_seq ASC LIMIT ?3",
+        )
+        .bind(session_id)
+        .bind(from_seq)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| CommandError::Internal(format!("读取请求快照失败: {e}")))?;
+
+        let mut out = Vec::with_capacity(rows.len());
+        for (request_seq, snapshot_json, system_hash, tools_hash) in rows {
+            let mut snapshot: RequestSnapshot = serde_json::from_str(&snapshot_json)
+                .map_err(|e| CommandError::Internal(format!("解析请求快照失败: {e}")))?;
+            if let Some(hash) = system_hash {
+                snapshot.system_prompt = self.load_request_blob(&hash).await?;
+            }
+            if let Some(hash) = tools_hash {
+                snapshot.tools_json = self.load_request_blob(&hash).await?;
+            }
+            out.push(RequestSnapshotRecord {
+                request_seq,
+                snapshot,
+            });
+        }
+        Ok(out)
+    }
+
     async fn delete_session(&self, session_id: &str) -> Result<(), CommandError> {
         // session_log / session_live / session_events 均有 ON DELETE CASCADE，删 sessions 行即级联清除
         sqlx::query("DELETE FROM sessions WHERE id = ?1")
@@ -1138,17 +1591,19 @@ impl SessionRepository for SqliteSessionRepository {
         Ok(())
     }
 
-    async fn update_system_prompt(
+    async fn update_prompt(
         &self,
         session_id: &str,
         system_prompt: Option<&str>,
+        prompt_sections: Option<&str>,
     ) -> Result<(), CommandError> {
-        sqlx::query("UPDATE sessions SET system_prompt = ?1 WHERE id = ?2")
+        sqlx::query("UPDATE sessions SET system_prompt = ?1, prompt_sections = ?2 WHERE id = ?3")
             .bind(system_prompt)
+            .bind(prompt_sections)
             .bind(session_id)
             .execute(&self.pool)
             .await
-            .map_err(|e| CommandError::Internal(format!("更新会话 system prompt 失败: {e}")))?;
+            .map_err(|e| CommandError::Internal(format!("更新会话提示段失败: {e}")))?;
         Ok(())
     }
 
@@ -1384,6 +1839,7 @@ fn record_from_row(
     (
         id,
         system_prompt,
+        prompt_sections,
         created_at,
         message_count,
         updated_at,
@@ -1397,6 +1853,7 @@ fn record_from_row(
     ): (
         String,
         String,
+        Option<String>,
         i64,
         i64,
         i64,
@@ -1412,6 +1869,7 @@ fn record_from_row(
     SessionRecord {
         id,
         system_prompt,
+        prompt_sections,
         created_at: created_at as u64,
         message_count: message_count as u32,
         updated_at: updated_at as u64,
@@ -1470,6 +1928,7 @@ mod tests {
         SessionRecord {
             id: id.into(),
             system_prompt: format!("系统提示 {id}"),
+            prompt_sections: None,
             created_at: 100,
             message_count: count,
             updated_at: 100,
@@ -1481,6 +1940,51 @@ mod tests {
             project_id: None,
             scene_id: None,
         }
+    }
+
+    /// A4 双端收口：段 JSON 列往返（Some 保真、None=legacy 形态保真）
+    #[tokio::test]
+    async fn save_load_roundtrip_with_prompt_sections() {
+        let store = SqliteSessionRepository::new_in_memory().await.unwrap();
+
+        let mut with_sections = record("s-sections", 0);
+        with_sections.prompt_sections =
+            Some(r#"[{"name":"worldsea","order":200,"text":"系统说明"}]"#.to_string());
+        store.save_session(&with_sections).await.unwrap();
+        store.save_session(&record("s-legacy", 0)).await.unwrap();
+
+        let all = store.load_sessions().await.unwrap();
+        let loaded = all.iter().find(|r| r.id == "s-sections").unwrap();
+        assert_eq!(
+            loaded.prompt_sections.as_deref(),
+            Some(r#"[{"name":"worldsea","order":200,"text":"系统说明"}]"#),
+        );
+        let legacy = all.iter().find(|r| r.id == "s-legacy").unwrap();
+        assert_eq!(legacy.prompt_sections, None, "legacy 会话段列为 NULL");
+    }
+
+    /// A4 双端收口：update_prompt 双列写穿（缓存文本 + 段 JSON）
+    #[tokio::test]
+    async fn update_prompt_writes_both_columns() {
+        let store = SqliteSessionRepository::new_in_memory().await.unwrap();
+        store.save_session(&record("s1", 0)).await.unwrap();
+
+        store
+            .update_prompt(
+                "s1",
+                Some("缓存文本"),
+                Some(r#"[{"name":"worldsea","order":200,"text":"系统说明"}]"#),
+            )
+            .await
+            .unwrap();
+
+        let all = store.load_sessions().await.unwrap();
+        let r = all.iter().find(|x| x.id == "s1").unwrap();
+        assert_eq!(r.system_prompt, "缓存文本");
+        assert_eq!(
+            r.prompt_sections.as_deref(),
+            Some(r#"[{"name":"worldsea","order":200,"text":"系统说明"}]"#),
+        );
     }
 
     #[tokio::test]
@@ -1501,6 +2005,59 @@ mod tests {
         let all = store.load_sessions().await.unwrap();
         assert_eq!(all.len(), 2);
         assert!(all.iter().any(|x| x.id == "s1" && x.message_count == 3));
+    }
+
+    // ─── 定时器（批次 C·S1，2026-09-20） ─────────────────────
+
+    fn timer(id: &str, session: &str, fire_at: i64) -> SessionTimerRecord {
+        SessionTimerRecord {
+            id: id.into(),
+            session_id: session.into(),
+            fire_at,
+            note: Some("到点提醒".into()),
+            watch: vec!["session-abc".into()],
+            cursors: std::collections::HashMap::from([("session-abc".to_string(), 42i64)]),
+            status: SessionTimerStatus::Pending,
+            created_at: 100,
+            fired_at: None,
+        }
+    }
+
+    /// 状态机 + 原子认领：pending → fired 仅一次成功（重启补投/重放不重复触发）
+    #[tokio::test]
+    async fn timer_state_machine_and_atomic_claim() {
+        let store = SqliteSessionRepository::new_in_memory().await.unwrap();
+        store.save_session(&record("s1", 0)).await.unwrap();
+        store.insert_timer(&timer("t1", "s1", 1000)).await.unwrap();
+        let pending = store.list_pending_timers("s1").await.unwrap();
+        assert_eq!(pending.len(), 1);
+        assert_eq!(pending[0].id, "t1");
+        assert_eq!(pending[0].watch, vec!["session-abc".to_string()]);
+        assert_eq!(pending[0].cursors.get("session-abc"), Some(&42));
+        // 认领：首次 true、二次 false
+        assert!(store.claim_timer_fired("t1").await.unwrap());
+        assert!(!store.claim_timer_fired("t1").await.unwrap());
+        assert!(store.list_pending_timers("s1").await.unwrap().is_empty());
+    }
+
+    /// 取消的会话作用域 + 会话删除级联清理（FK 与既有子表同口径）
+    #[tokio::test]
+    async fn timer_cancel_scope_and_cascade_delete() {
+        let store = SqliteSessionRepository::new_in_memory().await.unwrap();
+        store.save_session(&record("s1", 0)).await.unwrap();
+        store.save_session(&record("s2", 0)).await.unwrap();
+        store.insert_timer(&timer("t1", "s1", 1000)).await.unwrap();
+        // 跨会话取消 → 不命中
+        assert!(!store.cancel_timer("s2", "t1").await.unwrap());
+        assert_eq!(store.list_pending_timers("s1").await.unwrap().len(), 1);
+        // 本会话取消 → 命中；已取消不可再认领
+        assert!(store.cancel_timer("s1", "t1").await.unwrap());
+        assert!(!store.claim_timer_fired("t1").await.unwrap());
+        assert!(store.list_pending_timers("s1").await.unwrap().is_empty());
+        // 会话删除 → 定时器随级联清理（列表按 session_id 直查，空 = 行确已删除）
+        store.insert_timer(&timer("t2", "s1", 2000)).await.unwrap();
+        store.delete_session("s1").await.unwrap();
+        assert!(store.list_pending_timers("s1").await.unwrap().is_empty());
     }
 
     #[tokio::test]
@@ -2302,5 +2859,128 @@ mod tests {
         old.workspace_id = None;
         store.save_session(&old).await.unwrap();
         assert_eq!(store.load_sessions().await.unwrap().len(), 2);
+    }
+
+    // ─── 请求快照（阶段 3 · ④）────────────
+
+    fn snapshot_with(view: Vec<OrchestratorMessage>, full: bool, captured_at_ms: u64) -> RequestSnapshot {
+        use agent_runtime::agent::request_snapshot::ViewUpdate;
+        RequestSnapshot {
+            captured_at_ms,
+            purpose: "main".into(),
+            provider: "deepseek".into(),
+            model_id: "deepseek-v4-flash".into(),
+            temperature: Some(0.7),
+            max_tokens: None,
+            top_p: None,
+            top_k: None,
+            thinking_mode: None,
+            thinking_level: None,
+            silent: false,
+            system_prompt: Some("系统提示词（大对象）".into()),
+            tools_json: Some(r#"[{"name":"echo"}]"#.into()),
+            tools_names: vec!["echo".into()],
+            material_ref: None,
+            view_update: if full {
+                ViewUpdate::Full { messages: view }
+            } else {
+                ViewUpdate::Appended { messages: view }
+            },
+        }
+    }
+
+    /// 往返 + 重建：全量 + 增量链可还原目标请求视图；大对象经去重池保真
+    #[tokio::test]
+    async fn request_snapshot_roundtrip_and_reconstruction() {
+        let store = SqliteSessionRepository::new_in_memory().await.unwrap();
+        store.save_session(&record("s-snap", 0)).await.unwrap();
+
+        // seq0 全量（带大对象）；seq1 增量（同系统提示词 → 去重）；seq2 无大对象
+        let s0 = snapshot_with(vec![msg(MessageRole::User, "你好")], true, 1_000);
+        let s1 = snapshot_with(vec![msg(MessageRole::Assistant, "回答一")], false, 1_001);
+        let mut s2 = snapshot_with(vec![msg(MessageRole::User, "继续")], false, 1_002);
+        s2.system_prompt = None;
+        s2.tools_json = None;
+        s2.tools_names = Vec::new();
+
+        assert_eq!(
+            store.append_request_snapshot("s-snap", &s0).await.unwrap(),
+            Some(0)
+        );
+        assert_eq!(
+            store.append_request_snapshot("s-snap", &s1).await.unwrap(),
+            Some(1)
+        );
+        assert_eq!(
+            store.append_request_snapshot("s-snap", &s2).await.unwrap(),
+            Some(2)
+        );
+
+        let records = store.load_request_snapshots("s-snap", 0, 100).await.unwrap();
+        assert_eq!(records.len(), 3);
+        // 大对象还原保真
+        assert_eq!(
+            records[0].snapshot.system_prompt.as_deref(),
+            Some("系统提示词（大对象）")
+        );
+        assert_eq!(
+            records[1].snapshot.system_prompt.as_deref(),
+            Some("系统提示词（大对象）"),
+            "去重池还原应保真"
+        );
+        assert!(records[2].snapshot.system_prompt.is_none());
+        assert_eq!(
+            records[0].snapshot.tools_json.as_deref(),
+            Some(r#"[{"name":"echo"}]"#)
+        );
+
+        // 重建任意请求：全量基底 + 其后增量
+        let (target, view) = reconstruct_request_view(&records, 2).expect("应可重建");
+        assert_eq!(target.request_seq, 2);
+        let contents: Vec<&str> = view.iter().map(|m| m.content.as_str()).collect();
+        assert_eq!(contents, vec!["你好", "回答一", "继续"]);
+        let (_, view0) = reconstruct_request_view(&records, 0).expect("应可重建");
+        assert_eq!(view0.len(), 1, "目标为全量时直接返回其视图");
+    }
+
+    /// 去重池只存一份大对象；重复快照（WAL 重放）幂等；缺链拒绝重建
+    #[tokio::test]
+    async fn request_snapshot_dedupes_blobs_and_replay() {
+        let store = SqliteSessionRepository::new_in_memory().await.unwrap();
+        store.save_session(&record("s-dedup", 0)).await.unwrap();
+
+        let a = snapshot_with(vec![msg(MessageRole::User, "A")], true, 2_000);
+        let b = snapshot_with(vec![msg(MessageRole::Assistant, "B")], false, 2_001);
+        assert_eq!(
+            store.append_request_snapshot("s-dedup", &a).await.unwrap(),
+            Some(0)
+        );
+        assert_eq!(
+            store.append_request_snapshot("s-dedup", &b).await.unwrap(),
+            Some(1)
+        );
+        // WAL 重放同一条 → 幂等忽略（不重复入库、不占新序号）
+        assert_eq!(store.append_request_snapshot("s-dedup", &b).await.unwrap(), None);
+
+        let blob_count: i64 = sqlx::query_as::<_, (i64,)>("SELECT COUNT(*) FROM request_blobs")
+            .fetch_one(&store.pool)
+            .await
+            .unwrap()
+            .0;
+        assert_eq!(blob_count, 2, "系统提示词 + 工具集各一份（内容寻址去重）");
+        let row_count: i64 =
+            sqlx::query_as::<_, (i64,)>("SELECT COUNT(*) FROM request_snapshots")
+                .fetch_one(&store.pool)
+                .await
+                .unwrap()
+                .0;
+        assert_eq!(row_count, 2, "重放不应新增行");
+
+        // 缺全量基底（只读到增量）→ 拒绝重建
+        let partial = store.load_request_snapshots("s-dedup", 1, 10).await.unwrap();
+        assert!(
+            reconstruct_request_view(&partial, 1).is_none(),
+            "链不完整应拒绝重建（绝不给错误结果）"
+        );
     }
 }

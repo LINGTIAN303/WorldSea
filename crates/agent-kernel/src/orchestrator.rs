@@ -164,7 +164,7 @@ pub trait Orchestrator: Send + Sync {
     fn resume(&self);
 
     /// 订阅事件
-    fn subscribe(&self, listener: Arc<dyn crate::event::EventListener>);
+    fn subscribe(&self, listener: Arc<dyn crate::event_bus::Listener>);
 
     /// 获取当前状态快照（checkpoint 用）
     async fn get_snapshot(&self) -> OrchestratorState;
@@ -782,7 +782,7 @@ impl Orchestrator for DefaultOrchestrator {
         tracing::debug!("DefaultOrchestrator::resume（阶段 1.3 实现）");
     }
 
-    fn subscribe(&self, listener: Arc<dyn crate::event::EventListener>) {
+    fn subscribe(&self, listener: Arc<dyn crate::event_bus::Listener>) {
         if let Ok(mut b) = self.broadcaster.write() {
             b.subscribe(listener);
         }
@@ -824,9 +824,6 @@ mod tests {
             _options: Option<PromptCallOptions>,
         ) -> Result<PromptResponse, BackendError> {
             Ok(PromptResponse::text_only("stub"))
-        }
-        async fn steer(&self, _text: String) -> Result<(), BackendError> {
-            Ok(())
         }
         async fn get_messages(&self) -> Vec<OrchestratorMessage> {
             Vec::new()
@@ -1264,9 +1261,10 @@ mod tests {
         events: Arc<std::sync::Mutex<Vec<crate::event::OrchestratorEvent>>>,
     }
 
-    impl crate::event::EventListener for EventRecorder {
-        fn on_event(&self, event: &crate::event::OrchestratorEvent) {
+    impl crate::event_bus::Listener for EventRecorder {
+        fn call(&self, event: &crate::event::OrchestratorEvent) -> crate::event_bus::ListenerOutcome {
             self.events.lock().unwrap().push(event.clone());
+            crate::event_bus::ListenerOutcome::Continue
         }
     }
 
@@ -1279,7 +1277,7 @@ mod tests {
         orch.set_entry("n1");
 
         let recorder = Arc::new(EventRecorder::default());
-        orch.subscribe(Arc::clone(&recorder) as Arc<dyn crate::event::EventListener>);
+        orch.subscribe(Arc::clone(&recorder) as Arc<dyn crate::event_bus::Listener>);
 
         let r = orch
             .run("hi".into(), Some(OrchestratorRunOptions { run_id: Some("run-x".into()), ..Default::default() }))
@@ -1316,7 +1314,7 @@ mod tests {
         orch.set_entry("n1");
 
         let recorder = Arc::new(EventRecorder::default());
-        orch.subscribe(Arc::clone(&recorder) as Arc<dyn crate::event::EventListener>);
+        orch.subscribe(Arc::clone(&recorder) as Arc<dyn crate::event_bus::Listener>);
 
         let options = OrchestratorRunOptions {
             node_timeout_ms: Some(50),

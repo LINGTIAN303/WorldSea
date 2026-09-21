@@ -145,9 +145,6 @@ impl agent_kernel::backend::NodeBackendAccessor for MockKernelBackend {
             reasoning: None,
         })
     }
-    async fn steer(&self, _text: String) -> Result<(), agent_kernel::backend::BackendError> {
-        Ok(())
-    }
     async fn get_messages(&self) -> Vec<agent_kernel::types::OrchestratorMessage> {
         Vec::new()
     }

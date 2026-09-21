@@ -119,6 +119,9 @@ pub struct FoldOutcome {
     pub saved_tokens: usize,
     /// `(raw 坐标, 压缩文本)` 对——供 `backfill_folds` 填回
     pub fills: Vec<(String, String)>,
+    /// `(raw 坐标, 原文材料)` 对——供 LLM 摘要生成（阶段 3 · D4）取用；
+    /// 与 `fills` 同序同长（同一次外置产出）。材料为完整原文（`render_archive_content`）。
+    pub materials: Vec<(String, String)>,
 }
 
 // ─── 锚点标记 ────────────────────────────────────

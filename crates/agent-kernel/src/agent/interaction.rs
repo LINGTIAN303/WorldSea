@@ -11,18 +11,22 @@ use super::{AgentError, AgentLoop, AgentStateSnapshot};
 // ─── IAgentBackend 接口补全（阶段 1.3 P0 修复） ─────────────
 
 impl AgentLoop {
-    /// 中途引导（不结束当前轮） — 委托给 `backend.steer`
+    /// 中途引导（steer）— A3 三通道之一（详 [`crate::agent::input`]）
     ///
-    /// 对应前端 `IAgentBackend.steer(text)`。
-    /// 实现机制：文本进入 backend 的 steer_buffer，下次 prompt 时附加为前置 user 消息。
-    pub async fn steer(&self, text: String) -> Result<(), AgentError> {
-        self.backend.steer(text).await.map_err(AgentError::from)
+    /// 对应前端 `IAgentBackend.steer(text)`，但投递机制自 A3 起统一为 **inbox**：
+    /// - 运行中：入队，由下一轮 LLM 请求**之前**的 pre-step 准入注入
+    ///   （`meta.input_kind = "steer"`；backend 侧自 A3 起不再持有 steer 缓冲）
+    /// - 空闲：**唤醒**（对齐 dsh `steer` 语义）——本调用同步跑完一轮，
+    ///   调用方（命令层）如需非阻塞可自行 `tokio::spawn`
+    pub async fn steer(&self, text: String) -> Result<super::input::SubmitOutcome, AgentError> {
+        self.submit_input(super::input::InputKind::Steer, text).await
     }
 
-    /// 跟进提问（保留历史，开始新一轮 ReAct 循环）
+    /// 跟进提问（保留历史，开始新一轮 ReAct 循环）— 语义 = A3 `FollowUp` 通道（唤醒）
     ///
     /// 对应前端 `IAgentBackend.followUp(text)`。
-    /// 与 `run` 的区别：不重置 current_iteration，不清除 messages。
+    /// 与 `run` 的区别：不重置 current_iteration，不清除 messages
+    /// （A3 备注：`run` 自身即为「新任务周期」语义；本方法保持既有实现不动）。
     pub async fn follow_up(&self, text: String) -> Result<String, AgentError> {
         info!("AgentLoop followUp，输入长度: {}", text.len());
         // 检查中断
@@ -232,10 +236,12 @@ impl AgentLoop {
             outcome.saved_tokens += orig_tokens.saturating_sub(folded_tokens);
             outcome.folded_messages += members.len();
             outcome.folded_groups += 1;
-            outcome.fills.push((
-                raw_ref.content_hash,
-                mark::condense(&archive, policy.head_chars, policy.tail_chars),
-            ));
+            let condensed = mark::condense(&archive, policy.head_chars, policy.tail_chars);
+            // 阶段 3 · D4：原文材料随 fills 一并带出（LLM 摘要生成取用；与 fills 同序同长）
+            outcome
+                .materials
+                .push((raw_ref.content_hash.clone(), archive));
+            outcome.fills.push((raw_ref.content_hash, condensed));
 
             replacements.insert(group[0], folded);
             covered.extend(group.iter().copied());

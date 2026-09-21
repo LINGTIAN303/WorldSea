@@ -202,6 +202,8 @@ impl AggregationStrategy for LlmAggregationStrategy {
         let options = PromptCallOptions {
             system_prompt_override: Some(self.prompt_template.system.clone()),
             tools_override: Some(Vec::new()),
+            // 阶段 3 · ④ 扩展：旁路入账标签（D13 旁路全收）
+            purpose: Some("got".into()),
             ..Default::default()
         };
 

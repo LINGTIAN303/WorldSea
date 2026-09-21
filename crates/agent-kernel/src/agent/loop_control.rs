@@ -1,14 +1,66 @@
 use std::sync::atomic::Ordering;
+use std::sync::Arc;
 
+use tokio::sync::RwLock;
 use tracing::info;
 
-use crate::event::OrchestratorEvent;
+use crate::event::{EventBroadcaster, OrchestratorEvent};
+use crate::long_task::LongTaskManager;
 use crate::loop_control::{LoopControlCheck, RateLimitExceeded, SoftTimeoutLevel, WatchdogAlert};
 use crate::types::{MessageRole, OrchestratorMessage};
 
 use super::AgentLoop;
 
 // ─── Loop Engineering 批次5：内建 LoopController 辅助方法 ─────────
+
+/// T4（2026-09-18）：`LoopEngRetrying` 的显式依赖版本——工具执行统一包装（无 `&self`）复用，
+/// 使并行 task 与串行路径发出同一形态的重试事件。
+pub(super) async fn emit_loop_retrying_with(
+    broadcaster: &Arc<RwLock<EventBroadcaster>>,
+    long_task_manager: &Arc<LongTaskManager>,
+    attempt: u32,
+    max_retries: u32,
+    backoff_ms: u64,
+    error: &str,
+) {
+    let task_id = long_task_manager
+        .get_active_task_id()
+        .await
+        .unwrap_or_default();
+    broadcaster
+        .read()
+        .await
+        .handle()
+        .emit(&OrchestratorEvent::LoopEngRetrying {
+            task_id,
+            attempt,
+            max_retries,
+            backoff_ms,
+            error: error.to_string(),
+        });
+}
+
+/// T4（2026-09-18）：`LoopEngRetryExhausted` 的显式依赖版本（同上）。
+pub(super) async fn emit_loop_retry_exhausted_with(
+    broadcaster: &Arc<RwLock<EventBroadcaster>>,
+    long_task_manager: &Arc<LongTaskManager>,
+    total_attempts: u32,
+    final_error: &str,
+) {
+    let task_id = long_task_manager
+        .get_active_task_id()
+        .await
+        .unwrap_or_default();
+    broadcaster
+        .read()
+        .await
+        .handle()
+        .emit(&OrchestratorEvent::LoopEngRetryExhausted {
+            task_id,
+            total_attempts,
+            final_error: final_error.to_string(),
+        });
+}
 
 impl AgentLoop {
     /// 获取当前任务 ID（用于 LoopEng 事件广播）
@@ -139,27 +191,27 @@ impl AgentLoop {
         self.long_task_manager.record_rate_limit_status(limit_type).await;
     }
 
-    /// 广播 `LoopEngRetrying` 事件（重试决策时调用）
+    /// 广播 `LoopEngRetrying` 事件（重试决策时调用；T4 起与并行路径共用显式依赖版本）
     pub(super) async fn emit_loop_retrying(&self, attempt: u32, max_retries: u32, backoff_ms: u64, error: &str) {
-        let task_id = self.loop_task_id().await;
-        self.broadcast(OrchestratorEvent::LoopEngRetrying {
-            task_id,
+        emit_loop_retrying_with(
+            &self.broadcaster,
+            &self.long_task_manager,
             attempt,
             max_retries,
             backoff_ms,
-            error: error.to_string(),
-        })
+            error,
+        )
         .await;
     }
 
-    /// 广播 `LoopEngRetryExhausted` 事件（重试次数用尽时调用）
+    /// 广播 `LoopEngRetryExhausted` 事件（重试次数用尽时调用；T4 起与并行路径共用显式依赖版本）
     pub(super) async fn emit_loop_retry_exhausted(&self, total_attempts: u32, final_error: &str) {
-        let task_id = self.loop_task_id().await;
-        self.broadcast(OrchestratorEvent::LoopEngRetryExhausted {
-            task_id,
+        emit_loop_retry_exhausted_with(
+            &self.broadcaster,
+            &self.long_task_manager,
             total_attempts,
-            final_error: final_error.to_string(),
-        })
+            final_error,
+        )
         .await;
     }
 

@@ -1,4 +1,4 @@
-﻿// ─── 单元测试 ────────────────────────────────────────────
+// ─── 单元测试 ────────────────────────────────────────────
 
     use super::*;
     use agent_kernel::backend::{BackendError, PromptResponse};
@@ -45,11 +45,7 @@
             Ok(PromptResponse::text_only(resp))
         }
 
-        async fn steer(&self, _text: String) -> Result<(), BackendError> {
-            Ok(())
-        }
-
-        async fn get_messages(&self) -> Vec<agent_kernel::types::OrchestratorMessage> {
+        async fn get_messages(&self) -> Vec<OrchestratorMessage> {
             Vec::new()
         }
 

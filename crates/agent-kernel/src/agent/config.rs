@@ -24,8 +24,16 @@ pub struct AgentLoopConfig {
     /// 与 LoopController 分层：`rate_limit.max_turns` 已退役（默认 None，不再限轮数）；
     /// `max_tool_calls`（动作数）/ `max_tokens` / `max_duration` 仍为系统级资源兜底。
     pub total_steps: u32,
-    /// 系统提示词（每次 prompt 都会附加）
+    /// 系统提示词（每次 prompt 都会附加；legacy 单段——群聊/老会话）
+    ///
+    /// A4 双端收口后：结构化路径下它是 `prompt_sections` 的组装缓存
+    /// （静态合集文本，供首条 System 消息推入等消费），事实源为下行 `prompt_sections`。
     pub system_prompt: Option<String>,
+    /// 静态注入带的结构化段（A4 双端收口：TS 段清单 12 段 + `mcp_note`，order ∈ 200-299）
+    ///
+    /// 非空时 `build_prompt_options` 展开各段（各自 order）替代 `system_prompt` 单段；
+    /// 为空时回退 `system_prompt`（legacy：群聊 / 老会话文本）。
+    pub prompt_sections: Vec<crate::agent::prompt_sections::PromptSection>,
     /// 温度（None=使用 Provider 默认）
     pub temperature: Option<f32>,
     /// 最大 token
@@ -159,6 +167,7 @@ impl Default for AgentLoopConfig {
             // 总步骤预算默认 200（1~500 范围内，对齐主流 wrap 上限）；收敛由空工具调用判定，本值为哨兵
             total_steps: 200,
             system_prompt: None,
+            prompt_sections: Vec::new(),
             temperature: None,
             max_tokens: None,
             top_p: None,

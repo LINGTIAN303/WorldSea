@@ -1,6 +1,6 @@
 //! MCP 工具适配器 — 把 MCP 服务器工具包装为 Tool trait，详细见 docs/details/注释/agent-runtime/mcp.md
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -17,7 +17,7 @@ use crate::tool::{Tool, ToolError};
 /// 对应 TS 版 `MCPToolInfo`，参考 MCP 协议规范。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct McpToolInfo {
-    /// MCP 服务器上报的工具名（不含 `mcp_{server_id}_` 前缀）
+    /// MCP 服务器上报的工具名（原始名，不含 `mcp__{server_id}__` 前缀）
     pub name: String,
     /// 工具描述
     pub description: String,
@@ -94,11 +94,91 @@ pub enum McpError {
     Other(String),
 }
 
+// ─── M3：工具名契约与清洗（2026-09-17 三域对齐 dsh） ────────────────
+
+/// M7（2026-09-17 三域对齐 dsh）：枢纽级 MCP 工具组名。
+///
+/// resources 三工具（`list_mcp_resources` / `list_mcp_resource_templates` /
+/// `read_mcp_resource`）不属于单个 server、随「至少一个已连接 server」存续——
+/// `Tool::mcp_server_id()` 返回本值，供分组注册 / 按组注销 / 提示注记识别为
+/// 枢纽级（不计入服务器清单）。
+pub const MCP_HUB_TOOL_GROUP: &str = "__mcp_hub__";
+
+/// 构造 MCP 工具全名：`mcp__{server}__{tool}`（**双下划线分隔**，对齐 dsh 命名契约）。
+///
+/// - 两段各自清洗：`[A-Za-z0-9_-]` 之外替换为 `_`（对齐 dsh `publicToolName()` 做法）；
+/// - 全名超 64 字符时截断并附 12 位指纹（FNV-1a 内联实现、零新依赖；
+///   dsh 用 SHA-256 前 12 位，语义等价——防截断撞名）；
+/// - **归属信息不再从名字反解析**（走 [`Tool::mcp_server_id`]）——
+///   原「server_id 不得含下划线」的隐性约束由此取消。
+pub fn build_full_name(server_id: &str, tool_name: &str) -> String {
+    let full = format!(
+        "mcp__{}__{}",
+        sanitize_segment(server_id),
+        sanitize_segment(tool_name)
+    );
+    const MAX_LEN: usize = 64;
+    if full.len() > MAX_LEN {
+        let digest = short_hash_12(&full);
+        // 留出 "_" + 12 位指纹的位置后按字符边界截断
+        let keep = MAX_LEN - digest.len() - 1;
+        let mut truncated = String::new();
+        for ch in full.chars() {
+            if truncated.len() + ch.len_utf8() > keep {
+                break;
+            }
+            truncated.push(ch);
+        }
+        format!("{truncated}_{digest}")
+    } else {
+        full
+    }
+}
+
+/// 段清洗：`[A-Za-z0-9_-]` 之外替换为 `_`（对齐 dsh 的 public 名清洗规则）
+pub fn sanitize_segment(seg: &str) -> String {
+    seg.chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect()
+}
+
+/// 12 位十六进制指纹（FNV-1a 64 位低 48 位；确定性、跨进程稳定、零依赖）
+fn short_hash_12(input: &str) -> String {
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for b in input.as_bytes() {
+        hash ^= u64::from(*b);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    format!("{:012x}", hash & 0x0000_ffff_ffff_ffff)
+}
+
+/// M4（2026-09-17 三域对齐 dsh）：同 server 内工具名冲突检测——
+/// 清洗 + 超长截断后的全名去重，返回冲突的全名列表（空 = 无冲突）。
+/// 对齐 dsh「同 server 内重名 tool 报错」；调用方据此**拒绝整代注册**
+/// （「绝不产生半套工具」）。
+pub fn detect_intra_server_conflicts(server_id: &str, tools: &[McpToolInfo]) -> Vec<String> {
+    let mut seen = HashSet::new();
+    let mut conflicts = Vec::new();
+    for t in tools {
+        let full = build_full_name(server_id, &t.name);
+        if !seen.insert(full.clone()) {
+            conflicts.push(full);
+        }
+    }
+    conflicts
+}
+
 // ─── McpTool — Tool trait 实现 ────────────────────────────────────────────
 
 /// MCP 工具 — 包装远程 MCP 服务器上的工具为本地 `Tool` trait 对象，详细见 docs/details/注释/agent-runtime/mcp.md
 pub struct McpTool {
-    /// 预存的完整工具名（含 `mcp_{server_id}_` 前缀）
+    /// 预存的完整工具名（含 `mcp__{server_id}__` 前缀）
     full_name: String,
     /// 服务器 ID（用于工具名前缀和注销）
     server_id: String,
@@ -130,7 +210,8 @@ impl McpTool {
     ) -> Self {
         let server_id = server_id.into();
         let tool_name = tool_name.into();
-        let full_name = format!("mcp_{}_{}", server_id, tool_name);
+        // M3：命名契约 `mcp__{server}__{tool}`（清洗 + 超长截断见 [`build_full_name`]）
+        let full_name = build_full_name(&server_id, &tool_name);
         Self {
             full_name,
             server_id,
@@ -143,7 +224,7 @@ impl McpTool {
 
     /// 工具的全名（含前缀）
     ///
-    /// 规则：`mcp_{server_id}_{tool_name}`
+    /// 规则：`mcp__{server_id}__{tool_name}`（经清洗与超长截断，见 [`build_full_name`]）
     pub fn full_name(&self) -> &str {
         &self.full_name
     }
@@ -172,6 +253,11 @@ impl Tool for McpTool {
 
     fn parameters(&self) -> Value {
         self.input_schema.clone()
+    }
+
+    /// M3：归属显式化——调用方（分组注册/注销/注记）走本方法，不再反解析工具名
+    fn mcp_server_id(&self) -> Option<&str> {
+        Some(&self.server_id)
     }
 
     async fn execute(&self, args: Value) -> Result<Value, ToolError> {
@@ -313,7 +399,7 @@ mod tests {
         let caller: Arc<dyn McpCaller> = Arc::new(MockMcpCaller::new());
         let tool = McpToolAdapter::adapt(info, "test-server", caller);
 
-        assert_eq!(tool.name(), "mcp_test-server_get_weather");
+        assert_eq!(tool.name(), "mcp__test-server__get_weather");
         assert_eq!(tool.description(), "[MCP:test-server] Get weather");
     }
 
@@ -335,8 +421,8 @@ mod tests {
         let tools = McpToolAdapter::adapt_all(infos, "srv", caller);
 
         assert_eq!(tools.len(), 2);
-        assert_eq!(tools[0].name(), "mcp_srv_tool_a");
-        assert_eq!(tools[1].name(), "mcp_srv_tool_b");
+        assert_eq!(tools[0].name(), "mcp__srv__tool_a");
+        assert_eq!(tools[1].name(), "mcp__srv__tool_b");
     }
 
     #[tokio::test]
@@ -402,10 +488,10 @@ mod tests {
         assert_eq!(bus.count().await, 1);
 
         let def = bus
-            .get_by_name("mcp_firecrawl-keyless_search")
+            .get_by_name("mcp__firecrawl-keyless__search")
             .await
             .expect("应找到工具");
-        assert_eq!(def.name, "mcp_firecrawl-keyless_search");
+        assert_eq!(def.name, "mcp__firecrawl-keyless__search");
         assert!(def.description.contains("[MCP:firecrawl-keyless]"));
     }
 
@@ -413,6 +499,58 @@ mod tests {
     fn build_description_adds_prefix() {
         let desc = McpToolAdapter::build_description("Get weather", "test-srv");
         assert_eq!(desc, "[MCP:test-srv] Get weather");
+    }
+
+    // ─── M3：命名契约（双下划线 + 清洗 + 超长截断 + 归属显式化） ─────
+
+    #[test]
+    fn full_name_uses_double_underscore_contract() {
+        assert_eq!(build_full_name("local", "echo"), "mcp__local__echo");
+        // 清洗：空格 / 点 / 斜杠等非法字符替换为 _
+        assert_eq!(
+            build_full_name("my server", "read.file"),
+            "mcp__my_server__read_file"
+        );
+        // server_id 含下划线不再产生解析歧义（归属走 mcp_server_id）
+        assert_eq!(build_full_name("a_b", "c"), "mcp__a_b__c");
+    }
+
+    #[test]
+    fn full_name_truncates_long_names_with_stable_fingerprint() {
+        let long_tool = "t".repeat(80);
+        let name = build_full_name("srv", &long_tool);
+        assert!(name.len() <= 64, "超长名应截断到 64 字符内: {name}");
+        assert_eq!(name, build_full_name("srv", &long_tool), "指纹必须确定性");
+        assert!(name.starts_with("mcp__srv__"));
+    }
+
+    #[test]
+    fn detect_intra_server_conflicts_flags_duplicates() {
+        let mk = |n: &str| McpToolInfo {
+            name: n.into(),
+            description: String::new(),
+            input_schema: serde_json::json!({"type": "object"}),
+        };
+        // 无冲突
+        assert!(detect_intra_server_conflicts("srv", &[mk("a"), mk("b")]).is_empty());
+        // 清洗后撞名：read.file 与 read file → mcp__srv__read_file
+        let conflicts = detect_intra_server_conflicts("srv", &[mk("read.file"), mk("read file")]);
+        assert_eq!(conflicts, vec!["mcp__srv__read_file"]);
+    }
+
+    #[test]
+    fn mcp_tool_reports_server_id_for_grouping() {
+        let caller: Arc<dyn McpCaller> = Arc::new(MockMcpCaller::new());
+        let tool = McpToolAdapter::adapt(
+            McpToolInfo {
+                name: "x".into(),
+                description: String::new(),
+                input_schema: serde_json::json!({"type": "object"}),
+            },
+            "srv_1",
+            caller,
+        );
+        assert_eq!(tool.mcp_server_id(), Some("srv_1"));
     }
 
     #[tokio::test]

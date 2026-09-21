@@ -15,6 +15,8 @@
         prompt_count: Mutex<usize>,
         /// R6 第四部分：最近一次 prompt 的 silent 标志（路由判型应静默调用）
         last_silent: Mutex<bool>,
+        /// 阶段 3 · ④ 扩展：最近一次 prompt 的 purpose 标签（旁路入账判据）
+        last_purpose: Mutex<Option<String>>,
     }
 
     impl StubBackend {
@@ -23,6 +25,7 @@
                 response_text: response_text.into(),
                 prompt_count: Mutex::new(0),
                 last_silent: Mutex::new(false),
+                last_purpose: Mutex::new(None),
             }
         }
 
@@ -32,6 +35,10 @@
 
         fn last_silent(&self) -> bool {
             *self.last_silent.lock().unwrap()
+        }
+
+        fn last_purpose(&self) -> Option<String> {
+            self.last_purpose.lock().unwrap().clone()
         }
     }
 
@@ -43,12 +50,9 @@
             options: Option<PromptCallOptions>,
         ) -> Result<PromptResponse, BackendError> {
             *self.prompt_count.lock().unwrap() += 1;
-            *self.last_silent.lock().unwrap() = options.map(|o| o.silent).unwrap_or(false);
+            *self.last_silent.lock().unwrap() = options.as_ref().map(|o| o.silent).unwrap_or(false);
+            *self.last_purpose.lock().unwrap() = options.and_then(|o| o.purpose);
             Ok(PromptResponse::text_only(self.response_text.clone()))
-        }
-
-        async fn steer(&self, _text: String) -> Result<(), BackendError> {
-            Ok(())
         }
 
         async fn get_messages(&self) -> Vec<agent_kernel::types::OrchestratorMessage> {
@@ -151,6 +155,8 @@
         assert_eq!(backend.prompt_count(), 1);
         // R6 第四部分：路由判型 = 静默调用（决策 JSON 不泄漏为对话流正文段）
         assert!(backend.last_silent(), "路由决策 prompt 应为 silent 调用");
+        // 阶段 3 · ④ 扩展：旁路入账标签随请求携带（backend 侧据此采集快照）
+        assert_eq!(backend.last_purpose().as_deref(), Some("router"));
     }
 
     #[tokio::test]
@@ -552,10 +558,6 @@
         ) -> Result<PromptResponse, BackendError> {
             tokio::time::sleep(std::time::Duration::from_secs(3600)).await;
             unreachable!("HangingBackend 不应返回")
-        }
-
-        async fn steer(&self, _text: String) -> Result<(), BackendError> {
-            Ok(())
         }
 
         async fn get_messages(&self) -> Vec<agent_kernel::types::OrchestratorMessage> {

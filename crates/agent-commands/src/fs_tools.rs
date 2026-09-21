@@ -27,6 +27,24 @@ const DEFAULT_ROOT: &str = ".";
 
 // ─── 公共辅助函数 ────────────────────────────────────────────
 
+/// W3（2026-09-18 工作区与环境对齐 dsh）：无工作区 fail-safe 守卫
+///
+/// dsh 在无 `workspaceRoot` 时默认收紧（fail-safe）；本侧旧语义是 `workdir=None`
+/// → 边界恒放行（`is_within_workdir` 恒 true、相对路径按**进程 cwd** 解析）——
+/// 会话装配异常 / 群聊参与者会话（显式无 workdir）会让边界整体消失。
+/// 本守卫要求依赖工作区的工具（fs 全族 / 命令与 PTY 会话工具）在无工作区时
+/// **明确拒绝**并给出引导，而不是静默落到进程 cwd。
+pub fn require_workdir(ctx: &ToolContext) -> Result<(), ToolError> {
+    if ctx.workdir.is_none() {
+        return Err(ToolError::Execution(
+            "未绑定工作区（workdir 缺失）：文件与命令类工具已按 fail-safe 拒绝执行——\
+             请先在项目中选择工作目录（项目=目录）后再重试。"
+                .into(),
+        ));
+    }
+    Ok(())
+}
+
 /// 解析路径：相对路径基于 workdir，绝对路径原样返回
 fn resolve_fs_path(ctx: &ToolContext, raw: &str) -> PathBuf {
     ctx.resolve_path(raw)
@@ -35,8 +53,8 @@ fn resolve_fs_path(ctx: &ToolContext, raw: &str) -> PathBuf {
 /// 校验路径是否落在 workdir 内（写类工具用；越界则拒绝）
 ///
 /// # 规则
-/// - `workdir` 为 `None` 时 `is_within_workdir` 恒为 true（无约束，放行）
-/// - 否则解析后的绝对路径经词法归一化后必须 `starts_with(workdir)`
+/// - 前置守卫 `require_workdir` 已保证 `workdir` 存在（W3）
+/// - 解析后的绝对路径经词法归一化后必须 `starts_with(workdir)`
 fn ensure_within_workdir(ctx: &ToolContext, path: &Path) -> Result<(), ToolError> {
     let raw = path.to_string_lossy();
     if !ctx.is_within_workdir(&raw) {
@@ -223,6 +241,8 @@ impl Tool for ReadFileTool {
         self.execute_with_ctx(&ToolContext::default(), args).await
     }
     async fn execute_with_ctx(&self, ctx: &ToolContext, args: Value) -> Result<Value, ToolError> {
+        // W3（2026-09-18 工作区与环境对齐 dsh）：无工作区 fail-safe——拒绝而非落到进程 cwd
+        require_workdir(ctx)?;
         let path = args
             .get("path")
             .and_then(|v| v.as_str())
@@ -303,6 +323,8 @@ impl Tool for WriteFileTool {
         self.execute_with_ctx(&ToolContext::default(), args).await
     }
     async fn execute_with_ctx(&self, ctx: &ToolContext, args: Value) -> Result<Value, ToolError> {
+        // W3（2026-09-18 工作区与环境对齐 dsh）：无工作区 fail-safe——拒绝而非落到进程 cwd
+        require_workdir(ctx)?;
         let path = args
             .get("path")
             .and_then(|v| v.as_str())
@@ -373,6 +395,8 @@ impl Tool for ListDirectoryTool {
         self.execute_with_ctx(&ToolContext::default(), args).await
     }
     async fn execute_with_ctx(&self, ctx: &ToolContext, args: Value) -> Result<Value, ToolError> {
+        // W3（2026-09-18 工作区与环境对齐 dsh）：无工作区 fail-safe——拒绝而非落到进程 cwd
+        require_workdir(ctx)?;
         let raw = args
             .get("path")
             .and_then(|v| v.as_str())
@@ -476,6 +500,8 @@ impl Tool for SearchFilesTool {
         self.execute_with_ctx(&ToolContext::default(), args).await
     }
     async fn execute_with_ctx(&self, ctx: &ToolContext, args: Value) -> Result<Value, ToolError> {
+        // W3（2026-09-18 工作区与环境对齐 dsh）：无工作区 fail-safe——拒绝而非落到进程 cwd
+        require_workdir(ctx)?;
         let pattern = args
             .get("pattern")
             .and_then(|v| v.as_str())
@@ -579,6 +605,8 @@ impl Tool for EditFileTool {
         self.execute_with_ctx(&ToolContext::default(), args).await
     }
     async fn execute_with_ctx(&self, ctx: &ToolContext, args: Value) -> Result<Value, ToolError> {
+        // W3（2026-09-18 工作区与环境对齐 dsh）：无工作区 fail-safe——拒绝而非落到进程 cwd
+        require_workdir(ctx)?;
         let path = args
             .get("path")
             .and_then(|v| v.as_str())
@@ -668,6 +696,8 @@ impl Tool for GrepTool {
         self.execute_with_ctx(&ToolContext::default(), args).await
     }
     async fn execute_with_ctx(&self, ctx: &ToolContext, args: Value) -> Result<Value, ToolError> {
+        // W3（2026-09-18 工作区与环境对齐 dsh）：无工作区 fail-safe——拒绝而非落到进程 cwd
+        require_workdir(ctx)?;
         let pattern = args
             .get("pattern")
             .and_then(|v| v.as_str())
@@ -843,6 +873,8 @@ impl Tool for FindTool {
         self.execute_with_ctx(&ToolContext::default(), args).await
     }
     async fn execute_with_ctx(&self, ctx: &ToolContext, args: Value) -> Result<Value, ToolError> {
+        // W3（2026-09-18 工作区与环境对齐 dsh）：无工作区 fail-safe——拒绝而非落到进程 cwd
+        require_workdir(ctx)?;
         let pattern = args
             .get("pattern")
             .and_then(|v| v.as_str())
@@ -975,6 +1007,8 @@ impl Tool for EditDiffTool {
         self.execute_with_ctx(&ToolContext::default(), args).await
     }
     async fn execute_with_ctx(&self, ctx: &ToolContext, args: Value) -> Result<Value, ToolError> {
+        // W3（2026-09-18 工作区与环境对齐 dsh）：无工作区 fail-safe——拒绝而非落到进程 cwd
+        require_workdir(ctx)?;
         let path = args
             .get("path")
             .and_then(|v| v.as_str())
@@ -1097,7 +1131,9 @@ mod tests {
             workdir: Some(dir.to_path_buf()),
             project_id: None,
             workspace_id: None,
+            sandbox: None,
             tool_stream: None,
+            is_sub_agent: false,
         }
     }
 
@@ -1227,18 +1263,22 @@ mod tests {
         let _ = std::fs::remove_file(&outside);
     }
 
+    /// W3（2026-09-18 工作区与环境对齐 dsh）：无工作区 fail-safe——
+    /// workdir=None 时 fs 工具一律拒绝（旧行为：放行且相对路径落到**进程 cwd**，边界消失已收口）
     #[tokio::test]
-    async fn read_absolute_allowed_when_no_workdir() {
-        // 向后兼容：workdir 为 None 时放行绝对路径读取
+    async fn read_refused_when_no_workdir() {
         let dir = tempfile::tempdir().unwrap();
         let f = dir.path().join("compat.txt");
         std::fs::write(&f, "hi").unwrap();
         let ctx = ToolContext::default();
-        let res = ReadFileTool
+        let err = ReadFileTool
             .execute_with_ctx(&ctx, json!({ "path": f.to_string_lossy() }))
-            .await;
-        assert!(res.is_ok(), "workdir 为 None 时应放行绝对路径读取");
-        assert_eq!(res.unwrap()["content"], "hi");
+            .await
+            .unwrap_err();
+        assert!(
+            err.to_string().contains("未绑定工作区"),
+            "应 fail-safe 拒绝并给出引导: {err}"
+        );
     }
 
     #[tokio::test]

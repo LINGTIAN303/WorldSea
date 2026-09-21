@@ -70,7 +70,7 @@ pub struct ImageAttachment {
 // ─── 消息 ────────────────────────────────────────────
 
 /// 编排消息（与 pi-agent-core 的内部消息格式解耦）
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct OrchestratorMessage {
     /// 角色
     pub role: MessageRole,
@@ -98,7 +98,7 @@ pub enum MessageRole {
 }
 
 /// 工具调用
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ToolCall {
     /// 调用 ID（用于关联 toolResult）
     pub id: String,

@@ -1,10 +1,12 @@
 // ─── 测试 ────────────────────────────────────────────
 
     use super::*;
+    use crate::agent::prompt_sections::PromptSection;
+    use crate::event_bus::{Listener, ListenerOutcome};
     use async_trait::async_trait;
     use crate::backend::PromptResponse;
     use crate::router_decider::{RouterDecider, RouterDecision};
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
     use std::sync::Arc;
     use crate::tool::{EchoTool, SimpleToolBus};
     use crate::tool_hook::{ToolHookAction, ToolLifecycleHook};
@@ -14,6 +16,20 @@
     struct MockBackend {
         responses: AsyncMutex<Vec<PromptResponse>>,
         last_options: AsyncMutex<Option<PromptCallOptions>>,
+        /// 阶段 3 测试开关：置位后 `set_messages` 返回错误
+        /// （验证压缩失败路径的括号右端 `ContextCompactFailed`）
+        fail_set_messages: AtomicBool,
+        /// 阶段 3 测试：请求派发时间线（与 CompactEventRecorder 共写，验证压缩先于请求）
+        timeline: Option<Arc<std::sync::Mutex<Vec<String>>>>,
+        /// 阶段 3 测试：旁路调用（压缩摘要）返回的摘要文本；`None` = 不实现（返回错误 → 回退）
+        side_call_summary: Option<String>,
+        /// 阶段 3 测试：旁路调用次数（预算上限契约）
+        side_calls: AtomicUsize,
+        /// 阶段 3 测试：最近一次旁路调用收到的指令（模板契约）与历史长度（暖前缀契约）
+        last_side_instruction: AsyncMutex<Option<String>>,
+        last_side_history_len: AsyncMutex<usize>,
+        /// A5 契约测试：错误注入队列（每次 prompt 先弹错误——供按码路由断言）
+        prompt_errors: AsyncMutex<Vec<BackendError>>,
     }
 
     impl MockBackend {
@@ -21,7 +37,39 @@
             Self {
                 responses: AsyncMutex::new(responses),
                 last_options: AsyncMutex::new(None),
+                fail_set_messages: AtomicBool::new(false),
+                timeline: None,
+                side_call_summary: None,
+                side_calls: AtomicUsize::new(0),
+                last_side_instruction: AsyncMutex::new(None),
+                last_side_history_len: AsyncMutex::new(0),
+                prompt_errors: AsyncMutex::new(Vec::new()),
             }
+        }
+
+        /// A5：注入按序弹出的错误（先于响应队列消费）
+        fn with_prompt_errors(mut self, errors: Vec<BackendError>) -> Self {
+            self.prompt_errors = AsyncMutex::new(errors);
+            self
+        }
+
+        /// 令 `set_messages` 失败的 Mock（压缩失败路径契约测试用）
+        fn failing_set_messages(responses: Vec<PromptResponse>) -> Self {
+            let backend = Self::new(responses);
+            backend.fail_set_messages.store(true, Ordering::SeqCst);
+            backend
+        }
+
+        /// 注入共享时间线（压缩时机契约测试：压缩事件与请求派发共写同一序列）
+        fn with_timeline(mut self, timeline: Arc<std::sync::Mutex<Vec<String>>>) -> Self {
+            self.timeline = Some(timeline);
+            self
+        }
+
+        /// 提供压缩摘要的旁路调用实现（阶段 3 · D4 摘要契约测试）
+        fn with_side_call_summary(mut self, summary: &str) -> Self {
+            self.side_call_summary = Some(summary.to_string());
+            self
         }
     }
 
@@ -32,6 +80,18 @@
             _prompt: String,
             options: Option<PromptCallOptions>,
         ) -> Result<PromptResponse, BackendError> {
+            if let Some(timeline) = &self.timeline {
+                if let Ok(mut tl) = timeline.lock() {
+                    tl.push("prompt".to_string());
+                }
+            }
+            // A5：注入错误优先（供按码路由断言——不可重试即时失败 / 溢出压缩重发）
+            {
+                let mut errors = self.prompt_errors.lock().await;
+                if !errors.is_empty() {
+                    return Err(errors.remove(0));
+                }
+            }
             *self.last_options.lock().await = options;
             let mut responses = self.responses.lock().await;
             if responses.is_empty() {
@@ -40,8 +100,26 @@
             Ok(responses.remove(0))
         }
 
-        async fn steer(&self, _text: String) -> Result<(), BackendError> {
-            Ok(())
+        /// 阶段 3 · D4：压缩摘要旁路调用（记录指令/历史供契约断言；`None` → 错误 → 回退）
+        async fn prompt_side_call(
+            &self,
+            _system_prompt: Option<String>,
+            history: Vec<OrchestratorMessage>,
+            instruction: String,
+            _options: PromptCallOptions,
+        ) -> Result<PromptResponse, BackendError> {
+            self.side_calls.fetch_add(1, Ordering::SeqCst);
+            *self.last_side_instruction.lock().await = Some(instruction);
+            *self.last_side_history_len.lock().await = history.len();
+            match &self.side_call_summary {
+                Some(summary) => {
+                    let mut response = PromptResponse::text_only(summary.clone());
+                    response.input_tokens = Some(10);
+                    response.output_tokens = Some(20);
+                    Ok(response)
+                }
+                None => Err(BackendError::Other("旁路调用未实现（测试替身）".into())),
+            }
         }
 
         async fn get_messages(&self) -> Vec<OrchestratorMessage> {
@@ -52,6 +130,9 @@
             &self,
             _messages: Vec<OrchestratorMessage>,
         ) -> Result<(), BackendError> {
+            if self.fail_set_messages.load(Ordering::SeqCst) {
+                return Err(BackendError::Other("注入的 set_messages 失败".into()));
+            }
             Ok(())
         }
 
@@ -71,6 +152,47 @@
         let result = agent.run("你好".into()).await.expect("应执行成功");
 
         assert_eq!(result, "你好，我是助手");
+    }
+
+    /// E3-1（2026-09-18，观测期）：工具上下文携带按档位派生的沙箱戳记——
+    /// plan → 只读；interact / autopilot → 工作区写；无工作区 → 不携带（设计见 crate::sandbox）
+    #[tokio::test]
+    async fn tool_ctx_carries_sandbox_stamp_derived_from_level_and_workdir() {
+        use crate::confirmation::ConfirmationPolicy;
+        use crate::permission_rules::SecurityLevel;
+        use crate::sandbox::SandboxMode;
+        use std::path::PathBuf;
+
+        for (level, expected) in [
+            (SecurityLevel::Plan, SandboxMode::ReadOnly),
+            (SecurityLevel::Interact, SandboxMode::WorkspaceWrite),
+            (SecurityLevel::Autopilot, SandboxMode::WorkspaceWrite),
+        ] {
+            let agent = AgentLoop::new(
+                Arc::new(MockBackend::new(vec![])),
+                Arc::new(SimpleToolBus::new()),
+            )
+            .with_config(AgentLoopConfig {
+                workdir: Some(PathBuf::from("/ws")),
+                confirmation_policy: Some(ConfirmationPolicy {
+                    security_level: level,
+                    ..Default::default()
+                }),
+                ..Default::default()
+            });
+            let spec = agent
+                .tool_ctx(None)
+                .sandbox
+                .unwrap_or_else(|| panic!("{level:?} 应携带沙箱戳记"));
+            assert_eq!(spec.mode, expected, "{level:?}");
+            assert_eq!(spec.root, PathBuf::from("/ws"), "{level:?}");
+        }
+        // 无工作区 → 不携带（Agent 命令路径已由 W3 fail-safe 拒绝；戳记语义为不启用）
+        let agent = AgentLoop::new(
+            Arc::new(MockBackend::new(vec![])),
+            Arc::new(SimpleToolBus::new()),
+        );
+        assert!(agent.tool_ctx(None).sandbox.is_none());
     }
 
     /// X1：append_messages 追加消息入环（不触发执行）——命令层编排路径收口的入环基础
@@ -1086,19 +1208,20 @@
         events: std::sync::Mutex<Vec<String>>,
     }
 
-    impl EventListener for TerminalEventListener {
-        fn on_event(&self, event: &OrchestratorEvent) {
+    impl Listener for TerminalEventListener {
+        fn call(&self, event: &OrchestratorEvent) -> ListenerOutcome {
             let label = match event {
-                OrchestratorEvent::Agent(AgentEvent::Error { message }) => {
+                OrchestratorEvent::Agent(AgentEvent::Error { message, .. }) => {
                     format!("error:{message}")
                 }
                 OrchestratorEvent::Agent(AgentEvent::AgentEnd) => "agent_end".into(),
                 OrchestratorEvent::Agent(AgentEvent::StreamEnd { .. }) => "stream_end".into(),
-                _ => return,
+                _ => return ListenerOutcome::Continue,
             };
             if let Ok(mut v) = self.events.lock() {
                 v.push(label);
             }
+            ListenerOutcome::Continue
         }
     }
 
@@ -1240,8 +1363,8 @@
         events: std::sync::Mutex<Vec<String>>,
     }
 
-    impl EventListener for LoopEngEventListener {
-        fn on_event(&self, event: &OrchestratorEvent) {
+    impl Listener for LoopEngEventListener {
+        fn call(&self, event: &OrchestratorEvent) -> ListenerOutcome {
             let label = match event {
                 OrchestratorEvent::LoopEngRateLimitExceeded {
                     limit_type,
@@ -1260,11 +1383,12 @@
                     turn_count,
                     ..
                 } => format!("recovered:{recovery_method}:{turn_count}"),
-                _ => return,
+                _ => return ListenerOutcome::Continue,
             };
             if let Ok(mut v) = self.events.lock() {
                 v.push(label);
             }
+            ListenerOutcome::Continue
         }
     }
 
@@ -1395,9 +1519,6 @@
                 _options: Option<PromptCallOptions>,
             ) -> Result<PromptResponse, BackendError> {
                 Err(BackendError::Other("网络错误".into()))
-            }
-            async fn steer(&self, _text: String) -> Result<(), BackendError> {
-                Ok(())
             }
             async fn get_messages(&self) -> Vec<OrchestratorMessage> {
                 Vec::new()
@@ -1706,8 +1827,8 @@
         decisions: std::sync::Mutex<Vec<(String, String)>>, // (target_id, target_name)
     }
 
-    impl EventListener for RouterListener {
-        fn on_event(&self, event: &OrchestratorEvent) {
+    impl Listener for RouterListener {
+        fn call(&self, event: &OrchestratorEvent) -> ListenerOutcome {
             if let OrchestratorEvent::RouterDecisionMade {
                 target_id,
                 target_name,
@@ -1718,6 +1839,7 @@
                     v.push((target_id.clone(), target_name.clone()));
                 }
             }
+            ListenerOutcome::Continue
         }
     }
 
@@ -1902,8 +2024,8 @@
 
     /// 捕获 plan 事件（PlanCreated / PlanStepUpdate）的测试监听器
     struct PlanListener(std::sync::Mutex<Vec<String>>);
-    impl EventListener for PlanListener {
-        fn on_event(&self, event: &OrchestratorEvent) {
+    impl Listener for PlanListener {
+        fn call(&self, event: &OrchestratorEvent) -> ListenerOutcome {
             let mut guard = self.0.lock().unwrap();
             match event {
                 OrchestratorEvent::PlanCreated { items } => {
@@ -1917,6 +2039,7 @@
                 }
                 _ => {}
             }
+            ListenerOutcome::Continue
         }
     }
 
@@ -2176,6 +2299,421 @@
         assert!(tr.content.contains("被 A6 钩子拒绝"));
     }
 
+    // ─── T4：并行路径补超时/重试（串并行统一执行包装） ─────────
+
+    /// T4 契约：并行路径同样受 `tool_timeout` 约束——此前直调 `call_tool_with_ctx`，
+    /// 慢工具会挂住整个 turn（本测试外层 3s 守护超时即失败）。
+    #[tokio::test]
+    async fn parallel_tool_timeout_is_enforced() {
+        /// 5s 不返回的慢工具
+        struct SlowTool;
+        #[async_trait]
+        impl crate::tool::Tool for SlowTool {
+            fn name(&self) -> &str {
+                "slow"
+            }
+            fn description(&self) -> &str {
+                "慢工具（测试用）"
+            }
+            fn parameters(&self) -> serde_json::Value {
+                serde_json::json!({ "type": "object", "properties": {} })
+            }
+            async fn execute(
+                &self,
+                _args: serde_json::Value,
+            ) -> Result<serde_json::Value, crate::tool::ToolError> {
+                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                Ok(serde_json::json!({ "ok": true }))
+            }
+        }
+
+        let backend = Arc::new(MockBackend::new(vec![
+            PromptResponse {
+                text: "并行".into(),
+                tool_calls: vec![
+                    ToolCall {
+                        id: "tc_slow".into(),
+                        name: "slow".into(),
+                        args: serde_json::json!({}),
+                    },
+                    ToolCall {
+                        id: "tc_echo".into(),
+                        name: "echo".into(),
+                        args: serde_json::json!({ "message": "hi" }),
+                    },
+                ],
+                input_tokens: None,
+                output_tokens: None,
+                stop_reason: Some("tool_calls".into()),
+                reasoning: None,
+            },
+            PromptResponse::text_only("完成"),
+        ]));
+        let tool_bus = Arc::new(SimpleToolBus::new());
+        tool_bus.register(Arc::new(SlowTool)).await;
+        tool_bus.register(Arc::new(EchoTool)).await;
+
+        let agent = AgentLoop::new(backend, tool_bus).with_config(AgentLoopConfig {
+            parallel_tool_calls: true,
+            tool_timeout: Some(std::time::Duration::from_millis(100)),
+            tool_max_retries: 0,
+            ..Default::default()
+        });
+
+        // 外层守护：若并行路径无超时（旧行为），run 会被慢工具挂住 → 守护超时判失败
+        let result = tokio::time::timeout(std::time::Duration::from_secs(3), agent.run("跑".into()))
+            .await
+            .expect("并行工具应受超时约束，不得挂住 turn")
+            .expect("运行应成功");
+        assert_eq!(result, "完成");
+
+        // 慢工具以「工具超时」失败落 toolResult；快工具不受影响
+        let msgs = agent.get_messages().await;
+        let trs: Vec<_> = msgs
+            .iter()
+            .filter(|m| m.role == MessageRole::ToolResult)
+            .collect();
+        assert_eq!(trs.len(), 2, "两个并行工具都应有结果");
+        let slow_tr = trs
+            .iter()
+            .find(|m| m.tool_call_id.as_deref() == Some("tc_slow"))
+            .expect("应有慢工具结果");
+        assert!(
+            slow_tr.content.contains("工具超时"),
+            "慢工具应超时失败: {}",
+            slow_tr.content
+        );
+        let echo_tr = trs
+            .iter()
+            .find(|m| m.tool_call_id.as_deref() == Some("tc_echo"))
+            .expect("应有 echo 结果");
+        assert!(echo_tr.content.contains("hi"), "快工具应正常返回");
+    }
+
+    /// T4 契约：并行路径同样按 `tool_max_retries` 重试（失败两次后成功 → 调用 3 次），
+    /// 且重试事件与串行同规（`LoopEngRetrying` 可达监听器）。
+    #[tokio::test]
+    async fn parallel_tool_retry_and_events_apply() {
+        /// 前两次失败、第三次成功的工具
+        struct FlakyTool {
+            calls: Arc<AtomicUsize>,
+        }
+        #[async_trait]
+        impl crate::tool::Tool for FlakyTool {
+            fn name(&self) -> &str {
+                "flaky"
+            }
+            fn description(&self) -> &str {
+                "抖动工具（测试用）"
+            }
+            fn parameters(&self) -> serde_json::Value {
+                serde_json::json!({ "type": "object", "properties": {} })
+            }
+            async fn execute(
+                &self,
+                _args: serde_json::Value,
+            ) -> Result<serde_json::Value, crate::tool::ToolError> {
+                let n = self.calls.fetch_add(1, Ordering::SeqCst) + 1;
+                if n < 3 {
+                    Err(crate::tool::ToolError::Execution(format!("第 {n} 次失败")))
+                } else {
+                    Ok(serde_json::json!({ "ok": n }))
+                }
+            }
+        }
+
+        let backend = Arc::new(MockBackend::new(vec![
+            PromptResponse {
+                text: "并行".into(),
+                tool_calls: vec![
+                    ToolCall {
+                        id: "tc_flaky".into(),
+                        name: "flaky".into(),
+                        args: serde_json::json!({}),
+                    },
+                    ToolCall {
+                        id: "tc_echo".into(),
+                        name: "echo".into(),
+                        args: serde_json::json!({ "message": "hi" }),
+                    },
+                ],
+                input_tokens: None,
+                output_tokens: None,
+                stop_reason: Some("tool_calls".into()),
+                reasoning: None,
+            },
+            PromptResponse::text_only("完成"),
+        ]));
+        let calls = Arc::new(AtomicUsize::new(0));
+        let tool_bus = Arc::new(SimpleToolBus::new());
+        tool_bus
+            .register(Arc::new(FlakyTool {
+                calls: calls.clone(),
+            }))
+            .await;
+        tool_bus.register(Arc::new(EchoTool)).await;
+
+        let agent = AgentLoop::new(backend, tool_bus).with_config(AgentLoopConfig {
+            parallel_tool_calls: true,
+            tool_max_retries: 2,
+            tool_retry_base_delay: std::time::Duration::from_millis(1),
+            ..Default::default()
+        });
+        let recorder = Arc::new(LoopEngEventListener {
+            events: std::sync::Mutex::new(Vec::new()),
+        });
+        agent.subscribe(recorder.clone()).await;
+
+        let result = agent.run("跑".into()).await.expect("运行应成功");
+        assert_eq!(result, "完成");
+        assert_eq!(
+            calls.load(Ordering::SeqCst),
+            3,
+            "并行工具应重试至成功（失败 2 次 + 成功 1 次）"
+        );
+
+        // 重试事件同规：两次 LoopEngRetrying（attempt 1 / 2）
+        let events = recorder.events.lock().unwrap().clone();
+        let retrying_count = events
+            .iter()
+            .filter(|e| e.starts_with("retrying:"))
+            .count();
+        assert_eq!(
+            retrying_count, 2,
+            "并行路径应广播两次重试事件: {events:?}"
+        );
+    }
+
+    /// T4 契约：并行路径同样经过 A6 钩子（pre 改参生效——此前并行直调总线绕过钩子）。
+    #[tokio::test]
+    async fn parallel_tool_hook_applies() {
+        let backend = Arc::new(MockBackend::new(vec![
+            PromptResponse {
+                text: "并行".into(),
+                tool_calls: vec![
+                    ToolCall {
+                        id: "tc_a".into(),
+                        name: "echo".into(),
+                        args: serde_json::json!({ "message": "a" }),
+                    },
+                    ToolCall {
+                        id: "tc_b".into(),
+                        name: "echo".into(),
+                        args: serde_json::json!({ "message": "b" }),
+                    },
+                ],
+                input_tokens: None,
+                output_tokens: None,
+                stop_reason: Some("tool_calls".into()),
+                reasoning: None,
+            },
+            PromptResponse::text_only("完成"),
+        ]));
+        let tool_bus = Arc::new(SimpleToolBus::new());
+        tool_bus.register(Arc::new(EchoTool)).await;
+        let post_calls = Arc::new(AtomicUsize::new(0));
+
+        let agent = AgentLoop::new(backend, tool_bus)
+            .with_tool_hook(Arc::new(ModifyingHook {
+                post_calls: post_calls.clone(),
+            }))
+            .with_config(AgentLoopConfig {
+                parallel_tool_calls: true,
+                ..Default::default()
+            });
+
+        let result = agent.run("跑".into()).await.expect("运行应成功");
+        assert_eq!(result, "完成");
+        assert_eq!(
+            post_calls.load(Ordering::SeqCst),
+            2,
+            "并行两个工具都应触发 post 钩子"
+        );
+
+        let msgs = agent.get_messages().await;
+        let trs: Vec<_> = msgs
+            .iter()
+            .filter(|m| m.role == MessageRole::ToolResult)
+            .collect();
+        assert_eq!(trs.len(), 2);
+        let hooked = trs
+            .iter()
+            .filter(|m| m.content.contains("hooked"))
+            .count();
+        assert_eq!(hooked, 2, "并行路径工具应收到钩子改写后的参数");
+    }
+
+    // ─── T1：工具失败结果判别契约（isError + errorCode） ─────────
+
+    /// T1 契约：失败结果显式携带 `isError` + `errorCode`（未知工具 → UNKNOWN_TOOL），
+    /// 且保留既有 `error` / `tool` 字段（加性改动）。
+    #[tokio::test]
+    async fn tool_failure_result_carries_discriminant_fields() {
+        let backend = Arc::new(MockBackend::new(vec![
+            PromptResponse {
+                text: "调不存在的工具".into(),
+                tool_calls: vec![ToolCall {
+                    id: "tc_missing".into(),
+                    name: "missing_tool".into(),
+                    args: serde_json::json!({}),
+                }],
+                input_tokens: None,
+                output_tokens: None,
+                stop_reason: Some("tool_calls".into()),
+                reasoning: None,
+            },
+            PromptResponse::text_only("完成"),
+        ]));
+        // 空总线：调用即 NotFound（UNKNOWN_TOOL）
+        let tool_bus = Arc::new(SimpleToolBus::new());
+        let agent = AgentLoop::new(backend, tool_bus);
+
+        let result = agent.run("跑".into()).await.expect("运行应成功");
+        assert_eq!(result, "完成");
+
+        let msgs = agent.get_messages().await;
+        let tr = msgs
+            .iter()
+            .find(|m| m.role == MessageRole::ToolResult && m.tool_call_id.as_deref() == Some("tc_missing"))
+            .expect("应有失败 toolResult");
+        let v: serde_json::Value =
+            serde_json::from_str(&tr.content).expect("toolResult 应为 JSON");
+        assert_eq!(v["isError"], true, "失败结果应显式 isError");
+        assert_eq!(v["errorCode"], "UNKNOWN_TOOL");
+        assert_eq!(v["tool"], "missing_tool");
+        assert!(
+            v["error"].as_str().unwrap_or("").contains("工具不存在"),
+            "既有 error 字符串应保留: {v}"
+        );
+    }
+
+    /// T1 契约：策略拒绝（敏感目录硬 Deny）同样携带判别字段（POLICY_DENIED），
+    /// 且工具不被执行（守卫在确认预检段拦截；成功结果不携带 isError）。
+    #[tokio::test]
+    async fn policy_denied_result_carries_discriminant_fields() {
+        /// 计数回显工具（具名 read_file 以命中 FS 守卫）
+        struct CountingEcho(Arc<AtomicUsize>);
+        #[async_trait]
+        impl crate::tool::Tool for CountingEcho {
+            fn name(&self) -> &str {
+                "read_file"
+            }
+            fn description(&self) -> &str {
+                "计数回显（测试用）"
+            }
+            fn parameters(&self) -> serde_json::Value {
+                serde_json::json!({ "type": "object", "properties": {} })
+            }
+            async fn execute(
+                &self,
+                args: serde_json::Value,
+            ) -> Result<serde_json::Value, crate::tool::ToolError> {
+                self.0.fetch_add(1, Ordering::SeqCst);
+                Ok(args)
+            }
+        }
+
+        let calls = Arc::new(AtomicUsize::new(0));
+        let backend = Arc::new(MockBackend::new(vec![
+            PromptResponse {
+                text: "读密钥文件".into(),
+                tool_calls: vec![ToolCall {
+                    id: "tc_deny".into(),
+                    name: "read_file".into(),
+                    args: serde_json::json!({ "path": "~/.ssh/id_rsa" }),
+                }],
+                input_tokens: None,
+                output_tokens: None,
+                stop_reason: Some("tool_calls".into()),
+                reasoning: None,
+            },
+            PromptResponse::text_only("完成"),
+        ]));
+        let tool_bus = Arc::new(SimpleToolBus::new());
+        tool_bus
+            .register(Arc::new(CountingEcho(calls.clone())))
+            .await;
+        let agent = AgentLoop::new(backend, tool_bus);
+
+        let result = agent.run("跑".into()).await.expect("运行应成功");
+        assert_eq!(result, "完成");
+        assert_eq!(calls.load(Ordering::SeqCst), 0, "敏感目录工具不应被执行");
+
+        let msgs = agent.get_messages().await;
+        let tr = msgs
+            .iter()
+            .find(|m| m.role == MessageRole::ToolResult && m.tool_call_id.as_deref() == Some("tc_deny"))
+            .expect("应有拒绝 toolResult");
+        let v: serde_json::Value =
+            serde_json::from_str(&tr.content).expect("toolResult 应为 JSON");
+        assert_eq!(v["isError"], true);
+        assert_eq!(v["errorCode"], "POLICY_DENIED");
+        assert!(
+            v["error"].as_str().unwrap_or("").contains("敏感目录"),
+            "拒绝原因应保留: {v}"
+        );
+    }
+
+    /// T1 契约：并行路径失败结果同样带判别字段（与串行同规）；成功结果不携带 `isError`。
+    #[tokio::test]
+    async fn parallel_failure_and_success_discriminants() {
+        let backend = Arc::new(MockBackend::new(vec![
+            PromptResponse {
+                text: "并行".into(),
+                tool_calls: vec![
+                    ToolCall {
+                        id: "tc_missing".into(),
+                        name: "missing_tool".into(),
+                        args: serde_json::json!({}),
+                    },
+                    ToolCall {
+                        id: "tc_echo".into(),
+                        name: "echo".into(),
+                        args: serde_json::json!({ "message": "hi" }),
+                    },
+                ],
+                input_tokens: None,
+                output_tokens: None,
+                stop_reason: Some("tool_calls".into()),
+                reasoning: None,
+            },
+            PromptResponse::text_only("完成"),
+        ]));
+        let tool_bus = Arc::new(SimpleToolBus::new());
+        tool_bus.register(Arc::new(EchoTool)).await;
+        let agent = AgentLoop::new(backend, tool_bus).with_config(AgentLoopConfig {
+            parallel_tool_calls: true,
+            ..Default::default()
+        });
+
+        agent.run("跑".into()).await.expect("运行应成功");
+
+        let msgs = agent.get_messages().await;
+        let failed: serde_json::Value = serde_json::from_str(
+            &msgs
+                .iter()
+                .find(|m| m.tool_call_id.as_deref() == Some("tc_missing"))
+                .expect("应有失败结果")
+                .content,
+        )
+        .expect("失败结果应为 JSON");
+        assert_eq!(failed["isError"], true);
+        assert_eq!(failed["errorCode"], "UNKNOWN_TOOL");
+
+        let ok: serde_json::Value = serde_json::from_str(
+            &msgs
+                .iter()
+                .find(|m| m.tool_call_id.as_deref() == Some("tc_echo"))
+                .expect("应有成功结果")
+                .content,
+        )
+        .expect("成功结果应为 JSON");
+        assert!(
+            ok.get("isError").is_none(),
+            "成功结果不应携带 isError（缺省即成功）: {ok}"
+        );
+    }
+
     // ─── 丁1 加急：上下文窗口面板 / 手动压缩 ─────────────────
 
     /// context_usage：窗口/阈值/触发点/层级/构成分项与自动裁剪同源可见
@@ -2432,4 +2970,2004 @@
         agent.is_streaming.store(true, Ordering::SeqCst);
         let err = agent.compact_now().await.expect_err("流式中应拒绝");
         assert!(err.to_string().contains("流式"), "错误信息应说明流式原因: {err}");
+    }
+
+    // ── 阶段 3 · 压缩事件化（A2 补齐②③契约测试）──
+
+    /// 压缩事件记录器 — 按括号三事件记标签（顺序敏感）
+    struct CompactEventRecorder {
+        labels: std::sync::Mutex<Vec<String>>,
+        /// 可选共享时间线（与 MockBackend 的请求派发共写，验证相对顺序）
+        timeline: Option<Arc<std::sync::Mutex<Vec<String>>>>,
+    }
+
+    impl CompactEventRecorder {
+        fn new() -> Self {
+            Self {
+                labels: std::sync::Mutex::new(Vec::new()),
+                timeline: None,
+            }
+        }
+
+        /// 与共享时间线联动（压缩时机契约测试）
+        fn with_timeline(timeline: Arc<std::sync::Mutex<Vec<String>>>) -> Self {
+            Self {
+                labels: std::sync::Mutex::new(Vec::new()),
+                timeline: Some(timeline),
+            }
+        }
+
+        fn labels(&self) -> Vec<String> {
+            self.labels.lock().unwrap().clone()
+        }
+    }
+
+    impl Listener for CompactEventRecorder {
+        fn call(&self, event: &OrchestratorEvent) -> ListenerOutcome {
+            let label = match event {
+                OrchestratorEvent::ContextCompactStarted {
+                    trigger,
+                    before_tokens,
+                    tier,
+                } => format!("started:{trigger}:{before_tokens}:{tier}"),
+                OrchestratorEvent::ContextCompactFinished {
+                    trigger,
+                    mode,
+                    folded_groups,
+                    dropped_messages,
+                    backfilled,
+                    ..
+                } => format!(
+                    "finished:{trigger}:{mode}:{folded_groups}:{dropped_messages}:{backfilled}"
+                ),
+                OrchestratorEvent::ContextCompactFailed {
+                    trigger, stage, ..
+                } => format!("failed:{trigger}:{stage}"),
+                _ => return ListenerOutcome::Continue,
+            };
+            if let Some(timeline) = &self.timeline {
+                if let Ok(mut tl) = timeline.lock() {
+                    tl.push(label.clone());
+                }
+            }
+            self.labels.lock().unwrap().push(label);
+            ListenerOutcome::Continue
+        }
+    }
+
+    /// 构造「超线可折叠」场景（System + 4 条陈旧 + 最新 user + 回复）
+    ///
+    /// `timeline`：可选共享时间线（压缩事件与请求派发共写，验证相对顺序）
+    async fn agent_with_stale_context(
+        sink: Option<crate::raw_context::RawContextSink>,
+        timeline: Option<Arc<std::sync::Mutex<Vec<String>>>>,
+    ) -> AgentLoop {
+        use crate::context_budget::ContextBudgetPolicy;
+        use crate::retention::RetentionPolicy;
+        use crate::types::{MessageRole, OrchestratorMessage};
+
+        let mut backend = MockBackend::new(vec![PromptResponse::text_only("好的")]);
+        if let Some(timeline) = timeline {
+            backend = backend.with_timeline(timeline);
+        }
+        let mut agent = AgentLoop::new(Arc::new(backend), Arc::new(SimpleToolBus::new()))
+            .with_config(AgentLoopConfig {
+                context_budget: Some(ContextBudgetPolicy::new(4_000, 0.25)),
+                retention_policy: Some(RetentionPolicy { keep_recent: 2 }),
+                ..Default::default()
+            });
+        if let Some(sink) = sink {
+            agent = agent.with_raw_context_sink(sink);
+        }
+
+        let mut msgs = vec![OrchestratorMessage {
+            role: MessageRole::System,
+            content: "系统提示词".into(),
+            tool_calls: Vec::new(),
+            tool_call_id: None,
+            meta: None,
+        }];
+        for i in 0..4 {
+            msgs.push(OrchestratorMessage {
+                role: if i % 2 == 0 {
+                    MessageRole::User
+                } else {
+                    MessageRole::Assistant
+                },
+                content: format!("陈旧 {i}：{}", "x".repeat(2_000)),
+                tool_calls: Vec::new(),
+                tool_call_id: None,
+                meta: None,
+            });
+        }
+        msgs.push(OrchestratorMessage {
+            role: MessageRole::User,
+            content: "最新指令：继续推进".into(),
+            tool_calls: Vec::new(),
+            tool_call_id: None,
+            meta: None,
+        });
+        msgs.push(OrchestratorMessage {
+            role: MessageRole::Assistant,
+            content: "好的".into(),
+            tool_calls: Vec::new(),
+            tool_call_id: None,
+            meta: None,
+        });
+        agent.append_messages(msgs).await;
+        agent
+    }
+
+    /// 超线自动裁剪 → Started → Finished 括号成对；Finished 字段与实际折叠一致
+    #[tokio::test]
+    async fn context_budget_broadcasts_compact_bracket_events() {
+        use crate::raw_context::{RawContextSink, RawRef};
+
+        let calls = Arc::new(AtomicUsize::new(0));
+        let calls2 = Arc::clone(&calls);
+        let sink: RawContextSink = Arc::new(move |text: &str| {
+            let i = calls2.fetch_add(1, Ordering::SeqCst);
+            Some(RawRef {
+                content_hash: format!("{i:016x}"),
+                byte_len: text.len(),
+            })
+        });
+        let agent = agent_with_stale_context(Some(sink), None).await;
+
+        let recorder = Arc::new(CompactEventRecorder::new());
+        agent.subscribe(recorder.clone()).await;
+        agent.enforce_context_budget().await;
+
+        let labels = recorder.labels();
+        assert_eq!(
+            labels.len(),
+            2,
+            "自动压缩应成对广播（Started → Finished）: {labels:?}"
+        );
+        assert!(
+            labels[0].starts_with("started:auto:"),
+            "左端应为 auto 触发: {labels:?}"
+        );
+        let parts: Vec<&str> = labels[1].split(':').collect();
+        assert_eq!(parts[0], "finished");
+        assert_eq!(parts[1], "auto");
+        assert_eq!(parts[2], "folded", "注入外置器应走折叠: {labels:?}");
+        let folded_groups: usize = parts[3].parse().unwrap();
+        assert_eq!(
+            folded_groups,
+            calls.load(Ordering::SeqCst),
+            "Finished 组数应与外置次数一致: {labels:?}"
+        );
+        assert_eq!(parts[5], folded_groups.to_string(), "回填数应等于折叠组数: {labels:?}");
+    }
+
+    /// 手动 /compact → 同一括号（trigger=manual；低于自动触发线也执行）
+    #[tokio::test]
+    async fn compact_now_broadcasts_compact_bracket_events() {
+        use crate::raw_context::{RawContextSink, RawRef};
+
+        let calls = Arc::new(AtomicUsize::new(0));
+        let calls2 = Arc::clone(&calls);
+        let sink: RawContextSink = Arc::new(move |text: &str| {
+            let i = calls2.fetch_add(1, Ordering::SeqCst);
+            Some(RawRef {
+                content_hash: format!("{i:016x}"),
+                byte_len: text.len(),
+            })
+        });
+        let agent = agent_with_stale_context(Some(sink), None).await;
+
+        let recorder = Arc::new(CompactEventRecorder::new());
+        agent.subscribe(recorder.clone()).await;
+        let outcome = agent.compact_now().await.expect("手动压缩应成功");
+        assert!(outcome.saved_tokens > 0);
+
+        let labels = recorder.labels();
+        assert_eq!(labels.len(), 2, "手动压缩应成对广播: {labels:?}");
+        assert!(
+            labels[0].starts_with("started:manual:"),
+            "左端应为 manual 触发: {labels:?}"
+        );
+        assert!(
+            labels[1].starts_with("finished:manual:folded:"),
+            "右端应为 manual 折叠: {labels:?}"
+        );
+    }
+
+    /// 无可压内容 → 不构成事务（无括号事件）
+    #[tokio::test]
+    async fn compact_none_broadcasts_no_bracket_events() {
+        use crate::types::{MessageRole, OrchestratorMessage};
+
+        let agent = AgentLoop::new(
+            Arc::new(MockBackend::new(vec![])),
+            Arc::new(SimpleToolBus::new()),
+        );
+        agent
+            .append_messages(vec![
+                OrchestratorMessage {
+                    role: MessageRole::System,
+                    content: "系统提示词".into(),
+                    tool_calls: Vec::new(),
+                    tool_call_id: None,
+                    meta: None,
+                },
+                OrchestratorMessage {
+                    role: MessageRole::User,
+                    content: "短问题".into(),
+                    tool_calls: Vec::new(),
+                    tool_call_id: None,
+                    meta: None,
+                },
+            ])
+            .await;
+
+        let recorder = Arc::new(CompactEventRecorder::new());
+        agent.subscribe(recorder.clone()).await;
+        let outcome = agent.compact_now().await.expect("应成功");
+        assert_eq!(outcome.mode, "none");
+        assert!(
+            recorder.labels().is_empty(),
+            "无可压内容不应产生括号事件: {:?}",
+            recorder.labels()
+        );
+    }
+
+    /// 折叠失败（backend.set_messages 拒绝）→ Failed 右端先广播、错误再上抛
+    #[tokio::test]
+    async fn compact_failure_broadcasts_failed_bracket() {
+        use crate::raw_context::{RawContextSink, RawRef};
+
+        let calls = Arc::new(AtomicUsize::new(0));
+        let calls2 = Arc::clone(&calls);
+        let sink: RawContextSink = Arc::new(move |text: &str| {
+            let i = calls2.fetch_add(1, Ordering::SeqCst);
+            Some(RawRef {
+                content_hash: format!("{i:016x}"),
+                byte_len: text.len(),
+            })
+        });
+
+        // 后端拒绝 set_messages → fold_context 在视图覆盖阶段失败
+        use crate::context_budget::ContextBudgetPolicy;
+        use crate::retention::RetentionPolicy;
+        use crate::types::{MessageRole, OrchestratorMessage};
+        let agent = AgentLoop::new(
+            Arc::new(MockBackend::failing_set_messages(vec![])),
+            Arc::new(SimpleToolBus::new()),
+        )
+        .with_config(AgentLoopConfig {
+            context_budget: Some(ContextBudgetPolicy::new(4_000, 0.25)),
+            retention_policy: Some(RetentionPolicy { keep_recent: 2 }),
+            ..Default::default()
+        })
+        .with_raw_context_sink(sink);
+        let mut msgs = vec![OrchestratorMessage {
+            role: MessageRole::System,
+            content: "系统提示词".into(),
+            tool_calls: Vec::new(),
+            tool_call_id: None,
+            meta: None,
+        }];
+        for i in 0..4 {
+            msgs.push(OrchestratorMessage {
+                role: if i % 2 == 0 {
+                    MessageRole::User
+                } else {
+                    MessageRole::Assistant
+                },
+                content: format!("陈旧 {i}：{}", "x".repeat(2_000)),
+                tool_calls: Vec::new(),
+                tool_call_id: None,
+                meta: None,
+            });
+        }
+        msgs.push(OrchestratorMessage {
+            role: MessageRole::User,
+            content: "最新指令：继续推进".into(),
+            tool_calls: Vec::new(),
+            tool_call_id: None,
+            meta: None,
+        });
+        agent.append_messages(msgs).await;
+
+        let recorder = Arc::new(CompactEventRecorder::new());
+        agent.subscribe(recorder.clone()).await;
+        let err = agent.compact_now().await.expect_err("折叠失败应上抛");
+        assert!(
+            err.to_string().contains("注入的 set_messages 失败"),
+            "错误应来自注入的失败: {err}"
+        );
+
+        let labels = recorder.labels();
+        assert_eq!(labels.len(), 2, "失败路径应有左端 + 失败右端: {labels:?}");
+        assert!(labels[0].starts_with("started:manual:"), "{labels:?}");
+        assert_eq!(labels[1], "failed:manual:fold", "右端应为失败（fold 阶段）: {labels:?}");
+    }
+
+    // ─ 阶段 3 · A2 补齐①：请求派生前压缩（时机 + 短路）──
+
+    /// 压缩发生在**请求派发之前**（修正前在 AfterRun——收益滞后一整轮）
+    #[tokio::test]
+    async fn compact_runs_before_request_dispatch() {
+        use crate::anchor::is_folded;
+        use crate::raw_context::{RawContextSink, RawRef};
+
+        let timeline: Arc<std::sync::Mutex<Vec<String>>> =
+            Arc::new(std::sync::Mutex::new(Vec::new()));
+        let calls = Arc::new(AtomicUsize::new(0));
+        let calls2 = Arc::clone(&calls);
+        let sink: RawContextSink = Arc::new(move |text: &str| {
+            let i = calls2.fetch_add(1, Ordering::SeqCst);
+            Some(RawRef {
+                content_hash: format!("{i:016x}"),
+                byte_len: text.len(),
+            })
+        });
+        let agent =
+            agent_with_stale_context(Some(sink), Some(Arc::clone(&timeline))).await;
+
+        let recorder = Arc::new(CompactEventRecorder::with_timeline(Arc::clone(&timeline)));
+        agent.subscribe(recorder.clone()).await;
+        let result = agent.run("继续推进".into()).await;
+        assert!(result.is_ok(), "运行应成功: {result:?}");
+
+        let tl = timeline.lock().unwrap().clone();
+        let first_prompt = tl
+            .iter()
+            .position(|x| x == "prompt")
+            .unwrap_or_else(|| panic!("应至少派发一次请求: {tl:?}"));
+        let started = tl
+            .iter()
+            .position(|x| x.starts_with("started:auto:"))
+            .unwrap_or_else(|| panic!("超线历史应在请求前触发压缩: {tl:?}"));
+        let finished = tl
+            .iter()
+            .position(|x| x.starts_with("finished:auto:"))
+            .unwrap_or_else(|| panic!("压缩应在请求前完成: {tl:?}"));
+        assert!(
+            started < first_prompt && finished < first_prompt,
+            "括号必须闭合于首个请求派发之前（修正前滞后一整轮）: {tl:?}"
+        );
+        // 压缩确实改写了本轮的上下文视图（折叠形已就位）
+        assert!(agent.get_messages().await.iter().any(is_folded));
+    }
+
+    /// 远离触发线时，轻量短路跳过逐条 token 估算（内容未变 → 不重计量）
+    #[tokio::test]
+    async fn pre_step_check_short_circuits_without_content_change() {
+        use crate::context_budget::{ContextBudgetPolicy, TokenEstimator};
+        use crate::types::{MessageRole, OrchestratorMessage};
+
+        let calls = Arc::new(AtomicUsize::new(0));
+        let calls2 = Arc::clone(&calls);
+        let estimator: TokenEstimator = Arc::new(move |text: &str| {
+            calls2.fetch_add(1, Ordering::SeqCst);
+            crate::context_budget::estimate_tokens_heuristic(text)
+        });
+
+        let agent = AgentLoop::new(
+            Arc::new(MockBackend::new(vec![])),
+            Arc::new(SimpleToolBus::new()),
+        )
+        .with_config(AgentLoopConfig {
+            // 100K 窗口 → 触发线远高于当前占用（短路应生效）
+            context_budget: Some(ContextBudgetPolicy::new(100_000, 0.40)),
+            ..Default::default()
+        })
+        .with_token_estimator(estimator);
+        agent
+            .append_messages(vec![
+                OrchestratorMessage {
+                    role: MessageRole::System,
+                    content: "系统提示词".into(),
+                    tool_calls: Vec::new(),
+                    tool_call_id: None,
+                    meta: None,
+                },
+                OrchestratorMessage {
+                    role: MessageRole::User,
+                    content: "你好".into(),
+                    tool_calls: Vec::new(),
+                    tool_call_id: None,
+                    meta: None,
+                },
+            ])
+            .await;
+
+        // 首次：无基线 → 完整计量（逐条估算）并记录基线
+        agent.enforce_context_budget().await;
+        let after_first = calls.load(Ordering::SeqCst);
+        assert!(after_first >= 2, "首次应逐条计量: {after_first}");
+
+        // 二次：内容与系统侧均未变 → 轻量短路，不再调用估算器
+        agent.enforce_context_budget().await;
+        assert_eq!(
+            calls.load(Ordering::SeqCst),
+            after_first,
+            "内容未变时应短路（不逐条估算 token）"
+        );
+
+        // 新增内容足以越线（字节下界 ≥ 触发线 38K token → 至少 152K 字节）→ 恢复完整计量
+        agent
+            .append_messages(vec![OrchestratorMessage {
+                role: MessageRole::Assistant,
+                content: "x".repeat(200_000),
+                tool_calls: Vec::new(),
+                tool_call_id: None,
+                meta: None,
+            }])
+            .await;
+        agent.enforce_context_budget().await;
+        assert!(
+            calls.load(Ordering::SeqCst) > after_first,
+            "新增体量可能越线时应恢复完整计量"
+        );
+    }
+
+    // ─ 阶段 3 · D4：压缩摘要（LLM 摘要替代规则浓缩）──
+
+    /// 构造「可折叠 + 可注入后端」的压缩场景（摘要契约测试共用）
+    async fn agent_with_stale_context_and_backend(
+        backend: Arc<MockBackend>,
+        sink: crate::raw_context::RawContextSink,
+    ) -> AgentLoop {
+        use crate::context_budget::ContextBudgetPolicy;
+        use crate::retention::RetentionPolicy;
+        use crate::types::{MessageRole, OrchestratorMessage};
+
+        let agent = AgentLoop::new(backend, Arc::new(SimpleToolBus::new()))
+            .with_config(AgentLoopConfig {
+                context_budget: Some(ContextBudgetPolicy::new(4_000, 0.25)),
+                retention_policy: Some(RetentionPolicy { keep_recent: 2 }),
+                ..Default::default()
+            })
+            .with_raw_context_sink(sink);
+        let mut msgs = vec![OrchestratorMessage {
+            role: MessageRole::System,
+            content: "系统提示词".into(),
+            tool_calls: Vec::new(),
+            tool_call_id: None,
+            meta: None,
+        }];
+        for i in 0..4 {
+            msgs.push(OrchestratorMessage {
+                role: if i % 2 == 0 {
+                    MessageRole::User
+                } else {
+                    MessageRole::Assistant
+                },
+                content: format!("陈旧 {i}：{}", "x".repeat(2_000)),
+                tool_calls: Vec::new(),
+                tool_call_id: None,
+                meta: None,
+            });
+        }
+        msgs.push(OrchestratorMessage {
+            role: MessageRole::User,
+            content: "最新指令：继续推进".into(),
+            tool_calls: Vec::new(),
+            tool_call_id: None,
+            meta: None,
+        });
+        agent.append_messages(msgs).await;
+        agent
+    }
+
+    /// 摘要可用时：折叠回填文本 = 检查点前言 + LLM 摘要（模板/暖前缀/用量契约）
+    #[tokio::test]
+    async fn compaction_uses_llm_summary_when_available() {
+        use crate::anchor::is_folded;
+        use crate::raw_context::{RawContextSink, RawRef};
+
+        let calls = Arc::new(AtomicUsize::new(0));
+        let calls2 = Arc::clone(&calls);
+        let sink: RawContextSink = Arc::new(move |text: &str| {
+            let i = calls2.fetch_add(1, Ordering::SeqCst);
+            Some(RawRef {
+                content_hash: format!("{i:016x}"),
+                byte_len: text.len(),
+            })
+        });
+        let summary = "## Current Work\n正在推进阶段 3 压缩链路";
+        let backend = Arc::new(MockBackend::new(vec![]).with_side_call_summary(summary));
+        let agent = agent_with_stale_context_and_backend(Arc::clone(&backend), sink).await;
+
+        let outcome = agent.compact_now().await.expect("手动压缩应成功");
+        assert_eq!(outcome.mode, "folded");
+        assert!(backend.side_calls.load(Ordering::SeqCst) >= 1, "应发起摘要旁路调用");
+
+        // 折叠形回填文本应含检查点前言 + 摘要（而非规则浓缩切片）
+        let kept = agent.get_messages().await;
+        let folded: Vec<_> = kept.iter().filter(|m| is_folded(m)).collect();
+        assert!(!folded.is_empty(), "应有折叠形");
+        assert!(
+            folded.iter().any(|m| m.content.contains("正在推进阶段 3 压缩链路")),
+            "折叠形应含 LLM 摘要: {:?}",
+            folded.iter().map(|m| m.content.chars().count()).collect::<Vec<_>>()
+        );
+        assert!(
+            folded.iter().any(|m| m.content.contains("自动压缩检查点")),
+            "摘要回填应带检查点前言"
+        );
+
+        // 指令含 8 章节模板（模板契约）；暖前缀 = 主对话历史快照（非空）
+        let instruction = backend
+            .last_side_instruction
+            .lock()
+            .await
+            .clone()
+            .expect("应记录指令");
+        assert!(instruction.contains("## Primary Request and Intent"));
+        assert!(instruction.contains("## Critical Context"));
+        assert!(
+            *backend.last_side_history_len.lock().await > 0,
+            "暖前缀应携带主对话历史"
+        );
+        // 摘要调用用量计入会话累计
+        let usage = agent.usage.lock().await;
+        assert!(usage.input_tokens > 0 && usage.output_tokens > 0, "摘要用量应计入: {usage:?}");
+    }
+
+    /// 摘要不达标（shrink 校验失败）→ 逐组回退规则浓缩（压缩不回退、不中断）
+    #[tokio::test]
+    async fn compaction_falls_back_when_summary_not_shrunk() {
+        use crate::anchor::is_folded;
+        use crate::raw_context::{RawContextSink, RawRef};
+
+        let calls = Arc::new(AtomicUsize::new(0));
+        let calls2 = Arc::clone(&calls);
+        let sink: RawContextSink = Arc::new(move |text: &str| {
+            let i = calls2.fetch_add(1, Ordering::SeqCst);
+            Some(RawRef {
+                content_hash: format!("{i:016x}"),
+                byte_len: text.len(),
+            })
+        });
+        // 摘要与材料等量级（远大于 50%）→ 拒绝
+        let oversized = "超长摘要片段".repeat(1_000);
+        let backend = Arc::new(MockBackend::new(vec![]).with_side_call_summary(&oversized));
+        let agent = agent_with_stale_context_and_backend(Arc::clone(&backend), sink).await;
+
+        let outcome = agent.compact_now().await.expect("压缩应成功（摘要失败即回退）");
+        assert_eq!(outcome.mode, "folded");
+        assert!(backend.side_calls.load(Ordering::SeqCst) >= 1, "应尝试过摘要调用");
+
+        let kept = agent.get_messages().await;
+        let folded: Vec<_> = kept.iter().filter(|m| is_folded(m)).collect();
+        assert!(!folded.is_empty(), "应有折叠形");
+        assert!(
+            folded.iter().all(|m| !m.content.contains("超长摘要片段")),
+            "未达 shrink 校验的摘要不应进入回填文本"
+        );
+    }
+
+    /// 单次压缩最多发起的摘要调用数有上限；超出组沿用规则浓缩
+    #[tokio::test]
+    async fn compaction_summary_calls_are_bounded_per_pass() {
+        use crate::agent::compaction_summary::MAX_SUMMARY_CALLS_PER_COMPACTION;
+
+        let backend = Arc::new(MockBackend::new(vec![]).with_side_call_summary("短摘要"));
+        let agent = AgentLoop::new(backend.clone(), Arc::new(SimpleToolBus::new()));
+
+        let mut folded = crate::anchor::FoldOutcome::default();
+        for i in 0..5 {
+            let hash = format!("{i:016x}");
+            folded.fills.push((hash.clone(), format!("规则浓缩 {i}")));
+            folded.materials.push((hash, "材料".repeat(100)));
+        }
+        let (fills, summarized) = agent.fold_fills_with_summaries(&folded).await;
+
+        assert_eq!(fills.len(), 5, "回填材料数与折叠组等长");
+        assert_eq!(
+            summarized,
+            MAX_SUMMARY_CALLS_PER_COMPACTION.min(5),
+            "摘要组数应为预算上限与组数的较小值"
+        );
+        assert_eq!(
+            backend.side_calls.load(Ordering::SeqCst),
+            MAX_SUMMARY_CALLS_PER_COMPACTION,
+            "旁路调用次数应被预算上限截断"
+        );
+        assert_eq!(fills[3].1, "规则浓缩 3", "超预算组应回退规则浓缩");
+        assert_eq!(fills[4].1, "规则浓缩 4", "超预算组应回退规则浓缩");
+    }
+
+    // ─ 阶段 3 · ④：请求快照（可重建采集）──
+
+    /// 请求快照记录器（阶段 3 · ④ 契约测试）
+    struct SnapshotRecorder {
+        snapshots: std::sync::Mutex<Vec<crate::agent::request_snapshot::RequestSnapshot>>,
+    }
+
+    impl SnapshotRecorder {
+        fn new() -> Self {
+            Self {
+                snapshots: std::sync::Mutex::new(Vec::new()),
+            }
+        }
+
+        fn snapshots(&self) -> Vec<crate::agent::request_snapshot::RequestSnapshot> {
+            self.snapshots.lock().unwrap().clone()
+        }
+
+        /// 按用途过滤（`main` 主链路 / `compaction` 旁路）
+        fn by_purpose(&self, purpose: &str) -> Vec<crate::agent::request_snapshot::RequestSnapshot> {
+            self.snapshots()
+                .into_iter()
+                .filter(|s| s.purpose == purpose)
+                .collect()
+        }
+    }
+
+    impl Listener for SnapshotRecorder {
+        fn call(&self, event: &OrchestratorEvent) -> ListenerOutcome {
+            if let OrchestratorEvent::RequestSnapshotCaptured { snapshot } = event {
+                if let Ok(mut v) = self.snapshots.lock() {
+                    v.push(snapshot.clone());
+                }
+            }
+            ListenerOutcome::Continue
+        }
+    }
+
+    /// 首条主链路快照 = 全量视图 + header 字段（系统提示 / 参数 / 工具随请求实际值）
+    #[tokio::test]
+    async fn request_snapshot_captures_header_and_full_view() {
+        use crate::agent::request_snapshot::ViewUpdate;
+        use crate::types::MessageRole;
+
+        let tool_bus = Arc::new(SimpleToolBus::new());
+        tool_bus.register(Arc::new(EchoTool)).await;
+        let agent = AgentLoop::new(
+            Arc::new(MockBackend::new(vec![PromptResponse::text_only("好的")])),
+            tool_bus,
+        )
+        .with_config(AgentLoopConfig {
+            temperature: Some(0.3),
+            max_tokens: Some(1234),
+            system_prompt: Some("我是系统提示".into()),
+            ..Default::default()
+        });
+        let recorder = Arc::new(SnapshotRecorder::new());
+        agent.subscribe(recorder.clone()).await;
+
+        let result = agent.run("你好".into()).await;
+        assert!(result.is_ok(), "运行应成功: {result:?}");
+
+        let mains = recorder.by_purpose("main");
+        assert_eq!(mains.len(), 1, "单轮应有一条主链路快照");
+        let snap = &mains[0];
+        assert_eq!(snap.system_prompt.as_deref(), Some("我是系统提示"));
+        assert_eq!(snap.temperature, Some(0.3));
+        assert_eq!(snap.max_tokens, Some(1234));
+        assert_eq!(snap.tools_names, vec!["echo".to_string()]);
+        assert!(snap.tools_json.is_some(), "有工具时应带全量 schema");
+        assert!(snap.captured_at_ms > 0);
+        assert!(snap.material_ref.is_none());
+        match &snap.view_update {
+            ViewUpdate::Full { messages } => {
+                // run() 首条推入 System（config.system_prompt）+ 带时间戳前缀的 user 消息
+                assert_eq!(messages.len(), 2, "首条快照应为全量视图: {messages:?}");
+                assert_eq!(messages[0].role, MessageRole::System);
+                assert_eq!(messages[0].content, "我是系统提示");
+                assert_eq!(messages[1].role, MessageRole::User);
+                assert!(
+                    messages[1].content.ends_with("你好"),
+                    "user 消息应带时间戳前缀: {}",
+                    messages[1].content
+                );
+            }
+            other => panic!("首条快照应为全量视图: {other:?}"),
+        }
+    }
+
+    /// 第二条快照仅记增量（上条视图为前缀）；全量 + 增量可重建该请求视图
+    #[tokio::test]
+    async fn request_snapshot_appends_delta_between_requests() {
+        use crate::agent::request_snapshot::ViewUpdate;
+        use crate::types::{MessageRole, ToolCall};
+
+        let tool_bus = Arc::new(SimpleToolBus::new());
+        tool_bus.register(Arc::new(EchoTool)).await;
+        let responses = vec![
+            PromptResponse {
+                text: String::new(),
+                tool_calls: vec![ToolCall {
+                    id: "tc1".into(),
+                    name: "echo".into(),
+                    args: serde_json::json!({ "text": "hello" }),
+                }],
+                input_tokens: None,
+                output_tokens: None,
+                stop_reason: None,
+                reasoning: None,
+            },
+            PromptResponse::text_only("完成"),
+        ];
+        let agent = AgentLoop::new(Arc::new(MockBackend::new(responses)), tool_bus);
+        let recorder = Arc::new(SnapshotRecorder::new());
+        agent.subscribe(recorder.clone()).await;
+
+        let result = agent.run("开始".into()).await;
+        assert!(result.is_ok(), "{result:?}");
+
+        let mains = recorder.by_purpose("main");
+        assert_eq!(mains.len(), 2, "两轮应各有一条主链路快照");
+        let full = match &mains[0].view_update {
+            ViewUpdate::Full { messages } => messages.clone(),
+            other => panic!("首条应为全量: {other:?}"),
+        };
+        let appended = match &mains[1].view_update {
+            ViewUpdate::Appended { messages } => messages.clone(),
+            other => panic!("第二条应为增量: {other:?}"),
+        };
+        // 增量 = 助手（工具调用）+ 工具结果
+        assert_eq!(appended.len(), 2, "增量应为助手消息 + 工具结果: {appended:?}");
+        assert!(!appended[0].tool_calls.is_empty(), "助手消息应带工具调用");
+        assert_eq!(appended[1].role, MessageRole::ToolResult);
+
+        // 重建：全量 + 增量 = 第二条请求派发时的视图（实际视图的前缀）
+        let mut rebuilt = full;
+        rebuilt.extend(appended);
+        let actual = agent.get_messages().await;
+        assert_eq!(
+            rebuilt,
+            actual[..rebuilt.len()],
+            "重建视图应与实际视图前缀逐字段一致"
+        );
+    }
+
+    /// 结构性改写（折叠）后 → 下一条快照回到全量；旁路（压缩摘要）快照同样入账
+    #[tokio::test]
+    async fn request_snapshot_falls_back_to_full_after_view_rewrite() {
+        use crate::agent::request_snapshot::ViewUpdate;
+        use crate::raw_context::{RawContextSink, RawRef};
+        use crate::types::{MessageRole, OrchestratorMessage};
+
+        let calls = Arc::new(AtomicUsize::new(0));
+        let calls2 = Arc::clone(&calls);
+        let sink: RawContextSink = Arc::new(move |text: &str| {
+            let i = calls2.fetch_add(1, Ordering::SeqCst);
+            Some(RawRef {
+                content_hash: format!("{i:016x}"),
+                byte_len: text.len(),
+            })
+        });
+        let agent = agent_with_stale_context(Some(sink), None).await;
+        let recorder = Arc::new(SnapshotRecorder::new());
+        agent.subscribe(recorder.clone()).await;
+        let options = agent.build_prompt_options(&agent.config_snapshot()).await;
+
+        agent.capture_request_snapshot("main", &options, None).await;
+        // 追加一条 → 应为增量
+        agent
+            .append_messages(vec![OrchestratorMessage {
+                role: MessageRole::Assistant,
+                content: "追加一条".into(),
+                tool_calls: Vec::new(),
+                tool_call_id: None,
+                meta: None,
+            }])
+            .await;
+        agent.capture_request_snapshot("main", &options, None).await;
+        // 折叠改写中段 → 应为全量
+        let _ = agent.compact_now().await.expect("压缩应成功");
+        agent.capture_request_snapshot("main", &options, None).await;
+
+        let mains = recorder.by_purpose("main");
+        assert_eq!(mains.len(), 3, "三次采集应各留一条主链路快照");
+        assert!(
+            matches!(mains[0].view_update, ViewUpdate::Full { .. }),
+            "首条应为全量"
+        );
+        match &mains[1].view_update {
+            ViewUpdate::Appended { messages } => assert_eq!(messages.len(), 1, "仅记新增一条"),
+            other => panic!("第二条应为增量: {other:?}"),
+        }
+        assert!(
+            matches!(mains[2].view_update, ViewUpdate::Full { .. }),
+            "折叠改写后应回退全量: {:?}",
+            mains[2].view_update
+        );
+
+        // 旁路（压缩摘要）快照同样入账，且带材料坐标（指令 = 模板 + 该材料）
+        let compactions = recorder.by_purpose("compaction");
+        assert!(!compactions.is_empty(), "压缩摘要旁路调用应入账");
+        assert!(
+            compactions.iter().all(|s| s.material_ref.is_some()),
+            "旁路快照应带材料坐标: {compactions:?}"
+        );
+    }
+
+    /// 旁路行（pattern 直调，purpose 非本环）入链后：下一条主链路快照回退全量，
+    /// 保证「重建基底 == 采集基点」不变式（否则重建会静默错位）
+    #[tokio::test]
+    async fn request_snapshot_falls_back_to_full_after_bypass_row() {
+        use crate::agent::request_snapshot::{build_bypass_snapshot, ViewUpdate};
+        use crate::types::MessageRole;
+
+        let agent = AgentLoop::new(
+            Arc::new(MockBackend::new(vec![])),
+            Arc::new(SimpleToolBus::new()),
+        );
+        let recorder = Arc::new(SnapshotRecorder::new());
+        agent.subscribe(recorder.clone()).await;
+        let options = agent.build_prompt_options(&agent.config_snapshot()).await;
+
+        agent.capture_request_snapshot("main", &options, None).await;
+        agent
+            .append_messages(vec![OrchestratorMessage {
+                role: MessageRole::Assistant,
+                content: "追加一条".into(),
+                tool_calls: Vec::new(),
+                tool_call_id: None,
+                meta: None,
+            }])
+            .await;
+
+        // 模拟 pattern 旁路行经 BackendEventBridge 到达本环（直接在环内巴士投递）
+        let bypass = build_bypass_snapshot(
+            "router",
+            "deepseek",
+            "deepseek-v4-flash",
+            &PromptCallOptions::default(),
+            &[OrchestratorMessage {
+                role: MessageRole::User,
+                content: "路由判型请求".into(),
+                tool_calls: Vec::new(),
+                tool_call_id: None,
+                meta: None,
+            }],
+        );
+        agent.broadcaster_ref().read().await.broadcast(
+            &OrchestratorEvent::RequestSnapshotCaptured {
+                snapshot: bypass,
+            },
+        );
+
+        // 若无锚点重置，本条本应为增量（上条视图是前缀）
+        agent.capture_request_snapshot("main", &options, None).await;
+
+        let mains = recorder.by_purpose("main");
+        assert_eq!(mains.len(), 2, "应有两条主链路快照");
+        match &mains[1].view_update {
+            ViewUpdate::Full { messages } => {
+                assert_eq!(
+                    messages,
+                    &agent.get_messages().await,
+                    "锚点重置后本条应为全量，且与当前视图一致"
+                );
+            }
+            other => panic!("旁路行入链后应回退全量: {other:?}"),
+        }
+    }
+
+    // ── A5 错误分类路由（按码分流：重试 / 压缩触发 / 用户提示） ──
+
+    /// 不可重试码（未配置凭证）→ 即时失败：不消耗退避重试，错误消息附用户引导
+    #[tokio::test]
+    async fn non_retryable_error_fails_fast_with_user_hint() {
+        let timeline = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let backend = Arc::new(
+            MockBackend::new(vec![])
+                .with_prompt_errors(vec![BackendError::MissingCredential(
+                    "provider=deepseek".into(),
+                )])
+                .with_timeline(Arc::clone(&timeline)),
+        );
+        let agent = AgentLoop::new(backend, Arc::new(SimpleToolBus::new())).with_config(
+            AgentLoopConfig {
+                llm_max_retries: 2,
+                llm_retry_base_delay: std::time::Duration::from_millis(1),
+                ..Default::default()
+            },
+        );
+        let listener = Arc::new(TerminalEventListener {
+            events: std::sync::Mutex::new(Vec::new()),
+        });
+        agent.subscribe(listener.clone()).await;
+
+        let result = agent.run("测试".into()).await;
+        assert!(
+            matches!(result, Err(AgentError::Backend(_))),
+            "不可重试码应即时失败: {result:?}"
+        );
+
+        let prompts = timeline
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|e| *e == "prompt")
+            .count();
+        assert_eq!(prompts, 1, "不可重试码不应重发（不浪费退避窗口）");
+
+        let events = listener.events.lock().unwrap().clone();
+        let err = events
+            .iter()
+            .find(|e| e.starts_with("error:"))
+            .expect("应广播 Error 终态事件");
+        assert!(err.contains("未配置 API Key"), "错误消息应含原因: {err}");
+        assert!(
+            err.contains("请在模型设置中填写"),
+            "用户可行动码应附引导语: {err}"
+        );
+    }
+
+    /// provider 溢出（CONTEXT_WINDOW_EXCEEDED）→ 强制压缩 + 视图重同步 + 重发；
+    /// 压缩以 `overflow` 触发源入括号事件
+    #[tokio::test]
+    async fn provider_overflow_triggers_compaction_and_redispatches() {
+        use crate::context_budget::ContextBudgetPolicy;
+        use crate::raw_context::{RawContextSink, RawRef};
+        use crate::retention::RetentionPolicy;
+        use crate::types::{MessageRole, OrchestratorMessage};
+
+        let calls = Arc::new(AtomicUsize::new(0));
+        let calls2 = Arc::clone(&calls);
+        let sink: RawContextSink = Arc::new(move |text: &str| {
+            let i = calls2.fetch_add(1, Ordering::SeqCst);
+            Some(RawRef {
+                content_hash: format!("{i:016x}"),
+                byte_len: text.len(),
+            })
+        });
+
+        let timeline = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let backend = Arc::new(
+            MockBackend::new(vec![PromptResponse::text_only("压缩后完成")])
+                .with_prompt_errors(vec![BackendError::ContextWindowExceeded(
+                    "This model's maximum context length is 65536 tokens".into(),
+                )])
+                .with_timeline(Arc::clone(&timeline)),
+        );
+        // 预算放宽：派发前的常规压缩不触发（溢出由 provider 判定 = 计量的地面真值）
+        let agent = AgentLoop::new(backend, Arc::new(SimpleToolBus::new()))
+            .with_config(AgentLoopConfig {
+                context_budget: Some(ContextBudgetPolicy::new(200_000, 0.25)),
+                retention_policy: Some(RetentionPolicy { keep_recent: 2 }),
+                ..Default::default()
+            })
+            .with_raw_context_sink(sink);
+        // 陈旧历史（可折叠内容）
+        let mut msgs = vec![OrchestratorMessage {
+            role: MessageRole::System,
+            content: "系统提示词".into(),
+            tool_calls: Vec::new(),
+            tool_call_id: None,
+            meta: None,
+        }];
+        for i in 0..4 {
+            msgs.push(OrchestratorMessage {
+                role: if i % 2 == 0 {
+                    MessageRole::User
+                } else {
+                    MessageRole::Assistant
+                },
+                content: format!("陈旧 {i}：{}", "x".repeat(2_000)),
+                tool_calls: Vec::new(),
+                tool_call_id: None,
+                meta: None,
+            });
+        }
+        msgs.push(OrchestratorMessage {
+            role: MessageRole::User,
+            content: "最新指令：继续推进".into(),
+            tool_calls: Vec::new(),
+            tool_call_id: None,
+            meta: None,
+        });
+        agent.append_messages(msgs).await;
+
+        let recorder = Arc::new(CompactEventRecorder::new());
+        agent.subscribe(recorder.clone()).await;
+
+        let result = agent.run("继续推进".into()).await;
+        assert_eq!(result.expect("压缩后重发应成功"), "压缩后完成");
+
+        let prompts = timeline
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|e| *e == "prompt")
+            .count();
+        assert_eq!(prompts, 2, "首次失败 + 压缩后重发 = 两次派发");
+
+        let labels = recorder.labels();
+        assert!(
+            labels.iter().any(|l| l.starts_with("started:overflow:")),
+            "压缩应以 overflow 触发源广播: {labels:?}"
+        );
+        assert!(
+            labels
+                .iter()
+                .any(|l| l.starts_with("finished:overflow:folded:")),
+            "overflow 压缩应完成折叠: {labels:?}"
+        );
+        assert!(calls.load(Ordering::SeqCst) > 0, "应有外置（折叠）发生");
+    }
+
+    /// 空响应（无文本且无工具调用）→ 重发一次；第二次有内容则正常返回
+    #[tokio::test]
+    async fn empty_response_is_retried_once() {
+        let timeline = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let backend = Arc::new(
+            MockBackend::new(vec![
+                PromptResponse::text_only(""),
+                PromptResponse::text_only("正常回复"),
+            ])
+            .with_timeline(Arc::clone(&timeline)),
+        );
+        let agent = AgentLoop::new(backend, Arc::new(SimpleToolBus::new()));
+
+        let result = agent.run("你好".into()).await.expect("重发后应成功");
+        assert_eq!(result, "正常回复");
+
+        let prompts = timeline
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|e| *e == "prompt")
+            .count();
+        assert_eq!(prompts, 2, "空响应应触发一次重发");
+    }
+
+    /// 连续空响应 → 仅重发一次，之后维持既有语义（返回空响应，不报错、不循环）
+    #[tokio::test]
+    async fn empty_response_returns_after_single_retry() {
+        let timeline = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let backend = Arc::new(
+            MockBackend::new(vec![
+                PromptResponse::text_only(""),
+                PromptResponse::text_only(""),
+            ])
+            .with_timeline(Arc::clone(&timeline)),
+        );
+        let agent = AgentLoop::new(backend, Arc::new(SimpleToolBus::new()));
+
+        let result = agent.run("你好".into()).await.expect("不应报错");
+        assert_eq!(result, "", "维持既有语义（空响应作为终稿返回）");
+
+        let prompts = timeline
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|e| *e == "prompt")
+            .count();
+        assert_eq!(prompts, 2, "仅重发一次（防循环）");
+    }
+
+    // ── A3 输入模型（三通道 / pre-step 准入 / 取消收口） ─
+
+    /// 时间线上的 prompt 次数（A3/A5 契约断言复用）
+    fn prompts_in(timeline: &Arc<std::sync::Mutex<Vec<String>>>) -> usize {
+        timeline
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|e| *e == "prompt")
+            .count()
+    }
+
+    /// `Inject` 不唤醒；下一次运行时经准入注入，且排在**本条 user 消息之前**（提交序 = 上下文序）
+    #[tokio::test]
+    async fn inject_is_queued_without_waking_and_lands_before_next_user_message() {
+        use crate::agent::input::{InputKind, SubmitOutcome};
+
+        let timeline = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let backend = Arc::new(
+            MockBackend::new(vec![PromptResponse::text_only("完成")])
+                .with_timeline(Arc::clone(&timeline)),
+        );
+        let agent = AgentLoop::new(backend, Arc::new(SimpleToolBus::new()));
+
+        let outcome = agent
+            .submit_input(InputKind::Inject, "背景资料：X".to_string())
+            .await
+            .expect("注入提交应成功");
+        assert_eq!(outcome, SubmitOutcome::Queued, "注入不唤醒");
+        assert_eq!(prompts_in(&timeline), 0, "注入不得触发运行");
+
+        let reply = agent.run("问题".to_string()).await.expect("运行应成功");
+        assert_eq!(reply, "完成");
+        assert_eq!(prompts_in(&timeline), 1);
+
+        let msgs = agent.get_messages().await;
+        let idx_inject = msgs
+            .iter()
+            .position(|m| m.content == "背景资料：X")
+            .expect("注入应进入消息视图");
+        let idx_user = msgs
+            .iter()
+            .position(|m| m.content.contains("问题"))
+            .expect("应有本轮 user 消息");
+        assert!(
+            idx_inject < idx_user,
+            "空闲期注入应排在本轮 user 消息之前: {msgs:?}"
+        );
+        assert_eq!(
+            msgs[idx_inject].meta.as_ref().unwrap()["input_kind"],
+            serde_json::json!("inject")
+        );
+    }
+
+    /// `Steer` 空闲时唤醒（对齐 dsh）：同步跑完一轮并返回 `Started`
+    #[tokio::test]
+    async fn steer_wakes_when_idle() {
+        use crate::agent::input::{InputKind, SubmitOutcome};
+
+        let timeline = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let backend = Arc::new(
+            MockBackend::new(vec![PromptResponse::text_only("好的")])
+                .with_timeline(Arc::clone(&timeline)),
+        );
+        let agent = AgentLoop::new(backend, Arc::new(SimpleToolBus::new()));
+
+        let outcome = agent
+            .submit_input(InputKind::Steer, "换个方向".to_string())
+            .await
+            .expect("steer 应成功");
+        assert_eq!(outcome, SubmitOutcome::Started, "空闲 steer 应唤醒");
+        assert_eq!(prompts_in(&timeline), 1, "唤醒应实际派发一轮请求");
+
+        let msgs = agent.get_messages().await;
+        assert!(
+            msgs.iter().any(|m| m.content.contains("换个方向")),
+            "唤醒输入应进入消息视图: {msgs:?}"
+        );
+    }
+
+    /// 工具：轮内提交 steer（模拟"运行中插话"）——steer 应在**下一轮请求前**被准入注入
+    struct SteerInTurnTool {
+        agent: std::sync::Weak<AgentLoop>,
+    }
+
+    #[async_trait]
+    impl crate::tool::Tool for SteerInTurnTool {
+        fn name(&self) -> &str {
+            "steer_in_turn"
+        }
+        fn description(&self) -> &str {
+            "轮内提交 steer（测试用）"
+        }
+        fn parameters(&self) -> serde_json::Value {
+            serde_json::json!({ "type": "object", "properties": {} })
+        }
+        async fn execute(
+            &self,
+            _args: serde_json::Value,
+        ) -> Result<serde_json::Value, crate::tool::ToolError> {
+            if let Some(agent) = self.agent.upgrade() {
+                let outcome = agent
+                    .submit_input(
+                        crate::agent::input::InputKind::Steer,
+                        "插话：先看 A".to_string(),
+                    )
+                    .await;
+                assert_eq!(
+                    outcome.expect("运行中 steer 应成功"),
+                    crate::agent::input::SubmitOutcome::Queued,
+                    "运行中 steer 应入队（不重入运行）"
+                );
+            }
+            Ok(serde_json::json!({ "ok": true }))
+        }
+    }
+
+    /// `Steer` 运行中入队（不打断当前轮），由下一轮请求前的准入注入（排在工具结果之后）
+    #[tokio::test]
+    async fn steer_while_streaming_is_queued_and_admitted_at_next_step() {
+        use crate::types::{MessageRole, ToolCall};
+
+        let timeline = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let backend = Arc::new(
+            MockBackend::new(vec![
+                PromptResponse {
+                    text: "先执行一步".into(),
+                    tool_calls: vec![ToolCall {
+                        id: "tc_steer".into(),
+                        name: "steer_in_turn".into(),
+                        args: serde_json::json!({}),
+                    }],
+                    input_tokens: None,
+                    output_tokens: None,
+                    stop_reason: Some("tool_calls".into()),
+                    reasoning: None,
+                },
+                PromptResponse::text_only("完成"),
+            ])
+            .with_timeline(Arc::clone(&timeline)),
+        );
+        let tool_bus = Arc::new(SimpleToolBus::new());
+        let agent = Arc::new(AgentLoop::new(backend, tool_bus.clone()));
+        tool_bus
+            .register(Arc::new(SteerInTurnTool {
+                agent: Arc::downgrade(&agent),
+            }))
+            .await;
+
+        let reply = agent.run("开始任务".to_string()).await.expect("运行应成功");
+        assert_eq!(reply, "完成");
+        assert_eq!(prompts_in(&timeline), 2, "两轮请求（插话不额外派发）");
+
+        let msgs = agent.get_messages().await;
+        let idx_user = msgs
+            .iter()
+            .position(|m| m.content.contains("开始任务"))
+            .expect("应有本轮 user 消息");
+        let idx_tool_result = msgs
+            .iter()
+            .position(|m| m.role == MessageRole::ToolResult)
+            .expect("应有工具结果");
+        let idx_steer = msgs
+            .iter()
+            .position(|m| m.content == "插话：先看 A")
+            .expect("插话应被准入注入");
+        assert!(
+            idx_steer > idx_tool_result && idx_steer > idx_user,
+            "运行中插话应注入在工具结果之后（下一轮请求前）: {msgs:?}"
+        );
+        assert_eq!(
+            msgs[idx_steer].meta.as_ref().unwrap()["input_kind"],
+            serde_json::json!("steer")
+        );
+    }
+
+    /// 准入 waterfall 监听器：改写 / 丢弃 / 否决（否决则输入回退队列，留待下一轮）
+    #[tokio::test]
+    async fn admission_waterfall_allows_rewrite_drop_and_veto() {
+        use crate::agent::input::InputKind;
+        use crate::event_bus::{Next, Outcome};
+
+        /// mode: 1=改写 / 2=丢弃 / 3=否决（不调 next）
+        struct AdmissionListener {
+            mode: u8,
+        }
+        impl Listener for AdmissionListener {
+            fn call(&self, _event: &OrchestratorEvent) -> ListenerOutcome {
+                ListenerOutcome::Continue
+            }
+            fn call_waterfall(&self, event: &mut OrchestratorEvent, next: Next<'_>) -> Outcome {
+                if let OrchestratorEvent::InputAdmission { items, .. } = event {
+                    match self.mode {
+                        1 => {
+                            for item in items.iter_mut() {
+                                item.text = "改写后".to_string();
+                            }
+                        }
+                        2 => items.clear(),
+                        3 => return Outcome::Vetoed,
+                        _ => {}
+                    }
+                }
+                next.run(event)
+            }
+        }
+
+        // 1) 改写：监听器改文本 → 注入改写值
+        {
+            let backend = Arc::new(MockBackend::new(vec![PromptResponse::text_only("ok")]));
+            let agent = AgentLoop::new(backend, Arc::new(SimpleToolBus::new()));
+            agent
+                .subscribe(Arc::new(AdmissionListener { mode: 1 }))
+                .await;
+            agent
+                .submit_input(InputKind::Inject, "原始文本".to_string())
+                .await
+                .unwrap();
+            agent.run("问题".to_string()).await.unwrap();
+            let msgs = agent.get_messages().await;
+            assert!(msgs.iter().any(|m| m.content == "改写后"), "应按改写值注入");
+            assert!(!msgs.iter().any(|m| m.content == "原始文本"), "原值不应注入");
+        }
+
+        // 2) 丢弃：items 置空 → 不注入
+        {
+            let backend = Arc::new(MockBackend::new(vec![PromptResponse::text_only("ok")]));
+            let agent = AgentLoop::new(backend, Arc::new(SimpleToolBus::new()));
+            agent
+                .subscribe(Arc::new(AdmissionListener { mode: 2 }))
+                .await;
+            agent
+                .submit_input(InputKind::Inject, "应当被丢弃".to_string())
+                .await
+                .unwrap();
+            agent.run("问题".to_string()).await.unwrap();
+            let msgs = agent.get_messages().await;
+            assert!(
+                !msgs.iter().any(|m| m.content == "应当被丢弃"),
+                "丢弃的输入不应注入"
+            );
+        }
+
+        // 3) 否决：不调 next → 本轮不消费，输入回退队列（下一轮再准入）
+        {
+            let backend = Arc::new(MockBackend::new(vec![
+                PromptResponse::text_only("第一轮"),
+                PromptResponse::text_only("第二轮"),
+            ]));
+            let agent = AgentLoop::new(backend, Arc::new(SimpleToolBus::new()));
+            agent
+                .subscribe(Arc::new(AdmissionListener { mode: 3 }))
+                .await;
+            agent
+                .submit_input(InputKind::Inject, "被否决的注入".to_string())
+                .await
+                .unwrap();
+            agent.run("第一问".to_string()).await.unwrap();
+            let msgs = agent.get_messages().await;
+            assert!(
+                !msgs.iter().any(|m| m.content == "被否决的注入"),
+                "否决轮不应注入"
+            );
+            // 取消监听（新实例不可注销 → 用永不否决的监听器不足以覆盖；改为直接跑第二轮验证仍然否决）
+            let agent2 = &agent;
+            agent2.run("第二问".to_string()).await.unwrap();
+            let msgs = agent.get_messages().await;
+            assert!(
+                !msgs.iter().any(|m| m.content == "被否决的注入"),
+                "持续否决下输入应一直留在队列"
+            );
+        }
+    }
+
+    /// 取消收口：已交付文本落为终稿（含中断锚点）+ `StreamEnd` / `AgentInterrupted` 收口广播
+    #[tokio::test]
+    async fn abort_finalizes_delivered_text_with_interrupt_anchor() {
+        use crate::types::{MessageRole, ToolCall};
+
+        /// 工具：模拟"流式已交付半截文本"后触发用户中断
+        struct AbortAfterStreamTool {
+            agent: std::sync::Weak<AgentLoop>,
+        }
+        #[async_trait]
+        impl crate::tool::Tool for AbortAfterStreamTool {
+            fn name(&self) -> &str {
+                "abort_after_stream"
+            }
+            fn description(&self) -> &str {
+                "模拟流式后中断（测试用）"
+            }
+            fn parameters(&self) -> serde_json::Value {
+                serde_json::json!({ "type": "object", "properties": {} })
+            }
+            async fn execute(
+                &self,
+                _args: serde_json::Value,
+            ) -> Result<serde_json::Value, crate::tool::ToolError> {
+                if let Some(agent) = self.agent.upgrade() {
+                    agent
+                        .broadcaster_ref()
+                        .write()
+                        .await
+                        .broadcast(&OrchestratorEvent::Agent(AgentEvent::StreamDelta {
+                            delta: "半截输出".to_string(),
+                        }));
+                    agent.abort().await;
+                }
+                Ok(serde_json::json!({ "ok": true }))
+            }
+        }
+
+        /// 终态事件记录器（StreamEnd / AgentInterrupted）
+        struct CancelRecorder {
+            events: std::sync::Mutex<Vec<String>>,
+        }
+        impl Listener for CancelRecorder {
+            fn call(&self, event: &OrchestratorEvent) -> ListenerOutcome {
+                let label = match event {
+                    OrchestratorEvent::Agent(AgentEvent::StreamEnd { full_text }) => {
+                        Some(format!("stream_end:{full_text}"))
+                    }
+                    OrchestratorEvent::AgentInterrupted { reason, .. } => {
+                        Some(format!("interrupted:{reason}"))
+                    }
+                    _ => None,
+                };
+                if let Some(label) = label {
+                    if let Ok(mut v) = self.events.lock() {
+                        v.push(label);
+                    }
+                }
+                ListenerOutcome::Continue
+            }
+        }
+
+        let backend = Arc::new(MockBackend::new(vec![PromptResponse {
+            text: String::new(),
+            tool_calls: vec![ToolCall {
+                id: "tc_abort".into(),
+                name: "abort_after_stream".into(),
+                args: serde_json::json!({}),
+            }],
+            input_tokens: None,
+            output_tokens: None,
+            stop_reason: Some("tool_calls".into()),
+            reasoning: None,
+        }]));
+        let tool_bus = Arc::new(SimpleToolBus::new());
+        let agent = Arc::new(AgentLoop::new(backend, tool_bus.clone()));
+        tool_bus
+            .register(Arc::new(AbortAfterStreamTool {
+                agent: Arc::downgrade(&agent),
+            }))
+            .await;
+        let recorder = Arc::new(CancelRecorder {
+            events: std::sync::Mutex::new(Vec::new()),
+        });
+        agent.subscribe(recorder.clone()).await;
+
+        let result = agent.run("开始".to_string()).await;
+        assert!(
+            matches!(result, Err(AgentError::Aborted)),
+            "中断应返回 Aborted: {result:?}"
+        );
+
+        // 已交付文本落为终稿 + 中断锚点
+        let msgs = agent.get_messages().await;
+        let last = msgs.last().expect("应有消息");
+        assert_eq!(last.role, MessageRole::Assistant, "终稿应为 assistant: {last:?}");
+        assert_eq!(last.content, "半截输出", "终稿内容应为已交付文本");
+        let meta = last.meta.as_ref().expect("应有锚点元数据");
+        assert_eq!(meta["interrupted"], serde_json::json!(true));
+        assert_eq!(meta["interrupted_reason"], serde_json::json!("user_abort"));
+        assert!(meta["interrupted_iteration"].is_number());
+
+        // 收口事件：StreamEnd（气泡转终稿）+ AgentInterrupted（活动日志）
+        let events = recorder.events.lock().unwrap().clone();
+        assert!(
+            events.iter().any(|e| e == "stream_end:半截输出"),
+            "应广播 StreamEnd 收口: {events:?}"
+        );
+        assert!(
+            events.iter().any(|e| e == "interrupted:user_abort"),
+            "应广播 AgentInterrupted: {events:?}"
+        );
+    }
+
+    /// 收口幂等：重复 `finalize_interrupted_turn` 不重复落消息
+    /// （收口广播会被记录器回写 → 缓冲在广播之后统一清空）
+    #[tokio::test]
+    async fn interrupted_finalize_is_idempotent() {
+        use crate::types::MessageRole;
+
+        let agent = AgentLoop::new(
+            Arc::new(MockBackend::new(vec![])),
+            Arc::new(SimpleToolBus::new()),
+        );
+        // 模拟"流式已交付"（StreamDelta 直达本环巴士）
+        agent
+            .broadcaster_ref()
+            .write()
+            .await
+            .broadcast(&OrchestratorEvent::Agent(AgentEvent::StreamDelta {
+                delta: "半截输出".to_string(),
+            }));
+
+        agent.finalize_interrupted_turn("user_abort", 2).await;
+        agent.finalize_interrupted_turn("user_abort", 2).await;
+
+        let msgs = agent.get_messages().await;
+        let interrupted: Vec<_> = msgs
+            .iter()
+            .filter(|m| m.role == MessageRole::Assistant && m.content == "半截输出")
+            .collect();
+        assert_eq!(interrupted.len(), 1, "重复收口不应重复落消息: {msgs:?}");
+        assert!(
+            agent.delivered_text_snapshot().is_empty(),
+            "收口后已交付缓冲应清空（广播回写被收口清空覆盖）"
+        );
+    }
+
+    // ── A4 双端收口：结构化提示段 ───
+
+    /// 结构化段展开：TS 段按各自 order 排序（config.system_prompt 单段不参与）
+    #[tokio::test]
+    async fn build_prompt_options_expands_structured_sections() {
+        let agent = AgentLoop::new(
+            Arc::new(MockBackend::new(vec![])),
+            Arc::new(SimpleToolBus::new()),
+        )
+        .with_config(AgentLoopConfig {
+            system_prompt: Some("legacy 文本（应被结构化段覆盖）".into()),
+            prompt_sections: vec![
+                PromptSection::new("skill_index", 270, "技能索引"),
+                PromptSection::new("worldsea", 200, "系统说明"),
+                PromptSection::new("project_agents", 240, "项目规则"),
+                PromptSection::new("mcp_note", 290, "[MCP 环境] 已连接 2 个服务器"),
+            ],
+            ..Default::default()
+        });
+
+        let opts = agent.build_prompt_options(&agent.config_snapshot()).await;
+        assert_eq!(
+            opts.system_prompt_override.as_deref(),
+            Some("系统说明\n\n项目规则\n\n技能索引\n\n[MCP 环境] 已连接 2 个服务器"),
+            "段应按 order 升序拼接、legacy 文本不参与"
+        );
+    }
+
+    /// 空结构化段回退 legacy 单段（群聊 / 老会话路径行为不变）
+    #[tokio::test]
+    async fn build_prompt_options_falls_back_to_legacy_single_section() {
+        let agent = AgentLoop::new(
+            Arc::new(MockBackend::new(vec![])),
+            Arc::new(SimpleToolBus::new()),
+        )
+        .with_config(AgentLoopConfig {
+            system_prompt: Some("legacy 文本".into()),
+            ..Default::default()
+        });
+
+        let opts = agent.build_prompt_options(&agent.config_snapshot()).await;
+        assert_eq!(opts.system_prompt_override.as_deref(), Some("legacy 文本"));
+    }
+
+    /// set_prompt_sections 同步刷新 system_prompt 缓存（= 段组装静态合集文本）
+    #[tokio::test]
+    async fn set_prompt_sections_syncs_static_cache() {
+        let agent = AgentLoop::new(
+            Arc::new(MockBackend::new(vec![])),
+            Arc::new(SimpleToolBus::new()),
+        );
+
+        agent
+            .set_prompt_sections(vec![
+                PromptSection::new("worldsea", 200, "系统说明"),
+                PromptSection::new("mcp_note", 290, "[MCP 环境] 注记"),
+            ])
+            .await;
+
+        let snap = agent.config_snapshot();
+        assert_eq!(snap.prompt_sections.len(), 2);
+        assert_eq!(
+            snap.system_prompt.as_deref(),
+            Some("系统说明\n\n[MCP 环境] 注记"),
+            "system_prompt 缓存应为段组装文本（供首条 System 消息推入）"
+        );
+    }
+
+    // ── 阶段 1 第二段迁移：工具结果裁剪（广播前 waterfall 预处理）──
+
+    /// 广播前预处理三态契约：零监听器=默认裁剪 / 监听器改写=取回改写值 / 否决=兜底裁剪
+    #[tokio::test]
+    async fn tool_result_prebroadcast_default_rewrite_and_veto() {
+        use super::tools::TOOL_RESULT_STR_LIMIT;
+        use crate::event::keys;
+        use crate::event_bus::{Next, Outcome};
+
+        let huge = |marker: &str| format!("{marker}{}TAIL", "x".repeat(TOOL_RESULT_STR_LIMIT * 2));
+
+        // 1) 零监听器：链尾内建 = 现行裁剪 → 与迁移前一致（含截断标注、首尾保留）
+        {
+            let agent = AgentLoop::new(
+                Arc::new(MockBackend::new(vec![])),
+                Arc::new(SimpleToolBus::new()),
+            );
+            let mut value = serde_json::Value::String(huge("HEAD"));
+            agent
+                .preprocess_tool_result("call_1", "terminal", &mut value)
+                .await;
+            let out = value.as_str().unwrap();
+            assert!(out.contains("已截断"), "默认裁剪应生效: {out:.80}");
+            assert!(
+                out.starts_with("HEAD") && out.ends_with("TAIL"),
+                "首尾保留契约不变"
+            );
+        }
+
+        // 2) 监听器改写：取回改写值，且身份字段（tool_call_id / tool_name）可见
+        {
+            struct RewriteListener {
+                seen: std::sync::Mutex<Vec<(String, String)>>,
+            }
+            impl Listener for RewriteListener {
+                fn call(&self, _event: &OrchestratorEvent) -> ListenerOutcome {
+                    ListenerOutcome::Continue
+                }
+                fn call_waterfall(&self, event: &mut OrchestratorEvent, next: Next<'_>) -> Outcome {
+                    if let OrchestratorEvent::ToolResultPreBroadcast {
+                        tool_call_id,
+                        tool_name,
+                        result,
+                    } = event
+                    {
+                        self.seen
+                            .lock()
+                            .unwrap()
+                            .push((tool_call_id.clone(), tool_name.clone()));
+                        *result = serde_json::json!({ "redacted": true });
+                    }
+                    next.run(event)
+                }
+            }
+
+            let agent = AgentLoop::new(
+                Arc::new(MockBackend::new(vec![])),
+                Arc::new(SimpleToolBus::new()),
+            );
+            let listener = Arc::new(RewriteListener {
+                seen: std::sync::Mutex::new(Vec::new()),
+            });
+            agent
+                .subscribe_key(keys::TOOL_RESULT_PRE_BROADCAST, listener.clone())
+                .await;
+
+            let mut value = serde_json::Value::String(huge("HEAD"));
+            agent
+                .preprocess_tool_result("call_2", "read_file", &mut value)
+                .await;
+
+            assert_eq!(
+                value,
+                serde_json::json!({ "redacted": true }),
+                "应取回监听器改写后的负载"
+            );
+            assert_eq!(
+                listener.seen.lock().unwrap().as_slice(),
+                &[("call_2".to_string(), "read_file".to_string())],
+                "监听器应收到身份字段"
+            );
+        }
+
+        // 3) 否决（不调 next）：链尾裁剪被跳过 → 调用方兜底裁剪仍生效（防爆兜底不可绕过）
+        {
+            struct VetoListener;
+            impl Listener for VetoListener {
+                fn call(&self, _event: &OrchestratorEvent) -> ListenerOutcome {
+                    ListenerOutcome::Continue
+                }
+                fn call_waterfall(&self, _event: &mut OrchestratorEvent, _next: Next<'_>) -> Outcome {
+                    Outcome::Vetoed
+                }
+            }
+
+            let agent = AgentLoop::new(
+                Arc::new(MockBackend::new(vec![])),
+                Arc::new(SimpleToolBus::new()),
+            );
+            agent
+                .subscribe_key(keys::TOOL_RESULT_PRE_BROADCAST, Arc::new(VetoListener))
+                .await;
+
+            let mut value = serde_json::Value::String(huge("HEAD"));
+            agent
+                .preprocess_tool_result("call_3", "terminal", &mut value)
+                .await;
+            let out = value.as_str().unwrap();
+            assert!(out.contains("已截断"), "否决不可绕过防爆兜底: {out:.80}");
+        }
+    }
+
+    /// 端到端红线（05-§2.4）：裁剪发生在广播前、广播与入历史单副本逐字节一致
+    #[tokio::test]
+    async fn tool_result_prebroadcast_before_broadcast_single_copy() {
+        use super::tools::TOOL_RESULT_STR_LIMIT;
+        use crate::event::keys;
+
+        /// 返回超长字符串的工具（触发裁剪）
+        struct HugeOutputTool;
+        #[async_trait]
+        impl crate::tool::Tool for HugeOutputTool {
+            fn name(&self) -> &str {
+                "huge_output"
+            }
+            fn description(&self) -> &str {
+                "超长输出（测试用）"
+            }
+            fn parameters(&self) -> serde_json::Value {
+                serde_json::json!({ "type": "object", "properties": {} })
+            }
+            async fn execute(
+                &self,
+                _args: serde_json::Value,
+            ) -> Result<serde_json::Value, crate::tool::ToolError> {
+                Ok(serde_json::Value::String(format!(
+                    "HEAD{}TAIL",
+                    "x".repeat(TOOL_RESULT_STR_LIMIT * 2)
+                )))
+            }
+        }
+
+        /// 捕获 ToolCallEnd 广播负载
+        struct ToolEndRecorder {
+            results: std::sync::Mutex<Vec<(String, serde_json::Value)>>,
+        }
+        impl Listener for ToolEndRecorder {
+            fn call(&self, event: &OrchestratorEvent) -> ListenerOutcome {
+                if let OrchestratorEvent::Agent(AgentEvent::ToolCallEnd {
+                    tool_call_id,
+                    result,
+                    ..
+                }) = event
+                {
+                    self.results
+                        .lock()
+                        .unwrap()
+                        .push((tool_call_id.clone(), result.clone()));
+                }
+                ListenerOutcome::Continue
+            }
+        }
+
+        let backend = Arc::new(MockBackend::new(vec![
+            PromptResponse {
+                text: String::new(),
+                tool_calls: vec![ToolCall {
+                    id: "tc_huge".into(),
+                    name: "huge_output".into(),
+                    args: serde_json::json!({}),
+                }],
+                input_tokens: None,
+                output_tokens: None,
+                stop_reason: Some("tool_calls".into()),
+                reasoning: None,
+            },
+            PromptResponse::text_only("完成"),
+        ]));
+        let tool_bus = Arc::new(SimpleToolBus::new());
+        tool_bus.register(Arc::new(HugeOutputTool)).await;
+
+        let agent = AgentLoop::new(backend, tool_bus);
+        let recorder = Arc::new(ToolEndRecorder {
+            results: std::sync::Mutex::new(Vec::new()),
+        });
+        agent
+            .subscribe_key(keys::TOOL_CALL_END, recorder.clone())
+            .await;
+
+        agent.run("跑工具".to_string()).await.expect("运行应成功");
+
+        // 广播侧：已裁剪
+        let broadcast = recorder.results.lock().unwrap();
+        assert_eq!(broadcast.len(), 1, "应捕获一次 ToolCallEnd: {broadcast:?}");
+        let (call_id, b_result) = &broadcast[0];
+        assert_eq!(call_id, "tc_huge");
+        let b_text = b_result.as_str().unwrap();
+        assert!(b_text.contains("已截断"), "广播侧应为裁剪后内容: {b_text:.80}");
+
+        // 历史侧：与广播负载逐字节一致（裁剪在广播前 / 单副本）
+        let msgs = agent.get_messages().await;
+        let tool_msg = msgs
+            .iter()
+            .find(|m| m.role == MessageRole::ToolResult)
+            .expect("应有工具结果消息");
+        assert_eq!(
+            &tool_msg.content,
+            &serde_json::to_string(b_result).unwrap(),
+            "入历史内容应与广播负载逐字节一致（广播前裁剪 / 单副本）"
+        );
+    }
+
+    // ── 风险点处置（2026-09-17）：分发不持外包锁 ──
+
+    /// 分发运行监听器链期间**不持广播器外包锁**：
+    /// ① 链内注册可即时完成（另一任务取写锁不阻塞——若持锁则超时未完成）；
+    /// ② 注册不作用于本轮（快照语义 C3），下一轮起生效
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn dispatch_does_not_hold_broadcaster_lock_and_registration_defers() {
+        use crate::event::keys;
+
+        /// 链尾监听器（新注册者）：计收到的条数
+        struct TailCounter {
+            count: Arc<AtomicUsize>,
+        }
+        impl Listener for TailCounter {
+            fn call(&self, _event: &OrchestratorEvent) -> ListenerOutcome {
+                self.count.fetch_add(1, Ordering::SeqCst);
+                ListenerOutcome::Continue
+            }
+        }
+
+        /// 链内注册探针：首次进入时发起"注册新监听器"任务，并等待其完成
+        struct RegisterProbe {
+            agent: std::sync::Weak<AgentLoop>,
+            new_listener_count: Arc<AtomicUsize>,
+            /// 注册任务是否已完成（未完成 = 分发持锁，写锁被阻塞）
+            registered: Arc<AtomicBool>,
+            /// 只发起一次注册（第二轮回调不再重复）
+            spawned: AtomicBool,
+        }
+        impl Listener for RegisterProbe {
+            fn call(&self, _event: &OrchestratorEvent) -> ListenerOutcome {
+                if self.spawned.swap(true, Ordering::SeqCst) {
+                    return ListenerOutcome::Continue;
+                }
+                let Some(agent) = self.agent.upgrade() else {
+                    return ListenerOutcome::Continue;
+                };
+                let count = Arc::clone(&self.new_listener_count);
+                let done = Arc::clone(&self.registered);
+                tokio::spawn(async move {
+                    agent
+                        .subscribe_key(keys::TOOL_CALL_END, Arc::new(TailCounter { count }))
+                        .await;
+                    done.store(true, Ordering::SeqCst);
+                });
+                // 等待注册完成：若分发仍持外包锁，写锁获取将一直等待 → 本轮超时未置位
+                for _ in 0..80 {
+                    if self.registered.load(Ordering::SeqCst) {
+                        break;
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(10));
+                }
+                ListenerOutcome::Continue
+            }
+        }
+
+        let agent = Arc::new(AgentLoop::new(
+            Arc::new(MockBackend::new(vec![])),
+            Arc::new(SimpleToolBus::new()),
+        ));
+        let new_listener_count = Arc::new(AtomicUsize::new(0));
+        let registered = Arc::new(AtomicBool::new(false));
+        agent
+            .subscribe_key(
+                keys::TOOL_CALL_END,
+                Arc::new(RegisterProbe {
+                    agent: Arc::downgrade(&agent),
+                    new_listener_count: Arc::clone(&new_listener_count),
+                    registered: Arc::clone(&registered),
+                    spawned: AtomicBool::new(false),
+                }),
+            )
+            .await;
+
+        let event = |id: &str| {
+            OrchestratorEvent::Agent(AgentEvent::ToolCallEnd {
+                tool_call_id: id.to_string(),
+                result: serde_json::json!({ "ok": true }),
+                status: "success".to_string(),
+                duration_ms: 1,
+                error: None,
+            })
+        };
+
+        // 第一轮：链内注册（若持锁则 registered 超时未置位）
+        agent.broadcast(event("tc_lock_1")).await;
+        assert!(
+            registered.load(Ordering::SeqCst),
+            "链内注册应即时完成——分发不得持有广播器外包锁"
+        );
+        assert_eq!(
+            new_listener_count.load(Ordering::SeqCst),
+            0,
+            "分发中注册不作用于本轮（快照语义）"
+        );
+
+        // 第二轮：新监听器生效
+        agent.broadcast(event("tc_lock_2")).await;
+        assert_eq!(
+            new_listener_count.load(Ordering::SeqCst),
+            1,
+            "新注册监听器应自下一轮起生效"
+        );
+    }
+
+    // ── A5 后续（2026-09-17）：Retry-After 头支持 + 错误结果结构化字段 ──
+
+    /// `Retry-After` 优先于指数退避（取大、超上限截断）；终态 `Error` 事件带
+    /// 结构化字段（code / retryable / retry_after_ms）
+    #[tokio::test]
+    async fn retry_after_overrides_backoff_and_error_carries_structured_fields() {
+        use std::time::Duration;
+
+        // 1) 纯函数：取大 + 超上限截断
+        {
+            use super::llm::retry_delay;
+            assert_eq!(retry_delay(Duration::from_secs(1), None), Duration::from_secs(1));
+            assert_eq!(
+                retry_delay(Duration::from_secs(1), Some(30_000)),
+                Duration::from_secs(30),
+                "服务端建议更久 → 以它为准"
+            );
+            assert_eq!(
+                retry_delay(Duration::from_secs(5), Some(1_000)),
+                Duration::from_secs(5),
+                "退避更久 → 保持退避"
+            );
+            assert_eq!(
+                retry_delay(Duration::from_secs(1), Some(120_000)),
+                Duration::from_secs(60),
+                "超上限截断为 60s"
+            );
+        }
+
+        // 2) 集成：429 + Retry-After → 重试等待即该值；耗尽后终态事件带码
+        struct RetryRecorder {
+            waits: std::sync::Mutex<Vec<u64>>,
+            last_error: std::sync::Mutex<Option<(String, Option<String>, Option<bool>, Option<u64>)>>,
+        }
+        impl Listener for RetryRecorder {
+            fn call(&self, event: &OrchestratorEvent) -> ListenerOutcome {
+                match event {
+                    OrchestratorEvent::LoopEngRetrying { backoff_ms, .. } => {
+                        self.waits.lock().unwrap().push(*backoff_ms);
+                    }
+                    OrchestratorEvent::Agent(AgentEvent::Error {
+                        message,
+                        code,
+                        retryable,
+                        retry_after_ms,
+                    }) => {
+                        *self.last_error.lock().unwrap() =
+                            Some((message.clone(), code.clone(), *retryable, *retry_after_ms));
+                    }
+                    _ => {}
+                }
+                ListenerOutcome::Continue
+            }
+        }
+
+        let backend = Arc::new(
+            MockBackend::new(vec![]).with_prompt_errors(vec![
+                BackendError::RateLimit {
+                    retry_after_ms: Some(50),
+                },
+                BackendError::RateLimit {
+                    retry_after_ms: Some(50),
+                },
+            ]),
+        );
+        let agent = AgentLoop::new(backend, Arc::new(SimpleToolBus::new())).with_config(
+            AgentLoopConfig {
+                llm_max_retries: 1,
+                // 退避 1ms ≪ Retry-After 50ms —— 断言等待以服务端建议为准
+                llm_retry_base_delay: Duration::from_millis(1),
+                ..Default::default()
+            },
+        );
+        let recorder = Arc::new(RetryRecorder {
+            waits: std::sync::Mutex::new(Vec::new()),
+            last_error: std::sync::Mutex::new(None),
+        });
+        agent.subscribe(recorder.clone()).await;
+
+        let result = agent.run("测试".into()).await;
+        assert!(result.is_err(), "重试耗尽应失败: {result:?}");
+
+        let waits = recorder.waits.lock().unwrap().clone();
+        assert_eq!(
+            waits,
+            vec![50],
+            "重试等待应为 Retry-After 值（50ms），实际: {waits:?}"
+        );
+
+        let (message, code, retryable, ra) = recorder
+            .last_error
+            .lock()
+            .unwrap()
+            .clone()
+            .expect("应广播终态 Error 事件");
+        assert_eq!(code.as_deref(), Some("RATE_LIMIT"), "终态事件应带稳定码");
+        assert_eq!(retryable, Some(true), "限流可重试");
+        assert_eq!(ra, Some(50), "终态事件应保留服务端建议等待");
+        assert!(message.contains("速率限制"), "message 保留原因文本: {message}");
+    }
+
+    /// W2①（2026-09-18 工作区与环境对齐 dsh）：`project_id` 贯通——
+    /// `with_config` / `set_config` 同步镜像字段（构造 ToolContext 用，此前恒 None）
+    #[tokio::test]
+    async fn project_id_mirrors_config_for_tool_context() {
+        let agent = AgentLoop::new(
+            Arc::new(MockBackend::new(vec![])),
+            Arc::new(SimpleToolBus::new()),
+        )
+        .with_config(AgentLoopConfig {
+            project_id: Some("p-123".into()),
+            ..Default::default()
+        });
+        assert_eq!(
+            agent.project_id().as_deref(),
+            Some("p-123"),
+            "with_config 应同步 project_id 镜像字段"
+        );
+        // set_config 更新路径（恢复 / 切换项目同源）
+        agent
+            .set_config(AgentLoopConfig {
+                project_id: Some("p-456".into()),
+                ..Default::default()
+            })
+            .await;
+        assert_eq!(agent.project_id().as_deref(), Some("p-456"));
     }

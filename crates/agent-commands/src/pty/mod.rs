@@ -29,20 +29,41 @@ pub struct PtySession {
 ///
 /// - Windows：优先自研 passthrough backend（0x8 原始字节流），失败回落 portable-pty
 /// - 非 Windows：portable-pty 原生实现
+/// - **E3-3（2026-09-18）**：`confined_token=Some` 为受限挂载（`CreateProcessAsUserW`）。
+///   受限模式走 passthrough **专用通路、不回落**（portable-pty 无法注入令牌，回落即边界旁路）；
+///   失败由调用方 fail-closed 处理（D3）。非 Windows 不启用文件写边界（设计 §4.8），无此参数。
 pub async fn open_pty(
     shell: &str,
     cwd: &str,
     env_list: &[(String, String)],
     pty_size: portable_pty::PtySize,
+    #[cfg(windows)] confined_token: Option<conpty_passthrough::HHandle>,
 ) -> Result<PtySession, String> {
     #[cfg(windows)]
-    match conpty_passthrough::spawn_passthrough(shell, cwd, env_list, pty_size).await {
-        Ok(session) => return Ok(session),
-        Err(e) => {
-            log_trace(&format!("[pty] passthrough 后端不可用({e})，回落 portable-pty"));
+    {
+        if let Some(token) = confined_token {
+            return conpty_passthrough::spawn_passthrough_with_token(
+                shell,
+                cwd,
+                env_list,
+                pty_size,
+                Some(token),
+            )
+            .await
+            .map_err(|e| format!("受限 PTY（passthrough 受限挂载）失败: {e}"));
         }
+        match conpty_passthrough::spawn_passthrough(shell, cwd, env_list, pty_size).await {
+            Ok(session) => return Ok(session),
+            Err(e) => {
+                log_trace(&format!("[pty] passthrough 后端不可用({e})，回落 portable-pty"));
+            }
+        }
+        return spawn_portable(shell, cwd, env_list, pty_size).await;
     }
-    spawn_portable(shell, cwd, env_list, pty_size).await
+    #[cfg(not(windows))]
+    {
+        spawn_portable(shell, cwd, env_list, pty_size).await
+    }
 }
 
 fn log_trace(msg: &str) {
@@ -65,6 +86,11 @@ async fn spawn_portable(
         let pty_system = portable_pty::native_pty_system();
         let mut cmd = portable_pty::CommandBuilder::new(&shell_owned);
         cmd.cwd(&cwd_owned);
+        // E1（2026-09-18 工作区与环境对齐 dsh）：剔除继承的敏感环境变量
+        //（键名含 KEY/PASSWORD/SECRET/TOKEN 即剔；与命令执行 / MCP stdio 同口径）
+        for k in agent_runtime::env_scrub::sensitive_inherited_env_keys() {
+            cmd.env_remove(&k);
+        }
         for (k, v) in &env_owned {
             cmd.env(k, v);
         }

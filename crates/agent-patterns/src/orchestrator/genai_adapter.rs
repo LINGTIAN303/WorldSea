@@ -44,7 +44,14 @@ impl LlmHandle for KernelBackendLlm {
         };
         let resp = self
             .backend
-            .prompt(prompt, None)
+            .prompt(
+                prompt,
+                Some(agent_kernel::backend::PromptCallOptions {
+                    // 阶段 3 · ④ 扩展：旁路入账标签（D13 旁路全收）
+                    purpose: Some("orchestrator_complete".into()),
+                    ..Default::default()
+                }),
+            )
             .await
             .map_err(|e| LlmError::Fatal(format!("kernel backend 错误：{e}")))?;
         Ok(Response {
@@ -79,6 +86,8 @@ impl LlmHandle for KernelBackendLlm {
                     silent: true,
                     temperature: req.temperature,
                     max_tokens: req.max_tokens,
+                    // 阶段 3 · ④ 扩展：旁路入账标签（D13 旁路全收）
+                    purpose: Some("orchestrator_decide".into()),
                     ..Default::default()
                 }),
             )
@@ -144,6 +153,8 @@ impl LlmHandle for KernelBackendLlm {
                 Some(agent_kernel::backend::PromptCallOptions {
                     tools: tool_defs.clone(),
                     silent: true,
+                    // 阶段 3 · ④ 扩展：旁路入账标签（D13 旁路全收）
+                    purpose: Some("orchestrator_react_step".into()),
                     ..Default::default()
                 }),
             )
