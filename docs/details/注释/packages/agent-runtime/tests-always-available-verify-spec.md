@@ -2,6 +2,8 @@
 
 > 来源：`packages/agent-runtime/src/__tests__/always-available-verify.spec.ts` 中连续 ≥ 10 行的长注释块，按文件内出现顺序迁移至此。
 > 代码内原位置已替换为一行简要注释 + 相对路径。
+>
+> 2026-09-21（世界观芽工具整合收口轮）：本 spec 与 `agent-tools.spec.ts` 已**恢复纳入 vitest include**（此前长期在收口之外、无人跑）；测试环境同轮补齐 `@worldsea/agent-runtime/*` 与 `@worldsea/governor-core/*` 子路径别名。
 
 ## 注释块 1（原文件第 1-10 行）
 
