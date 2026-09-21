@@ -64,7 +64,7 @@
 
 ### W3 · Agent 能力面整顿线
 
-- **状态**：**已开工（2026-09-22 档 1）**——C4/P6「`web_search` 接线」已收口（配置注入三断点关闭 + 跨栈守卫，见 [search-config.md](../details/注释/tauri/search-config.md)）；高严重度 A1「元工具 schema 双份」此前已随三域对齐 T5 单一事实源收口（2026-09-17）；余 C1 权限判定散落三处 / E2「插件」四义 / 断点 C（`web_fetch` 不在主链）/ 断点 D（TS 重复实现）待拍板
+- **状态**：**施工中（2026-09-22 档 1 + 档 3）**——C4/P6「`web_search` 接线」已收口（配置注入三断点关闭，见 [search-config.md](../details/注释/tauri/search-config.md)）；**断点 C 已收口（档 3）**：原生 `web_fetch` 上主链，前置出网收口 `net_egress.rs`（逐跳复校 / 10MB·30s·类型白名单 / 不可信内容围栏，见 [web-fetch.md](../details/注释/tauri/web-fetch.md)），跨栈守卫 13→22 例；高严重度 A1「元工具 schema 双份」此前已随三域对齐 T5 单一事实源收口（2026-09-17）；余 C1 权限判定散落三处 / E2「插件」四义 / 断点 D（TS 重复实现 + `web_crawl` 缺位）待拍板
 - **依据**：[2026-09-10-Agent能力面整顿审查.md](../plans/2026-09-10-Agent能力面整顿审查.md) + [结论核实清单](../plans/2026-09-10-Agent能力面整顿审查-结论核实.md)
 - **范围**：Skills / MCP / 内置工具（含世界观「芽」体系）/ **真·Agent 插件系统**
 - **定性**：三套各自为政的小系统 + 一个空缺；代码层靠命名约定维系，无统一 capability provider 抽象
