@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "_note": "架构策略（ZCode 能力内化 · P 线 P1）。检查器：scripts/architecture/check.mjs；命令：node scripts/architecture/check.mjs [--changed] [--update-baseline] [--self-test]。规则：① 顶层模块目录必须在此登记（新增模块先登记，未登记即报红）；② 新建文件不得超过 maxFileLines，存量超限文件按 architecture-baseline.json 冻结、只禁增长；③ Rust 模块的 path 依赖边必须在 requires 白名单内（新增跨模块依赖先登记）；④ TS 包间不得成环。",
-  "_status": "v1（2026-09-21）：阈值取 ZCode 蓝本 400 行，待 D3 用 P4 基线数据复核；TS 包级依赖边白名单（requires）暂未启用，先只禁环。",
+  "_note": "架构策略（ZCode 能力内化 · P 线）。检查器：scripts/architecture/check.mjs；命令：node scripts/architecture/check.mjs [--changed] [--update-baseline] [--self-test]。规则：① 顶层模块目录必须在此登记（新增模块先登记，未登记即报红）；② 新建文件不得超过 maxFileLines，存量超限文件按 architecture-baseline.json 冻结、只禁增长；③ Rust 模块的 path 依赖边必须在 requires 白名单内；④ TS 跨包依赖边必须在 requires 白名单内（镜像 ③）；⑤ TS 包间不得成环。",
+  "_status": "v1.1（2026-09-21）：TS 依赖边白名单已启用（40 条现存边登记入库）；阈值 400/1200 经 P4 基线数据复核维持（分布：>400 共 218/1555 ≈14%，存量冻结兜底）；knip 类工具评估后延后独立批次。",
   "global": {
     "maxFileLines": 400,
     "overrides": [
@@ -29,21 +29,21 @@
     { "id": "tactical-engine", "kind": "rust", "roots": ["tactical-engine/src"], "manifest": "tactical-engine/Cargo.toml", "requires": [] },
     { "id": "tauri-backend", "kind": "rust", "roots": ["apps/tauri/src-tauri/src"], "manifest": "apps/tauri/src-tauri/Cargo.toml", "requires": ["agent-commands", "agent-runtime", "worldsea-skills-store", "worldsea-core"] },
 
-    { "id": "tauri-app", "kind": "ts", "roots": ["apps/tauri/src"], "manifest": "apps/tauri/package.json", "requires": [] },
+    { "id": "tauri-app", "kind": "ts", "roots": ["apps/tauri/src"], "manifest": "apps/tauri/package.json", "requires": ["agent-runtime-ts", "canvas-engine", "core-api-types", "entity-core", "font-kit", "motion-kit", "perf-kit", "plugin-sdk", "shared-composables", "shared-ui", "ui-kit"] },
     { "id": "agent-core", "kind": "ts", "roots": ["packages/agent-core/src"], "manifest": "packages/agent-core/package.json", "requires": [] },
-    { "id": "agent-runtime-ts", "kind": "ts", "roots": ["packages/agent-runtime/src"], "manifest": "packages/agent-runtime/package.json", "requires": [] },
-    { "id": "canvas-engine", "kind": "ts", "roots": ["packages/canvas-engine/src"], "manifest": "packages/canvas-engine/package.json", "requires": [] },
+    { "id": "agent-runtime-ts", "kind": "ts", "roots": ["packages/agent-runtime/src"], "manifest": "packages/agent-runtime/package.json", "requires": ["agent-core", "canvas-engine", "entity-core", "governor-core", "plugin-sdk", "ui-kit"] },
+    { "id": "canvas-engine", "kind": "ts", "roots": ["packages/canvas-engine/src"], "manifest": "packages/canvas-engine/package.json", "requires": ["agent-runtime-ts", "entity-core"] },
     { "id": "core-api-types", "kind": "ts", "roots": ["packages/core-api-types/src"], "manifest": "packages/core-api-types/package.json", "requires": [] },
-    { "id": "entity-core", "kind": "ts", "roots": ["packages/entity-core/src"], "manifest": "packages/entity-core/package.json", "requires": [] },
-    { "id": "font-kit", "kind": "ts", "roots": ["packages/font-kit/src"], "manifest": "packages/font-kit/package.json", "requires": [] },
+    { "id": "entity-core", "kind": "ts", "roots": ["packages/entity-core/src"], "manifest": "packages/entity-core/package.json", "requires": ["agent-runtime-ts", "core-api-types", "perf-kit"] },
+    { "id": "font-kit", "kind": "ts", "roots": ["packages/font-kit/src"], "manifest": "packages/font-kit/package.json", "requires": ["entity-core"] },
     { "id": "governor-core", "kind": "ts", "roots": ["packages/governor-core/src"], "manifest": "packages/governor-core/package.json", "requires": [] },
     { "id": "memory-archive", "kind": "ts", "roots": ["packages/memory-archive/src"], "manifest": "packages/memory-archive/package.json", "requires": [] },
     { "id": "motion-kit", "kind": "ts", "roots": ["packages/motion-kit/src"], "manifest": "packages/motion-kit/package.json", "requires": [] },
     { "id": "perf-kit", "kind": "ts", "roots": ["packages/perf-kit/src"], "manifest": "packages/perf-kit/package.json", "requires": [] },
-    { "id": "plugin-sdk", "kind": "ts", "roots": ["packages/plugin-sdk/src"], "manifest": "packages/plugin-sdk/package.json", "requires": [] },
-    { "id": "shared-composables", "kind": "ts", "roots": ["packages/shared-composables/src"], "manifest": "packages/shared-composables/package.json", "requires": [] },
-    { "id": "shared-ui", "kind": "ts", "roots": ["packages/shared-ui/src"], "manifest": "packages/shared-ui/package.json", "requires": [] },
+    { "id": "plugin-sdk", "kind": "ts", "roots": ["packages/plugin-sdk/src"], "manifest": "packages/plugin-sdk/package.json", "requires": ["core-api-types", "entity-core", "ui-kit"] },
+    { "id": "shared-composables", "kind": "ts", "roots": ["packages/shared-composables/src"], "manifest": "packages/shared-composables/package.json", "requires": ["agent-runtime-ts", "entity-core", "motion-kit", "perf-kit", "ui-kit"] },
+    { "id": "shared-ui", "kind": "ts", "roots": ["packages/shared-ui/src"], "manifest": "packages/shared-ui/package.json", "requires": ["agent-runtime-ts", "entity-core", "font-kit", "motion-kit", "perf-kit", "shared-composables", "ui-kit"] },
     { "id": "theme-kit", "kind": "ts", "roots": ["packages/theme-kit/src"], "manifest": "packages/theme-kit/package.json", "requires": [] },
-    { "id": "ui-kit", "kind": "ts", "roots": ["packages/ui-kit/src"], "manifest": "packages/ui-kit/package.json", "requires": [] }
+    { "id": "ui-kit", "kind": "ts", "roots": ["packages/ui-kit/src"], "manifest": "packages/ui-kit/package.json", "requires": ["agent-core", "agent-runtime-ts", "canvas-engine", "entity-core", "font-kit", "motion-kit", "perf-kit", "plugin-sdk"] }
   ]
 }

@@ -6,7 +6,8 @@
  *   ① registry   模块登记：discovery 目录必须已登记；登记项（roots/manifest）必须存在
  *   ② file-size  文件规模：新建文件 ≤ 上限；存量超限文件按 architecture-baseline.json 冻结、只禁增长
  *   ③ rust-edge  Rust path 依赖边：必须在该模块 requires 白名单内（新增跨模块依赖先登记）
- *   ④ ts-cycle   TS 包级依赖环：@worldsea/* 与相对导入构成的包图不得成环
+ *   ④ ts-edge    TS 跨包依赖边：必须在该模块 requires 白名单内（镜像 rust-edge）
+ *   ⑤ ts-cycle   TS 包级依赖环：@worldsea/* 与相对导入构成的包图不得成环
  *
  * 用法：node scripts/architecture/check.mjs [--changed] [--update-baseline] [--self-test]
  * 退出码：0 无违规 / 1 有违规 / 2 用法或环境错误
@@ -169,7 +170,7 @@ function checkRustEdges(root, policy) {
 function extractTsSpecifiers(file) {
   const text = fs.readFileSync(file, 'utf8');
   const out = [];
-  const staticRe = /(?:import|export)[^'"\n]*?from\s*['"]([^'"]+)['"]/g;
+  const staticRe = /(?:import|export)\b[^;'"]*?from\s*['"]([^'"]+)['"]/g;
   const bareRe = /import\s*['"]([^'"]+)['"]/g;
   const dynamicRe = /import\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
   for (const re of [staticRe, bareRe, dynamicRe]) {
@@ -179,8 +180,8 @@ function extractTsSpecifiers(file) {
   return out;
 }
 
-/** ④ TS 包级环 */
-function checkTsCycles(root, policy) {
+/** TS 模块间依赖边采集（④ 与 ⑤ 共用） */
+function collectTsEdges(root, policy) {
   const tsModules = policy.modules.filter((m) => m.kind === 'ts' && m.manifest);
   const nameToModule = new Map();
   for (const m of tsModules) {
@@ -211,6 +212,27 @@ function checkTsCycles(root, policy) {
       }
     }
   }
+  return edges;
+}
+
+/** ④ TS 依赖边白名单（镜像 rust-edge：新增跨包依赖先登记） */
+function checkTsEdges(root, policy) {
+  const violations = [];
+  const edges = collectTsEdges(root, policy);
+  for (const m of policy.modules) {
+    if (m.kind !== 'ts') continue;
+    const allowed = m.requires ?? [];
+    for (const to of edges.get(m.id) ?? []) {
+      if (!allowed.includes(to)) violations.push({ check: 'ts-edge', key: `tedge:${m.id}->${to}`, message: `${m.id} 依赖 ${to} 未在 requires 白名单（新增依赖先在 ${POLICY_NAME} 登记）` });
+    }
+  }
+  return violations;
+}
+
+/** ⑤ TS 包级环 */
+function checkTsCycles(root, policy) {
+  const tsModules = policy.modules.filter((m) => m.kind === 'ts' && m.manifest);
+  const edges = collectTsEdges(root, policy);
   // DFS 找环（去重：按环内节点排序作 key）
   const violations = [];
   const seen = new Set();
@@ -243,8 +265,9 @@ function runChecks(root, policy, baseline, opts = {}) {
   const registry = checkRegistry(root, policy);
   const { violations: fileSize, overLimit } = checkFileSize(root, policy, baselineForRun, changedSet);
   const rustEdges = checkRustEdges(root, policy);
+  const tsEdges = checkTsEdges(root, policy);
   const tsCycles = checkTsCycles(root, policy);
-  let all = [...registry, ...fileSize, ...rustEdges, ...tsCycles];
+  let all = [...registry, ...fileSize, ...rustEdges, ...tsEdges, ...tsCycles];
   if (!opts.ignoreBaseline) {
     const otherKeys = new Set((baseline.other ?? []).map((o) => `${o.check}::${o.key}`));
     all = all.filter((v) => !otherKeys.has(`${v.check}::${v.key}`));
@@ -296,7 +319,7 @@ function selfTest() {
     modules: [
       { id: 'mod-a', kind: 'rust', roots: ['crates/mod-a/src'], manifest: 'crates/mod-a/Cargo.toml', requires: [] },
       { id: 'mod-b', kind: 'rust', roots: ['crates/mod-b/src'], manifest: 'crates/mod-b/Cargo.toml', requires: ['mod-a'] },
-      { id: 'pkg-x', kind: 'ts', roots: ['packages/pkg-x/src'], manifest: 'packages/pkg-x/package.json', requires: [] },
+      { id: 'pkg-x', kind: 'ts', roots: ['packages/pkg-x/src'], manifest: 'packages/pkg-x/package.json', requires: ['pkg-y'] },
       { id: 'pkg-y', kind: 'ts', roots: ['packages/pkg-y/src'], manifest: 'packages/pkg-y/package.json', requires: [] },
     ],
   };
@@ -336,12 +359,15 @@ function selfTest() {
   expect('rust-edge 报红（mod-a → mod-b 未在 requires）', r.violations, (v) => v.check === 'rust-edge' && v.key === 'edge:mod-a->mod-b');
   write('crates/mod-a/Cargo.toml', '[package]\nname = "mod-a"\n');
 
-  // 反例 3：TS 包级环 pkg-x → pkg-y → pkg-x
+  // 反例 3：TS 包级环 pkg-x → pkg-y → pkg-x（且 pkg-y → pkg-x 边未登记）
   write('packages/pkg-x/src/index.ts', "import '@fixture/pkg-y';\nexport const x = 1;\n");
   write('packages/pkg-y/src/index.ts', "import '@fixture/pkg-x';\nexport const y = 1;\n");
   r = runChecks(tmp, policy, emptyBaseline, {});
   expect('ts-cycle 报红', r.violations, (v) => v.check === 'ts-cycle');
+  expect('ts-edge 报红（pkg-y → pkg-x 未在 requires）', r.violations, (v) => v.check === 'ts-edge' && v.key === 'tedge:pkg-y->pkg-x');
   write('packages/pkg-y/src/index.ts', "export const y = 1;\n");
+  r = runChecks(tmp, policy, emptyBaseline, {});
+  expectSilent('已登记的包级边不报（pkg-x → pkg-y）', r.violations, 'tedge:pkg-x->pkg-y');
 
   // 反例 4：新建文件超限（10 行 > 5 行）
   write('crates/mod-a/src/big.rs', 'x\n'.repeat(9));
