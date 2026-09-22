@@ -12,7 +12,7 @@
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
-use agent_runtime::tool::{RiskLevel, SideEffectScope, Tool, ToolDescriptor, ToolError};
+use agent_runtime::tool::{SideEffectScope, Tool, ToolDescriptor, ToolError};
 use async_trait::async_trait;
 
 // ─── 搜索配置 ──────────────────────────────────────────────
@@ -201,7 +201,9 @@ impl Tool for WebSearchTool {
         })
     }
     fn descriptor(&self) -> ToolDescriptor {
-        ToolDescriptor::guarded(self.name(), "search", self.description(), SideEffectScope::Network, RiskLevel::Moderate)
+        // C2（T-e 修正）：检索是**只读**外发（引擎由用户预先配置 = 已预批；S4-b 未预批外发名单
+        // 只含 `mcp__*` 与 `web_fetch`）——声明 read_only，不弹不可绕过确认（保持迁移前行为）
+        ToolDescriptor::read_only(self.name(), "search", self.description(), SideEffectScope::Network)
             .with_input_schema(self.parameters())
     }
 

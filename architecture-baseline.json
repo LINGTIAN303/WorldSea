@@ -95,7 +95,7 @@
     "apps/tauri/src-tauri/src/http_bridge/rpc.rs": 1874,
     "apps/tauri/src-tauri/src/lib.rs": 632,
     "apps/tauri/src-tauri/src/mcp_client.rs": 1361,
-    "apps/tauri/src-tauri/src/search_commands.rs": 736,
+    "apps/tauri/src-tauri/src/search_commands.rs": 738,
     "apps/tauri/src-tauri/src/whisper.rs": 571,
     "apps/tauri/src/agent/agentDataBridges.ts": 536,
     "apps/tauri/src/agent/AgentMessageList.vue": 675,

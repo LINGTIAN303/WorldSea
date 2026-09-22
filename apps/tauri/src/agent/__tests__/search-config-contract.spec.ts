@@ -28,15 +28,6 @@ function read(rel: string): string {
   return readFileSync(path.join(ROOT, rel), 'utf-8')
 }
 
-/** 取 confirmation.rs 里 Safe 分支的源码片段（跨行续写，从上一个 `=>` 到本次 `=> ToolPermission::Safe`） */
-function safePermissionLine(): string {
-  const src = read(CONFIRM)
-  const end = src.indexOf('=> ToolPermission::Safe')
-  expect(end).toBeGreaterThan(-1)
-  const start = Math.max(src.lastIndexOf('=>', end - 1), src.lastIndexOf(';', end), 0)
-  return src.slice(start, end)
-}
-
 /** snake_case → camelCase（对应 Rust `#[serde(rename_all = "camelCase")]`） */
 function toCamel(name: string): string {
   return name.replace(/_([a-z0-9])/g, (_, c: string) => c.toUpperCase())
@@ -166,7 +157,6 @@ describe('清除 Key 的面板契约成对存在', () => {
 // 但 Rust 侧没有同名实现（模型看得到却调不动）；或实现齐了却漏登记权限/标签/语义分类。
 
 const SCENARIO = 'crates/agent-kernel/src/scenario.rs'
-const CONFIRM = 'crates/agent-kernel/src/confirmation.rs'
 const FETCH_CMD = 'apps/tauri/src-tauri/src/web_fetch_commands.rs'
 const SEARCH_CMD = 'apps/tauri/src-tauri/src/search_commands.rs'
 const LABELS = 'packages/shared-ui/src/agent/bubbles/toolLabels.ts'
@@ -188,12 +178,20 @@ describe('联网工具：场景声明 ↔ Rust 实现 ↔ 注入链三处必须�
       expect(read(LIB)).toContain(t.factory)
     })
 
-    it(`${t.name} 已登记 Safe 分级且有中文标签与能力面清单条目`, () => {
-      expect(safePermissionLine()).toMatch(new RegExp(`"${t.name}"`))
+    it(`${t.name} 声明置于工具描述符（C2：等级读声明，静态表已删）且有中文标签与能力面清单条目`, () => {
+      // C2（工具元数据族）：等级来源 = ToolDescriptor（`Tool::descriptor`），不再是
+      // confirmation.rs 的静态等级表；此处校验声明面在位 + 前端标签与能力面清单仍在。
+      expect(read(t.impl)).toMatch(/fn descriptor\(&self\) -> ToolDescriptor/)
       expect(read(LABELS)).toContain(`${t.name}: '`)
       expect(read(DESCRIPTOR)).toContain(`'${t.name}'`)
     })
   }
+
+  it('声明语义：web_search 只读（不弹确认）；web_fetch 未预批外发（不可绕过确认）', () => {
+    // 对齐 S4-b 名单口径：未预批外发 = `mcp__*` + web_fetch；检索引擎由用户预先配置（已预批）
+    expect(read(SEARCH_CMD)).toMatch(/ToolDescriptor::read_only\(/)
+    expect(read(FETCH_CMD)).toMatch(/ToolDescriptor::guarded\(/)
+  })
 
   it('web_fetch 归 read（抓取无查询语义），不落未知兜底', () => {
     expect(read(SEMANTICS)).toMatch(/web_fetch:\s*'read'/)
