@@ -29,10 +29,8 @@ const SYSTEM_BASE_TOOLS: &[&str] = &[
     "search_files",
     "delegate_to_sub_agent",
     "list_sub_agents",
-    // A4 Plan-Exec：计划创建/状态推进/失败重规划（通用能力，任何场景可用）
-    "plan_create",
-    "plan_update",
-    "plan_replan",
+    // A4 Plan-Exec（2026-09-23 归一）：任务清单全量重写（通用能力，任何场景可用）
+    "todo_write",
     // H3 Skills 点火（P1，2026-08-30）：技能元工具三件，跨场景通用（progressive disclosure）
     "load_skill",
     "load_skill_reference",

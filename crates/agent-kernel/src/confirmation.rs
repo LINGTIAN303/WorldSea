@@ -453,7 +453,7 @@ mod tests {
         assert!(!p.needs_confirmation("execute_command", &serde_json::json!({ "command": "ls -la" }), crate::tool::RiskLevel::Moderate));
         // Safe 只读放行
         assert!(!p.needs_confirmation("entity_get", &serde_json::json!({ "id": "x" }), crate::tool::RiskLevel::Safe));
-        assert!(!p.needs_confirmation("plan_create", &serde_json::json!({ "plan": [] }), crate::tool::RiskLevel::Safe));
+        assert!(!p.needs_confirmation("todo_write", &serde_json::json!({ "todos": [] }), crate::tool::RiskLevel::Safe));
     }
 
     #[test]

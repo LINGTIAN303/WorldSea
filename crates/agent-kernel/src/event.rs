@@ -150,7 +150,8 @@ pub enum OrchestratorEvent {
     },
     /// 计划已重规划（Replanner）
     ///
-    /// 在 `plan_replan` 工具执行后触发，携带替换后的完整计划（保留了失败步骤及其之前的
+    /// **历史事件**：`plan_replan` 工具已在 2026-09-23 归一删除（并入 `todo_write` 全量重写）；
+    /// 定义与前端监听保留（兼容），当前无发射方。携带替换后的完整计划（保留了失败步骤及其之前的
     /// 已完成进度，仅替换其后的待执行步骤）。前端据此整体刷新 `usePlanStore` / PlanPanel。
     PlanReplanned { items: Vec<PlanItem> },
 

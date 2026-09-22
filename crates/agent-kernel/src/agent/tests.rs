@@ -2053,7 +2053,8 @@
     }
 
     #[tokio::test]
-    async fn apply_plan_result_writes_state_and_broadcasts() {
+    async fn todo_write_first_call_writes_state_and_broadcasts_created() {
+        // 2026-09-23 归一：todo_write 全量重写——首次写入 → PlanCreated；同 id 同序仅状态变化 → PlanStepUpdate
         let backend = Arc::new(MockBackend::new(vec![]));
         let tool_bus = Arc::new(SimpleToolBus::new());
         let agent = AgentLoop::new(backend, tool_bus);
@@ -2061,10 +2062,9 @@
         let listener = Arc::new(PlanListener(std::sync::Mutex::new(Vec::new())));
         agent.subscribe(listener.clone()).await;
 
-        // plan_create：写入 state.plan + 广播 PlanCreated
         agent
             .apply_plan_result(
-                "plan_create",
+                "todo_write",
                 &serde_json::json!({
                     "items": [
                         { "id": "p-0", "title": "A", "description": "调研", "status": "pending", "order": 0 },
@@ -2074,15 +2074,19 @@
             )
             .await;
         let plan = agent.get_plan().await.unwrap();
-        assert_eq!(plan.len(), 2, "plan_create 应写入 2 项");
-        assert_eq!(plan[0].title, "A");
+        assert_eq!(plan.len(), 2, "首次全量写入 2 项");
         assert_eq!(plan[1].status, crate::types::PlanItemStatus::InProgress);
 
-        // plan_update：更新对应项状态 + 广播 PlanStepUpdate
+        // 仅状态变化（同 id 同序）→ 逐项 PlanStepUpdate（不发 PlanCreated）
         agent
             .apply_plan_result(
-                "plan_update",
-                &serde_json::json!({ "item_id": "p-0", "status": "completed" }),
+                "todo_write",
+                &serde_json::json!({
+                    "items": [
+                        { "id": "p-0", "title": "A", "description": "调研", "status": "completed", "order": 0 },
+                        { "id": "p-1", "title": "B", "status": "in_progress", "order": 1 }
+                    ]
+                }),
             )
             .await;
         let plan = agent.get_plan().await.unwrap();
@@ -2090,10 +2094,56 @@
 
         {
             let events = listener.0.lock().unwrap();
-            assert_eq!(events.len(), 2, "应广播 PlanCreated + PlanStepUpdate 各一次");
+            assert_eq!(events.len(), 2, "期望 PlanCreated + PlanStepUpdate 各一次: {events:?}");
             assert_eq!(events[0], "created:2");
             assert!(events[1].starts_with("update:p-0:Completed"), "实际: {}", events[1]);
         }
+    }
+
+    #[tokio::test]
+    async fn todo_write_structure_change_broadcasts_created_and_merges_output() {
+        // 结构变化（重排 / 增删）→ PlanCreated 全量刷新；同 id 项 output 沿用旧值（工具不回传 output）
+        let backend = Arc::new(MockBackend::new(vec![]));
+        let tool_bus = Arc::new(SimpleToolBus::new());
+        let agent = AgentLoop::new(backend, tool_bus);
+        let listener = Arc::new(PlanListener(std::sync::Mutex::new(Vec::new())));
+        agent.subscribe(listener.clone()).await;
+
+        // 造一个带 output 的既有项（output 由其他链路填充；全量重写不得清空）
+        {
+            let mut state = agent.state.lock().await;
+            state.plan = Some(vec![crate::types::PlanItem {
+                id: "p-0".into(),
+                title: "A".into(),
+                description: None,
+                status: crate::types::PlanItemStatus::Completed,
+                order: 0,
+                output: Some("产出摘要".into()),
+            }]);
+        }
+
+        // 重排 + 新增（结构变化：id 序列不同）
+        agent
+            .apply_plan_result(
+                "todo_write",
+                &serde_json::json!({
+                    "items": [
+                        { "id": "p-0", "title": "A", "status": "completed", "order": 1 },
+                        { "id": "p-1", "title": "B", "status": "pending", "order": 0 }
+                    ]
+                }),
+            )
+            .await;
+        let plan = agent.get_plan().await.unwrap();
+        assert_eq!(plan.len(), 2);
+        assert_eq!(
+            plan.iter().find(|i| i.id == "p-0").unwrap().output.as_deref(),
+            Some("产出摘要"),
+            "同 id 项 output 应沿用旧值"
+        );
+        let events = listener.0.lock().unwrap();
+        assert_eq!(events.len(), 1, "结构变化只发 PlanCreated: {events:?}");
+        assert_eq!(events[0], "created:2");
     }
 
     #[tokio::test]
@@ -2102,111 +2152,15 @@
         let tool_bus = Arc::new(SimpleToolBus::new());
         let agent = AgentLoop::new(backend, tool_bus);
 
-        // 非 plan 工具名 → 无副作用
+        // 非计划工具名 → 无副作用
         agent.apply_plan_result("echo", &serde_json::json!({ "items": [] })).await;
-        assert!(agent.get_plan().await.is_none(), "非 plan 工具不应写入 plan");
+        assert!(agent.get_plan().await.is_none(), "非计划工具不应写入 plan");
 
-        // plan_create 空 items → 不写入
-        agent.apply_plan_result("plan_create", &serde_json::json!({ "items": [] })).await;
+        // todo_write 空 items → 不写入
+        agent
+            .apply_plan_result("todo_write", &serde_json::json!({ "items": [] }))
+            .await;
         assert!(agent.get_plan().await.is_none(), "空 items 不应写入 plan");
-
-        // plan_update 非法 status → 不写入不广播，plan 保持 None
-        agent.apply_plan_result("plan_update", &serde_json::json!({ "item_id": "x", "status": "bogus" })).await;
-        assert!(agent.get_plan().await.is_none(), "非法 status 不应写入 plan");
-    }
-
-    #[tokio::test]
-    async fn apply_plan_result_replans_keeps_failed_prefix_and_replaces_rest() {
-        let backend = Arc::new(MockBackend::new(vec![]));
-        let tool_bus = Arc::new(SimpleToolBus::new());
-        let agent = AgentLoop::new(backend, tool_bus);
-
-        let listener = Arc::new(PlanListener(std::sync::Mutex::new(Vec::new())));
-        agent.subscribe(listener.clone()).await;
-
-        // 建 3 步计划
-        agent
-            .apply_plan_result(
-                "plan_create",
-                &serde_json::json!({
-                    "items": [
-                        { "id": "p-0", "title": "A", "status": "pending", "order": 0 },
-                        { "id": "p-1", "title": "B", "status": "pending", "order": 1 },
-                        { "id": "p-2", "title": "C", "status": "pending", "order": 2 }
-                    ]
-                }),
-            )
-            .await;
-        // 第 1 步完成、第 2 步失败
-        agent
-            .apply_plan_result("plan_update", &serde_json::json!({ "item_id": "p-0", "status": "completed" }))
-            .await;
-        agent
-            .apply_plan_result("plan_update", &serde_json::json!({ "item_id": "p-1", "status": "failed" }))
-            .await;
-
-        // 重规划：保留已完成 p-0 与失败 p-1，替换其后为 D/E
-        agent
-            .apply_plan_result(
-                "plan_replan",
-                &serde_json::json!({
-                    "failed_item_id": "p-1",
-                    "new_steps": [
-                        { "title": "D", "description": "重规划一" },
-                        { "title": "E" }
-                    ]
-                }),
-            )
-            .await;
-
-        let plan = agent.get_plan().await.unwrap();
-        // 保留 p-0(completed)/p-1(failed)，替换掉 p-2，追加 D/E
-        assert_eq!(plan.len(), 4, "应保留 2 项 + 新增 2 项");
-        assert_eq!(plan[0].id, "p-0");
-        assert_eq!(plan[0].status, crate::types::PlanItemStatus::Completed);
-        assert_eq!(plan[1].id, "p-1");
-        assert_eq!(plan[1].status, crate::types::PlanItemStatus::Failed);
-        assert_eq!(plan[2].title, "D");
-        assert_eq!(plan[2].description.as_deref(), Some("重规划一"));
-        assert_eq!(plan[2].order, 2, "重排 order 从失败项之后续接");
-        assert_eq!(plan[3].title, "E");
-        assert_eq!(plan[3].order, 3);
-        assert!(plan.iter().all(|i| i.id != "p-2"), "原后续 p-2 应被替换");
-
-        // 事件：PlanCreated + 2×PlanStepUpdate + PlanReplanned
-        let events = listener.0.lock().unwrap();
-        assert!(events.iter().any(|e| e.starts_with("created:3")));
-        assert_eq!(events.iter().filter(|e| e.starts_with("update:")).count(), 2);
-        assert!(events.iter().any(|e| e.starts_with("replanned:4")), "实际: {events:?}");
-    }
-
-    #[tokio::test]
-    async fn apply_plan_result_replan_ignores_missing_failed_item() {
-        let backend = Arc::new(MockBackend::new(vec![]));
-        let tool_bus = Arc::new(SimpleToolBus::new());
-        let agent = AgentLoop::new(backend, tool_bus);
-
-        agent
-            .apply_plan_result(
-                "plan_create",
-                &serde_json::json!({
-                    "items": [
-                        { "id": "p-0", "title": "A", "status": "pending", "order": 0 },
-                        { "id": "p-1", "title": "B", "status": "pending", "order": 1 }
-                    ]
-                }),
-            )
-            .await;
-        // failed_item_id 不存在 → 不替换、不广播，plan 保持原样
-        agent
-            .apply_plan_result(
-                "plan_replan",
-                &serde_json::json!({ "failed_item_id": "nope", "new_steps": [{ "title": "X" }] }),
-            )
-            .await;
-        let plan = agent.get_plan().await.unwrap();
-        assert_eq!(plan.len(), 2, "未命中 failed_item_id 不应改动计划");
-        assert_eq!(plan[0].id, "p-0");
     }
 
     // ─── A6 工具生命周期钩子集成测试 ─────────────────────────────
@@ -2750,7 +2704,7 @@
     #[tokio::test]
     async fn confirmation_four_values_map_to_payload_codes() {
         use crate::confirmation::{ConfirmationOutcome, ConfirmationPolicy, InteractionBroker};
-        use agent_engine::contracts::interaction::{InteractionKind, InteractionOutcome};
+        use agent_engine::contracts::interaction::InteractionOutcome;
         use std::time::Duration;
 
         /// 捕获审批请求（模拟前端：监听族事件 permission 型后回传；UX-b：连带捕获声明元数据）

@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::Value;
 use tokio::sync::RwLock;
@@ -327,119 +326,62 @@ pub(super) fn clamp_tool_result_with(
 }
 
 impl AgentLoop {
-    /// A4 Plan-Exec：解析状态字符串 → `PlanItemStatus`（非法返回 `None`）
-    fn parse_plan_status(s: &str) -> Option<PlanItemStatus> {
-        match s {
-            "pending" => Some(PlanItemStatus::Pending),
-            "in_progress" => Some(PlanItemStatus::InProgress),
-            "completed" => Some(PlanItemStatus::Completed),
-            "skipped" => Some(PlanItemStatus::Skipped),
-            "failed" => Some(PlanItemStatus::Failed),
-            _ => None,
-        }
-    }
-
-    /// A4 Plan-Exec：计划工具结果回调
+    /// A4 Plan-Exec：任务清单结果回调（2026-09-23 归一：`todo_write` 全量重写）
     ///
-    /// 在 `plan_create`/`plan_update` 工具成功返回后调用，把规范化结果写入
-    /// `AgentState.plan` 并广播 `PlanCreated`/`PlanStepUpdate` 事件，使前端
-    /// `usePlanStore` 与 plan 状态保持同步，同时供持久化层随会话保存。
+    /// 工具返回完整清单（全量重写语义）后调用：
+    /// - **合并旧项 output**（工具不回传 output——前端「产出区」沿用）；
+    /// - **结构变化**（增/删/重排：id 序列不同）→ 广播 `PlanCreated { items }`（前端整体刷新）；
+    /// - **仅状态变化**（同 id 同序）→ 逐项广播 `PlanStepUpdate`（计划段/行段归约沿用）；
+    /// - 写 `AgentState.plan`（唯一状态源，随会话持久化）。
     pub(super) async fn apply_plan_result(&self, tool_name: &str, result: &serde_json::Value) {
-        if tool_name == "plan_create" {
-            let items = result
-                .get("items")
-                .and_then(|v| v.as_array())
-                .cloned()
-                .unwrap_or_default();
-            let items: Vec<PlanItem> = items
-                .into_iter()
-                .filter_map(|v| serde_json::from_value(v).ok())
-                .collect();
-            if items.is_empty() {
-                return;
-            }
-            self.state.lock().await.plan = Some(items.clone());
-            self.broadcast(OrchestratorEvent::PlanCreated { items }).await;
-        } else if tool_name == "plan_update" {
-            let item_id = result
-                .get("item_id")
-                .and_then(|v| v.as_str())
-                .map(String::from);
-            let status = result
-                .get("status")
-                .and_then(|v| v.as_str())
-                .and_then(Self::parse_plan_status);
-            if let (Some(item_id), Some(status)) = (item_id, status) {
-                {
-                    let mut state = self.state.lock().await;
-                    if let Some(plan) = &mut state.plan {
-                        if let Some(item) = plan.iter_mut().find(|i| i.id == item_id) {
-                            item.status = status;
-                        }
-                    }
+        if tool_name != "todo_write" {
+            return;
+        }
+        let items: Vec<PlanItem> = result
+            .get("items")
+            .and_then(|v| v.as_array())
+            .cloned()
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|v| serde_json::from_value(v).ok())
+            .collect();
+        if items.is_empty() {
+            return;
+        }
+        let old = self.state.lock().await.plan.clone().unwrap_or_default();
+        // 合并旧 output（同 id 项沿用——工具侧不回传 output 字段）
+        let merged: Vec<PlanItem> = items
+            .into_iter()
+            .map(|mut it| {
+                if let Some(prev) = old.iter().find(|o| o.id == it.id) {
+                    it.output = prev.output.clone();
                 }
+                it
+            })
+            .collect();
+        let same_structure =
+            old.len() == merged.len() && old.iter().zip(&merged).all(|(a, b)| a.id == b.id);
+        {
+            let mut state = self.state.lock().await;
+            state.plan = Some(merged.clone());
+        }
+        if same_structure {
+            let changed: Vec<(String, PlanItemStatus)> = old
+                .iter()
+                .zip(&merged)
+                .filter(|(a, b)| a.status != b.status)
+                .map(|(_, b)| (b.id.clone(), b.status))
+                .collect();
+            for (step_id, status) in changed {
                 self.broadcast(OrchestratorEvent::PlanStepUpdate {
-                    step_id: item_id,
+                    step_id,
                     status,
                     output: None,
                 })
                 .await;
             }
-        } else if tool_name == "plan_replan" {
-            // Replanner：保留失败步骤及其之前的已完成进度，仅替换其后的待执行步骤
-            let failed_item_id = result
-                .get("failed_item_id")
-                .and_then(|v| v.as_str())
-                .map(String::from);
-            let new_steps = result
-                .get("new_steps")
-                .and_then(|v| v.as_array())
-                .cloned()
-                .unwrap_or_default();
-            let new_steps: Vec<PlanItem> = new_steps
-                .into_iter()
-                .filter_map(|v| {
-                    let title = v
-                        .get("title")
-                        .and_then(|t| t.as_str())
-                        .map(|s| s.trim())
-                        .filter(|s| !s.is_empty())?;
-                    Some(PlanItem {
-                        id: String::new(), // 在下方统一生成
-                        title: title.to_string(),
-                        description: v
-                            .get("description")
-                            .and_then(|d| d.as_str())
-                            .map(|d| d.to_string()),
-                        status: PlanItemStatus::Pending,
-                        order: 0, // 在下方统一重排
-                        output: None,
-                    })
-                })
-                .collect();
-            if let (Some(failed_item_id), false) = (failed_item_id, new_steps.is_empty()) {
-                let ts = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .map(|d| d.as_millis())
-                    .unwrap_or(0);
-                let mut state = self.state.lock().await;
-                let Some(plan) = &mut state.plan else { return };
-                let Some(fail_idx) = plan.iter().position(|i| i.id == failed_item_id) else {
-                    return;
-                };
-                // 保留含失败项在内的前缀，丢弃其后待执行步骤
-                let mut new_plan: Vec<PlanItem> = plan[..=fail_idx].to_vec();
-                for (idx, mut step) in new_steps.into_iter().enumerate() {
-                    let order = fail_idx as i32 + 1 + idx as i32;
-                    step.id = format!("plan-item-{ts}-{order}-rev");
-                    step.order = order;
-                    new_plan.push(step);
-                }
-                state.plan = Some(new_plan.clone());
-                drop(state);
-                self.broadcast(OrchestratorEvent::PlanReplanned { items: new_plan })
-                    .await;
-            }
+        } else {
+            self.broadcast(OrchestratorEvent::PlanCreated { items: merged }).await;
         }
     }
 

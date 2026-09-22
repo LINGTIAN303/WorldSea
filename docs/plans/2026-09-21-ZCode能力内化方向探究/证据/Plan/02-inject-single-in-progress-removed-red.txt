@@ -1,0 +1,44 @@
+   Compiling agent-kernel v0.1.0 (D:\WorldSea\crates\agent-kernel)
+   Compiling agent-patterns v0.1.0 (D:\WorldSea\crates\agent-patterns)
+   Compiling agent-runtime v0.1.0 (D:\WorldSea\crates\agent-runtime)
+   Compiling agent-memory v0.1.0 (D:\WorldSea\crates\agent-memory)
+   Compiling agent-index v0.1.0 (D:\WorldSea\crates\agent-index)
+   Compiling agent-commands v0.1.0 (D:\WorldSea\crates\agent-commands)
+   Compiling worldsea-tauri-app v0.1.0 (D:\WorldSea\apps\tauri\src-tauri)
+warning: variable does not need to be mutable
+   --> src\plan_commands.rs:104:17
+    |
+104 |             let mut status = t
+    |                 ----^^^^^^
+    |                 |
+    |                 help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: `worldsea-tauri-app` (lib test) generated 1 warning (run `cargo fix --lib -p worldsea-tauri-app --tests` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 50.47s
+     Running unittests src\lib.rs (target\debug\deps\worldsea_tauri_lib-c6f9def95ecedd36.exe)
+
+running 4 tests
+test plan_commands::tests::plan_tools_exposes_single_tool ... ok
+test plan_commands::tests::todo_write_rejects_empty_and_malformed ... ok
+test plan_commands::tests::todo_write_normalizes_full_list_with_ids ... ok
+test plan_commands::tests::todo_write_enforces_single_in_progress_softly ... FAILED
+
+failures:
+
+---- plan_commands::tests::todo_write_enforces_single_in_progress_softly stdout ----
+
+thread 'plan_commands::tests::todo_write_enforces_single_in_progress_softly' (29712) panicked at src\plan_commands.rs:197:9:
+assertion `left == right` failed: 第二个 in_progress 应降级
+  left: String("in_progress")
+ right: "pending"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    plan_commands::tests::todo_write_enforces_single_in_progress_softly
+
+test result: FAILED. 3 passed; 1 failed; 0 ignored; 0 measured; 99 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `--lib`

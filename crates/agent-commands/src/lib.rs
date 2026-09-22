@@ -386,9 +386,14 @@ const B_RAIL_SUPERVISOR_PROMPT: &str = "你是任务主管。根据任务意图�
 任务描述需自包含、指向明确产出；队列已清且无新任务时 done=true。";
 
 /// 2026-09-02 统一待办：复杂任务引导提示（/plan 前缀与研究判型共用）——
-/// 注入用户输入尾部走主 Agent react 链，模型用 plan_create 建待办并严格串行执行。
+/// 注入用户输入尾部走主 Agent react 链，模型用 `todo_write` 建任务清单并逐项推进。
 /// B 轨独立管线（run_plan_execute）自此退役不再触发（代码保留待后续清理）。
-const PLAN_TODO_GUIDANCE: &str = "[执行方式] 这是一个复杂任务：请先用 plan_create 工具创建待办计划（把任务拆解为可独立验收的步骤），然后严格按串行规范推进——每步先 plan_update 设为 in_progress，执行该步骤的真实工作（调用 read_file/execute_command 等工具），完成后才设为 completed，再进行下一步；全部步骤完成后输出最终总结。";
+/// `/plan` 前缀的**短提示**（2026-09-23 引导瘦身）
+///
+/// 长引导词已删除：「何时用 / 怎么用」由 `todo_write` 工具 description 自解释
+/// （模型自发习惯），此处仅标记「本任务请显式规划」。
+const PLAN_TODO_HINT: &str =
+    "[执行方式] 请用 todo_write 把任务拆解为可独立验收的步骤，并逐项推进。";
 
 /// B 轨步骤执行器工具化（2026-09-02）：
 /// `BusToolHandle` 把 orchestrator 的 `ToolHandle`（ReAct 循环调用入口）桥接到
@@ -3909,7 +3914,7 @@ impl AgentCommandService {
     pub async fn send_message(&self, params: SendMessageParams) -> Result<SendMessageResult, CommandError> {
         let agent = self.get_agent(&params.session_id).await?;
         // 2026-09-09 指令层收敛：/plan 前缀统一注入待办引导走主 Agent react 链
-        // （模型用 plan_create 建待办、严格串行执行）；/tot /got /supervisor /multi 前缀已消除。
+        // （模型用 todo_write 建任务清单并逐项推进）；/tot /got /supervisor /multi 前缀已消除。
         let mut react_text = params.text.clone();
         if is_plan_prefix(&params.text) {
             let text = strip_first_token(&params.text);
@@ -3918,7 +3923,7 @@ impl AgentCommandService {
                     "模式前缀后缺少任务描述（如 /plan 你的计划）".into(),
                 ));
             }
-            react_text = format!("{text}\n\n{PLAN_TODO_GUIDANCE}");
+            react_text = format!("{text}\n\n{PLAN_TODO_HINT}");
         }
         // M4-2/M4-5（A1 自动为主 + B10 缓存）：判型 = force_pipeline 前缀 → 请求级缓存 → LLM 预判型。
         // 非 query（研究/实验/创作）自动进编排：转 run_plan_execute（编排 run 发 orchestration_trace
@@ -3956,16 +3961,12 @@ impl AgentCommandService {
             Pipeline::Research | Pipeline::Experiment | Pipeline::Compose
         );
         if is_complex {
-            // 2026-09-02 统一待办：复杂判型不再进 B 轨独立管线，注入待办引导落 react 链。
-            // 有前缀（/调研 等 Chip）才剥离首 token；/plan 前缀已在上方注入过引导（防重复）。
-            if !react_text.contains(PLAN_TODO_GUIDANCE) {
-                let text = if forced.is_some() {
-                    strip_first_token(&params.text)
-                } else {
-                    params.text.clone()
-                };
+            // 2026-09-23 引导瘦身：不再注入计划引导（todo_write description 自解释，模型自发使用）；
+            // 前缀（/调研 等 Chip）仍剥离首 token（展示与消息一致性）。
+            if forced.is_some() {
+                let text = strip_first_token(&params.text);
                 if !text.is_empty() {
-                    react_text = format!("{text}\n\n{PLAN_TODO_GUIDANCE}");
+                    react_text = text;
                 }
             }
         }

@@ -21,7 +21,7 @@ pub struct AgentState {
     pub aborted: bool,
     /// 是否暂停
     pub paused: bool,
-    /// A4 Plan-Exec：当前任务计划（由 plan_create 创建、plan_update 推进，随会话持久化）
+    /// A4 Plan-Exec：当前任务计划（由 `todo_write` 全量重写，随会话持久化）
     pub plan: Option<Vec<PlanItem>>,
 }
 

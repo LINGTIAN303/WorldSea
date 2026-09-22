@@ -191,8 +191,7 @@ export const TOOL_LABELS: Record<string, string> = {
   magic_get_skill_tree: '获取技能树',
   magic_validate_tree: '验证技能树',
   magic_export_skill_tree: '导出技能树',
-  plan_create: '创建计划',
-  plan_update: '更新计划',
+  todo_write: '更新任务清单',
   // Q1（2026-09-20）：模型主动提问工具（提问面板本体由 WsAskDialog 承载）
   ask_user_question: '向你提问',
   image_generate: '图片生成',
