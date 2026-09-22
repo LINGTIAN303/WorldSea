@@ -17,6 +17,7 @@ pub mod sandbox;
 mod workspace_path;
 mod workspace_tools;
 mod run_store;
+mod session_boundaries;
 mod session_branch;
 mod session_checkpoint;
 mod session_fork;
@@ -63,6 +64,7 @@ pub use session_store::{
 };
 // 阶段 3 · ④（D14：本期不做 UI）：重建 API 作为 crate 公共面暴露，
 // 供诊断 / 后续面板消费；「重建语义（结构级）」见 08-请求头快照设计草案 D10。
+pub use session_boundaries::RequestBoundaryDto;
 pub use session_store::{reconstruct_request_view, RequestSnapshotRecord};
 pub use subagent::{register_subagent_tools, SubAgentInstanceInfo, SubAgentManager};
 pub use subagent_store::{SqliteSubAgentSpecStore, SubAgentSpecStore};
@@ -4301,6 +4303,20 @@ impl AgentCommandService {
         };
         crate::session_checkpoint::list_checkpoint_refs(store.as_ref(), tasks, session_id, limit)
             .await
+    }
+
+    /// UX-a：请求边界列表（分叉 / 回滚锚点视图——历史抽屉与消息行入口的数据源）
+    ///
+    /// `limit <= 0` 不截断；未配置持久化存储 → 空列表（无边界可言，非错误）。
+    pub async fn list_request_boundaries(
+        &self,
+        session_id: &str,
+        limit: i64,
+    ) -> Result<Vec<RequestBoundaryDto>, CommandError> {
+        let Some(store) = self.session_store.as_ref() else {
+            return Ok(Vec::new());
+        };
+        crate::session_boundaries::list_request_boundaries(store.as_ref(), session_id, limit).await
     }
 
     /// S3-e2：会话分支事件广播（先取总线句柄、**壳锁外**分发——锁纪律同 `AgentLoop::broadcast`）。

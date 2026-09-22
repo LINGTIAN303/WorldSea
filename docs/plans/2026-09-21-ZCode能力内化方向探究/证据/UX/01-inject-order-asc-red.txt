@@ -1,0 +1,37 @@
+   Compiling agent-commands v0.1.0 (D:\WorldSea\crates\agent-commands)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 20.24s
+     Running unittests src\lib.rs (target\debug\deps\agent_commands-29606f13eab61d7a.exe)
+
+running 6 tests
+test session_boundaries::tests::extract_user_text_takes_last_user_message ... ok
+test session_boundaries::tests::extract_user_text_rejects_malformed_and_empty ... ok
+test session_boundaries::tests::boundaries_empty_for_unknown_session ... ok
+test session_boundaries::tests::boundaries_listed_descending_with_user_text ... FAILED
+test session_boundaries::tests::boundaries_limit_keeps_newest_zero_means_all ... FAILED
+test session_boundaries::tests::boundaries_mark_checkpoint_on_seq ... ok
+
+failures:
+
+---- session_boundaries::tests::boundaries_listed_descending_with_user_text stdout ----
+
+thread 'session_boundaries::tests::boundaries_listed_descending_with_user_text' (424) panicked at src\session_boundaries_tests.rs:74:5:
+assertion `left == right` failed: 必须降序（最新在前）
+  left: [0, 1, 2]
+ right: [2, 1, 0]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- session_boundaries::tests::boundaries_limit_keeps_newest_zero_means_all stdout ----
+
+thread 'session_boundaries::tests::boundaries_limit_keeps_newest_zero_means_all' (25576) panicked at src\session_boundaries_tests.rs:119:5:
+assertion `left == right` failed: limit=2 应取最新两条（降序）
+  left: [0, 1]
+ right: [4, 3]
+
+
+failures:
+    session_boundaries::tests::boundaries_limit_keeps_newest_zero_means_all
+    session_boundaries::tests::boundaries_listed_descending_with_user_text
+
+test result: FAILED. 4 passed; 2 failed; 0 ignored; 0 measured; 264 filtered out; finished in 0.05s
+
+error: test failed, to rerun pass `--lib`

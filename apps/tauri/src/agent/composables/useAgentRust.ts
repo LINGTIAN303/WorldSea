@@ -20,8 +20,9 @@ import { ref, computed, reactive, readonly } from 'vue'
 import { invoke as tauriInvoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn, isHttpBackend, invokeRpc, invoke } from './transport'
 import { useConfirm, useAsk, type AskQuestion } from '@worldsea/ui-kit'
-import { toastWarn } from '@/composables/useToast'
+import { toastSuccess, toastWarn } from '@/composables/useToast'
 import { useOrchEvents } from './useOrchEvents'
+import { setupBranchListener, teardownBranchListener } from './useSessionBranch'
 import { ALL_TOOLS_MAP, loadApiKey, type IToolContext } from '@agent/index'
 // H3 Skills 点火（P1，2026-08-30）：技能索引注入 + 已安装技能扫描合并
 import { buildSkillIndexPrompt, initSkillRegistry } from '@agent/skills/registry'
@@ -2391,6 +2392,7 @@ async function deleteSession(sessionId: string): Promise<void> {
   teardownInteractionListener(sessionId)
   teardownTraceListener(sessionId)
   teardownOrchestrationTraceListener(sessionId)
+  teardownBranchListener(sessionId)
   if (currentSessionId.value === sessionId) {
     // 删除的是当前会话 → 恢复空状态草稿（2026-09-10 用户反馈：删除后应回空态会话，
     // 而非被侧栏 watch→refresh 的自动恢复锚定到其他会话）。复用 newDraftSession 完整
@@ -2527,6 +2529,7 @@ async function switchSession(sessionId: string): Promise<void> {
     teardownOrchListener(oldSessionId)
     teardownOrchSupervisorListener(oldSessionId)
     teardownOrchestrationTraceListener(oldSessionId)
+    teardownBranchListener(oldSessionId)
   }
   currentSessionId.value = sessionId
   // Phase 4 工作区：切换会话时恢复该会话绑定的工作区根目录（列表缺省为 null=不限定）
@@ -2549,6 +2552,24 @@ async function switchSession(sessionId: string): Promise<void> {
   await setupOrchListener(sessionId)
   await setupOrchSupervisorListener(sessionId)
   await setupOrchestrationTraceListener(sessionId)
+  // UX-a 会话分支：命令只触发、事件才反馈（分叉→切子会话；回滚→清缓存重载；打点→提示）
+  await setupBranchListener(sessionId, {
+    onForked: (childId) => {
+      toastSuccess('已分叉到新会话')
+      sessionMessagesCache.delete(childId)
+      sessionTurnsCache.delete(childId)
+      void refreshSessionList().then(() => switchSession(childId))
+    },
+    onRewound: () => {
+      toastSuccess('已回滚到该请求边界')
+      sessionMessagesCache.delete(sessionId)
+      sessionTurnsCache.delete(sessionId)
+      void switchSession(sessionId)
+    },
+    onCheckpointCreated: (_seq, kind) => {
+      if (kind === 'manual') toastSuccess('已创建检查点')
+    },
+  })
   // FrontendToolBridge：全局桥监听器幂等注册（保证任意会话切换路径可用）
   await setupToolBridgeListener()
   // Phase 3：切换会话后同步刷新目录实体，保证会话树分组最新

@@ -1,0 +1,29 @@
+   Compiling agent-commands v0.1.0 (D:\WorldSea\crates\agent-commands)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 21.99s
+     Running unittests src\lib.rs (target\debug\deps\agent_commands-29606f13eab61d7a.exe)
+
+running 6 tests
+test session_boundaries::tests::extract_user_text_takes_last_user_message ... FAILED
+test session_boundaries::tests::extract_user_text_rejects_malformed_and_empty ... ok
+test session_boundaries::tests::boundaries_empty_for_unknown_session ... ok
+test session_boundaries::tests::boundaries_listed_descending_with_user_text ... ok
+test session_boundaries::tests::boundaries_limit_keeps_newest_zero_means_all ... ok
+test session_boundaries::tests::boundaries_mark_checkpoint_on_seq ... ok
+
+failures:
+
+---- session_boundaries::tests::extract_user_text_takes_last_user_message stdout ----
+
+thread 'session_boundaries::tests::extract_user_text_takes_last_user_message' (19072) panicked at src\session_boundaries_tests.rs:187:5:
+assertion `left == right` failed: 必须取视图内最后一条 User 消息（边界 = 本请求的用户输入）
+  left: Some("旧问")
+ right: Some("新问")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    session_boundaries::tests::extract_user_text_takes_last_user_message
+
+test result: FAILED. 5 passed; 1 failed; 0 ignored; 0 measured; 264 filtered out; finished in 0.05s
+
+error: test failed, to rerun pass `--lib`

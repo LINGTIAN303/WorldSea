@@ -1661,6 +1661,21 @@ pub async fn list_checkpoints(
         .map_err(|e| e.to_string())
 }
 
+/// UX-a：请求边界列表（分叉 / 回滚的锚点视图——历史抽屉与消息行入口的数据源）
+///
+/// `limit <= 0` 不截断；`userText` 供消息行匹配（匹配不到则不显示入口，绝不猜锚点）。
+#[tauri::command]
+pub async fn list_request_boundaries(
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+    limit: Option<i64>,
+) -> Result<Vec<agent_commands::RequestBoundaryDto>, String> {
+    state
+        .list_request_boundaries(&session_id, limit.unwrap_or(0))
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// S4-c：重载会话项目规则（`{workdir}/.worldsea/permissions.json`）——编辑规则文件后调用生效
 ///
 /// 返回是否加载到规则（false = 未声明 / 坏 JSON / 无工作区）。

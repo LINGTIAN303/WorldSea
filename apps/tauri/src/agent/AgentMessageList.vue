@@ -41,6 +41,8 @@
       <AgentStreamList
         :items="windowedDisplayItems.items"
         :plan-zones-collapsed="planZonesCollapsed"
+        :branchable="branchableMsg"
+        @branch="(e) => onBranchAction(e)"
         @block-action="emit('block-action', $event)"
         @manuscript-local-action="emit('manuscript-local-action', $event)"
         @copy="emit('copy', $event)"
@@ -164,6 +166,7 @@ import { useOrchestrationTrace } from './composables/useOrchestrationTrace'
 import { useSessionViewState, normalizeSceneId, DEFAULT_SCENE_ID } from './composables/useSessionViewState'
 import { invoke } from './composables/transport'
 import { useAgentRust } from './composables/useAgentRust'
+import { useBranchMessageBridge } from './composables/useSessionBranch'
 import { SCENE_SLIDER_OPTIONS } from '@/space/chat/scenes'
 import type { ExecTab } from '@/space/stores/space-store'
 import WorldSeaLogo from '@/components/brand/WorldSeaLogo.vue'
@@ -178,6 +181,11 @@ const { latestStepBudget, clearStepBudgetHint, sendMessage: sendAgentMessage, la
 // M2：编排迹线（状态由 useAgentRust 会话生命周期统一维护，本组件纯消费）+ 中止处理
 const { activeRun, finishedRuns } = useOrchestrationTrace()
 const sessionViewState = useSessionViewState()
+// UX-a 会话分支：用户行的分叉 / 回滚入口（边界匹配与执行收敛在 composable；匹配不到不显示）
+const { branchable: branchableMsg, onBranch: onBranchAction } = useBranchMessageBridge(
+  () => currentSessionId.value,
+  () => turns.value.length,
+)
 
 // 空态欢迎语（2026-09-10 场景化）：按当前生效场景渲染 scenes.ts 文案。
 // 场景判定与 SessionSidebar 滑块同口径：草稿态优先草稿场景（切滑块即时响应），

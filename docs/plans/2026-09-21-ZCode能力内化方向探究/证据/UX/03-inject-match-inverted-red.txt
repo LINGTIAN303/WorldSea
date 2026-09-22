@@ -1,0 +1,135 @@
+npm warn Unknown project config "node-linker". This will stop working in the next major version of npm.
+npm warn Unknown project config "store-dir". This will stop working in the next major version of npm.
+
+[1m[46m RUN [49m[22m [36mv3.2.7 [39m[90mD:/WorldSea[39m
+
+ [31m❯[39m apps/tauri/src/agent/__tests__/useSessionBranch.spec.ts [2m([22m[2m12 tests[22m[2m | [22m[31m5 failed[39m[2m)[22m[32m 38[2mms[22m[39m
+[31m   [31m×[31m matchBoundaryForTurn[2m > [22m精确匹配返回对应边界[39m[32m 19[2mms[22m[39m
+[31m     → expected 2 to be 1 // Object.is equality[39m
+[31m   [31m×[31m matchBoundaryForTurn[2m > [22m超长文本按 120 字符截断对齐（Rust 侧同口径）[39m[32m 2[2mms[22m[39m
+[31m     → expected undefined to be '长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长…' // Object.is equality[39m
+[31m   [31m×[31m matchBoundaryForTurn[2m > [22m重复文本按时间就近消歧[39m[32m 1[2mms[22m[39m
+[31m     → expected undefined to be 9 // Object.is equality[39m
+[31m   [31m×[31m matchBoundaryForTurn[2m > [22m匹配不到必须返回 null（绝不猜锚点）[39m[32m 4[2mms[22m[39m
+[31m     → expected { requestSeq: +0, …(6) } to be null[39m
+[31m   [31m×[31m matchBoundaryForTurn[2m > [22memoji 代理对安全（按字符而非 UTF-16 单元截断）[39m[32m 1[2mms[22m[39m
+[31m     → expected undefined to be '🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈…' // Object.is equality[39m
+   [32m✓[39m 命令面（命令名与参数与 Rust 逐字对齐）[2m > [22mforkAt → fork_session{sessionId, requestSeq}[32m 2[2mms[22m[39m
+   [32m✓[39m 命令面（命令名与参数与 Rust 逐字对齐）[2m > [22mrewindAt → rewind_session{sessionId, requestSeq}[32m 1[2mms[22m[39m
+   [32m✓[39m 命令面（命令名与参数与 Rust 逐字对齐）[2m > [22mcreateCheckpoint → create_checkpoint{sessionId}[32m 1[2mms[22m[39m
+   [32m✓[39m 命令面（命令名与参数与 Rust 逐字对齐）[2m > [22mloadBoundaries/loadCheckpoints 写入共享状态且容忍非数组返回[32m 2[2mms[22m[39m
+   [32m✓[39m 分支事件监听[2m > [22m事件三型分派到对应 hooks[32m 2[2mms[22m[39m
+   [32m✓[39m 分支事件监听[2m > [22m监听幂等（重复 setup 只注册一次）与 teardown 清理[32m 1[2mms[22m[39m
+   [32m✓[39m 分支事件监听[2m > [22m未知 type 不触发任何 hook（前向兼容）[32m 1[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 5 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m apps/tauri/src/agent/__tests__/useSessionBranch.spec.ts[2m > [22mmatchBoundaryForTurn[2m > [22m精确匹配返回对应边界
+[31m[1mAssertionError[22m: expected 2 to be 1 // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 1[39m
+[31m+ 2[39m
+
+[36m [2m❯[22m apps/tauri/src/agent/__tests__/useSessionBranch.spec.ts:[2m52:59[22m[39m
+    [90m 50| [39m  [34mit[39m([32m'精确匹配返回对应边界'[39m[33m,[39m () [33m=>[39m {
+    [90m 51| [39m    const list = [boundary({ requestSeq: 2, userText: '第二问' }), bounda…
+    [90m 52| [39m    [34mexpect[39m([34mmatchBoundaryForTurn[39m(list[33m,[39m [32m'第一问'[39m)[33m?.[39mrequestSeq)[33m.[39m[34mtoBe[39m([34m1[39m)
+    [90m   | [39m                                                          [31m^[39m
+    [90m 53| [39m  })
+    [90m 54| [39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m apps/tauri/src/agent/__tests__/useSessionBranch.spec.ts[2m > [22mmatchBoundaryForTurn[2m > [22m超长文本按 120 字符截断对齐（Rust 侧同口径）
+[31m[1mAssertionError[22m: expected undefined to be '长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长…' // Object.is equality[39m
+
+[32m- Expected:[39m 
+"长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长"
+
+[31m+ Received:[39m 
+undefined
+
+[36m [2m❯[22m apps/tauri/src/agent/__tests__/useSessionBranch.spec.ts:[2m58:87[22m[39m
+    [90m 56| [39m    [35mconst[39m long [33m=[39m [32m'长'[39m[33m.[39m[34mrepeat[39m([34m300[39m)
+    [90m 57| [39m    [35mconst[39m truncated [33m=[39m [32m'长'[39m[33m.[39m[34mrepeat[39m([33mUSER_TEXT_PREVIEW_CHARS[39m)
+    [90m 58| [39m    expect(matchBoundaryForTurn([boundary({ userText: truncated })], l…
+    [90m   | [39m                                                                                      [31m^[39m
+    [90m 59| [39m  })
+    [90m 60| [39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m apps/tauri/src/agent/__tests__/useSessionBranch.spec.ts[2m > [22mmatchBoundaryForTurn[2m > [22m重复文本按时间就近消歧
+[31m[1mAssertionError[22m: expected undefined to be 9 // Object.is equality[39m
+
+[32m- Expected:[39m 
+9
+
+[31m+ Received:[39m 
+undefined
+
+[36m [2m❯[22m apps/tauri/src/agent/__tests__/useSessionBranch.spec.ts:[2m66:66[22m[39m
+    [90m 64| [39m      boundary({ requestSeq: 9, userText: '重复问题', capturedAtMs: 9000 }…
+    [90m 65| [39m    ]
+    [90m 66| [39m    expect(matchBoundaryForTurn(list, '重复问题', 8800)?.requestSeq).toBe(…
+    [90m   | [39m                                                                 [31m^[39m
+    [90m 67| [39m    expect(matchBoundaryForTurn(list, '重复问题', 5200)?.requestSeq).toBe(…
+    [90m 68| [39m  })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m apps/tauri/src/agent/__tests__/useSessionBranch.spec.ts[2m > [22mmatchBoundaryForTurn[2m > [22m匹配不到必须返回 null（绝不猜锚点）
+[31m[1mAssertionError[22m: expected { requestSeq: +0, …(6) } to be null[39m
+
+[32m- Expected:[39m 
+null
+
+[31m+ Received:[39m 
+{
+  "capturedAtMs": 1000,
+  "checkpointId": null,
+  "checkpointKind": null,
+  "modelId": "m",
+  "purpose": "main",
+  "requestSeq": 0,
+  "userText": "甲",
+}
+
+[36m [2m❯[22m apps/tauri/src/agent/__tests__/useSessionBranch.spec.ts:[2m73:70[22m[39m
+    [90m 71| [39m    [34mexpect[39m([34mmatchBoundaryForTurn[39m([][33m,[39m [32m'任意'[39m))[33m.[39m[34mtoBeNull[39m()
+    [90m 72| [39m    expect(matchBoundaryForTurn([boundary({ userText: null })], '任意'))…
+    [90m 73| [39m    expect(matchBoundaryForTurn([boundary({ userText: '甲' })], '乙')).t…
+    [90m   | [39m                                                                     [31m^[39m
+    [90m 74| [39m    [34mexpect[39m([34mmatchBoundaryForTurn[39m([[34mboundary[39m()][33m,[39m [32m'   '[39m))[33m.[39m[34mtoBeNull[39m()
+    [90m 75| [39m  })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m apps/tauri/src/agent/__tests__/useSessionBranch.spec.ts[2m > [22mmatchBoundaryForTurn[2m > [22memoji 代理对安全（按字符而非 UTF-16 单元截断）
+[31m[1mAssertionError[22m: expected undefined to be '🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈…' // Object.is equality[39m
+
+[32m- Expected:[39m 
+"🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈🎈"
+
+[31m+ Received:[39m 
+undefined
+
+[36m [2m❯[22m apps/tauri/src/agent/__tests__/useSessionBranch.spec.ts:[2m81:87[22m[39m
+    [90m 79| [39m    [35mconst[39m truncated [33m=[39m [32m'🎈'[39m[33m.[39m[34mrepeat[39m([33mUSER_TEXT_PREVIEW_CHARS[39m)
+    [90m 80| [39m    [34mexpect[39m([33mArray[39m[33m.[39m[35mfrom[39m(truncated)[33m.[39mlength)[33m.[39m[34mtoBe[39m([33mUSER_TEXT_PREVIEW_CHARS[39m)
+    [90m 81| [39m    expect(matchBoundaryForTurn([boundary({ userText: truncated })], t…
+    [90m   | [39m                                                                                      [31m^[39m
+    [90m 82| [39m  })
+    [90m 83| [39m})
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m5 failed[39m[22m[2m | [22m[1m[32m7 passed[39m[22m[90m (12)[39m
+[2m   Start at [22m 22:24:56
+[2m   Duration [22m 25.26s[2m (transform 4.64s, setup 0ms, collect 20.29s, tests 38ms, environment 3.21s, prepare 446ms)[22m
+

@@ -29,10 +29,12 @@
         :item="group.user"
         :animated="animatedIds.has(group.user.id)"
         :is-hovered="hoveredId === group.user.id"
+        :branchable="branchable"
         @hover="onHover"
         @leave="onLeave"
         @copy="(m) => emit('copy', m)"
         @retry="(m) => emit('retry', m)"
+        @branch="(e) => emit('branch', e)"
       />
       <!-- ② LLM 过程层（data-turn-id 供折叠控制器做视口判定） -->
       <div v-if="group.process.length > 0" class="ws-turn-process" :data-turn-id="group.id">
@@ -104,6 +106,8 @@ const props = defineProps<{
   items: AgentStreamItem[]
   /** 2026-09-04 待办项升级：计划步骤折叠区的区级折叠态（turnId → planCollapsed，数据层持久） */
   planZonesCollapsed?: Record<string, boolean>
+  /** UX-a：用户行的分支可操作性（透传至 UserRow；见其 props 注释） */
+  branchable?: (msg: AgentMessage) => boolean
 }>()
 
 /**
@@ -184,6 +188,8 @@ const emit = defineEmits<{
   (e: 'leave'): void
   (e: 'copy', msg: AgentMessage): void
   (e: 'retry', msg: AgentMessage): void
+  /** UX-a：用户行的分叉 / 回滚入口（上层做边界匹配与执行） */
+  (e: 'branch', payload: { action: 'fork' | 'rewind'; msg: AgentMessage }): void
   (e: 'tool-confirm', event: { toolId: string; approved: boolean }): void
   /** 用户展开了某轮次的某个行段 → 置 userEverExpanded latch（折叠三条件分派用） */
   (e: 'segment-expand', turnId: string): void

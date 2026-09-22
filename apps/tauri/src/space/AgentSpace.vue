@@ -114,6 +114,8 @@
       </Transition>
     </div>
 
+    <!-- UX-a 历史与分支抽屉（显隐由 useSessionBranch.panelOpen 驱动；SessionSidebar 入口打开） -->
+    <SessionBranchPanel />
     <!-- P3-W4 续：SettingsDialog 业务弹窗恢复 -->
     <SettingsDialog :show="settingsOpen" @close="settingsOpen = false" />
     <ShortcutHelpModal :show="shortcutHelpOpen" @close="shortcutHelpOpen = false" />
@@ -137,6 +139,7 @@ import MemoryShelf from './panels/MemoryShelf.vue'
 import SemanticSearchCard from './panels/SemanticSearchCard.vue'
 import PersonaMirror from './panels/PersonaMirror.vue'
 import ExecPanel from './panels/ExecPanel.vue'
+import SessionBranchPanel from '@/agent/panels/SessionBranchPanel.vue'
 import CreationPanel from './panels/CreationPanel.vue'
 import PreviewPanel from './panels/PreviewPanel.vue'
 import SettingsDialog from '@/ui/settings/SettingsDialog.vue'

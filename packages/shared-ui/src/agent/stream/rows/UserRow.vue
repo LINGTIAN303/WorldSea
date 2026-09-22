@@ -44,6 +44,23 @@
 
       <!-- N2 修复：复制=copy、重试=redo（原 outline/delete 图标与功能语义错位） -->
       <div class="msg-actions" :class="{ visible: isHovered }">
+        <!-- UX-a 会话分支：仅当上层匹配到该消息对应的请求边界时显示（匹配不到不显示——绝不猜锚点） -->
+        <button
+          v-if="canBranch"
+          type="button"
+          class="action-btn"
+          title="从此处分叉"
+          aria-label="从此处分叉"
+          @click="emit('branch', { action: 'fork', msg })"
+        ><WsIcon name="tree" size="xs" /></button>
+        <button
+          v-if="canBranch"
+          type="button"
+          class="action-btn"
+          title="回滚到此处"
+          aria-label="回滚到此处"
+          @click="emit('branch', { action: 'rewind', msg })"
+        ><WsIcon name="undo" size="xs" /></button>
         <button type="button" class="action-btn" title="复制" aria-label="复制消息" @click="emit('copy', msg)"><WsIcon name="copy" size="xs" /></button>
         <button type="button" class="action-btn" title="重试" aria-label="重试消息" @click="emit('retry', msg)"><WsIcon name="redo" size="xs" /></button>
         <span class="msg-time">{{ actions.timeLabel }}</span>
@@ -60,10 +77,15 @@ import { renderMarkdownHtml } from '../../bubbles/useMarkdownRender'
 import '../../bubbles/agent-markdown.css'
 import type { AgentMessage, UserContentSegment } from '../../bubbles/types'
 
-/** 用户行 props：消息体 + 是否 hover（驱动操作栏显隐） */
+/** 用户行 props：消息体 + 是否 hover（驱动操作栏显隐）+ 分支可操作性（上层注入） */
 const props = defineProps<{
   msg: AgentMessage
   isHovered?: boolean
+  /**
+   * 分支可操作判定（UX-a）：上层用请求边界列表匹配该消息；返回 false / 未注入
+   * → 不显示分叉 / 回滚按钮（**匹配不到不显示**——绝不猜锚点）
+   */
+  branchable?: (msg: AgentMessage) => boolean
 }>()
 
 const emit = defineEmits<{
@@ -71,12 +93,16 @@ const emit = defineEmits<{
   (e: 'leave'): void
   (e: 'copy', msg: AgentMessage): void
   (e: 'retry', msg: AgentMessage): void
+  (e: 'branch', payload: { action: 'fork' | 'rewind'; msg: AgentMessage }): void
 }>()
 
 // ===== 定时唤醒行（批次 C·S1，2026-09-20）=====
 /** 来源标记：消息 metadata.input_kind（Rust 侧注入的 user 消息 meta 透传） */
 const isTimer = computed(() => props.msg.metadata?.input_kind === 'timer')
 const timerExpanded = ref(false)
+
+/** 本行是否可分支（上层注入的边界匹配函数；函数内读响应式数据，列表更新后自动重判） */
+const canBranch = computed(() => !isTimer.value && !!props.branchable?.(props.msg))
 /** 定时唤醒载荷较长时提供折叠（按字符粗判，避免 DOM 测量） */
 const timerOverflow = computed(() => (props.msg.content || '').length > 240)
 

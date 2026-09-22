@@ -13,10 +13,12 @@
     :class="animated ? 'ws-stream-row-enter' : undefined"
     :msg="item.msg"
     :is-hovered="isHovered"
+    :branchable="branchable"
     @hover="emit('hover', item.id)"
     @leave="emit('leave')"
     @copy="(m) => emit('copy', m)"
     @retry="(m) => emit('retry', m)"
+    @branch="(e) => emit('branch', e)"
   />
   <!-- 正文行：isResult 决定操作栏与结果层样式（过程文本段无操作栏） -->
   <AssistantRow
@@ -77,6 +79,8 @@ defineProps<{
   animated?: boolean
   /** 本行是否处于 hover（驱动 User/Assistant 操作栏显隐） */
   isHovered?: boolean
+  /** UX-a：用户行的分支可操作性（透传 UserRow；见其 props 注释） */
+  branchable?: (msg: AgentMessage) => boolean
 }>()
 
 const emit = defineEmits<{
@@ -84,6 +88,7 @@ const emit = defineEmits<{
   (e: 'leave'): void
   (e: 'copy', msg: AgentMessage): void
   (e: 'retry', msg: AgentMessage): void
+  (e: 'branch', payload: { action: 'fork' | 'rewind'; msg: AgentMessage }): void
   (e: 'block-action', event: BlockActionEvent): void
   (e: 'manuscript-local-action', event: BlockActionEvent): void
   (e: 'tool-confirm', event: { toolId: string; approved: boolean }): void

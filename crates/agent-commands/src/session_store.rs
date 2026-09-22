@@ -403,6 +403,18 @@ pub trait SessionRepository: Send + Sync {
     ) -> Result<Vec<RequestSnapshotRecord>, CommandError> {
         Ok(Vec::new())
     }
+    /// UX-a：请求边界轻量列表（降序取最近 `limit` 条；`limit <= 0` 不截断）。
+    ///
+    /// 与 [`Self::load_request_snapshots`] 的差别：**方向相反 + 只出 UI 字段**
+    /// （不带快照本体；用户消息摘要与检查点标注见 `session_boundaries`）。
+    /// 默认空——不支持请求快照的后端无边界可列。
+    async fn recent_request_boundaries(
+        &self,
+        _session_id: &str,
+        _limit: i64,
+    ) -> Result<Vec<crate::session_boundaries::RequestBoundaryDto>, CommandError> {
+        Ok(Vec::new())
+    }
     /// 删除会话及其全部持久化痕迹（级联：视图 / 日志 / 事件）
     async fn delete_session(&self, session_id: &str) -> Result<(), CommandError>;
     /// 物理清理空会话（启动恢复时调用），返回清理条数。
@@ -1582,6 +1594,14 @@ impl SessionRepository for SqliteSessionRepository {
             });
         }
         Ok(out)
+    }
+
+    async fn recent_request_boundaries(
+        &self,
+        session_id: &str,
+        limit: i64,
+    ) -> Result<Vec<crate::session_boundaries::RequestBoundaryDto>, CommandError> {
+        crate::session_boundaries::recent_boundaries(self, session_id, limit).await
     }
 
     async fn delete_session(&self, session_id: &str) -> Result<(), CommandError> {

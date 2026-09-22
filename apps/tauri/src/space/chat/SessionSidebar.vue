@@ -48,6 +48,17 @@
             <span class="kb-entry-label">知识库</span>
           </button>
         </div>
+        <!-- UX-a 历史与分支入口（分叉 / 回滚 / 检查点；抽屉组件见 SessionBranchPanel） -->
+        <div class="sidebar-kb-row">
+          <button
+            class="kb-entry-btn"
+            title="历史与分支（分叉 / 回滚 / 检查点）"
+            @click="openBranchPanel()"
+          >
+            <WsIcon name="tree" size="sm" />
+            <span class="kb-entry-label">历史与分支</span>
+          </button>
+        </div>
         <div class="sidebar-search">
           <div class="search-box">
             <WsIcon name="search" size="sm" class="search-icon" />
@@ -231,6 +242,7 @@ import { WsIcon } from '@worldsea/ui-kit'
 import KnowledgeWall from '@/agent/panels/KnowledgeWall.vue'
 import { useSpaceStore } from '../stores/space-store'
 import { useSessionViewState, LAST_SESSION_KEY, normalizeSceneId } from '@/agent/composables/useSessionViewState'
+import { openBranchPanel } from '@/agent/composables/useSessionBranch'
 import { SCENE_SLIDER_OPTIONS, type SceneOptionBase } from './scenes'
 import { useAgentPersona } from '../composables/useAgentPersona'
 import { usePersonaFont } from '../composables/usePersonaFont'
