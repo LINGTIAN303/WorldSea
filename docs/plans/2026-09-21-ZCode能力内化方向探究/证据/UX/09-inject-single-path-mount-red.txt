@@ -1,0 +1,102 @@
+npm warn Unknown project config "node-linker". This will stop working in the next major version of npm.
+npm warn Unknown project config "store-dir". This will stop working in the next major version of npm.
+
+[1m[46m RUN [49m[22m [36mv3.2.7 [39m[90mD:/WorldSea[39m
+
+ [31m❯[39m apps/tauri/src/agent/__tests__/interaction-metadata-contract.spec.ts [2m([22m[2m7 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[32m 36[2mms[22m[39m
+   [32m✓[39m 审批载荷元数据（UX-b）：契约 → 装配 → 前端消费三段齐全[2m > [22m契约 Permission 变体带 risk_level / side_effect_scope（default 兼容旧载荷）[32m 3[2mms[22m[39m
+   [32m✓[39m 审批载荷元数据（UX-b）：契约 → 装配 → 前端消费三段齐全[2m > [22mkernel 装配从 descriptor 取线面串并随审批请求下发[32m 1[2mms[22m[39m
+   [32m✓[39m 审批载荷元数据（UX-b）：契约 → 装配 → 前端消费三段齐全[2m > [22m前端 payload 镜像含两字段且弹窗消费（元数据行 + 中文显示名）[32m 2[2mms[22m[39m
+   [32m✓[39m 会话级授权按钮（UX-b）：命令名与后端注册对齐[2m > [22m弹窗附加动作调用 grant_session_permission（工具级全量）且命令已注册[32m 2[2mms[22m[39m
+   [32m✓[39m 项目规则编辑（UX-b）：组件已挂载且命令可达[2m > [22mProjectRulesSection 调用三命令且后端注册在位[32m 1[2mms[22m[39m
+[31m   [31m×[31m 项目规则编辑（UX-b）：组件已挂载且命令可达[2m > [22m双渲染路径都已挂载 ProjectRulesSection（防「组件写了没挂」/「只挂一条路径」）[39m[32m 23[2mms[22m[39m
+[31m     → expected 'idx === 4">\n                <div cla…' to contain '<ProjectRulesSection'[39m
+   [32m✓[39m UX-a 请求边界命令：注册在位（防未来删注册）[2m > [22mlist_request_boundaries 在 Tauri handler 注册[32m 1[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m apps/tauri/src/agent/__tests__/interaction-metadata-contract.spec.ts[2m > [22m项目规则编辑（UX-b）：组件已挂载且命令可达[2m > [22m双渲染路径都已挂载 ProjectRulesSection（防「组件写了没挂」/「只挂一条路径」）
+[31m[1mAssertionError[22m: expected 'idx === 4">\n                <div cla…' to contain '<ProjectRulesSection'[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- <ProjectRulesSection[39m
+[31m+ idx === 4">[39m
+[31m+                 <div class="sc-head">安全</div>[39m
+[31m+                 <div class="settings-section">[39m
+[31m+                   <div class="settings-label">工具安全级别</div>[39m
+[31m+                   <TuiSelect :model-value="securityLevel" :options="securityOptions" @update:model-value="onSecurityLevelChange" />[39m
+[31m+                   <div class="settings-hint">控制 Agent 执行工具前的确认程度，需对当前会话生效</div>[39m
+[31m+                 </div>[39m
+[31m+                 <div class="settings-section perm-rules">[39m
+[31m+                   <div class="settings-label">权限规则</div>[39m
+[31m+                   <div class="settings-hint">白名单=放行例外（受锁覆盖）；上锁名单=硬约束（read/command/write 三维）</div>[39m
+[31m+                   <div class="perm-sub">[39m
+[31m+                     <div class="perm-sub-label">命令白名单</div>[39m
+[31m+                     <div class="perm-add-row">[39m
+[31m+                       <input class="perm-input" v-model="allowCmdDraft" placeholder="命令子串，如 pip install" @keyup.enter="addAllowCommand" />[39m
+[31m+                       <TuiButton size="sm" variant="ghost" @click="addAllowCommand">添加</TuiButton>[39m
+[31m+                     </div>[39m
+[31m+                     <ul class="perm-list">[39m
+[31m+                       <li v-for="c in permRules.allow_commands" :key="c">[39m
+[31m+                         <code class="perm-code">{{ c }}</code>[39m
+[31m+                         <button class="perm-del" title="移除" @click="removeAllowCommand(c)"><WsIcon name="x" size="xs" /></button>[39m
+[31m+                       </li>[39m
+[31m+                       <li v-if="!permRules.allow_commands.length" class="perm-empty">暂无</li>[39m
+[31m+                     </ul>[39m
+[31m+                   </div>[39m
+[31m+                   <div class="perm-sub">[39m
+[31m+                     <div class="perm-sub-label">路径白名单</div>[39m
+[31m+                     <div class="perm-add-row">[39m
+[31m+                       <input class="perm-input" v-model="allowPathDraft" placeholder="目录或文件绝对路径" @keyup.enter="addAllowPath" />[39m
+[31m+                       <TuiButton size="sm" variant="ghost" @click="addAllowPath">添加</TuiButton>[39m
+[31m+                     </div>[39m
+[31m+                     <ul class="perm-list">[39m
+[31m+                       <li v-for="p in permRules.allow_paths" :key="p">[39m
+[31m+                         <code class="perm-code">{{ p }}</code>[39m
+[31m+                         <button class="perm-del" title="移除" @click="removeAllowPath(p)"><WsIcon name="x" size="xs" /></button>[39m
+[31m+                       </li>[39m
+[31m+                       <li v-if="!permRules.allow_paths.length" class="perm-empty">暂无</li>[39m
+[31m+                     </ul>[39m
+[31m+                   </div>[39m
+[31m+                   <div class="perm-sub">[39m
+[31m+                     <div class="perm-sub-label">上锁名单（勾选=允许）</div>[39m
+[31m+                     <div class="perm-add-row">[39m
+[31m+                       <input class="perm-input" v-model="lockPathDraft" placeholder="目录或文件绝对路径" @keyup.enter="addLock" />[39m
+[31m+                       <label class="perm-lock-dim"><input type="checkbox" v-model="lockReadOk" />读</label>[39m
+[31m+                       <label class="perm-lock-dim"><input type="checkbox" v-model="lockCmdOk" />命令</label>[39m
+[31m+                       <label class="perm-lock-dim"><input type="checkbox" v-model="lockWriteOk" />写</label>[39m
+[31m+                       <TuiButton size="sm" variant="ghost" @click="addLock">上锁</TuiButton>[39m
+[31m+                     </div>[39m
+[31m+                     <div class="settings-hint">默认 读√ 命令× 写×（仅挡写/命令，读不受限）</div>[39m
+[31m+                     <ul class="perm-list">[39m
+[31m+                       <li v-for="l in permRules.locks" :key="l.path">[39m
+[31m+                         <code class="perm-code">{{ l.path }}</code>[39m
+[31m+                         <span class="perm-lock-tags">读{{ l.read_ok ? '√' : '×' }} 命令{{ l.command_ok ? '√' : '×' }} 写{{ l.write_ok ? '√' : '×' }}</span>[39m
+[31m+                         <button class="perm-del" title="移除" @click="removeLock(l.path)"><WsIcon name="x" size="xs" /></button>[39m
+[31m+                       </li>[39m
+[31m+                       <li v-if="!permRules.locks.length" class="perm-empty">暂无</li>[39m
+[31m+                     </ul>[39m
+[31m+                   </div>[39m
+[31m+                 </div>[39m
+[31m+               </template>[39m
+[31m+               <!-- 内置工具卡片（2026-09-10：只读目录，按 TOOL_CATEGORIES 20 分类折叠展示） -->[39m
+[31m+               <template v-else-if="idx === 5[39m
+
+[36m [2m❯[22m apps/tauri/src/agent/__tests__/interaction-metadata-contract.spec.ts:[2m78:26[22m[39m
+    [90m 76| [39m    [35mconst[39m embeddedCard [33m=[39m [36m/idx === 4[\s\S]*?idx === 5/[39m[33m.[39m[34mexec[39m(src)[33m?.[39m[[34m0[39m]
+    [90m 77| [39m    [34mexpect[39m(embeddedCard)[33m.[39m[34mtoBeTruthy[39m()
+    [90m 78| [39m    [34mexpect[39m(embeddedCard)[33m.[39m[34mtoContain[39m([32m'<ProjectRulesSection'[39m)
+    [90m   | [39m                         [31m^[39m
+    [90m 79| [39m    [90m// 路径②：非 embedded 的 safety 子面板[39m
+    [90m 80| [39m    const subPanel = /settingsSubPanel === 'safety'[\s\S]*?settingsSub…
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m6 passed[39m[22m[90m (7)[39m
+[2m   Start at [22m 01:35:59
+[2m   Duration [22m 4.48s[2m (transform 78ms, setup 0ms, collect 91ms, tests 36ms, environment 2.85s, prepare 348ms)[22m
+

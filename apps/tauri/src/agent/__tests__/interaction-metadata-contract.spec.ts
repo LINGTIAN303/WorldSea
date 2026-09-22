@@ -69,10 +69,17 @@ describe('项目规则编辑（UX-b）：组件已挂载且命令可达', () => 
     expect(read(LIB)).toContain('commands::reload_project_rules,')
   })
 
-  it('safety 子面板已挂载 ProjectRulesSection（防「组件写了没挂」）', () => {
+  it('双渲染路径都已挂载 ProjectRulesSection（防「组件写了没挂」/「只挂一条路径」）', () => {
     const src = read(SETTINGS_PANEL)
     expect(src).toContain("import ProjectRulesSection from './panels/ProjectRulesSection.vue'")
-    expect(src).toContain('<ProjectRulesSection />')
+    // 路径①：embedded 卡片流的安全卡（idx === 4）——用户日常路径（设置对话框）
+    const embeddedCard = /idx === 4[\s\S]*?idx === 5/.exec(src)?.[0]
+    expect(embeddedCard).toBeTruthy()
+    expect(embeddedCard).toContain('<ProjectRulesSection')
+    // 路径②：非 embedded 的 safety 子面板
+    const subPanel = /settingsSubPanel === 'safety'[\s\S]*?settingsSubPanel === 'persona'/.exec(src)?.[0]
+    expect(subPanel).toBeTruthy()
+    expect(subPanel).toContain('<ProjectRulesSection')
   })
 })
 

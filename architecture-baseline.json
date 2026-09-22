@@ -99,7 +99,7 @@
     "apps/tauri/src-tauri/src/whisper.rs": 571,
     "apps/tauri/src/agent/agentDataBridges.ts": 536,
     "apps/tauri/src/agent/AgentMessageList.vue": 685,
-    "apps/tauri/src/agent/AgentSettingsPanel.vue": 1754,
+    "apps/tauri/src/agent/AgentSettingsPanel.vue": 1757,
     "apps/tauri/src/agent/components/OrchestrationSegment.vue": 520,
     "apps/tauri/src/agent/composables/useAgentRust.ts": 3694,
     "apps/tauri/src/agent/composables/useGroupChat.ts": 476,

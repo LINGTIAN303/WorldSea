@@ -58,6 +58,12 @@
               <button type="button" class="sbp-btn" :disabled="busy" @click="onRewind(b)">回滚</button>
             </div>
           </div>
+          <!-- 长会话分页：窗口拉满才显示（更早的边界逐页加载） -->
+          <div v-if="hasMoreBoundaries" class="sbp-more">
+            <button type="button" class="sbp-btn" :disabled="busy" @click="loadMoreBoundaries">
+              加载更早的边界
+            </button>
+          </div>
         </section>
       </div>
     </aside>
@@ -91,18 +97,40 @@ const taskResumes = computed<CheckpointRef[]>(() =>
   checkpoints.value.filter((c) => c.anchor.kind === 'task_progress'),
 )
 
-/** 打开抽屉 / 切换会话时刷新两表（失败仅告警——面板可空态自处） */
+/** 边界列表分页窗口（长会话：默认 200 条，「加载更多」按页递增——避免一次拉全量） */
+const BOUNDARY_PAGE = 200
+const boundaryLimit = ref(BOUNDARY_PAGE)
+/** 后端返回条数达到窗口上限 → 可能还有更早的边界 */
+const hasMoreBoundaries = computed(() => boundaries.value.length >= boundaryLimit.value)
+
+/** 按当前分页窗口刷新两表（失败仅告警——面板可空态自处） */
+async function reload(): Promise<void> {
+  const sid = currentSessionId.value
+  if (!sid) return
+  await loadBoundaries(sid, boundaryLimit.value).catch((err) =>
+    console.warn('[SessionBranchPanel] 边界加载失败:', err),
+  )
+  await loadCheckpoints(sid).catch((err) =>
+    console.warn('[SessionBranchPanel] 检查点加载失败:', err),
+  )
+}
+
+/** 打开抽屉 / 切换会话时刷新（分页窗口重置为首页） */
 watch(
   [panelOpen, currentSessionId],
   ([open, sid]) => {
     if (!open || !sid) return
-    void loadBoundaries(sid).catch((err) => console.warn('[SessionBranchPanel] 边界加载失败:', err))
-    void loadCheckpoints(sid).catch((err) =>
-      console.warn('[SessionBranchPanel] 检查点加载失败:', err),
-    )
+    boundaryLimit.value = BOUNDARY_PAGE
+    void reload()
   },
   { immediate: true },
 )
+
+/** 加载更早的边界（窗口 +1 页） */
+function loadMoreBoundaries(): void {
+  boundaryLimit.value += BOUNDARY_PAGE
+  void reload()
+}
 
 function anchorSeq(cp: CheckpointRef): string {
   return cp.anchor.kind === 'request_boundary' ? String(cp.anchor.request_seq) : '—'
@@ -118,9 +146,8 @@ function fmtTime(ms: number): string {
   return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
 }
 
-async function refreshAfter(sid: string): Promise<void> {
-  await loadBoundaries(sid).catch(() => {})
-  await loadCheckpoints(sid).catch(() => {})
+async function refreshAfter(): Promise<void> {
+  await reload()
 }
 
 async function onFork(b: RequestBoundaryDto): Promise<void> {
@@ -140,7 +167,7 @@ async function onRewind(b: RequestBoundaryDto): Promise<void> {
   busy.value = true
   try {
     await rewindAtConfirmed(sid, b.requestSeq)
-    await refreshAfter(sid)
+    await refreshAfter()
   } finally {
     busy.value = false
   }
@@ -152,7 +179,7 @@ async function onCreateCheckpoint(): Promise<void> {
   busy.value = true
   try {
     const ok = await createCheckpointConfirmed(sid)
-    if (ok) await refreshAfter(sid)
+    if (ok) await refreshAfter()
   } finally {
     busy.value = false
   }
@@ -293,5 +320,9 @@ async function onCreateCheckpoint(): Promise<void> {
   display: flex;
   gap: 4px;
   flex-shrink: 0;
+}
+.sbp-more {
+  padding: 8px 0;
+  text-align: center;
 }
 </style>

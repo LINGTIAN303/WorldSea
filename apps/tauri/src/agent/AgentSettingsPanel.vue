@@ -194,6 +194,9 @@
                     </ul>
                   </div>
                 </div>
+                <!-- UX-b：项目规则（{workdir}/.worldsea/permissions.json）编辑与重载（S4-c 命令面接线）
+                     注意：本组件有两条渲染路径（embedded 卡片流 / 非 embedded 子面板）——两处都必须挂 -->
+                <ProjectRulesSection />
               </template>
               <!-- 内置工具卡片（2026-09-10：只读目录，按 TOOL_CATEGORIES 20 分类折叠展示） -->
               <template v-else-if="idx === 5">
