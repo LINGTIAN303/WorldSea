@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use agent_runtime::tool::{Tool, ToolError};
+use agent_runtime::tool::{RiskLevel, SideEffectScope, Tool, ToolDescriptor, ToolError};
 use agent_runtime::tool_context::ToolContext;
 use async_trait::async_trait;
 use portable_pty::{Child, MasterPty, PtySize};
@@ -643,6 +643,10 @@ impl Tool for ExecuteCommandTool {
             "required": ["command"]
         })
     }
+    fn descriptor(&self) -> ToolDescriptor {
+        ToolDescriptor::guarded(self.name(), "dev", self.description(), SideEffectScope::System, RiskLevel::Moderate)
+            .with_input_schema(self.parameters())
+    }
     async fn execute(&self, args: serde_json::Value) -> Result<serde_json::Value, ToolError> {
         // execute 走默认上下文（workdir=None），保持旧行为（cwd 缺省为当前进程 cwd）——
         // 终端面板 `TerminalService.execute_command` 走此入口（用户驱动，不受 Agent fail-safe）
@@ -676,6 +680,10 @@ impl Tool for DetectShellsTool {
     }
     fn parameters(&self) -> serde_json::Value {
         serde_json::json!({ "type": "object", "properties": {} })
+    }
+    fn descriptor(&self) -> ToolDescriptor {
+        ToolDescriptor::read_only(self.name(), "dev", self.description(), SideEffectScope::System)
+            .with_input_schema(self.parameters())
     }
     async fn execute(&self, _args: serde_json::Value) -> Result<serde_json::Value, ToolError> {
         let shells: Vec<serde_json::Value> = if cfg!(target_os = "windows") {
@@ -942,6 +950,18 @@ impl Tool for ShellExecTool {
             "required": ["command"]
         })
     }
+    fn descriptor(&self) -> ToolDescriptor {
+        // C2：合并式 shell 执行工具（bash / powershell 两 flavor 同名族）——进程执行
+        // → 不可绕过确认（位次 5）；副作用面 = 系统
+        ToolDescriptor::guarded(
+            self.name(),
+            "dev",
+            self.description(),
+            SideEffectScope::System,
+            RiskLevel::Moderate,
+        )
+        .with_input_schema(self.parameters())
+    }
     async fn execute(&self, args: serde_json::Value) -> Result<serde_json::Value, ToolError> {
         self.execute_with_ctx(&ToolContext::default(), args).await
     }
@@ -1091,6 +1111,10 @@ impl Tool for ShellSessionCreateTool {
             }
         })
     }
+    fn descriptor(&self) -> ToolDescriptor {
+        ToolDescriptor::guarded(self.name(), "dev", self.description(), SideEffectScope::System, RiskLevel::Moderate)
+            .with_input_schema(self.parameters())
+    }
     /// W3（2026-09-18 工作区与环境对齐 dsh）：无工作区 fail-safe + cwd 与命令工具同口径——
     /// 缺省注入工作区、显式越界拒绝（PTY 会话默认落在工作区内）
     ///
@@ -1157,6 +1181,10 @@ impl Tool for ShellSessionExecTool {
             },
             "required": ["session_id", "command"]
         })
+    }
+    fn descriptor(&self) -> ToolDescriptor {
+        ToolDescriptor::guarded(self.name(), "dev", self.description(), SideEffectScope::System, RiskLevel::Moderate)
+            .with_input_schema(self.parameters())
     }
     /// W3（2026-09-18 工作区与环境对齐 dsh）：无工作区 fail-safe（PTY 命令执行同命令类口径）
     ///
@@ -1274,6 +1302,10 @@ impl Tool for ShellSessionInputTool {
             "required": ["session_id", "data"]
         })
     }
+    fn descriptor(&self) -> ToolDescriptor {
+        ToolDescriptor::guarded(self.name(), "dev", self.description(), SideEffectScope::System, RiskLevel::Moderate)
+            .with_input_schema(self.parameters())
+    }
     /// W3（2026-09-18 工作区与环境对齐 dsh）：无工作区 fail-safe（PTY 输入同命令类口径）
     ///
     /// E3-3（2026-09-18）：受限模式下可向受限会话发送输入，但拒绝非受限会话（同 exec 旁路口径）
@@ -1370,6 +1402,10 @@ impl Tool for ShellSessionDestroyTool {
             "required": ["session_id"]
         })
     }
+    fn descriptor(&self) -> ToolDescriptor {
+        ToolDescriptor::guarded(self.name(), "dev", self.description(), SideEffectScope::System, RiskLevel::Moderate)
+            .with_input_schema(self.parameters())
+    }
     async fn execute(&self, args: serde_json::Value) -> Result<serde_json::Value, ToolError> {
         let session_id = args
             .get("session_id")
@@ -1420,6 +1456,10 @@ impl Tool for ShellSessionListTool {
     }
     fn parameters(&self) -> serde_json::Value {
         serde_json::json!({ "type": "object", "properties": {} })
+    }
+    fn descriptor(&self) -> ToolDescriptor {
+        ToolDescriptor::read_only(self.name(), "dev", self.description(), SideEffectScope::Session)
+            .with_input_schema(self.parameters())
     }
     async fn execute(&self, _args: serde_json::Value) -> Result<serde_json::Value, ToolError> {
         let sessions = self.manager.sessions.lock().await;

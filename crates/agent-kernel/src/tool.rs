@@ -33,6 +33,12 @@ pub struct ToolDefinition {
 // ─── Tool trait ────────────────────────────────────────────
 
 /// 工具接口 — 所有工具实现此 trait，详细见 docs/details/注释/agent-runtime/tool.md
+///
+/// C2 元数据族（工具族批）：**`descriptor()` 为必填方法**（编译期强制声明——缺声明不过编译）；
+/// 各工具的 `name()` / `description()` / `parameters()` 是既有的**声明面**，
+/// `descriptor()` 由它们**即时装配**（零文本搬迁、零重复声明面）；`descriptor().name` 与
+/// `name()` 的一致性由注册面守卫（`ToolBus::register`）强制——漂移即 panic。
+/// 安全组无隐式默认（Q1 拍板：默认值即猜测源）。
 #[async_trait]
 pub trait Tool: Send + Sync {
     /// 工具名称（唯一标识）
@@ -43,6 +49,12 @@ pub trait Tool: Send + Sync {
 
     /// 参数 JSON Schema
     fn parameters(&self) -> serde_json::Value;
+
+    /// 工具描述符（C2 必填声明；定义见 `agent_engine::contracts::tool`）
+    ///
+    /// 实现建议：用命名构造（`ToolDescriptor::read_only` / `writes` / `guarded` / `interactive`）
+    /// 装配，并以 `self.name()` / `self.description()` / `self.parameters()` 作为身份与 Schema 来源。
+    fn descriptor(&self) -> ToolDescriptor;
 
     /// 执行工具
     ///
@@ -236,6 +248,15 @@ impl Default for SimpleToolBus {
 impl ToolBus for SimpleToolBus {
     async fn register(&self, tool: Arc<dyn Tool>) {
         let name = tool.name().to_string();
+        // C2 注册面守卫（fail loud）：声明必须有效（安全组一致）+ 名字与身份一致
+        let descriptor = tool.descriptor();
+        descriptor.validate().unwrap_or_else(|e| {
+            panic!("工具注册被拒（声明无效）：{e}——请修正 {name} 的 descriptor() 声明")
+        });
+        assert_eq!(
+            descriptor.name, name,
+            "工具注册被拒：descriptor().name 与 name() 不一致（{name}）"
+        );
         self.tools.write().await.insert(name, tool);
     }
 
@@ -525,6 +546,11 @@ impl Tool for EchoTool {
         })
     }
 
+    fn descriptor(&self) -> ToolDescriptor {
+        ToolDescriptor::read_only(self.name(), "dev", self.description(), SideEffectScope::None)
+            .with_input_schema(self.parameters())
+    }
+
     async fn execute(&self, args: serde_json::Value) -> Result<serde_json::Value, ToolError> {
         Ok(args)
     }
@@ -639,6 +665,75 @@ mod tests {
 
     // ─── WhitelistToolBus 单元测试 ────────────────────────────────
 
+    #[test]
+    fn register_rejects_invalid_or_mismatched_descriptor() {
+        // C2 反证②：注册面守卫——声明与身份不一致 / 声明无效（dangerous 但非 always_ask）即 panic
+        struct Mismatched(ToolDescriptor);
+        #[async_trait]
+        impl Tool for Mismatched {
+            fn name(&self) -> &str {
+                "actual_name"
+            }
+            fn description(&self) -> &str {
+                "声明与身份不一致（测试用）"
+            }
+            fn parameters(&self) -> serde_json::Value {
+                serde_json::json!({ "type": "object" })
+            }
+            fn descriptor(&self) -> ToolDescriptor {
+                self.0.clone()
+            }
+            async fn execute(&self, args: serde_json::Value) -> Result<serde_json::Value, ToolError> {
+                Ok(args)
+            }
+        }
+
+        /// 在独立 runtime 中执行注册（捕获注册期 panic）
+        fn try_register(tool: Arc<dyn Tool>) -> Result<usize, String> {
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let rt = tokio::runtime::Builder::new_current_thread()
+                    .build()
+                    .expect("建测试 runtime");
+                rt.block_on(async {
+                    let bus = SimpleToolBus::new();
+                    bus.register(tool).await;
+                    bus.count().await
+                })
+            }))
+            .map_err(|e| {
+                e.downcast_ref::<String>()
+                    .cloned()
+                    .unwrap_or_else(|| "（非字符串 panic 载荷）".to_string())
+            })
+        }
+
+        // ① 名字不一致 → panic（"不一致"）
+        let err = try_register(Arc::new(Mismatched(ToolDescriptor::read_only(
+            "declared_name",
+            "test",
+            "x",
+            SideEffectScope::None,
+        ))))
+        .unwrap_err();
+        assert!(err.contains("不一致"), "应报名字不一致：{err}");
+
+        // ② 声明无效（dangerous 但 always_ask=false）→ panic（"声明无效"）
+        let mut invalid = ToolDescriptor::read_only("actual_name", "test", "x", SideEffectScope::None);
+        invalid.safety.risk_level = RiskLevel::Dangerous;
+        let err = try_register(Arc::new(Mismatched(invalid))).unwrap_err();
+        assert!(err.contains("声明无效"), "应报声明无效：{err}");
+
+        // ③ 合法声明 → 注册成功
+        let count = try_register(Arc::new(Mismatched(ToolDescriptor::read_only(
+            "actual_name",
+            "test",
+            "x",
+            SideEffectScope::None,
+        ))))
+        .expect("合法声明应注册成功");
+        assert_eq!(count, 1);
+    }
+
     #[tokio::test]
     async fn whitelist_filters_list_all_and_count() {
         let inner = SimpleToolBus::new();
@@ -697,6 +792,10 @@ impl Tool for PlaceholderTool {
     }
     fn parameters(&self) -> serde_json::Value {
         serde_json::json!({ "type": "object", "properties": {} })
+    }
+    fn descriptor(&self) -> ToolDescriptor {
+        ToolDescriptor::read_only(self.0, "test", self.description(), SideEffectScope::None)
+            .with_input_schema(self.parameters())
     }
     async fn execute(&self, args: serde_json::Value) -> Result<serde_json::Value, ToolError> {
         Ok(args)

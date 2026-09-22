@@ -7,7 +7,7 @@ use agent_runtime::agent::{AgentLoop, AgentLoopConfig};
 use agent_runtime::backend::NodeBackendAccessor;
 use agent_runtime::event::{EventBroadcaster, OrchestratorEvent};
 use agent_runtime::sub_agent_pool::{SubAgentPool, SubAgentSpec};
-use agent_runtime::tool::{Tool, ToolBus, ToolError};
+use agent_runtime::tool::{RiskLevel, SideEffectScope, Tool, ToolBus, ToolDescriptor, ToolError};
 use async_trait::async_trait;
 use tokio::sync::RwLock;
 
@@ -340,6 +340,10 @@ impl Tool for DelegateToSubAgentTool {
             "required": ["sub_agent_id", "task"]
         })
     }
+    fn descriptor(&self) -> ToolDescriptor {
+        ToolDescriptor::guarded(self.name(), "orchestrator", self.description(), SideEffectScope::System, RiskLevel::Dangerous)
+            .with_input_schema(self.parameters())
+    }
     async fn execute(&self, args: serde_json::Value) -> Result<serde_json::Value, ToolError> {
         let sub_agent_id = args
             .get("sub_agent_id")
@@ -378,6 +382,10 @@ impl Tool for ListSubAgentsTool {
     }
     fn parameters(&self) -> serde_json::Value {
         serde_json::json!({ "type": "object", "properties": {} })
+    }
+    fn descriptor(&self) -> ToolDescriptor {
+        ToolDescriptor::read_only(self.name(), "orchestrator", self.description(), SideEffectScope::Session)
+            .with_input_schema(self.parameters())
     }
     async fn execute(&self, _args: serde_json::Value) -> Result<serde_json::Value, ToolError> {
         let specs = self.manager.list_specs().await;

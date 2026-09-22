@@ -6,7 +6,7 @@ use std::io::Read;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use agent_runtime::tool::{Tool, ToolError};
+use agent_runtime::tool::{RiskLevel, SideEffectScope, Tool, ToolDescriptor, ToolError};
 use async_trait::async_trait;
 use serde_json::{json, Value};
 
@@ -187,6 +187,10 @@ impl Tool for WebFetchTool {
             },
             "required": ["url"]
         })
+    }
+    fn descriptor(&self) -> ToolDescriptor {
+        ToolDescriptor::guarded(self.name(), "search", self.description(), SideEffectScope::Network, RiskLevel::Moderate)
+            .with_input_schema(self.parameters())
     }
 
     async fn execute(&self, args: Value) -> Result<Value, ToolError> {

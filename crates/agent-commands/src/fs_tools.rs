@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::UNIX_EPOCH;
 
-use agent_runtime::tool::{Tool, ToolError};
+use agent_runtime::tool::{SideEffectScope, Tool, ToolDescriptor, ToolError};
 use agent_runtime::tool_context::ToolContext;
 use async_trait::async_trait;
 use regex::Regex;
@@ -237,6 +237,10 @@ impl Tool for ReadFileTool {
             "required": ["path"]
         })
     }
+    fn descriptor(&self) -> ToolDescriptor {
+        ToolDescriptor::read_only(self.name(), "file", self.description(), SideEffectScope::Workspace)
+            .with_input_schema(self.parameters())
+    }
     async fn execute(&self, args: Value) -> Result<Value, ToolError> {
         self.execute_with_ctx(&ToolContext::default(), args).await
     }
@@ -319,6 +323,10 @@ impl Tool for WriteFileTool {
             "required": ["path", "content"]
         })
     }
+    fn descriptor(&self) -> ToolDescriptor {
+        ToolDescriptor::writes(self.name(), "file", self.description(), SideEffectScope::Workspace)
+            .with_input_schema(self.parameters())
+    }
     async fn execute(&self, args: Value) -> Result<Value, ToolError> {
         self.execute_with_ctx(&ToolContext::default(), args).await
     }
@@ -390,6 +398,10 @@ impl Tool for ListDirectoryTool {
                 "recursive": { "type": "boolean", "description": "是否递归列出子目录（默认 false）" }
             }
         })
+    }
+    fn descriptor(&self) -> ToolDescriptor {
+        ToolDescriptor::read_only(self.name(), "file", self.description(), SideEffectScope::Workspace)
+            .with_input_schema(self.parameters())
     }
     async fn execute(&self, args: Value) -> Result<Value, ToolError> {
         self.execute_with_ctx(&ToolContext::default(), args).await
@@ -496,6 +508,10 @@ impl Tool for SearchFilesTool {
             "required": ["pattern"]
         })
     }
+    fn descriptor(&self) -> ToolDescriptor {
+        ToolDescriptor::read_only(self.name(), "file", self.description(), SideEffectScope::Workspace)
+            .with_input_schema(self.parameters())
+    }
     async fn execute(&self, args: Value) -> Result<Value, ToolError> {
         self.execute_with_ctx(&ToolContext::default(), args).await
     }
@@ -601,6 +617,10 @@ impl Tool for EditFileTool {
             "required": ["path", "old_string", "new_string"]
         })
     }
+    fn descriptor(&self) -> ToolDescriptor {
+        ToolDescriptor::writes(self.name(), "file", self.description(), SideEffectScope::Workspace)
+            .with_input_schema(self.parameters())
+    }
     async fn execute(&self, args: Value) -> Result<Value, ToolError> {
         self.execute_with_ctx(&ToolContext::default(), args).await
     }
@@ -691,6 +711,10 @@ impl Tool for GrepTool {
             },
             "required": ["pattern"]
         })
+    }
+    fn descriptor(&self) -> ToolDescriptor {
+        ToolDescriptor::read_only(self.name(), "file", self.description(), SideEffectScope::Workspace)
+            .with_input_schema(self.parameters())
     }
     async fn execute(&self, args: Value) -> Result<Value, ToolError> {
         self.execute_with_ctx(&ToolContext::default(), args).await
@@ -869,6 +893,10 @@ impl Tool for FindTool {
             "required": ["pattern"]
         })
     }
+    fn descriptor(&self) -> ToolDescriptor {
+        ToolDescriptor::read_only(self.name(), "file", self.description(), SideEffectScope::Workspace)
+            .with_input_schema(self.parameters())
+    }
     async fn execute(&self, args: Value) -> Result<Value, ToolError> {
         self.execute_with_ctx(&ToolContext::default(), args).await
     }
@@ -1002,6 +1030,10 @@ impl Tool for EditDiffTool {
             },
             "required": ["path", "edits"]
         })
+    }
+    fn descriptor(&self) -> ToolDescriptor {
+        ToolDescriptor::writes(self.name(), "file", self.description(), SideEffectScope::Workspace)
+            .with_input_schema(self.parameters())
     }
     async fn execute(&self, args: Value) -> Result<Value, ToolError> {
         self.execute_with_ctx(&ToolContext::default(), args).await

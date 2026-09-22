@@ -12,7 +12,7 @@
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use agent_runtime::tool::{Tool, ToolError};
+use agent_runtime::tool::{SideEffectScope, Tool, ToolDescriptor, ToolError};
 use agent_runtime::types::{PlanItem, PlanItemStatus};
 use async_trait::async_trait;
 
@@ -78,6 +78,10 @@ impl Tool for PlanCreateTool {
             },
             "required": ["plan"]
         })
+    }
+    fn descriptor(&self) -> ToolDescriptor {
+        ToolDescriptor::writes(self.name(), "plan", self.description(), SideEffectScope::Session)
+            .with_input_schema(self.parameters())
     }
 
     async fn execute(&self, args: serde_json::Value) -> Result<serde_json::Value, ToolError> {
@@ -165,6 +169,10 @@ impl Tool for PlanUpdateTool {
             "required": ["item_id", "status"]
         })
     }
+    fn descriptor(&self) -> ToolDescriptor {
+        ToolDescriptor::writes(self.name(), "plan", self.description(), SideEffectScope::Session)
+            .with_input_schema(self.parameters())
+    }
 
     async fn execute(&self, args: serde_json::Value) -> Result<serde_json::Value, ToolError> {
         let item_id = args
@@ -223,6 +231,10 @@ impl Tool for PlanReplanTool {
             },
             "required": ["failed_item_id", "new_steps"]
         })
+    }
+    fn descriptor(&self) -> ToolDescriptor {
+        ToolDescriptor::writes(self.name(), "plan", self.description(), SideEffectScope::Session)
+            .with_input_schema(self.parameters())
     }
 
     async fn execute(&self, args: serde_json::Value) -> Result<serde_json::Value, ToolError> {

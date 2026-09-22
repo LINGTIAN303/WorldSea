@@ -25,7 +25,7 @@ use std::sync::{Arc, RwLock};
 
 use agent_index::{IndexPolicy, WorkspaceIndex, get_or_open};
 use agent_memory::semantic::SemanticConfig;
-use agent_runtime::tool::{Tool, ToolError};
+use agent_runtime::tool::{SideEffectScope, Tool, ToolDescriptor, ToolError};
 use agent_runtime::tool_context::ToolContext;
 use async_trait::async_trait;
 use serde_json::{Value, json};
@@ -109,6 +109,10 @@ impl Tool for WorkspaceSearchTool {
             },
             "required": ["query"]
         })
+    }
+    fn descriptor(&self) -> ToolDescriptor {
+        ToolDescriptor::read_only(self.name(), "search", self.description(), SideEffectScope::Workspace)
+            .with_input_schema(self.parameters())
     }
 
     async fn execute(&self, args: Value) -> Result<Value, ToolError> {

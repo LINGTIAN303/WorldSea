@@ -23,7 +23,9 @@ use agent_runtime::node::{
 use agent_runtime::sub_agent_pool::SubAgentSpec;
 use agent_runtime::graph_of_thoughts::{AggregationStrategy, GoTConfig, GoTNode};
 use agent_runtime::router::{RouteTarget, RouterConfig, RouterNode};
-use agent_runtime::tool::{SimpleToolBus, Tool, ToolBus, ToolError, WhitelistToolBus};
+use agent_runtime::tool::{
+    SideEffectScope, SimpleToolBus, Tool, ToolBus, ToolDescriptor, ToolError, WhitelistToolBus,
+};
 use agent_runtime::tree_of_thoughts::{
     BeamSearchStrategy, GoalCheckStrategy, LlmScoringStrategy, ThoughtNode, ToTConfig, ToTError,
     ToTNode,
@@ -133,6 +135,16 @@ impl Tool for WeatherTool {
             },
             "required": ["city"]
         })
+    }
+
+    fn descriptor(&self) -> ToolDescriptor {
+        ToolDescriptor::read_only(
+            self.name(),
+            "search",
+            self.description(),
+            SideEffectScope::Network,
+        )
+        .with_input_schema(self.parameters())
     }
 
     async fn execute(&self, args: serde_json::Value) -> Result<serde_json::Value, ToolError> {

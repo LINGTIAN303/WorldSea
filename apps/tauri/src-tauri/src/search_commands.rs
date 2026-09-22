@@ -12,7 +12,7 @@
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
-use agent_runtime::tool::{Tool, ToolError};
+use agent_runtime::tool::{RiskLevel, SideEffectScope, Tool, ToolDescriptor, ToolError};
 use async_trait::async_trait;
 
 // ─── 搜索配置 ──────────────────────────────────────────────
@@ -199,6 +199,10 @@ impl Tool for WebSearchTool {
             },
             "required": ["query"]
         })
+    }
+    fn descriptor(&self) -> ToolDescriptor {
+        ToolDescriptor::guarded(self.name(), "search", self.description(), SideEffectScope::Network, RiskLevel::Moderate)
+            .with_input_schema(self.parameters())
     }
 
     async fn execute(&self, args: serde_json::Value) -> Result<serde_json::Value, ToolError> {

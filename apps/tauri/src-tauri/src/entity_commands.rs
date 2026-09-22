@@ -12,7 +12,7 @@
 use std::sync::Arc;
 
 use agent_runtime::scenario::ScenarioEntityProvider;
-use agent_runtime::tool::{Tool, ToolError};
+use agent_runtime::tool::{SideEffectScope, Tool, ToolDescriptor, ToolError};
 use async_trait::async_trait;
 use serde_json::Value;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
@@ -250,6 +250,10 @@ impl Tool for EntityListTool {
             "required": []
         })
     }
+    fn descriptor(&self) -> ToolDescriptor {
+        ToolDescriptor::read_only(self.name(), "entity", self.description(), SideEffectScope::Workspace)
+            .with_input_schema(self.parameters())
+    }
     async fn execute(&self, args: serde_json::Value) -> Result<serde_json::Value, ToolError> {
         let entity_type = args
             .get("entity_type")
@@ -296,6 +300,10 @@ impl Tool for EntityGetTool {
             },
             "required": ["id"]
         })
+    }
+    fn descriptor(&self) -> ToolDescriptor {
+        ToolDescriptor::read_only(self.name(), "entity", self.description(), SideEffectScope::Workspace)
+            .with_input_schema(self.parameters())
     }
     async fn execute(&self, args: serde_json::Value) -> Result<serde_json::Value, ToolError> {
         let id = args
@@ -965,6 +973,10 @@ impl Tool for FsEntityListTool {
             "required": []
         })
     }
+    fn descriptor(&self) -> ToolDescriptor {
+        ToolDescriptor::read_only(self.name(), "entity", self.description(), SideEffectScope::Workspace)
+            .with_input_schema(self.parameters())
+    }
     async fn execute(&self, args: serde_json::Value) -> Result<serde_json::Value, ToolError> {
         let entity_type = args
             .get("entity_type")
@@ -1007,6 +1019,10 @@ impl Tool for FsEntityGetTool {
             },
             "required": ["id"]
         })
+    }
+    fn descriptor(&self) -> ToolDescriptor {
+        ToolDescriptor::read_only(self.name(), "entity", self.description(), SideEffectScope::Workspace)
+            .with_input_schema(self.parameters())
     }
     async fn execute(&self, args: serde_json::Value) -> Result<serde_json::Value, ToolError> {
         let id = args

@@ -1414,6 +1414,7 @@
 
     // invoke 是 b_rail::ToolHandle trait 方法——比 impl 声明晚的模块内方法调用需 trait 在作用域
     use agent_patterns::orchestrator::ToolHandle as _;
+    use agent_runtime::tool::{SideEffectScope, ToolDescriptor};
 
     /// 测试用固定工具（回显参数），避免依赖外部工具注册面
     struct FixedEchoTool;
@@ -1427,6 +1428,10 @@
         }
         fn parameters(&self) -> serde_json::Value {
             serde_json::json!({ "type": "object" })
+        }
+        fn descriptor(&self) -> ToolDescriptor {
+            ToolDescriptor::read_only(self.name(), "test", self.description(), SideEffectScope::None)
+                .with_input_schema(self.parameters())
         }
         async fn execute(&self, args: serde_json::Value) -> Result<serde_json::Value, agent_runtime::ToolError> {
             Ok(args)

@@ -31,7 +31,7 @@
 use std::sync::Arc;
 
 use agent_runtime::raw_context::parse_externalized_hash;
-use agent_runtime::tool::{Tool, ToolError};
+use agent_runtime::tool::{SideEffectScope, Tool, ToolDescriptor, ToolError};
 use async_trait::async_trait;
 use serde_json::{json, Value};
 
@@ -164,6 +164,10 @@ impl Tool for MemoryReadRawTool {
             },
             "required": ["content_hash"]
         })
+    }
+    fn descriptor(&self) -> ToolDescriptor {
+        ToolDescriptor::read_only(self.name(), "memory", self.description(), SideEffectScope::Session)
+            .with_input_schema(self.parameters())
     }
 
     async fn execute(&self, args: Value) -> Result<Value, ToolError> {

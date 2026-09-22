@@ -48,7 +48,7 @@ use agent_runtime::memory::{
     MemoryAccessor, MemoryRecallOptions, MemoryWriteEntry, MemoryWriteOp, MemoryWriteOptions,
     NoopReason, WriteOutcome,
 };
-use agent_runtime::tool::{Tool, ToolBus, ToolError};
+use agent_runtime::tool::{RiskLevel, SideEffectScope, Tool, ToolBus, ToolDescriptor, ToolError};
 use async_trait::async_trait;
 use serde_json::{json, Value};
 
@@ -134,6 +134,10 @@ impl Tool for MemoryRecallTool {
             },
             "required": ["query"]
         })
+    }
+    fn descriptor(&self) -> ToolDescriptor {
+        ToolDescriptor::read_only(self.name(), "memory", self.description(), SideEffectScope::Session)
+            .with_input_schema(self.parameters())
     }
 
     async fn execute(&self, args: Value) -> Result<Value, ToolError> {
@@ -234,6 +238,10 @@ impl Tool for MemoryStoreTool {
             "required": ["content"]
         })
     }
+    fn descriptor(&self) -> ToolDescriptor {
+        ToolDescriptor::writes(self.name(), "memory", self.description(), SideEffectScope::Session)
+            .with_input_schema(self.parameters())
+    }
 
     async fn execute(&self, args: Value) -> Result<Value, ToolError> {
         let content = required_str(&args, "content")?;
@@ -311,6 +319,10 @@ impl Tool for MemoryUpdateTool {
             "required": ["hook_id", "content"]
         })
     }
+    fn descriptor(&self) -> ToolDescriptor {
+        ToolDescriptor::writes(self.name(), "memory", self.description(), SideEffectScope::Session)
+            .with_input_schema(self.parameters())
+    }
 
     async fn execute(&self, args: Value) -> Result<Value, ToolError> {
         let hook_id = required_str(&args, "hook_id")?;
@@ -382,6 +394,10 @@ impl Tool for MemoryDeleteTool {
             "required": ["hook_id"]
         })
     }
+    fn descriptor(&self) -> ToolDescriptor {
+        ToolDescriptor::guarded(self.name(), "memory", self.description(), SideEffectScope::Session, RiskLevel::Dangerous)
+            .with_input_schema(self.parameters())
+    }
 
     async fn execute(&self, args: Value) -> Result<Value, ToolError> {
         let hook_id = required_str(&args, "hook_id")?;
@@ -443,6 +459,10 @@ impl Tool for MemoryPinTool {
             },
             "required": ["hook_id"]
         })
+    }
+    fn descriptor(&self) -> ToolDescriptor {
+        ToolDescriptor::writes(self.name(), "memory", self.description(), SideEffectScope::Session)
+            .with_input_schema(self.parameters())
     }
 
     async fn execute(&self, args: Value) -> Result<Value, ToolError> {

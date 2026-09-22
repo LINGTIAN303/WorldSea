@@ -34,7 +34,7 @@ use tokio::sync::RwLock;
 
 use agent_runtime::env_scrub::sensitive_inherited_env_keys;
 use agent_runtime::mcp::{McpCaller, McpError, McpToolAdapter, McpToolInfo};
-use agent_runtime::tool::{Tool, ToolError};
+use agent_runtime::tool::{RiskLevel, SideEffectScope, Tool, ToolDescriptor, ToolError};
 
 // ─── 连接配置（前端 McpPanel ↔ SQLite 持久化 ↔ 连接层三方可序列化） ──────────
 
@@ -356,6 +356,18 @@ impl Tool for McpResourceTool {
 
     fn parameters(&self) -> Value {
         Self::parameters_of(self.kind)
+    }
+
+    /// C2：MCP 枢纽工具（资源/提示族）——同为「未预批外发」→ 不可绕过确认 + 网络副作用面
+    fn descriptor(&self) -> ToolDescriptor {
+        ToolDescriptor::guarded(
+            self.name(),
+            "mcp",
+            self.description(),
+            SideEffectScope::Network,
+            RiskLevel::Moderate,
+        )
+        .with_input_schema(self.parameters())
     }
 
     fn mcp_server_id(&self) -> Option<&str> {

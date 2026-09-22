@@ -165,6 +165,11 @@ impl Tool for FrontendBridgeTool {
         self.descriptor.input_schema.clone()
     }
 
+    /// C2：契约即声明（生成物全字段——来源 = TS 单源 → 生成物 → 本结构）
+    fn descriptor(&self) -> ToolDescriptor {
+        self.descriptor.clone()
+    }
+
     async fn execute(&self, args: serde_json::Value) -> Result<serde_json::Value, ToolError> {
         let result = self.bridge.request(&self.descriptor.name, args.clone()).await?;
         // T1：前端「成功返回的失败」载荷补判别字段（isError + errorCode）

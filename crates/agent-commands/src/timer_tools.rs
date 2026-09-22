@@ -21,7 +21,7 @@
 
 use std::sync::Arc;
 
-use agent_runtime::tool::{tool_failure_payload, Tool, ToolBus, ToolError};
+use agent_runtime::tool::{SideEffectScope, Tool, ToolBus, ToolDescriptor, ToolError, tool_failure_payload};
 use agent_runtime::tool_context::ToolContext;
 use async_trait::async_trait;
 use serde_json::{json, Value};
@@ -120,6 +120,10 @@ impl Tool for SetTimerTool {
             },
             "required": ["after_seconds"]
         })
+    }
+    fn descriptor(&self) -> ToolDescriptor {
+        ToolDescriptor::writes(self.name(), "session", self.description(), SideEffectScope::Session)
+            .with_input_schema(self.parameters())
     }
 
     async fn execute(&self, _args: Value) -> Result<Value, ToolError> {
@@ -252,6 +256,10 @@ impl Tool for ListTimersTool {
     fn parameters(&self) -> Value {
         json!({ "type": "object", "properties": {} })
     }
+    fn descriptor(&self) -> ToolDescriptor {
+        ToolDescriptor::read_only(self.name(), "session", self.description(), SideEffectScope::Session)
+            .with_input_schema(self.parameters())
+    }
 
     async fn execute(&self, _args: Value) -> Result<Value, ToolError> {
         Ok(tool_failure_payload(
@@ -333,6 +341,10 @@ impl Tool for CancelTimerTool {
             },
             "required": ["timer_id"]
         })
+    }
+    fn descriptor(&self) -> ToolDescriptor {
+        ToolDescriptor::writes(self.name(), "session", self.description(), SideEffectScope::Session)
+            .with_input_schema(self.parameters())
     }
 
     async fn execute(&self, _args: Value) -> Result<Value, ToolError> {

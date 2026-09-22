@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::sync::RwLock;
 
-use crate::tool::{Tool, ToolError};
+use crate::tool::{RiskLevel, SideEffectScope, Tool, ToolDescriptor, ToolError};
 
 // ─── MCP 类型定义 ────────────────────────────────────────────
 
@@ -178,16 +178,12 @@ pub fn detect_intra_server_conflicts(server_id: &str, tools: &[McpToolInfo]) -> 
 
 /// MCP 工具 — 包装远程 MCP 服务器上的工具为本地 `Tool` trait 对象，详细见 docs/details/注释/agent-runtime/mcp.md
 pub struct McpTool {
-    /// 预存的完整工具名（含 `mcp__{server_id}__` 前缀）
-    full_name: String,
+    /// 工具描述符（C2 单一声明处；名字含 `mcp__{server_id}__` 前缀）
+    descriptor: ToolDescriptor,
     /// 服务器 ID（用于工具名前缀和注销）
     server_id: String,
     /// MCP 服务器上的原始工具名
     tool_name: String,
-    /// 工具描述
-    description: String,
-    /// 参数 JSON Schema
-    input_schema: Value,
     /// MCP 服务器调用入口
     caller: Arc<dyn McpCaller>,
 }
@@ -210,14 +206,23 @@ impl McpTool {
     ) -> Self {
         let server_id = server_id.into();
         let tool_name = tool_name.into();
+        let description: String = description.into();
         // M3：命名契约 `mcp__{server}__{tool}`（清洗 + 超长截断见 [`build_full_name`]）
         let full_name = build_full_name(&server_id, &tool_name);
+        // C2 元数据族：MCP 工具一律 **不可绕过确认**（未预批外发——S4-b 名单的声明化）
+        // + 网络副作用面；动态注册点即唯一声明处（无静态表可依赖）
+        let descriptor = ToolDescriptor::guarded(
+            &full_name,
+            "mcp",
+            &description,
+            SideEffectScope::Network,
+            RiskLevel::Moderate,
+        )
+        .with_input_schema(input_schema);
         Self {
-            full_name,
+            descriptor,
             server_id,
             tool_name,
-            description: description.into(),
-            input_schema,
             caller,
         }
     }
@@ -226,7 +231,7 @@ impl McpTool {
     ///
     /// 规则：`mcp__{server_id}__{tool_name}`（经清洗与超长截断，见 [`build_full_name`]）
     pub fn full_name(&self) -> &str {
-        &self.full_name
+        &self.descriptor.name
     }
 
     /// 所属服务器 ID
@@ -244,15 +249,21 @@ impl McpTool {
 impl Tool for McpTool {
     fn name(&self) -> &str {
         // 直接返回预存的 full_name，避免 &str 生命周期问题
-        &self.full_name
+        &self.descriptor.name
     }
 
     fn description(&self) -> &str {
-        &self.description
+        &self.descriptor.description
     }
 
     fn parameters(&self) -> Value {
-        self.input_schema.clone()
+        self.descriptor.input_schema.clone()
+    }
+
+    /// C2 元数据族：MCP 工具一律 **不可绕过确认**（未预批外发——S4-b 名单的声明化）
+    /// + 网络副作用面；动态注册点即唯一声明处（无静态表可依赖）
+    fn descriptor(&self) -> ToolDescriptor {
+        self.descriptor.clone()
     }
 
     /// M3：归属显式化——调用方（分组注册/注销/注记）走本方法，不再反解析工具名

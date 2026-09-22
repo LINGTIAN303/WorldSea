@@ -1957,6 +1957,15 @@
         fn parameters(&self) -> serde_json::Value {
             serde_json::json!({ "type": "object", "properties": {} })
         }
+        fn descriptor(&self) -> crate::tool::ToolDescriptor {
+            crate::tool::ToolDescriptor::read_only(
+                self.0,
+                "test",
+                self.description(),
+                crate::tool::SideEffectScope::None,
+            )
+            .with_input_schema(self.parameters())
+        }
         async fn execute(
             &self,
             args: serde_json::Value,
@@ -2318,6 +2327,9 @@
             fn parameters(&self) -> serde_json::Value {
                 serde_json::json!({ "type": "object", "properties": {} })
             }
+            fn descriptor(&self) -> crate::tool::ToolDescriptor {
+                crate::tool::ToolDescriptor::read_only("slow", "test", "慢工具（测试用）", crate::tool::SideEffectScope::None).with_input_schema(serde_json::json!({ "type": "object", "properties": {} }))
+            }
             async fn execute(
                 &self,
                 _args: serde_json::Value,
@@ -2408,6 +2420,9 @@
             }
             fn parameters(&self) -> serde_json::Value {
                 serde_json::json!({ "type": "object", "properties": {} })
+            }
+            fn descriptor(&self) -> crate::tool::ToolDescriptor {
+                crate::tool::ToolDescriptor::read_only("flaky", "test", "抖动工具（测试用）", crate::tool::SideEffectScope::None).with_input_schema(serde_json::json!({ "type": "object", "properties": {} }))
             }
             async fn execute(
                 &self,
@@ -2604,6 +2619,9 @@
             fn parameters(&self) -> serde_json::Value {
                 serde_json::json!({ "type": "object", "properties": {} })
             }
+            fn descriptor(&self) -> crate::tool::ToolDescriptor {
+                crate::tool::ToolDescriptor::read_only("read_file", "test", "计数回显（测试用）", crate::tool::SideEffectScope::Workspace).with_input_schema(serde_json::json!({ "type": "object", "properties": {} }))
+            }
             async fn execute(
                 &self,
                 args: serde_json::Value,
@@ -2669,6 +2687,9 @@
             }
             fn parameters(&self) -> serde_json::Value {
                 serde_json::json!({ "type": "object", "properties": {} })
+            }
+            fn descriptor(&self) -> crate::tool::ToolDescriptor {
+                crate::tool::ToolDescriptor::read_only("read_file", "test", "计数回显（测试用）", crate::tool::SideEffectScope::Workspace).with_input_schema(serde_json::json!({ "type": "object", "properties": {} }))
             }
             async fn execute(
                 &self,
@@ -2749,13 +2770,16 @@
         #[async_trait]
         impl crate::tool::Tool for CountingEcho {
             fn name(&self) -> &str {
-                "delegate_to_sub_agent" // Dangerous 级 → alwaysAsk（位次 5）
+                "delegate_to_sub_agent"
             }
             fn description(&self) -> &str {
                 "计数回显（测试用）"
             }
             fn parameters(&self) -> serde_json::Value {
                 serde_json::json!({ "type": "object", "properties": {} })
+            }
+            fn descriptor(&self) -> crate::tool::ToolDescriptor {
+                crate::tool::ToolDescriptor::guarded("delegate_to_sub_agent", "test", "计数回显（测试用）", crate::tool::SideEffectScope::System, crate::tool::RiskLevel::Dangerous).with_input_schema(serde_json::json!({ "type": "object", "properties": {} }))
             }
             async fn execute(
                 &self,
@@ -2898,6 +2922,9 @@
             fn parameters(&self) -> serde_json::Value {
                 serde_json::json!({ "type": "object", "properties": {} })
             }
+            fn descriptor(&self) -> crate::tool::ToolDescriptor {
+                crate::tool::ToolDescriptor::read_only("echo", "test", "计数回显（测试用）", crate::tool::SideEffectScope::None).with_input_schema(serde_json::json!({ "type": "object", "properties": {} }))
+            }
             async fn execute(
                 &self,
                 _args: serde_json::Value,
@@ -3005,13 +3032,16 @@
         #[async_trait]
         impl crate::tool::Tool for DelegatingTool {
             fn name(&self) -> &str {
-                "delegate_to_sub_agent" // Dangerous 级 → 命中确认
+                "delegate_to_sub_agent"
             }
             fn description(&self) -> &str {
                 "委派（测试用，不应被执行）"
             }
             fn parameters(&self) -> serde_json::Value {
                 serde_json::json!({ "type": "object", "properties": {} })
+            }
+            fn descriptor(&self) -> crate::tool::ToolDescriptor {
+                crate::tool::ToolDescriptor::guarded("delegate_to_sub_agent", "test", "委派（测试用，不应被执行）", crate::tool::SideEffectScope::System, crate::tool::RiskLevel::Dangerous).with_input_schema(serde_json::json!({ "type": "object", "properties": {} }))
             }
             async fn execute(
                 &self,
@@ -4560,6 +4590,9 @@
         fn parameters(&self) -> serde_json::Value {
             serde_json::json!({ "type": "object", "properties": {} })
         }
+        fn descriptor(&self) -> crate::tool::ToolDescriptor {
+            crate::tool::ToolDescriptor::read_only("steer_in_turn", "test", "轮内提交 steer（测试用）", crate::tool::SideEffectScope::None).with_input_schema(serde_json::json!({ "type": "object", "properties": {} }))
+        }
         async fn execute(
             &self,
             _args: serde_json::Value,
@@ -4757,6 +4790,9 @@
             }
             fn parameters(&self) -> serde_json::Value {
                 serde_json::json!({ "type": "object", "properties": {} })
+            }
+            fn descriptor(&self) -> crate::tool::ToolDescriptor {
+                crate::tool::ToolDescriptor::read_only("abort_after_stream", "test", "模拟流式后中断（测试用）", crate::tool::SideEffectScope::None).with_input_schema(serde_json::json!({ "type": "object", "properties": {} }))
             }
             async fn execute(
                 &self,
@@ -5084,6 +5120,9 @@
             }
             fn parameters(&self) -> serde_json::Value {
                 serde_json::json!({ "type": "object", "properties": {} })
+            }
+            fn descriptor(&self) -> crate::tool::ToolDescriptor {
+                crate::tool::ToolDescriptor::read_only("huge_output", "test", "超长输出（测试用）", crate::tool::SideEffectScope::None).with_input_schema(serde_json::json!({ "type": "object", "properties": {} }))
             }
             async fn execute(
                 &self,

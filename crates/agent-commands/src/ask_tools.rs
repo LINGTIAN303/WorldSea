@@ -34,7 +34,7 @@ use std::sync::Arc;
 
 use agent_runtime::confirmation::{AskAnswer, AskOutcome, InteractionBroker};
 use agent_runtime::event::EventBroadcaster;
-use agent_runtime::tool::{tool_failure_payload, Tool, ToolBus, ToolError};
+use agent_runtime::tool::{tool_failure_payload, Tool, ToolBus, ToolDescriptor, ToolError};
 use agent_runtime::tool_context::ToolContext;
 use async_trait::async_trait;
 use serde_json::{json, Value};
@@ -135,6 +135,12 @@ impl Tool for AskUserQuestionTool {
             },
             "required": ["questions"]
         })
+    }
+
+    fn descriptor(&self) -> ToolDescriptor {
+        // C2：工具自身承载人工交互（提问面板）→ 免执行前确认（requires_user_interaction）
+        ToolDescriptor::interactive(self.name(), "session", self.description())
+            .with_input_schema(self.parameters())
     }
 
     /// 无上下文入口：提问必须带会话上下文（需 `is_sub_agent` 判定）——fail loud 不降级
