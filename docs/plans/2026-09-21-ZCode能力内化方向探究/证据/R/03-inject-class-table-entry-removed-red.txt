@@ -1,0 +1,11 @@
+# R-0 反证注入：03-inject-class-table-entry-removed-red.txt
+# 注入 = packages/shared-ui/src/agent/stream/rows/toolClassify.ts
+# 断言应红；以下为清洗后的 vitest 关键输出
+
+❯ apps/tauri/src/agent/__tests__/tool-catalog-contract.spec.ts (11 tests | 1 failed) 32ms
+× R-0 工具目录：类表覆盖（防漏项静默退化） > Rust 原生工具面全部有类归属 14ms
+Test Files  1 failed (1)
+Tests  1 failed | 10 passed (11)
+FAIL  apps/tauri/src/agent/__tests__/tool-catalog-contract.spec.ts > R-0 工具目录：类表覆盖（防漏项静默退化） > Rust 原生工具面全部有类归属
+AssertionError: 原生工具缺类归属：todo_write: expected [ 'todo_write' ] to deeply equal []
+❯ apps/tauri/src/agent/__tests__/tool-catalog-contract.spec.ts:140:55

@@ -132,7 +132,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { WsIcon, useConfirm } from '@worldsea/ui-kit'
+import { FileIcon, WsIcon, useConfirm } from '@worldsea/ui-kit'
 import TuiModal from '../../components/ui/TuiModal.vue'
 import TuiButton from '../../components/ui/TuiButton.vue'
 import { invoke } from '@/agent/composables/transport'
@@ -140,7 +140,6 @@ import { useAgent } from '@/agent/composables/useAgent'
 import { resolveWorkspaceDir, ensureWorkspaceDir } from '../workspace'
 import { useFileTrash, type FileTrashRecord } from '@/composables/fileTrash'
 import { toastInfo, toastError } from '@/composables/useToast'
-import FileIcon from './FileIcon.vue'
 
 /** 目录树节点（对应 cmd_fs_list 返回的 FsEntry camelCase 结构） */
 export interface FsNode {

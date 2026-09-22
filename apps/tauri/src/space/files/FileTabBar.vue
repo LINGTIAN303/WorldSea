@@ -25,9 +25,8 @@
 -->
 <script setup lang="ts">
 import { ref } from 'vue'
-import { WsIcon } from '@worldsea/ui-kit'
+import { FileIcon, WsIcon } from '@worldsea/ui-kit'
 import type { FsNode } from './FileTreeBrowser.vue'
-import FileIcon from './FileIcon.vue'
 
 defineProps<{
   tabs: FsNode[]

@@ -42,6 +42,9 @@ mod web_fetch_extract;
 mod web_fetch_commands;
 // A4 Plan-Exec 计划工具（plan_create / plan_update）
 mod plan_commands;
+
+// R 批 R-0（2026-09-23）：对话区行段分派基座——工具目录命令
+mod tool_catalog_commands;
 // Router Pattern 编排命令层：2026-09-09 随右栏 Router 区一并下线（Router 归场景识别底座，
 // 非编排模式命令；底座为 agent-runtime 的 router 模块，不受影响）
 // Rust → 前端 双向工具桥（entity_create/update + content_search 等经前端执行）
@@ -165,6 +168,8 @@ pub fn run() {
             commands::cmd_agent_set_security_level,
             // 诊断：会话工具名清单（MCP 注入链路验证）
             commands::cmd_agent_tool_names,
+            // R 批 R-0：工具目录（前端行段分派基座）
+            tool_catalog_commands::cmd_agent_tool_catalog,
             commands::cmd_agent_update_prompt_sections,
             // FrontendToolBridge：前端执行桥工具后按 callId 回传结果
             commands::cmd_agent_tool_result,

@@ -1,0 +1,11 @@
+# R-0 反证注入：01-inject-provide-removed-red.txt
+# 注入 = apps/tauri/src/space/AgentSpace.vue
+# 断言应红；以下为清洗后的 vitest 关键输出
+
+❯ apps/tauri/src/agent/__tests__/tool-catalog-contract.spec.ts (11 tests | 1 failed) 29ms
+× R-0 工具目录：前端链路（拉取 → provide → 行段消费） > 应用壳已挂载 provideToolCatalog() 13ms
+Test Files  1 failed (1)
+Tests  1 failed | 10 passed (11)
+FAIL  apps/tauri/src/agent/__tests__/tool-catalog-contract.spec.ts > R-0 工具目录：前端链路（拉取 → provide → 行段消费） > 应用壳已挂载 provideToolCatalog()
+AssertionError: expected '<template>\n  <div class="agent-space…' to contain 'useToolCatalog().provideToolCatalog()'
+❯ apps/tauri/src/agent/__tests__/tool-catalog-contract.spec.ts:112:35

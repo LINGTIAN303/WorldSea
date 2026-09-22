@@ -141,14 +141,13 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { WsIcon, toastInfo, toastWarn } from '@worldsea/ui-kit'
+import { FileIcon, WsIcon, toastInfo, toastWarn } from '@worldsea/ui-kit'
 import { useConfirm } from '@worldsea/plugin-sdk'
 import { invoke } from '@/agent/composables/transport'
 import { renderMarkdownHtml, handleCodeCopyClick } from '@worldsea/shared-ui/agent/bubbles'
 import '@worldsea/shared-ui/agent/bubbles/agent-markdown.css'
 import CodeEditor from './CodeEditor.vue'
 import CodeDiff from './CodeDiff.vue'
-import FileIcon from './FileIcon.vue'
 import DocxPreview from './DocxPreview.vue'
 import XlsxPreview from './XlsxPreview.vue'
 import PdfPreview from './PdfPreview.vue'

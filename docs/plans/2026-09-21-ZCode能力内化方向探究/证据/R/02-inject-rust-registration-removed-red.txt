@@ -1,0 +1,11 @@
+# R-0 反证注入：02-inject-rust-registration-removed-red.txt
+# 注入 = apps/tauri/src-tauri/src/lib.rs
+# 断言应红；以下为清洗后的 vitest 关键输出
+
+❯ apps/tauri/src/agent/__tests__/tool-catalog-contract.spec.ts (11 tests | 1 failed) 29ms
+× R-0 工具目录：Rust 侧链路（模块 → 命令 → 宿主注册 → HTTP 桥接） > Tauri 命令已定义并注册进 invoke_handler 13ms
+Test Files  1 failed (1)
+Tests  1 failed | 10 passed (11)
+FAIL  apps/tauri/src/agent/__tests__/tool-catalog-contract.spec.ts > R-0 工具目录：Rust 侧链路（模块 → 命令 → 宿主注册 → HTTP 桥接） > Tauri 命令已定义并注册进 invoke_handler
+AssertionError: expected '\nuse std::sync::{Arc, Mutex};\n\nuse…' to contain 'tool_catalog_commands::cmd_agent_tool…'
+❯ apps/tauri/src/agent/__tests__/tool-catalog-contract.spec.ts:94:33

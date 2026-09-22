@@ -5,13 +5,14 @@
 </template>
 
 <!--
-  FileIcon.vue（2026-09-07）：文件类型图标（vscode-great-icons 真实图标集，用户指定）。
-  数据源 file-icon-data.ts（构建期从主题仓库提取：SVG 内联 + PNG base64，运行时零依赖零请求）。
+  FileIcon.vue（2026-09-07；R 批 R-0 下沉 ui-kit 供 apps 与 shared-ui 两端共用）：
+  文件类型图标（vscode-great-icons 真实图标集，用户指定）。
+  数据源 ../assets/file-icon-data.ts（构建期从主题仓库提取：SVG 内联 + PNG base64，运行时零依赖零请求）。
   容器统一 16px 方格，svg/img 撑满并垂直对齐文本基线。
 -->
 <script setup lang="ts">
 import { computed } from 'vue'
-import { fileIconDataOf } from './fileIcons'
+import { fileIconDataOf } from '../assets/fileIcons'
 
 const props = defineProps<{ name: string }>()
 

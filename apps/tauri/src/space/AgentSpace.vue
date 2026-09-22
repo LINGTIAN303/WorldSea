@@ -157,6 +157,7 @@ import { useSettingsStore } from '@/stores/settingsStore'
 import { calculateCost } from '@worldsea/agent-runtime'
 import { useGenerationProgress } from '@worldsea/shared-composables/agent/useGenerationProgress'
 import { useSessionViewState } from '@/agent/composables/useSessionViewState'
+import { useToolCatalog } from '@/agent/composables/useToolCatalog'
 import { provideMessageSpeakerContext } from '@worldsea/shared-composables/agent/useMessageSpeaker'
 import { usePersonaFont } from './composables/usePersonaFont'
 import { useUIStore } from '@worldsea/entity-core'
@@ -211,6 +212,9 @@ provideMessageSpeakerContext({
   agentFont,
   defaultAgentColor: personaFont.profile.value.accentColor,
 })
+
+// R 批 R-0：工具目录（行段分派基座）——provide 至流区组件 + 会话切换/MCP 变更时刷新
+useToolCatalog().provideToolCatalog()
 
 // 会话级视图状态（viewState 权威：rightPanel / openExecSections 等）
 const sessionView = useSessionViewState()

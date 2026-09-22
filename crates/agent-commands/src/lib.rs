@@ -30,6 +30,7 @@ mod supervisor_worker;
 mod terminal;
 mod timer_tools;
 mod timers;
+mod tool_catalog;
 
 pub use error::CommandError;
 pub use fs_tools::register_fs_tools;

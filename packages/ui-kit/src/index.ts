@@ -3,6 +3,9 @@
 export { default as WsIcon } from './components/WsIcon.vue'
 export { default as WsEmpty } from './components/WsEmpty.vue'
 export { default as WsSpinner } from './components/WsSpinner.vue'
+// R 批 R-0：文件类型图标（vscode-great-icons 资产下沉——apps 文件树/tab/预览头与对话区行段两端共用）
+export { default as FileIcon } from './components/FileIcon.vue'
+export { fileIconDataOf } from './assets/fileIcons'
 
 // Phase 8c: 图标注册表（从根 src/assets/iconRegistry.ts 下沉）
 export {

@@ -10,3 +10,6 @@ export { default as DividerRow } from './DividerRow.vue'
 export { default as ProcessSummaryRow } from './ProcessSummaryRow.vue'
 /** 行类型分发器：三层结构与尾部行共用，避免重复 v-if 链 */
 export { default as StreamRow } from './StreamRow.vue'
+/** R 批 R-0：能力类分派（纯函数）+ 目录注入上下文 */
+export * from './toolClassify'
+export * from './toolCatalogContext'

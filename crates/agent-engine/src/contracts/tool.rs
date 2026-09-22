@@ -312,6 +312,29 @@ impl ToolDescriptor {
     }
 }
 
+/// 工具目录条目（R 批 · R-0 分派基座）
+///
+/// 从 [`ToolDescriptor`] + MCP 归属投影出的**只读展示快照**，供前端对话区行段分派使用
+/// （「类由客户端判、结构由服务端给」——见 18-对话区行段渲染批草案 §三之二）。
+/// 只承载分派必需字段：类归属、别名、读写语义、MCP 服务器；安全判定仍以 descriptor 为准。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolCatalogEntry {
+    /// 工具名（唯一标识）
+    pub name: String,
+    /// 分类（descriptor.category：file / dev / memory / search / session / mcp …）
+    pub category: String,
+    /// 旧工具名别名
+    pub aliases: Vec<String>,
+    /// 只读（无写面）
+    pub read_only: bool,
+    /// 破坏性 / 不可逆
+    pub destructive: bool,
+    /// MCP 服务器归属（非 MCP 工具无此字段）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mcp_server: Option<String>,
+}
+
 #[cfg(test)]
 #[path = "tool_tests.rs"]
 mod tests;

@@ -11,7 +11,8 @@ use crate::alias::resolve_alias as resolve_alias_global;
 // ─── 工具元数据契约出口（C2 ToolDescriptor；定义处 = agent-engine::contracts::tool） ───
 
 pub use agent_engine::contracts::tool::{
-    Executor, RiskLevel, SideEffectScope, ToolControl, ToolDescriptor, ToolLimits, ToolSafety,
+    Executor, RiskLevel, SideEffectScope, ToolCatalogEntry, ToolControl, ToolDescriptor, ToolLimits,
+    ToolSafety,
 };
 
 // ─── 工具定义 ────────────────────────────────────────────

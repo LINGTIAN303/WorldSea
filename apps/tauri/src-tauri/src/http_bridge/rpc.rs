@@ -527,6 +527,17 @@ pub fn register_core(reg: &mut Registry) {
             c::cmd_agent_tool_names(st, a.session_id).await.map(|r| to_value(r).unwrap_or(Value::Null))
         })
     }));
+    // R 批 R-0：工具目录（前端行段分派基座，2026-09-23）
+    reg.register("cmd_agent_tool_catalog", Arc::new(move |app, args| {
+        let app = app.clone();
+        Box::pin(async move {
+            let a: SessionArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
+            let st = app.state::<agent_commands::AgentCommandService>();
+            crate::tool_catalog_commands::cmd_agent_tool_catalog(st, a.session_id)
+                .await
+                .map(|r| to_value(r).unwrap_or(Value::Null))
+        })
+    }));
     // 动态刷新会话提示段（H5 风险点③ + A4 双端收口，2026-09-17 · 硬约束：新命令必须同步桥接层）
     #[derive(Deserialize)]
     #[serde(rename_all = "camelCase")]
