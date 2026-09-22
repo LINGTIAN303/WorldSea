@@ -2,11 +2,13 @@
 //!
 //! 落有四类已稳固的契约：事件键表与分发模式（S3-b 自 agent-kernel 迁入）、
 //! 输入三语义、审批四值。`ToolDescriptor` 归工具族批次。
-//! 另落检查点引用契约（S3-e 合并裁定 · 方案 A，见 [`checkpoints`]）。
+//! 另落检查点引用契约（S3-e 合并裁定 · 方案 A，见 [`checkpoints`]）
+//! 与交互请求族契约（S5 三型统一模型 + 提问载荷/结果，见 [`interaction`]）。
 
 use serde::{Deserialize, Serialize};
 
 pub mod checkpoints;
+pub mod interaction;
 pub mod keys;
 
 /// 事件键：静态字符串（命名沿既有口径：snake_case 单词式，如 `"agent_start"`）。
@@ -43,6 +45,8 @@ pub fn mode_of(key: EventKey) -> DispatchMode {
         keys::CONVERSATION_FORKED | keys::CONVERSATION_REWOUND | keys::CHECKPOINT_CREATED => {
             DispatchMode::Emit
         }
+        // S5 交互族：请求/结果同步扇出（审批/提问/复核三型共用）
+        keys::INTERACTION_REQUESTED | keys::INTERACTION_RESOLVED => DispatchMode::Emit,
         _ => DispatchMode::Emit,
     }
 }
@@ -81,6 +85,17 @@ impl ConfirmationOutcome {
     pub fn is_approved(self) -> bool {
         matches!(self, Self::Approved)
     }
+
+    /// 从 snake_case 字符串解析（前端回传入参；`timeout` 仅内核侧产生、不接受回传）
+    pub fn parse(raw: &str) -> Result<Self, String> {
+        match raw {
+            "approved" => Ok(Self::Approved),
+            "denied" => Ok(Self::Denied),
+            "skipped" => Ok(Self::Skipped),
+            "timeout" => Err("timeout 由 kernel 超时产生，不接受前端回传".to_string()),
+            other => Err(format!("未知审批结果: {other}（期望 approved/denied/skipped）")),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -110,6 +125,16 @@ mod tests {
     }
 
     #[test]
+    fn confirmation_parse_rejects_kernel_only_timeout() {
+        assert_eq!(ConfirmationOutcome::parse("approved").unwrap(), ConfirmationOutcome::Approved);
+        assert_eq!(ConfirmationOutcome::parse("denied").unwrap(), ConfirmationOutcome::Denied);
+        assert_eq!(ConfirmationOutcome::parse("skipped").unwrap(), ConfirmationOutcome::Skipped);
+        // timeout 仅内核侧产生（07 §四）——前端回传即报错
+        assert!(ConfirmationOutcome::parse("timeout").is_err());
+        assert!(ConfirmationOutcome::parse("unknown").is_err());
+    }
+
+    #[test]
     fn dispatch_mode_declares_five() {
         let declared = [
             DispatchMode::Emit,
@@ -131,7 +156,17 @@ mod tests {
     fn keys_table_moved_intact() {
         // S3-b 迁移对照：Key 值与旧 agent-kernel::event::keys 逐字一致（首尾抽样）
         assert_eq!(keys::AGENT_START, "agent_start");
-        assert_eq!(keys::ASK_RESOLVED, "ask_resolved");
+        assert_eq!(keys::CHECKPOINT_CREATED, "checkpoint_created");
+    }
+
+    #[test]
+    fn interaction_key_registered_with_mode() {
+        // S5 交互族：key + mode 双查（键值口径 snake_case 单词式）
+        assert_eq!(keys::INTERACTION_REQUESTED, "interaction_requested");
+        assert_eq!(keys::INTERACTION_RESOLVED, "interaction_resolved");
+        for key in [keys::INTERACTION_REQUESTED, keys::INTERACTION_RESOLVED] {
+            assert_eq!(mode_of(key), DispatchMode::Emit, "{key} 应为同步扇出");
+        }
     }
 
     #[test]

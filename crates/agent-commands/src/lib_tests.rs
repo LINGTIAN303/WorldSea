@@ -729,6 +729,48 @@
         assert!(matches!(err, CommandError::SessionNotFound(_)));
     }
 
+    /// S5-b：统一回传口——内核侧值 / 未知值拒绝回传（fail-closed：不唤醒等待方）
+    #[tokio::test]
+    async fn resolve_interaction_rejects_kernel_side_values() {
+        use agent_runtime::confirmation::InteractionResponse;
+        let svc = AgentCommandService::new();
+        // 内核侧值（timeout / timed_out）与未知值不接受前端回传 → InvalidArgument
+        for resp in [
+            InteractionResponse::Permission {
+                outcome: "timeout".into(),
+            },
+            InteractionResponse::HookReview {
+                outcome: "timed_out".into(),
+            },
+            InteractionResponse::Permission {
+                outcome: "yes".into(),
+            },
+        ] {
+            let err = svc
+                .resolve_interaction("nope", "ix-1", resp)
+                .await
+                .unwrap_err();
+            assert!(matches!(err, CommandError::InvalidArgument(_)), "{err:?}");
+        }
+        // 合法回传 + 会话存在 + id 未知 → 唤醒失败（false，不报错）
+        let info = svc.new_session(None, vec![], None, None, None, None, None).await.unwrap();
+        let woke = svc
+            .resolve_interaction(
+                &info.id,
+                "ix-missing",
+                InteractionResponse::UserInput { answers: None },
+            )
+            .await
+            .unwrap();
+        assert!(!woke, "未知 id 不应唤醒");
+        // 合法回传 + 会话不存在 → SessionNotFound
+        let err = svc
+            .resolve_interaction("nope", "ix-1", InteractionResponse::UserInput { answers: None })
+            .await
+            .unwrap_err();
+        assert!(matches!(err, CommandError::SessionNotFound(_)), "{err:?}");
+    }
+
     #[tokio::test]
     async fn list_and_delete_session() {
         let svc = AgentCommandService::new();

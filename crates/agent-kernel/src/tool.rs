@@ -437,6 +437,14 @@ pub enum ToolError {
     #[error("工具被中止")]
     Aborted,
 
+    /// S5：钩子转人工复核被拒绝（fail-closed，工具不执行）
+    #[error("钩子转人工复核被拒绝: {0}")]
+    HookReviewDenied(String),
+
+    /// S5：钩子转人工复核超时 / 随轮取消（仅内核侧产生；按拒绝 fail-closed 处理）
+    #[error("钩子转人工复核超时或取消（按拒绝处理）: {0}")]
+    HookReviewTimeout(String),
+
     #[error("其他错误: {0}")]
     Other(String),
 }
@@ -454,6 +462,8 @@ impl ToolError {
             ToolError::Execution(_) => "EXECUTION_ERROR",
             ToolError::Timeout => "TIMEOUT",
             ToolError::Aborted => "ABORTED",
+            ToolError::HookReviewDenied(_) => "HOOK_REVIEW_DENIED",
+            ToolError::HookReviewTimeout(_) => "HOOK_REVIEW_TIMEOUT",
             ToolError::Other(_) => "UNKNOWN",
         }
     }

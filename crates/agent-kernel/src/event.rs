@@ -8,7 +8,6 @@ use std::sync::Arc;
 use serde::Serialize;
 
 use crate::a2ui::A2UIMessage;
-use crate::confirmation::{AskOutcome, ConfirmationOutcome};
 use crate::event_bus::{Listener, Outcome};
 use crate::node::{NodeStatus, NodeType};
 use crate::types::{ConvergeReason, ImageAttachment, PlanItem, ReflectionResult};
@@ -631,44 +630,25 @@ pub enum OrchestratorEvent {
         message: A2UIMessage,
     },
 
-    // HITL 权限确认事件（A5），详细见 docs/details/注释/agent-runtime/event.md
-    /// 请求用户确认某次工具调用（危险操作）
-    ///
-    /// 由 `ConfirmationBroker::request` 广播，Tauri 端转发到前端
-    /// `agent:confirm:{session_id}`，前端弹窗后经 `cmd_agent_confirm` 回传。
-    ConfirmationRequested {
-        /// 确认请求唯一 ID（前端回传时原样返回）
-        confirm_id: String,
-        /// 待确认的工具名
-        tool_name: String,
-        /// 待确认的工具参数
-        args: serde_json::Value,
-    },
-    /// 确认已解决（前端已响应，用于前端清理进行中的确认弹窗）
-    ConfirmationResolved {
-        /// 确认请求唯一 ID
-        confirm_id: String,
-        /// 用户审批结果（D8 四值：approved / denied / skipped / timeout）
-        outcome: ConfirmationOutcome,
-    },
+    // ── 交互族（S5：三型统一模型——permission / user_input / hook_review 共用本对）──
 
-    // Q1 提问事件（2026-09-20），详细见 docs/details/注释/agent-runtime/event.md
-    /// 请求用户回答问题（模型主动提问）
+    /// 交互请求（三型共用；载荷带 kind 判别）
     ///
-    /// 由 `ConfirmationBroker::ask` 广播，Tauri 端转发到前端
-    /// `agent:ask:{session_id}`，前端弹提问面板后经 `cmd_agent_ask_answer` 回传。
-    AskRequested {
-        /// 提问请求唯一 ID（前端回传时原样返回）
-        ask_id: String,
-        /// 问题批次（camelCase：`[{id, question, header?, options?, multiSelect?}]`）
-        questions: serde_json::Value,
+    /// 由 `InteractionBroker::request_*` 广播，Tauri 端转发到前端
+    /// `agent:interaction:{session_id}`，前端按 kind 分派面板后经统一回传命令唤起
+    /// （permission 弹确认框 / user_input 弹提问面板 / hook_review 弹复核框）。
+    InteractionRequested {
+        /// 交互请求唯一 ID（前端回传时原样返回）
+        interaction_id: String,
+        /// 请求载荷（`serde(tag = "kind")`：`{"kind": "...", <载荷字段>}`）
+        request: agent_engine::contracts::interaction::InteractionRequest,
     },
-    /// 提问已解决（前端已响应或随轮取消，用于前端清理进行中的提问面板）
-    AskResolved {
-        /// 提问请求唯一 ID
-        ask_id: String,
-        /// 提问结果（answered / denied / cancelled，见 `AskOutcome::kind`）
-        outcome: AskOutcome,
+    /// 交互已解决（前端据此清理进行中的面板；每个终态都广播——resolve / 超时 / 取消）
+    InteractionResolved {
+        /// 交互请求唯一 ID
+        interaction_id: String,
+        /// 统一结果（判别即 kind；线面串见 `InteractionOutcome::wire_outcome`）
+        outcome: agent_engine::contracts::interaction::InteractionOutcome,
     },
 
     // ── 会话分支（S3-e2 接线；key 已于 S3-c/S3-d 登记，此处补齐发射面）──
@@ -818,10 +798,8 @@ impl OrchestratorEvent {
             Self::ToolCallDelta { .. } => keys::TOOL_CALL_DELTA,
             Self::FileChange { .. } => keys::FILE_CHANGE,
             Self::A2UIEvent { .. } => keys::A2UI_EVENT,
-            Self::ConfirmationRequested { .. } => keys::CONFIRMATION_REQUESTED,
-            Self::ConfirmationResolved { .. } => keys::CONFIRMATION_RESOLVED,
-            Self::AskRequested { .. } => keys::ASK_REQUESTED,
-            Self::AskResolved { .. } => keys::ASK_RESOLVED,
+            Self::InteractionRequested { .. } => keys::INTERACTION_REQUESTED,
+            Self::InteractionResolved { .. } => keys::INTERACTION_RESOLVED,
             Self::ConversationForked { .. } => keys::CONVERSATION_FORKED,
             Self::ConversationRewound { .. } => keys::CONVERSATION_REWOUND,
             Self::CheckpointCreated { .. } => keys::CHECKPOINT_CREATED,

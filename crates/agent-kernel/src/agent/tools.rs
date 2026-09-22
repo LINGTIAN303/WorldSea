@@ -68,6 +68,8 @@ struct ToolExecShared {
     base_delay: std::time::Duration,
     /// 单次执行超时（None = 不限时）
     timeout: Option<std::time::Duration>,
+    /// S5：交互协调器（`ToolHookAction::Review` 转人工复核的发起通道；`None` = 无通道）
+    interaction_broker: Option<Arc<crate::interaction_broker::InteractionBroker>>,
 }
 
 /// T4（2026-09-18）：工具执行统一包装（串行 / 并行共用）。
@@ -85,7 +87,7 @@ async fn run_tool_with_retry(
     ctx: &crate::tool_context::ToolContext,
     args: serde_json::Value,
 ) -> Result<serde_json::Value, ToolError> {
-    // A6 工具生命周期钩子：pre 阶段（可改 args / 拒绝）
+    // A6 工具生命周期钩子：pre 阶段（可改 args / 拒绝 / 转人工复核）
     // 多个钩子按注册顺序依次执行，后一个通过 Allow(new_args) 覆盖前一个。
     let mut effective_args = args.clone();
     for hook in &shared.hooks {
@@ -98,6 +100,35 @@ async fn run_tool_with_retry(
                     h.on_error(name, &effective_args, &err);
                 }
                 return Err(err);
+            }
+            // S5：钩子转人工复核（hookReview 型）——放行则继续（沿原 args）；未获放行
+            // 按 fail-closed 收口（拒绝 → HOOK_REVIEW_DENIED；超时/取消 → HOOK_REVIEW_TIMEOUT）。
+            // 无确认通道（未注入 broker）时按既有归一化降级放行（对齐「Ask 无通道降级 Allow」）。
+            ToolHookAction::Review { reason } => {
+                let Some(broker) = &shared.interaction_broker else {
+                    continue;
+                };
+                let outcome = broker
+                    .request_hook_review(
+                        &shared.broadcaster,
+                        hook.hook_name(),
+                        name,
+                        effective_args.clone(),
+                        &reason,
+                    )
+                    .await;
+                if !outcome.is_approved() {
+                    let err = match outcome {
+                        crate::interaction_broker::HookReviewOutcome::Denied => {
+                            ToolError::HookReviewDenied(reason)
+                        }
+                        _ => ToolError::HookReviewTimeout(reason),
+                    };
+                    for h in &shared.hooks {
+                        h.on_error(name, &effective_args, &err);
+                    }
+                    return Err(err);
+                }
             }
         }
     }
@@ -408,6 +439,7 @@ impl AgentLoop {
             max_retries: config.tool_max_retries,
             base_delay: config.tool_retry_base_delay,
             timeout: config.tool_timeout,
+            interaction_broker: self.confirmation_broker.clone(),
         }
     }
 
@@ -586,7 +618,7 @@ impl AgentLoop {
                     return None;
                 };
                 let outcome = broker
-                    .request(&self.broadcaster, name, args.clone())
+                    .request_permission(&self.broadcaster, name, args.clone())
                     .await;
                 // D8 四值：拒绝 / 跳过 / 超时不再混同——工具错误消息区分，LLM 可据此采取不同后续
                 // T1：结果补判别字段（isError + errorCode，拒绝类码与四值一一对应）

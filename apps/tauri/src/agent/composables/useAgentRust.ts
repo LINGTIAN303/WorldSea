@@ -1425,70 +1425,159 @@ async function generateSessionTitle(sessionId: string, firstMessage: string, fir
   }
 }
 
-// ─── HITL 工具确认事件监听（agent:confirm:{session_id}，A5）────────────────────
-
-/** Rust `ConfirmationRequested` / `ConfirmationResolved` 事件 payload 镜像 */
-interface RustConfirmPayload {
-  /** 确认请求唯一 ID（回传 cmd_agent_confirm 时原样返回） */
-  confirmId: string
-  /** 待确认的工具名 */
-  toolName: string
-  /** 待确认的工具参数 */
-  args?: Record<string, unknown>
-  /** 仅 resolved 事件：`resolved` 标记 */
-  type?: 'resolved'
-  /** 仅 resolved 事件：审批结果（D8 四值；timeout 由 kernel 超时产生） */
-  outcome?: 'approved' | 'denied' | 'skipped' | 'timeout'
-}
-
-/** HITL 确认事件监听器清理函数（按 sessionId 索引） */
-const confirmUnlistenFns = new Map<string, UnlistenFn>()
+// ─── S5 交互族事件监听（agent:interaction:{session_id}：permission / user_input / hook_review）──
 
 /**
- * 为指定会话设置 HITL 工具确认监听（A5；v2 2026-09-03：底部弹出 + 可添加白名单并放行）
+ * Rust `InteractionRequested` / `InteractionResolved` 事件 payload 镜像
  *
- * 监听 `agent:confirm:{session_id}`，收到 `ConfirmationRequested` 后在对话区底部弹确认框，
- * 用户选择后经 `cmd_agent_confirm` 回传放行/拒绝。幂等：已存在监听器则直接返回。
+ * 请求形状 = 契约类型 `InteractionRequest` 的 serde 形状（`{kind, <载荷字段>}`，
+ * snake_case 字段） + Tauri 注入的 `interaction_id`；结果形状 =
+ * `{type:'resolved', interaction_id, kind, outcome}`（outcome 为线面串）。
  */
-async function setupConfirmListener(sessionId: string): Promise<void> {
-  if (confirmUnlistenFns.has(sessionId)) return
+interface RustInteractionPayload {
+  /** 交互请求唯一 ID（回传 `cmd_agent_interaction_respond` 时原样返回） */
+  interaction_id: string
+  /** 三型判别（分派面板） */
+  kind: 'permission' | 'user_input' | 'hook_review'
+  /** 仅 resolved 事件：`resolved` 标记（含超时与随轮取消） */
+  type?: 'resolved'
+  /** 仅 resolved 事件：结果线面串（approved/denied/skipped/timeout、answered/denied/cancelled/timed_out） */
+  outcome?: string
+  /** permission / hook_review：待确认（或待复核）的工具名 */
+  tool_name?: string
+  /** permission / hook_review：工具参数（确认框展示；白名单附加动作取用） */
+  args?: Record<string, unknown>
+  /** user_input：问题批次（camelCase：id/question/header?/options?/multiSelect?） */
+  questions?: AskQuestion[]
+  /** hook_review：发起复核的钩子名 */
+  hook_name?: string
+  /** hook_review：钩子给出的转复核原因 */
+  reason?: string
+}
 
-  const eventName = `agent:confirm:${sessionId}`
+/** 交互族事件监听器清理函数（按 sessionId 索引） */
+const interactionUnlistenFns = new Map<string, UnlistenFn>()
+
+/**
+ * 为指定会话设置交互族事件监听（S5 统一：单通道 + kind 分派）
+ *
+ * 监听 `agent:interaction:{session_id}`：
+ * - `kind: 'permission'` → 现确认弹窗（三键 + 白名单附加动作；approved/denied/skipped 回传）
+ * - `kind: 'user_input'` → 现提问面板（useAsk 批量协议；取消 = 缺省 answers = 拒绝作答）
+ * - `kind: 'hook_review'` → 复核弹窗（钩子名 / 工具 / 原因 + 通过 / 拒绝）
+ * - `type: 'resolved'`（含超时与随轮取消）→ 关闭对应面板（对已解决 id 幂等无害）
+ *
+ * 幂等：已存在监听器则直接返回。
+ */
+async function setupInteractionListener(sessionId: string): Promise<void> {
+  if (interactionUnlistenFns.has(sessionId)) return
+
+  const eventName = `agent:interaction:${sessionId}`
   try {
-    const unlisten = await listen<RustConfirmPayload>(eventName, async (e) => {
+    const unlisten = await listen<RustInteractionPayload>(eventName, async (e) => {
       const payload = e.payload
-      // resolved 事件：Rust 已解决（弹窗由 doConfirm/doCancel 关闭），无需处理
-      if (payload.type === 'resolved') return
-      const { confirm } = useConfirm()
-      const argSummary = payload.args ? JSON.stringify(payload.args).slice(0, 200) : ''
-      // v2 白名单附加动作（方向3 P0，2026-09-03）：命令工具 → 命令白名单；FS 写/搜索 → 路径白名单
-      const allowAction = buildAllowAction(payload.toolName, payload.args)
-      // 三键确认（2026-08-30）：通过 / 取消(跳过) / 拒绝——此前只有 取消+确认(文案"删除"，
-      // 被读成"拒绝")，没有「通过」入口。D8 四值（2026-09-17）：三键各自成值回传
-      // （通过→approved / 拒绝→denied / 取消(跳过)→skipped；timeout 由 kernel 超时产生）
-      const choice = await confirm({
-        type: 'danger',
-        title: '危险操作确认',
-        description: `工具 "${payload.toolName}" 将执行${argSummary ? `\n参数：${argSummary}` : ''}\n是否继续？`,
-        confirmText: '通过',
-        cancelText: '拒绝',
-        neutralText: '取消(跳过)',
-        position: 'bottom',
-        extraActions: allowAction ? [allowAction] : [],
-        withChoice: true,
-      })
-      const outcome =
-        choice === 'confirmed' ? 'approved' : choice === 'skipped' ? 'skipped' : 'denied'
-      await safeInvoke('cmd_agent_confirm', {
-        sessionId,
-        confirmId: payload.confirmId,
-        outcome,
-      })
+      // kernel 侧已解决（作答回传后的 resolved / 超时 / abort·销毁的随轮取消）→ 关闭面板
+      if (payload.type === 'resolved') {
+        if (payload.kind === 'user_input') {
+          if (payload.outcome === 'timed_out') {
+            toastWarn('提问等待超时（10 分钟），已按「跳过」处理并继续')
+          }
+          useAsk().dismiss(payload.interaction_id)
+        }
+        return
+      }
+      switch (payload.kind) {
+        case 'permission':
+          await respondPermission(sessionId, payload)
+          break
+        case 'user_input':
+          await respondUserInput(sessionId, payload)
+          break
+        case 'hook_review':
+          await respondHookReview(sessionId, payload)
+          break
+      }
     })
-    confirmUnlistenFns.set(sessionId, unlisten)
+    interactionUnlistenFns.set(sessionId, unlisten)
   } catch (err) {
     console.error(`[useAgentRust] listen ${eventName} 失败:`, err)
   }
+}
+
+/** 统一回传口（S5）：按 kind 组装 `InteractionResponse` 载荷 */
+async function respondInteraction(
+  sessionId: string,
+  interactionId: string,
+  response: Record<string, unknown>,
+): Promise<void> {
+  await safeInvoke('cmd_agent_interaction_respond', {
+    sessionId,
+    interactionId,
+    response,
+  })
+}
+
+/** permission 型：现确认弹窗（三键 + 白名单附加动作 → approved/denied/skipped） */
+async function respondPermission(
+  sessionId: string,
+  payload: RustInteractionPayload,
+): Promise<void> {
+  const { confirm } = useConfirm()
+  const argSummary = payload.args ? JSON.stringify(payload.args).slice(0, 200) : ''
+  // v2 白名单附加动作（方向3 P0，2026-09-03）：命令工具 → 命令白名单；FS 写/搜索 → 路径白名单
+  const allowAction = buildAllowAction(payload.tool_name ?? '', payload.args)
+  // 三键确认（2026-08-30）：通过 / 取消(跳过) / 拒绝——此前只有 取消+确认(文案"删除"，
+  // 被读成"拒绝")，没有「通过」入口。D8 四值（2026-09-17）：三键各自成值回传
+  // （通过→approved / 拒绝→denied / 取消(跳过)→skipped；timeout 由 kernel 超时产生）
+  const choice = await confirm({
+    type: 'danger',
+    title: '危险操作确认',
+    description: `工具 "${payload.tool_name}" 将执行${argSummary ? `\n参数：${argSummary}` : ''}\n是否继续？`,
+    confirmText: '通过',
+    cancelText: '拒绝',
+    neutralText: '取消(跳过)',
+    position: 'bottom',
+    extraActions: allowAction ? [allowAction] : [],
+    withChoice: true,
+  })
+  const outcome = choice === 'confirmed' ? 'approved' : choice === 'skipped' ? 'skipped' : 'denied'
+  await respondInteraction(sessionId, payload.interaction_id, { kind: 'permission', outcome })
+}
+
+/** user_input 型：现提问面板（useAsk 批量协议；取消 = 缺省 answers → ASK_DENIED） */
+async function respondUserInput(
+  sessionId: string,
+  payload: RustInteractionPayload,
+): Promise<void> {
+  if (!payload.questions || payload.questions.length === 0) return
+  const { ask } = useAsk()
+  const answers = await ask({ askId: payload.interaction_id, questions: payload.questions })
+  const response: Record<string, unknown> = { kind: 'user_input' }
+  // 取消（answers = null）→ 不携带 answers 字段（Rust Option → None = 拒绝作答）
+  if (answers) response.answers = answers
+  await respondInteraction(sessionId, payload.interaction_id, response)
+}
+
+/** hook_review 型（S5 新增）：钩子转人工复核——通过 / 拒绝（未获放行由内核 fail-closed 收口） */
+async function respondHookReview(
+  sessionId: string,
+  payload: RustInteractionPayload,
+): Promise<void> {
+  const { confirm } = useConfirm()
+  const approved = await confirm({
+    type: 'danger',
+    title: '钩子复核',
+    description:
+      `钩子 "${payload.hook_name}" 将工具 "${payload.tool_name}" 转人工复核` +
+      `\n原因：${payload.reason ?? '（未给出）'}\n是否放行执行？`,
+    confirmText: '通过',
+    cancelText: '拒绝',
+    position: 'bottom',
+  })
+  await respondInteraction(sessionId, payload.interaction_id, {
+    kind: 'hook_review',
+    outcome: approved ? 'approved' : 'denied',
+  })
 }
 
 /** 命令类工具名（白名单「命令」维度；对齐 kernel confirmation::is_command_tool） */
@@ -1535,77 +1624,12 @@ function buildAllowAction(
   return undefined
 }
 
-/** 清理指定会话的 HITL 确认事件监听 */
-function teardownConfirmListener(sessionId: string): void {
-  const unlisten = confirmUnlistenFns.get(sessionId)
+/** 清理指定会话的交互族事件监听 */
+function teardownInteractionListener(sessionId: string): void {
+  const unlisten = interactionUnlistenFns.get(sessionId)
   if (unlisten) {
     unlisten()
-    confirmUnlistenFns.delete(sessionId)
-  }
-}
-
-// ─── Q1 提问事件监听（agent:ask:{session_id}，2026-09-20）────────────────────
-
-/** Rust `AskRequested` / `AskResolved` 事件 payload 镜像 */
-interface RustAskPayload {
-  /** 提问请求唯一 ID（回传 cmd_agent_ask_answer 时原样返回） */
-  askId: string
-  /** 仅 requested 事件：问题批次（camelCase：id/question/header?/options?/multiSelect?） */
-  questions?: AskQuestion[]
-  /** 仅 resolved 事件：`resolved` 标记 */
-  type?: 'resolved'
-  /** 仅 resolved 事件：结果（answered / denied / cancelled / timed_out） */
-  outcome?: 'answered' | 'denied' | 'cancelled' | 'timed_out'
-}
-
-/** 提问事件监听器清理函数（按 sessionId 索引） */
-const askUnlistenFns = new Map<string, UnlistenFn>()
-
-/**
- * 为指定会话设置提问事件监听（Q1）
- *
- * 监听 `agent:ask:{session_id}`：`AskRequested` → 提问面板（useAsk 批量协议，
- * 逐题作答）→ 用户作答/跳过/取消后经 `cmd_agent_ask_answer` 回传
- * （取消 = answers 缺省 = 拒绝作答 → ASK_DENIED）。`AskResolved`（含随轮取消
- * 与作答完成）→ `dismiss` 关闭对应面板（对已解决 ask_id 幂等无害）。
- * 幂等：已存在监听器则直接返回。
- */
-async function setupAskListener(sessionId: string): Promise<void> {
-  if (askUnlistenFns.has(sessionId)) return
-
-  const eventName = `agent:ask:${sessionId}`
-  try {
-    const unlisten = await listen<RustAskPayload>(eventName, async (e) => {
-      const payload = e.payload
-      const { ask, dismiss } = useAsk()
-      // kernel 侧已解决（作答回传后的 resolved / abort·销毁的随轮取消 / 10 分钟超时跳过）
-      // → 关闭面板；超时另给弱提示说明「已按跳过处理」（模型侧收到空答案 + timedOut 标记）
-      if (payload.type === 'resolved') {
-        if (payload.outcome === 'timed_out') {
-          toastWarn('提问等待超时（10 分钟），已按「跳过」处理并继续')
-        }
-        dismiss(payload.askId)
-        return
-      }
-      if (!payload.questions || payload.questions.length === 0) return
-      const answers = await ask({ askId: payload.askId, questions: payload.questions })
-      const args: Record<string, unknown> = { sessionId, askId: payload.askId }
-      // 取消（answers = null）→ 不携带 answers 字段（Rust Option → None = 拒绝作答）
-      if (answers) args.answers = answers
-      await safeInvoke('cmd_agent_ask_answer', args)
-    })
-    askUnlistenFns.set(sessionId, unlisten)
-  } catch (err) {
-    console.error(`[useAgentRust] listen ${eventName} 失败:`, err)
-  }
-}
-
-/** 清理指定会话的提问事件监听 */
-function teardownAskListener(sessionId: string): void {
-  const unlisten = askUnlistenFns.get(sessionId)
-  if (unlisten) {
-    unlisten()
-    askUnlistenFns.delete(sessionId)
+    interactionUnlistenFns.delete(sessionId)
   }
 }
 
@@ -2144,8 +2168,7 @@ async function newSession(
     teardownA2UIListener(oldSessionId)
     teardownSubAgentListener(oldSessionId)
     teardownStreamListener(oldSessionId)
-    teardownConfirmListener(oldSessionId)
-    teardownAskListener(oldSessionId)
+    teardownInteractionListener(oldSessionId)
     teardownPlanListener(oldSessionId)
     teardownTraceListener(oldSessionId)
     teardownOrchListener(oldSessionId)
@@ -2198,8 +2221,7 @@ async function newSession(
   await setupA2UIListener(info.id)
   await setupSubAgentListener(info.id)
   await setupStreamListener(info.id)
-  await setupConfirmListener(info.id)
-  await setupAskListener(info.id)
+  await setupInteractionListener(info.id)
   await setupPlanListener(info.id)
   await setupTraceListener(info.id)
   await setupOrchListener(info.id)
@@ -2242,8 +2264,7 @@ async function newDraftSession(scenarioId?: string): Promise<void> {
     teardownA2UIListener(oldSessionId)
     teardownSubAgentListener(oldSessionId)
     teardownStreamListener(oldSessionId)
-    teardownConfirmListener(oldSessionId)
-    teardownAskListener(oldSessionId)
+    teardownInteractionListener(oldSessionId)
     teardownPlanListener(oldSessionId)
     teardownTraceListener(oldSessionId)
     teardownOrchListener(oldSessionId)
@@ -2367,8 +2388,7 @@ async function deleteSession(sessionId: string): Promise<void> {
   teardownA2UIListener(sessionId)
   teardownSubAgentListener(sessionId)
   teardownStreamListener(sessionId)
-  teardownConfirmListener(sessionId)
-  teardownAskListener(sessionId)
+  teardownInteractionListener(sessionId)
   teardownTraceListener(sessionId)
   teardownOrchestrationTraceListener(sessionId)
   if (currentSessionId.value === sessionId) {
@@ -2501,8 +2521,7 @@ async function switchSession(sessionId: string): Promise<void> {
     teardownA2UIListener(oldSessionId)
     teardownSubAgentListener(oldSessionId)
     teardownStreamListener(oldSessionId)
-    teardownConfirmListener(oldSessionId)
-    teardownAskListener(oldSessionId)
+    teardownInteractionListener(oldSessionId)
     teardownPlanListener(oldSessionId)
     teardownTraceListener(oldSessionId)
     teardownOrchListener(oldSessionId)
@@ -2524,8 +2543,7 @@ async function switchSession(sessionId: string): Promise<void> {
   await setupA2UIListener(sessionId)
   await setupSubAgentListener(sessionId)
   await setupStreamListener(sessionId)
-  await setupConfirmListener(sessionId)
-  await setupAskListener(sessionId)
+  await setupInteractionListener(sessionId)
   await setupPlanListener(sessionId)
   await setupTraceListener(sessionId)
   await setupOrchListener(sessionId)
@@ -3440,11 +3458,11 @@ function dispose(): void {
   streamUnlistenFns.clear()
   streamingAssistant.value = null
   lastStreamedMsg.value = null
-  // 清理所有 HITL 确认事件监听器
-  for (const unlisten of confirmUnlistenFns.values()) {
+  // 清理所有交互族事件监听器（S5：permission / user_input / hook_review 单通道）
+  for (const unlisten of interactionUnlistenFns.values()) {
     unlisten()
   }
-  confirmUnlistenFns.clear()
+  interactionUnlistenFns.clear()
   // 清理所有计划事件监听器（A4 Plan-Exec）
   for (const unlisten of planUnlistenFns.values()) {
     unlisten()

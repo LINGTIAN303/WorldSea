@@ -136,23 +136,15 @@ struct RawReadArgs {
     max_chars: Option<u64>,
 }
 
+/// S5 交互族统一回传（2026-09-22）：三型共用（`response` 自身带 kind 判别）
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct ConfirmArgs {
+struct InteractionRespondArgs {
     session_id: String,
-    confirm_id: String,
-    /// D8 四值回传（approved / denied / skipped；timeout 由 kernel 超时产生）
-    outcome: String,
-}
-
-/// Q1 提问作答回传（2026-09-20）：`answers` 缺省/None = 用户拒绝作答（ASK_DENIED）
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct AskAnswerArgs {
-    session_id: String,
-    ask_id: String,
-    /// 用户作答（`[{id, selected[], custom?}]`，按提问批次 1:1 组装）；None = 拒绝作答
-    answers: Option<Vec<agent_runtime::confirmation::AskAnswer>>,
+    interaction_id: String,
+    /// 统一回传载荷（`{kind:"permission",outcome}` / `{kind:"user_input",answers?}` /
+    /// `{kind:"hook_review",outcome}`）
+    response: agent_runtime::confirmation::InteractionResponse,
 }
 
 #[derive(Deserialize)]
@@ -501,21 +493,12 @@ pub fn register_core(reg: &mut Registry) {
             c::set_api_key_pool(st, a.session_id, a.keys).await.map(|_| Value::Null)
         })
     }));
-    reg.register("cmd_agent_confirm", Arc::new(move |app, args| {
+    reg.register("cmd_agent_interaction_respond", Arc::new(move |app, args| {
         let app = app.clone();
         Box::pin(async move {
-            let a: ConfirmArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
+            let a: InteractionRespondArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
             let st = app.state::<agent_commands::AgentCommandService>();
-            c::cmd_agent_confirm(st, a.session_id, a.confirm_id, a.outcome).await.map(|r| to_value(r).unwrap_or(Value::Null))
-        })
-    }));
-    // Q1 提问（2026-09-20）：提问面板作答/拒绝回传（answers=None 即拒绝作答）
-    reg.register("cmd_agent_ask_answer", Arc::new(move |app, args| {
-        let app = app.clone();
-        Box::pin(async move {
-            let a: AskAnswerArgs = match from_value(args) { Ok(v) => v, Err(e) => return Err(e.to_string()) };
-            let st = app.state::<agent_commands::AgentCommandService>();
-            c::cmd_agent_ask_answer(st, a.session_id, a.ask_id, a.answers).await.map(|r| to_value(r).unwrap_or(Value::Null))
+            c::cmd_agent_interaction_respond(st, a.session_id, a.interaction_id, a.response).await.map(|r| to_value(r).unwrap_or(Value::Null))
         })
     }));
     // A2UI 接线（2026-09-17）：桥工具 emitA2UI → 会话事件总线 → 前端画布通道

@@ -2728,15 +2728,18 @@
     /// （Approved 放行执行 / Denied→CONFIRM_DENIED / Skipped→CONFIRM_SKIPPED / Timeout→CONFIRM_TIMEOUT）
     #[tokio::test]
     async fn confirmation_four_values_map_to_payload_codes() {
-        use crate::confirmation::{ConfirmationBroker, ConfirmationOutcome, ConfirmationPolicy};
+        use crate::confirmation::{ConfirmationOutcome, ConfirmationPolicy, InteractionBroker};
+        use agent_engine::contracts::interaction::{InteractionKind, InteractionOutcome};
         use std::time::Duration;
 
-        /// 捕获确认请求 id（模拟前端：监听 `agent:confirm` 通道后回传）
+        /// 捕获审批请求 id（模拟前端：监听族事件 permission 型后回传）
         struct ConfirmCapture(std::sync::Mutex<Option<String>>);
         impl Listener for ConfirmCapture {
             fn call(&self, event: &OrchestratorEvent) -> ListenerOutcome {
-                if let OrchestratorEvent::ConfirmationRequested { confirm_id, .. } = event {
-                    *self.0.lock().unwrap() = Some(confirm_id.clone());
+                if let OrchestratorEvent::InteractionRequested { interaction_id, request } = event {
+                    if request.kind() == InteractionKind::Permission {
+                        *self.0.lock().unwrap() = Some(interaction_id.clone());
+                    }
                 }
                 ListenerOutcome::Continue
             }
@@ -2786,8 +2789,8 @@
             let tool_bus = Arc::new(SimpleToolBus::new());
             tool_bus.register(Arc::new(CountingEcho(calls.clone()))).await;
             let broker = Arc::new(match timeout_ms {
-                Some(ms) => ConfirmationBroker::with_timeout(Duration::from_millis(ms)),
-                None => ConfirmationBroker::new(),
+                Some(ms) => InteractionBroker::with_timeout(Duration::from_millis(ms)),
+                None => InteractionBroker::new(),
             });
             let agent = Arc::new(
                 AgentLoop::new(backend, tool_bus)
@@ -2807,7 +2810,7 @@
                     tokio::time::sleep(Duration::from_millis(5)).await;
                     let id = capture.0.lock().unwrap().clone();
                     if let Some(id) = id {
-                        broker.resolve(&id, outcome).await;
+                        broker.resolve(&id, InteractionOutcome::Permission(outcome)).await;
                         break;
                     }
                 }
@@ -2840,6 +2843,242 @@
         let (calls, v) = run_case(None, Some(30)).await;
         assert_eq!(calls, 0, "Timeout 不应执行");
         assert_eq!(v.expect("应有超时结果")["errorCode"], "CONFIRM_TIMEOUT");
+    }
+
+    /// S5 反证③：钩子转人工复核（hookReview 型）——放行继续执行；拒绝 / 超时 fail-closed
+    /// （工具不执行 + 判别码 `HOOK_REVIEW_DENIED` / `HOOK_REVIEW_TIMEOUT`）
+    #[tokio::test]
+    async fn hook_review_escalation_controls_execution() {
+        use crate::confirmation::InteractionBroker;
+        use crate::tool_hook::{ToolHookAction, ToolLifecycleHook};
+        use agent_engine::contracts::interaction::{
+            HookReviewOutcome, InteractionKind, InteractionOutcome,
+        };
+        use std::time::Duration;
+
+        /// 钩子：对 `echo` 一律转人工复核（对齐 ZCode 钩子决策 `allow|deny|ask` 的 `ask` 位）
+        struct ReviewHook;
+        impl ToolLifecycleHook for ReviewHook {
+            fn hook_name(&self) -> &str {
+                "review"
+            }
+            fn on_pre_use(&self, tool_name: &str, args: &serde_json::Value) -> ToolHookAction {
+                if tool_name == "echo" {
+                    ToolHookAction::Review {
+                        reason: "需要人工确认".into(),
+                    }
+                } else {
+                    ToolHookAction::Allow(args.clone())
+                }
+            }
+        }
+
+        /// 捕获复核请求 id（模拟前端：监听族事件后经回传口 resolve）
+        struct ReviewCapture(std::sync::Mutex<Option<String>>);
+        impl Listener for ReviewCapture {
+            fn call(&self, event: &OrchestratorEvent) -> ListenerOutcome {
+                if let OrchestratorEvent::InteractionRequested { interaction_id, request } = event {
+                    if request.kind() == InteractionKind::HookReview {
+                        *self.0.lock().unwrap() = Some(interaction_id.clone());
+                    }
+                }
+                ListenerOutcome::Continue
+            }
+        }
+
+        struct EchoTool(Arc<AtomicUsize>);
+        #[async_trait]
+        impl crate::tool::Tool for EchoTool {
+            fn name(&self) -> &str {
+                "echo"
+            }
+            fn description(&self) -> &str {
+                "计数回显（测试用）"
+            }
+            fn parameters(&self) -> serde_json::Value {
+                serde_json::json!({ "type": "object", "properties": {} })
+            }
+            async fn execute(
+                &self,
+                _args: serde_json::Value,
+            ) -> Result<serde_json::Value, crate::tool::ToolError> {
+                self.0.fetch_add(1, Ordering::SeqCst);
+                Ok(serde_json::json!({ "ok": true }))
+            }
+        }
+
+        // 无确认策略（权限门不介入）——复核完全由钩子升级触发
+        async fn run_case(
+            resolve: Option<HookReviewOutcome>,
+            timeout_ms: Option<u64>,
+        ) -> (usize, Option<serde_json::Value>) {
+            let calls = Arc::new(AtomicUsize::new(0));
+            let backend = Arc::new(MockBackend::new(vec![
+                PromptResponse {
+                    text: "调用".into(),
+                    tool_calls: vec![ToolCall {
+                        id: "tc_review".into(),
+                        name: "echo".into(),
+                        args: serde_json::json!({ "message": "hi" }),
+                    }],
+                    input_tokens: None,
+                    output_tokens: None,
+                    stop_reason: Some("tool_calls".into()),
+                    reasoning: None,
+                },
+                PromptResponse::text_only("完成"),
+            ]));
+            let tool_bus = Arc::new(SimpleToolBus::new());
+            tool_bus.register(Arc::new(EchoTool(calls.clone()))).await;
+            let broker = Arc::new(match timeout_ms {
+                Some(ms) => InteractionBroker::with_hook_review_timeout(Duration::from_millis(ms)),
+                None => InteractionBroker::new(),
+            });
+            let agent = Arc::new(
+                AgentLoop::new(backend, tool_bus)
+                    .with_tool_hook(Arc::new(ReviewHook))
+                    .with_confirmation(Some(broker.clone())),
+            );
+            let capture = Arc::new(ReviewCapture(std::sync::Mutex::new(None)));
+            agent.subscribe(capture.clone()).await;
+
+            let runner = agent.clone();
+            let handle = tokio::spawn(async move { runner.run("跑".into()).await });
+            if let Some(outcome) = resolve {
+                for _ in 0..200 {
+                    tokio::time::sleep(Duration::from_millis(5)).await;
+                    let id = capture.0.lock().unwrap().clone();
+                    if let Some(id) = id {
+                        broker
+                            .resolve(&id, InteractionOutcome::HookReview(outcome))
+                            .await;
+                        break;
+                    }
+                }
+            }
+            handle.await.unwrap().expect("运行应成功");
+
+            let msgs = agent.get_messages().await;
+            let tr = msgs.iter().find(|m| {
+                m.role == MessageRole::ToolResult && m.tool_call_id.as_deref() == Some("tc_review")
+            });
+            let value = tr.map(|m| serde_json::from_str(&m.content).expect("toolResult 应为 JSON"));
+            (calls.load(Ordering::SeqCst), value)
+        }
+
+        // 放行：工具执行、结果正常
+        let (calls, v) = run_case(Some(HookReviewOutcome::Approved), None).await;
+        assert_eq!(calls, 1, "复核放行应执行工具");
+        assert_eq!(v.expect("应有 toolResult")["ok"], true);
+        // 拒绝：不执行、码为 HOOK_REVIEW_DENIED
+        let (calls, v) = run_case(Some(HookReviewOutcome::Denied), None).await;
+        assert_eq!(calls, 0, "复核拒绝不应执行");
+        assert_eq!(v.expect("应有拒绝结果")["errorCode"], "HOOK_REVIEW_DENIED");
+        // 超时（broker 30ms 复核超时）：不执行、码为 HOOK_REVIEW_TIMEOUT
+        let (calls, v) = run_case(None, Some(30)).await;
+        assert_eq!(calls, 0, "复核超时不应执行");
+        assert_eq!(v.expect("应有超时结果")["errorCode"], "HOOK_REVIEW_TIMEOUT");
+    }
+
+    /// S5 反证②：统一随轮取消**接线**——`abort` 即刻取消待确认（旧缺口修复：
+    /// 此前 abort 不取消确认，工具须等满 60s 超时才收口）
+    #[tokio::test]
+    async fn abort_cancels_pending_confirmation() {
+        use crate::confirmation::{ConfirmationPolicy, InteractionBroker};
+        use agent_engine::contracts::interaction::InteractionKind;
+        use std::time::Duration;
+
+        /// 捕获审批请求（模拟前端仅观察、不回传——由 abort 收口）
+        struct ConfirmCapture(std::sync::Mutex<Option<String>>);
+        impl Listener for ConfirmCapture {
+            fn call(&self, event: &OrchestratorEvent) -> ListenerOutcome {
+                if let OrchestratorEvent::InteractionRequested { interaction_id, request } = event {
+                    if request.kind() == InteractionKind::Permission {
+                        *self.0.lock().unwrap() = Some(interaction_id.clone());
+                    }
+                }
+                ListenerOutcome::Continue
+            }
+        }
+
+        struct DelegatingTool;
+        #[async_trait]
+        impl crate::tool::Tool for DelegatingTool {
+            fn name(&self) -> &str {
+                "delegate_to_sub_agent" // Dangerous 级 → 命中确认
+            }
+            fn description(&self) -> &str {
+                "委派（测试用，不应被执行）"
+            }
+            fn parameters(&self) -> serde_json::Value {
+                serde_json::json!({ "type": "object", "properties": {} })
+            }
+            async fn execute(
+                &self,
+                _args: serde_json::Value,
+            ) -> Result<serde_json::Value, crate::tool::ToolError> {
+                panic!("确认未获放行，工具不应被执行");
+            }
+        }
+
+        let backend = Arc::new(MockBackend::new(vec![
+            PromptResponse {
+                text: "委派".into(),
+                tool_calls: vec![ToolCall {
+                    id: "tc_abort".into(),
+                    name: "delegate_to_sub_agent".into(),
+                    args: serde_json::json!({}),
+                }],
+                input_tokens: None,
+                output_tokens: None,
+                stop_reason: Some("tool_calls".into()),
+                reasoning: None,
+            },
+            PromptResponse::text_only("完成"),
+        ]));
+        let tool_bus = Arc::new(SimpleToolBus::new());
+        tool_bus.register(Arc::new(DelegatingTool)).await;
+        let broker = Arc::new(InteractionBroker::new()); // 默认 60s——abort 不得依赖超时收口
+        let agent = Arc::new(
+            AgentLoop::new(backend, tool_bus)
+                .with_config(AgentLoopConfig {
+                    confirmation_policy: Some(ConfirmationPolicy::dangerous_only()),
+                    ..Default::default()
+                })
+                .with_confirmation(Some(broker.clone())),
+        );
+        let capture = Arc::new(ConfirmCapture(std::sync::Mutex::new(None)));
+        agent.subscribe(capture.clone()).await;
+
+        let runner = agent.clone();
+        let handle = tokio::spawn(async move { runner.run("跑".into()).await });
+        // 等待确认请求进入 pending
+        for _ in 0..200 {
+            tokio::time::sleep(Duration::from_millis(5)).await;
+            if capture.0.lock().unwrap().is_some() {
+                break;
+            }
+        }
+        assert_eq!(broker.pending_count().await, 1, "确认应进入 pending");
+
+        let started = std::time::Instant::now();
+        agent.abort().await;
+        let _ = handle.await.unwrap(); // abort 后 run 的返回形态不作契约（可能 Ok 或 Aborted）
+        assert!(
+            started.elapsed() < Duration::from_secs(5),
+            "abort 应即刻取消待确认（不得等满 60s 默认超时），实际 {:?}",
+            started.elapsed()
+        );
+        assert_eq!(broker.pending_count().await, 0, "abort 后 pending 应清空");
+
+        // 工具结果为「未执行」收口（四值中的内核侧 Timeout）
+        let msgs = agent.get_messages().await;
+        let tr = msgs.iter().find(|m| {
+            m.role == MessageRole::ToolResult && m.tool_call_id.as_deref() == Some("tc_abort")
+        });
+        let v: serde_json::Value =
+            serde_json::from_str(&tr.expect("应有工具结果").content).expect("toolResult 应为 JSON");
+        assert_eq!(v["errorCode"], "CONFIRM_TIMEOUT");
     }
 
     /// T1 契约：并行路径失败结果同样带判别字段（与串行同规）；成功结果不携带 `isError`。

@@ -30,7 +30,8 @@
 
 **会话/场景**：new_session / list_scenarios / list_sessions / delete_session / update_session_title / set_session_pinned / set_session_router_enabled
 **对话主链路**：send_message / abort / steer / clear_history / trim_context / get_state / get_messages / is_streaming / get_heartbeat
-**模型/供应商/安全**：update_model / update_thinking_level / get_provider_config / set_provider_config / set_api_key_pool / cmd_agent_confirm / cmd_agent_set_security_level
+**交互族（S5）**：cmd_agent_interaction_respond（permission / user_input / hook_review 统一回传；旧 cmd_agent_confirm / cmd_agent_ask_answer 已退役）
+**模型/供应商/安全**：update_model / update_thinking_level / get_provider_config / set_provider_config / set_api_key_pool / cmd_agent_set_security_level
 **编排**：orchestrator_run_plan / orchestrator_run_tot / orchestrator_run_got / orchestrator_run_supervisor / orchestrator_run_multi
 **记忆**：memory_list / memory_recall / memory_archive / memory_load_chunk / memory_boundary
 **终端**：terminal_execute_command / terminal_detect_shells / terminal_create_session / terminal_exec_session / terminal_input_session / terminal_destroy_session / terminal_list_sessions

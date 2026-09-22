@@ -80,9 +80,7 @@ use agent_patterns::orchestrator as b_rail;
 use agent_runtime::agent::prompt_sections::{assemble_sections, order, PromptSection};
 use agent_runtime::agent::{AgentLoop, AgentLoopConfig, AgentState, AgentStateSnapshot};
 use agent_runtime::backend::{NodeBackendAccessor, PromptCallOptions, ThinkingLevel};
-use agent_runtime::confirmation::{
-    AskAnswer, AskOutcome, ConfirmationBroker, ConfirmationOutcome, ConfirmationPolicy,
-};
+use agent_runtime::confirmation::{ConfirmationPolicy, InteractionBroker, InteractionResponse};
 use agent_runtime::event::{
     EventBroadcaster, OrchestratorEndStatus, OrchestratorEvent, TracePhaseStatus,
 };
@@ -2017,7 +2015,7 @@ impl AgentCommandService {
         }
         // A5 HITL / Q1 提问（2026-09-20）：为每个会话注入独立的确认协调器
         // （配合 confirmation_policy 生效）；提问通道复用同一 broker——阻塞原语同构
-        let confirmation_broker = Arc::new(ConfirmationBroker::new());
+        let confirmation_broker = Arc::new(InteractionBroker::new());
         agent_builder =
             agent_builder.with_confirmation(Some(Arc::clone(&confirmation_broker)));
         agent_builder = agent_builder.with_router(Some(router));
@@ -4028,39 +4026,25 @@ impl AgentCommandService {
         Ok(())
     }
 
-    /// 解析一次待定的工具确认（HITL，A5；D8 四值 2026-09-17）
+    /// 解析一次待决交互（S5 统一回传口；前端 `agent:interaction:{session_id}` 面板回传）
     ///
-    /// 前端在 `agent:confirm:{session_id}` 弹窗后调用：
-    /// `approved` 放行 / `denied` 拒绝 / `skipped` 跳过（三键各自成值）。
-    /// 返回是否成功唤醒对应等待方（confirm_id 已超时/已处理时 false）。
-    pub async fn resolve_confirmation(
+    /// `response` 判别即 kind（`InteractionResponse`）：
+    /// - permission：`outcome` 取 approved / denied / skipped（timeout 由内核超时产生）
+    /// - user_input：`answers = Some([...])` 作答（`[{id, selected[], custom?}]` 按批次 1:1 组装）、
+    ///   `None` 拒绝作答（前端「取消」键 → `ASK_DENIED`）
+    /// - hook_review：`outcome` 取 approved / denied
+    ///
+    /// 内核侧值 / 未知值 → `InvalidArgument`（不唤醒等待方）；返回是否成功唤醒
+    /// （id 不存在 = 已超时 / 已取消 / 已处理）。
+    pub async fn resolve_interaction(
         &self,
         session_id: &str,
-        confirm_id: &str,
-        outcome: ConfirmationOutcome,
+        interaction_id: &str,
+        response: InteractionResponse,
     ) -> Result<bool, CommandError> {
+        let outcome = response.into_outcome().map_err(CommandError::invalid_argument)?;
         let agent = self.get_agent(session_id).await?;
-        Ok(agent.resolve_confirmation(confirm_id, outcome).await)
-    }
-
-    /// 解析一次待回答的提问（Q1，2026-09-20）
-    ///
-    /// 前端在 `agent:ask:{session_id}` 面板作答后调用：`answers = Some([...])` 表示作答
-    /// （`[{id, selected[], custom?}]`，由前端按提问批次 1:1 组装）、`None` 表示用户
-    /// 拒绝作答（前端「取消」键 → ASK_DENIED）。返回是否成功唤醒对应等待方
-    /// （ask_id 已处理/已随轮取消时 false）。
-    pub async fn resolve_ask(
-        &self,
-        session_id: &str,
-        ask_id: &str,
-        answers: Option<Vec<AskAnswer>>,
-    ) -> Result<bool, CommandError> {
-        let agent = self.get_agent(session_id).await?;
-        let outcome = match answers {
-            Some(list) => AskOutcome::Answered(list),
-            None => AskOutcome::Denied,
-        };
-        Ok(agent.resolve_ask(ask_id, outcome).await)
+        Ok(agent.resolve_interaction(interaction_id, outcome).await)
     }
 
     /// A2UI 接线（2026-09-17）：把前端桥工具发射的 A2UI 消息广播进会话事件总线

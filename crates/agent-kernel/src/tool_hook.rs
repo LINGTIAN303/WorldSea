@@ -16,12 +16,17 @@ use crate::tool::ToolError;
 ///
 /// - `Allow(new_args)`：放行并携带（可能被修改后的）参数
 /// - `Deny(reason)`：拒绝执行，`reason` 作为工具错误返回给 LLM
+/// - `Review { reason }`（S5）：钩子不裁决、**转人工复核**（hookReview 交互请求）——
+///   放行则继续执行（沿原 args），拒绝 / 超时 / 随轮取消按 fail-closed 收口
+///   （对齐 ZCode 钩子三值决策 `allow | deny | ask` 的 `ask` 位）
 #[derive(Debug, Clone)]
 pub enum ToolHookAction {
     /// 放行执行，`new_args` 为本次实际执行所用的参数（原样 = 不修改）
     Allow(serde_json::Value),
     /// 拒绝执行，`reason` 作为 `ToolError::Execution` 返回给 LLM
     Deny(String),
+    /// 转人工复核（S5）：`reason` 为展示给用户的原因；未获放行者按拒绝处理
+    Review { reason: String },
 }
 
 /// 工具生命周期钩子（A6）

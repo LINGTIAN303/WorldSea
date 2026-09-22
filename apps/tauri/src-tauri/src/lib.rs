@@ -155,9 +155,8 @@ pub fn run() {
             semantic_commands::cmd_workspace_index_status,
             semantic_commands::cmd_workspace_index_rebuild,
             commands::send_message,
-            commands::cmd_agent_confirm,
-            // Q1 提问（2026-09-20）：提问面板作答回传（Some=作答 / None=拒绝）
-            commands::cmd_agent_ask_answer,
+            // S5 交互族（2026-09-22）：统一回传口（permission / user_input / hook_review 三型）
+            commands::cmd_agent_interaction_respond,
             // A2UI 接线（2026-09-17）：桥工具 emitA2UI → 会话事件总线 → 前端画布通道
             commands::cmd_agent_emit_a2ui,
             commands::cmd_agent_set_security_level,

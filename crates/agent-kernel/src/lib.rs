@@ -16,6 +16,7 @@ pub mod context_budget;
 pub mod env_scrub;
 pub mod event;
 pub mod event_bus;
+pub mod interaction_broker;
 pub mod llm;
 pub mod long_task;
 pub mod loop_control;

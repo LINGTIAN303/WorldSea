@@ -4,7 +4,8 @@ import { ref } from 'vue'
  * useAsk — 提问面板（Q1，2026-09-20 重写：单值占位 → 批量问题协议）
  *
  * 与确认弹窗（useConfirm）同位置弹出（对话区底部输入栏上方），供「Agent 主动提问」
- * 场景使用（模型经 `ask_user_question` 工具发起，Rust 侧广播 `agent:ask:{session_id}`）。
+ * 场景使用（模型经 `ask_user_question` 工具发起，Rust 侧广播族事件 `InteractionRequested`
+ * 〔user_input 型〕，通道 `agent:interaction:{session_id}`；面板由统一监听器 kind 分派唤起）。
  *
  * 协议对齐 dsh `ask_user_question`（见 docs/plans/2026-09-18-对话区对齐dsh/
  * 02-dsh提问工具设计基线.md §五）：
@@ -43,7 +44,7 @@ export interface AskAnswer {
   custom?: string
 }
 
-/** Rust `AskRequested` 事件载荷（`agent:ask:{sessionId}`） */
+/** 提问请求载荷（族事件 user_input 型；调用方以交互请求 id 作 `askId` 传入） */
 export interface AskRequest {
   askId: string
   questions: AskQuestion[]
@@ -131,7 +132,7 @@ function buildAnswers(): AskAnswer[] {
 
 export function useAsk() {
   /**
-   * 发起提问面板（由 `agent:ask:{sessionId}` 监听器调用）
+   * 发起提问面板（由族事件监听器 `agent:interaction:{sessionId}` 的 user_input 分派调用）
    * 返回：作答/跳过整批答案数组；用户取消 → null（调用方回传「拒绝作答」）
    */
   function ask(request: AskRequest): Promise<AskAnswer[] | null> {
@@ -246,7 +247,7 @@ export function useAsk() {
   }
 
   /**
-   * kernel 侧已解决（`AskResolved` 事件，如随轮取消）→ 关闭对应面板
+   * kernel 侧已解决（族事件 `InteractionResolved`，如随轮取消 / 超时）→ 关闭对应面板
    *
    * 按 askId 匹配才关闭（避免误关后到的新请求）；本地按「拒绝」收口，
    * 调用方回传对已解决 ask_id 返回 false（幂等无害）。

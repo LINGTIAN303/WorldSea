@@ -7,6 +7,7 @@ use agent_commands::{
 };
 use agent_runtime::agent::prompt_sections::PromptSection;
 use agent_runtime::backend::ThinkingLevel;
+use agent_runtime::confirmation::{InteractionOutcome, InteractionRequest};
 use agent_runtime::event::{AgentEvent, OrchestratorEvent};
 use agent_runtime::event_bus::{Listener, ListenerOutcome};
 use agent_runtime::llm::config::ProviderConfig;
@@ -94,11 +95,23 @@ impl TauriAgentEventEmitter {
             OrchestratorEvent::ReflectionResult { result } => {
                 Some(("reflection", serde_json::json!({ "result": result })))
             }
-            OrchestratorEvent::ConfirmationRequested { confirm_id, tool_name, .. } => {
-                Some(("confirm", serde_json::json!({ "phase": "requested", "confirmId": confirm_id, "tool": tool_name })))
-            }
-            OrchestratorEvent::ConfirmationResolved { confirm_id, outcome } => {
-                Some(("confirm", serde_json::json!({ "phase": "resolved", "confirmId": confirm_id, "outcome": outcome })))
+            // S5：交互族 → 动作段；仅 permission 型进 `confirm` 段（user_input / hook_review
+            // 落活动日志——它们不构成工具执行时间线上的一段）
+            OrchestratorEvent::InteractionRequested { interaction_id, request } => match request {
+                InteractionRequest::Permission { tool_name, .. } => Some((
+                    "confirm",
+                    serde_json::json!({ "phase": "requested", "confirmId": interaction_id, "tool": tool_name }),
+                )),
+                _ => None,
+            },
+            OrchestratorEvent::InteractionResolved { interaction_id, outcome } => {
+                match outcome {
+                    InteractionOutcome::Permission(_) => Some((
+                        "confirm",
+                        serde_json::json!({ "phase": "resolved", "confirmId": interaction_id, "outcome": outcome.wire_outcome() }),
+                    )),
+                    _ => None,
+                }
             }
             // A2UI 画布回源（2026-09-17）：a2ui 作第七类入缓冲/持久化（AgentEnd 收口 →
             // `meta.action_events`），供前端 `collectA2UIActionEvents` 重放重建画布。
@@ -227,9 +240,24 @@ impl TauriAgentEventEmitter {
             OrchestratorEvent::SubAgentError { sub_agent_name, .. } => {
                 Some(("sub_agent_error", format!("子 Agent 失败：{sub_agent_name}")))
             }
-            OrchestratorEvent::ConfirmationRequested { tool_name, .. } => {
-                Some(("confirmation_requested", format!("请求确认工具 {tool_name}")))
-            }
+            // S5：交互族活动日志——三型各一行（permission 文案与既有确认一致）
+            OrchestratorEvent::InteractionRequested { request, .. } => match request {
+                InteractionRequest::Permission { tool_name, .. } => {
+                    Some(("confirmation_requested", format!("请求确认工具 {tool_name}")))
+                }
+                InteractionRequest::UserInput { .. } => {
+                    Some(("ask_requested", "等待用户回答提问".to_string()))
+                }
+                InteractionRequest::HookReview {
+                    hook_name,
+                    tool_name,
+                    reason,
+                    ..
+                } => Some((
+                    "hook_review_requested",
+                    format!("钩子 {hook_name} 将工具 {tool_name} 转人工复核：{reason}"),
+                )),
+            },
             // 阶段 3 · 压缩事件化（A2 补齐③）：压缩事务以活动日志可见、可审计
             OrchestratorEvent::ContextCompactStarted {
                 trigger,
@@ -595,59 +623,31 @@ impl Listener for TauriAgentEventEmitter {
                     tracing::warn!("Failed to emit SubAgentError event to frontend: {}", err);
                 }
             }
-            OrchestratorEvent::ConfirmationRequested {
-                confirm_id,
-                tool_name,
-                args,
-            } => {
-                // 转发到前端：事件名 `agent:confirm:{session_id}`
-                // payload: { confirmId, toolName, args }
-                let event_name = format!("agent:confirm:{}", self.session_id);
-                if let Err(err) = emit_dual(&self.app, &event_name, serde_json::json!({
-                    "confirmId": confirm_id,
-                    "toolName": tool_name,
-                    "args": args,
-                })) {
-                    tracing::warn!("Failed to emit ConfirmationRequested event to frontend: {}", err);
+            // S5 交互族（三型统一）：permission / user_input / hook_review → 前端族通道
+            OrchestratorEvent::InteractionRequested { interaction_id, request } => {
+                // 转发到前端：事件名 `agent:interaction:{session_id}`
+                // payload: request 的 serde 形状（`{"kind": "...", <载荷字段>}`）+ 注入 interaction_id
+                let event_name = format!("agent:interaction:{}", self.session_id);
+                let mut payload = serde_json::to_value(request).unwrap_or(serde_json::Value::Null);
+                if let Some(obj) = payload.as_object_mut() {
+                    obj.insert("interaction_id".into(), serde_json::json!(interaction_id));
+                }
+                if let Err(err) = emit_dual(&self.app, &event_name, payload) {
+                    tracing::warn!("Failed to emit InteractionRequested event to frontend: {}", err);
                 }
             }
-            OrchestratorEvent::ConfirmationResolved { confirm_id, outcome } => {
-                // 转发到前端：事件名 `agent:confirm:{session_id}`
-                // payload: { type: "resolved", confirmId, outcome }（D8 四值；
-                // 供前端清理进行中的确认弹窗）
-                let event_name = format!("agent:confirm:{}", self.session_id);
+            OrchestratorEvent::InteractionResolved { interaction_id, outcome } => {
+                // 转发到前端：事件名 `agent:interaction:{session_id}`
+                // payload: { type: "resolved", interaction_id, kind, outcome }（outcome 为线面串；
+                // 供前端清理进行中的面板——含超时 / 随轮取消路径）
+                let event_name = format!("agent:interaction:{}", self.session_id);
                 if let Err(err) = emit_dual(&self.app, &event_name, serde_json::json!({
                     "type": "resolved",
-                    "confirmId": confirm_id,
-                    "outcome": outcome,
+                    "interaction_id": interaction_id,
+                    "kind": outcome.kind().as_str(),
+                    "outcome": outcome.wire_outcome(),
                 })) {
-                    tracing::warn!("Failed to emit ConfirmationResolved event to frontend: {}", err);
-                }
-            }
-            // Q1 提问（2026-09-20）：模型主动提问 → 前端提问面板
-            OrchestratorEvent::AskRequested { ask_id, questions } => {
-                // 转发到前端：事件名 `agent:ask:{session_id}`
-                // payload: { askId, questions }（questions 为 camelCase 批次：
-                // [{id, question, header?, options?, multiSelect?}]）
-                let event_name = format!("agent:ask:{}", self.session_id);
-                if let Err(err) = emit_dual(&self.app, &event_name, serde_json::json!({
-                    "askId": ask_id,
-                    "questions": questions,
-                })) {
-                    tracing::warn!("Failed to emit AskRequested event to frontend: {}", err);
-                }
-            }
-            OrchestratorEvent::AskResolved { ask_id, outcome } => {
-                // 转发到前端：事件名 `agent:ask:{session_id}`
-                // payload: { type: "resolved", askId, outcome }（answered / denied / cancelled；
-                // 供前端清理进行中的提问面板——含随轮取消路径）
-                let event_name = format!("agent:ask:{}", self.session_id);
-                if let Err(err) = emit_dual(&self.app, &event_name, serde_json::json!({
-                    "type": "resolved",
-                    "askId": ask_id,
-                    "outcome": outcome.kind(),
-                })) {
-                    tracing::warn!("Failed to emit AskResolved event to frontend: {}", err);
+                    tracing::warn!("Failed to emit InteractionResolved event to frontend: {}", err);
                 }
             }
             // 流式响应事件（打字机效果）
@@ -1359,46 +1359,28 @@ pub async fn send_message(
     state.send_message(params).await.map_err(|e| e.to_string())
 }
 
-/// 解析 HITL 工具确认（A5；D8 四值 2026-09-17）：前端 `agent:confirm:{session_id}` 弹窗后回传
+/// 解析一次待决交互（S5 统一回传口）：前端 `agent:interaction:{session_id}` 面板回传
 ///
-/// `outcome` 取 `approved` / `denied` / `skipped`（三键各自成值；`timeout` 由 kernel 超时产生，
-/// 不接受前端回传）。`approved` 放行工具执行，其余按不执行返回给 LLM（文案区分）。
+/// `response` 判别即 kind（`InteractionResponse`）：
+/// - permission：`{kind:"permission", outcome:"approved"|"denied"|"skipped"}`——
+///   `timeout` 由 kernel 超时产生，不接受前端回传；approved 放行，其余按不执行返回（文案区分）
+/// - user_input：`{kind:"user_input", answers?:[...]}`——`answers` 缺省 = 拒绝作答
+///   （前端「取消」键 → 工具侧 `ASK_DENIED`）
+/// - hook_review：`{kind:"hook_review", outcome:"approved"|"denied"}`——未获放行按拒绝 fail-closed
 ///
-/// 相关：提问面板回传见 `cmd_agent_ask_answer`（Q1）；定时唤醒三件套
-/// `set_timer`/`list_timers`/`cancel_timer`（批次 C·S1）为纯工具，无独立命令。
+/// 内核侧值 / 未知值 → 报错（不唤醒等待方）；返回是否成功唤醒（id 已超时 / 已取消 / 已处理时 false）。
+///
+/// 失败码（工具结果内 `errorCode`）：CONFIRM_DENIED / CONFIRM_SKIPPED / CONFIRM_TIMEOUT /
+/// ASK_DENIED / ASK_CANCELLED / ASK_UNAVAILABLE / HOOK_REVIEW_DENIED / HOOK_REVIEW_TIMEOUT。
 #[tauri::command]
-pub async fn cmd_agent_confirm(
+pub async fn cmd_agent_interaction_respond(
     state: State<'_, AgentCommandService>,
     session_id: String,
-    confirm_id: String,
-    outcome: String,
-) -> Result<bool, String> {
-    let outcome = agent_runtime::confirmation::ConfirmationOutcome::parse(&outcome)?;
-    state
-        .resolve_confirmation(&session_id, &confirm_id, outcome)
-        .await
-        .map_err(|e| e.to_string())
-}
-
-/// 解析「模型主动提问」的回答（Q1，2026-09-20）：前端 `agent:ask:{session_id}` 面板回传
-///
-/// `answers = Some([...])`：用户作答（`[{id, selected[], custom?}]`，按提问批次 1:1 组装；
-/// 跳过 = 空 `selected` 无 `custom`）；`answers = None`：用户拒绝作答（前端「取消」键，
-/// 工具侧按 ASK_DENIED 失败结果回模型）。返回是否成功唤醒等待方
-/// （ask_id 已处理 / 已随轮取消时 false）。
-///
-/// 失败码（工具结果内 `errorCode`）：ASK_DENIED / ASK_CANCELLED / ASK_UNAVAILABLE
-/// （见 `crates/agent-commands/src/ask_tools.rs`；提问工具豁免执行前确认）。
-/// 超时口径：10 分钟兜底 → 按「跳过」返回（逐题空答案 + `timedOut: true`，非失败结果）。
-#[tauri::command]
-pub async fn cmd_agent_ask_answer(
-    state: State<'_, AgentCommandService>,
-    session_id: String,
-    ask_id: String,
-    answers: Option<Vec<agent_runtime::confirmation::AskAnswer>>,
+    interaction_id: String,
+    response: agent_runtime::confirmation::InteractionResponse,
 ) -> Result<bool, String> {
     state
-        .resolve_ask(&session_id, &ask_id, answers)
+        .resolve_interaction(&session_id, &interaction_id, response)
         .await
         .map_err(|e| e.to_string())
 }

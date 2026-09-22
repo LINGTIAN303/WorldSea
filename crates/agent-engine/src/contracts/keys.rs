@@ -95,14 +95,6 @@ pub const FILE_CHANGE: EventKey = "file_change";
 // A2UI
 pub const A2UI_EVENT: EventKey = "a2ui_event";
 
-// HITL 权限确认
-pub const CONFIRMATION_REQUESTED: EventKey = "confirmation_requested";
-pub const CONFIRMATION_RESOLVED: EventKey = "confirmation_resolved";
-
-// Q1 提问（模型主动提问）
-pub const ASK_REQUESTED: EventKey = "ask_requested";
-pub const ASK_RESOLVED: EventKey = "ask_resolved";
-
 // 会话分支（S3-c/S3-d；04 会话模型草案 §2.5——分叉 / 回滚 / 检查点三事件族，前端可见）
 /// 会话分叉（子会话自父会话某请求边界派生；父会话零影响）
 pub const CONVERSATION_FORKED: EventKey = "conversation_forked";
@@ -110,3 +102,9 @@ pub const CONVERSATION_FORKED: EventKey = "conversation_forked";
 pub const CONVERSATION_REWOUND: EventKey = "conversation_rewound";
 /// 检查点创建（手动 / 每 N 请求自动）
 pub const CHECKPOINT_CREATED: EventKey = "checkpoint_created";
+
+// 交互族（S5：三型统一模型——permission / user_input / hook_review；载荷带 kind 判别）
+/// 交互请求（三型共用；S5-b 起 permission / user_input 亦迁入本对）
+pub const INTERACTION_REQUESTED: EventKey = "interaction_requested";
+/// 交互已解决（前端据此清理面板）
+pub const INTERACTION_RESOLVED: EventKey = "interaction_resolved";

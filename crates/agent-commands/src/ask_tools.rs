@@ -7,8 +7,9 @@
 //!
 //! 此前唯一「等人回答」通道是被动 HITL 确认（策略触发，单向门）——模型在信息缺失
 //! （如「选哪个方案」「目标确认」）时只能猜或停下。本工具补上「模型主动提问」：
-//! 工具参数 → `ConfirmationBroker::ask` → `agent:ask:{sid}` 事件 → 前端提问面板 →
-//! `cmd_agent_ask_answer` 回传 → 答案按稳定 id 回显组装为工具结果回模型。
+//! 工具参数 → `InteractionBroker::request_user_input` → 族事件 `InteractionRequested`（user_input 型）→
+//! Tauri 转发前端 `agent:interaction:{sid}` → 提问面板 →
+//! `cmd_agent_interaction_respond`（kind=user_input）回传 → 答案按稳定 id 回显组装为工具结果回模型。
 //!
 //! # 协议（对齐 dsh `ask_user_question`，见 02 基线文档）
 //!
@@ -31,7 +32,7 @@
 
 use std::sync::Arc;
 
-use agent_runtime::confirmation::{AskAnswer, AskOutcome, ConfirmationBroker};
+use agent_runtime::confirmation::{AskAnswer, AskOutcome, InteractionBroker};
 use agent_runtime::event::EventBroadcaster;
 use agent_runtime::tool::{tool_failure_payload, Tool, ToolBus, ToolError};
 use agent_runtime::tool_context::ToolContext;
@@ -52,15 +53,15 @@ const TOOL_NAME: &str = "ask_user_question";
 /// 提问工具：模型主动向用户提问（批量问题 + 稳定 id 回显）
 pub struct AskUserQuestionTool {
     /// 提问阻塞通道（本会话的确认协调器；`ask` 无超时等待前端回传）
-    broker: Arc<ConfirmationBroker>,
-    /// 会话事件广播器（`AskRequested` 由此广播 → Tauri 转发前端 `agent:ask:{sid}`）
+    broker: Arc<InteractionBroker>,
+    /// 会话事件广播器（`InteractionRequested`〔user_input 型〕由此广播 → Tauri 转发前端族通道）
     broadcaster: Arc<RwLock<EventBroadcaster>>,
 }
 
 impl AskUserQuestionTool {
     /// 构造（注入该会话的 broker 与广播器，两处与 AgentLoop 共用同一实例）
     pub fn new(
-        broker: Arc<ConfirmationBroker>,
+        broker: Arc<InteractionBroker>,
         broadcaster: Arc<RwLock<EventBroadcaster>>,
     ) -> Self {
         Self { broker, broadcaster }
@@ -167,7 +168,7 @@ impl Tool for AskUserQuestionTool {
             .collect();
         let outcome = self
             .broker
-            .ask(&self.broadcaster, Value::Array(questions))
+            .request_user_input(&self.broadcaster, Value::Array(questions))
             .await;
         Ok(match outcome {
             // 用户已作答：{ "answers": [{id, selected[], custom?}] }（custom 缺省不携带）
@@ -311,7 +312,7 @@ fn parse_questions(args: &Value) -> Result<Vec<Value>, ToolError> {
 /// 子代理内执行由 `ToolContext.is_sub_agent` 判定 fail loud（ASK_UNAVAILABLE）。
 pub async fn register_ask_tools(
     bus: &dyn ToolBus,
-    broker: Arc<ConfirmationBroker>,
+    broker: Arc<InteractionBroker>,
     broadcaster: Arc<RwLock<EventBroadcaster>>,
 ) {
     bus.register(Arc::new(AskUserQuestionTool::new(broker, broadcaster)))
@@ -323,10 +324,11 @@ pub async fn register_ask_tools(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use agent_engine::contracts::interaction::{InteractionKind, InteractionOutcome};
     use agent_runtime::event::OrchestratorEvent;
     use agent_runtime::event_bus::{Listener, ListenerOutcome};
 
-    /// 捕获广播事件的监听器（断言 `AskRequested` 规范化载荷）
+    /// 捕获广播事件的监听器（断言族事件 `InteractionRequested` 规范化载荷）
     #[derive(Default)]
     struct CaptureListener {
         events: std::sync::Mutex<Vec<OrchestratorEvent>>,
@@ -341,11 +343,11 @@ mod tests {
 
     /// 夹具：broker + broadcaster（挂捕获监听）+ 工具
     async fn fixture() -> (
-        Arc<ConfirmationBroker>,
+        Arc<InteractionBroker>,
         Arc<CaptureListener>,
         AskUserQuestionTool,
     ) {
-        let broker = Arc::new(ConfirmationBroker::new());
+        let broker = Arc::new(InteractionBroker::new());
         let broadcaster = Arc::new(RwLock::new(EventBroadcaster::new()));
         let capture = Arc::new(CaptureListener::default());
         broadcaster.write().await.subscribe(capture.clone());
@@ -353,20 +355,24 @@ mod tests {
         (broker, capture, tool)
     }
 
-    /// 轮询取第一个待回答 ask_id（`AskRequested` 已广播才返回——广播先于等待、晚于入表，
-    /// 事件可见即 pending 已就绪；避免跨 crate 触碰 broker 私有字段）
-    async fn first_pending_ask(_broker: &ConfirmationBroker, capture: &CaptureListener) -> String {
+    /// 轮询取第一个待回答交互 id（族事件 `InteractionRequested`〔user_input 型〕已广播才返回——
+    /// 广播先于等待、晚于入表，事件可见即 pending 已就绪；避免跨 crate 触碰 broker 私有字段）
+    async fn first_pending_ask(_broker: &InteractionBroker, capture: &CaptureListener) -> String {
         for _ in 0..100 {
             tokio::time::sleep(std::time::Duration::from_millis(5)).await;
             let ask_id = capture.events.lock().unwrap().iter().find_map(|e| match e {
-                OrchestratorEvent::AskRequested { ask_id, .. } => Some(ask_id.clone()),
+                OrchestratorEvent::InteractionRequested { interaction_id, request }
+                    if request.kind() == InteractionKind::UserInput =>
+                {
+                    Some(interaction_id.clone())
+                }
                 _ => None,
             });
             if let Some(id) = ask_id {
                 return id;
             }
         }
-        panic!("ask 未在预期时间内广播 AskRequested");
+        panic!("ask 未在预期时间内广播 InteractionRequested");
     }
 
     #[tokio::test]
@@ -395,10 +401,15 @@ mod tests {
         let questions = events
             .iter()
             .find_map(|e| match e {
-                OrchestratorEvent::AskRequested { questions, .. } => Some(questions.clone()),
+                OrchestratorEvent::InteractionRequested { request, .. } => match request {
+                    agent_engine::contracts::interaction::InteractionRequest::UserInput { questions } => {
+                        Some(questions.clone())
+                    }
+                    _ => None,
+                },
                 _ => None,
             })
-            .expect("应广播 AskRequested");
+            .expect("应广播 InteractionRequested（user_input 型）");
         assert_eq!(questions[0]["id"], "mode");
         assert_eq!(questions[0]["multiSelect"], false);
         assert_eq!(questions[0]["options"][0]["label"], "快速 (Recommended)");
@@ -410,7 +421,9 @@ mod tests {
             AskAnswer { id: "mode".into(), selected: vec!["严谨".into()], custom: None },
             AskAnswer { id: "note".into(), selected: vec![], custom: Some("没有".into()) },
         ];
-        assert!(broker.resolve_ask(&ask_id, AskOutcome::Answered(answers)).await);
+        assert!(broker
+            .resolve(&ask_id, InteractionOutcome::UserInput(AskOutcome::Answered(answers)))
+            .await);
         let result = handle.await.unwrap().expect("已作答应成功返回");
         assert_eq!(result["answers"][0]["id"], "mode");
         assert_eq!(result["answers"][0]["selected"][0], "严谨");
@@ -430,7 +443,9 @@ mod tests {
             .await
         });
         let ask_id = first_pending_ask(&broker, &capture).await;
-        assert!(broker.resolve_ask(&ask_id, AskOutcome::Denied).await);
+        assert!(broker
+            .resolve(&ask_id, InteractionOutcome::UserInput(AskOutcome::Denied))
+            .await);
         let result = handle.await.unwrap().unwrap();
         assert_eq!(result["isError"], true);
         assert_eq!(result["errorCode"], ASK_DENIED);
@@ -446,7 +461,7 @@ mod tests {
             .await
         });
         let _ = first_pending_ask(&broker, &capture).await;
-        let cancelled = broker.cancel_pending_asks().await;
+        let cancelled = broker.cancel_all().await;
         assert_eq!(cancelled.len(), 1);
         let result = handle.await.unwrap().unwrap();
         assert_eq!(result["isError"], true);
@@ -456,7 +471,7 @@ mod tests {
     #[tokio::test]
     async fn ask_timeout_returns_skip_answers_with_marker() {
         // 10 分钟兜底（此处缩短）：超时按「跳过」处理——逐题空答案 + timedOut 标记（非失败）
-        let broker = Arc::new(ConfirmationBroker::with_ask_timeout(
+        let broker = Arc::new(InteractionBroker::with_ask_timeout(
             std::time::Duration::from_millis(30),
         ));
         let broadcaster = Arc::new(RwLock::new(EventBroadcaster::new()));
@@ -496,7 +511,7 @@ mod tests {
         assert_eq!(result["errorCode"], ASK_UNAVAILABLE);
         assert!(capture.events.lock().unwrap().is_empty(), "不应广播事件");
         // 未进入 pending：无可取消项（公开 API 校验，避免触碰私有字段）
-        assert!(broker.cancel_pending_asks().await.is_empty(), "不应进入 pending");
+        assert!(broker.cancel_all().await.is_empty(), "不应进入 pending");
     }
 
     #[tokio::test]
@@ -540,7 +555,7 @@ mod tests {
     #[tokio::test]
     async fn register_ask_tools_visible_on_bus() {
         let bus = agent_runtime::tool::SimpleToolBus::new();
-        let broker = Arc::new(ConfirmationBroker::new());
+        let broker = Arc::new(InteractionBroker::new());
         let broadcaster = Arc::new(RwLock::new(EventBroadcaster::new()));
         register_ask_tools(&bus, broker, broadcaster).await;
         let def = bus.get_by_name(TOOL_NAME).await.expect("应注册成功");

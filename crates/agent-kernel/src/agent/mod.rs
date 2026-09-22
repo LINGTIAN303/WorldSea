@@ -8,7 +8,8 @@ use tokio::sync::{Mutex as AsyncMutex, RwLock};
 use tracing::{debug, error, info, warn};
 
 use crate::backend::NodeBackendAccessor;
-use crate::confirmation::{ConfirmationBroker, ConfirmationPolicy};
+use crate::confirmation::ConfirmationPolicy;
+use agent_engine::contracts::interaction::InteractionOutcome;
 use crate::event::{AgentEvent, EventBroadcaster, EventKey, OrchestratorEvent};
 use crate::event_bus::Listener;
 use crate::loop_control::{LoopControlConfig, LoopController};
@@ -184,11 +185,12 @@ pub struct AgentLoop {
     /// 每次 `run` 开头重新计算（recall → inject），供 `build_prompt_options`
     /// 拼入 `system_prompt_override`。使用 `StdRwLock`（短临界区，不跨 await 持有）。
     memory_context: Arc<StdRwLock<Option<String>>>,
-    /// HITL 确认协调器（A5，`None`=不启用确认）
+    /// HITL 交互协调器（A5；S5 起为三型统一注册表，`None`=不启用确认）
     ///
     /// 通过 `with_confirmation` 注入。启用后，`execute_tool_calls` 对命中
-    /// `config.confirmation_policy` 的工具调用发起确认（广播事件 + 等待前端回传）。
-    confirmation_broker: Option<Arc<ConfirmationBroker>>,
+    /// `config.confirmation_policy` 的工具调用发起确认（广播事件 + 等待前端回传）；
+    /// 钩子 `ToolHookAction::Review` 经同一注册表发起复核（hookReview 型）。
+    confirmation_broker: Option<Arc<crate::interaction_broker::InteractionBroker>>,
     /// S4-b：会话级授权（ZD2-3——仅会话内存活、不落盘；**只服务 alwaysAsk gate**）
     ///
     /// 经 `grant_session_permission` 写入（命令层 API；前端「本会话总是允许」按钮随 UX 批），
@@ -443,11 +445,14 @@ impl AgentLoop {
         self.raw_context_enabled
     }
 
-    /// 注入 HITL 确认协调器（链式，同步，A5）
+    /// 注入 HITL 交互协调器（链式，同步，A5；S5 起承载三型交互请求）
     ///
     /// 传 `Some(broker)` 启用确认能力（配合 `config.confirmation_policy` 生效），
     /// 传 `None` 禁用。默认（`new` 创建）不启用。
-    pub fn with_confirmation(mut self, broker: Option<Arc<ConfirmationBroker>>) -> Self {
+    pub fn with_confirmation(
+        mut self,
+        broker: Option<Arc<crate::interaction_broker::InteractionBroker>>,
+    ) -> Self {
         self.confirmation_broker = broker;
         self
     }
@@ -507,74 +512,71 @@ impl AgentLoop {
         }
     }
 
-    /// 解析一次待定的工具确认（前端经 `cmd_agent_confirm` 回传）
+    /// 解析一次待决交互（S5 统一入口；前端经回传命令唤起）
+    ///
+    /// `outcome` 判别即 kind：permission 四值 / user_input 四态 / hook_review 四态；
+    /// **kind 与请求不符即拒**（不唤醒、不移除——等待方仍可被正确结果唤醒）。
+    /// 返回是否成功唤醒等待方（id 不存在 = 已超时 / 已取消 / 已处理）；
+    /// 未启用 broker 时恒返回 `false`。
+    pub async fn resolve_interaction(
+        &self,
+        interaction_id: &str,
+        outcome: InteractionOutcome,
+    ) -> bool {
+        let Some(broker) = &self.confirmation_broker else {
+            return false;
+        };
+        let resolved = broker.resolve(interaction_id, outcome.clone()).await;
+        if resolved {
+            // 广播终态，供前端清理进行中的面板（S5-a 过渡映射见 interaction_broker）
+            self.broadcast(crate::interaction_broker::resolved_event(interaction_id, &outcome))
+                .await;
+        }
+        resolved
+    }
+
+    /// 解析一次待定的工具确认（前端经统一回传口 `cmd_agent_interaction_respond` 唤起；委托统一入口）
     ///
     /// `outcome` 为 D8 四值（approved / denied / skipped / timeout；
-    /// 前端只回传前三值，`timeout` 由 [`crate::confirmation::ConfirmationBroker`] 超时产生）。
+    /// 前端只回传前三值，`timeout` 由 [`crate::interaction_broker::InteractionBroker`] 超时产生）。
     /// 返回是否成功唤醒对应等待方（confirm_id 不存在 = 已超时/已处理）。
-    /// 未启用确认或 broker 不存在时恒返回 `false`。
     pub async fn resolve_confirmation(
         &self,
         confirm_id: &str,
         outcome: crate::confirmation::ConfirmationOutcome,
     ) -> bool {
-        let Some(broker) = &self.confirmation_broker else {
-            return false;
-        };
-        let resolved = broker.resolve(confirm_id, outcome).await;
-        if resolved {
-            // 广播确认已解决，供前端清理进行中的确认弹窗
-            self.broadcast(OrchestratorEvent::ConfirmationResolved {
-                confirm_id: confirm_id.to_string(),
-                outcome,
-            })
-            .await;
-        }
-        resolved
+        self.resolve_interaction(confirm_id, InteractionOutcome::Permission(outcome))
+            .await
     }
 
-    /// 解析一次待回答的提问（Q1，前端经 `cmd_agent_ask_answer` 回传）
+    /// 解析一次待回答的提问（Q1；前端经统一回传口 `cmd_agent_interaction_respond` 唤起）
     ///
     /// `outcome`：`Answered(answers)` = 用户作答 / `Denied` = 用户拒绝作答（前端取消键）；
     /// `Cancelled` 仅 kernel 侧产生（[`Self::abort`] / [`Self::dispose`] 随轮取消）。
     /// 返回是否成功唤醒对应等待方（ask_id 不存在 = 已处理/已取消）。
-    /// 未启用 broker 时恒返回 `false`。
     pub async fn resolve_ask(
         &self,
         ask_id: &str,
         outcome: crate::confirmation::AskOutcome,
     ) -> bool {
-        let Some(broker) = &self.confirmation_broker else {
-            return false;
-        };
-        let resolved = broker.resolve_ask(ask_id, outcome.clone()).await;
-        if resolved {
-            // 广播提问已解决，供前端清理进行中的提问面板
-            self.broadcast(OrchestratorEvent::AskResolved {
-                ask_id: ask_id.to_string(),
-                outcome,
-            })
-            .await;
-        }
-        resolved
+        self.resolve_interaction(ask_id, InteractionOutcome::UserInput(outcome))
+            .await
     }
 
-    /// Q1：随轮取消——中断全部待回答提问并通知前端清理（D3：提问无固定超时）
+    /// 随轮取消：中断全部待决交互并通知前端清理（S5 统一——permission 亦被取消）
     ///
     /// 在 [`Self::abort`]（用户中断运行）与 [`Self::dispose`]（会话销毁）时调用：
-    /// 若不取消，等待中的提问工具将永久阻塞、abort 无法生效。取消的等待方收到
-    /// [`AskOutcome::Cancelled`](crate::confirmation::AskOutcome::Cancelled)，
-    /// 工具据此构造 `ASK_CANCELLED` 失败结果回模型。
-    async fn cancel_pending_asks(&self) {
+    /// 若不取消，等待中的交互将阻塞（提问工具永久阻塞；确认须等满 60s 超时），abort 无法生效。
+    /// 各型以内核侧终值唤醒（permission → Timeout / user_input → Cancelled /
+    /// hook_review → Cancelled），并广播终态供前端清理面板。
+    async fn cancel_pending_interactions(&self) {
         let Some(broker) = &self.confirmation_broker else {
             return;
         };
-        for ask_id in broker.cancel_pending_asks().await {
-            self.broadcast(OrchestratorEvent::AskResolved {
-                ask_id,
-                outcome: crate::confirmation::AskOutcome::Cancelled,
-            })
-            .await;
+        for (id, kind) in broker.cancel_all().await {
+            let outcome = crate::interaction_broker::cancel_terminal_outcome(kind);
+            self.broadcast(crate::interaction_broker::resolved_event(&id, &outcome))
+                .await;
         }
     }
 
@@ -748,7 +750,7 @@ impl AgentLoop {
         }
         // Q1（2026-09-20）：随轮取消待回答提问（先释放 state 锁，广播在锁外进行）——
         // 否则等待中的提问工具永久阻塞，abort 无法生效
-        self.cancel_pending_asks().await;
+        self.cancel_pending_interactions().await;
         debug!("AgentLoop abort 已请求");
     }
 
@@ -1829,7 +1831,7 @@ impl AgentLoop {
         }
         self.is_streaming.store(false, Ordering::SeqCst);
         // Q1（2026-09-20）：随轮取消待回答提问（销毁后无人再应答，必须收口防永久阻塞）
-        self.cancel_pending_asks().await;
+        self.cancel_pending_interactions().await;
         // 同步停止长任务心跳定时器，避免泄漏
         self.long_task_manager.stop_heartbeat().await;
         debug!("AgentLoop dispose: 已释放资源");

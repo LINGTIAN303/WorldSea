@@ -39,7 +39,7 @@ pub mod orchestrator {
 // ─── 公共导出（与拆分前一致，类型来自上述转发/直达路径）───────────────────
 pub use agent::{AgentError, AgentLoop, AgentLoopConfig, AgentState, AgentStateSnapshot};
 pub use backend::{NodeBackendAccessor, PromptCallOptions, PromptResponse, ThinkingLevel};
-pub use confirmation::{ConfirmationBroker, ConfirmationPolicy};
+pub use confirmation::{ConfirmationPolicy, InteractionBroker};
 pub use event::OrchestratorEvent;
 pub use graph_of_thoughts::{
     AggregationPromptTemplate, AggregationStrategy, GoTConfig, GoTNode, LlmAggregationStrategy,
