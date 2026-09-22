@@ -62,17 +62,29 @@ pub struct RateLimitConfig {
     /// 最大执行时长（None=不限）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_duration: Option<Duration>,
+    /// 最大**无进展**时长（C1-a：工具调用 / 模型响应即视为进展并重置计时；默认 2h = 卡死兜底）
+    #[serde(default = "default_max_idle_duration", skip_serializing_if = "Option::is_none")]
+    pub max_idle_duration: Option<Duration>,
+}
+
+/// `max_idle_duration` 的 serde 缺省（旧配置无该字段时回落 2h）
+fn default_max_idle_duration() -> Option<Duration> {
+    Some(Duration::from_secs(2 * 60 * 60))
 }
 
 impl Default for RateLimitConfig {
     fn default() -> Self {
-        // 默认较宽松，对应"长任务最多 6 小时"约束；
-        // 轮数维度已退役（max_turns=None，职责移交 AgentLoopConfig.total_steps）。
+        // C1 目标续跑（2026-09-23）：**总量类硬边界默认解除**——对齐 ZCode「不用工具次数
+        // 硬停止」：次数 / 累计 token / 总时长不再作为默认熔断（累计 token 与总时长对
+        // 长任务是必然发生的量，非失控信号）；失控兜底 = 无进展超时（idle）+ 取消 +
+        // 上下文压缩 + retry 上限。需要成本封顶的部署可显式配置各字段（协议保留）。
+        // 轮数维度早前已退役（max_turns=None，职责移交 AgentLoopConfig.total_steps 软预算）。
         Self {
             max_turns: None,
-            max_tool_calls: Some(200),
-            max_tokens: Some(100_000),
-            max_duration: Some(Duration::from_secs(6 * 60 * 60)), // 6h
+            max_tool_calls: None,
+            max_tokens: None,
+            max_duration: None,
+            max_idle_duration: Some(Duration::from_secs(2 * 60 * 60)), // 2h 无进展 = 卡死兜底
         }
     }
 }
@@ -165,6 +177,8 @@ pub struct RateLimiter {
     tool_calls: AtomicU32,
     tokens: AtomicU64,
     started_at: Instant,
+    /// 最近一次进展时点（相对 `started_at` 的毫秒；0 = 尚未有进展——自启动计）
+    last_progress_ms: AtomicU64,
 }
 
 impl RateLimiter {
@@ -176,6 +190,7 @@ impl RateLimiter {
             tool_calls: AtomicU32::new(0),
             tokens: AtomicU64::new(0),
             started_at: Instant::now(),
+            last_progress_ms: AtomicU64::new(0),
         }
     }
 
@@ -214,6 +229,12 @@ impl RateLimiter {
         self.started_at.elapsed()
     }
 
+    /// 记录一次**进展**（工具调用完成 / 模型响应到达）——重置无进展计时（C1-a）
+    pub fn note_progress(&self) {
+        self.last_progress_ms
+            .store(self.started_at.elapsed().as_millis() as u64, Ordering::SeqCst);
+    }
+
     /// 获取速率限制配置
     pub fn config(&self) -> &RateLimitConfig {
         &self.config
@@ -223,6 +244,18 @@ impl RateLimiter {
     ///
     /// 返回 `Option<RateLimitExceeded>` 描述超限原因，`None` 表示未超限。
     pub fn check_exceeded(&self) -> Option<RateLimitExceeded> {
+        // C1-a：无进展超时优先判定（累计类边界默认已解除——见 Default impl 注释）
+        if let Some(max) = self.config.max_idle_duration {
+            let elapsed_ms = self.started_at.elapsed().as_millis() as u64;
+            let last = self.last_progress_ms.load(Ordering::SeqCst);
+            let idle_ms = elapsed_ms.saturating_sub(last);
+            if idle_ms >= max.as_millis() as u64 {
+                return Some(RateLimitExceeded::Idle {
+                    idle_secs: idle_ms / 1000,
+                    max_secs: max.as_secs(),
+                });
+            }
+        }
         if let Some(max) = self.config.max_turns {
             if self.turns() >= max {
                 return Some(RateLimitExceeded::Turns {
@@ -276,6 +309,8 @@ impl RateLimiter {
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum RateLimitExceeded {
+    /// 无进展超时（C1-a：距上次进展——工具调用/模型响应——超过上限，卡死兜底）
+    Idle { idle_secs: u64, max_secs: u64 },
     /// 轮次超限
     Turns { current: u32, max: u32 },
     /// 工具调用次数超限
@@ -290,6 +325,7 @@ impl RateLimitExceeded {
     /// 转为人类可读字符串
     pub fn as_str(&self) -> &'static str {
         match self {
+            Self::Idle { .. } => "idle_exceeded",
             Self::Turns { .. } => "turns_exceeded",
             Self::ToolCalls { .. } => "tool_calls_exceeded",
             Self::Tokens { .. } => "tokens_exceeded",
@@ -711,6 +747,7 @@ mod tests {
             max_tool_calls: None,
             max_tokens: None,
             max_duration: None,
+            max_idle_duration: None, // 测试：关闭空闲兜底，专测显式维度
         };
         let limiter = RateLimiter::new(config);
 
@@ -733,6 +770,7 @@ mod tests {
             max_tool_calls: None,
             max_tokens: Some(1000),
             max_duration: None,
+            max_idle_duration: None, // 测试：关闭空闲兜底，专测显式维度
         };
         let limiter = RateLimiter::new(config);
 
@@ -843,6 +881,7 @@ mod tests {
                 max_tool_calls: None,
                 max_tokens: None,
                 max_duration: None,
+                max_idle_duration: None, // 测试：关闭空闲兜底
             },
             retry: RetryConfig::default(),
             soft_timeout: SoftTimeoutConfig {
@@ -862,5 +901,22 @@ mod tests {
         let check = controller.check_all();
         assert!(check.should_stop());
         assert!(check.rate_limit_exceeded.is_some());
+    }
+
+    #[test]
+    fn idle_limit_triggers_without_progress_and_resets_on_progress() {
+        // C1-a：无进展超时（卡死兜底）——超过 max_idle_duration 未收到任何进展即触发
+        let config = RateLimitConfig {
+            max_idle_duration: Some(Duration::from_millis(30)),
+            ..RateLimitConfig::default()
+        };
+        let limiter = RateLimiter::new(config);
+        std::thread::sleep(Duration::from_millis(50));
+        assert!(
+            matches!(limiter.check_exceeded(), Some(RateLimitExceeded::Idle { .. })),
+            "无进展超时应触发 Idle"
+        );
+        limiter.note_progress();
+        assert!(limiter.check_exceeded().is_none(), "记录进展后应解除 idle");
     }
 }

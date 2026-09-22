@@ -207,6 +207,10 @@ impl LoopControlRegistry {
             // rate_limit 超限
             if let Some(exceeded) = &check.rate_limit_exceeded {
                 let (limit_type, current, max) = match exceeded {
+                    // C1-a：无进展超时（卡死兜底；累计类边界默认已解除）
+                    RateLimitExceeded::Idle { idle_secs, max_secs } => {
+                        ("idle", *idle_secs, *max_secs)
+                    }
                     RateLimitExceeded::Turns { current, max } => {
                         ("turns", *current as u64, *max as u64)
                     }

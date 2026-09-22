@@ -1,0 +1,44 @@
+   Compiling agent-kernel v0.1.0 (D:\WorldSea\crates\agent-kernel)
+warning: variable does not need to be mutable
+   --> src\orchestrator.rs:902:40
+    |
+902 |         async fn execute<'a>(&'a self, mut ctx: NodeContext<'a>) -> NodeResult {
+    |                                        ----^^^
+    |                                        |
+    |                                        help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `execute_count` is never used
+   --> src\orchestrator.rs:886:12
+    |
+856 |     impl StubNode {
+    |     ------------- method in this implementation
+...
+886 |         fn execute_count(&self) -> u32 {
+    |            ^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `agent-kernel` (lib test) generated 2 warnings (run `cargo fix --lib -p agent-kernel --tests` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 17.79s
+     Running unittests src\lib.rs (target\debug\deps\agent_kernel-0cb024404c37b5ab.exe)
+
+running 1 test
+test agent::tests::run_continues_past_step_budget_without_error ... FAILED
+
+failures:
+
+---- agent::tests::run_continues_past_step_budget_without_error stdout ----
+
+thread 'agent::tests::run_continues_past_step_budget_without_error' (13764) panicked at src\agent\tests.rs:1172:20:
+越过预算不应熔断（C1-a 软预算）: TotalStepsReached(3)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    agent::tests::run_continues_past_step_budget_without_error
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 340 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `--lib`

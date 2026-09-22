@@ -7,7 +7,7 @@ use tracing::info;
 use crate::event::{EventBroadcaster, OrchestratorEvent};
 use crate::long_task::LongTaskManager;
 use crate::loop_control::{LoopControlCheck, RateLimitExceeded, SoftTimeoutLevel, WatchdogAlert};
-use crate::types::{MessageRole, OrchestratorMessage};
+use crate::types::{MessageRole, OrchestratorMessage, PlanItemStatus};
 
 use super::AgentLoop;
 
@@ -165,6 +165,8 @@ impl AgentLoop {
         let task_id = self.loop_task_id().await;
         // 将超限枚举映射为事件字段（limit_type / current / max）
         let (limit_type, current, max) = match exceeded {
+            // C1-a：无进展超时（卡死兜底；累计类边界默认已解除）
+            RateLimitExceeded::Idle { idle_secs, max_secs } => ("idle", *idle_secs, *max_secs),
             RateLimitExceeded::Turns { current, max } => {
                 ("turns", *current as u64, *max as u64)
             }
@@ -220,15 +222,15 @@ impl AgentLoop {
     /// 每轮迭代开始、LLM 调用之前调用一次。内部完成预算感知（对齐 OpenHands #2406 共识方案）：
     /// - 80%：注入「剩余 N 步，开始收尾」提示 + 广播 `StepBudgetWarning(80)`
     /// - 95%：注入「1-2 步内完成」提示 + 广播 `StepBudgetWarning(95)`
-    /// - 100%：注入「最终收尾步」提示 + 广播 `StepBudgetWarning(100)`（本轮放行，给模型收尾机会）
-    /// - \>100%：最终步仍未收口 → 返回 `Some(limit)`，调用方熔断为 `AgentError::TotalStepsReached`
+    /// - 100%：注入「预算用完」提示 + 广播 `StepBudgetWarning(100)`
+    ///
+    /// **C1-a 目标续跑（2026-09-23）**：越过 100% **不再熔断**（无错误、不打断）——长任务不因
+    /// 工具次数硬停，模型自行判断何时收尾；失控由**无进展超时**（`RateLimiter::max_idle_duration`）
+    /// / 取消 / 上下文压缩 / retry 上限兜底。
     ///
     /// 通知标志（state.budget_warn_80/95/final_notified）保证各级仅触发一次；
     /// 新用户消息 / clear_history / dispose 时由调用方重置。
-    pub(super) async fn apply_step_budget(&self, used: u32, limit: u32) -> Option<u32> {
-        if used > limit {
-            return Some(limit);
-        }
+    pub(super) async fn apply_step_budget(&self, used: u32, limit: u32) {
         let pct = used.saturating_mul(100) / limit.max(1);
 
         // 决策（统一在一把锁内读状态 + 置通知标志，避免重复注入/广播）
@@ -255,7 +257,7 @@ impl AgentLoop {
         };
 
         let (msg, percent) = match decision {
-            Decision::None => return None,
+            Decision::None => return,
             Decision::Warn80 => (
                 format!(
                     "[SYSTEM] 步骤预算提醒：已使用 {used}/{limit} 步（80%）。请开始收尾，优先完成最关键部分，避免开启新的大任务。"
@@ -270,7 +272,7 @@ impl AgentLoop {
             ),
             Decision::Final => (
                 format!(
-                    "[SYSTEM] 这是本任务允许的最后一步（预算 {limit} 步已用完）。你必须在本次回复中完成工作并给出最终答案。"
+                    "[SYSTEM] 步骤预算已用完（{limit} 步）：如任务尚未完成，请继续推进（可继续调用工具）；否则给出最终答案。"
                 ),
                 100,
             ),
@@ -286,7 +288,6 @@ impl AgentLoop {
             percent,
         })
         .await;
-        None
     }
 
     /// 注入一条系统级提示到消息历史末尾（预算提醒等；须在 set_messages 同步 backend 之前调用）
@@ -299,5 +300,50 @@ impl AgentLoop {
             tool_call_id: None,
             meta: None,
         });
+    }
+
+    /// C1-a 目标续跑：模型停止调用工具时，若任务清单仍有未完成项且续跑次数未达上限 →
+    /// 注入推进提示并返回 `true`（调用方 `continue` 主循环）；否则 `false`（正常收尾）。
+    ///
+    /// - 「未完成」= `state.plan` 存在且含 `Pending` / `InProgress` 项；
+    /// - **无 plan 的任务完全不受影响**（行为与改造前逐字一致）；
+    /// - 上限 [`crate::agent::MAX_PLAN_CONTINUATIONS`]（按 run 重置）。
+    pub(super) async fn try_continue_for_plan(&self) -> bool {
+        let unfinished = {
+            let state = self.state.lock().await;
+            state.plan.as_ref().map(|plan| {
+                plan.iter()
+                    .filter(|i| {
+                        matches!(i.status, PlanItemStatus::Pending | PlanItemStatus::InProgress)
+                    })
+                    .count()
+            })
+        };
+        let Some(unfinished) = unfinished else {
+            return false; // 无 plan：不续跑（纯对话任务行为逐字不变）
+        };
+        if unfinished == 0 {
+            return false; // 清单已全部完成：正常收尾
+        }
+        let attempt = self.plan_continuations.load(Ordering::SeqCst);
+        if attempt >= crate::agent::MAX_PLAN_CONTINUATIONS {
+            tracing::warn!(
+                unfinished,
+                limit = crate::agent::MAX_PLAN_CONTINUATIONS,
+                "目标续跑达上限，正常收尾（清单仍有未完成项）"
+            );
+            return false;
+        }
+        self.plan_continuations.fetch_add(1, Ordering::SeqCst);
+        tracing::info!(
+            unfinished,
+            attempt = attempt + 1,
+            "目标续跑：任务清单未完成，注入推进提示继续"
+        );
+        self.inject_budget_nudge(format!(
+            "[SYSTEM] 任务清单仍有 {unfinished} 项未完成（pending/in_progress）。请继续执行未完成步骤             （用 todo_write 更新状态，完成一步立即标记），不要提前结束。"
+        ))
+        .await;
+        true
     }
 }

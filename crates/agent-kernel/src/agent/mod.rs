@@ -1,11 +1,11 @@
 //! AgentLoop — ReAct 模式的核心循环，详细见 docs/details/注释/agent-runtime/agent.md
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex as StdMutex, RwLock as StdRwLock};
 use std::time::Instant;
 
 use tokio::sync::{Mutex as AsyncMutex, RwLock};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 use crate::backend::NodeBackendAccessor;
 use crate::confirmation::ConfirmationPolicy;
@@ -53,6 +53,10 @@ use backend_bridge::BackendEventBridge;
 /// 对齐上游 `MessageContent::estimate_tokens` 的做法：正文之外的协议开销按固定值粗估，
 /// 避免只数正文而系统性低估窗口占用。
 const MESSAGE_STRUCTURE_OVERHEAD_TOKENS: usize = 8;
+
+/// C1-a 目标续跑上限：模型停止调用工具但任务清单未完成时，最多自动续跑次数
+/// （超限正常收尾，不报错——避免清单长期 pending 导致反复续跑）。
+pub(crate) const MAX_PLAN_CONTINUATIONS: u32 = 3;
 
 /// 上下文计量快照（内部，一次持锁取齐）
 ///
@@ -209,6 +213,8 @@ pub struct AgentLoop {
     /// 通过 `with_tool_hook` 注入。`execute_tool_with_retry` 在 `call_tool` 前
     /// 依次跑 `on_pre_use`（可改 args / 拒绝），成功后跑 `on_post_use`，失败跑 `on_error`。
     tool_hooks: Vec<Arc<dyn crate::tool_hook::ToolLifecycleHook>>,
+    /// C1-a 目标续跑计数（按 run 重置；见 `try_continue_for_plan`）
+    plan_continuations: AtomicU32,
     /// A3 四管线路由决策器（`None`=不启用发送链路路由）
     ///
     /// 通过 `with_router` 注入。启用后，`run()` 在接收用户输入时先经
@@ -341,6 +347,7 @@ impl AgentLoop {
             )),
             is_sub_agent: false,
             tool_hooks: Vec::new(),
+            plan_continuations: std::sync::atomic::AtomicU32::new(0),
             router: None,
             pipeline_context: Arc::new(StdRwLock::new(None)),
             hooks: AgentLoopHooks::default(),
@@ -855,6 +862,8 @@ impl AgentLoop {
 
         // 标记 is_streaming = true（run 方法活跃中）
         self.is_streaming.store(true, Ordering::SeqCst);
+        // C1-a：目标续跑计数按 run 重置
+        self.plan_continuations.store(0, Ordering::SeqCst);
 
         // 获取当前模型 ID（从 backend 读取，避免硬编码 "unknown"）
         let current_model = self.backend.current_model().await;
@@ -1647,10 +1656,9 @@ impl AgentLoop {
                     config_snapshot.total_steps.max(1),
                 )
             };
-            if let Some(exhausted) = self.apply_step_budget(used_steps, step_limit).await {
-                error!("总步骤预算耗尽: {used_steps}/{step_limit}");
-                return Err(AgentError::TotalStepsReached(exhausted));
-            }
+            // C1-a 目标续跑：越过预算**不再熔断**（仅提示——见 apply_step_budget 文档）；
+            // 长任务不因工具次数硬停，失控由无进展超时 / 取消 / 上下文压缩兜底。
+            self.apply_step_budget(used_steps, step_limit).await;
 
             // 内建 LoopController 驱动（批次5），详细见 docs/details/注释/agent-runtime/agent.md
             if self.loop_control_enabled() {
@@ -1710,6 +1718,8 @@ impl AgentLoop {
             // - 取消：每次重试前检查 `cancel_flag`，已请求取消则返回 `Aborted`
             let prompt_input = String::new();
             let response = self.call_llm_with_retry(prompt_input, Some(options)).await?;
+            // C1-a：模型响应到达 = 一次进展（重置无进展计时）
+            self.loop_controller.rate_limiter.note_progress();
 
             // 累计用量（每次 LLM 调用后累加 input/output tokens，供用量面板）
             if response.input_tokens.is_some() || response.output_tokens.is_some() {
@@ -1737,6 +1747,11 @@ impl AgentLoop {
             });
 
             if tool_calls.is_empty() {
+                // C1-a 目标续跑：模型自然收敛但任务清单仍有未完成项 → 注入推进提示继续
+                // （上限 MAX_PLAN_CONTINUATIONS；无 plan / 已完成 / 超上限 → 正常收尾）
+                if self.try_continue_for_plan().await {
+                    continue;
+                }
                 // 无有效工具调用：推入 assistant 消息，返回最终文本
                 let final_text = response.text.clone();
                 {
@@ -1780,6 +1795,8 @@ impl AgentLoop {
 
             // 执行工具
             let tool_results = self.execute_tool_calls(tool_calls).await?;
+            // C1-a：工具执行完成 = 一次进展（重置无进展计时）
+            self.loop_controller.rate_limiter.note_progress();
 
             // 推入 toolResult 消息
             let current_turn_count = {

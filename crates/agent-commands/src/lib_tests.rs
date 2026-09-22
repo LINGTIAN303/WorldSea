@@ -1239,18 +1239,30 @@
         entry.controller.rate_limiter.inc_turns();
         assert_eq!(builtin.rate_limiter.turns(), 1, "共享实例的状态应同步");
 
-        // 配置重建：从共享控制器重建的配置应保留默认速率限制
-        // （max_turns 已退役=None，轮数预算职责移交 AgentLoopConfig.total_steps；其余维度保留宽松默认）
+        // 配置重建：C1-a 目标续跑（2026-09-23）——**总量类硬边界默认解除**
+        // （次数 / 累计 token / 总时长不再熔断；失控兜底 = 无进展超时 max_idle_duration）
         let config = entry.controller.config();
         assert_eq!(
             config.rate_limit.max_turns,
             None,
-            "默认配置应关闭轮数限制（职责移交 total_steps）"
+            "默认配置应关闭轮数限制（职责移交总步骤软预算）"
         );
         assert_eq!(
-            config.rate_limit.max_tool_calls,
-            Some(200),
-            "默认配置应保留工具调用次数兜底"
+            config.rate_limit.max_tool_calls, None,
+            "C1-a：默认不再以工具调用次数硬停"
+        );
+        assert_eq!(
+            config.rate_limit.max_tokens, None,
+            "C1-a：默认不再以累计 token 硬停（上下文由压缩管理）"
+        );
+        assert_eq!(
+            config.rate_limit.max_duration, None,
+            "C1-a：默认不再以总时长硬停（由无进展超时兜底）"
+        );
+        assert_eq!(
+            config.rate_limit.max_idle_duration,
+            Some(std::time::Duration::from_secs(2 * 60 * 60)),
+            "默认保留 2h 无进展兜底"
         );
     }
 

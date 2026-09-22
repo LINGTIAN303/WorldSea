@@ -1141,9 +1141,10 @@
     }
 
     #[tokio::test]
-    async fn run_returns_error_when_total_steps_exceeded() {
-        // 每轮都返回工具调用，永远不结束 → 总步骤预算耗尽错误
-        let infinite_tool_call = PromptResponse {
+    async fn run_continues_past_step_budget_without_error() {
+        // C1-a 目标续跑（2026-09-23）：越过 total_steps 预算**不再熔断**（软预算）——
+        // 5 步工具调用后自然收敛；旧行为（TotalStepsReached 熔断）已删除。
+        let tool_call = PromptResponse {
             text: "继续".into(),
             tool_calls: vec![ToolCall {
                 id: "call_loop".into(),
@@ -1153,23 +1154,83 @@
             input_tokens: None,
             output_tokens: None,
             stop_reason: Some("tool_calls".into()),
-                reasoning: None,
+            reasoning: None,
         };
-        let backend = Arc::new(MockBackend::new(vec![infinite_tool_call; 100]));
+        let mut script = vec![tool_call; 5];
+        script.push(PromptResponse::text_only("完成"));
+        let backend = Arc::new(MockBackend::new(script));
         let tool_bus = Arc::new(SimpleToolBus::new());
         tool_bus.register(Arc::new(EchoTool)).await;
 
         let agent = AgentLoop::new(backend, tool_bus).with_config(AgentLoopConfig {
-            total_steps: 3,
+            total_steps: 3, // 预算故意小于实际步数
             ..Default::default()
         });
 
-        let result = agent.run("无限循环".into()).await;
-        assert!(result.is_err());
-        match result {
-            Err(AgentError::TotalStepsReached(3)) => {}
-            _ => panic!("应返回 TotalStepsReached(3)"),
+        let result = agent.run("越过预算".into()).await;
+        assert_eq!(
+            result.expect("越过预算不应熔断（C1-a 软预算）"),
+            "完成"
+        );
+        assert_eq!(
+            agent.state.lock().await.total_steps_used,
+            5,
+            "实际跑满 5 步（未被 3 截断）"
+        );
+    }
+
+    #[tokio::test]
+    async fn plan_continuation_resumes_and_stops_at_limit() {
+        // C1-a：模型自然收敛（无工具）但清单未完成 → 自动续跑（上限 3）→ 第 4 次无工具时正常收尾
+        let backend = Arc::new(MockBackend::new(vec![
+            PromptResponse::text_only("停一下"),
+            PromptResponse::text_only("停一下"),
+            PromptResponse::text_only("停一下"),
+            PromptResponse::text_only("最终答案"),
+        ]));
+        let tool_bus = Arc::new(SimpleToolBus::new());
+        let agent = AgentLoop::new(backend, tool_bus);
+        {
+            let mut state = agent.state.lock().await;
+            state.plan = Some(vec![crate::types::PlanItem {
+                id: "p-0".into(),
+                title: "未完成步骤".into(),
+                description: None,
+                status: crate::types::PlanItemStatus::Pending,
+                order: 0,
+                output: None,
+            }]);
         }
+
+        let result = agent.run("继续任务".into()).await;
+        assert_eq!(result.expect("应正常收尾"), "最终答案", "续跑 3 次后第 4 次收尾");
+        assert_eq!(
+            agent.plan_continuations.load(Ordering::SeqCst),
+            3,
+            "续跑计数应停在上限 3"
+        );
+        // 续跑注入的推进提示应进入消息历史（System 角色）
+        let msgs = agent.get_messages().await;
+        assert!(
+            msgs.iter()
+                .any(|m| m.role == MessageRole::System && m.content.contains("任务清单仍有 1 项未完成")),
+            "应注入推进提示"
+        );
+    }
+
+    #[tokio::test]
+    async fn no_plan_means_no_continuation() {
+        // 无 plan：行为逐字不变（首轮无工具 → 直接收尾，不续跑）
+        let backend = Arc::new(MockBackend::new(vec![PromptResponse::text_only("答案")]));
+        let tool_bus = Arc::new(SimpleToolBus::new());
+        let agent = AgentLoop::new(backend, tool_bus);
+        let result = agent.run("简单问题".into()).await;
+        assert_eq!(result.expect("应正常收尾"), "答案");
+        assert_eq!(
+            agent.plan_continuations.load(Ordering::SeqCst),
+            0,
+            "无 plan 不应触发续跑"
+        );
     }
 
     #[tokio::test]
@@ -1417,6 +1478,7 @@
                 max_tool_calls: None,
                 max_tokens: None,
                 max_duration: None,
+                max_idle_duration: None, // 测试：关闭空闲兜底
             },
             ..LoopControlConfig::default()
         };

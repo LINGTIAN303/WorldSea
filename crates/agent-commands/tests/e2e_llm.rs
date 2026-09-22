@@ -1036,6 +1036,7 @@ async fn e2e_loop_control_integration() {
             max_tool_calls: Some(3),
             max_tokens: Some(1000),
             max_duration: Some(std::time::Duration::from_secs(10)),
+            max_idle_duration: None, // 测试：关闭空闲兜底，专测显式维度
         },
         retry: RetryConfig {
             max_retries: 2,
@@ -1129,6 +1130,7 @@ async fn e2e_loop_control_integration() {
             max_tool_calls: None,
             max_tokens: None,
             max_duration: None,
+            max_idle_duration: None, // 测试：关闭空闲兜底
         },
         retry: RetryConfig::default(),
         soft_timeout: SoftTimeoutConfig {
