@@ -1,0 +1,68 @@
+   Compiling agent-kernel v0.1.0 (D:\WorldSea\crates\agent-kernel)
+warning: unused import: `InteractionKind`
+    --> src\agent\tests.rs:2753:52
+     |
+2753 |         use agent_engine::contracts::interaction::{InteractionKind, InteractionOutcome};
+     |                                                    ^^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `risk_level`
+   --> src\agent\tools.rs:678:21
+    |
+678 |                 let risk_level = declared.as_ref().map(|d| d.safety.risk_level.as_str().to_string());
+    |                     ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_risk_level`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `scope`
+   --> src\agent\tools.rs:679:21
+    |
+679 |                 let scope = declared
+    |                     ^^^^^ help: if this is intentional, prefix it with an underscore: `_scope`
+
+warning: variable does not need to be mutable
+   --> src\orchestrator.rs:902:40
+    |
+902 |         async fn execute<'a>(&'a self, mut ctx: NodeContext<'a>) -> NodeResult {
+    |                                        ----^^^
+    |                                        |
+    |                                        help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `execute_count` is never used
+   --> src\orchestrator.rs:886:12
+    |
+856 |     impl StubNode {
+    |     ------------- method in this implementation
+...
+886 |         fn execute_count(&self) -> u32 {
+    |            ^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `agent-kernel` (lib test) generated 5 warnings (run `cargo fix --lib -p agent-kernel --tests` to apply 4 suggestions)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 14.92s
+     Running unittests src\lib.rs (target\debug\deps\agent_kernel-0cb024404c37b5ab.exe)
+
+running 1 test
+test agent::tests::confirmation_four_values_map_to_payload_codes ... FAILED
+
+failures:
+
+---- agent::tests::confirmation_four_values_map_to_payload_codes stdout ----
+
+thread 'agent::tests::confirmation_four_values_map_to_payload_codes' (23876) panicked at src\agent\tests.rs:2875:9:
+assertion `left == right` failed: 审批载荷应带工具声明元数据（CountingEcho 声明 Dangerous + System）
+  left: (None, None)
+ right: (Some("dangerous"), Some("system"))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    agent::tests::confirmation_four_values_map_to_payload_codes
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 338 filtered out; finished in 0.02s
+
+error: test failed, to rerun pass `--lib`

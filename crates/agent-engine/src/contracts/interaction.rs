@@ -48,6 +48,12 @@ pub enum InteractionRequest {
         tool_name: String,
         /// 待确认的工具参数
         args: serde_json::Value,
+        /// 工具声明风险等级（`ToolDescriptor.safety.risk_level` 线面串；`None` = 旧载荷/未声明）
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        risk_level: Option<String>,
+        /// 工具声明副作用范围（同上）
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        side_effect_scope: Option<String>,
     },
     /// 提问：`questions` 为规范化后的批次载荷（camelCase：`[{id, question, header?, options?, multiSelect?}]`）
     UserInput {
@@ -289,6 +295,41 @@ mod tests {
         // 反序列化回环（前端/命令层同口径）
         let back: InteractionRequest = serde_json::from_value(v).unwrap();
         assert_eq!(back, req);
+    }
+
+    #[test]
+    fn permission_wire_carries_declared_metadata() {
+        // UX-b：审批载荷带工具声明元数据（风险等级 / 副作用范围），前端弹窗展示
+        let req = InteractionRequest::Permission {
+            tool_name: "execute_command".into(),
+            args: serde_json::json!({ "command": "ls" }),
+            risk_level: Some("dangerous".into()),
+            side_effect_scope: Some("system".into()),
+        };
+        let v: serde_json::Value = serde_json::to_value(&req).unwrap();
+        assert_eq!(v["kind"], "permission");
+        assert_eq!(v["tool_name"], "execute_command");
+        assert_eq!(v["risk_level"], "dangerous");
+        assert_eq!(v["side_effect_scope"], "system");
+        let back: InteractionRequest = serde_json::from_value(v).unwrap();
+        assert_eq!(back, req);
+
+        // 旧载荷（无元数据字段）可解析——serde default 兼容；序列化时字段省略
+        let legacy: InteractionRequest = serde_json::from_value(serde_json::json!({
+            "kind": "permission",
+            "tool_name": "read_file",
+            "args": {},
+        }))
+        .unwrap();
+        let legacy_v = serde_json::to_value(&legacy).unwrap();
+        assert!(legacy_v.get("risk_level").is_none(), "None 字段应省略（载荷最小化）");
+        assert!(
+            matches!(
+                legacy,
+                InteractionRequest::Permission { risk_level: None, side_effect_scope: None, .. }
+            ),
+            "旧载荷缺字段 → None（不猜测）"
+        );
     }
 
     #[test]

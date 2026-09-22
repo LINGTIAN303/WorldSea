@@ -25,7 +25,7 @@ async fn permission_resolve_wakes_waiter_and_is_idempotent() {
     let b2 = broker.clone();
     let bc = broadcaster.clone();
     let handle = tokio::spawn(async move {
-        b2.request_permission(&bc, "execute_command", serde_json::json!({ "command": "shutdown now" }))
+        b2.request_permission(&bc, "execute_command", serde_json::json!({ "command": "shutdown now" }), None, None)
             .await
     });
     let id = first_pending_id(&broker).await;
@@ -48,7 +48,7 @@ async fn resolve_rejects_kind_mismatch_without_waking() {
     let b2 = broker.clone();
     let bc = broadcaster.clone();
     let handle = tokio::spawn(async move {
-        b2.request_permission(&bc, "entity_delete", serde_json::json!({ "id": "x" })).await
+        b2.request_permission(&bc, "entity_delete", serde_json::json!({ "id": "x" }), None, None).await
     });
     let id = first_pending_id(&broker).await;
     // 用 user_input 结果去解析 permission 请求 → 拒
@@ -69,7 +69,7 @@ async fn permission_timeout_returns_timeout_and_clears_pending() {
     let broker = InteractionBroker::with_timeout(Duration::from_millis(30));
     let broadcaster = Arc::new(RwLock::new(EventBroadcaster::new()));
     let outcome = broker
-        .request_permission(&broadcaster, "execute_command", serde_json::json!({}))
+        .request_permission(&broadcaster, "execute_command", serde_json::json!({}), None, None)
         .await;
     assert_eq!(outcome, ConfirmationOutcome::Timeout);
     assert!(!outcome.is_approved());
@@ -157,7 +157,7 @@ async fn cancel_all_wakes_every_kind_with_terminal_values() {
     let (b1, b2, b3) = (broker.clone(), broker.clone(), broker.clone());
     let (c1, c2, c3) = (broadcaster.clone(), broadcaster.clone(), broadcaster.clone());
     let h1 = tokio::spawn(async move {
-        b1.request_permission(&c1, "execute_command", serde_json::json!({})).await
+        b1.request_permission(&c1, "execute_command", serde_json::json!({}), None, None).await
     });
     let h2 = tokio::spawn(async move { b2.request_user_input(&c2, serde_json::json!([])).await });
     let h3 = tokio::spawn(async move {

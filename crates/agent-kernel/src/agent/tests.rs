@@ -2753,13 +2753,24 @@
         use agent_engine::contracts::interaction::{InteractionKind, InteractionOutcome};
         use std::time::Duration;
 
-        /// 捕获审批请求 id（模拟前端：监听族事件 permission 型后回传）
-        struct ConfirmCapture(std::sync::Mutex<Option<String>>);
+        /// 捕获审批请求（模拟前端：监听族事件 permission 型后回传；UX-b：连带捕获声明元数据）
+        struct ConfirmCapture(
+            std::sync::Mutex<Option<(String, Option<String>, Option<String>)>>,
+        );
         impl Listener for ConfirmCapture {
             fn call(&self, event: &OrchestratorEvent) -> ListenerOutcome {
                 if let OrchestratorEvent::InteractionRequested { interaction_id, request } = event {
-                    if request.kind() == InteractionKind::Permission {
-                        *self.0.lock().unwrap() = Some(interaction_id.clone());
+                    if let agent_engine::contracts::interaction::InteractionRequest::Permission {
+                        risk_level,
+                        side_effect_scope,
+                        ..
+                    } = request
+                    {
+                        *self.0.lock().unwrap() = Some((
+                            interaction_id.clone(),
+                            risk_level.clone(),
+                            side_effect_scope.clone(),
+                        ));
                     }
                 }
                 ListenerOutcome::Continue
@@ -2793,7 +2804,7 @@
         async fn run_case(
             resolve: Option<ConfirmationOutcome>,
             timeout_ms: Option<u64>,
-        ) -> (usize, Option<serde_json::Value>) {
+        ) -> (usize, Option<serde_json::Value>, (Option<String>, Option<String>)) {
             let calls = Arc::new(AtomicUsize::new(0));
             let backend = Arc::new(MockBackend::new(vec![
                 PromptResponse {
@@ -2832,7 +2843,7 @@
             if let Some(outcome) = resolve {
                 for _ in 0..200 {
                     tokio::time::sleep(Duration::from_millis(5)).await;
-                    let id = capture.0.lock().unwrap().clone();
+                    let id = capture.0.lock().unwrap().as_ref().map(|(id, _, _)| id.clone());
                     if let Some(id) = id {
                         broker.resolve(&id, InteractionOutcome::Permission(outcome)).await;
                         break;
@@ -2846,25 +2857,37 @@
                 m.role == MessageRole::ToolResult && m.tool_call_id.as_deref() == Some("tc_confirm")
             });
             let value = tr.map(|m| serde_json::from_str(&m.content).expect("toolResult 应为 JSON"));
-            (calls.load(Ordering::SeqCst), value)
+            let meta = capture
+                .0
+                .lock()
+                .unwrap()
+                .as_ref()
+                .map(|(_, r, s)| (r.clone(), s.clone()))
+                .unwrap_or((None, None));
+            (calls.load(Ordering::SeqCst), value, meta)
         }
 
-        // 放行：工具执行、结果不携带判别码
-        let (calls, v) = run_case(Some(ConfirmationOutcome::Approved), None).await;
+        // 放行：工具执行、结果不携带判别码；UX-b：载荷带声明元数据（descriptor → broker → 事件装配链）
+        let (calls, v, meta) = run_case(Some(ConfirmationOutcome::Approved), None).await;
         assert_eq!(calls, 1, "Approved 应执行工具");
         let v = v.expect("应有 toolResult");
         assert!(v.get("isError").is_none(), "放行结果不应携带 isError: {v}");
+        assert_eq!(
+            meta,
+            (Some("dangerous".into()), Some("system".into())),
+            "审批载荷应带工具声明元数据（CountingEcho 声明 Dangerous + System）"
+        );
 
         // 拒绝 / 跳过：不执行、判别码区分
-        let (calls, v) = run_case(Some(ConfirmationOutcome::Denied), None).await;
+        let (calls, v, _) = run_case(Some(ConfirmationOutcome::Denied), None).await;
         assert_eq!(calls, 0, "Denied 不应执行");
         assert_eq!(v.expect("应有拒绝结果")["errorCode"], "CONFIRM_DENIED");
-        let (calls, v) = run_case(Some(ConfirmationOutcome::Skipped), None).await;
+        let (calls, v, _) = run_case(Some(ConfirmationOutcome::Skipped), None).await;
         assert_eq!(calls, 0, "Skipped 不应执行");
         assert_eq!(v.expect("应有跳过结果")["errorCode"], "CONFIRM_SKIPPED");
 
         // 超时（broker 30ms）：不执行、码为 CONFIRM_TIMEOUT
-        let (calls, v) = run_case(None, Some(30)).await;
+        let (calls, v, _) = run_case(None, Some(30)).await;
         assert_eq!(calls, 0, "Timeout 不应执行");
         assert_eq!(v.expect("应有超时结果")["errorCode"], "CONFIRM_TIMEOUT");
     }

@@ -19,7 +19,8 @@ export {
 import { ref, computed, reactive, readonly } from 'vue'
 import { invoke as tauriInvoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn, isHttpBackend, invokeRpc, invoke } from './transport'
-import { useConfirm, useAsk, type AskQuestion } from '@worldsea/ui-kit'
+import { useConfirm, useAsk, type AskQuestion, type ConfirmExtraAction } from '@worldsea/ui-kit'
+import { getToolLabel } from '@worldsea/shared-ui/agent/bubbles/toolLabels'
 import { toastSuccess, toastWarn } from '@/composables/useToast'
 import { useOrchEvents } from './useOrchEvents'
 import { setupBranchListener, teardownBranchListener } from './useSessionBranch'
@@ -1448,6 +1449,10 @@ interface RustInteractionPayload {
   tool_name?: string
   /** permission / hook_review：工具参数（确认框展示；白名单附加动作取用） */
   args?: Record<string, unknown>
+  /** permission（UX-b）：工具声明风险等级线面串（safe/moderate/dangerous；弹窗展示，不参与判定） */
+  risk_level?: string
+  /** permission（UX-b）：工具声明副作用范围线面串（none/workspace/git/network/system/session） */
+  side_effect_scope?: string
   /** user_input：问题批次（camelCase：id/question/header?/options?/multiSelect?） */
   questions?: AskQuestion[]
   /** hook_review：发起复核的钩子名 */
@@ -1518,27 +1523,61 @@ async function respondInteraction(
   })
 }
 
-/** permission 型：现确认弹窗（三键 + 白名单附加动作 → approved/denied/skipped） */
+/** 工具声明元数据行（UX-b：弹窗展示；两个值均缺省 → 空串不占行） */
+function formatToolMeta(risk?: string, scope?: string): string {
+  const RISK: Record<string, string> = { safe: '安全', moderate: '中等', dangerous: '危险' }
+  const SCOPE: Record<string, string> = {
+    none: '无副作用',
+    workspace: '工作区文件',
+    git: 'Git 仓库',
+    network: '网络',
+    system: '系统',
+    session: '会话状态',
+  }
+  const parts: string[] = []
+  if (risk) parts.push(`风险：${RISK[risk] ?? risk}`)
+  if (scope) parts.push(`范围：${SCOPE[scope] ?? scope}`)
+  return parts.join(' · ')
+}
+
+/** permission 型：现确认弹窗（三键 + 白名单/会话授权附加动作 → approved/denied/skipped） */
 async function respondPermission(
   sessionId: string,
   payload: RustInteractionPayload,
 ): Promise<void> {
   const { confirm } = useConfirm()
+  const toolName = payload.tool_name ?? ''
   const argSummary = payload.args ? JSON.stringify(payload.args).slice(0, 200) : ''
+  // UX-b：声明元数据行（风险等级 / 副作用范围；显示名走既有中文标签表）
+  const metaLine = formatToolMeta(payload.risk_level, payload.side_effect_scope)
   // v2 白名单附加动作（方向3 P0，2026-09-03）：命令工具 → 命令白名单；FS 写/搜索 → 路径白名单
-  const allowAction = buildAllowAction(payload.tool_name ?? '', payload.args)
+  const allowAction = buildAllowAction(toolName, payload.args)
+  // UX-b：会话级授权（工具级全量；仅本会话内存活——S4-b SessionGrant，once=false 常驻）
+  const sessionAllow: ConfirmExtraAction | null = toolName
+    ? {
+        label: '本会话总是允许',
+        run: () =>
+          safeInvoke('grant_session_permission', {
+            sessionId,
+            grants: [{ toolName, content: null, once: false }],
+          }),
+      }
+    : null
   // 三键确认（2026-08-30）：通过 / 取消(跳过) / 拒绝——此前只有 取消+确认(文案"删除"，
   // 被读成"拒绝")，没有「通过」入口。D8 四值（2026-09-17）：三键各自成值回传
   // （通过→approved / 拒绝→denied / 取消(跳过)→skipped；timeout 由 kernel 超时产生）
   const choice = await confirm({
     type: 'danger',
-    title: '危险操作确认',
-    description: `工具 "${payload.tool_name}" 将执行${argSummary ? `\n参数：${argSummary}` : ''}\n是否继续？`,
+    title: `危险操作确认 · ${getToolLabel(toolName)}`,
+    description:
+      `工具 "${toolName}" 将执行` +
+      `${metaLine ? `\n${metaLine}` : ''}` +
+      `${argSummary ? `\n参数：${argSummary}` : ''}\n是否继续？`,
     confirmText: '通过',
     cancelText: '拒绝',
     neutralText: '取消(跳过)',
     position: 'bottom',
-    extraActions: allowAction ? [allowAction] : [],
+    extraActions: [...(allowAction ? [allowAction] : []), ...(sessionAllow ? [sessionAllow] : [])],
     withChoice: true,
   })
   const outcome = choice === 'confirmed' ? 'approved' : choice === 'skipped' ? 'skipped' : 'denied'

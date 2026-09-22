@@ -674,8 +674,13 @@ impl AgentLoop {
                 let Some(broker) = self.confirmation_broker.as_ref() else {
                     return None;
                 };
+                // UX-b：声明元数据随审批载荷下发（弹窗展示；不参与判定）
+                let risk_level = declared.as_ref().map(|d| d.safety.risk_level.as_str().to_string());
+                let scope = declared
+                    .as_ref()
+                    .map(|d| d.safety.side_effect_scope.as_str().to_string());
                 let outcome = broker
-                    .request_permission(&self.broadcaster, name, args.clone())
+                    .request_permission(&self.broadcaster, name, args.clone(), risk_level, scope)
                     .await;
                 // D8 四值：拒绝 / 跳过 / 超时不再混同——工具错误消息区分，LLM 可据此采取不同后续
                 // T1：结果补判别字段（isError + errorCode，拒绝类码与四值一一对应）

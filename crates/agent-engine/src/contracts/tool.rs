@@ -30,6 +30,17 @@ pub enum RiskLevel {
     Dangerous,
 }
 
+impl RiskLevel {
+    /// 线面串（事件载荷展示；与 serde snake_case 口径一致——一致性由测试锁定）
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Safe => "safe",
+            Self::Moderate => "moderate",
+            Self::Dangerous => "dangerous",
+        }
+    }
+}
+
 /// 副作用范围（声明面；本族仅登记与审计，不驱动放行——权限由安全组与判定顺序裁决）
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -46,6 +57,20 @@ pub enum SideEffectScope {
     System,
     /// 会话态（记忆 / 定时器 / 会话内状态）
     Session,
+}
+
+impl SideEffectScope {
+    /// 线面串（事件载荷展示；与 serde snake_case 口径一致——一致性由测试锁定）
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Workspace => "workspace",
+            Self::Git => "git",
+            Self::Network => "network",
+            Self::System => "system",
+            Self::Session => "session",
+        }
+    }
 }
 
 /// 执行器二态（双执行栈正式化：客户端工具一等身份）
@@ -288,80 +313,5 @@ impl ToolDescriptor {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn sample_safety() -> ToolSafety {
-        ToolSafety {
-            read_only: false,
-            destructive: false,
-            concurrent_safe: false,
-            requires_user_interaction: false,
-            always_ask: true,
-            needs_approval: false,
-            risk_level: RiskLevel::Moderate,
-            side_effect_scope: SideEffectScope::System,
-        }
-    }
-
-    #[test]
-    fn descriptor_roundtrip_snake_case_and_required_fields() {
-        let d = ToolDescriptor::new("execute_command", "dev", "执行命令", sample_safety())
-            .with_input_schema(serde_json::json!({ "type": "object" }))
-            .with_executor(Executor::Client);
-        let v = serde_json::to_value(&d).unwrap();
-        // 字段为 snake_case，分组嵌套（与生成物同形）
-        assert_eq!(v["safety"]["always_ask"], true);
-        assert_eq!(v["safety"]["risk_level"], "moderate");
-        assert_eq!(v["safety"]["side_effect_scope"], "system");
-        assert_eq!(v["executor"], "client");
-        let back: ToolDescriptor = serde_json::from_value(v).unwrap();
-        assert_eq!(back, d);
-    }
-
-    #[test]
-    fn missing_safety_field_fails_loud() {
-        // 反证①：声明缺 side_effect_scope → 解析失败（fail loud，不静默补默认）
-        let raw = serde_json::json!({
-            "name": "x", "aliases": [], "category": "dev", "description": "d",
-            "input_schema": { "type": "object" },
-            "safety": {
-                "read_only": false, "destructive": false, "concurrent_safe": false,
-                "requires_user_interaction": false, "always_ask": false, "needs_approval": false,
-                "risk_level": "moderate"
-            },
-            "control": { "stop_turn_on_success": false, "provider_visible": true },
-            "executor": "local"
-        });
-        let err = serde_json::from_value::<ToolDescriptor>(raw).unwrap_err();
-        assert!(err.to_string().contains("side_effect_scope"), "{err}");
-    }
-
-    #[test]
-    fn unknown_field_fails_loud() {
-        // deny_unknown_fields：生成物与契约漂移（多字段）即启动失败
-        let mut v = serde_json::to_value(ToolDescriptor::read_only(
-            "list_directory",
-            "file",
-            "列目录",
-            SideEffectScope::Workspace,
-        ))
-        .unwrap();
-        v.as_object_mut().unwrap().insert("legacy_field".into(), serde_json::json!(1));
-        assert!(serde_json::from_value::<ToolDescriptor>(v).is_err());
-    }
-
-    #[test]
-    fn validate_enforces_dangerous_implies_always_ask() {
-        let mut d = ToolDescriptor::read_only("list_directory", "file", "列目录", SideEffectScope::Workspace);
-        assert!(d.validate().is_ok());
-        d.safety.risk_level = RiskLevel::Dangerous;
-        let err = d.validate().unwrap_err();
-        assert!(err.contains("always_ask"), "{err}");
-        // read_only 与 destructive 互斥
-        d.safety.risk_level = RiskLevel::Safe;
-        d.safety.read_only = true;
-        d.safety.destructive = true;
-        assert!(d.validate().is_err());
-    }
-}
+#[path = "tool_tests.rs"]
+mod tests;

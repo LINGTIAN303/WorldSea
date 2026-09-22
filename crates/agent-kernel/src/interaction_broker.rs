@@ -99,6 +99,9 @@ impl InteractionBroker {
 
     /// 发起工具调用审批（permission 型）：广播事件并等待前端回传
     ///
+    /// `risk_level` / `side_effect_scope` = 工具声明元数据的线面串（UX-b：前端弹窗展示；
+    /// **不参与判定**——四值与 alwaysAsk 语义不受影响；`None` = 调用方未提供）。
+    ///
     /// # 返回（D8 四值，B7 语义不变）
     /// - `Approved`：用户放行；`Denied` / `Skipped`：拒绝 / 跳过（均不执行，文案区分）
     /// - `Timeout`：超时或随轮取消（内核侧产生，按不执行处理）
@@ -107,10 +110,14 @@ impl InteractionBroker {
         broadcaster: &Arc<RwLock<EventBroadcaster>>,
         tool_name: &str,
         args: serde_json::Value,
+        risk_level: Option<String>,
+        side_effect_scope: Option<String>,
     ) -> ConfirmationOutcome {
         let request = InteractionRequest::Permission {
             tool_name: tool_name.to_string(),
             args,
+            risk_level,
+            side_effect_scope,
         };
         let outcome = self.request(broadcaster, request, self.confirm_timeout).await;
         match outcome {

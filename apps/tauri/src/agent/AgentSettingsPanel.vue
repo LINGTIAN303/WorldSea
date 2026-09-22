@@ -333,6 +333,8 @@
                 </ul>
               </div>
             </div>
+            <!-- UX-b：项目规则（{workdir}/.worldsea/permissions.json）编辑与重载（S4-c 命令面接线） -->
+            <ProjectRulesSection />
           </div>
           <!-- 人格预设面板（内联，对应视觉稿边界与个性组） -->
           <div v-else-if="settingsSubPanel === 'persona'" key="persona" class="sub-panel">
@@ -465,6 +467,7 @@ import { useModelApiKeyConfig } from './composables/useModelApiKeyConfig'
 import { useCustomModelFetch } from './composables/useCustomModelFetch'
 import { invoke } from '@/agent/composables/transport'
 import SkillsStorePanel from './SkillsStorePanel.vue'
+import ProjectRulesSection from './panels/ProjectRulesSection.vue'
 // 拆分出的子面板
 import ModelPanel from './panels/ModelPanel.vue'
 import ProviderPanel from './panels/ProviderPanel.vue'
