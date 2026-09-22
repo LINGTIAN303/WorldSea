@@ -233,6 +233,12 @@ pub(super) fn tool_failure_from_error(tool: &str, err: &ToolError) -> serde_json
 /// 此前截断只靠各工具源头自律，terminal/读文件类无兜底。
 pub(super) const TOOL_RESULT_STR_LIMIT: usize = 12_000;
 
+/// C2 · T-d：大结果 artifact 阈值（字节；= ZCode `maxOutputBytes` 默认 32768 口径，Q4 拍板「32KB 起步」）
+///
+/// 超过阈值（或工具声明的 `limits.max_output_bytes`）→ 整结果落 artifact（内容寻址，
+/// **与原文外置同一存储**），上下文只留摘要 + 引用；取回走既有坐标通道。
+pub(super) const ARTIFACT_THRESHOLD_BYTES: usize = 32 * 1024;
+
 /// A1 己1③（2026-09-11）：截断由「只保头部」改为「保头 + 保尾」。
 ///
 /// 依据：工具输出的结论 / 报错 / 统计 / 文件末尾通常落在尾部，只保头部会把最有
@@ -708,17 +714,50 @@ impl AgentLoop {
     /// **红线遵守（05-§2.4）**：① 同步——链内零 await（分发在短读锁临界区内，
     /// 与 A3 输入准入同型）；② 单副本——广播与入历史继续共用同一 `result_value`；
     /// ③ 位置不变——仍在广播前（前端所见 = 入历史所见）。
+    /// C2 · T-d：结果体积超阈值 → 落 artifact，返回「摘要 + 引用」信封；未超阈值 / 落盘失败 → None
+    ///
+    /// 阈值口径：工具声明 `limits.max_output_bytes` 优先，缺省 [`ARTIFACT_THRESHOLD_BYTES`]（32 KiB，字节）。
+    /// 落盘复用注入的 `raw_context_sink`（**同一存储**：内容寻址 + 既有取回坐标通道）。
+    async fn artifactize_result(
+        &self,
+        tool_name: &str,
+        result: &Value,
+    ) -> Option<Value> {
+        let threshold = self
+            .tool_descriptor(tool_name)
+            .await
+            .and_then(|d| d.limits.max_output_bytes)
+            .unwrap_or(ARTIFACT_THRESHOLD_BYTES);
+        let serialized = serde_json::to_string(result).ok()?;
+        if serialized.len() <= threshold {
+            return None;
+        }
+        let raw_ref = (self.raw_context_sink)(&serialized)?;
+        let preview: String = serialized.chars().take(400).collect();
+        Some(serde_json::json!({
+            "artifact": format!("raw/{}", raw_ref.content_hash),
+            "bytes": raw_ref.byte_len,
+            "note": format!(
+                "结果过大（{} 字节 > 阈值 {} 字节），已落 artifact，仅保留摘要与引用；全文可按坐标取回。{}",
+                raw_ref.byte_len,
+                threshold,
+                crate::raw_context::externalized_note(&raw_ref.content_hash)
+            ),
+            "preview": preview,
+        }))
+    }
+
     pub(super) async fn preprocess_tool_result(
         &self,
         tool_call_id: &str,
         tool_name: &str,
         result: &mut Value,
     ) {
-        // C2：工具级输出上限优先（声明 max_output_bytes），回落全局阈值
-        let declared_limit = self
-            .tool_descriptor(tool_name)
-            .await
-            .and_then(|d| d.limits.max_output_bytes);
+        // C2 · T-d：超大结果先落 artifact（阈值 = 工具声明 max_output_bytes，缺省 32 KiB）——
+        // 上下文只留摘要 + 引用（内容寻址，与原文外置同一存储；落盘失败则退回后续裁剪兜底）
+        if let Some(artifact) = self.artifactize_result(tool_name, result).await {
+            *result = artifact;
+        }
         let mut event = OrchestratorEvent::ToolResultPreBroadcast {
             tool_call_id: tool_call_id.to_string(),
             tool_name: tool_name.to_string(),
@@ -729,7 +768,7 @@ impl AgentLoop {
             let bus = self.event_bus_handle().await;
             bus.waterfall(&mut event, |ev| {
                 if let OrchestratorEvent::ToolResultPreBroadcast { result, .. } = ev {
-                    clamp_tool_result_with(result, &self.raw_context_sink, declared_limit);
+                    clamp_tool_result_with(result, &self.raw_context_sink, None);
                 }
                 crate::event_bus::Outcome::Ok
             })
@@ -743,7 +782,7 @@ impl AgentLoop {
         }
         if outcome == crate::event_bus::Outcome::Vetoed {
             // 否决 = 跳过链尾裁剪 → 调用方兜底裁剪（防爆兜底不可被绕过）
-            clamp_tool_result_with(result, &self.raw_context_sink, declared_limit);
+            clamp_tool_result_with(result, &self.raw_context_sink, None);
         }
     }
 

@@ -3111,6 +3111,120 @@
         assert_eq!(v["errorCode"], "CONFIRM_TIMEOUT");
     }
 
+    /// C2 · T-d：大结果落 artifact——超阈值 → 摘要 + 引用（同一存储）/ 未超阈值不动 / 无 sink 退回
+    #[tokio::test]
+    async fn oversized_tool_result_lands_in_artifact() {
+        use super::tools::ARTIFACT_THRESHOLD_BYTES;
+
+        struct BigTool(usize);
+        #[async_trait]
+        impl crate::tool::Tool for BigTool {
+            fn name(&self) -> &str {
+                "big"
+            }
+            fn description(&self) -> &str {
+                "大结果（测试用）"
+            }
+            fn parameters(&self) -> serde_json::Value {
+                serde_json::json!({ "type": "object", "properties": {} })
+            }
+            fn descriptor(&self) -> crate::tool::ToolDescriptor {
+                crate::tool::ToolDescriptor::read_only(
+                    self.name(),
+                    "test",
+                    self.description(),
+                    crate::tool::SideEffectScope::None,
+                )
+                .with_input_schema(self.parameters())
+            }
+            async fn execute(
+                &self,
+                _args: serde_json::Value,
+            ) -> Result<serde_json::Value, crate::tool::ToolError> {
+                Ok(serde_json::json!({ "blob": "x".repeat(self.0) }))
+            }
+        }
+
+        /// 捕获外置载荷的最小 sink（内容寻址：固定 hash 前缀 + 载荷长度）
+        struct Sink {
+            calls: std::sync::Mutex<Vec<usize>>,
+        }
+        impl Sink {
+            fn arc() -> (Arc<Self>, crate::raw_context::RawContextSink) {
+                let s = Arc::new(Self {
+                    calls: std::sync::Mutex::new(Vec::new()),
+                });
+                let s2 = s.clone();
+                let sink: crate::raw_context::RawContextSink =
+                    Arc::new(move |text: &str| {
+                        s2.calls.lock().unwrap().push(text.len());
+                        Some(crate::raw_context::RawRef {
+                            content_hash: "abcdef0123456789".into(),
+                            byte_len: text.len(),
+                        })
+                    });
+                (s, sink)
+            }
+        }
+
+        async fn run_case(size: usize, with_sink: bool) -> (serde_json::Value, usize) {
+            let (sink, raw_sink) = if with_sink {
+                let (s, r) = Sink::arc();
+                (Some(s), r)
+            } else {
+                (None, crate::raw_context::noop_sink())
+            };
+            let backend = Arc::new(MockBackend::new(vec![
+                PromptResponse {
+                    text: "调用".into(),
+                    tool_calls: vec![ToolCall {
+                        id: "tc_big".into(),
+                        name: "big".into(),
+                        args: serde_json::json!({}),
+                    }],
+                    input_tokens: None,
+                    output_tokens: None,
+                    stop_reason: Some("tool_calls".into()),
+                    reasoning: None,
+                },
+                PromptResponse::text_only("完成"),
+            ]));
+            let tool_bus = Arc::new(SimpleToolBus::new());
+            tool_bus.register(Arc::new(BigTool(size))).await;
+            let agent = AgentLoop::new(backend, tool_bus).with_raw_context_sink(raw_sink);
+            agent.run("跑".into()).await.expect("运行应成功");
+            let msgs = agent.get_messages().await;
+            let tr = msgs.iter().find(|m| {
+                m.role == MessageRole::ToolResult && m.tool_call_id.as_deref() == Some("tc_big")
+            });
+            let value: serde_json::Value =
+                serde_json::from_str(&tr.expect("应有工具结果").content).expect("应为 JSON");
+            let calls = sink.map(|s| s.calls.lock().unwrap().len()).unwrap_or(0);
+            (value, calls)
+        }
+
+        // ① 超阈值：落 artifact（摘要 + 引用；原始 blob 不回灌上下文）+ sink 收到完整载荷
+        let (v, calls) = run_case(ARTIFACT_THRESHOLD_BYTES + 100, true).await;
+        assert_eq!(calls, 1, "超阈值应落 artifact 一次");
+        assert_eq!(v["artifact"], "raw/abcdef0123456789");
+        assert!(v.get("blob").is_none(), "原始大字段不得回灌上下文");
+        assert!(
+            v["note"].as_str().unwrap_or("").contains("原文已外置：raw/"),
+            "引用须携带既有取回锚点：{v}"
+        );
+        assert!(v["preview"].as_str().unwrap_or("").len() > 0, "应带预览");
+
+        // ② 未超阈值：结果原样（不落 artifact）
+        let (v, calls) = run_case(64, true).await;
+        assert_eq!(calls, 0, "未超阈值不应外置");
+        assert_eq!(v["blob"].as_str().unwrap_or("").len(), 64);
+
+        // ③ 无 sink（未注入）：退回（结果保留，兜底由裁剪承担）
+        let (v, calls) = run_case(ARTIFACT_THRESHOLD_BYTES + 100, false).await;
+        assert_eq!(calls, 0);
+        assert!(v.get("blob").is_some(), "无外置通道时不得丢内容");
+    }
+
     /// T1 契约：并行路径失败结果同样带判别字段（与串行同规）；成功结果不携带 `isError`。
     #[tokio::test]
     async fn parallel_failure_and_success_discriminants() {

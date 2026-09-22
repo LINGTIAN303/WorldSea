@@ -95,7 +95,8 @@ export const projectImportTool: ToolDefinition = {
     mode: { type: 'string', description: '导入模式: merge(合并,跳过重复) 或 overwrite(覆盖,先清空)', required: false },
   },
   meta: {
-    permission: 'safe',
+    // 用户裁定（2026-09-22）：含 overwrite 覆盖写面（先清空再导入）——等级由 safe 修正为 moderate
+    permission: 'moderate',
     readOnly: false,
     sideEffectScope: 'workspace',
     concurrentSafe: false,

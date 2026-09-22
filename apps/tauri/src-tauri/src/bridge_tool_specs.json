@@ -1126,8 +1126,8 @@
         "always_ask": false,
         "side_effect_scope": "workspace",
         "destructive": false,
-        "needs_approval": false,
-        "risk_level": "safe"
+        "needs_approval": true,
+        "risk_level": "moderate"
       },
       "limits": {
         "timeout_ms": null,
