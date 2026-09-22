@@ -129,6 +129,12 @@ pub trait ToolBus: Send + Sync {
     /// 列出所有工具定义（供 LLM 作为 tools 参数）
     async fn list_all(&self) -> Vec<ToolDefinition>;
 
+    /// 按名称查询工具描述符（C2 元数据族：权限 / 限制 / 调度**读声明**的单一取值口；自动解析别名）
+    ///
+    /// 必填（无默认）：声明读取不设静默降级——总线必须能给出工具声明，
+    /// 未知工具返回 `None`（调用方按「无声明」处理，如未注册工具当前语义）。
+    async fn get_descriptor(&self, name: &str) -> Option<ToolDescriptor>;
+
     /// 调用工具（自动解析别名）
     ///
     /// # 参数
@@ -276,6 +282,11 @@ impl ToolBus for SimpleToolBus {
             .map(|t| t.definition())
     }
 
+    async fn get_descriptor(&self, name: &str) -> Option<ToolDescriptor> {
+        let resolved = self.resolve_alias(name);
+        self.tools.read().await.get(&resolved).map(|t| t.descriptor())
+    }
+
     async fn list_all(&self) -> Vec<ToolDefinition> {
         self.tools
             .read()
@@ -386,6 +397,15 @@ impl ToolBus for WhitelistToolBus {
         let resolved = self.resolve_alias(name);
         if self.allowed.read().await.contains(&resolved) {
             self.inner.get_by_name(&resolved).await
+        } else {
+            None
+        }
+    }
+
+    async fn get_descriptor(&self, name: &str) -> Option<ToolDescriptor> {
+        let resolved = self.resolve_alias(name);
+        if self.allowed.read().await.contains(&resolved) {
+            self.inner.get_descriptor(&resolved).await
         } else {
             None
         }

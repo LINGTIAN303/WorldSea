@@ -822,16 +822,12 @@ mod tests {
         assert_eq!(MemoryTierParams::default(), standard);
     }
 
-    /// A1「Agent 记忆工具」批：权限分级登记（确认流据此拦不可逆操作）
+    /// A1「Agent 记忆工具」批：权限分级登记（C2 后**等级来源 = 工具声明**；
+    /// 声明等价性由 agent-commands 装配级用例覆盖——`tool_metadata_declarations_cover_s4b_classes`）
     #[test]
-    fn memory_tools_have_registered_permission_levels() {
-        use crate::confirmation::{tool_permission, ToolPermission};
-        assert_eq!(tool_permission("memory_recall"), ToolPermission::Safe);
-        assert_eq!(tool_permission("memory_read_raw"), ToolPermission::Safe);
-        assert_eq!(tool_permission("memory_store"), ToolPermission::Moderate);
-        assert_eq!(tool_permission("memory_update"), ToolPermission::Moderate);
-        assert_eq!(tool_permission("memory_pin"), ToolPermission::Moderate);
-        assert_eq!(tool_permission("memory_delete"), ToolPermission::Dangerous);
+    fn memory_tools_permission_moved_to_declarations() {
+        // 静态表已删（C2/Q3）；此处仅保留「不再存在静态等级表」的编译期/语义守卫说明。
+        // 具体等级断言见 crates/agent-commands/src/lib_tests.rs 的装配级用例。
     }
 
     #[tokio::test]

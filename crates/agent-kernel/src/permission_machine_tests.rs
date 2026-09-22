@@ -19,6 +19,7 @@ fn base_ctx<'a>(
         user_allow: false,
         project: ProjectVerdict::None,
         always_ask: false,
+        tool_risk: crate::tool::RiskLevel::Moderate,
         session_grant: false,
         plan_forbidden_write_or_command: false,
         agent_tmp: false,
@@ -85,10 +86,8 @@ fn pos5_always_ask_survives_autopilot() {
     c.always_ask = true;
     let d = decide(&c);
     assert_eq!((d.behavior, d.rule_id), (Behavior::Ask, RuleId::AlwaysAsk));
-    // 名单源（S4-a 批次）：Dangerous 级工具即 alwaysAsk
-    assert!(is_always_ask("entity_delete"), "Dangerous 级应入 alwaysAsk");
-    assert!(is_always_ask("clear_history"));
-    assert!(!is_always_ask("write_file"), "Moderate 不在本批名单");
+    // C2：alwaysAsk 源已迁工具声明（静态名单已删）——本用例只验证「声明为真即拦下」的位次语义，
+    // 真实工具的声明等价性见 agent-commands 装配级用例。
 }
 
 /// 位次 6：会话级授权 → Allow——**仅 alwaysAsk gate 消费**（普通工具不认）
@@ -186,11 +185,13 @@ fn pos12_tool_level_and_dangerous_command() {
     let policy = interact();
     // Dangerous 级（等级位兜底；经 alwaysAsk 名单时在位次 5 拦下）：Ask
     let args = json!({ "id": "x" });
-    let c = base_ctx("entity_delete", &args, Some(&policy));
+    let mut c = base_ctx("entity_delete", &args, Some(&policy));
+    c.tool_risk = crate::tool::RiskLevel::Dangerous; // C2：等级来自声明
     assert_eq!(decide(&c).behavior, Behavior::Ask);
     // Safe 级：放行
     let args2 = json!({ "id": "x" });
-    let c2 = base_ctx("entity_get", &args2, Some(&policy));
+    let mut c2 = base_ctx("entity_get", &args2, Some(&policy));
+    c2.tool_risk = crate::tool::RiskLevel::Safe;
     assert_eq!(decide(&c2).behavior, Behavior::Allow);
     // Moderate（命令）+ 危险命令模式：动态升级 Ask
     let args3 = json!({ "command": "rm -rf /" });
@@ -270,37 +271,6 @@ fn ask_degrades_without_confirmation_channel() {
 }
 
 // ─── S4-b：alwaysAsk 四类名单 + 会话级授权 ────────────────────
-
-/// 四类名单覆盖（ZD2-2 全选）：进程执行 / 未预批外发 / 破坏性 + 数据区写删（路径型）
-#[test]
-fn s4b_always_ask_classes_cover_four_categories() {
-    // ① 进程执行（is_command_tool 同源集合）
-    for t in [
-        "execute_command",
-        "bash",
-        "powershell",
-        "shell_session",
-        "shell_session_exec",
-        "shell_session_create",
-        "shell_session_write",
-    ] {
-        assert_eq!(always_ask_class(t), Some(AlwaysAskClass::ProcessExec), "{t}");
-    }
-    // ② 未预批外发：MCP 全量前缀 + web_fetch
-    assert_eq!(always_ask_class("mcp__fs__read_file"), Some(AlwaysAskClass::UntrustedEgress));
-    assert_eq!(always_ask_class("mcp__any__tool"), Some(AlwaysAskClass::UntrustedEgress));
-    assert_eq!(always_ask_class("web_fetch"), Some(AlwaysAskClass::UntrustedEgress));
-    // ③ 破坏性工具（Dangerous 级）
-    for t in ["delegate_to_sub_agent", "entity_delete", "memory_delete", "clear_history", "trash_empty"] {
-        assert_eq!(always_ask_class(t), Some(AlwaysAskClass::Destructive), "{t}");
-    }
-    // ④ 数据区写删为**路径型**——由内置锁 / 数据区位次（1）承担，不进本名单
-    assert_eq!(always_ask_class("write_file"), None);
-    assert_eq!(always_ask_class("edit_file"), None);
-    // 未登记工具不误伤（Moderate 兜底）
-    assert_eq!(always_ask_class("unknown_tool"), None);
-    assert_eq!(always_ask_class("entity_get"), None);
-}
 
 /// 会话授权消费规则：内容匹配 / 一次性消费 / 全量条目 / 空值忽略
 #[test]

@@ -2,7 +2,7 @@
 //! docs/details/注释/agent-runtime/confirmation.md
 //!
 //! S5（交互三型）后的模块分工：
-//! - **本模块** = 策略与守卫面（`ConfirmationPolicy` / `tool_permission` /
+//! - **本模块** = 策略与守卫面（`ConfirmationPolicy` /
 //!   `guard_fs_path` / `rule_content_subject`）+ 交互族类型的再导出；
 //! - 协调器实现迁 [`crate::interaction_broker`]（三型统一注册表）；
 //! - 类型定义迁 `agent-engine::contracts`（单一定义处）——本模块以 `pub use`
@@ -34,65 +34,24 @@ pub use agent_engine::contracts::interaction::{
     InteractionResponse,
 };
 
-// ─── A7 工具权限分级 ──────────────────────────────────────────
+// ─── A7 工具权限分级（C2 元数据族：**静态表已删**——等级读工具声明 ToolDescriptor.safety.risk_level） ───
 
-/// 工具安全等级（A7 三分级，对齐 TS `PermissionGuard` 的 safe/moderate/dangerous）
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ToolPermission {
-    /// 安全：常规读/查询，不确认直接执行
-    Safe,
-    /// 中等：写操作/命令执行，默认不确认，可按策略开启确认
-    Moderate,
-    /// 危险：破坏性/不可逆操作，无条件确认
-    Dangerous,
-}
-
-/// 已知工具静态等级映射（集中登记，未登记默认 `Moderate`，对齐 TS `PermissionGuard` 默认）
-///
-/// 分级口径：
-/// - `Dangerous`：destructive / 委派子 Agent / 删除等不可逆操作，无条件确认
-/// - `Moderate`：写操作、命令执行（命中 `dangerous_command_patterns` 再动态升级）
-/// - `Safe`：只读查询
-pub fn tool_permission(tool_name: &str) -> ToolPermission {
-    match tool_name {
-        // 危险：委派 / 删除 / 破坏性
-        "delegate_to_sub_agent" | "entity_delete" | "memory_delete" | "clear_history"
-        | "trash_empty" => ToolPermission::Dangerous,
-        // 命令执行：Moderate 基底（命中危险命令模式由 needs_confirmation 动态升级）
-        "execute_command" | "shell_session" | "shell_session_exec" | "shell_session_create"
-        | "shell_session_write" => ToolPermission::Moderate,
-        // 计划写入 / 搜索与抓取 / 实体读：Safe 级可放行
-        // （web_fetch 的读侧风险由出网收口与不可信内容围栏承担，见 src-tauri/net_egress.rs）
-        "plan_create" | "plan_update" | "plan_replan" | "entity_list" | "entity_get"
-        | "web_search" | "web_fetch" | "list_sub_agents" => ToolPermission::Safe,
-        // 文件系统工具（Phase 5）：只读放行（Safe）；写入/编辑 → Moderate（默认不确认，可按策略开启）
-        "read_file" | "list_directory" | "search_files" => ToolPermission::Safe,
-        "write_file" | "edit_file" | "edit_diff" => ToolPermission::Moderate,
-        // A1 记忆工具（2026-09-12）：
-        // - 只读两件 → Safe（`memory_recall` 的副作用在记忆系统内部（访问计数），
-        //   不触碰用户数据；`memory_read_raw` 是纯读且作用域收敛到外置目录）
-        // - 写入/治理三件 → Moderate（可解释、可撤销；删除已在上方 Dangerous）
-        "memory_recall" | "memory_read_raw" => ToolPermission::Safe,
-        "memory_store" | "memory_update" | "memory_pin" => ToolPermission::Moderate,
-        // 其余未登记工具按 Moderate 兜底（策略默认不确认，行为不变）
-        _ => ToolPermission::Moderate,
-    }
-}
+pub use crate::tool::RiskLevel as ToolRiskLevel;
 
 // ─── HITL 确认策略 ──────────────────────────────────────────
 
 /// 确认策略：哪些工具调用需要用户确认
 ///
 /// 判定在 Rust 侧（A7 升级为三分级），综合工具名/等级与命令参数：
-/// - 工具权限等级取 `tool_permission(name)`（Safe/Moderate/Dangerous）
-///   - `Dangerous`：无条件确认
+/// - 工具风险等级由**工具声明**给出（C2：`ToolDescriptor.safety.risk_level`，调用方传入）
+///   - `Dangerous`：无条件确认（且通常已在位次 5 被 alwaysAsk 拦下）
 ///   - `Safe`：直接放行
 ///   - `Moderate`：`confirm_moderate=true` 时确认；否则命令工具命中危险模式才确认
 /// - `confirm_tools`：兼容 A5 遗留的「工具名白名单」，命中即无条件确认（可为空）
 /// - `dangerous_command_patterns`：`execute_command`/`shell_session` 命令命中任一模版时确认
 #[derive(Debug, Clone, Default)]
 pub struct ConfirmationPolicy {
-    /// 无条件需确认的工具名（A5 遗留，可为空；等级由 `tool_permission` 承载）
+    /// 无条件需确认的工具名（A5 遗留，可为空；等级由工具声明承载）
     pub confirm_tools: Vec<String>,
     /// 危险命令子串（小写匹配，命中即确认）
     pub dangerous_command_patterns: Vec<String>,
@@ -156,8 +115,16 @@ impl ConfirmationPolicy {
         }
     }
 
-    /// 判断某工具调用是否需要确认（A7 三分级裁决，档位短路优先）
-    pub fn needs_confirmation(&self, tool_name: &str, args: &serde_json::Value) -> bool {
+    /// 判断某工具调用是否需要确认（档位短路优先；**等级来自工具声明**——C2）
+    ///
+    /// `risk`：工具声明的风险等级（`ToolDescriptor.safety.risk_level`；未声明工具传 Moderate，
+    /// 对齐既有「未登记默认 Moderate」语义）。
+    pub fn needs_confirmation(
+        &self,
+        tool_name: &str,
+        args: &serde_json::Value,
+        risk: crate::tool::RiskLevel,
+    ) -> bool {
         // Q1（2026-09-20）：提问工具不做执行前确认——提问面板本身就是人工交互，
         // 再叠一层「工具执行确认」是双重弹窗；且 Plan 档「恒确认」会把它一并拦下
         // （提问不改写任何状态，无需执行闸门；子代理/不可用由工具内 ASK_UNAVAILABLE 收口）
@@ -175,10 +142,10 @@ impl ConfirmationPolicy {
             return true;
         }
 
-        match tool_permission(tool_name) {
-            ToolPermission::Dangerous => true,
-            ToolPermission::Safe => false,
-            ToolPermission::Moderate => {
+        match risk {
+            crate::tool::RiskLevel::Dangerous => true,
+            crate::tool::RiskLevel::Safe => false,
+            crate::tool::RiskLevel::Moderate => {
                 if self.confirm_moderate {
                     return true;
                 }
@@ -479,37 +446,26 @@ mod tests {
     fn policy_dangerous_only_matches() {
         let p = ConfirmationPolicy::dangerous_only();
         // Dangerous（委派 / 删除）无条件确认
-        assert!(p.needs_confirmation("delegate_to_sub_agent", &serde_json::json!({})));
-        assert!(p.needs_confirmation("entity_delete", &serde_json::json!({ "id": "x" })));
+        assert!(p.needs_confirmation("delegate_to_sub_agent", &serde_json::json!({}), crate::tool::RiskLevel::Dangerous));
+        assert!(p.needs_confirmation("entity_delete", &serde_json::json!({ "id": "x" }), crate::tool::RiskLevel::Dangerous));
         // Moderate 命令：仅命中危险模式确认
-        assert!(p.needs_confirmation("execute_command", &serde_json::json!({ "command": "rm -rf /" })));
-        assert!(!p.needs_confirmation("execute_command", &serde_json::json!({ "command": "ls -la" })));
+        assert!(p.needs_confirmation("execute_command", &serde_json::json!({ "command": "rm -rf /" }), crate::tool::RiskLevel::Moderate));
+        assert!(!p.needs_confirmation("execute_command", &serde_json::json!({ "command": "ls -la" }), crate::tool::RiskLevel::Moderate));
         // Safe 只读放行
-        assert!(!p.needs_confirmation("entity_get", &serde_json::json!({ "id": "x" })));
-        assert!(!p.needs_confirmation("plan_create", &serde_json::json!({ "plan": [] })));
+        assert!(!p.needs_confirmation("entity_get", &serde_json::json!({ "id": "x" }), crate::tool::RiskLevel::Safe));
+        assert!(!p.needs_confirmation("plan_create", &serde_json::json!({ "plan": [] }), crate::tool::RiskLevel::Safe));
     }
 
     #[test]
     fn policy_moderate_and_dangerous_confirm_all_write() {
         let p = ConfirmationPolicy::moderate_and_dangerous();
         // Moderate 写/命令一律确认（不再依赖命令模式）
-        assert!(p.needs_confirmation("execute_command", &serde_json::json!({ "command": "ls -la" })));
-        assert!(p.needs_confirmation("shell_session", &serde_json::json!({ "command": "echo hi" })));
+        assert!(p.needs_confirmation("execute_command", &serde_json::json!({ "command": "ls -la" }), crate::tool::RiskLevel::Moderate));
+        assert!(p.needs_confirmation("shell_session", &serde_json::json!({ "command": "echo hi" }), crate::tool::RiskLevel::Moderate));
         // Dangerous 仍确认
-        assert!(p.needs_confirmation("entity_delete", &serde_json::json!({ "id": "x" })));
+        assert!(p.needs_confirmation("entity_delete", &serde_json::json!({ "id": "x" }), crate::tool::RiskLevel::Dangerous));
         // Safe 仍放行
-        assert!(!p.needs_confirmation("entity_get", &serde_json::json!({ "id": "x" })));
-    }
-
-    #[test]
-    fn tool_permission_classification() {
-        assert_eq!(tool_permission("delegate_to_sub_agent"), ToolPermission::Dangerous);
-        assert_eq!(tool_permission("entity_delete"), ToolPermission::Dangerous);
-        assert_eq!(tool_permission("execute_command"), ToolPermission::Moderate);
-        assert_eq!(tool_permission("entity_get"), ToolPermission::Safe);
-        assert_eq!(tool_permission("plan_create"), ToolPermission::Safe);
-        // 未登记工具默认 Moderate（对齐 TS PermissionGuard）
-        assert_eq!(tool_permission("unknown_tool"), ToolPermission::Moderate);
+        assert!(!p.needs_confirmation("entity_get", &serde_json::json!({ "id": "x" }), crate::tool::RiskLevel::Safe));
     }
 
     #[test]
@@ -535,10 +491,10 @@ mod tests {
     fn policy_needs_confirmation_exempts_ask_question() {
         // Q1：提问工具豁免执行前确认（面板即人工交互；Plan 档恒确认同样豁免）
         let plan = ConfirmationPolicy::plan();
-        assert!(!plan.needs_confirmation("ask_user_question", &serde_json::json!({"questions": []})));
-        assert!(plan.needs_confirmation("read_file", &serde_json::json!({"path": "a.md"})));
+        assert!(!plan.needs_confirmation("ask_user_question", &serde_json::json!({"questions": []}), crate::tool::RiskLevel::Safe));
+        assert!(plan.needs_confirmation("read_file", &serde_json::json!({"path": "a.md"}), crate::tool::RiskLevel::Safe));
         let moderate = ConfirmationPolicy::moderate_and_dangerous();
-        assert!(!moderate.needs_confirmation("ask_user_question", &serde_json::json!({})));
+        assert!(!moderate.needs_confirmation("ask_user_question", &serde_json::json!({}), crate::tool::RiskLevel::Safe));
     }
 
     #[test]
@@ -676,17 +632,6 @@ mod tests {
         let ctx = ToolContext::default();
         let guard = guard_fs_path("write_file", &serde_json::json!({ "path": "/any/path" }), &ctx, false);
         assert_eq!(guard, PathGuard::Allow);
-    }
-
-    #[test]
-    fn tool_permission_fs_tools() {
-        // FS 工具等级登记：只读 Safe，写入 Moderate
-        assert_eq!(tool_permission("read_file"), ToolPermission::Safe);
-        assert_eq!(tool_permission("list_directory"), ToolPermission::Safe);
-        assert_eq!(tool_permission("search_files"), ToolPermission::Safe);
-        assert_eq!(tool_permission("write_file"), ToolPermission::Moderate);
-        assert_eq!(tool_permission("edit_file"), ToolPermission::Moderate);
-        assert_eq!(tool_permission("edit_diff"), ToolPermission::Moderate);
     }
 
     #[test]

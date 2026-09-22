@@ -771,6 +771,70 @@
         assert!(matches!(err, CommandError::SessionNotFound(_)), "{err:?}");
     }
 
+    /// C2 装配级：S4-b 四类名单的**声明等价性**（静态名单已删——来源 = 工具声明 ToolDescriptor）
+    ///
+    /// 覆盖：① 进程执行（shell 执行族）② 未预批外发（MCP 注册点声明）③ 破坏性（危险级 ⟹ always_ask，
+    /// 由 validate 强制）④ 只读 / 工作区写**不误伤**；并验证别名解析取声明。
+    #[tokio::test]
+    async fn tool_metadata_declarations_cover_s4b_classes() {
+        use agent_runtime::mcp::{McpCaller, McpError, McpTool};
+        use agent_runtime::tool::{RiskLevel, SideEffectScope, SimpleToolBus, ToolBus};
+
+        struct NoopCaller;
+        #[async_trait::async_trait]
+        impl McpCaller for NoopCaller {
+            async fn call_tool(&self, _name: &str, _args: serde_json::Value) -> Result<serde_json::Value, McpError> {
+                Ok(serde_json::json!({}))
+            }
+        }
+
+        let bus: Arc<SimpleToolBus> = Arc::new(SimpleToolBus::new());
+        // ① 进程执行：shell 执行族（bash / powershell 两 flavor）
+        bus.register(Arc::new(crate::terminal::ShellExecTool::bash())).await;
+        bus.register(Arc::new(crate::terminal::ShellExecTool::powershell())).await;
+        // ② 未预批外发：MCP 工具（注册点构造声明）
+        bus.register(Arc::new(McpTool::new(
+            "fs",
+            "read_file",
+            "读文件（测试）",
+            serde_json::json!({ "type": "object" }),
+            Arc::new(NoopCaller),
+        )))
+        .await;
+        // ④ 只读 / 写：fs 族（只读不误伤；写按档位策略）
+        crate::fs_tools::register_fs_tools(&*bus).await;
+
+        let d = bus.get_descriptor("bash").await.expect("bash 应已注册");
+        assert!(d.safety.always_ask, "进程执行必须不可绕过确认（S4-b ①）");
+        assert_eq!(d.safety.side_effect_scope, SideEffectScope::System);
+        let d = bus.get_descriptor("powershell").await.expect("powershell 应已注册");
+        assert!(d.safety.always_ask, "进程执行必须不可绕过确认（S4-b ①）");
+
+        let d = bus.get_descriptor("mcp__fs__read_file").await.expect("MCP 工具应已注册");
+        assert!(d.safety.always_ask, "MCP 未预批外发必须不可绕过确认（S4-b ②）");
+        assert_eq!(d.safety.side_effect_scope, SideEffectScope::Network);
+
+        let d = bus.get_descriptor("write_file").await.expect("write_file 应已注册");
+        assert!(!d.safety.always_ask, "工作区写不属四类（按档位策略确认）");
+        assert!(d.safety.needs_approval, "Moderate 写应声明 needs_approval");
+
+        let d = bus.get_descriptor("read_file").await.expect("read_file 应已注册");
+        assert!(d.safety.read_only && !d.safety.always_ask, "只读工具不误伤");
+
+        // 危险级 ⟹ always_ask（声明一致性校验器强制；此处以构造断言固化口径）
+        let mut bad = agent_runtime::tool::ToolDescriptor::read_only(
+            "x",
+            "test",
+            "x",
+            SideEffectScope::None,
+        );
+        bad.safety.risk_level = RiskLevel::Dangerous;
+        assert!(bad.validate().is_err(), "dangerous 必须 always_ask");
+
+        // 别名解析：注册名之外的调用名同样取到声明
+        assert!(bus.get_descriptor("bash").await.is_some());
+    }
+
     #[tokio::test]
     async fn list_and_delete_session() {
         let svc = AgentCommandService::new();

@@ -301,7 +301,7 @@
 
         let original = format!("HEAD{}TAIL", "x".repeat(TOOL_RESULT_STR_LIMIT + 5_000));
         let mut value = serde_json::Value::String(original.clone());
-        clamp_tool_result_with(&mut value, &sink);
+        clamp_tool_result_with(&mut value, &sink, None);
         let out = value.as_str().unwrap();
 
         // ① sink 收到的是**完整原文**（不是截断后的）
@@ -331,7 +331,7 @@
         let declining: crate::raw_context::RawContextSink = Arc::new(|_| None);
         let original = format!("HEAD{}TAIL", "y".repeat(TOOL_RESULT_STR_LIMIT * 2));
         let mut value = serde_json::Value::String(original);
-        clamp_tool_result_with(&mut value, &declining);
+        clamp_tool_result_with(&mut value, &declining, None);
         let out = value.as_str().unwrap();
 
         assert!(out.starts_with("HEAD") && out.ends_with("TAIL"), "截断照常生效");
@@ -356,7 +356,7 @@
         });
 
         let mut value = serde_json::Value::String("短内容".into());
-        clamp_tool_result_with(&mut value, &counting);
+        clamp_tool_result_with(&mut value, &counting, None);
         assert_eq!(calls.load(Ordering::SeqCst), 0, "未超限不应触发外置");
         assert_eq!(value.as_str().unwrap(), "短内容");
     }
@@ -385,7 +385,7 @@
             "small": "ok",
             "__meta": { "op": "bash" },
         });
-        clamp_tool_result_with(&mut value, &sink);
+        clamp_tool_result_with(&mut value, &sink, None);
 
         assert_eq!(n.load(Ordering::SeqCst), 2, "两个超长字段应各自外置一次");
         let out = value.to_string();

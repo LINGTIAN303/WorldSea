@@ -17,7 +17,7 @@
 //! （Dangerous 级），S4-b 扩为四类结构化名单并接入会话授权来源；项目规则来源 S4-c 接入
 //! （本批 `ProjectVerdict::None`）。位次表不随批次改动，只换来源。
 
-use crate::confirmation::{ConfirmationPolicy, ToolPermission};
+use crate::confirmation::ConfirmationPolicy;
 
 // 项目规则类型/匹配独立成模块（S4-c 拆分：文件规模 ≤400 行）；此处重导出保持调用面稳定
 pub use crate::project_rules::{content_matches, tool_matches, ProjectPermissionRules, ProjectVerdict};
@@ -107,8 +107,10 @@ pub struct PermissionCtx<'a> {
     pub user_allow: bool,
     /// 位次 4/7/10：项目规则裁决
     pub project: ProjectVerdict,
-    /// 位次 5：alwaysAsk 命中（源见 [`is_always_ask`]）
+    /// 位次 5：alwaysAsk 命中（**源 = 工具声明** `ToolDescriptor.safety.always_ask`）
     pub always_ask: bool,
+    /// 位次 12：工具声明的风险等级（`ToolDescriptor.safety.risk_level`；未声明工具传 Moderate）
+    pub tool_risk: crate::tool::RiskLevel,
     /// 位次 6：会话级授权命中（来源 S4-b 接入）
     pub session_grant: bool,
     /// 位次 8：Plan 档下写 / 命令工具
@@ -119,42 +121,13 @@ pub struct PermissionCtx<'a> {
     pub path_outside_workdir: bool,
 }
 
-/// alwaysAsk 类别（ZD2-2 四类**全选**；S4-b 结构化名单）
-///
-/// 「数据区写删」为**路径型**——不进本名单，由内置锁 / 数据区位次（1）承担
-/// （E1 写保护在真实写入链路独立执行，见 `agent_commands::fs_tools::ensure_not_protected`）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AlwaysAskClass {
-    /// 进程执行（命令 / 终端类：`is_command_tool` 同源集合）
-    ProcessExec,
-    /// 未预批外发（MCP 调用 `mcp__*` / `web_fetch`）——出网收口在传输层，此处是人工闸门
-    UntrustedEgress,
-    /// 破坏性工具（Dangerous 级：委派 / 删除 / 清空）
-    Destructive,
-}
-
-/// alwaysAsk 判定（S4-b 四类结构化名单；**迁移点**：工具族批迁 `ToolDescriptor.always_ask` 字段）
+/// alwaysAsk 判定（C2 元数据族：**静态四类名单已删**——来源 = 工具声明
+/// `ToolDescriptor.safety.always_ask`，由调用点取证后填入 [`PermissionCtx::always_ask`]）。
 ///
 /// 注意：alwaysAsk 位于档位闸门之前——**Autopilot 亦不可绕过**（05-§八.1 不变量）；
-/// 用户 Allow 名单（位次 3）与其后传入的「预批」语义先于本名单（名单即预批）。
-pub fn always_ask_class(tool_name: &str) -> Option<AlwaysAskClass> {
-    if tool_name.starts_with("mcp__") {
-        return Some(AlwaysAskClass::UntrustedEgress);
-    }
-    if crate::confirmation::is_command_tool(tool_name) {
-        return Some(AlwaysAskClass::ProcessExec);
-    }
-    if tool_name == "web_fetch" {
-        return Some(AlwaysAskClass::UntrustedEgress);
-    }
-    (crate::confirmation::tool_permission(tool_name) == ToolPermission::Dangerous)
-        .then_some(AlwaysAskClass::Destructive)
-}
-
-/// alwaysAsk 命中（类别见 [`always_ask_class`]）
-pub fn is_always_ask(tool_name: &str) -> bool {
-    always_ask_class(tool_name).is_some()
-}
+/// 用户 Allow 名单（位次 3）与其后传入的「预批」语义先于本位（名单即预批）。
+/// 四类（S4-b ZD2-2 语义，现由各工具声明承载）：进程执行 / 未预批外发（MCP 与 web_fetch
+/// 在注册点声明）/ 破坏性（dangerous ⟹ always_ask，校验器强制）/ 数据区写删（路径型，位次 1）。
 
 // ─── 会话级授权（S4-b；ZD2-3：仅会话内存活、不落盘）────────────────
 
@@ -287,7 +260,7 @@ fn decide_linear(ctx: &PermissionCtx) -> Decision {
             }
             SecurityLevel::Interact => {}
         }
-        if policy.needs_confirmation(ctx.tool_name, ctx.args) {
+        if policy.needs_confirmation(ctx.tool_name, ctx.args, ctx.tool_risk) {
             return Decision::ask(RuleId::ToolLevel, "工具等级 / 策略命中：需确认");
         }
     }

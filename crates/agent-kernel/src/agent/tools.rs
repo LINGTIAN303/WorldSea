@@ -133,6 +133,14 @@ async fn run_tool_with_retry(
         }
     }
 
+    // C2：工具级超时优先（声明 timeout_ms），回落全局配置（现状默认不限时 ⇒ 行为不变）
+    let timeout = shared
+        .bus
+        .get_descriptor(name)
+        .await
+        .and_then(|d| d.limits.timeout_ms)
+        .map(std::time::Duration::from_millis)
+        .or(shared.timeout);
     let mut attempt: u32 = 0;
     loop {
         // 取消检查（每次重试前）
@@ -142,7 +150,7 @@ async fn run_tool_with_retry(
         }
 
         // 执行调用（含超时）
-        let call_result = if let Some(t) = shared.timeout {
+        let call_result = if let Some(t) = timeout {
             match tokio::time::timeout(
                 t,
                 shared.bus.call_tool_with_ctx(name, ctx, effective_args.clone()),
@@ -240,7 +248,7 @@ const TOOL_RESULT_TAIL_PARTS: usize = 2;
 /// 保留本包装是为了让既有测试少写一个参数，且它们本来就在验证「不外置时的行为」。
 #[cfg(test)]
 pub(super) fn clamp_tool_result(value: &mut Value) {
-    clamp_tool_result_with(value, &crate::raw_context::noop_sink());
+    clamp_tool_result_with(value, &crate::raw_context::noop_sink(), None);
 }
 
 /// 带**原文外置**的裁剪（A1 己1①）
@@ -258,10 +266,11 @@ pub(super) fn clamp_tool_result(value: &mut Value) {
 pub(super) fn clamp_tool_result_with(
     value: &mut Value,
     sink: &crate::raw_context::RawContextSink,
+    limit: Option<usize>,
 ) {
     match value {
         Value::String(s) => {
-            if s.len() <= TOOL_RESULT_STR_LIMIT {
+            if s.len() <= limit.unwrap_or(TOOL_RESULT_STR_LIMIT) {
                 return;
             }
 
@@ -270,7 +279,7 @@ pub(super) fn clamp_tool_result_with(
 
             // ② 算切点（只读 `s`，尚未修改）
             //    首尾预算：头部 3/5、尾部 2/5（头部含起始上下文，尾部含结论）
-            let head_budget = TOOL_RESULT_STR_LIMIT * TOOL_RESULT_HEAD_PARTS
+            let head_budget = limit.unwrap_or(TOOL_RESULT_STR_LIMIT) * TOOL_RESULT_HEAD_PARTS
                 / (TOOL_RESULT_HEAD_PARTS + TOOL_RESULT_TAIL_PARTS);
             let tail_budget = TOOL_RESULT_STR_LIMIT - head_budget;
 
@@ -299,11 +308,11 @@ pub(super) fn clamp_tool_result_with(
         }
         Value::Array(arr) => arr
             .iter_mut()
-            .for_each(|v| clamp_tool_result_with(v, sink)),
+            .for_each(|v| clamp_tool_result_with(v, sink, None)),
         Value::Object(map) => {
             for (k, v) in map.iter_mut() {
                 if k != "__meta" {
-                    clamp_tool_result_with(v, sink);
+                    clamp_tool_result_with(v, sink, None);
                 }
             }
         }
@@ -428,6 +437,15 @@ impl AgentLoop {
         }
     }
 
+    /// C2 元数据族：取工具声明（描述符）——权限 / 限制 / 调度**读声明**的取值口
+    ///
+    /// 未知工具（未注册 / 不在场景白名单）返回 None，调用方按「无声明」处理
+    /// （风险按 Moderate、alwaysAsk=false——对齐既有「未登记默认 Moderate」语义）。
+    pub(super) async fn tool_descriptor(&self, name: &str) -> Option<crate::tool::ToolDescriptor> {
+        let config = self.config_snapshot();
+        self.effective_tool_bus(&config).get_descriptor(name).await
+    }
+
     /// T4（2026-09-18）：构造工具执行共享依赖束（串行直接使用 / 并行克隆进任务）
     fn tool_exec_shared(&self) -> ToolExecShared {
         let config = self.config_snapshot();
@@ -496,7 +514,24 @@ impl AgentLoop {
         let self_tool_ctx = self.tool_ctx(None);
         // A5 HITL：若任一工具需确认（策略命中 / 敏感目录拒绝 / 越界确认），强制走串行
         // 确认需逐次暂停等待；敏感目录拒绝/越界确认若走并行会被绕过，故一并纳入。
-        let any_needs_confirm = tool_calls.iter().any(|t| {
+        // C2：预取本批工具声明（声明读取在异步侧；判定仍走 needs_confirmation 单点）
+        let mut declared_risks: Vec<Option<crate::tool::ToolDescriptor>> = Vec::new();
+        for t in &tool_calls {
+            declared_risks.push(self.tool_descriptor(&t.name).await);
+        }
+        // C2（T-c · Q2 拍板：`concurrent_safe` **只读登记、不改行为**）——声明已进入调度读取路径
+        // （上方预取）；放行策略（按声明放开并行）另议，变更须单独反证与走查。
+        let declared_concurrent_safe = declared_risks
+            .iter()
+            .filter(|d| d.as_ref().is_some_and(|d| d.safety.concurrent_safe))
+            .count();
+        if declared_concurrent_safe > 0 {
+            tracing::debug!(
+                "C2：本批 {} 个工具声明 concurrent_safe（登记项；未驱动串并行策略）",
+                declared_concurrent_safe
+            );
+        }
+        let any_needs_confirm = tool_calls.iter().zip(declared_risks.iter()).any(|(t, declared_risk)| {
             // agent-tmp 全权免确认：命中分区临时区的工具不进入确认预检（放行可并行）
             if crate::confirmation::should_bypass_confirmation(&t.name, &t.args, &self_tool_ctx) {
                 return false;
@@ -524,7 +559,16 @@ impl AgentLoop {
             let needs_policy = config_snapshot
                 .confirmation_policy
                 .as_ref()
-                .map(|p| p.needs_confirmation(&t.name, &t.args))
+                .map(|p| {
+                    p.needs_confirmation(
+                        &t.name,
+                        &t.args,
+                        declared_risk
+                            .as_ref()
+                            .map(|d| d.safety.risk_level)
+                            .unwrap_or(crate::tool::RiskLevel::Moderate),
+                    )
+                })
                 .unwrap_or(false);
             needs_guard || needs_policy
         });
@@ -554,7 +598,7 @@ impl AgentLoop {
         args: &serde_json::Value,
         ctx: &crate::tool_context::ToolContext,
     ) -> Option<serde_json::Value> {
-        use crate::permission_machine::{decide, is_always_ask, Behavior, PermissionCtx, ProjectVerdict};
+        use crate::permission_machine::{decide, Behavior, PermissionCtx, ProjectVerdict};
         let config = self.config_snapshot();
         // ── 来源取证（不判定；判定单点在 `permission_machine::decide`——S4-a）──
         // 敏感目录守卫（内置锁 / 越界位）
@@ -584,8 +628,14 @@ impl AgentLoop {
         let agent_tmp = crate::confirmation::should_bypass_confirmation(name, args, ctx);
         // 内容主体（会话授权 / 项目规则共用同一归一化主体）
         let subject = crate::confirmation::rule_content_subject(name, args, ctx);
-        // S4-b：alwaysAsk（四类名单）+ 会话级授权（仅 alwaysAsk gate 消费——ZD2-3）
-        let always_ask = is_always_ask(name);
+        // C2：工具声明（alwaysAsk / 风险等级来源——S4-b 静态四类名单已删）
+        let declared = self.tool_descriptor(name).await;
+        let always_ask = declared.as_ref().map(|d| d.safety.always_ask).unwrap_or(false);
+        let tool_risk = declared
+            .as_ref()
+            .map(|d| d.safety.risk_level)
+            .unwrap_or(crate::tool::RiskLevel::Moderate);
+        // S4-b 会话级授权（仅 alwaysAsk gate 消费——ZD2-3）
         let session_grant = always_ask && self.consume_session_grant(name, subject.as_deref());
         // S4-c：项目规则裁决（deny > ask > allow；位次 4/7/10——Q4-B：deny 先于 alwaysAsk）
         let project = config
@@ -604,6 +654,7 @@ impl AgentLoop {
             user_allow,
             project,
             always_ask,
+            tool_risk,
             session_grant,
             plan_forbidden_write_or_command: plan_forbidden,
             agent_tmp,
@@ -663,6 +714,11 @@ impl AgentLoop {
         tool_name: &str,
         result: &mut Value,
     ) {
+        // C2：工具级输出上限优先（声明 max_output_bytes），回落全局阈值
+        let declared_limit = self
+            .tool_descriptor(tool_name)
+            .await
+            .and_then(|d| d.limits.max_output_bytes);
         let mut event = OrchestratorEvent::ToolResultPreBroadcast {
             tool_call_id: tool_call_id.to_string(),
             tool_name: tool_name.to_string(),
@@ -673,7 +729,7 @@ impl AgentLoop {
             let bus = self.event_bus_handle().await;
             bus.waterfall(&mut event, |ev| {
                 if let OrchestratorEvent::ToolResultPreBroadcast { result, .. } = ev {
-                    clamp_tool_result_with(result, &self.raw_context_sink);
+                    clamp_tool_result_with(result, &self.raw_context_sink, declared_limit);
                 }
                 crate::event_bus::Outcome::Ok
             })
@@ -687,7 +743,7 @@ impl AgentLoop {
         }
         if outcome == crate::event_bus::Outcome::Vetoed {
             // 否决 = 跳过链尾裁剪 → 调用方兜底裁剪（防爆兜底不可被绕过）
-            clamp_tool_result_with(result, &self.raw_context_sink);
+            clamp_tool_result_with(result, &self.raw_context_sink, declared_limit);
         }
     }
 

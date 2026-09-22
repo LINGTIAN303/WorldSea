@@ -833,12 +833,13 @@ mod tests {
     }
 
     #[test]
-    fn delete_is_registered_as_dangerous_permission() {
-        // 与 kernel 静态表的一致性：确认流据此拦不可逆操作
-        assert_eq!(
-            agent_runtime::confirmation::tool_permission("memory_delete"),
-            agent_runtime::confirmation::ToolPermission::Dangerous
-        );
+    fn delete_declares_dangerous_and_always_ask() {
+        // C2：等级来源 = 工具声明（kernel 静态表已删）——危险级须同时不可绕过确认（validate 强制）
+        let tool = MemoryDeleteTool::new(FakeMemory::with_recall(vec![]));
+        let d = tool.descriptor();
+        assert_eq!(d.safety.risk_level, agent_runtime::tool::RiskLevel::Dangerous);
+        assert!(d.safety.always_ask, "危险级必须不可绕过确认");
+        d.validate().expect("声明应满足一致性约束");
     }
 
     // ⑤ pin
