@@ -1,7 +1,7 @@
 //! 内核契约（S2 冻结 · 07 文档）——单一定义处。
 //!
 //! 落有四类已稳固的契约：事件键表与分发模式（S3-b 自 agent-kernel 迁入）、
-//! 输入三语义、审批四值。`ToolDescriptor` 归工具族批次。
+//! 输入三语义、审批四值。**工具元数据契约（C2 ToolDescriptor）见 [`tool`]**（工具族批）。
 //! 另落检查点引用契约（S3-e 合并裁定 · 方案 A，见 [`checkpoints`]）
 //! 与交互请求族契约（S5 三型统一模型 + 提问载荷/结果，见 [`interaction`]）。
 
@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 pub mod checkpoints;
 pub mod interaction;
 pub mod keys;
+pub mod tool;
 
 /// 事件键：静态字符串（命名沿既有口径：snake_case 单词式，如 `"agent_start"`）。
 pub type EventKey = &'static str;

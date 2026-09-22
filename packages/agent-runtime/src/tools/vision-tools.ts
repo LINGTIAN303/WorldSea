@@ -268,6 +268,11 @@ const visionAnalyzeTool: ToolDefinition = {
   },
   meta: {
     permission: 'safe',
+    readOnly: true,
+    sideEffectScope: 'network',
+    concurrentSafe: false,
+    requiresUserInteraction: false,
+    alwaysAsk: false,
     category: 'vision',
     alwaysAvailable: true,
     displayName: '视觉分析',
@@ -339,6 +344,11 @@ const listVisionImagesTool: ToolDefinition = {
   parameters: {},
   meta: {
     permission: 'safe',
+    readOnly: true,
+    sideEffectScope: 'session',
+    concurrentSafe: true,
+    requiresUserInteraction: false,
+    alwaysAsk: false,
     category: 'vision',
     alwaysAvailable: true,
     displayName: '列出视觉图片',

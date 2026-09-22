@@ -24,7 +24,7 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use std::sync::Mutex as StdMutex;
 
-use agent_runtime::tool::{Tool, ToolError};
+use agent_runtime::tool::{Executor, Tool, ToolDescriptor, ToolError};
 use async_trait::async_trait;
 use tauri::{AppHandle, Emitter};
 use tokio::sync::oneshot;
@@ -137,44 +137,40 @@ impl FrontendToolBridge {
 
 /// 一个交由前端执行的桥工具（契约来自 `bridge_tool_specs.json` 生成物，与前端工具定义
 /// 同源，使 LLM 看到的工具契约一致；execute 委托 bridge 转发前端执行 + 回传）
+///
+/// C2 元数据族：契约以 [`ToolDescriptor`]（`agent-engine::contracts::tool`）承载全字段
+/// （安全 / 限制 / 控制 / `executor = Client`）——本结构只做转发，声明面见生成物。
 pub struct FrontendBridgeTool {
-    name: String,
-    description: String,
-    parameters: serde_json::Value,
+    descriptor: ToolDescriptor,
     bridge: Arc<FrontendToolBridge>,
 }
 
 impl FrontendBridgeTool {
-    pub fn new(
-        name: String,
-        description: String,
-        parameters: serde_json::Value,
-        bridge: Arc<FrontendToolBridge>,
-    ) -> Self {
-        Self { name, description, parameters, bridge }
+    pub fn new(descriptor: ToolDescriptor, bridge: Arc<FrontendToolBridge>) -> Self {
+        Self { descriptor, bridge }
     }
 }
 
 #[async_trait]
 impl Tool for FrontendBridgeTool {
     fn name(&self) -> &str {
-        &self.name
+        &self.descriptor.name
     }
 
     fn description(&self) -> &str {
-        &self.description
+        &self.descriptor.description
     }
 
     fn parameters(&self) -> serde_json::Value {
-        self.parameters.clone()
+        self.descriptor.input_schema.clone()
     }
 
     async fn execute(&self, args: serde_json::Value) -> Result<serde_json::Value, ToolError> {
-        let result = self.bridge.request(&self.name, args.clone()).await?;
+        let result = self.bridge.request(&self.descriptor.name, args.clone()).await?;
         // T1：前端「成功返回的失败」载荷补判别字段（isError + errorCode）
         let result = normalize_frontend_failure(result);
         // 事件流丰富化：按工具名+args 附 __meta，供前端 ToolRow 展示语义操作段
-        Ok(attach_bridge_meta(&self.name, &args, result))
+        Ok(attach_bridge_meta(&self.descriptor.name, &args, result))
     }
 }
 
@@ -263,13 +259,8 @@ fn normalize_frontend_failure(result: serde_json::Value) -> serde_json::Value {
 /// 桥工具生成物（include_str! 编译期嵌入：缺文件即编译失败，坏 JSON 即启动失败，不静默降级）
 const BRIDGE_TOOL_SPECS_JSON: &str = include_str!("bridge_tool_specs.json");
 
-/// 单个桥工具契约（与前端 `BridgeToolSpec` 同构）
-#[derive(serde::Deserialize)]
-struct BridgeToolSpec {
-    name: String,
-    description: String,
-    parameters: serde_json::Value,
-}
+/// 单个桥工具契约（= `ToolDescriptor` 全字段；C2 元数据族：安全 / 限制 / 控制 / executor 一次到位）
+type BridgeToolSpec = ToolDescriptor;
 
 /// 生成物顶层结构（仅取 tools；generatedBy/source 说明字段由 serde 忽略）
 #[derive(serde::Deserialize)]
@@ -278,16 +269,28 @@ struct BridgeToolSpecs {
 }
 
 /// 解析后的桥工具清单（进程内解析一次；解析失败即 panic——契约缺失不允许静默降级）
+///
+/// C2：**每条都有完整声明**才解析得动（字段缺失 / 多余字段 / 声明不一致 → 启动即失败，
+/// 反证①「声明缺 side_effect_scope → 报红」的系统级收口）。
 fn bridge_tool_specs() -> &'static [BridgeToolSpec] {
     static SPECS: std::sync::OnceLock<Vec<BridgeToolSpec>> = std::sync::OnceLock::new();
     SPECS.get_or_init(|| {
-        serde_json::from_str::<BridgeToolSpecs>(BRIDGE_TOOL_SPECS_JSON)
-            .expect("bridge_tool_specs.json 解析失败：请运行 node scripts/gen-bridge-spec.mjs 重新生成")
-            .tools
+        let doc: BridgeToolSpecs = serde_json::from_str(BRIDGE_TOOL_SPECS_JSON)
+            .expect("bridge_tool_specs.json 解析失败：请运行 node scripts/gen-bridge-spec.mjs 重新生成");
+        for spec in &doc.tools {
+            assert_eq!(
+                spec.executor,
+                Executor::Client,
+                "桥工具 {} 的 executor 必须为 client（生成物只承载前端执行工具）",
+                spec.name
+            );
+            spec.validate().unwrap_or_else(|e| panic!("桥工具声明无效：{e}"));
+        }
+        doc.tools
     })
 }
 
-/// 构造桥工具：契约（名称/描述/参数 schema）来自生成物，执行委托前端
+/// 构造桥工具：契约（全字段声明）来自生成物，执行委托前端
 ///
 /// 返回工具名即桥接清单（顺序与前端 BRIDGE_TOOL_NAMES 一致）；在 lib.rs 装配
 /// `.chain(bridge_tools(...))` 处生效。
@@ -295,12 +298,7 @@ pub fn bridge_tools(bridge: Arc<FrontendToolBridge>) -> Vec<Arc<dyn Tool>> {
     bridge_tool_specs()
         .iter()
         .map(|spec| {
-            Arc::new(FrontendBridgeTool::new(
-                spec.name.clone(),
-                spec.description.clone(),
-                spec.parameters.clone(),
-                bridge.clone(),
-            )) as Arc<dyn Tool>
+            Arc::new(FrontendBridgeTool::new(spec.clone(), bridge.clone())) as Arc<dyn Tool>
         })
         .collect()
 }
@@ -324,7 +322,8 @@ mod tests {
         // 演进记录：任务29/M4 三→四（entity_delete）；H3 Skills 点火四→七；
         // A2UI 接线（2026-09-17）七→十一；S3 补桥（2026-09-18）十一→二十六
         // （kb_* 9 / project_* 2 / consistency_check / entity_get_context + 智能填充 2）；
-        // E2（2026-09-18）二十六→二十八（vision_analyze / list_vision_images）。
+        // E2（2026-09-18）二十六→二十八（vision_analyze / list_vision_images）；
+        // 芽工具整合（2026-09-21）二十八→二十九（worldview）。
         let specs = bridge_tool_specs();
         let names: Vec<&str> = specs.iter().map(|s| s.name.as_str()).collect();
         assert_eq!(
@@ -337,6 +336,7 @@ mod tests {
                 "load_skill",
                 "load_skill_reference",
                 "load_skill_asset",
+                "worldview",
                 "ui_create_surface",
                 "ui_update_components",
                 "ui_update_data",
@@ -362,19 +362,30 @@ mod tests {
         );
         for spec in specs {
             assert!(!spec.description.trim().is_empty(), "{} 缺少 description", spec.name);
+            assert!(!spec.category.trim().is_empty(), "{} 缺少 category", spec.name);
             assert_eq!(
-                spec.parameters["type"], "object",
-                "{} 的 parameters 必须是 object schema", spec.name
+                spec.input_schema["type"], "object",
+                "{} 的 input_schema 必须是 object schema", spec.name
             );
             assert!(
-                spec.parameters["properties"].is_object(),
-                "{} 的 parameters.properties 缺失", spec.name
+                spec.input_schema["properties"].is_object(),
+                "{} 的 input_schema.properties 缺失", spec.name
             );
             assert!(
-                spec.parameters["required"].is_array(),
-                "{} 的 parameters.required 缺失", spec.name
+                spec.input_schema["required"].is_array(),
+                "{} 的 input_schema.required 缺失", spec.name
             );
+            // C2：executor 二态显式化（生成物只承载 client）+ 声明一致性（dangerous ⟹ always_ask）
+            assert_eq!(spec.executor, Executor::Client, "{} 应为 client 执行器", spec.name);
+            spec.validate()
+                .unwrap_or_else(|e| panic!("{} 声明不一致：{e}", spec.name));
         }
+        // C2 反证口径（代表性抽样）：声明面确有承载（非全体默认值）
+        let by_name = |n: &str| specs.iter().find(|s| s.name == n).expect("桥工具应存在");
+        assert!(by_name("entity_delete").safety.always_ask, "entity_delete 应为不可绕过确认");
+        assert!(by_name("entity_delete").safety.destructive);
+        assert!(by_name("kb_read").safety.read_only, "kb_read 应只读");
+        assert_eq!(by_name("worldview").executor, Executor::Client);
     }
 
     #[test]

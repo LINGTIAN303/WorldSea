@@ -21,6 +21,11 @@ export const projectExportTool: ToolDefinition = {
   },
   meta: {
     permission: 'safe',
+    readOnly: true,
+    sideEffectScope: 'workspace',
+    concurrentSafe: false,
+    requiresUserInteraction: false,
+    alwaysAsk: false,
     category: 'project',
     alwaysAvailable: true,
     displayName: '导出项目',
@@ -91,6 +96,11 @@ export const projectImportTool: ToolDefinition = {
   },
   meta: {
     permission: 'safe',
+    readOnly: false,
+    sideEffectScope: 'workspace',
+    concurrentSafe: false,
+    requiresUserInteraction: false,
+    alwaysAsk: false,
     category: 'project',
     alwaysAvailable: true,
     displayName: '导入项目',

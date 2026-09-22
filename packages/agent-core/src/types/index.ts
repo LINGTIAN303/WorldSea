@@ -107,6 +107,47 @@ export interface ToolMeta {
 
   /** 工具的中文显示名（用于权限确认弹窗） */
   displayName?: string
+
+  // ─── 工具元数据族（C2 ToolDescriptor）——桥工具必填，其余工具可选 ───────────
+  // 说明：以下四字段在**上桥工具**（BRIDGE_TOOL_NAMES）上为必填，由
+  // packages/agent-runtime/src/tools/bridge-spec.ts 的构建器校验（缺失即抛，
+  // vitest 全量跑测覆盖）；非桥工具可暂缺。
+  // Rust 侧接收方：`agent_engine::contracts::tool::ToolDescriptor`（snake_case 落盘）。
+
+  /**
+   * 只读（无写面）——**显式声明，不从 permission 派生**（避免陈旧 permission 误传播到只读面）
+   *
+   * 上桥工具必填。
+   */
+  readOnly?: boolean
+
+  /**
+   * 副作用范围（审计与沙箱读；本族不驱动放行）
+   *
+   * 上桥工具必填。
+   */
+  sideEffectScope?: 'none' | 'workspace' | 'git' | 'network' | 'system' | 'session'
+
+  /**
+   * 并发安全声明（调度读取面；当前只读登记、不改串并行行为）
+   *
+   * 上桥工具必填。
+   */
+  concurrentSafe?: boolean
+
+  /**
+   * 工具自身承载人工交互（如提问 / 审批面板类）→ 免执行前确认
+   *
+   * 上桥工具必填。
+   */
+  requiresUserInteraction?: boolean
+
+  /**
+   * 不可被模式绕过的确认（对齐 ZCode alwaysAsk；判定顺序位次 5）
+   *
+   * 上桥工具必填；约束：`permission: 'dangerous'` 必须同时 `alwaysAsk: true`（校验器强制）。
+   */
+  alwaysAsk?: boolean
 }
 
 // ─── 工具定义 ────────────────────────────────────────────

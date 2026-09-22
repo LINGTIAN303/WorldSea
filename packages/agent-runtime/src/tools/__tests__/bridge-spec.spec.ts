@@ -17,6 +17,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { ToolDefinition } from '../../bridge-types'
 import { entityCrudTools } from '../entity-crud'
+import { entitySmartFillTools } from '../entity-smart-fill'
 import { contentSearchTools } from '../content-search'
 import { a2uiTools } from '../a2ui-tools'
 import { kbTools } from '../kb-tools'
@@ -39,6 +40,7 @@ const WRITE_MODE = process.env.WORLDSEA_BRIDGE_SPEC === 'write'
 /** 桥工具可能来自的全部工具模块（合并后按 BRIDGE_TOOL_NAMES 过滤） */
 const ALL_BRIDGED_SOURCES: ToolDefinition[] = [
   ...entityCrudTools,
+  ...entitySmartFillTools,
   ...contentSearchTools,
   ...a2uiTools,
   ...SKILL_META_TOOLS,

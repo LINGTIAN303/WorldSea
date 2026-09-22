@@ -18,6 +18,11 @@ export const dailyReportTool: ToolDefinition = {
   },
   meta: {
     permission: 'safe',
+    readOnly: true,
+    sideEffectScope: 'workspace',
+    concurrentSafe: true,
+    requiresUserInteraction: false,
+    alwaysAsk: false,
     category: 'persona',
     alwaysAvailable: true,
     displayName: '日报',
@@ -60,6 +65,11 @@ export const consistencyCheckTool: ToolDefinition = {
   parameters: {},
   meta: {
     permission: 'safe',
+    readOnly: true,
+    sideEffectScope: 'workspace',
+    concurrentSafe: true,
+    requiresUserInteraction: false,
+    alwaysAsk: false,
     category: 'persona',
     alwaysAvailable: true,
     displayName: '一致性检查',

@@ -36,6 +36,11 @@ export const worldviewTool: ToolDefinition = {
   },
   meta: {
     permission: 'moderate',
+    readOnly: false,
+    sideEffectScope: 'workspace',
+    concurrentSafe: false,
+    requiresUserInteraction: false,
+    alwaysAsk: false,
     category: 'plugin',
     alwaysAvailable: true,
     displayName: '世界观芽',

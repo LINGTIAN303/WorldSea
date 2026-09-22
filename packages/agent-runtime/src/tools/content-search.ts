@@ -142,6 +142,11 @@ export const contentSearchTool: ToolDefinition = {
   },
   meta: {
     permission: 'safe',
+    readOnly: true,
+    sideEffectScope: 'workspace',
+    concurrentSafe: true,
+    requiresUserInteraction: false,
+    alwaysAsk: false,
     category: 'search',
     alwaysAvailable: true,
     displayName: '内容搜索',

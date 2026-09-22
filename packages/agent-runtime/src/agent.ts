@@ -6,6 +6,7 @@ import { SKILL_META_TOOLS } from './skills/meta-tools'
 import { initToolMetaRegistry } from './tools/tool-meta-registry'
 import { getGlobalSkillRegistry, getGlobalToolRegistry } from '@worldsea/agent-core'
 import { entityCrudTools } from './tools/entity-crud'
+import { entitySmartFillTools } from './tools/entity-smart-fill'
 import { relationManageTools } from './tools/relation-manage'
 import { contentSearchTools } from './tools/content-search'
 import { dailyTaskTools } from './tools/daily-task'
@@ -70,6 +71,7 @@ function registerAllTools(): void {
   // 与 ALL_TOOLS 保持一致：排除重复工具
   const all = [
     ...entityCrudTools,
+    ...entitySmartFillTools,
     ...entityContextTools,
     ...relationManageTools,
     ...contentSearchTools,
@@ -203,6 +205,7 @@ export function getToolsForSkills(activeSkillIds: string[]): typeof entityCrudTo
 
 export const ALL_TOOLS = [
   ...entityCrudTools,
+  ...entitySmartFillTools,
   ...entityContextTools,
   ...relationManageTools,
   ...contentSearchTools,
@@ -256,7 +259,7 @@ export interface ToolCategory {
 }
 
 export const TOOL_CATEGORIES: ToolCategory[] = [
-  { id: 'entity', label: '实体管理', tools: [...entityCrudTools, ...entityContextTools] },
+  { id: 'entity', label: '实体管理', tools: [...entityCrudTools, ...entitySmartFillTools, ...entityContextTools] },
   { id: 'relation', label: '关系管理', tools: [...relationManageTools] },
   { id: 'search', label: '搜索与检索', tools: [...contentSearchTools, ...webSearchTools, ...webFetchTools, ...crawlTools] },
   { id: 'output', label: '输出渲染', tools: [...outputTools, ...previewFileTools] },

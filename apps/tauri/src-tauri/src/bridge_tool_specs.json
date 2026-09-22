@@ -4,8 +4,10 @@
   "tools": [
     {
       "name": "entity_create",
+      "aliases": [],
+      "category": "entity",
       "description": "创建新实体。需要 type 和 name，可选 description 和 properties。",
-      "parameters": {
+      "input_schema": {
         "type": "object",
         "properties": {
           "type": {
@@ -29,12 +31,35 @@
           "type",
           "name"
         ]
-      }
+      },
+      "output_schema": null,
+      "strict": false,
+      "safety": {
+        "read_only": false,
+        "concurrent_safe": false,
+        "requires_user_interaction": false,
+        "always_ask": false,
+        "side_effect_scope": "workspace",
+        "destructive": false,
+        "needs_approval": true,
+        "risk_level": "moderate"
+      },
+      "limits": {
+        "timeout_ms": null,
+        "max_output_bytes": null
+      },
+      "control": {
+        "stop_turn_on_success": false,
+        "provider_visible": true
+      },
+      "executor": "client"
     },
     {
       "name": "entity_update",
+      "aliases": [],
+      "category": "entity",
       "description": "更新实体属性。只能更新 name、description、properties 中的字段。",
-      "parameters": {
+      "input_schema": {
         "type": "object",
         "properties": {
           "id": {
@@ -57,12 +82,35 @@
         "required": [
           "id"
         ]
-      }
+      },
+      "output_schema": null,
+      "strict": false,
+      "safety": {
+        "read_only": false,
+        "concurrent_safe": false,
+        "requires_user_interaction": false,
+        "always_ask": false,
+        "side_effect_scope": "workspace",
+        "destructive": false,
+        "needs_approval": true,
+        "risk_level": "moderate"
+      },
+      "limits": {
+        "timeout_ms": null,
+        "max_output_bytes": null
+      },
+      "control": {
+        "stop_turn_on_success": false,
+        "provider_visible": true
+      },
+      "executor": "client"
     },
     {
       "name": "entity_delete",
+      "aliases": [],
+      "category": "entity",
       "description": "删除指定实体及其所有关联关系。此操作不可逆。需要实体 ID（可通过 entity_list 获取）。执行前请向用户确认删除意图。",
-      "parameters": {
+      "input_schema": {
         "type": "object",
         "properties": {
           "id": {
@@ -73,12 +121,35 @@
         "required": [
           "id"
         ]
-      }
+      },
+      "output_schema": null,
+      "strict": false,
+      "safety": {
+        "read_only": false,
+        "concurrent_safe": false,
+        "requires_user_interaction": false,
+        "always_ask": true,
+        "side_effect_scope": "workspace",
+        "destructive": true,
+        "needs_approval": false,
+        "risk_level": "dangerous"
+      },
+      "limits": {
+        "timeout_ms": null,
+        "max_output_bytes": null
+      },
+      "control": {
+        "stop_turn_on_success": false,
+        "provider_visible": true
+      },
+      "executor": "client"
     },
     {
       "name": "content_search",
+      "aliases": [],
+      "category": "search",
       "description": "在项目的所有实体中搜索内容。支持语义搜索（理解含义）和关键词搜索（精确匹配）的混合模式。语义搜索能找到意思相近但不包含关键词的内容；关键词搜索能精确匹配文本。使用场景：模糊查找、概念搜索、精确匹配。",
-      "parameters": {
+      "input_schema": {
         "type": "object",
         "properties": {
           "keyword": {
@@ -112,12 +183,35 @@
         "required": [
           "keyword"
         ]
-      }
+      },
+      "output_schema": null,
+      "strict": false,
+      "safety": {
+        "read_only": true,
+        "concurrent_safe": true,
+        "requires_user_interaction": false,
+        "always_ask": false,
+        "side_effect_scope": "workspace",
+        "destructive": false,
+        "needs_approval": false,
+        "risk_level": "safe"
+      },
+      "limits": {
+        "timeout_ms": null,
+        "max_output_bytes": null
+      },
+      "control": {
+        "stop_turn_on_success": false,
+        "provider_visible": true
+      },
+      "executor": "client"
     },
     {
       "name": "load_skill",
+      "aliases": [],
+      "category": "orchestrator",
       "description": "Load and activate a skill by its id. This will inject the skill instructions into your context, giving you specialized capabilities. Available skills are listed in the \"Available Skills\" section of your system prompt. Call this tool when the user task matches a skill description. Small reference documents (≤2) are automatically preloaded. For additional references, use load_skill_reference.",
-      "parameters": {
+      "input_schema": {
         "type": "object",
         "properties": {
           "skill_id": {
@@ -128,12 +222,35 @@
         "required": [
           "skill_id"
         ]
-      }
+      },
+      "output_schema": null,
+      "strict": false,
+      "safety": {
+        "read_only": true,
+        "concurrent_safe": true,
+        "requires_user_interaction": false,
+        "always_ask": false,
+        "side_effect_scope": "workspace",
+        "destructive": false,
+        "needs_approval": false,
+        "risk_level": "safe"
+      },
+      "limits": {
+        "timeout_ms": null,
+        "max_output_bytes": null
+      },
+      "control": {
+        "stop_turn_on_success": false,
+        "provider_visible": true
+      },
+      "executor": "client"
     },
     {
       "name": "load_skill_reference",
+      "aliases": [],
+      "category": "orchestrator",
       "description": "Load a reference document from an active skill. Note: small reference sets (≤2 files) are already preloaded when you call load_skill. Use this tool for additional references or skills with 3+ references. Returns the full reference content.",
-      "parameters": {
+      "input_schema": {
         "type": "object",
         "properties": {
           "skill_id": {
@@ -149,12 +266,35 @@
           "skill_id",
           "ref_path"
         ]
-      }
+      },
+      "output_schema": null,
+      "strict": false,
+      "safety": {
+        "read_only": true,
+        "concurrent_safe": true,
+        "requires_user_interaction": false,
+        "always_ask": false,
+        "side_effect_scope": "workspace",
+        "destructive": false,
+        "needs_approval": false,
+        "risk_level": "safe"
+      },
+      "limits": {
+        "timeout_ms": null,
+        "max_output_bytes": null
+      },
+      "control": {
+        "stop_turn_on_success": false,
+        "provider_visible": true
+      },
+      "executor": "client"
     },
     {
       "name": "load_skill_asset",
+      "aliases": [],
+      "category": "orchestrator",
       "description": "Load a template or static resource from an active skill. Use when you need entity templates, output format templates, or other assets referenced in the skill instructions.",
-      "parameters": {
+      "input_schema": {
         "type": "object",
         "properties": {
           "skill_id": {
@@ -170,12 +310,35 @@
           "skill_id",
           "asset_path"
         ]
-      }
+      },
+      "output_schema": null,
+      "strict": false,
+      "safety": {
+        "read_only": true,
+        "concurrent_safe": true,
+        "requires_user_interaction": false,
+        "always_ask": false,
+        "side_effect_scope": "workspace",
+        "destructive": false,
+        "needs_approval": false,
+        "risk_level": "safe"
+      },
+      "limits": {
+        "timeout_ms": null,
+        "max_output_bytes": null
+      },
+      "control": {
+        "stop_turn_on_success": false,
+        "provider_visible": true
+      },
+      "executor": "client"
     },
     {
       "name": "worldview",
+      "aliases": [],
+      "category": "plugin",
       "description": "世界观领域（芽）的入口：列领域清单 / 取某领域的使用方法（实体字段、关系、动作与参数）/ 执行某领域的动作。领域示例：角色、道具、区域、势力、时间线、大纲、正文、笔记、魔法、文化等（完整清单以不带参数的调用返回为准）。",
-      "parameters": {
+      "input_schema": {
         "type": "object",
         "properties": {
           "sprout": {
@@ -192,12 +355,35 @@
           }
         },
         "required": []
-      }
+      },
+      "output_schema": null,
+      "strict": false,
+      "safety": {
+        "read_only": false,
+        "concurrent_safe": false,
+        "requires_user_interaction": false,
+        "always_ask": false,
+        "side_effect_scope": "workspace",
+        "destructive": false,
+        "needs_approval": true,
+        "risk_level": "moderate"
+      },
+      "limits": {
+        "timeout_ms": null,
+        "max_output_bytes": null
+      },
+      "control": {
+        "stop_turn_on_success": false,
+        "provider_visible": true
+      },
+      "executor": "client"
     },
     {
       "name": "ui_create_surface",
+      "aliases": [],
+      "category": "a2ui",
       "description": "创建一个交互式 UI 画布，用于展示表单、卡片、数据面板等。返回 surfaceId。使用场景：需要向用户展示结构化信息、收集用户输入、创建交互式操作界面。",
-      "parameters": {
+      "input_schema": {
         "type": "object",
         "properties": {
           "surfaceId": {
@@ -212,12 +398,35 @@
         "required": [
           "surfaceId"
         ]
-      }
+      },
+      "output_schema": null,
+      "strict": false,
+      "safety": {
+        "read_only": false,
+        "concurrent_safe": false,
+        "requires_user_interaction": false,
+        "always_ask": false,
+        "side_effect_scope": "session",
+        "destructive": false,
+        "needs_approval": true,
+        "risk_level": "moderate"
+      },
+      "limits": {
+        "timeout_ms": null,
+        "max_output_bytes": null
+      },
+      "control": {
+        "stop_turn_on_success": false,
+        "provider_visible": true
+      },
+      "executor": "client"
     },
     {
       "name": "ui_update_components",
+      "aliases": [],
+      "category": "a2ui",
       "description": "定义画布上的 UI 组件布局。组件类型包括：Text(文本)、Button(按钮)、TextField(输入框)、Slider(滑块)、CheckBox(复选框)、ChoicePicker(选择器)、DateTimeInput(日期)、Card(卡片)、Row/Column(布局)、List(列表)、Tabs(标签页)、EntityCard(实体卡片)、StatBar(统计条)、TagGroup(标签组)、ConfirmBar(确认栏)、plan_board(计划板)、json_view(JSON视图)、svg_view(SVG视图)、mermaid_view(Mermaid图表)。",
-      "parameters": {
+      "input_schema": {
         "type": "object",
         "properties": {
           "surfaceId": {
@@ -237,12 +446,35 @@
           "surfaceId",
           "components"
         ]
-      }
+      },
+      "output_schema": null,
+      "strict": false,
+      "safety": {
+        "read_only": false,
+        "concurrent_safe": false,
+        "requires_user_interaction": false,
+        "always_ask": false,
+        "side_effect_scope": "session",
+        "destructive": false,
+        "needs_approval": true,
+        "risk_level": "moderate"
+      },
+      "limits": {
+        "timeout_ms": null,
+        "max_output_bytes": null
+      },
+      "control": {
+        "stop_turn_on_success": false,
+        "provider_visible": true
+      },
+      "executor": "client"
     },
     {
       "name": "ui_update_data",
+      "aliases": [],
+      "category": "a2ui",
       "description": "向画布填充数据，绑定到组件的 dataModel。数据通过 binding 路径与组件关联。使用场景：更新实体卡片的数据、填充表单默认值、刷新统计数字。",
-      "parameters": {
+      "input_schema": {
         "type": "object",
         "properties": {
           "surfaceId": {
@@ -263,12 +495,35 @@
           "path",
           "value"
         ]
-      }
+      },
+      "output_schema": null,
+      "strict": false,
+      "safety": {
+        "read_only": false,
+        "concurrent_safe": false,
+        "requires_user_interaction": false,
+        "always_ask": false,
+        "side_effect_scope": "session",
+        "destructive": false,
+        "needs_approval": true,
+        "risk_level": "moderate"
+      },
+      "limits": {
+        "timeout_ms": null,
+        "max_output_bytes": null
+      },
+      "control": {
+        "stop_turn_on_success": false,
+        "provider_visible": true
+      },
+      "executor": "client"
     },
     {
       "name": "ui_delete_surface",
+      "aliases": [],
+      "category": "a2ui",
       "description": "删除一个交互式 UI 画布。使用场景：用户关闭面板、操作完成后清理界面。",
-      "parameters": {
+      "input_schema": {
         "type": "object",
         "properties": {
           "surfaceId": {
@@ -279,12 +534,35 @@
         "required": [
           "surfaceId"
         ]
-      }
+      },
+      "output_schema": null,
+      "strict": false,
+      "safety": {
+        "read_only": false,
+        "concurrent_safe": false,
+        "requires_user_interaction": false,
+        "always_ask": true,
+        "side_effect_scope": "session",
+        "destructive": true,
+        "needs_approval": false,
+        "risk_level": "dangerous"
+      },
+      "limits": {
+        "timeout_ms": null,
+        "max_output_bytes": null
+      },
+      "control": {
+        "stop_turn_on_success": false,
+        "provider_visible": true
+      },
+      "executor": "client"
     },
     {
       "name": "kb_write",
+      "aliases": [],
+      "category": "plan",
       "description": "写入或更新知识库文档。Agent 自主管理知识库，无需用户手动操作。支持双层作用域：global（跨项目持久）和 project（项目级持久）。",
-      "parameters": {
+      "input_schema": {
         "type": "object",
         "properties": {
           "path": {
@@ -320,12 +598,35 @@
           "path",
           "content"
         ]
-      }
+      },
+      "output_schema": null,
+      "strict": false,
+      "safety": {
+        "read_only": false,
+        "concurrent_safe": false,
+        "requires_user_interaction": false,
+        "always_ask": false,
+        "side_effect_scope": "workspace",
+        "destructive": false,
+        "needs_approval": true,
+        "risk_level": "moderate"
+      },
+      "limits": {
+        "timeout_ms": null,
+        "max_output_bytes": null
+      },
+      "control": {
+        "stop_turn_on_success": false,
+        "provider_visible": true
+      },
+      "executor": "client"
     },
     {
       "name": "kb_read",
+      "aliases": [],
+      "category": "plan",
       "description": "读取知识库文档内容。通过路径或 ID 定位。",
-      "parameters": {
+      "input_schema": {
         "type": "object",
         "properties": {
           "path": {
@@ -346,12 +647,35 @@
           }
         },
         "required": []
-      }
+      },
+      "output_schema": null,
+      "strict": false,
+      "safety": {
+        "read_only": true,
+        "concurrent_safe": true,
+        "requires_user_interaction": false,
+        "always_ask": false,
+        "side_effect_scope": "workspace",
+        "destructive": false,
+        "needs_approval": false,
+        "risk_level": "safe"
+      },
+      "limits": {
+        "timeout_ms": null,
+        "max_output_bytes": null
+      },
+      "control": {
+        "stop_turn_on_success": false,
+        "provider_visible": true
+      },
+      "executor": "client"
     },
     {
       "name": "kb_list",
+      "aliases": [],
+      "category": "plan",
       "description": "列出知识库目录。可按作用域和路径前缀筛选，返回文档元数据列表。",
-      "parameters": {
+      "input_schema": {
         "type": "object",
         "properties": {
           "scope": {
@@ -372,12 +696,35 @@
           }
         },
         "required": []
-      }
+      },
+      "output_schema": null,
+      "strict": false,
+      "safety": {
+        "read_only": true,
+        "concurrent_safe": true,
+        "requires_user_interaction": false,
+        "always_ask": false,
+        "side_effect_scope": "workspace",
+        "destructive": false,
+        "needs_approval": false,
+        "risk_level": "safe"
+      },
+      "limits": {
+        "timeout_ms": null,
+        "max_output_bytes": null
+      },
+      "control": {
+        "stop_turn_on_success": false,
+        "provider_visible": true
+      },
+      "executor": "client"
     },
     {
       "name": "kb_search",
+      "aliases": [],
+      "category": "plan",
       "description": "搜索知识库。支持关键词搜索和语义搜索（需要 Embedding API）。混合模式合并两路结果。",
-      "parameters": {
+      "input_schema": {
         "type": "object",
         "properties": {
           "query": {
@@ -409,12 +756,35 @@
         "required": [
           "query"
         ]
-      }
+      },
+      "output_schema": null,
+      "strict": false,
+      "safety": {
+        "read_only": true,
+        "concurrent_safe": true,
+        "requires_user_interaction": false,
+        "always_ask": false,
+        "side_effect_scope": "workspace",
+        "destructive": false,
+        "needs_approval": false,
+        "risk_level": "safe"
+      },
+      "limits": {
+        "timeout_ms": null,
+        "max_output_bytes": null
+      },
+      "control": {
+        "stop_turn_on_success": false,
+        "provider_visible": true
+      },
+      "executor": "client"
     },
     {
       "name": "kb_delete",
+      "aliases": [],
+      "category": "plan",
       "description": "删除知识库文档。通过路径或 ID 定位。",
-      "parameters": {
+      "input_schema": {
         "type": "object",
         "properties": {
           "path": {
@@ -435,12 +805,35 @@
           }
         },
         "required": []
-      }
+      },
+      "output_schema": null,
+      "strict": false,
+      "safety": {
+        "read_only": false,
+        "concurrent_safe": false,
+        "requires_user_interaction": false,
+        "always_ask": true,
+        "side_effect_scope": "workspace",
+        "destructive": true,
+        "needs_approval": false,
+        "risk_level": "dangerous"
+      },
+      "limits": {
+        "timeout_ms": null,
+        "max_output_bytes": null
+      },
+      "control": {
+        "stop_turn_on_success": false,
+        "provider_visible": true
+      },
+      "executor": "client"
     },
     {
       "name": "kb_extract",
+      "aliases": [],
+      "category": "plan",
       "description": "从对话内容中提取值得持久化的知识，自动写入知识库。Agent 应在识别到重要信息时主动调用此工具，无需用户指示。",
-      "parameters": {
+      "input_schema": {
         "type": "object",
         "properties": {
           "category": {
@@ -485,12 +878,35 @@
           "title",
           "content"
         ]
-      }
+      },
+      "output_schema": null,
+      "strict": false,
+      "safety": {
+        "read_only": false,
+        "concurrent_safe": false,
+        "requires_user_interaction": false,
+        "always_ask": false,
+        "side_effect_scope": "workspace",
+        "destructive": false,
+        "needs_approval": true,
+        "risk_level": "moderate"
+      },
+      "limits": {
+        "timeout_ms": null,
+        "max_output_bytes": null
+      },
+      "control": {
+        "stop_turn_on_success": false,
+        "provider_visible": true
+      },
+      "executor": "client"
     },
     {
       "name": "kb_reflect",
+      "aliases": [],
+      "category": "plan",
       "description": "反思与整合知识库。Agent 可定期回顾知识库，提炼模式、压缩旧内容、更新过时信息。适合在对话结束时调用。",
-      "parameters": {
+      "input_schema": {
         "type": "object",
         "properties": {
           "action": {
@@ -519,12 +935,35 @@
         "required": [
           "action"
         ]
-      }
+      },
+      "output_schema": null,
+      "strict": false,
+      "safety": {
+        "read_only": false,
+        "concurrent_safe": false,
+        "requires_user_interaction": false,
+        "always_ask": false,
+        "side_effect_scope": "workspace",
+        "destructive": false,
+        "needs_approval": true,
+        "risk_level": "moderate"
+      },
+      "limits": {
+        "timeout_ms": null,
+        "max_output_bytes": null
+      },
+      "control": {
+        "stop_turn_on_success": false,
+        "provider_visible": true
+      },
+      "executor": "client"
     },
     {
       "name": "kb_link",
+      "aliases": [],
+      "category": "plan",
       "description": "将知识条目关联到实体，或取消关联。关联后，查询实体时可联动检索相关知识。",
-      "parameters": {
+      "input_schema": {
         "type": "object",
         "properties": {
           "action": {
@@ -556,12 +995,35 @@
           "action",
           "path"
         ]
-      }
+      },
+      "output_schema": null,
+      "strict": false,
+      "safety": {
+        "read_only": false,
+        "concurrent_safe": false,
+        "requires_user_interaction": false,
+        "always_ask": false,
+        "side_effect_scope": "workspace",
+        "destructive": false,
+        "needs_approval": true,
+        "risk_level": "moderate"
+      },
+      "limits": {
+        "timeout_ms": null,
+        "max_output_bytes": null
+      },
+      "control": {
+        "stop_turn_on_success": false,
+        "provider_visible": true
+      },
+      "executor": "client"
     },
     {
       "name": "kb_init",
+      "aliases": [],
+      "category": "plan",
       "description": "初始化知识库目录结构。首次使用时自动调用，创建约定的目录占位。",
-      "parameters": {
+      "input_schema": {
         "type": "object",
         "properties": {
           "scope": {
@@ -574,12 +1036,35 @@
           }
         },
         "required": []
-      }
+      },
+      "output_schema": null,
+      "strict": false,
+      "safety": {
+        "read_only": false,
+        "concurrent_safe": false,
+        "requires_user_interaction": false,
+        "always_ask": false,
+        "side_effect_scope": "workspace",
+        "destructive": false,
+        "needs_approval": true,
+        "risk_level": "moderate"
+      },
+      "limits": {
+        "timeout_ms": null,
+        "max_output_bytes": null
+      },
+      "control": {
+        "stop_turn_on_success": false,
+        "provider_visible": true
+      },
+      "executor": "client"
     },
     {
       "name": "project_export",
+      "aliases": [],
+      "category": "project",
       "description": "导出当前项目的所有实体和关系数据为 JSON 格式。使用场景：备份数据、迁移到其他项目、与外部工具集成。导出前建议先用 daily_report 确认数据完整性。",
-      "parameters": {
+      "input_schema": {
         "type": "object",
         "properties": {
           "format": {
@@ -588,12 +1073,35 @@
           }
         },
         "required": []
-      }
+      },
+      "output_schema": null,
+      "strict": false,
+      "safety": {
+        "read_only": true,
+        "concurrent_safe": false,
+        "requires_user_interaction": false,
+        "always_ask": false,
+        "side_effect_scope": "workspace",
+        "destructive": false,
+        "needs_approval": false,
+        "risk_level": "safe"
+      },
+      "limits": {
+        "timeout_ms": null,
+        "max_output_bytes": null
+      },
+      "control": {
+        "stop_turn_on_success": false,
+        "provider_visible": true
+      },
+      "executor": "client"
     },
     {
       "name": "project_import",
+      "aliases": [],
+      "category": "project",
       "description": "从 JSON 数据导入实体和关系到当前项目。已有实体不会被覆盖，只会新增。使用场景：恢复备份、合并其他项目的数据。导入后建议用 consistency_check 检查数据一致性。",
-      "parameters": {
+      "input_schema": {
         "type": "object",
         "properties": {
           "data": {
@@ -608,21 +1116,67 @@
         "required": [
           "data"
         ]
-      }
+      },
+      "output_schema": null,
+      "strict": false,
+      "safety": {
+        "read_only": false,
+        "concurrent_safe": false,
+        "requires_user_interaction": false,
+        "always_ask": false,
+        "side_effect_scope": "workspace",
+        "destructive": false,
+        "needs_approval": false,
+        "risk_level": "safe"
+      },
+      "limits": {
+        "timeout_ms": null,
+        "max_output_bytes": null
+      },
+      "control": {
+        "stop_turn_on_success": false,
+        "provider_visible": true
+      },
+      "executor": "client"
     },
     {
       "name": "consistency_check",
+      "aliases": [],
+      "category": "persona",
       "description": "检查项目数据一致性，识别：孤立关系（引用了不存在的实体）、缺失必要属性的实体、同类型下的重复实体名称。使用场景：在大量创建/删除操作后检查数据完整性、定期维护。底层使用 Rust 核心库的验证和引用完整性检查。",
-      "parameters": {
+      "input_schema": {
         "type": "object",
         "properties": {},
         "required": []
-      }
+      },
+      "output_schema": null,
+      "strict": false,
+      "safety": {
+        "read_only": true,
+        "concurrent_safe": true,
+        "requires_user_interaction": false,
+        "always_ask": false,
+        "side_effect_scope": "workspace",
+        "destructive": false,
+        "needs_approval": false,
+        "risk_level": "safe"
+      },
+      "limits": {
+        "timeout_ms": null,
+        "max_output_bytes": null
+      },
+      "control": {
+        "stop_turn_on_success": false,
+        "provider_visible": true
+      },
+      "executor": "client"
     },
     {
       "name": "entity_get_context",
+      "aliases": [],
+      "category": "entity",
       "description": "获取实体的完整上下文信息，用于智能填充和内容生成。支持7种粒度：full(全量：当前实体+关联实体+同类型实体+Schema+语义相关)、relations_only(仅关联实体与关系)、same_type_entities(仅同类型已有实体)、schema_detail(仅Schema字段定义)、semantic_related(仅语义相关实体)、field_context(仅指定字段的上下文，需传fieldKey)、cross_type_relations(仅与指定目标类型的跨类型关系，需传targetType)。Agent可按需选择scope，避免一次加载过多数据。",
-      "parameters": {
+      "input_schema": {
         "type": "object",
         "properties": {
           "entityId": {
@@ -670,12 +1224,35 @@
         "required": [
           "entityType"
         ]
-      }
+      },
+      "output_schema": null,
+      "strict": false,
+      "safety": {
+        "read_only": true,
+        "concurrent_safe": true,
+        "requires_user_interaction": false,
+        "always_ask": false,
+        "side_effect_scope": "workspace",
+        "destructive": false,
+        "needs_approval": false,
+        "risk_level": "safe"
+      },
+      "limits": {
+        "timeout_ms": null,
+        "max_output_bytes": null
+      },
+      "control": {
+        "stop_turn_on_success": false,
+        "provider_visible": true
+      },
+      "executor": "client"
     },
     {
       "name": "entity_suggest_field",
+      "aliases": [],
+      "category": "entity",
       "description": "为实体的单个字段生成智能建议值。支持两种模式：continue（接续预览：基于用户当前输入内容生成续写）和 suggest（独立建议：基于实体上下文生成完整建议值）。用于智能填充的 Layer A（字段级建议）。请先调用 entity_get_context 获取上下文后再调用此工具。",
-      "parameters": {
+      "input_schema": {
         "type": "object",
         "properties": {
           "entityType": {
@@ -715,12 +1292,35 @@
           "entityType",
           "fieldKey"
         ]
-      }
+      },
+      "output_schema": null,
+      "strict": false,
+      "safety": {
+        "read_only": true,
+        "concurrent_safe": true,
+        "requires_user_interaction": false,
+        "always_ask": false,
+        "side_effect_scope": "workspace",
+        "destructive": false,
+        "needs_approval": false,
+        "risk_level": "safe"
+      },
+      "limits": {
+        "timeout_ms": null,
+        "max_output_bytes": null
+      },
+      "control": {
+        "stop_turn_on_success": false,
+        "provider_visible": true
+      },
+      "executor": "client"
     },
     {
       "name": "entity_smart_fill",
+      "aliases": [],
+      "category": "entity",
       "description": "为实体的字段批量生成智能建议值（一键填充）。默认仅对空字段生成建议（includeExisting=false）；设置 includeExisting=true 可对所有字段生成建议（含已有内容的优化/改写）。用于智能填充的 Layer B（实体级一键填充）。请先调用 entity_get_context(scope=\"full\") 获取完整上下文后再调用此工具。",
-      "parameters": {
+      "input_schema": {
         "type": "object",
         "properties": {
           "entityId": {
@@ -755,12 +1355,35 @@
         "required": [
           "entityType"
         ]
-      }
+      },
+      "output_schema": null,
+      "strict": false,
+      "safety": {
+        "read_only": true,
+        "concurrent_safe": true,
+        "requires_user_interaction": false,
+        "always_ask": false,
+        "side_effect_scope": "workspace",
+        "destructive": false,
+        "needs_approval": false,
+        "risk_level": "safe"
+      },
+      "limits": {
+        "timeout_ms": null,
+        "max_output_bytes": null
+      },
+      "control": {
+        "stop_turn_on_success": false,
+        "provider_visible": true
+      },
+      "executor": "client"
     },
     {
       "name": "vision_analyze",
+      "aliases": [],
+      "category": "vision",
       "description": "分析图片内容。当用户发送了图片需要识别、描述、分析时使用此工具。支持跨厂商调用视觉模型——即使当前主模型不支持视觉，也能通过此工具调用支持视觉的模型来分析图片。可以多次调用以获取不同角度的分析。",
-      "parameters": {
+      "input_schema": {
         "type": "object",
         "properties": {
           "image_id": {
@@ -776,16 +1399,60 @@
           "image_id",
           "prompt"
         ]
-      }
+      },
+      "output_schema": null,
+      "strict": false,
+      "safety": {
+        "read_only": true,
+        "concurrent_safe": false,
+        "requires_user_interaction": false,
+        "always_ask": false,
+        "side_effect_scope": "network",
+        "destructive": false,
+        "needs_approval": false,
+        "risk_level": "safe"
+      },
+      "limits": {
+        "timeout_ms": null,
+        "max_output_bytes": null
+      },
+      "control": {
+        "stop_turn_on_success": false,
+        "provider_visible": true
+      },
+      "executor": "client"
     },
     {
       "name": "list_vision_images",
+      "aliases": [],
+      "category": "vision",
       "description": "查看当前可用的图片批次列表。当不确定有哪些图片可用时使用此工具。",
-      "parameters": {
+      "input_schema": {
         "type": "object",
         "properties": {},
         "required": []
-      }
+      },
+      "output_schema": null,
+      "strict": false,
+      "safety": {
+        "read_only": true,
+        "concurrent_safe": true,
+        "requires_user_interaction": false,
+        "always_ask": false,
+        "side_effect_scope": "session",
+        "destructive": false,
+        "needs_approval": false,
+        "risk_level": "safe"
+      },
+      "limits": {
+        "timeout_ms": null,
+        "max_output_bytes": null
+      },
+      "control": {
+        "stop_turn_on_success": false,
+        "provider_visible": true
+      },
+      "executor": "client"
     }
   ]
 }

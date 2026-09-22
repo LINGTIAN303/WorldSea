@@ -253,6 +253,11 @@ export const entityGetContextTool: ToolDefinition = {
   },
   meta: {
     permission: 'safe',
+    readOnly: true,
+    sideEffectScope: 'workspace',
+    concurrentSafe: true,
+    requiresUserInteraction: false,
+    alwaysAsk: false,
     category: 'entity',
     alwaysAvailable: true,
     displayName: '获取实体上下文',

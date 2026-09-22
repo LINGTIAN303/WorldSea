@@ -15,6 +15,7 @@
  */
 
 import type { ToolDefinition, ToolParameter } from '../bridge-types'
+import type { ToolMeta } from '@worldsea/agent-core'
 
 /** 桥工具清单（顺序即装配顺序：Rust `bridge_tools()` 按此顺序提供给 LLM） */
 export const BRIDGE_TOOL_NAMES = [
@@ -78,11 +79,71 @@ export interface JsonSchemaObject {
   required: string[]
 }
 
-/** 单个桥工具契约（与 Rust 侧 `BridgeToolSpec` 同构） */
+/** 单个桥工具契约（与 Rust 侧 `ToolDescriptor` 同构，`executor` 恒为 client） */
 export interface BridgeToolSpec {
   name: string
+  aliases: string[]
+  category: string
   description: string
-  parameters: JsonSchemaObject
+  input_schema: JsonSchemaObject
+  output_schema: null
+  strict: boolean
+  safety: {
+    read_only: boolean
+    destructive: boolean
+    concurrent_safe: boolean
+    requires_user_interaction: boolean
+    always_ask: boolean
+    needs_approval: boolean
+    risk_level: 'safe' | 'moderate' | 'dangerous'
+    side_effect_scope: 'none' | 'workspace' | 'git' | 'network' | 'system' | 'session'
+  }
+  limits: { timeout_ms: number | null; max_output_bytes: number | null }
+  control: { stop_turn_on_success: boolean; provider_visible: boolean }
+  executor: 'client'
+}
+
+/** 上桥工具必填的元数据字段（C2 ToolDescriptor 安全组；缺失即抛——见 buildBridgeSpec） */
+const REQUIRED_BRIDGE_META_FIELDS = [
+  'readOnly',
+  'sideEffectScope',
+  'concurrentSafe',
+  'requiresUserInteraction',
+  'alwaysAsk',
+] as const
+
+/**
+ * `permission` → 安全组派生（既有声明不重复：riskLevel/destructive/needsApproval 由它单源派生）
+ *
+ * 派生口径对齐现状判定语义（B7 不变）：safe 只读放行 / moderate 按档位策略确认 /
+ * dangerous 走 alwaysAsk（位次 5，不可绕过）。
+ * `read_only` 不派生（显式声明）——避免把陈旧的 `permission` 误传播到只读面。
+ */
+function deriveSafety(meta: ToolMeta, name: string): BridgeToolSpec['safety'] {
+  const base = {
+    read_only: meta.readOnly === true,
+    concurrent_safe: meta.concurrentSafe === true,
+    requires_user_interaction: meta.requiresUserInteraction === true,
+    always_ask: meta.alwaysAsk === true,
+    side_effect_scope: meta.sideEffectScope!,
+  }
+  switch (meta.permission) {
+    case 'safe':
+      return { ...base, destructive: false, needs_approval: false, risk_level: 'safe' }
+    case 'moderate':
+      return { ...base, destructive: false, needs_approval: true, risk_level: 'moderate' }
+    case 'dangerous':
+      if (meta.alwaysAsk !== true) {
+        throw new Error(
+          `桥工具 "${name}" 声明不一致：permission=dangerous 必须 alwaysAsk=true（不可绕过的确认）`,
+        )
+      }
+      return { ...base, destructive: true, needs_approval: false, risk_level: 'dangerous' }
+    default:
+      throw new Error(
+        `桥工具 "${name}" 的 permission 非法：${String(meta.permission)}（期望 safe/moderate/dangerous）`,
+      )
+  }
 }
 
 /** 单字段转换（items/properties 递归，保持可扩展） */
@@ -116,6 +177,10 @@ export function toJsonSchema(params: Record<string, ToolParameter>): JsonSchemaO
 
 /**
  * 按桥工具清单构造契约（缺失即抛——防止清单与工具模块脱节后静默生成残缺契约）
+ *
+ * C2 元数据族：**上桥工具必须声明安全组四字段**（`sideEffectScope` / `concurrentSafe` /
+ * `requiresUserInteraction` / `alwaysAsk`），缺失即抛（vitest 全量跑测覆盖 = 反证①）；
+ * `riskLevel` 等由其既有 `permission` 声明派生（不重复声明、不猜测）。
  */
 export function buildBridgeSpec(tools: readonly ToolDefinition[]): BridgeToolSpec[] {
   const byName = new Map(tools.map(tool => [tool.name, tool]))
@@ -124,10 +189,29 @@ export function buildBridgeSpec(tools: readonly ToolDefinition[]): BridgeToolSpe
     if (!tool) {
       throw new Error(`桥工具 "${name}" 未在任何工具模块中定义（检查 BRIDGE_TOOL_NAMES 或导入集）`)
     }
+    const meta = tool.meta
+    if (!meta) {
+      throw new Error(`桥工具 "${name}" 缺少 meta 声明（C2：安全组必填）`)
+    }
+    const record = meta as unknown as Record<string, unknown>
+    const missing = REQUIRED_BRIDGE_META_FIELDS.filter(field => record[field] === undefined)
+    if (missing.length > 0) {
+      throw new Error(
+        `桥工具 "${name}" 元数据缺字段：${missing.join(' / ')}——上桥工具必须声明安全组（见 bridge-spec.ts §REQUIRED_BRIDGE_META_FIELDS）`,
+      )
+    }
     return {
       name,
+      aliases: [...(meta.aliases ?? [])],
+      category: meta.category,
       description: tool.description,
-      parameters: toJsonSchema(tool.parameters),
+      input_schema: toJsonSchema(tool.parameters),
+      output_schema: null,
+      strict: false,
+      safety: deriveSafety(meta, name),
+      limits: { timeout_ms: null, max_output_bytes: null },
+      control: { stop_turn_on_success: false, provider_visible: true },
+      executor: 'client',
     }
   })
 }
