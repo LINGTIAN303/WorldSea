@@ -1,0 +1,18 @@
+# R-a 反证注入：04-inject-dispatch-downgraded-red.txt
+# 注入 = packages/shared-ui/src/agent/stream/rows/tool-detail/toolResult.ts
+
+❯ packages/shared-ui/src/agent/stream/rows/__tests__/toolDetail.spec.ts (12 tests | 3 failed) 167ms
+× detailKindFor（展开体分派） > 终端类恒走终端卡（无论结果形状） 11ms
+× ToolRow 接线（R-a） > 终端行：渲染终端卡 + shell 徽标 + exit/duration 尾行 74ms
+× ToolRow 接线（R-a） > 非零退出：尾行标红（is-fail） 19ms
+Test Files  1 failed (1)
+Tests  3 failed | 9 passed (12)
+FAIL  packages/shared-ui/src/agent/stream/rows/__tests__/toolDetail.spec.ts > detailKindFor（展开体分派） > 终端类恒走终端卡（无论结果形状）
+AssertionError: expected 'generic' to be 'terminal' // Object.is equality
+❯ packages/shared-ui/src/agent/stream/rows/__tests__/toolDetail.spec.ts:47:72
+FAIL  packages/shared-ui/src/agent/stream/rows/__tests__/toolDetail.spec.ts > ToolRow 接线（R-a） > 终端行：渲染终端卡 + shell 徽标 + exit/duration 尾行
+AssertionError: expected false to be true // Object.is equality
+❯ packages/shared-ui/src/agent/stream/rows/__tests__/toolDetail.spec.ts:78:27
+FAIL  packages/shared-ui/src/agent/stream/rows/__tests__/toolDetail.spec.ts > ToolRow 接线（R-a） > 非零退出：尾行标红（is-fail）
+❯ Object.get node_modules/.pnpm/@vue+test-utils@2.4.11_@vue_6cc756f0754b86207df19962d031554a/node_modules/@vue/test-utils/dist/vue-test-utils.cjs.js:1482:27
+❯ packages/shared-ui/src/agent/stream/rows/__tests__/toolDetail.spec.ts:91:41

@@ -1066,3 +1066,180 @@
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+/* ═══ R 批 R-a：能力类详情（终端卡 / 文件卡） ═══════════════════════
+   约定：详情根沿用 `.ws-stream-tool-detail`（缩进线 + 折叠动画），本段只定义内部块。 */
+
+/* 行首：shell 身份徽标（终端类摘要行） */
+.ws-stream-tool-shell {
+  flex-shrink: 0;
+  font-size: 10px;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 4px;
+  color: var(--agent-text-secondary);
+  background: var(--agent-hover-bg);
+}
+/* 行首：文件类型图标（16px 方格，与能力类图标同列对齐） */
+.ws-stream-tool-fileicon {
+  flex-shrink: 0;
+}
+
+/* ── 终端卡（A 组）── */
+.ws-term-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.ws-term-shell {
+  font-size: 10px;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 4px;
+  color: var(--agent-primary);
+  background: color-mix(in srgb, var(--agent-primary) 10%, transparent);
+}
+.ws-term-meta {
+  font-size: 11px;
+  color: var(--agent-text-tertiary);
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ws-term-cmd {
+  margin: 0 0 4px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: var(--agent-hover-bg);
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--agent-text);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.ws-term-cmd-sign {
+  color: var(--agent-text-tertiary);
+  user-select: none;
+}
+.ws-term-block { margin-bottom: 4px; }
+.ws-term-block-label {
+  font-size: 10px;
+  color: var(--agent-text-tertiary);
+  margin-bottom: 2px;
+}
+.ws-term-block-body {
+  margin: 0;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: var(--agent-hover-bg);
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--agent-text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.ws-term-block--err .ws-term-block-label { color: color-mix(in srgb, var(--agent-danger) 70%, transparent); }
+.ws-term-block--err .ws-term-block-body { color: color-mix(in srgb, var(--agent-danger) 80%, var(--agent-text)); }
+.ws-term-tail {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--agent-text-tertiary);
+}
+.ws-term-exit { color: var(--agent-success); }
+.ws-term-exit.is-fail { color: var(--agent-danger); font-weight: 600; }
+.ws-term-denied {
+  color: var(--agent-danger);
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--agent-danger) 10%, transparent);
+}
+.ws-term-args {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+.ws-term-arg {
+  font-size: 10px;
+  color: var(--agent-text-tertiary);
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--agent-hover-bg);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── 文件卡（B 组）── */
+.ws-file-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.ws-file-head-icon { flex-shrink: 0; color: var(--agent-text-secondary); }
+.ws-file-head-path {
+  font-size: 11.5px;
+  color: var(--agent-text);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ws-file-head-stat { flex-shrink: 0; font-size: 10.5px; color: var(--agent-text-tertiary); }
+/* 代码视图：行号槽 + 内容（同容器滚动；源码不换行，与 dsh 口径一致） */
+.ws-file-code {
+  display: flex;
+  border-radius: 4px;
+  background: var(--agent-hover-bg);
+  max-height: 320px;
+  overflow: auto;
+}
+.ws-file-code-gutter {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 6px 6px 8px;
+  text-align: right;
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  color: color-mix(in srgb, var(--agent-text-tertiary) 80%, transparent);
+  user-select: none;
+  position: sticky;
+  left: 0;
+  background: var(--agent-hover-bg);
+}
+.ws-file-code-body {
+  margin: 0;
+  padding: 6px 10px 6px 4px;
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--agent-text-secondary);
+  white-space: pre;
+}
+.ws-file-code-body code { font-family: inherit; }
+.ws-file-note { margin-top: 3px; font-size: 10.5px; color: var(--agent-text-tertiary); }
+/* 目录列表 */
+.ws-file-list { display: flex; flex-direction: column; }
+.ws-file-list-row { display: flex; align-items: center; gap: 6px; padding: 1px 0; }
+.ws-file-list-dir { flex-shrink: 0; color: var(--agent-text-secondary); }
+.ws-file-list-icon { flex-shrink: 0; }
+.ws-file-list-name {
+  font-size: 11.5px;
+  color: var(--agent-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ws-file-list-size { flex-shrink: 0; font-size: 10.5px; color: var(--agent-text-tertiary); }

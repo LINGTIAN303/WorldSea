@@ -1,0 +1,10 @@
+# R-a 反证注入：05-inject-file-icon-branch-removed-red.txt
+# 注入 = packages/shared-ui/src/agent/stream/rows/ToolRow.vue
+
+❯ packages/shared-ui/src/agent/stream/rows/__tests__/toolDetail.spec.ts (12 tests | 1 failed) 125ms
+× ToolRow 接线（R-a） > 读文件行：代码视图 + 行号（offset 起始行）+ 文件路径摘要 31ms
+Test Files  1 failed (1)
+Tests  1 failed | 11 passed (12)
+FAIL  packages/shared-ui/src/agent/stream/rows/__tests__/toolDetail.spec.ts > ToolRow 接线（R-a） > 读文件行：代码视图 + 行号（offset 起始行）+ 文件路径摘要
+AssertionError: expected false to be true // Object.is equality
+❯ packages/shared-ui/src/agent/stream/rows/__tests__/toolDetail.spec.ts:114:63

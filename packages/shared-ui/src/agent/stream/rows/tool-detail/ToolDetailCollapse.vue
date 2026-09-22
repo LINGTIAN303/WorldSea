@@ -1,37 +1,35 @@
 <!--
-  ToolDetailCollapse：工具行展开详情（参数 JSON + 结果 + 外置原文卡）
+  ToolDetailCollapse：通用工具行展开详情（参数 JSON + 结果 + 外置原文卡）
 
-  R 批 R-0 从 ToolRow 拆出（原文件 400 行顶格，类详情需扩展空间）：
-  内容、类名与交互零变更；后续按能力类的详情渲染（R-a 起）在本目录并列新增。
+  R 批 R-0 从 ToolRow 拆出；R-a 起折叠外壳（`.ws-stream-tool-collapse`，动画与 aria）
+  上移至行段统一持有——本组件只产出内容，供类详情并列复用。
 -->
 <template>
-  <div class="ws-stream-tool-collapse" :class="{ open: expanded }" :aria-hidden="!expanded">
-    <div class="ws-stream-tool-detail" @click.stop>
-      <div v-if="hasArgs" class="ws-stream-tool-detail-sec">
-        <div class="ws-stream-tool-detail-label">参数</div>
-        <pre class="ws-stream-tool-detail-code"><code v-html="argsHtml"></code></pre>
-      </div>
-      <div v-if="item.tc.result" class="ws-stream-tool-detail-sec">
-        <div class="ws-stream-tool-detail-label">结果</div>
-        <!-- UX-c：超阈值结果被外置（T-d artifact 信封）→ 摘要卡替代原始 JSON -->
-        <ArtifactCard
-          v-if="artifact"
-          :hash="artifact.hash"
-          :bytes="artifact.bytes"
-          :note="artifact.note"
-          :preview="artifact.preview"
-          @view="(h) => emit('view-artifact', h)"
-        />
-        <pre v-else class="ws-stream-tool-detail-code ws-stream-tool-detail-result"><code v-html="resultHtml"></code></pre>
-        <!-- UX-c：截断标注中的增量外置坐标（原文已外置：raw/<hash>）→ 单行引用 chip -->
-        <ArtifactCard
-          v-for="h in artifact ? [] : externalizedHashes"
-          :key="h"
-          :hash="h"
-          compact
-          @view="(h2) => emit('view-artifact', h2)"
-        />
-      </div>
+  <div class="ws-stream-tool-detail" @click.stop>
+    <div v-if="hasArgs" class="ws-stream-tool-detail-sec">
+      <div class="ws-stream-tool-detail-label">参数</div>
+      <pre class="ws-stream-tool-detail-code"><code v-html="argsHtml"></code></pre>
+    </div>
+    <div v-if="item.tc.result" class="ws-stream-tool-detail-sec">
+      <div class="ws-stream-tool-detail-label">结果</div>
+      <!-- UX-c：超阈值结果被外置（T-d artifact 信封）→ 摘要卡替代原始 JSON -->
+      <ArtifactCard
+        v-if="artifact"
+        :hash="artifact.hash"
+        :bytes="artifact.bytes"
+        :note="artifact.note"
+        :preview="artifact.preview"
+        @view="(h) => emit('view-artifact', h)"
+      />
+      <pre v-else class="ws-stream-tool-detail-code ws-stream-tool-detail-result"><code v-html="resultHtml"></code></pre>
+      <!-- UX-c：截断标注中的增量外置坐标（原文已外置：raw/<hash>）→ 单行引用 chip -->
+      <ArtifactCard
+        v-for="h in artifact ? [] : externalizedHashes"
+        :key="h"
+        :hash="h"
+        compact
+        @view="(h2) => emit('view-artifact', h2)"
+      />
     </div>
   </div>
 </template>
@@ -46,8 +44,6 @@ import type { ToolItem } from './types'
 
 const props = defineProps<{
   item: ToolItem
-  /** 展开态（动画与 aria 由父级行段驱动，本组件只做呈现） */
-  expanded: boolean
 }>()
 
 const emit = defineEmits<{

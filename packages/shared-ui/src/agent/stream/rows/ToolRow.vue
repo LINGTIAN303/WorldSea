@@ -31,8 +31,9 @@
         <!-- 2026-09-05 箭头移前缀（用户拍板）：详情展开 chevron 放行首（open 旋转语义保留）；
              2026-09-05 二轮：失败行恢复可展开（与其他行一致），chevron 悬停显示推广至全部行段 -->
         <WsIcon name="chevron-right" size="xs" class="ws-stream-tool-chevron" :class="{ open: isExpanded }" />
-        <!-- 能力类图标（R 批 R-0：按 toolClass 分派 15 类；无背景无彩色，跟随主题文字色） -->
-        <component :is="markIcon" size="14" stroke="1.75" class="ws-stream-tool-mark-icon" />
+        <!-- 能力类图标（R-0 分派 15 类）；文件类改用文件类型图标（R-a：ui-kit 资产两端共用） -->
+        <FileIcon v-if="isFileClass && fileName" :name="fileName" class="ws-stream-tool-fileicon" />
+        <component v-else :is="markIcon" size="14" stroke="1.75" class="ws-stream-tool-mark-icon" />
         <!-- 前缀文字（点击区）：语义动词 + 操作对象 + 工具名；点击展开详情，running 时流光 -->
         <span
           class="ws-stream-tool-prefix"
@@ -40,12 +41,14 @@
           role="button"
           tabindex="0"
           :aria-expanded="isExpanded"
+          :title="subjectTitle || undefined"
           @click="toggleExpand"
           @keydown.enter.prevent="toggleExpand"
           @keydown.space.prevent="toggleExpand"
         >
+          <span v-if="shellLabel" class="ws-stream-tool-shell">{{ shellLabel }}</span>
           <span class="ws-stream-tool-verb">{{ verb }}</span>
-          <span v-if="subject" class="ws-stream-tool-subject">{{ subject }}</span>
+          <span v-if="summarySubject" class="ws-stream-tool-subject">{{ summarySubject }}</span>
           <span class="ws-stream-tool-name">({{ label }})</span>
         </span>
         <!-- 状态标识在前缀右侧（2026-09-05 用户拍板）：running 脉冲点；completed/failed 用 ✓/✗ -->
@@ -64,13 +67,17 @@
         <span v-if="isFailed" class="ws-stream-tool-error">{{ errorText }}</span>
         <span v-else-if="argsPreview" class="ws-stream-tool-args">{{ argsPreview }}</span>
       </div>
-      <!-- 展开详情（参数 JSON + 结果）；R 批 R-0：内容区拆至 tool-detail/ 子组件
-           （collapse 动画与 aria 时序由本行段驱动，子组件只做内容呈现） -->
-      <ToolDetailCollapse
-        :item="item"
-        :expanded="isExpanded"
-        @view-artifact="(h) => emit('view-artifact', h)"
-      />
+      <!-- 展开详情（R 批 R-a：按能力类分派——终端卡 / 文件卡（读·列）/ 通用）；
+           折叠外壳（动画 + aria）统一由本行段持有，子组件只产出内容 -->
+      <div class="ws-stream-tool-collapse" :class="{ open: isExpanded }" :aria-hidden="!isExpanded">
+        <ToolTerminalDetail v-if="detailKind === 'terminal'" :item="item" />
+        <ToolFileDetail
+          v-else-if="detailKind === 'file-read' || detailKind === 'file-list'"
+          :item="item"
+          :kind="detailKind"
+        />
+        <ToolDetailCollapse v-else :item="item" @view-artifact="(h) => emit('view-artifact', h)" />
+      </div>
       <!-- 2026-09-02 系统工具流式：bash/powershell 增量输出（实时累积，随流滚动跟随） -->
       <ToolDeltaOutput :item="item" />
       <!-- 2026-09-02 系统工具流式：文件变更 diff（绿红对比 + 被操作文件完整路径） -->
@@ -86,7 +93,7 @@ import {
   IconPencilPlus, IconPlugConnected, IconRobot, IconSearch, IconTerminal2, IconTextScan2,
   IconTool, IconWorld,
 } from '@tabler/icons-vue'
-import { WsIcon } from '@worldsea/ui-kit'
+import { FileIcon, WsIcon } from '@worldsea/ui-kit'
 import InteractiveToolCall from '../../blocks/InteractiveToolCall.vue'
 import { getToolLabel } from '../../bubbles/toolLabels'
 import { classifyActionRowKind } from '@worldsea/shared-composables/agent/turnModel'
@@ -103,6 +110,9 @@ import type { ToolClass } from './toolClassify'
 import ToolDetailCollapse from './tool-detail/ToolDetailCollapse.vue'
 import ToolDeltaOutput from './tool-detail/ToolDeltaOutput.vue'
 import ToolFileChange from './tool-detail/ToolFileChange.vue'
+import ToolFileDetail from './tool-detail/ToolFileDetail.vue'
+import ToolTerminalDetail from './tool-detail/ToolTerminalDetail.vue'
+import { detailKindFor, parseToolResult, str } from './tool-detail/toolResult'
 import type { ToolItem } from './tool-detail/types'
 import type { InteractiveToolType } from '@worldsea/shared-composables/agent/useAgent'
 
@@ -164,6 +174,55 @@ const markIcon = computed<Component>(() => CLASS_ICONS[toolClass.value] ?? IconT
 const subject = computed(() =>
   extractOperationSubject(op.value, props.item.tc.name, props.item.tc.args),
 )
+
+// ===== R 批 R-a：展开体分派 + 摘要增强（文件类：类型图标 / 完整路径；终端类：shell 身份） =====
+const detailKind = computed(() => detailKindFor(toolClass.value, props.item))
+const isFileClass = computed(() =>
+  toolClass.value === 'file-read' || toolClass.value === 'file-write'
+  || toolClass.value === 'file-edit' || toolClass.value === 'file-list',
+)
+
+/** 文件类：完整路径（服务端 `__meta.path` 优先，回落 args.path） */
+const filePath = computed(() => {
+  if (!isFileClass.value) return ''
+  const { meta } = parseToolResult(props.item.tc.result)
+  const fromMeta = str(meta?.path)
+  const fromArgs = typeof props.item.tc.args.path === 'string' ? (props.item.tc.args.path as string) : ''
+  return fromMeta || fromArgs
+})
+const fileName = computed(() => (filePath.value ? baseNameOf(filePath.value) : ''))
+
+/** 摘要主体：文件类显示路径（超长收缩为「…/末两段」）；其余沿用语义对象 */
+const summarySubject = computed(() => {
+  if (isFileClass.value && filePath.value) return shortPath(filePath.value)
+  return subject.value
+})
+/** 悬停提示：文件类给完整路径 */
+const subjectTitle = computed(() => (isFileClass.value && filePath.value ? filePath.value : ''))
+
+/** 终端类：shell 身份徽标（折叠态即可看出「用的什么终端」） */
+const shellLabel = computed(() => {
+  if (toolClass.value !== 'terminal') return ''
+  const n = props.item.tc.name
+  if (n === 'bash') return 'bash'
+  if (n === 'powershell') return 'PowerShell'
+  if (n.startsWith('shell_session_')) return 'PTY'
+  return ''
+})
+
+/** 路径末段（文件名） */
+function baseNameOf(p: string): string {
+  const norm = p.replace(/\\/g, '/')
+  return norm.split('/').filter(Boolean).pop() ?? p
+}
+
+/** 路径摘要：≤48 字符原样；超出取「…/末两段」（末段是文件名，必须可见） */
+function shortPath(p: string): string {
+  const norm = p.replace(/\\/g, '/')
+  if (norm.length <= 48) return norm
+  const segs = norm.split('/').filter(Boolean)
+  return segs.length <= 2 ? norm : `…/${segs.slice(-2).join('/')}`
+}
 
 // ===== 结果 __meta 解析（JSON 容错；旧工具无 __meta → 回退 args 摘要） =====
 const parsedResult = computed<Record<string, unknown> | null>(() => {
