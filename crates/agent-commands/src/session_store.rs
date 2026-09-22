@@ -415,6 +415,35 @@ pub trait SessionRepository: Send + Sync {
     ) -> Result<Vec<crate::session_boundaries::RequestBoundaryDto>, CommandError> {
         Ok(Vec::new())
     }
+    /// W 批：记录一次工作区文件写前状态（before-image 坐标；`before_hash=None` 表示新建）。
+    ///
+    /// 默认不支持（`Ok(())`——无回滚能力的后端静默跳过）。**实现方不得把失败抛给
+    /// 写入路径**（调用点已按 `FileOpRecorder` 契约降级 warn）。
+    async fn record_workspace_op(
+        &self,
+        _session_id: &str,
+        _path: &str,
+        _before_hash: Option<&str>,
+        _op: &str,
+    ) -> Result<(), CommandError> {
+        Ok(())
+    }
+    /// W 批：某边界**起（含）**的文件操作，降序按发生序（回滚后进先出消费）。默认空。
+    async fn workspace_ops_from(
+        &self,
+        _session_id: &str,
+        _from_seq: i64,
+    ) -> Result<Vec<crate::workspace_rewind::WorkspaceFileOp>, CommandError> {
+        Ok(Vec::new())
+    }
+    /// W 批：某会话最近的文件操作（降序；`limit <= 0` 不截断）。默认空。
+    async fn recent_workspace_ops(
+        &self,
+        _session_id: &str,
+        _limit: i64,
+    ) -> Result<Vec<crate::workspace_rewind::WorkspaceFileOp>, CommandError> {
+        Ok(Vec::new())
+    }
     /// 删除会话及其全部持久化痕迹（级联：视图 / 日志 / 事件）
     async fn delete_session(&self, session_id: &str) -> Result<(), CommandError>;
     /// 物理清理空会话（启动恢复时调用），返回清理条数。
@@ -756,6 +785,7 @@ impl SqliteSessionRepository {
         .map_err(|e| CommandError::Internal(format!("初始化请求快照去重池失败: {e}")))?;
 
         crate::session_branch::ensure_schema(pool).await?; // S3-b2：分叉 / 检查点 / 操作 mark 建表（幂等）
+        crate::workspace_rewind::ensure_schema(pool).await?; // W 批：工作区文件操作表（幂等）
 
         // 迁移：旧库的 `messages` 快照 → 日志 + 视图（**一次性、幂等**）
         //
@@ -1602,6 +1632,99 @@ impl SessionRepository for SqliteSessionRepository {
         limit: i64,
     ) -> Result<Vec<crate::session_boundaries::RequestBoundaryDto>, CommandError> {
         crate::session_boundaries::recent_boundaries(self, session_id, limit).await
+    }
+
+    async fn record_workspace_op(
+        &self,
+        session_id: &str,
+        path: &str,
+        before_hash: Option<&str>,
+        op: &str,
+    ) -> Result<(), CommandError> {
+        // 归属边界 = 当前最新请求序号（变更发生在该边界派发后的执行期间）；
+        // 会话尚无快照 → 归 0（回滚目标最小为 0，`>=` 过滤仍可覆盖）
+        let seq: Option<i64> = sqlx::query_as::<_, (Option<i64>,)>(
+            "SELECT MAX(request_seq) FROM request_snapshots WHERE session_id = ?1",
+        )
+        .bind(session_id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| CommandError::Internal(format!("查询当前请求边界失败: {e}")))?
+        .0;
+        let at_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as i64)
+            .unwrap_or(0);
+        sqlx::query(
+            "INSERT INTO workspace_file_ops (session_id, request_seq, path, before_hash, op, at_ms) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        )
+        .bind(session_id)
+        .bind(seq.unwrap_or(0))
+        .bind(path)
+        .bind(before_hash)
+        .bind(op)
+        .bind(at_ms)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| CommandError::Internal(format!("记录工作区文件操作失败: {e}")))?;
+        Ok(())
+    }
+
+    async fn workspace_ops_from(
+        &self,
+        session_id: &str,
+        from_seq: i64,
+    ) -> Result<Vec<crate::workspace_rewind::WorkspaceFileOp>, CommandError> {
+        let rows = sqlx::query_as::<_, (i64, String, Option<String>, String, i64)>(
+            "SELECT request_seq, path, before_hash, op, at_ms FROM workspace_file_ops \
+             WHERE session_id = ?1 AND request_seq >= ?2 ORDER BY id DESC",
+        )
+        .bind(session_id)
+        .bind(from_seq)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| CommandError::Internal(format!("读取工作区文件操作失败: {e}")))?;
+        Ok(rows
+            .into_iter()
+            .map(
+                |(request_seq, path, before_hash, op, at_ms)| crate::workspace_rewind::WorkspaceFileOp {
+                    request_seq,
+                    path,
+                    before_hash,
+                    op,
+                    at_ms,
+                },
+            )
+            .collect())
+    }
+
+    async fn recent_workspace_ops(
+        &self,
+        session_id: &str,
+        limit: i64,
+    ) -> Result<Vec<crate::workspace_rewind::WorkspaceFileOp>, CommandError> {
+        let rows = sqlx::query_as::<_, (i64, String, Option<String>, String, i64)>(
+            "SELECT request_seq, path, before_hash, op, at_ms FROM workspace_file_ops \
+             WHERE session_id = ?1 ORDER BY id DESC LIMIT ?2",
+        )
+        .bind(session_id)
+        .bind(if limit > 0 { limit } else { -1_i64 })
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| CommandError::Internal(format!("读取工作区文件操作失败: {e}")))?;
+        Ok(rows
+            .into_iter()
+            .map(
+                |(request_seq, path, before_hash, op, at_ms)| crate::workspace_rewind::WorkspaceFileOp {
+                    request_seq,
+                    path,
+                    before_hash,
+                    op,
+                    at_ms,
+                },
+            )
+            .collect())
     }
 
     async fn delete_session(&self, session_id: &str) -> Result<(), CommandError> {

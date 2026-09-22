@@ -1,0 +1,38 @@
+   Compiling agent-commands v0.1.0 (D:\WorldSea\crates\agent-commands)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 19.48s
+     Running unittests src\lib.rs (target\debug\deps\agent_commands-29606f13eab61d7a.exe)
+
+running 7 tests
+test workspace_rewind::tests::ops_queries_descending_and_limited ... FAILED
+test workspace_rewind::tests::rewind_removes_created_file_and_is_idempotent ... ok
+test workspace_rewind::tests::rewind_reports_missing_snapshot_and_rewrites_nothing_outside ... ok
+test workspace_rewind::tests::record_and_rewind_restores_modified_file ... ok
+test workspace_rewind::tests::rewind_filters_by_request_seq_inclusive ... ok
+test workspace_rewind::tests::rewind_lifo_multiple_writes_end_at_earliest_before ... FAILED
+test workspace_rewind::tests::write_file_tool_records_before_via_recorder_and_rewinds ... ok
+
+failures:
+
+---- workspace_rewind::tests::ops_queries_descending_and_limited stdout ----
+
+thread 'workspace_rewind::tests::ops_queries_descending_and_limited' (12232) panicked at src\workspace_rewind_tests.rs:249:5:
+assertion `left == right` failed: 降序按发生序（最新在前）
+  left: "C:/w/f0.md"
+ right: "C:/w/f2.md"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- workspace_rewind::tests::rewind_lifo_multiple_writes_end_at_earliest_before stdout ----
+
+thread 'workspace_rewind::tests::rewind_lifo_multiple_writes_end_at_earliest_before' (8936) panicked at src\workspace_rewind_tests.rs:95:5:
+assertion `left == right` failed: 倒序撤销（v3→v2→v1）末态必须是 v1；正序会停在 v2（反证②锚点）
+  left: "v2"
+ right: "v1"
+
+
+failures:
+    workspace_rewind::tests::ops_queries_descending_and_limited
+    workspace_rewind::tests::rewind_lifo_multiple_writes_end_at_earliest_before
+
+test result: FAILED. 5 passed; 2 failed; 0 ignored; 0 measured; 270 filtered out; finished in 0.10s
+
+error: test failed, to rerun pass `--lib`

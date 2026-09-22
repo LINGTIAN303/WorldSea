@@ -351,6 +351,12 @@ impl Tool for WriteFileTool {
             std::fs::create_dir_all(parent)
                 .map_err(|e| ToolError::Execution(format!("创建父目录失败 {}: {e}", parent.display())))?;
         }
+        // W 批：落盘前留存 before-image（工作区回滚源；失败降级不阻断——见 FileOpRecorder 契约）
+        if let Some(rec) = &ctx.file_op_recorder {
+            let p = resolved.to_string_lossy().to_string();
+            let before = std::fs::read_to_string(&resolved).ok();
+            rec.record_before(&p, before.as_deref(), "write").await;
+        }
         std::fs::write(&resolved, content.as_bytes())
             .map_err(|e| ToolError::Execution(format!("写入文件失败 {}: {e}", resolved.display())))?;
         let bytes = content.len() as u64;
@@ -655,6 +661,11 @@ impl Tool for EditFileTool {
         }
         let replacements = content.matches(old_string).count();
         let new_content = content.replace(old_string, new_string);
+        // W 批：落盘前留存 before-image（工作区回滚源；失败降级不阻断——见 FileOpRecorder 契约）
+        if let Some(rec) = &ctx.file_op_recorder {
+            let p = resolved.to_string_lossy().to_string();
+            rec.record_before(&p, Some(&content), "edit").await;
+        }
         std::fs::write(&resolved, new_content.as_bytes())
             .map_err(|e| ToolError::Execution(format!("写入文件失败 {}: {e}", resolved.display())))?;
         let path = resolved.to_string_lossy().to_string();
@@ -1112,6 +1123,11 @@ impl Tool for EditDiffTool {
                 new_content.replacen(b.old, b.new, 1)
             };
         }
+        // W 批：落盘前留存 before-image（工作区回滚源；失败降级不阻断——见 FileOpRecorder 契约）
+        if let Some(rec) = &ctx.file_op_recorder {
+            let p = resolved.to_string_lossy().to_string();
+            rec.record_before(&p, Some(&content), "edit_diff").await;
+        }
         std::fs::write(&resolved, new_content.as_bytes())
             .map_err(|e| ToolError::Execution(format!("写入文件失败 {}: {e}", resolved.display())))?;
         let path = resolved.to_string_lossy().to_string();
@@ -1166,6 +1182,7 @@ mod tests {
             sandbox: None,
             tool_stream: None,
             is_sub_agent: false,
+            file_op_recorder: None,
         }
     }
 

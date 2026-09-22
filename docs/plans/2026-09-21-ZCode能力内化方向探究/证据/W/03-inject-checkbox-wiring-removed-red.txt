@@ -1,0 +1,45 @@
+npm warn Unknown project config "node-linker". This will stop working in the next major version of npm.
+npm warn Unknown project config "store-dir". This will stop working in the next major version of npm.
+
+[1m[46m RUN [49m[22m [36mv3.2.7 [39m[90mD:/WorldSea[39m
+
+ [31m❯[39m apps/tauri/src/agent/__tests__/useSessionBranch.spec.ts [2m([22m[2m17 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[32m 28[2mms[22m[39m
+[31m   [31m×[31m rewindAtConfirmed（W 批：会话 + 文件回滚编排）[2m > [22m勾选文件 → 先 rewind_workspace 再 rewind_session（顺序断言）[39m[32m 15[2mms[22m[39m
+[31m     → expected [ 'rewind_session' ] to include 'rewind_workspace'[39m
+   [32m✓[39m rewindAtConfirmed（W 批：会话 + 文件回滚编排）[2m > [22m未勾选 → 只回退会话（不触碰文件）[32m 1[2mms[22m[39m
+   [32m✓[39m rewindAtConfirmed（W 批：会话 + 文件回滚编排）[2m > [22m取消 → 不调用任何命令[32m 1[2mms[22m[39m
+   [32m✓[39m rewindAtConfirmed（W 批：会话 + 文件回滚编排）[2m > [22m文件逐条失败（报告 failed）→ 会话回滚不阻断[32m 1[2mms[22m[39m
+   [32m✓[39m rewindAtConfirmed（W 批：会话 + 文件回滚编排）[2m > [22mloadWorkspaceOps 命令名与容忍非数组[32m 2[2mms[22m[39m
+   [32m✓[39m matchBoundaryForTurn[2m > [22m精确匹配返回对应边界[32m 0[2mms[22m[39m
+   [32m✓[39m matchBoundaryForTurn[2m > [22m超长文本按 120 字符截断对齐（Rust 侧同口径）[32m 0[2mms[22m[39m
+   [32m✓[39m matchBoundaryForTurn[2m > [22m重复文本按时间就近消歧[32m 0[2mms[22m[39m
+   [32m✓[39m matchBoundaryForTurn[2m > [22m匹配不到必须返回 null（绝不猜锚点）[32m 0[2mms[22m[39m
+   [32m✓[39m matchBoundaryForTurn[2m > [22memoji 代理对安全（按字符而非 UTF-16 单元截断）[32m 0[2mms[22m[39m
+   [32m✓[39m 命令面（命令名与参数与 Rust 逐字对齐）[2m > [22mforkAt → fork_session{sessionId, requestSeq}[32m 1[2mms[22m[39m
+   [32m✓[39m 命令面（命令名与参数与 Rust 逐字对齐）[2m > [22mrewindAt → rewind_session{sessionId, requestSeq}[32m 0[2mms[22m[39m
+   [32m✓[39m 命令面（命令名与参数与 Rust 逐字对齐）[2m > [22mcreateCheckpoint → create_checkpoint{sessionId}[32m 0[2mms[22m[39m
+   [32m✓[39m 命令面（命令名与参数与 Rust 逐字对齐）[2m > [22mloadBoundaries/loadCheckpoints 写入共享状态且容忍非数组返回[32m 1[2mms[22m[39m
+   [32m✓[39m 分支事件监听[2m > [22m事件三型分派到对应 hooks[32m 1[2mms[22m[39m
+   [32m✓[39m 分支事件监听[2m > [22m监听幂等（重复 setup 只注册一次）与 teardown 清理[32m 1[2mms[22m[39m
+   [32m✓[39m 分支事件监听[2m > [22m未知 type 不触发任何 hook（前向兼容）[32m 0[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m apps/tauri/src/agent/__tests__/useSessionBranch.spec.ts[2m > [22mrewindAtConfirmed（W 批：会话 + 文件回滚编排）[2m > [22m勾选文件 → 先 rewind_workspace 再 rewind_session（顺序断言）
+[31m[1mAssertionError[22m: expected [ 'rewind_session' ] to include 'rewind_workspace'[39m
+[36m [2m❯[22m apps/tauri/src/agent/__tests__/useSessionBranch.spec.ts:[2m70:19[22m[39m
+    [90m 68| [39m    [34mexpect[39m(ok)[33m.[39m[34mtoBe[39m([35mtrue[39m)
+    [90m 69| [39m    [35mconst[39m calls [33m=[39m invokeMock[33m.[39mmock[33m.[39mcalls[33m.[39m[34mmap[39m((c) [33m=>[39m c[[34m0[39m])
+    [90m 70| [39m    [34mexpect[39m(calls)[33m.[39m[34mtoContain[39m([32m'rewind_workspace'[39m)
+    [90m   | [39m                  [31m^[39m
+    [90m 71| [39m    [34mexpect[39m(calls)[33m.[39m[34mtoContain[39m([32m'rewind_session'[39m)
+    [90m 72| [39m    [90m// 文件必须先于会话回退（保持「先文件后视图」一致性）[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m16 passed[39m[22m[90m (17)[39m
+[2m   Start at [22m 02:15:58
+[2m   Duration [22m 5.33s[2m (transform 111ms, setup 0ms, collect 335ms, tests 28ms, environment 3.19s, prepare 398ms)[22m
+

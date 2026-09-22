@@ -239,6 +239,11 @@ pub struct AgentLoop {
     /// 装配层注入真实实现（写 app_data 真文件 + 登记引用）后，超长工具结果的
     /// 截断标注会附带内容坐标，原文可据此取回。
     raw_context_sink: crate::raw_context::RawContextSink,
+    /// 文件操作记录器（W 批 · 工作区回滚）
+    ///
+    /// 默认 `None`（未启用——写入类工具行为与改造前逐字一致）；装配层按会话注入后，
+    /// 写入类工具在落盘前留存 before-image（`rewind_workspace` 的回滚源）。
+    pub(crate) file_op_recorder: Option<std::sync::Arc<dyn crate::tool_context::FileOpRecorder>>,
     /// 是否注入了真实外置器（A1 §6.2：决定裁剪走「折叠」还是旧「删除」路径）
     ///
     /// 折叠的硬前提 = 原文先安全外置；未注入外置器时折叠不可能执行，
@@ -342,6 +347,7 @@ impl AgentLoop {
             token_estimator: crate::context_budget::heuristic_estimator(),
             raw_context_sink: crate::raw_context::noop_sink(),
             raw_context_enabled: false,
+            file_op_recorder: None,
             compact_check: Arc::new(StdMutex::new(None)),
             request_snapshot_tracker,
             inbox: Arc::new(StdMutex::new(Vec::new())),
@@ -438,6 +444,16 @@ impl AgentLoop {
     /// 当前生效的原文外置器（只读）
     pub fn raw_context_sink(&self) -> &crate::raw_context::RawContextSink {
         &self.raw_context_sink
+    }
+
+    /// 注入文件操作记录器（W 批：工作区回滚）——装配层**按会话**构造（记录器自带
+    /// 会话归属与边界推断）；未注入时写入类工具不记录（行为与改造前一致）。
+    pub fn with_file_op_recorder(
+        mut self,
+        recorder: std::sync::Arc<dyn crate::tool_context::FileOpRecorder>,
+    ) -> Self {
+        self.file_op_recorder = Some(recorder);
+        self
     }
 
     /// 是否注入了真实外置器（A1 §6.2：裁剪走「折叠」还是「删除」的判据）

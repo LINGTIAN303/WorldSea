@@ -50,6 +50,9 @@
                 <span class="sbp-time">{{ fmtTime(b.capturedAtMs) }}</span>
                 <span v-if="b.purpose !== 'main'" class="sbp-tag">{{ b.purpose }}</span>
                 <span v-if="b.checkpointId" class="sbp-tag sbp-tag-cp">检查点</span>
+                <span v-if="fileOpCounts.get(b.requestSeq)" class="sbp-tag sbp-tag-file">
+                  文件 ×{{ fileOpCounts.get(b.requestSeq) }}
+                </span>
               </div>
               <div class="sbp-text" :title="b.userText ?? ''">{{ b.userText || '（无用户消息）' }}</div>
             </div>
@@ -84,8 +87,25 @@ import {
 } from '@/agent/composables/useSessionBranch'
 
 const { currentSessionId } = useAgentRust()
-const { panelOpen, boundaries, checkpoints, closeBranchPanel, loadBoundaries, loadCheckpoints } =
-  useSessionBranch()
+const {
+  panelOpen,
+  boundaries,
+  checkpoints,
+  workspaceOps,
+  closeBranchPanel,
+  loadBoundaries,
+  loadCheckpoints,
+  loadWorkspaceOps,
+} = useSessionBranch()
+
+/** 每边界的文件变更数（W 批徽标：「文件 ×N」——存在变更的行才显示） */
+const fileOpCounts = computed(() => {
+  const m = new Map<number, number>()
+  for (const op of workspaceOps.value) {
+    m.set(op.requestSeq, (m.get(op.requestSeq) ?? 0) + 1)
+  }
+  return m
+})
 
 const busy = ref(false)
 
@@ -112,6 +132,9 @@ async function reload(): Promise<void> {
   )
   await loadCheckpoints(sid).catch((err) =>
     console.warn('[SessionBranchPanel] 检查点加载失败:', err),
+  )
+  await loadWorkspaceOps(sid).catch((err) =>
+    console.warn('[SessionBranchPanel] 文件操作加载失败:', err),
   )
 }
 
@@ -304,6 +327,9 @@ async function onCreateCheckpoint(): Promise<void> {
 }
 .sbp-tag-cp {
   color: var(--success);
+}
+.sbp-tag-file {
+  color: var(--warning);
 }
 .sbp-text {
   margin-top: 2px;

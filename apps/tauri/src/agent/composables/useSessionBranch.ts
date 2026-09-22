@@ -15,7 +15,7 @@
 import { ref, watch } from 'vue'
 import { useConfirm } from '@worldsea/ui-kit'
 
-import { toastError } from '@/composables/useToast'
+import { toastError, toastWarn } from '@/composables/useToast'
 
 import { invoke, listen, type UnlistenFn } from './transport'
 
@@ -69,6 +69,8 @@ export interface BranchEventHooks {
 
 const boundaries = ref<RequestBoundaryDto[]>([])
 const checkpoints = ref<CheckpointRef[]>([])
+/** 工作区文件操作（W 批；面板「文件 ×N」徽标聚合用） */
+const workspaceOps = ref<WorkspaceFileOp[]>([])
 /** 历史抽屉显隐（SessionSidebar 入口与 SessionBranchPanel 共享——模块单例） */
 const panelOpen = ref(false)
 
@@ -94,6 +96,13 @@ export async function loadCheckpoints(sessionId: string, limit = 0): Promise<Che
   const list = await invoke<CheckpointRef[]>('list_checkpoints', { sessionId, limit })
   checkpoints.value = Array.isArray(list) ? list : []
   return checkpoints.value
+}
+
+/** 拉取工作区文件操作（W 批；降序，面板「文件 ×N」徽标聚合用） */
+export async function loadWorkspaceOps(sessionId: string, limit = 500): Promise<WorkspaceFileOp[]> {
+  const list = await invoke<WorkspaceFileOp[]>('list_workspace_ops', { sessionId, limit })
+  workspaceOps.value = Array.isArray(list) ? list : []
+  return workspaceOps.value
 }
 
 /** 从请求边界分叉（返回子会话；子会话继承父 Provider 配置，不自动运行） */
@@ -147,14 +156,34 @@ export async function forkAtConfirmed(sessionId: string, requestSeq: number): Pr
   }
 }
 
+/** 工作区回滚明细报告（Rust `WorkspaceRewindReport`；serde camelCase） */
+export interface WorkspaceRewindReport {
+  restored: number
+  removed: number
+  failed: Array<{ path: string; reason: string }>
+}
+
+/** 工作区文件操作行（Rust `WorkspaceFileOp`；面板徽标用） */
+export interface WorkspaceFileOp {
+  requestSeq: number
+  path: string
+  beforeHash: string | null
+  op: string
+  atMs: number
+}
+
 /**
  * 确认弹窗 + 回滚（运行中会被后端拒绝 → 就地提示）。
+ *
+ * W 批：弹窗带「同时回滚文件」复选框（默认勾选，Q2）——勾选则**先恢复工作区文件、
+ * 再回退会话视图**。文件**逐条失败**（报告 `failed` 非空）不阻断会话回滚（另行提示）；
+ * 文件命令**级失败**（IPC/守卫拒绝）则整体失败、会话不动（保持一致态）。
  *
  * 返回 `true` = 已发起（成功由 `rewound` 事件反馈）；`false` = 取消或失败。
  */
 export async function rewindAtConfirmed(sessionId: string, requestSeq: number): Promise<boolean> {
-  const { confirm } = useConfirm()
-  const ok = await confirm({
+  const { confirmWithCheckbox } = useConfirm()
+  const { ok, checked } = await confirmWithCheckbox({
     type: 'danger',
     title: '回滚到此处',
     description:
@@ -163,9 +192,26 @@ export async function rewindAtConfirmed(sessionId: string, requestSeq: number): 
     confirmText: '回滚',
     cancelText: '取消',
     position: 'bottom',
+    checkbox: { label: '同时回滚文件（恢复 Agent 改动过的文件）', defaultChecked: true },
   })
   if (!ok) return false
   try {
+    if (checked) {
+      const report = await invoke<WorkspaceRewindReport>('rewind_workspace', {
+        sessionId,
+        requestSeq,
+      })
+      if (report.failed.length > 0) {
+        const head = report.failed
+          .slice(0, 3)
+          .map((f) => f.path)
+          .join('；')
+        toastWarn(
+          `文件回滚完成（恢复 ${report.restored} / 删除 ${report.removed}），` +
+            `${report.failed.length} 项未处理：${head}`,
+        )
+      }
+    }
     await rewindAt(sessionId, requestSeq)
     return true
   } catch (err) {
@@ -326,6 +372,8 @@ export function useSessionBranch() {
   return {
     boundaries,
     checkpoints,
+    workspaceOps,
+    loadWorkspaceOps,
     panelOpen,
     openBranchPanel,
     closeBranchPanel,

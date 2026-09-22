@@ -15,6 +15,7 @@ mod request_snapshot;
 pub mod sandbox;
 // A2-2：工作区检索工具（workspace_search）
 mod workspace_path;
+mod workspace_rewind;
 mod workspace_tools;
 mod run_store;
 mod session_boundaries;
@@ -65,6 +66,7 @@ pub use session_store::{
 // 阶段 3 · ④（D14：本期不做 UI）：重建 API 作为 crate 公共面暴露，
 // 供诊断 / 后续面板消费；「重建语义（结构级）」见 08-请求头快照设计草案 D10。
 pub use session_boundaries::RequestBoundaryDto;
+pub use workspace_rewind::{WorkspaceFileOp, WorkspaceRewindFailure, WorkspaceRewindReport};
 pub use session_store::{reconstruct_request_view, RequestSnapshotRecord};
 pub use subagent::{register_subagent_tools, SubAgentInstanceInfo, SubAgentManager};
 pub use subagent_store::{SqliteSubAgentSpecStore, SubAgentSpecStore};
@@ -2008,7 +2010,18 @@ impl AgentCommandService {
         if let Some(root) = &self.memory_root {
             match agent_memory::raw_store::RawStore::open(root) {
                 Ok(store) => {
-                    agent_builder = agent_builder.with_raw_context_sink(store.sink());
+                    agent_builder = agent_builder.with_raw_context_sink(store.clone().sink());
+                    // W 批：工作区文件操作记录器（同一外置存储；按会话构造——回滚的 before-image 源）
+                    // 未配置会话存储（纯内存模式）时不注入：写入行为与改造前逐字一致。
+                    if let Some(sess_store) = self.session_store.clone() {
+                        agent_builder = agent_builder.with_file_op_recorder(Arc::new(
+                            crate::workspace_rewind::WorkspaceFileOpRecorder::new(
+                                sess_store,
+                                store,
+                                session_id,
+                            ),
+                        ));
+                    }
                 }
                 Err(e) => {
                     tracing::warn!("打开原文外置目录失败，本轮不启用原文保真: {e}");
@@ -2512,6 +2525,7 @@ impl AgentCommandService {
             tool_stream: None,
             // Q1（2026-09-20）：计划步骤工具属主会话执行（非子代理）——提问类工具可用
             is_sub_agent: false,
+            file_op_recorder: None,
         };
         let tool_handle: Arc<dyn b_rail::ToolHandle> = Arc::new(BusToolHandle {
             bus: Arc::clone(&tool_bus),
@@ -4233,6 +4247,57 @@ impl AgentCommandService {
     ///
     /// 链路：守卫（`rewind_guard`）→ 存储回滚（`session_rewind`）→ 内存态同步
     /// （`restore_state`，计划随会话保留——回滚只动消息视图）→ 广播 `ConversationRewound`。
+    /// W 批：回滚工作区文件到目标请求边界（运行中拒绝——与 [`Self::rewind_session`] 同守卫）。
+    ///
+    /// 只恢复 Agent 文件工具记录过的文件（`workspace_file_ops`；撤销 `>= request_seq`
+    /// 的变更，回滚后进先出）；逐条失败进明细报告（不静默）。
+    pub async fn rewind_workspace(
+        &self,
+        session_id: &str,
+        request_seq: i64,
+    ) -> Result<crate::workspace_rewind::WorkspaceRewindReport, CommandError> {
+        let store = match &self.session_store {
+            Some(s) => s.clone(),
+            None => {
+                return Err(CommandError::Internal(
+                    "未配置会话持久化存储，无法回滚工作区文件".into(),
+                ))
+            }
+        };
+        let agent = self.get_agent(session_id).await?;
+        rewind_guard(agent.is_streaming())?;
+        let workdir = agent.workdir().ok_or_else(|| {
+            CommandError::Internal("该会话未绑定工作区（workdir），无法回滚文件".into())
+        })?;
+        let Some(root) = &self.memory_root else {
+            return Err(CommandError::Internal(
+                "未配置记忆根（外置存储不可用），无法回滚工作区文件".into(),
+            ));
+        };
+        let raw = agent_memory::raw_store::RawStore::open(root)
+            .map_err(|e| CommandError::Internal(format!("打开外置存储失败: {e}")))?;
+        crate::workspace_rewind::rewind_workspace(
+            store.as_ref(),
+            &raw,
+            &workdir,
+            session_id,
+            request_seq,
+        )
+        .await
+    }
+
+    /// W 批：某会话最近的工作区文件操作（降序；面板徽标 / 明细查看）
+    pub async fn list_workspace_ops(
+        &self,
+        session_id: &str,
+        limit: i64,
+    ) -> Result<Vec<crate::workspace_rewind::WorkspaceFileOp>, CommandError> {
+        let Some(store) = self.session_store.as_ref() else {
+            return Ok(Vec::new());
+        };
+        crate::workspace_rewind::list_workspace_ops(store.as_ref(), session_id, limit).await
+    }
+
     pub async fn rewind_session(&self, session_id: &str, request_seq: i64) -> Result<(), CommandError> {
         let store = match &self.session_store {
             Some(s) => s.clone(),

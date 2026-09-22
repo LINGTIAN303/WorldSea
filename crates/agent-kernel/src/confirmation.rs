@@ -528,6 +528,7 @@ mod tests {
             sandbox: None,
             tool_stream: None,
             is_sub_agent: false,
+            file_op_recorder: None,
         }
     }
 

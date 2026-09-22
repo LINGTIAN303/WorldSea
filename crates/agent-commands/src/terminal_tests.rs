@@ -10,6 +10,7 @@
             sandbox: None,
             tool_stream: None,
             is_sub_agent: false,
+            file_op_recorder: None,
         }
     }
 
@@ -80,6 +81,7 @@
             sandbox: None,
             tool_stream: None,
             is_sub_agent: false,
+            file_op_recorder: None,
         };
         let manager = ShellSessionManager::new();
         let created = ShellSessionCreateTool::new(manager.clone())
@@ -116,6 +118,7 @@
             sandbox: None,
             tool_stream: None,
             is_sub_agent: false,
+            file_op_recorder: None,
         };
         // 用 pwd（unix）/cd（windows）验证默认落在 workdir 内
         let cmd = if cfg!(target_os = "windows") {
@@ -142,6 +145,7 @@
             sandbox: None,
             tool_stream: None,
             is_sub_agent: false,
+            file_op_recorder: None,
         };
         let outside = dir.path().parent().unwrap().to_string_lossy().to_string();
         let tool = ExecuteCommandTool;

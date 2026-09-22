@@ -494,6 +494,8 @@ impl AgentLoop {
             // Q1（2026-09-20）：子代理标记随 ctx 传播——「仅主会话可用」的工具
             // （ask_user_question）据此 fail loud（ASK_UNAVAILABLE）
             is_sub_agent: self.is_sub_agent,
+            // W 批：文件操作记录器随 ctx 传播（写入类工具落盘前留存 before-image）
+            file_op_recorder: self.file_op_recorder.clone(),
         }
     }
 

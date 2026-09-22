@@ -1,0 +1,24 @@
+   Compiling agent-commands v0.1.0 (D:\WorldSea\crates\agent-commands)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 17.81s
+     Running unittests src\lib.rs (target\debug\deps\agent_commands-29606f13eab61d7a.exe)
+
+running 1 test
+test workspace_rewind::tests::write_file_tool_records_before_via_recorder_and_rewinds ... FAILED
+
+failures:
+
+---- workspace_rewind::tests::write_file_tool_records_before_via_recorder_and_rewinds stdout ----
+
+thread 'workspace_rewind::tests::write_file_tool_records_before_via_recorder_and_rewinds' (32744) panicked at src\workspace_rewind_tests.rs:225:5:
+assertion `left == right` failed: 真实工具执行应经记录器落一条 op
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    workspace_rewind::tests::write_file_tool_records_before_via_recorder_and_rewinds
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 276 filtered out; finished in 0.04s
+
+error: test failed, to rerun pass `--lib`

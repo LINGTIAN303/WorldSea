@@ -24,6 +24,11 @@
           <div class="ws-confirm__text">
             <h3 :id="titleId" class="ws-confirm__title">{{ state.title }}</h3>
             <p v-if="state.description" :id="descId" class="ws-confirm__desc">{{ state.description }}</p>
+            <!-- 可选复选框（如「同时回滚文件」，W 批）：结果经 useConfirm.confirmWithCheckbox 读回 -->
+            <label v-if="state.checkboxLabel" class="ws-confirm__check">
+              <input type="checkbox" v-model="state.checkboxChecked" />
+              <span>{{ state.checkboxLabel }}</span>
+            </label>
           </div>
           <div class="ws-confirm__actions">
             <TuiButton variant="ghost" size="sm" @click="doCancel">{{ state.cancelText }}</TuiButton>
@@ -213,6 +218,26 @@ watch(() => state.value.show, (v) => {
   margin: 0 0 20px;
   line-height: var(--lh-md);
   white-space: pre-line;
+}
+
+/* 可选复选框（如「同时回滚文件」）：左对齐置于描述与按钮之间 */
+.ws-confirm__check {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  margin: -8px 0 16px;
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-align: left;
+}
+.ws-confirm__check input {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.ws-confirm--docked .ws-confirm__check {
+  margin: 4px 0 0;
 }
 
 .ws-confirm__actions {

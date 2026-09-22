@@ -8,6 +8,7 @@
 //! 配合 [`crate::tool::Tool::execute_with_ctx`] 默认方法，让工具（尤其是
 //! FS 类工具）能基于 `workdir` 解析相对路径，而旧工具零改动（默认回落）。
 
+use async_trait::async_trait;
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 
@@ -26,6 +27,24 @@ pub trait ToolStreamSink: Send + Sync {
         kind: String,
         hunks: serde_json::Value,
     );
+}
+
+/// 文件操作记录器（W 批 · 工作区回滚）
+///
+/// 由装配层**按会话**构造并注入（AgentLoop 持有，经 [`ToolContext`] 传给工具）。
+/// 写入类工具在**落盘前**调用 [`Self::record_before`] 留存 before-image——
+/// `rewind_workspace` 据此把文件恢复到某请求边界的状态。
+///
+/// # 契约（实现方必须遵守）
+/// 1. **不得阻断写入**：任何失败（存储不可用 / 快照超限 / 表写入失败）由实现方自行
+///    降级（warn），**不得向上传播错误**——本记录器是增强，写入才是主操作。
+/// 2. `before = None` 表示目标文件当时不存在（新建语义）→ 回滚时应删除该文件。
+#[async_trait]
+pub trait FileOpRecorder: Send + Sync {
+    /// 记录一次「写入前」的文件状态（before-image；内容寻址与边界归属由实现方负责）
+    ///
+    /// `op` = 操作类别（`write` / `edit` / `edit_diff`，供审计展示）。
+    async fn record_before(&self, path: &str, before: Option<&str>, op: &str);
 }
 
 /// 工具上下文 — 每次工具执行时注入的会话级信息
@@ -61,6 +80,8 @@ pub struct ToolContext {
     /// （`ASK_UNAVAILABLE`）——子代理无独立会话实例、无人类应答者，提问会永久阻塞
     /// （对齐 dsh `DELEGATED_CALLER` 口径）。
     pub is_sub_agent: bool,
+    /// 文件操作记录器（W 批：工作区回滚；`None`=未启用——写入行为与改造前逐字一致）
+    pub file_op_recorder: Option<Arc<dyn FileOpRecorder>>,
 }
 
 impl std::fmt::Debug for ToolContext {
@@ -146,6 +167,7 @@ mod tests {
             sandbox: None,
             tool_stream: None,
             is_sub_agent: false,
+            file_op_recorder: None,
         };
         let resolved = ctx.resolve_path("src/a.md");
         assert_eq!(resolved, PathBuf::from("/workspace/src/a.md"));
@@ -160,6 +182,7 @@ mod tests {
             sandbox: None,
             tool_stream: None,
             is_sub_agent: false,
+            file_op_recorder: None,
         };
         let resolved = ctx.resolve_path("/etc/passwd");
         assert_eq!(resolved, PathBuf::from("/etc/passwd"));
@@ -181,6 +204,7 @@ mod tests {
             sandbox: None,
             tool_stream: None,
             is_sub_agent: false,
+            file_op_recorder: None,
         };
         assert!(ctx.is_within_workdir("src/a.md"));
         assert!(ctx.is_within_workdir("/workspace/src/a.md"));
@@ -195,6 +219,7 @@ mod tests {
             sandbox: None,
             tool_stream: None,
             is_sub_agent: false,
+            file_op_recorder: None,
         };
         assert!(!ctx.is_within_workdir("/etc/passwd"));
         assert!(!ctx.is_within_workdir("../outside.md"));

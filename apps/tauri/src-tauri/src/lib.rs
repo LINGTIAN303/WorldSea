@@ -117,6 +117,8 @@ pub fn run() {
             commands::create_checkpoint,
             commands::list_checkpoints,
             commands::list_request_boundaries,
+            commands::rewind_workspace,
+            commands::list_workspace_ops,
             commands::grant_session_permission,
             commands::reload_project_rules,
             commands::list_scenarios,

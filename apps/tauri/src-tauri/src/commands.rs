@@ -1676,6 +1676,34 @@ pub async fn list_request_boundaries(
         .map_err(|e| e.to_string())
 }
 
+/// W 批：回滚工作区文件到目标请求边界（运行中拒绝；失败明细随报告返回——不静默）
+///
+/// 撤销该边界（含）之后 Agent 文件工具记录过的变更：写回 before-image / 删除新建文件。
+#[tauri::command]
+pub async fn rewind_workspace(
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+    request_seq: i64,
+) -> Result<agent_commands::WorkspaceRewindReport, String> {
+    state
+        .rewind_workspace(&session_id, request_seq)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// W 批：某会话最近的工作区文件操作（降序；面板徽标 / 明细）
+#[tauri::command]
+pub async fn list_workspace_ops(
+    state: State<'_, AgentCommandService>,
+    session_id: String,
+    limit: Option<i64>,
+) -> Result<Vec<agent_commands::WorkspaceFileOp>, String> {
+    state
+        .list_workspace_ops(&session_id, limit.unwrap_or(0))
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// S4-c：重载会话项目规则（`{workdir}/.worldsea/permissions.json`）——编辑规则文件后调用生效
 ///
 /// 返回是否加载到规则（false = 未声明 / 坏 JSON / 无工作区）。

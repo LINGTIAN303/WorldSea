@@ -8,10 +8,21 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const invokeMock = vi.fn()
 const listenMock = vi.fn()
+const confirmWithCheckboxMock = vi.fn()
 
 vi.mock('@/agent/composables/transport', () => ({
   invoke: (...args: unknown[]) => invokeMock(...args),
   listen: (...args: unknown[]) => listenMock(...args),
+}))
+
+vi.mock('@worldsea/ui-kit', () => ({
+  useConfirm: () => ({ confirmWithCheckbox: confirmWithCheckboxMock }),
+}))
+
+// ui-kit 被整体 mock 后 useToast 的 re-export 随之失效 → 单独桩（toast 非本测断言对象）
+vi.mock('@/composables/useToast', () => ({
+  toastError: vi.fn(),
+  toastWarn: vi.fn(),
 }))
 
 import {
@@ -19,8 +30,10 @@ import {
   USER_TEXT_PREVIEW_CHARS,
   loadBoundaries,
   loadCheckpoints,
+  loadWorkspaceOps,
   forkAt,
   rewindAt,
+  rewindAtConfirmed,
   createCheckpoint,
   setupBranchListener,
   teardownBranchListener,
@@ -44,6 +57,56 @@ function boundary(over: Partial<RequestBoundaryDto> = {}): RequestBoundaryDto {
 beforeEach(() => {
   invokeMock.mockReset()
   listenMock.mockReset()
+  confirmWithCheckboxMock.mockReset()
+})
+
+describe('rewindAtConfirmed（W 批：会话 + 文件回滚编排）', () => {
+  it('勾选文件 → 先 rewind_workspace 再 rewind_session（顺序断言）', async () => {
+    confirmWithCheckboxMock.mockResolvedValue({ ok: true, checked: true })
+    invokeMock.mockResolvedValue({ restored: 2, removed: 1, failed: [] })
+    const ok = await rewindAtConfirmed('s1', 3)
+    expect(ok).toBe(true)
+    const calls = invokeMock.mock.calls.map((c) => c[0])
+    expect(calls).toContain('rewind_workspace')
+    expect(calls).toContain('rewind_session')
+    // 文件必须先于会话回退（保持「先文件后视图」一致性）
+    expect(calls.indexOf('rewind_workspace')).toBeLessThan(calls.indexOf('rewind_session'))
+    expect(invokeMock).toHaveBeenCalledWith('rewind_workspace', { sessionId: 's1', requestSeq: 3 })
+  })
+
+  it('未勾选 → 只回退会话（不触碰文件）', async () => {
+    confirmWithCheckboxMock.mockResolvedValue({ ok: true, checked: false })
+    invokeMock.mockResolvedValue(undefined)
+    await rewindAtConfirmed('s1', 3)
+    const calls = invokeMock.mock.calls.map((c) => c[0])
+    expect(calls).toContain('rewind_session')
+    expect(calls).not.toContain('rewind_workspace')
+  })
+
+  it('取消 → 不调用任何命令', async () => {
+    confirmWithCheckboxMock.mockResolvedValue({ ok: false, checked: true })
+    const ok = await rewindAtConfirmed('s1', 3)
+    expect(ok).toBe(false)
+    expect(invokeMock).not.toHaveBeenCalled()
+  })
+
+  it('文件逐条失败（报告 failed）→ 会话回滚不阻断', async () => {
+    confirmWithCheckboxMock.mockResolvedValue({ ok: true, checked: true })
+    invokeMock.mockImplementation(async (cmd: string) =>
+      cmd === 'rewind_workspace'
+        ? { restored: 0, removed: 0, failed: [{ path: 'C:/x.md', reason: '快照缺失' }] }
+        : undefined,
+    )
+    const ok = await rewindAtConfirmed('s1', 3)
+    expect(ok).toBe(true)
+    expect(invokeMock.mock.calls.map((c) => c[0])).toContain('rewind_session')
+  })
+
+  it('loadWorkspaceOps 命令名与容忍非数组', async () => {
+    invokeMock.mockResolvedValueOnce(null)
+    expect(await loadWorkspaceOps('s1')).toEqual([])
+    expect(invokeMock).toHaveBeenCalledWith('list_workspace_ops', { sessionId: 's1', limit: 500 })
+  })
 })
 
 describe('matchBoundaryForTurn', () => {

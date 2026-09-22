@@ -34,6 +34,17 @@ interface ConfirmOptions {
    * （原样保留 boolean 模式给既有调用方——第三键在 boolean 模式下与取消同为 false）。
    */
   withChoice?: boolean
+  /**
+   * 可选复选框（如「同时回滚文件」）：结果经 [`ConfirmWithCheckboxResult`] 返回
+   * （`confirm()` 本身不返回复选框态——请用 `confirmWithCheckbox`）。
+   */
+  checkbox?: { label: string; defaultChecked?: boolean }
+}
+
+/** `confirmWithCheckbox` 结果：`ok` = 主键（含附加动作）；`checked` = 复选框最终态 */
+export interface ConfirmWithCheckboxResult {
+  ok: boolean
+  checked: boolean
 }
 
 interface ConfirmState {
@@ -48,6 +59,10 @@ interface ConfirmState {
   extraActions: ConfirmExtraAction[]
   /** withChoice 模式标记（决定 resolve 的取值形态） */
   withChoice: boolean
+  /** 可选复选框标签（空 = 不渲染；见 `ConfirmOptions.checkbox`） */
+  checkboxLabel: string
+  /** 复选框勾选态（`confirmWithCheckbox` 读回；弹窗内双向绑定） */
+  checkboxChecked: boolean
   resolve: ((value: boolean | ConfirmChoice) => void) | null
 }
 
@@ -62,6 +77,8 @@ const state = ref<ConfirmState>({
   position: 'center',
   extraActions: [],
   withChoice: false,
+  checkboxLabel: '',
+  checkboxChecked: false,
   resolve: null,
 })
 
@@ -89,9 +106,22 @@ export function useConfirm() {
         position: options.position || 'center',
         extraActions: options.extraActions || [],
         withChoice: options.withChoice === true,
+        checkboxLabel: options.checkbox?.label || '',
+        checkboxChecked: options.checkbox?.defaultChecked ?? true,
         resolve,
       }
     })
+  }
+
+  /**
+   * 带复选框的确认（`ConfirmOptions.checkbox` 的结果出口）。
+   *
+   * 返回 `{ ok, checked }`——`ok` = 主键 / 附加动作（取消与第三键均为 false）；
+   * `checked` = 复选框最终态。**不与 `withChoice` 并用**（三键语义下请直接读 `state`）。
+   */
+  async function confirmWithCheckbox(options: ConfirmOptions): Promise<ConfirmWithCheckboxResult> {
+    const ok = await confirm(options)
+    return { ok: ok === true, checked: state.value.checkboxChecked }
   }
 
   /** 统一三键收口：withChoice 模式返回三值，否则折叠为 boolean（既有调用方契约不变） */
@@ -116,5 +146,5 @@ export function useConfirm() {
     resolveWith('skipped')
   }
 
-  return { state, confirm, doConfirm, doCancel, doNeutral }
+  return { state, confirm, confirmWithCheckbox, doConfirm, doCancel, doNeutral }
 }
