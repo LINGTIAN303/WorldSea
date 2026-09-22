@@ -57,6 +57,7 @@
           @tool-confirm="(e) => emit('tool-confirm', e)"
           @segment-expand="(tid) => emit('segment-expand', tid)"
           @expand="(tid) => emit('expand', tid)"
+          @view-artifact="(h) => emit('view-artifact', h)"
         />
       </div>
       <!-- ③ LLM 结果层（唯一带操作栏，由 AssistantRow 的 isResult 驱动）
@@ -87,6 +88,7 @@
         @manuscript-local-action="(e) => emit('manuscript-local-action', e)"
         @tool-confirm="(e) => emit('tool-confirm', e)"
         @expand="() => emit('segment-expand', group.id)"
+        @view-artifact="(h) => emit('view-artifact', h)"
       />
     </div>
   </div>
@@ -190,6 +192,8 @@ const emit = defineEmits<{
   (e: 'retry', msg: AgentMessage): void
   /** UX-a：用户行的分叉 / 回滚入口（上层做边界匹配与执行） */
   (e: 'branch', payload: { action: 'fork' | 'rewind'; msg: AgentMessage }): void
+  /** UX-c：查看外置原文（工具行上抛，壳侧分片取回） */
+  (e: 'view-artifact', hash: string): void
   (e: 'tool-confirm', event: { toolId: string; approved: boolean }): void
   /** 用户展开了某轮次的某个行段 → 置 userEverExpanded latch（折叠三条件分派用） */
   (e: 'segment-expand', turnId: string): void

@@ -116,6 +116,8 @@
 
     <!-- UX-a 历史与分支抽屉（显隐由 useSessionBranch.panelOpen 驱动；SessionSidebar 入口打开） -->
     <SessionBranchPanel />
+    <!-- UX-c 外置原文查看器（显隐由 useArtifactViewer.viewerHash 驱动；工具行「查看全文」打开） -->
+    <ArtifactViewer />
     <!-- P3-W4 续：SettingsDialog 业务弹窗恢复 -->
     <SettingsDialog :show="settingsOpen" @close="settingsOpen = false" />
     <ShortcutHelpModal :show="shortcutHelpOpen" @close="shortcutHelpOpen = false" />
@@ -140,6 +142,7 @@ import SemanticSearchCard from './panels/SemanticSearchCard.vue'
 import PersonaMirror from './panels/PersonaMirror.vue'
 import ExecPanel from './panels/ExecPanel.vue'
 import SessionBranchPanel from '@/agent/panels/SessionBranchPanel.vue'
+import ArtifactViewer from '@/agent/panels/ArtifactViewer.vue'
 import CreationPanel from './panels/CreationPanel.vue'
 import PreviewPanel from './panels/PreviewPanel.vue'
 import SettingsDialog from '@/ui/settings/SettingsDialog.vue'

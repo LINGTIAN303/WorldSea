@@ -40,6 +40,7 @@
           @manuscript-local-action="(e) => emit('manuscript-local-action', e)"
           @tool-confirm="(e) => emit('tool-confirm', e)"
           @expand="() => emit('segment-expand', turnId)"
+          @view-artifact="(h) => emit('view-artifact', h)"
         />
       </div>
       </div>
@@ -81,6 +82,7 @@
           @tool-confirm="emit('tool-confirm', $event)"
           @segment-expand="emit('segment-expand', $event)"
           @expand="emit('expand', $event)"
+          @view-artifact="(h) => emit('view-artifact', h)"
         />
       </div>
       </div>
@@ -127,6 +129,7 @@
           @tool-confirm="emit('tool-confirm', $event)"
           @segment-expand="emit('segment-expand', $event)"
           @expand="emit('expand', $event)"
+          @view-artifact="(h) => emit('view-artifact', h)"
         />
         <!-- 待办项产出区：description 说明 + result/output + reason -->
         <div v-if="outputText(block) || block.item.planReason" class="ws-plan-item-output">
@@ -156,6 +159,7 @@
       @tool-confirm="emit('tool-confirm', $event)"
       @expand="() => emit('segment-expand', turnId)"
       @expand-process="() => emit('expand', turnId)"
+      @view-artifact="(h) => emit('view-artifact', h)"
     />
   </template>
 </template>
@@ -194,6 +198,8 @@ const emit = defineEmits<{
   (e: 'tool-confirm', event: { toolId: string; approved: boolean }): void
   (e: 'segment-expand', turnId: string): void
   (e: 'expand', turnId: string): void
+  /** UX-c：查看外置原文（透传至壳侧分片读取） */
+  (e: 'view-artifact', hash: string): void
 }>()
 
 /** 块稳定 key（窗口化渲染 key；组合/区为合成 DOM，前缀防与行 id 冲突） */

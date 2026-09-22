@@ -43,6 +43,7 @@
         :plan-zones-collapsed="planZonesCollapsed"
         :branchable="branchableMsg"
         @branch="(e) => onBranchAction(e)"
+        @view-artifact="openArtifactViewer"
         @block-action="emit('block-action', $event)"
         @manuscript-local-action="emit('manuscript-local-action', $event)"
         @copy="emit('copy', $event)"
@@ -167,6 +168,7 @@ import { useSessionViewState, normalizeSceneId, DEFAULT_SCENE_ID } from './compo
 import { invoke } from './composables/transport'
 import { useAgentRust } from './composables/useAgentRust'
 import { useBranchMessageBridge } from './composables/useSessionBranch'
+import { openArtifactViewer } from './composables/useArtifactViewer'
 import { SCENE_SLIDER_OPTIONS } from '@/space/chat/scenes'
 import type { ExecTab } from '@/space/stores/space-store'
 import WorldSeaLogo from '@/components/brand/WorldSeaLogo.vue'

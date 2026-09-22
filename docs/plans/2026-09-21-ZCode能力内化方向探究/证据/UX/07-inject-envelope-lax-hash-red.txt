@@ -1,0 +1,46 @@
+npm warn Unknown project config "node-linker". This will stop working in the next major version of npm.
+npm warn Unknown project config "store-dir". This will stop working in the next major version of npm.
+
+[1m[46m RUN [49m[22m [36mv3.2.7 [39m[90mD:/WorldSea[39m
+
+ [31m❯[39m packages/shared-ui/src/agent/stream/rows/__tests__/artifact.spec.ts [2m([22m[2m6 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[32m 21[2mms[22m[39m
+   [32m✓[39m parseArtifactEnvelope[2m > [22m识别合法信封（hash / bytes / note / preview）[32m 3[2mms[22m[39m
+[31m   [31m×[31m parseArtifactEnvelope[2m > [22m非信封一律 null（普通 JSON / 数组 / 坏 JSON / 坐标格式不符）[39m[32m 12[2mms[22m[39m
+[31m     → expected { hash: 'abcd', bytes: 45678, …(2) } to be null[39m
+   [32m✓[39m parseArtifactEnvelope[2m > [22mbytes 非数字 → 回落 0（预览与引用仍可读）[32m 0[2mms[22m[39m
+   [32m✓[39m extractExternalizedHashes[2m > [22m提取截断标注坐标（去重保序）[32m 1[2mms[22m[39m
+   [32m✓[39m extractExternalizedHashes[2m > [22m无标注 / 坐标不合法 → 空数组（不猜）[32m 1[2mms[22m[39m
+   [32m✓[39m isValidArtifactHash[2m > [22m16 位十六进制通过；其余拒绝[32m 1[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m packages/shared-ui/src/agent/stream/rows/__tests__/artifact.spec.ts[2m > [22mparseArtifactEnvelope[2m > [22m非信封一律 null（普通 JSON / 数组 / 坏 JSON / 坐标格式不符）
+[31m[1mAssertionError[22m: expected { hash: 'abcd', bytes: 45678, …(2) } to be null[39m
+
+[32m- Expected:[39m 
+null
+
+[31m+ Received:[39m 
+{
+  "bytes": 45678,
+  "hash": "abcd",
+  "note": "结果过大（45678 字节 > 阈值 32768 字节），已落 artifact，仅保留摘要与引用；全文可按坐标取回。原文已外置：raw/ab12cd34ef567890",
+  "preview": "前 400 字符摘要…",
+}
+
+[36m [2m❯[22m packages/shared-ui/src/agent/stream/rows/__tests__/artifact.spec.ts:[2m44:71[22m[39m
+    [90m 42| [39m    [90m// 缺 raw/ 前缀 / hash 位数不对 / 非十六进制 → 全部拒绝（宁可当普通结果，不发错误坐标）[39m
+    [90m 43| [39m    expect(parseArtifactEnvelope(envelope({ artifact: HASH }))).toBeNu…
+    [90m 44| [39m    expect(parseArtifactEnvelope(envelope({ artifact: 'raw/abcd' }))).…
+    [90m   | [39m                                                                      [31m^[39m
+    [90m 45| [39m    expect(parseArtifactEnvelope(envelope({ artifact: 'raw/ZZZZZZZZZZZ…
+    [90m 46| [39m  })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m5 passed[39m[22m[90m (6)[39m
+[2m   Start at [22m 23:01:27
+[2m   Duration [22m 4.81s[2m (transform 79ms, setup 0ms, collect 100ms, tests 21ms, environment 3.06s, prepare 379ms)[22m
+

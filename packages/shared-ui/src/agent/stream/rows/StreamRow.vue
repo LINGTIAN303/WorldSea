@@ -48,6 +48,7 @@
     @block-action="(e) => emit('block-action', e)"
     @tool-confirm="(e) => emit('tool-confirm', e)"
     @expand="emit('expand')"
+    @view-artifact="(h) => emit('view-artifact', h)"
   />
   <ProcessSummaryRow
     v-else-if="item.type === 'process_summary'"
@@ -96,5 +97,7 @@ const emit = defineEmits<{
   (e: 'expand'): void
   /** 用户点击过程层折叠摘要行 → 解除该轮次的过程层折叠 */
   (e: 'expandProcess'): void
+  /** UX-c：查看外置原文（ToolRow 上抛，壳侧分片取回） */
+  (e: 'view-artifact', hash: string): void
 }>()
 </script>

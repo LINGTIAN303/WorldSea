@@ -75,7 +75,24 @@
           </div>
           <div v-if="item.tc.result" class="ws-stream-tool-detail-sec">
             <div class="ws-stream-tool-detail-label">结果</div>
-            <pre class="ws-stream-tool-detail-code ws-stream-tool-detail-result"><code v-html="resultHtml"></code></pre>
+            <!-- UX-c：超阈值结果被外置（T-d artifact 信封）→ 摘要卡替代原始 JSON -->
+            <ArtifactCard
+              v-if="artifact"
+              :hash="artifact.hash"
+              :bytes="artifact.bytes"
+              :note="artifact.note"
+              :preview="artifact.preview"
+              @view="(h) => emit('view-artifact', h)"
+            />
+            <pre v-else class="ws-stream-tool-detail-code ws-stream-tool-detail-result"><code v-html="resultHtml"></code></pre>
+            <!-- UX-c：截断标注中的增量外置坐标（原文已外置：raw/<hash>）→ 单行引用 chip -->
+            <ArtifactCard
+              v-for="h in artifact ? [] : externalizedHashes"
+              :key="h"
+              :hash="h"
+              compact
+              @view="(h2) => emit('view-artifact', h2)"
+            />
           </div>
         </div>
       </div>
@@ -118,6 +135,8 @@ import {
 } from '@tabler/icons-vue'
 import { WsIcon } from '@worldsea/ui-kit'
 import InteractiveToolCall from '../../blocks/InteractiveToolCall.vue'
+import ArtifactCard from './ArtifactCard.vue'
+import { extractExternalizedHashes, parseArtifactEnvelope } from './artifact'
 import { getToolLabel } from '../../bubbles/toolLabels'
 import { highlightCode } from '../../bubbles/codeHighlight'
 import { classifyActionRowKind, TOOL_STREAM_LIMIT } from '@worldsea/shared-composables/agent/turnModel'
@@ -158,6 +177,8 @@ const emit = defineEmits<{
   (e: 'leave'): void
   /** 用户展开详情：置该轮次的 userEverExpanded latch（折叠三条件分派用） */
   (e: 'expand'): void
+  /** UX-c：查看外置原文（内容坐标；壳侧经 memory_read_raw 分片取回） */
+  (e: 'view-artifact', hash: string): void
 }>()
 
 // ===== 交互类型：choice/confirm/display 走 InteractiveToolCall =====
@@ -319,6 +340,14 @@ const argsPreview = computed(() => {
   }
   return keys.slice(0, 3).map(k => `${k}=${JSON.stringify(args[k])}`).join(', ')
 })
+
+// ===== UX-c：大结果外置（artifact 信封 / 截断标注） =====
+
+/** 超阈值结果被替换为 artifact 信封（T-d）→ 摘要卡 */
+const artifact = computed(() => parseArtifactEnvelope(props.item.tc.result))
+
+/** 截断标注中的增量外置坐标（A1 己1①；原文已外置：raw/<hash>） */
+const externalizedHashes = computed(() => extractExternalizedHashes(props.item.tc.result))
 
 // ===== 2026-09-02 系统工具流式：增量输出（stream）+ 文件变更（fileChange） =====
 

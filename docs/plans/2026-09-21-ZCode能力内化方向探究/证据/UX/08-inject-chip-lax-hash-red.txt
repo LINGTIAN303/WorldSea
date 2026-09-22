@@ -1,0 +1,43 @@
+npm warn Unknown project config "node-linker". This will stop working in the next major version of npm.
+npm warn Unknown project config "store-dir". This will stop working in the next major version of npm.
+
+[1m[46m RUN [49m[22m [36mv3.2.7 [39m[90mD:/WorldSea[39m
+
+ [31m❯[39m packages/shared-ui/src/agent/stream/rows/__tests__/artifact.spec.ts [2m([22m[2m6 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[32m 24[2mms[22m[39m
+   [32m✓[39m parseArtifactEnvelope[2m > [22m识别合法信封（hash / bytes / note / preview）[32m 3[2mms[22m[39m
+   [32m✓[39m parseArtifactEnvelope[2m > [22m非信封一律 null（普通 JSON / 数组 / 坏 JSON / 坐标格式不符）[32m 1[2mms[22m[39m
+   [32m✓[39m parseArtifactEnvelope[2m > [22mbytes 非数字 → 回落 0（预览与引用仍可读）[32m 0[2mms[22m[39m
+   [32m✓[39m extractExternalizedHashes[2m > [22m提取截断标注坐标（去重保序）[32m 1[2mms[22m[39m
+[31m   [31m×[31m extractExternalizedHashes[2m > [22m无标注 / 坐标不合法 → 空数组（不猜）[39m[32m 15[2mms[22m[39m
+[31m     → expected [ 'abcd1234' ] to deeply equal [][39m
+   [32m✓[39m isValidArtifactHash[2m > [22m16 位十六进制通过；其余拒绝[32m 1[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m packages/shared-ui/src/agent/stream/rows/__tests__/artifact.spec.ts[2m > [22mextractExternalizedHashes[2m > [22m无标注 / 坐标不合法 → 空数组（不猜）
+[31m[1mAssertionError[22m: expected [ 'abcd1234' ] to deeply equal [][39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- [][39m
+[31m+ [[39m
+[31m+   "abcd1234",[39m
+[31m+ ][39m
+
+[36m [2m❯[22m packages/shared-ui/src/agent/stream/rows/__tests__/artifact.spec.ts:[2m67:61[22m[39m
+    [90m 65| [39m    [34mexpect[39m([34mextractExternalizedHashes[39m([32m'原文已外置：raw/短hash'[39m))[33m.[39m[34mtoEqual[39m([])
+    [90m 66| [39m    [90m// 位数不足的十六进制串同样拒绝（防止把截断/异形的坐标当有效引用）[39m
+    [90m 67| [39m    [34mexpect[39m([34mextractExternalizedHashes[39m([32m'原文已外置：raw/abcd1234'[39m))[33m.[39m[34mtoEqual[39m([])
+    [90m   | [39m                                                            [31m^[39m
+    [90m 68| [39m    expect(extractExternalizedHashes(`原文已外置：raw/${HASH}0`)).toEqual([H…
+    [90m 69| [39m  })
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m5 passed[39m[22m[90m (6)[39m
+[2m   Start at [22m 23:02:40
+[2m   Duration [22m 4.73s[2m (transform 74ms, setup 0ms, collect 93ms, tests 24ms, environment 3.01s, prepare 384ms)[22m
+
