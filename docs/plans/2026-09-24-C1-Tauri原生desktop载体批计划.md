@@ -78,10 +78,17 @@
 - **顺带落地**：`__DSH_TRANSPORT__` 与宿主注入的**顺序契约**（壳脚本落 `<head>` 之后、早于宿主 head 行与全部模块脚本；只合并不覆盖）；`/__diag` 页内诊断通道（`WORLDSEA_SHELL_DIAG=1` 时注入 console 钩子）。
 - **遗留（转 C1-b）**：路径白名单（现在全量转发）、HEAD/206 语义细化、失败降级页、中转只认 `/<secret>/api/remote.mux`（已有）之外的收口；`WORLDSEA_LEGACY_DIRECT=1` 直连回退口保留（R2 缓解）。
 
-### C1-b · 协议伺服转正
+### C1-b · 协议伺服转正——**已完成（2026-09-24）**
 - **任务**：路径白名单 / MIME / 越界 403 / 越权 405 / HEAD 语义 / 失败降级；index 插桩与宿主注入的**共存顺序**写成契约并测试。
-- **验收**：界面完整、RPC+WS 正常、刷新/二次导航稳定；`dsh web: <url>` 的 token **不再出现在 WebView 可见 URL**。
-- **反证**：协议处理器对某资源返回 404 → 页面必须给出可辨认错误（非白屏）。
+- **落点**：拆出 `dsh_proxy.rs`（转发核心）+ 注入脚本外置 `dsh_diag.js` / `dsh_watchdog.js`；桥状态与装配留在 `dsh_bridge.rs`（各文件均 ≤400 行）。
+- **闸门（壳侧先判，宿主仍按其语义再判一次）**：方法白名单 `GET/HEAD/POST`（否则 405 + `allow`）· 越界段 `.`/`..` → 403 · 路径白名单（否则 404 + 落档；逃生口 `WORLDSEA_BRIDGE_OPEN=1`）。白名单**枚举自 dsh 源码**（`webServer.register` / `connection.fetch.register` 的全部调用点 + dist 根文件），并由 `allowlist_covers_enumerated_host_routes` 用例锁住清单。
+- **MIME / 缓存**：MIME 由宿主负责、壳透传 `content-type`；index 与 `/plugins/*` 强制 `no-store`，其余透传宿主 `cache-control`。
+- **HEAD 语义**：沿用宿主声明的 `content-length`、响应无体。
+- **顺序契约（成文 + 测试锁定）**：`<head>` → **壳脚本**（transport + 安全网 [+ 诊断]）→ 宿主 `<base href="./">` → 宿主 head 行（`__DSH_BOOT__` 等）→ 宿主尾行（`__DSH_BOOT_READY__`）；壳脚本只合并不覆盖。`index_injected_with_contract_order_and_no_store` 用真实形态样本锁顺序。
+- **失败降级**：入口失败（桥未就绪 / 转发失败 / 读取失败）→ index 给 **HTML 错误页**、子资源给极简文本；**常驻「不白屏」安全网**（`dsh_watchdog.js`）：入口脚本失败或 25 s 内 `#root` 仍空 → 就地出示壳错误页（列出失败资源 + 重试按钮）。
+- **验收（全绿）**：界面完整 · 38×`/api` 200 · WS 全程承载（重载前 `上行 880B / 下行 237.7KB / 持续 7.9s`，重载后自动重连）· 二次导航（`WORLDSEA_RELOAD_AFTER`）后页面与 WS 均恢复 · `page(diag): info: location=http://worldsea.localhost/ transport=set`（**token 不在 WebView URL**）· 全程 2xx、零页面错误。
+- **反证**：`WORLDSEA_DENY_PATH=/assets/index-` → 主包 404 → 窗口出示**壳错误页**（非白屏，截图留档）；单测层 4 类变异（摘越界闸门 / 摘方法闸门 / 改注入位置 / 放行 origin+cookie 透传）各自报红、复原复绿。
+- **本轮发现并修复的两个真实缺口**：① `/open-in-app/apps`（宿主注册路由）被初版白名单误杀 → 改为按源码枚举；② HMR 的 `/plugins/events` 是 **SSE 长连**，而壳协议应答是缓冲体（Tauri `UriSchemeResponder` 无流式通道）→ 显式 502 降级 + overlay 关闭 `client-hmr`（HMR 在打包形态的壳内无意义；将来若要需一条可流式传输 = C2 候选）。
 
 ### C1-c · 壳件与桥（最小集）
 - **任务**：菜单（文件/编辑/视图 + 打开设置）；通知接上；`initialization_script` 注入按需项（`dshPlatform` 等；`__DSH_HOST_PATHS__` 与 `dshDesktop` 按 B2 结论不做并登记）。

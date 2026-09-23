@@ -47,6 +47,8 @@ mod plan_commands;
 mod dsh_shell;
 // C1-a（2026-09-24）：`worldsea` 协议层代理宿主（UI origin 与传输面分离）+ 303 cookie 交换
 mod dsh_bridge;
+// C1-b（2026-09-24）：协议转发核心（路径/方法闸门、缓存策略、index 插桩、失败降级）
+mod dsh_proxy;
 // C1-a（2026-09-24）：mux WebSocket 凭据中转（改写握手首部后双向透传）
 mod dsh_relay;
 

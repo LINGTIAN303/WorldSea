@@ -1,7 +1,7 @@
 // dsh_relay 的测试（拆出源码文件以满足 arch:check 的 400 行上限；路径含 tests 走 1200 行档）。
 // 经 `#[path] mod tests` 挂在 dsh_relay 内，故可直接触达其私有项。
 
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::{BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
 
 use super::*;
