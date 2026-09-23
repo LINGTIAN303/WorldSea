@@ -68,6 +68,7 @@ DSH_HOME="D:/WorldSea/.独立项/b0-home" node apps/cli/lib/bin.js web --no-open
 | `WORLDSEA_DENY_PATH=<前缀>` | 测试钩子：该前缀一律 404（验「资源失败 → 非白屏」降级链） |
 | `WORLDSEA_BRIDGE_OPEN=1` | 逃生口：关闭路径白名单（白名单误伤时先放行排查） |
 | `WORLDSEA_RELOAD_AFTER=<秒>` | 核查用：页面就绪后再等 <秒> 做一次 `window.reload`（刷新/二次导航稳定性） |
+| `WORLDSEA_EVAL_AFTER_READY=<js>` | 诊断用：页面就绪后注入执行一次指定 JS（结果经壳桥 `__WORLDSEA_SHELL__.report(...)` 落壳日志）。用于**免 UI 自动化取证**——如本次用它判定「外部打开」按钮的 `disabled` 状态与点击链（脚本化点击可绕过命中测试，故与真人点击可能有差异，详见下方「核查」） |
 | `WORLDSEA_DSH_ROOT` / `WORLDSEA_DSH_HOME` / `WORLDSEA_NODE` | 指定 dsh 树 / home / node（默认自动探测与应用数据目录隔离 home） |
 
 > Git Bash 传这些值时注意 MSYS **路径转换**：`WORLDSEA_DENY_PATH=/assets/index-` 会被改写成 `E:/GIT/Git/assets/index-`——需前缀 `MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*'`。
@@ -91,3 +92,4 @@ DSH_HOME="D:/WorldSea/.独立项/b0-home" node apps/cli/lib/bin.js web --no-open
 - `taskkill //IM worldsea-tauri-app.exe //T //F` 清干净再起；被强杀的实例会留**孤儿 dsh host**（node 不在 Job Object 里），用 `tasklist | grep -i node` 复核。**本机 `wmic` 已失效（恒返回空）**——进程核查改用 `tasklist` / `powershell Get-CimInstance`。
 - 应用日志建议直写（`… > 日志 2>&1`）；本机 `tee` 有块缓冲，短窗口内读会拿到**过期内容**（曾据此误判「页面未加载」）。
 - Windows 坑（已修，代码注释留档）：`accept()` 出来的套接字**继承 listener 的非阻塞态**（Unix 不继承），中转若忘了 `set_nonblocking(false)`，握手 101 后会 0 字节即断（`WSAEWOULDBLOCK 10035`）。
+- 涉及「点击后看效果」的核查：**本机 computer-use 的合成按键/UIA 动作被分类器拦下**（要求用户逐次确认）→ 自证走 `WORLDSEA_EVAL_AFTER_READY` 页面探针 + 无障碍树。注意探针里的 `element.click()` **绕过命中测试**：探针能点而真人点不动（被遮挡、命中区异常）这类差异只能由用户走查确认（2026-09-24「外部打开」按钮一次实测即为此类边界）。

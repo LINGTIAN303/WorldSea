@@ -155,13 +155,51 @@ pub fn attach(app: &tauri::AppHandle, window: Option<&WebviewWindow>, ready_url:
         return;
     }
     schedule_reload_if_requested(window);
+    schedule_eval_if_requested(window);
 }
 
-/// 测试/核查钩子：`WORLDSEA_RELOAD_AFTER=<秒>` → 等到页面真正落到壳协议页后，再等 <秒> 做一次 reload
+/// 诊断钩子：`WORLDSEA_EVAL_AFTER_READY=<js>` → 页面就绪后注入执行一次（排查用；结果建议经壳桥
+/// `__WORLDSEA_SHELL__.report(...)` 落到壳日志）。与 `WORLDSEA_RELOAD_AFTER` 共用「等页面就绪」。
+fn schedule_eval_if_requested(window: Option<&WebviewWindow>) {
+    let Ok(script) = std::env::var("WORLDSEA_EVAL_AFTER_READY") else { return };
+    if script.trim().is_empty() {
+        return;
+    }
+    let Some(window) = window.cloned() else { return };
+    println!("[DSH-SHELL] WORLDSEA_EVAL_AFTER_READY：页面就绪后注入诊断脚本（{} 字节）", script.len());
+    std::thread::spawn(move || {
+        if !wait_for_app_page(&window) {
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(500));
+        if let Err(e) = window.eval(script) {
+            eprintln!("[DSH-SHELL] 诊断脚本注入失败：{e}");
+        }
+    });
+}
+
+/// 等页面真正落到壳协议页，返回是否就绪。
+/// setup 期间主线程忙、`navigate` 是排队的——任何「页面就绪后」的动作都必须先过这道闸。
+fn wait_for_app_page(window: &WebviewWindow) -> bool {
+    let deadline = std::time::Instant::now() + Duration::from_secs(180);
+    loop {
+        std::thread::sleep(Duration::from_millis(500));
+        if let Ok(url) = window.url() {
+            if url.as_str().starts_with(APP_URL) {
+                // 顺带留档页面真实 URL（验收项：token 不出现在 WebView 可见 URL）
+                println!("[DSH-SHELL] 页面就绪：{}", url.as_str());
+                return true;
+            }
+        }
+        if std::time::Instant::now() > deadline {
+            eprintln!("[DSH-SHELL] 等待页面就绪超时（未到 {APP_URL}）");
+            return false;
+        }
+    }
+}
+
+/// 测试/核查钩子：`WORLDSEA_RELOAD_AFTER=<秒>` → 页面就绪后再等 <秒> 做一次 reload
 /// （验「刷新/二次导航稳定」：index 与注入重新取、WS 重连、无残留状态）。
-///
-/// 为何要等：setup 期间主线程忙，`navigate` 是排队的；此时若按固定延时 reload，会在页面尚未加载时
-/// 打断导航 → 空白窗口（实测踩到）。故先轮询 `window.url()` 确认已到 `APP_URL`，再开始倒计时。
 fn schedule_reload_if_requested(window: Option<&WebviewWindow>) {
     let Ok(seconds) = std::env::var("WORLDSEA_RELOAD_AFTER").unwrap_or_default().parse::<u64>() else {
         return;
@@ -169,21 +207,8 @@ fn schedule_reload_if_requested(window: Option<&WebviewWindow>) {
     let Some(window) = window.cloned() else { return };
     println!("[DSH-SHELL] WORLDSEA_RELOAD_AFTER={seconds}s：等到页面就绪后再做一次二次导航（刷新稳定性核查）");
     std::thread::spawn(move || {
-        let deadline = std::time::Instant::now() + Duration::from_secs(180);
-        loop {
-            std::thread::sleep(Duration::from_millis(500));
-            match window.url() {
-                Ok(url) if url.as_str().starts_with(APP_URL) => {
-                    // 顺带留档页面真实 URL（验收项：token 不出现在 WebView 可见 URL）
-                    println!("[DSH-SHELL] 页面就绪：{}", url.as_str());
-                    break;
-                }
-                _ => {}
-            }
-            if std::time::Instant::now() > deadline {
-                eprintln!("[DSH-SHELL] 二次导航等待超时（页面未到 {APP_URL}）");
-                return;
-            }
+        if !wait_for_app_page(&window) {
+            return;
         }
         std::thread::sleep(Duration::from_secs(seconds));
         println!("[DSH-SHELL] 触发二次导航（window.reload）");
