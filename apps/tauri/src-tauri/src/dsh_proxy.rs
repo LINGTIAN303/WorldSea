@@ -10,12 +10,10 @@
 
 /// 一次转发的目标与开关（由 DshBridge 组装；测试可直接构造）。
 pub(crate) struct ProxyCfg {
-    pub host_port: u16,
-    pub cookie: String,
-    /// 注入给页面的传输基址（= WS 中转的 `http://127.0.0.1:<port>/<随机前缀>/`）
-    pub relay_base: String,
-    /// 反证开关：`WORLDSEA_NO_TRANSPORT_INJECT=1` 时不注入 streamBaseUrl
-    pub inject_transport: bool,
+    /// 上游传输面：C2 默认 IPC 管道（零 TCP）；legacy TCP 为 `WORLDSEA_TCP_HOST=1` 对照口。
+    pub upstream: Upstream,
+    /// 注入页面的传输写法（互斥三态；见 [`TransportInject`]）。
+    pub transport: TransportInject,
     /// 反证开关：`WORLDSEA_NO_SHELL_BRIDGE=1` 时不注入壳桥（`__WORLDSEA_SHELL__`；
     /// 依赖它的「打开设置」必须显式降级，见 menu.rs 的缺桥提示）
     pub inject_shell_bridge: bool,
@@ -25,6 +23,25 @@ pub(crate) struct ProxyCfg {
     pub deny_path: Option<String>,
     /// 逃生口：`WORLDSEA_BRIDGE_OPEN=1` 关闭路径白名单（白名单误伤时的退路）
     pub open_paths: bool,
+}
+
+/// 上游传输面（两种形态产出同构的「状态 / 头 / 体」）。
+pub(crate) enum Upstream {
+    /// C1 现役形态（legacy 对照口，冻结）：loopback TCP + 壳 cookie。
+    Tcp { port: u16, cookie: String, client: reqwest::blocking::Client },
+    /// C2 默认：IPC 管道（cookie 同样由壳持有；`Host` 由管道客户端合成 `127.0.0.1`）。
+    Pipe { client: std::sync::Arc<crate::dsh_pipe::PipeClient>, cookie: String },
+}
+
+use crate::dsh_inject::{inject_shell_scripts, TransportInject};
+
+/// 一次上游响应（体已在壳内缓冲——协议应答本身是缓冲体）。
+struct UpstreamAnswer {
+    status: u16,
+    headers: Vec<(String, String)>,
+    body: Vec<u8>,
+    /// `text/event-stream`（壳协议不支持流式透传，调用方显式降级）。
+    sse: bool,
 }
 
 /// 允许的方法：协议面只服务页面自用（读 + RPC 的 POST 写）。其余一律 405。
@@ -99,12 +116,8 @@ pub(crate) fn method_allowed(method: &str) -> bool {
     ALLOWED_METHODS.contains(&method)
 }
 
-/// 转发一次请求：闸门 → 目标 = 宿主 loopback + 原 path/query（补 cookie）→ index 注入 → 响应回写。
-pub(crate) fn proxy(
-    cfg: &ProxyCfg,
-    client: &reqwest::blocking::Client,
-    request: &http::Request<Vec<u8>>,
-) -> http::Response<Vec<u8>> {
+/// 转发一次请求：闸门 → 取上游（管道/TCP 同构）→ index 注入 → 响应回写。
+pub(crate) fn proxy(cfg: &ProxyCfg, request: &http::Request<Vec<u8>>) -> http::Response<Vec<u8>> {
     let path_and_query = request
         .uri()
         .path_and_query()
@@ -155,42 +168,29 @@ pub(crate) fn proxy(
         return failure_response(404, is_index, "路径不在壳白名单内", &path_only);
     }
 
-    // ── 转发 ───────────────────────────────────────────────────────────────
-    let target = format!("http://127.0.0.1:{}{}", cfg.host_port, path_and_query);
-    let http_method = reqwest::Method::from_bytes(method.as_bytes()).unwrap_or(reqwest::Method::GET);
-    let mut outbound = client
-        .request(http_method, &target)
-        .header(reqwest::header::COOKIE, &cfg.cookie)
-        // 让宿主不做响应压缩：转发体保持明文，页面侧不出现 content-encoding
-        .header(reqwest::header::ACCEPT_ENCODING, "identity");
-    for (name, value) in request.headers() {
-        let lower = name.as_str().to_ascii_lowercase();
-        if PASSABLE_REQUEST_HEADERS.contains(&lower.as_str()) {
-            if let Ok(v) = reqwest::header::HeaderValue::from_bytes(value.as_bytes()) {
-                outbound = outbound.header(lower.as_str(), v);
+    // ── 转发（透传白名单制的请求头；页面的 origin/凭据语义一律不带）────────────
+    let pass_headers: Vec<(String, String)> = request
+        .headers()
+        .iter()
+        .filter_map(|(name, value)| {
+            let lower = name.as_str().to_ascii_lowercase();
+            if !PASSABLE_REQUEST_HEADERS.contains(&lower.as_str()) {
+                return None;
             }
-        }
-    }
-    if !request.body().is_empty() {
-        outbound = outbound.body(request.body().clone());
-    }
-
-    let response = match outbound.send() {
-        Ok(response) => response,
+            value.to_str().ok().map(|text| (lower, text.to_string()))
+        })
+        .collect();
+    let answer = match fetch_upstream(cfg, &method, &path_and_query, &pass_headers, request.body()) {
+        Ok(answer) => answer,
         Err(e) => {
             eprintln!("[DSH-SHELL] bridge: {method} {path_and_query} → 502（转发失败：{e}）");
             return failure_response(502, is_index, "无法连接 Agent 内核", &format!("转发到宿主失败：{e}"));
         }
     };
-    let status = response.status().as_u16();
+    let status = answer.status;
     // 壳协议的应答是**缓冲体**（Tauri `UriSchemeResponder` 无流式通道）→ SSE 类长连响应无法透传。
     // 明确降级并落档（典型：HMR 的 `/plugins/events`；壳侧已在 `apps/tauri/dsh-overlay.yml` 关掉 client-hmr）。
-    if response
-        .headers()
-        .get(reqwest::header::CONTENT_TYPE)
-        .and_then(|value| value.to_str().ok())
-        .is_some_and(|value| value.trim_start().to_ascii_lowercase().starts_with("text/event-stream"))
-    {
+    if answer.sse {
         eprintln!(
             "[DSH-SHELL] bridge: {method} {path_and_query} → 502（流式响应 text/event-stream：壳协议不支持流式透传）"
         );
@@ -203,13 +203,13 @@ pub(crate) fn proxy(
     }
     let mut upstream_length: Option<String> = None;
     let mut builder = http::Response::builder().status(status);
-    for (name, value) in response.headers() {
-        let lower = name.as_str().to_ascii_lowercase();
+    for (name, value) in &answer.headers {
+        let lower = name.as_str();
         if lower == "content-length" {
-            upstream_length = value.to_str().ok().map(str::to_string);
+            upstream_length = Some(value.clone());
             continue;
         }
-        if WITHHELD_RESPONSE_HEADERS.contains(&lower.as_str()) {
+        if WITHHELD_RESPONSE_HEADERS.contains(&lower) {
             continue;
         }
         // 壳要改写缓存语义时，丢弃宿主自己的 cache-control（避免出现两个同名头）
@@ -217,28 +217,15 @@ pub(crate) fn proxy(
             continue;
         }
         if let Ok(header) = http::HeaderValue::from_bytes(value.as_bytes()) {
-            builder = builder.header(lower.as_str(), header);
+            builder = builder.header(lower, header);
         }
     }
 
-    let mut body = match response.bytes() {
-        Ok(bytes) => bytes.to_vec(),
-        Err(e) => {
-            eprintln!("[DSH-SHELL] bridge: {method} {path_and_query} → 502（读取响应失败：{e}）");
-            return failure_response(502, is_index, "读取内核响应失败", &e.to_string());
-        }
-    };
-    let injected = is_index && cfg.inject_transport;
-    if is_index && (cfg.inject_transport || cfg.inject_shell_bridge || cfg.diag) {
+    let mut body = answer.body;
+    let injected = is_index && cfg.transport.wants_scripts();
+    if is_index && (cfg.transport.wants_scripts() || cfg.inject_shell_bridge || cfg.diag) {
         let text = String::from_utf8_lossy(&body).to_string();
-        body = inject_shell_scripts(
-            &text,
-            &cfg.relay_base,
-            cfg.inject_transport,
-            cfg.inject_shell_bridge,
-            cfg.diag,
-        )
-        .into_bytes();
+        body = inject_shell_scripts(&text, &cfg.transport, cfg.inject_shell_bridge, cfg.diag).into_bytes();
     }
 
     if no_store {
@@ -246,6 +233,7 @@ pub(crate) fn proxy(
     }
     if method == "HEAD" {
         // HEAD 无体：沿用宿主声明的长度（页面侧据此判尺寸）
+        body.clear();
         if let Some(length) = upstream_length {
             builder = builder.header("content-length", length);
         }
@@ -265,42 +253,58 @@ pub(crate) fn proxy(
         .unwrap_or_else(|e| failure_response(500, is_index, "构造响应失败", &e.to_string()))
 }
 
-/// 注入壳脚本（**只合并不覆盖**）：依次 `__DSH_TRANSPORT__`（裁定 ④ 的传输基址单点）、
-///「不白屏」安全网、壳桥（`__WORLDSEA_SHELL__`）、诊断钩子——各自可按开关关掉。
-///
-/// **顺序契约**（C1-b 成文）：宿主渲染的 index 里，`<base href="./">` 与 `__DSH_BOOT__` 等行紧跟 `<head>`；
-/// 壳在本函数里把脚本插到**同一个位置的最前**（即 `<head>` 之后、所有宿主行与模块脚本之前），
-/// 因此：① 三个注入（transport / bridge / watchdog）都必在客户端 `apply()` 与页面脚本前就位；
-/// ② 宿主注入行原样保留、顺序不变；③ `__DSH_BOOT_READY__`（宿主尾行）壳不碰。三条都有 tests 锁定。
-pub(crate) fn inject_shell_scripts(
-    html: &str,
-    base_url: &str,
-    transport: bool,
-    bridge: bool,
-    diag: bool,
-) -> String {
-    let mut scripts = String::new();
-    if transport {
-        scripts.push_str(&format!(
-            "<script>/* worldsea-shell:transport */globalThis.__DSH_TRANSPORT__ = Object.assign({{}}, globalThis.__DSH_TRANSPORT__, {{ ownsHost: true, streamBaseUrl: \"{base_url}\" }})</script>"
-        ));
-    }
-    scripts.push_str("<script>");
-    scripts.push_str(WATCHDOG_SCRIPT);
-    scripts.push_str("</script>");
-    if bridge {
-        scripts.push_str("<script>");
-        scripts.push_str(SHELL_BRIDGE_SCRIPT);
-        scripts.push_str("</script>");
-    }
-    if diag {
-        scripts.push_str("<script>");
-        scripts.push_str(DIAG_SCRIPT);
-        scripts.push_str("</script>");
-    }
-    match find_head_end(html) {
-        Some(at) => format!("{}{}{}", &html[..at], scripts, &html[at..]),
-        None => format!("{scripts}{html}"),
+/// 取一次上游响应：管道与 TCP 两种传输面同构产出（状态 / 头 / 体 / 是否 SSE）。
+fn fetch_upstream(
+    cfg: &ProxyCfg,
+    method: &str,
+    path_and_query: &str,
+    pass_headers: &[(String, String)],
+    body: &[u8],
+) -> Result<UpstreamAnswer, String> {
+    let is_sse = |headers: &[(String, String)]| {
+        headers.iter().any(|(name, value)| {
+            name == "content-type" && value.trim_start().to_ascii_lowercase().starts_with("text/event-stream")
+        })
+    };
+    match &cfg.upstream {
+        Upstream::Tcp { port, cookie, client } => {
+            let target = format!("http://127.0.0.1:{port}{path_and_query}");
+            let http_method = reqwest::Method::from_bytes(method.as_bytes()).unwrap_or(reqwest::Method::GET);
+            let mut outbound = client
+                .request(http_method, &target)
+                .header(reqwest::header::COOKIE, cookie)
+                // 让宿主不做响应压缩：转发体保持明文，页面侧不出现 content-encoding
+                .header(reqwest::header::ACCEPT_ENCODING, "identity");
+            for (name, value) in pass_headers {
+                if let Ok(header) = reqwest::header::HeaderValue::from_bytes(value.as_bytes()) {
+                    outbound = outbound.header(name.as_str(), header);
+                }
+            }
+            if !body.is_empty() {
+                outbound = outbound.body(body.to_vec());
+            }
+            let response = outbound.send().map_err(|e| e.to_string())?;
+            let status = response.status().as_u16();
+            let headers: Vec<(String, String)> = response
+                .headers()
+                .iter()
+                .filter_map(|(name, value)| {
+                    value.to_str().ok().map(|text| (name.as_str().to_ascii_lowercase(), text.to_string()))
+                })
+                .collect();
+            let sse = is_sse(&headers);
+            let body = response.bytes().map_err(|e| format!("读取响应失败：{e}"))?.to_vec();
+            Ok(UpstreamAnswer { status, headers, body, sse })
+        }
+        Upstream::Pipe { client, cookie } => {
+            let mut headers = pass_headers.to_vec();
+            headers.push(("cookie".to_string(), cookie.clone()));
+            headers.push(("accept-encoding".to_string(), "identity".to_string()));
+            let payload = if body.is_empty() { None } else { Some(body) };
+            let response = client.request(method, path_and_query, &headers, payload)?;
+            let sse = is_sse(&response.headers);
+            Ok(UpstreamAnswer { status: response.status, headers: response.headers, body: response.body, sse })
+        }
     }
 }
 
@@ -339,26 +343,6 @@ fn with_allow_header(mut response: http::Response<Vec<u8>>) -> http::Response<Ve
 fn escape_html(s: &str) -> String {
     s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
 }
-
-/// `<head …>` 开标签结束位置（大小写不敏感）；`to_ascii_lowercase` 不改字节长度，索引可直接复用。
-fn find_head_end(html: &str) -> Option<usize> {
-    let lower = html.to_ascii_lowercase();
-    let start = lower.find("<head")?;
-    let after_name = &lower[start + 5..];
-    let is_tag = after_name.starts_with('>') || after_name.starts_with(char::is_whitespace);
-    if !is_tag {
-        return None;
-    }
-    let end = after_name.find('>')?;
-    Some(start + 5 + end + 1)
-}
-
-/// 「不白屏」安全网（常驻）：入口脚本失败或长时间无渲染时就地出示错误页。
-const WATCHDOG_SCRIPT: &str = include_str!("dsh_watchdog.js");
-/// 壳桥（常驻，可 `WORLDSEA_NO_SHELL_BRIDGE=1` 关）：`__WORLDSEA_SHELL__` 的通知/外链/设置入口/日志。
-const SHELL_BRIDGE_SCRIPT: &str = include_str!("dsh_shell_bridge.js");
-/// 页内诊断（`WORLDSEA_SHELL_DIAG=1` 才注入）：console/异常/资源错误 → 壳日志。
-const DIAG_SCRIPT: &str = include_str!("dsh_diag.js");
 
 #[cfg(test)]
 #[path = "dsh_proxy_tests.rs"]

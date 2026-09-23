@@ -4,6 +4,9 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::{Arc, Mutex};
 
+use crate::dsh_inject::TransportInject;
+use crate::dsh_pipe::test_host::{self, Reply, SeenRequest};
+
 use super::*;
 
 /// 宿主渲染后的 index 形态（含 frontend-static 的 `<base>` 与宿主的 head 行）——顺序契约的基准样本。
@@ -113,15 +116,46 @@ fn header_value(head: &str, name: &str) -> Option<String> {
 
 fn cfg(host_port: u16) -> ProxyCfg {
     ProxyCfg {
-        host_port,
-        cookie: "dsh-auth-x=v1.a.b".to_string(),
-        relay_base: "http://127.0.0.1:9/dead-secret/".to_string(),
-        inject_transport: true,
+        upstream: Upstream::Tcp {
+            port: host_port,
+            cookie: "dsh-auth-x=v1.a.b".to_string(),
+            client: client(),
+        },
+        transport: TransportInject::StreamBase("http://127.0.0.1:9/dead-secret/".to_string()),
         inject_shell_bridge: true,
         diag: false,
         deny_path: None,
         open_paths: false,
     }
+}
+
+/// 管道模式的 cfg：假管道宿主当上游（哑 TCP 对），核装配走 OpenStream 注入面。
+/// 返回（配置, 假宿主柄, 客户端）——客户端供「断链后等存活翻转」这类断言使用。
+fn pipe_cfg(
+    respond: Arc<dyn Fn(&SeenRequest) -> Reply + Send + Sync>,
+) -> (ProxyCfg, FakeHostHandles, std::sync::Arc<crate::dsh_pipe::PipeClient>) {
+    let host = test_host::spawn(respond);
+    let handles = FakeHostHandles { seen: host.seen.clone(), closer: host.closer.try_clone().unwrap() };
+    let client = std::sync::Arc::new(
+        crate::dsh_pipe::PipeClient::over_streams_for_tests(host.reader, host.writer).expect("假宿主握手应成功"),
+    );
+    (
+        ProxyCfg {
+            upstream: Upstream::Pipe { client: client.clone(), cookie: "dsh-auth-x=v1.a.b".to_string() },
+            transport: TransportInject::OpenStream,
+            inject_shell_bridge: true,
+            diag: false,
+            deny_path: None,
+            open_paths: false,
+        },
+        handles,
+        client,
+    )
+}
+
+struct FakeHostHandles {
+    seen: Arc<Mutex<Vec<SeenRequest>>>,
+    closer: TcpStream,
 }
 
 fn client() -> reqwest::blocking::Client {
@@ -160,7 +194,7 @@ fn dead_port() -> u16 {
 #[test]
 fn index_injected_with_contract_order_and_no_store() {
     let (port, _seen) = fake_upstream();
-    let response = proxy(&cfg(port), &client(), &req("GET", "/"));
+    let response = proxy(&cfg(port), &req("GET", "/"));
     assert_eq!(response.status().as_u16(), 200);
     assert_eq!(header(&response, "cache-control").as_deref(), Some("no-store"));
     let text = body_text(&response);
@@ -179,7 +213,7 @@ fn index_injected_with_contract_order_and_no_store() {
 #[test]
 fn asset_passthrough_keeps_upstream_cache_and_untouched_body() {
     let (port, _seen) = fake_upstream();
-    let response = proxy(&cfg(port), &client(), &req("GET", "/assets/index-abc.js"));
+    let response = proxy(&cfg(port), &req("GET", "/assets/index-abc.js"));
     assert_eq!(response.status().as_u16(), 200);
     assert_eq!(header(&response, "cache-control").as_deref(), Some("max-age=600"));
     assert_eq!(header(&response, "content-type").as_deref(), Some("text/javascript; charset=utf-8"));
@@ -189,7 +223,7 @@ fn asset_passthrough_keeps_upstream_cache_and_untouched_body() {
 #[test]
 fn plugin_bundle_forced_no_store() {
     let (port, _seen) = fake_upstream();
-    let response = proxy(&cfg(port), &client(), &req("GET", "/plugins/ui-chat/client.js"));
+    let response = proxy(&cfg(port), &req("GET", "/plugins/ui-chat/client.js"));
     assert_eq!(response.status().as_u16(), 200);
     assert_eq!(header(&response, "cache-control").as_deref(), Some("no-store"));
 }
@@ -197,13 +231,13 @@ fn plugin_bundle_forced_no_store() {
 #[test]
 fn unknown_prefix_rejected_by_allowlist_without_forwarding() {
     let (port, seen) = fake_upstream();
-    let response = proxy(&cfg(port), &client(), &req("GET", "/etc/passwd"));
+    let response = proxy(&cfg(port), &req("GET", "/etc/passwd"));
     assert_eq!(response.status().as_u16(), 404);
     assert!(seen.lock().unwrap().is_empty(), "白名单外路径不得转发到宿主");
     // 同名路径在逃生口下会转发
     let mut open = cfg(port);
     open.open_paths = true;
-    let response = proxy(&open, &client(), &req("GET", "/etc/passwd"));
+    let response = proxy(&open, &req("GET", "/etc/passwd"));
     assert_eq!(response.status().as_u16(), 404); // 宿主自己的 404
     assert_eq!(seen.lock().unwrap().len(), 1, "逃生口应放行到宿主");
 }
@@ -211,7 +245,7 @@ fn unknown_prefix_rejected_by_allowlist_without_forwarding() {
 #[test]
 fn traversal_rejected_403_without_forwarding() {
     let (port, seen) = fake_upstream();
-    let response = proxy(&cfg(port), &client(), &req("GET", "/assets/../secret"));
+    let response = proxy(&cfg(port), &req("GET", "/assets/../secret"));
     assert_eq!(response.status().as_u16(), 403);
     assert!(seen.lock().unwrap().is_empty(), "越界路径不得转发到宿主");
 }
@@ -219,7 +253,7 @@ fn traversal_rejected_403_without_forwarding() {
 #[test]
 fn disallowed_method_405_with_allow_header() {
     let (port, seen) = fake_upstream();
-    let response = proxy(&cfg(port), &client(), &req("PUT", "/api/session/create"));
+    let response = proxy(&cfg(port), &req("PUT", "/api/session/create"));
     assert_eq!(response.status().as_u16(), 405);
     assert_eq!(header(&response, "allow").as_deref(), Some("GET, HEAD, POST"));
     assert!(seen.lock().unwrap().is_empty(), "越权方法不得转发到宿主");
@@ -228,7 +262,7 @@ fn disallowed_method_405_with_allow_header() {
 #[test]
 fn upstream_404_passes_through_with_body() {
     let (port, seen) = fake_upstream();
-    let response = proxy(&cfg(port), &client(), &req("GET", "/assets/missing.js"));
+    let response = proxy(&cfg(port), &req("GET", "/assets/missing.js"));
     assert_eq!(response.status().as_u16(), 404);
     assert_eq!(body_text(&response), "asset missing");
     assert_eq!(seen.lock().unwrap().len(), 1);
@@ -252,7 +286,7 @@ fn api_post_forwarded_with_cookie_and_without_browser_credentials() {
         .insert("cookie", http::HeaderValue::from_static("page-cookie=leak"));
     *request.body_mut() = b"{\"rpcId\":\"1\"}".to_vec();
 
-    let response = proxy(&cfg(port), &client(), &request);
+    let response = proxy(&cfg(port), &request);
     assert_eq!(response.status().as_u16(), 200);
     let seen = seen.lock().unwrap();
     let head = seen.first().expect("宿主未收到请求");
@@ -266,7 +300,7 @@ fn api_post_forwarded_with_cookie_and_without_browser_credentials() {
 #[test]
 fn head_keeps_upstream_length_and_empty_body() {
     let (port, _seen) = fake_upstream();
-    let response = proxy(&cfg(port), &client(), &req("HEAD", "/assets/index-abc.js"));
+    let response = proxy(&cfg(port), &req("HEAD", "/assets/index-abc.js"));
     assert_eq!(response.status().as_u16(), 200);
     assert!(response.body().is_empty());
     assert_eq!(
@@ -277,13 +311,13 @@ fn head_keeps_upstream_length_and_empty_body() {
 
 #[test]
 fn index_failure_returns_recognizable_html_page() {
-    let response = proxy(&cfg(dead_port()), &client(), &req("GET", "/"));
+    let response = proxy(&cfg(dead_port()), &req("GET", "/"));
     assert_eq!(response.status().as_u16(), 502);
     assert_eq!(header(&response, "content-type").as_deref(), Some("text/html; charset=utf-8"));
     let text = body_text(&response);
     assert!(text.contains("无法连接 Agent 内核"), "错误页应可辨认：{text}");
     // 子资源失败保持文本（不污染资源语义）
-    let response = proxy(&cfg(dead_port()), &client(), &req("GET", "/assets/x.js"));
+    let response = proxy(&cfg(dead_port()), &req("GET", "/assets/x.js"));
     assert_eq!(response.status().as_u16(), 502);
     assert_eq!(header(&response, "content-type").as_deref(), Some("text/plain; charset=utf-8"));
 }
@@ -292,21 +326,21 @@ fn index_failure_returns_recognizable_html_page() {
 fn injection_switches_gate_each_script_independently() {
     let (port, _seen) = fake_upstream();
     // 全开：三件套齐（transport / watchdog / bridge）
-    let text = body_text(&proxy(&cfg(port), &client(), &req("GET", "/")));
+    let text = body_text(&proxy(&cfg(port), &req("GET", "/")));
     assert!(text.contains("worldsea-shell:transport"));
     assert!(text.contains("worldsea-shell:boot-watchdog"));
     assert!(text.contains("worldsea-shell:bridge"));
-    // 摘 transport（C1-a 反证开关）：只少这一件
+    // 摘 transport（C1-a 反证开关 / C2 沿用）：只少这一件
     let mut no_transport = cfg(port);
-    no_transport.inject_transport = false;
-    let text = body_text(&proxy(&no_transport, &client(), &req("GET", "/")));
+    no_transport.transport = TransportInject::None;
+    let text = body_text(&proxy(&no_transport, &req("GET", "/")));
     assert!(!text.contains("worldsea-shell:transport"));
     assert!(text.contains("worldsea-shell:boot-watchdog"));
     assert!(text.contains("worldsea-shell:bridge"));
     // 摘壳桥（C1-c 反证开关）：设置入口必须显式降级（menu.rs 的缺桥提示由 JS 侧兜底）
     let mut no_bridge = cfg(port);
     no_bridge.inject_shell_bridge = false;
-    let text = body_text(&proxy(&no_bridge, &client(), &req("GET", "/")));
+    let text = body_text(&proxy(&no_bridge, &req("GET", "/")));
     assert!(!text.contains("worldsea-shell:bridge"));
     assert!(text.contains("worldsea-shell:boot-watchdog"));
 }
@@ -315,7 +349,7 @@ fn injection_switches_gate_each_script_independently() {
 fn shell_bridge_script_wires_expected_commands() {
     // 注入脚本里的命令名必须与 Rust 侧注册一致（防止改名后静默失联）
     let (port, _seen) = fake_upstream();
-    let text = body_text(&proxy(&cfg(port), &client(), &req("GET", "/")));
+    let text = body_text(&proxy(&cfg(port), &req("GET", "/")));
     for command in ["cmd_shell_bridge_report", "cmd_shell_open_external", "cmd_notify"] {
         assert!(text.contains(command), "壳桥缺少命令接线：{command}");
     }
@@ -329,7 +363,7 @@ fn shell_bridge_script_wires_expected_commands() {
 #[test]
 fn sse_response_degrades_explicitly() {
     let (port, _seen) = fake_upstream();
-    let response = proxy(&cfg(port), &client(), &req("GET", "/plugins/events"));
+    let response = proxy(&cfg(port), &req("GET", "/plugins/events"));
     assert_eq!(response.status().as_u16(), 502);
     assert!(body_text(&response).contains("text/event-stream"), "降级说明须点明原因");
 }
@@ -339,7 +373,7 @@ fn deny_path_hook_returns_404_without_forwarding() {
     let (port, seen) = fake_upstream();
     let mut hook = cfg(port);
     hook.deny_path = Some("/assets/".to_string());
-    let response = proxy(&hook, &client(), &req("GET", "/assets/index-abc.js"));
+    let response = proxy(&hook, &req("GET", "/assets/index-abc.js"));
     assert_eq!(response.status().as_u16(), 404);
     assert!(seen.lock().unwrap().is_empty());
 }
@@ -349,11 +383,11 @@ fn diagnostics_endpoint_is_env_gated() {
     let (port, seen) = fake_upstream();
     let mut request = req("POST", "/__diag");
     *request.body_mut() = b"warn: hello".to_vec();
-    let off = proxy(&cfg(port), &client(), &request);
+    let off = proxy(&cfg(port), &request);
     assert_eq!(off.status().as_u16(), 404);
     let mut on = cfg(port);
     on.diag = true;
-    let response = proxy(&on, &client(), &request);
+    let response = proxy(&on, &request);
     assert_eq!(response.status().as_u16(), 204);
     assert!(seen.lock().unwrap().is_empty(), "/__diag 不得转发到宿主");
 }
@@ -410,4 +444,100 @@ fn guard_helpers_are_pure_and_total() {
     assert!(needs_no_store("/plugins/x/client.js"));
     assert!(!needs_no_store("/assets/x.js"));
     assert!(!needs_no_store("/api/x"));
+}
+
+// ── C2-b：管道上游（零 TCP）的转发语义 —— 与 TCP 路径同构，另验注入面与失败降级 ──
+
+#[test]
+fn pipe_index_injects_stream_hook_and_transport_line() {
+    let (cfg, _handles, _client) = pipe_cfg(Arc::new(|_request| Reply::Unary {
+        status: 200,
+        headers: vec![("content-type".to_string(), "text/html; charset=utf-8".to_string())],
+        body: RENDERED_INDEX.as_bytes().to_vec(),
+    }));
+    let response = proxy(&cfg, &req("GET", "/"));
+    assert_eq!(response.status().as_u16(), 200);
+    assert_eq!(header(&response, "cache-control").as_deref(), Some("no-store"));
+    let text = body_text(&response);
+    let stream = text.find("worldsea-shell:stream").expect("缺流桥注入");
+    let transport = text.find("worldsea-shell:transport").expect("缺传输注入");
+    let base = text.find("<base href=\"./\">").expect("宿主 <base> 丢了");
+    // 顺序契约：流桥 → transport 行 → 宿主 <base> → 宿主行
+    assert!(stream < transport, "流桥必须先于 transport 行（transport 行取 openStream）：{text}");
+    assert!(transport < base, "壳脚本必须先于宿主 <base>：{text}");
+    assert!(text.contains("__WORLDSEA_STREAM__"), "缺流桥全局");
+    assert!(text.contains("openStream: globalThis.__WORLDSEA_STREAM__.openStream"), "缺 openStream 合入");
+    assert!(!text.contains("streamBaseUrl"), "管道模式不得再注入 streamBaseUrl");
+}
+
+#[test]
+fn pipe_asset_passthrough_and_credentials_recipe() {
+    let (cfg, handles, _client) = pipe_cfg(Arc::new(|_request| Reply::Unary {
+        status: 200,
+        headers: vec![
+            ("content-type".to_string(), "text/javascript; charset=utf-8".to_string()),
+            ("cache-control".to_string(), "max-age=600".to_string()),
+        ],
+        body: b"console.log('asset')".to_vec(),
+    }));
+    let mut request = req("GET", "/assets/index-abc.js");
+    request.headers_mut().insert("cookie", http::HeaderValue::from_static("page-cookie=leak"));
+    request.headers_mut().insert("origin", http::HeaderValue::from_static("http://worldsea.localhost"));
+    request.headers_mut().insert("accept", http::HeaderValue::from_static("*/*"));
+    let response = proxy(&cfg, &request);
+    assert_eq!(response.status().as_u16(), 200);
+    assert_eq!(header(&response, "cache-control").as_deref(), Some("max-age=600"));
+    assert_eq!(body_text(&response), "console.log('asset')");
+    let seen = handles.seen.lock().unwrap();
+    let request = seen.first().expect("假管道宿主未收到请求");
+    assert_eq!(request.method, "GET");
+    assert_eq!(request.url, "/assets/index-abc.js");
+    assert_eq!(request.headers.get("host").map(String::as_str), Some("127.0.0.1"));
+    assert_eq!(request.headers.get("cookie").map(String::as_str), Some("dsh-auth-x=v1.a.b"), "壳 cookie 未补");
+    assert!(request.headers.get("accept").is_some(), "可透传头应保留");
+    assert!(!request.headers.contains_key("origin"), "Origin 不得透传（围栏）");
+}
+
+#[test]
+fn pipe_upstream_failure_degrades_to_error_page() {
+    let (cfg, handles, client) = pipe_cfg(Arc::new(|_request| Reply::Unary {
+        status: 200,
+        headers: Vec::new(),
+        body: Vec::new(),
+    }));
+    // 宿主断开 → 等客户端感知（存活翻转）→ 请求显式失败 → 入口给 HTML 错误页（非白屏）
+    let _ = handles.closer.shutdown(std::net::Shutdown::Both);
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    while client.is_alive() {
+        assert!(std::time::Instant::now() < deadline, "断链未在限时内被客户端感知");
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    let response = proxy(&cfg, &req("GET", "/"));
+    assert_eq!(response.status().as_u16(), 502);
+    assert_eq!(header(&response, "content-type").as_deref(), Some("text/html; charset=utf-8"));
+    assert!(body_text(&response).contains("无法连接 Agent 内核"));
+}
+
+#[test]
+fn pipe_streaming_response_assembles_chunks() {
+    let (cfg, _handles, _client) = pipe_cfg(Arc::new(|_request| Reply::Streamed {
+        status: 200,
+        headers: vec![("content-type".to_string(), "text/plain; charset=utf-8".to_string())],
+        chunks: vec![b"part1;".to_vec(), b"part2;".to_vec(), b"part3".to_vec()],
+    }));
+    let response = proxy(&cfg, &req("GET", "/assets/streamed.js"));
+    assert_eq!(response.status().as_u16(), 200);
+    assert_eq!(body_text(&response), "part1;part2;part3");
+}
+
+#[test]
+fn pipe_sse_response_degrades_explicitly() {
+    let (cfg, _handles, _client) = pipe_cfg(Arc::new(|_request| Reply::Streamed {
+        status: 200,
+        headers: vec![("content-type".to_string(), "text/event-stream".to_string())],
+        chunks: vec![b"data: x\n\n".to_vec()],
+    }));
+    let response = proxy(&cfg, &req("GET", "/plugins/events"));
+    assert_eq!(response.status().as_u16(), 502);
+    assert!(body_text(&response).contains("text/event-stream"));
 }

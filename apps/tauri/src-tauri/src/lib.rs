@@ -47,10 +47,18 @@ mod plan_commands;
 mod dsh_shell;
 // C1-a（2026-09-24）：`worldsea` 协议层代理宿主（UI origin 与传输面分离）+ 303 cookie 交换
 mod dsh_bridge;
-// C1-b（2026-09-24）：协议转发核心（路径/方法闸门、缓存策略、index 插桩、失败降级）
+// C1-b（2026-09-24）：协议转发核心（路径/方法闸门、缓存策略、失败降级）
 mod dsh_proxy;
-// C1-a（2026-09-24）：mux WebSocket 凭据中转（改写握手首部后双向透传）
+// C2-b（2026-09-24）：index 注入脚本装配（传输面三态 + 安全网 + 壳桥 + 诊断）
+mod dsh_inject;
+// C1-a（2026-09-24）：mux WebSocket 凭据中转（改写握手首部后双向透传；C2 起仅 legacy 对照模式使用）
 mod dsh_relay;
+// C2-b（2026-09-24）：管道传输客户端（宿主管道载体的壳侧对端：帧编解码 + 请求多路复用 + 流 lane）
+mod dsh_pipe;
+// C2-b（2026-09-24）：管道帧解析/派发与两条 I-O 循环（套接字双线程 / Windows 单线程轮询）
+mod dsh_pipe_io;
+// C2-b（2026-09-24）：页面流桥命令（openStream 钩子 → 管道 mux 流）
+mod dsh_stream;
 // C1-c（2026-09-24）：壳桥（页面可调的壳命令：外链 / 日志）——JS 侧见 dsh_shell_bridge.js
 mod shell_bridge;
 // C1-c（2026-09-24）：原生菜单（文件/编辑/视图/设置）
@@ -214,6 +222,11 @@ pub fn run() {
             // C1-c：壳桥命令（页面经 IPC 调用：外链 / 日志）
             shell_bridge::cmd_shell_open_external,
             shell_bridge::cmd_shell_bridge_report,
+            // C2-b：页面流桥（openStream 钩子 → 管道 mux 流：开 / 上行 / 半关 / 取消）
+            dsh_stream::cmd_stream_open,
+            dsh_stream::cmd_stream_send,
+            dsh_stream::cmd_stream_end,
+            dsh_stream::cmd_stream_cancel,
             commands::cmd_diag_log,
             commands::abort,
             commands::steer,

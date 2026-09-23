@@ -44,25 +44,36 @@ DSH_HOME="D:/WorldSea/.独立项/b0-home" node apps/cli/lib/bin.js web --no-open
 `dsh/` 内无 `.git`，**不走 `git pull`**。更新口径：取新 tag 的干净树 → 按同样排除口径覆盖 `dsh/` → 先 `diff -rq`（排除 `node_modules`/`lib`）逐条核对差异并解释 → 再提交。版本与提交号同步登记到本手册与 [准备方案](../../plans/2026-09-23-dsh接管Agent面-大重构准备.md)。
 > 注（D10 改判后）：本仓**不追随上游**（追随上游的是 DSHWS）；本节仅用于「上游有值得 cherry-pick 的修复」时的手工流程，且按台账纪律登记。
 
-## 五、载体侧事实（C1-a 实测，2026-09-24）
+## 五、载体侧事实（C1-a 实测 + C2-b 零端口，2026-09-24）
 
-壳（`apps/tauri/`）把 UI 面搬到自定义协议上，**dsh 树零改动**（台账保持空）。要点：
+壳（`apps/tauri/`）把 UI 面搬到自定义协议上、把传输面搬到**壳自有的 IPC 管道**上；`dsh/` 树的改动只在 C2-a 落了 11 个文件（见 [fork 台账](dsh-fork台账.md)），C2-b 纯壳侧（台账不变）。要点：
 
 | 项 | 事实 |
 |---|---|
 | 协议落形 | 壳注册 `worldsea` 协议；**Windows 由 wry workaround 落为 `http://worldsea.localhost/`**（Tauri 官方口径 = `http://<scheme>.localhost/`）→ authority 必须写 `localhost`；写 `app` 会落到真实 TLD `worldsea.app`（HSTS 预载 + 非安全上下文） |
-| 换 cookie | 壳在导航前对 `dsh web` 打印的带 token URL 做一次 **303 交换**，取 `set-cookie` 首段留在内存（**token 不出现在 WebView URL**）。cookie 名与签名载荷**绑定 Host authority**（`127.0.0.1:<port>`）——转发与中转必须用同一 authority 作 `Host`，否则 401 |
+| 换 cookie | 壳在导航前对 `dsh web` 打印的带 token URL 做一次 **303 交换**，取 `set-cookie` 首段留在内存（**token 不出现在 WebView URL**）。cookie 名与签名载荷**绑定 Host authority**——管道模式下壳统一合成 `Host: 127.0.0.1`（无端口），交换与全部后续请求同形 |
 | `/api` 转发 | 协议处理器删掉页面的 `origin`/`cookie`/`sec-fetch-*` 再补壳侧 cookie → 同时过围栏（Host = loopback、无 Origin）与鉴权 |
-| WS | 页面的 mux WS 走壳内 **Rust 中转**（`dsh_relay.rs`）：改写 `Host`/`Origin`/`Cookie`/`Sec-Fetch-Site` 四项后双向透传字节；只认 `/<随机前缀>/api/remote.mux`（前缀由注入的 `streamBaseUrl` 带出）。Chromium 在 WS 握手**不发** `Sec-Fetch-*` |
-| 缓存 | index 与 `/plugins/*` 一律 **`no-store`**（每进程内容：宿主 `__DSH_BOOT__` + 壳注入的传输基址；否则二次启动拿到上一轮注入 → 传输指向已死端口） |
-| 注入 | index 的 `<head>` 后补一条 `__DSH_TRANSPORT__`（**只合并不覆盖**；早于宿主 head 行与全部模块脚本） |
+| **传输面（C2 默认）** | **IPC 管道**：壳生成管道路径（Windows `\\.\pipe\worldsea-dsh-…` / POSIX 短名套接字）→ `--ipc-pipe` 传给宿主；宿主 `pipe-transport` 载体在管道上收帧并把请求喂给**真路由表**（外置载体模式），流 lane 直连 `typertGateway.wireStream.open`（无 WebSocket）。**宿主进程零 TCP 监听**（验收断言：netstat 按 PID 过滤 LISTENING 为空） |
+| 帧协议 | `u32be 长度 + u8 kind + payload`；`J` = JSON 控制帧（`req/res/res-head/res-chunk/res-end/res-err/stream-*/abort`），`B` = 二进制体帧（`u32be id + bytes`，严格跟随其声明帧）。协议违规一律 fail-closed 断链 |
+| 页面的流 | 注入 `openStream` 钩子（`__WORLDSEA_STREAM__`）：页面逻辑流 ⇄ Tauri IPC（`cmd_stream_open/send/end/cancel`，下行走 `__CHANNEL__:<id>` 通道）⇄ 管道 mux。失败标记 `dshRemoteStreamFailure`（`{kind:'remote',code,details}` / `{kind:'carrier'}`）与 dsh 客户端约定逐字一致 |
+| 缓存 | index 与 `/plugins/*` 一律 **`no-store`**（每进程内容：宿主 `__DSH_BOOT__` + 壳注入的传输钩子；否则二次启动拿到上一轮注入 → 传输指向上一个进程的管道） |
+| 注入 | index 的 `<head>` 后补壳脚本（**只合并不覆盖**；早于宿主 head 行与全部模块脚本）：C2 = 流桥脚本 → `__DSH_TRANSPORT__={ownsHost,openStream}`；legacy = `streamBaseUrl` |
+| **legacy 对照口** | `WORLDSEA_TCP_HOST=1`：宿主按端口监听 + 壳走 C1 链（reqwest 转发 + `dsh_relay.rs` WS 中转 + `streamBaseUrl` 注入）。**冻结**，只作对照/回退 |
 
-**排障开关**（壳侧环境变量，详见 `dsh_bridge.rs` / `dsh_proxy.rs` / `dsh_shell.rs` 注释）：
+### Windows 命名管道两条硬约束（C2-b 实测，务必先读）
+
+1. **同步句柄上的并发读写会被文件对象串行化**——后台读线程阻塞在 `ReadFile` 时，另一线程的写**永不落地**（症状＝「hello 收到、请求永不到达、无任何报错」；`try_clone` 复制的是同一文件对象，救不了）。壳的解法：管道侧走**单线程轮询 IO**（`PeekNamedPipe` 判可读才读，写队列先冲；空闲 1ms 休眠）。
+2. **带 `FILE_FLAG_OVERLAPPED` 打开的句柄不能交给 std 的 `File`**：std 走同步 NT 调用，遇 `STATUS_PENDING` 直接 `rtabort!`（进程被 abort，std issue #81357）。不要试图用 `custom_flags` 打开重叠模式。
+
+> 排查「Rust 侧写不达宿主」的手动探针：`.workbuddy/c2b-manual-host.mjs`（起带正确管道路径的宿主并写探针文件）、`.workbuddy/c2b-pipe-probe.mjs`（Node 原生管道客户端）、`cargo test -- --ignored --nocapture probe_live_pipe_exchange`（Rust 客户端对活管道）。三者都在 `.workbuddy/`（gitignored）。
+
+**排障开关**（壳侧环境变量，详见 `dsh_bridge.rs` / `dsh_proxy.rs` / `dsh_inject.rs` / `dsh_shell.rs` 注释）：
 
 | 变量 | 作用 |
 |---|---|
-| `WORLDSEA_SHELL_DIAG=1` | 页内诊断开：注入 console 钩子（error/warn/未捕获异常/资源失败 → 壳日志 `page(diag)`）+ 中转落档握手/响应原文 + 开 `/__diag` 通道 |
-| `WORLDSEA_NO_TRANSPORT_INJECT=1` | 反证用：不注入 `streamBaseUrl`（WS 必须失败；HTTP RPC 仍通） |
+| `WORLDSEA_TCP_HOST=1` | **legacy 对照口**：不传 `--ipc-pipe`（宿主按端口监听），壳走 C1 转发链 + WS 中转 + `streamBaseUrl` 注入 |
+| `WORLDSEA_SHELL_DIAG=1` | 页内诊断开：注入 console 钩子（error/warn/未捕获异常/资源失败 → 壳日志 `page(diag)`）+ 开 `/__diag` 通道 |
+| `WORLDSEA_NO_TRANSPORT_INJECT=1` | 反证用：不注入传输钩子（管道模式下 = 摘 `openStream`，页面退到 WS 路径并进入显式重连循环；HTTP RPC 仍通） |
 | `WORLDSEA_NO_SHELL_BRIDGE=1` | 反证用：不注入壳桥 `__WORLDSEA_SHELL__`（「设置→打开设置」必须显式降级为右下角红条） |
 | `WORLDSEA_LEGACY_DIRECT=1` | 回退直连 loopback（B2/B3 行为，跳过协议桥） |
 | `WORLDSEA_DENY_PATH=<前缀>` | 测试钩子：该前缀一律 404（验「资源失败 → 非白屏」降级链） |
@@ -70,6 +81,8 @@ DSH_HOME="D:/WorldSea/.独立项/b0-home" node apps/cli/lib/bin.js web --no-open
 | `WORLDSEA_RELOAD_AFTER=<秒>` | 核查用：页面就绪后再等 <秒> 做一次 `window.reload`（刷新/二次导航稳定性） |
 | `WORLDSEA_EVAL_AFTER_READY=<js>` | 诊断用：页面就绪后注入执行一次指定 JS（结果经壳桥 `__WORLDSEA_SHELL__.report(...)` 落壳日志）。用于**免 UI 自动化取证**——如本次用它判定「外部打开」按钮的 `disabled` 状态与点击链（脚本化点击可绕过命中测试，故与真人点击可能有差异，详见下方「核查」） |
 | `WORLDSEA_DSH_ROOT` / `WORLDSEA_DSH_HOME` / `WORLDSEA_NODE` | 指定 dsh 树 / home / node（默认自动探测与应用数据目录隔离 home） |
+
+> 日志面：宿主的 stdout 现以 **`[DSH-HOST]`** 前缀直出壳日志（管道载体/协议违规行都在那里）；壳的流命令留 `[DSH-SHELL] stream: open id=… endpoint=…` / `cancel id=…` 行——验收「流真的经管道」看这行。
 
 > Git Bash 传这些值时注意 MSYS **路径转换**：`WORLDSEA_DENY_PATH=/assets/index-` 会被改写成 `E:/GIT/Git/assets/index-`——需前缀 `MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*'`。
 

@@ -1,95 +1,136 @@
-// C1-a/C1-b（2026-09-24）：`worldsea` 协议层代理宿主（候选 A）——Tauri 原生 desktop 载体的 UI 面。
+// C1-a/C1-b/C2-b（2026-09-24）：`worldsea` 协议层代理宿主（候选 A）——Tauri 原生 desktop 载体的 UI 面。
 //
-// 口径（见 docs/plans/2026-09-24-C1-Tauri原生desktop载体批计划.md §三/§四/§五）：
-// - UI origin 与传输面分离：页面走壳注册的自定义协议，`/api` 与 mux WS 仍回 loopback（刻意保留）；
+// 口径（见 docs/plans/2026-09-24-C1-*.md §三/§四/§五 与 docs/plans/2026-09-24-C2-真无端口传输批计划.md §五）：
+// - UI origin 与传输面分离：页面走壳注册的自定义协议；**C2 起传输面默认走 IPC 管道（零 TCP）**，
+//   `WORLDSEA_TCP_HOST=1` 可切回 C1 的 legacy 形态（loopback TCP + WS 中转；对照口，冻结）；
 // - **零注入复刻 index**：index 直接取宿主渲染结果（`__DSH_BOOT__` 等由宿主注入），
-//   壳只在 `<head>` 后补注入脚本（`__DSH_TRANSPORT__` 只合并不覆盖 = 裁定 ④ 的「传输基址单点」）；
+//   壳只在 `<head>` 后补注入脚本（`__DSH_TRANSPORT__` 只合并不覆盖 = 裁定 ④ 的「传输基址单点」，
+//   C2 起该单点改注入 `openStream` 钩子——传输形态换掉，接缝不变）；
 // - 转发 `/api` 时按 Electron 桌面版同构处理：删掉页面的 origin/cookie/sec-fetch-*，补壳侧凭据
-//   （带 303 换来的 `dsh-auth-*` cookie；Host 由转发 URL 决定 = 宿主 authority，cookie 与之绑定）；
-// - **不触 dsh/**（fork 台账保持空）；协议名 `worldsea`，Windows 落形见〔自定义协议落形〕。
+//   （带 303 换来的 `dsh-auth-*` cookie）；管道模式由 `PipeClient` 合成 `Host: 127.0.0.1`；
+// - 协议名 `worldsea`，Windows 落形见〔自定义协议落形〕。
 //
 // 〔自定义协议落形〕wry 在 Windows 走 workaround（wry custom_protocol_workaround）：
 //   `worldsea://localhost/…` ⇄ `http://worldsea.localhost/…`。故 authority 必须是 `localhost`
 //   （否则会落到真实 TLD 且非安全上下文）；页面导航目标 = workaround 形态，处理器收到的
 //   request URI 已被 wry 还原成 `worldsea://localhost/…`。
 //
-// 转发细节（闸门 / 缓存策略 / 插桩 / 失败降级）在 `dsh_proxy.rs`；本文件只管桥状态与装配。
+// 转发细节（闸门 / 缓存策略 / 插桩 / 失败降级）在 `dsh_proxy.rs`；管道客户端在 `dsh_pipe.rs`；
+// 页面流桥命令在 `dsh_stream.rs`；本文件只管桥状态与装配。
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use tauri::{Manager, Runtime, UriSchemeContext, UriSchemeResponder, WebviewWindow};
 
-use crate::dsh_proxy::{failure_response, proxy, ProxyCfg};
+use crate::dsh_inject::TransportInject;
+use crate::dsh_pipe::PipeClient;
+use crate::dsh_proxy::{failure_response, proxy, ProxyCfg, Upstream};
 use crate::dsh_relay::WsRelay;
 
 /// 页面导航目标（Windows workaround 形态；macOS/Linux 对应 `worldsea://localhost/`）。
 pub const APP_URL: &str = "http://worldsea.localhost/";
 
-/// 桥状态：转发开关（含宿主端口与 cookie）+ WS 中转（随状态 drop 回收）+ 转发客户端。
+/// 桥状态：转发开关（含传输面）+ 管道客户端（C2；流桥命令使用）+ legacy 的 WS 中转（保持回收语义）。
 pub struct DshBridge {
     cfg: ProxyCfg,
-    relay: WsRelay,
-    client: reqwest::blocking::Client,
+    summary: String,
+    pipe: Option<Arc<PipeClient>>,
+    /// legacy 模式下的 WS 中转（随状态 drop 回收）；管道模式为 None。
+    _relay: Option<WsRelay>,
 }
 
 impl DshBridge {
-    /// 诊断摘要（不含 relay 随机前缀；只报到端口）。
+    /// 诊断摘要（管道模式报路径；legacy 报宿主端口与中继端口；token 只留在壳内）。
     pub fn describe(&self) -> String {
-        format!(
-            "host=127.0.0.1:{} relay_port={} 页面={}（token 只留在壳内）",
-            self.cfg.host_port,
-            self.relay.port(),
-            APP_URL
-        )
+        self.summary.clone()
+    }
+
+    /// 管道客户端（C2 流桥命令用）；非管道模式为 None。
+    pub fn pipe(&self) -> Option<Arc<PipeClient>> {
+        self.pipe.clone()
     }
 }
 
-/// 绑定桥：303 换 cookie → 起 WS 中转 → 造转发客户端。全部失败都返回可读原因（调用方回退直连）。
-pub fn prepare(ready_url: &str) -> Result<DshBridge, String> {
-    let host_port = parse_port(ready_url)?;
-    let cookie = exchange_cookie(ready_url)?;
+/// 绑定桥：303 换 cookie → （管道模式）连宿主管道 / （legacy）起 WS 中转 → 造转发配置。
+/// 全部失败都返回可读原因（调用方回退直连）。
+/// `pipe_path` = 壳本次 spawn 传给宿主的 `--ipc-pipe` 值（由 `dsh_shell` 生成）；`None` = legacy TCP。
+pub fn prepare(ready_url: &str, pipe_path: Option<&str>) -> Result<DshBridge, String> {
     let diag = diag_enabled();
-    let relay = crate::dsh_relay::start(host_port, cookie.clone(), diag)?;
-    let client = reqwest::blocking::Client::builder()
-        .redirect(reqwest::redirect::Policy::none())
-        .no_proxy()
-        .timeout(Duration::from_secs(60))
-        .build()
-        .map_err(|e| format!("转发客户端构建失败：{e}"))?;
-    let cfg = ProxyCfg {
-        host_port,
-        cookie,
-        relay_base: relay.base_url(),
-        inject_transport: std::env::var_os("WORLDSEA_NO_TRANSPORT_INJECT").is_none(),
-        inject_shell_bridge: std::env::var_os("WORLDSEA_NO_SHELL_BRIDGE").is_none(),
-        diag,
-        deny_path: std::env::var("WORLDSEA_DENY_PATH").ok().filter(|value| !value.is_empty()),
-        open_paths: std::env::var_os("WORLDSEA_BRIDGE_OPEN").is_some(),
-    };
-    if !cfg.inject_transport {
-        eprintln!("[DSH-SHELL] bridge: streamBaseUrl 注入已按 WORLDSEA_NO_TRANSPORT_INJECT 关闭（反证模式）");
+    let inject_transport = std::env::var_os("WORLDSEA_NO_TRANSPORT_INJECT").is_none();
+    let inject_shell_bridge = std::env::var_os("WORLDSEA_NO_SHELL_BRIDGE").is_none();
+    let deny_path = std::env::var("WORLDSEA_DENY_PATH").ok().filter(|value| !value.is_empty());
+    let open_paths = std::env::var_os("WORLDSEA_BRIDGE_OPEN").is_some();
+    if !inject_transport {
+        eprintln!("[DSH-SHELL] bridge: 传输注入已按 WORLDSEA_NO_TRANSPORT_INJECT 关闭（反证模式：流面必须显式降级）");
     }
-    if !cfg.inject_shell_bridge {
+    if !inject_shell_bridge {
         eprintln!("[DSH-SHELL] bridge: 壳桥注入已按 WORLDSEA_NO_SHELL_BRIDGE 关闭（反证模式：设置入口必须显式降级）");
     }
-    if cfg.diag {
-        println!("[DSH-SHELL] bridge: 页内诊断已开（console 钩子 → [DSH-SHELL] page(diag)；中转落档握手原文）");
+    if diag {
+        println!("[DSH-SHELL] bridge: 页内诊断已开（console 钩子 → [DSH-SHELL] page(diag)）");
     }
-    if let Some(deny) = &cfg.deny_path {
+    if let Some(deny) = &deny_path {
         println!("[DSH-SHELL] bridge: 测试钩子 WORLDSEA_DENY_PATH={deny}（该前缀一律 404）");
     }
-    if cfg.open_paths {
+    if open_paths {
         println!("[DSH-SHELL] bridge: 路径白名单已按 WORLDSEA_BRIDGE_OPEN 关闭（逃生口）");
     }
-    Ok(DshBridge { cfg, relay, client })
+
+    match pipe_path {
+        Some(path) => {
+            let client = Arc::new(PipeClient::connect_retry(path, Duration::from_secs(15))?);
+            let cookie = exchange_cookie_pipe(&client, ready_url)?;
+            let transport = if inject_transport { TransportInject::OpenStream } else { TransportInject::None };
+            let cfg = ProxyCfg {
+                upstream: Upstream::Pipe { client: client.clone(), cookie },
+                transport,
+                inject_shell_bridge,
+                diag,
+                deny_path,
+                open_paths,
+            };
+            let summary = format!("mode=pipe pipe={path} 页面={APP_URL}（零 TCP；token 只留在壳内）");
+            Ok(DshBridge { cfg, summary, pipe: Some(client), _relay: None })
+        }
+        None => {
+            let host_port = parse_port(ready_url)?;
+            let cookie = exchange_cookie(ready_url)?;
+            let relay = crate::dsh_relay::start(host_port, cookie.clone(), diag)?;
+            let client = reqwest::blocking::Client::builder()
+                .redirect(reqwest::redirect::Policy::none())
+                .no_proxy()
+                .timeout(Duration::from_secs(60))
+                .build()
+                .map_err(|e| format!("转发客户端构建失败：{e}"))?;
+            let transport = if inject_transport {
+                TransportInject::StreamBase(relay.base_url())
+            } else {
+                TransportInject::None
+            };
+            let cfg = ProxyCfg {
+                upstream: Upstream::Tcp { port: host_port, cookie, client },
+                transport,
+                inject_shell_bridge,
+                diag,
+                deny_path,
+                open_paths,
+            };
+            let summary = format!(
+                "mode=tcp host=127.0.0.1:{host_port} relay_port={} 页面={APP_URL}（token 只留在壳内）",
+                relay.port()
+            );
+            Ok(DshBridge { cfg, summary, pipe: None, _relay: Some(relay) })
+        }
+    }
 }
 
-/// 诊断开关（prepare 与 relay 共用同一判定口径）。
+/// 诊断开关（prepare 与 legacy 中转共用同一判定口径）。
 fn diag_enabled() -> bool {
     std::env::var_os("WORLDSEA_SHELL_DIAG").is_some()
 }
 
-/// 从就绪 URL 取宿主端口（`http://127.0.0.1:<port>/?token=…`）。
+/// 从就绪 URL 取宿主端口（`http://127.0.0.1:<port>/?token=…`；legacy 模式用）。
 fn parse_port(ready_url: &str) -> Result<u16, String> {
     let rest = ready_url
         .strip_prefix("http://127.0.0.1:")
@@ -98,7 +139,35 @@ fn parse_port(ready_url: &str) -> Result<u16, String> {
     port.parse::<u16>().map_err(|e| format!("解析宿主端口失败（{port}）：{e}"))
 }
 
-/// 303 换 cookie：把带 token 的 URL 抓一次（不跟随重定向），取 `set-cookie` 的首段
+/// 就绪 URL → 路径+查询（`/?token=…`）；管道模式经管道重放这一次交换。
+fn ready_path_and_query(ready_url: &str) -> Result<String, String> {
+    let rest = ready_url
+        .strip_prefix("http://127.0.0.1:")
+        .ok_or_else(|| format!("就绪 URL 形态不符：{ready_url}"))?;
+    let at = rest.find('/').ok_or_else(|| format!("就绪 URL 缺路径：{ready_url}"))?;
+    Ok(rest[at..].to_string())
+}
+
+/// 303 换 cookie（**管道模式**）：把带 token 的路径经管道重放一次，取 `set-cookie` 首段。
+/// Host 由管道客户端合成 `127.0.0.1`——cookie 的 authority 绑定因此落在该形态上，后续请求同形。
+fn exchange_cookie_pipe(client: &PipeClient, ready_url: &str) -> Result<String, String> {
+    let path_and_query = ready_path_and_query(ready_url)?;
+    let response = client.request("GET", &path_and_query, &[], None)?;
+    let cookie = response
+        .headers
+        .iter()
+        .find(|(name, _)| name == "set-cookie")
+        .map(|(_, value)| value.split(';').next().unwrap_or(value).trim().to_string());
+    let Some(cookie) = cookie else {
+        return Err(format!("cookie 交换未拿到 set-cookie（状态 {}）", response.status));
+    };
+    if response.status != 303 {
+        return Err(format!("cookie 交换状态非 303：{}", response.status));
+    }
+    Ok(cookie)
+}
+
+/// 303 换 cookie（**legacy TCP 模式**）：把带 token 的 URL 抓一次（不跟随重定向），取 `set-cookie` 首段
 /// （`dsh-auth-<authority 哈希>=<签名值>`）。留在壳内存里，页面永不接触 token。
 fn exchange_cookie(ready_url: &str) -> Result<String, String> {
     let response = reqwest::blocking::Client::builder()
@@ -125,15 +194,21 @@ fn exchange_cookie(ready_url: &str) -> Result<String, String> {
     Ok(cookie)
 }
 
-/// B2+C1 装配：桥成功 → 记桥状态 + 导航到壳协议页；桥失败或显式 `WORLDSEA_LEGACY_DIRECT=1`
+/// 装配：桥成功 → 记桥状态 + 导航到壳协议页；桥失败或显式 `WORLDSEA_LEGACY_DIRECT=1`
 /// → 回退直连 loopback（B2/B3 行为），两条路都不静默。
-pub fn attach(app: &tauri::AppHandle, window: Option<&WebviewWindow>, ready_url: &str) {
+/// `pipe_path` 由 `dsh_shell` 生成并随 spawn 传入宿主（legacy 对照模式下为 None）。
+pub fn attach(
+    app: &tauri::AppHandle,
+    window: Option<&WebviewWindow>,
+    ready_url: &str,
+    pipe_path: Option<&str>,
+) {
     let legacy = std::env::var_os("WORLDSEA_LEGACY_DIRECT").is_some();
     let bridged = if legacy {
         println!("[DSH-SHELL] WORLDSEA_LEGACY_DIRECT=1：跳过桥，回退直连 loopback");
         false
     } else {
-        match prepare(ready_url) {
+        match prepare(ready_url, pipe_path) {
             Ok(bridge) => {
                 println!("[DSH-SHELL] bridge ready: {}", bridge.describe());
                 app.manage(bridge);
@@ -239,7 +314,7 @@ pub fn handle_request<R: Runtime>(
     let app = ctx.app_handle().clone();
     std::thread::spawn(move || {
         let response = match app.try_state::<DshBridge>() {
-            Some(bridge) => proxy(&bridge.cfg, &bridge.client, &request),
+            Some(bridge) => proxy(&bridge.cfg, &request),
             None => failure_response(503, true, "Agent 内核尚未就绪", "壳协议桥未装配完成，请稍后重试。"),
         };
         responder.respond(response);

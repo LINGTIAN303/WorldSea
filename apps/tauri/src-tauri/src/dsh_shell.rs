@@ -56,12 +56,30 @@ impl DshProcess {
     }
 }
 
-/// 取一个空闲的 loopback 端口（绑定 :0 后释放；dsh 随即绑定它）。
+/// 取一个空闲的 loopback 端口（绑定 :0 后释放）——**仅用于 legacy TCP 模式**；
+/// 管道模式下该端口只是「声明 authority」（URL 打印与 cookie 绑定用），无人监听。
 fn free_loopback_port() -> Result<u16, String> {
     let listener = TcpListener::bind("127.0.0.1:0").map_err(|e| format!("探测空闲端口失败：{e}"))?;
     let port = listener.local_addr().map_err(|e| format!("读取端口失败：{e}"))?.port();
     drop(listener);
     Ok(port)
+}
+
+/// 生成本次会话的管道路径（壳持有命名权；宿主按此绑定）：
+/// Windows = `\\.\pipe\worldsea-dsh-<pid>-<时间戳>`；POSIX = 临时目录下短名套接字。
+fn generate_pipe_path() -> String {
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let pid = std::process::id();
+    if cfg!(windows) {
+        format!(r"\\.\pipe\worldsea-dsh-{pid}-{stamp}")
+    } else {
+        let base = std::env::temp_dir();
+        let _ = std::fs::create_dir_all(&base);
+        base.join(format!("worldsea-dsh-{pid}-{stamp}.sock")).to_string_lossy().to_string()
+    }
 }
 
 /// 去掉 Windows verbatim 前缀（`\\?\`）——Node 不认该形态（实测 `EISDIR: lstat 'D:'`）。
@@ -101,12 +119,20 @@ fn resolve_dsh_root() -> Result<PathBuf, String> {
     }
 }
 
-/// 启动 dsh host 并等就绪；返回（子进程句柄, 带 token 的 URL）。
-pub fn spawn_and_wait_ready(app: &tauri::AppHandle) -> Result<(Child, String), String> {
+/// 启动 dsh host 并等就绪；返回（子进程句柄, 带 token 的 URL, 管道路径）。
+/// 管道路径仅在默认（C2 零 TCP）模式生成；`WORLDSEA_TCP_HOST=1` 走 legacy（无管道）。
+pub fn spawn_and_wait_ready(app: &tauri::AppHandle) -> Result<(Child, String, Option<String>), String> {
     let root = resolve_dsh_root()?;
     let port = free_loopback_port()?;
     let node = std::env::var("WORLDSEA_NODE").unwrap_or_else(|_| "node".to_string());
     let bin = root.join("apps").join("cli").join("lib").join("bin.js");
+    // 传输模式：默认管道（零 TCP）；`WORLDSEA_TCP_HOST=1` = C1 legacy 形态（对照口，冻结）
+    let pipe_path = if std::env::var_os("WORLDSEA_TCP_HOST").is_some() {
+        println!("[DSH-SHELL] WORLDSEA_TCP_HOST=1：legacy TCP 模式（宿主按端口监听，壳走 C1 转发链）");
+        None
+    } else {
+        Some(generate_pipe_path())
+    };
     // DSH_HOME 口径（2026-09-24 更正）：**默认隔离到本应用数据目录**（`<app_data>/dsh-home`），
     // 避免与用户其它 dsh 用法/第三方 profile 混用；`WORLDSEA_DSH_HOME` 可显式覆盖。
     // 更正说明：此前记录的「空 DSH_HOME 会让 dsh 静默退出」为**测试形式造成的假象**
@@ -121,14 +147,15 @@ pub fn spawn_and_wait_ready(app: &tauri::AppHandle) -> Result<(Child, String), S
     };
     std::fs::create_dir_all(&home).map_err(|e| format!("创建 DSH_HOME 失败：{e}"))?;
 
+    let pipe_arg = pipe_path.clone().unwrap_or_else(|| "(legacy tcp)".to_string());
     tracing::info!(
-        "dsh shell: spawn {node} {} web --no-open --port {port}（DSH_HOME={}）",
+        "dsh shell: spawn {node} {} web --no-open --port {port} --ipc-pipe {pipe_arg}（DSH_HOME={}）",
         bin.display(),
         home.display()
     );
     // 控制台直出（与 [HTTP-BRIDGE] 同风格）：tracing 无订阅者，故障排查必须能看见这几行
     println!(
-        "[DSH-SHELL] spawn {node} {} web --no-open --port {port} (DSH_HOME={})",
+        "[DSH-SHELL] spawn {node} {} web --no-open --port {port} (pipe={pipe_arg}, DSH_HOME={})",
         bin.display(),
         home.display()
     );
@@ -142,7 +169,7 @@ pub fn spawn_and_wait_ready(app: &tauri::AppHandle) -> Result<(Child, String), S
     command
         .arg(&bin)
         .arg("web");
-    // 注意顺序：launcher 标志必须排在 app 参数之前（`--no-open`/`--port` 属 web app 的参数）——
+    // 注意顺序：launcher 标志必须排在 app 参数之前（`--no-open`/`--port`/`--ipc-pipe` 属 web app 的参数）——
     // 先例 `dsh web --patch <file>`（dsh/apps/web/tests/pin-browse-picker.overlay.yml）。
     if let Some(overlay) = &overlay {
         command.arg("--patch").arg(overlay);
@@ -151,7 +178,11 @@ pub fn spawn_and_wait_ready(app: &tauri::AppHandle) -> Result<(Child, String), S
     command
         .arg("--no-open")
         .arg("--port")
-        .arg(port.to_string())
+        .arg(port.to_string());
+    if let Some(pipe) = &pipe_path {
+        command.arg("--ipc-pipe").arg(pipe);
+    }
+    command
         .current_dir(&root)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -173,8 +204,10 @@ pub fn spawn_and_wait_ready(app: &tauri::AppHandle) -> Result<(Child, String), S
                         .unwrap_or("")
                         .to_string();
                     let _ = tx.send(url);
-                } else {
-                    tracing::info!("dsh: {line}");
+                } else if !line.trim().is_empty() {
+                    // 宿主侧日志就地可见（排障必需）：C2-b 起宿主负责管道载体与流 lane，
+                    // 其排障行（pipe-transport / 协议违规）只在宿主 stdout 上。
+                    println!("[DSH-HOST] {line}");
                 }
             }
             // 子进程 stdout 关闭 = 进程行将退出
@@ -192,7 +225,7 @@ pub fn spawn_and_wait_ready(app: &tauri::AppHandle) -> Result<(Child, String), S
     match rx.recv_timeout(READY_TIMEOUT) {
         Ok(url) if !url.is_empty() => {
             println!("[DSH-SHELL] ready: {url}");
-            Ok((child, url))
+            Ok((child, url, pipe_path))
         }
         Ok(_) => {
             let _ = child.kill();
@@ -205,13 +238,14 @@ pub fn spawn_and_wait_ready(app: &tauri::AppHandle) -> Result<(Child, String), S
     }
 }
 
-/// B2 壳接入装配（C1-a 起含协议桥）：spawn 宿主 → 等就绪 → 桥（可回退直连）→ 挂句柄 + 心跳守护。
-/// 具体导航与回退分支见 `dsh_bridge::attach`；口径与批次见 docs/plans/2026-09-23-dsh接管Agent面-大重构准备.md §六。
+/// B2 壳接入装配（C1-a 起含协议桥；C2-b 起默认管道传输）：spawn 宿主 → 等就绪 → 桥（可回退直连）
+/// → 挂句柄 + 心跳守护。具体导航与回退分支见 `dsh_bridge::attach`；口径与批次见
+/// docs/plans/2026-09-23-dsh接管Agent面-大重构准备.md §六 与 C2 批计划 §五。
 pub fn install(app: &tauri::AppHandle, window: Option<&WebviewWindow>) {
     match spawn_and_wait_ready(app) {
-        Ok((child, url)) => {
+        Ok((child, url, pipe_path)) => {
             tracing::info!("dsh shell: ready at {url}");
-            crate::dsh_bridge::attach(app, window, &url);
+            crate::dsh_bridge::attach(app, window, &url, pipe_path.as_deref());
             app.manage(DshProcess::new(child));
             watch_child(app.clone());
         }
