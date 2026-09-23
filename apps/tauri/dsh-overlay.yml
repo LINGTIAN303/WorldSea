@@ -1,0 +1,12 @@
+# WorldSea 壳的 dsh overlay（B4-a，2026-09-23）
+#
+# 目的：打开 web profile 下**默认禁用**的「右栏内置浏览器」条目。
+# 机制：该条目随 bundle 发布，但 `disabled` 是按 profile 名判定的表达式
+#   （packages/bundle/web-app/cordis.patch.yml：`ctx.get('profileContext')?.name !== 'desktop'`），
+#   只有名叫 desktop 的 profile 才启用；desktop profile 由 Electron 壳独占（CLI 拒绝管理），
+#   故这里用**用户补丁层**覆盖 `disabled` 把它打开（官方同款通道：`dsh web --patch <file>`）。
+#
+# 用法：壳 spawn 时带 `--patch <仓根>/apps/tauri/dsh-overlay.yml`（见 apps/tauri/src-tauri/src/dsh_shell.rs）
+# 先例：dsh/apps/web/tests/pin-browse-picker.overlay.yml（官方用同一通道改 directory-picker）
+- id: ui-sidebar-browser
+  disabled: false

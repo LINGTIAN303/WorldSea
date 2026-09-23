@@ -131,10 +131,23 @@ pub fn spawn_and_wait_ready() -> Result<(Child, String), String> {
         bin.display(),
         home.as_deref().map(|p| p.display().to_string()).unwrap_or_else(|| "<default>".to_string())
     );
+    // 壳 overlay（B4-a）：打开 web 下默认禁用的右栏内置浏览器等「desktop 才启用」的条目。
+    // 位置固定为 `<仓根>/apps/tauri/dsh-overlay.yml`（dsh 树在仓根，故取其父目录）；缺失则跳过。
+    let overlay = root
+        .parent()
+        .map(|repo| repo.join("apps").join("tauri").join("dsh-overlay.yml"))
+        .filter(|candidate| candidate.exists());
     let mut command = Command::new(&node);
     command
         .arg(&bin)
-        .arg("web")
+        .arg("web");
+    // 注意顺序：launcher 标志必须排在 app 参数之前（`--no-open`/`--port` 属 web app 的参数）——
+    // 先例 `dsh web --patch <file>`（dsh/apps/web/tests/pin-browse-picker.overlay.yml）。
+    if let Some(overlay) = &overlay {
+        command.arg("--patch").arg(overlay);
+        println!("[DSH-SHELL] overlay: {}", overlay.display());
+    }
+    command
         .arg("--no-open")
         .arg("--port")
         .arg(port.to_string())

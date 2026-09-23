@@ -26,6 +26,7 @@ DSH_HOME="D:/WorldSea/.独立项/b0-home" node apps/cli/lib/bin.js web --no-open
 ```
 
 - 启动只监听 **loopback**；`GET /?token=…` → **303 + `Set-Cookie: dsh-auth-*`**（HttpOnly / SameSite=Strict / 30 天）；之后 `/api` 与 `/api/remote.mux`(WS) 认 Cookie，无 Cookie → **401**；index（32.9 KB）含 `__DSH_BOOT__`。
+- 壳侧 overlay：`--patch <仓根>/apps/tauri/dsh-overlay.yml`（**打开 web 下默认禁用的右栏内置浏览器**；launcher 标志须排在 `--no-open/--port` 之前）。
 - 模型调用读环境变量（如 `DEEPSEEK_API_KEY`）；本机环境已设。
 
 ## 三、已实测事实（2026-09-23）
