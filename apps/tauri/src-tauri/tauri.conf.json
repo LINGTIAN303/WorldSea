@@ -4,10 +4,7 @@
   "version": "0.1.0",
   "identifier": "com.worldsea.app",
   "build": {
-    "beforeDevCommand": "pnpm --filter @worldsea/tauri dev",
-    "devUrl": "http://localhost:5175",
-    "beforeBuildCommand": "pnpm --filter @worldsea/tauri build",
-    "frontendDist": "../dist"
+    "frontendDist": "../shell-loading"
   },
   "app": {
     "withGlobalTauri": true,
