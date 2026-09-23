@@ -205,6 +205,26 @@ pub fn spawn_and_wait_ready(app: &tauri::AppHandle) -> Result<(Child, String), S
     }
 }
 
+/// B2 壳接入装配（C1-a 起含协议桥）：spawn 宿主 → 等就绪 → 桥（可回退直连）→ 挂句柄 + 心跳守护。
+/// 具体导航与回退分支见 `dsh_bridge::attach`；口径与批次见 docs/plans/2026-09-23-dsh接管Agent面-大重构准备.md §六。
+pub fn install(app: &tauri::AppHandle, window: Option<&WebviewWindow>) {
+    match spawn_and_wait_ready(app) {
+        Ok((child, url)) => {
+            tracing::info!("dsh shell: ready at {url}");
+            crate::dsh_bridge::attach(app, window, &url);
+            app.manage(DshProcess::new(child));
+            watch_child(app.clone());
+        }
+        Err(e) => {
+            tracing::error!("dsh shell: {e}");
+            eprintln!("[DSH-SHELL] 启动失败：{e}");
+            if let Some(window) = window {
+                show_error(window, "dsh 未能启动", &e);
+            }
+        }
+    }
+}
+
 /// 把主窗口导航到 dsh 带 token 的 URL；失败则显示可辨认错误页。
 pub fn navigate_to_dsh(window: &WebviewWindow, url: &str) {
     match url.parse::<tauri::Url>() {

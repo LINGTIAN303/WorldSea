@@ -45,6 +45,10 @@ mod plan_commands;
 
 // B2 壳接入（2026-09-23）：spawn dsh host + 就绪探测 + 主窗口导航到 dsh 界面 + 退出回收
 mod dsh_shell;
+// C1-a（2026-09-24）：`worldsea` 协议层代理宿主（UI origin 与传输面分离）+ 303 cookie 交换
+mod dsh_bridge;
+// C1-a（2026-09-24）：mux WebSocket 凭据中转（改写握手首部后双向透传）
+mod dsh_relay;
 
 // R 批 R-0（2026-09-23）：对话区行段分派基座——工具目录命令
 mod tool_catalog_commands;
@@ -116,6 +120,11 @@ pub fn run() {
         ))
         // 托盘动态状态（前端命令回写）
         .manage(Mutex::new(tray::TrayState::default()))
+        // C1-a（2026-09-24）：壳注册 `worldsea` 协议——UI 页 origin 不再等于宿主 authority。
+        // Windows 落形 = `http://worldsea.localhost/`（wry workaround，见 dsh_bridge.rs 头注）。
+        .register_asynchronous_uri_scheme_protocol("worldsea", |ctx, request, responder| {
+            dsh_bridge::handle_request(ctx, request, responder);
+        })
         .invoke_handler(tauri::generate_handler![
             commands::new_session,
             commands::fork_session,
@@ -352,30 +361,10 @@ pub fn run() {
         // Phase C 收尾：文件监听器注册表（cmd_fs_watch_start/stop 共享）
         .manage(fs_watch_commands::FsWatchRegistry(Default::default()))
         .setup(|app| {
-            // ── B2 壳接入（2026-09-23）────────────────────────────────────────
-            // 壳只做三件事：spawn dsh host（node，产物入口）→ 等它打印带 token 的 loopback URL
-            // → 把主窗口导航过去（dsh 界面 100% 保留，壳不改其 DOM）。异常一律落到可辨认错误页。
-            // 口径与批次见 docs/plans/2026-09-23-dsh接管Agent面-大重构准备.md §六 / §九 B2。
-            {
-                let window = app.get_webview_window("main");
-                match dsh_shell::spawn_and_wait_ready(app.handle()) {
-                    Ok((child, url)) => {
-                        tracing::info!("dsh shell: ready at {url}");
-                        if let Some(window) = &window {
-                            dsh_shell::navigate_to_dsh(window, &url);
-                        }
-                        app.manage(dsh_shell::DshProcess::new(child));
-                        dsh_shell::watch_child(app.handle().clone());
-                    }
-                    Err(e) => {
-                        tracing::error!("dsh shell: {e}");
-                        eprintln!("[DSH-SHELL] 启动失败：{e}");
-                        if let Some(window) = &window {
-                            dsh_shell::show_error(window, "dsh 未能启动", &e);
-                        }
-                    }
-                }
-            }
+            // ── B2 壳接入（2026-09-23）＋ C1-a 协议桥（2026-09-24）──────────────
+            // 装配全在 dsh_shell::install（spawn/就绪/守护）与 dsh_bridge::attach（协议页/回退）：
+            // UI origin 与传输面分离，界面 100% 保留；口径见 docs/plans/ 的准备方案 §六 与 C1 批计划 §三。
+            dsh_shell::install(app.handle(), app.get_webview_window("main").as_ref());
 
             // dev 模式内置开发者工具：默认关闭（2026-09-08 起）。
             // 原因：本机 WebView2 152 打开 devtools 同样触发 msedge.dll CHECK 崩溃

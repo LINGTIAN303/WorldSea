@@ -1,6 +1,6 @@
 # dsh 运行手册（仓内 `dsh/` 树）
 
-> **status: 现行**（2026-09-23 建立，B1 迁入批次产物；2026-09-24 追版 rc.1 + fork 改判）｜ 口径：只讲「怎么在仓内 `dsh/` 上**装、构、起**」；**`dsh/` 已是我方 fork**（D10，2026-09-24 改判）——可以对它动刀，但每一处改动都必须逐文件登记进 [dsh fork 台账](dsh-fork台账.md)（门禁 `pnpm fork:check`），并尽量收敛在接缝文件。
+> **status: 现行**（2026-09-23 建立，B1 迁入批次产物；2026-09-24 追版 rc.1 + fork 改判 + 补 §五 载体侧事实）｜ 口径：只讲「怎么在仓内 `dsh/` 上**装、构、起**」；**`dsh/` 已是我方 fork**（D10，2026-09-24 改判）——可以对它动刀，但每一处改动都必须逐文件登记进 [dsh fork 台账](dsh-fork台账.md)（门禁 `pnpm fork:check`），并尽量收敛在接缝文件。
 > 来源与许可：上游 **deepseek-harness tag `dsh-v0.1.7-rc.1`**（提交 `46a7f68b0922371ce7144b668b90e377d8e799f4`），**MIT**；树内自带 `LICENSE` 与 `THIRD_PARTY_NOTICES.md`。迁入口径：排除 `node_modules` 与 `.git`，其余原样。
 > 追版记录：初版迁入为 `dsh-v0.1.7-alpha.2`（`00102833`，2026-09-22）→ 2026-09-24 换树至 `dsh-v0.1.7-rc.1`（差异 933 文件 / +13,851 −3,101；会话格式无变动；就绪行格式与 web app 参数零变化，壳无需改动）。
 
@@ -42,3 +42,32 @@ DSH_HOME="D:/WorldSea/.独立项/b0-home" node apps/cli/lib/bin.js web --no-open
 ## 四、上游更新（步骤留档）
 
 `dsh/` 内无 `.git`，**不走 `git pull`**。更新口径：取新 tag 的干净树 → 按同样排除口径覆盖 `dsh/` → 先 `diff -rq`（排除 `node_modules`/`lib`）逐条核对差异并解释 → 再提交。版本与提交号同步登记到本手册与 [准备方案](../../plans/2026-09-23-dsh接管Agent面-大重构准备.md)。
+> 注（D10 改判后）：本仓**不追随上游**（追随上游的是 DSHWS）；本节仅用于「上游有值得 cherry-pick 的修复」时的手工流程，且按台账纪律登记。
+
+## 五、载体侧事实（C1-a 实测，2026-09-24）
+
+壳（`apps/tauri/`）把 UI 面搬到自定义协议上，**dsh 树零改动**（台账保持空）。要点：
+
+| 项 | 事实 |
+|---|---|
+| 协议落形 | 壳注册 `worldsea` 协议；**Windows 由 wry workaround 落为 `http://worldsea.localhost/`**（Tauri 官方口径 = `http://<scheme>.localhost/`）→ authority 必须写 `localhost`；写 `app` 会落到真实 TLD `worldsea.app`（HSTS 预载 + 非安全上下文） |
+| 换 cookie | 壳在导航前对 `dsh web` 打印的带 token URL 做一次 **303 交换**，取 `set-cookie` 首段留在内存（**token 不出现在 WebView URL**）。cookie 名与签名载荷**绑定 Host authority**（`127.0.0.1:<port>`）——转发与中转必须用同一 authority 作 `Host`，否则 401 |
+| `/api` 转发 | 协议处理器删掉页面的 `origin`/`cookie`/`sec-fetch-*` 再补壳侧 cookie → 同时过围栏（Host = loopback、无 Origin）与鉴权 |
+| WS | 页面的 mux WS 走壳内 **Rust 中转**（`dsh_relay.rs`）：改写 `Host`/`Origin`/`Cookie`/`Sec-Fetch-Site` 四项后双向透传字节；只认 `/<随机前缀>/api/remote.mux`（前缀由注入的 `streamBaseUrl` 带出）。Chromium 在 WS 握手**不发** `Sec-Fetch-*` |
+| 缓存 | index 与 `/plugins/*` 一律 **`no-store`**（每进程内容：宿主 `__DSH_BOOT__` + 壳注入的传输基址；否则二次启动拿到上一轮注入 → 传输指向已死端口） |
+| 注入 | index 的 `<head>` 后补一条 `__DSH_TRANSPORT__`（**只合并不覆盖**；早于宿主 head 行与全部模块脚本） |
+
+**排障开关**（壳侧环境变量，详见 `dsh_bridge.rs` / `dsh_shell.rs` 注释）：
+
+| 变量 | 作用 |
+|---|---|
+| `WORLDSEA_SHELL_DIAG=1` | 页内诊断开：注入 console 钩子（error/warn/未捕获异常 → 壳日志 `page(diag)`）+ 中转落档握手/响应原文 |
+| `WORLDSEA_NO_TRANSPORT_INJECT=1` | 反证用：不注入 `streamBaseUrl`（WS 必须失败；HTTP RPC 仍通） |
+| `WORLDSEA_LEGACY_DIRECT=1` | 回退直连 loopback（B2/B3 行为，跳过协议桥） |
+| `WORLDSEA_DSH_ROOT` / `WORLDSEA_DSH_HOME` / `WORLDSEA_NODE` | 指定 dsh 树 / home / node（默认自动探测与应用数据目录隔离 home） |
+
+**核查与清理**（改壳或复跑前）：
+
+- `taskkill //IM worldsea-tauri-app.exe //T //F` 清干净再起；被强杀的实例会留**孤儿 dsh host**（node 不在 Job Object 里），用 `tasklist | grep -i node` 复核。**本机 `wmic` 已失效（恒返回空）**——进程核查改用 `tasklist` / `powershell Get-CimInstance`。
+- 应用日志建议直写（`… > 日志 2>&1`）；本机 `tee` 有块缓冲，短窗口内读会拿到**过期内容**（曾据此误判「页面未加载」）。
+- Windows 坑（已修，代码注释留档）：`accept()` 出来的套接字**继承 listener 的非阻塞态**（Unix 不继承），中转若忘了 `set_nonblocking(false)`，握手 101 后会 0 字节即断（`WSAEWOULDBLOCK 10035`）。
