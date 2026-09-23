@@ -43,6 +43,9 @@ mod web_fetch_commands;
 // A4 Plan-Exec 计划工具（plan_create / plan_update）
 mod plan_commands;
 
+// B2 壳接入（2026-09-23）：spawn dsh host + 就绪探测 + 主窗口导航到 dsh 界面 + 退出回收
+mod dsh_shell;
+
 // R 批 R-0（2026-09-23）：对话区行段分派基座——工具目录命令
 mod tool_catalog_commands;
 // Router Pattern 编排命令层：2026-09-09 随右栏 Router 区一并下线（Router 归场景识别底座，
@@ -349,6 +352,31 @@ pub fn run() {
         // Phase C 收尾：文件监听器注册表（cmd_fs_watch_start/stop 共享）
         .manage(fs_watch_commands::FsWatchRegistry(Default::default()))
         .setup(|app| {
+            // ── B2 壳接入（2026-09-23）────────────────────────────────────────
+            // 壳只做三件事：spawn dsh host（node，产物入口）→ 等它打印带 token 的 loopback URL
+            // → 把主窗口导航过去（dsh 界面 100% 保留，壳不改其 DOM）。异常一律落到可辨认错误页。
+            // 口径与批次见 docs/plans/2026-09-23-dsh接管Agent面-大重构准备.md §六 / §九 B2。
+            {
+                let window = app.get_webview_window("main");
+                match dsh_shell::spawn_and_wait_ready() {
+                    Ok((child, url)) => {
+                        tracing::info!("dsh shell: ready at {url}");
+                        if let Some(window) = &window {
+                            dsh_shell::navigate_to_dsh(window, &url);
+                        }
+                        app.manage(dsh_shell::DshProcess::new(child));
+                        dsh_shell::watch_child(app.handle().clone());
+                    }
+                    Err(e) => {
+                        tracing::error!("dsh shell: {e}");
+                        eprintln!("[DSH-SHELL] 启动失败：{e}");
+                        if let Some(window) = &window {
+                            dsh_shell::show_error(window, "dsh 未能启动", &e);
+                        }
+                    }
+                }
+            }
+
             // dev 模式内置开发者工具：默认关闭（2026-09-08 起）。
             // 原因：本机 WebView2 152 打开 devtools 同样触发 msedge.dll CHECK 崩溃
             // （异常码 0x80000003 EXCEPTION_BREAKPOINT）。需要内置 devtools 调试时：
@@ -358,11 +386,13 @@ pub fn run() {
                 let window = app.get_webview_window("main").unwrap();
                 window.open_devtools();
             }
-            // 无边框窗口兜底：tauri.conf.json 的 decorations:false 在增量编译缓存下
-            // 可能未编译进二进制（首次实测出现双标题栏），窗口创建后运行时再强制一次。
-            if let Some(window) = app.get_webview_window("main") {
-                if window.is_decorated().unwrap_or(true) {
-                    let _ = window.set_decorations(false);
+            // B2（2026-09-23）：壳承载 dsh 界面后改回**原生边框**（dsh 界面自带布局，壳不再自绘标题栏）。
+            // 旧「无边框 + 自绘标题栏」只在显式设 WORLDSEA_FRAMELESS=1 时启用（Vue 前端退役前的回退口）。
+            if std::env::var_os("WORLDSEA_FRAMELESS").is_some() {
+                if let Some(window) = app.get_webview_window("main") {
+                    if window.is_decorated().unwrap_or(true) {
+                        let _ = window.set_decorations(false);
+                    }
                 }
             }
 
@@ -628,10 +658,14 @@ pub fn run() {
         })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|_app, event| {
-            // LSP server 常驻进程随 App 真退出统一回收（防孤儿，立项 B1 验收项）
+        .run(|app, event| {
             if let tauri::RunEvent::Exit = event {
+                // LSP server 常驻进程随 App 真退出统一回收（防孤儿，立项 B1 验收项）
                 lsp_commands::kill_all();
+                // B2：dsh 子进程随壳退出回收（防孤儿 node 进程占端口）
+                if let Some(state) = app.try_state::<dsh_shell::DshProcess>() {
+                    state.kill();
+                }
             }
         });
 }

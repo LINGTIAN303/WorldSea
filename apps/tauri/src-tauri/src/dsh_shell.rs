@@ -1,0 +1,268 @@
+// B2 壳接入（2026-09-23）：Tauri 壳承载 dsh —— spawn dsh host（node）+ 就绪探测 + WebView 导航 + 退出回收。
+//
+// 口径（见 docs/plans/2026-09-23-dsh接管Agent面-大重构准备.md §六）：
+// - 只 spawn + 探测 + 导航；不改 dsh 树、不手写协议客户端（界面 100% 保留）。
+// - 就绪信号 = 启动器打印的 `dsh web: http://127.0.0.1:<port>/?token=…`。
+// - 异常路径（spawn 失败 / 就绪超时 / 子进程中途退出）导航到可辨认错误页，不静默白屏。
+
+use std::io::{BufRead, BufReader};
+use std::net::TcpListener;
+use std::path::PathBuf;
+use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc;
+use std::sync::Mutex;
+use std::time::Duration;
+
+use tauri::{Manager, WebviewWindow};
+
+/// 就绪等待上限（冷启动 + profile 首启都在这条路径上）
+const READY_TIMEOUT: Duration = Duration::from_secs(90);
+
+/// dsh 子进程句柄：退出时回收；供心跳守护查询存活态。
+pub struct DshProcess {
+    child: Mutex<Option<Child>>,
+    shutting_down: AtomicBool,
+}
+
+impl DshProcess {
+    pub fn new(child: Child) -> Self {
+        Self { child: Mutex::new(Some(child)), shutting_down: AtomicBool::new(false) }
+    }
+
+    /// 退出回收：置关停标志（心跳守护静默）→ kill + wait（防孤儿进程）。
+    pub fn kill(&self) {
+        self.shutting_down.store(true, Ordering::Relaxed);
+        if let Ok(mut guard) = self.child.lock() {
+            if let Some(mut child) = guard.take() {
+                let _ = child.kill();
+                let _ = child.wait();
+            }
+        }
+    }
+
+    /// 子进程是否已退出（守护线程轮询用；无句柄视为已退出）。
+    fn has_exited(&self) -> bool {
+        if self.shutting_down.load(Ordering::Relaxed) {
+            return false;
+        }
+        match self.child.lock() {
+            Ok(mut guard) => match guard.as_mut() {
+                Some(child) => !matches!(child.try_wait(), Ok(None)),
+                None => true,
+            },
+            Err(_) => false,
+        }
+    }
+}
+
+/// 取一个空闲的 loopback 端口（绑定 :0 后释放；dsh 随即绑定它）。
+fn free_loopback_port() -> Result<u16, String> {
+    let listener = TcpListener::bind("127.0.0.1:0").map_err(|e| format!("探测空闲端口失败：{e}"))?;
+    let port = listener.local_addr().map_err(|e| format!("读取端口失败：{e}"))?.port();
+    drop(listener);
+    Ok(port)
+}
+
+/// 去掉 Windows verbatim 前缀（`\\?\`）——Node 不认该形态（实测 `EISDIR: lstat 'D:'`）。
+/// `canonicalize()` 会加上该前缀，故凡是要交给 Node 作参数的路径都必须先剥掉。
+fn strip_verbatim_prefix(path: PathBuf) -> PathBuf {
+    let text = path.to_string_lossy();
+    match text.strip_prefix(r"\\?\") {
+        Some(rest) => PathBuf::from(rest),
+        None => path,
+    }
+}
+
+/// 定位仓内 dsh 树：`WORLDSEA_DSH_ROOT` 优先；否则按 CARGO_MANIFEST_DIR 上溯（dev 口径）。
+fn resolve_dsh_root() -> Result<PathBuf, String> {
+    let bin_rel = ["apps", "cli", "lib", "bin.js"];
+    if let Some(raw) = std::env::var_os("WORLDSEA_DSH_ROOT") {
+        let candidate = strip_verbatim_prefix(PathBuf::from(raw));
+        return if candidate.join(bin_rel.iter().collect::<PathBuf>()).exists() {
+            Ok(candidate)
+        } else {
+            Err(format!(
+                "WORLDSEA_DSH_ROOT 指向的目录里没有 apps/cli/lib/bin.js：{}（先在该树执行 pnpm install && pnpm run build）",
+                candidate.display()
+            ))
+        };
+    }
+    let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let candidate = manifest.join("..").join("..").join("..").join("dsh");
+    let candidate = strip_verbatim_prefix(candidate.canonicalize().unwrap_or(candidate));
+    if candidate.join(bin_rel.iter().collect::<PathBuf>()).exists() {
+        Ok(candidate)
+    } else {
+        Err(format!(
+            "未找到 dsh 树：{}（先在本仓 dsh/ 执行 pnpm install && pnpm run build；或用 WORLDSEA_DSH_ROOT 指定）",
+            candidate.display()
+        ))
+    }
+}
+
+/// 启动 dsh host 并等就绪；返回（子进程句柄, 带 token 的 URL）。
+pub fn spawn_and_wait_ready() -> Result<(Child, String), String> {
+    let root = resolve_dsh_root()?;
+    let port = free_loopback_port()?;
+    let node = std::env::var("WORLDSEA_NODE").unwrap_or_else(|_| "node".to_string());
+    let bin = root.join("apps").join("cli").join("lib").join("bin.js");
+    // DSH_HOME 口径（B2 实测，2026-09-23）：
+    // - 空 HOME 不可用：profile 的 bundle 依赖未安装时，dsh 会**静默退出（exit 0、无输出、不建 profile 目录）**，
+    //   且 WebView 只看到空白 —— 详见批次记录（准备方案 §九 B2 发现）。
+    // - 故默认让它用 dsh 自己的默认 home（`~/.dsh`，已验证可用），仅当显式设 `WORLDSEA_DSH_HOME` 时用隔离 home。
+    let home = match std::env::var_os("WORLDSEA_DSH_HOME") {
+        Some(raw) => {
+            let dir = PathBuf::from(raw);
+            std::fs::create_dir_all(&dir).map_err(|e| format!("创建 DSH_HOME 失败：{e}"))?;
+            Some(dir)
+        }
+        None => None,
+    };
+
+    tracing::info!(
+        "dsh shell: spawn {node} {} web --no-open --port {port}（DSH_HOME={}）",
+        bin.display(),
+        home.as_deref().map(|p| p.display().to_string()).unwrap_or_else(|| "<dsh 默认 ~/.dsh>".to_string())
+    );
+    // 控制台直出（与 [HTTP-BRIDGE] 同风格）：tracing 无订阅者，故障排查必须能看见这几行
+    println!(
+        "[DSH-SHELL] spawn {node} {} web --no-open --port {port} (DSH_HOME={})",
+        bin.display(),
+        home.as_deref().map(|p| p.display().to_string()).unwrap_or_else(|| "<default>".to_string())
+    );
+    let mut command = Command::new(&node);
+    command
+        .arg(&bin)
+        .arg("web")
+        .arg("--no-open")
+        .arg("--port")
+        .arg(port.to_string())
+        .current_dir(&root)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    if let Some(dir) = &home {
+        command.env("DSH_HOME", dir);
+    }
+    let mut child = command
+        .spawn()
+        .map_err(|e| format!("启动 dsh 失败（node={node}）：{e}"))?;
+
+    let (tx, rx) = mpsc::channel::<String>();
+    if let Some(stdout) = child.stdout.take() {
+        let tx = tx.clone();
+        std::thread::spawn(move || {
+            for line in BufReader::new(stdout).lines().map_while(Result::ok) {
+                if line.contains("127.0.0.1:") && line.contains("/?token=") {
+                    let url = line
+                        .split_whitespace()
+                        .find(|w| w.starts_with("http://127.0.0.1:"))
+                        .unwrap_or("")
+                        .to_string();
+                    let _ = tx.send(url);
+                } else {
+                    tracing::info!("dsh: {line}");
+                }
+            }
+            // 子进程 stdout 关闭 = 进程行将退出
+            let _ = tx.send(String::new());
+        });
+    }
+    if let Some(stderr) = child.stderr.take() {
+        std::thread::spawn(move || {
+            for line in BufReader::new(stderr).lines().map_while(Result::ok) {
+                eprintln!("[DSH-SHELL] dsh(stderr): {line}");
+            }
+        });
+    }
+
+    match rx.recv_timeout(READY_TIMEOUT) {
+        Ok(url) if !url.is_empty() => {
+            println!("[DSH-SHELL] ready: {url}");
+            Ok((child, url))
+        }
+        Ok(_) => {
+            let _ = child.kill();
+            Err("dsh 在打印就绪 URL 前退出（详见应用日志；常见原因：profile 依赖缺失，见 B2 批次发现）".to_string())
+        }
+        Err(_) => {
+            let _ = child.kill();
+            Err(format!("dsh 就绪超时（{}s）", READY_TIMEOUT.as_secs()))
+        }
+    }
+}
+
+/// 把主窗口导航到 dsh 带 token 的 URL；失败则显示可辨认错误页。
+pub fn navigate_to_dsh(window: &WebviewWindow, url: &str) {
+    match url.parse::<tauri::Url>() {
+        Ok(parsed) => {
+            if let Err(e) = window.navigate(parsed) {
+                show_error(window, "无法加载 dsh 界面", &format!("窗口导航失败：{e}"));
+            }
+        }
+        Err(e) => show_error(window, "无法加载 dsh 界面", &format!("URL 解析失败：{e}（{url}）")),
+    }
+}
+
+/// 子进程心跳守护：运行中退出 → 导航到可辨认错误页（首期不加自动重启，保留证据）。
+pub fn watch_child(app: tauri::AppHandle) {
+    std::thread::spawn(move || loop {
+        std::thread::sleep(Duration::from_millis(500));
+        let state = app.try_state::<DshProcess>();
+        let Some(state) = state else { return };
+        if state.shutting_down.load(Ordering::Relaxed) {
+            return;
+        }
+        if state.has_exited() {
+            tracing::error!("dsh shell: dsh 子进程已退出（未随应用关停）");
+            eprintln!("[DSH-SHELL] dsh 子进程已退出（未随应用关停）");
+            if let Some(window) = app.get_webview_window("main") {
+                show_error(
+                    &window,
+                    "dsh 已退出",
+                    "与 Agent 内核的连接已中断。请退出应用后重新启动以恢复。\n（详细日志见应用日志与 DSH_HOME 下的 startup 诊断报告。）",
+                );
+            }
+            return;
+        }
+    });
+}
+
+/// 可辨认失败态：把窗口导航到内联错误页（不静默白屏）。
+pub fn show_error(window: &WebviewWindow, title: &str, detail: &str) {
+    let html = format!(
+        "<!doctype html><html lang=\"zh-CN\"><head><meta charset=\"utf-8\"><title>WorldSea</title></head>\
+<body style=\"margin:0;padding:32px;font-family:'Segoe UI','Microsoft YaHei',system-ui;background:#111113;color:#e4e4e7\">\
+<h1 style=\"font-size:18px;margin:0 0 12px\">{}</h1>\
+<pre style=\"white-space:pre-wrap;word-break:break-word;color:#a1a1aa;font-size:13px;line-height:1.6\">{}</pre>\
+</body></html>",
+        escape_html(title),
+        escape_html(detail)
+    );
+    let url = format!("data:text/html;charset=utf-8,{}", percent_encode(&html));
+    match url.parse::<tauri::Url>() {
+        Ok(parsed) => {
+            if let Err(e) = window.navigate(parsed) {
+                tracing::error!("dsh shell: 错误页导航失败：{e}");
+            }
+        }
+        Err(e) => tracing::error!("dsh shell: 错误页 URL 解析失败：{e}"),
+    }
+}
+
+fn escape_html(s: &str) -> String {
+    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
+}
+
+fn percent_encode(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() * 2);
+    for b in s.as_bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'!' | b'~' | b'*' | b'\''
+            | b'(' | b')' => out.push(*b as char),
+            _ => out.push_str(&format!("%{b:02X}")),
+        }
+    }
+    out
+}
