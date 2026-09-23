@@ -1,7 +1,8 @@
 # dsh 运行手册（仓内 `dsh/` 树）
 
 > **status: 现行**（2026-09-23 建立，B1 迁入批次产物）｜ 口径：只讲「怎么在仓内 `dsh/` 上**装、构、起**」；**`dsh/` 树内不改任何文件**（见 [准备方案](../../plans/2026-09-23-dsh接管Agent面-大重构准备.md) §五）。
-> 来源与许可：上游 **deepseek-harness tag `dsh-v0.1.7-alpha.2`**（提交 `00102833dfaee1da9f48a3a8eae9d34005a75218`，2026-09-22 23:25 +0800），**MIT**；树内自带 `LICENSE` 与 `THIRD_PARTY_NOTICES.md`。迁入口径：排除 `node_modules` 与 `.git`，其余原样。
+> 来源与许可：上游 **deepseek-harness tag `dsh-v0.1.7-rc.1`**（提交 `46a7f68b0922371ce7144b668b90e377d8e799f4`），**MIT**；树内自带 `LICENSE` 与 `THIRD_PARTY_NOTICES.md`。迁入口径：排除 `node_modules` 与 `.git`，其余原样。
+> 追版记录：初版迁入为 `dsh-v0.1.7-alpha.2`（`00102833`，2026-09-22）→ 2026-09-24 换树至 `dsh-v0.1.7-rc.1`（差异 933 文件 / +13,851 −3,101；会话格式无变动；就绪行格式与 web app 参数零变化，壳无需改动）。
 
 ---
 
@@ -12,7 +13,7 @@
 | Node | `^22.19 \|\| >=24`（实测 v24.10.0） |
 | pnpm | 在 `dsh/` 内自动切到其钉住的 **11.7.0**（根 `packageManager` 字段；本机全局 11.5.1 不必改） |
 | registry | 官方源与 npmmirror 当前**均可达**；统一带 `--registry=https://registry.npmmirror.com`（CN 网络更稳）；**不改任何 `.npmrc`** |
-| `DSH_HOME` | **必须隔离**——默认 `~/.dsh` 已有其它 profile/会话；本文统一用 `D:/WorldSea/.独立项/b0-home` |
+| `DSH_HOME` | **建议隔离**——壳默认用应用数据目录（`<app_data>/dsh-home`），手工跑时显式指定（本文示例 `D:/WorldSea/.独立项/b0-home`）。**空/新 home 首启正常**：dsh 自动 `initProfile`（建 `.anonymous-user-id`、`.credentials.yaml`、`profiles/web`、`storages/`）。⚠️ 调用形式注意：用**管道**（`… 2>&1 \| tee 日志`）而非 `timeout`+`env`+`>文件`——后者实测会让启动静默无输出（2026-09-24 更正） |
 | 索引忽略 | 仓根 `.qoderignore` 已排除 `dsh/`、`.独立项/`、`node_modules/`——**在工作区内安装前必须先有这个忽略**，否则补丁依赖（`patchedDependencies`）改名会报 `ERR_PNPM_EPERM` |
 | git 指纹 | `pnpm run build` 取 `git rev-parse HEAD`；在仓内运行取到 **WorldSea 的提交**（语义偏但可用）；仓外裸拷贝需 `git init` + 空提交，或设环境变量 `CLIENT_COMMIT_HASH_VARIABLE` |
 

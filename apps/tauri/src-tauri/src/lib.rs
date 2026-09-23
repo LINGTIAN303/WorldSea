@@ -358,7 +358,7 @@ pub fn run() {
             // 口径与批次见 docs/plans/2026-09-23-dsh接管Agent面-大重构准备.md §六 / §九 B2。
             {
                 let window = app.get_webview_window("main");
-                match dsh_shell::spawn_and_wait_ready() {
+                match dsh_shell::spawn_and_wait_ready(app.handle()) {
                     Ok((child, url)) => {
                         tracing::info!("dsh shell: ready at {url}");
                         if let Some(window) = &window {

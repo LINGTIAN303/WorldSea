@@ -102,34 +102,35 @@ fn resolve_dsh_root() -> Result<PathBuf, String> {
 }
 
 /// 启动 dsh host 并等就绪；返回（子进程句柄, 带 token 的 URL）。
-pub fn spawn_and_wait_ready() -> Result<(Child, String), String> {
+pub fn spawn_and_wait_ready(app: &tauri::AppHandle) -> Result<(Child, String), String> {
     let root = resolve_dsh_root()?;
     let port = free_loopback_port()?;
     let node = std::env::var("WORLDSEA_NODE").unwrap_or_else(|_| "node".to_string());
     let bin = root.join("apps").join("cli").join("lib").join("bin.js");
-    // DSH_HOME 口径（B2 实测，2026-09-23）：
-    // - 空 HOME 不可用：profile 的 bundle 依赖未安装时，dsh 会**静默退出（exit 0、无输出、不建 profile 目录）**，
-    //   且 WebView 只看到空白 —— 详见批次记录（准备方案 §九 B2 发现）。
-    // - 故默认让它用 dsh 自己的默认 home（`~/.dsh`，已验证可用），仅当显式设 `WORLDSEA_DSH_HOME` 时用隔离 home。
+    // DSH_HOME 口径（2026-09-24 更正）：**默认隔离到本应用数据目录**（`<app_data>/dsh-home`），
+    // 避免与用户其它 dsh 用法/第三方 profile 混用；`WORLDSEA_DSH_HOME` 可显式覆盖。
+    // 更正说明：此前记录的「空 DSH_HOME 会让 dsh 静默退出」为**测试形式造成的假象**
+    // （`timeout`+`env`+`>文件` 形式；实测管道形式下空 home 首启正常，dsh 会自动 initProfile）。
     let home = match std::env::var_os("WORLDSEA_DSH_HOME") {
-        Some(raw) => {
-            let dir = PathBuf::from(raw);
-            std::fs::create_dir_all(&dir).map_err(|e| format!("创建 DSH_HOME 失败：{e}"))?;
-            Some(dir)
-        }
-        None => None,
+        Some(raw) => PathBuf::from(raw),
+        None => app
+            .path()
+            .app_data_dir()
+            .map_err(|e| format!("定位应用数据目录失败：{e}"))?
+            .join("dsh-home"),
     };
+    std::fs::create_dir_all(&home).map_err(|e| format!("创建 DSH_HOME 失败：{e}"))?;
 
     tracing::info!(
         "dsh shell: spawn {node} {} web --no-open --port {port}（DSH_HOME={}）",
         bin.display(),
-        home.as_deref().map(|p| p.display().to_string()).unwrap_or_else(|| "<dsh 默认 ~/.dsh>".to_string())
+        home.display()
     );
     // 控制台直出（与 [HTTP-BRIDGE] 同风格）：tracing 无订阅者，故障排查必须能看见这几行
     println!(
         "[DSH-SHELL] spawn {node} {} web --no-open --port {port} (DSH_HOME={})",
         bin.display(),
-        home.as_deref().map(|p| p.display().to_string()).unwrap_or_else(|| "<default>".to_string())
+        home.display()
     );
     // 壳 overlay（B4-a）：打开 web 下默认禁用的右栏内置浏览器等「desktop 才启用」的条目。
     // 位置固定为 `<仓根>/apps/tauri/dsh-overlay.yml`（dsh 树在仓根，故取其父目录）；缺失则跳过。
@@ -155,13 +156,11 @@ pub fn spawn_and_wait_ready() -> Result<(Child, String), String> {
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    if let Some(dir) = &home {
-        command.env("DSH_HOME", dir);
-    }
+    // DSH_HOME 一律显式传入（默认=应用数据目录下的隔离 home，或 WORLDSEA_DSH_HOME 覆盖）
+    command.env("DSH_HOME", &home);
     let mut child = command
         .spawn()
         .map_err(|e| format!("启动 dsh 失败（node={node}）：{e}"))?;
-
     let (tx, rx) = mpsc::channel::<String>();
     if let Some(stdout) = child.stdout.take() {
         let tx = tx.clone();
