@@ -1,5 +1,7 @@
 # deepseek-harness 调研与借鉴方案
 
+> **status: 作废（2026-09-23）**——本文是「把 dsh 当参考项」的外部调研。2026-09-23 改判为 **dsh 整体接管 Agent 面（迁文件）**，本文不再作为任何实现的依据，仅保留原文供追溯。替代方向见 [dsh 接管 Agent 面 · 大重构准备](../plans/2026-09-23-dsh接管Agent面-大重构准备.md)。
+
 > 调研开始：2026-09-01
 > 调研对象：https://github.com/deepseek-ai/deepseek-harness（master 分支，MIT，**开发者预览期**）
 > 调研方式：官方文档 + 关键源码（不克隆仓库，按需取文件）
