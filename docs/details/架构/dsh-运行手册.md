@@ -1,6 +1,6 @@
 # dsh 运行手册（仓内 `dsh/` 树）
 
-> **status: 现行**（2026-09-23 建立，B1 迁入批次产物）｜ 口径：只讲「怎么在仓内 `dsh/` 上**装、构、起**」；**`dsh/` 树内不改任何文件**（见 [准备方案](../../plans/2026-09-23-dsh接管Agent面-大重构准备.md) §五）。
+> **status: 现行**（2026-09-23 建立，B1 迁入批次产物；2026-09-24 追版 rc.1 + fork 改判）｜ 口径：只讲「怎么在仓内 `dsh/` 上**装、构、起**」；**`dsh/` 已是我方 fork**（D10，2026-09-24 改判）——可以对它动刀，但每一处改动都必须逐文件登记进 [dsh fork 台账](dsh-fork台账.md)（门禁 `pnpm fork:check`），并尽量收敛在接缝文件。
 > 来源与许可：上游 **deepseek-harness tag `dsh-v0.1.7-rc.1`**（提交 `46a7f68b0922371ce7144b668b90e377d8e799f4`），**MIT**；树内自带 `LICENSE` 与 `THIRD_PARTY_NOTICES.md`。迁入口径：排除 `node_modules` 与 `.git`，其余原样。
 > 追版记录：初版迁入为 `dsh-v0.1.7-alpha.2`（`00102833`，2026-09-22）→ 2026-09-24 换树至 `dsh-v0.1.7-rc.1`（差异 933 文件 / +13,851 −3,101；会话格式无变动；就绪行格式与 web app 参数零变化，壳无需改动）。
 
@@ -28,6 +28,7 @@ DSH_HOME="D:/WorldSea/.独立项/b0-home" node apps/cli/lib/bin.js web --no-open
 
 - 启动只监听 **loopback**；`GET /?token=…` → **303 + `Set-Cookie: dsh-auth-*`**（HttpOnly / SameSite=Strict / 30 天）；之后 `/api` 与 `/api/remote.mux`(WS) 认 Cookie，无 Cookie → **401**；index（32.9 KB）含 `__DSH_BOOT__`。
 - 壳侧 overlay：`--patch <仓根>/apps/tauri/dsh-overlay.yml`（**打开 web 下默认禁用的右栏内置浏览器**；launcher 标志须排在 `--no-open/--port` 之前）。
+- **改了 `dsh/` 之后必跑**（在**仓根**执行）：`pnpm fork:check` —— 未登记的 dsh 改动会报红（见 [dsh fork 台账](dsh-fork台账.md)）。
 - 模型调用读环境变量（如 `DEEPSEEK_API_KEY`）；本机环境已设。
 
 ## 三、已实测事实（2026-09-23）

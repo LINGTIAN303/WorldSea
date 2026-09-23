@@ -20,6 +20,7 @@
     "gen:bridge-spec": "node scripts/gen-bridge-spec.mjs",
     "arch:check": "node scripts/architecture/check.mjs",
     "arch:context": "node scripts/architecture/context.mjs",
+    "fork:check": "node scripts/check-dsh-fork-ledger.mjs",
     "build": "pnpm --filter @worldsea/tauri tauri:build",
     "tauri:dev": "pnpm --filter @worldsea/tauri tauri:dev",
     "tauri:build": "pnpm --filter @worldsea/tauri tauri:build",
