@@ -61,12 +61,16 @@ pub fn prepare(ready_url: &str) -> Result<DshBridge, String> {
         cookie,
         relay_base: relay.base_url(),
         inject_transport: std::env::var_os("WORLDSEA_NO_TRANSPORT_INJECT").is_none(),
+        inject_shell_bridge: std::env::var_os("WORLDSEA_NO_SHELL_BRIDGE").is_none(),
         diag,
         deny_path: std::env::var("WORLDSEA_DENY_PATH").ok().filter(|value| !value.is_empty()),
         open_paths: std::env::var_os("WORLDSEA_BRIDGE_OPEN").is_some(),
     };
     if !cfg.inject_transport {
         eprintln!("[DSH-SHELL] bridge: streamBaseUrl 注入已按 WORLDSEA_NO_TRANSPORT_INJECT 关闭（反证模式）");
+    }
+    if !cfg.inject_shell_bridge {
+        eprintln!("[DSH-SHELL] bridge: 壳桥注入已按 WORLDSEA_NO_SHELL_BRIDGE 关闭（反证模式：设置入口必须显式降级）");
     }
     if cfg.diag {
         println!("[DSH-SHELL] bridge: 页内诊断已开（console 钩子 → [DSH-SHELL] page(diag)；中转落档握手原文）");

@@ -117,6 +117,7 @@ fn cfg(host_port: u16) -> ProxyCfg {
         cookie: "dsh-auth-x=v1.a.b".to_string(),
         relay_base: "http://127.0.0.1:9/dead-secret/".to_string(),
         inject_transport: true,
+        inject_shell_bridge: true,
         diag: false,
         deny_path: None,
         open_paths: false,
@@ -285,6 +286,44 @@ fn index_failure_returns_recognizable_html_page() {
     let response = proxy(&cfg(dead_port()), &client(), &req("GET", "/assets/x.js"));
     assert_eq!(response.status().as_u16(), 502);
     assert_eq!(header(&response, "content-type").as_deref(), Some("text/plain; charset=utf-8"));
+}
+
+#[test]
+fn injection_switches_gate_each_script_independently() {
+    let (port, _seen) = fake_upstream();
+    // 全开：三件套齐（transport / watchdog / bridge）
+    let text = body_text(&proxy(&cfg(port), &client(), &req("GET", "/")));
+    assert!(text.contains("worldsea-shell:transport"));
+    assert!(text.contains("worldsea-shell:boot-watchdog"));
+    assert!(text.contains("worldsea-shell:bridge"));
+    // 摘 transport（C1-a 反证开关）：只少这一件
+    let mut no_transport = cfg(port);
+    no_transport.inject_transport = false;
+    let text = body_text(&proxy(&no_transport, &client(), &req("GET", "/")));
+    assert!(!text.contains("worldsea-shell:transport"));
+    assert!(text.contains("worldsea-shell:boot-watchdog"));
+    assert!(text.contains("worldsea-shell:bridge"));
+    // 摘壳桥（C1-c 反证开关）：设置入口必须显式降级（menu.rs 的缺桥提示由 JS 侧兜底）
+    let mut no_bridge = cfg(port);
+    no_bridge.inject_shell_bridge = false;
+    let text = body_text(&proxy(&no_bridge, &client(), &req("GET", "/")));
+    assert!(!text.contains("worldsea-shell:bridge"));
+    assert!(text.contains("worldsea-shell:boot-watchdog"));
+}
+
+#[test]
+fn shell_bridge_script_wires_expected_commands() {
+    // 注入脚本里的命令名必须与 Rust 侧注册一致（防止改名后静默失联）
+    let (port, _seen) = fake_upstream();
+    let text = body_text(&proxy(&cfg(port), &client(), &req("GET", "/")));
+    for command in ["cmd_shell_bridge_report", "cmd_shell_open_external", "cmd_notify"] {
+        assert!(text.contains(command), "壳桥缺少命令接线：{command}");
+    }
+    assert!(text.contains("__WORLDSEA_SHELL__"));
+    assert!(text.contains("openSettings"));
+    // 设置入口的定位依赖 aria-label（侧栏折叠态只剩图标；ui-settings-general 的触发按钮带该属性）
+    assert!(text.contains("aria-label"), "壳桥必须按 aria-label 定位设置入口（折叠态）");
+    assert!(text.contains("设置"), "壳桥需要中英文两套文案标签");
 }
 
 #[test]

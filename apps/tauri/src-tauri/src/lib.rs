@@ -51,6 +51,10 @@ mod dsh_bridge;
 mod dsh_proxy;
 // C1-a（2026-09-24）：mux WebSocket 凭据中转（改写握手首部后双向透传）
 mod dsh_relay;
+// C1-c（2026-09-24）：壳桥（页面可调的壳命令：外链 / 日志）——JS 侧见 dsh_shell_bridge.js
+mod shell_bridge;
+// C1-c（2026-09-24）：原生菜单（文件/编辑/视图/设置）
+mod menu;
 
 // R 批 R-0（2026-09-23）：对话区行段分派基座——工具目录命令
 mod tool_catalog_commands;
@@ -207,7 +211,9 @@ pub fn run() {
             lsp_commands::cmd_lsp_start,
             lsp_commands::cmd_lsp_send,
             lsp_commands::cmd_lsp_stop,
-            // 诊断日志（临时，排障用）
+            // C1-c：壳桥命令（页面经 IPC 调用：外链 / 日志）
+            shell_bridge::cmd_shell_open_external,
+            shell_bridge::cmd_shell_bridge_report,
             commands::cmd_diag_log,
             commands::abort,
             commands::steer,
@@ -367,6 +373,7 @@ pub fn run() {
             // 装配全在 dsh_shell::install（spawn/就绪/守护）与 dsh_bridge::attach（协议页/回退）：
             // UI origin 与传输面分离，界面 100% 保留；口径见 docs/plans/ 的准备方案 §六 与 C1 批计划 §三。
             dsh_shell::install(app.handle(), app.get_webview_window("main").as_ref());
+            menu::install(app.handle()); // C1-c：原生菜单（构建失败只告警，不阻塞启动）
 
             // dev 模式内置开发者工具：默认关闭（2026-09-08 起）。
             // 原因：本机 WebView2 152 打开 devtools 同样触发 msedge.dll CHECK 崩溃

@@ -249,6 +249,19 @@ pub fn watch_child(app: tauri::AppHandle) {
         if state.has_exited() {
             tracing::error!("dsh shell: dsh 子进程已退出（未随应用关停）");
             eprintln!("[DSH-SHELL] dsh 子进程已退出（未随应用关停）");
+            // C1-c：附一条系统通知——窗口可能被收进托盘，错误页在屏幕上看不见（通知失败不影响主流程）
+            {
+                use tauri_plugin_notification::NotificationExt;
+                if let Err(e) = app
+                    .notification()
+                    .builder()
+                    .title("WorldSea")
+                    .body("Agent 内核（dsh）已退出，界面已停止更新。请重启应用恢复。")
+                    .show()
+                {
+                    eprintln!("[DSH-SHELL] 退出通知发送失败：{e}");
+                }
+            }
             if let Some(window) = app.get_webview_window("main") {
                 show_error(
                     &window,

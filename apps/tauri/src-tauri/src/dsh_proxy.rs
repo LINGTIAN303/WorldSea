@@ -16,6 +16,9 @@ pub(crate) struct ProxyCfg {
     pub relay_base: String,
     /// 反证开关：`WORLDSEA_NO_TRANSPORT_INJECT=1` 时不注入 streamBaseUrl
     pub inject_transport: bool,
+    /// 反证开关：`WORLDSEA_NO_SHELL_BRIDGE=1` 时不注入壳桥（`__WORLDSEA_SHELL__`；
+    /// 依赖它的「打开设置」必须显式降级，见 menu.rs 的缺桥提示）
+    pub inject_shell_bridge: bool,
     /// 诊断开关：`WORLDSEA_SHELL_DIAG=1`
     pub diag: bool,
     /// 测试钩子：命中该前缀直接 404（验「资源失败 → 非白屏」降级链）
@@ -226,9 +229,16 @@ pub(crate) fn proxy(
         }
     };
     let injected = is_index && cfg.inject_transport;
-    if injected {
+    if is_index && (cfg.inject_transport || cfg.inject_shell_bridge || cfg.diag) {
         let text = String::from_utf8_lossy(&body).to_string();
-        body = inject_shell_scripts(&text, &cfg.relay_base, cfg.diag).into_bytes();
+        body = inject_shell_scripts(
+            &text,
+            &cfg.relay_base,
+            cfg.inject_transport,
+            cfg.inject_shell_bridge,
+            cfg.diag,
+        )
+        .into_bytes();
     }
 
     if no_store {
@@ -255,19 +265,34 @@ pub(crate) fn proxy(
         .unwrap_or_else(|e| failure_response(500, is_index, "构造响应失败", &e.to_string()))
 }
 
-/// 注入壳脚本（**只合并不覆盖**）：先 `__DSH_TRANSPORT__`（裁定 ④ 的传输基址单点），再「不白屏」安全网。
+/// 注入壳脚本（**只合并不覆盖**）：依次 `__DSH_TRANSPORT__`（裁定 ④ 的传输基址单点）、
+///「不白屏」安全网、壳桥（`__WORLDSEA_SHELL__`）、诊断钩子——各自可按开关关掉。
 ///
 /// **顺序契约**（C1-b 成文）：宿主渲染的 index 里，`<base href="./">` 与 `__DSH_BOOT__` 等行紧跟 `<head>`；
 /// 壳在本函数里把脚本插到**同一个位置的最前**（即 `<head>` 之后、所有宿主行与模块脚本之前），
-/// 因此：① `__DSH_TRANSPORT__` 必在客户端 `apply()` 读它之前就位；② 宿主注入行原样保留、顺序不变；
-/// ③ `__DSH_BOOT_READY__`（宿主尾行）壳不碰。三条都有 tests 锁定。
-pub(crate) fn inject_shell_scripts(html: &str, base_url: &str, diag: bool) -> String {
-    let mut scripts = format!(
-        "<script>/* worldsea-shell:transport */globalThis.__DSH_TRANSPORT__ = Object.assign({{}}, globalThis.__DSH_TRANSPORT__, {{ ownsHost: true, streamBaseUrl: \"{base_url}\" }})</script>"
-    );
+/// 因此：① 三个注入（transport / bridge / watchdog）都必在客户端 `apply()` 与页面脚本前就位；
+/// ② 宿主注入行原样保留、顺序不变；③ `__DSH_BOOT_READY__`（宿主尾行）壳不碰。三条都有 tests 锁定。
+pub(crate) fn inject_shell_scripts(
+    html: &str,
+    base_url: &str,
+    transport: bool,
+    bridge: bool,
+    diag: bool,
+) -> String {
+    let mut scripts = String::new();
+    if transport {
+        scripts.push_str(&format!(
+            "<script>/* worldsea-shell:transport */globalThis.__DSH_TRANSPORT__ = Object.assign({{}}, globalThis.__DSH_TRANSPORT__, {{ ownsHost: true, streamBaseUrl: \"{base_url}\" }})</script>"
+        ));
+    }
     scripts.push_str("<script>");
     scripts.push_str(WATCHDOG_SCRIPT);
     scripts.push_str("</script>");
+    if bridge {
+        scripts.push_str("<script>");
+        scripts.push_str(SHELL_BRIDGE_SCRIPT);
+        scripts.push_str("</script>");
+    }
     if diag {
         scripts.push_str("<script>");
         scripts.push_str(DIAG_SCRIPT);
@@ -330,6 +355,8 @@ fn find_head_end(html: &str) -> Option<usize> {
 
 /// 「不白屏」安全网（常驻）：入口脚本失败或长时间无渲染时就地出示错误页。
 const WATCHDOG_SCRIPT: &str = include_str!("dsh_watchdog.js");
+/// 壳桥（常驻，可 `WORLDSEA_NO_SHELL_BRIDGE=1` 关）：`__WORLDSEA_SHELL__` 的通知/外链/设置入口/日志。
+const SHELL_BRIDGE_SCRIPT: &str = include_str!("dsh_shell_bridge.js");
 /// 页内诊断（`WORLDSEA_SHELL_DIAG=1` 才注入）：console/异常/资源错误 → 壳日志。
 const DIAG_SCRIPT: &str = include_str!("dsh_diag.js");
 

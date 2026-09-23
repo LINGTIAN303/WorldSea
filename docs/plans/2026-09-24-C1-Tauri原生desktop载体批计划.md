@@ -90,10 +90,16 @@
 - **反证**：`WORLDSEA_DENY_PATH=/assets/index-` → 主包 404 → 窗口出示**壳错误页**（非白屏，截图留档）；单测层 4 类变异（摘越界闸门 / 摘方法闸门 / 改注入位置 / 放行 origin+cookie 透传）各自报红、复原复绿。
 - **本轮发现并修复的两个真实缺口**：① `/open-in-app/apps`（宿主注册路由）被初版白名单误杀 → 改为按源码枚举；② HMR 的 `/plugins/events` 是 **SSE 长连**，而壳协议应答是缓冲体（Tauri `UriSchemeResponder` 无流式通道）→ 显式 502 降级 + overlay 关闭 `client-hmr`（HMR 在打包形态的壳内无意义；将来若要需一条可流式传输 = C2 候选）。
 
-### C1-c · 壳件与桥（最小集）
+### C1-c · 壳件与桥（最小集）——**已完成（2026-09-24）**
 - **任务**：菜单（文件/编辑/视图 + 打开设置）；通知接上；`initialization_script` 注入按需项（`dshPlatform` 等；`__DSH_HOST_PATHS__` 与 `dshDesktop` 按 B2 结论不做并登记）。
-- **验收**：菜单可用；注入项在文档开始前生效。
-- **反证**：摘掉注入 → 依赖功能显式降级（不静默）。
+- **落点**：`menu.rs`（原生菜单）+ `shell_bridge.rs`（壳命令）+ `dsh_shell_bridge.js`（注入脚本，index 注入三件套之一：transport / watchdog / **bridge**）。
+- **菜单（原生）**：文件（关闭窗口 / 退出）· 编辑（撤销·重做·剪切·复制·粘贴·全选 —— muda 预定义项，Windows 上合成标准编辑快捷键交 WebView2 处理）· 视图（重新加载 `Ctrl+R` / 放大 `Ctrl+=` / 缩小 `Ctrl+-` / 实际大小 `Ctrl+0` / 全屏 `F11`）· 设置（打开设置 `Ctrl+,`）。视图族走壳侧 `reload` / `set_zoom` / `set_fullscreen`（Tauri 只有 `set_zoom` 没有 getter → 壳自持档位 0.5–2.0）。
+- **壳桥（`__WORLDSEA_SHELL__`，页面经 Tauri IPC 直达壳命令——我们的页面在 Tauri `is_local_url` 白名单内）**：`notify(title,body)` → `cmd_notify`（原生通知）· `openExternal(url)` → `cmd_shell_open_external`（opener 插件；仅 http(s)/mailto）· `report(msg)` → 壳日志 `[DSH-SHELL] bridge(page)` · `openSettings()` → 按 `aria-label`（侧栏折叠态唯一可见标识）定位设置入口并点开。注入在 `<head>` 之后 → **文档开始前即生效**（boot 即报 `shell bridge ready（ipc=ok）`）。
+- **通知**：① 页面通道（壳桥 `notify`，dsh 客户端当前**无通知生产者**，已核实 → 暂无自动调用方）；② 壳自有的真实生产者——**宿主异常退出时发系统通知**（窗口可能收进托盘，错误页在屏幕上看不见）。
+- **注入项登记**：`dshPlatform` **不做**（Electron 专有的平台页 overlay；缺席时账户区「用量/充值」退化为普通外链——已核实 `AccountSection` 的 `platform === undefined` 分支）· `__DSH_HOST_PATHS__` 与 `dshDesktop` **不做**（沿用 B2 结论）。
+- **验收**：`[DSH-SHELL] 菜单已挂载（文件/编辑/视图/设置）` + 无障碍树见 `菜单栏 应用程序 → 文件/编辑/视图/设置` ✓ · 壳桥 boot 报告 `shell bridge ready（platform=worldsea-tauri, ipc=ok）` ✓ · 真机零回归（2×WS、全 2xx、零页面错误）· 单测 24（含注入开关矩阵与命令接线守卫）。
+- **反证**：`WORLDSEA_NO_SHELL_BRIDGE=1` → 壳桥不注入 → 「设置→打开设置」在页面右下角出示**可见红条**「壳桥未注入：设置入口不可用」（显式降级，不静默）；单测层 2 类变异（壳桥开关恒开 / 改注入脚本里的命令名）各自报红、复原复绿。
+- **遗留（转 C1-e 走查清单）**：菜单点击链（打开设置 / 缩放 / 重载）与「摘壳桥 → 红条」的**视觉确认**由用户走查完成——本机策略拦下了自动化 UI 交互（合成按键/语义动作被分类器拒绝），故此处以无障碍树 + 代码级取证代替，不冒充实测。
 
 ### C1-e · 收口
 - **任务**：台账登记（若触 dsh）、更新准备方案 §六/§九 + 运行手册 + 索引、走查清单（用户手测）。

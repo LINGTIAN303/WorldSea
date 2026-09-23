@@ -63,6 +63,7 @@ DSH_HOME="D:/WorldSea/.独立项/b0-home" node apps/cli/lib/bin.js web --no-open
 |---|---|
 | `WORLDSEA_SHELL_DIAG=1` | 页内诊断开：注入 console 钩子（error/warn/未捕获异常/资源失败 → 壳日志 `page(diag)`）+ 中转落档握手/响应原文 + 开 `/__diag` 通道 |
 | `WORLDSEA_NO_TRANSPORT_INJECT=1` | 反证用：不注入 `streamBaseUrl`（WS 必须失败；HTTP RPC 仍通） |
+| `WORLDSEA_NO_SHELL_BRIDGE=1` | 反证用：不注入壳桥 `__WORLDSEA_SHELL__`（「设置→打开设置」必须显式降级为右下角红条） |
 | `WORLDSEA_LEGACY_DIRECT=1` | 回退直连 loopback（B2/B3 行为，跳过协议桥） |
 | `WORLDSEA_DENY_PATH=<前缀>` | 测试钩子：该前缀一律 404（验「资源失败 → 非白屏」降级链） |
 | `WORLDSEA_BRIDGE_OPEN=1` | 逃生口：关闭路径白名单（白名单误伤时先放行排查） |
@@ -74,6 +75,15 @@ DSH_HOME="D:/WorldSea/.独立项/b0-home" node apps/cli/lib/bin.js web --no-open
 **协议面的闸门与白名单（C1-b）**：壳在转发前先判「方法白名单（GET/HEAD/POST）/ 越界段（`.` `..` → 403）/ 路径白名单」，宿主随后仍按自己的语义再判一次。白名单**枚举自 dsh 源码**（`webServer.register`、`connection.fetch.register` 的调用点 + dist 根文件），新增宿主路由时要同步：改 `dsh_proxy.rs` 的 `ALLOWED_PREFIXES` + 补 `allowlist_covers_enumerated_host_routes` 用例。漏掉的路径会在壳日志留 `404（路径白名单外）`。
 
 **HMR 已关闭**：`client-hmr` 的 `/plugins/events` 是 SSE 长连，而壳协议（Tauri `UriSchemeResponder`）只能回缓冲体 → 该行在壳内必然失效。已在 `apps/tauri/dsh-overlay.yml` 禁用；代理对任何 `text/event-stream` 响应显式 502 + 落档。若将来要 HMR，需要一条可流式的传输（C2 的 portless 通道是候选）。
+
+**壳件与壳桥（C1-c）**：
+
+- **原生菜单**（`menu.rs`）：文件（关闭窗口/退出）· 编辑（撤销/重做/剪切/复制/粘贴/全选，muda 预定义项）· 视图（重新加载 `Ctrl+R` · 放大 `Ctrl+=` · 缩小 `Ctrl+-` · 实际大小 `Ctrl+0` · 全屏 `F11`）· 设置（打开设置 `Ctrl+,`）。
+- **壳桥**（`dsh_shell_bridge.js` 注入 + `shell_bridge.rs` 命令）：页面可用 `globalThis.__WORLDSEA_SHELL__`：
+  `notify(title, body)`（原生通知）· `openExternal(url)`（系统浏览器打开；仅 http(s)/mailto）· `report(msg)`（落壳日志 `[DSH-SHELL] bridge(page)`）· `openSettings()`（点开侧栏设置入口）。
+  原理：我们的页面在 Tauri `is_local_url` 白名单内，`__TAURI_INTERNALS__.invoke` 直达应用命令（应用命令不属插件 ACL，无需 capability 项）。
+- **通知**：壳桥 `notify` 是页面通道（dsh 客户端暂无生产者）；**宿主异常退出**时壳自带一条系统通知（窗口可能在托盘里）。
+- 注入脚本三件套的关停开关：`WORLDSEA_NO_TRANSPORT_INJECT` / `WORLDSEA_NO_SHELL_BRIDGE`（+ 诊断钩子 `WORLDSEA_SHELL_DIAG`）。
 
 **核查与清理**（改壳或复跑前）：
 
