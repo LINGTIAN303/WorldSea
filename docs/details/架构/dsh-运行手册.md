@@ -83,6 +83,7 @@ DSH_HOME="D:/WorldSea/.独立项/b0-home" node apps/cli/lib/bin.js web --no-open
   `notify(title, body)`（原生通知）· `openExternal(url)`（系统浏览器打开；仅 http(s)/mailto）· `report(msg)`（落壳日志 `[DSH-SHELL] bridge(page)`）· `openSettings()`（点开侧栏设置入口）。
   原理：我们的页面在 Tauri `is_local_url` 白名单内，`__TAURI_INTERNALS__.invoke` 直达应用命令（应用命令不属插件 ACL，无需 capability 项）。
 - **通知**：壳桥 `notify` 是页面通道（dsh 客户端暂无生产者）；**宿主异常退出**时壳自带一条系统通知（窗口可能在托盘里）。
+- **外链守卫（C1-c′，镜像官方 Electron 定义）**：官方 `setWindowOpenHandler` = http(s) 交 `shell.openExternal` + **恒 deny 新窗**；`will-navigate` = 只放行应用自身（同源 http 与 app scheme）。壳内等价实现（注入脚本）：捕获阶段 `click`/`auxclick` 拦截 `<a>`（同源放行、其余 http(s)/mailto → 系统浏览器、其它协议只拦截并落档）+ `window.open` 覆盖（一律返回 null）。**已知不覆盖**：程序化 `location` 赋值、WebView2 原生右键菜单「新窗口打开」（需要时用 WebView2 `NavigationStarting` 钩子补）。
 - 注入脚本三件套的关停开关：`WORLDSEA_NO_TRANSPORT_INJECT` / `WORLDSEA_NO_SHELL_BRIDGE`（+ 诊断钩子 `WORLDSEA_SHELL_DIAG`）。
 
 **核查与清理**（改壳或复跑前）：

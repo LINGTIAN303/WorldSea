@@ -27,6 +27,10 @@ export default defineConfig({
       // 同目录 embedding 系 4 份 spec 本次未一并纳入（导入面未核，另行处置）。
       'packages/agent-runtime/src/__tests__/agent-tools.spec.ts',
       'packages/agent-runtime/src/__tests__/always-available-verify.spec.ts',
+      // 2026-09-24 纳入（C1-c 壳桥）：壳注入脚本 `apps/tauri/src-tauri/src/dsh_shell_bridge.js`
+      // 的行为测试——外链守卫直接改变用户可见行为（点击外链 → 系统浏览器），而它是注入到页面的
+      // 唯一拦截点，Rust 单测看不见；故以 jsdom 载入同一份文件直测（同一目录另有 Rust 侧守卫）。
+      'apps/tauri/src-tauri/src/__tests__/**/*.spec.ts',
     ],
     coverage: {
       provider: 'v8',

@@ -101,6 +101,14 @@
 - **反证**：`WORLDSEA_NO_SHELL_BRIDGE=1` → 壳桥不注入 → 「设置→打开设置」在页面右下角出示**可见红条**「壳桥未注入：设置入口不可用」（显式降级，不静默）；单测层 2 类变异（壳桥开关恒开 / 改注入脚本里的命令名）各自报红、复原复绿。
 - **遗留（转 C1-e 走查清单）**：菜单点击链（打开设置 / 缩放 / 重载）与「摘壳桥 → 红条」的**视觉确认**由用户走查完成——本机策略拦下了自动化 UI 交互（合成按键/语义动作被分类器拒绝），故此处以无障碍树 + 代码级取证代替，不冒充实测。
 
+#### C1-c′ · 外链守卫（2026-09-24 追加，依用户裁定「加守卫 → 系统浏览器」）
+- **先取证官方定义**（用户要求）：`apps/desktop/src/main.ts:218/281` —— 主窗口 `setWindowOpenHandler`：http(s) 先 `shell.openExternal(url)`、**恒** `{action:'deny'}`（永不进应用内新窗）；`will-navigate`：只放行 `dsh-app:` 与**同源** http，其余 `preventDefault()` + http(s) 交 `openExternal`。`browser-guests.ts` 是**内置浏览器**的 guest 策略（`window.open` 上交宿主开新浏览器页签、`will-frame-navigate` 限 `allowedNavigation`）。
+- **三者的关系（取证结论）**：内置浏览器 = **面板内的浏览器**（web 形态有 `IframeImpl` 实现，Electron 形态为 guest webContents），它自带「外部打开」按钮走 `window.open(url,'_blank')`；**外链** = 由 `window.open` / 普通 `<a>` 表达，官方把 `window.open` 定义为「交给壳」的通道；**系统浏览器** = 壳对 http(s) 的落点。客户端全仓**无程序化 `location` 赋值**、`window.open` 仅 3 处（chat 链接 / 账户联系 / 内置浏览器外开按钮）→ 页面侧两个拦截点即覆盖现实路径。
+- **落地**（`dsh_shell_bridge.js` 内，随壳桥开关一起生效）：① 捕获阶段 `click`/`auxclick` 守卫：同源放行，其余 http(s)/mailto → `preventDefault` + `openExternal`，其它协议只拦截并落档；② `window.open` 覆盖：一律返回 `null`（不开应用内新窗），http(s)/mailto → 系统浏览器；③ **幂等**：重复注入为 no-op（监听器与覆盖不叠加）。
+- **测试**：新增 `apps/tauri/src-tauri/src/__tests__/shellBridgeGuard.spec.ts`（jsdom，11 用例，逐条对应官方两段策略 + 幂等）；vitest include 增一条（含日期与理由）。全量前端套件 **79 文件 / 1092** 全绿。
+- **反证**：单测 2 类变异（摘 `preventDefault` / 摘幂等闸门）→ 4 个用例报红，复原复绿。
+- **已知不覆盖（登记）**：程序化 `location` 赋值（官方 Electron 由 `will-navigate` 兜底；dsh 客户端现无此用法）、WebView2 原生右键菜单的「在新窗口打开」——需要时用 WebView2 `NavigationStarting` 钩子补齐。
+
 ### C1-e · 收口
 - **任务**：台账登记（若触 dsh）、更新准备方案 §六/§九 + 运行手册 + 索引、走查清单（用户手测）。
 - **验收**：门禁全绿（`pnpm fork:check` / `arch:check` / 断链）；走查通过。
