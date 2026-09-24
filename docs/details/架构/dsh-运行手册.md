@@ -126,6 +126,13 @@ DSH_HOME="D:/WorldSea/.独立项/b0-home" node apps/cli/lib/bin.js web --no-open
 - **★ 取证坑（UIA 误报）**：无边框下无障碍树**仍报告**「标题栏 / 菜单栏 应用程序」残留节点（而截图证实菜单栏并不存在）——菜单/标题栏是否可见**只能用截图判定**，UIA 树不可信。
 - **★ 已知性能问题（顺带定位，非 C6 引入；2026-09-24 已定位到确切点）**：启动后页面约 **40~140 秒**才可用——确切阻塞 = `lib.rs` setup 里 **`block_on(mcp_commands::auto_connect_all(...))`**：**同步**连接 `{app_data}/worldsea/mcp.json` 里 `enabled` 的 MCP 服务器（**旧 Agent 面的 MCP**，dsh 界面不使用它）。当前配置仅一个服务器 **Exa**（`https://mcp.exa.ai/mcp`，streamable-http）；实测到该服务器**单次连接即 10.2 秒**（境外网络）→ 握手多往返累计 40~140 秒（网络状况决定波动：39s / 46s / 138s）。`navigate` 排队等 setup 完成，故页面延迟加载；**原生边框对照实验同样慢（138s）**→ 与本批无关。诊断法：临时在 setup 各阶段插 `Instant::now()` 日志（本轮用后已删）。**处置选项（2026-09-24 已呈报用户，待决定）**：a) 零代码——`mcp.json` 里 Exa `"enabled": false`（或删项，立即见效）；b) 小改——`auto_connect_all` 改后台 `spawn`（不再 block setup；按「旧 Agent 面冻结」纪律需登记）；c) 不动（接受等待）。
 
+- **启动页（splash，2026-09-24 迁移回）**：壳启动期显示**原 Vue 版启动页**（`src/ui/boot/SplashScreen.vue`：双 Canvas 星座 / 鼠标交互 + 四角 HUD + 进度条 + 版本号），**构建入口** `apps/tauri/splash/`（vite 打包 → 产出落 `shell-loading/`，即壳 `frontendDist`）。
+  - **构建**：`cd apps/tauri && node node_modules/vite/bin/vite.js build --config splash/vite.config.ts`（~1s）。
+  - **★ 重嵌入坑**：改动 `shell-loading/` 产物后**必须 `touch src-tauri/tauri.conf.json` 再 `cargo build`**——否则 tauri-build 不重新嵌入资源，壳内仍是旧版（本轮实测踩坑）。
+  - **淡出钩子**：壳导航前触发页面 `__wsSplash.ready()`（splash 桩暴露；→ `bootState='ready'` → 600ms 淡出）+ 700ms 再 navigate；钩子缺失（错误页等）时静默跳过。
+  - **★ 为什么此前启动页不可见（根因与修复）**：Tauri 对 frontendDist 的**初始导航排在 setup 之后**，而 setup 曾被 `dsh_shell::install`（spawn 宿主 + 等就绪）**同步阻塞约 12s** → 阻塞期窗口为空文档（黑屏），setup 结束后初始导航又被紧随的 dsh 导航瞬间替换。**修复 = `dsh_shell::install` 后台化**（宿主等待移入线程；setup 秒级结束）→ 窗口秒开即显示启动页。
+  - **诊断**：`WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222` 起壳 → `curl http://127.0.0.1:9222/json/list` + CDP `Runtime.evaluate`（node 内置 WebSocket、零新依赖）——「空文档 / 资源缺失 / JS 报错」类问题的标准手法。
+
 **核查与清理**（改壳或复跑前）：
 
 - `taskkill //IM worldsea-tauri-app.exe //T //F` 清干净再起；被强杀的实例会留**孤儿 dsh host**（node 不在 Job Object 里），用 `tasklist | grep -i node` 复核。**本机 `wmic` 已失效（恒返回空）**——进程核查改用 `tasklist` / `powershell Get-CimInstance`。
