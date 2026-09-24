@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>WorldSea — 工作台</title>
+<!-- 工作台入口（D1-a）：由壳协议 /workspace 前缀伺服；主体复用旧前端（src/main.ts），
+     Agent 接线经 vite 插件摘除（见 vite.config.ts）。防主题闪烁脚本与旧 index.html 同源。 -->
+<script>
+  ;(function () {
+    try {
+      var v = localStorage.getItem('worldsea:theme')
+      var t =
+        v === 'light' || v === 'dark'
+          ? v
+          : window.matchMedia('(prefers-color-scheme: dark)').matches
+            ? 'dark'
+            : 'light'
+      document.documentElement.dataset.theme = t
+    } catch (e) {
+      /* localStorage 不可用时保持默认浅色 */
+    }
+  })()
+</script>
+</head>
+<body>
+  <div id="app"></div>
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>
