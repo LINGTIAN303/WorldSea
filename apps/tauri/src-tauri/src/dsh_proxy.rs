@@ -90,6 +90,9 @@ const PASSABLE_REQUEST_HEADERS: [&str; 5] = [
     "if-modified-since",
 ];
 
+/// C3-c：index 响应的 CSP 最小子集（三条「页面根本不用」的指令；其余面见 C3 批计划 §八 取证清单）。
+const CSP_INDEX: &str = "object-src 'none'; base-uri 'self'; form-action 'none'";
+
 /// 路径是否在白名单内（`open` = 逃生口放行全部）。
 pub(crate) fn path_allowed(path_only: &str, open: bool) -> bool {
     if open {
@@ -230,6 +233,12 @@ pub(crate) fn proxy(cfg: &ProxyCfg, request: &http::Request<Vec<u8>>) -> http::R
 
     if no_store {
         builder = builder.header("cache-control", "no-store");
+    }
+    // C3-c（2026-09-24）：CSP 最小子集——只下「页面根本不用」的三条指令（无插件对象嵌入、
+    // 不改写 base 源、无表单提交），其余面（script/style/connect/frame/img）待取证清单另议（C3 批计划 §八）。
+    // 头由壳加（页面由壳协议伺服）：实测核对见 c3-c 验收（探针读响应头）。
+    if is_index {
+        builder = builder.header("content-security-policy", CSP_INDEX);
     }
     if method == "HEAD" {
         // HEAD 无体：沿用宿主声明的长度（页面侧据此判尺寸）

@@ -10,6 +10,8 @@
 // 反证开关：`WORLDSEA_TCP_HOST=1` 走 legacy（TCP + WS 中转），不走这里。
 
 use std::collections::HashMap;
+// Windows 非测试构建下读写都走 `dsh_pipe_io` 的轮询循环，这里不再引用这两个 trait
+#[cfg(any(unix, test))]
 use std::io::{Read, Write};
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-09-23",
+  "updatedAt": "2026-09-24",
   "note": "存量基线（P4）：files = 超限文件行数冻结（只禁增长）；other = 存量违规豁免（新增违例不在内）",
   "files": {
     "crates/agent-kernel/src/agent/input.rs": 455,
@@ -93,7 +93,7 @@
     "apps/tauri/src-tauri/src/entity_commands.rs": 1223,
     "apps/tauri/src-tauri/src/frontend_tool_bridge.rs": 471,
     "apps/tauri/src-tauri/src/http_bridge/rpc.rs": 1885,
-    "apps/tauri/src-tauri/src/lib.rs": 685,
+    "apps/tauri/src-tauri/src/lib.rs": 695,
     "apps/tauri/src-tauri/src/mcp_client.rs": 1361,
     "apps/tauri/src-tauri/src/search_commands.rs": 738,
     "apps/tauri/src-tauri/src/whisper.rs": 571,

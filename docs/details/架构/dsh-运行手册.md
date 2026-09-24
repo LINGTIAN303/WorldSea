@@ -67,7 +67,14 @@ DSH_HOME="D:/WorldSea/.独立项/b0-home" node apps/cli/lib/bin.js web --no-open
 
 > 排查「Rust 侧写不达宿主」的手动探针：`.workbuddy/c2b-manual-host.mjs`（起带正确管道路径的宿主并写探针文件）、`.workbuddy/c2b-pipe-probe.mjs`（Node 原生管道客户端）、`cargo test -- --ignored --nocapture probe_live_pipe_exchange`（Rust 客户端对活管道）。三者都在 `.workbuddy/`（gitignored）。
 
-**排障开关**（壳侧环境变量，详见 `dsh_bridge.rs` / `dsh_proxy.rs` / `dsh_inject.rs` / `dsh_shell.rs` 注释）：
+**壳侧安全面（C3-b/c，2026-09-24，详见 [C3 批计划](../../plans/2026-09-24-C3-壳侧安全面批计划.md)）**：
+
+- **命令面白名单（应用级 ACL）**：`apps/tauri/src-tauri/permissions/worldsea-shell.toml` 只放页面在用的 **7 条**（壳桥 3 + 流桥 4）；其余应用命令（旧 Agent 面全族）从「页面可调」降为 **ACL 拒**（`cmd_agent_tool_names not allowed. Command not found`）。**页面新增可调命令必须在此逐条加**（改 `permissions/*.toml` → 重建即生效）。
+- **导航/新窗双栅栏**：壳级 WebView2 事件（主框架 `NavigationStarting` + `NewWindowRequested`，`nav_fence.rs`）——只放行自家源（`worldsea.localhost` / `tauri.localhost` 兜底页 / loopback 回退页）、`data:`、`about:`；iframe 走 `FrameNavigationStarting` **不挂**（内置浏览器/预览不受影响）。反证开关 `WORLDSEA_NO_NAV_FENCE=1`。**注意**：`tauri://localhost` 是 `frontendDist`（shell-loading 兜底页）——策略里必须放行（实测拦它会得到空窗口）。
+- **CSP 最小子集**：index 响应头 `object-src 'none'; base-uri 'self'; form-action 'none'`（`dsh_proxy.rs` 的 `CSP_INDEX`）；其余面（script/style/connect/frame/img/font + `worker-src blob:`）取证清单见 C3 批计划 §八。
+- 页面探针仍是最顺手的取证手段（`WORLDSEA_EVAL_AFTER_READY` + `__WORLDSEA_SHELL__.report`）；脚本化 `location.href` 会被壳级栅栏拦下并落 `[DSH-SHELL] nav_fence: 拦下主框架导航 …` 行。
+
+**排障开关**（壳侧环境变量，详见 `dsh_bridge.rs` / `dsh_proxy.rs` / `dsh_inject.rs` / `dsh_shell.rs` / `nav_fence.rs` 注释）：
 
 | 变量 | 作用 |
 |---|---|

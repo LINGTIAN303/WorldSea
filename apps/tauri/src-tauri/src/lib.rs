@@ -63,6 +63,8 @@ mod dsh_stream;
 mod shell_bridge;
 // C1-c（2026-09-24）：原生菜单（文件/编辑/视图/设置）
 mod menu;
+// C3-b（2026-09-24）：壳级导航/新窗栅栏（WebView2 事件层；策略为纯函数）
+mod nav_fence;
 
 // R 批 R-0（2026-09-23）：对话区行段分派基座——工具目录命令
 mod tool_catalog_commands;
@@ -382,6 +384,14 @@ pub fn run() {
         // Phase C 收尾：文件监听器注册表（cmd_fs_watch_start/stop 共享）
         .manage(fs_watch_commands::FsWatchRegistry(Default::default()))
         .setup(|app| {
+            // C3-b（2026-09-24）：壳级导航/新窗栅栏（WebView2 事件层；主框架 NavigationStarting +
+            // NewWindowRequested）——先于壳的首次导航挂上，补 JS 守卫（C1-c′）覆盖不到的程序化导航；
+            // 策略为纯函数（nav_fence.rs，含单测）。反证开关 WORLDSEA_NO_NAV_FENCE=1。
+            #[cfg(windows)]
+            if let Some(window) = app.get_webview_window("main") {
+                nav_fence::install(&window);
+            }
+
             // ── B2 壳接入（2026-09-23）＋ C1-a 协议桥（2026-09-24）──────────────
             // 装配全在 dsh_shell::install（spawn/就绪/守护）与 dsh_bridge::attach（协议页/回退）：
             // UI origin 与传输面分离，界面 100% 保留；口径见 docs/plans/ 的准备方案 §六 与 C1 批计划 §三。
