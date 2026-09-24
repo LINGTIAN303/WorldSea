@@ -5,9 +5,12 @@
 
 ## 一、基线
 
-基线提交：`25a4fc8`
+基线提交：`cde62e7`
 
-对应上游：tag `dsh-v0.1.7-rc.1`（上游提交 `46a7f68b0922371ce7144b668b90e377d8e799f4` 的干净树；换树记录见该提交信息）。
+对应上游：tag `dsh-v0.1.7-rc.2`（上游提交 `477b4f420553e8a52c2fbccc464d7561b239c443` 的干净树；换树记录见该提交信息）。
+**前次基线**：`25a4fc8`（tag `dsh-v0.1.7-rc.1`，上游 `46a7f68b…`）——追版记录见 [运行手册](dsh-运行手册.md) 与 [F1 批计划](../../plans/2026-09-24-F1-追版rc2批计划.md)。
+
+**追版重放（2026-09-24，rc.1 → rc.2）**：我方 11 处改动的冲突面只有 3 处（`bundle/web-app/cordis.patch.yml` · `bundle/web-app/package.json` · `pnpm-lock.yaml`）；实际重放用 `git apply --3way`，**11 处全部干净应用**（无需手工重贴）。`pnpm-lock.yaml` 由 `pnpm install` 重新生成。同次干净换树还移除了 B1 从本地 WIP 副本带入、且 rc.2 中不存在的 37 个文件（含 34 个 `.claude/skills/*`——上游以 symlink 跟踪该目录，技能本体在 `.agents/skills/`）。
 
 ## 二、门禁
 
