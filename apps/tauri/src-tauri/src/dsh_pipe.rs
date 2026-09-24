@@ -58,6 +58,11 @@ pub type StreamSink = Arc<dyn Fn(StreamEvent) + Send + Sync>;
 pub(crate) struct Inner {
     /// 写线程入口（整帧字节直接进队列，序即连接上的写序）。
     pub(crate) writer: Sender<Vec<u8>>,
+    /// 帧写锁（F1，2026-09-25）：宿主按「控帧 + 体帧」**单槽配对**读，
+    /// 而壳侧代理是**每请求一线程**并发发 POST —— 不加锁会让两条 `req`+体帧交错
+    /// （J1 J2 B1 B2），宿主判协议违规并**整条断链**（真机实测：页面 reload 触发）。
+    /// 约定：**成对帧必须在同一临界区内写完**；单帧写入也走本锁。
+    pub(crate) write_lock: Mutex<()>,
     /// 待决一元请求：id → 结果通道。
     pub(crate) pending: Mutex<HashMap<u32, Sender<Result<PipeResponse, String>>>>,
     /// 活跃流：id → 下行回调。
@@ -127,6 +132,7 @@ impl PipeClient {
         });
         let inner = Arc::new(Inner {
             writer: frame_tx,
+            write_lock: Mutex::new(()),
             pending: Mutex::new(HashMap::new()),
             streams: Mutex::new(HashMap::new()),
             next_id: AtomicU32::new(1),
@@ -147,6 +153,7 @@ impl PipeClient {
         let (frame_tx, frame_rx) = mpsc::channel::<Vec<u8>>();
         let inner = Arc::new(Inner {
             writer: frame_tx,
+            write_lock: Mutex::new(()),
             pending: Mutex::new(HashMap::new()),
             streams: Mutex::new(HashMap::new()),
             next_id: AtomicU32::new(1),
@@ -214,15 +221,14 @@ impl PipeClient {
             frame["bodyLen"] = json!(bytes.len());
         }
         let json_bytes = serde_json::to_vec(&frame).map_err(|e| format!("请求帧序列化失败：{e}"))?;
-        if let Err(error) = self.send_frame(KIND_JSON, json_bytes) {
+        // 控帧与体帧**成对落线**（见 `write_lock` 注释）：配对窗口内不得插入其它帧，否则宿主单槽配对失配 → 断链
+        let mut frames = vec![(KIND_JSON, json_bytes)];
+        if let Some(bytes) = body {
+            frames.push((KIND_BINARY, with_id(id, bytes)));
+        }
+        if let Err(error) = self.write_frames(&frames) {
             self.inner.pending.lock().unwrap().remove(&id);
             return Err(error);
-        }
-        if let Some(bytes) = body {
-            if let Err(error) = self.send_frame(KIND_BINARY, with_id(id, bytes)) {
-                self.inner.pending.lock().unwrap().remove(&id);
-                return Err(error);
-            }
         }
         match receiver.recv_timeout(REQUEST_TIMEOUT) {
             Ok(result) => result,
@@ -251,7 +257,7 @@ impl PipeClient {
             "payload": payload,
         });
         let bytes = serde_json::to_vec(&frame).map_err(|e| format!("流开帧序列化失败：{e}"))?;
-        if let Err(error) = self.send_frame(KIND_JSON, bytes) {
+        if let Err(error) = self.write_frames(&[(KIND_JSON, bytes)]) {
             self.inner.streams.lock().unwrap().remove(&id);
             return Err(error);
         }
@@ -262,21 +268,21 @@ impl PipeClient {
     pub fn stream_send(&self, id: u32, value: Value) -> Result<(), String> {
         let bytes = serde_json::to_vec(&json!({ "t": "stream-uplink-item", "id": id, "value": value }))
             .map_err(|e| format!("上行帧序列化失败：{e}"))?;
-        self.send_frame(KIND_JSON, bytes)
+        self.write_frames(&[(KIND_JSON, bytes)])
     }
 
     /// 上行半关（幂等；失败只返回错误，不重试）。
     pub fn stream_end(&self, id: u32) -> Result<(), String> {
         let bytes = serde_json::to_vec(&json!({ "t": "stream-uplink-end", "id": id }))
             .map_err(|e| format!("上行关帧序列化失败：{e}"))?;
-        self.send_frame(KIND_JSON, bytes)
+        self.write_frames(&[(KIND_JSON, bytes)])
     }
 
     /// 取消一条流：撤下行回调 + 通知宿主 abort（宿主同时中止 opener 的 signal）。
     pub fn stream_cancel(&self, id: u32) {
         self.inner.streams.lock().unwrap().remove(&id);
         if let Ok(bytes) = serde_json::to_vec(&json!({ "t": "abort", "id": id })) {
-            let _ = self.send_frame(KIND_JSON, bytes);
+            let _ = self.write_frames(&[(KIND_JSON, bytes)]);
         }
     }
 
@@ -286,6 +292,15 @@ impl PipeClient {
         frame.push(kind);
         frame.extend_from_slice(&payload);
         self.inner.writer.send(frame).map_err(|_| "管道写线程已退出".to_string())
+    }
+
+    /// **成组写帧**（F1）：同一临界区内按序写完 —— 用于「控帧 + 体帧」这类必须相邻的帧对。
+    fn write_frames(&self, frames: &[(u8, Vec<u8>)]) -> Result<(), String> {
+        let _guard = self.inner.write_lock.lock().map_err(|_| "帧写锁不可用".to_string())?;
+        for (kind, payload) in frames {
+            self.send_frame(*kind, payload.clone())?;
+        }
+        Ok(())
     }
 }
 

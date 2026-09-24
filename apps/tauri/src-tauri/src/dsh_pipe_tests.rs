@@ -236,3 +236,27 @@ fn probe_raw_std_io() {
     handle.read_exact(&mut payload).expect("读响应体");
     println!("[raw] response: {}", String::from_utf8_lossy(&payload));
 }
+
+/// F1 回归（2026-09-25）：宿主按「控帧 + 体帧」**单槽配对**读 —— 并发**带体**请求若交错
+/// （J1 J2 B1 B2），宿主即判协议违规并**整条断链**（真机现象：页面 reload 后 `binary frame mismatch
+/// for id N` → 后续全 502）。修复前本用例必红（首条之后全部失败）；修复后 16 条并发全部应答。
+#[test]
+fn concurrent_requests_with_bodies_stay_paired() {
+    let (handles, client) = connected(Arc::new(|request| text_reply(&format!("echo:{}", request.body.len()))));
+    let client = Arc::new(client);
+    let mut threads = Vec::new();
+    for index in 0..16u8 {
+        let client = client.clone();
+        threads.push(std::thread::spawn(move || {
+            let body = vec![b'a' + index; 64 + index as usize];
+            client
+                .request("POST", "/api/echo", &[], Some(&body))
+                .map(|response| String::from_utf8_lossy(&response.body).to_string())
+        }));
+    }
+    for (index, thread) in threads.into_iter().enumerate() {
+        let answer = thread.join().expect("线程不应 panic").expect("并发带体请求应全部成功（配对未被打乱）");
+        assert_eq!(answer, format!("echo:{}", 64 + index), "第 {index} 条的响应体应对应其自身请求");
+    }
+    assert_eq!(handles.seen.lock().unwrap().len(), 16, "宿主应完整收到 16 条请求");
+}
