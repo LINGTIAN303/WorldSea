@@ -20,6 +20,9 @@ commands.allow = [
     "cmd_shell_window_action",
     "cmd_shell_popup_menu",
     "cmd_shell_space_switch",
+    # E2（2026-09-24）：应用级偏好（主题）——产品页设置面板读写真源；dsh 页不调（其主题由设置通道驱动）
+    "cmd_theme_get",
+    "cmd_theme_set",
 ]
 
 [[permission]]

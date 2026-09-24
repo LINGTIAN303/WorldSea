@@ -50,6 +50,21 @@ impl DshBridge {
     pub fn pipe(&self) -> Option<Arc<PipeClient>> {
         self.pipe.clone()
     }
+
+    /// 壳自身经管道调 dsh 的 API（与页面同链路：自动带 cookie、Host 由管道客户端合成）。
+    /// 用途 = 「壳代表自己」的调用（如主题真源同步）；legacy TCP 模式返回错误，调用方降级即可。
+    pub fn call_api(&self, method: &str, path: &str, body: Option<Vec<u8>>) -> Result<(u16, String), String> {
+        let Upstream::Pipe { client, cookie } = &self.cfg.upstream else {
+            return Err("legacy（WORLDSEA_TCP_HOST=1）模式：壳内 API 调用暂不支持".to_string());
+        };
+        let headers = vec![
+            ("cookie".to_string(), cookie.clone()),
+            ("content-type".to_string(), "application/json".to_string()),
+            ("accept-encoding".to_string(), "identity".to_string()),
+        ];
+        let response = client.request(method, path, &headers, body.as_deref())?;
+        Ok((response.status, String::from_utf8_lossy(&response.body).to_string()))
+    }
 }
 
 /// 绑定桥：303 换 cookie → （管道模式）连宿主管道 / （legacy）起 WS 中转 → 造转发配置。
@@ -226,6 +241,8 @@ pub fn attach(
             Ok(bridge) => {
                 println!("[DSH-SHELL] bridge ready: {}", bridge.describe());
                 app.manage(bridge);
+                // E2：主题真源与 dsh 对齐（首次反向读做种子；已有真源则以真源为准写回 dsh）
+                crate::app_prefs::init_after_bridge(app);
                 if let Some(window) = window {
                     navigate_to_app(window);
                 }

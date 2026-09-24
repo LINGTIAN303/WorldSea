@@ -324,17 +324,9 @@ pub fn watch_child(app: tauri::AppHandle) {
     });
 }
 
-/// 可辨认失败态：把窗口导航到内联错误页（不静默白屏）。
+/// 可辨认失败态：把窗口导航到内联错误页（不静默白屏）。HTML 模板与色板单点在 `app_prefs::error_page_html`。
 pub fn show_error(window: &WebviewWindow, title: &str, detail: &str) {
-    let html = format!(
-        "<!doctype html><html lang=\"zh-CN\"><head><meta charset=\"utf-8\"><title>WorldSea</title></head>\
-<body style=\"margin:0;padding:32px;font-family:'Segoe UI','Microsoft YaHei',system-ui;background:#111113;color:#e4e4e7\">\
-<h1 style=\"font-size:18px;margin:0 0 12px\">{}</h1>\
-<pre style=\"white-space:pre-wrap;word-break:break-word;color:#a1a1aa;font-size:13px;line-height:1.6\">{}</pre>\
-</body></html>",
-        escape_html(title),
-        escape_html(detail)
-    );
+    let html = crate::app_prefs::error_page_html(title, detail);
     let url = format!("data:text/html;charset=utf-8,{}", percent_encode(&html));
     match url.parse::<tauri::Url>() {
         Ok(parsed) => {
@@ -344,10 +336,6 @@ pub fn show_error(window: &WebviewWindow, title: &str, detail: &str) {
         }
         Err(e) => tracing::error!("dsh shell: 错误页 URL 解析失败：{e}"),
     }
-}
-
-fn escape_html(s: &str) -> String {
-    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
 }
 
 fn percent_encode(s: &str) -> String {

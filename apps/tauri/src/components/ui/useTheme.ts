@@ -9,6 +9,7 @@
  * 详细why请见 docs/details/注释/tauri/components/useTheme.md
  */
 import { ref } from 'vue'
+import { listen } from '@tauri-apps/api/event'
 
 export type ThemeMode = 'light' | 'dark'
 
@@ -60,6 +61,13 @@ function applyPreference(p: ThemePreference) {
   preference.value = p
   persist(p)
   apply(p === 'system' ? detectSystem() : p)
+  // E2（2026-09-24）：新壳里主题真源在**壳侧**（`<app_data>/worldsea/prefs.json`）——变更通知壳，
+  // 由壳同步 dsh 并广播两窗；无桥时（浏览器预览 / 旧壳）静默跳过，行为与此前一致
+  const notifyShell = (globalThis as { __WORLDSEA_SET_THEME__?: (v: string) => Promise<unknown> })
+    .__WORLDSEA_SET_THEME__
+  if (typeof notifyShell === 'function') {
+    void notifyShell(p).catch(e => console.error('[useTheme] 同步壳主题失败:', e))
+  }
   // 广播三态变化（设置面板底色段高亮同步）：同页面无 storage 事件，只能手动派发
   try {
     window.dispatchEvent(new CustomEvent('ws-theme-mode-changed', { detail: { preference: p, applied: theme.value } }))
@@ -105,6 +113,19 @@ function onSystemThemeChange() {
 }
 if (mql && typeof mql.addEventListener === 'function') {
   mql.addEventListener('change', onSystemThemeChange)
+}
+// E2：壳广播（壳侧或另一窗改了主题）→ 以真源重应用；与本地同值时 no-op（防「产品→壳→产品」回环）
+try {
+  void listen<{ theme?: string }>('worldsea:theme-changed', event => {
+    const next = event.payload?.theme
+    if ((next === 'light' || next === 'dark' || next === 'system') && next !== loadPreference()) {
+      applyPreference(next)
+    }
+  }).catch(() => {
+    /* 事件面不可用（非 Tauri 环境）时忽略 */
+  })
+} catch {
+  /* listen 同步抛（无 __TAURI_INTERNALS__）时忽略 */
 }
 // Vite HMR：模块热更新时移除旧监听，避免监听器叠加（批次100 P3；生产无热更新，无害）
 if (import.meta.hot) {

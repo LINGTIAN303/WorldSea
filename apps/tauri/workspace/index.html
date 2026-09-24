@@ -14,6 +14,11 @@
       // 工作台窗恒为 workbench 壳（D1-b）：Agent 空间在新壳里是**独立窗口**，本页只渲染
       // 工作台视图；旧持久值可能是 'space' → 会渲染被摘除的 AgentSpace（空白）。
       localStorage.setItem('worldsea_shell', 'workbench')
+      // 主题真源在壳侧（E2）：有壳注入值时以它为准并写回 localStorage 供应用读取
+      var shellTheme = globalThis.__WORLDSEA_THEME__
+      if (shellTheme === 'light' || shellTheme === 'dark' || shellTheme === 'system') {
+        localStorage.setItem('worldsea:theme', shellTheme)
+      }
       var v = localStorage.getItem('worldsea:theme')
       var t =
         v === 'light' || v === 'dark'

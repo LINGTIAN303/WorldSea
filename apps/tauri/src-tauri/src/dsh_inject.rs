@@ -38,6 +38,11 @@ pub(crate) fn inject_shell_scripts(
     notice: Option<&str>,
 ) -> String {
     let mut scripts = String::new();
+    // E2-b（2026-09-24）：壳自有面（安全网 / 横幅 / 窗口栏退化值）按主题真源取亮暗——先于它们注入
+    scripts.push_str(&format!(
+        "<script>/* worldsea-shell:theme */globalThis.__WORLDSEA_DARK__ = {}</script>",
+        crate::app_prefs::dark_now()
+    ));
     match transport {
         TransportInject::None => {}
         TransportInject::StreamBase(base_url) => {
@@ -101,14 +106,23 @@ pub(crate) fn inject_shell_scripts(
 ///    据此走壳命令（双窗互斥）；无该全局时旧前端回退页内切换（浏览器预览/旧壳）。
 /// 传输面 / dsh 壳桥 / 注入式窗口栏均**不注入**：工作台不连 dsh，且它自带旧前端 TitleBar 作窗口栏。
 pub(crate) fn inject_workspace_scripts(html: &str) -> String {
+    let theme_script = format!(
+        "<script>/* worldsea-shell:theme */globalThis.__WORLDSEA_THEME__ = \"{}\";\
+globalThis.__WORLDSEA_DARK__ = {}</script>",
+        crate::app_prefs::preference_now(),
+        crate::app_prefs::dark_now()
+    );
     let scripts = format!(
-        "{BOOT_ROOT_SCRIPT}<script>{WATCHDOG_SCRIPT}</script>{SPACE_SWITCH_BRIDGE}"
+        "{theme_script}{BOOT_ROOT_SCRIPT}<script>{WATCHDOG_SCRIPT}</script>{SPACE_SWITCH_BRIDGE}{THEME_SET_BRIDGE}"
     );
     match find_head_end(html) {
         Some(at) => format!("{}{}{}", &html[..at], scripts, &html[at..]),
         None => format!("{scripts}{html}"),
     }
 }
+
+/// 产品页主题写回桥（E2-c）：页内设置改主题时调壳命令 → 壳写真源 + 同步 dsh + 广播两窗。
+const THEME_SET_BRIDGE: &str = "<script>/* worldsea-shell:theme-set */globalThis.__WORLDSEA_SET_THEME__ = function (value) { return globalThis.__TAURI_INTERNALS__.invoke('cmd_theme_set', { value: value }) }</script>";
 
 /// `<head …>` 开标签结束位置（大小写不敏感）；`to_ascii_lowercase` 不改字节长度，索引可直接复用。
 fn find_head_end(html: &str) -> Option<usize> {

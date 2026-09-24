@@ -16,20 +16,25 @@
       var host = document.body || document.documentElement;
       if (!host) return;
       SHOWN = true;
+      /* E2：亮暗两套色板（壳注入 `__WORLDSEA_DARK__`；此前只有深色一套） */
+      var dark = globalThis.__WORLDSEA_DARK__ !== false;
+      var palette = dark
+        ? { bg: '#111113', fg: '#e4e4e7', muted: '#a1a1aa', btnBg: '#27272a', btnBorder: '#3f3f46' }
+        : { bg: '#fafaf9', fg: '#1f2328', muted: '#6b7280', btnBg: '#f4f4f5', btnBorder: '#d9d9de' };
       var box = document.createElement('div');
       box.id = 'worldsea-shell-boot-error';
-      box.setAttribute('style', 'position:fixed;inset:0;z-index:2147483647;background:#111113;color:#e4e4e7;padding:32px;font:13px/1.7 "Segoe UI","Microsoft YaHei",system-ui');
+      box.setAttribute('style', 'position:fixed;inset:0;z-index:2147483647;background:' + palette.bg + ';color:' + palette.fg + ';padding:32px;font:13px/1.7 "Segoe UI","Microsoft YaHei",system-ui');
       var title = document.createElement('div');
       title.setAttribute('style', 'font-size:18px;font-weight:600;margin:0 0 12px');
       title.textContent = 'WorldSea：界面未能启动';
       var detail = document.createElement('pre');
-      detail.setAttribute('style', 'white-space:pre-wrap;word-break:break-word;color:#a1a1aa;margin:0 0 16px');
+      detail.setAttribute('style', 'white-space:pre-wrap;word-break:break-word;color:' + palette.muted + ';margin:0 0 16px');
       detail.textContent = '未能通过壳协议加载的资源：\n'
         + (FAILED.length ? FAILED.join('\n') : '（入口脚本未完成，已等待 ' + (WAIT_MS / 1000) + ' 秒）')
         + '\n\n壳日志中检索 [DSH-SHELL] bridge 可看对应状态码；设 WORLDSEA_SHELL_DIAG=1 可把页面 console 一并落进日志。';
       var retry = document.createElement('button');
       retry.textContent = '重试';
-      retry.setAttribute('style', 'background:#27272a;color:#e4e4e7;border:1px solid #3f3f46;border-radius:6px;padding:6px 14px;cursor:pointer');
+      retry.setAttribute('style', 'background:' + palette.btnBg + ';color:' + palette.fg + ';border:1px solid ' + palette.btnBorder + ';border-radius:6px;padding:6px 14px;cursor:pointer');
       retry.onclick = function () { location.reload(); };
       box.appendChild(title);
       box.appendChild(detail);

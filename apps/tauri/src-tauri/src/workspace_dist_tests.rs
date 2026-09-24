@@ -76,6 +76,20 @@ fn workspace_index_uses_app_mount_point_not_root() {
 }
 
 #[test]
+fn workspace_index_carries_theme_source_and_writeback_bridge() {
+    // E2：主题真源经壳注入（防闪脚本优先用它）；写回桥供页内设置改主题时同步壳/dsh
+    let injected = crate::dsh_inject::inject_workspace_scripts("<html><head></head><body></body></html>");
+    assert!(injected.contains("worldsea-shell:theme"), "缺主题注入");
+    assert!(injected.contains("globalThis.__WORLDSEA_THEME__ = \""), "缺真源字符串");
+    assert!(injected.contains("globalThis.__WORLDSEA_DARK__ = "), "缺亮暗标志（壳自有面用）");
+    assert!(injected.contains("worldsea-shell:theme-set") && injected.contains("cmd_theme_set"), "缺写回桥");
+    // 顺序：主题注入必须早于安全网（安全网按 __WORLDSEA_DARK__ 取色）
+    let theme_at = injected.find("worldsea-shell:theme").expect("主题注入存在");
+    let watchdog_at = injected.find("worldsea-shell:boot-watchdog").expect("安全网存在");
+    assert!(theme_at < watchdog_at, "主题注入必须早于安全网");
+}
+
+#[test]
 fn asset_serves_immutable_with_js_mime() {
     let root = fixture("asset");
     let response = serve(&root, &request("GET", "/workspace/assets/app.js"));

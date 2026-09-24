@@ -106,6 +106,8 @@ fn space_switch_is_granted_in_the_shared_shell_bridge() {
     let text = read_text("permissions/worldsea-shell.toml");
     assert!(text.contains("\"cmd_shell_space_switch\""), "切换命令须在壳桥权限内（两窗共用）");
     assert!(text.contains("identifier = \"allow-shell-bridge\""));
+    // E2：主题读写命令同在共用壳桥内（产品页设置面板改主题走它）
+    assert!(text.contains("\"cmd_theme_get\"") && text.contains("\"cmd_theme_set\""), "主题命令须在壳桥权限内");
 }
 
 #[test]

@@ -9,10 +9,15 @@
     if (!message) return;
     if (document.getElementById('worldsea-workspace-notice')) return;
     var invoke = globalThis.__TAURI_INTERNALS__ && globalThis.__TAURI_INTERNALS__.invoke;
+    /* E2：亮暗两套琥珀色板（壳注入 `__WORLDSEA_DARK__`；此前只有深色一套） */
+    var dark = globalThis.__WORLDSEA_DARK__ !== false;
+    var palette = dark
+      ? { bg: '#3f2f0a', fg: '#fde68a', border: '#a16207', btnBg: '#78350f', btnFg: '#fef3c7', btnBorder: '#b45309', dim: '#fde68a99' }
+      : { bg: '#fef3c7', fg: '#78350f', border: '#fcd34d', btnBg: '#fde68a', btnFg: '#78350f', btnBorder: '#f59e0b', dim: '#78350f99' };
     var box = document.createElement('div');
     box.id = 'worldsea-workspace-notice';
-    box.setAttribute('style', 'position:fixed;left:0;right:0;top:0;z-index:2147483000;background:#3f2f0a;color:#fde68a;'
-      + 'border-bottom:1px solid #a16207;padding:10px 16px;font:13px/1.6 "Segoe UI","Microsoft YaHei",system-ui;'
+    box.setAttribute('style', 'position:fixed;left:0;right:0;top:0;z-index:2147483000;background:' + palette.bg + ';color:' + palette.fg + ';'
+      + 'border-bottom:1px solid ' + palette.border + ';padding:10px 16px;font:13px/1.6 "Segoe UI","Microsoft YaHei",system-ui;'
       + 'display:flex;gap:12px;align-items:flex-start');
     var text = document.createElement('div');
     text.setAttribute('style', 'flex:1;white-space:pre-wrap;word-break:break-word');
@@ -20,12 +25,12 @@
     var button = function (label, style) {
       var node = document.createElement('button');
       node.textContent = label;
-      node.setAttribute('style', 'background:#78350f;color:#fef3c7;border:1px solid #b45309;border-radius:6px;'
+      node.setAttribute('style', 'background:' + palette.btnBg + ';color:' + palette.btnFg + ';border:1px solid ' + palette.btnBorder + ';border-radius:6px;'
         + 'padding:5px 12px;cursor:pointer;font:inherit;flex:none' + style);
       return node;
     };
     var fix = button('修复工作区权限', '');
-    var dismiss = button('忽略', ';background:transparent;color:#fde68a99');
+    var dismiss = button('忽略', ';background:transparent;color:' + palette.dim);
     fix.onclick = function () {
       if (typeof invoke !== 'function') {
         text.textContent = message + '\n（壳桥不可用：请改在命令行执行上面的修复命令）';

@@ -38,6 +38,8 @@ pub async fn cmd_shell_space_switch(app: tauri::AppHandle, target: String) -> Re
 
 /// 切到工作台：懒建（缺窗时创建）→ 几何平移来源窗 → 显示 + 聚焦 → 隐藏 Agent 空间窗。
 pub(crate) fn switch_to_workbench(app: &tauri::AppHandle) -> Result<(), String> {
+    // E2：切换是对齐主题的天然时机（可见性的那一侧切换前先跟上真源；dsh 里改过则此处跟随）
+    crate::app_prefs::adopt_from_dsh(app);
     let main = app
         .get_webview_window("main")
         .ok_or_else(|| "主窗口（Agent 空间）不存在，无法同步几何".to_string())?;

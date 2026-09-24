@@ -55,6 +55,8 @@ mod dsh_inject;
 mod workspace_dist;
 // D1-b（2026-09-24）：工作台窗口（懒创建 + 与 Agent 空间互斥切换 + 几何同步）
 mod workspace_window;
+// E2（2026-09-24）：应用级偏好真源（主题）——壳持有，两窗读写，dsh 经设置通道对齐
+mod app_prefs;
 // C1-a（2026-09-24）：mux WebSocket 凭据中转（改写握手首部后双向透传；C2 起仅 legacy 对照模式使用）
 mod dsh_relay;
 // C2-b（2026-09-24）：管道传输客户端（宿主管道载体的壳侧对端：帧编解码 + 请求多路复用 + 流 lane）
@@ -246,6 +248,9 @@ pub fn run() {
             menu::cmd_shell_popup_menu,
             // D1-b：空间切换（Agent 空间⇄工作台，双窗互斥 + 几何同步；工作台窗懒创建）
             workspace_window::cmd_shell_space_switch,
+            // E2：应用级偏好（主题真源：读写 + 同步 dsh + 广播两窗）
+            app_prefs::cmd_theme_get,
+            app_prefs::cmd_theme_set,
             // C2-b：页面流桥（openStream 钩子 → 管道 mux 流：开 / 上行 / 半关 / 取消）
             dsh_stream::cmd_stream_open,
             dsh_stream::cmd_stream_send,
@@ -406,6 +411,9 @@ pub fn run() {
         // Phase C 收尾：文件监听器注册表（cmd_fs_watch_start/stop 共享）
         .manage(fs_watch_commands::FsWatchRegistry(Default::default()))
         .setup(|app| {
+            // E2（2026-09-24）：主题真源先落地——壳自有面（错误页/安全网/横幅）与两窗注入都要读它
+            app_prefs::bootstrap(app.handle());
+
             // C3-b（2026-09-24）：壳级导航/新窗栅栏（WebView2 事件层；主框架 NavigationStarting +
             // NewWindowRequested）——先于壳的首次导航挂上，补 JS 守卫（C1-c′）覆盖不到的程序化导航；
             // 策略为纯函数（nav_fence.rs，含单测）。反证开关 WORLDSEA_NO_NAV_FENCE=1。
@@ -705,6 +713,12 @@ pub fn run() {
                 if active.0 {
                     window.hide().ok();
                     api.prevent_close();
+                }
+            }
+            // E2：系统深浅色变化（真源 = `system` 时）→ 刷新壳自有面的亮暗（页面侧自行跟随系统）
+            if let tauri::WindowEvent::ThemeChanged(theme) = event {
+                if app_prefs::preference_now() == "system" {
+                    app_prefs::set_dark(*theme == tauri::Theme::Dark);
                 }
             }
         })

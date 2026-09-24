@@ -337,18 +337,10 @@ fn fetch_upstream(
 }
 
 /// 入口级失败响应：index 给 HTML 错误页（可辨认、非白屏），其余给极简文本（不污染资源语义）。
+/// HTML 页模板与色板单点在 `app_prefs::error_page_html`（随主题真源取亮暗两套）。
 pub(crate) fn failure_response(status: u16, wants_html: bool, title: &str, detail: &str) -> http::Response<Vec<u8>> {
     let (content_type, body) = if wants_html {
-        let html = format!(
-            "<!doctype html><html lang=\"zh-CN\"><head><meta charset=\"utf-8\"><title>WorldSea</title></head>\
-<body style=\"margin:0;padding:32px;font-family:'Segoe UI','Microsoft YaHei',system-ui;background:#111113;color:#e4e4e7\">\
-<h1 style=\"font-size:18px;margin:0 0 12px\">{}</h1>\
-<pre style=\"white-space:pre-wrap;word-break:break-word;color:#a1a1aa;font-size:13px;line-height:1.6\">{}</pre>\
-</body></html>",
-            escape_html(title),
-            escape_html(detail)
-        );
-        ("text/html; charset=utf-8", html.into_bytes())
+        ("text/html; charset=utf-8", crate::app_prefs::error_page_html(title, detail).into_bytes())
     } else {
         ("text/plain; charset=utf-8", detail.as_bytes().to_vec())
     };
@@ -366,10 +358,6 @@ pub(crate) fn with_allow_header(mut response: http::Response<Vec<u8>>) -> http::
         .headers_mut()
         .insert("allow", http::HeaderValue::from_static("GET, HEAD, POST"));
     response
-}
-
-fn escape_html(s: &str) -> String {
-    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
 }
 
 #[cfg(test)]

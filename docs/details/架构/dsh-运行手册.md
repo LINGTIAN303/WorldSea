@@ -145,6 +145,16 @@ DSH_HOME="D:/WorldSea/.独立项/b0-home" node apps/cli/lib/bin.js web --no-open
   - **★ 为什么此前启动页不可见（根因与修复）**：Tauri 对 frontendDist 的**初始导航排在 setup 之后**，而 setup 曾被 `dsh_shell::install`（spawn 宿主 + 等就绪）**同步阻塞约 12s** → 阻塞期窗口为空文档（黑屏），setup 结束后初始导航又被紧随的 dsh 导航瞬间替换。**修复 = `dsh_shell::install` 后台化**（宿主等待移入线程；setup 秒级结束）→ 窗口秒开即显示启动页。
   - **诊断**：`WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222` 起壳 → `curl http://127.0.0.1:9222/json/list` + CDP `Runtime.evaluate`（node 内置 WebSocket、零新依赖）——「空文档 / 资源缺失 / JS 报错」类问题的标准手法。
 
+**主题单真源（E2，2026-09-24，详见 [E2 批计划](../../plans/2026-09-24-E2-主题单真源批计划.md)）**：
+
+- **真源** = `<app_data>\worldsea\prefs.json` 的 `theme`（`light|dark|system`）——**壳持有**；产品页 index 注入 `__WORLDSEA_THEME__` / `__WORLDSEA_SET_THEME__` / `__WORLDSEA_DARK__`，dsh 页由壳经 `settings/update` 写它的 `ui-theme` 偏好。同步时机 = 启动（种子/写回）+ 产品侧改动（命令内）+ **每次空间切换**（在 dsh 里改过 → 切到工作台时跟随）。
+- **命令**：`cmd_theme_get` / `cmd_theme_set`（共用壳桥权限内）；广播事件 `worldsea:theme-changed`（产品 `useTheme` 监听重应用，并顺带刷新两页注入快照）。
+- **壳自有面**（HTML 错误页 / 不白屏安全网 / 工作区横幅）按真源取**亮暗两套**（此前三处各自硬编码深色）；模板单点 `app_prefs::error_page_html`。
+- **★ 壳内调 dsh API 的信封**（后续所有壳侧 dsh 调用照此办）：body 必须是
+  `{"type":"client-request","rpcId":"…","method":"<路由名>","payload":{"args":{…}}}` —— 缺 body → `400 body is not JSON`；`method` 要与路由名一致（否则 `gateway/bad-request: method … does not match endpoint …`）；`payload` 只能有 `args` 一个对象字段；字段名按端点 schema（`settings/update` 用 **`patch`**）。
+- **读 dsh 现值**：走 **index 的 boot-theme 行**（`const preference = "…"`）——`settings/describe` 里 `preference` 同名键多（多个命名空间/schema，实测误读成相邻键），别解析它。
+- **排查**：壳日志 `[DSH-SHELL] theme:` 行（真源 / 种子 / 跟随 / 同步失败都留痕）。
+
 **核查与清理**（改壳或复跑前）：
 
 - `taskkill //IM worldsea-tauri-app.exe //T //F` 清干净再起；被强杀的实例会留**孤儿 dsh host**（node 不在 Job Object 里），用 `tasklist | grep -i node` 复核。**本机 `wmic` 已失效（恒返回空）**——进程核查改用 `tasklist` / `powershell Get-CimInstance`。
