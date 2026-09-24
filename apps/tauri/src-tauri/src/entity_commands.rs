@@ -1066,11 +1066,14 @@ impl Tool for FsEntityGetTool {
 mod tests {
     use super::*;
 
+    /// 夹具序号：夹具路径只按 pid 命名会被同模块并行用例互踩（既有 flake 根因）
+    static TEMP_SEQ: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
     /// 建一个临时文件库的 EntityDb（避免污染真实实体库）
     async fn temp_db() -> Arc<EntityDb> {
+        let seq = TEMP_SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let path = std::env::temp_dir()
-            .join(format!("ws_entity_test_{}.db", std::process::id()));
-        let _ = std::fs::remove_file(&path);
+            .join(format!("ws_entity_test_{}_{}.db", std::process::id(), seq));
         EntityDb::new(path.to_str().unwrap()).await.expect("建临时库失败")
     }
 
@@ -1159,9 +1162,9 @@ mod tests {
 
     /// 构造临时实体目录（{tmp}/entities/{type}/*.json，模拟文件主存储布局）
     fn temp_entities_dir() -> std::path::PathBuf {
+        let seq = TEMP_SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let tmp = std::env::temp_dir()
-            .join(format!("ws_fs_entity_test_{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&tmp);
+            .join(format!("ws_fs_entity_test_{}_{}", std::process::id(), seq));
         let entities = tmp.join("entities");
         std::fs::create_dir_all(entities.join("character")).unwrap();
         std::fs::create_dir_all(entities.join("region")).unwrap();

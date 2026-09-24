@@ -3,12 +3,17 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<!-- 内联 favicon（品牌紫点）：不过多一个实体文件，也免掉 WebView 对 /favicon.ico 的 404 噪音 -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='%237c3aed'/%3E%3C/svg%3E" />
 <title>WorldSea — 工作台</title>
 <!-- 工作台入口（D1-a）：由壳协议 /workspace 前缀伺服；主体复用旧前端（src/main.ts），
      Agent 接线经 vite 插件摘除（见 vite.config.ts）。防主题闪烁脚本与旧 index.html 同源。 -->
 <script>
   ;(function () {
     try {
+      // 工作台窗恒为 workbench 壳（D1-b）：Agent 空间在新壳里是**独立窗口**，本页只渲染
+      // 工作台视图；旧持久值可能是 'space' → 会渲染被摘除的 AgentSpace（空白）。
+      localStorage.setItem('worldsea_shell', 'workbench')
       var v = localStorage.getItem('worldsea:theme')
       var t =
         v === 'light' || v === 'dark'
@@ -18,7 +23,7 @@
             : 'light'
       document.documentElement.dataset.theme = t
     } catch (e) {
-      /* localStorage 不可用时保持默认浅色 */
+      /* localStorage 不可用时保持默认 */
     }
   })()
 </script>

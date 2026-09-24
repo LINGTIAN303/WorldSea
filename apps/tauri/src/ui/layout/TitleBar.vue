@@ -97,12 +97,22 @@ const currentViewLabel = computed(() => {
   return view?.label ?? ''
 })
 
-/* ── Agent 空间 / 工作台 切换按钮（2026-08-10）：显示当前所在壳 + 激活填充，点击双向切换 ── */
+/* ── Agent 空间 / 工作台 切换按钮（2026-08-10；D1-b 2026-09-24 起双窗）──
+   新壳里两个空间是**独立窗口**（dsh 页 / 工作台页各一窗），切换交壳做互斥显隐
+   （`cmd_shell_space_switch`，桥由工作台 index 注入为 `__WORLDSEA_SPACE_SWITCH__`）；
+   无该桥时（浏览器预览 / 旧壳）回退页内壳切换，开发态与原行为不变。 */
 const shellToggleLabel = computed(() => uiStore.currentShell === 'space' ? 'Agent 空间' : '工作台')
 const shellToggleIcon = computed(() => uiStore.currentShell === 'space' ? 'chat' : 'monitor')
 const shellToggleTitle = computed(() => uiStore.currentShell === 'space' ? '切换到工作台' : '进入 Agent 空间')
 function toggleShell() {
-  uiStore.setShell(uiStore.currentShell === 'workbench' ? 'space' : 'workbench')
+  const target = uiStore.currentShell === 'workbench' ? 'space' : 'workbench'
+  const shellSwitch = (globalThis as { __WORLDSEA_SPACE_SWITCH__?: (to: string) => Promise<unknown> })
+    .__WORLDSEA_SPACE_SWITCH__
+  if (typeof shellSwitch === 'function') {
+    void shellSwitch(target).catch(e => console.error('[TitleBar] 空间切换失败:', e))
+    return
+  }
+  uiStore.setShell(target)
 }
 
 function minimize() {

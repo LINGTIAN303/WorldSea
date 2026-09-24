@@ -93,6 +93,23 @@ pub(crate) fn inject_shell_scripts(
     }
 }
 
+/// D1-a/D1-b（2026-09-24）：**工作台页**（壳协议 `/workspace` 前缀，产物由 `workspace_dist` 伺服）的 index 注入。
+/// 只装两件：
+/// ① 「不白屏」安全网——挂载点 `#app`（旧前端口径，与 dsh 页的 `#root` 不同）：
+///    先置 `__WORLDSEA_BOOT_ROOT__` 再注入同一份 watchdog 脚本（默认值 'root' 保 dsh 行为不变）；
+/// ② 空间切换桥（`__WORLDSEA_SPACE_SWITCH__`，D1-b）——旧前端 TitleBar 的「Agent 空间⇄工作台」控件
+///    据此走壳命令（双窗互斥）；无该全局时旧前端回退页内切换（浏览器预览/旧壳）。
+/// 传输面 / dsh 壳桥 / 注入式窗口栏均**不注入**：工作台不连 dsh，且它自带旧前端 TitleBar 作窗口栏。
+pub(crate) fn inject_workspace_scripts(html: &str) -> String {
+    let scripts = format!(
+        "{BOOT_ROOT_SCRIPT}<script>{WATCHDOG_SCRIPT}</script>{SPACE_SWITCH_BRIDGE}"
+    );
+    match find_head_end(html) {
+        Some(at) => format!("{}{}{}", &html[..at], scripts, &html[at..]),
+        None => format!("{scripts}{html}"),
+    }
+}
+
 /// `<head …>` 开标签结束位置（大小写不敏感）；`to_ascii_lowercase` 不改字节长度，索引可直接复用。
 fn find_head_end(html: &str) -> Option<usize> {
     let lower = html.to_ascii_lowercase();
@@ -108,6 +125,11 @@ fn find_head_end(html: &str) -> Option<usize> {
 
 /// 「不白屏」安全网（常驻）：入口脚本失败或长时间无渲染时就地出示错误页。
 const WATCHDOG_SCRIPT: &str = include_str!("dsh_watchdog.js");
+/// 工作台页挂载点（D1-a）：watchdog 认 `#app`（旧前端口径）。
+const BOOT_ROOT_SCRIPT: &str =
+    "<script>/* worldsea-shell:boot-root */globalThis.__WORLDSEA_BOOT_ROOT__ = 'app'</script>";
+/// 工作台页空间切换桥（D1-b）：旧前端 TitleBar 据此调壳命令做双窗互斥切换。
+const SPACE_SWITCH_BRIDGE: &str = "<script>/* worldsea-shell:space-switch */globalThis.__WORLDSEA_SPACE_SWITCH__ = function (target) { return globalThis.__TAURI_INTERNALS__.invoke('cmd_shell_space_switch', { target: target }) }</script>";
 /// 壳桥（常驻，可 `WORLDSEA_NO_SHELL_BRIDGE=1` 关）：`__WORLDSEA_SHELL__` 的通知/外链/设置入口/日志。
 const SHELL_BRIDGE_SCRIPT: &str = include_str!("dsh_shell_bridge.js");
 /// 窗口栏（C6，无边框形态缺省注入；`WORLDSEA_NO_TITLEBAR=1` 反证关）：32px 壳级窗口栏 + 工作台占位页。

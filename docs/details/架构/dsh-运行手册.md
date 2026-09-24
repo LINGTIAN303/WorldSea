@@ -121,8 +121,20 @@ DSH_HOME="D:/WorldSea/.独立项/b0-home" node apps/cli/lib/bin.js web --no-open
 - **形态**：缺省**无边框**（`tauri.conf.json` 的 `decorations:false`）+ 壳侧注入的 **32px 窗口栏**（旧 `TitleBar.vue` space 变体：左侧「Agent 空间 ⇄ 工作台」切换胶囊 → 居中标题 → 右侧「⋯」菜单按钮 + 三控制按钮；控制按钮细线 SVG 照搬旧组件）。`WORLDSEA_FRAMED=1` 回退原生边框（同时不注入窗口栏）。
 - **dsh 适配**：注入脚本置 `html[data-windows-titlebar]` + `--dsh-windows-titlebar-height: 32px`（**dsh 内置机制**，官方 Electron 桌面端同款，只是官方用 40px）→ dsh 界面自动留白 + `centerCol` 圆角 + 侧栏连色；**dsh 树零改动**。
 - **拖拽 / 双击**：JS 方案（窗口栏空白区 `mousedown` → `cmd_shell_window_action start-drag`；`detail===2` → 最大化/还原）。**无系统边缘吸附（snap）**——已知差异；将来可评估 WebView2 non-client（`-webkit-app-region` + `IsNonClientRegionSupportEnabled`）。
-- **工作台占位页**：点切换控件 → 「WorldSea · 产品域即将落位」占位页（DOM 覆盖层，dsh 页面保持运行、会话不丢）；产品域（27 芽）真正落位时接真页。
+- **工作台占位页**：点切换控件 → 「WorldSea · 产品域即将落位」占位页（DOM 覆盖层，dsh 页面保持运行、会话不丢）；产品域（27 芽）真正落位时接真页。——**D1 已接真页、占位页退役**（见下节）。
 - **菜单改 popup**：`menu.rs` 不再 `set_menu`（无边框下 Win32 菜单栏不可见，见下坑），改为窗口栏「⋯」按钮经 `cmd_shell_popup_menu`（`popup_menu_at` + 页面逻辑坐标）弹出；菜单内容与快捷键零删减（文件/编辑/视图/设置四子菜单）。
+
+**工作台窗（D1，2026-09-24，详见 [D1 批计划](../../plans/2026-09-24-D1-产品域落位批计划.md)）**：
+
+- **形态**：两个空间 = **两个窗口**（互斥显隐 + 几何同步）。`main` = Agent 空间（dsh 页，`http://worldsea.localhost/`）；`workspace` = 工作台（产品域页，`http://worldsea.localhost/workspace/`）——**同源**，主题等 localStorage 天然互通。
+- **切换入口两条（各窗一条，不叠加）**：dsh 窗 = 注入式窗口栏的「Agent 空间」胶囊（`dsh_titlebar.js` → `cmd_shell_space_switch`）；工作台窗 = **旧前端自带 `TitleBar.vue`（workbench 变体）** 的同名胶囊（`toggleShell()` → index 注入的 `__WORLDSEA_SPACE_SWITCH__` 桥 → 同一命令）。工作台窗**不吃**注入式窗口栏（否则双栏）。切换时目标窗对齐来源窗几何；无桥时（浏览器预览 / 旧壳）回退页内壳切换（开发态行为不变）。
+- **懒创建**：点「工作台」才建窗（`workspace_window.rs`；无边框 + `disable_drag_drop_handler` + 隐藏构建后显 + 挂 C3-b 导航栅栏），建后常驻（隐藏不销毁——保住工作台内编辑现场）。工作台窗 ✕ = 隐藏 + 回 Agent 空间（`lib.rs` 的 `CloseRequested` 分支）。
+- **★ 建窗命令必须 `async`**（真机踩坑）：同步命令在**主线程**执行，而 `WebviewWindowBuilder::build()` 要在事件循环上等 WebView2 控制器的创建回执 → **自锁**（现象：窗口停在 `about:blank`、此后主线程不再响应任何 IPC、壳日志无后续行）。窗口 getter/动作类命令留同步无碍（C6 的 `cmd_shell_window_action` 先例）。
+- **协议 `/workspace` 前缀**（`workspace_dist.rs`）：产物**运行时读盘**（不嵌二进制；`WORLDSEA_WORKSPACE_DIST` 可覆盖，缺省 `<crate>/../workspace-dist`；目录缺失给可辨认错误页 + 构建命令）；只 GET/HEAD（405 带 `allow`）；段级越界 403 + `canonicalize` 包含性复核；`assets/`（内容哈希名）长缓存、index 与其余 `no-store`；index 注入「不白屏」安全网（**root=`#app`**，与 dsh 页的 `#root` 区分）+ 空间切换桥；CSP 与 dsh 页同口径（`dsh_proxy::CSP_INDEX`）。**改产物不需重嵌二进制、不需重启壳**（下次导航即读新文件；当前页要 reload）。
+- **构建**（从 `apps/tauri`）：`node node_modules/vite/bin/vite.js build --config workspace/vite.config.ts` → 产物 `apps/tauri/workspace-dist/`（已 gitignore）。
+- **★ 桩规则必须按「归一说明符」写**（踩坑）：`resolve.alias` 先于插件 `resolveId` 生效 → 同一模块到本插件有两种写法（裸包名 / alias 后**绝对路径**）；按裸名写会**静默不命中**（实测：真 agent-runtime 注册表进产物，且启动抛 `e.capabilities is not iterable`）。现走 `canonical()` 归一（见 `workspace/vite.config.ts` 头注）。`@worldsea/agent-runtime` 根与 `@agent/index` **有意不桩**（真注册表 + 真 descriptor 自洽；桩掉会连锁缺导出），只桩叶级。
+- **ACL（按窗口互斥授权）**：`capabilities/default.json`（main：壳桥 + 流桥）/ `capabilities/workspace.json`（workspace：壳桥 + `allow-product-domain` 116 条产品域命令，**无流桥**）。产品域清单来源 = **产物可达性**（`grep cmd_ 于 workspace-dist/assets/*.js`）∩ **源码归属**（`apps/tauri/src` + 仓根 `packages/*`，剔除 `packages/agent-runtime/**`）。双向反证口径：dsh 窗调 `cmd_fs_stat` → `not allowed … allowed on: [windows: "workspace"]`；工作台窗调 `cmd_stream_open` → `not allowed … allowed on: [windows: "main"]`。
+- **探针**：`.workbuddy/d1-probe.mjs`（CDP：`list` / `eval <目标子串> <表达式|@文件>` / `log <子串> <秒> [--reload]` 收控制台 / `shot <子串> <png>`）；起壳带 `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222`。
 - **★ 取证坑（UIA 误报）**：无边框下无障碍树**仍报告**「标题栏 / 菜单栏 应用程序」残留节点（而截图证实菜单栏并不存在）——菜单/标题栏是否可见**只能用截图判定**，UIA 树不可信。
 - **★ 已知性能问题（顺带定位，非 C6 引入；2026-09-24 已定位到确切点）**：启动后页面约 **40~140 秒**才可用——确切阻塞 = `lib.rs` setup 里 **`block_on(mcp_commands::auto_connect_all(...))`**：**同步**连接 `{app_data}/worldsea/mcp.json` 里 `enabled` 的 MCP 服务器（**旧 Agent 面的 MCP**，dsh 界面不使用它）。当前配置仅一个服务器 **Exa**（`https://mcp.exa.ai/mcp`，streamable-http）；实测到该服务器**单次连接即 10.2 秒**（境外网络）→ 握手多往返累计 40~140 秒（网络状况决定波动：39s / 46s / 138s）。`navigate` 排队等 setup 完成，故页面延迟加载；**原生边框对照实验同样慢（138s）**→ 与本批无关。诊断法：临时在 setup 各阶段插 `Instant::now()` 日志（本轮用后已删）。**处置选项（2026-09-24 已呈报用户，待决定）**：a) 零代码——`mcp.json` 里 Exa `"enabled": false`（或删项，立即见效）；b) 小改——`auto_connect_all` 改后台 `spawn`（不再 block setup；按「旧 Agent 面冻结」纪律需登记）；c) 不动（接受等待）。
 

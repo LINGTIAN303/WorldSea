@@ -375,22 +375,23 @@ fn injection_switches_gate_each_script_independently() {
 
 #[test]
 fn titlebar_script_wires_expected_commands_and_contract() {
-    // C6：窗口栏脚本的命令接线必须与 Rust 侧注册一致；dsh 适配标记与占位页缺一不可
+    // C6→D1-b：窗口栏脚本的命令接线必须与 Rust 侧注册一致；dsh 适配标记与空间切换接线缺一不可
     let (port, _seen) = fake_upstream();
     let text = body_text(&proxy(&cfg(port), &req("GET", "/")));
-    for command in ["cmd_shell_window_action", "cmd_shell_popup_menu"] {
+    for command in ["cmd_shell_window_action", "cmd_shell_popup_menu", "cmd_shell_space_switch"] {
         assert!(text.contains(command), "窗口栏缺少命令接线：{command}");
     }
     assert!(text.contains("data-windows-titlebar"), "窗口栏必须置 dsh 的 Windows 形态标记（留白/圆角/连色）");
     assert!(text.contains("--dsh-windows-titlebar-height"), "窗口栏高度须经 dsh 变量驱动");
-    assert!(text.contains("worldsea-workbench"), "工作台占位页缺位");
     assert!(text.contains("Agent 空间"), "窗口栏切换控件文案缺位");
-    // 反证：关掉后整段脚本（含占位页字符串）不存在
+    // D1-b：切换不再走页内占位页（工作台是独立窗口）——旧占位页字符串必须消失
+    assert!(!text.contains("worldsea-workbench"), "页内占位页应已退役（D1-b 双窗）");
+    // 反证：关掉后整段脚本不存在
     let mut off = cfg(port);
     off.titlebar = false;
     let text = body_text(&proxy(&off, &req("GET", "/")));
     assert!(!text.contains("worldsea-shell:titlebar"));
-    assert!(!text.contains("worldsea-workbench"));
+    assert!(!text.contains("cmd_shell_space_switch"));
 }
 
 #[test]

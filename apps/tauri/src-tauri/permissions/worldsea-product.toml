@@ -1,0 +1,50 @@
+# D1-c（2026-09-24）：工作台窗口（产品域）命令面——按窗口授权的产品域命令族。
+#
+# 口径（见 docs/plans/2026-09-24-D1-产品域落位批计划.md §三 D1-c）：
+# - 清单来源 = **构建产物可达性取证**（apps/tauri/workspace-dist 内出现的命令字面量）
+#   ∩ **产品域源码引用**（apps/tauri/src + 仓根 packages/*，逐条判归属）；
+# - Agent 面命令一律**不放**（会话/模型/长任务/循环控制/审批规则/凭证库/MCP/技能/语义检索）——
+#   那属 dsh 窗（Agent 空间）的命令面，两侧按窗口互斥授权；
+# - 授权面 = 仅工作台窗口（capabilities/workspace.json 的 windows 项）；dsh 窗（default.json）不含本权限；
+# - 新增命令的动作：先在产物里确认可达（grep cmd_xxx apps/tauri/workspace-dist/assets/*.js），再加进本表。
+# - **有意排除**（勿顺手补）：cmd_fs_copy · cmd_schema_get_entity_type · cmd_pattern_step_run ·
+#   cmd_agent_tool_result · cmd_mcp_{spawn,kill,list} · cmd_skills_* · cmd_secure_* ·
+#   cmd_semantic_* · cmd_workspace_index_*（面板随 AgentSpace 摘除而不可达）·
+#   cmd_get_app_data_dir / cmd_get_home_dir / cmd_list_workdirs（Agent 侧路径助手）。
+#
+# 机制与应用级 ACL 的说明见 worldsea-shell.toml 头注。
+
+[[permission]]
+identifier = "allow-product-domain"
+description = "产品域命令族（工作台窗口）：实体/关系/文件/KV 数据 + 文件系统 + 算法 + 校验 + 字体/LSP/预览 + 托盘与开机自启"
+commands.allow = [
+    "cmd_algo_astar", "cmd_algo_betweenness_centrality", "cmd_algo_chaikin_smooth", "cmd_algo_collision_check",
+    "cmd_algo_community_detection", "cmd_algo_connected_components", "cmd_algo_constraint_solve", "cmd_algo_convex_hull",
+    "cmd_algo_crdt_lww_merge", "cmd_algo_crdt_lww_new", "cmd_algo_crdt_lww_set", "cmd_algo_crdt_orset_add",
+    "cmd_algo_crdt_orset_elements", "cmd_algo_crdt_orset_merge", "cmd_algo_crdt_orset_new", "cmd_algo_crdt_orset_remove",
+    "cmd_algo_crdt_rga_delete", "cmd_algo_crdt_rga_insert", "cmd_algo_crdt_rga_merge", "cmd_algo_crdt_rga_new",
+    "cmd_algo_crdt_rga_text", "cmd_algo_crdt_vc_compare", "cmd_algo_dijkstra_path", "cmd_algo_dxf_extract_constraints",
+    "cmd_algo_dxf_generate", "cmd_algo_dxf_parse", "cmd_algo_find_intersections", "cmd_algo_find_line_polygon_intersections",
+    "cmd_algo_find_shared_edges", "cmd_algo_force_layout", "cmd_algo_graph_analysis", "cmd_algo_hydraulic_erosion",
+    "cmd_algo_k_shortest_paths", "cmd_algo_line_length", "cmd_algo_list", "cmd_algo_pagerank",
+    "cmd_algo_point_in_polygon", "cmd_algo_polygon_augment", "cmd_algo_polygon_boolean", "cmd_algo_polygon_metrics",
+    "cmd_algo_polygon_offset", "cmd_algo_polygon_simplify", "cmd_algo_polygon_split", "cmd_algo_run",
+    "cmd_algo_segment_intersect", "cmd_algo_shortest_path", "cmd_algo_spatial_clear", "cmd_algo_spatial_insert",
+    "cmd_algo_spatial_query", "cmd_algo_tarjan_scc", "cmd_algo_terrain_heightmap_aspect", "cmd_algo_terrain_heightmap_generate",
+    "cmd_algo_terrain_heightmap_slope", "cmd_algo_terrain_marching_squares", "cmd_algo_terrain_noise", "cmd_algo_topological_sort",
+    "cmd_algo_viewshed", "cmd_autostart_is_enabled", "cmd_autostart_set_enabled", "cmd_check_references",
+    "cmd_clear_entities", "cmd_clear_relations", "cmd_count_entities_by_type", "cmd_delete_entity",
+    "cmd_delete_file", "cmd_delete_project_db", "cmd_delete_relation", "cmd_delete_relations_by_entity",
+    "cmd_font_read_file", "cmd_font_scan_system", "cmd_fs_delete", "cmd_fs_list",
+    "cmd_fs_mkdir", "cmd_fs_read", "cmd_fs_rename", "cmd_fs_search",
+    "cmd_fs_stat", "cmd_fs_watch_start", "cmd_fs_watch_stop", "cmd_fs_write",
+    "cmd_get_all_entities", "cmd_get_all_files", "cmd_get_all_relations", "cmd_get_entities_by_type",
+    "cmd_get_entity", "cmd_get_file", "cmd_get_file_by_path", "cmd_get_file_content",
+    "cmd_get_files_by_entity", "cmd_get_relations_by_entity", "cmd_import_entities", "cmd_import_relations",
+    "cmd_kv_delete", "cmd_kv_get", "cmd_kv_get_all", "cmd_kv_set",
+    "cmd_lsp_detect", "cmd_lsp_send", "cmd_lsp_start", "cmd_migrate",
+    "cmd_notify", "cmd_office_available", "cmd_open_in_explorer", "cmd_pptx_to_pdf",
+    "cmd_put_entity", "cmd_put_file", "cmd_put_relation", "cmd_run_diagnostics",
+    "cmd_tray_set_agent_state", "cmd_tray_set_recent_projects", "cmd_update_entity", "cmd_update_file",
+    "cmd_update_relation", "cmd_validate_entities", "cmd_validate_entity", "cmd_validate_pack",
+]

@@ -51,6 +51,10 @@ mod dsh_bridge;
 mod dsh_proxy;
 // C2-b（2026-09-24）：index 注入脚本装配（传输面三态 + 安全网 + 壳桥 + 诊断）
 mod dsh_inject;
+// D1-a（2026-09-24）：工作台静态伺服（壳协议 `/workspace` 前缀；产物运行时读盘、不嵌二进制）
+mod workspace_dist;
+// D1-b（2026-09-24）：工作台窗口（懒创建 + 与 Agent 空间互斥切换 + 几何同步）
+mod workspace_window;
 // C1-a（2026-09-24）：mux WebSocket 凭据中转（改写握手首部后双向透传；C2 起仅 legacy 对照模式使用）
 mod dsh_relay;
 // C2-b（2026-09-24）：管道传输客户端（宿主管道载体的壳侧对端：帧编解码 + 请求多路复用 + 流 lane）
@@ -144,8 +148,13 @@ pub fn run() {
         .manage(Mutex::new(tray::TrayState::default()))
         // C1-a（2026-09-24）：壳注册 `worldsea` 协议——UI 页 origin 不再等于宿主 authority。
         // Windows 落形 = `http://worldsea.localhost/`（wry workaround，见 dsh_bridge.rs 头注）。
+        // D1-a：`/workspace` 前缀 = 工作台静态伺服（不依赖 dsh 桥——宿主未就绪也能开工作台）。
         .register_asynchronous_uri_scheme_protocol("worldsea", |ctx, request, responder| {
-            dsh_bridge::handle_request(ctx, request, responder);
+            if workspace_dist::is_workspace_path(request.uri().path()) {
+                workspace_dist::handle_request(request, responder);
+            } else {
+                dsh_bridge::handle_request(ctx, request, responder);
+            }
         })
         .invoke_handler(tauri::generate_handler![
             commands::new_session,
@@ -235,6 +244,8 @@ pub fn run() {
             // C6：窗口栏（最小化/最大化⇄还原/关闭/起拖/查询）+ 「⋯」popup 菜单
             shell_bridge::cmd_shell_window_action,
             menu::cmd_shell_popup_menu,
+            // D1-b：空间切换（Agent 空间⇄工作台，双窗互斥 + 几何同步；工作台窗懒创建）
+            workspace_window::cmd_shell_space_switch,
             // C2-b：页面流桥（openStream 钩子 → 管道 mux 流：开 / 上行 / 半关 / 取消）
             dsh_stream::cmd_stream_open,
             dsh_stream::cmd_stream_send,
@@ -683,6 +694,13 @@ pub fn run() {
         // 继续运行；托盘菜单「退出」才是真正退出。托盘未激活时保持默认（关闭即退出）。
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                // D1-b：工作台窗的 ✕ = 隐藏 + 回 Agent 空间（不销毁页面——保住工作台内的编辑现场；
+                // 托盘「退出」走 app.exit(0)，不经本分支，故不会挡真退出）
+                if window.label() == workspace_window::LABEL {
+                    api.prevent_close();
+                    workspace_window::hide_and_back_to_space(window.app_handle());
+                    return;
+                }
                 let active = window.state::<TrayActive>();
                 if active.0 {
                     window.hide().ok();

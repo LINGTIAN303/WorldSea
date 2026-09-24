@@ -95,7 +95,8 @@ const PASSABLE_REQUEST_HEADERS: [&str; 5] = [
 ];
 
 /// C3-c：index 响应的 CSP 最小子集（三条「页面根本不用」的指令；其余面见 C3 批计划 §八 取证清单）。
-const CSP_INDEX: &str = "object-src 'none'; base-uri 'self'; form-action 'none'";
+/// D1-a 起工作台页（`/workspace`）同口径复用——两处 index 的安全头单点定义在本文。
+pub(crate) const CSP_INDEX: &str = "object-src 'none'; base-uri 'self'; form-action 'none'";
 
 /// 路径是否在白名单内（`open` = 逃生口放行全部）。
 pub(crate) fn path_allowed(path_only: &str, open: bool) -> bool {
@@ -360,7 +361,7 @@ pub(crate) fn failure_response(status: u16, wants_html: bool, title: &str, detai
 }
 
 /// 给 405 响应补 `allow`（HTTP 语义要求）。
-fn with_allow_header(mut response: http::Response<Vec<u8>>) -> http::Response<Vec<u8>> {
+pub(crate) fn with_allow_header(mut response: http::Response<Vec<u8>>) -> http::Response<Vec<u8>> {
     response
         .headers_mut()
         .insert("allow", http::HeaderValue::from_static("GET, HEAD, POST"));

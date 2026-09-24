@@ -4,7 +4,11 @@ use super::*;
 use std::fs;
 
 fn store_with(content: &str) -> std::path::PathBuf {
-    let dir = std::env::temp_dir().join(format!("worldsea-cred-test-{}", std::process::id()));
+    // 夹具路径若只按 pid 命名，同模块并行用例会写到同一个 `.credentials.yaml`（写入即串味），
+    // 故每次调用取新目录（进程内计数，跨进程由 pid 区分）。
+    static SEQ: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let seq = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let dir = std::env::temp_dir().join(format!("worldsea-cred-test-{}-{seq}", std::process::id()));
     fs::create_dir_all(&dir).unwrap();
     fs::write(dir.join(".credentials.yaml"), content).unwrap();
     dir

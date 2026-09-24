@@ -1,15 +1,17 @@
 /* worldsea-shell:boot-watchdog —— 「不白屏」安全网（常驻，非诊断模式也注入）：
-   入口脚本/样式加载失败，或等待 WAIT_MS 后 #root 仍为空（应用完全没渲染）时，
+   入口脚本/样式加载失败，或等待 WAIT_MS 后挂载点仍为空（应用完全没渲染）时，
    就地显示一张可辨认的错误页（列出失败资源 + 重试按钮）。
-   只要 #root 已渲染过，本脚本永不介入——不会干扰正常界面。 */
+   只要挂载点已渲染过，本脚本永不介入——不会干扰正常界面。
+   挂载点：默认 `#root`（dsh 页）；`globalThis.__WORLDSEA_BOOT_ROOT__` 可改（工作台页 = `#app`，见 dsh_inject）。 */
 (function () {
   try {
     var FAILED = [];
     var SHOWN = false;
     var WAIT_MS = 25000;
+    var ROOT_ID = (globalThis.__WORLDSEA_BOOT_ROOT__ || 'root');
     function show() {
       if (SHOWN) return;
-      var root = document.getElementById('root');
+      var root = document.getElementById(ROOT_ID);
       if (root && root.childElementCount > 0) return;
       var host = document.body || document.documentElement;
       if (!host) return;
