@@ -69,7 +69,7 @@ DSH_HOME="D:/WorldSea/.独立项/b0-home" node apps/cli/lib/bin.js web --no-open
 
 **壳侧安全面（C3-b/c，2026-09-24，详见 [C3 批计划](../../plans/2026-09-24-C3-壳侧安全面批计划.md)）**：
 
-- **命令面白名单（应用级 ACL）**：`apps/tauri/src-tauri/permissions/worldsea-shell.toml` 只放页面在用的 **7 条**（壳桥 3 + 流桥 4）；其余应用命令（旧 Agent 面全族）从「页面可调」降为 **ACL 拒**（`cmd_agent_tool_names not allowed. Command not found`）。**页面新增可调命令必须在此逐条加**（改 `permissions/*.toml` → 重建即生效）。
+- **命令面白名单（应用级 ACL）**：`apps/tauri/src-tauri/permissions/worldsea-shell.toml` 只放页面在用的 **10 条**（壳桥 5 + 窗口栏 1 + 流桥 4；C3 起步为 7 条，C4-b/C6 逐条增补）；其余应用命令（旧 Agent 面全族）从「页面可调」降为 **ACL 拒**（`cmd_agent_tool_names not allowed. Command not found`）。**页面新增可调命令必须在此逐条加**（改 `permissions/*.toml` → 重建即生效）。
 - **导航/新窗双栅栏**：壳级 WebView2 事件（主框架 `NavigationStarting` + `NewWindowRequested`，`nav_fence.rs`）——只放行自家源（`worldsea.localhost` / `tauri.localhost` 兜底页 / loopback 回退页）、`data:`、`about:`；iframe 走 `FrameNavigationStarting` **不挂**（内置浏览器/预览不受影响）。反证开关 `WORLDSEA_NO_NAV_FENCE=1`。**注意**：`tauri://localhost` 是 `frontendDist`（shell-loading 兜底页）——策略里必须放行（实测拦它会得到空窗口）。
 
 - **凭证与模型配置（C5，2026-09-24）**：Key 的**唯一真源 = `$DSH_HOME/.credentials.yaml`**（页面「设置 → 模型」写入；首启无凭证时页面自带引导会自动弹出）。dsh 的凭据分层是「继承环境（**最高优先**）> 该库 > 项目 `.env` > home `.env`」（`dsh-credentials-local` 头注），所以只要环境里有 Key 就会永久盖住界面配置——壳 spawn 前判一次库：**库里已有该凭据 → 剥离继承的环境变量（界面配置生效）；库里没有 → 保留继承作兜底**。日志逐条留痕（`库（.credentials.yaml）已有 …` / `库中无 …：保留继承的环境变量作兜底`）。旧 Key（本仓 SecureStore / 启动环境）**不迁移**——按裁定在界面里填一次。排查：库文件在 `DSH_HOME/.credentials.yaml`（该文档只存「凭据名 → 字符串」映射）。
@@ -95,6 +95,8 @@ DSH_HOME="D:/WorldSea/.独立项/b0-home" node apps/cli/lib/bin.js web --no-open
 | `WORLDSEA_WORKSPACE` | **宿主 cwd / 会话默认工作区**（C4）。默认 `%USERPROFILE%\WorldSea`（缺失即创建；POSIX `$HOME/WorldSea`）。**必须落在「可供给」目录**——dsh 的 Windows ACL 沙箱要目录上有 `WRITE_OWNER`（见下） |
 | `WORLDSEA_NO_WORKSPACE_NOTICE=1` | 反证用：工作区不可供给时不注入页面横幅（日志与系统通知仍在） |
 | `WORLDSEA_KEEP_ENV_KEYS=1` | 反证/逃生口（C5）：强制保留继承的凭据环境变量。默认口径 = **库优先 + env 兜底**：`$DSH_HOME/.credentials.yaml`（页面「设置 → 模型」写入）已有该凭据时，壳 spawn 前剥离继承的 `DEEPSEEK_API_KEY`；库里没有则保留继承作零配置兜底 |
+| `WORLDSEA_FRAMED=1` | **回退原生边框（C6）**：运行时 `set_decorations(true)` 且**不注入窗口栏**；缺省 = 无边框 + 窗口栏（旧 `WORLDSEA_FRAMELESS` 已按此语义反转移除） |
+| `WORLDSEA_NO_TITLEBAR=1` | 反证用（C6）：不注入窗口栏（无边框下页面顶格、无拖拽——显式缺省，非静默） |
 
 > 日志面：宿主的 stdout 现以 **`[DSH-HOST]`** 前缀直出壳日志（管道载体/协议违规行都在那里）；壳的流命令留 `[DSH-SHELL] stream: open id=… endpoint=…` / `cancel id=…` 行——验收「流真的经管道」看这行。
 
@@ -112,7 +114,17 @@ DSH_HOME="D:/WorldSea/.独立项/b0-home" node apps/cli/lib/bin.js web --no-open
   原理：我们的页面在 Tauri `is_local_url` 白名单内，`__TAURI_INTERNALS__.invoke` 直达应用命令（应用命令不属插件 ACL，无需 capability 项）。
 - **通知**：壳桥 `notify` 是页面通道（dsh 客户端暂无生产者）；**宿主异常退出**时壳自带一条系统通知（窗口可能在托盘里）。
 - **外链守卫（C1-c′，镜像官方 Electron 定义）**：官方 `setWindowOpenHandler` = http(s) 交 `shell.openExternal` + **恒 deny 新窗**；`will-navigate` = 只放行应用自身（同源 http 与 app scheme）。壳内等价实现（注入脚本）：捕获阶段 `click`/`auxclick` 拦截 `<a>`（同源放行、其余 http(s)/mailto → 系统浏览器、其它协议只拦截并落档）+ `window.open` 覆盖（一律返回 null）。**已知不覆盖**：程序化 `location` 赋值、WebView2 原生右键菜单「新窗口打开」（需要时用 WebView2 `NavigationStarting` 钩子补）。
-- 注入脚本三件套的关停开关：`WORLDSEA_NO_TRANSPORT_INJECT` / `WORLDSEA_NO_SHELL_BRIDGE`（+ 诊断钩子 `WORLDSEA_SHELL_DIAG`）。
+- 注入脚本**四件套**的关停开关：`WORLDSEA_NO_TRANSPORT_INJECT` / `WORLDSEA_NO_SHELL_BRIDGE` / `WORLDSEA_NO_TITLEBAR`（+ 诊断钩子 `WORLDSEA_SHELL_DIAG`）。
+
+**窗口栏（C6，2026-09-24，详见 [C6 批计划](../../plans/2026-09-24-C6-窗口栏形态恢复批计划.md)）**：
+
+- **形态**：缺省**无边框**（`tauri.conf.json` 的 `decorations:false`）+ 壳侧注入的 **32px 窗口栏**（旧 `TitleBar.vue` space 变体：左侧「Agent 空间 ⇄ 工作台」切换胶囊 → 居中标题 → 右侧「⋯」菜单按钮 + 三控制按钮；控制按钮细线 SVG 照搬旧组件）。`WORLDSEA_FRAMED=1` 回退原生边框（同时不注入窗口栏）。
+- **dsh 适配**：注入脚本置 `html[data-windows-titlebar]` + `--dsh-windows-titlebar-height: 32px`（**dsh 内置机制**，官方 Electron 桌面端同款，只是官方用 40px）→ dsh 界面自动留白 + `centerCol` 圆角 + 侧栏连色；**dsh 树零改动**。
+- **拖拽 / 双击**：JS 方案（窗口栏空白区 `mousedown` → `cmd_shell_window_action start-drag`；`detail===2` → 最大化/还原）。**无系统边缘吸附（snap）**——已知差异；将来可评估 WebView2 non-client（`-webkit-app-region` + `IsNonClientRegionSupportEnabled`）。
+- **工作台占位页**：点切换控件 → 「WorldSea · 产品域即将落位」占位页（DOM 覆盖层，dsh 页面保持运行、会话不丢）；产品域（27 芽）真正落位时接真页。
+- **菜单改 popup**：`menu.rs` 不再 `set_menu`（无边框下 Win32 菜单栏不可见，见下坑），改为窗口栏「⋯」按钮经 `cmd_shell_popup_menu`（`popup_menu_at` + 页面逻辑坐标）弹出；菜单内容与快捷键零删减（文件/编辑/视图/设置四子菜单）。
+- **★ 取证坑（UIA 误报）**：无边框下无障碍树**仍报告**「标题栏 / 菜单栏 应用程序」残留节点（而截图证实菜单栏并不存在）——菜单/标题栏是否可见**只能用截图判定**，UIA 树不可信。
+- **★ 已知性能问题（顺带定位，非 C6 引入）**：启动后页面约 **40~140 秒**才可用——阻塞点在 setup 的 **MCP Hub 初始化**（`mcp_commands::init_state`，旧 Agent 面代码，连接外部 MCP 服务器有超时 → 波动）；`navigate` 排队等 setup 完成，故页面延迟加载。**原生边框对照实验同样慢（138s）**→ 与本批无关。诊断法：临时在 setup 各阶段插 `Instant::now()` 日志（本轮用后已删）。处置待立项（2026-09-24 用户已定：先定位、后决定）。
 
 **核查与清理**（改壳或复跑前）：
 
