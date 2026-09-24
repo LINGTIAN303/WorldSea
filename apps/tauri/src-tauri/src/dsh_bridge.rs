@@ -309,6 +309,13 @@ fn schedule_reload_if_requested(window: Option<&WebviewWindow>) {
 
 /// 把窗口导航到壳协议页面（UI origin = `worldsea://localhost` / 其 Windows workaround 形态）。
 pub fn navigate_to_app(window: &WebviewWindow) {
+    // C6：启动页（splash，`apps/tauri/splash/` 构建产物）就绪淡出——先触发兜底页的淡出钩子
+    // `__wsSplash.ready()`（→ bootState='ready' → 600ms 追平旧版观感），再导航替换整页；
+    // 钩子不存在（错误页 / 旧兜底页）时静默跳过，代价仅多等 700ms。
+    let _ = window.eval(
+        "(function(){try{if(window.__wsSplash&&typeof window.__wsSplash.ready==='function'){window.__wsSplash.ready()}}catch(e){}})()",
+    );
+    std::thread::sleep(std::time::Duration::from_millis(700));
     match APP_URL.parse::<tauri::Url>() {
         Ok(parsed) => {
             if let Err(e) = window.navigate(parsed) {

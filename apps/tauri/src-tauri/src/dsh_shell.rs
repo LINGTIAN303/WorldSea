@@ -246,21 +246,33 @@ pub fn spawn_and_wait_ready(
 /// → 挂句柄 + 心跳守护。具体导航与回退分支见 `dsh_bridge::attach`；口径与批次见
 /// docs/plans/2026-09-23-dsh接管Agent面-大重构准备.md §六 与 C2 批计划 §五。
 pub fn install(app: &tauri::AppHandle, window: Option<&WebviewWindow>) {
-    match spawn_and_wait_ready(app) {
+    // C6-fix（2026-09-24）：宿主 spawn / 就绪等待**移入后台线程**——setup 不再被阻塞（此前 ~12s）。
+    // 根因（CDP 实测）：Tauri 对 frontendDist（启动页）的**初始导航**排在 setup 之后执行；
+    // setup 被本函数同步阻塞期间窗口始终为空文档（黑屏），结束后初始导航又被紧随的 dsh 导航
+    // 瞬间替换 → 启动页从未可见。后台化后：窗口立即可见 → 启动页展示 → 宿主就绪 → attach（导航）。
+    let app_handle = app.clone();
+    let window = window.cloned();
+    std::thread::spawn(move || match spawn_and_wait_ready(&app_handle) {
         Ok((child, url, pipe_path, workspace_notice)) => {
             tracing::info!("dsh shell: ready at {url}");
-            crate::dsh_bridge::attach(app, window, &url, pipe_path.as_deref(), workspace_notice.as_deref());
-            app.manage(DshProcess::new(child));
-            watch_child(app.clone());
+            crate::dsh_bridge::attach(
+                &app_handle,
+                window.as_ref(),
+                &url,
+                pipe_path.as_deref(),
+                workspace_notice.as_deref(),
+            );
+            app_handle.manage(DshProcess::new(child));
+            watch_child(app_handle.clone());
         }
         Err(e) => {
             tracing::error!("dsh shell: {e}");
             eprintln!("[DSH-SHELL] 启动失败：{e}");
-            if let Some(window) = window {
+            if let Some(window) = &window {
                 show_error(window, "dsh 未能启动", &e);
             }
         }
-    }
+    });
 }
 
 /// 把主窗口导航到 dsh 带 token 的 URL；失败则显示可辨认错误页。

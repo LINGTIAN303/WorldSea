@@ -1,24 +1,32 @@
 <!doctype html>
 <html lang="zh-CN">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>WorldSea</title>
-<style>
-  /* 壳兜底页（B3 冻结收口）：等 Agent 内核（dsh）就绪前显示；就绪后由 Rust 侧导航到 dsh 界面。
-     旧 Vue 前端入口已从壳内退役（见 docs/plans/2026-09-23-dsh接管Agent面-大重构准备.md §九 B3）。 */
-  html, body { height: 100%; margin: 0; background: #111113; color: #a1a1aa;
-    font-family: 'Segoe UI', 'Microsoft YaHei', system-ui, sans-serif;
-    display: flex; align-items: center; justify-content: center; }
-  .box { text-align: center; font-size: 14px; line-height: 1.8; }
-  .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%;
-    background: #8b87f8; margin-right: 8px; vertical-align: middle;
-    animation: pulse 1.2s ease-in-out infinite; }
-  @keyframes pulse { 0%, 100% { opacity: .25 } 50% { opacity: 1 } }
-  @media (prefers-reduced-motion: reduce) { .dot { animation: none; opacity: .8 } }
-</style>
+<!-- 启动页（splash）构建入口：产出 frontendDist（apps/tauri/shell-loading/）。
+     页面本体 = 原 Vue 版 src/ui/boot/SplashScreen.vue（100% 原样，含 splash-canvas.ts 引擎与品牌 Logo）。
+     防主题闪烁脚本与旧前端 index.html 同源（localStorage 'worldsea:theme' → data-theme）。 -->
+<script>
+  ;(function () {
+    try {
+      var v = localStorage.getItem('worldsea:theme')
+      var t =
+        v === 'light' || v === 'dark'
+          ? v
+          : window.matchMedia('(prefers-color-scheme: dark)').matches
+            ? 'dark'
+            : 'light'
+      document.documentElement.dataset.theme = t
+    } catch (e) {
+      /* localStorage 不可用时保持默认浅色 */
+    }
+  })()
+</script>
+  <script type="module" crossorigin src="./assets/index-CxRo_05m.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-Dbm3Wspm.css">
 </head>
 <body>
-<div class="box"><span class="dot"></span>正在启动 Agent 内核…</div>
+  <div id="app"></div>
 </body>
 </html>
