@@ -124,7 +124,7 @@ DSH_HOME="D:/WorldSea/.独立项/b0-home" node apps/cli/lib/bin.js web --no-open
 - **工作台占位页**：点切换控件 → 「WorldSea · 产品域即将落位」占位页（DOM 覆盖层，dsh 页面保持运行、会话不丢）；产品域（27 芽）真正落位时接真页。
 - **菜单改 popup**：`menu.rs` 不再 `set_menu`（无边框下 Win32 菜单栏不可见，见下坑），改为窗口栏「⋯」按钮经 `cmd_shell_popup_menu`（`popup_menu_at` + 页面逻辑坐标）弹出；菜单内容与快捷键零删减（文件/编辑/视图/设置四子菜单）。
 - **★ 取证坑（UIA 误报）**：无边框下无障碍树**仍报告**「标题栏 / 菜单栏 应用程序」残留节点（而截图证实菜单栏并不存在）——菜单/标题栏是否可见**只能用截图判定**，UIA 树不可信。
-- **★ 已知性能问题（顺带定位，非 C6 引入）**：启动后页面约 **40~140 秒**才可用——阻塞点在 setup 的 **MCP Hub 初始化**（`mcp_commands::init_state`，旧 Agent 面代码，连接外部 MCP 服务器有超时 → 波动）；`navigate` 排队等 setup 完成，故页面延迟加载。**原生边框对照实验同样慢（138s）**→ 与本批无关。诊断法：临时在 setup 各阶段插 `Instant::now()` 日志（本轮用后已删）。处置待立项（2026-09-24 用户已定：先定位、后决定）。
+- **★ 已知性能问题（顺带定位，非 C6 引入；2026-09-24 已定位到确切点）**：启动后页面约 **40~140 秒**才可用——确切阻塞 = `lib.rs` setup 里 **`block_on(mcp_commands::auto_connect_all(...))`**：**同步**连接 `{app_data}/worldsea/mcp.json` 里 `enabled` 的 MCP 服务器（**旧 Agent 面的 MCP**，dsh 界面不使用它）。当前配置仅一个服务器 **Exa**（`https://mcp.exa.ai/mcp`，streamable-http）；实测到该服务器**单次连接即 10.2 秒**（境外网络）→ 握手多往返累计 40~140 秒（网络状况决定波动：39s / 46s / 138s）。`navigate` 排队等 setup 完成，故页面延迟加载；**原生边框对照实验同样慢（138s）**→ 与本批无关。诊断法：临时在 setup 各阶段插 `Instant::now()` 日志（本轮用后已删）。**处置选项（2026-09-24 已呈报用户，待决定）**：a) 零代码——`mcp.json` 里 Exa `"enabled": false`（或删项，立即见效）；b) 小改——`auto_connect_all` 改后台 `spawn`（不再 block setup；按「旧 Agent 面冻结」纪律需登记）；c) 不动（接受等待）。
 
 **核查与清理**（改壳或复跑前）：
 
