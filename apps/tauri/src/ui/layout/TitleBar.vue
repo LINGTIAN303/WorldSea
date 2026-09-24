@@ -189,6 +189,9 @@ function close() {
   align-items: center;
   height: 32px;
   flex-shrink: 0;
+  /* 顶栏取中性灰（三级中性灰分区之一，2026-08-12）：胶囊填充 = 面板色（--switch-bg: var(--bg-surface)），
+     两色一致时胶囊会「看不见」（只剩文字与图标）——故两变体统一把底色落到 --bg-muted */
+  --titlebar-bg: var(--bg-muted);
   background: var(--titlebar-bg, var(--color-bg-surface));
   border-bottom: 1px solid var(--border, var(--color-border));
   user-select: none;
@@ -200,7 +203,6 @@ function close() {
 /* space 变体：顶栏并入深色带（2026-08-12，与 SpaceNavbar 同 bg-muted 连成连续深色带）
    去掉下沿分割线，与缝隙同色融为一体 */
 .titlebar.is-space {
-  --titlebar-bg: var(--bg-muted);
   border-bottom: none;
 }
 .titlebar-left {

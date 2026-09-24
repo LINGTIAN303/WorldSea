@@ -107,3 +107,22 @@ fn space_switch_is_granted_in_the_shared_shell_bridge() {
     assert!(text.contains("\"cmd_shell_space_switch\""), "切换命令须在壳桥权限内（两窗共用）");
     assert!(text.contains("identifier = \"allow-shell-bridge\""));
 }
+
+#[test]
+fn geometry_plan_transfers_maximize_and_never_writes_geometry_over_it() {
+    // 源最大化 → 目标只跟最大化（且已是最大化时不重复调），无论如何都不写几何（写=顶掉最大化）
+    assert_eq!(geometry_plan(true, false), (true, false));
+    assert_eq!(geometry_plan(true, true), (true, false));
+    // 源未最大化 → 目标若停在最大化，先还原再落几何
+    assert_eq!(geometry_plan(false, true), (false, true));
+    assert_eq!(geometry_plan(false, false), (false, false));
+}
+
+#[test]
+fn geometry_size_reads_inner_to_match_set_size() {
+    // 走查缺陷回归（逐次放大）的判据：写口径是 inner（tauri-runtime-wry: SetSize → set_inner_size），
+    // 故快照必须读 `inner_size`；本测锁源码约定（读改回 outer 即报红）
+    let source = read_text("src/workspace_window.rs");
+    assert!(source.contains("size: window.inner_size().ok()"), "几何快照必须读 inner_size");
+    assert!(!source.contains("outer_size()"), "不得再读 outer_size（与 set_size 口径不一致 → 逐次放大）");
+}

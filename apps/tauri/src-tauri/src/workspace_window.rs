@@ -7,7 +7,7 @@
 // - 关闭键（工作台窗 ✕）= 隐藏 + 回 Agent 空间（不销毁页面；见 lib.rs 的 CloseRequested 分支）；
 // - 安全：新窗同样挂 C3-b 的导航/新窗栅栏（`nav_fence::install`），策略与 dsh 窗一致。
 
-use tauri::{Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::{Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
 use crate::dsh_bridge::APP_URL;
 
@@ -36,28 +36,22 @@ pub async fn cmd_shell_space_switch(app: tauri::AppHandle, target: String) -> Re
     }
 }
 
-/// 切到工作台：懒建（缺窗时创建）→ 几何对齐来源窗 → 显示 + 聚焦 → 隐藏 Agent 空间窗。
+/// 切到工作台：懒建（缺窗时创建）→ 几何平移来源窗 → 显示 + 聚焦 → 隐藏 Agent 空间窗。
 pub(crate) fn switch_to_workbench(app: &tauri::AppHandle) -> Result<(), String> {
     let main = app
         .get_webview_window("main")
         .ok_or_else(|| "主窗口（Agent 空间）不存在，无法同步几何".to_string())?;
-    let position = main.outer_position().ok();
-    let size = main.outer_size().ok();
+    let geometry = snapshot(&main);
     let workspace = match app.get_webview_window(LABEL) {
         Some(window) => window,
         None => create(app)?,
     };
-    if let Some(position) = position {
-        let _ = workspace.set_position(position);
-    }
-    if let Some(size) = size {
-        let _ = workspace.set_size(size);
-    }
+    apply_geometry(&workspace, &geometry);
     workspace.show().map_err(|e| format!("显示工作台窗口失败：{e}"))?;
     let _ = workspace.unminimize();
     let _ = workspace.set_focus();
     let _ = main.hide();
-    println!("[DSH-SHELL] space: Agent 空间 → 工作台（窗口 {LABEL}；几何与主窗对齐）");
+    println!("[DSH-SHELL] space: Agent 空间 → 工作台（窗口 {LABEL}；几何平移 {}）", geometry.describe());
     Ok(())
 }
 
@@ -67,16 +61,76 @@ pub(crate) fn switch_to_space(app: &tauri::AppHandle) -> Result<(), String> {
     let main = app
         .get_webview_window("main")
         .ok_or_else(|| "主窗口（Agent 空间）不存在".to_string())?;
-    if let (Ok(position), Ok(size)) = (workspace.outer_position(), workspace.outer_size()) {
-        let _ = main.set_position(position);
-        let _ = main.set_size(size);
-    }
+    let geometry = snapshot(&workspace);
+    apply_geometry(&main, &geometry);
     main.show().map_err(|e| format!("显示 Agent 空间失败：{e}"))?;
     let _ = main.unminimize();
     let _ = main.set_focus();
     let _ = workspace.hide();
-    println!("[DSH-SHELL] space: 工作台 → Agent 空间（窗口 main；几何与工作台窗对齐）");
+    println!("[DSH-SHELL] space: 工作台 → Agent 空间（窗口 main；几何平移 {}）", geometry.describe());
     Ok(())
+}
+
+/// 窗口几何快照。
+///
+/// ★ **尺寸取 `inner_size`**（2026-09-24 走查实测）：Tauri 的 `Window::set_size` 落到
+/// `tauri-runtime-wry` 的 `WindowMessage::SetSize → window.set_inner_size(…)`，写的是 **inner**；
+/// 若读 `outer_size` 再写，每轮切换都会按边框/阴影厚度**自增放大**（走查现象：逐次向右下角变大）。
+/// 位置取 `outer_position`（与 `set_position` 同口径，成对）。
+struct WindowGeometry {
+    position: Option<PhysicalPosition<i32>>,
+    size: Option<PhysicalSize<u32>>,
+    maximized: bool,
+}
+
+fn snapshot(window: &WebviewWindow) -> WindowGeometry {
+    WindowGeometry {
+        position: window.outer_position().ok(),
+        size: window.inner_size().ok(),
+        maximized: window.is_maximized().unwrap_or(false),
+    }
+}
+
+/// 几何平移判据（纯函数：单测锁定「最大化只平移最大化」——2026-09-24 走查修复的核心规则）。
+/// 返回 `(是否把最大化平移给目标窗, 是否需先把目标窗还原)`。
+fn geometry_plan(source_maximized: bool, target_maximized: bool) -> (bool, bool) {
+    if source_maximized {
+        // 最大化态几何无意义；对最大化窗写几何会把它顶掉 → 只平移最大化（已最大化则不重复调）
+        (true, false)
+    } else {
+        (false, target_maximized)
+    }
+}
+
+/// 几何平移：**最大化态只平移最大化**——最大化下几何无意义，且对最大化窗 `set_size`/`set_position`
+/// 会把它顶掉（走查现象：最大化被取消并放大）。非最大化态先还原目标窗（可能停在最大化）再落几何。
+fn apply_geometry(target: &WebviewWindow, geometry: &WindowGeometry) {
+    let target_maximized = target.is_maximized().unwrap_or(false);
+    let (transfer_maximize, unmaximize_first) = geometry_plan(geometry.maximized, target_maximized);
+    if transfer_maximize {
+        if !target_maximized {
+            let _ = target.maximize();
+        }
+        return;
+    }
+    if unmaximize_first {
+        let _ = target.unmaximize();
+    }
+    if let Some(position) = geometry.position {
+        let _ = target.set_position(position);
+    }
+    if let Some(size) = geometry.size {
+        let _ = target.set_size(size);
+    }
+}
+
+impl WindowGeometry {
+    /// 日志/自检口径：**连续切换应打印同一组数值**（走查与回归自检都看这行）。
+    fn describe(&self) -> String {
+        let position = self.position.map(|p| format!("{},{}", p.x, p.y)).unwrap_or_else(|| "?,?".to_string());
+        let size = self.size.map(|s| format!("{}x{}", s.width, s.height)).unwrap_or_else(|| "?x?".to_string());
+        format!("{size}@{position}{}", if self.maximized { " max" } else { "" })
+    }
 }
 
 /// 关闭键语义（lib.rs 的 CloseRequested 分支调用）：回 Agent 空间；主窗缺失等异常态至少把工作台窗藏起。
