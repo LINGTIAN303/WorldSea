@@ -17,6 +17,8 @@ const ID_ZOOM_OUT: &str = "worldsea.zoom-out";
 const ID_ZOOM_RESET: &str = "worldsea.zoom-reset";
 const ID_FULLSCREEN: &str = "worldsea.fullscreen";
 const ID_SETTINGS: &str = "worldsea.settings";
+/// C4-b：一键修复工作区权限（与页面横幅同一命令；点击即执行，结果走系统通知）。
+const ID_FIX_WORKSPACE: &str = "worldsea.fix-workspace";
 
 const ZOOM_MIN_INDEX: i32 = 5; // 0.5
 const ZOOM_MAX_INDEX: i32 = 20; // 2.0
@@ -66,6 +68,8 @@ fn build(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
         .build()?;
     let settings = SubmenuBuilder::new(app, "设置")
         .item(&MenuItemBuilder::with_id(ID_SETTINGS, "打开设置").accelerator("CmdOrCtrl+,").build(app)?)
+        .separator()
+        .item(&MenuItemBuilder::with_id(ID_FIX_WORKSPACE, "修复工作区权限（授当前用户完全控制）").build(app)?)
         .build()?;
     MenuBuilder::new(app).items(&[&file, &edit, &view, &settings]).build()
 }
@@ -98,6 +102,20 @@ fn handle(app: &AppHandle, id: &str) {
         ID_SETTINGS => {
             if let Err(e) = window.eval(OPEN_SETTINGS_JS) {
                 eprintln!("[DSH-SHELL] 菜单：打开设置失败：{e}");
+            }
+        }
+        ID_FIX_WORKSPACE => {
+            let (title, body) = match crate::dsh_workspace::fix_workspace_permissions(app) {
+                Ok(label) => (
+                    "WorldSea：工作区权限已修复",
+                    format!("当前探测：{label}。若命令仍报沙箱初始化失败，请重启应用后重试。"),
+                ),
+                Err(error) => ("WorldSea：工作区权限修复失败", error),
+            };
+            println!("[DSH-SHELL] 菜单：{title} —— {body}");
+            use tauri_plugin_notification::NotificationExt;
+            if let Err(e) = app.notification().builder().title(title).body(body).show() {
+                eprintln!("[DSH-SHELL] 菜单：通知发送失败：{e}");
             }
         }
         _ => {}

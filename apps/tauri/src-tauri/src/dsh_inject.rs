@@ -34,6 +34,7 @@ pub(crate) fn inject_shell_scripts(
     transport: &TransportInject,
     bridge: bool,
     diag: bool,
+    notice: Option<&str>,
 ) -> String {
     let mut scripts = String::new();
     match transport {
@@ -65,6 +66,20 @@ pub(crate) fn inject_shell_scripts(
         scripts.push_str(DIAG_SCRIPT);
         scripts.push_str("</script>");
     }
+    // C4-b：工作区不可供给时的顶部横幅（文案由壳探测结果带出；关掉见 WORLDSEA_NO_WORKSPACE_NOTICE）
+    if let Some(message) = notice {
+        match serde_json::to_string(message) {
+            Ok(json) => {
+                scripts.push_str(&format!(
+                    "<script>/* worldsea-shell:workspace-notice */globalThis.__WORLDSEA_WORKSPACE_NOTICE__ = {json}</script>"
+                ));
+                scripts.push_str("<script>");
+                scripts.push_str(WORKSPACE_NOTICE_SCRIPT);
+                scripts.push_str("</script>");
+            }
+            Err(error) => eprintln!("[DSH-SHELL] 工作区横幅文案序列化失败：{error}"),
+        }
+    }
     match find_head_end(html) {
         Some(at) => format!("{}{}{}", &html[..at], scripts, &html[at..]),
         None => format!("{scripts}{html}"),
@@ -92,3 +107,5 @@ const SHELL_BRIDGE_SCRIPT: &str = include_str!("dsh_shell_bridge.js");
 const STREAM_BRIDGE_SCRIPT: &str = include_str!("dsh_stream_bridge.js");
 /// 页内诊断（`WORLDSEA_SHELL_DIAG=1` 才注入）：console/异常/资源错误 → 壳日志。
 const DIAG_SCRIPT: &str = include_str!("dsh_diag.js");
+/// 工作区横幅（C4-b，仅不可供给时注入）：顶部提示 + 「修复工作区权限」按钮（点击才执行）。
+const WORKSPACE_NOTICE_SCRIPT: &str = include_str!("dsh_workspace_notice.js");

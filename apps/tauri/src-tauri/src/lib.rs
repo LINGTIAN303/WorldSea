@@ -65,6 +65,10 @@ mod shell_bridge;
 mod menu;
 // C3-b（2026-09-24）：壳级导航/新窗栅栏（WebView2 事件层；策略为纯函数）
 mod nav_fence;
+// C4-a（2026-09-24）：工作区可供给性探针（WRITE_OWNER 开目录句柄的无副作用判定；见 C4 批计划 §二）
+mod workspace_probe;
+// C4（2026-09-24）：工作区取向与提示（默认工作区解析 / 启动探测+通知 / 一键修复）
+mod dsh_workspace;
 
 // R 批 R-0（2026-09-23）：对话区行段分派基座——工具目录命令
 mod tool_catalog_commands;
@@ -224,6 +228,8 @@ pub fn run() {
             // C1-c：壳桥命令（页面经 IPC 调用：外链 / 日志）
             shell_bridge::cmd_shell_open_external,
             shell_bridge::cmd_shell_bridge_report,
+            // C4-b：一键修复工作区权限（用户点击才执行）
+            shell_bridge::cmd_fix_workspace_acl,
             // C2-b：页面流桥（openStream 钩子 → 管道 mux 流：开 / 上行 / 半关 / 取消）
             dsh_stream::cmd_stream_open,
             dsh_stream::cmd_stream_send,

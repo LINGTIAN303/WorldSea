@@ -21,3 +21,10 @@ pub fn cmd_shell_bridge_report(message: String) {
     let text: String = message.chars().take(400).collect();
     println!("[DSH-SHELL] bridge(page): {text}");
 }
+
+/// C4-b：一键修复工作区权限（页面横幅按钮 / 「设置 → 修复工作区权限…」菜单共用）。
+/// **只在用户显式点击时执行**；语义、后果与探测口径见 `dsh_workspace::fix_workspace_permissions`。
+#[tauri::command]
+pub fn cmd_fix_workspace_acl(app: tauri::AppHandle) -> Result<String, String> {
+    crate::dsh_workspace::fix_workspace_permissions(&app)
+}

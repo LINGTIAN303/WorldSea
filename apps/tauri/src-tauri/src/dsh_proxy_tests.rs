@@ -126,6 +126,7 @@ fn cfg(host_port: u16) -> ProxyCfg {
         diag: false,
         deny_path: None,
         open_paths: false,
+        workspace_notice: None,
     }
 }
 
@@ -147,6 +148,7 @@ fn pipe_cfg(
             diag: false,
             deny_path: None,
             open_paths: false,
+            workspace_notice: None,
         },
         handles,
         client,
@@ -208,6 +210,22 @@ fn index_injected_with_contract_order_and_no_store() {
     assert!(boot < ready, "宿主行顺序被破坏：{text}");
     assert!(text.contains("streamBaseUrl: \"http://127.0.0.1:9/dead-secret/\""));
     assert!(text.contains("worldsea-shell:boot-watchdog"), "安全网必须常驻注入");
+}
+
+/// C4-b：工作区不可供给时 index 带出横幅脚本与文案；可供给（None）时不带。
+#[test]
+fn index_carries_workspace_notice_only_when_warned() {
+    let (port, _seen) = fake_upstream();
+    let plain = body_text(&proxy(&cfg(port), &req("GET", "/")));
+    assert!(!plain.contains("worldsea-shell:workspace-notice"), "可供给不应注入横幅");
+
+    let mut warned = cfg(port);
+    warned.workspace_notice = Some(r"工作区不可供给：D:\A（修复：icacls ...）".to_string());
+    let text = body_text(&proxy(&warned, &req("GET", "/")));
+    assert!(text.contains("worldsea-shell:workspace-notice"), "缺横幅注入：{text}");
+    assert!(text.contains("__WORLDSEA_WORKSPACE_NOTICE__"), "缺文案赋值：{text}");
+    assert!(text.contains(r"D:\\A"), "文案未按 JSON 转义带入：{text}");
+    assert!(text.contains("cmd_fix_workspace_acl"), "横幅脚本应带修复入口");
 }
 
 #[test]

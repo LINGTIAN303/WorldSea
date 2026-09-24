@@ -55,12 +55,14 @@ impl DshBridge {
 /// 绑定桥：303 换 cookie → （管道模式）连宿主管道 / （legacy）起 WS 中转 → 造转发配置。
 /// 全部失败都返回可读原因（调用方回退直连）。
 /// `pipe_path` = 壳本次 spawn 传给宿主的 `--ipc-pipe` 值（由 `dsh_shell` 生成）；`None` = legacy TCP。
-pub fn prepare(ready_url: &str, pipe_path: Option<&str>) -> Result<DshBridge, String> {
+pub fn prepare(ready_url: &str, pipe_path: Option<&str>, workspace_notice: Option<&str>) -> Result<DshBridge, String> {
     let diag = diag_enabled();
     let inject_transport = std::env::var_os("WORLDSEA_NO_TRANSPORT_INJECT").is_none();
     let inject_shell_bridge = std::env::var_os("WORLDSEA_NO_SHELL_BRIDGE").is_none();
     let deny_path = std::env::var("WORLDSEA_DENY_PATH").ok().filter(|value| !value.is_empty());
     let open_paths = std::env::var_os("WORLDSEA_BRIDGE_OPEN").is_some();
+    // C4-b：工作区不可供给的横幅文案（探测在 dsh_shell 侧完成，这里只做透传）
+    let workspace_notice = workspace_notice.map(str::to_string);
     if !inject_transport {
         eprintln!("[DSH-SHELL] bridge: 传输注入已按 WORLDSEA_NO_TRANSPORT_INJECT 关闭（反证模式：流面必须显式降级）");
     }
@@ -89,6 +91,7 @@ pub fn prepare(ready_url: &str, pipe_path: Option<&str>) -> Result<DshBridge, St
                 diag,
                 deny_path,
                 open_paths,
+                workspace_notice,
             };
             let summary = format!("mode=pipe pipe={path} 页面={APP_URL}（零 TCP；token 只留在壳内）");
             Ok(DshBridge { cfg, summary, pipe: Some(client), _relay: None })
@@ -115,6 +118,7 @@ pub fn prepare(ready_url: &str, pipe_path: Option<&str>) -> Result<DshBridge, St
                 diag,
                 deny_path,
                 open_paths,
+                workspace_notice,
             };
             let summary = format!(
                 "mode=tcp host=127.0.0.1:{host_port} relay_port={} 页面={APP_URL}（token 只留在壳内）",
@@ -202,13 +206,14 @@ pub fn attach(
     window: Option<&WebviewWindow>,
     ready_url: &str,
     pipe_path: Option<&str>,
+    workspace_notice: Option<&str>,
 ) {
     let legacy = std::env::var_os("WORLDSEA_LEGACY_DIRECT").is_some();
     let bridged = if legacy {
         println!("[DSH-SHELL] WORLDSEA_LEGACY_DIRECT=1：跳过桥，回退直连 loopback");
         false
     } else {
-        match prepare(ready_url, pipe_path) {
+        match prepare(ready_url, pipe_path, workspace_notice) {
             Ok(bridge) => {
                 println!("[DSH-SHELL] bridge ready: {}", bridge.describe());
                 app.manage(bridge);

@@ -23,6 +23,8 @@ pub(crate) struct ProxyCfg {
     pub deny_path: Option<String>,
     /// 逃生口：`WORLDSEA_BRIDGE_OPEN=1` 关闭路径白名单（白名单误伤时的退路）
     pub open_paths: bool,
+    /// C4-b：工作区不可供给时的横幅文案（`None` = 可供给或已按 `WORLDSEA_NO_WORKSPACE_NOTICE=1` 关闭）
+    pub workspace_notice: Option<String>,
 }
 
 /// 上游传输面（两种形态产出同构的「状态 / 头 / 体」）。
@@ -226,9 +228,16 @@ pub(crate) fn proxy(cfg: &ProxyCfg, request: &http::Request<Vec<u8>>) -> http::R
 
     let mut body = answer.body;
     let injected = is_index && cfg.transport.wants_scripts();
-    if is_index && (cfg.transport.wants_scripts() || cfg.inject_shell_bridge || cfg.diag) {
+    if is_index && (cfg.transport.wants_scripts() || cfg.inject_shell_bridge || cfg.diag || cfg.workspace_notice.is_some()) {
         let text = String::from_utf8_lossy(&body).to_string();
-        body = inject_shell_scripts(&text, &cfg.transport, cfg.inject_shell_bridge, cfg.diag).into_bytes();
+        body = inject_shell_scripts(
+            &text,
+            &cfg.transport,
+            cfg.inject_shell_bridge,
+            cfg.diag,
+            cfg.workspace_notice.as_deref(),
+        )
+        .into_bytes();
     }
 
     if no_store {

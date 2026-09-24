@@ -16,6 +16,8 @@ use std::time::Duration;
 
 use tauri::{Manager, WebviewWindow};
 
+use crate::dsh_workspace::{announce_workspace, resolve_workspace, strip_verbatim_prefix};
+
 /// 就绪等待上限（冷启动 + profile 首启都在这条路径上）
 const READY_TIMEOUT: Duration = Duration::from_secs(90);
 
@@ -82,16 +84,6 @@ fn generate_pipe_path() -> String {
     }
 }
 
-/// 去掉 Windows verbatim 前缀（`\\?\`）——Node 不认该形态（实测 `EISDIR: lstat 'D:'`）。
-/// `canonicalize()` 会加上该前缀，故凡是要交给 Node 作参数的路径都必须先剥掉。
-fn strip_verbatim_prefix(path: PathBuf) -> PathBuf {
-    let text = path.to_string_lossy();
-    match text.strip_prefix(r"\\?\") {
-        Some(rest) => PathBuf::from(rest),
-        None => path,
-    }
-}
-
 /// 定位仓内 dsh 树：`WORLDSEA_DSH_ROOT` 优先；否则按 CARGO_MANIFEST_DIR 上溯（dev 口径）。
 fn resolve_dsh_root() -> Result<PathBuf, String> {
     let bin_rel = ["apps", "cli", "lib", "bin.js"];
@@ -119,9 +111,12 @@ fn resolve_dsh_root() -> Result<PathBuf, String> {
     }
 }
 
-/// 启动 dsh host 并等就绪；返回（子进程句柄, 带 token 的 URL, 管道路径）。
+/// 启动 dsh host 并等就绪；返回（子进程句柄, 带 token 的 URL, 管道路径, 工作区横幅文案）。
 /// 管道路径仅在默认（C2 零 TCP）模式生成；`WORLDSEA_TCP_HOST=1` 走 legacy（无管道）。
-pub fn spawn_and_wait_ready(app: &tauri::AppHandle) -> Result<(Child, String, Option<String>), String> {
+/// 横幅文案仅在「工作区不可供给且未关闭横幅」时非空（C4-b 起由 index 注入带出）。
+pub fn spawn_and_wait_ready(
+    app: &tauri::AppHandle,
+) -> Result<(Child, String, Option<String>, Option<String>), String> {
     let root = resolve_dsh_root()?;
     let port = free_loopback_port()?;
     let node = std::env::var("WORLDSEA_NODE").unwrap_or_else(|_| "node".to_string());
@@ -147,17 +142,24 @@ pub fn spawn_and_wait_ready(app: &tauri::AppHandle) -> Result<(Child, String, Op
     };
     std::fs::create_dir_all(&home).map_err(|e| format!("创建 DSH_HOME 失败：{e}"))?;
 
+    // C4-a：默认工作区 = 用户 profile 下的专用目录（`WORLDSEA_WORKSPACE` 可覆盖）。
+    // 此前把 dsh 树本身当 cwd——既非产品语义（工作区应是用户的目录），也必踩 D: 盘 ACL 的沙箱前提。
+    let workspace = resolve_workspace(app)?;
+    let workspace_notice = announce_workspace(app, &workspace);
+
     let pipe_arg = pipe_path.clone().unwrap_or_else(|| "(legacy tcp)".to_string());
     tracing::info!(
-        "dsh shell: spawn {node} {} web --no-open --port {port} --ipc-pipe {pipe_arg}（DSH_HOME={}）",
+        "dsh shell: spawn {node} {} web --no-open --port {port} --ipc-pipe {pipe_arg}（DSH_HOME={}, 工作区={}）",
         bin.display(),
-        home.display()
+        home.display(),
+        workspace.display()
     );
     // 控制台直出（与 [HTTP-BRIDGE] 同风格）：tracing 无订阅者，故障排查必须能看见这几行
     println!(
-        "[DSH-SHELL] spawn {node} {} web --no-open --port {port} (pipe={pipe_arg}, DSH_HOME={})",
+        "[DSH-SHELL] spawn {node} {} web --no-open --port {port} (pipe={pipe_arg}, DSH_HOME={}, workspace={})",
         bin.display(),
-        home.display()
+        home.display(),
+        workspace.display()
     );
     // 壳 overlay（B4-a）：打开 web 下默认禁用的右栏内置浏览器等「desktop 才启用」的条目。
     // 位置固定为 `<仓根>/apps/tauri/dsh-overlay.yml`（dsh 树在仓根，故取其父目录）；缺失则跳过。
@@ -183,7 +185,7 @@ pub fn spawn_and_wait_ready(app: &tauri::AppHandle) -> Result<(Child, String, Op
         command.arg("--ipc-pipe").arg(pipe);
     }
     command
-        .current_dir(&root)
+        .current_dir(&workspace)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
@@ -225,7 +227,7 @@ pub fn spawn_and_wait_ready(app: &tauri::AppHandle) -> Result<(Child, String, Op
     match rx.recv_timeout(READY_TIMEOUT) {
         Ok(url) if !url.is_empty() => {
             println!("[DSH-SHELL] ready: {url}");
-            Ok((child, url, pipe_path))
+            Ok((child, url, pipe_path, workspace_notice))
         }
         Ok(_) => {
             let _ = child.kill();
@@ -243,9 +245,9 @@ pub fn spawn_and_wait_ready(app: &tauri::AppHandle) -> Result<(Child, String, Op
 /// docs/plans/2026-09-23-dsh接管Agent面-大重构准备.md §六 与 C2 批计划 §五。
 pub fn install(app: &tauri::AppHandle, window: Option<&WebviewWindow>) {
     match spawn_and_wait_ready(app) {
-        Ok((child, url, pipe_path)) => {
+        Ok((child, url, pipe_path, workspace_notice)) => {
             tracing::info!("dsh shell: ready at {url}");
-            crate::dsh_bridge::attach(app, window, &url, pipe_path.as_deref());
+            crate::dsh_bridge::attach(app, window, &url, pipe_path.as_deref(), workspace_notice.as_deref());
             app.manage(DshProcess::new(child));
             watch_child(app.clone());
         }
