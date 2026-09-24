@@ -22,7 +22,7 @@ impl TransportInject {
 }
 
 /// 注入壳脚本（**只合并不覆盖**）：「流桥 + `__DSH_TRANSPORT__`」（传输面，按 [`TransportInject`] 三态）、
-///「不白屏」安全网、壳桥（`__WORLDSEA_SHELL__`）、诊断钩子——各自可按开关关掉。
+///「不白屏」安全网、壳桥（`__WORLDSEA_SHELL__`）、窗口栏（C6）、诊断钩子——各自可按开关关掉。
 ///
 /// **顺序契约**（C1-b 成文，C2-b 扩展）：宿主渲染的 index 里，`<base href="./">` 与 `__DSH_BOOT__` 等行紧跟 `<head>`；
 /// 壳在本函数里把脚本插到**同一个位置的最前**（即 `<head>` 之后、所有宿主行与模块脚本之前）：
@@ -33,6 +33,7 @@ pub(crate) fn inject_shell_scripts(
     html: &str,
     transport: &TransportInject,
     bridge: bool,
+    titlebar: bool,
     diag: bool,
     notice: Option<&str>,
 ) -> String {
@@ -59,6 +60,12 @@ pub(crate) fn inject_shell_scripts(
     if bridge {
         scripts.push_str("<script>");
         scripts.push_str(SHELL_BRIDGE_SCRIPT);
+        scripts.push_str("</script>");
+    }
+    // C6：窗口栏（无边框形态的壳件；`WORLDSEA_NO_TITLEBAR=1` 或 `WORLDSEA_FRAMED=1` 时不注入）
+    if titlebar {
+        scripts.push_str("<script>");
+        scripts.push_str(TITLEBAR_SCRIPT);
         scripts.push_str("</script>");
     }
     if diag {
@@ -103,6 +110,8 @@ fn find_head_end(html: &str) -> Option<usize> {
 const WATCHDOG_SCRIPT: &str = include_str!("dsh_watchdog.js");
 /// 壳桥（常驻，可 `WORLDSEA_NO_SHELL_BRIDGE=1` 关）：`__WORLDSEA_SHELL__` 的通知/外链/设置入口/日志。
 const SHELL_BRIDGE_SCRIPT: &str = include_str!("dsh_shell_bridge.js");
+/// 窗口栏（C6，无边框形态缺省注入；`WORLDSEA_NO_TITLEBAR=1` 反证关）：32px 壳级窗口栏 + 工作台占位页。
+const TITLEBAR_SCRIPT: &str = include_str!("dsh_titlebar.js");
 /// 流桥（C2 管道模式随 transport 一起注入）：`__WORLDSEA_STREAM__` 的 `openStream` 钩子。
 const STREAM_BRIDGE_SCRIPT: &str = include_str!("dsh_stream_bridge.js");
 /// 页内诊断（`WORLDSEA_SHELL_DIAG=1` 才注入）：console/异常/资源错误 → 壳日志。

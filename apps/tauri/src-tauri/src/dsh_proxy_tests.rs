@@ -123,6 +123,7 @@ fn cfg(host_port: u16) -> ProxyCfg {
         },
         transport: TransportInject::StreamBase("http://127.0.0.1:9/dead-secret/".to_string()),
         inject_shell_bridge: true,
+        titlebar: true,
         diag: false,
         deny_path: None,
         open_paths: false,
@@ -145,6 +146,7 @@ fn pipe_cfg(
             upstream: Upstream::Pipe { client: client.clone(), cookie: "dsh-auth-x=v1.a.b".to_string() },
             transport: TransportInject::OpenStream,
             inject_shell_bridge: true,
+            titlebar: true,
             diag: false,
             deny_path: None,
             open_paths: false,
@@ -343,11 +345,12 @@ fn index_failure_returns_recognizable_html_page() {
 #[test]
 fn injection_switches_gate_each_script_independently() {
     let (port, _seen) = fake_upstream();
-    // 全开：三件套齐（transport / watchdog / bridge）
+    // 全开：四件套齐（transport / watchdog / bridge / titlebar）
     let text = body_text(&proxy(&cfg(port), &req("GET", "/")));
     assert!(text.contains("worldsea-shell:transport"));
     assert!(text.contains("worldsea-shell:boot-watchdog"));
     assert!(text.contains("worldsea-shell:bridge"));
+    assert!(text.contains("worldsea-shell:titlebar"));
     // 摘 transport（C1-a 反证开关 / C2 沿用）：只少这一件
     let mut no_transport = cfg(port);
     no_transport.transport = TransportInject::None;
@@ -361,6 +364,33 @@ fn injection_switches_gate_each_script_independently() {
     let text = body_text(&proxy(&no_bridge, &req("GET", "/")));
     assert!(!text.contains("worldsea-shell:bridge"));
     assert!(text.contains("worldsea-shell:boot-watchdog"));
+    // 摘窗口栏（C6 反证开关 WORLDSEA_NO_TITLEBAR / WORLDSEA_FRAMED）：只少这一件
+    let mut no_titlebar = cfg(port);
+    no_titlebar.titlebar = false;
+    let text = body_text(&proxy(&no_titlebar, &req("GET", "/")));
+    assert!(!text.contains("worldsea-shell:titlebar"));
+    assert!(text.contains("worldsea-shell:bridge"));
+    assert!(text.contains("worldsea-shell:boot-watchdog"));
+}
+
+#[test]
+fn titlebar_script_wires_expected_commands_and_contract() {
+    // C6：窗口栏脚本的命令接线必须与 Rust 侧注册一致；dsh 适配标记与占位页缺一不可
+    let (port, _seen) = fake_upstream();
+    let text = body_text(&proxy(&cfg(port), &req("GET", "/")));
+    for command in ["cmd_shell_window_action", "cmd_shell_popup_menu"] {
+        assert!(text.contains(command), "窗口栏缺少命令接线：{command}");
+    }
+    assert!(text.contains("data-windows-titlebar"), "窗口栏必须置 dsh 的 Windows 形态标记（留白/圆角/连色）");
+    assert!(text.contains("--dsh-windows-titlebar-height"), "窗口栏高度须经 dsh 变量驱动");
+    assert!(text.contains("worldsea-workbench"), "工作台占位页缺位");
+    assert!(text.contains("Agent 空间"), "窗口栏切换控件文案缺位");
+    // 反证：关掉后整段脚本（含占位页字符串）不存在
+    let mut off = cfg(port);
+    off.titlebar = false;
+    let text = body_text(&proxy(&off, &req("GET", "/")));
+    assert!(!text.contains("worldsea-shell:titlebar"));
+    assert!(!text.contains("worldsea-workbench"));
 }
 
 #[test]

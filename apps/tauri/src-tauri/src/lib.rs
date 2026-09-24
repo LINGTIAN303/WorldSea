@@ -232,6 +232,9 @@ pub fn run() {
             shell_bridge::cmd_shell_bridge_report,
             // C4-b：一键修复工作区权限（用户点击才执行）
             shell_bridge::cmd_fix_workspace_acl,
+            // C6：窗口栏（最小化/最大化⇄还原/关闭/起拖/查询）+ 「⋯」popup 菜单
+            shell_bridge::cmd_shell_window_action,
+            menu::cmd_shell_popup_menu,
             // C2-b：页面流桥（openStream 钩子 → 管道 mux 流：开 / 上行 / 半关 / 取消）
             dsh_stream::cmd_stream_open,
             dsh_stream::cmd_stream_send,
@@ -415,14 +418,16 @@ pub fn run() {
                 let window = app.get_webview_window("main").unwrap();
                 window.open_devtools();
             }
-            // B2（2026-09-23）：壳承载 dsh 界面后改回**原生边框**（dsh 界面自带布局，壳不再自绘标题栏）。
-            // 旧「无边框 + 自绘标题栏」只在显式设 WORLDSEA_FRAMELESS=1 时启用（Vue 前端退役前的回退口）。
-            if std::env::var_os("WORLDSEA_FRAMELESS").is_some() {
+            // B2（2026-09-23）改回原生边框；C6（2026-09-24）恢复**无边框 + 壳级窗口栏**（旧 TitleBar 形态）：
+            // 配置层 `decorations:false` 即缺省无边框；显式 `WORLDSEA_FRAMED=1` 回退原生边框
+            // （此时 dsh 侧亦不注入窗口栏——注入开关见 dsh_bridge::prepare，两处同源判定）。
+            if std::env::var_os("WORLDSEA_FRAMED").is_some() {
                 if let Some(window) = app.get_webview_window("main") {
-                    if window.is_decorated().unwrap_or(true) {
-                        let _ = window.set_decorations(false);
+                    if !window.is_decorated().unwrap_or(false) {
+                        let _ = window.set_decorations(true);
                     }
                 }
+                println!("[DSH-SHELL] 窗口形态：原生边框（WORLDSEA_FRAMED=1 回退口；不注入窗口栏）");
             }
 
             // 窗口控制键 F11 修复：WebView2 默认开启浏览器加速键（AreBrowserAcceleratorKeysEnabled），

@@ -59,6 +59,9 @@ pub fn prepare(ready_url: &str, pipe_path: Option<&str>, workspace_notice: Optio
     let diag = diag_enabled();
     let inject_transport = std::env::var_os("WORLDSEA_NO_TRANSPORT_INJECT").is_none();
     let inject_shell_bridge = std::env::var_os("WORLDSEA_NO_SHELL_BRIDGE").is_none();
+    // C6：无边框窗口栏（缺省注入；`WORLDSEA_NO_TITLEBAR=1` 反证关；`WORLDSEA_FRAMED=1` 原生边框态亦不注入）
+    let framed = std::env::var_os("WORLDSEA_FRAMED").is_some();
+    let titlebar = !framed && std::env::var_os("WORLDSEA_NO_TITLEBAR").is_none();
     let deny_path = std::env::var("WORLDSEA_DENY_PATH").ok().filter(|value| !value.is_empty());
     let open_paths = std::env::var_os("WORLDSEA_BRIDGE_OPEN").is_some();
     // C4-b：工作区不可供给的横幅文案（探测在 dsh_shell 侧完成，这里只做透传）
@@ -68,6 +71,10 @@ pub fn prepare(ready_url: &str, pipe_path: Option<&str>, workspace_notice: Optio
     }
     if !inject_shell_bridge {
         eprintln!("[DSH-SHELL] bridge: 壳桥注入已按 WORLDSEA_NO_SHELL_BRIDGE 关闭（反证模式：设置入口必须显式降级）");
+    }
+    if !titlebar {
+        let why = if framed { "WORLDSEA_FRAMED（原生边框态）" } else { "WORLDSEA_NO_TITLEBAR" };
+        eprintln!("[DSH-SHELL] bridge: 窗口栏注入关闭（{why}）：页面顶格、无拖拽（显式缺省，非静默）");
     }
     if diag {
         println!("[DSH-SHELL] bridge: 页内诊断已开（console 钩子 → [DSH-SHELL] page(diag)）");
@@ -88,6 +95,7 @@ pub fn prepare(ready_url: &str, pipe_path: Option<&str>, workspace_notice: Optio
                 upstream: Upstream::Pipe { client: client.clone(), cookie },
                 transport,
                 inject_shell_bridge,
+                titlebar,
                 diag,
                 deny_path,
                 open_paths,
@@ -115,6 +123,7 @@ pub fn prepare(ready_url: &str, pipe_path: Option<&str>, workspace_notice: Optio
                 upstream: Upstream::Tcp { port: host_port, cookie, client },
                 transport,
                 inject_shell_bridge,
+                titlebar,
                 diag,
                 deny_path,
                 open_paths,

@@ -28,3 +28,40 @@ pub fn cmd_shell_bridge_report(message: String) {
 pub fn cmd_fix_workspace_acl(app: tauri::AppHandle) -> Result<String, String> {
     crate::dsh_workspace::fix_workspace_permissions(&app)
 }
+
+/// C6（2026-09-24）：窗口栏的窗口动作（最小化 / 最大化⇄还原 / 关闭 / 起拖 / 查询最大化）。
+/// 「关闭」与系统关闭按钮同语义（托盘激活时隐藏到托盘，见 `lib.rs` 的 CloseRequested 处理）。
+/// 返回值统一携带当前最大化状态——窗口栏按钮图标据此切换（还原 ⇄ 最大化）。
+#[derive(serde::Serialize)]
+pub struct WindowActionOutcome {
+    maximized: bool,
+}
+
+#[tauri::command]
+pub fn cmd_shell_window_action(
+    window: tauri::WebviewWindow,
+    action: String,
+) -> Result<WindowActionOutcome, String> {
+    let failure = |e: tauri::Error| e.to_string();
+    match action.as_str() {
+        "minimize" => window.minimize().map_err(failure)?,
+        "toggle-maximize" => {
+            if window.is_maximized().map_err(failure)? {
+                window.unmaximize().map_err(failure)?;
+            } else {
+                window.maximize().map_err(failure)?;
+            }
+        }
+        "close" => {
+            window.close().map_err(failure)?;
+            // 关闭后不再查询（托盘激活时窗口隐藏；未激活时进程退出，查询必然失败）
+            return Ok(WindowActionOutcome { maximized: false });
+        }
+        // 阻塞至拖动结束（Win32 模态循环；页面侧不 await）
+        "start-drag" => window.start_dragging().map_err(failure)?,
+        "is-maximized" => {}
+        other => return Err(format!("worldsea shell: 未知窗口动作 {other}")),
+    }
+    let maximized = window.is_maximized().map_err(failure)?;
+    Ok(WindowActionOutcome { maximized })
+}

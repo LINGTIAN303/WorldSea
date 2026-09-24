@@ -26,19 +26,37 @@ const ZOOM_STEP: f64 = 0.1;
 /// 缩放档位（×10）。壳侧自持：Tauri 只有 `set_zoom`，没有读取当前缩放的通道。
 static ZOOM_INDEX: AtomicI32 = AtomicI32::new(10);
 
-/// 组装并挂上菜单；失败只告警（无菜单不阻塞启动）。
+/// 组装菜单并登记为 **popup 资源**。
+/// C6（2026-09-24）：无边框形态下 Win32 菜单栏**视觉消失**（实测，见 C6 批计划 §〇）——
+/// 不再 `set_menu`；菜单改由窗口栏「⋯」按钮经 [`cmd_shell_popup_menu`] 在按钮处弹出。
 pub fn install(app: &AppHandle) {
     match build(app) {
         Ok(menu) => {
-            if let Err(e) = app.set_menu(menu) {
-                eprintln!("[DSH-SHELL] 菜单挂载失败：{e}");
-                return;
-            }
+            app.manage(PopupMenu(menu));
             app.on_menu_event(|app, event| handle(app, event.id().as_ref()));
-            println!("[DSH-SHELL] 菜单已挂载（文件/编辑/视图/设置）");
+            println!("[DSH-SHELL] 菜单已就绪（窗口栏 ⋯ 按钮弹出：文件/编辑/视图/设置）");
         }
         Err(e) => eprintln!("[DSH-SHELL] 菜单构建失败：{e}"),
     }
+}
+
+/// popup 菜单载体（`Menu` 内部为共享句柄，存进状态供命令取用；事件仍走 app 级 `on_menu_event`）。
+pub struct PopupMenu(pub tauri::menu::Menu<tauri::Wry>);
+
+/// C6：窗口栏「⋯」按钮 → 在页面坐标 (x, y) 处弹出菜单（坐标 = 页面 CSS 像素，相对窗口左上角；
+/// `Position::Logical` 由 Tauri 按缩放因子换算成物理坐标）。
+/// 弹出是 Win32 模态循环（阻塞至菜单关闭）——页面侧 fire-and-forget，不 await。
+#[tauri::command]
+pub fn cmd_shell_popup_menu(
+    app: AppHandle,
+    window: tauri::WebviewWindow,
+    x: f64,
+    y: f64,
+) -> Result<(), String> {
+    let menu = &app.state::<PopupMenu>().0;
+    window
+        .popup_menu_at(menu, tauri::LogicalPosition::new(x, y))
+        .map_err(|e| format!("弹出菜单失败：{e}"))
 }
 
 fn build(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {

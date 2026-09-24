@@ -17,6 +17,8 @@ pub(crate) struct ProxyCfg {
     /// 反证开关：`WORLDSEA_NO_SHELL_BRIDGE=1` 时不注入壳桥（`__WORLDSEA_SHELL__`；
     /// 依赖它的「打开设置」必须显式降级，见 menu.rs 的缺桥提示）
     pub inject_shell_bridge: bool,
+    /// C6：无边框窗口栏注入（`WORLDSEA_NO_TITLEBAR=1` 反证关；`WORLDSEA_FRAMED=1` 原生边框态亦关）
+    pub titlebar: bool,
     /// 诊断开关：`WORLDSEA_SHELL_DIAG=1`
     pub diag: bool,
     /// 测试钩子：命中该前缀直接 404（验「资源失败 → 非白屏」降级链）
@@ -228,12 +230,19 @@ pub(crate) fn proxy(cfg: &ProxyCfg, request: &http::Request<Vec<u8>>) -> http::R
 
     let mut body = answer.body;
     let injected = is_index && cfg.transport.wants_scripts();
-    if is_index && (cfg.transport.wants_scripts() || cfg.inject_shell_bridge || cfg.diag || cfg.workspace_notice.is_some()) {
+    if is_index
+        && (cfg.transport.wants_scripts()
+            || cfg.inject_shell_bridge
+            || cfg.titlebar
+            || cfg.diag
+            || cfg.workspace_notice.is_some())
+    {
         let text = String::from_utf8_lossy(&body).to_string();
         body = inject_shell_scripts(
             &text,
             &cfg.transport,
             cfg.inject_shell_bridge,
+            cfg.titlebar,
             cfg.diag,
             cfg.workspace_notice.as_deref(),
         )
