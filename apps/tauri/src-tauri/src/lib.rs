@@ -69,6 +69,8 @@ mod nav_fence;
 mod workspace_probe;
 // C4（2026-09-24）：工作区取向与提示（默认工作区解析 / 启动探测+通知 / 一键修复）
 mod dsh_workspace;
+// C5（2026-09-24）：凭据环境取向（库优先 + env 兜底；判定与留痕）
+mod dsh_credentials;
 
 // R 批 R-0（2026-09-23）：对话区行段分派基座——工具目录命令
 mod tool_catalog_commands;

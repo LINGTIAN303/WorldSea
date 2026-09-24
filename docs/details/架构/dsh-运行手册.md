@@ -72,6 +72,8 @@ DSH_HOME="D:/WorldSea/.独立项/b0-home" node apps/cli/lib/bin.js web --no-open
 - **命令面白名单（应用级 ACL）**：`apps/tauri/src-tauri/permissions/worldsea-shell.toml` 只放页面在用的 **7 条**（壳桥 3 + 流桥 4）；其余应用命令（旧 Agent 面全族）从「页面可调」降为 **ACL 拒**（`cmd_agent_tool_names not allowed. Command not found`）。**页面新增可调命令必须在此逐条加**（改 `permissions/*.toml` → 重建即生效）。
 - **导航/新窗双栅栏**：壳级 WebView2 事件（主框架 `NavigationStarting` + `NewWindowRequested`，`nav_fence.rs`）——只放行自家源（`worldsea.localhost` / `tauri.localhost` 兜底页 / loopback 回退页）、`data:`、`about:`；iframe 走 `FrameNavigationStarting` **不挂**（内置浏览器/预览不受影响）。反证开关 `WORLDSEA_NO_NAV_FENCE=1`。**注意**：`tauri://localhost` 是 `frontendDist`（shell-loading 兜底页）——策略里必须放行（实测拦它会得到空窗口）。
 
+- **凭证与模型配置（C5，2026-09-24）**：Key 的**唯一真源 = `$DSH_HOME/.credentials.yaml`**（页面「设置 → 模型」写入；首启无凭证时页面自带引导会自动弹出）。dsh 的凭据分层是「继承环境（**最高优先**）> 该库 > 项目 `.env` > home `.env`」（`dsh-credentials-local` 头注），所以只要环境里有 Key 就会永久盖住界面配置——壳 spawn 前判一次库：**库里已有该凭据 → 剥离继承的环境变量（界面配置生效）；库里没有 → 保留继承作兜底**。日志逐条留痕（`库（.credentials.yaml）已有 …` / `库中无 …：保留继承的环境变量作兜底`）。旧 Key（本仓 SecureStore / 启动环境）**不迁移**——按裁定在界面里填一次。排查：库文件在 `DSH_HOME/.credentials.yaml`（该文档只存「凭据名 → 字符串」映射）。
+
 - **工作区与「可供给性」（C4，2026-09-24）**：壳 spawn 宿主时把 `cwd` 指到**工作区**（默认 `%USERPROFILE%\WorldSea`；`WORLDSEA_WORKSPACE` 覆盖）——它同时是新会话的默认工作区。**为什么重要**：dsh 默认 `workspace-write` 的 Windows ACL 沙箱在命令启动前要对工作区做一次「DACL + Low 标签」的 `SetNamedSecurityInfoW` 供给，而该操作**要求调用者在目录上有 `WRITE_OWNER`**（上游 `packages/sandbox/sandbox-windows-acl` README「已验证边界」）；本机 **D: 盘继承 ACL 只给 `Authenticated Users:(M)`**（Modify 不含 WRITE_OWNER）→ 供给被拒 `Win32 5` → **该工作区里所有命令都在初始化阶段失败**（前台后台一视同仁，表现为「挂不上后台、秒死」）。壳启动时用**无副作用探针**（`CreateFileW(WRITE_OWNER)` 开目录句柄；`workspace_probe.rs`）判定：可供给 → 一行日志；不可供给 → 日志含修复命令 + 系统通知 + 页面顶部**横幅**（含「修复工作区权限」按钮，点击才执行 `icacls "…" /grant "<用户>:(OI)(CI)F"`；之后 dsh 会在该目录常驻能力 ACE、删除拒绝与 Low 完整性标签——上游设计使然、粘滞）。菜单「设置 → 修复工作区权限（授当前用户完全控制）」同效。反证开关 `WORLDSEA_NO_WORKSPACE_NOTICE=1`。**排查口径**：壳日志 `[DSH-SHELL] 工作区探测：…`；目录 ACL 用 `icacls <dir>` 看是否只有 `Authenticated Users:(M)`。
 - **CSP 最小子集**：index 响应头 `object-src 'none'; base-uri 'self'; form-action 'none'`（`dsh_proxy.rs` 的 `CSP_INDEX`）；其余面（script/style/connect/frame/img/font + `worker-src blob:`）取证清单见 C3 批计划 §八。
 - 页面探针仍是最顺手的取证手段（`WORLDSEA_EVAL_AFTER_READY` + `__WORLDSEA_SHELL__.report`）；脚本化 `location.href` 会被壳级栅栏拦下并落 `[DSH-SHELL] nav_fence: 拦下主框架导航 …` 行。
@@ -92,6 +94,7 @@ DSH_HOME="D:/WorldSea/.独立项/b0-home" node apps/cli/lib/bin.js web --no-open
 | `WORLDSEA_DSH_ROOT` / `WORLDSEA_DSH_HOME` / `WORLDSEA_NODE` | 指定 dsh 树 / home / node（默认自动探测与应用数据目录隔离 home） |
 | `WORLDSEA_WORKSPACE` | **宿主 cwd / 会话默认工作区**（C4）。默认 `%USERPROFILE%\WorldSea`（缺失即创建；POSIX `$HOME/WorldSea`）。**必须落在「可供给」目录**——dsh 的 Windows ACL 沙箱要目录上有 `WRITE_OWNER`（见下） |
 | `WORLDSEA_NO_WORKSPACE_NOTICE=1` | 反证用：工作区不可供给时不注入页面横幅（日志与系统通知仍在） |
+| `WORLDSEA_KEEP_ENV_KEYS=1` | 反证/逃生口（C5）：强制保留继承的凭据环境变量。默认口径 = **库优先 + env 兜底**：`$DSH_HOME/.credentials.yaml`（页面「设置 → 模型」写入）已有该凭据时，壳 spawn 前剥离继承的 `DEEPSEEK_API_KEY`；库里没有则保留继承作零配置兜底 |
 
 > 日志面：宿主的 stdout 现以 **`[DSH-HOST]`** 前缀直出壳日志（管道载体/协议违规行都在那里）；壳的流命令留 `[DSH-SHELL] stream: open id=… endpoint=…` / `cancel id=…` 行——验收「流真的经管道」看这行。
 

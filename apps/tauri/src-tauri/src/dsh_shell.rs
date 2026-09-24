@@ -191,6 +191,8 @@ pub fn spawn_and_wait_ready(
         .stderr(Stdio::piped());
     // DSH_HOME 一律显式传入（默认=应用数据目录下的隔离 home，或 WORLDSEA_DSH_HOME 覆盖）
     command.env("DSH_HOME", &home);
+    // C5（凭证批）：凭据取向 = 库优先 + env 兜底（判定、留痕与反证开关见 dsh_credentials.rs）
+    crate::dsh_credentials::apply_credential_env(&mut command, &home);
     let mut child = command
         .spawn()
         .map_err(|e| format!("启动 dsh 失败（node={node}）：{e}"))?;
