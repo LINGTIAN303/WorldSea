@@ -27,3 +27,6 @@ export type {
 export { usePersonaStore } from './personaStore'
 export type { SavedPersona } from './personaStore'
 
+
+// B（2026-09-25）：视图可见性判定（侧栏/设置共用；含「清单外 pluginId 视为可见」口径）
+export { hasSprout, isViewVisible } from './viewVisibility'

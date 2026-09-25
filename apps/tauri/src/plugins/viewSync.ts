@@ -28,7 +28,23 @@ export function installViewSynchronizer(): () => void {
     }
     store.unregisterView(change.view.id)
   })
+  // 装配时**对账一次**：订阅之前已注册的视图（如第二棵树在启动早期注册的）一并补进显示侧。
+  reconcileViewMirror()
   return off
+}
+
+/** 真源 → 显示侧对账（装配时与脱附后恢复时用）。 */
+function reconcileViewMirror(): void {
+  const store = usePluginStore()
+  const ui = useUIStore()
+  const truth = pluginAPI.getViews()
+  for (const view of truth) {
+    store.registerView(view)
+    ui.ensureViewInOrder(view.id)
+  }
+  for (const view of [...store.views]) {
+    if (!truth.some(entry => entry.id === view.id)) store.unregisterView(view.id)
+  }
 }
 
 /** 退订（仅供测试与反证：退订后真源变更不再镜像）。 */

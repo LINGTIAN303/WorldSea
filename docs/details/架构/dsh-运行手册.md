@@ -165,7 +165,16 @@ DSH_HOME="D:/WorldSea/.独立项/b0-home" node apps/cli/lib/bin.js web --no-open
 - **审计**：壳日志 `[WORLDSEA-CAP] 登记 / 调用 / 回执 / 拒` 行（含 provider、ACL 拒因、耗时）。
 - **开关**：`WORLDSEA_NO_CAPABILITY_BRIDGE=1`（不注入 agent 侧伺服 → agent 提供方缺席，跨窗调用报 UNKNOWN；反证用）。产品侧登记面 = `registerWorldCapabilities()`（B/C 批的芽注册自己的能力调它；工作台入口已登记内建两条）。
 - **D · 视图生命周期**：真源 = `pluginAPI`（`onViewChange` 派发注册/反注册 + `unregisterView`），显示侧 = `pluginStore`（补 `unregisterView`），装配点**单点** = `plugins/viewSync.ts` 的 `installViewSynchronizer()`（幂等）。两条刻意不做：不删侧栏顺序偏好、不夺当前选中（理由见批计划 §一）。
-- **探针**：`__WS_VIEWS_PROBE__`（三面快照 truth/mirror/order + 真源级 `register`/`unregister` + `detach()/attach()` 反证）随 Spike 装载（`localStorage['ws:cordis-spike']='1'`，工作台窗）。**取证口径**：窗口隐藏时侧栏 DOM 不重排（轮播靠 rAF）→ 侧栏可见性必须在**切到工作台窗之后**取证；能力调用两窗各自在**自己 ACL 内**发（跨窗只在 ACL 允许方向）。
+- **探针**：`__WS_VIEWS_PROBE__`（三面快照 truth/mirror/order + 真源级 `register`/`unregister` + `detach()/attach()` 反证）随**第二棵树的开发探针**装载（`apps/tauri/src/world/dev/probe.ts`；开关仍是 `localStorage['ws:cordis-spike']='1'`）。**取证口径**：窗口隐藏时侧栏 DOM 不重排（轮播靠 rAF）→ 侧栏可见性必须在**切到工作台窗之后**取证；能力调用两窗各自在**自己 ACL 内**发（跨窗只在 ACL 允许方向）。
+
+**第二棵树（B · 世界语义正式化，2026-09-25，详见 [B 批计划](../../plans/2026-09-25-B-正式化第二棵树批计划.md)）**：
+
+- **依赖 = 自 vendor**：`apps/tauri/src/world/vendor/{cordis,cosmokit}/lib/index.js`（= dsh 侧 `@deepseek-ai/cordis@4.0.4` / `@deepseek-ai/cosmokit` 的产物副本，MIT，字节一致）；**不依赖 `dsh/` 目录**（`grep "dsh/vendor" apps/` 应为空）。解析靠别名 `@deepseek-ai/cordis` / `@deepseek-ai/cosmokit` → 产物（`apps/tauri/vite.config.ts` + 根 `vitest.config.ts` 两处同口径）。**npm 无 4.0.4**（公开最新 4.0.0-rc.10），故不可 npm 依赖；同步/升级办法见 `vendor/README.md`。
+- **目录**：`apps/tauri/src/world/` —— `manifest.ts`（清单规范+校验）· `loader.ts`（`import.meta.glob` 构建期静态清单 + `assemblePlugins` 纯函数：校验/依赖预检/去重/**失败隔离**）· `registry.ts`（**作用域注册**：`registerViewFor`/`unregisterViewFor`/`registerPluginCleanup`）· `tree.ts`（起树/拆树，句柄镜像 `__WS_WORLD_TREE__`）· `plugins/<id>/index.ts`（插件，`export default { manifest, apply }`）· `dev/probe.ts`（开发探针）。
+- **作用域原语**：`pluginAPI.withPluginScope(pluginId, fn)`（进入备份、退出恢复，**同步语义**）——修「`currentPluginId` 全局单值 → 树插件身份错乱」；`PluginManager.activate` 的既有全局 set 语义**未动**（async 跨 await 持全局态风险大）。
+- **视图可见性口径**：`stores/viewVisibility.ts` 的 `isViewVisible(pluginId)`——无归属→显示；清单内→按芽启停；**清单外（树插件 id）→显示**（否则树插件的视图会被 `isActive` 恒 false 误隐藏）。
+- **起树位置**：工作台入口 `apps/tauri/workspace/main.ts`（`startWorldTree()`，幂等）；`viewSync` 装配时对账一次 → 起树与装配的先后顺序无关。开发期热重载：`src/world/index.ts` 自接受 HMR（更新即拆树→重起）。
+- **真机口径**：`__WS_WORLD_TREE__`（started/plugins/rejected/error/dispose）；日志 `[world-tree]`；拆树后 `__WS_VIEWS_PROBE__.snapshot().truth` 与 `mirror` 均无 `ws-*` 残留。
 
 **核查与清理**（改壳或复跑前）：
 - `taskkill //IM worldsea-tauri-app.exe //T //F` 清干净再起；被强杀的实例会留**孤儿 dsh host**（node 不在 Job Object 里），用 `tasklist | grep -i node` 复核。**本机 `wmic` 已失效（恒返回空）**——进程核查改用 `tasklist` / `powershell Get-CimInstance`。

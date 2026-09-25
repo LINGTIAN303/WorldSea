@@ -50,6 +50,27 @@ class PluginAPIImpl {
     this.currentPluginId = id
   }
 
+  /** 当前注册作用域所属的插件 id（B 批补：作用域原语需要读回并存）。 */
+  getPluginId(): string {
+    return this.currentPluginId
+  }
+
+  /**
+   * 在**指定插件作用域**内执行注册（B，2026-09-25）。
+   * `currentPluginId` 是全局单值，任何注册都会把它覆写成「最后一次 activate 的芽」——
+   * 第二棵树（世界语义）的插件若直接注册，身份会错乱。本原语进入前备份、退出后恢复（同步语义；
+   * 异步注册请在 await 前完成，或用 `registerViewFor`）。
+   */
+  withPluginScope<T>(pluginId: string, fn: () => T): T {
+    const previous = this.currentPluginId
+    this.currentPluginId = pluginId
+    try {
+      return fn()
+    } finally {
+      this.currentPluginId = previous
+    }
+  }
+
   setExternalNodeRegistry(registry: ExternalNodeRegistry): void {
     this._externalNodeRegistry = registry
     for (const [, nodeType] of this._nodeTypes) {

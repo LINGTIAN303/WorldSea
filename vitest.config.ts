@@ -109,6 +109,9 @@ export default defineConfig({
       '@worldsea/memory-archive/storage': path.resolve(__dirname, 'packages/memory-archive/src/storage'),
       '@worldsea/memory-archive/embedding': path.resolve(__dirname, 'packages/memory-archive/src/embedding'),
       '@worldsea/memory-archive/utils': path.resolve(__dirname, 'packages/memory-archive/src/utils'),
+      // B（2026-09-25）：第二棵树（世界语义）的 cordis 依赖 = 自 vendor（与 apps/tauri/vite.config.ts 同口径）
+      '@deepseek-ai/cordis$': path.resolve(__dirname, 'apps/tauri/src/world/vendor/cordis/lib/index.js'),
+      '@deepseek-ai/cosmokit$': path.resolve(__dirname, 'apps/tauri/src/world/vendor/cosmokit/lib/index.js'),
     }).map(([key, value]) => {
       // 精确匹配（$ 后缀）转为正则 ^...$；前缀匹配保持字符串
       if (key.endsWith('$')) {

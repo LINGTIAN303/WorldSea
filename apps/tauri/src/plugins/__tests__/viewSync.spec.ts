@@ -66,6 +66,18 @@ describe('installViewSynchronizer', () => {
     expect(pluginAPI.getViews().map(v => v.id)).toEqual(['b']) // 真源确实变了
   })
 
+  it('装配时对账：订阅之前已注册的视图被补进显示侧（起树早于装配的顺序无关）', () => {
+    const store = usePluginStore()
+    const ui = useUIStore()
+    pluginAPI.registerView(view('early')) // 装配前就注册（模拟第二棵树启动早期注册）
+    expect(store.views.map(v => v.id)).toEqual([])
+
+    installViewSynchronizer()
+
+    expect(store.views.map(v => v.id)).toEqual(['early'])
+    expect(ui.sidebarOrder).toContain('early')
+  })
+
   it('clearViews（项目切换路径）把显示侧清空', () => {
     installViewSynchronizer()
     const store = usePluginStore()

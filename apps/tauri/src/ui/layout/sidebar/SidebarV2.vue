@@ -71,7 +71,7 @@
 import { computed, ref, watch, nextTick, onBeforeUnmount } from 'vue'
 import { useUIStore } from '@/stores/uiStore'
 import { useSettingsStore } from '@/stores/settingsStore'
-import { usePluginStore, useEntityStore, entitySchemaRegistry } from '@worldsea/entity-core'
+import { usePluginStore, useEntityStore, entitySchemaRegistry, isViewVisible } from '@worldsea/entity-core'
 import type { PluginView } from '@worldsea/entity-core/types'
 import { WsIcon } from '@worldsea/ui-kit'
 import { hasIcon } from '@/assets/iconRegistry'
@@ -153,7 +153,7 @@ const sortedViews = computed(() => {
   const orderMap = new Map<string, number>()
   for (let i = 0; i < order.length; i++) orderMap.set(order[i], i)
   return pluginStore.views
-    .filter(v => !v.pluginId || settingsStore.isActive(v.pluginId))
+    .filter(v => isViewVisible(v.pluginId))
     .slice()
     .sort((a, b) => {
       const ia = orderMap.get(a.id) ?? 999

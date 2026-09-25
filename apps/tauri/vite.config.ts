@@ -86,6 +86,10 @@ const aliases: Record<string, string> = {
   // WASM 包（算法降级用 — Tauri 命令不可用时的回退）
   '@worldsea/core$': path.resolve(__dirname, '../../worldsea-core/pkg/index.js'),
   '@worldsea/tactical-engine$': path.resolve(__dirname, '../../tactical-engine/pkg/index.js'),
+  // B（2026-09-25）：第二棵树（世界语义）的 cordis 依赖 = **自 vendor**（来源与同步办法见
+  // src/world/vendor/README.md）。用 `$` 精确匹配两条：cordis 产物内部只 import `@deepseek-ai/cosmokit`。
+  '@deepseek-ai/cordis$': path.resolve(__dirname, 'src/world/vendor/cordis/lib/index.js'),
+  '@deepseek-ai/cosmokit$': path.resolve(__dirname, 'src/world/vendor/cosmokit/lib/index.js'),
 }
 
 // Vite 8 + Rolldown 中 alias 解析规则：

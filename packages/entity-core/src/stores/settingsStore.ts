@@ -484,21 +484,6 @@ export const useSettingsStore = defineStore('settings', () => {
     return sprouts.value.find(p => p.id === id)?.active ?? false
   }
 
-  /** 该 id 是否由本芽清单管理（官方芽才有开关；第二棵树的插件 id 不在清单内）。 */
-  function hasSprout(id: string): boolean {
-    return sprouts.value.some(p => p.id === id)
-  }
-
-  /**
-   * 视图是否应显示（B 批，2026-09-25）：无归属 → 显示；清单内 → 按芽启停；
-   * **清单外的 pluginId（第二棵树的插件）→ 显示**（其启停由树自己的装载决定，不归本清单管）。
-   */
-  function isViewVisible(pluginId?: string): boolean {
-    if (!pluginId) return true
-    if (!hasSprout(pluginId)) return true
-    return isActive(pluginId)
-  }
-
   function getActiveSproutIds(): string[] {
     return sprouts.value.filter(p => p.active).map(p => p.id)
   }
@@ -524,7 +509,7 @@ export const useSettingsStore = defineStore('settings', () => {
     return deriveKeyStoreId(baseUrl)
   }
 
-  return { sprouts, sproutGroups, theme, toggleSprout, setSproutsActive, saveSproutGroup, applySproutGroup, removeSproutGroup, setTheme, isActive, hasSprout, isViewVisible, getActiveSproutIds, loadProjectSprouts, loadProjectSproutGroups,
+  return { sprouts, sproutGroups, theme, toggleSprout, setSproutsActive, saveSproutGroup, applySproutGroup, removeSproutGroup, setTheme, isActive, getActiveSproutIds, loadProjectSprouts, loadProjectSproutGroups,
            undoHistoryLimit, multiStepRedo, maxCenterNodes, panelLimitEnabled,
            smoothCaretEnabled, smoothCaretDuration, smoothCaretVariant,
            autoCreateEntityEnabled, autoCreateSelectorEnabled, autoCreateEntityRefEnabled, autoCreateGraphEnabled,

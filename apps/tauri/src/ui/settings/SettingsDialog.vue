@@ -80,7 +80,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
-import { useSettingsStore, useUIStore, usePluginStore } from '@worldsea/entity-core'
+import { useUIStore, usePluginStore, isViewVisible } from '@worldsea/entity-core'
 import { useResizable, WsIcon } from '@worldsea/ui-kit'
 // 设置面板基座样式（.set-card/.sc-head/.set-row/.set-toggle/.set-hint 唯一权威定义）
 import '@worldsea/ui-kit/components/settings/settings-panels.css'
@@ -114,7 +114,6 @@ const { activate, deactivate } = useFocusTrap(dialogRef, {
 // 模态框可调整大小（保留接口，当前未启用）
 const modalResizable = useResizable({ panelId: 'modal-settings', defaultWidth: 560, minWidth: 400, side: 'right' })
 
-const store = useSettingsStore()
 const uiStore = useUIStore()
 const pluginStore = usePluginStore()
 
@@ -374,8 +373,8 @@ function close() {
     const currentView = uiStore.currentView
     if (currentView) {
       const view = pluginStore.getView(currentView)
-      if (view?.pluginId && !store.isActive(view.pluginId)) {
-        const firstActive = pluginStore.views.find(v => !v.pluginId || store.isActive(v.pluginId))
+      if (view?.pluginId && !isViewVisible(view.pluginId)) {
+        const firstActive = pluginStore.views.find(v => isViewVisible(v.pluginId))
         if (firstActive) {
           uiStore.setView(firstActive.id)
           uiStore.viewComponent = firstActive.component
@@ -393,7 +392,7 @@ function close() {
 <style scoped>
 .set-overlay { position: fixed; inset: 0; z-index: var(--z-overlay); background: var(--overlay, rgba(0,0,0,0.35)); display: flex; align-items: flex-start; justify-content: center; padding-top: 3vh; }
 .set-shell { height: min(88vh, 680px); display: flex; flex-direction: column; position: relative; min-width: 420px; max-width: 680px; width: auto; }
-/* 2026-09-13：上限 640 → 680——芽管理卡（27 芽 + 头部）在 640 下会触发卡片区内滚动，
+/* 2026-09-13：上限 640 → 680——芽管理卡（26 芽 + 头部）在 640 下会触发卡片区内滚动，
    680 下芽卡一屏完整可见；其余标签页仅获得更多可视空间 */
 
 .set-topbar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: var(--content-bg, var(--color-bg-surface)); border-radius: var(--radius-md); box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
