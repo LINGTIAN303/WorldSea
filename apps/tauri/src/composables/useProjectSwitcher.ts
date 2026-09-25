@@ -7,8 +7,7 @@ import { entitySchemaRegistry, relationSchemaRegistry, entitySchemaRegistryV2 } 
 import { usePluginStore, useEntityStore, useRelationStore, useFileStore } from '@worldsea/entity-core/stores'
 import { setAgentCurrentProjectId } from '@agent/session/manager'
 import { pluginAPI } from '@worldsea/entity-core'
-import { pluginManager } from '@/plugins/PluginManager'
-import { bootstrapSprouts } from '@/plugins/bootstrap'
+import { bootstrapShell } from '@/plugins/boot'
 import { isTauri, hasTauriInvoke } from '@worldsea/entity-core/core'
 import { useFsWatcher } from './useFsWatcher'
 
@@ -299,13 +298,10 @@ export function useProjectSwitcher() {
     pluginAPI.clearViews()
     usePluginStore().clearPlugins()
 
-    // 2. 官方芽重播种（2026-09-09 收口：bootstrapSprouts 仅在启动时跑一次、activate 有 loaded 防重入，
-    //    切项目后官方类型在旧版/V2 表均缺失——resetForProjectSwitch 清 loaded 后重跑激活，
-    //    registerEntityV2 双写同时重填旧版 + V2 + fieldRegistry）
-    pluginManager.resetForProjectSwitch()
-    await bootstrapSprouts({ skipDefaultView: true })
+    // 2. 产品壳重装配（C2 起：官方芽全部在第二棵树内——树随页面常驻，项目切换只需重装视图同步 + 保视图选择）
+    await bootstrapShell({ skipDefaultView: true })
 
-    // 3. 视图无需手动同步：芽视图经 bootstrapSprouts → pluginAPI.registerView，
+    // 3. 视图无需手动同步：视图真源由树插件注册（pluginAPI.registerView），
     //    真源变更由 viewSync 的单一订阅镜像到 pluginStore（2026-09-25 D 批收敛，原全量重灌删除）。
   }
 

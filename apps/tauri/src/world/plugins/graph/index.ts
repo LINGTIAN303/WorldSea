@@ -1,4 +1,4 @@
-import type { PluginAPIType } from '@worldsea/entity-core'
+import type { WorldPluginApi } from '../../api'
 import GlobalGraph from './GlobalGraph.vue'
 
 export const manifest = {
@@ -21,7 +21,7 @@ export const manifest = {
   ],
 }
 
-export function activate(api: PluginAPIType) {
+export function apply(_ctx: unknown, api: WorldPluginApi) {
   api.registerView({
     id: 'graph',
     label: '全局图谱',
@@ -31,3 +31,5 @@ export function activate(api: PluginAPIType) {
     toolbar: 'overlay',
   })
 }
+
+export default { manifest, apply }

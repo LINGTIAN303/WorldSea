@@ -11,7 +11,7 @@ import { useUIStore } from './stores/uiStore'
 import { useTheme } from './components/ui/useTheme'
 import { useTheme as useEntityTheme, useSettingsStore } from '@worldsea/entity-core'
 import { useGlobalEvents, setActiveViewId, setAgentSpaceActive, enableGlobalTooltips } from '@worldsea/ui-kit'
-import { bootstrapSprouts } from './plugins/bootstrap'
+import { bootstrapShell } from './plugins/boot'
 import { useProjectSwitcher } from './composables/useProjectSwitcher'
 import { registerProjectSwitchListener } from './agent/composables/useAgentRust'
 import { useSystemBridge } from './composables/useSystemBridge'
@@ -137,7 +137,7 @@ onMounted(async () => {
   } catch (err) {
     console.error('[App] 主题恢复失败:', err)
   }
-  // 项目系统初始化 + projectDir 绑定（必须在 bootstrapSprouts 之前：
+  // 项目系统初始化 + projectDir 绑定（必须在 bootstrapShell 之前：
   // 芽初始化 / Store loadAll 依赖 FileStorageBackend 已就绪，否则 isReady=false
   // 会降级到不可用的 TauriStorageBackend，导致 cmd_get_all_entities 等 IPC 失败）
   try {
@@ -155,10 +155,10 @@ onMounted(async () => {
   // Agent 工作台视图已退役（2026-08-09）：能力迁入 AgentSpace 执行面板，
   // Shell 仅承载官方芽视图；默认进入 AgentSpace（currentShell 持久化）
   // 启动已迁移芽（Phase C：注册视图/实体类型）
-  await bootstrapSprouts()
+  await bootstrapShell()
   // Agent→芽 数据动作全局桥（2026-09-14 架构拍板）：App 启动即注册、与视图挂载
   // 解耦——写/查动作必达 store；UI 动作仍由视图内 useAgentPluginBridge 消费。
-  // 幂等；须在 bootstrapSprouts 之后（实体类型/视图注册完成）
+  // 幂等；须在 bootstrapShell 之后（实体类型/视图注册完成）
   try {
     installAgentDataBridges()
   } catch (err) {

@@ -195,6 +195,11 @@ DSH_HOME="D:/WorldSea/.独立项/b0-home" node apps/cli/lib/bin.js web --no-open
 - **注释陷阱（已两次踩到）**：注释里写 `sprouts/official/*/index.ts` 会因 `*/` **提前终结块注释** → 改用全角 `〈〉` 或换措辞。
 - **真机口径**：`__WS_WORLD_TREE__.plugins/skipped/rejected`；启停看 `plugins` 计数与侧栏标签同步；视图真源可经能力桥 `world.views.list` 核。
 
+**C2 完成态（2026-09-25）**：**25 个官方芽全部在树内**（`world/plugins/**`，插件 id 沿用 `official.*`）；`sprouts/` 目录已删除；**旧芽机器退场**（`PluginManager` / `PluginSandbox` / `plugin-manifest` / 旧 `bootstrap` 全删，含 Phase-3 死代码 `plugins/workflow/`）——产品壳只留 `plugins/{boot.ts,viewSync.ts}`：
+- `boot.ts` 的 `bootstrapShell()` = 视图生命周期同步装配 + 首屏默认视图（原 `bootstrapSprouts` 的装载/注册职责归树）；
+- 启动顺序：`main.ts`（App 挂载）→ `App.vue` 的 `bootstrapShell()` → 工作台入口的 `installWorldTree()`（树的装载读芽清单）；
+- 台账：树 `plugins` = 启用的芽（26）+ 清单外的树插件（mindmap / spike-panel），`skipped` = 芽面板里关掉的（如 `official.custom`）。
+
 **核查与清理**（改壳或复跑前）：
 - `taskkill //IM worldsea-tauri-app.exe //T //F` 清干净再起；被强杀的实例会留**孤儿 dsh host**（node 不在 Job Object 里），用 `tasklist | grep -i node` 复核。**本机 `wmic` 已失效（恒返回空）**——进程核查改用 `tasklist` / `powershell Get-CimInstance`。
 - 应用日志建议直写（`… > 日志 2>&1`）；本机 `tee` 有块缓冲，短窗口内读会拿到**过期内容**（曾据此误判「页面未加载」）。

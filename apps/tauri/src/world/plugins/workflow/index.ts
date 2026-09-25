@@ -1,4 +1,4 @@
-import type { PluginAPIType } from '@worldsea/entity-core'
+import type { WorldPluginApi } from '../../api'
 import WorkflowView from './WorkflowView.vue'
 
 export const manifest = {
@@ -29,7 +29,7 @@ export const manifest = {
   ],
 }
 
-export function activate(api: PluginAPIType) {
+export function apply(_ctx: unknown, api: WorldPluginApi) {
   api.registerEntityType({
     typeKey: 'pipeline',
     label: '创作计划',
@@ -54,3 +54,5 @@ export function activate(api: PluginAPIType) {
     toolbar: 'overlay',
   })
 }
+
+export default { manifest, apply }
