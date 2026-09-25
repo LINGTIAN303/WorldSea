@@ -17,7 +17,7 @@
  * （拍板档 1：写动作 fire-and-forget 保持，store 层异常不阻塞 Agent 但留排查痕迹）。
  *
  * 首批迁移 = 写作三芽（notebook 8 动作 / manuscript 5 数据动作 / outline 6 数据动作）；
- * 其余芽（timeline/graph/mindmap/tactical-board/magic/module-builder）同模式挂账分批迁。
+ * 其余芽（timeline/graph/mindmap/tactical-board/magic 等）同模式挂账分批迁。
  */
 
 import { useEntityStore, useRelationStore, useBidirectional, relationshipRegistry } from '@worldsea/entity-core'

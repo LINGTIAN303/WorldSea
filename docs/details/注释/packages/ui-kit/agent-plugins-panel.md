@@ -9,7 +9,7 @@ WorldSea 项目中「插件」一词**多义并存**，本面板只承载其中�
 
 | 含义 | 载体 | 数量 | 归口 |
 |---|---|---|---|
-| **A. 世界观插件** | `entity-core` 的 `PluginAPI` / `DEFAULT_PLUGINS` | 27 个 | 内置工具系统中「数据域/视图扩展」的一环 |
+| **A. 世界观插件** | `entity-core` 的 `PluginAPI` / `DEFAULT_PLUGINS` | 26 个（原 27，`official.module-builder` 已于 2026-09-25 随「自定义模块」整体剪除） | 内置工具系统中「数据域/视图扩展」的一环 |
 | **B. 插件工具集** | `plugin-tools.ts`(5) + `plugin-backend-tools.ts`(10) | 15 个工具 | 内置工具系统中「跨插件统一操作接口」 |
 | **C. Agent 插件系统** | 无代码 | 0 | **本面板** —— 能力打包/分发/安装层 |
 

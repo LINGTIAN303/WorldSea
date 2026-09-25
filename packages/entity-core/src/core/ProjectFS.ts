@@ -2,7 +2,6 @@
 
 import { getProjectManager } from './ProjectManager'
 import { useEntityStore, useRelationStore, useSettingsStore } from '../stores'
-import { getModuleStoreApi } from './ModuleStoreApi'
 import { getProjectSwitcherApi } from './ProjectSwitcherApi'
 import { createBatchIpc } from '@worldsea/perf-kit/io'
 
@@ -33,20 +32,19 @@ export interface ProjectCache {
   formatVersion: 1
   entityCount: number
   relationCount: number
-  moduleCount: number
   checksums: Record<string, string>
 }
 
 /** 导出进度回调 */
 export type ExportProgressCallback = (
-  phase: 'entities' | 'relations' | 'modules' | 'settings' | 'assets',
+  phase: 'entities' | 'relations' | 'settings' | 'assets',
   current: number,
   total: number,
 ) => void
 
 /** 导入进度回调 */
 export type ImportProgressCallback = (
-  phase: 'manifest' | 'entities' | 'relations' | 'modules' | 'settings',
+  phase: 'manifest' | 'entities' | 'relations' | 'settings',
   current: number,
   total: number,
 ) => void
@@ -194,20 +192,7 @@ export async function exportProjectToDir(
   checksums['relations/_index.json'] = simpleChecksum(relationsContent)
   onProgress?.('relations', 1, 1)
 
-  // 5. 导出自定义模块
-  const moduleStoreApi = getModuleStoreApi()
-  const modules = moduleStoreApi ? await moduleStoreApi.getAll() : []
-  let moduleIdx = 0
-  for (const mod of modules) {
-    const fileName = `${mod.id.replace(/\./g, '_')}.json`
-    const content = JSON.stringify(mod, null, 2)
-    batchWriter.add(`${projectDir}/modules/${fileName}`, content)
-    checksums[`modules/${fileName}`] = simpleChecksum(content)
-    moduleIdx++
-    onProgress?.('modules', moduleIdx, modules.length)
-  }
-
-  // 6. 导出设置
+  // 5. 导出设置
   const settingsStore = useSettingsStore()
   const sproutsConfig = settingsStore.sprouts.map(p => ({ id: p.id, active: p.active }))
   batchWriter.add(
@@ -216,17 +201,16 @@ export async function exportProjectToDir(
   )
   onProgress?.('settings', 1, 1)
 
-  // 7. 写入缓存信息
+  // 6. 写入缓存信息
   const cache: ProjectCache = {
     formatVersion: 1,
     entityCount: entities.length,
     relationCount: relations.length,
-    moduleCount: modules.length,
     checksums,
   }
   batchWriter.add(`${projectDir}/.worldsea/cache.json`, JSON.stringify(cache, null, 2))
 
-  // 8. 批量刷出所有文件
+  // 7. 批量刷出所有文件
   await batchWriter.flush()
   batchWriter.destroy()
 
@@ -313,27 +297,7 @@ export async function importProjectFromDir(
   }
   onProgress?.('relations', 1, 1)
 
-  // 7. 导入模块
-  let moduleCount = 0
-  try {
-    const modulesDir = `${sourceDir}/modules`
-    const moduleFiles = await listDir(modulesDir)
-    for (const file of moduleFiles) {
-      if (!file.name.endsWith('.json')) continue
-      const content = await readTextFile(file.path)
-      const mod = JSON.parse(content)
-      const moduleStoreApi = getModuleStoreApi()
-      if (moduleStoreApi) {
-        await moduleStoreApi.install(mod)
-      }
-      moduleCount++
-      onProgress?.('modules', moduleCount, moduleFiles.length)
-    }
-  } catch {
-    // 模块目录可能不存在
-  }
-
-  // 8. 导入芽设置
+  // 7. 导入芽设置
   try {
     const pluginsText = await readTextFile(`${sourceDir}/settings/plugins.json`)
     const pluginsConfig = JSON.parse(pluginsText)

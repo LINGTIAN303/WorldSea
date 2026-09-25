@@ -112,7 +112,6 @@
     "apps/tauri/src/agent/panels/model/ProviderTypeDialog.vue": 570,
     "apps/tauri/src/agent/panels/SessionLogPanel.vue": 1011,
     "apps/tauri/src/agent/SkillsStorePanel.vue": 702,
-    "apps/tauri/src/modules/registry.ts": 515,
     "apps/tauri/src/space/AgentSpace.vue": 794,
     "apps/tauri/src/space/chat/ChatInput.vue": 1656,
     "apps/tauri/src/space/chat/ModelSwitcher.vue": 743,

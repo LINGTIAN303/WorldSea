@@ -5,7 +5,7 @@ import type { Serializer } from './types'
 export const relationTypeSerializer: Serializer = {
   id: 'relation-types',
   label: '关系类型定义',
-  dependsOn: ['custom-modules', 'entity-types'],
+  dependsOn: ['entity-types'],
 
   async collect(): Promise<Record<string, unknown>> {
     const schemas = relationSchemaRegistry.getAll()

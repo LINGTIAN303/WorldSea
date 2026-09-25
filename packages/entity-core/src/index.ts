@@ -28,7 +28,6 @@ export {
   customFieldSerializer,
   entitySerializer,
   entityTypeSerializer,
-  createModuleSerializer,
   relationSerializer,
   relationTypeSerializer,
   createViewSerializer,
@@ -45,8 +44,6 @@ export {
   registerSettingsApi,
   getSettingsApi,
   // Phase 5a: ProjectFS 依赖注入服务接口
-  registerModuleStoreApi,
-  getModuleStoreApi,
   registerProjectSwitcherApi,
   getProjectSwitcherApi,
   // Phase 5a: 项目文件系统导出/导入
@@ -131,7 +128,6 @@ export type {
   DialogApi,
   SettingsApi,
   // Phase 5a: ProjectFS 依赖注入服务接口
-  ModuleStoreApi,
   ProjectSwitcherApi,
   // Phase 5a: 项目文件系统导出/导入
   ProjectManifest,

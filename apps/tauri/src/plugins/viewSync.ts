@@ -2,8 +2,8 @@
  * 视图生命周期装配（D，2026-09-25）：把**真源** `pluginAPI` 的视图变更镜像到显示侧。
  *
  * 此前是「单向 + 一次性」：`bootstrap` 给 PluginManager 装 viewHook，只在 activate 时推一次 →
- * deactivate / 模块反注册 / 清空都不回写 store，侧栏会留幽灵项；各调用点只好各写一套同步
- * （useProjectSwitcher 全量重灌 / ModuleBuilder 手动 splice / Spike 过滤数组）。
+ * deactivate / 反注册 / 清空都不回写 store，侧栏会留幽灵项；各调用点只好各写一套同步
+ * （useProjectSwitcher 全量重灌 / 各注册方手动补写 / Spike 过滤数组）。
  *
  * 现在收敛为**一个订阅**：真源派发 → store 增删 + 侧栏顺序补齐。
  * 两条刻意不做的（见批计划 §一）：

@@ -6,7 +6,6 @@ import type { ProjectInfo } from '@worldsea/entity-core/core'
 import { entitySchemaRegistry, relationSchemaRegistry, entitySchemaRegistryV2 } from '@worldsea/entity-core/core'
 import { usePluginStore, useEntityStore, useRelationStore, useFileStore } from '@worldsea/entity-core/stores'
 import { setAgentCurrentProjectId } from '@agent/session/manager'
-import { moduleRegistry } from '@/modules/registry'
 import { pluginAPI } from '@worldsea/entity-core'
 import { pluginManager } from '@/plugins/PluginManager'
 import { bootstrapSprouts } from '@/plugins/bootstrap'
@@ -286,9 +285,9 @@ export function useProjectSwitcher() {
   }
 
   /**
-   * 重新初始化模块系统。
-   * 切换项目后，需要从新项目的 DB 加载模块配置，
-   * 重新注册所有 entity/relation schema。
+   * 重新播种项目级注册面。
+   * 切换项目后，从新项目重新注册所有 entity/relation schema，并重播种官方芽视图。
+   * （2026-09-25 剪除「自定义模块」后，项目 DB 已无模块配置可加载。）
    */
   async function reinitializeModules(): Promise<void> {
     // 1. 清空当前注册的 schema（旧版 + V2 + relation；V2 此前切项目不清空，2026-09-09 收口）
@@ -300,17 +299,13 @@ export function useProjectSwitcher() {
     pluginAPI.clearViews()
     usePluginStore().clearPlugins()
 
-    // 2. 重新初始化模块注册表（从新项目 DB 加载模块并注册 schema）
-    await moduleRegistry.initialize()
-
-    // 3. 官方芽重播种（2026-09-09 收口：bootstrapSprouts 仅在启动时跑一次、activate 有 loaded 防重入，
+    // 2. 官方芽重播种（2026-09-09 收口：bootstrapSprouts 仅在启动时跑一次、activate 有 loaded 防重入，
     //    切项目后官方类型在旧版/V2 表均缺失——resetForProjectSwitch 清 loaded 后重跑激活，
     //    registerEntityV2 双写同时重填旧版 + V2 + fieldRegistry）
     pluginManager.resetForProjectSwitch()
     await bootstrapSprouts({ skipDefaultView: true })
 
-    // 4. 视图无需手动同步：官方芽 view 经 bootstrapSprouts → pluginAPI.registerView、
-    //    自定义模块 view 经 moduleRegistry.initialize() → pluginAPI.registerView，
+    // 3. 视图无需手动同步：芽视图经 bootstrapSprouts → pluginAPI.registerView，
     //    真源变更由 viewSync 的单一订阅镜像到 pluginStore（2026-09-25 D 批收敛，原全量重灌删除）。
   }
 

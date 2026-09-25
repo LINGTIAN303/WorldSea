@@ -131,9 +131,10 @@ describe('worldview：动作执行（渐进披露第三级）', () => {
 describe('说明中性守卫（无引导词）', () => {
   it('全部芽的使用方法不含 建议/推荐/优先/首选/应该/务必/最好', () => {
     const banned = ['建议', '推荐', '优先', '首选', '应该', '务必', '最好']
-    // 覆盖范围：有说明的芽（guides）+ 有动作的芽（actions）的并集——批 2 后为全部 27 芽
+    // 覆盖范围：有说明的芽（guides）+ 有动作的芽（actions）的并集——批 2 后为全部芽
+    // （2026-09-25 剪除「自定义模块」后为 26 芽）
     const allSproutIds = new Set([...Object.keys(SPROUT_GUIDES), ...Object.keys(SPROUT_ACTIONS)])
-    expect(allSproutIds.size).toBeGreaterThanOrEqual(27)
+    expect(allSproutIds.size).toBeGreaterThanOrEqual(26)
     for (const sproutId of allSproutIds) {
       const text = renderSproutGuide({ id: sproutId, name: sproutId, description: '' })
       for (const word of banned) {
@@ -142,8 +143,8 @@ describe('说明中性守卫（无引导词）', () => {
     }
   })
 
-  it('全部 27 芽均有说明数据（guides 覆盖）', () => {
-    expect(Object.keys(SPROUT_GUIDES)).toHaveLength(27)
+  it('全部 26 芽均有说明数据（guides 覆盖）', () => {
+    expect(Object.keys(SPROUT_GUIDES)).toHaveLength(26)
   })
 })
 
@@ -186,10 +187,9 @@ describe('实体字段（运行时 schema 生成，零漂移）', () => {
 })
 
 describe('零漂移守卫：guides 不内嵌字段清单', () => {
-  it('除 module-builder 例外外，全部 guides 不含「——字段：」', () => {
-    // module-builder 例外：custom_module 无运行时实体类型注册（字段说明保留手写）
+  it('全部 guides 不含「——字段：」', () => {
+    // 剪除「自定义模块」后已无手写字段说明的例外；字段清单一律由运行时 schema 生成
     for (const [id, guide] of Object.entries(SPROUT_GUIDES)) {
-      if (id === 'official.module-builder') continue
       expect(guide.overview.includes('——字段：'), `${id} 仍内嵌字段清单`).toBe(false)
     }
   })

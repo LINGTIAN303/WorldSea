@@ -3,7 +3,9 @@
 > 生成物（`node scripts/architecture/context.mjs entity-core`）——**可能滞后于代码**，实时口径以命令输出为准。
 > kind: ts · roots: packages/entity-core/src · manifest: packages/entity-core/package.json
 
-## 文件清单（96 个 / 共 15042 行）
+## 文件清单（91 个 / 共 14778 行）
+
+> 2026-09-25 手工校准：`types/module.ts`(98) / `core/serializers/ModuleSerializer.ts`(50) / `stores/customModuleStore.ts`(44) / `types/layoutSchema.ts`(42) / `core/ModuleStoreApi.ts`(30) 五条随「自定义模块」整体剪除移除（公开契约面同步删 `createModuleSerializer` / `registerModuleStoreApi` / `getModuleStoreApi`）。生成物口径以重跑 `node scripts/architecture/context.mjs entity-core` 为准。
 
 | 行数 | 文件 |
 |---|---|
@@ -58,7 +60,6 @@
 | 115 | packages/entity-core/src/composables/useAdvancedSearch.ts |
 | 115 | packages/entity-core/src/composables/useImageResolver.ts |
 | 104 | packages/entity-core/src/composables/useVersionSnapshot.ts |
-| 98 | packages/entity-core/src/types/module.ts |
 | 97 | packages/entity-core/src/composables/useFileSystemProject.ts |
 | 93 | packages/entity-core/src/composables/useSmartFieldLink.ts |
 | 92 | packages/entity-core/src/composables/useCascadeDelete.ts |
@@ -82,13 +83,10 @@
 | 53 | packages/entity-core/src/stores/personaStore.ts |
 | 53 | packages/entity-core/src/types/index.ts |
 | 52 | packages/entity-core/src/composables/useTypeMapping.ts |
-| 50 | packages/entity-core/src/core/serializers/ModuleSerializer.ts |
 | 49 | packages/entity-core/src/types/entity.ts |
 | 48 | packages/entity-core/src/composables/useEdgeDedup.ts |
 | 47 | packages/entity-core/src/stores/pluginStore.ts |
 | 45 | packages/entity-core/src/core/serializers/CustomFieldSerializer.ts |
-| 44 | packages/entity-core/src/stores/customModuleStore.ts |
-| 42 | packages/entity-core/src/types/layoutSchema.ts |
 | 36 | packages/entity-core/src/core/serializers/RelationTypeSerializer.ts |
 | 35 | packages/entity-core/src/composables/index.ts |
 | 35 | packages/entity-core/src/core/serializers/EntityTypeSerializer.ts |
@@ -97,7 +95,6 @@
 | 32 | packages/entity-core/src/types/template.ts |
 | 31 | packages/entity-core/src/core/inverseRegistry.ts |
 | 31 | packages/entity-core/src/core/serializers/ViewSerializer.ts |
-| 30 | packages/entity-core/src/core/ModuleStoreApi.ts |
 | 29 | packages/entity-core/src/core/RelationSchema.ts |
 | 20 | packages/entity-core/src/core/ProjectSwitcherApi.ts |
 | 19 | packages/entity-core/src/core/serializers/types.ts |
@@ -133,7 +130,6 @@
 - customFieldSerializer
 - entitySerializer
 - entityTypeSerializer
-- createModuleSerializer
 - relationSerializer
 - relationTypeSerializer
 - createViewSerializer
@@ -149,9 +145,6 @@
 - getDialogApi
 - registerSettingsApi
 - getSettingsApi
-- // Phase 5a: ProjectFS 依赖注入服务接口
-  registerModuleStoreApi
-- getModuleStoreApi
 - registerProjectSwitcherApi
 - getProjectSwitcherApi
 - // Phase 5a: 项目文件系统导出/导入

@@ -121,7 +121,7 @@ DSH_HOME="D:/WorldSea/.独立项/b0-home" node apps/cli/lib/bin.js web --no-open
 - **形态**：缺省**无边框**（`tauri.conf.json` 的 `decorations:false`）+ 壳侧注入的 **32px 窗口栏**（旧 `TitleBar.vue` space 变体：左侧「Agent 空间 ⇄ 工作台」切换胶囊 → 居中标题 → 右侧「⋯」菜单按钮 + 三控制按钮；控制按钮细线 SVG 照搬旧组件）。`WORLDSEA_FRAMED=1` 回退原生边框（同时不注入窗口栏）。
 - **dsh 适配**：注入脚本置 `html[data-windows-titlebar]` + `--dsh-windows-titlebar-height: 32px`（**dsh 内置机制**，官方 Electron 桌面端同款，只是官方用 40px）→ dsh 界面自动留白 + `centerCol` 圆角 + 侧栏连色；**dsh 树零改动**。
 - **拖拽 / 双击**：JS 方案（窗口栏空白区 `mousedown` → `cmd_shell_window_action start-drag`；`detail===2` → 最大化/还原）。**无系统边缘吸附（snap）**——已知差异；将来可评估 WebView2 non-client（`-webkit-app-region` + `IsNonClientRegionSupportEnabled`）。
-- **工作台占位页**：点切换控件 → 「WorldSea · 产品域即将落位」占位页（DOM 覆盖层，dsh 页面保持运行、会话不丢）；产品域（27 芽）真正落位时接真页。——**D1 已接真页、占位页退役**（见下节）。
+- **工作台占位页**：点切换控件 → 「WorldSea · 产品域即将落位」占位页（DOM 覆盖层，dsh 页面保持运行、会话不丢）；产品域（26 芽，原 27——`official.module-builder` 已于 2026-09-25 随「自定义模块」剪除）真正落位时接真页。——**D1 已接真页、占位页退役**（见下节）。
 - **菜单改 popup**：`menu.rs` 不再 `set_menu`（无边框下 Win32 菜单栏不可见，见下坑），改为窗口栏「⋯」按钮经 `cmd_shell_popup_menu`（`popup_menu_at` + 页面逻辑坐标）弹出；菜单内容与快捷键零删减（文件/编辑/视图/设置四子菜单）。
 
 **工作台窗（D1，2026-09-24，详见 [D1 批计划](../../plans/2026-09-24-D1-产品域落位批计划.md)）**：

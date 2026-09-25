@@ -305,8 +305,7 @@ defineExpose({ resetSproutSearch: () => { sproutSearch.value = '' }, goToCard: (
 .sp-cat:hover { background: var(--hover-bg, var(--color-bg-hover)); }
 .sp-cat:focus-visible { outline: none; border-color: var(--primary, var(--color-primary)); box-shadow: 0 0 0 3px var(--primary-soft, color-mix(in srgb, var(--color-primary) 15%, transparent)); }
 .sp-cat.active { background: var(--primary, var(--color-primary)); border-color: var(--primary, var(--color-primary)); color: var(--on-accent, #fff); }
-/* 列表不设内滚上限：27 个芽按 3 列自然铺满一屏可见，纵向滚动交给外层 .set-cards 兜底
-   （此前 max-height 320px 会把第 9 行（自定义视图/自定义模块/工作流）裁到屏下） */
+/* 列表不设内滚上限：26 个芽按 3 列自然铺满一屏可见，纵向滚动交给外层 .set-cards 兜底 */
 .set-plugin-list { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 2px; }
 
 /* ── 分组下拉（标题旁）/ 菜单内保存按钮（2026-09-13）── */

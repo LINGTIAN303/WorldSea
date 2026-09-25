@@ -5,7 +5,7 @@ import type { Serializer } from './types'
 export const entityTypeSerializer: Serializer = {
   id: 'entity-types',
   label: '实体类型定义',
-  dependsOn: ['custom-modules'],
+  dependsOn: [],
 
   async collect(): Promise<Record<string, unknown>> {
     const schemas = entitySchemaRegistry.getAll()

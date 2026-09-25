@@ -27,5 +27,3 @@ export type {
 export { usePersonaStore } from './personaStore'
 export type { SavedPersona } from './personaStore'
 
-// Phase 8a: customModuleStore（从根 src/stores/customModuleStore.ts 下沉）
-export { useCustomModuleStore } from './customModuleStore'

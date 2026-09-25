@@ -1,8 +1,8 @@
 /**
- * forms/registry —— 表现形式注册表（自研，不复用 module-builder 的槽位/组件模型）
+ * forms/registry —— 表现形式注册表（自研，不走「槽位/组件」的页面搭建模型）
  *
- * 【为什么自研】module-builder 的组件模型是「页面搭建」语义（Slot/arrangement/zoneId），
- * 与「结构表达」的大纲白板不是同一件事，改用其模型只会带来语义污染（09-15 文档 §8.8.1-2 判定）。
+ * 【为什么自研】页面搭建语义（Slot/arrangement/zoneId）与「结构表达」的大纲白板不是同一件事，
+ * 套用其模型只会带来语义污染（09-15 文档 §8.8.1-2 判定）。
  *
  * 【扩展点】新增一种表现形式 = 注册一个 FormDefinition，**不需要改编辑器代码**。
  * 规格见 docs/plans/2026-09-16-大纲白板-表现形式规格.md §0.4。
@@ -38,7 +38,7 @@ export interface FormDefinition {
 
 const registry = new Map<string, FormDefinition>()
 
-/** 幂等注册：重复注册同 form 直接跳过（与 module-builder 的 initializeComponentTypes 同策略） */
+/** 幂等注册：重复注册同 form 直接跳过 */
 export function registerForm(def: FormDefinition): void {
   if (registry.has(def.form)) return
   registry.set(def.form, def)

@@ -7,7 +7,6 @@ export const manifest = {
   version: '1.0.0',
   description: '界面内多窗口，自由拼装视图面板',
   author: 'WorldSea',
-  agentSkills: ['module-builder'],
   agentCapabilities: [
     { action: 'create_entity', description: '创建自定义实体', params: ['name', 'type'] },
     { action: 'update_entity', description: '更新自定义实体', params: ['entityId', 'changes'] },

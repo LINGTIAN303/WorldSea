@@ -2,7 +2,7 @@
  * 白板拖拽载荷约定（右栏 → 画布）
  *
  * 两类载荷共用一套 MIME 命名（`application/x-worldsea-*`），避免与其它芽的拖拽互相干扰；
- * 与 module-builder 的 Toolbox 同路子（draggable + dragstart 写 dataTransfer）。
+ * 走 HTML5 DnD 通用路子（draggable + dragstart 写 dataTransfer）。
  *
  * · 节点（outline_node）→ 拖入 = 为该节点建容器（已有容器则定位）
  * · 章节（manuscript）  → 拖入 = 落在空白则新建节点并关联；落在容器上则只建立关联

@@ -13,13 +13,13 @@ export interface PackageManifest {
   appVersion?: string
   /** 包的人类可读名称 */
   name?: string
-  /** 内容摘要 */
+  /** 内容摘要（`customModules` 为历史字段：2026-09-25 剪除自定义模块后不再产出，旧包可能仍带） */
   summary: {
     entities: number
     relations: number
     entityTypes: number
     relationTypes: number
-    customModules: number
+    customModules?: number
     mediaFiles: number
   }
   /** 内嵌媒体索引 { 原始引用 → ZIP 中的路径 } */
@@ -76,7 +76,6 @@ export class PackageBuilder {
     const relationData = pack.serializers['relations'] as any
     const entityTypeData = pack.serializers['entity-types'] as any
     const relationTypeData = pack.serializers['relation-types'] as any
-    const moduleData = pack.serializers['custom-modules'] as any
 
     const manifest: PackageManifest = {
       formatVersion: 1,
@@ -88,7 +87,6 @@ export class PackageBuilder {
         relations: relationData?.total ?? (relationData?.relations?.length ?? 0),
         entityTypes: entityTypeData?.total ?? (entityTypeData?.schemas?.length ?? 0),
         relationTypes: relationTypeData?.total ?? (relationTypeData?.schemas?.length ?? 0),
-        customModules: moduleData?.total ?? (moduleData?.modules?.length ?? 0),
         mediaFiles: mediaRefs.filter(r => r.blob !== null).length,
       },
       mediaIndex: {},

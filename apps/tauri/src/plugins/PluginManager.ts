@@ -18,7 +18,7 @@ export class PluginManager {
   private preRegisteredTypes = new Map<string, { type: string; label: string; pluginId: string; active: boolean }>()
 
   /**
-   * 全局预注册所有27个芽的实体类型元数据。
+   * 全局预注册所有官方芽的实体类型元数据（26 芽；剪除「自定义模块」后，模块自造类型不再存在）。
    * 确保即使芽未激活，关系查询和类型引用也不会断裂。
    * 应在应用启动时调用一次。
    */
@@ -120,7 +120,7 @@ export class PluginManager {
     store.registerPlugin(plugin.manifest)
 
     // 视图镜像不在本处推送：真源（pluginAPI.registerView）派发生命周期事件，
-    // 由 `viewSync` 的单一订阅写 pluginStore + uiStore（含 module-builder 直调注册的视图）
+    // 由 `viewSync` 的单一订阅写 pluginStore + uiStore（任何调用方注册的视图都同一路径）
 
     console.log(`[PluginManager] 已激活: ${plugin.manifest.name} v${plugin.manifest.version}`)
   }

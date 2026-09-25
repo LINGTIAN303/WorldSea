@@ -1,9 +1,10 @@
 /**
  * 世界观芽动作表（worldview 工具的执行面）
  *
- * 单一事实源：原 10 个域工具（timeline / graph / mindmap / manuscript / outline /
- * notebook / tactical / magic / module_builder / entity_type）的 switch 分支统一迁入此处；
+ * 单一事实源：原域工具（timeline / graph / mindmap / manuscript / outline /
+ * notebook / tactical / magic / entity_type）的 switch 分支统一迁入此处；
  * `plugin-backend-tools.ts` 的旧工具定义改为薄壳转发（批 3 退役）。
+ * （module_builder 域的动作 2026-09-25 随「自定义模块」整体剪除。）
  *
  * 键结构：芽 id（official.xxx）→ action → SproutAction。
  * `params` 为「说明目录」用的参数说明（中性描述；从执行分支实况梳理，非全量 schema 投影）。
@@ -896,46 +897,7 @@ const MAGIC_ACTIONS: Record<string, SproutAction> = {
 }
 
 // ────────────────────────────────────────────────────────────
-// 9. module-builder（official.module-builder）· 4 动作
-// ────────────────────────────────────────────────────────────
-
-const MODULE_BUILDER_ACTIONS: Record<string, SproutAction> = {
-  create_module: {
-    name: 'create_module',
-    description: '创建自定义模块',
-    params: {
-      name: { type: 'string', description: '模块名称', required: true },
-      description: { type: 'string', description: '模块描述' },
-      layout: { type: 'string', description: '布局类型：dashboard / editor / manager / analyzer' },
-    },
-    run: async (args) => emitPluginEvent('module-builder', 'create_module', args),
-  },
-  delete_module: {
-    name: 'delete_module',
-    description: '删除模块',
-    params: {
-      moduleId: { type: 'string', description: '模块 ID', required: true },
-    },
-    run: async (args) => emitPluginEvent('module-builder', 'delete_module', args),
-  },
-  list_modules: {
-    name: 'list_modules',
-    description: '列出所有自定义模块',
-    run: async () => emitPluginQuery('module-builder', 'list_modules'),
-  },
-  reorder_components: {
-    name: 'reorder_components',
-    description: '重新排列模块内组件顺序',
-    params: {
-      moduleId: { type: 'string', description: '模块 ID' },
-      componentIds: { type: 'array', description: '组件 ID 新顺序' },
-    },
-    run: async (args) => emitPluginEvent('module-builder', 'reorder_components', args),
-  },
-}
-
-// ────────────────────────────────────────────────────────────
-// 10. entity_type 系（10 芽 · 每芽 4 动作）
+// 9. entity_type 系（10 芽 · 每芽 4 动作）
 // ────────────────────────────────────────────────────────────
 
 interface EntityTypeSproutConfig {
@@ -1112,7 +1074,6 @@ export const SPROUT_ACTIONS: SproutActionTable = {
   'official.notebook': NOTEBOOK_ACTIONS,
   'official.tactical-board': TACTICAL_ACTIONS,
   'official.magic': MAGIC_ACTIONS,
-  'official.module-builder': MODULE_BUILDER_ACTIONS,
   ...Object.fromEntries(
     ENTITY_TYPE_SPROUT_CONFIGS.map((c) => [c.sproutId, buildEntityTypeActions(c)]),
   ),

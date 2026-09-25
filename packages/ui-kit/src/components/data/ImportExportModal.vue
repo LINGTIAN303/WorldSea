@@ -35,7 +35,7 @@
                 <span class="scope-label">{{ s.label }}</span>
               </label>
             </div>
-            <p class="ie-hint">视图注册在自定义模块导入后自动重建，不可单独勾选</p>
+            <p class="ie-hint">视图注册由各芽激活时重建，不可单独勾选</p>
           </div>
 
           <!-- 预览 -->
@@ -144,7 +144,6 @@ import {
   useEntityStore,
   useRelationStore,
   usePluginStore,
-  useCustomModuleStore,
   fieldRegistry,
   getExportController,
   getImportController,
@@ -215,7 +214,6 @@ const modalResizable = useResizable({ panelId: 'modal-import-export', defaultWid
 /* ─── stores ─── */
 const entityStore = useEntityStore()
 const relationStore = useRelationStore()
-const customModuleStore = useCustomModuleStore()
 const pluginStore = usePluginStore()
 const { createBackup, getBackupInfo } = useAutoBackup()
 
@@ -267,7 +265,6 @@ watch([mode, exportFormat, selectedSerializers], async () => {
   }
   try {
     const ctrl = getExportController(
-      { modules: customModuleStore.modules, addModule: customModuleStore.addModule, updateModule: customModuleStore.updateModule, removeModule: customModuleStore.removeModule },
       { views: pluginStore.views },
     )
     exportPreview.value = await ctrl.exportToString(exportFormat.value, selectedSerializers.value)
@@ -317,7 +314,6 @@ async function doExport() {
   exporting.value = true
   try {
     const ctrl = getExportController(
-      { modules: customModuleStore.modules, addModule: customModuleStore.addModule, updateModule: customModuleStore.updateModule, removeModule: customModuleStore.removeModule },
       { views: pluginStore.views },
     )
     if (exportFormat.value === 'ws') {
@@ -343,7 +339,6 @@ async function doImport() {
   importError.value = ''
 
   getExportController(
-    { modules: customModuleStore.modules, addModule: customModuleStore.addModule, updateModule: customModuleStore.updateModule, removeModule: customModuleStore.removeModule },
     { views: pluginStore.views },
   )
 
@@ -387,7 +382,6 @@ function serializerIcon(id: string): string {
     'relations': 'link',
     'entity-types': 'outline',
     'relation-types': 'settings',
-    'custom-modules': 'settings',
     'views': 'image',
     'custom-fields': 'tag',
   }
@@ -406,7 +400,6 @@ function itemCount(data: unknown): number {
     if (Array.isArray(d.entities)) return d.entities.length
     if (Array.isArray(d.relations)) return d.relations.length
     if (Array.isArray(d.schemas)) return d.schemas.length
-    if (Array.isArray(d.modules)) return d.modules.length
     if (Array.isArray(d.views)) return d.views.length
   }
   return 0

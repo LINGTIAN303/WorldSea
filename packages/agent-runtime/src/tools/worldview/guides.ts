@@ -13,7 +13,6 @@
  * 零漂移轮（2026-09-21）：字段清单不再手写——由 `render.ts` 按芽 id 从运行时
  * `entitySchemaRegistry` 生成「实体字段（运行时）」段；此处只保留定位 / 语义 /
  * 关系 / 约束（守卫：guides 不含「——字段：」）。
- * 例外：module-builder 的 custom_module 无运行时实体类型注册，字段说明保留手写。
  */
 
 export interface SproutGuide {
@@ -205,7 +204,7 @@ export const SPROUT_GUIDES: Record<string, SproutGuide> = {
   },
 
   // ────────────────────────────────────────────
-  // 面板与模块
+  // 面板
   // ────────────────────────────────────────────
   'official.tactical-board': {
     overview: [
@@ -216,22 +215,6 @@ export const SPROUT_GUIDES: Record<string, SproutGuide> = {
       '能力：deploy_unit 部署 / move_unit 移动 / undo_move 撤销；get_battle_state 与 get_unit_stats 查询；simulate_turn 回合模拟（参数为行动列表 [{ unitId, action, target?, ... }]）；set_terrain 地形设置；export_battle_log 导出（json / markdown / html）。',
     ].join('\n'),
   },
-  'official.module-builder': {
-    overview: [
-      '自定义模块（视图）的构建与管理。',
-      '',
-      '实体：custom_module（模块）——字段：name、description、layout（布局类型：dashboard / editor / manager / analyzer）。',
-      '',
-      '组件注册表（可用组件类型）：',
-      '- 详情与编辑：detail-panel / edit-form / property-panel / field-group',
-      '- 操作与工具：toolbar / action-button / batch-actions / context-menu / quick-actions',
-      '- 搜索与筛选：search-box / filter-bar / sort-control',
-      '- 数据展示：entity-list / entity-grid / entity-table / kanban-board / entity-card',
-      '- 可视化：chart-bar / chart-pie / chart-line / relation-graph',
-      '- 布局容器：tab-container / accordion-container / split-panel',
-    ].join('\n'),
-  },
-
   // ────────────────────────────────────────────
   // 无专属说明的芽（批 2 新补）
   // ────────────────────────────────────────────

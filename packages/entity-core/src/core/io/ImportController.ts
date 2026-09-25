@@ -75,8 +75,8 @@ export class ImportController {
           const d = data as any
           report.items.push({
             serializerId: s.id,
-            total: d?.total ?? d?.entities?.length ?? d?.schemas?.length ?? d?.modules?.length ?? 0,
-            added: d?.total ?? d?.entities?.length ?? d?.schemas?.length ?? d?.modules?.length ?? 0,
+            total: d?.total ?? d?.entities?.length ?? d?.schemas?.length ?? 0,
+            added: d?.total ?? d?.entities?.length ?? d?.schemas?.length ?? 0,
             skipped: 0,
             updated: 0,
             errors: [],

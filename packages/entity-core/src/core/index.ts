@@ -45,7 +45,6 @@ export type { TypeInfo, EdgeTypeInfo } from './typeMappingRegistry'
 export { customFieldSerializer } from './serializers/CustomFieldSerializer'
 export { entitySerializer } from './serializers/EntitySerializer'
 export { entityTypeSerializer } from './serializers/EntityTypeSerializer'
-export { createModuleSerializer } from './serializers/ModuleSerializer'
 export { relationSerializer } from './serializers/RelationSerializer'
 export { relationTypeSerializer } from './serializers/RelationTypeSerializer'
 export { createViewSerializer } from './serializers/ViewSerializer'
@@ -75,8 +74,6 @@ export type {
 } from './serviceProvider'
 
 // Phase 5: 依赖注入服务接口（ProjectFS 解耦所需）
-export { registerModuleStoreApi, getModuleStoreApi } from './ModuleStoreApi'
-export type { ModuleStoreApi } from './ModuleStoreApi'
 export { registerProjectSwitcherApi, getProjectSwitcherApi } from './ProjectSwitcherApi'
 export type { ProjectSwitcherApi } from './ProjectSwitcherApi'
 

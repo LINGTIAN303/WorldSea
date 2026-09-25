@@ -102,7 +102,7 @@
 | `terminal/**` | 2 / 548 |
 | `space/composables/useAgentPersona.ts` | 1 / 92 |
 
-**边界切法（不冻结）**：`sprouts/**`（358 / 55,891，含 27 个 `official.*` 芽）为产品域，**仅** `sprouts/official/mindmap/agent-descriptor.ts` 冻结；`space/panels/` 的 `CreationPanel.vue`、`PreviewPanel.vue`、`UserProfilePopover.vue` 划出；`space/files/**`、`space/stores`、`space/components`、`space/workspace.ts` 视为产品域。
+**边界切法（不冻结）**：`sprouts/**`（358 / 55,891，含 26 个 `official.*` 芽；原 27 个——`official.module-builder` 已于 2026-09-25 随「自定义模块」整体剪除，本行数字为剪除前实测）为产品域，**仅** `sprouts/official/mindmap/agent-descriptor.ts` 冻结；`space/panels/` 的 `CreationPanel.vue`、`PreviewPanel.vue`、`UserProfilePopover.vue` 划出；`space/files/**`、`space/stores`、`space/components`、`space/workspace.ts` 视为产品域。
 **部分冻结**：`sprouts/official/{drawing,graph,magic,manuscript,timeline,tactical-board,workflow}`（注册了 `useAgentPluginBridge` / 调 Agent 编排）——产品实现留存，仅摘其 Agent 接线。
 
 ### 2.5 Tauri 命名面与事件面
@@ -119,7 +119,7 @@
 | `apps/tauri/src/App.vue:18` | `agent/agentDataBridges.ts`（535 行） | import | App 启动即注册全局数据桥 |
 | `apps/tauri/src/main.ts:23` | `internalRegistry`（`@worldsea/agent-runtime`） | import | 注册 agent-descriptor |
 | `apps/tauri/src/main.ts:26,55` | `sprouts/official/mindmap/agent-descriptor.ts`（168 行） | import | 产品芽→Agent 工具目录 |
-| `apps/tauri/src/plugins/bootstrap.ts:4` | `registerWorldviewSprout`（`@agent/index`） | import | 27 芽注册进 `worldview` 工具 |
+| `apps/tauri/src/plugins/bootstrap.ts:4` | `registerWorldviewSprout`（`@agent/index`） | import | 芽注册进 `worldview` 工具（剪除前芽数 27；`official.module-builder` 已于 2026-09-25 剪除，现为 26） |
 | `apps/tauri/src/composables/useProjectSwitcher.ts:8` | `setAgentCurrentProjectId`（`@agent/session/manager`） | import | 切项目同步 Agent 会话 |
 | 8 个 `agent-descriptor.ts`（`plugin-sdk` 380 / `canvas-engine` 357 / `entity-core` 337 / `ui-kit` 93 / `font-kit` 80 / `agent-core` 63 / `motion-kit` 46 + mindmap 168） | — | export | 产品包向 Agent 暴露规格 |
 | `sprouts/official/{drawing,graph,magic,manuscript,timeline}/…View.vue`、`tactical-board/composables/useTacticalAgentBridge.ts`、`workflow/components/PipelineChat.vue` | `useAgentPluginBridge`（30 行） | 事件 | `worldsea:agent:plugin-action` UI 动作消费 |
@@ -140,7 +140,7 @@
 | 候选 | 位置 | 为什么可能值得留 | 与 dsh 的重叠度 |
 |---|---|---|---|
 | MemoryCenter 四子 crate + `agent-memory` + `agent-index` | `crates/vendor/*`（25,130）+ `agent-memory`（15,283）+ `agent-index`（9,736） | 内容寻址 raw_store、衰减/淘汰、memory.md 契约，约 4.9 万行已验证资产 | dsh 有记忆/压缩/会话概念，机制不等价；**部分重叠** |
-| 世界观芽内容 + 27 芽定义 | `plugins/plugin-manifest.ts`（`OFFICIAL_SPROUTS` 实测 27 条）、`agent-runtime/src/tools/worldview/{actions.ts 1,119, guides.ts 301}` | 芽 id→action→参数说明表是纯领域语义，脱壳后仍服务产品 | **dsh 无对应物** |
+| 世界观芽内容 + 26 芽定义（原 27 条，`official.module-builder` 已于 2026-09-25 随「自定义模块」整体剪除） | `plugins/plugin-manifest.ts`（`OFFICIAL_SPROUTS` 实测 27 条 → 剪除后 26 条）、`agent-runtime/src/tools/worldview/{actions.ts 1,119, guides.ts 301}`（2026-09-23 实测） | 芽 id→action→参数说明表是纯领域语义，脱壳后仍服务产品 | **dsh 无对应物** |
 | 出网收口与抓取 | `net_egress.rs`(329)+测试(198)、`web_fetch_*`(809)+测试(456)、`search_commands.rs`(737)、`search_config.rs`(549) | 严格 URL 解析 + 逐跳公网复校 + 跨栈守卫测试，安全语义难重建 | dsh 有 `web`/`web-fetch-http`；**重叠但守卫更严** |
 | 权限四值语义 + 项目规则 | `agent-kernel/src/{permission_machine.rs, project_rules.rs}`、`.worldsea/permissions.json` | 位次单点化 `decide()` 纯函数；`SessionGrant`/`AlwaysAsk` 不可翻案不变量 | dsh 有 `permission-presets`；**语义重叠、判定表不等价** |
 | 工作区文件回滚 | `agent-commands/src/{workspace_rewind.rs, workspace_rewind_tests.rs}` | before-image 内容寻址 + 请求边界倒序撤销 + 幂等，前端有契约测试 | dsh 侧**未知** |

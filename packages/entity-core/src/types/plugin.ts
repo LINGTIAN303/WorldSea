@@ -46,8 +46,6 @@ export interface PluginView {
   pluginId?: string
   /** 视图工具条模式，默认 'bar' */
   toolbar?: ViewToolbarMode
-  _moduleId?: string
-  _viewConfig?: import('./module').ModuleViewConfig
 }
 
 export interface PluginInstance {

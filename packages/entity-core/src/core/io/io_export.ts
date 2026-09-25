@@ -15,7 +15,6 @@ import {
   relationSerializer,
   entityTypeSerializer,
   relationTypeSerializer,
-  createModuleSerializer,
   createViewSerializer,
   customFieldSerializer,
 } from '../serializers'
@@ -25,7 +24,6 @@ import {
    ════════════════════════════════════════ */
 
 function initSerializers(
-  customModuleStore?: { modules: any[]; addModule: any; updateModule: any; removeModule: any },
   pluginStore?: { views: any[] },
 ) {
   serializerRegistry.clear()
@@ -34,15 +32,6 @@ function initSerializers(
   serializerRegistry.register(entityTypeSerializer)
   serializerRegistry.register(relationTypeSerializer)
   serializerRegistry.register(customFieldSerializer)
-
-  if (customModuleStore) {
-    serializerRegistry.register(createModuleSerializer(
-      () => customModuleStore.modules,
-      customModuleStore.addModule,
-      customModuleStore.updateModule,
-      customModuleStore.removeModule,
-    ))
-  }
 
   if (pluginStore) {
     serializerRegistry.register(createViewSerializer(
@@ -134,10 +123,9 @@ export async function importToDb(
  * 初始化 Serializers + 返回 controller 实例（供新版 UI 使用）
  */
 export function getExportController(
-  customModuleStore?: { modules: any[]; addModule: any; updateModule: any; removeModule: any },
   pluginStore?: { views: any[] },
 ): ExportController {
-  initSerializers(customModuleStore, pluginStore)
+  initSerializers(pluginStore)
   return _exportController
 }
 

@@ -18,25 +18,6 @@ export type {
 export { KNOWN_PERMISSIONS } from './plugin'
 
 export type {
-  FieldType,
-  ModuleField,
-  ModuleEntityType,
-  ModuleRelationType,
-  ModuleViewConfig,
-  ModuleDependency,
-  CustomModule,
-  ComponentType,
-} from './module'
-
-export type {
-  ModuleLayoutSchema,
-  LayoutSlot,
-  LayoutSlotChild,
-  PlacedComponent,
-  ComponentTypeId,
-} from './layoutSchema'
-
-export type {
   SemanticHintName,
   SemanticHint,
   TraitDefinition,

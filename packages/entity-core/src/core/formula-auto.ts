@@ -18,8 +18,7 @@ function buildFormulaCache(): Record<string, Record<string, string>> {
     for (const field of schema.fields) {
       if (field.fieldType === 'formula') {
         // Formula 表达式存储在 custom field 的 formula 属性中
-        // 通过字段 key 从 ModuleField 的 formula 属性获取表达式
-        // 当前 FieldSchema 没有 formula 属性，需要从 registry 获取 ModuleField 定义
+        // 当前 FieldSchema 没有 formula 属性，需要从自定义字段定义里取表达式
         const formulaField = schema.customFields?.find(f => f.key === field.key)
         if (formulaField && 'formula' in formulaField) {
           if (!cache[schema.typeKey]) cache[schema.typeKey] = {}

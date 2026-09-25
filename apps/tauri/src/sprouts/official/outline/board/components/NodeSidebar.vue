@@ -137,7 +137,7 @@
 <script setup lang="ts">
 /**
  * 节点侧栏：只读展示 + 事件上报；入板逻辑在 BoardView（统一写入 useBoardLayout）。
- * 拖拽用 HTML5 DnD（与 module-builder 的 Toolbox 同路子），画布侧 dragover/drop 接收。
+ * 拖拽用 HTML5 DnD，画布侧 dragover/drop 接收。
  */
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import type { Entity } from '@worldsea/entity-core'

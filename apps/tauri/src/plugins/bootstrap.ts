@@ -5,7 +5,7 @@ import { usePluginStore } from '@worldsea/entity-core'
 import { registerWorldviewSprout } from '@agent/index'
 import { useUIStore } from '../stores/uiStore'
 
-/** 已迁移芽（第一批：characters/regions/concepts/items；第二批：timeline/organizations/culture/conflict/inspiration/apparel/outline/manuscript/drawing/notebook；第三批：WASM 布局类 13 个） */
+/** 已迁移芽（第一批：characters/regions/concepts/items；第二批：timeline/organizations/culture/conflict/inspiration/apparel/outline/manuscript/drawing/notebook；第三批：WASM 布局类 12 个） */
 const MIGRATED_SPROUT_IDS = new Set([
   // 第一批
   'official.characters', 'official.regions', 'official.concepts', 'official.items',
@@ -17,7 +17,7 @@ const MIGRATED_SPROUT_IDS = new Set([
   'official.graph', 'official.mindmap', 'official.species', 'official.languages',
   'official.plants', 'official.magic', 'official.weapons', 'official.combat_stats',
   'official.buildings', 'official.tactical-board', 'official.workflow',
-  'official.module-builder', 'official.custom',
+  'official.custom',
 ])
 
 /** 已迁移芽的静态 loader */
@@ -47,7 +47,6 @@ const sproutLoaders: Record<string, () => Promise<any>> = {
   'official.buildings': () => import('../sprouts/official/buildings/index'),
   'official.tactical-board': () => import('../sprouts/official/tactical-board/index'),
   'official.workflow': () => import('../sprouts/official/workflow/index'),
-  'official.module-builder': () => import('../sprouts/official/module-builder/index'),
   'official.custom': () => import('../sprouts/official/custom/index'),
 }
 

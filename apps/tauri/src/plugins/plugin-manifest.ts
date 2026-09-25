@@ -22,7 +22,6 @@ export const OFFICIAL_SPROUTS: readonly OfficialSproutEntry[] = [
   { id: 'official.items', importPath: './items/index', defaultActive: true, name: '物品' },
   { id: 'official.mindmap', importPath: './mindmap/index', defaultActive: true, name: '思维导图' },
   { id: 'official.custom', importPath: './custom/index', defaultActive: false, name: '自定义' },
-  { id: 'official.module-builder', importPath: './module-builder/index', defaultActive: false, name: '模块构建器' },
   { id: 'official.graph', importPath: './graph/index', defaultActive: true, name: '图谱' },
   { id: 'official.buildings', importPath: './buildings/index', defaultActive: true, name: '建筑' },
   { id: 'official.species', importPath: './species/index', defaultActive: true, name: '物种' },

@@ -10,7 +10,7 @@ Built with **Tauri 2** + **Vue 3** + **TypeScript** + **Rust (WASM)**.
 
 - **Rust 分层 Agent 内核**：底座能力 5 + 扩展模式 8 = 13 种编排模式（产品语义与架构归属双轨），多模型 provider，50+ 内置技能
 - **创作功能全覆盖**：官方插件注册实体类型（schema 化）+ 图谱/时间线/战术板等可视化工具 + TipTap 手稿编辑器
-- **27 个官方模块化插件**：实体与工具按插件组织，schema 驱动 UI，Module Builder 支持自定义实体类型
+- **26 个官方模块化插件**：实体与工具按插件组织，schema 驱动 UI
 - **本地优先**：Tauri 2 桌面单二进制，数据落本地（IndexedDB / SQLite / 文件系统绑定），离线可用
 
 ## Features
@@ -30,7 +30,7 @@ Built with **Tauri 2** + **Vue 3** + **TypeScript** + **Rust (WASM)**.
 - **Concepts & Conflicts** — lore concepts, conflict tracking
 - **Culture** — festival calendars, customs
 
-> 以上为官方插件注册的实体类型（schema 化，见 `apps/tauri/src/plugins/official`）；可用 Module Builder 自定义新类型。
+> 以上为官方插件注册的实体类型（schema 化，见 `apps/tauri/src/plugins/official`）。
 
 #### Visual Tools
 - **Mindmap** — canvas-based mind mapping with AI suggestions, Rust-powered layout & graph analysis
@@ -63,11 +63,6 @@ Built with **Tauri 2** + **Vue 3** + **TypeScript** + **Rust (WASM)**.
 - Visual pipeline builder with step cards
 - Built-in templates (character network, magic system, medieval kingdom)
 - Agent task, batch create, consistency check, transform steps
-
-#### Module Builder
-- Schema-driven UI generation
-- 27 component renderers (tables, kanban, charts, forms, etc.)
-- Custom entity types with slot-based layout
 
 #### Project System
 - Per-project isolated databases (IndexedDB / SQLite via Tauri)

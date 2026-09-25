@@ -7,7 +7,7 @@ export function createViewSerializer(
   return {
     id: 'views',
     label: '视图注册',
-    dependsOn: ['custom-modules'],
+    dependsOn: [],
 
     async collect(): Promise<Record<string, unknown>> {
       const views = getViews()
@@ -18,13 +18,12 @@ export function createViewSerializer(
           id: v.id,
           label: v.label,
           icon: v.icon,
-          _isCustomModule: v.id.startsWith('custom.'),
         })),
       }
     },
 
     async import(_data: Record<string, unknown>, _strategy: ImportStrategy): Promise<void> {
-      console.log('[ViewSerializer] 视图注册由 ModuleRuntime 在模块导入后自动重建')
+      console.log('[ViewSerializer] 视图注册由各芽 activate 时重建（导入后重播种）')
     },
   }
 }
