@@ -9,9 +9,10 @@ import { invoke } from '@tauri-apps/api/core'
 import { registerPluginCleanup, registerViewFor, unregisterViewFor } from '../../registry'
 import { worldTreeState, worldTreeContext } from '../../tree'
 import type { WorldPlugin } from '../../manifest'
+import { SPIKE_PANEL_MANIFEST } from './manifest'
 
 const VIEW_ID = 'ws-world-tree-panel'
-const PLUGIN_ID = 'ws.spike.panel'
+const PLUGIN_ID = SPIKE_PANEL_MANIFEST.id
 
 /** 视图级响应式状态（首版读全局对象 = 快照渲染，故自持 reactive）。 */
 const live = reactive({
@@ -43,13 +44,7 @@ const PanelView = defineComponent({
 })
 
 const plugin: WorldPlugin = {
-  manifest: {
-    id: PLUGIN_ID,
-    name: 'Cordis Spike',
-    version: '1.0.0',
-    description: '第二棵树的示例插件：注册一个自检面板视图，并调用一个壳能力',
-    requires: ['world.info'],
-  },
+  manifest: SPIKE_PANEL_MANIFEST,
   apply(ctx) {
     // 依赖注入：服务由本树在装载前 provide（世界语义的自有服务）
     const info = ctx.get('world.info', false) as { name?: string } | null

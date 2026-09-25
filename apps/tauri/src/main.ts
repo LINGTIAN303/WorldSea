@@ -20,10 +20,8 @@ installFileDragGuard()
 import { registerValidationApi } from '@worldsea/entity-core'
 import { registerBackend } from '@worldsea/canvas-engine/core'
 import { injectAllKeyframes } from '@worldsea/motion-kit'
-import { internalRegistry } from '@worldsea/agent-runtime'
 import { preloadSupportingModels } from './agent/composables/preloadModels'
 import { installModelFetchWatcher } from './agent/composables/useModelFetchWatcher'
-import { mindmapDescriptor } from './sprouts/official/mindmap/agent-descriptor'
 
 /**
  * Tauri 端后端初始化
@@ -51,8 +49,9 @@ async function initializeBackend() {
   // 注入所有 keyframes 动画
   injectAllKeyframes()
 
-  // 芽级 Agent 能力注册（App 侧注册模式：toolbus internal 链，避开 packages 反向依赖）
-  internalRegistry.register(mindmapDescriptor)
+  // 芽级 Agent 能力注册（App 侧注册模式：toolbus internal 链，避开 packages 反向依赖）：
+  // C 批（2026-09-25）起 mindmap 的能力面改经**能力桥**暴露（`world.mindmap.*`，随树插件装载/撤登记），
+  // 不再走此处登记。
 }
 
 const app = createApp(App)

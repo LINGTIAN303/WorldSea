@@ -176,6 +176,16 @@ DSH_HOME="D:/WorldSea/.独立项/b0-home" node apps/cli/lib/bin.js web --no-open
 - **起树位置**：工作台入口 `apps/tauri/workspace/main.ts`（`startWorldTree()`，幂等）；`viewSync` 装配时对账一次 → 起树与装配的先后顺序无关。开发期热重载：`src/world/index.ts` 自接受 HMR（更新即拆树→重起）。
 - **真机口径**：`__WS_WORLD_TREE__`（started/plugins/rejected/error/dispose）；日志 `[world-tree]`；拆树后 `__WS_VIEWS_PROBE__.snapshot().truth` 与 `mirror` 均无 `ws-*` 残留。
 
+**树内第一个真芽：思维导图（C，2026-09-25，详见 [C 批计划](../../plans/2026-09-25-C-迁真芽-mindmap批计划.md)）**：
+
+- **形态**：`world/plugins/mindmap/`（`index.ts` 插件入口 + `manifest.ts` **轻清单** + `capabilities.ts` 能力面 + 视图/文档/存储四件；清单拆轻是为「装载器/测试不拉起重图」——`mind-elixir` 图在 vitest 并行下导入 >35s）。
+- **迁移口径（后续芽照此办）**：搬目录（`git mv`）→ 换入口（清单/作用域注册/能力/清理）→ 能力改桥 → 5 处清单与路径收敛；**组件内部不动**（entity-core / ui-kit / plugin-sdk 是**合法的产品级共享服务**）。官方芽数 **26 → 25**（设置面板不再有「思维导图」启停行；侧栏可见性由 `isViewVisible` 的「清单外→显示」接管）。
+- **身份与作用域**：视图 `mindmap` 带 `pluginId='ws.mindmap'`（作用域原语）；`useProjectSwitcher` 的动态 import 改指 `@/world/plugins/mindmap/mindmapStore`。
+- **能力面（5 条，acl=[main]）**：`world.mindmap.list/read/create/append/write`（`write` 为破坏性：写前自动备份到项目 KV + 摘要里写明）。返回值 = **结构化对象**（旧描述符回 JSON 字符串）；写后派发 `ws-mindmap-docs-changed`（视图开着即时刷新）。
+- **撤登记（C 批新增命令）**：`cmd_capability_unregister(ids)`——只有**登记方窗口**能撤自己的（混入他人能力整批拒）；随插件清理执行（拆树即撤，真机反证：撤后跨窗调用报 `CAPABILITY_UNKNOWN`）。
+- **旧面**：`mindmap/agent-descriptor.ts`（旧内部注册表登记）已删；`agent-runtime` 的 13 条 `MINDMAP_ACTIONS`（DOM 事件）与 guide **未动**（旧 Agent 面冻结，属 D2）。
+- **真机口径**：主窗 `cmd_capability_invoke('world.mindmap.create', {name, markdown})` → `read` 回读大纲 → `list` 计数；拆树后 `cmd_capability_list` 里 `world.mindmap.*` 计数应回 0。
+
 **核查与清理**（改壳或复跑前）：
 - `taskkill //IM worldsea-tauri-app.exe //T //F` 清干净再起；被强杀的实例会留**孤儿 dsh host**（node 不在 Job Object 里），用 `tasklist | grep -i node` 复核。**本机 `wmic` 已失效（恒返回空）**——进程核查改用 `tasklist` / `powershell Get-CimInstance`。
 - 应用日志建议直写（`… > 日志 2>&1`）；本机 `tee` 有块缓冲，短窗口内读会拿到**过期内容**（曾据此误判「页面未加载」）。

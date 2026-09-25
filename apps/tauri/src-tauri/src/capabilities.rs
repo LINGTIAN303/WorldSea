@@ -148,6 +148,29 @@ pub fn find(id: &str) -> Option<CapabilityRecord> {
     lock_registry().iter().find(|r| r.id == id).cloned()
 }
 
+/// 撤登记（**同一提供方**才能撤；all-or-nothing：名单里混入他人能力即整批拒）。
+/// 未知 id 幂等跳过（重复撤/提前撤不报错）。
+pub fn unregister(ids: &[String], provider: &str) -> Result<usize, String> {
+    if !PROVIDERS.contains(&provider) {
+        return Err(format!("CAPABILITY_BAD_DECL: 未知提供方窗口 {provider}"));
+    }
+    {
+        let registry = lock_registry();
+        // 注意：**不要在持锁时调 `find`**（std::sync::Mutex 非重入 → 自死锁；2026-09-25 实测踩到）
+        if let Some((foreign, owner)) = registry
+            .iter()
+            .find(|r| ids.iter().any(|id| &r.id == id) && r.provider != provider)
+            .map(|r| (r.id.clone(), r.provider.clone()))
+        {
+            return Err(format!("CAPABILITY_CONFLICT: {foreign} 由 {owner} 登记，{provider} 不能撤"));
+        }
+    }
+    let mut registry = lock_registry();
+    let before = registry.len();
+    registry.retain(|r| !(r.provider == provider && ids.iter().any(|id| &r.id == id)));
+    Ok(before - registry.len())
+}
+
 /// ACL 校验：调用方是否在声明名单内（空名单 = 无人可调）。
 pub fn check_acl(record: &CapabilityRecord, caller: &str) -> Result<(), String> {
     if !PROVIDERS.contains(&caller) {
@@ -251,6 +274,18 @@ pub fn cmd_capability_register(
         ids.join(" / ")
     );
     Ok(ids.len())
+}
+
+/// 命令：撤登记（提供方撤回自己的能力；`C` 批起：拆树/卸插件时收口声明面）。
+#[tauri::command]
+pub fn cmd_capability_unregister(
+    window: tauri::WebviewWindow,
+    ids: Vec<String>,
+) -> Result<usize, String> {
+    let provider = window.label().to_string();
+    let removed = unregister(&ids, &provider)?;
+    println!("[WORLDSEA-CAP] 撤登记：provider={provider} 撤下 {removed} 条（申请 {} 条）", ids.len());
+    Ok(removed)
 }
 
 /// 命令：能力内省（供 Agent 发现面；含 ACL 与提供方）。

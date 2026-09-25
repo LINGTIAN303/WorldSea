@@ -15,6 +15,7 @@ import { Context } from '@deepseek-ai/cordis'
 import type { CordisContext, CordisFiberLike } from '@deepseek-ai/cordis'
 
 import { collectWorldPlugins, type LoadReport } from './loader'
+import type { WorldPlugin } from './manifest'
 import { runPluginCleanups } from './registry'
 
 /** 本树提供的服务（`requires` 预检的**权威名单**；新增服务 = 这里登记 + 下面 provide）。 */
@@ -55,8 +56,9 @@ export function worldTreeState(): WorldTreeState {
   return { started: state.started, plugins: [...state.plugins], rejected: [...state.rejected], error: state.error }
 }
 
-/** 启动第二棵树（幂等：已启动则直接返回句柄）。 */
-export async function startWorldTree(): Promise<WorldTreeHandle> {
+/** 启动第二棵树（幂等：已启动则直接返回句柄）。
+ * @param options.plugins 注入装载结果（**测试/开发接缝**：跳过 `collectWorldPlugins` 的真图导入） */
+export async function startWorldTree(options?: { plugins?: WorldPlugin[] }): Promise<WorldTreeHandle> {
   if (state.started) return publish()
   try {
     const context = new Context()
@@ -68,7 +70,9 @@ export async function startWorldTree(): Promise<WorldTreeHandle> {
         mode: 'browser',
       }),
     )
-    const { accepted, report } = await collectWorldPlugins([...WORLD_SERVICES])
+    const { accepted, report } = options?.plugins
+      ? { accepted: options.plugins, report: { loaded: options.plugins.map(p => p.manifest.id), rejected: [] } }
+      : await collectWorldPlugins([...WORLD_SERVICES])
     state.rejected = report.rejected
     for (const plugin of accepted) {
       const fiber = context.plugin(

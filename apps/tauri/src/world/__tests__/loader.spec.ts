@@ -5,7 +5,7 @@
  * 且**不影响**其余插件装载。
  */
 import { describe, expect, it } from 'vitest'
-import { assemblePlugins, collectWorldPlugins } from '../loader'
+import { assemblePlugins } from '../loader'
 import { WORLD_SERVICES } from '../tree'
 import type { WorldPlugin } from '../manifest'
 
@@ -76,10 +76,26 @@ describe('assemblePlugins（纯函数）', () => {
   })
 })
 
-describe('collectWorldPlugins（真实清单冒烟）', () => {
-  it('扫到示例插件并接受（清单与依赖预检同过）', async () => {
-    const { accepted, report } = await collectWorldPlugins(services)
-    expect(accepted.map(p => p.manifest.id)).toContain('ws.spike.panel')
+describe('真实清单（轻校验：不拉起重图）', () => {
+  // 真实插件图（mind-elixir 等）在 vitest 并行下导入 >35s，故本段只做**轻校验**：
+  // ① glob **键**发现（装载器扫得到这两个入口）② 真清单形状 + 依赖预检（用轻 manifest 模块）。
+  // 真实模块导入路径由真机探针（__WS_WORLD_TREE__）覆盖。
+  const indexFiles = Object.keys(import.meta.glob('./../plugins/*/index.ts')).sort()
+
+  it('装载器能扫到树内每个插件的 index.ts（glob 键发现）', () => {
+    expect(indexFiles.some(file => file.includes('/mindmap/index.ts'))).toBe(true)
+    expect(indexFiles.some(file => file.includes('/spike-panel/index.ts'))).toBe(true)
+  })
+
+  it('真清单全部通过校验与依赖预检（含 C 批迁入的 ws.mindmap）', async () => {
+    const { MINDMAP_MANIFEST } = await import('../plugins/mindmap/manifest')
+    const { SPIKE_PANEL_MANIFEST } = await import('../plugins/spike-panel/manifest')
+    const candidates = [
+      { file: 'plugins/mindmap/manifest.ts', plugin: { manifest: MINDMAP_MANIFEST, apply: () => {} } },
+      { file: 'plugins/spike-panel/manifest.ts', plugin: { manifest: SPIKE_PANEL_MANIFEST, apply: () => {} } },
+    ]
+    const { accepted, report } = assemblePlugins(candidates, services)
     expect(report.rejected).toEqual([])
+    expect(accepted.map(p => p.manifest.id).sort()).toEqual(['ws.mindmap', 'ws.spike.panel'])
   })
 })

@@ -253,11 +253,13 @@ pub fn run() {
             // E2：应用级偏好（主题真源：读写 + 同步 dsh + 广播两窗）
             app_prefs::cmd_theme_get,
             app_prefs::cmd_theme_set,
-            // A：壳侧能力桥（登记 / 内省 / 调用 / 回执；两窗共用，ACL 在 Rust 侧按窗口 label 判）
+            // A：壳侧能力桥（登记 / 内省 / 调用 / 回执 / 撤登记；两窗共用，ACL 在 Rust 侧按窗口 label 判）
             capabilities::cmd_capability_register,
             capabilities::cmd_capability_list,
             capabilities::cmd_capability_invoke,
             capabilities::cmd_capability_result,
+            // C 批：撤登记（拆树/卸插件时收口声明面）
+            capabilities::cmd_capability_unregister,
             // C2-b：页面流桥（openStream 钩子 → 管道 mux 流：开 / 上行 / 半关 / 取消）
             dsh_stream::cmd_stream_open,
             dsh_stream::cmd_stream_send,

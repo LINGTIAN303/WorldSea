@@ -13,8 +13,8 @@ const MIGRATED_SPROUT_IDS = new Set([
   'official.timeline', 'official.organizations', 'official.culture', 'official.conflict',
   'official.inspiration', 'official.apparel', 'official.outline', 'official.manuscript',
   'official.drawing', 'official.notebook',
-  // 第三批（WASM 布局类）
-  'official.graph', 'official.mindmap', 'official.species', 'official.languages',
+  // 第三批（WASM 布局类；mindmap 已于 C 批迁入第二棵树 = ws.mindmap）
+  'official.graph', 'official.species', 'official.languages',
   'official.plants', 'official.magic', 'official.weapons', 'official.combat_stats',
   'official.buildings', 'official.tactical-board', 'official.workflow',
   'official.custom',
@@ -37,7 +37,6 @@ const sproutLoaders: Record<string, () => Promise<any>> = {
   'official.drawing': () => import('../sprouts/official/drawing/index'),
   'official.notebook': () => import('../sprouts/official/notebook/index'),
   'official.graph': () => import('../sprouts/official/graph/index'),
-  'official.mindmap': () => import('../sprouts/official/mindmap/index'),
   'official.species': () => import('../sprouts/official/species/index'),
   'official.languages': () => import('../sprouts/official/languages/index'),
   'official.plants': () => import('../sprouts/official/plants/index'),

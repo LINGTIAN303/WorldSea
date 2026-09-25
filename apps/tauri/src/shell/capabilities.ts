@@ -87,6 +87,18 @@ export async function registerWorldCapabilities(caps: WorldCapability[]): Promis
 }
 
 /**
+ * 撤登记一组能力（C 批，2026-09-25）：拆树/卸插件时收口声明面——壳侧只认**登记方窗口**撤自己的
+ * （混入他人能力整批拒）；本地 handler 同步移除（撤后即便有迟到的调用派发也报「未登记」）。
+ */
+export async function unregisterWorldCapabilities(ids: string[]): Promise<number> {
+  for (const id of ids) handlers.delete(id)
+  if (!hasShellBridge()) return 0
+  const count = await invoke<number>('cmd_capability_unregister', { ids })
+  console.log(`[worldsea-capability] 已撤登记 ${count} 条（provider=workspace）`)
+  return count
+}
+
+/**
  * 首批内建能力（真语义，非占位）：
  * - `world.views.list`：Agent 发现创作面的入口（读 `pluginAPI` **真源**，与视图生命周期同源）；
  * - `world.project.current`：Agent 判断「在给谁干活」的上下文。

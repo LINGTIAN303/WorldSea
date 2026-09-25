@@ -140,6 +140,29 @@ async fn timeout_is_a_noop_when_call_already_completed() {
 }
 
 #[test]
+fn unregister_is_provider_scoped_and_all_or_nothing() {
+    let _guard = setup();
+    register(&[decl("world.a", &["main"]), decl("world.b", &["main"])], "workspace").unwrap();
+    register(&[decl("agent.x", &["workspace"])], "main").unwrap();
+
+    // 混入他人能力 → 整批拒（且什么都没撤）
+    let denied = unregister(&["world.a".to_string(), "agent.x".to_string()], "workspace").unwrap_err();
+    assert!(denied.contains("CAPABILITY_CONFLICT"), "实际：{denied}");
+    assert!(denied.contains("agent.x"), "拒绝信息应点名越界项");
+    assert_eq!(list().len(), 3, "整批拒后注册表不得变动");
+
+    // 只撤自己的 → 撤下计数正确；未知 id 幂等跳过
+    let removed = unregister(&["world.a".to_string(), "world.missing".to_string()], "workspace").unwrap();
+    assert_eq!(removed, 1);
+    assert!(find("world.a").is_none());
+    assert!(find("world.b").is_some(), "未申请的能力不得被连带撤掉");
+    assert_eq!(unregister(&["world.a".to_string()], "workspace").unwrap(), 0, "重复撤应幂等");
+
+    // 未知提供方窗口 → 拒
+    assert!(unregister(&["world.b".to_string()], "shell").unwrap_err().contains("未知提供方"));
+}
+
+#[test]
 fn list_is_sorted_and_unknown_id_is_none() {
     let _guard = setup();
     register(&[decl("world.b", &["main"]), decl("world.a", &["main"])], "workspace").unwrap();

@@ -38,4 +38,5 @@ commands.allow = [
     "cmd_capability_list",
     "cmd_capability_invoke",
     "cmd_capability_result",
+    "cmd_capability_unregister",
 ]
