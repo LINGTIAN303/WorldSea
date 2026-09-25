@@ -1,6 +1,7 @@
 // 轻量芽启动装配（Phase C 迁移：替代 web governor 编排）
 import { pluginManager } from './PluginManager'
-import { usePluginStore, pluginAPI } from '@worldsea/entity-core'
+import { installViewSynchronizer } from './viewSync'
+import { usePluginStore } from '@worldsea/entity-core'
 import { registerWorldviewSprout } from '@agent/index'
 import { useUIStore } from '../stores/uiStore'
 
@@ -59,13 +60,9 @@ export async function bootstrapSprouts(opts?: BootstrapOptions): Promise<void> {
   // 1. 预注册所有实体类型元数据（关系查询不断裂）
   pluginManager.preRegisterAllEntityTypes()
 
-  // 2. 视图钩子：芽 registerView → pluginStore（侧栏显示）
+  // 2. 视图生命周期装配：真源（pluginAPI）派发 → pluginStore（侧栏）+ uiStore 顺序 自动镜像
+  installViewSynchronizer()
   const pluginStore = usePluginStore()
-  pluginManager.setViewHook((viewId: string) => {
-    const view = pluginAPI.getViews().find(v => v.id === viewId)
-    if (view) pluginStore.registerView(view)
-    useUIStore().ensureViewInOrder(viewId)
-  })
 
   // 3. 加载并激活已迁移芽；同时登记进世界观芽工具（worldview）
   //    ——「芽名随已有芽的注册」的实现：id 为稳定键、name/description 实时取登记值，

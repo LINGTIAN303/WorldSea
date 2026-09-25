@@ -29,3 +29,13 @@ commands.allow = [
 identifier = "allow-stream-bridge"
 description = "流桥：页面 openStream 钩子 → 管道 mux（开 / 上行 / 半关 / 取消）"
 commands.allow = ["cmd_stream_open", "cmd_stream_send", "cmd_stream_end", "cmd_stream_cancel"]
+
+[[permission]]
+identifier = "allow-capability-bridge"
+description = "能力桥（A，2026-09-25）：能力登记 / 内省 / 调用 / 回执——**两窗共用**（它本身就是两窗的缝）；调用 ACL 在 Rust 侧按窗口 label 判（提供方不可冒名、回执只认提供方）"
+commands.allow = [
+    "cmd_capability_register",
+    "cmd_capability_list",
+    "cmd_capability_invoke",
+    "cmd_capability_result",
+]

@@ -13,6 +13,14 @@ export const usePluginStore = defineStore('plugin', () => {
     }
   }
 
+  /** 反注册单个视图（显示侧镜像；真源变更见 `pluginAPI.onViewChange`）。返回是否真的删掉了 */
+  function unregisterView(id: string): boolean {
+    const idx = views.value.findIndex((v) => v.id === id)
+    if (idx === -1) return false
+    views.value.splice(idx, 1)
+    return true
+  }
+
   function registerPlugin(manifest: PluginManifest) {
     if (!plugins.value.find((p) => p.id === manifest.id)) {
       plugins.value.push(manifest)
@@ -38,6 +46,7 @@ export const usePluginStore = defineStore('plugin', () => {
     views,
     loading,
     registerView,
+    unregisterView,
     registerPlugin,
     getView,
     clearViews,

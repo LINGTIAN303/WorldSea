@@ -111,6 +111,37 @@ fn space_switch_is_granted_in_the_shared_shell_bridge() {
 }
 
 #[test]
+fn capability_bridge_is_shared_by_both_windows_and_gated_by_a_falsification_switch() {
+    // A（2026-09-25）：能力桥是**两窗的缝**——权限单列且两窗都引；提供方/回执的 ACL 在 Rust 侧按 label 判。
+    let shell = read_text("permissions/worldsea-shell.toml");
+    assert!(shell.contains("identifier = \"allow-capability-bridge\""), "缺能力桥权限块");
+    for command in [
+        "cmd_capability_register",
+        "cmd_capability_list",
+        "cmd_capability_invoke",
+        "cmd_capability_result",
+    ] {
+        assert!(shell.contains(&format!("\"{command}\"")), "能力桥权限缺 {command}");
+    }
+    for file in ["capabilities/default.json", "capabilities/workspace.json"] {
+        let capability = read_json(file);
+        let permissions: Vec<String> = capability["permissions"]
+            .as_array()
+            .expect("permissions 数组")
+            .iter()
+            .map(|value| value.as_str().unwrap_or_default().to_string())
+            .collect();
+        assert!(
+            permissions.contains(&"allow-capability-bridge".to_string()),
+            "{file} 缺能力桥权限（agent 面或产品域任一侧不引 = 缝断开）"
+        );
+    }
+    // 反证开关在注入侧：关掉后 agent 提供方缺席（跨窗调用应报 UNKNOWN）
+    let bridge = read_text("src/dsh_bridge.rs");
+    assert!(bridge.contains("WORLDSEA_NO_CAPABILITY_BRIDGE"), "缺反证开关 WORLDSEA_NO_CAPABILITY_BRIDGE");
+}
+
+#[test]
 fn geometry_plan_transfers_maximize_and_never_writes_geometry_over_it() {
     // 源最大化 → 目标只跟最大化（且已是最大化时不重复调），无论如何都不写几何（写=顶掉最大化）
     assert_eq!(geometry_plan(true, false), (true, false));

@@ -13,6 +13,7 @@
     "core:window:allow-close",
     "core:window:allow-start-dragging",
     "allow-shell-bridge",
-    "allow-product-domain"
+    "allow-product-domain",
+    "allow-capability-bridge"
   ]
 }

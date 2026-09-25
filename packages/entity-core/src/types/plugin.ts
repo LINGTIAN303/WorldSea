@@ -56,6 +56,14 @@ export interface PluginInstance {
   deactivate?(): void | Promise<void>
 }
 
+/** 视图生命周期变更（真源 `pluginAPI` 派发；显示侧镜像据此增删）。 */
+export interface ViewChange {
+  kind: 'registered' | 'unregistered'
+  view: PluginView
+}
+
+export type ViewChangeListener = (change: ViewChange) => void
+
 export const KNOWN_PERMISSIONS = [
   'storage:read',
   'storage:write',

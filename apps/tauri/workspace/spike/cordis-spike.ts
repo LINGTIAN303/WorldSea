@@ -8,6 +8,7 @@
  * 验收探针（均可 JSON 化，不含循环引用）：
  *  - `globalThis.__WS_CORDIS_SPIKE__`：{ started, plugins, capability, error, disposed, dispose() }
  *  - `globalThis.__WS_CORDIS_SPIKE_CTX__` / `__WS_CORDIS_SPIKE_PLUGIN__`：句柄原件（调试用）
+ *  - `globalThis.__WS_VIEWS_PROBE__`（D 批追加）：视图生命周期三面快照 + 真源级注册/反注册 + 同步器脱附
  *
  * 依赖口径：**相对引用** dsh 树内 vendored 的 `@deepseek-ai/cordis`（4.0.4 = 上游 cordis 副本，MIT）
  * ——Spike 不新增依赖、不碰 dsh 树；正式化时改 npm `cordis@4.0.4` 或自 vendor（见批计划）。
@@ -18,8 +19,10 @@ import { Context } from '../../../../dsh/vendor/cordis/lib/index.js'
 import { invoke } from '@tauri-apps/api/core'
 import { defineComponent, h, markRaw, reactive } from 'vue'
 
-import { usePluginStore } from '@worldsea/entity-core'
+import { pluginAPI, usePluginStore } from '@worldsea/entity-core'
+import type { PluginView } from '@worldsea/entity-core'
 import { useUIStore } from '@/stores/uiStore'
+import { installViewSynchronizer, uninstallViewSynchronizer } from '@/plugins/viewSync'
 
 /** cordis 侧最小接口（只声明本 spike 用到的面）。 */
 interface CordisFiberLike {
@@ -128,10 +131,11 @@ const spikeSprout: CordisPlugin = {
           mirror()
         })
       // 生命周期：拆树/卸插件时反注册视图（框架 effect 优先，本地 cleanups 兜底）。
-      // ★ 产品壳目前**没有「单个视图反注册」**：`pluginAPI.unregisterView` 动的是它自己的数组，
-      //   而侧栏读的是 `pluginStore.views` → 这里直接过滤 store 数组（正式化时应给 store 补一个）。
+      // ★ 反注册走 D 批补的显示侧 API（`pluginStore.unregisterView`）——侧栏即时消失。
+      //   正式化第二棵树时应注册到**真源** `pluginAPI`（由 viewSync 镜像）；还需按插件作用域的
+      //   注册面（`pluginAPI.currentPluginId` 目前是全局单值），随 B 批一起做。
       const cleanup = () => {
-        store.views = store.views.filter(view => view.id !== VIEW_ID)
+        store.unregisterView(VIEW_ID)
         live.plugins = live.plugins.filter(name => name !== spikeSprout.name)
         mirror()
       }
@@ -199,4 +203,54 @@ export function startCordisSpike(config?: Record<string, unknown>): CordisSpikeS
     console.error('[cordis-spike] 启动失败:', error)
   }
   return handle
+}
+
+/**
+ * D 批（2026-09-25）真机探针：视图生命周期的**三面快照**（真源 / 显示侧镜像 / 侧栏顺序）+ **真源级**
+ * 注册/反注册 + 同步器脱附（反证「镜像由事件订阅驱动」）。`attach()` 会做一次双向对账（自愈脱附期漏网）。
+ * 仅供 CDP 探针（`__WS_VIEWS_PROBE__`）；正式化第二棵树（B 批）时移到测试工具位。
+ */
+export interface ViewsProbe {
+  snapshot(): { truth: string[]; mirror: string[]; order: string[]; currentView: string | null }
+  register(id: string, label?: string): boolean
+  unregister(id: string): boolean
+  detach(): void
+  attach(): void
+}
+
+;(globalThis as { __WS_VIEWS_PROBE__?: ViewsProbe }).__WS_VIEWS_PROBE__ = {
+  snapshot() {
+    return {
+      truth: pluginAPI.getViews().map(view => view.id),
+      mirror: usePluginStore().views.map(view => view.id),
+      order: [...useUIStore().sidebarOrder],
+      currentView: useUIStore().currentView,
+    }
+  },
+  register(id, label) {
+    const view: PluginView = { id, label: label ?? id, icon: 'bulb', component: markRaw(SpikeView) }
+    pluginAPI.registerView(view)
+    // 真源会把 pluginId 覆写为 currentPluginId（全局单值）→ 归零，避免侧栏按「芽启停」意外过滤掉探针视图
+    delete view.pluginId
+    return pluginAPI.getViews().some(entry => entry.id === id)
+  },
+  unregister(id) {
+    return pluginAPI.unregisterView(id)
+  },
+  detach: () => {
+    uninstallViewSynchronizer()
+  },
+  attach: () => {
+    installViewSynchronizer()
+    const store = usePluginStore()
+    const ui = useUIStore()
+    const truth = pluginAPI.getViews()
+    for (const view of truth) {
+      store.registerView(view)
+      ui.ensureViewInOrder(view.id)
+    }
+    for (const view of [...store.views]) {
+      if (!truth.some(entry => entry.id === view.id)) store.unregisterView(view.id)
+    }
+  },
 }

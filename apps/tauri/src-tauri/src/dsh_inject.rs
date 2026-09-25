@@ -35,12 +35,15 @@ pub(crate) fn inject_shell_scripts(
     bridge: bool,
     titlebar: bool,
     diag: bool,
+    capabilities: bool,
     notice: Option<&str>,
 ) -> String {
     let mut scripts = String::new();
     // E2-b（2026-09-24）：壳自有面（安全网 / 横幅 / 窗口栏退化值）按主题真源取亮暗——先于它们注入
+    // A（2026-09-25）补齐 `__WORLDSEA_THEME__`：能力伺服要报主题快照，且与工作台页注入面一致
     scripts.push_str(&format!(
-        "<script>/* worldsea-shell:theme */globalThis.__WORLDSEA_DARK__ = {}</script>",
+        "<script>/* worldsea-shell:theme */globalThis.__WORLDSEA_THEME__ = \"{}\";globalThis.__WORLDSEA_DARK__ = {}</script>",
+        crate::app_prefs::preference_now(),
         crate::app_prefs::dark_now()
     ));
     match transport {
@@ -76,6 +79,13 @@ pub(crate) fn inject_shell_scripts(
     if diag {
         scripts.push_str("<script>");
         scripts.push_str(DIAG_SCRIPT);
+        scripts.push_str("</script>");
+    }
+    // A（2026-09-25）：Agent 面能力伺服（登记 `agent.*` 能力 + `__WORLDSEA_CAPABILITY_CALL__` 派发入口；
+    // `WORLDSEA_NO_CAPABILITY_BRIDGE=1` 反证关——关掉后 agent 提供方缺席，跨窗调用应报 UNKNOWN）
+    if capabilities {
+        scripts.push_str("<script>");
+        scripts.push_str(CAPABILITIES_SCRIPT);
         scripts.push_str("</script>");
     }
     // C4-b：工作区不可供给时的顶部横幅（文案由壳探测结果带出；关掉见 WORLDSEA_NO_WORKSPACE_NOTICE）
@@ -152,5 +162,7 @@ const TITLEBAR_SCRIPT: &str = include_str!("dsh_titlebar.js");
 const STREAM_BRIDGE_SCRIPT: &str = include_str!("dsh_stream_bridge.js");
 /// 页内诊断（`WORLDSEA_SHELL_DIAG=1` 才注入）：console/异常/资源错误 → 壳日志。
 const DIAG_SCRIPT: &str = include_str!("dsh_diag.js");
+/// Agent 面能力伺服（A，常驻，可 `WORLDSEA_NO_CAPABILITY_BRIDGE=1` 关）：`agent.face.status` 等。
+const CAPABILITIES_SCRIPT: &str = include_str!("dsh_capabilities.js");
 /// 工作区横幅（C4-b，仅不可供给时注入）：顶部提示 + 「修复工作区权限」按钮（点击才执行）。
 const WORKSPACE_NOTICE_SCRIPT: &str = include_str!("dsh_workspace_notice.js");

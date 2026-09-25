@@ -14,7 +14,6 @@ interface PluginRegistration {
 export class PluginManager {
   private loaded = new Map<string, PluginInstance>()
   private registrations = new Map<string, PluginRegistration>()
-  private viewHook?: (viewId: string) => void
   /** 全局预注册的实体类型——即使芽未激活，元数据也可查询 */
   private preRegisteredTypes = new Map<string, { type: string; label: string; pluginId: string; active: boolean }>()
 
@@ -59,10 +58,6 @@ export class PluginManager {
   /** 查询实体类型对应的芽是否已激活 */
   isTypeActive(type: string): boolean {
     return this.preRegisteredTypes.get(type)?.active ?? false
-  }
-
-  setViewHook(hook: (viewId: string) => void) {
-    this.viewHook = hook
   }
 
   /** 项目切换前调用：清空已激活状态，允许重新 activate 重播种官方类型（registerEntityV2 双写旧版+V2） */
@@ -124,9 +119,8 @@ export class PluginManager {
     const store = usePluginStore()
     store.registerPlugin(plugin.manifest)
 
-    for (const viewId of registeredViews) {
-      this.viewHook?.(viewId)
-    }
+    // 视图镜像不在本处推送：真源（pluginAPI.registerView）派发生命周期事件，
+    // 由 `viewSync` 的单一订阅写 pluginStore + uiStore（含 module-builder 直调注册的视图）
 
     console.log(`[PluginManager] 已激活: ${plugin.manifest.name} v${plugin.manifest.version}`)
   }

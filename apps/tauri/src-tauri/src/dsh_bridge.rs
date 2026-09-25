@@ -74,6 +74,8 @@ pub fn prepare(ready_url: &str, pipe_path: Option<&str>, workspace_notice: Optio
     let diag = diag_enabled();
     let inject_transport = std::env::var_os("WORLDSEA_NO_TRANSPORT_INJECT").is_none();
     let inject_shell_bridge = std::env::var_os("WORLDSEA_NO_SHELL_BRIDGE").is_none();
+    // A（2026-09-25）：Agent 面能力伺服（缺省注入；`WORLDSEA_NO_CAPABILITY_BRIDGE=1` 反证关）
+    let capabilities = std::env::var_os("WORLDSEA_NO_CAPABILITY_BRIDGE").is_none();
     // C6：无边框窗口栏（缺省注入；`WORLDSEA_NO_TITLEBAR=1` 反证关；`WORLDSEA_FRAMED=1` 原生边框态亦不注入）
     let framed = std::env::var_os("WORLDSEA_FRAMED").is_some();
     let titlebar = !framed && std::env::var_os("WORLDSEA_NO_TITLEBAR").is_none();
@@ -94,6 +96,9 @@ pub fn prepare(ready_url: &str, pipe_path: Option<&str>, workspace_notice: Optio
     if diag {
         println!("[DSH-SHELL] bridge: 页内诊断已开（console 钩子 → [DSH-SHELL] page(diag)）");
     }
+    if !capabilities {
+        eprintln!("[DSH-SHELL] bridge: 能力伺服装配已按 WORLDSEA_NO_CAPABILITY_BRIDGE 关闭（反证模式：agent 提供方缺席）");
+    }
     if let Some(deny) = &deny_path {
         println!("[DSH-SHELL] bridge: 测试钩子 WORLDSEA_DENY_PATH={deny}（该前缀一律 404）");
     }
@@ -112,6 +117,7 @@ pub fn prepare(ready_url: &str, pipe_path: Option<&str>, workspace_notice: Optio
                 inject_shell_bridge,
                 titlebar,
                 diag,
+                capabilities,
                 deny_path,
                 open_paths,
                 workspace_notice,
@@ -140,6 +146,7 @@ pub fn prepare(ready_url: &str, pipe_path: Option<&str>, workspace_notice: Optio
                 inject_shell_bridge,
                 titlebar,
                 diag,
+                capabilities,
                 deny_path,
                 open_paths,
                 workspace_notice,

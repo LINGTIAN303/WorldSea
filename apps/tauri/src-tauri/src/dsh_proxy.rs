@@ -21,6 +21,8 @@ pub(crate) struct ProxyCfg {
     pub titlebar: bool,
     /// 诊断开关：`WORLDSEA_SHELL_DIAG=1`
     pub diag: bool,
+    /// A（2026-09-25）：Agent 面能力伺服注入（`WORLDSEA_NO_CAPABILITY_BRIDGE=1` 反证关）
+    pub capabilities: bool,
     /// 测试钩子：命中该前缀直接 404（验「资源失败 → 非白屏」降级链）
     pub deny_path: Option<String>,
     /// 逃生口：`WORLDSEA_BRIDGE_OPEN=1` 关闭路径白名单（白名单误伤时的退路）
@@ -236,6 +238,7 @@ pub(crate) fn proxy(cfg: &ProxyCfg, request: &http::Request<Vec<u8>>) -> http::R
             || cfg.inject_shell_bridge
             || cfg.titlebar
             || cfg.diag
+            || cfg.capabilities
             || cfg.workspace_notice.is_some())
     {
         let text = String::from_utf8_lossy(&body).to_string();
@@ -245,6 +248,7 @@ pub(crate) fn proxy(cfg: &ProxyCfg, request: &http::Request<Vec<u8>>) -> http::R
             cfg.inject_shell_bridge,
             cfg.titlebar,
             cfg.diag,
+            cfg.capabilities,
             cfg.workspace_notice.as_deref(),
         )
         .into_bytes();

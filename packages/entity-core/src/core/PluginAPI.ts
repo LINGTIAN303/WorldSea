@@ -1,6 +1,7 @@
 import type { EntityTypeSchema, FieldSchema } from '../types'
 import type { RelationTypeSchema, RelationTypeSchemaV2 } from '../types'
 import type { PluginView } from '../types'
+import type { ViewChange, ViewChangeListener } from '../types'
 import type { TraitRef, FacetDefinition } from '../types/trait'
 import { entitySchemaRegistry } from './EntitySchema'
 import { relationSchemaRegistry } from './RelationSchema'
@@ -42,6 +43,8 @@ class PluginAPIImpl {
   private _nodeTypes: Map<string, NodeTypeDefinition> = new Map()
   private _externalNodeRegistry: ExternalNodeRegistry | null = null
   private currentPluginId = ''
+  /** 视图生命周期订阅者（显示侧镜像据此增删；真源是 `_views`）。 */
+  private viewListeners = new Set<ViewChangeListener>()
 
   setPluginId(id: string) {
     this.currentPluginId = id
@@ -132,9 +135,9 @@ class PluginAPIImpl {
 
   registerView(view: PluginView): void {
     view.pluginId = this.currentPluginId
-    if (!this._views.find((v) => v.id === view.id)) {
-      this._views.push(view)
-    }
+    if (this._views.find((v) => v.id === view.id)) return
+    this._views.push(view)
+    this.notifyViewChange('registered', view)
   }
 
   getViews(): PluginView[] {
@@ -143,16 +146,39 @@ class PluginAPIImpl {
 
   unregisterView(viewId: string): boolean {
     const idx = this._views.findIndex(v => v.id === viewId)
-    if (idx !== -1) {
-      this._views.splice(idx, 1)
-      return true
-    }
-    return false
+    if (idx === -1) return false
+    const [removed] = this._views.splice(idx, 1)
+    if (removed) this.notifyViewChange('unregistered', removed)
+    return true
   }
 
-  /** 清空所有已注册的视图（项目切换时使用） */
+  /**
+   * 订阅视图生命周期（注册 / 反注册 / 清空），返回退订函数。
+   * **真源变更的唯一广播口**——显示侧（pluginStore、侧栏顺序与选中态）由装配层订阅镜像，
+   * 各调用点（activate / deactivate / 模块注册 / 拆树）不许各自同步。
+   */
+  onViewChange(listener: ViewChangeListener): () => void {
+    this.viewListeners.add(listener)
+    return () => {
+      this.viewListeners.delete(listener)
+    }
+  }
+
+  /** 派发视图变更（监听器抛错逐个隔离，不影响注册/反注册本身）。 */
+  private notifyViewChange(kind: ViewChange['kind'], view: PluginView): void {
+    for (const listener of [...this.viewListeners]) {
+      try {
+        listener({ kind, view })
+      } catch (error) {
+        console.error('[PluginAPI] 视图变更监听器抛错（已隔离）:', error)
+      }
+    }
+  }
+
+  /** 清空所有已注册的视图（项目切换时使用；逐条派发反注册事件） */
   clearViews(): void {
-    this._views.length = 0
+    const removed = this._views.splice(0)
+    for (const view of removed) this.notifyViewChange('unregistered', view)
   }
 
   unregisterHooksByPlugin(pluginId: string): number {

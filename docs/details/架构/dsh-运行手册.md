@@ -155,8 +155,19 @@ DSH_HOME="D:/WorldSea/.独立项/b0-home" node apps/cli/lib/bin.js web --no-open
 - **读 dsh 现值**：走 **index 的 boot-theme 行**（`const preference = "…"`）——`settings/describe` 里 `preference` 同名键多（多个命名空间/schema，实测误读成相邻键），别解析它。
 - **排查**：壳日志 `[DSH-SHELL] theme:` 行（真源 / 种子 / 跟随 / 同步失败都留痕）。
 
-**核查与清理**（改壳或复跑前）：
+**能力桥（A）与视图生命周期（D），2026-09-25，详见 [DA 批计划](../../plans/2026-09-25-双Cordis-DA批计划.md)**：
 
+- **角色**：`product`（工作台窗 = 世界语义提供方）/ `agent`（主窗 = Agent 面）/ `shell`（注册表 + ACL + 中转 + 审计，v1 不做提供方）。这是**双 Cordis 的交界缝**：Agent 面的调用方经壳调产品域能力，反之亦然。
+- **命令**（权限 `allow-capability-bridge`，**两窗共用**——它本身就是两窗的缝）：`cmd_capability_register(decls)`（provider = 调用窗口 label，**不可冒名**；同 id 异提供方 → CONFLICT；同提供方重复 → 覆盖）/ `cmd_capability_list()` / `cmd_capability_invoke(id, args)`（`async`，10s 超时）/ `cmd_capability_result(callId, ok, result, error)`（**只有该调用的提供方窗口**能回）。
+- **中转**：壳在提供方窗口 `eval` `__WORLDSEA_CAPABILITY_CALL__(callId, id, args)` → 提供方 `Promise.resolve(handler(args))` → 回执。两端同一套派发协议（脚本：`dsh_capabilities.js` 与 `apps/tauri/src/shell/capabilities.ts` 的伺服）；handler 必须**快返回**（eval 跑在主线程；重工作先异步化再回执）。
+- **错误码**（结构化前缀）：`CAPABILITY_UNKNOWN` / `CAPABILITY_FORBIDDEN` / `CAPABILITY_CONFLICT` / `CAPABILITY_UNAVAILABLE`（提供方窗口未打开）/ `CAPABILITY_TIMEOUT` / `CAPABILITY_BAD_DECL` / `CAPABILITY_NO_PENDING`。
+- **首批能力**：`world.views.list`、`world.project.current`（provider=workspace，acl=[main]）；`agent.face.status`（provider=main，acl=[workspace]）。
+- **审计**：壳日志 `[WORLDSEA-CAP] 登记 / 调用 / 回执 / 拒` 行（含 provider、ACL 拒因、耗时）。
+- **开关**：`WORLDSEA_NO_CAPABILITY_BRIDGE=1`（不注入 agent 侧伺服 → agent 提供方缺席，跨窗调用报 UNKNOWN；反证用）。产品侧登记面 = `registerWorldCapabilities()`（B/C 批的芽注册自己的能力调它；工作台入口已登记内建两条）。
+- **D · 视图生命周期**：真源 = `pluginAPI`（`onViewChange` 派发注册/反注册 + `unregisterView`），显示侧 = `pluginStore`（补 `unregisterView`），装配点**单点** = `plugins/viewSync.ts` 的 `installViewSynchronizer()`（幂等）。两条刻意不做：不删侧栏顺序偏好、不夺当前选中（理由见批计划 §一）。
+- **探针**：`__WS_VIEWS_PROBE__`（三面快照 truth/mirror/order + 真源级 `register`/`unregister` + `detach()/attach()` 反证）随 Spike 装载（`localStorage['ws:cordis-spike']='1'`，工作台窗）。**取证口径**：窗口隐藏时侧栏 DOM 不重排（轮播靠 rAF）→ 侧栏可见性必须在**切到工作台窗之后**取证；能力调用两窗各自在**自己 ACL 内**发（跨窗只在 ACL 允许方向）。
+
+**核查与清理**（改壳或复跑前）：
 - `taskkill //IM worldsea-tauri-app.exe //T //F` 清干净再起；被强杀的实例会留**孤儿 dsh host**（node 不在 Job Object 里），用 `tasklist | grep -i node` 复核。**本机 `wmic` 已失效（恒返回空）**——进程核查改用 `tasklist` / `powershell Get-CimInstance`。
 - 应用日志建议直写（`… > 日志 2>&1`）；本机 `tee` 有块缓冲，短窗口内读会拿到**过期内容**（曾据此误判「页面未加载」）。
 - Windows 坑（已修，代码注释留档）：`accept()` 出来的套接字**继承 listener 的非阻塞态**（Unix 不继承），中转若忘了 `set_nonblocking(false)`，握手 101 后会 0 字节即断（`WSAEWOULDBLOCK 10035`）。

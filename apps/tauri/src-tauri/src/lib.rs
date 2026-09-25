@@ -57,6 +57,8 @@ mod workspace_dist;
 mod workspace_window;
 // E2（2026-09-24）：应用级偏好真源（主题）——壳持有，两窗读写，dsh 经设置通道对齐
 mod app_prefs;
+// A（2026-09-25）：壳侧能力桥——类型化能力注册表 + 调用 ACL + 两窗中转 + 审计（双 Cordis 的交界缝）
+mod capabilities;
 // C1-a（2026-09-24）：mux WebSocket 凭据中转（改写握手首部后双向透传；C2 起仅 legacy 对照模式使用）
 mod dsh_relay;
 // C2-b（2026-09-24）：管道传输客户端（宿主管道载体的壳侧对端：帧编解码 + 请求多路复用 + 流 lane）
@@ -251,6 +253,11 @@ pub fn run() {
             // E2：应用级偏好（主题真源：读写 + 同步 dsh + 广播两窗）
             app_prefs::cmd_theme_get,
             app_prefs::cmd_theme_set,
+            // A：壳侧能力桥（登记 / 内省 / 调用 / 回执；两窗共用，ACL 在 Rust 侧按窗口 label 判）
+            capabilities::cmd_capability_register,
+            capabilities::cmd_capability_list,
+            capabilities::cmd_capability_invoke,
+            capabilities::cmd_capability_result,
             // C2-b：页面流桥（openStream 钩子 → 管道 mux 流：开 / 上行 / 半关 / 取消）
             dsh_stream::cmd_stream_open,
             dsh_stream::cmd_stream_send,

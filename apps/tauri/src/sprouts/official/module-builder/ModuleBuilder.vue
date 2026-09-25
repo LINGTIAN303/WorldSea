@@ -39,7 +39,7 @@ import { CreateButton } from '@worldsea/plugin-sdk'
 import { useCustomModuleStore } from '@worldsea/entity-core'
 import { registerModule, unregisterModule, getCustomModuleViews } from '../../../core/ModuleRuntime'
 import { setModuleViewData, clearModuleViewData } from '../../../core/ModuleViewRegistry'
-import { pluginAPI, usePluginStore } from '@worldsea/entity-core'
+import { pluginAPI } from '@worldsea/entity-core'
 import { createEmptyLayoutSchema } from './types/layoutSchema'
 import ModuleRuntimeRenderer from './runtime/ModuleRuntimeRenderer.vue'
 import ModuleCard from './components/ModuleCard.vue'
@@ -50,7 +50,6 @@ import PageEditor from './PageEditor.vue'
 import type { CustomModule, PluginView } from '@worldsea/entity-core'
 
 const customModuleStore = useCustomModuleStore()
-const pluginStore = usePluginStore()
 
 const viewingModuleId = ref<string | null>(null)
 const showDeleteConfirm = ref(false)
@@ -84,16 +83,15 @@ function startEdit(id: string) {
 }
 
 /**
- * 清理某模块已发布到 pluginAPI / pluginStore / 视图数据注册表的视图。
+ * 清理某模块已发布到 pluginAPI / 视图数据注册表的视图。
  * 供删除与重新发布前调用，避免旧视图残留（发布路径去重）。
+ * 显示侧（pluginStore）由 `viewSync` 订阅真源自动跟随——不再手动 splice。
  */
 function unpublishModuleViews(modId: string) {
   const prefix = `custom.${modId}.`
   for (const v of pluginAPI.getViews()) {
     if (v.id.startsWith(prefix)) pluginAPI.unregisterView(v.id)
   }
-  const keep = pluginStore.views.filter(v => !v.id.startsWith(prefix))
-  pluginStore.views.splice(0, pluginStore.views.length, ...keep)
   clearModuleViewData(modId)
 }
 
@@ -133,7 +131,7 @@ function confirmPublish() {
   // 清理旧视图 + 视图数据（去重，避免重发布残留）
   unpublishModuleViews(mod.id)
 
-  // 收敛为单一运行时视图语义，注册到 pluginAPI 与 pluginStore（侧边栏）
+  // 收敛为单一运行时视图语义，注册到 pluginAPI（真源）——显示侧由 viewSync 订阅镜像
   const views = getCustomModuleViews(mod)
   for (const v of views) {
     setModuleViewData(v.id, { module: { ...mod } as any, viewConfig: null as any })
@@ -148,7 +146,6 @@ function confirmPublish() {
     // registerView 会把 pluginId 覆写为 currentPluginId（运行时最后一次激活的芽），
     // 这里再显式归一到父芽，保证侧边栏按芽启停过滤时不会意外隐藏
     view.pluginId = CUSTOM_VIEW_PLUGIN_ID
-    pluginStore.registerView(view)
   }
 
   mod.updatedAt = new Date().toISOString()

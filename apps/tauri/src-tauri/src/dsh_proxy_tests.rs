@@ -125,6 +125,7 @@ fn cfg(host_port: u16) -> ProxyCfg {
         inject_shell_bridge: true,
         titlebar: true,
         diag: false,
+        capabilities: true,
         deny_path: None,
         open_paths: false,
         workspace_notice: None,
@@ -148,6 +149,7 @@ fn pipe_cfg(
             inject_shell_bridge: true,
             titlebar: true,
             diag: false,
+            capabilities: true,
             deny_path: None,
             open_paths: false,
             workspace_notice: None,
@@ -204,8 +206,10 @@ fn index_injected_with_contract_order_and_no_store() {
     let text = body_text(&response);
     let transport = text.find("worldsea-shell:transport").expect("缺传输注入");
     let base = text.find("<base href=\"./\">").expect("宿主 <base> 丢了");
-    let boot = text.find("__DSH_BOOT__").expect("宿主 head 行丢了");
-    let ready = text.find("__DSH_BOOT_READY__").expect("宿主尾行丢了");
+    // 针取**宿主行专属串**（不是裸键名）：A 批（能力伺服）起，壳注入脚本也会提到同一键名，
+    // 裸针会被提前命中 → 顺序断言假红（2026-09-25 实测踩到）。
+    let boot = text.find(r#"globalThis["__DSH_BOOT__"]=[]"#).expect("宿主 head 行丢了");
+    let ready = text.find("__DSH_BOOT_READY__ ??= Promise.withResolvers()").expect("宿主尾行丢了");
     // 顺序契约：壳脚本 → 宿主 <base> → 宿主 head 行 → 宿主尾行（原样保留且相对顺序不变）
     assert!(transport < base, "壳脚本必须先于宿主 <base>：{text}");
     assert!(base < boot, "宿主行顺序被破坏：{text}");

@@ -12,6 +12,8 @@ export type {
   PluginView,
   PluginInstance,
   PluginPermissionName,
+  ViewChange,
+  ViewChangeListener,
 } from './plugin'
 export { KNOWN_PERMISSIONS } from './plugin'
 

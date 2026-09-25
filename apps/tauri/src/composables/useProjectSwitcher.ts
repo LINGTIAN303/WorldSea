@@ -295,9 +295,10 @@ export function useProjectSwitcher() {
     entitySchemaRegistry.clear()
     entitySchemaRegistryV2.clear()
     relationSchemaRegistry.clear()
-    const pluginStore = usePluginStore()
-    pluginStore.clearViews()
-    pluginStore.clearPlugins()
+    // 视图清**真源**（pluginAPI）：显示侧（pluginStore）由 viewSync 订阅即时镜像；
+    // sidebarOrder 是用户排序偏好，刻意保留——重播种后各视图回到原位置（2026-09-25 D 批）。
+    pluginAPI.clearViews()
+    usePluginStore().clearPlugins()
 
     // 2. 重新初始化模块注册表（从新项目 DB 加载模块并注册 schema）
     await moduleRegistry.initialize()
@@ -308,15 +309,9 @@ export function useProjectSwitcher() {
     pluginManager.resetForProjectSwitch()
     await bootstrapSprouts({ skipDefaultView: true })
 
-    // 4. 将 pluginAPI 中的视图全量同步到 pluginStore
-    //    官方芽视图在 pluginAPI._views 中始终存在（不会被清空），
-    //    自定义模块视图由 moduleRegistry.initialize() 重新注册。
-    //    但 moduleRegistry.initialize() 只写 pluginAPI._views，
-    //    不会触发 pluginManager.viewHook → pluginStore.registerView，
-    //    所以需要手动同步。
-    for (const view of pluginAPI.getViews()) {
-      pluginStore.registerView(view)
-    }
+    // 4. 视图无需手动同步：官方芽 view 经 bootstrapSprouts → pluginAPI.registerView、
+    //    自定义模块 view 经 moduleRegistry.initialize() → pluginAPI.registerView，
+    //    真源变更由 viewSync 的单一订阅镜像到 pluginStore（2026-09-25 D 批收敛，原全量重灌删除）。
   }
 
   /**
