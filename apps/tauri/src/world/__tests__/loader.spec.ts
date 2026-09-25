@@ -108,7 +108,7 @@ describe('真实清单（轻校验：不拉起重图）', () => {
     expect(accepted.map(p => p.manifest.id)).toEqual(['official.alpha', 'official.beta'])
   })
 
-  it('真清单全部通过校验与依赖预检（含 C 批迁入的 ws.mindmap）', async () => {
+  it('真清单全部通过校验与依赖预检（含 mindmap 与示例插件）', async () => {
     const { MINDMAP_MANIFEST } = await import('../plugins/mindmap/manifest')
     const { SPIKE_PANEL_MANIFEST } = await import('../plugins/spike-panel/manifest')
     const candidates = [
@@ -117,6 +117,6 @@ describe('真实清单（轻校验：不拉起重图）', () => {
     ]
     const { accepted, report } = assemblePlugins(candidates, services)
     expect(report.rejected).toEqual([])
-    expect(accepted.map(p => p.manifest.id).sort()).toEqual(['ws.mindmap', 'ws.spike.panel'])
+    expect(accepted.map(p => p.manifest.id).sort()).toEqual(['official.mindmap', 'ws.spike.panel'])
   })
 })

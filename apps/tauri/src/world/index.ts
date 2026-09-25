@@ -27,7 +27,7 @@ import { availablePlugins, disposeWorldTree, setPluginEnabled, startWorldTree } 
 /** 起树 + 接线（幂等）。 */
 export async function installWorldTree(): Promise<void> {
   const settings = useSettingsStore()
-  // 启停来源 = 芽清单；**清单外的树插件（如 ws.mindmap / ws.spike.panel）视为启用**——
+  // 启停来源 = 芽清单；**清单外的树插件（如 ws.spike.panel；思维导图已于 C2 走查修正归回 `official.mindmap` 进启停清单）视为启用**——
   // 与侧栏可见性共用同一口径（`isViewVisible`），避免两处规则漂移。
   await startWorldTree({ isEnabled: id => isViewVisible(id) })
 

@@ -1,6 +1,6 @@
 /**
  * 「思维导图」插件（C 批）：迁移后的三件事各有一处守卫——
- * ① 清单合法且身份 = `ws.mindmap`（离开官方芽清单）；② 视图注册走作用域（pluginId 正确）；
+ * ① 清单合法且身份 = `official.mindmap`（与其余芽同口径，进芽面板启停）；② 视图注册走作用域（pluginId 正确）；
  * ③ 5 条 `world.mindmap.*` 能力声明形状 + list/create/read 在 localStorage 回退下的真跑通；
  * ④ 清理：拆树后视图消失（能力撤登记在无壳桥环境为本地移除，真机另证）。
  */
@@ -13,24 +13,24 @@ import mindmapPlugin from '../plugins/mindmap'
 import { WORLD_MINDMAP_CAPABILITIES } from '../plugins/mindmap/capabilities'
 
 afterEach(() => {
-  runPluginCleanups('ws.mindmap')
+  runPluginCleanups('official.mindmap')
   pluginAPI.clearViews()
   localStorage.clear()
 })
 
-describe('mindmap 插件（ws.mindmap）', () => {
-  it('清单合法、身份为 ws.mindmap（不再用 official.mindmap）', () => {
+describe('mindmap 插件（official.mindmap）', () => {
+  it('清单合法、身份为 official.mindmap（与官方芽清单同键，供芽面板启停）', () => {
     const check = validateManifest(mindmapPlugin.manifest)
     expect(check.ok).toBe(true)
-    expect(mindmapPlugin.manifest.id).toBe('ws.mindmap')
+    expect(mindmapPlugin.manifest.id).toBe('official.mindmap')
     expect(mindmapPlugin.manifest.description.length).toBeGreaterThan(0)
   })
 
-  it('apply 后视图入真源，pluginId 恒为 ws.mindmap（作用域原语）', () => {
+  it('apply 后视图入真源，pluginId 恒为 official.mindmap（作用域原语）', () => {
     pluginAPI.setPluginId('official.characters') // 模拟全局值被官方芽污染
-    mindmapPlugin.apply({} as never, createPluginApi('ws.mindmap'))
+    mindmapPlugin.apply({} as never, createPluginApi('official.mindmap'))
     const view = pluginAPI.getViews().find(v => v.id === 'mindmap')
-    expect(view?.pluginId).toBe('ws.mindmap')
+    expect(view?.pluginId).toBe('official.mindmap')
     expect(pluginAPI.getPluginId()).toBe('official.characters') // 调用后不污染全局
   })
 
@@ -71,10 +71,10 @@ describe('mindmap 插件（ws.mindmap）', () => {
   })
 
   it('清理：拆树后视图自真源消失', () => {
-    mindmapPlugin.apply({} as never, createPluginApi('ws.mindmap'))
+    mindmapPlugin.apply({} as never, createPluginApi('official.mindmap'))
     expect(pluginAPI.getViews().some(v => v.id === 'mindmap')).toBe(true)
 
-    runPluginCleanups('ws.mindmap')
+    runPluginCleanups('official.mindmap')
 
     expect(pluginAPI.getViews().some(v => v.id === 'mindmap')).toBe(false)
   })
