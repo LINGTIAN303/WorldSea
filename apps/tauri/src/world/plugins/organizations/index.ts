@@ -1,4 +1,4 @@
-import type { PluginAPIType } from '@worldsea/entity-core'
+import type { WorldPluginApi } from '../../api'
 import OrganizationView from './OrganizationView.vue'
 
 export const manifest = {
@@ -21,7 +21,7 @@ export const manifest = {
   ],
 }
 
-export function activate(api: PluginAPIType) {
+export function apply(_ctx: unknown, api: WorldPluginApi) {
   api.registerEntityV2({
     type: 'organization',
     label: '组织',
@@ -46,3 +46,5 @@ export function activate(api: PluginAPIType) {
 
   api.registerView({ id: 'organizations', label: '势力/组织', icon: 'organization', component: OrganizationView })
 }
+
+export default { manifest, apply }

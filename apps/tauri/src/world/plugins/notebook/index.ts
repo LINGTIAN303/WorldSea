@@ -1,4 +1,4 @@
-import type { PluginAPIType } from '@worldsea/entity-core'
+import type { WorldPluginApi } from '../../api'
 import NotebookView from './NotebookView.vue'
 
 export const manifest = {
@@ -20,7 +20,7 @@ export const manifest = {
   ],
 }
 
-export function activate(api: PluginAPIType) {
+export function apply(_ctx: unknown, api: WorldPluginApi) {
   api.registerEntityV2({
     type: 'notebook',
     label: '笔记',
@@ -43,3 +43,5 @@ export function activate(api: PluginAPIType) {
 
   api.registerView({ id: 'notebook', label: '笔记本', icon: 'notebook', component: NotebookView })
 }
+
+export default { manifest, apply }

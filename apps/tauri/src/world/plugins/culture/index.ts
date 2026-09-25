@@ -1,4 +1,4 @@
-import type { PluginAPIType } from '@worldsea/entity-core'
+import type { WorldPluginApi } from '../../api'
 import CultureView from './CultureView.vue'
 
 export const manifest = {
@@ -20,7 +20,7 @@ export const manifest = {
   ],
 }
 
-export function activate(api: PluginAPIType) {
+export function apply(_ctx: unknown, api: WorldPluginApi) {
   api.registerEntityV2({
     type: 'culture',
     label: '文化',
@@ -49,3 +49,5 @@ export function activate(api: PluginAPIType) {
     component: CultureView,
   })
 }
+
+export default { manifest, apply }

@@ -1,4 +1,4 @@
-import type { PluginAPIType } from '@worldsea/entity-core'
+import type { WorldPluginApi } from '../../api'
 import ConflictView from './ConflictView.vue'
 
 export const manifest = {
@@ -20,7 +20,7 @@ export const manifest = {
   ],
 }
 
-export function activate(api: PluginAPIType) {
+export function apply(_ctx: unknown, api: WorldPluginApi) {
   api.registerEntityV2({
     type: 'conflict',
     label: '冲突',
@@ -46,3 +46,5 @@ export function activate(api: PluginAPIType) {
 
   api.registerView({ id: 'conflicts', label: '冲突/战争', icon: 'combat', component: ConflictView })
 }
+
+export default { manifest, apply }

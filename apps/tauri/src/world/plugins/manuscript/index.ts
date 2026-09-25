@@ -1,4 +1,4 @@
-import type { PluginAPIType } from '@worldsea/entity-core'
+import type { WorldPluginApi } from '../../api'
 import ManuscriptView from './ManuscriptView.vue'
 
 export const manifest = {
@@ -20,7 +20,7 @@ export const manifest = {
   ],
 }
 
-export function activate(api: PluginAPIType) {
+export function apply(_ctx: unknown, api: WorldPluginApi) {
   // 书籍实体（2026-09-14）：正文写作的顶层容器——先建书、书内建章（properties.bookId 归属），
   // 点击书籍才进入章节编辑器。无 bookId 的旧章节归「未归书」虚拟组，零迁移。
   api.registerEntityV2({
@@ -57,3 +57,5 @@ export function activate(api: PluginAPIType) {
 
   api.registerView({ id: 'manuscript', label: '正文写作', icon: 'manuscript', component: ManuscriptView })
 }
+
+export default { manifest, apply }

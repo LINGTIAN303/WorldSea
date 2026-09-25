@@ -6,13 +6,11 @@
 import { defineComponent, h, markRaw, reactive } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 
-import { registerPluginCleanup, registerViewFor, unregisterViewFor } from '../../registry'
 import { worldTreeState, worldTreeContext } from '../../tree'
 import type { WorldPlugin } from '../../manifest'
 import { SPIKE_PANEL_MANIFEST } from './manifest'
 
 const VIEW_ID = 'ws-world-tree-panel'
-const PLUGIN_ID = SPIKE_PANEL_MANIFEST.id
 
 /** 视图级响应式状态（首版读全局对象 = 快照渲染，故自持 reactive）。 */
 const live = reactive({
@@ -45,17 +43,14 @@ const PanelView = defineComponent({
 
 const plugin: WorldPlugin = {
   manifest: SPIKE_PANEL_MANIFEST,
-  apply(ctx) {
+  apply(ctx, api) {
     // 依赖注入：服务由本树在装载前 provide（世界语义的自有服务）
     const info = ctx.get('world.info', false) as { name?: string } | null
-    registerViewFor(PLUGIN_ID, {
+    api.registerView({
       id: VIEW_ID,
       label: 'Cordis Spike',
       icon: 'bulb',
       component: markRaw(PanelView),
-    })
-    registerPluginCleanup(PLUGIN_ID, () => {
-      unregisterViewFor(PLUGIN_ID, VIEW_ID)
     })
     void invoke<string>('cmd_theme_get')
       .then(value => {
@@ -64,7 +59,7 @@ const plugin: WorldPlugin = {
       .catch((error: unknown) => {
         live.error = String(error)
       })
-    console.log(`[world-tree] 插件已装载：${PLUGIN_ID}（info=${info?.name ?? '-'}）`)
+    console.log(`[world-tree] 插件已装载：${SPIKE_PANEL_MANIFEST.id}（info=${info?.name ?? '-'}）`)
   },
 }
 

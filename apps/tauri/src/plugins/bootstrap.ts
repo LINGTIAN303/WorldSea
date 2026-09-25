@@ -5,14 +5,10 @@ import { usePluginStore } from '@worldsea/entity-core'
 import { registerWorldviewSprout } from '@agent/index'
 import { useUIStore } from '../stores/uiStore'
 
-/** 已迁移芽（第一批：characters/regions/concepts/items；第二批：timeline/organizations/culture/conflict/inspiration/apparel/outline/manuscript/drawing/notebook；第三批：WASM 布局类 12 个） */
+/** 仍在旧装载器上的官方芽（C2 Stage①：timeline/organizations/culture/conflict/inspiration/apparel/outline/manuscript/drawing/notebook 已迁入第二棵树；mindmap 于 C 批迁入） */
 const MIGRATED_SPROUT_IDS = new Set([
   // 第一批
   'official.characters', 'official.regions', 'official.concepts', 'official.items',
-  // 第二批（轻芽）
-  'official.timeline', 'official.organizations', 'official.culture', 'official.conflict',
-  'official.inspiration', 'official.apparel', 'official.outline', 'official.manuscript',
-  'official.drawing', 'official.notebook',
   // 第三批（WASM 布局类；mindmap 已于 C 批迁入第二棵树 = ws.mindmap）
   'official.graph', 'official.species', 'official.languages',
   'official.plants', 'official.magic', 'official.weapons', 'official.combat_stats',
@@ -26,16 +22,6 @@ const sproutLoaders: Record<string, () => Promise<any>> = {
   'official.regions': () => import('../sprouts/official/regions/index'),
   'official.concepts': () => import('../sprouts/official/concepts/index'),
   'official.items': () => import('../sprouts/official/items/index'),
-  'official.timeline': () => import('../sprouts/official/timeline/index'),
-  'official.organizations': () => import('../sprouts/official/organizations/index'),
-  'official.culture': () => import('../sprouts/official/culture/index'),
-  'official.conflict': () => import('../sprouts/official/conflict/index'),
-  'official.inspiration': () => import('../sprouts/official/inspiration/index'),
-  'official.apparel': () => import('../sprouts/official/apparel/index'),
-  'official.outline': () => import('../sprouts/official/outline/index'),
-  'official.manuscript': () => import('../sprouts/official/manuscript/index'),
-  'official.drawing': () => import('../sprouts/official/drawing/index'),
-  'official.notebook': () => import('../sprouts/official/notebook/index'),
   'official.graph': () => import('../sprouts/official/graph/index'),
   'official.species': () => import('../sprouts/official/species/index'),
   'official.languages': () => import('../sprouts/official/languages/index'),

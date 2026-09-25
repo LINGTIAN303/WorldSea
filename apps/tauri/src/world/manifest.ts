@@ -20,10 +20,13 @@ export interface WorldPluginManifest {
   defaultEnabled?: boolean
 }
 
-/** 一个树插件：清单 + 装载函数（`ctx` 是 cordis 上下文）。 */
+/** 一个树插件：清单 + 装载函数（`ctx` 是 cordis 上下文，`api` 是**作用域化插件 API**）。 */
 export interface WorldPlugin {
   manifest: WorldPluginManifest
-  apply(ctx: import('@deepseek-ai/cordis').CordisContext, config?: Record<string, unknown>): void
+  apply(
+    ctx: import('@deepseek-ai/cordis').CordisContext,
+    api: import('./api').WorldPluginApi,
+  ): void
 }
 
 export type ManifestCheck = { ok: true; manifest: WorldPluginManifest } | { ok: false; reason: string }

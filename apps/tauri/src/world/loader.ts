@@ -11,8 +11,15 @@ import { validateManifest, type WorldPlugin } from './manifest'
 export interface LoadReport {
   /** 通过校验并已交给树的插件 id（按装载顺序） */
   loaded: string[]
+  /** 校验通过但**被芽启停关掉**（不装载；C2 真启停口径） */
+  skipped: string[]
   /** 被拒条目（id 可能缺失 → 用文件路径） */
   rejected: Array<{ id: string; reason: string }>
+}
+
+export interface AssembleOptions {
+  /** 启停过滤（应用侧注入 `settingsStore.isActive`；缺省 = 全启用） */
+  isEnabled?: (id: string) => boolean
 }
 
 export interface AssembleResult {
@@ -21,16 +28,18 @@ export interface AssembleResult {
 }
 
 /**
- * 校验 + 预检 + 去重（**纯函数**，装载器的可测核心）。
+ * 校验 + 预检 + 去重 + 启停过滤（**纯函数**，装载器的可测核心）。
  * @param candidates 候选插件（装载器从 glob 结果摊平得到；`undefined` = 模块无 default 导出）
  * @param services 本树已声明的服务名（预检 `requires` 用）
+ * @param options.isEnabled 启停过滤：返回 false 的插件记进 `report.skipped`（**不算拒**）
  */
 export function assemblePlugins(
   candidates: Array<{ file: string; plugin?: unknown }>,
   services: string[],
+  options?: AssembleOptions,
 ): AssembleResult {
   const accepted: WorldPlugin[] = []
-  const report: LoadReport = { loaded: [], rejected: [] }
+  const report: LoadReport = { loaded: [], skipped: [], rejected: [] }
   const seen = new Set<string>()
 
   for (const candidate of candidates) {
@@ -60,6 +69,10 @@ export function assemblePlugins(
     }
     seen.add(check.manifest.id)
     accepted.push({ manifest: check.manifest, apply: plugin.apply as WorldPlugin['apply'] })
+    if (options?.isEnabled && !options.isEnabled(check.manifest.id)) {
+      report.skipped.push(check.manifest.id)
+      continue
+    }
     report.loaded.push(check.manifest.id)
   }
 
@@ -70,7 +83,10 @@ export function assemblePlugins(
 const pluginModules = import.meta.glob<{ default?: unknown }>('./plugins/*/index.ts')
 
 /** 装载全部树插件：拉取模块 → 校验 → 交付树（返回接受列表与报告）。 */
-export async function collectWorldPlugins(services: string[]): Promise<AssembleResult> {
+export async function collectWorldPlugins(
+  services: string[],
+  options?: AssembleOptions,
+): Promise<AssembleResult> {
   const files = Object.keys(pluginModules).sort()
   const candidates: Array<{ file: string; plugin?: unknown }> = []
   const rejected: LoadReport['rejected'] = []
@@ -85,6 +101,9 @@ export async function collectWorldPlugins(services: string[]): Promise<AssembleR
     }
   })
 
-  const assembled = assemblePlugins(candidates, services)
-  return { accepted: assembled.accepted, report: { loaded: assembled.report.loaded, rejected: [...rejected, ...assembled.report.rejected] } }
+  const assembled = assemblePlugins(candidates, services, options)
+  return {
+    accepted: assembled.accepted,
+    report: { ...assembled.report, rejected: [...rejected, ...assembled.report.rejected] },
+  }
 }

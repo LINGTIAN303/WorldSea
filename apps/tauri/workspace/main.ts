@@ -16,11 +16,11 @@
  */
 import '../src/main'
 import { installWorldCapabilities } from '../src/shell/capabilities'
-import { startWorldTree } from '../src/world'
+import { installWorldTree } from '../src/world'
 
 installWorldCapabilities()
 
-void startWorldTree().catch(error => console.error('[world-tree] 启动失败:', error))
+void installWorldTree().catch(error => console.error('[world-tree] 启动失败:', error))
 
 if (localStorage.getItem('ws:cordis-spike') === '1') {
   void import('../src/world/dev/probe')

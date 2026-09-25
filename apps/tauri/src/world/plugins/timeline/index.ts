@@ -1,4 +1,4 @@
-import type { PluginAPIType } from '@worldsea/entity-core'
+import type { WorldPluginApi } from '../../api'
 import TimelineView from './TimelineView.vue'
 
 export const manifest = {
@@ -21,7 +21,7 @@ export const manifest = {
   ],
 }
 
-export function activate(api: PluginAPIType) {
+export function apply(_ctx: unknown, api: WorldPluginApi) {
   api.registerEntityV2({
     type: 'event',
     label: '事件',
@@ -46,3 +46,5 @@ export function activate(api: PluginAPIType) {
 
   api.registerView({ id: 'timeline', label: '时间线', icon: 'timeline', component: TimelineView })
 }
+
+export default { manifest, apply }

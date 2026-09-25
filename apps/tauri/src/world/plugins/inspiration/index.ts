@@ -1,4 +1,4 @@
-import type { PluginAPIType } from '@worldsea/entity-core'
+import type { WorldPluginApi } from '../../api'
 import InspirationView from './InspirationView.vue'
 
 export const manifest = {
@@ -19,7 +19,7 @@ export const manifest = {
   ],
 }
 
-export function activate(api: PluginAPIType) {
+export function apply(_ctx: unknown, api: WorldPluginApi) {
   api.registerEntityV2({
     type: 'inspiration',
     label: '素材',
@@ -44,3 +44,5 @@ export function activate(api: PluginAPIType) {
     component: InspirationView,
   })
 }
+
+export default { manifest, apply }

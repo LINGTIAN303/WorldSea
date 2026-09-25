@@ -23,8 +23,8 @@
 import { useEntityStore, useRelationStore, useBidirectional, relationshipRegistry } from '@worldsea/entity-core'
 // 「节点 ↔ 芽实体」关联的唯一写入入口（关系表写入，幂等；2026-09-18 新增三条关系类型）
 import { linkOutlineEntity, resolveRefRelation, unlinkOutlineEntity } from '@/entity/outlineLinks'
-import { useCodeSandbox } from '@/sprouts/official/notebook/composables/useCodeSandbox'
-import { useOutlineTree } from '@/sprouts/official/outline/composables/useOutlineTree'
+import { useCodeSandbox } from '@/world/plugins/notebook/composables/useCodeSandbox'
+import { useOutlineTree } from '@/world/plugins/outline/composables/useOutlineTree'
 
 interface AgentEventDetail {
   pluginId: string

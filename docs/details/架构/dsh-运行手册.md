@@ -186,6 +186,15 @@ DSH_HOME="D:/WorldSea/.独立项/b0-home" node apps/cli/lib/bin.js web --no-open
 - **旧面**：`mindmap/agent-descriptor.ts`（旧内部注册表登记）已删；`agent-runtime` 的 13 条 `MINDMAP_ACTIONS`（DOM 事件）与 guide **未动**（旧 Agent 面冻结，属 D2）。
 - **真机口径**：主窗 `cmd_capability_invoke('world.mindmap.create', {name, markdown})` → `read` 回读大纲 → `list` 计数；拆树后 `cmd_capability_list` 里 `world.mindmap.*` 计数应回 0。
 
+**批量迁芽（C2，2026-09-25，详见 [C2 批计划](../../plans/2026-09-25-C2-批量迁芽批计划.md)）**：
+
+- **插件 API**（`world/api.ts`）：插件形态 `apply(ctx, api)`；`api` = `registerView` / `registerEntityV2` / `registerEntityType`（旧版自动归一 V2）/ `registerRelationV2` / `registerFacet` / `capabilities.register`。**生命周期口径**：视图与能力**随卸载自动反注册**；实体/关系类型**不注销**（沿用旧语义）。
+- **真启停**：启停来源 = 芽清单，判定口径 = `isViewVisible`（与侧栏可见性**同一函数**，清单外视为启用）。`world/index.ts` 的 `installWorldTree()` 起树 + `watch(sprouts)` → `setPluginEnabled(id, on)` 动态装/卸（卸 = 插件清理 → fiber dispose）。探针可直接 `__WS_WORLD_TREE__.enable/disable(id)`。
+- **装载过滤**：`assemblePlugins(candidates, services, { isEnabled })`——未启用记 `report.skipped`（**不算拒**），插件仍在 `accepted`（`availablePlugins()` 可取，供随时启停）。
+- **迁移三件套（脚本化，`.workbuddy/c2-stage1-migrate.mjs`）**：搬迁目录 → 入口三处改造（`PluginAPIType`→`WorldPluginApi`（`../../api`）· `activate(api)`→`apply(_ctx, api)` · 尾追 `export default { manifest, apply }`）→ 外部引用改径（`@/sprouts/official/〈芽〉/…` → `@/world/plugins/〈芽〉/…`；**跨芽相对引用**如 `graph → ../timeline/…` 也要改绝对别名）。清单两处减条（`bootstrap.ts`、`plugin-manifest.ts`），**芽清单行（`settingsStore.DEFAULT_SPROUTS`）保留**（启停 UI 来源）。
+- **注释陷阱（已两次踩到）**：注释里写 `sprouts/official/*/index.ts` 会因 `*/` **提前终结块注释** → 改用全角 `〈〉` 或换措辞。
+- **真机口径**：`__WS_WORLD_TREE__.plugins/skipped/rejected`；启停看 `plugins` 计数与侧栏标签同步；视图真源可经能力桥 `world.views.list` 核。
+
 **核查与清理**（改壳或复跑前）：
 - `taskkill //IM worldsea-tauri-app.exe //T //F` 清干净再起；被强杀的实例会留**孤儿 dsh host**（node 不在 Job Object 里），用 `tasklist | grep -i node` 复核。**本机 `wmic` 已失效（恒返回空）**——进程核查改用 `tasklist` / `powershell Get-CimInstance`。
 - 应用日志建议直写（`… > 日志 2>&1`）；本机 `tee` 有块缓冲，短窗口内读会拿到**过期内容**（曾据此误判「页面未加载」）。

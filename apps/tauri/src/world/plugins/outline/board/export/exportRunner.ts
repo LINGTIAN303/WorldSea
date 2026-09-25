@@ -49,8 +49,8 @@ export function safeFileName(name: string, fallback = '大纲'): string {
  */
 export async function htmlToDocxBlob(html: string, title: string): Promise<Blob> {
   const [{ htmlToBlocks }, { buildDocxBlob }, { useFontStore }] = await Promise.all([
-    import('@/sprouts/official/manuscript/composables/htmlToDocxBlocks'),
-    import('@/sprouts/official/manuscript/composables/blocksToDocx'),
+    import('@/world/plugins/manuscript/composables/htmlToDocxBlocks'),
+    import('@/world/plugins/manuscript/composables/blocksToDocx'),
     import('@/stores/fontStore'),
   ])
   const prefs = useFontStore().prefs

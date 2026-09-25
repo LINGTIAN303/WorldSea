@@ -1,4 +1,4 @@
-import type { PluginAPIType } from '@worldsea/entity-core'
+import type { WorldPluginApi } from '../../api'
 import ApparelView from './ApparelView.vue'
 
 export const manifest = {
@@ -25,6 +25,8 @@ export const manifest = {
  * 服饰是 Item + ApparelFacet 的组合。
  * 此芽仅保留视图，提供服饰专属的浏览/筛选界面。
  */
-export function activate(api: PluginAPIType) {
+export function apply(_ctx: unknown, api: WorldPluginApi) {
   api.registerView({ id: 'apparel', label: '服饰/装备', icon: 'apparel', component: ApparelView })
 }
+
+export default { manifest, apply }

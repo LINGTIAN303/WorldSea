@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { pluginAPI } from '@worldsea/entity-core'
 import { validateManifest } from '../manifest'
 import { runPluginCleanups } from '../registry'
+import { createPluginApi } from '../api'
 import mindmapPlugin from '../plugins/mindmap'
 import { WORLD_MINDMAP_CAPABILITIES } from '../plugins/mindmap/capabilities'
 
@@ -27,7 +28,7 @@ describe('mindmap 插件（ws.mindmap）', () => {
 
   it('apply 后视图入真源，pluginId 恒为 ws.mindmap（作用域原语）', () => {
     pluginAPI.setPluginId('official.characters') // 模拟全局值被官方芽污染
-    mindmapPlugin.apply({} as never)
+    mindmapPlugin.apply({} as never, createPluginApi('ws.mindmap'))
     const view = pluginAPI.getViews().find(v => v.id === 'mindmap')
     expect(view?.pluginId).toBe('ws.mindmap')
     expect(pluginAPI.getPluginId()).toBe('official.characters') // 调用后不污染全局
@@ -70,7 +71,7 @@ describe('mindmap 插件（ws.mindmap）', () => {
   })
 
   it('清理：拆树后视图自真源消失', () => {
-    mindmapPlugin.apply({} as never)
+    mindmapPlugin.apply({} as never, createPluginApi('ws.mindmap'))
     expect(pluginAPI.getViews().some(v => v.id === 'mindmap')).toBe(true)
 
     runPluginCleanups('ws.mindmap')

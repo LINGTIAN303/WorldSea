@@ -83,8 +83,29 @@ describe('真实清单（轻校验：不拉起重图）', () => {
   const indexFiles = Object.keys(import.meta.glob('./../plugins/*/index.ts')).sort()
 
   it('装载器能扫到树内每个插件的 index.ts（glob 键发现）', () => {
-    expect(indexFiles.some(file => file.includes('/mindmap/index.ts'))).toBe(true)
-    expect(indexFiles.some(file => file.includes('/spike-panel/index.ts'))).toBe(true)
+    const has = (id: string) => indexFiles.some(file => file.includes(`/${id}/index.ts`))
+    expect(has('mindmap')).toBe(true)
+    expect(has('spike-panel')).toBe(true)
+    // C2 Stage①：10 个轻芽已迁入
+    for (const id of ['timeline', 'organizations', 'culture', 'conflict', 'inspiration', 'apparel', 'outline', 'manuscript', 'drawing', 'notebook']) {
+      expect(has(id), `${id} 应在树内`).toBe(true)
+    }
+  })
+
+  it('启停过滤：isEnabled=false 的插件记进 skipped（**不算拒**），其余照装', () => {
+    const { accepted, report } = assemblePlugins(
+      [
+        { file: 'a.ts', plugin: plugin('official.alpha') },
+        { file: 'b.ts', plugin: plugin('official.beta') },
+      ],
+      services,
+      { isEnabled: id => id !== 'official.beta' },
+    )
+    expect(report.loaded).toEqual(['official.alpha'])
+    expect(report.skipped).toEqual(['official.beta'])
+    expect(report.rejected).toEqual([])
+    // 关掉的插件仍在 accepted 里（交付树，供真启停随时装载）
+    expect(accepted.map(p => p.manifest.id)).toEqual(['official.alpha', 'official.beta'])
   })
 
   it('真清单全部通过校验与依赖预检（含 C 批迁入的 ws.mindmap）', async () => {

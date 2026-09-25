@@ -1,4 +1,4 @@
-import type { PluginAPIType } from '@worldsea/entity-core'
+import type { WorldPluginApi } from '../../api'
 // 原 OutlineView（独立树视图）已于 2026-09-16 下线：其浏览形态由白板内的「树式」表现形式承载，
 // 层级重排由右栏树承载（负责人裁定：旧视图不删能力、改为成为白板里的一个容器内容）
 import BoardView from './board/BoardView.vue'
@@ -22,7 +22,7 @@ export const manifest = {
   ],
 }
 
-export function activate(api: PluginAPIType) {
+export function apply(_ctx: unknown, api: WorldPluginApi) {
   api.registerEntityV2({
     type: 'outline_node',
     label: '大纲节点',
@@ -97,3 +97,5 @@ export function activate(api: PluginAPIType) {
     component: BoardView,
   })
 }
+
+export default { manifest, apply }
