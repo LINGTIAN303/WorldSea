@@ -1,4 +1,4 @@
-import type { PluginAPIType } from '@worldsea/entity-core'
+import type { WorldPluginApi } from '../../api'
 import WeaponView from './WeaponView.vue'
 
 export const manifest = {
@@ -25,6 +25,8 @@ export const manifest = {
  * 武器是 Item + WeaponFacet 的组合。
  * 此芽仅保留视图，提供武器专属的浏览/筛选界面。
  */
-export function activate(api: PluginAPIType) {
+export function apply(_ctx: unknown, api: WorldPluginApi) {
   api.registerView({ id: 'weapons', label: '武器', icon: 'weapon', component: WeaponView })
 }
+
+export default { manifest, apply }

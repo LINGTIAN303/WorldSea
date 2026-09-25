@@ -1,4 +1,4 @@
-import type { PluginAPIType } from '@worldsea/entity-core'
+import type { WorldPluginApi } from '../../api'
 import LanguageView from './LanguageView.vue'
 
 export const manifest = {
@@ -20,7 +20,7 @@ export const manifest = {
   ],
 }
 
-export function activate(api: PluginAPIType) {
+export function apply(_ctx: unknown, api: WorldPluginApi) {
   api.registerEntityV2({
     type: 'language',
     label: '语言',
@@ -49,3 +49,5 @@ export function activate(api: PluginAPIType) {
 
   api.registerView({ id: 'languages', label: '语言/文字', icon: 'language', component: LanguageView })
 }
+
+export default { manifest, apply }

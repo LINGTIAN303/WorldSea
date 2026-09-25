@@ -6,7 +6,8 @@
  * 的 `default` 导出，本模块负责形状校验（非法即拒、留痕，不静默跳过）。
  */
 export interface WorldPluginManifest {
-  /** 插件 id：小写点分、≥2 段（与官方芽 `official.*`、能力 `world.*` 分域，树内用 `ws.*`） */
+  /** 插件 id：小写点分、≥2 段（与官方芽 `official.*`、能力 `world.*` 分域，树内新插件用 `ws.*`）。
+   *  段内允许 `-` 与 `_`（既有芽 id 有 `combat_stats` 这种下划线写法）。 */
   id: string
   /** 用户可见名（中性描述，不带引导词） */
   name: string
@@ -31,7 +32,7 @@ export interface WorldPlugin {
 
 export type ManifestCheck = { ok: true; manifest: WorldPluginManifest } | { ok: false; reason: string }
 
-const ID_RE = /^[a-z][a-z0-9-]*(\.[a-z0-9-]+)+$/
+const ID_RE = /^[a-z][a-z0-9_-]*(\.[a-z0-9_-]+)+$/
 const VERSION_RE = /^\d+\.\d+\.\d+/
 
 /** 校验插件清单（拒绝即给出可读原因；不做「容忍式」修补）。 */

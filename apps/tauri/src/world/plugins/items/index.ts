@@ -1,4 +1,4 @@
-import type { PluginAPIType } from '@worldsea/entity-core'
+import type { WorldPluginApi } from '../../api'
 import ItemView from './ItemView.vue'
 import { WeaponFacet, ApparelFacet } from '@worldsea/entity-core/facets'
 
@@ -21,7 +21,7 @@ export const manifest = {
   ],
 }
 
-export function activate(api: PluginAPIType) {
+export function apply(_ctx: unknown, api: WorldPluginApi) {
   // 注册 Facet
   api.registerFacet(WeaponFacet)
   api.registerFacet(ApparelFacet)
@@ -57,3 +57,5 @@ export function activate(api: PluginAPIType) {
 
   api.registerView({ id: 'items', label: '道具', icon: 'item', component: ItemView })
 }
+
+export default { manifest, apply }

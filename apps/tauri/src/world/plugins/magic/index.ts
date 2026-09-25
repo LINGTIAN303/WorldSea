@@ -1,4 +1,4 @@
-import type { PluginAPIType } from '@worldsea/entity-core'
+import type { WorldPluginApi } from '../../api'
 import MagicView from './MagicView.vue'
 
 export const manifest = {
@@ -20,7 +20,7 @@ export const manifest = {
   ],
 }
 
-export function activate(api: PluginAPIType) {
+export function apply(_ctx: unknown, api: WorldPluginApi) {
   api.registerEntityV2({
     type: 'magic',
     label: '技能',
@@ -46,3 +46,5 @@ export function activate(api: PluginAPIType) {
 
   api.registerView({ id: 'magic', label: '魔法/技能体系', icon: 'magic', component: MagicView })
 }
+
+export default { manifest, apply }

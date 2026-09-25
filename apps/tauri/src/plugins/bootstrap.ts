@@ -5,10 +5,8 @@ import { usePluginStore } from '@worldsea/entity-core'
 import { registerWorldviewSprout } from '@agent/index'
 import { useUIStore } from '../stores/uiStore'
 
-/** 仍在旧装载器上的官方芽（C2 Stage①：timeline/organizations/culture/conflict/inspiration/apparel/outline/manuscript/drawing/notebook 已迁入第二棵树；mindmap 于 C 批迁入） */
+/** 仍在旧装载器上的官方芽（C2：mindmap(C 批) + ①② 两区 21 芽已迁入第二棵树；仅剩 Stage③ 的 graph/tactical-board/workflow/custom） */
 const MIGRATED_SPROUT_IDS = new Set([
-  // 第一批
-  'official.characters', 'official.regions', 'official.concepts', 'official.items',
   // 第三批（WASM 布局类；mindmap 已于 C 批迁入第二棵树 = ws.mindmap）
   'official.graph', 'official.species', 'official.languages',
   'official.plants', 'official.magic', 'official.weapons', 'official.combat_stats',
@@ -18,18 +16,7 @@ const MIGRATED_SPROUT_IDS = new Set([
 
 /** 已迁移芽的静态 loader */
 const sproutLoaders: Record<string, () => Promise<any>> = {
-  'official.characters': () => import('../sprouts/official/characters/index'),
-  'official.regions': () => import('../sprouts/official/regions/index'),
-  'official.concepts': () => import('../sprouts/official/concepts/index'),
-  'official.items': () => import('../sprouts/official/items/index'),
   'official.graph': () => import('../sprouts/official/graph/index'),
-  'official.species': () => import('../sprouts/official/species/index'),
-  'official.languages': () => import('../sprouts/official/languages/index'),
-  'official.plants': () => import('../sprouts/official/plants/index'),
-  'official.magic': () => import('../sprouts/official/magic/index'),
-  'official.weapons': () => import('../sprouts/official/weapons/index'),
-  'official.combat_stats': () => import('../sprouts/official/combat_stats/index'),
-  'official.buildings': () => import('../sprouts/official/buildings/index'),
   'official.tactical-board': () => import('../sprouts/official/tactical-board/index'),
   'official.workflow': () => import('../sprouts/official/workflow/index'),
   'official.custom': () => import('../sprouts/official/custom/index'),

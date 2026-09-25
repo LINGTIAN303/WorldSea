@@ -1,4 +1,4 @@
-import type { PluginAPIType } from '@worldsea/entity-core'
+import type { WorldPluginApi } from '../../api'
 import RegionList from './RegionList.vue'
 
 export const manifest = {
@@ -21,7 +21,7 @@ export const manifest = {
   ],
 }
 
-export function activate(api: PluginAPIType) {
+export function apply(_ctx: unknown, api: WorldPluginApi) {
   api.registerEntityV2({
     type: 'region',
     label: '区域',
@@ -44,3 +44,5 @@ export function activate(api: PluginAPIType) {
 
   api.registerView({ id: 'regions', label: '区域图谱', icon: 'region', component: RegionList })
 }
+
+export default { manifest, apply }

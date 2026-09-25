@@ -1,4 +1,4 @@
-import type { PluginAPIType } from '@worldsea/entity-core'
+import type { WorldPluginApi } from '../../api'
 import CharacterList from './CharacterList.vue'
 
 export const manifest = {
@@ -22,7 +22,7 @@ export const manifest = {
   ],
 }
 
-export function activate(api: PluginAPIType) {
+export function apply(_ctx: unknown, api: WorldPluginApi) {
   api.registerEntityV2({
     type: 'character',
     label: '角色',
@@ -49,3 +49,5 @@ export function activate(api: PluginAPIType) {
 
   api.registerView({ id: 'characters', label: '角色', icon: 'character', component: CharacterList })
 }
+
+export default { manifest, apply }

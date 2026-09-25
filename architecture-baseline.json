@@ -136,7 +136,6 @@
     "apps/tauri/src/space/panels/RulesPanel.vue": 517,
     "apps/tauri/src/space/panels/SemanticSearchCard.vue": 469,
     "apps/tauri/src/space/panels/SpaceAgentSettingsPanel.vue": 499,
-    "apps/tauri/src/sprouts/official/characters/CharacterList.vue": 471,
     "apps/tauri/src/sprouts/official/custom/DashboardView.vue": 647,
     "apps/tauri/src/sprouts/official/graph/GlobalGraph.vue": 598,
     "apps/tauri/src/world/plugins/mindmap/MindmapView.vue": 1105,
@@ -219,7 +218,8 @@
     "apps/tauri/src/world/plugins/outline/board/composables/useBoardLayout.ts": 444,
     "apps/tauri/src/world/plugins/outline/board/layoutSchema.ts": 455,
     "apps/tauri/src/world/plugins/timeline/components/TimelineChart.vue": 433,
-    "apps/tauri/src/world/plugins/timeline/TimelineView.vue": 481
+    "apps/tauri/src/world/plugins/timeline/TimelineView.vue": 481,
+    "apps/tauri/src/world/plugins/characters/CharacterList.vue": 471
   },
   "other": [
     {

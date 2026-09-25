@@ -1,4 +1,4 @@
-import type { PluginAPIType } from '@worldsea/entity-core'
+import type { WorldPluginApi } from '../../api'
 import BuildingView from './BuildingView.vue'
 
 export const manifest = {
@@ -20,7 +20,7 @@ export const manifest = {
   ],
 }
 
-export function activate(api: PluginAPIType) {
+export function apply(_ctx: unknown, api: WorldPluginApi) {
   api.registerEntityV2({
     type: 'building',
     label: '建筑',
@@ -48,3 +48,5 @@ export function activate(api: PluginAPIType) {
 
   api.registerView({ id: 'buildings', label: '建筑/地点细节', icon: 'building', component: BuildingView })
 }
+
+export default { manifest, apply }

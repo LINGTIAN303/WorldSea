@@ -1,4 +1,4 @@
-import type { PluginAPIType } from '@worldsea/entity-core'
+import type { WorldPluginApi } from '../../api'
 import CombatStatView from './CombatStatView.vue'
 
 export const manifest = { id: 'official.combat_stats', name: '战力', version: '2.0.0', description: '管理角色战斗力数据', author: 'WorldSea',
@@ -15,7 +15,7 @@ export const manifest = { id: 'official.combat_stats', name: '战力', version: 
   ],
 }
 
-export function activate(api: PluginAPIType) {
+export function apply(_ctx: unknown, api: WorldPluginApi) {
   api.registerEntityV2({
     type: 'combat_stat',
     label: '战力',
@@ -38,3 +38,5 @@ export function activate(api: PluginAPIType) {
 
   api.registerView({ id: 'combat_stats', label: '战力', icon: 'target', component: CombatStatView })
 }
+
+export default { manifest, apply }
